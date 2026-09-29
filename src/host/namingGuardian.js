@@ -14,10 +14,7 @@ export function createNamingGuardian(deps) {
   }
   const NAMING_STATE_FILE = 'naming-guardian.json'   // 落盘 .dsh-mattskillsdeck-cache 目录下
   const NAMING_FALLBACK_MS = 10 * 60_000   // #709：唯一 10 分钟兜底间隔
-  let _namingState = null
-  let _namingStateDirty = false
-  let _namingPersistTimer = null
-  let _namingSweepBusy = false
+  let _namingState = null, _namingStateDirty = false, _namingPersistTimer = null, _namingSweepBusy = false
   let _namingSweepTimer = null; let sweepAnyChanged = false, sweepAssignedTotal = 0, sweepTrigger = 'event'; function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
   function namingDefaultState() { return { version: 1, sessions: {}, indexes: {} } }
   async function loadNamingState() {
@@ -32,8 +29,7 @@ export function createNamingGuardian(deps) {
           const txt = await fs.readText(t)
           if (txt) {
             const j = JSON.parse(txt)
-            // #266：盘上结构追加 indexes（各仓库上次 issue 索引快照，差值底座）；旧账（v1 无 indexes）友好归一，缺失字段按 null/false 容错。
-            if (j && j.version === 1 && j.sessions && typeof j.sessions === 'object') { _namingState = j; if (!_namingState.sessions) _namingState.sessions = {}; if (!_namingState.indexes || typeof _namingState.indexes !== 'object') _namingState.indexes = {} }
+                        if (j && j.version === 1 && j.sessions && typeof j.sessions === 'object') { _namingState = j; if (!_namingState.sessions) _namingState.sessions = {}; if (!_namingState.indexes || typeof _namingState.indexes !== 'object') _namingState.indexes = {} }
           }
         }
       }
@@ -56,8 +52,7 @@ export function createNamingGuardian(deps) {
     _namingPersistTimer = timer.timeout(function () { _namingPersistTimer = null; if (_namingStateDirty) persistNamingState() }, 1200); try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'timer.schedule', { name: 'naming-persist', intervalMs: 1200 }) } catch (eL) {}
   }
   // 事件驱动（#709：无自续定时器，每跳由事件带起，另加 10 分钟至多一次的单仓兜底）。
-  let _namingFallbackAt = 0
-  let _namingSweepCursor = 0
+  let _namingFallbackAt = 0, _namingSweepCursor = 0
   function namingGuardianEvent(reason, booting) {
     if (booting) { try { if (typeof globalThis !== 'undefined' && globalThis.__dswsNamingGuardianLoop) { clearTimeout(globalThis.__dswsNamingGuardianLoop); globalThis.__dswsNamingGuardianLoop = null } } catch (eG) {}; try { if (_namingStateDirty) persistNamingState() } catch (eInit) {} }
     namingSweepSoon(0, { trigger: String(reason || 'event') })
@@ -139,8 +134,7 @@ export function createNamingGuardian(deps) {
           if (prev) assigned = core.attributeNewNumbers({ prevIndex: prev, currIndex: r.index, sessions: grp.sessions })
           // prev 为空：首轮基线。基线同样必须入库（防下一轮把存量全量当新编号）
         } catch (eA) { assigned = [] }
-        // #315 追加修复：无关新号不硬配（已提纯为 keepRelatedAssigned，行为不变）。
-        try { assigned = keepRelatedAssigned(assigned, core, st.sessions) } catch (eFilter) {}
+            try { assigned = keepRelatedAssigned(assigned, core, st.sessions) } catch (eFilter) {}
         let changed = false
         for (let i = 0; i < assigned.length; i++) {
           const a = assigned[i]
@@ -176,18 +170,19 @@ export function createNamingGuardian(deps) {
     if (!core.isPlaceholderTitle(baseline) && !numbered) return { ok: false, error: { kind: 'parse', message: 'baselineTitle 非占位四式或编号档' } }
     // 编号档的编号必须能当真：零号/负数进不了值比对与合成，收了只会留下半登记态（占位档基线是 [#0] 名，改名时会把 [#0] 名冲掉）。
     if (numbered && !(isFinite(numbered.number) && numbered.number > 0)) return { ok: false, error: { kind: 'parse', message: '编号档编号非法' } }
+    const wroteOurs = !(args && args.wroteTitle === false)   // 客户端报告这次改名到底成功没有；缺省按成功（老调用方与旧账行为不变）
     const cwd = (args && args.cwd) || DEFAULT_CWD
     let repoKey = namingRepoKeyOf(args)
     if (!repoKey) repoKey = await namingResolveRepoKey(cwd)
     const st = await loadNamingState(), entry = st.sessions[sid]
     if (!entry) {
-      st.sessions[sid] = core.createTrackingState({ sessionId: sid, baselineTitle: baseline, repoKey: repoKey, cwd: cwd })
+      st.sessions[sid] = core.createTrackingState({ sessionId: sid, baselineTitle: baseline, repoKey: repoKey, cwd: cwd, baselineIsOurs: wroteOurs })
       // 编号档（「在新会话打开」那条路）：编号与标题当场已知，收进来守 [#n] 名不被底座首句名盖掉；刻意不写 lastMachineTitle（值比对锁以基线为准，锁执行点才认得出「首句派生可盖」）。
       if (numbered) st.sessions[sid] = core.reduceTrackingState(st.sessions[sid], { type: 'numbered', number: numbered.number, title: numbered.title })
     } else if (numbered && !entry.locked && (Number(entry.number) !== numbered.number || String(entry.baselineTitle) !== String(baseline))) {
       // 同一会话被再次拿去开票（复用门只挑空白会话，所以这是真会发生的路：换一张票、或同一张票的标题改过了）：台账必须跟着换成新的 [#n] 名，否则目标名还是旧名，执行点会把它判成手改并永久锁定。reducer 有防串名守卫（换号即拒），故直接改写。
       entry.stage = core.NAMING_STAGES.NUMBERED; entry.number = numbered.number; entry.numberTitle = numbered.title
-      entry.baselineTitle = baseline; entry.lastMachineTitle = null; entry.numberedDone = false; entry.hint = null; entry.lastDraftHint = null
+      entry.baselineTitle = baseline; entry.baselineIsOurs = wroteOurs; entry.lastMachineTitle = null; entry.numberedDone = false; entry.hint = null; entry.lastDraftHint = null
     } else if (entry.repoKey == null && repoKey) {
       entry.repoKey = repoKey
     }
@@ -210,7 +205,14 @@ export function createNamingGuardian(deps) {
     return { ok: true }
   }
 
+  // 在途守卫：这活会读会话日志取首句、还会真改名，生产日志里单次出现几十秒；正在跑就直接返回、不排队。
+  let _namingPlanBusy = false
   async function handleNamingPlan() {
+    if (_namingPlanBusy) return { ok: true, orders: [], tracked: [], failures: [] }
+    _namingPlanBusy = true
+    try { return await namingPlanOnce() } finally { _namingPlanBusy = false }
+  }
+  async function namingPlanOnce() {
     try { namingGuardianEvent('client-pull') } catch (eEv) {}
     const core = await getNamingCore()
     if (!core) return { ok: true, orders: [], tracked: [], failures: [] }
@@ -277,7 +279,8 @@ export function createNamingGuardian(deps) {
       return { ok: true }
     }
     if (outcome === 'locked') {
-      st.sessions[sid] = core.reduceTrackingState(entry, { type: 'locked' }); try { if (logCtx) logCtx.fire('info', 'naming.lock', { sidHash: hash8(sid), reason: 'user-modified' }) } catch (eL) {}
+      // 让位原因照执行点的归因码记（从前一律写「用户改的」，那是假话：目标陈旧、读不到首句、我们自己没写成都会被记成手改）。
+      st.sessions[sid] = core.reduceTrackingState(entry, { type: 'locked' }); try { if (logCtx) logCtx.fire('info', 'naming.lock', { sidHash: hash8(sid), reason: String((args && args.reason) || 'hand-edit').slice(0, 40) }) } catch (eL) {}
       await persistNamingState()
       return { ok: true }
     }
@@ -319,8 +322,7 @@ export function createNamingGuardian(deps) {
     try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'naming.sweep', { trigger: 'direct-created', count: 1 }) } catch (eL) {}
     return { ok: true, attributed: true }
   }
-  // #211 复原名三操作（#266 复原并入守护；守卫断言钉死存在）。
-  async function handleCancelNewSessionWatcher(args) {
+    async function handleCancelNewSessionWatcher(args) {
     const sid = args && args.sessionId
     if (!sid) return { ok: false, error: { kind: 'parse', message: '缺少 sessionId' } }
     const st = await loadNamingState()

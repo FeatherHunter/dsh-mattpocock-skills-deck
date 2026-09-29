@@ -192,9 +192,10 @@ export let pendingDraftTargetSid = null
       const lock = o.lock || {}
       const cur = namingCurrentTitleOf(sid)
       if (cur === null) { try { if (isEnabled('debug') && !_skipLogged[sid]) { _skipLogged[sid] = 1; log('debug', 'naming.guard.event', { reason: 'skip-cur-null-' + dswsLogHash(sid) }) } } catch (eDbg) {}; return }  // 当前标题不可读：本轮跳过，绝不盲写
-      const judge = evaluateRenameLock({ currentTitle: cur, lastMachineTitle: lock.lastMachineTitle, baselineTitle: lock.baselineTitle })
-      if ((judge === 'locked' && !exonerateNativeTitle(cur, lock) && !isNativeRestore({ currentTitle: cur, lastMachineTitle: lock.lastMachineTitle, firstUserText: lock.firstUserText })) || lock.locked) { try { log('info', 'naming.guard', { sidHash: dswsLogHash(sid), outcome: 'locked', hintHash: dswsLogHash(o.hint || '') }) } catch (eL) {}; reportNamingResult(sid, 'locked', { currentTitle: cur }); return }
-      if (judge === 'unknown') { try { if (isEnabled('debug') && !_skipLogged[sid]) { _skipLogged[sid] = 1; log('debug', 'naming.guard.event', { reason: 'skip-unknown-' + dswsLogHash(sid) }) } } catch (eDbg) {}; return }
+      // 分歧归因只问共享核心一处：让位就回报并把理由带走（宿主照原样记进 naming.lock）。
+      const code = classifyDivergence({ currentTitle: cur, lastMachineTitle: lock.lastMachineTitle, baselineIsOurs: lock.baselineIsOurs, firstUserText: lock.firstUserText })
+      if (lock.locked || code === DIVERGENCE.HAND_EDIT) { try { log('info', 'naming.guard', { sidHash: dswsLogHash(sid), outcome: 'locked', hintHash: dswsLogHash(o.hint || '') }) } catch (eL) {}; reportNamingResult(sid, 'locked', { currentTitle: cur, reason: code }); return }
+      if (code === DIVERGENCE.UNKNOWN_TITLE) { try { if (isEnabled('debug') && !_skipLogged[sid]) { _skipLogged[sid] = 1; log('debug', 'naming.guard.event', { reason: 'skip-unknown-' + dswsLogHash(sid) }) } } catch (eDbg) {}; return }
       let target = null
       if (o.kind === 'draft') {
         let langIsEn = false
@@ -242,14 +243,14 @@ export let pendingDraftTargetSid = null
     //   手改 → 值比对锁判 locked 回报（「手改永不被覆盖」闭环收尾，横幅随锁定终局消失）；
     //   值一致（上次实际改名已落定但回报丢失）→ 按目标名收敛记账 renamed。
     export function reconcileNamingFailure(f) {
-      if (!f || !f.sessionId || typeof evaluateRenameLock !== 'function') return false
+      if (!f || !f.sessionId || typeof classifyDivergence !== 'function') return false
       const sid = f.sessionId
       const cur = namingCurrentTitleOf(sid)
       if (!cur) return false
       const lock = f.lock || {}
-      const judge = evaluateRenameLock({ currentTitle: cur, lastMachineTitle: lock.lastMachineTitle, baselineTitle: lock.baselineTitle })
-      if (judge === 'unknown') return false
-      if ((judge === 'locked' && !exonerateNativeTitle(cur, lock)) || lock.locked) { reportNamingResult(sid, 'locked', { currentTitle: cur }); return true }
+      const code = classifyDivergence({ currentTitle: cur, lastMachineTitle: lock.lastMachineTitle, baselineIsOurs: lock.baselineIsOurs, firstUserText: lock.firstUserText })
+      if (code === DIVERGENCE.UNKNOWN_TITLE) return false
+      if (lock.locked || code === DIVERGENCE.HAND_EDIT) { reportNamingResult(sid, 'locked', { currentTitle: cur, reason: code }); return true }
       let target = null
       if (f.kind === 'numbered' || f.stage === NAMING_STAGES.NUMBERED) {
         const num = Number(f.number)

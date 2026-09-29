@@ -226,7 +226,7 @@
                   // 编号档同样收编（「在新会话打开」那条路）：不收的话底座首句名会把 [#n] 名盖掉且无人守。
                   if (!isPlaceholder && !(typeof parseNumberedTitle === 'function' && parseNumberedTitle(name0))) return
                   if (typeof host !== 'undefined' && typeof host.call === 'function') {
-                    host.call('wf.registerNewSessionWatcher', { sessionId: sid, baselineTitle: name0, cwd: cwd || '', hint: (ns ? namingHintOf(ns, name0) : null) }).then(function () { namingGuardianKick() }).catch(function (e) { try { log('warn', 'host.call.fail', { method: 'wf.registerNewSessionWatcher', kind: 'naming-register', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {} })
+                    host.call('wf.registerNewSessionWatcher', { sessionId: sid, baselineTitle: name0, cwd: cwd || '', wroteTitle: !!acceptedTitle, hint: (ns ? namingHintOf(ns, name0) : null) }).then(function () { namingGuardianKick() }).catch(function (e) { try { log('warn', 'host.call.fail', { method: 'wf.registerNewSessionWatcher', kind: 'naming-register', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {} })
                   }
                 } catch (eReg) {}
               }
@@ -316,7 +316,7 @@
                   // #266：注册走 #211 复原名「注册监视」（wf.registerNewSessionWatcher，host 侧为收编跟踪态 + 索引基线）；
                   // wf.namingRegister 为 #265 兼容别名，双名同本体，守卫钉死。
                   // #746：线索随占位标题同行（语义段由 namingHintOf 从 name0 取），占位不再裸奔。
-                  host.call('wf.registerNewSessionWatcher', { sessionId: sid, baselineTitle: name0, cwd: cwd || '', hint: (ns ? namingHintOf(ns, name0) : null) }).then(function () { namingGuardianKick() }).catch(function (e) { try { log('warn', 'host.call.fail', { method: 'wf.registerNewSessionWatcher', kind: 'naming-register', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {} })
+                  host.call('wf.registerNewSessionWatcher', { sessionId: sid, baselineTitle: name0, cwd: cwd || '', wroteTitle: !!acceptedTitle, hint: (ns ? namingHintOf(ns, name0) : null) }).then(function () { namingGuardianKick() }).catch(function (e) { try { log('warn', 'host.call.fail', { method: 'wf.registerNewSessionWatcher', kind: 'naming-register', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {} })
                 }
               } catch (eReg) {}
             }

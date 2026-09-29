@@ -3,25 +3,17 @@
 
 /**
  * src/shared/naming-tracking.js — 命名守护跟踪推进半（#264/#267 · 从 naming-guardian.js 拆出，S2 #452）。
- *
- * 契约（#264 规约 · 单缝原则）：本文件是跟踪推进的真源 —— 值比对锁判定、跟踪态结构、分档状态机、
- * 待办改名计划单产出与失败可见性有限重试（#267）。标题合成见 naming-titles.js，编号归属见 naming-attribution.js；
- * 三文件之间不互相引用（墙要求）。宿主半运行时引用本文件（与另两文件合并）；界面半由 scripts/build.mjs 以
- * SHARED_SPLICE 方式将三文件声明体拼回 src/client/index.js 闭包（一源两物，与 kernel/leaf 拼接同模式）。
- *
- * 生效日期：2026-08-28；效力规则：以 #264 规约 + #260 五决议 + ADR 20260827 为基线，未来定版以未来为准。
- * 本模块为纯函数：无输入输出，可被 Node 校验测试直接引用复跑（与另两文件合并）。
+ * 契约（#264 · 单缝原则）：本文件是跟踪推进的真源 —— 值比对锁、分歧归因、跟踪态与分档状态机、计划单、失败重试。
+ * 标题合成见 naming-titles.js，编号归属见 naming-attribution.js；三文件互不引用。宿主半运行时引用本文件；
+ * 界面半由 scripts/build.mjs 以 SHARED_SPLICE 拼回 src/client/index.js 闭包（一源两物）。纯函数，Node 可直跑。
+ * 生效 2026-08-28：以 #264 规约 + #260 五决议 + ADR 20260827 为基线，未来定版以未来为准。
  */
 
 // ============ 值比对锁（#260 决议 · 取代 userRenamed 死代码）============
 /**
- * 值比对真检测（#264 D3/F5）：机器每次成功改名都记录所写字符串（lastMachineTitle）；
- * 执行前发现当前标题与记录不符即判手改并永久锁定。
- *
- * @returns 'unlocked' | 'locked' | 'unknown'
- *  - lastMachineTitle 非空：当前标题 === 机器最后写入值 → unlocked，否则 locked；
- *  - 机器从未写过（last 为空）：与注册基准（占位）比对，相同 → unlocked，不同 → locked；
- *  - 当前标题不可读（null/空串）→ unknown（调用方跳过本轮，不盲写）。
+ * 值比对真检测（#264 D3/F5）：机器每次成功改名都记录所写字符串（lastMachineTitle）；执行前发现当前标题与
+ * 记录不符即判手改并永久锁定。@returns 'unlocked' | 'locked' | 'unknown' —— lastMachineTitle 非空：与它比；
+ * 机器从未写过：与注册基准比；当前标题不可读（null/空串）→ unknown（调用方跳过本轮，不盲写）。
  */
 export function evaluateRenameLock({ currentTitle, lastMachineTitle, baselineTitle }) {
   const cur = currentTitle == null ? null : String(currentTitle)
@@ -39,37 +31,49 @@ export function evaluateRenameLock({ currentTitle, lastMachineTitle, baselineTit
 // 把它当手改永久锁定，占位从此无人替换。免锁只认派生关系：当前标题是本会话首句原文
 // 或其截断（归一空白后相等，或首句以前缀覆盖标题）。真手改（与首句无关）仍判锁定。
 function normTitleLine(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').trim() }
+// 首句截断那条路的最小长度（见 isNativeAutoTitle 里的理由）。
+export const NATIVE_TITLE_MIN_CHARS = 20
 export function isNativeAutoTitle({ currentTitle, firstUserText }) {
   const cur = normTitleLine(currentTitle), first = normTitleLine(firstUserText)
   if (!cur || !first) return false
-  return cur === first || first.indexOf(cur) === 0
+  if (cur === first) return true
+  // 截断那一路要有下限：底座写的是首句的截断，长度跟首句同量级；不加下限的话「1」这种短串
+  // 也算首句派生，用户手改成一个短名就会被我们盖掉（对抗审查 B）。20 只是下限，可随真机观察再调。
+  if (cur.length < NATIVE_TITLE_MIN_CHARS) return false
+  return first.indexOf(cur) === 0
 }
-// 锁执行点的豁免组合（evaluateRenameLock 原判据不动；调用方判 locked 后追问一句）。
-// 豁免三条件缺一不可：未锁定、机器从未写过、标题确系首句派生；读不到首句即不免。
-export function exonerateNativeTitle(cur, lock) {
-  try {
-    const l = lock || {}
-    if (l.locked) return false
-    if (l.lastMachineTitle != null) return false
-    return isNativeAutoTitle({ currentTitle: cur, firstUserText: l.firstUserText })
-  } catch (e) { return false }
+
+// ============ 分歧归因（唯一判据 · #746 与后续对抗审查的合并）============
+// 执行点只问这一个函数「现在这个名字为什么不是我们要的那个」，答案五种各带去处：in-place 已在位不动；
+// never-wrote 我们自己那次改名没落地（名字仍归插件，直接写）；first-sentence 底座按首条消息写的首句名
+// （含截断，不是手改，盖回）；hand-edit 与首句无关的改动（永久让位，理由进日志）；unknown-title 读不到
+// （本轮不动，绝不盲写）。合成一处的理由：以前两条豁免各自判、各自漏，日志还一律写「用户改的」。
+export const DIVERGENCE = {
+  IN_PLACE: 'in-place',
+  NEVER_WROTE: 'never-wrote',
+  FIRST_SENTENCE: 'first-sentence',
+  HAND_EDIT: 'hand-edit',
+  UNKNOWN_TITLE: 'unknown-title',
 }
-// 机器写完之后又被底座首句名盖掉的那种（改名与首句名撞车、或复核那一轮才轮到）：判据同上，
-// 只是不再要求「机器从未写过」——只要当前标题确实是首句派生，就不是手改，机器可以盖回去。
-// 真手改（与首句无关）仍判锁定，与上一条同一个方向。
-export function isNativeRestore({ currentTitle, lastMachineTitle, firstUserText }) {
+
+export function classifyDivergence({ currentTitle, lastMachineTitle, baselineIsOurs, firstUserText }) {
   try {
-    const last = lastMachineTitle == null ? null : String(lastMachineTitle)
-    if (last === null) return false
-    if (normTitleLine(currentTitle) === normTitleLine(last)) return false
-    return isNativeAutoTitle({ currentTitle: currentTitle, firstUserText: firstUserText })
-  } catch (e) { return false }
+    const cur = normTitleLine(currentTitle)
+    if (!cur) return DIVERGENCE.UNKNOWN_TITLE
+    if (baselineIsOurs === false && lastMachineTitle == null) return DIVERGENCE.NEVER_WROTE
+    if (isNativeAutoTitle({ currentTitle: currentTitle, firstUserText: firstUserText })) return DIVERGENCE.FIRST_SENTENCE
+    return DIVERGENCE.HAND_EDIT
+  } catch (e) { return DIVERGENCE.UNKNOWN_TITLE }
+}
+
+/** 归因结果里哪些该动手写、哪些该让位（执行点照这一份分流，不许各写各的）。 */
+export function shouldWriteOnDivergence(code) {
+  return code === DIVERGENCE.NEVER_WROTE || code === DIVERGENCE.FIRST_SENTENCE
 }
 
 // ============ 跟踪态结构 + 分档状态机 ============
-// #264：结构 { sessionId, stage, lastMachineTitle, locked, repoKey, createdAt, updatedAt }
-// 本实现追加 baselineTitle（注册基准占位，值比对锁在「机器首次写入前」仍需基准）与 hint
-// （语义线索，取自面包屑节点标题；计划单只携带会话标识与目标语义段/编号信息）。
+// #264：结构 { sessionId, stage, lastMachineTitle, locked, repoKey, createdAt, updatedAt }；本实现追加
+// baselineTitle/baselineIsOurs（注册那一次写下的名、以及它是不是我们写的）、hint（语义线索）。
 export const NAMING_STAGES = {
   PLACEHOLDER: 'placeholder',
   DRAFT: 'draft',
@@ -78,21 +82,22 @@ export const NAMING_STAGES = {
 }
 
 // ---- P3 精修二期预留（接口注释级 · 一期收官清点 #267）----
-// 本期不含存量回填（#261 否决）也不含 LLM 精修；REFINED 目前零消费（reducer 静默忽略未识事件，
-// planOrderFor 对它恒不出单）。二期接缝：① reducer 增 'refined' 入账；② planOrderFor 为 REFINED
-// 出 kind:'refined' 单；③ 界面半 executeNamingOrder 按 kind 分派。三处都在本文件签名内扩展。
+// 本期不含存量回填（#261 否决）也不含 LLM 精修；REFINED 目前零消费，planOrderFor 对它恒不出单。
+// 二期接缝：① reducer 增 'refined' 入账；② planOrderFor 出 kind:'refined' 单；③ 界面半按 kind 分派。
 
-// 线索宽限：用户定稿先裸档后升级语义，注册后即出裸档单，不等线索；
-// 后到线索可再升级一次（每条线索至多升级一次，用完即记 lastDraftHint，见 planOrderFor 草稿档分支）
+// 线索宽限：用户定稿先裸档后升级语义，注册后即出裸档单，不等线索；后到线索可再升级一次
+// （每条线索至多升级一次，用完即记 lastDraftHint，见 planOrderFor 草稿档分支）
 export const NAMING_HINT_GRACE_MS = 0
 
-export function createTrackingState({ sessionId, baselineTitle, repoKey, cwd }) {
+export function createTrackingState({ sessionId, baselineTitle, repoKey, cwd, baselineIsOurs }) {
   const now = Date.now()
   return {
     sessionId: String(sessionId || ''),
     stage: NAMING_STAGES.PLACEHOLDER,
     lastMachineTitle: null,
     baselineTitle: String(baselineTitle || ''),
+    // 基线这条名是不是我们自己写的（注册那次改名成功即 true）。旧账没这个字段按 true 容错，行为与加它之前一致。
+    baselineIsOurs: baselineIsOurs === false ? false : true,
     locked: false,
     hint: null,
     repoKey: repoKey || null,
@@ -189,17 +194,11 @@ export function reduceTrackingState(state, event) {
 
 // ============ 失败可见性与有限重试（#267 · F4）============
 /**
- * 界面半执行改名的失败收敛由本模块统一裁定（#264 F4：「界面执行失败回报后进入有限
- * 重试」+「放弃/失败升级为面板级可见提醒，不再只在目标会话内闪现」）。
- *
- * 语义（reducer 入账事件 'renameFailed' + 下列纯函数）：
- * - 连败计数与末次失败时刻入跟踪态；冷却窗 NAMING_RETRY_COOLDOWN_MS 内不重复出单，
- *   给瞬时故障自愈窗口（DSH 会话列表快照迟到、会话门面短暂拒绝等）；
- * - 同一目标连败达 NAMING_RETRY_MAX 次 → 定败：planOrderFor 永不再为此目标出单，
- *   namingFailureInfo 携失败画像供 host 注入 wf.namingPlan 回包 failures 清单，
- *   由界面半落共享 store 渲染面板级常驻提醒；化解途径 = 值比对锁（手改 → locked，
- *   「手改永不被覆盖」闭环收尾）或值一致收敛（上次实际改名已落定但回报丢失 → renamed
- *   记账），二者皆自动撤下横幅。P3 精修二期预留见 NAMING_STAGES.REFINED 注释。
+ * 执行失败由本模块统一裁定（#264 F4：失败进入有限重试，放弃则升级为面板级可见提醒）。
+ * reducer 入账 'renameFailed' + 下列纯函数：连败计数与末次失败时刻入态；冷却窗内不重复出单
+ * （给瞬时故障自愈窗口）；同一目标连败达 NAMING_RETRY_MAX → 定败，planOrderFor 不再出单，
+ * namingFailureInfo 出画像供宿主塞进 wf.namingPlan 的 failures，界面落 store 画常驻横幅；
+ * 化解两条（手改 → locked；值一致收敛 → renamed）都会自动撤下横幅。
  */
 export const NAMING_RETRY_MAX = 3
 
@@ -224,6 +223,16 @@ export function namingFailureInfo(state) {
       baselineTitle: state.baselineTitle,
       locked: state.locked,
     },
+  }
+}
+
+// 订单里那份锁信息（值比对锁 + 归因要用的基准事实）。三处出单共用一份，免得各写各的漏字段。
+function orderLockOf(state) {
+  return {
+    lastMachineTitle: state.lastMachineTitle,
+    baselineTitle: state.baselineTitle,
+    baselineIsOurs: state.baselineIsOurs !== false,
+    locked: state.locked,
   }
 }
 
@@ -260,31 +269,22 @@ export function planOrderFor(state, now, hintGraceMs, currentTitle) {
       kind: 'numbered',
       number: state.number,
       title: title,
-      lock: {
-        lastMachineTitle: state.lastMachineTitle,
-        baselineTitle: state.baselineTitle,
-        locked: state.locked,
-      },
+      lock: orderLockOf(state),
     }
   }
   if (state.stage !== NAMING_STAGES.PLACEHOLDER) {
     // #746：草稿档落定后，后到不同线索可再升级一次（无线索或与上次已用一致 → 不出单，防循环）
     if (state.stage !== NAMING_STAGES.DRAFT) return null
     // 实际标题已不是机器最后写下的那个（多半是底座首句名又盖了一次）→ 补一单盖回去；
-    // 真手改由执行点的锁判据拦下并记账锁定，不会反复改名。
+    // 真手改由执行点的归因函数拦下并记账锁定，不会反复改名。
     const curDraft = (typeof currentTitle === 'string') ? currentTitle : null
     const clobbered = !!(curDraft && state.lastMachineTitle != null && curDraft !== state.lastMachineTitle)
     if (!clobbered && (!state.hint || state.hint === (state.lastDraftHint || null))) return null
-    if (clobbered && !state.hint) return null
     return {
       sessionId: state.sessionId,
       kind: 'draft',
       hint: state.hint,
-      lock: {
-        lastMachineTitle: state.lastMachineTitle,
-        baselineTitle: state.baselineTitle,
-        locked: state.locked,
-      },
+      lock: orderLockOf(state),
     }
   }
   const ts = typeof now === 'number' ? now : Date.now()

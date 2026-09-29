@@ -118,15 +118,22 @@ eq(m.evaluateRenameLock({ currentTitle: null, lastMachineTitle: null, baselineTi
 eq(m.evaluateRenameLock({ currentTitle: '', lastMachineTitle: '', baselineTitle: '' }), 'unknown', '空串标题 → unknown')
 eq(m.evaluateRenameLock({ currentTitle: 'x', lastMachineTitle: null, baselineTitle: null }), 'unlocked', '无基准防御态 → unlocked')
 // #746 原生首句标题免锁（0.1.7 底座先写首句裁剪；误判手改即永久锁死，故加豁免）
-eq(m.isNativeAutoTitle({ currentTitle: '/wayfinder 请帮我新增一个 BUG 单', firstUserText: '/wayfinder 请帮我新增一个 BUG 单' }), true, '原生标题与首句一致 → 免锁')
-eq(m.isNativeAutoTitle({ currentTitle: '/wayfinder 请帮我新增一个 BUG', firstUserText: '/wayfinder 请帮我新增一个 BUG 单，详情稍后补充' }), true, '原生标题是首句截断 → 免锁')
-eq(m.isNativeAutoTitle({ currentTitle: '我手改的标题', firstUserText: '/wayfinder 请帮我新增一个 BUG 单' }), false, '真手改（与首句无关）→ 不免')
-eq(m.isNativeAutoTitle({ currentTitle: '/wayfinder 请帮我新增一个 BUG 单', firstUserText: null }), false, '读不到首句 → 不免（降级走旧判据）')
-eq(m.isNativeAutoTitle({ currentTitle: '', firstUserText: 'x' }), false, '空标题 → 不免')
-eq(m.exonerateNativeTitle('/wayfinder 请帮我新增一个 BUG 单', { lastMachineTitle: null, locked: false, firstUserText: '/wayfinder 请帮我新增一个 BUG 单' }), true, '机器从未写过 + 原生标题 → 豁免成立')
-eq(m.exonerateNativeTitle('我手改的标题', { lastMachineTitle: null, locked: false, firstUserText: '/wayfinder 首句' }), false, '真手改 → 豁免不成立')
-eq(m.exonerateNativeTitle('/wayfinder 首句', { lastMachineTitle: '[草稿] x', locked: false, firstUserText: '/wayfinder 首句' }), false, '机器写过之后 → 豁免不适用（走旧判据）')
-eq(m.exonerateNativeTitle('/wayfinder 首句', { lastMachineTitle: null, locked: true, firstUserText: '/wayfinder 首句' }), false, '已锁 → 豁免不适用')
+eq(m.isNativeAutoTitle({ currentTitle: '/wayfinder 请帮我新增一个 BUG 单', firstUserText: '/wayfinder 请帮我新增一个 BUG 单' }), true, '原生标题与首句整段相等 → 是首句派生')
+eq(m.isNativeAutoTitle({ currentTitle: '/wayfinder 请帮我新增一个 BUG 单，详情稍后补充', firstUserText: '/wayfinder 请帮我新增一个 BUG 单，详情稍后补充更多' }), true, '原生标题是首句截断（长度够）→ 是首句派生')
+eq(m.isNativeAutoTitle({ currentTitle: '/wayfinder 请帮我新增一个 BUG', firstUserText: '/wayfinder 请帮我新增一个 BUG 单，详情稍后补充' }), true, '长度够的前缀算截断（底座截断长度与首句同量级）')
+eq(m.isNativeAutoTitle({ currentTitle: '1', firstUserText: '1 你先看看' }), false, '极短前缀不算（对抗审查 B）')
+eq(m.isNativeAutoTitle({ currentTitle: '我手改的标题', firstUserText: '/wayfinder 请帮我新增一个 BUG 单' }), false, '真手改（与首句无关）→ 不是首句派生')
+eq(m.isNativeAutoTitle({ currentTitle: '/wayfinder 请帮我新增一个 BUG 单', firstUserText: null }), false, '读不到首句 → 不是首句派生（降级走让位那条）')
+eq(m.isNativeAutoTitle({ currentTitle: '', firstUserText: 'x' }), false, '空标题 → 不是首句派生')
+// 分歧归因（唯一判据）：五类各归各位，执行点照码分流
+eq(m.classifyDivergence({ currentTitle: '新会话', lastMachineTitle: null, baselineIsOurs: false, firstUserText: null }), m.DIVERGENCE.NEVER_WROTE, '归因：我们自己没写成 → 仍可写')
+eq(m.classifyDivergence({ currentTitle: '/wayfinder 请帮我新增一个 BUG 单', lastMachineTitle: '[#7] x', baselineIsOurs: true, firstUserText: '/wayfinder 请帮我新增一个 BUG 单，详情稍后' }), m.DIVERGENCE.FIRST_SENTENCE, '归因：首句派生（机器写过也认）→ 盖回')
+eq(m.classifyDivergence({ currentTitle: '我手改的标题', lastMachineTitle: '[#7] x', baselineIsOurs: true, firstUserText: '/wayfinder 首句' }), m.DIVERGENCE.HAND_EDIT, '归因：与首句无关 → 让位')
+eq(m.classifyDivergence({ currentTitle: '', lastMachineTitle: null, baselineIsOurs: true, firstUserText: 'x' }), m.DIVERGENCE.UNKNOWN_TITLE, '归因：读不到标题 → 不动')
+eq(m.shouldWriteOnDivergence(m.DIVERGENCE.HAND_EDIT), false, '分流：让位那条不写')
+eq(m.shouldWriteOnDivergence(m.DIVERGENCE.UNKNOWN_TITLE), false, '分流：读不到那条不写')
+eq(m.shouldWriteOnDivergence(m.DIVERGENCE.NEVER_WROTE), true, '分流：没写成那条要写')
+eq(m.shouldWriteOnDivergence(m.DIVERGENCE.FIRST_SENTENCE), true, '分流：首句名那条要写')
 
 // ---------- 6) 跟踪态结构 + 分档状态机 + 计划单 ----------
 console.log('\n— 跟踪态 / 状态机 / 计划单 —')
@@ -201,10 +208,9 @@ console.log('\n— 编号档守名（编号档注册 + 首句名盖回）—')
   check(!!clobbered && clobbered.kind === 'numbered', '实际标题被底座首句名盖掉 → 出单盖回（编号档守名）')
 
   // 首句名盖回：机器写过之后的那种也认（否则会被判手改永久锁定）
-  check(m.isNativeRestore({ currentTitle: '/wayfinder https://github.com/x', lastMachineTitle: '[#779] 原样标题', firstUserText: '/wayfinder https://github.com/x\n\n执行这个 issue' }), '首句名盖回：机器写过之后仍认（同一派生关系）')
-  check(!m.isNativeRestore({ currentTitle: '我自己起的名字', lastMachineTitle: '[#779] 原样标题', firstUserText: '/wayfinder https://github.com/x' }), '首句名盖回：真手改不认（永不覆盖）')
-  check(!m.isNativeRestore({ currentTitle: '[#779] 原样标题', lastMachineTitle: '[#779] 原样标题', firstUserText: '/wayfinder x' }), '首句名盖回：标题没变不认（没有要盖的东西）')
-  check(!m.isNativeRestore({ currentTitle: '/wayfinder x', lastMachineTitle: null, firstUserText: '/wayfinder x' }), '首句名盖回：机器从未写过走老豁免（分工不重叠）')
+  check(m.classifyDivergence({ currentTitle: '/wayfinder https://github.com/x', lastMachineTitle: '[#779] 原样标题', baselineIsOurs: true, firstUserText: '/wayfinder https://github.com/x\n\n执行这个 issue' }) === m.DIVERGENCE.FIRST_SENTENCE, '首句名盖回：机器写过之后仍认（同一派生关系）')
+  check(m.classifyDivergence({ currentTitle: '我自己起的名字', lastMachineTitle: '[#779] 原样标题', baselineIsOurs: true, firstUserText: '/wayfinder https://github.com/x' }) === m.DIVERGENCE.HAND_EDIT, '首句名盖回：真手改让位（永不覆盖）')
+  check(m.classifyDivergence({ currentTitle: '/wayfinder x', lastMachineTitle: null, baselineIsOurs: false, firstUserText: '/wayfinder x' }) === m.DIVERGENCE.NEVER_WROTE, '首句名盖回：我们自己没写成走那条（分工不重叠）')
 }
 
 // ---------- 6.5) 摘要编排纯函数（#746：首轮两段提取与路由定位，底座改形即红）----------
@@ -293,7 +299,7 @@ console.log('\n— 单一真源守卫 —')
 
   const apiSrc = ['api-naming.js', 'api-new-session.js', 'api-io.js'].map((f) => readFileSync(join(ROOT, 'src/client/kernel', f), 'utf8')).join('\n') // #457 K4：api.js 已拆为三文件，此处读三文件拼起来的内容断言（naming 含命名守护全家与工厂，new-session 含 openTextInNewSession，io 含 openInNewSession/inject）
   // （namingSignal 的 client 发送点在 store.js recordIssuePath，下一节单独断言）
-  for (const needle of ["host.call('wf.namingPlan'", "host.call('wf.registerNewSessionWatcher'", "host.call('wf.cancelNewSessionWatcher'", "host.call('wf.namingResult'", 'executeNamingOrder(', 'evaluateRenameLock(', 'composeDraftTitle(', 'newSessionTitle(', "o.kind === 'numbered'"]) {
+  for (const needle of ["host.call('wf.namingPlan'", "host.call('wf.registerNewSessionWatcher'", "host.call('wf.cancelNewSessionWatcher'", "host.call('wf.namingResult'", 'executeNamingOrder(', 'classifyDivergence(', 'composeDraftTitle(', 'newSessionTitle(', "o.kind === 'numbered'"]) {
     check(apiSrc.includes(needle), '界面渲染钩子链存在：' + needle.replace(/^\s+/, ''))
   }
   const storeSrc0 = ['store-prefs.js', 'store-switch.js', 'store-snapshot.js', 'store-derived.js'].map((f) => readFileSync(join(ROOT, 'src/client/kernel', f), 'utf8')).join('\n') // #455 K2：store.js 已拆为四文件，此处读四文件拼起来的内容断言
@@ -311,7 +317,7 @@ console.log('\n— 单一真源守卫 —')
   check(hostClean, 'userRenamed 死代码全库清除（host 半）')
   const dupInClientKernel = (apiSrc.match(/function\s+(composeDraftTitle|evaluateRenameLock|isPlaceholderTitle)\s*\(/g) || []).length
   eq(dupInClientKernel, 0, 'client 内核无第二份核心实现（由共享核心 splice 注入）')
-  check(apiSrc.includes('exonerateNativeTitle('), '渲染钩子执行前追问原生标题豁免（#746：底座先写首句不得判手改）')
+  check(apiSrc.includes('classifyDivergence('), '渲染钩子执行前只问共享核心的归因函数（#746 + 对抗审查：底座先写首句不得判手改，让位要带理由码）')
 }
 
 // ---------- 8) 编号跃迁消费（P2 · #266）----------
@@ -458,7 +464,7 @@ console.log('\n— #267 守卫断言 —')
   check(apiG.includes('function reconcileNamingFailure'), '界面半协商化解函数存在（只读探测绝不盲写）')
   check(apiG.includes('function applyNamingFailurePanel'), '面板级同步函数存在（共享 store 落账）')
   check(apiG.includes('Array.isArray(res.failures)') && apiG.includes('reconcileNamingFailure(fails[i])') && apiG.includes('applyNamingFailurePanel(fails)'), '渲染钩子拉询链消费 failures 清单')
-  check(apiG.includes("evaluateRenameLock({ currentTitle: cur, lastMachineTitle: lock.lastMachineTitle, baselineTitle: lock.baselineTitle })"), '协商化解走同一值比对锁真源')
+  check(apiG.includes('classifyDivergence('), '协商化解走同一归因真源（对抗审查：判据只留一处）')
   check(!apiG.includes('NAMING_RETRY_MAX') && !apiG.includes('NAMING_RETRY_COOLDOWN_MS'), 'client 内核无私藏重试预算常量')
 
   const dockG = readFileSync(join(ROOT, 'src/client/panel/Dock.js'), 'utf8')

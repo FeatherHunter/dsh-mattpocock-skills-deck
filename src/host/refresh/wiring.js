@@ -1,11 +1,9 @@
 // src/host/refresh/wiring.js —— 刷新机制的宿主接线（#723 T19）
 //
-// 这个文件只做一件事：把刷新机制那几件已经落库的东西**在宿主里真的装起来**，并交回去。
-// 它自己不判断任何业务：闸与账本是 refresh/gate.js 与 ledger.js 的产物，写事件订阅是 refresh/writeEvents.js 的产物，
-// 会话↔票处理链是 refresh/sessionTickets.js 的产物，界面读数由 refresh/sessionChainReadout.js 拼 —— 这里只把它们之间的依赖接上。
-//
-// 为什么单开一个文件而不是写在 src/host/index.js 里：那个文件贴着 350 行上限（tests/verify-file-granularity.js
-// 的零增长基线），#723 起不许再往里加行。宿主入口只留一行加载这个模块（与既有 25 处同层先例同形）。
+// 这个文件只做一件事：把刷新机制那几件已经落库的东西**在宿主里真的装起来**，并交回去。它不判断任何业务：
+// 闸与账本是 gate.js 与 ledger.js 的产物，写事件订阅是 writeEvents.js 的产物，会话↔票处理链是 sessionTickets.js
+// 的产物，界面读数由 sessionChainReadout.js 拼 —— 这里只把它们之间的依赖接上。单开一个文件而不写进
+// src/host/index.js 的原因：那个文件贴着 350 行上限（verify-file-granularity 的零增长基线），#723 起不许再加行。
 //
 // 装起来的四件（票面 3a/3b/3c/3e）：
 //   a 闸与账本：createLedger + createGate，send 真的被调用（后面几件取数都经它）；
@@ -21,9 +19,8 @@ import { createWriteEvents } from './writeEvents.js'
 import { createSessionTickets } from './sessionTickets.js'
 import { buildSessionChainReadout, SESSION_CHAIN_FIELD } from './sessionChainReadout.js'
 import { createAttention, createFocusHandler } from './attention.js'
-// #723（T19c）第 D 件：七个 deck_* 工具。装配口在共享层（createDeckTools 只收参数、不 import 工具文件），
-// 七个工厂由 ../platform/deckToolsAssembly.js 一处读进来 —— 为什么收在那一层：宿主层里的文件之间不许
-// 互相引用（tests/verify-no-same-layer-import.js 把 src/host/ 整棵树算作宿主层），
+// #723（T19c）第 D 件：七个 deck_* 工具。装配口在共享层（createDeckTools 只收参数、不 import 工具文件），七个
+// 工厂由 ../platform/deckToolsAssembly.js 一处读进来 —— 收在那一层是因为宿主层文件之间不许互引（同层引用门禁），
 // 宿主层里再读一次那七个文件就要新增 7 条同层边，本票不许。见那个文件的文件头与交付报告第 6 节。
 import { createDeckToolsForHost, DECK_TOOL_FILES } from '../platform/deckToolsAssembly.js'
 import { createNamingSummary, readFirstUserText } from '../platform/namingSummary.js'   // #746：命名摘要编排（单例，见下）；#746 首句直读（随单下发供免锁比对）
@@ -34,9 +31,8 @@ import { createDeckQuotaSync } from '../platform/deckQuotaSync.js' // #758 剩�
 import { createPatchForHost } from '../platform/refreshAssembly.js'
 import * as budget from '../../shared/refresh/budget.js'
 import * as toolCost from '../../shared/refresh/tool-cost.js'
-// #724：闸那一侧的工作区钥匙（短散列）只有一份实现，住在共享层（理由见那个文件的文件头：
-// 宿主层的文件之间不许互相引用，而链求值那一侧也要用同一把钥匙）。本文件把它转出来，
-// 于是「活跃集合、写事件白名单、七个 deck_* 工具、行级增量、检查链记账」五处用的是同一个函数。
+// #724：闸那一侧的工作区钥匙（短散列）只有一份实现，住在共享层（宿主层文件之间不许互引，而链求值那侧也要用
+// 同一把钥匙）。本文件把它转出来，「活跃集合、写事件白名单、七个 deck_* 工具、行级增量、检查链记账」五处同源。
 import { hash8, workspaceKeyOf } from '../../shared/refresh-workspace-key.js'
 export { workspaceKeyOf } from '../../shared/refresh-workspace-key.js'
 
@@ -102,8 +98,7 @@ export function createRefreshWiring(deps) {
   const ledger = d.ledger || createLedger({ logCtx: logCtx })
   const gate = d.gate || createGate({ ledger: ledger, logCtx: logCtx })
 
-  // #758 剩余额度读数接线：七个工具动手前先保一次读数（差就免费读，不差不打）。
-  // 闸、账本、起 gh 三件都在本文件手里，包成一个函数递给工具依赖；失败只影响这一次调用，不抛。
+  // #758 剩余额度读数接线：动手前先保一次读数（差就免费读，不差不打）；闸、账本、起 gh 三件都在本文件手里，包成函数递给工具依赖，失败只影响这一次调用。
   let deckQuotaSync = null
   function quotaSyncOf() {
     if (!deckQuotaSync) {
@@ -127,8 +122,7 @@ export function createRefreshWiring(deps) {
     } catch (eE) { return Promise.resolve({ ok: false, reason: 'ensure-threw' }) }
   }
 
-  // 写事件触发的那一次取数（b）：闸放行之后真去做的那一步。这里现在只报「这一次真的跑到了」，
-  // 真去取行级增量（refresh/patch.js 的 run）那一条由 T18/patch 那一批接（见交付报告的「不确定」一节）。
+  // 写事件触发的那一次取数（b）：闸放行之后真去做的那一步；真取行级增量（refresh/patch.js 的 run）由 T18 那批接。
   async function fetchForWriteEvent(step, meta) {
     return { requests: 0, points: 0 }
   }
@@ -138,8 +132,7 @@ export function createRefreshWiring(deps) {
     getCacheDir: d.getCacheDir, logCtx: logCtx,
   })
 
-  // b：写事件订阅（门前是归我们的工作区根白名单，见 writeEvents.js 文件头）。
-  // #723：判定过的那一笔喂给处理链（note），否则界面恒显示空的。
+  // b：写事件订阅（门前是归我们的工作区根白名单，见 writeEvents.js 文件头）；判定过的那一笔喂给处理链（note），否则界面恒空。
   // #746：命名摘要编排单例（ctx 与 getNaming 由宿主入口经 deps 给；任一缺失则钩子静默降级）。
   let namingSummary = null
   function summaryOf() {
@@ -150,7 +143,20 @@ export function createRefreshWiring(deps) {
   }
   function onDeckWrite(info) { try { const s = summaryOf(); if (s) s.onDeckWrite(info) } catch (e) {} return { ok: true } }
   function onFirstAssistant(sid) { try { const s = summaryOf(); if (s) s.maybeSummarize(sid) } catch (e) {} }
-  function onFirstUser(sid) { try { if (sid && typeof d.getNaming === 'function') Promise.resolve(d.getNaming()).then(function (h) { if (h && typeof h.handleNamingPlan === 'function') return h.handleNamingPlan() }).catch(function () {}) } catch (e) {} }
+  // 首条用户消息那一下催一次改名（底座就是在这时候写首句名）：每个会话只催一次，且只认账上有号、还没锁的会话
+  // —— 账上没有就什么都不做，省掉一次会读会话日志的整轮计划单（每句都催的代价在生产日志里是几十秒级的）。
+  const firstUserNudged = new Set()
+  function onFirstUser(sid) {
+    try {
+      if (!sid || typeof d.getNaming !== 'function' || firstUserNudged.has(sid)) return
+      if (firstUserNudged.size > 500) firstUserNudged.clear()
+      firstUserNudged.add(sid)
+      Promise.resolve(d.getNaming()).then(function (h) {
+        if (!h || typeof h.getEntry !== 'function' || typeof h.handleNamingPlan !== 'function') return null
+        return Promise.resolve(h.getEntry(sid)).then(function (e) { return (e && !e.locked) ? h.handleNamingPlan() : null })
+      }).catch(function () {})
+    } catch (e) {}
+  }
   // #746：受踪判定（供写事件白名单之外的窄门：只认命名守护账上有号的会话，取数记账链不走这里）。
   function isNamingTracked(sid) {
     try {
@@ -269,9 +275,8 @@ export function createRefreshWiring(deps) {
   // handleFor（会话→注册表里绑过的真实句柄）、backendCtx（platform / fs / exec，exec 走 platformChannel
   // 的 detectionExec，也就是起进程那一层）、invalidate（写后作废那个工作区的快照缓存）、hourUsage（问账本）。
   // planStore 没有注入：批量建图的中间态因此退回进程内存，工具会在返回值里如实说 durable:false。
-  // 注意（2026-09-26）：loadDefineTool 固定给 null，走原生形状直接注册——照官方工具写法（dsh-tool-pwsh / dsh-calorie），
-  // 插件不 import 框架包，注册的是纯数据对象；之前这里动态 import 自带副本的 defineTool，
-  // 挂载后全部工具调用报 Cannot read properties of undefined (reading 'prepare')。
+  // 注意（2026-09-26）：loadDefineTool 固定给 null，走原生形状直接注册——照官方工具写法，插件不 import 框架包，
+  // 注册纯数据对象；从前这里动态 import 自带副本，挂载后全部工具调用报 prepare undefined。
   // 退路输出与参数形状见 shared/deck-tools/agent-register.js（deckAgentOutputSchemaRaw）。
   let deckToolsP = null; try { hookDeckAgentTools(d.ctx, deckToolsForHost, function () { return Promise.resolve(null) }, makeDeckRegisterReport(logCtx)) } catch (eH) {} // #741 注册那一步：表装好就向 agent 交七个工具，成败落既有日志（deckToolsForHost 声明提升，这里可直接用）
   async function deckToolsForHost() {
@@ -333,10 +338,9 @@ export function createRefreshWiring(deps) {
   }
 
   // ── E（#723 T19c）：行级增量真的能在宿主里跑起来 ────────────────────────────────────────────
-  // 以前探测到变化之后没人去跑 refresh/patch.js，客户端只能整池重建（那条窄路白写）。现在它在这里
-  // 装起来，由 wf.probe 那条路在「探测说变了」之后调用。依赖由宿主入口显式传入：readSnapshot /
-  // writeSnapshot 读写的就是宿主那份快照缓存与磁盘缓存（与客户端看到的列表是同一份），
-  // send / decide 是闸的两半，读路径的账与裁决一个字都另不算。
+  // 以前探测到变化之后没人去跑 refresh/patch.js，客户端只能整池重建；现在它在这里装起来，由 wf.probe 那条路在
+  //「探测说变了」之后调用。依赖由宿主入口显式传入：readSnapshot / writeSnapshot 读写的正是宿主那份快照缓存与
+  // 磁盘缓存（与客户端看到的列表同一份）；send / decide 是闸的两半，读路径的账与裁决一个字都另不算。
   let patchRunner = null
   function patchOf() {
     if (!patchRunner) {
@@ -352,8 +356,7 @@ export function createRefreshWiring(deps) {
         runGh: function (args2, cwd) { return (typeof d.runGh === 'function') ? d.runGh(args2, cwd) : Promise.resolve({ ok: false, error: 'no-runGh' }) },
         send: function (req, perform) { return gate.send(req, perform) },
         decide: function (req) { return gate.decideFor(req) },
-        // 与活跃集合、写事件白名单同一把短散列（见 syncAttention）：不一致的后果是探测这一条路
-        // 每一笔都被判「推迟」——门禁里的「真的放行过」那条断言会当场抓住。
+        // 与活跃集合、写事件白名单同一把短散列（见 syncAttention）：不一致就会让探测这条路每一笔都被判「推迟」。
         workspaceKeyOf: workspaceKeyOf,
         now: Date.now,
         logCtx: logCtx,
