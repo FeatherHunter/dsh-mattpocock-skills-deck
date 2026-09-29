@@ -137,10 +137,12 @@ eq(m.classifyDivergence({ currentTitle: '新会话', lastMachineTitle: null, bas
 eq(m.classifyDivergence({ currentTitle: '/wayfinder 请帮我新增一个 BUG 单', lastMachineTitle: '[#7] x', baselineIsOurs: true, firstUserText: '/wayfinder 请帮我新增一个 BUG 单，详情稍后' }), m.DIVERGENCE.FIRST_SENTENCE, '归因：首句派生（机器写过也认）→ 盖回')
 eq(m.classifyDivergence({ currentTitle: '我手改的标题', lastMachineTitle: '[#7] x', baselineIsOurs: true, firstUserText: '/wayfinder 首句' }), m.DIVERGENCE.HAND_EDIT, '归因：与首句无关 → 让位')
 eq(m.classifyDivergence({ currentTitle: '', lastMachineTitle: null, baselineIsOurs: true, firstUserText: 'x' }), m.DIVERGENCE.UNKNOWN_TITLE, '归因：读不到标题 → 不动')
-eq(m.shouldWriteOnDivergence(m.DIVERGENCE.HAND_EDIT), false, '分流：让位那条不写')
-eq(m.shouldWriteOnDivergence(m.DIVERGENCE.UNKNOWN_TITLE), false, '分流：读不到那条不写')
-eq(m.shouldWriteOnDivergence(m.DIVERGENCE.NEVER_WROTE), true, '分流：没写成那条要写')
-eq(m.shouldWriteOnDivergence(m.DIVERGENCE.FIRST_SENTENCE), true, '分流：首句名那条要写')
+eq(m.DIVERGENCE.IN_PLACE, 'in-place', '归因码 in-place 在册（执行点据它收敛，不下手也不让位）')
+eq(m.classifyDivergence({ currentTitle: '[草稿][诊断]', lastMachineTitle: null, baselineTitle: '[New] 诊断', baselineIsOurs: true, firstUserText: '/triage https://github.com/o/r/issues/12', targetTitle: '[草稿][诊断]' }), m.DIVERGENCE.IN_PLACE, '归因：现名就是目标名 → 在位（宿主刚改完、客户端再跑一遍时靠它收敛）')
+// 第一问必须是「这条名是不是我们自己写的」——少了它，宿主刚改完、客户端拿同一张单再跑一遍会把正确的名字判成手改（每成功一次锁死一次）
+eq(m.classifyDivergence({ currentTitle: '[#779] 原样标题', lastMachineTitle: null, baselineTitle: '[#779] 原样标题', baselineIsOurs: true, firstUserText: '/wayfinder 请帮我看看这张票的具体情况' }), m.DIVERGENCE.IN_PLACE, '归因：等于我们写下的基准名 → 在位（不是手改）')
+eq(m.classifyDivergence({ currentTitle: '[草稿][诊断] x', lastMachineTitle: '[草稿][诊断] x', baselineTitle: '[New] 诊断', baselineIsOurs: true, firstUserText: '/triage https://github.com/o/r/issues/1' }), m.DIVERGENCE.IN_PLACE, '归因：等于机器最后写下的名 → 在位')
+eq(m.classifyDivergence({ currentTitle: '新会话', lastMachineTitle: null, baselineTitle: '[#779] x', baselineIsOurs: false, firstUserText: null }), m.DIVERGENCE.NEVER_WROTE, '归因：基准不是我们写的且我们没写成 → 仍可写')
 
 // ---------- 6) 跟踪态结构 + 分档状态机 + 计划单 ----------
 console.log('\n— 跟踪态 / 状态机 / 计划单 —')

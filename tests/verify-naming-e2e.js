@@ -101,6 +101,34 @@ console.log('\n— 命名守护端到端缝（宿主直执行那一段）—')
   check(w.titles.s1 === '[草稿][新增需求]', '裸档被盖：照样盖回裸档名（守卫已删）', 'got ' + w.titles.s1)
 }
 
+// 3.5) 同一张单跑两遍（宿主直执行先跑，客户端随后拿同一张单再跑一遍）：第二遍必须收敛，不许把刚改好的名判成手改
+{
+  const w = makeWorld(CLOBBERED)
+  const order = {
+    sessionId: 's1', kind: 'numbered', number: 779, title: '原样标题',
+    lock: { lastMachineTitle: null, baselineTitle: '[#779] 原样标题', baselineIsOurs: true, locked: false, firstUserText: FIRST_TEXT },
+  }
+  await w.summary.executeOrdersHost([order])
+  await w.summary.executeOrdersHost([order])
+  check(w.titles.s1 === '[#779] 原样标题', '同一张单跑两遍：标题仍是目标名', 'got ' + w.titles.s1)
+  check(w.renamed.length === 1, '同一张单跑两遍：第二遍不再调改名（在位收敛）', JSON.stringify(w.renamed))
+  check(!w.reports.some(function (r) { return r.outcome === 'locked' }), '同一张单跑两遍：绝不误报锁定（这是「每成功一次就锁死一次」的那个坑）', JSON.stringify(w.reports))
+}
+
+// 3.6) 草稿档同样要经得起跑两遍（同一张单：宿主先跑、客户端后跑）
+{
+  const w = makeWorld(CLOBBERED)
+  const order = {
+    sessionId: 's1', kind: 'draft', hint: null,
+    lock: { lastMachineTitle: null, baselineTitle: '[New] 诊断', baselineIsOurs: true, locked: false, firstUserText: FIRST_TEXT },
+  }
+  await w.summary.executeOrdersHost([order])
+  await w.summary.executeOrdersHost([order])
+  check(w.titles.s1 === '[草稿][诊断]', '草稿档跑两遍：标题仍是草稿档名', 'got ' + w.titles.s1)
+  check(w.renamed.length === 1, '草稿档跑两遍：第二遍不再调改名', JSON.stringify(w.renamed))
+  check(!w.reports.some(function (r) { return r.outcome === 'locked' }), '草稿档跑两遍：绝不误报锁定', JSON.stringify(w.reports))
+}
+
 // 4.5) 本地 Markdown 后端的地图（编号 00）：目标名保持 [#00] 形状，不许被改写成 [0]
 {
   const w = makeWorld(CLOBBERED)

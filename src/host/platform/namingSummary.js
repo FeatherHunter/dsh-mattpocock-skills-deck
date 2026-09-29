@@ -17,7 +17,7 @@
 //   全文一律不记原文、不记标题、不记错误原文（#489 白名单口径）；直达归属沿用调试级
 //   naming.sweep（trigger direct-created），不新增事件。
 import { hash8 } from '../../shared/refresh-workspace-key.js'
-import { NAMING_STAGES, classifyDivergence, shouldWriteOnDivergence, DIVERGENCE } from '../../shared/naming-tracking.js'
+import { NAMING_STAGES, classifyDivergence, DIVERGENCE } from '../../shared/naming-tracking.js'
 import { newSessionTitle, composeDraftTitle } from '../../shared/naming-titles.js'
 
 // 溢出 guard：用户拍板传全文，两段自然有界；超过此字节才截助手侧尾部（用户侧意图优先保留）。
@@ -285,10 +285,7 @@ export function createNamingSummary(deps) {
           if (cur === null) continue
           let first = (typeof lock.firstUserText === 'string' && lock.firstUserText) ? lock.firstUserText : null
           if (!first) { try { first = await readFirstUserText(ctx, sid) } catch (eR) {} }
-          // 分歧归因只问共享核心一处：让位就记账并把理由带走（日志别再一律写「用户改的」）。
-          const code = classifyDivergence({ currentTitle: cur, lastMachineTitle: lock.lastMachineTitle, baselineIsOurs: lock.baselineIsOurs, firstUserText: first })
-          if (code === DIVERGENCE.UNKNOWN_TITLE) continue
-          if (!shouldWriteOnDivergence(code)) { if (code === DIVERGENCE.HAND_EDIT) { try { await h.handleNamingResult({ sessionId: sid, outcome: 'locked', reason: code }) } catch (eLk) {} } continue }
+          // 先合成目标名，再归因：这样「现名已经就是目标」也能被认出来（宿主刚改完、客户端拿同一张单再跑一遍是常事）。
           let target = null
           if (o.kind === 'numbered') {
             const num = Number(o.number)
@@ -300,6 +297,11 @@ export function createNamingSummary(deps) {
             try { target = composeDraftTitle({ hint: o.hint, lang: lang, baselineTitle: lock.baselineTitle || '' }) } catch (eD) { continue }
           } else continue
           if (!target) continue
+          // 分歧归因只问共享核心一处：在位就收敛回报，让位就记账并把理由带走（日志别再一律写「用户改的」）。
+          const code = classifyDivergence({ currentTitle: cur, lastMachineTitle: lock.lastMachineTitle, baselineTitle: lock.baselineTitle, baselineIsOurs: lock.baselineIsOurs, firstUserText: first, targetTitle: target })
+          if (code === DIVERGENCE.UNKNOWN_TITLE) continue
+          if (code === DIVERGENCE.HAND_EDIT) { try { await h.handleNamingResult({ sessionId: sid, outcome: 'locked', reason: code }) } catch (eLk) {}; continue }
+          if (code === DIVERGENCE.IN_PLACE || target === cur) { try { await h.handleNamingResult({ sessionId: sid, outcome: 'renamed', title: cur }) } catch (eIn) {}; continue }   // 已在位：收敛记账，不空改一次
           // 写前二次确认标题未变（title changed before rename 则跳过，TOCTOU 关口；与客户端同源判据）。
           let cur2 = null
           try { const s2 = sessions.get(sid); if (s2 && typeof s2.title === 'string' && s2.title) cur2 = s2.title } catch (eG2) {}

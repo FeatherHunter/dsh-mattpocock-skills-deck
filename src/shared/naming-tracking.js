@@ -9,11 +9,9 @@
  * 生效 2026-08-28：以 #264 规约 + #260 五决议 + ADR 20260827 为基线，未来定版以未来为准。
  */
 
-// ============ 值比对锁（#260 决议 · 取代 userRenamed 死代码）============
 /**
- * 值比对真检测（#264 D3/F5）：机器每次成功改名都记录所写字符串（lastMachineTitle）；执行前发现当前标题与
- * 记录不符即判手改并永久锁定。@returns 'unlocked' | 'locked' | 'unknown' —— lastMachineTitle 非空：与它比；
- * 机器从未写过：与注册基准比；当前标题不可读（null/空串）→ unknown（调用方跳过本轮，不盲写）。
+ * 值比对真检测（#264 D3/F5）：@returns 'unlocked' | 'locked' | 'unknown' —— 机器写过就与 lastMachineTitle 比，
+ * 没写过就与注册基准比，两条都不等即判手改；当前标题不可读（null/空串）→ unknown（调用方跳过本轮，不盲写）。
  */
 export function evaluateRenameLock({ currentTitle, lastMachineTitle, baselineTitle }) {
   const cur = currentTitle == null ? null : String(currentTitle)
@@ -56,19 +54,20 @@ export const DIVERGENCE = {
   UNKNOWN_TITLE: 'unknown-title',
 }
 
-export function classifyDivergence({ currentTitle, lastMachineTitle, baselineIsOurs, firstUserText }) {
+export function classifyDivergence({ currentTitle, lastMachineTitle, baselineTitle, baselineIsOurs, firstUserText, targetTitle }) {
   try {
     const cur = normTitleLine(currentTitle)
     if (!cur) return DIVERGENCE.UNKNOWN_TITLE
+    // 第一问必须是「这条名是不是我们自己写的」：我们写过的（目标名 / 机器最后写入值 / 基准名）就没有分歧。
+    // 少了这一问，宿主刚改完、客户端拿同一张单再跑一遍时会把正确的名字判成手改 —— 每成功一次就锁死一次。
+    const ours = (lastMachineTitle != null && cur === normTitleLine(lastMachineTitle)) ||
+      (baselineIsOurs !== false && baselineTitle != null && cur === normTitleLine(baselineTitle)) ||
+      (targetTitle != null && cur === normTitleLine(targetTitle))
+    if (ours) return DIVERGENCE.IN_PLACE
     if (baselineIsOurs === false && lastMachineTitle == null) return DIVERGENCE.NEVER_WROTE
     if (isNativeAutoTitle({ currentTitle: currentTitle, firstUserText: firstUserText })) return DIVERGENCE.FIRST_SENTENCE
     return DIVERGENCE.HAND_EDIT
   } catch (e) { return DIVERGENCE.UNKNOWN_TITLE }
-}
-
-/** 归因结果里哪些该动手写、哪些该让位（执行点照这一份分流，不许各写各的）。 */
-export function shouldWriteOnDivergence(code) {
-  return code === DIVERGENCE.NEVER_WROTE || code === DIVERGENCE.FIRST_SENTENCE
 }
 
 // ============ 跟踪态结构 + 分档状态机 ============
@@ -81,9 +80,9 @@ export const NAMING_STAGES = {
   REFINED: 'refined',   // P3 精修档：一期仅占位（#264 Out of Scope · #260 决议「实现分期」）
 }
 
-// ---- P3 精修二期预留（接口注释级 · 一期收官清点 #267）----
-// 本期不含存量回填（#261 否决）也不含 LLM 精修；REFINED 目前零消费，planOrderFor 对它恒不出单。
-// 二期接缝：① reducer 增 'refined' 入账；② planOrderFor 出 kind:'refined' 单；③ 界面半按 kind 分派。
+// ---- P3 精修二期预留（#267）----
+// 本期不含存量回填（#261 否决）也不含 LLM 精修；REFINED 零消费，planOrderFor 对它恒不出单。二期接缝：① reducer 增
+// 'refined' 入账；② planOrderFor 出 kind:'refined' 单；③ 界面半按 kind 分派。
 
 // 线索宽限：先裸档后升级语义，注册后即出裸档单；后到线索可再升级一次（用完即记 lastDraftHint）。
 export const NAMING_HINT_GRACE_MS = 0
@@ -252,10 +251,8 @@ export function planOrderFor(state, now, hintGraceMs, currentTitle) {
     const tsGate = typeof now === 'number' ? now : Date.now()
     if (state.lastFailAt != null && (tsGate - state.lastFailAt) < NAMING_RETRY_COOLDOWN_MS) return null
   }
-  // #266：编号档（P2）—— 获号会话产出 numbered 订单（携编号+issue 标题，语言无关，
-  // 合成经 newSessionTitle 在界面半执行，[#n] 前缀契约 #205 永不破坏）；
-  // currentTitle 给了就按实际标题判：实际标题与目标不符即出单（宿主首句名盖掉 [#n] 名的那种，
-  // 靠它盖回来）；没给（旧调用方）沿落定标记与机器最后写入值收敛，行为不变。
+  // #266：编号档订单（编号 + issue 标题，语言无关，[#n] 前缀由合成函数保证）；给了 currentTitle 就按实际标题判
+  // ——实际标题与目标不符即出单（宿主首句名盖掉 [#n] 名的那种靠它盖回）；没给则沿落定标记与机器最后写入值收敛。
   if (state.stage === NAMING_STAGES.NUMBERED) {
     if (state.number == null) return null
     const title = state.numberTitle || ''
@@ -274,7 +271,7 @@ export function planOrderFor(state, now, hintGraceMs, currentTitle) {
     }
   }
   if (state.stage !== NAMING_STAGES.PLACEHOLDER) {
-    // #746：草稿档落定后，后到不同线索可再升级一次（无线索或与上次已用一致 → 不出单，防循环）
+    // #746：草稿档落定后，后到不同线索可再升级一次（无线索或与上次已用一致 → 不出单，防循环）；被盖回那种也走这里
     if (state.stage !== NAMING_STAGES.DRAFT) return null
     // 实际标题已不是机器最后写下的那个（多半是底座首句名又盖了一次）→ 补一单盖回去；
     // 真手改由执行点的归因函数拦下并记账锁定，不会反复改名。

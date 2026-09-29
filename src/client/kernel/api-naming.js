@@ -192,10 +192,7 @@ export let pendingDraftTargetSid = null
       const lock = o.lock || {}
       const cur = namingCurrentTitleOf(sid)
       if (cur === null) { try { if (isEnabled('debug') && !_skipLogged[sid]) { _skipLogged[sid] = 1; log('debug', 'naming.guard.event', { reason: 'skip-cur-null-' + dswsLogHash(sid) }) } } catch (eDbg) {}; return }  // 当前标题不可读：本轮跳过，绝不盲写
-      // 分歧归因只问共享核心一处：让位就回报并把理由带走（宿主照原样记进 naming.lock）。
-      const code = classifyDivergence({ currentTitle: cur, lastMachineTitle: lock.lastMachineTitle, baselineIsOurs: lock.baselineIsOurs, firstUserText: lock.firstUserText })
-      if (lock.locked || code === DIVERGENCE.HAND_EDIT) { try { log('info', 'naming.guard', { sidHash: dswsLogHash(sid), outcome: 'locked', hintHash: dswsLogHash(o.hint || '') }) } catch (eL) {}; reportNamingResult(sid, 'locked', { currentTitle: cur, reason: code }); return }
-      if (code === DIVERGENCE.UNKNOWN_TITLE) { try { if (isEnabled('debug') && !_skipLogged[sid]) { _skipLogged[sid] = 1; log('debug', 'naming.guard.event', { reason: 'skip-unknown-' + dswsLogHash(sid) }) } } catch (eDbg) {}; return }
+      // 先合成目标名，再归因：这样「现名已经就是目标」也能被归因认出来（宿主刚改完、这里拿同一张单再跑一遍是常事）。
       let target = null
       if (o.kind === 'draft') {
         let langIsEn = false
@@ -208,7 +205,11 @@ export let pendingDraftTargetSid = null
       } else {
         return
       }
-      if (!target || target === cur) { try { log('info', 'naming.guard', { sidHash: dswsLogHash(sid), outcome: 'renamed', hintHash: dswsLogHash(o.hint || '') }) } catch (eL) {}; reportNamingResult(sid, 'renamed', { title: cur || target }); return }  // 已在位（如上次改名落定但回报失败）→ 收敛记账
+      // 分歧归因只问共享核心一处：在位就收敛回报，让位就回报并把理由带走（宿主照原样记进 naming.lock）。
+      const code = classifyDivergence({ currentTitle: cur, lastMachineTitle: lock.lastMachineTitle, baselineTitle: lock.baselineTitle, baselineIsOurs: lock.baselineIsOurs, firstUserText: lock.firstUserText, targetTitle: target })
+      if (lock.locked || code === DIVERGENCE.HAND_EDIT) { try { log('info', 'naming.guard', { sidHash: dswsLogHash(sid), outcome: 'locked', hintHash: dswsLogHash(o.hint || '') }) } catch (eL) {}; reportNamingResult(sid, 'locked', { currentTitle: cur, reason: code }); return }
+      if (code === DIVERGENCE.UNKNOWN_TITLE) { try { if (isEnabled('debug') && !_skipLogged[sid]) { _skipLogged[sid] = 1; log('debug', 'naming.guard.event', { reason: 'skip-unknown-' + dswsLogHash(sid) }) } } catch (eDbg) {}; return }
+      if (code === DIVERGENCE.IN_PLACE || !target || target === cur) { try { log('info', 'naming.guard', { sidHash: dswsLogHash(sid), outcome: 'renamed', hintHash: dswsLogHash(o.hint || '') }) } catch (eL) {}; reportNamingResult(sid, 'renamed', { title: cur || target }); return }  // 已在位（含上次改名刚落定）→ 收敛记账
       try {
         const sessions = ctx.get('sessions')
         if (!sessions || typeof sessions.scope !== 'function' || typeof sessions.sessionOf !== 'function') return
@@ -248,7 +249,7 @@ export let pendingDraftTargetSid = null
       const cur = namingCurrentTitleOf(sid)
       if (!cur) return false
       const lock = f.lock || {}
-      const code = classifyDivergence({ currentTitle: cur, lastMachineTitle: lock.lastMachineTitle, baselineIsOurs: lock.baselineIsOurs, firstUserText: lock.firstUserText })
+      const code = classifyDivergence({ currentTitle: cur, lastMachineTitle: lock.lastMachineTitle, baselineTitle: lock.baselineTitle, baselineIsOurs: lock.baselineIsOurs, firstUserText: lock.firstUserText })
       if (code === DIVERGENCE.UNKNOWN_TITLE) return false
       if (lock.locked || code === DIVERGENCE.HAND_EDIT) { reportNamingResult(sid, 'locked', { currentTitle: cur, reason: code }); return true }
       let target = null
