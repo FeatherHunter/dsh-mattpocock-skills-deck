@@ -69,6 +69,7 @@ export const StatusBar = (props) => {
       pendingDraft = null
       pendingDraftTargetSid = null
       props.inputActions.setDraft(text)
+      try { if (typeof ensureInjectFocusAtEnd === 'function') ensureInjectFocusAtEnd() } catch (eFocus) {}
     }
   }, [props.sessionId, props.inputActions])
   React.useEffect(function () {

@@ -34,11 +34,97 @@
     }
     // 彻底移除：extractIssueRefs 已移除（#345）
     export const inject = (st, text) => {
-      if (st.injector) { st.injector(text); flash(st, tr('toast.injected'), 'ok') }
+      if (st.injector) { st.injector(text); flash(st, tr('toast.injected'), 'ok'); try { if (typeof ensureInjectFocusAtEnd === 'function') ensureInjectFocusAtEnd() } catch (eFocus) {} }
       else copyText(st, text, tr('toast.copiedFallback'))
       // 彻底移除：issuePath 提及识别已移除（#345）
       // v1.5 T10 R9（Q4 拍板）：关键动作（完成/执行/交接/认领）后延迟探测，面板尽快反映变化
       scheduleActionProbe()
+    }
+    // #786 · 注入后光标落末尾的插件侧兜底（B 方案）：宿主 inputActions.setDraft 只收全文、没有光标参数，
+    //   本仓调用后下一帧把宿主输入框的光标置末、滚到底。找不到宿主输入框就安静跳过，绝不抛错；
+    //   插件自己的输入框（[data-dsws-host] 与 .dsws-modal 内）一律排除，不碰只读框的全选语义与弹窗首控件聚焦。
+    //   不新增日志事件：调用次数少但这是同文档内的聚焦收尾，既有注入提示与探测已有轨迹，不进常驻/按需名单。
+    export const ensureInjectFocusAtEnd = function () {
+      try {
+        if (typeof document === 'undefined' || !document || typeof document.querySelectorAll !== 'function') return
+        var attempts = 0
+        var run = function () {
+          attempts += 1
+          try {
+            var nodes = []
+            try { nodes = document.querySelectorAll('textarea, [contenteditable="true"], [role="textbox"]') } catch (eQ) { nodes = [] }
+            var list = []
+            try { list = Array.prototype.slice.call(nodes, 0) } catch (eS) { list = [] }
+            var isPluginNode = function (el) {
+              try { if (el && typeof el.closest === 'function' && el.closest('[data-dsws-host], .dsws-modal, [data-dsws-logmenu]')) return true } catch (eC) {}
+              return false
+            }
+            var isVisible = function (el) {
+              try {
+                if (!el) return false
+                if (el.disabled) return false
+                if (el.readOnly) return false
+                if (el.offsetParent !== null) return true
+                if (typeof el.getClientRects === 'function' && el.getClientRects().length) return true
+                return false
+              } catch (eV) { return false }
+            }
+            var hostFirst = []
+            var hostRest = []
+            list.forEach(function (el) {
+              if (!isVisible(el)) return
+              if (isPluginNode(el)) return
+              try {
+                if (el.closest && (el.closest('.p_FcLG_card') || el.closest('.p_FcLG_root') || el.closest('[data-dsh-composer]') || el.closest('[data-conversation-input]'))) hostFirst.push(el)
+                else hostRest.push(el)
+              } catch (eP) { hostRest.push(el) }
+            })
+            var el = null
+            try {
+              var ae = document.activeElement
+              if (ae && (ae.tagName === 'TEXTAREA' || ae.isContentEditable) && isVisible(ae) && !isPluginNode(ae)) el = ae
+            } catch (eA) {}
+            if (!el) el = hostFirst.length ? hostFirst[hostFirst.length - 1] : (hostRest.length ? hostRest[hostRest.length - 1] : null)
+            if (!el) return
+            try {
+              var tag = (el.tagName || '').toUpperCase()
+              if (tag === 'TEXTAREA' || tag === 'INPUT') {
+                var len = 0
+                try { len = String(el.value == null ? '' : el.value).length } catch (eL) { len = 0 }
+                try { el.focus({ preventScroll: true }) } catch (eF1) { try { el.focus() } catch (eF2) {} }
+                try { el.setSelectionRange(len, len) } catch (eS2) {}
+                try { el.scrollTop = el.scrollHeight } catch (eT) {}
+              } else if (el.isContentEditable) {
+                try { el.focus({ preventScroll: true }) } catch (eF3) { try { el.focus() } catch (eF4) {} }
+                try {
+                  var sel = null
+                  try { sel = (typeof window !== 'undefined' && window.getSelection) ? window.getSelection() : (typeof document.getSelection === 'function' ? document.getSelection() : null) } catch (eG) { sel = null }
+                  var range = null
+                  try { range = (typeof document.createRange === 'function') ? document.createRange() : null } catch (eC2) { range = null }
+                  if (sel && range) {
+                    range.selectNodeContents(el)
+                    range.collapse(false)
+                    sel.removeAllRanges()
+                    sel.addRange(range)
+                  }
+                } catch (eR) {}
+                try { el.scrollTop = el.scrollHeight } catch (eT2) {}
+              } else {
+                try { el.focus() } catch (eF5) {}
+              }
+            } catch (eApply) {}
+          } catch (eRun) {}
+          // 宿主用异步方式写草稿，第一帧可能还在旧值，最多补一次（120 毫秒），窗口很小，避免抢用户后续输入
+          if (attempts < 2) {
+            try { if (typeof setTimeout === 'function') setTimeout(run, 120) } catch (eT3) {}
+          }
+        }
+        try {
+          if (typeof requestAnimationFrame === 'function') requestAnimationFrame(function () { try { setTimeout(run, 0) } catch (e0) { try { run() } catch (e1) {} } })
+          else if (typeof setTimeout === 'function') setTimeout(run, 0)
+          else run()
+        } catch (eSch) { try { run() } catch (eR2) {} }
+      } catch (eTop) {}
     }
     // v1.6：技能安装引导已收编进 PROMPTS 注册表（installSkills 条目），见下方 promptText('installSkills') 引用
     // v1.5 引导链：打开外部 URL（gh 安装/登录文档）

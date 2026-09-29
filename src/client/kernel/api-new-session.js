@@ -263,6 +263,7 @@
                 try {
                   if (ns && typeof ns.injector === 'function') {
                     ns.injector(text)
+                    try { if (typeof ensureInjectFocusAtEnd === 'function') ensureInjectFocusAtEnd() } catch (eFocus) {}
                   } else if (typeof inject === 'function') {
                     inject(ns || st, text)
                   } else {
