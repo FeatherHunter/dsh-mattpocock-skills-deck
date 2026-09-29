@@ -8,6 +8,9 @@
  */
     // #361 原入口：行级「在新会话打开」保留（rowActionText 文本 + 票标题命名）
     // 2026-08-30 hardening: newSessionTitle throws on non-numeric number (prevent silent MapDetail new-session no-op), rowActionText falls back to #number when url missing
+    // #361 原入口：行级「在新会话打开」保留（rowActionText 文本 + 票标题命名）
+    // 2026-08-30 hardening: newSessionTitle throws on non-numeric number (prevent silent MapDetail new-session no-op), rowActionText falls back to #number when url missing
+    // #746 Knife1：下单时种类已知，显式随 opts 传给创建管线，不再靠文本前缀反推；未知种类传空，回退文本推断。
     export const openInNewSession = function (st, x) {
       let title = null
       try { title = newSessionTitle(x) } catch(e) {
@@ -25,7 +28,9 @@
           text = uu ? ('/wayfinder ' + uu) : '/wayfinder'
         }
       }
-      openTextInNewSession(st, text, title)
+      let kind = null
+      try { kind = (typeof rowActionKind === 'function' ? rowActionKind(x) : null) } catch (eK) {}
+      openTextInNewSession(st, text, title, kind ? { kind: kind } : null)
     }
     // 彻底移除：extractIssueRefs 已移除（#345）
     export const inject = (st, text) => {

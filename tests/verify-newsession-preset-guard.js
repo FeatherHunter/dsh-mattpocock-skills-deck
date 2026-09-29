@@ -22,7 +22,7 @@ const readTestSrc = (file) => file.indexOf('（拼合）') >= 0 ? API_SRC_FILES.
 const testExists = (file) => file.indexOf('（拼合）') >= 0 ? API_SRC_FILES.every((f) => fs.existsSync(f)) : fs.existsSync(file) // #457 K4：五文件全存在才算存在
 
 function extractOpenFn(src) {
-  const marker = 'const openTextInNewSession = function (st, text, title) {'
+  const marker = 'const openTextInNewSession = function (st, text, title'
   const src2 = src.indexOf(marker) >= 0 ? src : src.replace(/export const openTextInNewSession/, 'const openTextInNewSession')
   const i = src2.indexOf(marker)
   if (i < 0) throw new Error('起始锚点缺失: openTextInNewSession')
@@ -361,6 +361,36 @@ async function testFile(file) {
       const { rec } = await runWithScriptedCreate(snap, 'src-sess', cwdTarget, ['sid-bad1', 'sid-bad2'])
       check(rec.opened === null, file + ' 创建后验：双 code → 一个都不打开（#478）')
       check(rec.injected && rec.flashes.some(function (f) { return f.indexOf('PresetBlocked') >= 0 }), file + ' 创建后验：双 code → 大声失败并回填当前会话（#478）')
+    }
+    // 对抗 K1（#746）：改名面同步抛错 → 照样记账（注册电话仍发出，wrote=false），会话不丢出台账
+    {
+      const snap = {
+        'sid-healthy': { id:'sid-healthy', blank:true, cwd:'D:/my-app', projectionValues:{agentPreset:'ptc'}, updatedAt: 50 },
+      }
+      const rec = { opened: null, regCalls: [] }
+      const dbg = { pendingDraft: null, pendingDraftTargetSid: null }
+      const sessionsStub = {
+        create: async ()=>{ throw new Error('should-reuse-not-create') },
+        scope: (sid)=>({sessionId: sid}),
+        sessionOf: ()=>({ rename: (t)=>{ throw new Error('sync-rename-boom') } }),
+        open: (sid)=>{ rec.opened = sid },
+        list: { getSnapshot: ()=>({ byId: snap }) }
+      }
+      const workspacesStub = { list: { getSnapshot: ()=>({ items: [{ workspaceId: 'ws1', path: 'D:/my-app' }] }) }, create: async ()=>({workspaceId: 'ws1'}) }
+      const st = { sessionId: 'src-sess', cwd: 'D:/my-app', snapshot: null }
+      const fn = new Function('st','text','title','ctx','host','__dbg','inject','flash','tr','getCwdSync','keyOf','storeOf','hydrateFromCache','getCachedSnapshot','namingHintOf','isNewPlaceholderTitle','namingGuardianKick','parseNumberedTitle',
+        wsLib + ';\n' + helpersSrc + ';\n' + open + '; return openTextInNewSession'
+      )
+      const openFn = fn(st,'/wayfinder https://github.com/x/issues/1','[#1] test',
+        { get:(k)=> k==='sessions'?sessionsStub:k==='workspaces'?workspacesStub:null },
+        { call: async (m,a)=>{ rec.regCalls.push(m); return {ok:true} } }, dbg,
+        ()=>{}, ()=>{}, (k)=>k, ()=>null, keyOf, ()=>({cwd:'D:/my-app', snapshot:null}), ()=>false, ()=>null, ()=>null, (t)=>/^\[New\] /.test(String(t)), ()=>{},
+        (s)=>{ const m = /^\s*\[#(\d+)\](?:\s+([\s\S]*))?$/.exec(String(s == null ? '' : s)); return m ? { number: Number(m[1]), numberText: m[1], title: String(m[2] || '').trim() } : null }
+      )
+      openFn(st,'/wayfinder https://github.com/x/issues/1','[#1] test')
+      await new Promise(r=>setTimeout(r, 60))
+      check(rec.opened==='sid-healthy', file + ' 对抗 K1：复用分支照常打开（改名抛错不拦打开）')
+      check(rec.regCalls.indexOf('wf.registerNewSessionWatcher')>=0, file + ' 对抗 K1：改名同步抛错仍记账（注册电话发出）')
     }
   } catch(e) { check(false, file + ' 集成闸门沙箱 — ' + e.stack) }
 }

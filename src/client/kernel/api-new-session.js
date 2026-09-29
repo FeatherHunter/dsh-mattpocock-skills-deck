@@ -89,23 +89,39 @@
     // #361：在新会话中打开 —— 同 cwd + 自动命名 + 预填指令
     //   契约（dsh-client-runtime ISessions）：create({cwd}) → SessionId；scope(sid) → AgentContext；
     //   sessionOf(ctx) → SessionFace.rename(title)；open(sid) 切换。任一步失败降级为当前会话注入 + 提醒。
-    export const openTextInNewSession = function (st, text, title) {
+    export const openTextInNewSession = function (st, text, title, opts) {
       // 七动作分形：首条是动作模板时，起步占位跟动作走（如 /triage → [New] 诊断），
       // 编号会话（[#n] 开头）不动，只动通用占位，保证初步名字一眼可分。
+      // #746 Knife1：动作种类优先用调用方显式传的 opts.kind（行级入口下单时已知，不反推）；
+      // 文本前缀推断只留作未知调用方的回退（Tabs/状态栏等直接传具体占位，本来就不进这段）。
       try {
         const t = String(text || '')
         const cur = String(title || '')
         const isGeneric = cur === '[New] 新建需求' || cur === '[New] 新建 Bug' || cur === '[New] New Requirement' || cur === '[New] New Bug'
+        let actFromOpts = null
+        try {
+          const k = (opts && typeof opts.kind === 'string') ? opts.kind : null
+          if (k === 'diagnose') actFromOpts = 'diagnose'
+          else if (k === 'fix') actFromOpts = 'fix'
+          else if (k === 'discuss') actFromOpts = 'discuss'
+          else if (k === 'research') actFromOpts = 'research'
+          else if (k === 'prototype') actFromOpts = 'prototype'
+          else if (k === 'takeover') actFromOpts = 'handoff'
+          else if (k === 'supplement') actFromOpts = 'supplement'
+          else if (k === 'health') actFromOpts = 'health'
+        } catch (eK) {}
         if (isGeneric && typeof newSessionTitleNew === 'function') {
-          let act = null
-          if (/^\s*\/triage\b/.test(t)) act = 'diagnose'
-          else if (/^\s*\/implement\b/.test(t)) act = 'fix'
-          else if (/^\s*\/grill-with-docs\b/.test(t)) act = 'discuss'
-          else if (/^\s*\/research\b/.test(t)) act = 'research'
-          else if (/^\s*\/prototype\b/.test(t)) act = 'prototype'
-          else if (/^\s*\/handoff\b/.test(t)) act = 'handoff'
-          else if (t.indexOf('思维对齐') >= 0 || t.indexOf('成果沉淀') >= 0) act = 'supplement'
-          else if (/^\s*##\s*体检/.test(t) || t.indexOf('把游离的开放票归位') >= 0) act = 'health'
+          let act = actFromOpts
+          if (!act) {
+            if (/^\s*\/triage\b/.test(t)) act = 'diagnose'
+            else if (/^\s*\/implement\b/.test(t)) act = 'fix'
+            else if (/^\s*\/grill-with-docs\b/.test(t)) act = 'discuss'
+            else if (/^\s*\/research\b/.test(t)) act = 'research'
+            else if (/^\s*\/prototype\b/.test(t)) act = 'prototype'
+            else if (/^\s*\/handoff\b/.test(t)) act = 'handoff'
+            else if (t.indexOf('思维对齐') >= 0 || t.indexOf('成果沉淀') >= 0) act = 'supplement'
+            else if (/^\s*##\s*体检/.test(t) || t.indexOf('把游离的开放票归位') >= 0) act = 'health'
+          }
           if (act) { try { title = newSessionTitleNew(act) } catch (eA) {} }
         }
       } catch (eInfer) {}
@@ -217,10 +233,7 @@
             }
             // 彻底移除：issuePath 锚点记账已移除（#345）
             const __placeholderTitle = title
-            try {
-              const scopeCtx = sessions.scope(sid)
-              const face = scopeCtx ? sessions.sessionOf(scopeCtx) : undefined
-              const registerTracked = function (acceptedTitle) {
+            const registerTracked = function (acceptedTitle) {
                 try {
                   const name0 = acceptedTitle || __placeholderTitle
                   const isPlaceholder = (typeof isNewPlaceholderTitle === 'function' ? isNewPlaceholderTitle(name0) : /^\[New\] /.test(String(name0)))
@@ -231,12 +244,21 @@
                   }
                 } catch (eReg) {}
               }
-              const needRename = (function(){ try { const curTitle = (typeof namingCurrentTitleOf==='function'? namingCurrentTitleOf(sid) : null); return curTitle !== title; } catch(e){ return true; }})()
-              const runRename = needRename && face && typeof face.rename === 'function' ? Promise.resolve(face.rename(title)) : Promise.resolve(null)
-              runRename.then(function (rRename) {
-                const accepted = (rRename && rRename.ok && rRename.value && rRename.value.title) ? rRename.value.title : null
-                registerTracked(accepted)
-              }).catch(function () { registerTracked(null) })
+              // #746 Knife2：先打开后改名（面在打开后才保留）。打开成功后重读快照再改名记账；
+              // 改名成败都记账（accepted 为空即 wrote=false 走没写成，不误判手改）。
+              // 对抗 K1：改名调用同步抛错也必须记账（旧外层 try 的兜底），否则会话永不进台账。
+              const doRenameRegister = function () {
+                let face = null
+                try { const scopeCtx = sessions.scope(sid); face = scopeCtx ? sessions.sessionOf(scopeCtx) : undefined } catch (eFace) {}
+                let curTitle = null
+                try { curTitle = (typeof namingCurrentTitleOf === 'function' ? namingCurrentTitleOf(sid) : null) } catch (eCur) {}
+                let runRename = null
+                try { runRename = (curTitle !== title && face && typeof face.rename === 'function') ? Promise.resolve(face.rename(title)) : Promise.resolve(null) } catch (eSync) { runRename = Promise.resolve(null) }
+                runRename.then(function (rRename) {
+                  const accepted = (rRename && rRename.ok && rRename.value && rRename.value.title) ? rRename.value.title : null
+                  registerTracked(accepted)
+                }).catch(function () { registerTracked(null) })
+              }
               if (sid === st.sessionId) {
                 try {
                   if (ns && typeof ns.injector === 'function') {
@@ -256,18 +278,17 @@
                 pendingDraft = text
                 pendingDraftTargetSid = sid
               }
-            } catch (eName) {}
             // #742：0.1.7 注册表无 open(会话号)，优先走工作区打开通道，旧方法留回退。
-            // #746 占位补写：新建时先改名后打开，面尚未保留故新会话必跳过，标题先被底座首句名占成斜杠；
-            // 打开成功即面已保留，此时补一次占位改名（失败忽略，守护单仍是兜底），侧栏不再闪一下斜杠。
-            const __ok742a = function () { try { if (typeof namingCurrentTitleOf === 'function' && sessions && typeof sessions.scope === 'function' && typeof sessions.sessionOf === 'function') { var __curA = null; try { __curA = namingCurrentTitleOf(sid) } catch (eCA) {} if (__curA !== title) { try { var __scA = sessions.scope(sid); var __fA = __scA ? sessions.sessionOf(__scA) : null; if (__fA && typeof __fA.rename === 'function') { Promise.resolve(__fA.rename(title)).then(function () { try { if (typeof namingGuardianKick === 'function') namingGuardianKick() } catch (eK) {} }).catch(function () {}) } } catch (eRA) {} } } } catch (eOA) {} flash(st, tr('toast.newSessionOpened'), 'ok') }
+            // #746 Knife2/V7：打开成功才改名记账；打开失败记账不断（守护仍可兜底），提示如实报失败。
+            const __ok742a = function () { try { doRenameRegister() } catch (eRR) {} flash(st, tr('toast.newSessionOpened'), 'ok') }
+            const __fail742a = function () { try { registerTracked(null) } catch (eRG) {} try { if (typeof namingGuardianKick === 'function') namingGuardianKick() } catch (eKG) {} flash(st, tr('toast.newSessionOpenFailed', { title: title }), 'warn') }
             const __go742a = function () { try {
               let __u = null
               try { if (typeof ctx !== 'undefined' && ctx) { __u = (typeof ctx.get === 'function' ? ctx.get('uiWorkspace') : null) || ctx.uiWorkspace || null } } catch (eG) {}
-              if (__u && typeof __u.openSession === 'function') { const __r = __u.openSession(sid); if (__r && typeof __r.then === 'function') { __r.then(__ok742a, __ok742a); return } __ok742a(); return }
-              if (sessions && typeof sessions.open === 'function') { const __o = sessions.open(sid); if (__o && typeof __o.then === 'function') { __o.then(__ok742a, __ok742a); return } }
+              if (__u && typeof __u.openSession === 'function') { const __r = __u.openSession(sid); if (__r && typeof __r.then === 'function') { __r.then(__ok742a, __fail742a); return } __ok742a(); return }
+              if (sessions && typeof sessions.open === 'function') { const __o = sessions.open(sid); if (__o && typeof __o.then === 'function') { __o.then(__ok742a, __fail742a); return } }
               __ok742a()
-            } catch (eS742a) { __ok742a() } }
+            } catch (eS742a) { try { __fail742a() } catch (eF) {} } }
             __go742a()
             return
           }
@@ -305,47 +326,53 @@
           // 自动命名（失败不阻塞打开）：占位标题在创建前已确定，跟随 harness 语言；改名落定后把会话交给命名守护
           // （#265）——以宿主实际接受的那个标题为基准注册，附语义线索；此后按计划单升级，值比对锁守护手改。
           const __placeholderTitle = title
-          try {
-            const scopeCtx = sessions.scope(sid)
-            const face = scopeCtx ? sessions.sessionOf(scopeCtx) : undefined
-            const registerTracked = function (acceptedTitle) {
-              try {
-                const name0 = acceptedTitle || __placeholderTitle
-                const isPlaceholder = (typeof isNewPlaceholderTitle === 'function' ? isNewPlaceholderTitle(name0) : /^\[New\] /.test(String(name0)))
-                // 编号档同样收编（「在新会话打开」那条路）：不收的话底座首句名会把 [#n] 名盖掉且无人守。
-                if (!isPlaceholder && !(typeof parseNumberedTitle === 'function' && parseNumberedTitle(name0))) return
-                if (typeof host !== 'undefined' && typeof host.call === 'function') {
-                  // #266：注册走 #211 复原名「注册监视」（wf.registerNewSessionWatcher，host 侧为收编跟踪态 + 索引基线）；
-                  // wf.namingRegister 为 #265 兼容别名，双名同本体，守卫钉死。
-                  // #746：线索随占位标题同行（语义段由 namingHintOf 从 name0 取），占位不再裸奔。
-                  host.call('wf.registerNewSessionWatcher', { sessionId: sid, baselineTitle: name0, cwd: cwd || '', wroteTitle: !!acceptedTitle, hint: (ns ? namingHintOf(ns, name0) : null) }).then(function () { namingGuardianKick() }).catch(function (e) { try { log('warn', 'host.call.fail', { method: 'wf.registerNewSessionWatcher', kind: 'naming-register', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {} })
-                }
-              } catch (eReg) {}
-            }
-            const runRename = (face && typeof face.rename === 'function') ? Promise.resolve(face.rename(title)) : Promise.resolve(null)
+          const registerTracked = function (acceptedTitle) {
+            try {
+              const name0 = acceptedTitle || __placeholderTitle
+              const isPlaceholder = (typeof isNewPlaceholderTitle === 'function' ? isNewPlaceholderTitle(name0) : /^\[New\] /.test(String(name0)))
+              // 编号档同样收编（「在新会话打开」那条路）：不收的话底座首句名会把 [#n] 名盖掉且无人守。
+              if (!isPlaceholder && !(typeof parseNumberedTitle === 'function' && parseNumberedTitle(name0))) return
+              if (typeof host !== 'undefined' && typeof host.call === 'function') {
+                // #266：注册走 #211 复原名「注册监视」（wf.registerNewSessionWatcher，host 侧为收编跟踪态 + 索引基线）；
+                // wf.namingRegister 为 #265 兼容别名，双名同本体，守卫钉死。
+                // #746：线索随占位标题同行（语义段由 namingHintOf 从 name0 取），占位不再裸奔。
+                host.call('wf.registerNewSessionWatcher', { sessionId: sid, baselineTitle: name0, cwd: cwd || '', wroteTitle: !!acceptedTitle, hint: (ns ? namingHintOf(ns, name0) : null) }).then(function () { namingGuardianKick() }).catch(function (e) { try { log('warn', 'host.call.fail', { method: 'wf.registerNewSessionWatcher', kind: 'naming-register', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {} })
+              }
+            } catch (eReg) {}
+          }
+          // #746 Knife2：先打开后改名（同复用分支）。打开成功后重读快照再改名记账。
+          // 对抗 K1：改名调用同步抛错也必须记账。
+          const doRenameRegister = function () {
+            let face = null
+            try { const scopeCtx = sessions.scope(sid); face = scopeCtx ? sessions.sessionOf(scopeCtx) : undefined } catch (eFace) {}
+            let curTitle = null
+            try { curTitle = (typeof namingCurrentTitleOf === 'function' ? namingCurrentTitleOf(sid) : null) } catch (eCur) {}
+            let runRename = null
+            try { runRename = (curTitle !== title && face && typeof face.rename === 'function') ? Promise.resolve(face.rename(title)) : Promise.resolve(null) } catch (eSync) { runRename = Promise.resolve(null) }
             runRename.then(function (rRename) {
               const accepted = (rRename && rRename.ok && rRename.value && rRename.value.title) ? rRename.value.title : null
               registerTracked(accepted)
             }).catch(function () { registerTracked(null) })
-            // prefill (r4): write pendingDraft + target sid anchor; consumer side only the new session consumes, avoiding old session race
-            // #315 回滚 (2026-08-30 user constraint): keep draft-first UX (先填草稿、让用户自己输入再发送), no auto-send via face.prompt;
-            //   blank-reuse risk is mitigated by naming-guardian bare-session never gets numbered (path B fixed) rather than auto-send
-            //   (see handoff 20260830-014242).
-            pendingDraft = text
-            pendingDraftTargetSid = sid
-          } catch (eName) { /* 命名失败忽略 */ }
+          }
+          // prefill (r4): write pendingDraft + target sid anchor; consumer side only the new session consumes, avoiding old session race
+          // #315 回滚 (2026-08-30 user constraint): keep draft-first UX (先填草稿、让用户自己输入再发送), no auto-send via face.prompt;
+          //   blank-reuse risk is mitigated by naming-guardian bare-session never gets numbered (path B fixed) rather than auto-send
+          //   (see handoff 20260830-014242).
+          pendingDraft = text
+          pendingDraftTargetSid = sid
           // #739：建号成功（sid 已到手）后只报成功，打开失败不再进 doFallback ——
           //   兜底会谎称没建会话并把指令塞回当前会话，而带草稿的新会话其实已被丢在后台成幽灵；
           // #742：0.1.7 注册表无 open(会话号)，优先走工作区打开通道，旧方法留回退。
-          // #746 占位补写（同复用分支）：打开成功后面已保留，补一次占位改名，失败忽略由守护单兜底。
-          const __ok742b = function () { try { if (typeof namingCurrentTitleOf === 'function' && sessions && typeof sessions.scope === 'function' && typeof sessions.sessionOf === 'function') { var __curB = null; try { __curB = namingCurrentTitleOf(sid) } catch (eCB) {} if (__curB !== title) { try { var __scB = sessions.scope(sid); var __fB = __scB ? sessions.sessionOf(__scB) : null; if (__fB && typeof __fB.rename === 'function') { Promise.resolve(__fB.rename(title)).then(function () { try { if (typeof namingGuardianKick === 'function') namingGuardianKick() } catch (eK) {} }).catch(function () {}) } } catch (eRB) {} } } } catch (eOB) {} flash(st, tr('toast.newSessionOpened'), 'ok') }
+          // #746 Knife2/V7：打开成功才改名记账；打开失败记账不断，提示如实报失败。
+          const __ok742b = function () { try { doRenameRegister() } catch (eRR) {} flash(st, tr('toast.newSessionOpened'), 'ok') }
+          const __fail742b = function () { try { registerTracked(null) } catch (eRG) {} try { if (typeof namingGuardianKick === 'function') namingGuardianKick() } catch (eKG) {} flash(st, tr('toast.newSessionOpenFailed', { title: title }), 'warn') }
           const __go742b = function () { try {
             let __u = null
             try { if (typeof ctx !== 'undefined' && ctx) { __u = (typeof ctx.get === 'function' ? ctx.get('uiWorkspace') : null) || ctx.uiWorkspace || null } } catch (eG) {}
-            if (__u && typeof __u.openSession === 'function') { const __r = __u.openSession(sid); if (__r && typeof __r.then === 'function') { __r.then(__ok742b, __ok742b); return } __ok742b(); return }
-            if (sessions && typeof sessions.open === 'function') { const __o = sessions.open(sid); if (__o && typeof __o.then === 'function') { __o.then(__ok742b, __ok742b); return } }
+            if (__u && typeof __u.openSession === 'function') { const __r = __u.openSession(sid); if (__r && typeof __r.then === 'function') { __r.then(__ok742b, __fail742b); return } __ok742b(); return }
+            if (sessions && typeof sessions.open === 'function') { const __o = sessions.open(sid); if (__o && typeof __o.then === 'function') { __o.then(__ok742b, __fail742b); return } }
             __ok742b()
-          } catch (eS742b) { __ok742b() } }
+          } catch (eS742b) { try { __fail742b() } catch (eF) {} } }
           __go742b()
         }).catch(function (err) { try { if (String((err && err.message) || '').indexOf('preset-blocked') >= 0) flash(st, tr('toast.newSessionPresetBlocked'), 'warn') } catch (eF) {} doFallback() })
         })

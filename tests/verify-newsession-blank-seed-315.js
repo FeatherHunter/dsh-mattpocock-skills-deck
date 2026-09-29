@@ -23,7 +23,7 @@ const testExists = (file) => file.indexOf('（拼合）') >= 0 ? API_SRC_FILES.e
 
 // ---- 提取真实函数源码 ----
 function extractOpenFn(src) {
-  const marker = 'const openTextInNewSession = function (st, text, title) {'
+  const marker = 'const openTextInNewSession = function (st, text, title'
   const src2 = src.indexOf(marker) >= 0 ? src : src.replace(/export const openTextInNewSession/, 'const openTextInNewSession')
   const i = src2.indexOf(marker)
   if (i < 0) throw new Error('起始锚点缺失: openTextInNewSession')
