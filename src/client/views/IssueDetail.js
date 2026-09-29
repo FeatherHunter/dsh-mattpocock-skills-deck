@@ -180,21 +180,38 @@ export const IssueDetail = function (props) {
       const fakeIssue = { number: issueNumber, ['title']: title, labels: labelArr.map(function (l) { return typeof l === 'string' ? { name: l } : l }), state: stateRaw }
       // #763 顶栏主动作按钮：与列表行同口径（图标/文字/注入文本），但自建按钮以便折叠机逐字裁字。
       // 复用行动作的注入文本，不复用它的按钮节点（那个节点写死 flex:none，折叠机裁不动它）。
+      // #771 分类走一处 rowActionKind（状态优先于类型：未分流 → 接手 → 补充 → 修复 → 讨论 → 研究 → 原型 → 执行）。
       const primaryInfo = (function () {
         let text = ''
         try { text = (typeof rowActionText === 'function') ? rowActionText(st, fakeIssue) : '' } catch (e) { text = '' }
+        let kind = ''
+        try { kind = (typeof rowActionKind === 'function') ? rowActionKind(fakeIssue) : '' } catch (eK) { kind = '' }
         let icon = 'play', label = ''
         try {
-          if (_isTriageLikeLocal) { icon = 'chat'; label = tr('act.diagnose') }
-          else if (has('bug')) { icon = 'hammer'; label = tr('act.fix') }
-          else if (has('wayfinder:grilling')) { icon = 'chat'; label = tr('act.discuss') }
-          else if (has('wayfinder:research')) { icon = 'search'; label = tr('act.research') }
-          else if (has('wayfinder:prototype')) { icon = 'prototype'; label = tr('act.prototype') }
+          if (!kind) {
+            if (_isTriageLikeLocal) kind = 'diagnose'
+            else if (has('ready-for-human')) kind = 'takeover'
+            else if (has('needs-info')) kind = 'supplement'
+            else if (has('bug')) kind = 'fix'
+            else if (has('wayfinder:grilling')) kind = 'discuss'
+            else if (has('wayfinder:research')) kind = 'research'
+            else if (has('wayfinder:prototype')) kind = 'prototype'
+            else kind = 'execute'
+          }
+          if (kind === 'diagnose') { icon = 'chat'; label = tr('act.diagnose') }
+          else if (kind === 'takeover') { icon = 'play'; label = tr('act.takeover') }
+          else if (kind === 'supplement') { icon = 'play'; label = tr('act.supplement') }
+          else if (kind === 'fix') { icon = 'hammer'; label = tr('act.fix') }
+          else if (kind === 'discuss') { icon = 'chat'; label = tr('act.discuss') }
+          else if (kind === 'research') { icon = 'search'; label = tr('act.research') }
+          else if (kind === 'prototype') { icon = 'prototype'; label = tr('act.prototype') }
           else { icon = 'play'; label = tr('act.execute') }
         } catch (e) {}
         let tip = label
         try {
           if (label === tr('act.diagnose')) tip = tr('tip.diagnose')
+          else if (label === tr('act.takeover')) tip = tr('tip.takeover')
+          else if (label === tr('act.supplement')) tip = tr('tip.supplement')
           else if (label === tr('act.fix')) tip = tr('tip.fix')
           else if (label === tr('act.discuss')) tip = tr('tip.discuss')
           else if (label === tr('act.research')) tip = tr('tip.research')

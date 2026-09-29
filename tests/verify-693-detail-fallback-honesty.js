@@ -137,6 +137,7 @@ async function loadDetailModule() {
     'const effortNamesOf = () => []',
     'const idOfParts = (a, b) => String(a) + "\\u0000" + String(b)',
     'const openInNewSession = () => {}',
+    'const rowActionKind = () => "execute"',
     'const actionColorOf = () => null',
     'const mkRowAction = () => null',
     'const fetchIssueDetail = () => {}',

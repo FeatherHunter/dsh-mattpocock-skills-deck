@@ -59,7 +59,7 @@ const fail = function (msg) { failed = true; problems.push(msg); return false }
 const check = function (cond, msg) { if (!cond) { failed = true; problems.push(msg) } return !!cond }
 
 // ==================== 0. 契约常量（硬编码，改动要走评审） ====================
-const EXPECT_REGISTRY_ENTRIES = 21 // 注册表条目数（#725：progress 与 bodyFormat 两条整节删除，23 → 21；拆行/换引号不会让它少，因为 S1 用求值解析）
+const EXPECT_REGISTRY_ENTRIES = 23 // 注册表条目数（#725：progress 与 bodyFormat 两条整节删除，23 → 21；#771：新增 tpl.takeover 与 tpl.supplement，21 → 23；拆行/换引号不会让它少，因为 S1 用求值解析）
 // S3 各后端 prompts 块顶层键数。v2 §1.1 写的是 7/9/6，实测不成立（gitlab 只有 4 键、markdown 只有 2 键），
 // 这里按实测值硬编码并在失败信息里报出真实值，避免「按错值写断言导致永久红」。
 // #684：三个后端各加一条 healthCheck（体检科目），7/6/4。
@@ -85,7 +85,7 @@ const EXPECT_EXEMPT = 8 // 豁免登记条数硬编码（防偷偷加豁免）
 const PROTECTED = [
   'registry#mapExecute', 'registry#complete', 'registry#fixate',
   'registry#tpl.diagnose', 'registry#tpl.fix', 'registry#tpl.discuss', 'registry#tpl.research',
-  'registry#tpl.prototype', 'registry#tpl.execute', 'registry#tpl.handoff1', 'registry#tpl.handoff2',
+  'registry#tpl.prototype', 'registry#tpl.takeover', 'registry#tpl.supplement', 'registry#tpl.execute', 'registry#tpl.handoff1', 'registry#tpl.handoff2',
   'registry#installSkillsFix', 'registry#installSkills', 'registry#setupRun', 'registry#switchAlign', 'registry#switchLayout', 'registry#newWayfinder',
   'registry#newBugWayfinder', 'registry#ghAuthLogin', 'registry#mapInspect', 'registry#healthCheck',
   'backend:github#ghAuthLogin', 'backend:github#subIssue', 'backend:github#errorKinds',
@@ -891,7 +891,7 @@ const contractChecksInner = function (reg, src) {
   // 版本号 bump（#573 §2.7 逐条清单；只许升不许降）
   const V_MIN = {
     mapExecute: 11, complete: 9, fixate: 6, 'tpl.diagnose': 10, 'tpl.fix': 7, 'tpl.discuss': 8,
-    'tpl.research': 5, 'tpl.prototype': 5, 'tpl.execute': 9, mapInspect: 6, newWayfinder: 14,
+    'tpl.research': 5, 'tpl.prototype': 5, 'tpl.takeover': 1, 'tpl.supplement': 1, 'tpl.execute': 9, mapInspect: 6, newWayfinder: 14,
     // #619：setupRun v11 删掉了 paletteNote（旧调色盘注入通道），版本号跟着抬到 11
     // #655：setupRun v12 新增 {contextLayout}（用户选的域文档布局），版本号跟着抬到 12
     // #664：setupRun v13 删掉初始化全文末尾那段「仓库还没就绪就先停下」的告诫（界面已保证过），版本号跟着抬到 13
@@ -1057,8 +1057,8 @@ const contractChecksInner = function (reg, src) {
       if (t.indexOf('进度契约') >= 0 || t.indexOf('progress contract') >= 0) fail('#725 条目 ' + id + '.' + lang + ' 仍引用进度契约（该契约已删）')
     })
   })
-  // 统一模板不得残留 GitHub 专用串（与 #603 同口径，改按「逐条列出的那 10 条」判）
-  const BODY_IDS = ['mapExecute', 'complete', 'fixate', 'tpl.diagnose', 'tpl.fix', 'tpl.discuss', 'tpl.research', 'tpl.prototype', 'tpl.execute', 'mapInspect']
+  // 统一模板不得残留 GitHub 专用串（与 #603 同口径，改按「逐条列出的那 12 条」判）
+  const BODY_IDS = ['mapExecute', 'complete', 'fixate', 'tpl.diagnose', 'tpl.fix', 'tpl.discuss', 'tpl.research', 'tpl.prototype', 'tpl.takeover', 'tpl.supplement', 'tpl.execute', 'mapInspect']
   BODY_IDS.forEach(function (id) {
     const e = reg[id] || {}
     ;['zh', 'en'].forEach(function (lang) {
@@ -1411,10 +1411,12 @@ const selfDigest = function () {
 //   版本底线 10 → 11，自摘要一并重算。
 // mapExecute v10：去标识头（身份由首行 /wayfinder+链接承载）+ 工具节 + 收尾新说法，占位符清零，
 //   版本底线 9 → 10，断言同步改，自摘要一并重算。
+// #771：注册表新增 tpl.takeover 与 tpl.supplement（接手/补充），条目数 21 → 23，BODY_IDS 与 FIX_IDS 各 10 → 12，
+//   V_MIN 各加一条 v1，受保护清单同步加两条，自摘要跟着重算。
 const LOCK = {
   'tests/prompt-gate-exempt.json': 'c661ccd0fbfd46aa99790c073d0ccea89ebf5787a9113462c092b17c72a2a2d9',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.js': '3462f888070c6ceb38f0103988851829ffead19b3339c39e90108e4ee8bb4ca1',
+  'tests/verify-prompts.js': 'f7f75d5eec81748593cd0da3f9b79884db4a2a834611152924a9126db74a8d27',
 }
 // ---- LOCK-END ----
 
@@ -1534,8 +1536,8 @@ if (reg) {
   // #603：渲染面 + 名实一致（提示词一个脚本都不许引用；发布包里仍带那两条脚本当可选工具）
   const p603 = problems.length
   try {
-    const FIX_IDS = ['mapExecute', 'complete', 'fixate', 'tpl.diagnose', 'tpl.fix', 'tpl.discuss', 'tpl.research', 'tpl.prototype', 'tpl.execute', 'mapInspect']
-    // #595 核心验收：把 11 个条目按「真渲染函数 + 后端声明文本」渲染出来再断言（不再断言源码字面量）
+    const FIX_IDS = ['mapExecute', 'complete', 'fixate', 'tpl.diagnose', 'tpl.fix', 'tpl.discuss', 'tpl.research', 'tpl.prototype', 'tpl.takeover', 'tpl.supplement', 'tpl.execute', 'mapInspect']
+    // #595 核心验收：把 12 个条目按「真渲染函数 + 后端声明文本」渲染出来再断言（不再断言源码字面量）
     evalPromptHelpers.prime(s1Fragment + '\n' + fs.readFileSync(s1Path, 'utf8'))
     const backendDecls = {}
     BACKENDS.forEach(function (b) {
@@ -1691,7 +1693,7 @@ if (reg) {
   } catch (e) {
     fail('#603 断言执行时抛错：' + String((e && e.message) || e))
   }
-  if (stepOk(p603)) console.log('  PASS #603/#716 渲染面（11 条目 × zh/en × 三后端：github 渲染出带 deck_* 工具的 {subIssue} 与无命令的正文格式块，Markdown/GitLab 渲染出各自的后端版；渲染结果无 undefined、无残留占位符、无裸跟踪器命令、无「先解析插件目录再调脚本」的间接写法）+ completePrompt 真实调用形态 + 提示词零脚本引用 + 发布包仍带两条脚本 + 生成物 sha256 一致')
+  if (stepOk(p603)) console.log('  PASS #603/#716 渲染面（12 条目 × zh/en × 三后端：github 渲染出带 deck_* 工具的 {subIssue} 与无命令的正文格式块，Markdown/GitLab 渲染出各自的后端版；渲染结果无 undefined、无残留占位符、无裸跟踪器命令、无「先解析插件目录再调脚本」的间接写法）+ completePrompt 真实调用形态 + 提示词零脚本引用 + 发布包仍带两条脚本 + 生成物 sha256 一致')
   if (stepOk(pS1)) console.log('  PASS 面 S1 ' + s1Label + '（' + s1Ids.length + ' 条注册表，扫描 ' + s1.scanned + ' 条；含占位符 ' + s1.rendered + ' 条走渲染面）+ 契约断言 + 跨门禁一致性 + github 后端注入链（#716 起：建边与校验走 deck_* 工具）')
 }
 

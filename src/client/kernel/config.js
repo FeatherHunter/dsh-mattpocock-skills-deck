@@ -29,7 +29,7 @@
     // 读取仍合并旧键（旧自定义值继续对行级快捷按钮生效），设置页不再调用 saveTemplates 覆盖，
     // 动手前备份即本地存档原文不动，回滚写回即恢复本提交前的设置页写入口。
     export const templates = (function () {
-      const d = { diagnose: '', fix: '', discuss: '', research: '', prototype: '', execute: '', handoff1: '', handoff2: '', fixate: '' }
+      const d = { diagnose: '', fix: '', discuss: '', research: '', prototype: '', takeover: '', supplement: '', execute: '', handoff1: '', handoff2: '', fixate: '' }
       try {
         const raw = localStorage.getItem(TPL_KEY)
         if (raw) return Object.assign(d, JSON.parse(raw))
@@ -58,12 +58,12 @@
     export const PH = ['url', 'number', 'title', 'ts', 'file', 'path']
     // 各模板可用占位符（编辑器 chips 展示）
     export const TPL_PH = {
-      diagnose: ['url'], fix: ['url'], discuss: ['url'], research: ['url'], prototype: ['url'], execute: ['number', 'url', 'title'],
+      diagnose: ['url'], fix: ['url'], discuss: ['url'], research: ['url'], prototype: ['url'], takeover: ['url'], supplement: ['url'], execute: ['number', 'url', 'title'],
       handoff1: ['ts'], handoff2: ['path', 'file'], fixate: [],
     }
     // 强制占位符表（T1 规格 §3）：缺失拒绝保存
     export const TPL_REQUIRED = {
-      diagnose: ['url'], fix: ['url'], discuss: ['url'], research: ['url'], prototype: ['url'], execute: ['url'],
+      diagnose: ['url'], fix: ['url'], discuss: ['url'], research: ['url'], prototype: ['url'], takeover: ['url'], supplement: ['url'], execute: ['url'],
       handoff1: ['ts'], handoff2: ['path'], fixate: [],
     }
     // 默认模板文本（空 = 用默认；T1 规格 §3 默认文本 = 现状代码文本）
@@ -75,6 +75,8 @@
       discuss: function (st) { return promptTextFor(st, 'tpl.discuss') },
       research: function (st) { return promptTextFor(st, 'tpl.research') },
       prototype: function (st) { return promptTextFor(st, 'tpl.prototype') },
+      takeover: function (st) { return promptTextFor(st, 'tpl.takeover') },
+      supplement: function (st) { return promptTextFor(st, 'tpl.supplement') },
       execute: function (st) { return promptTextFor(st, 'tpl.execute') },
       handoff1: function () { return promptText('tpl.handoff1') },
       handoff2: function () { return promptText('tpl.handoff2') },

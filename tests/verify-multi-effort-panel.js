@@ -123,7 +123,7 @@ const findGroupByIdentitySrc = extractConst(derivedSrc, 'findGroupByIdentity')
   const h = (type, props, children) => ({ type, props: props || {}, children: children === undefined ? [] : (Array.isArray(children) ? children : [children]) })
   const stubs = {
     Ic: () => null, tr: (k) => String(k), Tip: (p) => (p && p.children) || null,
-    actionColorOf: () => '#ffffff', mkRowAction: () => null, issueUrlFor: () => '', openInNewSession: () => {},
+    actionColorOf: () => '#ffffff', rowActionKind: () => 'execute', mkRowAction: () => null, issueUrlFor: () => '', openInNewSession: () => {},
     copyText: () => {}, setActiveMap: () => {}, setActiveIssue: () => {}, showPop: () => {}, inject: () => {},
     promptText: () => '', inspectPrompt: () => '', completePrompt: () => '', authorColor: () => '#000000',
     hexA: () => 'rgba(0,0,0,0)', darken: () => null, isLightHex: () => true,

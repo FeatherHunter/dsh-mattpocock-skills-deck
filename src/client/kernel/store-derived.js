@@ -235,18 +235,35 @@
         return cDark >= cWhite
       } catch (e) { return false }
     }
+    // #771 一处分类（状态优先于类型）：未分流 → 接手 → 补充 → 修复 → 讨论 → 研究 → 原型 → 执行。
+    //   两枚同时出现取接手；needs-triage 与 needs-info 同时出现仍先诊断（按定义不该同时出现）。
+    //   四处展示（注入文本 / 行按钮 / 新会话与详情顶栏取色 / 详情顶栏字与悬停）一律调它，不各写一份阶梯。
+    export const rowActionKind = function (x) {
+      const has = function (nm) { return ((x && x.labels) || []).some(function (l) { return (typeof l === 'string') ? l === nm : l.name === nm }) }
+      const _isTriageLike = !(x && x.labels && x.labels.length) || has('needs-triage')
+      if (_isTriageLike) return 'diagnose'
+      if (has('ready-for-human')) return 'takeover'
+      if (has('needs-info')) return 'supplement'
+      if (has('bug')) return 'fix'
+      if (has('wayfinder:grilling')) return 'discuss'
+      if (has('wayfinder:research')) return 'research'
+      if (has('wayfinder:prototype')) return 'prototype'
+      return 'execute'
+    }
     export const actionColorOf = function (x, colorOf) {
       const has = function (nm) { return (x.labels || []).some(function (l) { return (typeof l === 'string') ? l === nm : l.name === nm }) }
       const bc = function (nm, fb) { const cc = colorOf[nm]; return cc ? '#' + cc : fb }
-      const _isTriageLike = !(x.labels && x.labels.length) || has('needs-triage')
-      if (_isTriageLike) return bc('needs-triage', '#f59e0b')
-      if (has('bug')) return bc('bug', '#f87171')
-      if (has('wayfinder:grilling')) return bc('wayfinder:grilling', '#d93f0b')
-      if (has('wayfinder:research')) return bc('wayfinder:research', '#0ea5e9')
-      if (has('wayfinder:prototype')) return bc('wayfinder:prototype', '#f59e0b')
+      const kind = rowActionKind(x)
+      if (kind === 'diagnose') return bc('needs-triage', '#f59e0b')
+      if (kind === 'takeover') return '#c084fc'
+      if (kind === 'supplement') return '#c084fc'
+      if (kind === 'fix') return bc('bug', '#f87171')
+      if (kind === 'discuss') return bc('wayfinder:grilling', '#d93f0b')
+      if (kind === 'research') return bc('wayfinder:research', '#0ea5e9')
+      if (kind === 'prototype') return bc('wayfinder:prototype', '#f59e0b')
       return '#c084fc'
     }
-    // #361：行级动作注入文本的单一真源（诊断/修复/讨论/执行）—— 新会话打开与行内动作共用
+    // #361：行级动作注入文本的单一真源（诊断/接手/补充/修复/讨论/研究/原型/执行）—— 新会话打开与行内动作共用
     export const rowActionText = function (st, x) {
       let url = ''
       try { url = issueUrlFor(st, x.number) } catch(e) { url = '' }
@@ -254,21 +271,21 @@
         const fallbackKey = (x && (x.number != null ? x.number : x.key != null ? x.key : ''))
         if (fallbackKey !== '') url = '#' + String(fallbackKey)
       }
-      const has = function (nm) { return (x.labels || []).some(function (l) { return (typeof l === 'string') ? l === nm : l.name === nm }) }
-      const _isTriageLike = !(x.labels && x.labels.length) || has('needs-triage')
-      if (_isTriageLike) return renderTemplate('diagnose', { url: url }, st)
-      if (has('bug')) return renderTemplate('fix', { url: url }, st)
-      if (has('wayfinder:grilling')) return renderTemplate('discuss', { url: url }, st)
-      if (has('wayfinder:research')) return renderTemplate('research', { url: url }, st)
-      if (has('wayfinder:prototype')) return renderTemplate('prototype', { url: url }, st)
+      const kind = rowActionKind(x)
+      if (kind === 'diagnose') return renderTemplate('diagnose', { url: url }, st)
+      if (kind === 'takeover') return renderTemplate('takeover', { url: url }, st)
+      if (kind === 'supplement') return renderTemplate('supplement', { url: url }, st)
+      if (kind === 'fix') return renderTemplate('fix', { url: url }, st)
+      if (kind === 'discuss') return renderTemplate('discuss', { url: url }, st)
+      if (kind === 'research') return renderTemplate('research', { url: url }, st)
+      if (kind === 'prototype') return renderTemplate('prototype', { url: url }, st)
       try { return startText(st, x) } catch(e) { return renderTemplate('diagnose', { url: url }, st) }
     }
-    // v19：共享 —— 行级动作（列表与 map 详情共用）：按 label 四选一（诊断/修复/讨论/执行），预填输入框；
-    // 按钮主体色 = 对应 label 的 GitHub 配置色（字色按对比度在深白两色里择优，见 isLightHex）
+    // v19：共享 —— 行级动作（列表与 map 详情共用）：按一处分类八选一（诊断/接手/补充/修复/讨论/研究/原型/执行），预填输入框；
+    // 按钮主体色 = 对应 label 的 GitHub 配置色（字色按对比度在深白两色里择优，见 isLightHex）；接手/补充沿用紫色执行通道
     export const mkRowAction = function (st, x, narrow, colorOf) {
       const url = issueUrlFor(st, x.number)
-      const has = function (nm) { return (x.labels || []).some(function (l) { return (typeof l === 'string') ? l === nm : l.name === nm }) }
-      const _isTriageLike = !(x.labels && x.labels.length) || has('needs-triage')
+      const kind = rowActionKind(x)
       const isLight = isLightHex
       const btnColor = function (nm, fb) { const c = colorOf[nm]; return c ? '#' + c : fb }
       const mk = (icon, label, text, colorHex) => {
@@ -276,6 +293,8 @@
         const tipByLabel = (function(){
           try {
             if (label === tr('act.diagnose')) return tr('tip.diagnose')
+            if (label === tr('act.takeover')) return tr('tip.takeover')
+            if (label === tr('act.supplement')) return tr('tip.supplement')
             if (label === tr('act.fix')) return tr('tip.fix')
             if (label === tr('act.discuss')) return tr('tip.discuss')
             if (label === tr('act.research')) return tr('tip.research')
@@ -292,11 +311,13 @@
       }
       // v21：技能命令 + URL + 统一引导句（不再重复灌输技能内部流程）
       // v25 · T2b：诊断/修复/讨论走模板渲染（用户可自定义静态文本，{url} 注入）
-      if (_isTriageLike) return mk('chat', tr('act.diagnose'), rowActionText(st, x), btnColor('needs-triage', '#f59e0b'))
-      if (has('bug')) return mk('hammer', tr('act.fix'), rowActionText(st, x), btnColor('bug', '#f87171'))
-      if (has('wayfinder:grilling')) return mk('chat', tr('act.discuss'), rowActionText(st, x), btnColor('wayfinder:grilling', '#d93f0b'))
-      if (has('wayfinder:research')) return mk('search', tr('act.research'), rowActionText(st, x), btnColor('wayfinder:research', '#0ea5e9'))
-      if (has('wayfinder:prototype')) return mk('prototype', tr('act.prototype'), rowActionText(st, x), btnColor('wayfinder:prototype', '#f59e0b'))
+      if (kind === 'diagnose') return mk('chat', tr('act.diagnose'), rowActionText(st, x), btnColor('needs-triage', '#f59e0b'))
+      if (kind === 'takeover') return mk('play', tr('act.takeover'), rowActionText(st, x), '#c084fc')
+      if (kind === 'supplement') return mk('play', tr('act.supplement'), rowActionText(st, x), '#c084fc')
+      if (kind === 'fix') return mk('hammer', tr('act.fix'), rowActionText(st, x), btnColor('bug', '#f87171'))
+      if (kind === 'discuss') return mk('chat', tr('act.discuss'), rowActionText(st, x), btnColor('wayfinder:grilling', '#d93f0b'))
+      if (kind === 'research') return mk('search', tr('act.research'), rowActionText(st, x), btnColor('wayfinder:research', '#0ea5e9'))
+      if (kind === 'prototype') return mk('prototype', tr('act.prototype'), rowActionText(st, x), btnColor('wayfinder:prototype', '#f59e0b'))
       return mk('play', tr('act.execute'), rowActionText(st, x), '#c084fc')
     }
     // #506 拉取请求页签门控与列表派生（前端房纯函数，无日志点：无跨边界调用、无新缓存、无定时器，复用既有快照链路）
