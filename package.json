@@ -9,6 +9,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "build:dsh-log": "node packages/dsh-log/build.mjs",
+    "update:latest": "pnpm update dsh-plugin-update@^0.2.0 && node scripts/derive-update-from-package.mjs && node scripts/build.mjs",
     "test:dsh-log": "node --test packages/dsh-log/tests/host.test.mjs packages/dsh-log/tests/eventList.test.mjs packages/dsh-log/tests/client.test.mjs packages/dsh-log/tests/node.test.mjs",
     "prepare": "node packages/dsh-log/build.mjs && node scripts/build.mjs",
     "test": "npm run verify && npm run test:smoke",

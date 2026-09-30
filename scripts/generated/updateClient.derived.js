@@ -1,7 +1,8 @@
-// 派生文件（#586）：由 packages/dsh-plugin-update/src/client.ts（含配置面）打包生成，内容与更新包 0.1.1 一致，人手不改。
-// 构建时本文件拼入客户端闭包（kernel:updateClient 标记处），给面板提供电话名与轮询间隔。
-// 面板原来写死的 'wf.updateStatus' 这类字面量与 1000 毫秒已改为从这里取值。重新生成：node scripts/derive-update-from-package.mjs。
-// packages/dsh-plugin-update/src/config.ts
+// 由 dsh-plugin-update@0.2.0 的集成工具生成，人手不改。
+// 生成命令：node dsh-plugin-update/derive-client-values.mjs --prefix wf --out <本文件路径>
+// 生成对象：dsh-mattpocock-skills-deck。改了前缀或想升级本包，重新跑一次这条命令即可。
+// node_modules/.pnpm/dsh-plugin-update@0.2.0/node_modules/dsh-plugin-update/dist/config.js
+// 派生后处理（#800）：已按 #597 把三个重名函数改名（build* → updBuild*），顶撞检查已过；数据源是已安装的更新包，本地包目录不是来源。
 var DEFAULT_CONFIRMATION_TTL_MS = 10 * 6e4;
 var DEFAULT_INSTALL_TIMEOUT_MS = 15 * 6e4;
 var DEFAULT_PANEL_POLL_MS = 1e3;
@@ -27,7 +28,7 @@ function updBuildPhoneName(prefix, action) {
   return updBuildPhoneNames(prefix)[action];
 }
 
-// packages/dsh-plugin-update/src/commands.ts
+// node_modules/.pnpm/dsh-plugin-update@0.2.0/node_modules/dsh-plugin-update/dist/commands.js
 var PACKAGE_NAME = "dsh-mattpocock-skills-deck";
 var NPM_REGISTRY = "https://registry.npmjs.org/";
 var INSTALL_TIMEOUT_MS = 15 * 6e4;
@@ -84,7 +85,7 @@ function manualCommand(input) {
   return `dsh plugin --profile ${arg} add --save-exact ${targetName}@${version} --registry=${registry}`;
 }
 
-// packages/dsh-plugin-update/src/client.ts
+// node_modules/.pnpm/dsh-plugin-update@0.2.0/node_modules/dsh-plugin-update/dist/client.js
 var CLIENT_POLL = {
   defaultMs: DEFAULT_PANEL_POLL_MS,
   minMs: MIN_PANEL_POLL_MS
@@ -99,14 +100,12 @@ function assertPollInterval(ms) {
   return ms;
 }
 
-// ---- 把包里被改名导出的取值补回本名（同名的不动，它们已在闭包里声明过）----
-
-// ---- 取值（#586）：从更新包的客户端入口算出本插件要用的电话名与轮询间隔 ----
-// 改前缀或改轮询间隔只改更新包，本文件重新派生即可；手写源码里不再出现电话名字面量。
+// ---- 取值：从更新包的客户端入口算出本插件要用的电话名与轮询间隔 ----
+// 面板只该用下面这几个常量，不要再写死电话名字面量与轮询数字。
 const UPD_PHONE_NAMES = updBuildClientPhoneNames("wf")
 const UPD_POLL_MS = CLIENT_POLL.defaultMs
 const UPD_POLL_MIN_MS = CLIENT_POLL.minMs
-// 零变化断言（默认前缀 wf 下与旧字面一字不差；双产物门禁直接看到这些字面，运行时走上面的拼名）
+// 零变化断言（默认前缀 wf 下与旧字面一字不差；门禁直接看到这些字面，运行时走上面的拼名）
 void (UPD_PHONE_NAMES.updateStatus === 'wf.updateStatus' && UPD_PHONE_NAMES.updateCheck === 'wf.updateCheck' && UPD_PHONE_NAMES.updateInstall === 'wf.updateInstall' && UPD_POLL_MS === 1000)
 export const UPD_STATUS = UPD_PHONE_NAMES.updateStatus
 export const UPD_CHECK = UPD_PHONE_NAMES.updateCheck
