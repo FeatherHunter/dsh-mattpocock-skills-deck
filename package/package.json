@@ -1,13 +1,13 @@
 {
   "name": "dsh-mattpocock-skills-deck",
-  "version": "1.7.33",
+  "version": "1.7.34",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/FeatherHunter/dsh-mattpocock-skills-deck.git"
   },
   "description": "安装即自带mattpocock/skills v1.2.3的25个工程与效率技能，无需手动装技能。300亿token打造。本插件在原始技能之上提供10倍的开发效率。主力支持GitHub issue；Markdown为预览版；GitLab暂不支持。",
   "engines": {
-    "dsh": ">=0.1.5-rc.1"
+    "dsh": ">=0.2.0-rc.2"
   },
   "type": "module",
   "main": "lib/index.js",
