@@ -34,11 +34,23 @@
     }
     // 彻底移除：extractIssueRefs 已移除（#345）
     export const inject = (st, text) => {
-      if (st.injector) { st.injector(text); flash(st, tr('toast.injected'), 'ok'); try { if (typeof ensureInjectFocusAtEnd === 'function') ensureInjectFocusAtEnd() } catch (eFocus) {} }
-      else copyText(st, text, tr('toast.copiedFallback'))
+      var bodyText = text
+      try { if (typeof withTrailingNewline === 'function') bodyText = withTrailingNewline(text) } catch (eNl) {}
+      if (st.injector) { st.injector(bodyText); flash(st, tr('toast.injected'), 'ok'); try { if (typeof ensureInjectFocusAtEnd === 'function') ensureInjectFocusAtEnd() } catch (eFocus) {} }
+      else copyText(st, bodyText, tr('toast.copiedFallback'))
       // 彻底移除：issuePath 提及识别已移除（#345）
       // v1.5 T10 R9（Q4 拍板）：关键动作（完成/执行/交接/认领）后延迟探测，面板尽快反映变化
       scheduleActionProbe()
+    }
+    // #789 · 注入文本尾部归一（A 方案：补 1 个换行）：不是以换行结尾就补 1 个，已经是的不重复补；
+    //   调宿主写草稿的三处共用（主注入、草稿消费、新会话直注），光标兜底随即落到新行开头。空文本不动。
+    export const withTrailingNewline = function (text) {
+      try {
+        var s = String(text == null ? '' : text)
+        if (!s) return s
+        if (s.charAt(s.length - 1) === '\n') return s
+        return s + '\n'
+      } catch (eN) { try { return String(text) } catch (eN2) { return '' } }
     }
     // #786 · 注入后光标落末尾的插件侧兜底（B 方案）：宿主 inputActions.setDraft 只收全文、没有光标参数，
     //   本仓调用后下一帧把宿主输入框的光标置末、滚到底。找不到宿主输入框就安静跳过，绝不抛错；

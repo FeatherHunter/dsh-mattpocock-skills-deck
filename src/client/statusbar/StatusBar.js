@@ -62,13 +62,15 @@ export const StatusBar = (props) => {
     if (consumedDraftRef.current === props.sessionId) return
     if (!props.inputActions || typeof props.inputActions.setDraft !== 'function') return
     s.injector = props.inputActions.setDraft
-    if (pendingDraft) {
-      if (pendingDraftTargetSid && pendingDraftTargetSid !== props.sessionId) return
+    // #787 会话隔离：首条草稿住本会话自己的 store（别的会话交接时由工厂/创建链写入），只读自己、取完清空；
+    //   跨会话覆盖与抢消费天然消失，无需目标编号门。
+    if (s.incomingDraft) {
       consumedDraftRef.current = props.sessionId
-      const text = pendingDraft
-      pendingDraft = null
-      pendingDraftTargetSid = null
-      props.inputActions.setDraft(text)
+      const text = s.incomingDraft
+      s.incomingDraft = null
+      var draftText = text
+      try { if (typeof withTrailingNewline === 'function') draftText = withTrailingNewline(text) } catch (eNl) {}
+      props.inputActions.setDraft(draftText)
       try { if (typeof ensureInjectFocusAtEnd === 'function') ensureInjectFocusAtEnd() } catch (eFocus) {}
     }
   }, [props.sessionId, props.inputActions])

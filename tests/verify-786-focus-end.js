@@ -19,9 +19,9 @@ const nsSrc = read('src/client/kernel/api-new-session.js')
 
 // ---- Part A：静态契约 ----
 ok('兜底函数定义在 api-io', ioSrc.includes('export const ensureInjectFocusAtEnd = function'))
-ok('主注入点调用兜底', ioSrc.includes('ensureInjectFocusAtEnd()') && ioSrc.includes('st.injector(text)'))
-ok('草稿消费点调用兜底', barSrc.includes('props.inputActions.setDraft(text)') && barSrc.includes('ensureInjectFocusAtEnd()'))
-ok('新会话直注点调用兜底', nsSrc.includes('ns.injector(text)') && nsSrc.includes('ensureInjectFocusAtEnd()'))
+ok('主注入点调用兜底', ioSrc.includes('ensureInjectFocusAtEnd()') && ioSrc.includes('st.injector(bodyText)'))
+ok('草稿消费点调用兜底', barSrc.includes('setDraft(draftText)') && barSrc.includes('ensureInjectFocusAtEnd()'))
+ok('新会话直注点调用兜底', nsSrc.includes('ns.injector(directText)') && nsSrc.includes('ensureInjectFocusAtEnd()'))
 ok('无 document 时直接返回', ioSrc.includes("typeof document === 'undefined'"))
 ok('全程 try/catch 不抛错', (ioSrc.match(/try \{/g) || []).length >= 8)
 ok('排除插件容器', ioSrc.includes('[data-dsws-host]') && ioSrc.includes('.dsws-modal'))

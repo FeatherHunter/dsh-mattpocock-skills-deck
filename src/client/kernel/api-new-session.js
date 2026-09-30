@@ -6,25 +6,52 @@
  * 原位），与 ctx.js/seam 同模式，一源两物，src 零复制。
  * 接口冻结清单见 docs/architecture/kernel-contract.md（G3 · #91 拍板）。
  */
+    // #787 交接目录校验：记下那一刻的目录与当前目录是否同属一个工作区。
+    //   比的是归一后的工作区键（宿主锚到工作区根那一步优先，拿不到就退回会话侧归一，最后比原文）；
+    //   任一为空直接判不同（fail-closed）。typeof 守卫保证缺谁都不抛。
+    const handoffCwdMatches = function (recorded, current) {
+      try {
+        if (!recorded || !current) return false
+        if (typeof wsKeyOf === 'function') {
+          const a = wsKeyOf(recorded)
+          const b = wsKeyOf(current)
+          if (a && b) return a === b
+        }
+        if (typeof keyOf === 'function') {
+          const a = keyOf(recorded)
+          const b = keyOf(current)
+          if (a && b) return a === b
+        }
+        return String(recorded) === String(current)
+      } catch (e) { return false }
+    }
     export const probeHandoffReady = function (st) {
       const cwdArg = st.cwd ? { cwd: st.cwd } : {}
       const done = function (file) {
         const ready = !!file
-        if (ready) handoffFile = file
+        if (ready) st.handoffFile = file
         if (st.handoffReady !== ready) { st.handoffReady = ready; emit(st) }  // 状态变了才重渲染（长轮询免重复绘）
         return file
       }
       if (typeof host === 'undefined' || typeof host.call !== 'function') { done(null); return Promise.resolve(null) }
-      // 主路径：已发现真实文件名（handoffFile 已设）→ 直接返回（prompt 与第一击 {ts}-*.md 一致）
-      if (handoffFile) return Promise.resolve(done(handoffFile))
-      // 副路径 A：刚点过第一击（handoffTs 已设）→ 按 {handoffTs}-*.md 前缀匹配真实文件名（含 AI 短标题）
-      if (handoffTs) {
-        return host.call('wf.handoffResolve', Object.assign({ name: handoffTs + '*' }, cwdArg)).then(function (res) {
+      // #787 会话隔离 + fail-closed：记忆只属于记下它的那个会话与那个目录。
+      //   本会话没记过，或记下时的目录与当前目录已不是同一工作区，一律视为无记忆
+      //   —— 灰加引导，绝不拿当前目录的最新来顶。
+      const memValid = function () { return !!(st.handoffTs || st.handoffFile) && handoffCwdMatches(st.handoffCwd, st.cwd) }
+      // 主路径：本会话已发现真实文件名 → 直接返回（prompt 与第一击 {ts}-*.md 一致）
+      if (st.handoffFile) {
+        if (!memValid()) { done(null); return Promise.resolve(null) }
+        return Promise.resolve(done(st.handoffFile))
+      }
+      // 副路径 A：本会话刚点过第一击 → 按本会话 {ts}-*.md 前缀匹配真实文件名（含 AI 短标题）
+      if (st.handoffTs) {
+        if (!memValid()) { done(null); return Promise.resolve(null) }
+        return host.call('wf.handoffResolve', Object.assign({ name: st.handoffTs + '*' }, cwdArg)).then(function (res) {
           if (res && res.ok && res.file) return done(res.file)
-          // 前缀未命中 → 回退取最新，但仅当最新文件名确实以 handoffTs 开头才引用（避免引用无关的旧文档）
+          // 前缀未命中 → 回退取最新，但仅当最新文件名确实以本会话时间戳开头才引用（避免引用无关的旧文档）
           return host.call('wf.handoffLatest', cwdArg).then(function (r2) {
             const f = (r2 && r2.ok && r2.file) ? r2.file : null
-            return done((f && f.indexOf(handoffTs) === 0) ? f : null)
+            return done((f && f.indexOf(st.handoffTs) === 0) ? f : null)
           }).catch(function () { return done(null) })
         }).catch(function () { return done(null) })
       }
@@ -34,32 +61,32 @@
       }).catch(function () { return done(null) })
     }
     export const doHandoff = function (st) {
-      handoffTs = timeStampStr()
-      const text = handoffPrompt(handoffTs)
-      handoffFile = null  // 真实文件名由探测按 {ts}-*.md 前缀发现（含 AI 短标题），不再从模板解析
+      st.handoffTs = timeStampStr()
+      const text = handoffPrompt(st.handoffTs)
+      st.handoffFile = null  // 真实文件名由探测按 {ts}-*.md 前缀发现（含 AI 短标题），不再从模板解析
+      st.handoffCwd = st.cwd || ''  // #787：记下那一刻的目录，读时校验，跨目录不串
       inject(st, text)
       flash(st, tr('toast.injectedHandoff'), 'ok')
       // 轮询探测：AI 写成文档后右半亮蓝（真实文件名 = {ts}-<短标题>.md，按前缀匹配）；1s 间隔、~10min 窗口覆盖复杂文档
       probeHandoffReady(st)
       let tries = 0
       const tick = function () {
-        if (handoffFile) return  // 已发现真实文件名 → 停止轮询
+        if (st.handoffFile) return  // 本会话已发现真实文件名 → 停本会话轮询（不影响别的会话）
         if (++tries > 600) return  // 上限 ~10min（5min+ 复杂文档也覆盖）
         probeHandoffReady(st)
         if (timer !== undefined) timer.timeout(tick, 1000)
       }
       if (timer !== undefined) timer.timeout(tick, 1000)
     }
-    let lastHandoffOpenTs = 0  // 防抖：防止 1s 内连点几十下反复探测/开会话
     export const doHandoffOpen = function (st) {
       const now = Date.now()
-      if (now - lastHandoffOpenTs < 800) return  // 800ms 内重复点击忽略
-      lastHandoffOpenTs = now
+      if (now - st._lastHandoffOpenTs < 800) return  // #787：防抖计时住会话自己身上；800ms 内本会话重复点击忽略，不影响别的会话
+      st._lastHandoffOpenTs = now
       st.handoffSearching = true; emit(st)  // 搜索动画：右半转圈
       const doneSearch = function () { st.handoffSearching = false; emit(st) }  // 2s 后恢复，避免闪烁
       const finish = function (file, msg) {
         const text = handoffReadText(file, st.cwd)
-        // 复制到剪贴板仍保留，便于粘贴；主路径经统一单点工厂开新 PTC 会话并原子化注入首条（修复：原 ws.startSession 未显式 ptc/工作区且 pendingDraftTargetSid=null 导致幽灵复活与抢消费）
+        // 复制到剪贴板仍保留，便于粘贴；主路径经统一单点工厂开新 PTC 会话并原子化写入目标会话自己的首条草稿
         try { copyText(st, text, msg || tr('toast.copiedHandoff')) } catch (e) {}
         const handoffTitle = (function(){ try{ var base = (typeof tr==='function'? tr('nav.handoff') : 'Handoff'); return '[New] ' + base; }catch(e){ return '[New] Handoff' } })()
         if (typeof openTextInNewSession === 'function') {
@@ -71,7 +98,7 @@
             const cwd = st.cwd || ''
             if (sessions && typeof sessions.create === 'function') {
               const createOpts = (typeof buildCreateOpts === 'function') ? buildCreateOpts(null, cwd) : { cwd: cwd, agentPreset: 'ptc' }
-              const p = (typeof createPTCSession === 'function') ? createPTCSession(sessions, null, cwd, text) : sessions.create(createOpts).then(function(sid){ pendingDraft=text; pendingDraftTargetSid=sid; return sid })
+              const p = (typeof createPTCSession === 'function') ? createPTCSession(sessions, null, cwd, text) : sessions.create(createOpts).then(function(sid){ try { storeOf(sid).incomingDraft = text } catch (eDraft) { try { inject(st, text) } catch (e2) {} } return sid })
               p.then(function(sid){ try{ sessions.open(sid) }catch(e){} }).catch(function(){ try{ inject(st,text) }catch(e2){} })
             } else { inject(st, text) }
           } catch(e3){ try{ inject(st,text)}catch(e4){} }
@@ -262,22 +289,22 @@
               if (sid === st.sessionId) {
                 try {
                   if (ns && typeof ns.injector === 'function') {
-                    ns.injector(text)
+                    var directText = text
+                    try { if (typeof withTrailingNewline === 'function') directText = withTrailingNewline(text) } catch (eNl) {}
+                    ns.injector(directText)
                     try { if (typeof ensureInjectFocusAtEnd === 'function') ensureInjectFocusAtEnd() } catch (eFocus) {}
                   } else if (typeof inject === 'function') {
                     inject(ns || st, text)
                   } else {
-                    pendingDraft = text
-                    pendingDraftTargetSid = sid
+                    // #787：首条写进目标会话自己的 store，本会话界面取完清空
+                    ;(ns || st).incomingDraft = text
                     try { emit(ns || st) } catch(eEmit){}
                   }
                 } catch(eDirect){
-                  pendingDraft = text
-                  pendingDraftTargetSid = sid
+                  ;(ns || st).incomingDraft = text
                 }
               } else {
-                pendingDraft = text
-                pendingDraftTargetSid = sid
+                ;(ns || st).incomingDraft = text
               }
             // #742：0.1.7 注册表无 open(会话号)，优先走工作区打开通道，旧方法留回退。
             // #746 Knife2/V7：打开成功才改名记账；打开失败记账不断（守护仍可兜底），提示如实报失败。
@@ -295,7 +322,7 @@
           }
           // #363 单点工厂：显式 ptc + 工作区 + 首条原子化（唯一出口，显式 agentPreset）
           const createOpts = typeof buildCreateOpts === 'function' ? buildCreateOpts(workspaceId, cwd) : (workspaceId ? { workspaceId: workspaceId, agentPreset: 'ptc' } : { cwd: cwd, agentPreset: 'ptc' })
-          const __createOnce = function () { return (typeof createPTCSession === 'function') ? createPTCSession(sessions, workspaceId, cwd, text) : sessions.create(createOpts).then(function(__sid){ pendingDraft = text; pendingDraftTargetSid = __sid; return __sid; }) }
+          const __createOnce = function () { return (typeof createPTCSession === 'function') ? createPTCSession(sessions, workspaceId, cwd, text) : sessions.create(createOpts).then(function(__sid){ try { storeOf(__sid).incomingDraft = text } catch (eD) { try { inject(st, text) } catch (e2) {} } return __sid; }) }
           // #478：经创建后验编排建会话（首建 code 则隔离重建；双 code 抛错，大声失败，绝不 open code）；旧闭包无编排时回退直建。
           const __createPTC = (typeof createVerifiedPTCSession === 'function') ? createVerifiedPTCSession(__createOnce, sessions) : __createOnce()
           __createPTC.then(function (sid) {
@@ -355,12 +382,12 @@
               registerTracked(accepted)
             }).catch(function () { registerTracked(null) })
           }
-          // prefill (r4): write pendingDraft + target sid anchor; consumer side only the new session consumes, avoiding old session race
+          // prefill (#787 会话隔离): write into the new session's own store; only that session consumes, avoiding old session race.
           // #315 回滚 (2026-08-30 user constraint): keep draft-first UX (先填草稿、让用户自己输入再发送), no auto-send via face.prompt;
           //   blank-reuse risk is mitigated by naming-guardian bare-session never gets numbered (path B fixed) rather than auto-send
           //   (see handoff 20260830-014242).
-          pendingDraft = text
-          pendingDraftTargetSid = sid
+          // 建号失败（下链 catch）走 doFallback 时此行没跑过，目标 store 无残留。
+          ns.incomingDraft = text
           // #739：建号成功（sid 已到手）后只报成功，打开失败不再进 doFallback ——
           //   兜底会谎称没建会话并把指令塞回当前会话，而带草稿的新会话其实已被丢在后台成幽灵；
           // #742：0.1.7 注册表无 open(会话号)，优先走工作区打开通道，旧方法留回退。
