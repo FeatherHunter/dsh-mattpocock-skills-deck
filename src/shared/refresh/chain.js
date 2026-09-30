@@ -56,13 +56,38 @@ export function chainTicketKey(raw) {
   return noZeros;
 }
 export function chainTicketKeyFromPath(path) {
-  const text = path === null || path === void 0 ? "" : String(path).replace(/\\/g, "/");
+  return chainTicketAndEffortFromPath(path).ticketKey;
+}
+export function chainEffortId(raw) {
+  if (raw === null || raw === void 0) return "";
+  const text = String(raw).trim();
   if (!text) return "";
+  if (text.indexOf("/") >= 0 || text.indexOf("\\") >= 0 || text.indexOf("|") >= 0 || text.indexOf("\0") >= 0) return "";
+  if (text === "." || text === "..") return "";
+  return text;
+}
+export function chainTicketAndEffortFromPath(path) {
+  const raw = path === null || path === void 0 ? "" : String(path);
+  if (!raw) return { ticketKey: "", effortId: "" };
+  const text = raw.replace(/\\/g, "/");
   const base = text.slice(text.lastIndexOf("/") + 1);
+  let ticketKey = "";
   const direct = /^(\d{1,10})(?:[-._][^/]*)?\.(?:md|markdown)$/i.exec(base);
-  if (direct) return chainTicketKey(direct[1]);
-  const inDir = /(?:^|\/)(?:issues?|tickets?)\/(\d{1,10})(?:[-._/]|$)/i.exec(text);
-  return inDir ? chainTicketKey(inDir[1]) : "";
+  if (direct) ticketKey = chainTicketKey(direct[1]);
+  else {
+    const inDir = /(?:^|\/)(?:issues?|tickets?)\/(\d{1,10})(?:[-._/]|$)/i.exec(text);
+    ticketKey = inDir ? chainTicketKey(inDir[1]) : "";
+  }
+  let effortId = "";
+  const scratchHit = /(?:^|\/)\.scratch\/([^\/.][^\/]*)\/(?:issues\/|map\.md$|spec\.md$)/.exec(text);
+  if (scratchHit) {
+    const cand = scratchHit[1];
+    if (cand !== "issues" && cand !== "tickets") effortId = chainEffortId(cand);
+  }
+  return { ticketKey, effortId };
+}
+export function chainEffortIdFromPath(path) {
+  return chainTicketAndEffortFromPath(path).effortId;
 }
 export function looksLikeTicketFilePath(path) {
   return chainTicketKeyFromPath(path) !== "";
@@ -70,10 +95,12 @@ export function looksLikeTicketFilePath(path) {
 export function chainEntryKey(input) {
   const rootHash = input ? input.rootHash : "";
   const backend = chainBackendId(input ? input.backend : "");
+  const effortId = chainEffortId(input && "effortId" in input ? input.effortId : "");
   const ticketKey = chainTicketKey(input ? input.ticketKey : "");
   const shardId = input ? input.shardId : "";
   if (!isFingerprintLike(rootHash) || !backend || !ticketKey || !isFingerprintLike(shardId)) return "";
-  return "r:" + rootHash + "|b:" + backend + "|t:" + ticketKey + "|s:" + shardId;
+  if (typeof effortId !== "string") return "";
+  return "r:" + rootHash + "|b:" + backend + "|e:" + effortId + "|t:" + ticketKey + "|s:" + shardId;
 }
 const DECK_WRITE_ACTIONS = {
   deck_issue_create: "create",
@@ -109,11 +136,22 @@ function ticketFromArgs(args) {
   }
   return "";
 }
-function no(reason) {
-  return { record: false, action: "", ticketKey: "", reason };
+const EFFORT_ARG_FIELDS = ["effortId", "effort", "effort_id"];
+function effortFromArgs(args) {
+  if (!args || typeof args !== "object") return "";
+  const bag = args;
+  for (const field of EFFORT_ARG_FIELDS) {
+    if (!Object.prototype.hasOwnProperty.call(bag, field)) continue;
+    const e = chainEffortId(bag[field]);
+    if (e) return e;
+  }
+  return "";
 }
-function yes(action, ticketKey) {
-  return { record: true, action: CHAIN_ACTIONS.indexOf(action) >= 0 ? action : "other-write", ticketKey, reason: "chain.record" };
+function no(reason) {
+  return { record: false, action: "", ticketKey: "", effortId: "", reason };
+}
+function yes(action, ticketKey, effortId) {
+  return { record: true, action: CHAIN_ACTIONS.indexOf(action) >= 0 ? action : "other-write", ticketKey, effortId: chainEffortId(effortId), reason: "chain.record" };
 }
 export function chainVerdictOf(input) {
   if (!input || typeof input !== "object") return no("chain.unknown-source");
@@ -130,7 +168,9 @@ export function chainVerdictOf(input) {
   }
   if (reason === "not-succeeded") return no("chain.not-succeeded");
   if (reason === "shape.not-a-result") return no("chain.not-a-result");
-  const fromFile = chainTicketKeyFromPath(input.path);
+  const parsedPath = chainTicketAndEffortFromPath(input.path);
+  const fromFile = parsedPath.ticketKey;
+  const effortFromPath = parsedPath.effortId;
   const isFileWriter = FILE_WRITE_TOOLS.indexOf(toolKey) >= 0;
   const isDeckWriter = Object.prototype.hasOwnProperty.call(DECK_WRITE_ACTIONS, tool);
   let wrote = false;
@@ -158,7 +198,8 @@ export function chainVerdictOf(input) {
   if (!wrote) return no("chain.read-excluded");
   const ticketKey = chainTicketKey(input.ticketKey) || ticketFromArgs(input.args) || fromFile;
   if (!ticketKey) return no("chain.no-ticket");
-  return yes(action, ticketKey);
+  const effortId = chainEffortId(input.effortId) || effortFromArgs(input.args) || effortFromPath;
+  return yes(action, ticketKey, effortId);
 }
 export function createChainState() {
   return { shards: {} };
@@ -171,14 +212,15 @@ export function chainRecord(state, input) {
   if (!backend) return { state, recorded: false, shardId, reason: "chain.bad-backend" };
   const ticketKey = chainTicketKey(input ? input.ticketKey : "");
   if (!ticketKey) return { state, recorded: false, shardId, reason: "chain.no-ticket" };
+  const effortId = chainEffortId(input ? input.effortId : "");
   const rawAction = String(input && input.action ? input.action : "");
   const action = CHAIN_ACTIONS.indexOf(rawAction) >= 0 ? rawAction : "other-write";
   const at = typeof input.at === "number" && isFinite(input.at) ? input.at : 0;
   const src = state && state.shards ? state.shards : {};
-  const key = chainEntryKey({ rootHash: input.rootHash, backend, ticketKey, shardId });
+  const key = chainEntryKey({ rootHash: input.rootHash, backend, effortId, ticketKey, shardId });
   if (!key) return { state, recorded: false, shardId, reason: "chain.bad-root" };
   const before = src[shardId];
-  const entries = mergeEntries(before ? before.entries : [], { ticketKey, at, action });
+  const entries = mergeEntries(before ? before.entries : [], { ticketKey, effortId, at, action });
   const shard = {
     shardId,
     sessionId: String(input.sessionId == null ? "" : input.sessionId).trim(),
@@ -196,9 +238,11 @@ export function mergeEntries(entries, incoming) {
   const seen = {};
   const push = (e) => {
     const key = chainTicketKey(e ? e.ticketKey : "");
-    if (!key || seen[key]) return;
-    seen[key] = true;
-    out.push({ ticketKey: key, at: typeof e.at === "number" && isFinite(e.at) ? e.at : 0, action: CHAIN_ACTIONS.indexOf(String(e.action)) >= 0 ? String(e.action) : "other-write" });
+    const effort = chainEffortId(e ? e.effortId : "");
+    const id = effort + "\0" + key;
+    if (!key || seen[id]) return;
+    seen[id] = true;
+    out.push({ ticketKey: key, effortId: effort, at: typeof e.at === "number" && isFinite(e.at) ? e.at : 0, action: CHAIN_ACTIONS.indexOf(String(e.action)) >= 0 ? String(e.action) : "other-write" });
   };
   if (incoming) push(incoming);
   const list = Array.isArray(entries) ? entries : [];
@@ -210,9 +254,9 @@ export function chainEntriesOf(state, sessionId) {
   const shardId = chainSessionShardId(sessionId);
   const shard = shardId && state && state.shards ? state.shards[shardId] : null;
   if (!shard || !Array.isArray(shard.entries)) return [];
-  return shard.entries.map((e) => ({ ticketKey: e.ticketKey, at: e.at, action: e.action }));
+  return shard.entries.map((e) => ({ ticketKey: e.ticketKey, effortId: chainEffortId(e.effortId), at: e.at, action: e.action }));
 }
-export const CHAIN_DISK_VERSION = 1;
+export const CHAIN_DISK_VERSION = 2;
 export function chainPrivacyViolations(value) {
   const out = [];
   const walk = (v, at) => {
@@ -242,8 +286,9 @@ export function chainToDisk(state, opts) {
     for (const e of Array.isArray(shard.entries) ? shard.entries : []) {
       const key = chainTicketKey(e ? e.ticketKey : "");
       if (!key) continue;
+      const effort = chainEffortId(e.effortId);
       const action = String(e.action || "");
-      entries.push([key, typeof e.at === "number" && isFinite(e.at) ? Math.floor(e.at) : 0, CHAIN_ACTIONS.indexOf(action) >= 0 ? action : "other-write"]);
+      entries.push([key, effort, typeof e.at === "number" && isFinite(e.at) ? Math.floor(e.at) : 0, CHAIN_ACTIONS.indexOf(action) >= 0 ? action : "other-write"]);
     }
     if (entries.length === 0) continue;
     shards.push({ s: shard.shardId, r: shard.rootHash, b: shard.backend, e: entries.slice(0, CHAIN_SESSION_CAP) });
@@ -254,7 +299,8 @@ export function chainFromDisk(payload) {
   const state = createChainState();
   const raw = payload;
   if (!raw || typeof raw !== "object" || !Array.isArray(raw.shards)) return { state, shards: 0, entries: 0, dropped: 0, reason: "chain.disk-shape" };
-  if (Number(raw.v) !== CHAIN_DISK_VERSION) return { state, shards: 0, entries: 0, dropped: 0, reason: "chain.disk-version" };
+  const v = Number(raw.v);
+  if (v !== 1 && v !== CHAIN_DISK_VERSION) return { state, shards: 0, entries: 0, dropped: 0, reason: "chain.disk-version" };
   let kept = 0;
   let entries = 0;
   let dropped = 0;
@@ -266,14 +312,30 @@ export function chainFromDisk(payload) {
     let acc = [];
     for (const row of s.e) {
       const arr = Array.isArray(row) ? row : [];
-      const key = chainTicketKey(arr[0]);
-      const action = String(arr[2] || "");
-      if (!key || CHAIN_ACTIONS.indexOf(action) < 0) {
-        dropped += 1;
-        continue;
+      if (v === 1) {
+        const key = chainTicketKey(arr[0]);
+        const action = String(arr[2] || "");
+        if (!key || CHAIN_ACTIONS.indexOf(action) < 0) {
+          dropped += 1;
+          continue;
+        }
+        const at = typeof arr[1] === "number" && isFinite(arr[1]) ? Math.floor(arr[1]) : 0;
+        acc = mergeEntries(acc, { ticketKey: key, effortId: "", at, action });
+      } else {
+        const key = chainTicketKey(arr[0]);
+        const effort = chainEffortId(arr[1]);
+        const action = String(arr[3] || "");
+        if (!key || CHAIN_ACTIONS.indexOf(action) < 0) {
+          dropped += 1;
+          continue;
+        }
+        if (typeof arr[1] !== "string" || arr[1] !== "" && effort !== arr[1]) {
+          dropped += 1;
+          continue;
+        }
+        const at = typeof arr[2] === "number" && isFinite(arr[2]) ? Math.floor(arr[2]) : 0;
+        acc = mergeEntries(acc, { ticketKey: key, effortId: effort, at, action });
       }
-      const at = typeof arr[1] === "number" && isFinite(arr[1]) ? Math.floor(arr[1]) : 0;
-      acc = mergeEntries(acc, { ticketKey: key, at, action });
     }
     if (acc.length === 0) {
       dropped += 1;

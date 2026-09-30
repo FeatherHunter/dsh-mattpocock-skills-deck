@@ -27,7 +27,7 @@
 //   （活跃集合变化时调，来源是视野模型 src/host/refresh/attention.js）；`w.forgetRoot(<切走的工作区根>)` 收摊。
 //   本票没有动 src/host/index.js（全库共用的大文件，别的票同时在改），这一处接线请统筹者统一做。
 import { detectWrite, actionFor } from '../../shared/refresh/write-detect.js'
-import { chainRootHash } from '../../shared/refresh/chain.js'
+import { chainRootHash, looksLikeTicketFilePath } from '../../shared/refresh/chain.js'
 import { PATCH_MERGE_WINDOW_MS, PROBE_INTERVAL_MS } from '../../shared/refresh/budget.js'
 
 /** 闸的调用点名字（事件触发那一档）。闸按它分类记账；本文件不改闸与账本一个字。 */
@@ -156,6 +156,46 @@ export function createWriteEvents(deps) {
     try { return (argsObj && typeof argsObj.command === 'string') ? argsObj.command : '' } catch (e) { return '' }
   }
 
+  /**
+   * #783：从工具参数里取出被写的文件路径（只做瞬时匹配，不留存）。
+   * 文件写工具的参数形状各异（`file_path` / `path` / `file` 等），按顺序取第一个像路径的字符串；
+   * 数组形态（批量改）取第一个元素。读工具看票文件时这里同样能取出路径，来源照样标成票文件，
+   * 链那一侧会按「读」不记 —— 这条纪律不松。
+   */
+  function filePathOf(argsObj) {
+    if (!argsObj || typeof argsObj !== 'object') return ''
+    const fields = ['file_path', 'filePath', 'path', 'file', 'filename', 'fileName', 'target_file', 'targetFile']
+    for (let i = 0; i < fields.length; i++) {
+      const v = argsObj[fields[i]]
+      if (typeof v === 'string' && v.trim()) return v
+      if (Array.isArray(v)) {
+        for (let j = 0; j < v.length; j++) {
+          const item = v[j]
+          if (typeof item === 'string' && item.trim()) return item
+          if (item && typeof item === 'object') {
+            for (let k = 0; k < fields.length; k++) {
+              const iv = item[fields[k]]
+              if (typeof iv === 'string' && iv.trim()) return iv
+            }
+          }
+        }
+      }
+      if (v && typeof v === 'object' && !Array.isArray(v)) {
+        for (let k = 0; k < fields.length; k++) {
+          const iv = v[fields[k]]
+          if (typeof iv === 'string' && iv.trim()) return iv
+        }
+      }
+    }
+    return ''
+  }
+
+  /** #783：是不是我们自己的写工具（这类走工具参数那条来源，不走票文件那条）。 */
+  function isDeckWriterTool(tool) {
+    const t = String(tool || '')
+    return t === 'deck_issue_create' || t === 'deck_issue_patch' || t === 'deck_map_plan_create' || t === 'deck_map_link' || t === 'deck_issue_report'
+  }
+
   /** #723：处理链动作词（白名单见 chain.js CHAIN_ACTIONS；认不出回空串，链照实丢掉）。 */
   const ACTION_BY_TOOL = Object.freeze({
     deck_issue_create: 'create', deck_issue_patch: 'edit', deck_map_plan_create: 'create', deck_map_link: 'link', deck_issue_report: 'report',
@@ -273,10 +313,26 @@ export function createWriteEvents(deps) {
           let backendName = ''
           if (typeof opts.backendOf === 'function') { try { backendName = String(await opts.backendOf(rootKey) || '') } catch (eB) { backendName = '' } }
           const verb = actionOf(tool, commandOf(argsObj))
+          // #783：先把这条路喂上 —— 从工具参数里取出被写的文件路径，当路径传给链；
+          // 工具是文件写工具（或读工具）且路径像一张票文件时，来源标成票文件那条。
+          // 用读工具看同一张票文件时来源照样是票文件，链按「读」不记，这条纪律不松。
+          let chainSource = (String(tool || '').toLowerCase().indexOf('deck_') === 0) ? 'tool-args' : 'cli'
+          let chainPath = ''
+          try {
+            const fp = filePathOf(argsObj)
+            if (fp && !isDeckWriterTool(tool) && looksLikeTicketFilePath(fp)) {
+              chainSource = 'markdown-file'
+              chainPath = fp
+            } else if (fp && !isDeckWriterTool(tool)) {
+              // 路径不像票文件时也把路径传下去：链从同一条路径里取编号与工作单元，
+              // 不像就自然落成「说不出是哪一张票」，不记。
+              chainPath = fp
+            }
+          } catch (eP) { /* 取不出路径就按原来的两条来源走 */ }
           await opts.note({
             sessionId: sid, rootHash: chainRootHash(rootKey), backend: backendName,
-            tool: String(tool || ''), source: (String(tool || '').toLowerCase().indexOf('deck_') === 0) ? 'tool-args' : 'cli',
-            tier: verdict.tier, reason: verdict.reason, verb: verb, ticketKey: verdict.ticket || '', args: argsObj,
+            tool: String(tool || ''), source: chainSource,
+            tier: verdict.tier, reason: verdict.reason, verb: verb, ticketKey: verdict.ticket || '', path: chainPath, args: argsObj,
           })
         }
       } catch (eN) { /* 喂链失败不许影响取数 */ }

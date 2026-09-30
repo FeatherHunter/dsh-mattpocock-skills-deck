@@ -81,10 +81,11 @@ export function createDeckIssueReport(deps) {
       let chain = { recorded: false, reason: '', count: 0 }
       try {
         if (typeof d.chainNote === 'function') {
+          const chainEffort = (issue && typeof issue.effortId === 'string' && issue.effortId) ? String(issue.effortId) : effortId
           const r = await d.chainNote({
             sessionId: s.sessionId, rootKey: s.cwd, backend: pick.backendId,
             tool: 'deck_issue_report', source: 'tool-args', tier: 'write-confirmed',
-            reason: 'tool.deck-write', verb: 'report', ticketKey: key, args: { key: key },
+            reason: 'tool.deck-write', verb: 'report', ticketKey: key, effortId: chainEffort, args: { key: key },
           })
           if (r && typeof r === 'object') chain = { recorded: !!r.recorded, reason: String(r.reason || ''), count: Number(r.count || 0) }
         } else {

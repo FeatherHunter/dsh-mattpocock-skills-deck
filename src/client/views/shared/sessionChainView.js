@@ -137,6 +137,7 @@ export const sessionChainViewOf = function (st) {
       if (!key) continue
       rows.push({
         ticketKey: key,
+        effortId: (e && (e.effortId === null || e.effortId === undefined)) ? '' : String(e ? e.effortId : ''),
         action: (e && e.action !== null && e.action !== undefined) ? String(e.action) : '',
         at: sessionChainAtOf(e ? e.at : 0),
       })
@@ -148,36 +149,25 @@ export const sessionChainViewOf = function (st) {
 }
 
 /**
- * 号码 → 这份列表快照里那张票的标题、工作单元与状态（标题只从已经拿到的数据里查，查不到就是空）。
- *
- * 这一份里那个字段叫 ticketTitle 而不是 title：界面代码里「title」这个名字已经被浏览器原生的
- * 悬停提示占住了，tests/verify-no-title.js 按文本扫它（5 处必卡，正打算把原生提示全换成 Tip）。
- * 数据字段跟着叫 ticketTitle，扫的人一眼就能分清「这是票的标题这份数据」与「这是被禁的原生提示」。
- *
- * #780：顺手把「这是不是地图」也收进来（isMap）。判据只读归一过的 type 字段：三个后端在归一那一层
- *   都把 wayfinder:map 标签收成了 type='map'（GitHub 与 GitLab 按标签、本地 Markdown 按 map.md），
- *   所以界面这一侧不必再读一遍标签 —— 客户端已经有六处在自己读标签了，这里是第七处的话就是又抄一份。
- *   要说清它与那几处的差别：那几处是**宽判据**（认 type，也认票面上还留着标签的旧快照），
- *   这里只认 type 这一个字段，不带标签回落 —— 旧快照里没有 type 的票会被当成普通票（宁可少标，不猜）。
- *   两套口径合成一套是另一件事，不塞进这一票。
- *   这一维进的是**行数据**（不是画的时候现判一次）：胶囊那一段与悬停展开的列表都读它，
- *   将来这一块在别处挂回来时也照用。
+ * 号码 → 标题、工作单元与状态（只从已拿到的快照里查）。字段叫 ticketTitle 是为避开原生 title 提示
+ * （见 verify-no-title）。isMap 只认归一过的 type='map'（#780，不读标签）。
+ * #783：同号多张时按（工作单元，票号）取，另留只按票号那一把给老记录与远端用。
  */
 const sessionChainTitlesOf = function (st) {
-  const map = {}
+  const byId = {}
+  const byNumber = {}
   const snap = (st && st.snapshot) ? st.snapshot : null
-  if (!snap) return map
+  if (!snap) return { byId: byId, byNumber: byNumber }
   const put = function (x) {
     if (!x || typeof x !== 'object') return
     const n = sessionChainTicketKeyOf(x.number)
-    if (!n || map[n]) return
-    const rawState = (x.state === null || x.state === undefined) ? '' : String(x.state).toUpperCase()
-    map[n] = {
-      ticketTitle: (x.title === null || x.title === undefined) ? '' : String(x.title),
-      effortId: (x.effortId === null || x.effortId === undefined) ? '' : String(x.effortId),
-      ticketState: rawState === 'CLOSED' ? 'CLOSED' : (rawState === 'OPEN' ? 'OPEN' : ''),
-      isMap: x.type === 'map',
-    }
+    if (!n) return
+    const eff = (x.effortId === null || x.effortId === undefined) ? '' : String(x.effortId)
+    const id = eff + '\0' + n
+    const rs = (x.state === null || x.state === undefined) ? '' : String(x.state).toUpperCase()
+    const row = { ticketTitle: (x.title === null || x.title === undefined) ? '' : String(x.title), effortId: eff, ticketState: rs === 'CLOSED' ? 'CLOSED' : (rs === 'OPEN' ? 'OPEN' : ''), isMap: x.type === 'map' }
+    if (!byId[id]) byId[id] = row
+    if (!byNumber[n]) byNumber[n] = row
   }
   const issues = Array.isArray(snap.issues) ? snap.issues : []
   for (let i = 0; i < issues.length; i++) put(issues[i])
@@ -186,7 +176,15 @@ const sessionChainTitlesOf = function (st) {
     const ts = (maps[i] && Array.isArray(maps[i].tickets)) ? maps[i].tickets : []
     for (let j = 0; j < ts.length; j++) put(ts[j])
   }
-  return map
+  return { byId: byId, byNumber: byNumber }
+}
+
+const sessionChainTitleFor = function (titles, ticketKey, effortId) {
+  const eff = (effortId === null || effortId === undefined) ? '' : String(effortId)
+  if (titles && titles.byId && titles.byId[eff + '\0' + ticketKey]) return titles.byId[eff + '\0' + ticketKey]
+  if (titles && titles.byNumber && titles.byNumber[ticketKey]) return titles.byNumber[ticketKey]
+  if (titles && titles[ticketKey] && titles[ticketKey].ticketTitle !== undefined) return titles[ticketKey]
+  return null
 }
 
 /**
@@ -212,7 +210,10 @@ export const sessionChainRowsOf = function (st) {
   view.sessions.forEach(function (s, si) {
     const full = String(s.shardId)
     s.entries.forEach(function (e, ei) {
-      const known = titles[e.ticketKey] || null
+      // #783：行的工作单元以链记下的为准（它是从票文件路径与显式入参里同源取的）；
+      // 标题、状态与是不是地图按（工作单元，票号）精确查，查不到才回落到只按票号。
+      const chainEffort = (e.effortId === null || e.effortId === undefined) ? '' : String(e.effortId)
+      const known = sessionChainTitleFor(titles, e.ticketKey, chainEffort)
       out.push({
         shardId: s.shardId,
         label: full.slice(0, 8),
@@ -222,7 +223,7 @@ export const sessionChainRowsOf = function (st) {
         backend: s.backend,
         ticketKey: e.ticketKey,
         ticketTitle: known ? known.ticketTitle : '',
-        effortId: known ? known.effortId : '',
+        effortId: chainEffort || (known ? known.effortId : ''),
         ticketState: known ? known.ticketState : '',
         // #780：这一维给胶囊那一段与悬停展开的列表用（画地图图标、决定点它跳哪）；查不到就是「不是地图」。
         isMap: !!(known && known.isMap === true),
@@ -237,41 +238,35 @@ export const sessionChainRowsOf = function (st) {
 }
 
 /**
- * 点一行跳到那张票：切回列表页再进它的详情（跳转用的是链记下的票号，不是界面猜的）。
- *
- * #780：**地图要进地图详情页**（此前这里无条件压普通票，地图点进去看不到自己的票单、
- *   目的地、雾区与推进按钮，与列表、票详情页那两个入口的行为也不一致）。判据是两步，缺一不可：
- *     ① 先看它是不是地图：行数据里的 isMap（来自归一过的 type 字段）；
- *     ② 再看能不能跳：能不能在快照的地图清单里按**票身份**（工作单元标识 + 补齐两位的票号）
- *        找到那张地图 —— 用仓库里已有的共用函数 findMapByIdentity，这里不另写一套身份算法。
- *   为什么第②步不能省（这是真正的原因，不是「跟别的入口保持一致」而已）：面板画不画地图详情页，
- *   取决于它能不能在快照的地图清单里找到那个地图对象；找不到时它**不报错，而是回头去画列表页**，
- *   可导航栈里压着的却是一条「地图详情」—— 用户点了地图却停在列表上，返回的层级也跟着错位。
- *   所以两条都成立才压地图栈，认不出、或快照里找不到，都老实按普通票处理，不猜、不空跳。
+ * 点一行跳到那张票：切回列表页再进详情（用链记下的票号）。#780：地图进地图详情页，
+ * 须同时满足是地图与按票身份找得到地图对象，否则回落普通票（面板找不到地图对象时会画成列表页，
+ * 而导航栈却说在地图页）。#783：有工作单元直接找对应那一张，取不到按 780 护栏兜底。
  */
 export const sessionChainOpenTicket = function (st, entry) {
   if (!st || !entry) return
   const n = Number(entry.ticketKey)
   if (!isFinite(n) || n <= 0) return
   try { st.tab = 'list' } catch (e) { /* 状态写不进去也不影响这一跳 */ }
-  const eid = entry.effortId ? entry.effortId : ''
+  const eid = (entry.effortId === null || entry.effortId === undefined) ? '' : String(entry.effortId)
   let map = null
   if (entry.isMap === true && typeof findMapByIdentity === 'function') {
     try {
       const list = (st.snapshot && Array.isArray(st.snapshot.maps)) ? st.snapshot.maps : []
-      // 一个仓库里有多个工作单元时，每份工作单元的票号各自从头排（本地 Markdown 后端就是这样，
-      //   每份的 map.md 都是 00），同一个号会对应好几张地图。而处理链只记票号、不记工作单元，
-      //   行里那个工作单元是按号码从快照里查出来的，多份同号时可能指向别的工作单元 ——
-      //   这时宁可不开地图页（老实按普通票走），也不能把用户送到别的工作单元的地图上去。
-      let sameNumber = 0
-      for (let i = 0; i < list.length; i++) {
-        const m = list[i]
-        if (!m) continue
-        const k = (m.key !== null && m.key !== undefined && m.key !== '') ? m.key : m.number
-        if (k === null || k === undefined || k === '') continue
-        if (String(k).padStart(2, '0') === String(n).padStart(2, '0')) sameNumber++
+      if (eid) {
+        // 链记下了工作单元：直接进对应那一张，找得到才压地图栈。
+        map = findMapByIdentity(list, n, eid)
+      } else {
+        // 取不到工作单元：按 780 护栏兜底 —— 同号多图就不猜，老实按普通票走。
+        let sameNumber = 0
+        for (let i = 0; i < list.length; i++) {
+          const m = list[i]
+          if (!m) continue
+          const k = (m.key !== null && m.key !== undefined && m.key !== '') ? m.key : m.number
+          if (k === null || k === undefined || k === '') continue
+          if (String(k).padStart(2, '0') === String(n).padStart(2, '0')) sameNumber++
+        }
+        if (sameNumber <= 1) map = findMapByIdentity(list, n, eid)
       }
-      if (sameNumber <= 1) map = findMapByIdentity(list, n, eid)
     } catch (eFind) { map = null }
   }
   if (typeof pushNav === 'function') pushNav(st, map ? 'map' : 'issue', n, eid)

@@ -109,13 +109,14 @@ export function createSessionTickets(deps) {
   /**
    * 记一条已经判定过的工具调用。入参里可能带命令原文与路径原文，但它们只在这一层做瞬时匹配。
    *
-   * `input`：`{ sessionId, rootKey 或 rootHash, backend, tool, tier, reason, verb, ticketKey, path, args }`
+   * `input`：`{ sessionId, rootKey 或 rootHash, backend, tool, tier, reason, verb, ticketKey, effortId, path, args }`
    * 其中 tier / reason 是写事件判定表（src/shared/refresh/write-detect.js）给的那一档与原因代号。
-   * 返回 `{ recorded, action, ticketKey, reason, count }`；读、认不出、说不出票号一律 recorded:false。
+   * 返回 `{ recorded, action, ticketKey, effortId, reason, count }`；读、认不出、说不出票号一律 recorded:false。
+   * #783：工作单元一路带到链上 —— 判据从路径与显式入参里取出它，记录与落盘都带着它。
    */
   async function note(input) {
     const verdict = chainVerdictOf(input)
-    if (!verdict.record) { counters.filtered += 1; return { recorded: false, action: '', ticketKey: '', reason: verdict.reason, count: 0 } }
+    if (!verdict.record) { counters.filtered += 1; return { recorded: false, action: '', ticketKey: '', effortId: '', reason: verdict.reason, count: 0 } }
     // #781：先洗根再算散列。调用方（主动上报那一路）传的是会话所选目录原文，
     // 读回那一侧按工作区根过滤；不洗就会同一处落两格。洗失败就用原文，不丢这一笔。
     let rootKey = input ? input.rootKey : ''
@@ -127,11 +128,12 @@ export function createSessionTickets(deps) {
       sessionId: input ? input.sessionId : '',
       rootHash: rootHash,
       backend: input ? input.backend : '',
+      effortId: verdict.effortId || '',
       ticketKey: verdict.ticketKey,
       action: verdict.action,
       at: now(),
     })
-    if (!r.recorded) { counters.refused += 1; return { recorded: false, action: '', ticketKey: '', reason: r.reason, count: 0 } }
+    if (!r.recorded) { counters.refused += 1; return { recorded: false, action: '', ticketKey: '', effortId: '', reason: r.reason, count: 0 } }
     state = r.state
     counters.records += 1
     const count = chainEntriesOf(state, input.sessionId).length
@@ -140,7 +142,7 @@ export function createSessionTickets(deps) {
     try {
       if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('info', 'sessionTickets.chain', { kind: 'record', sidHash: r.shardId, rootHash: rootHash, ok: saved.ok, action: verdict.action, count: count })
     } catch (eL) { /* 日志出问题不许影响记链本身 */ }
-    return { recorded: true, action: verdict.action, ticketKey: verdict.ticketKey, reason: 'chain.record', count: count }
+    return { recorded: true, action: verdict.action, ticketKey: verdict.ticketKey, effortId: verdict.effortId || '', reason: 'chain.record', count: count }
   }
 
   /**
@@ -253,7 +255,7 @@ export function createSessionTickets(deps) {
     const out = []
     for (const k of Object.keys(state.shards)) {
       const sh = state.shards[k]
-      out.push({ shardId: sh.shardId, rootHash: sh.rootHash, backend: sh.backend, entries: sh.entries.map((e) => ({ ticketKey: e.ticketKey, at: e.at, action: e.action })) })
+      out.push({ shardId: sh.shardId, rootHash: sh.rootHash, backend: sh.backend, entries: sh.entries.map((e) => ({ ticketKey: e.ticketKey, effortId: (e.effortId === undefined || e.effortId === null) ? '' : String(e.effortId), at: e.at, action: e.action })) })
     }
     return out
   }

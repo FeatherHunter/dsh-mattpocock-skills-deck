@@ -44,8 +44,10 @@ function entriesOf(raw) {
     const e = list[i]
     const key = keyLike(e ? e.ticketKey : '')
     if (!key) continue
+    const effort = (e && (e.effortId === null || e.effortId === undefined)) ? '' : String(e ? e.effortId : '')
     out.push({
       ticketKey: key,
+      effortId: effort,
       at: atOf(e ? e.at : 0),
       action: (e && e.action !== null && e.action !== undefined) ? String(e.action) : '',
     })
@@ -67,9 +69,10 @@ function newestAt(session) {
  *   { ok: true,  at, reason: 'host.chain.ok'|'host.chain.empty', sessions: [...] }
  *   { ok: false, at, reason: 'host.chain.absent'|'host.chain.read-failed'|'host.chain.shape', sessions: [] }
  *
- * `sessions` 一格一个会话：`{ shardId, backend, entries: [{ ticketKey, at, action }] }`。
+ * `sessions` 一格一个会话：`{ shardId, backend, entries: [{ ticketKey, effortId, at, action }] }`。
  * 里面**没有会话 id 原文、没有路径、没有命令、没有票标题**：会话只以它那一格散列出现
  * （链从落地起就只留散列，界面显示散列前 8 位），标题由界面从它已经拿到的票列表里查。
+ * #783：每条带着它自己的工作单元（目录名；单工作单元后端、扁平布局、远端、老记录都是空串）。
  * 顺序按「这一格最新一条的时刻」从新到旧排；空的一格不出现。
  */
 export function buildSessionChainReadout(input) {

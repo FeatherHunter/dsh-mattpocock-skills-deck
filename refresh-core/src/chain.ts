@@ -139,13 +139,54 @@ export function chainTicketKey(raw: unknown): string {
  * 路径原文只在这一层做瞬时匹配，返回的只有编号。
  */
 export function chainTicketKeyFromPath(path: unknown): string {
-  const text = path === null || path === undefined ? '' : String(path).replace(/\\/g, '/')
+  return chainTicketAndEffortFromPath(path).ticketKey
+}
+
+/**
+ * 工作单元标识归一：目录名原文去首尾空白；空的就是空串（单工作单元后端、根级扁平布局、
+ * 远端后端、老记录都走这里）。目录名不会含斜杠与竖线，含了就按空串收（不把路径形状带进键）。
+ */
+export function chainEffortId(raw: unknown): string {
+  if (raw === null || raw === undefined) return ''
+  const text = String(raw).trim()
   if (!text) return ''
+  if (text.indexOf('/') >= 0 || text.indexOf('\\') >= 0 || text.indexOf('|') >= 0 || text.indexOf('\0') >= 0) return ''
+  if (text === '.' || text === '..') return ''
+  return text
+}
+
+/**
+ * 从同一条票文件路径里一次取出编号与工作单元（#783：两件事读同一个字符串，不各解析一遍）。
+ * 编号口径与原来逐字相同；工作单元只从 `.scratch/<工作单元>/` 这一段取：
+ *   `.scratch/alpha/issues/01-标题.md` → 工作单元 `alpha`；
+ *   `.scratch/alpha/map.md` → 工作单元 `alpha`（编号那一侧认不出 map.md，这里仍能取出工作单元）；
+ *   `.scratch/map.md`、`.scratch/issues/01-标题.md`（根级扁平布局）→ 空串；
+ *   没有 `.scratch` 这一段（远端后端、文档夹具、旧布局）→ 空串。
+ */
+export function chainTicketAndEffortFromPath(path: unknown): { ticketKey: string; effortId: string } {
+  const raw = path === null || path === undefined ? '' : String(path)
+  if (!raw) return { ticketKey: '', effortId: '' }
+  const text = raw.replace(/\\/g, '/')
   const base = text.slice(text.lastIndexOf('/') + 1)
+  let ticketKey = ''
   const direct = /^(\d{1,10})(?:[-._][^/]*)?\.(?:md|markdown)$/i.exec(base)
-  if (direct) return chainTicketKey(direct[1])
-  const inDir = /(?:^|\/)(?:issues?|tickets?)\/(\d{1,10})(?:[-._/]|$)/i.exec(text)
-  return inDir ? chainTicketKey(inDir[1]) : ''
+  if (direct) ticketKey = chainTicketKey(direct[1])
+  else {
+    const inDir = /(?:^|\/)(?:issues?|tickets?)\/(\d{1,10})(?:[-._/]|$)/i.exec(text)
+    ticketKey = inDir ? chainTicketKey(inDir[1]) : ''
+  }
+  let effortId = ''
+  const scratchHit = /(?:^|\/)\.scratch\/([^\/.][^\/]*)\/(?:issues\/|map\.md$|spec\.md$)/.exec(text)
+  if (scratchHit) {
+    const cand = scratchHit[1]
+    if (cand !== 'issues' && cand !== 'tickets') effortId = chainEffortId(cand)
+  }
+  return { ticketKey: ticketKey, effortId: effortId }
+}
+
+/** 从同一条路径取工作单元（票号那一步的同源配对；路径给不出工作单元时就是空串）。 */
+export function chainEffortIdFromPath(path: unknown): string {
+  return chainTicketAndEffortFromPath(path).effortId
 }
 
 /** 票文件路径长什么样（本文件只用它来判断「这条线索是不是 path 那条来源」）。 */
@@ -154,21 +195,26 @@ export function looksLikeTicketFilePath(path: unknown): boolean {
 }
 
 /**
- * 链上一条记录的键 =（工作区根散列，后端，票键，会话分格）。
- * 四段都在键里，缺一段就返回空串（调用方据此不记）：少一段就等于把两张不相干的票当成同一张。
+ * 链上一条记录的键 =（工作区根散列，后端，工作单元，票键，会话分格）。
+ * 五段都在键里，缺一段（工作单元空串算一段，它是合法值）就返回空串（调用方据此不记）：
+ * 少一段就等于把两张不相干的票当成同一张。#783 加上工作单元这一段：键正是去重用的，
+ * 工作单元不进键就白改 —— 两份工作单元里同号的票必须落成两个键。
  */
 export function chainEntryKey(input: {
   rootHash?: unknown
   backend?: unknown
+  effortId?: unknown
   ticketKey?: unknown
   shardId?: unknown
 }): string {
   const rootHash = input ? input.rootHash : ''
   const backend = chainBackendId(input ? input.backend : '')
+  const effortId = chainEffortId(input && 'effortId' in (input as object) ? (input as { effortId?: unknown }).effortId : '')
   const ticketKey = chainTicketKey(input ? input.ticketKey : '')
   const shardId = input ? input.shardId : ''
   if (!isFingerprintLike(rootHash) || !backend || !ticketKey || !isFingerprintLike(shardId)) return ''
-  return 'r:' + rootHash + '|b:' + backend + '|t:' + ticketKey + '|s:' + shardId
+  if (typeof effortId !== 'string') return ''
+  return 'r:' + rootHash + '|b:' + backend + '|e:' + effortId + '|t:' + ticketKey + '|s:' + shardId
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -209,9 +255,11 @@ export interface ChainDecisionInput {
   reason?: string | null
   /** 已经认出来的票键（有就直接用；没有就由本函数再试参数与路径）。 */
   ticketKey?: string | null
+  /** 已经认出来的工作单元（#783：调用方直接给的，例如 deck_issue_report 的 effortId；没有就从路径里取）。 */
+  effortId?: string | null
   /** markdown 那条来源的票文件路径原文：只在这一层瞬时匹配，不进返回值。 */
   path?: string | null
-  /** 我们工具的具名参数（可能装着票键）。 */
+  /** 我们工具的具名参数（可能装着票键；#784 之后也可能装着工作单元）。 */
   args?: Record<string, unknown> | null
   /** 更细的动词（例如 `close`）：命令行那条来源由调用方解析好传进来。 */
   verb?: string | null
@@ -224,6 +272,8 @@ export interface ChainDecision {
   action: string
   /** 记的话是哪一张票（归一后的键）；不记时是空串。 */
   ticketKey: string
+  /** 记的话是哪个工作单元（归一后；单工作单元后端、扁平布局、远端、老记录都是空串）；不记时是空串。 */
+  effortId: string
   /** 为什么记 / 为什么不记（代号，见 CHAIN_REASONS）。 */
   reason: string
 }
@@ -242,12 +292,26 @@ function ticketFromArgs(args: unknown): string {
   return ''
 }
 
-function no(reason: string): ChainDecision {
-  return { record: false, action: '', ticketKey: '', reason: reason }
+/** 参数里可能装着工作单元的字段名（#784 之后 deck 工具会带它；现在先认，来了就用，不来就是空串）。 */
+const EFFORT_ARG_FIELDS: readonly string[] = ['effortId', 'effort', 'effort_id']
+
+function effortFromArgs(args: unknown): string {
+  if (!args || typeof args !== 'object') return ''
+  const bag = args as Record<string, unknown>
+  for (const field of EFFORT_ARG_FIELDS) {
+    if (!Object.prototype.hasOwnProperty.call(bag, field)) continue
+    const e = chainEffortId(bag[field])
+    if (e) return e
+  }
+  return ''
 }
 
-function yes(action: string, ticketKey: string): ChainDecision {
-  return { record: true, action: CHAIN_ACTIONS.indexOf(action) >= 0 ? action : 'other-write', ticketKey: ticketKey, reason: 'chain.record' }
+function no(reason: string): ChainDecision {
+  return { record: false, action: '', ticketKey: '', effortId: '', reason: reason }
+}
+
+function yes(action: string, ticketKey: string, effortId: string): ChainDecision {
+  return { record: true, action: CHAIN_ACTIONS.indexOf(action) >= 0 ? action : 'other-write', ticketKey: ticketKey, effortId: chainEffortId(effortId), reason: 'chain.record' }
 }
 
 /**
@@ -265,6 +329,10 @@ function yes(action: string, ticketKey: string): ChainDecision {
  * markdown 那条来源放宽一处：`write`/`edit` 这类写文件的工具改票文件时，判定表给的是
  * 「已知只读的本地工具」（它只看工具名，不知道那个路径就是一张票的正文），所以这一条来源
  * 的写证据取自工具名本身；反过来 `read`/`grep` 看票文件照样不记。
+ *
+ * #783：工作单元与票号同源，都从同一条路径里取。路径给不出工作单元时（根级扁平布局、
+ * 远端后端）就是空串；调用方直接给的（deck_issue_report 的 effortId、#784 之后其它 deck 工具
+ * 的参数）优先于路径。
  */
 export function chainVerdictOf(input: ChainDecisionInput | null | undefined): ChainDecision {
   if (!input || typeof input !== 'object') return no('chain.unknown-source')
@@ -284,8 +352,10 @@ export function chainVerdictOf(input: ChainDecisionInput | null | undefined): Ch
   if (reason === 'not-succeeded') return no('chain.not-succeeded')
   if (reason === 'shape.not-a-result') return no('chain.not-a-result')
 
-  // 写证据分三条来源各取一次；取不到就是不记。
-  const fromFile = chainTicketKeyFromPath(input.path)
+  // 写证据分三条来源各取一次；取不到就是不记。路径只解析一次，编号与工作单元同源。
+  const parsedPath = chainTicketAndEffortFromPath(input.path)
+  const fromFile = parsedPath.ticketKey
+  const effortFromPath = parsedPath.effortId
   const isFileWriter = FILE_WRITE_TOOLS.indexOf(toolKey) >= 0
   const isDeckWriter = Object.prototype.hasOwnProperty.call(DECK_WRITE_ACTIONS, tool)
   let wrote = false
@@ -316,16 +386,20 @@ export function chainVerdictOf(input: ChainDecisionInput | null | undefined): Ch
   // 三、说的是哪一张票：参数与路径都试，都没有就不记。
   const ticketKey = chainTicketKey(input.ticketKey) || ticketFromArgs(input.args) || fromFile
   if (!ticketKey) return no('chain.no-ticket')
-  return yes(action, ticketKey)
+  // 工作单元：调用方直接给的优先，其次参数里带的（#784），最后才是路径里取的；都没有就是空串。
+  const effortId = chainEffortId(input.effortId) || effortFromArgs(input.args) || effortFromPath
+  return yes(action, ticketKey, effortId)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 四、链路状态：按会话分格、去重、留最近 20 张
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** 链上的一条：票键、时间、动作类别 —— 就这三个字段（落盘也只会写这三个）。 */
+/** 链上的一条：票键、工作单元、时间、动作类别 —— 就这四个字段（落盘也只写这四个）。 */
 export interface ChainEntry {
   ticketKey: string
+  /** 这张票属于哪个工作单元（目录名；单工作单元后端、扁平布局、远端、老记录都是空串）。 */
+  effortId: string
   /** 这次写动作发生的时间（毫秒）。时间由调用方传进来，本文件不看时钟。 */
   at: number
   action: string
@@ -355,14 +429,16 @@ export function createChainState(): ChainState {
  *
  * 三条规则：
  *   - **按会话分格**：键是会话分格散列，所以同一个仓库的两个会话各有一条链，谁也不会盖掉谁。
- *   - **格内去重**：同一张票再写一次不新增一条，而是把那一条挪到最前、刷新时间与动作类别
- *     ——「最近处理过」看的是最后一次动作。
+ *   - **格内去重**：同一张票（工作单元 + 票号）再写一次不新增一条，而是把那一条挪到最前、
+ *     刷新时间与动作类别 ——「最近处理过」看的是最后一次动作。#783 以前只看票号，
+ *     两份工作单元里同号的票会合并成一条，现在按（工作单元，票号）去重。
  *   - **留最近 20 张**：超过就把最旧的丢掉（票面硬要求），丢的是整条记录，不是只丢时间。
  */
 export function chainRecord(state: ChainState, input: {
   sessionId?: unknown
   rootHash?: unknown
   backend?: unknown
+  effortId?: unknown
   ticketKey?: unknown
   action?: unknown
   at?: unknown
@@ -374,15 +450,16 @@ export function chainRecord(state: ChainState, input: {
   if (!backend) return { state: state, recorded: false, shardId: shardId, reason: 'chain.bad-backend' }
   const ticketKey = chainTicketKey(input ? input.ticketKey : '')
   if (!ticketKey) return { state: state, recorded: false, shardId: shardId, reason: 'chain.no-ticket' }
+  const effortId = chainEffortId(input ? (input as { effortId?: unknown }).effortId : '')
   const rawAction = String(input && input.action ? input.action : '')
   const action = CHAIN_ACTIONS.indexOf(rawAction) >= 0 ? rawAction : 'other-write'
   const at = typeof input.at === 'number' && isFinite(input.at) ? input.at : 0
 
   const src = state && state.shards ? state.shards : {}
-  const key = chainEntryKey({ rootHash: input.rootHash, backend: backend, ticketKey: ticketKey, shardId: shardId })
+  const key = chainEntryKey({ rootHash: input.rootHash, backend: backend, effortId: effortId, ticketKey: ticketKey, shardId: shardId })
   if (!key) return { state: state, recorded: false, shardId: shardId, reason: 'chain.bad-root' }
   const before = src[shardId]
-  const entries = mergeEntries(before ? before.entries : [], { ticketKey: ticketKey, at: at, action: action })
+  const entries = mergeEntries(before ? before.entries : [], { ticketKey: ticketKey, effortId: effortId, at: at, action: action })
   const shard: ChainShard = {
     shardId: shardId,
     sessionId: String(input.sessionId == null ? '' : input.sessionId).trim(),
@@ -396,15 +473,17 @@ export function chainRecord(state: ChainState, input: {
   return { state: { shards: shards }, recorded: true, shardId: shardId, reason: 'chain.record' }
 }
 
-/** 去重 + 时间倒序 + 留最近 20 条（链上留存的唯一算法，合并与恢复都走它）。 */
+/** 去重 + 时间倒序 + 留最近 20 条（链上留存的唯一算法，合并与恢复都走它）。去重的键是（工作单元，票号）。 */
 export function mergeEntries(entries: ChainEntry[], incoming: ChainEntry): ChainEntry[] {
   const out: ChainEntry[] = []
   const seen: Record<string, boolean> = {}
   const push = (e: ChainEntry) => {
     const key = chainTicketKey(e ? e.ticketKey : '')
-    if (!key || seen[key]) return
-    seen[key] = true
-    out.push({ ticketKey: key, at: typeof e.at === 'number' && isFinite(e.at) ? e.at : 0, action: CHAIN_ACTIONS.indexOf(String(e.action)) >= 0 ? String(e.action) : 'other-write' })
+    const effort = chainEffortId(e ? (e as ChainEntry).effortId : '')
+    const id = effort + '\0' + key
+    if (!key || seen[id]) return
+    seen[id] = true
+    out.push({ ticketKey: key, effortId: effort, at: typeof e.at === 'number' && isFinite(e.at) ? e.at : 0, action: CHAIN_ACTIONS.indexOf(String(e.action)) >= 0 ? String(e.action) : 'other-write' })
   }
   if (incoming) push(incoming)
   const list = Array.isArray(entries) ? entries : []
@@ -418,15 +497,15 @@ export function chainEntriesOf(state: ChainState | null | undefined, sessionId: 
   const shardId = chainSessionShardId(sessionId)
   const shard = shardId && state && state.shards ? state.shards[shardId] : null
   if (!shard || !Array.isArray(shard.entries)) return []
-  return shard.entries.map((e) => ({ ticketKey: e.ticketKey, at: e.at, action: e.action }))
+  return shard.entries.map((e) => ({ ticketKey: e.ticketKey, effortId: chainEffortId((e as ChainEntry).effortId), at: e.at, action: e.action }))
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 五、落盘与恢复：只存散列、票键、时间、动作类别
+// 五、落盘与恢复：只存散列、票键、工作单元、时间、动作类别
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** 落盘格式的版本号。改了形状就加一，读端认不出就整份丢掉（宁可空着，不许读半份）。 */
-export const CHAIN_DISK_VERSION = 1
+/** 落盘格式的版本号。改了形状就加一，读端认不出就整份丢掉（宁可空着，不许读半份）。#783 从 1 到 2：每条加一段工作单元。 */
+export const CHAIN_DISK_VERSION = 2
 
 /**
  * 这一份要落盘的东西里，有没有不该出去的字。返回每一条现场的一句话（空数组 = 干净）。
@@ -450,19 +529,20 @@ export function chainPrivacyViolations(value: unknown): string[] {
   return out
 }
 
-/** 落盘的那份形状：只有散列、票键、时间、动作类别。会话 id 原文与路径原文都不在里面。 */
+/** 落盘的那份形状：只有散列、票键、工作单元、时间、动作类别。会话 id 原文与路径原文都不在里面。 */
 export function chainToDisk(state: ChainState, opts?: { at?: number }): { v: number; at: number; shards: Array<Record<string, unknown>> } {
   const shards: Array<Record<string, unknown>> = []
   const src = state && state.shards ? state.shards : {}
   for (const k of Object.keys(src)) {
     const shard = src[k]
     if (!shard || !isFingerprintLike(shard.shardId) || !isFingerprintLike(shard.rootHash) || !chainBackendId(shard.backend)) continue
-    const entries: Array<[string, number, string]> = []
+    const entries: Array<[string, string, number, string]> = []
     for (const e of Array.isArray(shard.entries) ? shard.entries : []) {
       const key = chainTicketKey(e ? e.ticketKey : '')
       if (!key) continue
+      const effort = chainEffortId((e as ChainEntry).effortId)
       const action = String(e.action || '')
-      entries.push([key, typeof e.at === 'number' && isFinite(e.at) ? Math.floor(e.at) : 0, CHAIN_ACTIONS.indexOf(action) >= 0 ? action : 'other-write'])
+      entries.push([key, effort, typeof e.at === 'number' && isFinite(e.at) ? Math.floor(e.at) : 0, CHAIN_ACTIONS.indexOf(action) >= 0 ? action : 'other-write'])
     }
     if (entries.length === 0) continue
     shards.push({ s: shard.shardId, r: shard.rootHash, b: shard.backend, e: entries.slice(0, CHAIN_SESSION_CAP) })
@@ -477,12 +557,16 @@ export function chainToDisk(state: ChainState, opts?: { at?: number }): { v: num
  * 绝不「尽力而为」地收下 —— 链是一份可以重建的缓存，读回半份比空着更坏（会显示不存在的处理动作）。
  * 恢复出来的格子里 `sessionId` 是空的（原文本来就没落盘），调用方拿的是散列；要按会话取用
  * chainEntriesOf(state, 会话 id) —— 散列算法一致，取得到。
+ *
+ * #783 兼容：版本 1 的老三元组（票键、时刻、动作）当「工作单元未知」收下，工作单元按空串处理；
+ * 形状不对的、版本不认识的，仍整份丢弃，不猜着读。
  */
 export function chainFromDisk(payload: unknown): { state: ChainState; shards: number; entries: number; dropped: number; reason: string } {
   const state = createChainState()
   const raw = payload as { v?: unknown; shards?: unknown } | null
   if (!raw || typeof raw !== 'object' || !Array.isArray(raw.shards)) return { state: state, shards: 0, entries: 0, dropped: 0, reason: 'chain.disk-shape' }
-  if (Number(raw.v) !== CHAIN_DISK_VERSION) return { state: state, shards: 0, entries: 0, dropped: 0, reason: 'chain.disk-version' }
+  const v = Number(raw.v)
+  if (v !== 1 && v !== CHAIN_DISK_VERSION) return { state: state, shards: 0, entries: 0, dropped: 0, reason: 'chain.disk-version' }
   let kept = 0
   let entries = 0
   let dropped = 0
@@ -491,11 +575,22 @@ export function chainFromDisk(payload: unknown): { state: ChainState; shards: nu
     let acc: ChainEntry[] = []
     for (const row of s.e as unknown[]) {
       const arr = Array.isArray(row) ? row : []
-      const key = chainTicketKey(arr[0])
-      const action = String(arr[2] || '')
-      if (!key || CHAIN_ACTIONS.indexOf(action) < 0) { dropped += 1; continue }
-      const at = typeof arr[1] === 'number' && isFinite(arr[1]) ? Math.floor(arr[1]) : 0
-      acc = mergeEntries(acc, { ticketKey: key, at: at, action: action })
+      if (v === 1) {
+        const key = chainTicketKey(arr[0])
+        const action = String(arr[2] || '')
+        if (!key || CHAIN_ACTIONS.indexOf(action) < 0) { dropped += 1; continue }
+        const at = typeof arr[1] === 'number' && isFinite(arr[1]) ? Math.floor(arr[1]) : 0
+        acc = mergeEntries(acc, { ticketKey: key, effortId: '', at: at, action: action })
+      } else {
+        const key = chainTicketKey(arr[0])
+        const effort = chainEffortId(arr[1])
+        const action = String(arr[3] || '')
+        if (!key || CHAIN_ACTIONS.indexOf(action) < 0) { dropped += 1; continue }
+        // 工作单元形状不对（带斜杠竖线这种不该落盘的字）就丢掉这一条，不猜。
+        if (typeof arr[1] !== 'string' || (arr[1] !== '' && effort !== arr[1])) { dropped += 1; continue }
+        const at = typeof arr[2] === 'number' && isFinite(arr[2]) ? Math.floor(arr[2]) : 0
+        acc = mergeEntries(acc, { ticketKey: key, effortId: effort, at: at, action: action })
+      }
     }
     if (acc.length === 0) { dropped += 1; continue }
     state.shards[String(s.s)] = { shardId: String(s.s), sessionId: '', rootHash: String(s.r), backend: chainBackendId(s.b), entries: acc }

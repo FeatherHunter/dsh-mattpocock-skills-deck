@@ -116,8 +116,14 @@ async function main() {
   const parsed = JSON.parse(text)
   check(parsed.v === chain.CHAIN_DISK_VERSION && Array.isArray(parsed.shards) && parsed.shards.length === 3, '落盘形状：版本号 + 三格链（' + parsed.shards.length + ' 格）')
   const row = parsed.shards[0].e[0]
-  check(Array.isArray(row) && row.length === 3 && typeof row[0] === 'string' && typeof row[1] === 'number' && typeof row[2] === 'string',
-    '每一条只存三样：票键、时间、动作类别（' + JSON.stringify(row) + '）')
+  check(Array.isArray(row) && row.length === 4 && typeof row[0] === 'string' && typeof row[1] === 'string' && typeof row[2] === 'number' && typeof row[3] === 'string',
+    '每一条只存四样：票键、工作单元、时间、动作类别（' + JSON.stringify(row) + '）')
+  // #783：老版本三元组仍能读回（工作单元按空串处理）；形状不对与版本不认识仍整份丢弃。
+  const oldPayload = { v: 1, at: 0, shards: [{ s: chain.chainSessionShardId(SID_A), r: chain.chainRootHash(ROOT_KEY), b: 'github', e: [['701', 1700000000000, 'create']] }] }
+  const oldRead = chain.chainFromDisk(oldPayload)
+  check(oldRead.state && oldRead.entries === 1 && oldRead.shards === 1, '老落盘三元组仍能读回（v1 兼容）')
+  const oldEntries = chain.chainEntriesOf(oldRead.state, SID_A)
+  check(oldEntries.length === 1 && oldEntries[0].ticketKey === '701' && oldEntries[0].effortId === '', '老记录的工作单元按空串处理（' + JSON.stringify(oldEntries[0]) + '）')
 
   // ── 六、重启：丢掉内存、照同一个缓存目录另起一个实例，从落盘恢复 ────────────────
   const logCtx2 = makeLogCtx()

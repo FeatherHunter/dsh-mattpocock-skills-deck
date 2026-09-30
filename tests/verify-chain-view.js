@@ -329,9 +329,10 @@ async function main() {
   pushed.length = 0
   leaf.sessionChainOpenTicket(st, { ticketKey: '802', effortId: '', isMap: true })
   if (!pushed.length || pushed[0].kind !== 'map' || pushed[0].n !== 802) fail('已关闭的地图没有跳地图详情页：' + JSON.stringify(pushed))
-  // #780 边界三：同一个号在快照里对应好几张地图（多工作单元各自从头排号，本地 Markdown 后端每份的
-  //   map.md 都是 00）→ 不猜，老实按普通票走。行里那个工作单元是按号码从快照里查出来的，
-  //   多份同号时它可能指向别的工作单元，硬跳会把用户送到别人的地图上。
+  // #780 边界三（#783 修订）：同一个号在快照里对应好几张地图时，
+  //   链记下了工作单元（非空）就直接进对应那一张；取不到工作单元（空串：老记录、远端、扁平布局）
+  //   才不猜、老实按普通票走。以前链不记工作单元，行里那个工作单元是按号码查出来的，
+  //   多份同号时可能指向别的工作单元，所以一律回落；现在链记下的工作单元可信，不拦。
   pushed.length = 0
   leaf.sessionChainOpenTicket({
     snapshot: { maps: [
@@ -340,7 +341,17 @@ async function main() {
     ] },
     tab: 'checks',
   }, { ticketKey: '40', effortId: 'beta', isMap: true })
-  if (!pushed.length || pushed[0].kind !== 'issue') fail('同号对应多张地图时没有回落普通票（会把用户送到别的工作单元的地图）：' + JSON.stringify(pushed))
+  if (!pushed.length || pushed[0].kind !== 'map' || pushed[0].n !== 40 || pushed[0].effortId !== 'beta') fail('链记下了工作单元时没有进对应那一张地图：' + JSON.stringify(pushed))
+  // #783 兜底：取不到工作单元时仍按 780 护栏回落普通票（老记录与任何取不到工作单元的来源靠它接住）。
+  pushed.length = 0
+  leaf.sessionChainOpenTicket({
+    snapshot: { maps: [
+      { number: 40, key: '40', effortId: 'alpha', title: 'A 的地图', state: 'OPEN', tickets: [] },
+      { number: 40, key: '40', effortId: 'beta', title: 'B 的地图', state: 'OPEN', tickets: [] },
+    ] },
+    tab: 'checks',
+  }, { ticketKey: '40', effortId: '', isMap: true })
+  if (!pushed.length || pushed[0].kind !== 'issue') fail('取不到工作单元时没有回落普通票（会把用户送到别的工作单元的地图）：' + JSON.stringify(pushed))
   // #780 对照：同一个号只对应一张地图时照常跳（证明上一条拦的是「说不准」，不是「找不到」）
   pushed.length = 0
   leaf.sessionChainOpenTicket({
