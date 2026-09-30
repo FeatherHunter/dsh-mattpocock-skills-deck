@@ -1083,19 +1083,51 @@ const contractChecksInner = function (reg, src) {
   // #725：「## 正文格式」那一节整节删除（模板里的标记、后端声明、注册表兜底版全没了），所以期望 0。
   const segCount = (src.match(/## 正文格式/g) || []).length
   if (segCount !== 0) fail('「## 正文格式」段数 ' + segCount + '（期望 0：#725 起正文格式契约已整节删除）')
-  // #779：全量模板必须带两行工具节（Q2=全部，Q4=原话两行）。
-  //   #791：唯一的例外是初始化那条（setupRun）—— 它只记 tracker / 标签词汇 / 文档路径，一个 issue 都不碰，
-  //   工具节放在这里是空转；而且它的全文由 #230 的金样门禁逐字锁定，那份金样里没有工具节（#779 补节时
-  //   漏改那条门禁，两边就这么红着对不上）。这里给它留一个写明理由的例外，并配反向断言，防它被加回来。
-  const TOOL_SECTION_EXEMPT = ['setupRun']
+  // #779：模板要带两行工具节（Q4=原话两行）。
+  //   #791 + #792（2026-09-30 定稿）：工具节不再「全部模板都有」，只给「这条提示词引导的动作里会读或写票 / 地图」的模板。
+  //   判据来自第一性原理审查（票 792）：deck 工具集的能力边界就是 issue 与 map 的读写（外加认工作区、诊断），没有标签、
+  //   文档、登录、装技能这几档 —— 不碰票的流程挂上它只是白挂；初始化 / 登录 / 装技能这几条还会把人引向此刻用不了的
+  //   工具（初始化时后端记录还没落地，没登录时工具内部的命令行必然失败）。
+  //   下面两张表是这条规则的唯一声明，合起来必须正好覆盖注册表全部条目：第一张里的必须有工具节，第二张里的一条都不许有。
+  //   改这两张表要走评审，并同步 src/client/kernel/prompts.js 顶上那段注释。
+  const TOOL_SECTION_IDS = [
+    'tpl.diagnose', 'tpl.fix', 'tpl.discuss', 'tpl.research', 'tpl.prototype', 'tpl.execute', 'tpl.takeover', 'tpl.supplement', // 手里就是一张票（8 条）
+    'mapExecute', 'complete', 'mapInspect', 'healthCheck', // 手里是一张地图或一批票（4 条）
+    'newWayfinder', 'newBugWayfinder', // 产物就是票（2 条）
+    'fixate', // 会把成果写回票正文（1 条）
+  ]
+  const TOOL_SECTION_ABSENT_IDS = [
+    'setupRun', // 初始化写的是 docs/agents/*.md 与 AGENTS.md 与标签，工具集里没有标签这一档
+    'switchAlign', // 改文档里记录后端的那几行，工具改不了后端记录
+    'switchLayout', // 同上，改的是布局那句结论
+    'installSkills', // 装技能套件，与跟踪器无关（tests/prompt-command-manifest.json 的 renderExempt 同口径：不读写任何一张票）
+    'installSkillsFix', // 同上
+    'ghAuthLogin', // 登录发生在跟踪器之外，工具此刻还用不了
+    'tpl.handoff1', // 只写一份交接文档
+    'tpl.handoff2', // 只读交接文档（维护者 2026-09-30 定稿：交接两条都不带工具节）
+  ]
+  if (TOOL_SECTION_IDS.length !== 15) fail('#792 TOOL_SECTION_IDS 条数 ' + TOOL_SECTION_IDS.length + '（定稿 15）')
+  if (TOOL_SECTION_ABSENT_IDS.length !== 8) fail('#792 TOOL_SECTION_ABSENT_IDS 条数 ' + TOOL_SECTION_ABSENT_IDS.length + '（定稿 8）')
   Object.keys(reg).forEach(function (id) {
     const e = reg[id] || {}
-    if (TOOL_SECTION_EXEMPT.indexOf(id) >= 0) {
-      if (String(e.zh || '').indexOf('## 工具') >= 0 || String(e.en || '').indexOf('## Tools') >= 0) fail('#791 例外条目 ' + id + ' 不该再带工具节（#230 金样按「没有工具节」逐字锁定）')
+    const zh = String(e.zh || ''), en = String(e.en || '')
+    const hasZh = zh.indexOf('## 工具') >= 0, hasEn = en.indexOf('## Tools') >= 0
+    if (TOOL_SECTION_IDS.indexOf(id) >= 0) {
+      if (!hasZh || zh.indexOf('优先使用 deck_ 开头的工具') < 0 || zh.indexOf('deck_issue_report') < 0) fail('#779 模板 ' + id + '.zh 缺两行工具节')
+      if (!hasEn || en.indexOf('Prefer the deck_ tools') < 0 || en.indexOf('deck_issue_report') < 0) fail('#779 模板 ' + id + '.en 缺两行工具节')
       return
     }
-    if (String(e.zh || '').indexOf('## 工具') < 0 || String(e.zh || '').indexOf('优先使用 deck_ 开头的工具') < 0 || String(e.zh || '').indexOf('deck_issue_report') < 0) fail('#779 模板 ' + id + '.zh 缺两行工具节')
-    if (String(e.en || '').indexOf('## Tools') < 0 || String(e.en || '').indexOf('Prefer the deck_ tools') < 0 || String(e.en || '').indexOf('deck_issue_report') < 0) fail('#779 模板 ' + id + '.en 缺两行工具节')
+    if (TOOL_SECTION_ABSENT_IDS.indexOf(id) >= 0) {
+      if (hasZh || hasEn) fail('#792 模板 ' + id + ' 不该带工具节（表里写明它的动作不读写票，判据见这张表上方的注释）')
+      return
+    }
+    fail('#792 条目 ' + id + ' 没在工具节两张表里表态（该带还是不该带，请写明理由）')
+  })
+  TOOL_SECTION_IDS.concat(TOOL_SECTION_ABSENT_IDS).forEach(function (id) {
+    if (!reg[id]) fail('#792 工具节两张表里的 ' + id + ' 不在注册表里（表与注册表对不上了）')
+  })
+  TOOL_SECTION_IDS.forEach(function (id) {
+    if (TOOL_SECTION_ABSENT_IDS.indexOf(id) >= 0) fail('#792 条目 ' + id + ' 同时出现在该带与不该带两张表里')
   })
   // workspace-relative 旧形态零残留（#588 立的断言；#603 起口径更严：提示词里一个脚本都不许调）
   const oldForm = (src.match(/`node scripts\/(fix-issue-body|wire-subissues)\.mjs/g) || []).length
@@ -1423,10 +1455,13 @@ const selfDigest = function () {
 //   V_MIN 各加一条 v1，受保护清单同步加两条，自摘要跟着重算。
 // #791：初始化那条（setupRun）撤掉末尾的工具章节，本文件的全量断言（#779 那一条）给它开一个写明理由的
 //   例外并配反向断言；注册表条目数与受保护清单都没变，只有这一处断言改动，自摘要跟着重算。
+// #792：工具节的适用范围按第一性原理定稿 —— 只给会读写票 / 地图的 15 条，另外 8 条一律不带；上面那条例外
+//   写法升级成 TOOL_SECTION_IDS / TOOL_SECTION_ABSENT_IDS 两张表（合起来必须覆盖注册表全部 23 条），
+//   门禁正反两向断言并钉住两张表的条数，自摘要跟着重算。
 const LOCK = {
   'tests/prompt-gate-exempt.json': 'c661ccd0fbfd46aa99790c073d0ccea89ebf5787a9113462c092b17c72a2a2d9',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.js': '0056cd0ae2642dcc360a1e54e087d16cd83a363e51047880aef8d6bf5b4c84c3',
+  'tests/verify-prompts.js': '3a0847231c6663b4c9bb691ca0bf8d219c02ae99cd83f76900a411a16b604b31',
 }
 // ---- LOCK-END ----
 
