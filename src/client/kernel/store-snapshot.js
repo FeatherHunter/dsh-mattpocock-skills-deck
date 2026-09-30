@@ -34,7 +34,15 @@
       // #727：后端那条事实的读取状态。selPending =「这个工作区用哪个后端」还说不准、而且有真的在途原因（面板取数在飞，或那条专用电话在飞）；_selAskedKey = 已经为哪个工作区补问过那条电话（见 probe-select.js）。
       selPending: false, _selAskedKey: '',
       // T2 HoverTip 迁移（#381）：skillTip 已由 HoverTip 局部 state 统一，移除全局，skillHover 保留用于行高亮（后续可改 CSS :hover 再移除）
-      refreshing: false, rowFlash: {}, issueFlash: {}, handoffReady: false, handoffSearching: false, skillsOpen: false, skillHover: null, bugMenuOpen: false, bugMenuHover: false, bugMenuPos: null, takeMenuOpen: false, takeMenuHover: false, takeMenuPos: null, skillPopPos: null, expTags: {}, subs: [],
+      refreshing: false, rowFlash: {}, issueFlash: {}, handoffReady: false, handoffSearching: false,
+      // #787 交接会话隔离（会话私有状态）：本会话记下的时间戳、真实文件名、记下那一刻的目录。
+      //   无记忆时为 null/空串；读时当时目录与当前目录对不上视为无记忆（fail-closed），绝不串到别的会话。
+      handoffTs: null, handoffFile: null, handoffCwd: '',
+      // #787 发出去防抖计时（800 毫秒）住会话自己身上；无记忆为 0。
+      _lastHandoffOpenTs: 0,
+      // #787 待注入本会话的首条草稿（别的会话交接过来）；本会话界面取完清空。
+      incomingDraft: null,
+      skillsOpen: false, skillHover: null, bugMenuOpen: false, bugMenuHover: false, bugMenuPos: null, takeMenuOpen: false, takeMenuHover: false, takeMenuPos: null, skillPopPos: null, expTags: {}, subs: [],
       noRepoCard: { expanded: false, name: '', visibility: 'private', loading: false, error: '', errorKind: '', errorRepoUrl: '' },
       switchConfirm: null,
       gateModalOpen: false, gateSelected: null, gateLoading: false, gateError: '',

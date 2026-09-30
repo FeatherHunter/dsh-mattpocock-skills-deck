@@ -28,7 +28,7 @@ export function createHandoffClaim(deps) {
     const sorted = mds.slice().sort(function (a, b) {
       const dt = (b.mtime || 0) - (a.mtime || 0)
       if (dt !== 0) return dt
-      // name desc 兜底：时间戳文件名（YYYYMMDD-HHMMSS）字典序 = 时间序
+      // name desc 兜底：时间戳文件名（YYYYMMDD-HHMMSS-mmm，#787 起带毫秒）字典序 = 时间序
       if (b.name < a.name) return -1
       if (b.name > a.name) return 1
       return 0

@@ -29,7 +29,9 @@
       const cwdArg = st.cwd ? { cwd: st.cwd } : {}
       const done = function (file) {
         const ready = !!file
-        if (ready) st.handoffFile = file
+        // #787：找到文件即把当时目录一起记下（刷新后走最新也一样），下次读时校验；
+        //   只记当前非空目录，空目录不覆盖旧值（水合到达前不污染记忆）。
+        if (ready) { st.handoffFile = file; if (st.cwd) st.handoffCwd = st.cwd }
         if (st.handoffReady !== ready) { st.handoffReady = ready; emit(st) }  // 状态变了才重渲染（长轮询免重复绘）
         return file
       }
@@ -37,15 +39,15 @@
       // #787 会话隔离 + fail-closed：记忆只属于记下它的那个会话与那个目录。
       //   本会话没记过，或记下时的目录与当前目录已不是同一工作区，一律视为无记忆
       //   —— 灰加引导，绝不拿当前目录的最新来顶。
-      const memValid = function () { return !!(st.handoffTs || st.handoffFile) && handoffCwdMatches(st.handoffCwd, st.cwd) }
+      const handoffMemoryValid = function () { return !!(st.handoffTs || st.handoffFile) && handoffCwdMatches(st.handoffCwd, st.cwd) }
       // 主路径：本会话已发现真实文件名 → 直接返回（prompt 与第一击 {ts}-*.md 一致）
       if (st.handoffFile) {
-        if (!memValid()) { done(null); return Promise.resolve(null) }
+        if (!handoffMemoryValid()) { done(null); return Promise.resolve(null) }
         return Promise.resolve(done(st.handoffFile))
       }
       // 副路径 A：本会话刚点过第一击 → 按本会话 {ts}-*.md 前缀匹配真实文件名（含 AI 短标题）
       if (st.handoffTs) {
-        if (!memValid()) { done(null); return Promise.resolve(null) }
+        if (!handoffMemoryValid()) { done(null); return Promise.resolve(null) }
         return host.call('wf.handoffResolve', Object.assign({ name: st.handoffTs + '*' }, cwdArg)).then(function (res) {
           if (res && res.ok && res.file) return done(res.file)
           // 前缀未命中 → 回退取最新，但仅当最新文件名确实以本会话时间戳开头才引用（避免引用无关的旧文档）
@@ -98,7 +100,7 @@
             const cwd = st.cwd || ''
             if (sessions && typeof sessions.create === 'function') {
               const createOpts = (typeof buildCreateOpts === 'function') ? buildCreateOpts(null, cwd) : { cwd: cwd, agentPreset: 'ptc' }
-              const p = (typeof createPTCSession === 'function') ? createPTCSession(sessions, null, cwd, text) : sessions.create(createOpts).then(function(sid){ try { storeOf(sid).incomingDraft = text } catch (eDraft) { try { inject(st, text) } catch (e2) {} } return sid })
+              const p = (typeof createPTCSession === 'function') ? createPTCSession(sessions, null, cwd, text) : sessions.create(createOpts).then(function(sid){ try { if (sid) storeOf(sid).incomingDraft = text } catch (eDraft) { try { inject(st, text) } catch (e2) {} } return sid })
               p.then(function(sid){ try{ sessions.open(sid) }catch(e){} }).catch(function(){ try{ inject(st,text) }catch(e2){} })
             } else { inject(st, text) }
           } catch(e3){ try{ inject(st,text)}catch(e4){} }
@@ -296,15 +298,15 @@
                   } else if (typeof inject === 'function') {
                     inject(ns || st, text)
                   } else {
-                    // #787：首条写进目标会话自己的 store，本会话界面取完清空
-                    ;(ns || st).incomingDraft = text
-                    try { emit(ns || st) } catch(eEmit){}
+                    // #787：首条写进目标会话自己的 store（storeOf 永返对象，ns 必为目标会话那份，不会落到源会话）
+                    ns.incomingDraft = text
+                    try { emit(ns) } catch(eEmit){}
                   }
                 } catch(eDirect){
-                  ;(ns || st).incomingDraft = text
+                  ns.incomingDraft = text
                 }
               } else {
-                ;(ns || st).incomingDraft = text
+                ns.incomingDraft = text
               }
             // #742：0.1.7 注册表无 open(会话号)，优先走工作区打开通道，旧方法留回退。
             // #746 Knife2/V7：打开成功才改名记账；打开失败记账不断（守护仍可兜底），提示如实报失败。
@@ -322,7 +324,7 @@
           }
           // #363 单点工厂：显式 ptc + 工作区 + 首条原子化（唯一出口，显式 agentPreset）
           const createOpts = typeof buildCreateOpts === 'function' ? buildCreateOpts(workspaceId, cwd) : (workspaceId ? { workspaceId: workspaceId, agentPreset: 'ptc' } : { cwd: cwd, agentPreset: 'ptc' })
-          const __createOnce = function () { return (typeof createPTCSession === 'function') ? createPTCSession(sessions, workspaceId, cwd, text) : sessions.create(createOpts).then(function(__sid){ try { storeOf(__sid).incomingDraft = text } catch (eD) { try { inject(st, text) } catch (e2) {} } return __sid; }) }
+          const __createOnce = function () { return (typeof createPTCSession === 'function') ? createPTCSession(sessions, workspaceId, cwd, text) : sessions.create(createOpts).then(function(__sid){ try { if (__sid) storeOf(__sid).incomingDraft = text } catch (eD) { try { inject(st, text) } catch (e2) {} } return __sid; }) }
           // #478：经创建后验编排建会话（首建 code 则隔离重建；双 code 抛错，大声失败，绝不 open code）；旧闭包无编排时回退直建。
           const __createPTC = (typeof createVerifiedPTCSession === 'function') ? createVerifiedPTCSession(__createOnce, sessions) : __createOnce()
           __createPTC.then(function (sid) {
@@ -386,8 +388,8 @@
           // #315 回滚 (2026-08-30 user constraint): keep draft-first UX (先填草稿、让用户自己输入再发送), no auto-send via face.prompt;
           //   blank-reuse risk is mitigated by naming-guardian bare-session never gets numbered (path B fixed) rather than auto-send
           //   (see handoff 20260830-014242).
-          // 建号失败（下链 catch）走 doFallback 时此行没跑过，目标 store 无残留。
-          ns.incomingDraft = text
+          // 建号失败（下链 catch）走 doFallback 时此行没跑过，目标 store 无残留；新编号为空不写（不污染共用）。
+          if (sid) ns.incomingDraft = text
           // #739：建号成功（sid 已到手）后只报成功，打开失败不再进 doFallback ——
           //   兜底会谎称没建会话并把指令塞回当前会话，而带草稿的新会话其实已被丢在后台成幽灵；
           // #742：0.1.7 注册表无 open(会话号)，优先走工作区打开通道，旧方法留回退。

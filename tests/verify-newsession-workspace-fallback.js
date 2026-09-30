@@ -7,8 +7,8 @@
 //  c) 静態：createPTCSession 含首条原子挂载且含 workspaceId/agentPreset 兼容回退（alpha 新参）
 //  d) 沙箱：ensureWorkspaceId — 命中复用、未命中创建、创建失败回落、alpha path→cwd 回退、多形态 snapshot 兼容
 //  e) 沙箱：buildCreateOpts — 有 wid / 无 wid / 空 cwd 三态
-//  f) 沙箱：createPTCSession — 正常 wid/cwd 分支、workspaceId 失败回落 cwd+ptc、agentPreset 更名回退仍挂 pendingDraft
-//  g) 沙箱：openTextInNewSession 工作区回退集成 — cwd 缺失走 fallback、workspaceId 创建失败走 cwd+ptc、成功走 wid+ptc、首条锚定不丢
+//  f) 沙箱：createPTCSession — 正常 wid/cwd 分支、workspaceId 失败回落 cwd+ptc、agentPreset 更名回退仍写目标会话自己的草稿
+//  g) 沙箱：openTextInNewSession 工作区回退集成 — cwd 缺失走 fallback、workspaceId 创建失败走 cwd+ptc、成功走 wid+ptc、首条写目标会话自己的存放
 //  h) 双源一致（src 与构建产物逐字 splice 保留）
 //
 // 与 verify-newsession-preset-guard.js 同范式：从目标文件提取真实源码并在沙箱以忠实替身执行。
@@ -116,7 +116,7 @@ async function testFile(file) {
   // c) 静態：createPTCSession 含首条原子与兼容回退
   const cStart = factoryBlock.indexOf('const createPTCSession')
   const createSrc = cStart>=0 ? factoryBlock.slice(cStart, factoryBlock.indexOf('// ============ 命名守护')) : ''
-  check(createSrc.indexOf('pendingDraft = text')>=0 && createSrc.indexOf('pendingDraftTargetSid = sid')>=0, file + ' createPTCSession 原子挂载 pendingDraft')
+  check(createSrc.indexOf('incomingDraft')>=0 && createSrc.indexOf('storeOf(')>=0, file + ' createPTCSession 原子写入目标 store（#787 会话隔离）')
   check(createSrc.indexOf('presetId')>=0 || createSrc.indexOf('agentPresetId')>=0, file + ' createPTCSession 含 preset 兼容回退')
   check(createSrc.indexOf('workspaceId')>=0 && createSrc.indexOf('buildCreateOpts')>=0, file + ' createPTCSession 经 buildCreateOpts 且提及 workspaceId')
   check(createSrc.indexOf('bad-request')>=0 || createSrc.indexOf('workspaceId')>=0, file + ' createPTCSession 含 workspaceId 失败回退语义')
@@ -291,14 +291,13 @@ async function testFile(file) {
     const buildSrc = block.slice(block.indexOf('const buildCreateOpts'), block.indexOf('const createPTCSession'))
     // 正常：有 wid — 仅源码文本检查
     {
-      const hasFallback = createBlock.indexOf('presetId')>=0 && createBlock.indexOf('workspaceId')>=0 && createBlock.indexOf('pendingDraft = text')>=0
-      check(hasFallback, file + ' createPTCSession 源码含回退与原子挂载')
+      const hasFallback = createBlock.indexOf('presetId')>=0 && createBlock.indexOf('workspaceId')>=0 && createBlock.indexOf('incomingDraft')>=0
+      check(hasFallback, file + ' createPTCSession 源码含回退与目标 store 原子写入')
     }
-    // 更直接的 sandbox：运行 createPTCSession 的真实逻辑（注入 buildCreateOpts）
+    // 更直接的 sandbox：运行 createPTCSession 的真实逻辑（注入 buildCreateOpts + 按编号缓存的 storeOf）
+    const mkStoreOf = () => { const m = {}; const f = (sid) => (m[sid] || (m[sid] = { incomingDraft: null })); f.map = m; return f }
     {
       // 用真实的 factory 逻辑沙箱
-      let pendingDraftCaptured = null
-      let pendingTargetCaptured = null
       const sessionsOk = {
         create: async (opts)=>{
           if (!opts.agentPreset || opts.agentPreset!=='ptc') throw new Error('missing ptc')
@@ -307,17 +306,17 @@ async function testFile(file) {
         }
       }
       const block2 = buildSrc + ';\n' + createBlock
-      // 构造执行环境：需要 sessions, workspaceId, cwd, text, pendingDraft, pendingDraftTargetSid 在作用域
-      const exec = new Function('sessions','workspaceId','cwd','text',
-        'let pendingDraft=null; let pendingDraftTargetSid=null;\n'
-        + buildSrc + ';\n'
+      // 构造执行环境：storeOf 按编号缓存替身，写进哪个目标事后可查
+      const storeOfStub = mkStoreOf()
+      const exec = new Function('sessions','workspaceId','cwd','text','storeOf',
+        buildSrc + ';\n'
         + createBlock.replace(/return sessions\.create/, 'return sessions.create')
-        + '\nreturn createPTCSession(sessions, workspaceId, cwd, text).then(sid=>({sid, pendingDraft, pendingDraftTargetSid}));'
+        + '\nreturn createPTCSession(sessions, workspaceId, cwd, text).then(sid=>({sid, draft: storeOf(sid).incomingDraft}));'
       )
-      const res = await exec(sessionsOk, 'ws-1', 'D:/repo', '/wayfinder #1')
-      check(res.sid==='sid-ok' && res.pendingDraft==='/wayfinder #1' && res.pendingDraftTargetSid==='sid-ok', file + ' createPTCSession 有 wid → {workspaceId,ptc} 且原子挂载')
-      const res2 = await exec(sessionsOk, null, 'D:/repo', '/wayfinder #2')
-      check(res2.sid==='sid-ok' && res2.pendingDraft==='/wayfinder #2', file + ' createPTCSession 无 wid → {cwd,ptc} 且原子挂载')
+      const res = await exec(sessionsOk, 'ws-1', 'D:/repo', '/wayfinder #1', storeOfStub)
+      check(res.sid==='sid-ok' && res.draft==='/wayfinder #1', file + ' createPTCSession 有 wid → {workspaceId,ptc} 且原子写入目标 store')
+      const res2 = await exec(sessionsOk, null, 'D:/repo', '/wayfinder #2', storeOfStub)
+      check(res2.sid==='sid-ok' && storeOfStub.map['sid-ok'].incomingDraft==='/wayfinder #2', file + ' createPTCSession 无 wid → {cwd,ptc} 且原子写入目标 store')
     }
     // 回退：workspaceId 失败 → 回落 cwd+ptc
     {
@@ -329,13 +328,13 @@ async function testFile(file) {
         }
       }
       const blockExec = buildSrc + ';\n' + createBlock
-      const exec = new Function('sessions','workspaceId','cwd','text',
-        'let pendingDraft=null; let pendingDraftTargetSid=null;\n'
-        + buildSrc + ';\n' + createBlock
-        + '\nreturn createPTCSession(sessions, workspaceId, cwd, text).then(sid=>({sid, pendingDraft, pendingDraftTargetSid}));'
+      const storeOfStubFb = mkStoreOf()
+      const exec = new Function('sessions','workspaceId','cwd','text','storeOf',
+        buildSrc + ';\n' + createBlock
+        + '\nreturn createPTCSession(sessions, workspaceId, cwd, text).then(sid=>({sid, draft: storeOf(sid).incomingDraft}));'
       )
-      const res = await exec(sessionsFailWid, 'ws-bad', 'D:/repo', '/wayfinder fallback')
-      check(res.sid==='sid-fb' && res.pendingDraft==='/wayfinder fallback', file + ' createPTCSession workspaceId 失败 → 回落 cwd+ptc 仍挂载')
+      const res = await exec(sessionsFailWid, 'ws-bad', 'D:/repo', '/wayfinder fallback', storeOfStubFb)
+      check(res.sid==='sid-fb' && res.draft==='/wayfinder fallback', file + ' createPTCSession workspaceId 失败 → 回落 cwd+ptc 仍写入目标 store')
     }
     // 回退：agentPreset 更名 → presetId
     {
@@ -346,18 +345,19 @@ async function testFile(file) {
           throw new Error('unexpected opts '+JSON.stringify(opts))
         }
       }
-      const exec = new Function('sessions','workspaceId','cwd','text',
-        'let pendingDraft=null; let pendingDraftTargetSid=null;\n'
-        + buildSrc + ';\n' + createBlock
-        + '\nreturn createPTCSession(sessions, workspaceId, cwd, text).then(sid=>({sid, pendingDraft, pendingDraftTargetSid}));'
+      const storeOfStubPreset = mkStoreOf()
+      const exec = new Function('sessions','workspaceId','cwd','text','storeOf',
+        buildSrc + ';\n' + createBlock
+        + '\nreturn createPTCSession(sessions, workspaceId, cwd, text).then(sid=>({sid, draft: storeOf(sid).incomingDraft}));'
       )
-      const res = await exec(sessionsFailPreset, 'ws-1', 'D:/repo', '/wayfinder preset')
-      check(res.sid==='sid-preset' && res.pendingDraft==='/wayfinder preset', file + ' createPTCSession agentPreset 更名 → presetId 回退仍挂载')
+      const res = await exec(sessionsFailPreset, 'ws-1', 'D:/repo', '/wayfinder preset', storeOfStubPreset)
+      check(res.sid==='sid-preset' && res.draft==='/wayfinder preset', file + ' createPTCSession agentPreset 更名 → presetId 回退仍写入目标 store')
     }
   } catch(e) { check(false, file + ' createPTCSession 沙箱 — ' + e.stack) }
 
   // g) 沙箱：openTextInNewSession 工作区回退集成
   try {
+    const mkStoreOfG = () => { const m = {}; const f = (sid) => (m[sid] || (m[sid] = { incomingDraft: null })); f.map = m; return f }
     let factory = factoryBlock.replace(/^\s*export\s+/gm, '')
     const helpersSrc = factory.slice(factory.indexOf('const getRowPreset'), factory.indexOf('const buildCreateOpts'))
     // #636：薄转发要找到 resolveWorkspaceEntry，沙箱里把它前面拼上（与真实闭包里的拼接次序一致）。
@@ -457,15 +457,16 @@ async function testFile(file) {
         list:{ getSnapshot: ()=>({ byId: {} }) }
       }
       const hostStub = { call: async()=>({ok:true}) }
+      const storeOfStubB = mkStoreOfG()
       const openFn = fn(st, '/wayfinder https://github.com/x/issues/1','[#1] test',
         { get:(k)=> k==='sessions'?sessionsStub2:k==='workspaces'?workspacesStub:null },
         hostStub, dbg,
-        ()=>{}, ()=>{}, (k)=>k, ()=>null, keyOf, ()=>({cwd:'D:/my-app'}), ()=>false, ()=>null, ()=>null, (t)=>/\[New\]/.test(String(t)), ()=>{}
+        ()=>{}, ()=>{}, (k)=>k, ()=>null, keyOf, storeOfStubB, ()=>false, ()=>null, ()=>null, (t)=>/\[New\]/.test(String(t)), ()=>{}
       )
       openFn(st,'/wayfinder https://github.com/x/issues/1','[#1] test')
       await new Promise(r=>setTimeout(r, 80))
       check(rec.created && rec.created.cwd==='D:/my-app' && rec.created.agentPreset==='ptc', file + ' 集成：workspaces.create 失败 → 回落 {cwd,ptc} 创建')
-      check(dbg.pendingDraft==='/wayfinder https://github.com/x/issues/1' && dbg.pendingDraftTargetSid==='sid-cwd', file + ' 集成：回落创建仍原子挂载 pendingDraft')
+      check(storeOfStubB.map['sid-cwd'] && storeOfStubB.map['sid-cwd'].incomingDraft==='/wayfinder https://github.com/x/issues/1', file + ' 集成：回落创建仍原子写入目标 store')
     }
 
     // 场景 C：命中已有工作区 → 走 {workspaceId,ptc}
@@ -486,15 +487,16 @@ async function testFile(file) {
         open:(sid)=>{ rec.opened=sid },
         list:{ getSnapshot: ()=>({ byId: {} }) }
       }
+      const storeOfStubC = mkStoreOfG()
       const openFn = fn(st,'/wayfinder https://github.com/x/issues/1','[#1] test',
         { get:(k)=> k==='sessions'?sessionsStub:k==='workspaces'?workspacesStub:null },
         { call: async()=>({ok:true}) }, dbg,
-        ()=>{}, ()=>{}, (k)=>k, ()=>null, keyOf, ()=>({}), ()=>false, ()=>null, ()=>null, (t)=>/\[New\]/.test(String(t)), ()=>{}
+        ()=>{}, ()=>{}, (k)=>k, ()=>null, keyOf, storeOfStubC, ()=>false, ()=>null, ()=>null, (t)=>/\[New\]/.test(String(t)), ()=>{}
       )
       openFn(st,'/wayfinder https://github.com/x/issues/1','[#1] test')
       await new Promise(r=>setTimeout(r, 80))
       check(rec.created && rec.created.workspaceId==='ws-hit' && rec.created.agentPreset==='ptc', file + ' 集成：命中工作区 → {workspaceId,ptc} 创建')
-      check(dbg.pendingDraft==='/wayfinder https://github.com/x/issues/1', file + ' 集成：命中创建仍挂载首条')
+      check(storeOfStubC.map['sid-wid'] && storeOfStubC.map['sid-wid'].incomingDraft==='/wayfinder https://github.com/x/issues/1', file + ' 集成：命中创建仍写入目标 store 首条')
     }
   } catch(e) { check(false, file + ' 集成沙箱 — ' + e.stack) }
 }

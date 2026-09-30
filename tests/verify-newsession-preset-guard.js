@@ -7,7 +7,7 @@
 //  c) 静態：存在复用闸门 isReusableBlank / getRowPreset / isHealthyPreset 且已接入两级复用
 //  d) 沙箱：buildCreateOpts(workspaceId,cwd) 两分支均返回携带 ptc 的入参
 //  e) 沙箱：isReusableBlank 对 code/空/跨区 拒绝，对健康同区 允许（#361 §闸门谓词）
-//  f) 沙箱：createPTCSession 调用 sessions.create 时必含 ptc 且原子化挂载 pendingDraft
+//  f) 沙箱：createPTCSession 调用 sessions.create 时必含 ptc 且原子化写入目标 store
 //  g) 沙箱：openTextInNewSession 集成闸门——喂 code/空/跨区幽灵快照必走新建（非复用），健康同区可复用
 //  h) 双源一致（src 与构建产物逐字 splice 保留）
 //  i) #478 创建后验：verifyFreshPreset 明确 code/broken 判 bad（读不到判 unknown 不阻断）；createVerifiedPTCSession 首坏隔离重建、双坏抛 preset-blocked；open 绝不 open code，双坏大声失败回当前会话
@@ -235,7 +235,7 @@ async function testFile(file) {
     const cStart = block.indexOf('const createPTCSession')
     const cEnd = block.indexOf('// ============ 命名守护')
     const createSrc = cStart >=0 ? block.slice(cStart, cEnd>=0 ? cEnd : block.length) : ''
-    check(createSrc.indexOf('pendingDraft = text')>=0 && createSrc.indexOf('pendingDraftTargetSid = sid')>=0, file + ' createPTCSession 内原子化挂载 pendingDraft')
+    check(createSrc.indexOf('incomingDraft')>=0 && createSrc.indexOf('storeOf(sid)')>=0, file + ' createPTCSession 内原子化写入目标 store（#787 会话隔离）')
     check(createSrc.indexOf('buildCreateOpts')>=0, file + ' createPTCSession 经 buildCreateOpts 显式 ptc（buildCreateOpts 已验含 ptc）')
     check(createSrc.indexOf('sessions.create')>=0, file + ' createPTCSession 内调用 sessions.create（单点出口）')
   } catch(e) { check(false, file + ' createPTCSession 沙箱 — ' + e.message) }

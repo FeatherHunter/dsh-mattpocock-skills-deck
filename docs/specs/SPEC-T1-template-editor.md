@@ -27,7 +27,7 @@
 | `{url}` | issue/map 完整 URL `https://github.com/{owner}/{repo}/issues/{n}` | host 快照 repo + issue number | 诊断/修复/讨论/执行 |
 | `{number}` | issue 号 | 快照 | 执行（兼容旧 custom） |
 | `{title}` | issue 标题 | 快照 | 执行（兼容旧 custom） |
-| `{ts}` | 交接时间戳 `YYYYMMDD-HHMMSS` | 第一击注入时生成并记忆（handoffTs） | 交接第一击 |
+| `{ts}` | 交接时间戳 `YYYYMMDD-HHMMSS-mmm`（#787 起后加 3 位毫秒，同秒两次各对各的文件） | 第一击注入时生成并记忆（本会话 store 的 handoffTs） | 交接第一击 |
 | `{path}` | 交接文档**绝对路径**（如 `D:/repo/.scratch/handoff/20260814-172113-修复提示词.md`） | `cwd/.scratch/handoff/{file}` 拼接；真实文件名由探测按 `{handoffTs}-*.md` 前缀发现 | 交接第二击 |
 | `{file}` | 交接文档**文件名**（如 `20260814-172113-修复提示词.md`） | 前缀探测发现的真实文件名（含 AI 短标题） | 交接第二击 |
 

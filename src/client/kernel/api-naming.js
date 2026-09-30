@@ -12,9 +12,10 @@
     // 第二击优先读「第一击模板里的同一个文件」（模板写什么名就读什么名，不再查目录导致旧文件名）；
     // 仅当未点过第一击（如刷新后）才回退 host 查最新实际文档；+ 复制 + 开新空白会话
     // v25 · T2b（F1 修正）：交接两击走模板渲染；{ts} 第一击注入时生成并记忆；
-    //   {file} = 第一击模板渲染后解析出的实际文件名（用户改文件名结构也一致），解析失败兜底 handoffTs + '.md'
-    export let handoffTs = null  // v24：第一击模板使用的时间戳（第二击按 {ts}-*.md 前缀匹配真实文件名）
-    export let handoffFile = null  // 真实交接文件名（含 AI 生成的短标题，如 {ts}-修复提示词.md；由探测按 {ts}-*.md 前缀发现）
+    //   {file} = 第一击模板渲染后解析出的实际文件名（用户改文件名结构也一致），解析失败兜底时间戳 + '.md'
+    // #787：交接记忆（时间戳、真实文件名、记下那一刻的目录）已搬进会话自己的 store
+    //  （st.handoffTs / st.handoffFile / st.handoffCwd，见 store-snapshot.js），此处不再保留模块级全局，
+    //   多会话各记各的，读时目录对不上视为无记忆。
     export const handoffPrompt = function (ts) {
       return renderTemplate('handoff1', { ts: ts })
     }
@@ -34,10 +35,10 @@
       return renderTemplate('handoff2', { path: absHandoffPath(cwd, file), file: file })
     }
     // 跨会话预填（issue #12 BUG4 r3 终极修复）：单变量保留，但消费侧彻底锁死 deps 为 [props.sessionId]，
-//   当前会话的 props 重渲染不会再触发 effect 重跑，从根本上消除「当前会话 effect 抢先消费」竞态。
-// r4（#62/#63 回归 2026-08-21）：旧 r3 用 boolean consumedDraftRef 导致首次消费后 ref=true 常驻，任何新会话 effect 直接 return（62/63 新开会话不注入）；且 pendingDraft 为全局单变量，旧会话重渲染若 deps 含 props 可能抢先消费。r4 改为 sid 锚定：pendingDraftTargetSid 记录新会话 sid，消费侧仅当 pendingDraftTargetSid===props.sessionId 才消费，且 ref 按 sid 存储。
-export let pendingDraft = null
-export let pendingDraftTargetSid = null
+    //   当前会话的 props 重渲染不会再触发 effect 重跑，从根本上消除「当前会话 effect 抢先消费」竞态。
+    // r4（#62/#63 回归 2026-08-21）：旧 r3 用 boolean consumedDraftRef 导致首次消费后 ref=true 常驻，任何新会话 effect 直接 return（62/63 新开会话不注入）；且旧单槽是全局单变量，旧会话重渲染若 deps 含 props 可能抢先消费。r4 改为 sid 锚定消费。
+    // #787：首条草稿已搬进目标会话自己的 store（storeOf(新编号).incomingDraft，取完清空），此处不再保留模块级全局单槽，
+    //   连续创建多个新会话时各归各，不覆盖。
     // ============ 单点工厂 createPTCSession 原子化（#363 · 承接 #361 闸门与 #362 可判定门禁）============
     // 目标：任何入口新建会话必为 PTC 且已归属工作区且首条可原子化注入，三者同一次创建内成立。
     // 工厂是会话创建的唯一出口：所有新建分支都经此函数，入参显式携带 agentPreset:'ptc'。
@@ -95,17 +96,19 @@ export let pendingDraftTargetSid = null
     }
     export const createPTCSession = function(sessions, workspaceId, cwd, text) {
       // 单点工厂：唯一调用 sessions.create 的出口，显式 ptc + 工作区 + 首条原子化（#363）
-      // #364 保真与兼容增强：首条在同链路内原子化挂载 pendingDraft+targetSid；
+      // #364 保真与兼容增强：首条在同链路内原子化写入目标会话自己的 store；
       //   若首次创建因 alpha 新参（workspaceId 不认 / agentPreset 更名）抛错，则自动回退到 {cwd,ptc} 或兼容 presetId 重试，
       //   仍保证 ptc 显式且首条不丢，避免因底座入参变化导致创建链中断而丢首条。
+      // #787：首条写进目标会话自己的 store（storeOf(新编号).incomingDraft，本会话界面取完清空），
+      //   连续创建多个新会话时各归各；storeOf 是闭包调用时依赖（见 kernel-contract）。
+      //   P1-2：新编号为空不写（storeOf(空) 会回共用 store，不许污染它），链照走，由调用方回落处理。
       if (!sessions || typeof sessions.create !== 'function') return Promise.reject(new Error('sessions.create not available'))
+      const mountDraft = function (sid) { if (sid) storeOf(sid).incomingDraft = text; return sid }
       const opts = buildCreateOpts(workspaceId, cwd)
       const doCreate = function (o) { try { return sessions.create(o) } catch (eSync) { return Promise.reject(eSync) } }
       return doCreate(opts).then(function(sid) {
-        // 首条原子化：与创建同链路挂载 pendingDraft，消费侧以 targetSid 锚定避免旧会话抢消费（#315 r4）
-        pendingDraft = text
-        pendingDraftTargetSid = sid
-        return sid
+        // 首条原子化：与创建同链路写入目标会话 store（#787 会话隔离）
+        return mountDraft(sid)
       }).catch(function(err) {
         const msg = String((err && err.message) || err || '')
         // 回退 1：workspaceId 不认 → 回落 cwd+ptc（兼容 workspaceId 必填化回退或未登记场景）
@@ -113,9 +116,7 @@ export let pendingDraftTargetSid = null
         if (hasWid && /workspaceId|workspace/i.test(msg) && /bad-request|unknown|invalid|not.*found/i.test(msg)) {
           const fb = buildCreateOpts(null, cwd)
           return doCreate(fb).then(function(sid2) {
-            pendingDraft = text
-            pendingDraftTargetSid = sid2
-            return sid2
+            return mountDraft(sid2)
           })
         }
         // 回退 2：agentPreset 更名兼容（如 presetId）→ 试探兼容键
@@ -130,9 +131,7 @@ export let pendingDraftTargetSid = null
             const alt3 = hasWid ? { workspaceId: workspaceId, preset: 'ptc' } : { cwd: cwd, preset: 'ptc' }
             return doCreate(alt3)
           }).then(function(sid3) {
-            pendingDraft = text
-            pendingDraftTargetSid = sid3
-            return sid3
+            return mountDraft(sid3)
           })
         }
         throw err

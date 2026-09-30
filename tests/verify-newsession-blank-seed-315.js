@@ -4,11 +4,12 @@
 // 背景：#315 曾因 openTextInNewSession 创建空白会话（pendingDraft-only）被壳复用为 provisional New Session row
 //   导致“新会话被自动改名”。2026-08-29 曾改为 face.prompt 自动发送使会话出生即非空白，但违背用户约束：
 //   “右侧面板‘新增需求/新增BUG’必须保留‘先填草稿、让用户自己输入再发送’，不允许点击就自动发出去”。
-//   故 2026-08-30 回滚为草稿-only：任何情况下都不自动调 face.prompt，只挂 pendingDraft/targetSid.
+//   故 2026-08-30 回滚为草稿-only：任何情况下都不自动调 face.prompt，只写目标会话自己的首条草稿.
+//   #787 起草稿住目标会话自己的 store（storeOf(新编号).incomingDraft），单槽全局已删除，连续创建各归各。
 //
-// 验收标准（本回归·回滚后）：
+// 验收标准（本回归·回滚后 + #787）:
 //   a) 无论 face 是否具备 prompt 能力，都不调用 face.prompt（保留草稿体验）；
-//   b) 创建/改名后写入 pendingDraft = 提示词 且 pendingDraftTargetSid = 新会话 sid；
+//   b) 创建/改名后把提示词写进目标会话自己的 store（incomingDraft），各目标互不可见；
 //   c) 双源一致（src 与构建产物逐字 splice 保留）；
 //   d) 源码中不含 seedNewSession / face.prompt 自动发送逻辑（防回退）。
 //
@@ -44,14 +45,14 @@ function extractWorkspaceBlock(src) {
 }
 
 // ---- 沙箱执行（b 分支用 faceNoPrompt 变体）----
-// pendingDraft / pendingDraftTargetSid 是模块级 let：观察侧把源码中的裸标识符重写为
-// __dbg.*（可变对象字段），赋值可观测且行为与原型一致。
+// 首条草稿住目标会话自己的 store：storeOf 用按编号缓存的替身，写进哪个目标事后可查。
 function runSandbox(fnSrc, faceVariant, wsLib) {
-  let replaced = fnSrc
-  replaced = replaced.replace(/\bpendingDraft\b/g, '__dbg.pendingDraft')
-  replaced = replaced.replace(/\bpendingDraftTargetSid\b/g, '__dbg.pendingDraftTargetSid')
   const rec = { created: null, opened: null, promptCalls: [] }
-  const dbg = { pendingDraft: null, pendingDraftTargetSid: null }
+  const storeMap = {}
+  const storeOfStub = function (sid) {
+    if (!storeMap[sid]) storeMap[sid] = { cwd: 'D:/repo', snapshot: null, incomingDraft: null }
+    return storeMap[sid]
+  }
   const face = faceVariant === 'no-prompt'
     ? { rename: async (t) => ({ ok: true, value: { title: t } }) }
     : { rename: async (t) => ({ ok: true, value: { title: t } }), prompt: async (content, mode) => { rec.promptCalls.push({ content: JSON.parse(JSON.stringify(content)), mode }); return { ok: true } } }
@@ -64,22 +65,22 @@ function runSandbox(fnSrc, faceVariant, wsLib) {
   const workspacesStub = { list: { getSnapshot: () => ({ items: [{ workspaceId: 'ws9', path: 'D:/repo' }] }) } }
   const st = { sessionId: 'src-sess', cwd: 'D:/repo', snapshot: null }
   const fn = new Function(
-    'st', 'text', 'title', 'ctx', 'host', '__dbg',
+    'st', 'text', 'title', 'ctx', 'host',
     'inject', 'flash', 'tr', 'getCwdSync', 'keyOf', 'storeOf', 'hydrateFromCache',
     'getCachedSnapshot', 'issueRefNumbersFrom', 'recordIssuePath', 'namingHintOf',
     'isNewPlaceholderTitle', 'namingGuardianKick',
-    (wsLib ? wsLib + ';\n' : '') + replaced + '; return openTextInNewSession'
+    (wsLib ? wsLib + ';\n' : '') + fnSrc + '; return openTextInNewSession'
   )
   const openFn = fn(
     st, '', '', { get: (k) => (k === 'sessions' ? sessionsStub : k === 'workspaces' ? workspacesStub : null) },
-    { call: async () => ({ ok: true }) }, dbg,
+    { call: async () => ({ ok: true }) },
     () => {}, () => {}, (k) => k, () => null, (s) => String(s),
-    (sid) => ({ cwd: 'D:/repo', snapshot: null }), () => false, () => null,
+    storeOfStub, () => false, () => null,
     () => [315], () => {}, () => null,
     (t) => /^\[New\] /.test(String(t)), () => {}
   )
   openFn(st, '/wayfinder 调查 #315 的提示词', '[#315] BUG：自动改名错误地改写了其他会话的标题')
-  return { rec, dbg }
+  return { rec, storeMap }
 }
 
 // ---- 测试 ----
@@ -110,8 +111,8 @@ for (const file of files) {
   // 文本级守护：不含自动发送逻辑
   check(fnSrc.indexOf('seedNewSession') < 0, file + ' 源码不含 seedNewSession（已回滚）')
   check(fnSrc.indexOf('face.prompt(') < 0 && fnSrc.indexOf('seedNewSession') < 0, file + ' 源码不含 face.prompt 自动发送（草稿-only）')
-  check(fnSrc.indexOf('pendingDraft = text') >= 0, file + ' 源码含 pendingDraft = text（草稿挂载）')
-  check(fnSrc.indexOf('pendingDraftTargetSid = sid') >= 0, file + ' 源码含 pendingDraftTargetSid = sid（sid 锚定）')
+  check(fnSrc.indexOf('pendingDraft = text') < 0 && fnSrc.indexOf('pendingDraftTargetSid = sid') < 0, file + ' 源码无全局单槽写入（#787 已搬进目标 store）')
+  check(fnSrc.indexOf('incomingDraft = text') >= 0 || fnSrc.indexOf('incomingDraft=text') >= 0, file + ' 源码写目标会话自己的 incomingDraft（草稿挂载）')
   check(fnSrc.indexOf('#315 回滚') >= 0 || fnSrc.indexOf('先填草稿') >= 0, file + ' 源码含回滚注释（可追溯）')
 
   // a) 有 prompt 能力的面对象：也不应调用 prompt（草稿-only）
@@ -120,13 +121,13 @@ for (const file of files) {
   check(env.rec.created && env.rec.created.workspaceId === 'ws9', file + ' 创建调用携带 workspaceId（同工作区）')
   check(env.rec.opened === 'sid-1', file + ' 创建后 open 切换到新会话')
   check(env.rec.promptCalls.length === 0, file + ' 有 prompt 能力时也不调用 face.prompt（草稿-only 约束）')
-  check(env.dbg.pendingDraft === '/wayfinder 调查 #315 的提示词' && env.dbg.pendingDraftTargetSid === 'sid-1', file + ' 有 prompt 能力时仍挂草稿（pendingDraft + target sid）')
+  check(env.storeMap['sid-1'] && env.storeMap['sid-1'].incomingDraft === '/wayfinder 调查 #315 的提示词', file + ' 有 prompt 能力时仍写目标会话自己的草稿（incomingDraft）')
 
   // b) 无 prompt 能力 → 同样挂草稿
   const env2 = runSandbox(fnSrc, 'no-prompt', wsLib)
   await sleep(40)
   check(env2.rec.promptCalls.length === 0, file + ' 无 prompt 能力时不调用 prompt')
-  check(env2.dbg.pendingDraft === '/wayfinder 调查 #315 的提示词' && env2.dbg.pendingDraftTargetSid === 'sid-1', file + ' 回退原预填草稿路径（pendingDraft + target sid）')
+  check(env2.storeMap['sid-1'] && env2.storeMap['sid-1'].incomingDraft === '/wayfinder 调查 #315 的提示词', file + ' 回退原预填草稿路径（目标会话 incomingDraft）')
 }
 
 if (failed) { console.log('\nFAIL ' + total + ' checks, some failed'); process.exit(1) }

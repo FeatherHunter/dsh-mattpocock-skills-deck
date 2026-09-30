@@ -360,11 +360,13 @@
       } catch (e2) { return [] }
     }
     export const prFilterForList = function () { return { isPullRequest: true } }
-    // v19：交接文档时间戳文件名（YYYYMMDD-HHMMSS）
+    // v19：交接文档时间戳文件名（YYYYMMDD-HHMMSS-mmm）
+    // #787 P1-1：后加 3 位毫秒，把同秒碰撞窗口从秒级压到毫秒级；固定宽度，字典序仍等于时间序，
+    //   主机按前缀匹配与按名兜底排序都不用改；旧文件（无毫秒段）仍可被最新回退读到。
     export const timeStampStr = () => {
       try {
         const d = new Date()
         const p = function (n) { return String(n).padStart(2, '0') }
-        return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds())
+        return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds()) + '-' + String(d.getMilliseconds()).padStart(3, '0')
       } catch (e) { return 'latest' }
     }

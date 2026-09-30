@@ -37,12 +37,16 @@ const statChecks = function (src, tag) {
   // r2：doHandoff 现在通过 probeHandoffReady 的 handoffFile 短路亮蓝（不是直接置 ready=true），
   //       "不再直接置 ready=true" 旧契约依然成立 —— 不再有「点第一击立即放行开新会话」的旁路
   ok('doHandoff 不再直接置 ready=true（文档未成文不亮蓝 · r2 通过 probeHandoffReady 间接置）', !src.includes('st.handoffReady = true'))
-  ok('「点过第一击即放行」旁路已删（no if (handoffFile) {）', !src.includes('if (handoffFile) {'))
+  ok('「点过第一击即放行」旁路已删（no bare if (handoffFile)）', !/if\s*\(\s*handoffFile\s*\)/.test(src))
+  ok('#787 会话隔离：主路径读本会话记忆（st.handoffFile）', src.includes('if (st.handoffFile)'))
+  ok('#787 fail-closed：目录对不上视为无记忆（handoffCwdMatches + handoffMemoryValid）', src.includes('handoffCwdMatches') && src.includes('handoffMemoryValid'))
+  ok('#787 防抖住会话自己身上（st._lastHandoffOpenTs，无全局）', src.includes('st._lastHandoffOpenTs') && !/(^|[^.\w])let\s+lastHandoffOpenTs\b/.test(src))
+  ok('#787 旧模块级全局已删除', !/(^|[^.\w])(export\s+)?let\s+handoffTs\b/.test(src) && !/(^|[^.\w])(export\s+)?let\s+handoffFile\b/.test(src) && !/(^|[^.\w])(export\s+)?let\s+pendingDraftTargetSid\b/.test(src))
   ok('前置探测（host / rpc handoffLatest）仍在（副路径）', /handoffLatest/.test(src))
   // issue #12 BUG4 · r2 主路径契约：handoffFile 已设 → 直接 return done(handoffFile)（不查磁盘）
   //       与初版/r1 不同：r2 不再调 handoffResolve，prompt 与第一击模板时间戳一致（保证两段文本版本一致）
-  ok('r2 主路径：handoffFile 已设直接 done(handoffFile)（不查磁盘）', /if\s*\(handoffFile\)\s*return\s+Promise\.resolve\(done\(handoffFile\)\)/.test(src))
-  ok('r2 主路径不再传 name（no `name: handoffFile` in probeHandoffReady）', !/name:\s*handoffFile/.test(src))
+  ok('r2 主路径：本会话 handoffFile 已设直接 done（不查磁盘）', src.includes('return Promise.resolve(done(st.handoffFile))'))
+  ok('r2 主路径不再传 name（no `name: handoffFile` in probeHandoffReady）', !/name:\s*handoffFile\b/.test(src))
   ok('r2 副路径：handoffFile=null 走 handoffLatest', /handoffFile/.test(src) && /handoffLatest/.test(src))
   ok('引导门：无 latest → toast.handoffGrey', src.includes("tr('toast.handoffGrey')"))
   ok('糊涂分支已删：no finish(null, toast.copiedHandoffNoLatest)', !src.includes("finish(null, tr('toast.copiedHandoffNoLatest'))"))
@@ -57,7 +61,9 @@ const statChecks = function (src, tag) {
 
 // ---- Part B：引导门行为（沙箱执行真实 probeHandoffReady + doHandoff + doHandoffOpen）----
 const extractBlock = function (src) {
-  const i = src.indexOf('const probeHandoffReady')
+  const starts = ['const handoffCwdMatches = function', 'const probeHandoffReady']
+  let i = -1
+  for (const m of starts) { i = src.indexOf(m); if (i >= 0) break }
   const j = src.indexOf('// #361：在新会话中打开')
   if (i < 0 || j < 0 || j < i) throw new Error('提取锚点缺失')
   return src.slice(i, j)
@@ -66,7 +72,9 @@ const runHarness = function (fnSrc, opt) {
   let emitCount = 0
   const scheduled = []
   const calls = []  // 记录实际调用的 RPC 名称 + 参数（issue #12 BUG4 验证用）
-  const st = { cwd: 'D:/repo', handoffReady: false, injector: null }
+  // #787：记忆住会话自己身上；opt.handoffFile  historic 语义 = 本会话已记下该文件（连带记下时目录）
+  const st = { cwd: 'D:/repo', handoffReady: false, injector: null, handoffTs: null, handoffFile: null, handoffCwd: '', _lastHandoffOpenTs: 0, incomingDraft: null }
+  if (opt.handoffFile !== undefined && opt.handoffFile !== null) { st.handoffFile = opt.handoffFile; st.handoffCwd = st.cwd }
   const started = []
   const createdOpts = []
   const copied = []
