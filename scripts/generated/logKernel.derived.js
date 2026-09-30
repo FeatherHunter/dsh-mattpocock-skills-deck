@@ -223,7 +223,9 @@ function createClientLog(deps, configInput) {
     "issues.page",
     "sessionTickets.chain",
     "chain.backoff",
-    "host.dispatch.empty"
+    "host.dispatch.empty",
+    "naming.summary",
+    "cwd.persisted"
   ]);
   function isEnabled(level, event) {
     if (level === "error" || level === "warn") return true;
