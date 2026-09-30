@@ -79,7 +79,7 @@
         //   版面上只写票号，前导词只进无障碍朗读；动作词复用上面的 action.*，点开提示复用 openTip。
         'chainView.capsuleDoing': '在办',
         // 同一段悬停里那份单子的标题行（悬停支持多行，从新到旧列出当前会话的记录）。
-        'chainView.capsuleListTitle': '这个会话动过的票',
+        'chainView.capsuleListTitle': '当前会话处理记录',
         'chainView.action.create': '建票',
         'chainView.action.plan': '写计划',
         'chainView.action.comment': '评论',
@@ -143,7 +143,7 @@
         // mounted in statusbar/SessionChainCapsule.js). Action words reuse action.* above.
         'chainView.capsuleDoing': 'working on',
         // The title line of that strip's hover list (the hover holds multiple lines of this session's records).
-        'chainView.capsuleListTitle': 'Tickets this session has touched',
+        'chainView.capsuleListTitle': 'Current session tickets',
         'chainView.action.create': 'opened a ticket',
         'chainView.action.plan': 'wrote a plan',
         'chainView.action.comment': 'commented',
