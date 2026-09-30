@@ -1083,9 +1083,17 @@ const contractChecksInner = function (reg, src) {
   // #725：「## 正文格式」那一节整节删除（模板里的标记、后端声明、注册表兜底版全没了），所以期望 0。
   const segCount = (src.match(/## 正文格式/g) || []).length
   if (segCount !== 0) fail('「## 正文格式」段数 ' + segCount + '（期望 0：#725 起正文格式契约已整节删除）')
-  // #779：全量模板必须带两行工具节（Q2=全部，Q4=原话两行）
+  // #779：全量模板必须带两行工具节（Q2=全部，Q4=原话两行）。
+  //   #791：唯一的例外是初始化那条（setupRun）—— 它只记 tracker / 标签词汇 / 文档路径，一个 issue 都不碰，
+  //   工具节放在这里是空转；而且它的全文由 #230 的金样门禁逐字锁定，那份金样里没有工具节（#779 补节时
+  //   漏改那条门禁，两边就这么红着对不上）。这里给它留一个写明理由的例外，并配反向断言，防它被加回来。
+  const TOOL_SECTION_EXEMPT = ['setupRun']
   Object.keys(reg).forEach(function (id) {
     const e = reg[id] || {}
+    if (TOOL_SECTION_EXEMPT.indexOf(id) >= 0) {
+      if (String(e.zh || '').indexOf('## 工具') >= 0 || String(e.en || '').indexOf('## Tools') >= 0) fail('#791 例外条目 ' + id + ' 不该再带工具节（#230 金样按「没有工具节」逐字锁定）')
+      return
+    }
     if (String(e.zh || '').indexOf('## 工具') < 0 || String(e.zh || '').indexOf('优先使用 deck_ 开头的工具') < 0 || String(e.zh || '').indexOf('deck_issue_report') < 0) fail('#779 模板 ' + id + '.zh 缺两行工具节')
     if (String(e.en || '').indexOf('## Tools') < 0 || String(e.en || '').indexOf('Prefer the deck_ tools') < 0 || String(e.en || '').indexOf('deck_issue_report') < 0) fail('#779 模板 ' + id + '.en 缺两行工具节')
   })
@@ -1413,10 +1421,12 @@ const selfDigest = function () {
 //   版本底线 9 → 10，断言同步改，自摘要一并重算。
 // #771：注册表新增 tpl.takeover 与 tpl.supplement（接手/补充），条目数 21 → 23，BODY_IDS 与 FIX_IDS 各 10 → 12，
 //   V_MIN 各加一条 v1，受保护清单同步加两条，自摘要跟着重算。
+// #791：初始化那条（setupRun）撤掉末尾的工具章节，本文件的全量断言（#779 那一条）给它开一个写明理由的
+//   例外并配反向断言；注册表条目数与受保护清单都没变，只有这一处断言改动，自摘要跟着重算。
 const LOCK = {
   'tests/prompt-gate-exempt.json': 'c661ccd0fbfd46aa99790c073d0ccea89ebf5787a9113462c092b17c72a2a2d9',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.js': 'f7f75d5eec81748593cd0da3f9b79884db4a2a834611152924a9126db74a8d27',
+  'tests/verify-prompts.js': '0056cd0ae2642dcc360a1e54e087d16cd83a363e51047880aef8d6bf5b4c84c3',
 }
 // ---- LOCK-END ----
 

@@ -3,6 +3,9 @@
 //   1) 三后端（github/markdown/gitlab）在 client locale 的描述数据 == #230 前三函数的金样值（占位符值逐字节相同）
 //   2) setupRun 注入产物与旧行为等价：github/gitlab 全文逐字节等值；markdown 仅少「标签齐全」条款
 //      与 #619 删掉的「标签调色盘」那一节（两处都是已定案的行为变更点）
+//      #791（2026-09-30）：末尾那节「## 工具」撤掉 —— #779 给全部模板补工具节时把本条也补上了，
+//      可这份金样从头到尾没有工具节（初始化全程不碰 issue，那两行在这里空转），两边打架期间本门禁
+//      一直是红的（18 条「全文与金样逐字相同」全红）。撤掉后本条恢复为「金样即全文」的唯一尺。
 //   3) 占位符解析与工作区状态无关（全新 / 已 init 同值——等价判据）
 //   4) 后端确有声明（BackendModule.setupPrompt 四键）+ host wf.registry 转发 setupPrompt
 //   5) client 零残留门禁：无 setupTrackerLine/Choice/BackendNote 代码引用；UI 手工拼装 promptText('setupRun',{ 残留 =
@@ -67,7 +70,7 @@ const PALETTE_TEXT_FORBIDDEN = [
 // 悬空标记守卫：占位符已从模板里删掉，任何一条注入文本都不该再印出 {paletteNote} 这串字。
 const PALETTE_PLACEHOLDER_MARKER = '{paletteNote}'
 
-// setupRun 全文期望：帧 = v12 模板静态文本（除五占位符）；值来自金样（#619 起不再有调色盘那一节；#655 起多一句布局结论）。
+// setupRun 全文期望：帧 = v12 模板静态文本（除五占位符）；值来自金样（#619 起不再有调色盘那一节；#655 起多一句布局结论；#791 起不再有末尾的工具章节）。
 //   layoutLine 是用户这次选的布局对应的那一句（中文／英文各一份，由 main() 从真词表取）。
 function expectSetupRun(lang, tl, tc, lr, bn, layoutLine) {
   if (lang === 'zh') return '/setup-matt-pocock-skills\n\n初始化本仓库配置（技能套件已安装；本命令仅记录 issue tracker / 标签词汇 / 文档路径，不安装、不克隆任何技能）：\n1. 按技能流程选择 issue tracker：' + tl + '，由用户确认；\n2. 初始化时按 setup-matt-pocock-skills 技能自身流程执行（issue tracker 选择 ' + tc + '；triage 标签保留默认五角色）' + lr + '；后续打标签严格遵循技能规则，不额外强制任何标签；\n3. 完成后核对技能真实产物：docs/agents/issue-tracker.md + triage-labels.md + domain.md 及 AGENTS.md 的 ## Agent skills 块；再复查环境检查（setup 变绿）。' + layoutLine + '。' + bn
