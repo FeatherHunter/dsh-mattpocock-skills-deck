@@ -143,7 +143,7 @@
         // mounted in statusbar/SessionChainCapsule.js). Action words reuse action.* above.
         'chainView.capsuleDoing': 'working on',
         // The title line of that strip's hover list (the hover holds multiple lines of this session's records).
-        'chainView.capsuleListTitle': 'Current session tickets',
+        'chainView.capsuleListTitle': 'Current session activity',
         'chainView.action.create': 'opened a ticket',
         'chainView.action.plan': 'wrote a plan',
         'chainView.action.comment': 'commented',
