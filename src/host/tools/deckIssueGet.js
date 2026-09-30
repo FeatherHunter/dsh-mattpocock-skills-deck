@@ -16,6 +16,7 @@ export const definition = {
       key: { type: 'string', description: '票号，例如 713' },
       comments: { type: 'number', description: '最多带回几条评论，缺省 50' },
       section: { type: 'string', description: '只回正文里这一节（## 标题子串），缺省回全文前 2000 字' },
+      effortId: { type: 'string', description: '只有本地后端需要填，填票所在的目录名，根目录的不填' },
     },
     required: ['key'],
     additionalProperties: false,
@@ -70,6 +71,8 @@ export function createDeckIssueGet(deps) {
     const pick = await shell.pickBackend(exec, s)
     if (!pick.ok) return shell.unsupported('deck_issue_get', pick.reason, pick.text, { workspace: { root: s.cwd, key: s.workspaceKey }, cost: { estimated: est } })
     const repo = shell.repoOf(pick, s)
+    const effortId = (a.effortId === undefined || a.effortId === null) ? '' : String(a.effortId).trim()
+    if (effortId) repo.effortId = effortId
     const first = Math.max(0, Math.min(200, Number(a.comments) > 0 ? Math.floor(Number(a.comments)) : 50))
 
     return shell.call({ tool: 'deck_issue_get', kind: 'read', session: s, pick: pick, repo: repo, estimate: est }, async (c) => {
@@ -91,6 +94,7 @@ export function createDeckIssueGet(deps) {
       const dependencies = (dep && dep.ok === true) ? dep.data : null
       const rel = relationsOf(issue, dependencies)
       const notes = []
+      if (effortId) notes.push('这次带了 effortId（' + effortId.slice(0, 60) + '）：本地后端只在那一个目录里找，远端后端忽略它。')
       if (dep && dep.ok !== true) notes.push('阻塞边这次没读到（后端原话：' + String((dep.error && dep.error.message) || '').slice(0, 200) + '）：上面只列了票自己带的那些。')
       const bodyText = typeof issue.body === 'string' ? issue.body : ''
       const sec = sectionOf(bodyText, a.section)

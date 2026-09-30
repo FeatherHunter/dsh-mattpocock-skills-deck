@@ -52,6 +52,7 @@ export const definition = {
         },
       },
       labels: { type: 'array', items: { type: 'string' } },
+      effortId: { type: 'string', description: '只有本地后端需要填，填票所在的目录名，根目录的不填' },
     },
     required: ['title', 'children'],
     additionalProperties: false,
@@ -89,6 +90,8 @@ export function createDeckMapPlanCreate(deps) {
     const pick = await shell.pickBackend(exec, s)
     if (!pick.ok) return shell.unsupported('deck_map_plan_create', pick.reason, pick.text, { workspace: { root: s.cwd, key: s.workspaceKey }, cost: { estimated: est } })
     const repo = shell.repoOf(pick, s)
+    const effortId = (a.effortId === undefined || a.effortId === null) ? '' : String(a.effortId).trim()
+    if (effortId) repo.effortId = effortId
 
     const store = (d.planStore && typeof d.planStore.load === 'function') ? d.planStore : fallbackStore
     const now = (typeof d.now === 'function') ? d.now() : Date.now()
@@ -99,6 +102,7 @@ export function createDeckMapPlanCreate(deps) {
       const state = { planId: planId, mapKey: prev.mapKey || '', keys: Object.assign({}, prev.keys), edges: Array.isArray(prev.edges) ? prev.edges.slice() : [], done: Array.isArray(prev.done) ? prev.done.slice() : [] }
       const items = []
       const notes = []
+      if (effortId) notes.push('这次带了 effortId（' + effortId.slice(0, 60) + '）：本地后端只在那一个目录里找，远端后端忽略它。')
       const storeDurable = store.durable !== false
       if (!storeDurable) notes.push('这次的中间态只记在本进程的内存里（没有注入落盘的存储器）：进程重启后重跑同一个 planId 会重新建票。')
 

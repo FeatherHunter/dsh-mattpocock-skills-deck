@@ -19,6 +19,7 @@ export const definition = {
     properties: {
       key: { type: 'string', description: '地图那张票的票号' },
       frontierOnly: { type: 'boolean', description: '只回可接的子票（未关闭、未认领、阻塞已满足），缺省回全部' },
+      effortId: { type: 'string', description: '只有本地后端需要填，填票所在的目录名，根目录的不填' },
     },
     required: ['key'],
     additionalProperties: false,
@@ -52,6 +53,8 @@ export function createDeckMapSnapshot(deps) {
     const pick = await shell.pickBackend(exec, s)
     if (!pick.ok) return shell.unsupported('deck_map_snapshot', pick.reason, pick.text, { workspace: { root: s.cwd, key: s.workspaceKey }, cost: { estimated: est } })
     const repo = shell.repoOf(pick, s)
+    const effortId = (a.effortId === undefined || a.effortId === null) ? '' : String(a.effortId).trim()
+    if (effortId) repo.effortId = effortId
 
     return shell.call({ tool: 'deck_map_snapshot', kind: 'read', session: s, pick: pick, repo: repo, estimate: est }, async (c) => {
       const gotMap = await c.tracker.get(repo, key, {}, c.opCtx)
@@ -73,6 +76,7 @@ export function createDeckMapSnapshot(deps) {
       const picked = childrenOf(listed, key)
       const children = picked.children
       const notes = []
+      if (effortId) notes.push('这次带了 effortId（' + effortId.slice(0, 60) + '）：本地后端只在那一个目录里找，远端后端忽略它。')
       if (!kids || kids.ok !== true) notes.push('子票没取全（后端原话：' + String((kids && kids.error && kids.error.message) || '').slice(0, 200) + '）：下面的进度是手上这几张票算出来的，偏乐观。')
       if (picked.note) notes.push(picked.note)
       // 进度统计走共享层同一份投影：把它当成只有这一张地图的 deck 来算。

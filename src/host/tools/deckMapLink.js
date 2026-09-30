@@ -27,6 +27,7 @@ export const definition = {
           additionalProperties: false,
         },
       },
+      effortId: { type: 'string', description: '只有本地后端需要填，填票所在的目录名，根目录的不填' },
     },
     additionalProperties: false,
   },
@@ -53,10 +54,13 @@ export function createDeckMapLink(deps) {
     const pick = await shell.pickBackend(exec, s)
     if (!pick.ok) return shell.unsupported('deck_map_link', pick.reason, pick.text, { workspace: { root: s.cwd, key: s.workspaceKey }, cost: { estimated: est } })
     const repo = shell.repoOf(pick, s)
+    const effortId = (a.effortId === undefined || a.effortId === null) ? '' : String(a.effortId).trim()
+    if (effortId) repo.effortId = effortId
 
     return shell.call({ tool: 'deck_map_link', kind: 'write', session: s, pick: pick, repo: repo, estimate: est }, async (c) => {
       const items = []
       const notes = []
+      if (effortId) notes.push('这次带了 effortId（' + effortId.slice(0, 60) + '）：本地后端只在那一个目录里找，远端后端忽略它。')
       const touched = []
       let done = 0
       for (const job of jobs) {

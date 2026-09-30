@@ -27,6 +27,7 @@ export const definition = {
       labels: { type: 'array', items: { type: 'string' }, description: '要带的标签，会在必备标签之外追加' },
       assignees: { type: 'array', items: { type: 'string' }, description: '认领人' },
       idempotencyKey: { type: 'string', description: '这一批写的幂等锚，重试时带同一个值' },
+      effortId: { type: 'string', description: '只有本地后端需要填，填票所在的目录名，根目录的不填' },
     },
     required: ['title'],
     additionalProperties: false,
@@ -57,6 +58,8 @@ export function createDeckIssueCreate(deps) {
     const pick = await shell.pickBackend(exec, s)
     if (!pick.ok) return shell.unsupported('deck_issue_create', pick.reason, pick.text, { workspace: { root: s.cwd, key: s.workspaceKey }, cost: { estimated: est } })
     const repo = shell.repoOf(pick, s)
+    const effortId = (a.effortId === undefined || a.effortId === null) ? '' : String(a.effortId).trim()
+    if (effortId) repo.effortId = effortId
 
     const ensured = ensureLabels(a.labels, kind)
     const body = ensureBody(a.body, kind)
@@ -70,6 +73,7 @@ export function createDeckIssueCreate(deps) {
       if (Array.isArray(a.assignees) && a.assignees.length) input.assignees = a.assignees
       const created = await c.tracker.create(repo, input, c.opCtx)
       const notes = []
+      if (effortId) notes.push('这次带了 effortId（' + effortId.slice(0, 60) + '）：本地后端只在那一个目录里找，远端后端忽略它。')
       if (ensured.added.length) notes.push('我替你补了必备标签：' + ensured.added.join('、'))
       if (body.added.length) notes.push('我替你补了正文区块：' + body.added.join('、'))
       if (!a.idempotencyKey) notes.push('这次用的是自动幂等锚（同会话 + 同标题 + 同标签，5 分钟窗口内重复调用复用同一张票）。')

@@ -22,6 +22,7 @@ export const definition = {
       assignee: { type: 'string', description: '只留认领含此人的行，缺省不过滤' },
       query: { type: 'string', description: '标题与正文的子串过滤，缺省不过滤' },
       limit: { type: 'number', description: '最多回几行，缺省 50，上限 200' },
+      effortId: { type: 'string', description: '只有本地后端需要填，填票所在的目录名，根目录的不填' },
     },
     required: [],
     additionalProperties: false,
@@ -76,6 +77,8 @@ export function createDeckIssueList(deps) {
     const pick = await shell.pickBackend(exec, s)
     if (!pick.ok) return shell.unsupported('deck_issue_list', pick.reason, pick.text, { workspace: { root: s.cwd, key: s.workspaceKey }, cost: { estimated: est } })
     const repo = shell.repoOf(pick, s)
+    const effortId = (a.effortId === undefined || a.effortId === null) ? '' : String(a.effortId).trim()
+    if (effortId) repo.effortId = effortId
 
     return shell.call({ tool: 'deck_issue_list', kind: 'read', session: s, pick: pick, repo: repo, estimate: est }, async (c) => {
       const filter = {}
@@ -142,6 +145,7 @@ export function createDeckIssueList(deps) {
       if (wantAssignee) cond.push('assignee=' + String(a.assignee).trim())
       if (wantQuery) cond.push('query=' + String(a.query).trim().slice(0, 40))
       const notes = []
+      if (effortId) notes.push('这次带了 effortId（' + effortId.slice(0, 60) + '）：本地后端只在那一个目录里找，远端后端忽略它。')
       if (truncated) notes.push('只回前 ' + sliced.length + ' 行（共 ' + total + ' 行符合）：收窄过滤或调大 limit 再取一次。')
       return {
         value: {

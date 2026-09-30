@@ -24,6 +24,7 @@ export const definition = {
       body: { type: 'string', description: '新的正文' },
       progress: { type: 'string', description: '只改「## 进度」那一段的内容' },
       close: { type: 'boolean', description: 'true 关闭这张票，false 重新打开' },
+      effortId: { type: 'string', description: '只有本地后端需要填，填票所在的目录名，根目录的不填' },
     },
     required: ['key'],
     additionalProperties: false,
@@ -60,6 +61,8 @@ export function createDeckIssuePatch(deps) {
     const pick = await shell.pickBackend(exec, s)
     if (!pick.ok) return shell.unsupported('deck_issue_patch', pick.reason, pick.text, { workspace: { root: s.cwd, key: s.workspaceKey }, cost: { estimated: est } })
     const repo = shell.repoOf(pick, s)
+    const effortId = (a.effortId === undefined || a.effortId === null) ? '' : String(a.effortId).trim()
+    if (effortId) repo.effortId = effortId
 
     const addLabels = names(a.addLabels)
     const removeLabels = names(a.removeLabels)
@@ -77,6 +80,7 @@ export function createDeckIssuePatch(deps) {
     return shell.call({ tool: 'deck_issue_patch', kind: 'write', session: s, pick: pick, repo: repo, estimate: est }, async (c) => {
       const items = []
       const notes = []
+      if (effortId) notes.push('这次带了 effortId（' + effortId.slice(0, 60) + '）：本地后端只在那一个目录里找，远端后端忽略它。')
       const touched = [key]
       const fail = (step, result) => {
         const msg = String((result && result.error && result.error.message) || '后端没给出原因').slice(0, 200)
