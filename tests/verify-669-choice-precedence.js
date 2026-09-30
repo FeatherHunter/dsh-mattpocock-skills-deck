@@ -372,7 +372,10 @@ console.log('== D 静态层：删掉的那颗按钮、置灰的三处、中英�
     check(inZh && inEn, '词条成对：' + k)
   }
   check(!/switch\.clearBind'/.test(wordSrc) && !/switch\.clearBindTitle/.test(wordSrc) && !/switch\.clearBindOk/.test(wordSrc), '退役的三条 clearBind 词条都不在词表里了')
-  check(/"switchAlign": \{ version: 1, placeholders: \['from', 'to'\]/.test(promptsSrc), '新模板 switchAlign 在注册表里（两个占位符 from/to）')
+  // #792：这一条原来把版本号钉成 version: 1，可 #698 给这条模板补上布局切换后版本就抬到 2、#792 又抬到 3，
+  //   断言跟着每次 bump 变红 —— 它想守的是「这条模板在注册表里、且带 from/to 两个占位符」，不是某一个版本号。
+  //   版本号本身该不该动由 verify-prompts.js 的版本底线表管，这里不再重复钉一遍。
+  check(/"switchAlign": \{ version: \d+, placeholders: \['from', 'to'\]/.test(promptsSrc), '新模板 switchAlign 在注册表里（两个占位符 from/to）')
   check(/\/setup-matt-pocock-skills/.test(promptsSrc.slice(promptsSrc.indexOf('"switchAlign"'), promptsSrc.indexOf('"newWayfinder"'))), '新模板点名了 /setup-matt-pocock-skills（维护者要求）')
   // 全仓扫一遍：往宿主上报「这次问的是哪个后端」的每一行都必须过 userHintOf 那道闸 ——
   //   漏一处就等于派生值又能冒充用户意图（2026-09-21 对抗式审查就是这样抓到 ChainRenderer / NoRepoCard 两处的）。
