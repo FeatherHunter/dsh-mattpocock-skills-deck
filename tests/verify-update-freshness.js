@@ -218,6 +218,17 @@ async function main() {
   check(compareVersions('1.7.15', '1.7.14') === 1 && compareVersions('1.7.14', '1.7.14') === 0, '版本比对正确')
   check(satisfiesNodeRange('20.0.0', '>=18.0.0') === true && satisfiesNodeRange('16.0.0', '>=18.0.0') === false, '运行环境范围判定正确')
 
+  // ---- 4) 已安装包版本与派生版本一致（#801 按 #798 决策 2：锁文件＝已安装＝派生头） ----
+  // 票面要求：新鲜度检查核对已安装包版本与派生版本一致。上面第 1 节核的是本地 TS 与本地 JS（update-core 链），
+  // 这里核的是已安装更新包与面板派生（解耦链）。两条链各管各的新鲜度，互不替代。
+  {
+    const installedVersion = JSON.parse(fs.readFileSync(path.join(ROOT, 'node_modules', 'dsh-plugin-update', 'package.json'), 'utf8')).version
+    const derivedHead = fs.readFileSync(path.join(ROOT, 'scripts', 'generated', 'updateClient.derived.js'), 'utf8').split('\n').slice(0, 6).join('\n')
+    check(derivedHead.includes(`dsh-plugin-update@${installedVersion}`), `派生文件头与已安装包一致（都是 ${installedVersion}，改了包要重派生）`)
+    const lockText = fs.readFileSync(path.join(ROOT, 'pnpm-lock.yaml'), 'utf8')
+    check(lockText.includes(`dsh-plugin-update@${installedVersion}`), `锁文件记着已安装版本（${installedVersion}，打包前已升到最新并提交）`)
+  }
+
   console.log(failed ? '\n存在失败' : '\n全部通过 — 更新核心新鲜度门禁生效')
   process.exit(failed ? 1 : 0)
 }

@@ -53,12 +53,14 @@ async function main() {
   check(flowSrc.includes('keep the registry parameter'), '英文提示讲清这时不要去掉源参数')
 
   // ---- 3) 命令默认走官方源，源码树无镜像源字面量 ----
-  for (const rel of ['src/shared/update/commands.js', 'src/host/updatePkg/commands.js']) {
+  // #801 按 #798 决策 4 改读新来源：运行时命令走已安装包，旧派生目录只冻结留存。
+  // 本地旧链（src/shared）仍在冻结期，一并核对；新链核已安装包的编译产物。
+  for (const rel of ['src/shared/update/commands.js', 'node_modules/dsh-plugin-update/dist/commands.js']) {
     const src = read(rel)
     check(src.includes("NPM_REGISTRY = \"" + OFFICIAL + "\""), rel + ' 默认源地址为官方源')
   }
   const hits = []
-  for (const sub of ['src/shared/update', 'src/host/updatePkg', 'packages/dsh-plugin-update/src']) {
+  for (const sub of ['src/shared/update', 'node_modules/dsh-plugin-update/dist', 'packages/dsh-plugin-update/src']) {
     for (const full of walk(path.join(ROOT, sub), [])) {
       const text = fs.readFileSync(full, 'utf8')
       if (text.includes('npmmirror')) hits.push(path.relative(ROOT, full))

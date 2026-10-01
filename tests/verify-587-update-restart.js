@@ -25,7 +25,8 @@ const DIALOG = 'src/client/views/UpdateDialog.js'
 const BANNER = 'src/client/views/UpdateRestartBanner.js'
 const PAGE = 'src/client/views/SettingsPage.js'
 const LOCALE = 'src/client/kernel/locale-word.js'
-const HOST_READER = 'src/host/updatePkg/reader.js'
+// #801 按 #798 决策 4 改读新来源：宿主判据活在已安装更新包里，不在冻结的旧派生目录里。
+const HOST_READER = 'node_modules/dsh-plugin-update/dist/reader.js'
 const NEW_FILES = [HOOK, DIALOG, BANNER]
 
 function fakeH() {

@@ -1,13 +1,14 @@
-// verify-update-migration.js — 当前插件迁移到更新包的门禁（#586）
+// verify-update-migration.js — 当前插件迁移到更新包的门禁（#586 起，#801 按 #798 切到已安装包）
 //
 // 这道门禁回答一个问题：更新系统现在还跑在旧实现上，还是真的换成更新包了？
 // 以及换了之后，对外行为有没有发生变化。规则：
-//   0) 派生文件与更新包 dist 逐字节一致；派生客户端带零变化断言字面。
-//   1) 运行时接线指向更新包派生副本（src/host/updateFromPackage.js），旧实现原地只读留存。
+//   0) 新数据源核对：面板派生文件头版本号与已安装更新包版本一致；旧派生目录冻结在 0.1.1 原地留存（共存不动）。
+//   1) 运行时接线指向已安装更新包（src/host/updateFromPackage.js 按包名引用），旧实现原地只读留存。
 //   2) 客户端面板不再写死电话名与轮询间隔，取值全部来自派生常量。
 //   3) 迁移前后逐项对照：查状态快照六字段、错误码白名单十三条、手工兜底命令原文，
 //      与旧实现（src/host/update.js）实际跑出来的结果逐项相同。
-//   4) 发布形态：插件清单按确切版本号依赖更新包，且派生副本随包发布。
+//   4) 发布形态：插件清单按 ^0.2.0 范围依赖更新包；锁文件版本＝已安装版本＝派生文件头版本三处一致；
+//      不再要求随包带旧派生副本（#798 决策 2）。
 // 约束：全程假零件与假网络，不真跑安装命令、不直连官方源。
 // 用法：node tests/verify-update-migration.js（在仓库根目录）
 const fs = require('fs')
@@ -98,22 +99,23 @@ function fakeMachine(over = {}) {
 async function main() {
   console.log('当前插件迁移到更新包的门禁（#586：真的换了包 + 迁移前后行为逐项一致）')
 
-  // ---- 0) 派生文件与更新包 dist 逐字节一致 ----
+  // ---- 0) 新数据源核对：派生文件头与已安装包一致，旧派生目录冻结留存 ----
   {
-    const pkgDir = 'packages/dsh-plugin-update/dist'
-    let allSame = true
-    let missing = ''
+    // 旧派生目录在本图内共存不动：文件还在，内容冻结在 0.1.1，证明没有被误改或误删。
+    // 运行时不再读它（运行时读已安装包），所以这里只核对存在与冻结，不核对逐字节等于新包。
+    let legacyAllHere = true
     for (const name of UPDATE_PKG_UNITS) {
-      const src = path.join(ROOT, 'src/host/updatePkg', name)
-      const dist = path.join(ROOT, pkgDir, name)
-      if (!exists(`src/host/updatePkg/${name}`) || !exists(`${pkgDir}/${name}`)) { allSame = false; missing = name; break }
-      const derived = fs.readFileSync(src, 'utf8')
-      const original = fs.readFileSync(dist, 'utf8').replace(/\r\n/g, '\n').replace(/\s+$/, '') + '\n'
-      // 派生文件 = 三行来源说明 + 更新包原文
-      if (!derived.endsWith(original)) { allSame = false; missing = name; break }
+      if (!exists(`src/host/updatePkg/${name}`)) { legacyAllHere = false; break }
     }
-    check(allSame, '派生宿主文件与更新包 dist 逐字节一致（不一致请跑 node scripts/derive-update-from-package.mjs）' + (allSame ? '' : `：${missing}`))
-    check(exists('src/host/updatePkg/host.js') && exists('src/host/updatePkg/gate.js'), '更新包宿主入口与门禁检查器都拎进派生目录（host.js 引用 gate.js，漏一个就加载失败）')
+    check(legacyAllHere, '旧派生目录原地留存（共存不动，8 个文件都在）')
+    const legacyHead = exists('src/host/updatePkg/host.js') ? read('src/host/updatePkg/host.js').split('\n').slice(0, 3).join('\n') : ''
+    check(legacyHead.includes('0.1.1'), '旧派生目录冻结在 0.1.1（没有被新派生覆盖，删它另开票）')
+    check(exists('src/host/updatePkg/host.js') && exists('src/host/updatePkg/gate.js'), '旧派生目录里宿主入口与门禁检查器还在（冻结留存，不断链）')
+    // 新数据源：已安装更新包的版本号，与面板派生文件头的版本号，两处必须一致。
+    // 面板派生唯一来源是已安装包（#800），这里核对的就是决策 2 的三处一致中的两处（第三处在第 4 节核锁文件）。
+    const installedVersion = JSON.parse(read('node_modules/dsh-plugin-update/package.json')).version
+    const derivedHead = read('scripts/generated/updateClient.derived.js').split('\n').slice(0, 6).join('\n')
+    check(derivedHead.includes(`dsh-plugin-update@${installedVersion}`), `面板派生文件头与已安装包一致（都是 ${installedVersion}，派生来源是已安装包不是本地包目录）`)
   }
 
   // ---- 1) 派生客户端带零变化断言，且面板不再写字面量 ----
@@ -142,7 +144,8 @@ async function main() {
       '三个电话仍在宿主注册（注册名与现状一字不差）')
     for (const rel of LEGACY_FILES) check(exists(rel), `旧实现留而不搬：${rel} 仍在`)
     const adapter = read('src/host/updateFromPackage.js')
-    check(adapter.includes("from './updatePkg/host.js'"), '适配器从包派生副本建更新能力（不是从 node_modules 直连，随包发布线上可用）')
+    check(adapter.includes("from 'dsh-plugin-update'"), '适配器按包名引用已安装的更新包（运行时唯一来源是装好的依赖，不是复制目录）')
+    check(!adapter.includes('./updatePkg/host.js'), '适配器不再引用复制目录（旧派生目录只冻结留存，不进运行时）')
     check(adapter.includes("prefix: UPDATE_PHONE_PREFIX") && adapter.includes("pluginId: UPDATE_PLUGIN_ID"),
       '适配器按插件标识与前缀注册（旧值，保证电话名与落盘目录不变）')
   }
@@ -198,10 +201,11 @@ async function main() {
     check(!!newCheck.receipt && !!newCheck.receipt.checkId && !('installationKey' in newCheck.receipt), '凭证另交且不带环境指纹')
 
     // 3d) 错误码白名单：十三条，逐条核对两边都认得。
-    // 引号形态要放宽：旧实现源码里是单引号，更新包派生副本是编译产物、用双引号，不能只认一种。
+    // 引号形态要放宽：旧实现源码里是单引号，更新包是编译产物、用双引号，不能只认一种。
+    // 新来源是已安装包（node_modules 里那份），不是冻结的旧派生目录。
     const hasCode = (text, code) => text.includes(`'${code}'`) || text.includes(`"${code}"`)
     const oldKnown = KNOWN_ERROR_CODES.filter((code) => hasCode(read('src/host/update.js'), code))
-    const newKnown = KNOWN_ERROR_CODES.filter((code) => hasCode(read('src/host/updatePkg/host.js'), code))
+    const newKnown = KNOWN_ERROR_CODES.filter((code) => hasCode(read('node_modules/dsh-plugin-update/dist/host.js'), code))
     check(oldKnown.length === KNOWN_ERROR_CODES.length && newKnown.length === KNOWN_ERROR_CODES.length,
       `错误码白名单一致且都是 ${KNOWN_ERROR_CODES.length} 条（旧 ${oldKnown.length} 条、新 ${newKnown.length} 条）`)
     const newOnly = newKnown.filter((c) => !oldKnown.includes(c))
@@ -225,19 +229,22 @@ async function main() {
     newMod.__resetSharedUpdateReaderForTests()
   }
 
-  // ---- 4) 发布形态：按确切版本号依赖，派生副本随包发布 ----
+  // ---- 4) 发布形态：按 ^0.2.0 范围依赖，三处版本一致，不再带旧派生副本 ----
   {
     const pkgManifest = JSON.parse(read('package/package.json'))
     const dep = pkgManifest.dependencies && pkgManifest.dependencies['dsh-plugin-update']
-    check(dep === '0.1.1', '插件清单按确切版本号依赖更新包（实际 ' + JSON.stringify(dep) + '）')
+    check(dep === '^0.2.0', '插件清单按 ^0.2.0 范围依赖更新包（只取 0.2.x 最新，不跳大版本，实际 ' + JSON.stringify(dep) + '）')
     const rootManifest = JSON.parse(read('package.json'))
-    check(rootManifest.dependencies && !!rootManifest.dependencies['dsh-plugin-update'], '开发侧清单也声明了更新包依赖（本机可解析）')
-    let shipped = true
-    for (const name of UPDATE_PKG_UNITS) {
-      if (!exists(`package/lib/updatePkg/${name}`)) { shipped = false; break }
-    }
-    check(shipped, '构建产物里带齐派生副本（package/lib/updatePkg，随包发布）')
-    check(exists('package/lib/updateFromPackage.js'), '构建产物里有接线文件（package/lib/updateFromPackage.js）')
+    const rootDep = rootManifest.dependencies && rootManifest.dependencies['dsh-plugin-update']
+    check(rootDep === '^0.2.0', '开发侧清单也按 ^0.2.0 范围声明（本机可解析，实际 ' + JSON.stringify(rootDep) + '）')
+    // 三处一致：锁文件版本＝已安装版本＝派生文件头版本（决策 2 的可提交证据链）。
+    const installedVersion = JSON.parse(read('node_modules/dsh-plugin-update/package.json')).version
+    const lockText = read('pnpm-lock.yaml')
+    const lockHit = lockText.includes(`dsh-plugin-update@${installedVersion}`)
+    check(lockHit, `锁文件里记着已安装版本（${installedVersion}，打包前已升到最新并提交锁文件）`)
+    const derivedHead = read('scripts/generated/updateClient.derived.js').split('\n').slice(0, 6).join('\n')
+    check(derivedHead.includes(`dsh-plugin-update@${installedVersion}`), `派生文件头与已安装版本一致（${installedVersion}，构建时已把版本号写进产物头）`)
+    check(exists('package/lib/updateFromPackage.js'), '构建产物里有新接线文件（package/lib/updateFromPackage.js，按包名引用线上可用）')
   }
 
   // ---- 5) 本门禁不跑真命令 ----

@@ -1,9 +1,10 @@
-// verify-587-update-live.js —— #587 真机形态验收（真宿主判据 + 真产物渲染）
+// verify-587-update-live.js —— #587 真机形态验收（真宿主判据 + 真产物渲染，#801 按 #798 切到已安装包）
 //
 // 这份门禁回答的是「界面上到底长什么样」，不是「代码里写了什么字」：
-//   1. 真宿主判据：拿**装在磁盘上的那份插件**自己的宿主读取器（lib/updatePkg/reader.js，用的就是 profile 里的真文件）
-//      去读真使用范围，证明「清单换个版本、进程还跑旧版」时宿主确实报缺一次重启（pending-restart），
-//      而且重启后（运行版本追上磁盘）这条判据当场消失，不依赖那张会过期的任务记录。
+//   1. 真宿主判据：拿已安装更新包的宿主读取器（node_modules 里那份 0.2.x，运行时唯一来源）
+//      去读真使用范围（装在磁盘上的那份插件的真目录与真清单），证明「清单换个版本、进程还跑旧版」
+//      时宿主确实报缺一次重启（pending-restart），而且重启后（运行版本追上磁盘）这条判据当场消失，
+//      不依赖那张会过期的任务记录。旧派生目录只冻结留存，不进运行时，这里不再读它。
 //   2. 真产物渲染：把发布用的客户端产物（package/lib/client.js）挂进 jsdom 真跑一遍，
 //      渲染配置文件页，对着界面断言四种场景：已是最新 / 装完待重启 / 有新版 / 点按后弹窗。
 //      弹窗那一段用同一份产物里的弹窗源码渲染（产物是单文件工厂，组件不外露），
@@ -24,7 +25,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 ;(async function main() {
   console.log('真机形态验收（#587：真宿主判据 + 真产物渲染）')
 
-  // ============ 一、真宿主判据：跑磁盘上那份插件的读取器 ============
+  // ============ 一、真宿主判据：跑已安装更新包的读取器，读磁盘上那份插件的真目录 ============
   const home = process.env.USERPROFILE || process.env.HOME || os.homedir()
   const profilesDir = path.join(home, '.dsh', 'profiles')
   let pkgDir = ''
@@ -34,7 +35,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
       // 只认「完好」的那一份：三个入口文件都在（出版方清单里的 main / exports[./client] / dsh.bundle.patch）。
       // 本机桌面那份是旧版实装，缺 cordis.patch.yml，宿主读取器会按「安装无效」拒收，拿它做判据会得出假结论。
       const complete = ['package.json', 'lib/index.js', 'lib/client.js', 'cordis.patch.yml'].every((rel) => fs.existsSync(path.join(candidate, rel)))
-      if (complete && fs.existsSync(path.join(candidate, 'lib', 'updatePkg', 'reader.js'))) { pkgDir = candidate; break }
+      if (complete) { pkgDir = candidate; break }
     }
   } catch (e) { /* 没装过就留给下面的断言报 */ }
   check(!!pkgDir, '找得到装在本机使用范围里、且包完好的那份插件（真宿主判据的输入）' + (pkgDir ? '：' + path.basename(path.dirname(path.dirname(pkgDir))) : ''))
@@ -46,10 +47,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
   const profileDir = path.dirname(path.dirname(pkgDir))
   check(!!installedVersion, '读到磁盘上装的那一版（' + installedVersion + '）')
 
-  const readerUrl = require('url').pathToFileURL(path.join(pkgDir, 'lib', 'updatePkg', 'reader.js')).href
+  // 新来源：已安装更新包的读取器（运行时唯一来源）。读的仍是真目录与真清单（profileDir 与 manifestPath），
+  // 只是判据代码走新包，不走冻结的旧派生目录。目标包目录显式指向磁盘上那份插件，否则新包按包名解析会找到
+  // 仓库自己的那份（测试进程的解析起点），与真使用范围里的那份对不上，判据会报安装状态变了而不是缺重启。
+  const readerUrl = require('url').pathToFileURL(path.join(ROOT, 'node_modules', 'dsh-plugin-update', 'dist', 'reader.js')).href
   const readEnv = async (runningVersion) => {
     const readerMod = await import(readerUrl)
-    const reader = readerMod.createUpdateReader({ runningVersion: runningVersion, profileDir: profileDir, pluginId: 'dsh-mattpocock-skills-deck', homeDir: path.join(home, '.dsh') })
+    const reader = readerMod.createUpdateReader({ runningVersion: runningVersion, profileDir: profileDir, pluginId: 'dsh-mattpocock-skills-deck', homeDir: path.join(home, '.dsh'), targetPackageDir: pkgDir })
     return await reader.readEnv()
   }
   try {
