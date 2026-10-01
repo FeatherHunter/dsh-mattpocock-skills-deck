@@ -775,8 +775,10 @@ console.log(`  package/lib/index.js (pkg)  ${out.hostPkg ? read('package/lib/ind
 // A 自检（build 后）：产物必须带横幅
 gateBuildArtifacts()
 
-// C 自动同步（默认同步，--no-sync 可跳过）
-if (!args.includes('--no-sync')) {
+// C 自动同步（默认同步，--no-sync 或环境变量 DSW_NO_SYNC=1 可跳过；
+// 后者专供发版链路：npm publish 的 prepare 带不上命令行参数，但环境变量能透进去，
+// 保证发版构建永远写不到任何已装配置里）
+if (!args.includes('--no-sync') && process.env.DSW_NO_SYNC !== '1') {
   // 同步为 async 需 await，main 已在顶层 async 上下文（文件整体为 ESM，顶层 await 可用）
   const _home = process.env.HOME || process.env.USERPROFILE || ''
   if (_home) {
@@ -836,5 +838,5 @@ if (!args.includes('--no-sync')) {
     }
   }
 } else {
-  console.log('[build] --no-sync 已跳过 profile 同步')
+  console.log('[build] 已跳过 profile 同步（--no-sync 或 DSW_NO_SYNC=1）')
 }
