@@ -3,7 +3,8 @@
 //   1) 开始更新后轮询到待手动重启，重启前运行版本不变（假执行器只改磁盘版本，不碰运行版本）。
 //   2) 同一个请求编号重复提交不重装（执行器只跑一次）；凭证过期或环境变化报错（check-expired / installation-changed）。
 //   3) 正在安装时不同编号再提交报正在更新（update-busy）；装不了的情形有原因说明加手工命令（源码安装不给命令）。
-//   4) 相关日志只复用常驻事件（调用、调用失败，加 #548 安装执行的跨边界事件 update.install.exec），无新增事件名；
+//   4) 相关日志只复用常驻事件（调用、调用失败，加 #548 安装执行的跨边界事件 update.install.exec），
+//      仅在新接线 src/host/updateFromPackage.js 允许一条新增常驻 update.install.manifestSync（装完身份证验明正身，见 §6），无其它新增事件名；
 //      宿主注册装更新电话，客户端有安装调用与轮询。
 //   5) 测试全程假执行器：全仓搜真安装调用点零命中（无子进程真跑、无 registry 直连），构建通过。
 // 用法：node tests/verify-update-install.js（在仓库根目录）
@@ -229,6 +230,61 @@ async function main() {
     const allTests = fs.readdirSync(path.join(ROOT, 'tests')).filter((f) => f.startsWith('verify-update-')).map((f) => read(`tests/${f}`)).join('\n')
     check(!/(^|[^A-Za-z0-9_])spawn\s*\(|execFile\s*\(/.test(allTests), '更新门禁无真安装调用（全假执行器，tsc 的 spawnSync 除外）')
     check(!/runDshCommand\s*\(/.test(allTests), '更新门禁不调真执行器')
+  }
+
+  // ---- 6) 装完身份证验明正身（2026-10-01 面板装完版本显示修复，无单直修） ----
+  // 文件级安装只换代码不换身份证时，把身份证补成代码横幅里那个已装好的版本；
+  // 平时无操作，安装回包原样返回；绝不复位共享读取器（待重启要正常冒出来）。
+  {
+    const pkg = await import(pathToFileURL(path.join(ROOT, 'src/host/updateFromPackage.js')).href)
+    check(typeof pkg.__syncInstalledManifest === 'function', '验明正身入口存在（__syncInstalledManifest）')
+    check(pkg.__manifestOlderThan('1.7.34', '1.7.36') === true, '三段式比较旧版判定')
+    check(pkg.__manifestOlderThan('1.7.36', '1.7.36') === false, '相等不算旧（不重写）')
+    check(pkg.__manifestOlderThan('1.7.37', '1.7.36') === false, '新版不算旧（永不降级）')
+    check(pkg.__manifestOlderThan('x', '1.7.36') === false && pkg.__manifestOlderThan('1.7.34', 'bad') === false, '非法版本不算旧')
+    check(pkg.__bannerVersionOf("const DSW_VERSION = 'v1.7.36'") === '1.7.36', '代码横幅版本读出')
+    check(pkg.__bannerVersionOf('no banner here') === null, '无横幅读不到版本')
+    const fio = { readFile: (f, e) => fs.promises.readFile(f, e), writeFile: (f, d, e) => fs.promises.writeFile(f, d, e) }
+    const mkFixture = (manifestVer, bannerVer, underNodeModules = true) => {
+      const base = fs.mkdtempSync(path.join(os.tmpdir(), 'upd-manifest-'))
+      const root = underNodeModules ? path.join(base, 'node_modules', 'dsh-mattpocock-skills-deck') : path.join(base, 'ws-pkg')
+      fs.mkdirSync(path.join(root, 'lib'), { recursive: true })
+      fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'dsh-mattpocock-skills-deck', version: manifestVer }, null, 2) + '\n')
+      if (bannerVer) fs.writeFileSync(path.join(root, 'lib', 'client.js'), `const DSW_VERSION = 'v${bannerVer}'\n`)
+      return root
+    }
+    const runSync = (root, target, log) => pkg.__syncInstalledManifest({ moduleDir: path.join(root, 'lib'), targetVersion: target, io: fio, log })
+    const manifestOf = (root) => JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version
+    { // 横幅与目标一致、身份证旧：补写并记一行
+      const root = mkFixture('1.7.34', '1.7.36')
+      const calls = []
+      const r = await runSync(root, '1.7.36', { fire: (l, e, f) => { calls.push([l, e, f]) } })
+      check(r === 'synced', '横幅等于目标且身份证旧时补写（实际 ' + r + '）')
+      check(manifestOf(root) === '1.7.36', '身份证补成真实版本')
+      check(calls.length === 1 && calls[0][1] === 'update.install.manifestSync' && calls[0][2].fromVersion === '1.7.34' && calls[0][2].toVersion === '1.7.36', '补写记一行常驻日志（带前后版本）')
+    }
+    { // 横幅对不上目标：不动（不掩盖一次真正的失败）
+      const root = mkFixture('1.7.34', '1.7.35')
+      const r = await runSync(root, '1.7.36', { fire: () => { throw new Error('不应记日志') } })
+      check(r === 'skip:banner-mismatch' && manifestOf(root) === '1.7.34', '横幅不是目标版本时不动身份证')
+    }
+    { // 不在 node_modules 里（源码仓与门禁）：不动
+      const root = mkFixture('1.7.34', '1.7.36', false)
+      const r = await runSync(root, '1.7.36', { fire: () => { throw new Error('不应记日志') } })
+      check(r === 'skip:not-installed-copy' && manifestOf(root) === '1.7.34', '非已安装目录不动（源码仓安全）')
+    }
+    { // 已相等与非法目标：不动
+      const root = mkFixture('1.7.36', '1.7.36')
+      check((await runSync(root, '1.7.36', { fire: () => {} })) === 'skip:already', '已相等不重写')
+      check((await runSync(root, 'bad', { fire: () => {} })) === 'skip:no-target', '非法目标不动')
+    }
+    { // 新接线里只有这一条新事件，不碰配置文件、不复位读取器
+      const fromPkg = strip(read('src/host/updateFromPackage.js'))
+      const events = [...fromPkg.matchAll(/fire\s*\(\s*'(info|warn|debug|error)'\s*,\s*'([^']+)'/g)].map((m) => m[2])
+      check(events.length === 1 && events[0] === 'update.install.manifestSync', '新接线只有验明正身这一条日志（实际 ' + events.join('、') + '）')
+      check(!fromPkg.includes('dsh-profile'), '验明正身不碰配置文件的依赖声明')
+      check(fromPkg.split('resetPackageReader(').length - 1 === 1, '不复位共享读取器（只有测试复位在调，安装路径不碰，运行版本冻结，待重启正常冒）')
+    }
   }
 
   console.log(failed ? '\n存在失败' : '\n全部通过 — 安装闭环与手工兜底门禁生效')

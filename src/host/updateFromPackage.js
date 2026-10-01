@@ -2,9 +2,10 @@
 //
 // 以后谁改它：改「更新系统运行时走包还是走旧实现」的人。改之前先看决策 #798 与地图 #796：旧文件留而不搬。
 //
-// 接线：由 src/host/index.js 动态 import 加载；本文件只做一件事，
+// 接线：由 src/host/index.js 动态 import 加载；本文件只做两件事，
 // 调已安装的更新包建更新能力并拿回电话处理器（插件标识与电话名前缀都是旧值，
-// 所以三个电话名、落盘目录与旧字面一字不差）。
+// 所以三个电话名、落盘目录与旧字面一字不差）；装更新返回后做一次身份证验明正身
+//（见 __syncInstalledManifest，文件级安装不换身份证时才补写，平时无操作）。
 // 旧实现（./update.js、./updateReader.js、./updateStore.js）与旧派生目录（./updatePkg/）原地留存，本文件不再引用它们。
 // 本文件按包名引用已安装的更新包，构建与发布时靠清单里的依赖取到 0.2.x 最新，不再靠复制目录。
 //
@@ -17,6 +18,9 @@ import {
   resolveUpdateConfig,
   __resetSharedUpdateReaderForTests as resetPackageReader,
 } from 'dsh-plugin-update'
+import { readFile, writeFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 // 本插件在更新包里的两个注册参数：插件标识（必填）与电话名前缀。
 // 按规格，前缀取包里的默认值即等于旧值 wf，所以这里从头两个电话名的字面一眼可校对，
@@ -32,6 +36,78 @@ export const DEFAULT_PREFIX = __pkgDefaults.prefix
 
 let phones = null
 let phonesKey = ''
+
+// 三段式版本号比较的最小实现（只认 x.y.z 全数字形，其余一律视为不可比）。
+// 放这里而不引包里的比较函数：包里那份没对外导出，为三行逻辑多一层依赖不值。
+const RELEASE_TRIPLE = /^(\d+)\.(\d+)\.(\d+)$/
+export function __parseReleaseTriple(version) {
+  const m = typeof version === 'string' ? RELEASE_TRIPLE.exec(version.trim()) : null
+  if (!m) return null
+  return [Number(m[1]), Number(m[2]), Number(m[3])]
+}
+// 门禁与单测共用：current 是否真比 target 旧（任一不可比都算不旧，永不降级）。
+export function __manifestOlderThan(current, target) {
+  const a = __parseReleaseTriple(current)
+  const b = __parseReleaseTriple(target)
+  if (!a || !b) return false
+  for (let i = 0; i < 3; i++) {
+    if (a[i] !== b[i]) return a[i] < b[i]
+  }
+  return false
+}
+// 门禁与单测共用：从客户端产物文本里读出构建时注入的版本号（读不到为 null）。
+export function __bannerVersionOf(clientText) {
+  const m = /DSW_VERSION\s*=\s*'v?(\d+\.\d+\.\d+)'/.exec(typeof clientText === 'string' ? clientText : '')
+  return m ? m[1] : null
+}
+
+/**
+ * 装完验明正身（2026-10-01 面板装完版本显示修复，无单直修）。
+ *
+ * 为什么需要它：文件级安装只换代码文件、不换身份证（已装目录的 package.json），
+ * 而已装版本与待重启判据都读那张身份证。装完不补，面板永远报旧版本、重启提示也永远不冒，
+ * 用户会反复点安装。根因在宿主安装器不在本仓库，这里只做无害的真相恢复。
+ *
+ * 触发条件（缺一不可，任一不满足都原样返回，绝不掩盖一次真正的失败）：
+ * 1) 本次安装回包里带合法的目标版本；
+ * 2) 本文件跑在已安装的包里（路径含 node_modules；源码仓与门禁里永远走不进来）；
+ * 3) 身份证上的名字就是本插件，且写明的版本真比目标旧（永不降级、不重写相等）；
+ * 4) 已装代码横幅里的版本恰好等于目标版本（文件确实是新版，安装不是半截子）。
+ * 只写身份证的 version 一个字段；配置文件的依赖声明是宿主的东西，一个字不动。
+ * 绝不复位共享读取器：运行版本必须冻结在启动时，身份证新、运行旧，待重启才会正常冒出来。
+ *
+ * @returns 'synced' | 'skip:<原因>'，永不抛错（修不好就原样放过，不挡安装回包）。
+ */
+export async function __syncInstalledManifest({ moduleDir, targetVersion, io, log }) {
+  try {
+    if (!__parseReleaseTriple(targetVersion)) return 'skip:no-target'
+    if (typeof moduleDir !== 'string' || moduleDir.toLowerCase().indexOf('node_modules') < 0) return 'skip:not-installed-copy'
+    const root = dirname(moduleDir)
+    const manifestPath = join(root, 'package.json')
+    const manifest = JSON.parse(await io.readFile(manifestPath, 'utf8'))
+    if (!manifest || manifest.name !== UPDATE_PLUGIN_ID) return 'skip:name-mismatch'
+    const current = manifest.version
+    if (current === targetVersion) return 'skip:already'
+    if (!__manifestOlderThan(current, targetVersion)) return 'skip:not-older'
+    let banner = null
+    try {
+      banner = __bannerVersionOf(await io.readFile(join(root, 'lib', 'client.js'), 'utf8'))
+    } catch {
+      banner = null
+    }
+    if (banner !== targetVersion) return 'skip:banner-mismatch'
+    manifest.version = targetVersion
+    await io.writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n', 'utf8')
+    try {
+      if (log && typeof log.fire === 'function') log.fire('info', 'update.install.manifestSync', { pluginId: UPDATE_PLUGIN_ID, fromVersion: current, toVersion: targetVersion })
+    } catch {
+      // 日志写不进去不影响修复本身
+    }
+    return 'synced'
+  } catch {
+    return 'skip:error'
+  }
+}
 
 /**
  * 建三个电话的处理器（查状态 / 查新版 / 装更新）。
@@ -57,11 +133,21 @@ export function createUpdatePhoneHandlers(deps = {}) {
   )
   // 更新包给的是「电话名 → 处理器」的表；调用方要的是三个具名入口，
   // 这里按键取出来，键名取自包自己拼的电话名，不另拼字符串。
+  // 装更新那条包一层验明正身（见 __syncInstalledManifest）：文件级安装不换身份证时，
+  // 把身份证补成代码横幅里那个已装好的版本；平时是无操作直通，安装回包原样返回。
+  const rawInstall = holder.handlers[holder.phoneNames.updateInstall]
+  const hereDir = dirname(fileURLToPath(import.meta.url))
+  const syncLog = deps.logCtx ?? null
   phones = {
     phoneNames: holder.phoneNames,
     handleUpdateStatus: holder.handlers[holder.phoneNames.updateStatus],
     handleUpdateCheck: holder.handlers[holder.phoneNames.updateCheck],
-    handleUpdateInstall: holder.handlers[holder.phoneNames.updateInstall],
+    handleUpdateInstall: async function (args) {
+      const result = await rawInstall(args)
+      const target = result && result.snapshot && result.snapshot.job && result.snapshot.job.targetVersion
+      await __syncInstalledManifest({ moduleDir: hereDir, targetVersion: target, io: { readFile, writeFile }, log: syncLog })
+      return result
+    },
   }
   phonesKey = key
   return phones

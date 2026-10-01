@@ -12,7 +12,7 @@ let failed = false
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
-console.log('日志字段白名单门禁（#494/#498/#548/#618/#652/#655/#690/#709/#724：84 事件逐个只记已知安全字段，未知字段默认不记）')
+console.log('日志字段白名单门禁（#494/#498/#548/#618/#652/#655/#690/#709/#724：85 事件逐个只记已知安全字段，未知字段默认不记）')
 
 // 允许表：事件名对应它能记的全部字段键，之外的键一律不许出现。
 // 键名取自实现原文，语义与 #489 附录 1.4、1.5 节对照表一致。
@@ -85,6 +85,8 @@ const ALLOWED = {
   'panel.render': ['stage', 'ms', 'mode'],
   'host.start': ['pid', 'startedAt', 'dir'],
   'update.install.exec': ['route', 'ok', 'exitCode', 'durationMs', 'pluginId'],
+  // 2026-10-01 新增一条常驻事件（附录 1.4 节）：装更新返回后，代码横幅版本已是目标版本而身份证还旧时，把身份证补成真实版本；只记标识与两个版本号。
+  'update.install.manifestSync': ['pluginId', 'fromVersion', 'toVersion'],
   'privacy.scrub': ['field', 'rule', 'hit'],
   // #618 新增两条（附录 1.4 / 1.5 节）：本地配色文件的写入记常驻、读取记按需。
   'labelColors.write': ['cwdHash', 'count', 'ok', 'reason', 'via'],

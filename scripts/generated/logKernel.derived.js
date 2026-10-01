@@ -225,7 +225,8 @@ function createClientLog(deps, configInput) {
     "chain.backoff",
     "host.dispatch.empty",
     "naming.summary",
-    "cwd.persisted"
+    "cwd.persisted",
+    "update.install.manifestSync"
   ]);
   function isEnabled(level, event) {
     if (level === "error" || level === "warn") return true;
