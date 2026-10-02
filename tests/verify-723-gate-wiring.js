@@ -52,6 +52,10 @@ async function main() {
   const patchMod = await imp('src/host/refresh/patch.js')
   const wiringMod = await imp('src/host/refresh/wiring.js')
   const attentionMod = await imp('src/host/refresh/attention.js')
+  // 工具名字数对照**装配顺序常量本身**（src/shared/deck-tools/plan.js 的 DECK_TOOL_ORDER），
+  // 不写死「七条」那种字面：工具从七个长到九个时，写死的断言会平白变红一次，
+  // 而那条红与产品行为毫无关系（2026-10-02 就是这么查出来的）。
+  const DECK_TOOL_NAMES = (await imp('src/shared/deck-tools/plan.js')).DECK_TOOL_ORDER
 
   /** 一个只活在这一次里的闸 + 账本（真件），配一层假传输层（每真发一条就报给闸一次，与生产同一口径）。 */
   function world(opts) {
@@ -262,7 +266,7 @@ async function main() {
     const b2 = H2.gate.stats()
     let r2 = null
     try { r2 = await H2.table.tools.deck_map_plan_create.run(EXEC, { planId: 'over-cap', title: '超顶地图', children: Array.from({ length: 400 }, (_, i) => ({ key: 'c' + i, title: '子票' + i })) }) } catch (e) { r2 = { ok: false, status: 'threw', reason: String(e && e.message), text: String(e && e.message) } }
-    check(H2.table.names.length === 7, '⑤ 真入口装出七条工具：' + JSON.stringify(H2.table.names))
+    check(H2.table.names.length === DECK_TOOL_NAMES.length && H2.table.missing.length === 0, '⑤ 真入口装出全部 ' + DECK_TOOL_NAMES.length + ' 个工具（缺 ' + H2.table.missing.length + ' 个）：' + JSON.stringify(H2.table.names))
     check(r2 && r2.ok === false && r2.status === 'unsupported', '⑤ 真被拒绝：回 ok:false / unsupported（实得 ' + (r2 && r2.status) + '）')
     check(r2 && r2.reason === 'ai-tool-refused', '⑤ 真被拒绝：reason 是那个机器可读的拒绝代号（实得 ' + (r2 && r2.reason) + '）')
     check(r2 && typeof r2.text === 'string' && r2.text.indexOf('硬顶') >= 0, '⑤ 真被拒绝：给出了给 AI 看的那句原话（' + String(r2 && r2.text).slice(0, 90) + '…）')

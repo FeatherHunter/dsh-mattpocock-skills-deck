@@ -71,6 +71,10 @@ function makeScriptedGh(sink) {
     }
   }
   function flag(args, name) { const i = args.indexOf(name); return i >= 0 ? String(args[i + 1] === undefined ? '' : args[i + 1]) : '' }
+  /** 数据库编号与显示编号的换算：GitHub 上写边要的是前者（#3 的 id 形如 5595650996），
+   *  两者不是一回事（graph.js:288-289 写明了）。这里给一个确定的映射，夹具自己换算回来。 */
+  function dbIdOf(n) { return 1000000 + Number(n) }
+  function numberOfDbId(v) { const s = String(v || '').trim(); const n = Number(s); return (Number.isFinite(n) && n > 1000000) ? String(n - 1000000) : s }
   /** gh api 的 `-f k=v` 是一个整 token（不是 `-f k v`），取值要按等号切。 */
   function fFlag(args, name) {
     for (const x of args) {
@@ -113,26 +117,52 @@ function makeScriptedGh(sink) {
       if (!t) return { code: 1, stdout: '', stderr: 'no such issue' }
       if (flag(a, '--title')) t.title = flag(a, '--title')
       if (flag(a, '--body')) t.body = flag(a, '--body')
+      // 挂父票与解父票：生产代码今天建父子边走的就是 `gh issue edit <票号> --parent <父票号>`
+      // （graph.js:115，是 #790 定的形状：按票号走原生旗，不经裸接口那套数据库编号）。旧夹具只认
+      // 标题、正文、标签与认领，于是这条命令被静默丢掉，后端读回时发现没挂上，父子边判「说不好」
+      // （2026-10-02 查实并修）。
+      if (flag(a, '--parent')) t.parentKey = flag(a, '--parent')
+      if (a.indexOf('--remove-parent') >= 0) t.parentKey = ''
       a.forEach((x, i) => { if (a[i - 1] === '--add-label' && t.labels.indexOf(x) < 0) t.labels.push(x) })
       a.forEach((x, i) => { if (a[i - 1] === '--remove-label') t.labels = t.labels.filter((n) => n !== x) })
       a.forEach((x, i) => { if (a[i - 1] === '--add-assignee' && t.assignees.indexOf(x) < 0) t.assignees.push(x) })
       a.forEach((x, i) => { if (a[i - 1] === '--remove-assignee') t.assignees = t.assignees.filter((n) => n !== x) })
       return { code: 0, stdout: JSON.stringify(row(t)), stderr: '' }
     }
-    // REST：集合建票刻意失败（真实 gh 没接上 stdin 就是这个样子），逼后端走 gh issue create
-    if (/^api repos\/acme\/demo\/issues(\s|$)/.test(line) && line.indexOf('--method POST') >= 0) return { code: 1, stdout: '', stderr: 'gh api: stdin 没接上（照真实行为回失败）' }
+    // REST 集合建票：生产代码今天走的就是这一条（src/host/tracker/backends/github/issues-write.js:45-47
+    // 用 `-f` 逐字段传，因为 gh api 经 stdin 传整包在执行层没有口子），失败时**没有**退回
+    // `gh issue create` 的退路（那一行是 `if (!r.ok) return { ok: false }`）。所以这里照真实行为建成。
+    // 旧版夹具曾无条件回失败来「逼后端走 gh issue create」，那是 stdin 时代的形状；后端去掉退路之后
+    // 夹具没跟着改，整个 github 车道从那天起一直红（2026-10-02 查实并修）。
+    if (/^api repos\/acme\/demo\/issues(\s|$)/.test(line) && line.indexOf('--method POST') >= 0) {
+      const t = mk(fFlag(a, 'title'), fFlag(a, 'body'), [])
+      return { code: 0, stdout: JSON.stringify(row(t)), stderr: '' }
+    }
     if (/^api repos\/acme\/demo\/issues\?/.test(line)) return { code: 0, stdout: JSON.stringify(tickets.map(row)), stderr: '' }
-    let m = /^api repos\/acme\/demo\/issues\/(\d+)\/sub_issues/.exec(line)
+    let m
+    // 裸接口 `issues/<n> --jq .id`：生产代码要的是**数据库编号**（与 # 后面的显示编号不是一回事，
+    // 见 graph.js:34-43 与 :288-297），而 `--jq .id` 的输出就是那个编号本身，不是整个对象。
+    // 旧夹具的正则要求行尾正好是编号，后面跟了 `--jq .id` 就匹配不上，于是掉进下面那个
+    // 「凡是 api repos/acme/demo 都回 {}」的兜底，回包里没有 id，父子边与阻塞边整条路断掉
+    // （2026-10-02 查实并修）。编号与显示编号之间的换算写在这里，别让调用方自己编。
+    m = /^api repos\/acme\/demo\/issues\/(\d+)(?:\s|$)/.exec(line)
+    if (m) {
+      const t = find(m[1])
+      if (!t) return { code: 1, stdout: '', stderr: '404 not found' }
+      if (line.indexOf('--jq .id') >= 0) return { code: 0, stdout: String(dbIdOf(t.number)), stderr: '' }
+      return { code: 0, stdout: JSON.stringify(row(t)), stderr: '' }
+    }
+    m = /^api repos\/acme\/demo\/issues\/(\d+)\/sub_issues/.exec(line)
     if (m) {
       const parent = find(m[1])
-      const child = find(fFlag(a, 'sub_issue_id'))
+      const child = find(numberOfDbId(fFlag(a, 'sub_issue_id')))
       if (child) child.parentKey = parent ? String(parent.number) : ''
       return { code: 0, stdout: '{}', stderr: '' }
     }
     m = /^api repos\/acme\/demo\/issues\/(\d+)\/dependencies\/blocked_by\/(\d+)\s+--method DELETE/.exec(line)
-    if (m) { const t = find(m[1]); if (t) t.blockedBy = t.blockedBy.filter((k) => String(k) !== m[2]); return { code: 0, stdout: '{}', stderr: '' } }
+    if (m) { const t = find(m[1]); if (t) t.blockedBy = t.blockedBy.filter((k) => String(k) !== numberOfDbId(m[2])); return { code: 0, stdout: '{}', stderr: '' } }
     m = /^api repos\/acme\/demo\/issues\/(\d+)\/dependencies\/blocked_by\s+--method POST/.exec(line)
-    if (m) { const t = find(m[1]); const b = fFlag(a, 'issue_id'); if (t && b && t.blockedBy.indexOf(b) < 0) t.blockedBy.push(b); return { code: 0, stdout: JSON.stringify(row(t)), stderr: '' } }
+    if (m) { const t = find(m[1]); const b = numberOfDbId(fFlag(a, 'issue_id')); if (t && b && t.blockedBy.indexOf(b) < 0) t.blockedBy.push(b); return { code: 0, stdout: JSON.stringify(row(t)), stderr: '' } }
     m = /^api repos\/acme\/demo\/issues\/(\d+)\/comments\s+--method POST/.exec(line)
     if (m) { const t = find(m[1]); const body = fFlag(a, 'body'); if (t) t.comments.push(body); return { code: 0, stdout: JSON.stringify({ id: t ? t.comments.length : 0, body: body }), stderr: '' } }
     m = /^api repos\/acme\/demo\/issues\/(\d+)\s+--method (PATCH|POST)/.exec(line)
@@ -142,8 +172,6 @@ function makeScriptedGh(sink) {
       const st = fFlag(a, 'state'); if (st) t.state = st
       return { code: 0, stdout: JSON.stringify(row(t)), stderr: '' }
     }
-    m = /^api repos\/acme\/demo\/issues\/(\d+)$/.exec(line)
-    if (m) { const t = find(m[1]); if (!t) return { code: 1, stdout: '', stderr: '404 not found' }; return { code: 0, stdout: JSON.stringify(row(t)), stderr: '' } }
     if (line.indexOf('api repos/acme/demo') >= 0) return { code: 0, stdout: '{}', stderr: '' }
     return { code: 1, stdout: '', stderr: 'probe 没脚本化这条命令：' + line }
   }

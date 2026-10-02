@@ -196,7 +196,9 @@ async function main() {
     rows.read = await run('deck_issue_get', { key: child2 })
     rows.snapshot = await run('deck_map_snapshot', { key: mapKey })
 
-    check(envelopeOk(create) && create.ok === true, '[' + lane.id + '] 建票：回 ok（实得 ' + create.status + '）')
+    // 失败时把「为什么」一并带出来（#726 收口时的教训：门禁红得让人能一眼看出是哪一步、哪一句），
+    // 否则只剩一个 unsupported，谁也猜不出是闸推迟、后端抛错还是没选中后端。
+    check(envelopeOk(create) && create.ok === true, '[' + lane.id + '] 建票：回 ok（实得 ' + create.status + (create && create.ok ? '' : '；reason=' + String((create && create.reason) || '') + '；text=' + String((create && create.text) || '').slice(0, 160)) + '）')
     check(envelopeOk(plan) && plan.data && plan.data.mapKey && keys.length === 2, '[' + lane.id + '] 建整张地图骨架：地图票 ' + (plan.data && plan.data.mapKey) + '，子票 ' + keys.join('、') + '；没成的逐条：' + JSON.stringify(((plan && plan.items) || []).filter((i) => i.status !== 'ok').map((i) => i.planKey + ':' + String(i.reason || '').slice(0, 120))))
     check(envelopeOk(rows.link) && edgesOfItems(rows.link).length === 2, '[' + lane.id + '] 补边：父子与阻塞两条边都逐项回了（' + JSON.stringify(edgesOfItems(rows.link).map((i) => i.landing)) + '）')
     check(envelopeOk(rows.patch), '[' + lane.id + '] 改票：回三态之一（' + rows.patch.status + '）')
