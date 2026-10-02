@@ -55,7 +55,7 @@ export function assemble(input) {
   if (input.bare) {
     const repo2 = { merging: false, rebasing: false, cherryPicking: false, reverting: false, hasCommits: input.commits.length > 0, bare: true, tier: input.tier, autocrlf: input.autocrlf };
     const identity2 = { worktreeDisplay: "", worktreePath: input.repoRoot, branch: null, detached: false, oid: null, sync: "detached", ahead: 0, behind: 0, basisMs: null };
-    return { ok: true, screen: { identity: identity2, staged: [], unstaged: [], stagedCount: 0, unstagedCount: 0, conflictCount: 0, otherWorktrees: [], commits: [], repo: repo2 } };
+    return { ok: true, screen: { identity: identity2, staged: [], unstaged: [], stagedCount: 0, unstagedCount: 0, conflictCount: 0, otherWorktrees: [], branches: [], commits: [], repo: repo2 } };
   }
   const counts = /* @__PURE__ */ new Map();
   for (const d of input.diffFiles) counts.set(d.path, d);
@@ -130,6 +130,15 @@ export function assemble(input) {
     subject: c.subject,
     parents: c.parents
   }));
+  const branches = input.refs.map((r) => ({
+    short: r.short,
+    oid: r.oid,
+    upstream: r.upstream,
+    upstreamGone: r.upstreamGone,
+    ahead: r.ahead,
+    behind: r.behind,
+    current: r.short === input.statusHead && !input.statusDetached
+  }));
   const repo = {
     merging: input.merging,
     rebasing: input.rebasing,
@@ -150,6 +159,7 @@ export function assemble(input) {
       unstagedCount: unstaged.length,
       conflictCount: files.filter((f) => f.conflict).length,
       otherWorktrees: others,
+      branches,
       commits,
       repo
     }
