@@ -948,7 +948,7 @@ const contractChecksInner = function (reg, src) {
     if (di.en.indexOf('What are the symptoms') < 0 || di.en.indexOf('What is the impact') < 0) fail('tpl.diagnose en 缺 Symptoms 三行拆分')
     if (di.en.indexOf('grill snippet') >= 0) fail('tpl.diagnose en 残留 grill snippet 引用（#77 grill 入口已删）')
   }
-  // tpl.discuss（#628：收尾补一条 —— /to-spec 产出的规格单要挂回同一张 map）
+  // tpl.discuss（#628：收尾补一条 —— /to-spec 产出的规格单要挂回同一张 map；#808：收尾再补一条 —— /to-spec 后对抗式审查再关单）
   //   补块理由：本模板此前无任何结构块，整段被删门禁也不会红（#382 就是那样丢的）
   const dc = reg['tpl.discuss']
   if (dc) {
@@ -957,6 +957,8 @@ const contractChecksInner = function (reg, src) {
     if (dc.zh.indexOf('无 map 时不写') < 0) fail('tpl.discuss zh 缺 #628 的生效条件（无 map 时不写）')
     if (dc.en.indexOf('to the same map, as a sub-issue') < 0) fail('tpl.discuss en 缺 #628 挂载规定（同中文那条的对应句）')
     if (dc.en.indexOf('skip this if the issue has no map') < 0) fail('tpl.discuss en 缺 #628 的生效条件（skip if no map）')
+    if (dc.zh.indexOf('在用户指示下执行完 /to-spec 后对当前执行的所有任务执行一次对抗式审查，确认无误后close当前issue') < 0) fail('tpl.discuss zh 缺 #808 对抗式审查行（/to-spec 后审查再关单）')
+    if (dc.en.indexOf('run one adversarial review over all tasks executed in this run') < 0) fail('tpl.discuss en 缺 #808 对抗式审查行（同中文那条的对应句）')
   }
   // newWayfinder（#77 v8 + #573 v14 子议题关联收敛）
   const nw = reg['newWayfinder']
@@ -1458,10 +1460,11 @@ const selfDigest = function () {
 // #792：工具节的适用范围按第一性原理定稿 —— 只给会读写票 / 地图的 15 条，另外 8 条一律不带；上面那条例外
 //   写法升级成 TOOL_SECTION_IDS / TOOL_SECTION_ABSENT_IDS 两张表（合起来必须覆盖注册表全部 23 条），
 //   门禁正反两向断言并钉住两张表的条数，自摘要跟着重算。
+// #808：tpl.discuss 收尾再补一条（/to-spec 后对抗式审查再关单），中英各一行断言，自摘要跟着重算。
 const LOCK = {
   'tests/prompt-gate-exempt.json': 'c661ccd0fbfd46aa99790c073d0ccea89ebf5787a9113462c092b17c72a2a2d9',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.js': '3a0847231c6663b4c9bb691ca0bf8d219c02ae99cd83f76900a411a16b604b31',
+  'tests/verify-prompts.js': 'cddcf682cef2e6919d3fec5b501e2ec6d73da53bc2504d40f8ec194d14282eed',
 }
 // ---- LOCK-END ----
 
