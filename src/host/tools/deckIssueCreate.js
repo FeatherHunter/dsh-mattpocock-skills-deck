@@ -88,12 +88,38 @@ export function createDeckIssueCreate(deps) {
       // #746：建票直达命名守护（调用会话即建号会话；hook 缺失或失败都不影响已建成的返回）。
       try { if (typeof d.onTicketCreated === 'function' && issue.key) await d.onTicketCreated({ sessionId: s.sessionId, key: String(issue.key), title: title }) } catch (eHook) {}
       const items = []
+      let parentLanded = true
+      let parentEvidence = null
       if (rel) {
         // 父子边：写入已在 create 里做过（contract 的 parentKey 输入），这里只判它落在哪一列。
+        // #790：classify 的 ok 只表示“判出来了”，未知也回 true；必须按读回的 parentKey 是否等于目标判。
         const readBack = typeof c.tracker.get === 'function' ? await c.tracker.get(repo, issue.key, {}, c.opCtx) : null
         const after = (readBack && readBack.ok === true) ? { issue: readBack.data } : null
         const ev = after ? classifyEdgeLanding('parent', rel, after) : unsupportedEvidence('写后没读回来，判不了这条父子落点')
-        items.push(Object.assign({ key: issue.key, edge: { op: 'parent', target: rel }, status: ev.ok === false ? 'failed' : 'ok' }, edgeEvidence('parent', rel, ev)))
+        parentEvidence = ev
+        const landedKey = (after && after.issue && after.issue.parentKey !== undefined && after.issue.parentKey !== null) ? String(after.issue.parentKey) : ''
+        // 建票时 tracker.create 回来的票自带 parentKey 时也认（读回抖动时不误报失败）。
+        const createdKey = (issue && issue.parentKey !== undefined && issue.parentKey !== null) ? String(issue.parentKey) : ''
+        parentLanded = (landedKey === String(rel)) || (createdKey === String(rel)) || ((ev && ev.kind) === 'body-line')
+        if (ev && ev.kind === 'unsupported') parentLanded = false
+        items.push(Object.assign({ key: issue.key, edge: { op: 'parent', target: rel }, status: parentLanded ? 'ok' : 'failed' }, edgeEvidence('parent', rel, ev)))
+      }
+      if (rel && !parentLanded) {
+        // 票建成了、边没挂上：按部分成功回，不再报“建好了（父票 X）”。
+        const why = String((parentEvidence && parentEvidence.text) || '后端没给出原因').slice(0, 300)
+        notes.push('父子边没建成，别把它当成已经挂上：逐条原因在上面的 items 里。')
+        return {
+          value: {
+            status: DECK_STATUS.PARTIAL,
+            reason: REFUSAL_REASONS.BACKEND_UNSUPPORTED,
+            text: '票 ' + (issue.key || '（后端没回票号）') + ' 建好了：' + title + '。父子边没挂上（要 ' + rel + '）：' + why,
+            data: { ticket: issue, kind: kind, idempotencyKey: anchor, limits: { maxChildTicketsPerCall: budget.AI_TOOL_MAX_CHILD_TICKETS_PER_CALL } },
+            items: items,
+            notes: notes,
+            touched: issue.key ? [String(issue.key)] : [],
+          },
+          claimed: { requests: 3, points: 6 },
+        }
       }
       return {
         value: {

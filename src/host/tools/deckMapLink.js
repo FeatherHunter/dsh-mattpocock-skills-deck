@@ -70,14 +70,21 @@ export function createDeckMapLink(deps) {
           const want = String(job.parentKey)
           const written = await c.tracker.setParent(repo, key, want, {}, c.opCtx)
           let ev = null
+          let landedOk = false
           if (written && written.ok === true) {
             const back = typeof c.tracker.get === 'function' ? await c.tracker.get(repo, key, {}, c.opCtx) : null
-            ev = classifyEdgeLanding('parent', want, { issue: (back && back.ok === true) ? back.data : null })
-            if (ev.ok) { done += 1; touched.push(key) }
+            const afterIssue = (back && back.ok === true) ? back.data : null
+            ev = classifyEdgeLanding('parent', want, { issue: afterIssue })
+            // #790：classify 的 ok 只表示“判出来了”，未知也回 true；必须按读回的 parentKey 是否等于目标判。
+            // 正文兜底行（body-line）仍算落下，其余未知一律按没挂上处理，不再默认成功。
+            const landedKey = (afterIssue && afterIssue.parentKey !== undefined && afterIssue.parentKey !== null) ? String(afterIssue.parentKey) : ''
+            landedOk = (landedKey === String(want)) || ((ev && ev.kind) === 'body-line')
+            if (landedOk) { done += 1; touched.push(key) }
+            else if (ev && ev.kind !== 'unsupported') ev = { kind: 'unknown', ok: false, text: '写后读回：票的 parentKey = ' + (landedKey || '空') + '，要的是 ' + want + '（这条父子没挂上）' }
           } else {
             ev = unsupportedEvidence(String((written && written.error && written.error.message) || '后端没给出原因').slice(0, 200))
           }
-          items.push(Object.assign({ key: key, status: written && written.ok === true && ev.ok ? 'ok' : 'failed' }, edgeEvidence('parent', want, ev)))
+          items.push(Object.assign({ key: key, status: landedOk ? 'ok' : 'failed' }, edgeEvidence('parent', want, ev)))
         }
         if (job.blockedBy !== undefined && job.blockedBy !== null) {
           const want = asList(job.blockedBy)
@@ -104,12 +111,23 @@ export function createDeckMapLink(deps) {
       }
       const status = statusOfItems(items)
       if (status !== DECK_STATUS.OK) notes.push('有几条边没建成，逐条原因在上面的 items 里：别把它们当成已经建好。')
+      // #790：顶层一句话要带失败摘要，不只报计数。原因原文仍在逐条 items 的 evidence 里，这里只摘要。
+      let text = '这次要补 ' + items.length + ' 条边，建成 ' + done + ' 条。'
+      const failed = items.filter((i) => i && i.status !== 'ok')
+      if (failed.length) {
+        const sums = failed.map((i) => {
+          const t = String((i && i.target) || '')
+          const e = String((i && i.evidence) || (i && i.reason) || '')
+          return String((i && i.key) || '?') + '→' + t + '：' + e.slice(0, 120)
+        })
+        text += '失败 ' + failed.length + ' 条：' + sums.join('；').slice(0, 800)
+      }
       return {
         value: {
           status: status,
           reason: status === DECK_STATUS.OK ? '' : REFUSAL_REASONS.BACKEND_UNSUPPORTED,
-          text: '这次要补 ' + items.length + ' 条边，建成 ' + done + ' 条。',
-          data: { requested: jobs.length, done: done, jobs: jobs },
+          text: text,
+          data: { requested: items.length, done: done, jobs: jobs },
           items: items,
           notes: notes,
           touched: touched,

@@ -55,3 +55,9 @@ Single-context layout — root `CONTEXT.md` plus `docs/adr/`. See `docs/agents/d
 手工跑命令用 DSH 原生的侧栏终端（右侧栏那颗「终端」标签页，标签标题写成 `<票号>-<用途>`，方便事后回看）。这套终端由 DSH 自带，与 better-sidebar 无关——better-sidebar 从 0.21 版起已经把自己带的那套终端删掉了。
 
 AI 这边没有可用的终端工具（better-sidebar 删掉了它自带的 `terminal_*` 工具，DSH 侧对应的 `dsh-tool-terminal` 本机也没安装），开不出侧栏终端，所以 AI 的命令一律用系统原生的 `pwsh` 工具跑；跑什么、为什么跑，在对话正文里写清楚。
+
+### Release 发布
+
+Publish the three packages in this fixed order (dependencies first): `packages/dsh-log`, then `packages/dsh-plugin-update`, then `package` (the main plugin; skills ship inside it, never separately). Private package shells are skipped automatically.
+
+Token unattended path (prefer it when a write-capable token exists — no human clicks needed): set `$env:NODE_AUTH_TOKEN` (variable name only, never paste the token value) → run `pwsh -NoProfile -File scripts\publish-token.ps1 -Probe` first (it must say PROBE-OK) → run `pwsh -NoProfile -File scripts\publish-token.ps1` (gates → publish → one-pass sampling; add `-FullPost` before announcing). Accepted is not the same as visible: `E409 previously-staged` means the registry received the package, so wait a few minutes instead of republishing or bumping the version. The old interactive flow (`scripts\publish-all-window.ps1` via schtasks) stays as fallback. Publishing ends the job; installing is always done by the user (marketplace upgrade, in-app upgrade, or their own install command).

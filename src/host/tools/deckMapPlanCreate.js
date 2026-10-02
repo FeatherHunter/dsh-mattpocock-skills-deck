@@ -166,15 +166,30 @@ export function createDeckMapPlanCreate(deps) {
           ? await c.tracker.setParent(repo, from, to, {}, c.opCtx)
           : await c.tracker.setBlockedBy(repo, from, [to], {}, c.opCtx)
         let ev = null
+        let landedOk = false
         if (written && written.ok === true) {
           const back = typeof c.tracker.get === 'function' ? await c.tracker.get(repo, from, {}, c.opCtx) : null
           const dep = op === 'block' && typeof c.tracker.getDependencies === 'function' ? await c.tracker.getDependencies(repo, from, {}, c.opCtx) : null
-          ev = classifyEdgeLanding(op, to, { issue: (back && back.ok === true) ? back.data : null, dependencies: (dep && dep.ok === true) ? dep.data : null })
-          if (ev.ok) { edgeCount += 1; state.edges.push({ from: from, to: to, op: op }); state.done.push('edge:' + from + '-' + op + '-' + to); store.save(planId, state) }
+          const afterIssue = (back && back.ok === true) ? back.data : null
+          const afterDep = (dep && dep.ok === true) ? dep.data : null
+          ev = classifyEdgeLanding(op, to, { issue: afterIssue, dependencies: afterDep })
+          // #790：classify 的 ok 只表示“判出来了”，未知也回 true；必须按读回的值是否含目标判。
+          if (op === 'parent') {
+            const landedKey = (afterIssue && afterIssue.parentKey !== undefined && afterIssue.parentKey !== null) ? String(afterIssue.parentKey) : ''
+            landedOk = (landedKey === String(to)) || ((ev && ev.kind) === 'body-line')
+            if (!landedOk && ev && ev.kind !== 'unsupported') ev = { kind: 'unknown', ok: false, text: '写后读回：票的 parentKey = ' + (landedKey || '空') + '，要的是 ' + to + '（这条父子没挂上）' }
+          } else {
+            const list = Array.isArray(afterDep && afterDep.blockedBy) ? afterDep.blockedBy.map((r) => (r && r.key) || r).map(String)
+              : Array.isArray(afterIssue && afterIssue.blockedBy) ? afterIssue.blockedBy.map((r) => (r && r.key) || r).map(String) : []
+            landedOk = list.indexOf(String(to)) >= 0
+            if (!landedOk) ev = { kind: 'unknown', ok: false, text: '写后读回：这条依赖没出现在票上（要 ' + to + '，读回来 ' + (list.join('、') || '空') + '）' }
+            else ev = classifyEdgeLanding(op, to, { issue: afterIssue, dependencies: afterDep })
+          }
+          if (landedOk) { edgeCount += 1; state.edges.push({ from: from, to: to, op: op }); state.done.push('edge:' + from + '-' + op + '-' + to); store.save(planId, state) }
         } else {
           ev = unsupportedEvidence(String((written && written.error && written.error.message) || '后端没给出原因').slice(0, 200))
         }
-        items.push(Object.assign({ key: from, role: 'edge', status: written && written.ok === true ? 'ok' : 'failed' }, edgeEvidence(op, to, ev)))
+        items.push(Object.assign({ key: from, role: 'edge', status: landedOk ? 'ok' : 'failed' }, edgeEvidence(op, to, ev)))
       }
 
       // ④ 逐项校验：按父票把子票列一遍，计划几张、实际几张，数字对不上就说 partial。

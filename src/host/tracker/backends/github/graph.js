@@ -31,6 +31,21 @@ function repoId(repo) {
   return ''
 }
 
+// 取一张票的数据库编号（不是 # 后面的显示编号）：裸接口建边要用它。
+// 阻塞边那条路已有同类换算（setBlockedBy 的 idOf），这里给父子路复用同一形状。
+async function issueDbId(c, parsed, numberKey, ctx) {
+  try {
+    const rr = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/issues/${numberKey}`, '--jq', '.id'], { cwd: ctx && ctx.cwd })
+    if (!rr.ok) return null
+    const v = Number(String(rr.data.stdout || '').trim())
+    return Number.isFinite(v) && v > 0 ? Math.floor(v) : null
+  } catch { return null }
+}
+
+function isUnknownFlag(msg) {
+  return /unknown flag|unknown option|unknown shorthand/i.test(String(msg || ''))
+}
+
 /**
  * setParent(repo, key, parentKey, opts, ctx) -> OpResult<Issue>
  * parentKey: string|null（单父语义，只认原生 parent，忽略 task list）
@@ -63,18 +78,25 @@ export async function setParent(repo, key, parentKey, opts, ctx) {
     }
 
     const c = ghClient(ctx)
+    const slug = `${parsed.owner}/${parsed.name}`
 
     if (wantParent == null) {
-      // 解除父子：DELETE /repos/{o}/{r}/issues/{n}/sub_issues 需指定子 issue_url
-      // 先取当前 parent → DELETE
+      // 解除父子：先走原生旗（按票号，不用数据库编号）；老版本才回退裸接口。
       if (curParentKey == null) {
         if (curRes.ok) return curRes
         return fail(ERROR_KIND.NOTFOUND, `setParent: issue ${k} not found`)
       }
-      // GitHub sub_issues API：DELETE /repos/{owner}/{repo}/issues/{parent_number}/sub_issue?sub_issue_id=<child_number>
-      // 实际 REST：DELETE /repos/{o}/{r}/issues/{parent}/sub_issues  body {sub_issue_id: child}
-      // 使用 gh api DELETE
-      const args = ['api', `repos/${parsed.owner}/${parsed.name}/issues/${curParentKey}/sub_issues`, '--method', 'DELETE', '-f', `sub_issue_id=${k}`]
+      const rm = await c.execGh(['issue', 'edit', k, '--repo', slug, '--remove-parent'], { cwd: ctx && ctx.cwd })
+      if (rm.ok) {
+        const back = await getIssue(repo, k, {}, ctx)
+        if (back.ok) return back
+        return curRes.ok ? curRes : back
+      }
+      const rmMsg = String((rm.error && (rm.error.message || rm.error.stderr)) || '')
+      if (!isUnknownFlag(rmMsg)) return { ok: false, error: rm.error }
+      const childId = await issueDbId(c, parsed, k, ctx)
+      if (!childId) return fail(ERROR_KIND.NOTFOUND, `setParent: issue ${k} not found`)
+      const args = ['api', `repos/${parsed.owner}/${parsed.name}/issues/${curParentKey}/sub_issues`, '--method', 'DELETE', '-F', `sub_issue_id=${childId}`]
       const r = await c.execGh(args, { cwd: ctx && ctx.cwd })
       if (!r.ok) {
         const msg = String(r.error.message || '').toLowerCase()
@@ -85,20 +107,43 @@ export async function setParent(repo, key, parentKey, opts, ctx) {
         return { ok: false, error: r.error }
       }
     } else {
-      // 设置父子：POST /repos/{o}/{r}/issues/{parent}/sub_issues {sub_issue_id: k}
-      // 若已存在旧 parent，先解绑旧，再绑新（保证单父）
-      if (curParentKey != null && curParentKey !== wantParent) {
-        const delArgs = ['api', `repos/${parsed.owner}/${parsed.name}/issues/${curParentKey}/sub_issues`, '--method', 'DELETE', '-f', `sub_issue_id=${k}`]
-        await c.execGh(delArgs, { cwd: ctx && ctx.cwd })
-      }
-      const args = ['api', `repos/${parsed.owner}/${parsed.name}/issues/${wantParent}/sub_issues`, '--method', 'POST', '-f', `sub_issue_id=${k}`]
-      const r = await c.execGh(args, { cwd: ctx && ctx.cwd })
-      if (!r.ok) {
-        const msg = String(r.error.message || '').toLowerCase()
-        if (/unsupported|not supported|sub_issues.*not|ghes/i.test(msg)) {
-          return fail(ERROR_KIND.UNSUPPORTED, 'setParent unsupported (GHES or sub_issues not enabled)')
+      // 设置父子：先走原生旗 `gh issue edit --parent`（按票号，与 wire-subissues.mjs 同路）。
+      // 票号与数据库编号不是一回事：裸接口要的是数据库编号（.id 那种大数），且用 -F 按数字传；
+      // 用 -f 传票号会被 422 拒收（#790）。阻塞边那条路已这么换算，父子路此前漏了。
+      if (!/^\d+$/.test(wantParent)) return fail(ERROR_KIND.PARSE, `setParent: parentKey 必须是数字编号：${wantParent}`)
+      if (!/^\d+$/.test(k)) return fail(ERROR_KIND.PARSE, `setParent: key 必须是数字编号：${k}`)
+      let set = await c.execGh(['issue', 'edit', k, '--repo', slug, '--parent', wantParent], { cwd: ctx && ctx.cwd })
+      if (!set.ok) {
+        const m = String((set.error && (set.error.message || set.error.stderr)) || '')
+        // 改挂：已是别的父的子票时先解再挂，保证单父语义不断。
+        if (/already a sub-issue/i.test(m) && curParentKey != null && curParentKey !== wantParent) {
+          const rm2 = await c.execGh(['issue', 'edit', k, '--repo', slug, '--remove-parent'], { cwd: ctx && ctx.cwd })
+          if (rm2.ok) set = await c.execGh(['issue', 'edit', k, '--repo', slug, '--parent', wantParent], { cwd: ctx && ctx.cwd })
         }
-        return { ok: false, error: r.error }
+      }
+      if (!set.ok) {
+        const m = String((set.error && (set.error.message || set.error.stderr)) || '')
+        if (!isUnknownFlag(m)) {
+          if (/unsupported|not supported|sub_issues.*not|ghes/i.test(m.toLowerCase())) {
+            return fail(ERROR_KIND.UNSUPPORTED, 'setParent unsupported (GHES or sub_issues not enabled)')
+          }
+          return { ok: false, error: set.error }
+        }
+        if (curParentKey != null && curParentKey !== wantParent) {
+          const childIdDel = await issueDbId(c, parsed, k, ctx)
+          if (childIdDel) await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/issues/${curParentKey}/sub_issues`, '--method', 'DELETE', '-F', `sub_issue_id=${childIdDel}`], { cwd: ctx && ctx.cwd })
+        }
+        const childId = await issueDbId(c, parsed, k, ctx)
+        if (!childId) return fail(ERROR_KIND.NOTFOUND, `setParent: issue ${k} not found`)
+        const args = ['api', `repos/${parsed.owner}/${parsed.name}/issues/${wantParent}/sub_issues`, '--method', 'POST', '-F', `sub_issue_id=${childId}`]
+        const r = await c.execGh(args, { cwd: ctx && ctx.cwd })
+        if (!r.ok) {
+          const msg = String(r.error.message || '').toLowerCase()
+          if (/unsupported|not supported|sub_issues.*not|ghes/i.test(msg)) {
+            return fail(ERROR_KIND.UNSUPPORTED, 'setParent unsupported (GHES or sub_issues not enabled)')
+          }
+          return { ok: false, error: r.error }
+        }
       }
     }
 

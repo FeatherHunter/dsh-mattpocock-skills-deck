@@ -97,13 +97,16 @@ export async function createIssue(repo, input, ctx) {
         }
       }
     } catch {}
-    // parentKey 有则创后 setParent
+    // parentKey 有则创后 setParent：挂不上不吞错，记在票上让工具层读回时能说清。
     if (input.parentKey != null && input.parentKey !== '') {
       try {
         const { setParent } = await import('./graph.js')
         const pr = await setParent(repo, issue.key, String(input.parentKey), {}, ctx)
         if (pr.ok) issue = pr.data
-      } catch {}
+        else issue.parentError = { kind: String((pr.error && pr.error.kind) || ''), message: String((pr.error && pr.error.message) || '后端没给出原因').slice(0, 300) }
+      } catch (e) {
+        issue.parentError = { kind: 'unknown', message: String((e && e.message) || e).slice(0, 300) }
+      }
     }
     return { ok: true, data: issue }
   } catch (e) {
