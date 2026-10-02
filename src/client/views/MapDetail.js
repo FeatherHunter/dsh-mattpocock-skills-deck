@@ -200,45 +200,8 @@ export     const MapDetail = ({ st, g, drill }) => {
       // 栈空才回列表）。直接调弹栈，不经过按种类守卫的旧入口，混合栈也只退一级。
       const goBack = function () { popNav(st) }
       return h('div', null, [
-        // 顶部操作行：返回 + map chip + 执行/完成（#565 粘性固定，随滚动保持可见）
-        h('div', { className: 'dsws-stickybar', style: { display: 'flex', alignItems: 'center', gap: 8 } }, [
-          h('button', { className: 'dsws-btn', onClick: goBack, style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [
-            Ic({ n: 'back', size: 12 }),
-            h('span', null, tr('list.back')),
-          ]),
-          h('span', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', whiteSpace: 'nowrap' } }, navCrumb),
-          h('span', { className: 'dsws-chip dsws-chip-m' }, [Ic({ n: 'map', size: 11 }), h('span', null, 'wayfinder:map')]),
-          h('span', { style: { flex: 1 } }),
-          (effStats && effStats.total === 0)
-            ? h(Tip, { content: tr('map.inspectTitle') }, h('button', { className: 'dsws-btn primary', onClick: function () {
-                let t2 = ''
-                try { t2 = inspectPrompt(st, m.number, m.title) } catch(e) { try { t2 = promptTextFor(st, 'mapInspect', { n: String(m.number||''), ['title']: String(m.title||''), url: issueUrlFor(st, m.number) }); if (t2) t2 = '/wayfinder ' + issueUrlFor(st, m.number) + '\n\n' + t2 } catch(_){ t2 = startText(st, m) } }
-                inject(st, t2)
-              }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '1px 6px', fontSize: 11, background: '#f59e0b', borderColor: 'transparent', color: '#140a1e', fontWeight: 600 } }, [
-                Ic({ n: 'search', size: 10 }),
-                h('span', null, tr('act.inspect')),
-              ]))
-            : (effStats && effStats.total > 0 && effStats.closed === effStats.total)
-            ? h(Tip, { content: tr('map.doneTitle') }, h('button', { className: 'dsws-btn primary', onClick: function () {
-                const text = completePrompt(st, m.number, m.title, effStats.total, effStats.closed)
-                inject(st, text)
-              }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '1px 6px', fontSize: 11, background: '#3fb950', borderColor: 'transparent', color: '#0c1a10', fontWeight: 600 } }, [
-                Ic({ n: 'check', size: 10 }),
-                h('span', null, tr('act.done')),
-              ]))
-            : h(Tip, { content: tr('map.executeTitle') }, h('button', { className: 'dsws-btn primary', onClick: function () {
-                // v1.4：map 推进式执行（startText 检测 wayfinder:map → MAP_EXECUTE_PROMPT）
-                inject(st, startText(st, m))
-              }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '1px 6px', fontSize: 11 } }, [
-                Ic({ n: 'play', size: 10 }),
-                h('span', null, tr('act.execute')),
-              ])),
-          // v1.5 B2（O5）：详情页「在新会话打开」—— 与 执行/完成 同语义，开新会话推进该 map
-          h(Tip, { content: tr('map.newSessionTitle') }, h('button', { className: 'dsws-btn ghost', onClick: function () { openInNewSession(st, m) }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '1px 6px', fontSize: 11, flex: 'none' } }, [
-            Ic({ n: 'external-link', size: 10 }),
-            h('span', null, tr('list.newSessionLabel')),
-          ])),
-        ]),
+        // 顶部操作行拆到 MapDetailTop.js（#807：本文件贴着 350 行上限；不换行/逐字折叠/新会话实心/补图标都在那一份）。
+        h(MapDetailTop, { st: st, m: m, navCrumb: navCrumb, effStats: effStats, goBack: goBack }),
         // #691：编号 + 标题 + 「本图 N 张子票（已关闭 M 张）」那一行，整块拆到 MapDetailHead.js
         //   （本文件贴着 350 行上限；头部那一块连同它的取数状态一起搬走，形态一字未改）。
         h(MapDetailHead, { st: st, m: m, mt: mt, multiEffort: multiEffort }),

@@ -21,6 +21,7 @@ const LEAVES = [
   { file: 'src/client/views/shared/tagsFit.js', exports: ['_tagsFpOf', 'fitAllTags'], components: [] },
   { file: 'src/client/views/shared/Tabs.js', exports: ['useTabsRow'], components: [] },
   { file: 'src/client/views/TicketRow.js', exports: ['TicketRow'], components: ['TicketRow'] },
+  { file: 'src/client/views/MapDetailTop.js', exports: ['MapDetailTop'], components: ['MapDetailTop'] }, // #807 由 MapDetail.js 拆出：顶部操作行（不换行/逐字折叠/新会话实心/补图标）
   { file: 'src/client/views/MapDetail.js', exports: ['MapDetail'], components: ['MapDetail'] },
   { file: 'src/client/views/IssueDetailComments.js', exports: ['renderIssueDetailComments'], components: [] }, // V3 #463 由 IssueDetail.js 拆出：评论区（无组件，纯函数）
   { file: 'src/client/views/IssueDetail.js', exports: ['IssueDetail'], components: ['IssueDetail'] },

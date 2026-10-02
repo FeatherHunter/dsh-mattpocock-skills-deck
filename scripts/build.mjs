@@ -393,6 +393,7 @@ const LEAF_MODULES = [
   { id: 'sessionChainView', file: 'src/client/views/shared/sessionChainView.js' }, // #721 新增：面板顶部那一条「每个会话在处理哪些票」（判据加画法；只读宿主写下的那一个快照字段，读不到就说读不到）
   { id: 'ticketRow', file: 'src/client/views/TicketRow.js' },
   { id: 'mapDetailHead', file: 'src/client/views/MapDetailHead.js' }, // #691 由 MapDetail.js 拆出：编号/标题/「本图 N 张子票」那一行（MapDetail 贴着 350 行上限）
+  { id: 'mapDetailTop', file: 'src/client/views/MapDetailTop.js' }, // #807 由 MapDetail.js 拆出：顶部操作行（不换行/逐字折叠/新会话实心/补图标，MapDetail 贴着 350 行上限）
   { id: 'mapDetail', file: 'src/client/views/MapDetail.js' },
   { id: 'IssueDetailComments', file: 'src/client/views/IssueDetailComments.js' },
   { id: 'issueDetailFold', file: 'src/client/views/issueDetailFold.js' }, // #763 新增：详情页顶栏逐字折叠阶梯（纯函数，返回优先收到图标）
