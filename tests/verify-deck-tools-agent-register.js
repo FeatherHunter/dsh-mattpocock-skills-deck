@@ -169,9 +169,16 @@ async function main() {
     check(JSON.stringify(got) === JSON.stringify(want.slice().sort()), d.name + ' 必填项对上（要 ' + (want.join('、') || '无') + '）')
     check(opt.output && typeof opt.output.render === 'function' && opt.output.schema && opt.output.schema.type === 'object',
       d.name + ' 输出带模式与渲染函数')
+    // 没有明细时仍然只回一块：这是渲染的原有契约，#809 的修复不能把它改坏
     const rendered = opt.output.render({}, { status: 'ok', text: '你好' })
     check(Array.isArray(rendered) && rendered.length === 1 && rendered[0].type === 'text' && String(rendered[0].text).indexOf('你好') >= 0,
       d.name + ' 渲染回文本块且带着原话')
+    // 上一条只钉住「没有明细时回一块」，那正是 #809 之前的形状，也正是它让丢明细这件事
+    // 无人察觉：信封有 data 时必须把明细一起给，这一条才是真正守住接缝的那一句。
+    const withData = opt.output.render({}, { status: 'ok', text: '你好', data: { key: '759', body: '这里是票的正文' } })
+    const withDataText = (withData || []).map((b) => String(b.text)).join('\n')
+    check(Array.isArray(withData) && withData.length > 1 && withDataText.indexOf('这里是票的正文') >= 0,
+      d.name + ' 信封里有 data 时把明细一起交给模型（#809）')
   }
 
   // ── 2. 注册行为（全桩）：九个都交出去、执行只转发、不抛 ──

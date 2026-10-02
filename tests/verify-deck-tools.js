@@ -185,7 +185,17 @@ async function main() {
     const r = await callTool('deck_map_snapshot', { key: '00' })
     check(envelopeOk(r) && r.status === 'ok', 'deck_map_snapshot 正例：地图读回来了（实得 ' + (r && r.status) + '）')
     check(r.data && r.data.stats && typeof r.data.stats.open === 'number', 'deck_map_snapshot 带回进度统计（' + JSON.stringify((r.data || {}).stats) + '）')
-    check(r.data && r.data.blocks && Array.isArray(r.data.blocks.destination === undefined ? r.data.blocks.notes : []), 'deck_map_snapshot 带回五个区块')
+    // 这条以前写成 Array.isArray(blocks.destination === undefined ? blocks.notes : [])：
+    // destination 是字符串，=== undefined 恒假，整个表达式退化成 Array.isArray([])，恒真，
+    // 于是「五个区块」从来没被真正检查过。#809 里它是接缝盲区的证据之一，这里补成真检查。
+    const blocks = (r.data || {}).blocks || {}
+    const FIVE = ['destination', 'notes', 'decisions', 'fog', 'outOfScope']
+    check(r.data && r.data.blocks && FIVE.every((k) => Object.prototype.hasOwnProperty.call(blocks, k) && blocks[k] !== null && blocks[k] !== undefined),
+      'deck_map_snapshot 带回五个区块（Destination / Notes / Decisions so far / Not yet specified / Out of scope）')
+    check(typeof blocks.destination === 'string'
+      && (typeof blocks.notes === 'string' || Array.isArray(blocks.notes))
+      && Array.isArray(blocks.decisions) && Array.isArray(blocks.fog) && Array.isArray(blocks.outOfScope),
+      'deck_map_snapshot 五个区块各自成形（destination/notes 是文字，decisions/fog/outOfScope 是清单）')
   }
 
   // ── ⑤ deck_map_plan_create：一整张地图的骨架（含分片与中间态） ──

@@ -79,14 +79,100 @@ export function toAgentParameterSpec(parameters) {
   return spec
 }
 
+// 明细交给模型时要守的两个上限（#809）。各工具自己的参数（comments / limit / frontierOnly）
+// 才是日常旋钮，这两个是兜底：单个长段最多给多少字符、整份明细最多给多少字符。
+// 8000 按「一段票正文或一条评论正文」的常见长度取；60000 约两万 token 量级，够放满一屏明细，
+// 又不至于把对话历史冲爆。压掉的地方一律原地写明，不让人误以为拿全了。
+const DETAIL_STRING_CAP = 8000
+const DETAIL_TOTAL_CAP = 60000
+
+// 往下传余量的投影：字符串超了按余量截；数组装不下时整项不送并说清丢了几项；对象装不下时把
+// 装不下的字段名列出来。输出的形状始终是合法 JSON，模型能直接解析，不必从半截 JSON 里猜。
+// 嵌套深到 12 层就停并说明，不再往里钻——回包里不会有比这更深的结构，钻下去只会栈溢出。
+//
+// 余量必须放在一个共享对象里往下传，不能按值传：按值传的话，子级花掉的额度不会归还给父级，
+// 父级仍拿原额度去量子级，于是「正好填满预算」的子级会被误判成超了而整块丢掉——
+// 一张带五十条评论的票就会只得到一句「comments 未带回」。
+// 括号、逗号、引号、键名这些结构开销是估算着扣的，不是精确值；单个字符串还有 8000 的上限
+// 兜着，误差有界。
+function projectDetail(v, budget, depth) {
+  if (depth > 12) return '（这里嵌套太深，没有展开）'
+  if (typeof v === 'string') {
+    const cap = Math.min(budget.left, DETAIL_STRING_CAP)
+    const s = v.length <= cap ? v : v.slice(0, cap) + '……（本段已截断，原长 ' + v.length + ' 字符）'
+    budget.left -= s.length
+    return s
+  }
+  if (Array.isArray(v)) {
+    budget.left -= 2
+    const out = []
+    let cut = 0
+    for (let i = 0; i < v.length; i++) {
+      if (out.length) budget.left -= 1
+      if (budget.left <= 0) { cut += v.length - i; break }
+      out.push(projectDetail(v[i], budget, depth + 1))
+    }
+    if (cut) out.push('……（此处还有 ' + cut + ' 项未带回）')
+    return out
+  }
+  if (v !== null && typeof v === 'object') {
+    budget.left -= 2
+    const out = {}
+    const cut = []
+    for (const k of Object.keys(v)) {
+      if (Object.keys(out).length) budget.left -= 1
+      budget.left -= k.length + 3
+      if (budget.left <= 0) { cut.push(k); continue }
+      out[k] = projectDetail(v[k], budget, depth + 1)
+    }
+    if (cut.length) out.__未带回 = '未带回的字段：' + cut.join('、') + '（超出总量上限）'
+    return out
+  }
+  return v
+}
+
+// 挑出值得交给模型的那几格：data 是各工具的明细；items 装着建票与补边逐条的落点证据
+// （deck_map_link 的说明承诺「如实回报这条边落在哪一列」就靠它）；readBack 是写后回读核对，
+// 但 deck_issue_patch 已经把同一份放进 data.ticket（deckIssuePatch.js:159/161），两处都送会让
+// 同一份内容进历史两遍、白吃预算，所以认得出同一份就只送一次。顶层的 cost / touched 是运行
+// 元数据（touched 恒为空数组）不送；deck_context 的 data 里那几格 workspace / backend / repo /
+// quota / howto 本来就是它要给 AI 看的内容，照送不误。
+function detailBlock(v) {
+  const pick = {}
+  if (v.data !== undefined && v.data !== null) pick.data = v.data
+  if (Array.isArray(v.items) && v.items.length) pick.items = v.items
+  const d = pick.data
+  const sameTicket = d !== null && typeof d === 'object' && !Array.isArray(d) && d.ticket === v.readBack
+  if (v.readBack !== undefined && v.readBack !== null && !sameTicket) pick.readBack = v.readBack
+  if (typeof v.reason === 'string' && v.reason) pick.reason = v.reason
+  if (!Object.keys(pick).length) return ''
+  let s = ''
+  try { s = JSON.stringify(projectDetail(pick, { left: DETAIL_TOTAL_CAP }, 0)) || '' } catch (e) {
+    return '明细（取不出来）：里面有循环引用或不可序列化的值，本次只给了上面那一句摘要。'
+  }
+  return '明细（JSON）：\n' + s
+}
+
+// 交给模型的全部内容：一句摘要 + 工具的如实提示 + 明细。#809 之前只回那一句摘要，正文、评论、
+// 标签、子票清单、地图五区块、逐条边的落点证据，连同 notes 里的降级警告全被丢掉——工具说明
+// 与代理文档都承诺这些明细，模型却一样拿不到，还会把残缺结果当完整结果用。
 function deckAgentRender(args, value) {
-  const text = value && typeof value.text === 'string' ? value.text : ''
-  return [{ type: 'text', text: text }]
+  const v = (value && typeof value === 'object') ? value : {}
+  const out = []
+  const text = typeof v.text === 'string' ? v.text : ''
+  if (text) out.push({ type: 'text', text: text })
+  // 提示排在明细前面：它是工具对「这次拿到的不一定全」的如实警告，丢了才最危险。
+  if (Array.isArray(v.notes) && v.notes.length) {
+    out.push({ type: 'text', text: '本次调用的提示：\n' + v.notes.map(function (n) { return '- ' + String(n) }).join('\n') })
+  }
+  const detail = detailBlock(v)
+  if (detail) out.push({ type: 'text', text: detail })
+  return out.length ? out : [{ type: 'text', text: text || '' }]
 }
 
 /**
  * 输出的固定形状（官方写法用）：每次调用都带状态与一句话（壳里保证这两格永远是字符串），
- * 其余原样透出。渲染只取那一句话，避免把整张地图的子票清单铺进历史。
+ * 其余原样透出；渲染把摘要、提示与明细一起交给模型（见上面 deckAgentRender 与 #809）。
  * 注意这是定义函数的写法（必填按属性标）；退路另有一份原生写法，见下。
  */
 export function deckAgentOutputSpec() {
