@@ -53,6 +53,16 @@ try {
   console.log('[build] 没能加载 refresh-core/build.mjs（' + ((e && e.message) || e) + '），本次构建跳过刷新核心的转译与类型检查。')
 }
 
+// #816 版本控制核心（version-control-core/）：形态与上面的刷新核心一致，转译与类型检查都写在
+// 它自己的 build.mjs 里（UNITS 清单由它导出，新鲜度门禁直接读，不手抄）。同样先试加载、
+// 加载不到只打印提示：那棵源码树不进 npm 包，子树构建时跳过、其余照跑。
+let buildVersionControlCore = null
+try {
+  buildVersionControlCore = await import('../version-control-core/build.mjs')
+} catch (e) {
+  console.log('[build] 没能加载 version-control-core/build.mjs（' + ((e && e.message) || e) + '），本次构建跳过版本控制核心的转译与类型检查。')
+}
+
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
 // ---------- 工具 ----------
@@ -738,6 +748,13 @@ if (buildLabelColorCore) buildLabelColorCore()
 if (buildRefreshCore) {
   buildRefreshCore.runTypeCheck()
   buildRefreshCore.buildAll()
+}
+
+// #816 版本控制核心：类型检查与转译各调用一次，产物落进 src/shared/version-control/。
+// 与刷新核心一样放在两段派生之前：产物是宿主与界面要用的纯逻辑，必须比闭包先就位。
+if (buildVersionControlCore) {
+  buildVersionControlCore.runTypeCheck()
+  buildVersionControlCore.buildAll()
 }
 
 // #564 日志系统派生：先把日志包产物派生为运行时文件（旧文件不动），再拼装。

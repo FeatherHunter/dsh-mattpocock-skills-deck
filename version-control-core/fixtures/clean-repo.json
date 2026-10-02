@@ -1,0 +1,43 @@
+{
+  "source": {
+    "gitVersion": "git version 2.49.0.windows.1",
+    "capturedAt": "2026-10-02T10:30:55.433Z",
+    "live": true,
+    "note": "本机实采：主分支，仅未跟踪新文件（#816 施工中），无已跟踪改动"
+  },
+  "step0": {
+    "code": 0,
+    "out": "D:/dsh-plugin/dsh-mattpocock-skills-deck/.git\ntrue\nfalse\n",
+    "err": ""
+  },
+  "status": {
+    "code": 0,
+    "out": "# branch.oid edfc5b888735b10b9162dcfa62beb2ef123d620b\u0000# branch.head main\u0000# branch.upstream origin/main\u0000# branch.ab +0 -0\u0000? src/shared/version-control/capabilities.js\u0000? src/shared/version-control/commands.js\u0000? src/shared/version-control/parse-diff-files.js\u0000? src/shared/version-control/parse-log.js\u0000? src/shared/version-control/parse-patch.js\u0000? src/shared/version-control/parse-refs.js\u0000? src/shared/version-control/parse-status.js\u0000? src/shared/version-control/parse-worktrees.js\u0000? src/shared/version-control/ports.js\u0000? src/shared/version-control/rules.js\u0000? src/shared/version-control/state.js\u0000? tests/verify-version-control-freshness.js\u0000? tests/verify-version-control-parsers.js\u0000? tests/verify-version-control-rules.js\u0000? version-control-core/README.md\u0000? version-control-core/build.mjs\u0000? version-control-core/fixtures/clean-repo.json\u0000? version-control-core/fixtures/dirty-rename-chinese.json\u0000? version-control-core/fixtures/edge-cases.json\u0000? version-control-core/src/capabilities.ts\u0000? version-control-core/src/commands.ts\u0000? version-control-core/src/parse-diff-files.ts\u0000? version-control-core/src/parse-log.ts\u0000? version-control-core/src/parse-patch.ts\u0000? version-control-core/src/parse-refs.ts\u0000? version-control-core/src/parse-status.ts\u0000? version-control-core/src/parse-worktrees.ts\u0000? version-control-core/src/ports.ts\u0000? version-control-core/src/rules.ts\u0000? version-control-core/src/state.ts\u0000? version-control-core/tsconfig.json\u0000",
+    "err": ""
+  },
+  "worktrees": {
+    "code": 0,
+    "out": "worktree D:/dsh-plugin/dsh-mattpocock-skills-deck\u0000HEAD edfc5b888735b10b9162dcfa62beb2ef123d620b\u0000branch refs/heads/main\u0000\u0000worktree D:/dsh-plugin/dsh-mattpocock-skills-deck/.tmp/baseline-wt\u0000HEAD 97abd757478a3ba780cfc2e23818fa5f12196cc4\u0000detached\u0000prunable gitdir file points to non-existent location\u0000\u0000",
+    "err": ""
+  },
+  "refs": {
+    "code": 0,
+    "out": "refs/heads/main\u0000main\u0000edfc5b888735b10b9162dcfa62beb2ef123d620b\u0000origin/main\u0000\u0000*\u00002026-10-02T18:10:04+08:00\nrefs/heads/prototype/643-workflow-panel-variants\u0000prototype/643-workflow-panel-variants\u00004c45163b650a221c7769cd2530d46ab3d0017174\u0000\u0000\u0000 \u00002026-09-21T20:55:58+08:00\nrefs/heads/prototype/650-subworkspace-indicator\u0000prototype/650-subworkspace-indicator\u00003d7d5537398d42fc52f4c27e349748aa00f0e66a\u0000\u0000\u0000 \u00002026-09-19T10:57:06+08:00\nrefs/heads/prototype/769-takeover-supplement\u0000prototype/769-takeover-supplement\u000079ef4de28b8f91934e46fd8741f7b21627d60d4f\u0000origin/prototype/769-takeover-supplement\u0000\u0000 \u00002026-09-29T09:03:23+08:00\n",
+    "err": ""
+  },
+  "log": {
+    "code": 0,
+    "out": "edfc5b888735b10b9162dcfa62beb2ef123d620b\u0000edfc5b8\u0000FeatherHunter\u0000975559549@qq.com\u00002026-10-02T18:10:04+08:00\u00002026-10-02T18:10:04+08:00\u0000收录地图 810 引用的三份调研底稿：功能风险划分、命令选型解析、取票详情丢失报告\u0000a103ffd1f937aecb2d1981cf44c60242fb4fc26c\u0000\u0000a103ffd1f937aecb2d1981cf44c60242fb4fc26c\u0000a103ffd\u0000FeatherHunter\u0000975559549@qq.com\u00002026-10-02T17:39:28+08:00\u00002026-10-02T17:39:28+08:00\u0000Merge branch 'main' of https://github.com/FeatherHunter/dsh-mattpocock-skills-deck\u0000ce6c97d7751d7c9fab746d86eadb1d679f8df80d bba6365740fbee383793afee2df897303f49ded9\u0000\u0000ce6c97d7751d7c9fab746d86eadb1d679f8df80d\u0000ce6c97d\u0000FeatherHunter\u0000975559549@qq.com\u00002026-10-02T17:39:08+08:00\u00002026-10-02T17:39:08+08:00\u0000记一条架构决定：版本管理页签第一版只读视图不联网，领先/落后只读本地缓存并永远标出依据时间（#812）\u0000e17b2b75f8a497300c42b53c859339aa8961ee8a\u0000\u0000",
+    "err": ""
+  },
+  "diffFiles": {
+    "code": 0,
+    "out": "",
+    "err": ""
+  },
+  "autocrlf": {
+    "code": 0,
+    "out": "false\n",
+    "err": ""
+  }
+}

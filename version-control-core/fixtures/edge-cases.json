@@ -1,0 +1,16 @@
+{
+  "source": {
+    "gitVersion": "git version 2.49.0.windows.1",
+    "capturedAt": "2026-10-02",
+    "live": false,
+    "note": "手写边界：游离、零提交、上游被删、旧版无锁标记、新版锁标记、空历史、单文件补丁、截断半截"
+  },
+  "detachedStatus": "# branch.oid dddddddddddddddddddddddddddddddddddddddd\u0000# branch.head (detached)",
+  "zeroStatus": "# branch.oid (initial)\u0000# branch.head main",
+  "goneRefs": "refs/heads/stale\u0000stale\u0000dddddddddddddddddddddddddddddddddddddddd\u0000origin/does-not-exist\u0000[gone]\u0000 \u00002026-09-01T10:00:00+08:00\n",
+  "wtOldNonZ": "worktree D:/repo\nHEAD dddddddddddddddddddddddddddddddddddddddd\nbranch refs/heads/main\n\nworktree D:/repo-linked\nHEAD dddddddddddddddddddddddddddddddddddddddd\nbranch refs/heads/other\n",
+  "wtNewZ": "worktree D:/repo\u0000HEAD dddddddddddddddddddddddddddddddddddddddd\u0000branch refs/heads/main\u0000\u0000worktree D:/repo-linked\u0000HEAD dddddddddddddddddddddddddddddddddddddddd\u0000branch refs/heads/other\u0000locked 被别的窗口占用\u0000",
+  "logEmpty": "",
+  "patch": "diff --git a/a.txt b/a.txt\nindex ddddddd..eeeeeee 100644\n--- a/a.txt\n+++ b/a.txt\n@@ -1,2 +1,2 @@\n context\n-old\n+new\n\\ No newline at end of file",
+  "truncatedStatus": "# branch.oid dddddddddddddddddddddddddddddddddddddddd\u0000# branch.head main\u00001 M. N... 100644 100644 1006"
+}

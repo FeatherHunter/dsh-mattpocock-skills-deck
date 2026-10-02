@@ -1,0 +1,23 @@
+{
+  "source": {
+    "gitVersion": "git version 2.49.0.windows.1",
+    "capturedAt": "2026-10-02",
+    "live": false,
+    "note": "手写：status v2 官方形状 + 调研实测（重命名双 NUL、冲突 u 十一场、中文空格路径）"
+  },
+  "status": {
+    "code": 0,
+    "out": "# branch.oid aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0000# branch.head main\u0000# branch.upstream origin/main\u0000# branch.ab +2 -1\u00001 M. N... 100644 100644 100644 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb staged-file.txt\u00001 .M N... 100644 100644 100644 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb unstaged-file.txt\u00001 A. N... 000000 100644 100644 0000000000000000000000000000000000000000 bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb 新增文件-中文名.txt\u00002 R. N... 100644 100644 100644 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb R100 new-新名字.txt\u0000old-name.txt\u0000u UU N... 100644 100644 100644 100644 2646bf33f4d91ca037295faba6858bed5f873bca 1233f794a039f68b48ec7ba896e289cb9a6ffb05 1a5f3e95bcb5e42dc297aed15456cf6d7fcf6be9 f.txt\u0000? 未跟踪 文件.txt",
+    "err": ""
+  },
+  "numstat": {
+    "code": 0,
+    "out": "1\t2\t\u0000staged-file.txt\u00000\t1\t\u0000unstaged-file.txt\u0000-\t-\t\u0000logo.png\u00000\t0\t\u0000old-name.txt\u0000new-新名字.txt",
+    "err": ""
+  },
+  "refs": {
+    "code": 0,
+    "out": "refs/heads/main\u0000main\u0000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0000origin/main\u0000[ahead 2]\u0000*\u00002026-10-02T16:02:31+08:00\nrefs/heads/wt-分支\u0000wt-分支\u0000bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\u0000\u0000\u0000 \u00002026-10-01T10:00:00+08:00\n",
+    "err": ""
+  }
+}

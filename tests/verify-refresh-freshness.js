@@ -41,6 +41,10 @@ const UNITS = [
   { ts: 'refresh-core/src/tool-cost.ts', js: 'src/shared/refresh/tool-cost.js' },
   // #722（T18）加的第十一份：GitLab 建票写请求的结果判据。同一口径 —— 改了 TS 没重新生成产物就红。
   { ts: 'refresh-core/src/create-write.ts', js: 'src/shared/refresh/create-write.js' },
+  // #719（T15）加的两份（#816 顺手补：已逐字比对源码与产物一致，transpileUnit 口径对得上）：
+  // page-budget（整池重建按翻页算价）与 backend-quota（各后端额度桶形状与按后端算价）。同一口径。
+  { ts: 'refresh-core/src/page-budget.ts', js: 'src/shared/refresh/page-budget.js' },
+  { ts: 'refresh-core/src/backend-quota.ts', js: 'src/shared/refresh/backend-quota.js' },
 ]
 
 // 去掉块注释与整行注释之后再找相对 import，避免把注释里的示例当成真的引用（写法同 verify-update-freshness.js）。
