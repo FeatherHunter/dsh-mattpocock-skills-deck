@@ -1,11 +1,9 @@
 /**
  * backends/github/graph.js — 图关系（setParent / getDependencies / setBlockedBy）。
  *
- * 定版依据：#138 §1.2（图表承载）+ #128（树/图表数据需求已由 parentKey+tickets+getDependencies 覆盖）
- * - 树：setParent(repo,key,parentKey,opts,ctx) → POST/DELETE /repos/{o}/{r}/issues/{n}/sub_issues
- *   parentKey===null → DELETE；非 null → POST；GHES 不支持 → unsupported
- * - 依赖：getDependencies(repo,key,opts?,ctx) → {blockedBy, blocking}；blockedBy 真源，blocking 反向聚合
- * - setBlockedBy(repo,key,blockers,opts,ctx) → 自环/成环显式 conflict；read→diff→N写 Last-write-wins
+ * 定版依据：#138 §1.2 + #128（树/图数据需求由 parentKey+tickets+getDependencies 覆盖）
+ * - 树 setParent → POST/DELETE /repos/{o}/{r}/issues/{n}/sub_issues（null → DELETE；GHES 不支持 → unsupported）
+ * - 依赖 getDependencies → {blockedBy, blocking}；setBlockedBy → 自环/成环 conflict；read→diff→N写
  * - 所有 op 返回 OpResult，不 throw；preflight 只判环境，能力不在 preflight 预判
  */
 
@@ -31,8 +29,7 @@ function repoId(repo) {
   return ''
 }
 
-// 取一张票的数据库编号（不是 # 后面的显示编号）：裸接口建边要用它。
-// 阻塞边那条路已有同类换算（setBlockedBy 的 idOf），这里给父子路复用同一形状。
+// 取一张票的数据库编号（非 # 显示编号）：裸接口建边用；与阻塞边的 idOf 同形。
 async function issueDbId(c, parsed, numberKey, ctx) {
   try {
     const rr = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/issues/${numberKey}`, '--jq', '.id'], { cwd: ctx && ctx.cwd })
@@ -107,9 +104,7 @@ export async function setParent(repo, key, parentKey, opts, ctx) {
         return { ok: false, error: r.error }
       }
     } else {
-      // 设置父子：先走原生旗 `gh issue edit --parent`（按票号，与 wire-subissues.mjs 同路）。
-      // 票号与数据库编号不是一回事：裸接口要的是数据库编号（.id 那种大数），且用 -F 按数字传；
-      // 用 -f 传票号会被 422 拒收（#790）。阻塞边那条路已这么换算，父子路此前漏了。
+      // 设置父子：先走原生旗 `gh issue edit --parent`（按票号；裸接口要数据库编号且用 -F，-f 传票号必 422，见 #790）。
       if (!/^\d+$/.test(wantParent)) return fail(ERROR_KIND.PARSE, `setParent: parentKey 必须是数字编号：${wantParent}`)
       if (!/^\d+$/.test(k)) return fail(ERROR_KIND.PARSE, `setParent: key 必须是数字编号：${k}`)
       let set = await c.execGh(['issue', 'edit', k, '--repo', slug, '--parent', wantParent], { cwd: ctx && ctx.cwd })
@@ -123,14 +118,9 @@ export async function setParent(repo, key, parentKey, opts, ctx) {
       }
       if (!set.ok) {
         const m = String((set.error && (set.error.message || set.error.stderr)) || '')
-        // #829：原生旗回“已是子票/重复”（多为读回过期后的重试：首读 parent 为空，实际边已建成，
-        // 重试时旗按重复拒绝）。此时以重读为准：已是目标父则直接成功（幂等，重试安全）；
-        // 仍不是目标父则带原话失败，不吞后端错误。
+        // #829：旗报重复时以重读为准（读过期后重试）：已是目标父则成功，否则带原话失败。
         if (/already.*sub-issue|duplicate|addSubIssue|may not contain duplicate/i.test(m)) {
-          try {
-            const re = await getIssue(repo, k, {}, ctx)
-            if (re.ok && re.data && re.data.parentKey === wantParent) return re
-          } catch {}
+          try { const re = await getIssue(repo, k, {}, ctx); if (re.ok && re.data && re.data.parentKey === wantParent) return re } catch {}
           return { ok: false, error: set.error }
         }
         if (!isUnknownFlag(m)) {
