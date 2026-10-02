@@ -100,8 +100,16 @@ export function bodyRefersTo(body, key) {
 export function classifyEdgeLanding(op, target, after) {
   const a = after || {}
   const want = str(target)
-  const rel = relationsOf(a.issue || a, a.dependencies)
-  const body = str((a.issue && a.issue.body) !== undefined ? a.issue.body : a.body)
+  const issueObj = (a.issue !== undefined && a.issue !== null) ? a.issue : null
+  const rel = relationsOf(issueObj || a, a.dependencies)
+  // #829：读回失败时 after.issue 为 null，旧写法 (a.issue && a.issue.body) !== undefined
+  // 在 null 上仍进真分支并读 .body 直接抛错，把“读失败”变成工具崩溃（backend-threw）。
+  // 这里先判空：没读到票正文按空串处理，落点判 unknown，真正的读错误由调用方（deckMapLink）在证据里另带原话。
+  let body = ''
+  try {
+    if (issueObj !== null && typeof issueObj === 'object' && typeof issueObj.body === 'string') body = issueObj.body
+    else if (typeof a.body === 'string') body = a.body
+  } catch { body = '' }
   const bodyHas = bodyRefersTo(body, want)
   if (op === 'block') {
     const inField = rel.blockedBy.indexOf(want) >= 0

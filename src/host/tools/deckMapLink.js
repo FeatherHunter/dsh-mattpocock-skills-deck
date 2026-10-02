@@ -74,13 +74,20 @@ export function createDeckMapLink(deps) {
           if (written && written.ok === true) {
             const back = typeof c.tracker.get === 'function' ? await c.tracker.get(repo, key, {}, c.opCtx) : null
             const afterIssue = (back && back.ok === true) ? back.data : null
+            const backError = (back && back.ok !== true && back.error && back.error.message) ? String(back.error.message).slice(0, 200) : ''
             ev = classifyEdgeLanding('parent', want, { issue: afterIssue })
             // #790：classify 的 ok 只表示“判出来了”，未知也回 true；必须按读回的 parentKey 是否等于目标判。
             // 正文兜底行（body-line）仍算落下，其余未知一律按没挂上处理，不再默认成功。
             const landedKey = (afterIssue && afterIssue.parentKey !== undefined && afterIssue.parentKey !== null) ? String(afterIssue.parentKey) : ''
             landedOk = (landedKey === String(want)) || ((ev && ev.kind) === 'body-line')
             if (landedOk) { done += 1; touched.push(key) }
-            else if (ev && ev.kind !== 'unsupported') ev = { kind: 'unknown', ok: false, text: '写后读回：票的 parentKey = ' + (landedKey || '空') + '，要的是 ' + want + '（这条父子没挂上）' }
+            else if (ev && ev.kind !== 'unsupported') {
+              // #829：读回本身失败（网络、配额、REST 降级丢 parent）时，不能只说“parentKey = 空”，
+              // 必须把读失败的后端原话一起带出去，否则写成的边会被误报成没建成且无从查起。
+              ev = backError
+                ? { kind: 'unknown', ok: false, text: '写后读回失败：读票没成功（后端原话：' + backError + '）；写操作已回成功，边可能已建成但没确认。票的 parentKey 读到的是 ' + (landedKey || '空') + '，要的是 ' + want }
+                : { kind: 'unknown', ok: false, text: '写后读回：票的 parentKey = ' + (landedKey || '空') + '，要的是 ' + want + '（这条父子没挂上）' }
+            }
           } else {
             ev = unsupportedEvidence(String((written && written.error && written.error.message) || '后端没给出原因').slice(0, 200))
           }

@@ -123,6 +123,16 @@ export async function setParent(repo, key, parentKey, opts, ctx) {
       }
       if (!set.ok) {
         const m = String((set.error && (set.error.message || set.error.stderr)) || '')
+        // #829：原生旗回“已是子票/重复”（多为读回过期后的重试：首读 parent 为空，实际边已建成，
+        // 重试时旗按重复拒绝）。此时以重读为准：已是目标父则直接成功（幂等，重试安全）；
+        // 仍不是目标父则带原话失败，不吞后端错误。
+        if (/already.*sub-issue|duplicate|addSubIssue|may not contain duplicate/i.test(m)) {
+          try {
+            const re = await getIssue(repo, k, {}, ctx)
+            if (re.ok && re.data && re.data.parentKey === wantParent) return re
+          } catch {}
+          return { ok: false, error: set.error }
+        }
         if (!isUnknownFlag(m)) {
           if (/unsupported|not supported|sub_issues.*not|ghes/i.test(m.toLowerCase())) {
             return fail(ERROR_KIND.UNSUPPORTED, 'setParent unsupported (GHES or sub_issues not enabled)')
