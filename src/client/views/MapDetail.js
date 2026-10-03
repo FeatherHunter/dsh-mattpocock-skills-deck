@@ -268,7 +268,8 @@ export     const MapDetail = ({ st, g, drill }) => {
                 : h(Tip, { content: tr('map.executeTitle') }, h('button', { className: 'dsws-btn primary', onClick: function () {
                     // v1.4：map 推进式执行（startText 检测 wayfinder:map → MAP_EXECUTE_PROMPT）
                     inject(st, startText(st, m))
-                  }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 12px', fontSize: 11, background: '#4ade80', borderColor: 'transparent', color: '#04120a', fontWeight: 700 } }, [
+                    // #836：执行态与顶部同色（紫 #c084fc），不再写死绿色 #4ade80
+                  }, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 12px', fontSize: 11, background: '#c084fc', borderColor: 'transparent', color: '#140a1e', fontWeight: 700 } }, [
                     Ic({ n: 'play', size: 11 }),
                     h('span', null, tr('act.execute')),
                   ])),
