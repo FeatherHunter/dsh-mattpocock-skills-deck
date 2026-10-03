@@ -27,7 +27,7 @@ function listJsFiles(dir) {
 const readSrc = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 const Q = String.fromCharCode(39)
 
-// 电话清单：35 注册减退役 2 个，现役 33 个，加 #541 只读更新电话 2 个，现役 35 个，加 #542 装更新电话 1 个，现役 36 个，加 #627 标签配色电话 2 个（wf.listLabels / wf.setLabelColors），现役 38 个；#691 地图子票按需电话 1 个（wf.mapTickets），现役 39 个；#690 历史票按页取电话 1 个（wf.issuesPage），现役 40 个；#707 视野模型上报电话 1 个（wf.focus），现役 41 个；#758 七个工具宿主代执行电话 1 个（wf.deckExec），现役 42 个。增删电话必须同步改本表、附录 1.7 与计数门禁。
+// 电话清单：35 注册减退役 2 个，现役 33 个，加 #541 只读更新电话 2 个，现役 35 个，加 #542 装更新电话 1 个，现役 36 个，加 #627 标签配色电话 2 个（wf.listLabels / wf.setLabelColors），现役 38 个；#691 地图子票按需电话 1 个（wf.mapTickets），现役 39 个；#690 历史票按页取电话 1 个（wf.issuesPage），现役 40 个；#707 视野模型上报电话 1 个（wf.focus），现役 41 个；#758 七个工具宿主代执行电话 1 个（wf.deckExec）—— 到这里清单实数已是 43 个（原文接着写「现役 42 个」是早先某一次新增漏算了，门禁只把清单长度与注册数互相比对，两边一起少一个就看不出来；#817 核对时按 src/host/index.js 的注册实数改正）；#817 版本管理宿主侧 git 适配器新增 3 条只读电话（wf.gitStatus 读状态视图 / wf.gitDiff 读单文件差异 / wf.gitLog 读提交历史），现役 46 个。增删电话必须同步改本表、附录 1.7 与计数门禁。
 const PHONES = [
   'wf.detect', 'wf.chain', 'wf.cwd', 'wf.snapshot', 'wf.refresh',
   'wf.focus',
@@ -37,6 +37,7 @@ const PHONES = [
   'wf.issuesPage',
   'wf.mapTickets',
   'wf.deckExec',
+  'wf.gitStatus', 'wf.gitDiff', 'wf.gitLog',
   'wf.handoffLatest', 'wf.handoffResolve',
   'wf.namingRegister', 'wf.registerNewSessionWatcher', 'wf.namingSignal', 'wf.namingPlan',
   'wf.namingResult', 'wf.cancelNewSessionWatcher', 'wf.awaitCreatedIssue',
@@ -58,6 +59,10 @@ const CALLEE_COVERS = [
   'wf.openFolder', 'wf.pickDirectory', 'wf.pickFile', 'wf.openPath',
   'wf.initPublish', 'wf.retryPush', 'wf.cwd', 'wf.detect', 'wf.logExport', 'wf.logClear',
   'wf.updateStatus', 'wf.updateCheck', 'wf.updateInstall',
+  // #817 三条 git 只读电话（读状态视图、读单文件差异、读提交历史）：客户端调用点归 #818 那张票，
+  // 宿主侧电话体用 loggedPhone 记 host.call / host.call.fail（电话名写在 method 字段里），
+  // 所以在这里表示「被调电话在宿主侧覆盖」——客户端调用点不必再另加一条邻近日志。
+  'wf.gitStatus', 'wf.gitDiff', 'wf.gitLog',
 ]
 
 // 一、注册：现役全注册，退役零注册，实现留守不断链。

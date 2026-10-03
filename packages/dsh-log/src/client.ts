@@ -256,8 +256,10 @@ export function createClientLog(deps: ClientLogDeps, configInput?: ClientLogConf
 
   // 常驻事件（#731 一次性修好：信息级里标为常驻的那批，开关关着也转发）。
   // 为什么与宿主包用同一张表：两端放行口径必须一致，否则客户端拦掉的行宿主永远收不到；
-  // 名单与 research/489-appendix.md 第 1 章常驻 41 条一致，测试会拿附录逐项核对。
-  // （#782 补记：#746 的 naming.summary 落地时漏了这里四处名单，本票一并补进，另加新事件 cwd.persisted。）
+  // 名单与 research/489-appendix.md 第 1 章常驻 43 条一致，测试会拿附录逐项核对。
+  // （#782 补记：#746 的 naming.summary 落地时漏了这里四处名单，本票一并补进，另加新事件 cwd.persisted。
+  //   2026-10-04 #817 补记：版本管理宿主侧 git 适配器的两条常驻事件 git.exec 与 git.exec.fail
+  //   同日补进四处名单，常驻数由 41 变 43。）
   const RESIDENT_EVENTS: ReadonlySet<string> = new Set([
     'snapshot.request', 'snapshot.cache.miss', 'repo.resolve.tier', 'gh.exec',
     'gh.timeout', 'gh.resolve.fail', 'graphql.fallback', 'issues.fallback',
@@ -270,6 +272,7 @@ export function createClientLog(deps: ClientLogDeps, configInput?: ClientLogConf
     'choiceStore.file.bad', 'choiceStore.write.fail', 'issues.page', 'sessionTickets.chain',
     'chain.backoff', 'host.dispatch.empty', 'naming.summary', 'cwd.persisted',
     'update.install.manifestSync',
+    'git.exec', 'git.exec.fail',
   ])
   // 读当前级别与事件名是否允许产生日志；关闭时调用处直接返回。错误与告警始终允许；
   // 信息级里落在常驻名单的也始终允许（#731 根因：从前只看级别，常驻信息全被开关拦掉）。

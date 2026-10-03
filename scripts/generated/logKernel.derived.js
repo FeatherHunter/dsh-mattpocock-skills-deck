@@ -226,7 +226,9 @@ function createClientLog(deps, configInput) {
     "host.dispatch.empty",
     "naming.summary",
     "cwd.persisted",
-    "update.install.manifestSync"
+    "update.install.manifestSync",
+    "git.exec",
+    "git.exec.fail"
   ]);
   function isEnabled(level, event) {
     if (level === "error" || level === "warn") return true;

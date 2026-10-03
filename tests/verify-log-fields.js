@@ -1,6 +1,6 @@
 // verify-log-fields.js —— #494 第三件事：日志门禁之字段白名单（#489 附录第 4 节断言一）。
 // 用法：在插件根目录执行 node tests/verify-log-fields.js，可独立运行。
-// 断言文字：扫描全部埋点调用，每个事件只含第 1 节允许字段（#746 增补常驻 #90 naming.summary，#782 增补常驻 #92 cwd.persisted）；
+// 断言文字：扫描全部埋点调用，每个事件只含第 1 节允许字段（#746 增补常驻 #90 naming.summary，#782 增补常驻 #92 cwd.persisted，#817 增补常驻 #94 git.exec 与 #95 git.exec.fail）；
 // 出现工作区原始路径、仓库地址原文、令牌原文、模板正文、快照全文即红。
 // 做法：从宿主与客户端源码里找出全部日志调用，逐个事件收拢实际字段键，
 // 与下面这张允许表逐项比对；未知事件名、未知字段键都算失败并打印清单。
@@ -12,7 +12,7 @@ let failed = false
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
-console.log('日志字段白名单门禁（#494/#498/#548/#618/#652/#655/#690/#709/#724：85 事件逐个只记已知安全字段，未知字段默认不记）')
+console.log('日志字段白名单门禁（#494/#498/#548/#618/#652/#655/#690/#709/#724/#782/#817：92 事件逐个只记已知安全字段，未知字段默认不记）')
 
 // 允许表：事件名对应它能记的全部字段键，之外的键一律不许出现。
 // 键名取自实现原文，语义与 #489 附录 1.4、1.5 节对照表一致。
@@ -164,6 +164,12 @@ const ALLOWED = {
   //   （shape：no-value / null-value / no-error，也就是缺的是哪一个键）、服务这一份的版本（version，
   //   读不到就是 unknown）。不记入参原文、不记回话内容、不记路径；业务性的正常失败回参不触发它。
   'host.dispatch.empty': ['method', 'shape', 'version'],
+  // 2026-10-04 新增两条常驻事件（#817，附录 1.4 节 #94 / #95）：版本管理宿主侧 git 适配器每跑一次 git 外部命令落一行。
+  //   git.exec 记成功与非零退出（只记命令名、工作目录散列、耗时、退出码与来源标记，命令输出正文一个字都不记）；
+  //   git.exec.fail 记等超时与起进程失败两档（等超时那条带 timeoutMs，起进程失败那条带 errorHash，两条都带 cwdHash 与 via）。
+  //   都只记短的枚举、散列与数字：不记命令行原文、不记路径原文、不记任何命令输出。落点一处：src/host/versionControl.js 的 runGitCommand。
+  'git.exec': ['argv0', 'cwdHash', 'latencyMs', 'exitCode', 'via'],
+  'git.exec.fail': ['argv0', 'cwdHash', 'via', 'timeoutMs', 'errorHash'],
   // 自监控 4 条（#499，附录 1.6 节；#46 走宿主防火发射器 fireLog，调用形状不在本门禁扫描口径内，由 verify-log-selfmon.js 覆盖）。
   'log.persist.fail': ['op', 'reason', 'dirHash'],
   'log.forward.summary': ['droppedDelta', 'totalDropped', 'reason', 'windowMs'],

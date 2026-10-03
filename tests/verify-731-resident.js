@@ -43,11 +43,13 @@ const residentOf = (text) => {
   return []
 }
 
-// 一、四处名单一致，且与计数门禁的常驻 41 条一致（只许一致，不许各写各的）。
+// 一、四处名单一致，且与计数门禁的常驻 43 条一致（只许一致，不许各写各的）。
 // 锁的是真正生效的四处：包宿主真源、包客户端真源、宿主派生副本、客户端派生副本。
 // 旧文件 src/host/logStore.js 与 src/client/kernel/log.js 是只读留存（#564 留而不搬），
 // 运行时不走它们，这里不锁它们，免得把派生口径与留存文件混成一谈。
-// （#782 补记：#746 的 naming.summary 落地时漏了这四处名单，本票一并补进，另加新事件 cwd.persisted。）
+// （#782 补记：#746 的 naming.summary 落地时漏了这四处名单，本票一并补进，另加新事件 cwd.persisted。
+//   2026-10-04 #817 补记：版本管理宿主侧 git 适配器的两条常驻事件 git.exec 与 git.exec.fail
+//   同日补进四处名单，这里的条数由 41 改成 43，与附录第 1 章的常驻数保持一致。）
 {
   const pkgHost = readSrc(path.join('packages', 'dsh-log', 'src', 'store.ts'))
   const pkgClient = readSrc(path.join('packages', 'dsh-log', 'src', 'client.ts'))
@@ -57,7 +59,7 @@ const residentOf = (text) => {
   const base = sets[0].slice().sort().join(',')
   check(sets.every((s) => s.slice().sort().join(',') === base), '四处常驻名单一字一致（包宿主、包客户端、宿主派生、客户端派生）')
   check(sets[0].indexOf('snapshot.request') >= 0 && sets[0].indexOf('snapshot.built') >= 0 && sets[0].indexOf('host.call') >= 0, '名单含这张票点名的三项（请求、建成、成功调用）')
-  check(sets[0].length === 41, '名单共 41 条，与附录常驻数一致（实得 ' + sets[0].length + ' 条）')
+  check(sets[0].length === 43, '名单共 43 条，与附录常驻数一致（实得 ' + sets[0].length + ' 条）')
   const countSrc = readSrc(path.join('tests', 'verify-log-count.js'))
   const missing = sets[0].filter((n) => countSrc.indexOf("'" + n + "'") < 0)
   check(missing.length === 0, '名单每条都在计数门禁里（无私自加项）' + (missing.length ? ' —— 多出：' + missing.join('、') : ''))
