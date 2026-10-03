@@ -5,7 +5,6 @@
  */
 
 // ===== 规范方言（dynamic dialect）：harness 为自由变量；pkg entry 提供 shim =====
-
 export default {
   name: 'dsh-mattpocock-skills-deck',
   // 声明 connection + llm + sessionQuery：webServer 仍不加（#596）；llm 给首轮摘要调模型用，
@@ -33,7 +32,6 @@ export default {
         __DSW_HANDLERS__.set(endpoint, fn)
       }
     }
-
     // ============ 配置 ============
     // v1.5.0（公共发布）：兜底 gh 路径经 platform.env.get('DSH_GH_PATH')（#171 migrated，零直读 process.env）
     // 默认工作区 = DSH 进程当前目录（可被 wf.snapshot args.cwd 覆盖；去本机硬编码）
@@ -43,7 +41,6 @@ export default {
     const CACHE_MS = 60000
     // H1 #445：原 235–249 行（技能名单）已搬到 ./bootstrap.js。
     const QUERY = 'query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){issue(number:$n){number title state body url labels(first:20){nodes{name}} subIssues(first:100){totalCount nodes{number title state body url labels(first:10){nodes{name}} assignees(first:10){nodes{login}} blockedBy(first:20){nodes{number title state}} }}}}}'
-
     // ============ 状态 ============
     // H1 #445：ghPath/ghLastError/repoKeys 留守——721 行外多处直接读写裸变量（env 上报读 ghPath/ghLastError；建仓失效删 repoKeys），只能由 index.js 单一持有，新文件经显式存取器访问。
     let ghPath = null
@@ -71,8 +68,7 @@ export default {
     // H7 #515：分发异常行的两个纯函数（入参散列 shortArgHash + 错误归类 dispatchErrorKind，逐行原样）已搬到 ./dispatchMeta.js；此处只留动态加载器（D7 禁止静态 import）。
     let _dispatchMetaP = null
     function _dispatchMeta() { if (!_dispatchMetaP) _dispatchMetaP = import('./dispatchMeta.js').then(function(m){ return m.createDispatchMeta() }); return _dispatchMetaP }
-    // ---- H1 #445 接线：3 新文件动态 import加载（D7 禁止静态 import），依赖全显式传入；新文件之间不互引用 ----
-    // harness 留守原因：harness.handle 在 apply 同步注册，动态 import 无法同步供给。
+    // ---- H1 #445 接线：3 新文件动态 import加载（D7 禁止静态 import），依赖全显式传入；新文件之间不互引用；harness 留守原因：harness.handle 在 apply 同步注册，动态 import 无法同步供给。 ----
     let _bootP = null
     function _boot() { if (!_bootP) _bootP = import('./bootstrap.js').then(function(m){ return m.createBootstrap({ ctx: ctx }) }); return _bootP }
     let _platP = null
@@ -104,8 +100,7 @@ export default {
     try { _boot().catch(function(){}); _dispatchMeta().catch(function(){}); _refreshWiringP = import('./refresh/wiring.js').then(function (m) { return m.makeRefreshLoader({ ctx: ctx, logCtx: logCtx, canonicalKey: function () { return canonicalKey.apply(null, arguments) }, getCacheDir: function () { return getCacheDir.apply(null, arguments) }, getTrackerRegistry: function () { return getTrackerRegistry.apply(null, arguments) }, getDetectionService: function () { return getDetectionService.apply(null, arguments) }, getPlatform: function () { return getPlatform.apply(null, arguments) }, detectionExec: function () { return detectionExec.apply(null, arguments) }, setCache: setCache, getCache: getCache, readDiskCache: function () { return readDiskCache.apply(null, arguments) }, writeDiskCache: function () { return writeDiskCache.apply(null, arguments) }, runGh: function () { return runGh.apply(null, arguments) }, getRepoKey: function () { return getRepoKey.apply(null, arguments) }, fetchIssueIndex: function () { return fetchIssueIndex.apply(null, arguments) }, issueIndexFromSnapshot: function () { return issueIndexFromSnapshot.apply(null, arguments) }, getNaming: function () { return _naming() } })() }) } catch (e0) {}
     try { _plat().then(function(pl){ try { pl.getTrackerRegistry().catch(function(){}) } catch (e1) {} }).catch(function(){}) } catch (e2) {}
     // ---- H2 #446 接线：3 新文件动态 import 加载（D7 禁止静态 import），依赖全显式传入；新文件之间不互引用 ----
-    // 留守（行为零变化优先；调用方在 H4/H5/H6 的同步上下文里，动态加载给不出同步函数）：computeLevels/groupTickets（H4 三处同步分组）、isRateLimitError（H5 三处同步判别）、
-    //   issueIndexFromSnapshot/issueIndexChanged/rememberIssueIndex（H6 探测同步取值与同刻写表）。
+    // 留守（行为零变化优先；调用方在 H4/H5/H6 的同步上下文里，动态加载给不出同步函数）：computeLevels/groupTickets（H4 三处同步分组）、isRateLimitError（H5 三处同步判别）、issueIndexFromSnapshot/issueIndexChanged/rememberIssueIndex（H6 探测同步取值与同刻写表）。
     let _mapBodyP = null
     function _mapBody() { if (!_mapBodyP) _mapBodyP = import('./mapBody.js').then(function(m){ return m.createMapBody() }); return _mapBodyP }
     let _issueListP = null
@@ -266,6 +261,11 @@ export default {
     let _deckExecP = null
     function _deckExec() { if (!_deckExecP) _deckExecP = (async function(){ const mod = await import('./platform/deckExec.js'); return mod.createDeckExec({ getTable: function(){ return _refreshWiringP.then(function(w){ return (w && typeof w.deckToolsForHost === 'function') ? w.deckToolsForHost() : null }) }, logCtx: logCtx }) })(); return _deckExecP }
     harness.handle('wf.deckExec', async function (args) { const h = await _deckExec(); return h.handleDeckExec(args) })
+    let _vcP = null // #817 版本管理页签：三条只读电话，git 命令都在 ./versionControl.js 里起，闸与日志口在这里接上。
+    function _vc() { if (!_vcP) _vcP = (async function(){ const w = _refreshWiringP ? await _refreshWiringP.catch(function(){ return null }) : null; const mod = await import('./versionControl.js'); return mod.createVersionControl({ subprocess: subprocess, timer: timer, fs: fs, getPlatform: function(){ return getPlatform.apply(null, arguments) }, DEFAULT_CWD: DEFAULT_CWD, TIMEOUT_MS: TIMEOUT_MS, gate: (w && w.gate) || null, logCtx: logCtx }) })(); return _vcP }
+    harness.handle('wf.gitStatus', async function (args) { const h = await _vc(); return h.handleGitStatus(args) })
+    harness.handle('wf.gitDiff', async function (args) { const h = await _vc(); return h.handleGitDiff(args) })
+    harness.handle('wf.gitLog', async function (args) { const h = await _vc(); return h.handleGitLog(args) })
 
     harness.handle('wf.refresh', async function (args) { const h = await _sessRef(); return h.handleRefresh(args) })
 

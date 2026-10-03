@@ -884,6 +884,33 @@
       "count": 1,
       "owner": "#723 T19（宿主层接线与拆文件时收口）",
       "note": "#723 拆文件：同上那一步的引用。会话快照电话要拼信封、要写 snapshot.built 那一行日志；没注入时（门禁与单测里手工拼实例的那几处）现造一个，行为与搬前一致。"
+    },
+    {
+      "file": "src/host/index.js",
+      "spec": "./versionControl.js",
+      "resolved": "src/host/versionControl.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#810 地图 · #817",
+      "note": "版本管理页签的宿主装配扇入：index 动态加载 git 读取与三条 wf.* 电话的实现"
+    },
+    {
+      "file": "src/host/index.js",
+      "spec": "./mapTickets.js",
+      "resolved": "src/host/mapTickets.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#691",
+      "note": "补记 #691 遗留的装配扇入边：当时没记进基线，门禁一直红着"
+    },
+    {
+      "file": "src/host/index.js",
+      "spec": "./issuePage.js",
+      "resolved": "src/host/issuePage.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#690",
+      "note": "补记 #690 遗留的装配扇入边：当时没记进基线，门禁一直红着"
     }
   ]
 }
