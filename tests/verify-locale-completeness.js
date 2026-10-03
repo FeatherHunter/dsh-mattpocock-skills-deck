@@ -160,5 +160,38 @@ for (const a of ['client.js', path.join('package', 'lib', 'client.js')]) {
   else bad('D. 产物缺键 ' + a + ' -> ' + miss.join(','))
 }
 
-console.log(failed ? '\n[locale-completeness] FAIL (' + passed + ' passed)' : '\n全部通过 · locale 完整性门禁生效 (' + passed + ')')
-process.exit(failed ? 1 : 0)
+// ---------- A2. 词条结构（#818 补：上面那条 A 只数「键名出现两次」，数不出「值放错层」）----------
+// 为什么另开这一条：把中文值写在 zh 字典**外面**、英文值写在 en 里，键名照样出现两次 ——
+//   A 那条会绿，而界面上 tr('vc.xxx') 印出来的是键名本身。#818 实施时真发生过一次：
+//   94 条新词条的中文全落在 zh 外面，A 报「全部键 zh/en 双语各出现一次」、T3 门禁也全绿，
+//   是独立验收者按对象结构复现出来的。所以这里不再数数，直接 import 词条模块看结构。
+const LOCALE_STRUCT_FILES = [
+  'src/client/kernel/locale-panel.js',
+  'src/client/kernel/locale-flow.js',
+  'src/client/kernel/locale-word.js',
+  'src/client/kernel/locale-labels.js',
+  'src/client/kernel/locale-pages.js',
+]
+;(async function structuralCheck() {
+  const { pathToFileURL } = require('url')
+  const problems = []
+  for (const rel of LOCALE_STRUCT_FILES) {
+    let mod
+    try { mod = await import(pathToFileURL(path.join(root, rel)).href) } catch (e) { problems.push(rel + ' 载入失败：' + ((e && e.message) || e)); continue }
+    for (const name of Object.keys(mod)) {
+      const dict = mod[name]
+      if (!dict || typeof dict !== 'object' || !dict.zh || !dict.en) continue
+      const top = Object.keys(dict).filter(function (k) { return k !== 'zh' && k !== 'en' })
+      if (top.length) problems.push(rel + ' 的 ' + name + ' 顶层多出 ' + top.length + ' 个键（例如 ' + top.slice(0, 3).join('、') + '）：这些键不在 zh/en 字典里，界面上会直接把键名印出来')
+      const zk = Object.keys(dict.zh), ek = Object.keys(dict.en)
+      const onlyZh = zk.filter(function (k) { return !(k in dict.en) })
+      const onlyEn = ek.filter(function (k) { return !(k in dict.zh) })
+      if (onlyZh.length) problems.push(rel + ' 的 ' + name + ' 只在 zh 里有 ' + onlyZh.length + ' 个键（例如 ' + onlyZh.slice(0, 3).join('、') + '）')
+      if (onlyEn.length) problems.push(rel + ' 的 ' + name + ' 只在 en 里有 ' + onlyEn.length + ' 个键（例如 ' + onlyEn.slice(0, 3).join('、') + '）')
+    }
+  }
+  if (!problems.length) ok('A2. 词条结构：每个字典只有 zh/en 两个顶层键，且两边键集合相等')
+  else for (const p of problems.slice(0, 6)) bad('A2. ' + p)
+  console.log(failed ? '\n[locale-completeness] FAIL (' + passed + ' passed)' : '\n全部通过 · locale 完整性门禁生效 (' + passed + ')')
+  process.exit(failed ? 1 : 0)
+})()
