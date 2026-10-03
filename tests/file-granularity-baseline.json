@@ -1,6 +1,20 @@
 {
   "version": 1,
-  "recordedAt": "2026-09-10",
+  "recordedAt": "2026-10-03",
   "note": "零增长基线：只许减不许增；达标文件由各自拆分票移出。",
-  "files": {}
+  "files": {
+    "src/client/kernel/api-io.js": 432,
+    "src/client/kernel/api-new-session.js": 410,
+    "src/client/kernel/locale-flow.js": 357,
+    "src/client/kernel/store-derived.js": 373,
+    "src/client/kernel/store-snapshot.js": 358,
+    "src/client/statusbar/StatusBar.js": 359,
+    "src/host/choiceStore.js": 352,
+    "src/host/index.js": 372,
+    "src/host/namingGuardian.js": 411,
+    "src/host/refresh/wiring.js": 430,
+    "src/host/refresh/writeEvents.js": 414,
+    "src/shared/deck-tools/agent-register.js": 438,
+    "src/shared/deck-tools/shell.js": 373
+  }
 }
