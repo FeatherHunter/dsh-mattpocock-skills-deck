@@ -397,6 +397,15 @@ const LEAF_MODULES = [
   { id: 'ticket', file: 'src/client/views/shared/ticket.js' },
   { id: 'stateKind', file: 'src/client/views/shared/stateKind.js' }, // #599 新增：票的状态判据（打开/已关闭/已合并）单源，拉取请求页与单票详情页共用一个函数
   { id: 'tagsFit', file: 'src/client/views/shared/tagsFit.js' },
+  // #818 版本管理页签（规格单 #821）：纯文字规则 → 折叠阶梯 → 块模型 → 显隐谓词 → 数据层 → 入口组件。
+  //   按依赖次序登记，六项都排在 tabs 之前（Tabs.js 按 vcTabVisible 决定这个页签显不显示）。
+  { id: 'vcText', file: 'src/client/views/versionControl/vcText.js' },
+  { id: 'vcFold', file: 'src/client/views/versionControl/vcFold.js' },
+  { id: 'vcCommit', file: 'src/client/views/versionControl/vcCommit.js' }, // 规格故事 32：「这笔提交改了什么」那一层（排在 vcBlocks 之前，行是 vcBlocks 现传进去的同一份）
+  { id: 'vcBlocks', file: 'src/client/views/versionControl/vcBlocks.js' },
+  { id: 'vcTabVisible', file: 'src/client/views/versionControl/vcTabVisible.js' },
+  { id: 'vcData', file: 'src/client/views/versionControl/vcData.js' },
+  { id: 'versionControlTab', file: 'src/client/views/versionControl/VersionControlTab.js' },
   { id: 'tabs', file: 'src/client/views/shared/Tabs.js' },
   { id: 'truthLines', file: 'src/client/views/shared/truthLines.js' }, // #715 新增：面板头部那几句「上次更新 / 刷新失败 / 现在是不是降级」的判据（纯函数，画在 ListTab 最上面那一行；行上的「更新中」标记也问它）
   { id: 'restFallbackBanner', file: 'src/client/views/shared/RestFallbackBanner.js' }, // 2026-09-24 由 ListTab.js 拆出：那条降级横幅的「画」这一段（判据仍是上面 truthLines 的 restFallbackView；ListTab 贴着 350 行上限）

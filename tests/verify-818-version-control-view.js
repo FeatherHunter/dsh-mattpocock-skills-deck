@@ -1,0 +1,678 @@
+// tests/verify-818-version-control-view.js — 版本管理页签界面侧门禁（#818 落地）
+// 用法：在插件根目录执行 node tests/verify-818-version-control-view.js，可独立运行。
+//
+// 主缝（规格定的那一条）：喂一份录好的状态模型，断言「该画哪些块、每块写什么字」。断言落在
+//   用户读到的文字与块的顺序上，不落在内部字段名上。模型有三个来源：
+//     A. 用真宿主取数层 + 真机样本（version-control-core/fixtures/live-numstat-shapes.json）跑一次
+//        首屏，把它回的 screen 原样喂给界面侧的块模型 —— 上半段解析与下半段画法的整条链一次跑通；
+//     B. 手写的边界模型（游离头指针、零提交、上游没了、没设上游、工作树被占用/答不出/目录已不存在、
+//        正在变基、同一路径既有冲突又有普通修改、差异短与长、提交续读到底）；
+//     C. 真词条：中英两份都从 src/client/kernel/locale-panel.js 与 locale-flow.js 里读出来，
+//        断言的是用户真会读到的那句话（不是键名）。
+// 次缝（规格定的那一条）：三条电话接没接上。只判四件事 —— 能不能被调到（电话名与入参）、成功回包
+//   是不是约定的信封形状、失败是不是诚实的失败（保留旧数据、错误种类不丢、不抛）、日志事件是不是
+//   落在既有的 host.call / host.call.fail 上。不判解析对不对（那是解析器门禁的活）。
+// 第三种（比照）：界面侧的两条规则与版本管理核心逐点对齐 —— vcMiddle 与核心 foldMiddle 同规则、
+//   vcTimeKind 与核心 describeTime 同一条 7 天分界。
+// 反证（规格与仓库既有纪律都要求）：把被守的东西改坏，同一套断言必须当场变红，本文件带五处源码改动
+//   加两条字典与渲染级的反证（词条位置那条真机缺陷就在这里被钉住）。
+const fs = require('fs')
+const path = require('path')
+const { pathToFileURL } = require('url')
+
+const ROOT = path.resolve(__dirname, '..')
+let failed = false
+let total = 0
+const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
+const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
+const NOW = Date.parse('2026-10-04T02:00:00+08:00')
+const VC_FILES = [
+  'src/client/views/versionControl/vcText.js',
+  'src/client/views/versionControl/vcFold.js',
+  'src/client/views/versionControl/vcCommit.js',
+  'src/client/views/versionControl/vcBlocks.js',
+  'src/client/views/versionControl/vcTabVisible.js',
+  'src/client/views/versionControl/vcData.js',
+  'src/client/views/versionControl/VersionControlTab.js',
+]
+
+// ---------- 真词条：直接 import 两份词条模块，断言落在真字典上 ----------
+// 为什么不数「键在文件里出现两次」：上一版正是栽在这里 —— 新词条被插到了 zh: { … } 的**外面**，
+//   L_PANEL 顶层多出 62 个键，中文界面把键名原样印了出来，而两道既有门禁都说「全部通过」。
+//   所以这里 import 真模块、读真字典，再逐键断言 zh 与 en 两边都存在且非空。
+const fill = (s, p) => (p ? String(s).replace(/\{(\w+)\}/g, (m, k) => (k in p ? String(p[k]) : m)) : String(s))
+let LOC = { zh: {}, en: {} }
+let tZh = (k) => k
+let tEn = (k) => k
+
+// ---------- 界面侧闭包：照 scripts/build.mjs 的做法把六个叶子拼起来再跑 ----------
+function stripExports(text) { return text.replace(/^(\s*)export\s+/gm, '$1') }
+const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_DIFF_LINES_SHOWN', 'VC_BLOCK_ORDER', 'VC_TONE', 'VC_MIDDLE_MIN',
+  'vcFailKeyOf', 'vcFileRowsOf', 'vcDiffViewOf', 'vcSyncViewOf', 'vcOtherRowOf', 'vcReadsOf', 'vcBlocksOf',
+  'vcChangeKeyOf', 'vcChangeToneOf', 'vcTail', 'vcMiddle', 'vcShortOid', 'vcPlusMinus', 'vcTimeKind',
+  'vcWhenText', 'vcBasisText', 'vcFoldBandAt', 'vcFoldDataOf', 'vcFoldLadderOf', 'vcFoldStateAt', 'vcFoldOf',
+  'vcTabVisible', 'vcNewReads', 'vcFailureOf', 'vcReadStatus', 'vcReadDiff', 'vcReadMoreCommits', 'vcNextSkipOf',
+  'vcCommitKeyOf', 'vcReadCommitFiles', 'vcReadCommitFileDiff', 'vcCommitModeOf', 'vcCommitBlockOf', 'vcShouldRead',
+  'VersionControlTab']
+function buildView(patch, logs, React, DswsCtx, Tip, Ic, seedReads, hostStub) {
+  let src = VC_FILES.map((f) => stripExports(read(f))).join('\n')
+  if (patch) src = patch(src)
+  const body = src + '\nreturn { ' + EXPORTS.join(', ') + ' }\n'
+  const fn = new Function('React', 'log', 'dswsLogHash', 'dswsLogTrunc', 'tr', 'host', 'DswsCtx', 'Tip', 'Ic', 'seedReads', body)
+  return fn(React || {}, function (level, event, fields) { logs.push({ level: level, event: event, fields: fields }) },
+    function () { return 'h8' }, function (s) { return String(s) }, tZh, hostStub || {}, DswsCtx || null, Tip || null, Ic || null, seedReads || null)
+}
+let VIEW = null
+
+// ---------- 假适配器：形状照 DSH subprocess 服务（与 verify-version-control-host.js 同一形状） ----------
+const LIVE = JSON.parse(read('version-control-core/fixtures/live-numstat-shapes.json'))
+const LIVE_ROOT = /^worktree ([^\u0000\n]+)/.exec(LIVE.worktrees.out)[1]
+function makeCollector(text, truncated) {
+  return { finalize() { return { text: String(text), truncated: truncated === true } } }
+}
+function afterPrefix(argv) {
+  const at = argv.indexOf('i18n.logOutputEncoding=UTF-8')
+  return at < 0 ? null : argv.slice(at + 1)
+}
+function liveRoute(argv) {
+  const a = afterPrefix(argv)
+  if (a === null) return { code: 1, stderr: '缺少固定前缀' }
+  if (argv.indexOf('--version') >= 0) return { code: 0, stdout: LIVE.source.gitVersion + '\n' }
+  if (a[0] === 'rev-parse' && a.indexOf('--is-inside-work-tree') >= 0) return { code: LIVE.step0.code, stdout: LIVE.step0.out, stderr: LIVE.step0.err }
+  if (a[0] === 'rev-parse' && a.indexOf('--show-toplevel') >= 0) return { code: 0, stdout: LIVE_ROOT + '\n' }
+  if (a[0] === 'rev-parse' && a.indexOf('--verify') >= 0) return { code: 0, stdout: 'a'.repeat(40) + '\n' }
+  if (a[0] === 'status') return { code: LIVE.status.code, stdout: LIVE.status.out, stderr: LIVE.status.err }
+  if (a[0] === 'worktree') return { code: LIVE.worktrees.code, stdout: LIVE.worktrees.out, stderr: LIVE.worktrees.err }
+  if (a[0] === 'for-each-ref') return { code: LIVE.refs.code, stdout: LIVE.refs.out, stderr: LIVE.refs.err }
+  if (a[0] === 'log') return { code: LIVE.log.code, stdout: LIVE.log.out, stderr: LIVE.log.err }
+  if (a[0] === 'diff' && a.indexOf('--numstat') >= 0) return { code: LIVE.diffFiles.code, stdout: LIVE.diffFiles.out, stderr: LIVE.diffFiles.err }
+  if (a[0] === 'config') return { code: LIVE.autocrlf.code, stdout: LIVE.autocrlf.out, stderr: LIVE.autocrlf.err }
+  if (a[0] === 'reflog') return { code: 128, stdout: '', stderr: 'fatal: bad revision\n' }
+  return { code: 0, stdout: '' }
+}
+function makeHostDeps(route) {
+  const logs = []
+  const deps = {
+    subprocess: { spawn(req) {
+      const hit = route(req.argv) || { code: 0, stdout: '' }
+      return { done: Promise.resolve({ exitCode: hit.code === undefined ? 0 : hit.code, signal: hit.signal }), collected: { stdout: makeCollector(hit.stdout || '', hit.truncated), stderr: makeCollector(hit.stderr || '', false) }, terminate() {} }
+    } },
+    timer: { timeout(ms) { return new Promise(function (resolve) { setTimeout(resolve, 1) }) } },
+    fs: { stat() { return Promise.reject(Object.assign(new Error('没有这个文件'), { code: 'ENOENT' })) }, lstat() { return Promise.resolve(null) }, exists() { return Promise.resolve(false) } },
+    getPlatform: async function () { return { resolveExecutable: async function (name) { return name === 'git' ? 'git' : null } } },
+    DEFAULT_CWD: 'D:/假工作区/repo', TIMEOUT_MS: 30000,
+    gate: { noteOutbound() {} },
+    logCtx: { fire(level, event, fields) { logs.push({ level: level, event: event, fields: fields }) } },
+  }
+  return { deps: deps, logs: logs }
+}
+
+// ---------- 模型与读数的现成件 ----------
+function screenOf(over) {
+  const base = {
+    identity: { worktreeDisplay: 'repo', worktreePath: 'D:/w/repo', branch: 'main', detached: false, oid: 'a'.repeat(40), sync: 'tracked-fresh', ahead: 0, behind: 0, basisMs: NOW - 3600000 },
+    staged: [], unstaged: [], stagedCount: 0, unstagedCount: 0, conflictCount: 0,
+    otherWorktrees: [], branches: [], commits: [],
+    repo: { merging: false, rebasing: false, cherryPicking: false, reverting: false, hasCommits: true, bare: false, tier: 'full', autocrlf: null },
+  }
+  const out = Object.assign({}, base, over || {})
+  out.identity = Object.assign({}, base.identity, (over && over.identity) || {})
+  out.repo = Object.assign({}, base.repo, (over && over.repo) || {})
+  return out
+}
+function readsOf(screen, over) {
+  return Object.assign({
+    screen: screen ? { state: 'ok', data: { screen: screen, tier: 'full', gitVersion: 'git version 2.49.0', readAtMs: NOW }, error: null } : { state: 'idle', data: null, error: null },
+    diffs: {}, log: { state: 'idle', commits: [], hasMore: false, fetched: 0, error: null },
+  }, over || {})
+}
+function envOf(screen, reads, width) {
+  const fold = VIEW.vcFoldOf(width === undefined ? 460 : width, VIEW.vcFoldDataOf(screen, reads))
+  return { t: tZh, nowMs: NOW, fold: fold }
+}
+const blockOf = (blocks, kind) => blocks.filter((b) => b.kind === kind)[0] || null
+const allText = (blocks) => JSON.stringify(blocks)
+const rowsOf = (blocks) => { const c = blockOf(blocks, 'changes'); return c ? c.groups.reduce((a, g) => a.concat(g.rows), []) : [] }
+
+// ============================================================
+async function main() {
+  console.log('版本管理页签界面侧门禁（#818：主缝 + 次缝 + 比照 + 反证）')
+  // 真字典：两份词条模块都是纯 ESM，可以直接 import 进来读它们的 zh / en 两个对象。
+  const panelMod = await import(pathToFileURL(path.join(ROOT, 'src', 'client', 'kernel', 'locale-panel.js')).href)
+  const flowMod = await import(pathToFileURL(path.join(ROOT, 'src', 'client', 'kernel', 'locale-flow.js')).href)
+  const L_PANEL = panelMod.L_PANEL
+  const L_FLOW = flowMod.L_FLOW
+  LOC = { zh: Object.assign({}, L_PANEL.zh, L_FLOW.zh), en: Object.assign({}, L_PANEL.en, L_FLOW.en) }
+  tZh = (k, p) => fill(LOC.zh[k] !== undefined ? LOC.zh[k] : k, p)
+  tEn = (k, p) => fill(LOC.en[k] !== undefined ? LOC.en[k] : k, p)
+  VIEW = buildView(null, [])
+
+  // ---- A 组：显隐与接线 ----
+  check(VIEW.vcTabVisible({}) === true && VIEW.vcTabVisible({ snapshot: { repoRoot: null } }) === true && VIEW.vcTabVisible(null) === true, 'A1 显隐谓词一律回真（总工程师裁定的偏离：不藏页签，空态由视图说真话）')
+  const tabsSrc = read('src/client/views/shared/Tabs.js')
+  check(tabsSrc.indexOf("typeof vcTabVisible === 'function'") >= 0 && tabsSrc.indexOf("'versionControl'") >= 0 && tabsSrc.indexOf("'branch'") >= 0, 'A2 壳层按名字调用 vcTabVisible、页签 id 与图标名与接口一致')
+  const tabSrc = read('src/client/views/versionControl/VersionControlTab.js')
+  check(/export\s+const\s+VersionControlTab\s*=/.test(tabSrc), 'A3 入口导出名 VersionControlTab（壳层按这个名字调）')
+  const buildSrc = read('scripts/build.mjs')
+  const leafOrder = VC_FILES.map((f) => buildSrc.indexOf("'" + f + "'"))
+  check(leafOrder.every((i) => i > 0) && leafOrder.every((i, k) => k === 0 || i > leafOrder[k - 1]), 'A4 六个叶子按依赖次序登记在 LEAF_MODULES 里')
+  check(buildSrc.indexOf("src/client/views/versionControl/vcText.js") < buildSrc.indexOf("file: 'src/client/views/shared/Tabs.js'"), 'A5 新叶子排在 tabs 之前（Tabs.js 要按 vcTabVisible 判显隐）')
+  const idxSrc = read('src/client/index.js')
+  const VC_IDS = ['vcText', 'vcFold', 'vcCommit', 'vcBlocks', 'vcTabVisible', 'vcData', 'versionControlTab']
+  check(VC_IDS.every((id) => idxSrc.indexOf('leaf:' + id + ' (spliced') >= 0), 'A6 index.js 里六个拼接标记齐备（标记 id 就是 LEAF_MODULES 登记的那个）')
+  check(idxSrc.indexOf('leaf:vcText (spliced') < idxSrc.indexOf('leaf:tabs (spliced'), 'A7 六个标记排在 tabs 标记之前')
+
+  // ---- B 组：主缝（真机样本 → 块与文字）----
+  const hostMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'versionControl.js')).href)
+  const liveRun = makeHostDeps(liveRoute)
+  const statusReply = await hostMod.createVersionControl(liveRun.deps).handleGitStatus({ cwd: 'D:/假工作区/repo' })
+  check(statusReply.ok === true && !!statusReply.screen, 'B1 真机样本喂真宿主取数层：首屏成功')
+  check(typeof statusReply.tier === 'string' && typeof statusReply.gitVersion === 'string' && typeof statusReply.readAtMs === 'number', 'B2 成功回包是约定的信封形状（ok / screen / tier / gitVersion / readAtMs）')
+  const liveScreen = statusReply.screen
+  const liveReads = readsOf(liveScreen)
+  const liveBlocks = VIEW.vcBlocksOf(liveScreen, liveReads, { fileShown: {}, openDiff: '' }, envOf(liveScreen, liveReads))
+  const liveKinds = liveBlocks.map((b) => b.kind)
+  check(liveKinds.indexOf('identity') >= 0 && liveKinds.indexOf('changes') >= 0 && liveKinds.indexOf('commits') >= 0 && liveKinds.indexOf('other') >= 0, 'B3 首屏三块与历史都画出来了（身份 / 未提交改动 / 提交历史 / 其他工作树）')
+  check(liveKinds.indexOf('identity') < liveKinds.indexOf('changes') && liveKinds.indexOf('changes') < liveKinds.indexOf('commits') && liveKinds.indexOf('commits') < liveKinds.indexOf('other'), 'B4 块的顺序：身份 → 未提交改动 → 提交历史 → 其他工作树')
+  const liveId = blockOf(liveBlocks, 'identity')
+  check(liveId.name === liveScreen.identity.worktreeDisplay && liveId.branchText === 'main', 'B5 身份行写的是模型给的显示名与分支名（真机样本：' + liveId.name + ' / ' + liveId.branchText + '）')
+  check(liveId.pathText === liveScreen.identity.worktreePath && liveId.pathTip === liveScreen.identity.worktreePath, 'B6 路径那一条写完整路径，悬停里也是完整路径（一个字不丢）')
+  const liveChanges = blockOf(liveBlocks, 'changes')
+  check(liveChanges.summary === '已暂存 1 个文件 / 未暂存 4 个文件', 'B7 汇总句与真机样本一致（实得「' + liveChanges.summary + '」）')
+  check(liveChanges.groups.length === 2 && liveChanges.groups[0].key === 'staged' && liveChanges.groups[1].key === 'unstaged', 'B8 没有冲突时就是已暂存 / 未暂存两组')
+  const liveRows = rowsOf(liveBlocks)
+  check(liveRows.length === 5, 'B9 一个文件一行（真机样本五条路径，实得 ' + liveRows.length + '）')
+  const renamed = liveRows.filter((r) => r.origPath === '改名 前.txt')[0]
+  check(!!renamed && renamed.path === '改名 后.txt' && renamed.changeText === '重命名', 'B10 重命名按新路径一行、原路径留在悬停里、变化类型写「重命名」')
+  const untrackedRow = liveRows.filter((r) => r.path === '新增 未跟踪.txt')[0]
+  check(!!untrackedRow && untrackedRow.changeText === '未跟踪' && untrackedRow.untracked === true, 'B11 未跟踪那一行写「未跟踪」并带上 untracked 标记（取差异时要告诉宿主）')
+  const binaryRow = liveRows.filter((r) => r.path === '图片.png')[0]
+  check(!!binaryRow && binaryRow.countsText === '' && binaryRow.countsTip === '二进制文件没有逐行增删的数字。', 'B12 二进制文件没有行数：不写 0，如实说没有这个数字')
+  const trackedRow = liveRows.filter((r) => r.path === '已跟踪 文件.txt')[0]
+  check(!!trackedRow && trackedRow.countsText === '+2 \u2212' + '1', 'B13 改了行数的文件写 +2 −1（实得「' + (trackedRow ? trackedRow.countsText : '') + '」）')
+  const liveCommit = blockOf(liveBlocks, 'commits').rows[0]
+  check(!!liveCommit && liveCommit.subject.indexOf('首次提交') === 0 && liveCommit.short === '991f0ee', 'B14 提交历史一行给说明与短哈希（git 自己给的短号，不写死长度）')
+  check(!!liveCommit && liveCommit.when === '1 小时前', 'B15 一周以内的提交时间写相对说法（实得「' + (liveCommit ? liveCommit.when : '') + '」）')
+  check(!!liveCommit && liveCommit.tip.indexOf('首次提交') >= 0 && liveCommit.tip.indexOf('991f0ee') >= 0, 'B17 提交说明被折短之后，悬停里仍有完整说明与完整编号')
+  check(allText(liveBlocks).indexOf('这个仓库还没有任何提交') < 0, 'B16 有提交时不冒「还没有任何提交」这句')
+
+  // ---- C 组：主缝（边界模型逐条）----
+  const detached = screenOf({ identity: { detached: true, branch: null, oid: 'b'.repeat(40), sync: 'detached' } })
+  const dB = VIEW.vcBlocksOf(detached, readsOf(detached), {}, envOf(detached, readsOf(detached)))
+  const dId = blockOf(dB, 'identity')
+  check(dId.branchText === '游离头指针' && dId.branchTone === 'caption', 'C1 游离头指针：明说「游离头指针」，用中性色档（不是红色告警）')
+  check(dId.oidText === '停在提交 ' + 'b'.repeat(12) && dId.sync.text === '不在任何分支上，领先落后这一套用不上', 'C2 游离头指针：给出停在哪次提交上，并说清领先落后用不上')
+
+  const noUp = screenOf({ identity: { sync: 'no-upstream', ahead: 0, behind: 0, basisMs: null } })
+  const nB = VIEW.vcBlocksOf(noUp, readsOf(noUp), {}, envOf(noUp, readsOf(noUp)))
+  const nId = blockOf(nB, 'identity')
+  check(nId.sync.text === '还没有推送目标' && allText(nB).indexOf('领先 0') < 0, 'C3 没设推送目标：写「还没有推送目标」，不写「领先 0」')
+
+  const gone = screenOf({ identity: { sync: 'upstream-gone', ahead: 0, behind: 0, basisMs: null } })
+  const gId = blockOf(VIEW.vcBlocksOf(gone, readsOf(gone), {}, envOf(gone, readsOf(gone))), 'identity')
+  check(gId.sync.text === '推送目标已经不存在', 'C4 推送目标在远端被删：明说「推送目标已经不存在」')
+
+  const stale = screenOf({ identity: { sync: 'tracked-stale', ahead: 3, behind: 1, basisMs: null } })
+  const sId = blockOf(VIEW.vcBlocksOf(stale, readsOf(stale), {}, envOf(stale, readsOf(stale))), 'identity')
+  check(sId.sync.text === '领先 3 个提交，落后 1 个提交' && sId.sync.basis === '远端信息什么时候更新的读不到', 'C5 有推送目标但依据时间读不到：数字照常写，依据如实说读不到')
+
+  const fresh = screenOf({ identity: { sync: 'tracked-fresh', ahead: 2, behind: 0, basisMs: NOW - 3 * 24 * 3600 * 1000 } })
+  const fId = blockOf(VIEW.vcBlocksOf(fresh, readsOf(fresh), {}, envOf(fresh, readsOf(fresh))), 'identity')
+  check(fId.sync.basis === '远端信息更新于 3 天前', 'C6 依据时间永远显示：三天前的依据就写「3 天前」（实得「' + fId.sync.basis + '」）')
+
+  const zero = screenOf({ identity: { branch: 'main', oid: null, sync: 'no-upstream', ahead: 0, behind: 0, basisMs: null }, repo: { hasCommits: false } })
+  const zB = VIEW.vcBlocksOf(zero, readsOf(zero), {}, envOf(zero, readsOf(zero)))
+  check(allText(zB).indexOf('这个仓库还没有任何提交') >= 0 && blockOf(zB, 'commits').empty === true, 'C7 零提交仓库：异常带与历史块都明说「这个仓库还没有任何提交」')
+
+  const bare = screenOf({ identity: { worktreeDisplay: '', worktreePath: 'D:/w/bare.git', branch: null, detached: false, oid: null, sync: 'detached', ahead: 0, behind: 0, basisMs: null }, repo: { bare: true, hasCommits: true } })
+  const bId = blockOf(VIEW.vcBlocksOf(bare, readsOf(bare), {}, envOf(bare, readsOf(bare))), 'identity')
+  check(bId.name === '裸仓库（没有工作树）' && bId.nameTip.indexOf('D:/w/bare.git') >= 0, 'C28 裸仓库：身份行不空着，照实写「裸仓库（没有工作树）」（复用已有词条 vc.other.bare）')
+  const merge = screenOf({
+    identity: { sync: 'tracked-fresh', ahead: 0, behind: 0, basisMs: NOW - 60000 },
+    conflictCount: 2, stagedCount: 1, unstagedCount: 1,
+    staged: [{ path: '卡住.txt', origPath: null, staged: true, unstaged: true, conflict: true, change: 'modified', addedLines: 1, deletedLines: 1 }],
+    unstaged: [{ path: '卡住.txt', origPath: null, staged: true, unstaged: true, conflict: true, change: 'modified', addedLines: 1, deletedLines: 1 }],
+    repo: { merging: true },
+  })
+  const mB = VIEW.vcBlocksOf(merge, readsOf(merge), {}, envOf(merge, readsOf(merge)))
+  const mRows = rowsOf(mB)
+  check(allText(mB).indexOf('正在合并') >= 0 && allText(mB).indexOf('有 2 个文件卡在冲突里') >= 0, 'C8 正在合并 + 有冲突：异常带在显眼位置说明，并指去终端')
+  check(mRows.length === 1 && mRows[0].conflict === true && mRows[0].conflictText === '冲突', 'C9 同一路径既有冲突又有普通修改：界面上只占一行并带冲突标记')
+  check(blockOf(mB, 'changes').groups.map((g) => g.key).join(',') === 'conflict', 'C10 冲突单独一组（排在已暂存之后、未暂存之前）')
+  check(allText(mB).indexOf('这些文件里同时留着两边的内容：你这个分支上的') >= 0, 'C11 合并冲突说清两边各是什么')
+  check(allText(mB).indexOf('错误') < 0 && allText(mB).indexOf('失败') < 0, 'C12 冲突与合并进行中的话术里不出现「错误」两个字')
+
+  const others = screenOf({ otherWorktrees: [
+    { path: 'D:/w/a', display: 'a', head: 'h', branch: 'main', bare: false, current: false, locked: false, lockReason: null, lockUnknown: true, prunable: false },
+    { path: 'D:/w/b', display: 'b', head: 'h', branch: 'dev', bare: false, current: false, locked: true, lockReason: null, lockUnknown: false, prunable: true },
+  ] })
+  const oB = VIEW.vcBlocksOf(others, readsOf(others), {}, envOf(others, readsOf(others)))
+  const oBlock = blockOf(oB, 'other')
+  check(oBlock.title === '其他工作树 (2)', 'C13 标题写「其他工作树 (2)」（硬约束，不许写成「工作树与分支」）')
+  check(oBlock.rows[0].stateText === '无法显示' && oBlock.rows[1].stateText === '目录已不存在', 'C14 答不出占用写「无法显示」、目录已不存在照实写；答不出不当成没被占用')
+  check(oBlock.tip.indexOf('不列没有检出的本地分支') >= 0, 'C15 其他工作树那一条说清它不是分支全貌')
+
+  const otherMany = screenOf({ otherWorktrees: others.otherWorktrees })
+  const narrowB = VIEW.vcBlocksOf(otherMany, readsOf(otherMany), {}, envOf(otherMany, readsOf(otherMany), 340))
+  const nOther = blockOf(narrowB, 'other')
+  check(nOther.mode === 'summary' && nOther.rows.length === 0 && nOther.summaryText.indexOf('其他工作树 (2)') === 0, 'C16 窄面板：其他工作树收成一行摘要（内容不减，只换形状）')
+
+  // 差异：短 / 长 / 几种「没有内容」的原因
+  const files = screenOf({ unstaged: [{ path: '改.txt', origPath: null, staged: false, unstaged: true, conflict: false, change: 'modified', addedLines: 1, deletedLines: 0 }], unstagedCount: 1 })
+  const shortLines = [{ kind: 'filehead', text: 'diff --git a/改.txt b/改.txt' }, { kind: 'hunk', text: '@@ -1 +1 @@' }, { kind: 'del', text: '-旧' }, { kind: 'add', text: '+新' }]
+  const shortReads = readsOf(files, { diffs: { '改.txt': { state: 'ok', lines: shortLines, reason: 'ok', truncated: false, error: null } } })
+  const shortBlocks = VIEW.vcBlocksOf(files, shortReads, { openDiff: '改.txt' }, envOf(files, shortReads))
+  const shortRow = rowsOf(shortBlocks)[0]
+  check(shortRow.diff.state === 'ok' && shortRow.diff.lines.length === 4 && shortRow.diff.hunks.length === 0 && shortRow.diff.shownNote === '', 'C17 改了五行的文件点开就看到那几行（不额外要一次点击、不补截断说明）')
+  const longLines = []
+  for (let i = 0; i < 260; i++) longLines.push(i % 3 === 0 ? { kind: 'hunk', text: '@@ -' + i + ' +' + i + ' @@' } : { kind: 'add', text: '+第' + i + '行' })
+  const longReads = readsOf(files, { diffs: { '改.txt': { state: 'ok', lines: longLines, reason: 'ok', truncated: false, error: null } } })
+  const longRow = rowsOf(VIEW.vcBlocksOf(files, longReads, { openDiff: '改.txt' }, envOf(files, longReads)))[0]
+  check(longRow.diff.lines.length === VIEW.VC_DIFF_LINES_SHOWN && longRow.diff.hunks.length > 0 && longRow.diff.shownNote === '只显示了前 200 行，后面的去侧栏终端看。', 'C18 差异很长：先给「哪几段行区间变了」，再给前 200 行，并如实说后面到终端看')
+  // 200 行这条阈值卡在边界上验：正好等于阈值给逐行、不补说明；超过一行才先给「哪几段行区间变了」并说只显示了前 200 行。
+  const edgeLines = []
+  for (let i = 0; i < VIEW.VC_DIFF_LINES_SHOWN; i++) edgeLines.push({ kind: 'add', text: '+' + i })
+  const edgeReads = readsOf(files, { diffs: { '改.txt': { state: 'ok', lines: edgeLines, reason: 'ok', truncated: false, error: null } } })
+  const edgeRow = rowsOf(VIEW.vcBlocksOf(files, edgeReads, { openDiff: '改.txt' }, envOf(files, edgeReads)))[0]
+  const overLines = edgeLines.concat([{ kind: 'hunk', text: '@@ -201 +201 @@' }, { kind: 'add', text: '+第 201 行' }])
+  const overReads = readsOf(files, { diffs: { '改.txt': { state: 'ok', lines: overLines, reason: 'ok', truncated: false, error: null } } })
+  const overRow = rowsOf(VIEW.vcBlocksOf(files, overReads, { openDiff: '改.txt' }, envOf(files, overReads)))[0]
+  check(edgeRow.diff.hunks.length === 0 && edgeRow.diff.shownNote === '' && overRow.diff.hunks.length === 1 && overRow.diff.shownNote === '只显示了前 200 行，后面的去侧栏终端看。', 'C18b 200 行这条阈值卡在边界上：正好等于阈值给逐行、不补说明；超过一行才先给「哪几段行区间变了」并说只显示了前 200 行')
+  // 合并提交里的单文件差异：宿主回 reason:'merge-commit'，这句话不许落到「这一处这次没读到改动内容」上。
+  const mergeDiffReads = readsOf(files, { diffs: { '改.txt': { state: 'ok', lines: [], reason: 'merge-commit', truncated: false, error: null } } })
+  const mergeDiffRow = rowsOf(VIEW.vcBlocksOf(files, mergeDiffReads, { openDiff: '改.txt' }, envOf(files, mergeDiffReads)))[0]
+  check(mergeDiffRow.diff.state === 'note' && mergeDiffRow.diff.text === '这是一次合并提交：git 默认不展开合并提交的逐行差异，所以这里没有内容。' && mergeDiffRow.diff.text !== '这一处这次没读到改动内容。', 'C19b 合并提交里的单文件差异：如实说「git 默认不展开合并提交的逐行差异」，不许落到「这一处没读到改动内容」上')
+  const reasons = { 'untracked-no-diff': '这个文件还没被 git 跟踪，没有可比的旧版本。', 'no-commit-baseline': '这个仓库还没有第一次提交，没有可比的基线。', 'binary-diff': '二进制文件，不逐行显示改动。', 'truncated': '这个文件的改动太大，读不全就没给内容；去侧栏终端看这一处的完整改动。', 'no-diff': '这一处这次没读到改动内容。' }
+  let reasonOk = true
+  for (const k of Object.keys(reasons)) {
+    const rr = readsOf(files, { diffs: { '改.txt': { state: 'ok', lines: [], reason: k, truncated: false, error: null } } })
+    const row = rowsOf(VIEW.vcBlocksOf(files, rr, { openDiff: '改.txt' }, envOf(files, rr)))[0]
+    if (row.diff.text !== reasons[k]) { reasonOk = false; console.log('    （原因 ' + k + ' 实得「' + row.diff.text + '」）') }
+  }
+  check(reasonOk, 'C19 差异读不到内容的五种原因各有各的实话（未跟踪 / 零提交 / 二进制 / 太大 / 空差异）')
+  const diffFailReads = readsOf(files, { diffs: { '改.txt': { state: 'err', lines: null, reason: '', truncated: false, error: { kind: 'timeout', message: 'x' } } } })
+  const failRow = rowsOf(VIEW.vcBlocksOf(files, diffFailReads, { openDiff: '改.txt' }, envOf(files, diffFailReads)))[0]
+  check(failRow.diff.state === 'err' && failRow.diff.text === '这个文件的改动读不到' && failRow.diff.retry === '重试', 'C20 差异读不到：说清是哪一块读不到并给重试')
+
+  // 历史续读
+  const logMore = readsOf(files, { log: { state: 'ok', commits: [{ oid: 'c'.repeat(40), short: 'ccccccc', author: 'A', authorDateMs: NOW - 1000, commitDateMs: NOW - 1000, subject: '更早的一条', parents: [] }], hasMore: false, fetched: 1, error: null } })
+  const moreBlock = blockOf(VIEW.vcBlocksOf(files, logMore, {}, envOf(files, logMore)), 'commits')
+  check(moreBlock.rows.length === 1 && moreBlock.more.allLoaded === '已经到底了', 'C21 续读到底：新读回的提交接在列表里并说「已经到底了」')
+  const logLoading = readsOf(files, { log: { state: 'loading', commits: [], hasMore: true, fetched: 0, error: null } })
+  check(blockOf(VIEW.vcBlocksOf(files, logLoading, {}, envOf(files, logLoading)), 'commits').more.label === '正在读更早的提交…', 'C22 续读在途：那一行说「正在读更早的提交…」')
+  const logFail = readsOf(files, { log: { state: 'err', commits: [{ oid: 'd'.repeat(40), short: 'ddddddd', author: 'A', authorDateMs: NOW, commitDateMs: NOW, subject: '旧的还在', parents: [] }], hasMore: true, fetched: 1, error: { kind: 'timeout', message: '' } } })
+  const lfBlock = blockOf(VIEW.vcBlocksOf(files, logFail, {}, envOf(files, logFail)), 'commits')
+  check(lfBlock.rows.length === 1 && lfBlock.more.failText === '更早的提交读不到' && lfBlock.more.retry === '重试', 'C23 续读失败：已经读回来的还在，旁边说读不到并给重试')
+
+  // 首屏：还没拿到数据 / 失败 / 有旧数据
+  check(VIEW.vcBlocksOf(null, VIEW.vcNewReads(), {}, { t: tZh, nowMs: NOW, fold: VIEW.vcFoldOf(460, {}) }).length === 0, 'C24 面板刚打开、还没拿到数据：整块不画（不冒一句常驻道歉）')
+  const notRepo = { screen: { state: 'err', data: null, error: { kind: 'not-repo', message: '这个目录不在任何 git 仓库里' } }, diffs: {}, log: { state: 'idle', commits: [], hasMore: false, fetched: 0, error: null } }
+  const eBlock = VIEW.vcBlocksOf(null, notRepo, {}, { t: tZh, nowMs: NOW, fold: VIEW.vcFoldOf(460, {}) })[0]
+  check(eBlock.kind === 'error' && eBlock.text === '这个目录不在任何 git 仓库里。' && eBlock.retry === '', 'C25 不在仓库里：如实说这句话，且不给重试按钮（它不是读取失败）')
+  const noGit = { screen: { state: 'err', data: null, error: { kind: 'env', message: 'x' } }, diffs: {}, log: { state: 'idle', commits: [], hasMore: false, fetched: 0, error: null } }
+  const nBlock = VIEW.vcBlocksOf(null, noGit, {}, { t: tZh, nowMs: NOW, fold: VIEW.vcFoldOf(460, {}) })[0]
+  check(nBlock.text.indexOf('找不到 git 程序') === 0 && nBlock.retry === '重试' && String(nBlock.rawTip || '').indexOf('原始说明：') === 0, 'C26 找不到 git：告诉人去确认安装与 PATH 并重启，给重试，宿主原文只进悬停（诊断线索，不进可见正文）')
+  const staleReads = readsOf(files, { screen: { state: 'err', data: { screen: files, tier: 'full', gitVersion: 'g', readAtMs: NOW }, error: { kind: 'timeout', message: 'x' } } })
+  const stBlocks = VIEW.vcBlocksOf(files, staleReads, {}, envOf(files, staleReads))
+  check(blockOf(stBlocks, 'hint') !== null && blockOf(stBlocks, 'hint').text === '刷新失败了，下面是上一次读到的数据' && blockOf(stBlocks, 'changes') !== null, 'C27 有旧数据时读失败：旧数据照常画，上面加一条「刷新失败了」')
+
+  // ---- S 组：规格故事 32「看某一次提交改了什么，与看未提交改动是同一套界面」----
+  const REV1 = 'e'.repeat(40)
+  const REV2 = 'f'.repeat(40)
+  const commitScreen = screenOf({
+    commits: [
+      { oid: REV1, short: 'eeeeeee', author: '张三', email: 'z@e.com', authorDateMs: NOW - 7200000, commitDateMs: NOW - 7200000, subject: '给面板加一个页签', parents: ['p1'] },
+      { oid: REV2, short: 'fffffff', author: '李四', email: 'l@e.com', authorDateMs: NOW - 86400000, commitDateMs: NOW - 86400000, subject: '合并分支', parents: ['p1', 'p2'] },
+    ],
+    unstaged: [{ path: '改.txt', origPath: null, staged: false, unstaged: true, conflict: false, change: 'modified', addedLines: 1, deletedLines: 0 }], unstagedCount: 1,
+  })
+  const commitFiles = [
+    { path: '面板/新页签.js', origPath: null, added: 12, deleted: 3 },
+    { path: '面板/旧名字.js', origPath: '面板/老名字.js', added: 0, deleted: 0 },
+  ]
+  const commitEntry = function (over) { return Object.assign({ rev: REV1, state: 'ok', files: commitFiles, truncated: false, reason: 'ok', error: null }, over || {}) }
+  const sReads = function (over) { return readsOf(commitScreen, Object.assign({ commit: commitEntry() }, over || {})) }
+  const sBlocksOf = function (reads, ui) { return VIEW.vcBlocksOf(commitScreen, reads, ui || { openCommit: REV1 }, envOf(commitScreen, reads)) }
+  const sChanges = blockOf(sBlocksOf(sReads()), 'changes')
+  check(sChanges.commitMode === true && sChanges.title === '这笔提交改了什么' && sChanges.back === '回到未提交改动', 'S1 点开提交后进入「这笔提交改了什么」，最上面给出「回到未提交改动」的出路')
+  check(sChanges.summary === 'eeeeeee · 给面板加一个页签', 'S2 抬头写着这是哪一笔提交（短号 + 说明）')
+  check(sChanges.groups.length === 1 && sChanges.groups[0].title === '这笔提交改了 2 个文件', 'S3 文件清单与未提交那一层同一套（一组、带计数）')
+  const sRows = sChanges.groups[0].rows
+  check(sRows.length === 2 && sRows[0].pathText === '面板/新页签.js' && sRows[0].countsText === '+12 −' + '3' && sRows[0].pathTip === '面板/新页签.js', 'S4 每一行给路径与 +a −d，悬停里是完整路径（与未提交那一层同一个画法）')
+  check(sRows[1].changeText === '重命名' && sRows[0].changeText === '' && sRows[0].changeTone === 'warning', 'S5 能证明的只有重命名；判不出类型的那一行不冒充六种变化（不画类型字）')
+  check(sRows[0].rowTip.indexOf('这笔提交只回了路径与增删行数，判不出变化类型') === 0 && sRows[1].rowTip.indexOf('这笔提交只回了') < 0, 'S5b 判不出类型时悬停里如实说清来由（不让用户以为 git 没给）')
+  const patchReads = sReads({ commitDiffs: { [VIEW.vcCommitKeyOf(REV1, '面板/新页签.js')]: { state: 'ok', lines: shortLines, reason: 'ok', truncated: false, error: null } } })
+  const sRowOpen = rowsOf(sBlocksOf(patchReads, { openCommit: REV1, openDiff: VIEW.vcCommitKeyOf(REV1, '面板/新页签.js') }))[0]
+  check(!!sRowOpen.diff && sRowOpen.diff.state === 'ok' && sRowOpen.diff.lines.length === 4 && sRowOpen.diff.lines[1].kind === 'hunk', 'S6 就地展开差异与未提交那一层同一个画法（同一份差异模型）')
+  check(blockOf(sBlocksOf(sReads({ commit: commitEntry({ files: [], truncated: true, reason: 'truncated' }) })), 'changes').note === '这笔提交的改动太大，读不全就没给清单；去侧栏终端看。', 'S7 读不全：明说读不全、指去终端，不装作没有改动')
+  check(blockOf(sBlocksOf(sReads({ commit: commitEntry({ rev: REV2, files: [] }) }), { openCommit: REV2 }), 'changes').note === '这是一次合并提交：它相对第一个父提交没有改动文件。', 'S8 合并提交且清单为空：如实说「相对第一个父提交没有改动文件」（真机上 git show --numstat 对合并提交给的是真数据，所以空清单不是「git 不展开」）')
+  check(blockOf(sBlocksOf(sReads({ commit: commitEntry({ files: [] }) })), 'changes').note === '这笔提交没有改任何文件（空提交）。', 'S9 空提交：如实说这是空提交')
+  check(blockOf(sBlocksOf(sReads({ commit: commitEntry({ state: 'loading', files: [] }) })), 'changes').note === '正在读这笔提交改了什么…', 'S10 这一层也有加载中那一档')
+  const sFail = blockOf(sBlocksOf(sReads({ commit: commitEntry({ state: 'err', files: [], error: { kind: 'timeout', message: '' } }) })), 'changes')
+  check(sFail.note === '这笔提交改了什么读不到' && sFail.retry === '重试', 'S11 读不到就说读不到，并给重试')
+  check(blockOf(sBlocksOf(sReads()), 'commits').rows[0].open === true, 'S12 正开着的那一笔提交在历史里被标出来（用户知道自己在看哪一笔）')
+
+  // ---- D 组：折叠阶梯 ----
+  const ladder = VIEW.vcFoldLadderOf({ path: 'D:/很长的目录/子目录/仓库名', others: ['副本一', '副本二'], commits: ['feat: 一个挺长的提交说明', 'fix: 另一个'] })
+  const seq = ladder.steps.map((s) => s.el).join(',')
+  check(seq.indexOf('path') === 0 && seq.indexOf('other') > seq.lastIndexOf('path') && seq.indexOf('commit') > seq.lastIndexOf('other'), 'D1 让位次序：工作树位置最先、其他工作树居中、提交说明最后')
+  let maxDrop = 0
+  let rebound = 0
+  for (let i = 0; i < ladder.steps.length; i++) {
+    const a = VIEW.vcFoldStateAt(ladder, i)
+    const b = VIEW.vcFoldStateAt(ladder, i + 1)
+    const drops = [a.path.length - b.path.length]
+    for (let k = 0; k < a.others.length; k++) drops.push(a.others[k].length - b.others[k].length)
+    for (let k = 0; k < a.commits.length; k++) drops.push(a.commits[k].length - b.commits[k].length)
+    maxDrop = Math.max(maxDrop, ...drops)
+    rebound += drops.filter((d) => d < 0).length
+  }
+  check(maxDrop <= 1 && rebound === 0, 'D2 一次让位最多少一个字符，而且全程不回弹（实测最多一次少 ' + maxDrop + ' 个字符，回弹 ' + rebound + ' 处）')
+  const pinned = JSON.stringify(ladder.steps.map((s) => s.el))
+  check(pinned.indexOf('count') < 0 && pinned.indexOf('branch') < 0 && pinned.indexOf('band') < 0, 'D3 身份行、异常带、未提交改动计数不进阶梯（永不让位）')
+  const full = VIEW.vcFoldStateAt(ladder, 0)
+  check(full.path === ladder.path && full.others[0] === '副本一', 'D4 第 0 档一个字都不少')
+  const last = VIEW.vcFoldStateAt(ladder, ladder.steps.length)
+  check(last.path.indexOf('仓库名') >= 0 && last.path.length >= VIEW.VC_MIDDLE_MIN, 'D5 路径砍的是中段，末级目录那一头始终留着，且不砍到比最短长度还短（实得「' + last.path + '」）')
+  const nameTail = VIEW.vcFoldStateAt(ladder, ladder.steps.length).others[0]
+  check(nameTail === '', 'D5b 名字与说明可以让到空（完整内容在悬停提示里），路径不参与这一步')
+  check(VIEW.vcFoldBandAt(460) === 0 && VIEW.vcFoldBandAt(380) === 1 && VIEW.vcFoldBandAt(320) === 2 && VIEW.vcFoldBandAt(200) === 3 && VIEW.vcFoldBandAt(0) === 0, 'D6 粗档按可用宽度分档；没量到宽度时按最宽画（不让位）')
+  check(VIEW.vcFoldOf(460, { path: 'x', others: [], commits: [] }).otherMode === 'list' && VIEW.vcFoldOf(340, { path: 'x', others: [], commits: [] }).otherMode === 'summary', 'D7 可用宽度 + 元素清单 → 该画什么（那一档的两个决定）')
+  check(VIEW.vcTail('dsh-mattpocock-skills-deck', 10) === 'dsh-mattp…' && VIEW.vcTail('短名', 10) === '短名', 'D8 工作树名砍尾：留前面那段（互相区分的那一段），末尾补省略号')
+  // 宽度单调不增 → 画出来的东西单调不增（验收者点名的「更窄却画更多」那类回弹）。
+  const widths = [520, 460, 420, 400, 380, 360, 340, 320, 300, 280, 240, 100]
+  let monoOk = true
+  let prevRich = null
+  const richAt = function (w) {
+    const fd = VIEW.vcFoldOf(w, { path: 'x'.repeat(30), others: ['name'], commits: ['subject'] })
+    return { other: fd.otherMode === 'list' ? 1 : 0, commits: fd.commitsCollapsed ? 0 : 1, band: fd.band }
+  }
+  for (const w of widths) {
+    const cur = richAt(w)
+    if (prevRich && (cur.other > prevRich.other || cur.commits > prevRich.commits || cur.band < prevRich.band)) monoOk = false
+    prevRich = cur
+  }
+  check(monoOk, 'D11 宽度单调不增时画出来的东西单调不增（其他工作树只会逐条→摘要、提交历史只会展开→收起，不会回弹）')
+  const presentOf = function (state) {
+    const set = []
+    if (state.path) set.push('path')
+    state.others.forEach(function (t, i) { if (t) set.push('other:' + i) })
+    state.commits.forEach(function (t, i) { if (t) set.push('commit:' + i) })
+    return set
+  }
+  let subsetOk = true
+  for (let i = 0; i < ladder.steps.length; i++) {
+    const a = presentOf(VIEW.vcFoldStateAt(ladder, i))
+    const b = presentOf(VIEW.vcFoldStateAt(ladder, i + 1))
+    if (!b.every(function (x) { return a.indexOf(x) >= 0 })) subsetOk = false
+  }
+  check(subsetOk, 'D12 每让一档，画出来的元素集合只减不增（后一档是前一档的子集）')
+  // 折叠过的名字一律有全文悬停（工作树名、路径、其他工作树名、提交说明、文件路径一个都不例外）
+  const longFile = '一个很深的目录/'.repeat(6) + '最后是文件名.txt'
+  const foldFiles = screenOf({ unstaged: [{ path: longFile, origPath: null, staged: false, unstaged: true, conflict: false, change: 'modified', addedLines: 1, deletedLines: 0 }], unstagedCount: 1 })
+  const foldRow = rowsOf(VIEW.vcBlocksOf(foldFiles, readsOf(foldFiles), {}, envOf(foldFiles, readsOf(foldFiles))))[0]
+  const longName = screenOf({ otherWorktrees: [{ path: 'D:/一个很深的目录/一个很长的副本名字', display: '一个很深的目录/一个很长的副本名字', head: 'h', branch: 'main', bare: false, current: false, locked: false, lockReason: null, lockUnknown: false, prunable: false }] })
+  const foldOther = blockOf(VIEW.vcBlocksOf(longName, readsOf(longName), {}, envOf(longName, readsOf(longName), 300)), 'other')
+  check(foldRow.pathText.length < longFile.length && foldRow.pathText.indexOf('最后是文件名.txt') >= 0 && foldRow.pathTip === longFile, 'D13 文件路径折过之后：文件名那一头还在，悬停里是完整路径（实得「' + foldRow.pathText + '」）')
+  check(foldOther.rows.length === 0 ? foldOther.summaryText.indexOf('一个很深的目录/一个很长的副本名字') >= 0 : foldOther.rows[0].displayTip === 'D:/一个很深的目录/一个很长的副本名字', 'D14 其他工作树的名字折过（或收成摘要）之后，完整路径仍在悬停里')
+
+  // ---- E 组：次缝（三条电话的形状、诚实失败、日志）----
+  const calls = []
+  const fakeCall = function (method, args) {
+    calls.push({ method: method, args: args })
+    if (method === 'wf.gitStatus') return Promise.resolve({ ok: true, screen: files, tier: 'full', gitVersion: 'git version 2.49.0', readAtMs: NOW })
+    if (method === 'wf.gitDiff') return Promise.resolve({ ok: true, path: args.path, lines: shortLines, truncated: false, reason: 'ok' })
+    if (method === 'wf.gitLog') return Promise.resolve({ ok: true, commits: [], skip: args.skip, requested: args.count, returned: 0, hasMore: false })
+    return Promise.resolve({ ok: false, error: { kind: 'unknown', message: '' } })
+  }
+  const logs = []
+  const V2 = buildView(null, logs)
+  let reads2 = V2.vcNewReads()
+  reads2 = await V2.vcReadStatus(reads2, fakeCall, 'D:/w/repo')
+  check(reads2.screen.state === 'ok' && reads2.screen.data.screen === files, 'E1 首屏：wf.gitStatus 成功 → 进 ok 态并收下 screen')
+  check(calls[0].method === 'wf.gitStatus' && calls[0].args.cwd === 'D:/w/repo', 'E2 首屏调的是 wf.gitStatus，带 cwd（实得 ' + calls[0].method + '）')
+  reads2 = await V2.vcReadDiff(reads2, fakeCall, 'D:/w/repo', '改.txt', true)
+  check(calls[1].method === 'wf.gitDiff' && calls[1].args.path === '改.txt' && calls[1].args.untracked === true && calls[1].args.cwd === 'D:/w/repo', 'E3 差异调 wf.gitDiff，带 cwd / path / untracked')
+  check(reads2.diffs['改.txt'].state === 'ok' && reads2.diffs['改.txt'].lines.length === 4, 'E4 差异成功 → 该文件独立进 ok 态')
+  reads2 = await V2.vcReadMoreCommits(reads2, fakeCall, 'D:/w/repo', 1)
+  check(calls[2].method === 'wf.gitLog' && calls[2].args.count === 50 && calls[2].args.skip === 1, 'E5 历史调 wf.gitLog，带 cwd / count / skip')
+  check(reads2.log.state === 'ok' && reads2.log.hasMore === false, 'E6 历史成功 → 进 ok 态并记下还有没有更早的')
+  const okLogs = logs.filter((l) => l.event === 'host.call')
+  check(okLogs.length === 3 && okLogs.every((l) => l.fields.ok === true && typeof l.fields.latencyMs === 'number'), 'E7 三次成功各落一行 host.call（既有事件，不新增事件名）')
+  check(okLogs[0].fields.method === 'wf.gitStatus' && okLogs[0].fields.kind === 'git-status', 'E8 host.call 记了电话名与归一类别')
+
+  // 故事 32 那一路的电话：读一笔提交的文件清单只带 rev；读这笔提交里某个文件的补丁带 rev + path。
+  const commitCalls = []
+  const commitCall = function (method, args) {
+    commitCalls.push({ method: method, args: args })
+    if (args && args.path) return Promise.resolve({ ok: true, path: args.path, lines: shortLines, truncated: false, reason: 'ok' })
+    return Promise.resolve({ ok: true, rev: args.rev, files: commitFiles, truncated: false, reason: 'ok' })
+  }
+  let reads4 = V2.vcNewReads()
+  reads4 = await V2.vcReadCommitFiles(reads4, commitCall, 'D:/w/repo', REV1)
+  check(commitCalls[0].method === 'wf.gitDiff' && commitCalls[0].args.rev === REV1 && commitCalls[0].args.cwd === 'D:/w/repo' && commitCalls[0].args.path === undefined, 'E17 读一笔提交的文件清单：wf.gitDiff 只带 cwd 与 rev')
+  check(reads4.commit.state === 'ok' && reads4.commit.files.length === 2 && reads4.commit.rev === REV1, 'E18 清单进 ok 态，并按修订号记下这是哪一笔的清单')
+  reads4 = await V2.vcReadCommitFileDiff(reads4, commitCall, 'D:/w/repo', REV1, '面板/新页签.js')
+  check(commitCalls[1].args.rev === REV1 && commitCalls[1].args.path === '面板/新页签.js', 'E19 读这笔提交里某个文件的补丁：wf.gitDiff 带 cwd / rev / path')
+  check(reads4.commitDiffs[V2.vcCommitKeyOf(REV1, '面板/新页签.js')].state === 'ok' && reads4.commitDiffs[V2.vcCommitKeyOf(REV1, '面板/新页签.js')].lines.length === 4, 'E20 补丁按「修订号 + 路径」分开存，同一个文件在不同提交里互不顶替')
+  const badCommit = await V2.vcReadCommitFiles(V2.vcNewReads(), function () { return Promise.resolve({ ok: false, error: { kind: 'args', message: 'x' } }) }, 'D:/w/repo', REV1)
+  check(badCommit.commit.state === 'err' && badCommit.commit.error.kind === 'args', 'E21 清单读失败：如实进 err 态、错误种类不丢（宿主还没接上 rev 时就是这个 args）')
+
+  const badLogs = []
+  const V3 = buildView(null, badLogs)
+  const failCall = function (method, args) {
+    if (method === 'wf.gitStatus') return Promise.resolve({ ok: true, screen: files, tier: 'full', gitVersion: 'g', readAtMs: NOW })
+    return Promise.resolve({ ok: false, error: { kind: 'timeout', message: '宿主原话' } })
+  }
+  let reads3 = V3.vcNewReads()
+  reads3 = await V3.vcReadStatus(reads3, failCall, 'D:/w/repo')
+  const goodData = reads3.screen.data
+  reads3 = await V3.vcReadStatus(reads3, function () { return Promise.resolve({ ok: false, error: { kind: 'env', message: '宿主原话' } }) }, 'D:/w/repo')
+  check(reads3.screen.state === 'err' && reads3.screen.error.kind === 'env' && reads3.screen.data === goodData, 'E9 首屏读失败：如实进 err 态、错误种类不丢、旧数据留着（不清空）')
+  check(V3.vcFailKeyOf('env') === 'vc.fail.noGit' && V3.vcFailKeyOf('not-repo') === 'vc.fail.notRepo' && V3.vcFailKeyOf('没见过的种类') === 'vc.fail.unknown', 'E10 失败种类各对应一句人话，没见过的种类有兜底')
+  const shapeFail = await V3.vcReadStatus(V3.vcNewReads(), function () { return Promise.resolve({ ok: true }) }, 'D:/w/repo')
+  check(shapeFail.screen.state === 'err' && shapeFail.screen.error.kind === 'shape', 'E11 ok:true 却没带 screen：按失败处理，不拿半份数据冒充成功')
+  const throwFail = await V3.vcReadDiff(V3.vcNewReads(), function () { return Promise.reject(new Error('断了')) }, 'D:/w/repo', 'a.txt', false)
+  check(throwFail.diffs['a.txt'].state === 'err' && throwFail.diffs['a.txt'].error.kind === 'throw', 'E12 电话抛了：不往外抛，落成 err 态（读不到就说读不到）')
+  const fLogs = badLogs.filter((l) => l.event === 'host.call.fail')
+  check(fLogs.length === 3 && fLogs.every((l) => l.level === 'warn' && l.fields.method && l.fields.kind && l.fields.errorHash), 'E13 三次失败各落一行告警级 host.call.fail（只记散列，不记原文）')
+  check(JSON.stringify(badLogs).indexOf('宿主原话') < 0, 'E14 日志里没有宿主原文（只记散列）')
+  // 真宿主这一侧也接一遍：失败信封诚实、不抛
+  const notRepoRun = makeHostDeps(function (argv) {
+    const a = afterPrefix(argv)
+    if (a && a[0] === 'rev-parse' && a.indexOf('--is-inside-work-tree') >= 0) return { code: 128, stdout: '', stderr: 'fatal: not a git repository (or any of the parent directories): .git\n' }
+    return liveRoute(argv)
+  })
+  const notRepoReply = await hostMod.createVersionControl(notRepoRun.deps).handleGitStatus({ cwd: 'D:/不在仓库里' })
+  check(notRepoReply.ok === false && notRepoReply.error.kind === 'not-repo' && typeof notRepoReply.error.message === 'string', 'E15 真宿主：不在仓库里时回诚实的失败信封（kind=not-repo），不抛')
+  const clientNotRepo = await V2.vcReadStatus(V2.vcNewReads(), function () { return Promise.resolve(notRepoReply) }, 'D:/不在仓库里')
+  check(clientNotRepo.screen.error.kind === 'not-repo' && V2.vcFailKeyOf(clientNotRepo.screen.error.kind) === 'vc.fail.notRepo', 'E16 界面侧认下真宿主这份失败信封，翻成那句「不在任何 git 仓库里」')
+
+  // ---- F 组：纪律 ----
+  const stripComments = (buf) => buf.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '')
+  let cjk = 0
+  let linesOk = true
+  for (const f of VC_FILES) {
+    const src = read(f)
+    const n = src.split(/\r?\n/).length
+    if (n > 350) { linesOk = false; console.log('    （' + f + ' 有 ' + n + ' 行）') }
+    const buf = stripComments(src)
+    const strRe = /'((?:[^'\\\n]|\\.)*)'|"((?:[^"\\\n]|\\.)*)"/g
+    let m
+    while ((m = strRe.exec(buf)) !== null) { const s = m[1] !== undefined ? m[1] : m[2]; if (/[\u4e00-\u9fff]/.test(s)) cjk += 1 }
+  }
+  check(linesOk, 'F1 六个界面文件每个都不超过 350 行')
+  check(cjk === 0, 'F2 界面文件里零个中文字面量（文案一律走词条，实得 ' + cjk + ' 处）')
+  const keysUsed = new Set()
+  for (const f of VC_FILES) {
+    const src = stripComments(read(f))
+    const re = /\bt\('([A-Za-z0-9_.]+)'/g
+    let m
+    while ((m = re.exec(src)) !== null) keysUsed.add(m[1])
+  }
+  const missingZh = [...keysUsed].filter((k) => LOC.zh[k] === undefined)
+  const missingEn = [...keysUsed].filter((k) => LOC.en[k] === undefined)
+  check(missingZh.length === 0 && missingEn.length === 0, 'F3 界面用到的 ' + keysUsed.size + ' 个词条键中英两边都有（缺的中文 ' + missingZh.length + ' / 缺的英文 ' + missingEn.length + '）')
+  const topKeys = Object.keys(L_PANEL).join(',') + '|' + Object.keys(L_FLOW).join(',')
+  check(topKeys === 'zh,en|zh,en', 'F8 两份词条模块的顶层键都只有 zh 与 en（实得 ' + topKeys + '）—— 词条插到 zh 块外面时，中文界面会把键名原样印出来')
+  const missingOf = function (zh, en, keys) { return keys.filter(function (k) { return typeof zh[k] !== 'string' || zh[k] === '' || typeof en[k] !== 'string' || en[k] === '' }) }
+  const usedKeys = [...keysUsed]
+  const missKeys = missingOf(LOC.zh, LOC.en, usedKeys)
+  check(missKeys.length === 0, 'F9 界面用到的每个词条键在中英两份真字典里都存在且非空（共 ' + usedKeys.length + ' 个，缺 ' + missKeys.length + ' 个' + (missKeys.length ? '：' + missKeys.slice(0, 6).join('、') : '') + '）')
+  check(LOC.zh['panel.tabVersionControl'] === '版本管理' && LOC.en['panel.tabVersionControl'] === 'Version control', 'F10 页签名中英成对（版本管理 / Version control）')
+  // 三条真机缺陷的回归（独立验收者报的，已修）
+  const tailLadder = VIEW.vcFoldLadderOf({ path: 'abcdefghijklmnop', others: ['副本名'], commits: [] })
+  const tailLens = []
+  for (let i = 0; i <= tailLadder.steps.length; i++) { const st = VIEW.vcFoldStateAt(tailLadder, i); tailLens.push(st.path.length + ':' + st.others[0].length) }
+  const tailSeq = tailLens.map((s) => s.split(':').map(Number))
+  check(tailSeq[0][0] === 16 && tailSeq[tailSeq.length - 1][0] === VIEW.VC_MIDDLE_MIN && tailSeq[tailSeq.length - 1][1] === 0, 'D9 折叠到最后一档：路径停在最短可砍长度、名字收成空，都不会弹回全长（长度序列 ' + tailLens.join(' → ') + '）')
+  check(VIEW.vcWhenText(tZh, NOW, null) === '' && VIEW.vcWhenText(tZh, NOW, undefined) === '', 'D10 没有时间这一项时回空串，不画成 1970 年')
+  const toneKeys = Object.keys(VIEW.VC_TONE)
+  const toneSrc = read('src/client/views/versionControl/VersionControlTab.js')
+  check(toneKeys.every((k) => toneSrc.indexOf('--dsw-alias-') >= 0) && /success: 'var\(--dsw-alias-state-success-primary/.test(toneSrc), 'F4 颜色只走主题变量（每个色档都是 var(--dsw-alias-…)，带一个兜底色）')
+  const noVar = stripComments(toneSrc).replace(/var\(--dsw-alias-[a-z0-9-]+(,[^)]*)?\)/g, '')
+  check(!/#[0-9a-fA-F]{3,8}\b/.test(noVar), 'F5 除主题变量里的兜底色之外，界面文件里没有别的硬编码颜色（注释里的票号不算）')
+  check(!/setInterval|setTimeout/.test(VC_FILES.map(read).join('\n')), 'F6 界面文件里没有任何定时器（#709 的零定时器不变量）')
+  const toneNames = new Set()
+  const collectTones = function (x) {
+    if (!x || typeof x !== 'object') return
+    for (const k of Object.keys(x)) {
+      if ((k === 'tone' || /Tone$/.test(k)) && typeof x[k] === 'string' && x[k]) toneNames.add(x[k])
+      else if (x[k] && typeof x[k] === 'object') collectTones(x[k])
+    }
+  }
+  collectTones([liveBlocks, mB, oB, narrowB, dB, nB, zB, shortBlocks])
+  check(toneNames.size >= 3 && [...toneNames].every((n) => toneKeys.indexOf(n) >= 0), 'F7 模型给出的 ' + toneNames.size + ' 个色档名都在界面的映射表里（' + [...toneNames].join(' / ') + '）')
+
+  // ---- G 组：比照（界面侧规则 vs 版本管理核心）----
+  const core = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'version-control', 'state.js')).href)
+  const paths = ['a/b/c.txt', 'D:/很长的目录/子目录/文件名.txt', '短.txt', 'x'.repeat(60) + '/y.txt']
+  let same = true
+  for (const p of paths) for (const n of [10, 12, 20, 24, 46, 80]) if (VIEW.vcMiddle(p, n) !== core.foldMiddle(p, n)) { same = false; console.log('    （' + p + ' @' + n + ' 界面「' + VIEW.vcMiddle(p, n) + '」核心「' + core.foldMiddle(p, n) + '」）') }
+  check(same, 'G1 vcMiddle 与核心 foldMiddle 在同一批输入上给出同一串字（两条规则不许各说各话）')
+  const stamps = [NOW - 1000, NOW - 3600000, NOW - 6 * 24 * 3600 * 1000, NOW - 7 * 24 * 3600 * 1000, NOW - 30 * 24 * 3600 * 1000]
+  check(stamps.every((ms) => VIEW.vcTimeKind(NOW, ms) === core.describeTime(NOW, ms).style), 'G2 vcTimeKind 与核心 describeTime 同一条 7 天分界（相对 / 绝对不说两套话）')
+
+  // ---- G3/G4：模型与画法对得上 + 首帧真渲染一次（空态不许崩、也不许冒字）----
+  const compSrc = stripComments(read('src/client/views/versionControl/VersionControlTab.js'))
+  const kindsMissing = VIEW.VC_BLOCK_ORDER.filter((k) => compSrc.indexOf("b.kind === '" + k + "'") < 0)
+  check(kindsMissing.length === 0, 'G3 块模型会产出的每一种块，界面那一边都有画它的分支（缺的：' + (kindsMissing.join('、') || '无') + '）')
+  const React = require('react')
+  const { renderToStaticMarkup } = require('react-dom/server')
+  const DswsCtx = React.createContext(null)
+  const TipStub = function (props) { return props && props.children ? props.children : null }
+  const IcStub = function () { return null }
+  const renderView = buildView(null, [], React, DswsCtx, TipStub, IcStub)
+  let html = ''
+  let renderErr = ''
+  try { html = renderToStaticMarkup(React.createElement(renderView.VersionControlTab, { st: { cwd: 'D:/w/repo' }, narrow: false })) } catch (e) { renderErr = String((e && e.message) || e) }
+  check(renderErr === '' && html.indexOf('data-vc-root') >= 0, 'G4 首帧真渲染一次：不崩，画出一个空根（实得 ' + (renderErr ? '抛错：' + renderErr : html.slice(0, 60)) + '）')
+  check(renderErr === '' && html.replace(/<[^>]*>/g, '').trim() === '', 'G5 面板刚打开那一下整块不画：空根里一个字都没有（不冒常驻道歉）')
+  // 真渲染第二遍：把首屏读数预先塞进组件的初始状态，看画出来的 DOM 里到底写了哪些字。
+  const seedReads = { screen: { state: 'ok', data: { screen: liveScreen, tier: 'full', gitVersion: 'git version 2.49.0', readAtMs: NOW }, error: null }, diffs: {}, log: { state: 'idle', commits: [], hasMore: false, fetched: 0, error: null } }
+  const renderSeeded = buildView((s) => s.replace('React.useState(vcNewReads)', 'React.useState(function () { return seedReads })'), [], React, DswsCtx, TipStub, IcStub, seedReads)
+  let html2 = ''
+  let renderErr2 = ''
+  try { html2 = renderToStaticMarkup(React.createElement(renderSeeded.VersionControlTab, { st: { cwd: 'D:/w/repo' } })) } catch (e) { renderErr2 = String((e && e.message) || e) }
+  const flat = html2.replace(/<[^>]*>/g, ' ')
+  check(renderErr2 === '' && html2.indexOf('data-vc-identity') >= 0 && html2.indexOf('data-vc-changes') >= 0 && html2.indexOf('data-vc-commits') >= 0 && html2.indexOf('data-vc-other') >= 0, 'G6 有数据时真渲染一次：身份行、未提交改动、提交历史、其他工作树四块都在 DOM 里（' + (renderErr2 ? '抛错：' + renderErr2 : '四块齐备') + '）')
+  check(flat.indexOf('已暂存 1 个文件 / 未暂存 4 个文件') >= 0 && flat.indexOf('main') >= 0 && flat.indexOf('提交历史') >= 0, 'G7 画出来的 DOM 里就是那几句人话（汇总句 / 分支名 / 提交历史都在）')
+  check(flat.indexOf('data-vc-') < 0 && flat.indexOf('vc.changes') < 0 && flat.indexOf('vc.fail') < 0, 'G8 DOM 里没有把词条键名当文字画出来（上一版把词条插错位置时正是这样）')
+  // 真渲染一遍：把「正开着这笔提交」的界面状态预置进去，看 DOM 里到底有没有那条回去的路与那份清单。
+  const commitSeed = { screen: { state: 'ok', data: { screen: commitScreen, tier: 'full', gitVersion: 'git version 2.49.0', readAtMs: NOW }, error: null }, diffs: {}, commit: commitEntry(), commitDiffs: {}, log: { state: 'idle', commits: [], hasMore: false, fetched: 0, error: null } }
+  const renderCommit = buildView(function (s) {
+    return s.replace('React.useState(vcNewReads)', 'React.useState(function () { return seedReads })')
+      .replace("React.useState(function () { return { fileShown: {}, openDiff: '' } })", "React.useState(function () { return { fileShown: {}, openDiff: '', openCommit: '" + REV1 + "' } })")
+  }, [], React, DswsCtx, TipStub, IcStub, commitSeed)
+  let html3 = ''
+  let renderErr3 = ''
+  try { html3 = renderToStaticMarkup(React.createElement(renderCommit.VersionControlTab, { st: { cwd: 'D:/w/repo' } })) } catch (e) { renderErr3 = String((e && e.message) || e) }
+  const flat3 = html3.replace(/<[^>]*>/g, ' ')
+  check(renderErr3 === '' && html3.indexOf('data-vc-back') >= 0 && html3.indexOf('data-vc-commit-mode') >= 0, 'S13 真渲染：提交模式画出了「回到未提交改动」那条路（' + (renderErr3 ? '抛错：' + renderErr3 : '在') + '）')
+  check(flat3.indexOf('这笔提交改了什么') >= 0 && flat3.indexOf('这笔提交改了 2 个文件') >= 0 && flat3.indexOf('回到未提交改动') >= 0, 'S14 真渲染：DOM 里就是那几句人话（标题 / 计数 / 回去的路）')
+
+
+  // 英文界面那一遍：同一份数据、同一套画法，只把词典换成英文 —— 画出来的人话必须是英文。
+  const goodEn = tZh
+  tZh = tEn
+  let htmlEn = ''
+  try {
+    const renderEn = buildView((s) => s.replace('React.useState(vcNewReads)', 'React.useState(function () { return seedReads })'), [], React, DswsCtx, TipStub, IcStub, seedReads)
+    htmlEn = renderToStaticMarkup(React.createElement(renderEn.VersionControlTab, { st: { cwd: 'D:/w/repo' } }))
+  } catch (e) { htmlEn = '' }
+  tZh = goodEn
+  const flatEn = htmlEn.replace(/<[^>]*>/g, ' ')
+  // G10/G11：英文界面 + 带中文原话的失败信封 —— 可见文字里不许出现任何 CJK 字符，原话只进悬停。
+  const errSeedEn = { screen: { state: 'err', data: null, error: { kind: 'env', message: '找不到 git（宿主中文原话）' } }, diffs: {}, log: { state: 'idle', commits: [], hasMore: false, fetched: 0, error: null } }
+  const errBlocksZh = VIEW.vcBlocksOf(null, errSeedEn, {}, { t: tZh, nowMs: NOW, fold: VIEW.vcFoldOf(460, {}) })
+  check(errBlocksZh.length === 1 && String(errBlocksZh[0].rawTip || '').indexOf('找不到 git') >= 0 && errBlocksZh[0].detail === undefined, 'G11 宿主原话留在悬停提示里（诊断不丢），可见正文里没有它这一栏')
+  const goodErr = tZh
+  tZh = tEn
+  let htmlErr = ''
+  try {
+    const renderErr = buildView((s) => s.replace('React.useState(vcNewReads)', 'React.useState(function () { return seedReads })'), [], React, DswsCtx, TipStub, IcStub, errSeedEn)
+    htmlErr = renderToStaticMarkup(React.createElement(renderErr.VersionControlTab, { st: { cwd: 'D:/w/repo' } }))
+  } catch (e) { htmlErr = '' }
+  tZh = goodErr
+  const flatErr = htmlErr.replace(/<[^>]*>/g, ' ')
+  check(htmlErr !== '' && flatErr.indexOf('git was not found') >= 0 && !/[\u4e00-\u9fff]/.test(flatErr), 'G10 英文界面 + 带中文原话的失败信封：画出来的可见文字里一个 CJK 字符都没有（宿主原话只在悬停里）')
+  // G12/G13：这个会话还没有工作区（空 cwd）—— 一个电话都不发，画一句如实的空态。
+  check(VIEW.vcShouldRead('') === false && VIEW.vcShouldRead('   ') === false && VIEW.vcShouldRead(null) === false && VIEW.vcShouldRead('D:/w/repo') === true, 'G12 空 cwd 的判据：读数据的谓词回假（宿主对空串会退回它自己的默认目录，那是插件自己那个仓库的数据）')
+  const emptyCwdBlocks = VIEW.vcBlocksOf(null, VIEW.vcNewReads(), {}, { t: tZh, nowMs: NOW, cwdEmpty: true, fold: VIEW.vcFoldOf(460, {}) })
+  check(emptyCwdBlocks.length === 1 && emptyCwdBlocks[0].text === '这个会话还没有工作区，读不到版本信息' && emptyCwdBlocks[0].retry === '', 'G13 空 cwd 画出那句如实的空态（不是读取失败，所以不给重试）')
+  const cwdGuardSrc = read('src/client/views/versionControl/VersionControlTab.js')
+  check(cwdGuardSrc.indexOf('const cwdEmpty = !vcShouldRead(cwd)') >= 0 && /React\.useEffect\(function \(\) \{\n    if \(!cwd\) return/.test(cwdGuardSrc), 'G14 组件里那道闸：空 cwd 时读取效果第一句就返回（不发电话），空态走 cwdEmpty 那条路')
+  let htmlNoCwd = ''
+  let noCwdCalls = 0
+  try {
+    const hostStub = { call: function () { noCwdCalls += 1; return Promise.resolve({ ok: false, error: { kind: 'shape', message: '' } }) } }
+    const renderNoCwd = buildView(null, [], React, DswsCtx, TipStub, IcStub, null, hostStub)
+    htmlNoCwd = renderToStaticMarkup(React.createElement(renderNoCwd.VersionControlTab, { st: {} }))
+  } catch (e) { htmlNoCwd = '' }
+  check(htmlNoCwd.replace(/<[^>]*>/g, ' ').indexOf('这个会话还没有工作区') >= 0 && noCwdCalls === 0, 'G15 真渲染：空 cwd 时画的是那句空态，宿主一个电话都没被调到（实得 ' + noCwdCalls + ' 次）')
+  check(flatEn.indexOf('Commit history') >= 0 && flatEn.indexOf('Uncommitted changes') >= 0 && flatEn.indexOf('提交历史') < 0 && flatEn.indexOf('未提交改动') < 0, 'G9 英文界面下画出来的是英文（词条中英成对，界面不写死任何一句中文）')
+
+  // ---- H 组：反证（把被守的东西改坏，同一套断言必须当场变红）----
+  const antiCases = [
+    { name: '显隐谓词改成永远隐藏', patch: (s) => s.replace('const vcTabVisible = function (st) {\n  void st\n  return true\n}', 'const vcTabVisible = function (st) {\n  void st\n  return false\n}'), test: (v) => v.vcTabVisible({}) === true, what: 'A1' },
+    { name: '冲突条目不再合成一行（同一路径画两行）', patch: (s) => s.replace('    if (!hit) {', '    if (!hit || hit.conflict === true) {'), test: (v) => { const m = v.vcBlocksOf(merge, readsOf(merge), {}, envOf(merge, readsOf(merge))); return rowsOf(m).length === 1 }, what: 'C9' },
+    { name: '汇总句把数字写死成 0', patch: (s) => s.replace("? t('vc.changes.summaryConflicts', { staged: String(stagedRows.length), unstaged: String(unstagedRows.length), conflicts: String(conflicts) })", "? t('vc.changes.summaryConflicts', { staged: '0', unstaged: '0', conflicts: String(conflicts) })").replace(": t('vc.changes.summary', { staged: String(stagedRows.length), unstaged: String(unstagedRows.length) }),", ": t('vc.changes.summary', { staged: '0', unstaged: '0' }),"), test: (v) => { const c = v.vcBlocksOf(liveScreen, liveReads, {}, envOf(liveScreen, liveReads)); return blockOf(c, 'changes').summary === '已暂存 1 个文件 / 未暂存 4 个文件' }, what: 'B7' },
+    { name: '折叠一次让一整段字（不再一个字符）', patch: (s) => s.replace("push('path', -1, Math.max(0, ladder.path.length - VC_MIDDLE_MIN))", "push('path', -1, 1)"), test: (v) => { const l = v.vcFoldLadderOf({ path: 'abcdefghijklmnop', others: [], commits: [] }); return l.steps.length >= 6 }, what: 'D2' },
+    { name: '「回到未提交改动」那一步去掉', patch: (s) => s.replace("    back: t('vc.commit.back'),", "    back: '',"), test: (v) => { const b = v.vcBlocksOf(commitScreen, sReads(), { openCommit: REV1 }, envOf(commitScreen, sReads())); return blockOf(b, 'changes').back === '回到未提交改动' }, what: 'S1' },
+    { name: '截断判据改坏（读不全也装作有清单）', patch: (s) => s.replace("  else if (mine.truncated === true) note = t('vc.commit.truncated')", "  else if (false) note = t('vc.commit.truncated')"), test: (v) => { const r2 = sReads({ commit: commitEntry({ files: [], truncated: true, reason: 'truncated' }) }); const b = v.vcBlocksOf(commitScreen, r2, { openCommit: REV1 }, envOf(commitScreen, r2)); return blockOf(b, 'changes').note === '这笔提交的改动太大，读不全就没给清单；去侧栏终端看。' }, what: 'S7' },
+    { name: '合并提交那条差异原因键删掉（落回「没读到改动内容」）', patch: (s) => s.replace("  'merge-commit': 'vc.diff.mergeCommit',", "  'merge-commit-removed': 'vc.diff.mergeCommit',"), test: (v) => { const r2 = readsOf(files, { diffs: { '改.txt': { state: 'ok', lines: [], reason: 'merge-commit', truncated: false, error: null } } }); const row = rowsOf(v.vcBlocksOf(files, r2, { openDiff: '改.txt' }, envOf(files, r2)))[0]; return row.diff.text === '这是一次合并提交：git 默认不展开合并提交的逐行差异，所以这里没有内容。' }, what: 'C19b' },
+    { name: '宿主原话又直出到可见正文（英文界面串出中文）', en: true, seed: errSeedEn, patch: (s) => s.replace('React.useState(vcNewReads)', 'React.useState(function () { return seedReads })').replace("        rawTip: err.message ? t('vc.fail.raw', { msg: String(err.message) }) : '',", "        detail: err.message ? t('vc.fail.raw', { msg: String(err.message) }) : '',").replace("      tipNode(b.rawTip, h('div', { style: { lineHeight: 1.7 } }, b.text)),", "      h('div', { style: { lineHeight: 1.7 } }, b.text),\n      b.detail ? h('div', { style: { marginTop: 6 } }, b.detail) : null,"), test: (v) => { let html = ''; try { html = renderToStaticMarkup(React.createElement(v.VersionControlTab, { st: { cwd: 'D:/w/repo' } })) } catch (e) { html = '' } return !/[\u4e00-\u9fff]/.test(html.replace(/<[^>]*>/g, ' ')) }, what: 'G10' },
+    { name: '宽度分档改成不单调（更窄反而画更多）', patch: (s) => s.replace('  if (w >= VC_FOLD_BANDS[0]) return 0\n  if (w >= VC_FOLD_BANDS[1]) return 1\n  if (w >= VC_FOLD_BANDS[2]) return 2\n  return 3', '  if (w >= VC_FOLD_BANDS[0]) return 0\n  if (w >= VC_FOLD_BANDS[1]) return 2\n  if (w >= VC_FOLD_BANDS[2]) return 1\n  return 3'), test: (v) => { let prev = null; for (const w of [460, 420, 380, 360, 340, 320, 300, 200]) { const b = v.vcFoldBandAt(w); if (prev !== null && b < prev) return false; prev = b } return true }, what: 'D11' },
+  ]
+  for (const c of antiCases) {
+    let broke = false
+    const keepT = tZh
+    if (c.en === true) tZh = tEn
+    try { const v = buildView(c.patch, [], React, DswsCtx, TipStub, IcStub, c.seed || null, c.hostStub) ; broke = c.test(v) === false } catch (e) { broke = true }
+    tZh = keepT
+    check(broke, 'H 反证：把「' + c.name + '」改坏之后，' + c.what + ' 那条断言当场变红')
+  }
+  // 反证（词条真在字典里那条）：从中文那半边删掉一条键，F9 的判据必须当场报出来。
+  const zhBroken = Object.assign({}, LOC.zh)
+  delete zhBroken['vc.retry']
+  check(missingOf(zhBroken, LOC.en, ['vc.retry']).length === 1 && missingOf(LOC.zh, LOC.en, ['vc.retry']).length === 0, 'H 反证：从 zh 字典里删掉 vc.retry → F9 那条当场变红（同一判据在真字典上放行）')
+  // 反证（词条位置那条的渲染级证明）：把词典换成「查不到就回键名」（上一版真发生过的样子），
+  //   G8 那条判据必须当场抓出来 —— 这正说明「中文界面印键名」这类假绿躲不过去。
+  const goodT = tZh
+  tZh = (k) => k
+  let brokenHtml = ''
+  try {
+    const brokenRender = buildView((s) => s.replace('React.useState(vcNewReads)', 'React.useState(function () { return seedReads })'), [], React, DswsCtx, TipStub, IcStub, seedReads)
+    brokenHtml = renderToStaticMarkup(React.createElement(brokenRender.VersionControlTab, { st: { cwd: 'D:/w/repo' } }))
+  } catch (e) { brokenHtml = '' }
+  tZh = goodT
+  check(brokenHtml.replace(/<[^>]*>/g, ' ').indexOf('vc.changes') >= 0, 'H 反证：词典查不到就回键名时，DOM 里当场出现键名（上一版的中文界面就是这个样子，G8 抓得住）')
+  // 反证本身也要自证：改坏的源码必须真的与原文不同（改不中就等于没证）
+  const closureSrc = VC_FILES.map((f2) => stripExports(read(f2))).join('\n')
+  const untouched = antiCases.filter((c) => c.patch(closureSrc) === closureSrc)
+  check(untouched.length === 0, 'H 反证自证：' + antiCases.length + ' 处改法都真的改到了源码（改不中就等于没证）' + (untouched.length ? ' —— 没改中的：' + untouched.map((c) => c.name).join('、') : ''))
+
+  console.log(failed ? '\n存在失败 — verify-818-version-control-view 未通过' : '\n全部通过 — 版本管理页签界面侧门禁生效（' + total + ' 项断言）')
+  process.exit(failed ? 1 : 0)
+}
+main().catch(function (e) { console.error('门禁执行异常：' + ((e && e.stack) || e)); process.exit(1) })

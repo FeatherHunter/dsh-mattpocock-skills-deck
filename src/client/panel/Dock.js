@@ -333,7 +333,7 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
           // 2026-09-24 维护者定：这一行（h(SessionChainStrip, …)「每个会话在处理哪些票」#721）**暂时不挂载** ——
           //   UI 上先不显示，能力全留着（判据与画法都在 views/shared/sessionChainView.js，文件头有指针与去向）。
           //   维护者指了票号要显示时，把那一行接回这里即可；在那之前别把它的判据、词条与导出顺手删掉。
-          s.tab === 'list' ? (active ? h(MapDetail, { st: s, g: active }) : hasIssueDetail ? h(IssueDetail, { st: s }) : h(ListTab, { st: s, narrow: narrow })) : null,
+          s.tab === 'list' ? (active ? h(MapDetail, { st: s, g: active }) : hasIssueDetail ? h(IssueDetail, { st: s }) : h(ListTab, { st: s, narrow: narrow })) : null, s.tab === 'versionControl' ? h(VersionControlTab, { st: s, narrow: narrow }) : null, // #818 版本管理页签的内容分发：与上一条同排，Dock.js 正贴着 350 行上限（单独起一行会变 351，撞文件粒度门禁）
           s.tab === 'pr' ? (showPrTab ? (hasIssueDetail ? h(IssueDetail, { st: s }) : h(PrTab, { st: s, narrow: narrow })) : h(ListTab, { st: s, narrow: narrow })) : null,
           s.tab === 'skills' ? h(SkillsTab, { st: s }) : null,
           s.tab === 'checks' ? h(ChecksTab, { st: s }) : null,

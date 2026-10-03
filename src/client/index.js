@@ -229,6 +229,8 @@ export default {
     // ==== leaf:checksums (spliced by build) ====
     // ==== leaf:chainRenderer (spliced by build) ====
     // ==== leaf:skillFloatList (spliced by build) ====
+    // ==== leaf:vcText (spliced by build) ==== // ==== leaf:vcFold (spliced by build) ==== // ==== leaf:vcCommit (spliced by build) ==== // ==== leaf:vcBlocks (spliced by build) ====
+    // ==== leaf:vcTabVisible (spliced by build) ==== // ==== leaf:vcData (spliced by build) ==== // ==== leaf:versionControlTab (spliced by build) ====
     // ==== leaf:tabs (spliced by build) ====
     // ==== leaf:truthLines (spliced by build) ====
     // 2026-09-24：降级横幅的「画」那一段从 ListTab.js 搬来这里（判据仍是上面 truthLines 里的 restFallbackView）。

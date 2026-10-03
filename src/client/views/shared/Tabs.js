@@ -25,13 +25,21 @@ export const useTabsRow = function (s, tabsRef) {
     Ic({ n: icon, size: 12 }),
     h('span', null, label),
   ])
-  // #506 拉取请求独立页签：能力门控显隐，只读能力位，不写后端名字；优先级按原型结论列表4/拉取请求5/技能6/环境检查7。
+  // #506 拉取请求独立页签：能力门控显隐，只读能力位，不写后端名字。
   const showPr = (typeof prTabVisible === 'function') ? prTabVisible(s) : false
+  // #818 版本管理页签（地图 #810）：照「拉取请求」这条先例做能力门控显隐。判据 vcTabVisible 由视图那一侧提供
+  //   （会排在 tabs 之前拼接），这里只做「有就用、没有就当这个能力不存在」的兜底，不自己定义它。
+  const showVc = (typeof vcTabVisible === 'function') ? vcTabVisible(s) : false
+  // 折叠优先级随 #818 调整（原来依次是 列表4 / 拉取请求5 / 技能6 / 环境检查7）：折叠机按数值
+  //   从大到小逐个收，数值越大越早让位。新页签插在列表之后、占 5，既有三项各加一档挪成 6/7/8，两个理由：
+  //   1) 既有三项之间「拉取请求 → 技能 → 环境检查」的相对折叠次序一个字不动；
+  //   2) 新页签紧随列表之后显示，在需要让位的页签里最晚被折叠（比列表先走，比既有三项都晚）。
   const items = [
     tabBtn('list', 'list', tr('panel.tabList'), 4),
-    showPr ? tabBtn('pr', 'swap', tr('panel.tabPr'), 5) : null,
-    tabBtn('skills', 'compass', tr('panel.tabSkills'), 6),
-    tabBtn('checks', 'gear', tr('panel.tabChecks'), 7),
+    showVc ? tabBtn('versionControl', 'branch', tr('panel.tabVersionControl'), 5) : null,
+    showPr ? tabBtn('pr', 'swap', tr('panel.tabPr'), 6) : null,
+    tabBtn('skills', 'compass', tr('panel.tabSkills'), 7),
+    tabBtn('checks', 'gear', tr('panel.tabChecks'), 8),
     h('span', { style: { flex: 1 } }),
     // v1.5 T6 修订（V2 描边紫 · 刷新左侧）：新增 wayfinder —— 注入 /wayfinder + 仓库信息 + 需求引导
     // issue #4：新增 BUG 单 —— 同构按钮（新会话预填 /wayfinder 新增 BUG 单 prompt）
