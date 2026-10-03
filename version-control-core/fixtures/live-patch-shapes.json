@@ -1,0 +1,50 @@
+{
+  "source": {
+    "gitVersion": "git version 2.49.0.windows.1",
+    "capturedAt": "2026-10-04",
+    "live": true,
+    "note": "本机实采（#817 第二轮验收挖出的补丁头缺陷）：临时仓库建在仓库根下的 .tmp-817-patch（按票面要求事后已删），不是本仓库的工作区。六种改动各采一份单文件补丁，另有一份不带路径的全量补丁用来覆盖重命名头（single-file 那种带路径的求法会让 git 关掉重命名配对，把重命名显示成新增——这一条也在样本里留着，别当成解析器的形状）。路径含中文与空格；样本里的绝对路径是采集那台机器上临时仓库的位置，原样保留。",
+    "commands": {
+      "fixedPrefix": "git --no-optional-locks -c core.quotepath=false -c color.ui=false -c i18n.logOutputEncoding=UTF-8 <子命令>",
+      "singleFile": "git ... diff --unified=3 --no-color --no-ext-diff --no-prefix --find-renames HEAD -- <路径>",
+      "wholeTree": "git ... diff --unified=3 --no-color --no-ext-diff --no-prefix --find-renames HEAD"
+    }
+  },
+  "patches": {
+    "modified": {
+      "code": 0,
+      "out": "diff --git 普通修改.txt 普通修改.txt\nindex 5ec4603..4e7c57b 100644\n--- 普通修改.txt\n+++ 普通修改.txt\n@@ -1,3 +1,4 @@\n 一\n-二\n+二改\n 三\n+四\n",
+      "err": "warning: in the working copy of '普通修改.txt', LF will be replaced by CRLF the next time Git touches it\n"
+    },
+    "added": {
+      "code": 0,
+      "out": "diff --git 新增 文件.txt 新增 文件.txt\nnew file mode 100644\nindex 0000000..4930ffc\n--- /dev/null\n+++ 新增 文件.txt\t\n@@ -0,0 +1,2 @@\n+崭新的文件\n+第二行\n",
+      "err": ""
+    },
+    "deleted": {
+      "code": 0,
+      "out": "diff --git 要删除.txt 要删除.txt\ndeleted file mode 100644\nindex 93e013a..0000000\n--- 要删除.txt\n+++ /dev/null\n@@ -1 +0,0 @@\n-会被删掉\n",
+      "err": ""
+    },
+    "modeChanged": {
+      "code": 0,
+      "out": "diff --git 改模式.sh 改模式.sh\nold mode 100644\nnew mode 100755\n",
+      "err": ""
+    },
+    "renamed": {
+      "code": 0,
+      "out": "diff --git 改名 后.txt 改名 后.txt\nnew file mode 100644\nindex 0000000..f1f105f\n--- /dev/null\n+++ 改名 后.txt\t\n@@ -0,0 +1 @@\n+重命名的内容\n",
+      "err": ""
+    },
+    "binary": {
+      "code": 0,
+      "out": "diff --git 图片.png 图片.png\nindex c68901b..e74365d 100644\nBinary files 图片.png and 图片.png differ\n",
+      "err": ""
+    },
+    "combined": {
+      "code": 0,
+      "out": "diff --git 图片.png 图片.png\nindex c68901b..e74365d 100644\nBinary files 图片.png and 图片.png differ\ndiff --git 改名 前.txt 改名 后.txt\nsimilarity index 100%\nrename from 改名 前.txt\nrename to 改名 后.txt\ndiff --git 改模式.sh 改模式.sh\nold mode 100644\nnew mode 100755\ndiff --git 新增 文件.txt 新增 文件.txt\nnew file mode 100644\nindex 0000000..4930ffc\n--- /dev/null\n+++ 新增 文件.txt\t\n@@ -0,0 +1,2 @@\n+崭新的文件\n+第二行\ndiff --git 普通修改.txt 普通修改.txt\nindex 5ec4603..4e7c57b 100644\n--- 普通修改.txt\n+++ 普通修改.txt\n@@ -1,3 +1,4 @@\n 一\n-二\n+二改\n 三\n+四\ndiff --git 要删除.txt 要删除.txt\ndeleted file mode 100644\nindex 93e013a..0000000\n--- 要删除.txt\n+++ /dev/null\n@@ -1 +0,0 @@\n-会被删掉\n",
+      "err": "warning: in the working copy of '普通修改.txt', LF will be replaced by CRLF the next time Git touches it\n"
+    }
+  }
+}

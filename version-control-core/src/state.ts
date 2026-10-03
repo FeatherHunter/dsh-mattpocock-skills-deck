@@ -60,6 +60,19 @@ export function shortestUniqueSuffix(paths: string[]): number[] {
   })
 }
 
+/**
+ * 工作树路径比对用的归一化：反斜杠与正斜杠统一、去掉结尾的斜杠、Windows 盘符只折大小写
+ * （盘符大小写不敏感是 Windows 的事实）；其余部分原样保留，POSIX 上路径是大小写敏感的。
+ */
+function sameWorktreePath(a: string, b: string): boolean {
+  const norm = (p: string): string => {
+    const s = String(p).replace(/\\/g, '/').replace(/\/+$/, '')
+    const drive = /^([a-zA-Z]):/.exec(s)
+    return drive ? s.charAt(0).toLowerCase() + s.slice(1) : s
+  }
+  return norm(a) === norm(b)
+}
+
 export function displayFor(path: string, keep: number): string {
   const segs = String(path).replace(/\\/g, '/').split('/').filter((s) => s !== '')
   return segs.slice(-Math.max(1, keep)).join('/')
@@ -124,8 +137,13 @@ export function assemble(input: AssembleInput): AssembleResult {
   const unstaged = files.filter((f) => f.unstaged || f.change === 'untracked')
   const allPaths = input.worktrees.map((w) => w.path)
   const keeps = shortestUniqueSuffix(allPaths.length > 0 ? allPaths : [input.repoRoot])
+  // 哪一个工作树是当前的：先用路径比对（宿主已经把 rev-parse --show-toplevel 的结果当 repoRoot 传进来）。
+  // 游离头下同一个提交可能挂在多棵工作树上，只按 oid 找会命中列表里第一棵（通常是主工作树）——
+  // 那正是用户最怕的「明明站在游离头上，界面说我在另一棵树上」。
   let currentPath = input.repoRoot
-  if (!input.statusDetached && input.statusHead) {
+  const byPath = input.worktrees.find((w) => sameWorktreePath(w.path, input.repoRoot))
+  if (byPath) currentPath = byPath.path
+  else if (!input.statusDetached && input.statusHead) {
     const hit = input.worktrees.find((w) => w.branch === input.statusHead)
     if (hit) currentPath = hit.path
   } else if (input.statusDetached && input.statusOid) {

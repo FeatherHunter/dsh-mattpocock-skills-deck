@@ -3,6 +3,18 @@ const HEX = /^[0-9a-f]+$/;
 function fail(detail) {
   return { ok: false, error: "status-malformed", detail };
 }
+function splitFixedFields(record, fixedCount) {
+  const parts = [];
+  let start = 0;
+  for (let k = 0; k < fixedCount; k += 1) {
+    const sp = record.indexOf(" ", start);
+    if (sp < 0) return null;
+    parts.push(record.slice(start, sp));
+    start = sp + 1;
+  }
+  parts.push(record.slice(start));
+  return parts;
+}
 export function parseStatus(stdout) {
   const fields = String(stdout).split("\0");
   if (fields.length > 0 && fields[fields.length - 1] === "") fields.pop();
@@ -41,25 +53,29 @@ export function parseStatus(stdout) {
     }
     const tag = f.charAt(0);
     if (tag === "1") {
-      const parts = f.split(" ");
-      if (parts.length !== 9) return fail("1 \u8BB0\u5F55\u5B57\u6BB5\u6570\u4E0D\u662F 9");
+      const parts = splitFixedFields(f, 8);
+      if (!parts) return fail("1 \u8BB0\u5F55\u56FA\u5B9A\u5B57\u6BB5\u4E0D\u8DB3 8 \u9879");
       const xy = parts[1];
       if (!/^[.MTAUDRC]{2}$/.test(xy)) return fail("1 \u8BB0\u5F55 XY \u975E\u6CD5");
+      if (parts[8] === "") return fail("1 \u8BB0\u5F55\u8DEF\u5F84\u4E3A\u7A7A");
       entries.push({ kind: "ordinary", x: xy.charAt(0), y: xy.charAt(1), path: parts[8], origPath: null });
     } else if (tag === "2") {
-      const parts = f.split(" ");
-      if (parts.length !== 10) return fail("2 \u8BB0\u5F55\u5B57\u6BB5\u6570\u4E0D\u662F 10");
+      const parts = splitFixedFields(f, 9);
+      if (!parts) return fail("2 \u8BB0\u5F55\u56FA\u5B9A\u5B57\u6BB5\u4E0D\u8DB3 9 \u9879");
       const xy = parts[1];
       if (!/^[.MTAUDRC]{2}$/.test(xy)) return fail("2 \u8BB0\u5F55 XY \u975E\u6CD5");
+      if (parts[9] === "") return fail("2 \u8BB0\u5F55\u8DEF\u5F84\u4E3A\u7A7A");
       if (i >= fields.length) return fail("2 \u8BB0\u5F55\u7F3A\u539F\u8DEF\u5F84\u5B57\u6BB5");
       const orig = fields[i];
       i += 1;
+      if (orig === "") return fail("2 \u8BB0\u5F55\u539F\u8DEF\u5F84\u4E3A\u7A7A");
       entries.push({ kind: "renamed", x: xy.charAt(0), y: xy.charAt(1), path: parts[9], origPath: orig });
     } else if (tag === "u") {
-      const parts = f.split(" ");
-      if (parts.length !== 11) return fail("u \u8BB0\u5F55\u5B57\u6BB5\u6570\u4E0D\u662F 11");
+      const parts = splitFixedFields(f, 10);
+      if (!parts) return fail("u \u8BB0\u5F55\u56FA\u5B9A\u5B57\u6BB5\u4E0D\u8DB3 10 \u9879");
       const xy = parts[1];
       if (xy.length !== 2) return fail("u \u8BB0\u5F55 XY \u975E\u6CD5");
+      if (parts[10] === "") return fail("u \u8BB0\u5F55\u8DEF\u5F84\u4E3A\u7A7A");
       entries.push({ kind: "unmerged", x: xy.charAt(0), y: xy.charAt(1), path: parts[10], origPath: null });
     } else if (tag === "?") {
       if (f.charAt(1) !== " ") return fail("? \u8BB0\u5F55\u7F3A\u5C11\u7A7A\u683C");

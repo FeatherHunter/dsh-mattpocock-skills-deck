@@ -89,6 +89,124 @@ async function main() {
   const dr = refs.parseRefs(dirty.refs.out)
   check(dr.ok === true && dr.refs.some((r) => r.upstream === null), '无上游分支解出（track 空串）')
 
+  // ---- 3.5) #817 修正：numstat 的两种真机形状（真机字节样本，live:true）----
+  // 来历：真机上普通文件的 numstat 是「计数与路径同一个 NUL 字段」，重命名才是「计数头独占字段 + 两个路径字段」。
+  // #816 的手写样本只写了重命名那一种，于是解析器只认一种形状也一直是绿的；这一段用真机字节把它钉住。
+  const live = readJson('version-control-core/fixtures/live-numstat-shapes.json')
+  check(live.source.live === true && /2\.49/.test(live.source.gitVersion), '真机样本带版本与 live 标记（' + live.source.gitVersion + '）')
+  const liveNumstat = live.diffFiles.out
+  check(/-\t-\t[^\0]+\0/.test(liveNumstat), '真机样本含「计数与路径同一字段」的二进制条目')
+  check(/\d+\t\d+\t\0[^\0]+\0[^\0]+\0/.test(liveNumstat), '真机样本含「计数头独占字段 + 两个路径字段」的重命名条目')
+  check(/\d+\t\d+\t[^\0]+\0/.test(dirty.numstat.out), '手写样本的 numstat 已按真机形状改写（普通条目计数与路径同一字段）')
+  const ld = diffFiles.parseDiffFiles(liveNumstat)
+  check(ld.ok === true && ld.files.length === 4, '真机 numstat 解出四条（实得 ' + (ld.ok === true ? ld.files.length : '失败') + '）')
+  if (ld.ok === true) {
+    check(ld.files.some((f) => f.path === '图片.png' && f.added === null && f.deleted === null), '真机二进制行数记 null（不是 0）')
+    check(ld.files.some((f) => f.path === '已跟踪 文件.txt' && f.added === 2 && f.deleted === 1), '真机普通修改解出（中文与空格路径原样）')
+    check(ld.files.some((f) => f.path === '改名 后.txt' && f.origPath === '改名 前.txt'), '真机重命名原路径在前、新路径在后')
+    check(ld.files.some((f) => f.path === '普通.txt' && f.added === 1 && f.deleted === 1), '真机普通修改第二条解出')
+  }
+  const ls = status.parseStatus(live.status.out)
+  check(ls.ok === true && ls.entries.some((e) => e.kind === 'untracked' && e.path === '新增 未跟踪.txt'), '真机 status 解开未跟踪新文件')
+  check(ls.ok === true && ls.entries.some((e) => e.kind === 'ordinary' && e.path === '已跟踪 文件.txt'), '真机 status：1 号记录的路径带空格也解出（-z 下路径原样不转义）')
+  check(ls.ok === true && ls.entries.some((e) => e.kind === 'renamed' && e.path === '改名 后.txt' && e.origPath === '改名 前.txt'), '真机 status：2 号记录的路径带空格也解出（新在前、原在后）')
+  // 反证：整行按空格全切、再数固定段数的旧写法，在这份真机 status 上必然多切出一段而判红。
+  const firstOrdinary = live.status.out.split('\0').filter((f) => f.charAt(0) === '1' && f.indexOf('已跟踪 文件.txt') >= 0)[0]
+  check(String(firstOrdinary).split(' ').length === 10, '真机 1 号记录按空格全切是 10 段（路径里带空格，旧写法要求恰好 9 段）')
+  const oldSplitBySpace = function (record) { return String(record).split(' ').length === 9 ? { ok: true } : { ok: false, error: 'status-malformed', detail: '1 记录字段数不是 9' } }
+  const ob = oldSplitBySpace(firstOrdinary)
+  check(ob.ok === false, '反证：按空格全切并数段数的旧写法在这条真机记录上必须判红（' + (ob.ok === false ? ob.detail : '它居然过了') + '）')
+  const ll = log.parseLog(live.log.out)
+  check(ll.ok === true && ll.commits.length === 1 && ll.commits[0].subject.indexOf('首次提交') === 0, '真机 log 解开中文标题与八字段')
+  const lw = worktrees.parseWorktrees(live.worktrees.out, true)
+  check(lw.ok === true && lw.worktrees.length === 1 && lw.worktrees[0].branch === 'main', '真机 worktree 清单解出')
+  const lr = refs.parseRefs(live.refs.out)
+  check(lr.ok === true && lr.refs.some((r) => r.short === 'main' && r.current === true), '真机 refs 解出当前分支')
+
+  // 反证：把被守的口径改回去（解析器只认「计数头独占字段」一种形状）——旧实现在这份真机字节上必须当场失败。
+  const oldSingleShape = function (stdout) {
+    const text = String(stdout)
+    if (text === '') return { ok: true, files: [] }
+    const fields = text.split('\0')
+    if (fields.length > 0 && fields[fields.length - 1] === '') fields.pop()
+    const HEAD_RE = /^(\S+)\t(\S+)\t?$/
+    const out = []
+    let i = 0
+    while (i < fields.length) {
+      const m = HEAD_RE.exec(fields[i]); i += 1
+      if (!m) return { ok: false, error: 'diff-files-malformed', detail: '计数头不是 两数+TAB' }
+      if (i >= fields.length) return { ok: false, error: 'diff-files-malformed', detail: '缺路径字段' }
+      const p1 = fields[i]; i += 1
+      let path = p1; let orig = null
+      if (i < fields.length && !HEAD_RE.test(fields[i])) { orig = p1; path = fields[i]; i += 1 }
+      out.push({ path: path, origPath: orig, added: m[1] === '-' ? null : Number(m[1]), deleted: m[2] === '-' ? null : Number(m[2]) })
+    }
+    return { ok: true, files: out }
+  }
+  const od = oldSingleShape(liveNumstat)
+  check(od.ok === false, '反证：只认单一形状的旧解析器在真机样本上必须被判红（' + (od.ok === false ? od.detail : '它居然解出了 ' + od.files.length + ' 条') + '）')
+  check(oldSingleShape('0\t0\t\0old.txt\0new.txt\0').ok === true, '反证对照：旧解析器仍认重命名形状（说明它错的正是普通形状，不是整体坏掉）')
+
+  // ---- 3.7) #817 第二轮：补丁的六种真机头行（样本 live:true，按文件逐个采）----
+  const livePatch = readJson('version-control-core/fixtures/live-patch-shapes.json')
+  check(livePatch.source.live === true && livePatch.patches.combined.code === 0, '真机补丁样本带 live 标记与退出码')
+  for (const k of ['modified', 'added', 'deleted', 'modeChanged', 'renamed', 'binary', 'combined']) {
+    const pr = patch.parsePatch(livePatch.patches[k].out)
+    check(pr.ok === true, '真机补丁形态解出：' + k + (pr.ok === true ? '' : ' —— ' + pr.error + '：' + pr.detail))
+  }
+  const headOf = (caseName) => { const pr = patch.parsePatch(livePatch.patches[caseName].out); return pr.ok === true ? pr.lines.filter((l) => l.kind === 'filehead').map((l) => l.text) : [] }
+  check(headOf('added').some((t) => t.indexOf('new file mode ') === 0), '新增：new file mode 行算结构行')
+  check(headOf('deleted').some((t) => t.indexOf('deleted file mode ') === 0), '删除：deleted file mode 行算结构行')
+  check(headOf('modeChanged').some((t) => t.indexOf('old mode ') === 0) && headOf('modeChanged').some((t) => t.indexOf('new mode ') === 0), '模式变更：old/new mode 行算结构行')
+  const combinedHeads = headOf('combined')
+  check(combinedHeads.some((t) => t.indexOf('similarity index ') === 0) && combinedHeads.some((t) => t.indexOf('rename from ') === 0) && combinedHeads.some((t) => t.indexOf('rename to ') === 0), '重命名：similarity index 与 rename from/to 行算结构行')
+  check(combinedHeads.some((t) => t.indexOf('Binary files ') === 0), '二进制：Binary files 行算结构行')
+  check(combinedHeads.some((t) => t.indexOf('new file mode ') === 0) && combinedHeads.some((t) => t.indexOf('deleted file mode ') === 0) && combinedHeads.some((t) => t.indexOf('old mode ') === 0), '全量补丁里六种头行同时在（新增/删除/模式变更/重命名/二进制/普通）')
+  // 形状严格没放松：仍然认不出的行首字符必须显式失败
+  const stillStrict = patch.parsePatch('diff --git a b\nZ 这一行的行首字符谁也不认\n')
+  check(stillStrict.ok === false && stillStrict.error === 'patch-malformed', '形状严格不变：未知行首字符仍显式失败')
+  // 反证：旧的补丁解析器（只认普通修改那几种头行）在这些真机样本上必须当场判红
+  const oldPatchParser = function (stdout) {
+    const raw = String(stdout).split('\n')
+    if (raw.length > 0 && raw[raw.length - 1] === '') raw.pop()
+    const out = []
+    for (const ln of raw) {
+      if (ln.startsWith('@@')) out.push('hunk')
+      else if (ln.startsWith('diff --git ') || ln.startsWith('index ') || ln.startsWith('--- ') || ln.startsWith('+++ ')) out.push('filehead')
+      else if (ln.startsWith('\\ ')) out.push('no-newline')
+      else if (ln.startsWith('+')) out.push('add')
+      else if (ln.startsWith('-')) out.push('del')
+      else if (ln.startsWith(' ') || ln === '') out.push('context')
+      else return { ok: false, error: 'patch-malformed', detail: '未知差异行首字符' }
+    }
+    return { ok: true, lines: out }
+  }
+  const oldFailures = ['added', 'deleted', 'modeChanged', 'renamed', 'binary', 'combined'].filter((k) => oldPatchParser(livePatch.patches[k].out).ok === false)
+  check(oldFailures.length >= 5, '反证：旧的补丁解析器在真机样本上必红（实红 ' + oldFailures.length + ' 种：' + oldFailures.join('、') + '）')
+
+  // ---- 3.8) #817 第二轮：游离头工作树的身份要按路径认，不能按 oid 猜 ----
+  const DETACH_OID = 'a'.repeat(40)
+  const mkWorktree = (p, branch) => ({ path: p, head: DETACH_OID, branch: branch, bare: false, detached: branch === null, locked: false, lockReason: null, prunable: false, prunableReason: null })
+  const twoWorktrees = [mkWorktree('D:/repo', 'main'), mkWorktree('D:/repo-detached', null)]
+  const detachedInput = (root) => ({
+    repoRoot: root, bare: false, statusHead: '(detached)', statusDetached: true, statusOid: DETACH_OID,
+    statusUpstream: null, statusAhead: 0, statusBehind: 0, statusEntries: [], worktrees: twoWorktrees, refs: [], commits: [], diffFiles: [],
+    merging: false, rebasing: false, cherryPicking: false, reverting: false, tier: 'full', autocrlf: null, nowMs: 0, basisMs: null,
+  })
+  const d1 = state.assemble(detachedInput('D:/repo-detached'))
+  check(d1.ok === true && d1.screen.identity.worktreePath === 'D:/repo-detached', '游离头与主工作树同一提交时：身份命中游离那棵（实得 ' + (d1.ok === true ? d1.screen.identity.worktreePath : '失败') + '）')
+  check(d1.ok === true && d1.screen.otherWorktrees.length === 1 && d1.screen.otherWorktrees[0].path === 'D:/repo', '「其他工作树」把当前那棵排除掉')
+  check(d1.ok === true && d1.screen.identity.worktreeDisplay === 'repo-detached', '显示名跟着当前那棵走（最短唯一后缀下标一致）')
+  const d2 = state.assemble(detachedInput('d:\\repo-detached\\'))
+  check(d2.ok === true && d2.screen.identity.worktreePath === 'D:/repo-detached', '路径归一化：反斜杠、尾斜杠、盘符大小写不同也算同一棵')
+  const d3 = state.assemble(detachedInput('D:/repo'))
+  check(d3.ok === true && d3.screen.identity.worktreePath === 'D:/repo' && d3.screen.otherWorktrees[0].path === 'D:/repo-detached', '主工作树情形不回归：按路径命中主工作树')
+  const d4 = state.assemble(detachedInput('D:/不在工作树清单里'))
+  check(d4.ok === true && d4.screen.identity.worktreePath === 'D:/repo', '路径对不上时退回原来的 oid 退路（不在清单里也要有答案）')
+  // 反证：旧的「游离就按 oid find」写法必须判红
+  const oldDetachedPick = function (worktrees, oid) { const hit = worktrees.find((w) => w.head === oid); return hit ? hit.path : null }
+  check(oldDetachedPick(twoWorktrees, DETACH_OID) === 'D:/repo', '反证：只按 oid 找会命中主工作树（旧写法在这条用例上必红）')
+
   // ---- 4) 首屏组装：一次读全成败一起 ----
   if (cs.ok === true && cw.ok === true && cr.ok === true && cl.ok === true && cd.ok === true) {
     const asm = state.assemble({

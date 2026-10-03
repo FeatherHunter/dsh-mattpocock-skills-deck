@@ -7,7 +7,8 @@ function parseCount(v) {
   if (!/^\d+$/.test(v)) return void 0;
   return Number(v);
 }
-const HEAD_RE = /^(\S+)\t(\S+)\t?$/;
+const COUNTS_ONLY_RE = /^(\S+)\t(\S+)\t?$/;
+const INLINE_RE = /^(\S+)\t(\S+)\t(.*)$/;
 export function parseDiffFiles(stdout) {
   const text = String(stdout);
   if (text === "") return { ok: true, files: [] };
@@ -18,24 +19,29 @@ export function parseDiffFiles(stdout) {
   while (i < fields.length) {
     const head = fields[i];
     i += 1;
-    const m = HEAD_RE.exec(head);
-    if (!m) return fail("\u8BA1\u6570\u5934\u4E0D\u662F \u4E24\u6570+TAB");
-    const added = parseCount(m[1]);
-    const deleted = parseCount(m[2]);
-    if (added === void 0 || deleted === void 0) return fail("\u8BA1\u6570\u975E\u6570\u5B57");
-    if (i >= fields.length) return fail("\u7F3A\u8DEF\u5F84\u5B57\u6BB5");
-    const p1 = fields[i];
-    i += 1;
-    if (p1 === "") return fail("\u8DEF\u5F84\u4E3A\u7A7A");
-    let path = p1;
-    let orig = null;
-    if (i < fields.length && !HEAD_RE.test(fields[i])) {
-      orig = p1;
-      path = fields[i];
+    const countsOnly = COUNTS_ONLY_RE.exec(head);
+    if (countsOnly) {
+      const added2 = parseCount(countsOnly[1]);
+      const deleted2 = parseCount(countsOnly[2]);
+      if (added2 === void 0 || deleted2 === void 0) return fail("\u8BA1\u6570\u975E\u6570\u5B57");
+      if (i >= fields.length) return fail("\u91CD\u547D\u540D\u7F3A\u539F\u8DEF\u5F84\u5B57\u6BB5");
+      const orig = fields[i];
+      i += 1;
+      if (orig === "") return fail("\u539F\u8DEF\u5F84\u4E3A\u7A7A");
+      if (i >= fields.length) return fail("\u91CD\u547D\u540D\u7F3A\u65B0\u8DEF\u5F84\u5B57\u6BB5");
+      const path = fields[i];
       i += 1;
       if (path === "") return fail("\u65B0\u8DEF\u5F84\u4E3A\u7A7A");
+      out.push({ path, origPath: orig, added: added2, deleted: deleted2 });
+      continue;
     }
-    out.push({ path, origPath: orig, added, deleted });
+    const inline = INLINE_RE.exec(head);
+    if (!inline) return fail("\u8BA1\u6570\u5934\u4E0D\u662F \u4E24\u6570+TAB");
+    const added = parseCount(inline[1]);
+    const deleted = parseCount(inline[2]);
+    if (added === void 0 || deleted === void 0) return fail("\u8BA1\u6570\u975E\u6570\u5B57");
+    if (inline[3] === "") return fail("\u8DEF\u5F84\u4E3A\u7A7A");
+    out.push({ path: inline[3], origPath: null, added, deleted });
   }
   return { ok: true, files: out };
 }

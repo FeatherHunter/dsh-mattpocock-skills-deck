@@ -3,7 +3,7 @@
     "gitVersion": "git version 2.49.0.windows.1",
     "capturedAt": "2026-10-02",
     "live": false,
-    "note": "手写：status v2 官方形状 + 调研实测（重命名双 NUL、冲突 u 十一场、中文空格路径）"
+    "note": "手写：status v2 官方形状 + 调研实测（重命名双 NUL、冲突 u 十一场、中文空格路径）；numstat 这一段在 #817（2026-10-04）按真机形状改写——普通条目的计数与路径在同一个 NUL 字段里、重命名条目的计数头独占字段（原来写成每个条目都独占，真机不存在这种形状，见 live-numstat-shapes.json）"
   },
   "status": {
     "code": 0,
@@ -12,7 +12,7 @@
   },
   "numstat": {
     "code": 0,
-    "out": "1\t2\t\u0000staged-file.txt\u00000\t1\t\u0000unstaged-file.txt\u0000-\t-\t\u0000logo.png\u00000\t0\t\u0000old-name.txt\u0000new-新名字.txt",
+    "out": "1\t2\tstaged-file.txt\u00000\t1\tunstaged-file.txt\u0000-\t-\tlogo.png\u00000\t0\t\u0000old-name.txt\u0000new-新名字.txt\u0000",
     "err": ""
   },
   "refs": {

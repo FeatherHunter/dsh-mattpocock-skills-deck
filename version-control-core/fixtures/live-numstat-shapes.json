@@ -1,0 +1,55 @@
+{
+  "source": {
+    "gitVersion": "git version 2.49.0.windows.1",
+    "capturedAt": "2026-10-04",
+    "live": true,
+    "note": "本机实采（#817）：临时仓库建在仓库根下的 .tmp-817-numstat（按票面要求事后已删），不是本仓库的工作区。四种路径形态集中造在一个提交之后：已跟踪文件修改、暂存重命名、二进制文件修改、新增未跟踪；路径带中文与空格。样本里的绝对路径是采集时那台机器上临时仓库的位置，原样保留。",
+    "commands": {
+      "fixedPrefix": "git --no-optional-locks -c core.quotepath=false -c color.ui=false -c i18n.logOutputEncoding=UTF-8 <子命令>",
+      "step0": "git ... rev-parse --absolute-git-dir --is-inside-work-tree --is-bare-repository",
+      "toplevel": "git ... rev-parse --show-toplevel",
+      "version": "git ... --version",
+      "status": "git ... status --porcelain=v2 --branch -z --untracked-files=all --find-renames",
+      "worktrees": "git ... worktree list --porcelain -z",
+      "refs": "git ... for-each-ref --format=%(refname)%00%(refname:short)%00%(objectname)%00%(upstream:short)%00%(upstream:track)%00%(HEAD)%00%(committerdate:iso-strict) refs/heads/",
+      "log": "git ... log --no-decorate -z --format=%H%x00%h%x00%an%x00%ae%x00%aI%x00%cI%x00%s%x00%P%x00 -n 5 --skip=0",
+      "numstat": "git ... diff --numstat -z --no-ext-diff --find-renames HEAD",
+      "autocrlf": "git ... config --get core.autocrlf"
+    }
+  },
+  "step0": {
+    "code": 0,
+    "out": "D:/dsh-plugin/dsh-mattpocock-skills-deck/.tmp-817-numstat/.git\ntrue\nfalse\n",
+    "err": ""
+  },
+  "status": {
+    "code": 0,
+    "out": "# branch.oid 991f0ee2297407781439bfecdb77bb5b66752e68\u0000# branch.head main\u00001 .M N... 100644 100644 100644 79993c113dc7f018c28563e456b2c949f4a4e7ba 79993c113dc7f018c28563e456b2c949f4a4e7ba 图片.png\u00001 .M N... 100644 100644 100644 f1c8e85148d3faf175dd34d1f842b7655b30e881 f1c8e85148d3faf175dd34d1f842b7655b30e881 已跟踪 文件.txt\u00002 R. N... 100644 100644 100644 f1f105f98207de150b71d0af06cd5bb6412656cf f1f105f98207de150b71d0af06cd5bb6412656cf R100 改名 后.txt\u0000改名 前.txt\u00001 .M N... 100644 100644 100644 de980441c3ab03a8c07dda1ad27b8a11f39deb1e de980441c3ab03a8c07dda1ad27b8a11f39deb1e 普通.txt\u0000? 新增 未跟踪.txt\u0000",
+    "err": ""
+  },
+  "worktrees": {
+    "code": 0,
+    "out": "worktree D:/dsh-plugin/dsh-mattpocock-skills-deck/.tmp-817-numstat\u0000HEAD 991f0ee2297407781439bfecdb77bb5b66752e68\u0000branch refs/heads/main\u0000\u0000",
+    "err": ""
+  },
+  "refs": {
+    "code": 0,
+    "out": "refs/heads/main\u0000main\u0000991f0ee2297407781439bfecdb77bb5b66752e68\u0000\u0000\u0000*\u00002026-10-04T00:14:04+08:00\n",
+    "err": ""
+  },
+  "log": {
+    "code": 0,
+    "out": "991f0ee2297407781439bfecdb77bb5b66752e68\u0000991f0ee\u0000测试用户\u0000test@example.com\u00002026-10-04T00:14:04+08:00\u00002026-10-04T00:14:04+08:00\u0000首次提交：四种路径形态各一份\u0000\u0000\u0000",
+    "err": ""
+  },
+  "diffFiles": {
+    "code": 0,
+    "out": "-\t-\t图片.png\u00002\t1\t已跟踪 文件.txt\u00000\t0\t\u0000改名 前.txt\u0000改名 后.txt\u00001\t1\t普通.txt\u0000",
+    "err": "warning: in the working copy of '已跟踪 文件.txt', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of '普通.txt', LF will be replaced by CRLF the next time Git touches it\n"
+  },
+  "autocrlf": {
+    "code": 0,
+    "out": "true\n",
+    "err": ""
+  }
+}

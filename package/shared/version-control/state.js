@@ -20,6 +20,14 @@ export function shortestUniqueSuffix(paths) {
     return s.length;
   });
 }
+function sameWorktreePath(a, b) {
+  const norm = (p) => {
+    const s = String(p).replace(/\\/g, "/").replace(/\/+$/, "");
+    const drive = /^([a-zA-Z]):/.exec(s);
+    return drive ? s.charAt(0).toLowerCase() + s.slice(1) : s;
+  };
+  return norm(a) === norm(b);
+}
 export function displayFor(path, keep) {
   const segs = String(path).replace(/\\/g, "/").split("/").filter((s) => s !== "");
   return segs.slice(-Math.max(1, keep)).join("/");
@@ -81,7 +89,9 @@ export function assemble(input) {
   const allPaths = input.worktrees.map((w) => w.path);
   const keeps = shortestUniqueSuffix(allPaths.length > 0 ? allPaths : [input.repoRoot]);
   let currentPath = input.repoRoot;
-  if (!input.statusDetached && input.statusHead) {
+  const byPath = input.worktrees.find((w) => sameWorktreePath(w.path, input.repoRoot));
+  if (byPath) currentPath = byPath.path;
+  else if (!input.statusDetached && input.statusHead) {
     const hit = input.worktrees.find((w) => w.branch === input.statusHead);
     if (hit) currentPath = hit.path;
   } else if (input.statusDetached && input.statusOid) {
