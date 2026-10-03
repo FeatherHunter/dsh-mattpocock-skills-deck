@@ -17,8 +17,7 @@
 //   全文一律不记原文、不记标题、不记错误原文（#489 白名单口径）；直达归属沿用调试级
 //   naming.sweep（trigger direct-created），不新增事件。
 import { hash8 } from '../../shared/refresh-workspace-key.js'
-import { NAMING_STAGES, classifyDivergence, DIVERGENCE } from '../../shared/naming-tracking.js'
-import { newSessionTitle, composeDraftTitle } from '../../shared/naming-titles.js'
+import { NAMING_STAGES } from '../../shared/naming-tracking.js'
 
 // 溢出 guard：用户拍板传全文，两段自然有界；超过此字节才截助手侧尾部（用户侧意图优先保留）。
 const SUMMARY_INPUT_MAX_BYTES = 48 * 1024
@@ -288,72 +287,5 @@ export function createNamingSummary(deps) {
     })().catch(function () { return { ok: true } })
   }
 
-  /** 宿主直执行排队单（#746：拿号改名同一刻，不等客户端拉取）。改名面缺任一样即回落（false），客户端老路照旧。 */
-  async function executeOrdersHost(orders) {
-    try {
-      if (!Array.isArray(orders) || !orders.length) return false
-      const sessions = (ctx && typeof ctx.get === 'function') ? ctx.get('sessions') : null
-      if (!sessions || typeof sessions.scope !== 'function' || typeof sessions.sessionOf !== 'function') return false
-      const readTitleHost = function (id) { try { if (sessions.list && typeof sessions.list.getSnapshot === 'function') { const snap = sessions.list.getSnapshot(); const row = snap && snap.byId ? snap.byId[id] : null; if (row && typeof row.title === 'string' && row.title) return row.title } } catch (eSnap) {} try { if (typeof sessions.get === 'function') { const s = sessions.get(id); if (s && typeof s.title === 'string' && s.title) return s.title } } catch (eGet) {} return null }
-      const h = await naming()
-      if (!h) return false
-      let done = false
-      // #746 Knife4：跳过计数（面缺失/读不到/未知各记一笔，轮末统一走既有调试事件，不新增事件）。
-      let skipFace = 0, skipTitle = 0, skipUnknown = 0
-      for (let i = 0; i < orders.length; i++) {
-        try {
-          const o = orders[i]
-          if (!o || !o.sessionId) continue
-          const sid = o.sessionId, lock = o.lock || {}
-          if (lock.locked) continue
-          const scope = sessions.scope(sid)
-          const face = scope ? sessions.sessionOf(scope) : null
-          if (!face || typeof face.rename !== 'function') { skipFace++; continue }
-          let faceSid = null
-          try { faceSid = (face && (face.sessionId || face.id || face.sid)) || (scope && (scope.sessionId || scope.id || scope.sid)) } catch (eF) {}
-          if (faceSid && String(faceSid) !== String(sid)) { skipFace++; continue }
-          let cur = null
-          try { cur = readTitleHost(sid) } catch (eG) {}
-          if (cur === null) { skipTitle++; continue }
-          let first = (typeof lock.firstUserText === 'string' && lock.firstUserText) ? lock.firstUserText : null
-          if (!first) { try { first = await readFirstUserText(ctx, sid) } catch (eR) {} }
-          // 先合成目标名，再归因：这样「现名已经就是目标」也能被认出来（宿主刚改完、客户端拿同一张单再跑一遍是常事）。
-          let target = null
-          if (o.kind === 'numbered') {
-            const num = Number(o.number)
-            if (!isFinite(num) || num < 0) continue
-            try { target = newSessionTitle({ number: num, numberText: o.numberText, title: o.title || '' }) } catch (eT) { continue }
-          } else if (o.kind === 'draft') {
-            const probe = String((lock.baselineTitle || '') + ' ' + (o.hint || ''))
-            const lang = /[\u4e00-\u9fff]/.test(probe) ? 'zh' : 'en'
-            try { target = composeDraftTitle({ hint: o.hint, lang: lang, baselineTitle: lock.baselineTitle || '' }) } catch (eD) { continue }
-          } else continue
-          if (!target) continue
-          // 分歧归因只问共享核心一处：在位就收敛回报，让位就记账并把理由带走（日志别再一律写「用户改的」）。
-          const code = classifyDivergence({ currentTitle: cur, lastMachineTitle: lock.lastMachineTitle, baselineTitle: lock.baselineTitle, baselineIsOurs: lock.baselineIsOurs, firstUserText: first, targetTitle: target })
-          if (code === DIVERGENCE.UNKNOWN_TITLE) { skipUnknown++; continue }
-          if (code === DIVERGENCE.HAND_EDIT) { try { await h.handleNamingResult({ sessionId: sid, outcome: 'locked', reason: code }) } catch (eLk) {}; continue }
-          // 收敛只认现名逐字等于目标（同客户端执行点；#746 交接卡死：有我们经手过不等于已在位）。
-          if (target === cur) { try { await h.handleNamingResult({ sessionId: sid, outcome: 'renamed', title: cur }) } catch (eIn) {}; continue }   // 已在位：收敛记账，不空改一次
-          // 写前二次确认标题未变（title changed before rename 则跳过，TOCTOU 关口；与客户端同源判据）。
-          let cur2 = null
-          try { cur2 = readTitleHost(sid) } catch (eG2) {}
-          if (cur2 !== cur) { skipTitle++; continue }
-          const r = await face.rename(target)
-          if (r && r.ok) {
-            try { await h.handleNamingResult({ sessionId: sid, outcome: 'renamed', title: (r.value && r.value.title) || target }) } catch (eH) {}
-            try { if (logCtx) logCtx.fire('info', 'naming.guard', { sidHash: hash8(sid), outcome: 'renamed', hintHash: hash8(o.hint || '') }) } catch (eL) {}
-            done = true
-          }
-        } catch (eO) {}
-      }
-      try {
-        const skipped = skipFace + skipTitle + skipUnknown
-        if (skipped > 0 && logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'naming.sweep', { trigger: 'execute-skip', count: skipped })
-      } catch (eL2) {}
-      return done
-    } catch (e) { return false }
-  }
-
-  return { maybeSummarize: maybeSummarize, onDeckWrite: onDeckWrite, executeOrdersHost: executeOrdersHost }
+  return { maybeSummarize: maybeSummarize, onDeckWrite: onDeckWrite }
 }

@@ -415,8 +415,7 @@ export function createRefreshWiring(deps) {
     syncAttention: syncAttention,
     noteWorkspaceActive: noteWorkspaceActive,
     firstTextOf: function (sid) { try { return readFirstUserText(d.ctx, sid) } catch (e) { return Promise.resolve(null) } }, // #746 首句直读（读而不激活；失败即 null）
-    titleOf: function (sid) { try { const ss = (d.ctx && typeof d.ctx.get === 'function') ? d.ctx.get('sessions') : null; if (!ss) return null; try { if (ss.list && typeof ss.list.getSnapshot === 'function') { const snap = ss.list.getSnapshot(); const row = snap && snap.byId ? snap.byId[sid] : null; if (row && typeof row.title === 'string' && row.title) return row.title } } catch (eSnap) {} try { if (typeof ss.get === 'function') { const s = ss.get(sid); if (s && typeof s.title === 'string' && s.title) return s.title } } catch (eGet) {} return null } catch (e) { return null } }, // 会话当前标题（命名守护据它判要不要把底座首句名盖回 [#n]；#746 补：0.1.7 上 Session 快照无 title，真源是列表行，快照优先旧口兼容）
-    executeOrders: function (orders) { try { const s = summaryOf(); if (s && typeof s.executeOrdersHost === 'function') return s.executeOrdersHost(orders) } catch (e) {} return Promise.resolve(false) }, // #746 宿主直执行（拿号改名同一刻；面缺失即回落）
+    titleFactOf: function (sid) { try { const ctx = d.ctx; if (!ctx || typeof ctx.get !== 'function') return null; const ss = ctx.get('sessions'), ts = ctx.get('sessionTitle'); if (!ss || typeof ss.get !== 'function' || !ts || typeof ts.get !== 'function') return null; const session = ss.get(sid); if (!session) return null; const snap = ts.get(session); if (!snap || typeof snap.title !== 'string' || !snap.title) return null; const kind = snap.source && typeof snap.source.kind === 'string' ? snap.source.kind : ''; return kind ? { kind: kind, title: snap.title } : null } catch (e) { return null } }, // 标题来源事实（写这条名的那一次是谁写的：user 人写的／fallback 底座首句名／provider 底座模型取名），取自宿主会话与标题两个原生服务；缺服务或读不到即 null，执行点退回旧判据
     attach: attach,
     once: once,
     stats: function () {

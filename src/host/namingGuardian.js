@@ -1,6 +1,6 @@
 // 命名守护 host 半：持跟踪态并产出计划单（#265）；判定真源见 ../shared 命名三文件（S2 #452）。
 export function createNamingGuardian(deps) {
-  const { fs, timer, DEFAULT_CWD, getCacheDir, getPlatform, getRepoKey, runGh, logCtx, getFirstText, getTitle, executeOrders } = deps
+  const { fs, timer, DEFAULT_CWD, getCacheDir, getPlatform, getRepoKey, runGh, logCtx, getFirstText, getTitleFact } = deps
   let _namingCore = null
   let _namingCoreInit = null
   async function getNamingCore() {
@@ -320,8 +320,8 @@ export function createNamingGuardian(deps) {
         for (let i = 0; i < kept.length; i++) orders.push(kept[i])
       }
     } catch (eFilter) {}
-    for (let i = 0; i < orders.length; i++) { const oo = orders[i]; if (oo && oo.lock && typeof getFirstText === 'function') { try { oo.lock.firstUserText = await getFirstText(oo.sessionId) } catch (eFt) {} } } // 首句随单下发供免锁比对（读而不激活；失败即 null，调用方降级走旧判据）。每一单都下发：机器写过之后再被底座首句名盖掉的那种也要用（只看 lastMachineTitle 为空会把那种判成手改并永久锁定）。
-    try { if (typeof executeOrders === 'function') await executeOrders(orders) } catch (eEx) {} // #746 宿主直执行（拿号改名同一刻；面缺失即回落，客户端老路照旧）
+    // 每单都带上首句（没有来源事实时的旧判据兜底）与标题来源事实（写这条名的那一次是谁写的，优先用；对不上会被判据丢掉）。
+    for (let i = 0; i < orders.length; i++) { const oo = orders[i]; if (!oo || !oo.lock) continue; try { if (typeof getFirstText === 'function') oo.lock.firstUserText = await getFirstText(oo.sessionId) } catch (eFt) {} try { if (typeof getTitleFact === 'function') oo.lock.titleSource = await getTitleFact(oo.sessionId) } catch (eTf) {} }
     return { ok: true, orders: orders, tracked: tracked, failures: failures }
   }
 

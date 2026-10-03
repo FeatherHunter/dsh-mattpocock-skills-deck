@@ -180,7 +180,7 @@
 | 28 | snapshot.hydrate | 信息 | cwdHash、source 来源枚举、fresh 是否新鲜、latencyMs、winnerVersion 胜出方版本号、loserVersion 落败方版本号、outcome 合并结果（incoming 缓存胜出、current 原数据保留） | H_CWD | — | kernel/router.js:9 缓存水合 |
 | 31 | backend.switch | 信息 | from 从哪个后端、to 到哪个后端、cwdHash | H_CWD | — | views/shared/BackendSelector.js、router.js:39 |
 | 32 | naming.guard | 信息 | sidHash 会话散列、outcome 改名结果、hintHash 线索散列 | H_TITLE、T80 | R_TOKEN_BEARER | kernel/api.js:46 改名轮询、shared/naming-guardian.js |
-| 33 | naming.lock | 信息 | sidHash、reason 让位原因（枚举：hand-edit 与首句无关的改动／never-wrote 我们自己那次改名没落地／unknown-title 当前标题读不到；缺省 hand-edit） | — | — | shared/naming-tracking.js 分歧归因 + host/namingGuardian.js 入账 |
+| 33 | naming.lock | 信息 | sidHash、reason 让位原因（枚举：hand-edit 别人写的名／never-wrote 我们自己那次改名没落地／auto-title 底座自动取的名／first-sentence 底座首句名／in-place 已在位／unknown-title 当前标题读不到；缺省 hand-edit） | — | — | shared/naming-tracking.js 分歧归因 + host/namingGuardian.js 入账 |
 | 34 | issuePath.record（已退役，见 1.3 落定说明） | 信息（已退役，不再埋点） | 原白名单 ref 票号引用、source 来源、titleHash 标题散列（已失效，只作追溯） | H_TITLE（已失效） | — | kernel/store.js:81 记录（已随 #345 移除） |
 | 35 | settings.save（已退役，见 1.3 落定说明） | 信息（已退役，不再埋点） | 原白名单 openIn 打开位置、tplChangedCount 模板改了几处（已失效，只作追溯） | —（不记模板正文） | — | 原落点为 views/SettingsPage.js 的「打开位置」即时保存；2026-09-21 该项删除后落点消失 |
 | 36 | panel.open | 信息 | hasCache 是否有缓存、snapFresh 快照是否新鲜、keyHash 工作区键散列、snapVersion 快照版本号、backendId 后端标识（2026-09-21 去掉 mode：面板只有 DSH 原生右侧边栏一条路，形态没有第二种取值） | H_CWD | — | kernel/router.js 点开面板处 |

@@ -9,8 +9,7 @@
  *    可 MISSING：能实现 → 填值或 `EMPTY`（`[]` / `''` / `null`）；不能实现 → **省略该字段**（MISSING）。
  *  - 空值由 UI 按「现有渲染逻辑」处理（如 labels 空则不渲染标签胶囊），不新增隐藏逻辑。
  *
- * 定版依据：issue #127（完整数据形状 + capability-by-fill）+
- * `C:\Users\辰辰洋洋\AppData\Local\Temp\dsh-tracker-contract-issue-map-design.md`。
+ * 定版依据：issue #127（完整数据形状 + capability-by-fill）+ 定版当时那份设计稿（临时文件，结论已并进本文件）。
  * 由 `docs/architecture/tracker-layer-directory-architecture.md` + `tracker-backend-normalized-model.md` 派生。
  */
 

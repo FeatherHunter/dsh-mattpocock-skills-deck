@@ -146,19 +146,13 @@
     let _namingPullBusy = false
     // #746：排队单执行跳过的原因账（每会话每窗口只记一次，防刷屏；窗口关掉账就没了，本来也只用来定位当场问题）
     export let _skipLogged = {}
-    // 值比对锁的「当前标题」来源：优先 sessions.get(sid) 实时标题（若宿主暴露，即时而非快照），回退到 sessions.list 快照 byId[sid].title
+    // 值比对锁的「当前标题」来源：会话列表快照 byId[sid].title（DSH 客户端会话服务的公开快照仓库，控制流推送会更新它）。
+    // 2026-10-03 核查：客户端 sessions 服务没有 get(sid)（get 在宿主侧 dsh-session 那套服务上），从前那条「优先实时接口」
+    // 分支永远走不到，已删；快照是客户端唯一真源（#315 担心的旧照片竞态由控制流推送 + 执行前二次确认兜住）。
     export function namingCurrentTitleOf(sid) {
       try {
         const sessions = ctx.get('sessions')
-        if (!sessions) return null
-        // 优先实时接口（若可用，规避 5s 快照旧照片竞态；见 #315 手改被盖的 TOCTOU）
-        try {
-          if (typeof sessions.get === 'function') {
-            const s = sessions.get(sid)
-            if (s && typeof s.title === 'string' && s.title) return s.title
-          }
-        } catch (eGet) {}
-        if (!sessions.list || typeof sessions.list.getSnapshot !== 'function') return null
+        if (!sessions || !sessions.list || typeof sessions.list.getSnapshot !== 'function') return null
         const snap = sessions.list.getSnapshot()
         const row = snap && snap.byId ? snap.byId[sid] : null
         if (row && typeof row.title === 'string' && row.title) return row.title
@@ -205,7 +199,7 @@
         return
       }
       // 分歧归因只问共享核心一处：在位就收敛回报，让位就回报并把理由带走（宿主照原样记进 naming.lock）。
-      const code = classifyDivergence({ currentTitle: cur, lastMachineTitle: lock.lastMachineTitle, baselineTitle: lock.baselineTitle, baselineIsOurs: lock.baselineIsOurs, firstUserText: lock.firstUserText, targetTitle: target })
+      const code = classifyDivergence({ currentTitle: cur, lastMachineTitle: lock.lastMachineTitle, baselineTitle: lock.baselineTitle, baselineIsOurs: lock.baselineIsOurs, firstUserText: lock.firstUserText, titleSource: lock.titleSource, targetTitle: target })
       if (lock.locked || code === DIVERGENCE.HAND_EDIT) { try { log('info', 'naming.guard', { sidHash: dswsLogHash(sid), outcome: 'locked', hintHash: dswsLogHash(o.hint || '') }) } catch (eL) {}; reportNamingResult(sid, 'locked', { currentTitle: cur, reason: code }); return }
       if (code === DIVERGENCE.UNKNOWN_TITLE) { try { if (isEnabled('debug') && !_skipLogged[sid]) { _skipLogged[sid] = 1; log('debug', 'naming.guard.event', { reason: 'skip-unknown-' + dswsLogHash(sid) }) } } catch (eDbg) {}; return }
       // 收敛只认「现名逐字等于目标」：现名是我们写的但还不是目标时必须继续写，不能收敛——
