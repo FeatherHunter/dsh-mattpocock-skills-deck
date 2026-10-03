@@ -22,6 +22,7 @@ export function fixedPrefix() {
 export function stepZeroArgs() {
   return ["rev-parse", "--absolute-git-dir", "--is-inside-work-tree", "--is-bare-repository"];
 }
+export const REV_PATTERN = /^[0-9a-fA-F]{4,64}$/;
 export function commandFor(key, opts) {
   switch (key) {
     case "status":
@@ -37,9 +38,11 @@ export function commandFor(key, opts) {
       return { key, subcommand: "log", args: ["log", "--no-decorate", "-z", "--format=%H%x00%h%x00%an%x00%ae%x00%aI%x00%cI%x00%s%x00%P%x00", "-n", String(n), "--skip=" + String(skip)] };
     }
     case "diffFiles":
+      if (opts.rev !== void 0) return { key, subcommand: "show", args: ["show", "--numstat", "-z", "--no-ext-diff", "--find-renames", "--format=", opts.rev] };
       return { key, subcommand: "diff", args: ["diff", "--numstat", "-z", "--no-ext-diff", "--find-renames", "HEAD"] };
     case "patch": {
       const p = opts.patchPath === void 0 ? "" : opts.patchPath;
+      if (opts.rev !== void 0) return { key, subcommand: "show", args: ["show", "--unified=3", "--no-color", "--no-ext-diff", "--no-prefix", "--find-renames", "--format=", opts.rev, "--", p] };
       return { key, subcommand: "diff", args: ["diff", "--unified=3", "--no-color", "--no-ext-diff", "--no-prefix", "--find-renames", "HEAD", "--", p] };
     }
   }

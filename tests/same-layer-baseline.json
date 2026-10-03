@@ -895,6 +895,15 @@
       "note": "版本管理页签的宿主装配扇入：index 动态加载 git 读取与三条 wf.* 电话的实现"
     },
     {
+      "file": "src/host/versionControl.js",
+      "spec": "./versionControlFiles.js",
+      "resolved": "src/host/versionControlFiles.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#818",
+      "note": "#821 规格故事 32：versionControl.js 贴着文件粒度门禁的 350 行上限（正好 350 行），按 #500（logStore→logPhones）与 #548（update→updateReader）同一条先例，把整条 wf.gitDiff 电话体搬成自包含叶子（起进程的唯一出口、失败信封、仓库根解析全由父文件显式传入，叶子不引用父文件），父文件只留一行动态加载器。"
+    },
+    {
       "file": "src/host/index.js",
       "spec": "./mapTickets.js",
       "resolved": "src/host/mapTickets.js",

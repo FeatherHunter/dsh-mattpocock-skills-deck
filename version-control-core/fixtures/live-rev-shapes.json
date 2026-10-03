@@ -1,0 +1,114 @@
+{
+  "source": {
+    "gitVersion": "git version 2.49.0.windows.1",
+    "capturedAt": "2026-10-04",
+    "live": true,
+    "note": "本机实采（#821）：临时仓库建在 D:/Temp/dsh-821-rev-repo，四个提交加一次真合并（根提交、改两处文件的普通提交、再改一个文件的普通提交、空提交，从第二个提交拉分支合回来）。收工前临时仓库已删。样本里的绝对路径是采集时那台机器上临时仓库的位置，原样保留。两条关键事实由样本本身钉住：show --numstat 对合并提交给的是「相对第一个父提交」的行数（不空）；show -p 对合并提交给的是组合差异，默认不展开（空）。",
+    "commands": {
+      "fixedPrefix": "git --no-optional-locks -c core.quotepath=false -c color.ui=false -c i18n.logOutputEncoding=UTF-8 <子命令>",
+      "numstat": "git ... show --numstat -z --no-ext-diff --find-renames --format= <提交号>",
+      "patch": "git ... show --unified=3 --no-color --no-ext-diff --no-prefix --find-renames --format= <提交号> -- <路径>",
+      "revList": "git ... rev-list --parents -n 1 <提交号>"
+    }
+  },
+  "ids": {
+    "root": "84e19d21630a358083328a068b7c1638080aa7b9",
+    "normal": "3070db95c70e56f9c170c4513946d66920e28458",
+    "third": "687655e02d03aed71b08c4a17c852edd66f6550c",
+    "empty": "a71c0ee981052972aa1b1cec0a56996729ab823c",
+    "merge": "cfcae78623b7fd35d5ca6df786ac02bc9cd04229",
+    "normalShort": "3070db95"
+  },
+  "numstat": {
+    "root": {
+      "code": 0,
+      "out": "1\t0\tb.txt\u00003\t0\t一 号文件.txt\u0000",
+      "err": ""
+    },
+    "normal": {
+      "code": 0,
+      "out": "1\t0\tb.txt\u00003\t2\t一 号文件.txt\u00001\t0\t新 文件.txt\u0000",
+      "err": ""
+    },
+    "third": {
+      "code": 0,
+      "out": "1\t1\tb.txt\u0000",
+      "err": ""
+    },
+    "empty": {
+      "code": 0,
+      "out": "",
+      "err": ""
+    },
+    "merge": {
+      "code": 0,
+      "out": "1\t0\t一 号文件.txt\u0000",
+      "err": ""
+    }
+  },
+  "patch": {
+    "normalHuman": {
+      "path": "一 号文件.txt",
+      "code": 0,
+      "out": "diff --git 一 号文件.txt 一 号文件.txt\nindex f1c8e85..751fe2f 100644\n--- 一 号文件.txt\t\n+++ 一 号文件.txt\t\n@@ -1,3 +1,4 @@\n-第一行\n+第一行改了\n 第二行\n-第三行\n+第三行也改了\n+第四行是新增\n",
+      "err": ""
+    },
+    "rootB": {
+      "path": "b.txt",
+      "code": 0,
+      "out": "diff --git b.txt b.txt\nnew file mode 100644\nindex 0000000..6fa7aac\n--- /dev/null\n+++ b.txt\n@@ -0,0 +1 @@\n+b 的第一行\n",
+      "err": ""
+    },
+    "thirdHuman": {
+      "path": "一 号文件.txt",
+      "code": 0,
+      "out": "",
+      "err": ""
+    },
+    "mergeHuman": {
+      "path": "一 号文件.txt",
+      "code": 0,
+      "out": "",
+      "err": ""
+    },
+    "mergeB": {
+      "path": "b.txt",
+      "code": 0,
+      "out": "",
+      "err": ""
+    }
+  },
+  "revList": {
+    "root": {
+      "code": 0,
+      "out": "84e19d21630a358083328a068b7c1638080aa7b9\n",
+      "err": ""
+    },
+    "normal": {
+      "code": 0,
+      "out": "3070db95c70e56f9c170c4513946d66920e28458 84e19d21630a358083328a068b7c1638080aa7b9\n",
+      "err": ""
+    },
+    "third": {
+      "code": 0,
+      "out": "687655e02d03aed71b08c4a17c852edd66f6550c 3070db95c70e56f9c170c4513946d66920e28458\n",
+      "err": ""
+    },
+    "empty": {
+      "code": 0,
+      "out": "a71c0ee981052972aa1b1cec0a56996729ab823c 687655e02d03aed71b08c4a17c852edd66f6550c\n",
+      "err": ""
+    },
+    "merge": {
+      "code": 0,
+      "out": "cfcae78623b7fd35d5ca6df786ac02bc9cd04229 a71c0ee981052972aa1b1cec0a56996729ab823c aae7ba86c3e4fdabcc5bf6c5a57a120989e5710e\n",
+      "err": ""
+    }
+  },
+  "missingRev": {
+    "rev": "deadbeef",
+    "code": 128,
+    "out": "",
+    "err": "fatal: ambiguous argument 'deadbeef': unknown revision or path not in the working tree.\nUse '--' to separate paths from revisions, like this:\n'git <command> [<revision>...] -- [<file>...]'\n"
+  }
+}

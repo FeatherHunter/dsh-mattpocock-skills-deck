@@ -9,7 +9,10 @@
 //   4. 首屏一次拿全（真机字节样本驱动），逐文件增删行数按路径会合；
 //   5. 日志：每条命令一行 git.exec（成功与非零退出各一行）、超时与起进程失败一行 git.exec.fail，
 //      字段只取白名单那七个；电话本身一行 host.call / host.call.fail。
-// 最后带一条反证：拿一个「不读 git、直接回一份好看的首屏」的坏实现喂同一套断言，必须当场判红。
+//   6. #821 按提交看改动（wf.gitDiff 带 rev）：清单与补丁两种形状、非法提交号一律拒绝且绝不进 argv、
+//      合并提交的补丁如实说 merge-commit（真机核到：清单那一路给的是相对第一个父提交的真实行数，不空）。
+// 最后带反证：拿「不读 git、直接回一份好看的首屏」「把 rev 当没看见」「合并提交当没有改动」
+// 「不校验 rev 就拼进 argv」四种坏实现喂同一套断言，每一种都必须当场判红。
 const fs = require('fs')
 const path = require('path')
 const { pathToFileURL } = require('url')
@@ -23,6 +26,8 @@ const readJson = (rel) => JSON.parse(readText(rel))
 
 // 真机字节样本（#817 采集，命令原文见样本头）：门禁拿它当「git 到底吐什么」的正源。
 const LIVE = readJson('version-control-core/fixtures/live-numstat-shapes.json')
+// #821 真机样本：四个提交加一次真合并，命令原文见样本头（show --numstat / show -p / rev-list --parents）。
+const LIVE_REV = readJson('version-control-core/fixtures/live-rev-shapes.json')
 const LIVE_ROOT = /^worktree ([^\u0000\n]+)/.exec(LIVE.worktrees.out)[1]
 const FIXED_PREFIX = ['--no-optional-locks', '-c', 'core.quotepath=false', '-c', 'color.ui=false', '-c', 'i18n.logOutputEncoding=UTF-8']
 const LOG_WHITELIST = ['argv0', 'cwdHash', 'latencyMs', 'exitCode', 'via', 'timeoutMs', 'errorHash']
@@ -159,6 +164,139 @@ async function screenChecks(makeVc) {
 
 async function makeVcFromMod(deps) { return deps }
 
+// ---------- 9) #821：按提交看改动（rev 两条读法；非法值绝不进 argv；合并提交如实说明） ----------
+/**
+ * 按提交取差异那一路的断言套件：喂一个取数器，返回失败清单。
+ * 真实现必须空手而归；坏实现必须被逮住（见 main 里的反证甲 / 乙 / 丙）。
+ * 数据来源是 #821 的真机样本（live-rev-shapes.json）：四个提交加一次真合并。
+ */
+async function revChecks(makeVc) {
+  const bad = []
+  const add = (cond, msg) => { if (!cond) bad.push(msg) }
+  const ids = LIVE_REV.ids
+  const REV_KEY = {}
+  REV_KEY[ids.root] = 'root'; REV_KEY[ids.normal] = 'normal'; REV_KEY[ids.normalShort] = 'normal'
+  REV_KEY[ids.third] = 'third'; REV_KEY[ids.empty] = 'empty'; REV_KEY[ids.merge] = 'merge'
+  const PATCH_SAMPLES = {}
+  PATCH_SAMPLES['normal\u0000一 号文件.txt'] = LIVE_REV.patch.normalHuman
+  PATCH_SAMPLES['root\u0000b.txt'] = LIVE_REV.patch.rootB
+  PATCH_SAMPLES['third\u0000一 号文件.txt'] = LIVE_REV.patch.thirdHuman
+  PATCH_SAMPLES['merge\u0000一 号文件.txt'] = LIVE_REV.patch.mergeHuman
+  PATCH_SAMPLES['merge\u0000b.txt'] = LIVE_REV.patch.mergeB
+  const keyOf = (rev) => REV_KEY[rev] || null
+  /** 按真机样本回答：rev 类命令按提交号取样本；认不出的提交号按 git 的失败样子回。 */
+  function revRoute(argv) {
+    const a = afterPrefix(argv)
+    if (a === null) return { code: 1, stderr: '缺少固定前缀' }
+    if (a[0] === 'rev-parse' && a.indexOf('--is-inside-work-tree') >= 0) return asRun(LIVE.step0)
+    if (a[0] === 'rev-parse' && a.indexOf('--show-toplevel') >= 0) return { code: 0, stdout: LIVE_ROOT + '\n' }
+    if (a[0] === 'rev-list') {
+      const k = keyOf(a[a.length - 1]); const hit = k ? LIVE_REV.revList[k] : null
+      return hit ? asRun(hit) : { code: 128, stdout: '', stderr: "fatal: ambiguous argument '" + a[a.length - 1] + "': unknown revision or path not in the working tree.\n" }
+    }
+    if (a[0] === 'show' && a.indexOf('--numstat') >= 0) {
+      const k = keyOf(a[a.length - 1]); const hit = k ? LIVE_REV.numstat[k] : null
+      return hit ? asRun(hit) : { code: 128, stdout: '', stderr: 'fatal: bad revision\n' }
+    }
+    if (a[0] === 'show') {
+      const k = keyOf(a[a.indexOf('--format=') + 1]); const hit = k ? PATCH_SAMPLES[k + '\u0000' + a[a.indexOf('--') + 1]] : null
+      return hit ? asRun(hit) : { code: 128, stdout: '', stderr: 'fatal: bad revision\n' }
+    }
+    if (a[0] === 'diff' && a.indexOf('--numstat') < 0) return { code: 0, stdout: 'diff --git x y\n--- x\n+++ y\n@@ -1 +1 @@\n-旧\n+新\n' }
+    return liveRoute(argv)
+  }
+  async function call(args) {
+    const box = makeDeps(revRoute)
+    let r = null
+    try { r = await makeVc(box.deps).handleGitDiff(args) } catch (e) { r = { threw: String((e && e.message) || e) } }
+    return { r: r, calls: box.calls }
+  }
+  const CWD = 'D:/假工作区/repo'
+
+  // ① 一次普通提交改了哪些文件（真机 numstat 字节）
+  const normal = (await call({ cwd: CWD, rev: ids.normal })).r
+  add(normal && normal.ok === true, '一次普通提交：回 ok（实得 ' + JSON.stringify(normal && (normal.error || normal.threw)) + '）')
+  add(normal && normal.rev === ids.normal, '清单回包原样带回请求里那个提交号（界面能与请求对齐）')
+  add(normal && normal.truncated === false && normal.reason === 'ok', '读全了：truncated=false、reason=ok')
+  const nf = (normal && Array.isArray(normal.files)) ? normal.files : []
+  add(nf.length === 3, '普通提交改了三个文件（实得 ' + nf.length + '）')
+  add(nf.some((f) => f.path === '一 号文件.txt' && f.origPath === null && f.added === 3 && f.deleted === 2), '每个文件带路径、原路径与增删行数（一 号文件.txt 3/2）')
+  add(nf.some((f) => f.path === '新 文件.txt' && f.added === 1 && f.deleted === 0), '新增文件按真机行数解出（新 文件.txt 1/0）')
+
+  // ② 根提交：没有父提交也要能取
+  const root = (await call({ cwd: CWD, rev: ids.root })).r
+  add(root && root.ok === true && Array.isArray(root.files) && root.files.length === 2, '根提交：两个文件都按新增解出（实得 ' + ((root && root.files) || []).length + '）')
+
+  // ③ 空提交：清单为空，但明说是 no-diff 而不是 ok
+  const empty = (await call({ cwd: CWD, rev: ids.empty })).r
+  add(empty && empty.ok === true && Array.isArray(empty.files) && empty.files.length === 0 && empty.reason === 'no-diff' && empty.truncated === false, '空提交：清单为空但如实说 no-diff（不是 ok、不是 truncated）')
+
+  // ④ 合并提交的清单：真机给的是相对第一个父提交的真实行数，不是空
+  const merge = (await call({ cwd: CWD, rev: ids.merge })).r
+  add(merge && merge.ok === true && merge.reason === 'ok' && Array.isArray(merge.files) && merge.files.length === 1 && merge.files[0].path === '一 号文件.txt' && merge.files[0].added === 1,
+    '合并提交的清单：show --numstat 给的是相对第一个父提交的真实行数（真机核过，不空）')
+
+  // ⑤ 合并提交的补丁：git 默认不展开，必须如实说 merge-commit
+  const mergePatch = (await call({ cwd: CWD, rev: ids.merge, path: '一 号文件.txt' })).r
+  add(mergePatch && mergePatch.ok === true && mergePatch.reason === 'merge-commit' && Array.isArray(mergePatch.lines) && mergePatch.lines.length === 0 && mergePatch.truncated === false,
+    '合并提交的单文件差异：明说 merge-commit，不写成「这个文件没有改动」（实得 ' + (mergePatch && mergePatch.reason) + '）')
+  add(mergePatch && mergePatch.rev === ids.merge && mergePatch.path === '一 号文件.txt', '这一路回包也带回 rev 与 path')
+
+  // ⑥ 不是合并提交、这次没碰这个文件 → no-diff：两种空必须分得开
+  const third = (await call({ cwd: CWD, rev: ids.third, path: '一 号文件.txt' })).r
+  add(third && third.ok === true && third.reason === 'no-diff' && third.rev === ids.third, '非合并提交的空补丁说 no-diff（与 merge-commit 分开）')
+
+  // ⑦ 普通提交的单文件补丁：仍走核心的逐行分类
+  const normalPatch = (await call({ cwd: CWD, rev: ids.normal, path: '一 号文件.txt' })).r
+  add(normalPatch && normalPatch.ok === true && normalPatch.reason === 'ok' && normalPatch.rev === ids.normal && Array.isArray(normalPatch.lines)
+    && normalPatch.lines.some((l) => l.kind === 'add') && normalPatch.lines.some((l) => l.kind === 'del'),
+    '普通提交的单文件补丁按核心逐行分类回给界面，且带回 rev')
+
+  // ⑧ 命令形状：提交号只作为独立的 argv 元素出现，绝不拼进任何选项
+  const shape = await call({ cwd: CWD, rev: ids.normal })
+  const argvs = shape.calls.map((c) => c.argv)
+  const numstatCall = argvs.filter((argv) => argv.indexOf('show') >= 0 && argv.indexOf('--numstat') >= 0)[0]
+  add(!!numstatCall && afterPrefix(numstatCall).join(' ') === ['show', '--numstat', '-z', '--no-ext-diff', '--find-renames', '--format=', ids.normal].join(' '),
+    '带 rev 的清单命令与核心拼的一字不差（实得 ' + (numstatCall ? afterPrefix(numstatCall).join(' ') : '没起进程') + '）')
+  const revListCall = argvs.filter((argv) => argv.indexOf('rev-list') >= 0)[0]
+  add(!!revListCall && afterPrefix(revListCall).join(' ') === ['rev-list', '--parents', '-n', '1', ids.normal].join(' '),
+    '确认这一次提交的命令形状是 rev-list --parents -n 1 <提交号>（实得 ' + (revListCall ? afterPrefix(revListCall).join(' ') : '没起进程') + '）')
+  add(argvs.every((argv) => argv.filter((x) => String(x).indexOf(ids.normal) >= 0).every((x) => x === ids.normal)),
+    '提交号在 argv 里只作为完整元素出现（没有拼进 --format= 之类的选项里）')
+  const shortCall = await call({ cwd: CWD, rev: ids.normalShort, path: '一 号文件.txt' })
+  add(shortCall.r && shortCall.r.ok === true && shortCall.r.reason === 'ok' && shortCall.r.rev === ids.normalShort, '短短提交号（8 位十六进制）也照常取补丁，回包原样带回请求里那个值')
+
+  // ⑨ 非法提交号：一律拒绝，而且一个进程都不许起
+  for (const badRev of ['--upload-pack=x', '-c', 'HEAD', 'abc', 'zzzz', 'a'.repeat(65), '1 2', 'main']) {
+    const out = await call({ cwd: CWD, rev: badRev })
+    add(out.r && out.r.ok === false && out.r.error && out.r.error.kind === 'args', '非法提交号被明确拒绝（' + badRev.slice(0, 16) + '）：kind=args')
+    add(out.calls.length === 0, '非法提交号不起任何进程（实得 ' + out.calls.length + ' 条）')
+  }
+
+  // ⑩ 形状合法但仓库里没有：照样明确拒绝
+  const missing = (await call({ cwd: CWD, rev: 'deadbeef' })).r
+  add(missing && missing.ok === false && missing.error.kind === 'args' && missing.error.message.indexOf('找不到') >= 0,
+    '形状合法但仓库里没有的提交号：明确拒绝 kind=args（实得 ' + JSON.stringify(missing && missing.error) + '）')
+
+  // ⑪ 读不全就不给半份（清单与补丁各一条）
+  const truncNumstat = function (argv) { const a = afterPrefix(argv); if (a && a[0] === 'show' && a.indexOf('--numstat') >= 0) return { code: 0, stdout: '半截', truncated: true }; return revRoute(argv) }
+  const truncListBox = makeDeps(truncNumstat)
+  const truncList = await makeVc(truncListBox.deps).handleGitDiff({ cwd: CWD, rev: ids.normal })
+  add(truncList && truncList.ok === true && truncList.truncated === true && Array.isArray(truncList.files) && truncList.files.length === 0 && truncList.reason === 'truncated' && truncList.rev === ids.normal,
+    '清单读不全：ok + truncated + 空清单 + reason=truncated')
+  const truncPatchRoute = function (argv) { const a = afterPrefix(argv); if (a && a[0] === 'show' && a.indexOf('--numstat') < 0) return { code: 0, stdout: '半截', truncated: true }; return revRoute(argv) }
+  const truncPatch = await makeVc(makeDeps(truncPatchRoute).deps).handleGitDiff({ cwd: CWD, rev: ids.normal, path: '一 号文件.txt' })
+  add(truncPatch && truncPatch.ok === true && truncPatch.truncated === true && Array.isArray(truncPatch.lines) && truncPatch.lines.length === 0 && truncPatch.reason === 'truncated' && truncPatch.rev === ids.normal,
+    '补丁读不全：ok + truncated + 零行 + reason=truncated，且带回 rev')
+
+  // ⑫ 不带 rev 的老路：回包里没有 rev 字段（与从前一字不差）
+  const plain = (await call({ cwd: CWD, path: '普通.txt' })).r
+  add(plain && plain.ok === true && plain.reason === 'ok' && Array.isArray(plain.lines) && plain.lines.some((l) => l.kind === 'add') && plain.rev === undefined,
+    '不带 rev 的回包没有 rev 字段（既有形状一字不差）')
+
+  return { bad: bad }
+}
+
 async function main() {
   console.log('版本管理宿主取数层门禁（#817：三条电话 + 起进程纪律 + 读不全就不给 + 反证）')
 
@@ -179,6 +317,13 @@ async function main() {
   }
   check(hostSrc.indexOf("'host.call'") >= 0 && hostSrc.indexOf("'host.call.fail'") >= 0, '电话日志沿用既有 host.call / host.call.fail 两个事件')
   check(hostSrc.indexOf("'git.exec'") >= 0 && hostSrc.indexOf("'git.exec.fail'") >= 0, '两条新事件名以字面量出现（git.exec / git.exec.fail）')
+  // #821 拆出的差异电话体：它必须仍然只有一条起进程的路（拿父文件传进来的 runPinned），自己不起进程。
+  const leafSrc = readText(path.join('src', 'host', 'versionControlFiles.js'))
+  const leafCode = leafSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^A-Za-z0-9_$:])\/\/.*$/gm, '$1')
+  check(leafCode.indexOf('child_process') < 0 && leafCode.indexOf('execSync') < 0 && leafCode.indexOf('spawnSync') < 0 && leafCode.indexOf('shell') < 0, '拆出来的差异电话体也不碰 child_process、不经 shell（按去注释后的代码判）')
+  check(leafSrc.indexOf('createGitDiffPhone') >= 0 && leafSrc.indexOf("import('./versionControl.js')") < 0, '差异电话体是自包含叶子：导出 createGitDiffPhone，且不反向引用父文件（单向引用）')
+  check(hostSrc.indexOf("import('./versionControlFiles.js')") >= 0, '父文件以字面量动态加载差异电话体（同层装配边已记进 tests/same-layer-baseline.json）')
+  check(hostSrc.indexOf('parsePatch') < 0, '补丁解析器随电话体搬到叶子里（父文件不再直接持解析器）')
 
   // ---- 2) 真机样本驱动首屏：同一套断言 ----
   const real = await screenChecks(function (deps) { return hostMod.createVersionControl(deps) })
@@ -329,6 +474,40 @@ async function main() {
   }
   const lEmpty = await hostMod.createVersionControl(makeDeps(noHeadRoute).deps).handleGitLog({ cwd: 'D:/假工作区/repo' })
   check(lEmpty.ok === true && lEmpty.commits.length === 0 && lEmpty.hasMore === false, '零提交仓库：历史回空表（退出码判，不吃本地化文案）')
+
+
+  // ---- 9) #821 按提交看改动：真实现 + 三种坏实现的反证 ----
+  const realRev = await revChecks(function (deps) { return hostMod.createVersionControl(deps) })
+  check(realRev.bad.length === 0, '真实现：按提交取差异那一路断言全过' + (realRev.bad.length ? ' —— 没过：' + realRev.bad.slice(0, 3).join('；') : ''))
+
+  // 反证甲：把 rev 当没看见、永远回工作区差异的旧实现
+  const badIgnoreRev = { createVersionControl: function () { return { handleGitDiff: async function (args) { return { ok: true, path: String((args && args.path) || ''), lines: [], truncated: false, reason: 'no-diff' } } } } }
+  const caughtA = await revChecks(function (deps) { return badIgnoreRev.createVersionControl(deps) })
+  check(caughtA.bad.length > 0, '反证甲：把 rev 当没看见的旧实现必须被判红（被 ' + caughtA.bad.length + ' 条逮住：' + caughtA.bad.slice(0, 2).join('；') + '）')
+
+  // 反证乙：把合并提交的补丁说成 no-diff（等于告诉用户「这个文件没有改动」）
+  const badMergeNoDiff = {
+    createVersionControl: function (deps) {
+      const real = hostMod.createVersionControl(deps)
+      return { handleGitDiff: async function (args) { const r = await real.handleGitDiff(args); return (r && r.ok === true && r.reason === 'merge-commit') ? Object.assign({}, r, { reason: 'no-diff' }) : r } }
+    },
+  }
+  const caughtB = await revChecks(function (deps) { return badMergeNoDiff.createVersionControl(deps) })
+  check(caughtB.bad.length > 0, '反证乙：把合并提交的补丁说成 no-diff 必须被判红（被 ' + caughtB.bad.length + ' 条逮住）')
+
+  // 反证丙：不校验 rev 就拼进 argv（这一条正是「外部值拼成 git 选项」那个坑）
+  const badRawRev = {
+    createVersionControl: function (deps) {
+      return { handleGitDiff: async function (args) {
+        const rev = String((args && args.rev) || '')
+        const handle = deps.subprocess.spawn({ argv: ['git', 'show', '--format=' + rev], cwd: args.cwd, stdio: { stdin: 'ignore', stdout: { maxBytes: 4096 }, stderr: { maxBytes: 4096 } }, graceMs: 2000 })
+        try { await handle.done } catch (e) { /* 坏实现不在乎 */ }
+        return { ok: true, rev: rev, files: [], truncated: false, reason: 'ok' }
+      } }
+    },
+  }
+  const caughtC = await revChecks(function (deps) { return badRawRev.createVersionControl(deps) })
+  check(caughtC.bad.length > 0, '反证丙：不校验 rev 就拼进 argv 的写法必须被判红（被 ' + caughtC.bad.length + ' 条逮住）')
 
   console.log(failed ? '\n存在失败 — verify-version-control-host 未通过' : '\n全部通过 — 宿主取数层门禁生效（' + total + ' 项断言）')
   process.exit(failed ? 1 : 0)

@@ -44,6 +44,32 @@ async function main() {
     '运行中标记恰好五个路径名（含 MERGE_HEAD）')
   check(commands.stepZeroArgs().includes('--is-inside-work-tree'), '第 0 步独立成项（含 is-inside-work-tree）')
 
+  // ---- 0.5) #821 看某一次提交改了什么：两个 rev 选项拼出来的命令形状 ----
+  const REV = 'a1b2c3d4'
+  check(commands.REV_PATTERN instanceof RegExp && commands.REV_PATTERN.test('a1b2c3d4') && commands.REV_PATTERN.test('A1B2C3')
+    && !commands.REV_PATTERN.test('abc') && !commands.REV_PATTERN.test('HEAD') && !commands.REV_PATTERN.test('--upload-pack=x')
+    && !commands.REV_PATTERN.test('a'.repeat(65)) && !commands.REV_PATTERN.test('a1b2c3d4 '),
+    '提交号形状的唯一真源：四位到六十四位十六进制（三个字符、分支名、选项、六十五位、带空格都不是）')
+  const revFiles = commands.commandFor('diffFiles', { rev: REV }).args
+  check(JSON.stringify(revFiles) === JSON.stringify(['show', '--numstat', '-z', '--no-ext-diff', '--find-renames', '--format=', REV]),
+    '带 rev 的 diffFiles 换成 git show（--format= 空掉提交头）：' + revFiles.join(' '))
+  const revPatch = commands.commandFor('patch', { rev: REV, patchPath: '有 空格/中文.txt' }).args
+  check(JSON.stringify(revPatch) === JSON.stringify(['show', '--unified=3', '--no-color', '--no-ext-diff', '--no-prefix', '--find-renames', '--format=', REV, '--', '有 空格/中文.txt']),
+    '带 rev 的 patch 换成 git show，路径仍排在 -- 之后：' + revPatch.join(' '))
+  check(revFiles[revFiles.length - 1] === REV && revPatch.filter((a) => a === REV).length === 1,
+    '提交号只作为一个独立的 argv 元素出现（不拼进选项、不拼进路径）')
+  check(JSON.stringify(commands.commandFor('diffFiles', {}).args) === JSON.stringify(['diff', '--numstat', '-z', '--no-ext-diff', '--find-renames', 'HEAD'])
+    && JSON.stringify(commands.commandFor('patch', { patchPath: 'x.txt' }).args) === JSON.stringify(['diff', '--unified=3', '--no-color', '--no-ext-diff', '--no-prefix', '--find-renames', 'HEAD', '--', 'x.txt']),
+    '不带 rev 的两条命令与从前一字不差（既有行为不变）')
+  // 反证：把外部给的值拼进选项（而不是作为独立元素）的旧写法，在「提交号必须独占一个元素」这条断言下当场判红。
+  const splicedBuilder = (rev) => ['show', '--numstat', '-z', '--no-ext-diff', '--find-renames', '--format=' + rev]
+  check(splicedBuilder(REV).indexOf(REV) < 0, '反证：把 rev 拼进 --format= 元素的旧写法必须判红（它拼出来的是 ' + splicedBuilder(REV).slice(-1)[0] + '）')
+  check(splicedBuilder('--upload-pack=x').slice(-1)[0] === '--format=--upload-pack=x', '反证：那种拼法会把外部给的值塞进选项里，所以门禁要求提交号独占一个元素且原样等于输入')
+  // 反证：不认 rev 的旧命令表，在带 rev 的调用上会拼出「对 HEAD 的差异」——正是「把提交差异画成工作区差异」那个坑。
+  const oldCommandFor = (key, opts) => (key === 'diffFiles' ? ['diff', '--numstat', '-z', '--no-ext-diff', '--find-renames', 'HEAD'] : ['diff', '--unified=3', '--no-color', '--no-ext-diff', '--no-prefix', '--find-renames', 'HEAD', '--', opts.patchPath])
+  check(JSON.stringify(oldCommandFor('diffFiles', { rev: REV })) !== JSON.stringify(revFiles),
+    '反证：不认 rev 的旧命令表在带 rev 的调用上拼出的命令与新形状不同（门禁会红）')
+
   // ---- 1) 版本能力：两条线 ----
   check(caps.tierFor(caps.parseVersion('git version 2.49.0.windows.1')) === 'full', '2.49 完整档')
   check(caps.tierFor(caps.parseVersion('git version 2.20.0')) === 'degraded', '2.20 降级档（锁标记未知）')

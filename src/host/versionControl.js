@@ -19,7 +19,6 @@ import { parseWorktrees } from '../shared/version-control/parse-worktrees.js'
 import { parseRefs } from '../shared/version-control/parse-refs.js'
 import { parseLog } from '../shared/version-control/parse-log.js'
 import { parseDiffFiles } from '../shared/version-control/parse-diff-files.js'
-import { parsePatch } from '../shared/version-control/parse-patch.js'
 import { assemble, classifyStepZero } from '../shared/version-control/state.js'
 
 const VIA = 'version-control'          // 日志的 via：这一族 git 命令都由版本管理页签发起
@@ -273,32 +272,18 @@ export function createVersionControl(deps) {
     return readScreen(exe, cwdOf(args))
   }
 
-  /** 电话 wf.gitDiff 的处理体：按文件取差异，带截断标记。 */
-  async function handleGitDiff(args) {
-    const path = (args && typeof args.path === 'string') ? args.path : ''
-    if (!path || path.indexOf('\u0000') >= 0) return failPhone('args', '取差异要知道是哪个文件（path），这一条没给')
-    const exe = await resolveGitExecutable()
-    if (!exe) return failPhone('env', '找不到 git 命令（platform.resolveExecutable("git") 没有给出路径）')
-    // 未跟踪的文件没有可比基线（对 HEAD 求差异恒为空）。界面在首屏里已经知道它是未跟踪，把这件事原样带过来，
-    // 这里直说，不去起一条进程拿一份空差异冒充「没有改动」。
-    if (args && args.untracked === true) return { ok: true, path: path, lines: [], truncated: false, reason: 'untracked-no-diff' }
-    const base = await resolveRepoRoot(exe, cwdOf(args))
-    if (base.ok !== true) return base
-    if (base.kind === 'bare') return failPhone('args', '裸仓库没有工作树，取不了文件差异')
-    const hasHead = await readHasHead(exe, base.root)
-    if (hasHead === null) return failPhone('env', '问不出这个仓库有没有第一次提交，取差异这一步做不了')
-    if (hasHead === false) return { ok: true, path: path, lines: [], truncated: false, reason: 'no-commit-baseline' }
-    const res = await runPinned(exe, base.root, commandFor('patch', { patchPath: path }).args, { stdoutLimit: PATCH_LIMIT })
-    const bad = failureFromExec(res, '取这个文件的差异这一步')
-    if (bad) return bad
-    // 读不全就明说读不全：截断留下的是尾巴，切出来的会是半截补丁，这里一片都不给。
-    if (res.truncated) return { ok: true, path: path, lines: [], truncated: true, reason: 'truncated', limitBytes: PATCH_LIMIT }
-    if (res.stdout === '') return { ok: true, path: path, lines: [], truncated: false, reason: 'no-diff' }
-    if (/^Binary files /m.test(res.stdout) || /^GIT binary patch$/m.test(res.stdout)) return { ok: true, path: path, lines: [], truncated: false, reason: 'binary-diff' }
-    const parsed = parsePatch(res.stdout)
-    if (parsed.ok !== true) return failPhone('parse', '这个文件的差异解析失败：' + parsed.detail)
-    return { ok: true, path: path, lines: parsed.lines, truncated: false, reason: 'ok' }
+  // 差异电话体（#821 起含「看某一次提交改了什么」）在 ./versionControlFiles.js：本文件贴着 350 行上限，
+  // 照仓库惯例（logStore→logPhones、update→updateReader）把整条电话体搬成自包含叶子，依赖全显式传入，
+  // 那个叶子不引用本文件（单向引用）；加载器与既有的按目的动态加载同形。
+  let _filesP = null
+  function diffPhone() {
+    if (!_filesP) _filesP = import('./versionControlFiles.js').then(function (m) {
+      return m.createGitDiffPhone({ failPhone: failPhone, runPinned: runPinned, failureFromExec: failureFromExec, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, readHasHead: readHasHead, cwdOf: cwdOf, patchLimit: PATCH_LIMIT })
+    })
+    return _filesP
   }
+  /** 电话 wf.gitDiff 的处理体：把叶子装配起来，再把这一次调用交给它。 */
+  async function handleGitDiff(args) { const p = await diffPhone(); return p(args) }
 
   /** 电话 wf.gitLog 的处理体：历史按批取；多要一条用来判断后面还有没有。 */
   async function handleGitLog(args) {
