@@ -322,7 +322,7 @@ export const IssueDetail = function (props) {
         ]) : null,
         // blockers
         blockedNodes.length ? h('div', { style: { padding: '6px 0' } }, [
-          h('div', { style: { fontSize: 11, fontWeight: 600, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', marginBottom: 6 } }, '被阻塞 · ' + blockedNodes.length),
+          h('div', { style: { fontSize: 11, fontWeight: 600, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', marginBottom: 6 } }, tr('detail.blockedPrefix') + blockedNodes.length),
           h('div', { style: { display: 'flex', flexDirection: 'column', gap: 4 } }, blockedNodes.map(function (b) {
             // T4 整改 #554：阻塞票同样按 enterSubDetail 分流（无标签时按快照找图）。
             return h('div', { key: idOfParts((b.effortId!==undefined&&b.effortId!==null)?b.effortId:issueEffort, b.number), className: 'dsws-aggrow', onClick: function () { enterSubDetail(b) }, style: { cursor: 'pointer', padding: '6px 8px' } }, [

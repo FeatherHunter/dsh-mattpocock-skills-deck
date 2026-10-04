@@ -13,7 +13,7 @@ import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/tool-c
 
 export const definition = {
   name: 'deck_issue_report',
-  description: '同属插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；先调 deck_context 确认 workspace 与 backend。当你开始、切换或完成一个 ISSUE 时调用，上报你当前在处理的 ISSUE；调用时机强制：开始处理前必须调用一次上报当前 issue，处理完成关闭时必须再次调用上报关闭结果；该调用为必选，非可选。职责划分：deck_issue_patch 负责变更 issue 内容，deck_issue_report 负责上报处理关系；调用前者关闭 issue 不等价于已完成上报；key 填你要上报的那个 ISSUE 的编号，只有本地后端需要填 effortId，填你上报的 ISSUE 所在的目录名，放在根目录的不填；有没有记上、记在哪里，看返回里的结果。',
+  description: '同属插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；先调 deck_context 确认 workspace 与 backend。开始处理、切换或完成一个 ISSUE 时都必须调用：开始前报一次，关闭时再报一次，这条是必选。职责划分：deck_issue_patch 负责变更 issue 内容，deck_issue_report 负责上报处理关系；用前者关闭 issue 不等价于已完成上报。key 填你要上报的 ISSUE 编号；只有本地后端需要填 effortId，填票所在目录名，根目录不填。有没有记上、记在哪里，看返回里的结果。',
   parameters: {
     type: 'object',
     properties: {
