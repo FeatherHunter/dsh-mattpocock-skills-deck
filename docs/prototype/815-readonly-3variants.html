@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PROTOTYPE-815 · 只读状态视图 3 变体（抛弃式）</title>
+<!--
+  Three variants of the readonly version-control status view, switchable via ?variant=A|B|C and ?state=dirty|clean|rebase|nogit|nogitbin.
+  位置：.scratch/prototype-815-readonly-3variants.html（抛弃式，不进 main；定稿后整份进 throwaway 分支，main 只留定稿结论）
+  要回答的设计问题：第一版只读状态视图应该长什么样（#815），权威输入是 #821 规格与 #812 结论，不是本文件的配色。
+  分支：UI 分支子形状 B（还没有真实页签可挂，只能用独立可双击 HTML 模拟窄面板；?variant= + 底部悬浮切换与 UI.md 同形）。
+  第二轮方向（设计师视角，差距拉大）：A 编辑留白（大字号身份+细分割线+呼吸感）/ B 纪念碑（一句话状态主导一切）/ C 档案索引（高密度等宽索引表）。三者都是简约大气，只在组织原则上分岔。
+-->
+<style>
+:root{
+  --bg:#101014; --paper:#17171c; --inset:#101014; --hair:rgba(255,255,255,.09); --hair2:rgba(255,255,255,.14);
+  --ink:#f2f3f5; --ink2:#b9bcc4; --mut:#8a8e98; --faint:#62666f;
+  --blue:#7aa2ff; --green:#6ee7a8; --amber:#f5b14c; --red:#ff7a7a;
+  --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  --serif:"Noto Serif SC","Songti SC",Georgia,"Times New Roman",serif;
+  --mono:"SF Mono",ui-monospace,SFMono-Regular,Consolas,monospace;
+}
+html[data-theme="light"]{
+  --bg:#f4f4f2; --paper:#ffffff; --inset:#f6f6f4; --hair:#e9e9e6; --hair2:#dcdcd8;
+  --ink:#16161a; --ink2:#3f4148; --mut:#7c7e86; --faint:#a9abb2;
+  --blue:#2456e0; --green:#0e8a4d; --amber:#a8620a; --red:#c92a2a;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:var(--sans);background:var(--bg);color:var(--ink);line-height:1.55;-webkit-font-smoothing:antialiased}
+.badge{position:fixed;top:10px;left:10px;background:#ff3b30;color:#fff;font-size:11px;font-weight:800;padding:3px 9px;border-radius:99px;z-index:9999;letter-spacing:.05em}
+.theme-toggle{position:fixed;top:10px;right:12px;z-index:9999;display:flex;gap:6px}
+.theme-toggle button{font-size:12px;padding:5px 11px;border-radius:99px;border:1px solid var(--hair2);background:var(--paper);color:var(--ink);cursor:pointer}
+.theme-toggle button.active{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.wrap{max-width:1060px;margin:0 auto;padding:48px 16px 170px}
+.minihead{display:flex;align-items:baseline;gap:12px;margin:6px 0 14px}
+.minihead h1{font-size:15px;margin:0;font-weight:650;letter-spacing:.01em}
+.minihead details{font-size:12px;color:var(--mut)}
+.minihead details summary{cursor:pointer;font-size:12px;color:var(--mut)}
+.sub{font-size:13px;color:var(--mut);margin:8px 0}
+.assume{font-size:12px;color:var(--mut);margin:8px 0}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 16px}
+.toolbar .group{display:flex;gap:4px;align-items:center;background:var(--paper);border:1px solid var(--hair);border-radius:99px;padding:3px}
+.toolbar button{font-size:12px;padding:5px 11px;border-radius:99px;border:none;background:transparent;color:var(--ink2);cursor:pointer}
+.toolbar button.on{background:var(--ink);color:var(--bg);font-weight:700}
+.toolbar .lbl{font-size:11px;color:var(--faint);letter-spacing:.12em}
+.panel-sim{margin:0 auto;transition:max-width .2s}
+.panel-shell{background:var(--paper);border:1px solid var(--hair);border-radius:18px;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,.28)}
+html[data-theme="light"] .panel-shell{box-shadow:0 24px 60px rgba(20,20,30,.10)}
+.panel-head{padding:11px 18px;border-bottom:1px solid var(--hair);display:flex;gap:8px;align-items:center;font-size:11px;color:var(--faint);letter-spacing:.14em}
+.panel-body{padding:26px 26px 30px}
+.micro{font-size:11px;letter-spacing:.16em;color:var(--faint);text-transform:uppercase}
+.hair{border:none;border-top:1px solid var(--hair);margin:0}
+code{font-family:var(--mono);font-size:.92em}
+/* ---------- A · 编辑留白 ---------- */
+.ed-eyebrow{font-size:11px;letter-spacing:.18em;color:var(--faint);margin-bottom:10px}
+.ed-id{font-size:31px;line-height:1.15;letter-spacing:-.015em;font-weight:680}
+.ed-id .wt{color:var(--blue)}
+.ed-id .br{color:var(--ink)}
+.ed-id .dot{color:var(--faint);font-weight:400;margin:0 10px}
+.ed-sub{margin-top:10px;font-size:12.5px;color:var(--mut)}
+.ed-sub b{color:var(--ink2);font-weight:600}
+.ed-rule{border:none;border-top:1px solid var(--hair);margin:22px 0}
+.ed-state{font-family:var(--serif);font-size:19px;line-height:1.5;margin:0 0 4px}
+.ed-state.quiet{color:var(--ink2)}
+.ed-state.warn{color:var(--amber)}
+.ed-countline{font-size:13px;color:var(--mut);margin:0}
+.ed-countline .n{font-family:var(--mono);font-variant-numeric:tabular-nums;color:var(--ink);font-size:14px}
+.ed-frow{display:grid;grid-template-columns:3px 22px 1fr auto;gap:10px;align-items:baseline;padding:11px 2px;border-top:1px solid var(--hair)}
+.ed-frow .tick{width:3px;height:14px;border-radius:2px;align-self:center;background:var(--hair2)}
+.ed-frow .tp{font-family:var(--mono);font-size:12px;color:var(--mut)}
+.ed-frow .pa{font-size:13px;word-break:break-all}
+.ed-frow .nu{font-family:var(--mono);font-size:11.5px;color:var(--faint);font-variant-numeric:tabular-nums;white-space:nowrap}
+.ed-fsec{font-size:11px;letter-spacing:.16em;color:var(--faint);margin:20px 0 2px}
+.ed-diff{margin-top:14px;background:var(--inset);border:1px solid var(--hair);border-radius:12px;padding:13px 15px;font-family:var(--mono);font-size:12px;line-height:1.7;white-space:pre-wrap;color:var(--ink2)}
+.ed-h{padding:11px 2px;border-top:1px solid var(--hair);display:flex;gap:10px;align-items:baseline}
+.ed-h .m{font-size:13px}
+.ed-h .x{font-size:11px;color:var(--faint);white-space:nowrap;font-family:var(--mono)}
+.ed-note{font-size:11.5px;color:var(--faint)}
+/* ---------- B · 纪念碑 ---------- */
+.mo-cap{text-align:left;font-size:11px;letter-spacing:.2em;color:var(--faint);margin-bottom:14px}
+.mo-idline{font-size:12.5px;color:var(--mut);margin-bottom:16px}
+.mo-idline b{color:var(--ink);font-weight:650}
+.mo-big{font-family:var(--serif);font-size:42px;line-height:1.18;letter-spacing:-.01em;margin:0;font-weight:600}
+.mo-big .n{font-variant-numeric:tabular-nums}
+.mo-big.warn{color:var(--amber)}
+.mo-big.bad{color:var(--red)}
+.mo-big.ok{color:var(--ink)}
+.mo-sub{margin-top:10px;font-size:13px;color:var(--mut)}
+.mo-rule{border:none;border-top:1px solid var(--hair);margin:24px 0 6px}
+.mo-row{display:flex;gap:10px;align-items:baseline;padding:12px 2px;border-top:1px solid var(--hair);font-size:13px}
+.mo-row .k{font-family:var(--mono);font-size:11.5px;color:var(--faint);min-width:52px}
+.mo-row .v{flex:1;word-break:break-all}
+.mo-row .e{font-family:var(--mono);font-size:11.5px;color:var(--faint);font-variant-numeric:tabular-nums}
+.mo-code{margin-top:16px;background:var(--inset);border:1px solid var(--hair);border-radius:12px;padding:13px 15px;font-family:var(--mono);font-size:12px;line-height:1.7;white-space:pre-wrap;color:var(--ink2)}
+/* ---------- C · 档案索引 ---------- */
+.ix-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding-bottom:14px;border-bottom:1px solid var(--hair2)}
+.ix-head .p{font-family:var(--mono);font-size:13px}
+.ix-head .p b{font-weight:700}
+.ix-head .s{font-family:var(--mono);font-size:11.5px;color:var(--mut);font-variant-numeric:tabular-nums}
+.ix-sec{font-size:10.5px;letter-spacing:.18em;color:var(--faint);margin:20px 0 0;padding:8px 0;border-bottom:1px solid var(--hair)}
+.ix-row{display:flex;gap:10px;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--hair);font-size:12.5px}
+.ix-row .t{font-family:var(--mono);font-size:11px;width:18px;color:var(--mut);text-align:center;border:1px solid var(--hair2);border-radius:5px;padding:0 0 1px}
+.ix-row .t.hot{color:var(--red);border-color:var(--red)}
+.ix-row .p{flex:1;font-family:var(--mono);font-size:12px;word-break:break-all}
+.ix-row .e{font-family:var(--mono);font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums;white-space:nowrap}
+.ix-code{font-family:var(--mono);font-size:11.5px;background:var(--inset);border:1px solid var(--hair);border-radius:10px;padding:11px 13px;margin-top:12px;white-space:pre-wrap;color:var(--ink2);line-height:1.7}
+/* ---------- 共用 ---------- */
+.variant{display:none}.variant.active{display:block}
+.vlabel{font-size:11px;letter-spacing:.14em;color:var(--faint);margin:0 0 16px}
+details.fold{font-size:12px;color:var(--mut);background:var(--paper);border:1px solid var(--hair);border-radius:12px;padding:9px 12px;margin:14px auto 0;max-width:760px}
+details.fold summary{cursor:pointer;color:var(--mut)}
+.statebox h3{margin:8px 0 6px;font-size:13px;color:var(--ink)}
+.statebox pre{margin:0;font-size:11.5px;white-space:pre-wrap;word-break:break-word;color:var(--mut);font-family:var(--mono)}
+#switcher{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:rgba(18,18,24,.94);color:#fff;border:1px solid rgba(255,255,255,.14);border-radius:99px;padding:6px 8px;display:flex;align-items:center;gap:10px;z-index:9999;box-shadow:0 8px 30px rgba(0,0,0,.35)}
+html[data-theme="light"] #switcher{background:rgba(255,255,255,.96);color:#16161a;border-color:rgba(0,0,0,.1)}
+#switcher button{width:34px;height:34px;border-radius:50%;border:none;background:rgba(255,255,255,.12);color:inherit;cursor:pointer;font-size:16px;display:grid;place-items:center}
+html[data-theme="light"] #switcher button{background:rgba(0,0,0,.07)}
+#switcher .lab{font-size:13px;font-weight:700;min-width:230px;text-align:center}
+#switcher .sub2{font-size:11px;opacity:.7;font-weight:400}
+.fail-big{font-family:var(--serif);font-size:30px;line-height:1.3;margin:6px 0 8px}
+.fail-sub{font-size:13px;color:var(--mut)}
+button.retry{font-size:12px;padding:6px 14px;border-radius:99px;border:1px solid var(--hair2);background:transparent;color:var(--ink);cursor:pointer;margin-top:12px}
+</style>
+</head>
+<body>
+<div class="badge">PROTOTYPE-815 · 抛弃式</div>
+<div class="theme-toggle"><button id="btn-dark" class="active">深色</button><button id="btn-light">浅色</button></div>
+<div class="wrap">
+  <div class="minihead"><h1>只读状态视图 · 3 变体</h1><details><summary>说明（选型不需要可不看）</summary><p class="sub">第二轮：设计师视角，三个差距拉大的简约方向。A 编辑留白 / B 纪念碑 / C 档案索引，同一份假数据，<code>?variant=A|B|C</code> 与 <code>?state=dirty|clean|rebase|nogit|nogitbin</code> 分享，底栏切换。</p><div class="assume"> قصد说明：A 靠字号与分割线拉开层级；B 让一句话状态主导一切；C 做成高密度等宽索引。假工作树里两个同名 <code>deck</code> 用来看最短唯一后缀。宽度 520 / 380 / 300 看窄面板让位。</div></details></div>
+
+  <div class="toolbar">
+    <span class="lbl">状态</span>
+    <div class="group" id="state-group"></div>
+    <span class="lbl">宽度</span>
+    <div class="group" id="width-group"></div>
+  </div>
+
+  <div class="panel-sim" id="panel-sim" style="max-width:520px">
+    <div class="panel-shell">
+      <div class="panel-head"><span>VERSION CONTROL · READONLY</span><span style="flex:1"></span><span id="panel-width-lab">520px</span></div>
+      <div class="panel-body">
+        <div id="variant-A" class="variant"><div class="vlabel">A — EDITORIAL · 编辑留白</div><div id="body-A"></div></div>
+        <div id="variant-B" class="variant"><div class="vlabel">B — MONUMENT · 纪念碑</div><div id="body-B"></div></div>
+        <div id="variant-C" class="variant"><div class="vlabel">C — INDEX · 档案索引</div><div id="body-C"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <details class="fold"><summary>当前状态读数与挑毛病句式（选型不需要可不看，切换时仍会重画）</summary><div class="statebox"><h3>当前状态读数</h3><pre id="readout"></pre></div>
+  <div class="assume">挑毛病时最好用的句式：<b>“我要 B 的状态句 + A 的文件列表 + C 的提交索引”</b>——直接这样回就行。需要动仓库或联网的出路统一写成“去侧栏终端”，原型里所有按钮都不真改仓库。</div></details>
+</div>
+
+<div id="switcher"><button id="sw-prev" title="上一个变体">‹</button><span class="lab"><span id="sw-label">A</span><br><span class="sub2" id="sw-sub"></span></span><button id="sw-next" title="下一个变体">›</button></div>
+
+<script>
+// ---------- 假数据（内存，没有持久化；路径/分支/提交全是编的） ----------
+const FAKE = {
+dirty:{
+  key:'dirty', name:'正常有改动',
+  identity:{ wt:'deck', wtFull:'D:/work/deck', branch:'feat/version-panel', ahead:2, behind:1, basis:'远端快照 · 2026-10-01 21:14', sync5:'有推送目标且依据旧' },
+  counts:{ staged:3, unstaged:7, conflict:0 },
+  pos:'D:/work/deck',
+  files:[
+    {g:'已暂存', type:'新增', abbr:'A', path:'src/version-control-core/model.ts', nums:'+45 −2'},
+    {g:'已暂存', type:'修改', abbr:'M', path:'src/client/panel/Dock.js', nums:'+12 −3'},
+    {g:'已暂存', type:'重命名', abbr:'R', path:'StatusView.js ← OldStatus.js', nums:'+8 −8'},
+    {g:'未暂存', type:'修改', abbr:'M', path:'src/client/panel/RepoChipSkeleton.js', nums:'+30 −6'},
+    {g:'未暂存', type:'删除', abbr:'D', path:'…/very-long-dir-name/…/OldHelper.js', nums:'−120'},
+    {g:'未暂存', type:'未跟踪', abbr:'?', path:'research/815-scratch-notes.md', nums:'untracked'},
+    {g:'未暂存', type:'类型改变', abbr:'T', path:'scripts/verify-log-coverage.js', nums:'+1 −1'}
+  ],
+  diffSample:'@@ −10,6 +10,9 @@\n  context\n+ 工作树显示名取最短唯一后缀\n− 直接拿目录名\n  context',
+  others:[{n:'feat/deck', note:'同名 · 已加长一段区分'},{n:'deck-hotfix', note:'被占用'}],
+  otherTitle:'其他工作树 (2)',
+  history:[
+    {h:'edfc5b8', who:'FeatherHunter', when:'3 小时前', msg:'收录三份调研底稿'},
+    {h:'ce6c97d', who:'FeatherHunter', when:'昨天', msg:'只读视图不联网，领先落后只读本地缓存'},
+    {h:'e17b2b7', who:'FeatherHunter', when:'09-30', msg:'三条 git 硬约束定版'}
+  ]
+},
+clean:{
+  key:'clean', name:'全干净',
+  identity:{ wt:'deck', wtFull:'D:/work/deck', branch:'feat/version-panel', ahead:0, behind:0, basis:'远端快照 · 2026-10-02 08:02', sync5:'有推送目标且依据新' },
+  counts:{ staged:0, unstaged:0, conflict:0 },
+  pos:'D:/work/deck',
+  files:[],
+  others:[{n:'feat/deck', note:'同名 · 已加长一段区分'}],
+  otherTitle:'其他工作树 (1)',
+  history:[
+    {h:'edfc5b8', who:'FeatherHunter', when:'3 小时前', msg:'收录三份调研底稿'},
+    {h:'a103ffd', who:'FeatherHunter', when:'5 小时前', msg:'规格单 #821 定稿'}
+  ]
+},
+rebase:{
+  key:'rebase', name:'变基进行中带冲突',
+  identity:{ wt:'deck', wtFull:'D:/work/deck', branch:'feat/version-panel', ahead:2, behind:1, basis:'远端快照 · 2026-09-28 18:40', sync5:'有推送目标且依据旧' },
+  counts:{ staged:1, unstaged:2, conflict:2 },
+  pos:'D:/work/deck',
+  files:[
+    {g:'冲突', type:'冲突', abbr:'!', hot:true, path:'src/version-control-core/parsers.js', nums:'两边版本都在里面'},
+    {g:'冲突', type:'冲突', abbr:'!', hot:true, path:'src/client/panel/Dock.js', nums:'两边版本都在里面'},
+    {g:'已暂存', type:'修改', abbr:'M', path:'src/version-control-core/model.ts', nums:'+45 −2'},
+    {g:'未暂存', type:'修改', abbr:'M', path:'src/client/panel/RepoChipSkeleton.js', nums:'+30 −6'}
+  ],
+  diffSample:'<<<<<<< 你的改动\n  dirName(path)\n=======\n  shortestUniqueSuffix(path)\n>>>>>>> 变基目标',
+  others:[{n:'feat/deck', note:'占用情况无法显示'}],
+  otherTitle:'其他工作树 (1)',
+  history:[{h:'edfc5b8', who:'FeatherHunter', when:'3 小时前', msg:'收录三份调研底稿'}]
+},
+nogit:{ key:'nogit', name:'不是 git 仓库' },
+nogitbin:{ key:'nogitbin', name:'git 不可用（有旧数据）' }
+};
+const VARIANTS=['A','B','C'];
+const VNAMES={A:'A — Editorial 编辑留白',B:'B — Monument 纪念碑',C:'C — Index 档案索引'};
+const STATES=['dirty','clean','rebase','nogit','nogitbin'];
+const SNAMES={dirty:'有改动',clean:'全干净',rebase:'变基冲突',nogit:'非仓库',nogitbin:'无git'};
+const WIDTHS=[520,380,300];
+let cur={ variant:'A', state:'dirty', width:520 };
+
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');}
+
+/* ===== A · 编辑留白 ===== */
+function edFiles(d){
+  if(!d.files.length) return '<hr class="ed-rule"><p class="ed-state quiet">干净。</p><p class="ed-countline">没有未提交改动 —— 零提交仓库会另写“还没有任何提交”，不与此混用。</p>';
+  const order={ '冲突':0, '已暂存':1, '未暂存':2 };
+  const gs={}; d.files.forEach(f=>{(gs[f.g]=gs[f.g]||[]).push(f);});
+  let h='<hr class="ed-rule"><p class="ed-state quiet">已暂存 <span class="n">'+d.counts.staged+'</span> · 未暂存 <span class="n">'+d.counts.unstaged+'</span>'+(d.counts.conflict?' · 冲突 <span class="n">'+d.counts.conflict+'</span>':'')+'</p>';
+  Object.keys(gs).sort((a,b)=>(order[a]??9)-(order[b]??9)).forEach(g=>{
+    h+='<div class="ed-fsec">'+esc(g)+' · '+gs[g].length+'</div>'+gs[g].map(f=>
+      '<div class="ed-frow"><span class="tick" style="background:'+(f.hot?'var(--red)':(f.g==='已暂存'?'var(--green)':'var(--hair2)'))+'"></span><span class="tp">'+esc(f.abbr)+'</span><span class="pa">'+esc(f.path)+'</span><span class="nu">'+esc(f.nums)+'</span></div>'
+    ).join('');
+  });
+  h+='<div class="ed-diff">'+esc(d.diffSample)+'\n<span class="ed-note">就地展开 · 只显示前 N 行，后面到终端看</span></div>';
+  return h;
+}
+function renderA(d){
+  if(d.key==='nogit'||d.key==='nogitbin') return failQuiet(d.key);
+  const st = d.key==='rebase'
+    ? '<p class="ed-state warn">正在变基，还有 2 个文件等你处理。</p><p class="ed-countline">改完去侧栏终端继续 · 冲突是待处理的状态</p>'
+    : d.key==='clean'
+    ? '<p class="ed-state quiet">干净。</p><p class="ed-countline">没有未提交改动，可以安心切走</p>'
+    : '<p class="ed-state quiet">有改动，但都在眼皮底下。</p><p class="ed-countline">已暂存 <span class="n">'+d.counts.staged+'</span> · 未暂存 <span class="n">'+d.counts.unstaged+'</span> · 先看冲突，再看已暂存</p>';
+  return '<div class="ed-eyebrow">WORKTREE · BRANCH</div>'
+  +'<div class="ed-id"><span class="wt" title="'+esc(d.identity.wtFull)+'">'+esc(d.identity.wt)+'</span><span class="dot">·</span><span class="br">'+esc(d.identity.branch)+'</span></div>'
+  +'<div class="ed-sub">领先 <b>'+d.identity.ahead+'</b> · 落后 <b>'+d.identity.behind+'</b> · '+esc(d.identity.basis)+' · '+esc(d.pos)+'</div>'
+  + st + edFiles(d)
+  +'<hr class="ed-rule"><div class="ed-fsec">'+esc(d.otherTitle)+'</div>'
+  + d.others.map(o=>'<div class="ed-h"><span class="m">'+esc(o.n)+'</span><span style="flex:1"></span><span class="x">'+esc(o.note)+'</span></div>').join('')
+  +'<div class="ed-fsec">提交历史</div>'
+  + d.history.map(x=>'<div class="ed-h"><span class="m">'+esc(x.msg)+'</span><span style="flex:1"></span><span class="x">'+esc(x.h)+' · '+esc(x.when)+'</span></div>').join('');
+}
+
+/* ===== B · 纪念碑 ===== */
+function renderB(d){
+  if(d.key==='nogit'||d.key==='nogitbin') return failQuiet(d.key);
+  let big='', sub='';
+  if(d.key==='rebase'){ big='<p class="mo-big warn">变基 · <span class="n">2</span> 个冲突</p>'; sub='改完去侧栏终端继续（<code>git status</code> 看进度）。冲突是待处理的状态，不是你改错了。'; }
+  else if(d.key==='clean'){ big='<p class="mo-big ok">干净</p>'; sub='没有未提交改动，可以安心切走。'; }
+  else { big='<p class="mo-big ok"><span class="n">'+d.counts.staged+'</span> 已暂存 · <span class="n">'+d.counts.unstaged+'</span> 未暂存</p>'; sub='先看冲突，再看已暂存。'; }
+  let rows='';
+  if(d.files.length){
+    const order={ '冲突':0, '已暂存':1, '未暂存':2 };
+    const gs={}; d.files.forEach(f=>{(gs[f.g]=gs[f.g]||[]).push(f);});
+    Object.keys(gs).sort((a,b)=>(order[a]??9)-(order[b]??9)).forEach(g=>{
+      gs[g].forEach(f=>{ rows+='<div class="mo-row"><span class="k">'+esc(f.abbr)+' · '+esc(f.type)+'</span><span class="v">'+esc(f.path)+'</span><span class="e">'+esc(f.nums)+'</span></div>'; });
+    });
+    rows+='<div class="mo-code">'+esc(d.diffSample)+'\n就地展开 · 只显示前 N 行</div>';
+  }
+  return '<div class="mo-cap">VERSION CONTROL · READONLY</div>'
+  +'<div class="mo-idline"><b>'+esc(d.identity.wt)+'</b> · '+esc(d.identity.branch)+' &nbsp;&nbsp;领先 '+d.identity.ahead+' · 落后 '+d.identity.behind+' · '+esc(d.identity.basis)+'</div>'
+  + big + '<div class="mo-sub">'+sub+'</div>'
+  +'<hr class="mo-rule">'+rows
+  +'<div class="mo-row"><span class="k">位置</span><span class="v">'+esc(d.pos)+'</span><span class="e"></span></div>'
+  +'<div class="mo-row"><span class="k">'+esc(d.otherTitle)+'</span><span class="v">'+d.others.map(o=>esc(o.n)+'（'+esc(o.note)+'）').join(' · ')+'</span><span class="e"></span></div>'
+  + d.history.map(x=>'<div class="mo-row"><span class="k">'+esc(x.when)+'</span><span class="v">'+esc(x.msg)+'</span><span class="e">'+esc(x.h)+'</span></div>').join('');
+}
+
+/* ===== C · 档案索引 ===== */
+function renderC(d){
+  if(d.key==='nogit'||d.key==='nogitbin') return failQuiet(d.key);
+  const banner = d.key==='rebase'
+    ? '<div class="ix-sec">STATUS · REBASING — 正在变基 · 2 个冲突 · 去侧栏终端继续</div>'
+    : d.key==='clean'
+    ? '<div class="ix-sec">STATUS · CLEAN — 干净 · 没有未提交改动</div>'
+    : '<div class="ix-sec">STATUS · DIRTY — 已暂存 '+d.counts.staged+' · 未暂存 '+d.counts.unstaged+'</div>';
+  let h='<div class="ix-head"><span class="p"><b>'+esc(d.identity.wt)+'</b> / '+esc(d.identity.branch)+'</span><span style="flex:1"></span><span class="s">+'+d.identity.ahead+' −'+d.identity.behind+' · '+esc(d.identity.basis)+'</span></div>'+banner;
+  h+='<div class="ix-sec">FILES · '+d.files.length+'</div>';
+  if(!d.files.length) h+='<div class="ix-row"><span class="p" style="color:var(--faint)">(empty — 零提交仓库另写“还没有任何提交”)</span></div>';
+  d.files.forEach(f=>{ h+='<div class="ix-row"><span class="t'+(f.hot?' hot':'')+'">'+esc(f.abbr)+'</span><span class="p">'+esc(f.path)+'</span><span class="e">'+esc(f.nums)+'</span></div>'; });
+  h+='<div class="ix-code">'+esc(d.diffSample)+'\n// 就地展开 · 前 N 行</div>';
+  h+='<div class="ix-sec">'+esc(d.otherTitle).toUpperCase()+' · OTHER WORKTREES</div>';
+  d.others.forEach(o=>{ h+='<div class="ix-row"><span class="t">○</span><span class="p">'+esc(o.n)+'</span><span class="e">'+esc(o.note)+'</span></div>'; });
+  h+='<div class="ix-sec">HISTORY · COMMITS</div>';
+  d.history.forEach(x=>{ h+='<div class="ix-row"><span class="e">'+esc(x.h)+'</span><span class="p">'+esc(x.msg)+'</span><span class="e">'+esc(x.when)+'</span></div>'; });
+  return h;
+}
+
+function failQuiet(kind){
+  if(kind==='nogit') return '<div class="micro">STATUS · NOT A REPO</div><p class="fail-big">这里不是 git 仓库。</p><p class="fail-sub">D:/work/not-a-repo 里没有 git 仓库根。换个目录，或去侧栏终端确认。<br>首屏三块同一次读取、成败一起，不留半块空白冒充 0。</p><button class="retry" onclick="toast_815(\'已重试（原型里只是演示）\')">重试</button>';
+  return '<div class="micro">STATUS · GIT MISSING · STALE</div><p class="fail-big">找不到 git 程序。</p><p class="fail-sub">去确认安装和 PATH 并重启。下面是上次的旧数据，只标“刷新失败”，不清空：deck · feat/version-panel · 已暂存 3 / 未暂存 7</p><button class="retry" onclick="toast_815(\'已重试（原型里只是演示）\')">重试</button>';
+}
+
+function renderAll(){
+  const d=FAKE[cur.state];
+  document.getElementById('body-A').innerHTML=renderA(d);
+  document.getElementById('body-B').innerHTML=renderB(d);
+  document.getElementById('body-C').innerHTML=renderC(d);
+  VARIANTS.forEach(v=>document.getElementById('variant-'+v).classList.toggle('active', v===cur.variant));
+  document.getElementById('sw-label').textContent=VNAMES[cur.variant];
+  document.getElementById('sw-sub').textContent='状态 '+SNAMES[cur.state]+' · '+cur.width+'px · ?variant='+cur.variant+'&state='+cur.state;
+  const sg=document.getElementById('state-group'); sg.innerHTML='';
+  STATES.forEach(s=>{const b=document.createElement('button'); b.textContent=SNAMES[s]; if(s===cur.state)b.className='on'; b.onclick=()=>{cur.state=s; sync();}; sg.appendChild(b);});
+  const wg=document.getElementById('width-group'); wg.innerHTML='';
+  WIDTHS.forEach(w=>{const b=document.createElement('button'); b.textContent=w; if(w===cur.width)b.className='on'; b.onclick=()=>{cur.width=w; sync();}; wg.appendChild(b);});
+  document.getElementById('panel-sim').style.maxWidth=cur.width+'px';
+  document.getElementById('panel-width-lab').textContent=cur.width+'px';
+  const readout={ variant:cur.variant+'（'+VNAMES[cur.variant]+'）', state:cur.state+'（'+(d.name||d.key)+'）', width:cur.width+'px',
+    身份:d.identity?(d.identity.wt+' · '+d.identity.branch):'(失败态无身份)',
+    计数:d.counts?('已暂存 '+d.counts.staged+' / 未暂存 '+d.counts.unstaged+' / 冲突 '+d.counts.conflict):'(失败态无计数)',
+    同步五值:d.identity?d.identity.sync5:'—', 依据时间:d.identity?d.identity.basis:'—',
+    其他工作树:d.otherTitle||'—', 分享:'?variant='+cur.variant+'&state='+cur.state };
+  document.getElementById('readout').textContent=JSON.stringify(readout,null,2);
+  const u=new URL(location.href); u.searchParams.set('variant',cur.variant); u.searchParams.set('state',cur.state); history.replaceState(null,'',u);
+}
+function sync(){ renderAll(); }
+function cycle(d){ const i=VARIANTS.indexOf(cur.variant); cur.variant=VARIANTS[(i+d+VARIANTS.length)%VARIANTS.length]; sync(); }
+document.getElementById('sw-prev').onclick=()=>cycle(-1);
+document.getElementById('sw-next').onclick=()=>cycle(1);
+document.addEventListener('keydown',e=>{
+  const t=(e.target&&e.target.tagName)||'';
+  if(t==='INPUT'||t==='TEXTAREA'||e.target.isContentEditable) return;
+  if(e.key==='ArrowLeft') cycle(-1);
+  if(e.key==='ArrowRight') cycle(1);
+});
+function toast_815(m){ alert(m); }
+function setTheme(t){
+  document.documentElement.setAttribute('data-theme',t);
+  document.getElementById('btn-dark').classList.toggle('active',t==='dark');
+  document.getElementById('btn-light').classList.toggle('active',t==='light');
+}
+document.getElementById('btn-dark').onclick=()=>setTheme('dark');
+document.getElementById('btn-light').onclick=()=>setTheme('light');
+(function(){ const q=new URLSearchParams(location.search);
+  const v=q.get('variant'), s=q.get('state');
+  if(VARIANTS.includes(v)) cur.variant=v;
+  if(STATES.includes(s)) cur.state=s;
+  setTheme('dark'); sync(); })();
+</script>
+</body>
+</html>
