@@ -46,11 +46,11 @@ export const vcStageAllNode = function (h, o) {
 export const vcCommitAreaNode = function (h, o) {
   const c = o && o.commitArea
   if (!c) return null
-  return h('div', { key: 'commitArea', 'data-vc-commit-area': 1, style: { marginTop: 8, borderTop: '1px solid var(--dsw-alias-border-l1,#2a2d35)', paddingTop: 6, display: 'flex', flexDirection: 'column', gap: 4 } }, [
+  return h('div', { key: 'commitArea', 'data-vc-commit-area': 1, style: { marginTop: 8, borderTop: '1px solid var(--vc-line,#2a2d35)', paddingTop: 6, display: 'flex', flexDirection: 'column', gap: 4 } }, [
     h('input', {
       key: 'input', type: 'text', value: c.value, placeholder: c.placeholder, 'data-vc-commit-msg': 1,
       onChange: function (e) { o.writeMessageOf(e && e.target ? e.target.value : '') },
-      style: { boxSizing: 'border-box', width: '100%', fontSize: 11, padding: '3px 6px', borderRadius: 6, border: '1px solid var(--dsw-alias-border-l2,#3a3f4a)', background: 'var(--dsw-alias-bg-layer-3,#0c0e12)', color: 'var(--dsw-alias-label-primary,#e6edf3)' },
+      style: { boxSizing: 'border-box', width: '100%', fontSize: 11, padding: '3px 6px', borderRadius: 6, border: '1px solid var(--vc-line2,#3a3f4a)', background: 'var(--vc-inset,#0c0e12)', color: 'var(--vc-ink,#e6edf3)' },
     }),
     h('div', { key: 'row', style: { display: 'flex', gap: 6, alignItems: 'center' } }, [
       h('span', { key: 'hint', style: { flex: 1, minWidth: 0, fontSize: 10, color: o.tone('caption') } }, c.hint),
@@ -69,7 +69,7 @@ export const vcWriteTailNodes = function (h, o) {
   const w = (o && o.writeUi) || {}
   const running = w.running ? h('div', { key: 'running', 'data-vc-running': w.running, style: { fontSize: 11, color: o.tone('accent') } }, w.runningText || o.tr('vc.op.running')) : null
   const result = w.result
-    ? h('div', { key: 'result', 'data-vc-op-result': w.result.state, style: { display: 'flex', flexDirection: 'column', gap: 2, fontSize: 11, borderTop: '1px solid var(--dsw-alias-border-l1,#2a2d35)', paddingTop: 6 } }, [
+    ? h('div', { key: 'result', 'data-vc-op-result': w.result.state, style: { display: 'flex', flexDirection: 'column', gap: 2, fontSize: 11, borderTop: '1px solid var(--vc-line,#2a2d35)', paddingTop: 6 } }, [
         h('div', { key: 'row', style: { display: 'flex', gap: 6, alignItems: 'baseline' } }, [
           // 动作词与主句都已经是词条句子（模型层翻好的），这里不再 tr 一次、也不许落到键名。
           h('span', { key: 'verb', style: { flex: 'none', fontWeight: 700, color: w.result.state === 'done' ? o.tone('success') : o.tone('error') } }, w.result.verb || o.tr(w.result.state === 'done' ? 'vc.op.done' : 'vc.op.failed')),
@@ -82,7 +82,7 @@ export const vcWriteTailNodes = function (h, o) {
   // 多远端 + 没有上游：候选远端来自失败回包的顶层 remotes，画成一排可点的入口（选中后带 remote 重跑预检）。
   const rc = w.remoteChoice
   const remoteChoice = rc
-    ? h('div', { key: 'remoteChoice', 'data-vc-remote-choice': 1, style: { border: '1px solid var(--dsw-alias-border-l2,#3a3f4a)', borderRadius: 8, padding: '8px 10px', background: 'var(--dsw-alias-bg-layer-2,#16181d)', display: 'flex', flexDirection: 'column', gap: 6 } }, [
+    ? h('div', { key: 'remoteChoice', 'data-vc-remote-choice': 1, style: { border: '1px solid var(--vc-line2,#3a3f4a)', borderRadius: 8, padding: '8px 10px', background: 'var(--vc-inset,#16181d)', display: 'flex', flexDirection: 'column', gap: 6 } }, [
         h('div', { key: 'title', style: { fontSize: 12, fontWeight: 700, color: o.tone('primary') } }, rc.title),
         h('div', { key: 'body', 'data-vc-remote-choice-body': 1, style: { fontSize: 11, color: o.tone('caption'), lineHeight: 1.6 } }, rc.body),
         h('div', { key: 'list', style: { display: 'flex', gap: 6, flexWrap: 'wrap' } }, rc.remotes.map(function (name) {
@@ -92,12 +92,12 @@ export const vcWriteTailNodes = function (h, o) {
     : null
   const c = w.confirm
   const confirm = c
-    ? h('div', { key: 'confirm', 'data-vc-confirm': c.op, style: { border: '1px solid var(--dsw-alias-border-l2,#3a3f4a)', borderRadius: 8, padding: '8px 10px', background: 'var(--dsw-alias-bg-layer-2,#16181d)', display: 'flex', flexDirection: 'column', gap: 6 } }, [
+    ? h('div', { key: 'confirm', 'data-vc-confirm': c.op, style: { border: '1px solid var(--vc-line2,#3a3f4a)', borderRadius: 8, padding: '8px 10px', background: 'var(--vc-inset,#16181d)', display: 'flex', flexDirection: 'column', gap: 6 } }, [
         h('div', { key: 'title', style: { fontSize: 12, fontWeight: 700, color: o.tone('primary') } }, c.title),
         h('div', { key: 'body', 'data-vc-confirm-body': 1, style: { fontSize: 11, color: o.tone('primary'), lineHeight: 1.6 } }, c.body),
         c.ttlText ? h('div', { key: 'ttl', 'data-vc-confirm-ttl': 1, style: { fontSize: 10, color: o.tone('caption') } }, c.ttlText) : null,
         c.pickRemote && c.remotes.length
-          ? h('select', { key: 'pick', 'data-vc-remote-pick': 1, value: c.remote || 'origin', onChange: function (e) { o.pickRemote(e && e.target ? e.target.value : '') }, style: { fontSize: 11, padding: '2px 6px', borderRadius: 6, border: '1px solid var(--dsw-alias-border-l2,#3a3f4a)', background: 'var(--dsw-alias-bg-layer-3,#0c0e12)', color: 'var(--dsw-alias-label-primary,#e6edf3)' } }, c.remotes.map(function (r) { return h('option', { key: r, value: r }, r) }))
+          ? h('select', { key: 'pick', 'data-vc-remote-pick': 1, value: c.remote || 'origin', onChange: function (e) { o.pickRemote(e && e.target ? e.target.value : '') }, style: { fontSize: 11, padding: '2px 6px', borderRadius: 6, border: '1px solid var(--vc-line2,#3a3f4a)', background: 'var(--vc-inset,#0c0e12)', color: 'var(--vc-ink,#e6edf3)' } }, c.remotes.map(function (r) { return h('option', { key: r, value: r }, r) }))
           : null,
         h('div', { key: 'buttons', style: { display: 'flex', gap: 6, justifyContent: 'flex-end' } }, [
           h('button', { key: 'cancel', className: 'dsws-btn ghost', type: 'button', 'data-vc-confirm-cancel': 1, onClick: o.cancelConfirm, style: { fontSize: 11, padding: '1px 8px' } }, o.tr('vc.confirm.cancel')),

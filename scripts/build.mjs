@@ -409,6 +409,7 @@ const LEAF_MODULES = [
   { id: 'vcFold', file: 'src/client/views/versionControl/vcFold.js' },
   { id: 'vcDiff', file: 'src/client/views/versionControl/vcDiff.js' }, // #819 审查后从 vcBlocks 拆出：一处差异该怎么画（那个文件贴着 350 行）
   { id: 'vcCommit', file: 'src/client/views/versionControl/vcCommit.js' }, // 规格故事 32：「这笔提交改了什么」那一层（排在 vcBlocks 之前，行是 vcBlocks 现传进去的同一份）
+  { id: 'vcStyles', file: 'src/client/views/versionControl/vcStyles.js' }, // #851 版本管理页签的视觉语言（档案索引）：一段 CSS 文本，经同一个 styles.insert 接缝注入
   { id: 'vcRows', file: 'src/client/views/versionControl/vcRows.js' }, // #842 从 vcBlocks 原样搬出：行分组 / 行画法 / 其他工作树行 / 某路径的差异读数（vcBlocks 要腾行给写操作）
   { id: 'vcWrite', file: 'src/client/views/versionControl/vcWrite.js' }, // #842 写操作的纯规则层（判定→状态、理由→词条、写失败→话术族、确认框内容）
   { id: 'vcWriteRun', file: 'src/client/views/versionControl/vcWriteRun.js' }, // #842 写操作的执行层（预检、四条写电话、结果记账、成功后的重读）

@@ -4,17 +4,19 @@
 //
 // 这一层只做三件事：把宽度与展开状态收起来、按 vcFold.js 的阶梯算该画什么、把 vcBlocks.js 给的
 //   块清单画成 DOM。所有判定与措辞都在那两个纯函数文件里，这里一个中文字面量都没有。
-// 颜色只走主题变量（--dsw-alias-*），浅色深色都跟着主题走；新加的六种变化色由下面的 VC_TONE
-//   映射到语义令牌，纯规则层只给「success / warning / error / accent / caption」这几个色档名。
+// #853：颜色只走**本页的皮肤令牌**（--vc-*，由 vcStyles.js 按宿主主题开关分深浅两套：
+//   深色 = A 工程台账，浅色 = C 纸质便签）。六种变化色由下面的 VC_TONE 映射到这些令牌，
+//   纯规则层只给「success / warning / error / accent / caption / primary」这几个色档名。
 // 定时器：一个都没有（既不自续也不排一次性）；宽度靠 ResizeObserver，提交续读靠
 //   IntersectionObserver，两者都在卸载时断开（#709 的「后台零定时器」那条不变量照旧）。
 export const VC_TONE = {
-  success: 'var(--dsw-alias-state-success-primary,#4ade80)',
-  warning: 'var(--dsw-alias-state-warning-primary,#f59e0b)',
-  error: 'var(--dsw-alias-state-error-primary,#f87171)',
-  accent: 'var(--dsw-alias-interactive-bg-primary,#c084fc)',
-  caption: 'var(--dsw-alias-label-caption,#8b8b95)',
-  primary: 'var(--dsw-alias-label-primary,#e6edf3)',
+  // #853：这六个色档改指本页的皮肤令牌，不再吃宿主那一套 —— 换肤就换这一处。
+  success: 'var(--vc-accent,#22c55e)',
+  warning: 'var(--vc-warn,#f59e0b)',
+  error: 'var(--vc-danger,#ef4444)',
+  accent: 'var(--vc-info,#38bdf8)',
+  caption: 'var(--vc-mut,#94a3b8)',
+  primary: 'var(--vc-ink,#e6edf3)',
 }
 export const VersionControlTab = function (props) {
   // 壳层还传了 narrow（面板窄于 380 的那一档），本页签不读它：这一页的让位按自己量到的
@@ -215,7 +217,7 @@ export const VersionControlTab = function (props) {
     //   那一档里路径与计数优先，中文状态词仍在，字母只是冗余的视觉标记。
     //   让位规则与既有那几处同源（同一台折叠机量出来的宽度），判定与块顺序一个字没动。
     const showBadge = !(width > 0 && width < VC_FOLD_BANDS[2])
-    return h('div', { key: row.path, 'data-vc-file': 1, 'data-vc-open': open ? 1 : undefined, style: { borderTop: '1px solid var(--dsw-alias-border-l1,#2a2d35)' } }, [
+    return h('div', { key: row.path, 'data-vc-file': 1, 'data-vc-open': open ? 1 : undefined, style: { borderTop: '1px solid var(--vc-line,#2a2d35)' } }, [
       h('div', { key: 'main', className: 'dsws-vc-row', onClick: function () { toggleDiff(row) }, style: { display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 11 } }, [
         // #851 ②：状态字母的方形徽章（新增的视觉标记）；中文状态词照旧在它右边可读（一个字没改）。
         showBadge ? h('span', { key: 'badge', className: 'dsws-vc-badge ' + String(row.badgeClass || ''), 'data-vc-badge': row.badge, title: row.changeText }, row.badge) : null,
@@ -244,15 +246,15 @@ export const VersionControlTab = function (props) {
     ])
   }
   const node = function (b) {
-    if (b.kind === 'hint') return h('div', { key: b.key, 'data-vc-hint': 1, style: { display: 'flex', gap: 6, alignItems: 'center', fontSize: 11, color: tone(b.tone), background: 'var(--dsw-alias-bg-layer-2,#16181d)', borderRadius: 6, padding: '4px 8px' } }, [h('span', { key: 'text', style: { flex: 1 } }, b.text), b.retry ? h('span', { key: 'retry', style: { display: 'contents' } }, button(b.retry, retryScreen)) : null])
-    if (b.kind === 'error') return h('div', { key: b.key, 'data-vc-error': 1, style: { border: '1px dashed var(--dsw-alias-border-l2,#3a3f4a)', borderRadius: 10, padding: '18px 14px', textAlign: 'center', fontSize: 12, color: tone(b.tone) } }, [
+    if (b.kind === 'hint') return h('div', { key: b.key, 'data-vc-hint': 1, style: { display: 'flex', gap: 6, alignItems: 'center', fontSize: 11, color: tone(b.tone), background: 'var(--vc-inset,#16181d)', borderRadius: 'var(--vc-radius,6px)', padding: '4px 8px' } }, [h('span', { key: 'text', style: { flex: 1 } }, b.text), b.retry ? h('span', { key: 'retry', style: { display: 'contents' } }, button(b.retry, retryScreen)) : null])
+    if (b.kind === 'error') return h('div', { key: b.key, 'data-vc-error': 1, style: { border: '1px dashed var(--vc-line2,#3a3f4a)', borderRadius: 'calc(var(--vc-radius,2px) * 2)', padding: '18px 14px', textAlign: 'center', fontSize: 12, color: tone(b.tone) } }, [
       // 可见正文只有一句按种类映射出来的词条句；宿主原话（中文）只进悬停，英文界面上不会串出中文。
       // key 挂在外层 span 上、不写进里面那个 div：内层这句是 verify-818 的反证补丁锚点，动它会把那条反证弄成「改不中」。
       h('span', { key: 'text', style: { display: 'contents' } }, tipNode(b.rawTip, h('div', { style: { lineHeight: 1.7 } }, b.text))),
       b.retry ? h('div', { key: 'retry', style: { marginTop: 10 } }, button(b.retry, retryScreen)) : null,
     ])
     if (b.kind === 'band') return h('div', { key: b.key, 'data-vc-band': 1, style: { display: 'flex', flexDirection: 'column', gap: 4 } }, b.items.map(function (it, i) {
-      return h('div', { key: i, 'data-vc-band-item': it.key, style: { fontSize: 11, color: tone(it.tone), background: 'var(--dsw-alias-bg-layer-2,#16181d)', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 6, padding: '4px 8px', lineHeight: 1.6 } }, tipNode(it.tip, h('span', { key: 'text' }, it.text)))
+      return h('div', { key: i, 'data-vc-band-item': it.key, style: { fontSize: 11, color: tone(it.tone), background: 'var(--vc-inset,#16181d)', border: '1px solid var(--vc-line,#2a2d35)', borderRadius: 'var(--vc-radius,6px)', padding: '4px 8px', lineHeight: 1.6 } }, tipNode(it.tip, h('span', { key: 'text' }, it.text)))
     }))
     if (b.kind === 'identity') return h('div', { key: b.key, 'data-vc-identity': 1, style: { display: 'flex', flexDirection: 'column', gap: 2 } }, [
       h('div', { key: 'head', style: { display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 } }, [
@@ -295,7 +297,7 @@ export const VersionControlTab = function (props) {
       b.collapsed ? h('div', { key: 'collapsed', className: 'dsws-vc-caption', style: { marginTop: 2 } }, b.collapseText) : null,
       b.empty && !b.collapsed ? h('div', { key: 'empty', style: { fontSize: 11, color: tone('caption'), marginTop: 2 } }, b.emptyText) : null,
       b.rows.map(function (c, i) {
-        return h('div', { key: c.key, className: 'dsws-vc-row dsws-vc-sep', 'data-vc-commit': 1, 'data-vc-commit-open': c.open ? 1 : undefined, onClick: function () { openCommit(c) }, style: { display: 'flex', alignItems: 'baseline', gap: 6, fontSize: 11, cursor: 'pointer', background: c.open ? 'var(--dsw-alias-interactive-bg-active,rgba(255,255,255,.14))' : undefined } }, [
+        return h('div', { key: c.key, className: 'dsws-vc-row dsws-vc-sep', 'data-vc-commit': 1, 'data-vc-commit-open': c.open ? 1 : undefined, onClick: function () { openCommit(c) }, style: { display: 'flex', alignItems: 'baseline', gap: 6, fontSize: 11, cursor: 'pointer', background: c.open ? 'var(--vc-hover,rgba(255,255,255,.14))' : undefined } }, [
           h('span', { key: 'when', className: 'dsws-vc-mono', style: { flex: 'none', color: tone('caption') } }, c.when),
           tipNode(c.tip, h('span', { key: 'subject', style: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: tone('primary') } }, c.subject)),
           h('span', { key: 'short', className: 'dsws-vc-mono', style: { flex: 'none', color: tone('caption') } }, c.short),
@@ -320,7 +322,7 @@ export const VersionControlTab = function (props) {
       // 其他工作树也按同一套规矩分批（#819 发现 12）：一千棵时不一次画一千行。
       b.moreCount > 0 ? h('div', { key: 'more', 'data-vc-other-more': 1, onClick: function () { moreFiles('other') }, style: { padding: '3px 0', fontSize: 11, color: tone('accent'), cursor: 'pointer' } }, b.moreLabel) : null,
     ])
-    if (b.kind === 'terminal') return h('div', { key: b.key, 'data-vc-terminal': 1, style: { display: 'flex', gap: 6, alignItems: 'center', fontSize: 11, color: tone('accent'), borderTop: '1px solid var(--dsw-alias-border-l1,#2a2d35)', paddingTop: 6 } }, [
+    if (b.kind === 'terminal') return h('div', { key: b.key, 'data-vc-terminal': 1, style: { display: 'flex', gap: 6, alignItems: 'center', fontSize: 11, color: tone('accent'), borderTop: '1px solid var(--vc-line,#2a2d35)', paddingTop: 6 } }, [
       // 「需要自己动手的事」是一句陈述，不是一个动作：这里没有替你打开命令行的能力，所以不摆任何看着能点的图标
       //   （#819 发现 7：外链图标摆在那里点不动，比不画图标更差）。
       tipNode(b.tip, h('span', { key: 'text' }, b.text)),

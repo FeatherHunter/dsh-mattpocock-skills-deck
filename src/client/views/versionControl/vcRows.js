@@ -49,6 +49,14 @@ export const vcFileRowsOf = function (screen) {
   rows.sort(function (a, b) { return rank(a) - rank(b) || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0) })
   return rows
 }
+/**
+ * 六种变化类型 → 方形徽章上的那个字母（#851 照原型 C 的 ix-row .t）。
+ * 字母只是**新增的视觉标记**：中文状态词（新增/修改/删除/重命名/类型变化/未跟踪）照旧在可读文本里，
+ * 一个字都不改（#821 已定）。缺省按「修改」的 M，绝不编第七种。
+ */
+export const VC_BADGE_LETTER = { added: 'A', modified: 'M', deleted: 'D', renamed: 'R', typechange: 'T', untracked: '?' }
+export const vcBadgeLetterOf = function (change) { return VC_BADGE_LETTER[String(change)] || 'M' }
+
 /** 一行的变化语义（冲突行按核心的口径就是「修改」，但界面上单挂一枚冲突标记，不算第七种类型）。 */
 export const vcRowViewOf = function (row, t, diffBlock) {
   return {
@@ -62,6 +70,12 @@ export const vcRowViewOf = function (row, t, diffBlock) {
     changeText: row.changeProven === false ? '' : t(vcChangeKeyOf(row.change)),
     changeTone: row.conflict ? 'warning' : vcChangeToneOf(row.change),
     countsText: vcPlusMinus(row.addedLines, row.deletedLines),
+    // #851：加减行数分开给，好让它们各自按正负着色（合计那一串 countsText 一个字不动，门禁与旧画法都还读它）。
+    addText: (row.addedLines === null || row.addedLines === undefined || !isFinite(Number(row.addedLines))) ? '' : '+' + String(Number(row.addedLines)),
+    delText: (row.deletedLines === null || row.deletedLines === undefined || !isFinite(Number(row.deletedLines))) ? '' : '\u2212' + String(Number(row.deletedLines)),
+    // 徽章：字母 + 变化类型对应的类名（颜色由 vcStyles.js 那一族规则给）。
+    badge: vcBadgeLetterOf(row.change),
+    badgeClass: 'is-' + String(row.change || 'modified'),
     countsTip: (row.addedLines === null || row.addedLines === undefined)
       ? t('vc.row.binaryTip')
       : (row.dual === true ? t('vc.row.countsDual') : t('vc.row.diffTip')),

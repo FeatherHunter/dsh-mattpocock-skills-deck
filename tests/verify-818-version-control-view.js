@@ -558,9 +558,14 @@ async function main() {
   check(VIEW.vcWhenText(tZh, NOW, null) === '' && VIEW.vcWhenText(tZh, NOW, undefined) === '', 'D10 没有时间这一项时回空串，不画成 1970 年')
   const toneKeys = Object.keys(VIEW.VC_TONE)
   const toneSrc = read('src/client/views/versionControl/VersionControlTab.js')
-  check(toneKeys.every((k) => toneSrc.indexOf('--dsw-alias-') >= 0) && /success: 'var\(--dsw-alias-state-success-primary/.test(toneSrc), 'F4 颜色只走主题变量（每个色档都是 var(--dsw-alias-…)，带一个兜底色）')
-  const noVar = stripComments(toneSrc).replace(/var\(--dsw-alias-[a-z0-9-]+(,[^)]*)?\)/g, '')
-  check(!/#[0-9a-fA-F]{3,8}\b/.test(noVar), 'F5 除主题变量里的兜底色之外，界面文件里没有别的硬编码颜色（注释里的票号不算）')
+  const vcTone = Object.keys(VIEW.VC_TONE).filter((k) => String(VIEW.VC_TONE[k]).indexOf('var(--vc-') < 0)
+  check(vcTone.length === 0 && toneSrc.indexOf('--vc-accent') >= 0, 'F4 颜色只走本页皮肤令牌（每个色档都是 var(--vc-…)，带一个兜底色；不是令牌的色档：' + (vcTone.join('、') || '无') + '）')
+  const noVar = stripComments(toneSrc).replace(/var\(--vc-[a-z0-9-]+(,[^)]*)?\)/g, '')
+  check(!/#[0-9a-fA-F]{3,8}\b/.test(noVar), 'F5 除皮肤令牌的兜底色之外，界面文件里没有别的硬编码颜色（注释里的票号不算）')
+  // 令牌定义文件本身当然要有十六进制 —— 那是它该待的地方；这里只确认它确实按主题开关分成深浅两套。
+  const vcStyleSrc = read('src/client/views/versionControl/vcStyles.js')
+  const skinsOk = vcStyleSrc.indexOf('body[data-ds-dark-theme] [data-vc-root]') >= 0 && vcStyleSrc.indexOf('body:not([data-ds-dark-theme]) [data-vc-root]') >= 0
+  check(skinsOk, 'F5b 皮肤令牌按宿主主题开关分成深浅两套（深色那一套在 body[data-ds-dark-theme] 下，浅色那一套在 :not 里）')
   check(!/setInterval|setTimeout/.test(VC_FILES.map(read).join('\n')), 'F6 界面文件里没有任何定时器（#709 的零定时器不变量）')
   const toneNames = new Set()
   const collectTones = function (x) {

@@ -68,6 +68,10 @@ export default {
 
     // ==== kernel:styles (spliced by build) ====
     styles.insert(STYLE_TEXT)
+    // #851：版本管理页签的视觉语言另起一个样式叶子（styles.js 已 350/350 是冻结基线）。
+    //   注入仍走同一个 styles.insert 接缝 —— 不是第二个 <style>，也没有新的注入机制。
+    // ==== leaf:vcStyles (spliced by build) ====
+    styles.insert(VC_STYLE_TEXT)
 
     // ============================================================
     // 0.5 locale（T3 #366 · dsws 命名空间 zh/en；跟随 harness 语言；GitHub 数据不翻译）
