@@ -17,6 +17,8 @@
 export const VC_FILE_ROWS_FIRST = 10
 /** 展开一次多列几个（规格第 25 条：展开要分批出现）。 */
 export const VC_FILE_ROWS_BATCH = 10
+/** 窄面板「其他工作树」摘要那一行最多列几个名字（其余明说还有几棵；悬停给列出来这几个的完整路径）。 */
+export const VC_OTHER_SUMMARY_NAMES = 20
 /** 六个块的名字与顺序（门禁按这个顺序断言；也说明「异常带在最上、终端出路在最下」）。 */
 export const VC_BLOCK_ORDER = ['hint', 'band', 'identity', 'changes', 'commits', 'other', 'terminal']
 /** 宿主失败信封里的种类 → 词条键。宿主那一句 message 是中文原话，直接画到英文界面上会串语言，
@@ -323,15 +325,22 @@ export const vcBlocksOf = function (screen, reads, ui, env) {
   const otherShown = shownOf('other')
   const otherRows = fold.otherMode === 'summary' ? [] : otherViews.slice(0, otherShown)
   const otherMore = fold.otherMode === 'summary' ? 0 : Math.max(0, otherViews.length - otherShown)
+  // 摘要档那一行：名字折短过，悬停必须给完整路径（规格第 5 条）；最多列 N 个，其余明说还有几棵。
+  const summaryViews = fold.otherMode === 'summary' ? otherViews.slice(0, VC_OTHER_SUMMARY_NAMES) : []
+  const summaryHidden = fold.otherMode === 'summary' ? Math.max(0, otherViews.length - summaryViews.length) : 0
+  const summaryTip = summaryViews.map(function (v) { return v.path }).join('\n')
   blocks.push({
     kind: 'other', key: 'other',
     title: t('vc.other.title', { n: String(others.length) }),
-    tip: t('vc.other.tip'),
+    // 摘要档把完整路径并进这条悬停（标题与摘要那一行都挂它）；列表档每行自己带悬停，这条保持通用说明。
+    tip: t('vc.other.tip') + (summaryTip ? '\n' + summaryTip : ''),
     mode: fold.otherMode,
     rows: otherRows,
     moreCount: otherMore,
     moreLabel: t('vc.other.more', { n: String(otherMore) }),
-    summaryText: t('vc.other.summary', { n: String(others.length), list: otherViews.map(function (v) { return v.displayText }).join(t('vc.other.join')) }),
+    summaryText: fold.otherMode === 'summary'
+      ? t('vc.other.summary', { n: String(others.length), list: summaryViews.map(function (v) { return v.displayText }).join(t('vc.other.join')) }) + (summaryHidden > 0 ? ' ' + t('vc.other.summaryMore', { n: String(summaryHidden) }) : '')
+      : '',
     empty: others.length === 0,
     emptyText: t('vc.other.empty'),
   })

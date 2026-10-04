@@ -269,7 +269,8 @@ export const VersionControlTab = function (props) {
     if (b.kind === 'other') return h('div', { key: b.key, 'data-vc-other': 1 }, [
       tipNode(b.tip, h('div', { style: { fontSize: 12, fontWeight: 700, color: tone('primary') } }, b.title)),
       b.empty ? h('div', { style: { fontSize: 11, color: tone('caption'), marginTop: 2 } }, b.emptyText) : null,
-      b.mode === 'summary' && !b.empty ? h('div', { 'data-vc-other-summary': 1, style: { fontSize: 11, color: tone('caption'), marginTop: 2 } }, b.summaryText) : null,
+      // 摘要档那一行同样挂悬停：名字是折短过的，完整路径就在悬停里（规格第 5 条）。
+      b.mode === 'summary' && !b.empty ? tipNode(b.tip, h('div', { 'data-vc-other-summary': 1, style: { fontSize: 11, color: tone('caption'), marginTop: 2 } }, b.summaryText)) : null,
       b.rows.map(function (w, i) {
         return h('div', { key: w.key, 'data-vc-other-row': 1, style: { display: 'flex', alignItems: 'baseline', gap: 6, padding: '2px 0', fontSize: 11, borderTop: i ? '1px solid var(--dsw-alias-border-l1,#2a2d35)' : 'none' } }, [
           tipNode(w.displayTip, h('span', { style: { flex: 'none', color: tone('primary'), whiteSpace: 'nowrap' } }, w.displayText)),

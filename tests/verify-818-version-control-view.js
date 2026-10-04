@@ -48,7 +48,7 @@ let tEn = (k) => k
 
 // ---------- 界面侧闭包：照 scripts/build.mjs 的做法把六个叶子拼起来再跑 ----------
 function stripExports(text) { return text.replace(/^(\s*)export\s+/gm, '$1') }
-const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_DIFF_LINES_SHOWN', 'VC_BLOCK_ORDER', 'VC_TONE', 'VC_MIDDLE_MIN', 'VC_FOLD_STEP_CAP', 'VC_SYNC_VALUES', 'VC_DIFF_REASON_KEY',
+const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DIFF_LINES_SHOWN', 'VC_BLOCK_ORDER', 'VC_TONE', 'VC_MIDDLE_MIN', 'VC_FOLD_STEP_CAP', 'VC_SYNC_VALUES', 'VC_DIFF_REASON_KEY', 'VC_OTHER_SUMMARY_NAMES',
   'vcFailKeyOf', 'vcFileRowsOf', 'vcDiffViewOf', 'vcSyncViewOf', 'vcOtherRowOf', 'vcReadsOf', 'vcBlocksOf',
   'vcChangeKeyOf', 'vcChangeToneOf', 'vcTail', 'vcMiddle', 'vcShortOid', 'vcPlusMinus', 'vcTimeKind',
   'vcWhenText', 'vcBasisText', 'vcFoldBandAt', 'vcFoldDataOf', 'vcFoldLadderOf', 'vcFoldStateAt', 'vcFoldOf',
@@ -773,6 +773,25 @@ async function main() {
   check(loneSurrogate('\uD83D') === true && loneSurrogate('\uDE00') === true && loneSurrogate('😀') === false, 'N27b 落单代理的判据本身分得清好坏（判据不是恒真也不是恒假）')
   check(VIEW.vcTail('普通名字', 2) === '普…' && VIEW.vcMiddle('a/b/c.txt', 20) === 'a/b/c.txt', 'N28 纯中文与纯 ASCII 上的行为一个字没变（码点切法只在星平面字符上与从前不同）')
 
+  // ---- M 组：#843 两处与规格不符的修复（窄面板摘要悬停全文 / 「等它结束」）----
+  // M1 摘要档（窄面板）那一行的悬停里必须有每条工作树的完整路径 —— 名字是折短过的，完整内容不许丢。
+  const longOther = screenOf({ otherWorktrees: [{ path: 'D:/w/一个很长的副本名字', display: '一个很长的副本名字', head: 'h', branch: 'dev', bare: false, current: false, locked: false, lockReason: null, lockUnknown: false, prunable: false }, { path: 'D:/w/第二个副本', display: '第二个副本', head: 'h', branch: 'main', bare: false, current: false, locked: false, lockReason: null, lockUnknown: false, prunable: false }] })
+  const longNarrow = blockOf(VIEW.vcBlocksOf(longOther, readsOf(longOther), {}, envOf(longOther, readsOf(longOther), 300)), 'other')
+  check(longNarrow.mode === 'summary' && longNarrow.tip.indexOf('D:/w/一个很长的副本名字') >= 0 && longNarrow.tip.indexOf('D:/w/第二个副本') >= 0, 'M1 摘要档那一行的悬停里有每条工作树的完整路径（实得悬停含完整路径=' + (longNarrow.tip.indexOf('D:/w/一个很长的副本名字') >= 0) + '）')
+  const longWide = blockOf(VIEW.vcBlocksOf(longOther, readsOf(longOther), {}, envOf(longOther, readsOf(longOther), 460)), 'other')
+  check(longWide.tip.indexOf('D:/w/一个很长的副本名字') < 0 && longWide.rows[0].displayTip === 'D:/w/一个很长的副本名字', 'M2 列表档不把全部路径并进标题悬停（每行自己带完整路径），免得每次渲染拼一大串')
+  // M3 摘要列出的名字有上限，超过就明说还有几棵没列出来（显示出来的都有完整路径，没显示出来的有计数）。
+  const manyOthers25 = screenOf({ otherWorktrees: Array.from({ length: 25 }, function (_, i) { return { path: 'D:/w/w' + i, display: 'w' + i, head: 'h', branch: 'dev', bare: false, current: false, locked: false, lockReason: null, lockUnknown: false, prunable: false } }) })
+  const manyNarrow = blockOf(VIEW.vcBlocksOf(manyOthers25, readsOf(manyOthers25), {}, envOf(manyOthers25, readsOf(manyOthers25), 300)), 'other')
+  check(manyNarrow.summaryText.indexOf('（还有 5 棵没列出来）') >= 0 && (manyNarrow.tip.match(/D:\/w\/w/g) || []).length === VIEW.VC_OTHER_SUMMARY_NAMES, 'M3 摘要最多列 ' + VIEW.VC_OTHER_SUMMARY_NAMES + ' 个名字、其余明说「还有 N 棵没列出来」，悬停只给列出来的那些（实得 ' + (manyNarrow.tip.match(/D:\/w\/w/g) || []).length + ' 条路径）')
+  check(compSrc.indexOf("tipNode(b.tip, h('div', { 'data-vc-other-summary': 1") >= 0, 'M4 组件里摘要那一行确实挂在悬停上（不是只把字段算出来没人用）')
+  // M5 「另一个 git 在操作」的兜底话术要说清「等它结束」（中英都要有这层意思）。
+  const exitZh = LOC.zh['vc.fail.exit'] || ''
+  const exitEn = LOC.en['vc.fail.exit'] || ''
+  check(/等它结束/.test(exitZh) && /别的程序/.test(exitZh) && /权限/.test(exitZh), 'M5 中文兜底话术含「等它结束」并说清是别的程序占着或权限不够（实得「' + exitZh + '」）')
+  check(/wait for it to finish/i.test(exitEn), 'M6 英文兜底话术同样有「等它结束」的意思（实得「' + exitEn + '」）')
+  check(VIEW.vcFailKeyOf('exit') === 'vc.fail.exit', 'M7 非零退出仍然映射到这条话术（接法没变）')
+
   // ---- H 组：反证（把被守的东西改坏，同一套断言必须当场变红）----
   const antiCases = [
     { name: '显隐谓词改成永远隐藏', patch: (s) => s.replace('const vcTabVisible = function (st) {\n  void st\n  return true\n}', 'const vcTabVisible = function (st) {\n  void st\n  return false\n}'), test: (v) => v.vcTabVisible({}) === true, what: 'A1' },
@@ -793,6 +812,7 @@ async function main() {
     { name: '其他工作树不再分批（一千棵全画）', patch: (s) => s.replace("const otherRows = fold.otherMode === 'summary' ? [] : otherViews.slice(0, otherShown)", "const otherRows = fold.otherMode === 'summary' ? [] : otherViews"), test: (v) => { const b = v.vcBlocksOf(manyOthers, readsOf(manyOthers), {}, envOf(manyOthers, readsOf(manyOthers))); const o = blockOf(b, 'other'); return o.rows.length === v.VC_FILE_ROWS_FIRST && o.moreCount === 990 }, what: 'N24' },
     { name: '砍字退回按 UTF-16 码元切（emoji 切出半个代理对）', patch: (s) => s.replace('  const cp = Array.from(s)', "  const cp = s.split('')"), test: (v) => { const lone = function (str) { const t = String(str); for (let i = 0; i < t.length; i += 1) { const c = t.charCodeAt(i); if (c >= 0xD800 && c <= 0xDBFF) { const n = t.charCodeAt(i + 1); if (!(n >= 0xDC00 && n <= 0xDFFF)) return true; i += 1 } else if (c >= 0xDC00 && c <= 0xDFFF) return true } return false }; const t2 = v.vcTail('x😀x😀x😀x😀x😀', 3); return t2 === 'x😀…' && !lone(t2) }, what: 'N26' },
     { name: '降级档答不出可清理时按「目录还在」说（丢掉那一档未知）', patch: (s) => s.replace("  else if (w && w.prunableUnknown === true) { stateText = t('vc.other.lockUnknown'); stateTone = 'caption'; stateTip = t('vc.other.prunableUnknownTip') }\n", ''), test: (v) => { const b = v.vcBlocksOf(degraded, readsOf(degraded), {}, envOf(degraded, readsOf(degraded))); const rows = blockOf(b, 'other').rows; return rows[0].stateText === '无法显示' && rows[0].stateTip === '这个 git 版本答不出这个工作树的目录还在不在；答不出不等于还在。' }, what: 'N25b' },
+    { name: '摘要档不再把完整路径并进悬停', patch: (s) => s.replace("    tip: t('vc.other.tip') + (summaryTip ? '\\n' + summaryTip : ''),", "    tip: t('vc.other.tip'),"), test: (v) => { const s2 = screenOf({ otherWorktrees: [{ path: 'D:/w/一个很长的副本名字', display: '一个很长的副本名字', head: 'h', branch: 'dev', bare: false, current: false, locked: false, lockReason: null, lockUnknown: false, prunable: false }] }); const o = blockOf(v.vcBlocksOf(s2, readsOf(s2), {}, envOf(s2, readsOf(s2), 300)), 'other'); return o.mode === 'summary' && o.tip.indexOf('D:/w/一个很长的副本名字') >= 0 }, what: 'M1' },
     { name: '宽度分档改成不单调（更窄反而画更多）', patch: (s) => s.replace('  if (w >= VC_FOLD_BANDS[0]) return 0\n  if (w >= VC_FOLD_BANDS[1]) return 1\n  if (w >= VC_FOLD_BANDS[2]) return 2\n  return 3', '  if (w >= VC_FOLD_BANDS[0]) return 0\n  if (w >= VC_FOLD_BANDS[1]) return 2\n  if (w >= VC_FOLD_BANDS[2]) return 1\n  return 3'), test: (v) => { let prev = null; for (const w of [460, 420, 380, 360, 340, 320, 300, 200]) { const b = v.vcFoldBandAt(w); if (prev !== null && b < prev) return false; prev = b } return true }, what: 'D11' },
   ]
   for (const c of antiCases) {
@@ -803,6 +823,9 @@ async function main() {
     tZh = keepT
     check(broke, 'H 反证：把「' + c.name + '」改坏之后，' + c.what + ' 那条断言当场变红')
   }
+  // 反证（#843 话术那条）：把 vc.fail.exit 退回旧说法（没有「等它结束」）→ M5 的判据必须当场变红。
+  const exitBroken = Object.assign({}, LOC.zh, { 'vc.fail.exit': 'git 没有正常结束（多半是权限或锁的问题），这一步读不到。' })
+  check(/等它结束/.test(LOC.zh['vc.fail.exit']) && !/等它结束/.test(exitBroken['vc.fail.exit']), 'H 反证：把 vc.fail.exit 退回旧说法 → M5 那条当场变红（现文案有「等它结束」，旧文案没有）')
   // 反证（词条真在字典里那条）：从中文那半边删掉一条键，F9 的判据必须当场报出来。
   const zhBroken = Object.assign({}, LOC.zh)
   delete zhBroken['vc.retry']
