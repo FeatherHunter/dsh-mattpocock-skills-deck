@@ -57,7 +57,7 @@ function shortHash(s) {
 /**
  * 建一个视野模型。deps: { canonicalKey?, now?, logCtx?, hash8?, budget? }。
  *
- * canonicalKey 是宿主那条既有出口（src/host/index.js:97 对外，源码在 workspaceKey.js）。没给就
+ * canonicalKey 是宿主那条既有出口（入口文件里叫 canonicalKey，源码在 workspaceKey.js；行号易漂，此处不写死）。没给就
  * 直接用原样字符串当键 —— 那种情况下调用方自己承担「同一条目录两种写法算两个工作区」的后果
  * （门禁与单测里就是这么用的，生产接线一定会给）。
  */

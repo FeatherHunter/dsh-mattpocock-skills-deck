@@ -10,7 +10,7 @@
 
 想再拆小之前先看这四类东西为什么搬不走：
 
-1. **同步注册的电话**：`harness.handle('wf.x', ...)` 必须在 `apply(ctx)` 的同步调用栈里注册完 —— 这张端点表在同一个同步栈里交给 RPC 通道（见文件末尾 `_rpcChannel`），晚一个微任务就是「电话没注册」。宿主层禁止静态 import（D7），动态 import 给不出同步可用的函数，所以注册语句只能留在入口。
+1. **注册语句留在入口，是设计选择**（#837 复审把原来那句「必须同步注册，晚一个微任务就是电话没注册」改准了）：`harness.handle('wf.x', ...)` 只做一件事 —— 把处理函数塞进 `__DSW_HANDLERS__` 这张表；通道那一侧拿的是这张表本身的引用、每次请求现查（`src/host/rpcChannel.js` 里 `const handlers = deps.handlers` 与请求时的 `handlers.get(endpoint)`），而通道注册本身也是在动态 import 之后才做的。所以真实的约束只有「第一个请求到达之前注册完」，晚一点不会丢电话。留在入口的理由是：端点表与各处理函数在同一个作用域里最容易一眼看全；宿主层又禁止静态 import（D7），把注册搬进别的文件就得再造一套「注册回调」的穿线，得不偿失。
 
 2. **单一持有的状态**：`ghPath` / `ghLastError` / `repoKeys` / `repoRoots` / `snapshotByRoot` / `chainByKey` / `lastProbeAtByRepo` / `lastIssueIndexByRepo`。入口外的代码要用只能走显式存取器（把 `function () { return ghPath }` 这种取值函数传进去），不能各存一份，否则「谁在什么时候改的」就说不清。
 
@@ -114,4 +114,6 @@
 | #817 | `versionControl.js`（三条只读电话 `wf.gitStatus` / `wf.gitDiff` / `wf.gitLog`，地图 #810） |
 
 RPC 通道与日志口另有两段历史叙述留在入口的合并注释里（`_rpcChannel` 与 `_log` 处），因为它们的执行路径就在入口文件里。
+
+入口另有**三处直接动态 import**，不属于任何搬迁分组（它们不是「从入口搬走的块」，只是一次性取用）：`tracker/backends/github/client.js`（取超时常量）、`snapshotEnvelope.js`（快照信封）、`platform/deckExec.js`（deck 工具代执行）。本表只登「搬走的块」，这三处不列。
 
