@@ -34,6 +34,7 @@ const VC_FILES = [
   'src/client/views/versionControl/vcWriteView.js',
   'src/client/views/versionControl/vcDiffOps.js', // #857：差异与提交那几路的动作（闭包里排在 vcBlocks 之前）
   'src/client/views/versionControl/vcBlocks.js',
+  'src/client/views/versionControl/vcViews.js', // #853 第三步：布局 C 的三个视图（与构建同序，排在 vcBlocks 之后）
   'src/client/views/versionControl/vcTabVisible.js',
   'src/client/views/versionControl/vcData.js',
   'src/client/views/versionControl/VersionControlTab.js',
@@ -137,6 +138,14 @@ const EXPORTS = [
   'vcSyncViewOf',
   'vcTabVisible',
   'vcTail',
+  'VC_VIEWS',
+  'vcRememberedView',
+  'vcRememberView',
+  'vcResetViewMemory',
+  'vcViewOf',
+  'vcViewCountsOf',
+  'vcViewBlocksOf',
+  'vcViewTabsNode',
   'vcTimeKind',
   'vcWhenText',
   'vcWriteErrFamilyOf',
@@ -587,7 +596,7 @@ async function groupG(view) {
 function writePresetHtml(React, DswsCtx, TipStub, IcStub, screen, write) {
   const preset = JSON.stringify(write)
   return renderTab(React, DswsCtx, TipStub, IcStub, readsOf(screen), function (s) {
-    return s.replace("openCommit: '', write: { op: '', state: 'idle', message: '', confirm: null, result: null, remoteChoice: null }", "openCommit: '', write: " + preset)
+    return s.replace("view: vcRememberedView(), write: { op: '', state: 'idle', message: '', confirm: null, result: null, remoteChoice: null } }", "view: vcRememberedView(), write: " + preset + " }")
   })
 }
 function domText(html) {
@@ -656,7 +665,7 @@ function groupJ(React, DswsCtx, TipStub, IcStub) {
   //   展开键是「分组\u0000路径」（块模型那一层的口径）；未提交那一层点开打不开是既有缺陷，见 .tmp-842-visual/POLISH.md。
   const diffReads = Object.assign({}, readsOf(screen), { diffs: { 'a.txt': { state: 'ok', lines: [{ kind: 'add', text: '+新行' }, { kind: 'del', text: '-旧行' }], reason: 'ok', truncated: false, error: null } } })
   const diffRender = renderTab(React, DswsCtx, TipStub, IcStub, diffReads, function (s) {
-    return s.replace("openDiff: '', openCommit: '', write: { op: '', state: 'idle', message: '', confirm: null, result: null, remoteChoice: null }", "openDiff: 'staged' + String.fromCharCode(0) + 'a.txt', openCommit: '', write: { op: '', state: 'idle', message: '', confirm: null, result: null, remoteChoice: null }")
+    return s.replace("openDiff: '', openCommit: '', view:", "openDiff: 'staged' + String.fromCharCode(0) + 'a.txt', openCommit: '', view:")
   })
   const doc9 = new (require('jsdom').JSDOM)('<div id="m">' + diffRender.html + '</div>').window.document
   const card = doc9.querySelector('[data-vc-diff="lines"]')
@@ -670,11 +679,11 @@ function groupJ(React, DswsCtx, TipStub, IcStub) {
     paths.forEach(function (p2) { diffs[p2] = { state: 'ok', lines: [{ kind: 'add', text: '+新行' }], reason: 'ok', truncated: false, error: null } })
     return Object.assign({}, readsOf(screen), { diffs: diffs })
   }
-  const uiSeed = "openDiff: '', openCommit: '', write: { op: '', state: 'idle', message: '', confirm: null, result: null, remoteChoice: null }"
+  const uiSeed = "openDiff: '', openCommit: '', view:"
   const renderOpen = function (key, reads, patchExtra) {
     const v = buildView(function (s) {
       let out = s.replace('React.useState(vcNewReads)', 'React.useState(function () { return seedReads })')
-      out = out.replace(uiSeed, 'openDiff: ' + JSON.stringify(key) + ", openCommit: '', write: { op: '', state: 'idle', message: '', confirm: null, result: null, remoteChoice: null }")
+      out = out.replace(uiSeed, 'openDiff: ' + JSON.stringify(key) + ", openCommit: '', view:")
       return patchExtra ? patchExtra(out) : out
     }, React, DswsCtx, TipStub, IcStub, reads, [], trZh)
     try { return require('react-dom/server').renderToStaticMarkup(React.createElement(v.VersionControlTab, { st: { cwd: 'D:/w/repo' } })) } catch (e) { return '' }
@@ -745,7 +754,9 @@ function groupL(view, React, DswsCtx, TipStub, IcStub) {
   const monoOk = function (doc) {
     // 文件行里等宽的元素不止一个（状态词、路径、行数都是），所以要找「装着路径那一枚」。
     const pathOk = Array.prototype.some.call(doc.querySelectorAll('[data-vc-file] .dsws-vc-mono'), function (el) { return el.textContent.indexOf('a.txt') >= 0 })
-    const shortOk = Array.prototype.some.call(doc.querySelectorAll('[data-vc-commit] .dsws-vc-mono'), function (el) { return el.textContent.indexOf('ccccccc') >= 0 })
+    // 提交短号住在历史视图里（布局 C）：到那个视图去查，不在改动页硬找。
+    const commitsDoc = docOf(render(function (s) { return s.replace("view: vcRememberedView()", "view: 'commits'") }))
+    const shortOk = Array.prototype.some.call(commitsDoc.querySelectorAll('[data-vc-commit] .dsws-vc-mono'), function (el) { return el.textContent.indexOf('ccccccc') >= 0 })
     return pathOk && shortOk
   }
   const countsOk = function (doc) {
@@ -1060,6 +1071,17 @@ async function groupM(view) {
     await flush()
     check(diffCalls(v.host.calls, undefined, 'a.txt').length === 2, 'M4b 反证：把同步写 loading 标记拿掉 → 第二次照发不误（同键在途的守卫靠的就是那一笔同步标记）')
   }
+
+  // M5/M6 点开提交跳历史视图、回来跳改动视图（布局 C 的联动，回调缺席时不崩）。
+  const seenViews = []
+  const ops5 = view.vcDiffOpsOf({ ui: { fileShown: {}, openDiff: '', openCommit: '' }, setUi: function () {}, setReads: function () {}, readsRef: { current: view.vcNewReads() }, callHost: function () { return Promise.resolve({ ok: true, files: [], truncated: false, reason: 'ok' }) }, cwd: 'D:/w/repo', stateCwdRef: { current: 'D:/w/repo' }, vcDiffOpenKeyOf: view.vcDiffOpenKeyOf, vcReadDiff: view.vcReadDiff, vcReadCommitFiles: view.vcReadCommitFiles, vcReadCommitFileDiff: view.vcReadCommitFileDiff, vcApplyDiffReply: view.vcApplyDiffReply, vcApplyCommitReply: view.vcApplyCommitReply, vcReadsOf: view.vcReadsOf, vcMarkDiffLoading: view.vcMarkDiffLoading, vcMarkCommitLoading: view.vcMarkCommitLoading, vcMarkCommitFileDiffLoading: view.vcMarkCommitFileDiffLoading, vcApplyCommitFileDiffReply: view.vcApplyCommitFileDiffReply, onView: function (v) { seenViews.push(v) } })
+  ops5.openCommit({ key: 'r9' })
+  ops5.closeCommit()
+  check(seenViews.join(',') === 'commits,changes', 'M5/M6 点开提交跳历史视图、回来跳改动视图（实得 ' + seenViews.join(',') + '）')
+  const opsNoView = view.vcDiffOpsOf({ ui: { fileShown: {}, openDiff: '', openCommit: '' }, setUi: function () {}, setReads: function () {}, readsRef: { current: view.vcNewReads() }, callHost: function () { return Promise.resolve({ ok: true, files: [], truncated: false, reason: 'ok' }) }, cwd: 'D:/w/repo', stateCwdRef: { current: 'D:/w/repo' }, vcDiffOpenKeyOf: view.vcDiffOpenKeyOf, vcReadDiff: view.vcReadDiff, vcReadCommitFiles: view.vcReadCommitFiles, vcReadCommitFileDiff: view.vcReadCommitFileDiff, vcApplyDiffReply: view.vcApplyDiffReply, vcApplyCommitReply: view.vcApplyCommitReply, vcReadsOf: view.vcReadsOf, vcMarkDiffLoading: view.vcMarkDiffLoading, vcMarkCommitLoading: view.vcMarkCommitLoading, vcMarkCommitFileDiffLoading: view.vcMarkCommitFileDiffLoading, vcApplyCommitFileDiffReply: view.vcApplyCommitFileDiffReply })
+  let noViewErr = ''
+  try { opsNoView.openCommit({ key: 'r9' }); opsNoView.closeCommit() } catch (e) { noViewErr = String((e && e.message) || e) }
+  check(noViewErr === '', 'M6b 反证：没传 onView 回调时点开/回来不抛错（回调缺席不崩）')
 
   // M4c 提交文件清单那一路同样：连点同一笔只发一枪。
   {

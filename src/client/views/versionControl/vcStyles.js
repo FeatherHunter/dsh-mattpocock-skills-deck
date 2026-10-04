@@ -77,6 +77,11 @@ export const VC_STYLE_TEXT = [
   "[data-vc-root] textarea:focus,[data-vc-root] input:focus{outline:2px solid var(--vc-accent,transparent);outline-offset:1px}",
   ".dsws-vc-caption{color:var(--vc-faint,inherit)}",
   ".dsws-vc-sep{border-color:var(--vc-line)}",
+  // #853 第三步：视图页签——平时是三个并排的词，选中的那一档下面压一条强调色；窄了就换行，不断字。
+  ".dsws-vc-views{display:flex;gap:2px;flex-wrap:wrap;border-bottom:1px solid var(--vc-line);margin:2px 0}",
+  ".dsws-vc-view{appearance:none;background:transparent;border:0;border-bottom:2px solid transparent;color:var(--vc-mut,inherit);font:inherit;font-size:12px;padding:7px 10px;cursor:pointer;display:inline-flex;gap:6px;align-items:baseline}",
+  ".dsws-vc-view .dsws-vc-mono{font-size:11px}",
+  ".dsws-vc-view.is-on{color:var(--vc-ink,inherit);border-bottom-color:var(--vc-accent,#22c55e);font-weight:650}",
   // #857 P5/P6：骨架条——固定高度占位，不跳；减弱动态偏好下静止。
   ".dsws-vc-skel{border-radius:4px;background:linear-gradient(90deg,var(--vc-hover,rgba(127,127,160,.12)) 25%,var(--vc-elevated,#16181d) 50%,var(--vc-hover,rgba(127,127,160,.12)) 75%);background-size:200% 100%;animation:dsws-vc-shimmer 1.4s linear infinite;margin:7px 0}",
   "@keyframes dsws-vc-shimmer{to{background-position:-200% 0}}",

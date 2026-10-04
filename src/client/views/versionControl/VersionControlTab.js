@@ -27,7 +27,7 @@ export const VersionControlTab = function (props) {
   const cwd = st && st.cwd ? String(st.cwd) : ''
   const [reads, setReads] = React.useState(vcNewReads)
   // #842：ui.write 是写操作那一族自己的状态（六态、提交信息、确认框、上一次结果）。
-  const [ui, setUi] = React.useState(function () { return { fileShown: {}, openDiff: '', openCommit: '', write: { op: '', state: 'idle', message: '', confirm: null, result: null, remoteChoice: null } } })
+  const [ui, setUi] = React.useState(function () { return { fileShown: {}, openDiff: '', openCommit: '', view: vcRememberedView(), write: { op: '', state: 'idle', message: '', confirm: null, result: null, remoteChoice: null } } })
   const [width, setWidth] = React.useState(0)
   const [tier, setTier] = React.useState(0)
   const lastWidthRef = React.useRef(0)
@@ -48,7 +48,8 @@ export const VersionControlTab = function (props) {
     setStateCwd(cwd)
     setReads(fresh.reads)
     // 换工作区连写操作的状态一起复位：旧工作区的确认框与「上次结果」绝不留在新工作区下面。
-    setUi(Object.assign({}, fresh.ui, { write: { op: '', state: 'idle', message: '', confirm: null, result: null, remoteChoice: null } }))
+    setUi(Object.assign({}, fresh.ui, { view: 'changes', write: { op: '', state: 'idle', message: '', confirm: null, result: null, remoteChoice: null } }))
+    vcResetViewMemory()
     setTier(0)
     lastWidthRef.current = 0
     logBusyRef.current = false
@@ -140,10 +141,12 @@ export const VersionControlTab = function (props) {
 
   const tone = function (name) { return VC_TONE[name] || VC_TONE.primary }
   const retryScreen = function () { vcReadStatus(readsRef.current, callHost, cwd).then(function (next) { setReads(next) }) }
+  // #853 第三步：视图切换只改 ui.view（函数式更新，不会顶掉同期别的 setUi）；选择跨挂载记住，换工作区复位。
+  const pickView = function (v) { vcRememberView(v); setUi(function (cur) { return Object.assign({}, cur, { view: v }) }) }
   // 就地看差异：展开键与块模型侧共用同一个函数（#850）—— 未提交那一层是「分组 + 路径」（同一个文件在两组各一行时各自展开），
   //   提交那一层是「修订号 + 路径」（同一个文件在两处的补丁是两回事）。原来这里只按路径，点开时与块模型对不上，补丁块永远不画。
   // #857：差异与提交那几路的动作抽到 vcDiffOps.js（读、发、回包落地前的两道闸、同键在途不重复发）。
-  const diffOps = vcDiffOpsOf({ ui: ui, setUi: setUi, setReads: setReads, readsRef: readsRef, callHost: callHost, cwd: cwd, stateCwdRef: stateCwdRef, vcDiffOpenKeyOf: vcDiffOpenKeyOf, vcReadDiff: vcReadDiff, vcReadCommitFiles: vcReadCommitFiles, vcReadCommitFileDiff: vcReadCommitFileDiff, vcApplyDiffReply: vcApplyDiffReply, vcApplyCommitReply: vcApplyCommitReply, vcReadsOf: vcReadsOf, vcMarkDiffLoading: vcMarkDiffLoading, vcMarkCommitLoading: vcMarkCommitLoading, vcMarkCommitFileDiffLoading: vcMarkCommitFileDiffLoading, vcApplyCommitFileDiffReply: vcApplyCommitFileDiffReply })
+  const diffOps = vcDiffOpsOf({ ui: ui, setUi: setUi, setReads: setReads, readsRef: readsRef, callHost: callHost, cwd: cwd, stateCwdRef: stateCwdRef, vcDiffOpenKeyOf: vcDiffOpenKeyOf, vcReadDiff: vcReadDiff, vcReadCommitFiles: vcReadCommitFiles, vcReadCommitFileDiff: vcReadCommitFileDiff, vcApplyDiffReply: vcApplyDiffReply, vcApplyCommitReply: vcApplyCommitReply, vcReadsOf: vcReadsOf, vcMarkDiffLoading: vcMarkDiffLoading, vcMarkCommitLoading: vcMarkCommitLoading, vcMarkCommitFileDiffLoading: vcMarkCommitFileDiffLoading, vcApplyCommitFileDiffReply: vcApplyCommitFileDiffReply, onView: pickView })
   const diffKeyOf = diffOps.diffKeyOf
   const entryOf = diffOps.entryOf
   const toggleDiff = diffOps.toggleDiff
@@ -330,5 +333,13 @@ export const VersionControlTab = function (props) {
     skelBar('s1', { width: 96, height: 11 }), skelBar('r1', { height: 13 }), skelBar('r2', { height: 13 }), skelBar('r3', { height: 13 }), skelBar('r4', { height: 13 }),
     skelBar('s2', { width: 96, height: 11 }), skelBar('h1', { height: 13 }), skelBar('h2', { height: 13 }),
   ])
-  return h('div', { ref: rootRef, 'data-vc-root': 1, 'data-vc-tier': tier, style: { display: 'flex', flexDirection: 'column', gap: 10, overflow: 'hidden', minWidth: 0 } }, showSkel ? [skeleton] : blocks.map(node).concat(writeTail))
+  // #853 第三步：布局 C —— 常驻块（刷新提示、异常带、身份行）一直在，三个视图各只画自己的块；
+  //   写操作的尾巴平时是空的所以平时看不见，有确认框或结果时它跟内容走。
+  const view = vcViewOf(ui)
+  // 点开某一笔提交本身就是在看历史：不管页签停在哪，都画提交历史视图那一份（页签的高亮也跟过去）。
+  const effView = ui.openCommit ? 'commits' : view
+  const parts = vcViewBlocksOf(blocks)
+  const viewBlocks = effView === 'commits' ? parts.commits : (effView === 'worktrees' ? parts.worktrees : parts.changes)
+  const tabs = vcViewTabsNode(h, { view: effView, counts: vcViewCountsOf(screen, reads), t: tr, onPick: pickView })
+  return h('div', { ref: rootRef, 'data-vc-root': 1, 'data-vc-tier': tier, style: { display: 'flex', flexDirection: 'column', gap: 10, overflow: 'hidden', minWidth: 0 } }, showSkel ? [skeleton] : parts.always.map(node).concat([tabs], viewBlocks.map(node), writeTail))
 }

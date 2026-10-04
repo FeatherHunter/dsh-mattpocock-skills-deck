@@ -42,6 +42,7 @@ const VC_FILES = [
   'src/client/views/versionControl/vcWriteView.js',
   'src/client/views/versionControl/vcDiffOps.js', // #857：差异与提交那几路的动作（从入口组件搬出，闭包里排在 vcBlocks 之前）
   'src/client/views/versionControl/vcBlocks.js',
+  'src/client/views/versionControl/vcViews.js', // #853 第三步：布局 C 的三个视图（与构建同序，排在 vcBlocks 之后）
   'src/client/views/versionControl/vcTabVisible.js',
   'src/client/views/versionControl/vcData.js',
   'src/client/views/versionControl/VersionControlTab.js',
@@ -58,12 +59,12 @@ let tEn = (k) => k
 
 // ---------- 界面侧闭包：照 scripts/build.mjs 的做法把六个叶子拼起来再跑 ----------
 function stripExports(text) { return text.replace(/^(\s*)export\s+/gm, '$1') }
-const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DIFF_LINES_SHOWN', 'VC_BLOCK_ORDER', 'VC_TONE', 'VC_MIDDLE_MIN', 'VC_FOLD_STEP_CAP', 'VC_SYNC_VALUES', 'VC_DIFF_REASON_KEY', 'VC_OTHER_SUMMARY_NAMES',
+const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DIFF_LINES_SHOWN', 'VC_BLOCK_ORDER', 'VC_VIEWS', 'VC_TONE', 'VC_MIDDLE_MIN', 'VC_FOLD_STEP_CAP', 'VC_SYNC_VALUES', 'VC_DIFF_REASON_KEY', 'VC_OTHER_SUMMARY_NAMES',
   'vcFailKeyOf', 'vcFileRowsOf', 'vcDiffViewOf', 'vcSyncViewOf', 'vcOtherRowOf', 'vcReadsOf', 'vcBlocksOf',
   'vcChangeKeyOf', 'vcChangeToneOf', 'vcTail', 'vcMiddle', 'vcShortOid', 'vcPlusMinus', 'vcTimeKind',
   'vcWhenText', 'vcBasisText', 'vcFoldBandAt', 'vcFoldDataOf', 'vcFoldLadderOf', 'vcFoldStateAt', 'vcFoldOf',
   'vcTabVisible', 'vcNewReads', 'vcFailureOf', 'vcReadStatus', 'vcReadDiff', 'vcReadMoreCommits', 'vcNextSkipOf',
-  'vcCommitKeyOf', 'vcReadCommitFiles', 'vcReadCommitFileDiff', 'vcCommitModeOf', 'vcCommitBlockOf', 'vcShouldRead',
+  'vcCommitKeyOf', 'vcReadCommitFiles', 'vcReadCommitFileDiff', 'vcCommitModeOf', 'vcCommitBlockOf', 'vcShouldRead', 'vcViewOf', 'vcRememberedView', 'vcRememberView', 'vcResetViewMemory', 'vcViewCountsOf', 'vcViewBlocksOf', 'vcViewTabsNode',
   'vcFreshOnCwd', 'vcScreenShapeOk', 'vcApplyCommitReply', 'vcMarkLogLoading', 'vcOneLine',
   'VersionControlTab']
 function buildView(patch, logs, React, DswsCtx, Tip, Ic, seedReads, hostStub) {
@@ -185,10 +186,10 @@ async function main() {
   check(/export\s+const\s+VersionControlTab\s*=/.test(tabSrc), 'A3 入口导出名 VersionControlTab（壳层按这个名字调）')
   const buildSrc = read('scripts/build.mjs')
   const leafOrder = VC_FILES.map((f) => buildSrc.indexOf("'" + f + "'"))
-  check(leafOrder.every((i) => i > 0) && leafOrder.every((i, k) => k === 0 || i > leafOrder[k - 1]), 'A4 七个叶子按依赖次序登记在 LEAF_MODULES 里')
+  check(leafOrder.every((i) => i > 0) && leafOrder.every((i, k) => k === 0 || i > leafOrder[k - 1]), 'A4 八个叶子按依赖次序登记在 LEAF_MODULES 里')
   check(buildSrc.indexOf("src/client/views/versionControl/vcText.js") < buildSrc.indexOf("file: 'src/client/views/shared/Tabs.js'"), 'A5 新叶子排在 tabs 之前（Tabs.js 要按 vcTabVisible 判显隐）')
   const idxSrc = read('src/client/index.js')
-  const VC_IDS = ['vcText', 'vcFold', 'vcDiff', 'vcCommit', 'vcBlocks', 'vcTabVisible', 'vcData', 'versionControlTab', 'vcDiffOps']
+  const VC_IDS = ['vcText', 'vcFold', 'vcDiff', 'vcCommit', 'vcBlocks', 'vcViews', 'vcTabVisible', 'vcData', 'versionControlTab', 'vcDiffOps']
   check(VC_IDS.every((id) => idxSrc.indexOf('leaf:' + id + ' (spliced') >= 0), 'A6 index.js 里拼接标记齐备（标记 id 就是 LEAF_MODULES 登记的那个，多一个 vcDiffOps）')
   check(idxSrc.indexOf('leaf:vcText (spliced') < idxSrc.indexOf('leaf:tabs (spliced'), 'A7 六个标记排在 tabs 标记之前')
 
@@ -613,9 +614,45 @@ async function main() {
   let renderErr2 = ''
   try { html2 = renderToStaticMarkup(React.createElement(renderSeeded.VersionControlTab, { st: { cwd: 'D:/w/repo' } })) } catch (e) { renderErr2 = String((e && e.message) || e) }
   const flat = html2.replace(/<[^>]*>/g, ' ')
-  check(renderErr2 === '' && html2.indexOf('data-vc-identity') >= 0 && html2.indexOf('data-vc-changes') >= 0 && html2.indexOf('data-vc-commits') >= 0 && html2.indexOf('data-vc-other') >= 0, 'G6 有数据时真渲染一次：身份行、未提交改动、提交历史、其他工作树四块都在 DOM 里（' + (renderErr2 ? '抛错：' + renderErr2 : '四块齐备') + '）')
+  check(renderErr2 === '' && html2.indexOf('data-vc-identity') >= 0 && html2.indexOf('data-vc-changes') >= 0 && html2.indexOf('data-vc-views') >= 0 && html2.indexOf('data-vc-commits') < 0 && html2.indexOf('data-vc-other') < 0, 'G6 默认视图真渲染一次：身份行、未提交改动、视图页签在 DOM 里，提交历史与其他工作树收在页签后面（' + (renderErr2 ? '抛错：' + renderErr2 : '默认视图齐备') + '）')
   check(flat.indexOf('已暂存 1 个文件 / 未暂存 4 个文件') >= 0 && flat.indexOf('main') >= 0 && flat.indexOf('提交历史') >= 0, 'G7 画出来的 DOM 里就是那几句人话（汇总句 / 分支名 / 提交历史都在）')
   check(flat.indexOf('data-vc-') < 0 && flat.indexOf('vc.changes') < 0 && flat.indexOf('vc.fail') < 0, 'G8 DOM 里没有把词条键名当文字画出来（上一版把词条插错位置时正是这样）')
+  // V 组 · 布局 C（#853 第三步）：三个视图各只画自己的块，页签带数量；点开提交自动跳历史视图。
+  const liveCounts = {
+    changes: (Number(liveScreen.conflictCount) || 0) + (Number(liveScreen.stagedCount) || 0) + (Number(liveScreen.unstagedCount) || 0),
+    commits: Array.isArray(liveScreen.commits) ? liveScreen.commits.length : 0,
+    worktrees: Array.isArray(liveScreen.otherWorktrees) ? liveScreen.otherWorktrees.length : 0,
+  }
+  const viewRender = function (v) {
+    const rv = buildView(function (s) {
+      return s.replace('React.useState(vcNewReads)', 'React.useState(function () { return seedReads })')
+        .replace("view: vcRememberedView()", "view: '" + v + "'")
+    }, [], React, DswsCtx, TipStub, IcStub, seedReads)
+    try { return { html: renderToStaticMarkup(React.createElement(rv.VersionControlTab, { st: { cwd: 'D:/w/repo' } })), err: '' } } catch (e) { return { html: '', err: String((e && e.message) || e) } }
+  }
+  const tabTextOf = function (html, v) {
+    const m = html.match(new RegExp('<button[^>]*data-vc-view="' + v + '"[^>]*>([\\s\\S]*?)</button>'))
+    return m ? m[1].replace(/<[^>]*>/g, '') : ''
+  }
+  const vChanges = viewRender('changes')
+  const vCommits = viewRender('commits')
+  const vTrees = viewRender('worktrees')
+  check(vChanges.err === '' && (vChanges.html.match(/data-vc-view="/g) || []).length === 3, 'V1 三个视图页签都在（改动 / 提交历史 / 工作树）')
+  check(tabTextOf(vChanges.html, 'changes') === '未提交改动\uFF08' + liveCounts.changes + '\uFF09' && tabTextOf(vChanges.html, 'commits') === '提交历史\uFF08' + liveCounts.commits + '\uFF09' && tabTextOf(vChanges.html, 'worktrees').indexOf('其他工作树') === 0, 'V2 页签是既有词条加纯数字（改动' + liveCounts.changes + ' / 历史' + liveCounts.commits + ' / 工作树' + liveCounts.worktrees + '，没造新词）')
+  check(vCommits.err === '' && vCommits.html.indexOf('data-vc-commits') >= 0 && vCommits.html.indexOf('data-vc-changes') < 0 && vCommits.html.indexOf('aria-selected=\"true\"') >= 0, 'V3 提交历史视图：只画历史那一块，页签高亮跟过去')
+  check(vTrees.err === '' && vTrees.html.indexOf('data-vc-other') >= 0 && vTrees.html.indexOf('data-vc-terminal') >= 0 && vTrees.html.indexOf('data-vc-changes') < 0 && vTrees.html.indexOf('data-vc-commits') < 0, 'V4 工作树视图：列表与边界说明在，改动与历史不在')
+  check(vChanges.html.indexOf('data-vc-identity') >= 0 && vChanges.html.indexOf('data-vc-changes') >= 0, 'V5 常驻块（身份行）不受视图切换影响')
+  const vc = VIEW.vcViewCountsOf(liveScreen, { log: { commits: [{ x: 1 }, { x: 2 }] } })
+  check(vc.changes === liveCounts.changes && vc.commits === liveCounts.commits + 2 && vc.worktrees === liveCounts.worktrees, 'V6 视图计数：改动按文件数、历史按已读到的提交数（含续读）、工作树按棵数')
+  const routed = VIEW.vcViewBlocksOf([{ kind: 'hint' }, { kind: 'band' }, { kind: 'identity' }, { kind: 'changes' }, { kind: 'changes', commitMode: true }, { kind: 'commits' }, { kind: 'other' }, { kind: 'terminal' }])
+  check(routed.always.length === 3 && routed.changes.length === 1 && routed.commits.length === 2 && routed.worktrees.length === 2, 'V7 块按视图分区：常驻 3（提示/异常带/身份），点开的提交归历史视图')
+  check(VIEW.vcViewOf({}) === 'changes' && VIEW.vcViewOf({ view: 'nope' }) === 'changes' && VIEW.vcViewOf({ view: 'worktrees' }) === 'worktrees', 'V8 视图取值非法时回退到改动页（不画空白）')
+  VIEW.vcRememberView('worktrees')
+  const memOk = VIEW.vcRememberedView() === 'worktrees'
+  VIEW.vcResetViewMemory()
+  check(memOk && VIEW.vcRememberedView() === 'changes', 'V9 同一会话内记住上次选的视图，复位回到改动页')
+  const viewTabSrc = read('src/client/views/versionControl/VersionControlTab.js')
+  check(viewTabSrc.indexOf("view: 'changes'") >= 0 && viewTabSrc.indexOf('vcResetViewMemory()') >= 0, 'V10 换工作区复位到改动页（读数、展开、视图一起清，不把旧视图带进新仓库）')
   // 真渲染一遍：把「正开着这笔提交」的界面状态预置进去，看 DOM 里到底有没有那条回去的路与那份清单。
   const commitSeed = { screen: { state: 'ok', data: { screen: commitScreen, tier: 'full', gitVersion: 'git version 2.49.0', readAtMs: NOW }, error: null }, diffs: {}, commit: commitEntry(), commitDiffs: {}, log: { state: 'idle', commits: [], hasMore: false, fetched: 0, error: null } }
   const renderCommit = buildView(function (s) {
@@ -623,7 +660,7 @@ async function main() {
       // #842：组件的 ui 初始状态多了 write 那一格，这里改成打最短的稳定锚点（原先把整句写死，
       //   源码一改就对不上、S13/S14 会假红）。锚点必须带上 write 那一格：vcData.js 的 vcFreshOnCwd
       //   返回值里有同样一段字，而它在闭包里排在组件前面，不带 write 会打到那一份上。
-      .replace("openDiff: '', openCommit: '', write:", "openDiff: '', openCommit: '" + REV1 + "', write:")
+      .replace("openCommit: '', view:", "openCommit: '" + REV1 + "', view:")
   }, [], React, DswsCtx, TipStub, IcStub, commitSeed)
   let html3 = ''
   let renderErr3 = ''

@@ -19,6 +19,7 @@ export const vcDiffOpsOf = function (o) {
   const vcApplyCommitReply = o.vcApplyCommitReply, vcReadsOf = o.vcReadsOf
   const vcMarkDiffLoading = o.vcMarkDiffLoading, vcMarkCommitLoading = o.vcMarkCommitLoading
   const vcMarkCommitFileDiffLoading = o.vcMarkCommitFileDiffLoading, vcApplyCommitFileDiffReply = o.vcApplyCommitFileDiffReply
+  const onView = o.onView
 
   const rev = function () { return String(ui.openCommit || '') }
   const keyOf = function (row) { return vcDiffOpenKeyOf(row, ui.openCommit) }
@@ -65,12 +66,15 @@ export const vcDiffOpsOf = function (o) {
   const openCommit = function (c) {
     const r = String(c.key || '')
     setUi(Object.assign({}, ui, { openCommit: r, openDiff: '' }))
+    // #853 第三步：点开某一笔提交就跳到「提交历史」视图（那笔提交的文件清单画在那里）。
+    if (typeof onView === 'function') onView('commits')
     const entry = readsRef.current.commit || {}
     if (entry.rev === r && (entry.state === 'ok' || entry.state === 'loading')) return
     setReads(vcMarkCommitLoading(readsRef.current, r))
     vcReadCommitFiles(readsRef.current, callHost, cwd, r).then(applyCommit)
   }
-  const closeCommit = function () { setUi(Object.assign({}, ui, { openCommit: '', openDiff: '' })) }
+  // 「回到未提交改动」那条路本来就指回改动页：关掉的同时把视图也带回去。
+  const closeCommit = function () { setUi(Object.assign({}, ui, { openCommit: '', openDiff: '' })); if (typeof onView === 'function') onView('changes') }
   const retryCommit = function () {
     const r = rev()
     if (!r) return
