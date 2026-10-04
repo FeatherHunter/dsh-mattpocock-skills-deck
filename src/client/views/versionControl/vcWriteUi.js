@@ -52,8 +52,12 @@ export const vcWriteUiOf = function (screen, ui, env) {
     runningText: busy ? t('vc.op.running') : '',
     result: result
       ? {
+          // state 要带出来：渲染那一层靠它挑动作词的色（done 绿 / 其它红），也靠它落在 data-vc-op-result 上。
+          state: String(result.state || ''),
           text: t(result.key, result.params),
-          limit: t(result.key + '.limit'),
+          // limit 只认显式给的 limitKey：成功那几档没有这个键，拿 key + '.limit' 去撞会撞出键名本身
+          //   （#842 视觉预览的 J8 通用守卫抓到的就是它）。
+          limit: result.limitKey ? t(result.limitKey) : '',
           verb: t(result.verb || (String(result.state) === 'done' ? 'vc.op.done' : 'vc.op.failed')),
           // 悬停：宿主原话优先；没有原话时用可翻译的 tipKey（例如拉取成功那一档的快进/最新）。
           tip: String(result.tip || '') || (result.tipKey ? t(result.tipKey) : ''),

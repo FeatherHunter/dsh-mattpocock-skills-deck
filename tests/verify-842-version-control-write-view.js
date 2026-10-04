@@ -561,6 +561,80 @@ async function groupG(view) {
   check(keys.join(',') === 'vc.op.doneStage,vc.op.doneCommit,vc.op.donePull,vc.op.donePush', 'G4 四条写电话的成功回包各自映射到结果句词条（' + keys.join(',') + '）')
 }
 
+
+// ============================================================
+// J 组 · DOM 级（真渲染：确认框正文、结果横幅是人话、文字里不出现词条键）
+//   这一组是 #842 视觉预览漏网的补丁：原来 53 条大多停在模型层，接线断了也没人发现。
+// ============================================================
+function writePresetHtml(React, DswsCtx, TipStub, IcStub, screen, write) {
+  const preset = JSON.stringify(write)
+  return renderTab(React, DswsCtx, TipStub, IcStub, readsOf(screen), function (s) {
+    return s.replace("openCommit: '', write: { op: '', state: 'idle', message: '', confirm: null, result: null, remoteChoice: null }", "openCommit: '', write: " + preset)
+  })
+}
+function domText(html) {
+  const { JSDOM } = require('jsdom')
+  const dom = new JSDOM('<div id="m">' + html + '</div>')
+  const root = dom.window.document.getElementById('m')
+  const pick = function (sel) { const el = root.querySelector(sel); return el ? String(el.textContent || '') : '' }
+  return {
+    text: String(root.textContent || ''),
+    confirmBody: pick('[data-vc-confirm-body]'),
+    confirmTitle: pick('[data-vc-confirm] > div'),
+    confirmOk: pick('[data-vc-confirm-ok]'),
+    confirmTtl: pick('[data-vc-confirm-ttl]'),
+    result: pick('[data-vc-op-result]'),
+    resultVerb: pick('[data-vc-op-result] span'),
+    resultText: pick('[data-vc-op-text]'),
+    resultLimit: pick('[data-vc-op-limit]'),
+    running: pick('[data-vc-running]'),
+    choice: pick('[data-vc-remote-choice]'),
+    choiceBody: pick('[data-vc-remote-choice-body]'),
+  }
+}
+function groupJ(React, DswsCtx, TipStub, IcStub) {
+  const screen = richScreen()
+  const ttl = { id: 't1', expiresAtMs: NOW + 120000 }
+  const pulls = writePresetHtml(React, DswsCtx, TipStub, IcStub, screen, { op: '', state: 'idle', message: '', confirm: { op: 'pull', plan: { mode: 'existing', remote: 'origin', branch: 'main', localBranch: 'main' }, ticket: ttl, remotes: [] }, result: null, remoteChoice: null })
+  const d1 = domText(pulls.html)
+  check(pulls.err === '' && d1.confirmBody.indexOf('只做快进') >= 0 && d1.confirmOk === trZh('vc.action.pull') && d1.confirmBody.indexOf('vc.') < 0,
+    'J1 真渲染·拉取确认框：正文是那句话、主按钮是词条句（正文=' + JSON.stringify(d1.confirmBody) + '，按钮=' + JSON.stringify(d1.confirmOk) + '，渲染错=' + (pulls.err || '无') + '）')
+
+  const sets = writePresetHtml(React, DswsCtx, TipStub, IcStub, screen, { op: '', state: 'idle', message: '', confirm: { op: 'push', plan: { mode: 'set-upstream', remote: 'origin', branch: 'main', localBranch: 'main' }, ticket: ttl, remotes: [] }, result: null, remoteChoice: null })
+  const d2 = domText(sets.html)
+  check(d2.confirmBody.indexOf('把本地 main 推到 origin/main，并把它设为上游。') >= 0 && d2.confirmOk === trZh('vc.action.pushSetUpstream'),
+    'J2 真渲染·set-upstream 确认框：正文点名目标并写清设为上游（正文=' + JSON.stringify(d2.confirmBody) + '，按钮=' + JSON.stringify(d2.confirmOk) + '）')
+
+  const recs = writePresetHtml(React, DswsCtx, TipStub, IcStub, screen, { op: '', state: 'idle', message: '', confirm: { op: 'push', plan: { mode: 'recreate', remote: 'origin', branch: 'feature', localBranch: 'feature' }, ticket: ttl, remotes: [] }, result: null, remoteChoice: null })
+  const d3 = domText(recs.html)
+  check(d3.confirmBody.indexOf('origin/feature') >= 0 && d3.confirmBody.indexOf('不在了') >= 0 && d3.confirmOk === trZh('vc.action.pushRecreate'),
+    'J3 真渲染·recreate 确认框：正文说「已经不在了」并点名目标（正文=' + JSON.stringify(d3.confirmBody) + '，按钮=' + JSON.stringify(d3.confirmOk) + '）')
+
+  const fails = writePresetHtml(React, DswsCtx, TipStub, IcStub, screen, { op: '', state: 'failed', message: '', confirm: null, remoteChoice: null, result: { state: 'failed', key: 'vc.writeErr.notFastForward', params: {}, limitKey: 'vc.writeErr.notFastForward.limit', verb: 'vc.op.failed', tipKey: '', tip: '宿主原话', retryable: true, moved: false } })
+  const d4 = domText(fails.html)
+  check(d4.result.indexOf('没做成') >= 0 && d4.resultText.indexOf('远端的新提交已经取回来了') >= 0 && d4.resultLimit.indexOf('侧栏终端') >= 0 && d4.result.indexOf('vc.') < 0,
+    'J4 真渲染·失败横幅：动作词 + 主句 + limit 句都是人话（横幅=' + JSON.stringify(d4.result) + '，渲染错=' + (fails.err || '无') + '，HTML 长=' + fails.html.length + '）')
+
+  const dones = writePresetHtml(React, DswsCtx, TipStub, IcStub, screen, { op: '', state: 'done', message: '', confirm: null, remoteChoice: null, result: { state: 'done', key: 'vc.op.donePushRecreate', params: { local: 'feature', remote: 'origin', target: 'feature' }, verb: 'vc.op.done', tipKey: '', tip: '', retryable: false, moved: false } })
+  const d5 = domText(dones.html)
+  check(d5.result.indexOf('做完了') >= 0 && d5.result.indexOf('已重建上游') >= 0 && d5.result.indexOf('origin/feature') >= 0 && d5.result.indexOf('vc.') < 0,
+    'J5 真渲染·成功横幅：按预检档说「已重建上游…」（横幅=' + JSON.stringify(d5.result) + '，渲染错=' + (dones.err || '无') + '）')
+
+  const running = writePresetHtml(React, DswsCtx, TipStub, IcStub, screen, { op: 'pull', state: 'running', message: '', confirm: null, result: null, remoteChoice: null })
+  const d6 = domText(running.html)
+  check(d6.running === trZh('vc.op.running'), 'J6 真渲染·执行中那一行有正文（实得 ' + JSON.stringify(d6.running) + '）')
+
+  const choice = writePresetHtml(React, DswsCtx, TipStub, IcStub, screen, { op: '', state: 'idle', message: '', confirm: null, result: null, remoteChoice: { show: true, remotes: ['origin', 'mirror'], hint: '' } })
+  const d7 = domText(choice.html)
+  check(d7.choice.indexOf(trZh('vc.pickRemote.title')) >= 0 && d7.choiceBody.indexOf('面板不替你挑远端') >= 0 && d7.choice.indexOf('origin') >= 0 && d7.choice.indexOf('mirror') >= 0,
+    'J7 真渲染·多远端候选框：标题与正文都是人话、两个远端都可点（框=' + JSON.stringify(d7.choice.slice(0, 60)) + '）')
+
+  // J8 通用守卫：上面七次真渲染的文字里，一个 vc. 开头的词条键都不许出现。
+  const allText = [d1, d2, d3, d4, d5, d6, d7].map(function (d) { return d.text }).join('\n')
+  const leaked = allText.match(/vc\.[A-Za-z][A-Za-z0-9_.]*/g) || []
+  check(leaked.length === 0, 'J8 通用守卫：真渲染出来的文字里不出现词条键（命中：' + (leaked.slice(0, 5).join('、') || '无') + '）')
+}
+
 // ============================================================
 // I 组 · 跨层：真宿主回包 → 真命令 → 确认框正文（对抗式审查第 8 节推荐的那一条）
 // ============================================================
@@ -712,6 +786,7 @@ async function main() {
   await groupE(view)
   groupF(view, EXPORTS)
   await groupG(view)
+  groupJ(React, DswsCtx, TipStub, IcStub)
   await groupI(view, planMod.pushPlanOf, cmdMod.pushArgs)
   await groupH(React, DswsCtx, TipStub, IcStub, logs)
 

@@ -73,6 +73,8 @@ export const vcOpResultOf = function (op, reply, plan) {
     state: 'failed',
     key: key,
     params: {},
+    // 失败才有一句「面板不替你做什么」；成功那几档没有 limit 键，界面据此不画。
+    limitKey: key + '.limit',
     verb: moved ? 'vc.op.unknown' : 'vc.op.failed',
     tipKey: '',
     tip: String(err.hint || err.message || ''),
