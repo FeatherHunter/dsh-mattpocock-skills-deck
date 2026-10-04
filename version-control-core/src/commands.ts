@@ -40,6 +40,11 @@ export function fixedPrefix(): string[] {
     // 这一族命令没有哪一条需要 git 展开路径通配，所以放进固定前缀对所有命令一视同仁——
     // 只挂在 patch 那一条上，将来再加带路径的命令时没人会记得补这个开关。
     '--literal-pathspecs',
+    // 推送三道保险（总工 2026-10-04 最终口径）：① 显式 refspec（见 pushArgs，主保证）；
+    // ② followTags 关掉——配成 true 时即使显式 refspec 也会把标签顺带推上去（实测）；
+    // ③ default=nothing 作为第二道（它单独挡不住裸 push，有 remote.<name>.push 时会被当成 refspec 来源）。
+    '-c', 'push.followTags=false',
+    '-c', 'push.default=nothing',
     '-c', 'core.quotepath=false',
     '-c', 'color.ui=false',
     '-c', 'i18n.logOutputEncoding=UTF-8',
@@ -89,6 +94,48 @@ export function commandFor(key: CollectionKey, opts: { logCount?: number; logSki
       return { key, subcommand: 'diff', args: ['diff', '--unified=3', '--no-color', '--no-ext-diff', '--no-prefix', '--find-renames', 'HEAD', '--', p] }
     }
   }
+}
+
+/** 写命令的子命令清单（#841）：门禁拿它断言「面板会发出什么」。 */
+export const WRITE_SUBCOMMANDS: string[] = ['add', 'commit', 'pull', 'push', 'ls-files', 'remote']
+
+/** 远端名与分支名的形状：只挡「会被当成选项」与「会破坏 argv」的形状，不重造 git 自己的取名规则。
+ *  分支名允许斜杠（feature/x）；两者都不许以 - 开头、不许空白与 NUL。 */
+export const REMOTE_PATTERN = /^[A-Za-z0-9._-]+$/
+export const BRANCH_PATTERN = /^(?!-)[^\s\u0000:\\]+$/
+
+/**
+ * 写命令的参数口径（#841 附录第 4 节）。本文件只描述「子命令与它自己的参数」：
+ * -C <仓库根>、固定前缀（含 --literal-pathspecs）与非交互环境都由宿主的同一个出口补上，这里不写第二份。
+ * 每条都写清为什么是这几个参数：
+ *   · add：整文件暂存（D1），路径一律排在 -- 之后（写路径更输不起通配）；
+ *   · commit：只带 -m；永不带 --amend / --allow-empty / --no-verify（D4）；
+ *   · pull：只认 --ff-only（D2），不能快进就失败；
+ *   · push：**一律显式写 <remote> <branch>，不裸 push**（总工 2026-10-04 更正：裸 push 会被
+ *     push.default=matching / remote.<name>.push / push.followTags 改道或带出别的东西）；
+ *     -u 只在 set-upstream 那一档出现（D3）。
+ */
+export function stageArgs(paths: string[]): string[] {
+  return ['add', '--'].concat(paths)
+}
+export function commitArgs(message: string): string[] {
+  return ['commit', '-m', message]
+}
+export function pullArgs(): string[] {
+  return ['pull', '--ff-only']
+}
+/** 推送：永远显式 <remote> <local>:<remote>（总工 2026-10-04 订正 1）；-u 只在 set-upstream 档出现。 */
+export function pushArgs(plan: { mode: 'existing' | 'set-upstream'; remote: string; branch: string; localBranch: string }): string[] {
+  const spec = plan.localBranch + ':' + plan.branch
+  return plan.mode === 'set-upstream' ? ['push', '-u', plan.remote, spec] : ['push', plan.remote, spec]
+}
+/** 索引指纹的输入（只读；总工裁决 2：不用 write-tree，不往用户对象库写东西）。 */
+export function lsFilesStageArgs(): string[] {
+  return ['ls-files', '--stage', '-z']
+}
+/** 远端清单（只读，D3 要用它列远端让用户选）。 */
+export function remoteListArgs(): string[] {
+  return ['remote']
 }
 
 /** 换行配置的事实来源（宿主在第 0 步阶段顺带取，不计入六个采集项）。 */

@@ -16,6 +16,13 @@ export function fixedPrefix() {
     // 这一族命令没有哪一条需要 git 展开路径通配，所以放进固定前缀对所有命令一视同仁——
     // 只挂在 patch 那一条上，将来再加带路径的命令时没人会记得补这个开关。
     "--literal-pathspecs",
+    // 推送三道保险（总工 2026-10-04 最终口径）：① 显式 refspec（见 pushArgs，主保证）；
+    // ② followTags 关掉——配成 true 时即使显式 refspec 也会把标签顺带推上去（实测）；
+    // ③ default=nothing 作为第二道（它单独挡不住裸 push，有 remote.<name>.push 时会被当成 refspec 来源）。
+    "-c",
+    "push.followTags=false",
+    "-c",
+    "push.default=nothing",
     "-c",
     "core.quotepath=false",
     "-c",
@@ -51,6 +58,28 @@ export function commandFor(key, opts) {
       return { key, subcommand: "diff", args: ["diff", "--unified=3", "--no-color", "--no-ext-diff", "--no-prefix", "--find-renames", "HEAD", "--", p] };
     }
   }
+}
+export const WRITE_SUBCOMMANDS = ["add", "commit", "pull", "push", "ls-files", "remote"];
+export const REMOTE_PATTERN = /^[A-Za-z0-9._-]+$/;
+export const BRANCH_PATTERN = /^(?!-)[^\s\u0000]+$/;
+export function stageArgs(paths) {
+  return ["add", "--"].concat(paths);
+}
+export function commitArgs(message) {
+  return ["commit", "-m", message];
+}
+export function pullArgs() {
+  return ["pull", "--ff-only"];
+}
+export function pushArgs(plan) {
+  const spec = plan.localBranch + ":" + plan.branch;
+  return plan.mode === "set-upstream" ? ["push", "-u", plan.remote, spec] : ["push", plan.remote, spec];
+}
+export function lsFilesStageArgs() {
+  return ["ls-files", "--stage", "-z"];
+}
+export function remoteListArgs() {
+  return ["remote"];
 }
 export function autocrlfArgs() {
   return ["config", "--get", "core.autocrlf"];

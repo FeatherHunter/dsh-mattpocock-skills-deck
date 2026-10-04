@@ -158,9 +158,11 @@ function sha256(file) { return crypto.createHash('sha256').update(fs.readFileSyn
   // #816：版本控制核心落地新增 src/shared/version-control/ 下 11 个产物（ports/capabilities/commands/
   // 六组解析中的 parse-status/parse-worktrees/parse-refs/parse-log/parse-diff-files/parse-patch/state/rules，
   // 纯逻辑、文件之间零引用；客户端拼接清单一条不加），总数 47→58。
+  // #841：写操作那一族新增 src/shared/version-control/ 下 3 个产物（write-reasons / write-ticket / push-plan，
+  // 纯函数、文件之间零引用；客户端拼接清单一条不加），总数 58→61。
   // 这个数是「src/shared 树里实际有几个文件」，会随别的票增减 —— 每次改完记得重跑本门禁对数。
-  check(srcSharedFiles.length === 58, `src/shared 58 文件（实得 ${srcSharedFiles.length}）`)
-  check(pkgSharedFiles.length === 58, `package/shared 58 文件（实得 ${pkgSharedFiles.length}）`)
+  check(srcSharedFiles.length === 61, `src/shared 61 文件（实得 ${srcSharedFiles.length}）`)
+  check(pkgSharedFiles.length === 61, `package/shared 61 文件（实得 ${pkgSharedFiles.length}）`)
 }
 // 4c) import 卫生：显式 .js（相对 import 必须带 .js 扩展，避免 Node ESM 裸 specifier）
 {

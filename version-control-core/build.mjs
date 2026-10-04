@@ -39,6 +39,10 @@ export const UNITS = [
   { ts: 'parse-patch.ts', js: 'parse-patch.js' },
   { ts: 'state.ts', js: 'state.js' },
   { ts: 'rules.ts', js: 'rules.js' },
+  // #841 写操作那一族：失败种类与句子、票据与索引指纹、推送目标解析（都是纯函数）
+  { ts: 'write-reasons.ts', js: 'write-reasons.js' },
+  { ts: 'write-ticket.ts', js: 'write-ticket.js' },
+  { ts: 'push-plan.ts', js: 'push-plan.js' },
 ]
 
 function headerFor(tsName) {

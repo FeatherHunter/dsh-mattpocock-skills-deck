@@ -144,4 +144,30 @@ export interface ParseFailure {
   detail: string
 }
 
+/** 写操作三档（暂存不走票据，所以不在这里）。 */
+export type WriteOp = 'commit' | 'pull' | 'push'
+
+/** 预检解析出来的推送目标；localBranch 是 refspec 左边那一段（本地分支）。 */
+export interface WritePlan {
+  mode: 'existing' | 'set-upstream'
+  remote: string
+  branch: string
+  localBranch: string
+}
+
+/**
+ * 一次性票据（形制照 src/host/updatePkg/service.js 的 receipt：checkId + 过期时刻；重放保护靠 requestId 去重，
+ * 不自创第三种语义）。客户端只拿得到 id / checkedAtMs / expiresAtMs / op，其余留在宿主内存里。
+ */
+export interface WriteTicket {
+  id: string
+  op: WriteOp
+  checkedAtMs: number
+  expiresAtMs: number
+  headOid: string
+  indexFingerprint: string | null
+  indexEntries: number | null
+  target: WritePlan | null
+}
+
 export const PORTS_SOURCE = 'version-control-core/src/ports.ts'

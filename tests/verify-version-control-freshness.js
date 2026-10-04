@@ -28,7 +28,7 @@ async function main() {
   try {
     buildMod = await import(pathToFileURL(path.join(ROOT, 'version-control-core', 'build.mjs')).href)
     check(typeof buildMod.transpileUnit === 'function', '构建脚本导出同一转译口径 transpileUnit')
-    check(Array.isArray(buildMod.UNITS) && buildMod.UNITS.length === 11, '构建脚本导出 UNITS 清单（11 项，不手抄）')
+    check(Array.isArray(buildMod.UNITS) && buildMod.UNITS.length === 14, '构建脚本导出 UNITS 清单（14 项＝#816 的 11 项 + #841 的三项写路径纯函数，不手抄）')
   } catch (e) {
     check(false, '构建脚本可加载（version-control-core/build.mjs）：' + (e && e.message))
     console.log('\n存在失败')
