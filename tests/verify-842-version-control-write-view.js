@@ -25,6 +25,7 @@ const VC_FILES = [
   'src/client/views/versionControl/vcFold.js',
   'src/client/views/versionControl/vcDiff.js',
   'src/client/views/versionControl/vcCommit.js',
+  'src/client/views/versionControl/vcStyles.js', // #851 视觉语言的样式叶子（CSS 文本，注入点与 styles.js 同一个接缝）
   'src/client/views/versionControl/vcRows.js',
   'src/client/views/versionControl/vcWrite.js',
   'src/client/views/versionControl/vcWriteRun.js',
@@ -68,6 +69,9 @@ const EXPORTS = [
   'vcAfterWrite',
   'vcApplyCommitReply',
   'vcBasisText',
+  'VC_BADGE_LETTER',
+  'VC_STYLE_TEXT',
+  'vcBadgeLetterOf',
   'vcBlockKeyOf',
   'vcBlockedTipOf',
   'vcBlocksOf',
@@ -248,7 +252,9 @@ function groupA(view, React, DswsCtx, TipStub, IcStub) {
 
   const rowD = rowOf(blocks, 'd.txt')
   const a5 = !!(rowD && rowD.stageAction && rowD.stageAction.conflict === true && rowD.stageAction.show === false) && html.indexOf('data-vc-conflict-terminal') >= 0
-  check(a5, 'A5 冲突行没有「暂存」而有去侧栏终端的指引（模型 ' + JSON.stringify(rowD && rowD.stageAction) + '，DOM ' + (html.indexOf('data-vc-conflict-terminal') >= 0) + '）')
+  const conflictText = (html.match(/data-vc-conflict-terminal[^>]*>([^<]*)/) || [])[1] || ''
+  const a5b = conflictText.indexOf('命令行') >= 0 && conflictText.indexOf('侧栏终端') < 0
+  check(a5 && a5b, 'A5 冲突行没有「暂存」，改说「在命令行里解决」，且不再提侧栏终端（模型 ' + JSON.stringify(rowD && rowD.stageAction) + '，DOM ' + (html.indexOf('data-vc-conflict-terminal') >= 0) + '，文字 ' + JSON.stringify(conflictText) + '）')
 
   // A6：多远端 + 没有上游 —— 候选远端来自失败回包顶层 remotes，界面上要有一排可点的入口。
   const choiceUi = uiOf({ write: { op: '', state: 'idle', message: '', confirm: null, result: null, remoteChoice: { show: true, remotes: ['origin', 'mirror'], hint: '' } } })
@@ -343,7 +349,7 @@ async function groupC(view, logs) {
   check(!!why && shapeLogs.length > 0, 'C4 回包目标与界面读数不一致时按回包显示，并记一条 kind=shape（判出 ' + JSON.stringify(why) + '，日志 ' + shapeLogs.length + ' 条）')
 
   const pullBody = trZh('vc.confirm.pullBody')
-  check(pullBody.indexOf('快进') >= 0 && pullBody.indexOf('侧栏终端') >= 0, 'C5 拉取确认框正文写清「只做快进」与「去侧栏终端」（' + pullBody + '）')
+  check(pullBody.indexOf('快进') >= 0 && pullBody.indexOf('命令行') >= 0 && pullBody.indexOf('侧栏终端') < 0, 'C5 拉取确认框正文写清「只做快进」并说清剩下的事在命令行里做，且不提侧栏终端（' + pullBody + '）')
 
   // C6：上游被删（宿主可能回 mode=recreate，也可能只给 upstreamGone 布尔）——两档都要走「已经不在了」那套话术。
   const recByMode = view.vcConfirmOf('push', planRecreate, trZh)
@@ -372,9 +378,11 @@ function groupD(view, writeReasons) {
 
   const weak = ['noCredential', 'noPermission', 'conflict', 'notFastForward', 'network'].filter(function (f) {
     const s = String(LOC.zh['vc.writeErr.' + f + '.limit'] || '')
-    return s.indexOf('侧栏终端') < 0 && s.indexOf('不自动重试') < 0
+    return s.indexOf('命令行') < 0 && s.indexOf('不自动重试') < 0
   })
-  check(weak.length === 0, 'D2 五条 limit 句都提到「侧栏终端」或「不自动重试」（缺的：' + (weak.join('、') || '无') + '）')
+  const stillTerminal = Object.keys(LOC.zh).filter(function (k) { return /侧栏终端/.test(String(LOC.zh[k])) })
+  const stillTerminalEn = Object.keys(LOC.en).filter(function (k) { return /terminal on the same row/.test(String(LOC.en[k])) })
+  check(weak.length === 0 && stillTerminal.length === 0 && stillTerminalEn.length === 0, 'D2 五条 limit 句都写到「命令行」或「不自动重试」，且中英词条里都不许再有「侧栏终端」（缺的：' + (weak.join('、') || '无') + '；中文残留：' + (stillTerminal.join('、') || '无') + '；英文残留：' + (stillTerminalEn.join('、') || '无') + '）')
 
   const unmapped = writeReasons.filter(function (r) { return !view.VC_WRITE_ERR_FAMILY[r] })
   check(unmapped.length === 0, 'D3 宿主 ' + writeReasons.length + ' 个 WRITE_REASONS 逐个都在映射表里（没家的：' + (unmapped.join('、') || '无') + '）')
@@ -613,7 +621,7 @@ function groupJ(React, DswsCtx, TipStub, IcStub) {
 
   const fails = writePresetHtml(React, DswsCtx, TipStub, IcStub, screen, { op: '', state: 'failed', message: '', confirm: null, remoteChoice: null, result: { state: 'failed', key: 'vc.writeErr.notFastForward', params: {}, limitKey: 'vc.writeErr.notFastForward.limit', verb: 'vc.op.failed', tipKey: '', tip: '宿主原话', retryable: true, moved: false } })
   const d4 = domText(fails.html)
-  check(d4.result.indexOf('没做成') >= 0 && d4.resultText.indexOf('远端的新提交已经取回来了') >= 0 && d4.resultLimit.indexOf('侧栏终端') >= 0 && d4.result.indexOf('vc.') < 0,
+  check(d4.result.indexOf('没做成') >= 0 && d4.resultText.indexOf('远端的新提交已经取回来了') >= 0 && d4.resultLimit.indexOf('命令行') >= 0 && d4.resultLimit.indexOf('侧栏终端') < 0 && d4.result.indexOf('vc.') < 0,
     'J4 真渲染·失败横幅：动作词 + 主句 + limit 句都是人话（横幅=' + JSON.stringify(d4.result) + '，渲染错=' + (fails.err || '无') + '，HTML 长=' + fails.html.length + '）')
 
   const dones = writePresetHtml(React, DswsCtx, TipStub, IcStub, screen, { op: '', state: 'done', message: '', confirm: null, remoteChoice: null, result: { state: 'done', key: 'vc.op.donePushRecreate', params: { local: 'feature', remote: 'origin', target: 'feature' }, verb: 'vc.op.done', tipKey: '', tip: '', retryable: false, moved: false } })
@@ -691,6 +699,71 @@ function groupJ(React, DswsCtx, TipStub, IcStub) {
   check(rowsWithCard(bareHtml).length === 0, 'J13 反证：把展开键改回裸路径 → J10 那条当场不成立（含补丁的行：' + JSON.stringify(rowsWithCard(bareHtml)) + '）')
 }
 
+
+
+// ============================================================
+// L 组 · 视觉语言（#851 照原型 C「档案索引」）：徽章 / 等宽 / 正负着色 / 小标题 / 字号层级
+//   这一组同时给三条反证：把新加的样式钩子改回去，对应的判据必须当场变红。
+// ============================================================
+function groupL(view, React, DswsCtx, TipStub, IcStub) {
+  // 这一组要同时看到文件行与提交历史行（短号等宽那条挂在提交行上），所以夹具带上一条提交。
+  const screen = screenOf({
+    staged: [fileOf('a.txt', 'staged')], stagedCount: 1,
+    unstaged: [fileOf('b.txt', 'unstaged')], unstagedCount: 1,
+    commits: [{ oid: 'c'.repeat(40), short: 'ccccccc', subject: '提交说明', author: 'x', authorDateMs: NOW - 3600000, commitDateMs: NOW - 3600000, parents: ['p'] }],
+  })
+  const render = function (patch) {
+    const v = buildView(function (s) {
+      let out = s.replace('React.useState(vcNewReads)', 'React.useState(function () { return seedReads })')
+      return patch ? patch(out) : out
+    }, React, DswsCtx, TipStub, IcStub, readsOf(screen), [], trZh)
+    try { return require('react-dom/server').renderToStaticMarkup(React.createElement(v.VersionControlTab, { st: { cwd: 'D:/w/repo' } })) } catch (e) { return '' }
+  }
+  const docOf = function (html) { return new (require('jsdom').JSDOM)('<div id="m">' + html + '</div>').window.document.getElementById('m') }
+  const letters = ['added', 'modified', 'deleted', 'renamed', 'typechange', 'untracked'].map(function (c) { return view.vcBadgeLetterOf(c) }).join('')
+  const badgeOk = function (doc) {
+    const b = doc.querySelector('[data-vc-badge]')
+    const row = doc.querySelector('[data-vc-file]')
+    return !!b && b.textContent === 'M' && String(b.className).indexOf('dsws-vc-badge') >= 0 && !!row && row.textContent.indexOf('修改') >= 0
+  }
+  const monoOk = function (doc) {
+    // 文件行里等宽的元素不止一个（状态词、路径、行数都是），所以要找「装着路径那一枚」。
+    const pathOk = Array.prototype.some.call(doc.querySelectorAll('[data-vc-file] .dsws-vc-mono'), function (el) { return el.textContent.indexOf('a.txt') >= 0 })
+    const shortOk = Array.prototype.some.call(doc.querySelectorAll('[data-vc-commit] .dsws-vc-mono'), function (el) { return el.textContent.indexOf('ccccccc') >= 0 })
+    return pathOk && shortOk
+  }
+  const countsOk = function (doc) {
+    const a = doc.querySelector('[data-vc-file] .dsws-vc-add')
+    const d = doc.querySelector('[data-vc-file] .dsws-vc-del')
+    const row = doc.querySelector('[data-vc-file]')
+    return !!a && !!d && a.textContent === '+1' && d.textContent === '\u22120' && row.textContent.indexOf('+1 \u22120') >= 0
+  }
+  const secOk = function (doc) {
+    const el = doc.querySelector('[data-vc-group] .dsws-vc-sec')
+    return !!el && el.textContent.indexOf('已暂存') >= 0
+  }
+  const hierOk = function (doc) {
+    const name = doc.querySelector('[data-vc-worktree]')
+    const sync = doc.querySelector('[data-vc-sync]')
+    const pathEl = doc.querySelector('[data-vc-path]')
+    return !!name && String(name.className).indexOf('dsws-vc-id') >= 0 && !!sync && String(sync.className).indexOf('dsws-vc-count') >= 0 && !!pathEl && String(pathEl.className).indexOf('dsws-vc-mono') >= 0
+  }
+  const html = render(null)
+  const doc = docOf(html)
+  check(letters === 'AMDRT?' && badgeOk(doc), 'L1 状态字母徽章：六种变化各一个字母（实得 ' + letters + '），文件行上挂方形徽章，中文状态词「修改」照旧在同一行里')
+  check(monoOk(doc), 'L2 等宽 + 表格数字：路径与提交短号都挂 dsws-vc-mono')
+  check(countsOk(doc), 'L3 加减行数按正负着色：+1 与 \u22120 各自一个 span（合起来仍是原来那一串）')
+  check(secOk(doc), 'L4 分段小标题：分组标题挂 dsws-vc-sec，文字仍是既有词条（已暂存…）')
+  check(hierOk(doc), 'L5 身份行与计数行拉开层级：身份行 dsws-vc-id、计数行 dsws-vc-count、路径行 dsws-vc-mono')
+
+  // 反证（三条）：把新加的样式钩子改回去，对应的判据必须当场变红。
+  const noBadge = docOf(render(function (s) { return s.replace("    badge: vcBadgeLetterOf(row.change),", "    badge: '',") }))
+  check(badgeOk(noBadge) === false, 'L6 反证：把行模型里的徽章字母去掉 → L1 那条当场不成立')
+  const noMono = docOf(render(function (s) { return s.replace("h('span', { key: 'path', className: 'dsws-vc-mono', style: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, row.pathText)", "h('span', { key: 'path', style: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, row.pathText)") }))
+  check(monoOk(noMono) === false, 'L7 反证：把路径上的 dsws-vc-mono 撤掉 → L2 那条当场不成立')
+  const noSign = docOf(render(function (s) { return s.replace("h('span', { key: 'add', className: 'dsws-vc-add' }, row.addText),", "h('span', { key: 'add' }, row.addText),") }))
+  check(countsOk(noSign) === false, 'L8 反证：把加减行数的着色类撤掉 → L3 那条当场不成立')
+}
 
 // ============================================================
 // K 组 · 失败种类分档（宿主新档 env-fs：文件服务读不到运行状态，不许再指向 git）
@@ -867,6 +940,7 @@ async function main() {
   await groupG(view)
   groupJ(React, DswsCtx, TipStub, IcStub)
   groupK(view, React, DswsCtx, TipStub, IcStub)
+  groupL(view, React, DswsCtx, TipStub, IcStub)
   await groupI(view, planMod.pushPlanOf, cmdMod.pushArgs)
   await groupH(React, DswsCtx, TipStub, IcStub, logs)
 
