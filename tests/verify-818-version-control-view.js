@@ -174,7 +174,10 @@ async function main() {
   VIEW = buildView(null, [])
 
   // ---- A 组：显隐与接线 ----
-  check(VIEW.vcTabVisible({}) === true && VIEW.vcTabVisible({ snapshot: { repoRoot: null } }) === true && VIEW.vcTabVisible(null) === true, 'A1 显隐谓词一律回真（总工程师裁定的偏离：不藏页签，空态由视图说真话）')
+  // #845c：A1 那条判据抽成可复用的一份 —— H 组的反证要评的就是这一份判断，两边不许各写一份。
+  //   三个入参就是 A1 点名的三种：普通对象、带 repoRoot 的快照、null。
+  const tabVisibleJudgmentOf = (v) => v.vcTabVisible({}) === true && v.vcTabVisible({ snapshot: { repoRoot: null } }) === true && v.vcTabVisible(null) === true
+  check(tabVisibleJudgmentOf(VIEW), 'A1 显隐谓词一律回真（总工程师裁定的偏离：不藏页签，空态由视图说真话）')
   const tabsSrc = read('src/client/views/shared/Tabs.js')
   check(tabsSrc.indexOf("typeof vcTabVisible === 'function'") >= 0 && tabsSrc.indexOf("'versionControl'") >= 0 && tabsSrc.indexOf("'branch'") >= 0, 'A2 壳层按名字调用 vcTabVisible、页签 id 与图标名与接口一致')
   const tabSrc = read('src/client/views/versionControl/VersionControlTab.js')
@@ -841,7 +844,7 @@ async function main() {
 
   // ---- H 组：反证（把被守的东西改坏，同一套断言必须当场变红）----
   const antiCases = [
-    { name: '显隐谓词改成永远隐藏', patch: (s) => s.replace('const vcTabVisible = function (st) {\n  void st\n  return true\n}', 'const vcTabVisible = function (st) {\n  void st\n  return false\n}'), test: (v) => v.vcTabVisible({}) === true, what: 'A1' },
+    { name: '显隐谓词改成永远隐藏', patch: (s) => s.replace('const vcTabVisible = function (st) {\n  void st\n  return true\n}', 'const vcTabVisible = function (st) {\n  void st\n  return false\n}'), test: tabVisibleJudgmentOf, what: 'A1' },
     { name: '冲突条目不再合成一行（同一路径画两行）', patch: (s) => s.replace('      if (conflictSeen[path]) return', '      if (false) return'), test: (v) => { const m = v.vcBlocksOf(merge, readsOf(merge), {}, envOf(merge, readsOf(merge))); return rowsOf(m).length === 1 }, what: 'C9' },
     { name: '汇总句把数字写死成 0', patch: (s) => s.replace("staged: String(hostStaged), unstaged: String(hostUnstaged), conflicts: String(conflicts)", "staged: '0', unstaged: '0', conflicts: String(conflicts)").replace("{ staged: String(hostStaged), unstaged: String(hostUnstaged) }", "{ staged: '0', unstaged: '0' }"), test: (v) => { const c = v.vcBlocksOf(liveScreen, liveReads, {}, envOf(liveScreen, liveReads)); return blockOf(c, 'changes').summary === '已暂存 1 个文件 / 未暂存 4 个文件' }, what: 'B7' },
     { name: '折叠一次让一整段字（不再一个字符）', patch: (s) => s.replace("push('path', -1, Math.max(0, len(ladder.path) - VC_MIDDLE_MIN))", "push('path', -1, 1)"), test: (v) => { const l = v.vcFoldLadderOf({ path: 'abcdefghijklmnop', others: [], commits: [] }); return l.steps.length >= 6 }, what: 'D2' },
@@ -862,13 +865,23 @@ async function main() {
     { name: '摘要档不再把完整路径并进悬停', patch: (s) => s.replace("    tip: t('vc.other.tip') + (summaryTip ? '\\n' + summaryTip : ''),", "    tip: t('vc.other.tip'),"), test: (v) => { const s2 = screenOf({ otherWorktrees: [{ path: 'D:/w/一个很长的副本名字', display: '一个很长的副本名字', head: 'h', branch: 'dev', bare: false, current: false, locked: false, lockReason: null, lockUnknown: false, prunable: false }] }); const o = blockOf(v.vcBlocksOf(s2, readsOf(s2), {}, envOf(s2, readsOf(s2), 300)), 'other'); return o.mode === 'summary' && o.tip.indexOf('D:/w/一个很长的副本名字') >= 0 }, what: 'M1' },
     { name: '宽度分档改成不单调（更窄反而画更多）', patch: (s) => s.replace('  if (w >= VC_FOLD_BANDS[0]) return 0\n  if (w >= VC_FOLD_BANDS[1]) return 1\n  if (w >= VC_FOLD_BANDS[2]) return 2\n  return 3', '  if (w >= VC_FOLD_BANDS[0]) return 0\n  if (w >= VC_FOLD_BANDS[1]) return 2\n  if (w >= VC_FOLD_BANDS[2]) return 1\n  return 3'), test: (v) => { let prev = null; for (const w of [460, 420, 380, 360, 340, 320, 300, 200]) { const b = v.vcFoldBandAt(w); if (prev !== null && b < prev) return false; prev = b } return true }, what: 'D11' },
   ]
+  // #845c：反证自证提到循环里 —— 每一处改法先确认它真的落到了源码上（改不中等于没证）。
+  //   旧写法只在循环外用一条聚合自检兜底，于是某一条改法失效时，它自己仍会以 broke=true 假绿
+  //   （把 vcTabVisible 的 return true 改成别的写法、或谓词已经在源码里被改坏，补丁就找不到落点），
+  //   而它声称覆盖的那条断言（A1）此时已经不再受它保护。
+  const closureSrc = VC_FILES.map((f2) => stripExports(read(f2))).join('\n')
   for (const c of antiCases) {
     let broke = false
+    let applied = true
     const keepT = tZh
     if (c.en === true) tZh = tEn
-    try { const v = buildView(c.patch, [], React, DswsCtx, TipStub, IcStub, c.seed || null, c.hostStub); broke = (await c.test(v)) === false } catch (e) { broke = true }
+    try {
+      const v = buildView(c.patch, [], React, DswsCtx, TipStub, IcStub, c.seed || null, c.hostStub)
+      applied = c.patch(closureSrc) !== closureSrc
+      broke = applied && (await c.test(v)) === false
+    } catch (e) { broke = true }
     tZh = keepT
-    check(broke, 'H 反证：把「' + c.name + '」改坏之后，' + c.what + ' 那条断言当场变红')
+    check(broke, 'H 反证：把「' + c.name + '」改坏之后，' + c.what + ' 那条断言当场变红' + (applied ? '' : '（这一处改法没落到源码上，等于没证）'))
   }
   // 反证（#843 话术那条）：把 vc.fail.exit 退回旧说法（没有「等它结束」）→ M5 的判据必须当场变红。
   const exitBroken = Object.assign({}, LOC.zh, { 'vc.fail.exit': 'git 没有正常结束（多半是权限或锁的问题），这一步读不到。' })
@@ -888,8 +901,8 @@ async function main() {
   } catch (e) { brokenHtml = '' }
   tZh = goodT
   check(brokenHtml.replace(/<[^>]*>/g, ' ').indexOf('vc.changes') >= 0, 'H 反证：词典查不到就回键名时，DOM 里当场出现键名（上一版的中文界面就是这个样子，G8 抓得住）')
-  // 反证本身也要自证：改坏的源码必须真的与原文不同（改不中就等于没证）
-  const closureSrc = VC_FILES.map((f2) => stripExports(read(f2))).join('\n')
+  // 反证本身也要自证：改坏的源码必须真的与原文不同（改不中就等于没证）—— 循环里已经逐条确认过一次，
+  //   这里再把整张表聚合报一遍，哪几条没改中一眼看全。
   const untouched = antiCases.filter((c) => c.patch(closureSrc) === closureSrc)
   check(untouched.length === 0, 'H 反证自证：' + antiCases.length + ' 处改法都真的改到了源码（改不中就等于没证）' + (untouched.length ? ' —— 没改中的：' + untouched.map((c) => c.name).join('、') : ''))
 

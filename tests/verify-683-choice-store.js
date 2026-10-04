@@ -290,9 +290,14 @@ const ATOMIC_WRITE_RE = /await\s+fsPort\.writeFile\(\s*tmp\s*,\s*body\s*,\s*\{[^
 
 // B3 去掉 R5b 守卫 → 退出的后端与 null 也写进去了
 {
-  const b = await loadBroken('no-guard',
-    "      if (backendId === null || backendId === undefined || String(backendId) === '') return { ok: false, reason: 'reject-null', rev: 0 }\n      if (typeof isKnownBackend !== 'function') return { ok: false, reason: 'no-registry-guard', rev: 0 }\n      let known = false\n      try { known = !!(await isKnownBackend(String(backendId))) } catch (e) { known = false }\n      if (!known) return { ok: false, reason: 'reject-unknown-backend', rev: 0 }",
-    '      /* 反证 B3：守卫整段摘掉 */')
+  // #845c：B3 的锚点也从「一整段带缩进的字节」换成**行为形状** —— 认的是「空值与未注册的后端一律拒、
+  //   只有注册表认的后端才写进去」这一整段守卫：从空值判定（reject-null）一路到未注册判定
+  //   （reject-unknown-backend）。缩进、折行、中间插行都不影响；守卫整段不在了，下面那条
+  //   check(!b.bad) 当场红，提示里写清找的是哪一步行为。
+  const R5B_GUARD_RE = /if\s*\(\s*backendId\s*===\s*null[\s\S]*?reject-unknown-backend[^\n}]*\}/
+  const b = await loadBrokenRe('no-guard', R5B_GUARD_RE,
+    '      /* 反证 B3：守卫整段摘掉 */',
+    'R5b 守卫那一整段（空值与未注册的后端一律拒，只有注册表认的后端才写）')
   check(!b.bad, '反证 B3 的改法能在真源里落地（守卫整段摘掉）' + (b.bad ? ' —— ' + b.bad : ''))
   if (b.mod) {
     const home = makeHome()
