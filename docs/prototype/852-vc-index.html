@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh" data-theme="">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>版本管理 · 全套原型页（#852）</title>
+<link rel="stylesheet" href="852-vc-kit.css">
+<!--
+  PROTOTYPE-852 · 抛弃式设计稿 · 入口
+  这一组原型回答：版本管理这个功能**每一个页面、控件、按钮**长什么样。
+  覆盖口径：产品界面代码里 190 条 vc.* 词条，每一条都要在某一页上被画出来并标注键名，自造词条数 = 0。
+  视觉语言：照 #815 原型 C「档案索引」定版（等宽路径 / 字母徽章 / 细分隔线 / 右对齐正负行数）。
+  共享样式：852-vc-kit.css —— 这份是公共件，任何一页都不许改它。
+-->
+<style>
+.idx{max-width:1060px;margin:0 auto;padding:0 18px 70px}
+.idx__lead{font-size:13.5px;color:var(--ink2);max-width:720px;margin:14px 0 26px}
+.card{display:block;text-decoration:none;color:inherit;border:1px solid var(--hair);border-radius:14px;background:var(--paper);
+  padding:16px 18px;transition:border-color .15s,transform .15s}
+.card:hover{border-color:var(--hair2);transform:translateY(-1px)}
+.card h3{margin:0 0 6px;font-size:14.5px;font-weight:650}
+.card h3 .n{color:var(--faint);font-weight:500;margin-right:8px;font-family:var(--mono)}
+.card p{margin:0;font-size:12.5px;color:var(--mut);line-height:1.6}
+.card .keys{margin-top:10px;font-family:var(--mono);font-size:11px;color:var(--faint);word-break:break-all}
+.grid2{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px}
+.old{margin-top:30px;padding-top:22px;border-top:1px solid var(--hair)}
+.old h3{font-size:13px;margin:0 0 10px;font-weight:650}
+.old li{margin:5px 0;font-size:12.5px;color:var(--mut)}
+.old code{color:var(--ink2)}
+</style>
+</head>
+<body>
+<div class="proto-bar">
+  <span class="mono" style="color:#ff3b30;font-weight:800">PROTOTYPE-852 · 抛弃式</span>
+  <b>版本管理 · 全套原型页</b>
+  <a href="815-readonly-3variants.html">回到 815 只读三变体</a>
+  <span class="sp"></span>
+  <span>覆盖 190 条 <code class="mono">vc.*</code> 词条 · 自造词条 0</span>
+  <button class="vc-btn vc-btn--ghost" data-theme-toggle style="height:24px">浅色</button>
+</div>
+
+<div class="idx">
+  <h1 style="font-size:19px;margin:26px 0 0;font-weight:650">版本管理面板 · 界面全集</h1>
+  <p class="idx__lead">
+    这一组是**设计稿**，不是产品页面。目的是把版本管理这个功能里每一个页面、控件、按钮、提示都画出来，
+    让人在验收之前就能一次看全，而不是只看得到其中一页。每一项旁边都标着它在产品里的词条键，
+    键名可以直接在源码里搜到：<code class="mono">src/client/views/versionControl/</code> 与
+    <code class="mono">src/client/kernel/locale-*.js</code>。
+  </p>
+
+  <div class="grid2">
+    <a class="card" href="852-vc-controls.html">
+      <h3><span class="n">P1</span>控件图鉴</h3>
+      <p>面板里每一个控件：顶部三个动作、暂存与提交、提交说明输入框、确认块的各档、进行中与完成回执、15 类失败提示、状态徽章、异常带、链接、空态、加载骨架、读不到的 14 种说法。控件之间怎么排，一格一格摆出来。</p>
+      <div class="keys">vc.action.* · vc.confirm.* · vc.op.* · vc.writeErr.* · vc.change.* · vc.block.* · vc.fail.*</div>
+    </a>
+    <a class="card" href="852-vc-readonly.html">
+      <h3><span class="n">P2</span>只读全景</h3>
+      <p>只读状态视图的全部状态各画一屏：干净、有改动（满屏与两种瘦态）、冲突、四种进行中操作、游离头、无上游、上游被删、落后远端、裸仓库、不是仓库、没装 git、git 太老、还没有提交。含 380 与 300 的让位。</p>
+      <div class="keys">vc.changes.* · vc.group.* · vc.band.* · vc.sync.* · vc.basis.* · vc.staleHint</div>
+    </a>
+    <a class="card" href="852-vc-write.html">
+      <h3><span class="n">P3</span>写操作全景</h3>
+      <p>暂存 / 全部暂存 / 提交 / 拉取 / 推送五个动作的完整链路：输入框各态、拉取与推送的各档确认、多远端时的远端选择、每档推送对应的完成回执，以及被拦住时那一行「接下来该怎么办」。</p>
+      <div class="keys">vc.action.* · vc.commitArea.* · vc.confirm.* · vc.pickRemote.* · vc.writeErr.* · vc.op.done*</div>
+    </a>
+    <a class="card" href="852-vc-diff.html">
+      <h3><span class="n">P4</span>差异与历史</h3>
+      <p>差异的九种形态（加载中、空、二进制、过大、合并提交、没有基线、未跟踪、读失败、截断提示）、提交里看某个文件、提交历史的四种状态（加载中、读失败、加载更多、已经到底），以及其他工作树的九种情形。</p>
+      <div class="keys">vc.diff.* · vc.commits.* · vc.commit.* · vc.other.*</div>
+    </a>
+  </div>
+
+  <div class="old">
+    <h3>更早的那份原型（只读状态视图的三款视觉变体）</h3>
+    <ul>
+      <li><a class="vc-link" href="815-readonly-3variants.html">815-readonly-3variants.html</a> —— A 编辑留白 / B 纪念碑 / C 档案索引；可切 <code>?variant=A|B|C</code> 与 <code>?state=dirty|clean|rebase|nogit|nogitbin</code>。</li>
+      <li>本组原型用的视觉语言就是那一页里的 <b>C 档案索引</b>：等宽路径、字母徽章、细分隔线、右对齐正负行数。</li>
+      <li>页面里那条红色「抛弃式」标记、深浅色切换、键名标注，都是脚手架，不是要上线的界面。</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+document.querySelectorAll('[data-theme-toggle]').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var r = document.documentElement
+    r.dataset.theme = r.dataset.theme === 'light' ? '' : 'light'
+    b.textContent = r.dataset.theme === 'light' ? '深色' : '浅色'
+  })
+})
+</script>
+</body>
+</html>

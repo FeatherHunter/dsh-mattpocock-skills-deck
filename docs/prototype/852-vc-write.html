@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh" data-theme="">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>版本管理 · 写操作全景（#852 P3）</title>
+<link rel="stylesheet" href="852-vc-kit.css">
+<!--
+  PROTOTYPE-852 · 抛弃式设计稿 · P3 写操作全景
+  这一页回答：会改仓库或要联网的那几条腿（暂存 / 提交 / 拉取 / 推送）长什么样，按什么顺序，按钮在哪儿。
+  覆盖口径：中文全部抄自产品词条（自造词条 0）。15 类失败的完整清单在 P1 控件图鉴，这里只画它在链路里的位置。
+  留在别的页画的键：只读状态 → P2；差异与历史 → P4。
+-->
+<style>
+.wrap{max-width:1060px;margin:0 auto;padding:0 18px 70px}
+.screen{margin:0 0 40px}
+.screen__cap{font-size:12px;color:var(--faint);margin:0 0 8px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.screen__cap b{color:var(--ink2);font-size:12.5px;font-weight:650}
+.screen__cap .k{font-family:var(--mono);color:var(--faint);font-size:11px}
+.rowgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(520px,1fr));gap:26px}
+.row2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:26px}
+</style>
+</head>
+<body>
+<div class="proto-bar">
+  <span class="mono" style="color:#ff3b30;font-weight:800">PROTOTYPE-852 · 抛弃式</span>
+  <b>P3 写操作全景</b>
+  <a href="852-vc-index.html">索引</a>
+  <a href="852-vc-controls.html">P1 控件图鉴</a>
+  <a href="852-vc-readonly.html">P2 只读全景</a>
+  <a href="852-vc-diff.html">P4 差异与历史</a>
+  <span class="sp"></span>
+  <button class="vc-btn vc-btn--ghost" data-theme-toggle style="height:24px">浅色</button>
+</div>
+<div class="wrap" id="app"></div>
+
+<script>
+function head(w){return '<div class="vc-shell__head"><span>VERSION CONTROL</span><span style="margin-left:auto">'+w+'px</span></div>'}
+function idline(wt,br,ago){return '<div class="vc-id"><span class="wt">'+wt+'</span><span class="dot">/</span><span class="br">'+br+'</span></div><div class="vc-sub">'+ago+'</div>'}
+function subline(path,readAt){return '<div class="vc-sub" style="display:flex;gap:10px;align-items:baseline"><span>'+path+'</span><span>·</span><span>'+readAt+'</span><a class="vc-link" style="margin-left:auto">重新读一次</a></div>'}
+function row(o){var d='';if(o.add||o.del){d='<span class="vc-row__delta">'+(o.add?'<span class="vc-add">+'+o.add+'</span>':'')+(o.del?' <span class="vc-del">\u2212'+o.del+'</span>':'')+'</span>'}else if(o.note){d='<span class="vc-row__delta">'+o.note+'</span>'}
+ return '<div class="vc-row"><span class="vc-badge '+(o.cls?'vc-badge--'+o.cls:'')+'">'+o.b+'</span><span class="vc-row__main"><span class="vc-row__path">'+o.path+'</span>'+(o.kind?'<span class="vc-row__kind">'+o.kind+'</span>':'')+'</span>'+d+(o.act?'<span class="vc-row__act"><button class="vc-btn vc-btn--ghost" style="height:24px;padding:0 9px">'+o.act+'</button></span>':'')+'</div>'}
+function sec(t){return '<div class="vc-sec">'+t+'</div>'}
+function okband(t,b){return '<div class="vc-band vc-band--ok" style="margin:0 0 14px"><span class="vc-band__mark">\u2713</span><span class="vc-band__main"><span class="vc-band__title">'+t+'</span>'+(b?'<span class="vc-band__body">'+b+'</span>':'')+'</span></div>'}
+function errband(t,b){return '<div class="vc-band vc-band--error" style="margin:0 0 14px"><span class="vc-band__mark">\u00d7</span><span class="vc-band__main"><span class="vc-band__title">'+t+'</span>'+(b?'<span class="vc-band__body">'+b+'</span>':'')+'</span></div>'}
+function warnband(t,b){return '<div class="vc-band vc-band--warn" style="margin:0 0 14px"><span class="vc-band__mark">!</span><span class="vc-band__main"><span class="vc-band__title">'+t+'</span>'+(b?'<span class="vc-band__body">'+b+'</span>':'')+'</span></div>'}
+function dialog(t,body,plan,ok){return '<div class="vc-dialog" style="margin:12px 0 0"><div class="vc-dialog__title">'+t+'</div><div class="vc-dialog__body">'+body+'</div><div class="vc-dialog__plan">'+plan+'</div><div class="vc-dialog__ttl">这次确认 120 秒内有效；过期了重新看一眼再点。</div><div class="vc-dialog__foot"><button class="vc-btn vc-btn--ghost">取消</button><button class="vc-btn vc-btn--primary">'+ok+'</button></div></div>'}
+function commitArea(o){o=o||{};return '<div class="vc-sec">提交</div>'+
+ (o.band?o.band:'')+
+ '<textarea class="vc-input" rows="2" '+(o.disabled?'disabled':'')+' placeholder="写一句提交说明">'+esc(o.text||'')+'</textarea>'+
+ '<div class="vc-tip" style="margin:6px 0 10px">提交的是暂存区里的内容；没有暂存的文件不会跟着走。</div>'+
+ '<div style="display:flex;gap:8px;align-items:center"><button class="vc-btn vc-btn--primary"'+(o.disabled?' disabled':'')+'>'+(o.busy?'<span class="spin"></span>正在执行\u2026':'提交 '+o.n+' 个文件')+'</button>'+(o.hint?'<span class="vc-tip">'+o.hint+'</span>':'')+'</div>'}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')}
+function shell(w,inner){return '<div class="vc-shell" style="max-width:'+w+'px;margin:0 auto">'+head(w)+'<div class="vc-shell__body">'+inner+'</div></div>'}
+function screen(cap,keys,html,note){return '<div class="screen"><div class="screen__cap"><b>'+cap+'</b><span class="k">'+keys+'</span>'+(note?'<span>'+note+'</span>':'')+'</div>'+html+'</div>'}
+function stagedUnstaged(o){o=o||{};return '<div class="vc-sec">未提交改动</div>'+(o.stageAll?'<div style="display:flex;justify-content:flex-end;margin:0 0 6px"><button class="vc-btn">全部暂存</button></div>':'')+sec('已暂存（2）')+
+ row({b:'M',cls:'modified',kind:'修改',path:'src/host/versionControl.js',add:12,del:3})+
+ row({b:'A',cls:'added',kind:'新增',path:'docs/adr/20261004-version-control-write-path.md',add:86,del:0})+
+ sec('未暂存（2）')+
+ row({b:'M',cls:'modified',kind:'修改',path:'src/client/views/versionControl/vcRows.js',add:14,del:2,act:'暂存'})+
+ row({b:'?',cls:'untracked',kind:'未跟踪',path:'research/889-写操作-验收清单.md',note:'untracked',act:'暂存'})}
+var S=[]
+
+S.push(screen('一 · 写操作都在哪：未暂存那一行右侧是「暂存」，段头右侧是「全部暂存」，下面整块是提交区',
+ 'vc.action.stage · vc.action.stageAll · vc.action.commit · vc.commitArea.*',
+ shell(520, idline('deck','main','领先 2 · 远端快照 · 2026-10-01 21:14')+subline('D:/work/deck','读到于 刚刚')+
+  '<div style="display:flex;gap:8px;margin:12px 0"><button class="vc-btn">拉取</button><button class="vc-btn vc-btn--primary">推送</button></div>'+
+  stagedUnstaged({stageAll:true})+commitArea({text:'把版本管理页签的写操作接上宿主四条电话',n:2})),
+ '三条腿的分界：只读动作在顶部一行；改暂存区的在文件行上；提交、拉取、推送各在自己的位置'))
+
+S.push(screen('二 · 提交区四种态','vc.commitArea.placeholder / hint / needMessage · vc.op.running · vc.op.doneCommit',
+ '<div class="row2">'+
+ shell(520,'<div class="vc-sec">提交</div><textarea class="vc-input" rows="2" placeholder="写一句提交说明"></textarea><div class="vc-tip" style="margin:6px 0 10px">提交的是暂存区里的内容；没有暂存的文件不会跟着走。</div><div style="display:flex;gap:8px;align-items:center"><button class="vc-btn vc-btn--primary" disabled>提交 0 个文件</button><span class="vc-tip">暂存区是空的，没有可提交的内容</span></div>')+
+ shell(520,'<div class="vc-sec">提交</div><textarea class="vc-input" rows="2" placeholder="写一句提交说明"></textarea><div class="vc-tip" style="margin:6px 0 10px">提交的是暂存区里的内容；没有暂存的文件不会跟着走。</div><div style="display:flex;gap:8px;align-items:center"><button class="vc-btn vc-btn--primary">提交 2 个文件</button></div>'+
+  warnband('先写一句提交说明','面板不猜你想提交什么：说明由你写，写完再点。')+
+  '<div class="vc-sec">提交</div><textarea class="vc-input" rows="2" disabled>把版本管理页签的写操作接上宿主四条电话</textarea><div style="display:flex;gap:8px;align-items:center;margin-top:10px"><button class="vc-btn vc-btn--primary is-running"><span class="spin"></span>正在执行\u2026</button></div>')+
+ '</div>','四态从左到右：暂存区空 → 可以按但没写说明 → 写完可按 → 正在执行（按钮变灰不可再点）'))
+
+S.push(screen('三 · 拉取：只有快进这一档','vc.action.pull · vc.confirm.pullTitle / pullBody · vc.op.donePull · vc.op.modeFastForward · vc.op.modeUpToDate',
+ '<div class="row2">'+
+ shell(520, idline('deck','main','领先 2 · 落后 1')+subline('D:/work/deck','读到于 刚刚')+
+  dialog('要拉取这个分支','只做快进：把远端的新提交接到本地。需要合并时面板会停下来，指你去侧栏终端。','git pull --ff-only origin main','拉取'))+
+ shell(520, idline('deck','main','领先 2')+subline('D:/work/deck','读到于 刚刚')+
+  okband('拉取完成','已经快进到远端最新')+
+  okband('拉取完成','本来就是最新的')+
+  errband('远端的新提交已经取回来了，但本地和它分开了，不能快进','面板只做快进：合并或变基去侧栏终端。')+
+  errband('本地和远端都有新提交，直接拉会打架','面板不替你合并：去侧栏终端跑 git pull，处理完冲突再回来。'))+
+ '</div>','面板不合并、不变基 —— 这两类一律指去侧栏终端，这是产品边界不是能力缺失'))
+
+S.push(screen('四 · 推送三档：同一个位置，三种按钮文案','vc.confirm.pushTitle / pushBody · pushSetUpstreamTitle / pushSetUpstreamBody · pushRecreateTitle / pushRecreateBody',
+ '<div class="rowgrid">'+
+ shell(520, idline('deck','main','领先 2')+subline('D:/work/deck','读到于 刚刚')+
+  dialog('要推送这些提交','推到 origin/main。','git push origin main:main','推送'))+
+ shell(520, idline('deck','main','还没有推送目标')+subline('D:/work/deck','读到于 刚刚')+
+  dialog('第一次推送：要把它设为上游','把本地 main 推到 origin/main，并把它设为上游。','git push --set-upstream origin main:main','设为上游并推送'))+
+ shell(520, idline('deck','main','推送目标已经不存在')+subline('D:/work/deck','读到于 3 小时前')+
+  dialog('原来那个上游已经不存在了','远端分支 origin/main 已经不在了（原来的上游已经不存在）：会把本地 main 推上去，并把它设为上游。','git push --set-upstream origin main:main','重建上游并推送'))+
+ '</div>','确认框里那句真正要执行的命令必须一字不差地写出来 —— 人要点的是「同意这一句」'))
+
+S.push(screen('五 · 一个仓库有多个远端时','vc.pickRemote.title · vc.pickRemote.body',
+ shell(520, idline('deck','main','还没有推送目标')+subline('D:/work/deck','读到于 刚刚')+
+  '<div class="vc-dialog"><div class="vc-dialog__title">这个仓库有多个远端，选一个再推</div>'+
+  '<div class="vc-dialog__body">面板不替你挑远端；选中之后会重新预检，确认框里会写清推到哪。</div>'+
+  '<div style="display:flex;gap:8px;margin-top:12px"><button class="vc-btn vc-btn--primary">origin</button><button class="vc-btn">upstream</button><button class="vc-btn">fork</button></div></div>'),
+ '选中后要重新预检，不能拿上一个远端的结论直接推'))
+
+S.push(screen('六 · 暂存与提交的完成回执','vc.op.doneStage · vc.op.doneCommit · vc.op.unknown · vc.writeErr.moved',
+ '<div class="row2">'+
+ shell(520, idline('deck','main','')+stagedUnstaged({})+okband('已暂存 2 个文件',''))+
+ shell(520, idline('deck','main','')+commitArea({n:2,text:'把版本管理页签的写操作接上宿主四条电话'})+okband('已经提交了','')+
+  '<div class="vc-band vc-band--warn" style="margin:0"><span class="vc-band__mark">?</span><span class="vc-band__main">'+
+  '<span class="vc-band__title">这一步的结果不确定：提交可能已经发生，先看提交历史再决定</span>'+
+  '<span class="vc-band__body">面板不替你猜结果：看一眼提交历史，确认了再决定要不要再提交。</span></span></div>')+
+ '</div>','右屏那一屏是刻意画的：结果不确定与「没做成」分开，且下一步只给一个动作 —— 看历史'))
+
+S.push(screen('七 · 拉取与推送的失败在哪儿出现','vc.writeErr.* · 顶部动作条下方（与只读异常带同一个位置）',
+ shell(520, idline('deck','main','领先 2 · 落后 1')+subline('D:/work/deck','读到于 刚刚')+
+  errband('远端不认这台机器上的凭据，需要重新登录','面板不替你保存或输入凭据：去侧栏终端跑一次 fetch 或 push，按提示登录，成功后回来点刷新。')+
+  '<div style="display:flex;gap:8px;margin:0 0 14px"><button class="vc-btn">拉取</button><button class="vc-btn vc-btn--primary">推送</button></div>'+
+  '<div class="vc-sec">未提交改动</div>'+
+  '<div class="vc-empty" style="border:1px solid var(--hair);border-radius:10px">没有未提交的改动</div>'),
+ '失败带的位置与只读异常带完全一样：出问题的人第一眼就在同一个地方找；15 类失败全文见 <a class="vc-link" href="852-vc-controls.html">P1 控件图鉴</a>'))
+
+document.getElementById('app').innerHTML=S.join('')
+</script>
+<script>
+document.querySelectorAll('[data-theme-toggle]').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var r = document.documentElement
+    r.dataset.theme = r.dataset.theme === 'light' ? '' : 'light'
+    b.textContent = r.dataset.theme === 'light' ? '深色' : '浅色'
+  })
+})
+</script>
+</body>
+</html>

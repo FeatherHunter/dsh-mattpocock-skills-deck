@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="zh" data-theme="">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>版本管理 · 控件图鉴（#852 P1）</title>
+<link rel="stylesheet" href="852-vc-kit.css">
+<!--
+  PROTOTYPE-852 · 抛弃式设计稿 · P1 控件图鉴
+  这一页回答：面板里每一个按钮、输入框、徽章、提示带、确认块、长什么样，各有哪几种态。
+  覆盖口径：每格右上标出它对应的 vc.* 词条键；页面上每一句中文都与产品词条一字不差（自造词条 0）。
+  留在别的页画的键：vc.change.* 与文件行 → P2 只读全景 / P4 差异与历史；vc.other.* → P4；vc.commits.* → P4。
+-->
+<style>
+.k{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:14px}
+.errgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(430px,1fr));gap:12px}
+.wide{grid-column:1/-1}
+</style>
+</head>
+<body>
+<div class="proto-bar">
+  <span class="mono" style="color:#ff3b30;font-weight:800">PROTOTYPE-852 · 抛弃式</span>
+  <b>P1 控件图鉴</b>
+  <a href="852-vc-index.html">索引</a>
+  <a href="852-vc-readonly.html">P2 只读全景</a>
+  <a href="852-vc-write.html">P3 写操作全景</a>
+  <a href="852-vc-diff.html">P4 差异与历史</a>
+  <span class="sp"></span>
+  <button class="vc-btn vc-btn--ghost" data-theme-toggle style="height:24px">浅色</button>
+</div>
+
+<div class="atlas">
+
+  <div class="atlas__sec"><h3>一 · 面板顶部动作</h3><span>读数据与推拉，是这一页唯一常驻的一排按钮</span></div>
+  <div class="k">
+    <div class="spec">
+      <div class="spec__name">重读一次 · 只读，不改仓库</div>
+      <div class="spec__key">vc.reload</div>
+      <div class="spec__row">
+        <button class="vc-btn vc-btn--ghost">重新读一次</button>
+        <span class="vc-tip">旁边常跟着一行 <b>读到于 …</b>（<code>vc.readAt</code>）：<code>{when}</code> 取刚刚 / {n} 分钟前 / {n} 小时前 / {n} 天前。</span>
+      </div>
+    </div>
+    <div class="spec">
+      <div class="spec__name">拉取 · 面板只做快进</div>
+      <div class="spec__key">vc.action.pull</div>
+      <div class="spec__row">
+        <button class="vc-btn">拉取</button>
+        <button class="vc-btn" disabled>拉取</button>
+        <span class="vc-tip"><b>禁用</b>时悬停说明来自 <code>vc.block.*</code>：工作区有未提交的改动 / 有文件卡在冲突里 / 裸仓库 / 游离头 / 仓库里还有没做完的操作。</span>
+      </div>
+    </div>
+    <div class="spec">
+      <div class="spec__name">推送 · 按钮文案随上游情形换</div>
+      <div class="spec__key">vc.action.push · vc.action.pushSetUpstream · vc.action.pushRecreate</div>
+      <div class="spec__row">
+        <button class="vc-btn vc-btn--primary">推送</button>
+        <button class="vc-btn vc-btn--primary">设为上游并推送</button>
+        <button class="vc-btn vc-btn--primary">重建上游并推送</button>
+      </div>
+      <div class="spec__row"><span class="vc-tip">同一个位置，三种情形：已有上游 → <b>推送</b>；这个分支还没设过上游 → <b>设为上游并推送</b>；本地记着的上游在远端已经没了 → <b>重建上游并推送</b>。</span></div>
+    </div>
+  </div>
+
+  <div class="atlas__sec"><h3>二 · 暂存与提交</h3><span>未提交改动区里的两个动作</span></div>
+  <div class="k">
+    <div class="spec">
+      <div class="spec__name">单行暂存</div>
+      <div class="spec__key">vc.action.stage</div>
+      <div class="spec__row">
+        <button class="vc-btn vc-btn--ghost">暂存</button>
+        <span class="vc-tip">只出现在<b>未暂存</b>那一段的每一行右边；冲突行不出现（那行给的是 <code>vc.row.conflictTerminal</code>：<b>冲突：去侧栏终端处理</b>）。</span>
+      </div>
+    </div>
+    <div class="spec">
+      <div class="spec__name">全部暂存</div>
+      <div class="spec__key">vc.action.stageAll · vc.block.nothingToStage</div>
+      <div class="spec__row">
+        <button class="vc-btn">全部暂存</button>
+        <button class="vc-btn" disabled>全部暂存</button>
+      </div>
+      <div class="spec__row"><span class="vc-tip">没有可暂存的东西时禁用，悬停说明是 <b>没有可暂存的东西</b>。</span></div>
+    </div>
+    <div class="spec">
+      <div class="spec__name">提交（按钮上带文件数）</div>
+      <div class="spec__key">vc.action.commit · vc.block.nothingStaged</div>
+      <div class="spec__row">
+        <button class="vc-btn vc-btn--primary">提交 2 个文件</button>
+        <button class="vc-btn vc-btn--primary" disabled>提交 0 个文件</button>
+      </div>
+      <div class="spec__row"><span class="vc-tip">暂存区空时禁用，说明是 <b>暂存区是空的，没有可提交的内容</b>；卡在冲突里时是 <b>有文件卡在冲突里，先处理完再继续</b>。</span></div>
+    </div>
+  </div>
+
+  <div class="atlas__sec"><h3>三 · 提交说明输入框</h3><span>面板里唯一的输入</span></div>
+  <div class="k">
+    <div class="spec">
+      <div class="spec__name">正常 / 已填 / 禁用</div>
+      <div class="spec__key">vc.commitArea.placeholder · vc.commitArea.hint</div>
+      <textarea class="vc-input" rows="2" placeholder="写一句提交说明"></textarea>
+      <div class="spec__row">
+        <textarea class="vc-input" rows="2" style="width:200px">把版本管理页签的写操作接上宿主四条电话</textarea>
+        <textarea class="vc-input" rows="2" style="width:160px" disabled>已有说明</textarea>
+      </div>
+      <div class="spec__row"><span class="vc-tip">下面那行常驻说明：<b>提交的是暂存区里的内容；没有暂存的文件不会跟着走。</b></span></div>
+    </div>
+    <div class="spec">
+      <div class="spec__name">点了提交但没写说明</div>
+      <div class="spec__key">vc.commitArea.needMessage</div>
+      <div class="spec__row">
+        <span class="vc-band vc-band--warn"><span class="vc-band__mark">!</span>
+          <span class="vc-band__main"><span class="vc-band__title">先写一句提交说明</span></span></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="atlas__sec"><h3>四 · 确认块（写在面板里，不是弹窗）</h3><span>先预检、再让你点头，然后才动仓库</span></div>
+  <div class="k">
+    <div class="spec wide">
+      <div class="spec__name">拉取确认</div>
+      <div class="spec__key">vc.confirm.pullTitle · vc.confirm.pullBody · vc.confirm.ttl · vc.confirm.cancel</div>
+      <div class="vc-dialog" style="max-width:460px">
+        <div class="vc-dialog__title">要拉取这个分支</div>
+        <div class="vc-dialog__body">只做快进：把远端的新提交接到本地。需要合并时面板会停下来，指你去侧栏终端。</div>
+        <div class="vc-dialog__plan">git pull --ff-only origin main</div>
+        <div class="vc-dialog__ttl">这次确认 120 秒内有效；过期了重新看一眼再点。</div>
+        <div class="vc-dialog__foot">
+          <button class="vc-btn vc-btn--ghost">取消</button>
+          <button class="vc-btn vc-btn--primary">拉取</button>
+        </div>
+      </div>
+    </div>
+    <div class="spec wide">
+      <div class="spec__name">推送确认 · 已有上游</div>
+      <div class="spec__key">vc.confirm.pushTitle · vc.confirm.pushBody</div>
+      <div class="vc-dialog" style="max-width:460px">
+        <div class="vc-dialog__title">要推送这些提交</div>
+        <div class="vc-dialog__body">推到 origin/main。</div>
+        <div class="vc-dialog__plan">git push origin main:main</div>
+        <div class="vc-dialog__ttl">这次确认 120 秒内有效；过期了重新看一眼再点。</div>
+        <div class="vc-dialog__foot">
+          <button class="vc-btn vc-btn--ghost">取消</button>
+          <button class="vc-btn vc-btn--primary">推送</button>
+        </div>
+      </div>
+    </div>
+    <div class="spec wide">
+      <div class="spec__name">推送确认 · 第一次推送（要设上游）</div>
+      <div class="spec__key">vc.confirm.pushSetUpstreamTitle · vc.confirm.pushSetUpstreamBody</div>
+      <div class="vc-dialog" style="max-width:460px">
+        <div class="vc-dialog__title">第一次推送：要把它设为上游</div>
+        <div class="vc-dialog__body">把本地 main 推到 origin/main，并把它设为上游。</div>
+        <div class="vc-dialog__plan">git push --set-upstream origin main:main</div>
+        <div class="vc-dialog__ttl">这次确认 120 秒内有效；过期了重新看一眼再点。</div>
+        <div class="vc-dialog__foot">
+          <button class="vc-btn vc-btn--ghost">取消</button>
+          <button class="vc-btn vc-btn--primary">设为上游并推送</button>
+        </div>
+      </div>
+    </div>
+    <div class="spec wide">
+      <div class="spec__name">推送确认 · 上游在远端已经没了（重建）</div>
+      <div class="spec__key">vc.confirm.pushRecreateTitle · vc.confirm.pushRecreateBody</div>
+      <div class="vc-dialog" style="max-width:460px">
+        <div class="vc-dialog__title">原来那个上游已经不存在了</div>
+        <div class="vc-dialog__body">远端分支 origin/main 已经不在了（原来的上游已经不存在）：会把本地 main 推上去，并把它设为上游。</div>
+        <div class="vc-dialog__plan">git push --set-upstream origin main:main</div>
+        <div class="vc-dialog__ttl">这次确认 120 秒内有效；过期了重新看一眼再点。</div>
+        <div class="vc-dialog__foot">
+          <button class="vc-btn vc-btn--ghost">取消</button>
+          <button class="vc-btn vc-btn--primary">重建上游并推送</button>
+        </div>
+      </div>
+    </div>
+    <div class="spec wide">
+      <div class="spec__name">仓库有多个远端时：先让你挑一个</div>
+      <div class="spec__key">vc.pickRemote.title · vc.pickRemote.body</div>
+      <div class="vc-dialog" style="max-width:460px">
+        <div class="vc-dialog__title">这个仓库有多个远端，选一个再推</div>
+        <div class="vc-dialog__body">面板不替你挑远端；选中之后会重新预检，确认框里会写清推到哪。</div>
+        <div class="spec__row">
+          <button class="vc-btn vc-btn--primary">origin</button>
+          <button class="vc-btn">upstream</button>
+          <button class="vc-btn">fork</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="atlas__sec"><h3>五 · 进行中 / 完成 / 失败 / 不确定</h3><span>执行结果只有这四种说法</span></div>
+  <div class="k">
+    <div class="spec">
+      <div class="spec__name">正在执行</div>
+      <div class="spec__key">vc.op.running</div>
+      <div class="spec__row">
+        <button class="vc-btn vc-btn--primary is-running"><span class="spin"></span>正在执行…</button>
+        <span class="vc-tip">执行期间按钮变灰不可再点；面板不自动重试，也不自动接着做。</span>
+      </div>
+    </div>
+    <div class="spec">
+      <div class="spec__name">做完了 · 各动作的回执</div>
+      <div class="spec__key">vc.op.doneStage · vc.op.doneCommit · vc.op.donePull · vc.op.donePush · vc.op.donePushSetUpstream · vc.op.donePushRecreate · vc.op.modeFastForward · vc.op.modeUpToDate</div>
+      <div class="spec__row">
+        <span class="vc-band vc-band--ok"><span class="vc-band__mark">✓</span>
+          <span class="vc-band__main"><span class="vc-band__title">已暂存 2 个文件</span></span></span>
+        <span class="vc-band vc-band--ok"><span class="vc-band__mark">✓</span>
+          <span class="vc-band__main"><span class="vc-band__title">已经提交了</span></span></span>
+      </div>
+      <div class="spec__row">
+        <span class="vc-band vc-band--ok"><span class="vc-band__mark">✓</span>
+          <span class="vc-band__main"><span class="vc-band__title">拉取完成</span>
+            <span class="vc-band__body">已经快进到远端最新</span></span></span>
+        <span class="vc-band vc-band--ok"><span class="vc-band__mark">✓</span>
+          <span class="vc-band__main"><span class="vc-band__title">推送完成</span></span></span>
+      </div>
+      <div class="spec__row">
+        <span class="vc-band vc-band--ok"><span class="vc-band__mark">✓</span>
+          <span class="vc-band__main"><span class="vc-band__title">第一次推送完成，已经把它设为上游</span></span></span>
+        <span class="vc-band vc-band--ok"><span class="vc-band__mark">✓</span>
+          <span class="vc-band__main"><span class="vc-band__title">已重建上游：把本地 main 推到了 origin/main</span></span></span>
+      </div>
+      <div class="spec__row"><span class="vc-tip">拉取还有第二种回执：<b>本来就是最新的</b>（<code>vc.op.modeUpToDate</code>）。</span></div>
+    </div>
+    <div class="spec">
+      <div class="spec__name">没做成 / 结果不确定</div>
+      <div class="spec__key">vc.op.failed · vc.op.unknown</div>
+      <div class="spec__row">
+        <span class="vc-band vc-band--error"><span class="vc-band__mark">×</span>
+          <span class="vc-band__main"><span class="vc-band__title">没做成</span></span></span>
+        <span class="vc-band vc-band--warn"><span class="vc-band__mark">?</span>
+          <span class="vc-band__main"><span class="vc-band__title">结果不确定</span></span></span>
+      </div>
+      <div class="spec__row"><span class="vc-tip">「结果不确定」是刻意与「没做成」分开的一档：这一步可能已经发生，所以下面必须写清该先看什么。</span></div>
+    </div>
+  </div>
+
+  <div class="atlas__sec"><h3>六 · 失败面（15 类，每类都要有「接下来该怎么办」）</h3><span>这一段是这一功能最容易写得像报错堆的地方：每条失败都只给两句 —— 出了什么事、你去哪儿处理</span></div>
+  <div class="errgrid">
+    <div class="spec">
+      <div class="spec__name">远端不认凭据</div><div class="spec__key">vc.writeErr.noCredential / .limit</div>
+      <div class="vc-band vc-band--error"><span class="vc-band__mark">×</span><span class="vc-band__main">
+        <span class="vc-band__title">远端不认这台机器上的凭据，需要重新登录</span>
+        <span class="vc-band__body">面板不替你保存或输入凭据：去侧栏终端跑一次 fetch 或 push，按提示登录，成功后回来点刷新。</span></span></div>
+    </div>
+    <div class="spec">
+      <div class="spec__name">权限或服务端规则</div><div class="spec__key">vc.writeErr.noPermission / .limit</div>
+      <div class="vc-band vc-band--error"><span class="vc-band__mark">×</span><span class="vc-band__main">
+        <span class="vc-band__title">远端拒绝了这个动作（权限或服务端规则拦下了）</span>
+        <span class="vc-band__body">面板改不了远端的规则：确认用的是哪个账号，要换账号请去侧栏终端。</span></span></div>
+    </div>
+    <div class="spec">
+      <div class="spec__name">远端规则（钩子或保护分支）</div><div class="spec__key">vc.writeErr.remoteRule / .limit</div>
+      <div class="vc-band vc-band--error"><span class="vc-band__mark">×</span><span class="vc-band__main">
+        <span class="vc-band__title">远端规则拦下了这次推送（钩子或保护规则）</span>
+        <span class="vc-band__body">上面那句是远端原话，按它处理；面板改不了远端的规则，也不用换账号。</span></span></div>
+    </div>
+    <div class="spec">
+      <div class="spec__name">本地与远端都动过</div><div class="spec__key">vc.writeErr.conflict / .limit</div>
+      <div class="vc-band vc-band--error"><span class="vc-band__mark">×</span><span class="vc-band__main">
+        <span class="vc-band__title">本地和远端都有新提交，直接拉会打架</span>
+        <span class="vc-band__body">面板不替你合并：去侧栏终端跑 git pull，处理完冲突再回来。</span></span></div>
+    </div>
+    <div class="spec">
+      <div class="spec__name">拉取不能快进</div><div class="spec__key">vc.writeErr.notFastForward / .limit</div>
+      <div class="vc-band vc-band--error"><span class="vc-band__mark">×</span><span class="vc-band__main">
+        <span class="vc-band__title">远端的新提交已经取回来了，但本地和它分开了，不能快进</span>
+        <span class="vc-band__body">面板只做快进：合并或变基去侧栏终端。</span></span></div>
+    </div>
+    <div class="spec">
+      <div class="spec__name">推送时远端有新提交</div><div class="spec__key">vc.writeErr.notFastForwardPush / .limit</div>
+      <div class="vc-band vc-band--error"><span class="vc-band__mark">×</span><span class="vc-band__main">
+        <span class="vc-band__title">远端有你本地还没有的提交，直接推会被拒</span>
+        <span class="vc-band__body">先在侧栏终端 fetch 或 pull 把远端的新提交取回来，再合并或变基。</span></span></div>
+    </div>
+    <div class="spec">
+      <div class="spec__name">网络断了或超时</div><div class="spec__key">vc.writeErr.network / .limit</div>
+      <div class="vc-band vc-band--error"><span class="vc-band__mark">×</span><span class="vc-band__main">
+        <span class="vc-band__title">网络断了或者超时了，这一步没做完</span>
+        <span class="vc-band__body">面板不自动重试：检查网络后再点一次。</span></span></div>
+    </div>
+    <div class="spec">
+      <div class="spec__name">确认过期 / 仓库变了</div><div class="spec__key">vc.writeErr.stale / .limit</div>
+      <div class="vc-band vc-band--error"><span class="vc-band__mark">×</span><span class="vc-band__main">
+        <span class="vc-band__title">这次确认已经过期，或者仓库在你确认之后又变了</span>
+        <span class="vc-band__body">面板不替你猜：重新看一眼当前状态，再点一次。</span></span></div>
+    </div>
+    <div class="spec">
+      <div class="spec__name">这一步现在做不成</div><div class="spec__key">vc.writeErr.notReady / .limit</div>
+      <div class="vc-band vc-band--error"><span class="vc-band__mark">×</span><span class="vc-band__main">
+        <span class="vc-band__title">这一步现在做不成，宿主把原因写在悬停提示里了</span>
+        <span class="vc-band__body">面板不替你改仓库：按悬停里那句做完再回来。</span></span></div>
+    </div>
+    <div class="spec">
+      <div class="spec__name">结果可能已经发生</div><div class="spec__key">vc.writeErr.moved / .limit</div>
+      <div class="vc-band vc-band--warn"><span class="vc-band__mark">?</span><span class="vc-band__main">
+        <span class="vc-band__title">这一步的结果不确定：提交可能已经发生，先看提交历史再决定</span>
+        <span class="vc-band__body">面板不替你猜结果：看一眼提交历史，确认了再决定要不要再提交。</span></span></div>
+    </div>
+    <div class="spec">
+      <div class="spec__name">说不清原因</div><div class="spec__key">vc.writeErr.unknown / .limit · vc.fail.raw</div>
+      <div class="vc-band vc-band--error"><span class="vc-band__mark">×</span><span class="vc-band__main">
+        <span class="vc-band__title">这次失败面板说不清原因</span>
+        <span class="vc-band__body">原始说明：{msg}<br>上面那句是宿主的原话：按它处理；面板不自动重试。</span></span></div>
+    </div>
+    <div class="spec">
+      <div class="spec__name">动作被规则挡住（写之前就拦下）</div>
+      <div class="spec__key">vc.block.nothingToStage · nothingStaged · conflicts · dirtyTree · noUpstream · upstreamGone · detachedHead · midOperation · behindRemote · bareRepo · unknown</div>
+      <div class="vc-spec-rows">
+        <div class="vc-row"><span class="vc-chip">禁用原因</span><span class="vc-row__main"><span class="vc-row__kind">没有可暂存的东西</span></span></div>
+        <div class="vc-row"><span class="vc-chip">禁用原因</span><span class="vc-row__main"><span class="vc-row__kind">暂存区是空的，没有可提交的内容</span></span></div>
+        <div class="vc-row"><span class="vc-chip">禁用原因</span><span class="vc-row__main"><span class="vc-row__kind">有文件卡在冲突里，先处理完再继续</span></span></div>
+        <div class="vc-row"><span class="vc-chip">禁用原因</span><span class="vc-row__main"><span class="vc-row__kind">工作区有未提交的改动，先提交再拉取</span></span></div>
+        <div class="vc-row"><span class="vc-chip">禁用原因</span><span class="vc-row__main"><span class="vc-row__kind">这个分支还没有上游</span></span></div>
+        <div class="vc-row"><span class="vc-chip">禁用原因</span><span class="vc-row__main"><span class="vc-row__kind">这个分支的上游在远端已经不存在了</span></span></div>
+        <div class="vc-row"><span class="vc-chip">禁用原因</span><span class="vc-row__main"><span class="vc-row__kind">现在不在任何分支上（游离头指针），这一步做不了</span></span></div>
+        <div class="vc-row"><span class="vc-chip">禁用原因</span><span class="vc-row__main"><span class="vc-row__kind">仓库里还有没做完的操作，先处理完</span></span></div>
+        <div class="vc-row"><span class="vc-chip">禁用原因</span><span class="vc-row__main"><span class="vc-row__kind">远端有你本地还没有的提交，先拉取再推送</span></span></div>
+        <div class="vc-row"><span class="vc-chip">禁用原因</span><span class="vc-row__main"><span class="vc-row__kind">这是个裸仓库（没有工作树），这些操作都做不了</span></span></div>
+        <div class="vc-row"><span class="vc-chip">禁用原因</span><span class="vc-row__main"><span class="vc-row__kind">这一步现在做不了</span></span></div>
+      </div>
+    </div>
+    <div class="spec">
+      <div class="spec__name">提交前的三条提醒（不拦，只提醒）</div>
+      <div class="spec__key">vc.warn.detachedHead · vc.warn.midOperation · vc.warn.basisUnknown</div>
+      <div class="vc-spec-rows">
+        <div class="vc-row"><span class="vc-badge vc-badge--conflict">!</span><span class="vc-row__main"><span class="vc-row__kind">现在不在任何分支上，提交会落在游离头指针上</span></span></div>
+        <div class="vc-row"><span class="vc-badge vc-badge--conflict">!</span><span class="vc-row__main"><span class="vc-row__kind">仓库里还有没做完的操作，提交前先确认</span></span></div>
+        <div class="vc-row"><span class="vc-badge vc-badge--conflict">!</span><span class="vc-row__main"><span class="vc-row__kind">不清楚本地记的远端信息有多旧，推送前先确认</span></span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="atlas__sec"><h3>七 · 文件行上的零件</h3><span>字母徽章、正负行数、分段小标题</span></div>
+  <div class="k">
+    <div class="spec">
+      <div class="spec__name">状态字母徽章（方形 · 按类型着色）</div>
+      <div class="spec__key">vc.change.added / deleted / modified / renamed / typechange / untracked · vc.row.conflict</div>
+      <div class="spec__row">
+        <span class="vc-badge vc-badge--added">A</span><span class="vc-row__kind">新增</span>
+        <span class="vc-badge vc-badge--modified">M</span><span class="vc-row__kind">修改</span>
+        <span class="vc-badge vc-badge--deleted">D</span><span class="vc-row__kind">删除</span>
+        <span class="vc-badge vc-badge--renamed">R</span><span class="vc-row__kind">重命名</span>
+        <span class="vc-badge vc-badge--typechange">T</span><span class="vc-row__kind">类型改变</span>
+        <span class="vc-badge vc-badge--untracked">?</span><span class="vc-row__kind">未跟踪</span>
+        <span class="vc-badge vc-badge--conflict">!</span><span class="vc-row__kind">冲突</span>
+      </div>
+      <div class="spec__row"><span class="vc-tip">徽章是给扫一眼用的，中文词照旧在行里（可读文本不能只剩字母）；判不出类型时给 <b>这笔提交只回了路径与增删行数，判不出变化类型</b>。</span></div>
+    </div>
+    <div class="spec">
+      <div class="spec__name">正负行数（右对齐 · 表格数字）</div>
+      <div class="spec__key">vc.row.countsDual · vc.row.binaryTip</div>
+      <div class="spec__row">
+        <span class="vc-row__delta"><span class="vc-add">+45</span> −2</span>
+        <span class="vc-row__delta"><span class="vc-add">+8</span> <span class="vc-del">−8</span></span>
+        <span class="vc-row__delta">−120</span>
+        <span class="vc-row__delta vc-tip">untracked</span>
+      </div>
+      <div class="spec__row"><span class="vc-tip">悬停说明：行数是相对上一次提交的总数（<code>vc.row.countsDual</code>）；二进制文件没有逐行增删的数字（<code>vc.row.binaryTip</code>）。</span></div>
+    </div>
+    <div class="spec">
+      <div class="spec__name">分段小标题</div>
+      <div class="spec__key">vc.group.staged · vc.group.unstaged · vc.group.conflict</div>
+      <div style="padding:0 6px">
+        <div class="vc-sec">已暂存（3）</div>
+        <div class="vc-sec">未暂存（4）</div>
+        <div class="vc-sec">卡在冲突里（1）</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="atlas__sec"><h3>八 · 异常带（四型）</h3><span>带标题、带正文、带一个动作</span></div>
+  <div class="k">
+    <div class="spec wide">
+      <div class="spec__name">普通提醒（info）</div>
+      <div class="spec__key">vc.staleHint</div>
+      <div class="vc-band"><span class="vc-band__mark">i</span><span class="vc-band__main">
+        <span class="vc-band__title">刷新失败了，下面是上一次读到的数据</span>
+        <span class="vc-band__body">旧数据也给 <b>读到于 …</b>，让人知道它有多旧。</span></span>
+        <span class="vc-band__act"><button class="vc-btn vc-btn--ghost">重试</button></span></div>
+    </div>
+    <div class="spec wide">
+      <div class="spec__name">冲突带（warn）</div>
+      <div class="spec__key">vc.conflicts.count · vc.conflicts.merge / rebase / other</div>
+      <div class="vc-band vc-band--warn"><span class="vc-band__mark">!</span><span class="vc-band__main">
+        <span class="vc-band__title">有 1 个文件卡在冲突里，正等着你处理</span>
+        <span class="vc-band__body">这些文件里同时留着两边的内容：已经在分支上的那些提交，和正在重放的那一笔。</span></span>
+        <span class="vc-band__act"><a class="vc-link">去侧栏终端</a></span></div>
+    </div>
+  </div>
+
+  <div class="atlas__sec"><h3>九 · 链接与可点文字</h3><span>全都指向侧栏终端或就地展开</span></div>
+  <div class="k">
+    <div class="spec">
+      <div class="spec__name">链接族</div>
+      <div class="spec__key">vc.terminal · vc.retry · vc.commits.more · vc.commit.back · vc.more · vc.other.more · vc.commits.expand</div>
+      <div class="spec__row">
+        <a class="vc-link">去侧栏终端</a>
+        <a class="vc-link">重试</a>
+        <a class="vc-link">加载更早的提交</a>
+        <a class="vc-link">回到未提交改动</a>
+      </div>
+      <div class="spec__row">
+        <a class="vc-link">还有 12 个文件，点开接着看</a>
+        <a class="vc-link">还有 3 棵没收起，点开接着看</a>
+        <a class="vc-link">提交历史收起了（20 条），点开看</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="atlas__sec"><h3>十 · 空态</h3><span>三处「没有东西」，语气要不一样</span></div>
+  <div class="k">
+    <div class="spec">
+      <div class="spec__name">没有未提交的改动</div><div class="spec__key">vc.changes.none</div>
+      <div class="vc-empty" style="border:1px solid var(--hair);border-radius:10px">没有未提交的改动</div>
+    </div>
+    <div class="spec">
+      <div class="spec__name">没有别的工作树</div><div class="spec__key">vc.other.empty</div>
+      <div class="vc-empty" style="border:1px solid var(--hair);border-radius:10px">没有别的工作树</div>
+    </div>
+    <div class="spec">
+      <div class="spec__name">还没有任何提交</div><div class="spec__key">vc.noCommits · vc.noCommitsTip</div>
+      <div class="vc-empty" style="border:1px solid var(--hair);border-radius:10px">
+        <b>这个仓库还没有任何提交</b>刚建好的仓库就是这样；做出第一次提交之后，这里就有历史了。</div>
+    </div>
+  </div>
+
+  <div class="atlas__sec"><h3>十一 · 加载中</h3><span>三处读取，各有自己的说法</span></div>
+  <div class="k">
+    <div class="spec">
+      <div class="spec__name">骨架行</div><div class="spec__key">vc.diff.loading · vc.commits.loading · vc.commit.loading</div>
+      <div style="padding:0 6px">
+        <div class="vc-skel" style="width:70%"></div>
+        <div class="vc-skel" style="width:55%"></div>
+        <div class="vc-skel" style="width:62%"></div>
+      </div>
+      <div class="spec__row"><span class="vc-tip">旁配一句人话：<b>正在读改动…</b> / <b>正在读更早的提交…</b> / <b>正在读这笔提交改了什么…</b>。骨架不假装有内容。</span></div>
+    </div>
+  </div>
+
+  <div class="atlas__sec"><h3>十二 · 读不到（14 种说法）</h3><span>这一族只在「某一项读不到」时出现，每种都要说清是谁的问题、人该怎么办</span></div>
+  <div class="errgrid">
+    <div class="spec"><div class="spec__name">不是 git 仓库</div><div class="spec__key">vc.fail.notRepo</div>
+      <div class="vc-band vc-band--error"><span class="vc-band__mark">×</span><span class="vc-band__main"><span class="vc-band__body">这个目录不在任何 git 仓库里。</span></span></span></div>
+    <div class="spec"><div class="spec__name">没装 git</div><div class="spec__key">vc.fail.noGit</div>
+      <div class="vc-band vc-band--error"><span class="vc-band__mark">×</span><span class="vc-band__main"><span class="vc-band__body">找不到 git 程序：请确认装好了 git、并且它在 PATH 里，然后重启 DSH 再打开这个页签。</span></span></span></div>
+    <div class="spec"><div class="spec__name">git 版本太旧</div><div class="spec__key">vc.fail.oldGit</div>
+      <div class="vc-band vc-band--error"><span class="vc-band__mark">×</span><span class="vc-band__main"><span class="vc-band__body">这台机器上的 git 版本太旧，这个页签需要新一点的版本。</span></span></span></div>
+    <div class="spec"><div class="spec__name">宿主文件服务没结论</div><div class="spec__key">vc.fail.envFs</div>
+      <div class="vc-band vc-band--error"><span class="vc-band__mark">×</span><span class="vc-band__main"><span class="vc-band__body">读不到仓库的运行状态（宿主的文件服务没给出结论），这一步读不到就不给数；稍后再试。</span></span></span></div>
+    <div class="spec"><div class="spec__name">git 没正常结束</div><div class="spec__key">vc.fail.exit</div>
+      <div class="vc-band vc-band--error"><span class="vc-band__mark">×</span><span class="vc-band__main"><span class="vc-band__body">git 没有正常结束：多半是别的程序正占着这个仓库，或者权限不够。等它结束再重试。</span></span></span></div>
+    <div class="spec"><div class="spec__name">超时</div><div class="spec__key">vc.fail.timeout</div>
+      <div class="vc-band vc-band--error"><span class="vc-band__mark">×</span><span class="vc-band__main"><span class="vc-band__body">读这个仓库超时了：git 一直没有回音，等它忙完再重试。</span></span></span></div>
+    <div class="spec"><div class="spec__name">输出形状不认识</div><div class="spec__key">vc.fail.parse</div>
+      <div class="vc-band vc-band--error"><span class="vc-band__mark">×</span><span class="vc-band__main"><span class="vc-band__body">读到的内容看不懂：这台 git 的输出形状和预期不一样。</span></span></span></div>
+    <div class="spec"><div class="spec__name">起不了进程 / 中途断了 / 超过上限 / 没按约定回话 / 界面发错 / 说不出原因</div>
+      <div class="spec__key">vc.fail.spawn · vc.fail.throw · vc.fail.truncated · vc.fail.shape · vc.fail.args · vc.fail.unknown</div>
+      <div class="vc-spec-rows">
+        <div class="vc-row"><span class="vc-row__main"><span class="vc-row__kind">起不了 git 进程，这一步读不到。</span></span></div>
+        <div class="vc-row"><span class="vc-row__main"><span class="vc-row__kind">读这一步时断了，内容没拿到。</span></span></div>
+        <div class="vc-row"><span class="vc-row__main"><span class="vc-row__kind">读到的内容超过了上限，读不全就不给半份数据。</span></span></div>
+        <div class="vc-row"><span class="vc-row__main"><span class="vc-row__kind">这条路没有按约定回话，读不到内容。</span></span></div>
+        <div class="vc-row"><span class="vc-row__main"><span class="vc-row__kind">界面这一侧把请求发错了，这一步读不到。</span></span></div>
+        <div class="vc-row"><span class="vc-row__main"><span class="vc-row__kind">读不到这一项。</span></span></div>
+      </div>
+    </div>
+    <div class="spec">
+      <div class="spec__name">这个会话还没有工作区</div><div class="spec__key">vc.noCwd</div>
+      <div class="vc-empty" style="border:1px solid var(--hair);border-radius:10px">这个会话还没有工作区，读不到版本信息</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+document.querySelectorAll('[data-theme-toggle]').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var r = document.documentElement
+    r.dataset.theme = r.dataset.theme === 'light' ? '' : 'light'
+    b.textContent = r.dataset.theme === 'light' ? '深色' : '浅色'
+  })
+})
+</script>
+</body>
+</html>

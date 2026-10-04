@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh" data-theme="">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>版本管理 · 差异与历史（#852 P4）</title>
+<link rel="stylesheet" href="852-vc-kit.css">
+<!--
+  PROTOTYPE-852 · 抛弃式设计稿 · P4 差异与历史
+  这一页回答：点开一处差异会看到什么（有九种形态，每种都不许只给空白），提交历史怎么翻，其他工作树那九种情形怎么排。
+  覆盖口径：中文全部抄自产品词条（自造词条 0）。
+  留在别的页画的键：写操作 → P3；只读状态全表 → P2。
+-->
+<style>
+.wrap{max-width:1060px;margin:0 auto;padding:0 18px 70px}
+.screen{margin:0 0 40px}
+.screen__cap{font-size:12px;color:var(--faint);margin:0 0 8px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.screen__cap b{color:var(--ink2);font-size:12.5px;font-weight:650}
+.screen__cap .k{font-family:var(--mono);color:var(--faint);font-size:11px}
+.rowgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(520px,1fr));gap:26px}
+</style>
+</head>
+<body>
+<div class="proto-bar">
+  <span class="mono" style="color:#ff3b30;font-weight:800">PROTOTYPE-852 · 抛弃式</span>
+  <b>P4 差异与历史</b>
+  <a href="852-vc-index.html">索引</a>
+  <a href="852-vc-controls.html">P1 控件图鉴</a>
+  <a href="852-vc-readonly.html">P2 只读全景</a>
+  <a href="852-vc-write.html">P3 写操作全景</a>
+  <span class="sp"></span>
+  <button class="vc-btn vc-btn--ghost" data-theme-toggle style="height:24px">浅色</button>
+</div>
+<div class="wrap" id="app"></div>
+
+<script>
+function head(w){return '<div class="vc-shell__head"><span>VERSION CONTROL</span><span style="margin-left:auto">'+w+'px</span></div>'}
+function idline(wt,br,ago){return '<div class="vc-id"><span class="wt">'+wt+'</span><span class="dot">/</span><span class="br">'+br+'</span></div><div class="vc-sub">'+ago+'</div>'}
+function subline(path,readAt){return '<div class="vc-sub" style="display:flex;gap:10px;align-items:baseline"><span>'+path+'</span><span>·</span><span>'+readAt+'</span><a class="vc-link" style="margin-left:auto">重新读一次</a></div>'}
+function row(o){var d='';if(o.add||o.del){d='<span class="vc-row__delta">'+(o.add?'<span class="vc-add">+'+o.add+'</span>':'')+(o.del?' <span class="vc-del">\u2212'+o.del+'</span>':'')+'</span>'}else if(o.note){d='<span class="vc-row__delta">'+o.note+'</span>'}
+ var open=o.open?' style="background:rgba(127,127,160,.10)"':''
+ return '<div class="vc-row"'+open+'><span class="vc-badge '+(o.cls?'vc-badge--'+o.cls:'')+'">'+o.b+'</span><span class="vc-row__main"><span class="vc-row__path">'+o.path+'</span>'+(o.kind?'<span class="vc-row__kind">'+o.kind+'</span>':'')+'</span>'+d+'</div>'}
+function sec(t,right){return '<div class="vc-sec" style="display:flex;align-items:baseline">'+t+(right?'<span style="margin-left:auto;text-transform:none;letter-spacing:0;font-size:11.5px">'+right+'</span>':'')+'</div>'}
+function diff(lines){return '<div class="vc-diff">'+lines+'</div>'}
+function shell(w,inner){return '<div class="vc-shell" style="max-width:'+w+'px;margin:0 auto">'+head(w)+'<div class="vc-shell__body">'+inner+'</div></div>'}
+function screen(cap,keys,html,note){return '<div class="screen"><div class="screen__cap"><b>'+cap+'</b><span class="k">'+keys+'</span>'+(note?'<span>'+note+'</span>':'')+'</div>'+html+'</div>'}
+function empty(t,b){return '<div class="vc-empty" style="border:1px solid var(--hair);border-radius:10px;padding:16px 10px;text-align:left">'+(b?'<b>'+t+'</b>'+b:t)+'</div>'}
+var S=[]
+
+S.push(screen('一 · 未提交那一层：点一下就地展开，补丁块就长在这一行下面',
+ 'vc.row.diffTip · vc.diff.scopeHead · vc.diff.hunksTitle',
+ shell(520, idline('deck','main','领先 2 · 远端快照 · 2026-10-01 21:14')+subline('D:/work/deck','读到于 刚刚')+
+  '<div class="vc-sec">未提交改动</div>'+sec('已暂存（1）')+
+  row({b:'M',cls:'modified',kind:'修改',path:'src/client/views/versionControl/vcRows.js',add:12,del:3,open:true})+
+  diff('<div class="vc-diff__hunk">@@ -10,6 +10,9 @@ \u51fd\u6570\u4e0e\u8def\u5f84\u5408\u5e76\u4e3a\u4e00\u4e2a\u51fd\u6570</div>'+
+    '<div class="vc-diff__ctx">   const rev = String(ui.openCommit || \'\')</div>'+
+    '<div class="vc-diff__del">-  const rev = String(ui.openCommit || \'\')</div>'+
+    '<div class="vc-diff__del">-  return rev ? vcCommitKeyOf(rev, row.path) : String(row.path || \'\')</div>'+
+    '<div class="vc-diff__add">+  return vcDiffOpenKeyOf(row, ui.openCommit)</div>'+
+    '<div class="vc-diff__ctx"> }</div>'+
+    '<div class="vc-diff__note">这一处看的是相对上一次提交的全部改动（已暂存与未暂存两部分都在里面）。</div>')+
+  sec('未暂存（1）')+
+  row({b:'M',cls:'modified',kind:'修改',path:'src/client/views/versionControl/vcBlocks.js',add:3,del:3})+
+  '<div class="vc-tip" style="margin-top:10px">同一路径在已暂存与未暂存各有一行时，两行各自能展开、互不串（#850 修的就是这个）。</div>'),
+ '展开是「就地」的：不跳页、不弹层，补丁块长在被点的那一行下面，最多内滚到 320px'))
+
+S.push(screen('二 · 提交里看某个文件：顶部换成这笔提交的标题行，右上角能回去',
+ 'vc.commit.title · vc.commit.files · vc.commit.tip · vc.commit.back · vc.commits.tip',
+ shell(520, idline('deck','main','领先 2')+subline('D:/work/deck','读到于 刚刚')+
+  '<div class="vc-sec" style="display:flex;align-items:baseline">提交历史<a class="vc-link" style="margin-left:auto">回到未提交改动</a></div>'+
+  '<div class="vc-hist" style="border-radius:8px;background:rgba(127,127,160,.10)"><span class="vc-hist__oid mono">edfc5b8</span><span class="vc-hist__subject">收录三份调研底稿</span><span class="vc-hist__when">3 小时前</span></div>'+
+  '<div class="vc-sec">这笔提交改了什么</div>'+
+  '<div class="vc-count" style="margin-top:10px">这笔提交改了 3 个文件</div>'+
+  row({b:'A',cls:'added',kind:'新增',path:'research/github-desktop-feature-survey.md',add:412,del:0,open:true})+
+  diff('<div class="vc-diff__hunk">@@ -0,0 +1,3 @@</div>'+
+    '<div class="vc-diff__add">+ # GitHub Desktop \u529f\u80fd\u8c03\u7814</div>'+
+    '<div class="vc-diff__add">+ </div>'+
+    '<div class="vc-diff__add">+ \u4e00\u3001\u652f\u6301\u4ec0\u4e48</div>')+
+  row({b:'M',cls:'modified',kind:'修改',path:'research/git-command-parse-survey.md',add:96,del:4})+
+  row({b:'M',cls:'modified',kind:'修改',path:'CONTEXT.md',add:12,del:6})),
+ '进这笔提交前记住「从哪来」：右上角一直有「回到未提交改动」'))
+
+S.push(screen('三 · 差异的九种形态（每种都要有一句人话，不许只给空白）',
+ 'vc.diff.loading / empty / binary / tooBig / mergeCommit / noBaseline / untracked / fail / shownHead',
+ '<div class="rowgrid">'+
+ shell(520,'<div class="vc-sec">未提交改动</div>'+sec('未暂存（1）')+row({b:'M',cls:'modified',kind:'修改',path:'src/host/versionControl.js',add:1,del:0,open:true})+
+   '<div style="padding:8px 6px"><div class="vc-skel" style="width:80%"></div><div class="vc-skel" style="width:64%"></div><div class="vc-skel" style="width:72%"></div></div><div class="vc-tip">正在读改动\u2026</div>')+
+ shell(520,'<div class="vc-sec">未提交改动</div>'+sec('未暂存（1）')+row({b:'M',cls:'modified',kind:'修改',path:'assets/logo.png',add:0,del:0,note:'\u2014',open:true})+
+   empty('二进制文件，不逐行显示改动。'))+
+ shell(520,'<div class="vc-sec">未提交改动</div>'+sec('未暂存（1）')+row({b:'M',cls:'modified',kind:'修改',path:'vendor/bundle.js',add:18422,del:9103,open:true})+
+   empty('这个文件的改动太大，读不全就没给内容；去侧栏终端看这一处的完整改动。'))+
+ shell(520,'<div class="vc-sec">提交历史</div><div class="vc-hist"><span class="vc-hist__oid mono">9ab31c0</span><span class="vc-hist__subject">Merge branch \'feat/deck\'</span><span class="vc-hist__when">昨天</span></div>'+
+   empty('这是一次合并提交：git 默认不展开合并提交的逐行差异，所以这里没有内容。'))+
+ shell(520,'<div class="vc-sec">未提交改动</div>'+sec('未暂存（1）')+row({b:'?',cls:'untracked',kind:'未跟踪',path:'notes/设计/控件图鉴.md',note:'untracked',open:true})+
+   empty('这个文件还没被 git 跟踪，没有可比的旧版本。'))+
+ shell(520,'<div class="vc-sec">未提交改动</div>'+sec('未暂存（1）')+row({b:'M',cls:'modified',kind:'修改',path:'src/client/views/versionControl/vcRows.js',add:1,del:0,open:true})+
+   '<div class="vc-band vc-band--error" style="margin:8px 0 0"><span class="vc-band__mark">\u00d7</span><span class="vc-band__main"><span class="vc-band__body">这个文件的改动读不到</span></span><span class="vc-band__act"><a class="vc-link">重试</a></span></div>')+
+ shell(520,'<div class="vc-sec">未提交改动</div>'+sec('未暂存（1）')+row({b:'M',cls:'modified',kind:'修改',path:'src/host/versionControl.js',add:12,del:3,open:true})+
+   diff('<div class="vc-diff__hunk">@@ -1,4 +1,6 @@</div><div class="vc-diff__ctx">   const p = platform</div><div class="vc-diff__add">+  const g = await platform.resolveExecutable(\'git\')</div><div class="vc-diff__ctx">   if (!g) return { ok: false }</div>')+
+   '<div class="vc-diff__note" style="margin:0 8px 8px">只显示了前 200 行，后面的去侧栏终端看。</div>')+
+ shell(520,'<div class="vc-sec">未提交改动</div>'+sec('未暂存（1）')+row({b:'M',cls:'modified',kind:'修改',path:'docs/adr/20261004-x.md',add:0,del:0,open:true})+
+   empty('这一处这次没读到改动内容。'))+
+ shell(520,'<div class="vc-sec">未提交改动</div>'+empty('这个仓库还没有第一次提交，没有可比的基线。'))+
+ '</div>',
+ '九种形态一一对应九种说法；「读不到」与「没有内容」必须分开说'))
+
+S.push(screen('四 · 提交历史的四种状态','vc.commits.title · loading · fail · more · allLoaded · noCommits · vc.noCommitsTip',
+ '<div class="rowgrid">'+
+ shell(520,'<div class="vc-sec">提交历史</div>'+
+   '<div class="vc-hist"><span class="vc-hist__oid mono">edfc5b8</span><span class="vc-hist__subject">\u6536\u5f55\u4e09\u4efd\u8c03\u7814\u5e95\u7a3f</span><span class="vc-hist__when">3 \u5c0f\u65f6\u524d</span></div>'+
+   '<div class="vc-hist"><span class="vc-hist__oid mono">ce6c97d</span><span class="vc-hist__subject">\u53ea\u8bfb\u89c6\u56fe\u4e0d\u8054\u7f51\uff0c\u9886\u5148\u843d\u540e\u53ea\u8bfb\u672c\u5730\u7f13\u5b58</span><span class="vc-hist__when">\u6628\u5929</span></div>'+
+   '<div class="vc-band vc-band--error" style="margin:10px 0 0"><span class="vc-band__mark">\u00d7</span><span class="vc-band__main"><span class="vc-band__body">\u66f4\u65e9\u7684\u63d0\u4ea4\u8bfb\u4e0d\u5230</span></span><span class="vc-band__act"><a class="vc-link">\u91cd\u8bd5</a></span></div>')+
+ shell(520,'<div class="vc-sec">提交历史</div>'+
+   '<div class="vc-hist"><span class="vc-hist__oid mono">edfc5b8</span><span class="vc-hist__subject">\u6536\u5f55\u4e09\u4efd\u8c03\u7814\u5e95\u7a3f</span><span class="vc-hist__when">3 \u5c0f\u65f6\u524d</span></div>'+
+   '<div class="vc-sec">正在读更早的提交…</div>'+
+   '<div style="padding:6px"><div class="vc-skel" style="width:78%"></div><div class="vc-skel" style="width:60%"></div><div class="vc-skel" style="width:70%"></div></div>')+
+ shell(520,'<div class="vc-sec">提交历史</div>'+
+   '<div class="vc-hist"><span class="vc-hist__oid mono">edfc5b8</span><span class="vc-hist__subject">\u6536\u5f55\u4e09\u4efd\u8c03\u7814\u5e95\u7a3f</span><span class="vc-hist__when">3 \u5c0f\u65f6\u524d</span></div>'+
+   '<div class="vc-hist"><span class="vc-hist__oid mono">ce6c97d</span><span class="vc-hist__subject">\u53ea\u8bfb\u89c6\u56fe\u4e0d\u8054\u7f51</span><span class="vc-hist__when">\u6628\u5929</span></div>'+
+   '<div style="padding:12px 6px"><a class="vc-link">\u52a0\u8f7d\u66f4\u65e9\u7684\u63d0\u4ea4</a></div>')+
+ shell(520,'<div class="vc-sec">提交历史</div>'+
+   '<div class="vc-hist"><span class="vc-hist__oid mono">edfc5b8</span><span class="vc-hist__subject">\u6536\u5f55\u4e09\u4efd\u8c03\u7814\u5e95\u7a3f</span><span class="vc-hist__when">3 \u5c0f\u65f6\u524d</span></div>'+
+   '<div class="vc-tip" style="padding:12px 6px">\u5df2\u7ecf\u5230\u5e95\u4e86</div>'+
+   '<a class="vc-link" style="display:inline-block;padding:0 6px 12px">\u63d0\u4ea4\u5386\u53f2\u6536\u8d77\u4e86\uff0820 \u6761\uff09\uff0c\u70b9\u5f00\u770b</a>')+
+ shell(520,'<div class="vc-sec">提交历史</div>'+empty('\u8fd9\u4e2a\u4ed3\u5e93\u8fd8\u6ca1\u6709\u4efb\u4f55\u63d0\u4ea4','\u521a\u5efa\u597d\u7684\u4ed3\u5e93\u5c31\u662f\u8fd9\u6837\uff1b\u505a\u51fa\u7b2c\u4e00\u6b21\u63d0\u4ea4\u4e4b\u540e\uff0c\u8fd9\u91cc\u5c31\u6709\u5386\u53f2\u4e86\u3002'))+
+ '</div>',
+ '只有一屏给链接（「加载更早的提交」），不要做成翻页器：面板不做分页器'))
+
+S.push(screen('五 · 其他工作树的九种情形','vc.other.title · tip · summary · same-name · locked · lockUnknown · prunable · bare · noBranch · empty · more',
+ '<div>'+
+ '<div class="spec" style="max-width:900px;margin-bottom:16px"><div class="spec__name">说明行（默认折叠成一行的样子）</div><div class="spec__key">vc.other.summary · vc.other.summaryMore</div>'+
+ '<div class="vc-sec">其他工作树 (3)：feat/deck、deck-hotfix、<span class="mono">（还有 1 棵没列出来）</span></div></div>'+
+ '<div class="rowgrid">'+
+ shell(520,'<div class="vc-sec">其他工作树 (2)</div>'+
+   '<div class="vc-ow"><span class="vc-ow__name">deck</span><span class="vc-ow__note">当前这个</span></div>'+
+   '<div class="vc-ow"><span class="vc-ow__name">feat/deck</span><span class="vc-ow__note">同名 \u00b7 已加长一段区分</span></div>')+
+ shell(520,'<div class="vc-sec">其他工作树 (2)</div>'+
+   '<div class="vc-ow"><span class="vc-ow__name">deck-hotfix</span><span class="vc-ow__note">已被占用</span></div>'+
+   '<div class="vc-ow"><span class="vc-ow__name">old-fix</span><span class="vc-ow__note">无法显示</span></div>')+
+ shell(520,'<div class="vc-sec">其他工作树 (2)</div>'+
+   '<div class="vc-ow"><span class="vc-ow__name">gone-dir</span><span class="vc-ow__note">目录已不存在</span></div>'+
+   '<div class="vc-ow"><span class="vc-ow__name">mirror</span><span class="vc-ow__note">裸仓库（没有工作树）</span></div>')+
+ shell(520,'<div class="vc-sec">其他工作树 (1)</div>'+
+   '<div class="vc-ow"><span class="vc-ow__name">detached-one</span><span class="vc-ow__note">没有分支</span></div>')+
+ shell(520,'<div class="vc-sec">其他工作树 (4)</div>'+
+   '<div class="vc-ow"><span class="vc-ow__name">feat/deck</span><span class="vc-ow__note">同名 \u00b7 已加长一段区分</span></div>'+
+   '<div class="vc-ow"><span class="vc-ow__name">deck-hotfix</span><span class="vc-ow__note">已被占用</span></div>'+
+   '<div style="padding:10px 6px"><a class="vc-link">还有 2 棵没收起，点开接着看</a></div>')+
+ shell(520,'<div class="vc-sec">其他工作树 (0)</div><div class="vc-empty" style="border:1px solid var(--hair);border-radius:10px">没有别的工作树</div>'+
+   '<div class="vc-tip" style="margin-top:10px">\u8fd9\u53f0\u673a\u5668\u4e0a git \u8bb0\u7740\u7684\u5176\u4ed6\u5de5\u4f5c\u6811\u526f\u672c\u3002\u8fd9\u91cc\u4e0d\u5217\u6ca1\u6709\u68c0\u51fa\u7684\u672c\u5730\u5206\u652f\uff0c\u6240\u4ee5\u5b83\u4e0d\u662f\u5206\u652f\u5168\u8c8c\u3002</div>')+
+ '</div></div>',
+ '九种情形各有各的一句；「无法显示」不能写成「没被占用」—— 答不出不等于没有'))
+
+document.getElementById('app').innerHTML=S.join('')
+</script>
+<script>
+document.querySelectorAll('[data-theme-toggle]').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var r = document.documentElement
+    r.dataset.theme = r.dataset.theme === 'light' ? '' : 'light'
+    b.textContent = r.dataset.theme === 'light' ? '深色' : '浅色'
+  })
+})
+</script>
+</body>
+</html>

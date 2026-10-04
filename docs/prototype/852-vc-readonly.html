@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="zh" data-theme="">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>版本管理 · 只读全景（#852 P2）</title>
+<link rel="stylesheet" href="852-vc-kit.css">
+<!--
+  PROTOTYPE-852 · 抛弃式设计稿 · P2 只读全景
+  这一页回答：只读状态视图**每一种状态**长什么样 —— 不只是「有改动」那一种。
+  覆盖口径：页上每一句中文都抄自产品词条（自造词条 0），每个零件旁标出 vc.* 键。
+  留在别的页画的键：写操作（暂存/提交/拉取/推送）→ P3；差异形态、提交历史、其他工作树九态 → P4。
+  这一页刻意重复画同一套骨架：让人一眼看出「状态变了，骨架没变」，这也是这一版设计的关键决定。
+-->
+<style>
+.wrap{max-width:1060px;margin:0 auto;padding:0 18px 70px}
+.screen{margin:0 0 40px}
+.screen__cap{font-size:12px;color:var(--faint);margin:0 0 8px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.screen__cap b{color:var(--ink2);font-size:12.5px;font-weight:650}
+.screen__cap .k{font-family:var(--mono);color:var(--faint);font-size:11px}
+.rowgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(520px,1fr));gap:26px}
+.narrow{display:grid;grid-template-columns:380px 300px;gap:22px;align-items:start}
+</style>
+</head>
+<body>
+<div class="proto-bar">
+  <span class="mono" style="color:#ff3b30;font-weight:800">PROTOTYPE-852 · 抛弃式</span>
+  <b>P2 只读全景</b>
+  <a href="852-vc-index.html">索引</a>
+  <a href="852-vc-controls.html">P1 控件图鉴</a>
+  <a href="852-vc-write.html">P3 写操作全景</a>
+  <a href="852-vc-diff.html">P4 差异与历史</a>
+  <span class="sp"></span>
+  <button class="vc-btn vc-btn--ghost" data-theme-toggle style="height:24px">浅色</button>
+</div>
+
+<div class="wrap" id="app"></div>
+
+<script>
+/* 这一页的中文全部抄自产品词条；键名标在零件旁。改文案时先改产品词条，再回来改这里。 */
+function head(w) { return '<div class="vc-shell__head"><span>VERSION CONTROL · READONLY</span><span style="margin-left:auto">' + w + 'px</span></div>' }
+function idline(wt, br, sync, ago) {
+  return '<div class="vc-id"><span class="wt">' + wt + '</span><span class="dot">/</span><span class="br">' + br + '</span>' +
+    (sync ? '<span class="vc-count" style="margin:0">' + sync + '</span>' : '') + '</div>' +
+    '<div class="vc-sub"><b>' + wt + '</b> · ' + ago + '</div>'
+}
+function subline(path, readAt) {
+  return '<div class="vc-sub" style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap">' +
+    '<span>' + path + '</span><span>·</span><span>' + readAt + '</span>' +
+    '<a class="vc-link" style="margin-left:auto">' + '重新读一次' + '</a></div>'
+}
+function row(o) {
+  var d = ''
+  if (o.add || o.del) {
+    d = '<span class="vc-row__delta">' + (o.add ? '<span class="vc-add">+' + o.add + '</span>' : '') +
+      (o.del ? ' <span class="vc-del">\u2212' + o.del + '</span>' : '') + '</span>'
+  } else if (o.note) { d = '<span class="vc-row__delta">' + o.note + '</span>' }
+  return '<div class="vc-row">' +
+    '<span class="vc-badge ' + (o.cls ? 'vc-badge--' + o.cls : '') + '">' + o.b + '</span>' +
+    '<span class="vc-row__main"><span class="vc-row__path">' + o.path + '</span>' +
+    (o.kind ? '<span class="vc-row__kind">' + o.kind + '</span>' : '') + '</span>' +
+    d +
+    (o.act ? '<span class="vc-row__act"><button class="vc-btn vc-btn--ghost" style="height:24px;padding:0 9px">' + o.act + '</button></span>' : '') +
+    '</div>'
+}
+function sec(t) { return '<div class="vc-sec">' + t + '</div>' }
+function band(t, b, act) {
+  return '<div class="vc-band vc-band--warn" style="margin:0 0 14px"><span class="vc-band__mark">!</span>' +
+    '<span class="vc-band__main"><span class="vc-band__title">' + t + '</span>' +
+    (b ? '<span class="vc-band__body">' + b + '</span>' : '') + '</span>' +
+    (act ? '<span class="vc-band__act"><a class="vc-link">' + act + '</a></span>' : '') + '</div>'
+}
+function shell(w, inner) {
+  return '<div class="vc-shell" style="max-width:' + w + 'px;margin:0 auto"><div>' + head(w) + '</div>' +
+    '<div class="vc-shell__body">' + inner + '</div></div>'
+}
+function screen(cap, keys, html, note) {
+  return '<div class="screen"><div class="screen__cap"><b>' + cap + '</b><span class="k">' + keys + '</span>' +
+    (note ? '<span>' + note + '</span>' : '') + '</div>' + html + '</div>'
+}
+
+/* ---------- 假数据（一屏一档，刻意做出差别） ---------- */
+var SCREENS = []
+
+// 1 干净
+SCREENS.push(screen('一 · 干净：什么改动都没有', 'vc.changes.none · vc.ago.* · vc.readAt', shell(520,
+  idline('deck', 'main', '领先 2', '领先 2 · 落后 1 · 远端快照 · 2026-10-01 21:14') +
+  subline('D:/work/deck', '读到于 3 小时前') +
+  '<div style="margin-top:16px" class="vc-sec">未提交改动</div>' +
+  '<div class="vc-empty" style="border:1px solid var(--hair);border-radius:10px">没有未提交的改动</div>' +
+  '<div class="vc-sec">提交历史</div>' +
+  '<div class="vc-hist"><span class="vc-hist__oid mono">edfc5b8</span><span class="vc-hist__subject">收录三份调研底稿</span><span class="vc-hist__when">3 小时前</span></div>' +
+  '<div class="vc-hist"><span class="vc-hist__oid mono">ce6c97d</span><span class="vc-hist__subject">只读视图不联网，领先落后只读本地缓存</span><span class="vc-hist__when">昨天</span></div>'
+), '身份与计数永不让位；空的时候要说「没有」，不能什么都不显示'))
+
+// 2 满屏
+SCREENS.push(screen('二 · 有改动（满屏）：已暂存 / 未暂存 / 冲突 三段齐', 'vc.changes.summaryConflicts · vc.group.* · vc.change.*', shell(520,
+  band('有 1 个文件卡在冲突里，正等着你处理', '这些文件里同时留着两边的内容：已经在分支上的那些提交，和正在重放的那一笔。', '去侧栏终端') +
+  idline('deck', 'feat/version-panel', '领先 2 · 落后 1', '领先 2 · 落后 1 · 远端快照 · 2026-10-01 21:14') +
+  subline('D:/work/deck', '读到于 刚刚') +
+  '<div class="vc-count" style="margin-top:12px">已暂存 3 个文件 / 未暂存 4 个文件，另有 1 个卡在冲突里</div>' +
+  '<div class="vc-sec">未提交改动</div>' +
+  sec('已暂存（3）') +
+  row({b:'A', cls:'added', kind:'新增', path:'src/version-control-core/model.ts', add:45, del:2}) +
+  row({b:'M', cls:'modified', kind:'修改', path:'src/client/panel/Dock.js', add:12, del:3}) +
+  row({b:'R', cls:'renamed', kind:'重命名', path:'StatusView.js \u2190 OldStatus.js', add:8, del:8}) +
+  sec('卡在冲突里（1）') +
+  row({b:'!', cls:'conflict', kind:'冲突：去侧栏终端处理', path:'src/client/views/versionControl/vcBlocks.js', add:1, del:1}) +
+  sec('未暂存（4）') +
+  row({b:'M', cls:'modified', kind:'修改', path:'src/client/panel/RepoChipSkeleton.js', add:30, del:6, act:'暂存'}) +
+  row({b:'?', cls:'untracked', kind:'未跟踪', path:'research/815-scratch-notes.md', note:'untracked', act:'暂存'}) +
+  row({b:'T', cls:'typechange', kind:'类型改变', path:'scripts/verify-log-coverage.js', add:1, del:1, act:'暂存'}) +
+  '<div class="vc-sec">其他工作树 (2)</div>' +
+  '<div class="vc-ow"><span class="vc-ow__name">feat/deck</span><span class="vc-ow__note">同名 · 已加长一段区分</span></div>' +
+  '<div class="vc-ow"><span class="vc-ow__name">deck-hotfix</span><span class="vc-ow__note">已被占用</span></div>' +
+  '<div class="vc-sec">提交历史</div>' +
+  '<div class="vc-hist"><span class="vc-hist__oid mono">edfc5b8</span><span class="vc-hist__subject">收录三份调研底稿</span><span class="vc-hist__when">3 小时前</span></div>'
+), '顺序是规格定死的：异常带在身份之上，身份 → 计数 → 改动 → 其他工作树 → 历史'))
+
+// 3 只有未暂存（瘦态）
+SCREENS.push(screen('三 · 只有未暂存', 'vc.changes.summary · vc.group.unstaged', shell(520,
+  idline('deck', 'main', '', '领先 2 · 远端快照 · 2026-10-01 21:14') +
+  subline('D:/work/deck', '读到于 刚刚') +
+  '<div class="vc-count" style="margin-top:12px">已暂存 0 个文件 / 未暂存 2 个文件</div>' +
+  '<div class="vc-sec">未提交改动</div>' +
+  sec('未暂存（2）') +
+  row({b:'D', cls:'deleted', kind:'删除', path:'src/client/panel/LegacyBadge.js', del:9, act:'暂存'}) +
+  row({b:'?', cls:'untracked', kind:'未跟踪', path:'notes/设计/版本管理-控件图鉴.md', note:'untracked', act:'暂存'})
+), '没有可暂存时「全部暂存」禁用；这一屏里已暂存那一段整个不出现'))
+
+// 4 只有已暂存（瘦态）
+SCREENS.push(screen('四 · 只有已暂存', 'vc.group.staged · vc.changes.summary', shell(520,
+  idline('deck', 'main', '领先 2', '领先 2 · 远端快照 · 2026-10-01 21:14') +
+  subline('D:/work/deck', '读到于 刚刚') +
+  '<div class="vc-count" style="margin-top:12px">已暂存 2 个文件 / 未暂存 0 个文件</div>' +
+  '<div class="vc-sec">未提交改动</div>' +
+  sec('已暂存（2）') +
+  row({b:'M', cls:'modified', kind:'修改', path:'src/host/versionControl.js', add:12, del:3}) +
+  row({b:'A', cls:'added', kind:'新增', path:'docs/adr/20261004-version-control-write-path.md', add:86, del:0})
+), '暂存区满、但工作区干净 —— 这是「准备提交」那一屏的骨架'))
+
+// 5 四种进行中操作
+SCREENS.push(screen('五 · 仓库里有没做完的操作（四条带各一屏）', 'vc.band.merge / rebase / cherryPick / revert · vc.band.terminalTip',
+  '<div class="rowgrid">' +
+  shell(520, band('正在合并：有别的操作还没做完', '处理合并、变基、冲突这些事都在同一排的侧栏终端里做，这里一个字节都不动你的仓库。', '去侧栏终端') + idline('deck', 'main', '', '领先 2') + subline('D:/work/deck', '读到于 刚刚') + '<div class="vc-sec">未提交改动</div>' + '<div class="vc-empty" style="border:1px solid var(--hair);border-radius:10px">没有未提交的改动</div>') +
+  shell(520, band('正在变基：有别的操作还没做完', '处理合并、变基、冲突这些事都在同一排的侧栏终端里做，这里一个字节都不动你的仓库。', '去侧栏终端') + idline('deck', 'main', '', '领先 2') + subline('D:/work/deck', '读到于 刚刚') + '<div class="vc-sec">未提交改动</div>' + '<div class="vc-empty" style="border:1px solid var(--hair);border-radius:10px">没有未提交的改动</div>') +
+  shell(520, band('正在拣选提交：有别的操作还没做完', '处理合并、变基、冲突这些事都在同一排的侧栏终端里做，这里一个字节都不动你的仓库。', '去侧栏终端') + idline('deck', 'main', '', '领先 2') + subline('D:/work/deck', '读到于 刚刚') + '<div class="vc-sec">未提交改动</div>' + '<div class="vc-empty" style="border:1px solid var(--hair);border-radius:10px">没有未提交的改动</div>') +
+  shell(520, band('正在回退提交：有别的操作还没做完', '处理合并、变基、冲突这些事都在同一排的侧栏终端里做，这里一个字节都不动你的仓库。', '去侧栏终端') + idline('deck', 'main', '', '领先 2') + subline('D:/work/deck', '读到于 刚刚') + '<div class="vc-sec">未提交改动</div>' + '<div class="vc-empty" style="border:1px solid var(--hair);border-radius:10px">没有未提交的改动</div>') +
+  '</div>', '四条带只换一句正文，位置与骨架完全一致 —— 这是「状态变了、布局不变」的示范'))
+
+// 6 游离头
+SCREENS.push(screen('六 · 游离头指针', 'vc.detached · vc.detachedAt · vc.detachedTip · vc.sync.detached', shell(520,
+  idline('deck', '游离头指针', '不在任何分支上，领先落后这一套用不上', '停在提交 a238202 · 领先落后这一套用不上') +
+  subline('D:/work/deck', '读到于 刚刚') +
+  '<div class="vc-tip" style="margin-top:10px">当前不在任何分支上，停在这笔提交上。这是正常状态，不是出错。</div>' +
+  '<div class="vc-sec">未提交改动</div>' +
+  sec('未暂存（1）') +
+  row({b:'M', cls:'modified', kind:'修改', path:'src/client/views/versionControl/vcRows.js', add:14, del:2, act:'暂存'})
+), '「游离头指针」三个字直接进身份行，不用另起一条带'))
+
+// 7 无上游
+SCREENS.push(screen('七 · 这个分支还没有上游', 'vc.sync.noUpstream · vc.sync.noUpstreamTip', shell(520,
+  idline('deck', 'main', '还没有推送目标', '这个分支还没设过上游') +
+  subline('D:/work/deck', '读到于 刚刚') +
+  '<div class="vc-tip" style="margin-top:10px">这个分支还没设过上游，所以还没有「领先几个提交」这回事。推送和拉取请去侧栏终端。</div>' +
+  '<div class="vc-sec">未提交改动</div>' +
+  '<div class="vc-empty" style="border:1px solid var(--hair);border-radius:10px">没有未提交的改动</div>'
+), '不假装有领先/落后数字；产品里的推送按钮会变成「设为上游并推送」（见 P1 控件图鉴）'))
+
+// 8 上游被删
+SCREENS.push(screen('八 · 本地记着的上游在远端已经没了', 'vc.sync.upstreamGone · vc.sync.upstreamGoneTip', shell(520,
+  idline('deck', 'main', '推送目标已经不存在', '本地记着的远端分支在远端已经没了') +
+  subline('D:/work/deck', '读到于 3 小时前') +
+  '<div class="vc-tip" style="margin-top:10px">本地记着的那个远端分支在远端已经没了，所以领先落后没有意义。要重新设推送目标请去侧栏终端。</div>' +
+  '<div class="vc-sec">未提交改动</div>' +
+  '<div class="vc-empty" style="border:1px solid var(--hair);border-radius:10px">没有未提交的改动</div>'
+), '这一屏与「无上游」必须一眼能分：一句说「还没设过」，一句说「设过但没了」'))
+
+// 9 远端信息读不到
+SCREENS.push(screen('九 · 远端信息什么时候更新的读不到', 'vc.basis.unknown · vc.basis.tip · vc.warn.basisUnknown', shell(520,
+  idline('deck', 'main', '', '远端信息什么时候更新的读不到') +
+  subline('D:/work/deck', '读到于 刚刚') +
+  '<div class="vc-band vc-band--warn" style="margin-top:12px"><span class="vc-band__mark">!</span><span class="vc-band__main">' +
+  '<span class="vc-band__title">不清楚本地记的远端信息有多旧，推送前先确认</span>' +
+  '<span class="vc-band__body">这个时间来自本地记着的远端跟踪引用的最后一次更新，不一定等于远端此刻的样子；在终端里跑 git fetch 才会变新。</span>' +
+  '</span></div>' +
+  '<div class="vc-sec">未提交改动</div>' +
+  '<div class="vc-empty" style="border:1px solid var(--hair);border-radius:10px">没有未提交的改动</div>'
+), '「读不到依据时间」不许显示成具体日期或 0：那会变成一条假事实'))
+
+// 10 裸仓库
+SCREENS.push(screen('十 · 裸仓库（没有工作树）', 'vc.block.bareRepo · vc.other.bare', shell(520,
+  '<div class="vc-band vc-band--warn" style="margin:0 0 14px"><span class="vc-band__mark">!</span><span class="vc-band__main">' +
+  '<span class="vc-band__title">这是个裸仓库（没有工作树），这些操作都做不了</span></span></div>' +
+  '<div class="vc-sec">其他工作树 (1)</div>' +
+  '<div class="vc-ow"><span class="vc-ow__name">deck</span><span class="vc-ow__note">裸仓库（没有工作树）</span></div>' +
+  '<div class="vc-sec">提交历史</div>' +
+  '<div class="vc-hist"><span class="vc-hist__oid mono">e17b2b7</span><span class="vc-hist__subject">三条 git 硬约束定版</span><span class="vc-hist__when">09-30</span></div>'
+), '裸仓库里没有身份行、没有改动区 —— 不许摆一个空壳给用户看'))
+
+// 11 不是仓库 / 12 没装 git / 13 太旧
+SCREENS.push(screen('十一至十三 · 读不到的三种', 'vc.fail.notRepo · vc.fail.noGit · vc.fail.oldGit',
+  '<div class="rowgrid">' +
+  shell(520, '<div class="vc-band vc-band--error" style="margin:0"><span class="vc-band__mark">×</span><span class="vc-band__main"><span class="vc-band__title">这个目录不在任何 git 仓库里。</span></span></div>') +
+  shell(520, '<div class="vc-band vc-band--error" style="margin:0"><span class="vc-band__mark">×</span><span class="vc-band__main"><span class="vc-band__title">找不到 git 程序：请确认装好了 git、并且它在 PATH 里，然后重启 DSH 再打开这个页签。</span></span></div>') +
+  shell(520, '<div class="vc-band vc-band--error" style="margin:0"><span class="vc-band__mark">×</span><span class="vc-band__main"><span class="vc-band__title">这台机器上的 git 版本太旧，这个页签需要新一点的版本。</span></span></div>') +
+  shell(520, '<div class="vc-empty" style="border:1px solid var(--hair);border-radius:10px">这个会话还没有工作区，读不到版本信息</div>') +
+  '</div>', '这一族只给一句话 + 不再摆骨架；每句都要说清「谁的问题、人怎么办」'))
+
+// 14 还没有提交
+SCREENS.push(screen('十四 · 还没有任何提交', 'vc.noCommits · vc.noCommitsTip · vc.diff.noBaseline', shell(520,
+  idline('deck', 'main', '', '还没有推送目标') +
+  subline('D:/work/deck', '读到于 刚刚') +
+  '<div class="vc-sec">提交历史</div>' +
+  '<div class="vc-empty" style="border:1px solid var(--hair);border-radius:10px">' +
+  '<b>这个仓库还没有任何提交</b>刚建好的仓库就是这样；做出第一次提交之后，这里就有历史了。</div>'
+), '新仓库的正常形态，不该红成错误'))
+
+// 15 窄档让位
+SCREENS.push(screen('十五 · 窄面板让位：380 与 300', 'vc.identity.worktreeTip · vc.changes.summary* · 砍中段 + 省略号',
+  '<div class="narrow">' +
+  shell(380, idline('deck', 'feat/version-panel', '', '领先 2 · 落后 1') +
+    subline('D:/work/deck', '读到于 刚刚') +
+    '<div class="vc-count" style="margin-top:12px">已暂存 3 个文件 / 未暂存 4 个文件，另有 1 个卡在冲突里</div>' +
+    '<div class="vc-sec">未提交改动</div>' + sec('已暂存（3）') +
+    row({b:'A', cls:'added', kind:'新增', path:'src/version-control-core/model.ts', add:45, del:2}) +
+    row({b:'M', cls:'modified', kind:'修改', path:'src/client/panel/Dock.js', add:12, del:3}) +
+    row({b:'R', cls:'renamed', kind:'重命名', path:'StatusView.js \u2190 OldStatus.js', add:8, del:8}) +
+    sec('未暂存（4）') +
+    row({b:'M', cls:'modified', kind:'修改', path:'src/client/panel/RepoChipSkeleton.js', add:30, del:6, act:'暂存'})) +
+  shell(300, idline('deck', 'main', '', '领先 2') +
+    subline('D:/work/deck', '读到于 刚刚') +
+    '<div class="vc-count" style="margin-top:12px">已暂存 1 个文件 / 未暂存 1 个文件</div>' +
+    '<div class="vc-sec">未提交改动</div>' + sec('已暂存（1）') +
+    row({b:'M', cls:'modified', kind:'修改', path:'src/host/versionControl.js', add:12, del:3}) +
+    sec('未暂存（1）') +
+    row({b:'?', cls:'untracked', kind:'未跟踪', path:'notes/设计/版本管理-控件图鉴.md', note:'untracked', act:'暂存'})) +
+  '</div>', '让位顺序：位置行先让，身份与计数永不让；长路径砍中段（…/目录/…/文件）而不是砍尾巴'))
+
+document.getElementById('app').innerHTML = SCREENS.join('')
+</script>
+
+<script>
+document.querySelectorAll('[data-theme-toggle]').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var r = document.documentElement
+    r.dataset.theme = r.dataset.theme === 'light' ? '' : 'light'
+    b.textContent = r.dataset.theme === 'light' ? '深色' : '浅色'
+  })
+})
+</script>
+</body>
+</html>

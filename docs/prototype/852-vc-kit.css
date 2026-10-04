@@ -1,0 +1,177 @@
+/* 852-vc-kit.css —— 版本管理原型页的共享视觉语言（照 #815 原型 C「档案索引」定版）
+ * 用法：每份原型页在 <head> 里 <link rel="stylesheet" href="852-vc-kit.css">，只写结构，不另起样式。
+ * 为什么要共享一份：四页原型（控件图鉴 / 只读全景 / 写操作全景 / 差异与历史）必须看起来像同一个面板，
+ *   各画各的会立刻看出是两套设计。组件的类名与产品实现里的类名（dsws-vc-*）一一对应，
+ *   照着抄不会走形：实现里已有 .dsws-vc-mono / .dsws-vc-badge / .dsws-vc-add / .dsws-vc-del /
+ *   .dsws-vc-sec / .dsws-vc-id / .dsws-vc-count（见 src/client/views/versionControl/vcStyles.js）。
+ * 浅色主题：每页右上角放一个 <button class="vc-theme" data-theme-toggle>，本页脚本负责切 data-theme。
+ */
+:root{
+  --bg:#101014; --paper:#17171c; --inset:#101014; --hair:rgba(255,255,255,.09); --hair2:rgba(255,255,255,.14);
+  --ink:#f2f3f5; --ink2:#b9bcc4; --mut:#8a8e98; --faint:#62666f;
+  --blue:#7aa2ff; --green:#6ee7a8; --amber:#f5b14c; --red:#ff7a7a;
+  --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  --mono:"SF Mono",ui-monospace,SFMono-Regular,Consolas,monospace;
+}
+html[data-theme="light"]{
+  --bg:#f4f4f2; --paper:#ffffff; --inset:#f6f6f4; --hair:#e9e9e6; --hair2:#dcdcd8;
+  --ink:#16161a; --ink2:#3f4148; --mut:#7c7e86; --faint:#a9abb2;
+  --blue:#2456e0; --green:#0e8a4d; --amber:#a8620a; --red:#c92a2a;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:var(--sans);background:var(--bg);color:var(--ink);line-height:1.55;-webkit-font-smoothing:antialiased}
+code,.mono{font-family:var(--mono)}
+.mono{font-variant-numeric:tabular-nums}
+
+/* ---------- 页面骨架（原型页外壳，不是产品界面的一部分） ---------- */
+.proto-bar{position:sticky;top:0;z-index:9;display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+  padding:8px 18px;background:rgba(16,16,20,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--hair);font-size:12px;color:var(--mut)}
+html[data-theme="light"] .proto-bar{background:rgba(244,244,242,.94)}
+.proto-bar b{color:var(--ink);font-weight:650}
+.proto-bar a{color:var(--blue);text-decoration:none}
+.proto-bar a:hover{text-decoration:underline}
+.proto-bar .sp{margin-left:auto}
+.proto-note{max-width:1060px;margin:22px auto 0;padding:0 18px;font-size:12.5px;color:var(--mut)}
+.proto-h{max-width:1060px;margin:34px auto 12px;padding:0 18px;display:flex;align-items:baseline;gap:10px}
+.proto-h h2{font-size:14px;margin:0;font-weight:650;letter-spacing:.02em}
+.proto-h span{font-size:12px;color:var(--faint)}
+.proto-note code{color:var(--ink2)}
+
+/* ---------- 面板外壳（模拟 DSH 侧栏面板，520 宽是常态） ---------- */
+.vc-shell{background:var(--paper);border:1px solid var(--hair);border-radius:18px;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,.28)}
+html[data-theme="light"] .vc-shell{box-shadow:0 24px 60px rgba(20,20,30,.10)}
+.vc-shell__head{padding:11px 18px;border-bottom:1px solid var(--hair);display:flex;gap:8px;align-items:center;
+  font-size:11px;color:var(--faint);letter-spacing:.14em}
+.vc-shell__body{padding:18px 18px 20px}
+.w520{max-width:520px}.w380{max-width:380px}.w300{max-width:300px}
+.vc-cell{margin:0 auto 26px}
+.vc-cell > .vc-cap{font-size:11.5px;color:var(--faint);margin:0 0 8px;letter-spacing:.04em}
+
+/* ---------- 身份行与计数行（原型 C 的字号层级） ---------- */
+.vc-id{font-size:15px;font-weight:680;letter-spacing:-.01em;display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+.vc-id .wt{color:var(--ink)}
+.vc-id .br{color:var(--blue)}
+.vc-id .dot{color:var(--faint);font-weight:400}
+.vc-sub{margin-top:6px;font-size:12px;color:var(--mut)}
+.vc-sub b{color:var(--ink2);font-weight:600}
+.vc-count{font-size:11px;color:var(--faint);margin-top:6px}
+.vc-count b{color:var(--ink2);font-weight:600}
+
+/* ---------- 段小标题 ---------- */
+.vc-sec{font-size:10.5px;letter-spacing:.18em;color:var(--faint);text-transform:uppercase;
+  padding:14px 0 7px;border-bottom:1px solid var(--hair);margin:0}
+.vc-sec:first-child{padding-top:0}
+
+/* ---------- 文件行 / 提交行 ---------- */
+.vc-row{display:flex;align-items:center;gap:9px;padding:7px 6px;border-radius:8px;border-bottom:1px solid var(--hair)}
+.vc-row:hover{background:rgba(127,127,160,.10)}
+.vc-badge{flex:none;display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 3px;
+  border:1px solid var(--hair2);border-radius:5px;font-family:var(--mono);font-variant-numeric:tabular-nums;
+  font-size:10.5px;font-weight:700;line-height:1;color:var(--mut)}
+.vc-badge--added{color:var(--green);border-color:var(--green)}
+.vc-badge--modified{color:var(--blue);border-color:var(--blue)}
+.vc-badge--deleted{color:var(--red);border-color:var(--red)}
+.vc-badge--renamed{color:var(--amber);border-color:var(--amber)}
+.vc-badge--untracked{color:var(--mut)}
+.vc-badge--typechange{color:var(--amber);border-color:var(--amber)}
+.vc-badge--conflict{color:var(--red);border-color:var(--red);background:rgba(255,122,122,.12)}
+.vc-row__main{flex:1;min-width:0}
+.vc-row__path{font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vc-row__kind{font-size:11px;color:var(--mut);margin-top:1px}
+.vc-row__delta{flex:none;font-size:11.5px;font-variant-numeric:tabular-nums;color:var(--mut)}
+.vc-add{color:var(--green)} .vc-del{color:var(--red)}
+.vc-row__act{flex:none;display:flex;gap:6px}
+
+/* ---------- 差异卡 ---------- */
+.vc-diff{margin:8px 0 4px;padding:10px 12px;border:1px solid var(--hair);border-radius:10px;background:var(--inset);
+  font-family:var(--mono);font-size:11.5px;line-height:1.6;overflow:auto;max-height:320px}
+.vc-diff__hunk{color:var(--faint);margin-bottom:6px}
+.vc-diff__ctx{color:var(--ink2);white-space:pre}
+.vc-diff__add{color:var(--green);white-space:pre}
+.vc-diff__del{color:var(--red);white-space:pre}
+.vc-diff__note{color:var(--faint);margin-top:8px;padding-top:7px;border-top:1px solid var(--hair)}
+
+/* ---------- 按钮（产品里四个动作 + 若干次要动作） ---------- */
+.vc-btn{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 12px;border-radius:8px;
+  border:1px solid var(--hair2);background:transparent;color:var(--ink);font-family:var(--sans);font-size:12.5px;
+  font-weight:600;cursor:pointer;white-space:nowrap}
+.vc-btn:hover{background:rgba(127,127,160,.14)}
+.vc-btn--primary{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.vc-btn--primary:hover{opacity:.88;background:var(--ink)}
+html[data-theme="light"] .vc-btn--primary:hover{opacity:.82}
+.vc-btn--danger{color:var(--red);border-color:var(--red)}
+.vc-btn--ghost{border-color:transparent;color:var(--mut)}
+.vc-btn--ghost:hover{color:var(--ink)}
+.vc-btn[disabled]{opacity:.42;cursor:not-allowed}
+.vc-btn[disabled]:hover{background:transparent}
+.vc-btn.is-running{color:var(--mut)}
+.vc-btn .spin{width:11px;height:11px;border-radius:50%;border:1.5px solid currentColor;border-top-color:transparent;
+  display:inline-block;animation:vc-spin .8s linear infinite}
+@keyframes vc-spin{to{transform:rotate(360deg)}}
+
+/* ---------- 输入 ---------- */
+.vc-input{width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--hair2);background:var(--inset);
+  color:var(--ink);font-family:var(--sans);font-size:12.5px;resize:vertical}
+.vc-input::placeholder{color:var(--faint)}
+.vc-input:focus{outline:2px solid var(--blue);outline-offset:1px}
+.vc-input[disabled]{opacity:.5}
+
+/* ---------- 链接 ---------- */
+.vc-link{color:var(--blue);text-decoration:none;cursor:pointer;font-size:12.5px}
+.vc-link:hover{text-decoration:underline}
+
+/* ---------- 异常带 / 提示带 ---------- */
+.vc-band{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:10px;
+  border:1px solid var(--hair2);background:rgba(127,127,160,.08);font-size:12.5px}
+.vc-band--warn{border-color:rgba(245,177,76,.5);background:rgba(245,177,76,.10)}
+.vc-band--error{border-color:rgba(255,122,122,.5);background:rgba(255,122,122,.10)}
+.vc-band--ok{border-color:rgba(110,231,168,.45);background:rgba(110,231,168,.09)}
+.vc-band__mark{flex:none;font-family:var(--mono);font-weight:800;font-size:11px;color:var(--mut);padding-top:1px}
+.vc-band--warn .vc-band__mark{color:var(--amber)}
+.vc-band--error .vc-band__mark{color:var(--red)}
+.vc-band--ok .vc-band__mark{color:var(--green)}
+.vc-band__main{flex:1;min-width:0}
+.vc-band__title{font-weight:650}
+.vc-band__body{color:var(--mut);margin-top:2px}
+.vc-band__act{flex:none;display:flex;gap:6px;align-items:center}
+
+/* ---------- 确认框（写在面板里的确认块，不是弹窗） ---------- */
+.vc-dialog{border:1px solid var(--hair2);border-radius:12px;background:var(--inset);padding:14px;margin:10px 0}
+.vc-dialog__title{font-size:13px;font-weight:650;margin-bottom:6px}
+.vc-dialog__body{font-size:12.5px;color:var(--ink2)}
+.vc-dialog__plan{margin:10px 0;padding:9px 11px;border-radius:8px;background:rgba(127,127,160,.10);
+  font-family:var(--mono);font-size:11.5px;color:var(--ink);white-space:pre-wrap;word-break:break-all}
+.vc-dialog__ttl{font-size:11px;color:var(--faint);margin-bottom:8px}
+.vc-dialog__foot{display:flex;gap:8px;justify-content:flex-end;align-items:center;margin-top:12px}
+
+/* ---------- 其它工作树 / 提交历史行 ---------- */
+.vc-ow,.vc-hist{display:flex;align-items:baseline;gap:9px;padding:7px 6px;border-bottom:1px solid var(--hair);font-size:12.5px}
+.vc-ow:hover,.vc-hist:hover{background:rgba(127,127,160,.10);border-radius:8px}
+.vc-ow__name,.vc-hist__subject{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vc-ow__note,.vc-hist__when{flex:none;font-size:11px;color:var(--faint)}
+.vc-hist__oid{flex:none;font-family:var(--mono);font-size:11px;color:var(--mut)}
+.vc-hist__oid a{color:var(--mut);text-decoration:none}
+.vc-hist__oid a:hover{color:var(--blue)}
+
+/* ---------- 小标签 / 空态 / 骨架 / 提示 ---------- */
+.vc-chip{display:inline-flex;align-items:center;height:18px;padding:0 7px;border-radius:99px;
+  border:1px solid var(--hair2);font-size:10.5px;color:var(--mut)}
+.vc-empty{padding:26px 8px;text-align:center;color:var(--faint);font-size:12.5px}
+.vc-empty b{display:block;color:var(--ink2);font-size:13px;font-weight:650;margin-bottom:3px}
+.vc-skel{height:11px;border-radius:5px;background:linear-gradient(90deg,rgba(127,127,160,.16),rgba(127,127,160,.30),rgba(127,127,160,.16));
+  background-size:200% 100%;animation:vc-sh 1.4s linear infinite;margin:9px 0}
+@keyframes vc-sh{to{background-position:-200% 0}}
+.vc-tip{font-size:11.5px;color:var(--mut)}
+.vc-tip b{color:var(--ink2);font-weight:600}
+
+/* ---------- 控件图鉴页的排版 ---------- */
+.atlas{max-width:1060px;margin:0 auto;padding:0 18px 60px}
+.atlas__sec{margin:30px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--hair);display:flex;align-items:baseline;gap:10px}
+.atlas__sec h3{margin:0;font-size:13px;font-weight:650;letter-spacing:.02em}
+.atlas__sec span{font-size:11.5px;color:var(--faint)}
+.atlas__grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.spec{border:1px solid var(--hair);border-radius:12px;background:var(--paper);padding:13px 14px}
+.spec__name{font-size:11.5px;color:var(--faint);letter-spacing:.04em;margin-bottom:3px}
+.spec__key{font-family:var(--mono);font-size:11px;color:var(--mut);margin-bottom:10px;word-break:break-all}
+.spec__row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:9px}
+.spec__label{font-size:11px;color:var(--faint);min-width:56px}
