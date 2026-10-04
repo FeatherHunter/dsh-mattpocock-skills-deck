@@ -82,7 +82,7 @@ const LEAVES = [
   { file: 'src/client/statusbar/capFoldMachine.js', exports: ['runCapFold'], components: [] },
   // #842 版本管理写操作那一族的五个新叶子：vcRows 是从 vcBlocks 原样搬出的一层（腾行给写操作），
   //   另三个是写操作的纯规则 / 执行 / 画法。登在这里让「单文件 ≤350 行」与「产物已拼接」两条检查也覆盖到它们。
-  { file: 'src/client/views/versionControl/vcRows.js', exports: ['vcGroupOfRow', 'vcFileRowsOf', 'vcRowViewOf', 'vcOtherRowOf', 'vcReadsOf'], components: [] },
+  { file: 'src/client/views/versionControl/vcRows.js', exports: ['vcGroupOfRow', 'vcFileRowsOf', 'vcRowViewOf', 'vcOtherRowOf', 'vcReadsOf', 'vcDiffOpenKeyOf'], components: [] }, // #850：展开键两边共用这一个函数
   { file: 'src/client/views/versionControl/vcWrite.js', exports: ['VC_WRITE_OPS', 'VC_BLOCK_KEY', 'vcBlockKeyOf', 'vcReasonKeysOf', 'vcOpStateOf', 'vcPushDecisionOf', 'vcBlockedTipOf', 'vcPlanMismatchOf', 'VC_WRITE_ERR_FAMILY', 'vcWriteErrFamilyOf', 'vcWriteErrKeyOf', 'vcConfirmOf'], components: [] },
   { file: 'src/client/views/versionControl/vcWriteRun.js', exports: ['VC_WRITE_PHONES', 'vcRunCheck', 'vcRunWrite', 'vcOpResultOf', 'vcAfterWrite'], components: [] },
   { file: 'src/client/views/versionControl/vcWriteUi.js', exports: ['vcWriteUiOf', 'vcRowStageOf'], components: [] },

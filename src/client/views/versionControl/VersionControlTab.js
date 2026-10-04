@@ -135,8 +135,9 @@ export const VersionControlTab = function (props) {
 
   const tone = function (name) { return VC_TONE[name] || VC_TONE.primary }
   const retryScreen = function () { vcReadStatus(readsRef.current, callHost, cwd).then(function (next) { setReads(next) }) }
-  // 就地看差异：未提交那一层按路径当键，提交那一层按「修订号 + 路径」当键（同一个文件在两处的补丁是两回事）。
-  const diffKeyOf = function (row) { const rev = String(ui.openCommit || ''); return rev ? vcCommitKeyOf(rev, row.path) : String(row.path || '') }
+  // 就地看差异：展开键与块模型侧共用同一个函数（#850）—— 未提交那一层是「分组 + 路径」（同一个文件在两组各一行时各自展开），
+  //   提交那一层是「修订号 + 路径」（同一个文件在两处的补丁是两回事）。原来这里只按路径，点开时与块模型对不上，补丁块永远不画。
+  const diffKeyOf = function (row) { return vcDiffOpenKeyOf(row, ui.openCommit) }
   const loadDiff = function (row) {
     const rev = String(ui.openCommit || '')
     return rev ? vcReadCommitFileDiff(readsRef.current, callHost, cwd, rev, row.path) : vcReadDiff(readsRef.current, callHost, cwd, row.path, row.untracked === true)

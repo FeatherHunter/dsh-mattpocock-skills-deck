@@ -80,6 +80,7 @@ const EXPORTS = [
   'vcCommitListOf',
   'vcCommitModeOf',
   'vcConfirmOf',
+  'vcDiffOpenKeyOf',
   'vcDiffViewOf',
   'vcFailKeyOf',
   'vcFailureOf',
@@ -644,6 +645,50 @@ function groupJ(React, DswsCtx, TipStub, IcStub) {
   const card = doc9.querySelector('[data-vc-diff="lines"]')
   check(!!card && String(card.className).indexOf('dsws-vc-card') >= 0 && card.textContent.indexOf('新行') >= 0 && card.textContent.indexOf('旧行') >= 0,
     'J9 真渲染·补丁块：卡片类与差异行都在（class=' + (card ? card.className : '缺') + '，渲染错=' + (diffRender.err || '无') + '）')
+
+  // J10–J13：#850 —— 两组各自的文件行都能点开自己的补丁；同一路径在两组时互不串；键改回裸路径必须红。
+  const openKey = function (group, path) { return group + String.fromCharCode(0) + path }
+  const diffReadsOf = function (paths) {
+    const diffs = {}
+    paths.forEach(function (p2) { diffs[p2] = { state: 'ok', lines: [{ kind: 'add', text: '+新行' }], reason: 'ok', truncated: false, error: null } })
+    return Object.assign({}, readsOf(screen), { diffs: diffs })
+  }
+  const uiSeed = "openDiff: '', openCommit: '', write: { op: '', state: 'idle', message: '', confirm: null, result: null, remoteChoice: null }"
+  const renderOpen = function (key, reads, patchExtra) {
+    const v = buildView(function (s) {
+      let out = s.replace('React.useState(vcNewReads)', 'React.useState(function () { return seedReads })')
+      out = out.replace(uiSeed, 'openDiff: ' + JSON.stringify(key) + ", openCommit: '', write: { op: '', state: 'idle', message: '', confirm: null, result: null, remoteChoice: null }")
+      return patchExtra ? patchExtra(out) : out
+    }, React, DswsCtx, TipStub, IcStub, reads, [], trZh)
+    try { return require('react-dom/server').renderToStaticMarkup(React.createElement(v.VersionControlTab, { st: { cwd: 'D:/w/repo' } })) } catch (e) { return '' }
+  }
+  const rowsWithCard = function (html) {
+    const doc = new (require('jsdom').JSDOM)('<div id="m">' + html + '</div>').window.document
+    const out = []
+    Array.prototype.slice.call(doc.querySelectorAll('[data-vc-file]')).forEach(function (el) {
+      if (el.querySelector('[data-vc-diff]')) out.push(String(el.textContent || '').slice(0, 20))
+    })
+    return out
+  }
+  const staged10 = rowsWithCard(renderOpen(openKey('staged', 'a.txt'), diffReadsOf(['a.txt'])))
+  check(staged10.length === 1 && staged10[0].indexOf('a.txt') >= 0, 'J10 #850·已暂存组：点开 a.txt 画出它自己的补丁（含补丁的行：' + JSON.stringify(staged10) + '）')
+
+  const un11 = rowsWithCard(renderOpen(openKey('unstaged', 'b.txt'), diffReadsOf(['b.txt'])))
+  check(un11.length === 1 && un11[0].indexOf('b.txt') >= 0, 'J11 #850·未暂存组：点开 b.txt 画出它自己的补丁（含补丁的行：' + JSON.stringify(un11) + '）')
+
+  const dual = screenOf({ staged: [fileOf('x.txt', 'staged')], stagedCount: 1, unstaged: [fileOf('x.txt', 'unstaged')], unstagedCount: 1 })
+  const dualReads = Object.assign({}, readsOf(dual), { diffs: { 'x.txt': { state: 'ok', lines: [{ kind: 'add', text: '+新行' }], reason: 'ok', truncated: false, error: null } } })
+  const dualOpen = rowsWithCard(renderOpen(openKey('staged', 'x.txt'), dualReads))
+  const dualBoth = rowsWithCard(renderOpen(openKey('unstaged', 'x.txt'), dualReads))
+  const dualDoc = new (require('jsdom').JSDOM)('<div id="m">' + renderOpen(openKey('staged', 'x.txt'), dualReads) + '</div>').window.document
+  const dualRows = Array.prototype.slice.call(dualDoc.querySelectorAll('[data-vc-file]'))
+  const onlyFirst = dualRows.length === 2 && !!dualRows[0].querySelector('[data-vc-diff]') && !dualRows[1].querySelector('[data-vc-diff]')
+  check(dualOpen.length === 1 && dualBoth.length === 1 && onlyFirst, 'J12 #850·同一路径在两组时互不串：展开键带分组，一次只开一行（已暂存键=' + JSON.stringify(dualOpen) + '，未暂存键=' + JSON.stringify(dualBoth) + '，只有第一行开=' + onlyFirst + '）')
+
+  const bareHtml = renderOpen(openKey('staged', 'a.txt'), diffReadsOf(['a.txt']), function (s) {
+    return s.replace("  return String(r.group || '') + '\\u0000' + String(r.path || '')", "  return String(r.path || '')")
+  })
+  check(rowsWithCard(bareHtml).length === 0, 'J13 反证：把展开键改回裸路径 → J10 那条当场不成立（含补丁的行：' + JSON.stringify(rowsWithCard(bareHtml)) + '）')
 }
 
 

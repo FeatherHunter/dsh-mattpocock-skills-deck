@@ -104,6 +104,22 @@ export const vcOtherRowOf = function (w, t) {
     stateTip: stateTip,
   }
 }
+/**
+ * 展开某一行的键（#850）：未提交那一层是「分组 + \u0000 + 路径」，提交那一层是「rev + \u0000 + 路径」。
+ *
+ * 为什么键里必须有分组：同一个路径可以同时出现在「已暂存」和「未暂存」两组里（同一个文件两段改动），
+ *   两行要各自能展开；只拿路径当键，两行会一起开，也说不清「点开的到底是哪一行」。
+ * 为什么放在这里：界面侧（VersionControlTab 的 diffKeyOf）与块模型侧（vcBlocksOf 的 diffKeyOf）
+ *   都调这一个函数 —— 只有一处定义，两边就不会再对不上（#850 的根因就是各写各的）。
+ * 提交那一层沿用 vcCommitKeyOf（rev + \u0000 + 路径），行为与 #850 之前一致。
+ */
+export const vcDiffOpenKeyOf = function (row, commitMode) {
+  const r = row || {}
+  const rev = String(commitMode || '')
+  if (rev) return vcCommitKeyOf(rev, r.path)
+  return String(r.group || '') + '\u0000' + String(r.path || '')
+}
+
 /** 一个字都不用改的日常读数（门禁与界面都读它，保证两边看的是一份东西）。 */
 export const vcReadsOf = function (reads, path) {
   const r = reads || {}

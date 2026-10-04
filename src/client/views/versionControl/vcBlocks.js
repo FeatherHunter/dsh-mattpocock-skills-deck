@@ -157,7 +157,8 @@ export const vcBlocksOf = function (screen, reads, ui, env) {
   const openDiff = ui && ui.openDiff ? String(ui.openDiff) : ''
   // 展开键：未提交那一层把「哪一组」也算进去 —— 同一个文件在已暂存与未暂存各有一行时，
   //   点开其中一行只展开那一行，不会两行一起开。差异数据本身仍按路径存一份（同一份补丁）。
-  const diffKeyOf = function (r) { return commitMode ? vcCommitKeyOf(commitMode, r.path) : (String(r.group || '') + '\u0000' + String(r.path || '')) }
+  // 展开键与界面侧共用同一个函数（#850）：这里原来自己拼一份，界面侧按路径判，两边对不上就打不开。
+  const diffKeyOf = function (r) { return vcDiffOpenKeyOf(r, commitMode) }
   const rowViewOf = function (r) {
     const key = diffKeyOf(r)
     const entry = commitMode ? ((reads && reads.commitDiffs) || {})[key] : vcReadsOf(reads, r.path)
