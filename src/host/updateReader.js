@@ -24,10 +24,13 @@ function inside(directory, filename) {
 }
 
 async function readOptional(filename) {
+  // #849：缺文件判据走共享的 ./fsAbsence.js（DSH fs 服务的缺失 code 是 FS_NOT_FOUND，不是 ENOENT）。
+  let _fsAbsP = null
+  function fsAbsence() { if (!_fsAbsP) _fsAbsP = import('./fsAbsence.js'); return _fsAbsP }
   try {
     return await readFile(filename, 'utf8')
   } catch (error) {
-    if (error && error.code === 'ENOENT') return ''
+    if ((await fsAbsence()).isAbsenceError(error)) return ''
     throw error
   }
 }

@@ -164,7 +164,7 @@ export function createChoiceStore(deps) {
       if (st && finiteNumber(st.size) && st.size > maxFileBytes) return bad('too-large')
       text = await fsPort.readFile(paths.file, 'utf8')
     } catch (e) {
-      if (e && e.code === 'ENOENT') return { ok: true, missing: true, unreadable: false, reason: 'missing', data: emptyChoices(), dropped: 0 }
+      if (e && (e.code === 'ENOENT' || e.code === 'ENOTDIR' || e.code === 'FS_NOT_FOUND')) return { ok: true, missing: true, unreadable: false, reason: 'missing', data: emptyChoices(), dropped: 0 }
       return bad('read-fail')
     }
     let parsed = null
