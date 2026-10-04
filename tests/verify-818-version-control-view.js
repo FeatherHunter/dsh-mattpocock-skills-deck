@@ -27,10 +27,19 @@ const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL '
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 const NOW = Date.parse('2026-10-04T02:00:00+08:00')
 const VC_FILES = [
+  // #842：判定真源（界面按它画按钮状态，不自己算）与写操作那五个新叶子也拼进这个闭包 ——
+  //   入口组件 VersionControlTab.js 会调它们，缺一个就会在渲染那一帧抛错（G 组抓的就是这个）。
+  'src/shared/version-control/rules.js',
   'src/client/views/versionControl/vcText.js',
   'src/client/views/versionControl/vcFold.js',
   'src/client/views/versionControl/vcDiff.js',
   'src/client/views/versionControl/vcCommit.js',
+  'src/client/views/versionControl/vcRows.js', // #842 从 vcBlocks 原样搬出的那一层（闭包里排在 vcBlocks 之前）
+  'src/client/views/versionControl/vcWrite.js',
+  'src/client/views/versionControl/vcWriteRun.js',
+  'src/client/views/versionControl/vcWriteUi.js',
+  'src/client/views/versionControl/vcWriteOps.js',
+  'src/client/views/versionControl/vcWriteView.js',
   'src/client/views/versionControl/vcBlocks.js',
   'src/client/views/versionControl/vcTabVisible.js',
   'src/client/views/versionControl/vcData.js',
@@ -135,6 +144,18 @@ function envOf(screen, reads, width) {
 const blockOf = (blocks, kind) => blocks.filter((b) => b.kind === kind)[0] || null
 const allText = (blocks) => JSON.stringify(blocks)
 const rowsOf = (blocks) => { const c = blockOf(blocks, 'changes'); return c ? c.groups.reduce((a, g) => a.concat(g.rows), []) : [] }
+/** 从某个 `React.useEffect(function () {` 的起点取出它的函数体（花括号配对）；取不到回空串。 */
+function effectBodyAfter(src, at) {
+  const open = src.indexOf('{', at)
+  if (open < 0) return ''
+  let depth = 0
+  for (let i = open; i < src.length; i++) {
+    const c = src.charAt(i)
+    if (c === '{') depth += 1
+    else if (c === '}') { depth -= 1; if (depth === 0) return src.slice(open + 1, i) }
+  }
+  return ''
+}
 
 // ============================================================
 async function main() {
@@ -142,9 +163,12 @@ async function main() {
   // 真字典：两份词条模块都是纯 ESM，可以直接 import 进来读它们的 zh / en 两个对象。
   const panelMod = await import(pathToFileURL(path.join(ROOT, 'src', 'client', 'kernel', 'locale-panel.js')).href)
   const flowMod = await import(pathToFileURL(path.join(ROOT, 'src', 'client', 'kernel', 'locale-flow.js')).href)
+  // #842：写操作那一族的词条自成一个片段（locale-panel 与 locale-flow 都在上限上），这里一并读真字典。
+  const vcWriteMod = await import(pathToFileURL(path.join(ROOT, 'src', 'client', 'kernel', 'locale-vcwrite.js')).href)
   const L_PANEL = panelMod.L_PANEL
   const L_FLOW = flowMod.L_FLOW
-  LOC = { zh: Object.assign({}, L_PANEL.zh, L_FLOW.zh), en: Object.assign({}, L_PANEL.en, L_FLOW.en) }
+  const L_VCWRITE = vcWriteMod.L_VCWRITE
+  LOC = { zh: Object.assign({}, L_PANEL.zh, L_FLOW.zh, L_VCWRITE.zh), en: Object.assign({}, L_PANEL.en, L_FLOW.en, L_VCWRITE.en) }
   tZh = (k, p) => fill(LOC.zh[k] !== undefined ? LOC.zh[k] : k, p)
   tEn = (k, p) => fill(LOC.en[k] !== undefined ? LOC.en[k] : k, p)
   VIEW = buildView(null, [])
@@ -585,7 +609,10 @@ async function main() {
   const commitSeed = { screen: { state: 'ok', data: { screen: commitScreen, tier: 'full', gitVersion: 'git version 2.49.0', readAtMs: NOW }, error: null }, diffs: {}, commit: commitEntry(), commitDiffs: {}, log: { state: 'idle', commits: [], hasMore: false, fetched: 0, error: null } }
   const renderCommit = buildView(function (s) {
     return s.replace('React.useState(vcNewReads)', 'React.useState(function () { return seedReads })')
-      .replace("React.useState(function () { return { fileShown: {}, openDiff: '', openCommit: '' } })", "React.useState(function () { return { fileShown: {}, openDiff: '', openCommit: '" + REV1 + "' } })")
+      // #842：组件的 ui 初始状态多了 write 那一格，这里改成打最短的稳定锚点（原先把整句写死，
+      //   源码一改就对不上、S13/S14 会假红）。锚点必须带上 write 那一格：vcData.js 的 vcFreshOnCwd
+      //   返回值里有同样一段字，而它在闭包里排在组件前面，不带 write 会打到那一份上。
+      .replace("openDiff: '', openCommit: '', write:", "openDiff: '', openCommit: '" + REV1 + "', write:")
   }, [], React, DswsCtx, TipStub, IcStub, commitSeed)
   let html3 = ''
   let renderErr3 = ''
@@ -624,7 +651,27 @@ async function main() {
   const emptyCwdBlocks = VIEW.vcBlocksOf(null, VIEW.vcNewReads(), {}, { t: tZh, nowMs: NOW, cwdEmpty: true, fold: VIEW.vcFoldOf(460, {}) })
   check(emptyCwdBlocks.length === 1 && emptyCwdBlocks[0].text === '这个会话还没有工作区，读不到版本信息' && emptyCwdBlocks[0].retry === '', 'G13 空 cwd 画出那句如实的空态（不是读取失败，所以不给重试）')
   const cwdGuardSrc = read('src/client/views/versionControl/VersionControlTab.js')
-  check(cwdGuardSrc.indexOf('const cwdEmpty = !vcShouldRead(cwd)') >= 0 && /React\.useEffect\(function \(\) \{\n    if \(!cwd\) return/.test(cwdGuardSrc), 'G14 组件里那道闸：空 cwd 时读取效果第一句就返回（不发电话），空态走 cwdEmpty 那条路')
+  // #845b：G14 的判据从「字节形状」改成「行为形状」。旧写法要求 effect 的下一行恰好是四空格缩进的
+  //   `if (!cwd) return` —— 真源一被格式化（换缩进、折行、中间插一行注释）就判红，而守卫其实还在。
+  //   现在两问：① `cwdEmpty` 仍由 `vcShouldRead(cwd)` 取反得到（空白怎么写都行）；
+  //   ② 找到**函数体里调 `vcReadStatus(` 的那个 `React.useEffect`**（就是读取那一个），花括号配对取出
+  //   函数体、去掉注释与多余空白后，断言第一句可执行语句是 `if (!cwd) return` —— 空 cwd 时它先返回，
+  //   一个电话都不发。把守卫删掉、或挪到调用之后，这条当场红。
+  let readEffectBody = ''
+  {
+    const effRe = /React\.useEffect\(function \(\) \{/g
+    let em
+    while ((em = effRe.exec(cwdGuardSrc))) {
+      const body = effectBodyAfter(cwdGuardSrc, em.index)
+      if (body.indexOf('vcReadStatus(') >= 0) { readEffectBody = body; break }
+    }
+  }
+  const readFirstStmt = readEffectBody
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/(^|[^:\w])\/\/[^\n]*/g, '$1 ')
+    .trim()
+    .replace(/\s+/g, ' ')
+  check(/const\s+cwdEmpty\s*=\s*!\s*vcShouldRead\(\s*cwd\s*\)/.test(cwdGuardSrc) && /^if\s*\(\s*!cwd\s*\)\s*return(?![A-Za-z0-9_$])/.test(readFirstStmt), 'G14 组件里那道闸：空 cwd 时读取效果第一句就返回（不发电话），空态走 cwdEmpty 那条路')
   let htmlNoCwd = ''
   let noCwdCalls = 0
   try {

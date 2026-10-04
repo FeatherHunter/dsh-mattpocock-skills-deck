@@ -235,11 +235,29 @@ const loadBroken = async function (tag, from, to) {
   return { mod: await import(pathToFileURL(file).href) }
 }
 
+/**
+ * 按**语义锚点**（正则）做坏一份真源（#845b）：锚点描述「这段代码在做一件什么形状的事」，
+ * 而不是某一段带缩进的字节 —— 缩进、换行、空格怎么变都还认得出来。
+ * 找不到就回 bad（门禁当场红），提示里写清找的是什么行为，免得下次又靠猜。
+ * 为什么要有这一份：B1 原来锚的是「六空格缩进的两整行」，真源只要被格式化一下（换缩进、折行），
+ * 门禁就报「源文本已变」自己变红 —— 那不是产品坏了，是门禁把字节当成了行为。
+ */
+const loadBrokenRe = async function (tag, re, to, what) {
+  if (!re.test(src)) return { bad: '这道反证的语义锚点在真源里找不到落点（找的是：' + what + '）' }
+  const file = path.join(brokenDir, tag + '.mjs')
+  fs.writeFileSync(file, src.replace(re, to), 'utf8')
+  return { mod: await import(pathToFileURL(file).href) }
+}
+
 // B1 去掉原子写（临时文件 + 改名）→ 直接写目标文件
+//   #845b：锚点从「带缩进的整段字节」换成**行为形状** —— 只要真源还在做「先写临时文件（带 wx 独占标志）、
+//   再把它改名成正式文件」这件事，缩进或换行怎么变都认得出来；真源不再做这件事时，下面那条
+//   check(!b.bad) 当场红，提示里会写清找的是哪一步行为。
+const ATOMIC_WRITE_RE = /await\s+fsPort\.writeFile\(\s*tmp\s*,\s*body\s*,\s*\{[^}]*flag:\s*'wx'[^}]*\}\s*\)\s*[\r\n]+\s*await\s+fsPort\.rename\(\s*tmp\s*,\s*paths\.file\s*\)/
 {
-  const b = await loadBroken('no-atomic',
-    "      await fsPort.writeFile(tmp, body, { mode: 0o600, flag: 'wx' })\n      await fsPort.rename(tmp, paths.file)",
-    "      await fsPort.writeFile(paths.file, body, { mode: 0o600 })")
+  const b = await loadBrokenRe('no-atomic', ATOMIC_WRITE_RE,
+    "      await fsPort.writeFile(paths.file, body, { mode: 0o600 })",
+    '先写临时文件（带 wx 独占标志）再改名成正式文件这一步')
   check(!b.bad, '反证 B1 的改法能在真源里落地（去掉临时文件加改名）' + (b.bad ? ' —— ' + b.bad : ''))
   if (b.mod) {
     const home = makeHome()
