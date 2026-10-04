@@ -8,6 +8,12 @@
 //   ② 自名递归排期 —— 一个函数体里排了「再叫我自己」的一次定时器（从前命名守护的
 //      namingLoopTick、客户端的 namingGuardianKick 的 tick、链的 scheduleChainAutoRefresh 都是这一种）。
 // 一次性的防抖、超时、退场动画、有次数上限的重试都不算（它们会自己停下来），本文件不把它们判红。
+//   「有次数上限」怎么认（2026-10-04 补齐：这条规则原先只写在上一行注释里、识别逻辑没实现，
+//   于是 src/client/kernel/api-io.js 那次「最多补一次」的重试被误判成了自续定时器）：排期那一句
+//   真的被一个 if 包着，条件是「计数变量 < 上限」或「计数变量 <= 上限」，上限是数字字面量或本文件里
+//   以数字字面量赋值的常量，而且这个计数变量在同一个函数体里真的被加过。三条缺一条都按无上限处理，
+//   继续判红 —— 只写不增的计数器等于没有上限。setInterval 不走这条：它的停止要靠 clearInterval，
+//   本规则不认那种形状，一律继续算自续。
 //
 // 本文件同时钉住两件与之配套的事：本票点名的四处删除点确实清了零，刷新决策确实由
 // refresh-core 的纯函数（退避 / 全绿缓存）说了算。
@@ -66,9 +72,12 @@ function walk(dir, acc) {
   return acc
 }
 
-/** 去掉注释再扫：注释里提到 setInterval 不算（我们把删除写在注释里说明也是常见做法）。 */
+/** 去掉注释再扫：注释里提到 setInterval 不算（我们把删除写在注释里说明也是常见做法）。
+ *  块注释替换成等量空格、换行一个不少 —— 这样下面报出来的行号就是文件里的真行号
+ *  （从前整块换成一个空格，块注释里的换行跟着丢，行号会往前漂）；同一条写法见
+ *  tests/verify-no-same-layer-import.js。 */
 function stripComments(text) {
-  return text.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/([^:\w])\/\/[^\n]*/g, '$1')
+  return text.replace(/\/\*[\s\S]*?\*\//g, function (m) { return m.replace(/[^\n]/g, ' ') }).replace(/([^:\w])\/\/[^\n]*/g, '$1')
 }
 
 /** 从某个声明处起，用花括号配对找出这个函数的函数体范围。 */
@@ -84,7 +93,67 @@ function bodySpan(code, declIndex) {
   return null
 }
 
-/** 这个文件里所有「自续定时器」的坐标。 */
+/** 括号配对：给一个左括号的下标，回它配对的右括号下标（找不到回 -1）。 */
+function matchingParen(code, openIndex) {
+  let depth = 0
+  for (let i = openIndex; i < code.length; i++) {
+    const c = code.charAt(i)
+    if (c === '(') depth++
+    else if (c === ')') { depth--; if (depth === 0) return i }
+  }
+  return -1
+}
+
+/** 一个常量名在本文件里有没有数字字面量的定义（const/let/var NAME = 123）；没有回 null。 */
+function numericConstantOf(code, name) {
+  const re = new RegExp('(?:^|[^\\w$])(?:const|let|var)\\s+' + name + '\\s*=\\s*(\\d+)')
+  const m = re.exec(code)
+  return m ? Number(m[1]) : null
+}
+
+/**
+ * 这一处自名递归排期是不是「有明确次数上限的重试」（是就回 { counter, cap }，不是回 null）。
+ * 三条同时成立才算，缺一条都按无上限处理、继续判红：
+ *   ① 排期那一句真的落在某个 if 管住的语句或语句块里面；
+ *   ② 那个 if 的条件是「计数变量 < 上限」或「计数变量 <= 上限」，上限是数字字面量，
+ *      或是本文件里以数字字面量赋值的常量（例如 const MAX_TRIES = 3）；
+ *   ③ 这个计数变量在同一个函数体里真的被加过（++、+= 或 = 自己 + n）。
+ * 判据看的是「这个形状」，不做数据流分析：一个函数里另有一个无关的计数器也可能让它判成有上限，
+ * 这是有意选的保守边 —— 宁可少放行一处，也不把真正的自续循环放过去。
+ */
+function boundedRetryOf(code, body, callAt) {
+  const ifRe = /if\s*\(/g
+  let m
+  while ((m = ifRe.exec(body))) {
+    const open = m.index + m[0].length - 1
+    const close = matchingParen(body, open)
+    if (close < 0) continue
+    // 这一句 if 管住的范围：紧跟的 { ... }，或者到分号为止的单句。
+    let start = close + 1
+    while (start < body.length && /\s/.test(body.charAt(start))) start++
+    let end = -1
+    if (body.charAt(start) === '{') {
+      const span = bodySpan(body, start)
+      if (span) end = span.end
+    } else {
+      end = body.indexOf(';', start)
+      if (end < 0) end = body.length
+    }
+    if (end < 0 || callAt < start || callAt > end) continue
+    const cond = body.slice(open + 1, close)
+    const cm = /([A-Za-z_$][\w$]*)\s*(<=|<)\s*(\d+|[A-Za-z_$][\w$]*)/.exec(cond)
+    if (!cm) continue
+    const counter = cm[1]
+    const cap = /^\d+$/.test(cm[3]) ? Number(cm[3]) : numericConstantOf(code, cm[3])
+    if (cap === null || !(cap > 0)) continue
+    const incRe = new RegExp(counter + '\\s*(?:\\+\\+|\\+=)|\\+\\+\\s*' + counter + '|' + counter + '\\s*=\\s*' + counter + '\\s*\\+')
+    if (!incRe.test(body)) continue
+    return { counter: counter, cap: cap }
+  }
+  return null
+}
+
+/** 这个文件里所有「自续定时器」的坐标（自名递归那一档会带上 bounded：有次数上限时为 { counter, cap }）。 */
 function selfContinuingSites(code) {
   const sites = []
   const iv = /setInterval\s*\(/g
@@ -106,7 +175,11 @@ function selfContinuingSites(code) {
     if (!/function|=>/.test(head)) continue
     const body = code.slice(span.start, span.end)
     const selfRe = new RegExp('(?:timer\\.timeout|timer\\.setTimeout|setTimeout|setInterval)\\s*\\(\\s*' + name + '\\b')
-    if (selfRe.test(body)) sites.push({ kind: 'self-recursive', name: name, index: d.index })
+    const at = body.search(selfRe)
+    // 行号要报在声明自己那一行：声明正则把行首那个换行一起吃掉了，直接用 d.index 会少算一行，
+    //   所以取名字在匹配文本里的位置（它在声明那一行上）。
+    const declAt = d.index + d[0].lastIndexOf(name)
+    if (at >= 0) sites.push({ kind: 'self-recursive', name: name, index: declAt, bounded: boundedRetryOf(code, body, at) })
   }
   return sites
 }
@@ -119,6 +192,7 @@ const files = Array.from(new Set(scanned))
 const unknown = []
 const allowed = []
 const declared = []
+const bounded = []
 for (const abs of files) {
   const rel = relative(ROOT, abs)
   let code = ''
@@ -129,6 +203,8 @@ for (const abs of files) {
     const line = code.slice(0, s.index).split('\n').length
     const item = { rel: rel.split(sep).join('/'), line: line, kind: s.kind + (s.name ? ':' + s.name : '') }
     if (LINGER_ALLOWED.some(function (re) { return re.test(item.rel) })) { allowed.push(item); continue }
+    // 识别逻辑认出来的「有次数上限的重试」：会自己停下来，不是自续定时器，直接归这一档。
+    if (s.bounded) { bounded.push(Object.assign({}, item, { counter: s.bounded.counter, cap: s.bounded.cap })); continue }
     if (DECLARED_EXCEPTIONS.some(function (x) { return x.match.test(item.rel) })) { declared.push(item); continue }
     unknown.push(item)
   }
@@ -139,9 +215,32 @@ check(files.length > 100, '扫描到 src/** 与 src/client/** 下的 .js 文件�
 
 console.log('\n— 硬断言：除 30 秒收尾定时器外没有自续定时器 —')
 console.log('  放行（30 秒收尾定时器）：' + (allowed.length ? allowed.map(function (x) { return x.rel + ':' + x.line }).join('、') : '（今天还没有落地）'))
+console.log('  有次数上限的重试（识别逻辑按形状认出来的，不算自续）：')
+for (const x of bounded) console.log('    ' + x.rel + ':' + x.line + ' [' + x.kind + '，' + x.counter + ' < ' + x.cap + ']')
 console.log('  声明例外（逐条写了理由，见本文件 DECLARED_EXCEPTIONS）：')
 for (const x of declared) console.log('    ' + x.rel + ':' + x.line + ' [' + x.kind + ']')
 check(unknown.length === 0, '全库没有任何「不在放行名单、也不在声明例外名单」的自续定时器', unknown.length ? JSON.stringify(unknown) : '')
+
+console.log('\n— 识别逻辑自检：有次数上限的放行、无上限的照抓 —')
+{
+  // 这一段把识别逻辑本身当被测对象：拿六段合成代码喂进去，看它认出来的那一档对不对。
+  // 前三段是「应该放行」的正例，后三段是「应该继续判红」的反证 —— 把上限去掉、把计数器改成只比不增、
+  // 把排期挪到 if 外面、或者换成 setInterval，都必须当场认回自续。
+  const cases = [
+    { label: '最多补一次的重试（api-io.js 那个形状）', want: false, code: 'function f() {\n  var attempts = 0\n  var run = function () {\n    attempts += 1\n    if (attempts < 2) { setTimeout(run, 120) }\n  }\n  run()\n}' },
+    { label: '上限写成文件里的常量', want: false, code: 'const MAX_TRIES = 3\nfunction f() {\n  var n = 0\n  var run = function () {\n    n += 1\n    if (n < MAX_TRIES) { setTimeout(run, 100) }\n  }\n  run()\n}' },
+    { label: '上限写成 <= 的形式', want: false, code: 'function f() {\n  var n = 0\n  var run = function () {\n    n++\n    if (n <= 5) { setTimeout(run, 100) }\n  }\n  run()\n}' },
+    { label: '反证：去掉那个 if，变成无上限自续', want: true, code: 'function f() {\n  var run = function () {\n    setTimeout(run, 120)\n  }\n  run()\n}' },
+    { label: '反证：计数器只比不增（等于没有上限）', want: true, code: 'function f() {\n  var attempts = 0\n  var run = function () {\n    if (attempts < 2) { setTimeout(run, 120) }\n  }\n  run()\n}' },
+    { label: '反证：排期在 if 外面，上限管不着它', want: true, code: 'function f() {\n  var attempts = 0\n  var run = function () {\n    attempts += 1\n    if (attempts < 2) { }\n    setTimeout(run, 120)\n  }\n  run()\n}' },
+    { label: '反证：setInterval 即使带计数器也不放行', want: true, code: 'function f() {\n  var n = 0\n  var run = function () {\n    n += 1\n    if (n < 2) { setInterval(run, 120) }\n  }\n  run()\n}' },
+  ]
+  for (const c of cases) {
+    const sites = selfContinuingSites(stripComments(c.code))
+    const stillSelfContinuing = sites.some(function (s) { return !s.bounded })
+    check(stillSelfContinuing === c.want, '识别自检：' + c.label + '（应判' + (c.want ? '自续、继续红' : '有次数上限、不算自续') + '，实得 ' + (stillSelfContinuing ? '自续' : '有次数上限') + '）')
+  }
+}
 
 console.log('\n— 本票点名的四处删除点：确实是零 —')
 {
@@ -154,8 +253,8 @@ console.log('\n— 本票点名的四处删除点：确实是零 —')
   for (const rel of mustBeZero) {
     let code = ''
     try { code = stripComments(readFileSync(join(ROOT, rel), 'utf8')) } catch (e) { check(false, rel + ' 可读', String(e.message)); continue }
-    const sites = selfContinuingSites(code)
-    check(sites.length === 0, rel + ' 里没有自续定时器', JSON.stringify(sites.map(function (s) { return s.kind })))
+    const sites = selfContinuingSites(code).filter(function (s) { return !s.bounded })
+    check(sites.length === 0, rel + ' 里没有自续定时器（有次数上限的重试不算）', JSON.stringify(sites.map(function (s) { return s.kind })))
   }
   // 退掉的老名字一个都不许回来（回来了说明有人把旧循环又抄了一遍）。
   // 判据只看代码、去掉注释：施工说明里写「从前那个 15 秒 tick 叫 NAMING_TICK_MS」是应该的，
