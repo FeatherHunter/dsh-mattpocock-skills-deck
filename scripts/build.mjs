@@ -401,6 +401,7 @@ const LEAF_MODULES = [
   //   按依赖次序登记，六项都排在 tabs 之前（Tabs.js 按 vcTabVisible 决定这个页签显不显示）。
   { id: 'vcText', file: 'src/client/views/versionControl/vcText.js' },
   { id: 'vcFold', file: 'src/client/views/versionControl/vcFold.js' },
+  { id: 'vcDiff', file: 'src/client/views/versionControl/vcDiff.js' }, // #819 审查后从 vcBlocks 拆出：一处差异该怎么画（那个文件贴着 350 行）
   { id: 'vcCommit', file: 'src/client/views/versionControl/vcCommit.js' }, // 规格故事 32：「这笔提交改了什么」那一层（排在 vcBlocks 之前，行是 vcBlocks 现传进去的同一份）
   { id: 'vcBlocks', file: 'src/client/views/versionControl/vcBlocks.js' },
   { id: 'vcTabVisible', file: 'src/client/views/versionControl/vcTabVisible.js' },

@@ -229,7 +229,7 @@ export default {
     // ==== leaf:checksums (spliced by build) ====
     // ==== leaf:chainRenderer (spliced by build) ====
     // ==== leaf:skillFloatList (spliced by build) ====
-    // ==== leaf:vcText (spliced by build) ==== // ==== leaf:vcFold (spliced by build) ==== // ==== leaf:vcCommit (spliced by build) ==== // ==== leaf:vcBlocks (spliced by build) ====
+    // ==== leaf:vcText (spliced by build) ==== // ==== leaf:vcFold (spliced by build) ==== // ==== leaf:vcDiff (spliced by build) ==== // ==== leaf:vcCommit (spliced by build) ==== // ==== leaf:vcBlocks (spliced by build) ====
     // ==== leaf:vcTabVisible (spliced by build) ==== // ==== leaf:vcData (spliced by build) ==== // ==== leaf:versionControlTab (spliced by build) ====
     // ==== leaf:tabs (spliced by build) ====
     // ==== leaf:truthLines (spliced by build) ====

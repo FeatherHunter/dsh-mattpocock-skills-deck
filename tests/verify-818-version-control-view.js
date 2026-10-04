@@ -29,6 +29,7 @@ const NOW = Date.parse('2026-10-04T02:00:00+08:00')
 const VC_FILES = [
   'src/client/views/versionControl/vcText.js',
   'src/client/views/versionControl/vcFold.js',
+  'src/client/views/versionControl/vcDiff.js',
   'src/client/views/versionControl/vcCommit.js',
   'src/client/views/versionControl/vcBlocks.js',
   'src/client/views/versionControl/vcTabVisible.js',
@@ -47,12 +48,13 @@ let tEn = (k) => k
 
 // ---------- 界面侧闭包：照 scripts/build.mjs 的做法把六个叶子拼起来再跑 ----------
 function stripExports(text) { return text.replace(/^(\s*)export\s+/gm, '$1') }
-const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_DIFF_LINES_SHOWN', 'VC_BLOCK_ORDER', 'VC_TONE', 'VC_MIDDLE_MIN',
+const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_DIFF_LINES_SHOWN', 'VC_BLOCK_ORDER', 'VC_TONE', 'VC_MIDDLE_MIN', 'VC_FOLD_STEP_CAP', 'VC_SYNC_VALUES', 'VC_DIFF_REASON_KEY',
   'vcFailKeyOf', 'vcFileRowsOf', 'vcDiffViewOf', 'vcSyncViewOf', 'vcOtherRowOf', 'vcReadsOf', 'vcBlocksOf',
   'vcChangeKeyOf', 'vcChangeToneOf', 'vcTail', 'vcMiddle', 'vcShortOid', 'vcPlusMinus', 'vcTimeKind',
   'vcWhenText', 'vcBasisText', 'vcFoldBandAt', 'vcFoldDataOf', 'vcFoldLadderOf', 'vcFoldStateAt', 'vcFoldOf',
   'vcTabVisible', 'vcNewReads', 'vcFailureOf', 'vcReadStatus', 'vcReadDiff', 'vcReadMoreCommits', 'vcNextSkipOf',
   'vcCommitKeyOf', 'vcReadCommitFiles', 'vcReadCommitFileDiff', 'vcCommitModeOf', 'vcCommitBlockOf', 'vcShouldRead',
+  'vcFreshOnCwd', 'vcScreenShapeOk', 'vcApplyCommitReply', 'vcMarkLogLoading', 'vcOneLine',
   'VersionControlTab']
 function buildView(patch, logs, React, DswsCtx, Tip, Ic, seedReads, hostStub) {
   let src = VC_FILES.map((f) => stripExports(read(f))).join('\n')
@@ -110,7 +112,7 @@ function makeHostDeps(route) {
 // ---------- 模型与读数的现成件 ----------
 function screenOf(over) {
   const base = {
-    identity: { worktreeDisplay: 'repo', worktreePath: 'D:/w/repo', branch: 'main', detached: false, oid: 'a'.repeat(40), sync: 'tracked-fresh', ahead: 0, behind: 0, basisMs: NOW - 3600000 },
+    identity: { worktreeDisplay: 'repo', worktreePath: 'D:/w/repo', branch: 'main', detached: false, oid: 'a'.repeat(40), sync: 'tracked-known', ahead: 0, behind: 0, basisMs: NOW - 3600000 },
     staged: [], unstaged: [], stagedCount: 0, unstagedCount: 0, conflictCount: 0,
     otherWorktrees: [], branches: [], commits: [],
     repo: { merging: false, rebasing: false, cherryPicking: false, reverting: false, hasCommits: true, bare: false, tier: 'full', autocrlf: null },
@@ -158,7 +160,7 @@ async function main() {
   check(leafOrder.every((i) => i > 0) && leafOrder.every((i, k) => k === 0 || i > leafOrder[k - 1]), 'A4 六个叶子按依赖次序登记在 LEAF_MODULES 里')
   check(buildSrc.indexOf("src/client/views/versionControl/vcText.js") < buildSrc.indexOf("file: 'src/client/views/shared/Tabs.js'"), 'A5 新叶子排在 tabs 之前（Tabs.js 要按 vcTabVisible 判显隐）')
   const idxSrc = read('src/client/index.js')
-  const VC_IDS = ['vcText', 'vcFold', 'vcCommit', 'vcBlocks', 'vcTabVisible', 'vcData', 'versionControlTab']
+  const VC_IDS = ['vcText', 'vcFold', 'vcDiff', 'vcCommit', 'vcBlocks', 'vcTabVisible', 'vcData', 'versionControlTab']
   check(VC_IDS.every((id) => idxSrc.indexOf('leaf:' + id + ' (spliced') >= 0), 'A6 index.js 里六个拼接标记齐备（标记 id 就是 LEAF_MODULES 登记的那个）')
   check(idxSrc.indexOf('leaf:vcText (spliced') < idxSrc.indexOf('leaf:tabs (spliced'), 'A7 六个标记排在 tabs 标记之前')
 
@@ -212,11 +214,11 @@ async function main() {
   const gId = blockOf(VIEW.vcBlocksOf(gone, readsOf(gone), {}, envOf(gone, readsOf(gone))), 'identity')
   check(gId.sync.text === '推送目标已经不存在', 'C4 推送目标在远端被删：明说「推送目标已经不存在」')
 
-  const stale = screenOf({ identity: { sync: 'tracked-stale', ahead: 3, behind: 1, basisMs: null } })
+  const stale = screenOf({ identity: { sync: 'tracked-unknown', ahead: 3, behind: 1, basisMs: null } })
   const sId = blockOf(VIEW.vcBlocksOf(stale, readsOf(stale), {}, envOf(stale, readsOf(stale))), 'identity')
   check(sId.sync.text === '领先 3 个提交，落后 1 个提交' && sId.sync.basis === '远端信息什么时候更新的读不到', 'C5 有推送目标但依据时间读不到：数字照常写，依据如实说读不到')
 
-  const fresh = screenOf({ identity: { sync: 'tracked-fresh', ahead: 2, behind: 0, basisMs: NOW - 3 * 24 * 3600 * 1000 } })
+  const fresh = screenOf({ identity: { sync: 'tracked-known', ahead: 2, behind: 0, basisMs: NOW - 3 * 24 * 3600 * 1000 } })
   const fId = blockOf(VIEW.vcBlocksOf(fresh, readsOf(fresh), {}, envOf(fresh, readsOf(fresh))), 'identity')
   check(fId.sync.basis === '远端信息更新于 3 天前', 'C6 依据时间永远显示：三天前的依据就写「3 天前」（实得「' + fId.sync.basis + '」）')
 
@@ -228,7 +230,7 @@ async function main() {
   const bId = blockOf(VIEW.vcBlocksOf(bare, readsOf(bare), {}, envOf(bare, readsOf(bare))), 'identity')
   check(bId.name === '裸仓库（没有工作树）' && bId.nameTip.indexOf('D:/w/bare.git') >= 0, 'C28 裸仓库：身份行不空着，照实写「裸仓库（没有工作树）」（复用已有词条 vc.other.bare）')
   const merge = screenOf({
-    identity: { sync: 'tracked-fresh', ahead: 0, behind: 0, basisMs: NOW - 60000 },
+    identity: { sync: 'tracked-known', ahead: 0, behind: 0, basisMs: NOW - 60000 },
     conflictCount: 2, stagedCount: 1, unstagedCount: 1,
     staged: [{ path: '卡住.txt', origPath: null, staged: true, unstaged: true, conflict: true, change: 'modified', addedLines: 1, deletedLines: 1 }],
     unstaged: [{ path: '卡住.txt', origPath: null, staged: true, unstaged: true, conflict: true, change: 'modified', addedLines: 1, deletedLines: 1 }],
@@ -261,37 +263,37 @@ async function main() {
   const files = screenOf({ unstaged: [{ path: '改.txt', origPath: null, staged: false, unstaged: true, conflict: false, change: 'modified', addedLines: 1, deletedLines: 0 }], unstagedCount: 1 })
   const shortLines = [{ kind: 'filehead', text: 'diff --git a/改.txt b/改.txt' }, { kind: 'hunk', text: '@@ -1 +1 @@' }, { kind: 'del', text: '-旧' }, { kind: 'add', text: '+新' }]
   const shortReads = readsOf(files, { diffs: { '改.txt': { state: 'ok', lines: shortLines, reason: 'ok', truncated: false, error: null } } })
-  const shortBlocks = VIEW.vcBlocksOf(files, shortReads, { openDiff: '改.txt' }, envOf(files, shortReads))
+  const shortBlocks = VIEW.vcBlocksOf(files, shortReads, { openDiff: 'unstaged\u0000改.txt' }, envOf(files, shortReads))
   const shortRow = rowsOf(shortBlocks)[0]
   check(shortRow.diff.state === 'ok' && shortRow.diff.lines.length === 4 && shortRow.diff.hunks.length === 0 && shortRow.diff.shownNote === '', 'C17 改了五行的文件点开就看到那几行（不额外要一次点击、不补截断说明）')
   const longLines = []
   for (let i = 0; i < 260; i++) longLines.push(i % 3 === 0 ? { kind: 'hunk', text: '@@ -' + i + ' +' + i + ' @@' } : { kind: 'add', text: '+第' + i + '行' })
   const longReads = readsOf(files, { diffs: { '改.txt': { state: 'ok', lines: longLines, reason: 'ok', truncated: false, error: null } } })
-  const longRow = rowsOf(VIEW.vcBlocksOf(files, longReads, { openDiff: '改.txt' }, envOf(files, longReads)))[0]
+  const longRow = rowsOf(VIEW.vcBlocksOf(files, longReads, { openDiff: 'unstaged\u0000改.txt' }, envOf(files, longReads)))[0]
   check(longRow.diff.lines.length === VIEW.VC_DIFF_LINES_SHOWN && longRow.diff.hunks.length > 0 && longRow.diff.shownNote === '只显示了前 200 行，后面的去侧栏终端看。', 'C18 差异很长：先给「哪几段行区间变了」，再给前 200 行，并如实说后面到终端看')
   // 200 行这条阈值卡在边界上验：正好等于阈值给逐行、不补说明；超过一行才先给「哪几段行区间变了」并说只显示了前 200 行。
   const edgeLines = []
   for (let i = 0; i < VIEW.VC_DIFF_LINES_SHOWN; i++) edgeLines.push({ kind: 'add', text: '+' + i })
   const edgeReads = readsOf(files, { diffs: { '改.txt': { state: 'ok', lines: edgeLines, reason: 'ok', truncated: false, error: null } } })
-  const edgeRow = rowsOf(VIEW.vcBlocksOf(files, edgeReads, { openDiff: '改.txt' }, envOf(files, edgeReads)))[0]
+  const edgeRow = rowsOf(VIEW.vcBlocksOf(files, edgeReads, { openDiff: 'unstaged\u0000改.txt' }, envOf(files, edgeReads)))[0]
   const overLines = edgeLines.concat([{ kind: 'hunk', text: '@@ -201 +201 @@' }, { kind: 'add', text: '+第 201 行' }])
   const overReads = readsOf(files, { diffs: { '改.txt': { state: 'ok', lines: overLines, reason: 'ok', truncated: false, error: null } } })
-  const overRow = rowsOf(VIEW.vcBlocksOf(files, overReads, { openDiff: '改.txt' }, envOf(files, overReads)))[0]
+  const overRow = rowsOf(VIEW.vcBlocksOf(files, overReads, { openDiff: 'unstaged\u0000改.txt' }, envOf(files, overReads)))[0]
   check(edgeRow.diff.hunks.length === 0 && edgeRow.diff.shownNote === '' && overRow.diff.hunks.length === 1 && overRow.diff.shownNote === '只显示了前 200 行，后面的去侧栏终端看。', 'C18b 200 行这条阈值卡在边界上：正好等于阈值给逐行、不补说明；超过一行才先给「哪几段行区间变了」并说只显示了前 200 行')
   // 合并提交里的单文件差异：宿主回 reason:'merge-commit'，这句话不许落到「这一处这次没读到改动内容」上。
   const mergeDiffReads = readsOf(files, { diffs: { '改.txt': { state: 'ok', lines: [], reason: 'merge-commit', truncated: false, error: null } } })
-  const mergeDiffRow = rowsOf(VIEW.vcBlocksOf(files, mergeDiffReads, { openDiff: '改.txt' }, envOf(files, mergeDiffReads)))[0]
+  const mergeDiffRow = rowsOf(VIEW.vcBlocksOf(files, mergeDiffReads, { openDiff: 'unstaged\u0000改.txt' }, envOf(files, mergeDiffReads)))[0]
   check(mergeDiffRow.diff.state === 'note' && mergeDiffRow.diff.text === '这是一次合并提交：git 默认不展开合并提交的逐行差异，所以这里没有内容。' && mergeDiffRow.diff.text !== '这一处这次没读到改动内容。', 'C19b 合并提交里的单文件差异：如实说「git 默认不展开合并提交的逐行差异」，不许落到「这一处没读到改动内容」上')
   const reasons = { 'untracked-no-diff': '这个文件还没被 git 跟踪，没有可比的旧版本。', 'no-commit-baseline': '这个仓库还没有第一次提交，没有可比的基线。', 'binary-diff': '二进制文件，不逐行显示改动。', 'truncated': '这个文件的改动太大，读不全就没给内容；去侧栏终端看这一处的完整改动。', 'no-diff': '这一处这次没读到改动内容。' }
   let reasonOk = true
   for (const k of Object.keys(reasons)) {
     const rr = readsOf(files, { diffs: { '改.txt': { state: 'ok', lines: [], reason: k, truncated: false, error: null } } })
-    const row = rowsOf(VIEW.vcBlocksOf(files, rr, { openDiff: '改.txt' }, envOf(files, rr)))[0]
+    const row = rowsOf(VIEW.vcBlocksOf(files, rr, { openDiff: 'unstaged\u0000改.txt' }, envOf(files, rr)))[0]
     if (row.diff.text !== reasons[k]) { reasonOk = false; console.log('    （原因 ' + k + ' 实得「' + row.diff.text + '」）') }
   }
   check(reasonOk, 'C19 差异读不到内容的五种原因各有各的实话（未跟踪 / 零提交 / 二进制 / 太大 / 空差异）')
   const diffFailReads = readsOf(files, { diffs: { '改.txt': { state: 'err', lines: null, reason: '', truncated: false, error: { kind: 'timeout', message: 'x' } } } })
-  const failRow = rowsOf(VIEW.vcBlocksOf(files, diffFailReads, { openDiff: '改.txt' }, envOf(files, diffFailReads)))[0]
+  const failRow = rowsOf(VIEW.vcBlocksOf(files, diffFailReads, { openDiff: 'unstaged\u0000改.txt' }, envOf(files, diffFailReads)))[0]
   check(failRow.diff.state === 'err' && failRow.diff.text === '这个文件的改动读不到' && failRow.diff.retry === '重试', 'C20 差异读不到：说清是哪一块读不到并给重试')
 
   // 历史续读
@@ -546,7 +548,8 @@ async function main() {
 
   // ---- G 组：比照（界面侧规则 vs 版本管理核心）----
   const core = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'version-control', 'state.js')).href)
-  const paths = ['a/b/c.txt', 'D:/很长的目录/子目录/文件名.txt', '短.txt', 'x'.repeat(60) + '/y.txt']
+  // 核心 #819 起也按码点切（vc-commit 同步改完），所以比照输入里补上 emoji 路径：两边必须仍给同一串字。
+  const paths = ['a/b/c.txt', 'D:/很长的目录/子目录/文件名.txt', '短.txt', 'x'.repeat(60) + '/y.txt', '😀😀😀😀😀😀😀😀😀😀/文.txt', 'src/😀带emoji的目录/子目录/文件.txt']
   let same = true
   for (const p of paths) for (const n of [10, 12, 20, 24, 46, 80]) if (VIEW.vcMiddle(p, n) !== core.foldMiddle(p, n)) { same = false; console.log('    （' + p + ' @' + n + ' 界面「' + VIEW.vcMiddle(p, n) + '」核心「' + core.foldMiddle(p, n) + '」）') }
   check(same, 'G1 vcMiddle 与核心 foldMiddle 在同一批输入上给出同一串字（两条规则不许各说各话）')
@@ -582,7 +585,7 @@ async function main() {
   const commitSeed = { screen: { state: 'ok', data: { screen: commitScreen, tier: 'full', gitVersion: 'git version 2.49.0', readAtMs: NOW }, error: null }, diffs: {}, commit: commitEntry(), commitDiffs: {}, log: { state: 'idle', commits: [], hasMore: false, fetched: 0, error: null } }
   const renderCommit = buildView(function (s) {
     return s.replace('React.useState(vcNewReads)', 'React.useState(function () { return seedReads })')
-      .replace("React.useState(function () { return { fileShown: {}, openDiff: '' } })", "React.useState(function () { return { fileShown: {}, openDiff: '', openCommit: '" + REV1 + "' } })")
+      .replace("React.useState(function () { return { fileShown: {}, openDiff: '', openCommit: '' } })", "React.useState(function () { return { fileShown: {}, openDiff: '', openCommit: '" + REV1 + "' } })")
   }, [], React, DswsCtx, TipStub, IcStub, commitSeed)
   let html3 = ''
   let renderErr3 = ''
@@ -632,23 +635,171 @@ async function main() {
   check(htmlNoCwd.replace(/<[^>]*>/g, ' ').indexOf('这个会话还没有工作区') >= 0 && noCwdCalls === 0, 'G15 真渲染：空 cwd 时画的是那句空态，宿主一个电话都没被调到（实得 ' + noCwdCalls + ' 次）')
   check(flatEn.indexOf('Commit history') >= 0 && flatEn.indexOf('Uncommitted changes') >= 0 && flatEn.indexOf('提交历史') < 0 && flatEn.indexOf('未提交改动') < 0, 'G9 英文界面下画出来的是英文（词条中英成对，界面不写死任何一句中文）')
 
+  // ---- N 组：#819 对抗式审查的十四条（先修真骗人的、再修天天遇到的、最后修边角）----
+  // N1（严重）换工作区：读数与界面状态整体复位，旧工作区的身份与「打开中的提交」都不许留下来。
+  const readsA = await V2.vcReadStatus(V2.vcNewReads(), function () { return Promise.resolve({ ok: true, screen: liveScreen, tier: 'full', gitVersion: 'g', readAtMs: NOW }) }, 'D:/w/A')
+  const uiA = { fileShown: { staged: 20 }, openDiff: 'x', openCommit: 'aaaa' }
+  const resetAB = V2.vcFreshOnCwd('D:/w/A', 'D:/w/B', readsA, uiA)
+  check(resetAB.changed === true && resetAB.reads.screen.state === 'idle' && resetAB.reads.screen.data === null && resetAB.ui.openCommit === '' && resetAB.ui.openDiff === '' && Object.keys(resetAB.ui.fileShown).length === 0, 'N1 cwd 一变：读数与界面状态整体复位（含点开的那笔提交与展开状态）')
+  const keepAA = V2.vcFreshOnCwd('D:/w/A', 'D:/w/A', readsA, uiA)
+  check(keepAA.changed === false && keepAA.reads === readsA && keepAA.ui === uiA, 'N2 cwd 没变：什么都不动（同工作区刷新失败时旧数据照常留着）')
+  const staleSeed = { screen: { state: 'ok', data: { screen: liveScreen, tier: 'full', gitVersion: 'g', readAtMs: NOW }, error: null }, diffs: {}, commit: { rev: 'aaaa', seq: 1, state: 'ok', files: commitFiles, truncated: false, reason: 'ok', error: null }, commitDiffs: {}, log: { state: 'idle', commits: [], hasMore: false, fetched: 0, error: null } }
+  let htmlStale = ''
+  try {
+    const renderStale = buildView(function (s) {
+      return s.replace('React.useState(vcNewReads)', 'React.useState(function () { return seedReads })')
+        .replace('React.useState(cwd)', "React.useState('D:/w/A')")
+        .replace("React.useState(function () { return { fileShown: {}, openDiff: '', openCommit: '' } })", "React.useState(function () { return { fileShown: {}, openDiff: '', openCommit: 'aaaa' } })")
+        .replace("React.useState(function () { return { fileShown: {}, openDiff: '', openCommit: '' } })", "React.useState(function () { return { fileShown: {}, openDiff: '', openCommit: 'aaaa' } })")
+    }, [], React, DswsCtx, TipStub, IcStub, staleSeed)
+    htmlStale = renderToStaticMarkup(React.createElement(renderStale.VersionControlTab, { st: { cwd: 'D:/w/B' } }))
+  } catch (e) { htmlStale = '' }
+  check(htmlStale.indexOf('data-vc-identity') < 0 && htmlStale.indexOf('data-vc-commit-mode') < 0, 'N3 真渲染：cwd 从 A 换到 B 的那一帧，A 的身份行与 A 的提交清单都不在 DOM 里')
+
+  // N4（严重）首屏回包形状不对：一律落 shape 失败，绝不画成「干净仓库」。
+  const badScreens = ['garbage', [], 1, true, {}, { identity: {}, staged: [], unstaged: [], otherWorktrees: [], branches: [], commits: [], stagedCount: 0, unstagedCount: 0, conflictCount: 0, repo: {} }]
+  let shapeAllBad = true
+  for (const bad of badScreens) {
+    const rBad = await V2.vcReadStatus(V2.vcNewReads(), function () { return Promise.resolve({ ok: true, screen: bad }) }, 'D:/w/repo')
+    if (!(rBad.screen.state === 'err' && rBad.screen.error.kind === 'shape')) { shapeAllBad = false; console.log('    （坏形状没落 shape：' + JSON.stringify(bad).slice(0, 40) + '）') }
+  }
+  check(shapeAllBad, 'N4 首屏回包形状不对（字符串 / 数组 / 数字 / true / 空对象 / 缺字段）六种一律落 shape 失败，不画成「干净仓库」')
+  check(V2.vcScreenShapeOk(liveScreen) === true && V2.vcScreenShapeOk(files) === true, 'N5 形状判据不是恒假：真机样本与手写模型的 screen 都通过')
+
+  // N6 部分暂存（同一个文件两段改动）：两行、汇总与宿主计数一致、差异写清范围。
+  const dual = screenOf({
+    staged: [{ path: 'src/app.js', origPath: null, staged: true, unstaged: true, conflict: false, change: 'modified', addedLines: 2, deletedLines: 0 }],
+    unstaged: [{ path: 'src/app.js', origPath: null, staged: true, unstaged: true, conflict: false, change: 'modified', addedLines: 3, deletedLines: 1 }],
+    stagedCount: 1, unstagedCount: 1,
+  })
+  const dualBlocks = VIEW.vcBlocksOf(dual, readsOf(dual), {}, envOf(dual, readsOf(dual)))
+  check(blockOf(dualBlocks, 'changes').summary === '已暂存 1 个文件 / 未暂存 1 个文件', 'N6 同一个文件既有暂存又有未暂存：汇总句与宿主的两个计数一致（不再是「未暂存 0」，实得「' + blockOf(dualBlocks, 'changes').summary + '」）')
+  const dualRows = rowsOf(dualBlocks)
+  check(dualRows.length === 2 && blockOf(dualBlocks, 'changes').groups.map(function (g) { return g.key + ':' + g.rows.length }).join(',') === 'staged:1,unstaged:1', 'N7 两段改动各占一行、各在一组（git status 自己也是两个小节各列一次）')
+  check(dualRows[0].rowTip.indexOf('这一行是已暂存的那部分') >= 0 && dualRows[1].rowTip.indexOf('这一行是还没暂存的那部分') >= 0, 'N8 两行各自说清是哪一部分（用户分得清「准备好要提交的」与「还没暂存的」）')
+  const dualDiffReads = readsOf(dual, { diffs: { 'src/app.js': { state: 'ok', lines: shortLines, reason: 'ok', truncated: false, error: null } } })
+  const dualDiffRow = rowsOf(VIEW.vcBlocksOf(dual, dualDiffReads, { openDiff: 'staged\u0000src/app.js' }, envOf(dual, dualDiffReads)))[0]
+  check(dualDiffRow.diff.scopeText === '这一处看的是相对上一次提交的全部改动（已暂存与未暂存两部分都在里面）。', 'N9 差异面板写清范围：不让用户把「已暂存」组里点开的差异当成「将要提交的那部分」')
+  const commitDiffRow = rowsOf(VIEW.vcBlocksOf(commitScreen, patchReads, { openCommit: REV1, openDiff: VIEW.vcCommitKeyOf(REV1, '面板/新页签.js') }, envOf(commitScreen, patchReads)))[0]
+  check(commitDiffRow.diff.scopeText === '', 'N10 提交那一层的差异不带这句范围说明（它的范围就是那笔提交，抬头已经写明）')
+
+  // N11 竞态：晚到的旧回包不许把界面钉在旧的那一笔上。
+  const loadingB = Object.assign({}, readsA, { commit: { rev: 'bbbb', seq: 2, state: 'loading', files: [], truncated: false, reason: '', error: null } })
+  const lateA = Object.assign({}, readsA, { commit: { rev: 'aaaa', seq: 1, state: 'ok', files: commitFiles, truncated: false, reason: 'ok', error: null } })
+  check(V2.vcApplyCommitReply(loadingB, lateA) === loadingB, 'N11 晚到的旧回包（代际号更小）被丢掉，界面不会永久停在「正在读」')
+  const newerB = Object.assign({}, readsA, { commit: { rev: 'bbbb', seq: 2, state: 'ok', files: commitFiles, truncated: false, reason: 'ok', error: null } })
+  check(V2.vcApplyCommitReply(loadingB, newerB) === newerB, 'N12 新回包照常落库（判据不是恒假）')
+
+  // N13 读数时刻 + 重新读一次的入口。
+  check(blockOf(liveBlocks, 'identity').readAtText === '读到于 刚刚', 'N13 身份行写着这份读数是什么时候取的（实得「' + blockOf(liveBlocks, 'identity').readAtText + '」）')
+  const noReadAt = readsOf(liveScreen, { screen: { state: 'ok', data: { screen: liveScreen, tier: 'full', gitVersion: 'g', readAtMs: 0 }, error: null } })
+  check(blockOf(VIEW.vcBlocksOf(liveScreen, noReadAt, {}, envOf(liveScreen, noReadAt)), 'identity').readAtText === '', 'N14 读数时刻读不到就不写那几个字（不画成 1970）')
+  check(compSrc.indexOf('data-vc-reload') >= 0 && compSrc.indexOf('reloadNow') >= 0, 'N15 界面上有「重新读一次」这颗按钮（不是定时器）')
+
+  // N16 极端宽度：台阶总数有上限，且窄到第三档以下直接跳到收尾档。
+  const hugeLadder = VIEW.vcFoldLadderOf({ path: 'p'.repeat(300), others: [], commits: new Array(200).fill('s'.repeat(20)) })
+  check(hugeLadder.steps.length === VIEW.VC_FOLD_STEP_CAP && VIEW.VC_FOLD_STEP_CAP <= 200, 'N16 台阶总数有上限（三百字符路径 + 两百条说明也只有 ' + hugeLadder.steps.length + ' 档，不再上千档）')
+  check(compSrc.indexOf('width < VC_FOLD_BANDS[2]') >= 0, 'N17 窄到第三档以下时折叠机直接跳到收尾档（不再一格一格试，允许溢出）')
+
+  // N18「去侧栏终端」是一句陈述：不摆点不动的图标。
+  check(compSrc.indexOf("Ic({ n: 'external-link'") < 0 && compSrc.indexOf('data-vc-terminal') >= 0, 'N18 「去侧栏终端」不再摆外链图标（看着能点却点不动比不画更差）')
+
+  // N19 续读防重入 + 「正在读更早的提交」这一刻真的进读数。
+  check(compSrc.indexOf('logBusyRef') >= 0 && compSrc.indexOf('vcMarkLogLoading') >= 0, 'N19 续读有自己的在途守卫，并先把 loading 写进读数')
+  check(V2.vcMarkLogLoading(V2.vcNewReads()).log.state === 'loading', 'N20 vcMarkLogLoading 把「正在读更早的提交」这一刻写进读数（那一句提示才有机会出现）')
+
+  // N21 依据时间给 0 或负数：按读不到说，不画成 1970。
+  check(VIEW.vcBasisText(tZh, NOW, 0) === '远端信息什么时候更新的读不到' && VIEW.vcBasisText(tZh, NOW, -1) === '远端信息什么时候更新的读不到' && VIEW.vcWhenText(tZh, NOW, 0) === '', 'N21 依据时间 / 时刻给 0 或负数一律按读不到说（不画成 1970）')
+
+  // N22 五值以外的同步状态：如实说不认识，不猜成「领先 0」。
+  const weirdSync = screenOf({ identity: { sync: 'weird-value' } })
+  const weirdId = blockOf(VIEW.vcBlocksOf(weirdSync, readsOf(weirdSync), {}, envOf(weirdSync, readsOf(weirdSync))), 'identity')
+  check(weirdId.sync.text === '同步状态读到了界面还不认识的一档，所以不猜领先落后；去侧栏终端看。' && weirdId.sync.text.indexOf('领先 0') < 0 && weirdId.sync.text.indexOf('落后 0') < 0, 'N22 五值以外的同步状态：如实说不认识，不猜成「领先 0 / 落后 0」（实得「' + weirdId.sync.text + '」）')
+  const missingSync = screenOf({ identity: { sync: undefined } })
+  check(blockOf(VIEW.vcBlocksOf(missingSync, readsOf(missingSync), {}, envOf(missingSync, readsOf(missingSync))), 'identity').sync.text === '还没有推送目标', 'N23 字段缺失时仍按「还没设推送目标」说（缺省值不变）')
+
+  // N24 其他工作树也分批。
+  const manyOthers = screenOf({ otherWorktrees: Array.from({ length: 1000 }, function (_, i) { return { path: 'D:/w/' + i, display: 'w' + i, head: 'h', branch: 'b', bare: false, current: false, locked: false, lockReason: null, lockUnknown: false, prunable: false } }) })
+  const manyOther = blockOf(VIEW.vcBlocksOf(manyOthers, readsOf(manyOthers), {}, envOf(manyOthers, readsOf(manyOthers))), 'other')
+  check(manyOther.rows.length === VIEW.VC_FILE_ROWS_FIRST && manyOther.moreCount === 990, 'N24 一千棵其他工作树只画前 10 棵，其余给「还有 N 棵没收起」（实得 ' + manyOther.rows.length + ' / ' + manyOther.moreCount + '）')
+
+  // N25b 降级档答不出「可清理」：照 lockUnknown 的同一套做法说「无法显示」，绝不说「目录还在」。
+  const degraded = screenOf({ otherWorktrees: [
+    { path: 'D:/w/gone', display: 'gone', head: 'h', branch: 'b', bare: false, current: false, locked: false, lockReason: null, lockUnknown: true, prunable: false, prunableUnknown: true },
+    { path: 'D:/w/here', display: 'here', head: 'h', branch: 'b', bare: false, current: false, locked: false, lockReason: null, lockUnknown: false, prunable: false, prunableUnknown: false },
+  ] })
+  const degradedRows = blockOf(VIEW.vcBlocksOf(degraded, readsOf(degraded), {}, envOf(degraded, readsOf(degraded))), 'other').rows
+  check(degradedRows[0].stateText === '无法显示' && degradedRows[0].stateTip === '这个 git 版本答不出这个工作树的目录还在不在；答不出不等于还在。', 'N25b 降级档答不出「可清理」：画「无法显示」并说清是 git 答不出（不是留白、也不是「目录还在」）')
+  check(degradedRows[0].stateText.indexOf('目录已不存在') < 0 && degradedRows[0].stateText.indexOf('目录还在') < 0, 'N25c 这一档绝不冒充「目录已不存在」或「目录还在」')
+  check(degradedRows[1].stateText === '', 'N25d 答得出来的工作树（没被占用、没标可清理）不挂任何状态字（判据不是恒真）')
+  // 接真核心跑一遍（不是手写模型）：降级档 + worktree 清单里没有 prunable 那一行 → 核心给 prunableUnknown 真，
+  //   界面必须画「无法显示」。这一条盯的是「字段接对了没有」，不是「我手写的字段名对不对」。
+  const coreState = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'version-control', 'state.js')).href)
+  const coreAsm = coreState.assemble({
+    repoRoot: 'D:/w/repo', bare: false, statusHead: 'main', statusDetached: false, statusOid: 'a'.repeat(40),
+    statusUpstream: null, statusAhead: 0, statusBehind: 0, statusEntries: [], refs: [],
+    // 工作树清单里给一条**别的工作树**（当前那一条会被核心从 otherWorktrees 里滤掉）。
+    worktrees: [{ path: 'D:/w/other', head: 'b'.repeat(40), branch: 'dev', bare: false, locked: false, lockReason: null, prunable: false }],
+    commits: [], diffFiles: [], merging: false, rebasing: false, cherryPicking: false, reverting: false,
+    tier: 'reduced', autocrlf: null, nowMs: NOW, basisMs: null,
+  })
+  const coreOther = coreAsm.ok === true ? coreAsm.screen.otherWorktrees : []
+  check(coreAsm.ok === true && coreOther.length === 1 && coreOther[0].prunableUnknown === true, 'N25e 真核心（降级档）给的那一条带着 prunableUnknown 真（先看核心给没给）')
+  const coreScreen = coreAsm.screen
+  const coreRow = blockOf(VIEW.vcBlocksOf(coreScreen, readsOf(coreScreen), {}, envOf(coreScreen, readsOf(coreScreen))), 'other').rows[0]
+  check(coreRow.stateText === '无法显示' && coreRow.stateTip === '这个 git 版本答不出这个工作树的目录还在不在；答不出不等于还在。', 'N25f 真核心喂进界面：降级档那条画的就是「无法显示」（端到端，实得「' + coreRow.stateText + '」）')
+
+  // N25 占用原因只留一行。
+  const locky = screenOf({ otherWorktrees: [{ path: 'D:/w/a', display: 'a', head: 'h', branch: 'b', bare: false, current: false, locked: true, lockReason: '第一行\n第二行\n第三行', lockUnknown: false, prunable: false }] })
+  const lockRow = blockOf(VIEW.vcBlocksOf(locky, readsOf(locky), {}, envOf(locky, readsOf(locky))), 'other').rows[0]
+  check(lockRow.stateTip.indexOf('\n') < 0 && lockRow.stateTip.indexOf('第一行') >= 0 && lockRow.stateTip.indexOf('第二行') < 0, 'N25 占用原因只留第一行（悬停里不放原始换行）')
+
+  // N26 emoji 按码点切，不切出半个代理对。
+  // 半个代理对：逐码元配对扫描（照 tests/verify-version-control-parsers.js 里 loneSurrogate 的判法）——
+  //   正则写 [\uDC00-\uDFFF] 会把合法代理对里的低位码元也算成坏的，值对了也判红（#819 复审踩过这一脚）。
+  const loneSurrogate = function (s) {
+    const t = String(s)
+    for (let i = 0; i < t.length; i += 1) {
+      const c = t.charCodeAt(i)
+      if (c >= 0xD800 && c <= 0xDBFF) { const n = t.charCodeAt(i + 1); if (!(n >= 0xDC00 && n <= 0xDFFF)) return true; i += 1 }
+      else if (c >= 0xDC00 && c <= 0xDFFF) return true
+    }
+    return false
+  }
+  const tailEmoji = VIEW.vcTail('x😀x😀x😀x😀x😀', 3)
+  const midEmoji = VIEW.vcMiddle('😀😀😀😀😀😀😀😀😀😀/文.txt', 12)
+  check(tailEmoji === 'x😀…' && !loneSurrogate(tailEmoji), 'N26 砍尾按 Unicode 码点切（实得「' + tailEmoji + '」，没有半个代理对）')
+  check(!loneSurrogate(midEmoji) && midEmoji.indexOf('…') >= 0 && midEmoji.indexOf('文.txt') >= 0, 'N27 砍中段按码点切、文件名那一头留着（实得「' + midEmoji + '」）')
+  check(loneSurrogate('\uD83D') === true && loneSurrogate('\uDE00') === true && loneSurrogate('😀') === false, 'N27b 落单代理的判据本身分得清好坏（判据不是恒真也不是恒假）')
+  check(VIEW.vcTail('普通名字', 2) === '普…' && VIEW.vcMiddle('a/b/c.txt', 20) === 'a/b/c.txt', 'N28 纯中文与纯 ASCII 上的行为一个字没变（码点切法只在星平面字符上与从前不同）')
+
   // ---- H 组：反证（把被守的东西改坏，同一套断言必须当场变红）----
   const antiCases = [
     { name: '显隐谓词改成永远隐藏', patch: (s) => s.replace('const vcTabVisible = function (st) {\n  void st\n  return true\n}', 'const vcTabVisible = function (st) {\n  void st\n  return false\n}'), test: (v) => v.vcTabVisible({}) === true, what: 'A1' },
-    { name: '冲突条目不再合成一行（同一路径画两行）', patch: (s) => s.replace('    if (!hit) {', '    if (!hit || hit.conflict === true) {'), test: (v) => { const m = v.vcBlocksOf(merge, readsOf(merge), {}, envOf(merge, readsOf(merge))); return rowsOf(m).length === 1 }, what: 'C9' },
-    { name: '汇总句把数字写死成 0', patch: (s) => s.replace("? t('vc.changes.summaryConflicts', { staged: String(stagedRows.length), unstaged: String(unstagedRows.length), conflicts: String(conflicts) })", "? t('vc.changes.summaryConflicts', { staged: '0', unstaged: '0', conflicts: String(conflicts) })").replace(": t('vc.changes.summary', { staged: String(stagedRows.length), unstaged: String(unstagedRows.length) }),", ": t('vc.changes.summary', { staged: '0', unstaged: '0' }),"), test: (v) => { const c = v.vcBlocksOf(liveScreen, liveReads, {}, envOf(liveScreen, liveReads)); return blockOf(c, 'changes').summary === '已暂存 1 个文件 / 未暂存 4 个文件' }, what: 'B7' },
-    { name: '折叠一次让一整段字（不再一个字符）', patch: (s) => s.replace("push('path', -1, Math.max(0, ladder.path.length - VC_MIDDLE_MIN))", "push('path', -1, 1)"), test: (v) => { const l = v.vcFoldLadderOf({ path: 'abcdefghijklmnop', others: [], commits: [] }); return l.steps.length >= 6 }, what: 'D2' },
+    { name: '冲突条目不再合成一行（同一路径画两行）', patch: (s) => s.replace('      if (conflictSeen[path]) return', '      if (false) return'), test: (v) => { const m = v.vcBlocksOf(merge, readsOf(merge), {}, envOf(merge, readsOf(merge))); return rowsOf(m).length === 1 }, what: 'C9' },
+    { name: '汇总句把数字写死成 0', patch: (s) => s.replace("staged: String(hostStaged), unstaged: String(hostUnstaged), conflicts: String(conflicts)", "staged: '0', unstaged: '0', conflicts: String(conflicts)").replace("{ staged: String(hostStaged), unstaged: String(hostUnstaged) }", "{ staged: '0', unstaged: '0' }"), test: (v) => { const c = v.vcBlocksOf(liveScreen, liveReads, {}, envOf(liveScreen, liveReads)); return blockOf(c, 'changes').summary === '已暂存 1 个文件 / 未暂存 4 个文件' }, what: 'B7' },
+    { name: '折叠一次让一整段字（不再一个字符）', patch: (s) => s.replace("push('path', -1, Math.max(0, len(ladder.path) - VC_MIDDLE_MIN))", "push('path', -1, 1)"), test: (v) => { const l = v.vcFoldLadderOf({ path: 'abcdefghijklmnop', others: [], commits: [] }); return l.steps.length >= 6 }, what: 'D2' },
     { name: '「回到未提交改动」那一步去掉', patch: (s) => s.replace("    back: t('vc.commit.back'),", "    back: '',"), test: (v) => { const b = v.vcBlocksOf(commitScreen, sReads(), { openCommit: REV1 }, envOf(commitScreen, sReads())); return blockOf(b, 'changes').back === '回到未提交改动' }, what: 'S1' },
     { name: '截断判据改坏（读不全也装作有清单）', patch: (s) => s.replace("  else if (mine.truncated === true) note = t('vc.commit.truncated')", "  else if (false) note = t('vc.commit.truncated')"), test: (v) => { const r2 = sReads({ commit: commitEntry({ files: [], truncated: true, reason: 'truncated' }) }); const b = v.vcBlocksOf(commitScreen, r2, { openCommit: REV1 }, envOf(commitScreen, r2)); return blockOf(b, 'changes').note === '这笔提交的改动太大，读不全就没给清单；去侧栏终端看。' }, what: 'S7' },
-    { name: '合并提交那条差异原因键删掉（落回「没读到改动内容」）', patch: (s) => s.replace("  'merge-commit': 'vc.diff.mergeCommit',", "  'merge-commit-removed': 'vc.diff.mergeCommit',"), test: (v) => { const r2 = readsOf(files, { diffs: { '改.txt': { state: 'ok', lines: [], reason: 'merge-commit', truncated: false, error: null } } }); const row = rowsOf(v.vcBlocksOf(files, r2, { openDiff: '改.txt' }, envOf(files, r2)))[0]; return row.diff.text === '这是一次合并提交：git 默认不展开合并提交的逐行差异，所以这里没有内容。' }, what: 'C19b' },
+    { name: '合并提交那条差异原因键删掉（落回「没读到改动内容」）', patch: (s) => s.replace("  'merge-commit': 'vc.diff.mergeCommit',", "  'merge-commit-removed': 'vc.diff.mergeCommit',"), test: (v) => { const r2 = readsOf(files, { diffs: { '改.txt': { state: 'ok', lines: [], reason: 'merge-commit', truncated: false, error: null } } }); const row = rowsOf(v.vcBlocksOf(files, r2, { openDiff: 'unstaged\u0000改.txt' }, envOf(files, r2)))[0]; return row.diff.text === '这是一次合并提交：git 默认不展开合并提交的逐行差异，所以这里没有内容。' }, what: 'C19b' },
     { name: '宿主原话又直出到可见正文（英文界面串出中文）', en: true, seed: errSeedEn, patch: (s) => s.replace('React.useState(vcNewReads)', 'React.useState(function () { return seedReads })').replace("        rawTip: err.message ? t('vc.fail.raw', { msg: String(err.message) }) : '',", "        detail: err.message ? t('vc.fail.raw', { msg: String(err.message) }) : '',").replace("      tipNode(b.rawTip, h('div', { style: { lineHeight: 1.7 } }, b.text)),", "      h('div', { style: { lineHeight: 1.7 } }, b.text),\n      b.detail ? h('div', { style: { marginTop: 6 } }, b.detail) : null,"), test: (v) => { let html = ''; try { html = renderToStaticMarkup(React.createElement(v.VersionControlTab, { st: { cwd: 'D:/w/repo' } })) } catch (e) { html = '' } return !/[\u4e00-\u9fff]/.test(html.replace(/<[^>]*>/g, ' ')) }, what: 'G10' },
+    { name: '换工作区不复位（旧工作区的数据继续画）', patch: (s) => s.replace('React.useState(vcNewReads)', 'React.useState(function () { return seedReads })').replace('  const staleCwd = fresh.changed', '  const staleCwd = false'), test: (v) => { let html = ''; try { html = renderToStaticMarkup(React.createElement(v.VersionControlTab, { st: { cwd: 'D:/w/B' } })) } catch (e) { html = '' } return html.indexOf('data-vc-identity') < 0 && html.indexOf('data-vc-commit-mode') < 0 }, what: 'N3', seed: staleSeed },
+    { name: '首屏形状只判真假值（坏形状画成干净仓库）', patch: (s) => s.replace('reply.ok === true && vcScreenShapeOk(reply.screen)', 'reply.ok === true && reply.screen'), test: async (v) => { const r = await v.vcReadStatus(v.vcNewReads(), function () { return Promise.resolve({ ok: true, screen: {} }) }, 'D:/w/repo'); return r.screen.state === 'err' && r.screen.error.kind === 'shape' }, what: 'N4' },
+    { name: '分组退回按记录上的标记判（同一个文件两段改动挤进一组）', patch: (s) => s.replace("  return row.group === 'unstaged' ? 'unstaged' : 'staged'", "  return row.staged ? 'staged' : 'unstaged'"), test: (v) => { const b = v.vcBlocksOf(dual, readsOf(dual), {}, envOf(dual, readsOf(dual))); return b.groups.map(function (g) { return g.key + ':' + g.rows.length }).join(',') === 'staged:1,unstaged:1' }, what: 'N7' },
+    { name: '晚到的旧回包照收（界面永久停在「正在读」）', patch: (s) => s.replace('  if (cur && (Number(cur.seq) || 0) > (Number(nxt.seq) || 0)) return currentReads', '  if (false) return currentReads'), test: (v) => v.vcApplyCommitReply(loadingB, lateA) === loadingB, what: 'N11' },
+    { name: '台阶上限放开（极端宽度又要走上千档）', patch: (s) => s.replace('const VC_FOLD_STEP_CAP = 120', 'const VC_FOLD_STEP_CAP = 100000'), test: (v) => { const l = v.vcFoldLadderOf({ path: 'p'.repeat(300), others: [], commits: new Array(200).fill('s'.repeat(20)) }); return l.steps.length === v.VC_FOLD_STEP_CAP && v.VC_FOLD_STEP_CAP <= 200 }, what: 'N16' },
+    { name: '依据时间不再挡 0 与负数（画成 1970）', patch: (s) => s.replace('|| !isFinite(b) || b <= 0) return t(\'vc.basis.unknown\')', "|| !isFinite(b)) return t('vc.basis.unknown')"), test: (v) => v.vcBasisText(tZh, NOW, 0) === '远端信息什么时候更新的读不到', what: 'N21' },
+    { name: '五值以外的同步状态退回领先落后那一支（猜成 0）', patch: (s) => s.replace('  if (VC_SYNC_VALUES.indexOf(sync) < 0) {', '  if (false) {'), test: (v) => { const w = screenOf({ identity: { sync: 'weird-value' } }); const b = v.vcBlocksOf(w, readsOf(w), {}, envOf(w, readsOf(w))); return blockOf(b, 'identity').sync.text === '同步状态读到了界面还不认识的一档，所以不猜领先落后；去侧栏终端看。' }, what: 'N22' },
+    { name: '其他工作树不再分批（一千棵全画）', patch: (s) => s.replace("const otherRows = fold.otherMode === 'summary' ? [] : otherViews.slice(0, otherShown)", "const otherRows = fold.otherMode === 'summary' ? [] : otherViews"), test: (v) => { const b = v.vcBlocksOf(manyOthers, readsOf(manyOthers), {}, envOf(manyOthers, readsOf(manyOthers))); const o = blockOf(b, 'other'); return o.rows.length === v.VC_FILE_ROWS_FIRST && o.moreCount === 990 }, what: 'N24' },
+    { name: '砍字退回按 UTF-16 码元切（emoji 切出半个代理对）', patch: (s) => s.replace('  const cp = Array.from(s)', "  const cp = s.split('')"), test: (v) => { const lone = function (str) { const t = String(str); for (let i = 0; i < t.length; i += 1) { const c = t.charCodeAt(i); if (c >= 0xD800 && c <= 0xDBFF) { const n = t.charCodeAt(i + 1); if (!(n >= 0xDC00 && n <= 0xDFFF)) return true; i += 1 } else if (c >= 0xDC00 && c <= 0xDFFF) return true } return false }; const t2 = v.vcTail('x😀x😀x😀x😀x😀', 3); return t2 === 'x😀…' && !lone(t2) }, what: 'N26' },
+    { name: '降级档答不出可清理时按「目录还在」说（丢掉那一档未知）', patch: (s) => s.replace("  else if (w && w.prunableUnknown === true) { stateText = t('vc.other.lockUnknown'); stateTone = 'caption'; stateTip = t('vc.other.prunableUnknownTip') }\n", ''), test: (v) => { const b = v.vcBlocksOf(degraded, readsOf(degraded), {}, envOf(degraded, readsOf(degraded))); const rows = blockOf(b, 'other').rows; return rows[0].stateText === '无法显示' && rows[0].stateTip === '这个 git 版本答不出这个工作树的目录还在不在；答不出不等于还在。' }, what: 'N25b' },
     { name: '宽度分档改成不单调（更窄反而画更多）', patch: (s) => s.replace('  if (w >= VC_FOLD_BANDS[0]) return 0\n  if (w >= VC_FOLD_BANDS[1]) return 1\n  if (w >= VC_FOLD_BANDS[2]) return 2\n  return 3', '  if (w >= VC_FOLD_BANDS[0]) return 0\n  if (w >= VC_FOLD_BANDS[1]) return 2\n  if (w >= VC_FOLD_BANDS[2]) return 1\n  return 3'), test: (v) => { let prev = null; for (const w of [460, 420, 380, 360, 340, 320, 300, 200]) { const b = v.vcFoldBandAt(w); if (prev !== null && b < prev) return false; prev = b } return true }, what: 'D11' },
   ]
   for (const c of antiCases) {
     let broke = false
     const keepT = tZh
     if (c.en === true) tZh = tEn
-    try { const v = buildView(c.patch, [], React, DswsCtx, TipStub, IcStub, c.seed || null, c.hostStub) ; broke = c.test(v) === false } catch (e) { broke = true }
+    try { const v = buildView(c.patch, [], React, DswsCtx, TipStub, IcStub, c.seed || null, c.hostStub); broke = (await c.test(v)) === false } catch (e) { broke = true }
     tZh = keepT
     check(broke, 'H 反证：把「' + c.name + '」改坏之后，' + c.what + ' 那条断言当场变红')
   }
