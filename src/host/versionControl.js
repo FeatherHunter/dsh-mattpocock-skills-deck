@@ -60,7 +60,7 @@ export function createVersionControl(deps) {
   /** 把一次「钉死目录」的执行跑起来；返回核心 ports.ts 里那四种情形之一。 */
   function runPinned(exe, dir, args, opts) { return runGit(exe, dir, pinned(exe, dir, args).slice(1), opts) }
 
-  /** 跑一条 git 命令：成功与非零退出各落一行 git.exec，超时与起进程失败各落一行 git.exec.fail。 */
+  /** 跑一条 git 命令：成功与非零退出各落一行 git.exec，超时与起进程失败各落一行 git.exec.fail。opts.env 是给 #839 那一族「可能弹凭据提示」的命令传非交互环境用的（undefined 值是墓碑，从继承环境里删掉这一项）。 */
   async function runGit(exe, dir, args, opts) {
     const t0 = Date.now()
     const limit = (opts && opts.stdoutLimit) ? opts.stdoutLimit : STDOUT_LIMIT
@@ -73,6 +73,7 @@ export function createVersionControl(deps) {
         cwd: dir,
         stdio: { stdin: 'ignore', stdout: { maxBytes: limit }, stderr: { maxBytes: STDERR_LIMIT } },
         graceMs: 2000,
+        env: (opts && opts.env) ? opts.env : undefined,
       })
     } catch (e) {
       fire('warn', 'git.exec.fail', { argv0: GIT_NAME, cwdHash: dirHash(dir), via: VIA, errorHash: hash8(String((e && e.message) || e)) })
@@ -333,5 +334,6 @@ export function createVersionControl(deps) {
     handleGitStatus: loggedPhone('wf.gitStatus', 'git-status', handleGitStatus),
     handleGitDiff: loggedPhone('wf.gitDiff', 'git-diff', handleGitDiff),
     handleGitLog: loggedPhone('wf.gitLog', 'git-log', handleGitLog),
+    runGitCommand: runGit, // #839：那一族「可能弹凭据提示」的命令复用同一条进程出口（同一个报闸、同一条 git.exec 日志、同一套字节上限）
   }
 }
