@@ -377,15 +377,12 @@ export function createWriteEvents(deps) {
   function attach(ctx) {
     if (!ctx || typeof ctx.on !== 'function') return { detach: function () {} }
     const offSession = ctx.on('session/event', function (session, event) {
-      // 门在最前：这一条订阅里**任何**事件都要先过工作区归属，过了门才碰事件字段。
-      //   message 那两种形态也走这里过门；它们要触发的「首条用户/助手消息」钩子在 onSessionEvent 里
-      //   本来还会再过一次门，所以这里是同一条不变量的前置，不是多一道。
+      // 门在最前：这一条订阅里**任何**事件都要先过工作区归属，过了门才碰事件字段（message 那两种形态也走这里过门；它们要触发的「首条用户/助手消息」钩子在 onSessionEvent 里本来还会再过一次门，所以这里是同一条不变量的前置，不是多一道）。
       isOurs(session).then(function (ours) {
         if (!ours) return null
         const t = String((event && event.type) || '')
         if (t === 'user/message' || t === 'assistant/message') { onSessionEvent(session, event).catch(function () {}); return null }
-        // 过了门才碰事件内容：只认工具结果那三种形态，其余（含 tool/call 与 *-start）立即返回。
-        if (SESSION_RESULT_SHAPES.indexOf(t) < 0) return null
+        if (SESSION_RESULT_SHAPES.indexOf(t) < 0) return null // 过了门才碰事件内容：只认工具结果那三种形态，其余（含 tool/call 与 *-start）立即返回。
         return onSessionEvent(session, event)
       }).catch(function () {})
     }, { global: true })
