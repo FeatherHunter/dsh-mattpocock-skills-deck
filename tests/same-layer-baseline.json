@@ -913,6 +913,15 @@
       "note": "#821 规格故事 32：versionControl.js 贴着文件粒度门禁的 350 行上限（正好 350 行），按 #500（logStore→logPhones）与 #548（update→updateReader）同一条先例，把整条 wf.gitDiff 电话体搬成自包含叶子（起进程的唯一出口、失败信封、仓库根解析全由父文件显式传入，叶子不引用父文件），父文件只留一行动态加载器。"
     },
     {
+      "file": "src/host/versionControl.js",
+      "spec": "./stallWatch.js",
+      "resolved": "src/host/stallWatch.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#847（宿主：把「传输停住」的字节增长看门狗补上）",
+      "note": "#847 要在 runGit 里加字节增长看门狗（窗口内收集器读到的字节不再增长就判 stalled），内联写进去会把 versionControl.js 顶到 365 行、超过 350 上限；照 #500（logStore→logPhones）、#819（versionControl→versionControlBasis）、#818（versionControl→versionControlFiles）同一条先例，把看门狗搬成自包含叶子：handle 与 timer 全由父文件显式传入，叶子不引用父文件（静态 import 这一行留在父文件），父文件只多一行 import 与一行建看门狗。默认不开，只有显式传 opts.stallMs 的调用才启用。"
+    },
+    {
       "file": "src/host/index.js",
       "spec": "./mapTickets.js",
       "resolved": "src/host/mapTickets.js",

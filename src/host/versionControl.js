@@ -22,6 +22,7 @@ import { parseRefs } from '../shared/version-control/parse-refs.js'
 import { parseLog } from '../shared/version-control/parse-log.js'
 import { parseDiffFiles } from '../shared/version-control/parse-diff-files.js'
 import { assemble, classifyStepZero } from '../shared/version-control/state.js'
+import { makeStallWatch } from './stallWatch.js' // #847：字节增长看门狗（自包含叶子，照 #500/#821 先例）
 
 const VIA = 'version-control'          // 日志的 via：这一族 git 命令都由版本管理页签发起
 const GIT_NAME = 'git'                 // 日志的 argv0：只记程序名，不记路径
@@ -79,15 +80,21 @@ export function createVersionControl(deps) {
       fire('warn', 'git.exec.fail', { argv0: GIT_NAME, cwdHash: dirHash(dir), via: VIA, errorHash: hash8(String((e && e.message) || e)) })
       return { kind: 'spawn-failed', message: String((e && e.message) || e) }
     }
+    const watch = (opts && opts.stallMs) ? makeStallWatch(handle, Math.max(1000, Math.min(600000, Math.floor(opts.stallMs))), timer) : null
     let outcome
     try {
       outcome = await Promise.race([
         handle.done,
         timer.timeout(budget).then(function () { try { handle.terminate() } catch (eT) {} return { exitCode: -1, signal: 'timeout' } }),
+        watch ? watch : new Promise(function () {}),
       ])
     } catch (e) {
       fire('warn', 'git.exec.fail', { argv0: GIT_NAME, cwdHash: dirHash(dir), via: VIA, errorHash: hash8(String((e && e.message) || e)) })
       return { kind: 'spawn-failed', message: String((e && e.message) || e) }
+    }
+    if (outcome && outcome.signal === 'stalled') {
+      fire('warn', 'git.exec.fail', { argv0: GIT_NAME, cwdHash: dirHash(dir), via: VIA, timeoutMs: outcome.stallMs })
+      return { kind: 'stalled', stallMs: outcome.stallMs }
     }
     if (outcome && outcome.signal === 'timeout') {
       fire('warn', 'git.exec.fail', { argv0: GIT_NAME, cwdHash: dirHash(dir), via: VIA, timeoutMs: budget })
@@ -315,11 +322,7 @@ export function createVersionControl(deps) {
   function cwdOf(args) { const c = args && args.cwd; return (typeof c === 'string' && c.trim() !== '') ? c : DEFAULT_CWD }
 
   /** 把一批条数夹进允许范围；给了看不懂的值就用默认值。 */
-  function clampInt(v, fallback, min, max) {
-    const n = (typeof v === 'number' && isFinite(v)) ? Math.floor(v) : ((typeof v === 'string' && /^[0-9]+$/.test(v)) ? Number(v) : NaN)
-    if (!isFinite(n)) return fallback
-    return Math.min(max, Math.max(min, n))
-  }
+  function clampInt(v, fallback, min, max) { const n = (typeof v === 'number' && isFinite(v)) ? Math.floor(v) : ((typeof v === 'string' && /^[0-9]+$/.test(v)) ? Number(v) : NaN); if (!isFinite(n)) return fallback; return Math.min(max, Math.max(min, n)) }
 
   /** 电话体记一行日志：成功落 host.call，失败落 host.call.fail（沿用仓库里既有两个事件，不新增）。 */
   function phoneLog(method, kind, t0, res, err) { try {

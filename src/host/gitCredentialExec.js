@@ -180,12 +180,16 @@ export function createCredentialSafeGit(deps) {
     const callBudget = (callOpts && callOpts.totalBudgetMs) || CALL_BUDGET_MS
     const argv = ['-C', cwd].concat(nonInteractiveArgs(clearHelpers), args)
     const env = nonInteractiveEnv(callBudget)
-    const res = await runGit(exe, cwd, argv, { timeoutMs: budget, stdoutLimit: req.stdoutLimit, env: env })
+    const res = await runGit(exe, cwd, argv, { timeoutMs: budget, stdoutLimit: req.stdoutLimit, env: env, stallMs: req.stallMs })
     const elapsedMs = Date.now() - started
     if (res && res.kind === 'ok') return { ok: true, kind: 'ok', exitCode: 0, stdout: res.stdout, truncated: res.truncated === true, elapsedMs: elapsedMs }
     if (res && res.kind === 'timeout') {
       const suspect = await suspectOf(exe, cwd, args, 'timeout')
       return fail('timeout', '这条命令在 ' + budget + ' 毫秒里没有回话，已经整棵停掉', { exitCode: -1, elapsedMs: elapsedMs, suspect: suspect })
+    }
+    if (res && res.kind === 'stalled') { // #847：看门狗判的「传输停住」，与文字归类出来的 stalled 同一档
+      const suspect = await suspectOf(exe, cwd, args, 'stalled')
+      return fail('stalled', '命令的输出停了 ' + res.stallMs + ' 毫秒没有再增长，已经整棵停掉', { exitCode: -1, elapsedMs: elapsedMs, suspect: suspect })
     }
     if (!res || res.kind === 'spawn-failed') return fail('spawn-failed', '起不了 git 进程：' + String((res && res.message) || '未知'), { exitCode: -1, elapsedMs: elapsedMs })
     const text = String(res.stderr || '')
