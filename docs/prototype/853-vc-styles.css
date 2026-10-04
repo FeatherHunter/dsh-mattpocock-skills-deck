@@ -9,7 +9,7 @@
   --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
   --mono:ui-monospace,"SF Mono",SFMono-Regular,Consolas,"Liberation Mono",monospace;
 }
-html[data-style="A"]{
+[data-style="A"]{
   --bg:#0f172a; --paper:#131c2f; --inset:#0b1120; --ink:#f8fafc; --ink2:#cbd5e1; --mut:#94a3b8; --faint:#64748b;
   --line:rgba(148,163,184,.22); --line2:rgba(148,163,184,.40);
   --accent:#22c55e; --accent-ink:#052e16; --danger:#ef4444; --warn:#f59e0b; --info:#38bdf8;
@@ -17,7 +17,7 @@ html[data-style="A"]{
   --btn-radius:4px; --btn-h:26px; --font:var(--sans); --font-path:var(--mono);
   --num:tabular-nums; --row-sep:1px; --shadow:none;
 }
-html[data-style="B"]{
+[data-style="B"]{
   --bg:#08080b; --paper:#0c0c11; --inset:#050508; --ink:#d8d8e0; --ink2:#a8a8b4; --mut:#7c7c8a; --faint:#55555f;
   --line:rgba(160,160,190,.18); --line2:rgba(160,160,190,.36);
   --accent:#4ade80; --accent-ink:#052e16; --danger:#f87171; --warn:#fbbf24; --info:#60a5fa;
@@ -25,7 +25,7 @@ html[data-style="B"]{
   --btn-radius:0px; --btn-h:24px; --font:var(--mono); --font-path:var(--mono);
   --num:tabular-nums; --row-sep:1px; --shadow:none;
 }
-html[data-style="C"]{
+[data-style="C"]{
   --bg:#14110d; --paper:#f6f1e6; --inset:#efe8d9; --ink:#221d15; --ink2:#4a4034; --mut:#6f6252; --faint:#948875;
   --line:rgba(34,29,21,.22); --line2:rgba(34,29,21,.45);
   --accent:#15803d; --accent-ink:#f0fdf4; --danger:#b91c1c; --warn:#b45309; --info:#1d4ed8;
@@ -59,8 +59,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font
 /* ---- 面板（模拟 DSH 侧栏面板） ---- */
 .v3-shell{background:var(--paper);border:1px solid var(--line);border-radius:calc(var(--radius) * 2.4);
   box-shadow:var(--shadow);overflow:hidden}
-html[data-style="A"] .v3-shell,html[data-style="B"] .v3-shell{border-radius:6px}
-html[data-style="C"] .v3-shell{border-radius:3px;box-shadow:0 2px 0 rgba(0,0,0,.4)}
+[data-style="A"] .v3-shell,[data-style="B"] .v3-shell{border-radius:6px}
+[data-style="C"] .v3-shell{border-radius:3px;box-shadow:0 2px 0 rgba(0,0,0,.4)}
 .v3-shell__head{display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid var(--line);
   font-family:var(--font-path);font-size:var(--fs-sec);letter-spacing:var(--sec-track);color:var(--faint);text-transform:uppercase}
 .v3-shell__head .r{margin-left:auto;text-transform:none;letter-spacing:0}
@@ -71,8 +71,8 @@ html[data-style="C"] .v3-shell{border-radius:3px;box-shadow:0 2px 0 rgba(0,0,0,.
 
 /* ---- 身份行 / 计数行 ---- */
 .v3-id{font-size:15px;font-weight:700;letter-spacing:-.01em;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
-html[data-style="B"] .v3-id{font-weight:500}
-html[data-style="C"] .v3-id{font-size:16px}
+[data-style="B"] .v3-id{font-weight:500}
+[data-style="C"] .v3-id{font-size:16px}
 .v3-id .br{color:var(--accent)}
 .v3-id .sep{color:var(--faint)}
 .v3-sub{margin-top:4px;font-size:11.5px;color:var(--mut);display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
@@ -84,11 +84,11 @@ html[data-style="C"] .v3-id{font-size:16px}
 .v3-sec{display:flex;align-items:baseline;gap:8px;margin:14px 0 0;padding:0 0 5px;
   border-bottom:1px solid var(--line);font-size:var(--fs-sec);letter-spacing:var(--sec-track);
   color:var(--faint);text-transform:uppercase}
-html[data-style="C"] .v3-sec{border-bottom:1px solid var(--line2)}
-html[data-style="B"] .v3-sec::before{content:"[";color:var(--faint)}
-html[data-style="B"] .v3-sec::after{content:"]";color:var(--faint)}
+[data-style="C"] .v3-sec{border-bottom:1px solid var(--line2)}
+[data-style="B"] .v3-sec::before{content:"[";color:var(--faint)}
+[data-style="B"] .v3-sec::after{content:"]";color:var(--faint)}
 .v3-sec .n{font-family:var(--font-path);font-variant-numeric:var(--num);color:var(--mut);letter-spacing:0}
-html[data-style="B"] .v3-sec .n{text-transform:none}
+[data-style="B"] .v3-sec .n{text-transform:none}
 
 /* ---- 行（文件 / 提交 / 工作树） ---- */
 .v3-row{display:flex;align-items:center;gap:8px;min-height:var(--row-h);padding:var(--row-pad);
@@ -109,7 +109,7 @@ html[data-style="B"] .v3-sec .n{text-transform:none}
 .v3-badge[data-t="conflict"]{color:var(--danger);border-color:var(--danger);background:color-mix(in srgb,var(--danger) 16%,transparent)}
 .v3-delta{flex:none;font-family:var(--font-path);font-size:11px;font-variant-numeric:var(--num);color:var(--mut)}
 .v3-add{color:var(--accent)} .v3-del{color:var(--danger)}
-html[data-style="C"] .v3-row .v3-kind{display:inline;margin-left:6px;white-space:normal;overflow:visible}
+[data-style="C"] .v3-row .v3-kind{display:inline;margin-left:6px;white-space:normal;overflow:visible}
 
 /* ---- 按钮 ---- */
 .v3-btn{display:inline-flex;align-items:center;gap:5px;height:var(--btn-h);padding:0 10px;
@@ -136,8 +136,8 @@ html[data-style="C"] .v3-row .v3-kind{display:inline;margin-left:6px;white-space
 /* ---- 链接 ---- */
 .v3-link{color:var(--accent);text-decoration:none;cursor:pointer;font-size:calc(var(--fs) - .5px)}
 .v3-link:hover{text-decoration:underline}
-html[data-style="B"] .v3-link::before{content:"["}
-html[data-style="B"] .v3-link::after{content:"]"}
+[data-style="B"] .v3-link::before{content:"["}
+[data-style="B"] .v3-link::after{content:"]"}
 
 /* ---- 提示带 ---- */
 .v3-band{display:flex;gap:9px;align-items:flex-start;padding:9px 11px;border:1px solid var(--line2);

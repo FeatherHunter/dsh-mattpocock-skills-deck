@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh" data-style="A">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>版本管理 · 深色风格再加两套（#855）</title>
+<link rel="stylesheet" href="855-vc-dark.css">
+<!--
+  PROTOTYPE-855 · 抛弃式设计稿 · 深色主题再加两套
+  已定的：布局 C（视图切换）、浅色风格 C（纸质便签）。
+  这一轮：深色主题除基准 A（工程台账）之外再给两套 —— D 控制台聚焦、E 分层暗舱。
+  同一份事实、同一套布局（C），三列并排，只比视觉。窄屏会自动改成单列。
+-->
+</head>
+<body>
+<div class="bar" style="position:sticky;top:0;z-index:9;display:flex;gap:12px;align-items:center;flex-wrap:wrap;
+  padding:9px 20px;background:#0a0a0c;border-bottom:1px solid rgba(255,255,255,.09);font-size:12px;color:#8b95a7">
+  <b style="color:#e6ebf3">版本管理 · 深色风格 D / E</b>
+  <a href="854-vc-layouts.html" style="color:#c3cbd8;text-decoration:none;border-bottom:1px solid rgba(255,255,255,.2)">布局与全部风格</a>
+  <a href="853-vc-styles.html" style="color:#c3cbd8;text-decoration:none;border-bottom:1px solid rgba(255,255,255,.2)">风格总览</a>
+  <span style="margin-left:auto">布局：已定 C 视图切换　浅色：已定 C 纸质便签</span>
+</div>
+
+<div class="darkwrap">
+  <p class="darklead">
+    基准 A（工程台账）你评为「马马虎虎」。我把它不通的三处原因说清楚，再对症加两套：<br>
+    <b>① 通体一个调子</b> —— 身份行与计数行跟正文一样重，扫过去没有落点；<br>
+    <b>② 靠发丝线分段</b> —— 看起来是「一张表」，不是「一块面」；<br>
+    <b>③ 强调色是通用绿</b> —— 到处都是绿，少了识别度。<br>
+    <b>D 控制台聚焦</b> 治 ①③：主强调换成天青，三个数字卡各带一条色脊当全页唯一焦点，面更软、层级靠明度差拉开。<br>
+    <b>E 分层暗舱</b> 治 ②：近乎无彩，分隔只靠明度差与留白，行没有下边线，字号更大，主按钮是白底黑字。<br>
+    三列内容完全一样，可以直接比。
+  </p>
+
+  <div class="cols" id="cols"></div>
+
+  <table class="cmp">
+    <tr><th>决定</th><th>A 工程台账（基准）</th><th>D 控制台聚焦</th><th>E 分层暗舱</th></tr>
+    <tr><td>画布 / 面板</td><td><code>#0f172a</code> / <code>#131c2f</code></td><td><code>#0a0d12</code> / <code>#11151d</code></td><td><code>#0b0b0c</code> / <code>#131316</code></td></tr>
+    <tr><td>主强调</td><td>通用绿 <code>#22c55e</code></td><td>天青 <code>#7cc4ff</code>（识别度高）</td><td>近白 <code>#e8e8e6</code>（不用彩色做主）</td></tr>
+    <tr><td>状态色用量</td><td>三类状态各一色</td><td>三类状态各一色，另有中性的提示蓝</td><td>只有冲突红、已暂存绿；其余一律中性</td></tr>
+    <tr><td>计数怎么摆</td><td>三个描边小盒</td><td>三张卡，各带一条顶部色脊（红/绿/青）</td><td>三组大数字 + 细竖线分隔，无盒子</td></tr>
+    <tr><td>行与分隔</td><td>每行一条发丝线</td><td>发丝线 + 悬停时抬一层底色</td><td>无下边线，行间留 1px 空隙，悬停才出底色</td></tr>
+    <tr><td>提示带</td><td>左侧 3px 竖线 + 淡底</td><td>左侧 3px 竖线、无底、圆角更小</td><td>左侧 1px 细线、无底、上下留白更大</td></tr>
+    <tr><td>段标题</td><td>大写字距 + 下边线</td><td>下边线 + 后面接一段延伸到右侧的细线</td><td>无下边线，只靠 22px 上留白断开</td></tr>
+    <tr><td>圆角 / 行高 / 字号</td><td>4px / 30px / 12.5px</td><td>10px / 34px / 13px</td><td>14px / 36px / 13.5px</td></tr>
+    <tr><td>主按钮</td><td>实心绿</td><td>实心天青 + 深色字</td><td>实心近白 + 黑字（最像「工具本身」）</td></tr>
+    <tr><td>适合</td><td>信息密度优先</td><td>要焦点、要识别度，一眼看到「有几件事」</td><td>长时间盯着不累，最不像「套了层皮」</td></tr>
+  </table>
+
+  <p class="darklead" style="margin-bottom:0">
+    <b>我自己的判断</b>：如果要在深色里选一个，我选 <b>D</b> —— 它把「冲突 1 / 已暂存 3 / 未暂存 4」做成了全页唯一焦点，
+    正好补上你现在最缺的那一眼；<b>E</b> 更耐看但第一眼信息量低一点，适合你已经在这一页待很久的时候。
+    浅色那一套仍按你定的 <b>C 纸质便签</b>。
+  </p>
+</div>
+
+<script src="854-vc-layouts.js"></script>
+<script>
+window.__vcLayout = 'C'
+var COLS = [
+  { s: 'A', name: 'A 工程台账（基准）', src: 'UI UX Pro Max · Data-Dense Dashboard',
+    note: '你评为「马马虎虎」的那一套：通体一个调子、靠发丝线分段、强调色是通用绿。留在这里当对照。' },
+  { s: 'D', name: 'D 控制台聚焦', src: 'UI UX Pro Max 配色刻度 + 焦点式层级',
+    note: '主强调换天青；三个数字卡各带一条色脊，成为全页唯一焦点；面更软、层级靠明度差拉开。' },
+  { s: 'E', name: 'E 分层暗舱', src: 'Brutalism 的克制变体 · 近乎无彩',
+    note: '分隔只靠明度差与留白，行没有下边线；字号更大，主按钮白底黑字。长时间盯着最不累。' }
+]
+document.getElementById('cols').innerHTML = COLS.map(function (c) {
+  return '<div class="dcol" data-style="' + c.s + '">' +
+    '<div class="dcol__h"><b>' + c.name + '</b><span class="src">' + c.src + '</span></div>' +
+    '<p class="dcol__n">' + c.note + '</p>' +
+    '<div class="stage" id="stage-' + c.s + '"></div></div>'
+}).join('')
+COLS.forEach(function (c) {
+  var el = document.getElementById('stage-' + c.s)
+  el.innerHTML = VC_LAYOUTS.C.render()
+  el.querySelectorAll('.lay-views button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      el.querySelectorAll('.lay-views button').forEach(function (x) { x.setAttribute('aria-selected', String(x === b)) })
+      el.querySelectorAll('.lay-view').forEach(function (v) { v.classList.toggle('is-on', v.dataset.v === b.dataset.v) })
+    })
+  })
+})
+</script>
+</body>
+</html>

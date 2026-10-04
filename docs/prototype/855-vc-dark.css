@@ -1,0 +1,104 @@
+@import url('854-vc-layouts.css');
+/* 855 补两套深色风格。基准 A（工程台账）的问题，按三条病因来治：
+ * ① 通体一个调子，身份行与计数行跟正文一样重 → 没有焦点；
+ * ② 靠发丝线分段，扫起来是「表」不是「面」；
+ * ③ 强调色是通用绿，缺一点识别度。
+ * D 控制台聚焦：治 ①③ —— 天青主强调 + 三个带色脊的数字卡当唯一焦点，面更软、层级靠明度差。
+ * E 分层暗舱：治 ②   —— 近乎无彩，分隔只靠明度差与留白，字号更大、行无下边线，主按钮是白底黑字。
+ * 两套都只换视觉，事实数据与布局（已定 C · 视图切换）完全一样。
+ */
+[data-style="D"]{
+  --bg:#0a0d12; --paper:#11151d; --inset:#0c1017; --elevated:#171d27;
+  --ink:#eef2f8; --ink2:#c3cbd8; --mut:#8b95a7; --faint:#5f697a;
+  --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.17);
+  --accent:#7cc4ff; --accent-ink:#05243a; --success:#4ade80; --danger:#ff7a7a; --warn:#fbbf24; --info:#a9b4c4;
+  --radius:10px; --row-pad:8px 10px; --row-h:34px; --fs:13px; --fs-sec:11px; --sec-track:.12em;
+  --btn-radius:8px; --btn-h:28px; --font:var(--sans); --font-path:var(--mono);
+  --num:tabular-nums; --row-sep:0px; --shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 20px 44px rgba(0,0,0,.45);
+}
+[data-style="E"]{
+  --bg:#0b0b0c; --paper:#131316; --inset:#0e0e11; --elevated:#1b1b20;
+  --ink:#f5f5f4; --ink2:#b8b6b0; --mut:#82807a; --faint:#5a5852;
+  --line:rgba(255,255,255,.06); --line2:rgba(255,255,255,.13);
+  --accent:#e8e8e6; --accent-ink:#111113; --success:#86efac; --danger:#f87171; --warn:#fbbf24; --info:#8f8e88;
+  --radius:14px; --row-pad:9px 12px; --row-h:36px; --fs:13.5px; --fs-sec:10.5px; --sec-track:.2em;
+  --btn-radius:10px; --btn-h:30px; --font:var(--sans); --font-path:var(--mono);
+  --num:tabular-nums; --row-sep:0px; --shadow:0 24px 60px rgba(0,0,0,.55);
+}
+:root{--success:#22c55e}
+
+/* ---------- 页面外壳（脚手架） ---------- */
+.darkwrap{max-width:1720px;margin:0 auto;padding:0 20px 80px}
+.darklead{font-size:13.5px;color:#9aa3b2;max-width:860px;margin:22px auto 26px;line-height:1.7}
+.darklead b{color:#e6ebf3}
+.cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;align-items:start}
+@media (max-width:1500px){.cols{grid-template-columns:minmax(0,1fr)}}
+.dcol{min-width:0;background:var(--bg);border-radius:12px;padding:14px 14px 18px}
+.dcol__h{display:flex;align-items:baseline;gap:9px;margin:0 0 4px;flex-wrap:wrap}
+.dcol__h b{font-size:13.5px;color:#e6ebf3}
+.dcol__h .src{font-size:11px;color:#7c8798}
+.dcol__n{font-size:11.5px;color:#8b95a7;margin:0 0 12px;line-height:1.6}
+.cmp{width:100%;border-collapse:collapse;margin:10px 0 30px;font-size:12.5px}
+.cmp th,.cmp td{text-align:left;padding:8px 11px;border-bottom:1px solid rgba(255,255,255,.08);vertical-align:top}
+.cmp th{color:#7c8798;font-weight:600;font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+.cmp td:first-child{color:#8b95a7;width:170px}
+.cmp code{font-family:var(--mono);font-size:11.5px;color:#c3cbd8}
+
+/* ---------- D 控制台聚焦：结构上的三处改动 ---------- */
+[data-style="D"] .v3-shell{border-color:rgba(255,255,255,.09)}
+[data-style="D"] .v3-shell__head{background:var(--elevated);border-bottom:1px solid var(--line);padding:9px 13px}
+[data-style="D"] .v3-shell__head::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--accent);margin-right:2px}
+[data-style="D"] .v3-id{font-size:16px;letter-spacing:-.015em}
+[data-style="D"] .v3-id .br{border:1px solid var(--line2);background:var(--elevated);border-radius:99px;padding:1px 9px;font-size:12.5px}
+[data-style="D"] .v3-id .sep{opacity:.5}
+[data-style="D"] .stat{gap:9px;margin:12px 0 14px}
+[data-style="D"] .stat__i{background:var(--paper);border:1px solid var(--line);border-top-width:2px;border-radius:9px;padding:9px 12px}
+[data-style="D"] .stat__n{font-size:23px;letter-spacing:-.02em}
+[data-style="D"] .stat__t{font-size:11px;color:var(--mut);margin-top:3px}
+[data-style="D"] .stat__i[data-k="conflict"]{border-top-color:var(--danger)}
+[data-style="D"] .stat__i[data-k="staged"]{border-top-color:var(--success)}
+[data-style="D"] .stat__i[data-k="unstaged"]{border-top-color:var(--accent)}
+[data-style="D"] .v3-sec{color:var(--mut);border-bottom:1px solid var(--line);padding:14px 0 7px}
+[data-style="D"] .v3-sec::after{content:"";flex:1;height:1px;background:var(--line)}
+[data-style="D"] .v3-row{border-bottom:1px solid var(--line)}
+[data-style="D"] .v3-row:hover{background:var(--elevated)}
+[data-style="D"] .v3-row.is-open{background:color-mix(in srgb,var(--accent) 12%,transparent);box-shadow:inset 2px 0 0 var(--accent)}
+[data-style="D"] .v3-band{background:color-mix(in srgb,currentColor 6%,transparent);border:1px solid var(--line2);border-left:3px solid var(--line2);background:transparent}
+[data-style="D"] .v3-band[data-tone="warn"]{border-left-color:var(--warn)}
+[data-style="D"] .v3-band[data-tone="error"]{border-left-color:var(--danger)}
+[data-style="D"] .v3-band[data-tone="ok"]{border-left-color:var(--success)}
+[data-style="D"] .v3-band[data-tone="info"]{border-left-color:var(--accent)}
+[data-style="D"] .v3-btn--primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+[data-style="D"] .lay-views button[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent)}
+[data-style="D"] .lay-views button[aria-selected="true"] .n{color:var(--accent)}
+[data-style="D"] .v3-badge{border-radius:7px;font-size:11px;min-width:20px;height:20px}
+[data-style="D"] .v3-diff{border-radius:10px}
+
+/* ---------- E 分层暗舱：结构上的三处改动（几乎无彩，分隔靠明度） ---------- */
+[data-style="E"] .v3-shell{border-color:rgba(255,255,255,.07);background:var(--paper)}
+[data-style="E"] .v3-shell__head{background:transparent;border-bottom:1px solid var(--line);padding:10px 16px;color:var(--faint)}
+[data-style="E"] .v3-id{font-size:17px;letter-spacing:-.02em}
+[data-style="E"] .v3-id .br{color:var(--ink)}
+[data-style="E"] .v3-id .sep{color:var(--faint)}
+[data-style="E"] .stat{gap:0;margin:14px 0 16px;align-items:stretch}
+[data-style="E"] .stat__i{background:transparent;border:0;border-right:1px solid var(--line);border-radius:0;padding:4px 18px 4px 0;margin-right:18px}
+[data-style="E"] .stat__i:last-child{border-right:0;margin-right:0;padding-right:0}
+[data-style="E"] .stat__n{font-size:26px;font-weight:600;letter-spacing:-.03em}
+[data-style="E"] .stat__t{font-size:10px;color:var(--faint);margin-top:4px;letter-spacing:.1em;text-transform:uppercase}
+[data-style="E"] .v3-sec{color:var(--faint);border-bottom:0;padding:22px 0 10px}
+[data-style="E"] .v3-row{border-bottom:0;margin:1px 0;border-radius:10px}
+[data-style="E"] .v3-row:hover{background:var(--elevated)}
+[data-style="E"] .v3-row.is-open{background:var(--elevated)}
+[data-style="E"] .v3-path{font-size:13.5px}
+[data-style="E"] .v3-kind{color:var(--faint)}
+[data-style="E"] .v3-band{background:transparent;border:0;border-left:1px solid var(--line2);border-radius:0;padding:4px 0 4px 13px}
+[data-style="E"] .v3-band[data-tone="warn"]{border-left-color:var(--warn)}
+[data-style="E"] .v3-band[data-tone="error"]{border-left-color:var(--danger)}
+[data-style="E"] .v3-band[data-tone="ok"]{border-left-color:var(--success)}
+[data-style="E"] .v3-btn{background:transparent}
+[data-style="E"] .v3-btn--primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+[data-style="E"] .lay-views{border-bottom:1px solid var(--line);margin:16px 0 16px}
+[data-style="E"] .lay-views button{font-size:13px;padding:10px 15px}
+[data-style="E"] .lay-views button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink);font-weight:650}
+[data-style="E"] .v3-empty{color:var(--faint)}
+[data-style="E"] .v3-diff{border-radius:12px;padding:12px 14px}
