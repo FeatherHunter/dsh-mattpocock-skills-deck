@@ -28,8 +28,10 @@ const readJson = (rel) => JSON.parse(readText(rel))
 const LIVE = readJson('version-control-core/fixtures/live-numstat-shapes.json')
 // #821 真机样本：四个提交加一次真合并，命令原文见样本头（show --numstat / show -p / rev-list --parents）。
 const LIVE_REV = readJson('version-control-core/fixtures/live-rev-shapes.json')
+// #819 复审样本：方括号路径（带/不带 --literal-pathspecs 两种真机输出）、sql 行首歧义、刚克隆的仓库。
+const LIVE_819 = readJson('version-control-core/fixtures/live-819-review-shapes.json')
 const LIVE_ROOT = /^worktree ([^\u0000\n]+)/.exec(LIVE.worktrees.out)[1]
-const FIXED_PREFIX = ['--no-optional-locks', '-c', 'core.quotepath=false', '-c', 'color.ui=false', '-c', 'i18n.logOutputEncoding=UTF-8']
+const FIXED_PREFIX = ['--no-optional-locks', '--literal-pathspecs', '-c', 'core.quotepath=false', '-c', 'color.ui=false', '-c', 'i18n.logOutputEncoding=UTF-8']
 const LOG_WHITELIST = ['argv0', 'cwdHash', 'latencyMs', 'exitCode', 'via', 'timeoutMs', 'errorHash']
 
 // ---------- 假适配器：形状照 DSH subprocess 服务（done / collected.stdout / terminate） ----------
@@ -65,7 +67,14 @@ function makeDeps(route, opts) {
     },
     timer: { timeout(ms) { timerCalls.push(ms); return new Promise(function (resolve) { setTimeout(function () { resolve() }, o.timerFast === true ? 1 : ms) }) } },
     fs: o.fs === null ? null : {
-      stat(p) { if (o.fsError) return Promise.reject(Object.assign(new Error('读不了'), { code: o.fsError })); return markerHit(o, p) ? Promise.resolve({}) : Promise.reject(Object.assign(new Error('没有这个文件'), { code: 'ENOENT' })) },
+      stat(p) {
+        if (o.fsError) return Promise.reject(Object.assign(new Error('读不了'), { code: o.fsError }))
+        // statMs：按路径后缀给一个落盘时间（#819 复审 P0-3 用得上：引用文件与 packed-refs 的 mtime）。
+        if (o.statMs) { for (const k of Object.keys(o.statMs)) if (String(p).indexOf(k) >= 0) return Promise.resolve({ mtimeMs: o.statMs[k] }) }
+        // statIso：DSH 的 fs.stat 也可能给 ISO 串形态的 mtime（见 handoffClaim.js 的教训），单独留一条。
+        if (o.statIso) { for (const k of Object.keys(o.statIso)) if (String(p).indexOf(k) >= 0) return Promise.resolve({ mtime: o.statIso[k] }) }
+        return markerHit(o, p) ? Promise.resolve({}) : Promise.reject(Object.assign(new Error('没有这个文件'), { code: 'ENOENT' }))
+      },
       lstat() { return Promise.resolve(null) },
       exists(p) { return Promise.resolve(markerHit(o, p)) },
     },
@@ -159,6 +168,21 @@ async function screenChecks(makeVc) {
   }
   const loggedJson = JSON.stringify(logs.map(function (l) { return l.fields }))
   add(!/(cwd|path|stdout|stderr|message|args|argv)"/.test(loggedJson), '日志字段里没有原始路径、命令参数或输出正文')
+
+  // #819 复审追加：首屏头两条命令用的是调用方给的写法（Windows 上常是反斜杠），后面几条用的是 git 回的
+  // 正斜杠仓库根。不归一目录就会算出两个 cwdHash，按它过滤日志会把一次面板打开拆成两组。
+  const box2 = makeDeps(liveRoute)
+  const r2 = await makeVc(box2.deps).handleGitStatus({ cwd: LIVE_ROOT.replace(/\//g, '\\') + '\\' })
+  const exec2 = box2.logs.filter(function (l) { return l.event === 'git.exec' })
+  const hashes2 = exec2.map(function (l) { return l.fields.cwdHash })
+  const distinct2 = hashes2.filter(function (h, i) { return hashes2.indexOf(h) === i })
+  add(r2 && r2.ok === true, '换成反斜杠写法（还带尾斜杠）调一次首屏也能成功（实得 ' + JSON.stringify(r2 && (r2.error || r2.ok)) + '）')
+  add(exec2.length > 0 && distinct2.length === 1, '一次首屏里所有 git.exec 行的 cwdHash 只有一个值（实得 ' + distinct2.length + ' 个：' + distinct2.join(' / ') + '）')
+  // 反证：散列之前不归一的话，同一个目录的两种写法必然算出两个散列——这正是要守的那个坑。
+  const rawHashOf = function (s) { let h = 5381; const t = String(s || ''); for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) }
+  const rawA = rawHashOf(LIVE_ROOT)
+  const rawB = rawHashOf(LIVE_ROOT.replace(/\//g, '\\') + '\\')
+  add(rawA !== rawB, '反证：不归一的话两种写法算出的散列不同（' + rawA + ' / ' + rawB + '），所以上面那条断言守的是真的会出问题的地方')
   return { bad: bad, r: r }
 }
 
@@ -324,6 +348,12 @@ async function main() {
   check(leafSrc.indexOf('createGitDiffPhone') >= 0 && leafSrc.indexOf("import('./versionControl.js')") < 0, '差异电话体是自包含叶子：导出 createGitDiffPhone，且不反向引用父文件（单向引用）')
   check(hostSrc.indexOf("import('./versionControlFiles.js')") >= 0, '父文件以字面量动态加载差异电话体（同层装配边已记进 tests/same-layer-baseline.json）')
   check(hostSrc.indexOf('parsePatch') < 0, '补丁解析器随电话体搬到叶子里（父文件不再直接持解析器）')
+  // #819 复审 P0-3 拆出的依据时间叶子：同样只有一条起进程的路，且不反向引用父文件。
+  const basisSrc = readText(path.join('src', 'host', 'versionControlBasis.js'))
+  const basisCode = basisSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^A-Za-z0-9_$:])\/\/.*$/gm, '$1')
+  check(basisCode.indexOf('child_process') < 0 && basisCode.indexOf('execSync') < 0 && basisCode.indexOf('spawnSync') < 0 && basisCode.indexOf('shell') < 0, '依据时间叶子也不碰 child_process、不经 shell')
+  check(basisSrc.indexOf('createBasisReader') >= 0 && basisSrc.indexOf("import('./versionControl.js')") < 0, '依据时间叶子自包含：导出 createBasisReader，且不反向引用父文件')
+  check(hostSrc.indexOf("import('./versionControlBasis.js')") >= 0, '父文件以字面量动态加载依据时间叶子（同层装配边已记进基线）')
 
   // ---- 2) 真机样本驱动首屏：同一套断言 ----
   const real = await screenChecks(function (deps) { return hostMod.createVersionControl(deps) })
@@ -331,7 +361,7 @@ async function main() {
 
   // ---- 3) 反证：不读 git、直接回一份好看首屏的坏实现，必须被同一套断言逮住 ----
   const fakeScreen = {
-    identity: { worktreeDisplay: 'repo', worktreePath: LIVE_ROOT, branch: 'main', detached: false, oid: 'a'.repeat(40), sync: 'tracked-fresh', ahead: 0, behind: 0, basisMs: Date.parse('2026-10-01T12:00:00+08:00') },
+    identity: { worktreeDisplay: 'repo', worktreePath: LIVE_ROOT, branch: 'main', detached: false, oid: 'a'.repeat(40), sync: 'tracked-known', ahead: 0, behind: 0, basisMs: Date.parse('2026-10-01T12:00:00+08:00') },
     staged: [], unstaged: [], stagedCount: 0, unstagedCount: 0, conflictCount: 0, otherWorktrees: [], branches: [], commits: [],
     repo: { merging: false, rebasing: false, cherryPicking: false, reverting: false, hasCommits: true, bare: false, tier: 'full', autocrlf: null },
   }
@@ -351,7 +381,7 @@ async function main() {
   }
   const rUp = await hostMod.createVersionControl(makeDeps(upstreamRoute).deps).handleGitStatus({ cwd: 'D:/假工作区/repo' })
   check(rUp.ok === true && rUp.screen.identity.basisMs === Date.parse('2026-09-29T08:30:00+08:00'), '有上游时：依据时间取 reflog 末条时间戳')
-  check(rUp.ok === true && rUp.screen.identity.sync === 'tracked-fresh' && rUp.screen.identity.ahead === 1 && rUp.screen.identity.behind === 2, '有上游时：领先落后读 branch.ab，同步态判 tracked-fresh')
+  check(rUp.ok === true && rUp.screen.identity.sync === 'tracked-known' && rUp.screen.identity.ahead === 1 && rUp.screen.identity.behind === 2, '有上游且依据时间读到时：领先落后读 branch.ab，同步态判 tracked-known')
   const noReflogRoute = function (argv) {
     const a = afterPrefix(argv)
     if (a && a[0] === 'reflog') return { code: 128, stdout: '', stderr: 'fatal: bad revision\n' }
@@ -508,6 +538,72 @@ async function main() {
   }
   const caughtC = await revChecks(function (deps) { return badRawRev.createVersionControl(deps) })
   check(caughtC.bad.length > 0, '反证丙：不校验 rev 就拼进 argv 的写法必须被判红（被 ' + caughtC.bad.length + ' 条逮住）')
+
+  // ---- 10) #819 复审：路径字面量（P0-1）与刚克隆的依据时间（P0-3） ----
+  // P0-1：假适配器照真机行为回——命令里带 --literal-pathspecs 时只回被点名那一个文件的补丁；不带时
+  // 把同目录里另一个名字相近的文件也一起回（样本见 live-819-review-shapes.json）。
+  const bracketRoute = function (argv) {
+    const a = afterPrefix(argv)
+    if (a === null) return { code: 1, stderr: '缺少固定前缀' }
+    if (a[0] === 'rev-parse' && a.indexOf('--is-inside-work-tree') >= 0) return asRun(LIVE.step0)
+    if (a[0] === 'rev-parse' && a.indexOf('--show-toplevel') >= 0) return { code: 0, stdout: LIVE_ROOT + '\n' }
+    if (a[0] === 'rev-parse' && a.indexOf('--verify') >= 0) return { code: 0, stdout: 'a'.repeat(40) + '\n' }
+    if (a[0] === 'diff' && a.indexOf('--numstat') < 0) return asRun(argv.indexOf('--literal-pathspecs') >= 0 ? LIVE_819.bracket.patchWithLiteral : LIVE_819.bracket.patchWithoutLiteral)
+    return liveRoute(argv)
+  }
+  const bracketRun = makeDeps(bracketRoute)
+  const bracket = await hostMod.createVersionControl(bracketRun.deps).handleGitDiff({ cwd: 'D:/假工作区/repo', path: '方括号[1].txt' })
+  const sectionsOf = function (text) { return (String(text).match(/^diff --git /gm) || []).length }
+  check(bracket.ok === true && bracket.reason === 'ok', '方括号路径：被点名那个文件的补丁取到了（reason=ok）')
+  const patchFiles = (bracket.lines || []).filter(function (l) { return l.kind === 'filehead' && l.text.indexOf('diff --git ') === 0 }).map(function (l) { return l.text })
+  check(patchFiles.length === 1 && patchFiles[0].indexOf('方括号[1].txt') >= 0, '回包里只含被点名那个文件（实得 ' + patchFiles.length + ' 段：' + patchFiles.join('；') + '）')
+  check(bracketRun.calls.every(function (c) { return c.argv.indexOf('--literal-pathspecs') >= 0 }), '每一条命令都带 --literal-pathspecs（路径一律按字面量解释，绝不当通配）')
+  check(sectionsOf(LIVE_819.bracket.patchWithoutLiteral.out) === 2 && sectionsOf(LIVE_819.bracket.patchWithLiteral.out) === 1,
+    '反证：不带这个开关时真机回两段补丁（另一个文件的内容会混进来，实得 ' + sectionsOf(LIVE_819.bracket.patchWithoutLiteral.out) + ' 段），带上才只剩一段')
+
+  // P0-3：依据时间只认真值——这个上游**自己的**松散引用文件在时用它的落盘时间；引用被打包（只剩全仓库共用的
+  // packed-refs）或压根不存在时回 null（界面照旧说读不到）。真机样本见 live-819-review-shapes.json 的 clone 四态。
+  const cloneRoute = function (argv) {
+    const a = afterPrefix(argv)
+    if (a && a[0] === 'status') {
+      const withUp = LIVE.status.out.replace('# branch.head main\u0000', '# branch.head main\u0000# branch.upstream origin/main\u0000# branch.ab +1 -2\u0000')
+      return { code: 0, stdout: withUp }
+    }
+    if (a && a[0] === 'reflog') return asRun(LIVE_819.clone.fresh.reflog)
+    return liveRoute(argv)
+  }
+  const CF = LIVE_819.clone
+  const basisOf = async function (route, opts) {
+    const r = await hostMod.createVersionControl(makeDeps(route, opts).deps).handleGitStatus({ cwd: 'D:/假工作区/repo' })
+    return { ok: r.ok === true, basisMs: r.ok === true ? r.screen.identity.basisMs : null, sync: r.ok === true ? r.screen.identity.sync : '' }
+  }
+  // ① 刚克隆：引用在 packed-refs、reflog 为空 —— 必须是 null，不拿打包文件的落盘时间冒充这个上游的依据时间。
+  const fresh = await basisOf(cloneRoute, { statMs: { 'packed-refs': CF.fresh.packedRefsMtimeMs } })
+  check(fresh.ok && fresh.basisMs === null, '刚克隆（引用在 packed-refs）：依据时间如实为 null（实得 ' + fresh.basisMs + '）')
+  check(fresh.ok && fresh.sync === 'tracked-unknown', '读不到依据时间时仍是 tracked-unknown（界面那一档不变）')
+  // ② 跑过一次 git gc：packed-refs 的 mtime 变了，依据时间仍然必须是 null。
+  check(CF.afterGc.packedRefsMtimeMs !== CF.fresh.packedRefsMtimeMs, '真机事实：跑一次 git gc 之后 packed-refs 的 mtime 会变（相差 ' + (CF.afterGc.packedRefsMtimeMs - CF.fresh.packedRefsMtimeMs) + ' 毫秒）')
+  const afterGc = await basisOf(cloneRoute, { statMs: { 'packed-refs': CF.afterGc.packedRefsMtimeMs } })
+  check(afterGc.ok && afterGc.basisMs === null, 'git gc 之后仍然是 null（依据时间不随打包动作乱跳，实得 ' + afterGc.basisMs + '）')
+  // 反证：旧的「reflog 取不到就退回 packed-refs」写法在①与②两种状态下都会给出一个凑出来的时间。
+  const oldPackedFallback = function (reflogText, packedMs) { const m = /\{([^}]*)\}/.exec(String(reflogText || '')); if (m) { const ms = Date.parse(m[1]); if (!Number.isNaN(ms)) return ms } return packedMs }
+  check(oldPackedFallback(CF.fresh.reflog.out, CF.fresh.packedRefsMtimeMs) === CF.fresh.packedRefsMtimeMs
+    && oldPackedFallback(CF.afterGc.reflog.out, CF.afterGc.packedRefsMtimeMs) === CF.afterGc.packedRefsMtimeMs,
+    '反证：带 packed-refs 那一支的旧写法会给「凑出来的时间」（刚克隆 ' + CF.fresh.packedRefsMtimeMs + ' / gc 后 ' + CF.afterGc.packedRefsMtimeMs + '），新断言要求它们是 null')
+  // ③ 这个上游的松散引用文件真在时：用它的落盘时间（那才是「本地记着的这个引用最后一次被写入」）。
+  const loose = await basisOf(cloneRoute, { statMs: { 'refs/remotes/origin/main': CF.loose.looseRefMtimeMs } })
+  check(loose.ok && loose.basisMs === CF.loose.looseRefMtimeMs, '松散引用文件在时：依据时间等于那个文件自己的落盘时间（实得 ' + loose.basisMs + '）')
+  check(loose.ok && loose.sync === 'tracked-known', '有真值时才判 tracked-known')
+  const looseIso = await basisOf(cloneRoute, { statIso: { 'refs/remotes/origin/main': '2026-10-04T12:00:00+08:00' } })
+  check(looseIso.ok && looseIso.basisMs === Date.parse('2026-10-04T12:00:00+08:00'), '落盘时间是 ISO 串形态时照样解得出来（DSH 的 fs.stat 形态不可控）')
+  // ④ 上游已经被删：引用根本不存在 —— 照样 null，不因为仓库里有 packed-refs 就凭空给一个时间。
+  const goneRoute = function (argv) { const a = afterPrefix(argv); if (a && a[0] === 'reflog') return asRun(CF.upstreamGone.reflog); return cloneRoute(argv) }
+  const gone = await basisOf(goneRoute, { statMs: { 'packed-refs': CF.fresh.packedRefsMtimeMs } })
+  check(gone.ok && gone.basisMs === null, '上游已经被删：引用不存在，依据时间如实为 null（实得 ' + gone.basisMs + '）')
+  // 两条路都有时以 reflog 末条时间为准（更准的那一条优先）。
+  const reflogWinsRoute = function (argv) { const a = afterPrefix(argv); if (a && a[0] === 'reflog') return { code: 0, stdout: 'refs/remotes/origin/main@{2026-09-29T08:30:00+08:00}\n' }; return cloneRoute(argv) }
+  const wins = await basisOf(reflogWinsRoute, { statMs: { 'refs/remotes/origin/main': CF.loose.looseRefMtimeMs } })
+  check(wins.ok && wins.basisMs === Date.parse('2026-09-29T08:30:00+08:00'), '两条路都有时以 reflog 末条时间为准（那是这个引用真被写入的时刻）')
 
   console.log(failed ? '\n存在失败 — verify-version-control-host 未通过' : '\n全部通过 — 宿主取数层门禁生效（' + total + ' 项断言）')
   process.exit(failed ? 1 : 0)

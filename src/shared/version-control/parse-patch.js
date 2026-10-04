@@ -2,8 +2,6 @@
 const HEADER_PREFIXES = [
   "diff --git ",
   "index ",
-  "--- ",
-  "+++ ",
   "new file mode ",
   "deleted file mode ",
   "old mode ",
@@ -13,15 +11,23 @@ const HEADER_PREFIXES = [
   "rename to ",
   "Binary files "
 ];
+const AMBIGUOUS_HEAD_PREFIXES = ["--- ", "+++ "];
 export function parsePatch(stdout) {
   const text = String(stdout);
   const raw = text.split("\n");
   if (raw.length > 0 && raw[raw.length - 1] === "") raw.pop();
   const out = [];
+  let inHunk = false;
   for (const ln of raw) {
-    if (ln.startsWith("@@")) out.push({ kind: "hunk", text: ln });
+    if (ln.startsWith("diff --git ")) {
+      inHunk = false;
+      out.push({ kind: "filehead", text: ln });
+    } else if (!inHunk && AMBIGUOUS_HEAD_PREFIXES.some((p) => ln.startsWith(p))) out.push({ kind: "filehead", text: ln });
     else if (HEADER_PREFIXES.some((p) => ln.startsWith(p))) out.push({ kind: "filehead", text: ln });
-    else if (ln.startsWith("\\ ")) out.push({ kind: "no-newline", text: ln });
+    else if (ln.startsWith("@@")) {
+      inHunk = true;
+      out.push({ kind: "hunk", text: ln });
+    } else if (ln.startsWith("\\ ")) out.push({ kind: "no-newline", text: ln });
     else if (ln.startsWith("+")) out.push({ kind: "add", text: ln });
     else if (ln.startsWith("-")) out.push({ kind: "del", text: ln });
     else if (ln.startsWith(" ") || ln === "") out.push({ kind: "context", text: ln });

@@ -4,6 +4,8 @@
 // 断言文字：只测外部行为——给定一份固定状态，断言判定结果（allow/warn/block + 理由标识符）。
 // 四个操作各一条底线：没东西暂存就拦暂存、没暂存就拦提交、脏树与冲突拦拉取、上游没了拦推拉；
 // 理由只能是 REASONS 表里的取值。最后带断言装置自检：把规则改坏（永远放行），同一套断言必须判红。
+// #819 复审 P2-8 补三条方向：合并/变基进行中推送拦住（推的是动手前那次提交）、落后远端推送拦住
+// （推上去会被拒，与拉取同一条边界）、游离头上提交至少提醒（提交完只剩 reflog 能找回来）。
 const path = require('path')
 const { pathToFileURL } = require('url')
 
@@ -20,7 +22,7 @@ const file = (over = {}) => Object.assign({
 const base = (over = {}) => Object.assign({
   identity: {
     worktreeDisplay: 'repo', worktreePath: 'D:/repo', branch: 'main', detached: false,
-    oid: 'a'.repeat(40), sync: 'tracked-fresh', ahead: 0, behind: 0, basisMs: 1000,
+    oid: 'a'.repeat(40), sync: 'tracked-known', ahead: 0, behind: 0, basisMs: 1000,
   },
   staged: [], unstaged: [file()], stagedCount: 0, unstagedCount: 1, conflictCount: 0,
   otherWorktrees: [], branches: [], commits: [],
@@ -73,8 +75,20 @@ function scenarios(judge) {
       run: () => { const s = base({ unstaged: [], unstagedCount: 0 }); s.identity.detached = true; s.identity.sync = 'detached'; const r = judge(s, 'pull'); return r.verdict === 'block' && r.reasons.includes('detached-head') },
     },
     {
-      id: '推送：落后远端提醒（behind-remote）不断言失败',
-      run: () => { const s = base(); s.identity.behind = 3; const r = judge(s, 'push'); return r.verdict === 'warn' && r.reasons.includes('behind-remote') },
+      id: '推送：落后远端拦住（behind-remote，与拉取同一条边界；推上去会被拒）',
+      run: () => { const s = base({ unstaged: [], unstagedCount: 0 }); s.identity.behind = 3; const r = judge(s, 'push'); return r.verdict === 'block' && r.reasons.includes('behind-remote') },
+    },
+    {
+      id: '推送：合并进行中拦住（mid-merge，推的是动手前那次提交）',
+      run: () => { const s = base({ unstaged: [], unstagedCount: 0 }); s.repo.merging = true; const r = judge(s, 'push'); return r.verdict === 'block' && r.reasons.includes('mid-merge') },
+    },
+    {
+      id: '推送：变基进行中拦住（mid-rebase）',
+      run: () => { const s = base({ unstaged: [], unstagedCount: 0 }); s.repo.rebasing = true; const r = judge(s, 'push'); return r.verdict === 'block' && r.reasons.includes('mid-rebase') },
+    },
+    {
+      id: '提交：游离头指针提醒（detached-head，合法但要找回来只能靠 reflog）',
+      run: () => { const s = base({ staged: [file({ staged: true, unstaged: false })], stagedCount: 1 }); s.identity.detached = true; s.identity.sync = 'detached'; const r = judge(s, 'commit'); return r.verdict === 'warn' && r.reasons.includes('detached-head') },
     },
     {
       id: '推送：上游被删拦住',
@@ -125,6 +139,25 @@ async function main() {
   const broken = (/* screen, op */) => ({ verdict: 'allow', reasons: ['ok'] })
   const caught = failuresOf(broken)
   check(caught.length > 0, '断言装置自检：永远放行必须判红（被 ' + caught.length + ' 条逮住）')
+
+  // ---- H 组反证（#819 复审 P2-8）：把这三条方向改回旧写法，同一批输入必须当场红 ----
+  const midReasonsOf = (s) => { const out = []; if (s.repo.merging) out.push('mid-merge'); if (s.repo.rebasing) out.push('mid-rebase'); if (s.repo.cherryPicking || s.repo.reverting) out.push('mid-cherry-revert'); return out }
+  const pushMid = (() => { const s = base({ unstaged: [], unstagedCount: 0 }); s.repo.merging = true; return s })()
+  const pushBehind = (() => { const s = base({ unstaged: [], unstagedCount: 0 }); s.identity.behind = 3; return s })()
+  const commitDetached = (() => { const s = base({ staged: [file({ staged: true, unstaged: false })], stagedCount: 1 }); s.identity.detached = true; s.identity.sync = 'detached'; return s })()
+  const oldJudgePush = (s) => {
+    if (s.identity.sync === 'no-upstream') return { verdict: 'block', reasons: ['no-upstream'] }
+    if (s.identity.behind > 0) return { verdict: 'warn', reasons: ['behind-remote'] }
+    if (s.identity.basisMs === null) return { verdict: 'warn', reasons: ['basis-unknown'] }
+    return { verdict: 'allow', reasons: ['ok'] }
+  }
+  const oldJudgeCommit = (s) => { const mid = midReasonsOf(s); if (mid.length > 0) return { verdict: 'warn', reasons: mid }; return { verdict: 'allow', reasons: ['ok'] } }
+  check(oldJudgePush(pushMid).verdict === 'allow', '反证 a：旧方向把「合并进行中推送」判成能继续（实得 ' + oldJudgePush(pushMid).verdict + '），新场景会把它逮住')
+  check(oldJudgePush(pushBehind).verdict === 'warn', '反证 b：旧方向把「落后远端推送」只提醒（实得 ' + oldJudgePush(pushBehind).verdict + '），新场景要求拦住')
+  check(oldJudgeCommit(commitDetached).verdict === 'allow', '反证 c：旧方向在游离头上提交直接放行（实得 ' + oldJudgeCommit(commitDetached).verdict + '），新场景要求至少提醒')
+  check(rules.judge(pushMid, 'push').verdict === 'block' && rules.judge(pushBehind, 'push').verdict === 'block' && rules.judge(commitDetached, 'commit').verdict === 'warn',
+    '三条新方向同时成立：合并中推送拦住、落后远端拦住、游离头提交提醒')
+
 
   console.log(failed ? '\n存在失败 — verify-version-control-rules 未通过' : '\n全部通过 — 判定规则门禁生效（' + total + ' 项断言）')
   process.exit(failed ? 1 : 0)

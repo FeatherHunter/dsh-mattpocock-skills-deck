@@ -34,10 +34,11 @@ export function displayFor(path, keep) {
 }
 export function foldMiddle(path, maxLen) {
   const p = String(path);
-  if (p.length <= maxLen || maxLen < 10) return p;
+  const cps = Array.from(p);
+  if (cps.length <= maxLen || maxLen < 10) return p;
   const keep = maxLen - 1;
   const headLen = Math.ceil(keep * 0.4);
-  return p.slice(0, headLen) + "\u2026" + p.slice(p.length - (keep - headLen));
+  return cps.slice(0, headLen).join("") + "\u2026" + cps.slice(cps.length - (keep - headLen)).join("");
 }
 export function describeTime(nowMs, tMs) {
   const diff = nowMs - tMs;
@@ -75,8 +76,10 @@ export function assemble(input) {
     files.push({
       path: e.path,
       origPath: e.origPath,
-      staged: e.x !== "." && e.x !== "?" && e.x !== "!",
-      unstaged: e.y !== "." && e.y !== "?" && e.y !== "!",
+      // 冲突（unmerged）既不是已暂存也不是未暂存，是一个待处理状态：两个标记都置 false，
+      // 免得同一个文件被同时算进两组（#819 复审 P0-2）；未跟踪就是未暂存的改动，unstaged 置真（P2-7）。
+      staged: e.kind === "unmerged" ? false : e.x !== "." && e.x !== "?" && e.x !== "!",
+      unstaged: e.kind === "unmerged" ? false : e.y !== "." && e.y !== "?" && e.y !== "!" || e.kind === "untracked",
       change,
       conflict,
       addedLines: c ? c.added : null,
@@ -85,7 +88,7 @@ export function assemble(input) {
   }
   files.sort((a, b) => rankFor(a) - rankFor(b) || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   const staged = files.filter((f) => f.staged);
-  const unstaged = files.filter((f) => f.unstaged || f.change === "untracked");
+  const unstaged = files.filter((f) => f.unstaged || f.conflict);
   const allPaths = input.worktrees.map((w) => w.path);
   const keeps = shortestUniqueSuffix(allPaths.length > 0 ? allPaths : [input.repoRoot]);
   let currentPath = input.repoRoot;
@@ -104,11 +107,15 @@ export function assemble(input) {
   else {
     const ref = input.refs.find((r) => r.short === input.statusHead);
     if (ref && ref.upstreamGone) sync = "upstream-gone";
-    else if (input.basisMs === null) sync = "tracked-stale";
-    else sync = "tracked-fresh";
+    else if (input.basisMs === null) sync = "tracked-unknown";
+    else sync = "tracked-known";
   }
+  const keepOf = (p) => {
+    const i = input.worktrees.findIndex((w) => sameWorktreePath(w.path, p));
+    return (i >= 0 ? keeps[i] : 1) || 1;
+  };
   const identity = {
-    worktreeDisplay: displayFor(currentPath, keeps[Math.max(0, allPaths.indexOf(currentPath))] || 1),
+    worktreeDisplay: displayFor(currentPath, keepOf(currentPath)),
     worktreePath: currentPath,
     branch: input.statusDetached ? null : input.statusHead,
     detached: input.statusDetached,
@@ -118,17 +125,20 @@ export function assemble(input) {
     behind: input.statusBehind,
     basisMs: input.basisMs
   };
-  const others = input.worktrees.filter((w) => w.path !== currentPath).map((w) => ({
+  const others = input.worktrees.filter((w) => !sameWorktreePath(w.path, currentPath)).map((w) => ({
     path: w.path,
-    display: displayFor(w.path, keeps[Math.max(0, allPaths.indexOf(w.path))] || 1),
+    display: displayFor(w.path, keepOf(w.path)),
     head: w.head || "",
     branch: w.branch,
     bare: w.bare,
     current: false,
     locked: w.locked,
     lockReason: w.lockReason,
+    // 降级档（git 2.11–2.30）答不出「被锁定」与「目录还在不在」这两件事：答不出写成 unknown，
+    // 绝不当成 false —— 否则界面会把一个目录已经不存在的工作树画成还能用（#819 复审 P1-5）。
     lockUnknown: input.tier !== "full" && !w.locked,
-    prunable: w.prunable
+    prunable: w.prunable,
+    prunableUnknown: input.tier !== "full" && !w.prunable
   }));
   const commits = input.commits.map((c) => ({
     oid: c.oid,
@@ -165,8 +175,8 @@ export function assemble(input) {
       identity,
       staged,
       unstaged,
-      stagedCount: staged.length,
-      unstagedCount: unstaged.length,
+      stagedCount: files.filter((f) => f.staged).length,
+      unstagedCount: files.filter((f) => f.unstaged).length,
       conflictCount: files.filter((f) => f.conflict).length,
       otherWorktrees: others,
       branches,

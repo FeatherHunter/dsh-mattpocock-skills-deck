@@ -35,6 +35,7 @@ function judgeCommit(s) {
   if (s.conflictCount > 0) return { verdict: "block", reasons: ["conflicts-unresolved"] };
   if (s.stagedCount === 0) return { verdict: "block", reasons: ["nothing-staged"] };
   const mid = midReasons(s);
+  if (s.identity.detached) return { verdict: "warn", reasons: ["detached-head"].concat(mid) };
   if (mid.length > 0) return { verdict: "warn", reasons: mid };
   return { verdict: "allow", reasons: ["ok"] };
 }
@@ -56,7 +57,9 @@ function judgePush(s) {
   if (s.identity.sync === "no-upstream") return { verdict: "block", reasons: ["no-upstream"] };
   if (s.identity.sync === "upstream-gone") return { verdict: "block", reasons: ["upstream-gone"] };
   if (s.conflictCount > 0) return { verdict: "block", reasons: ["conflicts-unresolved"] };
-  if (s.identity.behind > 0) return { verdict: "warn", reasons: ["behind-remote"] };
+  const mid = midReasons(s);
+  if (mid.length > 0) return { verdict: "block", reasons: mid };
+  if (s.identity.behind > 0) return { verdict: "block", reasons: ["behind-remote"] };
   if (s.identity.basisMs === null) return { verdict: "warn", reasons: ["basis-unknown"] };
   return { verdict: "allow", reasons: ["ok"] };
 }

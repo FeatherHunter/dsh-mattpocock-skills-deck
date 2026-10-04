@@ -10,7 +10,9 @@
 //   3. 会输出路径的命令加 -z；标准输入 ignore；标准输出设字节上限；超时走 DSH 的 timer 服务；
 //   4. 退出码非零原样交给调用方判，本文件不抛；起进程之前先向闸报一笔（gate.noteOutbound）；
 //   5. 第一版不发起网络动作（不 fetch / 不 pull / 不 push）：领先落后只读本地记录，依据时间取远端
-//      跟踪引用 reflog 的末条时间戳（ADR 第 3 条）。日志：每条命令一行常驻 git.exec（成功与非零退出
+//      跟踪引用 reflog 的末条时间戳（ADR 第 3 条）；刚克隆、还没 fetch 过的仓库没有 reflog，只有这个上游
+//      自己的松散引用文件在时才退回它的落盘时间，否则如实回 null（拿全仓库共用的 packed-refs 的 mtime 凑
+//      一个时间是不行的，#819 复审再修）。日志：每条命令一行常驻 git.exec（成功与非零退出
 //      各一行），超时与起进程失败一行告警级 git.exec.fail（直通刷盘）；目录只记散列，输出不进日志。
 import { fixedPrefix, stepZeroArgs, commandFor, autocrlfArgs, RUNNING_MARKER_PATHS } from '../shared/version-control/commands.js'
 import { parseVersion, tierFor } from '../shared/version-control/capabilities.js'
@@ -36,6 +38,10 @@ export function createVersionControl(deps) {
   const timeoutMs = (typeof TIMEOUT_MS === 'number' && TIMEOUT_MS > 0) ? TIMEOUT_MS : RUN_TIMEOUT_MS
   /** 路径短散列：日志里只认它，不记原始目录。 */
   function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
+  /** 目录散列：散列之前先把目录归一（反斜杠统一成正斜杠、去掉结尾的斜杠）。首屏头两条命令用的是
+   *  调用方给的写法，后面几条用的是 git 自己回的正斜杠仓库根；不归一，同一个目录会算出两个 cwdHash
+   *  （#819 复审发现），按它过滤日志就会把一次面板打开拆成两组。 */
+  function dirHash(dir) { try { return hash8(String(dir || '').replace(/\\/g, '/').replace(/\/+$/, '')) } catch (e) { return '00000000' } }
   /** 落一行日志；日志设施缺席时静默跳过，绝不影响已经要回给界面的结果。 */
   function fire(level, event, fields) { try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire(level, event, fields) } catch (e) {} }
   /** 起进程之前把这一笔报给闸；闸没接上时照旧执行（门禁会因漏账判红，不在这里静默假装记过）。 */
@@ -69,7 +75,7 @@ export function createVersionControl(deps) {
         graceMs: 2000,
       })
     } catch (e) {
-      fire('warn', 'git.exec.fail', { argv0: GIT_NAME, cwdHash: hash8(dir), via: VIA, errorHash: hash8(String((e && e.message) || e)) })
+      fire('warn', 'git.exec.fail', { argv0: GIT_NAME, cwdHash: dirHash(dir), via: VIA, errorHash: hash8(String((e && e.message) || e)) })
       return { kind: 'spawn-failed', message: String((e && e.message) || e) }
     }
     let outcome
@@ -79,17 +85,17 @@ export function createVersionControl(deps) {
         timer.timeout(budget).then(function () { try { handle.terminate() } catch (eT) {} return { exitCode: -1, signal: 'timeout' } }),
       ])
     } catch (e) {
-      fire('warn', 'git.exec.fail', { argv0: GIT_NAME, cwdHash: hash8(dir), via: VIA, errorHash: hash8(String((e && e.message) || e)) })
+      fire('warn', 'git.exec.fail', { argv0: GIT_NAME, cwdHash: dirHash(dir), via: VIA, errorHash: hash8(String((e && e.message) || e)) })
       return { kind: 'spawn-failed', message: String((e && e.message) || e) }
     }
     if (outcome && outcome.signal === 'timeout') {
-      fire('warn', 'git.exec.fail', { argv0: GIT_NAME, cwdHash: hash8(dir), via: VIA, timeoutMs: budget })
+      fire('warn', 'git.exec.fail', { argv0: GIT_NAME, cwdHash: dirHash(dir), via: VIA, timeoutMs: budget })
       return { kind: 'timeout', timeoutMs: budget }
     }
     const out = readCollector(handle.collected && handle.collected.stdout)
     const err = readCollector(handle.collected && handle.collected.stderr)
     const exitCode = (outcome && typeof outcome.exitCode === 'number') ? outcome.exitCode : -1
-    fire('info', 'git.exec', { argv0: GIT_NAME, cwdHash: hash8(dir), latencyMs: Date.now() - t0, exitCode: exitCode, via: VIA })
+    fire('info', 'git.exec', { argv0: GIT_NAME, cwdHash: dirHash(dir), latencyMs: Date.now() - t0, exitCode: exitCode, via: VIA })
     if (exitCode !== 0) return { kind: 'non-zero', exitCode: exitCode, stderr: err.text }
     return { kind: 'ok', stdout: out.text, truncated: out.truncated }
   }
@@ -182,15 +188,12 @@ export function createVersionControl(deps) {
     return out
   }
 
-  /** 依据时间：远端跟踪引用 reflog 的末条是何时写下的（ADR 第 3 条要显示的正是这个时刻）；读不到给 null。 */
-  async function readBasisMs(exe, root, upstream) {
-    if (!upstream) return null
-    const res = await runPinned(exe, root, ['reflog', 'show', '--date=iso-strict', '--format=%gD', '-1', upstream], { stdoutLimit: 65536 })
-    if (res.kind !== 'ok') return null
-    const m = /\{([^}]*)\}/.exec(res.stdout)
-    if (!m) return null
-    const ms = Date.parse(m[1])
-    return Number.isNaN(ms) ? null : ms
+  // 依据时间那一段（reflog 取不到时退回引用文件的落盘时间，#819 复审 P0-3）在 ./versionControlBasis.js：
+  // 本文件贴着 350 行上限，与差异电话体同一条先例（依赖全显式传入，那个叶子不引用本文件）。
+  let _basisP = null
+  function basisReader() {
+    if (!_basisP) _basisP = import('./versionControlBasis.js').then(function (m) { return m.createBasisReader({ runPinned: runPinned, fs: fs }) })
+    return _basisP
   }
   /** 换行配置的事实来源（核心的 autocrlfArgs）；没配过时 git 退出码 1，这里如实记 null。 */
   async function readAutocrlf(exe, root) {
@@ -259,7 +262,7 @@ export function createVersionControl(deps) {
       statusUpstream: status.branch.upstream, statusAhead: status.branch.ahead, statusBehind: status.branch.behind,
       statusEntries: status.entries, worktrees: worktrees.worktrees, refs: rf.parsed.refs, commits: commits, diffFiles: diffFiles,
       merging: markers.merging, rebasing: markers.rebasing, cherryPicking: markers.cherryPicking, reverting: markers.reverting,
-      tier: tier, autocrlf: await readAutocrlf(exe, base.root), nowMs: Date.now(), basisMs: await readBasisMs(exe, base.root, status.branch.upstream),
+      tier: tier, autocrlf: await readAutocrlf(exe, base.root), nowMs: Date.now(), basisMs: await (await basisReader()).readBasisMs(exe, base.root, base.gitDir, status.branch.upstream),
     })
     if (asm.ok !== true) return failPhone('parse', '首屏组装失败：' + asm.detail)
     return { ok: true, screen: asm.screen, tier: tier, gitVersion: gitVersion, worktreesNul: worktreesNul, readAtMs: Date.now() }

@@ -44,10 +44,13 @@ export interface FileEntry {
   deletedLines: number | null
 }
 
-/** 分支同步状态五值枚举（#821：合并成布尔就会对用户说错话）。 */
+/** 分支同步状态五值枚举（#821：合并成布尔就会对用户说错话）。#819 收口把前两个名字改成它真正的含义
+ *  （纯内部标识符，用户可见话术一个字没变）：tracked-known = 有上游、依据时间读得到；
+ *  tracked-unknown = 有上游、依据时间读不到（判据 basisMs === null）。名字里不许出现「新 / 旧」——
+ *  ADR 第 3 条不设阈值，代码根本没有办法判「旧」，叫 fresh/stale 就是名字在说谎。 */
 export type BranchSync =
-  | 'tracked-fresh'
-  | 'tracked-stale'
+  | 'tracked-known'
+  | 'tracked-unknown'
   | 'upstream-gone'
   | 'no-upstream'
   | 'detached'
@@ -75,6 +78,8 @@ export interface WorktreeInfo {
   lockReason: string | null
   lockUnknown: boolean
   prunable: boolean
+  /** 这个 git 版本答不出「目录还在不在」时为真：答不出不等于还在（与 lockUnknown 同一形状）。 */
+  prunableUnknown: boolean
 }
 
 export interface BranchInfo {

@@ -247,7 +247,7 @@ async function main() {
     check(asm.ok === true, '首屏组装成功（成败一起，不各自降级）')
     if (asm.ok === true) {
       check(asm.screen.identity.branch === 'main' && asm.screen.branches.length >= 1, '身份行分支 main 且分支列表非空')
-      check(asm.screen.identity.sync === 'tracked-stale', '依据时间未知判 tracked-stale（不设新旧阈值）')
+      check(asm.screen.identity.sync === 'tracked-unknown', '依据时间未知判 tracked-unknown（#819 收口改名：unknown 是「不知道新不新」，不设新旧阈值）')
     }
   } else {
     check(false, '首屏组装前置解析全过')
@@ -275,9 +275,141 @@ async function main() {
   check(JSON.stringify(state.shortestUniqueSuffix(['D:/a/同名', 'D:/b/同名'])) === JSON.stringify([2, 2]), '撞名显示名自动加长')
   check(state.displayFor('D:/a/同名', 1) === '同名', '平时只显示熟悉的末段')
   check(state.foldMiddle('src/very/long/path/to/file.txt', 20).endsWith('file.txt'), '路径折叠砍中段、文件名端保留')
+
+  // ---- 6.5) #819 复审：砍字按 Unicode 码点，不按 UTF-16 码元（emoji 不许切出半个代理项）----
+  const loneSurrogate = (s) => {
+    const t = String(s)
+    for (let i = 0; i < t.length; i += 1) {
+      const c = t.charCodeAt(i)
+      if (c >= 0xD800 && c <= 0xDBFF) { const n = t.charCodeAt(i + 1); if (!(n >= 0xDC00 && n <= 0xDFFF)) return true; i += 1 }
+      else if (c >= 0xDC00 && c <= 0xDFFF) return true
+    }
+    return false
+  }
+  // 两条 emoji 路径：一条 emoji 在开头（切头那一段最容易切进代理对），一条 emoji 在结尾（切尾那一段同理）。
+  const emojiPaths = ['😀😀😀😀😀😀😀😀😀😀/很长的目录/文.txt', '目录/子目录/文件名😀😀😀😀😀😀😀😀.txt']
+  const badNs = []
+  const lenBadNs = []
+  for (const p of emojiPaths) {
+    const cpLen = Array.from(p).length
+    for (let n = 10; n <= 60; n += 1) {
+      const out = state.foldMiddle(p, n)
+      if (loneSurrogate(out)) badNs.push(p.slice(0, 6) + ' @' + n)
+      if (cpLen > n && Array.from(out).length !== n) lenBadNs.push(p.slice(0, 6) + ' @' + n)
+    }
+  }
+  check(badNs.length === 0, 'emoji 路径砍中段：10 到 60 每一档都不出落单代理项' + (badNs.length ? ' —— 出问题的档：' + badNs.slice(0, 6).join('、') : ''))
+  check(lenBadNs.length === 0, '砍完的串按码点数正好等于 maxLen（长度不变量按码点算）' + (lenBadNs.length ? ' —— 不符的档：' + lenBadNs.slice(0, 6).join('、') : ''))
+  check(state.foldMiddle('😀😀😀😀😀😀😀😀😀😀/文.txt', 12) === '😀😀😀😀😀…/文.txt', '审查者报的那一例：😀×10/文.txt @12 是五个完整 emoji + 省略号 + /文.txt')
+  // 反证一：旧的按 UTF-16 码元切的写法，在同一批输入上必然切出落单代理项（改回旧写法这条门禁会当场红）。
+  const oldFoldByUnits = (p, maxLen) => {
+    const s = String(p)
+    if (s.length <= maxLen || maxLen < 10) return s
+    const keep = maxLen - 1
+    const headLen = Math.ceil(keep * 0.4)
+    return s.slice(0, headLen) + '…' + s.slice(s.length - (keep - headLen))
+  }
+  const oldBadNs = []
+  for (const p of emojiPaths) for (let n = 10; n <= 60; n += 1) if (loneSurrogate(oldFoldByUnits(p, n))) oldBadNs.push(n)
+  check(oldBadNs.length > 0, '反证：按 UTF-16 码元切的旧写法确实会切出落单代理项（实红 ' + oldBadNs.length + ' 档，例如 @' + oldBadNs.slice(0, 6).join('、@') + '）')
+  check(state.foldMiddle(emojiPaths[0], 12) !== oldFoldByUnits(emojiPaths[0], 12), '反证：第 12 档上新旧结果不同（门禁守着的是真的会变的那一段）')
+  // 反证二：全是 BMP 的输入上，新旧两种算法必须逐字一致——这次只动了星空平面字符那一段。
+  const bmpSame = ['src/very/long/path/to/file.txt', 'D:/很长的目录/子目录/文件名.txt', '短.txt', 'x'.repeat(60) + '/y.txt']
+    .every((p) => [10, 12, 20, 24, 46, 80].every((n) => state.foldMiddle(p, n) === oldFoldByUnits(p, n)))
+  check(bmpSame, '反证二：全是 BMP 的输入上新旧结果逐字一致（不是顺手改错了别的）')
+
   const rel = state.describeTime(1000000, 1000000 - 3600000)
   check(rel.style === 'relative', '一周内相对写法')
   check(state.describeTime(1000000 + 8 * 24 * 3600 * 1000, 1000000).style === 'absolute', '更早绝对写法')
+
+
+  // ---- 6.6) #819 复审批次：路径按字面量解释、补丁行首歧义、答不出的可清理、冲突不重复计数、路径比对归一 ----
+  const review = readJson('version-control-core/fixtures/live-819-review-shapes.json')
+  check(review.source.live === true, '复审真机样本带 live 标记（' + review.source.gitVersion + '）')
+  const wtOf = (p, branch) => ({ path: p, head: 'a'.repeat(40), branch: branch, bare: false, detached: false, locked: false, lockReason: null, prunable: false, prunableReason: null })
+  const assembleWith = (over) => state.assemble(Object.assign({
+    repoRoot: 'D:/repo', bare: false, statusHead: 'main', statusDetached: false, statusOid: 'a'.repeat(40),
+    statusUpstream: 'origin/main', statusAhead: 0, statusBehind: 0, statusEntries: [], worktrees: [], refs: [], commits: [], diffFiles: [],
+    merging: false, rebasing: false, cherryPicking: false, reverting: false, tier: 'full', autocrlf: null, nowMs: 0, basisMs: Date.now() - 1000,
+  }, over))
+
+  // P0-1 方括号路径：固定前缀里的字面量开关 + 真机样本对照
+  check(commands.fixedPrefix().includes('--literal-pathspecs'), '固定前缀含 --literal-pathspecs（方括号路径不许当通配，P0-1）')
+  check(commands.commandFor('patch', { patchPath: '方括号[1].txt' }).args[0] === 'diff', '字面量开关在固定前缀里，不混进 commandFor 的参数（参数表只描述子命令本身）')
+  const namedCount = (t) => (String(t).match(/^diff --git /gm) || []).length
+  check(namedCount(review.bracket.patchWithLiteral.out) === 1 && namedCount(review.bracket.patchWithoutLiteral.out) === 2,
+    '真机样本：点名一个文件时带开关只回它、不带开关连另一个一起回（' + namedCount(review.bracket.patchWithLiteral.out) + ' / ' + namedCount(review.bracket.patchWithoutLiteral.out) + ' 段）')
+
+  // P1-4 补丁行首歧义：删除行内容以 -- 开头、新增行内容以 ++ 开头
+  const sqlParsed = patch.parsePatch(review.sql.patch.out)
+  check(sqlParsed.ok === true, 'sql 真机补丁解出（' + (sqlParsed.ok === true ? sqlParsed.lines.length + ' 行' : sqlParsed.detail) + '）')
+  if (sqlParsed.ok === true) {
+    const kindOf = (t) => (sqlParsed.lines.filter((l) => l.text === t)[0] || {}).kind
+    check(kindOf('--- 注释一') === 'del' && kindOf('+++ 新的注释') === 'add',
+      '行首歧义：删除行按 del、新增行按 add（实得 ' + kindOf('--- 注释一') + ' / ' + kindOf('+++ 新的注释') + '）')
+    check(kindOf('--- sql.txt') === 'filehead' && kindOf('+++ sql.txt') === 'filehead', '真正的两个头行在第一个 @@ 之前，照旧算 filehead')
+  }
+  // 反证：按前缀先判的旧写法会把这两行当文件头（改回去门禁当场红）
+  const oldPatchByPrefix = function (stdout) {
+    const raw = String(stdout).split('\n')
+    if (raw.length > 0 && raw[raw.length - 1] === '') raw.pop()
+    const out = []
+    for (const ln of raw) {
+      if (ln.startsWith('@@')) out.push({ kind: 'hunk', text: ln })
+      else if (ln.startsWith('diff --git ') || ln.startsWith('index ')) out.push({ kind: 'filehead', text: ln })
+      else if (ln.startsWith('--- ') || ln.startsWith('+++ ')) out.push({ kind: 'filehead', text: ln })
+      else if (ln.startsWith('\u005c ')) out.push({ kind: 'no-newline', text: ln })
+      else if (ln.startsWith('+')) out.push({ kind: 'add', text: ln })
+      else if (ln.startsWith('-')) out.push({ kind: 'del', text: ln })
+      else if (ln.startsWith(' ') || ln === '') out.push({ kind: 'context', text: ln })
+      else return { ok: false, error: 'patch-malformed', detail: '未知差异行首字符' }
+    }
+    return { ok: true, lines: out }
+  }
+  const oldSql = oldPatchByPrefix(review.sql.patch.out).lines.filter((l) => l.text === '--- 注释一')[0]
+  check(!!oldSql && oldSql.kind === 'filehead', '反证：旧的前缀优先写法把删除行当文件头（实得 ' + (oldSql && oldSql.kind) + '），新门禁会当场逮住')
+
+  // P0-2 冲突不重复计数 + P2-7 未跟踪按未暂折算
+  if (ds.ok === true) {
+    const dirty = assembleWith({ statusEntries: ds.entries })
+    const unmergedPath = (ds.entries.filter((e) => e.kind === 'unmerged')[0] || {}).path
+    const inStaged = dirty.screen.staged.filter((f) => f.path === unmergedPath)
+    const inUnstaged = dirty.screen.unstaged.filter((f) => f.path === unmergedPath)
+    const conflictRow = inStaged.concat(inUnstaged)[0]
+    check(inStaged.length === 0 && inUnstaged.length === 1 && !!conflictRow && conflictRow.conflict === true && conflictRow.staged === false && conflictRow.unstaged === false,
+      '冲突文件只在工作区那一边出现一次、两个标记都是 false（P0-2）')
+    const rows = dirty.screen.staged.concat(dirty.screen.unstaged)
+    check(rows.filter((f) => f.staged || f.unstaged).every((f) => f.conflict !== true), '冲突行两个计数都不占（没有任何冲突行带已暂存/未暂存标记）')
+    check(dirty.screen.stagedCount === rows.filter((f) => f.staged).length && dirty.screen.unstagedCount === rows.filter((f) => f.unstaged).length,
+      '两个计数按标记算，不按数组长度算（实得 ' + dirty.screen.stagedCount + '/' + dirty.screen.unstagedCount + '，共 ' + rows.length + ' 行）')
+    const untrackedRow = rows.filter((f) => f.change === 'untracked')[0]
+    check(!!untrackedRow && untrackedRow.unstaged === true, '未跟踪条目按「未暂存的改动」置真（P2-7）')
+    const ue = ds.entries.filter((e) => e.kind === 'unmerged')[0]
+    const oldStaged = ue.x !== '.' && ue.x !== '?' && ue.x !== '!'
+    const oldUnstaged = ue.y !== '.' && ue.y !== '?' && ue.y !== '!'
+    check(oldStaged === true && oldUnstaged === true, '反证：按 x/y 原样算标记的旧写法会把冲突文件同时算进两组（实得 ' + oldStaged + '/' + oldUnstaged + '）')
+  } else {
+    check(false, '冲突用例的前置：脏仓库 status 解出')
+  }
+
+  // P1-5 降级档答不出「可清理」
+  const twoWt = [wtOf('D:/repo', 'main'), wtOf('D:/repo-linked', 'other')]
+  const degAsm = assembleWith({ worktrees: twoWt, tier: 'degraded' })
+  check(degAsm.ok === true && degAsm.screen.otherWorktrees.length === 1 && degAsm.screen.otherWorktrees[0].prunable === false && degAsm.screen.otherWorktrees[0].prunableUnknown === true,
+    '降级档（2.11–2.30）答不出可清理：prunableUnknown 真、prunable 不冒充 false（P1-5）')
+  const fullAsm = assembleWith({ worktrees: twoWt, tier: 'full' })
+  check(fullAsm.ok === true && fullAsm.screen.otherWorktrees[0].prunableUnknown === false, '完整档确实答得出：prunableUnknown 假')
+
+  // P2-6 路径比对走同一个归一函数
+  // 末段同名（真正要加长才分得开）的两棵工作树，当前那棵的写法与调用方给的写法不一致。
+  const mixedWt = [wtOf('D:/a/同名', 'main'), wtOf('D:\\b\\同名\\', 'other')]
+  const mixedAsm = assembleWith({ repoRoot: 'd:/b/同名', statusHead: 'other', worktrees: mixedWt })
+  check(mixedAsm.ok === true && mixedAsm.screen.otherWorktrees.length === 1 && mixedAsm.screen.otherWorktrees[0].path === 'D:/a/同名',
+    '当前工作树按归一后的路径判：其他工作树里不许再出现它（实得 ' + (mixedAsm.ok === true ? mixedAsm.screen.otherWorktrees.length : '失败') + ' 棵，P2-6）')
+  check(mixedAsm.ok === true && mixedAsm.screen.identity.worktreeDisplay === 'b/同名',
+    '显示名用的是归一后算出的最短唯一后缀长度（实得 ' + (mixedAsm.ok === true ? mixedAsm.screen.identity.worktreeDisplay : '失败') + '——按原始字符串找下标会退化成 1 段「同名」）')
+  const oldOthers = mixedWt.filter((w) => w.path !== 'd:/b/同名')
+  check(oldOthers.length === 2, '反证：当前工作树写法与清单不一致时，按原始字符串比较会把当前那棵也列进「其他工作树」（实得 ' + oldOthers.length + ' 棵）')
 
   // ---- 7) 断言装置自检：改坏样本必须红 ----
   const badStatus = status.parseStatus('1 M. N... 100644')

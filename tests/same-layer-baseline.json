@@ -896,6 +896,15 @@
     },
     {
       "file": "src/host/versionControl.js",
+      "spec": "./versionControlBasis.js",
+      "resolved": "src/host/versionControlBasis.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#819 复审（宿主与核心批次 P0-3）",
+      "note": "「依据时间」那一段要补「刚克隆、还没 fetch 过、没有 reflog」的回退路，versionControl.js 当时 361 行、超过 350 上限；照 #500（logStore→logPhones）与 #821（versionControl→versionControlFiles）同一条先例搬成自包含叶子，runPinned 与 fs 全由父文件显式传入，叶子不引用父文件，父文件只留一行加载器。"
+    },
+    {
+      "file": "src/host/versionControl.js",
       "spec": "./versionControlFiles.js",
       "resolved": "src/host/versionControlFiles.js",
       "layer": "host",

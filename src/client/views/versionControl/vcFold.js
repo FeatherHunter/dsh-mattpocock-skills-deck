@@ -31,6 +31,8 @@
 // 「其他工作树收成一行摘要」与「提交历史整块收起」两件事只按可用宽度分档（下面 vcFoldBandAt），
 //   其余逐字让位由组件那台折叠机摸着真实宽度一档一档推进来（照 panel/Dock.js 头部那台先例）。
 export const VC_FOLD_BANDS = [420, 360, 300]
+/** 台阶总数上限（见 vcFoldLadderOf 末尾那条注释）：超出就停在最后一档、允许溢出。 */
+export const VC_FOLD_STEP_CAP = 120
 /**
  * 可用宽度 → 粗档（band）。量不到有效宽度（0、负数、非数字）一律回第 0 档：
  * 没量到就画最全的样子，绝不因为「没量到」把内容让掉（与 panel/headFold.js、statusbar/capFold.js 同一条纪律）。
@@ -89,11 +91,17 @@ export const vcFoldLadderOf = function (data) {
     steps: [],
   }
   const push = function (el, i, n) { for (let k = 1; k <= n; k++) ladder.steps.push({ el: el, i: i, n: k }) }
+  // 长度一律按 Unicode 码点数（与 vcText 的两个砍字规则同口径），不按 UTF-16 码元数。
+  const len = function (s) { return Array.from(String(s || '')).length }
   // 路径这一条按「砍中段」的规矩让位：核心那条规则短于 VC_MIDDLE_MIN 就不砍了，
   //   所以步数封顶在「长度 − VC_MIDDLE_MIN」；不留这个上限会在阶梯末尾一步弹回全长（真机反馈过）。
-  push('path', -1, Math.max(0, ladder.path.length - VC_MIDDLE_MIN))
-  for (let i = 0; i < ladder.others.length; i++) push('other', i, ladder.others[i].length)
-  for (let i = 0; i < ladder.commits.length; i++) push('commit', i, ladder.commits[i].length)
+  push('path', -1, Math.max(0, len(ladder.path) - VC_MIDDLE_MIN))
+  for (let i = 0; i < ladder.others.length; i++) push('other', i, len(ladder.others[i]))
+  for (let i = 0; i < ladder.commits.length; i++) push('commit', i, len(ladder.commits[i]))
+  // 台阶总数封顶：1 像素宽那种极端情况下内容永远放不下，不封顶就要按字符数一格一格试
+  //   （实测过 4787 步与 10187 步两种样本），面板会被拖住。超过上限就停在最后一档、允许溢出 ——
+  //   身份行与计数本来就不让位，极端宽度下溢出是必然的，与其试上千次不如一次到位。
+  if (ladder.steps.length > VC_FOLD_STEP_CAP) ladder.steps = ladder.steps.slice(0, VC_FOLD_STEP_CAP)
   return ladder
 }
 /** 第 tier 档每一处画什么（tier = 已经走了几步，所以相邻两档之间每一处最多差一个字符）。 */
@@ -113,8 +121,9 @@ export const vcFoldStateAt = function (ladder, tier) {
   // 砍到最后一个字符时收成空串：vcMiddle / vcTail 在「长度不够就不砍」那条兜底下会把整串原样还回来，
   //   直接拿它画会在阶梯的末尾弹回全长（真机反馈过的那条回弹）。空串只出现在阶梯最后一步，
   //   完整内容仍在悬停提示里，一个字都没丢。
-  const tailAt = function (text, drop) { const keep = text.length - drop; return keep <= 0 ? '' : vcTail(text, keep) }
-  const path = l.path ? (pathDrop >= l.path.length ? '' : vcMiddle(l.path, l.path.length - pathDrop)) : ''
+  const cpLen = function (s) { return Array.from(String(s || '')).length }
+  const tailAt = function (text, drop) { const keep = cpLen(text) - drop; return keep <= 0 ? '' : vcTail(text, keep) }
+  const path = l.path ? (pathDrop >= cpLen(l.path) ? '' : vcMiddle(l.path, cpLen(l.path) - pathDrop)) : ''
   return {
     tier: n,
     path: path,

@@ -24,12 +24,28 @@ export const VersionControlTab = function (props) {
   const st = props && props.st
   const cwd = st && st.cwd ? String(st.cwd) : ''
   const [reads, setReads] = React.useState(vcNewReads)
-  const [ui, setUi] = React.useState(function () { return { fileShown: {}, openDiff: '' } })
+  const [ui, setUi] = React.useState(function () { return { fileShown: {}, openDiff: '', openCommit: '' } })
   const [width, setWidth] = React.useState(0)
   const [tier, setTier] = React.useState(0)
   const lastWidthRef = React.useRef(0)
   const rootRef = React.useRef(null)
   const moreRef = React.useRef(null)
+  const logBusyRef = React.useRef(false)
+  // 读数与界面状态属于哪个工作区（#819 发现 2）：Dock 在同会话里换工作区**不重挂载**组件，
+  //   所以旧工作区的身份行与「点开的那一笔提交」会留在新工作区下面 —— 那是用户最怕的认错工作树。
+  //   这里按 cwd 判一次，变了就整体复位（读数、展开状态、点开的提交、差异、折叠档号全清），
+  //   而且这一帧不画任何旧数据（下面 staleCwd 那一句直接把块清空）。
+  const [stateCwd, setStateCwd] = React.useState(cwd)
+  const fresh = vcFreshOnCwd(stateCwd, cwd, reads, ui)
+  const staleCwd = fresh.changed
+  if (staleCwd) {
+    setStateCwd(cwd)
+    setReads(fresh.reads)
+    setUi(fresh.ui)
+    setTier(0)
+    lastWidthRef.current = 0
+    logBusyRef.current = false
+  }
   const readsRef = React.useRef(reads)
   readsRef.current = reads
   const callHost = function (method, args) {
@@ -43,7 +59,8 @@ export const VersionControlTab = function (props) {
   React.useEffect(function () {
     if (!cwd) return
     let alive = true
-    vcReadStatus(readsRef.current, callHost, cwd).then(function (next) { if (alive) setReads(next) })
+    // 复位那一帧 setReads 已经把读数清空了；这里从清空后的读数起读，绝不把上一个工作区的旧数据带进来。
+    vcReadStatus(staleCwd ? vcNewReads() : readsRef.current, callHost, cwd).then(function (next) { if (alive) setReads(next) })
     return function () { alive = false }
   }, [cwd])
   // 宽度：量的是本页签自己的内容宽（Dock 的内容区左右各 12 像素内边距已经在外面扣掉了）。
@@ -73,13 +90,25 @@ export const VersionControlTab = function (props) {
   React.useLayoutEffect(function () {
     const el = rootRef.current
     if (!el || tier >= fold.ladder.steps.length) return
-    try { if (el.scrollWidth > el.clientWidth + 1) setTier(tier + 1) } catch (e) { /* 忽略 */ }
+    try {
+      // 极端窄（比第三档还窄）：内容必然放不下（身份行与计数永不让位），直接跳到收尾档，
+      //   不再一格一格试 —— 不然一千个字符的阶梯就要重画上千次（#819 发现 6）。溢出是允许的。
+      if (width > 0 && width < VC_FOLD_BANDS[2]) { setTier(fold.ladder.steps.length); return }
+      if (el.scrollWidth > el.clientWidth + 1) setTier(tier + 1)
+    } catch (e) { /* 忽略 */ }
   }, [tier, width, contentKey])
   const commitCount = (screen && Array.isArray(screen.commits) ? screen.commits.length : 0) + (reads.log.commits ? reads.log.commits.length : 0)
   const loadMore = function () {
-    if (readsRef.current.log.state === 'loading') return
+    // 防重入用自己的一把在途标记（读数的 state 要等回包才写，光看它拦不住同一拍里的第二次点击），
+    //   同时先把「正在读更早的提交」这一刻写进读数 —— 界面那一句提示才有机会出现（#819 发现 8）。
+    if (logBusyRef.current) return
+    logBusyRef.current = true
+    setReads(vcMarkLogLoading(readsRef.current))
     const skip = vcNextSkipOf(screenOf(readsRef.current), readsRef.current.log)
-    vcReadMoreCommits(readsRef.current, callHost, cwd, skip).then(function (next) { setReads(next) })
+    vcReadMoreCommits(readsRef.current, callHost, cwd, skip).then(function (next) {
+      logBusyRef.current = false
+      setReads(next)
+    })
   }
   // 滚到底自动接着读更早的提交（规格第 37 条）；浏览器没有这个观察器时，那一行仍然可以点。
   React.useEffect(function () {
@@ -90,6 +119,9 @@ export const VersionControlTab = function (props) {
     return function () { try { io.disconnect() } catch (e) { /* 忽略 */ } }
   }, [commitCount, reads.log.state, reads.log.hasMore, fold.commitsCollapsed])
   const blocks = vcBlocksOf(screen, reads, ui, { t: tr, nowMs: Date.now(), cwdEmpty: cwdEmpty, fold: Object.assign({}, fold, { state: foldState }) })
+  // 换工作区的那一帧：一个块都不画（旧工作区的身份行与提交清单绝不留在新工作区下面，见上面 staleCwd）。
+  if (staleCwd) blocks.length = 0
+
   const tone = function (name) { return VC_TONE[name] || VC_TONE.primary }
   const retryScreen = function () { vcReadStatus(readsRef.current, callHost, cwd).then(function (next) { setReads(next) }) }
   // 就地看差异：未提交那一层按路径当键，提交那一层按「修订号 + 路径」当键（同一个文件在两处的补丁是两回事）。
@@ -110,20 +142,24 @@ export const VersionControlTab = function (props) {
     loadDiff(row).then(function (next) { setReads(next) })
   }
   const retryDiff = function (row) { loadDiff(row).then(function (next) { setReads(next) }) }
+  // 提交那一层的回包一律过一道 stale drop：晚到的旧回包不许把界面钉在旧的那一笔上（#819 发现 5）。
+  const applyCommit = function (next) { setReads(function (cur) { return vcApplyCommitReply(cur, next) }) }
   // 提交行点开：进入「这笔提交改了什么」（规格故事 32）；再点一次「回到未提交改动」回到原来那一层。
   const openCommit = function (c) {
     const rev = String(c.key || '')
     setUi(Object.assign({}, ui, { openCommit: rev, openDiff: '' }))
     const entry = readsRef.current.commit || {}
     if (entry.rev === rev && (entry.state === 'ok' || entry.state === 'loading')) return
-    vcReadCommitFiles(readsRef.current, callHost, cwd, rev).then(function (next) { setReads(next) })
+    vcReadCommitFiles(readsRef.current, callHost, cwd, rev).then(applyCommit)
   }
   const closeCommit = function () { setUi(Object.assign({}, ui, { openCommit: '', openDiff: '' })) }
   const retryCommit = function () {
     const rev = String(ui.openCommit || '')
     if (!rev) return
-    vcReadCommitFiles(readsRef.current, callHost, cwd, rev).then(function (next) { setReads(next) })
+    vcReadCommitFiles(readsRef.current, callHost, cwd, rev).then(applyCommit)
   }
+  // 「重新读一次」：面板上唯一的刷新入口（不是定时器 —— 刷新频率那条纪律不变）。
+  const reloadNow = function () { retryScreen() }
   const moreFiles = function (groupKey) {
     const cur = Number(ui.fileShown[groupKey]) || VC_FILE_ROWS_FIRST
     const next = Object.assign({}, ui.fileShown)
@@ -151,6 +187,9 @@ export const VersionControlTab = function (props) {
       h('span', null, d.text), d.retry ? button(d.retry, function () { retryDiff(row) }) : null,
     ])
     return h('div', { 'data-vc-diff': 'lines', style: { marginTop: 4, border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 6, padding: '4px 6px', background: 'var(--dsw-alias-bg-layer-3,#0c0e12)', fontFamily: 'Consolas,Menlo,monospace', fontSize: 11, maxHeight: 320, overflow: 'auto' } }, [
+      // 这一处差异指的是哪一段（未提交那一层写清「相对上一次提交的全部改动」）：
+      //   不写清，用户会把「已暂存」组里点开的差异当成「将要提交的那一部分」。
+      d.scopeText ? h('div', { 'data-vc-scope': 1, style: { color: tone('caption'), marginBottom: 4, fontFamily: 'inherit', whiteSpace: 'normal' } }, d.scopeText) : null,
       d.hunks.length ? h('div', { 'data-vc-hunks': 1, style: { marginBottom: 4 } }, [h('div', { style: { color: tone('caption') } }, d.hunksTitle)].concat(d.hunks.map(function (s, i) { return h('div', { key: i, style: { color: tone('accent') } }, s) }))) : null,
       d.lines.map(diffLine),
       d.shownNote ? h('div', { style: { color: tone('caption'), marginTop: 4 } }, d.shownNote) : null,
@@ -170,7 +209,7 @@ export const VersionControlTab = function (props) {
   }
   const groupNode = function (g) {
     return h('div', { key: g.key, 'data-vc-group': g.key }, [
-      h('div', { style: { margin: '8px 0 2px', fontSize: 11, color: tone('caption'), display: 'flex', alignItems: 'center', gap: 6 } }, g.title),
+      tipNode(g.tip, h('div', { style: { margin: '8px 0 2px', fontSize: 11, color: tone('caption'), display: 'flex', alignItems: 'center', gap: 6 } }, g.title)),
       g.rows.map(fileRow),
       g.moreCount > 0 ? h('div', { onClick: function () { moreFiles(g.key) }, style: { padding: '3px 0', fontSize: 11, color: tone('accent'), cursor: 'pointer' } }, g.moreLabel) : null,
     ])
@@ -195,6 +234,11 @@ export const VersionControlTab = function (props) {
       h('div', { 'data-vc-sync': 1, style: { fontSize: 11, color: tone('primary'), display: 'flex', gap: 6, alignItems: 'baseline', flexWrap: 'wrap' } }, [
         tipNode(b.sync.tip, h('span', null, b.sync.text)),
         b.sync.basis ? tipNode(b.sync.basisTip, h('span', { 'data-vc-basis': 1, style: { color: tone('caption') } }, b.sync.basis)) : null,
+      ]),
+      // 这份数据是什么时候读的 + 唯一的「重新读一次」入口（不是定时器；读不到时刻就不画那几个字）。
+      h('div', { 'data-vc-readat': 1, style: { fontSize: 10, color: tone('caption'), display: 'flex', gap: 8, alignItems: 'baseline' } }, [
+        b.readAtText ? h('span', { key: 'when' }, b.readAtText) : null,
+        h('button', { key: 'reload', className: 'dsws-btn', type: 'button', 'data-vc-reload': 1, onClick: reloadNow, style: { fontSize: 10, padding: '0 6px' } }, tr('vc.reload')),
       ]),
     ])
     if (b.kind === 'changes') return h('div', { key: b.key, 'data-vc-changes': 1, 'data-vc-commit-mode': b.commitMode ? 1 : undefined }, [
@@ -233,9 +277,13 @@ export const VersionControlTab = function (props) {
           w.stateText ? tipNode(w.stateTip, h('span', { style: { flex: 'none', color: tone(w.stateTone), whiteSpace: 'nowrap' } }, w.stateText)) : null,
         ])
       }),
+      // 其他工作树也按同一套规矩分批（#819 发现 12）：一千棵时不一次画一千行。
+      b.moreCount > 0 ? h('div', { 'data-vc-other-more': 1, onClick: function () { moreFiles('other') }, style: { padding: '3px 0', fontSize: 11, color: tone('accent'), cursor: 'pointer' } }, b.moreLabel) : null,
     ])
     if (b.kind === 'terminal') return h('div', { key: b.key, 'data-vc-terminal': 1, style: { display: 'flex', gap: 6, alignItems: 'center', fontSize: 11, color: tone('accent'), borderTop: '1px solid var(--dsw-alias-border-l1,#2a2d35)', paddingTop: 6 } }, [
-      Ic({ n: 'external-link', size: 12 }), tipNode(b.tip, h('span', null, b.text)),
+      // 「去侧栏终端」是一句陈述，不是一个动作：这里没有打开终端的能力，所以不摆任何看着能点的图标
+      //   （#819 发现 7：外链图标摆在那里点不动，比不画图标更差）。
+      tipNode(b.tip, h('span', null, b.text)),
     ])
     return null
   }

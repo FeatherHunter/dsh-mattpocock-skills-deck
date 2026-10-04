@@ -11,6 +11,11 @@ export const RUNNING_MARKER_PATHS = [
 export function fixedPrefix() {
   return [
     "--no-optional-locks",
+    // 路径参数一律按字面量解释，不许当通配（#819 复审 P0-1 真机复现）：默认口径下 `方括号[1].txt`
+    // 会把 `[1]` 当字符组、连 `方括号1.txt` 一起匹配，补丁里就混进没被点名那个文件的内容。
+    // 这一族命令没有哪一条需要 git 展开路径通配，所以放进固定前缀对所有命令一视同仁——
+    // 只挂在 patch 那一条上，将来再加带路径的命令时没人会记得补这个开关。
+    "--literal-pathspecs",
     "-c",
     "core.quotepath=false",
     "-c",

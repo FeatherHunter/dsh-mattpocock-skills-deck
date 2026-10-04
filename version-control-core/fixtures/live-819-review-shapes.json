@@ -1,0 +1,77 @@
+{
+  "source": {
+    "gitVersion": "git version 2.49.0.windows.1",
+    "capturedAt": "2026-10-04",
+    "live": true,
+    "note": "本机实采（#819 复审）：临时仓库建在 D:/Temp/dsh-819-review，四份场景——① 同目录下 方括号[1].txt 与 方括号1.txt 各改一行（路径通配护栏）；② sql.txt 里删除行内容以「-- 」开头、新增行内容以「++ 」开头（补丁行首歧义）；③ 刚克隆的仓库四种引用状态（松散 / 打包 / 松散文件 / 引用被删），用来钉「依据时间只认真值」；④ 收工前临时仓库已删。",
+    "commands": {
+      "fixedPrefix": "git --no-optional-locks --literal-pathspecs -c core.quotepath=false -c color.ui=false -c i18n.logOutputEncoding=UTF-8 <子命令>",
+      "oldFixedPrefix": "git --no-optional-locks -c core.quotepath=false -c color.ui=false -c i18n.logOutputEncoding=UTF-8 <子命令>（加 --literal-pathspecs 之前）",
+      "patch": "git <前缀> diff --unified=3 --no-color --no-ext-diff --no-prefix --find-renames HEAD -- <路径>",
+      "reflog": "git <前缀> reflog show --date=iso-strict --format=%gD -1 origin/main"
+    }
+  },
+  "bracket": {
+    "patchWithLiteral": {
+      "code": 0,
+      "out": "diff --git 方括号[1].txt 方括号[1].txt\nindex 468d803..1ee36aa 100644\n--- 方括号[1].txt\n+++ 方括号[1].txt\n@@ -1 +1,2 @@\n 第一行\n+被点名的这一行\n",
+      "err": ""
+    },
+    "patchWithoutLiteral": {
+      "code": 0,
+      "out": "diff --git 方括号1.txt 方括号1.txt\nindex 468d803..a904b94 100644\n--- 方括号1.txt\n+++ 方括号1.txt\n@@ -1 +1,2 @@\n 第一行\n+没被点名的这一行\ndiff --git 方括号[1].txt 方括号[1].txt\nindex 468d803..1ee36aa 100644\n--- 方括号[1].txt\n+++ 方括号[1].txt\n@@ -1 +1,2 @@\n 第一行\n+被点名的这一行\n",
+      "err": ""
+    }
+  },
+  "sql": {
+    "patch": {
+      "code": 0,
+      "out": "diff --git sql.txt sql.txt\nindex 4b55d4e..70fff55 100644\n--- sql.txt\n+++ sql.txt\n@@ -1,3 +1,4 @@\n--- 注释一\n-select 1;\n+-- 注释一改了\n+select 2;\n ++ 注释二\n+++ 新的注释\n",
+      "err": ""
+    }
+  },
+  "clone": {
+    "fresh": {
+      "reflog": {
+        "code": 0,
+        "out": "",
+        "err": ""
+      },
+      "refExistsCode": 0,
+      "looseRefExists": false,
+      "packedRefsExists": true,
+      "packedRefsMtimeMs": 1791095143865.6106
+    },
+    "afterGc": {
+      "reflog": {
+        "code": 0,
+        "out": "",
+        "err": ""
+      },
+      "refExistsCode": 0,
+      "looseRefExists": false,
+      "packedRefsMtimeMs": 1791095143991.9167
+    },
+    "loose": {
+      "looseRefExists": true,
+      "looseRefMtimeMs": 1791095144268.1228,
+      "reflogLogFileExisted": true,
+      "reflog": {
+        "code": 0,
+        "out": "",
+        "err": ""
+      },
+      "refExistsCode": 0
+    },
+    "upstreamGone": {
+      "looseRefExists": false,
+      "refExistsCode": 1,
+      "reflog": {
+        "code": 128,
+        "out": "",
+        "err": "fatal: ambiguous argument 'origin/main': unknown revision or path not in the working tree.\nUse '--' to separate paths from revisions, like this:\n'git <command> [<revision>...] -- [<file>...]'\n"
+      },
+      "packedRefsExists": true
+    }
+  }
+}

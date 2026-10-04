@@ -5,6 +5,11 @@
  * 首屏三块同一次读取、成败一起：任一解析失败就整体显式失败，不做每块各自降级（#821）。
  * 判“哪个工作树是当前的”用分支名比对，不比较路径（Windows 大小写与斜杠坑，调研 7.3）。
  * 冲突是叠加状态：解析层不去重，合成一行是这里的事（故事 26）。
+ *
+ * 砍字一律按 Unicode 码点切（Array.from 取码点数组），不按 UTF-16 码元切：emoji 这类星空平面字符
+ * 不许被切成半个代理项（#819 复审发现）。边界写在这里：这一条只保证切出来的每一段都是完整码点，
+ * 不保证字形簇完整——ZWJ emoji、带变音符号的字母这类组合序列允许被切开；要做到字形簇级，
+ * 得引一份字形簇分段表，不在这一版范围内。
  */
 import type { BranchInfo, BranchSync, CommitInfo, FileChange, FileEntry, FirstScreen, Identity, ParseFailure, RepoFlags, WorktreeInfo } from './ports.js'
 import type { StatusEntry } from './parse-status.js'
@@ -78,13 +83,16 @@ export function displayFor(path: string, keep: number): string {
   return segs.slice(-Math.max(1, keep)).join('/')
 }
 
-/** 文件路径中段折叠：砍中段、文件名端完整保留（与工作树名砍尾是两套规则，不许合并）。 */
+/** 文件路径中段折叠：砍中段、文件名端完整保留（与工作树名砍尾是两套规则，不许合并）。
+ *  长度与切点都按 Unicode 码点算（Array.from 取码点数组），不按 UTF-16 码元算：
+ *  emoji 这类星空平面字符不许被切成半个代理项。组合序列允许被切开，边界见文件头。 */
 export function foldMiddle(path: string, maxLen: number): string {
   const p = String(path)
-  if (p.length <= maxLen || maxLen < 10) return p
+  const cps = Array.from(p)
+  if (cps.length <= maxLen || maxLen < 10) return p
   const keep = maxLen - 1
   const headLen = Math.ceil(keep * 0.4)
-  return p.slice(0, headLen) + '…' + p.slice(p.length - (keep - headLen))
+  return cps.slice(0, headLen).join('') + '…' + cps.slice(cps.length - (keep - headLen)).join('')
 }
 
 /** 提交时间：近一周相对、更早绝对（返回结构化值，中文说法在客户端词表）。 */
@@ -126,15 +134,20 @@ export function assemble(input: AssembleInput): AssembleResult {
     const c = counts.get(e.path)
     files.push({
       path: e.path, origPath: e.origPath,
-      staged: e.x !== '.' && e.x !== '?' && e.x !== '!',
-      unstaged: e.y !== '.' && e.y !== '?' && e.y !== '!',
+      // 冲突（unmerged）既不是已暂存也不是未暂存，是一个待处理状态：两个标记都置 false，
+      // 免得同一个文件被同时算进两组（#819 复审 P0-2）；未跟踪就是未暂存的改动，unstaged 置真（P2-7）。
+      staged: e.kind === 'unmerged' ? false : (e.x !== '.' && e.x !== '?' && e.x !== '!'),
+      unstaged: e.kind === 'unmerged' ? false : ((e.y !== '.' && e.y !== '?' && e.y !== '!') || e.kind === 'untracked'),
       change, conflict,
       addedLines: c ? c.added : null, deletedLines: c ? c.deleted : null,
     })
   }
   files.sort((a, b) => rankFor(a) - rankFor(b) || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
+  // 两个数组是「界面要画的行」的分组：staged 收已暂存的，unstaged 收未暂存的与冲突的（冲突那一行要靠
+  // 界面按 conflict 标记单独成组，所以它得留在某一边；落在工作区这一边最自然）。计数按标记算，不按数组
+  // 长度算：冲突行两边都不计（#819 复审 P0-2）。
   const staged = files.filter((f) => f.staged)
-  const unstaged = files.filter((f) => f.unstaged || f.change === 'untracked')
+  const unstaged = files.filter((f) => f.unstaged || f.conflict)
   const allPaths = input.worktrees.map((w) => w.path)
   const keeps = shortestUniqueSuffix(allPaths.length > 0 ? allPaths : [input.repoRoot])
   // 哪一个工作树是当前的：先用路径比对（宿主已经把 rev-parse --show-toplevel 的结果当 repoRoot 传进来）。
@@ -156,23 +169,31 @@ export function assemble(input: AssembleInput): AssembleResult {
   else {
     const ref = input.refs.find((r) => r.short === input.statusHead)
     if (ref && ref.upstreamGone) sync = 'upstream-gone'
-    else if (input.basisMs === null) sync = 'tracked-stale'
-    else sync = 'tracked-fresh'
+    // 有上游的两档（#819 收口改名）：unknown 不是「旧」，是「不知道新不新」——判据就是依据时间读不到；
+    // known 是「读到了」。这里没有、也不许有判新旧的东西（ADR 第 3 条不设阈值）。
+    else if (input.basisMs === null) sync = 'tracked-unknown'
+    else sync = 'tracked-known'
   }
+  // 取显示名要用的「最短唯一后缀长度」：按同一个归一函数找下标，路径写法不一致时也不许退化成 1
+  // （#819 复审 P2-6：规格明文禁止按原始字符串比路径）。
+  const keepOf = (p: string): number => { const i = input.worktrees.findIndex((w) => sameWorktreePath(w.path, p)); return (i >= 0 ? keeps[i] : 1) || 1 }
   const identity: Identity = {
-    worktreeDisplay: displayFor(currentPath, keeps[Math.max(0, allPaths.indexOf(currentPath))] || 1),
+    worktreeDisplay: displayFor(currentPath, keepOf(currentPath)),
     worktreePath: currentPath, branch: input.statusDetached ? null : input.statusHead,
     detached: input.statusDetached, oid: input.statusOid, sync,
     ahead: input.statusAhead, behind: input.statusBehind, basisMs: input.basisMs,
   }
   const others: WorktreeInfo[] = input.worktrees
-    .filter((w) => w.path !== currentPath)
+    .filter((w) => !sameWorktreePath(w.path, currentPath))
     .map((w) => ({
-      path: w.path, display: displayFor(w.path, keeps[Math.max(0, allPaths.indexOf(w.path))] || 1),
+      path: w.path, display: displayFor(w.path, keepOf(w.path)),
       head: w.head || '', branch: w.branch, bare: w.bare, current: false,
       locked: w.locked, lockReason: w.lockReason,
+      // 降级档（git 2.11–2.30）答不出「被锁定」与「目录还在不在」这两件事：答不出写成 unknown，
+      // 绝不当成 false —— 否则界面会把一个目录已经不存在的工作树画成还能用（#819 复审 P1-5）。
       lockUnknown: input.tier !== 'full' && !w.locked,
       prunable: w.prunable,
+      prunableUnknown: input.tier !== 'full' && !w.prunable,
     }))
   const commits: CommitInfo[] = input.commits.map((c) => ({
     oid: c.oid, short: c.short, author: c.author, email: c.email,
@@ -190,7 +211,8 @@ export function assemble(input: AssembleInput): AssembleResult {
   return {
     ok: true,
     screen: {
-      identity, staged, unstaged, stagedCount: staged.length, unstagedCount: unstaged.length,
+      identity, staged, unstaged,
+      stagedCount: files.filter((f) => f.staged).length, unstagedCount: files.filter((f) => f.unstaged).length,
       conflictCount: files.filter((f) => f.conflict).length, otherWorktrees: others, branches, commits, repo,
     },
   }

@@ -41,25 +41,41 @@ export const vcChangeKeyOf = function (change) {
 export const vcChangeToneOf = function (change) {
   return VC_CHANGE_TONE[String(change)] || 'warning'
 }
-/** 工作树显示名砍尾：留前面 n 个字符，末尾补一个省略号；完整内容由调用方放进悬停提示。 */
+/**
+ * 工作树显示名砍尾：留前面 n 个字符，末尾补一个省略号；完整内容由调用方放进悬停提示。
+ * 按 Unicode 码点切（Array.from），不按 UTF-16 码元切：emoji 这类星平面字符是两码元，
+ *   按码元切会切出半个代理对（界面上就是一个「�」）。码点切法不会切出半个字符；
+ *   由多个码点组成的组合（ZWJ 序列，比如一家人的 emoji）允许被切开 —— 这一条写在文件头，
+ *   不假装做到了字素级。纯 ASCII 与中日韩汉字两种切法结果完全一样。
+ */
 export const vcTail = function (text, maxChars) {
   const s = String(text === null || text === undefined ? '' : text)
+  const cp = Array.from(s)
   const n = Math.floor(Number(maxChars))
   if (!isFinite(n) || n <= 0) return s
-  if (s.length <= n) return s
+  if (cp.length <= n) return s
   if (n === 1) return '\u2026'
-  return s.slice(0, n - 1) + '\u2026'
+  return cp.slice(0, n - 1).join('') + '\u2026'
 }
 /** 砍中段允许的最短长度：与核心 foldMiddle 同一条（短于这个长度就不砍了，砍下去会把文件名也砍没）。 */
 export const VC_MIDDLE_MIN = 10
 /** 文件路径砍中段：与核心 foldMiddle 逐字同规则（见文件头）。maxLen 至少 10 才砍，否则原样返回。 */
 export const vcMiddle = function (path, maxLen) {
   const p = String(path === null || path === undefined ? '' : path)
+  const cp = Array.from(p)
   const n = Math.floor(Number(maxLen))
-  if (!isFinite(n) || p.length <= n || n < VC_MIDDLE_MIN) return p
+  if (!isFinite(n) || cp.length <= n || n < VC_MIDDLE_MIN) return p
   const keep = n - 1
   const headLen = Math.ceil(keep * 0.4)
-  return p.slice(0, headLen) + '\u2026' + p.slice(p.length - (keep - headLen))
+  return cp.slice(0, headLen).join('') + '\u2026' + cp.slice(cp.length - (keep - headLen)).join('')
+}
+/** 多行文本收成一行（悬停提示里不放原始换行）：只留第一行、去掉首尾空白、超长截断。 */
+export const vcOneLine = function (text, maxChars) {
+  const s = String(text === null || text === undefined ? '' : text).replace(/\r/g, '').split('\n')[0].trim()
+  const n = Math.floor(Number(maxChars))
+  if (!isFinite(n) || n <= 0) return s
+  const cp = Array.from(s)
+  return cp.length <= n ? s : cp.slice(0, n - 1).join('') + '\u2026'
 }
 /** 提交哈希的显示写法：模型里给的是完整 40 位（或 git 自己给的短号），这里只做显示用的取舍。 */
 export const vcShortOid = function (oid) {
@@ -97,7 +113,8 @@ export const vcWhenText = function (t, nowMs, ms) {
   // 没有时间这一项时如实回空串：Number(null) 是 0，直接算会画成 1970 年，那是编出来的时刻。
   if (ms === null || ms === undefined || ms === '') return ''
   const t0 = Number(ms)
-  if (!isFinite(t0)) return ''
+  // 非正数（0 与负数）不是真实时刻：给 0 会画成 1970 年，那是编出来的时间，一律按读不到说。
+  if (!isFinite(t0) || t0 <= 0) return ''
   if (vcTimeKind(nowMs, t0) === 'absolute') return vcClockText(t, t0)
   const minutes = Math.max(0, Math.floor((Number(nowMs) - t0) / 60000))
   if (minutes < 1) return t('vc.ago.justNow')
@@ -112,6 +129,7 @@ export const vcWhenText = function (t, nowMs, ms) {
  */
 export const vcBasisText = function (t, nowMs, basisMs) {
   const b = Number(basisMs)
-  if (basisMs === null || basisMs === undefined || !isFinite(b)) return t('vc.basis.unknown')
+  // 0 与负数同样按读不到说（给 0 会画成 1970 年）；只有正数才是一次真实的更新时刻。
+  if (basisMs === null || basisMs === undefined || !isFinite(b) || b <= 0) return t('vc.basis.unknown')
   return t('vc.basis.at', { when: vcWhenText(t, nowMs, b) })
 }
