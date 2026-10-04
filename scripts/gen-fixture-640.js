@@ -1,7 +1,7 @@
 // gen-fixture-640.js — 由真源生成「状态栏容器 vs 输入卡」宽度复现页 tests/fixtures/640-dock-width-repro.html
 //
 // 为什么要这一页（#640）：插件的状态栏住在宿主的输入区槽位里。那个槽位是个 display:contents 锚点，
-// 本身不产生盒子；盒子是插件自己那个外层容器产生的。宿主输入卡的真实算式是（宿主产物原文）
+// 本身不产生盒子；盒子是插件自己那个外层容器产生的。宿主输入卡的真实算式是（宿主产物原文；下面两行是 #640 当时的类名与数值，0.2.0-rc.2 已改名，抠法见本节末段）
 //   .p_FcLG_root{padding:0 var(--dsh-composer-side-clearance) 8px}          ← 内层左右各留一个「侧距」
 //   .p_FcLG_card{box-sizing:border-box;width:100%;max-width:var(--dsh-composer-card-max-width)}
 // 即「卡片外框宽 = min(列宽 − 2×侧距, 卡宽上限)」。插件原来什么都没写，容器横向铺满整列，
@@ -11,6 +11,12 @@
 //   一、**卡片那一侧用宿主原产物的算式**（从 DSH 桌面包里读出来，写在下面 HOST_CARD_*），保证量尺是外部的、不是自证的；
 //   二、被测元素那一侧用插件自己的几何（从 StatusBar.js 的 dswsStatusDockGeom 读出来）。
 // 如果哪天宿主改了卡片算式，本文件会因读取失败而报错，而不是悄悄变成「两边同一个公式」的恒真测试。
+//
+// 宿主产物怎么找（2026-10-04 定版）：候选列表 = 环境变量 DSH_CONVERSATION_BUNDLE → 原写死的那条安装路径
+//   → asar 解包落点 node_modules/.cache/dsh-host/；都没有时再看 asar 归档
+//   D:\DeepseekHarness\resources\app.asar 里那一条（用 scripts/asar-extract.js 零依赖抽出来，只读）。
+//   全都拿不到时本文件**不再直接抛错**，改为「跳过不生成」，由门禁打印 SKIP 并按严格开关
+//   DSWS_REQUIRE_HOST_BUNDLE 决定算不算失败——量尺必须来自外部，宁可不跑也不自证。
 const fs = require('fs');
 const path = require('path');
 const root = path.resolve(__dirname, '..');
@@ -18,20 +24,52 @@ const statusSrc = fs.readFileSync(path.join(root, 'src/client/statusbar/StatusBa
 const stylesSrc = fs.readFileSync(path.join(root, 'src/client/kernel/styles.js'), 'utf8');
 
 // ── 一、从宿主产物里读「卡片那一侧」的真算式 ────────────────────────────────
-const HOST_BUNDLE = process.env.DSH_CONVERSATION_BUNDLE ||
-  'D:\\0Tools\\DSH Desktop\\resources\\app\\node_modules\\@deepseek-ai\\dsh-client-ui-conversation\\lib\\client.js';
+// 找法三层（顺序即优先级）：显式指定 → 原来那条安装路径 → asar 解包落点；再不行就抽 asar。
+const ASAR_PATH = 'D:\\DeepseekHarness\\resources\\app.asar';
+const ASAR_ENTRY = 'dsh/node_modules/@deepseek-ai/dsh-client-ui-conversation/lib/client.js';
+const CACHE_BUNDLE = path.join(root, 'node_modules/.cache/dsh-host/dsh-client-ui-conversation.client.js');
+const ASAR_DISABLED = process.env.DSWS_640_NO_ASAR === '1'; // 验收用：藏掉 asar 兜底，验「找不到就跳过」那条路
+const HOST_CANDIDATES = [
+  process.env.DSH_CONVERSATION_BUNDLE,
+  'D:\\0Tools\\DSH Desktop\\resources\\app\\node_modules\\@deepseek-ai\\dsh-client-ui-conversation\\lib\\client.js',
+  ASAR_DISABLED ? null : CACHE_BUNDLE,
+].filter(Boolean);
+let HOST_BUNDLE = HOST_CANDIDATES.find(function (p) { return fs.existsSync(p); }) || null;
+let hostFrom = HOST_BUNDLE ? (HOST_BUNDLE === CACHE_BUNDLE ? 'asar 解包缓存' : '候选文件') : '';
+if (!HOST_BUNDLE && !ASAR_DISABLED && fs.existsSync(ASAR_PATH)) {
+  try {
+    HOST_BUNDLE = CACHE_BUNDLE;
+    require('./asar-extract.js').extractAsarEntry(ASAR_PATH, ASAR_ENTRY, CACHE_BUNDLE);
+    hostFrom = 'asar 解包（' + ASAR_PATH + '）';
+  } catch (e) { HOST_BUNDLE = null; hostFrom = ''; } // 抽不出来就当没找到，交给下面的跳过分支
+}
+
+let bundle = '';
 let hostRootRule = '';
 let hostCardRule = '';
-if (fs.existsSync(HOST_BUNDLE)) {
-  const bundle = fs.readFileSync(HOST_BUNDLE, 'utf8');
-  const pick = function (sel, label) {
-    const re = new RegExp(sel.replace('.', '\\.') + '\\{([^}]*)\\}');
-    const m = bundle.match(re);
-    if (!m) throw new Error('宿主产物里找不到 ' + label + ' 的规则（' + sel + '）；宿主可能改名了，本 fixture 需要同步更新');
-    return m[1];
-  };
-  hostRootRule = pick('.p_FcLG_root', '输入卡外层');
-  hostCardRule = pick('.p_FcLG_card', '输入卡');
+// 抠规则第一层：按老类名找（宿主改名前的写法）
+const pickByClassName = function (text, sel, label) {
+  const re = new RegExp(sel.replace('.', '\\.') + '\\{([^}]*)\\}');
+  const m = text.match(re);
+  if (!m) throw new Error('宿主产物里找不到 ' + label + ' 的规则（' + sel + '）；宿主可能改名了，本 fixture 需要同步更新');
+  return m[1];
+};
+// 抠规则第二层：按算式特征扫（宿主 0.2.0-rc.2 改成 CSS Modules 哈希类名之后，靠这一层接上）
+const pickByFormula = function (text, test, label) {
+  const re = /\.[A-Za-z0-9_$-]+\{([^{}]*)\}/g;
+  let m;
+  while ((m = re.exec(text))) { if (test(m[1])) return m[1]; }
+  throw new Error('宿主产物里找不到 ' + label + '（按类名与算式特征都找不到）；宿主可能改了算式，本 fixture 需要同步更新');
+};
+const pickRule = function (sel, test, label) {
+  try { return pickByClassName(bundle, sel, label); } catch (e) { return pickByFormula(bundle, test, label); }
+};
+if (HOST_BUNDLE) {
+  bundle = fs.readFileSync(HOST_BUNDLE, 'utf8');
+  // 特征要能把它与同款算式的旁支规则分开：root 必须「padding:0 <侧距> <底距>」起头（Hero 那条只有前两段）；
+  //   card 必须带 box-sizing（HeroStack 那条与 notice 那条都不带）。分开写是为了别把量尺接错人。
+  hostRootRule = pickRule('.p_FcLG_root', function (b) { return /^padding:0 var\(--dsh-composer-side-clearance\)\s+\d/.test(b); }, '输入卡外层');
+  hostCardRule = pickRule('.p_FcLG_card', function (b) { return /box-sizing:border-box/.test(b) && /width:100%/.test(b) && /max-width:var\(--dsh-composer-card-max-width\)/.test(b); }, '输入卡');
   // 哨兵：卡片必须仍然用「侧距」做内边距、用「卡宽上限」夹宽度。任一条变了，量尺就不再成立。
   if (!/padding:0 var\(--dsh-composer-side-clearance\)/.test(hostRootRule)) {
     throw new Error('宿主输入卡外层的 padding 不再是 0 var(--dsh-composer-side-clearance)：' + hostRootRule.slice(0, 160));
@@ -39,14 +77,12 @@ if (fs.existsSync(HOST_BUNDLE)) {
   if (!/max-width:var\(--dsh-composer-card-max-width\)/.test(hostCardRule)) {
     throw new Error('宿主输入卡的 max-width 不再引用 --dsh-composer-card-max-width：' + hostCardRule.slice(0, 160));
   }
-} else {
-  throw new Error('找不到宿主产物：' + HOST_BUNDLE + '。本 fixture 必须拿宿主原文量尺，不能用插件自己的公式自证。');
 }
 // 只取判定用的三条，行为性的（border-radius / box-shadow 等）不需要进 fixture
 const hostRootPad = (hostRootRule.match(/padding:0 var\(--dsh-composer-side-clearance\)[^;}]*/) || [''])[0];
 const hostCardWidth = (hostCardRule.match(/width:100%/) || [''])[0];
 const hostCardMax = (hostCardRule.match(/max-width:var\(--dsh-composer-card-max-width\)/) || [''])[0];
-if (!hostRootPad || !hostCardWidth || !hostCardMax) {
+if (HOST_BUNDLE && (!hostRootPad || !hostCardWidth || !hostCardMax)) {
   throw new Error('宿主卡片算式抽取不全：pad=' + hostRootPad + ' / width=' + hostCardWidth + ' / max=' + hostCardMax);
 }
 
@@ -175,7 +211,22 @@ const html = '<!doctype html><html><head><meta charset=utf-8><style>' + css + '<
 const outDir = path.join(root, 'tests/fixtures');
 fs.mkdirSync(outDir, { recursive: true });
 const outFile = path.join(outDir, '640-dock-width-repro.html');
-fs.writeFileSync(outFile, html);
-console.log('fixture written', path.relative(root, outFile), html.length, 'bytes');
-console.log('  量尺（宿主原文）：root「' + hostRootPad + '」 + card「' + hostCardWidth + ' / ' + hostCardMax + '」');
-console.log('  被测（插件真源）：width「' + geomWidth + '」，maxWidth「' + geomMaxWidth + '」，padding「' + geomPad + '」');
+if (!HOST_BUNDLE) {
+  // 跳过：不生成 fixture、不抛错。门禁会打印 SKIP，并按 DSWS_REQUIRE_HOST_BUNDLE 决定算不算失败。
+  console.log('SKIP gen-fixture-640：本机找不到宿主原文产物，这次不生成 fixture（量尺必须是外部的，不能用插件自己的公式自证）。');
+  module.exports = {
+    skipped: true, tried: HOST_CANDIDATES, asarPath: ASAR_PATH, asarEntry: ASAR_ENTRY,
+    asarDisabled: ASAR_DISABLED, hostBundle: null, fixture: outFile,
+  };
+} else {
+  fs.writeFileSync(outFile, html);
+  console.log('fixture written', path.relative(root, outFile), html.length, 'bytes');
+  console.log('  量尺（宿主原文，' + hostFrom + '）：root「' + hostRootPad + '」 + card「' + hostCardWidth + ' / ' + hostCardMax + '」');
+  console.log('  被测（插件真源）：width「' + geomWidth + '」，maxWidth「' + geomMaxWidth + '」，padding「' + geomPad + '」');
+  module.exports = {
+    skipped: false, hostBundle: HOST_BUNDLE, hostBundleFrom: hostFrom, tried: HOST_CANDIDATES,
+    hostBundleText: bundle, hostRootRule: hostRootRule, hostCardRule: hostCardRule,
+    pickRule: pickRule, pickByClassName: pickByClassName, pickByFormula: pickByFormula,
+    fixture: outFile,
+  };
+}

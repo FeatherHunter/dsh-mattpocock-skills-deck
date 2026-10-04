@@ -4,20 +4,51 @@
 // 本门的判据是几何的，不是字符串的：
 //   插件状态栏最外层容器的左右边，必须落在输入卡的左右边上（容差 1px）；胶囊不得超过卡片宽。
 //
-// 量尺必须来自外部：fixture 里「卡片那一侧」用的是**宿主产物原文**（.p_FcLG_root 的
-// `padding:0 var(--dsh-composer-side-clearance) 8px` + .p_FcLG_card 的
-// `width:100%; max-width:var(--dsh-composer-card-max-width)`，由 scripts/gen-fixture-640.js
-// 从 DSH 桌面包里读出来），被测元素那一侧才用插件的几何。两边不是同一个公式 —— 否则这道门恒真。
+// 量尺必须来自外部：fixture 里「卡片那一侧」用的是**宿主产物原文**的算式（由 scripts/gen-fixture-640.js
+// 从 DSH 桌面包里读出来）—— 输入卡外层「padding:0 var(--dsh-composer-side-clearance) <底距>」+
+// 输入卡「width:100%; max-width:var(--dsh-composer-card-max-width)」；被测元素那一侧才用插件的几何。
+// 两边不是同一个公式 —— 否则这道门恒真。宿主 0.2.0-rc.2 起把类名换成了 CSS Modules 哈希名
+// （老名字 .p_FcLG_root / .p_FcLG_card 已经不在），所以抠规则改走「先认类名、失败按算式特征扫」。
 // 反证用例同为必需：容器回到改造前那种「不做宽度约束」的写法时，本门必须量出「容器比卡片宽」。
+//
+// 宿主产物怎么找（2026-10-04）：候选 = 环境变量 DSH_CONVERSATION_BUNDLE → 原写死的那条安装路径 →
+//   asar 解包缓存（scripts/gen-fixture-640.js 会用 scripts/asar-extract.js 从
+//   D:\DeepseekHarness\resources\app.asar 里把宿主原文抽出来）。全都拿不到时本门**明确跳过**：
+//   打印 SKIP + 试过的路径清单、exit 0；设 DSWS_REQUIRE_HOST_BUNDLE=1 时跳过算失败（exit 1），防假绿。
 //
 // 依赖：playwright（含 chromium）。无登录令牌也能跑（纯本地 fixture 页）。
 const { chromium } = require('playwright');
 const path = require('path');
 const fs = require('fs');
 
+let ok = true;
+const check = function (cond, msg) { console.log((cond ? 'PASS ' : 'FAIL ') + msg); if (!cond) ok = false; };
+
 (async () => {
   const gen = require(path.resolve(__dirname, '../scripts/gen-fixture-640.js'));
-  void gen;
+  // 找不到宿主原文产物：本门没有外部量尺就无从判定 —— 按仓库惯例「明确跳过」，不报红也不装绿。
+  //   设 DSWS_REQUIRE_HOST_BUNDLE=1 时跳过算失败（给 CI 或严格场合用）。
+  if (gen.skipped) {
+    console.log('SKIP verify-640：本机找不到宿主原文产物（这道门量的是「容器 vs 宿主输入卡」的外部尺子，缺了它没有替代量法）。');
+    console.log('  试过这些路径：');
+    (gen.tried || []).forEach(function (p) { console.log('    ' + p); });
+    console.log('  asar 兜底：' + (gen.asarDisabled ? '被 DSWS_640_NO_ASAR=1 关掉' : ('试过 ' + gen.asarPath + ' 的 ' + gen.asarEntry)));
+    console.log('  要跑：把宿主那份 client.js 放到任一候选位置，或设 DSH_CONVERSATION_BUNDLE=<client.js 路径>。');
+    console.log('  口径：默认跳过不算红（exit 0）；设 DSWS_REQUIRE_HOST_BUNDLE=1 时跳过算失败（exit 1）。');
+    process.exit(process.env.DSWS_REQUIRE_HOST_BUNDLE === '1' ? 1 : 0);
+  }
+
+  // ── A 组：量尺从哪来、规则怎么抠 —— 两条路径各有断言 + 反证 ──────────────────
+  check(!!gen.hostBundle && fs.existsSync(gen.hostBundle), 'A1 宿主原文产物找到并存在：' + gen.hostBundle + '（来源：' + gen.hostBundleFrom + '）');
+  check(/padding:0 var\(--dsh-composer-side-clearance\)/.test(gen.hostRootRule), 'A2 输入卡外层规则取自宿主原文：' + String(gen.hostRootRule).slice(0, 90));
+  check(/max-width:var\(--dsh-composer-card-max-width\)/.test(gen.hostCardRule), 'A3 输入卡规则取自宿主原文：' + String(gen.hostCardRule).slice(0, 90));
+  let byFeature = '';
+  try { byFeature = gen.pickRule('.p_NOT_THERE_root', function (b) { return /^padding:0 var\(--dsh-composer-side-clearance\)\s+\d/.test(b); }, '输入卡外层'); } catch (e) { byFeature = ''; }
+  check(/padding:0 var\(--dsh-composer-side-clearance\)/.test(byFeature), 'A4 反证：类名不存在时按算式特征仍扫得到（实得 ' + String(byFeature).slice(0, 90) + '）');
+  let threw = false;
+  try { gen.pickByFormula(gen.hostBundleText, function (b) { return /这份产物里绝不可能出现的算式/.test(b); }, '输入卡外层'); } catch (e) { threw = true; }
+  check(threw, 'A5 反证：算式特征找不到时报错（不是随便返回第一条）');
+
   const fixture = path.resolve(__dirname, 'fixtures/640-dock-width-repro.html');
   if (!fs.existsSync(fixture)) { console.error('fixture 缺失：' + fixture); process.exit(1); }
 
@@ -49,7 +80,6 @@ const fs = require('fs');
   await browser.close();
 
   const TOL = 1.0; // 1px：允许子像素取整
-  let ok = true;
   console.log('用例                      容器左右            卡片左右            左差   右差   容器=卡片  胶囊≤卡片');
   for (const r of rows) {
     const dL = Math.round((r.wrapL - r.cardL) * 100) / 100;
