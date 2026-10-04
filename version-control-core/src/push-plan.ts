@@ -48,6 +48,23 @@ export function pushPlanOf(input: PushPlanInput): PushPlanResult {
     }
     // 上游指向的不是任何已登记远端（例如本地分支）：当成「没有可用上游」，走选定档。
   }
+  // ③ 上游配置还在、但远端那个分支被删了（`%(upstream:track)` 给 [gone]）：这不是「第一次推送」，是
+  //    「重建上游」——按配置里原来的目标 <remote>/<branch> 重建并重新设上游；界面照 mode='recreate' 说不同的话
+  //    （#848）。远端名同样用最长前缀匹配，绝不按第一个斜杠切。
+  if (upstream !== '' && input.upstreamGone === true) {
+    let best = ''
+    for (const r of remotes) {
+      if (upstream.length > r.length + 1 && upstream.slice(0, r.length) === r && upstream.charAt(r.length) === '/') {
+        if (r.length > best.length) best = r
+      }
+    }
+    if (best !== '') {
+      const targetBranch = upstream.slice(best.length + 1)
+      if (!BRANCH_PATTERN.test(targetBranch)) return { ok: false, reason: 'bad-target' }
+      return { ok: true, plan: { mode: 'recreate', setUpstream: true, remote: best, branch: targetBranch, localBranch: branch } }
+    }
+    // 上游指向的远端也不在了：退回「选定远端」那一档，不猜。
+  }
   const wanted = input.requestedRemote ? String(input.requestedRemote) : ''
   if (wanted !== '') {
     if (!REMOTE_PATTERN.test(wanted) || remotes.indexOf(wanted) < 0) return { ok: false, reason: 'bad-target' }

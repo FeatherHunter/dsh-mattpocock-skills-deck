@@ -92,6 +92,18 @@ async function main() {
   check(addArgv.indexOf('--') > 0 && addArgv[addArgv.indexOf('--') + 1] === 'a.txt', 'B2 路径排在 -- 之后且是独立元素')
   check(cmds.pushArgs({ mode: 'existing', remote: 'origin', branch: 'main', localBranch: 'main' }).join(' ') === 'push --no-follow-tags origin main:main', 'B3 推送是显式 <remote> <local>:<remote> 且关掉跟随标签')
   check(cmds.pushArgs({ mode: 'set-upstream', remote: 'origin', branch: 'main', localBranch: 'main' }).join(' ') === 'push -u --no-follow-tags origin main:main', 'B4 -u 只在 set-upstream 档出现')
+  const pp = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'version-control', 'push-plan.js')).href)
+  const t1 = pp.pushPlanOf({ branch: 'main', upstream: 'origin/main', upstreamGone: false, remotes: ['origin'] })
+  check(t1.ok === true && t1.plan.mode === 'existing' && t1.plan.setUpstream === false, 'B7 一档：有上游且远端在 → existing（不带 -u）')
+  const t2 = pp.pushPlanOf({ branch: 'feature/x', upstream: null, upstreamGone: false, remotes: ['origin'] })
+  check(t2.ok === true && t2.plan.mode === 'set-upstream' && t2.plan.setUpstream === true, 'B8 二档：没有上游 → set-upstream')
+  const t3 = pp.pushPlanOf({ branch: 'main', upstream: 'origin/doomed', upstreamGone: true, remotes: ['origin'] })
+  check(t3.ok === true && t3.plan.mode === 'recreate' && t3.plan.remote === 'origin' && t3.plan.branch === 'doomed' && t3.plan.setUpstream === true, 'B9 三档：上游被删 → recreate（目标仍是配置里那个 origin/doomed）')
+  const t4 = pp.pushPlanOf({ branch: 'main', upstream: 'my/fork/main', upstreamGone: false, remotes: ['my/fork', 'origin'] })
+  check(t4.ok === true && t4.plan.remote === 'my/fork' && t4.plan.branch === 'main', 'B10 斜杠远端：最长前缀匹配（my/fork 不被切成 my）')
+  const t5 = pp.pushPlanOf({ branch: 'main', upstream: null, upstreamGone: false, remotes: ['origin', 'upstream'] })
+  check(t5.ok === false && t5.reason === 'need-remote-choice' && t5.candidates.length === 2, 'B11 多远端 + 没上游：不替用户挑（need-remote-choice）')
+  check(cmds.pushArgs(t3.plan).join(' ') === 'push -u --no-follow-tags origin main:doomed', 'B12 recreate 档 argv：带 -u、显式 refspec（与既有 argv 断言不冲突）')
   let threw = false
   try { cmds.pushArgs({ mode: 'existing', remote: 'origin', branch: '+wip', localBranch: '+wip' }) } catch (e) { threw = true }
   check(threw === true, 'B5 反证：refspec 以 + 开头（会被 git 当强推）必须当场抛错')

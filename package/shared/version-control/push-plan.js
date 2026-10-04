@@ -20,6 +20,19 @@ export function pushPlanOf(input) {
       return { ok: true, plan: { mode: "existing", setUpstream: false, remote: best, branch: targetBranch, localBranch: branch } };
     }
   }
+  if (upstream !== "" && input.upstreamGone === true) {
+    let best = "";
+    for (const r of remotes) {
+      if (upstream.length > r.length + 1 && upstream.slice(0, r.length) === r && upstream.charAt(r.length) === "/") {
+        if (r.length > best.length) best = r;
+      }
+    }
+    if (best !== "") {
+      const targetBranch = upstream.slice(best.length + 1);
+      if (!BRANCH_PATTERN.test(targetBranch)) return { ok: false, reason: "bad-target" };
+      return { ok: true, plan: { mode: "recreate", setUpstream: true, remote: best, branch: targetBranch, localBranch: branch } };
+    }
+  }
   const wanted = input.requestedRemote ? String(input.requestedRemote) : "";
   if (wanted !== "") {
     if (!REMOTE_PATTERN.test(wanted) || remotes.indexOf(wanted) < 0) return { ok: false, reason: "bad-target" };

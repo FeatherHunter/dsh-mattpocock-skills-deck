@@ -63,9 +63,23 @@ export function createWritePhones(deps) {
       const remotes = (rr && rr.ok === true) ? String(rr.stdout || '').split('\n').map(function (x) { return x.replace(/\r/g, '').trim() }).filter(function (x) { return x !== '' }) : []
       const branch = ticket.target.localBranch
       // 「还没有上游」在动手前再核一次：已经存在上游时再带 -u 会静默覆盖掉用户原来设的上游。
-      const up = await runOne(cwd, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', branch + '@{u}'], 5000, 4096, 15000)
-      const upstream = (up && up.ok === true) ? String(up.stdout || '').trim() : null
-      const pp = pushPlanOf({ branch: branch, upstream: upstream, upstreamGone: upstream === null, remotes: remotes, requestedRemote: ticket.target.remote })
+      // 上游要从**配置**解析（branch.<名>.remote + .merge），不能用 `<分支>@{u}`：上游被删时 git 对 @{u} 直接
+      // 失败（exit 128），于是配置还在的那一档会解析成「没有上游」→ 重算成 set-upstream，与票里的 recreate 对不上
+      // （真机证据抓到：recreate 永远回 target-changed）。配置给的是 remote 名 + refs/heads/<分支>，拼成 <remote>/<分支>。
+      const brCfg = await runOne(cwd, ['config', '--get', 'branch.' + branch + '.remote'], 5000, 4096, 10000)
+      const mgCfg = await runOne(cwd, ['config', '--get', 'branch.' + branch + '.merge'], 5000, 4096, 10000)
+      const remoteName = (brCfg && brCfg.ok === true) ? String(brCfg.stdout || '').trim() : ''
+      const mergeRef = (mgCfg && mgCfg.ok === true) ? String(mgCfg.stdout || '').trim() : ''
+      const upstream = (remoteName !== '' && mergeRef.indexOf('refs/heads/') === 0) ? remoteName + '/' + mergeRef.slice('refs/heads/'.length) : null
+      // 「上游被删」要按**远端跟踪引用还在不在**判（#848）：upstream 有配置但 refs/remotes/<upstream> 没了就是 [gone]。
+      // 之前这里写成 `upstreamGone: upstream === null`，于是配置还在、远端分支被删的那一档在重算时变成 existing，
+      // 与票里的 recreate 对不上 → 永远回 target-changed，第三档根本执行不了（真机证据当场抓到）。
+      let gone = false
+      if (upstream !== null) {
+        const tr = await runOne(cwd, ['rev-parse', '--verify', '--quiet', 'refs/remotes/' + upstream], 5000, 4096, 10000)
+        gone = !(tr && tr.ok === true)
+      }
+      const pp = pushPlanOf({ branch: branch, upstream: upstream, upstreamGone: gone, remotes: remotes, requestedRemote: ticket.target.remote })
       cur.target = pp.ok === true ? pp.plan : null
     }
     return cur

@@ -76,7 +76,7 @@ export function pushArgs(plan) {
   if (spec.charAt(0) === "+" || plan.localBranch.charAt(0) === "+" || plan.branch.charAt(0) === "+") {
     throw new Error("[version-control] refspec \u4E0D\u8BB8\u4EE5 + \u5F00\u5934\uFF08\u4F1A\u88AB git \u5F53\u5F3A\u63A8\uFF09\uFF1A" + spec);
   }
-  return plan.mode === "set-upstream" ? ["push", "-u", "--no-follow-tags", plan.remote, spec] : ["push", "--no-follow-tags", plan.remote, spec];
+  return plan.mode === "existing" ? ["push", "--no-follow-tags", plan.remote, spec] : ["push", "-u", "--no-follow-tags", plan.remote, spec];
 }
 export function lsFilesStageArgs() {
   return ["ls-files", "--stage", "-z"];

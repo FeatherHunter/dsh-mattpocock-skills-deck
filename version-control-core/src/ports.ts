@@ -149,8 +149,8 @@ export type WriteOp = 'commit' | 'pull' | 'push'
 
 /** 预检解析出来的推送目标；localBranch 是 refspec 左边那一段（本地分支）。 */
 export interface WritePlan {
-  mode: 'existing' | 'set-upstream'
-  /** mode 的布尔派生（界面与反证脚本按它读）：true = 这次推送会建立上游（带 -u）。 */
+  mode: 'existing' | 'set-upstream' | 'recreate'
+  /** mode 的布尔派生（界面与反证脚本按它读）：true = 这次推送会建立/重建上游（带 -u）。 */
   setUpstream?: boolean
   remote: string
   branch: string

@@ -127,7 +127,7 @@ export function pullArgs(): string[] {
   return ['pull', '--ff-only']
 }
 /** 推送：永远显式 <remote> <local>:<remote>（总工 2026-10-04 订正 1）；-u 只在 set-upstream 档出现。 */
-export function pushArgs(plan: { mode: 'existing' | 'set-upstream'; remote: string; branch: string; localBranch: string }): string[] {
+export function pushArgs(plan: { mode: 'existing' | 'set-upstream' | 'recreate'; remote: string; branch: string; localBranch: string }): string[] {
   const spec = plan.localBranch + ':' + plan.branch
   // 自检（#841 第三批·安全级）：refspec 首字符 + 是强推标记。分支名正则已经拒前导 +，这里再兜一道，
   // 免得将来有人从别的路径拼 refspec 时把「普通推送」变成「覆盖远端」。
@@ -136,7 +136,8 @@ export function pushArgs(plan: { mode: 'existing' | 'set-upstream'; remote: stri
   }
   // --no-follow-tags：用户配置里若开着 push.followTags=true，显式 refspec 仍会把可达的标注标签一起推出去；
   // 面板只推这一个分支，标签不替用户推（真机场景②的验收点：推完远端标签仍为空）。
-  return plan.mode === 'set-upstream' ? ['push', '-u', '--no-follow-tags', plan.remote, spec] : ['push', '--no-follow-tags', plan.remote, spec]
+  // -u 出现在两档：set-upstream（第一次推送）与 recreate（上游被删后重建）——两者都要重新设上游。
+  return plan.mode === 'existing' ? ['push', '--no-follow-tags', plan.remote, spec] : ['push', '-u', '--no-follow-tags', plan.remote, spec]
 }
 /** 索引指纹的输入（只读；总工裁决 2：不用 write-tree，不往用户对象库写东西）。 */
 export function lsFilesStageArgs(): string[] {
