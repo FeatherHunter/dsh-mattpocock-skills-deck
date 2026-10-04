@@ -75,8 +75,12 @@ function makeDeps(route, opts) {
         if (o.statIso) { for (const k of Object.keys(o.statIso)) if (String(p).indexOf(k) >= 0) return Promise.resolve({ mtime: o.statIso[k] }) }
         return markerHit(o, p) ? Promise.resolve({}) : Promise.reject(Object.assign(new Error('没有这个文件'), { code: 'ENOENT' }))
       },
-      lstat() { return Promise.resolve(null) },
-      exists(p) { return Promise.resolve(markerHit(o, p)) },
+      // #858：lstat 也要能模拟「答不出来」（沙箱拒绝等）——否则「所有探测都答不出来 → 走 git 兜底」这条测不到。
+    lstat(p) { if (o.fsError) return Promise.reject(Object.assign(new Error('读不了'), { code: o.fsError })); return Promise.resolve(null) },
+    // exists 保留给既有用例；但要能模拟「答不出来」——#858 的兜底用例靠它（真服务没有 exists，所以生产里走不到）。
+    exists(p) { if (o.fsError) return Promise.reject(Object.assign(new Error('读不了'), { code: o.fsError })); return Promise.resolve(markerHit(o, p)) },
+      // #858 契约事实：真服务是 stat(target) / lstat(path)、**没有 exists**（老写法那句 fs.exists 永远走不到）。
+      // 这里保留 exists 只是给既有用例用；带 fsError 时它会拒绝，好让「文件服务答不出来 → 走 git 兜底」测得到。
     },
     getPlatform: async function () { return { resolveExecutable: async function (name) { return name === 'git' ? (o.gitExe === undefined ? 'git' : o.gitExe) : null } } },
     DEFAULT_CWD: 'D:/假工作区/repo',
@@ -393,8 +397,25 @@ async function main() {
   // ---- 3.6) 运行中标记的三档：真在 / 明确不在 / 读不了（读不了绝不当成不在）----
   const rMarker = await hostMod.createVersionControl(makeDeps(liveRoute, { markerExists: 'MERGE_HEAD' }).deps).handleGitStatus({ cwd: 'D:/假工作区/repo' })
   check(rMarker.ok === true && rMarker.screen.repo.merging === true && rMarker.screen.repo.rebasing === false, '标记文件真在时：如实判出合并进行中（其余三项不动）')
-  const rUnreadable = await hostMod.createVersionControl(makeDeps(liveRoute, { fsError: 'EACCES' }).deps).handleGitStatus({ cwd: 'D:/假工作区/repo' })
-  check(rUnreadable.ok === false && rUnreadable.error.kind === 'env', '标记文件读不了（非 ENOENT）：明说读不到 kind=env，绝不当成「不在」')
+  // #858（人验收抓到的真 bug）：文件服务读不了时不再直接回 kind='env'（界面上被读成「找不到 git 程序」，真因不是 git），
+  // 而是先走 git 兜底（rev-parse -q --verify <标记名>）；两条都不通才回新种类 env-fs 并带上文件服务的原话。
+  const gitProbeRoute = function (argv) {
+    const a = afterPrefix(argv)
+    if (a && a[0] === 'rev-parse' && a[1] === '-q' && a[2] === '--verify' && a[3] === 'MERGE_HEAD') return { code: 0, stdout: 'abc123\n' }
+    if (a && a[0] === 'rev-parse' && a[1] === '-q' && a[2] === '--verify') return { code: 1, stdout: '', stderr: '' }
+    return liveRoute(argv)
+  }
+  // ① 真因（#858）：DSH fs 服务对「文件不存在」抛的是 FS_NOT_FOUND，不是 ENOENT —— 四个标记文件在正常仓库里
+  //    全都不存在，判据只认 ENOENT 就会把「不存在」当成 IO 错误，首屏整条读不出来。这一条直接钉住它。
+  const rFsNotFound = await hostMod.createVersionControl(makeDeps(liveRoute, { fsError: 'FS_NOT_FOUND' }).deps).handleGitStatus({ cwd: 'D:/假工作区/repo' })
+  check(rFsNotFound.ok === true && rFsNotFound.screen.repo.merging === false && rFsNotFound.screen.repo.rebasing === false, '① 假 fs 抛 FS_NOT_FOUND（真因）：首屏正常读出，四个标记全 false——判据收回只认 ENOENT 时这条必红')
+  // ② 文件服务真的答不出来（沙箱拒绝）：走 git 兜底仍成功（MERGE_HEAD 在）。
+  const rFsBroken = await hostMod.createVersionControl(makeDeps(gitProbeRoute, { fsError: 'FS_SANDBOX_DENIED' }).deps).handleGitStatus({ cwd: 'D:/假工作区/repo' })
+  check(rFsBroken.ok === true && rFsBroken.screen.repo.merging === true, '② fs 答不出来（FS_SANDBOX_DENIED）、git 兜底答得出：仍然读得出来——把兜底拿掉这条必红（实得 ok=' + rFsBroken.ok + '）')
+  // ③ 两条都不通：新种类 env-fs + 带上文件服务的具体错误说明。
+  const probeUnknownRoute = function (argv) { const a = afterPrefix(argv); if (a && a[0] === 'rev-parse' && a[1] === '-q' && a[2] === '--verify') return { code: 128, stdout: '', stderr: 'fatal: 兜底也答不出来\n' }; return liveRoute(argv) }
+  const rBothFail = await hostMod.createVersionControl(makeDeps(probeUnknownRoute, { fsError: 'FS_SANDBOX_DENIED' }).deps).handleGitStatus({ cwd: 'D:/假工作区/repo' })
+  check(rBothFail.ok === false && rBothFail.error.kind === 'env-fs' && String(rBothFail.error.message || '').indexOf('FS_SANDBOX_DENIED') >= 0, '③ 两条都不通：kind=env-fs 且带上文件服务的具体错误（实得 kind=' + (rBothFail.error && rBothFail.error.kind) + '）')
 
   // ---- 4) 三种明确失败：git 找不到 / 不在仓库里 / 版本太老；一律返回值，不抛 ----
   const rNoGit = await hostMod.createVersionControl(makeDeps(liveRoute, { gitExe: null }).deps).handleGitStatus({ cwd: 'D:/假工作区/repo' })

@@ -36,7 +36,14 @@ export function createBasisReader(deps) {
     if (!fs || typeof fs.stat !== 'function') return null
     const dir = String(gitDir || '').replace(/[\\/]+$/, '')
     try {
-      const ms = mtimeMsOf(await fs.stat(dir + '/refs/remotes/' + upstream))
+      // #858：fs.stat 吃的是 fs.resolve() 给的 target 对象，不是路径——老写法喂路径会抛 TypeError 被下面 catch 吞掉，
+      // 于是「依据时间」永远读不到（用户可见的降级）。正确形状：先 resolve 成 target；没有 resolve 就退路径式 lstat。
+      const loose = dir + '/refs/remotes/' + upstream
+      let st = null
+      if (typeof fs.resolve === 'function') { try { st = await fs.stat(await fs.resolve(loose)) } catch (e) { st = null } }
+      if (!st && typeof fs.lstat === 'function') { try { st = await fs.lstat(loose) } catch (e) { st = null } }
+      if (!st && typeof fs.stat === 'function') { try { st = await fs.stat(loose) } catch (e) { st = null } } // 兜底：有些实现仍吃路径（真服务不吃，抛错就回 null）
+      const ms = mtimeMsOf(st)
       return (ms !== null && ms > 0) ? ms : null
     } catch (e) { return null }
   }

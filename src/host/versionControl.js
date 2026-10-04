@@ -165,36 +165,34 @@ export function createVersionControl(deps) {
     return null
   }
 
-  /** 查一个绝对路径在不在：拿到真值或对象算在；明确说「没有」（exists 回 false、或抛 ENOENT）算不在；其余错误与没有可用的文件服务都算「查不了」（null），绝不当成不在（照 choiceStore.js 对 ENOENT 的先例分档）。 */
+  // 缺文件判据（#858）：DSH fs 服务抛的缺失 code 是 FS_NOT_FOUND、不是 ENOENT，见 ./fsAbsence.js 的头注释。
+  let _fsAbsP = null
+  let _fsLastError = '' // 文件服务最近一次「不是缺文件」的错误原话（#858：两条路都不通时要把它带给界面）
+  function fsAbsence() { if (!_fsAbsP) _fsAbsP = import('./fsAbsence.js'); return _fsAbsP }
+  /** 查一个绝对路径在不在（#858 修正形状）：DSH 的 fs 服务是 **stat(target) / lstat(path)**、**没有 exists**——
+   *  stat 吃的是 fs.resolve() 给的 target 对象，直接喂路径会抛 TypeError（不是 ENOENT），老写法因此一票否决了
+   *  后面本来能给出结论的 lstat，于是「四个标记文件（正常仓库里全都不存在）」这条路必然失败。
+   *  现在：先 resolve→stat；拿不到再退路径式的 lstat（缺失回 undefined）；**每个探测各自给结论，一条抛错不许
+   *  否决别的探测**；只有所有探测都答不出来才算「查不了」（null）。 */
   async function pathExists(abs) {
-    let usable = false
-    let sawError = false
-    for (const name of ['stat', 'lstat', 'exists']) {
-      if (!fs || typeof fs[name] !== 'function') continue
-      usable = true
-      try {
-        const r = await fs[name](abs)
-        if (name === 'exists') { if (r === true) return true; if (r === false && !sawError) return false }
-        else if (r) return true
-      } catch (e) { if (e && e.code === 'ENOENT') return false; sawError = true }
+    let answered = false
+    if (fs && typeof fs.resolve === 'function' && typeof fs.stat === 'function') {
+      try { const t = await fs.resolve(abs); const r = await fs.stat(t); if (r) return true; answered = true } catch (e) { if ((await fsAbsence()).isAbsenceError(e)) return false; _fsLastError = String((e && (e.code || e.message)) || e) }
     }
-    return (usable && !sawError) ? false : null
-  }
-  /** 读那五个「正在合并 / 变基 / 拣选 / 回退」的标记文件；查不了就返回 null，让调用方明说读不到。 */
-  async function readRunningMarkers(gitDir) {
-    const dir = String(gitDir || '').replace(/[\\/]+$/, '')
-    const out = { merging: false, rebasing: false, cherryPicking: false, reverting: false }
-    for (const rel of RUNNING_MARKER_PATHS) {
-      const hit = await pathExists(dir + '/' + rel)
-      if (hit === null) return null
-      if (!hit) continue
-      if (rel === 'MERGE_HEAD') out.merging = true
-      else if (rel === 'CHERRY_PICK_HEAD') out.cherryPicking = true
-      else if (rel === 'REVERT_HEAD') out.reverting = true
-      else out.rebasing = true
+    if (fs && typeof fs.lstat === 'function') {
+      try { const r = await fs.lstat(abs); if (r) return true; answered = true } catch (e) { if ((await fsAbsence()).isAbsenceError(e)) return false; _fsLastError = String((e && (e.code || e.message)) || e) }
     }
-    return out
+    if (fs && typeof fs.exists === 'function') {
+      try { const r = await fs.exists(abs); if (r === true) return true; answered = true } catch (e) { if ((await fsAbsence()).isAbsenceError(e)) return false; _fsLastError = String((e && (e.code || e.message)) || e) }
+    }
+    return answered ? false : null
   }
+  // 标记探测（#858）搬进 ./runningMarkers.js：本文件 350 行顶格，照 #500/#821 先例做自包含叶子。
+  // 叶子只做「文件服务优先、拿不到结论走 git 兜底、两条都不通回 kind='env-fs' 并带文件服务的原话」，
+  // git 那条命令由这里注入（叶子不碰 git）。为什么要有兜底：文件服务不可用时原来回 kind='env'，
+  // 界面上被读成「找不到 git 程序」——真因不是 git（#858 人验收抓到的真 bug）。
+  let _markersP = null
+  function markersPhone() { if (!_markersP) _markersP = import('./runningMarkers.js').then(function (m) { return m.createRunningMarkers({ existsViaFs: pathExists, paths: RUNNING_MARKER_PATHS, runProbe: async function (rel, ctx) { const r = await runPinned(ctx.exe, ctx.root, ['rev-parse', '-q', '--verify', rel]); if (r && r.kind === 'ok') return true; if (r && r.kind === 'non-zero' && r.exitCode === 1) return false; return null }, getFsDetail: function () { return _fsLastError } }) }); return _markersP }
 
   // 依据时间那一段（reflog 取不到时退回引用文件的落盘时间，#819 复审 P0-3）在 ./versionControlBasis.js：
   // 本文件贴着 350 行上限，与差异电话体同一条先例（依赖全显式传入，那个叶子不引用本文件）。
@@ -262,8 +260,9 @@ export function createVersionControl(deps) {
       diffFiles = df.parsed.files
     }
 
-    const markers = await readRunningMarkers(base.gitDir)
-    if (!markers) return failPhone('env', '宿主的文件服务现在用不了，判断不了是不是正在合并或变基；这一项读不到就不给数')
+    const mres = await (await markersPhone()).read(base.gitDir, { exe: exe, root: base.root })
+    if (mres.ok !== true) return failPhone(mres.kind === 'env-fs' ? 'env-fs' : 'env', '宿主的文件服务现在用不了（' + String(mres.detail || '没有给出原因') + '），判断不了是不是正在合并或变基；这一项读不到就不给数')
+    const markers = mres.markers
     const asm = assemble({
       repoRoot: base.root, bare: false,
       statusHead: status.branch.head, statusDetached: status.branch.detached, statusOid: status.branch.oid,

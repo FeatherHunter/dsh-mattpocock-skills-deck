@@ -914,6 +914,24 @@
     },
     {
       "file": "src/host/versionControl.js",
+      "spec": "./fsAbsence.js",
+      "resolved": "src/host/fsAbsence.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#858（真因：DSH fs 服务的缺失 code 是 FS_NOT_FOUND，不是 ENOENT）",
+      "note": "缺文件判据要共享（DSH fs 服务抛 FsError/FS_NOT_FOUND，只认 ENOENT 会把「文件不存在」当 IO 错误 → 读四个标记文件必失败）；versionControl.js 已 350 行顶格，照 #500/#821 先例做自包含叶子，versionControl.js 用动态加载接上（pathExists 里按它分档）。"
+    },
+    {
+      "file": "src/host/versionControl.js",
+      "spec": "./runningMarkers.js",
+      "resolved": "src/host/runningMarkers.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#858（人验收抓到的真 bug：文件服务不可用被说成「找不到 git 程序」）",
+      "note": "四个「正在合并/变基」标记的探测要加 git 兜底（文件服务拿不到结论时用 rev-parse -q --verify），versionControl.js 已 350 行顶格；照 #500（logStore→logPhones）/ #821（versionControl→versionControlFiles）同一先例把整段搬成自包含叶子，依赖（文件服务判定、git 探测、标记名清单）全显式传入。"
+    },
+    {
+      "file": "src/host/versionControl.js",
       "spec": "./stallWatch.js",
       "resolved": "src/host/stallWatch.js",
       "layer": "host",
