@@ -196,10 +196,10 @@ export const VersionControlTab = function (props) {
   const diffNode = function (row) {
     const d = row.diff
     if (!d) return null
-    if (d.state !== 'ok') return h('div', { key: 'diff', 'data-vc-diff': d.state, style: { marginTop: 4, fontSize: 11, color: tone('caption'), display: 'flex', gap: 6, alignItems: 'center' } }, [
+    if (d.state !== 'ok') return h('div', { key: 'diff', className: 'dsws-vc-caption', 'data-vc-diff': d.state, style: { marginTop: 4, display: 'flex', gap: 6, alignItems: 'center' } }, [
       h('span', { key: 'text' }, d.text), d.retry ? h('span', { key: 'retry', style: { display: 'contents' } }, button(d.retry, function () { retryDiff(row) })) : null,
     ])
-    return h('div', { key: 'diff', 'data-vc-diff': 'lines', style: { marginTop: 4, border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 6, padding: '4px 6px', background: 'var(--dsw-alias-bg-layer-3,#0c0e12)', fontFamily: 'Consolas,Menlo,monospace', fontSize: 11, maxHeight: 320, overflow: 'auto' } }, [
+    return h('div', { key: 'diff', className: 'dsws-vc-card dsws-vc-diff', 'data-vc-diff': 'lines', style: { marginTop: 4 } }, [
       // 这一处差异指的是哪一段（未提交那一层写清「相对上一次提交的全部改动」）：
       //   不写清，用户会把「已暂存」组里点开的差异当成「将要提交的那一部分」。
       d.scopeText ? h('div', { key: 'scope', 'data-vc-scope': 1, style: { color: tone('caption'), marginBottom: 4, fontFamily: 'inherit', whiteSpace: 'normal' } }, d.scopeText) : null,
@@ -211,7 +211,7 @@ export const VersionControlTab = function (props) {
   const fileRow = function (row) {
     const open = ui.openDiff === diffKeyOf(row)
     return h('div', { key: row.path, 'data-vc-file': 1, 'data-vc-open': open ? 1 : undefined, style: { borderTop: '1px solid var(--dsw-alias-border-l1,#2a2d35)' } }, [
-      h('div', { key: 'main', onClick: function () { toggleDiff(row) }, style: { display: 'flex', alignItems: 'center', gap: 6, padding: '3px 0', cursor: 'pointer', fontSize: 11 } }, [
+      h('div', { key: 'main', className: 'dsws-vc-row', onClick: function () { toggleDiff(row) }, style: { display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 11 } }, [
         h('span', { key: 'change', 'data-vc-change': 1, style: { flex: 'none', width: 34, color: tone(row.changeTone), fontWeight: 700 } }, row.changeText),
         tipNode(row.rowTip + (row.origPath ? '\n' + row.origPath : ''), h('span', { key: 'path', style: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, row.pathText)),
         row.conflict ? h('span', { key: 'conflict', style: { flex: 'none', fontSize: 10, color: tone('warning'), border: '1px solid ' + tone('warning'), borderRadius: 4, padding: '0 4px' } }, row.conflictText) : null,
@@ -222,7 +222,7 @@ export const VersionControlTab = function (props) {
   }
   const groupNode = function (g) {
     return h('div', { key: g.key, 'data-vc-group': g.key }, [
-      tipNode(g.tip, h('div', { key: 'title', style: { margin: '8px 0 2px', fontSize: 11, color: tone('caption'), display: 'flex', alignItems: 'center', gap: 6 } }, g.title)),
+      tipNode(g.tip, h('div', { key: 'title', className: 'dsws-vc-caption', style: { margin: '8px 0 2px', display: 'flex', alignItems: 'center', gap: 6 } }, g.title)),
       g.rows.map(fileRow),
       g.moreCount > 0 ? h('div', { key: 'more', onClick: function () { moreFiles(g.key) }, style: { padding: '3px 0', fontSize: 11, color: tone('accent'), cursor: 'pointer' } }, g.moreLabel) : null,
     ])
@@ -250,7 +250,7 @@ export const VersionControlTab = function (props) {
         b.sync.basis ? tipNode(b.sync.basisTip, h('span', { key: 'basis', 'data-vc-basis': 1, style: { color: tone('caption') } }, b.sync.basis)) : null,
       ]),
       // 这份数据是什么时候读的 + 唯一的「重新读一次」入口（不是定时器；读不到时刻就不画那几个字）。
-      h('div', { key: 'readat', 'data-vc-readat': 1, style: { fontSize: 10, color: tone('caption'), display: 'flex', gap: 8, alignItems: 'baseline' } }, [
+      h('div', { key: 'readat', className: 'dsws-vc-caption', 'data-vc-readat': 1, style: { display: 'flex', gap: 8, alignItems: 'baseline' } }, [
         b.readAtText ? h('span', { key: 'when' }, b.readAtText) : null,
         h('button', { key: 'reload', className: 'dsws-btn', type: 'button', 'data-vc-reload': 1, onClick: reloadNow, style: { fontSize: 10, padding: '0 6px' } }, tr('vc.reload')),
       ]),
@@ -259,7 +259,7 @@ export const VersionControlTab = function (props) {
     ])
     if (b.kind === 'changes') return h('div', { key: b.key, 'data-vc-changes': 1, 'data-vc-commit-mode': b.commitMode ? 1 : undefined }, [
       // 「这笔提交改了什么」这一层（规格故事 32）：出路摆在最上面，别让用户找不到回去的路。
-      b.back ? h('div', { key: 'back', 'data-vc-back': 1, onClick: closeCommit, style: { fontSize: 11, color: tone('accent'), cursor: 'pointer', marginBottom: 4 } }, b.back) : null,
+      b.back ? h('div', { key: 'back', className: 'dsws-vc-link', 'data-vc-back': 1, onClick: closeCommit, style: { fontSize: 11, marginBottom: 4 } }, b.back) : null,
       h('div', { key: 'titlerow', style: { display: 'flex', alignItems: 'center', gap: 6 } }, [
         h('span', { key: 'title', style: { fontSize: 12, fontWeight: 700, color: tone('primary'), flex: 1, minWidth: 0 } }, b.title),
         // #842：「全部暂存」在标题行右侧（未暂存计数 > 0 才出现）。
@@ -278,13 +278,13 @@ export const VersionControlTab = function (props) {
       b.collapsed ? h('div', { key: 'collapsed', style: { fontSize: 11, color: tone('caption'), marginTop: 2 } }, b.collapseText) : null,
       b.empty && !b.collapsed ? h('div', { key: 'empty', style: { fontSize: 11, color: tone('caption'), marginTop: 2 } }, b.emptyText) : null,
       b.rows.map(function (c, i) {
-        return h('div', { key: c.key, 'data-vc-commit': 1, 'data-vc-commit-open': c.open ? 1 : undefined, onClick: function () { openCommit(c) }, style: { display: 'flex', alignItems: 'baseline', gap: 6, padding: '2px 0', fontSize: 11, cursor: 'pointer', borderTop: i ? '1px solid var(--dsw-alias-border-l1,#2a2d35)' : 'none', background: c.open ? 'var(--dsw-alias-interactive-bg-active,rgba(255,255,255,.14))' : undefined, borderRadius: c.open ? 4 : undefined } }, [
+        return h('div', { key: c.key, className: 'dsws-vc-row dsws-vc-sep', 'data-vc-commit': 1, 'data-vc-commit-open': c.open ? 1 : undefined, onClick: function () { openCommit(c) }, style: { display: 'flex', alignItems: 'baseline', gap: 6, fontSize: 11, cursor: 'pointer', background: c.open ? 'var(--dsw-alias-interactive-bg-active,rgba(255,255,255,.14))' : undefined } }, [
           h('span', { key: 'when', style: { flex: 'none', color: tone('caption'), fontVariantNumeric: 'tabular-nums' } }, c.when),
           tipNode(c.tip, h('span', { key: 'subject', style: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: tone('primary') } }, c.subject)),
           h('span', { key: 'short', style: { flex: 'none', color: tone('caption'), fontFamily: 'Consolas,Menlo,monospace' } }, c.short),
         ])
       }),
-      b.more.show ? h('div', { key: 'more', ref: moreRef, 'data-vc-more': 1, onClick: loadMore, style: { padding: '3px 0', fontSize: 11, color: tone('accent'), cursor: 'pointer' } }, b.more.label) : null,
+      b.more.show ? h('div', { key: 'more', ref: moreRef, className: 'dsws-vc-link', 'data-vc-more': 1, onClick: loadMore, style: { padding: '3px 0', fontSize: 11 } }, b.more.label) : null,
       b.more.allLoaded ? h('div', { key: 'allLoaded', style: { padding: '3px 0', fontSize: 11, color: tone('caption') } }, b.more.allLoaded) : null,
       b.more.failText ? h('div', { key: 'fail', style: { display: 'flex', gap: 6, alignItems: 'center', fontSize: 11, color: tone('error') } }, [h('span', { key: 'text' }, b.more.failText), b.more.retry ? h('span', { key: 'retry', style: { display: 'contents' } }, button(b.more.retry, loadMore)) : null]) : null,
     ])
@@ -294,7 +294,7 @@ export const VersionControlTab = function (props) {
       // 摘要档那一行同样挂悬停：名字是折短过的，完整路径就在悬停里（规格第 5 条）。
       b.mode === 'summary' && !b.empty ? tipNode(b.tip, h('div', { 'data-vc-other-summary': 1, key: 'summary', style: { fontSize: 11, color: tone('caption'), marginTop: 2 } }, b.summaryText)) : null,
       b.rows.map(function (w, i) {
-        return h('div', { key: w.key, 'data-vc-other-row': 1, style: { display: 'flex', alignItems: 'baseline', gap: 6, padding: '2px 0', fontSize: 11, borderTop: i ? '1px solid var(--dsw-alias-border-l1,#2a2d35)' : 'none' } }, [
+        return h('div', { key: w.key, className: 'dsws-vc-row dsws-vc-sep', 'data-vc-other-row': 1, style: { display: 'flex', alignItems: 'baseline', gap: 6, fontSize: 11 } }, [
           tipNode(w.displayTip, h('span', { key: 'name', style: { flex: 'none', color: tone('primary'), whiteSpace: 'nowrap' } }, w.displayText)),
           h('span', { key: 'branch', style: { flex: 'none', color: tone('caption'), whiteSpace: 'nowrap' } }, w.branchText),
           w.stateText ? tipNode(w.stateTip, h('span', { key: 'state', style: { flex: 'none', color: tone(w.stateTone), whiteSpace: 'nowrap' } }, w.stateText)) : null,

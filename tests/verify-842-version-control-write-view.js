@@ -633,6 +633,17 @@ function groupJ(React, DswsCtx, TipStub, IcStub) {
   const allText = [d1, d2, d3, d4, d5, d6, d7].map(function (d) { return d.text }).join('\n')
   const leaked = allText.match(/vc\.[A-Za-z][A-Za-z0-9_.]*/g) || []
   check(leaked.length === 0, 'J8 通用守卫：真渲染出来的文字里不出现词条键（命中：' + (leaked.slice(0, 5).join('、') || '无') + '）')
+
+  // J9 真渲染·补丁块（task-61 打磨）：卡片类挂上了、差异行画出来了。
+  //   展开键是「分组\u0000路径」（块模型那一层的口径）；未提交那一层点开打不开是既有缺陷，见 .tmp-842-visual/POLISH.md。
+  const diffReads = Object.assign({}, readsOf(screen), { diffs: { 'a.txt': { state: 'ok', lines: [{ kind: 'add', text: '+新行' }, { kind: 'del', text: '-旧行' }], reason: 'ok', truncated: false, error: null } } })
+  const diffRender = renderTab(React, DswsCtx, TipStub, IcStub, diffReads, function (s) {
+    return s.replace("openDiff: '', openCommit: '', write: { op: '', state: 'idle', message: '', confirm: null, result: null, remoteChoice: null }", "openDiff: 'staged' + String.fromCharCode(0) + 'a.txt', openCommit: '', write: { op: '', state: 'idle', message: '', confirm: null, result: null, remoteChoice: null }")
+  })
+  const doc9 = new (require('jsdom').JSDOM)('<div id="m">' + diffRender.html + '</div>').window.document
+  const card = doc9.querySelector('[data-vc-diff="lines"]')
+  check(!!card && String(card.className).indexOf('dsws-vc-card') >= 0 && card.textContent.indexOf('新行') >= 0 && card.textContent.indexOf('旧行') >= 0,
+    'J9 真渲染·补丁块：卡片类与差异行都在（class=' + (card ? card.className : '缺') + '，渲染错=' + (diffRender.err || '无') + '）')
 }
 
 
