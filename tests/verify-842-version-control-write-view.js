@@ -635,6 +635,29 @@ function groupJ(React, DswsCtx, TipStub, IcStub) {
   check(leaked.length === 0, 'J8 通用守卫：真渲染出来的文字里不出现词条键（命中：' + (leaked.slice(0, 5).join('、') || '无') + '）')
 }
 
+
+// ============================================================
+// K 组 · 失败种类分档（宿主新档 env-fs：文件服务读不到运行状态，不许再指向 git）
+// ============================================================
+function groupK(view, React, DswsCtx, TipStub, IcStub) {
+  const kEnvFs = view.vcFailKeyOf('env-fs')
+  const kEnv = view.vcFailKeyOf('env')
+  const zhEnvFs = String(LOC.zh[kEnvFs] || '')
+  const enEnvFs = String(LOC.en[kEnvFs] || '')
+  const zhEnv = String(LOC.zh[kEnv] || '')
+  check(kEnvFs === 'vc.fail.envFs' && zhEnvFs.indexOf('运行状态') >= 0 && zhEnvFs.indexOf('文件服务') >= 0 && !/git/i.test(zhEnvFs) && !/git/i.test(enEnvFs),
+    'K1 env-fs 有自己那一档：主句含「运行状态 / 文件服务」，中英都不提 git（zh=' + zhEnvFs + '）')
+  check(kEnv === 'vc.fail.noGit' && /git/i.test(zhEnv), 'K2 env 仍留给「真的找不到 git」（zh=' + zhEnv + '）')
+
+  // K3 真渲染：kind=env-fs 的失败信封 → 可见文字是那一档、不提 git、不出现词条键（J8 守卫同口径）。
+  const errReads = { screen: { state: 'err', data: null, error: { kind: 'env-fs', message: '宿主的原话：文件服务没给出结论' } }, diffs: {}, log: { state: 'idle', commits: [], hasMore: false, fetched: 0, error: null } }
+  const r = renderTab(React, DswsCtx, TipStub, IcStub, errReads, null)
+  const d = domText(r.html)
+  const leaked = d.text.match(/vc\.[A-Za-z][A-Za-z0-9_.]*/g) || []
+  check(r.err === '' && d.text.indexOf('运行状态') >= 0 && d.text.indexOf(zhEnvFs) >= 0 && !/git/i.test(d.text) && leaked.length === 0,
+    'K3 真渲染 kind=env-fs：可见文字是「运行状态 / 文件服务」那句、不提 git、不出现词条键（实得 ' + JSON.stringify(d.text.slice(0, 60)) + '）')
+}
+
 // ============================================================
 // I 组 · 跨层：真宿主回包 → 真命令 → 确认框正文（对抗式审查第 8 节推荐的那一条）
 // ============================================================
@@ -787,6 +810,7 @@ async function main() {
   groupF(view, EXPORTS)
   await groupG(view)
   groupJ(React, DswsCtx, TipStub, IcStub)
+  groupK(view, React, DswsCtx, TipStub, IcStub)
   await groupI(view, planMod.pushPlanOf, cmdMod.pushArgs)
   await groupH(React, DswsCtx, TipStub, IcStub, logs)
 

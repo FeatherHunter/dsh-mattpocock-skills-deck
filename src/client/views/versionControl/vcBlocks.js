@@ -24,6 +24,10 @@ export const VC_BLOCK_ORDER = ['hint', 'band', 'identity', 'changes', 'commits',
 /** 宿主失败信封里的种类 → 词条键。宿主那一句 message 是中文原话，直接画到英文界面上会串语言，
  *  所以主句一律按种类走词条，宿主原文只作悬停里的诊断线索（vc.fail.raw）。 */
 export const VC_FAIL_KEY = {
+  // #842/宿主新档：'env-fs' 是「宿主的文件服务读不到运行状态标记」——那是环境问题，但**不是找不到 git**，
+  //   所以单独一档、话术里不提 git（用户验收时看到的那句「找不到 git 程序」就是它错档造成的）。
+  'env-fs': 'vc.fail.envFs',
+  // 'env' 留给真·找不到 git 那一档。
   'env': 'vc.fail.noGit',
   'not-repo': 'vc.fail.notRepo',
   'timeout': 'vc.fail.timeout',
