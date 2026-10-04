@@ -24,7 +24,8 @@ export const VersionControlTab = function (props) {
   const st = props && props.st
   const cwd = st && st.cwd ? String(st.cwd) : ''
   const [reads, setReads] = React.useState(vcNewReads)
-  const [ui, setUi] = React.useState(function () { return { fileShown: {}, openDiff: '', openCommit: '' } })
+  // #842：ui.write 是写操作那一族自己的状态（六态、提交信息、确认框、上一次结果）。
+  const [ui, setUi] = React.useState(function () { return { fileShown: {}, openDiff: '', openCommit: '', write: { op: '', state: 'idle', message: '', confirm: null, result: null } } })
   const [width, setWidth] = React.useState(0)
   const [tier, setTier] = React.useState(0)
   const lastWidthRef = React.useRef(0)
@@ -41,7 +42,8 @@ export const VersionControlTab = function (props) {
   if (staleCwd) {
     setStateCwd(cwd)
     setReads(fresh.reads)
-    setUi(fresh.ui)
+    // 换工作区连写操作的状态一起复位：旧工作区的确认框与「上次结果」绝不留在新工作区下面。
+    setUi(Object.assign({}, fresh.ui, { write: { op: '', state: 'idle', message: '', confirm: null, result: null } }))
     setTier(0)
     lastWidthRef.current = 0
     logBusyRef.current = false
@@ -82,7 +84,17 @@ export const VersionControlTab = function (props) {
     return function () { try { ro.disconnect() } catch (e) { /* 忽略 */ } }
   }, [])
   const screen = screenOf(reads)
-  const foldData = vcFoldDataOf(screen, reads)
+  // #842 写操作：动作层在 vcWriteOps.js（判定读核心 judge、发预检与写电话、成功后按设计重读）。
+  const ops = vcWriteOpsOf({ ui: ui, setUi: setUi, callHost: callHost, cwd: cwd, readsRef: readsRef, setReads: setReads, screen: screen })
+  const writeState = ops.writeState
+  const decisions = ops.decisions
+  // 写操作那四颗按钮的文字也进折叠阶梯（顺序：路径 → 推送 → 拉取 → 全部暂存 → 其他工作树 → 提交历史 → 提交按钮）。
+  const foldData = vcFoldDataOf(screen, reads, {
+    push: tr('vc.action.push'),
+    pull: tr('vc.action.pull'),
+    stageAll: tr('vc.action.stageAll'),
+    commit: tr('vc.action.commit', { n: String(screen ? (Number(screen.stagedCount) || 0) : 0) }),
+  })
   const fold = vcFoldOf(width, foldData)
   const foldState = vcFoldStateAt(fold.ladder, tier)
   const contentKey = (screen ? String(screen.commits ? screen.commits.length : 0) : '-') + '|' + String(reads.log.commits ? reads.log.commits.length : 0) + '|' + String(ui.openDiff || '') + '|' + String(ui.openCommit || '') + '|' + String(screen ? screen.stagedCount + screen.unstagedCount : -1)
@@ -118,7 +130,7 @@ export const VersionControlTab = function (props) {
     io.observe(el)
     return function () { try { io.disconnect() } catch (e) { /* 忽略 */ } }
   }, [commitCount, reads.log.state, reads.log.hasMore, fold.commitsCollapsed])
-  const blocks = vcBlocksOf(screen, reads, ui, { t: tr, nowMs: Date.now(), cwdEmpty: cwdEmpty, fold: Object.assign({}, fold, { state: foldState }) })
+  const blocks = vcBlocksOf(screen, reads, ui, { t: tr, nowMs: Date.now(), cwdEmpty: cwdEmpty, decisions: decisions, fold: Object.assign({}, fold, { state: foldState }) })
   // 换工作区的那一帧：一个块都不画（旧工作区的身份行与提交清单绝不留在新工作区下面，见上面 staleCwd）。
   if (staleCwd) blocks.length = 0
 
@@ -203,7 +215,7 @@ export const VersionControlTab = function (props) {
         tipNode(row.rowTip + (row.origPath ? '\n' + row.origPath : ''), h('span', { style: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, row.pathText)),
         row.conflict ? h('span', { style: { flex: 'none', fontSize: 10, color: tone('warning'), border: '1px solid ' + tone('warning'), borderRadius: 4, padding: '0 4px' } }, row.conflictText) : null,
         row.countsText ? h('span', { style: { flex: 'none', color: tone('caption'), fontVariantNumeric: 'tabular-nums' } }, row.countsText) : null,
-      ]),
+      ].concat(vcRowStageNodes(h, { row: row, tone: tone, tipNode: tipNode, stagePaths: ops.stagePaths }))),
       diffNode(row),
     ])
   }
@@ -240,16 +252,24 @@ export const VersionControlTab = function (props) {
         b.readAtText ? h('span', { key: 'when' }, b.readAtText) : null,
         h('button', { key: 'reload', className: 'dsws-btn', type: 'button', 'data-vc-reload': 1, onClick: reloadNow, style: { fontSize: 10, padding: '0 6px' } }, tr('vc.reload')),
       ]),
+      // #842：领先落后就在这一行，拉取 / 推送也跟着放这里；文字走折叠阶梯（完整文字在悬停里）。
+      vcActionsNode(h, { actions: b.actions, foldActions: foldState.actions, tone: tone, tipNode: tipNode, startPull: ops.startPull, startPush: ops.startPush }),
     ])
     if (b.kind === 'changes') return h('div', { key: b.key, 'data-vc-changes': 1, 'data-vc-commit-mode': b.commitMode ? 1 : undefined }, [
       // 「这笔提交改了什么」这一层（规格故事 32）：出路摆在最上面，别让用户找不到回去的路。
       b.back ? h('div', { 'data-vc-back': 1, onClick: closeCommit, style: { fontSize: 11, color: tone('accent'), cursor: 'pointer', marginBottom: 4 } }, b.back) : null,
-      h('div', { style: { fontSize: 12, fontWeight: 700, color: tone('primary') } }, b.title),
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: 6 } }, [
+        h('span', { style: { fontSize: 12, fontWeight: 700, color: tone('primary'), flex: 1, minWidth: 0 } }, b.title),
+        // #842：「全部暂存」在标题行右侧（未暂存计数 > 0 才出现）。
+        vcStageAllNode(h, { stageAll: b.stageAll, foldActions: foldState.actions, tone: tone, tipNode: tipNode, stagePaths: ops.stagePaths }),
+      ]),
       h('div', { 'data-vc-summary': 1, style: { fontSize: 11, color: tone('primary'), marginTop: 2 } }, b.summary),
       b.note ? h('div', { 'data-vc-note': 1, style: { fontSize: 11, color: tone('caption'), marginTop: 4, lineHeight: 1.6 } }, b.note) : null,
       b.retry ? h('div', { style: { marginTop: 6 } }, button(b.retry, retryCommit)) : null,
       b.empty ? h('div', { style: { fontSize: 11, color: tone('caption'), marginTop: 4 } }, b.emptyText) : null,
       b.groups.map(groupNode),
+      // #842 提交区：放 changes 块底部，不新增块（块顺序 VC_BLOCK_ORDER 一个字不动）。输入框与按钮永不让位。
+      vcCommitAreaNode(h, { commitArea: b.commitArea, foldActions: foldState.actions, tone: tone, tipNode: tipNode, submitCommit: ops.submitCommit, writeMessageOf: ops.writeMessageOf }),
     ])
     if (b.kind === 'commits') return h('div', { key: b.key, 'data-vc-commits': 1 }, [
       h('div', { style: { fontSize: 12, fontWeight: 700, color: tone('primary') } }, b.title),
@@ -288,5 +308,7 @@ export const VersionControlTab = function (props) {
     ])
     return null
   }
-  return h('div', { ref: rootRef, 'data-vc-root': 1, 'data-vc-tier': tier, style: { display: 'flex', flexDirection: 'column', gap: 10, overflow: 'hidden', minWidth: 0 } }, blocks.map(node))
+  // #842 写操作的三块尾巴：执行中那一句、上一次结果、确认框（都在块清单之外，不新增块）。
+  const writeTail = vcWriteTailNodes(h, { writeState: writeState, tone: tone, tipNode: tipNode, tr: tr, retryResult: ops.retryResult, cancelConfirm: ops.cancelConfirm, confirmNow: ops.confirmNow, pickRemote: ops.pickRemote })
+  return h('div', { ref: rootRef, 'data-vc-root': 1, 'data-vc-tier': tier, style: { display: 'flex', flexDirection: 'column', gap: 10, overflow: 'hidden', minWidth: 0 } }, blocks.map(node).concat(writeTail))
 }

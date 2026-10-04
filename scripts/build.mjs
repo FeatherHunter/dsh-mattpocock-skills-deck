@@ -288,6 +288,8 @@ const KERNEL_MODULES = [
   { name: 'localeLabels', file: 'src/client/kernel/locale-labels.js' },
   // #690 历史票按需翻页的五条文案：locale-flow.js 已贴 350 行上限，照 #621 的做法自成一个片段
   { name: 'localePages', file: 'src/client/kernel/locale-pages.js' },
+  // #842 写操作那一族的词条：locale-panel 与 locale-flow 都在上限上（后者还冻结在零增长基线里），照 #621/#690 的做法自成一个片段
+  { name: 'localeVcWrite', file: 'src/client/kernel/locale-vcwrite.js' },
   { name: 'locale', file: 'src/client/kernel/locale.js' },
   { name: 'icons', file: 'src/client/kernel/icons.js' },
   // #685：「体检」按钮的件数派生与开新会话注入（游离票口径见 #678、按钮形态见 #681）；
@@ -371,6 +373,10 @@ const SHARED_SPLICE = [
   // 界面那一半不能运行时 import（客户端半边今天没有任何对 src/shared 的运行时 import），
   // 所以按同一套拼接做法把这一份拼进界面闭包 —— 界面只许消费这些名字，不许再写一份数字。
   { marker: '// ==== shared:refreshBudget (spliced by build) ====', file: 'src/shared/refresh/budget.js' },
+  // #842 写操作：判定（能不能暂存/提交/拉取/推送）只有一份真源 version-control-core/src/rules.ts，
+  //   产物 src/shared/version-control/rules.js 由本文件上面的版本控制核心构建步骤生成。
+  //   界面不许自己算（自己算就会与宿主执行前那次判定各说各话），所以把这一份也拼进界面闭包。
+  { marker: '// ==== shared:vcRules (spliced by build) ====', file: 'src/shared/version-control/rules.js' },
 ]
 
 // ---------- 叶子模块组合（阶段 2 叶子迁移 · #97 T4）----------
@@ -403,6 +409,12 @@ const LEAF_MODULES = [
   { id: 'vcFold', file: 'src/client/views/versionControl/vcFold.js' },
   { id: 'vcDiff', file: 'src/client/views/versionControl/vcDiff.js' }, // #819 审查后从 vcBlocks 拆出：一处差异该怎么画（那个文件贴着 350 行）
   { id: 'vcCommit', file: 'src/client/views/versionControl/vcCommit.js' }, // 规格故事 32：「这笔提交改了什么」那一层（排在 vcBlocks 之前，行是 vcBlocks 现传进去的同一份）
+  { id: 'vcRows', file: 'src/client/views/versionControl/vcRows.js' }, // #842 从 vcBlocks 原样搬出：行分组 / 行画法 / 其他工作树行 / 某路径的差异读数（vcBlocks 要腾行给写操作）
+  { id: 'vcWrite', file: 'src/client/views/versionControl/vcWrite.js' }, // #842 写操作的纯规则层（判定→状态、理由→词条、写失败→话术族、确认框内容）
+  { id: 'vcWriteRun', file: 'src/client/views/versionControl/vcWriteRun.js' }, // #842 写操作的执行层（预检、四条写电话、结果记账、成功后的重读）
+  { id: 'vcWriteUi', file: 'src/client/views/versionControl/vcWriteUi.js' }, // #842 写操作的画法层（按钮、提交区、确认框模型）
+  { id: 'vcWriteOps', file: 'src/client/views/versionControl/vcWriteOps.js' }, // #842 写操作的动作层（点下去发生什么：预检、写电话、重读）
+  { id: 'vcWriteView', file: 'src/client/views/versionControl/vcWriteView.js' }, // #842 写操作的节点画法（从入口组件搬出，组件守住 350 行）
   { id: 'vcBlocks', file: 'src/client/views/versionControl/vcBlocks.js' },
   { id: 'vcTabVisible', file: 'src/client/views/versionControl/vcTabVisible.js' },
   { id: 'vcData', file: 'src/client/views/versionControl/vcData.js' },

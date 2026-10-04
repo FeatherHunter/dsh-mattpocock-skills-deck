@@ -19,6 +19,7 @@ const MODULES = [
   { name: 'localeWord', file: 'locale-word', exports: ['L_WORD'] },
   { name: 'localeLabels', file: 'locale-labels', exports: ['L_LABELS'] },
   { name: 'localePages', file: 'locale-pages', exports: ['L_PAGES'] },
+  { name: 'localeVcWrite', file: 'locale-vcwrite', exports: ['L_VCWRITE'] }, // #842 写操作那一族的词条（单独一份片段）
   { name: 'locale', exports: ['L'] },
   { name: 'icons', exports: ['ICON_SCHEMES', 'WORD_SCHEMES', 'Icon', 'Ic'] },
   // #685：「体检」按钮的三样东西（游离票件数派生、显隐门、开新会话注入）；单独一片是因为它要写的那条

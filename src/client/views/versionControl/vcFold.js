@@ -49,7 +49,7 @@ export const vcFoldBandAt = function (availWidthPx) {
  * 阶梯要用的三串东西（元素清单）：身份行那条路径、其他工作树的显示名、每条提交的说明。
  * 显示名直接用状态模型里已经算好的那个（核心按「能互相区分的最短后缀」算过），不再派生第二份。
  */
-export const vcFoldDataOf = function (screen, reads) {
+export const vcFoldDataOf = function (screen, reads, labels) {
   const s = screen || {}
   const identity = s.identity || {}
   const others = Array.isArray(s.otherWorktrees) ? s.otherWorktrees : []
@@ -58,6 +58,11 @@ export const vcFoldDataOf = function (screen, reads) {
     path: String(identity.worktreePath || ''),
     others: others.map(function (w) { return String((w && w.display) || '') }),
     commits: commits.map(function (c) { return String((c && c.subject) || '') }),
+    // #842 写操作那四颗按钮的文字也进阶梯（顺序见 vcFoldLadderOf）：窄面板下它们逐字让位，
+    //   完整文字留在悬停提示里一个字不丢。没传 labels 的老调用方拿到的还是老形状（actions: null）。
+    actions: labels
+      ? { push: String(labels.push || ''), pull: String(labels.pull || ''), stageAll: String(labels.stageAll || ''), commit: String(labels.commit || '') }
+      : null,
   }
 }
 /** 首屏那批提交加上按需续读回来的那批：按对象编号去重，先来的排前面（顺序就是提交时间倒序）。 */
@@ -84,10 +89,14 @@ export const vcCommitListOf = function (screen, reads) {
  */
 export const vcFoldLadderOf = function (data) {
   const d = data || {}
+  const acts = d.actions || null
   const ladder = {
     path: String(d.path || ''),
     others: (Array.isArray(d.others) ? d.others : []).map(function (x) { return String(x || '') }),
     commits: (Array.isArray(d.commits) ? d.commits : []).map(function (x) { return String(x || '') }),
+    actions: acts
+      ? { push: String(acts.push || ''), pull: String(acts.pull || ''), stageAll: String(acts.stageAll || ''), commit: String(acts.commit || '') }
+      : null,
     steps: [],
   }
   const push = function (el, i, n) { for (let k = 1; k <= n; k++) ladder.steps.push({ el: el, i: i, n: k }) }
@@ -96,8 +105,15 @@ export const vcFoldLadderOf = function (data) {
   // 路径这一条按「砍中段」的规矩让位：核心那条规则短于 VC_MIDDLE_MIN 就不砍了，
   //   所以步数封顶在「长度 − VC_MIDDLE_MIN」；不留这个上限会在阶梯末尾一步弹回全长（真机反馈过）。
   push('path', -1, Math.max(0, len(ladder.path) - VC_MIDDLE_MIN))
+  // #842：路径之后先让「推送 → 拉取 → 全部暂存」这三颗（设计 §2 的固定次序）。
+  if (ladder.actions) {
+    const first = ['push', 'pull', 'stageAll']
+    for (let i = 0; i < first.length; i++) push('action', first[i], len(ladder.actions[first[i]]))
+  }
   for (let i = 0; i < ladder.others.length; i++) push('other', i, len(ladder.others[i]))
   for (let i = 0; i < ladder.commits.length; i++) push('commit', i, len(ladder.commits[i]))
+  // 提交按钮最后才让（也只折到文字变短，永不整块消失）。
+  if (ladder.actions) push('action', 'commit', len(ladder.actions.commit))
   // 台阶总数封顶：1 像素宽那种极端情况下内容永远放不下，不封顶就要按字符数一格一格试
   //   （实测过 4787 步与 10187 步两种样本），面板会被拖住。超过上限就停在最后一档、允许溢出 ——
   //   身份行与计数本来就不让位，极端宽度下溢出是必然的，与其试上千次不如一次到位。
@@ -112,11 +128,13 @@ export const vcFoldStateAt = function (ladder, tier) {
   let pathDrop = 0
   const otherDrop = {}
   const commitDrop = {}
+  const actionDrop = {}
   for (let i = 0; i < n; i++) {
     const s = steps[i]
     if (s.el === 'path') pathDrop = s.n
     else if (s.el === 'other') otherDrop[s.i] = s.n
     else if (s.el === 'commit') commitDrop[s.i] = s.n
+    else if (s.el === 'action') actionDrop[s.i] = s.n
   }
   // 砍到最后一个字符时收成空串：vcMiddle / vcTail 在「长度不够就不砍」那条兜底下会把整串原样还回来，
   //   直接拿它画会在阶梯的末尾弹回全长（真机反馈过的那条回弹）。空串只出现在阶梯最后一步，
@@ -124,11 +142,21 @@ export const vcFoldStateAt = function (ladder, tier) {
   const cpLen = function (s) { return Array.from(String(s || '')).length }
   const tailAt = function (text, drop) { const keep = cpLen(text) - drop; return keep <= 0 ? '' : vcTail(text, keep) }
   const path = l.path ? (pathDrop >= cpLen(l.path) ? '' : vcMiddle(l.path, cpLen(l.path) - pathDrop)) : ''
+  const acts = l.actions || null
   return {
     tier: n,
     path: path,
     others: l.others.map(function (text, i) { return tailAt(text, otherDrop[i] || 0) }),
     commits: l.commits.map(function (text, i) { return tailAt(text, commitDrop[i] || 0) }),
+    // #842：四颗写操作按钮在这一档各自该画几个字（完整文字在调用方的悬停提示里）。
+    actions: acts
+      ? {
+          push: tailAt(acts.push, actionDrop.push || 0),
+          pull: tailAt(acts.pull, actionDrop.pull || 0),
+          stageAll: tailAt(acts.stageAll, actionDrop.stageAll || 0),
+          commit: tailAt(acts.commit, actionDrop.commit || 0),
+        }
+      : null,
   }
 }
 /**

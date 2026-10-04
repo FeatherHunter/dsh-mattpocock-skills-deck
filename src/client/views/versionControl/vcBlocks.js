@@ -37,80 +37,6 @@ export const VC_FAIL_KEY = {
   'throw': 'vc.fail.throw',
 }
 export const vcFailKeyOf = function (kind) { return VC_FAIL_KEY[String(kind)] || 'vc.fail.unknown' }
-/** 一个文件条目该怎么分组：冲突单独一组（排在已暂存之后、未暂存之前，照核心与规格的风险次序）。
- *  分组取的是「这条记录来自哪条清单」（row.group），不是记录上的 staged/unstaged 两个标记 ——
- *  同一个 x=M、y=M 的文件在两条清单里是同一个对象，两个标记都是真，拿标记分组会把两条都算进已暂存。 */
-export const vcGroupOfRow = function (row) {
-  if (row.conflict) return 'conflict'
-  return row.group === 'unstaged' ? 'unstaged' : 'staged'
-}
-/**
- * 未提交改动 → 文件行清单。合并只发生在**冲突**那一种上（规格第 26 条：卡在冲突里的文件只占一行）：
- * 同一路径解析层给两条记录（x 与 y 各一条），这里合成一行并挂冲突标记。
- * 其余同路径的两条记录**不合并** —— x=M、y=M 的文件在 git 眼里就是「两段改动」，git status 自己在
- * 「已暂存」「未暂存」两个小节里各列一次；照它来，汇总句也就能与宿主的 stagedCount / unstagedCount 对上，
- * 用户还能分别看到「我准备好要提交的那部分」与「还没暂存的那部分」（规格故事 15、16）。
- */
-export const vcFileRowsOf = function (screen) {
-  const staged = (screen && Array.isArray(screen.staged)) ? screen.staged : []
-  const unstaged = (screen && Array.isArray(screen.unstaged)) ? screen.unstaged : []
-  const all = []
-  staged.forEach(function (f) { if (f) all.push({ f: f, group: 'staged' }) })
-  unstaged.forEach(function (f) { if (f) all.push({ f: f, group: 'unstaged' }) })
-  const pathCount = {}
-  all.forEach(function (x) { const p = String(x.f.path || ''); if (p) pathCount[p] = (pathCount[p] || 0) + 1 })
-  const rows = []
-  const conflictSeen = {}
-  all.forEach(function (x) {
-    const f = x.f
-    const path = String(f.path || '')
-    if (!path) return
-    if (f.conflict === true) {
-      if (conflictSeen[path]) return
-      conflictSeen[path] = true
-      rows.push({ path: path, origPath: f.origPath || null, group: 'conflict', conflict: true, change: 'modified', addedLines: f.addedLines, deletedLines: f.deletedLines, dual: true })
-      return
-    }
-    rows.push({
-      path: path, origPath: f.origPath || null, group: x.group, conflict: false, change: f.change,
-      addedLines: f.addedLines, deletedLines: f.deletedLines,
-      // 同一个文件在两条清单里都出现（x=M、y=M）：两条行各画一次，并在悬停里说清各自是哪一部分。
-      dual: pathCount[path] > 1,
-    })
-  })
-  const rank = function (r) { return r.conflict ? 1 : (r.group === 'staged' ? 0 : 2) }
-  rows.sort(function (a, b) { return rank(a) - rank(b) || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0) })
-  return rows
-}
-/** 一行的变化语义（冲突行按核心的口径就是「修改」，但界面上单挂一枚冲突标记，不算第七种类型）。 */
-export const vcRowViewOf = function (row, t, diffBlock) {
-  return {
-    key: row.path,
-    path: row.path,
-    pathText: vcMiddle(row.path, 46),
-    pathTip: row.path,
-    origPath: row.origPath || '',
-    changeKey: vcChangeKeyOf(row.change),
-    // changeProven === false 的那一行（提交那一层判不出类型）就不画变化类型的字：宁可少说一句，不说错一句。
-    changeText: row.changeProven === false ? '' : t(vcChangeKeyOf(row.change)),
-    changeTone: row.conflict ? 'warning' : vcChangeToneOf(row.change),
-    countsText: vcPlusMinus(row.addedLines, row.deletedLines),
-    countsTip: (row.addedLines === null || row.addedLines === undefined)
-      ? t('vc.row.binaryTip')
-      : (row.dual === true ? t('vc.row.countsDual') : t('vc.row.diffTip')),
-    conflict: row.conflict === true,
-    conflictText: row.conflict ? t('vc.row.conflict') : '',
-    // 这一行属于哪一组（staged / conflict / unstaged）：展开键要用它，门禁也按它判分组。
-    group: row.group || '',
-    untracked: row.change === 'untracked',
-    // 悬停里第一行按最该先说的来：提交那一层判不出类型 → 说清来由；同一文件两段改动 → 说清这一行是哪一段；
-    //   其余按冲突 / 未跟踪 / 点开看差异。拿不到的不装作没有，也不让用户以为 git 没给。
-    rowTip: (row.typeTip ? String(row.typeTip) + '\n' : '')
-      + (row.dual === true && row.conflict !== true ? (row.group === 'staged' ? t('vc.row.partStaged') : t('vc.row.partUnstaged')) + '\n' : '')
-      + (row.conflict ? t('vc.row.conflictTip') : (row.change === 'untracked' ? t('vc.row.untrackedTip') : t('vc.row.diffTip'))),
-    diff: diffBlock || null,
-  }
-}
 /**
  * 身份行那一条「同步状态」（核心的五值枚举）：有推进目标且依据读得到 / 依据读不到 / 推进目标没了 /
  * 还没设推进目标 / 游离头指针。合并成一个布尔就会对用户说错话，所以这里一支一支分开写。
@@ -134,37 +60,6 @@ export const vcSyncViewOf = function (identity, t, nowMs) {
     basis: basis,
     basisTip: t('vc.basis.tip'),
   }
-}
-/** 其他工作树一条：占用三档（被占用 / 明确没被占用 / 这个 git 版本答不出）+ 目录已不存在。 */
-export const vcOtherRowOf = function (w, t) {
-  // 占用原因来自 git 的原文，可能带换行：悬停里只留第一行、截断到 80 个字符（多行会把提示撑乱）。
-  const reason = w && w.lockReason ? vcOneLine(w.lockReason, 80) : ''
-  let stateText = ''
-  let stateTone = ''
-  let stateTip = ''
-  // 可清理那一档也有一档「这个 git 版本答不出来」（降级档 2.11-2.30；字段由核心给，判据只读字段真值，
-  //   界面不自己算档位）。答不出来照 lockUnknown 的同一套做法处理：可见文字说「无法显示」，
-  //   悬停说清是 git 答不出、且答不出不等于还在 —— 绝不留白、也绝不说「目录还在」。
-  if (w && w.prunable === true) { stateText = t('vc.other.prunable'); stateTone = 'warning'; stateTip = t('vc.other.prunableTip') }
-  else if (w && w.prunableUnknown === true) { stateText = t('vc.other.lockUnknown'); stateTone = 'caption'; stateTip = t('vc.other.prunableUnknownTip') }
-  else if (w && w.locked === true) { stateText = t('vc.other.locked'); stateTone = 'warning'; stateTip = t('vc.other.lockedTip') + (reason ? ' ' + reason : '') }
-  else if (w && w.lockUnknown === true) { stateText = t('vc.other.lockUnknown'); stateTone = 'caption'; stateTip = t('vc.other.lockUnknownTip') }
-  return {
-    key: String((w && w.path) || ''),
-    path: String((w && w.path) || ''),
-    displayText: String((w && w.display) || ''),
-    displayTip: String((w && w.path) || ''),
-    branchText: w && w.bare === true ? t('vc.other.bare') : (w && w.branch ? String(w.branch) : t('vc.other.noBranch')),
-    stateText: stateText,
-    stateTone: stateTone,
-    stateTip: stateTip,
-  }
-}
-/** 一个字都不用改的日常读数（门禁与界面都读它，保证两边看的是一份东西）。 */
-export const vcReadsOf = function (reads, path) {
-  const r = reads || {}
-  const diffs = r.diffs || {}
-  return diffs[String(path || '')] || { state: 'idle' }
 }
 /**
  * 块清单的唯一入口。
@@ -199,6 +94,9 @@ export const vcBlocksOf = function (screen, reads, ui, env) {
   }
   const t0 = (ui && ui.fileShown) || {}
   const shownOf = function (g) { const n = Math.floor(Number(t0[g])); return isFinite(n) && n > 0 ? n : VC_FILE_ROWS_FIRST }
+  // #842 写操作：按钮 / 提交区 / 确认框的模型都在 vcWriteUi.js 那一层；四个动作的判定由组件算好（env.decisions）
+  //   传进来，这一层只把它们挂到对应的块上（块顺序 VC_BLOCK_ORDER 一个字不动）。
+  const write = (typeof vcWriteUiOf === 'function') ? vcWriteUiOf(screen, ui, env) : null
   const blocks = []
   if (state === 'err' && err) blocks.push({ kind: 'hint', key: 'stale', tone: 'warning', text: t('vc.staleHint'), retry: t('vc.retry') })
   const repo = screen.repo || {}
@@ -236,6 +134,8 @@ export const vcBlocksOf = function (screen, reads, ui, env) {
     readAtText: (reads && reads.screen && reads.screen.data && reads.screen.data.readAtMs)
       ? t('vc.readAt', { when: vcWhenText(t, nowMs, reads.screen.data.readAtMs) })
       : '',
+    // #842 身份行右侧那两颗（拉取 / 推送）：领先落后就在这一行，动作也跟着放这里。
+    actions: write ? write.actions : null,
   })
   const rows = vcFileRowsOf(screen)
   const groups = []
@@ -258,7 +158,10 @@ export const vcBlocksOf = function (screen, reads, ui, env) {
     const key = diffKeyOf(r)
     const entry = commitMode ? ((reads && reads.commitDiffs) || {})[key] : vcReadsOf(reads, r.path)
     const diff = openDiff === key ? vcDiffViewOf(entry, t, commitMode ? '' : 'vc.diff.scopeHead') : null
-    return vcRowViewOf(r, t, diff)
+    const v = vcRowViewOf(r, t, diff)
+    // #842：这一行给不给「暂存」按钮（冲突行不给，只给一句去终端的指引）由写操作那一层说了算。
+    v.stageAction = (typeof vcRowStageOf === 'function') ? vcRowStageOf(r, t) : null
+    return v
   }
   if (commitMode) {
     const cb = vcCommitBlockOf(screen, reads, ui, t, nowMs, shownOf, rowViewOf)
@@ -280,6 +183,9 @@ export const vcBlocksOf = function (screen, reads, ui, env) {
       empty: rows.length === 0,
       // 只有真空的时候才带上那句话：块模型里不该留一句不会被画出来的字（门禁按模型判「有没有冒这句话」）。
       emptyText: rows.length === 0 ? t('vc.changes.none') : '',
+      // #842 写操作：标题行那颗「全部暂存」与块底部的提交区（提交区不新增块，见设计 §1 的理由）。
+      stageAll: write ? write.stageAll : null,
+      commitArea: write ? write.commitArea : null,
     })
   }
   const logRead = (reads && reads.log) || {}

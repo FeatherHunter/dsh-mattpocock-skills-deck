@@ -80,6 +80,14 @@ const LEAVES = [
   // #725 状态栏胶囊那条横条：「谁先让位、一次让多少」的判据（纯函数）与读写的机器（碰 DOM）各一份。
   { file: 'src/client/statusbar/capFold.js', exports: ['CAP_FOLD_POLICY', 'capFoldLadderOf', 'capFoldStateAt', 'capFoldStepCount'], components: [] },
   { file: 'src/client/statusbar/capFoldMachine.js', exports: ['runCapFold'], components: [] },
+  // #842 版本管理写操作那一族的五个新叶子：vcRows 是从 vcBlocks 原样搬出的一层（腾行给写操作），
+  //   另三个是写操作的纯规则 / 执行 / 画法。登在这里让「单文件 ≤350 行」与「产物已拼接」两条检查也覆盖到它们。
+  { file: 'src/client/views/versionControl/vcRows.js', exports: ['vcGroupOfRow', 'vcFileRowsOf', 'vcRowViewOf', 'vcOtherRowOf', 'vcReadsOf'], components: [] },
+  { file: 'src/client/views/versionControl/vcWrite.js', exports: ['VC_WRITE_OPS', 'VC_BLOCK_KEY', 'vcBlockKeyOf', 'vcReasonKeysOf', 'vcOpStateOf', 'vcPushDecisionOf', 'vcBlockedTipOf', 'vcPlanMismatchOf', 'VC_WRITE_ERR_FAMILY', 'vcWriteErrFamilyOf', 'vcWriteErrKeyOf', 'vcConfirmOf'], components: [] },
+  { file: 'src/client/views/versionControl/vcWriteRun.js', exports: ['VC_WRITE_PHONES', 'vcRunCheck', 'vcRunWrite', 'vcOpResultOf', 'vcAfterWrite'], components: [] },
+  { file: 'src/client/views/versionControl/vcWriteUi.js', exports: ['vcWriteUiOf', 'vcRowStageOf'], components: [] },
+  { file: 'src/client/views/versionControl/vcWriteOps.js', exports: ['vcWriteOpsOf'], components: [] },
+  { file: 'src/client/views/versionControl/vcWriteView.js', exports: ['vcRowStageNodes', 'vcActionsNode', 'vcStageAllNode', 'vcCommitAreaNode', 'vcWriteTailNodes'], components: [] },
 ]
 const SOURCES = [
   'src/client/index.js', 'scripts/build.mjs', 'package/package.json',

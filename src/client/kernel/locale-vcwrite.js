@@ -1,0 +1,68 @@
+/**
+ * src/client/kernel/locale-vcwrite.js —— 版本管理「写操作」那一族的词条（#842）
+ *
+ * 为什么单独一份片段：locale-panel.js（347 行）与 locale-flow.js（357 行，零增长基线冻结）都已经贴到上限，
+ *   照 #621（locale-labels.js）与 #690（locale-pages.js）的先例另起一份，由 kernel/locale.js 的合并器并进 L。
+ * 键名前缀纪律：写路径一律 vc.writeErr.*；vc.fail.* 是只读「这一项读不到」的 kind 表，两边不互相借键。
+ * 排法与 locale-panel.js 一致：一个语言一个对象，每行挤 5–8 条，中英成对（verify-locale-completeness 口径）。
+ */
+export const L_VCWRITE = {
+  zh: {
+    'vc.action.stage': '暂存', 'vc.action.stageAll': '全部暂存', 'vc.action.commit': '提交 {n} 个文件', 'vc.action.pull': '拉取', 'vc.action.push': '推送',
+    'vc.action.pushRecreate': '重建上游并推送', 'vc.action.pushSetUpstream': '设为上游并推送', 'vc.row.conflictTerminal': '冲突：去侧栏终端处理',
+    'vc.block.nothingToStage': '没有可暂存的东西', 'vc.block.nothingStaged': '暂存区是空的，没有可提交的内容', 'vc.block.conflicts': '有文件卡在冲突里，先处理完再继续',
+    'vc.block.dirtyTree': '工作区有未提交的改动，先提交再拉取', 'vc.block.noUpstream': '这个分支还没有上游', 'vc.block.upstreamGone': '这个分支的上游在远端已经不存在了',
+    'vc.block.detachedHead': '现在不在任何分支上（游离头指针），这一步做不了', 'vc.block.midOperation': '仓库里还有没做完的操作，先处理完',
+    'vc.block.behindRemote': '远端有你本地还没有的提交，先拉取再推送', 'vc.block.bareRepo': '这是个裸仓库（没有工作树），这些操作都做不了', 'vc.block.unknown': '这一步现在做不了',
+    'vc.warn.detachedHead': '现在不在任何分支上，提交会落在游离头指针上', 'vc.warn.midOperation': '仓库里还有没做完的操作，提交前先确认',
+    'vc.warn.basisUnknown': '不清楚本地记的远端信息有多旧，推送前先确认',
+    'vc.confirm.pullTitle': '要拉取这个分支', 'vc.confirm.pullBody': '只做快进：把远端的新提交接到本地。需要合并时面板会停下来，指你去侧栏终端。',
+    'vc.confirm.pushTitle': '要推送这些提交', 'vc.confirm.pushBody': '推到 {remote}/{target}。', 'vc.confirm.pushRecreateTitle': '原来那个上游已经不存在了',
+    'vc.confirm.pushRecreateBody': '原来的上游 {remote}/{target} 在远端已经不存在，这次会重新建立它并推上去。', 'vc.confirm.pushSetUpstreamTitle': '第一次推送：要把它设为上游',
+    'vc.confirm.pushSetUpstreamBody': '把本地 {local} 推到 {remote}/{target}，并把它设为上游。', 'vc.confirm.cancel': '取消',
+    'vc.commitArea.placeholder': '写一句提交说明', 'vc.commitArea.hint': '提交的是暂存区里的内容；没有暂存的文件不会跟着走。',
+    'vc.writeErr.noCredential': '远端不认这台机器上的凭据，需要重新登录',
+    'vc.writeErr.noCredential.limit': '面板不替你保存或输入凭据：去侧栏终端跑一次 fetch 或 push，按提示登录，成功后回来点刷新。',
+    'vc.writeErr.noPermission': '远端拒绝了这个动作（权限或服务端规则拦下了）',
+    'vc.writeErr.noPermission.limit': '面板改不了远端的规则：确认用的是哪个账号，要换账号请去侧栏终端。',
+    'vc.writeErr.conflict': '本地和远端都有新提交，直接拉会打架',
+    'vc.writeErr.conflict.limit': '面板不替你合并：去侧栏终端跑 git pull，处理完冲突再回来。',
+    'vc.writeErr.notFastForward': '远端的新提交已经取回来了，但本地和它分开了，不能快进',
+    'vc.writeErr.notFastForward.limit': '面板只做快进：合并或变基去侧栏终端。',
+    'vc.writeErr.network': '网络断了或者超时了，这一步没做完', 'vc.writeErr.network.limit': '面板不自动重试：检查网络后再点一次。',
+    'vc.writeErr.stale': '这次确认已经过期，或者仓库在你确认之后又变了', 'vc.writeErr.stale.limit': '面板不替你猜：重新看一眼当前状态，再点一次。',
+    'vc.writeErr.notReady': '这一步现在做不成，宿主把原因写在悬停提示里了', 'vc.writeErr.notReady.limit': '面板不替你改仓库：按悬停里那句做完再回来。',
+    'vc.writeErr.unknown': '这次失败面板说不清原因', 'vc.writeErr.unknown.limit': '上面那句是宿主的原话：按它处理；面板不自动重试。',
+    'vc.op.running': '正在执行…', 'vc.op.done': '做完了', 'vc.op.failed': '没做成', 'vc.op.doneStage': '已暂存 {n} 个文件',
+    'vc.op.doneCommit': '已经提交了', 'vc.op.donePull': '拉取完成', 'vc.op.donePush': '推送完成',
+  },
+  en: {
+    'vc.action.stage': 'Stage', 'vc.action.stageAll': 'Stage all', 'vc.action.commit': 'Commit {n} files', 'vc.action.pull': 'Pull', 'vc.action.push': 'Push',
+    'vc.action.pushRecreate': 'Recreate upstream and push', 'vc.action.pushSetUpstream': 'Set upstream and push', 'vc.row.conflictTerminal': 'Conflict: handle it in the terminal',
+    'vc.block.nothingToStage': 'Nothing to stage', 'vc.block.nothingStaged': 'The index is empty; nothing to commit', 'vc.block.conflicts': 'Files are stuck in conflict; resolve them first',
+    'vc.block.dirtyTree': 'There are uncommitted changes; commit before pulling', 'vc.block.noUpstream': 'This branch has no upstream yet', 'vc.block.upstreamGone': "This branch's upstream no longer exists on the remote",
+    'vc.block.detachedHead': 'Not on any branch (detached HEAD); this step is not available', 'vc.block.midOperation': 'Another operation is still in progress',
+    'vc.block.behindRemote': 'The remote has commits you do not have; pull before pushing', 'vc.block.bareRepo': 'This is a bare repository; these operations are not available', 'vc.block.unknown': 'This step is not available right now',
+    'vc.warn.detachedHead': 'You are not on a branch; the commit will land on the detached HEAD', 'vc.warn.midOperation': 'Another operation is in progress; check before committing',
+    'vc.warn.basisUnknown': 'The recorded remote info has no timestamp; check before pushing',
+    'vc.confirm.pullTitle': 'Pull this branch', 'vc.confirm.pullBody': 'Fast-forward only: remote commits are brought in. If a merge is needed the panel stops and points you to the terminal.',
+    'vc.confirm.pushTitle': 'Push these commits', 'vc.confirm.pushBody': 'Push to {remote}/{target}.', 'vc.confirm.pushRecreateTitle': 'The previous upstream no longer exists',
+    'vc.confirm.pushRecreateBody': 'The old upstream {remote}/{target} is gone; this recreates it and pushes.', 'vc.confirm.pushSetUpstreamTitle': 'First push: set it as upstream',
+    'vc.confirm.pushSetUpstreamBody': 'Push local {local} to {remote}/{target} and set it as the upstream.', 'vc.confirm.cancel': 'Cancel',
+    'vc.commitArea.placeholder': 'Write a commit message', 'vc.commitArea.hint': 'Only staged content is committed.',
+    'vc.writeErr.noCredential': 'The remote did not accept the credentials on this machine; sign in again',
+    'vc.writeErr.noCredential.limit': 'The panel never stores or types credentials: run fetch or push in the terminal, sign in there, then come back and refresh.',
+    'vc.writeErr.noPermission': 'The remote refused this action (permissions or a server-side rule)',
+    'vc.writeErr.noPermission.limit': 'The panel cannot change remote rules: check which account is in use; switch accounts in the terminal.',
+    'vc.writeErr.conflict': 'Both local and remote have new commits; pulling would conflict',
+    'vc.writeErr.conflict.limit': 'The panel does not merge for you: run git pull in the terminal, resolve the conflicts, then come back.',
+    'vc.writeErr.notFastForward': 'The remote commits were fetched, but local and remote have diverged; fast-forward is not possible',
+    'vc.writeErr.notFastForward.limit': 'The panel only fast-forwards: merge or rebase in the terminal.',
+    'vc.writeErr.network': 'The network dropped or timed out; this step did not finish', 'vc.writeErr.network.limit': 'The panel does not retry automatically: check the network and try again.',
+    'vc.writeErr.stale': 'This confirmation is stale, or the repository changed after you confirmed', 'vc.writeErr.stale.limit': 'The panel will not guess: look at the current state again and retry.',
+    'vc.writeErr.notReady': "This step cannot be done right now; the host's reason is in the tooltip", 'vc.writeErr.notReady.limit': 'The panel does not change the repository for you: follow the tooltip and come back.',
+    'vc.writeErr.unknown': 'The panel cannot explain this failure', 'vc.writeErr.unknown.limit': "The line above is the host's own wording: follow it; the panel does not retry automatically.",
+    'vc.op.running': 'Running…', 'vc.op.done': 'Done', 'vc.op.failed': 'Failed', 'vc.op.doneStage': 'Staged {n} files',
+    'vc.op.doneCommit': 'Committed', 'vc.op.donePull': 'Pull finished', 'vc.op.donePush': 'Push finished',
+  },
+}
