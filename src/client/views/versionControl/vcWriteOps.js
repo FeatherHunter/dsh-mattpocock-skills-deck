@@ -47,6 +47,11 @@ export const vcWriteOpsOf = function (deps) {
     })
   }
   // 回包的目标与界面读数对不上：按回包显示（显示永远跟回包），但这件事实要留一条 kind=shape 的日志。
+  // 为什么这条日志落在这里是合规的（tests/verify-log-truncate.js 的渲染目录点名白名单里已登记本文件）：
+  //   ① 本文件是动作层，不渲染任何东西（与 vcData.js / labelColorPatch.js / bannerChain.js 同一类）；
+  //   ② 沿用既有事件 host.call.fail，不新增事件、不动日志对照表；
+  //   ③ 字段只有三个白名单项：method（电话名常量）、kind（枚举 'shape'）、errorHash（dswsLogHash + dswsLogTrunc 截断到 120）；
+  //   ④ 行上没有对象转文本、没有 JSON.stringify；频率极低（回包与界面读数一致时一次都不落）。
   const logShape = function (note) {
     try { log('warn', 'host.call.fail', { method: VC_WRITE_PHONES.check, kind: 'shape', errorHash: dswsLogHash(dswsLogTrunc(String(note || ''), 120, 'error')) }) } catch (e) { /* 日志坏了不影响动作 */ }
   }
