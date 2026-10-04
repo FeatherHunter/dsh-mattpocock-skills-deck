@@ -134,7 +134,9 @@ export function pushArgs(plan: { mode: 'existing' | 'set-upstream'; remote: stri
   if (spec.charAt(0) === '+' || plan.localBranch.charAt(0) === '+' || plan.branch.charAt(0) === '+') {
     throw new Error('[version-control] refspec 不许以 + 开头（会被 git 当强推）：' + spec)
   }
-  return plan.mode === 'set-upstream' ? ['push', '-u', plan.remote, spec] : ['push', plan.remote, spec]
+  // --no-follow-tags：用户配置里若开着 push.followTags=true，显式 refspec 仍会把可达的标注标签一起推出去；
+  // 面板只推这一个分支，标签不替用户推（真机场景②的验收点：推完远端标签仍为空）。
+  return plan.mode === 'set-upstream' ? ['push', '-u', '--no-follow-tags', plan.remote, spec] : ['push', '--no-follow-tags', plan.remote, spec]
 }
 /** 索引指纹的输入（只读；总工裁决 2：不用 write-tree，不往用户对象库写东西）。 */
 export function lsFilesStageArgs(): string[] {

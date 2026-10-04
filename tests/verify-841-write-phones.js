@@ -21,12 +21,15 @@ function mkRepo(tag) {
 }
 const spawns = []
 const logs = []
+const timerCalls = []
 let clock = { t: 1000 }
 function makeVc(route) {
   spawns.length = 0
+  logs.length = 0
+  timerCalls.length = 0
   const deps = {
     subprocess: { spawn(req) { spawns.push(req.argv.slice()); const hit = route ? route(req.argv) : null; if (hit) { const mk = (t) => ({ finalize: () => ({ text: String(t || ''), truncated: false }) }); return { done: Promise.resolve({ exitCode: hit.code || 0 }), collected: { stdout: mk(hit.stdout), stderr: mk(hit.stderr) }, terminate() {} } } const r = spawnSync(req.argv[0], req.argv.slice(1), { cwd: req.cwd, encoding: 'buffer', windowsHide: true, maxBuffer: 1 << 26 }); const mk2 = (b) => ({ finalize: () => ({ text: (b || Buffer.alloc(0)).toString('utf8'), truncated: false }) }); return { done: Promise.resolve({ exitCode: r.status }), collected: { stdout: mk2(r.stdout), stderr: mk2(r.stderr) }, terminate() {} } } },
-    timer: { timeout: (ms) => new Promise((r) => setTimeout(r, ms)) },
+    timer: { timeout: (ms) => { timerCalls.push(ms); return new Promise((r) => setTimeout(r, ms)) } },
     fs: { stat: async (p) => await fs.promises.stat(p), lstat: async (p) => await fs.promises.lstat(p), exists: async (p) => { try { await fs.promises.access(p); return true } catch (e) { return false } } },
     getPlatform: async () => ({ resolveExecutable: async (n) => (n === 'git' ? 'git' : null) }),
     DEFAULT_CWD: ROOT, TIMEOUT_MS: 30000, gate: { noteOutbound() {} }, logCtx: { fire(level, event, fields) { logs.push({ level, event, fields }) } },
@@ -51,12 +54,25 @@ async function main() {
   const pre = await vcA.handleGitWriteCheck({ cwd: rA, op: 'commit', message: '标题' })
   check(pre.ok === true && pre.ticket && pre.ticket.id, 'A0 预检拿到票据')
   const headBefore = git(rA, ['rev-parse', 'HEAD']).out
+  const n1 = spawns.length
   const a1 = await vcA.handleGitCommit({ cwd: rA, message: '标题', ticketId: 'NOSUCHTICKET' })
-  check(a1.ok === false && a1.error.reason === 'ticket-missing' && writeSpawns().length === 0, 'A1 伪造票：ticket-missing 且零写命令')
+  check(a1.ok === false && a1.error.reason === 'ticket-missing' && spawns.length === n1, 'A1 伪造票：ticket-missing 且一个进程都没起（纯判定先行）')
   clock.t = pre.ticket.expiresAtMs + 1
+  const n2 = spawns.length
   const a2 = await vcA.handleGitCommit({ cwd: rA, message: '标题', ticketId: pre.ticket.id })
-  check(a2.ok === false && a2.error.reason === 'ticket-expired' && writeSpawns().length === 0, 'A2 过期票：ticket-expired 且零写命令')
+  check(a2.ok === false && a2.error.reason === 'ticket-expired' && spawns.length === n2, 'A2 过期票：ticket-expired 且一个进程都没起')
   clock.t = 1000
+  const preCommitA = await vcA.handleGitWriteCheck({ cwd: rA, op: 'commit', message: '标题' })
+  const n5 = spawns.length
+  const a5 = await vcA.handleGitPull({ cwd: rA, ticketId: preCommitA.ticket.id })
+  check(a5.ok === false && a5.error.reason === 'ticket-op-mismatch' && spawns.length === n5, 'A5 换动作（commit 的票拿去 pull）：ticket-op-mismatch 且零进程')
+  const rA6 = mkRepo('a6')
+  // 同一个实例、换 cwd（用户换工作区的真实形态）：票在表里，但 repoRoot 对不上 → stale-repo。
+  const n6 = spawns.length
+  const a6 = await vcA.handleGitCommit({ cwd: rA6, message: '标题', ticketId: preCommitA.ticket.id })
+  check(a6.ok === false && a6.error.reason === 'stale-repo' && writeSpawns().length === 0, 'A6 换仓库（A 的票在 B 上用）：stale-repo 且零写命令')
+  const expectDeny = (r, reason) => r && r.ok === false && r.error && r.error.reason === reason
+  check(expectDeny(a1, 'ticket-missing') === true && expectDeny({ ok: true, committed: true }, 'ticket-missing') === false, 'A7 反证装置自检：把「放行」的坏回包喂给同一套判据必须判红')
   const pre2 = await vcA.handleGitWriteCheck({ cwd: rA, op: 'commit', message: '标题' })
   fs.writeFileSync(path.join(rA, 'b.txt'), 'b\n'); git(rA, ['add', 'b.txt'])
   const a4 = await vcA.handleGitCommit({ cwd: rA, message: '标题', ticketId: pre2.ticket.id })
@@ -74,8 +90,8 @@ async function main() {
   const addArgv = spawns.filter((a) => after(a)[0] === 'add')[0] || []
   check(addArgv.indexOf('--literal-pathspecs') >= 0, 'B1 暂存带 --literal-pathspecs（在固定前缀里）')
   check(addArgv.indexOf('--') > 0 && addArgv[addArgv.indexOf('--') + 1] === 'a.txt', 'B2 路径排在 -- 之后且是独立元素')
-  check(cmds.pushArgs({ mode: 'existing', remote: 'origin', branch: 'main', localBranch: 'main' }).join(' ') === 'push origin main:main', 'B3 推送是显式 <remote> <local>:<remote>')
-  check(cmds.pushArgs({ mode: 'set-upstream', remote: 'origin', branch: 'main', localBranch: 'main' }).join(' ') === 'push -u origin main:main', 'B4 -u 只在 set-upstream 档出现')
+  check(cmds.pushArgs({ mode: 'existing', remote: 'origin', branch: 'main', localBranch: 'main' }).join(' ') === 'push --no-follow-tags origin main:main', 'B3 推送是显式 <remote> <local>:<remote> 且关掉跟随标签')
+  check(cmds.pushArgs({ mode: 'set-upstream', remote: 'origin', branch: 'main', localBranch: 'main' }).join(' ') === 'push -u --no-follow-tags origin main:main', 'B4 -u 只在 set-upstream 档出现')
   let threw = false
   try { cmds.pushArgs({ mode: 'existing', remote: 'origin', branch: '+wip', localBranch: '+wip' }) } catch (e) { threw = true }
   check(threw === true, 'B5 反证：refspec 以 + 开头（会被 git 当强推）必须当场抛错')
@@ -111,6 +127,13 @@ async function main() {
   check(reasons.messageProblem('') === 'empty-message' && reasons.messageProblem('x'.repeat(201)) === 'message-too-long' && reasons.messageProblem('正常标题') === null, 'E7 提交信息轻校验三档')
   check(reasons.pathsProblem(['-x.txt']) === 'bad-paths' && reasons.pathsProblem([':(exclude)*.txt']) === 'bad-paths' && reasons.pathsProblem(['ok.txt']) === null, 'E8 路径形状：前导 - 与 pathspec 魔法都拒')
   check(reasons.idShapeProblem('abc-123') === null && reasons.idShapeProblem('a\u0000b') === 'ticket-missing' && reasons.idShapeProblem('x'.repeat(65)) === 'ticket-missing', 'E9 票据 id 形状')
+  // E10/E11 i-t-a 真机字节（2026-10-04 真机采）：i-t-a 是「1 .A … 000000 …」（XY=.A 且索引无 blob），
+  // 普通暂存是「1 M. N... 100644 …」。曾经把 sub 字段 N... 当判据 → 每条普通记录都被误判成 i-t-a。
+  const ticketMod = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'version-control', 'write-ticket.js')).href)
+  const ITA = '1 .A N... 000000 000000 100644 ' + '0'.repeat(40) + ' ' + '0'.repeat(40) + ' n.txt\u0000'
+  const NORMAL = '1 M. N... 100644 100644 100644 ' + 'a'.repeat(40) + ' ' + 'a'.repeat(40) + ' a.txt\u0000'
+  check(ticketMod.hasIntentToAdd(ITA) === true && ticketMod.hasIntentToAdd(NORMAL) === false, 'E10 i-t-a 真机字节：i-t-a 判真、普通暂存判假（回归）')
+  check(ticketMod.hasIntentToAdd(NORMAL + ITA) === true, 'E11 混合清单里只要有 i-t-a 就判真')
 
   // F 同一进程出口 + 看门狗白名单
   console.log('F 同一出口、请求白名单')
@@ -119,7 +142,13 @@ async function main() {
   const rF = mkRepo('f')
   const vcF = makeVc()
   await vcF.handleGitStage({ cwd: rF, paths: ['a.txt'], stallMs: 2500, junk: 'x', progress: true })
-  check(spawns.every((a) => a.indexOf('stallMs') < 0 && a.indexOf('junk') < 0), 'F2 反证：客户端乱传 stallMs/未知字段进不了 argv（请求按白名单拼）')
+  check(spawns.every((a) => a.indexOf('stallMs') < 0 && a.indexOf('junk') < 0), 'F2 客户端乱传 stallMs/未知字段进不了 argv')
+  // 真风险面是 runGit 的 opts.stallMs（看门狗），不是 argv：看门狗每 tick 调 timer.timeout(tickOf(stallMs))，
+  // stallMs=2500 → tick = max(200, min(1000, 2500/4)) = 625。这一跑里没有 625 的定时器调用 = 看门狗没开。
+  const watchdogTick = 625
+  const noWatchdog = (calls) => calls.indexOf(watchdogTick) < 0
+  check(noWatchdog(timerCalls), 'F3 反证：请求里带 stallMs=2500 时看门狗仍不开（timer 里没有 tick=625）', JSON.stringify(timerCalls))
+  check(noWatchdog([200, watchdogTick, 300]) === false, 'F3b 反证装置自检：喂一份含 625 的定时器序列必须判红')
 
   // G 日志
   console.log('G 日志落点')

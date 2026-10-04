@@ -91,7 +91,7 @@ export function createWritePhones(deps) {
     const v = ticketVerdict(ticket, now(), cur)
     if (v.ok !== true) {
       const out = wfail('other', v.reason, writeHintFor(v.reason))
-      if (requestId) results.set(requestId, out)
+      remember(requestId, out)
       return { denied: out }
     }
     // 推送是唯一把「名字」拼进 refspec 的一档：动手前让 git 自己复核这两个分支名（只读命令，零副作用）。
@@ -100,7 +100,7 @@ export function createWritePhones(deps) {
         const cr = await runOne(cwd, checkRefArgs(String(name)), 5000, 4096, 15000)
         if (!cr || cr.ok !== true) {
           const out = wfail('args', 'bad-target', writeHintFor('bad-target'))
-          if (requestId) results.set(requestId, out)
+          remember(requestId, out)
           return { denied: out }
         }
       }

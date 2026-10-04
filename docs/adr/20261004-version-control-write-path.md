@@ -34,9 +34,9 @@
 
 ## 5. 一次性票据与执行门
 
-- 预检（`wf.gitWriteCheck`）读一次首屏 → `rules.judge` 判定 → 解析目标 → 取指纹 → 发票（`id` + 有效期 120 秒 + `headOid` + `repoRoot` + 指纹 + 目标）。客户端只拿得到 `id/checkedAtMs/expiresAtMs/op` 与给人看的目标。
+- 预检（`wf.gitWriteCheck`）读一次首屏 → `rules.judge` 判定 → **推送档把 `no-upstream`/`upstream-gone` 从 block 里摘掉**（它们是 set-upstream 档，不是「不能推」，见 §1）→ 解析目标 → 取指纹 → 发票；票据表与结果表各带 200 条上限（只存进程内存）（`id` + 有效期 120 秒 + `headOid` + `repoRoot` + 指纹 + 目标）。客户端只拿得到 `id/checkedAtMs/expiresAtMs/op` 与给人看的目标。
 - 执行电话（`wf.gitStage/Commit/Pull/Push`）**先过纯判定**（票在不在 / 动作对不对 / 过期没有——这一关不起任何进程），再重量状态（HEAD / 仓库根 / 指纹 / 目标）比对，任一不一致就拒绝并让人重读。
-- **任何写命令之前必须先过票据门**：票据失效时一条写命令都不许起（门禁 A 组四条反证）。
+- **任何写命令之前必须先过票据门**：票据失效时**一个进程都不许起**（纯判定先行，门禁 A1/A2 断言 spawns 全零），状态比对阶段也一条写命令都不许起（A3/A4/A6 断言零写命令）。A 组是七个用例（missing / expired / op-mismatch / stale-head / stale-index / stale-repo / 反证装置自检），**不是**「把实现改坏」那种反证；真反证在 B5（refspec 强推）、E2/E6（归类）、F3/F3b（看门狗），以及 G 组的变体脚本（跳掉 G 自己的调用必须红）。
 - 暂存不走票据（可逆、天然幂等）；提交失败后**不自动重试、不声称成功**：读得到 HEAD 就按「HEAD 变了」如实说，读不到就说「结果未知」。
 
 ## 6. 非交互执行边界（承接 #839）
@@ -47,7 +47,7 @@
 
 - 结论：写路径的 fetch/pull/push **不传 `stallMs`**（保持默认关闭）。理由（真机实测）：`fetch --progress` 跑 8.1 秒、每 250ms 采样 32 次**全是 0 字节**，结束时才一次到达——看门狗会在 2.5 秒把**健康**传输杀掉。它想补的两类「挂住」已由 git 自带低速阈值（20s 放弃）与预算强杀覆盖。
 - 将来要开的前提（三条，缺一不可）：① 只对**实测确认会增量吐进度**的命令开；② 带 `GIT_PROGRESS_DELAY=0`；③ `stallMs ≥ 3 × 实测刷新间隔`。
-- 另外：写层构造给执行层的请求**按白名单显式拼**（只给 args/cwd/timeoutMs/stdoutLimit），绝不把客户端入参整包透传——`stallMs` 尤其不许来自客户端（门禁 F2 反证）。
+- 另外：写层构造给执行层的请求**按白名单显式拼**（只给 args/cwd/timeoutMs/stdoutLimit），绝不把客户端入参整包透传——`stallMs` 尤其不许来自客户端。门禁 F2 断言它进不了 argv，**F3/F3b 断言看门狗级证据**（看门狗每 tick 调 `timer.timeout(tickOf(stallMs))`，stallMs=2500 → tick=625；这一跑里没有 625 的定时器调用 = 看门狗没开；再把一份含 625 的序列喂给同一判据必须判红）。
 
 ## 8. 限制（如实写，别当成保证）
 
