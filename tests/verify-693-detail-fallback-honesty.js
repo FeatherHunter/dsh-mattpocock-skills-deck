@@ -150,8 +150,12 @@ async function loadDetailModule() {
     'const mdToHtml = (x) => String(x == null ? "" : x)',
     '',
   ].join('\n')
+  // #845：IssueDetail 现在会调 #763 加的 useIssueDetailFold（顶栏折叠 hook），旧垫片清单里没有它 →
+  //   一渲染就 ReferenceError。按「真闭包」口径处理：把这个 hook 的函数体也从产物里切出来一起拼，
+  //   而不是塞一个空桩（它的依赖只有 React，垫片已有；内部对 issueDetailFold* 的引用带 typeof 守卫）。
+  const foldHookSrc = extractFn(bundle, 'const useIssueDetailFold = function')
   const dir = mkdtempSync(join(tmpdir(), 'dsws693-'))
-  const code = shim + ridcSrc + '\nconst renderIssueDetailComments = __ridc\n' + detailFnSrc + '\nexport { IssueDetail }\n'
+  const code = shim + foldHookSrc + '\n' + ridcSrc + '\nconst renderIssueDetailComments = __ridc\n' + detailFnSrc + '\nexport { IssueDetail }\n'
   const built = esbuild.transformSync(code, { loader: 'js', format: 'esm' }).code
   const file = join(dir, 'IssueDetail.mjs')
   writeFileSync(file, built, 'utf8')
