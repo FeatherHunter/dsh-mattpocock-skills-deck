@@ -260,6 +260,14 @@ async function main() {
     check(r.exitCode !== 0, '③ 失败信封里带 git 的退出码')
     await srv.close()
 
+    // ③b 失败信封的两处补强（#841 地基探针 F1/F2）：message 取真原因、detail 给截断后的 stderr 尾巴
+    const longStderr = 'warning: use of unencrypted HTTP remote URLs is not recommended\n' + 'x'.repeat(3000) + '\nfatal: the real reason we came for\n'
+    const fakeRun = credMod.createCredentialSafeGit({ runGit: async () => ({ kind: 'non-zero', exitCode: 128, stderr: longStderr }), getPlatform: async () => ({ resolveExecutable: async () => 'git' }), getEnv: () => null, DEFAULT_CWD: lab.dir })
+    const rFake = await fakeRun.runOnce({ cwd: lab.dir, args: ['ls-remote', 'https://example.invalid/x.git'] })
+    check(rFake.ok === false && /^fatal: the real reason/.test(rFake.message), '③b F2：失败说明取最后一条 fatal: 行，不吃前面的警告横幅（实得「' + String(rFake.message).slice(0, 60) + '」）')
+    check(typeof rFake.detail === 'string' && rFake.detail.indexOf('已截断') >= 0 && rFake.detail.length < 1700, '③b F1：信封带截断后的 stderr 尾巴并标注已截断（长度 ' + String(rFake.detail).length + '）')
+    check(rFake.detail.indexOf('the real reason') >= 0, '③b F1：尾巴保留真原因那一行（写层读不到 stderr 时靠它）')
+
     // ④ 停顿判据：黑洞 + 低速阈值 → git 自己放弃（stalled）
     srv = await startServer('blackhole')
     const runStall = await makeRunner(lab, { lowSpeedSeconds: 2 })

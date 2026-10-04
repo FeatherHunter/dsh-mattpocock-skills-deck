@@ -80,7 +80,7 @@ export function createVersionControl(deps) {
       fire('warn', 'git.exec.fail', { argv0: GIT_NAME, cwdHash: dirHash(dir), via: VIA, errorHash: hash8(String((e && e.message) || e)) })
       return { kind: 'spawn-failed', message: String((e && e.message) || e) }
     }
-    const watch = (opts && opts.stallMs) ? makeStallWatch(handle, Math.max(1000, Math.min(600000, Math.floor(opts.stallMs))), timer) : null
+    const watch = (opts && opts.stallMs) ? makeStallWatch(handle, Math.max(1000, Math.min(600000, Math.floor(opts.stallMs))), budget, timer) : null
     let outcome
     try {
       outcome = await Promise.race([
@@ -283,17 +283,9 @@ export function createVersionControl(deps) {
     return readScreen(exe, cwdOf(args))
   }
 
-  // 差异电话体（#821 起含「看某一次提交改了什么」）在 ./versionControlFiles.js：本文件贴着 350 行上限，
-  // 照仓库惯例（logStore→logPhones、update→updateReader）把整条电话体搬成自包含叶子，依赖全显式传入，
-  // 那个叶子不引用本文件（单向引用）；加载器与既有的按目的动态加载同形。
+  // 差异电话体（#821 起含「看某一次提交改了什么」）在 ./versionControlFiles.js：本文件贴着 350 行上限，照 logStore→logPhones 惯例搬成自包含叶子，依赖全显式传入、单向引用。
   let _filesP = null
-  function diffPhone() {
-    if (!_filesP) _filesP = import('./versionControlFiles.js').then(function (m) {
-      return m.createGitDiffPhone({ failPhone: failPhone, runPinned: runPinned, failureFromExec: failureFromExec, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, readHasHead: readHasHead, cwdOf: cwdOf, patchLimit: PATCH_LIMIT })
-    })
-    return _filesP
-  }
-  /** 电话 wf.gitDiff 的处理体：把叶子装配起来，再把这一次调用交给它。 */
+  function diffPhone() { if (!_filesP) _filesP = import('./versionControlFiles.js').then(function (m) { return m.createGitDiffPhone({ failPhone: failPhone, runPinned: runPinned, failureFromExec: failureFromExec, resolveGitExecutable: resolveGitExecutable, resolveRepoRoot: resolveRepoRoot, readHasHead: readHasHead, cwdOf: cwdOf, patchLimit: PATCH_LIMIT }) }); return _filesP }
   async function handleGitDiff(args) { const p = await diffPhone(); return p(args) }
 
   /** 电话 wf.gitLog 的处理体：历史按批取；多要一条用来判断后面还有没有。 */
@@ -328,15 +320,30 @@ export function createVersionControl(deps) {
   function phoneLog(method, kind, t0, res, err) { try {
     if (err !== undefined && err !== null) { if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: method, kind: kind, errorHash: hash8(String((err && err.message) || err)) }) }
     else if (res && res.ok) { if (logCtx) logCtx.fire('info', 'host.call', { method: method, latencyMs: Date.now() - t0, ok: true, kind: kind }) }
-    else if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: method, kind: kind, errorHash: hash8(String((res && res.error && res.error.message) || 'version-control-not-ok')) }) } catch (eL) {} }
+    else if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: method, kind: kind, errorKind: (res && res.error && res.error.kind) || '', errorHash: hash8(String((res && res.error && res.error.message) || 'version-control-not-ok')) }) } catch (eL) {} }
 
   /** 把一条电话体包成「进出各一行日志」的形状。 */
   function loggedPhone(method, kind, fn) { return async function () { const t0 = Date.now(); try { const r = await fn.apply(null, arguments); phoneLog(method, kind, t0, r); return r } catch (e) { phoneLog(method, kind, t0, null, e); throw e } } }
+
+  /** 首屏读数（#841）：写模块的预检要的就是这一份——同一个 readScreen，不另起一套读法。 */
+  async function readScreenOf(cwd) { const exe = await resolveGitExecutable(); if (!exe) return failPhone('env', '找不到 git 命令（platform.resolveExecutable("git") 没有给出路径）'); return readScreen(exe, cwd) }
+
+  // 写操作那一族（#841，1 预检 + 4 执行）住 ./versionControlCheck.js 与 ./versionControlWrite.js；本文件只做装配与
+  // 日志包装（动态加载、同层单向）。交出去的是同一个 runGit 出口、同一份失败信封、同一份首屏读数、同一个
+  // loggedPhone —— 所以写路径与只读路径共用一条进程出口、同一条 git.exec / host.call 事件。
+  let _writeP = null
+  function writePhone() { if (!_writeP) _writeP = Promise.all([import('./gitCredentialExec.js'), import('./versionControlCheck.js'), import('./versionControlWrite.js')]).then(function (ms) { const sg = ms[0].createCredentialSafeGit({ runGit: runGit, getPlatform: getPlatform, DEFAULT_CWD: DEFAULT_CWD }); const nowFn = (deps && typeof deps.now === 'function') ? deps.now : Date.now; const c = ms[1].createWriteCheck({ vc: { readScreenOf: readScreenOf }, safeGit: sg, failPhone: failPhone, nowMs: nowFn, randomId: function () { return Math.random().toString(36).slice(2) } }); const w = ms[2].createWritePhones({ vc: { readScreenOf: readScreenOf }, safeGit: sg, tickets: c.tickets, results: c.results, nowMs: nowFn }); return { check: loggedPhone('wf.gitWriteCheck', 'git-write-check', c.handleGitWriteCheck), stage: loggedPhone('wf.gitStage', 'git-stage', w.handleGitStage), commit: loggedPhone('wf.gitCommit', 'git-commit', w.handleGitCommit), pull: loggedPhone('wf.gitPull', 'git-pull', w.handleGitPull), push: loggedPhone('wf.gitPush', 'git-push', w.handleGitPush) } }); return _writeP }
 
   return {
     handleGitStatus: loggedPhone('wf.gitStatus', 'git-status', handleGitStatus),
     handleGitDiff: loggedPhone('wf.gitDiff', 'git-diff', handleGitDiff),
     handleGitLog: loggedPhone('wf.gitLog', 'git-log', handleGitLog),
+    // #841 五条写电话（1 预检 + 4 执行）：第一次调用时才装配，装完缓存；键名与只读那三条同形。
+    handleGitWriteCheck: async function (a) { const w = await writePhone(); return w.check(a) },
+    handleGitStage: async function (a) { const w = await writePhone(); return w.stage(a) },
+    handleGitCommit: async function (a) { const w = await writePhone(); return w.commit(a) },
+    handleGitPull: async function (a) { const w = await writePhone(); return w.pull(a) },
+    handleGitPush: async function (a) { const w = await writePhone(); return w.push(a) },
     runGitCommand: runGit, // #839：那一族「可能弹凭据提示」的命令复用同一条进程出口（同一个报闸、同一条 git.exec 日志、同一套字节上限）
   }
 }

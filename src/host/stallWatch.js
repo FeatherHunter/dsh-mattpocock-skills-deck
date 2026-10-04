@@ -17,17 +17,26 @@
 // （git ls-remote 就是，应答收全之前一个字节都不吐），它会把「慢」判成「停」——这是判据的已知边界，
 // 不是误判；写路径要用它，命令得吐进度（git fetch/pull/push 加 --progress 才有）。门禁 ②b 真跑钉着这一条。
 // 命令自己结束（handle.done 落定）时看门狗自己退出，不需要调用方额外收尾。
-// 默认不开：只有显式传 stallMs 的调用（runGit 的 opts）才会创建它。
-export function makeStallWatch(handle, stallMs, timer) {
+// 默认不开：只有显式传 stallMs 的调用（runGit 的 opts）才会创建它。轮询次数按命令预算封顶（见下）。
+/** 采样周期：窗口的四分之一，夹在 200-1000ms 之间。 */
+function tickOf(stallMs) { return Math.max(200, Math.min(1000, Math.floor(stallMs / 4))) }
+
+/**
+ * 轮询次数上限按这条命令自己的预算封顶（budgetMs）：预算到点那一条竞速自然会收尾，看门狗没必要再数下去。
+ * 这一条也是仓库门禁 verify-709 的要求 —— 宿主里不许出现「没有次数上限的轮询」。
+ */
+export function makeStallWatch(handle, stallMs, budgetMs, timer) {
   const bytes = function () { const c = handle.collected || {}; let n = 0; for (const s of [c.stdout, c.stderr]) { if (s) n += (typeof s.total === 'number') ? s.total : ((typeof s.bytes === 'number') ? s.bytes : 0) } return n }
-  const step = Math.max(200, Math.min(1000, Math.floor(stallMs / 4)))
+  const budget = (typeof budgetMs === 'number' && budgetMs > 0) ? budgetMs : stallMs * 3
+  const maxTicks = Math.max(1, Math.ceil(budget / tickOf(stallMs)) + 2)
   return (async function () {
     let last = bytes(), changedAt = Date.now()
-    for (;;) {
-      const settled = await Promise.race([timer.timeout(step).then(function () { return false }), handle.done.then(function () { return true }, function () { return true })])
-      if (settled) return null
+    for (let tick = 0; tick < maxTicks; tick += 1) {
+      const settled = await Promise.race([timer.timeout(tickOf(stallMs)), handle.done.then(function () { return true }, function () { return true })])
+      if (settled === true) return null
       const now = bytes()
       if (now !== last) { last = now; changedAt = Date.now() } else if (Date.now() - changedAt >= stallMs) { try { handle.terminate() } catch (e) {} return { signal: 'stalled', stallMs: stallMs } }
     }
+    return null
   })()
 }

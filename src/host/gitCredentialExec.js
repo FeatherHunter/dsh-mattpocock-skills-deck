@@ -102,6 +102,8 @@ export function createCredentialSafeGit(deps) {
     const lowSpeedLimit = (typeof deps.lowSpeedLimit === 'string' && deps.lowSpeedLimit) ? deps.lowSpeedLimit : LOW_SPEED_LIMIT
     return {
       GIT_TERMINAL_PROMPT: '0',
+      LC_ALL: 'C', // 失败分类靠英文正则（#841 第三批 ⑤）：把 git 的文案钉在英文，别跟着系统语言变
+      LANG: 'C',
       GCM_INTERACTIVE: 'never',
       GIT_ASKPASS: undefined,
       SSH_ASKPASS: undefined,
@@ -127,9 +129,24 @@ export function createCredentialSafeGit(deps) {
 
   function firstLine(text) { const t = String(text || '').replace(/\r/g, '').trim(); if (!t) return ''; const i = t.indexOf('\n'); return (i >= 0 ? t.slice(0, i) : t).trim().slice(0, 300) }
 
-  /** 失败信封的唯一真源（扁平信封；kind 是稳定标识符，话术在 hintFor）。 */
+  /** 真原因取最后一条 fatal:/error: 行（前面往往只是 GCM 之类的警告横幅）；一条都没有才退回首行。 */
+  function reasonLine(text) {
+    const lines = String(text || '').replace(/\r/g, '').split('\n').map((l) => l.trim()).filter((l) => l !== '')
+    for (let i = lines.length - 1; i >= 0; i -= 1) if (/^(fatal|error):/i.test(lines[i])) return lines[i].slice(0, 300)
+    return firstLine(text)
+  }
+
+  /** 给调用方留一条能看原文的尾巴：只留最后 1500 字，截断就标注（写层读不到 stderr 时靠它）。 */
+  function tailOf(text) {
+    const t = String(text || '').replace(/\r/g, '').trim()
+    if (!t) return ''
+    const LIMIT = 1500
+    return t.length <= LIMIT ? t : '…（已截断，下面只留最后 ' + LIMIT + ' 字）' + '\n' + t.slice(t.length - LIMIT)
+  }
+
+  /** 失败信封的唯一真源（扁平信封；kind 是稳定标识符，话术在 hintFor；detail 是截断后的 stderr 尾巴，读不到 stderr 的调用方靠它）。 */
   function fail(kind, message, extra) {
-    return Object.assign({ ok: false, kind: kind, message: message || '', hint: hintFor(kind) }, extra || {})
+    return Object.assign({ ok: false, kind: kind, message: message || '', detail: '', hint: hintFor(kind) }, extra || {})
   }
 
   /** 找 git 命令；找不到转成明确失败值，不抛。 */
@@ -195,9 +212,9 @@ export function createCredentialSafeGit(deps) {
     const text = String(res.stderr || '')
     const kind = classifyGitFailure(res.exitCode, text)
     const suspect = await suspectOf(exe, cwd, args, kind)
-    const extra = { exitCode: res.exitCode, elapsedMs: elapsedMs }
+    const extra = { exitCode: res.exitCode, elapsedMs: elapsedMs, detail: tailOf(text) }
     if (suspect) extra.suspect = suspect
-    return fail(kind, firstLine(text) || ('git 退出码 ' + res.exitCode), extra)
+    return fail(kind, reasonLine(text) || ('git 退出码 ' + res.exitCode), extra)
   }
 
   /** 开一次调用：一次用户动作 = 一次调用，所有步骤共用这一份总预算。 */
