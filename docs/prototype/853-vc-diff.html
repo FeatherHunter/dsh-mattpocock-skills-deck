@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>版本管理 · 差异与历史（三套风格）</title>
+<link rel="stylesheet" href="853-vc-styles.css">
+<!--
+  PROTOTYPE-853 · 抛弃式设计稿 · 同一个界面的三套画法
+  用法：打开后点顶部 A / B / C 三个页签切换风格，选择会记住（sessionStorage）。
+  内容全部抄自产品词条（自造词条 0）；改文案先改产品词条，再回来改 853-vc-lib.js。
+-->
+</head>
+<body>
+<div class="bar">
+  <b>版本管理 · 三套风格</b>
+  <a href="853-vc-styles.html">风格总览</a>
+  <a href="853-vc-controls.html">控件图鉴</a>
+  <a href="853-vc-readonly.html">只读全景</a>
+  <a href="853-vc-write.html">写操作</a>
+  <a href="853-vc-diff.html">差异与历史</a>
+  <span class="sp"></span>
+  <span class="v3-style-label"></span>
+</div>
+<div class="tabs" role="tablist">
+  <button role="tab" data-s="A">A 工程台账</button>
+  <button role="tab" data-s="B">B 终端记录</button>
+  <button role="tab" data-s="C">C 纸质便签</button>
+</div>
+<div class="wrap">
+  <p class="intro">点开一处差异会看到什么（有九种形态），提交历史怎么翻，其他工作树那九种情形怎么排。</p>
+  <div id="app"></div>
+</div>
+<script src="853-vc-lib.js"></script>
+<script>
+document.getElementById('app').innerHTML =
+  cell('一 · 未提交那一层就地展开', 'vc.row.diffTip · vc.diff.scopeHead', '补丁块长在被点的那一行下面，最多内滚到 320px', SCREENS.diffOpen()) +
+  cell('二 · 提交里看某个文件', 'vc.commit.title · files · back', '进这笔提交前记住「从哪来」：右上角一直有「回到未提交改动」', SCREENS.diffCommit()) +
+  cell('三 · 差异的九种形态', 'vc.diff.*', '「读不到」与「没有内容」必须分开说', SCREENS.diffForms()) +
+  cell('四 · 提交历史的五种状态', 'vc.commits.* · vc.noCommits', '只有一屏给链接，不做翻页器', SCREENS.histStates()) +
+  cell('五 · 其他工作树的九种情形', 'vc.other.*', '「无法显示」不能写成「没被占用」—— 答不出不等于没有', SCREENS.worktrees())
+</script>
+</body>
+</html>

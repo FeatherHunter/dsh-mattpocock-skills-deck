@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>版本管理 · 只读全景（三套风格）</title>
+<link rel="stylesheet" href="853-vc-styles.css">
+<!--
+  PROTOTYPE-853 · 抛弃式设计稿 · 同一个界面的三套画法
+  用法：打开后点顶部 A / B / C 三个页签切换风格，选择会记住（sessionStorage）。
+  内容全部抄自产品词条（自造词条 0）；改文案先改产品词条，再回来改 853-vc-lib.js。
+-->
+</head>
+<body>
+<div class="bar">
+  <b>版本管理 · 三套风格</b>
+  <a href="853-vc-styles.html">风格总览</a>
+  <a href="853-vc-controls.html">控件图鉴</a>
+  <a href="853-vc-readonly.html">只读全景</a>
+  <a href="853-vc-write.html">写操作</a>
+  <a href="853-vc-diff.html">差异与历史</a>
+  <span class="sp"></span>
+  <span class="v3-style-label"></span>
+</div>
+<div class="tabs" role="tablist">
+  <button role="tab" data-s="A">A 工程台账</button>
+  <button role="tab" data-s="B">B 终端记录</button>
+  <button role="tab" data-s="C">C 纸质便签</button>
+</div>
+<div class="wrap">
+  <p class="intro">只读状态视图的全部状态各一屏。刻意重复同一套骨架：让人一眼看出「状态变了，布局没变」。</p>
+  <div id="app"></div>
+</div>
+<script src="853-vc-lib.js"></script>
+<script>
+document.getElementById('app').innerHTML =
+  cell('一 · 有改动（满屏）', 'vc.changes.summaryConflicts · vc.group.*', '顺序是规格定死的：异常带 → 身份 → 计数 → 改动 → 其他工作树 → 历史', SCREENS.readDirty()) +
+  cell('二 · 干净', 'vc.changes.none', '身份与计数永不让位；空的时候要说「没有」', SCREENS.readClean()) +
+  cell('三 · 四种进行中操作', 'vc.band.merge / rebase / cherryPick / revert', '四条带只换一句正文，位置与骨架完全一致', grid(
+    SCREENS.readMidOp('正在合并：有别的操作还没做完') +
+    SCREENS.readMidOp('正在变基：有别的操作还没做完') +
+    SCREENS.readMidOp('正在拣选提交：有别的操作还没做完') +
+    SCREENS.readMidOp('正在回退提交：有别的操作还没做完'))) +
+  cell('四 · 游离头指针', 'vc.detached · vc.detachedAt · vc.detachedTip', '「游离头指针」直接进身份行，不另起一条带', SCREENS.readDetached()) +
+  cell('五 · 无上游 / 上游被删 / 依据读不到', 'vc.sync.* · vc.basis.*', '三句必须一眼能分：还没设过 / 设过但没了 / 不知道多旧', grid(
+    SCREENS.readNoUpstream() + SCREENS.readGone() + SCREENS.readBasisUnknown())) +
+  cell('六 · 裸仓库', 'vc.block.bareRepo', '裸仓库里没有身份行、没有改动区', SCREENS.readBare()) +
+  cell('七 · 读不到的四档', 'vc.fail.notRepo · noGit · oldGit · vc.noCwd', '只给一句话 + 不再摆骨架', grid(
+    SCREENS.readNotRepo() + SCREENS.readNoGit() + SCREENS.readOldGit() + SCREENS.readNoCwd())) +
+  cell('八 · 还没有任何提交', 'vc.noCommits · vc.noCommitsTip', '新仓库的正常形态，不该红成错误', SCREENS.readNoCommits()) +
+  cell('九 · 窄面板让位 380 / 300', 'vc.identity.worktreeTip', '位置行先让，身份与计数永不让；长路径砍中段而不是砍尾巴',
+    '<div class="grid" style="grid-template-columns:380px 300px;justify-content:start">' +
+    SCREENS.readDirty().replace('v3-w520','v3-w380') + SCREENS.readClean().replace('v3-w520','v3-w300') + '</div>')
+</script>
+</body>
+</html>

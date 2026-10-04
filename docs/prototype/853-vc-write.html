@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>版本管理 · 写操作（三套风格）</title>
+<link rel="stylesheet" href="853-vc-styles.css">
+<!--
+  PROTOTYPE-853 · 抛弃式设计稿 · 同一个界面的三套画法
+  用法：打开后点顶部 A / B / C 三个页签切换风格，选择会记住（sessionStorage）。
+  内容全部抄自产品词条（自造词条 0）；改文案先改产品词条，再回来改 853-vc-lib.js。
+-->
+</head>
+<body>
+<div class="bar">
+  <b>版本管理 · 三套风格</b>
+  <a href="853-vc-styles.html">风格总览</a>
+  <a href="853-vc-controls.html">控件图鉴</a>
+  <a href="853-vc-readonly.html">只读全景</a>
+  <a href="853-vc-write.html">写操作</a>
+  <a href="853-vc-diff.html">差异与历史</a>
+  <span class="sp"></span>
+  <span class="v3-style-label"></span>
+</div>
+<div class="tabs" role="tablist">
+  <button role="tab" data-s="A">A 工程台账</button>
+  <button role="tab" data-s="B">B 终端记录</button>
+  <button role="tab" data-s="C">C 纸质便签</button>
+</div>
+<div class="wrap">
+  <p class="intro">会改仓库或要联网的那几条腿：暂存 / 全部暂存 / 提交 / 拉取 / 推送，按钮在哪儿、确认框写什么、失败时怎么办。</p>
+  <div id="app"></div>
+</div>
+<script src="853-vc-lib.js"></script>
+<script>
+document.getElementById('app').innerHTML =
+  cell('一 · 写操作都在哪', 'vc.action.* · vc.commitArea.*', '只读动作在顶部一行；改暂存区的在文件行上；提交、拉取、推送各在自己的位置', SCREENS.writeHome()) +
+  cell('二 · 推送三档确认', 'vc.confirm.*', '确认框里那句真正要执行的命令必须一字不差地写出来', grid(
+    SCREENS.writePushConfirm('existing') + SCREENS.writePushConfirm('set') + SCREENS.writePushConfirm('recreate'))) +
+  cell('三 · 拉取：只有快进这一档', 'vc.action.pull · vc.confirm.pullTitle / pullBody', '面板不合并、不变基 —— 这两类一律指去侧栏终端', grid(
+    SCREENS.writePullConfirm() +
+    '<div>' + SCREENS.writePullConfirm().replace('v3-dialog', 'v3-dialog') + '</div>')) +
+  cell('四 · 多个远端时先让你挑', 'vc.pickRemote.title · body', '选中后要重新预检，不能拿上一个远端的结论直接推', SCREENS.writeRemotePick()) +
+  cell('五 · 15 类失败提示与完成回执', 'vc.writeErr.* · vc.op.done*', '每条失败只给两句：出了什么事、你去哪儿处理', '<div class="v3-shell v3-w520"><div class="v3-shell__head"><span>执行结果</span></div><div class="v3-shell__body">' + SCREENS.writeErrs() + '</div></div>')
+</script>
+</body>
+</html>

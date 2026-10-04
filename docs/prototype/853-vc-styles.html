@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh" data-style="A">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>版本管理 · 三套风格总览（#853）</title>
+<link rel="stylesheet" href="853-vc-styles.css">
+<!--
+  PROTOTYPE-853 · 抛弃式设计稿 · 风格总览
+  这一页回答：同一套界面为什么不只一种画法，这里给你三套，各自的出处、各自适合谁、各自会牺牲什么。
+  配色与密度刻度取自 UI UX Pro Max（Developer Tool / IDE 一档 + Data-Dense Dashboard 规范）；
+  形态语言（圆角、字重、状态徽章的画法、提示带的语气）由我按 DSH 面板的实际情况重做，
+  因为那个技能给面板推荐的落地页结构（Hero / CTA / FAQ）与真实用途无关，那部分我没有采用。
+-->
+<style>
+.ov{max-width:1000px;margin:0 auto;padding:34px 20px 80px}
+.ov h1{font-size:22px;margin:0 0 8px}
+.ov .lead{font-size:13.5px;color:var(--mut);max-width:760px;margin:0 0 28px}
+.ov h2{font-size:14px;margin:34px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+.sgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.sgrid .card{border:1px solid var(--line);border-radius:8px;background:var(--paper);padding:15px 16px}
+.sgrid .card h3{margin:0 0 6px;font-size:14px}
+.sgrid .card .who{font-size:11px;color:var(--faint);margin:0 0 10px}
+.sgrid .card p{margin:0 0 9px;font-size:12.5px;color:var(--ink2);line-height:1.6}
+.sgrid .card ul{margin:0;padding-left:17px;font-size:12px;color:var(--mut);line-height:1.7}
+.swatch{display:flex;gap:0;margin:12px 0 10px;border-radius:4px;overflow:hidden;border:1px solid var(--line)}
+.swatch i{flex:1;height:26px;display:block}
+.links{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.links a{display:block;border:1px solid var(--line);border-radius:8px;background:var(--paper);padding:13px 15px;
+  text-decoration:none;color:var(--ink)}
+.links a:hover{border-color:var(--line2)}
+.links a b{display:block;font-size:13px;margin-bottom:3px}
+.links a span{font-size:12px;color:var(--mut)}
+table{border-collapse:collapse;width:100%;font-size:12.5px;margin-top:6px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--faint);font-weight:600;font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+td code{font-family:var(--mono);font-size:11.5px;color:var(--ink2)}
+</style>
+</head>
+<body>
+<div class="bar"><b>版本管理 · 三套风格总览</b><span class="sp"></span><a href="815-readonly-3variants.html">815 只读三变体</a><a href="852-vc-index.html">852 上一轮原型</a></div>
+<div class="ov">
+  <h1>同一个版本管理面板，三套画法</h1>
+  <p class="lead">
+    上一轮我把界面补全了（功能、文案、状态都齐），但只给了一种画法 —— 那是我的一个判断，不是唯一的答案。
+    这一轮把选择权交给你：<b>内容完全一样</b>（同一批词条、同一批状态、同一批控件），
+    <b>只有视觉语言不同</b>。点下面任意一页，顶部有 A / B / C 三个页签可随时切换。
+  </p>
+
+  <h2>三套是什么，各自适合谁</h2>
+  <div class="sgrid">
+    <div class="card">
+      <h3>A 工程台账</h3>
+      <p class="who">UI UX Pro Max · Data-Dense Dashboard</p>
+      <div class="swatch"><i style="background:#0f172a"></i><i style="background:#1e293b"></i><i style="background:#22c55e"></i><i style="background:#38bdf8"></i><i style="background:#ef4444"></i><i style="background:#94a3b8"></i></div>
+      <p><b>像一本工程台账</b>：网格对齐、数字等宽、状态用彩色字母徽章，一屏尽量多装事实。</p>
+      <ul>
+        <li>适合：文件多、一天要扫几十次的人</li>
+        <li>优点：信息密度最高，行高 30px，扫得快</li>
+        <li>代价：冷。没有温度，长时间盯着略疲劳</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>B 终端记录</h3>
+      <p class="who">UI UX Pro Max · Terminal CLI Monospace</p>
+      <div class="swatch"><i style="background:#08080b"></i><i style="background:#0c0c11"></i><i style="background:#4ade80"></i><i style="background:#60a5fa"></i><i style="background:#f87171"></i><i style="background:#7c7c8a"></i></div>
+      <p><b>像一段终端记录</b>：全等宽、零圆角、段标题带方括号、链接带方括号。</p>
+      <ul>
+        <li>适合：本来就天天开终端、喜欢「工具感」的人</li>
+        <li>优点：最省空间、最像工具本身，不像皮肤</li>
+        <li>代价：中文在小字号等宽下略挤；提示带语气偏硬</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>C 纸质便签</h3>
+      <p class="who">UI UX Pro Max · Brutalism（DSH 面板里的克制版）</p>
+      <div class="swatch"><i style="background:#f6f1e6"></i><i style="background:#efe8d9"></i><i style="background:#15803d"></i><i style="background:#1d4ed8"></i><i style="background:#b91c1c"></i><i style="background:#6f6252"></i></div>
+      <p><b>像贴在墙上的一叠便签</b>：纸面底色、1px 实线框、状态是贴纸式小标签、提示带像手写批注。</p>
+      <ul>
+        <li>适合：觉得工具界面太冷、想要一点人情味的人</li>
+        <li>优点：辨识度最高、状态一眼分得开</li>
+        <li>代价：与 DSH 其它页签的暗色主题不一致，切换时最跳</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>三套的差异都落在哪些具体决定上</h2>
+  <table>
+    <tr><th>决定</th><th>A 工程台账</th><th>B 终端记录</th><th>C 纸质便签</th></tr>
+    <tr><td>底色</td><td><code>#0f172a</code> 深蓝灰</td><td><code>#08080b</code> 近黑</td><td><code>#f6f1e6</code> 纸色（亮色）</td></tr>
+    <tr><td>圆角</td><td>4px</td><td>0</td><td>2px + 1px 实线</td></tr>
+    <tr><td>行高 / 内边距</td><td>30px / 6·8</td><td>26px / 4·6</td><td>32px / 7·9</td></tr>
+    <tr><td>正文字体</td><td>系统无衬线</td><td>全等宽</td><td>系统无衬线</td></tr>
+    <tr><td>路径字体</td><td>等宽</td><td>等宽</td><td>等宽</td></tr>
+    <tr><td>状态徽章</td><td>1px 描边方框，按类型着色</td><td>1px 描边方框，无底色</td><td>贴纸式实底小标签</td></tr>
+    <tr><td>提示带</td><td>左侧 3px 竖线 + 淡底</td><td>四边 1px 框，无底色</td><td>纸色底 + 手写感排版</td></tr>
+    <tr><td>段标题</td><td>大写字距</td><td>大写字距 + <code>[]</code></td><td>小字 + 实线分隔</td></tr>
+    <tr><td>主按钮</td><td>实心绿</td><td>实心绿</td><td>实心深绿</td></tr>
+  </table>
+
+  <h2>看哪几页</h2>
+  <div class="links">
+    <a href="853-vc-controls.html"><b>控件图鉴</b><span>十个部件：顶部动作、暂存提交、输入框、执行四态、徽章、提醒与挡住、读不到的一族、链接、空态与骨架</span></a>
+    <a href="853-vc-readonly.html"><b>只读全景</b><span>有改动、干净、四种进行中操作、游离头、无上游、上游被删、裸仓库、读不到、还没有提交、窄档让位</span></a>
+    <a href="853-vc-write.html"><b>写操作</b><span>动作位置、推送三档确认、拉取只做快进、多个远端、15 类失败与完成回执</span></a>
+    <a href="853-vc-diff.html"><b>差异与历史</b><span>就地展开、提交里看文件、差异九种形态、历史五种状态、其他工作树九种情形</span></a>
+  </div>
+
+  <h2>两件我照实说的事</h2>
+  <p class="lead" style="margin:0">
+    ① <b>配色与密度是查出来的，不是编的</b>：底色、强调绿、危险红、行高与字号刻度取自 UI UX Pro Max 的
+    Developer Tool / IDE 一档与 Data-Dense Dashboard 规范。<br>
+    ② <b>有一部分我没采用</b>：那个技能给「面板」推荐的落地页结构（Hero 大标题、主 CTA、FAQ 手风琴）明显是把面板当成营销页，
+    与真实用途无关；我只取了它的配色与密度刻度，形态语言自己重做。这一点写在页面注释里，你可以核。
+  </p>
+</div>
+</body>
+</html>

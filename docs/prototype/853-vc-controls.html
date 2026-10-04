@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>版本管理 · 控件图鉴（三套风格）</title>
+<link rel="stylesheet" href="853-vc-styles.css">
+<!--
+  PROTOTYPE-853 · 抛弃式设计稿 · 同一个界面的三套画法
+  用法：打开后点顶部 A / B / C 三个页签切换风格，选择会记住（sessionStorage）。
+  内容全部抄自产品词条（自造词条 0）；改文案先改产品词条，再回来改 853-vc-lib.js。
+-->
+</head>
+<body>
+<div class="bar">
+  <b>版本管理 · 三套风格</b>
+  <a href="853-vc-styles.html">风格总览</a>
+  <a href="853-vc-controls.html">控件图鉴</a>
+  <a href="853-vc-readonly.html">只读全景</a>
+  <a href="853-vc-write.html">写操作</a>
+  <a href="853-vc-diff.html">差异与历史</a>
+  <span class="sp"></span>
+  <span class="v3-style-label"></span>
+</div>
+<div class="tabs" role="tablist">
+  <button role="tab" data-s="A">A 工程台账</button>
+  <button role="tab" data-s="B">B 终端记录</button>
+  <button role="tab" data-s="C">C 纸质便签</button>
+</div>
+<div class="wrap">
+  <p class="intro">面板里每一个按钮、输入框、徽章、提示带、确认块，长什么样、各有哪几种态。点顶部页签切风格。</p>
+  <div id="app"></div>
+</div>
+<script src="853-vc-lib.js"></script>
+<script>
+var parts = [
+  SCREENS.controlsTop(), SCREENS.controlsStage(), SCREENS.controlsInput(), SCREENS.controlsStates(),
+  SCREENS.controlsBadges(), SCREENS.controlsWarns(), SCREENS.controlsBlocked(), SCREENS.controlsReadFail(),
+  SCREENS.controlsLinks(), SCREENS.controlsEmpty()
+]
+document.getElementById('app').innerHTML = cell('一 · 面板顶部动作与暂存提交', 'vc.action.* · vc.commitArea.*', '三条腿的分界：只读在顶部，改暂存区在文件行上，提交拉取推送各在自己的位置', parts[0] + parts[1] + parts[2]) +
+  cell('二 · 执行结果四态', 'vc.op.*', '', parts[3]) +
+  cell('三 · 文件行上的零件', 'vc.change.* · vc.row.*', '字母徽章是给扫一眼用的，中文词照旧在可读文本里', parts[4]) +
+  cell('四 · 提醒与挡住', 'vc.warn.* · vc.block.*', '左：只提醒不拦；右：挡住并写清为什么', '<div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr))">' + parts[5] + parts[6] + '</div>') +
+  cell('五 · 读不到的一族', 'vc.fail.*', '每种都要说清是谁的问题、人该怎么办', parts[7]) +
+  cell('六 · 链接、空态与骨架', 'vc.terminal · vc.retry · vc.changes.none · vc.noCommits', '', '<div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr))">' + parts[8] + parts[9] + '</div>')
+</script>
+</body>
+</html>
