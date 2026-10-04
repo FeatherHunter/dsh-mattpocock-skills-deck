@@ -10,7 +10,6 @@
     "src/client/kernel/store-snapshot.js": 358,
     "src/client/statusbar/StatusBar.js": 359,
     "src/host/choiceStore.js": 352,
-    "src/host/index.js": 372,
     "src/host/namingGuardian.js": 411,
     "src/host/refresh/wiring.js": 430,
     "src/host/refresh/writeEvents.js": 414,

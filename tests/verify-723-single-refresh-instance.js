@@ -68,7 +68,7 @@ function listJsFiles(dir) {
   return out
 }
 
-/** 一套「生产依赖形状」的假件：形状照 src/host/index.js:98 传进去的那一份抄（不另造一套 API）。 */
+/** 一套「生产依赖形状」的假件：形状照 src/host/index.js 里 makeRefreshLoader( 那一份抄（不另造一套 API）。 */
 let LedgerMod = null
 let GateMod = null
 const CLOCK = 1700000000000

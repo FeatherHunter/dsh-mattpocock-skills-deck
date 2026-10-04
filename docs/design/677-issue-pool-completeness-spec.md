@@ -316,7 +316,7 @@
 **三条硬事实（落地前必须先满足）**
 
 1. **详情页兜底会说假话，换薄片段之前必须先改**：`src/client/views/IssueDetail.js:160` → `:242-244` 在没有正文时画「无描述」三个字（不是加载态）；`:182-183` → `:281` 没拿到评论时显示「只读」（把「没拿到」说成「不能评论」）；`:105` 的加载态判据 `mode === 'loading' && !src` 只要池子里有那一行就被跳过。已单独成票（「修复：单票详情页的兜底不许说错话」），并挡住阶段 2。
-2. **`number` 与大写 `state` 是宿主补的，不是后端字段**：`number` 由 `src/host/sessionSnapshot.js:258/264/288` 从 `key` 现算，`state` 的大写化在 `src/host/index.js:169-181`。客户端多处直接读 `x.number` 不做 `key` 兜底（`ListTabRow.js:11/56-57/85`、`ListTab.js:110`、`api-io.js:14/23`），所以 `listPage` 拿回来的行**必须同样补**，否则点行会压进 `undefined`。
+2. **`number` 与大写 `state` 是宿主补的，不是后端字段**：`number` 由 `src/host/sessionSnapshot.js:258/264/288` 从 `key` 现算，`state` 的大写化在 `src/host/index.js:152-165`（#837 之后的行号）。客户端多处直接读 `x.number` 不做 `key` 兜底（`ListTabRow.js:11/56-57/85`、`ListTab.js:110`、`api-io.js:14/23`），所以 `listPage` 拿回来的行**必须同样补**，否则点行会压进 `undefined`。
 3. **`snapshot.issues` 是整个扁平票池，不是孤儿票数组**：`src/host/sessionSnapshot.js:289` 把「地图容器 + 全部子票 + 未挂图票」三段拼接去重（真机 40 + 287 + 183 = 510 行）。`IssueDetail.js:35-36` 的兜底只在这个数组里找 —— 改池子口径时必须回头核这条。
 
 **字段层面的两张清单（薄片段照它来）**

@@ -1,7 +1,7 @@
 /**
  * dsh-mattpocock-skills-deck · Host 半（数据层实现 · T3 #345）
- * 这是宿主入口：装配动态加载的各个工作模块与几十条宿主电话；实现都在各自文件里（#723 起刷新机制的
- * 装配在 ./refresh/wiring.js），本文件只负责装配与注册。
+ * 这是宿主入口：装配动态加载的各个工作模块与几十条宿主电话；实现都在各自文件里（#723 起刷新机制的 装配在 ./refresh/wiring.js），本文件只负责装配与注册。
+ * 这套装配分组的「从哪来、为什么留在这里、搬走的实现去了哪」见 docs/design/837-host-index-wiring-ledger.md。
  */
 
 // ===== 规范方言（dynamic dialect）：harness 为自由变量；pkg entry 提供 shim =====
@@ -11,20 +11,14 @@ export default {
   // sessionQuery 给读首轮两段用（读而不激活），缺任何一个对应功能静默降级（#746）。
   inject: ['connection', 'llm', 'sessionQuery'],
   apply(ctx) {
-    // 启动门（2026-09-26）：subprocess/timer 晚到时不再静默跳过——旧代码直接 return，
-    // wiring 与工具注册 hook 从没跑起来，deck 工具永不注册还查无对证。
-    // 先试一次；不齐就挂到框架依赖门上等人齐（官方 ctx.inject 写法，见 dsh-tool-pwsh）；
-    // 30 秒还没齐落一条 warn。
+    // 启动门（2026-09-26）：subprocess/timer 晚到时不再静默跳过——旧代码直接 return， wiring 与工具注册 hook 从没跑起来，deck 工具永不注册还查无对证。 先试一次；不齐就挂到框架依赖门上等人齐（官方 ctx.inject 写法，见 dsh-tool-pwsh）； 30 秒还没齐落一条 warn。 为何只能留在入口，见账本 §1。
     const bootBody = () => {
     const subprocess = ctx.get('subprocess')
     const timer = ctx.get('timer')
     const fs = ctx.get('fs')
     if (subprocess === undefined || timer === undefined) return false
 
-    // H1 #445：原 31–215 行（bundled provider）已搬到 ./bootstrap.js，下见动态接线。
-    // B3 rpc host 侧 shim：harness.handle('wf.x') → 本 Map；对外分发见文件末尾的
-    // connection.fetch.register('/api/dsws') 注册段（#596 由 connection.rpc.handle 换过来）。
-    // 方案 C 原样复制后 pkg 入口不再经 build.mjs 注入 shim，改为源文件自带，避免 ReferenceError: harness is not defined
+    // H1 #445：bundled provider（原 31–215 行）已搬到 ./bootstrap.js；B3 rpc shim 与「方案 C 原样复制」的原委见 docs/design/837-host-index-wiring-ledger.md §2，下接动态接线与分发注册。
     const __DSW_HANDLERS__ = new Map()
     const harness = {
       handle: (method, fn) => {
@@ -59,8 +53,7 @@ export default {
     // H1 #445：原 259–491 行（注册表/平台/探测）已搬到 ./platformChannel.js。
     let lastProbeAtByRepo = {}                            // v1.5 R2 + R2-fix-6（#2 MVP）：probe since 时间戳，按 repoKey 隔离（只在 probe 检测到 change 时推进；build 不得动它 —— 否则会吞掉同窗口编辑，见 buildSnapshot 处注释）
     let lastIssueIndexByRepo = {}                          // #2 deletion fix：保存上次全量 issue 索引，用于发现 GitHub 删除/状态消失
-    // #491 房外公共区埋点：宿主侧日志上下文（设计 #335 第 3 章房外行 + #489 白名单；房间目录文件一律不碰）。
-    // fire 防火即发（只进队列就返回，不等写盘）；函数式字段在开关判断通过后才求值；isEnabled 供 P1 外层判断（权威仍是库体内兜底）。
+    // #491 房外公共区埋点：宿主侧日志上下文（设计 #335 第 3 章房外行 + #489 白名单；房间目录文件一律不碰）。 fire 防火即发（只进队列就返回，不等写盘）；函数式字段在开关判断通过后才求值；isEnabled 供 P1 外层判断（权威仍是库体内兜底）。
     let logSwitchCache = false
     function fireLog(level, event, fieldsOrFn) { try { _log().then(function (h) { try { if (!h.isEnabled(level, event)) return; if (h.getSwitchState) { try { logSwitchCache = h.getSwitchState().enabled === true } catch (eC) {} } const fields = (typeof fieldsOrFn === 'function') ? fieldsOrFn() : fieldsOrFn; h.log(level, event, fields || {}) } catch (e) {} }).catch(function () {}) } catch (e) {} }
     function isLogEnabled(level) { if (level === 'error' || level === 'warn') return true; return logSwitchCache === true }
@@ -99,8 +92,7 @@ export default {
     let _refreshWiringP = null
     try { _boot().catch(function(){}); _dispatchMeta().catch(function(){}); _refreshWiringP = import('./refresh/wiring.js').then(function (m) { return m.makeRefreshLoader({ ctx: ctx, logCtx: logCtx, canonicalKey: function () { return canonicalKey.apply(null, arguments) }, getCacheDir: function () { return getCacheDir.apply(null, arguments) }, getTrackerRegistry: function () { return getTrackerRegistry.apply(null, arguments) }, getDetectionService: function () { return getDetectionService.apply(null, arguments) }, getPlatform: function () { return getPlatform.apply(null, arguments) }, detectionExec: function () { return detectionExec.apply(null, arguments) }, setCache: setCache, getCache: getCache, readDiskCache: function () { return readDiskCache.apply(null, arguments) }, writeDiskCache: function () { return writeDiskCache.apply(null, arguments) }, runGh: function () { return runGh.apply(null, arguments) }, getRepoKey: function () { return getRepoKey.apply(null, arguments) }, fetchIssueIndex: function () { return fetchIssueIndex.apply(null, arguments) }, issueIndexFromSnapshot: function () { return issueIndexFromSnapshot.apply(null, arguments) }, getNaming: function () { return _naming() } })() }) } catch (e0) {}
     try { _plat().then(function(pl){ try { pl.getTrackerRegistry().catch(function(){}) } catch (e1) {} }).catch(function(){}) } catch (e2) {}
-    // ---- H2 #446 接线：3 新文件动态 import 加载（D7 禁止静态 import），依赖全显式传入；新文件之间不互引用 ----
-    // 留守（行为零变化优先；调用方在 H4/H5/H6 的同步上下文里，动态加载给不出同步函数）：computeLevels/groupTickets（H4 三处同步分组）、isRateLimitError（H5 三处同步判别）、issueIndexFromSnapshot/issueIndexChanged/rememberIssueIndex（H6 探测同步取值与同刻写表）。
+    // ---- H2 #446 接线：3 新文件动态 import 加载（D7 禁止静态 import），依赖全显式传入；新文件之间不互引用 ---- 留守（行为零变化优先；调用方在 H4/H5/H6 的同步上下文里，动态加载给不出同步函数）：computeLevels/groupTickets（H4 三处同步分组）、isRateLimitError（H5 三处同步判别）、issueIndexFromSnapshot/issueIndexChanged/rememberIssueIndex（H6 探测同步取值与同刻写表）。 这一组的拆分缘由见账本 §3。
     let _mapBodyP = null
     function _mapBody() { if (!_mapBodyP) _mapBodyP = import('./mapBody.js').then(function(m){ return m.createMapBody() }); return _mapBodyP }
     let _issueListP = null
@@ -109,7 +101,6 @@ export default {
     // #599：快照组装在 snapshotBuild.js（单票详情仍在 issueDetail.js）；两边共享的东西由这里组合后传进去 —— 同层互引门禁不许两个干活的文件互相引用，组合点落在入口（既有 25 条同形先例）。
     function _issueSnap() { let p = null; if (!p) p = (async function(){ const mod = await import('./snapshotBuild.js'); const detail = await _issueDetail(); const mb = await _mapBody(); const grp = await _group(); return mod.createSnapshotBuilder({ getRepoKey: function(){ return getRepoKey.apply(null, arguments) }, runGh: function(){ return runGh.apply(null, arguments) }, execProc: function(){ return execProc.apply(null, arguments) }, getTrackerRegistry: function(){ return getTrackerRegistry.apply(null, arguments) }, getPlatform: function(){ return getPlatform.apply(null, arguments) }, getRepoRoot: function(){ return getRepoRoot.apply(null, arguments) }, ctx: ctx, timer: timer, getGhPath: function(){ return ghPath }, getGhLastError: function(){ return ghLastError }, fetchIssues: function(){ return fetchIssues.apply(null, arguments) }, fetchMapsDetailREST: function(){ return fetchMapsDetailREST.apply(null, arguments) }, fetchMapsDetail: detail.fetchMapsDetail, mapTicket: mb.mapTicket, parseMapBody: mb.parseMapBody, computeLevels: grp.computeLevels, groupTickets: grp.groupTickets, isRateLimitError: isRateLimitError }) })(); return p }
     function _issueDetail() { if (!_issueDetailP) _issueDetailP = (async function(){ const mod = await import('./issueDetail.js'); return mod.createIssueDetail({ getRepoKey: function(){ return getRepoKey.apply(null, arguments) }, runGh: function(){ return runGh.apply(null, arguments) }, execProc: function(){ return execProc.apply(null, arguments) }, getTrackerRegistry: function(){ return getTrackerRegistry.apply(null, arguments) }, getPlatform: function(){ return getPlatform.apply(null, arguments) }, getRepoRoot: function(){ return getRepoRoot.apply(null, arguments) }, ctx: ctx, timer: timer, getGhPath: function(){ return ghPath }, getGhLastError: function(){ return ghLastError }, isRateLimitError: isRateLimitError }) })(); return _issueDetailP }
-    // ---- H2 #446 委托：原函数名与签名不变，外部调用方零改动 ----
     async function normalizeBody() { const h = await _mapBody(); return h.normalizeBody.apply(h, arguments) }
     async function parseMapBody() { const h = await _mapBody(); return h.parseMapBody.apply(h, arguments) }
     async function parseProgress() { const h = await _mapBody(); return h.parseProgress.apply(h, arguments) }
@@ -127,8 +118,7 @@ export default {
     async function fetchIssueDetailREST() { const h = await _issueDetail(); return h.fetchIssueDetailREST.apply(h, arguments) }
     async function fetchIssueDetail() { const h = await _issueDetail(); return h.fetchIssueDetail.apply(h, arguments) }
     async function buildSnapshot() { const h = await _issueSnap(); return h.buildSnapshot.apply(h, arguments) }
-    // ---- H3 #447 接线：3 新文件动态 import 加载，新文件之间不互引用 ----
-    // 留守：parseGithubRepo 留守（repoKeys 同步调用）；链表由本块持有（按工作区根+后端+语言，30秒有效，最多20条）；harness.handle 注册留守。
+    // ---- H3 #447 接线：3 新文件动态 import 加载，新文件之间不互引用 ---- 留守：parseGithubRepo 留守（repoKeys 同步调用）；链表由本块持有（按工作区根+后端+语言，30秒有效，最多20条）；harness.handle 注册留守。 这一组的拆分缘由见账本 §4。
     const chainByKey = new Map()
     function touchChainLRU(k, v) { if (chainByKey.has(k)) chainByKey.delete(k); chainByKey.set(k, v); if (chainByKey.size > 20) chainByKey.delete(chainByKey.keys().next().value) }
     function getChainCache(key) { if (!key) return { ts: 0, key: null, value: null }; const k = String(key); const e = chainByKey.get(k); if (e) { chainByKey.delete(k); chainByKey.set(k, e); return e } return { ts: 0, key: k, value: null } }
@@ -144,7 +134,6 @@ export default {
       return getChainBackoff._p
     }
     function _detectChain() { if (!_detectChainP) _detectChainP = (async function(){ const mod = await import('./detectChain.js'); const w = _refreshWiringP ? await _refreshWiringP.catch(function(){ return null }) : null; const ghMod = await import('./tracker/backends/github/client.js').catch(function(){ return null }); return mod.createDetectChain({ gate: (w && w.gate) || null, ghTimeoutMs: ghMod ? ghMod.TIMEOUT_MS : 0, canonicalKey: function(){ return canonicalKey.apply(null, arguments) }, DEFAULT_CWD: DEFAULT_CWD, resetGhCache: function(){ return resetGhCache.apply(null, arguments) }, getDetectionService: function(){ return getDetectionService.apply(null, arguments) }, getPlatform: function(){ return getPlatform.apply(null, arguments) }, getTrackerRegistry: function(){ return getTrackerRegistry.apply(null, arguments) }, getRepoKey: function(){ return getRepoKey.apply(null, arguments) }, runGh: function(){ return runGh.apply(null, arguments) }, timer: timer, probeSkill: function(){ return probeSkill.apply(null, arguments) }, mdParseOkPredicate: function(){ return mdParseOkPredicate.apply(null, arguments) }, getChainCache: getChainCache, setChainCache: setChainCache, getChainBackoff: getChainBackoff, logCtx: logCtx }) })(); return _detectChainP }
-    // ---- H3 #447 委托：原函数名与签名不变，外部调用方零改动 ----
     async function mdParseOkPredicate() { const h = await _remotePred(); return h.mdParseOkPredicate.apply(h, arguments) }
     async function mdMapCandidates() { const h = await _remotePred(); return h.mdMapCandidates.apply(h, arguments) }
     async function fileExistsChainRel() { const h = await _remotePred(); return h.fileExistsChainRel.apply(h, arguments) }
@@ -159,9 +148,7 @@ export default {
     async function lightProbeReason() { const h = await _skillProbe(); return h.lightProbeReason.apply(h, arguments) }
     async function probeSkill() { const h = await _skillProbe(); return h.probeSkill.apply(h, arguments) }
 
-    // H2 #446 留守：upcaseState/upcaseSnapStates 留入口（H4 四处同步升格快照状态；动态加载给不出同步函数）。
-    // 客户端契约：state 按旧链路大写 OPEN/CLOSED（mapTicket 曾如此）；composer 归一为小写 open/closed，
-    //   在此适配层统一升格，避免客户端把全部 closed 误判为 open（#327 面板“0 已关闭/大量错误状态”根因）。
+    // H2 #446 留守：upcaseState/upcaseSnapStates 留入口（H4 四处同步升格快照状态；动态加载给不出同步函数）。 客户端契约：state 按旧链路大写 OPEN/CLOSED（mapTicket 曾如此）；composer 归一为小写 open/closed， 在此适配层统一升格，避免客户端把全部 closed 误判为 open（#327 面板“0 已关闭/大量错误状态”根因）。
     const upcaseState = function (s) { return String(s || '').toUpperCase() === 'CLOSED' ? 'CLOSED' : 'OPEN' }
     const upcaseSnapStates = function (inner) {
       if (!inner || typeof inner !== 'object') return inner
@@ -204,8 +191,7 @@ export default {
       return /rate\s*limit|ratelimit|403/.test(t)
     }
 
-    // v1.3.3 提速：GraphQL aliases 一次查询全部 map 详情（8 次 → 1 次，Windows 下串行 8×2.4s → 单次 ~3.6s）
-    //   每个 map 一个 alias（m0/m1/...），响应按 alias 取；网络类失败整批重试 1 次
+    // v1.3.3 提速：GraphQL aliases 一次查询全部 map 详情（8 次 → 1 次，Windows 下串行 8×2.4s → 单次 ~3.6s） 每个 map 一个 alias（m0/m1/...），响应按 alias 取；网络类失败整批重试 1 次
 
     // ============ git 远程解析（getRepoKey 与后端谓词复用，#284）============
     // 解析 git 远程 URL → GitHub owner/repo；非 GitHub 返回 null
@@ -215,17 +201,10 @@ export default {
       if (!m) return null
       return { owner: m[1], name: m[2] }
     }
-    // H3 #447 留守：见上接线区。
-
-    // H3 #447：见上接线区（原本地图谱谓词）。
-
-    // H3 #447：见上接线区（原技能探测通道）。
-
-    // H3 #447：见上接线区（原探测编排处理器）。
+    // H3 #447：远程谓词、技能探测通道、探测编排三组接线都在上面 H3 段（原委见账本 §4）。
     harness.handle('wf.detect', async function (args) { const h = await _detectChain(); return h.handleDetect(args) })
     harness.handle('wf.chain', async function (args) { const h = await _detectChain(); return h.handleChain(args) })
-    // ---- H4 #448 接线：3 新文件动态 import 加载（D7 禁止静态 import），依赖全显式传入；新文件之间不互引用 ----
-    // harness 留守原因：harness.handle 在 apply 同步注册，动态 import 无法同步供给。
+    // ---- H4 #448 接线：3 新文件动态 import 加载（D7 禁止静态 import），依赖全显式传入；新文件之间不互引用 ---- harness 留守原因：harness.handle 在 apply 同步注册，动态 import 无法同步供给。 这一组的拆分缘由见账本 §5。
     let _sessLifeP = null
     function _sessLife() { if (!_sessLifeP) _sessLifeP = (async function(){ const mod = await import('./sessionLifecycle.js'); return mod.createSessionLifecycle({ ctx: ctx, DEFAULT_CWD: DEFAULT_CWD, errText: errText, canonicalKey: function(){ return canonicalKey.apply(null, arguments) }, getDetectionService: function(){ return getDetectionService.apply(null, arguments) }, getTrackerRegistry: function(){ return getTrackerRegistry.apply(null, arguments) }, getPlatform: function(){ return getPlatform.apply(null, arguments) }, logCtx: logCtx }) })(); return _sessLifeP }
     let _sessSnapP = null
@@ -234,11 +213,9 @@ export default {
     function _mapTickets() { if (!_mapTicketsP) _mapTicketsP = (async function(){ const life = await _sessLife(); const mod = await import('./mapTickets.js'); const grp = await _group(); return mod.createMapTickets({ canonicalKey: function(){ return canonicalKey.apply(null, arguments) }, selectEarly: life.selectEarly, isComposerSelection: life.isComposerSelection, getTrackerRegistry: function(){ return getTrackerRegistry.apply(null, arguments) }, getPlatform: function(){ return getPlatform.apply(null, arguments) }, ctx: ctx, DEFAULT_CWD: DEFAULT_CWD, logCtx: logCtx, groupTickets: grp.groupTickets, getMapBody: function(){ return _mapBody() }, detectionExec: function(){ return detectionExec.apply(null, arguments) } }) })(); return _mapTicketsP }
     let _sessRefP = null
     function _sessRef() { if (!_sessRefP) _sessRefP = (async function(){ const life = await _sessLife(); const mod = await import('./sessionRefresh.js'); const env = await import('./snapshotEnvelope.js'); const grp = await _group(); let ckr = null; let w0 = null; try { w0 = await _refreshWiringP; ckr = w0 && w0.chainReadout ? w0.chainReadout : null } catch (eW) {} return mod.createSessionRefresh({ envelope: env.createSnapshotEnvelope({ getGhPath: function(){ return ghPath }, getGhLastError: function(){ return ghLastError }, adoptSnapshot: function(){ return adoptSnapshot.apply(null, arguments) }, logCtx: logCtx, chainReadout: ckr, chainField: (w0 && w0.chainField) || 'sessionTickets' }), chainReadout: ckr, chainField: (w0 && w0.chainField) || 'sessionTickets', canonicalKey: function(){ return canonicalKey.apply(null, arguments) }, selectEarly: life.selectEarly, isComposerSelection: life.isComposerSelection, resetGhCache: function(){ return resetGhCache.apply(null, arguments) }, getTrackerRegistry: function(){ return getTrackerRegistry.apply(null, arguments) }, getPlatform: function(){ return getPlatform.apply(null, arguments) }, ctx: ctx, getCache: getCache, setCache: setCache, upcaseSnapStates: upcaseSnapStates, computeLevels: grp.computeLevels, groupTickets: grp.groupTickets, getRepoRoot: function(){ return getRepoRoot.apply(null, arguments) }, getRepoKey: function(){ return getRepoKey.apply(null, arguments) }, readDiskCache: function(){ return readDiskCache.apply(null, arguments) }, writeDiskCache: function(){ return writeDiskCache.apply(null, arguments) }, adoptSnapshot: function(){ return adoptSnapshot.apply(null, arguments) }, detectionExec: function(){ return detectionExec.apply(null, arguments) }, getGhPath: function(){ return ghPath }, getGhLastError: function(){ return ghLastError }, errText: errText, DEFAULT_CWD: DEFAULT_CWD, logCtx: logCtx }) })(); return _sessRefP }
-    // ---- H4 #448 委托：电话名与签名不变，外部调用方零改动 ----
     // #498 退役：wf.ping 删注册（全仓零调用点、零日志行；探活改走 wf.logGetSwitch）。handlePing 实现留守（他处未引用，删注册不断链）。
 
-    // v13：按 sessionId 反查会话工作目录（client 切换对话时用；宿主 sessions.meta 是权威字段，
-    // 不再依赖 client 猜测 ConversationSnapshot 字段名）
+    // v13：按 sessionId 反查会话工作目录（client 切换对话时用；宿主 sessions.meta 是权威字段， 不再依赖 client 猜测 ConversationSnapshot 字段名）
     // 错误对象 → 可读文本：fetchMaps/buildSnapshot 抛出的是 {kind, error} 对象，String() 会变 [object Object]
     const errText = function (e) {
       if (e === undefined || e === null) return '未知错误'
@@ -256,8 +233,7 @@ export default {
     // #691：地图子票按需取（in-panel 地图详情页打开时调用；后端没实现这条读路径时界面照旧用快照那份）
     harness.handle('wf.mapTickets', async function (args) { const h = await _mapTickets(); return h.handleMapTickets(args) })
 
-    // #758：七个 deck 工具的宿主代执行（agent 行经它拿真结果；同一份闸与注册表）。
-    // 平台区动态引入（D7；平台区被排除在宿主层之外，不新增同层边）。
+    // #758：七个 deck 工具的宿主代执行（agent 行经它拿真结果；同一份闸与注册表）。 平台区动态引入（D7；平台区被排除在宿主层之外，不新增同层边）。
     let _deckExecP = null
     function _deckExec() { if (!_deckExecP) _deckExecP = (async function(){ const mod = await import('./platform/deckExec.js'); return mod.createDeckExec({ getTable: function(){ return _refreshWiringP.then(function(w){ return (w && typeof w.deckToolsForHost === 'function') ? w.deckToolsForHost() : null }) }, logCtx: logCtx }) })(); return _deckExecP }
     harness.handle('wf.deckExec', async function (args) { const h = await _deckExec(); return h.handleDeckExec(args) })
@@ -269,16 +245,13 @@ export default {
 
     harness.handle('wf.refresh', async function (args) { const h = await _sessRef(); return h.handleRefresh(args) })
 
-    // #707（T3）视野模型：判定在 refresh-core/src/attention.ts 的产物里；#723（T19）起用接线那一份同一个实例——
-    // wf.focus 上报的「我在看谁」必须与写事件白名单、闸的活跃集合同源（票面 3c）。
+    // #707（T3）视野模型：判定在 refresh-core/src/attention.ts 的产物里；#723（T19）起用接线那一份同一个实例—— wf.focus 上报的「我在看谁」必须与写事件白名单、闸的活跃集合同源（票面 3c）。
     harness.handle('wf.focus', function (args) { return _refreshWiringP.then(function (w) { return w.focus(args) }) })
-    // ---- H5 #449 接线：2 新文件动态 import 加载（D7 禁止静态 import），依赖全显式传入；新文件之间不互引用 ----
-    // 留守：harness.handle 注册留守（apply 同步注册，动态加载无法同步供给）；isRateLimitError 留守（H2 已注：H5 三处同步判别经显式参数复用同一份）。
+    // ---- H5 #449 接线：2 新文件动态 import 加载（D7 禁止静态 import），依赖全显式传入；新文件之间不互引用 ---- 留守：harness.handle 注册留守（apply 同步注册，动态加载无法同步供给）；isRateLimitError 留守（H2 已注：H5 三处同步判别经显式参数复用同一份）。 这一组的拆分缘由见账本 §6。
     let _workspaceP = null
     function _workspace() { if (!_workspaceP) _workspaceP = (async function(){ const mod = await import('./workspaceCwd.js'); return mod.createWorkspaceCwd({ ctx: ctx, DEFAULT_CWD: DEFAULT_CWD, getPlatform: function(){ return getPlatform.apply(null, arguments) }, getTrackerRegistry: function(){ return getTrackerRegistry.apply(null, arguments) }, getWorkspaceStore: function(){ return getWorkspaceStore.apply(null, arguments) }, getChoiceStore: function(){ return getChoiceStore.apply(null, arguments) }, canonicalKey: function(){ return canonicalKey.apply(null, arguments) }, setCache: setCache, timer: timer, detectionExec: function(){ return detectionExec.apply(null, arguments) }, logCtx: logCtx }) })(); return _workspaceP }
     let _commentsP = null
     function _comments() { if (!_commentsP) _commentsP = (async function(){ const ws = await _workspace(); const life = await _sessLife(); const mod = await import('./commentThreads.js'); return mod.createCommentThreads({ normCwd: ws.normCwd, canonicalKey: function(){ return canonicalKey.apply(null, arguments) }, selectEarly: life.selectEarly, isComposerSelection: life.isComposerSelection, getTrackerRegistry: function(){ return getTrackerRegistry.apply(null, arguments) }, getPlatform: function(){ return getPlatform.apply(null, arguments) }, ctx: ctx, timer: timer, DEFAULT_CWD: DEFAULT_CWD, errText: errText, isRateLimitError: isRateLimitError, getRepoKey: function(){ return getRepoKey.apply(null, arguments) }, runGh: function(){ return runGh.apply(null, arguments) }, execProc: function(){ return execProc.apply(null, arguments) }, fetchIssueDetail: function(){ return fetchIssueDetail.apply(null, arguments) }, fetchIssueIndex: function(){ return fetchIssueIndex.apply(null, arguments) }, fetchIssueIndexWindowed: function(){ return fetchIssueIndexWindowed.apply(null, arguments) }, issueIndexFromSnapshot: issueIndexFromSnapshot, issueIndexChanged: issueIndexChanged, rememberIssueIndex: rememberIssueIndex, commitIssueIndex: function () { return commitIssueIndex.apply(null, arguments) }, getCache: getCache, setCache: setCache, lastIssueIndexByRepo: lastIssueIndexByRepo, lastProbeAtByRepo: lastProbeAtByRepo, deltaRefresh: function (cwd, opts) { return _refreshWiringP.then(function (w) { return w.deltaRefresh(cwd, opts) }) }, logCtx: logCtx }) })(); return _commentsP }
-    // ---- H5 #449 委托：原函数名与签名不变，外部调用方（含 H6 认领/交接）零改动 ----
     let _issuePageP = null; function _issuePage() { if (!_issuePageP) _issuePageP = (async function(){ const ws = await _workspace(); const life = await _sessLife(); const mod = await import('./issuePage.js'); return mod.createIssuePage({ normCwd: ws.normCwd, selectEarly: life.selectEarly, getTrackerRegistry: function(){ return getTrackerRegistry.apply(null, arguments) }, getPlatform: function(){ return getPlatform.apply(null, arguments) }, getRepoKey: function(){ return getRepoKey.apply(null, arguments) }, ctx: ctx, DEFAULT_CWD: DEFAULT_CWD, detectionExec: function(){ return detectionExec.apply(null, arguments) }, logCtx: logCtx }) })(); return _issuePageP }
     harness.handle('wf.issuesPage', async function (args) { const h = await _issuePage(); return h.handleIssuesPage(args) }) // #690 历史票按页取（已关闭票按需翻页那三个触发点的唯一出口）
     async function normCwd() { const h = await _workspace(); return h.normCwd.apply(h, arguments) }
@@ -287,8 +260,7 @@ export default {
     harness.handle('wf.registry', async function () { const h = await _workspace(); return h.handleRegistry.apply(h, arguments) })
     harness.handle('wf.selection', async function () { const h = await _workspace(); return h.handleSelection.apply(h, arguments) })
     harness.handle('wf.setupLayout', async function (args) { const h = await _workspace(); return h.handleSetupLayout(args) }) // #683（F1 · ADR 的 R6）：布局答案按工作区记（H 与 C 各一份），卡片确认同时写两处。
-    // #627 标签配色两条电话：端点名与契约操作名一致（listLabels / setLabelColors），
-    //   界面经客户端到宿主那条既有接口（/api/dsws 通道按端点名分发）就能调到它们。
+    // #627 标签配色两条电话：端点名与契约操作名一致（listLabels / setLabelColors）， 界面经客户端到宿主那条既有接口（/api/dsws 通道按端点名分发）就能调到它们。
     harness.handle('wf.listLabels', async function (args) { const h = await _workspace(); return h.handleListLabels(args) })
     harness.handle('wf.setLabelColors', async function (args) { const h = await _workspace(); return h.handleSetLabelColors(args) })
     harness.handle('wf.issueDetail', async function () { const h = await _comments(); return h.handleIssueDetail.apply(h, arguments) })
@@ -296,8 +268,7 @@ export default {
     harness.handle('wf.commentIssue', async function () { const h = await _comments(); return h.handleCommentIssue.apply(h, arguments) })
     harness.handle('wf.probe', async function () { const h = await _comments(); return h.handleProbe.apply(h, arguments) })
 
-    // ---- H6 #450 接线：5 新文件动态 import 加载（D7 禁止静态 import），依赖全显式传入；新文件之间不互引用 ----
-    // 第 5 件 ticketGrouping 为压线追加（用户定夺）：computeLevels/groupTickets 纯函数搬出，H2/H4 loader 取值后转供给。
+    // ---- H6 #450 接线：5 新文件动态 import 加载（D7 禁止静态 import），依赖全显式传入；新文件之间不互引用 ---- 第 5 件 ticketGrouping 为压线追加（用户定夺）：computeLevels/groupTickets 纯函数搬出，H2/H4 loader 取值后转供给。 这一组的拆分缘由见账本 §7。
     let _handoffP = null
     function _handoff() { if (!_handoffP) _handoffP = (async function(){ const mod = await import('./handoffClaim.js'); return mod.createHandoffClaim({ fs: fs, DEFAULT_CWD: DEFAULT_CWD, normCwd: function(){ return normCwd.apply(null, arguments) }, getDetectionService: function(){ return getDetectionService.apply(null, arguments) }, getTrackerRegistry: function(){ return getTrackerRegistry.apply(null, arguments) }, getPlatform: function(){ return getPlatform.apply(null, arguments) }, ctx: ctx, getRepoKey: function(){ return getRepoKey.apply(null, arguments) }, runGh: function(){ return runGh.apply(null, arguments) }, setCache: setCache, logCtx: logCtx }) })(); return _handoffP }
     let _namingP = null
@@ -343,14 +314,10 @@ export default {
     harness.handle('wf.updateStatus', async function (args) { const h = await _update(); return h.handleUpdateStatus(args) })
     harness.handle('wf.updateCheck', async function (args) { const h = await _update(); return h.handleUpdateCheck(args) })
     harness.handle('wf.updateInstall', async function (args) { const h = await _update(); return h.handleUpdateInstall(args) })
-    // 轮询已按 #348 Q3 关闭（60s 全量贴配额上限）：纯手动刷新 + 打开面板即刷，自动待 P1 再议。
-    // #709（T5）：命名守护改事件驱动——从前这里启动的 15 秒自续 tick 已整体退役。现在启动动作
-    //   只做一次性铺垫（预热跟踪态、把可能已经攒下的脏账落盘），此后每一跳都由事件带起来：
-    //   `gh issue create` 被拦截、新会话注册、认领推送，以及客户端那四种事件顺带上报的兜底（10 分钟至多一次，每次只轮转扫一个仓库）。
-    //   宿主侧没有任何自续定时器（T5 起这条纪律由门禁守着）。
+    // 轮询已按 #348 Q3 关闭（60s 全量贴配额上限）：纯手动刷新 + 打开面板即刷，自动待 P1 再议。命名守护按 #709（T5）改事件驱动，
+    // 下面这一次只做一次性铺垫（预热跟踪态、把攒下的脏账落盘），此后每一跳都由事件带起来，宿主侧没有自续定时器（由门禁守着）。缘由见账本 §8。
     _naming().then(function(h){ try { h.startNamingGuardianEvents() } catch (eEvents) {} }).catch(function(){})
-    // ---- RPC 通道注册（#596 换到 /api 载体，细节见 ./rpcChannel.js，这里只递端点表与日志函数）----
-    // 这里那个 catch 只兜「本文件加载 rpcChannel.js 失败」；通道注册失败由 rpcChannel.js 自己记账。
+    // ---- RPC 通道注册（#596 换到 /api 载体，细节见 ./rpcChannel.js，这里只递端点表与日志函数）---- 这里那个 catch 只兜「本文件加载 rpcChannel.js 失败」；通道注册失败由 rpcChannel.js 自己记账。
     let _rpcChannelP = null
     function _rpcChannel() { if (!_rpcChannelP) _rpcChannelP = import('./rpcChannel.js'); return _rpcChannelP }
     _rpcChannel().then(function (ch) {
