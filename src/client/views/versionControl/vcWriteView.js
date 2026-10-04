@@ -77,6 +77,7 @@ export const vcWriteTailNodes = function (h, o) {
           w.result.retryable ? h('button', { key: 'retry', className: 'dsws-btn', type: 'button', 'data-vc-op-retry': 1, onClick: o.retryResult, style: { flex: 'none', fontSize: 10, padding: '0 6px' } }, o.tr('vc.retry')) : null,
         ]),
         w.result.limit ? h('div', { key: 'limit', 'data-vc-op-limit': 1, style: { fontSize: 10, color: o.tone('caption'), lineHeight: 1.5 } }, w.result.limit) : null,
+        w.result.ai ? h('div', { key: 'ai', style: { marginTop: 6 } }, vcAiButtonNode(h, { ai: w.result.ai, tr: o.tr, onOpen: o.openHandoff })) : null,
       ])
     : null
   // 多远端 + 没有上游：候选远端来自失败回包的顶层 remotes，画成一排可点的入口（选中后带 remote 重跑预检）。

@@ -86,6 +86,7 @@ const LEAVES = [
   { file: 'src/client/views/versionControl/vcRows.js', exports: ['vcGroupOfRow', 'vcFileRowsOf', 'vcRowViewOf', 'vcOtherRowOf', 'vcReadsOf', 'vcDiffOpenKeyOf'], components: [] }, // #850：展开键两边共用这一个函数
     { file: 'src/client/views/versionControl/vcDiffOps.js', exports: ['vcDiffOpsOf'], components: [] }, // #857
   { file: 'src/client/views/versionControl/vcViews.js', exports: ['VC_VIEWS', 'vcRememberedView', 'vcRememberView', 'vcResetViewMemory', 'vcViewOf', 'vcViewCountsOf', 'vcViewBlocksOf', 'vcViewTabsNode'], components: [] }, // #853 第三步：布局 C 的三个视图
+  { file: 'src/client/views/versionControl/vcAiHandoff.js', exports: ['VC_AI_READ_FAIL_KINDS', 'vcAiHandoffOf', 'vcAiButtonNode', 'vcOpenAiHandoff'], components: [] }, // #854：AI 交接（prompt 三段式 + 按钮节点 + 开会话路由）
 { file: 'src/client/views/versionControl/vcWrite.js', exports: ['VC_WRITE_OPS', 'VC_BLOCK_KEY', 'vcBlockKeyOf', 'vcReasonKeysOf', 'vcOpStateOf', 'vcPushDecisionOf', 'vcBlockedTipOf', 'vcPlanMismatchOf', 'VC_WRITE_ERR_FAMILY', 'vcWriteErrFamilyOf', 'vcWriteErrKeyOf', 'vcConfirmOf'], components: [] },
   { file: 'src/client/views/versionControl/vcWriteRun.js', exports: ['VC_WRITE_PHONES', 'vcRunCheck', 'vcRunWrite', 'vcOpResultOf', 'vcAfterWrite'], components: [] },
   { file: 'src/client/views/versionControl/vcWriteUi.js', exports: ['vcWriteUiOf', 'vcRowStageOf'], components: [] },

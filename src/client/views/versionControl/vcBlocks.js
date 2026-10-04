@@ -92,6 +92,8 @@ export const vcBlocksOf = function (screen, reads, ui, env) {
         rawTip: err.message ? t('vc.fail.raw', { msg: String(err.message) }) : '',
         // 「这个目录不在任何 git 仓库里」不是读取失败，是这个目录本来就不是仓库：不给重试按钮。
         retry: kind === 'not-repo' ? '' : t('vc.retry'),
+        // #854：这五档是「换个地方能动手」的读失败，配一个交出去的描述；配环境那几档不配。
+        ai: VC_AI_READ_FAIL_KINDS.indexOf(String(err.kind || '')) >= 0 ? { kind: 'read-fail', errorKind: String(err.kind || ''), summary: t(vcFailKeyOf(kind)), detail: err.message ? t('vc.fail.raw', { msg: String(err.message) }) : '' } : null,
       }]
     }
     return []
@@ -106,10 +108,10 @@ export const vcBlocksOf = function (screen, reads, ui, env) {
   const repo = screen.repo || {}
   const identity = screen.identity || {}
   const bandItems = []
-  if (repo.merging === true) bandItems.push({ key: 'merge', tone: 'warning', text: t('vc.band.merge'), tip: t('vc.band.terminalTip') })
-  if (repo.rebasing === true) bandItems.push({ key: 'rebase', tone: 'warning', text: t('vc.band.rebase'), tip: t('vc.band.terminalTip') })
-  if (repo.cherryPicking === true) bandItems.push({ key: 'cherry', tone: 'warning', text: t('vc.band.cherryPick'), tip: t('vc.band.terminalTip') })
-  if (repo.reverting === true) bandItems.push({ key: 'revert', tone: 'warning', text: t('vc.band.revert'), tip: t('vc.band.terminalTip') })
+  if (repo.merging === true) bandItems.push({ key: 'merge', tone: 'warning', text: t('vc.band.merge'), tip: t('vc.band.terminalTip'), ai: { kind: 'midop', summary: t('vc.band.merge'), detail: t('vc.band.terminalTip') } })
+  if (repo.rebasing === true) bandItems.push({ key: 'rebase', tone: 'warning', text: t('vc.band.rebase'), tip: t('vc.band.terminalTip'), ai: { kind: 'midop', summary: t('vc.band.rebase'), detail: t('vc.band.terminalTip') } })
+  if (repo.cherryPicking === true) bandItems.push({ key: 'cherry', tone: 'warning', text: t('vc.band.cherryPick'), tip: t('vc.band.terminalTip'), ai: { kind: 'midop', summary: t('vc.band.cherryPick'), detail: t('vc.band.terminalTip') } })
+  if (repo.reverting === true) bandItems.push({ key: 'revert', tone: 'warning', text: t('vc.band.revert'), tip: t('vc.band.terminalTip'), ai: { kind: 'midop', summary: t('vc.band.revert'), detail: t('vc.band.terminalTip') } })
   const conflicts = Math.max(0, Number(screen.conflictCount) || 0)
   // 冲突这句是按仓库级标记说的（正在合并 → 你这边与要合进来那边；正在变基 → 已在分支上那些与正在重放的那一笔）。
   //   每条冲突各自的「两侧来源」模型里没有（宿主回包只给 conflictCount 与条目的 conflict 标记），
@@ -118,6 +120,7 @@ export const vcBlocksOf = function (screen, reads, ui, env) {
     key: 'conflicts', tone: 'warning',
     text: t('vc.conflicts.count', { n: String(conflicts) }),
     tip: (repo.merging === true ? t('vc.conflicts.merge') : (repo.rebasing === true ? t('vc.conflicts.rebase') : t('vc.conflicts.other'))) + ' ' + t('vc.band.terminalTip'),
+    ai: { kind: 'conflict', summary: t('vc.conflicts.count', { n: String(conflicts) }), detail: (repo.merging === true ? t('vc.conflicts.merge') : (repo.rebasing === true ? t('vc.conflicts.rebase') : t('vc.conflicts.other'))) },
   })
   if (repo.hasCommits === false && repo.bare !== true) bandItems.push({ key: 'noc', tone: 'caption', text: t('vc.noCommits'), tip: t('vc.noCommitsTip') })
   if (bandItems.length) blocks.push({ kind: 'band', key: 'band', items: bandItems })
@@ -255,6 +258,6 @@ export const vcBlocksOf = function (screen, reads, ui, env) {
     empty: others.length === 0,
     emptyText: t('vc.other.empty'),
   })
-  blocks.push({ kind: 'terminal', key: 'terminal', text: t('vc.terminal'), tip: t('vc.terminalTip') })
+  blocks.push({ kind: 'terminal', key: 'terminal', text: t('vc.terminal'), tip: t('vc.terminalTip'), ai: { kind: 'boundary', summary: t('vc.terminal') } })
   return blocks
 }

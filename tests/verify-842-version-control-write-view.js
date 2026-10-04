@@ -35,6 +35,7 @@ const VC_FILES = [
   'src/client/views/versionControl/vcDiffOps.js', // #857：差异与提交那几路的动作（闭包里排在 vcBlocks 之前）
   'src/client/views/versionControl/vcBlocks.js',
   'src/client/views/versionControl/vcViews.js', // #853 第三步：布局 C 的三个视图（与构建同序，排在 vcBlocks 之后）
+  'src/client/views/versionControl/vcAiHandoff.js', // #854：AI 交接（与构建同序）
   'src/client/views/versionControl/vcTabVisible.js',
   'src/client/views/versionControl/vcData.js',
   'src/client/views/versionControl/VersionControlTab.js',
@@ -139,6 +140,10 @@ const EXPORTS = [
   'vcTabVisible',
   'vcTail',
   'VC_VIEWS',
+  'VC_AI_READ_FAIL_KINDS',
+  'vcAiHandoffOf',
+  'vcAiButtonNode',
+  'vcOpenAiHandoff',
   'vcRememberedView',
   'vcRememberView',
   'vcResetViewMemory',
@@ -722,6 +727,11 @@ function groupJ(React, DswsCtx, TipStub, IcStub) {
   const loadingBlock = loadingDoc.querySelector('[data-vc-diff="loading"]')
   const loadingBars = loadingBlock ? loadingBlock.querySelectorAll('[data-vc-skel="1"]') : []
   check(!!loadingBlock && loadingBars.length >= 3 && loadingBlock.textContent.trim() === '' && loadingHtml.indexOf('正在读改动') < 0, 'J14 #857·读取中的差异画骨架条，不画会跳动的文字（骨架条 ' + loadingBars.length + ' 条）')
+
+  const failDoc = new (require('jsdom').JSDOM)('<div id="m">' + fails.html + '</div>').window.document
+  const failAi = failDoc.querySelector('[data-vc-op-result] [data-vc-ai="write-fail"]')
+  const doneDoc = new (require('jsdom').JSDOM)('<div id="m">' + dones.html + '</div>').window.document
+  check(!!failAi && failAi.textContent === trZh('vc.action.aiHandoff') && !doneDoc.querySelector('[data-vc-op-result] [data-vc-ai]'), 'J15 #854·没做成的横幅旁边有「让 AI 帮我解决」，做完了没有（按钮=' + (failAi ? '有' : '无') + '）')
 }
 
 

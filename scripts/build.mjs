@@ -419,6 +419,7 @@ const LEAF_MODULES = [
   { id: 'vcDiffOps', file: 'src/client/views/versionControl/vcDiffOps.js' }, // #857 差异与提交那几路的动作（从入口组件搬出，组件守 350 行）
   { id: 'vcBlocks', file: 'src/client/views/versionControl/vcBlocks.js' },
   { id: 'vcViews', file: 'src/client/views/versionControl/vcViews.js' }, // #853 第三步：布局 C 的三个视图（改动 / 提交历史 / 工作树）
+  { id: 'vcAiHandoff', file: 'src/client/views/versionControl/vcAiHandoff.js' }, // #854：「让 AI 帮我解决」交接按钮（prompt 三段式 + 开新会话路由）
   { id: 'vcTabVisible', file: 'src/client/views/versionControl/vcTabVisible.js' },
   { id: 'vcData', file: 'src/client/views/versionControl/vcData.js' },
   { id: 'versionControlTab', file: 'src/client/views/versionControl/VersionControlTab.js' },

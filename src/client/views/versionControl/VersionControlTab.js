@@ -143,6 +143,8 @@ export const VersionControlTab = function (props) {
   const retryScreen = function () { vcReadStatus(readsRef.current, callHost, cwd).then(function (next) { setReads(next) }) }
   // #853 第三步：视图切换只改 ui.view（函数式更新，不会顶掉同期别的 setUi）；选择跨挂载记住，换工作区复位。
   const pickView = function (v) { vcRememberView(v); setUi(function (cur) { return Object.assign({}, cur, { view: v }) }) }
+  // #854：面板解决不了的事 —— 一个按钮把当前问题写成 prompt 交给 AI（预填不发送，尾部留白让人补话）。
+  const openHandoff = function (ai) { const handoff = vcAiHandoffOf({ ai: ai, t: tr, screen: screen }); if (handoff) vcOpenAiHandoff({ opener: (typeof openTextInNewSession === 'function') ? openTextInNewSession : null, st: st, handoff: handoff }) }
   // 就地看差异：展开键与块模型侧共用同一个函数（#850）—— 未提交那一层是「分组 + 路径」（同一个文件在两组各一行时各自展开），
   //   提交那一层是「修订号 + 路径」（同一个文件在两处的补丁是两回事）。原来这里只按路径，点开时与块模型对不上，补丁块永远不画。
   // #857：差异与提交那几路的动作抽到 vcDiffOps.js（读、发、回包落地前的两道闸、同键在途不重复发）。
@@ -240,9 +242,10 @@ export const VersionControlTab = function (props) {
       // key 挂在外层 span 上、不写进里面那个 div：内层这句是 verify-818 的反证补丁锚点，动它会把那条反证弄成「改不中」。
       h('span', { key: 'text', style: { display: 'contents' } }, tipNode(b.rawTip, h('div', { style: { lineHeight: 1.7 } }, b.text))),
       b.retry ? h('div', { key: 'retry', style: { marginTop: 10 } }, button(b.retry, retryScreen)) : null,
+      b.ai ? h('div', { key: 'aibtn', style: { marginTop: 10 } }, vcAiButtonNode(h, { ai: b.ai, tr: tr, onOpen: openHandoff })) : null,
     ])
     if (b.kind === 'band') return h('div', { key: b.key, 'data-vc-band': 1, style: { display: 'flex', flexDirection: 'column', gap: 4 } }, b.items.map(function (it, i) {
-      return h('div', { key: i, 'data-vc-band-item': it.key, style: { fontSize: 11, color: tone(it.tone), background: 'var(--vc-inset,#16181d)', border: '1px solid var(--vc-line,#2a2d35)', borderRadius: 'var(--vc-radius,6px)', padding: '4px 8px', lineHeight: 1.6 } }, tipNode(it.tip, h('span', { key: 'text' }, it.text)))
+      return h('div', { key: i, 'data-vc-band-item': it.key, style: { fontSize: 11, color: tone(it.tone), background: 'var(--vc-inset,#16181d)', border: '1px solid var(--vc-line,#2a2d35)', borderRadius: 'var(--vc-radius,6px)', padding: '4px 8px', lineHeight: 1.6 } }, [tipNode(it.tip, h('span', { key: 'text' }, it.text)), it.ai ? h('span', { key: 'ai', style: { marginLeft: 6 } }, vcAiButtonNode(h, { ai: it.ai, tr: tr, onOpen: openHandoff })) : null])
     }))
     if (b.kind === 'identity') return h('div', { key: b.key, 'data-vc-identity': 1, style: { display: 'flex', flexDirection: 'column', gap: 2 } }, [
       h('div', { key: 'head', style: { display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 } }, [
@@ -314,6 +317,7 @@ export const VersionControlTab = function (props) {
       // 「需要自己动手的事」是一句陈述，不是一个动作：这里没有替你打开命令行的能力，所以不摆任何看着能点的图标
       //   （#819 发现 7：外链图标摆在那里点不动，比不画图标更差）。
       tipNode(b.tip, h('span', { key: 'text' }, b.text)),
+      b.ai ? h('span', { key: 'ai', style: { marginLeft: 6 } }, vcAiButtonNode(h, { ai: b.ai, tr: tr, onOpen: openHandoff })) : null,
     ])
     return null
   }
@@ -322,7 +326,7 @@ export const VersionControlTab = function (props) {
   //   不是 ops.writeState 那个原始形状（它的 confirm 只有 {op,plan,ticket,remotes}、result 只有 key/params）——
   //   早先这里传错了对象，真机上确认框是空框、失败横幅露出 vc.op.failed 这个键名（#842 视觉预览 V1/V2）。
   const writeUi = (typeof vcWriteUiOf === 'function') ? vcWriteUiOf(screen, ui, { t: tr, nowMs: Date.now(), decisions: decisions }) : null
-  const writeTail = vcWriteTailNodes(h, { writeUi: writeUi, tone: tone, tipNode: tipNode, tr: tr, retryResult: ops.retryResult, cancelConfirm: ops.cancelConfirm, confirmNow: ops.confirmNow, pickRemote: ops.pickRemote })
+  const writeTail = vcWriteTailNodes(h, { writeUi: writeUi, tone: tone, tipNode: tipNode, tr: tr, retryResult: ops.retryResult, cancelConfirm: ops.cancelConfirm, confirmNow: ops.confirmNow, pickRemote: ops.pickRemote, openHandoff: openHandoff })
   // #857 P5：首屏还没拿到数据时不画空白，画骨架 —— 骨架里一个字都不写；有旧数据时走旧数据那条。
   const screenState = (reads.screen && reads.screen.state) || 'idle'
   const showSkel = !screen && blocks.length === 0 && (screenState === 'idle' || screenState === 'loading')
@@ -333,10 +337,9 @@ export const VersionControlTab = function (props) {
     skelBar('s1', { width: 96, height: 11 }), skelBar('r1', { height: 13 }), skelBar('r2', { height: 13 }), skelBar('r3', { height: 13 }), skelBar('r4', { height: 13 }),
     skelBar('s2', { width: 96, height: 11 }), skelBar('h1', { height: 13 }), skelBar('h2', { height: 13 }),
   ])
-  // #853 第三步：布局 C —— 常驻块（刷新提示、异常带、身份行）一直在，三个视图各只画自己的块；
-  //   写操作的尾巴平时是空的所以平时看不见，有确认框或结果时它跟内容走。
+  // #853 第三步：布局 C —— 常驻块一直在，三个视图各只画自己的块；写尾巴平时是空的所以平时看不见。
   const view = vcViewOf(ui)
-  // 点开某一笔提交本身就是在看历史：不管页签停在哪，都画提交历史视图那一份（页签的高亮也跟过去）。
+  // 点开某一笔提交就是在看历史：不管页签停在哪，都画历史那一份。
   const effView = ui.openCommit ? 'commits' : view
   const parts = vcViewBlocksOf(blocks)
   const viewBlocks = effView === 'commits' ? parts.commits : (effView === 'worktrees' ? parts.worktrees : parts.changes)

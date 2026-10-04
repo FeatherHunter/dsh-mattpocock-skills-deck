@@ -64,6 +64,8 @@ export const vcWriteUiOf = function (screen, ui, env) {
           retryable: result.retryable === true,
           failed: String(result.state) === 'failed',
           moved: result.moved === true,
+          // #854：没做成的那一档配一个交出去的描述（动作名用静态分支翻，动态拼键名门禁不认）。
+          ai: String(result.state) === 'failed' ? { kind: 'write-fail', opText: w.op === 'pull' ? t('vc.action.pull') : (w.op === 'push' ? t('vc.action.push') : (w.op === 'stage' ? t('vc.action.stage') : t('vc.action.commit', { n: String(staged) }))), summary: t(result.key, result.params), detail: result.limitKey ? t(result.limitKey) : '', tip: String(result.tip || '') } : null,
         }
       : null,
     // 多远端：画一排可点的远端入口（选中后由动作层带 remote 重跑预检）。
