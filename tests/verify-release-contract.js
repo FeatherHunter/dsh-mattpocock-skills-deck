@@ -31,6 +31,25 @@ function read(p) {
 }
 function exists(p) { return existsSync(resolve(ROOT, p)); }
 
+/**
+ * 找一把真能跑 shell 脚本的 bash（#845）：先按候选路径找 Git Bash —— Windows 自带的
+ *   C:\\Windows\\System32\\bash.exe 是 WSL 的入口，没装发行版时直接失败（实测 stderr 是
+ *   「适用于 Linux 的 Windows 子系统没有已安装的分发」），而 Git Bash 随 Git 一起装。
+ *   候选都不在时才退回 PATH 上的 bash（Linux / macOS / 配好的 CI 走这一支）。
+ *   拿到绝对路径后调用处不再加 shell: true —— 路径里的空格会被 cmd.exe 拆坏（实测报
+ *   「'C:/Program' is not recognized」）。
+ */
+function resolveBash() {
+  const candidates = [
+    "C:/Program Files/Git/bin/bash.exe",
+    "C:/Program Files/Git/usr/bin/bash.exe",
+    "C:/Program Files (x86)/Git/bin/bash.exe",
+    resolve(process.env.LOCALAPPDATA || "", "Programs/Git/bin/bash.exe"),
+  ];
+  for (const c of candidates) { try { if (c && existsSync(c)) return c } catch { /* 继续找下一个 */ } }
+  return "bash";
+}
+
 let passes = 0;
 let failures = [];
 function assert(cond, msg) {
@@ -324,10 +343,11 @@ if (wizardRelease) {
   assert(wizardRelease.includes("阻断") || wizardRelease.includes("exit 1"), `发布向导在校验失败时阻断后续步骤`);
   // 语法检查
   // bash -n 语法检查（Windows 上使用相对路径 + cwd，避免 D:/ 绝对路径在 Git Bash 中不被识别）
-  const shellCheck = spawnSync("bash", ["-n", "scripts/wizard-release.sh"], { cwd: ROOT, encoding: "utf8", shell: true });
+  const BASH = resolveBash();
+  const shellCheck = spawnSync(BASH, ["-n", "scripts/wizard-release.sh"], { cwd: ROOT, encoding: "utf8" });
   if (shellCheck.status !== 0) console.log("    bash -n wizard-release stderr:", (shellCheck.stderr || "").slice(0,500), "status", shellCheck.status);
   assert(shellCheck.status === 0, `发布向导通过 bash -n 语法检查`);
-  const tplCheck = spawnSync("bash", ["-n", "wizard/template.sh"], { cwd: ROOT, encoding: "utf8", shell: true });
+  const tplCheck = spawnSync(BASH, ["-n", "wizard/template.sh"], { cwd: ROOT, encoding: "utf8" });
   if (tplCheck.status !== 0) console.log("    bash -n template stderr:", (tplCheck.stderr || "").slice(0,500), "status", tplCheck.status);
   assert(tplCheck.status === 0, `向导库通过 bash -n 语法检查`);
 }

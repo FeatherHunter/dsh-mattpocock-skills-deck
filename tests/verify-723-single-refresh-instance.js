@@ -185,11 +185,22 @@ async function main() {
   await wB.focus({ windowId: 'win-2', workspaceRoot: WS, kind: 'focus', visible: true })
   check(wA.gate.workspaceView(wA.hash8(WS)).active === false && wB.gate.workspaceView(wB.hash8(WS)).active === true,
     '负控：活跃集合只标在 wf.focus 那一套上，被读数的那一套没被标')
+  // #845：这条负控的旧写法是「把事件喂给 wA，再断言 wA 读数恒空」。链现在**在门前就把这一笔记进链**
+  //   （#781 起的形状：链记的是「这个会话在处理哪几张票」，与闸的裁决分开），喂过事件的 wA 自己也会有数据，
+  //   旧写法不再成立。旧形状真正的病是「喂数据在一套、读数在另一套」，负控照那个形状重写，顺序也调过来：
+  //   ① 事件喂给标了活跃的 wB（它照常收下并放行）；
+  //   ② 读数仍取自 wA —— 这时 wA 还没被任何事件碰过，必须空。这一步继续证明第三段③（读数里有那一笔）
+  //      不是恒绿的装饰：两套实例下，喂进去的数据在另一套的读数里看不见。
+  //   ③ 再把事件喂给 wA，量「被读数的那一套门前就被拒」（seen=0、回包 null）。这一步之后 wA 的链里也会
+  //      有那一笔（链与闸分开），所以读数那一条断言必须放在它前面。
+  const outB = await wB.writeEvents.handle({ id: 'sess-b', header: { cwd: WS } }, 'tools/result', 'pwsh', WRITE_CMD, true)
+  check(wB.writeEvents.stats().seen === 1 && !!outB && outB.verdictOfGate === 'allow', '负控：喂给标了活跃的那一套（wB）时它照常收下并放行（实得 ' + JSON.stringify(outB && outB.verdictOfGate) + '）')
+  check(wB.chainReadout().sessions.length > 0, '负控：喂数据的那一套读数里有那一笔（旧形状下这一套是正常的）')
+  check(wA.chainReadout().sessions.length === 0 && wA.chainReadout().reason === 'host.chain.empty',
+    '负控：界面读数取自另一套（wA）时恒空（' + JSON.stringify(wA.chainReadout()).slice(0, 90) + '）',
+    '这条负控不成立 = 第三段那几条断言是恒绿的装饰')
   const outA = await wA.writeEvents.handle({ id: 'sess-a', header: { cwd: WS } }, 'tools/result', 'pwsh', WRITE_CMD, true)
   check(wA.writeEvents.stats().seen === 0 && outA === null, '负控：被读数的那一套门前就把这一笔拒了（seen=0）—— 生产里写事件等于没订上')
-  check(wA.chainReadout().sessions.length === 0 && wA.chainReadout().reason === 'host.chain.empty',
-    '负控：被读数的那一套读数恒空（' + JSON.stringify(wA.chainReadout()).slice(0, 90) + '）',
-    '这条负控不成立 = 第三段那几条断言是恒绿的装饰')
 
   // ── 五、宿主侧字段名：必须与读数模块导出的常量同一份 ──
   console.log('\n== 五、宿主侧字段名 ==')

@@ -697,6 +697,9 @@ try {
       //   优先级仍是 1（最先让位）。所以 C3/C4 量那两件事，C5/C6/C7 三条量新口径：
       //   C5 宽面板上它真的画出来了（矩形非零、文本非空）；C6 宽到 1600 时它整串都在（「有位置就显示」）；
       //   C7 窄到放不下时它**第一个**让位（它先短了，而第 2 段还是完整的 —— 「宽度不够时它第一个让位」）。
+      //   「第 2 段」是什么按现行号码表走（src/client/statusbar/capFold.js:40-41：1=品牌 2=更新字 3=日期串
+      //   … 7=沉淀）—— 2026-09-27 定终版时把更新字排到了 2 号位，旧断言还写着「第 2 段 = 沉淀」，
+      //   于是这条本来在守「品牌第一个让位」的断言变成了永远找不到那种宽度（#845 修）。
       check(cap.foldPriority === '1', 'C3 状态胶囊栏里那枚品牌字样的挂点仍在（实测 priority ' + JSON.stringify(cap.foldPriority) + '）')
       check(cap.wordHasIcon, 'C4 状态胶囊栏里那枚品牌图标仍在')
       check(!!cap.foldRect && cap.foldRect.w > 0 && cap.foldRect.h > 0 && String(cap.foldText).trim() !== '',
@@ -717,7 +720,8 @@ try {
         const b1 = String((s.segs || {})['1'] || '')
         const b2 = String((s.segs || {})['2'] || '')
         if (b1 !== lastBrand) { sweep.push(x + 'px 第' + s.tier + '档→' + JSON.stringify(b1) + '（第2段 ' + JSON.stringify(b2) + '，溢 ' + s.overflow + '）'); lastBrand = b1 }
-        if (b1.length < fullBrand.length && b1.length > 0 && b2 === '沉淀') { firstGive = { w: x, brand: b1, next: b2, overflow: s.overflow }; break }
+        // 第 2 段 = 现行号码表里 2 号位真正画的东西（更新字）；写成别的值这条断言就永远找不到、变成恒红。
+        if (b1.length < fullBrand.length && b1.length > 0 && b2 === '更新') { firstGive = { w: x, brand: b1, next: b2, overflow: s.overflow }; break }
       }
       check(!!firstGive, 'C7 窄下来时品牌是第一个让位的（品牌已经少字、而优先级 2 那一段反倒还完整；实测 ' + JSON.stringify(firstGive) + '；品牌那一段变过的地方 ' + JSON.stringify(sweep) + '）')
     }

@@ -74,8 +74,11 @@ const EXPECT_BACKEND_KEYS = { github: 8, gitlab: 6, markdown: 4 }
 //   ensureLabels 与 repoAccessFix 去命令，净 +4）、gitlab +2、markdown +1。
 // #725：正文格式那条声明删掉后，字面量各减 2（zh/en 两份）：46/14/9 → 44/12/7。
 const EXPECT_BACKEND_LITERALS = { github: 44, gitlab: 12, markdown: 7 }
-// #664：宿主那份「怎么装 gh」的长文（GH_INSTALL_PROMPT）按新流程退役，src/host 全树今天一个 *_PROMPT 常量都没有。
-const EXPECT_HOST_PROMPT_CONSTS = 0 // src/host 全树 *_PROMPT 常量数
+// #664：宿主那份「怎么装 gh」的长文（GH_INSTALL_PROMPT）按新流程退役，此后很长一段时间 src/host 全树一个
+//   *_PROMPT 常量都没有（本行原为 0）。#839 起有一个真的了：src/host/gitCredentialExec.js 的
+//   GIT_TERMINAL_PROMPT: '0'（非交互环境那一条固定前缀）。门禁口径是「≥ 这个数」，合法新增不判红，
+//   但少到比这个数还少就是有人把那条常量删了 —— 这里按实数改成 1。
+const EXPECT_HOST_PROMPT_CONSTS = 1 // src/host 全树 *_PROMPT 常量数
 // #716：github 那两条 rule 豁免（ensureLabels / repoAccessFix）所欠的债已经还清 —— 两条文案改成走工具，
 //   一个裸命令都不剩，所以从登记表里撤掉，10 → 8（撤掉的这两条从此受判定）。
 const EXPECT_EXEMPT = 8 // 豁免登记条数硬编码（防偷偷加豁免）
@@ -800,6 +803,41 @@ const walkJs = function (dir, acc) {
 const HOST_PROMPT_ID_RE = /[A-Za-z0-9_$]*PROMPT[A-Za-z0-9_$]*/g
 const HOST_PROMPT_DECL_RE = /(?:^|[^A-Za-z0-9_$])([A-Za-z0-9_$]*PROMPT[A-Za-z0-9_$]*)\s*(?:=|:)\s*/g
 const isPromptName = function (n) { return n && n !== 'PROMPTS' && /PROMPT/.test(n) }
+/**
+ * 把注释内容换成**等长空格**（#845）：偏移一个字节都不动，行号与 m.index 都还能用。
+ * 为什么 S4 必须先过这一道：S4 是按标识符找 *_PROMPT 声明点的，注释里写一句
+ *   「GIT_TERMINAL_PROMPT=0」说明就会被当成一个声明点、后面没有字面量 → 误报（#839 那个文件头就踩了，
+ *   一次报两条，还把「豁免完备性」那一条也带红）。
+ * 按引号状态判注释：单引号 / 双引号 / 反引号里的 // 与 /* 都不是注释（模板串整体当字符串处理，
+ *   保守但不会把真代码里的注释漏掉；插值 ${...} 里的注释今天一处都没有）。
+ */
+function stripCommentsKeepOffsets(src) {
+  const out = src.split('')
+  let i = 0
+  let quote = null
+  while (i < src.length) {
+    const c = src[i]
+    if (quote) {
+      if (c === '\\') { i += 2; continue }
+      if (c === quote) quote = null
+      i += 1
+      continue
+    }
+    if (c === "'" || c === '"' || c === '`') { quote = c; i += 1; continue }
+    if (c === '/' && src[i + 1] === '/') {
+      while (i < src.length && src[i] !== '\n') { out[i] = ' '; i += 1 }
+      continue
+    }
+    if (c === '/' && src[i + 1] === '*') {
+      while (i < src.length && !(src[i] === '*' && src[i + 1] === '/')) { if (src[i] !== '\n') out[i] = ' '; i += 1 }
+      if (i < src.length) { out[i] = ' '; out[i + 1] = ' '; i += 2 }
+      continue
+    }
+    i += 1
+  }
+  return out.join('')
+}
+
 const collectHost = function (exemptList) {
   const out = []
   const consts = []
@@ -807,7 +845,8 @@ const collectHost = function (exemptList) {
   const names = {}
   walkJs(path.join(ROOT, 'src/host'), []).forEach(function (file) {
     const rel = path.relative(ROOT, file)
-    const src = fs.readFileSync(file, 'utf8')
+    // #845：先剥注释再扫（等长空格、偏移不变）—— 注释里提到的 *_PROMPT 名字不算声明点。
+    const src = stripCommentsKeepOffsets(fs.readFileSync(file, 'utf8'))
     let m
     HOST_PROMPT_ID_RE.lastIndex = 0
     while ((m = HOST_PROMPT_ID_RE.exec(src)) !== null) {
@@ -823,8 +862,14 @@ const collectHost = function (exemptList) {
       const span = cut < 0 ? raw : raw.slice(0, cut)
       const lits = scanAllLiterals(span)
       decls.push({ file: rel, name: name, literals: lits.length })
-      if (lits.length === 0) {
-        out.push('FAIL S4 ' + rel + ' ' + name + ' 的声明点后面没有字符串字面量（文本可能藏在变量或计算里，扫描不到）\n     修法：把 *_PROMPT 的文本写成字面量')
+      // #845：判据收在「声明值本身」上 —— 声明点后面第一个非空白字符必须是引号（单/双/反引号），
+      //   也就是值就是一个字符串字面量。原判据只看「这一段里有没有字面量」，在一个写满别的字符串的
+      //   文件里等于恒真：把 GIT_TERMINAL_PROMPT 的值换成变量（GIT_TERMINAL_PROMPT: v），
+      //   同一段里剩下的 45 个字面量照样能让它判绿 —— 那正是这条断言想抓的「文本藏在变量里」。
+      const head = span.replace(/^\s+/, '')
+      const valueIsLiteral = /^['"`]/.test(head)
+      if (!valueIsLiteral || lits.length === 0) {
+        out.push('FAIL S4 ' + rel + ' ' + name + ' 的声明值不是字符串字面量（文本可能藏在变量或计算里，扫描不到）\n     修法：把 *_PROMPT 的文本写成字面量')
       }
       lits.forEach(function (lit) {
         consts.push({ file: rel, name: name, text: lit.text })
@@ -1464,7 +1509,7 @@ const selfDigest = function () {
 const LOCK = {
   'tests/prompt-gate-exempt.json': 'c661ccd0fbfd46aa99790c073d0ccea89ebf5787a9113462c092b17c72a2a2d9',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.js': 'cddcf682cef2e6919d3fec5b501e2ec6d73da53bc2504d40f8ec194d14282eed',
+  'tests/verify-prompts.js': '20a3b49e3b44188c86ad1300ac8595ef58925642b964c9dc7f0f9651498bc3b8',
 }
 // ---- LOCK-END ----
 

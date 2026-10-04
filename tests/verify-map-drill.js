@@ -220,7 +220,9 @@ check(mapCrumb([{ kind: 'map', n: 550, effortId: '' }], 550) === '列表 / #550'
 check(mapCrumb([{ kind: 'map', n: 550, effortId: '' }, { kind: 'map', n: 551, effortId: '' }], 551) === '#550 / #551', '矩阵：地图进地图显示上一级与当前级')
 check(mapCrumb([{ kind: 'map', n: 1, effortId: '' }, { kind: 'issue', n: 2, effortId: '' }, { kind: 'map', n: 3, effortId: '' }], 3) === '… / #2 / #3', '矩阵：超两级省略只留直接上一级与当前级')
 check(mapCrumb([{ kind: 'map', n: 1, effortId: '' }, { kind: 'map', n: 2, effortId: '' }, { kind: 'map', n: 1, effortId: '' }], 1) === '… / #2 / #1', '矩阵：先后经过同一编号不合并，超两级仍省略并显示直接上一级')
-check(issueCrumb([{ kind: 'issue', n: 20, effortId: '' }], 20) === '列表 / #20', '矩阵：工单面包屑单层为列表形态')
+// #845：这里原来期望 '列表 / #20'。产品在 #763 的 C 方案里**有意**去掉了「列表 /」前缀（源码注释原话：
+//   「#763 C 方案，"列表"二字多余」），单层工单面包屑现在就画 '#20'。旧期望没跟着改，这条断言成了恒红。
+check(issueCrumb([{ kind: 'issue', n: 20, effortId: '' }], 20) === '#20', '矩阵：工单面包屑单层为 #20（#763 C 方案有意去掉「列表 /」前缀）')
 check(issueCrumb([{ kind: 'map', n: 10, effortId: '' }, { kind: 'issue', n: 20, effortId: '' }], 20) === '#10 / #20', '矩阵：地图进工单显示地图与工单编号')
 check(issueCrumb([{ kind: 'map', n: 1, effortId: '' }, { kind: 'issue', n: 2, effortId: '' }, { kind: 'map', n: 3, effortId: '' }, { kind: 'issue', n: 4, effortId: '' }], 4) === '… / #3 / #4', '矩阵：四层混合链顶层面包屑为省略形态')
 

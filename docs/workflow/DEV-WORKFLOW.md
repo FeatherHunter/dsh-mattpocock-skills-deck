@@ -120,6 +120,20 @@ node tests/verify-t3-locale.js     # 254 键双语平衡（单产物）
 
 > 新鲜度门禁：`verify-ctx/kernel/leaves` 会检查 `产物 mtime ≥ src mtime`，过期提示 `请重新运行 node scripts/build.mjs`。
 
+> **浏览器类门禁要先装浏览器（#845）**：`verify-cap-fold`、`verify-cap-fold-browser`、`verify-capsule-layout`、
+> `verify-667-dock-header-no-brand`、`verify-670-panel-first-frame`、`verify-669-collapsed-recoverable`、
+> `verify-669-switch-visible`、`verify-chain-view-ui`、`verify-423-title-clamp-browser`、`verify-640-dock-width-browser`
+> 这几道要在真 Chromium 里量几何（`tests/` 下另有几个 `diag-live-*` 诊断脚本同样用它）。`playwright` 这个 npm 包
+> 随 devDependencies 装好，但它要用的**浏览器二进制不在 npm 包里** —— 换机器、换用户目录或 CI 上第一次跑会抛
+> 「Please run the following command to download new browsers」。先装一次：
+>
+> ```bash
+> npx playwright install chromium   # 只装这些门禁要用的那一个（快）
+> npx playwright install            # 或者四个引擎都装
+> ```
+>
+> 装完这些门禁应当直接跑绿；没装浏览器时它们会当场抛错、退出码 1（不是静默跳过，所以 `npm run verify` 会断在这里）。
+
 ### ④ 同步 DSH 安装目录
 
 ```bash
@@ -203,6 +217,7 @@ npm run test:smoke
 | commit 被 hooks 挡 | pre-commit 跑 pytest | `git -c core.hooksPath=/dev/null commit` |
 | 安装目录没同步 | DSH 加载旧 bundle | `bash scripts/build.sh` 或手动 cp + hash 校验 |
 | jsdom 缺失 | smoke 抛 Cannot find module 'jsdom' | `npm i -D jsdom react react-dom`（已在 devDependencies） |
+| Playwright 浏览器没装 | 浏览器类 verify 抛 Please run `npx playwright install`（npm 包装了、浏览器二进制不在包里） | `npx playwright install chromium` 装一次；清单与说明见 §3 ③ 那段 |
 
 ---
 

@@ -198,8 +198,11 @@ async function main() {
   check(typeof wiringMod.workspaceKeyOf === 'function', '接线转出 workspaceKeyOf（宿主这一侧取钥匙的唯一入口）')
   check(wiringMod.workspaceKeyOf === sharedMod.workspaceKeyOf, '接线转出的那把与共享层那把是同一个函数（实现只有一处）')
   const wiringSrc = read('src/host/refresh/wiring.js')
-  const ownHash = (wiringSrc.match(/hash8\(String\(/g) || []).length
-  check(ownHash === 0, '接线里不再自己抄一份钥匙（hash8(String(…)) 出现 ' + ownHash + ' 处，应为 0）')
+  // #845：这条判据原来把「任何 hash8(String(…))」都算成自己抄了一份工作区钥匙，于是把错误散列
+  //   （errorHash: hash8(String(…))，见 wiring.js 里那条 host.call.fail）也误判进来。收窄成
+  //   「同一行里不是 errorHash 的那些调用」—— 真正抄钥匙的写法照样会被数到。
+  const ownHash = wiringSrc.split(/\r?\n/).filter((l) => /hash8\(String\(/.test(l) && !/errorHash\s*:/.test(l)).length
+  check(ownHash === 0, '接线里不再自己抄一份钥匙（非 errorHash 的 hash8(String(…)) 出现 ' + ownHash + ' 处，应为 0）')
 
   // ── 二、三条路进闸带的是同一把钥匙、落在同一格上 ──
   const host = await makeHost()

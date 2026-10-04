@@ -12,6 +12,10 @@ const path = require('path')
 let failed = false
 const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
+/** 零增长基线（#845）：在册文件按基线值判，不在册的按 350 判；与 verify-file-granularity.js 同一份文件。 */
+const GRANULARITY_BASELINE = (function () {
+  try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'file-granularity-baseline.json'), 'utf8')).files || {} } catch (e) { return {} }
+})()
 const PRODUCTS = ['client.js', 'package/lib/client.js']
 const LEAVES = [
   { file: 'src/client/views/shared/chips.js', exports: ['Dot', 'TypeChip'], components: ['Dot', 'TypeChip'] },
@@ -107,8 +111,13 @@ function main() {
     if (!fs.existsSync(file)) { check(false, file + ' 缺失'); continue }
     const src = fs.readFileSync(file, 'utf8')
     const lines = src.split(/\r?\n/).length
-    const limit = 350 // B1 #460：StatusBar 已拆分达标，例外已删，全员 350
-    check(lines <= limit, file + ' ≤' + limit + ' 行（G4 · 实际 ' + lines + '）')
+    // #845：这条断言原来写死「全员 350」，但 3ccef80 起仓库有一份零增长基线
+    //   （tests/file-granularity-baseline.json：门禁落地时已超标的文件把当时行数记进去，只许减不许增）。
+    //   照 350 判会把基线里那些**冻结**的文件（StatusBar.js 359 行就在册）误判成回归。
+    //   判据改成与 verify-file-granularity.js 同一口径：在基线里的文件 ≤ 基线值，不在基线的 ≤350。
+    const frozen = GRANULARITY_BASELINE[file]
+    const limit = frozen === undefined ? 350 : Number(frozen)
+    check(lines <= limit, file + ' ≤' + limit + ' 行' + (frozen === undefined ? '（G4）' : '（零增长基线冻结值）') + ' · 实际 ' + lines + '）')
     for (const ex of l.exports) {
       const ok = new RegExp('export\\s+(const|let|function|var)\\s+' + ex + '\\b').test(src)
       check(ok, file + ' 导出 ' + ex)

@@ -2,8 +2,10 @@
 // 用法: node tests/verify-no-title.js [file...]（默认扫描 src/client 全量，真源 + 产物不扫）
 // 形态：轻量文本扫描（同 verify-reuse 轻量），白名单仅测试文件与 aria-label 豁免（后者天然不命中 title: 正则）
 // 阈值：0 通过 / 1 通过（未达 2 标记） / 2 WARN 标记（// TODO no-title:q） / ≥3 ERROR 即抽 / ≥5 ERROR 必卡（合并门禁）
-// 判定：扫描 \\btitle\\s*:  （h() 属性形态 title: tr(...)/title: s.title/title: '...'），忽略 // 与 /* 注释行
-// 注意：数据字段 {title: title} 若出现在 UI 文件也会被计入；真源迁移后 UI 全量改 Tip，数据字段应改名或豁免清单（当前门禁按文本计，T2/T3 清零后数据字段残留若需保留需加豁免）
+// 判定：扫描 \\btitle\\s*:，且只认**写在 h() 元素属性位上**的（形态 title: tr(...)/title: s.title/title: '...'），
+//   忽略 // 与 /* 注释行。数据对象字面量里的 title 字段不算残留（#845 收窄：块模型 { title: … } 与
+//   items.push({…title:…}) 曾被旧判据误算成 9 处必卡、把合并门禁卡住；收窄后真残留只剩两处回退按钮的
+//   title: tr('list.back')，按 2 处 WARN 处置，不阻断）。
 const fs = require('fs')
 const path = require('path')
 let failed = false
@@ -61,12 +63,17 @@ for (const root of SCAN_ROOTS){
         }
         if (cut>=0) code = code.slice(0, cut)
       }
-      const m = code.match(TITLE_RE)
-      if (m) {
+      // #845 收窄：只认「写在 h() 元素属性位上」的 title: —— 数据对象字面量里的 title 字段
+      //   （items.push({…title:…})、块模型 { title: … }）不算残留。判据：同一行里 title: 之前出现过
+      //   h(（用 \bh\s*\( 匹配，push( 这种不算）。本仓库的 h() 属性都写在同一行；哪天有人写换行的
+      //   h() 属性，这条判据要连同这一段一起改。
+      const ms = Array.from(code.matchAll(TITLE_RE))
+      const attrs = ms.filter((mm) => /\bh\s*\(/.test(code.slice(0, mm.index)))
+      if (attrs.length) {
         if (code.includes('aria-label')) continue
         if (code.includes('PREVIEW_VALUES')) continue
-        fileHits += m.length
-        for (let k=0;k<m.length;k++) hits.push(f + ':' + (i+1))
+        fileHits += attrs.length
+        for (let k=0;k<attrs.length;k++) hits.push(f + ':' + (i+1))
       }
     }
     if (fileHits>0) perFile.set(f, fileHits)

@@ -60,17 +60,14 @@ const SELF = path.relative(ROOT, __filename).replace(/\\/g, '/')
 const KNOWN_UNPRODUCED = {
   'src/shared/deck-tools/edges.js.EDGE_LANDING.FILE_NOTE':
     '为什么留着：本地 Markdown 单根工作区那种「归属写在票文件注释里」的落点名字，工具返回必须把它如实标出来，删了这条边就没法说清落在哪；谁在读：edges.js:43 的 landingOf → :54 的 edgeEvidence 把它写进返回项，再由四个宿主工具文件把它交回调用方（src/host/tools/deckIssueCreate.js:90、deckMapLink.js:76 与 :91 与 :97、deckMapPlanCreate.js:173）—— **读取面是返回信封**（拿到这次返回的人与 AI）。',
-  'src/shared/deck-tools/shell.js.REFUSAL_REASONS.NO_SESSION':
-    '为什么留着：三态返回里「没拿到会话」那一档的机器可读原因，删了调用方就没法按原因分支；谁在读：shell.js:96 把它写进返回信封的 reason 字段（宿主工具把信封原样交回平台）—— **读取面是返回信封**；tests/verify-deck-tools.js:297 另外按同一句值断言。',
+  // （#845 删掉 NO_SESSION 这一条：它的值现在能在生产代码里找到（shell.js 写进返回信封那条路被别的票补齐了），
+  //   按本文件「过期条目要当场删」的规矩销账；要查它今天谁在读，跑一遍门禁就知道它已经不在「死了」的名单里。）
   'src/shared/deck-tools/shell.js.REFUSAL_REASONS.OVER_CAP':
     '为什么留着：额度超顶那一次拒绝的机器可读原因（拒绝必须说清超的是哪一项，这正是它存在的理由）；谁在读：shell.js:178 把它写进返回信封的 reason 字段 —— **读取面是返回信封，今天没有任何测试按值断言**（裁定 A：返回信封是真正的读取面，不为它补一条无意义的测试）。',
   'src/shared/deck-tools/shell.js.REFUSAL_REASONS.GATE_DEFER':
     '为什么留着：被闸推迟那一档的机器可读原因；谁在读：shell.js:203 与 :272 把它写进返回信封的 reason 字段 —— **读取面是返回信封，今天没有任何测试按值断言**（同裁定 A）。',
-  // （2026-09-26 #741 恢复 BACKEND_THREW 条目：上次删它是因为值字面量出现在宿主平台区的转发层里，
-  // 搬家到共享层后值字面量移出了门禁扫描的两棵树（宿主与客户端），判据又判它死了；
-  // 与 OVER_CAP / GATE_DEFER 同口径——读取面是返回信封，今天没有任何测试按值断言，留存量。）
-  'src/shared/deck-tools/shell.js.REFUSAL_REASONS.BACKEND_THREW':
-    '为什么留着：后端实现抛错那一档的机器可读原因（工具永不抛，改用它如实说）；谁在读：shell.js:202 与 :263 以及共享注册帮助 agent-register.js 的兜底信封把它写进返回信封的 reason 字段 —— **读取面是返回信封，今天没有任何测试按值断言**（同裁定 A）。',
+  // （#845 删掉 BACKEND_THREW 这一条：#741 恢复它的原因是「值字面量搬出扫描面」，现在它的值又能在生产代码里找到，
+  //   按规矩销账。）
 }
 
 /**
@@ -93,6 +90,25 @@ function walk(dir, out) {
 /** 剥掉注释：只用来找「这个值/名字有没有出现在真代码里」，保守即多留不算漏。 */
 function stripComments(src) {
   return src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1 ')
+}
+
+/**
+ * 动态读取面（#845）：`<文件名大写>_SOURCE` 这类模块标识不是被「按名字」引用的，而是被门禁**按文件名
+ *   推导**出来读的 —— 版本控制新鲜度门禁对每个产物算 `<名字>_SOURCE` 再断言它等于源码路径
+ *   （tests/verify-version-control-freshness.js）。文本扫描看不见推导出来的名字，判据② 会把这一族
+ *   误判成死的（实测一次报 12 条）。这里补一条窄判据：名字以 _SOURCE 结尾、值指向某个 .ts 源码、
+ *   且**有门禁在做这种推导**（某道门禁的正文里同时出现 '_SOURCE' 与 toUpperCase）时，算活着。
+ *   只放行这一族；别的常量想活，仍然必须有人按名字读或有人产出值。
+ */
+function dynamicSourceReaderText() {
+  const parts = []
+  for (const f of walk(path.join(ROOT, 'tests'), [])) {
+    const rel = path.relative(ROOT, f).replace(/\\/g, '/')
+    if (rel === SELF) continue
+    const t = stripComments(fs.readFileSync(f, 'utf8'))
+    if (t.indexOf("'_SOURCE'") >= 0 && t.indexOf('toUpperCase') >= 0) parts.push(t)
+  }
+  return parts.join('\n')
 }
 
 /** 把几棵树读成一段文本（剥注释、跳过本门禁自己）。 */
@@ -137,11 +153,16 @@ function stringConstantsOf(modExport, modName) {
  * 返回既没人产出、也没人读的那些。名字按「整词」匹配（前后不是标识符字符），
  * 免得 USER 这种短名字撞上别处的词。
  */
-function dead(constants, valueText, nameText) {
+function dead(constants, valueText, nameText, dynamicText) {
   const tokenSeen = (t) => new RegExp('(^|[^A-Za-z0-9_$])' + t.replace(/[$]/g, '\\$&') + '([^A-Za-z0-9_$]|$)').test(nameText)
   return constants.filter((c) => {
     if (valueText.indexOf(c.value) >= 0) return false
-    return !(c.tokens || []).some(tokenSeen)
+    if ((c.tokens || []).some(tokenSeen)) return false
+    // 动态读取面（#845）：模块标识那一族被门禁按文件名推导读，见上面那段说明。
+    const key = String(c.name).split('.').pop()
+    const declaredDir = path.dirname(String(c.name).split('.').slice(0, -1).join('.'))
+    if (/^[A-Z0-9_]+_SOURCE$/.test(key) && /\.ts$/.test(c.value) && dynamicText.indexOf(declaredDir) >= 0) return false
+    return true
   })
 }
 
@@ -172,7 +193,9 @@ async function main() {
   }
   check(constants.length > 0, '共享层里收到 ' + constants.length + ' 个字符串型常量')
 
-  const bad = dead(constants, valueText, nameText)
+  const dynamicText = dynamicSourceReaderText()
+  check(dynamicText.length > 0, '找到做「按文件名推导读模块标识」的门禁（动态读取面生效，' + dynamicText.length + ' 个字符）')
+  const bad = dead(constants, valueText, nameText, dynamicText)
   const known = bad.filter((c) => Object.prototype.hasOwnProperty.call(KNOWN_UNPRODUCED, c.name))
   const fresh = bad.filter((c) => !Object.prototype.hasOwnProperty.call(KNOWN_UNPRODUCED, c.name))
   for (const c of bad) {

@@ -127,6 +127,9 @@ const findGroupByIdentitySrc = extractConst(derivedSrc, 'findGroupByIdentity')
     copyText: () => {}, setActiveMap: () => {}, setActiveIssue: () => {}, showPop: () => {}, inject: () => {},
     promptText: () => '', inspectPrompt: () => '', completePrompt: () => '', authorColor: () => '#000000',
     hexA: () => 'rgba(0,0,0,0)', darken: () => null, isLightHex: () => true,
+    // #845：listIssueRow 现在会调 truthLines.js 的 truthWriteWindowOpen（真源在 src/client/views/shared/truthLines.js:106），
+    //   门禁手工列的闭包桩没跟上，一跑到那一行就 ReferenceError。产品不坏，缺的是这一个桩。
+    truthWriteWindowOpen: () => false,
   }
   const names = Object.keys(stubs)
   const listIssueRow = new Function('h', 'st', ...names, identitySrc + '\n' + findMapByIdentitySrc + '\n' + rowFnSrc + '\nreturn listIssueRow')(h, { snapshot }, ...names.map((n) => stubs[n]))

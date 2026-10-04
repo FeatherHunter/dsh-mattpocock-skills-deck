@@ -159,9 +159,15 @@ async function main() {
   ;(hasTok(idx, 'workspaceKey.js') || hasTok(rkf, 'workspaceKey.js')) ? ok('index.js 引入 workspaceKey 模块') : bad('index.js 未引入 workspaceKey 模块')
 
   const ds = linesOf(path.join('src', 'host', 'tracker', 'detection', 'detectionService.js'))
+  // #845：这条断言原来只看 detect 声明前后各 8 行。detect 的规整那一步（canonicalWorkspaceKey(handle.cwd)）
+  //   后来落到了声明下面第 10 行，出了旧窗口 → 恒红。判据改成「函数体里有规整调用」，不再靠行数窗口；
+  //   不变式没变：detect 的入口按工作区键规整。
   let dsAt = -1
   for (let i = 0; i < ds.length; i++) { if (ds[i].indexOf('async function detect(') >= 0) { dsAt = i; break } }
-  ;(dsAt >= 0 && hasTok(ds.slice(Math.max(0, dsAt - 8), dsAt + 8), 'canonical')) ? ok('detectionService.detect 入口规整 handle.cwd') : bad('detectionService.detect 入口未见规整调用')
+  let dsEnd = -1
+  if (dsAt >= 0) { for (let i = dsAt + 1; i < ds.length; i++) { if (ds[i] === '}') { dsEnd = i; break } } }
+  const dsBody = dsAt >= 0 ? ds.slice(dsAt, dsEnd > dsAt ? dsEnd + 1 : Math.min(ds.length, dsAt + 40)) : []
+  ;(dsAt >= 0 && hasTok(dsBody, 'canonical')) ? ok('detectionService.detect 函数体里有规整调用（canonicalWorkspaceKey）') : bad('detectionService.detect 函数体里未见规整调用')
   hasTok(ds, 'workspaceKey.js') ? ok('detectionService 引入 workspaceKey 模块') : bad('detectionService 未引入 workspaceKey 模块')
 
   console.log('')

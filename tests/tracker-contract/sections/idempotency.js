@@ -204,9 +204,42 @@ function makeScriptedGh(opts) {
       if (o.listFails) return { code: 1, stdout: '', stderr: '列出票时报错（探针脚本）' }
       return { code: 0, stdout: JSON.stringify(created), stderr: '' }
     }
+    // #845：这条前缀以前一律回失败 —— 那时它只被「gh api --input -」那条写路用到（房里注释自己承认 stdin 接不上）。
+    //   现在 github 后端的主路就长在这条前缀上：建票是
+    //   `api repos/<o>/<n>/issues --method POST -f title=… -f body=… --jq .`（见 issues-write.js:45-48 的说明），
+    //   回查慢路逐张读正文是 `api repos/<o>/<n>/issues/<num>`（见 idempotency.js:155）。
+    //   一律回失败会让「带锚建票 + 索引滞后仍复用」整段恒红 —— 桩要照现在的真命令脚本化。
     if (line.startsWith('api repos/')) {
-      // gh api --input - 这条路永远失败（房里的注释自己承认了），这里照真实情况回失败。
-      return { code: 1, stdout: '', stderr: 'gh api: stdin 没接上（探针脚本照真实行为回失败）' }
+      const restRow = (row) => Object.assign({}, row, { html_url: row.url, created_at: row.createdAt, updated_at: row.updatedAt })
+      const single = /^api repos\/[^/]+\/[^/]+\/issues\/(\d+)\b/.exec(line)
+      if (single) {
+        const num = Number(single[1])
+        const row = created.filter((x) => Number(x.number) === num)[0]
+        if (!row) return { code: 1, stdout: '', stderr: 'probe 脚本里没有这张票：' + num }
+        return { code: 0, stdout: JSON.stringify(restRow(row)), stderr: '' }
+      }
+      if (/^api repos\/[^/]+\/[^/]+\/issues\b/.test(line) && line.indexOf('--method POST') >= 0) {
+        const fields = {}
+        for (let i = 0; i < args.length - 1; i++) {
+          if (args[i] !== '-f') continue
+          const kv = String(args[i + 1] || '')
+          const eq = kv.indexOf('=')
+          if (eq > 0) fields[kv.slice(0, eq)] = kv.slice(eq + 1)
+        }
+        const number = created.length + 1
+        const row = {
+          number,
+          title: fields.title || '',
+          body: fields.body || '',
+          state: 'open',
+          url: 'https://github.com/acme/demo/issues/' + number,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }
+        created.push(row)
+        return { code: 0, stdout: JSON.stringify(restRow(row)), stderr: '' }
+      }
+      return { code: 1, stdout: '', stderr: 'probe 没脚本化这条 api 命令: ' + line }
     }
     if (line.startsWith('issue create')) {
       const title = (args[args.indexOf('--title') + 1]) || ''
