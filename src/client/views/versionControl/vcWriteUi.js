@@ -38,6 +38,8 @@ export const vcWriteUiOf = function (screen, ui, env) {
   })
   const running = String(w.op || '')
   const result = w.result || null
+  // 「这个仓库有多个远端，请先选一个」那一档：候选来自失败回包的顶层 remotes（vcWriteOps 把它放进 ui.write.remoteChoice）。
+  const choice = w.remoteChoice && w.remoteChoice.show === true ? w.remoteChoice : null
   const s = screen || {}
   const staged = Math.max(0, Number(s.stagedCount) || 0)
   const unstaged = Math.max(0, Number(s.unstagedCount) || 0)
@@ -51,12 +53,18 @@ export const vcWriteUiOf = function (screen, ui, env) {
     result: result
       ? {
           text: t(result.key, result.params),
-          limit: result.limitKey ? t(result.limitKey) : '',
-          tip: String(result.tip || ''),
+          limit: t(result.key + '.limit'),
+          verb: t(result.verb || (String(result.state) === 'done' ? 'vc.op.done' : 'vc.op.failed')),
+          // 悬停：宿主原话优先；没有原话时用可翻译的 tipKey（例如拉取成功那一档的快进/最新）。
+          tip: String(result.tip || '') || (result.tipKey ? t(result.tipKey) : ''),
           retryable: result.retryable === true,
           failed: String(result.state) === 'failed',
           moved: result.moved === true,
         }
+      : null,
+    // 多远端：画一排可点的远端入口（选中后由动作层带 remote 重跑预检）。
+    remoteChoice: choice
+      ? { title: t('vc.pickRemote.title'), body: t('vc.pickRemote.body'), remotes: choice.remotes.slice(), hint: String(choice.hint || '') }
       : null,
     actions: {
       pull: { op: 'pull', text: t('vc.action.pull'), disabled: busy || ops.pull.disabled, tip: ops.pull.tip },
@@ -74,10 +82,19 @@ export const vcWriteUiOf = function (screen, ui, env) {
       placeholder: t('vc.commitArea.placeholder'),
       hint: t('vc.commitArea.hint'),
       text: t('vc.action.commit', { n: String(staged) }),
-      // 无暂存内容、或判定说这一步做不了、或正在执行：按钮禁用。
-      disabled: busy || staged === 0 || ops.commit.disabled,
-      tip: ops.commit.tip,
+      // 无暂存内容、判定说这一步做不了、正在执行、或**提交信息还是空的**：按钮禁用。
+      //   空信息这一档要给一句为什么（对抗式审查 4.4：原来点了毫无反馈，是个死点）。
+      disabled: busy || staged === 0 || ops.commit.disabled || String(w.message || '').trim() === '',
+      needMessage: String(w.message || '').trim() === '',
+      tip: ops.commit.tip || (String(w.message || '').trim() === '' ? t('vc.commitArea.needMessage') : ''),
     },
-    confirm: w.confirm ? vcConfirmOf(w.confirm.op, w.confirm.plan, t, w.confirm.remotes) : null,
+    // 确认框里带一句有效期（宿主票据 TTL 是 2 分钟）：用户停久了才知道为什么点下去说「已过期」（对抗式审查 3.1）。
+    confirm: w.confirm
+      ? Object.assign(vcConfirmOf(w.confirm.op, w.confirm.plan, t, w.confirm.remotes), {
+          ttlText: (w.confirm.ticket && w.confirm.ticket.expiresAtMs)
+            ? t('vc.confirm.ttl', { sec: String(Math.max(0, Math.round((Number(w.confirm.ticket.expiresAtMs) - Number(env.nowMs || 0)) / 1000))) })
+            : '',
+        })
+      : null,
   }
 }

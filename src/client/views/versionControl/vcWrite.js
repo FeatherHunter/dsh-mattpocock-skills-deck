@@ -73,7 +73,7 @@ export const vcBlockedTipOf = function (decision, t) {
 /** 宿主写失败：reason（WRITE_REASONS 的 25 个）→ 话术族。 */
 export const VC_WRITE_ERR_FAMILY = {
   'auth-failed': 'noCredential',
-  'rejected-by-server': 'noPermission',
+  'rejected-by-server': 'remoteRule',
   'conflict': 'conflict',
   'non-fast-forward': 'notFastForward',
   'ticket-missing': 'stale',
@@ -94,19 +94,50 @@ export const VC_WRITE_ERR_FAMILY = {
   'empty-message': 'notReady',
   'message-too-long': 'notReady',
   'hooks-failed': 'notReady',
-  'head-unreadable': 'notReady',
-  'head-moved': 'notReady',
+  'head-unreadable': 'moved',
+  'head-moved': 'moved',
   'unknown-write-failure': 'unknown',
 }
 
-/** 传输档（#839 的信封 kind）：reason 落到兜底时按它判「网络断了 / 超时」那一族。 */
-export const VC_WRITE_ERR_NETWORK_KINDS = ['timeout', 'spawn', 'exit', 'env', 'throw']
+/**
+ * 传输档（#839 的信封 kind）：reason 落到兜底时按它判族。
+ * 词表按宿主真源对齐（gitCredentialExec.js 的 classifyGitFailure 与写电话回包）：args / budget-exhausted /
+ *   env / timeout / stalled / spawn-failed / need-credentials / auth-rejected / no-permission / network / other。
+ * 「网络」只留真网络的三种；env 与预算/起进程失败是环境问题，别让人去查网络（对抗式审查 6.1）。
+ */
+export const VC_WRITE_ERR_NETWORK_KINDS = ['timeout', 'stalled', 'network']
+export const VC_WRITE_ERR_KIND_FAMILY = {
+  'env': 'notReady',
+  'spawn-failed': 'notReady',
+  'budget-exhausted': 'notReady',
+  'need-credentials': 'noCredential',
+  'auth-rejected': 'noCredential',
+  'no-permission': 'noPermission',
+}
 
 export const vcWriteErrFamilyOf = function (reason, kind) {
   const r = String(reason === undefined || reason === null ? '' : reason)
   if (VC_WRITE_ERR_FAMILY[r]) return VC_WRITE_ERR_FAMILY[r]
-  if (VC_WRITE_ERR_NETWORK_KINDS.indexOf(String(kind === undefined || kind === null ? '' : kind)) >= 0) return 'network'
+  const k = String(kind === undefined || kind === null ? '' : kind)
+  if (VC_WRITE_ERR_KIND_FAMILY[k]) return VC_WRITE_ERR_KIND_FAMILY[k]
+  if (VC_WRITE_ERR_NETWORK_KINDS.indexOf(k) >= 0) return 'network'
   return 'unknown'
+}
+
+/**
+ * 预检回包是不是「这个仓库有多个远端，请先选一个」那一档。
+ * 形状（总工裁决）：失败信封的顶层 remotes 是候选清单（不是 error.remotes）。
+ * 界面据此画一排可点的远端入口；选中之后带 remote 重跑预检。
+ */
+export const vcRemoteChoiceOf = function (reply) {
+  const r = reply || {}
+  const err = r.error || {}
+  const remotes = Array.isArray(r.remotes) ? r.remotes.map(function (x) { return String(x) }).filter(function (x) { return x !== '' }) : []
+  return {
+    show: r.ok === false && String(err.reason || '') === 'need-remote-choice' && remotes.length > 0,
+    remotes: remotes,
+    hint: String(err.hint || err.message || ''),
+  }
 }
 
 /** 失败信封 → 主句词条键（limit 句 = 这个键 + '.limit'）。 */
@@ -149,7 +180,9 @@ export const vcConfirmOf = function (op, plan, t, remotes) {
   const remote = String(p.remote || '')
   const target = String(p.branch || '')
   const list = Array.isArray(remotes) ? remotes.map(function (x) { return String(x) }) : []
-  const base = { op: String(op || ''), mode: String(p.mode || 'existing'), remote: remote, target: target, localBranch: String(p.localBranch || ''), remotes: list, pickRemote: false, okText: '' }
+  // 上游被删：宿主可能回 mode='recreate'，也可能只给 upstreamGone 布尔（那一档由宿主票补）；两种都按重建上游画。
+  const mode = (String(p.mode || '') === 'recreate' || p.upstreamGone === true) ? 'recreate' : String(p.mode || 'existing')
+  const base = { op: String(op || ''), mode: mode, remote: remote, target: target, localBranch: String(p.localBranch || ''), remotes: list, pickRemote: false, okText: '' }
   if (op === 'pull') {
     return Object.assign(base, { title: t('vc.confirm.pullTitle'), body: t('vc.confirm.pullBody'), okText: t('vc.action.pull') })
   }

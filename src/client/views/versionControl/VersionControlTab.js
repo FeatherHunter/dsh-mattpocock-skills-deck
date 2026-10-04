@@ -25,7 +25,7 @@ export const VersionControlTab = function (props) {
   const cwd = st && st.cwd ? String(st.cwd) : ''
   const [reads, setReads] = React.useState(vcNewReads)
   // #842：ui.write 是写操作那一族自己的状态（六态、提交信息、确认框、上一次结果）。
-  const [ui, setUi] = React.useState(function () { return { fileShown: {}, openDiff: '', openCommit: '', write: { op: '', state: 'idle', message: '', confirm: null, result: null } } })
+  const [ui, setUi] = React.useState(function () { return { fileShown: {}, openDiff: '', openCommit: '', write: { op: '', state: 'idle', message: '', confirm: null, result: null, remoteChoice: null } } })
   const [width, setWidth] = React.useState(0)
   const [tier, setTier] = React.useState(0)
   const lastWidthRef = React.useRef(0)
@@ -43,7 +43,7 @@ export const VersionControlTab = function (props) {
     setStateCwd(cwd)
     setReads(fresh.reads)
     // 换工作区连写操作的状态一起复位：旧工作区的确认框与「上次结果」绝不留在新工作区下面。
-    setUi(Object.assign({}, fresh.ui, { write: { op: '', state: 'idle', message: '', confirm: null, result: null } }))
+    setUi(Object.assign({}, fresh.ui, { write: { op: '', state: 'idle', message: '', confirm: null, result: null, remoteChoice: null } }))
     setTier(0)
     lastWidthRef.current = 0
     logBusyRef.current = false

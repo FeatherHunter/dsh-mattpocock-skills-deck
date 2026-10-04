@@ -69,11 +69,22 @@ export const vcWriteTailNodes = function (h, o) {
   const result = w.result
     ? h('div', { key: 'result', 'data-vc-op-result': w.result.state, style: { display: 'flex', flexDirection: 'column', gap: 2, fontSize: 11, borderTop: '1px solid var(--dsw-alias-border-l1,#2a2d35)', paddingTop: 6 } }, [
         h('div', { style: { display: 'flex', gap: 6, alignItems: 'baseline' } }, [
-          h('span', { key: 'verb', style: { flex: 'none', fontWeight: 700, color: w.result.state === 'done' ? o.tone('success') : o.tone('error') } }, o.tr(w.result.state === 'done' ? 'vc.op.done' : 'vc.op.failed')),
+          h('span', { key: 'verb', style: { flex: 'none', fontWeight: 700, color: w.result.state === 'done' ? o.tone('success') : o.tone('error') } }, w.result.verb || o.tr(w.result.state === 'done' ? 'vc.op.done' : 'vc.op.failed')),
           o.tipNode(w.result.tip, h('span', { key: 'text', 'data-vc-op-text': 1, style: { flex: 1, minWidth: 0 } }, w.result.text)),
           w.result.retryable ? h('button', { key: 'retry', className: 'dsws-btn', type: 'button', 'data-vc-op-retry': 1, onClick: o.retryResult, style: { flex: 'none', fontSize: 10, padding: '0 6px' } }, o.tr('vc.retry')) : null,
         ]),
         w.result.limit ? h('div', { 'data-vc-op-limit': 1, style: { fontSize: 10, color: o.tone('caption'), lineHeight: 1.5 } }, w.result.limit) : null,
+      ])
+    : null
+  // 多远端 + 没有上游：候选远端来自失败回包的顶层 remotes，画成一排可点的入口（选中后带 remote 重跑预检）。
+  const rc = w.remoteChoice
+  const remoteChoice = rc
+    ? h('div', { key: 'remoteChoice', 'data-vc-remote-choice': 1, style: { border: '1px solid var(--dsw-alias-border-l2,#3a3f4a)', borderRadius: 8, padding: '8px 10px', background: 'var(--dsw-alias-bg-layer-2,#16181d)', display: 'flex', flexDirection: 'column', gap: 6 } }, [
+        h('div', { style: { fontSize: 12, fontWeight: 700, color: o.tone('primary') } }, rc.title),
+        h('div', { 'data-vc-remote-choice-body': 1, style: { fontSize: 11, color: o.tone('caption'), lineHeight: 1.6 } }, rc.body),
+        h('div', { style: { display: 'flex', gap: 6, flexWrap: 'wrap' } }, rc.remotes.map(function (name) {
+          return h('button', { key: name, className: 'dsws-btn', type: 'button', 'data-vc-remote': name, onClick: function () { o.pickRemote(name) }, style: { fontSize: 11, padding: '1px 8px' } }, name)
+        })),
       ])
     : null
   const c = w.confirm
@@ -81,6 +92,7 @@ export const vcWriteTailNodes = function (h, o) {
     ? h('div', { key: 'confirm', 'data-vc-confirm': c.op, style: { border: '1px solid var(--dsw-alias-border-l2,#3a3f4a)', borderRadius: 8, padding: '8px 10px', background: 'var(--dsw-alias-bg-layer-2,#16181d)', display: 'flex', flexDirection: 'column', gap: 6 } }, [
         h('div', { style: { fontSize: 12, fontWeight: 700, color: o.tone('primary') } }, c.title),
         h('div', { 'data-vc-confirm-body': 1, style: { fontSize: 11, color: o.tone('primary'), lineHeight: 1.6 } }, c.body),
+        c.ttlText ? h('div', { 'data-vc-confirm-ttl': 1, style: { fontSize: 10, color: o.tone('caption') } }, c.ttlText) : null,
         c.pickRemote && c.remotes.length
           ? h('select', { 'data-vc-remote-pick': 1, value: c.remote || 'origin', onChange: function (e) { o.pickRemote(e && e.target ? e.target.value : '') }, style: { fontSize: 11, padding: '2px 6px', borderRadius: 6, border: '1px solid var(--dsw-alias-border-l2,#3a3f4a)', background: 'var(--dsw-alias-bg-layer-3,#0c0e12)', color: 'var(--dsw-alias-label-primary,#e6edf3)' } }, c.remotes.map(function (r) { return h('option', { key: r, value: r }, r) }))
           : null,
@@ -90,5 +102,5 @@ export const vcWriteTailNodes = function (h, o) {
         ]),
       ])
     : null
-  return [running, result, confirm]
+  return [running, remoteChoice, result, confirm]
 }

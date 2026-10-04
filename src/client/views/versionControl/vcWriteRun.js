@@ -34,25 +34,49 @@ export const vcRequestIdOf = function (nowMs, salt) {
   return 'w' + Number(nowMs || 0).toString(36) + String(salt || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 12)
 }
 
-/** 回包 → 结果模型：{ state, key, params, tip, retryable, moved }。 */
-export const vcOpResultOf = function (op, reply) {
+/** 回包 → 结果模型：{ state, key, params, verb, tipKey, tip, retryable, moved }。
+ *  plan 是**预检回包那一份**（可选）：推送成功的措辞按 plan.mode 分档 —— 执行回包的 mode 对 recreate 档
+ *  仍回 existing-upstream（宿主不改），只有预检才知道这次是「第一次推送」还是「重建上游」。 */
+export const vcOpResultOf = function (op, reply, plan) {
   const r = reply || {}
   const o = String(op || '')
   if (r.ok === true) {
-    if (o === 'stage') return { state: 'done', key: 'vc.op.doneStage', params: { n: String((r.staged || []).length) }, tip: '', retryable: false, moved: false }
-    if (o === 'commit') return { state: 'done', key: 'vc.op.doneCommit', params: {}, tip: String(r.headAfter || ''), retryable: false, moved: false }
-    if (o === 'pull') return { state: 'done', key: 'vc.op.donePull', params: {}, tip: String(r.mode || ''), retryable: false, moved: false }
-    return { state: 'done', key: 'vc.op.donePush', params: {}, tip: String(r.remote || '') + '/' + String(r.branch || ''), retryable: false, moved: false }
+    if (o === 'stage') return { state: 'done', key: 'vc.op.doneStage', params: { n: String((r.staged || []).length) }, verb: 'vc.op.done', tipKey: '', tip: '', retryable: false, moved: false }
+    // 提交成功不再把 headAfter（一个 oid）当悬停文字：那是内部标识符，历史那一块重读之后自然看得见。
+    if (o === 'commit') return { state: 'done', key: 'vc.op.doneCommit', params: {}, verb: 'vc.op.done', tipKey: '', tip: '', retryable: false, moved: false }
+    // 拉取成功把宿主回包的 mode（fast-forward / up-to-date / unknown）翻成词条，不原样显示内部标识符。
+    if (o === 'pull') {
+      const mode = String(r.mode || '')
+      const tipKey = mode === 'fast-forward' ? 'vc.op.modeFastForward' : (mode === 'up-to-date' ? 'vc.op.modeUpToDate' : '')
+      return { state: 'done', key: 'vc.op.donePull', params: {}, verb: 'vc.op.done', tipKey: tipKey, tip: '', retryable: false, moved: false }
+    }
+    // 推送成功按**预检 plan.mode** 分三档说：existing 说「推送完成」、set-upstream 说「第一次推送、已设为上游」、
+    //   recreate 说「已重建上游」。执行回包的 mode 只有 existing-upstream / set-upstream 两种（recreate 档仍回前者），
+    //   所以措辞不能看执行回包。
+    const pm = String((plan && plan.mode) || '')
+    const remote = String((plan && plan.remote) || r.remote || '')
+    const target = String((plan && plan.branch) || r.branch || '')
+    const local = String((plan && plan.localBranch) || r.local || '')
+    if (pm === 'recreate') return { state: 'done', key: 'vc.op.donePushRecreate', params: { local: local, remote: remote, target: target }, verb: 'vc.op.done', tipKey: '', tip: '', retryable: false, moved: false }
+    if (pm === 'set-upstream') return { state: 'done', key: 'vc.op.donePushSetUpstream', params: {}, verb: 'vc.op.done', tipKey: '', tip: '', retryable: false, moved: false }
+    return { state: 'done', key: 'vc.op.donePush', params: {}, verb: 'vc.op.done', tipKey: '', tip: remote + '/' + target, retryable: false, moved: false }
   }
   const err = r.error || {}
-  const key = vcWriteErrKeyOf(err)
-  // 提交失败：宿主回的 head-moved 是明说；万一没标而 headBefore/headAfter 已经不同，也照同一条口径说。
-  const moved = o === 'commit' && (String(err.reason || '') === 'head-moved' || (!!r.headBefore && !!r.headAfter && String(r.headBefore) !== String(r.headAfter)))
+  const reason = String(err.reason || '')
+  // 提交不幂等：HEAD 变了（或读不到 HEAD）都只能如实说「结果不确定」——绝不写「没做成」。
+  //   宿主 hint 的语义就是「可能这次提交成功了 / 结果未知」，主句与动作词都照它说（对抗式审查 4.1）。
+  const moved = o === 'commit' && (reason === 'head-moved' || reason === 'head-unreadable' || (!!r.headBefore && !!r.headAfter && String(r.headBefore) !== String(r.headAfter)))
+  // 推送被拒（non-fast-forward）与拉取不能快进是两回事：推送这一档本地还没有远端那些提交，话术要先让人 fetch/pull。
+  const pushNff = o === 'push' && reason === 'non-fast-forward'
+  const key = moved ? 'vc.writeErr.moved' : (pushNff ? 'vc.writeErr.notFastForwardPush' : vcWriteErrKeyOf(err))
   return {
     state: 'failed',
-    key: moved ? 'vc.writeErr.notReady' : key,
+    key: key,
     params: {},
+    verb: moved ? 'vc.op.unknown' : 'vc.op.failed',
+    tipKey: '',
     tip: String(err.hint || err.message || ''),
+    // 结果不确定时不给重试按钮：提交不幂等，鼓励再点一次是最坏的建议。
     retryable: !moved,
     moved: moved,
   }

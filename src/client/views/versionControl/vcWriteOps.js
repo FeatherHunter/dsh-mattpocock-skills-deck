@@ -30,7 +30,7 @@ export const vcWriteOpsOf = function (deps) {
   const runWrite = function (op, payload) {
     setWrite({ op: op, state: 'running', result: null })
     return vcRunWrite(callHost, cwd, op, payload).then(function (reply) {
-      const res = Object.assign({ op: op }, vcOpResultOf(op, reply))
+      const res = Object.assign({ op: op }, vcOpResultOf(op, reply, payload && payload.plan ? payload.plan : null))
       setWrite({ op: '', state: res.state, result: res, confirm: null })
       return res.state === 'done' ? afterWrite(op) : null
     })
@@ -54,43 +54,78 @@ export const vcWriteOpsOf = function (deps) {
     const why = (typeof vcPlanMismatchOf === 'function') ? vcPlanMismatchOf(op, screen, plan) : ''
     if (why) logShape(why)
   }
-  const stagePaths = function (paths) {
+  // 同步重入闸（对抗式审查 2.1）：同一帧里连点两次只放第一次进去，第二次直接忽略。
+  //   为什么不能用 ui.write.state 判：setUi 要等下一次渲染才生效，同一帧里两次点击看到的是同一个 idle。
+  //   动作一结束（预检回来、或写电话回来）就放行，所以「预检 → 确认框 → 确定」这条路不受影响。
+  let inFlight = false
+  const guarded = function (fn) {
+    return function () {
+      if (inFlight) return null
+      inFlight = true
+      const release = function () { inFlight = false }
+      try {
+        const out = fn.apply(null, arguments)
+        if (out && typeof out.then === 'function') return out.then(release, function (e) { release(); throw e })
+        release()
+        return out
+      } catch (e) { release(); throw e }
+    }
+  }
+  const stagePaths = guarded(function (paths) {
     const list = (Array.isArray(paths) ? paths : []).filter(function (p) { return String(p || '') !== '' })
     if (!list.length) return
-    runWrite('stage', { paths: list })
-  }
-  const startPull = function () {
+    return runWrite('stage', { paths: list })
+  })
+  const startPull = guarded(function () {
     if (vcOpStateOf(decisions.pull) === 'blocked') return
-    checkThen('pull', {}, function (reply) {
+    return checkThen('pull', {}, function (reply) {
       noteMismatch('pull', reply.plan)
-      setWrite({ op: '', state: 'confirm', confirm: { op: 'pull', plan: reply.plan, ticket: reply.ticket, remotes: reply.remotes || [] }, result: null })
+      setWrite({ op: '', state: 'confirm', confirm: { op: 'pull', plan: reply.plan, ticket: reply.ticket, remotes: reply.remotes || [] }, result: null, remoteChoice: null })
     })
-  }
-  const startPush = function (remote) {
-    if (vcOpStateOf(vcPushDecisionOf(decisions.push)) === 'blocked') return
+  })
+  // 推送：多远端 + 没有上游时宿主回 ok:false + reason=need-remote-choice + 顶层 remotes（候选）。
+  //   这一档不是失败，是「先选一个」——把它画成一排可点的远端入口，选中后带 remote 重跑预检。
+  const doPush = function (remote) {
+    if (vcOpStateOf(vcPushDecisionOf(decisions.push)) === 'blocked') return null
     const extra = remote ? { remote: String(remote) } : {}
-    checkThen('push', extra, function (reply) {
+    setWrite({ op: 'push', state: 'running', result: null, remoteChoice: null })
+    return vcRunCheck(callHost, cwd, 'push', extra).then(function (reply) {
+      const choice = vcRemoteChoiceOf(reply)
+      if (choice.show) {
+        setWrite({ op: '', state: 'idle', result: null, confirm: null, remoteChoice: choice })
+        return null
+      }
+      if (!reply || reply.ok !== true) {
+        setWrite({ op: '', state: 'failed', result: Object.assign({ op: 'push' }, vcOpResultOf('push', reply)), confirm: null, remoteChoice: null })
+        return null
+      }
       noteMismatch('push', reply.plan)
-      setWrite({ op: '', state: 'confirm', confirm: { op: 'push', plan: reply.plan, ticket: reply.ticket, remotes: Array.isArray(reply.remotes) ? reply.remotes : [] }, result: null })
+      setWrite({ op: '', state: 'confirm', confirm: { op: 'push', plan: reply.plan, ticket: reply.ticket, remotes: Array.isArray(reply.remotes) ? reply.remotes : [] }, result: null, remoteChoice: null })
     })
   }
-  const submitCommit = function () {
+  const startPush = guarded(function (remote) { return doPush(remote) })
+  const submitCommit = guarded(function () {
     const message = String(writeState.message || '')
     if (vcOpStateOf(decisions.commit) === 'blocked' || message.trim() === '') return
-    checkThen('commit', { message: message }, function (reply) {
+    // 这个 return 不能省：没有它 guarded 会以为动作已经结束、当场放行，重入闸就形同虚设（实测连点两次发两次预检）。
+    return checkThen('commit', { message: message }, function (reply) {
       const ticket = reply.ticket || {}
-      return runWrite('commit', { ticketId: String(ticket.id || ''), requestId: vcRequestIdOf(Date.now(), 'commit'), message: message }).then(function () { setWrite({ message: '' }) })
+      return runWrite('commit', { ticketId: String(ticket.id || ''), requestId: vcRequestIdOf(Date.now(), 'commit'), message: message, plan: reply.plan }).then(function () { setWrite({ message: '' }) })
     })
-  }
-  const confirmNow = function () {
+  })
+  const confirmNow = guarded(function () {
     const c = writeState.confirm || null
     if (!c) return
     const ticket = c.ticket || {}
-    runWrite(c.op, { ticketId: String(ticket.id || ''), requestId: vcRequestIdOf(Date.now(), c.op) })
-  }
+    // plan 一起带上：推送成功的措辞要按预检那一档说（执行回包分不出 recreate）。
+    return runWrite(c.op, { ticketId: String(ticket.id || ''), requestId: vcRequestIdOf(Date.now(), c.op), plan: c.plan })
+  })
   const cancelConfirm = function () { setWrite({ state: 'idle', confirm: null, op: '' }) }
   // 多远端时用户选了一个：目标变了，旧票作废 —— 重新预检拿新票（设计 §4）。
-  const pickRemote = function (name) { setWrite({ state: 'idle', confirm: null, op: '', result: null }); startPush(name) }
+  const pickRemote = guarded(function (name) {
+    setWrite({ state: 'idle', confirm: null, op: '', result: null, remoteChoice: null })
+    return doPush(name)
+  })
   const writeMessageOf = function (value) { setWrite({ message: String(value === undefined || value === null ? '' : value) }) }
   const retryResult = function () {
     const r = writeState.result || {}

@@ -58,6 +58,7 @@ const EXPORTS = [
   'VC_SYNC_VALUES',
   'VC_TONE',
   'VC_WRITE_ERR_FAMILY',
+  'VC_WRITE_ERR_KIND_FAMILY',
   'VC_WRITE_ERR_NETWORK_KINDS',
   'VC_WRITE_OPS',
   'VC_WRITE_PHONES',
@@ -108,6 +109,7 @@ const EXPORTS = [
   'vcReadStatus',
   'vcReadsOf',
   'vcReasonKeysOf',
+  'vcRemoteChoiceOf',
   'vcRequestIdOf',
   'vcRowStageNodes',
   'vcRowStageOf',
@@ -228,13 +230,16 @@ function groupA(view, React, DswsCtx, TipStub, IcStub) {
   check(a2, 'A2 changes 标题行有「全部暂存」，路径只含未暂存且非冲突的两行（实得 ' + JSON.stringify(paths) + '）')
 
   const cleanScreen = screenOf({ staged: [fileOf('a.txt', 'staged')], stagedCount: 1 })
-  const cleanBlocks = blocksOf(view, cleanScreen, readsOf(cleanScreen), uiOf())
+  const typedUi = uiOf({ write: { op: '', state: 'idle', message: '写一句', confirm: null, result: null } })
+  const cleanBlocks = blocksOf(view, cleanScreen, readsOf(cleanScreen), typedUi)
   const ca = blockOf(cleanBlocks, 'changes') ? blockOf(cleanBlocks, 'changes').commitArea : null
-  const a3 = !!(ca && ca.placeholder && ca.text && ca.hint) && ca.disabled === false && html.indexOf('data-vc-commit-area') >= 0 && html.indexOf('data-vc-commit-msg') >= 0 && html.indexOf('data-vc-commit-btn') >= 0
+  const blankBlocks = blocksOf(view, cleanScreen, readsOf(cleanScreen), uiOf())
+  const caBlank = blockOf(blankBlocks, 'changes') ? blockOf(blankBlocks, 'changes').commitArea : null
+  const a3 = !!(ca && ca.placeholder && ca.text && ca.hint) && ca.disabled === false && !!caBlank && caBlank.disabled === true && caBlank.needMessage === true && caBlank.tip === trZh('vc.commitArea.needMessage') && html.indexOf('data-vc-commit-area') >= 0 && html.indexOf('data-vc-commit-msg') >= 0 && html.indexOf('data-vc-commit-btn') >= 0
   const emptyScreen = screenOf()
   const emptyBlocks = blocksOf(view, emptyScreen, readsOf(emptyScreen), uiOf())
   const caEmpty = blockOf(emptyBlocks, 'changes') ? blockOf(emptyBlocks, 'changes').commitArea : null
-  check(a3 && !!caEmpty && caEmpty.disabled === true, 'A3 changes 块底部有提交区（输入框 + 按钮），无暂存时按钮禁用（有暂存禁用=' + (ca ? ca.disabled : '缺') + '，无暂存禁用=' + (caEmpty ? caEmpty.disabled : '缺') + '）')
+  check(a3 && !!caEmpty && caEmpty.disabled === true, 'A3 changes 块底部有提交区（输入框 + 按钮）；空提交信息与无暂存都禁用并给出原因（有信息禁用=' + (ca ? ca.disabled : '缺') + '，空信息禁用=' + (caBlank ? caBlank.disabled : '缺') + '，无暂存禁用=' + (caEmpty ? caEmpty.disabled : '缺') + '）')
 
   const rowB = rowOf(blocks, 'b.txt')
   const a4 = !!(rowB && rowB.stageAction && rowB.stageAction.show === true) && html.indexOf('data-vc-stage') >= 0
@@ -243,6 +248,15 @@ function groupA(view, React, DswsCtx, TipStub, IcStub) {
   const rowD = rowOf(blocks, 'd.txt')
   const a5 = !!(rowD && rowD.stageAction && rowD.stageAction.conflict === true && rowD.stageAction.show === false) && html.indexOf('data-vc-conflict-terminal') >= 0
   check(a5, 'A5 冲突行没有「暂存」而有去侧栏终端的指引（模型 ' + JSON.stringify(rowD && rowD.stageAction) + '，DOM ' + (html.indexOf('data-vc-conflict-terminal') >= 0) + '）')
+
+  // A6：多远端 + 没有上游 —— 候选远端来自失败回包顶层 remotes，界面上要有一排可点的入口。
+  const choiceUi = uiOf({ write: { op: '', state: 'idle', message: '', confirm: null, result: null, remoteChoice: { show: true, remotes: ['origin', 'mirror'], hint: '' } } })
+  const choiceModel = view.vcWriteUiOf(screen, choiceUi, { t: trZh, nowMs: NOW, decisions: decisionsOf(view, screen) })
+  const choiceHtml = renderTab(React, DswsCtx, TipStub, IcStub, reads, function (s) {
+    return s.replace("write: { op: '', state: 'idle', message: '', confirm: null, result: null, remoteChoice: null }", "write: { op: '', state: 'idle', message: '', confirm: null, result: null, remoteChoice: { show: true, remotes: ['origin', 'mirror'], hint: '' } }")
+  }).html
+  const a6 = !!(choiceModel.remoteChoice && choiceModel.remoteChoice.remotes.join(',') === 'origin,mirror') && choiceHtml.indexOf('data-vc-remote-choice') >= 0 && choiceHtml.indexOf('data-vc-remote="origin"') >= 0 && choiceHtml.indexOf('data-vc-remote="mirror"') >= 0
+  check(a6, 'A6 多远端 + 没有上游：界面上有一排可点的远端入口（模型 ' + JSON.stringify(choiceModel.remoteChoice && choiceModel.remoteChoice.remotes) + '，DOM ' + (choiceHtml.indexOf('data-vc-remote-choice') >= 0) + '）')
 }
 
 // ============================================================
@@ -259,14 +273,15 @@ function groupB(view) {
   const b2 = bareId && bareId.actions && bareId.actions.pull.disabled === true && bareId.actions.pull.tip.length > 0
   check(!!b2, 'B2 verdict=block 时按钮禁用且悬停给理由（裸仓库下拉取禁用=' + !!(bareId && bareId.actions && bareId.actions.pull.disabled) + '，悬停=' + JSON.stringify(bareId && bareId.actions ? bareId.actions.pull.tip : '') + '）')
 
+  const typedUi = uiOf({ write: { op: '', state: 'idle', message: '写一句', confirm: null, result: null } })
   const mid = screenOf({ staged: [fileOf('a.txt', 'staged')], stagedCount: 1, repo: { merging: true } })
-  const midBlocks = blocksOf(view, mid, readsOf(mid), uiOf())
+  const midBlocks = blocksOf(view, mid, readsOf(mid), typedUi)
   const midChanges = blockOf(midBlocks, 'changes')
   const b3 = midChanges && midChanges.commitArea.disabled === false && view.vcOpStateOf(view.judge(mid, 'commit')) === 'idle'
   check(!!b3, 'B3 verdict=warn 时可点（合并进行中提交仍可点，理由在确认框/悬停里列：' + JSON.stringify(view.judge(mid, 'commit').reasons) + '）')
 
   const ok = screenOf({ staged: [fileOf('a.txt', 'staged')], stagedCount: 1 })
-  const okBlocks = blocksOf(view, ok, readsOf(ok), uiOf())
+  const okBlocks = blocksOf(view, ok, readsOf(ok), typedUi)
   const okChanges = blockOf(okBlocks, 'changes')
   const b4 = okChanges && okChanges.commitArea.disabled === false && okChanges.commitArea.tip === ''
   check(!!b4, 'B4 verdict=allow 时可点、没有禁用理由（禁用=' + (okChanges ? okChanges.commitArea.disabled : '缺') + '，悬停=' + JSON.stringify(okChanges ? okChanges.commitArea.tip : '') + '）')
@@ -287,6 +302,10 @@ function groupB(view) {
   const gone = screenOf({ branches: [{ short: 'main', upstream: 'origin/main', upstreamGone: true }], identity: { sync: 'upstream-gone' } })
   const fixed2 = view.vcPushDecisionOf(view.judge(gone, 'push'))
   check(fixed.verdict === 'allow' && fixed2.verdict === 'allow', 'B6 推送的「没有上游 / 上游被删」不是禁用，而是走确认档（no-upstream=' + fixed.verdict + '，upstream-gone=' + fixed2.verdict + '）')
+
+  // B7：结果不确定的两档（head-moved / head-unreadable）不归「这一步现在做不成」那一族。
+  const movedKeys = ['head-moved', 'head-unreadable'].map(function (r) { return view.vcWriteErrKeyOf({ reason: r, kind: 'other' }) })
+  check(movedKeys.join(',') === 'vc.writeErr.moved,vc.writeErr.moved', 'B7 head-moved / head-unreadable 走「结果不确定」那一族（实得 ' + movedKeys.join(',') + '）')
 }
 
 // ============================================================
@@ -324,6 +343,13 @@ async function groupC(view, logs) {
 
   const pullBody = trZh('vc.confirm.pullBody')
   check(pullBody.indexOf('快进') >= 0 && pullBody.indexOf('侧栏终端') >= 0, 'C5 拉取确认框正文写清「只做快进」与「去侧栏终端」（' + pullBody + '）')
+
+  // C6：上游被删（宿主可能回 mode=recreate，也可能只给 upstreamGone 布尔）——两档都要走「已经不在了」那套话术。
+  const recByMode = view.vcConfirmOf('push', planRecreate, trZh)
+  const recByFlag = view.vcConfirmOf('push', { mode: 'set-upstream', upstreamGone: true, remote: 'origin', branch: 'feature', localBranch: 'feature' }, trZh)
+  const recBody = trZh('vc.confirm.pushRecreateBody', { remote: 'origin', target: 'feature', local: 'feature' })
+  const c6 = recByMode.mode === 'recreate' && recByFlag.mode === 'recreate' && recBody.indexOf('origin/feature') >= 0 && recBody.indexOf('已经不在了') >= 0 && recBody.indexOf('feature') >= 0 && recByMode.okText === trZh('vc.action.pushRecreate')
+  check(c6, 'C6 上游被删：mode=recreate 与 upstreamGone 布尔两种回包都走「远端分支已经不在了」那套话术（正文=' + recBody + '）')
 }
 
 // ============================================================
@@ -356,6 +382,12 @@ function groupD(view, writeReasons) {
 
   const res = view.vcOpResultOf('pull', { ok: false, error: { kind: 'exit', reason: 'unknown-write-failure', message: 'git 原话', hint: '宿主给的一句中文' } })
   check(res.tip === '宿主给的一句中文' && res.key.indexOf('vc.writeErr.') === 0 && res.key !== res.tip, 'D5 宿主原话进悬停（tip），可见文字只用词条键（key=' + res.key + '）')
+
+  // D6：确认框里写清票据有效期（停久了才知道为什么会说「已过期」）。
+  const s6 = screenOf()
+  const ui6 = uiOf({ write: { op: '', state: 'idle', message: '', confirm: { op: 'push', plan: { mode: 'existing', remote: 'origin', branch: 'main', localBranch: 'main' }, ticket: { id: 't1', expiresAtMs: NOW + 120000 }, remotes: [] }, result: null, remoteChoice: null } })
+  const m6 = view.vcWriteUiOf(s6, ui6, { t: trZh, nowMs: NOW, decisions: decisionsOf(view, s6) })
+  check(!!m6.confirm && /120 秒内有效/.test(m6.confirm.ttlText), 'D6 确认框带票据有效期那句（实得 ' + JSON.stringify(m6.confirm && m6.confirm.ttlText) + '）')
 }
 
 // ============================================================
@@ -398,7 +430,7 @@ async function groupE(view) {
 
   // E4：提交失败且 HEAD 变了 → 不给重试，文案是「HEAD 已经变了」那一族
   const res4 = view.vcOpResultOf('commit', { ok: false, error: { kind: 'other', reason: 'unknown-write-failure', message: 'x', hint: 'h' }, headBefore: 'a', headAfter: 'b' })
-  check(res4.state === 'failed' && res4.moved === true && res4.retryable === false && res4.key === 'vc.writeErr.notReady', 'E4 提交失败且 HEAD 变了：不重试、如实说（retryable=' + res4.retryable + '，moved=' + res4.moved + '，key=' + res4.key + '）')
+  check(res4.state === 'failed' && res4.moved === true && res4.retryable === false && res4.key === 'vc.writeErr.moved' && res4.verb === 'vc.op.unknown', 'E4 提交失败且 HEAD 变了：不重试、动作词是「结果不确定」而不是「没做成」（retryable=' + res4.retryable + '，moved=' + res4.moved + '，key=' + res4.key + '，verb=' + res4.verb + '）')
 
   // E5：拉取失败后重试必须先重新预检（第二次点击先发 wf.gitWriteCheck）
   const host5 = makeHost(function (m) {
@@ -415,6 +447,37 @@ async function groupE(view) {
   ops5b.retryResult()
   await flush()
   check(host5.countOf('wf.gitWriteCheck') === 2, 'E5 拉取失败后重试重新预检（wf.gitWriteCheck 调用 ' + host5.countOf('wf.gitWriteCheck') + ' 次）')
+
+  // E6：同一帧里连点两次提交，只发一次预检（重入闸）；且确认框连点两次确定只发一次写电话。
+  const host6 = makeHost(function (m) {
+    if (m === 'wf.gitWriteCheck') return { ok: true, decision: { verdict: 'allow', reasons: [] }, plan: { mode: 'existing', remote: 'origin', branch: 'main', localBranch: 'main' }, ticket: { id: 't6', checkedAtMs: NOW, expiresAtMs: NOW + 120000, op: 'commit' }, readAtMs: NOW }
+    if (m === 'wf.gitCommit') return { ok: true, committed: true, headBefore: 'a', headAfter: 'b', atMs: NOW }
+    if (m === 'wf.gitStatus') return { ok: true, screen: stagedScreen, tier: 'full', gitVersion: 'git version 2.49.0', readAtMs: NOW }
+    if (m === 'wf.gitLog') return { ok: true, commits: [], hasMore: false }
+    return { ok: true }
+  })
+  const uiBox6 = { ui: uiOf({ write: { op: '', state: 'idle', message: '写一句', confirm: null, result: null, remoteChoice: null } }) }
+  const mk6 = function () { return view.vcWriteOpsOf({ ui: uiBox6.ui, setUi: function (fn) { uiBox6.ui = fn(uiBox6.ui) }, callHost: host6.call, cwd: 'D:/w/repo', readsRef: { current: readsOf(stagedScreen) }, setReads: function () {}, screen: stagedScreen }) }
+  const ops6 = mk6()
+  ops6.submitCommit()
+  ops6.submitCommit()
+  await flush()
+  const preChecks = host6.countOf('wf.gitWriteCheck')
+  const ops6b = mk6()
+  ops6b.confirmNow()
+  ops6b.confirmNow()
+  await flush(8)
+  const commits = host6.countOf('wf.gitCommit')
+  check(preChecks === 1 && commits === 1, 'E6 同帧连点两次提交只发一次预检、连点两次确定只发一次写电话（预检=' + preChecks + '，提交=' + commits + '）')
+
+  // E7：推送成功的措辞按**预检 plan.mode** 分三档（执行回包对 recreate 档仍回 existing-upstream，分不出来）。
+  const pushReply = { ok: true, mode: 'existing-upstream', remote: 'origin', branch: 'main', upToDate: false, atMs: NOW }
+  const rExisting = view.vcOpResultOf('push', pushReply, { mode: 'existing', remote: 'origin', branch: 'main', localBranch: 'main' })
+  const rSet = view.vcOpResultOf('push', pushReply, { mode: 'set-upstream', remote: 'origin', branch: 'main', localBranch: 'main' })
+  const rRec = view.vcOpResultOf('push', pushReply, { mode: 'recreate', remote: 'origin', branch: 'feature', localBranch: 'feature' })
+  const e7 = rExisting.key === 'vc.op.donePush' && rSet.key === 'vc.op.donePushSetUpstream' && rRec.key === 'vc.op.donePushRecreate' && rRec.params.local === 'feature' && rRec.params.remote === 'origin' && rRec.params.target === 'feature' && rExisting.key !== rSet.key && rSet.key !== rRec.key
+  const recSentence = trZh(rRec.key, rRec.params)
+  check(e7 && recSentence.indexOf('origin/feature') >= 0 && recSentence.indexOf('feature') >= 0, 'E7 推送成功分三档：existing / set-upstream / recreate 各自一句，recreate 那句点名 remote/target/local（' + recSentence + '）')
 }
 
 // ============================================================
@@ -499,12 +562,73 @@ async function groupG(view) {
 }
 
 // ============================================================
+// I 组 · 跨层：真宿主回包 → 真命令 → 确认框正文（对抗式审查第 8 节推荐的那一条）
+// ============================================================
+async function groupI(view, pushPlanOf, pushArgs) {
+  const cases = [
+    { name: 'existing', args: { branch: 'main', upstream: 'origin/main', upstreamGone: false, remotes: ['origin'], requestedRemote: null } },
+    { name: 'set-upstream', args: { branch: 'feature/x', upstream: null, upstreamGone: false, remotes: ['origin'], requestedRemote: null } },
+    { name: 'recreate', args: { branch: 'feature', upstream: 'origin/feature', upstreamGone: true, remotes: ['origin'], requestedRemote: null } },
+    { name: 'slash-remote', args: { branch: 'main', upstream: null, upstreamGone: false, remotes: ['my/fork'], requestedRemote: null } },
+  ]
+  const bad = []
+  const detail = []
+  cases.forEach(function (c) {
+    const pp = pushPlanOf(c.args)
+    if (!pp || pp.ok !== true) { bad.push(c.name + ':宿主没给出 plan(' + (pp && pp.reason) + ')'); return }
+    const plan = pp.plan
+    const argv = pushArgs(plan)
+    const argvText = argv.join(' ')
+    const confirm = view.vcConfirmOf('push', plan, trZh)
+    const remote = String(plan.remote || '')
+    const target = String(plan.branch || '')
+    const local = String(plan.localBranch || '')
+    const argvOk = argvText.indexOf(' ' + remote + ' ') >= 0 && argvText.indexOf(local + ':' + target) >= 0 && argvText.indexOf('--force') < 0 && argvText.indexOf(' +') < 0
+    const bodyOk = confirm.body.indexOf(remote + '/' + target) >= 0 && confirm.body.indexOf(local) >= 0 && confirm.remote === remote && confirm.target === target && confirm.localBranch === local
+    if (!argvOk || !bodyOk) bad.push(c.name + ':argv=' + argvText + ' 正文=' + confirm.body)
+    detail.push(c.name + '[' + plan.mode + '] ' + argvText + ' ⇄ ' + confirm.body)
+  })
+  check(bad.length === 0, 'I1 四档真 plan → 真 argv → 确认框正文：remote/target/local 与命令完全一致（' + (bad.join('；') || detail.join(' ｜ ')) + '）')
+
+  // I2：多远端 + 没有上游 —— 用真 pushPlanOf 的失败档造回包（顶层 remotes），界面必须有可点入口。
+  const need = pushPlanOf({ branch: 'main', upstream: null, upstreamGone: false, remotes: ['origin', 'mirror'], requestedRemote: null })
+  const reply = { ok: false, error: { kind: 'args', reason: need.reason, message: '', hint: '这个仓库有多个远端，面板不替你挑。请选一个远端再确认。' }, remotes: need.candidates }
+  const choice = view.vcRemoteChoiceOf(reply)
+  const host = makeHost(function (m, args) {
+    if (m === 'wf.gitWriteCheck' && !args.remote) return reply
+    if (m === 'wf.gitWriteCheck') return { ok: true, decision: { verdict: 'allow', reasons: [] }, plan: { mode: 'set-upstream', remote: args.remote, branch: 'main', localBranch: 'main' }, ticket: { id: 't8', op: 'push' }, readAtMs: NOW }
+    return { ok: true }
+  })
+  const uiBox = { ui: uiOf() }
+  const mk = function () { return view.vcWriteOpsOf({ ui: uiBox.ui, setUi: function (fn) { uiBox.ui = fn(uiBox.ui) }, callHost: host.call, cwd: 'D:/w/repo', readsRef: { current: readsOf(screenOf()) }, setReads: function () {}, screen: screenOf() }) }
+  mk().startPush('')
+  await flush()
+  const model = view.vcWriteUiOf(screenOf(), uiBox.ui, { t: trZh, nowMs: NOW, decisions: decisionsOf(view, screenOf()) })
+  const shown = !!(model.remoteChoice && model.remoteChoice.remotes.join(',') === 'origin,mirror')
+  mk().pickRemote('mirror')
+  await flush()
+  const remoteArg = (host.calls.filter(function (c) { return c.method === 'wf.gitWriteCheck' && c.args.remote })[0] || { args: {} }).args.remote
+  check(choice.show === true && shown && remoteArg === 'mirror', 'I2 多远端 + 没有上游：真回包的候选进界面、点一个就带 remote 重跑预检（入口=' + JSON.stringify(model.remoteChoice && model.remoteChoice.remotes) + '，重跑带的 remote=' + JSON.stringify(remoteArg) + '）')
+
+  // I3：真回包的 plan 里 remote 含斜杠时，确认框正文与 argv 仍然逐字一致（防「客户端自己拆」复发）。
+  const slash = pushPlanOf({ branch: 'main', upstream: null, upstreamGone: false, remotes: ['foo/bar'], requestedRemote: null })
+  const slashBody = view.vcConfirmOf('push', slash.plan, trZh).body
+  check(slash.ok === true && slashBody.indexOf('foo/bar/main') >= 0 && pushArgs(slash.plan).join(' ').indexOf('foo/bar') >= 0, 'I3 远端名含斜杠：正文与命令都写 foo/bar/main，客户端没有自己拆（正文=' + slashBody + '）')
+
+  // I4：recreate 档的正文与命令一致（宿主新档落地后这一条不用改）。
+  const rec = pushPlanOf({ branch: 'feature', upstream: 'origin/feature', upstreamGone: true, remotes: ['origin'], requestedRemote: null })
+  const recConfirm = view.vcConfirmOf('push', rec.plan, trZh)
+  const recArgv = pushArgs(rec.plan).join(' ')
+  check(recConfirm.mode === 'recreate' && recConfirm.body.indexOf('origin/feature') >= 0 && recConfirm.body.indexOf('已经不在了') >= 0 && recArgv.indexOf('origin') >= 0 && recArgv.indexOf('feature:feature') >= 0, 'I4 上游被删那一档：正文说「已经不在了」、命令是显式 feature:feature（正文=' + recConfirm.body + '；命令=' + recArgv + '）')
+}
+
+// ============================================================
 // H 组 · 反证（每一条都要把对应的判据改红）
 // ============================================================
 async function groupH(React, DswsCtx, TipStub, IcStub, logs) {
   const build = (patch, exportsList) => buildView(patch, React, DswsCtx, TipStub, IcStub, null, logs, trZh, exportsList)
 
-  const v1 = build(function (s) { return s.replace("const base = { op: String(op || ''), mode: String(p.mode || 'existing'), remote: remote, target: target,", "const base = { op: String(op || ''), mode: String(p.mode || 'existing'), remote: '', target: '',") })
+  const v1 = build(function (s) { return s.replace("const base = { op: String(op || ''), mode: mode, remote: remote, target: target,", "const base = { op: String(op || ''), mode: mode, remote: '', target: '',") })
   const h1 = v1.vcConfirmOf('push', { mode: 'existing', remote: 'origin', branch: 'main' }, trZh).target === 'main'
   check(h1 === false, 'H1 反证：把推送确认框里的目标删掉 → C3 那条当场不成立')
 
@@ -523,7 +647,7 @@ async function groupH(React, DswsCtx, TipStub, IcStub, logs) {
   LOC.zh['vc.writeErr.conflict.limit'] = savedLimit
   check(h4, 'H4 反证：把一条 limit 句抹掉 → D1 那条当场不成立')
 
-  const v5 = build(function (s) { return s.replace('const stagePaths = function (paths) {', "const stagePaths = function (paths) { callHost('wf.gitStatus', { cwd: cwd })") })
+  const v5 = build(function (s) { return s.replace('const stagePaths = guarded(function (paths) {', "const stagePaths = guarded(function (paths) { callHost('wf.gitStatus', { cwd: cwd })") })
   const screen = richScreen()
   const host5 = makeHost(function () { return { ok: true, staged: ['b.txt'], atMs: NOW } })
   const ops5 = v5.vcWriteOpsOf({ ui: uiOf(), setUi: function () {}, callHost: host5.call, cwd: 'D:/w/repo', readsRef: { current: readsOf(screen) }, setReads: function () {}, screen: screen })
@@ -535,6 +659,27 @@ async function groupH(React, DswsCtx, TipStub, IcStub, logs) {
   const shortExports = EXPORTS.filter(function (n) { return n !== 'vcConfirmOf' })
   const v6 = build(null, shortExports)
   check(typeof v6.vcConfirmOf === 'undefined', 'H6 反证：从 EXPORTS 名单里去掉一个新导出 → F3 那条当场不成立')
+
+  // H7：把「多远端要用户选」那一档的判据改坏（show 永远 false）→ A6/I2 那条不成立。
+  const v7 = build(function (s) { return s.replace("show: r.ok === false && String(err.reason || '') === 'need-remote-choice' && remotes.length > 0,", "show: false,") })
+  const h7 = v7.vcRemoteChoiceOf({ ok: false, error: { reason: 'need-remote-choice' }, remotes: ['origin', 'mirror'] }).show === true
+  check(h7 === false, 'H7 反证：把「多远端要用户选」的判据改坏 → A6/I2 那条当场不成立')
+
+  // H8：把重入闸拆掉（guarded 直接放行）→ E6 那条不成立。
+  const v8 = build(function (s) { return s.replace('      if (inFlight) return null', '      if (false) return null') })
+  const host8 = makeHost(function (m) {
+    if (m === 'wf.gitWriteCheck') return { ok: true, decision: { verdict: 'allow', reasons: [] }, plan: { mode: 'existing', remote: 'origin', branch: 'main', localBranch: 'main' }, ticket: { id: 't8b', op: 'commit' }, readAtMs: NOW }
+    if (m === 'wf.gitCommit') return { ok: true, committed: true, headBefore: 'a', headAfter: 'b', atMs: NOW }
+    return { ok: true }
+  })
+  const staged8 = screenOf({ staged: [fileOf('a.txt', 'staged')], stagedCount: 1 })
+  const uiBox8 = { ui: uiOf({ write: { op: '', state: 'idle', message: '写一句', confirm: null, result: null, remoteChoice: null } }) }
+  const mk8 = function () { return v8.vcWriteOpsOf({ ui: uiBox8.ui, setUi: function (fn) { uiBox8.ui = fn(uiBox8.ui) }, callHost: host8.call, cwd: 'D:/w/repo', readsRef: { current: readsOf(staged8) }, setReads: function () {}, screen: staged8 }) }
+  const ops8 = mk8()
+  ops8.submitCommit()
+  ops8.submitCommit()
+  await flush()
+  check(host8.countOf('wf.gitWriteCheck') > 1, 'H8 反证：把重入闸拆掉 → E6 那条当场不成立（实测预检 ' + host8.countOf('wf.gitWriteCheck') + ' 次）')
 }
 
 // ============================================================
@@ -549,6 +694,9 @@ async function main() {
   }
   const reasonsMod = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'version-control', 'write-reasons.js')).href)
   const writeReasons = Object.keys(reasonsMod.WRITE_REASONS)
+  // I 组要用宿主真源：真 pushPlanOf 生成 plan、真 pushArgs 拼命令（不是手搓形状）。
+  const planMod = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'version-control', 'push-plan.js')).href)
+  const cmdMod = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'version-control', 'commands.js')).href)
 
   const React = require('react')
   const DswsCtx = React.createContext(null)
@@ -564,6 +712,7 @@ async function main() {
   await groupE(view)
   groupF(view, EXPORTS)
   await groupG(view)
+  await groupI(view, planMod.pushPlanOf, cmdMod.pushArgs)
   await groupH(React, DswsCtx, TipStub, IcStub, logs)
 
   console.log(failed ? '\n存在失败' : '\n全部通过 — 写操作界面门禁生效（' + total + ' 条断言）')
