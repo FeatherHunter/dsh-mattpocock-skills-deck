@@ -11,8 +11,8 @@
  */
 import type { WritePlan } from './ports.js'
 
-const REMOTE_PATTERN = /^[A-Za-z0-9._-]+$/
-const BRANCH_PATTERN = /^(?!-)[^\s\u0000:\\]+$/
+const REMOTE_PATTERN = /^(?!-)[A-Za-z0-9._/-]+$/ // git 允许远端名含斜杠（git remote add foo/bar）；仍禁 : 空白 NUL 与前导 -
+const BRANCH_PATTERN = /^(?![-+])[^\s\u0000:\\]+$/ // 前导 - 是选项、前导 + 是强推标记（#841 第三批·安全级）
 
 export interface PushPlanInput {
   branch: string
@@ -44,16 +44,16 @@ export function pushPlanOf(input: PushPlanInput): PushPlanResult {
     if (best !== '') {
       const targetBranch = upstream.slice(best.length + 1)
       if (!BRANCH_PATTERN.test(targetBranch)) return { ok: false, reason: 'bad-target' }
-      return { ok: true, plan: { mode: 'existing', remote: best, branch: targetBranch, localBranch: branch } }
+      return { ok: true, plan: { mode: 'existing', setUpstream: false, remote: best, branch: targetBranch, localBranch: branch } }
     }
     // 上游指向的不是任何已登记远端（例如本地分支）：当成「没有可用上游」，走选定档。
   }
   const wanted = input.requestedRemote ? String(input.requestedRemote) : ''
   if (wanted !== '') {
     if (!REMOTE_PATTERN.test(wanted) || remotes.indexOf(wanted) < 0) return { ok: false, reason: 'bad-target' }
-    return { ok: true, plan: { mode: 'set-upstream', remote: wanted, branch: branch, localBranch: branch } }
+    return { ok: true, plan: { mode: 'set-upstream', setUpstream: true, remote: wanted, branch: branch, localBranch: branch } }
   }
-  if (remotes.length === 1) return { ok: true, plan: { mode: 'set-upstream', remote: remotes[0], branch: branch, localBranch: branch } }
+  if (remotes.length === 1) return { ok: true, plan: { mode: 'set-upstream', setUpstream: true, remote: remotes[0], branch: branch, localBranch: branch } }
   return { ok: false, reason: 'need-remote-choice', candidates: remotes.slice() }
 }
 

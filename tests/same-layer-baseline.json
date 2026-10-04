@@ -922,6 +922,33 @@
       "note": "#847 要在 runGit 里加字节增长看门狗（窗口内收集器读到的字节不再增长就判 stalled），内联写进去会把 versionControl.js 顶到 365 行、超过 350 上限；照 #500（logStore→logPhones）、#819（versionControl→versionControlBasis）、#818（versionControl→versionControlFiles）同一条先例，把看门狗搬成自包含叶子：handle 与 timer 全由父文件显式传入，叶子不引用父文件（静态 import 这一行留在父文件），父文件只多一行 import 与一行建看门狗。默认不开，只有显式传 opts.stallMs 的调用才启用。"
     },
     {
+      "file": "src/host/versionControl.js",
+      "spec": "./gitCredentialExec.js",
+      "resolved": "src/host/gitCredentialExec.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#841（宿主写执行层与四条写电话）",
+      "note": "写电话要经 #839 的安全执行层（非交互环境 + 每操作预算 + 调用级总预算）；versionControl.js 正好 350 行没有余量，照 #500（logStore→logPhones）/ #821（versionControl→versionControlFiles）同一先例，装配放进本文件的 writePhone() 懒加载器里（动态加载、单向），写模块自己不引用只读模块。"
+    },
+    {
+      "file": "src/host/versionControl.js",
+      "spec": "./versionControlCheck.js",
+      "resolved": "src/host/versionControlCheck.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#841（宿主写执行层与四条写电话）",
+      "note": "同上：预检（判定 / 目标解析 / 票据 / 索引指纹）住独立叶子，依赖由本文件显式传入（readScreenOf / failPhone / safeGit），叶子不引用本文件。"
+    },
+    {
+      "file": "src/host/versionControl.js",
+      "spec": "./versionControlWrite.js",
+      "resolved": "src/host/versionControlWrite.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#841（宿主写执行层与四条写电话）",
+      "note": "同上：四条执行电话住独立叶子；票据表由预检叶子交给本文件的装配器再转交（叶子之间不互引），起进程只走本文件交出去的同一个 runGit。"
+    },
+    {
       "file": "src/host/index.js",
       "spec": "./mapTickets.js",
       "resolved": "src/host/mapTickets.js",

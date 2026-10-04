@@ -150,9 +150,13 @@ export type WriteOp = 'commit' | 'pull' | 'push'
 /** 预检解析出来的推送目标；localBranch 是 refspec 左边那一段（本地分支）。 */
 export interface WritePlan {
   mode: 'existing' | 'set-upstream'
+  /** mode 的布尔派生（界面与反证脚本按它读）：true = 这次推送会建立上游（带 -u）。 */
+  setUpstream?: boolean
   remote: string
   branch: string
   localBranch: string
+  /** pull 用：预检时这个分支的上游短名（执行前要重量一次比对，防「预检后改上游/切分支」绕过）。 */
+  upstream?: string | null
 }
 
 /**
@@ -162,6 +166,9 @@ export interface WritePlan {
 export interface WriteTicket {
   id: string
   op: WriteOp
+  /** 票绑仓库（#841 第三批）：两个不同目录的仓库可以有完全相同的 HEAD 与索引指纹，所以票据必须记住
+   *  自己是给哪个工作树发的，执行前比对；对不上按 stale-repo 拒。 */
+  repoRoot: string
   checkedAtMs: number
   expiresAtMs: number
   headOid: string

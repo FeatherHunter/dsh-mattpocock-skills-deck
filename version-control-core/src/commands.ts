@@ -101,8 +101,10 @@ export const WRITE_SUBCOMMANDS: string[] = ['add', 'commit', 'pull', 'push', 'ls
 
 /** 远端名与分支名的形状：只挡「会被当成选项」与「会破坏 argv」的形状，不重造 git 自己的取名规则。
  *  分支名允许斜杠（feature/x）；两者都不许以 - 开头、不许空白与 NUL。 */
-export const REMOTE_PATTERN = /^[A-Za-z0-9._-]+$/
-export const BRANCH_PATTERN = /^(?!-)[^\s\u0000:\\]+$/
+export const REMOTE_PATTERN = /^(?!-)[A-Za-z0-9._/-]+$/
+// 前导 - 会被当选项；前导 + 更危险：refspec 首字符 + 是 git 的强推标记，`+wip:+wip` 会被解析成
+// 「强推 wip 到 wip」——源引用被吃掉、远端被覆盖（#841 第三批·安全级）。两者都拒。
+export const BRANCH_PATTERN = /^(?![-+])[^\s\u0000:\\]+$/
 
 /**
  * 写命令的参数口径（#841 附录第 4 节）。本文件只描述「子命令与它自己的参数」：
@@ -127,6 +129,11 @@ export function pullArgs(): string[] {
 /** 推送：永远显式 <remote> <local>:<remote>（总工 2026-10-04 订正 1）；-u 只在 set-upstream 档出现。 */
 export function pushArgs(plan: { mode: 'existing' | 'set-upstream'; remote: string; branch: string; localBranch: string }): string[] {
   const spec = plan.localBranch + ':' + plan.branch
+  // 自检（#841 第三批·安全级）：refspec 首字符 + 是强推标记。分支名正则已经拒前导 +，这里再兜一道，
+  // 免得将来有人从别的路径拼 refspec 时把「普通推送」变成「覆盖远端」。
+  if (spec.charAt(0) === '+' || plan.localBranch.charAt(0) === '+' || plan.branch.charAt(0) === '+') {
+    throw new Error('[version-control] refspec 不许以 + 开头（会被 git 当强推）：' + spec)
+  }
   return plan.mode === 'set-upstream' ? ['push', '-u', plan.remote, spec] : ['push', plan.remote, spec]
 }
 /** 索引指纹的输入（只读；总工裁决 2：不用 write-tree，不往用户对象库写东西）。 */
@@ -136,6 +143,12 @@ export function lsFilesStageArgs(): string[] {
 /** 远端清单（只读，D3 要用它列远端让用户选）。 */
 export function remoteListArgs(): string[] {
   return ['remote']
+}
+/** 分支名的最终复核（只读，不碰仓库）：拼 refspec 之前让 git 自己判一次这个名字合不合法。
+ *  形状正则挡的是「会被当选项」与「会破坏 argv」，git 的取名规则比正则细（.. ~ ^ : 等），
+ *  所以推送到动手前再问一次 git（#841 第二段②；威胁面 T1/T2/T7）。 */
+export function checkRefArgs(branch: string): string[] {
+  return ['check-ref-format', '--branch', branch]
 }
 
 /** 换行配置的事实来源（宿主在第 0 步阶段顺带取，不计入六个采集项）。 */

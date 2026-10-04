@@ -62,6 +62,21 @@ async function main() {
   }
   if (portsJs) check(portsJs.includes('PORTS_SOURCE'), '插口产物带模块标识 PORTS_SOURCE（空壳可追溯）')
 
+  // #845：每个产物都要带自己的模块标识（<文件名大写>_SOURCE，值指向它来自哪个 TS）。
+  //   这条判据本来就该有：仓库里同类的三份门禁都在读各自的模块标识（label-color 的 PORTS_SOURCE、
+  //   refresh 的 POLICY_SOURCE 与 WRITE_DETECT_SOURCE、版本控制自己的 RULES_SOURCE），只有这份新鲜度门禁
+  //   只查了 ports.js 一处，剩下 12 个产物的标识谁都没读 → 被 verify-contract-vocabulary 判成
+  //   「死了的常量」。读它一次，既把词汇救活，也把「产物能追溯回源码」这条钉住。
+  for (const u of UNITS) {
+    const jsAbs = path.join(ROOT, u.js)
+    if (!fs.existsSync(jsAbs)) continue
+    const base = path.basename(u.js, '.js')
+    const constName = base.toUpperCase().replace(/[^A-Z0-9]+/g, '_') + '_SOURCE'
+    let mod = null
+    try { mod = await import(pathToFileURL(jsAbs).href) } catch (e) { check(false, u.js + ' 可导入（读模块标识用）：' + (e && e.message)); continue }
+    check(mod[constName] === u.ts, u.js + ' 带模块标识 ' + constName + ' 且指向 ' + u.ts + '（实得 ' + String(mod[constName]) + '）')
+  }
+
   for (const u of UNITS) {
     const abs = path.join(ROOT, u.js)
     if (!fs.existsSync(abs)) continue

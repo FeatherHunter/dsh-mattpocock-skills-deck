@@ -38,6 +38,8 @@ const PHONES = [
   'wf.mapTickets',
   'wf.deckExec',
   'wf.gitStatus', 'wf.gitDiff', 'wf.gitLog',
+  // #841 写操作那一族五条（1 预检 + 4 执行）：现役 46 → 51（总工 2026-10-04 拍板）。
+  'wf.gitWriteCheck', 'wf.gitStage', 'wf.gitCommit', 'wf.gitPull', 'wf.gitPush',
   'wf.handoffLatest', 'wf.handoffResolve',
   'wf.namingRegister', 'wf.registerNewSessionWatcher', 'wf.namingSignal', 'wf.namingPlan',
   'wf.namingResult', 'wf.cancelNewSessionWatcher', 'wf.awaitCreatedIssue',
@@ -63,6 +65,9 @@ const CALLEE_COVERS = [
   // 宿主侧电话体用 loggedPhone 记 host.call / host.call.fail（电话名写在 method 字段里），
   // 所以在这里表示「被调电话在宿主侧覆盖」——客户端调用点不必再另加一条邻近日志。
   'wf.gitStatus', 'wf.gitDiff', 'wf.gitLog',
+  // #841 五条写电话：与只读三条同理，宿主侧电话体用 loggedPhone 记 host.call / host.call.fail，
+  // 客户端调用点归写界面那张票（#842），这里表示「被调电话在宿主侧覆盖」。
+  'wf.gitWriteCheck', 'wf.gitStage', 'wf.gitCommit', 'wf.gitPull', 'wf.gitPush',
 ]
 
 // 一、注册：现役全注册，退役零注册，实现留守不断链。

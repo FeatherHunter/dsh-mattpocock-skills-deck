@@ -60,8 +60,8 @@ export function commandFor(key, opts) {
   }
 }
 export const WRITE_SUBCOMMANDS = ["add", "commit", "pull", "push", "ls-files", "remote"];
-export const REMOTE_PATTERN = /^[A-Za-z0-9._-]+$/;
-export const BRANCH_PATTERN = /^(?!-)[^\s\u0000:\\]+$/;
+export const REMOTE_PATTERN = /^(?!-)[A-Za-z0-9._/-]+$/;
+export const BRANCH_PATTERN = /^(?![-+])[^\s\u0000:\\]+$/;
 export function stageArgs(paths) {
   return ["add", "--"].concat(paths);
 }
@@ -73,6 +73,9 @@ export function pullArgs() {
 }
 export function pushArgs(plan) {
   const spec = plan.localBranch + ":" + plan.branch;
+  if (spec.charAt(0) === "+" || plan.localBranch.charAt(0) === "+" || plan.branch.charAt(0) === "+") {
+    throw new Error("[version-control] refspec \u4E0D\u8BB8\u4EE5 + \u5F00\u5934\uFF08\u4F1A\u88AB git \u5F53\u5F3A\u63A8\uFF09\uFF1A" + spec);
+  }
   return plan.mode === "set-upstream" ? ["push", "-u", plan.remote, spec] : ["push", plan.remote, spec];
 }
 export function lsFilesStageArgs() {
@@ -80,6 +83,9 @@ export function lsFilesStageArgs() {
 }
 export function remoteListArgs() {
   return ["remote"];
+}
+export function checkRefArgs(branch) {
+  return ["check-ref-format", "--branch", branch];
 }
 export function autocrlfArgs() {
   return ["config", "--get", "core.autocrlf"];

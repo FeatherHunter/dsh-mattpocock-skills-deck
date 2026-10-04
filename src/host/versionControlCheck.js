@@ -48,8 +48,21 @@ export function createWriteCheck(deps) {
     const sr = await vc.readScreenOf(cwd)
     if (!sr || sr.ok !== true) return sr || fail('env', 'unknown-write-failure', '读不到这个仓库的首屏')
     const screen = sr.screen
-    const decision = judge(screen, op)
-    if (decision.verdict === 'block') return Object.assign(fail('blocked', 'blocked', '这次操作现在做不了', { reasons: decision.reasons }), { decision: decision })
+    let decision = judge(screen, op)
+    // D3 + 裁决 1：推送时「没有上游 / 上游被删」不是「不能推」，而是「走 set-upstream 档、显式 -u」——
+    // 把这两条理由从 block 里摘掉，剩下的理由还成立才真挡（rules.ts 是只读版写的，这两档归写操作自己判）。
+    if (op === 'push') {
+      const left = decision.reasons.filter(function (x) { return x !== 'no-upstream' && x !== 'upstream-gone' })
+      decision = (decision.verdict === 'block' && left.length === 0) ? { verdict: 'allow', reasons: [] } : { verdict: decision.verdict, reasons: left }
+    }
+    if (decision.verdict === 'block') {
+      // 提交被 judge 挡在「没有暂存内容」时，再问一次是不是 git add -N（i-t-a）：那是更具体的理由（话术指终端）。
+      if (op === 'commit' && decision.reasons.indexOf('nothing-staged') >= 0) {
+        const st0 = await readOut(cwd, ['status', '--porcelain=v2', '-z', '--untracked-files=all', '--find-renames'], LSFILES_TIMEOUT_MS, LSFILES_LIMIT)
+        if (st0 && st0.ok === true && st0.truncated !== true && hasIntentToAdd(st0.stdout) === true) return fail('args', 'intent-to-add', writeHintFor('intent-to-add'))
+      }
+      return Object.assign(fail('blocked', 'blocked', '这次操作现在做不了', { reasons: decision.reasons }), { decision: decision })
+    }
     const branch = screen.identity && screen.identity.branch ? String(screen.identity.branch) : ''
     let plan = null
     let indexFingerprint = null
@@ -88,8 +101,9 @@ export function createWriteCheck(deps) {
       if (st.truncated === true) return fail('other', 'fingerprint-unavailable', '工作区状态太大，被截断了')
       if (hasIntentToAdd(st.stdout) === true) return fail('args', 'intent-to-add', writeHintFor('intent-to-add'))
     }
-    const ticket = makeTicket({ id: mkId(), op: op, nowMs: now(), headOid: String(screen.identity.oid || ''), indexFingerprint: indexFingerprint, indexEntries: indexEntries, target: plan })
+    const ticket = makeTicket({ id: mkId(), op: op, nowMs: now(), headOid: String(screen.identity.oid || ''), indexFingerprint: indexFingerprint, indexEntries: indexEntries, target: plan, repoRoot: String((screen.identity && screen.identity.worktreePath) || '') })
     tickets.set(ticket.id, ticket)
+    if (tickets.size > 200) { const oldest = tickets.keys().next().value; tickets.delete(oldest) } // 上限与清理：票据只在内存里，别无限长
     return {
       ok: true,
       decision: { verdict: decision.verdict, reasons: decision.reasons },

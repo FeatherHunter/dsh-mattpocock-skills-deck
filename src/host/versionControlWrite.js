@@ -7,10 +7,10 @@
 // push.default=nothing；set-upstream 档在执行前再核一次「这个分支确实还没有上游」（已存在上游还带 -u 会
 // 静默覆盖用户的设置）；提交不幂等，失败后只能靠仓库状态说话，绝不自动重试、绝不声称成功。
 import { createHash } from 'node:crypto'
-import { fixedPrefix, stageArgs, commitArgs, pullArgs, pushArgs, lsFilesStageArgs, remoteListArgs } from '../shared/version-control/commands.js'
-import { ticketVerdict, indexRecordCount, fingerprintInputOf } from '../shared/version-control/write-ticket.js'
+import { fixedPrefix, stageArgs, commitArgs, pullArgs, pushArgs, lsFilesStageArgs, remoteListArgs, checkRefArgs } from '../shared/version-control/commands.js'
+import { ticketVerdict, ticketPureVerdict, requestIdProblem, indexRecordCount, fingerprintInputOf } from '../shared/version-control/write-ticket.js'
 import { pushPlanOf } from '../shared/version-control/push-plan.js'
-import { classifyWriteFailure, writeHintFor, pathsProblem, messageProblem } from '../shared/version-control/write-reasons.js'
+import { classifyWriteFailure, writeHintFor, pathsProblem, messageProblem, idShapeProblem } from '../shared/version-control/write-reasons.js'
 
 const ADD_TIMEOUT_MS = 15000, COMMIT_TIMEOUT_MS = 60000, PULL_TIMEOUT_MS = 180000, PUSH_TIMEOUT_MS = 120000
 const SMALL_LIMIT = 256 * 1024, LSFILES_LIMIT = 8 * 1024 * 1024, REMOTE_LIMIT = 4096
@@ -24,6 +24,9 @@ export function createWritePhones(deps) {
     const hint = (reason === 'unknown-write-failure' && extra && extra.transportHint) ? extra.transportHint : writeHintFor(reason)
     return Object.assign({ ok: false, error: { kind: kind, reason: reason, message: message || '', hint: hint } }, extra && extra.extra ? extra.extra : {})
   }
+  /** 请求按白名单显式拼：只给执行层这四个字段，**绝不把客户端 args 整包透传**。
+   *  尤其不许透传 stallMs —— 看门狗在真机网络命令上会误杀健康传输（#841 第三批结论），
+   *  所以「客户端乱传 stallMs」这条路必须堵死在这里（配套门禁：请求里带 stallMs 时仍不得开看门狗）。 */
   async function runOne(cwd, args, timeoutMs, stdoutLimit, callBudgetMs) {
     const call = safeGit.startCall({ totalBudgetMs: callBudgetMs })
     return await call.run({ args: fixedPrefix().concat(args), cwd: cwd, timeoutMs: timeoutMs, stdoutLimit: stdoutLimit })
@@ -35,7 +38,19 @@ export function createWritePhones(deps) {
   /** 票据核对用的「此刻状态」：HEAD 一定量；提交多量一次索引指纹；推送重量一次目标（含「还没有上游」再核）。 */
   async function currentOf(cwd, op, ticket) {
     const headOid = await readHead(cwd)
-    const cur = { op: op, headOid: headOid || '', indexFingerprint: null, indexAvailable: false, target: null }
+    const cur = { op: op, headOid: headOid || '', indexFingerprint: null, indexAvailable: false, target: null, repoRoot: '' }
+    if (!ticket) return cur
+    // 仓库根（票绑仓库）：两个不同目录的仓库可以有完全相同的 HEAD 与指纹，所以执行前必须重量一次。
+    const top = await runOne(cwd, ['rev-parse', '--show-toplevel'], 5000, 4096, 10000)
+    cur.repoRoot = (top && top.ok === true) ? String(top.stdout || '').trim() : ''
+    if (op === 'pull') {
+      // pull 也要绑目标：预检之后改上游或切分支都不许绕过。
+      const br = await runOne(cwd, ['rev-parse', '--abbrev-ref', 'HEAD'], 5000, 4096, 10000)
+      const branch = (br && br.ok === true) ? String(br.stdout || '').trim() : ''
+      const up = await runOne(cwd, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', branch + '@{u}'], 5000, 4096, 10000)
+      const upstream = (up && up.ok === true) ? String(up.stdout || '').trim() : null
+      cur.target = { mode: 'existing', remote: '', branch: '', localBranch: branch, upstream: upstream }
+    }
     if (op === 'commit') {
       const lf = await runOne(cwd, lsFilesStageArgs(), 15000, LSFILES_LIMIT, 30000)
       if (lf && lf.ok === true && lf.truncated !== true && ticket.indexFingerprint !== null) {
@@ -62,7 +77,16 @@ export function createWritePhones(deps) {
     const ticketId = String(a.ticketId || '')
     const requestId = String(a.requestId || '')
     if (requestId && results.has(requestId)) return { replay: results.get(requestId) }
+    // 票据 id 是外部输入：形状先过一道，不合形状当场拒（不去查表、不起任何进程）。
+    const idBad = idShapeProblem(ticketId)
+    if (idBad) return { denied: wfail('args', idBad, writeHintFor(idBad)) }
+    const ridBad = requestIdProblem(requestId)
+    if (ridBad) return { denied: wfail('args', ridBad, writeHintFor(ridBad)) }
     const ticket = tickets.get(ticketId) || null
+    // 纯判定先行（票在不在 / 动作对不对 / 过期没有）：这一关**不起任何进程**；
+    // 口径是「任何写命令之前必须先过票据门」，所以先判完再去做需要起进程的状态比对。
+    const pure = ticketPureVerdict(ticket, op, now())
+    if (pure.ok !== true) return { denied: wfail('args', pure.reason, writeHintFor(pure.reason)) }
     const cur = await currentOf(cwd, op, ticket)
     const v = ticketVerdict(ticket, now(), cur)
     if (v.ok !== true) {
@@ -70,9 +94,23 @@ export function createWritePhones(deps) {
       if (requestId) results.set(requestId, out)
       return { denied: out }
     }
+    // 推送是唯一把「名字」拼进 refspec 的一档：动手前让 git 自己复核这两个分支名（只读命令，零副作用）。
+    if (op === 'push' && ticket.target) {
+      for (const name of [ticket.target.localBranch, ticket.target.branch]) {
+        const cr = await runOne(cwd, checkRefArgs(String(name)), 5000, 4096, 15000)
+        if (!cr || cr.ok !== true) {
+          const out = wfail('args', 'bad-target', writeHintFor('bad-target'))
+          if (requestId) results.set(requestId, out)
+          return { denied: out }
+        }
+      }
+    }
     return { ticket: ticket, cwd: cwd, requestId: requestId }
   }
-  function remember(requestId, out) { if (requestId) results.set(requestId, out); return out }
+  function remember(requestId, out) { if (requestId) results.set(requestId, out); if (results.size > 200) { const oldest = results.keys().next().value; results.delete(oldest) } return out }
+  /** 失败文本：优先读执行层补的 stderr 尾巴（#847 那一族信封新加的字段，名字未定就按 detail 兼容），
+   *  退回 stderr、再退回 message —— 分类正则吃的是 git 的原话，读不到就会全落兜底（真缺陷 F1）。 */
+  function failText(r) { return String((r && (r.detail || r.stderr || r.message)) || '') }
 
   /** 暂存（无票）：整文件、可逆、天然幂等。 */
   async function handleGitStage(args) {
@@ -83,7 +121,7 @@ export function createWritePhones(deps) {
     const paths = a.paths.map(function (p) { return String(p) })
     const r = await runOne(cwd, stageArgs(paths), ADD_TIMEOUT_MS, SMALL_LIMIT, ADD_TIMEOUT_MS + 10000)
     if (r && r.ok === true) return { ok: true, staged: paths, atMs: now() }
-    const text = (r && r.stderr) || (r && r.message) || ''
+    const text = failText(r)
     const reason = classifyWriteFailure('commit', r ? r.exitCode : -1, text)
     return wfail((r && r.kind && r.kind !== 'ok') ? r.kind : 'other', reason === 'unknown-write-failure' ? 'unknown-write-failure' : reason, (r && r.message) || '', { transportHint: r && r.hint })
   }
@@ -98,10 +136,12 @@ export function createWritePhones(deps) {
     const headBefore = String(g.ticket.headOid || '')
     const r = await runOne(g.cwd, commitArgs(String(a.message)), COMMIT_TIMEOUT_MS, SMALL_LIMIT, COMMIT_TIMEOUT_MS + 10000)
     const headAfter = await readHead(g.cwd)
+    // 读不到 HEAD 就如实说「结果未知」——绝不在不知道结果时说成功（#841 第三批 ⑤）。
+    if (headAfter === null) return remember(g.requestId, wfail('other', 'head-unreadable', writeHintFor('head-unreadable'), { extra: { headBefore: headBefore, headAfter: '' } }))
     if (r && r.ok === true) return remember(g.requestId, { ok: true, committed: true, headBefore: headBefore, headAfter: headAfter || '', atMs: now() })
     // 不幂等：HEAD 变了就如实说「HEAD 已经变了」，既不声称成功也不自动重试。
     if (headAfter && headBefore && headAfter !== headBefore) return remember(g.requestId, wfail('other', 'head-moved', writeHintFor('head-moved'), { extra: { headBefore: headBefore, headAfter: headAfter } }))
-    const text = (r && r.stderr) || (r && r.message) || ''
+    const text = failText(r)
     const reason = classifyWriteFailure('commit', r ? r.exitCode : -1, text)
     return remember(g.requestId, wfail((r && r.kind && r.kind !== 'ok') ? r.kind : 'other', reason, (r && r.message) || '', { transportHint: r && r.hint, extra: { headBefore: headBefore, headAfter: headAfter || '' } }))
   }
@@ -114,10 +154,11 @@ export function createWritePhones(deps) {
     const r = await runOne(g.cwd, pullArgs(), PULL_TIMEOUT_MS, SMALL_LIMIT, PULL_TIMEOUT_MS + 10000)
     const headAfter = await readHead(g.cwd)
     if (r && r.ok === true) {
-      const mode = (headAfter && headBefore && headAfter !== headBefore) ? 'fast-forward' : 'up-to-date'
+      // 读不到 HEAD 时回 mode:'unknown'，不许回 up-to-date（那是在猜）。
+      const mode = (headAfter === null) ? 'unknown' : ((headBefore && headAfter !== headBefore) ? 'fast-forward' : 'up-to-date')
       return remember(g.requestId, { ok: true, mode: mode, headBefore: headBefore, headAfter: headAfter || '', upstream: (g.ticket.target && g.ticket.target.upstream) || '', atMs: now() })
     }
-    const text = (r && r.stderr) || (r && r.message) || ''
+    const text = failText(r)
     const reason = classifyWriteFailure('pull', r ? r.exitCode : -1, text)
     return remember(g.requestId, wfail((r && r.kind && r.kind !== 'ok') ? r.kind : 'other', reason, (r && r.message) || '', { transportHint: r && r.hint, extra: { headBefore: headBefore, headAfter: headAfter || '' } }))
   }
@@ -132,7 +173,7 @@ export function createWritePhones(deps) {
       const text = String(r.stdout || '')
       return remember(g.requestId, { ok: true, mode: plan.mode === 'set-upstream' ? 'set-upstream' : 'existing-upstream', remote: plan.remote, branch: plan.branch, upToDate: /up-to-date/i.test(text), atMs: now() })
     }
-    const text = (r && r.stderr) || (r && r.message) || ''
+    const text = failText(r)
     const reason = classifyWriteFailure('push', r ? r.exitCode : -1, text)
     return remember(g.requestId, wfail((r && r.kind && r.kind !== 'ok') ? r.kind : 'other', reason, (r && r.message) || '', { transportHint: r && r.hint }))
   }

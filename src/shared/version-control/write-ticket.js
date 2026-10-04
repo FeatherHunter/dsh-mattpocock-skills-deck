@@ -13,6 +13,7 @@ export function makeTicket(input) {
   return {
     id: String(input.id || ""),
     op: input.op,
+    repoRoot: String(input.repoRoot || ""),
     checkedAtMs: input.nowMs,
     expiresAtMs: input.nowMs + TICKET_TTL_MS,
     headOid: String(input.headOid || ""),
@@ -21,14 +22,32 @@ export function makeTicket(input) {
     target: input.target || null
   };
 }
+export function ticketPureVerdict(ticket, op, nowMs) {
+  if (!ticket || !ticket.id) return { ok: false, reason: "ticket-missing" };
+  if (ticket.op !== op) return { ok: false, reason: "ticket-op-mismatch" };
+  if (!(nowMs < ticket.expiresAtMs)) return { ok: false, reason: "ticket-expired" };
+  return { ok: true };
+}
+export function requestIdProblem(id) {
+  const s = String(id === void 0 || id === null ? "" : id);
+  if (s === "") return null;
+  if (s.length > 64 || !/^[A-Za-z0-9_-]+$/.test(s)) return "bad-target";
+  return null;
+}
 export function ticketVerdict(ticket, nowMs, current) {
   if (!ticket || !ticket.id) return { ok: false, reason: "ticket-missing" };
   if (ticket.op !== current.op) return { ok: false, reason: "ticket-op-mismatch" };
   if (!(nowMs < ticket.expiresAtMs)) return { ok: false, reason: "ticket-expired" };
+  if (String(current.repoRoot || "") !== String(ticket.repoRoot || "")) return { ok: false, reason: "stale-repo" };
   if (String(current.headOid || "") !== String(ticket.headOid || "")) return { ok: false, reason: "stale-head" };
   if (ticket.op === "commit") {
     if (current.indexAvailable !== true) return { ok: false, reason: "fingerprint-unavailable" };
     if (String(current.indexFingerprint || "") !== String(ticket.indexFingerprint || "")) return { ok: false, reason: "stale-index" };
+  }
+  if (ticket.op === "pull") {
+    const a = ticket.target || { upstream: null, localBranch: "" };
+    const b = current.target || { upstream: null, localBranch: "" };
+    if (String(a.upstream || "") !== String(b.upstream || "") || String(a.localBranch || "") !== String(b.localBranch || "")) return { ok: false, reason: "target-changed" };
   }
   if (ticket.op === "push") {
     const a = ticket.target || { mode: "", remote: "", branch: "", localBranch: "" };
@@ -42,9 +61,9 @@ export function hasIntentToAdd(statusPorcelainV2Z) {
   if (text === "") return false;
   for (const rec of text.split("\0")) {
     if (rec === "") continue;
-    if (rec[0] !== "1" && rec[0] !== "2") continue;
+    if (rec[0] !== "1") continue;
     const fields = rec.split(" ");
-    if (fields.length >= 3 && fields[2] === "N...") return true;
+    if (fields.length >= 5 && fields[1] === ".A" && fields[4] === "000000") return true;
   }
   return false;
 }
