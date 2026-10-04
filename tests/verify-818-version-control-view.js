@@ -40,6 +40,7 @@ const VC_FILES = [
   'src/client/views/versionControl/vcWriteUi.js',
   'src/client/views/versionControl/vcWriteOps.js',
   'src/client/views/versionControl/vcWriteView.js',
+  'src/client/views/versionControl/vcDiffOps.js', // #857：差异与提交那几路的动作（从入口组件搬出，闭包里排在 vcBlocks 之前）
   'src/client/views/versionControl/vcBlocks.js',
   'src/client/views/versionControl/vcTabVisible.js',
   'src/client/views/versionControl/vcData.js',
@@ -184,11 +185,11 @@ async function main() {
   check(/export\s+const\s+VersionControlTab\s*=/.test(tabSrc), 'A3 入口导出名 VersionControlTab（壳层按这个名字调）')
   const buildSrc = read('scripts/build.mjs')
   const leafOrder = VC_FILES.map((f) => buildSrc.indexOf("'" + f + "'"))
-  check(leafOrder.every((i) => i > 0) && leafOrder.every((i, k) => k === 0 || i > leafOrder[k - 1]), 'A4 六个叶子按依赖次序登记在 LEAF_MODULES 里')
+  check(leafOrder.every((i) => i > 0) && leafOrder.every((i, k) => k === 0 || i > leafOrder[k - 1]), 'A4 七个叶子按依赖次序登记在 LEAF_MODULES 里')
   check(buildSrc.indexOf("src/client/views/versionControl/vcText.js") < buildSrc.indexOf("file: 'src/client/views/shared/Tabs.js'"), 'A5 新叶子排在 tabs 之前（Tabs.js 要按 vcTabVisible 判显隐）')
   const idxSrc = read('src/client/index.js')
-  const VC_IDS = ['vcText', 'vcFold', 'vcDiff', 'vcCommit', 'vcBlocks', 'vcTabVisible', 'vcData', 'versionControlTab']
-  check(VC_IDS.every((id) => idxSrc.indexOf('leaf:' + id + ' (spliced') >= 0), 'A6 index.js 里六个拼接标记齐备（标记 id 就是 LEAF_MODULES 登记的那个）')
+  const VC_IDS = ['vcText', 'vcFold', 'vcDiff', 'vcCommit', 'vcBlocks', 'vcTabVisible', 'vcData', 'versionControlTab', 'vcDiffOps']
+  check(VC_IDS.every((id) => idxSrc.indexOf('leaf:' + id + ' (spliced') >= 0), 'A6 index.js 里拼接标记齐备（标记 id 就是 LEAF_MODULES 登记的那个，多一个 vcDiffOps）')
   check(idxSrc.indexOf('leaf:vcText (spliced') < idxSrc.indexOf('leaf:tabs (spliced'), 'A7 六个标记排在 tabs 标记之前')
 
   // ---- B 组：主缝（真机样本 → 块与文字）----
@@ -566,6 +567,7 @@ async function main() {
   const vcStyleSrc = read('src/client/views/versionControl/vcStyles.js')
   const skinsOk = vcStyleSrc.indexOf('body[data-ds-dark-theme] [data-vc-root]') >= 0 && vcStyleSrc.indexOf('body:not([data-ds-dark-theme]) [data-vc-root]') >= 0
   check(skinsOk, 'F5b 皮肤令牌按宿主主题开关分成深浅两套（深色那一套在 body[data-ds-dark-theme] 下，浅色那一套在 :not 里）')
+  check(vcStyleSrc.indexOf('.dsws-vc-skel') >= 0 && vcStyleSrc.indexOf('@keyframes dsws-vc-shimmer') >= 0 && vcStyleSrc.indexOf('prefers-reduced-motion') >= 0, 'F5c 骨架条有微光动画，并在减弱动态偏好下静止（动画不是装饰，是「正在来」的信号）')
   check(!/setInterval|setTimeout/.test(VC_FILES.map(read).join('\n')), 'F6 界面文件里没有任何定时器（#709 的零定时器不变量）')
   const toneNames = new Set()
   const collectTones = function (x) {
@@ -601,8 +603,9 @@ async function main() {
   let html = ''
   let renderErr = ''
   try { html = renderToStaticMarkup(React.createElement(renderView.VersionControlTab, { st: { cwd: 'D:/w/repo' }, narrow: false })) } catch (e) { renderErr = String((e && e.message) || e) }
-  check(renderErr === '' && html.indexOf('data-vc-root') >= 0, 'G4 首帧真渲染一次：不崩，画出一个空根（实得 ' + (renderErr ? '抛错：' + renderErr : html.slice(0, 60)) + '）')
-  check(renderErr === '' && html.replace(/<[^>]*>/g, '').trim() === '', 'G5 面板刚打开那一下整块不画：空根里一个字都没有（不冒常驻道歉）')
+  check(renderErr === '' && html.indexOf('data-vc-root') >= 0, 'G4 首帧真渲染一次：不崩，画出带骨架的根（实得 ' + (renderErr ? '抛错：' + renderErr : html.slice(0, 60)) + '）')
+  const skelBars = (html.match(/data-vc-skel="1"/g) || []).length
+  check(renderErr === '' && html.indexOf('data-vc-skel-root') >= 0 && html.replace(/<[^>]*>/g, '').trim() === '' && skelBars >= 10, 'G5 面板刚打开那一下不画空白：骨架占位、一个字都没有（骨架条 ' + skelBars + ' 条，不冒常驻道歉）')
   // 真渲染第二遍：把首屏读数预先塞进组件的初始状态，看画出来的 DOM 里到底写了哪些字。
   const seedReads = { screen: { state: 'ok', data: { screen: liveScreen, tier: 'full', gitVersion: 'git version 2.49.0', readAtMs: NOW }, error: null }, diffs: {}, log: { state: 'idle', commits: [], hasMore: false, fetched: 0, error: null } }
   const renderSeeded = buildView((s) => s.replace('React.useState(vcNewReads)', 'React.useState(function () { return seedReads })'), [], React, DswsCtx, TipStub, IcStub, seedReads)

@@ -224,7 +224,7 @@ async function main() {
     check(got === want, '分类：' + want + '（实得 ' + got + '）')
   }
   check(['need-credentials', 'auth-rejected', 'no-permission', 'network', 'stalled', 'timeout', 'budget-exhausted', 'spawn-failed'].every((k) => typeof credMod.hintFor(k) === 'string' && credMod.hintFor(k).length > 10), '每一档都有能照做的话术')
-  check(credMod.hintFor('need-credentials').indexOf('终端') >= 0, 'need-credentials 的话术指去侧栏终端（不代替用户登录）')
+  check(credMod.hintFor('need-credentials').indexOf('命令行') >= 0 && credMod.hintFor('need-credentials').indexOf('侧栏终端') < 0, 'need-credentials 的话术指去命令行自己解决、不再提侧栏终端（不代替用户登录）')
 
   // ---- C) 真跑三环境（全部打 127.0.0.1，离线可跑） ----
   const lab = makeLab()
@@ -245,7 +245,7 @@ async function main() {
     r = await run.safe.runOnce({ cwd: lab.dir, clearHelpers: true, args: ['ls-remote', srv.url] })
     check(r.ok === false && r.kind === 'need-credentials', '② 没有凭据：归类 need-credentials（实得 ' + r.kind + '）')
     check(r.elapsedMs < 5000, '② 快速失败，不挂在等输入上（' + r.elapsedMs + 'ms）')
-    check(typeof r.hint === 'string' && r.hint.indexOf('终端') >= 0, '② 失败说明里带能照做的话（指去侧栏终端）')
+    check(typeof r.hint === 'string' && r.hint.indexOf('命令行') >= 0 && r.hint.indexOf('侧栏终端') < 0, '② 失败说明里带能照做的话（指去命令行自己解决，不提侧栏终端）')
     await srv.close()
 
     // ③ 凭据不对 → auth-rejected；凭据对但服务端 403 → no-permission

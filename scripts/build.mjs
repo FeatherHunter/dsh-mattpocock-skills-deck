@@ -416,6 +416,7 @@ const LEAF_MODULES = [
   { id: 'vcWriteUi', file: 'src/client/views/versionControl/vcWriteUi.js' }, // #842 写操作的画法层（按钮、提交区、确认框模型）
   { id: 'vcWriteOps', file: 'src/client/views/versionControl/vcWriteOps.js' }, // #842 写操作的动作层（点下去发生什么：预检、写电话、重读）
   { id: 'vcWriteView', file: 'src/client/views/versionControl/vcWriteView.js' }, // #842 写操作的节点画法（从入口组件搬出，组件守住 350 行）
+  { id: 'vcDiffOps', file: 'src/client/views/versionControl/vcDiffOps.js' }, // #857 差异与提交那几路的动作（从入口组件搬出，组件守 350 行）
   { id: 'vcBlocks', file: 'src/client/views/versionControl/vcBlocks.js' },
   { id: 'vcTabVisible', file: 'src/client/views/versionControl/vcTabVisible.js' },
   { id: 'vcData', file: 'src/client/views/versionControl/vcData.js' },

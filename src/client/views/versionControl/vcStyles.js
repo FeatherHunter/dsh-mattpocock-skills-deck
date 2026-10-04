@@ -77,4 +77,8 @@ export const VC_STYLE_TEXT = [
   "[data-vc-root] textarea:focus,[data-vc-root] input:focus{outline:2px solid var(--vc-accent,transparent);outline-offset:1px}",
   ".dsws-vc-caption{color:var(--vc-faint,inherit)}",
   ".dsws-vc-sep{border-color:var(--vc-line)}",
+  // #857 P5/P6：骨架条——固定高度占位，不跳；减弱动态偏好下静止。
+  ".dsws-vc-skel{border-radius:4px;background:linear-gradient(90deg,var(--vc-hover,rgba(127,127,160,.12)) 25%,var(--vc-elevated,#16181d) 50%,var(--vc-hover,rgba(127,127,160,.12)) 75%);background-size:200% 100%;animation:dsws-vc-shimmer 1.4s linear infinite;margin:7px 0}",
+  "@keyframes dsws-vc-shimmer{to{background-position:-200% 0}}",
+  "@media (prefers-reduced-motion:reduce){.dsws-vc-skel{animation:none}}",
 ].join('')

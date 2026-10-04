@@ -6,7 +6,7 @@
 // 写法照 tests/verify-818-version-control-view.js 的先例：把叶子按 build.mjs 的次序拼成真闭包再跑，
 //   词条读真字典（locale-panel / locale-flow / locale-vcwrite），断言落在模型与真渲染出来的 DOM 上。
 //
-// A–H 八组共 41 条；H 组是六条反证：把被守的东西改坏，同一套判据必须当场不再成立。
+// A–M 组；M 组是性能（竞态 / 工作区污染 / 缓存上限 / 同键在途不重复发），每项正反两面。
 const fs = require('fs')
 const path = require('path')
 const { pathToFileURL } = require('url')
@@ -32,6 +32,7 @@ const VC_FILES = [
   'src/client/views/versionControl/vcWriteUi.js',
   'src/client/views/versionControl/vcWriteOps.js',
   'src/client/views/versionControl/vcWriteView.js',
+  'src/client/views/versionControl/vcDiffOps.js', // #857：差异与提交那几路的动作（闭包里排在 vcBlocks 之前）
   'src/client/views/versionControl/vcBlocks.js',
   'src/client/views/versionControl/vcTabVisible.js',
   'src/client/views/versionControl/vcData.js',
@@ -44,6 +45,7 @@ const EXPORTS = [
   'VC_BLOCK_ORDER',
   'VC_CHANGE_KEY',
   'VC_CHANGE_TONE',
+  'VC_DIFF_CACHE_MAX',
   'VC_DIFF_LINES_SHOWN',
   'VC_DIFF_REASON_KEY',
   'VC_FAIL_KEY',
@@ -68,6 +70,8 @@ const EXPORTS = [
   'vcActionsNode',
   'vcAfterWrite',
   'vcApplyCommitReply',
+  'vcApplyCommitFileDiffReply',
+  'vcApplyDiffReply',
   'vcBasisText',
   'VC_BADGE_LETTER',
   'VC_STYLE_TEXT',
@@ -75,6 +79,7 @@ const EXPORTS = [
   'vcBlockKeyOf',
   'vcBlockedTipOf',
   'vcBlocksOf',
+  'vcBoundedMap',
   'vcChangeKeyOf',
   'vcChangeToneOf',
   'vcClockText',
@@ -85,6 +90,7 @@ const EXPORTS = [
   'vcCommitModeOf',
   'vcConfirmOf',
   'vcDiffOpenKeyOf',
+  'vcDiffOpsOf',
   'vcDiffViewOf',
   'vcFailKeyOf',
   'vcFailureOf',
@@ -96,6 +102,9 @@ const EXPORTS = [
   'vcFoldStateAt',
   'vcFreshOnCwd',
   'vcGroupOfRow',
+  'vcMarkCommitFileDiffLoading',
+  'vcMarkCommitLoading',
+  'vcMarkDiffLoading',
   'vcMarkLogLoading',
   'vcMiddle',
   'vcNewReads',
@@ -492,13 +501,13 @@ async function groupE(view) {
 // ============================================================
 // F 组 · 纪律（行数 / 硬编码中文 / 导出登记 / 前缀 / 定时器）
 // ============================================================
-const NEW_LEAVES = ['vcRows.js', 'vcWrite.js', 'vcWriteRun.js', 'vcWriteUi.js', 'vcWriteOps.js', 'vcWriteView.js']
+const NEW_LEAVES = ['vcRows.js', 'vcWrite.js', 'vcWriteRun.js', 'vcWriteUi.js', 'vcWriteOps.js', 'vcWriteView.js', 'vcDiffOps.js']
 const leafPath = (f) => 'src/client/views/versionControl/' + f
 const stripComments = (t) => String(t).replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
 
 function groupF(view, exportsList) {
   const over = NEW_LEAVES.filter(function (f) { return read(leafPath(f)).split(/\r?\n/).length > 350 })
-  check(over.length === 0, 'F1 六个新叶子各自 ≤350 行（超的：' + (over.join('、') || '无') + '）')
+  check(over.length === 0, 'F1 七个新叶子各自 ≤350 行（超的：' + (over.join('、') || '无') + '）')
 
   const cjk = []
   NEW_LEAVES.forEach(function (f) {
@@ -697,6 +706,13 @@ function groupJ(React, DswsCtx, TipStub, IcStub) {
     return s.replace("  return String(r.group || '') + '\\u0000' + String(r.path || '')", "  return String(r.path || '')")
   })
   check(rowsWithCard(bareHtml).length === 0, 'J13 反证：把展开键改回裸路径 → J10 那条当场不成立（含补丁的行：' + JSON.stringify(rowsWithCard(bareHtml)) + '）')
+
+  const loadingReads = Object.assign({}, readsOf(screen), { diffs: { 'a.txt': { state: 'loading', lines: null, reason: '', truncated: false, error: null } } })
+  const loadingHtml = renderOpen(openKey('staged', 'a.txt'), loadingReads)
+  const loadingDoc = new (require('jsdom').JSDOM)('<div id="m">' + loadingHtml + '</div>').window.document
+  const loadingBlock = loadingDoc.querySelector('[data-vc-diff="loading"]')
+  const loadingBars = loadingBlock ? loadingBlock.querySelectorAll('[data-vc-skel="1"]') : []
+  check(!!loadingBlock && loadingBars.length >= 3 && loadingBlock.textContent.trim() === '' && loadingHtml.indexOf('正在读改动') < 0, 'J14 #857·读取中的差异画骨架条，不画会跳动的文字（骨架条 ' + loadingBars.length + ' 条）')
 }
 
 
@@ -909,8 +925,156 @@ async function groupH(React, DswsCtx, TipStub, IcStub, logs) {
 }
 
 // ============================================================
+// M 组 · 性能（#857）：竞态 / 工作区污染 / 缓存上限 / 同键在途不重复发
+//   每一项都要有正反两面：正常落库 + 反向（旧回包/换工作区/超上限/去标记）当场被拦。
+// ============================================================
+async function groupM(view) {
+  const diffCalls = function (calls, rev, path) {
+    return calls.filter(function (c) {
+      if (!c || c.method !== 'wf.gitDiff') return false
+      if (rev !== undefined && String((c.args && c.args.rev) || '') !== String(rev)) return false
+      if (path !== undefined && String((c.args && c.args.path) || '') !== String(path)) return false
+      return true
+    })
+  }
+  const pendingHost = function () {
+    const calls = []
+    const resolvers = []
+    const call = function (method, args) {
+      calls.push({ method: method, args: args })
+      return new Promise(function (resolve) { resolvers.push(resolve) })
+    }
+    return { calls: calls, resolvers: resolvers, call: call }
+  }
+  const baseUi = function (openCommit) {
+    return { fileShown: {}, openDiff: '', openCommit: openCommit || '', write: { op: '', state: 'idle', message: '', confirm: null, result: null, remoteChoice: null } }
+  }
+  const wireOps = function (reads, cwd, ref, marks, openCommit) {
+    let current = reads
+    const readsRef = { current: current }
+    let ui = baseUi(openCommit)
+    const applied = []
+    const setReads = function (next) { current = (typeof next === 'function') ? next(current) : next; readsRef.current = current; applied.push(current) }
+    const setUi = function (n) { ui = n }
+    const host = pendingHost()
+    const ops = view.vcDiffOpsOf({ ui: ui, setUi: setUi, setReads: setReads, readsRef: readsRef, callHost: host.call, cwd: cwd, stateCwdRef: ref, vcDiffOpenKeyOf: view.vcDiffOpenKeyOf, vcReadDiff: view.vcReadDiff, vcReadCommitFiles: view.vcReadCommitFiles, vcReadCommitFileDiff: view.vcReadCommitFileDiff, vcApplyDiffReply: view.vcApplyDiffReply, vcApplyCommitReply: view.vcApplyCommitReply, vcReadsOf: view.vcReadsOf, vcMarkDiffLoading: marks && marks.diff ? marks.diff : view.vcMarkDiffLoading, vcMarkCommitLoading: view.vcMarkCommitLoading, vcMarkCommitFileDiffLoading: view.vcMarkCommitFileDiffLoading, vcApplyCommitFileDiffReply: view.vcApplyCommitFileDiffReply })
+    return { ops: ops, host: host, applied: applied, cur: function () { return current }, ref: readsRef, cwdRef: ref }
+  }
+  const okLines = function (text) { return { ok: true, lines: [{ kind: 'add', text: text }], reason: 'ok', truncated: false } }
+  const rowA = { path: 'a.txt', untracked: false, group: 'unstaged' }
+
+  // M1 未提交差异：后到的旧回包不顶掉新的，且与落库顺序无关。
+  {
+    const h = pendingHost()
+    const base0 = view.vcNewReads()
+    const p1 = view.vcReadDiff(base0, h.call, 'D:/w/repo', 'a.txt', false)
+    const marked = view.vcMarkDiffLoading(base0, 'a.txt')
+    const p2 = view.vcReadDiff(marked, h.call, 'D:/w/repo', 'a.txt', false)
+    await flush()
+    check(h.calls.length === 2 && diffCalls(h.calls, undefined, 'a.txt').length === 2, 'M1 未提交差异连读两次发两枪（同键两枪是竞态的前提）')
+    h.resolvers[1](okLines('+new'))
+    const r2 = await p2
+    h.resolvers[0](okLines('+old'))
+    const r1 = await p1
+    const seqOk = r2.diffs['a.txt'].seq > r1.diffs['a.txt'].seq
+    const lateFirst = view.vcApplyDiffReply(view.vcApplyDiffReply(view.vcNewReads(), r2), r1)
+    const earlyFirst = view.vcApplyDiffReply(view.vcApplyDiffReply(view.vcNewReads(), r1), r2)
+    check(seqOk && lateFirst.diffs['a.txt'].lines[0].text === '+new' && earlyFirst.diffs['a.txt'].lines[0].text === '+new', 'M1 晚到的旧回包不顶掉新的：先落新再落旧、与落库顺序无关（代际 ' + r1.diffs['a.txt'].seq + ' → ' + r2.diffs['a.txt'].seq + '）')
+  }
+
+  // M1b 提交里某一处文件的补丁：同一形状，只是键在 commitDiffs 那张表里。
+  {
+    const h = pendingHost()
+    const base0 = view.vcNewReads()
+    const p1 = view.vcReadCommitFileDiff(base0, h.call, 'D:/w/repo', 'r1', 'a.txt')
+    const marked = view.vcMarkCommitFileDiffLoading(base0, 'r1', 'a.txt')
+    const p2 = view.vcReadCommitFileDiff(marked, h.call, 'D:/w/repo', 'r1', 'a.txt')
+    await flush()
+    const key = view.vcCommitKeyOf('r1', 'a.txt')
+    h.resolvers[1](okLines('+new'))
+    const r2 = await p2
+    h.resolvers[0](okLines('+old'))
+    const r1 = await p1
+    const lateFirst = view.vcApplyCommitFileDiffReply(view.vcApplyCommitFileDiffReply(view.vcNewReads(), r2), r1)
+    check(r2.commitDiffs[key].seq > r1.commitDiffs[key].seq && lateFirst.commitDiffs[key].lines[0].text === '+new', 'M1b 提交里某一处文件的补丁：晚到的旧回包同样不顶掉新的（键 ' + key.replace('\u0000', '+') + '）')
+  }
+
+  // M2 换工作区后在飞的那一枪不写进新工作区；同工作区照常落库（正反两面）。
+  {
+    const w = wireOps(view.vcNewReads(), 'D:/w/repo', { current: 'D:/w/repo' })
+    w.ops.toggleDiff(rowA)
+    await flush()
+    const fired = diffCalls(w.host.calls, undefined, 'a.txt').length
+    const loading = w.cur().diffs['a.txt'] && w.cur().diffs['a.txt'].state === 'loading'
+    w.cwdRef.current = 'D:/other'
+    w.host.resolvers[0](okLines('+stale'))
+    await flush()
+    check(fired === 1 && loading && w.applied.length === 1 && !w.cur().diffs['a.txt'].lines, 'M2 换工作区后旧回包直接丢掉：只写过一次 loading 标记，没有落库、没有旧补丁')
+    const v = wireOps(view.vcNewReads(), 'D:/w/repo', { current: 'D:/w/repo' })
+    v.ops.toggleDiff(rowA)
+    await flush()
+    v.host.resolvers[0](okLines('+new'))
+    await flush()
+    check(v.applied.length === 2 && v.cur().diffs['a.txt'].lines[0].text === '+new', 'M2b 反面：同工作区的回包照常落库（标记一次 + 落库一次）')
+  }
+
+  // M2c 提交文件清单那一路同样校验工作区。
+  {
+    const w = wireOps(view.vcNewReads(), 'D:/w/repo', { current: 'D:/w/repo' })
+    w.ops.openCommit({ key: 'r1' })
+    await flush()
+    const fired = diffCalls(w.host.calls, 'r1').length
+    w.cwdRef.current = 'D:/other'
+    w.host.resolvers[0]({ ok: true, files: [{ path: 'a.txt' }], truncated: false, reason: 'ok' })
+    await flush()
+    check(fired === 1 && w.applied.length === 1 && w.cur().commit.state === 'loading', 'M2c 提交清单那一路：换工作区后旧回包同样丢掉（只剩 loading 标记）')
+  }
+
+  // M3 两个补丁缓存都封顶：超出的丢最旧的；读一次新键也一样封顶。
+  {
+    const max = view.VC_DIFF_CACHE_MAX
+    const big = {}
+    for (let i = 0; i < max + 5; i += 1) big['k' + i] = { state: 'ok', lines: [], reason: 'ok', truncated: false, error: null, seq: i + 1 }
+    const out = view.vcBoundedMap(big)
+    check(Object.keys(out).length === max && out['k' + (max + 4)] && !out.k0, 'M3 缓存只留最近 ' + max + ' 条：最旧的 k0 被丢掉，最新的 k' + (max + 4) + ' 还在')
+    const h = pendingHost()
+    const p = view.vcReadDiff({ diffs: out }, h.call, 'D:/w/repo', 'fresh.txt', false)
+    await flush()
+    h.resolvers[0](okLines('+x'))
+    const r = await p
+    check(Object.keys(r.diffs).length === max && r.diffs['fresh.txt'] && !r.diffs.k5, 'M3b 读一次新键也一样封顶：fresh.txt 进来，最旧的 k5 出去')
+  }
+
+  // M4 同键在途不重复发：第二次点只改展开状态，不再起 git 进程。
+  {
+    const w = wireOps(view.vcNewReads(), 'D:/w/repo', { current: 'D:/w/repo' })
+    w.ops.toggleDiff(rowA)
+    await flush()
+    w.ops.toggleDiff(rowA)
+    await flush()
+    check(diffCalls(w.host.calls, undefined, 'a.txt').length === 1 && w.cur().diffs['a.txt'].state === 'loading', 'M4 同键在途只发一枪：第二次点开只改展开状态，不再起 git 进程')
+    const v = wireOps(view.vcNewReads(), 'D:/w/repo', { current: 'D:/w/repo' }, { diff: function (r) { return r } })
+    v.ops.toggleDiff(rowA)
+    await flush()
+    v.ops.toggleDiff(rowA)
+    await flush()
+    check(diffCalls(v.host.calls, undefined, 'a.txt').length === 2, 'M4b 反证：把同步写 loading 标记拿掉 → 第二次照发不误（同键在途的守卫靠的就是那一笔同步标记）')
+  }
+
+  // M4c 提交文件清单那一路同样：连点同一笔只发一枪。
+  {
+    const w = wireOps(view.vcNewReads(), 'D:/w/repo', { current: 'D:/w/repo' })
+    w.ops.openCommit({ key: 'r1' })
+    await flush()
+    w.ops.openCommit({ key: 'r1' })
+    await flush()
+    check(diffCalls(w.host.calls, 'r1').length === 1 && w.cur().commit.state === 'loading', 'M4c 连点同一笔提交只发一枪（第二次看到 loading 就停）')
+  }
+}
+
+// ============================================================
 async function main() {
-  console.log('版本管理写操作界面门禁（#842：A–H 八组）')
+  console.log('版本管理写操作界面门禁（#842：A–M 组）')
   const panelMod = await import(pathToFileURL(path.join(ROOT, 'src', 'client', 'kernel', 'locale-panel.js')).href)
   const flowMod = await import(pathToFileURL(path.join(ROOT, 'src', 'client', 'kernel', 'locale-flow.js')).href)
   const vcMod = await import(pathToFileURL(path.join(ROOT, 'src', 'client', 'kernel', 'locale-vcwrite.js')).href)
@@ -941,6 +1105,7 @@ async function main() {
   groupJ(React, DswsCtx, TipStub, IcStub)
   groupK(view, React, DswsCtx, TipStub, IcStub)
   groupL(view, React, DswsCtx, TipStub, IcStub)
+  await groupM(view)
   await groupI(view, planMod.pushPlanOf, cmdMod.pushArgs)
   await groupH(React, DswsCtx, TipStub, IcStub, logs)
 

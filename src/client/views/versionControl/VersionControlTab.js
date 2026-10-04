@@ -39,6 +39,9 @@ export const VersionControlTab = function (props) {
   //   这里按 cwd 判一次，变了就整体复位（读数、展开状态、点开的提交、差异、折叠档号全清），
   //   而且这一帧不画任何旧数据（下面 staleCwd 那一句直接把块清空）。
   const [stateCwd, setStateCwd] = React.useState(cwd)
+  // #857 P2：回包落地时要能读到「现在的工作区」，否则换工作区后在飞的那一枪会写进新工作区。
+  const stateCwdRef = React.useRef(cwd)
+  stateCwdRef.current = stateCwd
   const fresh = vcFreshOnCwd(stateCwd, cwd, reads, ui)
   const staleCwd = fresh.changed
   if (staleCwd) {
@@ -139,39 +142,15 @@ export const VersionControlTab = function (props) {
   const retryScreen = function () { vcReadStatus(readsRef.current, callHost, cwd).then(function (next) { setReads(next) }) }
   // 就地看差异：展开键与块模型侧共用同一个函数（#850）—— 未提交那一层是「分组 + 路径」（同一个文件在两组各一行时各自展开），
   //   提交那一层是「修订号 + 路径」（同一个文件在两处的补丁是两回事）。原来这里只按路径，点开时与块模型对不上，补丁块永远不画。
-  const diffKeyOf = function (row) { return vcDiffOpenKeyOf(row, ui.openCommit) }
-  const loadDiff = function (row) {
-    const rev = String(ui.openCommit || '')
-    return rev ? vcReadCommitFileDiff(readsRef.current, callHost, cwd, rev, row.path) : vcReadDiff(readsRef.current, callHost, cwd, row.path, row.untracked === true)
-  }
-  const entryOf = function (row) {
-    const rev = String(ui.openCommit || '')
-    return rev ? (((readsRef.current.commitDiffs || {})[diffKeyOf(row)]) || { state: 'idle' }) : vcReadsOf(readsRef.current, row.path)
-  }
-  const toggleDiff = function (row) {
-    const key = diffKeyOf(row)
-    if (ui.openDiff === key) { setUi(Object.assign({}, ui, { openDiff: '' })); return }
-    setUi(Object.assign({}, ui, { openDiff: key }))
-    if (entryOf(row).state === 'ok') return
-    loadDiff(row).then(function (next) { setReads(next) })
-  }
-  const retryDiff = function (row) { loadDiff(row).then(function (next) { setReads(next) }) }
-  // 提交那一层的回包一律过一道 stale drop：晚到的旧回包不许把界面钉在旧的那一笔上（#819 发现 5）。
-  const applyCommit = function (next) { setReads(function (cur) { return vcApplyCommitReply(cur, next) }) }
-  // 提交行点开：进入「这笔提交改了什么」（规格故事 32）；再点一次「回到未提交改动」回到原来那一层。
-  const openCommit = function (c) {
-    const rev = String(c.key || '')
-    setUi(Object.assign({}, ui, { openCommit: rev, openDiff: '' }))
-    const entry = readsRef.current.commit || {}
-    if (entry.rev === rev && (entry.state === 'ok' || entry.state === 'loading')) return
-    vcReadCommitFiles(readsRef.current, callHost, cwd, rev).then(applyCommit)
-  }
-  const closeCommit = function () { setUi(Object.assign({}, ui, { openCommit: '', openDiff: '' })) }
-  const retryCommit = function () {
-    const rev = String(ui.openCommit || '')
-    if (!rev) return
-    vcReadCommitFiles(readsRef.current, callHost, cwd, rev).then(applyCommit)
-  }
+  // #857：差异与提交那几路的动作抽到 vcDiffOps.js（读、发、回包落地前的两道闸、同键在途不重复发）。
+  const diffOps = vcDiffOpsOf({ ui: ui, setUi: setUi, setReads: setReads, readsRef: readsRef, callHost: callHost, cwd: cwd, stateCwdRef: stateCwdRef, vcDiffOpenKeyOf: vcDiffOpenKeyOf, vcReadDiff: vcReadDiff, vcReadCommitFiles: vcReadCommitFiles, vcReadCommitFileDiff: vcReadCommitFileDiff, vcApplyDiffReply: vcApplyDiffReply, vcApplyCommitReply: vcApplyCommitReply, vcReadsOf: vcReadsOf, vcMarkDiffLoading: vcMarkDiffLoading, vcMarkCommitLoading: vcMarkCommitLoading, vcMarkCommitFileDiffLoading: vcMarkCommitFileDiffLoading, vcApplyCommitFileDiffReply: vcApplyCommitFileDiffReply })
+  const diffKeyOf = diffOps.diffKeyOf
+  const entryOf = diffOps.entryOf
+  const toggleDiff = diffOps.toggleDiff
+  const retryDiff = diffOps.retryDiff
+  const openCommit = diffOps.openCommit
+  const closeCommit = diffOps.closeCommit
+  const retryCommit = diffOps.retryCommit
   // 「重新读一次」：面板上唯一的刷新入口（不是定时器 —— 刷新频率那条纪律不变）。
   const reloadNow = function () { retryScreen() }
   const moreFiles = function (groupKey) {
@@ -199,6 +178,12 @@ export const VersionControlTab = function (props) {
   const diffNode = function (row) {
     const d = row.diff
     if (!d) return null
+    // #857 P6：读取中的差异画骨架条，不画一句会跳动的文字；失败那一支照旧给正文与重试。
+    if (d.state === 'loading') return h('div', { key: 'diff', 'data-vc-diff': 'loading', style: { marginTop: 4 } }, [
+      h('div', { key: 'l1', className: 'dsws-vc-skel', 'data-vc-skel': 1, style: { width: '80%', height: 12 } }),
+      h('div', { key: 'l2', className: 'dsws-vc-skel', 'data-vc-skel': 1, style: { width: '62%', height: 12 } }),
+      h('div', { key: 'l3', className: 'dsws-vc-skel', 'data-vc-skel': 1, style: { width: '70%', height: 12 } }),
+    ])
     if (d.state !== 'ok') return h('div', { key: 'diff', className: 'dsws-vc-caption', 'data-vc-diff': d.state, style: { marginTop: 4, display: 'flex', gap: 6, alignItems: 'center' } }, [
       h('span', { key: 'text' }, d.text), d.retry ? h('span', { key: 'retry', style: { display: 'contents' } }, button(d.retry, function () { retryDiff(row) })) : null,
     ])
@@ -220,7 +205,7 @@ export const VersionControlTab = function (props) {
     return h('div', { key: row.path, 'data-vc-file': 1, 'data-vc-open': open ? 1 : undefined, style: { borderTop: '1px solid var(--vc-line,#2a2d35)' } }, [
       h('div', { key: 'main', className: 'dsws-vc-row', onClick: function () { toggleDiff(row) }, style: { display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 11 } }, [
         // #851 ②：状态字母的方形徽章（新增的视觉标记）；中文状态词照旧在它右边可读（一个字没改）。
-        showBadge ? h('span', { key: 'badge', className: 'dsws-vc-badge ' + String(row.badgeClass || ''), 'data-vc-badge': row.badge, title: row.changeText }, row.badge) : null,
+        showBadge ? tipNode(row.changeText, h('span', { key: 'badge', className: 'dsws-vc-badge ' + String(row.badgeClass || ''), 'data-vc-badge': row.badge }, row.badge)) : null,
         h('span', { key: 'change', className: 'dsws-vc-mono', 'data-vc-change': 1, style: { flex: 'none', width: 34, color: tone(row.changeTone), fontWeight: 700 } }, row.changeText),
         // #851 ①：路径等宽 + tabular-nums。
         tipNode(row.rowTip + (row.origPath ? '\n' + row.origPath : ''), h('span', { key: 'path', className: 'dsws-vc-mono', style: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, row.pathText)),
@@ -335,5 +320,15 @@ export const VersionControlTab = function (props) {
   //   早先这里传错了对象，真机上确认框是空框、失败横幅露出 vc.op.failed 这个键名（#842 视觉预览 V1/V2）。
   const writeUi = (typeof vcWriteUiOf === 'function') ? vcWriteUiOf(screen, ui, { t: tr, nowMs: Date.now(), decisions: decisions }) : null
   const writeTail = vcWriteTailNodes(h, { writeUi: writeUi, tone: tone, tipNode: tipNode, tr: tr, retryResult: ops.retryResult, cancelConfirm: ops.cancelConfirm, confirmNow: ops.confirmNow, pickRemote: ops.pickRemote })
-  return h('div', { ref: rootRef, 'data-vc-root': 1, 'data-vc-tier': tier, style: { display: 'flex', flexDirection: 'column', gap: 10, overflow: 'hidden', minWidth: 0 } }, blocks.map(node).concat(writeTail))
+  // #857 P5：首屏还没拿到数据时不画空白，画骨架 —— 骨架里一个字都不写；有旧数据时走旧数据那条。
+  const screenState = (reads.screen && reads.screen.state) || 'idle'
+  const showSkel = !screen && blocks.length === 0 && (screenState === 'idle' || screenState === 'loading')
+  const skelBar = function (key, style) { return h('div', { key: key, className: 'dsws-vc-skel', 'data-vc-skel': 1, style: style }) }
+  const skeleton = h('div', { key: 'skel', 'data-vc-skel-root': 1, style: { display: 'flex', flexDirection: 'column', padding: '2px 0' } }, [
+    skelBar('id', { width: '55%', height: 15 }),
+    h('div', { key: 'counts', style: { display: 'flex', gap: 6, marginTop: 6 } }, [skelBar('c1', { width: 64, height: 11 }), skelBar('c2', { width: 64, height: 11 }), skelBar('c3', { width: 64, height: 11 })]),
+    skelBar('s1', { width: 96, height: 11 }), skelBar('r1', { height: 13 }), skelBar('r2', { height: 13 }), skelBar('r3', { height: 13 }), skelBar('r4', { height: 13 }),
+    skelBar('s2', { width: 96, height: 11 }), skelBar('h1', { height: 13 }), skelBar('h2', { height: 13 }),
+  ])
+  return h('div', { ref: rootRef, 'data-vc-root': 1, 'data-vc-tier': tier, style: { display: 'flex', flexDirection: 'column', gap: 10, overflow: 'hidden', minWidth: 0 } }, showSkel ? [skeleton] : blocks.map(node).concat(writeTail))
 }

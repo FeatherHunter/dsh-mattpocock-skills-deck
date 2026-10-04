@@ -103,25 +103,28 @@ export const vcReadStatus = function (reads, call, cwd) {
     })
 }
 /** 一处文件的差异（按需）：三态各自独立，失败保留上一次读到的那份。 */
+// #857 P1：未提交这一路也要带代际号。提交那一路早就有 seq（#819 发现 5：晚到的旧回包不许把界面钉在旧的那一笔上），
+//   这一路没有 —— 连点两行时，A 的回包晚到就会把 B 的行内容顶成 A 的补丁。
 export const vcReadDiff = function (reads, call, cwd, path, untracked) {
   const base = reads || vcNewReads()
   const key = String(path || '')
   const diffs = Object.assign({}, base.diffs || {})
-  const prev = diffs[key] || { state: 'idle', lines: null, reason: '', truncated: false, error: null }
-  diffs[key] = { state: 'loading', lines: prev.lines, reason: prev.reason, truncated: prev.truncated === true, error: prev.error }
+  const prev = diffs[key] || { state: 'idle', lines: null, reason: '', truncated: false, error: null, seq: 0 }
+  const seq = (Number(prev.seq) || 0) + 1
+  diffs[key] = { state: 'loading', lines: prev.lines, reason: prev.reason, truncated: prev.truncated === true, error: prev.error, seq: seq }
   const t0 = Date.now()
   return Promise.resolve()
     .then(function () { return call(VC_PHONES.diff, { cwd: String(cwd || ''), path: key, untracked: untracked === true }) })
     .then(function (reply) {
       if (reply && reply.ok === true && Array.isArray(reply.lines)) {
         vcOkLog(VC_PHONES.diff, 'git-diff', t0)
-        diffs[key] = { state: 'ok', lines: reply.lines, reason: String(reply.reason || 'ok'), truncated: reply.truncated === true, error: null }
-        return Object.assign({}, base, { diffs: diffs })
+        diffs[key] = { state: 'ok', lines: reply.lines, reason: String(reply.reason || 'ok'), truncated: reply.truncated === true, error: null, seq: seq }
+        return Object.assign({}, base, { diffs: vcBoundedMap(diffs) })
       }
       const fail = vcFailureOf(reply)
       vcFailLog(VC_PHONES.diff, 'git-diff', t0, fail)
-      diffs[key] = { state: 'err', lines: prev.lines, reason: prev.reason, truncated: prev.truncated === true, error: fail }
-      return Object.assign({}, base, { diffs: diffs })
+      diffs[key] = { state: 'err', lines: prev.lines, reason: prev.reason, truncated: prev.truncated === true, error: fail, seq: seq }
+      return Object.assign({}, base, { diffs: vcBoundedMap(diffs) })
     })
     .catch(function (e) {
       const fail = { kind: 'throw', message: String((e && e.message) || e) }
@@ -183,6 +186,53 @@ export const vcApplyCommitReply = function (currentReads, nextReads) {
   return nextReads
 }
 /**
+ * 差异缓存的条数上限（#857 P3）。
+ * 为什么要有：diffs / commitDiffs 原来只增不减，每份最多 200 行；翻 200 个文件就有 200 份补丁常驻到面板卸载，
+ *   内存单调增长。这里按首次写入顺序只留 40 份，超出的丢最先写的那几份 —— 丢掉的下次点开时重新读一次
+ *   （读一次本来就只要一枪 git diff）。注意这不是 LRU：反复点开同一份不会把它挪到队尾。
+ */
+export const VC_DIFF_CACHE_MAX = 40
+/** 给一份「键 → 读数」的缓存封顶：超过上限就按首次写入顺序丢最旧的。 */
+export const vcBoundedMap = function (map) {
+  const keys = Object.keys(map || {})
+  if (keys.length <= VC_DIFF_CACHE_MAX) return map || {}
+  const keep = {}
+  keys.slice(keys.length - VC_DIFF_CACHE_MAX).forEach(function (k) { keep[k] = map[k] })
+  return keep
+}
+/**
+ * 未提交这一路差异回包的 stale drop（#857 P1）：按每个键自己的代际号比，谁新听谁。
+ * 与提交那一路同一形状，区别只在它是「一个键一个号」而不是整份一个号。
+ */
+export const vcApplyDiffReply = function (currentReads, nextReads) {
+  const cur = (currentReads && currentReads.diffs) || {}
+  const nxt = (nextReads && nextReads.diffs) || {}
+  const out = Object.assign({}, cur)
+  Object.keys(nxt).forEach(function (k) {
+    const c = cur[k] || {}
+    const n = nxt[k] || {}
+    if ((Number(c.seq) || 0) > (Number(n.seq) || 0)) return
+    out[k] = n
+  })
+  return Object.assign({}, currentReads || vcNewReads(), { diffs: vcBoundedMap(out) })
+}
+/**
+ * 提交里某一处文件补丁的 stale drop（#857 P1/P2）：与未提交那一路同一形状，只是键在 commitDiffs 里。
+ * 每个键有自己的代际号；调用方落地前还要先校验工作区（vcDiffOps 的 applyFile 那一层）。
+ */
+export const vcApplyCommitFileDiffReply = function (currentReads, nextReads) {
+  const cur = (currentReads && currentReads.commitDiffs) || {}
+  const nxt = (nextReads && nextReads.commitDiffs) || {}
+  const out = Object.assign({}, cur)
+  Object.keys(nxt).forEach(function (k) {
+    const c = cur[k] || {}
+    const n = nxt[k] || {}
+    if ((Number(c.seq) || 0) > (Number(n.seq) || 0)) return
+    out[k] = n
+  })
+  return Object.assign({}, currentReads || vcNewReads(), { commitDiffs: vcBoundedMap(out) })
+}
+/**
  * cwd 一变就整体复位（#819 发现 2）：读数、展开状态、点开的那笔提交全清。
  * 为什么必须有这一条：Dock 在同会话里换工作区**不重挂载**组件，带着旧读数与旧 ui 进新工作区，
  *   用户就会在新工作区的身份行下面看到上一个工作树的提交清单 —— 正是他最怕的认错工作树。
@@ -198,32 +248,57 @@ export const vcMarkLogLoading = function (reads) {
   const prev = base.log || { state: 'idle', commits: [], hasMore: false, fetched: 0, error: null }
   return Object.assign({}, base, { log: { state: 'loading', commits: prev.commits || [], hasMore: prev.hasMore === true, fetched: prev.fetched || 0, error: prev.error } })
 }
+/** 把「正在读这一处差异」先写进读数：同键在途的防重发守卫才真的有效（#857 P4）。代际号也先加一，
+ *  后面 vcReadDiff 还会再加一 —— 回包的号一定比这个大，stale drop 照常放行。 */
+export const vcMarkDiffLoading = function (reads, key) {
+  const base = reads || vcNewReads()
+  const map = Object.assign({}, base.diffs || {})
+  const prev = map[String(key || '')] || { state: 'idle', lines: null, reason: '', truncated: false, error: null, seq: 0 }
+  map[String(key || '')] = { state: 'loading', lines: prev.lines, reason: prev.reason, truncated: prev.truncated === true, error: prev.error, seq: (Number(prev.seq) || 0) + 1 }
+  return Object.assign({}, base, { diffs: vcBoundedMap(map) })
+}
+/** 把「正在读这笔提交的文件清单」先写进读数：同一笔连点也不重复发（与上面同一道理）。 */
+export const vcMarkCommitLoading = function (reads, rev) {
+  const base = reads || vcNewReads()
+  const prev = base.commit || { rev: '', seq: 0, state: 'idle', files: [], truncated: false, reason: '', error: null }
+  return Object.assign({}, base, { commit: { rev: String(rev || ''), seq: (Number(prev.seq) || 0) + 1, state: 'loading', files: prev.rev === String(rev || '') ? prev.files : [], truncated: false, reason: '', error: null } })
+}
+/** 把「正在读提交里某一处文件的补丁」先写进读数：同一处连点也不重复发（#857 P4）。 */
+export const vcMarkCommitFileDiffLoading = function (reads, rev, path) {
+  const base = reads || vcNewReads()
+  const key = vcCommitKeyOf(rev, path)
+  const map = Object.assign({}, base.commitDiffs || {})
+  const prev = map[key] || { state: 'idle', lines: null, reason: '', truncated: false, error: null, seq: 0 }
+  map[key] = { state: 'loading', lines: prev.lines, reason: prev.reason, truncated: prev.truncated === true, error: prev.error, seq: (Number(prev.seq) || 0) + 1 }
+  return Object.assign({}, base, { commitDiffs: vcBoundedMap(map) })
+}
 /** 一笔提交里某个文件改了什么（按需）：与未提交那一层同一个回包形状，各存各的键。 */
 export const vcReadCommitFileDiff = function (reads, call, cwd, rev, path) {
   const base = reads || vcNewReads()
   const key = vcCommitKeyOf(rev, path)
   const map = Object.assign({}, base.commitDiffs || {})
-  const prev = map[key] || { state: 'idle', lines: null, reason: '', truncated: false, error: null }
-  map[key] = { state: 'loading', lines: prev.lines, reason: prev.reason, truncated: prev.truncated === true, error: prev.error }
+  const prev = map[key] || { state: 'idle', lines: null, reason: '', truncated: false, error: null, seq: 0 }
+  const seq = (Number(prev.seq) || 0) + 1
+  map[key] = { state: 'loading', lines: prev.lines, reason: prev.reason, truncated: prev.truncated === true, error: prev.error, seq: seq }
   const t0 = Date.now()
   return Promise.resolve()
     .then(function () { return call(VC_PHONES.diff, { cwd: String(cwd || ''), rev: String(rev || ''), path: String(path || '') }) })
     .then(function (reply) {
       if (reply && reply.ok === true && Array.isArray(reply.lines)) {
         vcOkLog(VC_PHONES.diff, 'git-diff', t0)
-        map[key] = { state: 'ok', lines: reply.lines, reason: String(reply.reason || 'ok'), truncated: reply.truncated === true, error: null }
-        return Object.assign({}, base, { commitDiffs: map })
+        map[key] = { state: 'ok', lines: reply.lines, reason: String(reply.reason || 'ok'), truncated: reply.truncated === true, error: null, seq: seq }
+        return Object.assign({}, base, { commitDiffs: vcBoundedMap(map) })
       }
       const fail = vcFailureOf(reply)
       vcFailLog(VC_PHONES.diff, 'git-diff', t0, fail)
-      map[key] = { state: 'err', lines: prev.lines, reason: prev.reason, truncated: prev.truncated === true, error: fail }
-      return Object.assign({}, base, { commitDiffs: map })
+      map[key] = { state: 'err', lines: prev.lines, reason: prev.reason, truncated: prev.truncated === true, error: fail, seq: seq }
+      return Object.assign({}, base, { commitDiffs: vcBoundedMap(map) })
     })
     .catch(function (e) {
       const fail = { kind: 'throw', message: String((e && e.message) || e) }
       vcFailLog(VC_PHONES.diff, 'git-diff', t0, fail)
-      map[key] = { state: 'err', lines: prev.lines, reason: prev.reason, truncated: prev.truncated === true, error: fail }
-      return Object.assign({}, base, { commitDiffs: map })
+      map[key] = { state: 'err', lines: prev.lines, reason: prev.reason, truncated: prev.truncated === true, error: fail, seq: seq }
+      return Object.assign({}, base, { commitDiffs: vcBoundedMap(map) })
     })
 }
 /** 下一批要从第几条开始取（首屏那批 + 已经续读回来的那几批）。 */
