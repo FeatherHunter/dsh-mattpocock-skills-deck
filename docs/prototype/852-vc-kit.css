@@ -76,8 +76,8 @@ html[data-theme="light"] .vc-shell{box-shadow:0 24px 60px rgba(20,20,30,.10)}
 .vc-badge--typechange{color:var(--amber);border-color:var(--amber)}
 .vc-badge--conflict{color:var(--red);border-color:var(--red);background:rgba(255,122,122,.12)}
 .vc-row__main{flex:1;min-width:0}
-.vc-row__path{font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.vc-row__kind{font-size:11px;color:var(--mut);margin-top:1px}
+.vc-row__path{display:block;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vc-row__kind{display:block;font-size:11px;color:var(--mut);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .vc-row__delta{flex:none;font-size:11.5px;font-variant-numeric:tabular-nums;color:var(--mut)}
 .vc-add{color:var(--green)} .vc-del{color:var(--red)}
 .vc-row__act{flex:none;display:flex;gap:6px}

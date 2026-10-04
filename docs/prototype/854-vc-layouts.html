@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh" data-style="A">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>版本管理 · 三套布局（#854）</title>
+<link rel="stylesheet" href="854-vc-layouts.css">
+<!--
+  PROTOTYPE-854 · 抛弃式设计稿 · 三套「信息架构」
+  上一轮（853）换的是视觉语言；这一轮换的是**东西摆在哪**。
+  起因：原设计把功能从上到下顺排，要用一个功能就得往下翻。三套布局各给一个不同的答案。
+  事实数据完全一样（同一批词条、同一批状态、同一批控件），只有摆法不同 —— 所以能直接比。
+  视觉语言仍是 853 的三套（A 工程台账 / B 终端记录 / C 纸质便签），可以叠着看。
+-->
+</head>
+<body>
+<div class="bar">
+  <b>版本管理 · 三套布局</b>
+  <a href="853-vc-styles.html">风格总览</a>
+  <a href="852-vc-index.html">上一轮全套原型</a>
+  <span class="sp"></span>
+  <span id="styleLabel"></span>
+</div>
+
+<div class="tabs" role="tablist" id="layoutTabs">
+  <button role="tab" data-l="A" aria-selected="true">A 状态优先</button>
+  <button role="tab" data-l="B" aria-selected="false">B 双栏工作台</button>
+  <button role="tab" data-l="C" aria-selected="false">C 视图切换</button>
+</div>
+<div class="tabs" role="tablist" id="styleTabs" style="top:76px">
+  <button role="tab" data-s="A" aria-selected="true">风格 A 工程台账</button>
+  <button role="tab" data-s="B" aria-selected="false">风格 B 终端记录</button>
+  <button role="tab" data-s="C" aria-selected="false">风格 C 纸质便签</button>
+</div>
+
+<div class="wrap">
+  <div class="whybox">
+    <b>我作为设计师点开这个页签，第一眼最想看到三样东西</b>
+    <p>① <b>我在哪</b>：工作树 · 分支 · 领先落后 —— 一次扫过，不用找。<br>
+    ② <b>现在有几件事</b>：冲突 / 已暂存 / 未暂存三个数字，用表格数字对齐，横向一排，扫一眼就完。<br>
+    ③ <b>我现在能干什么，而且不用往下翻</b>：拉取、推送、全部暂存、提交说明、提交按钮必须一直在手边。
+    第 ③ 条正是原设计最缺的地方 —— 动作排在页面中间或底部，要用就得翻。</p>
+    <p class="cost">另外两条自定的规矩：全页只有「冲突」用红色，其余状态用中性色或强调色（红一多就不红了）；读参考信息（其他工作树、提交历史）不与要做的动作混排 —— 那是两件事。</p>
+  </div>
+
+  <div class="lay">
+    <div class="lay-head"><b id="layName"></b><span class="k" id="layKeys"></span></div>
+    <div class="whybox">
+      <p id="layWhy"></p>
+      <p class="cost" id="layCost"></p>
+    </div>
+    <div id="stage"></div>
+  </div>
+</div>
+
+<script src="854-vc-layouts.js"></script>
+<script>
+var K = {
+  A: 'vc.stat.* · vc.action.* · 常驻操作条 · 其他工作树与历史并排',
+  B: 'vc.identity.* · 导航栏 + 任务栏 · 底部操作坞 vc.action.*',
+  C: 'vc.changes.* / vc.commits.* / vc.other.* 分成三个视图'
+}
+var stage = document.getElementById('stage')
+function render() {
+  var key = window.__vcLayout
+  document.getElementById('layName').textContent = VC_LAYOUTS[key].name
+  document.getElementById('layKeys').textContent = K[key]
+  document.getElementById('layWhy').textContent = VC_LAYOUTS[key].why
+  document.getElementById('layCost').textContent = VC_LAYOUTS[key].cost
+  VC_MOUNT_LAYOUT(stage)
+}
+document.querySelectorAll('#layoutTabs button').forEach(function (b) {
+  b.addEventListener('click', function () {
+    window.__vcLayout = b.dataset.l
+    document.querySelectorAll('#layoutTabs button').forEach(function (x) {
+      x.setAttribute('aria-selected', String(x === b))
+    })
+    try { sessionStorage.setItem('vc-layout', b.dataset.l) } catch (e) {}
+    render()
+  })
+})
+document.querySelectorAll('#styleTabs button').forEach(function (b) {
+  b.addEventListener('click', function () {
+    document.documentElement.dataset.style = b.dataset.s
+    document.querySelectorAll('#styleTabs button').forEach(function (x) {
+      x.setAttribute('aria-selected', String(x === b))
+    })
+    document.getElementById('styleLabel').textContent = '风格：' + b.textContent.trim()
+    try { sessionStorage.setItem('vc-style', b.dataset.s) } catch (e) {}
+  })
+})
+var lk = 'A', sk = 'A'
+try { lk = sessionStorage.getItem('vc-layout') || 'A'; sk = sessionStorage.getItem('vc-style') || 'A' } catch (e) {}
+window.__vcLayout = ['A','B','C'].indexOf(lk) >= 0 ? lk : 'A'
+document.documentElement.dataset.style = ['A','B','C'].indexOf(sk) >= 0 ? sk : 'A'
+document.querySelectorAll('#layoutTabs button').forEach(function (x) { x.setAttribute('aria-selected', String(x.dataset.l === window.__vcLayout)) })
+document.querySelectorAll('#styleTabs button').forEach(function (x) { x.setAttribute('aria-selected', String(x.dataset.s === document.documentElement.dataset.style)) })
+document.getElementById('styleLabel').textContent = '风格：' + (document.querySelector('#styleTabs button[aria-selected="true"]') || {}).textContent
+render()
+</script>
+</body>
+</html>

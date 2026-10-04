@@ -1,0 +1,60 @@
+@import url('853-vc-styles.css');
+/* 854 布局层：这一层只管「东西摆在哪」，颜色与字体仍由 853-vc-styles.css 的三套变量给。
+ * 解决的问题：原设计把功能从上到下顺排，要用一个功能就得往下翻。三套布局各自给一个不同的答案。 */
+
+/* A 布局：状态数字 + 常驻操作条 */
+.lay{margin:0 0 40px}
+.lay-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:0 0 10px}
+.lay-head b{font-size:13px;font-weight:650}
+.lay-head .k{font-family:var(--font-path);font-size:10.5px;color:var(--faint)}
+.lay-head .why{font-size:12px;color:var(--mut)}
+.stat{display:flex;gap:7px;margin:10px 0 12px}
+.stat__i{flex:1;min-width:0;padding:7px 9px;border:1px solid var(--line);border-radius:var(--radius);background:var(--inset)}
+.stat__n{font-family:var(--font-path);font-variant-numeric:tabular-nums;font-size:19px;font-weight:700;line-height:1.15}
+.stat__t{font-size:10.5px;color:var(--mut);margin-top:1px}
+.stat__i[data-k="conflict"] .stat__n{color:var(--danger)}
+.stat__i[data-k="staged"] .stat__n{color:var(--accent)}
+.stat__i[data-k="unstaged"] .stat__n{color:var(--info)}
+html[data-style="B"] .stat__i{border-style:dashed}
+html[data-style="C"] .stat__i{background:var(--paper);box-shadow:0 1px 0 rgba(0,0,0,.4)}
+.lay-bar{position:sticky;top:0;z-index:5;display:flex;gap:7px;align-items:center;flex-wrap:wrap;
+  padding:8px 9px;margin:0 0 12px;border:1px solid var(--line2);border-radius:var(--radius);
+  background:var(--paper);box-shadow:0 1px 0 color-mix(in srgb,var(--ink) 8%,transparent)}
+.lay-bar__grow{flex:1;min-width:110px}
+.lay-bar__lbl{font-size:10.5px;color:var(--faint);font-family:var(--font-path)}
+.lay-tail{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+.lay-tail__c{min-width:0}
+
+/* B 布局：双栏工作台 + 底部操作坞 */
+.lay-split{display:grid;grid-template-columns:196px minmax(0,1fr);gap:12px;align-items:start}
+.rail{border:1px solid var(--line);border-radius:var(--radius);background:var(--paper);padding:10px 11px}
+.rail__t{font-size:var(--fs-sec);letter-spacing:var(--sec-track);color:var(--faint);text-transform:uppercase;
+  margin:12px 0 5px;padding-bottom:4px;border-bottom:1px solid var(--line)}
+.rail__t:first-child{margin-top:0}
+.rail__id{font-size:14px;font-weight:700;display:flex;gap:6px;align-items:baseline}
+.rail__id .br{color:var(--accent)}
+.rail__p{font-family:var(--font-path);font-size:10.5px;color:var(--mut);margin-top:3px;word-break:break-all}
+.rail__m{font-size:11px;color:var(--mut);margin-top:5px;line-height:1.55}
+.rail__m b{color:var(--ink2);font-weight:600}
+.dock{position:sticky;bottom:0;z-index:5;display:flex;gap:7px;align-items:center;flex-wrap:wrap;
+  margin-top:12px;padding:8px 9px;border:1px solid var(--line2);border-radius:var(--radius);background:var(--paper)}
+html[data-style="B"] .dock{border-radius:0}
+.lay-main{min-width:0}
+
+/* C 布局：视图切换（一次只看一件事） */
+.lay-views{display:flex;gap:0;border-bottom:1px solid var(--line2);margin:10px 0 12px;flex-wrap:wrap}
+.lay-views button{appearance:none;background:transparent;border:0;border-bottom:2px solid transparent;
+  color:var(--mut);font:inherit;font-size:12.5px;padding:8px 13px;cursor:pointer;display:inline-flex;gap:6px;align-items:baseline}
+.lay-views button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent);font-weight:650}
+.lay-views .n{font-family:var(--font-path);font-variant-numeric:tabular-nums;font-size:11px;color:var(--mut)}
+.lay-view{display:none}
+.lay-view.is-on{display:block}
+.viewbar{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin:0 0 10px;padding:7px 8px;
+  border:1px dashed var(--line2);border-radius:var(--radius)}
+.viewbar .lbl{font-size:10.5px;color:var(--faint);font-family:var(--font-path)}
+
+/* 布局对照表用的说明块 */
+.whybox{border:1px solid var(--line);border-radius:var(--radius);background:var(--paper);padding:12px 13px;margin:0 0 18px}
+.whybox b{display:block;font-size:12.5px;margin-bottom:5px}
+.whybox p{margin:0;font-size:12.5px;color:var(--mut);line-height:1.65}
+.whybox .cost{margin-top:6px;color:var(--faint)}

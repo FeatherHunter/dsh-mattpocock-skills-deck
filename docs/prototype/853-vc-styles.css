@@ -96,9 +96,9 @@ html[data-style="B"] .v3-sec .n{text-transform:none}
 .v3-row:hover{background:color-mix(in srgb,var(--ink) 6%,transparent)}
 .v3-row.is-open{background:color-mix(in srgb,var(--accent) 9%,transparent)}
 .v3-main{flex:1;min-width:0}
-.v3-path{font-family:var(--font-path);font-size:calc(var(--fs) - .5px);font-variant-numeric:var(--num);
+.v3-path{display:block;font-family:var(--font-path);font-size:calc(var(--fs) - .5px);font-variant-numeric:var(--num);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.v3-kind{font-size:11px;color:var(--mut)}
+.v3-kind{display:block;font-size:11px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .v3-badge{flex:none;display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 4px;
   border:1px solid var(--line2);border-radius:var(--radius);font-family:var(--font-path);font-size:10.5px;
   font-weight:700;line-height:1;color:var(--mut)}
@@ -109,7 +109,7 @@ html[data-style="B"] .v3-sec .n{text-transform:none}
 .v3-badge[data-t="conflict"]{color:var(--danger);border-color:var(--danger);background:color-mix(in srgb,var(--danger) 16%,transparent)}
 .v3-delta{flex:none;font-family:var(--font-path);font-size:11px;font-variant-numeric:var(--num);color:var(--mut)}
 .v3-add{color:var(--accent)} .v3-del{color:var(--danger)}
-html[data-style="C"] .v3-row .v3-kind{display:inline-block;margin-left:6px}
+html[data-style="C"] .v3-row .v3-kind{display:inline;margin-left:6px;white-space:normal;overflow:visible}
 
 /* ---- 按钮 ---- */
 .v3-btn{display:inline-flex;align-items:center;gap:5px;height:var(--btn-h);padding:0 10px;
