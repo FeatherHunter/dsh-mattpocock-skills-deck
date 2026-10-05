@@ -219,7 +219,7 @@ async function main() {
   const untrackedRow = liveRows.filter((r) => r.path === '新增 未跟踪.txt')[0]
   check(!!untrackedRow && untrackedRow.changeText === '未跟踪' && untrackedRow.untracked === true, 'B11 未跟踪那一行写「未跟踪」并带上 untracked 标记（取差异时要告诉宿主）')
   const binaryRow = liveRows.filter((r) => r.path === '图片.png')[0]
-  check(!!binaryRow && binaryRow.countsText === '' && binaryRow.countsTip === '二进制文件没有逐行增删的数字。', 'B12 二进制文件没有行数：不写 0，如实说没有这个数字')
+  check(!!binaryRow && binaryRow.countsText === '' && binaryRow.countsTip === '二进制文件无逐行增删计数。', 'B12 二进制文件没有行数：不写 0，如实说没有这个数字')
   const trackedRow = liveRows.filter((r) => r.path === '已跟踪 文件.txt')[0]
   check(!!trackedRow && trackedRow.countsText === '+2 \u2212' + '1', 'B13 改了行数的文件写 +2 −1（实得「' + (trackedRow ? trackedRow.countsText : '') + '」）')
   const liveCommit = blockOf(liveBlocks, 'commits').rows[0]
@@ -300,7 +300,7 @@ async function main() {
   for (let i = 0; i < 260; i++) longLines.push(i % 3 === 0 ? { kind: 'hunk', text: '@@ -' + i + ' +' + i + ' @@' } : { kind: 'add', text: '+第' + i + '行' })
   const longReads = readsOf(files, { diffs: { '改.txt': { state: 'ok', lines: longLines, reason: 'ok', truncated: false, error: null } } })
   const longRow = rowsOf(VIEW.vcBlocksOf(files, longReads, { openDiff: 'unstaged\u0000改.txt' }, envOf(files, longReads)))[0]
-  check(longRow.diff.lines.length === VIEW.VC_DIFF_LINES_SHOWN && longRow.diff.hunks.length > 0 && longRow.diff.shownNote === '只显示了前 200 行，后面的请在命令行里看。', 'C18 差异很长：先给「哪几段行区间变了」，再给前 200 行，并如实说后面到终端看')
+  check(longRow.diff.lines.length === VIEW.VC_DIFF_LINES_SHOWN && longRow.diff.hunks.length > 0 && longRow.diff.shownNote === '仅显示前 200 行，其余请在命令行中查看。', 'C18 差异很长：先给「哪几段行区间变了」，再给前 200 行，并如实说后面到终端看')
   // 200 行这条阈值卡在边界上验：正好等于阈值给逐行、不补说明；超过一行才先给「哪几段行区间变了」并说只显示了前 200 行。
   const edgeLines = []
   for (let i = 0; i < VIEW.VC_DIFF_LINES_SHOWN; i++) edgeLines.push({ kind: 'add', text: '+' + i })
@@ -309,12 +309,12 @@ async function main() {
   const overLines = edgeLines.concat([{ kind: 'hunk', text: '@@ -201 +201 @@' }, { kind: 'add', text: '+第 201 行' }])
   const overReads = readsOf(files, { diffs: { '改.txt': { state: 'ok', lines: overLines, reason: 'ok', truncated: false, error: null } } })
   const overRow = rowsOf(VIEW.vcBlocksOf(files, overReads, { openDiff: 'unstaged\u0000改.txt' }, envOf(files, overReads)))[0]
-  check(edgeRow.diff.hunks.length === 0 && edgeRow.diff.shownNote === '' && overRow.diff.hunks.length === 1 && overRow.diff.shownNote === '只显示了前 200 行，后面的请在命令行里看。', 'C18b 200 行这条阈值卡在边界上：正好等于阈值给逐行、不补说明；超过一行才先给「哪几段行区间变了」并说只显示了前 200 行')
+  check(edgeRow.diff.hunks.length === 0 && edgeRow.diff.shownNote === '' && overRow.diff.hunks.length === 1 && overRow.diff.shownNote === '仅显示前 200 行，其余请在命令行中查看。', 'C18b 200 行这条阈值卡在边界上：正好等于阈值给逐行、不补说明；超过一行才先给「哪几段行区间变了」并说只显示了前 200 行')
   // 合并提交里的单文件差异：宿主回 reason:'merge-commit'，这句话不许落到「这一处这次没读到改动内容」上。
   const mergeDiffReads = readsOf(files, { diffs: { '改.txt': { state: 'ok', lines: [], reason: 'merge-commit', truncated: false, error: null } } })
   const mergeDiffRow = rowsOf(VIEW.vcBlocksOf(files, mergeDiffReads, { openDiff: 'unstaged\u0000改.txt' }, envOf(files, mergeDiffReads)))[0]
   check(mergeDiffRow.diff.state === 'note' && mergeDiffRow.diff.text === '这是一次合并提交：git 默认不展开合并提交的逐行差异，所以这里没有内容。' && mergeDiffRow.diff.text !== '这一处这次没读到改动内容。', 'C19b 合并提交里的单文件差异：如实说「git 默认不展开合并提交的逐行差异」，不许落到「这一处没读到改动内容」上')
-  const reasons = { 'untracked-no-diff': '这个文件还没被 git 跟踪，没有可比的旧版本。', 'no-commit-baseline': '这个仓库还没有第一次提交，没有可比的基线。', 'binary-diff': '二进制文件，不逐行显示改动。', 'truncated': '这个文件的改动太大，读不全就没给内容；请在命令行里看这一处的完整改动。', 'no-diff': '这一处这次没读到改动内容。' }
+  const reasons = { 'untracked-no-diff': '该文件尚未被 git 跟踪，不存在可比较的旧版本。', 'no-commit-baseline': '该仓库尚无首次提交，不存在可比较的基线。', 'binary-diff': '二进制文件，不逐行展示变更。', 'truncated': '该文件变更过大，未提供不完整内容；请在命令行中查看该处的完整变更。', 'no-diff': '本次未能读取该处的变更内容。' }
   let reasonOk = true
   for (const k of Object.keys(reasons)) {
     const rr = readsOf(files, { diffs: { '改.txt': { state: 'ok', lines: [], reason: k, truncated: false, error: null } } })
@@ -324,17 +324,17 @@ async function main() {
   check(reasonOk, 'C19 差异读不到内容的五种原因各有各的实话（未跟踪 / 零提交 / 二进制 / 太大 / 空差异）')
   const diffFailReads = readsOf(files, { diffs: { '改.txt': { state: 'err', lines: null, reason: '', truncated: false, error: { kind: 'timeout', message: 'x' } } } })
   const failRow = rowsOf(VIEW.vcBlocksOf(files, diffFailReads, { openDiff: 'unstaged\u0000改.txt' }, envOf(files, diffFailReads)))[0]
-  check(failRow.diff.state === 'err' && failRow.diff.text === '这个文件的改动读不到' && failRow.diff.retry === '重试', 'C20 差异读不到：说清是哪一块读不到并给重试')
+  check(failRow.diff.state === 'err' && failRow.diff.text === '未能读取该文件的变更' && failRow.diff.retry === '重试', 'C20 差异读不到：说清是哪一块读不到并给重试')
 
   // 历史续读
   const logMore = readsOf(files, { log: { state: 'ok', commits: [{ oid: 'c'.repeat(40), short: 'ccccccc', author: 'A', authorDateMs: NOW - 1000, commitDateMs: NOW - 1000, subject: '更早的一条', parents: [] }], hasMore: false, fetched: 1, error: null } })
   const moreBlock = blockOf(VIEW.vcBlocksOf(files, logMore, {}, envOf(files, logMore)), 'commits')
-  check(moreBlock.rows.length === 1 && moreBlock.more.allLoaded === '已经到底了', 'C21 续读到底：新读回的提交接在列表里并说「已经到底了」')
+  check(moreBlock.rows.length === 1 && moreBlock.more.allLoaded === '已全部加载', 'C21 续读到底：新读回的提交接在列表里并说「已全部加载」')
   const logLoading = readsOf(files, { log: { state: 'loading', commits: [], hasMore: true, fetched: 0, error: null } })
-  check(blockOf(VIEW.vcBlocksOf(files, logLoading, {}, envOf(files, logLoading)), 'commits').more.label === '正在读更早的提交…', 'C22 续读在途：那一行说「正在读更早的提交…」')
+  check(blockOf(VIEW.vcBlocksOf(files, logLoading, {}, envOf(files, logLoading)), 'commits').more.label === '正在读取更早的提交…', 'C22 续读在途：那一行说「正在读更早的提交…」')
   const logFail = readsOf(files, { log: { state: 'err', commits: [{ oid: 'd'.repeat(40), short: 'ddddddd', author: 'A', authorDateMs: NOW, commitDateMs: NOW, subject: '旧的还在', parents: [] }], hasMore: true, fetched: 1, error: { kind: 'timeout', message: '' } } })
   const lfBlock = blockOf(VIEW.vcBlocksOf(files, logFail, {}, envOf(files, logFail)), 'commits')
-  check(lfBlock.rows.length === 1 && lfBlock.more.failText === '更早的提交读不到' && lfBlock.more.retry === '重试', 'C23 续读失败：已经读回来的还在，旁边说读不到并给重试')
+  check(lfBlock.rows.length === 1 && lfBlock.more.failText === '未能读取更早的提交' && lfBlock.more.retry === '重试', 'C23 续读失败：已经读回来的还在，旁边说读不到并给重试')
 
   // 首屏：还没拿到数据 / 失败 / 有旧数据
   check(VIEW.vcBlocksOf(null, VIEW.vcNewReads(), {}, { t: tZh, nowMs: NOW, fold: VIEW.vcFoldOf(460, {}) }).length === 0, 'C24 面板刚打开、还没拿到数据：整块不画（不冒一句常驻道歉）')
