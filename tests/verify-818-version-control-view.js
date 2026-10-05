@@ -233,20 +233,20 @@ async function main() {
   const dB = VIEW.vcBlocksOf(detached, readsOf(detached), {}, envOf(detached, readsOf(detached)))
   const dId = blockOf(dB, 'identity')
   check(dId.branchText === '游离头指针' && dId.branchTone === 'caption', 'C1 游离头指针：明说「游离头指针」，用中性色档（不是红色告警）')
-  check(dId.oidText === '停在提交 ' + 'b'.repeat(12) && dId.sync.text === '不在任何分支上，领先落后这一套用不上', 'C2 游离头指针：给出停在哪次提交上，并说清领先落后用不上')
+  check(dId.oidText === '停在提交 ' + 'b'.repeat(12) && dId.sync.text === '不在任何分支上，不适用超前与落后计数', 'C2 游离头指针：给出停在哪次提交上，并说清不适用超前落后计数')
 
   const noUp = screenOf({ identity: { sync: 'no-upstream', ahead: 0, behind: 0, basisMs: null } })
   const nB = VIEW.vcBlocksOf(noUp, readsOf(noUp), {}, envOf(noUp, readsOf(noUp)))
   const nId = blockOf(nB, 'identity')
-  check(nId.sync.text === '还没有推送目标' && allText(nB).indexOf('领先 0') < 0, 'C3 没设推送目标：写「还没有推送目标」，不写「领先 0」')
+  check(nId.sync.text === '尚未设置上游' && allText(nB).indexOf('超前 0') < 0, 'C3 没设推送目标：写「尚未设置上游」，不写「超前 0」')
 
   const gone = screenOf({ identity: { sync: 'upstream-gone', ahead: 0, behind: 0, basisMs: null } })
   const gId = blockOf(VIEW.vcBlocksOf(gone, readsOf(gone), {}, envOf(gone, readsOf(gone))), 'identity')
-  check(gId.sync.text === '推送目标已经不存在', 'C4 推送目标在远端被删：明说「推送目标已经不存在」')
+  check(gId.sync.text === '推送目标已不存在', 'C4 推送目标在远端被删：明说「推送目标已不存在」')
 
   const stale = screenOf({ identity: { sync: 'tracked-unknown', ahead: 3, behind: 1, basisMs: null } })
   const sId = blockOf(VIEW.vcBlocksOf(stale, readsOf(stale), {}, envOf(stale, readsOf(stale))), 'identity')
-  check(sId.sync.text === '领先 3 · 落后 1' && sId.sync.basis === '远端信息什么时候更新的读不到', 'C5 有推送目标但依据时间读不到：数字照常写，依据如实说读不到')
+  check(sId.sync.text === '超前 3 · 落后 1' && sId.sync.basis === '无法读取远端信息的更新时间', 'C5 有推送目标但依据时间读不到：数字照常写，依据如实说读不到')
 
   const fresh = screenOf({ identity: { sync: 'tracked-known', ahead: 2, behind: 0, basisMs: NOW - 3 * 24 * 3600 * 1000 } })
   const fId = blockOf(VIEW.vcBlocksOf(fresh, readsOf(fresh), {}, envOf(fresh, readsOf(fresh))), 'identity')
@@ -254,7 +254,7 @@ async function main() {
 
   const zero = screenOf({ identity: { branch: 'main', oid: null, sync: 'no-upstream', ahead: 0, behind: 0, basisMs: null }, repo: { hasCommits: false } })
   const zB = VIEW.vcBlocksOf(zero, readsOf(zero), {}, envOf(zero, readsOf(zero)))
-  check(allText(zB).indexOf('这个仓库还没有任何提交') >= 0 && blockOf(zB, 'commits').empty === true, 'C7 零提交仓库：异常带与历史块都明说「这个仓库还没有任何提交」')
+  check(allText(zB).indexOf('该仓库尚无任何提交') >= 0 && blockOf(zB, 'commits').empty === true, 'C7 零提交仓库：异常带与历史块都明说「这个仓库还没有任何提交」')
 
   const bare = screenOf({ identity: { worktreeDisplay: '', worktreePath: 'D:/w/bare.git', branch: null, detached: false, oid: null, sync: 'detached', ahead: 0, behind: 0, basisMs: null }, repo: { bare: true, hasCommits: true } })
   const bId = blockOf(VIEW.vcBlocksOf(bare, readsOf(bare), {}, envOf(bare, readsOf(bare))), 'identity')
@@ -268,10 +268,10 @@ async function main() {
   })
   const mB = VIEW.vcBlocksOf(merge, readsOf(merge), {}, envOf(merge, readsOf(merge)))
   const mRows = rowsOf(mB)
-  check(allText(mB).indexOf('正在合并') >= 0 && allText(mB).indexOf('有 2 个文件卡在冲突里') >= 0, 'C8 正在合并 + 有冲突：异常带在显眼位置说明，并指去终端')
+  check(allText(mB).indexOf('正在合并') >= 0 && allText(mB).indexOf('有 2 个文件存在合并冲突') >= 0, 'C8 正在合并 + 有冲突：异常带在显眼位置说明，并指去终端')
   check(mRows.length === 1 && mRows[0].conflict === true && mRows[0].conflictText === '冲突', 'C9 同一路径既有冲突又有普通修改：界面上只占一行并带冲突标记')
   check(blockOf(mB, 'changes').groups.map((g) => g.key).join(',') === 'conflict', 'C10 冲突单独一组（排在已暂存之后、未暂存之前）')
-  check(allText(mB).indexOf('这些文件里同时留着两边的内容：你这个分支上的') >= 0, 'C11 合并冲突说清两边各是什么')
+  check(allText(mB).indexOf('这些文件同时包含两侧的内容：当前分支的提交') >= 0, 'C11 合并冲突说清两边各是什么')
   check(allText(mB).indexOf('错误') < 0 && allText(mB).indexOf('失败') < 0, 'C12 冲突与合并进行中的话术里不出现「错误」两个字')
 
   const others = screenOf({ otherWorktrees: [
@@ -281,8 +281,8 @@ async function main() {
   const oB = VIEW.vcBlocksOf(others, readsOf(others), {}, envOf(others, readsOf(others)))
   const oBlock = blockOf(oB, 'other')
   check(oBlock.title === '其他工作树 (2)', 'C13 标题写「其他工作树 (2)」（硬约束，不许写成「工作树与分支」）')
-  check(oBlock.rows[0].stateText === '无法显示' && oBlock.rows[1].stateText === '目录已不存在', 'C14 答不出占用写「无法显示」、目录已不存在照实写；答不出不当成没被占用')
-  check(oBlock.tip.indexOf('不列没有检出的本地分支') >= 0, 'C15 其他工作树那一条说清它不是分支全貌')
+  check(oBlock.rows[0].stateText === '无法显示' && oBlock.rows[1].stateText === '目录不存在', 'C14 答不出占用写「无法显示」、目录已不存在照实写；答不出不当成没被占用')
+  check(oBlock.tip.indexOf('不列出未检出的本地分支') >= 0, 'C15 其他工作树那一条说清它不是分支全貌')
 
   const otherMany = screenOf({ otherWorktrees: others.otherWorktrees })
   const narrowB = VIEW.vcBlocksOf(otherMany, readsOf(otherMany), {}, envOf(otherMany, readsOf(otherMany), 340))
@@ -343,7 +343,7 @@ async function main() {
   check(eBlock.kind === 'error' && eBlock.text === '这个目录不在任何 git 仓库里。' && eBlock.retry === '', 'C25 不在仓库里：如实说这句话，且不给重试按钮（它不是读取失败）')
   const noGit = { screen: { state: 'err', data: null, error: { kind: 'env', message: 'x' } }, diffs: {}, log: { state: 'idle', commits: [], hasMore: false, fetched: 0, error: null } }
   const nBlock = VIEW.vcBlocksOf(null, noGit, {}, { t: tZh, nowMs: NOW, fold: VIEW.vcFoldOf(460, {}) })[0]
-  check(nBlock.text.indexOf('找不到 git 程序') === 0 && nBlock.retry === '重试' && String(nBlock.rawTip || '').indexOf('原始说明：') === 0, 'C26 找不到 git：告诉人去确认安装与 PATH 并重启，给重试，宿主原文只进悬停（诊断线索，不进可见正文）')
+  check(nBlock.text.indexOf('未找到 git 程序') === 0 && nBlock.retry === '重试' && String(nBlock.rawTip || '').indexOf('原始说明：') === 0, 'C26 找不到 git：告诉人去确认安装与 PATH 并重启，给重试，宿主原文只进悬停（诊断线索，不进可见正文）')
   const staleReads = readsOf(files, { screen: { state: 'err', data: { screen: files, tier: 'full', gitVersion: 'g', readAtMs: NOW }, error: { kind: 'timeout', message: 'x' } } })
   const stBlocks = VIEW.vcBlocksOf(files, staleReads, {}, envOf(files, staleReads))
   check(blockOf(stBlocks, 'hint') !== null && blockOf(stBlocks, 'hint').text === '刷新失败了，下面是上一次读到的数据' && blockOf(stBlocks, 'changes') !== null, 'C27 有旧数据时读失败：旧数据照常画，上面加一条「刷新失败了」')
@@ -366,22 +366,22 @@ async function main() {
   const sReads = function (over) { return readsOf(commitScreen, Object.assign({ commit: commitEntry() }, over || {})) }
   const sBlocksOf = function (reads, ui) { return VIEW.vcBlocksOf(commitScreen, reads, ui || { openCommit: REV1 }, envOf(commitScreen, reads)) }
   const sChanges = blockOf(sBlocksOf(sReads()), 'changes')
-  check(sChanges.commitMode === true && sChanges.title === '这笔提交改了什么' && sChanges.back === '回到未提交改动', 'S1 点开提交后进入「这笔提交改了什么」，最上面给出「回到未提交改动」的出路')
+  check(sChanges.commitMode === true && sChanges.title === '该提交的变更内容' && sChanges.back === '返回未提交改动', 'S1 点开提交后进入「这笔提交改了什么」，最上面给出「回到未提交改动」的出路')
   check(sChanges.summary === 'eeeeeee · 给面板加一个页签', 'S2 抬头写着这是哪一笔提交（短号 + 说明）')
-  check(sChanges.groups.length === 1 && sChanges.groups[0].title === '这笔提交改了 2 个文件', 'S3 文件清单与未提交那一层同一套（一组、带计数）')
+  check(sChanges.groups.length === 1 && sChanges.groups[0].title === '该提交变更了 2 个文件', 'S3 文件清单与未提交那一层同一套（一组、带计数）')
   const sRows = sChanges.groups[0].rows
   check(sRows.length === 2 && sRows[0].pathText === '面板/新页签.js' && sRows[0].countsText === '+12 −' + '3' && sRows[0].pathTip === '面板/新页签.js', 'S4 每一行给路径与 +a −d，悬停里是完整路径（与未提交那一层同一个画法）')
   check(sRows[1].changeText === '重命名' && sRows[0].changeText === '' && sRows[0].changeTone === 'warning', 'S5 能证明的只有重命名；判不出类型的那一行不冒充六种变化（不画类型字）')
-  check(sRows[0].rowTip.indexOf('这笔提交只回了路径与增删行数，判不出变化类型') === 0 && sRows[1].rowTip.indexOf('这笔提交只回了') < 0, 'S5b 判不出类型时悬停里如实说清来由（不让用户以为 git 没给）')
+  check(sRows[0].rowTip.indexOf('该提交仅返回路径与增删行数，无法判定变更类型') === 0 && sRows[1].rowTip.indexOf('该提交仅返回') < 0, 'S5b 判不出类型时悬停里如实说清来由（不让用户以为 git 没给）')
   const patchReads = sReads({ commitDiffs: { [VIEW.vcCommitKeyOf(REV1, '面板/新页签.js')]: { state: 'ok', lines: shortLines, reason: 'ok', truncated: false, error: null } } })
   const sRowOpen = rowsOf(sBlocksOf(patchReads, { openCommit: REV1, openDiff: VIEW.vcCommitKeyOf(REV1, '面板/新页签.js') }))[0]
   check(!!sRowOpen.diff && sRowOpen.diff.state === 'ok' && sRowOpen.diff.lines.length === 4 && sRowOpen.diff.lines[1].kind === 'hunk', 'S6 就地展开差异与未提交那一层同一个画法（同一份差异模型）')
-  check(blockOf(sBlocksOf(sReads({ commit: commitEntry({ files: [], truncated: true, reason: 'truncated' }) })), 'changes').note === '这笔提交的改动太大，读不全就没给清单；请在命令行里看完整改动。', 'S7 读不全：明说读不全、指去终端，不装作没有改动')
-  check(blockOf(sBlocksOf(sReads({ commit: commitEntry({ rev: REV2, files: [] }) }), { openCommit: REV2 }), 'changes').note === '这是一次合并提交：它相对第一个父提交没有改动文件。', 'S8 合并提交且清单为空：如实说「相对第一个父提交没有改动文件」（真机上 git show --numstat 对合并提交给的是真数据，所以空清单不是「git 不展开」）')
-  check(blockOf(sBlocksOf(sReads({ commit: commitEntry({ files: [] }) })), 'changes').note === '这笔提交没有改任何文件（空提交）。', 'S9 空提交：如实说这是空提交')
-  check(blockOf(sBlocksOf(sReads({ commit: commitEntry({ state: 'loading', files: [] }) })), 'changes').note === '正在读这笔提交改了什么…', 'S10 这一层也有加载中那一档')
+  check(blockOf(sBlocksOf(sReads({ commit: commitEntry({ files: [], truncated: true, reason: 'truncated' }) })), 'changes').note === '该提交变更过大，未提供不完整清单；请在命令行中查看完整变更。', 'S7 读不全：明说读不全、指去终端，不装作没有改动')
+  check(blockOf(sBlocksOf(sReads({ commit: commitEntry({ rev: REV2, files: [] }) }), { openCommit: REV2 }), 'changes').note === '这是一次合并提交：它相对第一个父提交没有变更文件。', 'S8 合并提交且清单为空：如实说「相对第一个父提交没有改动文件」（真机上 git show --numstat 对合并提交给的是真数据，所以空清单不是「git 不展开」）')
+  check(blockOf(sBlocksOf(sReads({ commit: commitEntry({ files: [] }) })), 'changes').note === '该提交未修改任何文件（空提交）。', 'S9 空提交：如实说这是空提交')
+  check(blockOf(sBlocksOf(sReads({ commit: commitEntry({ state: 'loading', files: [] }) })), 'changes').note === '正在读取该提交的变更内容…', 'S10 这一层也有加载中那一档')
   const sFail = blockOf(sBlocksOf(sReads({ commit: commitEntry({ state: 'err', files: [], error: { kind: 'timeout', message: '' } }) })), 'changes')
-  check(sFail.note === '这笔提交改了什么读不到' && sFail.retry === '重试', 'S11 读不到就说读不到，并给重试')
+  check(sFail.note === '未能读取该提交的变更内容' && sFail.retry === '重试', 'S11 读不到就说读不到，并给重试')
   check(blockOf(sBlocksOf(sReads()), 'commits').rows[0].open === true, 'S12 正开着的那一笔提交在历史里被标出来（用户知道自己在看哪一笔）')
 
   // ---- D 组：折叠阶梯 ----
@@ -700,7 +700,7 @@ async function main() {
   try { html3 = renderToStaticMarkup(React.createElement(renderCommit.VersionControlTab, { st: { cwd: 'D:/w/repo' } })) } catch (e) { renderErr3 = String((e && e.message) || e) }
   const flat3 = html3.replace(/<[^>]*>/g, ' ')
   check(renderErr3 === '' && html3.indexOf('data-vc-back') >= 0 && html3.indexOf('data-vc-commit-mode') >= 0, 'S13 真渲染：提交模式画出了「回到未提交改动」那条路（' + (renderErr3 ? '抛错：' + renderErr3 : '在') + '）')
-  check(flat3.indexOf('这笔提交改了什么') >= 0 && flat3.indexOf('这笔提交改了 2 个文件') >= 0 && flat3.indexOf('回到未提交改动') >= 0, 'S14 真渲染：DOM 里就是那几句人话（标题 / 计数 / 回去的路）')
+  check(flat3.indexOf('该提交的变更内容') >= 0 && flat3.indexOf('该提交变更了 2 个文件') >= 0 && flat3.indexOf('返回未提交改动') >= 0, 'S14 真渲染：DOM 里就是那几句人话（标题 / 计数 / 回去的路）')
 
 
   // 英文界面那一遍：同一份数据、同一套画法，只把词典换成英文 —— 画出来的人话必须是英文。
@@ -730,7 +730,7 @@ async function main() {
   // G12/G13：这个会话还没有工作区（空 cwd）—— 一个电话都不发，画一句如实的空态。
   check(VIEW.vcShouldRead('') === false && VIEW.vcShouldRead('   ') === false && VIEW.vcShouldRead(null) === false && VIEW.vcShouldRead('D:/w/repo') === true, 'G12 空 cwd 的判据：读数据的谓词回假（宿主对空串会退回它自己的默认目录，那是插件自己那个仓库的数据）')
   const emptyCwdBlocks = VIEW.vcBlocksOf(null, VIEW.vcNewReads(), {}, { t: tZh, nowMs: NOW, cwdEmpty: true, fold: VIEW.vcFoldOf(460, {}) })
-  check(emptyCwdBlocks.length === 1 && emptyCwdBlocks[0].text === '这个会话还没有工作区，读不到版本信息' && emptyCwdBlocks[0].retry === '', 'G13 空 cwd 画出那句如实的空态（不是读取失败，所以不给重试）')
+  check(emptyCwdBlocks.length === 1 && emptyCwdBlocks[0].text === '当前会话尚未关联工作区，无法读取版本信息' && emptyCwdBlocks[0].retry === '', 'G13 空 cwd 画出那句如实的空态（不是读取失败，所以不给重试）')
   const cwdGuardSrc = read('src/client/views/versionControl/VersionControlTab.js')
   // #845b：G14 的判据从「字节形状」改成「行为形状」。旧写法要求 effect 的下一行恰好是四空格缩进的
   //   `if (!cwd) return` —— 真源一被格式化（换缩进、折行、中间插一行注释）就判红，而守卫其实还在。
@@ -760,7 +760,7 @@ async function main() {
     const renderNoCwd = buildView(null, [], React, DswsCtx, TipStub, IcStub, null, hostStub)
     htmlNoCwd = renderToStaticMarkup(React.createElement(renderNoCwd.VersionControlTab, { st: {} }))
   } catch (e) { htmlNoCwd = '' }
-  check(htmlNoCwd.replace(/<[^>]*>/g, ' ').indexOf('这个会话还没有工作区') >= 0 && noCwdCalls === 0, 'G15 真渲染：空 cwd 时画的是那句空态，宿主一个电话都没被调到（实得 ' + noCwdCalls + ' 次）')
+  check(htmlNoCwd.replace(/<[^>]*>/g, ' ').indexOf('当前会话尚未关联工作区') >= 0 && noCwdCalls === 0, 'G15 真渲染：空 cwd 时画的是那句空态，宿主一个电话都没被调到（实得 ' + noCwdCalls + ' 次）')
   check(flatEn.indexOf('Commit history') >= 0 && flatEn.indexOf('Changes') >= 0 && flatEn.indexOf('提交历史') < 0 && flatEn.indexOf('未提交改动') < 0 && flatEn.indexOf('改动') < 0, 'G9 英文界面下画出来的是英文（词条中英成对，界面不写死任何一句中文）')
 
   // ---- N 组：#819 对抗式审查的十四条（先修真骗人的、再修天天遇到的、最后修边角）----
@@ -804,10 +804,10 @@ async function main() {
   check(blockOf(dualBlocks, 'changes').summary === '已暂存 1 个文件 / 未暂存 1 个文件', 'N6 同一个文件既有暂存又有未暂存：汇总句与宿主的两个计数一致（不再是「未暂存 0」，实得「' + blockOf(dualBlocks, 'changes').summary + '」）')
   const dualRows = rowsOf(dualBlocks)
   check(dualRows.length === 2 && blockOf(dualBlocks, 'changes').groups.map(function (g) { return g.key + ':' + g.rows.length }).join(',') === 'staged:1,unstaged:1', 'N7 两段改动各占一行、各在一组（git status 自己也是两个小节各列一次）')
-  check(dualRows[0].rowTip.indexOf('这一行是已暂存的那部分') >= 0 && dualRows[1].rowTip.indexOf('这一行是还没暂存的那部分') >= 0, 'N8 两行各自说清是哪一部分（用户分得清「准备好要提交的」与「还没暂存的」）')
+  check(dualRows[0].rowTip.indexOf('本行为已暂存部分') >= 0 && dualRows[1].rowTip.indexOf('本行为未暂存部分') >= 0, 'N8 两行各自说清是哪一部分（用户分得清「准备好要提交的」与「还没暂存的」）')
   const dualDiffReads = readsOf(dual, { diffs: { 'src/app.js': { state: 'ok', lines: shortLines, reason: 'ok', truncated: false, error: null } } })
   const dualDiffRow = rowsOf(VIEW.vcBlocksOf(dual, dualDiffReads, { openDiff: 'staged\u0000src/app.js' }, envOf(dual, dualDiffReads)))[0]
-  check(dualDiffRow.diff.scopeText === '这一处看的是相对上一次提交的全部改动（已暂存与未暂存两部分都在里面）。', 'N9 差异面板写清范围：不让用户把「已暂存」组里点开的差异当成「将要提交的那部分」')
+  check(dualDiffRow.diff.scopeText === '此处展示相对上一次提交的全部变更（含已暂存与未暂存两部分）。', 'N9 差异面板写清范围：不让用户把「已暂存」组里点开的差异当成「将要提交的那部分」')
   const commitDiffRow = rowsOf(VIEW.vcBlocksOf(commitScreen, patchReads, { openCommit: REV1, openDiff: VIEW.vcCommitKeyOf(REV1, '面板/新页签.js') }, envOf(commitScreen, patchReads)))[0]
   check(commitDiffRow.diff.scopeText === '', 'N10 提交那一层的差异不带这句范围说明（它的范围就是那笔提交，抬头已经写明）')
 
@@ -819,7 +819,7 @@ async function main() {
   check(V2.vcApplyCommitReply(loadingB, newerB) === newerB, 'N12 新回包照常落库（判据不是恒假）')
 
   // N13 读数时刻 + 重新读一次的入口。
-  check(blockOf(liveBlocks, 'identity').readAtText === '读到于 刚刚', 'N13 身份行写着这份读数是什么时候取的（实得「' + blockOf(liveBlocks, 'identity').readAtText + '」）')
+  check(blockOf(liveBlocks, 'identity').readAtText === '读取于 刚刚', 'N13 身份行写着这份读数是什么时候取的（实得「' + blockOf(liveBlocks, 'identity').readAtText + '」）')
   const noReadAt = readsOf(liveScreen, { screen: { state: 'ok', data: { screen: liveScreen, tier: 'full', gitVersion: 'g', readAtMs: 0 }, error: null } })
   check(blockOf(VIEW.vcBlocksOf(liveScreen, noReadAt, {}, envOf(liveScreen, noReadAt)), 'identity').readAtText === '', 'N14 读数时刻读不到就不写那几个字（不画成 1970）')
   check(compSrc.indexOf('data-vc-reload') >= 0 && compSrc.indexOf('reloadNow') >= 0, 'N15 界面上有「重新读一次」这颗按钮（不是定时器）')
@@ -839,14 +839,14 @@ async function main() {
   check(V2.vcMarkLogLoading(V2.vcNewReads()).log.state === 'loading', 'N20 vcMarkLogLoading 把「正在读更早的提交」这一刻写进读数（那一句提示才有机会出现）')
 
   // N21 依据时间给 0 或负数：按读不到说，不画成 1970。
-  check(VIEW.vcBasisText(tZh, NOW, 0) === '远端信息什么时候更新的读不到' && VIEW.vcBasisText(tZh, NOW, -1) === '远端信息什么时候更新的读不到' && VIEW.vcWhenText(tZh, NOW, 0) === '', 'N21 依据时间 / 时刻给 0 或负数一律按读不到说（不画成 1970）')
+  check(VIEW.vcBasisText(tZh, NOW, 0) === '无法读取远端信息的更新时间' && VIEW.vcBasisText(tZh, NOW, -1) === '无法读取远端信息的更新时间' && VIEW.vcWhenText(tZh, NOW, 0) === '', 'N21 依据时间 / 时刻给 0 或负数一律按读不到说（不画成 1970）')
 
   // N22 五值以外的同步状态：如实说不认识，不猜成「领先 0」。
   const weirdSync = screenOf({ identity: { sync: 'weird-value' } })
   const weirdId = blockOf(VIEW.vcBlocksOf(weirdSync, readsOf(weirdSync), {}, envOf(weirdSync, readsOf(weirdSync))), 'identity')
-  check(weirdId.sync.text === '同步状态读到了界面还不认识的一档，所以不猜领先落后；请在命令行里看。' && weirdId.sync.text.indexOf('领先 0') < 0 && weirdId.sync.text.indexOf('落后 0') < 0, 'N22 五值以外的同步状态：如实说不认识，不猜成「领先 0 / 落后 0」（实得「' + weirdId.sync.text + '」）')
+  check(weirdId.sync.text === '同步状态返回了界面无法识别的类型，不推测超前与落后计数；请在命令行中查看。' && weirdId.sync.text.indexOf('超前 0') < 0 && weirdId.sync.text.indexOf('落后 0') < 0, 'N22 五值以外的同步状态：如实说不认识，不猜成「超前 0 / 落后 0」（实得「' + weirdId.sync.text + '」）')
   const missingSync = screenOf({ identity: { sync: undefined } })
-  check(blockOf(VIEW.vcBlocksOf(missingSync, readsOf(missingSync), {}, envOf(missingSync, readsOf(missingSync))), 'identity').sync.text === '还没有推送目标', 'N23 字段缺失时仍按「还没设推送目标」说（缺省值不变）')
+  check(blockOf(VIEW.vcBlocksOf(missingSync, readsOf(missingSync), {}, envOf(missingSync, readsOf(missingSync))), 'identity').sync.text === '尚未设置上游', 'N23 字段缺失时仍按「尚未设置上游」说（缺省值不变）')
 
   // N24 其他工作树也分批。
   const manyOthers = screenOf({ otherWorktrees: Array.from({ length: 1000 }, function (_, i) { return { path: 'D:/w/' + i, display: 'w' + i, head: 'h', branch: 'b', bare: false, current: false, locked: false, lockReason: null, lockUnknown: false, prunable: false } }) })
@@ -859,7 +859,7 @@ async function main() {
     { path: 'D:/w/here', display: 'here', head: 'h', branch: 'b', bare: false, current: false, locked: false, lockReason: null, lockUnknown: false, prunable: false, prunableUnknown: false },
   ] })
   const degradedRows = blockOf(VIEW.vcBlocksOf(degraded, readsOf(degraded), {}, envOf(degraded, readsOf(degraded))), 'other').rows
-  check(degradedRows[0].stateText === '无法显示' && degradedRows[0].stateTip === '这个 git 版本答不出这个工作树的目录还在不在；答不出不等于还在。', 'N25b 降级档答不出「可清理」：画「无法显示」并说清是 git 答不出（不是留白、也不是「目录还在」）')
+  check(degradedRows[0].stateText === '无法显示' && degradedRows[0].stateTip === '当前 git 版本无法判断该工作树目录是否存在；无法判断不等于不存在。', 'N25b 降级档答不出「可清理」：画「无法显示」并说清是 git 答不出（不是留白、也不是「目录还在」）')
   check(degradedRows[0].stateText.indexOf('目录已不存在') < 0 && degradedRows[0].stateText.indexOf('目录还在') < 0, 'N25c 这一档绝不冒充「目录已不存在」或「目录还在」')
   check(degradedRows[1].stateText === '', 'N25d 答得出来的工作树（没被占用、没标可清理）不挂任何状态字（判据不是恒真）')
   // 接真核心跑一遍（不是手写模型）：降级档 + worktree 清单里没有 prunable 那一行 → 核心给 prunableUnknown 真，
@@ -877,7 +877,7 @@ async function main() {
   check(coreAsm.ok === true && coreOther.length === 1 && coreOther[0].prunableUnknown === true, 'N25e 真核心（降级档）给的那一条带着 prunableUnknown 真（先看核心给没给）')
   const coreScreen = coreAsm.screen
   const coreRow = blockOf(VIEW.vcBlocksOf(coreScreen, readsOf(coreScreen), {}, envOf(coreScreen, readsOf(coreScreen))), 'other').rows[0]
-  check(coreRow.stateText === '无法显示' && coreRow.stateTip === '这个 git 版本答不出这个工作树的目录还在不在；答不出不等于还在。', 'N25f 真核心喂进界面：降级档那条画的就是「无法显示」（端到端，实得「' + coreRow.stateText + '」）')
+  check(coreRow.stateText === '无法显示' && coreRow.stateTip === '当前 git 版本无法判断该工作树目录是否存在；无法判断不等于不存在。', 'N25f 真核心喂进界面：降级档那条画的就是「无法显示」（端到端，实得「' + coreRow.stateText + '」）')
 
   // N25 占用原因只留一行。
   const locky = screenOf({ otherWorktrees: [{ path: 'D:/w/a', display: 'a', head: 'h', branch: 'b', bare: false, current: false, locked: true, lockReason: '第一行\n第二行\n第三行', lockUnknown: false, prunable: false }] })
@@ -913,7 +913,7 @@ async function main() {
   // M3 摘要列出的名字有上限，超过就明说还有几棵没列出来（显示出来的都有完整路径，没显示出来的有计数）。
   const manyOthers25 = screenOf({ otherWorktrees: Array.from({ length: 25 }, function (_, i) { return { path: 'D:/w/w' + i, display: 'w' + i, head: 'h', branch: 'dev', bare: false, current: false, locked: false, lockReason: null, lockUnknown: false, prunable: false } }) })
   const manyNarrow = blockOf(VIEW.vcBlocksOf(manyOthers25, readsOf(manyOthers25), {}, envOf(manyOthers25, readsOf(manyOthers25), 300)), 'other')
-  check(manyNarrow.summaryText.indexOf('（还有 5 棵没列出来）') >= 0 && (manyNarrow.tip.match(/D:\/w\/w/g) || []).length === VIEW.VC_OTHER_SUMMARY_NAMES, 'M3 摘要最多列 ' + VIEW.VC_OTHER_SUMMARY_NAMES + ' 个名字、其余明说「还有 N 棵没列出来」，悬停只给列出来的那些（实得 ' + (manyNarrow.tip.match(/D:\/w\/w/g) || []).length + ' 条路径）')
+  check(manyNarrow.summaryText.indexOf('（另有 5 个未列出）') >= 0 && (manyNarrow.tip.match(/D:\/w\/w/g) || []).length === VIEW.VC_OTHER_SUMMARY_NAMES, 'M3 摘要最多列 ' + VIEW.VC_OTHER_SUMMARY_NAMES + ' 个名字、其余明说「还有 N 棵没列出来」，悬停只给列出来的那些（实得 ' + (manyNarrow.tip.match(/D:\/w\/w/g) || []).length + ' 条路径）')
   check(compSrc.indexOf("tipNode(b.tip, h('div', { 'data-vc-other-summary': 1") >= 0, 'M4 组件里摘要那一行确实挂在悬停上（不是只把字段算出来没人用）')
   // M5 「另一个 git 在操作」的兜底话术要说清「等它结束」（中英都要有这层意思）。
   const exitZh = LOC.zh['vc.fail.exit'] || ''
