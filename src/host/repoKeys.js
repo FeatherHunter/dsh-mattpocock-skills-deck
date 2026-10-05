@@ -155,7 +155,8 @@ export function createRepoKeys(deps) {
       const err = (handle.collected && handle.collected.stderr) ? handle.collected.stderr.readFrom(0) : { text: '' }
       try { if (_execT0 && logCtx.isEnabled('debug')) logCtx.fire('debug', 'exec.run', { argv0: progName(argv && argv[0]), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - _execT0, exitCode: (outcome && typeof outcome.exitCode === 'number') ? outcome.exitCode : -1, via: String(via || 'unspecified') }) } catch (eL) {}
       if (outcome.exitCode !== 0) return { ok: false, code: outcome.exitCode, error: ((err.text || '') + (out.text || '')).slice(0, 400) }
-      return { ok: true, text: out.text || '' }
+      // #857：成功必须带整数退出码 0。调用方经 ctx.exec 转给 GitHub 命令执行器时，那边按“拿不到整数退出码就判失败”处理；缺了这个 0，评论写成功了面板也会报失败。
+      return { ok: true, text: out.text || '', code: 0 }
     }
 
     async function resolveGit() {
