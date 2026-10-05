@@ -246,7 +246,7 @@ async function main() {
 
   const stale = screenOf({ identity: { sync: 'tracked-unknown', ahead: 3, behind: 1, basisMs: null } })
   const sId = blockOf(VIEW.vcBlocksOf(stale, readsOf(stale), {}, envOf(stale, readsOf(stale))), 'identity')
-  check(sId.sync.text === '领先 3 个提交，落后 1 个提交' && sId.sync.basis === '远端信息什么时候更新的读不到', 'C5 有推送目标但依据时间读不到：数字照常写，依据如实说读不到')
+  check(sId.sync.text === '领先 3 · 落后 1' && sId.sync.basis === '远端信息什么时候更新的读不到', 'C5 有推送目标但依据时间读不到：数字照常写，依据如实说读不到')
 
   const fresh = screenOf({ identity: { sync: 'tracked-known', ahead: 2, behind: 0, basisMs: NOW - 3 * 24 * 3600 * 1000 } })
   const fId = blockOf(VIEW.vcBlocksOf(fresh, readsOf(fresh), {}, envOf(fresh, readsOf(fresh))), 'identity')
@@ -616,7 +616,7 @@ async function main() {
   try { html2 = renderToStaticMarkup(React.createElement(renderSeeded.VersionControlTab, { st: { cwd: 'D:/w/repo' } })) } catch (e) { renderErr2 = String((e && e.message) || e) }
   const flat = html2.replace(/<[^>]*>/g, ' ')
   check(renderErr2 === '' && html2.indexOf('data-vc-identity') >= 0 && html2.indexOf('data-vc-changes') >= 0 && html2.indexOf('data-vc-views') >= 0 && html2.indexOf('data-vc-commits') < 0 && html2.indexOf('data-vc-other') < 0, 'G6 默认视图真渲染一次：身份行、未提交改动、视图页签在 DOM 里，提交历史与其他工作树收在页签后面（' + (renderErr2 ? '抛错：' + renderErr2 : '默认视图齐备') + '）')
-  check(flat.indexOf('已暂存 1 个文件 / 未暂存 4 个文件') >= 0 && flat.indexOf('main') >= 0 && flat.indexOf('提交历史') >= 0, 'G7 画出来的 DOM 里就是那几句人话（汇总句 / 分支名 / 提交历史都在）')
+  check(flat.indexOf('已暂存') >= 0 && flat.indexOf('未暂存') >= 0 && flat.indexOf('main') >= 0 && flat.indexOf('提交历史') >= 0, 'G7 画出来的 DOM 里就是那几句人话（数字条 / 分支名 / 提交历史都在）')
   check(flat.indexOf('data-vc-') < 0 && flat.indexOf('vc.changes') < 0 && flat.indexOf('vc.fail') < 0, 'G8 DOM 里没有把词条键名当文字画出来（上一版把词条插错位置时正是这样）')
   // V 组 · 布局 C（#853 第三步）：三个视图各只画自己的块，页签带数量；点开提交自动跳历史视图。
   const liveCounts = {
@@ -639,14 +639,14 @@ async function main() {
   const vCommits = viewRender('commits')
   const vTrees = viewRender('worktrees')
   check(vChanges.err === '' && (vChanges.html.match(/data-vc-view="/g) || []).length === 3, 'V1 三个视图页签都在（改动 / 提交历史 / 工作树）')
-  check(tabTextOf(vChanges.html, 'changes') === '未提交改动\uFF08' + liveCounts.changes + '\uFF09' && tabTextOf(vChanges.html, 'commits') === '提交历史\uFF08' + liveCounts.commits + '\uFF09' && tabTextOf(vChanges.html, 'worktrees').indexOf('其他工作树') === 0, 'V2 页签是既有词条加纯数字（改动' + liveCounts.changes + ' / 历史' + liveCounts.commits + ' / 工作树' + liveCounts.worktrees + '，没造新词）')
+  check(tabTextOf(vChanges.html, 'changes') === '改动 ' + liveCounts.changes && tabTextOf(vChanges.html, 'commits') === '提交历史 ' + liveCounts.commits && tabTextOf(vChanges.html, 'worktrees') === '工作树 ' + liveCounts.worktrees, 'V2 页签按 854 布局 C 原型：改动／提交历史／工作树加空格数字（改动' + liveCounts.changes + ' / 历史' + liveCounts.commits + ' / 工作树' + liveCounts.worktrees + '）')
   check(vCommits.err === '' && vCommits.html.indexOf('data-vc-commits') >= 0 && vCommits.html.indexOf('data-vc-changes') < 0 && vCommits.html.indexOf('aria-selected=\"true\"') >= 0, 'V3 提交历史视图：只画历史那一块，页签高亮跟过去')
   check(vTrees.err === '' && vTrees.html.indexOf('data-vc-other') >= 0 && vTrees.html.indexOf('data-vc-terminal') >= 0 && vTrees.html.indexOf('data-vc-changes') < 0 && vTrees.html.indexOf('data-vc-commits') < 0, 'V4 工作树视图：列表与边界说明在，改动与历史不在')
   check(vChanges.html.indexOf('data-vc-identity') >= 0 && vChanges.html.indexOf('data-vc-changes') >= 0, 'V5 常驻块（身份行）不受视图切换影响')
   const vc = VIEW.vcViewCountsOf(liveScreen, { log: { commits: [{ x: 1 }, { x: 2 }] } })
   check(vc.changes === liveCounts.changes && vc.commits === liveCounts.commits + 2 && vc.worktrees === liveCounts.worktrees, 'V6 视图计数：改动按文件数、历史按已读到的提交数（含续读）、工作树按棵数')
   const routed = VIEW.vcViewBlocksOf([{ kind: 'hint' }, { kind: 'band' }, { kind: 'identity' }, { kind: 'changes' }, { kind: 'changes', commitMode: true }, { kind: 'commits' }, { kind: 'other' }, { kind: 'terminal' }])
-  check(routed.always.length === 3 && routed.changes.length === 1 && routed.commits.length === 2 && routed.worktrees.length === 2, 'V7 块按视图分区：常驻 3（提示/异常带/身份），点开的提交归历史视图')
+  check(routed.always.length === 2 && routed.changes.length === 2 && routed.commits.length === 2 && routed.worktrees.length === 2, 'V7 块按视图分区（854 布局 C 原型）：常驻 2（提示/身份），异常带归改动视图，点开的提交归历史视图')
   check(VIEW.vcViewOf({}) === 'changes' && VIEW.vcViewOf({ view: 'nope' }) === 'changes' && VIEW.vcViewOf({ view: 'worktrees' }) === 'worktrees', 'V8 视图取值非法时回退到改动页（不画空白）')
   VIEW.vcRememberView('worktrees')
   const memOk = VIEW.vcRememberedView() === 'worktrees'
@@ -761,7 +761,7 @@ async function main() {
     htmlNoCwd = renderToStaticMarkup(React.createElement(renderNoCwd.VersionControlTab, { st: {} }))
   } catch (e) { htmlNoCwd = '' }
   check(htmlNoCwd.replace(/<[^>]*>/g, ' ').indexOf('这个会话还没有工作区') >= 0 && noCwdCalls === 0, 'G15 真渲染：空 cwd 时画的是那句空态，宿主一个电话都没被调到（实得 ' + noCwdCalls + ' 次）')
-  check(flatEn.indexOf('Commit history') >= 0 && flatEn.indexOf('Uncommitted changes') >= 0 && flatEn.indexOf('提交历史') < 0 && flatEn.indexOf('未提交改动') < 0, 'G9 英文界面下画出来的是英文（词条中英成对，界面不写死任何一句中文）')
+  check(flatEn.indexOf('Commit history') >= 0 && flatEn.indexOf('Changes') >= 0 && flatEn.indexOf('提交历史') < 0 && flatEn.indexOf('未提交改动') < 0 && flatEn.indexOf('改动') < 0, 'G9 英文界面下画出来的是英文（词条中英成对，界面不写死任何一句中文）')
 
   // ---- N 组：#819 对抗式审查的十四条（先修真骗人的、再修天天遇到的、最后修边角）----
   // N1（严重）换工作区：读数与界面状态整体复位，旧工作区的身份与「打开中的提交」都不许留下来。
@@ -980,7 +980,7 @@ async function main() {
     brokenHtml = renderToStaticMarkup(React.createElement(brokenRender.VersionControlTab, { st: { cwd: 'D:/w/repo' } }))
   } catch (e) { brokenHtml = '' }
   tZh = goodT
-  check(brokenHtml.replace(/<[^>]*>/g, ' ').indexOf('vc.changes') >= 0, 'H 反证：词典查不到就回键名时，DOM 里当场出现键名（上一版的中文界面就是这个样子，G8 抓得住）')
+  check(brokenHtml.replace(/<[^>]*>/g, ' ').indexOf('vc.views.changes') >= 0, 'H 反证：词典查不到就回键名时，DOM 里当场出现键名（上一版的中文界面就是这个样子，G8 抓得住）')
   // 反证本身也要自证：改坏的源码必须真的与原文不同（改不中就等于没证）—— 循环里已经逐条确认过一次，
   //   这里再把整张表聚合报一遍，哪几条没改中一眼看全。
   const untouched = antiCases.filter((c) => c.patch(closureSrc) === closureSrc)

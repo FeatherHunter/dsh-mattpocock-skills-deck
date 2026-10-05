@@ -266,23 +266,23 @@ export const VersionControlTab = function (props) {
         b.sync.basis ? tipNode(b.sync.basisTip, h('span', { key: 'basis', 'data-vc-basis': 1, style: { flex: 'none' } }, b.sync.basis)) : null,
         h('button', { key: 'reload', className: 'dsws-btn', type: 'button', 'data-vc-reload': 1, onClick: reloadNow }, tr('vc.reload')),
       ]),
-      vcActionsNode(h, { actions: b.actions, foldActions: foldState.actions, tone: tone, tipNode: tipNode, startPull: ops.startPull, startPush: ops.startPush }),
     ])
+    const changeTail = b.kind === 'changes' ? [b.note ? h('div', { key: 'note', 'data-vc-note': 1, style: { fontSize: 11, color: tone('caption'), marginTop: 4, lineHeight: 1.6 } }, b.note) : null,
+      b.retry ? h('div', { key: 'retry', style: { marginTop: 6 } }, button(b.retry, retryCommit)) : null,
+      b.empty ? h('div', { key: 'empty', style: { fontSize: 11, color: tone('caption'), marginTop: 4 } }, b.emptyText) : null,
+      b.groups.map(groupNode)] : []
+    if (b.kind === 'changes' && b.commitMode) return h('div', { key: b.key, 'data-vc-changes': 1, 'data-vc-commit-mode': 1 }, [
+      b.back ? h('div', { key: 'back', className: 'dsws-vc-link', 'data-vc-back': 1, onClick: closeCommit, style: { fontSize: 11, marginBottom: 4 } }, b.back) : null,
+      h('span', { key: 'title', style: { fontSize: 12, fontWeight: 700, color: tone('primary') } }, b.title),
+      h('div', { key: 'summary', 'data-vc-summary': 1, style: { fontSize: 11, color: tone('primary'), marginTop: 2 } }, b.summary),
+    ].concat(changeTail))
     if (b.kind === 'changes') return h('div', { key: b.key, 'data-vc-changes': 1, 'data-vc-commit-mode': b.commitMode ? 1 : undefined }, [
       // 「这笔提交改了什么」这一层（规格故事 32）：出路摆在最上面，别让用户找不到回去的路。
       b.back ? h('div', { key: 'back', className: 'dsws-vc-link', 'data-vc-back': 1, onClick: closeCommit, style: { fontSize: 11, marginBottom: 4 } }, b.back) : null,
-      h('div', { key: 'titlerow', style: { display: 'flex', alignItems: 'center', gap: 6 } }, [
-        h('span', { key: 'title', style: { fontSize: 12, fontWeight: 700, color: tone('primary'), flex: 1, minWidth: 0 } }, b.title),
-      ]),
-      h('div', { key: 'summary', 'data-vc-summary': 1, style: { fontSize: 11, color: tone('primary'), marginTop: 2 } }, b.summary),
-      // 854 布局 C 原型的数字条加视图条：提交输入框搬进视图条，底部不再重复放（钩子跟着视图条走）。
+      // 854 布局 C 原型的改动视图没有标题汇总行：标题就是页签，计数就是数字条，这里直接进数字条加视图条。
       vcStatsNode(h, { stats: vcStatsOf(screen), t: tr }),
-      vcViewBarNode(h, { stageAll: b.stageAll, commitArea: b.commitArea, foldActions: foldState.actions, tone: tone, tipNode: tipNode, t: tr, stagePaths: ops.stagePaths, submitCommit: ops.submitCommit, writeMessageOf: ops.writeMessageOf }),
-      b.note ? h('div', { key: 'note', 'data-vc-note': 1, style: { fontSize: 11, color: tone('caption'), marginTop: 4, lineHeight: 1.6 } }, b.note) : null,
-      b.retry ? h('div', { key: 'retry', style: { marginTop: 6 } }, button(b.retry, retryCommit)) : null,
-      b.empty ? h('div', { key: 'empty', style: { fontSize: 11, color: tone('caption'), marginTop: 4 } }, b.emptyText) : null,
-      b.groups.map(groupNode),
-    ])
+      vcViewBarNode(h, { stageAll: b.stageAll, commitArea: b.commitArea, actions: (writeUi && writeUi.actions) || null, startPull: ops.startPull, startPush: ops.startPush, foldActions: foldState.actions, tone: tone, tipNode: tipNode, t: tr, stagePaths: ops.stagePaths, submitCommit: ops.submitCommit, writeMessageOf: ops.writeMessageOf }),
+    ].concat(changeTail))
     if (b.kind === 'commits') return h('div', { key: b.key, 'data-vc-commits': 1 }, [
       h('div', { key: 'title', className: 'dsws-vc-sec', style: { color: tone('primary') } }, b.title),
       b.collapsed ? h('div', { key: 'collapsed', className: 'dsws-vc-caption', style: { marginTop: 2 } }, b.collapseText) : null,

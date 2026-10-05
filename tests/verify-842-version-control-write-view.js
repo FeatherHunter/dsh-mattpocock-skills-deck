@@ -257,11 +257,11 @@ function groupA(view, React, DswsCtx, TipStub, IcStub) {
   const iPull = html.indexOf('data-vc-action="pull"')
   const iPush = html.indexOf('data-vc-action="push"')
   const a1 = !!(identity && identity.actions && identity.actions.pull && identity.actions.push) && iPull >= 0 && iPush > iPull
-  check(a1, 'A1 identity 块里出现拉取与推送两颗按钮，顺序是「拉取 → 推送」（模型 ' + !!(identity && identity.actions) + '，DOM ' + iPull + '/' + iPush + '，渲染错 ' + (r.err || '无') + '）')
+  check(a1, 'A1 视图条里出现拉取与推送两颗按钮，顺序是「拉取 → 推送」（模型仍在 identity 块里，DOM ' + iPull + '/' + iPush + '，渲染错 ' + (r.err || '无') + '）')
 
   const paths = (changes && changes.stageAll ? changes.stageAll.paths : []).join(',')
   const a2 = !!(changes && changes.stageAll && changes.stageAll.show === true) && paths === 'b.txt,c.txt' && html.indexOf('data-vc-stage-all') >= 0
-  check(a2, 'A2 changes 标题行有「全部暂存」，路径只含未暂存且非冲突的两行（实得 ' + JSON.stringify(paths) + '）')
+  check(a2, 'A2 视图条里有「全部暂存」，路径只含未暂存且非冲突的两行（实得 ' + JSON.stringify(paths) + '）')
 
   const cleanScreen = screenOf({ staged: [fileOf('a.txt', 'staged')], stagedCount: 1 })
   const typedUi = uiOf({ write: { op: '', state: 'idle', message: '写一句', confirm: null, result: null } })

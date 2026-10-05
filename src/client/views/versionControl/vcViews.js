@@ -24,12 +24,13 @@ export const vcViewCountsOf = function (screen, reads) {
   const trees = Array.isArray(s.otherWorktrees) ? s.otherWorktrees.length : 0
   return { changes: files, commits: first + more, worktrees: trees }
 }
-// 块按视图分区。常驻的是全局信息（刷新提示、异常带、身份行）；其余各归其视图。
+// 块按视图分区（854 布局 C 原型：异常带只在改动视图里，常驻的只有刷新提示与身份行）。
 //   例外：点开某一笔提交时，changes 块画的是那笔提交的文件清单 —— 它属于「提交历史」视图。
 export const vcViewBlocksOf = function (blocks) {
   const out = { always: [], changes: [], commits: [], worktrees: [] }
   ;(blocks || []).forEach(function (b) {
     if (!b) return
+    if (b.kind === 'band') { out.changes.push(b); return }
     if (b.kind === 'changes' && b.commitMode) { out.commits.push(b); return }
     if (b.kind === 'changes') { out.changes.push(b); return }
     if (b.kind === 'commits') { out.commits.push(b); return }
@@ -38,7 +39,7 @@ export const vcViewBlocksOf = function (blocks) {
   })
   return out
 }
-// 视图页签那一行（o: { view, counts, t, onPick }；门禁 V2 要求必须是既有词条加纯数字，不造新词，所以沿用三段标题的词条；原型里是简写，差异记在这里）。
+// 视图页签那一行（o: { view, counts, t, onPick }；文案按 854 布局 C 原型：改动／提交历史／工作树，数字空格相隔，不加括号）。
 export const vcViewTabsNode = function (h, o) {
   const view = vcViewOf({ view: o.view })
   const counts = o.counts || { changes: 0, commits: 0, worktrees: 0 }
@@ -50,9 +51,9 @@ export const vcViewTabsNode = function (h, o) {
     return h('button', { key: key, type: 'button', role: 'tab', 'data-vc-view': key, 'aria-selected': on ? 'true' : 'false', className: 'dsws-vc-view' + (on ? ' is-on' : ''), onClick: function () { o.onPick(key) } }, kids)
   }
   return h('div', { key: 'views', className: 'dsws-vc-views', 'data-vc-views': 1, role: 'tablist' }, [
-    tab('changes', t('vc.changes.title'), counts.changes),
-    tab('commits', t('vc.commits.title'), counts.commits),
-    tab('worktrees', t('vc.other.title', { n: String(counts.worktrees) }), null),
+    tab('changes', t('vc.views.changes') + ' ' + String(counts.changes), null),
+    tab('commits', t('vc.commits.title') + ' ' + String(counts.commits), null),
+    tab('worktrees', t('vc.views.worktrees') + ' ' + String(counts.worktrees), null),
   ])
 }
 // 数字条的数据（854 布局 C 原型 changes 视图里的三个数字块：卡在冲突里／已暂存／未暂存）。
