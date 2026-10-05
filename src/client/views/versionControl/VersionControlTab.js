@@ -289,9 +289,10 @@ export const VersionControlTab = function (props) {
       b.empty && !b.collapsed ? h('div', { key: 'empty', style: { fontSize: 11, color: tone('caption'), marginTop: 2 } }, b.emptyText) : null,
       b.rows.map(function (c, i) {
         return h('div', { key: c.key, className: 'dsws-vc-row dsws-vc-sep', 'data-vc-commit': 1, 'data-vc-commit-open': c.open ? 1 : undefined, onClick: function () { openCommit(c) }, style: { display: 'flex', alignItems: 'baseline', gap: 6, fontSize: 11, cursor: 'pointer', background: c.open ? 'var(--vc-hover,rgba(255,255,255,.14))' : undefined } }, [
+          // 提交行按 854 原型排：编号徽章打头，短号加标题居中，时间右对齐。
+          h('span', { key: 'badge', className: 'dsws-vc-badge', style: { flex: 'none' } }, '·'),
+          tipNode(c.tip, h('span', { key: 'subject', style: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: tone('primary') } }, [h('span', { key: 'short', className: 'dsws-vc-mono' }, c.short), ' ' + c.subject])),
           h('span', { key: 'when', className: 'dsws-vc-mono', style: { flex: 'none', color: tone('caption') } }, c.when),
-          tipNode(c.tip, h('span', { key: 'subject', style: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: tone('primary') } }, c.subject)),
-          h('span', { key: 'short', className: 'dsws-vc-mono', style: { flex: 'none', color: tone('caption') } }, c.short),
         ])
       }),
       b.more.show ? h('div', { key: 'more', ref: moreRef, className: 'dsws-vc-link', 'data-vc-more': 1, onClick: loadMore, style: { padding: '3px 0', fontSize: 11 } }, b.more.label) : null,
@@ -305,6 +306,8 @@ export const VersionControlTab = function (props) {
       b.mode === 'summary' && !b.empty ? tipNode(b.tip, h('div', { 'data-vc-other-summary': 1, key: 'summary', style: { fontSize: 11, color: tone('caption'), marginTop: 2 } }, b.summaryText)) : null,
       b.rows.map(function (w, i) {
         return h('div', { key: w.key, className: 'dsws-vc-row dsws-vc-sep', 'data-vc-other-row': 1, style: { display: 'flex', alignItems: 'baseline', gap: 6, fontSize: 11 } }, [
+          // 工作树行首的圆圈徽章（854 原型的 badge，和提交行的点徽章同一套）。
+          h('span', { key: 'badge', className: 'dsws-vc-badge', style: { flex: 'none' } }, 'o'),
           tipNode(w.displayTip, h('span', { key: 'name', style: { flex: 'none', color: tone('primary'), whiteSpace: 'nowrap' } }, w.displayText)),
           h('span', { key: 'branch', className: 'dsws-vc-mono', style: { flex: 'none', color: tone('caption'), whiteSpace: 'nowrap' } }, w.branchText),
           w.stateText ? tipNode(w.stateTip, h('span', { key: 'state', style: { flex: 'none', color: tone(w.stateTone), whiteSpace: 'nowrap' } }, w.stateText)) : null,
