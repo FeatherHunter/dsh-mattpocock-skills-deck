@@ -76,18 +76,21 @@ export const vcStatsNode = function (h, o) {
     ])
   }))
 }
-// 某视图首屏未拿到数据时的骨架（o: { view }；结构与该视图一致：改动画数字条加视图条加文件行，其余两视图画行）。
+// 某视图首屏未拿到数据时的骨架（o: { view }；每条的高度照抄真实块的实测高度，填充时原地长出内容，不跳不换位）。
 export const vcViewSkelNode = function (h, o) {
   const bar = function (key, style) { return h('div', { key: key, className: 'dsws-vc-skel', 'data-vc-skel': 1, style: style }) }
-  // 门禁 G5 要求首屏骨架不少于 10 条且一个字不写：三格都按 10 条画，结构仍与各视图一致。
+  // 门禁 G5 要求首屏骨架不少于 10 条且一个字不写：三格都按 10 条以上画，块尺寸与各视图一致。
   if (o.view === 'commits' || o.view === 'worktrees') {
     return h('div', { key: 'skel', 'data-vc-skel-root': 1, style: { display: 'flex', flexDirection: 'column', padding: '2px 0' } }, [
-      bar('h1', { height: 13 }), bar('h2', { height: 13 }), bar('h3', { height: 13 }), bar('h4', { height: 13 }), bar('h5', { height: 13 }),
-      bar('h6', { height: 13 }), bar('h7', { height: 13 }), bar('h8', { height: 13 }), bar('h9', { height: 13 }), bar('h10', { height: 13 }),
+      bar('id', { width: '55%', height: 15 }), bar('sub', { width: '75%', height: 11 }), bar('tabs', { height: 36 }),
+      bar('title', { width: 120, height: 20 }),
+      bar('h1', { height: 30 }), bar('h2', { height: 30 }), bar('h3', { height: 30 }), bar('h4', { height: 30 }), bar('h5', { height: 30 }), bar('h6', { height: 30 }),
     ])
   }
   return h('div', { key: 'skel', 'data-vc-skel-root': 1, style: { display: 'flex', flexDirection: 'column', padding: '2px 0' } }, [
-    h('div', { key: 'stats', style: { display: 'flex', gap: 6 } }, [bar('c1', { width: 64, height: 34 }), bar('c2', { width: 64, height: 34 }), bar('c3', { width: 64, height: 34 })]),
-    bar('v1', { height: 30 }), bar('r1', { height: 13 }), bar('r2', { height: 13 }), bar('r3', { height: 13 }), bar('r4', { height: 13 }), bar('r5', { height: 13 }), bar('r6', { height: 13 }),
+    bar('id', { width: '55%', height: 15 }), bar('sub', { width: '75%', height: 11 }), bar('tabs', { height: 36 }),
+    h('div', { key: 'stats', style: { display: 'flex', gap: 6 } }, [bar('c1', { flex: 1, height: 55 }), bar('c2', { flex: 1, height: 55 }), bar('c3', { flex: 1, height: 55 })]),
+    bar('v1', { height: 104 }), bar('s1', { width: 120, height: 20 }),
+    bar('r1', { height: 47 }), bar('r2', { height: 47 }), bar('r3', { height: 47 }), bar('r4', { height: 47 }),
   ])
 }
