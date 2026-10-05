@@ -1,15 +1,25 @@
 #!/bin/bash
 # scripts/build.sh — T0 阶段 0 构建入口（DSH 插件生产线惯例）
-# 构建（esbuild 双 entry）→ 门禁（vm 编译 loud fail）→ 同步 DSH profile 安装目录。
-# 用法: bash scripts/build.sh [--no-sync]
+# 构建（esbuild 双 entry）→ 门禁（vm 编译 loud fail）→ 按需同步 DSH profile 安装目录（默认不同步）。
+# 用法: bash scripts/build.sh [--sync]
+#   默认只构建不同步；加 --sync 才把产物写进已装配置（历史写法 --no-sync 仍被接受，含义就是默认行为）。
 # 依赖: node + npm（esbuild 已装于根 devDependencies）
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+WANT_SYNC=0
+for a in "$@"; do
+  if [[ "$a" == "--sync" ]]; then WANT_SYNC=1; fi
+done
+
 echo "==> [1/3] 构建（esbuild 双 entry：_pkg → package/lib/*，_dev → 根 client.js/host.js）"
-node scripts/build.mjs
+if [[ "$WANT_SYNC" == "1" ]]; then
+  node scripts/build.mjs --sync
+else
+  node scripts/build.mjs
+fi
 
 echo "==> [2/3] 产物 vm 编译 loud fail（门禁在 build.mjs 内：precheckCode / 语法 / __ModuleLoader__ / 单组件单声明）"
 node -e "
@@ -25,8 +35,8 @@ for (const f of ['package/lib/client.js']) {
 }
 "
 
-if [[ "${1:-}" == "--no-sync" ]]; then
-  echo "==> [3/3] 跳过同步（--no-sync）"
+if [[ "$WANT_SYNC" != "1" ]]; then
+  echo "==> [3/3] 跳过同步（默认不同步；要同步请加 --sync）"
   exit 0
 fi
 

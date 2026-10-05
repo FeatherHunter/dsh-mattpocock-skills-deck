@@ -80,13 +80,14 @@ src/host/index.js  ── harness shim + dispatch Map ──▶  _dev host.js / 
 ### ② 构建
 
 ```bash
-# 完整构建（默认：_dev + _pkg 双产物）
+# 完整构建（默认：_dev + _pkg 双产物，默认不同步已装配置）
 node scripts/build.mjs
-# 或经由 npm prepare 钩子（安装/发布时自动触发）
+# 或经由 npm prepare 钩子（安装/发布时自动触发，同样默认不同步）
 npm run build
-# 完整流水线（含同步到 DSH profile，见 §④）
-bash scripts/build.sh          # 构建 + 门禁 + 同步
-bash scripts/build.sh --no-sync  # 仅构建，不同步
+# 要把产物写进已装配置才显式加 --sync（见 §④；新版本一律由人自己升级）
+node scripts/build.mjs --sync
+bash scripts/build.sh             # 构建 + 门禁，不同步
+bash scripts/build.sh --sync      # 构建 + 门禁 + 同步到已装配置
 ```
 
 产物字节数会打印：`client.js (dev) ... bytes` 等；失败则门禁抛 `[G门禁]`。
@@ -134,10 +135,12 @@ node tests/verify-t3-locale.js     # 254 键双语平衡（单产物）
 >
 > 装完这些门禁应当直接跑绿；没装浏览器时它们会当场抛错、退出码 1（不是静默跳过，所以 `npm run verify` 会断在这里）。
 
-### ④ 同步 DSH 安装目录
+### ④ 同步 DSH 安装目录（默认不做，只在显式加 --sync 时做）
 
 ```bash
-# build.sh 已自动同步（若 profile 存在）
+# 推荐：构建一步到位（含同步与哈希校验）
+node scripts/build.mjs --sync
+# 或手动复制（若 profile 存在）
 PROFILE="$HOME/.dsh/profiles/web/node_modules/dsh-mattpocock-skills-deck"
 cp -f package/lib/client.js "$PROFILE/lib/client.js"
 cp -f package/lib/index.js  "$PROFILE/lib/index.js"
@@ -215,7 +218,7 @@ npm run test:smoke
 | 三元缺 : null | build 门禁报 precheckCode 失败 | 补 `: null` |
 | Get-Content 中文乱码 | includes 假 MISS | 用 `[IO.File]::ReadAllText(..., UTF8)` |
 | commit 被 hooks 挡 | pre-commit 跑 pytest | `git -c core.hooksPath=/dev/null commit` |
-| 安装目录没同步 | DSH 加载旧 bundle | `bash scripts/build.sh` 或手动 cp + hash 校验 |
+| 安装目录没同步 | DSH 加载旧 bundle | `bash scripts/build.sh --sync` 或手动 cp + hash 校验（默认构建不同步，这是预期行为，不是漏跑） |
 | jsdom 缺失 | smoke 抛 Cannot find module 'jsdom' | `npm i -D jsdom react react-dom`（已在 devDependencies） |
 | Playwright 浏览器没装 | 浏览器类 verify 抛 Please run `npx playwright install`（npm 包装了、浏览器二进制不在包里） | `npx playwright install chromium` 装一次；清单与说明见 §3 ③ 那段 |
 
@@ -223,7 +226,7 @@ npm run test:smoke
 
 ## 7. 发布（G1 三段式）
 
-- **开发**：`bash scripts/build.sh`（构建 → 同步 profile）
+- **开发**：`bash scripts/build.sh`（构建，不同步；加 `--sync` 才同步 profile）
 - **发布前**：`npm pack` 前 `prepare` 自动跑 `node scripts/build.mjs`，产物进 tgz（git 忽略的不影响发布）
 - **安装**：`dsh plugin --profile web add dsh-mattpocock-skills-deck` 拉 tgz 内的 `package/lib/*`，无需仓库内 lib
 

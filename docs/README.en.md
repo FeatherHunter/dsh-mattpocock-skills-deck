@@ -179,7 +179,7 @@ Edit `src/` only — `client.js`, `host.js` at the repo root and `package/lib/` 
 node scripts/build.mjs      # build
 npm run test:smoke          # smoke tests
 npm run verify              # contract checks
-bash scripts/build.sh       # build + sync into an installed DSH
+bash scripts/build.sh --sync  # build + sync into an installed DSH (plain build does not sync)
 ```
 
 The full build / verify / sync / publish workflow lives in [DEV-WORKFLOW.md](workflow/DEV-WORKFLOW.md).

@@ -19,7 +19,11 @@
  *   - pkg 产物：vm 编译 + __ModuleLoader__ 特征 + 单组件单声明
  *   - DSW_VERSION：从 package/package.json 注入（__DSW_VERSION__ 占位符替换）
  *
- * 用法：node scripts/build.mjs [--dev-only|--pkg-only] [--out-dir DIR]
+ * 用法：node scripts/build.mjs [--dev-only|--pkg-only] [--sync] [--out-dir DIR]
+ *
+ * 同步原则：默认不同步。构建只产出 client.js / host.js / package/lib/*，不写任何已装配置。
+ * 只有显式加 --sync（或环境变量 DSW_SYNC=1）时，才把产物同步到装过本插件的 profile 并做哈希校验。
+ * 新版本一律由人自己升级（市场升级、软件内升级、自己敲安装命令），构建不再代劳。
  */
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync, rmSync, cpSync, utimesSync } from 'node:fs'
 import { dirname, resolve, join } from 'node:path'
@@ -820,10 +824,11 @@ console.log(`  package/lib/index.js (pkg)  ${out.hostPkg ? read('package/lib/ind
 // A 自检（build 后）：产物必须带横幅
 gateBuildArtifacts()
 
-// C 自动同步（默认同步，--no-sync 或环境变量 DSW_NO_SYNC=1 可跳过；
-// 后者专供发版链路：npm publish 的 prepare 带不上命令行参数，但环境变量能透进去，
-// 保证发版构建永远写不到任何已装配置里）
-if (!args.includes('--no-sync') && process.env.DSW_NO_SYNC !== '1') {
+// C 手动同步（默认不同步：只在显式要求时写已装配置，加 --sync 或环境变量 DSW_SYNC=1；
+// 旧写法 --no-sync 与 DSW_NO_SYNC=1 仍被接受，含义就是默认行为（不同步），只为兼容历史命令。
+// 新版本一律由人自己升级，构建默认不再碰任何已装配置，发版链路天然安全）
+const wantSync = args.includes('--sync') || process.env.DSW_SYNC === '1'
+if (wantSync) {
   // 同步为 async 需 await，main 已在顶层 async 上下文（文件整体为 ESM，顶层 await 可用）
   const _home = process.env.HOME || process.env.USERPROFILE || ''
   if (_home) {
@@ -883,5 +888,5 @@ if (!args.includes('--no-sync') && process.env.DSW_NO_SYNC !== '1') {
     }
   }
 } else {
-  console.log('[build] 已跳过 profile 同步（--no-sync 或 DSW_NO_SYNC=1）')
+  console.log('[build] 已跳过 profile 同步（默认不同步；要写已装配置请加 --sync）')
 }
