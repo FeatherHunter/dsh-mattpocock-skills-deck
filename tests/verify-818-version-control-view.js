@@ -665,12 +665,12 @@ async function main() {
   check(aiOf('conflicts').ai && aiOf('conflicts').ai.kind === 'conflict' && aiOf('rebase').ai && aiOf('rebase').ai.kind === 'midop', 'AI1 冲突带与进行中操作带上配好交出去的描述（conflict / midop）')
   const aiHandoff = VIEW.vcAiHandoffOf({ ai: { kind: 'conflict', summary: '有 1 个文件卡在冲突里，正等着你处理', detail: '这些文件里同时留着两边的内容。', tip: 'x'.repeat(400) }, t: tZh, screen: aiScreen })
   const aiBody = aiHandoff ? aiHandoff.body : ''
-  check(!!aiHandoff && aiHandoff.title === '版本管理求助' && aiBody.indexOf('## 我遇到了什么') < aiBody.indexOf('## 面板已经试过什么') && aiBody.indexOf('## 面板已经试过什么') < aiBody.indexOf('## 我要补充的') && aiBody.indexOf('vc.') < 0, 'AI2 prompt 是三段式（遇到什么 / 试过什么 / 留白），标题对，没有词条键')
-  check(aiBody.indexOf('repo / main') >= 0 && aiBody.indexOf('c.txt') >= 0 && aiBody.split('\n').filter(function (l) { return l === 'x'.repeat(400) }).length === 0 && aiBody.indexOf('x'.repeat(300)) >= 0, 'AI3 事实带全（工作树/分支、卡住的文件），宿主原话只留前 300 字')
+  check(!!aiHandoff && aiHandoff.title === '版本管理求助，分支 main' && aiBody.indexOf('仓库：') < aiBody.indexOf('改动：') && aiBody.indexOf('改动：') < aiBody.indexOf('想做：') && aiBody.indexOf('想做：') < aiBody.indexOf('看到：') && aiBody.indexOf('看到：') < aiBody.indexOf('目标：') && aiBody.indexOf('目标：') < aiBody.indexOf('补充：') && aiBody.indexOf('vc.') < 0 && aiBody.indexOf('#') < 0, 'AI2 prompt 是新版式（仓库/改动/想做/看到/目标/补充），标题带分支，没有词条键与章节符号')
+  check(aiBody.indexOf('仓库：repo') >= 0 && aiBody.indexOf('分支 main') >= 0 && aiBody.indexOf('c.txt') >= 0 && aiBody.split('\n').filter(function (l) { return l === 'x'.repeat(400) }).length === 0 && aiBody.indexOf('x'.repeat(300)) >= 0, 'AI3 事实带全（仓库/分支、卡住的文件），宿主原话只留前 300 字')
   check(VIEW.vcAiHandoffOf({ ai: { kind: '', summary: 'x' }, t: tZh, screen: aiScreen }) === null && VIEW.vcAiHandoffOf({ ai: { kind: 'conflict', summary: '' }, t: tZh, screen: aiScreen }) === null, 'AI4 没种类或没正文就不交出去（回 null，不画按钮）')
   const seenOpen = []
   const opened = VIEW.vcOpenAiHandoff({ opener: function (st, body, title, opts) { seenOpen.push({ st: st, body: body, title: title, opts: opts }) }, st: { cwd: 'D:/w/repo' }, handoff: aiHandoff })
-  check(opened === true && seenOpen.length === 1 && seenOpen[0].title === '版本管理求助' && seenOpen[0].body === aiBody && seenOpen[0].opts.kind === 'fix', 'AI5 点按钮按约定开新会话：同工作区 st、正文、标题、fix 档')
+  check(opened === true && seenOpen.length === 1 && seenOpen[0].title === '版本管理求助，分支 main' && seenOpen[0].body === aiBody && seenOpen[0].opts.kind === 'fix', 'AI5 点按钮按约定开新会话：同工作区 st、正文、标题、fix 档')
   check(VIEW.vcOpenAiHandoff({ opener: null, st: {}, handoff: aiHandoff }) === false && VIEW.vcOpenAiHandoff({ opener: function () { throw new Error('no') }, st: {}, handoff: aiHandoff }) === false, 'AI6b 反证： opener 缺席或抛错都回 false，不崩')
   const aiBtn = VIEW.vcAiButtonNode(React.createElement, { ai: { kind: 'conflict' }, tr: tZh, onOpen: function () {} })
   check(!!aiBtn && VIEW.vcAiButtonNode(React.createElement, { ai: null, tr: tZh, onOpen: function () {} }) === null, 'AI6 按钮节点：有描述就画、没描述就不画')
