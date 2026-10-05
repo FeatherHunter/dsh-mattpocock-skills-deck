@@ -97,7 +97,7 @@ export function commandFor(key: CollectionKey, opts: { logCount?: number; logSki
 }
 
 /** 写命令的子命令清单（#841）：门禁拿它断言「面板会发出什么」。 */
-export const WRITE_SUBCOMMANDS: string[] = ['add', 'commit', 'pull', 'push', 'ls-files', 'remote']
+export const WRITE_SUBCOMMANDS: string[] = ['add', 'reset', 'commit', 'pull', 'push', 'ls-files', 'remote']
 
 /** 远端名与分支名的形状：只挡「会被当成选项」与「会破坏 argv」的形状，不重造 git 自己的取名规则。
  *  分支名允许斜杠（feature/x）；两者都不许以 - 开头、不许空白与 NUL。 */
@@ -119,6 +119,12 @@ export const BRANCH_PATTERN = /^(?![-+])[^\s\u0000:\\]+$/
  */
 export function stageArgs(paths: string[]): string[] {
   return ['add', '--'].concat(paths)
+}
+/** 撤回暂存：只动索引不动工作区。故意用 reset 而不用 restore --staged —— 版本底线是 2.11，
+ *  restore 是 2.23 才引入的，底线以下的 git 会直接报 unknown subcommand；reset <HEAD> -- <路径> 从旧版
+ *  起就是整文件撤回暂存的写法（只重写索引里这几个路径的条目，工作区一个字节都不碰）。 */
+export function unstageArgs(paths: string[]): string[] {
+  return ['reset', 'HEAD', '--'].concat(paths)
 }
 export function commitArgs(message: string): string[] {
   return ['commit', '-m', message]

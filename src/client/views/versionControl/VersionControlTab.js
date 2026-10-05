@@ -225,7 +225,7 @@ export const VersionControlTab = function (props) {
               h('span', { key: 'del', className: 'dsws-vc-del' }, row.delText),
             ])
           : null,
-      ].concat(vcRowStageNodes(h, { row: row, tone: tone, tipNode: tipNode, stagePaths: ops.stagePaths }))),
+      ].concat(vcRowStageNodes(h, { row: row, tone: tone, tipNode: tipNode, stagePaths: ops.stagePaths })).concat(vcRowUnstageNodes(h, { row: row, tone: tone, tipNode: tipNode, unstagePaths: ops.unstagePaths }))),
       diffNode(row),
     ])
   }

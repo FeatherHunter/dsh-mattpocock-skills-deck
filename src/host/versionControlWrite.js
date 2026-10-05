@@ -1,4 +1,4 @@
-// src/host/versionControlWrite.js —— 四条写电话的执行体（#841）：暂存 / 提交 / 拉取 / 推送
+// src/host/versionControlWrite.js —— 五条写电话的执行体（#841）：暂存 / 撤回暂存 / 提交 / 拉取 / 推送
 //
 // 只做四件事：核对票据（状态在确认之后变过就拒绝，一条写命令都不起）→ 走注入的 safeGit（#839 的安全执行层，
 // 最终落到 versionControl.js 那一个 runGit 出口）→ 把结局如实包成扁平信封 → 回包带「做成了没有」的判定依据。
@@ -7,7 +7,7 @@
 // push.default=nothing；set-upstream 档在执行前再核一次「这个分支确实还没有上游」（已存在上游还带 -u 会
 // 静默覆盖用户的设置）；提交不幂等，失败后只能靠仓库状态说话，绝不自动重试、绝不声称成功。
 import { createHash } from 'node:crypto'
-import { fixedPrefix, stageArgs, commitArgs, pullArgs, pushArgs, lsFilesStageArgs, remoteListArgs, checkRefArgs } from '../shared/version-control/commands.js'
+import { fixedPrefix, stageArgs, unstageArgs, commitArgs, pullArgs, pushArgs, lsFilesStageArgs, remoteListArgs, checkRefArgs } from '../shared/version-control/commands.js'
 import { ticketVerdict, ticketPureVerdict, requestIdProblem, indexRecordCount, fingerprintInputOf } from '../shared/version-control/write-ticket.js'
 import { pushPlanOf } from '../shared/version-control/push-plan.js'
 import { classifyWriteFailure, writeHintFor, pathsProblem, messageProblem, idShapeProblem } from '../shared/version-control/write-reasons.js'
@@ -139,6 +139,20 @@ export function createWritePhones(deps) {
     const reason = classifyWriteFailure('commit', r ? r.exitCode : -1, text)
     return wfail((r && r.kind && r.kind !== 'ok') ? r.kind : 'other', reason === 'unknown-write-failure' ? 'unknown-write-failure' : reason, (r && r.message) || '', { transportHint: r && r.hint })
   }
+  /** 撤回暂存（无票）：与暂存同一品格 —— 整文件、可逆（点 add 即回来）、重复点同一批没有副作用。
+   *  失败分类沿用 'commit' 那一支（与暂存同一套：认得出 nothing-staged，其余如实回兜底带 git 原话）。 */
+  async function handleGitUnstage(args) {
+    const a = args || {}
+    const cwd = String(a.cwd || '')
+    const bad = pathsProblem(a.paths)
+    if (bad) return wfail('args', bad, writeHintFor(bad))
+    const paths = a.paths.map(function (p) { return String(p) })
+    const r = await runOne(cwd, unstageArgs(paths), ADD_TIMEOUT_MS, SMALL_LIMIT, ADD_TIMEOUT_MS + 10000)
+    if (r && r.ok === true) return { ok: true, unstaged: paths, atMs: now() }
+    const text = failText(r)
+    const reason = classifyWriteFailure('commit', r ? r.exitCode : -1, text)
+    return wfail((r && r.kind && r.kind !== 'ok') ? r.kind : 'other', reason === 'unknown-write-failure' ? 'unknown-write-failure' : reason, (r && r.message) || '', { transportHint: r && r.hint })
+  }
   /** 提交：票据绑 HEAD + 索引指纹；失败后按 HEAD 有没有变说话，绝不自动重试。 */
   async function handleGitCommit(args) {
     const a = args || {}
@@ -191,5 +205,5 @@ export function createWritePhones(deps) {
     const reason = classifyWriteFailure('push', r ? r.exitCode : -1, text)
     return remember(g.requestId, wfail((r && r.kind && r.kind !== 'ok') ? r.kind : 'other', reason, (r && r.message) || '', { transportHint: r && r.hint }))
   }
-  return { handleGitStage: handleGitStage, handleGitCommit: handleGitCommit, handleGitPull: handleGitPull, handleGitPush: handleGitPush, indexRecordCount: indexRecordCount }
+  return { handleGitStage: handleGitStage, handleGitUnstage: handleGitUnstage, handleGitCommit: handleGitCommit, handleGitPull: handleGitPull, handleGitPush: handleGitPush, indexRecordCount: indexRecordCount }
 }

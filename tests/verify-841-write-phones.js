@@ -39,7 +39,7 @@ function makeVc(route) {
 }
 // 固定前缀的最后一项是 i18n.logOutputEncoding=UTF-8：切在它之后才是真正的子命令（照 verify-version-control-host 的同一口径）。
 const after = (argv) => { const i = argv.indexOf('i18n.logOutputEncoding=UTF-8'); return i < 0 ? argv : argv.slice(i + 1) }
-const writeSpawns = () => spawns.filter((a) => ['add', 'commit', 'pull', 'push'].indexOf(after(a)[0]) >= 0)
+const writeSpawns = () => spawns.filter((a) => ['add', 'reset', 'commit', 'pull', 'push'].indexOf(after(a)[0]) >= 0)
 let vcMod = null
 async function main() {
   console.log('写操作那一族门禁（#841：票据门 / argv / 起进程 / 回包 / 话术 / 同一出口 / 日志）')
@@ -90,6 +90,16 @@ async function main() {
   const addArgv = spawns.filter((a) => after(a)[0] === 'add')[0] || []
   check(addArgv.indexOf('--literal-pathspecs') >= 0, 'B1 暂存带 --literal-pathspecs（在固定前缀里）')
   check(addArgv.indexOf('--') > 0 && addArgv[addArgv.indexOf('--') + 1] === 'a.txt', 'B2 路径排在 -- 之后且是独立元素')
+  const rU = mkRepo('u')
+  const vcU = makeVc()
+  const un = await vcU.handleGitUnstage({ cwd: rU, paths: ['a.txt'] })
+  const resetArgv = spawns.filter((a) => after(a)[0] === 'reset')[0] || []
+  check(un.ok === true && (un.unstaged || []).join(',') === 'a.txt', 'B2b 撤回暂存成功回 unstaged 清单')
+  check(cmds.unstageArgs(['a.txt']).join(' ') === 'reset HEAD -- a.txt', 'B2c 撤回口径是 reset HEAD -- 加路径（版本底线 2.11 用不了 restore）')
+  check(resetArgv.indexOf('--literal-pathspecs') >= 0 && resetArgv.indexOf('--') > 0 && resetArgv[resetArgv.indexOf('--') + 1] === 'a.txt', 'B2d 撤回带字面量前缀且路径排在 -- 之后')
+  check(git(rU, ['diff', '--cached', '--name-only']).out === '' && git(rU, ['diff', '--name-only']).out === 'a.txt', 'B2e 撤回后暂存区空了、工作区改动还在（真仓库状态变了）')
+  const unBad = await vcU.handleGitUnstage({ cwd: rU, paths: [] })
+  check(unBad.ok === false && unBad.error.reason === 'bad-paths', 'B2f 空路径当场拒（不起进程）')
   check(cmds.pushArgs({ mode: 'existing', remote: 'origin', branch: 'main', localBranch: 'main' }).join(' ') === 'push --no-follow-tags origin main:main', 'B3 推送是显式 <remote> <local>:<remote> 且关掉跟随标签')
   check(cmds.pushArgs({ mode: 'set-upstream', remote: 'origin', branch: 'main', localBranch: 'main' }).join(' ') === 'push -u --no-follow-tags origin main:main', 'B4 -u 只在 set-upstream 档出现')
   const pp = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'version-control', 'push-plan.js')).href)

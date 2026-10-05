@@ -8,22 +8,24 @@
 export const VC_WRITE_PHONES = {
   check: 'wf.gitWriteCheck',
   stage: 'wf.gitStage',
+  unstage: 'wf.gitUnstage',
   commit: 'wf.gitCommit',
   pull: 'wf.gitPull',
   push: 'wf.gitPush',
 }
 
-/** 预检（提交 / 拉取 / 推送三档；暂存没有预检 —— 它可逆、天然幂等）。 */
+/** 预检（提交 / 拉取 / 推送三档；暂存与撤回暂存没有预检 —— 都可逆、天然幂等）。 */
 export const vcRunCheck = function (call, cwd, op, extra) {
   const args = Object.assign({ cwd: String(cwd || ''), op: String(op || '') }, extra || {})
   return call(VC_WRITE_PHONES.check, args)
 }
 
-/** 一条写电话。payload：stage 用 paths；commit 用 message；三条都要 ticketId 与 requestId。 */
+/** 一条写电话。payload：stage / unstage 用 paths；commit 用 message；后三条都要 ticketId 与 requestId。 */
 export const vcRunWrite = function (call, cwd, op, payload) {
   const p = payload || {}
   const o = String(op || '')
   if (o === 'stage') return call(VC_WRITE_PHONES.stage, { cwd: String(cwd || ''), paths: Array.isArray(p.paths) ? p.paths.slice() : [] })
+  if (o === 'unstage') return call(VC_WRITE_PHONES.unstage, { cwd: String(cwd || ''), paths: Array.isArray(p.paths) ? p.paths.slice() : [] })
   const args = { cwd: String(cwd || ''), ticketId: String(p.ticketId || ''), requestId: String(p.requestId || '') }
   if (o === 'commit') args.message = String(p.message || '')
   return call(VC_WRITE_PHONES[o] || VC_WRITE_PHONES.commit, args)
@@ -42,6 +44,7 @@ export const vcOpResultOf = function (op, reply, plan) {
   const o = String(op || '')
   if (r.ok === true) {
     if (o === 'stage') return { state: 'done', key: 'vc.op.doneStage', params: { n: String((r.staged || []).length) }, verb: 'vc.op.done', tipKey: '', tip: '', retryable: false, moved: false }
+    if (o === 'unstage') return { state: 'done', key: 'vc.op.doneUnstage', params: { n: String((r.unstaged || []).length) }, verb: 'vc.op.done', tipKey: '', tip: '', retryable: false, moved: false }
     // 提交成功不再把 headAfter（一个 oid）当悬停文字：那是内部标识符，历史那一块重读之后自然看得见。
     if (o === 'commit') return { state: 'done', key: 'vc.op.doneCommit', params: {}, verb: 'vc.op.done', tipKey: '', tip: '', retryable: false, moved: false }
     // 拉取成功把宿主回包的 mode（fast-forward / up-to-date / unknown）翻成词条，不原样显示内部标识符。
@@ -85,7 +88,7 @@ export const vcOpResultOf = function (op, reply, plan) {
 }
 
 /**
- * 成功之后重读：首屏一定重读（暂存/提交/拉取/推送都会改变首屏读数）；
+ * 成功之后重读：首屏一定重读（暂存/撤回暂存/提交/拉取/推送都会改变首屏读数）；
  * 提交再读一次历史第一页（设计 §3：跳到第一页，不是接着往后翻）。
  */
 export const vcAfterWrite = function (reads, call, cwd, op) {

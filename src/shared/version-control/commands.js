@@ -59,11 +59,14 @@ export function commandFor(key, opts) {
     }
   }
 }
-export const WRITE_SUBCOMMANDS = ["add", "commit", "pull", "push", "ls-files", "remote"];
+export const WRITE_SUBCOMMANDS = ["add", "reset", "commit", "pull", "push", "ls-files", "remote"];
 export const REMOTE_PATTERN = /^(?!-)[A-Za-z0-9._/-]+$/;
 export const BRANCH_PATTERN = /^(?![-+])[^\s\u0000:\\]+$/;
 export function stageArgs(paths) {
   return ["add", "--"].concat(paths);
+}
+export function unstageArgs(paths) {
+  return ["reset", "HEAD", "--"].concat(paths);
 }
 export function commitArgs(message) {
   return ["commit", "-m", message];

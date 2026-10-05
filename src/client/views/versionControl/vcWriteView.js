@@ -3,7 +3,7 @@
 //
 // 把写操作那几处 DOM 从入口组件里搬出来，好让组件那一份守住 350 行。这些函数都只接「画什么」与
 //   几个帮手（h / tone / tipNode / 回调），自己不读状态、不发电话 —— 判定与执行在 vcWrite.js 与 vcWriteOps.js。
-// 钩子（门禁按它们断言）：data-vc-stage / data-vc-conflict-terminal / data-vc-actions / data-vc-action /
+// 钩子（门禁按它们断言）：data-vc-stage / data-vc-unstage / data-vc-conflict-terminal / data-vc-actions / data-vc-action /
 //   data-vc-stage-all / data-vc-commit-area / data-vc-commit-msg / data-vc-commit-btn /
 //   data-vc-running / data-vc-op-result / data-vc-op-text / data-vc-op-limit / data-vc-op-retry /
 //   data-vc-confirm / data-vc-confirm-body / data-vc-confirm-ok / data-vc-confirm-cancel / data-vc-remote-pick
@@ -17,6 +17,16 @@ export const vcRowStageNodes = function (h, o) {
   return [o.tipNode(a.tip, h('button', {
     key: 'stage', className: 'dsws-btn', type: 'button', 'data-vc-stage': 1,
     onClick: function (e) { try { e.stopPropagation() } catch (err) { /* 忽略 */ } o.stagePaths([a.path]) },
+    style: { flex: 'none' },
+  }, a.text))]
+}
+/** 已暂存行右侧那颗「撤回」（点下去把这一个文件撤回成未暂存，改动本身不动）。 */
+export const vcRowUnstageNodes = function (h, o) {
+  const a = o && o.row ? o.row.unstageAction : null
+  if (!a || a.show !== true) return []
+  return [o.tipNode(a.tip, h('button', {
+    key: 'unstage', className: 'dsws-btn', type: 'button', 'data-vc-unstage': 1,
+    onClick: function (e) { try { e.stopPropagation() } catch (err) { /* 忽略 */ } o.unstagePaths([a.path]) },
     style: { flex: 'none' },
   }, a.text))]
 }

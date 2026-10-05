@@ -81,6 +81,11 @@ export const vcWriteOpsOf = function (deps) {
     if (!list.length) return
     return runWrite('stage', { paths: list })
   })
+  const unstagePaths = guarded(function (paths) {
+    const list = (Array.isArray(paths) ? paths : []).filter(function (p) { return String(p || '') !== '' })
+    if (!list.length) return
+    return runWrite('unstage', { paths: list })
+  })
   const startPull = guarded(function () {
     if (vcOpStateOf(decisions.pull) === 'blocked') return
     return checkThen('pull', {}, function (reply) {
@@ -139,7 +144,7 @@ export const vcWriteOpsOf = function (deps) {
     if (r.op === 'commit') return submitCommit()
   }
   return {
-    writeState: writeState, decisions: decisions, stagePaths: stagePaths, startPull: startPull, startPush: startPush,
+    writeState: writeState, decisions: decisions, stagePaths: stagePaths, unstagePaths: unstagePaths, startPull: startPull, startPush: startPush,
     submitCommit: submitCommit, confirmNow: confirmNow, cancelConfirm: cancelConfirm, pickRemote: pickRemote,
     writeMessageOf: writeMessageOf, retryResult: retryResult,
   }

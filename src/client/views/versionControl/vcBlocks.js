@@ -170,6 +170,7 @@ export const vcBlocksOf = function (screen, reads, ui, env) {
     const v = vcRowViewOf(r, t, diff)
     // #842：这一行给不给「暂存」按钮（冲突行不给，只给一句去终端的指引）由写操作那一层说了算。
     v.stageAction = (typeof vcRowStageOf === 'function') ? vcRowStageOf(r, t) : null
+    v.unstageAction = (typeof vcRowUnstageOf === 'function') ? vcRowUnstageOf(r, t) : null
     return v
   }
   if (commitMode) {

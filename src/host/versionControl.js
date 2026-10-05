@@ -327,19 +327,20 @@ export function createVersionControl(deps) {
   /** 首屏读数（#841）：写模块的预检要的就是这一份——同一个 readScreen，不另起一套读法。 */
   async function readScreenOf(cwd) { const exe = await resolveGitExecutable(); if (!exe) return failPhone('env', '找不到 git 命令（platform.resolveExecutable("git") 没有给出路径）'); return readScreen(exe, cwd) }
 
-  // 写操作那一族（#841，1 预检 + 4 执行）住 ./versionControlCheck.js 与 ./versionControlWrite.js；本文件只做装配与
+  // 写操作那一族（#841，1 预检 + 5 执行）住 ./versionControlCheck.js 与 ./versionControlWrite.js；本文件只做装配与
   // 日志包装（动态加载、同层单向）。交出去的是同一个 runGit 出口、同一份失败信封、同一份首屏读数、同一个
   // loggedPhone —— 所以写路径与只读路径共用一条进程出口、同一条 git.exec / host.call 事件。
   let _writeP = null
-  function writePhone() { if (!_writeP) _writeP = Promise.all([import('./gitCredentialExec.js'), import('./versionControlCheck.js'), import('./versionControlWrite.js')]).then(function (ms) { const sg = ms[0].createCredentialSafeGit({ runGit: runGit, getPlatform: getPlatform, DEFAULT_CWD: DEFAULT_CWD }); const nowFn = (deps && typeof deps.now === 'function') ? deps.now : Date.now; const c = ms[1].createWriteCheck({ vc: { readScreenOf: readScreenOf }, safeGit: sg, failPhone: failPhone, nowMs: nowFn, randomId: function () { return Math.random().toString(36).slice(2) } }); const w = ms[2].createWritePhones({ vc: { readScreenOf: readScreenOf }, safeGit: sg, tickets: c.tickets, results: c.results, nowMs: nowFn }); return { check: loggedPhone('wf.gitWriteCheck', 'git-write-check', c.handleGitWriteCheck), stage: loggedPhone('wf.gitStage', 'git-stage', w.handleGitStage), commit: loggedPhone('wf.gitCommit', 'git-commit', w.handleGitCommit), pull: loggedPhone('wf.gitPull', 'git-pull', w.handleGitPull), push: loggedPhone('wf.gitPush', 'git-push', w.handleGitPush) } }).catch(function (e) { const f = function () { return failPhone('env', '写操作那一族加载失败：' + String((e && e.message) || e)) }; return { check: f, stage: f, commit: f, pull: f, push: f } }); return _writeP }
+  function writePhone() { if (!_writeP) _writeP = Promise.all([import('./gitCredentialExec.js'), import('./versionControlCheck.js'), import('./versionControlWrite.js')]).then(function (ms) { const sg = ms[0].createCredentialSafeGit({ runGit: runGit, getPlatform: getPlatform, DEFAULT_CWD: DEFAULT_CWD }); const nowFn = (deps && typeof deps.now === 'function') ? deps.now : Date.now; const c = ms[1].createWriteCheck({ vc: { readScreenOf: readScreenOf }, safeGit: sg, failPhone: failPhone, nowMs: nowFn, randomId: function () { return Math.random().toString(36).slice(2) } }); const w = ms[2].createWritePhones({ vc: { readScreenOf: readScreenOf }, safeGit: sg, tickets: c.tickets, results: c.results, nowMs: nowFn }); return { check: loggedPhone('wf.gitWriteCheck', 'git-write-check', c.handleGitWriteCheck), stage: loggedPhone('wf.gitStage', 'git-stage', w.handleGitStage), unstage: loggedPhone('wf.gitUnstage', 'git-unstage', w.handleGitUnstage), commit: loggedPhone('wf.gitCommit', 'git-commit', w.handleGitCommit), pull: loggedPhone('wf.gitPull', 'git-pull', w.handleGitPull), push: loggedPhone('wf.gitPush', 'git-push', w.handleGitPush) } }).catch(function (e) { const f = function () { return failPhone('env', '写操作那一族加载失败：' + String((e && e.message) || e)) }; return { check: f, stage: f, unstage: f, commit: f, pull: f, push: f } }); return _writeP }
 
   return {
     handleGitStatus: loggedPhone('wf.gitStatus', 'git-status', handleGitStatus),
     handleGitDiff: loggedPhone('wf.gitDiff', 'git-diff', handleGitDiff),
     handleGitLog: loggedPhone('wf.gitLog', 'git-log', handleGitLog),
-    // #841 五条写电话（1 预检 + 4 执行）：第一次调用时才装配，装完缓存；键名与只读那三条同形。
+    // #841 六条写电话（1 预检 + 5 执行）：第一次调用时才装配，装完缓存；键名与只读那三条同形。
     handleGitWriteCheck: async function (a) { const w = await writePhone(); return w.check(a) },
     handleGitStage: async function (a) { const w = await writePhone(); return w.stage(a) },
+    handleGitUnstage: async function (a) { const w = await writePhone(); return w.unstage(a) },
     handleGitCommit: async function (a) { const w = await writePhone(); return w.commit(a) },
     handleGitPull: async function (a) { const w = await writePhone(); return w.pull(a) },
     handleGitPush: async function (a) { const w = await writePhone(); return w.push(a) },

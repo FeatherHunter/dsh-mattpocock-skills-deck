@@ -131,6 +131,8 @@ const EXPORTS = [
   'vcRequestIdOf',
   'vcRowStageNodes',
   'vcRowStageOf',
+  'vcRowUnstageNodes',
+  'vcRowUnstageOf',
   'vcRowViewOf',
   'vcRunCheck',
   'vcRunWrite',
@@ -289,6 +291,12 @@ function groupA(view, React, DswsCtx, TipStub, IcStub) {
   const a5b = conflictText.indexOf('命令行') >= 0 && conflictText.indexOf('侧栏终端') < 0
   check(a5 && a5b, 'A5 冲突行没有「add」，改说「在命令行里解决」，且不再提侧栏终端（模型 ' + JSON.stringify(rowD && rowD.stageAction) + '，DOM ' + (html.indexOf('data-vc-conflict-terminal') >= 0) + '，文字 ' + JSON.stringify(conflictText) + '）')
 
+  const rowA = rowOf(blocks, 'a.txt')
+  const a4b = !!(rowA && rowA.unstageAction && rowA.unstageAction.show === true) && html.indexOf('data-vc-unstage') >= 0 && html.indexOf('>撤回<') >= 0
+  check(a4b, 'A4b 已暂存文件行右侧有「撤回」按钮（模型 ' + !!(rowA && rowA.unstageAction) + '，DOM钩子 ' + (html.indexOf('data-vc-unstage') >= 0) + '，文字 ' + (html.indexOf('>撤回<') >= 0) + '）')
+  const a4c = !!(rowB && rowB.unstageAction && rowB.unstageAction.show === false) && (html.match(/data-vc-unstage/g) || []).length === 1
+  check(a4c, 'A4c 未暂存与冲突行没有「撤回」按钮（全页只有已暂存那一行有）')
+
   // A6：多远端 + 没有上游 —— 候选远端来自失败回包顶层 remotes，界面上要有一排可点的入口。
   const choiceUi = uiOf({ write: { op: '', state: 'idle', message: '', confirm: null, result: null, remoteChoice: { show: true, remotes: ['origin', 'mirror'], hint: '' } } })
   const choiceModel = view.vcWriteUiOf(screen, choiceUi, { t: trZh, nowMs: NOW, decisions: decisionsOf(view, screen) })
@@ -425,6 +433,12 @@ function groupD(view, writeReasons) {
   const res = view.vcOpResultOf('pull', { ok: false, error: { kind: 'exit', reason: 'unknown-write-failure', message: 'git 原话', hint: '宿主给的一句中文' } })
   check(res.tip === '宿主给的一句中文' && res.key.indexOf('vc.writeErr.') === 0 && res.key !== res.tip, 'D5 宿主原话进悬停（tip），可见文字只用词条键（key=' + res.key + '）')
 
+  const unDone = view.vcOpResultOf('unstage', { ok: true, unstaged: ['a.txt', 'b.txt'], atMs: NOW })
+  check(unDone.state === 'done' && unDone.key === 'vc.op.doneUnstage' && unDone.params.n === '2' && trZh(unDone.key, unDone.params) === '已撤回暂存 2 个文件', 'D5b 撤回成功话术带数（实得 ' + JSON.stringify(unDone) + '）')
+  const unFailUi = uiOf({ write: { op: 'unstage', state: 'failed', message: '', confirm: null, result: { state: 'failed', key: 'vc.writeErr.unknown', params: {}, limitKey: 'vc.writeErr.unknown.limit', verb: 'vc.op.failed', tip: '', retryable: true, moved: false }, remoteChoice: null } })
+  const unFailModel = view.vcWriteUiOf(screenOf(), unFailUi, { t: trZh, nowMs: NOW, decisions: decisionsOf(view, screenOf()) })
+  check(!!(unFailModel.result && unFailModel.result.ai) && unFailModel.result.ai.opText === trZh('vc.action.unstage'), 'D5c 撤回失败的 AI 交接写的是「撤回」不是提交')
+
   // D6：确认框里写清票据有效期（停久了才知道为什么会说「已过期」）。
   const s6 = screenOf()
   const ui6 = uiOf({ write: { op: '', state: 'idle', message: '', confirm: { op: 'push', plan: { mode: 'existing', remote: 'origin', branch: 'main', localBranch: 'main' }, ticket: { id: 't1', expiresAtMs: NOW + 120000 }, remotes: [] }, result: null, remoteChoice: null } })
@@ -444,6 +458,10 @@ async function groupE(view) {
   const during = host1.methods().slice()
   const readDuring = during.filter(function (m) { return m === 'wf.gitStatus' || m === 'wf.gitDiff' || m === 'wf.gitLog' }).length
   check(readDuring === 0 && during.join(',') === 'wf.gitStage', 'E1 执行中只发那一张写电话，零只读调用（实测 ' + JSON.stringify(during) + '）')
+  const host1b = makeHost(function (m) { return m === 'wf.gitUnstage' ? { ok: true, unstaged: ['a.txt'], atMs: NOW } : { ok: true, screen: screen, tier: 'full', gitVersion: 'git version 2.49.0', readAtMs: NOW, diffs: {}, log: { commits: [], hasMore: false, fetched: 0 } } })
+  const ops1b = view.vcWriteOpsOf({ ui: uiOf(), setUi: function () {}, callHost: host1b.call, cwd: 'D:/w/repo', readsRef: { current: readsOf(screen) }, setReads: function () {}, screen: screen })
+  ops1b.unstagePaths(['a.txt'])
+  check(host1b.methods().join(',') === 'wf.gitUnstage', 'E1b 撤回只发 wf.gitUnstage 一张电话（实测 ' + JSON.stringify(host1b.methods()) + '）')
   await flush()
 
   // E2：running / failed 时旧读数仍在，且依据时间照旧
