@@ -70,20 +70,26 @@ export const vcViewBarNode = function (h, o) {
   const s = o && o.stageAll
   // 根上同时挂提交区钩子：视图条就是提交区的新位置，门禁按这个钩子断言输入框与按钮在。
   return h('div', { key: 'viewbar', className: 'dsws-vc-viewbar', 'data-vc-viewbar': 1, 'data-vc-commit-area': 1 }, [
-    h('span', { key: 'lbl', className: 'dsws-vc-viewbar-lbl' }, o.t('vc.viewbar.submit')),
-    s && s.show === true ? o.tipNode(s.tip, h('button', {
-      key: 'stageAll', className: 'dsws-btn', type: 'button', 'data-vc-stage-all': 1, disabled: s.disabled === true,
-      onClick: function () { o.stagePaths(s.paths) }, style: { flex: 'none', fontSize: 11, padding: '1px 8px' },
-    }, (o.foldActions && o.foldActions.stageAll) || s.text)) : null,
-    h('input', {
-      key: 'input', type: 'text', value: c.value, placeholder: c.placeholder, 'data-vc-commit-msg': 1,
-      onChange: function (e) { o.writeMessageOf(e && e.target ? e.target.value : '') },
-      style: { flex: 1, minWidth: 120, fontSize: 11, padding: '3px 6px' },
-    }),
-    o.tipNode(c.tip || c.text, h('button', {
-      className: 'dsws-btn primary', type: 'button', 'data-vc-commit-btn': 1, disabled: c.disabled === true,
-      onClick: o.submitCommit, style: { flex: 'none', fontSize: 11, padding: '1px 8px' },
-    }, (o.foldActions && o.foldActions.commit) || c.text)),
+    h('div', { key: 'acts', className: 'dsws-vc-viewbar-row' }, [
+      h('span', { key: 'lbl', className: 'dsws-vc-viewbar-lbl' }, o.t('vc.viewbar.submit')),
+      s && s.show === true ? o.tipNode(s.tip, h('button', {
+        key: 'stageAll', className: 'dsws-btn', type: 'button', 'data-vc-stage-all': 1, disabled: s.disabled === true,
+        onClick: function () { o.stagePaths(s.paths) }, style: { flex: 'none', fontSize: 11, padding: '1px 8px' },
+      }, (o.foldActions && o.foldActions.stageAll) || s.text)) : null,
+      h('span', { key: 'grow', style: { flex: 1, minWidth: 8 } }),
+      h('span', { key: 'inputLbl', className: 'dsws-vc-viewbar-lbl' }, o.t('vc.viewbar.inputLabel')),
+    ]),
+    h('div', { key: 'row', className: 'dsws-vc-viewbar-row' }, [
+      h('input', {
+        key: 'input', type: 'text', value: c.value, placeholder: c.placeholder, 'data-vc-commit-msg': 1,
+        onChange: function (e) { o.writeMessageOf(e && e.target ? e.target.value : '') },
+        style: { flex: 1, minWidth: 120, fontSize: 11, padding: '3px 6px' },
+      }),
+      o.tipNode(c.tip || c.text, h('button', {
+        className: 'dsws-btn primary', type: 'button', 'data-vc-commit-btn': 1, disabled: c.disabled === true,
+        onClick: o.submitCommit, style: { flex: 'none', fontSize: 11, padding: '1px 8px' },
+      }, (o.foldActions && o.foldActions.commit) || c.text)),
+    ]),
   ])
 }
 

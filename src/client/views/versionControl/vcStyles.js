@@ -131,7 +131,8 @@ export const VC_STYLE_TEXT = [
   ".dsws-vc-stat[data-vc-stat=staged] .dsws-vc-stat-n{color:var(--vc-accent)}",
   ".dsws-vc-stat[data-vc-stat=unstaged] .dsws-vc-stat-n{color:var(--vc-info)}",
   // 视图条（854 布局 C 原型的 viewbar：虚线框里横排提交动作 inline 输入与提交按钮）。
-  ".dsws-vc-viewbar{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin:0 0 10px;padding:7px 8px;border:1px dashed var(--vc-line2);border-radius:var(--vc-radius)}",
+  ".dsws-vc-viewbar{display:flex;flex-direction:column;gap:8px;margin:0 0 10px;padding:8px 9px;border:1px dashed var(--vc-line2);border-radius:var(--vc-radius)}",
+  ".dsws-vc-viewbar-row{display:flex;gap:7px;align-items:center;flex-wrap:wrap}",
   ".dsws-vc-viewbar-lbl{font-size:10.5px;color:var(--vc-faint);font-family:ui-monospace,SFMono-Regular,Consolas,Menlo,monospace}",
   // #857 P5/P6：骨架条——固定高度占位，不跳；减弱动态偏好下静止。
   ".dsws-vc-skel{border-radius:4px;background:linear-gradient(90deg,var(--vc-hover,rgba(127,127,160,.12)) 25%,var(--vc-elevated,#16181d) 50%,var(--vc-hover,rgba(127,127,160,.12)) 75%);background-size:200% 100%;animation:dsws-vc-shimmer 1.4s linear infinite;margin:7px 0}",
