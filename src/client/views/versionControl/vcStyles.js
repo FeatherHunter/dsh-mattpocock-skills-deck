@@ -93,7 +93,7 @@ export const VC_STYLE_TEXT = [
   ".dsws-vc-card{background:var(--vc-inset);border:1px solid var(--vc-line);border-radius:calc(var(--vc-radius) * 2);padding:10px 12px}",
   ".dsws-vc-diff{font-family:ui-monospace,SFMono-Regular,Consolas,Menlo,monospace;font-size:11.5px;line-height:1.6;overflow:auto;max-height:320px}",
   // ---- 提示带、错误块、空态 ----
-  "[data-vc-root] [data-vc-hint],[data-vc-root] [data-vc-band-item]{background:var(--vc-inset) !important;border-color:var(--vc-line) !important;border-radius:var(--vc-radius)}",
+  "[data-vc-root] [data-vc-hint]{background:var(--vc-inset) !important;border-color:var(--vc-line) !important;border-radius:var(--vc-radius)}",
   "[data-vc-root] [data-vc-error]{border-color:var(--vc-line2) !important;border-radius:calc(var(--vc-radius) * 2)}",
   "[data-vc-root] [data-vc-empty]{color:var(--vc-mut,inherit)}",
   // ---- 链接：原型是强调色常驻（不是继承色），悬停才加下划线 ----

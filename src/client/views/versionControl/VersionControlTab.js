@@ -213,7 +213,7 @@ export const VersionControlTab = function (props) {
         showBadge ? tipNode(row.changeText, h('span', { key: 'badge', className: 'dsws-vc-badge ' + String(row.badgeClass || ''), 'data-vc-badge': row.badge }, row.badge)) : null,
         h('div', { key: 'main', style: { flex: 1, minWidth: 0 } }, [
           tipNode(row.rowTip + (row.origPath ? '\n' + row.origPath : ''), h('span', { key: 'path', className: 'dsws-vc-mono', style: { display: 'block', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, row.pathText)),
-          row.changeText ? h('span', { key: 'change', className: 'dsws-vc-mono', 'data-vc-change': 1, style: { display: 'block', fontSize: 11, color: tone(row.changeTone) } }, row.changeText) : null,
+          row.changeText ? h('span', { key: 'change', className: 'dsws-vc-mono', 'data-vc-change': 1, style: { display: 'block', fontSize: 11, color: row.conflict ? tone('error') : tone('caption') } }, row.changeText) : null,
         ]),
         row.conflict ? h('span', { key: 'conflict', style: { flex: 'none', fontSize: 10.5, color: tone('warning'), border: '1px solid ' + tone('warning'), borderRadius: 4, padding: '0 4px' } }, row.conflictText) : null,
         row.countsText
@@ -245,9 +245,10 @@ export const VersionControlTab = function (props) {
       b.ai ? h('div', { key: 'aibtn', style: { marginTop: 10 } }, vcAiButtonNode(h, { ai: b.ai, tr: tr, onOpen: openHandoff })) : null,
     ])
     if (b.kind === 'band') return h('div', { key: b.key, 'data-vc-band': 1, style: { display: 'flex', flexDirection: 'column', gap: 4 } }, b.items.map(function (it, i) {
-      return h('div', { key: i, 'data-vc-band-item': it.key, style: { fontSize: 12, color: tone(it.tone), background: 'var(--vc-inset,#16181d)', border: '1px solid var(--vc-line,#2a2d35)', borderRadius: 'var(--vc-radius,6px)', padding: '4px 8px', lineHeight: 1.6 } }, [tipNode(it.tip, h('span', { key: 'text' }, it.text)), it.ai ? h('span', { key: 'ai', style: { marginLeft: 6 } }, vcAiButtonNode(h, { ai: it.ai, tr: tr, onOpen: openHandoff })) : null])
+      // 提示带按 854 原型画：左侧 3px 语气色条加标记，主句加粗，正文第二行，交接按钮右置。
+      return h('div', { key: i, 'data-vc-band-item': it.key, style: { display: 'flex', gap: 9, alignItems: 'flex-start', fontSize: 12, color: tone(it.tone), background: 'var(--vc-inset,#16181d)', border: '1px solid var(--vc-line,#2a2d35)', borderLeft: '3px solid ' + tone(it.tone), borderRadius: 'var(--vc-radius,6px)', padding: '9px 11px', lineHeight: 1.6 } }, [it.tone === 'caption' ? null : h('span', { key: 'mark', style: { flex: 'none', fontWeight: 800, fontSize: 11, paddingTop: 1 } }, '!'), h('div', { key: 'main', style: { flex: 1, minWidth: 0 } }, [tipNode(it.tip, h('span', { key: 'text', style: { fontWeight: 650 } }, it.text)), it.tip ? h('div', { key: 'body', style: { color: tone('caption'), marginTop: 2 } }, it.tip) : null]), it.ai ? h('span', { key: 'ai', style: { flex: 'none', marginLeft: 6 } }, vcAiButtonNode(h, { ai: it.ai, tr: tr, onOpen: openHandoff })) : null])
     }))
-    // 身份区按 854 布局 C 原型并成两行：首行仓库名加分支加同步状态右对齐，次行路径加读取时间加远端更新加重新读一次右对齐；拉取推送仍在下面那一行（门禁 A1 断言它在身份块里）。
+    // 身份区按 854 布局 C 原型并成两行：首行仓库名加分支加同步状态右对齐，次行路径加读取时间加远端更新加重新读一次右对齐；拉取推送搬进视图条（模型仍在身份块里）。
     if (b.kind === 'identity') return h('div', { key: b.key, 'data-vc-identity': 1, style: { display: 'flex', flexDirection: 'column', gap: 4 } }, [
       h('div', { key: 'head', style: { display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 } }, [
         tipNode(b.nameTip, h('span', { key: 'name', className: 'dsws-vc-id', 'data-vc-worktree': 1, style: { color: tone('primary'), whiteSpace: 'nowrap' } }, b.name)),

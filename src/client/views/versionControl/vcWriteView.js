@@ -72,10 +72,11 @@ export const vcViewBarNode = function (h, o) {
   const a = o && o.actions
   const label = function (key, full) { return (o.foldActions && o.foldActions[key]) || full }
   return h('div', { key: 'viewbar', className: 'dsws-vc-viewbar', 'data-vc-viewbar': 1, 'data-vc-commit-area': 1 }, [
+    h('div', { key: 'lbl', className: 'dsws-vc-viewbar-lbl', style: { marginBottom: 1 } }, o.t('vc.viewbar.submit')),
     h('div', { key: 'acts', className: 'dsws-vc-viewbar-row' }, [
       a && a.pull ? o.tipNode(a.pull.tip || a.pull.text, h('button', { key: 'pull', className: 'dsws-btn', type: 'button', 'data-vc-action': 'pull', disabled: a.pull.disabled === true, onClick: o.startPull, style: { flex: 'none', fontSize: 12, padding: '0 10px' } }, label('pull', a.pull.text))) : null,
-      a && a.push ? o.tipNode(a.push.tip || a.push.text, h('button', { key: 'push', className: 'dsws-btn', type: 'button', 'data-vc-action': 'push', disabled: a.push.disabled === true, onClick: function () { o.startPush('') }, style: { flex: 'none', fontSize: 12, padding: '0 10px' } }, label('push', a.push.text))) : null,
-      h('span', { key: 'lbl', className: 'dsws-vc-viewbar-lbl' }, o.t('vc.viewbar.submit')),
+      a && a.push ? o.tipNode(a.push.tip || a.push.text, h('button', { key: 'push', className: 'dsws-btn primary', type: 'button', 'data-vc-action': 'push', disabled: a.push.disabled === true, onClick: function () { o.startPush('') }, style: { flex: 'none', fontSize: 12, padding: '0 10px' } }, label('push', a.push.text))) : null,
+      a && (a.pull || a.push) && s && s.show === true ? h('span', { key: 'sep', style: { width: 1, height: 16, background: 'var(--vc-line2)', margin: '0 3px', flex: 'none' } }) : null,
       s && s.show === true ? o.tipNode(s.tip, h('button', {
         key: 'stageAll', className: 'dsws-btn', type: 'button', 'data-vc-stage-all': 1, disabled: s.disabled === true,
         onClick: function () { o.stagePaths(s.paths) }, style: { flex: 'none', fontSize: 12, padding: '0 10px' },
