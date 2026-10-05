@@ -77,6 +77,11 @@ export const vcStatsNode = function (h, o) {
   }))
 }
 // 某视图首屏未拿到数据时的骨架（o: { view }；每条的高度照抄真实块的实测高度，填充时原地长出内容，不跳不换位）。
+/** 点开的那笔提交还在读清单：标题摘要照常画，文件行的位置先画三条微光条占位（与首屏骨架同一套视觉语言）。 */
+export const vcCommitSkelNodes = function (h) {
+  const bar = function (key) { return h('div', { key: key, className: 'dsws-vc-skel', 'data-vc-skel': 1, style: { height: 47, marginTop: 4 } }) }
+  return [bar('ck1'), bar('ck2'), bar('ck3')]
+}
 export const vcViewSkelNode = function (h, o) {
   const bar = function (key, style) { return h('div', { key: key, className: 'dsws-vc-skel', 'data-vc-skel': 1, style: style }) }
   // 门禁 G5 要求首屏骨架不少于 10 条且一个字不写：三格都按 10 条以上画，块尺寸与各视图一致。

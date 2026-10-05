@@ -278,7 +278,7 @@ export const VersionControlTab = function (props) {
       b.back ? h('div', { key: 'back', className: 'dsws-vc-link', 'data-vc-back': 1, onClick: closeCommit, style: { marginBottom: 4 } }, b.back) : null,
       h('span', { key: 'title', style: { fontSize: 12, fontWeight: 700, color: tone('primary') } }, b.title),
       h('div', { key: 'summary', 'data-vc-summary': 1, style: { fontSize: 11, color: tone('primary'), marginTop: 2 } }, b.summary),
-    ].concat(changeTail))
+    ].concat(b.loading ? vcCommitSkelNodes(h) : [], changeTail))
     if (b.kind === 'changes') return h('div', { key: b.key, 'data-vc-changes': 1, 'data-vc-commit-mode': b.commitMode ? 1 : undefined }, [
       // 「这笔提交改了什么」这一层（规格故事 32）：出路摆在最上面，别让用户找不到回去的路。
       b.back ? h('div', { key: 'back', className: 'dsws-vc-link', 'data-vc-back': 1, onClick: closeCommit, style: { marginBottom: 4 } }, b.back) : null,

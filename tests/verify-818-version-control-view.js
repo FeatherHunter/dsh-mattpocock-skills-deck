@@ -703,6 +703,15 @@ async function main() {
   const flat3 = html3.replace(/<[^>]*>/g, ' ')
   check(renderErr3 === '' && html3.indexOf('data-vc-back') >= 0 && html3.indexOf('data-vc-commit-mode') >= 0, 'S13 真渲染：提交模式画出了「回到未提交改动」那条路（' + (renderErr3 ? '抛错：' + renderErr3 : '在') + '）')
   check(flat3.indexOf('该提交的变更内容') >= 0 && flat3.indexOf('该提交变更了 2 个文件') >= 0 && flat3.indexOf('返回未提交改动') >= 0, 'S14 真渲染：DOM 里就是那几句人话（标题 / 计数 / 回去的路）')
+  const loadingSeed = { screen: { state: 'ok', data: { screen: commitScreen, tier: 'full', gitVersion: 'git version 2.49.0', readAtMs: NOW }, error: null }, diffs: {}, commit: commitEntry({ state: 'loading', files: [] }), commitDiffs: {}, log: { state: 'idle', commits: [], hasMore: false, fetched: 0, error: null } }
+  const renderLoading = buildView(function (s) {
+    return s.replace('React.useState(function () { return vcCacheSeedOf(cwd) || vcNewReads() })', 'React.useState(function () { return seedReads })')
+      .replace("openCommit: '', view:", "openCommit: '" + REV1 + "', view:")
+  }, [], React, DswsCtx, TipStub, IcStub, loadingSeed)
+  let htmlL = ''
+  try { htmlL = renderToStaticMarkup(React.createElement(renderLoading.VersionControlTab, { st: { cwd: 'D:/w/repo' } })) } catch (e) { htmlL = '' }
+  check(htmlL.indexOf('data-vc-commit-mode') >= 0 && (htmlL.match(/data-vc-skel(?!-root)/g) || []).length === 3 && htmlL.indexOf('正在读取该提交的变更内容') >= 0, 'S14b 真渲染：提交清单还在读时文件行位置是三条骨架条，那句正在读的字还在')
+
 
 
   // 英文界面那一遍：同一份数据、同一套画法，只把词典换成英文 —— 画出来的人话必须是英文。

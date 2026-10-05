@@ -158,6 +158,7 @@ const EXPORTS = [
   'vcViewCountsOf',
   'vcViewBarNode',
   'vcViewBlocksOf',
+  'vcCommitSkelNodes',
   'vcViewSkelNode',
   'vcViewTabsNode',
   'VC_SCREEN_CACHE_MAX',

@@ -63,6 +63,7 @@ export const vcCommitBlockOf = function (screen, reads, ui, t, nowMs, shownOf, r
     when: hit ? vcWhenText(t, nowMs, hit.commitDateMs !== undefined && hit.commitDateMs !== null ? hit.commitDateMs : hit.authorDateMs) : '',
     note: note,
     retry: retry,
+    loading: mine.state === 'loading' && rows.length === 0,
     empty: false,
     emptyText: '',
     groups: rows.length === 0 ? [] : [{
