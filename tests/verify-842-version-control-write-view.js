@@ -793,7 +793,7 @@ function groupL(view, React, DswsCtx, TipStub, IcStub) {
   }
   const html = render(null)
   const doc = docOf(html)
-  check(letters === 'AMDRT?' && badgeOk(doc), 'L1 状态字母徽章：六种变化各一个字母（实得 ' + letters + '），文件行上挂方形徽章，中文状态词「修改」照旧在同一行里')
+  check(letters === 'AMDRT?' && badgeOk(doc), 'L1 状态字母徽章：六种变化各一个字母（实得 ' + letters + '），文件行上挂方形徽章，中文状态词「修改」照旧在行里（原型两行排布：路径在上，状态词在下）')
   check(monoOk(doc), 'L2 等宽 + 表格数字：路径与提交短号都挂 dsws-vc-mono')
   check(countsOk(doc), 'L3 加减行数按正负着色：+1 与 \u22120 各自一个 span（合起来仍是原来那一串）')
   check(secOk(doc), 'L4 分段小标题：分组标题挂 dsws-vc-sec，文字仍是既有词条（已暂存…）')
@@ -802,7 +802,7 @@ function groupL(view, React, DswsCtx, TipStub, IcStub) {
   // 反证（三条）：把新加的样式钩子改回去，对应的判据必须当场变红。
   const noBadge = docOf(render(function (s) { return s.replace("    badge: vcBadgeLetterOf(row.change),", "    badge: '',") }))
   check(badgeOk(noBadge) === false, 'L6 反证：把行模型里的徽章字母去掉 → L1 那条当场不成立')
-  const noMono = docOf(render(function (s) { return s.replace("h('span', { key: 'path', className: 'dsws-vc-mono', style: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, row.pathText)", "h('span', { key: 'path', style: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, row.pathText)") }))
+  const noMono = docOf(render(function (s) { return s.replace("h('span', { key: 'path', className: 'dsws-vc-mono', style: { display: 'block', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, row.pathText)", "h('span', { key: 'path', style: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, row.pathText)") }))
   check(monoOk(noMono) === false, 'L7 反证：把路径上的 dsws-vc-mono 撤掉 → L2 那条当场不成立')
   const noSign = docOf(render(function (s) { return s.replace("h('span', { key: 'add', className: 'dsws-vc-add' }, row.addText),", "h('span', { key: 'add' }, row.addText),") }))
   check(countsOk(noSign) === false, 'L8 反证：把加减行数的着色类撤掉 → L3 那条当场不成立')

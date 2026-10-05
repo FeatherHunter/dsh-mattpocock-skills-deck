@@ -17,7 +17,7 @@ export const vcRowStageNodes = function (h, o) {
   return [o.tipNode(a.tip, h('button', {
     key: 'stage', className: 'dsws-btn', type: 'button', 'data-vc-stage': 1,
     onClick: function (e) { try { e.stopPropagation() } catch (err) { /* 忽略 */ } o.stagePaths([a.path]) },
-    style: { flex: 'none', fontSize: 10, padding: '0 6px' },
+    style: { flex: 'none', fontSize: 12, padding: '0 10px' },
   }, a.text))]
 }
 
@@ -38,7 +38,7 @@ export const vcStageAllNode = function (h, o) {
   if (!s || s.show !== true) return null
   return o.tipNode(s.tip, h('button', {
     key: 'stageAll', className: 'dsws-btn', type: 'button', 'data-vc-stage-all': 1, disabled: s.disabled === true,
-    onClick: function () { o.stagePaths(s.paths) }, style: { flex: 'none', fontSize: 11, padding: '1px 8px' },
+    onClick: function () { o.stagePaths(s.paths) }, style: { flex: 'none', fontSize: 12, padding: '0 10px' },
   }, (o.foldActions && o.foldActions.stageAll) || s.text))
 }
 
@@ -50,13 +50,13 @@ export const vcCommitAreaNode = function (h, o) {
     h('input', {
       key: 'input', type: 'text', value: c.value, placeholder: c.placeholder, 'data-vc-commit-msg': 1,
       onChange: function (e) { o.writeMessageOf(e && e.target ? e.target.value : '') },
-      style: { boxSizing: 'border-box', width: '100%', fontSize: 11, padding: '3px 6px', borderRadius: 6, border: '1px solid var(--vc-line2,#3a3f4a)', background: 'var(--vc-inset,#0c0e12)', color: 'var(--vc-ink,#e6edf3)' },
+      style: { boxSizing: 'border-box', width: '100%' },
     }),
     h('div', { key: 'row', style: { display: 'flex', gap: 6, alignItems: 'center' } }, [
-      h('span', { key: 'hint', style: { flex: 1, minWidth: 0, fontSize: 10, color: o.tone('caption') } }, c.hint),
+      h('span', { key: 'hint', style: { flex: 1, minWidth: 0, fontSize: 11.5, color: o.tone('caption') } }, c.hint),
       o.tipNode(c.tip || c.text, h('button', {
         className: 'dsws-btn', type: 'button', 'data-vc-commit-btn': 1, disabled: c.disabled === true,
-        onClick: o.submitCommit, style: { flex: 'none', fontSize: 11, padding: '1px 8px' },
+        onClick: o.submitCommit, style: { flex: 'none', fontSize: 12, padding: '0 10px' },
       }, (o.foldActions && o.foldActions.commit) || c.text)),
     ]),
   ])
@@ -73,12 +73,12 @@ export const vcViewBarNode = function (h, o) {
   const label = function (key, full) { return (o.foldActions && o.foldActions[key]) || full }
   return h('div', { key: 'viewbar', className: 'dsws-vc-viewbar', 'data-vc-viewbar': 1, 'data-vc-commit-area': 1 }, [
     h('div', { key: 'acts', className: 'dsws-vc-viewbar-row' }, [
-      a && a.pull ? o.tipNode(a.pull.tip || a.pull.text, h('button', { key: 'pull', className: 'dsws-btn', type: 'button', 'data-vc-action': 'pull', disabled: a.pull.disabled === true, onClick: o.startPull, style: { flex: 'none', fontSize: 11, padding: '1px 8px' } }, label('pull', a.pull.text))) : null,
-      a && a.push ? o.tipNode(a.push.tip || a.push.text, h('button', { key: 'push', className: 'dsws-btn', type: 'button', 'data-vc-action': 'push', disabled: a.push.disabled === true, onClick: function () { o.startPush('') }, style: { flex: 'none', fontSize: 11, padding: '1px 8px' } }, label('push', a.push.text))) : null,
+      a && a.pull ? o.tipNode(a.pull.tip || a.pull.text, h('button', { key: 'pull', className: 'dsws-btn', type: 'button', 'data-vc-action': 'pull', disabled: a.pull.disabled === true, onClick: o.startPull, style: { flex: 'none', fontSize: 12, padding: '0 10px' } }, label('pull', a.pull.text))) : null,
+      a && a.push ? o.tipNode(a.push.tip || a.push.text, h('button', { key: 'push', className: 'dsws-btn', type: 'button', 'data-vc-action': 'push', disabled: a.push.disabled === true, onClick: function () { o.startPush('') }, style: { flex: 'none', fontSize: 12, padding: '0 10px' } }, label('push', a.push.text))) : null,
       h('span', { key: 'lbl', className: 'dsws-vc-viewbar-lbl' }, o.t('vc.viewbar.submit')),
       s && s.show === true ? o.tipNode(s.tip, h('button', {
         key: 'stageAll', className: 'dsws-btn', type: 'button', 'data-vc-stage-all': 1, disabled: s.disabled === true,
-        onClick: function () { o.stagePaths(s.paths) }, style: { flex: 'none', fontSize: 11, padding: '1px 8px' },
+        onClick: function () { o.stagePaths(s.paths) }, style: { flex: 'none', fontSize: 12, padding: '0 10px' },
       }, (o.foldActions && o.foldActions.stageAll) || s.text)) : null,
       h('span', { key: 'grow', style: { flex: 1, minWidth: 8 } }),
       h('span', { key: 'inputLbl', className: 'dsws-vc-viewbar-lbl' }, o.t('vc.viewbar.inputLabel')),
@@ -87,11 +87,11 @@ export const vcViewBarNode = function (h, o) {
       h('input', {
         key: 'input', type: 'text', value: c.value, placeholder: c.placeholder, 'data-vc-commit-msg': 1,
         onChange: function (e) { o.writeMessageOf(e && e.target ? e.target.value : '') },
-        style: { flex: 1, minWidth: 120, fontSize: 11, padding: '3px 6px' },
+        style: { flex: 1, minWidth: 120 },
       }),
       o.tipNode(c.tip || c.text, h('button', {
         className: 'dsws-btn primary', type: 'button', 'data-vc-commit-btn': 1, disabled: c.disabled === true,
-        onClick: o.submitCommit, style: { flex: 'none', fontSize: 11, padding: '1px 8px' },
+        onClick: o.submitCommit, style: { flex: 'none', fontSize: 12, padding: '0 10px' },
       }, (o.foldActions && o.foldActions.commit) || c.text)),
     ]),
   ])
@@ -109,7 +109,7 @@ export const vcWriteTailNodes = function (h, o) {
           // 动作词与主句都已经是词条句子（模型层翻好的），这里不再 tr 一次、也不许落到键名。
           h('span', { key: 'verb', style: { flex: 'none', fontWeight: 700, color: w.result.state === 'done' ? o.tone('success') : o.tone('error') } }, w.result.verb || o.tr(w.result.state === 'done' ? 'vc.op.done' : 'vc.op.failed')),
           o.tipNode(w.result.tip, h('span', { key: 'text', 'data-vc-op-text': 1, style: { flex: 1, minWidth: 0 } }, w.result.text)),
-          w.result.retryable ? h('button', { key: 'retry', className: 'dsws-btn', type: 'button', 'data-vc-op-retry': 1, onClick: o.retryResult, style: { flex: 'none', fontSize: 10, padding: '0 6px' } }, o.tr('vc.retry')) : null,
+          w.result.retryable ? h('button', { key: 'retry', className: 'dsws-btn', type: 'button', 'data-vc-op-retry': 1, onClick: o.retryResult, style: { flex: 'none', fontSize: 12, padding: '0 10px' } }, o.tr('vc.retry')) : null,
         ]),
         w.result.limit ? h('div', { key: 'limit', 'data-vc-op-limit': 1, style: { fontSize: 10, color: o.tone('caption'), lineHeight: 1.5 } }, w.result.limit) : null,
         w.result.ai ? h('div', { key: 'ai', style: { marginTop: 6 } }, vcAiButtonNode(h, { ai: w.result.ai, tr: o.tr, onOpen: o.openHandoff })) : null,

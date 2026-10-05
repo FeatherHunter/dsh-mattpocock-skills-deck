@@ -27,14 +27,14 @@
  */
 export const VC_STYLE_TEXT = [
   // ---- 皮肤令牌：深色（A 工程台账，原型 853-vc-styles.css 的 [data-style="A"] 一字不差） ----
-  "body[data-ds-dark-theme] [data-vc-root]{--vc-paper:#131c2f;--vc-inset:#0b1120;--vc-elevated:#1a2438;--vc-hover:rgba(148,163,184,.10)" +
+  "body[data-ds-dark-theme] [data-vc-root]{--vc-paper:#131c2f;--vc-inset:#0b1120;--vc-elevated:#1a2438;--vc-hover:color-mix(in srgb,#f8fafc 6%,transparent)" +
     ";--vc-ink:#f8fafc;--vc-ink2:#cbd5e1;--vc-mut:#94a3b8;--vc-faint:#64748b" +
     ";--vc-line:rgba(148,163,184,.22);--vc-line2:rgba(148,163,184,.40)" +
     ";--vc-accent:#22c55e;--vc-accent-ink:#052e16;--vc-danger:#ef4444;--vc-warn:#f59e0b;--vc-info:#38bdf8" +
     ";--vc-radius:4px;--vc-shell-radius:6px;--vc-btn-h:26px" +
     ";--vc-row-h:30px;--vc-row-py:6px;--vc-row-px:8px;--vc-row-font:12.5px;--vc-sec-font:10.5px;--vc-sec-track:.16em;--vc-shadow:none}",
   // ---- 皮肤令牌：浅色（C 纸质便签，原型 [data-style="C"] 一字不差；强调色是深绿不是亮绿） ----
-  "body:not([data-ds-dark-theme]) [data-vc-root]{--vc-paper:#f6f1e6;--vc-inset:#efe8d9;--vc-elevated:#fffdf8;--vc-hover:rgba(34,29,21,.06)" +
+  "body:not([data-ds-dark-theme]) [data-vc-root]{--vc-paper:#f6f1e6;--vc-inset:#efe8d9;--vc-elevated:#fffdf8;--vc-hover:color-mix(in srgb,#221d15 6%,transparent)" +
     ";--vc-ink:#221d15;--vc-ink2:#4a4034;--vc-mut:#6f6252;--vc-faint:#948875" +
     ";--vc-line:rgba(34,29,21,.22);--vc-line2:rgba(34,29,21,.45)" +
     ";--vc-accent:#15803d;--vc-accent-ink:#f0fdf4;--vc-danger:#b91c1c;--vc-warn:#b45309;--vc-info:#1d4ed8" +
@@ -42,13 +42,13 @@ export const VC_STYLE_TEXT = [
     ";--vc-row-h:32px;--vc-row-py:7px;--vc-row-px:9px;--vc-row-font:13px;--vc-sec-font:11px;--vc-sec-track:.1em;--vc-shadow:0 2px 0 rgba(0,0,0,.4)}",
   // ---- 一键换肤的手动挡：根上写 data-vc-theme 就不再看 body 开关（只给调试与验收用，不向用户提供开关） ----
   // 选择器前面带 body 是为了与上面两条自动档同级（同级时后写的赢），不带 body 会被自动档盖掉。
-  "body [data-vc-root][data-vc-theme=\"dark\"]{--vc-paper:#131c2f;--vc-inset:#0b1120;--vc-elevated:#1a2438;--vc-hover:rgba(148,163,184,.10)" +
+  "body [data-vc-root][data-vc-theme=\"dark\"]{--vc-paper:#131c2f;--vc-inset:#0b1120;--vc-elevated:#1a2438;--vc-hover:color-mix(in srgb,#f8fafc 6%,transparent)" +
     ";--vc-ink:#f8fafc;--vc-ink2:#cbd5e1;--vc-mut:#94a3b8;--vc-faint:#64748b" +
     ";--vc-line:rgba(148,163,184,.22);--vc-line2:rgba(148,163,184,.40)" +
     ";--vc-accent:#22c55e;--vc-accent-ink:#052e16;--vc-danger:#ef4444;--vc-warn:#f59e0b;--vc-info:#38bdf8" +
     ";--vc-radius:4px;--vc-shell-radius:6px;--vc-btn-h:26px" +
     ";--vc-row-h:30px;--vc-row-py:6px;--vc-row-px:8px;--vc-row-font:12.5px;--vc-sec-font:10.5px;--vc-sec-track:.16em;--vc-shadow:none}",
-  "body [data-vc-root][data-vc-theme=\"light\"]{--vc-paper:#f6f1e6;--vc-inset:#efe8d9;--vc-elevated:#fffdf8;--vc-hover:rgba(34,29,21,.06)" +
+  "body [data-vc-root][data-vc-theme=\"light\"]{--vc-paper:#f6f1e6;--vc-inset:#efe8d9;--vc-elevated:#fffdf8;--vc-hover:color-mix(in srgb,#221d15 6%,transparent)" +
     ";--vc-ink:#221d15;--vc-ink2:#4a4034;--vc-mut:#6f6252;--vc-faint:#948875" +
     ";--vc-line:rgba(34,29,21,.22);--vc-line2:rgba(34,29,21,.45)" +
     ";--vc-accent:#15803d;--vc-accent-ink:#f0fdf4;--vc-danger:#b91c1c;--vc-warn:#b45309;--vc-info:#1d4ed8" +
@@ -62,7 +62,7 @@ export const VC_STYLE_TEXT = [
   "[data-vc-root] [data-vc-file]>.dsws-vc-row:hover{background:var(--vc-hover)}",
   "[data-vc-open]>.dsws-vc-row{background:var(--vc-hover);box-shadow:inset 2px 0 0 var(--vc-accent,transparent)}",
   // ---- 状态字母徽章 ----
-  ".dsws-vc-badge{min-width:18px;height:18px;padding:0 3px;border:1px solid var(--vc-line2);border-radius:calc(var(--vc-radius) + 1px);font-family:ui-monospace,SFMono-Regular,Consolas,Menlo,monospace;font-size:10.5px;font-weight:700;line-height:1}",
+  ".dsws-vc-badge{min-width:18px;height:18px;padding:0 4px;border:1px solid var(--vc-line2);border-radius:var(--vc-radius);font-family:ui-monospace,SFMono-Regular,Consolas,Menlo,monospace;font-size:10.5px;font-weight:700;line-height:1}",
   ".dsws-vc-badge.is-added{color:var(--vc-accent,#22c55e);border-color:var(--vc-accent,#22c55e)}",
   ".dsws-vc-badge.is-modified{color:var(--vc-info,#38bdf8);border-color:var(--vc-info,#38bdf8)}",
   ".dsws-vc-badge.is-deleted{color:var(--vc-danger,#ef4444);border-color:var(--vc-danger,#ef4444)}",
@@ -85,7 +85,7 @@ export const VC_STYLE_TEXT = [
   ".dsws-vc-add{color:var(--vc-accent,#22c55e)}",
   ".dsws-vc-del{color:var(--vc-danger,#ef4444)}",
   // ---- 段小标题 ----
-  ".dsws-vc-sec{font-size:var(--vc-sec-font);letter-spacing:var(--vc-sec-track);padding:10px 0 6px;margin:12px 0 0;border-bottom:1px solid var(--vc-line)}",
+  ".dsws-vc-sec{font-size:var(--vc-sec-font);letter-spacing:var(--vc-sec-track);padding:0 0 5px;margin:14px 0 0;border-bottom:1px solid var(--vc-line)}",
   // ---- 身份行与计数行（原型 v3-id：深色 15px、浅色 16px；浅色那条在徽章段已写两套判据） ----
   ".dsws-vc-id{font-size:15px;font-weight:700;letter-spacing:-.01em}",
   ".dsws-vc-count{font-size:11px;font-variant-numeric:tabular-nums}",
@@ -107,10 +107,12 @@ export const VC_STYLE_TEXT = [
   "[data-vc-root] textarea,[data-vc-root] input{background:var(--vc-inset);border:1px solid var(--vc-line2);border-radius:var(--vc-radius);color:var(--vc-ink)}",
   "[data-vc-root] textarea::placeholder,[data-vc-root] input::placeholder{color:var(--vc-faint)}",
   "[data-vc-root] textarea:focus,[data-vc-root] input:focus{outline:2px solid var(--vc-accent);outline-offset:1px}",
-  ".dsws-vc-caption{color:var(--vc-faint,inherit)}",
+  ".dsws-vc-caption{font-size:11.5px;color:var(--vc-faint,inherit)}",
+  // 提交输入框吃原型的输入尺寸（两套皮肤各自的行字号，内边距 7px 9px）。
+  "[data-vc-commit-area] input{font-size:var(--vc-row-font);padding:7px 9px}",
   // ---- 身份区（原型 v3-id 加 v3-sub）：重新读一次是同行最右的绿色链接，不是描边按钮 ----
   "[data-vc-readat]{margin-top:4px}",
-  "[data-vc-root] button[data-vc-reload]{margin-left:auto;background:transparent;border-color:transparent;color:var(--vc-accent);min-height:0;font-size:11px;padding:0}",
+  "[data-vc-root] button[data-vc-reload]{margin-left:auto;background:transparent;border-color:transparent;color:var(--vc-accent);min-height:0;font-size:12px;padding:0}",
   "[data-vc-root] button[data-vc-reload]:hover{border-color:transparent;background:transparent;text-decoration:underline}",
   // 身份区三行按原型收紧：路径与同步是次级灰小字，分支保持大字重
   "[data-vc-path],[data-vc-sync]{font-size:11.5px;color:var(--vc-mut)}",
@@ -131,8 +133,11 @@ export const VC_STYLE_TEXT = [
   ".dsws-vc-stat[data-vc-stat=staged] .dsws-vc-stat-n{color:var(--vc-accent)}",
   ".dsws-vc-stat[data-vc-stat=unstaged] .dsws-vc-stat-n{color:var(--vc-info)}",
   // 视图条（854 布局 C 原型的 viewbar：虚线框里横排提交动作 inline 输入与提交按钮）。
-  ".dsws-vc-viewbar{display:flex;flex-direction:column;gap:8px;margin:0 0 10px;padding:8px 9px;border:1px dashed var(--vc-line2);border-radius:var(--vc-radius)}",
+  ".dsws-vc-viewbar{display:flex;flex-direction:column;gap:8px;margin:0 0 10px;padding:7px 8px;border:1px dashed var(--vc-line2);border-radius:var(--vc-radius)}",
   ".dsws-vc-viewbar-row{display:flex;gap:7px;align-items:center;flex-wrap:wrap}",
+  // 根取消统一 gap 后块间节奏按原型走：提示与异常带下留 10px，执行结果与确认框上留 10px。
+  "[data-vc-root] [data-vc-hint],[data-vc-root] [data-vc-band]{margin-bottom:10px}",
+  "[data-vc-root] [data-vc-op-result],[data-vc-root] [data-vc-confirm],[data-vc-root] [data-vc-remote-choice]{margin-top:10px}",
   ".dsws-vc-viewbar-lbl{font-size:10.5px;color:var(--vc-faint);font-family:ui-monospace,SFMono-Regular,Consolas,Menlo,monospace}",
   // #857 P5/P6：骨架条——固定高度占位，不跳；减弱动态偏好下静止。
   ".dsws-vc-skel{border-radius:4px;background:linear-gradient(90deg,var(--vc-hover,rgba(127,127,160,.12)) 25%,var(--vc-elevated,#16181d) 50%,var(--vc-hover,rgba(127,127,160,.12)) 75%);background-size:200% 100%;animation:dsws-vc-shimmer 1.4s linear infinite;margin:7px 0}",
