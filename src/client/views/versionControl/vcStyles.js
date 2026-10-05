@@ -56,6 +56,8 @@ export const VC_STYLE_TEXT = [
     ";--vc-row-h:32px;--vc-row-py:7px;--vc-row-px:9px;--vc-row-font:13px;--vc-sec-font:11px;--vc-sec-track:.1em;--vc-shadow:0 2px 0 rgba(0,0,0,.4)}",
   // ---- 皮肤容器：这一页自己是一块面板（圆角与内边距按原型：深色 6px、浅色 3px，统一 12px 内边距） ----
   "[data-vc-root]{background:var(--vc-paper);color:var(--vc-ink);border:1px solid var(--vc-line);border-radius:var(--vc-shell-radius,6px);padding:12px;box-shadow:var(--vc-shadow);font-size:var(--vc-row-font);line-height:1.5}",
+  // 原型全局盒模型（853 首行 * 规则）：边框算进尺寸里，否则徽章量出来比原型高 2px。
+  "[data-vc-root] *,[data-vc-root] *::before,[data-vc-root] *::after{box-sizing:border-box}",
   // ---- 文件行：等宽路径、表格数字、悬停抬一层、行高按皮肤 ----
   ".dsws-vc-row{min-height:var(--vc-row-h);padding:var(--vc-row-py) var(--vc-row-px);border-radius:calc(var(--vc-radius) * 2);font-size:var(--vc-row-font)}",
   "[data-vc-root] [data-vc-file]{border-top-color:var(--vc-line) !important}",
@@ -109,7 +111,7 @@ export const VC_STYLE_TEXT = [
   "[data-vc-root] textarea:focus,[data-vc-root] input:focus{outline:2px solid var(--vc-accent);outline-offset:1px}",
   ".dsws-vc-caption{font-size:11.5px;color:var(--vc-faint,inherit)}",
   // 提交输入框吃原型的输入尺寸（两套皮肤各自的行字号，内边距 7px 9px）。
-  "[data-vc-commit-area] input{font-size:var(--vc-row-font);padding:7px 9px}",
+  "[data-vc-commit-area] input{font-size:var(--vc-row-font);padding:7px 9px;line-height:1.5}",
   // ---- 身份区（原型 v3-id 加 v3-sub）：重新读一次是同行最右的绿色链接，不是描边按钮 ----
   "[data-vc-readat]{margin-top:4px}",
   "[data-vc-root] button[data-vc-reload]{margin-left:auto;background:transparent;border-color:transparent;color:var(--vc-accent);min-height:0;font-size:12px;padding:0}",
