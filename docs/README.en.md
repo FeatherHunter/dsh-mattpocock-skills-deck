@@ -219,7 +219,7 @@ Thanks to everyone who opened an issue, sent a PR, or joined a discussion — yo
 
 [@angenet](https://github.com/angenet) — reported #295, #262 on macOS checks 🌹🌹
 
-[@hyperion2144](https://github.com/hyperion2144) — reported #110 and more 🌹
+[@hyperion2144](https://github.com/hyperion2144) — reported #110 on environment checks and #646 (register the DSH native sidebar directly instead of going through better-sidebar) 🌹🌹
 
 [@tafcear](https://github.com/tafcear) — reported #422 (a quieter statusbar for non-coding workspaces) — thanks for freeing non-coding workspaces from the setup banner 🌹
 
@@ -234,6 +234,16 @@ Thanks to everyone who opened an issue, sent a PR, or joined a discussion — yo
 [@arnold117](https://github.com/arnold117) — reported #574 (in the local Markdown backend several work units collided under one number, so only the first was visible and comments landed in the wrong file) and opened PR #575, which fixed it (merged) — thanks for letting multiple work units in one repo read and write their own files 🌹🌹
 
 [@SbDonger](https://github.com/SbDonger) — reported #640 (statusbar and input box misaligned, leaving a wide band above the input) 🌹
+
+[@anupamme](https://github.com/anupamme) — opened PRs #727, #728 (two hardening suggestions for rpcChannel.js: prototype-pollution guard and resource limits, under review) 🌹🌹
+
+[@seameafst](https://github.com/seameafst) — reported #793 (pressing the new-requirement entry then Enter sends an empty template because the requirement text is never collected, with full root cause and two fix options) 🌹
+
+[@zerocodefast](https://github.com/zerocodefast) — opened #823 (invited this plugin to the awesome-ai-plugins list with a suggested entry) 🌹
+
+[@li873582595](https://github.com/li873582595) — reported #835 (the official desktop build keeps disconnecting and reconnecting during init with the plugin installed, gone after uninstall) 🌹
+
+[@SKADI0718](https://github.com/SKADI0718) — opened #856 (later withdrawn by the author) 🌹
 
 And thanks to everyone who left thoughts in comments and discussions. If you hit a problem or have an idea, feel free to open an issue or start a discussion.
 

@@ -234,7 +234,7 @@ MIT © FeatherHunter
 
 [@angenet](https://github.com/angenet) — 反馈了 #295、#262 等 macOS 环境检测问题 🌹🌹
 
-[@hyperion2144](https://github.com/hyperion2144) — 反馈了 #110 等环境检查问题 🌹
+[@hyperion2144](https://github.com/hyperion2144) — 反馈了 #110 等环境检查问题，以及 #646（建议直接注册 DSH 原生侧边栏，不再经过 better-sidebar 中转） 🌹🌹
 
 [@tafcear](https://github.com/tafcear) — 反馈了 #422（非编码工作区状态栏降噪诉求），感谢你让非编码工作区不再被初始化横幅打扰 🌹
 
@@ -249,6 +249,16 @@ MIT © FeatherHunter
 [@arnold117](https://github.com/arnold117) — 反馈了 #574（本地 Markdown 后端里多个工作单元撞号，只能看到第一个，评论还会写进别的文件），并提交了 PR #575 修好它（已合入），感谢你让一个仓库里并存多个工作单元时不再读错写错 🌹🌹
 
 [@SbDonger](https://github.com/SbDonger) — 反馈了 #640（状态栏与输入框错位，输入框上方出现一条横向背景带） 🌹
+
+[@anupamme](https://github.com/anupamme) — 提交了 PR #727、#728（给 rpcChannel.js 加两处安全加固：防原型污染与加资源限制，目前待评审） 🌹🌹
+
+[@seameafst](https://github.com/seameafst) — 反馈了 #793（点「+ 新建需求」后直接回车会发出一份空模板，需求原文在链路里没人收，附完整根因与两档修法） 🌹
+
+[@zerocodefast](https://github.com/zerocodefast) — 发起了 #823（邀请把本插件收录进 awesome-ai-plugins 清单，并给出建议条目） 🌹
+
+[@li873582595](https://github.com/li873582595) — 反馈了 #835（官方桌面版上装插件后初始化阶段反复断开重连，卸载后消失） 🌹
+
+[@SKADI0718](https://github.com/SKADI0718) — 提交了 #856（后由作者撤回作废） 🌹
 
 也感谢在评论区与讨论区留下想法的每一位朋友。如果你也遇到了问题或有新想法，欢迎直接提 Issue 或发起讨论。
 
