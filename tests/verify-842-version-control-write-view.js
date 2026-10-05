@@ -604,7 +604,7 @@ async function groupG(view) {
   check(same, 'G2 同一批 screen 喂 rules.judge 与界面状态函数，两边结论一致（' + screens.length + ' 个 screen × 4 个动作）')
 
   const phones = view.VC_WRITE_PHONES
-  const namesOk = phones.check === 'wf.gitWriteCheck' && phones.stage === 'wf.gitStage' && phones.commit === 'wf.gitCommit' && phones.pull === 'wf.gitPull' && phones.push === 'wf.gitPush'
+  const namesOk = phones.check === 'wf.gitWriteCheck' && phones.stage === 'wf.gitStage' && phones.unstage === 'wf.gitUnstage' && phones.commit === 'wf.gitCommit' && phones.pull === 'wf.gitPull' && phones.push === 'wf.gitPush'
   const host = makeHost(function () { return { ok: true } })
   view.vcRunCheck(host.call, 'D:/w/repo', 'pull', {})
   view.vcRunWrite(host.call, 'D:/w/repo', 'stage', { paths: ['a.txt'] })
@@ -614,13 +614,13 @@ async function groupG(view) {
   const stageCall = host.calls[1] || { method: '', args: {} }
   const commitCall = host.calls[2] || { method: '', args: {} }
   const argsOk = checkCall.args.cwd === 'D:/w/repo' && checkCall.args.op === 'pull' && Array.isArray(stageCall.args.paths) && stageCall.args.paths.join(',') === 'a.txt' && commitCall.args.ticketId === 't1' && commitCall.args.message === 'm'
-  check(namesOk && argsOk, 'G3 预检与四条写电话的名字、入参形状与宿主契约一致（' + [checkCall.method, stageCall.method, commitCall.method].join(' / ') + '）')
+  check(namesOk && argsOk, 'G3 预检与五条写电话的名字、入参形状与宿主契约一致（' + [checkCall.method, stageCall.method, commitCall.method].join(' / ') + '）')
 
-  const keys = ['stage', 'commit', 'pull', 'push'].map(function (op) {
-    const reply = op === 'stage' ? { ok: true, staged: ['a'] } : (op === 'commit' ? { ok: true, committed: true, headAfter: 'b' } : (op === 'pull' ? { ok: true, mode: 'fast-forward' } : { ok: true, mode: 'existing-upstream', remote: 'origin', branch: 'main' }))
+  const keys = ['stage', 'unstage', 'commit', 'pull', 'push'].map(function (op) {
+    const reply = op === 'stage' ? { ok: true, staged: ['a'] } : (op === 'unstage' ? { ok: true, unstaged: ['a'] } : (op === 'commit' ? { ok: true, committed: true, headAfter: 'b' } : (op === 'pull' ? { ok: true, mode: 'fast-forward' } : { ok: true, mode: 'existing-upstream', remote: 'origin', branch: 'main' })))
     return view.vcOpResultOf(op, reply).key
   })
-  check(keys.join(',') === 'vc.op.doneStage,vc.op.doneCommit,vc.op.donePull,vc.op.donePush', 'G4 四条写电话的成功回包各自映射到结果句词条（' + keys.join(',') + '）')
+  check(keys.join(',') === 'vc.op.doneStage,vc.op.doneUnstage,vc.op.doneCommit,vc.op.donePull,vc.op.donePush', 'G4 五条写电话的成功回包各自映射到结果句词条（' + keys.join(',') + '）')
 }
 
 
