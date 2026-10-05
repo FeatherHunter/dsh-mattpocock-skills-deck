@@ -45,7 +45,7 @@ dsh plugin --profile desktop add dsh-mattpocock-skills-deck   # DSH Desktop app 
 
 One restart of the matching DSH entry and it works — zero config. Desktop app: fully quit and reopen DSH Desktop. Web server: restart dsh web, then refresh the page.
 
-**Opening the panel no longer makes you wait: click-to-visible content measured 5075 ms before, 193 ms after.** That is a 2026-09-11 real-machine re-measurement; in the same record the commit phase went from 4948 ms to 117 ms. The fix turns the tag-packing and map-row fitting loops from a measure-then-write alternation into measure-first-then-write, so layout is no longer recomputed over and over. The rule and its evidence chain live in [`docs/adr/20260911-zero-layout-jitter.md`](adr/20260911-zero-layout-jitter.md).
+**Heavily optimized right-panel performance: click-to-visible content, 5075 ms down to 193 ms on a real machine — about 96.2% faster (about 26x).**
 
 </div>
 
