@@ -17,7 +17,7 @@ export const vcRowStageNodes = function (h, o) {
   return [o.tipNode(a.tip, h('button', {
     key: 'stage', className: 'dsws-btn', type: 'button', 'data-vc-stage': 1,
     onClick: function (e) { try { e.stopPropagation() } catch (err) { /* 忽略 */ } o.stagePaths([a.path]) },
-    style: { flex: 'none', fontSize: 12, padding: '0 10px' },
+    style: { flex: 'none' },
   }, a.text))]
 }
 
@@ -38,7 +38,7 @@ export const vcStageAllNode = function (h, o) {
   if (!s || s.show !== true) return null
   return o.tipNode(s.tip, h('button', {
     key: 'stageAll', className: 'dsws-btn', type: 'button', 'data-vc-stage-all': 1, disabled: s.disabled === true,
-    onClick: function () { o.stagePaths(s.paths) }, style: { flex: 'none', fontSize: 12, padding: '0 10px' },
+    onClick: function () { o.stagePaths(s.paths) }, style: { flex: 'none' },
   }, (o.foldActions && o.foldActions.stageAll) || s.text))
 }
 
@@ -56,7 +56,7 @@ export const vcCommitAreaNode = function (h, o) {
       h('span', { key: 'hint', style: { flex: 1, minWidth: 0, fontSize: 11.5, color: o.tone('caption') } }, c.hint),
       o.tipNode(c.tip || c.text, h('button', {
         className: 'dsws-btn', type: 'button', 'data-vc-commit-btn': 1, disabled: c.disabled === true,
-        onClick: o.submitCommit, style: { flex: 'none', fontSize: 12, padding: '0 10px' },
+        onClick: o.submitCommit, style: { flex: 'none' },
       }, (o.foldActions && o.foldActions.commit) || c.text)),
     ]),
   ])
@@ -74,12 +74,12 @@ export const vcViewBarNode = function (h, o) {
   return h('div', { key: 'viewbar', className: 'dsws-vc-viewbar', 'data-vc-viewbar': 1, 'data-vc-commit-area': 1 }, [
     h('div', { key: 'lbl', className: 'dsws-vc-viewbar-lbl', style: { marginBottom: 1 } }, o.t('vc.viewbar.submit')),
     h('div', { key: 'acts', className: 'dsws-vc-viewbar-row' }, [
-      a && a.pull ? o.tipNode(a.pull.tip || a.pull.text, h('button', { key: 'pull', className: 'dsws-btn', type: 'button', 'data-vc-action': 'pull', disabled: a.pull.disabled === true, onClick: o.startPull, style: { flex: 'none', fontSize: 12, padding: '0 10px' } }, label('pull', a.pull.text))) : null,
-      a && a.push ? o.tipNode(a.push.tip || a.push.text, h('button', { key: 'push', className: 'dsws-btn primary', type: 'button', 'data-vc-action': 'push', disabled: a.push.disabled === true, onClick: function () { o.startPush('') }, style: { flex: 'none', fontSize: 12, padding: '0 10px' } }, label('push', a.push.text))) : null,
+      a && a.pull ? o.tipNode(a.pull.tip || a.pull.text, h('button', { key: 'pull', className: 'dsws-btn', type: 'button', 'data-vc-action': 'pull', disabled: a.pull.disabled === true, onClick: o.startPull, style: { flex: 'none' } }, label('pull', a.pull.text))) : null,
+      a && a.push ? o.tipNode(a.push.tip || a.push.text, h('button', { key: 'push', className: 'dsws-btn primary', type: 'button', 'data-vc-action': 'push', disabled: a.push.disabled === true, onClick: function () { o.startPush('') }, style: { flex: 'none' } }, label('push', a.push.text))) : null,
       a && (a.pull || a.push) && s && s.show === true ? h('span', { key: 'sep', style: { width: 1, height: 16, background: 'var(--vc-line2)', margin: '0 3px', flex: 'none' } }) : null,
       s && s.show === true ? o.tipNode(s.tip, h('button', {
         key: 'stageAll', className: 'dsws-btn', type: 'button', 'data-vc-stage-all': 1, disabled: s.disabled === true,
-        onClick: function () { o.stagePaths(s.paths) }, style: { flex: 'none', fontSize: 12, padding: '0 10px' },
+        onClick: function () { o.stagePaths(s.paths) }, style: { flex: 'none' },
       }, (o.foldActions && o.foldActions.stageAll) || s.text)) : null,
       h('span', { key: 'grow', style: { flex: 1, minWidth: 8 } }),
       h('span', { key: 'inputLbl', className: 'dsws-vc-viewbar-lbl' }, o.t('vc.viewbar.inputLabel')),
@@ -92,7 +92,7 @@ export const vcViewBarNode = function (h, o) {
       }),
       o.tipNode(c.tip || c.text, h('button', {
         className: 'dsws-btn primary', type: 'button', 'data-vc-commit-btn': 1, disabled: c.disabled === true,
-        onClick: o.submitCommit, style: { flex: 'none', fontSize: 12, padding: '0 10px' },
+        onClick: o.submitCommit, style: { flex: 'none' },
       }, (o.foldActions && o.foldActions.commit) || c.text)),
     ]),
   ])
@@ -110,35 +110,35 @@ export const vcWriteTailNodes = function (h, o) {
           // 动作词与主句都已经是词条句子（模型层翻好的），这里不再 tr 一次、也不许落到键名。
           h('span', { key: 'verb', style: { flex: 'none', fontWeight: 700, color: w.result.state === 'done' ? o.tone('success') : o.tone('error') } }, w.result.verb || o.tr(w.result.state === 'done' ? 'vc.op.done' : 'vc.op.failed')),
           o.tipNode(w.result.tip, h('span', { key: 'text', 'data-vc-op-text': 1, style: { flex: 1, minWidth: 0 } }, w.result.text)),
-          w.result.retryable ? h('button', { key: 'retry', className: 'dsws-btn', type: 'button', 'data-vc-op-retry': 1, onClick: o.retryResult, style: { flex: 'none', fontSize: 12, padding: '0 10px' } }, o.tr('vc.retry')) : null,
+          w.result.retryable ? h('button', { key: 'retry', className: 'dsws-btn', type: 'button', 'data-vc-op-retry': 1, onClick: o.retryResult, style: { flex: 'none' } }, o.tr('vc.retry')) : null,
         ]),
-        w.result.limit ? h('div', { key: 'limit', 'data-vc-op-limit': 1, style: { fontSize: 10, color: o.tone('caption'), lineHeight: 1.5 } }, w.result.limit) : null,
+        w.result.limit ? h('div', { key: 'limit', 'data-vc-op-limit': 1, style: { fontSize: 11, color: o.tone('caption'), lineHeight: 1.5 } }, w.result.limit) : null,
         w.result.ai ? h('div', { key: 'ai', style: { marginTop: 6 } }, vcAiButtonNode(h, { ai: w.result.ai, tr: o.tr, onOpen: o.openHandoff })) : null,
       ])
     : null
   // 多远端 + 没有上游：候选远端来自失败回包的顶层 remotes，画成一排可点的入口（选中后带 remote 重跑预检）。
   const rc = w.remoteChoice
   const remoteChoice = rc
-    ? h('div', { key: 'remoteChoice', 'data-vc-remote-choice': 1, style: { border: '1px solid var(--vc-line2,#3a3f4a)', borderRadius: 8, padding: '8px 10px', background: 'var(--vc-inset,#16181d)', display: 'flex', flexDirection: 'column', gap: 6 } }, [
+    ? h('div', { key: 'remoteChoice', 'data-vc-remote-choice': 1, style: { border: '1px solid var(--vc-line2)', borderRadius: 'var(--vc-radius,4px)', padding: 12, background: 'var(--vc-inset)', display: 'flex', flexDirection: 'column', gap: 6 } }, [
         h('div', { key: 'title', style: { fontSize: 12, fontWeight: 700, color: o.tone('primary') } }, rc.title),
         h('div', { key: 'body', 'data-vc-remote-choice-body': 1, style: { fontSize: 11, color: o.tone('caption'), lineHeight: 1.6 } }, rc.body),
         h('div', { key: 'list', style: { display: 'flex', gap: 6, flexWrap: 'wrap' } }, rc.remotes.map(function (name) {
-          return h('button', { key: name, className: 'dsws-btn', type: 'button', 'data-vc-remote': name, onClick: function () { o.pickRemote(name) }, style: { fontSize: 11, padding: '1px 8px' } }, name)
+          return h('button', { key: name, className: 'dsws-btn', type: 'button', 'data-vc-remote': name, onClick: function () { o.pickRemote(name) }, style: {} }, name)
         })),
       ])
     : null
   const c = w.confirm
   const confirm = c
-    ? h('div', { key: 'confirm', 'data-vc-confirm': c.op, style: { border: '1px solid var(--vc-line2,#3a3f4a)', borderRadius: 8, padding: '8px 10px', background: 'var(--vc-inset,#16181d)', display: 'flex', flexDirection: 'column', gap: 6 } }, [
-        h('div', { key: 'title', style: { fontSize: 12, fontWeight: 700, color: o.tone('primary') } }, c.title),
-        h('div', { key: 'body', 'data-vc-confirm-body': 1, style: { fontSize: 11, color: o.tone('primary'), lineHeight: 1.6 } }, c.body),
-        c.ttlText ? h('div', { key: 'ttl', 'data-vc-confirm-ttl': 1, style: { fontSize: 10, color: o.tone('caption') } }, c.ttlText) : null,
+    ? h('div', { key: 'confirm', 'data-vc-confirm': c.op, style: { border: '1px solid var(--vc-line2)', borderRadius: 'var(--vc-radius,4px)', padding: 12, background: 'var(--vc-inset)', display: 'flex', flexDirection: 'column', gap: 6 } }, [
+        h('div', { key: 'title', className: 'dsws-vc-dlg-t', style: { fontWeight: 700, color: o.tone('primary') } }, c.title),
+        h('div', { key: 'body', className: 'dsws-vc-dlg-b', 'data-vc-confirm-body': 1, style: { color: o.tone('primary'), lineHeight: 1.6 } }, c.body),
+        c.ttlText ? h('div', { key: 'ttl', 'data-vc-confirm-ttl': 1, style: { fontSize: 11, color: o.tone('caption') } }, c.ttlText) : null,
         c.pickRemote && c.remotes.length
           ? h('select', { key: 'pick', 'data-vc-remote-pick': 1, value: c.remote || 'origin', onChange: function (e) { o.pickRemote(e && e.target ? e.target.value : '') }, style: { fontSize: 11, padding: '2px 6px', borderRadius: 6, border: '1px solid var(--vc-line2,#3a3f4a)', background: 'var(--vc-inset,#0c0e12)', color: 'var(--vc-ink,#e6edf3)' } }, c.remotes.map(function (r) { return h('option', { key: r, value: r }, r) }))
           : null,
         h('div', { key: 'buttons', style: { display: 'flex', gap: 6, justifyContent: 'flex-end' } }, [
-          h('button', { key: 'cancel', className: 'dsws-btn ghost', type: 'button', 'data-vc-confirm-cancel': 1, onClick: o.cancelConfirm, style: { fontSize: 11, padding: '1px 8px' } }, o.tr('vc.confirm.cancel')),
-          h('button', { key: 'ok', className: 'dsws-btn primary', type: 'button', 'data-vc-confirm-ok': 1, onClick: o.confirmNow, style: { fontSize: 11, padding: '1px 8px', fontWeight: 700 } }, c.okText),
+          h('button', { key: 'cancel', className: 'dsws-btn ghost', type: 'button', 'data-vc-confirm-cancel': 1, onClick: o.cancelConfirm, style: {} }, o.tr('vc.confirm.cancel')),
+          h('button', { key: 'ok', className: 'dsws-btn primary', type: 'button', 'data-vc-confirm-ok': 1, onClick: o.confirmNow, style: { fontWeight: 700 } }, c.okText),
         ]),
       ])
     : null

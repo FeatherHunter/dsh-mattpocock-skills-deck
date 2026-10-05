@@ -110,6 +110,9 @@ export const VC_STYLE_TEXT = [
   "[data-vc-root] textarea::placeholder,[data-vc-root] input::placeholder{color:var(--vc-faint)}",
   "[data-vc-root] textarea:focus,[data-vc-root] input:focus{outline:2px solid var(--vc-accent);outline-offset:1px}",
   ".dsws-vc-caption{font-size:11.5px;color:var(--vc-faint,inherit)}",
+  // 空态文字：深色 12，浅色 12.5（原型 v3-empty）。
+  ".dsws-vc-empty{font-size:12px}",
+  "body:not([data-ds-dark-theme]) .dsws-vc-empty,body [data-vc-root][data-vc-theme=\"light\"] .dsws-vc-empty{font-size:12.5px}",
   // 提交输入框吃原型的输入尺寸（两套皮肤各自的行字号，内边距 7px 9px）。
   "[data-vc-commit-area] input{font-size:var(--vc-row-font);padding:7px 9px;line-height:1.5}",
   // ---- 身份区（原型 v3-id 加 v3-sub）：重新读一次是同行最右的绿色链接，不是描边按钮 ----
@@ -137,6 +140,14 @@ export const VC_STYLE_TEXT = [
   // 视图条（854 布局 C 原型的 viewbar：虚线框里横排提交动作 inline 输入与提交按钮）。
   ".dsws-vc-viewbar{display:flex;flex-direction:column;gap:8px;margin:0 0 10px;padding:7px 8px;border:1px dashed var(--vc-line2);border-radius:var(--vc-radius)}",
   ".dsws-vc-viewbar-row{display:flex;gap:7px;align-items:center;flex-wrap:wrap}",
+  // 提示带与终端行字号：深色 12，浅色 12.5（原型提示带正文）。
+  "[data-vc-band-item],[data-vc-hint],[data-vc-terminal]{font-size:12px}",
+  "body:not([data-ds-dark-theme]) [data-vc-band-item],body:not([data-ds-dark-theme]) [data-vc-hint],body:not([data-ds-dark-theme]) [data-vc-terminal],body [data-vc-root][data-vc-theme=\"light\"] [data-vc-band-item],body [data-vc-root][data-vc-theme=\"light\"] [data-vc-hint],body [data-vc-root][data-vc-theme=\"light\"] [data-vc-terminal]{font-size:12.5px}",
+  // 确认框标题正文：标题 12 加粗，正文 12，浅色各大半级（原型 v3-dialog）。
+  ".dsws-vc-dlg-t{font-size:12px;font-weight:700}",
+  ".dsws-vc-dlg-b{font-size:12px}",
+  "body:not([data-ds-dark-theme]) .dsws-vc-dlg-t,body [data-vc-root][data-vc-theme=\"light\"] .dsws-vc-dlg-t{font-size:12.5px}",
+  "body:not([data-ds-dark-theme]) .dsws-vc-dlg-b,body [data-vc-root][data-vc-theme=\"light\"] .dsws-vc-dlg-b{font-size:12.5px}",
   // 行内字号按皮肤微调（浅色行字号大半级）：文件路径、提交短号、工作树名深色 12、浅色 12.5。
   "[data-vc-file] [data-vc-path],[data-vc-commit] [data-vc-short],[data-vc-other-row] [data-vc-name]{font-size:12px}",
   "body:not([data-ds-dark-theme]) [data-vc-file] [data-vc-path],body:not([data-ds-dark-theme]) [data-vc-commit] [data-vc-short],body:not([data-ds-dark-theme]) [data-vc-other-row] [data-vc-name],body [data-vc-root][data-vc-theme=\"light\"] [data-vc-file] [data-vc-path],body [data-vc-root][data-vc-theme=\"light\"] [data-vc-commit] [data-vc-short],body [data-vc-root][data-vc-theme=\"light\"] [data-vc-other-row] [data-vc-name]{font-size:12.5px}",
