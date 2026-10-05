@@ -422,6 +422,7 @@ const LEAF_MODULES = [
   { id: 'vcAiHandoff', file: 'src/client/views/versionControl/vcAiHandoff.js' }, // #854：「让 AI 帮我解决」交接按钮（prompt 三段式 + 开新会话路由）
   { id: 'vcTabVisible', file: 'src/client/views/versionControl/vcTabVisible.js' },
   { id: 'vcData', file: 'src/client/views/versionControl/vcData.js' },
+  { id: 'vcCache', file: 'src/client/views/versionControl/vcCache.js' }, // #864：进出缓存（首屏与历史首批按工作区暂存）
   { id: 'versionControlTab', file: 'src/client/views/versionControl/VersionControlTab.js' },
   { id: 'tabs', file: 'src/client/views/shared/Tabs.js' },
   { id: 'truthLines', file: 'src/client/views/shared/truthLines.js' }, // #715 新增：面板头部那几句「上次更新 / 刷新失败 / 现在是不是降级」的判据（纯函数，画在 ListTab 最上面那一行；行上的「更新中」标记也问它）

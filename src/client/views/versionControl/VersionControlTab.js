@@ -25,7 +25,8 @@ export const VersionControlTab = function (props) {
   const h = cx ? cx.h : React.createElement
   const st = props && props.st
   const cwd = st && st.cwd ? String(st.cwd) : ''
-  const [reads, setReads] = React.useState(vcNewReads)
+  // 进页签先画暂存：命中缓存直接画旧数据，后台重新验证（陈旧时边读边展示，不闪骨架）。
+  const [reads, setReads] = React.useState(function () { return vcCacheSeedOf(cwd) || vcNewReads() })
   // #842：ui.write 是写操作那一族自己的状态（六态、提交信息、确认框、上一次结果）。
   const [ui, setUi] = React.useState(function () { return { fileShown: {}, openDiff: '', openCommit: '', view: vcRememberedView(), write: { op: '', state: 'idle', message: '', confirm: null, result: null, remoteChoice: null } } })
   const [width, setWidth] = React.useState(0)
@@ -46,7 +47,7 @@ export const VersionControlTab = function (props) {
   const staleCwd = fresh.changed
   if (staleCwd) {
     setStateCwd(cwd)
-    setReads(fresh.reads)
+    setReads(vcCacheSeedOf(cwd) || fresh.reads)
     // 换工作区连写操作的状态一起复位：旧工作区的确认框与「上次结果」绝不留在新工作区下面。
     setUi(Object.assign({}, fresh.ui, { view: 'changes', write: { op: '', state: 'idle', message: '', confirm: null, result: null, remoteChoice: null } }))
     vcResetViewMemory()
@@ -68,7 +69,7 @@ export const VersionControlTab = function (props) {
     if (!cwd) return
     let alive = true
     // 复位那一帧 setReads 已经把读数清空了；这里从清空后的读数起读，绝不把上一个工作区的旧数据带进来。
-    vcReadStatus(staleCwd ? vcNewReads() : readsRef.current, callHost, cwd).then(function (next) { if (alive) setReads(next) })
+    vcReadStatus(staleCwd ? vcNewReads() : readsRef.current, callHost, cwd).then(function (next) { if (alive) { setReads(next); vcCacheSave(cwd, next) } })
     return function () { alive = false }
   }, [cwd])
   // 宽度：量的是本页签自己的内容宽（Dock 的内容区左右各 12 像素内边距已经在外面扣掉了）。
@@ -125,6 +126,7 @@ export const VersionControlTab = function (props) {
     vcReadMoreCommits(readsRef.current, callHost, cwd, skip).then(function (next) {
       logBusyRef.current = false
       setReads(next)
+      vcCacheSave(cwd, next)
     })
   }
   // 滚到底自动接着读更早的提交（规格第 37 条）；浏览器没有这个观察器时，那一行仍然可以点。
@@ -140,7 +142,7 @@ export const VersionControlTab = function (props) {
   if (staleCwd) blocks.length = 0
 
   const tone = function (name) { return VC_TONE[name] || VC_TONE.primary }
-  const retryScreen = function () { vcReadStatus(readsRef.current, callHost, cwd).then(function (next) { setReads(next) }) }
+  const retryScreen = function () { vcReadStatus(readsRef.current, callHost, cwd).then(function (next) { setReads(next); vcCacheSave(cwd, next) }) }
   // #853 第三步：视图切换只改 ui.view（函数式更新，不会顶掉同期别的 setUi）；选择跨挂载记住，换工作区复位。
   const pickView = function (v) { vcRememberView(v); setUi(function (cur) { return Object.assign({}, cur, { view: v }) }) }
   // #854：面板解决不了的事 —— 一个按钮把当前问题写成 prompt 交给 AI（预填不发送，尾部留白让人补话）。

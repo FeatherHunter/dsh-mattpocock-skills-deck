@@ -240,7 +240,7 @@ export default {
     // ==== leaf:chainRenderer (spliced by build) ====
     // ==== leaf:skillFloatList (spliced by build) ====
     // ==== leaf:vcText (spliced by build) ==== // ==== leaf:vcFold (spliced by build) ==== // ==== leaf:vcDiff (spliced by build) ==== // ==== leaf:vcCommit (spliced by build) ==== // ==== leaf:vcRows (spliced by build) ==== // ==== leaf:vcWrite (spliced by build) ==== // ==== leaf:vcWriteRun (spliced by build) ==== // ==== leaf:vcWriteUi (spliced by build) ==== // ==== leaf:vcWriteOps (spliced by build) ==== // ==== leaf:vcWriteView (spliced by build) ==== // ==== leaf:vcDiffOps (spliced by build) ==== // ==== leaf:vcBlocks (spliced by build) ==== // ==== leaf:vcViews (spliced by build) ==== // ==== leaf:vcAiHandoff (spliced by build) ====
-    // ==== leaf:vcTabVisible (spliced by build) ==== // ==== leaf:vcData (spliced by build) ==== // ==== leaf:versionControlTab (spliced by build) ====
+    // ==== leaf:vcTabVisible (spliced by build) ==== // ==== leaf:vcData (spliced by build) ==== // ==== leaf:vcCache (spliced by build) ==== // ==== leaf:versionControlTab (spliced by build) ====
     // ==== leaf:tabs (spliced by build) ====
     // ==== leaf:truthLines (spliced by build) ====
     // 2026-09-24：降级横幅的「画」那一段从 ListTab.js 搬来这里（判据仍是上面 truthLines 里的 restFallbackView）。

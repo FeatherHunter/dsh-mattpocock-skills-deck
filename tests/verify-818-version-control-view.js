@@ -46,6 +46,7 @@ const VC_FILES = [
   'src/client/views/versionControl/vcAiHandoff.js', // #854：AI 交接（与构建同序）
   'src/client/views/versionControl/vcTabVisible.js',
   'src/client/views/versionControl/vcData.js',
+  'src/client/views/versionControl/vcCache.js', // #864：进出缓存（与构建同序）
   'src/client/views/versionControl/VersionControlTab.js',
 ]
 
@@ -67,6 +68,7 @@ const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DI
   'vcTabVisible', 'vcNewReads', 'vcFailureOf', 'vcReadStatus', 'vcReadDiff', 'vcReadMoreCommits', 'vcNextSkipOf',
   'vcCommitKeyOf', 'vcReadCommitFiles', 'vcReadCommitFileDiff', 'vcCommitModeOf', 'vcCommitBlockOf', 'vcShouldRead', 'vcViewOf', 'vcRememberedView', 'vcRememberView', 'vcResetViewMemory', 'vcViewCountsOf', 'vcViewBlocksOf', 'vcViewTabsNode', 'VC_AI_READ_FAIL_KINDS', 'vcAiHandoffOf', 'vcAiButtonNode', 'vcOpenAiHandoff',
   'vcFreshOnCwd', 'vcScreenShapeOk', 'vcApplyCommitReply', 'vcMarkLogLoading', 'vcOneLine',
+  'VC_SCREEN_CACHE_MAX', 'vcCacheSeedOf', 'vcCacheSave',
   'VersionControlTab']
 function buildView(patch, logs, React, DswsCtx, Tip, Ic, seedReads, hostStub) {
   let src = VC_FILES.map((f) => stripExports(read(f))).join('\n')
@@ -610,7 +612,7 @@ async function main() {
   check(renderErr === '' && html.indexOf('data-vc-skel-root') >= 0 && html.replace(/<[^>]*>/g, '').trim() === '' && skelBars >= 10, 'G5 面板刚打开那一下不画空白：骨架占位、一个字都没有（骨架条 ' + skelBars + ' 条，不冒常驻道歉）')
   // 真渲染第二遍：把首屏读数预先塞进组件的初始状态，看画出来的 DOM 里到底写了哪些字。
   const seedReads = { screen: { state: 'ok', data: { screen: liveScreen, tier: 'full', gitVersion: 'git version 2.49.0', readAtMs: NOW }, error: null }, diffs: {}, log: { state: 'idle', commits: [], hasMore: false, fetched: 0, error: null } }
-  const renderSeeded = buildView((s) => s.replace('React.useState(vcNewReads)', 'React.useState(function () { return seedReads })'), [], React, DswsCtx, TipStub, IcStub, seedReads)
+  const renderSeeded = buildView((s) => s.replace('React.useState(function () { return vcCacheSeedOf(cwd) || vcNewReads() })', 'React.useState(function () { return seedReads })'), [], React, DswsCtx, TipStub, IcStub, seedReads)
   let html2 = ''
   let renderErr2 = ''
   try { html2 = renderToStaticMarkup(React.createElement(renderSeeded.VersionControlTab, { st: { cwd: 'D:/w/repo' } })) } catch (e) { renderErr2 = String((e && e.message) || e) }
@@ -626,7 +628,7 @@ async function main() {
   }
   const viewRender = function (v) {
     const rv = buildView(function (s) {
-      return s.replace('React.useState(vcNewReads)', 'React.useState(function () { return seedReads })')
+      return s.replace('React.useState(function () { return vcCacheSeedOf(cwd) || vcNewReads() })', 'React.useState(function () { return seedReads })')
         .replace("view: vcRememberedView()", "view: '" + v + "'")
     }, [], React, DswsCtx, TipStub, IcStub, seedReads)
     try { return { html: renderToStaticMarkup(React.createElement(rv.VersionControlTab, { st: { cwd: 'D:/w/repo' } })), err: '' } } catch (e) { return { html: '', err: String((e && e.message) || e) } }
@@ -672,11 +674,11 @@ async function main() {
   check(VIEW.vcOpenAiHandoff({ opener: null, st: {}, handoff: aiHandoff }) === false && VIEW.vcOpenAiHandoff({ opener: function () { throw new Error('no') }, st: {}, handoff: aiHandoff }) === false, 'AI6b 反证： opener 缺席或抛错都回 false，不崩')
   const aiBtn = VIEW.vcAiButtonNode(React.createElement, { ai: { kind: 'conflict' }, tr: tZh, onOpen: function () {} })
   check(!!aiBtn && VIEW.vcAiButtonNode(React.createElement, { ai: null, tr: tZh, onOpen: function () {} }) === null, 'AI6 按钮节点：有描述就画、没描述就不画')
-  const aiHtml = (function () { const rv = buildView(function (s) { return s.replace('React.useState(vcNewReads)', 'React.useState(function () { return seedReads })') }, [], React, DswsCtx, TipStub, IcStub, aiReads); try { return renderToStaticMarkup(React.createElement(rv.VersionControlTab, { st: { cwd: 'D:/w/repo' } })) } catch (e) { return '' } })()
+  const aiHtml = (function () { const rv = buildView(function (s) { return s.replace('React.useState(function () { return vcCacheSeedOf(cwd) || vcNewReads() })', 'React.useState(function () { return seedReads })') }, [], React, DswsCtx, TipStub, IcStub, aiReads); try { return renderToStaticMarkup(React.createElement(rv.VersionControlTab, { st: { cwd: 'D:/w/repo' } })) } catch (e) { return '' } })()
   const aiDoc = new (require('jsdom').JSDOM)('<div id="m">' + aiHtml + '</div>').window.document
   const aiKinds = Array.prototype.map.call(aiDoc.querySelectorAll('[data-vc-ai]'), function (el) { return el.getAttribute('data-vc-ai') }).join(',')
   check(aiKinds.indexOf('conflict') >= 0 && aiKinds.indexOf('midop') >= 0, 'AI7 真渲染：冲突、进行中两处有按钮（实得 ' + aiKinds + '）')
-  const aiTreeView = buildView(function (s) { return s.replace('React.useState(vcNewReads)', 'React.useState(function () { return seedReads })').replace("view: vcRememberedView()", "view: 'worktrees'") }, [], React, DswsCtx, TipStub, IcStub, aiReads)
+  const aiTreeView = buildView(function (s) { return s.replace('React.useState(function () { return vcCacheSeedOf(cwd) || vcNewReads() })', 'React.useState(function () { return seedReads })').replace("view: vcRememberedView()", "view: 'worktrees'") }, [], React, DswsCtx, TipStub, IcStub, aiReads)
   let aiTreeHtml = ''
   try { aiTreeHtml = renderToStaticMarkup(React.createElement(aiTreeView.VersionControlTab, { st: { cwd: 'D:/w/repo' } })) } catch (e) { aiTreeHtml = '' }
   check(aiTreeHtml.indexOf('data-vc-ai="boundary"') >= 0, 'AI7b 真渲染：工作树视图里边界说明旁边有按钮')
@@ -689,7 +691,7 @@ async function main() {
   // 真渲染一遍：把「正开着这笔提交」的界面状态预置进去，看 DOM 里到底有没有那条回去的路与那份清单。
   const commitSeed = { screen: { state: 'ok', data: { screen: commitScreen, tier: 'full', gitVersion: 'git version 2.49.0', readAtMs: NOW }, error: null }, diffs: {}, commit: commitEntry(), commitDiffs: {}, log: { state: 'idle', commits: [], hasMore: false, fetched: 0, error: null } }
   const renderCommit = buildView(function (s) {
-    return s.replace('React.useState(vcNewReads)', 'React.useState(function () { return seedReads })')
+    return s.replace('React.useState(function () { return vcCacheSeedOf(cwd) || vcNewReads() })', 'React.useState(function () { return seedReads })')
       // #842：组件的 ui 初始状态多了 write 那一格，这里改成打最短的稳定锚点（原先把整句写死，
       //   源码一改就对不上、S13/S14 会假红）。锚点必须带上 write 那一格：vcData.js 的 vcFreshOnCwd
       //   返回值里有同样一段字，而它在闭包里排在组件前面，不带 write 会打到那一份上。
@@ -708,7 +710,7 @@ async function main() {
   tZh = tEn
   let htmlEn = ''
   try {
-    const renderEn = buildView((s) => s.replace('React.useState(vcNewReads)', 'React.useState(function () { return seedReads })'), [], React, DswsCtx, TipStub, IcStub, seedReads)
+    const renderEn = buildView((s) => s.replace('React.useState(function () { return vcCacheSeedOf(cwd) || vcNewReads() })', 'React.useState(function () { return seedReads })'), [], React, DswsCtx, TipStub, IcStub, seedReads)
     htmlEn = renderToStaticMarkup(React.createElement(renderEn.VersionControlTab, { st: { cwd: 'D:/w/repo' } }))
   } catch (e) { htmlEn = '' }
   tZh = goodEn
@@ -721,7 +723,7 @@ async function main() {
   tZh = tEn
   let htmlErr = ''
   try {
-    const renderErr = buildView((s) => s.replace('React.useState(vcNewReads)', 'React.useState(function () { return seedReads })'), [], React, DswsCtx, TipStub, IcStub, errSeedEn)
+    const renderErr = buildView((s) => s.replace('React.useState(function () { return vcCacheSeedOf(cwd) || vcNewReads() })', 'React.useState(function () { return seedReads })'), [], React, DswsCtx, TipStub, IcStub, errSeedEn)
     htmlErr = renderToStaticMarkup(React.createElement(renderErr.VersionControlTab, { st: { cwd: 'D:/w/repo' } }))
   } catch (e) { htmlErr = '' }
   tZh = goodErr
@@ -775,7 +777,7 @@ async function main() {
   let htmlStale = ''
   try {
     const renderStale = buildView(function (s) {
-      return s.replace('React.useState(vcNewReads)', 'React.useState(function () { return seedReads })')
+      return s.replace('React.useState(function () { return vcCacheSeedOf(cwd) || vcNewReads() })', 'React.useState(function () { return seedReads })')
         .replace('React.useState(cwd)', "React.useState('D:/w/A')")
         .replace("React.useState(function () { return { fileShown: {}, openDiff: '', openCommit: '' } })", "React.useState(function () { return { fileShown: {}, openDiff: '', openCommit: 'aaaa' } })")
         .replace("React.useState(function () { return { fileShown: {}, openDiff: '', openCommit: '' } })", "React.useState(function () { return { fileShown: {}, openDiff: '', openCommit: 'aaaa' } })")
@@ -847,6 +849,19 @@ async function main() {
   check(weirdId.sync.text === '同步状态返回了界面无法识别的类型，不推测超前与落后计数；请在命令行中查看。' && weirdId.sync.text.indexOf('超前 0') < 0 && weirdId.sync.text.indexOf('落后 0') < 0, 'N22 五值以外的同步状态：如实说不认识，不猜成「超前 0 / 落后 0」（实得「' + weirdId.sync.text + '」）')
   const missingSync = screenOf({ identity: { sync: undefined } })
   check(blockOf(VIEW.vcBlocksOf(missingSync, readsOf(missingSync), {}, envOf(missingSync, readsOf(missingSync))), 'identity').sync.text === '尚未设置上游', 'N23 字段缺失时仍按「尚未设置上游」说（缺省值不变）')
+
+  // N23b 进出缓存（#864）：未命中回 null；存一份 ok 的首屏后再取，身份与历史首批都在；err 的回包不进缓存；不同工作区互不串味。
+  const cacheScreen = function (over) { return Object.assign({ identity: { worktreeDisplay: 'w', worktreePath: 'D:/cache/x', branch: 'main', detached: false, sync: 'tracked-known', ahead: 1, behind: 0, basisMs: NOW - 1000 }, stagedCount: 1, unstagedCount: 0, conflictCount: 0, commits: [{ oid: 'e'.repeat(40), short: 'eeeeeee', author: 'A', authorDateMs: NOW - 1000, commitDateMs: NOW - 1000, subject: '首批', parents: [] }], otherWorktrees: [], repo: {} }, over || {}) }
+  const cacheReadsOf = function (screen) { return { screen: { state: 'ok', data: { screen: screen, tier: 'full', gitVersion: 'g', readAtMs: NOW }, error: null }, log: { state: 'ok', commits: screen.commits || [], hasMore: false, fetched: (screen.commits || []).length, error: null }, diffs: {}, commit: { rev: '', state: 'idle', files: [], truncated: false, reason: '', error: null }, commitDiffs: {} } }
+  check(VIEW.vcCacheSeedOf('D:/cache/none') === null, 'N23b 未命中回 null（调用方回落到空读数走正常读取）')
+  VIEW.vcCacheSave('D:/cache/x', cacheReadsOf(cacheScreen()))
+  const cacheSeed = VIEW.vcCacheSeedOf('D:/cache/x')
+  check(!!cacheSeed && cacheSeed.screen.state === 'ok' && cacheSeed.screen.data.screen.branch === undefined && cacheSeed.screen.data.screen.identity.branch === 'main' && cacheSeed.log.commits.length === 1, 'N23b 命中回可直接画的读数（身份与历史首批都在）')
+  check(VIEW.vcCacheSeedOf('D:/cache/y') === null, 'N23b 不同工作区互不串味'
+  )
+  const cacheErrReads = { screen: { state: 'err', data: null, error: { kind: 'timeout', message: '' } }, log: { state: 'idle', commits: [], hasMore: false, fetched: 0, error: null }, diffs: {}, commitDiffs: {} }
+  VIEW.vcCacheSave('D:/cache/z', cacheErrReads)
+  check(VIEW.vcCacheSeedOf('D:/cache/z') === null, 'N23b 失败的回包不进缓存（旧数据不受污染）')
 
   // N24 其他工作树也分批。
   const manyOthers = screenOf({ otherWorktrees: Array.from({ length: 1000 }, function (_, i) { return { path: 'D:/w/' + i, display: 'w' + i, head: 'h', branch: 'b', bare: false, current: false, locked: false, lockReason: null, lockUnknown: false, prunable: false } }) })
@@ -931,8 +946,8 @@ async function main() {
     { name: '「回到未提交改动」那一步去掉', patch: (s) => s.replace("    back: t('vc.commit.back'),", "    back: '',"), test: (v) => { const b = v.vcBlocksOf(commitScreen, sReads(), { openCommit: REV1 }, envOf(commitScreen, sReads())); return blockOf(b, 'changes').back === '回到未提交改动' }, what: 'S1' },
     { name: '截断判据改坏（读不全也装作有清单）', patch: (s) => s.replace("  else if (mine.truncated === true) note = t('vc.commit.truncated')", "  else if (false) note = t('vc.commit.truncated')"), test: (v) => { const r2 = sReads({ commit: commitEntry({ files: [], truncated: true, reason: 'truncated' }) }); const b = v.vcBlocksOf(commitScreen, r2, { openCommit: REV1 }, envOf(commitScreen, r2)); return blockOf(b, 'changes').note === '这笔提交的改动太大，读不全就没给清单；请在命令行里看完整改动。' }, what: 'S7' },
     { name: '合并提交那条差异原因键删掉（落回「没读到改动内容」）', patch: (s) => s.replace("  'merge-commit': 'vc.diff.mergeCommit',", "  'merge-commit-removed': 'vc.diff.mergeCommit',"), test: (v) => { const r2 = readsOf(files, { diffs: { '改.txt': { state: 'ok', lines: [], reason: 'merge-commit', truncated: false, error: null } } }); const row = rowsOf(v.vcBlocksOf(files, r2, { openDiff: 'unstaged\u0000改.txt' }, envOf(files, r2)))[0]; return row.diff.text === '这是一次合并提交：git 默认不展开合并提交的逐行差异，所以这里没有内容。' }, what: 'C19b' },
-    { name: '宿主原话又直出到可见正文（英文界面串出中文）', en: true, seed: errSeedEn, patch: (s) => s.replace('React.useState(vcNewReads)', 'React.useState(function () { return seedReads })').replace("        rawTip: err.message ? t('vc.fail.raw', { msg: String(err.message) }) : '',", "        detail: err.message ? t('vc.fail.raw', { msg: String(err.message) }) : '',").replace("      h('span', { key: 'text', style: { display: 'contents' } }, tipNode(b.rawTip, h('div', { style: { lineHeight: 1.7 } }, b.text))),", "      h('div', { style: { lineHeight: 1.7 } }, b.text),\n      b.detail ? h('div', { style: { marginTop: 6 } }, b.detail) : null,"), test: (v) => { let html = ''; try { html = renderToStaticMarkup(React.createElement(v.VersionControlTab, { st: { cwd: 'D:/w/repo' } })) } catch (e) { html = '' } return !/[\u4e00-\u9fff]/.test(html.replace(/<[^>]*>/g, ' ')) }, what: 'G10' },
-    { name: '换工作区不复位（旧工作区的数据继续画）', patch: (s) => s.replace('React.useState(vcNewReads)', 'React.useState(function () { return seedReads })').replace('  const staleCwd = fresh.changed', '  const staleCwd = false'), test: (v) => { let html = ''; try { html = renderToStaticMarkup(React.createElement(v.VersionControlTab, { st: { cwd: 'D:/w/B' } })) } catch (e) { html = '' } return html.indexOf('data-vc-identity') < 0 && html.indexOf('data-vc-commit-mode') < 0 }, what: 'N3', seed: staleSeed },
+    { name: '宿主原话又直出到可见正文（英文界面串出中文）', en: true, seed: errSeedEn, patch: (s) => s.replace('React.useState(function () { return vcCacheSeedOf(cwd) || vcNewReads() })', 'React.useState(function () { return seedReads })').replace("        rawTip: err.message ? t('vc.fail.raw', { msg: String(err.message) }) : '',", "        detail: err.message ? t('vc.fail.raw', { msg: String(err.message) }) : '',").replace("      h('span', { key: 'text', style: { display: 'contents' } }, tipNode(b.rawTip, h('div', { style: { lineHeight: 1.7 } }, b.text))),", "      h('div', { style: { lineHeight: 1.7 } }, b.text),\n      b.detail ? h('div', { style: { marginTop: 6 } }, b.detail) : null,"), test: (v) => { let html = ''; try { html = renderToStaticMarkup(React.createElement(v.VersionControlTab, { st: { cwd: 'D:/w/repo' } })) } catch (e) { html = '' } return !/[\u4e00-\u9fff]/.test(html.replace(/<[^>]*>/g, ' ')) }, what: 'G10' },
+    { name: '换工作区不复位（旧工作区的数据继续画）', patch: (s) => s.replace('React.useState(function () { return vcCacheSeedOf(cwd) || vcNewReads() })', 'React.useState(function () { return seedReads })').replace('  const staleCwd = fresh.changed', '  const staleCwd = false'), test: (v) => { let html = ''; try { html = renderToStaticMarkup(React.createElement(v.VersionControlTab, { st: { cwd: 'D:/w/B' } })) } catch (e) { html = '' } return html.indexOf('data-vc-identity') < 0 && html.indexOf('data-vc-commit-mode') < 0 }, what: 'N3', seed: staleSeed },
     { name: '首屏形状只判真假值（坏形状画成干净仓库）', patch: (s) => s.replace('reply.ok === true && vcScreenShapeOk(reply.screen)', 'reply.ok === true && reply.screen'), test: async (v) => { const r = await v.vcReadStatus(v.vcNewReads(), function () { return Promise.resolve({ ok: true, screen: {} }) }, 'D:/w/repo'); return r.screen.state === 'err' && r.screen.error.kind === 'shape' }, what: 'N4' },
     { name: '分组退回按记录上的标记判（同一个文件两段改动挤进一组）', patch: (s) => s.replace("  return row.group === 'unstaged' ? 'unstaged' : 'staged'", "  return row.staged ? 'staged' : 'unstaged'"), test: (v) => { const b = v.vcBlocksOf(dual, readsOf(dual), {}, envOf(dual, readsOf(dual))); return b.groups.map(function (g) { return g.key + ':' + g.rows.length }).join(',') === 'staged:1,unstaged:1' }, what: 'N7' },
     { name: '晚到的旧回包照收（界面永久停在「正在读」）', patch: (s) => s.replace('  if (cur && (Number(cur.seq) || 0) > (Number(nxt.seq) || 0)) return currentReads', '  if (false) return currentReads'), test: (v) => v.vcApplyCommitReply(loadingB, lateA) === loadingB, what: 'N11' },
@@ -976,7 +991,7 @@ async function main() {
   tZh = (k) => k
   let brokenHtml = ''
   try {
-    const brokenRender = buildView((s) => s.replace('React.useState(vcNewReads)', 'React.useState(function () { return seedReads })'), [], React, DswsCtx, TipStub, IcStub, seedReads)
+    const brokenRender = buildView((s) => s.replace('React.useState(function () { return vcCacheSeedOf(cwd) || vcNewReads() })', 'React.useState(function () { return seedReads })'), [], React, DswsCtx, TipStub, IcStub, seedReads)
     brokenHtml = renderToStaticMarkup(React.createElement(brokenRender.VersionControlTab, { st: { cwd: 'D:/w/repo' } }))
   } catch (e) { brokenHtml = '' }
   tZh = goodT

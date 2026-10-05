@@ -20,7 +20,7 @@ console.log('日志计数门禁（#494/#498/#499/#548/#606/#618/#635/#652/#655/#
 // 2026-09-25 #709 登记收口增补 #83 chain.backoff 成 37 条；#724 增补 #88 host.dispatch.empty 成 38 条；2026-10-04 #817 增补 #94 git.exec 与 #95 git.exec.fail 成 43 条（版本管理宿主侧 git 适配器每一次 git 外部命令一行）；另有 3 条已退役只作追溯）。
 const RESIDENT = ['snapshot.request', 'snapshot.cache.miss', 'repo.resolve.tier', 'gh.exec', 'gh.timeout', 'gh.resolve.fail', 'graphql.fallback', 'issues.fallback', 'snapshot.built', 'panelSync.dirty', 'registry.select', 'detection.detect', 'skill.probe', 'skill.pending.cap', 'host.call', 'host.call.fail', 'snapshot.hydrate', 'backend.switch', 'naming.guard', 'naming.lock', 'panel.open', 'statusbar.fallback', 'dock.rehydrate', 'storage.fail', 'chain.derive.error', 'fallback.chain', 'client.snapshot.miss', 'host.start', 'update.install.exec', 'labelColors.write', 'guide.inject', 'healthCheck.inject', 'choiceStore.file.bad', 'choiceStore.write.fail', 'issues.page', 'sessionTickets.chain', 'chain.backoff', 'host.dispatch.empty', 'naming.summary', 'cwd.persisted', 'update.install.manifestSync', 'git.exec', 'git.exec.fail']
 // 按需 43 条编号（#498 增补 #52、#53、#54、#56，#606 增补 #58、#59，#618 增补 #61，#635 增补 #62，#652 增补 #63，#655 增补 #64，#66 为 2026-09-21 新增 chain.stale.drop，#67 为同日新增 snapshot.stale.drop，#71、#72、#73 为 2026-09-22 #683 新增，#75、#76、#77 为 2026-09-23 #706 第二批新增，#78、#79 为同一天 #707 第三批新增 attention.report / attention.sweep，#81 为同一天 #710 第二批新增 write.event，#82 为同一天 #708 第三批新增 refresh.patch，#84、#85、#86、#87 为 2026-09-25 #709 登记收口新增，#89 为 2026-09-27 #727 新增 snapshot.late.install，#91 为 2026-09-28 #776 新增 input.observe）：含 #45，不含已退役。
-const ONDEMAND = ['snapshot.cache.hit', 'probe.eval', 'panelSync.eval', 'registry.stub', 'workspaceStore.hit', 'chain.cache.hit', 'chain.predicate', 'workspaceKey.canonical', 'platform.resolve', 'naming.sweep', 'snapshot.fanout', 'dedup.hit', 'statusbar.hydrate', 'error.normalize', 'timer.schedule', 'privacy.scrub', 'chain.cache.miss', 'workspaceStore.miss', 'client.snapshot.hit', 'detail.cache.hit', 'exec.run', 'panel.render', 'labelColors.read', 'labelColors.panelPatch', 'workspaceRoot.resolve', 'inject.decision', 'chain.stale.drop', 'snapshot.stale.drop', 'choiceStore.read', 'choiceStore.hint.reject', 'choiceStore.evict', 'quota.spend', 'refresh.decide', 'refresh.skipped', 'attention.report', 'attention.sweep', 'write.event', 'refresh.patch', 'chain.cache.write', 'chain.event', 'naming.guard.event', 'chain.preflight.reuse', 'snapshot.late.install', 'input.observe']
+const ONDEMAND = ['snapshot.cache.hit', 'probe.eval', 'panelSync.eval', 'registry.stub', 'workspaceStore.hit', 'chain.cache.hit', 'chain.predicate', 'workspaceKey.canonical', 'platform.resolve', 'naming.sweep', 'snapshot.fanout', 'dedup.hit', 'statusbar.hydrate', 'error.normalize', 'timer.schedule', 'privacy.scrub', 'chain.cache.miss', 'workspaceStore.miss', 'client.snapshot.hit', 'detail.cache.hit', 'exec.run', 'panel.render', 'labelColors.read', 'labelColors.panelPatch', 'workspaceRoot.resolve', 'inject.decision', 'chain.stale.drop', 'snapshot.stale.drop', 'choiceStore.read', 'choiceStore.hint.reject', 'choiceStore.evict', 'quota.spend', 'refresh.decide', 'refresh.skipped', 'attention.report', 'attention.sweep', 'write.event', 'refresh.patch', 'chain.cache.write', 'chain.event', 'naming.guard.event', 'chain.preflight.reuse', 'snapshot.late.install', 'input.observe', 'vc.cache.screen']
 const RETIRED = ['issuePath.push', 'issuePath.record', 'settings.save']
 // 自监控 5 条（#499，附录 1.6 节，编号 46～50，错误与告警级、始终落盘）。
 const SELFMON = ['host.dispatch.error', 'log.persist.fail', 'log.forward.summary', 'log.switch.watchdog', 'log.export.fail']
@@ -41,6 +41,8 @@ if (appendix) {
   check(appendix.includes('2、11、12、15、17、18、19、23、24、25、29、30、37、43、44、45、52、53、54、56、58、59、61、62、63、64、66、67、71、72、73、75、76、77、78、79、81、82、84、85、86、87、89、91'), '附录按需编号清单 44 个（不含已退役的 8、22、34、35 等；含 45；#498 增补 52、53、54、56；#606 增补 58、59；#618 增补 61；#635 增补 62；#652 增补 63；#655 增补 64；2026-09-21 增补 66、67；#683 增补 71、72、73；2026-09-23 #706 第二批增补 75、76、77；#707 第三批增补 78 attention.report、79 attention.sweep；#710 第二批增补 81 write.event；#708 第三批增补 82 refresh.patch；2026-09-25 #709 登记收口增补 84 chain.cache.write、85 chain.event、86 naming.guard.event、87 chain.preflight.reuse；2026-09-27 #727 增补 89 snapshot.late.install；2026-09-28 #776 增补 91 input.observe）')
   check(appendix.includes('#22') && appendix.includes('#34') && appendix.includes('#35') && appendix.includes('退役'), '附录记明 #22、#34 与 #35 已退役（行保留只作追溯）')
   check(appendix.includes('46、47、48、49、50') || appendix.includes('46～50'), '附录记明自监控编号 46～50（1.6 节）')
+  check(appendix.includes('常驻 43 条、按需 45 条、自监控 5 条、总数 93 条'), '附录 counts 字面为常驻 43 条、按需 45 条、自监控 5 条、总数 93 条（#864 新增 #96）')
+  check(appendix.includes('89、91、96'), '附录按需编号清单含 96（#864 新增 vc.cache.screen）')
 }
 
 // 二、源码点名：常驻 43、按需 44、自监控 5 逐个出现（单双引号都算），退役 3 条不许出现。
@@ -86,8 +88,8 @@ for (const name of SELFMON) {
   const known = RESIDENT.concat(ONDEMAND).concat(SELFMON)
   const missing = known.filter((n) => !quoted[n])
   const hitKnown = known.filter((n) => quoted[n])
-  check(RESIDENT.length === 43 && ONDEMAND.length === 44 && SELFMON.length === 5 && known.length === 92, '清单总数 92（常驻 43、按需 44、自监控 5）')
-  check(missing.length === 0, '92 个事件全部落点无缺口' + (missing.length ? ' —— 缺口：' + missing.join('、') : '（命中 ' + hitKnown.length + ' 个）'))
+  check(RESIDENT.length === 43 && ONDEMAND.length === 45 && SELFMON.length === 5 && known.length === 93, '清单总数 93（常驻 43、按需 45、自监控 5）')
+  check(missing.length === 0, '93 个事件全部落点无缺口' + (missing.length ? ' —— 缺口：' + missing.join('、') : '（命中 ' + hitKnown.length + ' 个）'))
 }
 
 console.log(failed ? '\n存在失败 — verify-log-count 未通过' : '\n全部通过 — 计数门禁生效（' + total + ' 项断言）')

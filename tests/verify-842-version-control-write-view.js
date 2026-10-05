@@ -38,6 +38,7 @@ const VC_FILES = [
   'src/client/views/versionControl/vcAiHandoff.js', // #854：AI 交接（与构建同序）
   'src/client/views/versionControl/vcTabVisible.js',
   'src/client/views/versionControl/vcData.js',
+  'src/client/views/versionControl/vcCache.js', // #864：进出缓存（与构建同序）
   'src/client/views/versionControl/VersionControlTab.js',
 ]
 const EXPORTS = [
@@ -157,6 +158,9 @@ const EXPORTS = [
   'vcViewBlocksOf',
   'vcViewSkelNode',
   'vcViewTabsNode',
+  'VC_SCREEN_CACHE_MAX',
+  'vcCacheSeedOf',
+  'vcCacheSave',
   'vcTimeKind',
   'vcWhenText',
   'vcWriteErrFamilyOf',
@@ -237,7 +241,7 @@ const flush = async function (n) { for (let i = 0; i < (n || 6); i++) await tick
 // ============================================================
 function renderTab(React, DswsCtx, TipStub, IcStub, seedReads, patch) {
   const seeded = buildView(function (s) {
-    const out = s.replace('React.useState(vcNewReads)', 'React.useState(function () { return seedReads })')
+    const out = s.replace('React.useState(function () { return vcCacheSeedOf(cwd) || vcNewReads() })', 'React.useState(function () { return seedReads })')
     return patch ? patch(out) : out
   }, React, DswsCtx, TipStub, IcStub, seedReads, [], trZh)
   try {
@@ -693,7 +697,7 @@ function groupJ(React, DswsCtx, TipStub, IcStub) {
   const uiSeed = "openDiff: '', openCommit: '', view:"
   const renderOpen = function (key, reads, patchExtra) {
     const v = buildView(function (s) {
-      let out = s.replace('React.useState(vcNewReads)', 'React.useState(function () { return seedReads })')
+      let out = s.replace('React.useState(function () { return vcCacheSeedOf(cwd) || vcNewReads() })', 'React.useState(function () { return seedReads })')
       out = out.replace(uiSeed, 'openDiff: ' + JSON.stringify(key) + ", openCommit: '', view:")
       return patchExtra ? patchExtra(out) : out
     }, React, DswsCtx, TipStub, IcStub, reads, [], trZh)
@@ -755,7 +759,7 @@ function groupL(view, React, DswsCtx, TipStub, IcStub) {
   })
   const render = function (patch) {
     const v = buildView(function (s) {
-      let out = s.replace('React.useState(vcNewReads)', 'React.useState(function () { return seedReads })')
+      let out = s.replace('React.useState(function () { return vcCacheSeedOf(cwd) || vcNewReads() })', 'React.useState(function () { return seedReads })')
       return patch ? patch(out) : out
     }, React, DswsCtx, TipStub, IcStub, readsOf(screen), [], trZh)
     try { return require('react-dom/server').renderToStaticMarkup(React.createElement(v.VersionControlTab, { st: { cwd: 'D:/w/repo' } })) } catch (e) { return '' }
