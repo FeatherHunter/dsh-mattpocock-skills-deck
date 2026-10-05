@@ -8,7 +8,7 @@
  */
 export const L_VCWRITE = {
   zh: {
-    'vc.action.stage': '暂存', 'vc.action.stageAll': '全部暂存', 'vc.action.commit': '提交 {n} 个文件', 'vc.action.pull': '拉取', 'vc.action.push': '推送',
+    'vc.action.stage': 'add', 'vc.action.stageAll': 'add 全部', 'vc.action.commit': '提交 {n} 个文件', 'vc.action.pull': '拉取', 'vc.action.push': '推送',
     'vc.action.pushRecreate': '重建上游并推送', 'vc.action.pushSetUpstream': '设为上游并推送', 'vc.row.conflictTerminal': '冲突：请在命令行中解决',
     'vc.block.nothingToStage': '不存在可暂存的内容', 'vc.block.nothingStaged': '暂存区为空，不存在可提交的内容', 'vc.block.conflicts': '存在未解决的冲突文件，请先处理冲突',
     'vc.block.dirtyTree': '工作区存在未提交的变更，请先提交再拉取', 'vc.block.noUpstream': '该分支尚未设置上游', 'vc.block.upstreamGone': '该分支的上游已在远端删除',
@@ -49,7 +49,7 @@ export const L_VCWRITE = {
     'vc.ai.intentDefault': '查看状态，还没决定下一步', 'vc.ai.seen': '看到：{text}', 'vc.ai.goal': '目标：', 'vc.ai.extra': '补充：',
   },
   en: {
-    'vc.action.stage': 'Stage', 'vc.action.stageAll': 'Stage all', 'vc.action.commit': 'Commit {n} files', 'vc.action.pull': 'Pull', 'vc.action.push': 'Push',
+    'vc.action.stage': 'add', 'vc.action.stageAll': 'add all', 'vc.action.commit': 'Commit {n} files', 'vc.action.pull': 'Pull', 'vc.action.push': 'Push',
     'vc.action.pushRecreate': 'Recreate upstream and push', 'vc.action.pushSetUpstream': 'Set upstream and push', 'vc.row.conflictTerminal': 'Conflict: it has to be resolved in a command line',
     'vc.block.nothingToStage': 'Nothing to stage', 'vc.block.nothingStaged': 'The staging area is empty; nothing to commit', 'vc.block.conflicts': 'Files have unresolved conflicts; resolve them first',
     'vc.block.dirtyTree': 'The working tree has uncommitted changes; commit before pulling', 'vc.block.noUpstream': 'No upstream configured for this branch', 'vc.block.upstreamGone': "This branch's upstream has been deleted on the remote",

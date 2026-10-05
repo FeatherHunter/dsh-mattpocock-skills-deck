@@ -1,7 +1,7 @@
 // tests/verify-842-version-control-write-view.js — 版本管理「写操作」界面门禁（#842 落地）
 // 用法：在插件根目录执行 node tests/verify-842-version-control-write-view.js，可独立运行。
 //
-// 这份门禁守的是「用户点得完、看得懂」那一半：#842 的四个动作（暂存 / 提交 / 拉取 / 推送）落点对不对、
+// 这份门禁守的是「用户点得完、看得懂」那一半：#842 的四个动作（add / 提交 / 拉取 / 推送）落点对不对、
 //   禁用态读的是不是核心判定、三个确认框有没有点名目标、五族失败话术能不能照着做、执行中会不会把读数弄假。
 // 写法照 tests/verify-818-version-control-view.js 的先例：把叶子按 build.mjs 的次序拼成真闭包再跑，
 //   词条读真字典（locale-panel / locale-flow / locale-vcwrite），断言落在模型与真渲染出来的 DOM 上。
@@ -265,7 +265,7 @@ function groupA(view, React, DswsCtx, TipStub, IcStub) {
 
   const paths = (changes && changes.stageAll ? changes.stageAll.paths : []).join(',')
   const a2 = !!(changes && changes.stageAll && changes.stageAll.show === true) && paths === 'b.txt,c.txt' && html.indexOf('data-vc-stage-all') >= 0
-  check(a2, 'A2 视图条里有「全部暂存」，路径只含未暂存且非冲突的两行（实得 ' + JSON.stringify(paths) + '）')
+  check(a2, 'A2 视图条里有「add 全部」，路径只含未暂存且非冲突的两行（实得 ' + JSON.stringify(paths) + '）')
 
   const cleanScreen = screenOf({ staged: [fileOf('a.txt', 'staged')], stagedCount: 1 })
   const typedUi = uiOf({ write: { op: '', state: 'idle', message: '写一句', confirm: null, result: null } })
@@ -281,13 +281,13 @@ function groupA(view, React, DswsCtx, TipStub, IcStub) {
 
   const rowB = rowOf(blocks, 'b.txt')
   const a4 = !!(rowB && rowB.stageAction && rowB.stageAction.show === true) && html.indexOf('data-vc-stage') >= 0
-  check(a4, 'A4 未暂存文件行右侧有「暂存」按钮（模型 ' + !!(rowB && rowB.stageAction) + '，DOM ' + (html.indexOf('data-vc-stage') >= 0) + '）')
+  check(a4, 'A4 未暂存文件行右侧有「add」按钮（模型 ' + !!(rowB && rowB.stageAction) + '，DOM ' + (html.indexOf('data-vc-stage') >= 0) + '）')
 
   const rowD = rowOf(blocks, 'd.txt')
   const a5 = !!(rowD && rowD.stageAction && rowD.stageAction.conflict === true && rowD.stageAction.show === false) && html.indexOf('data-vc-conflict-terminal') >= 0
   const conflictText = (html.match(/data-vc-conflict-terminal[^>]*>([^<]*)/) || [])[1] || ''
   const a5b = conflictText.indexOf('命令行') >= 0 && conflictText.indexOf('侧栏终端') < 0
-  check(a5 && a5b, 'A5 冲突行没有「暂存」，改说「在命令行里解决」，且不再提侧栏终端（模型 ' + JSON.stringify(rowD && rowD.stageAction) + '，DOM ' + (html.indexOf('data-vc-conflict-terminal') >= 0) + '，文字 ' + JSON.stringify(conflictText) + '）')
+  check(a5 && a5b, 'A5 冲突行没有「add」，改说「在命令行里解决」，且不再提侧栏终端（模型 ' + JSON.stringify(rowD && rowD.stageAction) + '，DOM ' + (html.indexOf('data-vc-conflict-terminal') >= 0) + '，文字 ' + JSON.stringify(conflictText) + '）')
 
   // A6：多远端 + 没有上游 —— 候选远端来自失败回包顶层 remotes，界面上要有一排可点的入口。
   const choiceUi = uiOf({ write: { op: '', state: 'idle', message: '', confirm: null, result: null, remoteChoice: { show: true, remotes: ['origin', 'mirror'], hint: '' } } })
