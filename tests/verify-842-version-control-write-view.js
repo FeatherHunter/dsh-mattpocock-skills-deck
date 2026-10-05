@@ -158,6 +158,7 @@ const EXPORTS = [
   'vcViewCountsOf',
   'vcViewBarNode',
   'vcViewBlocksOf',
+  'vcPickViewStateOf',
   'vcCommitSkelNodes',
   'vcViewSkelNode',
   'vcViewTabsNode',

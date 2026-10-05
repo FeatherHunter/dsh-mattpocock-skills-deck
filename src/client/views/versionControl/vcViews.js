@@ -82,6 +82,10 @@ export const vcCommitSkelNodes = function (h) {
   const bar = function (key) { return h('div', { key: key, className: 'dsws-vc-skel', 'data-vc-skel': 1, style: { height: 47, marginTop: 4 } }) }
   return [bar('ck1'), bar('ck2'), bar('ck3')]
 }
+/** 页签就是导航：点页签必定离开提交详情（原子切换），显示与记忆永不分叉；openDiff 不动（展开键按层命名，旧值串不进新位置）。 */
+export const vcPickViewStateOf = function (ui, v) {
+  return Object.assign({}, ui, { view: v, openCommit: '' })
+}
 export const vcViewSkelNode = function (h, o) {
   const bar = function (key, style) { return h('div', { key: key, className: 'dsws-vc-skel', 'data-vc-skel': 1, style: style }) }
   // 门禁 G5 要求首屏骨架不少于 10 条且一个字不写：三格都按 10 条以上画，块尺寸与各视图一致。

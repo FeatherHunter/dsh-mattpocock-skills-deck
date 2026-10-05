@@ -144,7 +144,7 @@ export const VersionControlTab = function (props) {
   const tone = function (name) { return VC_TONE[name] || VC_TONE.primary }
   const retryScreen = function () { vcReadStatus(readsRef.current, callHost, cwd).then(function (next) { setReads(next); vcCacheSave(cwd, next) }) }
   // #853 第三步：视图切换只改 ui.view（函数式更新，不会顶掉同期别的 setUi）；选择跨挂载记住，换工作区复位。
-  const pickView = function (v) { vcRememberView(v); setUi(function (cur) { return Object.assign({}, cur, { view: v }) }) }
+  const pickView = function (v) { vcRememberView(v); setUi(function (cur) { return vcPickViewStateOf(cur, v) }) }
   // #854：面板解决不了的事 —— 一个按钮把当前问题写成 prompt 交给 AI（预填不发送，尾部留白让人补话）。
   const openHandoff = function (ai) { const handoff = vcAiHandoffOf({ ai: ai, t: tr, screen: screen }); if (handoff) vcOpenAiHandoff({ opener: (typeof openTextInNewSession === 'function') ? openTextInNewSession : null, st: st, handoff: handoff }) }
   // 就地看差异：展开键与块模型侧共用同一个函数（#850）—— 未提交那一层是「分组 + 路径」（同一个文件在两组各一行时各自展开），
