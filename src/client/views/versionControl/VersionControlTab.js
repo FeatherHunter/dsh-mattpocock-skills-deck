@@ -251,13 +251,18 @@ export const VersionControlTab = function (props) {
     if (b.kind === 'identity') return h('div', { key: b.key, 'data-vc-identity': 1, style: { display: 'flex', flexDirection: 'column', gap: 4 } }, [
       h('div', { key: 'head', style: { display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 } }, [
         tipNode(b.nameTip, h('span', { key: 'name', className: 'dsws-vc-id', 'data-vc-worktree': 1, style: { color: tone('primary'), whiteSpace: 'nowrap' } }, b.name)),
+        // 原型身份行里仓库名与分支之间有个灰色斜杠分隔（854 的 sep），实现之前漏了它。
+        h('span', { key: 'sep', style: { color: tone('caption') } }, '/'),
         tipNode(b.detached ? b.oidTip : b.branchText, h('span', { key: 'branch', className: 'dsws-vc-id', 'data-vc-branch': 1, style: { color: tone(b.branchTone), whiteSpace: 'nowrap' } }, b.branchText)),
         b.oidText ? h('span', { key: 'oid', className: 'dsws-vc-mono', style: { fontSize: 11, color: tone('caption'), whiteSpace: 'nowrap' } }, b.oidText) : null,
         tipNode(b.sync.tip, h('span', { key: 'sync', className: 'dsws-vc-count', 'data-vc-sync': 1, style: { marginLeft: 'auto', whiteSpace: 'nowrap' } }, b.sync.text)),
       ]),
       h('div', { key: 'sub', className: 'dsws-vc-caption', 'data-vc-readat': 1, style: { display: 'flex', gap: 6, alignItems: 'baseline', minWidth: 0 } }, [
         tipNode(b.pathTip, h('span', { key: 'path', className: 'dsws-vc-mono', 'data-vc-path': 1, style: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, b.pathText)),
+        // 原型次行用中点分隔路径、读取时间、远端更新三段（854 的 sub），有哪段才画哪段前面的点。
+        b.readAtText ? h('span', { key: 'dot1', style: { flex: 'none' } }, '·') : null,
         b.readAtText ? h('span', { key: 'when', style: { flex: 'none' } }, b.readAtText) : null,
+        b.sync.basis ? h('span', { key: 'dot2', style: { flex: 'none' } }, '·') : null,
         b.sync.basis ? tipNode(b.sync.basisTip, h('span', { key: 'basis', 'data-vc-basis': 1, style: { flex: 'none' } }, b.sync.basis)) : null,
         h('button', { key: 'reload', className: 'dsws-btn', type: 'button', 'data-vc-reload': 1, onClick: reloadNow }, tr('vc.reload')),
       ]),
