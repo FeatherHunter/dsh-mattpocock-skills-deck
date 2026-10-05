@@ -64,7 +64,7 @@ export const VC_STYLE_TEXT = [
   "[data-vc-root] [data-vc-file]>.dsws-vc-row:hover{background:var(--vc-hover)}",
   "[data-vc-open]>.dsws-vc-row{background:var(--vc-hover);box-shadow:inset 2px 0 0 var(--vc-accent,transparent)}",
   // ---- 状态字母徽章 ----
-  ".dsws-vc-badge{min-width:18px;height:18px;padding:0 4px;border:1px solid var(--vc-line2);border-radius:var(--vc-radius);font-family:ui-monospace,SFMono-Regular,Consolas,Menlo,monospace;font-size:10.5px;font-weight:700;line-height:1}",
+  ".dsws-vc-badge{flex:none;display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 4px;border:1px solid var(--vc-line2);border-radius:var(--vc-radius);font-family:ui-monospace,SFMono-Regular,Consolas,Menlo,monospace;font-size:10.5px;font-weight:700;line-height:1}",
   ".dsws-vc-badge.is-added{color:var(--vc-accent,#22c55e);border-color:var(--vc-accent,#22c55e)}",
   ".dsws-vc-badge.is-modified{color:var(--vc-info,#38bdf8);border-color:var(--vc-info,#38bdf8)}",
   ".dsws-vc-badge.is-deleted{color:var(--vc-danger,#ef4444);border-color:var(--vc-danger,#ef4444)}",
@@ -137,6 +137,18 @@ export const VC_STYLE_TEXT = [
   // 视图条（854 布局 C 原型的 viewbar：虚线框里横排提交动作 inline 输入与提交按钮）。
   ".dsws-vc-viewbar{display:flex;flex-direction:column;gap:8px;margin:0 0 10px;padding:7px 8px;border:1px dashed var(--vc-line2);border-radius:var(--vc-radius)}",
   ".dsws-vc-viewbar-row{display:flex;gap:7px;align-items:center;flex-wrap:wrap}",
+  // 行内字号按皮肤微调（浅色行字号大半级）：文件路径、提交短号、工作树名深色 12、浅色 12.5。
+  "[data-vc-file] [data-vc-path],[data-vc-commit] [data-vc-short],[data-vc-other-row] [data-vc-name]{font-size:12px}",
+  "body:not([data-ds-dark-theme]) [data-vc-file] [data-vc-path],body:not([data-ds-dark-theme]) [data-vc-commit] [data-vc-short],body:not([data-ds-dark-theme]) [data-vc-other-row] [data-vc-name],body [data-vc-root][data-vc-theme=\"light\"] [data-vc-file] [data-vc-path],body [data-vc-root][data-vc-theme=\"light\"] [data-vc-commit] [data-vc-short],body [data-vc-root][data-vc-theme=\"light\"] [data-vc-other-row] [data-vc-name]{font-size:12.5px}",
+  // 状态词：深色独占一行，浅色跟在路径后面（853 的 C 规则，深浅各半）。
+  "[data-vc-row] [data-vc-change]{display:block}",
+  "body:not([data-ds-dark-theme]) [data-vc-row] [data-vc-change],body [data-vc-root][data-vc-theme=\"light\"] [data-vc-row] [data-vc-change]{display:inline;margin-left:6px;white-space:normal;overflow:visible}",
+  // 按钮与链接字号：深色 12，浅色 12.5，内边距统一 0 10。
+  "[data-vc-root] .dsws-btn{font-size:12px;padding:0 10px}",
+  "body:not([data-ds-dark-theme]) [data-vc-root] .dsws-btn,body [data-vc-root][data-vc-theme=\"light\"] .dsws-btn{font-size:12.5px}",
+  "body:not([data-ds-dark-theme]) [data-vc-root] button[data-vc-reload],body [data-vc-root][data-vc-theme=\"light\"] button[data-vc-reload]{font-size:12.5px}",
+  ".dsws-vc-link{font-size:12px}",
+  "body:not([data-ds-dark-theme]) .dsws-vc-link,body [data-vc-root][data-vc-theme=\"light\"] .dsws-vc-link{font-size:12.5px}",
   // 根取消统一 gap 后块间节奏按原型走：提示与异常带下留 10px，执行结果与确认框上留 10px。
   "[data-vc-root] [data-vc-hint],[data-vc-root] [data-vc-band]{margin-bottom:10px}",
   "[data-vc-root] [data-vc-op-result],[data-vc-root] [data-vc-confirm],[data-vc-root] [data-vc-remote-choice]{margin-top:10px}",
