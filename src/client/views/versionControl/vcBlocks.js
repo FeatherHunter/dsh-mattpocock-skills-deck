@@ -131,7 +131,8 @@ export const vcBlocksOf = function (screen, reads, ui, env) {
     nameTip: t('vc.identity.worktreeTip', { path: String(identity.worktreePath || '') }),
     detached: identity.detached === true,
     branchText: identity.detached === true ? t('vc.detached') : String(identity.branch || t('vc.other.noBranch')),
-    branchTone: identity.detached === true ? 'caption' : 'accent',
+    // 分支名用成功档的绿（原型 v3-id 的 br 就是强调绿，蓝色是之前映射错档）。
+    branchTone: identity.detached === true ? 'caption' : 'success',
     oidText: identity.detached === true ? t('vc.detachedAt', { oid: vcShortOid(identity.oid) }) : '',
     oidTip: String(identity.oid || ''),
     pathText: fold.state.path || '',
