@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>顶部信息区 · 4 款原型（#856 第二版）</title>
+<!--
+  PROTOTYPE-856 v2 · 抛弃式设计稿 · 只回答一件事
+  问题：版本管理面板顶部那一块（仓库名 / 分支 / 路径 / 超前落后 / 读取时间 / 拉取推送）
+  现在按钮和信息都不醒目，整块一个调子，看着累。4 款同事实、只比表现。
+  约束（第一版错在这里，已改）：必须用定版的两套皮肤 —— 深色 A 工程台账 / 浅色 C 纸质便签
+  （色值一字不差取自 src/client/views/versionControl/vcStyles.js），并且 header 下面必须带着
+  布局 C 的三个视图页签：未提交改动 / 提交历史 / 其他工作树（文案取自 vcViews.js，不造新词）。
+  双击即开；?v=a|b|c|d&t=dark|light 直达；底部浮条可切换。页签只做样子，点不动。
+-->
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; background: #08090c; color: #e6ebf3; }
+  body.light { background: #e5ddcb; color: #221d15; }
+  .bar { position: sticky; top: 0; z-index: 9; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+    padding: 9px 20px; background: #08090c; border-bottom: 1px solid rgba(255,255,255,.09); font-size: 12px; color: #8b95a7; }
+  body.light .bar { background: #221d15; color: #b7ab97; }
+  .bar b { color: #e6ebf3; }
+  .bar a { color: #7cc4ff; text-decoration: none; border-bottom: 1px solid rgba(124,196,255,.4); }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 26px 20px 130px; }
+  .lead { font-size: 13px; color: #9aa4b5; line-height: 1.8; margin: 0 0 22px; }
+  body.light .lead { color: #6f6252; }
+  .variant { display: none; }
+  .variant.on { display: block; }
+  .vlabel { font-size: 12px; color: #7cc4ff; letter-spacing: .12em; margin: 0 0 8px; font-weight: 700; }
+  body.light .vlabel { color: #0b5cad; }
+  .vnote { font-size: 12.5px; color: #9aa4b5; margin: 0 0 14px; line-height: 1.7; }
+  body.light .vnote { color: #6f6252; }
+  /* 两套皮肤令牌：照 vcStyles.js 原样 */
+  [data-vc-root][data-vc-theme="dark"] { --vc-paper:#131c2f; --vc-inset:#0b1120; --vc-elevated:#1a2438;
+    --vc-ink:#f8fafc; --vc-ink2:#cbd5e1; --vc-mut:#94a3b8; --vc-faint:#64748b;
+    --vc-line:rgba(148,163,184,.22); --vc-accent:#22c55e; --vc-accent-ink:#052e16;
+    --vc-radius:4px; --vc-mono:ui-monospace, Consolas, monospace; }
+  [data-vc-root][data-vc-theme="light"] { --vc-paper:#f6f1e6; --vc-inset:#efe8d9; --vc-elevated:#fffdf8;
+    --vc-ink:#221d15; --vc-ink2:#4a4034; --vc-mut:#6f6252; --vc-faint:#948875;
+    --vc-line:rgba(34,29,21,.22); --vc-accent:#15803d; --vc-accent-ink:#f0fdf4;
+    --vc-radius:2px; --vc-mono:ui-monospace, Consolas, monospace; }
+  .panel { background: var(--vc-paper); color: var(--vc-ink); border: 1px solid var(--vc-line);
+    border-radius: 8px; overflow: hidden; }
+  /* 三个视图页签：四款共用同一行，只比 header */
+  .views { display: flex; gap: 4px; padding: 10px 14px 12px; border-top: 1px solid var(--vc-line); background: var(--vc-paper); }
+  .views button { flex: 1; border: 1px solid transparent; background: transparent; color: var(--vc-mut);
+    border-radius: var(--vc-radius); padding: 8px 0; font-size: 13px; cursor: default; }
+  .views button.is-on { background: var(--vc-inset); color: var(--vc-ink); border-color: var(--vc-line); font-weight: 750;
+    box-shadow: inset 0 2px 0 var(--vc-accent); }
+  .views .n { font-family: var(--vc-mono); font-size: 11.5px; opacity: .75; }
+  /* A 台账条 */
+  #v-a .hd { padding: 16px 18px 12px; }
+  #v-a .repo { font-size: 18px; font-weight: 750; }
+  #v-a .repo .br { display: inline-block; margin-left: 8px; font-size: 11.5px; font-weight: 700; color: var(--vc-accent-ink);
+    background: var(--vc-accent); border-radius: var(--vc-radius); padding: 2px 8px; vertical-align: 2px; }
+  #v-a .path { font-family: var(--vc-mono); font-size: 11px; color: var(--vc-faint); margin-top: 4px; }
+  #v-a .stats { display: flex; gap: 8px; margin: 12px 0 4px; }
+  #v-a .stat { flex: 1; background: var(--vc-inset); border: 1px solid var(--vc-line);
+    border-left: 3px solid var(--vc-accent); border-radius: var(--vc-radius); padding: 8px 11px; }
+  #v-a .stat b { display: block; font-size: 19px; }
+  #v-a .stat span { font-size: 11px; color: var(--vc-mut); }
+  #v-a .meta { font-size: 11px; color: var(--vc-faint); margin: 8px 0 12px; }
+  #v-a .meta a { color: var(--vc-accent); }
+  #v-a .actions { display: flex; gap: 8px; }
+  #v-a .btn { flex: 1; border-radius: var(--vc-radius); padding: 10px 0; font-size: 13.5px; font-weight: 750; cursor: pointer; }
+  #v-a .pull { background: var(--vc-accent); color: var(--vc-accent-ink); border: 0; }
+  #v-a .push { background: transparent; color: var(--vc-ink); border: 1.5px solid var(--vc-line); }
+  /* B 大字报 */
+  #v-b .hd { padding: 20px 18px 12px; text-align: center; }
+  #v-b .repo { font-size: 13px; color: var(--vc-mut); }
+  #v-b .repo code { font-family: var(--vc-mono); color: var(--vc-ink2); }
+  #v-b .big { font-size: 24px; font-weight: 800; margin: 8px 0 2px; }
+  #v-b .big .ok { color: var(--vc-accent); }
+  #v-b .meta { font-size: 11px; color: var(--vc-faint); margin-bottom: 14px; }
+  #v-b .meta a { color: var(--vc-accent); font-weight: 700; }
+  #v-b .actions { display: flex; border-radius: var(--vc-radius); overflow: hidden; border: 1.5px solid var(--vc-accent); }
+  #v-b .actions button { flex: 1; border: 0; padding: 12px 0; font-size: 15px; font-weight: 800; cursor: pointer; }
+  #v-b .pull { background: var(--vc-accent); color: var(--vc-accent-ink); }
+  #v-b .push { background: transparent; color: var(--vc-ink); }
+  /* C 身份通栏 */
+  #v-c .hd { padding: 13px 18px; background: var(--vc-inset); border-bottom: 1px solid var(--vc-line); }
+  #v-c .repo { font-size: 16px; font-weight: 750; }
+  #v-c .repo .br { color: var(--vc-accent); font-family: var(--vc-mono); font-size: 12.5px; margin-left: 8px; }
+  #v-c .path { font-size: 10.5px; color: var(--vc-faint); margin-top: 2px; font-family: var(--vc-mono); }
+  #v-c .mid { display: flex; align-items: center; gap: 10px; padding: 12px 18px; }
+  #v-c .sync { flex: 1; font-size: 13px; color: var(--vc-ink2); }
+  #v-c .sync b { color: var(--vc-accent); }
+  #v-c .meta { font-size: 10.5px; color: var(--vc-faint); }
+  #v-c .meta a { color: var(--vc-accent); }
+  #v-c .actions { display: flex; gap: 8px; padding: 0 18px 14px; }
+  #v-c .btn { flex: 1; border-radius: var(--vc-radius); padding: 10px 0; font-size: 13.5px; font-weight: 800; cursor: pointer; border: 0; }
+  #v-c .pull { background: var(--vc-accent); color: var(--vc-accent-ink); }
+  #v-c .push { background: var(--vc-elevated); color: var(--vc-ink); border: 1px solid var(--vc-line); }
+  /* D 分区卡 */
+  #v-d .hd { padding: 14px 18px 10px; }
+  #v-d .repo { font-size: 16px; font-weight: 750; }
+  #v-d .repo .br { font-size: 11px; background: var(--vc-inset); border: 1px solid var(--vc-line);
+    color: var(--vc-ink2); border-radius: var(--vc-radius); padding: 2px 8px; margin-left: 8px; vertical-align: 2px; }
+  #v-d .path { font-size: 10.5px; color: var(--vc-faint); font-family: var(--vc-mono); margin-top: 2px; }
+  #v-d .cols { display: flex; }
+  #v-d .nums { flex: 1; padding: 10px 18px 14px; }
+  #v-d .nums .row { display: flex; align-items: baseline; gap: 8px; padding: 2px 0; font-size: 12.5px; color: var(--vc-mut); }
+  #v-d .nums .row b { font-size: 21px; color: var(--vc-ink); min-width: 32px; }
+  #v-d .side { width: 160px; border-left: 1px solid var(--vc-line); padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+  #v-d .btn { border-radius: var(--vc-radius); padding: 10px 0; font-size: 13.5px; font-weight: 800; cursor: pointer; border: 0; }
+  #v-d .pull { background: var(--vc-accent); color: var(--vc-accent-ink); }
+  #v-d .push { background: transparent; color: var(--vc-ink); border: 1.5px solid var(--vc-line); }
+  #v-d .retry { background: none; border: 0; color: var(--vc-faint); font-size: 11px; cursor: pointer; text-align: left; padding: 0; }
+  .state { text-align: center; font-size: 11.5px; color: #66718a; margin-top: 12px; }
+  body.light .state { color: #948875; }
+  .switcher { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; gap: 4px;
+    background: rgba(8,9,12,.94); border: 1px solid rgba(255,255,255,.14); border-radius: 999px; padding: 6px 8px; z-index: 20; }
+  .switcher button { border: 1px solid transparent; background: transparent; color: #9aa4b5; border-radius: 999px;
+    padding: 6px 13px; font-size: 12.5px; cursor: pointer; }
+  .switcher button.on { background: #e6ebf3; color: #111; font-weight: 800; }
+  .switcher .sep { width: 1px; background: rgba(255,255,255,.14); margin: 4px 2px; }
+</style>
+</head>
+<body>
+<div class="bar">
+  <span style="color:#ff3b30;font-weight:800">PROTOTYPE-856 v2 · 抛弃式</span>
+  <b>顶部信息区 · 4 款原型</b>
+  <a href="852-vc-index.html">回全套原型入口</a>
+  <span style="margin-left:auto">皮肤：深色 A 工程台账 / 浅色 C 纸质便签 · 页签：未提交改动 / 提交历史 / 其他工作树</span>
+</div>
+<div class="wrap">
+  <p class="lead">
+    上一版错在临摹了截图的旧样子。这一版先回到定版：<b>两套皮肤</b>（深色 A 工程台账 / 浅色 C 纸质便签，
+    色值照产品 vcStyles.js 原样）和<b>三个视图页签</b>（未提交改动 / 提交历史 / 其他工作树，照 vcViews.js，不造新词）。
+    4 款只动 header 那一块，页签行完全一样，直接比 header。
+  </p>
+
+  <div class="variant" id="v-a">
+    <p class="vlabel">A · 台账条</p>
+    <p class="vnote">仓库名加分支徽章，超前 / 落后 / 远端做成三格数字卡，拉取实心主按钮、推送描边，时间收进弱字行。</p>
+    <div class="panel" data-vc-root data-vc-theme="dark">
+      <div class="hd">
+        <div class="repo">dsh-mattpocock-skills-deck<span class="br">main</span></div>
+        <div class="path">D:/dsh-plugin/dsh-mattpocock-skills-deck</div>
+        <div class="stats">
+          <div class="stat"><b>0</b><span>领先提交</span></div>
+          <div class="stat"><b>0</b><span>落后提交</span></div>
+          <div class="stat"><b>7 <span style="font-size:11px">分钟前</span></b><span>远端信息更新</span></div>
+        </div>
+        <div class="meta">读到于 刚刚 · <a>重新读一次</a></div>
+        <div class="actions"><button class="btn pull">↓ 拉取</button><button class="btn push">↑ 推送</button></div>
+      </div>
+      <div class="views"><button class="is-on">未提交改动 <span class="n">（8）</span></button><button>提交历史 <span class="n">（3）</span></button><button>其他工作树 <span class="n">（2）</span></button></div>
+    </div>
+    <p class="state">当前状态：<b>A 台账条 · <span class="th">深色</span> · 已同步（0 / 0）</b></p>
+  </div>
+
+  <div class="variant" id="v-b">
+    <p class="vlabel">B · 大字报</p>
+    <p class="vnote">只回答一句话：同步结论放大加粗，仓库路径退成小字，拉取推送合成一个分体大按钮，整块只有一个焦点。</p>
+    <div class="panel" data-vc-root data-vc-theme="dark">
+      <div class="hd">
+        <div class="repo"><code>dsh-mattpocock-skills-deck · main</code></div>
+        <div class="big">已同步 · <span class="ok">领先 0 · 落后 0</span></div>
+        <div class="meta">D:/dsh-plugin/… · 远端 7 分钟前更新 · 读到于刚刚 · <a>重新读一次</a></div>
+        <div class="actions"><button class="pull">↓ 拉取</button><button class="push">↑ 推送</button></div>
+      </div>
+      <div class="views"><button class="is-on">未提交改动 <span class="n">（8）</span></button><button>提交历史 <span class="n">（3）</span></button><button>其他工作树 <span class="n">（2）</span></button></div>
+    </div>
+    <p class="state">当前状态：<b>B 大字报 · <span class="th">深色</span> · 已同步（0 / 0）</b></p>
+  </div>
+
+  <div class="variant" id="v-c">
+    <p class="vlabel">C · 身份通栏</p>
+    <p class="vnote">身份单独占一条通栏，同步句和时间放中段，按钮在底下铺满，信息按“我在哪 → 怎么样 → 干什么”往下走。</p>
+    <div class="panel" data-vc-root data-vc-theme="dark">
+      <div class="hd">
+        <div class="repo">dsh-mattpocock-skills-deck<span class="br">main</span></div>
+        <div class="path">D:/dsh-plugin/dsh-mattpocock-skills-deck</div>
+      </div>
+      <div class="mid">
+        <div class="sync">已同步 · <b>领先 0 · 落后 0</b></div>
+        <div class="meta">远端 7 分钟前 · 读到于刚刚 · <a>重新读一次</a></div>
+      </div>
+      <div class="actions"><button class="btn pull">↓ 拉取</button><button class="btn push">↑ 推送</button></div>
+      <div class="views"><button class="is-on">未提交改动 <span class="n">（8）</span></button><button>提交历史 <span class="n">（3）</span></button><button>其他工作树 <span class="n">（2）</span></button></div>
+    </div>
+    <p class="state">当前状态：<b>C 身份通栏 · <span class="th">深色</span> · 已同步（0 / 0）</b></p>
+  </div>
+
+  <div class="variant" id="v-d">
+    <p class="vlabel">D · 分区卡</p>
+    <p class="vnote">左身份右动作分区，大数字只管同步，右侧窄栏只放拉取推送，重新读一次收成小字链，不跟按钮抢同一行。</p>
+    <div class="panel" data-vc-root data-vc-theme="dark">
+      <div class="hd">
+        <div class="repo">dsh-mattpocock-skills-deck<span class="br">main</span></div>
+        <div class="path">D:/dsh-plugin/dsh-mattpocock-skills-deck</div>
+      </div>
+      <div class="cols">
+        <div class="nums">
+          <div class="row"><b>0</b> 领先提交</div>
+          <div class="row"><b>0</b> 落后提交</div>
+          <div class="row" style="font-size:11px">远端 7 分钟前更新 · 读到于刚刚</div>
+        </div>
+        <div class="side">
+          <button class="btn pull">↓ 拉取</button>
+          <button class="btn push">↑ 推送</button>
+          <button class="retry">↺ 重新读一次</button>
+        </div>
+      </div>
+      <div class="views"><button class="is-on">未提交改动 <span class="n">（8）</span></button><button>提交历史 <span class="n">（3）</span></button><button>其他工作树 <span class="n">（2）</span></button></div>
+    </div>
+    <p class="state">当前状态：<b>D 分区卡 · <span class="th">深色</span> · 已同步（0 / 0）</b></p>
+  </div>
+</div>
+
+<div class="switcher" id="sw"></div>
+<script>
+(function () {
+  var order = ['a', 'b', 'c', 'd'];
+  var names = { a: 'A 台账', b: 'B 大字', c: 'C 通栏', d: 'D 分区' };
+  var q = function (k) { var m = location.search.match(new RegExp('[?&]' + k + '=(\\w+)')); return m ? m[1] : null; };
+  var cur = 'abcd'.indexOf(q('v')) >= 0 ? q('v') : 'a';
+  var theme = q('t') === 'light' ? 'light' : 'dark';
+  function apply() {
+    order.forEach(function (k) {
+      document.getElementById('v-' + k).className = 'variant' + (k === cur ? ' on' : '');
+    });
+    document.querySelectorAll('.panel[data-vc-root]').forEach(function (p) {
+      p.setAttribute('data-vc-theme', theme);
+    });
+    document.querySelectorAll('.state .th').forEach(function (s) {
+      s.textContent = theme === 'light' ? '浅色' : '深色';
+    });
+    document.body.className = theme === 'light' ? 'light' : '';
+    document.querySelectorAll('#sw button').forEach(function (btn) {
+      var on = (btn.dataset.v && btn.dataset.v === cur) || (btn.dataset.t && btn.dataset.t === theme);
+      btn.className = on ? 'on' : '';
+    });
+    history.replaceState(null, '', '?v=' + cur + '&t=' + theme);
+  }
+  var html = order.map(function (k) { return '<button data-v="' + k + '">' + names[k] + '</button>'; }).join('');
+  html += '<span class="sep"></span><button data-t="dark">深色</button><button data-t="light">浅色</button>';
+  document.getElementById('sw').innerHTML = html;
+  document.querySelectorAll('#sw button').forEach(function (btn) {
+    btn.onclick = function () {
+      if (btn.dataset.v) cur = btn.dataset.v;
+      if (btn.dataset.t) theme = btn.dataset.t;
+      apply();
+    };
+  });
+  apply();
+})();
+</script>
+</body>
+</html>
