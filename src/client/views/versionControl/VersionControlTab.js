@@ -247,24 +247,20 @@ export const VersionControlTab = function (props) {
     if (b.kind === 'band') return h('div', { key: b.key, 'data-vc-band': 1, style: { display: 'flex', flexDirection: 'column', gap: 4 } }, b.items.map(function (it, i) {
       return h('div', { key: i, 'data-vc-band-item': it.key, style: { fontSize: 11, color: tone(it.tone), background: 'var(--vc-inset,#16181d)', border: '1px solid var(--vc-line,#2a2d35)', borderRadius: 'var(--vc-radius,6px)', padding: '4px 8px', lineHeight: 1.6 } }, [tipNode(it.tip, h('span', { key: 'text' }, it.text)), it.ai ? h('span', { key: 'ai', style: { marginLeft: 6 } }, vcAiButtonNode(h, { ai: it.ai, tr: tr, onOpen: openHandoff })) : null])
     }))
-    if (b.kind === 'identity') return h('div', { key: b.key, 'data-vc-identity': 1, style: { display: 'flex', flexDirection: 'column', gap: 2 } }, [
+    // 身份区按 854 布局 C 原型并成两行：首行仓库名加分支加同步状态右对齐，次行路径加读取时间加远端更新加重新读一次右对齐；拉取推送仍在下面那一行（门禁 A1 断言它在身份块里）。
+    if (b.kind === 'identity') return h('div', { key: b.key, 'data-vc-identity': 1, style: { display: 'flex', flexDirection: 'column', gap: 4 } }, [
       h('div', { key: 'head', style: { display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 } }, [
-        // #851 ⑥：身份行（仓库名 + 分支）用大一号的字重与字号，跟下面的计数行拉开层级（原型 A 的 ed-id）。
         tipNode(b.nameTip, h('span', { key: 'name', className: 'dsws-vc-id', 'data-vc-worktree': 1, style: { color: tone('primary'), whiteSpace: 'nowrap' } }, b.name)),
         tipNode(b.detached ? b.oidTip : b.branchText, h('span', { key: 'branch', className: 'dsws-vc-id', 'data-vc-branch': 1, style: { color: tone(b.branchTone), whiteSpace: 'nowrap' } }, b.branchText)),
         b.oidText ? h('span', { key: 'oid', className: 'dsws-vc-mono', style: { fontSize: 11, color: tone('caption'), whiteSpace: 'nowrap' } }, b.oidText) : null,
+        tipNode(b.sync.tip, h('span', { key: 'sync', className: 'dsws-vc-count', 'data-vc-sync': 1, style: { marginLeft: 'auto', whiteSpace: 'nowrap' } }, b.sync.text)),
       ]),
-      h('div', { key: 'path', className: 'dsws-vc-mono', 'data-vc-path': 1, style: { fontSize: 11, color: tone('caption'), whiteSpace: 'nowrap', overflow: 'hidden', minWidth: 0 } }, tipNode(b.pathTip, h('span', null, b.pathText))),
-      h('div', { key: 'sync', className: 'dsws-vc-count', 'data-vc-sync': 1, style: { color: tone('primary'), display: 'flex', gap: 6, alignItems: 'baseline', flexWrap: 'wrap' } }, [
-        tipNode(b.sync.tip, h('span', { key: 'text' }, b.sync.text)),
-        b.sync.basis ? tipNode(b.sync.basisTip, h('span', { key: 'basis', 'data-vc-basis': 1, style: { color: tone('caption') } }, b.sync.basis)) : null,
+      h('div', { key: 'sub', className: 'dsws-vc-caption', 'data-vc-readat': 1, style: { display: 'flex', gap: 6, alignItems: 'baseline', minWidth: 0 } }, [
+        tipNode(b.pathTip, h('span', { key: 'path', className: 'dsws-vc-mono', 'data-vc-path': 1, style: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, b.pathText)),
+        b.readAtText ? h('span', { key: 'when', style: { flex: 'none' } }, b.readAtText) : null,
+        b.sync.basis ? tipNode(b.sync.basisTip, h('span', { key: 'basis', 'data-vc-basis': 1, style: { flex: 'none' } }, b.sync.basis)) : null,
+        h('button', { key: 'reload', className: 'dsws-btn', type: 'button', 'data-vc-reload': 1, onClick: reloadNow }, tr('vc.reload')),
       ]),
-      // 这份数据是什么时候读的 + 唯一的「重新读一次」入口（不是定时器；读不到时刻就不画那几个字）。
-      h('div', { key: 'readat', className: 'dsws-vc-caption', 'data-vc-readat': 1, style: { display: 'flex', gap: 8, alignItems: 'baseline' } }, [
-        b.readAtText ? h('span', { key: 'when' }, b.readAtText) : null,
-        h('button', { key: 'reload', className: 'dsws-btn', type: 'button', 'data-vc-reload': 1, onClick: reloadNow, style: { fontSize: 10, padding: '0 6px' } }, tr('vc.reload')),
-      ]),
-      // #842：领先落后就在这一行，拉取 / 推送也跟着放这里；文字走折叠阶梯（完整文字在悬停里）。
       vcActionsNode(h, { actions: b.actions, foldActions: foldState.actions, tone: tone, tipNode: tipNode, startPull: ops.startPull, startPush: ops.startPush }),
     ])
     if (b.kind === 'changes') return h('div', { key: b.key, 'data-vc-changes': 1, 'data-vc-commit-mode': b.commitMode ? 1 : undefined }, [
@@ -272,16 +268,15 @@ export const VersionControlTab = function (props) {
       b.back ? h('div', { key: 'back', className: 'dsws-vc-link', 'data-vc-back': 1, onClick: closeCommit, style: { fontSize: 11, marginBottom: 4 } }, b.back) : null,
       h('div', { key: 'titlerow', style: { display: 'flex', alignItems: 'center', gap: 6 } }, [
         h('span', { key: 'title', style: { fontSize: 12, fontWeight: 700, color: tone('primary'), flex: 1, minWidth: 0 } }, b.title),
-        // #842：「全部暂存」在标题行右侧（未暂存计数 > 0 才出现）。
-        vcStageAllNode(h, { stageAll: b.stageAll, foldActions: foldState.actions, tone: tone, tipNode: tipNode, stagePaths: ops.stagePaths }),
       ]),
       h('div', { key: 'summary', 'data-vc-summary': 1, style: { fontSize: 11, color: tone('primary'), marginTop: 2 } }, b.summary),
+      // 854 布局 C 原型的数字条加视图条：提交输入框搬进视图条，底部不再重复放（钩子跟着视图条走）。
+      vcStatsNode(h, { stats: vcStatsOf(screen), t: tr }),
+      vcViewBarNode(h, { stageAll: b.stageAll, commitArea: b.commitArea, foldActions: foldState.actions, tone: tone, tipNode: tipNode, t: tr, stagePaths: ops.stagePaths, submitCommit: ops.submitCommit, writeMessageOf: ops.writeMessageOf }),
       b.note ? h('div', { key: 'note', 'data-vc-note': 1, style: { fontSize: 11, color: tone('caption'), marginTop: 4, lineHeight: 1.6 } }, b.note) : null,
       b.retry ? h('div', { key: 'retry', style: { marginTop: 6 } }, button(b.retry, retryCommit)) : null,
       b.empty ? h('div', { key: 'empty', style: { fontSize: 11, color: tone('caption'), marginTop: 4 } }, b.emptyText) : null,
       b.groups.map(groupNode),
-      // #842 提交区：放 changes 块底部，不新增块（块顺序 VC_BLOCK_ORDER 一个字不动）。输入框与按钮永不让位。
-      vcCommitAreaNode(h, { commitArea: b.commitArea, foldActions: foldState.actions, tone: tone, tipNode: tipNode, submitCommit: ops.submitCommit, writeMessageOf: ops.writeMessageOf }),
     ])
     if (b.kind === 'commits') return h('div', { key: b.key, 'data-vc-commits': 1 }, [
       h('div', { key: 'title', className: 'dsws-vc-sec', style: { color: tone('primary') } }, b.title),
@@ -330,13 +325,8 @@ export const VersionControlTab = function (props) {
   // #857 P5：首屏还没拿到数据时不画空白，画骨架 —— 骨架里一个字都不写；有旧数据时走旧数据那条。
   const screenState = (reads.screen && reads.screen.state) || 'idle'
   const showSkel = !screen && blocks.length === 0 && (screenState === 'idle' || screenState === 'loading')
-  const skelBar = function (key, style) { return h('div', { key: key, className: 'dsws-vc-skel', 'data-vc-skel': 1, style: style }) }
-  const skeleton = h('div', { key: 'skel', 'data-vc-skel-root': 1, style: { display: 'flex', flexDirection: 'column', padding: '2px 0' } }, [
-    skelBar('id', { width: '55%', height: 15 }),
-    h('div', { key: 'counts', style: { display: 'flex', gap: 6, marginTop: 6 } }, [skelBar('c1', { width: 64, height: 11 }), skelBar('c2', { width: 64, height: 11 }), skelBar('c3', { width: 64, height: 11 })]),
-    skelBar('s1', { width: 96, height: 11 }), skelBar('r1', { height: 13 }), skelBar('r2', { height: 13 }), skelBar('r3', { height: 13 }), skelBar('r4', { height: 13 }),
-    skelBar('s2', { width: 96, height: 11 }), skelBar('h1', { height: 13 }), skelBar('h2', { height: 13 }),
-  ])
+  // 首屏骨架按当前视图画（结构与该视图一致：改动画数字条加视图条加文件行，其余两视图画行）。
+  const skeleton = vcViewSkelNode(h, { view: ui.openCommit ? 'commits' : vcViewOf(ui) })
   // #853 第三步：布局 C —— 常驻块一直在，三个视图各只画自己的块；写尾巴平时是空的所以平时看不见。
   const view = vcViewOf(ui)
   // 点开某一笔提交就是在看历史：不管页签停在哪，都画历史那一份。

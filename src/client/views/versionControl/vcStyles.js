@@ -122,6 +122,17 @@ export const VC_STYLE_TEXT = [
   ".dsws-vc-view{appearance:none;background:transparent;border:0;border-bottom:2px solid transparent;color:var(--vc-mut);font:inherit;font-size:12.5px;padding:8px 13px;cursor:pointer;display:inline-flex;gap:6px;align-items:baseline}",
   ".dsws-vc-view .dsws-vc-mono{font-size:11px}",
   ".dsws-vc-view.is-on{color:var(--vc-ink);border-bottom-color:var(--vc-accent);font-weight:650}",
+  // 数字条（854 布局 C 原型的 stat 三格：冲突红、已暂存绿、未暂存蓝，浅色纸面加一层实影）。
+  ".dsws-vc-stats{display:flex;gap:7px;margin:10px 0 12px}",
+  ".dsws-vc-stat{flex:1;min-width:0;padding:7px 9px;border:1px solid var(--vc-line);border-radius:var(--vc-radius);background:var(--vc-inset)}",
+  ".dsws-vc-stat-n{font-family:ui-monospace,SFMono-Regular,Consolas,Menlo,monospace;font-variant-numeric:tabular-nums;font-size:19px;font-weight:700;line-height:1.15}",
+  ".dsws-vc-stat-t{font-size:10.5px;color:var(--vc-mut);margin-top:1px}",
+  ".dsws-vc-stat[data-vc-stat=conflict] .dsws-vc-stat-n{color:var(--vc-danger)}",
+  ".dsws-vc-stat[data-vc-stat=staged] .dsws-vc-stat-n{color:var(--vc-accent)}",
+  ".dsws-vc-stat[data-vc-stat=unstaged] .dsws-vc-stat-n{color:var(--vc-info)}",
+  // 视图条（854 布局 C 原型的 viewbar：虚线框里横排提交动作 inline 输入与提交按钮）。
+  ".dsws-vc-viewbar{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin:0 0 10px;padding:7px 8px;border:1px dashed var(--vc-line2);border-radius:var(--vc-radius)}",
+  ".dsws-vc-viewbar-lbl{font-size:10.5px;color:var(--vc-faint);font-family:ui-monospace,SFMono-Regular,Consolas,Menlo,monospace}",
   // #857 P5/P6：骨架条——固定高度占位，不跳；减弱动态偏好下静止。
   ".dsws-vc-skel{border-radius:4px;background:linear-gradient(90deg,var(--vc-hover,rgba(127,127,160,.12)) 25%,var(--vc-elevated,#16181d) 50%,var(--vc-hover,rgba(127,127,160,.12)) 75%);background-size:200% 100%;animation:dsws-vc-shimmer 1.4s linear infinite;margin:7px 0}",
   "@keyframes dsws-vc-shimmer{to{background-position:-200% 0}}",

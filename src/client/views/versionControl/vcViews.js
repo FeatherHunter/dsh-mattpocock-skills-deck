@@ -38,7 +38,7 @@ export const vcViewBlocksOf = function (blocks) {
   })
   return out
 }
-// 视图页签那一行（o: { view, counts, t, onPick }；工作树那一档直接复用带数的既有词条）。
+// 视图页签那一行（o: { view, counts, t, onPick }；门禁 V2 要求必须是既有词条加纯数字，不造新词，所以沿用三段标题的词条；原型里是简写，差异记在这里）。
 export const vcViewTabsNode = function (h, o) {
   const view = vcViewOf({ view: o.view })
   const counts = o.counts || { changes: 0, commits: 0, worktrees: 0 }
@@ -53,5 +53,40 @@ export const vcViewTabsNode = function (h, o) {
     tab('changes', t('vc.changes.title'), counts.changes),
     tab('commits', t('vc.commits.title'), counts.commits),
     tab('worktrees', t('vc.other.title', { n: String(counts.worktrees) }), null),
+  ])
+}
+// 数字条的数据（854 布局 C 原型 changes 视图里的三个数字块：卡在冲突里／已暂存／未暂存）。
+export const vcStatsOf = function (screen) {
+  const s = screen || {}
+  return [
+    { key: 'conflict', n: Math.max(0, Number(s.conflictCount) || 0), tone: 'conflict' },
+    { key: 'staged', n: Math.max(0, Number(s.stagedCount) || 0), tone: 'staged' },
+    { key: 'unstaged', n: Math.max(0, Number(s.unstagedCount) || 0), tone: 'unstaged' },
+  ]
+}
+// 数字条那一行（o: { stats, t }；文案走 vc.stats.*，深浅两套由皮肤令牌换肤）。
+export const vcStatsNode = function (h, o) {
+  const t = o.t
+  const name = { conflict: t('vc.stats.conflict'), staged: t('vc.stats.staged'), unstaged: t('vc.stats.unstaged') }
+  return h('div', { key: 'stats', className: 'dsws-vc-stats', 'data-vc-stats': 1 }, (o.stats || []).map(function (s) {
+    return h('div', { key: s.key, className: 'dsws-vc-stat', 'data-vc-stat': s.key }, [
+      h('div', { key: 'n', className: 'dsws-vc-stat-n' }, String(s.n)),
+      h('div', { key: 't', className: 'dsws-vc-stat-t' }, name[s.key] || s.key),
+    ])
+  }))
+}
+// 某视图首屏未拿到数据时的骨架（o: { view }；结构与该视图一致：改动画数字条加视图条加文件行，其余两视图画行）。
+export const vcViewSkelNode = function (h, o) {
+  const bar = function (key, style) { return h('div', { key: key, className: 'dsws-vc-skel', 'data-vc-skel': 1, style: style }) }
+  // 门禁 G5 要求首屏骨架不少于 10 条且一个字不写：三格都按 10 条画，结构仍与各视图一致。
+  if (o.view === 'commits' || o.view === 'worktrees') {
+    return h('div', { key: 'skel', 'data-vc-skel-root': 1, style: { display: 'flex', flexDirection: 'column', padding: '2px 0' } }, [
+      bar('h1', { height: 13 }), bar('h2', { height: 13 }), bar('h3', { height: 13 }), bar('h4', { height: 13 }), bar('h5', { height: 13 }),
+      bar('h6', { height: 13 }), bar('h7', { height: 13 }), bar('h8', { height: 13 }), bar('h9', { height: 13 }), bar('h10', { height: 13 }),
+    ])
+  }
+  return h('div', { key: 'skel', 'data-vc-skel-root': 1, style: { display: 'flex', flexDirection: 'column', padding: '2px 0' } }, [
+    h('div', { key: 'stats', style: { display: 'flex', gap: 6 } }, [bar('c1', { width: 64, height: 34 }), bar('c2', { width: 64, height: 34 }), bar('c3', { width: 64, height: 34 })]),
+    bar('v1', { height: 30 }), bar('r1', { height: 13 }), bar('r2', { height: 13 }), bar('r3', { height: 13 }), bar('r4', { height: 13 }), bar('r5', { height: 13 }), bar('r6', { height: 13 }),
   ])
 }

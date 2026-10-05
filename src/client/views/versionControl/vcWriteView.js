@@ -62,6 +62,31 @@ export const vcCommitAreaNode = function (h, o) {
   ])
 }
 
+/** 改动视图顶部的视图条（854 布局 C 原型的 viewbar）：虚线框里横排提交动作 inline 输入与提交按钮。
+ *  入参复用 changes 块那两份模型（stageAll 与 commitArea），行为与底部提交区完全一致，只是换了位置。 */
+export const vcViewBarNode = function (h, o) {
+  const c = o && o.commitArea
+  if (!c) return null
+  const s = o && o.stageAll
+  // 根上同时挂提交区钩子：视图条就是提交区的新位置，门禁按这个钩子断言输入框与按钮在。
+  return h('div', { key: 'viewbar', className: 'dsws-vc-viewbar', 'data-vc-viewbar': 1, 'data-vc-commit-area': 1 }, [
+    h('span', { key: 'lbl', className: 'dsws-vc-viewbar-lbl' }, o.t('vc.viewbar.submit')),
+    s && s.show === true ? o.tipNode(s.tip, h('button', {
+      key: 'stageAll', className: 'dsws-btn', type: 'button', 'data-vc-stage-all': 1, disabled: s.disabled === true,
+      onClick: function () { o.stagePaths(s.paths) }, style: { flex: 'none', fontSize: 11, padding: '1px 8px' },
+    }, (o.foldActions && o.foldActions.stageAll) || s.text)) : null,
+    h('input', {
+      key: 'input', type: 'text', value: c.value, placeholder: c.placeholder, 'data-vc-commit-msg': 1,
+      onChange: function (e) { o.writeMessageOf(e && e.target ? e.target.value : '') },
+      style: { flex: 1, minWidth: 120, fontSize: 11, padding: '3px 6px' },
+    }),
+    o.tipNode(c.tip || c.text, h('button', {
+      className: 'dsws-btn primary', type: 'button', 'data-vc-commit-btn': 1, disabled: c.disabled === true,
+      onClick: o.submitCommit, style: { flex: 'none', fontSize: 11, padding: '1px 8px' },
+    }, (o.foldActions && o.foldActions.commit) || c.text)),
+  ])
+}
+
 /** 三块尾巴：执行中那一句、上一次结果、确认框（都在块清单之外，不新增块）。
  *  入参是 **vcWriteUiOf 的模型**（不是 ops.writeState 的原始形状）：confirm 的标题/正文/主按钮文字、result 的
  *  主句/limit 句/动作词都已经翻成词条。传原始形状会让确认框变空框、横幅露出键名 —— #842 视觉预览 V1/V2 的根因。 */
