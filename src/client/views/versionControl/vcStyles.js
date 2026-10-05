@@ -102,7 +102,7 @@ export const VC_STYLE_TEXT = [
   ".dsws-vc-link{color:var(--vc-accent);text-decoration:none;border-bottom:1px solid transparent;cursor:pointer}",
   ".dsws-vc-link:hover{border-bottom-color:currentColor;text-decoration:underline}",
   // ---- 按钮与输入框：普通按钮透明底（原型 v3-btn），悬停是 8% 提亮；主按钮用皮肤强调色与对应墨色 ----
-  "[data-vc-root] .dsws-btn{background:transparent;border:1px solid var(--vc-line2);border-radius:var(--vc-radius);min-height:var(--vc-btn-h,26px)}",
+  "[data-vc-root] .dsws-btn{background:transparent;border:1px solid var(--vc-line2);border-radius:var(--vc-radius);min-height:var(--vc-btn-h,26px);color:var(--vc-ink)}",
   "[data-vc-root] .dsws-btn:hover{border-color:var(--vc-ink2);background:var(--vc-hover)}",
   "[data-vc-root] .dsws-btn.primary{background:var(--vc-accent);border-color:var(--vc-accent);color:var(--vc-accent-ink)}",
   "[data-vc-root] .dsws-btn:disabled{opacity:.4;cursor:not-allowed}",
