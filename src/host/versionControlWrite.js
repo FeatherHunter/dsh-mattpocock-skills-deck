@@ -7,12 +7,12 @@
 // push.default=nothing；set-upstream 档在执行前再核一次「这个分支确实还没有上游」（已存在上游还带 -u 会
 // 静默覆盖用户的设置）；提交不幂等，失败后只能靠仓库状态说话，绝不自动重试、绝不声称成功。
 import { createHash } from 'node:crypto'
-import { fixedPrefix, stageArgs, unstageArgs, commitArgs, pullArgs, pushArgs, lsFilesStageArgs, remoteListArgs, checkRefArgs } from '../shared/version-control/commands.js'
+import { fixedPrefix, stageArgs, unstageArgs, commitArgs, pullArgs, pushArgs, fetchArgs, lsFilesStageArgs, remoteListArgs, checkRefArgs, REMOTE_PATTERN } from '../shared/version-control/commands.js'
 import { ticketVerdict, ticketPureVerdict, requestIdProblem, indexRecordCount, fingerprintInputOf } from '../shared/version-control/write-ticket.js'
 import { pushPlanOf } from '../shared/version-control/push-plan.js'
 import { classifyWriteFailure, writeHintFor, pathsProblem, messageProblem, idShapeProblem } from '../shared/version-control/write-reasons.js'
 
-const ADD_TIMEOUT_MS = 15000, COMMIT_TIMEOUT_MS = 60000, PULL_TIMEOUT_MS = 180000, PUSH_TIMEOUT_MS = 120000
+const ADD_TIMEOUT_MS = 15000, COMMIT_TIMEOUT_MS = 60000, PULL_TIMEOUT_MS = 180000, PUSH_TIMEOUT_MS = 120000, FETCH_TIMEOUT_MS = 120000
 const SMALL_LIMIT = 256 * 1024, LSFILES_LIMIT = 8 * 1024 * 1024, REMOTE_LIMIT = 4096
 
 export function createWritePhones(deps) {
@@ -190,6 +190,19 @@ export function createWritePhones(deps) {
     const reason = classifyWriteFailure('pull', r ? r.exitCode : -1, text)
     return remember(g.requestId, wfail((r && r.kind && r.kind !== 'ok') ? r.kind : 'other', reason, (r && r.message) || '', { transportHint: r && r.hint, extra: { headBefore: headBefore, headAfter: headAfter || '' } }))
   }
+  /** 更新远方记录：只取回远端跟踪引用，不合并、不碰工作树；成功后界面重读首屏拿真数。 */
+  async function handleGitFetch(args) {
+    const g = await gateTicket(args, 'fetch')
+    if (g.replay) return g.replay
+    if (g.denied) return g.denied
+    const remote = String((g.ticket.target && g.ticket.target.remote) || '')
+    if (remote === '' || !REMOTE_PATTERN.test(remote)) return remember(g.requestId, wfail('args', 'bad-target', writeHintFor('bad-target')))
+    const r = await runOne(g.cwd, fetchArgs(remote), FETCH_TIMEOUT_MS, SMALL_LIMIT, FETCH_TIMEOUT_MS + 10000)
+    if (r && r.ok === true) return remember(g.requestId, { ok: true, mode: 'fetched', remote: remote, atMs: now() })
+    const text = failText(r)
+    const reason = classifyWriteFailure('fetch', r ? r.exitCode : -1, text)
+    return remember(g.requestId, wfail((r && r.kind && r.kind !== 'ok') ? r.kind : 'other', reason, (r && r.message) || '', { transportHint: r && r.hint }))
+  }
   /** 推送：目标只认票据里那份（执行前重新解析并比对，不一致就拒绝）。 */
   async function handleGitPush(args) {
     const g = await gateTicket(args, 'push')
@@ -205,5 +218,5 @@ export function createWritePhones(deps) {
     const reason = classifyWriteFailure('push', r ? r.exitCode : -1, text)
     return remember(g.requestId, wfail((r && r.kind && r.kind !== 'ok') ? r.kind : 'other', reason, (r && r.message) || '', { transportHint: r && r.hint }))
   }
-  return { handleGitStage: handleGitStage, handleGitUnstage: handleGitUnstage, handleGitCommit: handleGitCommit, handleGitPull: handleGitPull, handleGitPush: handleGitPush, indexRecordCount: indexRecordCount }
+  return { handleGitStage: handleGitStage, handleGitUnstage: handleGitUnstage, handleGitCommit: handleGitCommit, handleGitPull: handleGitPull, handleGitFetch: handleGitFetch, handleGitPush: handleGitPush, indexRecordCount: indexRecordCount }
 }

@@ -8,7 +8,7 @@
 // 重放保护靠 requestId 去重（同一个 requestId 回到同一份结果），不是「用一次就烧掉」。客户端只拿得到
 // id/checkedAtMs/expiresAtMs/op 与 plan（目标要显示给人看），票里的 headOid/指纹/目标留在宿主内存。
 import { createHash } from 'node:crypto'
-import { fixedPrefix, lsFilesStageArgs, remoteListArgs } from '../shared/version-control/commands.js'
+import { fixedPrefix, lsFilesStageArgs, remoteListArgs, REMOTE_PATTERN } from '../shared/version-control/commands.js'
 import { judge } from '../shared/version-control/rules.js'
 import { makeTicket, indexRecordCount, fingerprintInputOf, hasIntentToAdd, TICKET_TTL_MS } from '../shared/version-control/write-ticket.js'
 import { pushPlanOf } from '../shared/version-control/push-plan.js'
@@ -42,7 +42,7 @@ export function createWriteCheck(deps) {
   async function handleGitWriteCheck(args) {
     const a = args || {}
     const op = String(a.op || '')
-    if (op !== 'commit' && op !== 'pull' && op !== 'push') return fail('args', 'bad-target', '预检要知道是哪种写操作（op）')
+    if (op !== 'commit' && op !== 'pull' && op !== 'push' && op !== 'fetch') return fail('args', 'bad-target', '预检要知道是哪种写操作（op）')
     const cwd = String(a.cwd || '')
     // ① 首屏（只读）：判定、身份、分支与上游都从这一份读数来，不另起一套读法。
     const sr = await vc.readScreenOf(cwd)
@@ -84,6 +84,27 @@ export function createWriteCheck(deps) {
       const cur = (screen.branches || []).filter(function (b) { return b.short === branch })[0] || null
       if (!cur || !cur.upstream) return Object.assign(fail('blocked', 'blocked', '这个分支没有上游', { reasons: ['no-upstream'] }), { decision: { verdict: 'block', reasons: ['no-upstream'] } })
       plan = { mode: 'existing', remote: '', branch: '', localBranch: branch, upstream: cur.upstream }
+    }
+    if (op === 'fetch') {
+      // 更新远方记录只定远端，不定分支：远端名由上游解析或单远端默认，多远端请人选，不替人挑。
+      const rr = await readOut(cwd, remoteListArgs(), REMOTE_TIMEOUT_MS, REMOTE_LIMIT)
+      if (!rr || rr.ok !== true) return fail(rr && rr.kind ? rr.kind : 'other', 'unknown-write-failure', (rr && rr.message) || '读远端清单失败', { hint: (rr && rr.hint) || undefined })
+      const remotes = String(rr.stdout || '').split('\n').map(function (x) { return x.replace(/\r/g, '').trim() }).filter(function (x) { return x !== '' })
+      if (remotes.length === 0) return fail('args', 'no-remote', writeHintFor('no-remote'))
+      const cur = (screen.branches || []).filter(function (b) { return b.short === branch })[0] || null
+      const upstream = cur && cur.upstream ? String(cur.upstream) : ''
+      const upstreamRemote = upstream.indexOf('/') >= 0 ? upstream.slice(0, upstream.indexOf('/')) : ''
+      const requested = a.remote ? String(a.remote) : ''
+      if (requested !== '') {
+        if (!REMOTE_PATTERN.test(requested) || remotes.indexOf(requested) < 0) return fail('args', 'bad-target', writeHintFor('bad-target'))
+        plan = { mode: 'fetch', remote: requested, branch: '', localBranch: branch, upstream: upstream || null }
+      } else if (upstreamRemote !== '' && remotes.indexOf(upstreamRemote) >= 0) {
+        plan = { mode: 'fetch', remote: upstreamRemote, branch: '', localBranch: branch, upstream: upstream || null }
+      } else if (remotes.length === 1) {
+        plan = { mode: 'fetch', remote: remotes[0], branch: '', localBranch: branch, upstream: upstream || null }
+      } else {
+        return fail('args', 'need-remote-choice', '这个仓库有多个远端，请选一个', { remotes: remotes })
+      }
     }
     if (op === 'commit') {
       const bad = messageProblem(a.message)

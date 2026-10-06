@@ -242,12 +242,13 @@ export default {
     harness.handle('wf.gitStatus', async function (args) { const h = await _vc(); return h.handleGitStatus(args) })
     harness.handle('wf.gitDiff', async function (args) { const h = await _vc(); return h.handleGitDiff(args) })
     harness.handle('wf.gitLog', async function (args) { const h = await _vc(); return h.handleGitLog(args) })
-    // #841 六条写电话（1 预检 + 5 执行）：装配在 ./versionControl.js 内部（同一个 runGit 出口、同一个 loggedPhone、同一条 git.exec 日志），这里只做注册。
+    // 写电话（1 预检 + 6 执行）：装配在 ./versionControl.js 内部（同一个 runGit 出口、同一个 loggedPhone、同一条 git.exec 日志），这里只做注册。
     harness.handle('wf.gitWriteCheck', async function (args) { const h = await _vc(); return h.handleGitWriteCheck(args) })
     harness.handle('wf.gitStage', async function (args) { const h = await _vc(); return h.handleGitStage(args) })
     harness.handle('wf.gitUnstage', async function (args) { const h = await _vc(); return h.handleGitUnstage(args) })
     harness.handle('wf.gitCommit', async function (args) { const h = await _vc(); return h.handleGitCommit(args) })
     harness.handle('wf.gitPull', async function (args) { const h = await _vc(); return h.handleGitPull(args) })
+    harness.handle('wf.gitFetch', async function (args) { const h = await _vc(); return h.handleGitFetch(args) })
     harness.handle('wf.gitPush', async function (args) { const h = await _vc(); return h.handleGitPush(args) })
 
     harness.handle('wf.refresh', async function (args) { const h = await _sessRef(); return h.handleRefresh(args) })
