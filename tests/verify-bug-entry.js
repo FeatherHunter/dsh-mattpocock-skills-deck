@@ -1,4 +1,4 @@
-// verify-bug-entry.js — 新增BUG入口契约（issue #4 · v2 修 #1 BUG3：7 字段挪到末尾 · v3 UX：宽度自适应 + 按钮 hover 反馈 · #14 契约 v3.4：4 项 + 例行紧贴 · v4 #63 grilling 定版：去内部规则+实际→期望+括号单行 · v5 #475：补标签要求 bug 必带+未诊断带 needs-triage，分远端原生/本地标签行 · v6 #882：补历史单调查，先用 /research 查相似旧单并标出疑似回归）
+// verify-bug-entry.js — 新增BUG入口契约（issue #4 · v2 修 #1 BUG3：7 字段挪到末尾 · v3 UX：宽度自适应 + 按钮 hover 反馈 · #14 契约 v3.4：4 项 + 例行紧贴 · v4 #63 grilling 定版：去内部规则+实际→期望+括号单行 · v5 #475：补标签要求 bug 必带+未诊断带 needs-triage，分远端原生/本地标签行 · v7 #882：压薄终稿四节清单 + 尾部四选填通用版）
 // 用法: node tests/verify-bug-entry.js [file...]（默认 client.js + package/lib/client.js）
 // 验证：
 //   1) PROMPTS 注册表 newBugWayfinder（version≥5/placeholders/use/zh/en），注册表本体为极简（按 wayfinder 技能规则处理）+ v5 标签要求（bug 必带+未诊断带 needs-triage，分远端原生/本地标签行），不含内部规则展开，4 字段括号单行在 NEW_BUG_FIELDS_BODY(_EN)（末尾），无 gh 硬编码
@@ -17,15 +17,15 @@ const fs = require('fs')
 const files = process.argv.slice(2)
 const targets = files.length ? files : ['client.js', 'package/lib/client.js']
 let failed = false
-// v4 #63：4 字段（顺序：实际 → 期望 → 复现 → 环境）括号单行形态
-const FIELDS_ZH = ['实际（看到什么；可含影响范围）：', '期望（应发生什么 / 预期结果）：', '复现步骤（[前置 / 场景] + 编号步骤）：', '环境信息（OS + 浏览器 + 插件版本）：']
-const FIELDS_EN = ['Actual (what happened; may include impact):', 'Expected (what should happen / expected result):', 'Reproduction ([Preamble / Scenario] + numbered steps):', 'Environment (OS + browser + plugin version):']
+// v7 #882：4 字段通用选填版（顺序：实际 → 期望 → 复现 → 环境）括号单行形态，历史调查归 AI 不进填空，环境通用不点名产品
+const FIELDS_ZH = ['实际（现象；影响范围）：', '期望（预期；与实际差异）：', '复现步骤（前置条件和场景 + 编号步骤；偶发写频率）：', '环境信息（OS 版本 + 软件版本 + 运行环境）：']
+const FIELDS_EN = ['Actual (symptom; impact):', 'Expected (expectation; diff from actual):', 'Reproduction (preconditions and scenario + numbered steps; flaky → frequency):', 'Environment (OS version + software version + runtime):']
 // v4：括号内说明即指引，无独立例行；仍需校验说明关键字在场（防文案丢失）
-const DESC_ZH = ['看到什么', '影响范围', '应发生什么', '预期结果', '前置', '编号步骤', '插件版本']
-const DESC_EN = ['what should happen', 'expected result', 'what happened', 'impact', 'Preamble', 'numbered steps', 'plugin version']
+const DESC_ZH = ['现象', '影响范围', '预期', '差异', '前置条件', '编号步骤', '偶发', 'OS 版本', '软件版本', '运行环境']
+const DESC_EN = ['symptom', 'impact', 'expectation', 'diff from actual', 'preconditions and scenario', 'numbered steps', 'flaky', 'OS version', 'software version', 'runtime']
 // v4 形态守护：括号单行，每字段为 “字段名（说明）：” 单行，字段间用 \n 分隔，无 “\n  例：” 悬行
-const BRACKET_LINE_ZH = ['实际（看到什么；可含影响范围）：', '期望（应发生什么 / 预期结果）：', '复现步骤（[前置 / 场景] + 编号步骤）：', '环境信息（OS + 浏览器 + 插件版本）：']
-const BRACKET_LINE_EN = ['Actual (what happened; may include impact):', 'Expected (what should happen / expected result):', 'Reproduction ([Preamble / Scenario] + numbered steps):', 'Environment (OS + browser + plugin version):']
+const BRACKET_LINE_ZH = ['实际（现象；影响范围）：', '期望（预期；与实际差异）：', '复现步骤（前置条件和场景 + 编号步骤；偶发写频率）：', '环境信息（OS 版本 + 软件版本 + 运行环境）：']
+const BRACKET_LINE_EN = ['Actual (symptom; impact):', 'Expected (expectation; diff from actual):', 'Reproduction (preconditions and scenario + numbered steps; flaky → frequency):', 'Environment (OS version + software version + runtime):']
 const RE_ENTRY = /"newBugWayfinder": \{ version: (\d+), placeholders: \[([^\]]*)\], use: '([^']*)', zh: '([^']*)', en: '([^']*)' \}/
 const check = function (file) {
   const src = fs.readFileSync(file, 'utf8')
@@ -39,7 +39,7 @@ const check = function (file) {
     const use = m[3]
     const zh = m[4]
     const en = m[5]
-    if (ver < 7) problems.push('newBugWayfinder 版本异常 v' + ver + '（v6 #882 应 ≥7）')
+    if (ver < 8) problems.push('newBugWayfinder 版本异常 v' + ver + '（v7 #882 应 ≥8）')
     if (!use) problems.push('newBugWayfinder 缺 use')
     const ph = phRaw.split(',').map(function (x) { return x.trim().replace(/'/g, '') }).filter(Boolean)
     if (ph.join(',') !== 'repo') problems.push('newBugWayfinder 占位符应为 ["repo"]，实际 ' + JSON.stringify(ph))
@@ -59,14 +59,21 @@ const check = function (file) {
     if (en.indexOf('native labels') < 0) problems.push('newBugWayfinder en 缺 native labels 写法（v5 #475）')
     if (en.indexOf('add a Labels line') < 0) problems.push('newBugWayfinder en 缺 Labels line 写法（v5 #475）')
     if (en.indexOf('Labels: bug, needs-triage') < 0) problems.push('newBugWayfinder en 缺标签行示例 Labels: bug, needs-triage（v5 #475）')
-    // v6 #882：历史单调查（先用 /research 查相似旧单，标出疑似回归，查完具体分析，中英文一起）
-    if (zh.indexOf('/research') < 0) problems.push('newBugWayfinder zh 缺历史单调查要求 /research（v6 #882）')
-    if (zh.indexOf('查历史单') < 0) problems.push('newBugWayfinder zh 缺“查历史单”（v6 #882）')
-    if (zh.indexOf('疑似回归') < 0) problems.push('newBugWayfinder zh 缺“疑似回归”说明（v6 #882）')
-    if (zh.indexOf('具体问题具体分析') < 0) problems.push('newBugWayfinder zh 缺“具体问题具体分析”（v6 #882）')
-    if (en.indexOf('/research') < 0) problems.push('newBugWayfinder en 缺 "/research" 历史调查要求（v6 #882）')
-    if (en.indexOf('suspected regression') < 0) problems.push('newBugWayfinder en 缺 "suspected regression"（v6 #882）')
-    if (en.indexOf('case by case') < 0) problems.push('newBugWayfinder en 缺 "case by case"（v6 #882）')
+    // v7 #882：压薄终稿四节清单（澄清 / 查历史 / 自查 / 工具，中英文一起）
+    if (zh.indexOf('## 澄清') < 0) problems.push('newBugWayfinder zh 缺“## 澄清”（v7 #882）')
+    if (zh.indexOf('## 查历史') < 0) problems.push('newBugWayfinder zh 缺“## 查历史”（v7 #882）')
+    if (zh.indexOf('## 自查') < 0) problems.push('newBugWayfinder zh 缺“## 自查”（v7 #882）')
+    if (zh.indexOf('/research') < 0) problems.push('newBugWayfinder zh 缺 /research 深查（v7 #882）')
+    if (zh.indexOf('前 20 条标题') < 0) problems.push('newBugWayfinder zh 缺初筛定量“前 20 条标题”（v7 #882）')
+    if (zh.indexOf('回归则注明原单号') < 0) problems.push('newBugWayfinder zh 缺回归处理（v7 #882）')
+    if (zh.indexOf('拿不准') < 0) problems.push('newBugWayfinder zh 缺拿不准出路（v7 #882）')
+    if (zh.indexOf('默认关联不关闭') < 0) problems.push('newBugWayfinder zh 缺默认动作（v7 #882）')
+    if (en.indexOf('## Clarify') < 0) problems.push('newBugWayfinder en 缺 "## Clarify"（v7 #882）')
+    if (en.indexOf('## Check history') < 0) problems.push('newBugWayfinder en 缺 "## Check history"（v7 #882）')
+    if (en.indexOf('## Self-check') < 0) problems.push('newBugWayfinder en 缺 "## Self-check"（v7 #882）')
+    if (en.indexOf('/research') < 0) problems.push('newBugWayfinder en 缺 "/research"（v7 #882）')
+    if (en.indexOf('top 20 titles') < 0) problems.push('newBugWayfinder en 缺 "top 20 titles"（v7 #882）')
+    if (en.indexOf('default link, never close') < 0) problems.push('newBugWayfinder en 缺默认动作（v7 #882）')
     // v4 去内部规则：不应含旧的展开式流程说明
     if (zh.indexOf('先澄清') >= 0) problems.push('newBugWayfinder zh 不应含内部规则“先澄清”（v4 已去）')
     if (zh.indexOf('判断分类') >= 0) problems.push('newBugWayfinder zh 不应含内部规则“判断分类”（v4 已去）')
@@ -86,7 +93,7 @@ const check = function (file) {
     if (en.indexOf('7-field checklist') >= 0) problems.push('newBugWayfinder en 提示语仍称 "7-field checklist"')
     if (/\bgh\b/i.test(zh) || /gh issue/i.test(en)) problems.push('newBugWayfinder 不应硬编码平台工具 gh')
   }
-  // 1.5) NEW_BUG_FIELDS_BODY（zh 4 字段括号单行）+ NEW_BUG_FIELDS_BODY_EN（en 4 字段括号单行）—— v4 #63
+  // 1.5) NEW_BUG_FIELDS_BODY（zh 4 字段通用选填括号单行，头带“以下选填。”）+ NEW_BUG_FIELDS_BODY_EN（en 对称，头带“Optional below.”）—— v7 #882
   const fieldsBodyMatch = /NEW_BUG_FIELDS_BODY\s*=\s*function\s*\(\)\s*\{\s*return\s*'([^']*)'\s*\}/.exec(src)
   if (!fieldsBodyMatch) {
     problems.push('缺 NEW_BUG_FIELDS_BODY 常量定义')
@@ -97,7 +104,7 @@ const check = function (file) {
     if (!orderOk) problems.push('NEW_BUG_FIELDS_BODY 顺序非实际→期望→复现→环境')
     const missingZh = FIELDS_ZH.filter(function (f) { return fieldsBody.indexOf(f) < 0 })
     if (missingZh.length) problems.push('NEW_BUG_FIELDS_BODY 缺中文字段：' + missingZh.join(' / '))
-    // 不再允许 v2 旧字段残留（背景/场景/现象/期望行为/实际行为/影响范围 已吸收合并）+ 旧形态“期望：\n  例：”
+    // 不再允许 v2 旧字段残留 + 旧形态“期望：\n  例：”；另禁 DSH 专用环境写法回潮（浏览器 + 插件版本）
     const LEGACY_ZH = ['背景：', '场景：', '现象：', '期望行为：', '实际行为：', '影响范围：']
     const legacyIn = LEGACY_ZH.filter(function (f) { return fieldsBody.indexOf(f) >= 0 })
     if (legacyIn.length) problems.push('NEW_BUG_FIELDS_BODY 残留 v2 旧字段：' + legacyIn.join(' / '))
@@ -106,8 +113,10 @@ const check = function (file) {
     if (missingInline.length) problems.push('NEW_BUG_FIELDS_BODY 缺 zh 说明关键字：' + missingInline.join(' / '))
     // v4 分离守护：zh 不应混入英文短语（防止中英混排回潮）
     if (fieldsBody.indexOf('What should happen') >= 0 || fieldsBody.indexOf('What actually happened') >= 0) problems.push('NEW_BUG_FIELDS_BODY 混入英文 inline（v4 zh 只中文说明）')
-    // v4 形态守护：括号单行，末尾以 环境信息（OS + 浏览器 + 插件版本）：收尾
-    if (!fieldsBody.endsWith('环境信息（OS + 浏览器 + 插件版本）：')) problems.push('NEW_BUG_FIELDS_BODY 末尾非「环境信息（OS + 浏览器 + 插件版本）：」收尾')
+    // v7 形态守护：括号单行，末尾以 环境信息（OS 版本 + 软件版本 + 运行环境）：收尾；头带“以下选填。”
+    if (!fieldsBody.endsWith('环境信息（OS 版本 + 软件版本 + 运行环境）：')) problems.push('NEW_BUG_FIELDS_BODY 末尾非通用环境收尾（v7 #882）')
+    if (fieldsBody.indexOf('以下选填。') < 0) problems.push('NEW_BUG_FIELDS_BODY 缺选填头“以下选填。”（v7 #882）')
+    if (fieldsBody.indexOf('浏览器 + 插件版本') >= 0) problems.push('NEW_BUG_FIELDS_BODY 残留 DSH 专用环境写法（v7 已通用化）')
     // 括号单行完整性
     const missingBrZh = BRACKET_LINE_ZH.filter(function (g) { return fieldsBody.indexOf(g) < 0 })
     if (missingBrZh.length) problems.push('NEW_BUG_FIELDS_BODY 缺括号单行：' + missingBrZh.join(' / '))
@@ -132,7 +141,9 @@ const check = function (file) {
     if (fieldsBodyEn.indexOf('\\n  e.g.') >= 0) problems.push('NEW_BUG_FIELDS_BODY_EN 仍含旧形态悬行“\\n  e.g.”（v4 已改为括号单行）')
     const missingBrEn = BRACKET_LINE_EN.filter(function (g) { return fieldsBodyEn.indexOf(g) < 0 })
     if (missingBrEn.length) problems.push('NEW_BUG_FIELDS_BODY_EN 缺括号单行：' + missingBrEn.join(' / '))
-    if (!fieldsBodyEn.endsWith('Environment (OS + browser + plugin version):')) problems.push('NEW_BUG_FIELDS_BODY_EN 末尾非 "Environment (OS + browser + plugin version):" 收尾')
+    if (!fieldsBodyEn.endsWith('Environment (OS version + software version + runtime):')) problems.push('NEW_BUG_FIELDS_BODY_EN 末尾非通用环境收尾（v7 #882）')
+    if (fieldsBodyEn.indexOf('Optional below.') < 0) problems.push('NEW_BUG_FIELDS_BODY_EN 缺选填头 "Optional below."（v7 #882）')
+    if (fieldsBodyEn.indexOf('browser + plugin version') >= 0) problems.push('NEW_BUG_FIELDS_BODY_EN 残留 DSH 专用环境写法（v7 已通用化）')
   }
   // 2) i18n 键
   ;['nav.bugNew', 'nav.bugNewTitle', 'panel.newBug', 'panel.newBugTitle'].forEach(function (k) {
