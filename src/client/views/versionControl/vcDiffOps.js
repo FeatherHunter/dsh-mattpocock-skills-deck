@@ -65,9 +65,11 @@ export const vcDiffOpsOf = function (o) {
   }
   const openCommit = function (c) {
     const r = String(c.key || '')
-    setUi(Object.assign({}, ui, { openCommit: r, openDiff: '' }))
-    // #853 第三步：点开某一笔提交就跳到「提交历史」视图（那笔提交的文件清单画在那里）。
+    // #853 第三步：点开某一笔提交就落在「提交历史」视图（那笔提交的文件清单画在那里）。
+    // #881：已经在提交历史里时这次跳转是多余的，但要保留它来记住视图；顺序不能反 ——
+    //   切页签那条老路每次都清空正在看的提交，先切再记，记的那一步才留得住；反过来会被清空盖掉，看起来就是点不动。
     if (typeof onView === 'function') onView('commits')
+    setUi(function (cur) { return Object.assign({}, cur, { openCommit: r, openDiff: '' }) })
     const entry = readsRef.current.commit || {}
     if (entry.rev === r && (entry.state === 'ok' || entry.state === 'loading')) return
     setReads(vcMarkCommitLoading(readsRef.current, r))
