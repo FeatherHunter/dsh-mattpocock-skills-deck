@@ -2,7 +2,7 @@
 //
 // 这道门禁回答一个问题：更新能力是不是全权委托给了已安装的更新包，
 // 本仓还有没有自己的更新实现。规则：
-//   0) 版本一致：根清单与发布清单都按 ^0.7.0 范围依赖更新包；锁文件版本＝已安装版本＝派生文件头版本一致；
+//   0) 版本一致：根清单与发布清单用同一范围依赖更新包（当前 0.8 范围）；锁文件版本＝已安装版本＝派生文件头版本一致；
 //      锁文件里不再有本地旧包的登记，工作区放行名单里不再有更新包条目。
 //   1) 旧实现已删：旧三件套、旧派生目录、旧共享核心、update-core 源码树、本地旧包目录都不存在；
 //      发布包里的旧共享残留也不存在；退役的四道旧门禁已从校验链移除。
@@ -37,11 +37,13 @@ async function main() {
 
   // ---- 0) 版本一致 ----
   const pj = JSON.parse(read('package.json'))
-  check(pj.dependencies && pj.dependencies['dsh-plugin-update'] === '^0.7.0', '清单依赖更新包 ^0.7.0')
+  const expectedRange = pj.dependencies && pj.dependencies['dsh-plugin-update']
+  check(typeof expectedRange === 'string' && /^\^0\.\d+\.0$/.test(expectedRange), '清单依赖更新包是 0.x 范围（实际 ' + expectedRange + '）')
   const pubPj = JSON.parse(read('package/package.json'))
-  check(pubPj.dependencies && pubPj.dependencies['dsh-plugin-update'] === '^0.7.0', '发布清单依赖更新包 ^0.7.0')
+  check(pubPj.dependencies && pubPj.dependencies['dsh-plugin-update'] === expectedRange, '发布清单依赖与根清单同范围（' + expectedRange + '）')
   const installed = JSON.parse(read('node_modules/dsh-plugin-update/package.json')).version
-  check(/^0\.7\.\d+$/.test(installed), '已安装更新包是 0.7.x（实际 ' + installed + '）')
+  const rangeMinor = (expectedRange.match(/^\^0\.(\d+)\.0$/) || [])[1]
+  check(typeof rangeMinor === 'string' && new RegExp('^0\\.' + rangeMinor + '\\.\\d+$').test(installed), '已安装更新包与清单范围同代（范围 ' + expectedRange + '，实际 ' + installed + '）')
   const lock = read('pnpm-lock.yaml')
   check(lock.includes('dsh-plugin-update@' + installed), '锁文件含已安装版本 ' + installed)
   check(!lock.includes('packages/dsh-plugin-update:'), '锁文件无本地旧包登记')

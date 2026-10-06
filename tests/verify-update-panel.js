@@ -66,7 +66,8 @@ async function main() {
   check(exists('src/client/views/UpdateEntryHost.js'), '入口挂载点存在：src/client/views/UpdateEntryHost.js')
   check(exists('scripts/generated/updateEntryPanel.bundle.js'), '入口件绑定包存在（构建产物，人手不改）')
   const bundleHead = read('scripts/generated/updateEntryPanel.bundle.js').split('\n').slice(0, 3).join('\n')
-  check(bundleHead.includes('dsh-plugin-update@0.7.'), '绑定包头写明已安装更新包版本（0.7.x）')
+  const installedUpd = JSON.parse(read('node_modules/dsh-plugin-update/package.json')).version
+  check(bundleHead.includes('dsh-plugin-update@' + installedUpd), '绑定包头写明已安装更新包版本（实际 ' + installedUpd + '）')
   const bundleSrc = read('scripts/generated/updateEntryPanel.bundle.js')
   check(bundleSrc.includes('mountUpdateEntry'), '绑定包里有入口件挂载函数')
   check(leafSrc.includes('mountUpdateEntry'), '挂载点调用包的入口件（不自拼面板）')
@@ -102,7 +103,8 @@ async function main() {
   check(/## \[1\.7\.\d+\] - \d{4}-\d{2}-\d{2}/.test(changelog), '更新日志有版本节（## [x.y.z] - 日期，最新在前）')
   check(/### (Added|Fixed|Changed|Security)/.test(changelog), '更新日志有面板必显分类（Added/Fixed/Changed/Security）')
   const pkgManifest = JSON.parse(read('package/package.json'))
-  check(pkgManifest.dependencies && /^0\.7\.\d+$/.test(pkgManifest.dependencies['dsh-plugin-update'].replace(/^\^/, '')), '包清单依赖跟踪更新包最新（0.7.x，实际 ' + (pkgManifest.dependencies && pkgManifest.dependencies['dsh-plugin-update']) + '）')
+  const rootManifest = JSON.parse(read('package.json'))
+  check(pkgManifest.dependencies && pkgManifest.dependencies['dsh-plugin-update'] === rootManifest.dependencies['dsh-plugin-update'], '包清单依赖与根清单同范围（实际 ' + (pkgManifest.dependencies && pkgManifest.dependencies['dsh-plugin-update']) + '）')
   check(Array.isArray(pkgManifest.files) && pkgManifest.files.includes('CHANGELOG.md'), '包清单白名单含更新日志文件（随包发布）')
 
   // ---- 7) 电话行为（假环境：不存在的范围目录 + 可控网络） ----

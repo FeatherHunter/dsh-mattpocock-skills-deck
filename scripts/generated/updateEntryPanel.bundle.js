@@ -1,4 +1,4 @@
-// 由 dsh-plugin-update@0.7.0 的入口件产物打成浏览器绑定包，人手不改。
+// 由 dsh-plugin-update@0.8.0 的入口件产物打成浏览器绑定包，人手不改。
 // 来源：已安装更新包的 dist/entry.js（含内部 dialog 面板）；摆法与关闭轮询约定全部走包默认。
 var __DshUpdateEntry = (() => {
   var __defProp = Object.defineProperty;
@@ -19,7 +19,7 @@ var __DshUpdateEntry = (() => {
   };
   var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-  // ../node_modules/.pnpm/dsh-plugin-update@0.7.0/node_modules/dsh-plugin-update/dist/entry.js
+  // node_modules/.pnpm/dsh-plugin-update@0.8.0/node_modules/dsh-plugin-update/dist/entry.js
   var entry_exports = {};
   __export(entry_exports, {
     UPDATE_ENTRY_CSS: () => UPDATE_ENTRY_CSS,
@@ -33,7 +33,7 @@ var __DshUpdateEntry = (() => {
     mountUpdateEntry: () => mountUpdateEntry
   });
 
-  // ../node_modules/.pnpm/dsh-plugin-update@0.7.0/node_modules/dsh-plugin-update/dist/config.js
+  // node_modules/.pnpm/dsh-plugin-update@0.8.0/node_modules/dsh-plugin-update/dist/config.js
   var DEFAULT_PREFIX = "wf";
   var DEFAULT_CONFIRMATION_TTL_MS = 10 * 6e4;
   var DEFAULT_INSTALL_TIMEOUT_MS = 15 * 6e4;
@@ -61,7 +61,7 @@ var __DshUpdateEntry = (() => {
     return buildPhoneNames(prefix).updateChangelog;
   }
 
-  // ../node_modules/.pnpm/dsh-plugin-update@0.7.0/node_modules/dsh-plugin-update/dist/redaction.js
+  // node_modules/.pnpm/dsh-plugin-update@0.8.0/node_modules/dsh-plugin-update/dist/redaction.js
   var COPY_BUDGET_CHARS = 1500;
   var REDACTED_PATH = "<\u8DEF\u5F84>";
   var REDACTED_SECRET = "<\u8131\u654F>";
@@ -127,7 +127,7 @@ var __DshUpdateEntry = (() => {
     return truncateForCopy(scrubWithoutBudget(flat));
   }
 
-  // ../node_modules/.pnpm/dsh-plugin-update@0.7.0/node_modules/dsh-plugin-update/dist/service.js
+  // node_modules/.pnpm/dsh-plugin-update@0.8.0/node_modules/dsh-plugin-update/dist/service.js
   var CONFIRMATION_TTL_MS = 10 * 6e4;
   var MAX_METADATA_BYTES = 256 * 1024;
   function updateError(code) {
@@ -214,7 +214,7 @@ var __DshUpdateEntry = (() => {
     return 0;
   }
 
-  // ../node_modules/.pnpm/dsh-plugin-update@0.7.0/node_modules/dsh-plugin-update/dist/lang.js
+  // node_modules/.pnpm/dsh-plugin-update@0.8.0/node_modules/dsh-plugin-update/dist/lang.js
   function normalizeLangTag(tag) {
     if (typeof tag !== "string") return "zh";
     const s = tag.trim().toLowerCase().replace(/_/g, "-");
@@ -345,7 +345,7 @@ var __DshUpdateEntry = (() => {
     };
   }
 
-  // ../node_modules/.pnpm/dsh-plugin-update@0.7.0/node_modules/dsh-plugin-update/dist/bilingual.js
+  // node_modules/.pnpm/dsh-plugin-update@0.8.0/node_modules/dsh-plugin-update/dist/bilingual.js
   var BILINGUAL_STRINGS = {
     "entry.label.idle": { en: "Check for updates", zh: "\u68C0\u67E5\u66F4\u65B0", draft: true },
     "entry.label.failed": { en: "Update failed \u2014 View details", zh: "\u66F4\u65B0\u5931\u8D25\uFF0C\u70B9\u6B64\u67E5\u770B", draft: true },
@@ -692,7 +692,7 @@ var __DshUpdateEntry = (() => {
     ".dsh-upd-bi [lang]{overflow-wrap:anywhere}"
   ].join("\n");
 
-  // ../node_modules/.pnpm/dsh-plugin-update@0.7.0/node_modules/dsh-plugin-update/dist/changelog.js
+  // node_modules/.pnpm/dsh-plugin-update@0.8.0/node_modules/dsh-plugin-update/dist/changelog.js
   var CHANGELOG_MAX_CHARS = 64 * 1024;
   var CHANGELOG_MAX_ENTRIES = 100;
   var CHANGELOG_MAX_BULLETS_PER_SECTION = 200;
@@ -1142,15 +1142,15 @@ ${blocks.join("\n")}
     }
   }
 
-  // ../node_modules/.pnpm/dsh-plugin-update@0.7.0/node_modules/dsh-plugin-update/dist/log-events.js
+  // node_modules/.pnpm/dsh-plugin-update@0.8.0/node_modules/dsh-plugin-update/dist/log-events.js
   var LOG_EVENT_CALL = "host.call";
   var LOG_EVENT_CALL_FAIL = "host.call.fail";
   var LOG_EVENT_INSTALL_EXEC = "update.install.exec";
 
-  // ../node_modules/.pnpm/dsh-plugin-update@0.7.0/node_modules/dsh-plugin-update/dist/queue.js
+  // node_modules/.pnpm/dsh-plugin-update@0.8.0/node_modules/dsh-plugin-update/dist/queue.js
   var QUEUE_INTENT_TTL_MS = 10 * 6e4;
 
-  // ../node_modules/.pnpm/dsh-plugin-update@0.7.0/node_modules/dsh-plugin-update/dist/panel.js
+  // node_modules/.pnpm/dsh-plugin-update@0.8.0/node_modules/dsh-plugin-update/dist/panel.js
   function normalizePanelTheme(value) {
     return value === "archive" ? "archive" : "default";
   }
@@ -1177,6 +1177,7 @@ ${blocks.join("\n")}
     busyBg: "--dsh-update-busy-bg",
     busyBorder: "--dsh-update-busy-border",
     busyText: "--dsh-update-busy-text",
+    newText: "--dsh-update-new-text",
     fontSans: "--dsh-update-font-sans",
     fontSerif: "--dsh-update-font-serif",
     fontMono: "--dsh-update-font-mono",
@@ -1211,7 +1212,8 @@ ${blocks.join("\n")}
     "badText",
     "busyBg",
     "busyBorder",
-    "busyText"
+    "busyText",
+    "newText"
   ]);
   function themeTokensError(raw) {
     return new Error(`[dsh-plugin-update] \u4E3B\u9898\u53C2\u6570 themeTokens \u975E\u6CD5\uFF1A\u53EA\u6536\u5DF2\u77E5 token \u952E\uFF08\u989C\u8272\u7528 hex \u6216\u82F1\u6587\u540D\uFF0C\u5B57\u4F53/\u5706\u89D2/\u9634\u5F71/\u5C3A\u5BF8\u4E3A\u5B89\u5168 CSS \u503C\uFF0CentryScale \u4E3A\u5927\u4E8E 0 \u7684\u6709\u9650\u6570\uFF09\uFF08\u6536\u5230 ${JSON.stringify(raw ?? null)})`);
@@ -1684,7 +1686,7 @@ ${blocks.join("\n")}
     };
   }
   var UPDATE_PANEL_CSS = [
-    '.dsh-upd{font:14px/1.6 system-ui,"Microsoft YaHei",sans-serif;color:var(--dsh-update-text,#1f2937);',
+    '.dsh-upd{font:14px/1.75 system-ui,"Microsoft YaHei",sans-serif;color:var(--dsh-update-text,#1f2937);',
     "background:var(--dsh-update-bg,#ffffff);border:1px solid var(--dsh-update-border,#e5e7eb);border-radius:8px;padding:12px 14px;max-width:560px;",
     // 横幅配色走变量（浅色默认 + 深色覆盖，见下方 dark 媒体块）：硬编码浅色会让深色下
     // 「浅底 + 浅字」读不出来（现场回归：默认主题深色模式更新横幅白底浅字）。
@@ -1692,7 +1694,7 @@ ${blocks.join("\n")}
     "--dsh-update-bad-bg:#fef2f2;--dsh-update-bad-border:#dc2626;--dsh-update-busy-bg:#eff6ff;--dsh-update-busy-border:#2563eb}",
     ".dsh-upd *{box-sizing:border-box}",
     ".dsh-upd button{font:inherit;border:1px solid var(--dsh-update-border-strong,#d1d5db);border-radius:var(--dsh-update-radius-button,6px);background:var(--dsh-update-button-bg,#f9fafb);",
-    "color:inherit;padding:4px 12px;cursor:pointer;margin:2px 6px 2px 0}",
+    "color:inherit;padding:7px 14px;cursor:pointer;margin:2px 6px 2px 0}",
     ".dsh-upd button:disabled{opacity:.45;cursor:not-allowed}",
     ".dsh-upd button:focus-visible{outline:2px solid var(--dsh-update-focus,#2563eb);outline-offset:1px}",
     '.dsh-upd button[data-primary="1"]{background:var(--dsh-update-primary,#2563eb);border-color:var(--dsh-update-primary,#2563eb);color:#fff}',
@@ -1722,7 +1724,8 @@ ${blocks.join("\n")}
     ".dsh-upd-overlay .dsh-upd{background:var(--dsh-update-bg,#ffffff);max-height:85vh;display:flex;flex-direction:column;overflow:hidden}",
     // —— 弹窗分栏滚动：头（抬头/档案头/横幅/版本条）与尾固定，只有 01–05 章节区滚动 ——
     ".dsh-upd-body{min-height:0}",
-    ".dsh-upd-overlay .dsh-upd-body{flex:1 1 auto;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:var(--dsh-update-border,#e5e7eb) transparent}",
+    ".dsh-upd-body *{min-width:0}",
+    ".dsh-upd-overlay .dsh-upd-body{flex:1 1 auto;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:var(--dsh-update-border,#e5e7eb) transparent}",
     ".dsh-upd-overlay .dsh-upd-body::-webkit-scrollbar{width:8px}",
     ".dsh-upd-overlay .dsh-upd-body::-webkit-scrollbar-thumb{background:var(--dsh-update-border,#e5e7eb);border-radius:4px}",
     ".dsh-upd-overlay .dsh-upd-body::-webkit-scrollbar-track{background:transparent}",
@@ -1737,11 +1740,11 @@ ${blocks.join("\n")}
     ".dsh-upd-meta{font-size:12.5px;opacity:.75}",
     ".dsh-upd-proftag{font-family:Consolas,Menlo,monospace;font-size:11px;border:1px solid var(--dsh-update-border,#d1d5db);border-radius:3px;padding:0 5px;margin-left:6px;letter-spacing:.06em}",
     ".dsh-upd-strip{display:flex;flex-wrap:wrap;margin:8px 0 0;border:1px solid var(--dsh-update-border,#e5e7eb);border-radius:4px;overflow:hidden;font-size:12.5px}",
-    ".dsh-upd-strip>div{flex:1 1 110px;padding:6px 10px;border-left:1px solid var(--dsh-update-border,#e5e7eb)}",
+    ".dsh-upd-strip>div{flex:1 1 110px;min-width:0;padding:6px 10px;border-left:1px solid var(--dsh-update-border,#e5e7eb)}",
     ".dsh-upd-strip>div:first-child{border-left:0}",
     ".dsh-upd-strip-k{display:block;font-size:11px;letter-spacing:.14em;opacity:.7}",
-    ".dsh-upd-strip-v{font-family:Consolas,Menlo,monospace;font-size:12.5px}",
-    ".dsh-upd-chapter{margin-top:14px;padding-top:10px;border-top:1px solid var(--dsh-update-border,#e5e7eb)}",
+    ".dsh-upd-strip-v{font-family:Consolas,Menlo,monospace;font-size:12.5px;word-break:break-all}",
+    ".dsh-upd-chapter{margin-top:18px;padding-top:14px;border-top:1px solid var(--dsh-update-border,#e5e7eb)}",
     // 右下角独立 footer 区（#47 定案 A）：与第一章 actions 脱钩，右对齐，一次找到。
     ".dsh-upd-footer{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:14px;padding-top:10px;border-top:1px solid var(--dsh-update-border,#e5e7eb)}",
     ".dsh-upd-foot-note{margin-right:auto;font-size:12px;opacity:.7}",
@@ -1754,7 +1757,7 @@ ${blocks.join("\n")}
     ".dsh-upd-chap-note{flex:none;font-size:12px;opacity:.75}",
     ".dsh-upd-chap-note button{margin:0}",
     // 更新队列两行键值（用户定案的设计）：结构两主题共用，皮肤各自收敛。
-    ".dsh-upd-qrow{display:flex;align-items:baseline;gap:10px;padding:6px 0}",
+    ".dsh-upd-qrow{display:flex;align-items:baseline;flex-wrap:wrap;gap:10px;padding:6px 0;min-width:0}",
     ".dsh-upd-qrow+.dsh-upd-qrow{border-top:1px solid var(--dsh-update-border,#e5e7eb)}",
     ".dsh-upd-qdot{width:8px;height:8px;border-radius:50%;flex:none;align-self:center;background:currentColor;opacity:.5}",
     '.dsh-upd-qdot[data-tone="busy"]{background:var(--dsh-update-warn-border,#d97706);opacity:1}',
@@ -1802,6 +1805,15 @@ ${blocks.join("\n")}
     '.dsh-upd-actions button:first-child:not([aria-busy="true"])::after{content:"";display:inline-block;width:11px;height:11px;margin-left:8px;visibility:hidden}',
     ".dsh-upd-banner{min-height:1.2em}",
     ".dsh-upd-strip{min-height:48px}",
+    // —— 查新版瞬时抖动补强：忙闲两帧同高 + 横幅不动（只追加覆盖，不改上面既有串）——
+    ".dsh-upd-actions{align-content:flex-start}",
+    ".dsh-upd-actions button{white-space:nowrap}",
+    ".dsh-upd-actions button:first-child{min-width:10em}",
+    '.dsh-upd-actions button[data-primary="1"]{min-width:9em}',
+    ".dsh-upd-banner{min-height:3.4em;display:flex;flex-direction:column;justify-content:center}",
+    ".dsh-upd-banner{animation:none}",
+    ".dsh-upd-copy{min-height:1.75em}",
+    ".dsh-upd-copy--empty{visibility:hidden}",
     "@media (prefers-color-scheme: dark){.dsh-upd{--dsh-update-text:#e5e7eb;--dsh-update-bg:#111827;--dsh-update-border:#374151;",
     "--dsh-update-button-bg:#1f2937;--dsh-update-bg-soft:#1f2937;--dsh-update-primary:#3b82f6;--dsh-update-focus:#93c5fd;",
     // 横幅深色覆盖：底色用低透明度同色系（不是浅色原值），边线提亮，保证「深底浅字」可读。
@@ -2190,6 +2202,7 @@ ${changelogHTML}
         }
       }
       if (copyNotice) errLines.push(`<div class="dsh-upd-copy" role="status">${escapeHtml2(copyNotice)}</div>`);
+      else errLines.push('<div class="dsh-upd-copy dsh-upd-copy--empty" aria-hidden="true"></div>');
       chapters.push(chapterOf(4, errLines.join(""), "", l));
     }
     chapters.push(
@@ -3121,7 +3134,12 @@ ${body}`;
     return { refresh, act, setMode, setTheme, setThemeTokens, setShowOthers, setChangelogCollapsed, setChangelogMarkdown, unmount };
   }
 
-  // ../node_modules/.pnpm/dsh-plugin-update@0.7.0/node_modules/dsh-plugin-update/dist/entry.js
+  // node_modules/.pnpm/dsh-plugin-update@0.8.0/node_modules/dsh-plugin-update/dist/entry.js
+  function upToDateVersionOf(snapshot, error) {
+    if (error || !snapshot || hasUpdateOf(snapshot)) return null;
+    const v = snapshot.runningVersion;
+    return typeof v === "string" && v.trim() ? v.trim() : null;
+  }
   function hasUpdateOf(snapshot) {
     if (!snapshot) return false;
     const latest = snapshot.latestVersion;
@@ -3237,6 +3255,9 @@ ${body}`;
     '.dsh-upd-entry[data-state="update"] .dsh-upd-entry-dot{background:var(--dsh-update-ok-border,#059669)}',
     '.dsh-upd-entry[data-state="busy"] .dsh-upd-entry-dot,.dsh-upd-entry[data-state="restart"] .dsh-upd-entry-dot{background:var(--dsh-update-warn-border,#d97706)}',
     '.dsh-upd-entry[data-state="failed"] .dsh-upd-entry-dot{background:var(--dsh-update-bad-border,#dc2626)}',
+    // C 直显（upToDateDisplay='button'）：无新版时按钮本身即版本，走中性弱边（不抢有新版的红/绿），hover 才走 primary 暗示可再查；复用既有 token，不加新键。
+    '.dsh-upd-entry[data-known="uptodate"] .dsh-upd-entry-btn{border-color:var(--dsh-update-border,#d1d5db);color:var(--dsh-update-text-muted,#6b7280)}',
+    '.dsh-upd-entry[data-known="uptodate"] .dsh-upd-entry-btn:hover{border-color:var(--dsh-update-primary,#2563eb);color:var(--dsh-update-primary,#2563eb)}',
     // 小字自带底（深色宿主 + 浅色变量时也读得出；浅底宿主上只是多一圈细线，不抢戏）。
     ".dsh-upd-entry-note{font-size:12.5px;opacity:.9;background:var(--dsh-update-bg,#ffffff);border:1px solid var(--dsh-update-border,#e5e7eb);border-radius:var(--dsh-update-radius-badge,4px);padding:1px 8px}",
     '.dsh-upd-entry[data-theme="archive"] .dsh-upd-entry-note{background:var(--dsh-update-bg);border-color:var(--dsh-update-border-strong);color:var(--dsh-update-text)}',
@@ -3247,7 +3268,7 @@ ${body}`;
     '.dsh-upd-entry[data-theme="archive"] .dsh-upd-entry-btn{border-color:var(--dsh-update-border-strong);background:var(--dsh-update-bg);color:var(--dsh-update-text);border-radius:var(--dsh-update-entry-border-radius,3px)}',
     '.dsh-upd-entry[data-theme="archive"] .dsh-upd-entry-btn:hover{border-color:var(--dsh-update-primary);color:var(--dsh-update-primary)}',
     '@media (prefers-color-scheme: dark){.dsh-upd-entry[data-theme="archive"]{--dsh-update-text:#ece5d3;--dsh-update-text-muted:#a89c83;--dsh-update-border-strong:#5c4e3b;--dsh-update-primary:#e0684e;--dsh-update-bg:#1e1a15}}',
-    "@media (prefers-color-scheme: dark){.dsh-upd-entry{color:#e5e7eb}",
+    "@media (prefers-color-scheme: dark){.dsh-upd-entry{color:#e5e7eb;--dsh-update-text-muted:#9ca3af}",
     ".dsh-upd-entry-btn{--dsh-update-button-bg:#1f2937;--dsh-update-border:#374151}}"
   ].join("\n");
   var ENTRY_ATTR = "data-dsh-upd-entry";
@@ -3292,6 +3313,10 @@ ${body}`;
     const openOn = options.openOn ?? "has-update";
     if (openOn !== "has-update" && openOn !== "always" && openOn !== "manual" && openOn !== "direct") {
       throw new Error(`[dsh-plugin-update] \u70B9\u51FB\u53BB\u5411\u975E\u6CD5\uFF1A\u53EA\u6536 has-update / always / manual / direct\uFF08\u6536\u5230 ${JSON.stringify(options.openOn)}\uFF09`);
+    }
+    const upToDateDisplay = options.upToDateDisplay ?? "button";
+    if (upToDateDisplay !== "note" && upToDateDisplay !== "button" && upToDateDisplay !== "tooltip") {
+      throw new Error(`[dsh-plugin-update] invalid upToDateDisplay: expected note / button / tooltip (got ${JSON.stringify(options.upToDateDisplay)})`);
     }
     if (options.theme !== void 0 && options.theme !== "default" && options.theme !== "archive") {
       throw new Error(`[dsh-plugin-update] \u4E3B\u9898\u975E\u6CD5\uFF1A\u53EA\u6536 default \u6216 archive\uFF08\u6536\u5230 ${JSON.stringify(options.theme)}\uFF09`);
@@ -3351,7 +3376,13 @@ ${body}`;
       return { snapshot, error };
     }
     function currentLabel() {
-      return labelOverride ?? entryLabelFor(stateOf(), currentLang());
+      if (labelOverride) return labelOverride;
+      const lang = currentLang();
+      if (!activating && upToDateDisplay === "button" && entryStateKind(stateOf()) === "idle") {
+        const v = upToDateVersionOf(snapshot, error);
+        if (v) return copyText("entry.note.up-to-date", lang, { version: v });
+      }
+      return entryLabelFor(stateOf(), lang);
     }
     function hasUpdate() {
       return hasUpdateOf(snapshot);
@@ -3362,18 +3393,24 @@ ${body}`;
     function entryHTML() {
       const kind = entryStateKind(stateOf());
       const lang = currentLang();
-      const labelHTML = labelOverride ? escapeHtml3(labelOverride) : activating ? copyHTML("entry.action.checking", lang) : copyHTML(entryBilingualKeyFor(stateOf()), lang, entryBilingualValuesFor(stateOf()));
-      const labelText = labelOverride ?? (activating ? copyText("entry.action.checking", lang) : copyText(entryBilingualKeyFor(stateOf()), lang, entryBilingualValuesFor(stateOf())));
+      const knownUpToDate = !activating && kind === "idle" ? upToDateVersionOf(snapshot, error) : null;
+      const buttonMode = !labelOverride && upToDateDisplay === "button" && knownUpToDate;
+      const tooltipMode = !labelOverride && upToDateDisplay === "tooltip" && knownUpToDate;
+      const labelHTML = labelOverride ? escapeHtml3(labelOverride) : activating ? copyHTML("entry.action.checking", lang) : buttonMode && knownUpToDate ? copyHTML("entry.note.up-to-date", lang, { version: knownUpToDate }) : copyHTML(entryBilingualKeyFor(stateOf()), lang, entryBilingualValuesFor(stateOf()));
+      const labelText = labelOverride ?? (activating ? copyText("entry.action.checking", lang) : buttonMode && knownUpToDate ? copyText("entry.note.up-to-date", lang, { version: knownUpToDate }) : copyText(entryBilingualKeyFor(stateOf()), lang, entryBilingualValuesFor(stateOf())));
+      const titleText = labelOverride ? labelOverride : activating ? copyText("entry.action.checking", lang) : buttonMode && knownUpToDate ? copyText(entryBilingualKeyFor(stateOf()), lang, entryBilingualValuesFor(stateOf())) : tooltipMode && knownUpToDate ? copyText("entry.note.up-to-date", lang, { version: knownUpToDate }) : labelText;
       const busyAttr = activating ? ' disabled aria-busy="true"' : "";
       const themeAttr = theme === "archive" ? ' data-theme="archive"' : "";
       const tokensStyle = themeTokensStyleFor(themeTokens ?? void 0);
       const styleBody = [sizingStyle, tokensStyle].filter((part) => part).join(";");
       const styleAttr = styleBody ? ` style="${styleBody}"` : "";
-      const control = variant === "badge" ? `<button type="button" class="dsh-upd-entry-dot" ${ENTRY_ATTR}="activate" title="${escapeHtml3(labelText)}" aria-label="${escapeHtml3(labelText)}"${busyAttr}></button>` : `<button type="button" class="dsh-upd-entry-btn" ${ENTRY_ATTR}="activate"${busyAttr}>${labelHTML}</button>`;
-      const noteHTML = noteVersion ? `<span class="dsh-upd-entry-note" data-dsh-upd-note="1">${copyHTML("entry.note.up-to-date", lang, { version: noteVersion })}</span>` : "";
+      const knownAttr = buttonMode ? ' data-known="uptodate"' : "";
+      const displayAttr = ` data-uptodate="${upToDateDisplay}"`;
+      const control = variant === "badge" ? `<button type="button" class="dsh-upd-entry-dot" ${ENTRY_ATTR}="activate" title="${escapeHtml3(titleText)}" aria-label="${escapeHtml3(labelText)}"${busyAttr}></button>` : `<button type="button" class="dsh-upd-entry-btn" ${ENTRY_ATTR}="activate" title="${escapeHtml3(titleText)}" aria-label="${escapeHtml3(labelText)}"${busyAttr}>${labelHTML}</button>`;
+      const noteHTML = upToDateDisplay === "note" && noteVersion ? `<span class="dsh-upd-entry-note" data-dsh-upd-note="1">${copyHTML("entry.note.up-to-date", lang, { version: noteVersion })}</span>` : "";
       return `<style>${UPDATE_ENTRY_CSS}
 ${BILINGUAL_CSS}</style>
-<span class="dsh-upd-entry" data-variant="${variant}" data-state="${kind}"${themeAttr}${styleAttr}>${control}${noteHTML}</span>`;
+<span class="dsh-upd-entry" data-variant="${variant}" data-state="${kind}"${displayAttr}${knownAttr}${themeAttr}${styleAttr}>${control}${noteHTML}</span>`;
     }
     function render() {
       if (!mounted) return;
@@ -3475,7 +3512,7 @@ ${BILINGUAL_CSS}</style>
         openDialog();
         return;
       }
-      noteVersion = snapshot.runningVersion;
+      if (upToDateDisplay === "note") noteVersion = snapshot.runningVersion;
       render();
     }
     function setTheme(next) {
