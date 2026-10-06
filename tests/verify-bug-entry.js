@@ -1,4 +1,4 @@
-// verify-bug-entry.js — 新增BUG入口契约（issue #4 · v2 修 #1 BUG3：7 字段挪到末尾 · v3 UX：宽度自适应 + 按钮 hover 反馈 · #14 契约 v3.4：4 项 + 例行紧贴 · v4 #63 grilling 定版：去内部规则+实际→期望+括号单行 · v5 #475：补标签要求 bug 必带+未诊断带 needs-triage，分远端原生/本地标签行）
+// verify-bug-entry.js — 新增BUG入口契约（issue #4 · v2 修 #1 BUG3：7 字段挪到末尾 · v3 UX：宽度自适应 + 按钮 hover 反馈 · #14 契约 v3.4：4 项 + 例行紧贴 · v4 #63 grilling 定版：去内部规则+实际→期望+括号单行 · v5 #475：补标签要求 bug 必带+未诊断带 needs-triage，分远端原生/本地标签行 · v6 #882：补历史单调查，先用 /research 查相似旧单并标出疑似回归）
 // 用法: node tests/verify-bug-entry.js [file...]（默认 client.js + package/lib/client.js）
 // 验证：
 //   1) PROMPTS 注册表 newBugWayfinder（version≥5/placeholders/use/zh/en），注册表本体为极简（按 wayfinder 技能规则处理）+ v5 标签要求（bug 必带+未诊断带 needs-triage，分远端原生/本地标签行），不含内部规则展开，4 字段括号单行在 NEW_BUG_FIELDS_BODY(_EN)（末尾），无 gh 硬编码
@@ -39,7 +39,7 @@ const check = function (file) {
     const use = m[3]
     const zh = m[4]
     const en = m[5]
-    if (ver < 5) problems.push('newBugWayfinder 版本异常 v' + ver + '（v5 #475 应 ≥5）')
+    if (ver < 7) problems.push('newBugWayfinder 版本异常 v' + ver + '（v6 #882 应 ≥7）')
     if (!use) problems.push('newBugWayfinder 缺 use')
     const ph = phRaw.split(',').map(function (x) { return x.trim().replace(/'/g, '') }).filter(Boolean)
     if (ph.join(',') !== 'repo') problems.push('newBugWayfinder 占位符应为 ["repo"]，实际 ' + JSON.stringify(ph))
@@ -59,6 +59,14 @@ const check = function (file) {
     if (en.indexOf('native labels') < 0) problems.push('newBugWayfinder en 缺 native labels 写法（v5 #475）')
     if (en.indexOf('add a Labels line') < 0) problems.push('newBugWayfinder en 缺 Labels line 写法（v5 #475）')
     if (en.indexOf('Labels: bug, needs-triage') < 0) problems.push('newBugWayfinder en 缺标签行示例 Labels: bug, needs-triage（v5 #475）')
+    // v6 #882：历史单调查（先用 /research 查相似旧单，标出疑似回归，查完具体分析，中英文一起）
+    if (zh.indexOf('/research') < 0) problems.push('newBugWayfinder zh 缺历史单调查要求 /research（v6 #882）')
+    if (zh.indexOf('查历史单') < 0) problems.push('newBugWayfinder zh 缺“查历史单”（v6 #882）')
+    if (zh.indexOf('疑似回归') < 0) problems.push('newBugWayfinder zh 缺“疑似回归”说明（v6 #882）')
+    if (zh.indexOf('具体问题具体分析') < 0) problems.push('newBugWayfinder zh 缺“具体问题具体分析”（v6 #882）')
+    if (en.indexOf('/research') < 0) problems.push('newBugWayfinder en 缺 "/research" 历史调查要求（v6 #882）')
+    if (en.indexOf('suspected regression') < 0) problems.push('newBugWayfinder en 缺 "suspected regression"（v6 #882）')
+    if (en.indexOf('case by case') < 0) problems.push('newBugWayfinder en 缺 "case by case"（v6 #882）')
     // v4 去内部规则：不应含旧的展开式流程说明
     if (zh.indexOf('先澄清') >= 0) problems.push('newBugWayfinder zh 不应含内部规则“先澄清”（v4 已去）')
     if (zh.indexOf('判断分类') >= 0) problems.push('newBugWayfinder zh 不应含内部规则“判断分类”（v4 已去）')
