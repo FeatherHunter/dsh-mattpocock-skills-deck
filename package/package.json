@@ -30,7 +30,8 @@
     "shared",
     "cordis.patch.yml",
     "bundled-skills",
-    "scripts/"
+    "scripts/",
+    "CHANGELOG.md"
   ],
   "keywords": [
     "dsh",

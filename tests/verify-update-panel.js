@@ -1,12 +1,15 @@
-// verify-update-panel.js — 标题行更新入口门禁（落地票 #541）
+// verify-update-panel.js — 更新入口委托门禁（落地票 #876：面板侧接上入口件与弹窗面板）
 // 规则：
-//   1) 宿主注册两个只读电话（查状态、查新版），动态引入更新胶水，不新增静态引用。
-//   2) 电话复用只读核心：查状态走 reader.status（不联网），查新版走 reader.check（点一次联网一次）；
+//   1) 宿主注册四个电话（查状态、查新版、装更新、取更新日志），动态引入更新胶水，不新增静态引用。
+//   2) 电话复用包的能力：查状态走 reader.status（不联网），查新版走 reader.check（点一次联网一次）；
 //      不另写查询逻辑（宿主电话与客户端均不出现官方源地址字面量），快照原样透传不重建。
 //   3) 单例：查新版的结果查状态要能看到（同一进程只建一个读取器）。
 //   4) 错误码收敛：核心已知码原样返回，外面世界的脏错误收敛为检查失败；日志只复用常驻事件，不新增事件名。
-//   5) 面板三态：检查更新 / 检查中 / 更新至某版本；点开设置页先读状态，用户点了才联网检查；按钮检查中禁用。
-//   6) 文案走中英文词条，不写死中文；四个改动文件均不超 350 行。
+//   5) 面板委托：本仓不再自带按钮状态机与浮层弹窗（三个旧文件已删），配置页只挂包的入口件
+//      （默认摆法）与它内部的 dialog 面板；调用只走包的电话名与轮询间隔，不写电话名字面量，
+//      不自己起定时器，关闭与轮询收尾按包的约定来（卸载只停轮询）。
+//   6) 更新日志文件：包根 CHANGELOG.md 存在且形状合法，并随包发布（面板日志章自动展示的前提，
+//      缺文件时只给中性提示，不挡安装）；包清单依赖跟踪最新，版本头与锁文件一致。
 // 用法：node tests/verify-update-panel.js（在仓库根目录）
 const fs = require('fs')
 const os = require('os')
@@ -17,73 +20,87 @@ const ROOT = path.resolve(__dirname, '..')
 let failed = false
 const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
+const exists = (rel) => fs.existsSync(path.join(ROOT, rel))
 const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^A-Za-z0-9_$:])\/\/.*$/gm, '$1')
 
 async function main() {
-  console.log('标题行更新入口门禁（#541：三态显示 + 先读状态后联网 + 复用只读核心）')
+  console.log('更新入口委托门禁（#876：宿主四电话 + 面板只挂入口件 + 更新日志随包）')
 
   // ---- 1) 宿主注册 ----
   const indexSrc = strip(read('src/host/index.js'))
   check(indexSrc.includes("harness.handle('wf.updateStatus'"), '宿主注册查状态电话 wf.updateStatus')
   check(indexSrc.includes("harness.handle('wf.updateCheck'"), '宿主注册查新版电话 wf.updateCheck')
+  check(indexSrc.includes("harness.handle('wf.updateInstall'"), '宿主注册装更新电话 wf.updateInstall')
+  check(indexSrc.includes("harness.handle('wf.updateChangelog'"), '宿主注册取更新日志电话 wf.updateChangelog')
   check(indexSrc.includes("import('./updateFromPackage.js')"), '更新胶水走动态引入（无静态 import）')
   check(!/^import .*update\.js/m.test(indexSrc), '宿主入口无更新胶水的静态引用')
 
-  // ---- 2) 电话复用核心，不另写查询 ----
+  // ---- 2) 电话复用包的能力，不另写查询 ----
   const updateSrc = strip(read('src/host/updateFromPackage.js'))
   check(updateSrc.includes('createUpdatePhoneHandlers'), '胶水导出电话工厂 createUpdatePhoneHandlers')
   check(updateSrc.includes('createHostUpdate(') && updateSrc.includes('phoneNames.updateStatus'), '查状态走包的能力（建能力入口加电话名表，不自写查询）')
   check(updateSrc.includes('phoneNames.updateCheck'), '查新版走包的能力（电话名从包读，不自拼字符串）')
+  check(updateSrc.includes('phoneNames.updateChangelog'), '取更新日志走包的能力（面板日志章用，不自拼字符串）')
   check(!updateSrc.includes('registry.npmjs.org'), '胶水电话不另写查询（无官方源地址字面量）')
-  // #587：面板的更新状态与电话调用拆进 views/useUpdatePanel.js、弹窗拆进 views/UpdateDialog.js
-  //（SettingsPage.js 已顶到 350 行上限）；这里把三份源码拼起来看，与拆出前同一口径。
-  const clientSettings = strip(['src/client/views/SettingsPage.js', 'src/client/views/useUpdatePanel.js', 'src/client/views/UpdateDialog.js'].map(read).join('\n'))
-  check(!clientSettings.includes('registry.npmjs.org') && !clientSettings.includes('fetch('), '面板不另写查询（无源地址与直连请求）')
+  const leafSrc = strip(read('src/client/views/UpdateEntryHost.js'))
+  check(!leafSrc.includes('registry.npmjs.org') && !leafSrc.includes('fetch('), '面板不另写查询（无源地址与直连请求）')
 
   // ---- 3) 日志只复用常驻事件 ----
   const phoneEvents = [...updateSrc.matchAll(/(?:fire|log)\s*\(\s*'(info|warn|debug|error)'\s*,\s*'([^']+)'/g)].map((m) => m[2])
-  const settingsEvents = [...clientSettings.matchAll(/(?:fire|log)\s*\(\s*'(info|warn|debug|error)'\s*,\s*'([^']+)'/g)].map((m) => m[2])
-  const freshEvents = phoneEvents.concat(settingsEvents).filter((e) => e !== 'host.call' && e !== 'host.call.fail' && e !== 'host.dispatch.error')
-  // #587：面板状态推进复用按需事件 panel.render（与 kernel/router.js 同一形态，只在调试开关打开时落盘）
+  const leafEvents = [...leafSrc.matchAll(/(?:fire|log)\s*\(\s*'(info|warn|debug|error)'\s*,\s*'([^']+)'/g)].map((m) => m[2])
+  const freshEvents = phoneEvents.concat(leafEvents).filter((e) => e !== 'host.call' && e !== 'host.call.fail' && e !== 'host.dispatch.error')
   const preExisting = new Set(['settings.save', 'panel.render', 'update.install.manifestSync'])
   const freshNew = freshEvents.filter((e) => !preExisting.has(e))
-  check(freshNew.length === 0, '电话与按钮只复用常驻事件（' + [...new Set(phoneEvents.concat(settingsEvents))].join('、') + '）')
+  check(freshNew.length === 0, '电话与入口挂载点只复用已有事件（' + [...new Set(phoneEvents.concat(leafEvents))].join('、') + '）')
   check(!updateSrc.includes('loggedPhone('), '胶水不自写按电话记行的包装（记行已收进包内，由包自带测试与日志门禁覆盖）')
-  // #586：客户端不再写电话名字面量，两个调用点各走更新包派生的常量；字面量真源在派生文件里。
   const derivedClientSrc = read('scripts/generated/updateClient.derived.js')
   check(derivedClientSrc.includes("UPD_PHONE_NAMES.updateStatus === 'wf.updateStatus'") && derivedClientSrc.includes("UPD_PHONE_NAMES.updateCheck === 'wf.updateCheck'"),
     '派生文件带零变化断言（默认前缀下查状态与查新版电话名与旧字面一致）')
-  check(clientSettings.includes('method: UPD_STATUS') && clientSettings.includes('method: UPD_CHECK'), '客户端调用点相邻有行（两处调用各有日志行覆盖，方法名走派生常量）')
-  // #587：更新状态与电话调用拆进 views/useUpdatePanel.js，与调用点同住一文件；面板状态推进复用按需事件 panel.render（与 kernel/router.js 同一形态）
-  const hookSrc = strip(read('src/client/views/useUpdatePanel.js'))
-  check(hookSrc.includes('method: UPD_INSTALL') && hookSrc.includes('method: UPD_STATUS') && hookSrc.includes('method: UPD_CHECK'), '装更新那一路也有方法可识的日志行（三处调用各一行）')
-  check(hookSrc.includes("isEnabled('debug')") && hookSrc.includes("'panel.render'"), '面板状态推进按需记行并同行判开关（关着不组装字符串）')
 
-  // ---- 4) 面板三态与先读后查 ----
-  check(clientSettings.includes("tr('cfg.updateCheck')"), '按钮平时显示检查更新（走词条）')
-  check(clientSettings.includes("tr('cfg.updateChecking')"), '按钮检查中显示检查中（走词条）')
-  check(clientSettings.includes("tr('cfg.updateToVersion'"), '按钮有新版显示更新至某版本（走词条带版本号）')
-  check(clientSettings.includes('React.useEffect(function () { updReadStatus() }, [])'), '点开设置页先读本地状态（挂载即读）')
-  check(clientSettings.includes('host.call(UPD_STATUS') && clientSettings.includes('host.call(UPD_CHECK'), '先读状态电话、点了才调检查电话（电话名走派生常量）')
-  const statusAt = clientSettings.indexOf('host.call(UPD_STATUS')
-  const checkAt = clientSettings.indexOf('host.call(UPD_CHECK')
-  check(statusAt >= 0 && checkAt >= 0 && statusAt < checkAt, '状态调用在检查调用之前（先状态后检查）')
-  check(clientSettings.includes('updChecking || updBusy') && clientSettings.includes('disabled: !!'), '检查中与安装中禁用按钮（重复点击不重发，#542 加忙碌态）')
-  check(clientSettings.includes("tr('cfg.updateCheckFail')"), '检查失败给可读提示（走词条）')
-
-  // ---- 5) 文案中英成对 ----
-  const localeSrc = read('src/client/kernel/locale-word.js')
-  for (const k of ['cfg.updateCheck', 'cfg.updateChecking', 'cfg.updateToVersion', 'cfg.updateCheckFail', 'cfg.updateLatest']) {
-    const times = localeSrc.split(`'${k}':`).length - 1
-    check(times === 2, `词条中英成对 ${k}（实际 ${times} 处）`)
+  // ---- 4) 面板委托：旧文件已删，只挂入口件 ----
+  for (const rel of ['src/client/views/useUpdatePanel.js', 'src/client/views/UpdateDialog.js', 'src/client/views/UpdateRestartBanner.js']) {
+    check(!exists(rel), '自有面板实现已删：' + rel)
   }
+  check(exists('src/client/views/UpdateEntryHost.js'), '入口挂载点存在：src/client/views/UpdateEntryHost.js')
+  check(exists('scripts/generated/updateEntryPanel.bundle.js'), '入口件绑定包存在（构建产物，人手不改）')
+  const bundleHead = read('scripts/generated/updateEntryPanel.bundle.js').split('\n').slice(0, 3).join('\n')
+  check(bundleHead.includes('dsh-plugin-update@0.7.'), '绑定包头写明已安装更新包版本（0.7.x）')
+  const bundleSrc = read('scripts/generated/updateEntryPanel.bundle.js')
+  check(bundleSrc.includes('mountUpdateEntry'), '绑定包里有入口件挂载函数')
+  check(leafSrc.includes('mountUpdateEntry'), '挂载点调用包的入口件（不自拼面板）')
+  check(leafSrc.includes("pluginId: 'dsh-mattpocock-skills-deck'") && leafSrc.includes("prefix: 'wf'"), '挂载点传插件标识与电话名前缀（与宿主侧一致）')
+  check(!leafSrc.includes('wf.updateStatus') && !leafSrc.includes('wf.updateCheck') && !leafSrc.includes('wf.updateInstall'), '挂载点不写电话名字面量（电话名由包从前缀算）')
+  check(!leafSrc.includes('setInterval') && !leafSrc.includes('UPD_POLL'), '挂载点不自己起定时器（轮询间隔走包默认）')
+  check(leafSrc.includes('.unmount()'), '挂载点卸载时按包的约定收尾（只停轮询）')
+  check(!leafSrc.includes('onCloseRequested') && !leafSrc.includes('onRestartRequested'), '挂载点不加关闭与重启接线（走包默认）')
+  check(!leafSrc.includes('locale') && !leafSrc.includes('sizing') && !leafSrc.includes('theme'), '挂载点不做语言接入与尺寸对齐等附加项（走包默认）')
+  const settingsSrc = strip(read('src/client/views/SettingsPage.js'))
+  check(settingsSrc.includes('UpdateEntryHost'), '配置页挂载入口件（标题行按钮走包的默认摆法）')
+  check(!settingsSrc.includes('useUpdatePanel') && !settingsSrc.includes('UpdateDialog') && !settingsSrc.includes('UpdateRestartBanner'), '配置页不再引用自有按钮状态机与浮层弹窗')
+  check(!settingsSrc.includes('updIsNewer') && !settingsSrc.includes('setUpdDialog'), '配置页不再自带版本比对与弹窗开关（判据收进包内）')
 
-  // ---- 6) 文件粒度 ----
-  // #587：拆出的三份一并纳入行数上限（拆分的意义就是让每份都留得住余量）。
-  for (const rel of ['src/host/updateFromPackage.js', 'src/host/index.js', 'src/client/views/SettingsPage.js', 'src/client/views/useUpdatePanel.js', 'src/client/views/UpdateDialog.js', 'src/client/views/UpdateRestartBanner.js', 'src/client/kernel/locale-word.js']) {
-    const n = read(rel).split(/\r?\n/).length
-    check(n <= 350, `${rel} ${n} 行（上限 350）`)
-  }
+  // ---- 5) 构建接线：绑定包拼进客户端，旧叶子已摘 ----
+  const buildSrc = read('scripts/build.mjs')
+  check(buildSrc.includes("file: 'scripts/generated/updateEntryPanel.bundle.js'"), '构建登记绑定包（拼进客户端闭包）')
+  check(buildSrc.includes("file: 'src/client/views/UpdateEntryHost.js'"), '构建登记挂载点叶子')
+  check(!buildSrc.includes('UpdateDialog.js') && !buildSrc.includes('UpdateRestartBanner.js') && !buildSrc.includes('useUpdatePanel.js'), '构建不再登记旧面板叶子')
+  const clientIndex = read('src/client/index.js')
+  check(clientIndex.includes('kernel:updateEntryBundle'), '客户端留绑定包拼接标记')
+  check(clientIndex.includes('leaf:updateEntryHost'), '客户端留挂载点拼接标记')
+  check(!clientIndex.includes('leaf:updateDialog') && !clientIndex.includes('leaf:useUpdatePanel'), '客户端旧面板标记已摘')
+  const product = read('package/lib/client.js')
+  check(product.includes('__DshUpdateEntry') && product.includes('UpdateEntryHost'), '发布产物含绑定包与挂载点')
+  check(!product.includes('useUpdatePanel') && !product.includes('data-role=\"update-dialog\"') && !product.includes('dsws-upd-dlg'), '发布产物无自有按钮状态机与浮层弹窗')
+
+  // ---- 6) 更新日志文件随包 ----
+  check(exists('package/CHANGELOG.md'), '包根更新日志文件存在（面板日志章自动展示的前提）')
+  const changelog = read('package/CHANGELOG.md')
+  check(/^# Changelog/m.test(changelog), '更新日志有标题行')
+  check(/## \[1\.7\.\d+\] - \d{4}-\d{2}-\d{2}/.test(changelog), '更新日志有版本节（## [x.y.z] - 日期，最新在前）')
+  check(/### (Added|Fixed|Changed|Security)/.test(changelog), '更新日志有面板必显分类（Added/Fixed/Changed/Security）')
+  const pkgManifest = JSON.parse(read('package/package.json'))
+  check(pkgManifest.dependencies && /^0\.7\.\d+$/.test(pkgManifest.dependencies['dsh-plugin-update'].replace(/^\^/, '')), '包清单依赖跟踪更新包最新（0.7.x，实际 ' + (pkgManifest.dependencies && pkgManifest.dependencies['dsh-plugin-update']) + '）')
+  check(Array.isArray(pkgManifest.files) && pkgManifest.files.includes('CHANGELOG.md'), '包清单白名单含更新日志文件（随包发布）')
 
   // ---- 7) 电话行为（假环境：不存在的范围目录 + 可控网络） ----
   const mod = await import(pathToFileURL(path.join(ROOT, 'src/host/updateFromPackage.js')).href)
@@ -96,7 +113,7 @@ async function main() {
     dist: { tarball: `https://registry.npmjs.org/dsh-mattpocock-skills-deck/-/dsh-mattpocock-skills-deck-${version}.tgz`, integrity: INTEGRITY },
   })
   const fakeFetch = (version) => async () => ({ ok: true, headers: { get: () => null }, text: async () => releaseBody(version) })
-  const scratch = (tag) => path.join(fs.mkdtempSync(path.join(os.tmpdir(), `upd541-${tag}-`)), 'profiles', 'web')
+  const scratch = (tag) => path.join(fs.mkdtempSync(path.join(os.tmpdir(), `upd876-${tag}-`)), 'profiles', 'web')
   const quietLogs = { fire: () => {} }
 
   // 7a) 查状态不联网：网络实现一碰就抛，状态照样返回
@@ -139,39 +156,13 @@ async function main() {
   }
   mod.__resetSharedUpdateReaderForTests()
 
-  // ---- 8) 对话框只在真有新版时才开（#546：版本号相等时误弹“发现新版本”） ----
-  const settingsRaw = read('src/client/views/SettingsPage.js')
-  check(settingsRaw.includes('function updIsNewer(latest, running)'), '面板有纯版本号比对 updIsNewer')
-  check(!clientSettings.includes('else if (res.manual) setUpdDialog(true)'), '检查回调不再凭手工命令开对话框')
-  check(clientSettings.includes('updIsNewer(res.snapshot.latestVersion, res.snapshot.runningVersion)') && clientSettings.includes('setUpdDialog(true)'), '检查回调以远端比运行版新为开对话框条件')
-  {
-    const at = settingsRaw.indexOf('function updIsNewer(latest, running)')
-    const fnText = settingsRaw.slice(at, settingsRaw.indexOf('\n}', at) + 3)
-    const updIsNewer = new Function(`${fnText}; return updIsNewer`)()
-    check(updIsNewer('9.9.9', '1.7.14') === true, '比对：远端新算有新版')
-    check(updIsNewer('1.7.14', '1.7.14') === false, '比对：版本号相等不算新版（#546 反例）')
-    check(updIsNewer('1.7.13', '1.7.14') === false, '比对：远端更旧不算新版')
-    check(updIsNewer('1.7.14', '9.9.9') === false, '比对：运行版更高不算新版')
-    check(updIsNewer('10.0.0', '9.9.9') === true, '比对：跨大版本按数值比（非字典序）')
-    check(updIsNewer('nope', '1.7.14') === false, '比对：远端坏版本号不开对话框')
-  }
-  check(clientSettings.includes("Ic({ n: 'refresh'") && clientSettings.includes("tr('cfg.updateDialogTitle'"), '对话框标题带刷新图标')
-  check(clientSettings.includes("tr('cfg.updateCopy')") && clientSettings.includes("tr('cfg.updateStart')"), '对话框保留复制键与安装键（走词条，无写死中文）')
-  // 安装失败必须看得见（2026-09-08 实测：失败后对话框已关、按钮弹回「更新至」，用户以为点了没反应）
-  check(clientSettings.includes("tr('cfg.updateFailed', { reason: updFailText() })") && clientSettings.includes('const updFailText = function ()'), '安装失败在对话框里显性提示原因（不是点完没反应）')
-  // #587：读快照与「弹窗该不该开」都收成纯函数（views/useUpdatePanel.js），失败重开的判据在里面
-  check(clientSettings.includes("info.jobState === 'failed' && (updJobState === 'installing' || updJobState === 'verifying')"), '失败发生在本次安装中时把对话框重新打开给用户看')
-  check(clientSettings.includes('export const updReadSnapshot') && clientSettings.includes('export const updDialogShouldOpen'), '读快照与弹窗判据是纯函数（可离线核对）')
-  // ---- 9) 无新版给成功提示（#547：只有亲手点的检查才提示，自动读状态与轮询不打扰） ----
-  check(clientSettings.includes("tr('cfg.updateLatest', { v:"), '无新版弹已是最新提示（带版本号）')
-  {
-    const readFnAt = clientSettings.indexOf('const updReadStatus = function () {')
-    const clickFnAt = clientSettings.indexOf('const updClickCheck = function () {')
-    const readFn = clientSettings.slice(readFnAt, clickFnAt)
-    check(readFnAt >= 0 && clickFnAt > readFnAt && !readFn.includes('flash('), '自动读状态不弹提示（提示只在点的检查回调里）')
+  // ---- 8) 文件粒度 ----
+  for (const rel of ['src/host/updateFromPackage.js', 'src/host/index.js', 'src/client/views/SettingsPage.js', 'src/client/views/UpdateEntryHost.js', 'scripts/bundle-update-entry.mjs']) {
+    const n = read(rel).split(/\r?\n/).length
+    check(n <= 350, `${rel} ${n} 行（上限 350）`)
   }
 
-  console.log(failed ? '\n存在失败' : '\n全部通过 — 标题行更新入口门禁生效')
+  console.log(failed ? '\n存在失败' : '\n全部通过 — 更新入口委托门禁生效')
   process.exit(failed ? 1 : 0)
 }
 

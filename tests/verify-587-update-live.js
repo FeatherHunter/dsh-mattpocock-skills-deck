@@ -1,14 +1,13 @@
-// verify-587-update-live.js —— #587 真机形态验收（真宿主判据 + 真产物渲染，#801 按 #798 切到已安装包）
+// verify-587-update-live.js —— 真机形态验收（#876 重写：真宿主判据 + 入口件真挂载）
 //
 // 这份门禁回答的是「界面上到底长什么样」，不是「代码里写了什么字」：
-//   1. 真宿主判据：拿已安装更新包的宿主读取器（node_modules 里那份 0.2.x，运行时唯一来源）
+//   1. 真宿主判据：拿已安装更新包的宿主读取器（node_modules 里那份 0.7.x，运行时唯一来源）
 //      去读真使用范围（装在磁盘上的那份插件的真目录与真清单），证明「清单换个版本、进程还跑旧版」
 //      时宿主确实报缺一次重启（pending-restart），而且重启后（运行版本追上磁盘）这条判据当场消失，
-//      不依赖那张会过期的任务记录。旧派生目录只冻结留存，不进运行时，这里不再读它。
-//   2. 真产物渲染：把发布用的客户端产物（package/lib/client.js）挂进 jsdom 真跑一遍，
-//      渲染配置文件页，对着界面断言四种场景：已是最新 / 装完待重启 / 有新版 / 点按后弹窗。
-//      弹窗那一段用同一份产物里的弹窗源码渲染（产物是单文件工厂，组件不外露），
-//      渲染方式与产物里那一行调用同一形状：h(UpdateDialog, { open, latest, running, manual, ... })，文案取真的中文词条。
+//      不依赖那张会过期的任务记录。
+//   2. 真挂载渲染：发布产物含入口件绑定包与挂载点；把绑定包挂进 jsdom 真跑一遍，
+//      对着界面断言四种场景：已是最新 / 有新版 / 装完待重启 / 点按后弹窗（包的 dialog 原样）。
+//      文案取包的单语渲染（中文界面纯中文），关闭与轮询收尾按包的约定来。
 //
 // 用法：node tests/verify-587-update-live.js（在仓库根目录；先跑 node scripts/build.mjs）
 const fs = require('fs')
@@ -23,7 +22,7 @@ const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL '
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 ;(async function main() {
-  console.log('真机形态验收（#587：真宿主判据 + 真产物渲染）')
+  console.log('真机形态验收（#876：真宿主判据 + 入口件真挂载）')
 
   // ============ 一、真宿主判据：跑已安装更新包的读取器，读磁盘上那份插件的真目录 ============
   const home = process.env.USERPROFILE || process.env.HOME || os.homedir()
@@ -47,9 +46,6 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
   const profileDir = path.dirname(path.dirname(pkgDir))
   check(!!installedVersion, '读到磁盘上装的那一版（' + installedVersion + '）')
 
-  // 新来源：已安装更新包的读取器（运行时唯一来源）。读的仍是真目录与真清单（profileDir 与 manifestPath），
-  // 只是判据代码走新包，不走冻结的旧派生目录。目标包目录显式指向磁盘上那份插件，否则新包按包名解析会找到
-  // 仓库自己的那份（测试进程的解析起点），与真使用范围里的那份对不上，判据会报安装状态变了而不是缺重启。
   const readerUrl = require('url').pathToFileURL(path.join(ROOT, 'node_modules', 'dsh-plugin-update', 'dist', 'reader.js')).href
   const readEnv = async (runningVersion) => {
     const readerMod = await import(readerUrl)
@@ -78,179 +74,80 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
     check(back === installedVersion, '已把使用范围里的清单版本还原成原样（' + back + '）')
   }
 
-  // ============ 二、真产物渲染：界面长什么样 ============
+  // ============ 二、真挂载渲染：发布产物委托 + 入口件在 jsdom 里真跑 ============
+  const product = fs.readFileSync(path.join(ROOT, 'package', 'lib', 'client.js'), 'utf8')
+  check(product.includes('__DshUpdateEntry') && product.includes('UpdateEntryHost'), '发布产物含入口件绑定包与挂载点（面板委托已进产物）')
+  check(!product.includes('useUpdatePanel'), '发布产物无自有按钮状态机（useUpdatePanel 已删）')
+
   const { JSDOM } = require('jsdom')
-  const React = require('react')
-  const ReactDOMClient = require('react-dom/client')
-  const { act } = require('react')
-  const dom = new JSDOM('<!doctype html><html><head></head><body><div id="root"></div><textarea class="uV2eYG_input" style="width:780px"></textarea></body></html>', { url: 'http://127.0.0.1:43120/', runScripts: 'dangerously' })
+  const dom = new JSDOM('<!doctype html><html lang="zh-CN"><head></head><body><div id="root"></div></body></html>', { url: 'http://127.0.0.1:43120/' })
   const { window } = dom
+  if (typeof window.MutationObserver === 'undefined') {
+    window.MutationObserver = class { constructor() {} observe() {} disconnect() {} }
+  }
+  const bundleText = fs.readFileSync(path.join(ROOT, 'scripts', 'generated', 'updateEntryPanel.bundle.js'), 'utf8')
+  // jsdom 的 window.eval 作用域里没有裸 window，赋值语句会抛；改拿求值返回值。
+  const liveEntry = window.eval(bundleText + '\n__DshUpdateEntry;')
+  check(!!liveEntry && typeof liveEntry.mountUpdateEntry === 'function', '绑定包在真浏览器环境可加载（挂载函数可用）')
+  // 入口件运行时读裸 document 与 navigator，挂载前把本轮 jsdom 的对象挂到 Node 全局上。
   global.window = window
   global.document = window.document
-  try { global.navigator = window.navigator } catch (e) { /* 老 node 不给赋值，跳过 */ }
-  global.Node = window.Node
-  global.HTMLElement = window.HTMLElement
-  global.getComputedStyle = window.getComputedStyle
-  global.requestAnimationFrame = window.requestAnimationFrame || ((cb) => setTimeout(cb, 0))
-  global.cancelAnimationFrame = window.cancelAnimationFrame || clearTimeout
-  if (typeof window.ResizeObserver === 'undefined') window.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} }
-  global.ResizeObserver = window.ResizeObserver
-  if (!window.document.fonts) window.document.fonts = { ready: Promise.resolve() }
-  window.React = React
-  window.ReactDOM = ReactDOMClient
-  global.React = React
-  global.ReactDOM = ReactDOMClient
+  try { global.navigator = window.navigator } catch (e) {}
+  if (typeof window.MutationObserver !== 'undefined') global.MutationObserver = window.MutationObserver
 
-  // 宿主桥：面板发出的每一次电话都照脚本给回包（回包形状与第 1 步真宿主里读到的一致）
-  // 调用形状就是产物里的那条：connection.rpc.call(载体路径, 载体端点, { method, payload })
-  // 回包按电话名分开排队：快照、绑定清单等别的电话不会把更新这一族的回包吃掉。
-  const queues = {}
-  const called = []
-  const pushReply = (method, value) => { (queues[method] = queues[method] || []).push(value) }
-  const rpcReply = async (channel, endpoint, body) => {
-    const method = body && body.method ? String(body.method) : ''
-    called.push(method || '(无方法名)')
-    const mine = queues[method] || []
-    const next = mine.length
-      ? mine.shift()
-      : { ok: true, snapshot: { runningVersion: '1.7.20', installedVersion: '1.7.20', latestVersion: '1.7.20', canInstall: false, blockedReason: null, job: null } }
-    return { ok: true, value: next }
+  const snapOf = (over) => Object.assign({ runningVersion: '1.7.20', installedVersion: '1.7.20', latestVersion: '1.7.20', canInstall: false, blockedReason: null, job: null }, over)
+  const mountWith = async (snapshot) => {
+    const el = window.document.createElement('div')
+    window.document.body.appendChild(el)
+    const entry = liveEntry.mountUpdateEntry(el, {
+      pluginId: 'dsh-mattpocock-skills-deck',
+      prefix: 'wf',
+      call: async (name) => {
+        if (String(name).endsWith('.updateStatus') || String(name).endsWith('.updateCheck')) {
+          return { ok: true, snapshot: snapOf(snapshot), manual: null, receipt: null }
+        }
+        return { ok: false, error: 'check-failed', errorKind: 'check-failed' }
+      },
+    })
+    await sleep(60)
+    return { el, entry }
   }
-  // 界面按当前语言取词条；这台机器上界面是中文，所以只收中文那一半（与真实界面口径一致）
-  const dict = {}
-  const trFn = (key, params) => {
-    let s = dict[key] !== undefined ? dict[key] : key
-    if (params) s = s.replace(/\{(\w+)\}/g, (m, name) => (name in params ? String(params[name]) : m))
-    return s
-  }
-  const registrations = []
-  const services = {
-    slots: { register: (meta, comp) => { registrations.push({ meta, comp }); return () => {} }, inject: (name, fn) => { try { fn() } catch (e) {} } },
-    connection: { rpc: { call: rpcReply } },
-    locale: { register: (ns, d) => { Object.assign(dict, d.zh || {}); return () => {} }, bind: () => trFn },
-    workspaces: { list: async () => [] },
-    sessions: { list: async () => [] },
-    timer: { timeout: (fn, ms) => setTimeout(fn, ms) },
-  }
-  const ctx = { get: (k) => services[k], effect: (fn) => { const r = fn(); return typeof r === 'function' ? r : () => {} } }
-  let loaded = null
-  window.__ModuleLoader__ = { load(spec) { loaded = spec; return spec } }
-  window.eval(fs.readFileSync(path.join(ROOT, 'package', 'lib', 'client.js'), 'utf8'))
-  const mod = loaded.factory((m) => { if (m === 'react') return React; if (m === 'react-dom') return ReactDOMClient; throw new Error('unexpected require: ' + m) })
-  mod.apply(ctx)
-  const settingsReg = registrations.find((r) => r.meta && r.meta.name === 'settings.plugins.tab')
-  check(!!settingsReg, '真产物注册了配置文件页（settings.plugins.tab）')
+  const unmount = (m) => { try { m.entry.unmount() } catch (e) {} try { if (m.el.parentNode) m.el.parentNode.removeChild(m.el) } catch (e) {} }
+  const btnTextOf = (el) => { const b = el.querySelector('button'); return b ? (b.textContent || '').trim() : '' }
 
-  async function mountPage() {
-    const container = window.document.createElement('div')
-    window.document.body.appendChild(container)
-    const root = ReactDOMClient.createRoot(container)
-    await act(async () => { root.render(React.createElement(settingsReg.comp, { sessionId: 'live-sid' })); await sleep(30) })
-    await act(async () => { await sleep(40) })
-    return { container, root }
-  }
-  async function unmount(page) {
-    try { await act(async () => { page.root.unmount() }) } catch (e) {}
-    try { if (page.container.parentNode) page.container.parentNode.removeChild(page.container) } catch (e) {}
-  }
-  const btnOf = (container) => {
-    for (const b of container.querySelectorAll('button')) {
-      const t = (b.textContent || '').trim()
-      if (/检查更新|检查中|更新至|待手动重启|正在更新/.test(t)) return b
-    }
-    return null
-  }
-
-  // 场景一：已是最新 —— 不打扰（没有常驻提示、没有弹窗）
+  // 场景一：已是最新 —— 按钮空闲态，不打扰（没有浮层）
   {
-    pushReply('updateStatus', { ok: true, snapshot: { runningVersion: '1.7.20', installedVersion: '1.7.20', latestVersion: '1.7.20', canInstall: false, blockedReason: null, job: null } })
-    const page = await mountPage()
-    const btn = btnOf(page.container)
-    check(!!btn && (btn.textContent || '').trim() === dict['cfg.updateCheck'], '场景一（已是最新）：按钮显示「' + dict['cfg.updateCheck'] + '」，页面安静')
-    check(!page.container.querySelector('[data-role="update-restart-banner"]'), '场景一：没有待重启常驻提示')
-    check(!page.container.querySelector('[data-role="update-dialog"]'), '场景一：没有弹窗（无新版不打扰）')
-    await unmount(page)
+    const m = await mountWith({})
+    const t = btnTextOf(m.el)
+    check(!!t && /检查更新/.test(t), '场景一（已是最新）：按钮显示检查更新（实际「' + t + '」）')
+    check(!m.el.querySelector('.dsh-upd-overlay'), '场景一：没有浮层（无新版不打扰）')
+    unmount(m)
   }
 
-  // 场景二：装完还没重启 —— 常驻提示出现，按钮转成待重启并禁用
+  // 场景二：有新版 —— 按钮带出版本号；点按后开 dialog 浮层
   {
-    pushReply('updateStatus', { ok: true, snapshot: { runningVersion: '1.7.20', installedVersion: '1.7.21', latestVersion: '1.7.21', canInstall: false, blockedReason: 'pending-restart', job: null } })
-    const page = await mountPage()
-    const banner = page.container.querySelector('[data-role="update-restart-banner"]')
-    check(!!banner, '场景二（装完待重启）：常驻提示出现在配置页上')
-    const t = banner ? banner.textContent : ''
-    check(t.includes(dict['cfg.updateRestart']), '场景二：提示里写明「' + dict['cfg.updateRestart'] + '」')
-    check(t.includes('1.7.20') && t.includes('1.7.21'), '场景二：提示里同时给出正在跑的与已装的版本号（1.7.20 → 1.7.21）')
-    const btn = btnOf(page.container)
-    check(!!btn && (btn.textContent || '').trim() === dict['cfg.updateRestart'], '场景二：按钮也转成「' + dict['cfg.updateRestart'] + '」')
-    check(!!btn && btn.disabled === true, '场景二：待重启期间按钮禁用（不会重复装）')
-    check(!page.container.querySelector('[data-role="update-dialog"]'), '场景二：不再弹窗（这件事交给常驻提示说）')
-    await unmount(page)
+    const m = await mountWith({ latestVersion: '1.7.21', canInstall: true })
+    const t = btnTextOf(m.el)
+    check(!!t && t.includes('1.7.21'), '场景二（有新版）：按钮带出版本号（实际「' + t + '」）')
+    check(!m.el.querySelector('.dsh-upd-overlay'), '场景二：只读到有新版还不弹窗（要用户自己点按）')
+    m.entry.open()
+    await sleep(60)
+    const overlay = m.el.querySelector('.dsh-upd-overlay')
+    check(!!overlay, '场景二：点按后 dialog 浮层打开（包的 dialog 原样）')
+    const txt = overlay ? overlay.textContent : ''
+    check(txt.includes('1.7.21') && txt.includes('1.7.20'), '场景二：浮层写清当前哪版、最新哪版')
+    m.entry.close()
+    await sleep(30)
+    check(!m.el.querySelector('.dsh-upd-overlay'), '场景二：关闭后浮层收掉（按包的关闭约定）')
+    unmount(m)
   }
 
-  // 场景三：有新版 —— 按钮转成「更新至某版」，但只读状态不弹窗（要用户自己点）
+  // 场景三：装完待重启 —— 按钮转成待重启
   {
-    const okNew = { ok: true, snapshot: { runningVersion: '1.7.20', installedVersion: '1.7.20', latestVersion: '1.7.21', canInstall: true, blockedReason: null, job: null }, manual: 'dsh plugin --profile web add --save-exact dsh-mattpocock-skills-deck@1.7.21 --registry=https://registry.npmjs.org/' }
-    pushReply('updateStatus', okNew)
-    const page = await mountPage()
-    const btn = btnOf(page.container)
-    check(!!btn && (btn.textContent || '').includes('1.7.21'), '场景三（有新版）：按钮显示「更新至 1.7.21」')
-    check(!!btn && btn.disabled === false, '场景三：有新版时按钮可点（不误禁用）')
-    check(!page.container.querySelector('[data-role="update-dialog"]'), '场景三：只读到有新版还不弹窗（要用户自己点）')
-    await unmount(page)
-  }
-
-  // 场景四：弹窗本体 —— 用产物里的弹窗源码按产物里那一行的调用形状渲染，看浮层结构与里面的字
-  {
-    const { UpdateDialog } = await import(require('url').pathToFileURL(path.join(ROOT, 'src', 'client', 'views', 'UpdateDialog.js')).href)
-    check(typeof UpdateDialog === 'function', '弹窗组件可用（真产物里那一行调用的就是它）')
-    const manual = 'dsh plugin --profile web add --save-exact dsh-mattpocock-skills-deck@1.7.21 --registry=https://registry.npmjs.org/'
-    const container = window.document.createElement('div')
-    window.document.body.appendChild(container)
-    const root = ReactDOMClient.createRoot(container)
-    const props = {
-      h: React.createElement,
-      tr: trFn,
-      open: true,
-      latest: '1.7.21',
-      running: '1.7.20',
-      canInstall: true,
-      checkId: 'live-check-1',
-      busy: false,
-      manual: manual,
-      reason: null,
-      failText: null,
-      onClose: function () {},
-      onCopy: function () {},
-      onStart: function () {},
-    }
-    try {
-      await act(async () => { root.render(React.createElement(UpdateDialog, props)); await sleep(30) })
-      const dlg = container.querySelector('[data-role="update-dialog"]')
-      const box = dlg ? dlg.querySelector('[data-role="update-dialog-box"]') : null
-      check(!!dlg, '场景四：浮层弹窗渲染出来（是浮层，不是页内分组）')
-      check(!!dlg && dlg.className.includes('dsws-modal'), '场景四：浮层用的是仓库现成的遮罩样式（dsws-modal）')
-      check(!!box && box.className.includes('dsws-modalbox'), '场景四：浮层里是居中卡片（dsws-modalbox）')
-      const txt = box ? box.textContent : ''
-      const title = dict['cfg.updateDialogTitle'].replace('{v}', '1.7.21')
-      check(txt.includes(title), '场景四：弹窗标题写明要装的版本（' + title + '）')
-      check(txt.includes('1.7.20') && txt.includes('1.7.21'), '场景四：弹窗写清「当前哪版、最新哪版」')
-      check(txt.includes(dict['cfg.updateRestartNote']), '场景四：弹窗提前说明「装完要重启一次才生效」')
-      check(txt.includes(manual), '场景四：弹窗里有可复制的手工命令（宿主给的原文）')
-      const texts = [...(box ? box.querySelectorAll('button') : [])].map((b) => (b.textContent || '').trim())
-      check(texts.includes(dict['cfg.updateStart']) && texts.includes(dict['cfg.updateLater']), '场景四：弹窗里有「' + dict['cfg.updateStart'] + '」与「' + dict['cfg.updateLater'] + '」两个键')
-      // 关掉之后再渲染一次：没开的时候不应在页面上留东西
-      await act(async () => { root.render(React.createElement(UpdateDialog, Object.assign({}, props, { open: false }))); await sleep(20) })
-      check(!container.querySelector('[data-role="update-dialog"]'), '场景四：关掉后页面上不留空壳')
-      // 安装失败那一档：原因要看得见（#541 那次实测：失败后弹窗已关、用户以为点了没反应）
-      await act(async () => { root.render(React.createElement(UpdateDialog, Object.assign({}, props, { failText: dict['cfg.updateFailInstall'] }))); await sleep(20) })
-      check((container.textContent || '').includes(dict['cfg.updateFailed'].replace('{reason}', dict['cfg.updateFailInstall'])), '场景四：安装失败时弹窗里写明原因')
-    } catch (e) {
-      check(false, '场景四渲染弹窗（异常：' + ((e && e.message) || e) + '）')
-    } finally {
-      try { await act(async () => { root.unmount() }) } catch (e) {}
-      try { container.parentNode.removeChild(container) } catch (e) {}
-    }
+    const m = await mountWith({ installedVersion: '1.7.21', latestVersion: '1.7.21', canInstall: false, blockedReason: 'pending-restart' })
+    const t = btnTextOf(m.el)
+    check(!!t && /重启/.test(t), '场景三（装完待重启）：按钮转成待重启（实际「' + t + '」）')
+    unmount(m)
   }
 
   console.log(failed ? LF + '存在失败' : LF + '全部通过 — 真机形态验收生效（' + total + ' 项断言）')

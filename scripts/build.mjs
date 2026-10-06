@@ -32,6 +32,7 @@ import vm from 'node:vm'
 import { spawnSync } from 'node:child_process'
 import { deriveHost, deriveClient } from './derive-log-from-package.mjs'
 import { deriveClient as deriveUpdateClient } from './derive-update-from-package.mjs'
+import { bundleEntryPanel } from './bundle-update-entry.mjs'
 
 // #629 配色核心（label-color-core/）：转译与类型检查都写在它自己的 build.mjs 里，
 // 这里只负责在一条命令里把它带上。为什么要写成「先试着加载、加载不到只打印一行提示」，
@@ -307,6 +308,8 @@ const KERNEL_MODULES = [
   { name: 'config', file: 'src/client/kernel/config.js' },
   // #586 切更新包：面板要用的电话名与轮询间隔由更新包派生（改名或改间隔只改包，不在这里写死）
   { name: 'updateClient', file: 'scripts/generated/updateClient.derived.js' },
+  // #876 入口件浏览器绑定包（已安装更新包 dist/entry.js 含内部 dialog 面板，摆法与关闭轮询约定走包默认）
+  { name: 'updateEntryBundle', file: 'scripts/generated/updateEntryPanel.bundle.js' },
   { name: 'log', file: 'scripts/generated/logKernel.derived.js' },
   // 构建内核清单含日志模块（旧真源 src/client/kernel/log.js 原地只读留存，运行时拼入上面的派生文件，#564 留而不搬）
   { name: 'storePrefs', file: 'src/client/kernel/store-prefs.js' },
@@ -451,9 +454,7 @@ const LEAF_MODULES = [
   { id: 'checksTab', file: 'src/client/views/ChecksTab.js' },
   { id: 'SettingsWorkspaces', file: 'src/client/views/SettingsWorkspaces.js' },
   { id: 'debugSwitchFailHint', file: 'src/client/views/shared/DebugSwitchFailHint.js' }, // #597 由 SettingsPage.js 拆出：写开关失败的机器码挑提示词条（无组件，纯函数）
-  { id: 'updateDialog', file: 'src/client/views/UpdateDialog.js' }, // #587 由 SettingsPage.js 拆出：检查更新的浮层弹窗（组件）
-  { id: 'updateRestartBanner', file: 'src/client/views/UpdateRestartBanner.js' }, // #587 新增：装完待重启的常驻提示行（组件）
-  { id: 'useUpdatePanel', file: 'src/client/views/useUpdatePanel.js' }, // #587 由 SettingsPage.js 拆出：检查更新的状态与电话调用（钩子，无组件）
+  { id: 'updateEntryHost', file: 'src/client/views/UpdateEntryHost.js' }, // #876 更新入口挂载点：只挂包的入口件（含内部 dialog 面板），本仓不再自带按钮状态机与浮层弹窗
   { id: 'settingsPage', file: 'src/client/views/SettingsPage.js' },
   { id: 'runPanel', file: 'src/client/views/RunPanel.js' },
   { id: 'DockSync', file: 'src/client/panel/DockSync.js' },
@@ -788,6 +789,7 @@ try {
   const updVersion = deriveUpdateClientVersionForLog()
   console.log(`[build] 更新包面板取值来源：已安装 dsh-plugin-update@${updVersion}（面板派生唯一数据源；打包前应已先升到 0.7.x 最新并提交锁文件）`)
   deriveUpdateClient()
+  await bundleEntryPanel()
 } catch (e) {
   throw new Error('[build] 更新派生失败（面板取值来源是已安装的更新包：先确认 pnpm install 已装好 dsh-plugin-update@^0.7.0，再重跑本构建）：' + ((e && e.message) || e))
 }

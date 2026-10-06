@@ -8,14 +8,6 @@ const MORE_PLUGINS = [
   { slug: 'dsh-prompt', url: 'https://github.com/FeatherHunter/dsh-prompt', descKey: 'more.desc.prompt' },
   { slug: 'dsh-im-companion', url: 'https://github.com/FeatherHunter/dsh-im-companion', descKey: 'more.desc.companion' },
 ]
-function updIsNewer(latest, running) {
-  const triple = (v) => (typeof v === 'string' && /^\d+\.\d+\.\d+$/.test(v) ? v.split('.').map(Number) : null)
-  const a = triple(latest)
-  if (!a) return false
-  const b = triple(running)
-  if (!b) return true
-  return a[0] !== b[0] ? a[0] > b[0] : a[1] !== b[1] ? a[1] > b[1] : a[2] > b[2]
-}
 export     const SettingsPage = (props) => {
       const cx = React.useContext(DswsCtx)
       const h = cx ? cx.h : React.createElement
@@ -123,10 +115,9 @@ export     const SettingsPage = (props) => {
           }).catch(function (e) { try { log('warn', 'host.call.fail', { method: 'wf.logClear', kind: 'clear', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}; setDbgBusy(null); setClearAsked(false); flash(sharedSt, tr('cfg.dbgClearFail'), 'warn') })
         } catch (eDbg) { setDbgBusy(null); setClearAsked(false); flash(sharedSt, tr('cfg.dbgClearFail'), 'warn') }
       }
-      // #541 更新入口（入口 A）+ #542 安装闭环 + #587 待重启常驻与浮层弹窗：
-      // 状态与电话调用收进 views/useUpdatePanel.js（本文件已顶到 350 行上限），
-      // 这里只拿它的结果渲染：按钮四态、待重启常驻提示行、浮层弹窗（views/UpdateDialog.js）。
-      const upd = useUpdatePanel({ st: sharedSt, sid: props && props.sessionId })
+      // #876 更新入口全权委托：标题行按钮与更新面板 dialog 形态都由更新包的入口件挂上
+      // （views/UpdateEntryHost.js），本文件不再自带按钮状态机与浮层弹窗；
+      // 调用只走包的电话名与轮询间隔，关闭与轮询收尾按包的约定来。
       // 2026-09-21：这里原来有一项「打开位置」（点一下就写 cfg + 存档 + 全组广播，并落一行 settings.save）。
       //   面板现在只有 DSH 原生右侧边栏一条路，没有可选的入口，所以整项删除：
       //   两个状态、pickOpenIn、那一行 settings.save 日志与页面上的那一栏一并去掉。
@@ -150,7 +141,7 @@ export     const SettingsPage = (props) => {
             h('a', { href: DSW_REPO_URL, target: '_blank', rel: 'noreferrer', style: { fontSize: 11, color: 'var(--dsw-alias-label-caption,#8b8b95)', textDecoration: 'none' } }, (typeof DSW_VERSION === 'string' ? DSW_VERSION.replace(/^v/, '') : '')),
           ]),
           h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, [
-            h('button', { key: 'update', className: 'dsws-cfg-btn', disabled: upd.disabled, onClick: upd.onClick, style: upd.busy ? { opacity: 0.55 } : (upd.highlight ? { borderColor: '#c084fc', fontWeight: 700 } : null) }, upd.label),
+            h(UpdateEntryHost, { key: 'update' }),
             h(HoverTip, { key: 'star', content: tr('cfg.starTip'), mode: 'mouse', maxWidth: 220 },
               h('a', { href: 'https://github.com/FeatherHunter/dsh-mattpocock-skills-deck', target: '_blank', rel: 'noreferrer', style: { display: 'inline-flex', alignItems: 'center', padding: 4, borderRadius: 6, color: 'inherit', textDecoration: 'none' } }, [h('span', { 'aria-hidden': 'true', style: { fontSize: 14, lineHeight: 1 } }, '🌟')])),
             h(HoverTip, { key: 'feedback', content: tr('cfg.feedbackTip'), mode: 'mouse', maxWidth: 220 },
@@ -158,10 +149,7 @@ export     const SettingsPage = (props) => {
           ]),
         ]),
         h('div', { className: 'dsws-cfg-sub' }, tr('cfg.sub')),
-        // #587：装完待重启的常驻提示行（有就一直在，重启后自动消失）；判据来自 useUpdatePanel
-        upd.banner,
-        // #587：检查更新的浮层弹窗（#541/#542 原有的内容与行为不变，形态从页内分组改为居中浮层）
-        upd.dialog,
+        // #876：待重启横幅与更新面板 dialog 都收在入口件打开的面板里，本页不再另画。
         // 2026-09-21：这里原来是「打开位置」那一栏（DSH 右侧边栏 / BetterSidebar 二选一），整栏已删。
         //   面板只有 DSH 原生右侧边栏一条路，没有什么可选的，所以这一栏连着它的文案键一起撤掉。
         // #155 Q1 改：只读全局总览（wf.bindings + workspaces.list + wf.registry 色值，不可改；不调 wf.bind）
