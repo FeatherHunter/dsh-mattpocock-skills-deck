@@ -1147,7 +1147,7 @@ const contractChecksInner = function (reg, src) {
     'setupRun', // 初始化写的是 docs/agents/*.md 与 AGENTS.md 与标签，工具集里没有标签这一档
     'switchAlign', // 改文档里记录后端的那几行，工具改不了后端记录
     'switchLayout', // 同上，改的是布局那句结论
-    'installSkills', // 装技能套件，与跟踪器无关（tests/prompt-command-manifest.json 的 renderExempt 同口径：不读写任何一张票）
+    'installSkills', // 装技能套件，与跟踪器无关（不读写任何一张票，所以不带工具节）
     'installSkillsFix', // 同上
     'ghAuthLogin', // 登录发生在跟踪器之外，工具此刻还用不了
     'tpl.handoff1', // 只写一份交接文档
@@ -1506,10 +1506,11 @@ const selfDigest = function () {
 //   写法升级成 TOOL_SECTION_IDS / TOOL_SECTION_ABSENT_IDS 两张表（合起来必须覆盖注册表全部 23 条），
 //   门禁正反两向断言并钉住两张表的条数，自摘要跟着重算。
 // #808：tpl.discuss 收尾再补一条（/to-spec 后对抗式审查再关单），中英各一行断言，自摘要跟着重算。
+// #879：逐面归零门禁退役（上游技能文档一字不动，人定案），本文件两处注释同步改说法，自摘要跟着重算。
 const LOCK = {
   'tests/prompt-gate-exempt.json': 'c661ccd0fbfd46aa99790c073d0ccea89ebf5787a9113462c092b17c72a2a2d9',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.js': '20a3b49e3b44188c86ad1300ac8595ef58925642b964c9dc7f0f9651498bc3b8',
+  'tests/verify-prompts.js': '201ac40bfb61427bb53712db54b93be86e5e666d09435764d2c41a310718c79c',
 }
 // ---- LOCK-END ----
 
@@ -1612,7 +1613,7 @@ if (reg) {
   //   所以这里改钉「工具写法」而不是「gh 直连」——同一件事的两种实现，后者已被本票取代：
   //   ① 建边走 deck_map_link（父子边 parentKey、阻塞边 blockedBy）；
   //   ② 建完读回核对走 deck_map_snapshot；
-  //   ③ 一个裸跟踪器命令都不许再出现（这一条由 tests/verify-prompt-command-inventory.js 逐类归零，这里直断一次）。
+  //   ③ 一个裸跟踪器命令都不许再出现（这里直断本仓库自己的后端声明面；逐面归零那道全仓门禁 #879 已按人定案退役——上游技能文档一字不动，不再量它）。
   ;['zh', 'en'].forEach(function (lang) {
     const t = String(subIssueValues['github.' + lang] || '')
     const where = '#716 github 后端 prompts.subIssue.' + lang
