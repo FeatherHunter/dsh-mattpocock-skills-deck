@@ -284,7 +284,7 @@ export const VersionControlTab = function (props) {
       b.back ? h('div', { key: 'back', className: 'dsws-vc-link', 'data-vc-back': 1, onClick: closeCommit, style: { marginBottom: 4 } }, b.back) : null,
       // 854 布局 C 原型的改动视图没有标题汇总行：标题就是页签，计数就是数字条，这里直接进数字条加视图条。
       vcStatsNode(h, { stats: vcStatsOf(screen), t: tr }),
-      vcViewBarNode(h, { stageAll: b.stageAll, commitArea: b.commitArea, actions: (writeUi && writeUi.actions) || null, startPull: ops.startPull, startPush: ops.startPush, foldActions: foldState.actions, tone: tone, tipNode: tipNode, t: tr, stagePaths: ops.stagePaths, submitCommit: ops.submitCommit, writeMessageOf: ops.writeMessageOf }),
+      vcViewBarNode(h, { stageAll: b.stageAll, commitArea: b.commitArea, actions: (writeUi && writeUi.actions) || null, startPull: ops.startPull, startPush: ops.startPush, startFetch: ops.startFetch, foldActions: foldState.actions, tone: tone, tipNode: tipNode, t: tr, stagePaths: ops.stagePaths, submitCommit: ops.submitCommit, writeMessageOf: ops.writeMessageOf }),
     ].concat(changeTail))
     if (b.kind === 'commits') return h('div', { key: b.key, 'data-vc-commits': 1 }, [
       h('div', { key: 'title', className: 'dsws-vc-sec', style: { color: tone('primary') } }, b.title),

@@ -2,7 +2,7 @@
 // 用法：在插件根目录执行 node tests/verify-version-control-rules.js，可独立运行。
 //
 // 断言文字：只测外部行为——给定一份固定状态，断言判定结果（allow/warn/block + 理由标识符）。
-// 四个操作各一条底线：没东西暂存就拦暂存、没暂存就拦提交、脏树与冲突拦拉取、上游没了拦推拉；
+// 五个操作各一条底线：没东西暂存就拦暂存、没暂存就拦提交、脏树与冲突拦拉取、上游没了拦推拉、裸仓库拦更新；
 // 理由只能是 REASONS 表里的取值。最后带断言装置自检：把规则改坏（永远放行），同一套断言必须判红。
 // #819 复审 P2-8 补三条方向：合并/变基进行中推送拦住（推的是动手前那次提交）、落后远端推送拦住
 // （推上去会被拒，与拉取同一条边界）、游离头上提交至少提醒（提交完只剩 reflog 能找回来）。
@@ -102,6 +102,18 @@ function scenarios(judge) {
       id: '未知操作诚实失败（block + unknown-operation，不抛异常）',
       run: () => { const r = judge(base(), 'rebase'); return r.verdict === 'block' && r.reasons.includes('unknown-operation') },
     },
+    {
+      id: '更新：干净有上游放行',
+      run: () => judge(base({ unstaged: [], unstagedCount: 0 }), 'fetch').verdict === 'allow',
+    },
+    {
+      id: '更新：脏树、无上游、落后远端、依据未知都不挡（不碰工作树，落后与未知正是要用它修的）',
+      run: () => { const s = base(); s.identity.sync = 'no-upstream'; s.identity.behind = 3; s.identity.basisMs = null; const r = judge(s, 'fetch'); return r.verdict === 'allow' },
+    },
+    {
+      id: '更新：裸仓库拦住（bare-repo，与拉取推送一致）',
+      run: () => { const r = judge(base({ repo: { bare: true } }), 'fetch'); return r.verdict === 'block' && r.reasons.includes('bare-repo') },
+    },
   ]
 }
 
@@ -116,7 +128,7 @@ function failuresOf(judge) {
 }
 
 async function main() {
-  console.log('版本控制判定规则门禁（#816：四操作底线 + 装置自检）')
+  console.log('版本控制判定规则门禁（#816 起四操作底线 + 装置自检，#865 加更新远方记录三条）')
 
   const rules = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'version-control', 'rules.js')).href)
   check(rules.RULES_SOURCE === 'version-control-core/src/rules.ts', '产物带模块标识 RULES_SOURCE')
@@ -127,7 +139,7 @@ async function main() {
 
   // 理由只能是 REASONS 表里的取值。
   const used = new Set()
-  for (const op of ['stage', 'commit', 'pull', 'push']) {
+  for (const op of ['stage', 'commit', 'pull', 'push', 'fetch']) {
     for (const s of [base(), base({ unstaged: [], unstagedCount: 0 })]) {
       for (const r of rules.judge(s, op).reasons) used.add(r)
     }
@@ -157,6 +169,11 @@ async function main() {
   check(oldJudgeCommit(commitDetached).verdict === 'allow', '反证 c：旧方向在游离头上提交直接放行（实得 ' + oldJudgeCommit(commitDetached).verdict + '），新场景要求至少提醒')
   check(rules.judge(pushMid, 'push').verdict === 'block' && rules.judge(pushBehind, 'push').verdict === 'block' && rules.judge(commitDetached, 'commit').verdict === 'warn',
     '三条新方向同时成立：合并中推送拦住、落后远端拦住、游离头提交提醒')
+  // 反证 d（#865）：旧方向若照拉取口径判更新（无上游就拦），无上游那一例会判成 block —— 新场景要求放行。
+  const fetchNoUp = base(); fetchNoUp.identity.sync = 'no-upstream'
+  const oldFetchLikePull = fetchNoUp.identity.sync === 'no-upstream' ? 'block' : 'allow'
+  check(oldFetchLikePull === 'block' && rules.judge(fetchNoUp, 'fetch').verdict === 'allow',
+    '反证 d：旧方向（照拉取口径）把无上游更新判成拦住（实得 ' + oldFetchLikePull + '），新场景要求放行（实得 ' + rules.judge(fetchNoUp, 'fetch').verdict + '）')
 
 
   console.log(failed ? '\n存在失败 — verify-version-control-rules 未通过' : '\n全部通过 — 判定规则门禁生效（' + total + ' 项断言）')

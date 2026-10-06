@@ -1,7 +1,7 @@
 // tests/verify-842-version-control-write-view.js — 版本管理「写操作」界面门禁（#842 落地）
 // 用法：在插件根目录执行 node tests/verify-842-version-control-write-view.js，可独立运行。
 //
-// 这份门禁守的是「用户点得完、看得懂」那一半：#842 的四个动作（add / 提交 / 拉取 / 推送）落点对不对、
+// 这份门禁守的是「用户点得完、看得懂」那一半：写操作的五个动作（add / 提交 / 拉取 / 更新 / 推送）落点对不对、
 //   禁用态读的是不是核心判定、三个确认框有没有点名目标、五族失败话术能不能照着做、执行中会不会把读数弄假。
 // 写法照 tests/verify-818-version-control-view.js 的先例：把叶子按 build.mjs 的次序拼成真闭包再跑，
 //   词条读真字典（locale-panel / locale-flow / locale-vcwrite），断言落在模型与真渲染出来的 DOM 上。
@@ -218,7 +218,7 @@ function readsOf(screen) {
 const uiOf = (over) => Object.assign({ fileShown: {}, openDiff: '', openCommit: '', write: { op: '', state: 'idle', message: '', confirm: null, result: null } }, over || {})
 const LABELS = () => ({ push: trZh('vc.action.push'), pull: trZh('vc.action.pull'), stageAll: trZh('vc.action.stageAll'), commit: trZh('vc.action.commit', { n: '1' }) })
 function decisionsOf(view, screen) {
-  return { stage: view.judge(screen, 'stage'), commit: view.judge(screen, 'commit'), pull: view.judge(screen, 'pull'), push: view.judge(screen, 'push') }
+  return { stage: view.judge(screen, 'stage'), commit: view.judge(screen, 'commit'), pull: view.judge(screen, 'pull'), push: view.judge(screen, 'push'), fetch: view.judge(screen, 'fetch') }
 }
 function blocksOf(view, screen, reads, ui) {
   const fold = view.vcFoldOf(460, view.vcFoldDataOf(screen, reads, LABELS()))
@@ -339,19 +339,28 @@ function groupB(view) {
   const screens = [ok, mid, bare, screenOf({ identity: { detached: true, sync: 'detached' } }), screenOf({ unstaged: [fileOf('b.txt', 'unstaged')], unstagedCount: 1 })]
   let same = true
   screens.forEach((s) => {
-    ['stage', 'commit', 'pull', 'push'].forEach((op) => {
+    ['stage', 'commit', 'pull', 'push', 'fetch'].forEach((op) => {
       const d = view.judge(s, op)
       const expect = d.verdict === 'block' ? 'blocked' : 'idle'
       if (view.vcOpStateOf(d) !== expect) same = false
     })
   })
-  check(same, 'B5 四个动作的状态都由核心判定来（' + screens.length + ' 个 screen × 4 个动作，界面状态与 judge 的 verdict 一一对应）')
+  check(same, 'B5 五个动作的状态都由核心判定来（' + screens.length + ' 个 screen × 5 个动作，界面状态与 judge 的 verdict 一一对应）')
 
   const noUp = screenOf({ branches: [{ short: 'main', upstream: '', upstreamGone: false }], identity: { sync: 'no-upstream' } })
   const fixed = view.vcPushDecisionOf(view.judge(noUp, 'push'))
   const gone = screenOf({ branches: [{ short: 'main', upstream: 'origin/main', upstreamGone: true }], identity: { sync: 'upstream-gone' } })
   const fixed2 = view.vcPushDecisionOf(view.judge(gone, 'push'))
   check(fixed.verdict === 'allow' && fixed2.verdict === 'allow', 'B6 推送的「没有上游 / 上游被删」不是禁用，而是走确认档（no-upstream=' + fixed.verdict + '，upstream-gone=' + fixed2.verdict + '）')
+
+  // B8：更新远方记录只挡裸仓库；脏树、无上游、上游被删都不挡（它不碰工作树，落后与依据未知正是要用它修的）。
+  const dirtyNoUp = screenOf({ unstaged: [fileOf('b.txt', 'unstaged')], unstagedCount: 1, branches: [{ short: 'main', upstream: '', upstreamGone: false }], identity: { sync: 'no-upstream', behind: 2, basisMs: null } })
+  const fetchDirty = view.judge(dirtyNoUp, 'fetch')
+  const fetchBare = view.judge(screenOf({ repo: { bare: true } }), 'fetch')
+  check(fetchDirty.verdict === 'allow' && fetchBare.verdict === 'block' && fetchBare.reasons.includes('bare-repo'), 'B8 更新远方记录脏树无上游也放行、裸仓库拦住（脏树=' + fetchDirty.verdict + '，裸仓=' + fetchBare.verdict + '）')
+  // 反证 B8r：若把更新按拉取口径判（无上游就拦），上面那一例会判成 block —— 新场景把它逮住。
+  const oldFetchLikePull = dirtyNoUp.identity.sync === 'no-upstream' ? 'block' : 'allow'
+  check(oldFetchLikePull === 'block' && fetchDirty.verdict === 'allow', '反证 B8r：旧方向（照拉取口径）把无上游更新判成拦住（实得 ' + oldFetchLikePull + '），新场景要求放行')
 
   // B7：结果不确定的两档（head-moved / head-unreadable）不归「这一步现在做不成」那一族。
   const movedKeys = ['head-moved', 'head-unreadable'].map(function (r) { return view.vcWriteErrKeyOf({ reason: r, kind: 'other' }) })
@@ -593,7 +602,7 @@ async function groupG(view) {
   const screens = [screenOf(), richScreen(), screenOf({ repo: { bare: true } }), screenOf({ identity: { detached: true, sync: 'detached' } }), screenOf({ identity: { sync: 'no-upstream' }, branches: [] })]
   let same = true
   screens.forEach(function (s) {
-    ;['stage', 'commit', 'pull', 'push'].forEach(function (op) {
+    ;['stage', 'commit', 'pull', 'push', 'fetch'].forEach(function (op) {
       const raw = view.judge(s, op)
       // 推送那一条界面用的是 vcPushDecisionOf（摘掉「没有上游 / 上游被删」），照同一口径比。
       const d = op === 'push' ? view.vcPushDecisionOf(raw) : raw
@@ -601,10 +610,10 @@ async function groupG(view) {
       if (ui.ops[op].disabled !== (d.verdict === 'block')) same = false
     })
   })
-  check(same, 'G2 同一批 screen 喂 rules.judge 与界面状态函数，两边结论一致（' + screens.length + ' 个 screen × 4 个动作）')
+  check(same, 'G2 同一批 screen 喂 rules.judge 与界面状态函数，两边结论一致（' + screens.length + ' 个 screen × 5 个动作）')
 
   const phones = view.VC_WRITE_PHONES
-  const namesOk = phones.check === 'wf.gitWriteCheck' && phones.stage === 'wf.gitStage' && phones.unstage === 'wf.gitUnstage' && phones.commit === 'wf.gitCommit' && phones.pull === 'wf.gitPull' && phones.push === 'wf.gitPush'
+  const namesOk = phones.check === 'wf.gitWriteCheck' && phones.stage === 'wf.gitStage' && phones.unstage === 'wf.gitUnstage' && phones.commit === 'wf.gitCommit' && phones.pull === 'wf.gitPull' && phones.fetch === 'wf.gitFetch' && phones.push === 'wf.gitPush'
   const host = makeHost(function () { return { ok: true } })
   view.vcRunCheck(host.call, 'D:/w/repo', 'pull', {})
   view.vcRunWrite(host.call, 'D:/w/repo', 'stage', { paths: ['a.txt'] })
@@ -614,13 +623,27 @@ async function groupG(view) {
   const stageCall = host.calls[1] || { method: '', args: {} }
   const commitCall = host.calls[2] || { method: '', args: {} }
   const argsOk = checkCall.args.cwd === 'D:/w/repo' && checkCall.args.op === 'pull' && Array.isArray(stageCall.args.paths) && stageCall.args.paths.join(',') === 'a.txt' && commitCall.args.ticketId === 't1' && commitCall.args.message === 'm'
-  check(namesOk && argsOk, 'G3 预检与五条写电话的名字、入参形状与宿主契约一致（' + [checkCall.method, stageCall.method, commitCall.method].join(' / ') + '）')
+  check(namesOk && argsOk, 'G3 预检与六条写电话的名字、入参形状与宿主契约一致（' + [checkCall.method, stageCall.method, commitCall.method].join(' / ') + '）')
 
-  const keys = ['stage', 'unstage', 'commit', 'pull', 'push'].map(function (op) {
-    const reply = op === 'stage' ? { ok: true, staged: ['a'] } : (op === 'unstage' ? { ok: true, unstaged: ['a'] } : (op === 'commit' ? { ok: true, committed: true, headAfter: 'b' } : (op === 'pull' ? { ok: true, mode: 'fast-forward' } : { ok: true, mode: 'existing-upstream', remote: 'origin', branch: 'main' })))
+  const keys = ['stage', 'unstage', 'commit', 'pull', 'fetch', 'push'].map(function (op) {
+    const reply = op === 'stage' ? { ok: true, staged: ['a'] } : (op === 'unstage' ? { ok: true, unstaged: ['a'] } : (op === 'commit' ? { ok: true, committed: true, headAfter: 'b' } : (op === 'pull' ? { ok: true, mode: 'fast-forward' } : (op === 'fetch' ? { ok: true, mode: 'fetched', remote: 'origin' } : { ok: true, mode: 'existing-upstream', remote: 'origin', branch: 'main' }))))
     return view.vcOpResultOf(op, reply).key
   })
-  check(keys.join(',') === 'vc.op.doneStage,vc.op.doneUnstage,vc.op.doneCommit,vc.op.donePull,vc.op.donePush', 'G4 五条写电话的成功回包各自映射到结果句词条（' + keys.join(',') + '）')
+  check(keys.join(',') === 'vc.op.doneStage,vc.op.doneUnstage,vc.op.doneCommit,vc.op.donePull,vc.op.doneFetch,vc.op.donePush', 'G4 六条写电话的成功回包各自映射到结果句词条（' + keys.join(',') + '）')
+
+  // G5：更新远方记录拿到票后直接执行，不弹确认框；多远端定不出时与推送同一品格，先选一个。
+  const fetchHost = makeHost(function (m) {
+    if (m === 'wf.gitWriteCheck') return { ok: true, decision: { verdict: 'allow', reasons: [] }, plan: { mode: 'fetch', remote: 'origin', branch: '', localBranch: 'main' }, ticket: { id: 'tf', checkedAtMs: NOW, expiresAtMs: NOW + 120000, op: 'fetch' }, readAtMs: NOW }
+    if (m === 'wf.gitFetch') return { ok: true, mode: 'fetched', remote: 'origin', atMs: NOW }
+    return { ok: true }
+  })
+  let fetchConfirm = 'unset'
+  const fetchOps = view.vcWriteOpsOf({ ui: uiOf(), setUi: function (fn) { const cur = uiOf(); const next = fn(cur); if (next.write && next.write.confirm) fetchConfirm = next.write.confirm }, callHost: fetchHost.call, cwd: 'D:/w/repo', readsRef: { current: readsOf(screenOf()) }, setReads: function () {}, screen: screenOf() })
+  fetchOps.startFetch('')
+  await flush()
+  check(fetchHost.methods().slice(0, 2).join(',') === 'wf.gitWriteCheck,wf.gitFetch' && fetchConfirm === 'unset', 'G5 更新远方记录预检通过后直跑执行电话、不弹确认框（实发 ' + fetchHost.methods().join(',') + '，确认框=' + JSON.stringify(fetchConfirm) + '）')
+  // 反证 G5r：若把更新接到确认框那条路上，上面这一串会多出等待确认、执行电话发不出去 —— 直跑无确认正是要守的形状。
+  check(fetchHost.countOf('wf.gitFetch') === 1, '反证 G5r：直跑形状下执行电话恰发一次（实发 ' + fetchHost.countOf('wf.gitFetch') + ' 次）')
 }
 
 

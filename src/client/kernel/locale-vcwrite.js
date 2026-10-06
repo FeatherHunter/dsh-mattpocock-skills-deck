@@ -8,7 +8,7 @@
  */
 export const L_VCWRITE = {
   zh: {
-    'vc.action.stage': 'add', 'vc.action.stageAll': 'add 全部', 'vc.action.unstage': '撤回', 'vc.action.commit': '提交 {n} 个文件', 'vc.action.pull': '拉取', 'vc.action.push': '推送',
+    'vc.action.stage': 'add', 'vc.action.stageAll': 'add 全部', 'vc.action.unstage': '撤回', 'vc.action.commit': '提交 {n} 个文件', 'vc.action.pull': '拉取', 'vc.action.fetch': '更新', 'vc.action.push': '推送',
     'vc.action.pushRecreate': '重建上游并推送', 'vc.action.pushSetUpstream': '设为上游并推送', 'vc.row.conflictTerminal': '冲突：请在命令行中解决',
     'vc.block.nothingToStage': '不存在可暂存的内容', 'vc.block.nothingStaged': '暂存区为空，不存在可提交的内容', 'vc.block.conflicts': '存在未解决的冲突文件，请先处理冲突',
     'vc.block.dirtyTree': '工作区存在未提交的变更，请先提交再拉取', 'vc.block.noUpstream': '该分支尚未设置上游', 'vc.block.upstreamGone': '该分支的上游已在远端删除',
@@ -37,10 +37,10 @@ export const L_VCWRITE = {
     'vc.writeErr.moved': '该步骤结果不确定：提交可能已发生，请先查看提交历史再决定', 'vc.writeErr.moved.limit': '面板不推测结果：请查看提交历史，确认后再决定是否重新提交。',
     'vc.writeErr.remoteRule': '远端规则拦截了本次推送（钩子或保护规则）', 'vc.writeErr.remoteRule.limit': '上一句为远端原始输出，请据此处理；面板无法修改远端规则，无需更换账号。',
     'vc.writeErr.notFastForwardPush': '远端存在本地缺失的提交，直接推送将被拒绝', 'vc.writeErr.notFastForwardPush.limit': '请先在命令行中 fetch 或 pull 获取远端新提交，再合并或变基。',
-    'vc.pickRemote.title': '该仓库配置了多个远端，推送前请选择其一', 'vc.pickRemote.body': '面板不代选远端；选中后将重新预检，确认框将明确推送目标。', 'vc.confirm.ttl': '本次确认 {sec} 秒内有效；过期后请重新确认。',
+    'vc.pickRemote.title': '该仓库配置了多个远端，推送前请选择其一', 'vc.pickRemote.body': '面板不代选远端；选中后将重新预检，确认框将明确推送目标。', 'vc.pickRemote.fetchTitle': '该仓库配置了多个远端，更新前请选择其一', 'vc.pickRemote.fetchBody': '面板不代选远端；选中后将重新预检并更新该远端。', 'vc.confirm.ttl': '本次确认 {sec} 秒内有效；过期后请重新确认。',
     'vc.commitArea.needMessage': '请先填写提交说明',
     'vc.op.running': '正在执行…', 'vc.op.done': '执行完成', 'vc.op.failed': '执行失败', 'vc.op.unknown': '结果未知', 'vc.op.doneStage': '已暂存 {n} 个文件', 'vc.op.doneUnstage': '已撤回暂存 {n} 个文件',
-    'vc.op.doneCommit': '提交完成', 'vc.op.donePull': '拉取完成', 'vc.op.donePush': '推送完成', 'vc.op.donePushSetUpstream': '首次推送完成，上游已设置',
+    'vc.op.doneCommit': '提交完成', 'vc.op.donePull': '拉取完成', 'vc.op.doneFetch': '更新完成', 'vc.op.donePush': '推送完成', 'vc.op.donePushSetUpstream': '首次推送完成，上游已设置',
     'vc.op.donePushRecreate': '上游已重建：本地 {local} 已推送至 {remote}/{target}', 'vc.op.modeFastForward': '已快进至远端最新', 'vc.op.modeUpToDate': '已是最新状态',
     'vc.action.aiHandoff': '让 AI 帮我解决', 'vc.ai.title': '版本管理求助，分支 {branch}', 'vc.ai.repoKnown': '仓库：{repo}，分支 {branch}，超前 {ahead}，落后 {behind}',
     'vc.ai.repoNoUpstream': '仓库：{repo}，分支 {branch}，还没设上游', 'vc.ai.repoUpstreamGone': '仓库：{repo}，分支 {branch}，上游已在远端删除', 'vc.ai.repoDetached': '仓库：{repo}，当前不在任何分支上，停在提交 {oid}',
@@ -49,7 +49,7 @@ export const L_VCWRITE = {
     'vc.ai.intentDefault': '查看状态，还没决定下一步', 'vc.ai.seen': '看到：{text}', 'vc.ai.goal': '目标：', 'vc.ai.extra': '补充：',
   },
   en: {
-    'vc.action.stage': 'add', 'vc.action.stageAll': 'add all', 'vc.action.unstage': 'unstage', 'vc.action.commit': 'Commit {n} files', 'vc.action.pull': 'Pull', 'vc.action.push': 'Push',
+    'vc.action.stage': 'add', 'vc.action.stageAll': 'add all', 'vc.action.unstage': 'unstage', 'vc.action.commit': 'Commit {n} files', 'vc.action.pull': 'Pull', 'vc.action.fetch': 'Fetch', 'vc.action.push': 'Push',
     'vc.action.pushRecreate': 'Recreate upstream and push', 'vc.action.pushSetUpstream': 'Set upstream and push', 'vc.row.conflictTerminal': 'Conflict: it has to be resolved in a command line',
     'vc.block.nothingToStage': 'Nothing to stage', 'vc.block.nothingStaged': 'The staging area is empty; nothing to commit', 'vc.block.conflicts': 'Files have unresolved conflicts; resolve them first',
     'vc.block.dirtyTree': 'The working tree has uncommitted changes; commit before pulling', 'vc.block.noUpstream': 'No upstream configured for this branch', 'vc.block.upstreamGone': "This branch's upstream has been deleted on the remote",
@@ -78,10 +78,10 @@ export const L_VCWRITE = {
     'vc.writeErr.moved': 'The result of this step is unknown: the commit may already have happened — check the history first', 'vc.writeErr.moved.limit': 'The panel does not speculate: review the commit history and then decide whether to commit again.',
     'vc.writeErr.remoteRule': 'A remote-side rule refused this push (a hook or a protected branch)', 'vc.writeErr.remoteRule.limit': "The line above is the remote's original wording: follow it. The panel cannot modify remote rules, and switching accounts will not help.",
     'vc.writeErr.notFastForwardPush': 'The remote has commits missing locally; pushing directly will be refused', 'vc.writeErr.notFastForwardPush.limit': 'Fetch or pull in a command line first to bring in the remote commits, then merge or rebase.',
-    'vc.pickRemote.title': 'This repository has multiple remotes; select one before pushing', 'vc.pickRemote.body': 'The panel does not select a remote; selecting one re-runs the preflight and the confirmation names the target.', 'vc.confirm.ttl': 'This confirmation is valid for {sec} seconds; re-confirm after expiry.',
+    'vc.pickRemote.title': 'This repository has multiple remotes; select one before pushing', 'vc.pickRemote.body': 'The panel does not select a remote; selecting one re-runs the preflight and the confirmation names the target.', 'vc.pickRemote.fetchTitle': 'This repository has multiple remotes; select one before fetching', 'vc.pickRemote.fetchBody': 'The panel does not select a remote; selecting one re-runs the preflight and fetches that remote.', 'vc.confirm.ttl': 'This confirmation is valid for {sec} seconds; re-confirm after expiry.',
     'vc.commitArea.needMessage': 'Write a commit message first',
     'vc.op.running': 'Running…', 'vc.op.done': 'Completed', 'vc.op.failed': 'Failed', 'vc.op.unknown': 'Result unknown', 'vc.op.doneStage': 'Staged {n} files', 'vc.op.doneUnstage': 'Unstaged {n} files',
-    'vc.op.doneCommit': 'Commit completed', 'vc.op.donePull': 'Pull completed', 'vc.op.donePush': 'Push completed', 'vc.op.donePushSetUpstream': 'First push completed; upstream configured',
+    'vc.op.doneCommit': 'Commit completed', 'vc.op.donePull': 'Pull completed', 'vc.op.doneFetch': 'Fetch completed', 'vc.op.donePush': 'Push completed', 'vc.op.donePushSetUpstream': 'First push completed; upstream configured',
     'vc.op.donePushRecreate': 'Upstream recreated: local {local} pushed to {remote}/{target}', 'vc.op.modeFastForward': 'Fast-forwarded to the remote tip', 'vc.op.modeUpToDate': 'Already up to date',
     'vc.action.aiHandoff': 'Ask AI to solve it', 'vc.ai.title': 'Version control help, branch {branch}', 'vc.ai.repoKnown': 'Repo: {repo}, branch {branch}, ahead {ahead}, behind {behind}',
     'vc.ai.repoNoUpstream': 'Repo: {repo}, branch {branch}, no upstream yet', 'vc.ai.repoUpstreamGone': 'Repo: {repo}, branch {branch}, upstream deleted on remote', 'vc.ai.repoDetached': 'Repo: {repo}, detached HEAD at {oid}',

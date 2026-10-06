@@ -11,6 +11,7 @@ export const VC_WRITE_PHONES = {
   unstage: 'wf.gitUnstage',
   commit: 'wf.gitCommit',
   pull: 'wf.gitPull',
+  fetch: 'wf.gitFetch',
   push: 'wf.gitPush',
 }
 
@@ -52,6 +53,11 @@ export const vcOpResultOf = function (op, reply, plan) {
       const mode = String(r.mode || '')
       const tipKey = mode === 'fast-forward' ? 'vc.op.modeFastForward' : (mode === 'up-to-date' ? 'vc.op.modeUpToDate' : '')
       return { state: 'done', key: 'vc.op.donePull', params: {}, verb: 'vc.op.done', tipKey: tipKey, tip: '', retryable: false, moved: false }
+    }
+    // 更新远方记录成功：悬停写远端名（预检回包与执行回包都有 remote），主句走 doneFetch。
+    if (o === 'fetch') {
+      const remote = String((plan && plan.remote) || r.remote || '')
+      return { state: 'done', key: 'vc.op.doneFetch', params: {}, verb: 'vc.op.done', tipKey: '', tip: remote, retryable: false, moved: false }
     }
     // 推送成功按**预检 plan.mode** 分三档说：existing 说「推送完成」、set-upstream 说「第一次推送、已设为上游」、
     //   recreate 说「已重建上游」。执行回包的 mode 只有 existing-upstream / set-upstream 两种（recreate 档仍回前者），

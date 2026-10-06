@@ -17,7 +17,7 @@ export const vcWriteOpsOf = function (deps) {
   const writeState = (ui && ui.write) || {}
   // 四个动作的判定一律读核心 judge（闭包里拼进来的同一份）；推送那一条还要摘掉「没有上游 / 上游被删」。
   const decisions = (screen && typeof judge === 'function')
-    ? { stage: judge(screen, 'stage'), commit: judge(screen, 'commit'), pull: judge(screen, 'pull'), push: judge(screen, 'push') }
+    ? { stage: judge(screen, 'stage'), commit: judge(screen, 'commit'), pull: judge(screen, 'pull'), push: judge(screen, 'push'), fetch: judge(screen, 'fetch') }
     : {}
   const setWrite = function (patch) {
     setUi(function (cur) {
@@ -93,6 +93,27 @@ export const vcWriteOpsOf = function (deps) {
       setWrite({ op: '', state: 'confirm', confirm: { op: 'pull', plan: reply.plan, ticket: reply.ticket, remotes: reply.remotes || [] }, result: null, remoteChoice: null })
     })
   })
+  // 更新远方记录：多远端且定不出远端时与推送同一品格，先选一个再重跑预检；拿到票后直接执行（只读远端、不碰工作树，无需确认框）。
+  const doFetch = function (remote) {
+    if (vcOpStateOf(decisions.fetch) === 'blocked') return null
+    const extra = remote ? { remote: String(remote) } : {}
+    setWrite({ op: 'fetch', state: 'running', result: null, remoteChoice: null })
+    return vcRunCheck(callHost, cwd, 'fetch', extra).then(function (reply) {
+      const choice = vcRemoteChoiceOf(reply)
+      if (choice.show) {
+        setWrite({ op: '', state: 'idle', result: null, confirm: null, remoteChoice: Object.assign({}, choice, { op: 'fetch' }) })
+        return null
+      }
+      if (!reply || reply.ok !== true) {
+        setWrite({ op: '', state: 'failed', result: Object.assign({ op: 'fetch' }, vcOpResultOf('fetch', reply)), confirm: null, remoteChoice: null })
+        return null
+      }
+      noteMismatch('fetch', reply.plan)
+      const ticket = reply.ticket || {}
+      return runWrite('fetch', { ticketId: String(ticket.id || ''), requestId: vcRequestIdOf(Date.now(), 'fetch'), plan: reply.plan })
+    })
+  }
+  const startFetch = guarded(function (remote) { return doFetch(remote) })
   // 推送：多远端 + 没有上游时宿主回 ok:false + reason=need-remote-choice + 顶层 remotes（候选）。
   //   这一档不是失败，是「先选一个」——把它画成一排可点的远端入口，选中后带 remote 重跑预检。
   const doPush = function (remote) {
@@ -102,7 +123,7 @@ export const vcWriteOpsOf = function (deps) {
     return vcRunCheck(callHost, cwd, 'push', extra).then(function (reply) {
       const choice = vcRemoteChoiceOf(reply)
       if (choice.show) {
-        setWrite({ op: '', state: 'idle', result: null, confirm: null, remoteChoice: choice })
+        setWrite({ op: '', state: 'idle', result: null, confirm: null, remoteChoice: Object.assign({}, choice, { op: 'push' }) })
         return null
       }
       if (!reply || reply.ok !== true) {
@@ -133,18 +154,20 @@ export const vcWriteOpsOf = function (deps) {
   const cancelConfirm = function () { setWrite({ state: 'idle', confirm: null, op: '' }) }
   // 多远端时用户选了一个：目标变了，旧票作废 —— 重新预检拿新票（设计 §4）。
   const pickRemote = guarded(function (name) {
+    const op = writeState.remoteChoice && writeState.remoteChoice.op === 'fetch' ? 'fetch' : 'push'
     setWrite({ state: 'idle', confirm: null, op: '', result: null, remoteChoice: null })
-    return doPush(name)
+    return op === 'fetch' ? doFetch(name) : doPush(name)
   })
   const writeMessageOf = function (value) { setWrite({ message: String(value === undefined || value === null ? '' : value) }) }
   const retryResult = function () {
     const r = writeState.result || {}
     if (r.op === 'pull') return startPull()
     if (r.op === 'push') return startPush('')
+    if (r.op === 'fetch') return startFetch('')
     if (r.op === 'commit') return submitCommit()
   }
   return {
-    writeState: writeState, decisions: decisions, stagePaths: stagePaths, unstagePaths: unstagePaths, startPull: startPull, startPush: startPush,
+    writeState: writeState, decisions: decisions, stagePaths: stagePaths, unstagePaths: unstagePaths, startPull: startPull, startPush: startPush, startFetch: startFetch,
     submitCommit: submitCommit, confirmNow: confirmNow, cancelConfirm: cancelConfirm, pickRemote: pickRemote,
     writeMessageOf: writeMessageOf, retryResult: retryResult,
   }

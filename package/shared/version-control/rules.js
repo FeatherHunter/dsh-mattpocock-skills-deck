@@ -63,6 +63,10 @@ function judgePush(s) {
   if (s.identity.basisMs === null) return { verdict: "warn", reasons: ["basis-unknown"] };
   return { verdict: "allow", reasons: ["ok"] };
 }
+function judgeFetch(s) {
+  if (s.repo.bare) return { verdict: "block", reasons: ["bare-repo"] };
+  return { verdict: "allow", reasons: ["ok"] };
+}
 export function judge(screen, op) {
   switch (op) {
     case "stage":
@@ -73,6 +77,8 @@ export function judge(screen, op) {
       return judgePull(screen);
     case "push":
       return judgePush(screen);
+    case "fetch":
+      return judgeFetch(screen);
     default:
       return { verdict: "block", reasons: ["unknown-operation"] };
   }

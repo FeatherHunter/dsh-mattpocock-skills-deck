@@ -75,15 +75,16 @@ export const vcWriteUiOf = function (screen, ui, env) {
           failed: String(result.state) === 'failed',
           moved: result.moved === true,
           // #854：没做成的那一档配一个交出去的描述（动作名用静态分支翻，动态拼键名门禁不认）。
-          ai: String(result.state) === 'failed' ? { kind: 'write-fail', opText: w.op === 'pull' ? t('vc.action.pull') : (w.op === 'push' ? t('vc.action.push') : (w.op === 'stage' ? t('vc.action.stage') : (w.op === 'unstage' ? t('vc.action.unstage') : t('vc.action.commit', { n: String(staged) })))), summary: t(result.key, result.params), detail: result.limitKey ? t(result.limitKey) : '', tip: String(result.tip || '') } : null,
+          ai: String(result.state) === 'failed' ? { kind: 'write-fail', opText: w.op === 'pull' ? t('vc.action.pull') : (w.op === 'fetch' ? t('vc.action.fetch') : (w.op === 'push' ? t('vc.action.push') : (w.op === 'stage' ? t('vc.action.stage') : (w.op === 'unstage' ? t('vc.action.unstage') : t('vc.action.commit', { n: String(staged) }))))), summary: t(result.key, result.params), detail: result.limitKey ? t(result.limitKey) : '', tip: String(result.tip || '') } : null,
         }
       : null,
     // 多远端：画一排可点的远端入口（选中后由动作层带 remote 重跑预检）。
     remoteChoice: choice
-      ? { title: t('vc.pickRemote.title'), body: t('vc.pickRemote.body'), remotes: choice.remotes.slice(), hint: String(choice.hint || '') }
+      ? { op: choice.op === 'fetch' ? 'fetch' : 'push', title: t(choice.op === 'fetch' ? 'vc.pickRemote.fetchTitle' : 'vc.pickRemote.title'), body: t(choice.op === 'fetch' ? 'vc.pickRemote.fetchBody' : 'vc.pickRemote.body'), remotes: choice.remotes.slice(), hint: String(choice.hint || '') }
       : null,
     actions: {
       pull: { op: 'pull', text: t('vc.action.pull'), disabled: busy || ops.pull.disabled, tip: ops.pull.tip },
+      fetch: { op: 'fetch', text: t('vc.action.fetch'), disabled: busy || ops.fetch.disabled, tip: ops.fetch.tip },
       push: { op: 'push', text: t('vc.action.push'), disabled: busy || ops.push.disabled, tip: ops.push.tip },
     },
     stageAll: {

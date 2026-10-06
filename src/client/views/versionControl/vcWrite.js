@@ -8,7 +8,7 @@
 //   ④ 结果一句话取哪条词条。
 // 判定只有一个来源：闭包里拼进来的核心 judge（src/shared/version-control/rules.js）。界面不自己算。
 
-export const VC_WRITE_OPS = ['stage', 'commit', 'pull', 'push']
+export const VC_WRITE_OPS = ['stage', 'commit', 'pull', 'push', 'fetch']
 
 /** 判定理由（核心 rules.REASONS 的取值）→ 词条键。是 block 还是 warn 由核心的 verdict 说，界面不自己判。 */
 export const VC_BLOCK_KEY = {

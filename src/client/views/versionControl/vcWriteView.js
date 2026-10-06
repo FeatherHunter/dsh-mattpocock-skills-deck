@@ -31,13 +31,14 @@ export const vcRowUnstageNodes = function (h, o) {
   }, a.text))]
 }
 
-/** 身份行右侧那两颗（拉取 / 推送）：文字走折叠阶梯，完整文字在悬停里。 */
+/** 身份行右侧那三颗（拉取 / 更新 / 推送）：拉取与推送的文字走折叠阶梯，更新二字极短不折叠，完整文字都在悬停里。 */
 export const vcActionsNode = function (h, o) {
   const a = o && o.actions
   if (!a) return null
   const label = function (key, full) { return (o.foldActions && o.foldActions[key]) || full }
   return h('div', { key: 'actions', 'data-vc-actions': 1, style: { display: 'flex', gap: 6, alignItems: 'center', marginTop: 2 } }, [
     o.tipNode(a.pull.tip || a.pull.text, h('button', { key: 'pull', className: 'dsws-btn', type: 'button', 'data-vc-action': 'pull', disabled: a.pull.disabled === true, onClick: o.startPull, style: { fontSize: 11, padding: '1px 8px', flex: 'none' } }, label('pull', a.pull.text))),
+    a.fetch ? o.tipNode(a.fetch.tip || a.fetch.text, h('button', { key: 'fetch', className: 'dsws-btn', type: 'button', 'data-vc-action': 'fetch', disabled: a.fetch.disabled === true, onClick: function () { o.startFetch('') }, style: { fontSize: 11, padding: '1px 8px', flex: 'none' } }, a.fetch.text)) : null,
     o.tipNode(a.push.tip || a.push.text, h('button', { key: 'push', className: 'dsws-btn', type: 'button', 'data-vc-action': 'push', disabled: a.push.disabled === true, onClick: function () { o.startPush('') }, style: { fontSize: 11, padding: '1px 8px', flex: 'none' } }, label('push', a.push.text))),
   ])
 }
@@ -85,6 +86,7 @@ export const vcViewBarNode = function (h, o) {
     h('div', { key: 'lbl', className: 'dsws-vc-viewbar-lbl', style: { marginBottom: 1 } }, o.t('vc.viewbar.submit')),
     h('div', { key: 'acts', className: 'dsws-vc-viewbar-row' }, [
       a && a.pull ? o.tipNode(a.pull.tip || a.pull.text, h('button', { key: 'pull', className: 'dsws-btn', type: 'button', 'data-vc-action': 'pull', disabled: a.pull.disabled === true, onClick: o.startPull, style: { flex: 'none' } }, label('pull', a.pull.text))) : null,
+      a && a.fetch ? o.tipNode(a.fetch.tip || a.fetch.text, h('button', { key: 'fetch', className: 'dsws-btn', type: 'button', 'data-vc-action': 'fetch', disabled: a.fetch.disabled === true, onClick: function () { o.startFetch('') }, style: { flex: 'none' } }, a.fetch.text)) : null,
       a && a.push ? o.tipNode(a.push.tip || a.push.text, h('button', { key: 'push', className: 'dsws-btn primary', type: 'button', 'data-vc-action': 'push', disabled: a.push.disabled === true, onClick: function () { o.startPush('') }, style: { flex: 'none' } }, label('push', a.push.text))) : null,
       a && (a.pull || a.push) && s && s.show === true ? h('span', { key: 'sep', style: { width: 1, height: 16, background: 'var(--vc-line2)', margin: '0 3px', flex: 'none' } }) : null,
       s && s.show === true ? o.tipNode(s.tip, h('button', {
