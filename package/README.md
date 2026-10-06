@@ -137,7 +137,7 @@ dsh plugin --profile web remove dsh-mattpocock-skills-deck   # 卸载
 
 <div align="center">
 
-随包 25 个技能（快照 v1.2.3）装好即用：面板技能页顶部给通用推荐（默认 /ask-matt），列表一行讲清一个技能的中文用途，点加载就把斜杠指令填进输入框。完整名单与教程见 Matt 官方 [aihero.dev/skills](https://www.aihero.dev/skills)，本插件只讲入口与推荐。
+随包 27 个技能（快照 v1.3.1）装好即用：面板技能页顶部给通用推荐（默认 /ask-matt），列表一行讲清一个技能的中文用途，点加载就把斜杠指令填进输入框。完整名单与教程见 Matt 官方 [aihero.dev/skills](https://www.aihero.dev/skills)，本插件只讲入口与推荐。
 
 </div>
 
