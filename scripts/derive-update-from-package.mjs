@@ -6,7 +6,7 @@
  * 运行时走这里生成的新文件。真删除旧文件另开票，本票只做共存（照 #564 日志包迁移的先例）。
  *
  * 派生内容（两处，分属两张落地票，互不抢活）：
- *   1. 宿主侧（#799）：packages/dsh-plugin-update/dist/{config,ports,service,commands,store,reader,host}.js
+ *   1. 宿主侧（#799，已随 #878 删除本地包目录而失效）：旧段已删，能力只走已安装包。js
  *      原样复制到 src/host/updatePkg/（同目录，包内相对引用 ./config.js 等保持有效；
  *      构建时原样复制进 package/lib/updatePkg，随包发布，线上可用）。
  *   2. 客户端侧（#800，本文件这次改的只有这一处）：不再读本地包目录，
@@ -56,7 +56,7 @@ export const PHONE_PREFIX = 'wf'
 
 /**
  * 已安装更新包的位置：按包名解析（与宿主运行时同一套找法），不读本地包目录。
- * 本地 packages/dsh-plugin-update 只留作发布源（#798 决策 1），面板取值的唯一数据源是这里。
+ * 本地更新包目录已随 #878 删除；面板取值的唯一数据源是已安装包（installedUpdateDir）。
  */
 function installedUpdateDir() {
   try {

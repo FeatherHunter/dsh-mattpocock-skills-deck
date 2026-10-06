@@ -59,7 +59,7 @@ async function main() {
     check(src.includes("NPM_REGISTRY = \"" + OFFICIAL + "\""), rel + ' 默认源地址为官方源')
   }
   const hits = []
-  for (const sub of ['node_modules/dsh-plugin-update/dist', 'packages/dsh-plugin-update/src']) {
+  for (const sub of ['node_modules/dsh-plugin-update/dist']) {
     for (const full of walk(path.join(ROOT, sub), [])) {
       const text = fs.readFileSync(full, 'utf8')
       if (text.includes('npmmirror')) hits.push(path.relative(ROOT, full))

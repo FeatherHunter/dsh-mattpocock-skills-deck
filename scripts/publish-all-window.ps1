@@ -6,8 +6,8 @@
 #
 # 发什么（依赖先行，写死顺序不猜测）：
 #   1. packages/dsh-log（底座库：日志能力）
-#   2. packages/dsh-plugin-update（底座库：更新能力）
-#   3. package（主插件 dsh-mattpocock-skills-deck，含 25 个捆绑技能）
+#   2. package（主插件 dsh-mattpocock-skills-deck，含 25 个捆绑技能）
+# 更新包 dsh-plugin-update 已搬到独立仓库维护，本仓只从 npm 取用，不再从这里发（#878）。
 # 技能随主插件一起发，不单独发。
 #
 # 设计约束（来自 handoff 实测，照抄即用）：
@@ -51,7 +51,6 @@ $ErrorActionPreference = 'Continue'
 # 依赖先行，顺序写死。
 $Order = @(
     'packages/dsh-log',
-    'packages/dsh-plugin-update',
     'package'
 )
 
