@@ -11,7 +11,7 @@
 //   5) 兜底：取不到 react-dom 时退化为原地渲染（不劣于现状）
 //   6) 双源一致：以上特征在 client.js + package/lib/client.js 同步
 //   7) skilldesc 文案评审（第一性原理）：
-//      —— 20 条 skill 全部命中 zh + en 两块字典，键集合相等
+//      —— 27 条 skill 全部命中 zh + en 两块字典，键集合相等
 //      —— 旧版「自指 / jargon-only / 元评论」关键词不得出现
 const fs = require('fs')
 const files = process.argv.slice(2)
@@ -21,8 +21,8 @@ let failed = false
 // 旧版的「自指」「jargon-only」「元评论」黑名单（出现即视为评审不通过）。
 const ZH_BAD = ['设计树', '深模块设计词汇', 'task 型 ticket', '本插件服务的对象', '领域术语与统一语言', '巨型项目决策地图', '对齐提问', '硬 bug 与性能回归诊断循环', '红-绿-重构', '讨论固化成规格', '写出优秀技能']
 const EN_BAD = ['design tree', 'Deep module design vocabulary', 'task tickets', 'what this plugin serves', 'Domain terms & ubiquitous language', 'Decision maps for large projects', 'alignment questioning', 'Diagnosis loop for hard bugs & performance regressions', 'Red-green-refactor', 'Turn discussions into specs', 'Write great skills']
-// 20 个 skill 名（必须全有 zh + en）
-const SKILL_NAMES = ['ask-matt', 'setup-matt-pocock-skills', 'wayfinder', 'triage', 'grilling', 'domain-modeling', 'research', 'prototype', 'implement', 'code-review', 'codebase-design', 'diagnosing-bugs', 'improve-codebase-architecture', 'tdd', 'handoff', 'teach', 'to-spec', 'to-tickets', 'resolving-merge-conflicts', 'writing-great-skills']
+// 27 个 skill 名（必须全有 zh + en，与 src/shared/matt-skills.js 真源一致：加三删一并补齐此前漏列的六个）
+const SKILL_NAMES = ['ask-matt', 'code-review', 'codebase-design', 'diagnosing-bugs', 'domain-modeling', 'grill-with-docs', 'implement', 'implement-spec', 'improve-codebase-architecture', 'prototype', 'research', 'setup-matt-pocock-skills', 'tdd', 'to-spec', 'to-tickets', 'triage', 'wayfinder', 'wizard', 'grill-me', 'grilling', 'handoff', 'teach', 'to-questionnaire', 'wait-what', 'writing-for-agents', 'pr', 'retro']
 const extractSkilldescBlock = function (src, lang) {
   // 匹配 zh/en 块内 'skilldesc.<name>': '...' 的全部条目
   const re = new RegExp("'skilldesc\\.([a-z\\-]+)':\\s*'([^']*)'", 'g')
@@ -61,7 +61,7 @@ const check = function (file) {
   const portalCalls = (src.match(/portalTop\(/g) || []).length
   if (portalCalls < 1) problems.push('portalTop 调用 < 1（实际 ' + portalCalls + '）')
   // 7) skilldesc 文案评审
-  // 7.1) zh / en 各有 20 个键，键集合相等
+  // 7.1) zh / en 各有 27 个键，键集合相等
   const zhAll = extractSkilldescBlock(src, 'zh')
   const enAll = extractSkilldescBlock(src, 'en')
   const zhKeys = Object.keys(zhAll).sort()
@@ -87,7 +87,7 @@ const check = function (file) {
     if (!en || en.length < 8) problems.push('en skilldesc.' + k + ' 过短：' + JSON.stringify(en))
   })
   if (problems.length) { console.log('  FAIL', file, problems.join('；')); failed = true }
-  else console.log('  PASS', file, '（portal ✓ · zIndex 2147483000 ✓ · 阈值 238 ✓ · hover 开/移出关 ✓ · paddingTop 桥接 ✓ · 20 键中英齐 ✓ · 文案黑名单 0 命中 ✓）')
+  else console.log('  PASS', file, '（portal ✓ · zIndex 2147483000 ✓ · 阈值 238 ✓ · hover 开/移出关 ✓ · paddingTop 桥接 ✓ · 27 键中英齐 ✓ · 文案黑名单 0 命中 ✓）')
 }
 console.log('P1: 技能浮层契约（issue #3）')
 targets.forEach(check)

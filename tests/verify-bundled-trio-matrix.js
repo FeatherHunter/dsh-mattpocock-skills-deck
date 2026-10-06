@@ -190,8 +190,8 @@ async function main(){
   if (!bundledDir) { console.log('[FAIL] 未找到 bundled，终止'); process.exit(1); }
   bl('discovered at ' + bundledDir);
   const bundledList = bundledCandidates(bundledDir);
-  check(bundledList.length===25, 'bundled 含 25 技能，实际 ' + bundledList.length + ' evidence bundled');
-  bl('bundled 25 命中: ' + bundledList.slice(0,3).map(c=>c.name).join(',') + '...');
+  check(bundledList.length===27, 'bundled 含 27 技能，实际 ' + bundledList.length + ' evidence bundled');
+  bl('bundled 27 命中: ' + bundledList.slice(0,3).map(c=>c.name).join(',') + '...');
 
   // --- 1) 空 HOME：bundled 兜底绿 ---
   console.log('\n-- 场景 A: 空 HOME（bundled 兜底绿） --');
@@ -202,7 +202,7 @@ async function main(){
       { provider:{name:'filesystem'}, order:0, candidates: [] },
       { provider:{name:'bundled-mattpocock'}, order:1, candidates: bundledList },
     ]);
-    check(winnersEmpty.size===25, '空 HOME 合并后仍为 25（bundled 兜底） evidence bundled');
+    check(winnersEmpty.size===27, '空 HOME 合并后仍为 27（bundled 兜底） evidence bundled');
     const trio = ['wayfinder','setup-matt-pocock-skills','ask-matt'];
     for (const skill of trio) {
       const w = winnersEmpty.get(skill);
@@ -238,7 +238,7 @@ async function main(){
       { provider:{name:'filesystem'}, order:0, candidates: userCandidates },
       { provider:{name:'bundled-mattpocock'}, order:1, candidates: bundledList },
     ]);
-    check(winnersValid.size===25, '有 HOME 有效合并后 25（user 3 + bundled 25 去重） got='+winnersValid.size);
+    check(winnersValid.size===27, '有 HOME 有效合并后 27（user 3 + bundled 27 去重） got='+winnersValid.size);
     for (const skill of trio) {
       const w = winnersValid.get(skill);
       check(!!w && w.candidate.source==='user-agents' && w.candidate.rank===500, 'B '+skill+' winner 为 user-agents 500 覆盖 bundled 600 evidence user 500');

@@ -3,7 +3,7 @@
  * tests/verify-bundled-discovery.js — T2 #389 真机可发现验证（单测 + 探针）
  *
  * 职责（T2 验收）：
- *  1. 空 HOME（无 ~/.agents/skills）下 ctx.skills.list({cwd}) 返回 25 且 source:bundled，rank 600，get('wayfinder') 命中 bundled
+ *  1. 空 HOME（无 ~/.agents/skills）下 ctx.skills.list({cwd}) 返回 27 且 source:bundled，rank 600，get('wayfinder') 命中 bundled
  *  2. 有 HOME（用户版 500）时用户版覆盖 bundled 600（实测覆盖日志）
  *  3. 三项通用检查 skill:wayfinder / skill:setup-matt-pocock-skills / skill:ask-matt 在空 HOME 下为 pass，日志含 bundled 证据
  *  4. 不写 ~/.agents/skills，无残留；dsh plugin remove 后 bundled 随包消失（bundle 在 package 内）
@@ -106,7 +106,7 @@ async function main() {
   if (bundledDir) {
     try { bundledNames = readdirSync(bundledDir, { withFileTypes:true }).filter(d=>d.isDirectory()).map(d=>d.name).sort() } catch { bundledNames=[] }
   }
-  check(bundledNames.length === 25, 'bundled 目录含 25 技能（当前 ' + bundledNames.length + '）')
+  check(bundledNames.length === 27, 'bundled 目录含 27 技能（当前 ' + bundledNames.length + '）')
   bundledLog('bundled count=' + bundledNames.length + ' evidence: ' + bundledNames.slice(0,3).join(',') + '...')
   for (const name of bundledNames) {
     const mdPath = path.join(bundledDir, name, 'SKILL.md')
@@ -145,7 +145,7 @@ async function main() {
   if (bundledDir) {
     try { listEmpty = bundledCandidates(bundledDir) } catch(e){ listEmpty=[]; console.log('[FAIL] bundledCandidates 失败 ' + e.message); failures++ }
   }
-  check(listEmpty.length === 25, '空 HOME 下 ctx.skills.list 返回 25 (bundled) 证据 bundled list=' + listEmpty.length)
+  check(listEmpty.length === 27, '空 HOME 下 ctx.skills.list 返回 27 (bundled) 证据 bundled list=' + listEmpty.length)
   if (listEmpty.length) {
     const hasWayfinder = listEmpty.find(c=>c.name==='wayfinder')
     check(!!hasWayfinder, '空 HOME 下 list 含 wayfinder（bundled）')
@@ -231,7 +231,7 @@ async function main() {
       const researchWinner = winners.get('research')
       check(!!researchWinner && researchWinner.candidate.source==='bundled', '非覆盖技能 research 仍为 bundled')
       if (researchWinner) bundledLog('merge winner for research: ' + researchWinner.candidate.source)
-      check(winners.size===25, '合并后总数仍为 25（用户 1 + bundled 25 去重） got=' + winners.size)
+      check(winners.size===27, '合并后总数仍为 27（用户 1 + bundled 27 去重） got=' + winners.size)
     }
   } else {
     check(false, '无法执行覆盖合并测试（缺少 bundled 或 user 候选）')
@@ -276,10 +276,10 @@ async function main() {
         bundledLog('host mock captured provider name=' + provider.name)
         provider.list({}).then(list=>{
           bundledLog('host provider list probe returned ' + list.length + ' candidates evidence bundled list')
-          if (Array.isArray(list) && list.length===25) {
-            console.log('[PASS] host provider list 返回 25 (mock 探针)')
+          if (Array.isArray(list) && list.length===27) {
+            console.log('[PASS] host provider list 返回 27 (mock 探针')
           } else {
-            console.log('[FAIL] host provider list 未返回 25 got=' + (list && list.length))
+            console.log('[FAIL] host provider list 未返回 27 got=' + (list && list.length))
             failures++
           }
         }).catch(e=>{ console.log('[FAIL] host provider list 抛错 ' + e.message); failures++ })
@@ -357,7 +357,7 @@ async function main() {
   console.log('total checks: ' + total + ', failures: ' + failures)
   if (failures===0) {
     console.log('ALL CHECKS PASS (bundled discovery)')
-    console.log('[bundled] evidence: 25 skills at ' + (bundledDir||'?') + ' rank 600 trustedHost, empty-home trio pass, user 500 covers bundled 600')
+    console.log('[bundled] evidence: 27 skills at ' + (bundledDir||'?') + ' rank 600 trustedHost, empty-home trio pass, user 500 covers bundled 600')
     process.exit(0)
   } else {
     console.log(failures + ' FAILURE(S) (bundled discovery)')
