@@ -1,9 +1,10 @@
-// verify-587-update-restart.js —— 待重启与更新弹窗委托门禁（落地票 #876 重写）
+// verify-587-update-restart.js —— 待重启与更新弹窗委托门禁（落地票 #876 搭架、主题票 #877 切档案卷皮肤）
 // 规则（与票面验收一一对应）：
 //   1) 判据只看宿主当场算的那条：回包原因码 pending-restart；面板不自己比版本号、不读会过期的任务记录，
 //      宿主侧一行代码不改（这条是接缝，动了就红）。判据代码活在已安装更新包里，不在本仓。
 //   2) 待重启与弹窗都收在包的入口件与面板里：本仓不再自带常驻横幅组件与浮层弹窗组件，
-//      配置页只挂入口件；待重启横幅与更新面板 dialog 按包的呈现（档案卷皮肤由主题票切）。
+//      配置页只挂入口件；待重启横幅与更新面板 dialog 按包的档案卷呈现（主题票 #877 已切，
+//      挂载传档案卷皮肤，不自定义皮肤变量，深浅跟随系统）。
 //   3) 关闭与轮询收尾按包的约定：挂载点卸载只停轮询，不自己起定时器，不加关闭与重启接线。
 //   4) 文案与埋点：挂载点不写死中文，不新增事件名。
 //   5) 文件粒度：相关文件都在 350 行以内。
@@ -27,7 +28,7 @@ const HOST_READER = 'node_modules/dsh-plugin-update/dist/reader.js'
 const BUNDLE = 'scripts/generated/updateEntryPanel.bundle.js'
 
 async function main() {
-  console.log('待重启与更新弹窗委托门禁（#876：判据在包内 + 本仓无自带横幅弹窗 + 挂载收尾按约定）')
+  console.log('待重启与更新弹窗委托门禁（#876 搭架 + #877 档案卷皮肤：判据在包内 + 本仓无自带横幅弹窗 + 挂载收尾按约定）')
 
   // ---- 1) 判据：只看宿主当场算的那条，宿主侧不动 ----
   const reader = read(HOST_READER)
@@ -35,6 +36,8 @@ async function main() {
     '宿主判据不变：磁盘已装版本与运行版本不一致时报缺一次重启')
   const hookSrc = strip(read(HOST))
   check(hookSrc.includes("prefix: 'wf'") && hookSrc.includes('mountUpdateEntry'), '面板待重启只走包的入口件（前缀与宿主侧一致，不自拼判据）')
+  check(hookSrc.includes("theme: 'archive'"), '待重启横幅走包的档案卷呈现（挂载传档案卷皮肤）')
+  check(!hookSrc.includes('themeTokens'), '待重启横幅不自定义皮肤变量（深浅跟随系统）')
   check(!/installedVersion\s*!==\s*runningVersion|installed\s*!==\s*running|semver|localeCompare/.test(hookSrc),
     '挂载点不自己比版本号（判据单源在宿主与包内）')
   check(!hookSrc.includes('restart-required'), '挂载点不拿任务记录的状态当待重启判据')

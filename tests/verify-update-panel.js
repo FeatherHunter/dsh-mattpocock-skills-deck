@@ -1,4 +1,4 @@
-// verify-update-panel.js — 更新入口委托门禁（落地票 #876：面板侧接上入口件与弹窗面板）
+// verify-update-panel.js — 更新入口委托门禁（落地票 #876 搭架、主题票 #877 切档案卷皮肤）
 // 规则：
 //   1) 宿主注册四个电话（查状态、查新版、装更新、取更新日志），动态引入更新胶水，不新增静态引用。
 //   2) 电话复用包的能力：查状态走 reader.status（不联网），查新版走 reader.check（点一次联网一次）；
@@ -8,6 +8,8 @@
 //   5) 面板委托：本仓不再自带按钮状态机与浮层弹窗（三个旧文件已删），配置页只挂包的入口件
 //      （默认摆法）与它内部的 dialog 面板；调用只走包的电话名与轮询间隔，不写电话名字面量，
 //      不自己起定时器，关闭与轮询收尾按包的约定来（卸载只停轮询）。
+//   5b) 皮肤只用档案卷（主题票 #877）：挂载时传档案卷皮肤，不自定义皮肤变量；深浅跟随系统，
+//      档案头与印章与待重启横幅按包的档案卷呈现（入口件打开的 dialog 面板同步换肤）。
 //   6) 更新日志文件：包根 CHANGELOG.md 存在且形状合法，并随包发布（面板日志章自动展示的前提，
 //      缺文件时只给中性提示，不挡安装）；包清单依赖跟踪最新，版本头与锁文件一致。
 // 用法：node tests/verify-update-panel.js（在仓库根目录）
@@ -24,7 +26,7 @@ const exists = (rel) => fs.existsSync(path.join(ROOT, rel))
 const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^A-Za-z0-9_$:])\/\/.*$/gm, '$1')
 
 async function main() {
-  console.log('更新入口委托门禁（#876：宿主四电话 + 面板只挂入口件 + 更新日志随包）')
+  console.log('更新入口委托门禁（#876 搭架 + #877 档案卷皮肤：宿主四电话 + 面板只挂入口件 + 更新日志随包）')
 
   // ---- 1) 宿主注册 ----
   const indexSrc = strip(read('src/host/index.js'))
@@ -73,7 +75,8 @@ async function main() {
   check(!leafSrc.includes('setInterval') && !leafSrc.includes('UPD_POLL'), '挂载点不自己起定时器（轮询间隔走包默认）')
   check(leafSrc.includes('.unmount()'), '挂载点卸载时按包的约定收尾（只停轮询）')
   check(!leafSrc.includes('onCloseRequested') && !leafSrc.includes('onRestartRequested'), '挂载点不加关闭与重启接线（走包默认）')
-  check(!leafSrc.includes('locale') && !leafSrc.includes('sizing') && !leafSrc.includes('theme'), '挂载点不做语言接入与尺寸对齐等附加项（走包默认）')
+  check(leafSrc.includes("theme: 'archive'"), '挂载点传档案卷皮肤（只用档案卷，入口件与 dialog 面板同步换肤）')
+  check(!leafSrc.includes('themeTokens') && !leafSrc.includes('locale') && !leafSrc.includes('sizing'), '挂载点不自定义皮肤变量、不做语言与尺寸附加项（深浅跟随系统，走包默认）')
   const settingsSrc = strip(read('src/client/views/SettingsPage.js'))
   check(settingsSrc.includes('UpdateEntryHost'), '配置页挂载入口件（标题行按钮走包的默认摆法）')
   check(!settingsSrc.includes('useUpdatePanel') && !settingsSrc.includes('UpdateDialog') && !settingsSrc.includes('UpdateRestartBanner'), '配置页不再引用自有按钮状态机与浮层弹窗')

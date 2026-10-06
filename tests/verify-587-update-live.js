@@ -1,4 +1,4 @@
-// verify-587-update-live.js —— 真机形态验收（#876 重写：真宿主判据 + 入口件真挂载）
+// verify-587-update-live.js —— 真机形态验收（#876 搭架、主题票 #877 切档案卷皮肤：真宿主判据 + 入口件真挂载）
 //
 // 这份门禁回答的是「界面上到底长什么样」，不是「代码里写了什么字」：
 //   1. 真宿主判据：拿已安装更新包的宿主读取器（node_modules 里那份 0.7.x，运行时唯一来源）
@@ -7,6 +7,8 @@
 //      不依赖那张会过期的任务记录。
 //   2. 真挂载渲染：发布产物含入口件绑定包与挂载点；把绑定包挂进 jsdom 真跑一遍，
 //      对着界面断言四种场景：已是最新 / 有新版 / 装完待重启 / 点按后弹窗（包的 dialog 原样）。
+//      入口件与 dialog 面板按包的档案卷呈现（挂载传档案卷皮肤，不自定义皮肤变量，
+//      深浅跟随系统，档案头与印章与待重启横幅走档案卷样式）。
 //      文案取包的单语渲染（中文界面纯中文），关闭与轮询收尾按包的约定来。
 //
 // 用法：node tests/verify-587-update-live.js（在仓库根目录；先跑 node scripts/build.mjs）
@@ -22,7 +24,7 @@ const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL '
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 ;(async function main() {
-  console.log('真机形态验收（#876：真宿主判据 + 入口件真挂载）')
+  console.log('真机形态验收（#876 搭架 + #877 档案卷皮肤：真宿主判据 + 入口件真挂载）')
 
   // ============ 一、真宿主判据：跑已安装更新包的读取器，读磁盘上那份插件的真目录 ============
   const home = process.env.USERPROFILE || process.env.HOME || os.homedir()
@@ -77,6 +79,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
   // ============ 二、真挂载渲染：发布产物委托 + 入口件在 jsdom 里真跑 ============
   const product = fs.readFileSync(path.join(ROOT, 'package', 'lib', 'client.js'), 'utf8')
   check(product.includes('__DshUpdateEntry') && product.includes('UpdateEntryHost'), '发布产物含入口件绑定包与挂载点（面板委托已进产物）')
+  check(product.includes("theme: 'archive'"), '发布产物挂载点传档案卷皮肤（只用档案卷）')
   check(!product.includes('useUpdatePanel'), '发布产物无自有按钮状态机（useUpdatePanel 已删）')
 
   const { JSDOM } = require('jsdom')
@@ -89,6 +92,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
   // jsdom 的 window.eval 作用域里没有裸 window，赋值语句会抛；改拿求值返回值。
   const liveEntry = window.eval(bundleText + '\n__DshUpdateEntry;')
   check(!!liveEntry && typeof liveEntry.mountUpdateEntry === 'function', '绑定包在真浏览器环境可加载（挂载函数可用）')
+  check(bundleText.includes('[data-theme="archive"]'), '绑定包内有档案卷皮肤样式（入口件与面板按档案卷呈现）')
   // 入口件运行时读裸 document 与 navigator，挂载前把本轮 jsdom 的对象挂到 Node 全局上。
   global.window = window
   global.document = window.document
@@ -102,6 +106,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
     const entry = liveEntry.mountUpdateEntry(el, {
       pluginId: 'dsh-mattpocock-skills-deck',
       prefix: 'wf',
+      theme: 'archive',
       call: async (name) => {
         if (String(name).endsWith('.updateStatus') || String(name).endsWith('.updateCheck')) {
           return { ok: true, snapshot: snapOf(snapshot), manual: null, receipt: null }
@@ -121,6 +126,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
     const t = btnTextOf(m.el)
     check(!!t && /检查更新/.test(t), '场景一（已是最新）：按钮显示检查更新（实际「' + t + '」）')
     check(!m.el.querySelector('.dsh-upd-overlay'), '场景一：没有浮层（无新版不打扰）')
+    check(!!m.el.querySelector('.dsh-upd-entry[data-theme="archive"]'), '场景一：入口件按档案卷呈现（挂载传档案卷皮肤）')
     unmount(m)
   }
 
@@ -136,6 +142,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
     check(!!overlay, '场景二：点按后 dialog 浮层打开（包的 dialog 原样）')
     const txt = overlay ? overlay.textContent : ''
     check(txt.includes('1.7.21') && txt.includes('1.7.20'), '场景二：浮层写清当前哪版、最新哪版')
+    check(!!m.el.querySelector('.dsh-upd[data-theme="archive"]'), '场景二：dialog 面板按档案卷呈现（与入口件同步换肤）')
+    check(!!m.el.querySelector('.dsh-upd[data-theme="archive"][data-seal]'), '场景二：大印章按档案卷呈现（面板根带印章字与色调）')
+    check(!!m.el.querySelector('.dsh-upd-banner[data-mini]'), '场景二：横幅小印章一字按档案卷呈现')
     m.entry.close()
     await sleep(30)
     check(!m.el.querySelector('.dsh-upd-overlay'), '场景二：关闭后浮层收掉（按包的关闭约定）')
@@ -147,6 +156,15 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
     const m = await mountWith({ installedVersion: '1.7.21', latestVersion: '1.7.21', canInstall: false, blockedReason: 'pending-restart' })
     const t = btnTextOf(m.el)
     check(!!t && /重启/.test(t), '场景三（装完待重启）：按钮转成待重启（实际「' + t + '」）')
+    check(!!m.el.querySelector('.dsh-upd-entry[data-theme="archive"]'), '场景三：待重启按钮态按档案卷呈现（深浅跟随系统，不自定义变量）')
+    m.entry.open()
+    await sleep(60)
+    const overlay3 = m.el.querySelector('.dsh-upd-overlay')
+    check(!!overlay3, '场景三：待重启时点按同样能开 dialog 浮层（包的 dialog 原样）')
+    check(!!m.el.querySelector('.dsh-upd[data-theme="archive"]'), '场景三：待重启横幅所在面板按档案卷呈现')
+    check(!!m.el.querySelector('.dsh-upd-banner[data-kind="restart"]'), '场景三：待重启横幅按档案卷呈现（衬线横幅配手绘标）')
+    m.entry.close()
+    await sleep(30)
     unmount(m)
   }
 

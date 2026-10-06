@@ -1,5 +1,5 @@
 /**
- * views/UpdateEntryHost.js —— 配置页更新入口的挂载点（地图 #873 落地票 #876）。
+ * views/UpdateEntryHost.js —— 配置页更新入口的挂载点（地图 #873 落地票 #876 搭架、主题票 #877 切档案卷皮肤）。
  *
  * 为什么有它：配置页标题行那颗检查更新按钮与更新面板 dialog 形态，
  * 不再由本仓自己拼按钮状态机与浮层弹窗，改由更新包的入口件一行挂上。
@@ -8,7 +8,8 @@
  *
  * 定案（2026-10-06，人已确认）：按钮用包的默认摆法，不传尺寸覆盖；
  * 弹窗用包的 dialog 原样，不传关闭与重启接线，不做语言接入与尺寸对齐等附加项；
- * 皮肤由主题票切档案卷，本票不传皮肤参数，走包默认皮肤。
+ * 皮肤只用档案卷：挂载时传档案卷皮肤，不自定义皮肤变量；深浅跟随系统，
+ * 档案头与印章与待重启横幅按包的档案卷呈现（入口件打开的 dialog 面板同步换肤）。
  * 调用只走包的电话名与轮询间隔：入口件内部从前缀算电话名、用包默认轮询间隔，
  * 本文件不写电话名字面量，不自己起定时器。
  */
@@ -35,6 +36,7 @@ const UpdateEntryHost = (props) => {
         pluginId: 'dsh-mattpocock-skills-deck',
         prefix: 'wf',
         call: callThrough,
+        theme: 'archive',
       })
     } catch (eMount) {}
     return function () { try { if (entry && typeof entry.unmount === 'function') entry.unmount() } catch (eUn) {} }
