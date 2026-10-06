@@ -295,6 +295,8 @@ const KERNEL_MODULES = [
   { name: 'localePages', file: 'src/client/kernel/locale-pages.js' },
   // #842 写操作那一族的词条：locale-panel 与 locale-flow 都在上限上（后者还冻结在零增长基线里），照 #621/#690 的做法自成一个片段
   { name: 'localeVcWrite', file: 'src/client/kernel/locale-vcwrite.js' },
+  // #879 技能描述 27 条中英词条：locale-word.js 已贴 350 行上限（363 行超标），照 #621/#690/#842 的做法自成一个片段
+  { name: 'localeSkilldesc', file: 'src/client/kernel/locale-skilldesc.js' },
   { name: 'locale', file: 'src/client/kernel/locale.js' },
   { name: 'icons', file: 'src/client/kernel/icons.js' },
   // #685：「体检」按钮的件数派生与开新会话注入（游离票口径见 #678、按钮形态见 #681）；

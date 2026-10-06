@@ -89,6 +89,8 @@ export default {
     // ==== kernel:localePages (spliced by build) ====
     // #842 写操作那一族的词条：locale-panel 与 locale-flow 都在上限上，照 #621/#690 的做法自成一个片段。
     // ==== kernel:localeVcWrite (spliced by build) ====
+    // #879 技能描述 27 条中英词条：locale-word.js 已贴 350 行上限，照 #621/#690/#842 的做法自成一个片段。
+    // ==== kernel:localeSkilldesc (spliced by build) ====
     // ==== kernel:locale (spliced by build) ====
     const localeSvc = ctx.get('locale')
     if (localeSvc && typeof localeSvc.register === 'function') {

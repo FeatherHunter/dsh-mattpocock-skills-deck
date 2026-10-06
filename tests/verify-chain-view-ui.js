@@ -61,7 +61,7 @@ for (const rel of [CLIENT, LEAF, PROBE]) {
 // 这一页只装中文那一半词条：界面画的每一个字都来自词条，门禁量的是真词条（不是词条键）。
 //   取法：在这些片段里找第二层那个「zh」块（第一层是给中英各一份的容器），按大括号配对取出整块再求值。
 const localeMod = (function () {
-  const files = ['src/client/kernel/locale-pages.js', 'src/client/kernel/locale-word.js', 'src/client/kernel/locale-flow.js']
+  const files = ['src/client/kernel/locale-pages.js', 'src/client/kernel/locale-word.js', 'src/client/kernel/locale-flow.js', 'src/client/kernel/locale-skilldesc.js']
   const dict = {}
   const grabZhBlock = function (src) {
     const at = src.indexOf('zh: {')
