@@ -3,8 +3,8 @@
  * tests/verify-bundled-discovery.js — T2 #389 真机可发现验证（单测 + 探针）
  *
  * 职责（T2 验收）：
- *  1. 空 HOME（无 ~/.agents/skills）下 ctx.skills.list({cwd}) 返回 27 且 source:bundled，rank 600，get('wayfinder') 命中 bundled
- *  2. 有 HOME（用户版 500）时用户版覆盖 bundled 600（实测覆盖日志）
+ *  1. 空 HOME（无 ~/.agents/skills）下 ctx.skills.list({cwd}) 返回 27 且 source:bundled，rank 350，get('wayfinder') 命中 bundled
+ *  2. 有 HOME 旧副本（用户版 500）时随包 350 盖过家目录（实测覆盖日志，老用户自动读新版）
  *  3. 三项通用检查 skill:wayfinder / skill:setup-matt-pocock-skills / skill:ask-matt 在空 HOME 下为 pass，日志含 bundled 证据
  *  4. 不写 ~/.agents/skills，无残留；dsh plugin remove 后 bundled 随包消失（bundle 在 package 内）
  *
@@ -134,7 +134,7 @@ async function main() {
       const raw = readFileSync(mdPath, 'utf8')
       const parsed = parseSkillRaw(raw)
       if (!parsed || parsed.name !== name) continue
-      out.push({ name: parsed.name, description: parsed.description, source: 'bundled', provider: 'bundled-mattpocock', rank: 600, path: mdPath, locator: { path: mdPath, directory: path.join(dir, name) } })
+      out.push({ name: parsed.name, description: parsed.description, source: 'bundled', provider: 'bundled-mattpocock', rank: 350, path: mdPath, locator: { path: mdPath, directory: path.join(dir, name) } })
     }
     out.sort((a,b)=>a.name.localeCompare(b.name))
     return out
@@ -151,7 +151,7 @@ async function main() {
     check(!!hasWayfinder, '空 HOME 下 list 含 wayfinder（bundled）')
     if (hasWayfinder) {
       check(hasWayfinder.source==='bundled', 'wayfinder source==bundled 证据 bundled')
-      check(hasWayfinder.rank===600, 'wayfinder rank==600 证据 bundled rank 600')
+      check(hasWayfinder.rank===350, 'wayfinder rank==350 证据 bundled rank 350')
       bundledLog('empty-home list wayfinder candidate=' + JSON.stringify({name:hasWayfinder.name, source:hasWayfinder.source, rank:hasWayfinder.rank, path:hasWayfinder.path}))
     }
     const getWayfinder = listEmpty.find(c=>c.name==='wayfinder')
@@ -165,7 +165,7 @@ async function main() {
     if (getResult) bundledLog('get wayfinder => ' + JSON.stringify(getResult).slice(0,200))
   }
 
-  console.log('\n-- 3) 有 HOME 覆盖：user 500 覆盖 bundled 600 --')
+  console.log('\n-- 3) 有 HOME 旧副本：bundled 350 盖过 user 500 --')
   let tmpHome = null
   let userCandidates = []
   try {
@@ -225,8 +225,8 @@ async function main() {
     const wayfinderWinner = winners.get('wayfinder')
     check(!!wayfinderWinner, '合并后 wayfinder 有 winner')
     if (wayfinderWinner) {
-      check(wayfinderWinner.candidate.source==='user-agents', '有 HOME 时 wayfinder winner 为 user-agents（500 覆盖 600） evidence user 500 > bundled 600')
-      check(wayfinderWinner.candidate.rank===500, 'winner rank 500')
+      check(wayfinderWinner.candidate.source==='bundled', '有 HOME 旧副本时 wayfinder winner 为 bundled（350 盖过 500，老用户读新版） evidence bundled 350 > user 500')
+      check(wayfinderWinner.candidate.rank===350, 'winner rank 350')
       bundledLog('merge winner for wayfinder: source=' + wayfinderWinner.candidate.source + ' rank=' + wayfinderWinner.candidate.rank + ' path=' + wayfinderWinner.candidate.path)
       const researchWinner = winners.get('research')
       check(!!researchWinner && researchWinner.candidate.source==='bundled', '非覆盖技能 research 仍为 bundled')
@@ -243,10 +243,10 @@ async function main() {
   let trioPass = true
   for (const skillName of trio) {
     const cand = listEmpty.find(c=>c.name===skillName)
-    const ok = !!cand && cand.source==='bundled' && cand.rank===600
+    const ok = !!cand && cand.source==='bundled' && cand.rank===350
     check(ok, '通用检查 skill:' + skillName + ' 在空 HOME 下为 pass（命中 bundled） evidence bundled trio')
     if (!ok) trioPass=false
-    else bundledLog('trio ' + skillName + ' => pass (bundled rank 600 at ' + cand.path + ')')
+    else bundledLog('trio ' + skillName + ' => pass (bundled rank 350 at ' + cand.path + ')')
   }
   check(trioPass, '三项通用检查全 pass 证据 bundled trio all pass')
 
@@ -357,7 +357,7 @@ async function main() {
   console.log('total checks: ' + total + ', failures: ' + failures)
   if (failures===0) {
     console.log('ALL CHECKS PASS (bundled discovery)')
-    console.log('[bundled] evidence: 27 skills at ' + (bundledDir||'?') + ' rank 600 trustedHost, empty-home trio pass, user 500 covers bundled 600')
+    console.log('[bundled] evidence: 27 skills at ' + (bundledDir||'?') + ' rank 350 trustedHost, empty-home trio pass, bundled 350 covers stale user 500')
     process.exit(0)
   } else {
     console.log(failures + ' FAILURE(S) (bundled discovery)')

@@ -3,8 +3,8 @@
 // 接线：由 index.js 动态 import 动态加载，依赖全显式传入（仅 ctx）；本文件不引用其他新文件。
 export function createBootstrap(deps) {
   const { ctx } = deps
-    // === T2 #389 bundled 兜底 provider（rank 600，trustedHost，ctx.effect 托管）===
-    // 零代码声明：无需 env 晚置，直接 registerProvider；list 返回 package/bundled-skills 的 27 个，rank 600 兜底，bundled 随包消失
+    // === T2 #389 bundled 优先 provider（rank 350，盖过家目录旧副本，trustedHost，ctx.effect 托管）===
+    // 零代码声明：无需 env 晚置，直接 registerProvider；list 返回 package/bundled-skills 的 27 个，rank 350 优先（家目录 400/500 旧副本被盖住，删项残留需手动清），bundled 随包消失
     // 选择 provider 而非 env 的依据见 R1 研究（env 构造时一次性读，晚置失效）；参见 docs/adr/20260828-skill-probe-union-channels.md 的 trustedHost 约束
     ;(() => {
       try {
@@ -103,7 +103,8 @@ export function createBootstrap(deps) {
             } catch { return undefined }
           }
           function isValidSkillName(n) { try { return /^[\p{L}0-9]+(?:-[\p{L}0-9]+)*$/u.test(n) } catch { return /^[a-z0-9]+(?:-[a-z0-9]+)*$/i.test(n) } }
-          const BUNDLED_RANK = 600
+          // 数字越小越优先：家目录两档是 400 与 500，随包取 350 盖过家目录旧副本，项目级仍可高于随包。
+          const BUNDLED_RANK = 350
           const PROVIDER_NAME = 'bundled-mattpocock'
           const createBundledProvider = (control) => {
             return {

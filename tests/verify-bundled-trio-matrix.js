@@ -3,8 +3,8 @@
  * tests/verify-bundled-trio-matrix.js — T3 #390 三态回归矩阵
  *
  * 职责（T3 验收）：
- *  1. 空 ~/.agents/skills（bundled 兜底绿）→ skill:wayfinder / setup-matt-pocock-skills / ask-matt 全 pass，来源 bundled 600
- *  2. 有 ~/.agents/skills 有效（用户 500 覆盖 600）→ 同三项全 pass，winner 为 user-agents 500
+ *  1. 空 ~/.agents/skills（bundled 优先绿）→ skill:wayfinder / setup-matt-pocock-skills / ask-matt 全 pass，来源 bundled 350
+ *  2. 有 ~/.agents/skills 旧副本（随包 350 盖过用户 500）→ 同三项全 pass，winner 为 bundled 350，老用户自动读新版
  *  3. 有无效名片（红牌分拣 + evidenceSummary）→ wayfinder 为 invalid/bad，detail 含证据，且不因 bundled 被误判为绿（fallback 正确分拣）
  *  4. 首通道已绿结论：lightProbeReason 回退分支无需补 bundled（ bundled 仅经 skills.registerProvider 首通道命中 ）
  *  5. 默认零污染：bundled 在 package 内，不写真实 HOME；复制按钮如存在则仅在确认时写
@@ -86,7 +86,7 @@ function bundledCandidates(dir) {
       const raw = readFileSync(mdPath, 'utf8');
       const parsed = parseSkillRaw(raw);
       if (!parsed || parsed.name !== name) continue;
-      out.push({ name: parsed.name, description: parsed.description, source: 'bundled', provider: 'bundled-mattpocock', rank: 600, path: mdPath, locator: { path: mdPath, directory: path.join(dir, name) } });
+      out.push({ name: parsed.name, description: parsed.description, source: 'bundled', provider: 'bundled-mattpocock', rank: 350, path: mdPath, locator: { path: mdPath, directory: path.join(dir, name) } });
     } catch {}
   }
   out.sort((a,b)=>a.name.localeCompare(b.name));
@@ -206,8 +206,8 @@ async function main(){
     const trio = ['wayfinder','setup-matt-pocock-skills','ask-matt'];
     for (const skill of trio) {
       const w = winnersEmpty.get(skill);
-      const ok = !!w && w.candidate.source==='bundled' && w.candidate.rank===600;
-      check(ok, '空 HOME 三项 '+skill+' 为 pass（bundled 600） evidence bundled trio A');
+      const ok = !!w && w.candidate.source==='bundled' && w.candidate.rank===350;
+      check(ok, '空 HOME 三项 '+skill+' 为 pass（bundled 350） evidence bundled trio A');
       if (w) bl('A '+skill+' => '+w.candidate.source+' rank '+w.candidate.rank+' at '+w.candidate.path);
     }
     // lightProbeDirect 在空 HOME 下应为 missing（不含 bundled），但首通道 skills.get 已绿，故整体仍绿
@@ -217,8 +217,8 @@ async function main(){
     check(lpEmpty.channels.length>0, 'A lightProbe channels 非空（证据链完整）');
   } finally { try{ rmSync(tmpEmpty,{recursive:true,force:true}); }catch{} }
 
-  // --- 2) 有 HOME 有效：用户 500 覆盖 600 ---
-  console.log('\n-- 场景 B: 有 HOME 有效（user 500 覆盖 bundled 600） --');
+  // --- 2) 有 HOME 旧副本：随包 350 盖过用户 500 ---
+  console.log('\n-- 场景 B: 有 HOME 旧副本（bundled 350 盖过 user 500） --');
   const tmpValid = mkdtempSync(path.join(os.tmpdir(), 'trio-valid-'));
   let userCandidates = [];
   try {
@@ -241,7 +241,7 @@ async function main(){
     check(winnersValid.size===27, '有 HOME 有效合并后 27（user 3 + bundled 27 去重） got='+winnersValid.size);
     for (const skill of trio) {
       const w = winnersValid.get(skill);
-      check(!!w && w.candidate.source==='user-agents' && w.candidate.rank===500, 'B '+skill+' winner 为 user-agents 500 覆盖 bundled 600 evidence user 500');
+      check(!!w && w.candidate.source==='bundled' && w.candidate.rank===350, 'B '+skill+' winner 为 bundled 350 盖过 user 500（老用户读新版） evidence bundled 350');
       if (w) bl('B '+skill+' winner='+w.candidate.source+' rank '+w.candidate.rank);
     }
     const other = winnersValid.get('research');
@@ -328,7 +328,7 @@ async function main(){
     const hasBundledProvider = (hostSrc.includes('bundled-mattpocock') || hostBoot.includes('bundled-mattpocock')) && (hostSrc.includes('registerProvider') || hostBoot.includes('registerProvider'));
     check(hasBundledProvider, 'host 含 bundled provider 注册（首通道） evidence registerProvider');
     // GENERIC_CHECK_ITEMS 的技能三项在空 HOME 下为 pass 的首通道证据已在 A 场景验证
-    check(true, '首通道已绿结论：空 HOME 下 skills.get 命中 bundled 600，无需 lightProbe 补 bundled evidence bundled first channel');
+    check(true, '首通道已绿结论：空 HOME 下 skills.get 命中 bundled 350，无需 lightProbe 补 bundled evidence bundled first channel');
   } catch(e){ check(false, '首通道结论检查异常 '+e.message); }
 
   // --- 5) 零污染：bundled 在 package 内，不写 HOME；复制按钮仅确认时写 ---
@@ -371,7 +371,7 @@ async function main(){
   console.log('total checks: '+total+', failures: '+failures);
   if (failures===0) {
     console.log('ALL CHECKS PASS (trio matrix)');
-    console.log('[bundled] evidence: 空 HOME=bundled 600 绿 | 有 HOME 有效=user 500 覆盖 | 无效名片=红牌 invalid + evidenceSummary | 首通道已绿无需补 | 零污染');
+    console.log('[bundled] evidence: 空 HOME=bundled 350 绿 | 有 HOME 旧副本=bundled 350 盖过 user 500 | 无效名片=红牌 invalid + evidenceSummary | 首通道已绿无需补 | 零污染');
     process.exit(0);
   } else {
     console.log(failures+' FAILURE(S) (trio matrix)');
