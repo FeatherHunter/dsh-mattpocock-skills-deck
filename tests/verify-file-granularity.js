@@ -26,7 +26,7 @@ const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if
 // 它们的正确性由逐字节门禁钉住（与发布包一致），不受这里放宽的影响：
 //   src/host/logPkg/            ← packages/dsh-log（#564）
 //   src/host/updatePkg/         ← packages/dsh-plugin-update（#586）
-const DERIVED_DIRS = ['src/host/logPkg/', 'src/host/updatePkg/']
+const DERIVED_DIRS = ['src/host/logPkg/']
 
 function listJsFiles() {
   const out = []

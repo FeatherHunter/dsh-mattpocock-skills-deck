@@ -316,12 +316,13 @@ export default {
     harness.handle('wf.logSetSwitch', async function (args) { const h = await _log(); return h.handleLogSetSwitch(args) })
     // 启动链 import 失败静默（#499 红队 C2）：日志库没加载出来时管道尚未就绪、无处可记；首次命中由分发异常行 #46 在调用方记。
     _log().then(function(h){ try { h.loadSwitch().catch(function(){}) } catch (eSw) {} try { h.writeStartupHeader().catch(function(){}) } catch (eHd) {} }).catch(function(){})
-    // ---- #586 切更新包：优先包派生（updateFromPackage.js），失败回退旧实现（update.js 留而不搬）；原委见适配器头部。
+    // ---- #873 薄接线：更新能力只走已安装的更新包（updateFromPackage.js），旧实现与回退分支已删；包缺失直接抛错，不静默降级。
     let _updateP = null
-    function _update() { if (!_updateP) _updateP = (async function(){ const args = { logCtx: logCtx, ctx: ctx }; try { const migrated = await import('./updateFromPackage.js'); return migrated.createUpdatePhoneHandlers(args) } catch (ePkg) { const mod = await import('./update.js'); return mod.createUpdatePhoneHandlers(args) } })(); return _updateP }
+    function _update() { if (!_updateP) _updateP = (async function(){ const args = { logCtx: logCtx, ctx: ctx }; const migrated = await import('./updateFromPackage.js'); return migrated.createUpdatePhoneHandlers(args) })(); return _updateP }
     harness.handle('wf.updateStatus', async function (args) { const h = await _update(); return h.handleUpdateStatus(args) })
     harness.handle('wf.updateCheck', async function (args) { const h = await _update(); return h.handleUpdateCheck(args) })
     harness.handle('wf.updateInstall', async function (args) { const h = await _update(); return h.handleUpdateInstall(args) })
+    harness.handle('wf.updateChangelog', async function (args) { const h = await _update(); return h.handleUpdateChangelog(args) })
     // 轮询已按 #348 Q3 关闭（60s 全量贴配额上限）：纯手动刷新 + 打开面板即刷，自动待 P1 再议。命名守护按 #709（T5）改事件驱动，
     // 下面这一次只做一次性铺垫（预热跟踪态、把攒下的脏账落盘），此后每一跳都由事件带起来，宿主侧没有自续定时器（由门禁守着）。缘由见账本 §8。
     _naming().then(function(h){ try { h.startNamingGuardianEvents() } catch (eEvents) {} }).catch(function(){})

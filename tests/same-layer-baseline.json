@@ -545,33 +545,6 @@
     },
     {
       "file": "src/host/index.js",
-      "spec": "./update.js",
-      "resolved": "src/host/update.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "落地 #541",
-      "note": "#541 接线：index 动态加载更新胶水模块（查状态/查新版两只读电话，装配扇入）"
-    },
-    {
-      "file": "src/host/update.js",
-      "spec": "./updateStore.js",
-      "resolved": "src/host/updateStore.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "落地 #542",
-      "note": "#542 接线：更新胶水引用落盘与执行跑腿模块（状态目录三件套加子进程执行，单向引用）"
-    },
-    {
-      "file": "src/host/update.js",
-      "spec": "./updateReader.js",
-      "resolved": "src/host/updateReader.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "落地 #548",
-      "note": "#548 落地时按文件行数纪律（每个 src 文件不超过 350 行）把读取器拆到 updateReader，电话层单向引用它；拆分不新增业务方向，只把原同文件内的调用改成跨文件调用"
-    },
-    {
-      "file": "src/host/index.js",
       "spec": "./logFromPackage.js",
       "resolved": "src/host/logFromPackage.js",
       "layer": "host",
@@ -632,132 +605,6 @@
       "count": 1,
       "owner": "#564",
       "note": "当前插件迁移到日志包：宿主运行时走日志包派生（旧文件留而不搬），接线与派生副本的引用边"
-    },
-    {
-      "file": "src/host/index.js",
-      "spec": "./updateFromPackage.js",
-      "resolved": "src/host/updateFromPackage.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "#586 当前插件迁移到更新包",
-      "note": "更新包派生副本与适配器的引用边（照 #564 日志包迁移先例记基线，规则本身不动）"
-    },
-    {
-      "file": "src/host/updateFromPackage.js",
-      "spec": "./updatePkg/host.js",
-      "resolved": "src/host/updatePkg/host.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "#586 当前插件迁移到更新包",
-      "note": "更新包派生副本与适配器的引用边（照 #564 日志包迁移先例记基线，规则本身不动）"
-    },
-    {
-      "file": "src/host/updateFromPackage.js",
-      "spec": "./updatePkg/config.js",
-      "resolved": "src/host/updatePkg/config.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "#586 当前插件迁移到更新包",
-      "note": "更新包派生副本与适配器的引用边（照 #564 日志包迁移先例记基线，规则本身不动）"
-    },
-    {
-      "file": "src/host/updatePkg/gate.js",
-      "spec": "./config.js",
-      "resolved": "src/host/updatePkg/config.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "#586 当前插件迁移到更新包",
-      "note": "更新包派生副本与适配器的引用边（照 #564 日志包迁移先例记基线，规则本身不动）"
-    },
-    {
-      "file": "src/host/updatePkg/host.js",
-      "spec": "./config.js",
-      "resolved": "src/host/updatePkg/config.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "#586 当前插件迁移到更新包",
-      "note": "更新包派生副本与适配器的引用边（照 #564 日志包迁移先例记基线，规则本身不动）"
-    },
-    {
-      "file": "src/host/updatePkg/host.js",
-      "spec": "./commands.js",
-      "resolved": "src/host/updatePkg/commands.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "#586 当前插件迁移到更新包",
-      "note": "更新包派生副本与适配器的引用边（照 #564 日志包迁移先例记基线，规则本身不动）"
-    },
-    {
-      "file": "src/host/updatePkg/host.js",
-      "spec": "./service.js",
-      "resolved": "src/host/updatePkg/service.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "#586 当前插件迁移到更新包",
-      "note": "更新包派生副本与适配器的引用边（照 #564 日志包迁移先例记基线，规则本身不动）"
-    },
-    {
-      "file": "src/host/updatePkg/host.js",
-      "spec": "./store.js",
-      "resolved": "src/host/updatePkg/store.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "#586 当前插件迁移到更新包",
-      "note": "更新包派生副本与适配器的引用边（照 #564 日志包迁移先例记基线，规则本身不动）"
-    },
-    {
-      "file": "src/host/updatePkg/host.js",
-      "spec": "./reader.js",
-      "resolved": "src/host/updatePkg/reader.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "#586 当前插件迁移到更新包",
-      "note": "更新包派生副本与适配器的引用边（照 #564 日志包迁移先例记基线，规则本身不动）"
-    },
-    {
-      "file": "src/host/updatePkg/host.js",
-      "spec": "./gate.js",
-      "resolved": "src/host/updatePkg/gate.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "#586 当前插件迁移到更新包",
-      "note": "更新包派生副本与适配器的引用边（照 #564 日志包迁移先例记基线，规则本身不动）"
-    },
-    {
-      "file": "src/host/updatePkg/reader.js",
-      "spec": "./config.js",
-      "resolved": "src/host/updatePkg/config.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "#586 当前插件迁移到更新包",
-      "note": "更新包派生副本与适配器的引用边（照 #564 日志包迁移先例记基线，规则本身不动）"
-    },
-    {
-      "file": "src/host/updatePkg/reader.js",
-      "spec": "./service.js",
-      "resolved": "src/host/updatePkg/service.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "#586 当前插件迁移到更新包",
-      "note": "更新包派生副本与适配器的引用边（照 #564 日志包迁移先例记基线，规则本身不动）"
-    },
-    {
-      "file": "src/host/updatePkg/store.js",
-      "spec": "./commands.js",
-      "resolved": "src/host/updatePkg/commands.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "#586 当前插件迁移到更新包",
-      "note": "更新包派生副本与适配器的引用边（照 #564 日志包迁移先例记基线，规则本身不动）"
-    },
-    {
-      "file": "src/host/updatePkg/store.js",
-      "spec": "./config.js",
-      "resolved": "src/host/updatePkg/config.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "#586 当前插件迁移到更新包",
-      "note": "更新包派生副本与适配器的引用边（照 #564 日志包迁移先例记基线，规则本身不动）"
     },
     {
       "file": "src/host/index.js",
@@ -913,24 +760,6 @@
       "note": "#821 规格故事 32：versionControl.js 贴着文件粒度门禁的 350 行上限（正好 350 行），按 #500（logStore→logPhones）与 #548（update→updateReader）同一条先例，把整条 wf.gitDiff 电话体搬成自包含叶子（起进程的唯一出口、失败信封、仓库根解析全由父文件显式传入，叶子不引用父文件），父文件只留一行动态加载器。"
     },
     {
-      "file": "src/host/updateReader.js",
-      "spec": "./fsAbsence.js",
-      "resolved": "src/host/fsAbsence.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "#849（把剩下三处同类契约坑统一到 fsAbsence.js）",
-      "note": "缺文件判据共享：DSH fs 服务对「文件不存在」抛 FS_NOT_FOUND、不是 ENOENT，只认 ENOENT 会把「没有这个文件」当成 IO 错误。D7 禁静态 import，照既有先例用按需动态加载（函数内懒加载，import 有模块缓存）。"
-    },
-    {
-      "file": "src/host/updateStore.js",
-      "spec": "./fsAbsence.js",
-      "resolved": "src/host/fsAbsence.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "#849（把剩下三处同类契约坑统一到 fsAbsence.js）",
-      "note": "缺文件判据共享：DSH fs 服务对「文件不存在」抛 FS_NOT_FOUND、不是 ENOENT，只认 ENOENT 会把「没有这个文件」当成 IO 错误。D7 禁静态 import，照既有先例用按需动态加载（函数内懒加载，import 有模块缓存）。"
-    },
-    {
       "file": "src/host/versionControl.js",
       "spec": "./fsAbsence.js",
       "resolved": "src/host/fsAbsence.js",
@@ -1001,6 +830,15 @@
       "count": 1,
       "owner": "#690",
       "note": "补记 #690 遗留的装配扇入边：当时没记进基线，门禁一直红着"
+    },
+    {
+      "file": "src/host/index.js",
+      "spec": "./updateFromPackage.js",
+      "resolved": "src/host/updateFromPackage.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#875 薄接线",
+      "note": "宿主入口到更新包接线的引用边（旧实现边已随文件删除，基线同步清理）"
     }
   ]
 }

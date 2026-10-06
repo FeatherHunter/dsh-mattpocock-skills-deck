@@ -45,8 +45,9 @@ const PHONES = [
   'wf.namingResult', 'wf.cancelNewSessionWatcher', 'wf.awaitCreatedIssue',
   'wf.openFolder', 'wf.initPublish', 'wf.retryPush', 'wf.pickDirectory', 'wf.pickFile', 'wf.openPath',
   'wf.logBatch', 'wf.logExport', 'wf.logClear', 'wf.logGetSwitch', 'wf.logSetSwitch',
-  'wf.updateStatus', 'wf.updateCheck', 'wf.updateInstall',
+  'wf.updateStatus', 'wf.updateCheck', 'wf.updateInstall', 'wf.updateChangelog',
 ]
+// #875 薄接线：新增取更新日志电话 1 条，现役 53 → 54；增删电话同步改本表（附录 1.7 退役表不动）。
 const RETIRED = ['wf.ping', 'wf.claim']
 const PHONE_EXEMPT = ['wf.logBatch', 'wf.logGetSwitch', 'wf.logSetSwitch']
 const PHONE_EVENT_COVERS = {
@@ -104,10 +105,22 @@ const CALLEE_COVERS = [
     return names.some((n) => perFile.some((t) => t.indexOf('loggedPhone(' + Q + n + Q) >= 0 && t.indexOf(Q + 'host.call' + Q) >= 0 && t.indexOf(Q + 'host.call.fail' + Q) >= 0))
   }
   const hasEvent = (e) => all.indexOf(Q + e + Q) >= 0
+  // #875 薄接线：四个更新电话的记行收进更新包（loggedPhone 按电话名记 host.call/host.call.fail，pluginId 隔离），
+  // 本仓胶水只读电话名表。这里认两条：胶水从包读电话名（接线证明）加包内有按电话记行的发射（包内证明）。
+  const DELEGATED_TO_PACKAGE = ['wf.updateStatus', 'wf.updateCheck', 'wf.updateInstall', 'wf.updateChangelog']
+  let pkgHost = null
+  const pkgLogsPhone = (p) => {
+    try {
+      if (pkgHost === null) pkgHost = fs.readFileSync(path.join(ROOT, 'node_modules', 'dsh-plugin-update', 'dist', 'host.js'), 'utf8')
+      const action = p.split('.')[1]
+      return pkgHost.includes('loggedPhone(phoneNames.' + action) || pkgHost.includes('loggedChangelogPhone(phoneNames.' + action)
+    } catch { return false }
+  }
+  const glueReadsNames = (() => { try { const w = fs.readFileSync(path.join(ROOT, 'src', 'host', 'updateFromPackage.js'), 'utf8'); return w.includes('holder.phoneNames') } catch { return false } })()
   for (const p of PHONES) {
     if (PHONE_EXEMPT.indexOf(p) >= 0) { check(true, '电话成功行豁免 ' + p); continue }
     const covers = PHONE_EVENT_COVERS[p] || []
-    const ok = hasMethod(p) || covers.some(hasEvent)
+    const ok = hasMethod(p) || covers.some(hasEvent) || (DELEGATED_TO_PACKAGE.indexOf(p) >= 0 && glueReadsNames && pkgLogsPhone(p))
     check(ok, '电话有方法可识行 ' + p)
   }
 }

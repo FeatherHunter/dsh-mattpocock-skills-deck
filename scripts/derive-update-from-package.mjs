@@ -2,7 +2,7 @@
  * scripts/derive-update-from-package.mjs —— 更新系统派生脚本（#586 起，#800 切到官方工具）。
  *
  * 作用：把更新包派生为插件运行时真正使用的文件。
- * 旧文件一个字节都不动（src/host/update.js、updateReader.js、updateStore.js 原地只读留存，门禁仍读它们）；
+ * #875 起旧文件已删（薄接线只走已安装包），不再保留只读共存。
  * 运行时走这里生成的新文件。真删除旧文件另开票，本票只做共存（照 #564 日志包迁移的先例）。
  *
  * 派生内容（两处，分属两张落地票，互不抢活）：
@@ -11,7 +11,7 @@
  *      构建时原样复制进 package/lib/updatePkg，随包发布，线上可用）。
  *   2. 客户端侧（#800，本文件这次改的只有这一处）：不再读本地包目录，
  *      改调已安装更新包自带的官方工具 node_modules/dsh-plugin-update/derive-client-values.mjs，
- *      以已安装的 0.2.x 为唯一数据源生成面板取值（电话名与轮询间隔），
+ *      以已安装的 0.7.x 为唯一数据源生成面板取值（电话名与轮询间隔），
  *      落到 scripts/generated/updateClient.derived.js，构建时拼进客户端闭包（kernel:updateClient 标记处）。
  *      放 scripts 下是因为内容含中文错误文案，src/client 下会被中文基线门禁误拦；
  *      构建产物里早有中文注释，行为一致，只是换个地方放（与日志包派生同口径）。
@@ -23,13 +23,13 @@
  *   换前缀或换轮询间隔要改多处、还容易改漏。现在这两种取值只有一个来源（已安装更新包的配置面），
  *   改包即改行为；手写源码里不再出现电话名字面量，派生文件里带零变化断言字面供门禁核对。
  *
- * 每次打包的顺序（#800 落实决策 2 的前半句）：先把更新包升到 0.2.x 最新并提交锁文件，
+ * 每次打包的顺序（#800 落实决策 2 的前半句）：先把更新包升到 0.7.x 最新并提交锁文件，
  * 再跑本脚本派生，最后跑构建。构建脚本 scripts/build.mjs 会在需要时自动调本脚本，
  * 平时不用手工跑；但“升到最新”这一步靠人或发版流程执行，构建时只核对版本、不自动联网升级。
  *
- * 用法（一键走完“最新 0.2.x → 派生 → 构建”）：pnpm run update:latest；
+ * 用法（一键走完“最新 0.7.x → 派生 → 构建”）：pnpm run update:latest；
  * 分步则是：
- *   先升到 0.2.x 最新：pnpm update dsh-plugin-update@^0.2.0（只取 0.2.x 最新，不跳大版本），把 pnpm-lock.yaml 一起提交；
+ *   先升到 0.7.x 最新：pnpm update dsh-plugin-update@^0.7.0（只取 0.7.x 最新，不跳大版本），把 pnpm-lock.yaml 一起提交；
  *   再派生：node scripts/derive-update-from-package.mjs（插件根目录）；
  *   最后构建：node scripts/build.mjs。
  */
@@ -41,16 +41,9 @@ import { spawnSync } from 'node:child_process'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(HERE, '..')
-const PKG_DIR = resolve(ROOT, 'packages', 'dsh-plugin-update')
-const PKG_DIST = resolve(PKG_DIR, 'dist')
-const PKG_MANIFEST = resolve(PKG_DIR, 'package.json')
-// 注意：上面三个本地路径只服务宿主侧派生（deriveHost，#799 覆盖范围）；
-// 面板取值（deriveClient）唯一来源是已安装包（installedUpdateDir），不读本地。
+// #875 薄接线：宿主侧派生（deriveHost）已删，能力只走已安装的更新包；
+// 面板取值（deriveClient）唯一来源是已安装包（installedUpdateDir），不读本地包目录。
 
-// 宿主侧要拎入的文件（顺序即依赖顺序，便于人核对；包内相对引用保持不变）。
-// gate.js 是 #584 的门禁模板检查器，包根把它转出口，宿主入口引用它，所以必须一起拎进来。
-const HOST_UNITS = ['config.js', 'ports.js', 'service.js', 'commands.js', 'store.js', 'reader.js', 'gate.js', 'host.js']
-const HOST_OUT_DIR = resolve(ROOT, 'src', 'host', 'updatePkg')
 const CLIENT_OUT = resolve(ROOT, 'scripts', 'generated', 'updateClient.derived.js')
 
 // 本插件在更新包里的注册参数：插件标识与电话名前缀。
@@ -58,6 +51,29 @@ const CLIENT_OUT = resolve(ROOT, 'scripts', 'generated', 'updateClient.derived.j
 // 所以它们只有一处声明，就是这里；宿主适配器不写第二份，按包里的默认值校验一遍。
 export const PLUGIN_ID = 'dsh-mattpocock-skills-deck'
 export const PHONE_PREFIX = 'wf'
+
+// #875：宿主侧派生已删（旧派生目录随 #875 删除，运行时按包名直引已安装包）。
+
+/**
+ * 已安装更新包的位置：按包名解析（与宿主运行时同一套找法），不读本地包目录。
+ * 本地 packages/dsh-plugin-update 只留作发布源（#798 决策 1），面板取值的唯一数据源是这里。
+ */
+function installedUpdateDir() {
+  try {
+    const require = createRequire(resolve(ROOT, 'package.json'))
+    const manifestPath = require.resolve('dsh-plugin-update/package.json')
+    return dirname(manifestPath)
+  } catch {
+    const fallback = resolve(ROOT, 'node_modules', 'dsh-plugin-update')
+    if (existsSync(join(fallback, 'package.json'))) return fallback
+    throw new Error('[derive-update] 找不到已安装的更新包：请先运行 pnpm install（依赖 dsh-plugin-update@^0.7.0）')
+  }
+}
+
+function installedUpdateVersion() {
+  const dir = installedUpdateDir()
+  return JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')).version
+}
 
 /** 顶层声明名（只看无缩进的 function / var / let / const，export 前缀剥掉）——与 tests/verify-generated-no-shadow.js 同一口径。 */
 function topLevelNames(text) {
@@ -87,47 +103,6 @@ function assertNoShadowing(text) {
   }
 }
 
-function headerFor(name, version) {
-  return (
-    '// 派生文件（#586）：由 packages/dsh-plugin-update/dist/' + name + ' 原样复制，内容与更新包 ' + version + ' 一致，人手不改。\n' +
-    '// 旧实现（src/host/update.js、updateReader.js、updateStore.js）原地只读留存；运行时走本目录经 updateFromPackage.js 接线。\n' +
-    '// 共存关系：旧文件只读、新文件派生，真搬迁或真删除旧文件另开票。重新生成：node scripts/derive-update-from-package.mjs。\n'
-  )
-}
-
-export function deriveHost() {
-  const version = JSON.parse(readFileSync(PKG_MANIFEST, 'utf8')).version
-  mkdirSync(HOST_OUT_DIR, { recursive: true })
-  for (const name of HOST_UNITS) {
-    const from = resolve(PKG_DIST, name)
-    const body = readFileSync(from, 'utf8').replace(/\r\n/g, '\n').replace(/\s+$/, '') + '\n'
-    writeFileSync(resolve(HOST_OUT_DIR, name), headerFor(name, version) + body, 'utf8')
-    console.log('[derive-update] dist/' + name + ' -> src/host/updatePkg/' + name)
-  }
-  return version
-}
-
-/**
- * 已安装更新包的位置：按包名解析（与宿主运行时同一套找法），不读本地包目录。
- * 本地 packages/dsh-plugin-update 只留作发布源（#798 决策 1），面板取值的唯一数据源是这里。
- */
-function installedUpdateDir() {
-  try {
-    const require = createRequire(resolve(ROOT, 'package.json'))
-    const manifestPath = require.resolve('dsh-plugin-update/package.json')
-    return dirname(manifestPath)
-  } catch {
-    const fallback = resolve(ROOT, 'node_modules', 'dsh-plugin-update')
-    if (existsSync(join(fallback, 'package.json'))) return fallback
-    throw new Error('[derive-update] 找不到已安装的更新包：请先运行 pnpm install（依赖 dsh-plugin-update@^0.2.0）')
-  }
-}
-
-function installedUpdateVersion() {
-  const dir = installedUpdateDir()
-  return JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')).version
-}
-
 // 改名表（#597）：客户端闭包是把各派生分块按顺序拼进同一个作用域，函数声明会被提升，
 // 后拼的分块会顶掉先拼的同名函数。更新包与日志包各自都声明了
 // buildPhoneNames / buildPhoneName / buildClientPhoneNames，更新包拼在后面，
@@ -139,7 +114,9 @@ function installedUpdateVersion() {
 const RENAMES = [
   ['buildClientPhoneNames', 'updBuildClientPhoneNames'],
   ['buildPhoneNames', 'updBuildPhoneNames'],
-  ['buildPhoneName', 'updBuildPhoneName']
+  ['buildPhoneName', 'updBuildPhoneName'],
+  ['isNonEmptyString', 'updIsNonEmptyString'],
+  ['copyText', 'updCopyText']
 ]
 
 export function deriveClient() {
@@ -147,7 +124,7 @@ export function deriveClient() {
   const version = installedUpdateVersion()
   const tool = join(pkgDir, 'derive-client-values.mjs')
   if (!existsSync(tool)) {
-    throw new Error('[derive-update] 已安装的更新包里没有官方生成工具（' + tool + '）：请确认装的是 0.2.x（含 derive-client-values.mjs），重装一次试试')
+    throw new Error('[derive-update] 已安装的更新包里没有官方生成工具（' + tool + '）：请确认装的是 0.7.x（含 derive-client-values.mjs），重装一次试试')
   }
   mkdirSync(dirname(CLIENT_OUT), { recursive: true })
   // 第一步：调官方工具生成（唯一数据源是已安装包，版本号写进产物头）。
@@ -185,12 +162,11 @@ export function deriveClient() {
   assertNoShadowing(text)
   writeFileSync(CLIENT_OUT, text, 'utf8')
   console.log('[derive-update] 官方工具派生 + 改名守卫：' + pkgDir + ' (' + version + ') -> scripts/generated/updateClient.derived.js')
-  console.log('[derive-update] 打包前请确认：已先跑 pnpm update dsh-plugin-update@^0.2.0 并提交锁文件（最新 0.2.x → 派生 → 构建）')
+  console.log('[derive-update] 打包前请确认：已先跑 pnpm update dsh-plugin-update@^0.7.0 并提交锁文件（最新 0.7.x → 派生 → 构建）')
   return version
 }
 
 function main() {
-  deriveHost()
   deriveClient()
 }
 

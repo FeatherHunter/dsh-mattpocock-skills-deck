@@ -1,17 +1,15 @@
-// src/host/updateFromPackage.js —— 宿主更新接线（#799 按包名直引已安装的更新包）。
+// src/host/updateFromPackage.js —— 宿主更新接线（地图 #873 薄接线：只留上游 README 基本用法）。
 //
-// 以后谁改它：改「更新系统运行时走包还是走旧实现」的人。改之前先看决策 #798 与地图 #796：旧文件留而不搬。
+// 本文件只做三件事：按包名引用已安装的更新包建更新能力，
+// 把电话处理器按键交给调用方（电话名从包自己拼的 phoneNames 读，不另拼字符串）。
+// 自己的更新实现已删（旧三件套、旧派生目录、旧共享核心、update-core 源码树，见 #875）；
+// 旧实现回退分支已删，包缺失时直接抛错，不静默降级。
 //
-// 接线：由 src/host/index.js 动态 import 加载；本文件只做两件事，
-// 调已安装的更新包建更新能力并拿回电话处理器（插件标识与电话名前缀都是旧值，
-// 所以三个电话名、落盘目录与旧字面一字不差）；装更新返回后做一次身份证验明正身
-//（见 __syncInstalledManifest，文件级安装不换身份证时才补写，平时无操作）。
-// 旧实现（./update.js、./updateReader.js、./updateStore.js）与旧派生目录（./updatePkg/）原地留存，本文件不再引用它们。
-// 本文件按包名引用已安装的更新包，构建与发布时靠清单里的依赖取到 0.2.x 最新，不再靠复制目录。
+// 唯一的例外是装完身份证验明正身（__syncInstalledManifest）：上游 0.7.0 的已装版本
+// 只读身份证，而文件级安装不换身份证；删掉它会重现 2026-10-01 面板版本不更新的故障。
+// 它平时无操作，只写身份证的 version 一个字段，永不抛错。包侧一旦补上同等逻辑，这里连它一起删。
 //
-// 用词：电话指宿主对外提供的方法；落盘指宿主统一写本地文件的动作。
-// 更新包指装着更新系统的那个 npm 包；更新系统指更新功能本身。
-// 复制目录指以前把更新包源码拷进本仓的那份派生副本；直引指按包名引用已安装的包。
+// 用词：电话指宿主对外提供的方法；身份证指已装目录的 package.json；横幅指客户端产物里的版本标记。
 
 import {
   createHostUpdate,
@@ -110,20 +108,21 @@ export async function __syncInstalledManifest({ moduleDir, targetVersion, io, lo
 }
 
 /**
- * 建三个电话的处理器（查状态 / 查新版 / 装更新）。
- * 入参与旧实现同名同形（deps.logCtx、deps.ctx、deps.readerOverrides），
- * 这样调用方与门禁都不用改；内部换成更新包的建能力入口。
- * 安装走哪条路由由更新包按宿主种类决定，本文件不传自定义安装执行，不挡包路由。
+ * 建四个电话的处理器（查状态 / 查新版 / 装更新 / 取更新日志）。
+ * 入参与旧形状同名（deps.logCtx、deps.ctx、deps.readerOverrides），调用方与门禁都不用改；
+ * 内部只是更新包的建能力入口，不传自定义安装执行，不挡包路由。
+ * 装更新那条包一层验明正身（见 __syncInstalledManifest）：文件级安装不换身份证时，
+ * 把身份证补成代码横幅里那个已装好的版本；平时无操作直通，安装回包原样返回。
+ * 取更新日志那条原样直通，给面板日志章用（面板票 #876）。
  */
 export function createUpdatePhoneHandlers(deps = {}) {
   const ctx = deps.ctx ?? null
-  const key = `${ctx ? 'ctx' : 'noctx'}\0${deps.desktopPnpm ? 'pnpm' : 'nopnpm'}\0${deps.logCtx ? 'log' : 'nolog'}`
+  const key = `${ctx ? 'ctx' : 'noctx'}\0${deps.logCtx ? 'log' : 'nolog'}`
   if (phones && phonesKey === key) return phones
   const holder = createHostUpdate(
     {
       ctx,
       logCtx: deps.logCtx ?? null,
-      desktopPnpm: deps.desktopPnpm,
       readerOverrides: deps.readerOverrides ?? {},
     },
     {
@@ -131,10 +130,8 @@ export function createUpdatePhoneHandlers(deps = {}) {
       prefix: UPDATE_PHONE_PREFIX,
     }
   )
-  // 更新包给的是「电话名 → 处理器」的表；调用方要的是三个具名入口，
+  // 更新包给的是「电话名 → 处理器」的表；调用方要的是四个具名入口，
   // 这里按键取出来，键名取自包自己拼的电话名，不另拼字符串。
-  // 装更新那条包一层验明正身（见 __syncInstalledManifest）：文件级安装不换身份证时，
-  // 把身份证补成代码横幅里那个已装好的版本；平时是无操作直通，安装回包原样返回。
   const rawInstall = holder.handlers[holder.phoneNames.updateInstall]
   const hereDir = dirname(fileURLToPath(import.meta.url))
   const syncLog = deps.logCtx ?? null
@@ -148,13 +145,14 @@ export function createUpdatePhoneHandlers(deps = {}) {
       await __syncInstalledManifest({ moduleDir: hereDir, targetVersion: target, io: { readFile, writeFile }, log: syncLog })
       return result
     },
+    handleUpdateChangelog: holder.handlers[holder.phoneNames.updateChangelog],
   }
   phonesKey = key
   return phones
 }
 
 /** 测试与门禁复位单例（正常运行不调用）。
- *  要复位两处：本文件缓存的三个处理器，以及更新包内部缓存的那个读取器。
+ *  要复位两处：本文件缓存的四个处理器，以及更新包内部缓存的那个读取器。
  *  只复位前者会留下一个隐患——换了假机器之后，包里的旧读取器还在，下一次调用仍复用它，
  *  于是「换一台机器重查」这种用例会拿到上一台的缓存结果（门禁实测踩到过：断网用例却回了成功）。 */
 export function __resetSharedUpdateReaderForTests() {

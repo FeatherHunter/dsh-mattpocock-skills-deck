@@ -4,10 +4,9 @@ const fs = require('fs'); const path = require('path'); const { pathToFileURL } 
 const ROOT = path.resolve(__dirname, '..');
 let failed = false; let total = 0;
 const check = (ok, msg) => { total += 1; if (!ok) failed = true; console.log((ok ? '  PASS ' : '  FAIL ') + msg) };
+// #875 薄接线：更新读取器与更新落盘已删（能力收进更新包），此处只剩选择状态文件。
 const SITES = [
   ['src/host/choiceStore.js', 'FS_NOT_FOUND', '选择状态文件（行内同契约）'],
-  ['src/host/updateReader.js', 'isAbsenceError', '更新读取器'],
-  ['src/host/updateStore.js', 'isAbsenceError', '更新落盘'],
 ];
 (async () => {
   const abs = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'fsAbsence.js')).href);

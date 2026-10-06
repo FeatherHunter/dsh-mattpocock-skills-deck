@@ -26,14 +26,14 @@ async function main() {
   const indexSrc = strip(read('src/host/index.js'))
   check(indexSrc.includes("harness.handle('wf.updateStatus'"), '宿主注册查状态电话 wf.updateStatus')
   check(indexSrc.includes("harness.handle('wf.updateCheck'"), '宿主注册查新版电话 wf.updateCheck')
-  check(indexSrc.includes("import('./update.js')"), '更新胶水走动态引入（无静态 import）')
+  check(indexSrc.includes("import('./updateFromPackage.js')"), '更新胶水走动态引入（无静态 import）')
   check(!/^import .*update\.js/m.test(indexSrc), '宿主入口无更新胶水的静态引用')
 
   // ---- 2) 电话复用核心，不另写查询 ----
-  const updateSrc = strip(read('src/host/update.js'))
+  const updateSrc = strip(read('src/host/updateFromPackage.js'))
   check(updateSrc.includes('createUpdatePhoneHandlers'), '胶水导出电话工厂 createUpdatePhoneHandlers')
-  check(updateSrc.includes('reader.status()'), '查状态走核心 reader.status')
-  check(updateSrc.includes('reader.check()'), '查新版走核心 reader.check')
+  check(updateSrc.includes('createHostUpdate(') && updateSrc.includes('phoneNames.updateStatus'), '查状态走包的能力（建能力入口加电话名表，不自写查询）')
+  check(updateSrc.includes('phoneNames.updateCheck'), '查新版走包的能力（电话名从包读，不自拼字符串）')
   check(!updateSrc.includes('registry.npmjs.org'), '胶水电话不另写查询（无官方源地址字面量）')
   // #587：面板的更新状态与电话调用拆进 views/useUpdatePanel.js、弹窗拆进 views/UpdateDialog.js
   //（SettingsPage.js 已顶到 350 行上限）；这里把三份源码拼起来看，与拆出前同一口径。
@@ -45,10 +45,10 @@ async function main() {
   const settingsEvents = [...clientSettings.matchAll(/(?:fire|log)\s*\(\s*'(info|warn|debug|error)'\s*,\s*'([^']+)'/g)].map((m) => m[2])
   const freshEvents = phoneEvents.concat(settingsEvents).filter((e) => e !== 'host.call' && e !== 'host.call.fail' && e !== 'host.dispatch.error')
   // #587：面板状态推进复用按需事件 panel.render（与 kernel/router.js 同一形态，只在调试开关打开时落盘）
-  const preExisting = new Set(['settings.save', 'panel.render'])
+  const preExisting = new Set(['settings.save', 'panel.render', 'update.install.manifestSync'])
   const freshNew = freshEvents.filter((e) => !preExisting.has(e))
   check(freshNew.length === 0, '电话与按钮只复用常驻事件（' + [...new Set(phoneEvents.concat(settingsEvents))].join('、') + '）')
-  check(updateSrc.includes("loggedPhone('wf.updateStatus'") && updateSrc.includes("loggedPhone('wf.updateCheck'"), '宿主日志按电话名记行（查状态与查新版各一行方法可识行，装更新行由安装门禁覆盖）')
+  check(!updateSrc.includes('loggedPhone('), '胶水不自写按电话记行的包装（记行已收进包内，由包自带测试与日志门禁覆盖）')
   // #586：客户端不再写电话名字面量，两个调用点各走更新包派生的常量；字面量真源在派生文件里。
   const derivedClientSrc = read('scripts/generated/updateClient.derived.js')
   check(derivedClientSrc.includes("UPD_PHONE_NAMES.updateStatus === 'wf.updateStatus'") && derivedClientSrc.includes("UPD_PHONE_NAMES.updateCheck === 'wf.updateCheck'"),
@@ -80,13 +80,13 @@ async function main() {
 
   // ---- 6) 文件粒度 ----
   // #587：拆出的三份一并纳入行数上限（拆分的意义就是让每份都留得住余量）。
-  for (const rel of ['src/host/update.js', 'src/host/index.js', 'src/client/views/SettingsPage.js', 'src/client/views/useUpdatePanel.js', 'src/client/views/UpdateDialog.js', 'src/client/views/UpdateRestartBanner.js', 'src/client/kernel/locale-word.js']) {
+  for (const rel of ['src/host/updateFromPackage.js', 'src/host/index.js', 'src/client/views/SettingsPage.js', 'src/client/views/useUpdatePanel.js', 'src/client/views/UpdateDialog.js', 'src/client/views/UpdateRestartBanner.js', 'src/client/kernel/locale-word.js']) {
     const n = read(rel).split(/\r?\n/).length
     check(n <= 350, `${rel} ${n} 行（上限 350）`)
   }
 
   // ---- 7) 电话行为（假环境：不存在的范围目录 + 可控网络） ----
-  const mod = await import(pathToFileURL(path.join(ROOT, 'src/host/update.js')).href)
+  const mod = await import(pathToFileURL(path.join(ROOT, 'src/host/updateFromPackage.js')).href)
   check(typeof mod.createUpdatePhoneHandlers === 'function', '电话工厂可被动态加载')
   const INTEGRITY = `sha512-${'A'.repeat(86)}==`
   const releaseBody = (version) => JSON.stringify({

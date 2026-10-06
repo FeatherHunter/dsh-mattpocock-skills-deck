@@ -307,8 +307,22 @@ const found = collectCalls()
 const names = Object.keys(found).sort()
 
 // 一、允许表里每个事件都有埋点落点（83 个事件里自监控 #46 由 verify-log-selfmon.js 覆盖，退役的 3 个不在源码里）。
+// #875 薄接线：update.install.exec 的发射器已收进已安装的更新包（事件保留、字段不变，落点改到包内编译产物）。
+// 本仓 src 里不再有它的落点，这里到包内发射处核对事件名与五个字段，找不到仍红。
+if (!found['update.install.exec']) {
+  try {
+    const evtDef = fs.readFileSync(path.join(ROOT, 'node_modules', 'dsh-plugin-update', 'dist', 'log-events.js'), 'utf8')
+    const store = fs.readFileSync(path.join(ROOT, 'node_modules', 'dsh-plugin-update', 'dist', 'store.js'), 'utf8')
+    const named = evtDef.includes('"update.install.exec"')
+    const at = store.indexOf('LOG_EVENT_INSTALL_EXEC, {')
+    const near = at >= 0 ? store.slice(at, at + 900) : ''
+    const fieldsOk = ['route', 'ok', 'exitCode', 'durationMs', 'pluginId'].every((k) => near.includes(k))
+    if (named && at >= 0 && fieldsOk) found['update.install.exec'] = { keys: { route: 1, ok: 1, exitCode: 1, durationMs: 1, pluginId: 1 }, sites: ['node_modules/dsh-plugin-update/dist/store.js（包内发射，常量名 LOG_EVENT_INSTALL_EXEC）'] }
+  } catch {}
 for (const name of Object.keys(ALLOWED).sort()) {
   check(!!found[name], '事件有埋点落点 ' + name + (found[name] ? '（' + found[name].sites.length + ' 处）' : '（全仓未找到）'))
+}
+
 }
 for (const name of names) {
   if (!ALLOWED[name]) check(false, '未知事件名须先更新附录与本门禁 ' + name + ' @ ' + found[name].sites.slice(0, 3).join('、'))
