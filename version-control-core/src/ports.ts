@@ -128,7 +128,7 @@ export interface FirstScreen {
 }
 
 /** 四个未来写操作的判定对象（本版只读，规则先行为后面的票备好）。 */
-export type Operation = 'stage' | 'commit' | 'pull' | 'push'
+export type Operation = 'stage' | 'commit' | 'pull' | 'push' | 'fetch'
 
 export type Verdict = 'allow' | 'warn' | 'block'
 
@@ -144,12 +144,12 @@ export interface ParseFailure {
   detail: string
 }
 
-/** 写操作三档（暂存不走票据，所以不在这里）。 */
-export type WriteOp = 'commit' | 'pull' | 'push'
+/** 写操作四档（暂存不走票据，所以不在这里；更新远方记录是只读远端的网络读，不碰工作树）。 */
+export type WriteOp = 'commit' | 'pull' | 'push' | 'fetch'
 
 /** 预检解析出来的推送目标；localBranch 是 refspec 左边那一段（本地分支）。 */
 export interface WritePlan {
-  mode: 'existing' | 'set-upstream' | 'recreate'
+  mode: 'existing' | 'set-upstream' | 'recreate' | 'fetch'
   /** mode 的布尔派生（界面与反证脚本按它读）：true = 这次推送会建立/重建上游（带 -u）。 */
   setUpstream?: boolean
   remote: string

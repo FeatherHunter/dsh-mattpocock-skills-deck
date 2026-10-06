@@ -97,7 +97,7 @@ export function commandFor(key: CollectionKey, opts: { logCount?: number; logSki
 }
 
 /** 写命令的子命令清单（#841）：门禁拿它断言「面板会发出什么」。 */
-export const WRITE_SUBCOMMANDS: string[] = ['add', 'reset', 'commit', 'pull', 'push', 'ls-files', 'remote']
+export const WRITE_SUBCOMMANDS: string[] = ['add', 'reset', 'commit', 'pull', 'push', 'fetch', 'ls-files', 'remote']
 
 /** 远端名与分支名的形状：只挡「会被当成选项」与「会破坏 argv」的形状，不重造 git 自己的取名规则。
  *  分支名允许斜杠（feature/x）；两者都不许以 - 开头、不许空白与 NUL。 */
@@ -144,6 +144,12 @@ export function pushArgs(plan: { mode: 'existing' | 'set-upstream' | 'recreate';
   // 面板只推这一个分支，标签不替用户推（真机场景②的验收点：推完远端标签仍为空）。
   // -u 出现在两档：set-upstream（第一次推送）与 recreate（上游被删后重建）——两者都要重新设上游。
   return plan.mode === 'existing' ? ['push', '--no-follow-tags', plan.remote, spec] : ['push', '-u', '--no-follow-tags', plan.remote, spec]
+}
+/** 更新远方记录：只取回远端跟踪引用，不合并、不碰工作树。带远端名时只取该远端
+ *  （多远端由调用方先选好）；远端名与分支名沿用本文件的形状正则，拼之前由宿主复核。 */
+export function fetchArgs(remote?: string): string[] {
+  if (remote !== undefined && remote !== '') return ['fetch', remote]
+  return ['fetch']
 }
 /** 索引指纹的输入（只读；总工裁决 2：不用 write-tree，不往用户对象库写东西）。 */
 export function lsFilesStageArgs(): string[] {

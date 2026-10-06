@@ -85,12 +85,21 @@ function judgePush(s: FirstScreen): Decision {
   return { verdict: 'allow', reasons: ['ok'] }
 }
 
+/** 更新远方记录：只更新远端跟踪引用，不碰工作树与索引，所以游离头、未暂存、冲突、
+ *  进行中、落后远端、依据未知都不挡；落后与依据未知正是要用它来修复的。裸仓库沿用不可用
+ *  （与拉取推送一致，面板裸仓不提供写入口）。 */
+function judgeFetch(s: FirstScreen): Decision {
+  if (s.repo.bare) return { verdict: 'block', reasons: ['bare-repo'] }
+  return { verdict: 'allow', reasons: ['ok'] }
+}
+
 export function judge(screen: FirstScreen, op: Operation): Decision {
   switch (op) {
     case 'stage': return judgeStage(screen)
     case 'commit': return judgeCommit(screen)
     case 'pull': return judgePull(screen)
     case 'push': return judgePush(screen)
+    case 'fetch': return judgeFetch(screen)
     default: return { verdict: 'block', reasons: ['unknown-operation'] }
   }
 }
