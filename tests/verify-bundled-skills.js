@@ -5,9 +5,9 @@
  * 职责：包内自洽（存在性、有效性、LICENSE/VERSION、增量体积），与 verify-matt-skills-sync 的跨源一致性正交。
  *
  * 检查（空目录期跳过体积段）：
- *  1) package/bundled-skills 存在且含 25 个子目录，每个含有效 SKILL.md（frontmatter name: 与目录名一致，含 description）
+ *  1) package/bundled-skills 存在且含 27 个子目录，每个含有效 SKILL.md（frontmatter name: 与目录名一致，含 description）
  *  2) LICENSE 存在且含 Copyright (c) 2026 Matt Pocock
- *  3) VERSION 存在且等于 v1.2.3
+ *  3) VERSION 存在且等于 v1.3.1
  *  4) package/package.json:files 含 bundled-skills（漏发硬卡）
  *  5) 增量体积：npm pack --dry-run 的 unpacked size 差值 ≤ 5MB（阈值硬卡，需显式改阈豁免）；空 bundled 期跳过
  *
@@ -78,7 +78,7 @@ if (!existsSync(BUNDLED_DIR)) {
 
 let bundledNames = []
 try { bundledNames = readdirSync(BUNDLED_DIR, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name).sort() } catch (e) { bundledNames = [] }
-check(bundledNames.length === 25, `bundled 目录含 25 技能（当前 ${bundledNames.length}）`)
+check(bundledNames.length === 27, `bundled 目录含 27 技能（当前 ${bundledNames.length}）`)
 
 for (const name of bundledNames) {
   const mdPath = path.join(BUNDLED_DIR, name, 'SKILL.md')
@@ -104,7 +104,7 @@ if (existsSync(licPath)) {
 const verPath = path.join(BUNDLED_DIR, 'VERSION')
 if (existsSync(verPath)) {
   const ver = readFileSync(verPath, 'utf8').trim()
-  check(ver === 'v1.2.3', `bundled VERSION==v1.2.3（当前 ${ver}）`)
+  check(ver === 'v1.3.1', `bundled VERSION==v1.3.1（当前 ${ver}）`)
 } else {
   check(false, 'bundled VERSION 缺失')
 }

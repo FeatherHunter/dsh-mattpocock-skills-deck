@@ -721,16 +721,16 @@ function gateBuildArtifacts() {
   }
 }
 
-// ---------- 捆绑技能存在性检查（#388 T1 · G2 定版：目录直铺 25，空目录期跳过校验） ----------
+// ---------- 捆绑技能存在性检查（#388 T1 · G2 定版：目录直铺 27，空目录期跳过校验） ----------
 function ensureBundledSkills() {
   const bundledDir = resolve(ROOT, 'package/bundled-skills')
   if (!existsSync(bundledDir)) {
-    console.warn('[build] 警告：package/bundled-skills 不存在，跳过捆绑校验（早期分支容忍）。请运行 node scripts/sync-matt-skills.mjs --pin v1.2.3 --verify 同步')
+    console.warn('[build] 警告：package/bundled-skills 不存在，跳过捆绑校验（早期分支容忍）。请运行 node scripts/sync-matt-skills.mjs --pin v1.3.1 --verify 同步')
     return
   }
   const entries = readdirSync(bundledDir, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name)
-  if (entries.length !== 25) {
-    console.warn(`[build] 警告：bundled-skills 期望 25 项，当前 ${entries.length} 项（可能未同步完成）`)
+  if (entries.length !== 27) {
+    console.warn(`[build] 警告：bundled-skills 期望 27 项，当前 ${entries.length} 项（可能未同步完成）`)
   }
   // 轻量校验：每项含 SKILL.md 且 frontmatter name 与目录一致（与 verify-bundled-skills 同口径，失败仅 warn 不阻断 build）
   for (const name of entries) {

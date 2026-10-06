@@ -2,21 +2,21 @@
 /**
  * scripts/sync-matt-skills.mjs — 捆绑技能同步脚本（#386 G1 / #387 G2 / #388 T1）
  *
- * 作用：把上游 mattpocock/skills 的 25 个技能（engineering 18 + productivity 7）以 pin 指向的 tag 同步到 package/bundled-skills/
+ * 作用：把上游 mattpocock/skills 的 27 个技能（engineering 20 + productivity 7）以 pin 指向的 tag 同步到 package/bundled-skills/
  *  - git clone --depth 1 --branch <pin> https://github.com/mattpocock/skills → 临时目录
- *  - 拷 skills/engineering + skills/productivity 的 25 个目录到 package/bundled-skills/<name>/（整目录复制，保留 SKILL.md）
+ *  - 拷 skills/engineering + skills/productivity 的 27 个目录到 package/bundled-skills/<name>/（整目录复制，保留 SKILL.md）
  *  - 校验每技能 SKILL.md frontmatter 的 name: 与目录名一致（isSkillCardValid 同口径）
  *  - 拷 LICENSE 到 package/bundled-skills/LICENSE，并写入 package/bundled-skills/VERSION 为 pin 值
  *
  * 用法：
- *   node scripts/sync-matt-skills.mjs --pin v1.2.3 --verify
- *   node scripts/sync-matt-skills.mjs --pin v1.2.3          # 仅同步，不校验
+ *   node scripts/sync-matt-skills.mjs --pin v1.3.1 --verify
+ *   node scripts/sync-matt-skills.mjs --pin v1.3.1          # 仅同步，不校验
  *   node scripts/sync-matt-skills.mjs --help
  *
  * 设计要点（对齐 G2 定版）：
  *  - 纯手动：不挂 prepare/prebuild，构建不自动联网；幂等（同 pin 重跑零 diff）
- *  - 单源：src/shared/matt-skills.js 的 25 项为真源，同步后与之双向差集为 0
- *  - 校验：--verify 时在同步后自检（25 数、集合一致、frontmatter、LICENSE、VERSION）
+ *  - 单源：src/shared/matt-skills.js 的 27 项为真源，同步后与之双向差集为 0
+ *  - 校验：--verify 时在同步后自检（27 数、集合一致、frontmatter、LICENSE、VERSION）
  */
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync, rmSync, cpSync } from 'node:fs'
@@ -26,7 +26,7 @@ import { spawnSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const PIN_DEFAULT = 'v1.2.3'
+const PIN_DEFAULT = 'v1.3.1'
 const REPO_URL = 'https://github.com/mattpocock/skills'
 const DEST_DIR = join(ROOT, 'package', 'bundled-skills')
 const SHARED_PATH = join(ROOT, 'src', 'shared', 'matt-skills.js')
@@ -47,11 +47,11 @@ function helpText() {
   return `sync-matt-skills.mjs — 同步 mattpocock/skills 到 package/bundled-skills/
 
 用法：
-  node scripts/sync-matt-skills.mjs [--pin v1.2.3] [--verify]
+  node scripts/sync-matt-skills.mjs [--pin v1.3.1] [--verify]
 
 选项：
-  --pin <tag>   上游 tag，默认 v1.2.3（带或不带 v 前缀均可）
-  --verify      同步后自校验（25 项一致、frontmatter、LICENSE、VERSION）
+  --pin <tag>   上游 tag，默认 v1.3.1（带或不带 v 前缀均可）
+  --verify      同步后自校验（27 项一致、frontmatter、LICENSE、VERSION）
   --help        显示此帮助
 `
 }
@@ -107,9 +107,9 @@ async function main() {
   console.log(`[sync:matt] pin=${pin} repo=${REPO_URL} dest=${DEST_DIR}`)
 
   const expected = readSharedNames()
-  console.log(`[sync:matt] shared 单源 25 项已加载：${expected.length} 项`)
-  if (expected.length !== 25) {
-    console.error(`[sync:matt] 错误：shared 单源应为 25 项，当前 ${expected.length}`)
+  console.log(`[sync:matt] shared 单源 27 项已加载：${expected.length} 项`)
+  if (expected.length !== 27) {
+    console.error(`[sync:matt] 错误：shared 单源应为 27 项，当前 ${expected.length}`)
     process.exit(1)
   }
 
@@ -170,7 +170,7 @@ async function main() {
   const extra = upstreamNames.filter(n => !expected.includes(n))
   if (missing.length || extra.length) {
     console.error(`[sync:matt] 上游集合与单源不一致：缺 ${missing.join(', ') || '无'}；多 ${extra.join(', ') || '无'}`)
-    console.error('[sync:matt] 请检查 pin 是否为 v1.2.3，或 shared 单源是否已漂移')
+    console.error('[sync:matt] 请检查 pin 是否为 v1.3.1，或 shared 单源是否已漂移')
     process.exit(1)
   }
 
@@ -209,7 +209,7 @@ async function main() {
     }
     copied++
   }
-  console.log(`[sync:matt] 已复制 ${copied}/25 技能到 ${DEST_DIR}`)
+  console.log(`[sync:matt] 已复制 ${copied}/27 技能到 ${DEST_DIR}`)
 
   // 4. 拷 LICENSE
   const srcLicense = join(sourceRoot, 'LICENSE')
@@ -232,7 +232,7 @@ async function main() {
 
   // 6. 写 README.md（可选，说明来源）
   const dstReadme = join(DEST_DIR, 'README.md')
-  const readme = '# Bundled Skills (mattpocock/skills ' + pin + ')\n\n本目录由 `scripts/sync-matt-skills.mjs --pin ' + pin + '` 从 https://github.com/mattpocock/skills 同步而来，含 25 个技能（engineering 18 + productivity 7）。\n\n- 单源：`src/shared/matt-skills.js` 的 25 项（MATT_SKILL_PROBE_NAMES）为真源，与本目录双向差集为 0。\n- 产物：`package/bundled-skills/<name>/SKILL.md`（frontmatter name: 与目录名一致，符合 dsh-skill-filesystem 的 discoverRoot 校验）。\n- 版本：`VERSION` 溯源 pin，`LICENSE` 保留上游 MIT 声明（Copyright (c) 2026 Matt Pocock）。\n- 同步：纯手动 `pnpm run sync:matt`（`node scripts/sync-matt-skills.mjs --pin ' + pin + ' --verify`），不挂 prepare/prebuild。\n';
+  const readme = '# Bundled Skills (mattpocock/skills ' + pin + ')\n\n本目录由 `scripts/sync-matt-skills.mjs --pin ' + pin + '` 从 https://github.com/mattpocock/skills 同步而来，含 27 个技能（engineering 20 + productivity 7）。\n\n- 单源：`src/shared/matt-skills.js` 的 27 项（MATT_SKILL_PROBE_NAMES）为真源，与本目录双向差集为 0。\n- 产物：`package/bundled-skills/<name>/SKILL.md`（frontmatter name: 与目录名一致，符合 dsh-skill-filesystem 的 discoverRoot 校验）。\n- 版本：`VERSION` 溯源 pin，`LICENSE` 保留上游 MIT 声明（Copyright (c) 2026 Matt Pocock）。\n- 同步：纯手动 `pnpm run sync:matt`（`node scripts/sync-matt-skills.mjs --pin ' + pin + ' --verify`），不挂 prepare/prebuild。\n';
   writeFileSync(dstReadme, readme, 'utf8')
   console.log('[sync:matt] 已写入 README.md')
 
@@ -250,7 +250,7 @@ async function main() {
     }
     // a) 25 目录数与集合
     const got = readdirSync(DEST_DIR, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name).sort()
-    check(got.length === 25, `bundled 目录数 25（当前 ${got.length}）`)
+    check(got.length === 27, `bundled 目录数 27（当前 ${got.length}）`)
     const miss2 = expected.filter(n => !got.includes(n))
     const extra2 = got.filter(n => !expected.includes(n))
     check(miss2.length === 0 && extra2.length === 0, `集合与单源双向差集 0（缺 ${miss2.join(',')||'无'}；多 ${extra2.join(',')||'无'}）`)

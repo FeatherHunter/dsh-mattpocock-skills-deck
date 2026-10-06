@@ -29,7 +29,6 @@ export const MATT_SKILL_PROBE_NAMES = [
   'improve-codebase-architecture',
   'prototype',
   'research',
-  'resolving-merge-conflicts',
   'setup-matt-pocock-skills',
   'tdd',
   'to-spec',
@@ -43,7 +42,10 @@ export const MATT_SKILL_PROBE_NAMES = [
   'teach',
   'to-questionnaire',
   'wait-what',
-  'writing-for-agents'
+  'writing-for-agents',
+  'implement-spec',
+  'pr',
+  'retro'
 ]
 
 const SKILLS_DATA = [
@@ -69,9 +71,11 @@ const SKILLS_DATA = [
   { name: 'to-spec',                       level: 'warn', use: '把讨论固化成规格' },
   { name: 'to-tickets',                    level: 'warn', use: '把规格拆成 tickets' },
   { name: 'to-questionnaire',              level: 'ok',   use: '给第三方写一份可填写的问卷' },
-  { name: 'resolving-merge-conflicts',     level: 'ok',   use: '解决合并冲突' },
   { name: 'wait-what',                     level: 'ok',   use: '用大白话重说上一轮你没接住的内容' },
   { name: 'writing-for-agents',            level: 'warn', use: '为 agent 写文档（skills / AGENTS.md）' },
+  { name: 'implement-spec',                level: 'warn', use: '把整份规格在集成分支上一次跑完' },
+  { name: 'pr',                            level: 'ok',   use: '按固定三段形状写 PR 正文' },
+  { name: 'retro',                         level: 'ok',   use: '复盘编码会话，只提环境改进' },
 ]
 export const MATT_SKILL_CATALOG = SKILLS_DATA
 export const SKILLS = SKILLS_DATA

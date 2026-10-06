@@ -4,7 +4,7 @@
 export function createBootstrap(deps) {
   const { ctx } = deps
     // === T2 #389 bundled 兜底 provider（rank 600，trustedHost，ctx.effect 托管）===
-    // 零代码声明：无需 env 晚置，直接 registerProvider；list 返回 package/bundled-skills 的 25 个，rank 600 兜底，bundled 随包消失
+    // 零代码声明：无需 env 晚置，直接 registerProvider；list 返回 package/bundled-skills 的 27 个，rank 600 兜底，bundled 随包消失
     // 选择 provider 而非 env 的依据见 R1 研究（env 构造时一次性读，晚置失效）；参见 docs/adr/20260828-skill-probe-union-channels.md 的 trustedHost 约束
     ;(() => {
       try {
@@ -181,7 +181,7 @@ export function createBootstrap(deps) {
             dispose = skills.registerProvider(createBundledProvider)
             try { ctx.effect(() => () => { try { dispose && dispose() } catch {} }) } catch {}
             try { ctx.get('logger')?.info?.('[bundled] provider registered at ' + bundledDir + ' rank ' + BUNDLED_RANK) } catch {}
-            console.log('[bundled] provider registered at ' + bundledDir + ' rank ' + BUNDLED_RANK + ' (25 skills expected)')
+            console.log('[bundled] provider registered at ' + bundledDir + ' rank ' + BUNDLED_RANK + ' (27 skills expected)')
           } catch (e) {
             try { console.warn('[bundled] registerProvider failed ' + String(e && e.message || e)) } catch {}
           }
@@ -199,7 +199,7 @@ export function createBootstrap(deps) {
         if (!SKILL_PROBE_NAMES) throw new Error('shared/matt-skills.js 未导出 MATT_SKILL_PROBE_NAMES')
       } catch (e) {
         // 兜底：内联一份与真源一致的常量（仅在 shared 文件丢失时使用；CI/构建必须保证真源在场）
-        SKILL_PROBE_NAMES = ['ask-matt','code-review','codebase-design','diagnosing-bugs','domain-modeling','grill-with-docs','implement','improve-codebase-architecture','prototype','research','resolving-merge-conflicts','setup-matt-pocock-skills','tdd','to-spec','to-tickets','triage','wayfinder','wizard','grill-me','grilling','handoff','teach','to-questionnaire','wait-what','writing-for-agents']
+        SKILL_PROBE_NAMES = ['ask-matt','code-review','codebase-design','diagnosing-bugs','domain-modeling','grill-with-docs','implement','improve-codebase-architecture','prototype','research','setup-matt-pocock-skills','tdd','to-spec','to-tickets','triage','wayfinder','wizard','grill-me','grilling','handoff','teach','to-questionnaire','wait-what','writing-for-agents','implement-spec','pr','retro']
       }
       return SKILL_PROBE_NAMES
     }

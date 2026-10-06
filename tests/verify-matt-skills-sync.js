@@ -3,7 +3,7 @@
  * tests/verify-matt-skills-sync.js — 守护 #fix-banner 三件套不漂移
  *
  * 检查源树与 installed 副本两边一致：
- *   1) shared/matt-skills.js 单源 = MATT_SKILL_PROBE_NAMES（25 项）= SKILLS（25 项）
+ *   1) shared/matt-skills.js 单源 = MATT_SKILL_PROBE_NAMES（27 项）= SKILLS（27 项）
  *   2) host SKILL_PROBE_NAMES 通过 await import('../shared/matt-skills.js') 取得（非内联字面量）
  *   3) client SKILLS 数组（installed 副本的 SKILLS = probeNames 集合）与 host 一致
  *   4) client installSkills prompt 使用 {probeList} + {probeCount} 占位符，且 installSkillsParams() 派生自 SKILLS
@@ -68,16 +68,16 @@ if (existsSync(INST_CLIENT)) {
     const isAlias = /SKILLS_DATA/.test(allBodies)
     if (!isAlias) {
       const names = [...allBodies.matchAll(/name:\s*'([\w-]+)'/g)].map(m => m[1])
-      const EXPECTED = ['ask-matt', 'code-review', 'codebase-design', 'diagnosing-bugs', 'domain-modeling', 'grill-with-docs', 'implement', 'improve-codebase-architecture', 'prototype', 'research', 'resolving-merge-conflicts', 'setup-matt-pocock-skills', 'tdd', 'to-spec', 'to-tickets', 'triage', 'wayfinder', 'wizard', 'grill-me', 'grilling', 'handoff', 'teach', 'to-questionnaire', 'wait-what', 'writing-for-agents']
+      const EXPECTED = ['ask-matt', 'code-review', 'codebase-design', 'diagnosing-bugs', 'domain-modeling', 'grill-with-docs', 'implement', 'improve-codebase-architecture', 'prototype', 'research', 'setup-matt-pocock-skills', 'tdd', 'to-spec', 'to-tickets', 'triage', 'wayfinder', 'wizard', 'grill-me', 'grilling', 'handoff', 'teach', 'to-questionnaire', 'wait-what', 'writing-for-agents', 'implement-spec', 'pr', 'retro']
       const missing = EXPECTED.filter(n => !names.includes(n))
-      check(missing.length === 0, `installed client SKILLS 包含全部 25 项（缺：${missing.join(', ') || '无'}）`)
+      check(missing.length === 0, `installed client SKILLS 包含全部 27 项（缺：${missing.join(', ') || '无'}）`)
     } else {
-      // alias 模式：扫描 SKILLS_DATA = [...] 那块的 25 个 name
+      // alias 模式：扫描 SKILLS_DATA = [...] 那块的 27 个 name
       const dataMatch = t.match(/const\s+SKILLS_DATA\s*=\s*\[([\s\S]*?)\]/)
       const names = dataMatch ? [...dataMatch[1].matchAll(/name:\s*'([\w-]+)'/g)].map(m => m[1]) : []
-      const EXPECTED = ['ask-matt', 'code-review', 'codebase-design', 'diagnosing-bugs', 'domain-modeling', 'grill-with-docs', 'implement', 'improve-codebase-architecture', 'prototype', 'research', 'resolving-merge-conflicts', 'setup-matt-pocock-skills', 'tdd', 'to-spec', 'to-tickets', 'triage', 'wayfinder', 'wizard', 'grill-me', 'grilling', 'handoff', 'teach', 'to-questionnaire', 'wait-what', 'writing-for-agents']
+      const EXPECTED = ['ask-matt', 'code-review', 'codebase-design', 'diagnosing-bugs', 'domain-modeling', 'grill-with-docs', 'implement', 'improve-codebase-architecture', 'prototype', 'research', 'setup-matt-pocock-skills', 'tdd', 'to-spec', 'to-tickets', 'triage', 'wayfinder', 'wizard', 'grill-me', 'grilling', 'handoff', 'teach', 'to-questionnaire', 'wait-what', 'writing-for-agents', 'implement-spec', 'pr', 'retro']
       const missing = EXPECTED.filter(n => !names.includes(n))
-      check(missing.length === 0, `installed client SKILLS（alias 模式）含全部 25 项（缺：${missing.join(', ') || '无'}）`)
+      check(missing.length === 0, `installed client SKILLS（alias 模式）含全部 27 项（缺：${missing.join(', ') || '无'}）`)
     }
   }
 }
@@ -118,12 +118,12 @@ if (existsSync(INST_SHARED)) {
 
 // --- 7. bundled-skills 与单源一致性（#386 G1 / #387 G2 · 空目录期跳过） ---
 const BUNDLED_DIR = path.join(ROOT, 'package/bundled-skills')
-const BUNDLED_VERSION = 'v1.2.3'
+const BUNDLED_VERSION = 'v1.3.1'
 if (!existsSync(BUNDLED_DIR)) {
   console.log('[note] package/bundled-skills 不存在，跳过 bundled 一致性校验（早期分支容忍）')
 } else {
   const { readdirSync: _readdirSync } = require('node:fs')
-  // a) 25 目录数与集合双向差集 0（真源 = MATT_SKILL_PROBE_NAMES）
+  // a) 27 目录数与集合双向差集 0（真源 = MATT_SKILL_PROBE_NAMES）
   let bundledNames = []
   try {
     bundledNames = _readdirSync(BUNDLED_DIR, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name).sort()
@@ -135,13 +135,13 @@ if (!existsSync(BUNDLED_DIR)) {
     const m = shared.match(/export const MATT_SKILL_PROBE_NAMES\s*=\s*\[([\s\S]*?)\]/)
     if (m) probeNames = [...m[1].matchAll(/'([^']+)'/g)].map(x => x[1]).sort()
   } catch {}
-  if (probeNames.length === 25) {
-    check(bundledNames.length === 25, `bundled 技能数 25（当前 ${bundledNames.length}）`)
+  if (probeNames.length === 27) {
+    check(bundledNames.length === 27, `bundled 技能数 27（当前 ${bundledNames.length}）`)
     const miss = probeNames.filter(n => !bundledNames.includes(n))
     const extra = bundledNames.filter(n => !probeNames.includes(n))
     check(miss.length === 0 && extra.length === 0, `bundled 集合与单源双向差集 0（缺 ${miss.join(',')||'无'}；多 ${extra.join(',')||'无'}）`)
   } else {
-    console.log('[note] shared 单源未解析到 25 项，跳过集合比对')
+    console.log('[note] shared 单源未解析到 27 项，跳过集合比对')
   }
   // b) 逐目录 SKILL.md 的 name: == 目录名
   for (const name of bundledNames) {
