@@ -55,7 +55,24 @@
       enterWorkspace: 'enter-workspace',
       userRecheck: 'user-recheck',
       actionDone: 'action-done',
-      writeDone: 'write-done'
+      writeDone: 'write-done',
+      setupPending: 'setup-pending'
+    }
+    /**
+     * 初始化那一步还需不需要重算：链快照里有 tracker:initialized 这一行、且它还不是 done 时为真。
+     * 只读快照，不发请求；快照还没到、或这条链根本没有这一行时一律为假，不借机多算一次。
+     */
+    export const setupPendingOf = function (st) {
+      try {
+        var steps = null
+        try { steps = (typeof chainSteps === 'function') ? chainSteps(st) : (st && st.chainSnapshot && st.chainSnapshot.steps) } catch (eS) { steps = (st && st.chainSnapshot && st.chainSnapshot.steps) || null }
+        if (!Array.isArray(steps) || !steps.length) return false
+        for (var i = 0; i < steps.length; i++) {
+          var it = steps[i]
+          if (it && String(it.id) === 'tracker:initialized') return String(it.status || '') !== 'done'
+        }
+        return false
+      } catch (e) { return false }
     }
     /**
      * 事件触发入口：客户端那几路事件都走这里重取一次链，并把「为什么重取」带给宿主 ——

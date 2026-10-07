@@ -208,6 +208,15 @@
             //   按需级，先判开关；节拍 5 秒一拍低频，不采样。
             try { if (isEnabled('debug')) log('debug', 'input.observe', { kind: 'probe-tick', count: 1, latencyMs: Math.round(Number(gap) || 0), keyHash: dswsLogHash(String(cwd || '')) }) } catch (ePt) {}
             probeNow(false)
+            // #891：初始化那一步还没过时，顺带重算一次链。注入 setupRun 是往会话里写字，写文件发生在链外，
+            // 链的四种事件里没有这一路，黄条就按旧快照常驻。这里复用正在看才跑的这一拍，不新开定时器；
+            // 是否真算由宿主按退避裁定，人手重查那一路永不降档不受影响。全绿或根本没这一行时 setupPendingOf 为假，不多算。
+            try {
+              if (typeof setupPendingOf === 'function' && setupPendingOf(st)) {
+                if (typeof chainEventRefresh === 'function') chainEventRefresh(st, 'setup-pending').catch(function () {})
+                else if (typeof loadChain === 'function') loadChain(st, false, 'setup-pending').catch(function () {})
+              }
+            } catch (eSetup) {}
           } catch (e) {}
         }
         if (timer === undefined || typeof timer.interval !== 'function') {
