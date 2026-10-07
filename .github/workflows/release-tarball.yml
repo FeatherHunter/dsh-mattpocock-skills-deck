@@ -23,7 +23,8 @@ jobs:
   attach:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/setup-node@v4
+      # 第三方步骤统一固定到提交哈希：井号后面的版本只给人看，实际跑的是前面的哈希。标签会被覆盖，哈希不会；以后升级走 Dependabot 的更新请求，不要手工改回标签。
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
       - name: 把这一版的原样产物附着到 Release（固定文件名）
