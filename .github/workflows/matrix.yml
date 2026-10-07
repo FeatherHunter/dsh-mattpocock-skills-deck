@@ -20,12 +20,12 @@ jobs:
       fail-fast: false
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           # 同 verify.yml：版本只由 package.json 的 packageManager 定，这里不重复写 version
           run_install: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           # 同 verify.yml：Node 22（仓库底座口径，也是 pnpm 11.22 的下限 Node ≥ 22.13）
           node-version: 22
