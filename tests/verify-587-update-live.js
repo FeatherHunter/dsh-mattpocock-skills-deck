@@ -120,11 +120,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
   const unmount = (m) => { try { m.entry.unmount() } catch (e) {} try { if (m.el.parentNode) m.el.parentNode.removeChild(m.el) } catch (e) {} }
   const btnTextOf = (el) => { const b = el.querySelector('button'); return b ? (b.textContent || '').trim() : '' }
 
-  // 场景一：已是最新 —— 按钮空闲态，不打扰（没有浮层）
+  // 场景一：已是最新 —— 按钮本身即已是最新（0.8.0 默认摆法，可点再查，不打扰）
   {
     const m = await mountWith({})
     const t = btnTextOf(m.el)
-    check(!!t && /检查更新/.test(t), '场景一（已是最新）：按钮显示检查更新（实际「' + t + '」）')
+    check(!!t && /已是最新/.test(t) && t.includes('1.7.20'), '场景一（已是最新）：按钮本身显示已是最新并带版本号（实际「' + t + '」）')
     check(!m.el.querySelector('.dsh-upd-overlay'), '场景一：没有浮层（无新版不打扰）')
     check(!!m.el.querySelector('.dsh-upd-entry[data-theme="archive"]'), '场景一：入口件按档案卷呈现（挂载传档案卷皮肤）')
     unmount(m)
