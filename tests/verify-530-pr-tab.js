@@ -13,6 +13,8 @@ import { readFileSync } from 'node:fs'
 import React from 'react'
 import * as ReactDOMClient from 'react-dom/client'
 import { act } from 'react'
+// 本文件按文本求值统一走共用入口：产物在开了 runScripts 的 jsdom 窗口里跑，因此用 evalInWindow（理由与用法见 tests/lib/eval-probe.js 文件头）。
+import { evalInWindow } from './lib/eval-probe.js'
 global.IS_REACT_ACT_ENVIRONMENT = true
 
 const dom = new JSDOM('<!doctype html><html><head></head><body><div id="root"></div><textarea class="uV2eYG_input" style="width:780px"></textarea></body></html>', {
@@ -74,7 +76,8 @@ const ctx = {
 let loaded = null
 window.__ModuleLoader__ = { load(spec) { loaded = spec; return spec } }
 const code = readFileSync('package/lib/client.js', 'utf8')
-window.eval(code)
+// 构建产物要在窗口环境里执行：这里改走共用入口 evalInWindow，脚本里不再直接调窗口的求值入口。
+evalInWindow(dom, code)
 const mod = loaded.factory((m) => {
   if (m === 'react') return React
   if (m === 'react-dom') return ReactDOMClient

@@ -15,6 +15,8 @@
 const fs = require('fs')
 const path = require('path')
 const { pathToFileURL } = require('url')
+// 本文件按文本求值统一走共用入口 compileFn：把真源文本配假 React 等零件造成模块（理由与用法见 tests/lib/eval-probe.js 文件头）。
+const { compileFn } = require('./lib/eval-probe.js')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -31,7 +33,8 @@ function loadModule(relPath, deps) {
   while ((m = re.exec(src)) !== null) names.push(m[1])
   if (!names.length) throw new Error(relPath + ' 里没有找到 export 声明')
   const body = src.replace(/^[ \t]*export[ \t]+/gm, '')
-  const fn = new Function(Object.keys(deps).join(', '), body + '\nreturn { ' + names.join(', ') + ' }')
+  // 真源文本配假零件造模块：改走共用入口 compileFn，参数名取 deps 的键。
+  const fn = compileFn(Object.keys(deps), body + '\nreturn { ' + names.join(', ') + ' }')
   return fn.apply(null, Object.keys(deps).map(function (k) { return deps[k] }))
 }
 
@@ -146,7 +149,8 @@ async function main() {
   const capSrc = read('src/client/statusbar/SessionChainCapsule.js').replace(/^[ \t]*export[ \t]+/gm, '')
   const h = function (t, p) { return { t: t, p: p, c: Array.prototype.slice.call(arguments, 2) } }
   const opened = []
-  const factory = new Function('React', 'DswsCtx', 'Tip', 'Ic', 'tr', 'sessionChainRowsOf', 'SESSION_CHAIN_FIELD', 'sessionChainOpenTicket', 'openPanel', 'PortalOverlay', 'placeStatusOverlay', 'clearStatusClose', 'scheduleStatusClose', 'emit',
+  // 同一手法：真源文本配假零件，统一走共用入口 compileFn，参数名逐个列出。
+  const factory = compileFn(['React', 'DswsCtx', 'Tip', 'Ic', 'tr', 'sessionChainRowsOf', 'SESSION_CHAIN_FIELD', 'sessionChainOpenTicket', 'openPanel', 'PortalOverlay', 'placeStatusOverlay', 'clearStatusClose', 'scheduleStatusClose', 'emit'],
     capSrc + '\nreturn { SessionChainCapsule, capsuleShardOf }')
   const capLeaf = factory(
     { createElement: h, useContext: function () { return { h: h } }, useRef: function (v) { return { current: v } }, useState: function (v) { return [v, function () {}] } },

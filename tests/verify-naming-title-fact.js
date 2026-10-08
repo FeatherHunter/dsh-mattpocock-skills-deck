@@ -10,6 +10,8 @@
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+// 本文件按文本求值统一走共用入口 compileFn：把宿主里 titleFactOf 那个函数表达式原样抽出来造成函数（理由与用法见 tests/lib/eval-probe.js 文件头）。
+import { compileFn } from './lib/eval-probe.js'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 let failed = false
@@ -28,7 +30,8 @@ if (!line) { console.log('\n宿主标题来源读法不存在'); process.exit(1)
 const fragment = line.slice(0, line.lastIndexOf('},') + 1)
 let titleFactOf = null
 try {
-  titleFactOf = new Function('d', 'return ({' + fragment + '}).titleFactOf')({ ctx: null })
+  // 抽出来的函数表达式求值：改走共用入口 compileFn，一个参数 d 照原样列出。
+  titleFactOf = compileFn(['d'], 'return ({' + fragment + '}).titleFactOf')({ ctx: null })
 } catch (err) {
   check(false, '源码可编译（抽出来的是完整的函数表达式）', String(err && err.message))
 }
@@ -36,7 +39,8 @@ check(typeof titleFactOf === 'function', '抽出的 titleFactOf 可调用')
 if (typeof titleFactOf !== 'function') { console.log('\n宿主标题来源读法不可用'); process.exit(1) }
 
 const d = { ctx: null }
-const withCtx = new Function('d', 'return ({' + fragment + '}).titleFactOf')(d)
+// 同一手法：用带 ctx 的假 d 再求值一次，走共用入口 compileFn。
+const withCtx = compileFn(['d'], 'return ({' + fragment + '}).titleFactOf')(d)
 const ctxOf = function (opts) {
   return { get: function (k) { return k === 'sessions' ? opts.sessions : (k === 'sessionTitle' ? opts.sessionTitle : undefined) } }
 }

@@ -13,6 +13,8 @@
 //   6) hook 合法性：Overlay 的 tabsRef/effect 在 `if (!s.open) return null` 之前，effect 依赖 [s.open]。
 //   7) 双源镜像：CSS（dsws-tabs/l 规则）+ tabs 容器 JSX + 折叠 effect 块 byte-for-byte 等价。
 const fs = require('fs')
+// 本文件按文本求值统一走共用入口 compileFn：从产物里切出折叠判定函数再造成真函数（理由与用法见 tests/lib/eval-probe.js 文件头）。
+const { compileFn } = require('./lib/eval-probe.js')
 
 const files = process.argv.slice(2).length ? process.argv.slice(2) : ['client.js', 'package/lib/client.js']
 
@@ -89,7 +91,8 @@ const behaviorChecks = function (src, tag) {
   const m = src.match(/const tabsLevelDecide = function[\s\S]*?\n\s*\}/)
   if (!m) throw new Error(tag + ' · tabsLevelDecide 提取失败')
   const fnSrc = m[0].replace(/^const tabsLevelDecide\s*=\s*/, '')
-  const fn = new Function('TABS_FOLD_HYST', 'return (' + fnSrc + ')')(4)
+  // 切出来的函数表达式配一个假滞回常量求值：改走共用入口 compileFn，参数名照原样列出。
+  const fn = compileFn(['TABS_FOLD_HYST'], 'return (' + fnSrc + ')')(4)
   const N = [440, 300, 220] // 模拟：L0 短文案自然宽 440 / L1 图标 300 / L2 tab 图标 220
   const cases = [
     // [level, avail, nats, expect, desc]

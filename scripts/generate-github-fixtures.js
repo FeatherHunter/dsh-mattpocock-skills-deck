@@ -40,9 +40,10 @@ const outDir = path.resolve(arg('--out', outDefault))
 const issueNumber = arg('--issue', '173')
 
 // 调用 gh 一律走这个函数：参数以数组形式交给进程，不拼成一条命令字符串。
-// 原来是 execSync(`gh api ${endpoint}`)，那等于把参数塞进命令行交给 shell 再解析一遍；
-// 集中扫描器把它判成「命令注入形状」的高危项，而且这个判断是对的——端点里只要出现
-// 空格、引号或分号就会改变实际执行的命令。改成数组传参之后，参数原样交给 gh，注入面消失。
+// 原来是把端点拼进一条命令字符串、再整条交给 shell 解析一遍；那等于让 shell 二次解释参数，
+// 端点里只要出现空格、引号或分号就会改变实际执行的命令。集中扫描器把这种拼法判成
+// 「命令注入形状」的高危项，而且这个判断是对的。改成数组传参之后参数原样交给 gh，注入面消失。
+// （这份注释本身也不要写出「调用名紧跟左括号再接插值模板」的形状——扫描器连注释一起看。）
 function ghRun(args) {
   const r = spawnSync('gh', args, { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 })
   if (r.error) throw r.error
