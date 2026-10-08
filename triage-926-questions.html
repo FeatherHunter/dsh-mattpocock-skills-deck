@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>926 号问题待拍板事项</title>
+<style>
+body{font-family:"Microsoft YaHei",system-ui,sans-serif;max-width:860px;margin:32px auto;padding:0 20px;color:#222;line-height:1.7}
+h1{font-size:22px;margin-bottom:4px}
+.sub{color:#666;font-size:14px;margin-bottom:24px}
+.card{border:1px solid #ddd;border-radius:10px;padding:18px 20px;margin:18px 0}
+.card h2{font-size:18px;margin:0 0 8px}
+.k{font-weight:700}
+table{border-collapse:collapse;width:100%;margin:10px 0;font-size:14px}
+th,td{border:1px solid #ddd;padding:8px 10px;text-align:left;vertical-align:top}
+th{background:#f6f6f6}
+.rec{background:#f0f7f0;border:1px solid #bcd8bc;border-radius:8px;padding:10px 12px;margin:10px 0}
+.warn{color:#666;font-size:13px}
+</style>
+</head>
+<body>
+<h1>926 号问题待拍板事项</h1>
+<div class="sub">问题：<a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/926">状态栏胶囊折叠太费性能（926）</a> ｜ 当前结论：是真实的性能缺陷，已标为“可修、待认领”（bug + ready-for-agent）｜ 下面三个问题不阻塞修，只决定怎么修。</div>
+
+<div class="card">
+<h2>Q1：修的时候，能不能只要求“做成什么样”，而不照抄报告人的补丁原文？</h2>
+<p><span class="k">背景：</span>报告人给了两层改法并在自己电脑上测过。但那是针对打包后文件的改法，行号和写法跟仓库源码不完全对应。照抄最省事，按效果要求重写更干净。</p>
+<table>
+<tr><th style="width:140px">选项</th><th>优点</th><th>缺点</th></tr>
+<tr><td><b>A．按效果要求修（推荐）</b></td><td>跟得上代码变化；实现人可以用更干净的写法达到同样效果</td><td>需要重新验证一次效果，不能直接说“跟报告人一字不差”</td></tr>
+<tr><td><b>B．逐行照搬补丁</b></td><td>报告人已经测过，心理踏实</td><td>行号和写法可能对不上源码；把 timing 风险原样搬进来</td></tr>
+</table>
+<p><span class="k">对抗式审查：</span>有人会说“重写可能引入新 bug，不如照搬”。反驳：源码和打包后文件本来就不是一份，照搬反而更容易贴错地方；只要守住“同输入同结果、一趟最多重算一次、量不到不记结论”三条，效果一样就是一样的。</p>
+<p><span class="k">从头想起：</span>目标是“折叠结果不变、速度变快”，补丁原文只是手段。手段可以换，目标不能换。</p>
+<div class="rec"><b>推荐答案：A。</b>你回“确认”，我就按此推进实施，标签不动。</div>
+</div>
+
+<div class="card">
+<h2>Q2：测频率用的计数器，要不要带进正式版本？</h2>
+<p><span class="k">背景：</span>报告里有一行只自增的计数器，用来数折叠跑了多少次（修前每秒约 60 次，修后约 4 次）。它只为测量存在。</p>
+<table>
+<tr><th style="width:140px">选项</th><th>优点</th><th>缺点</th></tr>
+<tr><td><b>A．不带进正式版本（推荐）</b></td><td>正式版本干净，每次调用少做一件事，不留多余的全局变量</td><td>以后想再数频率，要临时再加一次</td></tr>
+<tr><td><b>B．带进正式版本</b></td><td>以后随时能看频率</td><td>每次调用都多一次读写；正式版本里留着测量工具不合适</td></tr>
+</table>
+<p><span class="k">对抗式审查：</span>有人会说“留着方便发现复发”。反驳：测试里已经有计数桩能断言“没变就不跑”，真复发了测试会先红，不需要正式版本一直交税。</p>
+<p><span class="k">从头想起：</span>尺子和产品是两回事。尺子放在测试里，产品里只留功能。</p>
+<div class="rec"><b>推荐答案：A。</b>你回“确认”，实施时就不入库；你回“要留”，我就改要求。标签不动。</div>
+</div>
+
+<div class="card">
+<h2>Q3：修完后，要不要请报告人给出完整测量脚本，并在真实长会话上再测一轮？</h2>
+<p><span class="k">背景：</span>自动化测试用假界面，能证明“逻辑对、重算次数少”，但证明不了“真机上不卡、画面不跳”。报告人的长会话和测量方法正是发现问题的那一套。</p>
+<table>
+<tr><th style="width:140px">选项</th><th>优点</th><th>缺点</th></tr>
+<tr><td><b>A．要脚本并真机再测（推荐）</b></td><td>用发现问题的同一套方法证明修好了，最有说服力</td><td>要等报告人回脚本；要准备同样的长会话</td></tr>
+<tr><td><b>B．只做到自动化测试</b></td><td>快，不依赖别人</td><td>真机帧率和画面是否跳动，测不出来</td></tr>
+</table>
+<p><span class="k">对抗式审查：</span>有人会说“真机测试看机器、看会话，不稳定，还拖时间”。反驳：它放在代码写完之后做，不挡住修；自动化先过，真机只做最后一锤。</p>
+<p><span class="k">从头想起：</span>问题是真机量出来的，修好也要真机量回去才算闭环。</p>
+<div class="rec"><b>推荐答案：A。</b>你回“要”，我就去票里追脚本；你回“不用”，就只做到自动化门禁。标签不动。</div>
+</div>
+
+<p class="warn">说明：三个问题都不改变“可修、待认领”的结论，只决定实施细节。回复后我只改要求文档或追问脚本，不动标签、不改代码。</p>
+</body>
+</html>
