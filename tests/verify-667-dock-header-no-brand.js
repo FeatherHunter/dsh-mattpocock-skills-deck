@@ -36,6 +36,8 @@
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { createServer } from 'node:http'
+// 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头（本文件是 ESM，用 import 取具名导出）。
+import { compileFn } from './lib/eval-probe.js'
 
 let passed = 0, failed = 0
 function ok(msg) { passed++; console.log('  PASS ' + msg) }
@@ -148,8 +150,9 @@ const headFoldSrc = existsSync(resolve('src/client/panel/headFold.js')) ? readFi
 const headFold = (function () {
   if (!headFoldSrc) return null
   try {
+    // 按文本求值走共用入口：这里没有参数名、函数体是剥掉行首 export 的纯函数源码，所以走 compileFn。
     // 与 scripts/build.mjs 拼接时同一套做法：剥掉行首 export，丢进同一个作用域里跑。
-    return new Function(headFoldSrc.replace(/^[ \t]*export[ \t]+/gm, '') + '\nreturn { headFoldLadderOf, headFoldStateAt }')()
+    return compileFn([], headFoldSrc.replace(/^[ \t]*export[ \t]+/gm, '') + '\nreturn { headFoldLadderOf, headFoldStateAt }')()
   } catch (e) { return null }
 })()
 if (!headFold) {
@@ -274,7 +277,9 @@ const SNAP = window.__SNAP__
 const COMPASS = window.__COMPASS__
 let loaded = null
 window.__ModuleLoader__ = { load(spec) { loaded = spec; return spec } }
-window.eval(window.__CLIENT_SRC__)
+// 这段在真 Chromium 的页面里跑，页面里没有 node:vm，按文本求值只能改成插一段经典脚本执行（与 tests/lib/eval-probe.js 的 injectScript 同一做法）。
+const runInPage = (code) => { const s = document.createElement('script'); s.textContent = code; document.body.appendChild(s) }
+runInPage(window.__CLIENT_SRC__)
 const dict = {}
 const trFn = (k, p) => {
   let s = dict[k] !== undefined ? dict[k] : k

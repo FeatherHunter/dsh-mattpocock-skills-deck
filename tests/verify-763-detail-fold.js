@@ -5,6 +5,8 @@
  */
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
+// 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头（本文件是 ESM，用 import 取具名导出）。
+import { compileFn } from './lib/eval-probe.js'
 
 let passed = 0, failed = 0
 function ok(msg) { passed++; console.log('  PASS ' + msg) }
@@ -20,7 +22,8 @@ console.log('=== #763 详情页顶栏：返回优先逐字收到图标，不放�
 const fold = (function () {
   if (!existsSync(resolve(FOLD))) return null
   try {
-    return new Function(read(FOLD).replace(/^[ \t]*export[ \t]+/gm, '') + '\nreturn { issueDetailFoldLadderOf, issueDetailFoldStateAt }')()
+    // 按文本求值走共用入口：这里没有参数名、函数体是剥掉行首 export 的纯函数源码，所以走 compileFn。
+    return compileFn([], read(FOLD).replace(/^[ \t]*export[ \t]+/gm, '') + '\nreturn { issueDetailFoldLadderOf, issueDetailFoldStateAt }')()
   } catch (e) { return null }
 })()
 

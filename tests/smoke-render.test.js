@@ -8,6 +8,8 @@ import { readFileSync } from 'node:fs'
 import React from 'react'
 import * as ReactDOMClient from 'react-dom/client'
 import { act } from 'react'
+// 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头（本文件是 ESM，用 import 取具名导出）。
+import { evalInWindow } from './lib/eval-probe.js'
 
 const dom = new JSDOM('<!doctype html><html><head></head><body><div id="root"></div><textarea class="uV2eYG_input" style="width:780px"></textarea></body></html>', {
   url: 'http://127.0.0.1:59519/',
@@ -79,7 +81,8 @@ const ctx = {
 let loaded = null
 window.__ModuleLoader__ = { load(spec) { loaded = spec; return spec } }
 const code = readFileSync('package/lib/client.js', 'utf8')
-window.eval(code)
+// 产物要在 jsdom 窗口里执行（原来是在窗口对象上按文本求值）：这段代码属于页面环境，所以走 evalInWindow。
+evalInWindow(dom, code)
 check(!!loaded, 'ModuleLoader.load 被调用（render smoke）')
 check(loaded && loaded.id === 'dsh-mattpocock-skills-deck', `id = ${loaded && loaded.id}`)
 
