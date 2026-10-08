@@ -9,6 +9,7 @@
 const path = require('path')
 const fs = require('fs')
 const { pathToFileURL } = require('url')
+const { compileFn } = require('./lib/eval-probe.js')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -172,8 +173,9 @@ async function main() {
     // 叶子里引用的自由变量在真产物里由 index.js 的拼接闭包提供（后端模块单源 moduleMetaOf、
     // 配色核心的两个拼装函数、合法性判断 isColor）。这里把它们当参数传进去，跑的是叶子里的**真函数**。
     const metaOf = function (store, bid) { return (store && store.metas && store.metas[bid]) || null }
-    const leaf = new Function(
-      'moduleMetaOf', 'buildPalettePrompt', 'buildPaletteTable', 'isColor', 'normalizeColor', 'pickChangedRows', 'navigator', 'console',
+    // 手法：compileFn——本文件每一处都是「叶子用拼接期自由变量、不是 import」，只能把文件文本取出后造函数；统一交给 tests/lib/eval-probe.js，参数名收进数组，跑的还是叶子里的真代码。
+    const leaf = compileFn(
+      ['moduleMetaOf', 'buildPalettePrompt', 'buildPaletteTable', 'isColor', 'normalizeColor', 'pickChangedRows', 'navigator', 'console'],
       leafSrc,
     )(metaOf, prompt.buildPalettePrompt, prompt.buildPaletteTable, colors.isColor, colors.normalizeColor, colors.pickChangedRows, undefined, { warn: function () {} })
     // 词条桩：把键名与参数都摊进结果里，好断言「该填的真实值有没有填进去」（真 tr 就是做参数替换的）。
@@ -258,13 +260,15 @@ async function main() {
     const leafSrc2 = fs.readFileSync(path.join(ROOT, 'src/client/views/labels/labelColorErrors.js'), 'utf8')
       .replace(/^(\s*)export\s+/gm, '$1') +
       '\nreturn { lcKindKey: lcKindKey, lcPanelBackendOf: lcPanelBackendOf }\n'
-    const leaf2 = new Function(
-      'moduleMetaOf', 'buildPalettePrompt', 'buildPaletteTable', 'isColor', 'normalizeColor', 'pickChangedRows',
+    // 手法：compileFn——同上。
+    const leaf2 = compileFn(
+      ['moduleMetaOf', 'buildPalettePrompt', 'buildPaletteTable', 'isColor', 'normalizeColor', 'pickChangedRows'],
       leafSrc2,
     )(null, null, null, colors.isColor, colors.normalizeColor, colors.pickChangedRows)
     const locSrc = fs.readFileSync(path.join(ROOT, 'src/client/kernel/locale-labels.js'), 'utf8')
       .replace(/^(\s*)export\s+/gm, '$1') + '\nreturn { L_LABELS: L_LABELS }\n'
-    const L = new Function(locSrc)().L_LABELS
+    // 手法：compileFn——词条源同样按文本加载，这里没有参数要传，给空的名字数组。
+    const L = compileFn([], locSrc)().L_LABELS
 
     // 「没选定后端」这一情形：档位是 conflict，后端返回的说明就是宿主 src/host/workspaceCwd.js 里 UNDECIDED 那一句
     // （这里照它的格式写下来，只为说明这一情形长什么样；断言不看这句话，只看界面取到的那条词条）。
@@ -323,8 +327,9 @@ async function main() {
     const leafSrc3 = fs.readFileSync(path.join(ROOT, 'src/client/views/labels/labelColorErrors.js'), 'utf8')
       .replace(/^(\s*)export\s+/gm, '$1') +
       '\nreturn { lcPanelBackendOf: lcPanelBackendOf, lcLabelsOf: lcLabelsOf, lcErrorOf: lcErrorOf, lcSaveOutcome: lcSaveOutcome }\n'
-    const leaf3 = new Function(
-      'moduleMetaOf', 'buildPalettePrompt', 'buildPaletteTable', 'isColor', 'normalizeColor', 'pickChangedRows',
+    // 手法：compileFn——同上。
+    const leaf3 = compileFn(
+      ['moduleMetaOf', 'buildPalettePrompt', 'buildPaletteTable', 'isColor', 'normalizeColor', 'pickChangedRows'],
       leafSrc3,
     )(null, null, null, colors.isColor, colors.normalizeColor, colors.pickChangedRows)
 
@@ -350,9 +355,10 @@ async function main() {
     const driveHook = async function (panelSelection) {
       const sent = []
       const mini = makeReact()
-      const hookFn = new Function(
-        'React', 'host', 'log', 'dswsLogHash', 'dswsLogTrunc', 'storeOf',
-        'pickChangedRows', 'lcLabelsOf', 'lcErrorOf', 'lcSaveOutcome', 'lcPanelBackendOf',
+      // 手法：compileFn——同上，参数名收进一个数组交给共用入口。
+      const hookFn = compileFn(
+        ['React', 'host', 'log', 'dswsLogHash', 'dswsLogTrunc', 'storeOf',
+        'pickChangedRows', 'lcLabelsOf', 'lcErrorOf', 'lcSaveOutcome', 'lcPanelBackendOf'],
         hookSrc,
       )(
         mini.React,
@@ -427,14 +433,16 @@ async function main() {
     // 叶子文件用的是「构建期拼接进来的自由变量」，不是 import，所以这里按仓库既有的办法加载：
     // 去掉行首 export，再用 new Function 把这些自由变量当参数传进去，跑的是**文件里的真代码**。
     const strip = function (rel) { return fs.readFileSync(path.join(ROOT, rel), 'utf8').replace(/^(\s*)export\s+/gm, '$1') }
-    const errLeaf = new Function(
-      'moduleMetaOf', 'buildPalettePrompt', 'buildPaletteTable', 'isColor', 'normalizeColor', 'pickChangedRows', 'navigator', 'console',
+    // 手法：compileFn——同上。
+    const errLeaf = compileFn(
+      ['moduleMetaOf', 'buildPalettePrompt', 'buildPaletteTable', 'isColor', 'normalizeColor', 'pickChangedRows', 'navigator', 'console'],
       strip('src/client/views/labels/labelColorErrors.js') +
       '\nreturn { lcToDisplay: lcToDisplay, lcRowIncomplete: lcRowIncomplete, lcKindKey: lcKindKey, lcOutcomeRowOf: lcOutcomeRowOf, lcCopyAttemptOf: lcCopyAttemptOf, lcCopyFeedbackOf: lcCopyFeedbackOf, lcLabelsOf: lcLabelsOf, lcSaveOutcome: lcSaveOutcome, lcPanelBackendOf: lcPanelBackendOf, LC_PLACEHOLDER_COLOR: LC_PLACEHOLDER_COLOR }\n',
     )(null, prompt.buildPalettePrompt, prompt.buildPaletteTable, colors.isColor, colors.normalizeColor, colors.pickChangedRows, undefined, { warn: function () {} })
 
     // 词条用真源那一份（src/client/kernel/locale-labels.js）：断言盯的是用户真正读到的那句话。
-    const L = new Function(strip('src/client/kernel/locale-labels.js') + '\nreturn { L_LABELS: L_LABELS }\n')().L_LABELS
+    // 手法：compileFn——同上，词条源没有额外参数。
+    const L = compileFn([], strip('src/client/kernel/locale-labels.js') + '\nreturn { L_LABELS: L_LABELS }\n')().L_LABELS
     const tr = function (key, vars) {
       const raw = L.zh[key]
       const s = raw === undefined ? key : raw
@@ -451,24 +459,27 @@ async function main() {
     let storeNow = null
     const storeOf = function () { return storeNow }
 
-    const RowComp = new Function(
-      'React', 'DswsCtx', 'tr', 'Tip', 'isColor', 'lcToDisplay', 'lcRowIncomplete', 'lcKindKey', 'LC_PLACEHOLDER_COLOR',
+    // 手法：compileFn——同上。
+    const RowComp = compileFn(
+      ['React', 'DswsCtx', 'tr', 'Tip', 'isColor', 'lcToDisplay', 'lcRowIncomplete', 'lcKindKey', 'LC_PLACEHOLDER_COLOR'],
       strip('src/client/views/labels/LabelColorRow.js') + '\nreturn { LabelColorRow: LabelColorRow }\n',
     )(ReactMod, DswsCtx, tr, Tip, colors.isColor, errLeaf.lcToDisplay, errLeaf.lcRowIncomplete, errLeaf.lcKindKey, errLeaf.LC_PLACEHOLDER_COLOR).LabelColorRow
 
     // #637：弹窗标题那只图标的颜色走新叶子 labelColorPalette.js（真函数，与第 13 节同一份）。
-    const palLeaf = new Function(
-      'normalizeColor',
+    // 手法：compileFn——同上。
+    const palLeaf = compileFn(
+      ['normalizeColor'],
       strip('src/client/views/labels/labelColorPalette.js') +
       '\nreturn { lcEntryPaletteOf: lcEntryPaletteOf, LC_ENTRY_PALETTE_BODY: LC_ENTRY_PALETTE_BODY }\n',
     )(colors.normalizeColor)
 
     // 状态机替身每次挂载换一份，所以经这一层转一下（组件拿到的 useLabelColors 始终是同一个函数）。
     let hookNow = null
-    const DialogComp = new Function(
-      'React', 'DswsCtx', 'useLabelColors', 'tr', 'Tip', 'Ic', 'timer', 'storeOf', 'lcToDisplay', 'lcRowIncomplete',
+    // 手法：compileFn——同上。
+    const DialogComp = compileFn(
+      ['React', 'DswsCtx', 'useLabelColors', 'tr', 'Tip', 'Ic', 'timer', 'storeOf', 'lcToDisplay', 'lcRowIncomplete',
       'lcKindKey', 'lcOutcomeRowOf', 'lcCopyAttemptOf', 'lcCopyFeedbackOf', 'lcWriteClipboard', 'LabelColorRow',
-      'lcEntryPaletteOf', 'LC_ENTRY_PALETTE_BODY',
+      'lcEntryPaletteOf', 'LC_ENTRY_PALETTE_BODY'],
       strip('src/client/views/labels/LabelColorDialog.js') + '\nreturn { LabelColorDialog: LabelColorDialog }\n',
     )(
       ReactMod, DswsCtx, function () { return hookNow() }, tr, Tip, Ic, timer, storeOf, errLeaf.lcToDisplay,
@@ -666,8 +677,9 @@ async function main() {
           return Promise.resolve(hostReplies[method] || { ok: false, error: { kind: '', message: '替身没准备这个电话：' + method } })
         },
       }
-      const hookLeaf = new Function(
-        'React', 'host', 'log', 'dswsLogHash', 'dswsLogTrunc', 'storeOf', 'lcPanelBackendOf', 'lcLabelsOf', 'lcSaveOutcome', 'pickChangedRows',
+      // 手法：compileFn——同上。
+      const hookLeaf = compileFn(
+        ['React', 'host', 'log', 'dswsLogHash', 'dswsLogTrunc', 'storeOf', 'lcPanelBackendOf', 'lcLabelsOf', 'lcSaveOutcome', 'pickChangedRows'],
         strip('src/client/views/labels/useLabelColors.js') + '\nreturn { useLabelColors: useLabelColors }\n',
       )(ReactMod, hostNow, function () {}, function () { return 'hash8' }, function (s) { return s }, storeOf,
         errLeaf.lcPanelBackendOf, errLeaf.lcLabelsOf, errLeaf.lcSaveOutcome, colors.pickChangedRows).useLabelColors
@@ -777,8 +789,9 @@ async function main() {
   {
     console.log('  #635 A：保存成功后写进面板快照的颜色，以及那一笔记录')
     const stripLeaf = function (rel) { return fs.readFileSync(path.join(ROOT, rel), 'utf8').replace(/^(\s*)export\s+/gm, '$1') }
-    const patch = new Function(
-      'normalizeColor',
+    // 手法：compileFn——同上。
+    const patch = compileFn(
+      ['normalizeColor'],
       stripLeaf('src/client/views/labels/labelColorPatch.js') +
       '\nreturn { lcSavedColorMapOf: lcSavedColorMapOf, lcPatchSnapshotColors: lcPatchSnapshotColors, lcRememberSavedColors: lcRememberSavedColors, lcPanelSavedColors: lcPanelSavedColors, lcApplySavedColorsOnInstall: lcApplySavedColorsOnInstall }\n',
     )(colors.normalizeColor)
@@ -842,7 +855,8 @@ async function main() {
     const palSrc = fs.readFileSync(path.join(ROOT, 'src/client/views/labels/labelColorPalette.js'), 'utf8')
       .replace(/^(\s*)export\s+/gm, '$1') +
       '\nreturn { LC_ENTRY_PALETTE_SLOTS: LC_ENTRY_PALETTE_SLOTS, LC_ENTRY_PALETTE_DEFAULTS: LC_ENTRY_PALETTE_DEFAULTS, LC_ENTRY_PALETTE_BODY: LC_ENTRY_PALETTE_BODY, lcEntryPaletteOf: lcEntryPaletteOf }\n'
-    const pal = new Function('normalizeColor', palSrc)(colors.normalizeColor)
+    // 手法：compileFn——同上。
+    const pal = compileFn(['normalizeColor'], palSrc)(colors.normalizeColor)
 
     // 槽位与默认值逐字钉死：顺序即图标上四个圆点的次序（左下、左上、右上、右下），改一个字图标就变样
     check(JSON.stringify(pal.LC_ENTRY_PALETTE_SLOTS) === JSON.stringify(['wayfinder:map', 'wayfinder:research', 'wayfinder:prototype', 'wayfinder:task']),
