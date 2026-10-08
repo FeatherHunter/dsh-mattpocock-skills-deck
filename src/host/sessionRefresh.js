@@ -8,7 +8,7 @@
 //   现在信封与「挂读数」那一步都改用接线处传进来的 snapshotEnvelope（与 wf.snapshot 同一个实例、同一份 buildSnap），
 //   两条路的字段集合由构造保证相等；tests/verify-reply-envelope-parity.js 每次运行都比一遍。
 export function createSessionRefresh(deps) {
-  const { canonicalKey, selectEarly, isComposerSelection, resetGhCache, getTrackerRegistry, getPlatform, ctx, getCache, setCache, upcaseSnapStates, computeLevels, groupTickets, getRepoRoot, getRepoKey, readDiskCache, writeDiskCache, adoptSnapshot, detectionExec, getGhPath, getGhLastError, errText, DEFAULT_CWD, logCtx, envelope } = deps
+  const { canonicalKey, selectEarly, isComposerSelection, resetGhCache, getTrackerRegistry, getPlatform, ctx, getCache, setCache, upcaseSnapStates, computeLevels, groupTickets, getRepoRoot, getRepoKey, readDiskCache, writeDiskCache, adoptSnapshot, detectionExec, getGhPath, getGhLastError, errText, DEFAULT_CWD, logCtx, envelope, send } = deps
   // 共用的那份信封（接线处 index.js 传进来，与 wf.snapshot 同一个实例）。
   // 没传就没法组装出与 wf.snapshot 同形的回包 —— 那种情况下宁可如实回一次失败，
   // 也不退回本文件自己拼一份（那正是这次故障的来路：两份信封各自漂）。
@@ -60,7 +60,8 @@ export function createSessionRefresh(deps) {
           let repoRef = null
           try { repoRef = reg.describe({ cwd }, backendId) } catch {}
           if (!repoRef) repoRef = { backend: backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId, url: '' }
-          const ctx2 = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: function (c, a, o) { return detectionExec(c, a, o, 'refresh') } }
+          // #927：刷新这一路的每条命令也过闸（分类同上：人的动作那一档，只记账、不降档）；没给 send 时照旧直发。
+          const ctx2 = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: function (c, a, o) { if (typeof send !== 'function') return detectionExec(c, a, o, 'refresh'); const isGql = String((a && a[0]) || '') === 'api' && String((a && a[1]) || '').indexOf('graphql') >= 0; return send({ source: 'panel.refresh', kind: 'detail', bucket: isGql ? 'graphql' : 'rest', workspaceKey: cwd }, function () { return detectionExec(c, a, o, 'refresh') }).then(function (r) { return r.result }) } }
           const { createSnapshotComposer } = await import('./tracker/snapshot.js')
           const composer = createSnapshotComposer(reg, { snapshotTtl: 5000 })
           const res = await composer.composeSnapshot(backendId, repoRef, ctx2, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: true })
@@ -231,7 +232,7 @@ export function createSessionRefresh(deps) {
         const repo0b = await getRepoKey(cwd)
         // #366 fix: wf.refresh must bypass disk cache short-circuit (force rebuild with fresh generatedMs)
         void 0;
-        const ctx2b = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: function (c, a, o) { return detectionExec(c, a, o, 'refresh') } }
+        const ctx2b = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: function (c, a, o) { if (typeof send !== 'function') return detectionExec(c, a, o, 'refresh'); const isGql = String((a && a[0]) || '') === 'api' && String((a && a[1]) || '').indexOf('graphql') >= 0; return send({ source: 'panel.refresh', kind: 'detail', bucket: isGql ? 'graphql' : 'rest', workspaceKey: cwd }, function () { return detectionExec(c, a, o, 'refresh') }).then(function (r) { return r.result }) } }
         const { createSnapshotComposer: createComposer2 } = await import('./tracker/snapshot.js')
         const composer2 = createComposer2(reg2, { snapshotTtl: 5000 })
         const res2 = await composer2.composeSnapshot(backendId2, repoRef2, ctx2b, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: true })

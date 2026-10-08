@@ -83,10 +83,15 @@ export function classify(source, explicitCategory) {
 
 function num(v) { return (typeof v === 'number' && isFinite(v)) ? v : 0 }
 
-/** 报数归一：调用方可以只回一个数字（请求条数），也可以回 { requests, points }。 */
+/** 报数归一：调用方可以只回一个数字（请求条数），也可以回 { requests, points }。
+ *  什么都不回（undefined / null / 没有这两个数的对象）算「没报数」：只按传输层实测记账、不计「对不上」——
+ *  「对不上」说的是报的数与真发的数不一致，没报数不是报假数（#927：面板取数那两路拿不出预估）。 */
 function readReport(report) {
   if (typeof report === 'number') return { requests: report, points: 0 }
   const r = report || {}
+  const hasReq = typeof r.requests === 'number' && isFinite(r.requests)
+  const hasPts = typeof r.points === 'number' && isFinite(r.points)
+  if (!hasReq && !hasPts) return null
   return { requests: num(r.requests), points: num(r.points) }
 }
 
@@ -181,15 +186,17 @@ export function createGate(deps) {
    */
   async function runStep(req, step, perform) {
     let actual = { requests: 0, points: 0 }
-    let reported = { requests: 0, points: 0 }
+    let reported = null
     let failure = null
     const m = await measureStep(function () { return perform(step, { category: req.category, kind: req.kind, bucket: req.bucket }) })
     if (m.thrown) failure = m.thrown
     else reported = readReport(m.result)
     actual = { requests: m.actual.requests, points: m.actual.points }
-    stats.claimed.requests += reported.requests
-    stats.claimed.points += reported.points
-    if (reported.requests !== actual.requests || reported.points !== actual.points) stats.mismatch += 1
+    if (reported) {
+      stats.claimed.requests += reported.requests
+      stats.claimed.points += reported.points
+      if (reported.requests !== actual.requests || reported.points !== actual.points) stats.mismatch += 1
+    }
     // 账记的是真发出去的那几条（传输层说了算），不是调用方报的数；报到哪儿去由账本按档与桶分开记。
     stats.accounted.requests += actual.requests
     stats.accounted.points += actual.points
@@ -197,7 +204,7 @@ export function createGate(deps) {
     const after = ledger.spend({ account: account, bucket: req.bucket, kind: req.kind, requests: actual.requests, points: actual.points })
     if (failure) { wsState(req.workspaceKey).failuresSinceSuccess += 1; throw failure }
     wsState(req.workspaceKey).failuresSinceSuccess = 0
-    return { requests: actual.requests, points: actual.points, claimed: reported, remaining: after.remaining, tier: after.tier }
+    return { requests: actual.requests, points: actual.points, claimed: reported || { requests: 0, points: 0 }, remaining: after.remaining, tier: after.tier, result: m.result }
   }
 
   /**
@@ -222,15 +229,17 @@ export function createGate(deps) {
     let points = 0
     let remaining = 0
     let tier = 'green'
+    let result = null   // #927：把这一步真做出来的东西原样带回去（面板取数那两路要用它的返回值）
     for (const step of r.plan) {
       const out = await runStep(r, step, perform)
       requests += out.requests
       points += out.points
       remaining = out.remaining
       tier = out.tier
+      result = out.result
     }
     stats.sent += 1
-    return { sent: true, verdict: v.verdict, reason: v.reason, detail: REASONS[v.reason] || '', requests: requests, points: points, remaining: remaining, tier: tier, steps: r.plan.length }
+    return { sent: true, verdict: v.verdict, reason: v.reason, detail: REASONS[v.reason] || '', requests: requests, points: points, remaining: remaining, tier: tier, steps: r.plan.length, result: result }
   }
 
   /** 传输层每真发一条就报一次（生产里挂在起 gh 进程那一层）。绕开闸发的那几条就靠它露出来。 */
