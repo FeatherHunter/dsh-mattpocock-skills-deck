@@ -31,8 +31,8 @@ const vm = require('node:vm')
 
 /**
  * 把参数拆成一个个独立名字。
- * 既要支持 new Function('a', 'b', body) 这种一个个传的，也要支持 new Function('a, b', body)
- * 这种把参数拼成一个字符串的——而 vm.compileFunction 的 params 数组里不允许出现带逗号的元素，
+ * 两种写法都要支持：参数名一个个分开传的，和把参数名拼成一个带逗号的字符串传的。
+ * 而 vm.compileFunction 的 params 数组里不允许出现带逗号的元素，
  * Node v24 遇到会直接断言崩溃（不是抛异常，是整个进程挂掉），所以这里必须先拆开再交给它。
  */
 function splitParamNames(params) {
