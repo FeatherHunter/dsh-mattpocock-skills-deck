@@ -5,6 +5,8 @@
 // 外加 4 项底座自检：统一接口同名同参、体内兜底第一行、批量字面、双产物含新电话名。
 const fs = require('fs')
 const path = require('path')
+// 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
+const { compileFn } = require('./lib/eval-probe.js')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -68,8 +70,9 @@ function makeTimer() {
 function loadLog(options) {
   const opts = options || {}
   const body = src.split('\n').map((l) => l.replace(/^(\s*)export\s+/, '$1')).join('\n')
-  const factory = new Function(
-    'host', 'timer', 'localStorage', 'broadcastLogSwitch',
+  // 日志模块（剥掉行首 export）整份当函数体造函数，宿主与计时器等四个依赖显式当参数名，所以走 compileFn。
+  const factory = compileFn(
+    ['host', 'timer', 'localStorage', 'broadcastLogSwitch'],
     body + '\nreturn { isEnabled, log, flush, getDroppedCount, logSwitch, logQueue, logDroppedState,' +
     ' LOG_BATCH_MAX, LOG_FLUSH_MS, LOG_PACKET_BYTES, LOG_QUEUE_MAX,' +
     ' readLocalDebugSwitch, persistLocalDebugSwitch, sendLogBatch, reconcileLogSwitch, setLogSwitch };'

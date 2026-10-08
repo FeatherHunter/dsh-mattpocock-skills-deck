@@ -14,6 +14,8 @@
 // 用法: node tests/verify-655-setup-layout.js
 const fs = require('fs')
 const path = require('path')
+// 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
+const { compileFn } = require('./lib/eval-probe.js')
 
 const root = path.resolve(__dirname, '..')
 let failed = false
@@ -49,7 +51,8 @@ function loadPrompts(localeDict, guide, cachedLayout) {
   }
   const tail = '\n;const L = ' + JSON.stringify(localeDict) + ';'
     + '\n;return { PROMPTS: PROMPTS, setupRunParamsFrom: setupRunParamsFrom, setupRunPrompt: setupRunPrompt, setupOrRepoPrompt: setupOrRepoPrompt, injectSetupDecision: injectSetupDecision, setupBlockedByGuide: setupBlockedByGuide, setupRunTextForClick: setupRunTextForClick, consumePendingSetup: consumePendingSetup, readSetupLayout: readSetupLayout, normalizeSetupLayout: normalizeSetupLayout, SETUP_LAYOUT_TEXT_KEYS: SETUP_LAYOUT_TEXT_KEYS }'
-  const factory = new Function('inject', 'emit', 'isEnabled', 'log', 'console', 'moduleMetaOf', 'guideStepsFor', 'guideStepDone', 'getCachedSetupLayout', body + tail)
+  // 把剥掉行首 export 的内核源码整份当函数体造函数（原来那种按文本构造函数的写法），参数名在这儿显式列出，所以走 compileFn。
+  const factory = compileFn(['inject', 'emit', 'isEnabled', 'log', 'console', 'moduleMetaOf', 'guideStepsFor', 'guideStepDone', 'getCachedSetupLayout'], body + tail)
   const mod = factory(
     function (st, text) { injected.push(String(text)) },
     function (st) { emitted.push(st) },

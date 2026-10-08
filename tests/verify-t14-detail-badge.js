@@ -11,6 +11,8 @@
 //   d) 徽章锚点仅 1 处（无重复写入漂移）+ 双源特征逐字等价
 //   e) 上下文锚定：该块位于 map 详情渲染内（前置为新会话按钮行）
 const fs = require('fs')
+// 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
+const { compileFn } = require('./lib/eval-probe.js')
 const files = ['client.js', 'package/lib/client.js']
 let failed = false
 let passed = 0
@@ -85,7 +87,8 @@ for (const f of files) {
 
   // 行为：执行真实渲染块，断言 vnode 结构
   try {
-    const render = new Function('h', 'm', 'return (' + toExpr(block) + ')')
+    // 从产物里切出来的那段渲染块当函数体造函数（h / m 显式当参数名），所以走 compileFn。
+    const render = compileFn(['h', 'm'], 'return (' + toExpr(block) + ')')
     const m = { number: 445, title: '[dsh-waystation] map 详情缺编号显示（bug）' }
     const v = render(hStub, m)
     check(v && v.type === 'div', f + ' 渲染根节点为 flex 行 div')
