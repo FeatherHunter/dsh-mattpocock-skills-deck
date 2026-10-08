@@ -16,12 +16,13 @@
  *   那条路要动插件功能代码，与地图 #824 的红线（插件功能代码一行不动）冲突，所以本波不做。
  *   长远办法是给上游提「按上下文判断」的缺陷报告，见 research/827-recommendations.html 问题二。
  *
- * 四种用法
+ * 三种用法
  *   compileFn(names, body)      等价于「把 names 当参数名、body 当函数体」造一个函数
  *   evalWithScope(expr, scope)  等价于对 expr 做直接求值，expr 里引用的外层变量由 scope 显式给出
  *   evalInWindow(dom, code)     等价于在 jsdom 窗口里执行 code（jsdom 必须开 runScripts）
- *   injectScript(win, code)     等价于往页面里插一段经典脚本再执行（真 Chromium 与 jsdom 都适用）
  *
+ * 真 Chromium 里跑的那三处探针不在这里：页面里引不进 Node 模块，它们按同一做法（插一段经典脚本）
+ * 各写了一份页面内小函数，位置见各自文件里的注释。
  * 换行符注意：本仓库已声明文本文件一律 LF 检出（见根目录 .gitattributes），
  * 需要按字节比对源码的门禁在任何机器上结论一致。
  */
@@ -74,16 +75,4 @@ function evalInWindow(dom, code) {
   return vm.runInContext(String(code), dom.getInternalVMContext())
 }
 
-/**
- * 往页面（或 jsdom 窗口）里插一段经典脚本让它执行。
- * 用在真 Chromium 里跑的那几份探针上——那里没有 node:vm，插脚本是页面内执行代码的正规做法。
- * 这个函数不返回执行结果；要拿结果请在 code 里显式挂到 window 上再读。
- */
-function injectScript(win, code) {
-  const doc = win.document
-  const el = doc.createElement('script')
-  el.textContent = String(code)
-  doc.body.appendChild(el)
-}
-
-module.exports = { compileFn, evalWithScope, evalInWindow, injectScript }
+module.exports = { compileFn, evalWithScope, evalInWindow }
