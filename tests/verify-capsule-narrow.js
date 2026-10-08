@@ -12,6 +12,8 @@
 //   5) EN locale：i18n 键齐备（panel.title 中英同字 "MattSkills"）
 //   6) 双源同步：client.js ↔ package/lib/client.js 的 capsule CSS 块 + JSX 块一致
 const fs = require('fs')
+// 本文件按文本求值统一走共用入口 compileFn：从产物里切出点击处理体再造成函数（理由与用法见 tests/lib/eval-probe.js 文件头）。
+const { compileFn } = require('./lib/eval-probe.js')
 
 const files = process.argv.slice(2).length ? process.argv.slice(2) : ['client.js', 'package/lib/client.js']
 
@@ -230,7 +232,8 @@ const domSimCheck = function (src, tag) {
   if (!tbBody) throw new Error('timebtn onClick handler 提取失败')
 
   const runHandler = function (body, ctx) {
-    const fn = new Function('s', 'e', 'openPanel', 'togglePanel', 'onGo', 'refreshAll', body)
+    // 切出来的处理体配假事件与假 handler 求值：改走共用入口 compileFn，参数名逐个列出。
+    const fn = compileFn(['s', 'e', 'openPanel', 'togglePanel', 'onGo', 'refreshAll'], body)
     return fn(ctx.s, ctx.e, ctx.openPanel, ctx.togglePanel, ctx.onGo, ctx.refreshAll)
   }
   const makeEvent = () => ({ stopped: false, stopPropagation: function () { this.stopped = true } })

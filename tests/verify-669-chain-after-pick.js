@@ -26,6 +26,8 @@
  */
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+// 本文件按文本求值统一走共用入口 compileFn：真源文本配假零件造成模块（理由与用法见 tests/lib/eval-probe.js 文件头）。
+import { compileFn } from './lib/eval-probe.js'
 
 let passed = 0
 let failed = 0
@@ -55,7 +57,8 @@ console.log('== A 行为层：真的调一次 confirmStatusGate，看它绑完�
     console: { log () {}, warn () {}, error () {} },
   }
   const names = Object.keys(sandbox)
-  const mod = new Function(...names, body + '\n;return { confirmStatusGate: confirmStatusGate }')(...names.map((n) => sandbox[n]))
+  // 把 StatusBackend.js 真身配假零件造成模块：改走共用入口 compileFn，参数名沿用 sandbox 的键。
+  const mod = compileFn(names, body + '\n;return { confirmStatusGate: confirmStatusGate }')(...names.map((n) => sandbox[n]))
   const st = { cwd: 'D:\\tmp\\669-demo', selection: null, snapshot: null, gateModalOpen: true, gateModalSource: 'status', gateSelected: 'github' }
   mod.confirmStatusGate(st)
   await new Promise((r) => setTimeout(r, 0))
@@ -120,7 +123,8 @@ function makeChain (srcText) {
   // #669 第 6 件（ADR 20260921）：hint 只报「用户亲手选过的那条」——这条闸的真身住在 store-prefs.js，
   //   本门禁取它的真身来判（不另写一份替身），所以下面那些 fixture 必须带上 userPicked 才会上报后端。
   const hintLine = read('src/client/kernel/store-prefs.js').split('\n').filter((l) => l.indexOf('export const userHintOf = function') >= 0)[0] || ''
-  const userHintOf = new Function('return ' + hintLine.trim().replace(/^export const userHintOf = /, ''))()
+  // 从真源切出一行函数表达式求值：改走共用入口 compileFn，这段源码不需要外部变量，参数表传空数组。
+  const userHintOf = compileFn([], 'return ' + hintLine.trim().replace(/^export const userHintOf = /, ''))()
   const sandbox = {
     host: { call: (method, params) => { const d = deferredOf(); calls.push({ method: method, params: params, d: d }); return d.p } },
     userHintOf: userHintOf,
@@ -148,7 +152,8 @@ function makeChain (srcText) {
   const want = ['loadChain', 'chainEventRefresh', 'scheduleChainAutoRefresh', 'cancelChainAutoRefresh']
   const have = want.filter(function (n) { return new RegExp('(?:const|let|var|function)\\s+' + n + '\\b').test(srcText) })
   const body = stripExports(srcText) + '\n;return { ' + have.join(', ') + ' }'
-  const mod = new Function(...names, body)(...names.map((n) => sandbox[n]))
+  // 同一手法：probe-chain.js 真身配假 host，统一走共用入口 compileFn。
+  const mod = compileFn(names, body)(...names.map((n) => sandbox[n]))
   return { loadChain: mod.loadChain, chainEventRefresh: mod.chainEventRefresh, calls: calls, cache: cache }
 }
 const snapOf = (id) => ({ ok: true, fullSnapshot: { id: id, steps: [{ status: 'done' }] } })
@@ -305,7 +310,8 @@ console.log('== E 层：退休的 8 秒自轮询，它的活由几条真实事�
       console: { log () {}, warn () {}, error () {} },
     }
     const names = Object.keys(deps)
-    new Function(names.join(', '), openChecksLine).apply(null, names.map(function (k) { return deps[k] }))
+    // 把真源里那一行当场跑起来：改走共用入口 compileFn，参数名按 deps 的键给。
+    compileFn(names, openChecksLine).apply(null, names.map(function (k) { return deps[k] }))
     await tick()
     return { calls: c.calls.length, got: st.chainSnapshot && st.chainSnapshot.id, c: c }
   }

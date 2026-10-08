@@ -5,6 +5,8 @@
 // - 门禁自检：UI 层零 backendId 字面量（贪婪后端分支红线）+ locale 中英键完整
 // 用法: node tests/verify-issue-comment.js
 const fs = require('fs')
+// 本文件按文本求值统一走共用入口 compileFn：从构建产物里切出谓词与函数体再造成真函数（理由与用法见 tests/lib/eval-probe.js 文件头）。
+const { compileFn } = require('./lib/eval-probe.js')
 let failed = false
 const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
@@ -46,7 +48,8 @@ let predOk = false
 if (predM) {
   try {
     // 内部表达式原样求值（含 typeof / Array.isArray），不做任何改写
-    const evaluator = new Function('rawComments', '"use strict"; return !!rawComments && (' + predM[1] + ')')
+    // 产物里那截比较式原样求值（含 typeof / Array.isArray），改走共用入口 compileFn，不做任何改写。
+    const evaluator = compileFn(['rawComments'], '"use strict"; return !!rawComments && (' + predM[1] + ')')
     const hidden = evaluator(undefined) === false                       // MISSING：字段省略 → 不渲染
     const emptyArr = evaluator([]) === true                             // EMPTY：契约 Comment[] 空 → 渲染
     const emptyNodes = evaluator({ nodes: [], pageInfo: {} }) === true  // EMPTY：GraphQL 形状空 → 渲染
@@ -78,7 +81,8 @@ let diffBehavior = false, orphans = false, ticketUpd = false, shortCircuit = fal
 if (dStart > 0 && dEnd > dStart) {
   try {
     const fnText = pcli.slice(dStart, dEnd).replace('export ', '').replace('const diffSnapshots', 'diffSnapshots')
-    const sandboxFn = new Function(fnText + '\nreturn diffSnapshots;')
+    // 从产物里切出的整段 diffSnapshots 求值：改走共用入口 compileFn，这段源码不需要外部变量，参数表传空数组。
+    const sandboxFn = compileFn([], fnText + '\nreturn diffSnapshots;')
     const diffSnapshots = sandboxFn()
     const base = { ok: true, version: 'v1', generatedMs: 1,
       maps: [{ number: 248, title: 'Map', state: 'OPEN', labels: ['wayfinder:map'], tickets: [{ number: 253, state: 'CLOSED', progress: '100%', claimedBy: 'me', labels: [], updatedAt: 't1' }] }],
