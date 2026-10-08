@@ -19,7 +19,7 @@ var __DshUpdateEntry = (() => {
   };
   var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-  // ../node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/entry.js
+  // node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/entry.js
   var entry_exports = {};
   __export(entry_exports, {
     UPDATE_ENTRY_CSS: () => UPDATE_ENTRY_CSS,
@@ -33,7 +33,7 @@ var __DshUpdateEntry = (() => {
     mountUpdateEntry: () => mountUpdateEntry
   });
 
-  // ../node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/config.js
+  // node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/config.js
   var DEFAULT_PREFIX = "wf";
   var DEFAULT_CONFIRMATION_TTL_MS = 10 * 6e4;
   var DEFAULT_INSTALL_TIMEOUT_MS = 15 * 6e4;
@@ -61,7 +61,7 @@ var __DshUpdateEntry = (() => {
     return buildPhoneNames(prefix).updateChangelog;
   }
 
-  // ../node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/redaction.js
+  // node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/redaction.js
   var COPY_BUDGET_CHARS = 1500;
   var REDACTED_PATH = "<\u8DEF\u5F84>";
   var REDACTED_SECRET = "<\u8131\u654F>";
@@ -127,7 +127,7 @@ var __DshUpdateEntry = (() => {
     return truncateForCopy(scrubWithoutBudget(flat));
   }
 
-  // ../node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/service.js
+  // node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/service.js
   var CONFIRMATION_TTL_MS = 10 * 6e4;
   var MAX_METADATA_BYTES = 256 * 1024;
   function updateError(code) {
@@ -214,7 +214,7 @@ var __DshUpdateEntry = (() => {
     return 0;
   }
 
-  // ../node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/lang.js
+  // node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/lang.js
   function normalizeLangTag(tag) {
     if (typeof tag !== "string") return "zh";
     const s = tag.trim().toLowerCase().replace(/_/g, "-");
@@ -345,7 +345,7 @@ var __DshUpdateEntry = (() => {
     };
   }
 
-  // ../node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/bilingual.js
+  // node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/bilingual.js
   var BILINGUAL_STRINGS = {
     "entry.label.idle": { en: "Check for updates", zh: "\u68C0\u67E5\u66F4\u65B0", draft: true },
     "entry.label.failed": { en: "Update failed \u2014 View details", zh: "\u66F4\u65B0\u5931\u8D25\uFF0C\u70B9\u6B64\u67E5\u770B", draft: true },
@@ -692,7 +692,7 @@ var __DshUpdateEntry = (() => {
     ".dsh-upd-bi [lang]{overflow-wrap:anywhere}"
   ].join("\n");
 
-  // ../node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/changelog.js
+  // node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/changelog.js
   var CHANGELOG_MAX_CHARS = 64 * 1024;
   var CHANGELOG_MAX_ENTRIES = 100;
   var CHANGELOG_MAX_BULLETS_PER_SECTION = 200;
@@ -1142,15 +1142,15 @@ ${blocks.join("\n")}
     }
   }
 
-  // ../node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/log-events.js
+  // node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/log-events.js
   var LOG_EVENT_CALL = "host.call";
   var LOG_EVENT_CALL_FAIL = "host.call.fail";
   var LOG_EVENT_INSTALL_EXEC = "update.install.exec";
 
-  // ../node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/queue.js
+  // node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/queue.js
   var QUEUE_INTENT_TTL_MS = 10 * 6e4;
 
-  // ../node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/panel.js
+  // node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/panel.js
   function normalizePanelTheme(value) {
     return value === "archive" ? "archive" : "default";
   }
@@ -3139,7 +3139,7 @@ ${body}`;
     return { refresh, act, setMode, setTheme, setThemeTokens, setShowOthers, setChangelogCollapsed, setChangelogMarkdown, unmount };
   }
 
-  // ../node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/entry.js
+  // node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/entry.js
   function upToDateVersionOf(snapshot, error) {
     if (error || !snapshot || hasUpdateOf(snapshot)) return null;
     const v = snapshot.runningVersion;
