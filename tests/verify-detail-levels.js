@@ -5,6 +5,8 @@ const fsx = require('fs')
 const fsp = fsx.promises
 const path = require('path')
 const { spawn } = require('child_process')
+// 本文件按文本求值统一走共用入口 compileFn：把 host 产物文本配假 harness/ctx 造成插件（理由与用法见 tests/lib/eval-probe.js 文件头）。
+const { compileFn } = require('./lib/eval-probe.js')
 
 const REPO_CWD = process.argv[2] || process.cwd()
 const HOST_JS = path.join(__dirname, '..', 'host.js')
@@ -46,7 +48,8 @@ function loadPlugin(services) {
   const handlers = {}
   const harness = { handle: (name, fn) => { handlers[name] = fn } }
   const ctx = { get: n => services[n], effect: fn => { const d = fn(); return typeof d === 'function' ? d : () => {} } }
-  const fn = new Function('harness', 'ctx', fsx.readFileSync(HOST_JS, 'utf8'))
+  // 产物是一段可执行文本：改走共用入口 compileFn，两个参数名照原样列出。
+  const fn = compileFn(['harness', 'ctx'], fsx.readFileSync(HOST_JS, 'utf8'))
   const plugin = fn(harness, ctx)
   plugin.apply(ctx)
   return handlers
