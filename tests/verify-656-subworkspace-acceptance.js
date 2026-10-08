@@ -33,6 +33,8 @@ const fsp = fsx.promises
 const nodePath = require('path')
 const nodeOs = require('os')
 const { pathToFileURL } = require('url')
+// 本文件按文本求值统一走共用入口 compileFn：把真源文本配假零件造成模块（理由与用法见 tests/lib/eval-probe.js 文件头）。
+const { compileFn } = require('./lib/eval-probe.js')
 
 const ROOT = nodePath.resolve(__dirname, '..')
 const read = (rel) => fsx.readFileSync(nodePath.join(ROOT, rel), 'utf8')
@@ -258,15 +260,17 @@ async function main() {
 
   // —— 客户端那几样抽屉：跑真内核代码（去掉行首 export 后当纯函数求值）——
   const keyOfSrc = noExport(read('src/shared/workspaceKey.js'))
-  const keyOfFn = new Function(keyOfSrc + '\nreturn keyOf')()
+  // 切出来的这段源码不需要外部变量：改走共用入口 compileFn，参数表传空数组。
+  const keyOfFn = compileFn([], keyOfSrc + '\nreturn keyOf')()
   const snapSrc = read('src/client/kernel/store-snapshot.js')
   const wsKeyBlock = noExport(snapSrc.slice(snapSrc.indexOf('export const workspaceRootByCwd'), snapSrc.indexOf('export const shared = makeStore()')))
   const storeBlock = noExport(snapSrc.slice(snapSrc.indexOf('export const getCachedSnapshot'), snapSrc.indexOf('export const lastProbeAtByCwd')))
   const probeBlock = noExport(snapSrc.slice(snapSrc.indexOf('export const lastProbeAtByCwd'), snapSrc.indexOf('export const SNAP_DISK_CAP')))
   const chainBlock = noExport(snapSrc.slice(snapSrc.indexOf('export const getChainCacheKey'), snapSrc.indexOf('export const hydrateFromCache')))
-  const C = new Function(
-    'keyOf', 'snapshotByCwd', 'chainByCwd', 'shared', 'stores', 'emit',
-    'dswsLogHash', 'isEnabled', 'log', 'touchLRUClient', 'diskPutSnapshot', 'CHAIN_CWD_LRU_MAX',
+  // 真源文本与假零件一起求值：改走共用入口 compileFn，参数名照原样逐个列出。
+  const C = compileFn(
+    ['keyOf', 'snapshotByCwd', 'chainByCwd', 'shared', 'stores', 'emit',
+      'dswsLogHash', 'isEnabled', 'log', 'touchLRUClient', 'diskPutSnapshot', 'CHAIN_CWD_LRU_MAX'],
     keyOfSrc + '\n' + wsKeyBlock + '\n' + storeBlock + '\n' + probeBlock + '\n' + chainBlock + '\n' +
     'return { wsKeyOf: wsKeyOf, rememberWorkspaceRoot: rememberWorkspaceRoot,' +
     ' getCachedSnapshot: getCachedSnapshot, setCachedSnapshot: setCachedSnapshot, snapshots: snapshotByCwd,' +
@@ -277,8 +281,9 @@ async function main() {
   )
 
   const prefsSrc = read('src/client/kernel/store-prefs.js')
-  const P = new Function(
-    'keyOf', 'wsKeyOf', 'localStorage', 'log', 'emit', 'shared', 'stores',
+  // 同一手法：真源文本配假 localStorage 等零件，统一走共用入口 compileFn。
+  const P = compileFn(
+    ['keyOf', 'wsKeyOf', 'localStorage', 'log', 'emit', 'shared', 'stores'],
     noExport(prefsSrc.slice(prefsSrc.indexOf('export const selectionByCwd = {}'))) + '\n' +
     'return { getCachedSelection: getCachedSelection, setCachedSelection: setCachedSelection,' +
     ' getCachedRepository: getCachedRepository, setCachedRepository: setCachedRepository }'

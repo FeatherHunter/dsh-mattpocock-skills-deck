@@ -11,6 +11,8 @@
 //       6) 双源镜像特征（文本镜像断言，T5 #98 统一删除）
 const fs = require('fs')
 const path = require('path')
+// 本文件按文本求值统一走共用入口 evalWithScope：切出的五个函数都写在同一个立即执行体里，被求值的表达式不引用外部变量，所以作用域传空对象（理由与用法见 tests/lib/eval-probe.js 文件头）。
+const { evalWithScope } = require('./lib/eval-probe.js')
 let failed = false
 const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
@@ -42,7 +44,8 @@ const extractFns = (src) => {
     }).join('\n')
     if (!body.trim()) return null
     try {
-      return eval('(function(){' + body + ';return {normalizeBody,parseMapBody,parseProgress,computeLevels,groupTickets}})()')
+      // 五个函数在同一个括号里声明、互相调用也在其中，外层一个变量都不用：改走共用入口 evalWithScope，作用域留空。
+      return evalWithScope('(function(){' + body + ';return {normalizeBody,parseMapBody,parseProgress,computeLevels,groupTickets}})()', {})
     } catch (e) { return null }
   }
   return grabOne(4) || grabOne(2)

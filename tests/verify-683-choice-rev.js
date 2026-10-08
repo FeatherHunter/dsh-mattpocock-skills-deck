@@ -23,6 +23,8 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+// 本文件按文本求值统一走共用入口 compileFn：把 store-prefs.js 真身与假 window/localStorage 一起求值（理由与用法见 tests/lib/eval-probe.js 文件头）。
+import { compileFn } from './lib/eval-probe.js'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 const PREFS_REL = 'src/client/kernel/store-prefs.js'
@@ -56,7 +58,8 @@ const makeHarness = function (srcText, opts) {
   const body = stripExports(srcText) +
     '\n; return { baseRevOf: baseRevOf, userPickSelection: userPickSelection, adoptBoundRev: adoptBoundRev, keepUserPick: keepUserPick,' +
     ' userHintOf: userHintOf, getCachedSelection: getCachedSelection, selectionByCwd: selectionByCwd, SELECTION_BY_CWD_KEY: SELECTION_BY_CWD_KEY }'
-  const factory = new Function('window', 'localStorage', 'log', 'keyOf', 'wsKeyOf', 'emit', 'shared', 'stores', body)
+  // 真源文本配假 window/localStorage：改走共用入口 compileFn，参数名逐个列出。
+  const factory = compileFn(['window', 'localStorage', 'log', 'keyOf', 'wsKeyOf', 'emit', 'shared', 'stores'], body)
   const api = factory(win, localStorage, function (l, e, f) { logs.push({ l: l, e: e, f: f }) }, wsKey, wsKey, function () {}, {}, {})
   return { api: api, disk: disk, logs: logs }
 }
@@ -188,7 +191,8 @@ console.log('== G R6b：宿主回过话之后不再回头看本地镜像 ==')
   check(!!fnSrc, '取到 prompts.js 里的 currentBackendId（真身，整段取出）')
   const mk = function (srcText, cached) {
     const body = srcText.trim().replace(/^export const currentBackendId = /, '')
-    return new Function('getCachedSelection', 'return ' + body)(() => cached)
+    // 从真源切出的函数表达式配一个假回读函数求值：改走共用入口 compileFn。
+    return compileFn(['getCachedSelection'], 'return ' + body)(() => cached)
   }
   const cachedSel = { backendId: 'markdown', source: 'explicit', userPicked: true, rev: 2 }
   const fn = mk(fnSrc, cachedSel)
