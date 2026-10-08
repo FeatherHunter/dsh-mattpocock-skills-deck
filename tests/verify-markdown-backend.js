@@ -282,11 +282,19 @@ console.log('\n== ⑦ 并发建票不许丢票、同一标题不许两路都成�
   check(!dupOk || (new Set(dupKeys).size === 2 && dupFiles === 2),
     `用例三：同一标题并发两次不许「两路都成功、盘上只剩一张」（两路回 ${JSON.stringify(dupKeys)}，标题相同的票文件 ${dupFiles} 张）`)
 
-  // 静态断言：取号与落盘这一段必须在写者队列里（源码里出现 withLabelColorsWriter 或 withSingleWriter）。
+  // 静态断言：取号与落盘这一段必须在写者队列里。
   //   为什么不只看运行结果：运行结果依赖时序，静态断言在 CI 上 100% 稳定，且能防住日后有人把队列拆掉。
+  //   #922 起队列本体统一住在 write-queue.js（建票取号、写票文件、配色文件共用这一份实现），
+  //   所以这里同时钉三件事：建票确实调了队列、队列本体确实导出那两个函数、写票文件也在队列里。
   const createTxt = fs.readFileSync('src/host/tracker/backends/markdown/issues-create.js', 'utf8')
-  check(/withLabelColorsWriter|withSingleWriter/.test(createTxt),
-    '静态断言：issues-create.js 的取号与落盘这一段在写者队列里（源码出现 withLabelColorsWriter/withSingleWriter）')
+  check(/withWorkspaceWriter\(/.test(createTxt),
+    '静态断言：issues-create.js 的取号与落盘这一段在写者队列里（源码出现 withWorkspaceWriter(）')
+  const queueTxt = fs.readFileSync('src/host/tracker/backends/markdown/write-queue.js', 'utf8')
+  check(/export function withWorkspaceWriter/.test(queueTxt) && /export function withSingleWriter/.test(queueTxt),
+    '静态断言：队列本体（write-queue.js）导出工作区排队与按钥匙串行两个函数')
+  const patchTxt = fs.readFileSync('src/host/tracker/backends/markdown/issues-patch.js', 'utf8')
+  check(/withFileWriter\(ctx,repo,r\.path/.test(patchTxt),
+    '静态断言：写票文件的读—改—写也在队列里（#922：issues-patch.js 用 withFileWriter 包住该文件）')
 
   fs.rmSync(concTmp, { recursive: true, force: true })
 }
