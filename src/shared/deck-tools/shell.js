@@ -26,10 +26,8 @@
 
 /** 这批工具的身份（写日志时进 host.call 的 kind 字段；不是新事件，沿用它原有的字段清单）。 */
 export const DECK_TOOL_KIND = 'deck-tool'
-
 /** 三态返回的取值。edges.js 的 statusOfItems 返回的就是这三个字符串（验收脚本有一条断言钉住这件事）。 */
 export const DECK_STATUS = Object.freeze({ OK: 'ok', PARTIAL: 'partial', UNSUPPORTED: 'unsupported' })
-
 /** 「这件事没做成」的原因取值。文案给人的那句话说在返回的 text 里，这里只放机器可读的那一格。 */
 export const REFUSAL_REASONS = Object.freeze({
   NO_SESSION: 'no-session-context',
@@ -47,7 +45,6 @@ export const REFUSAL_REASONS = Object.freeze({
 
 function num(v) { return (typeof v === 'number' && isFinite(v)) ? v : 0 }
 function str(v) { return (typeof v === 'string') ? v : '' }
-
 function hash8(text) {
   let h = 5381
   const t = String(text || '')
@@ -244,6 +241,7 @@ export function createDeckShell(deps) {
         }
       } catch (eR) {}
     }
+    if (picked && picked.backendId && str(picked.source) !== 'explicit' && ((Array.isArray(picked.multiHit) && picked.multiHit.length > 1) || picked.pending)) { const mh = Array.isArray(picked.multiHit) && picked.multiHit.length > 1; return { ok: false, reason: REFUSAL_REASONS.NO_BACKEND, text: mh ? '这个工作区同时被 ' + picked.multiHit.length + ' 个后端认出，请在面板中选定后再试。' : '后端还没定下来，先在面板上选一次后端。' } }
     if (!picked || !picked.backendId) {
       const pending = picked && picked.pending
       return { ok: false, reason: REFUSAL_REASONS.NO_BACKEND, text: pending ? '后端还没定下来（自动识别有超时未决），先在面板上选一次后端。' : '这个工作区还没有后端（既没有手动选过，也没有识别到锚文件）。先在面板上选一个后端。' }
@@ -281,6 +279,7 @@ export function createDeckShell(deps) {
     let failure = null
     let sent = null
     const t0 = now()
+    const sbM = (meta && meta.sandbox && typeof meta.sandbox === 'object') ? meta.sandbox : {}; const sbPolicy = sbM.policy; const sbSessionId = (typeof sbM.sessionId === 'string' && sbM.sessionId) ? sbM.sessionId : str(s && s.sessionId)
     const ctx = {
       session: s,
       pick: meta.pick,
@@ -288,7 +287,7 @@ export function createDeckShell(deps) {
       gate: gate,
       now: now,
       tracker: registry.get(meta.pick.backendId),
-      opCtx: Object.assign({}, backendCtxNow(), { cwd: s.cwd, signal: undefined, caller: DECK_TOOL_KIND }),
+      opCtx: Object.assign({}, backendCtxNow(), { cwd: s.cwd, signal: undefined, caller: DECK_TOOL_KIND, sandboxPolicy: sbPolicy, sessionId: sbSessionId }),
       admit: admit,
     }
     try {

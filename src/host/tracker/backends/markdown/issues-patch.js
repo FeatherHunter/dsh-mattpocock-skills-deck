@@ -27,7 +27,7 @@ async function readParseWrite(ctx,repo,r,norm,fn){
       let txt=await readTextFile(ctx,r.path)
       const out=fn(txt)
       const next=typeof out==='string'?out:txt
-      if(next!==txt)await writeTextFile(ctx,r.path,next)
+      if(next!==txt)await writeTextFile(ctx,r.path,next, ctx && ctx.sandboxPolicy)
       return{ok:true,txt:next}
     }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
   })

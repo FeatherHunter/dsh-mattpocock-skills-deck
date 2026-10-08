@@ -9,6 +9,7 @@
 // 票存在性经 tracker.get 校验一遍：读不到就诚实失败，不记链。
 // 本地后端多工作单元时用 effortId 指到那一个目录（根目录的不填）；远端后端忽略它。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../../shared/deck-tools/shell.js'
+import { sessionContextOfAsync } from '../../shared/deck-tools/session-resolve.js'
 import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/tool-cost.js'
 
 export const definition = {
@@ -48,7 +49,7 @@ export function createDeckIssueReport(deps) {
     const a = args || {}
     const key = normKey(a.key)
     const est = shell.estimateFor('deck_issue_report', a)
-    const s = shell.context(exec)
+    const s = await sessionContextOfAsync(exec, { canonicalKey: d.canonicalKey, workspaceKeyOf: d.workspaceKeyOf })
     if (!s.ok) return shell.unsupported('deck_issue_report', s.reason, s.text, { cost: { estimated: est } })
     if (!key) return shell.unsupported('deck_issue_report', REFUSAL_REASONS.BAD_ARGS, '要上报哪一张票：把票号写在 key 里（例如 775）。', { cost: { estimated: est } })
     const effortId = normEffort(a.effortId)
@@ -59,7 +60,7 @@ export function createDeckIssueReport(deps) {
     const repo = shell.repoOf(pick, s)
     if (effortId) repo.effortId = effortId
 
-    return shell.call({ tool: 'deck_issue_report', kind: 'write', session: s, pick: pick, repo: repo, estimate: est }, async (c) => {
+    return shell.call({ tool: 'deck_issue_report', kind: 'write', session: s, pick: pick, repo: repo, estimate: est, sandbox: (typeof d.sandboxPolicyFor === 'function' ? await d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }).catch(function(){ return null }) : null) }, async (c) => {
       const notes = []
       if (effortId) notes.push('这次带了 effortId（' + effortId.slice(0, 60) + '）：本地后端只在那一个目录里找，远端后端忽略它。')
       if (note) notes.push('备注只回显，不进链（链上每条只留票键、时间与动作类别）。')

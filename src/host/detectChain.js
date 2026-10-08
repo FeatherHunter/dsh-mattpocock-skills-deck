@@ -3,9 +3,8 @@
 // 接线：由 index.js 动态 import 加载；harness 注册留守 index，处理器体经 handleDetect/handleChain 供给。
 import { refreshSourceOf } from './refresh/refreshSource.js'
 import { workspaceKeyOf } from '../shared/refresh-workspace-key.js'   // #724：链记账给闸的钥匙，与活跃集合同一把（从前传 cwd 原文 → 同一个工作区在闸里有两格）
-
 export function createDetectChain(deps) {
-  const { canonicalKey, DEFAULT_CWD, resetGhCache, getDetectionService, getPlatform, getTrackerRegistry, getRepoKey, runGh, timer, probeSkill, mdParseOkPredicate, getChainCache, setChainCache, getChainBackoff, logCtx, gate, ghTimeoutMs } = deps
+  const { canonicalKey, DEFAULT_CWD, resetGhCache, getDetectionService, getPlatform, getTrackerRegistry, getRepoKey, runGh, timer, probeSkill, mdParseOkPredicate, getChainCache, setChainCache, getChainBackoff, logCtx, gate, ghTimeoutMs, sandboxPolicyFor } = deps
   // #491 房外埋点 helpers：hash8 只记散列；P1 外层先判开关（采样/节流/按事件），字段函数只在守卫内求值。
   function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
   let chainSampleN = 0
@@ -127,7 +126,8 @@ export function createDetectChain(deps) {
         const expConsistent = (selConsistent && selConsistent.backendId)
           ? selConsistent.backendId
           : ((selMod && selMod.explicit && selMod.explicit.parsed && selMod.explicit.parsed.explicitBackendId) || null)
-        const ctx = { platform: platform, backendId: backendId || null, cwd: cwd, lang: chainLang, selection: selConsistent, explicitBackendId: expConsistent, skillProbe: async function (skillName) { try { return await probeSkill(skillName, chainLang, cwd) } catch (e) { return { ok: false, level: 'pending', detail: String((e && e.message) || e), hint: 'pending:skills-unavailable' } } } }
+        let chainPolicy = undefined; let chainSessionId = String((args && args.sessionId) || ''); try { if (typeof sandboxPolicyFor === 'function') { const sb = await sandboxPolicyFor({ cwd: cwd, sessionId: chainSessionId }); if (sb && typeof sb === 'object') { chainPolicy = sb.policy; if (sb.sessionId) chainSessionId = String(sb.sessionId) } } } catch (eSb) {}
+        const ctx = { platform: platform, backendId: backendId || null, cwd: cwd, lang: chainLang, selection: selConsistent, explicitBackendId: expConsistent, sandboxPolicy: chainPolicy, sessionId: chainSessionId, skillProbe: async function (skillName) { try { return await probeSkill(skillName, chainLang, cwd) } catch (e) { return { ok: false, level: 'pending', detail: String((e && e.message) || e), hint: 'pending:skills-unavailable' } } } }
         // #284：后端谓词注册（host 既有探测包装；未注册者由 registry 诚实 pending，不猜不误报）
         try { registry.register('backend:github:repoRemote', async function (check, pctx) {
           try {

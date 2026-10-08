@@ -47,7 +47,7 @@ export async function addComment(ctx,repo,key,body){
         if(!txt.endsWith('\n'))txt+='\n'
         txt+='\n## Comments\n\n'+block+'\n'
       }
-      await writeTextFile(ctx,r.path,txt)
+      await writeTextFile(ctx,r.path,txt, ctx && ctx.sandboxPolicy)
       const comment={author:{login:actor},authorAssociation:'',body:String(body||''),createdAt:nowIso,updatedAt:nowIso}
       return{ok:true,data:comment}
     }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
