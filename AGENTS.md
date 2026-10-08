@@ -58,6 +58,6 @@ AI 这边没有可用的终端工具（better-sidebar 删掉了它自带的 `ter
 
 ### Release 发布
 
-Publish the two packages in this fixed order (dependencies first): `packages/dsh-log`, then `package` (the main plugin; skills ship inside it, never separately). Private package shells are skipped automatically.
+Publish `package` (the main plugin; skills ship inside it, never separately). `dsh-log` and `dsh-plugin-update` now live in standalone repos and are only consumed from npm, never published from here (#878, #892). Private package shells are skipped automatically.
 
 Token unattended path (prefer it when a write-capable token exists — no human clicks needed): set `$env:NODE_AUTH_TOKEN` (variable name only, never paste the token value) → run `pwsh -NoProfile -File scripts\publish-token.ps1 -Probe` first (it must say PROBE-OK) → run `pwsh -NoProfile -File scripts\publish-token.ps1` (gates → publish → one-pass sampling; add `-FullPost` before announcing). Accepted is not the same as visible: `E409 previously-staged` means the registry received the package, so wait a few minutes instead of republishing or bumping the version. The old interactive flow (`scripts\publish-all-window.ps1` via schtasks) stays as fallback. Publishing ends the job; installing is always done by the user (marketplace upgrade, in-app upgrade, or their own install command).

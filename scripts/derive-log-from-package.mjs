@@ -1,20 +1,20 @@
 /**
  * scripts/derive-log-from-package.mjs —— 日志系统派生脚本（#564 当前插件迁移到日志包）。
  *
- * 作用：把日志包（packages/dsh-log，版本 0.1.0）的已构建产物，原样派生为插件运行时真正使用的文件。
+ * 作用：把已安装的日志包（node_modules/dsh-log，#892 起不再读本地 packages/dsh-log）的已构建产物，原样派生为插件运行时真正使用的文件。
  * 旧文件一个字节都不动（src/host/logStore.js、src/host/logPhones.js、src/client/kernel/log.js 原地只读留存，
  * 门禁仍读它们）；运行时走这里生成的新文件。真删除旧文件另开票，本票只做共存。
  *
  * 派生内容（两处）：
- *   1. 宿主侧：packages/dsh-log/dist/{config,store,phones,host}.js 原样复制到 src/host/logPkg/（同目录，
+ *   1. 宿主侧：已安装包 dist/{config,store,phones,host}.js 原样复制到 src/host/logPkg/（同目录，
  *      包内相对引用 ./config.js 等保持有效；构建时原样复制进 package/lib/logPkg，随包发布，线上可用）。
- *   2. 客户端侧：把 packages/dsh-log/src/client.ts 打包成单文件（依赖的配置面内联，无外部引用），
+ *   2. 客户端侧：把已安装包 dist/client.js 打包成单文件（依赖的配置面内联，无外部引用；来源注释归一到与旧输出一致），
  *      末尾用闭包里现成的四个名字（host、timer、localStorage、broadcastLogSwitch）建日志器，
  *      落到 scripts/generated/logKernel.derived.js；构建时拼入原来日志模块的位置。
  *      放 scripts 下是因为内容含中文错误文案， src/client 下会被中文基线门禁误拦；构建产物里早有中文注释，
  *      行为一致，只是换个地方放。
  *
- * 用法：node scripts/derive-log-from-package.mjs（插件根目录；先跑 node packages/dsh-log/build.mjs）。
+ * 用法：node scripts/derive-log-from-package.mjs（插件根目录；要求已安装的 dsh-log 与当前依赖一致）。
  * 构建脚本 scripts/build.mjs 会在需要时自动调本脚本，平时不用手工跑。
  */
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
@@ -24,9 +24,14 @@ import { createRequire } from 'node:module'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(HERE, '..')
-const PKG_DIR = resolve(ROOT, 'packages', 'dsh-log')
-const PKG_DIST = resolve(PKG_DIR, 'dist')
-const PKG_SRC = resolve(PKG_DIR, 'src')
+function resolveInstalledPkgDir() {
+  // 不用 resolve('dsh-log/package.json')：包的 exports 只开放 host/client/node 三个子路径，package.json 子路径未开放会抛 ERR_PACKAGE_PATH_NOT_EXPORTED。
+  // 经已开放的 host 入口反推包目录：dsh-log/host → <包>/dist/host.js，上两级即包根。
+  const require = createRequire(resolve(ROOT, 'package.json'))
+  const hostEntry = require.resolve('dsh-log/host')
+  return dirname(dirname(hostEntry))
+}
+const PKG_DIST = resolve(resolveInstalledPkgDir(), 'dist')
 
 const HOST_UNITS = ['config.js', 'store.js', 'phones.js', 'host.js']
 const HOST_OUT_DIR = resolve(ROOT, 'src', 'host', 'logPkg')
@@ -60,7 +65,7 @@ export function deriveHost() {
 
 export function deriveClient() {
   const esbuild = requireEsbuild()
-  const entry = resolve(PKG_SRC, 'client.ts')
+  const entry = resolve(PKG_DIST, 'client.js')
   const built = esbuild.buildSync({
     entryPoints: [entry],
     bundle: true,
@@ -78,6 +83,10 @@ export function deriveClient() {
   // #564 T2：注释路径归一（只动注释行，不改行为）。不同目录重跑时 esbuild 会写出
   // // ../packages/... 之类的相对形态，这里统一归一成 packages/ 开头，保证任意目录重跑零 diff。
   body = body.replace(/^\/\/ (\.\.\/)+packages\//gm, '// packages/')
+  // #892：入口已从本地 src/client.ts 切到已安装包 dist/client.js，两处来源注释归一到与旧输出一致（只动注释行，不改行为）。
+  // 实测两入口打包产物各 604 行，仅第 1 行与第 108 行来源注释不同，这里固定成旧字面，保证派生文件一字不差。
+  body = body.replace(/^\/\/ .*dsh-log\/dist\/config\.js$/gm, '// packages/dsh-log/src/config.ts')
+  body = body.replace(/^\/\/ .*dsh-log\/dist\/client\.js$/gm, '// packages/dsh-log/src/client.ts')
   if (/^\s*import[\s{*]/m.test(body) || /from\s+['"]\.\.?\//.test(body)) {
     throw new Error('[derive-log] 客户端打包后仍有外部引用（应全部内联），请检查日志包客户端入口的引用')
   }
@@ -123,7 +132,7 @@ export function deriveClient() {
     '// 共存关系：旧文件只读、新文件派生，真搬迁或真删除旧文件另开票。重新生成：node scripts/derive-log-from-package.mjs。\n'
   mkdirSync(dirname(CLIENT_OUT), { recursive: true })
   writeFileSync(CLIENT_OUT, header + body + tail, 'utf8')
-  console.log('[derive-log] client.ts -> scripts/generated/logKernel.derived.js')
+  console.log('[derive-log] dist/client.js -> scripts/generated/logKernel.derived.js')
 }
 
 function main() {

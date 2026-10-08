@@ -785,7 +785,7 @@ try {
   deriveHost()
   deriveClient()
 } catch (e) {
-  throw new Error('[build] 日志派生失败（先跑 node packages/dsh-log/build.mjs 再重跑本构建）：' + ((e && e.message) || e))
+  throw new Error('[build] 日志派生失败（取值来源是已安装的日志包：先确认 pnpm install 已装好 dsh-log@^0.2.2，再重跑本构建）：' + ((e && e.message) || e))
 }
 try {
   const updVersion = deriveUpdateClientVersionForLog()

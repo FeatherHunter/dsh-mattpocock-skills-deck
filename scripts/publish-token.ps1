@@ -1,11 +1,11 @@
-﻿# dsh-mattpocock-skills-deck token 全自动发布（Windows，无人值守）。
+# dsh-mattpocock-skills-deck token 全自动发布（Windows，无人值守）。
 #
 # 与旧 scripts\publish-all-window.ps1 共存：旧走 schtasks 交互窗口＋人浏览器 2FA；
 # 本走环境变量 token，全程无需人点，Agent 可直接驱动。
 # 发什么（依赖先行，顺序写死，与旧窗口一致）：
-#   1. packages/dsh-log（底座库）
-#   2. package（主插件，含捆绑技能；技能随主插件一起发，不单独发）
+#   1. package（主插件，含捆绑技能；技能随主插件一起发，不单独发）
 # 更新包 dsh-plugin-update 已搬到独立仓库维护，本仓只从 npm 取用，不再从这里发（#878）。
+# 日志包 dsh-log 已搬到独立仓库维护，本仓只从 npm 取用，不再从这里发（#892）。
 # private 包自动跳过（根 package.json 为 private 开发壳，不发）。
 #
 # 跑法（pwsh 7）：
@@ -38,7 +38,7 @@ $ErrorActionPreference = 'Continue'
 if ($LogPath -eq '') { $LogPath = Join-Path $RepoRoot '.tmp-publish-token.log' }
 
 # 依赖先行，顺序写死（与旧 publish-all-window.ps1 一致）。
-$Order = @('packages/dsh-log', 'package')
+$Order = @('package')
 
 function Log([string]$line) {
   $text = '[' + (Get-Date).ToString('yyyy-MM-dd HH:mm:ss') + '] ' + $line
