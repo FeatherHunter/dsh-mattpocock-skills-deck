@@ -54,6 +54,25 @@ function poolIdOf(it) {
   return k + '\0bad' // BAD：非布尔值，孤儿隔离
 }
 
+/**
+ * #907：处理链那一行要用的**瘦身行** —— 只留票号、标题、状态、是不是地图四样。
+ *   为什么只留这四样：这份清单的唯一读者是处理链的标题查询（界面按票号查标题与状态、认地图）。
+ *   谁要在这里多读一样字段，先把这条口径改了再说 —— 这里多一样，就等于把 #691 省下来的体积搬回来一点。
+ *   没有票号的行返回 null（宁可不留，也不留一份查不到的）。
+ */
+function thinRowOf(t) {
+  const key = (t && t.key != null) ? String(t.key) : ''
+  if (!key) return null
+  return {
+    key: key,
+    number: (t && t.number != null) ? t.number : (parseInt(key, 10) || 0),
+    effortId: effortOf(t),
+    type: (t && t.type != null) ? String(t.type) : 'issue',
+    state: (t && t.state != null) ? String(t.state) : '',
+    title: (t && t.title != null) ? String(t.title) : '',
+  }
+}
+
 /** 组装（纯函数）：maps（挂一层 tickets）+ 未挂图票（孤儿：破链 / 根票；map 节点本身不算孤儿——它已在 maps[] 作为容器）。
  * 同池：拉取请求与普通工单都进 tickets/issues，不分片；拷贝原样带字段（EMPTY 保持空值，MISSING 保持省略）。
  *
@@ -62,7 +81,9 @@ function poolIdOf(it) {
  *   取数与体积（规格第 6.4 节）。地图行本身照旧留着（它是容器），只是不带子票；列表上那个进度环也因此不画
  *   （环要靠子票算，见 views/ListTabRow.js）。
  *   一处要紧的细节：这些子票既不算「挂在图上的行」，也不算「未挂图的票」—— 否则它们会从 issues 那条路
- *   悄悄漏回首屏，等于白改。 */
+ *   悄悄漏回首屏，等于白改。
+ * #907：同一条取舍曾让处理链那一行查不到标题（标题只从快照给得出的行里查）。所以这些行现在另留一份
+ *   瘦身行（thinTickets，只有票号、标题、状态、是不是地图）专供查标题：首屏口径不变，取数也不多花一次。 */
 function assembleSnapshot(repo, all) {
   // 口径断言：组装层不判定后端能力是否一致（混合返回不断言一致），只做 pass-through；身份区分靠 poolIdOf（三态），BAD 单独隔离。
   // effort 维度：父子分组按 (effortId, parentKey) —— 不同 effort 的地图各自只收本 effort 的票。
@@ -78,6 +99,9 @@ function assembleSnapshot(repo, all) {
   }
   // 已关闭地图的子票：按池内身份收在一处，供下面算 issues 时排除（见本函数开头的说明）。
   const closedMapTickets = new Set()
+  // #907：这些子票虽然不进首屏，但要留一份瘦身行（见 thinRowOf）供处理链查标题 ——
+  //   它们本来就在手上（取数那一趟已经回来了），丢掉的是正文与评论（体积的大头）。
+  const thinTickets = []
   const maps = all
     .filter((i) => i && i.type === 'map')
     .map((m) => {
@@ -89,7 +113,11 @@ function assembleSnapshot(repo, all) {
       const own = byParent.get(idOfParts(effortOf(m), m.key)) || []
       // 大写的 CLOSED 是本仓库的统一口径（upcaseSnapStates 在电话层再盖一次），这里自己也认小写，免得看后端脸色。
       const isClosed = String((m && m.state) || '').toUpperCase() === 'CLOSED'
-      if (isClosed) for (const t of own) closedMapTickets.add(poolIdOf(t))
+      if (isClosed) for (const t of own) {
+        closedMapTickets.add(poolIdOf(t))
+        const thin = thinRowOf(t)
+        if (thin) thinTickets.push(thin)
+      }
       return Object.assign({}, m, {
         tickets: (isClosed ? [] : own).map((t) => Object.assign({}, t)),
         destination: bp.destination,
@@ -106,7 +134,7 @@ function assembleSnapshot(repo, all) {
   const issues = all
     .filter((i) => i && i.type !== 'map' && !attached.has(poolIdOf(i)) && !closedMapTickets.has(poolIdOf(i)))
     .map((t) => Object.assign({}, t))
-  return { repository: repo, maps, issues, deck: null }
+  return { repository: repo, maps, issues, thinTickets, deck: null }
 }
 
 /**

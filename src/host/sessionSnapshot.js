@@ -208,7 +208,7 @@ export function createSessionSnapshot(deps) {
           const repoRoot = await getRepoRoot(cwd)
           const snap = buildSnap({
             repoRoot, workspaceRoot: cwd,
-            maps: inner.maps, issues: allForList, labels: labels,
+            maps: inner.maps, issues: allForList, thinTickets: inner.thinTickets, labels: labels,
             repository: repoRef, backendModules: backendModules, selection: _sel, setupLayout: _layEarly, deck: inner.deck, fallback: inner.fallback, fallbackAt: inner.fallbackAt, fallbackReason: inner.fallbackReason, refresh: inner.refresh,
           })
           return adoptSnapLog(snap, cwd)
@@ -225,7 +225,7 @@ export function createSessionSnapshot(deps) {
           } catch {}
           const snap = buildSnap({
             repoRoot, workspaceRoot: cwd,
-            maps: [], issues: [], labels: [],
+            maps: [], issues: [], thinTickets: [], labels: [],
             backendModules, selection: _sel, setupLayout: _layEarly,
             deck: { total:0, open:0, closed:0, frontier:0, claimed:0, blocked:0, indeterminate:0, levels:[], levelOf:{} },
           })
@@ -254,7 +254,7 @@ export function createSessionSnapshot(deps) {
             const _selNoRepo = (typeof _sel !== 'undefined' ? _sel : (typeof _selEarly !== 'undefined' ? _selEarly : null))
             const snapNoRepo = buildSnap({
               repoRoot: repoRootNoRepo, workspaceRoot: cwd,
-              maps: [], issues: [], labels: [],
+              maps: [], issues: [], thinTickets: [], labels: [],
               backendModules: backendModulesNoRepo, selection: _selNoRepo, setupLayout: _layEarly,
               deck: { total:0, open:0, closed:0, frontier:0, claimed:0, blocked:0, indeterminate:0, levels:[], levelOf:{} },
             })
@@ -331,7 +331,7 @@ export function createSessionSnapshot(deps) {
         } catch {}
         const snap2 = buildSnap({
           repo: repo0b, repoRoot: repoRoot2, workspaceRoot: cwd,
-          maps: inner2.maps, issues: allForList2, labels: labels2,
+          maps: inner2.maps, issues: allForList2, thinTickets: inner2.thinTickets, labels: labels2,
           repository: repoRef2, backendModules: backendModules2, selection: _sel, setupLayout: _layEarly,
           viewer: viewer2, viewerLogin: viewerLogin2, deck: inner2.deck, fallback: inner2.fallback, fallbackAt: inner2.fallbackAt, fallbackReason: inner2.fallbackReason, refresh: inner2.refresh,
         })

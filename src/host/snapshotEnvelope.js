@@ -20,7 +20,7 @@ export function createSnapshotEnvelope(deps) {
       updatedAt: new Date().toISOString(),
       generatedMs: Date.now(),
       env: { ghPath: d.getGhPath(), ghError: d.getGhLastError() },
-      maps: o.maps, issues: o.issues, labels: o.labels,
+      maps: o.maps, issues: o.issues, thinTickets: o.thinTickets, labels: o.labels,
       repository: (o.repository !== undefined ? o.repository : null),
       backendModules: o.backendModules,
       selection: o.selection,

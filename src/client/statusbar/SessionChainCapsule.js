@@ -157,7 +157,7 @@ export const SessionChainCapsule = function (props) {
   const eState = e.ticketState === 'CLOSED' ? 'CLOSED' : (e.ticketState === 'OPEN' ? 'OPEN' : '')
   const eStateWord = eState === 'OPEN' ? tr('list.state.open') : (eState === 'CLOSED' ? tr('list.state.closed') : '')
   const eColor = eState === 'OPEN' ? '#58a6ff' : (eState === 'CLOSED' ? '#8b949e' : 'var(--dsw-alias-label-primary,#e6edf3)')
-  const spoken = tr('chainView.capsuleDoing') + ' ' + (eIsMap ? tr('type.map') + ' ' : '') + '#' + e.ticketKey + (e.ticketTitle ? ' ' + e.ticketTitle : '') + (eStateWord ? ' ' + eStateWord : '')
+  const spoken = tr('chainView.capsuleDoing') + ' ' + (eIsMap ? tr('type.map') + ' ' : '') + '#' + e.ticketKey + (e.ticketTitle ? ' ' + e.ticketTitle : ' ' + tr('chainView.titleMissing')) + (eStateWord ? ' ' + eStateWord : '')
   const openRow = function (row) {
     return function (ev) {
       if (ev && ev.stopPropagation) ev.stopPropagation()
@@ -187,7 +187,7 @@ export const SessionChainCapsule = function (props) {
       const badgeColor = rState === 'OPEN' ? '#58a6ff' : (rState === 'CLOSED' ? '#8b949e' : (latest ? '#58a6ff' : '#8b8b95'))
       const badgeBorder = rState === 'OPEN' ? '#58a6ff' : (rState === 'CLOSED' ? '#8b949e' : (latest ? '#58a6ff' : '#3a3f4a'))
       const rIsMap = r.isMap === true
-      const line = (rIsMap ? tr('type.map') + ' ' : '') + '#' + r.ticketKey + (r.ticketTitle ? ' ' + r.ticketTitle : '') + (word ? ' ' + word : '') + (r.time ? ' ' + r.time : '') + (rStateWord ? ' ' + rStateWord : '')
+      const line = (rIsMap ? tr('type.map') + ' ' : '') + '#' + r.ticketKey + (r.ticketTitle ? ' ' + r.ticketTitle : ' ' + tr('chainView.titleMissing')) + (word ? ' ' + word : '') + (r.time ? ' ' + r.time : '') + (rStateWord ? ' ' + rStateWord : '')
       return h('div', {
         key: 'r' + i, tabIndex: 0, role: 'link', 'aria-label': line,
         className: 'dsws-chainmenu-row' + (active ? ' is-active' : '') + (latest ? ' is-latest' : ''),
@@ -208,7 +208,9 @@ export const SessionChainCapsule = function (props) {
         h('span', { style: { flex: 'none', fontSize: 11, lineHeight: '16px', padding: '0 6px', borderRadius: 99, border: '1px solid ' + badgeBorder, color: badgeColor } }, rIsMap
           ? h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 3 } }, [chainMapIconOf(rIsMap, 11), h('span', null, chainKeyTextOf(rIsMap, r.ticketKey))])
           : chainKeyTextOf(rIsMap, r.ticketKey)),
-        h('span', { style: { flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, r.ticketTitle || ('#' + r.ticketKey)),
+        // #907：查不到标题就留白（一个字都不写），不再拿票号顶上 —— 那会让同一行出现两遍同一个号；
+        //   「标题未取到」那句话只在文字通道里（上面 spoken 与 line 两处无障碍名）。
+        h('span', { style: { flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, r.ticketTitle),
         word ? h('span', { style: { flex: 'none', fontSize: 11, lineHeight: '16px', padding: '1px 6px', borderRadius: 4, background: latest ? 'rgba(88,166,255,.14)' : 'rgba(139,139,149,.15)', color: latest ? '#8fb8ff' : '#a1a1aa' } }, word) : null,
         r.time ? h('span', { style: { flex: 'none', fontSize: 11, color: '#8b8b95' } }, r.time) : null,
       ])
