@@ -14,6 +14,7 @@
 //      handoffFile=null 时退到 handoffLatest；预填的 file = handoffFile（即使 handoffLatest 会返回别的）。
 const fs = require('fs')
 const assert = require('assert')
+const { compileFn } = require('./lib/eval-probe.js')
 
 const files = process.argv.slice(2).length ? process.argv.slice(2) : ['client.js', 'package/lib/client.js']
 
@@ -107,9 +108,10 @@ const runHarness = function (fnSrc, opt) {
     'var buildCreateOpts = function(wid,cwd){ return wid?{workspaceId:wid,agentPreset:"ptc"}:{cwd:cwd,agentPreset:"ptc"}};\n' +
     'var createPTCSession = function(sess,wid,cwd,txt){ var opts=buildCreateOpts(wid,cwd); return sess.create(opts).then(function(sid){ return sid }) };\n' +
     'var getCwdSync = function(){ return "D:/repo" }; var keyOf=function(s){ return String(s||"").toLowerCase() }; var storeOf=function(){return {cwd:"D:/repo"}}; var hydrateFromCache=function(){return false}; var getCachedSnapshot=function(){return null}; var namingHintOf=function(){return null}; var isNewPlaceholderTitle=function(){return false}; var namingGuardianKick=function(){}; var isReusableBlank=function(){return false}; var getRowPreset=function(){return "ptc"}; var isHealthyPreset=function(){return true};\n' + fnSrc;
-  const $ = new Function(
-    'st', 'ctx', 'host', 'conn', 'rpcCall', 'emit', 'timer', 'timeStampStr', 'handoffPrompt',
-    'extractHandoffFile', 'inject', 'flash', 'tr', 'copyText', 'handoffReadText', 'pendingDraft', 'handoffFile', 'handoffTs', 'mockOpen',
+  // 手法：compileFn——这里把引导门那几段真源拼成文本后造函数，参数名收进数组交给共用入口，位置传参的顺序不变。
+  const $ = compileFn(
+    ['st', 'ctx', 'host', 'conn', 'rpcCall', 'emit', 'timer', 'timeStampStr', 'handoffPrompt',
+    'extractHandoffFile', 'inject', 'flash', 'tr', 'copyText', 'handoffReadText', 'pendingDraft', 'handoffFile', 'handoffTs', 'mockOpen'],
     fnSrcWithMock + '\n; return { probeHandoffReady: probeHandoffReady, doHandoff: doHandoff, doHandoffOpen: doHandoffOpen }'
   )
   const fns = $(

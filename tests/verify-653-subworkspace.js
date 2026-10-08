@@ -16,6 +16,7 @@
  */
 const fs = require('fs')
 const path = require('path')
+const { compileFn } = require('./lib/eval-probe.js')
 
 const root = path.resolve(__dirname, '..')
 let failed = false
@@ -40,10 +41,12 @@ const wsKeyBlock = noExport(
   )
 )
 const keyOfSrc = read('src/shared/workspaceKey.js')
-const keyOfFn = new Function(noExport(keyOfSrc) + '\nreturn keyOf')()
+// 手法：compileFn——这里只是把真源里切出来的函数文本变成可调用对象，交给 tests/lib/eval-probe.js 统一造，行为与原来一致。
+const keyOfFn = compileFn([], noExport(keyOfSrc) + '\nreturn keyOf')()
 
-const KEY = new Function(
-  'keyOf', 'snapshotByCwd', 's',
+// 手法：compileFn——参数名与代码文本分开交给共用入口；原来那种写法靠位置传参，这里改成名字数组，语义不变。
+const KEY = compileFn(
+  ['keyOf', 'snapshotByCwd', 's'],
   wsKeyBlock + '\nreturn { wsKeyOf: wsKeyOf, rememberWorkspaceRoot: rememberWorkspaceRoot, table: workspaceRootByCwd }'
 )(keyOfFn, new Map(), 's')
 
@@ -95,8 +98,9 @@ const storeBlock = noExport(
 const probeBlock = noExport(
   storeSrc.slice(storeSrc.indexOf('export const lastProbeAtByCwd'), storeSrc.indexOf('export const SNAP_DISK_CAP'))
 )
-const CACHE = new Function(
-  'keyOf', 'wsKeyOf', 'snapshotByCwd', 'dswsLogHash', 'isEnabled', 'log', 'touchLRUClient', 'getProbeAt', 'diskPutSnapshot', 'SNAP_CWD_LRU_MAX',
+// 手法：compileFn——同上，把十个参数名收进数组交给共用入口，缓存分级那一段行为不变。
+const CACHE = compileFn(
+  ['keyOf', 'wsKeyOf', 'snapshotByCwd', 'dswsLogHash', 'isEnabled', 'log', 'touchLRUClient', 'getProbeAt', 'diskPutSnapshot', 'SNAP_CWD_LRU_MAX'],
   storeBlock + '\nreturn { getCachedSnapshot: getCachedSnapshot, setCachedSnapshot: setCachedSnapshot, table: snapshotByCwd }'
 )(
   keyOfFn, KEY.wsKeyOf, new Map(), () => 'h', () => false, () => {}, (m, k, v) => m.set(k, v), () => 0, () => {}, 20
@@ -112,8 +116,9 @@ else bad('落缓存占了 ' + CACHE.table.size + ' 把键，应只有 1 把')
 // ── C. 污染判定：白名单已删除 ─────────────────────────────────────────────
 console.log('\nC) 污染判定不再放过「两个工作区互为祖先」')
 const dockSrc = read('src/client/panel/DockSync.js')
-const isPolluted = new Function(
-  'keyOf', 'wsKeyOf', 'cwdBasename',
+// 手法：compileFn——污染判定那段真源同样按文本取出后造函数，走共用入口。
+const isPolluted = compileFn(
+  ['keyOf', 'wsKeyOf', 'cwdBasename'],
   noExport(dockSrc.slice(dockSrc.indexOf('export const isPollutedSnapshot'), dockSrc.indexOf('export const useDockSync'))) +
   '\nreturn isPollutedSnapshot'
 )(
@@ -154,7 +159,8 @@ const markSrc = read('src/client/views/SubworkspaceMark.js')
 const markBlock = noExport(
   markSrc.slice(markSrc.indexOf('export const subwsMarkRootOf'), markSrc.indexOf('export const SubworkspaceMark'))
 )
-const markApi = new Function('keyOf', 'tr', markBlock + '\nreturn { shows: subwsMarkShows }')(keyOfFn, (k) => k)
+// 手法：compileFn——归属标志的纯函数块走共用入口造函数，参数仍是 keyOf 与 tr 两个。
+const markApi = compileFn(['keyOf', 'tr'], markBlock + '\nreturn { shows: subwsMarkShows }')(keyOfFn, (k) => k)
 const isSubOf = function (root, cwd) { try { return markApi.shows(root, cwd) === true } catch (e) { return false } }
 if (isSubOf(ROOT_DIR, SUB_DIR) === true) ok('子目录会话：出现（所选目录 ≠ 工作区根）')
 else bad('子目录会话没出现标志')
@@ -202,8 +208,9 @@ const chainKeyBlock = noExport(
 // E 这一段把「读快照、读链、读探测时间」三张表装进同一个闭包跑。
 // 注意：快照表与链表是在被切出来的代码块**外面**声明的（那两行不在块里），所以得从这里传进去；
 // 探测时间表在块内，再传同名参数会与块内声明冲名，所以不传。
-const TABLES = new Function(
-  'keyOf', 'wsKeyOf', 'snapshotByCwd', 'chainByCwd', 'dswsLogHash', 'isEnabled', 'log', 'touchLRUClient', 'diskPutSnapshot', 'SNAP_CWD_LRU_MAX',
+// 手法：compileFn——三张表那一段同样只按文本造函数，名字数组交给共用入口。
+const TABLES = compileFn(
+  ['keyOf', 'wsKeyOf', 'snapshotByCwd', 'chainByCwd', 'dswsLogHash', 'isEnabled', 'log', 'touchLRUClient', 'diskPutSnapshot', 'SNAP_CWD_LRU_MAX'],
   storeBlock + '\n' + probeBlock + '\n' +
   chainKeyBlock + '\n' +
   'return { getCachedSnapshot: getCachedSnapshot, setCachedSnapshot: setCachedSnapshot, getChainCacheKey: getChainCacheKey,' +
