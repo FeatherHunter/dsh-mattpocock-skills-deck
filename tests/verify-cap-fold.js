@@ -331,10 +331,14 @@ for (const rel of ARTIFACTS) {
 }
 const barSrc = existsSync(resolve(STATUSBAR)) ? read(STATUSBAR) : ''
 check(/runCapFold\(cap, foldKeep\.current\)/.test(barSrc), '状态栏只留接线：把胶囊与两张跨调用带着走的表交给阶梯机（statusbar/capFoldMachine.js）')
-check(/React\.useEffect\(function \(\) \{ applyFold\(\) \}\)/.test(barSrc), '每次提交之后重算一次（那条 2 秒轮询的位置由它接管）')
-check(/new ResizeObserver\(function \(\) \{ applyFold\(\) \}\)[\s\S]{0,300}roFold\.observe\(foldRef\.current\)/.test(barSrc) && /roParent\.observe/.test(barSrc),
+check(/React\.useEffect\(function \(\) \{ scheduleFold\(\) \}\)/.test(barSrc), '每次提交之后进合并队列一次（那条 2 秒轮询的位置由它接管，926 起同帧只真跑一次）')
+const machineSrc = existsSync(resolve(CAPMACHINE)) ? read(CAPMACHINE) : ''
+check(/const capFoldScheduleFold = function \(keep, applyFold\)/.test(machineSrc) && /if \(!keep \|\| keep\.foldRaf\) return/.test(machineSrc), '合并单飞：同帧多次触发只跑一次（keep.foldRaf 占位，实现住机器，接线零增长）')
+check(/window\.requestAnimationFrame\(function \(\) \{ keep\.foldRaf = 0; applyFold\(\) \}\)/.test(machineSrc), '合并走帧回调（同一帧画出来）')
+check(/catch \(eRaf\) \{ keep\.foldRaf = 0; applyFold\(\) \}/.test(machineSrc), '帧回调不可用时同步兜底（行为退回原样）')
+check(/new ResizeObserver\(function \(\) \{ scheduleFold\(\) \}\)[\s\S]{0,300}roFold\.observe\(foldRef\.current\)/.test(barSrc) && /roParent\.observe/.test(barSrc),
   '两条 ResizeObserver（胶囊自己 + 它的父容器）仍是宽度的第一信号源')
-check(/document\.fonts\.ready\.then\(applyFold\)/.test(barSrc), '字体加载完再重算一次（防字体宽差误判）')
+check(/document\.fonts\.ready\.then\(scheduleFold\)/.test(barSrc), '字体加载完再重算一次（防字体宽差误判，走合并队列）')
 const stylesSrc = existsSync(resolve(STYLES)) ? read(STYLES) : ''
 // 平铺那几条 CSS：2026-09-24 维护者看过真机之后改了两处（「图标与文字之间的间隙太大」、
 //   「按钮过于集中在右侧，应该均匀分布」），所以这一组断的是**改完之后的真实落点**：
