@@ -957,19 +957,17 @@ const contractChecksInner = function (reg, src) {
   if (src.includes('STAGE_GATED_IDS.indexOf(id) >= 0')) fail('#77 残留 renderTemplate 闸门追加逻辑')
   if (src.includes("text.indexOf('阶段闸门')") || src.includes("text.indexOf('Stage gate')")) fail('#77 残留 renderTemplate 去重守卫（闸门已内联，无外挂可去重）')
 
-  // mapExecute（#68 清单式）
+  // mapExecute v14（#897 精简两节：工具+收尾；旧五节与阶段闸门断言已按用户决定删除）
   const me = reg['mapExecute']
   if (me) {
-    if (me.zh.indexOf('阶段闸门') < 0 || me.en.indexOf('stage-gate') < 0) fail('T13 mapExecute 未含阶段闸门引用（needs-triage 先诊断）')
-    if (me.zh.indexOf('needs-triage') < 0) fail('mapExecute zh 缺 needs-triage 标记')
-    if (me.zh.indexOf('- [ ]') < 0) fail('mapExecute zh 缺清单标记 - [ ]（A★ 清单式）')
-    if (me.zh.indexOf('## 工具') < 0 || me.zh.indexOf('## 分析') < 0 || me.zh.indexOf('## 选票') < 0 || me.zh.indexOf('## 执行') < 0 || me.zh.indexOf('## 收尾') < 0) fail('mapExecute zh 缺清单段标题（工具/分析/选票/执行/收尾）')
+    if (me.zh.indexOf('- [ ]') < 0) fail('mapExecute zh 缺清单标记 - [ ]')
+    if (me.zh.indexOf('## 工具') < 0 || me.zh.indexOf('## 收尾') < 0) fail('mapExecute zh 缺清单段标题（工具/收尾）')
+    if (me.zh.indexOf('## 分析') >= 0 || me.zh.indexOf('## 选票') >= 0 || me.zh.indexOf('## 执行') >= 0) fail('mapExecute zh 应为精简两节，不应再含分析/选票/执行')
     if (me.zh.indexOf('|') >= 0) fail('mapExecute zh 含表格 |（已约定无表格，全勾选框）')
-    if (me.zh.indexOf('## 目标 map') >= 0 || me.zh.indexOf('编号：') >= 0 || me.zh.indexOf('加载 wayfinder 技能') >= 0) fail('mapExecute zh 残留已撤掉的标识头/加载行（标识由首行 /wayfinder+链接承载）')
     if (me.zh.indexOf('deck_') < 0) fail('mapExecute zh 缺工具节要求（issue 相关操作优先使用 deck_ 开头的工具处理）')
-    if (me.placeholders.length !== 0) fail('mapExecute 不应再声明占位符（标识头已撤掉，无 {n}/{title}/{url} 可填）')
+    if (me.placeholders.length !== 0) fail('mapExecute 不应再声明占位符（标识由首行 /implement-spec+链接承载）')
     if (me.en.indexOf('- [ ]') < 0) fail('mapExecute en 缺清单标记 - [ ]')
-    if (me.en.indexOf('## Tools') < 0 || me.en.indexOf('## Analyze') < 0 || me.en.indexOf('## Pick the ticket') < 0 || me.en.indexOf('## Execute') < 0 || me.en.indexOf('## Wrap-up') < 0) fail('mapExecute en 缺清单段标题（Tools/Analyze/Pick the ticket/Execute/Wrap-up）')
+    if (me.en.indexOf('## Tools') < 0 || me.en.indexOf('## Wrap-up') < 0) fail('mapExecute en 缺清单段标题（Tools/Wrap-up）')
   }
   // tpl.execute（#64 清单式）
   const ex = reg['tpl.execute']
@@ -1510,7 +1508,7 @@ const selfDigest = function () {
 const LOCK = {
   'tests/prompt-gate-exempt.json': 'c661ccd0fbfd46aa99790c073d0ccea89ebf5787a9113462c092b17c72a2a2d9',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.js': '201ac40bfb61427bb53712db54b93be86e5e666d09435764d2c41a310718c79c',
+  'tests/verify-prompts.js': 'e2e0b2ee3f99919861f5ce14bb4867158e53b628ffd008d76e60e2263ed40bff',
 }
 // ---- LOCK-END ----
 
