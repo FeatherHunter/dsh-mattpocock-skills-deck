@@ -8,7 +8,7 @@
 
 MattSkillsDeck: a task board inside DSH for working with Matt's skills
 
-Hi, I use Matt's skills every day through DSH (DeepSeek Harness, the chat front end where an AI agent does the work). Two frictions kept coming back. I had to remember each slash command and type it by hand. And the state of my work, which tasks were ready and which were blocked, lived on the GitHub page, one context switch away. So I made MattSkillsDeck, a personal plugin that turns the skills and their issues into a panel next to the chat. This is my own side project and has no official connection with Matt. I would like to hear if it fits the way you work.
+Hi, I use Matt's skills every day through DSH (DeepSeek Harness, the chat front end where an AI agent does the work). Two frictions kept coming back. I had to remember each slash command and type it by hand. The state of my work, which tasks were ready and which were blocked, lived on the GitHub page a context switch away. So I made MattSkillsDeck, a personal plugin that turns the skills and their issues into a panel next to the chat. This is my own side project and has no official connection with Matt. I would like to hear if it fits the way you work.
 
 The main view is a task board. It lists every issue in the repo with filters for all, open, blocked and closed. Map rows stay pinned. Each row carries a button that already knows the next step: diagnose, fix, discuss, or execute. Clicking fills the prepared command into the input box, and I confirm before anything runs.
 
@@ -40,7 +40,7 @@ MattSkillsDeck：在 DSH 里给 Matt 的技能配一块任务板
 
 我每天在 DSH（DeepSeek Harness，一个我打字、AI 干活的聊天前端）里用 Matt 的技能。有两个小麻烦一直没走：每个斜杠指令都要自己记住、亲手敲；手头活的状态（哪些能接、哪些被卡住）躺在 GitHub 网页上，看一眼就要切出去。所以我做了 MattSkillsDeck，一个把技能和工单变成侧边面板的个人插件，和 Matt 没有官方关系。想听听它跟你的干活方式合不合。
 
-主视图是一块任务板，列出仓库里所有工单，能按全部、开放、被阻塞、已关闭筛，地图行置顶，已关闭的工单收成一行，不占地方。每行有个按钮，上面已经写好下一步：没分流的给诊断，缺陷给修复，要商量的给讨论，普通任务给执行。点一下，写好的指令填进输入框，人确认后再发。
+主视图是一块任务板，列出仓库里所有工单，能按全部、开放、被阻塞、已关闭筛。地图行置顶，已关闭的工单收成一行，不占地方。每行有个按钮，上面已经写好下一步：没分流的给诊断，缺陷给修复，要商量的给讨论，普通任务给执行。点一下，写好的指令填进输入框，人确认后再发。
 
 <img src="https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/assets/readme/02-task-board-list.png" width="600" alt="任务板列表">
 
