@@ -5,6 +5,8 @@
 // 是写死的中文或直取中文兜底，且链请求没带语言导致 host 明细恒为中文。本门禁钉住四条验收判据。
 const fs = require('fs')
 const path = require('path')
+// 本文件选 compileFn 手法：这段把检查页里抠出来的一行守卫原文当函数体造函数，依赖由 deps 逐个按参数名传进去。
+const { compileFn } = require('./lib/eval-probe.js')
 const root = path.resolve(__dirname, '..')
 
 let failed = false
@@ -76,7 +78,8 @@ const reloadsOnLanguage = function (st, curLang) {
   }
   try {
     const names = Object.keys(deps)
-    new Function(names.join(', '), line).apply(null, names.map(function (k) { return deps[k] }))
+    // 本处走 compileFn：参数名与取值都来自同一个 deps，展开传法与原来一致。
+    compileFn(names, line).apply(null, names.map(function (k) { return deps[k] }))
   } catch (e) { return { threw: String(e && e.message), reloads: seen } }
   return { reloads: seen }
 }

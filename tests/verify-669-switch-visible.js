@@ -30,6 +30,8 @@ const React = require('react')
 const ReactDOMClient = require('react-dom/client')
 const { act } = require('react')
 const { chromium } = require('playwright')
+// 本文件三处手法不同：窗口里跑产物走 evalInWindow，取真源里一行函数表达式走 evalWithScope，拼闭包造模块走 compileFn。
+const { compileFn, evalWithScope, evalInWindow } = require('./lib/eval-probe.js')
 
 const ROOT = path.resolve(__dirname, '..')
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
@@ -105,7 +107,8 @@ const mountModal = async function () {
   const ctx = { get: (k) => services[k], effect: (fn) => { const r = fn(); return typeof r === 'function' ? r : () => {} }, inject: (deps, cb) => { cb(ctx); return { dispose: () => {} } } }
   let loaded = null
   window.__ModuleLoader__ = { load (spec) { loaded = spec; return spec } }
-  window.eval(prod)
+  // 本处走 evalInWindow：这张 jsdom 窗口开了 runScripts，与原来在窗口上求值等价。
+  evalInWindow(dom, prod)
   const mod = loaded.factory((m) => { if (m === 'react') return React; if (m === 'react-dom') return ReactDOMClient; throw new Error('产物要了一份没准备的模块：' + m) })
   mod.apply(ctx)
   const reg = registrations.filter((r) => r.meta && r.meta.name === 'sidebar.right.pane.tab')[0]
@@ -231,13 +234,15 @@ const makeSnap = function (srcText) {
     promptLang: () => 'zh',
     // #669 第 6 件（ADR 20260921）：hint 只报「用户亲手选过的那条」——这条闸的真身在 store-prefs.js，
     //   这里取真身来判，所以 fixture 里的选择必须带 userPicked 才会上报后端（不带时请求上就没有 backendId）。
-    userHintOf: new Function('return ' + (read('src/client/kernel/store-prefs.js').split('\n').filter((l) => l.indexOf('export const userHintOf = function') >= 0)[0] || '').trim().replace(/^export const userHintOf = /, ''))(),
+    // 本处走 evalWithScope：只是把真源里那一行函数表达式求值出来，它不引用本文件的任何外层变量，scope 给空对象。
+    userHintOf: evalWithScope((read('src/client/kernel/store-prefs.js').split('\n').filter((l) => l.indexOf('export const userHintOf = function') >= 0)[0] || '').trim().replace(/^export const userHintOf = /, ''), {}),
     timer: { timeout: (fn, ms) => setTimeout(fn, ms) },
     setTimeout, clearTimeout, AbortController,
     console: { log () {}, warn () {}, error () {} },
   }
   const body = 'with (scope) {\n' + srcText + '\n; return { loadSnapshot: loadSnapshot, pendingSnapshotByCwd: pendingSnapshotByCwd }\n}'
-  const mod = new Function('scope', body)(scope)
+  // 本处走 compileFn：把拼好的闭包文本当函数体造函数，原来靠 with(scope) 显式拿外层名字，语义不变。
+  const mod = compileFn(['scope'], body)(scope)
   return { loadSnapshot: mod.loadSnapshot, calls }
 }
 const snapOf = (bid, tag) => ({ ok: true, bid, tag, maps: [], selection: { backendId: bid, source: 'explicit' }, repository: { backend: bid, name: bid } })
