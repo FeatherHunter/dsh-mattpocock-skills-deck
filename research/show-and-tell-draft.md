@@ -1,28 +1,30 @@
 # Show and tell 初稿（给 #913，英文在前、中文在后）
 
 > 状态：初稿 + humanizer 自查完成，待 #914 渲染预览与发布。
-> 英文 338 词（上限 350），中文 513 字（用户全文替换，已超 500–700 区间，待确认）。
+> 英文 347 词（上限 350），中文 513 字（用户全文替换，已超 500–700 区间，待确认）。
 > 图片限宽 600，放在对应段落旁边。英文段用 3 张英文图，中文段沿用 02/03/05/07 中文图。
 
 ## 英文段（直接粘贴）
 
-MattSkillsDeck: a task board inside DSH for working with Matt's skills
+MattSkillsDeck: a companion plugin for mattpocock/skills on DSH
 
-I use DSH (DeepSeek Harness), and I use Matt's skills. Over time two things kept bothering me: with so many skills, I never knew which one the moment called for; and even when I did, each call needed the same boilerplate, like pasting the issue URL after /wayfinder. It wore me down. So I built MattSkillsDeck, a panel in the DSH sidebar that holds both the skills and the tasks. It is my own project, with no official connection to Matt, and I would like to hear from anyone who tries it whether it feels right.
+I use the skills suite inside DSH (DeepSeek Harness). Two pain points kept hitting me: with 27 skills, I never knew which one the moment called for; and even when I did, each call needed the same boilerplate again, like /wayfinder plus the issue URL every time. So I built the MattSkillsDeck plugin. First, it keeps the bundled skills up to date with the latest releases. Second, it adds a pile of shortcuts that make development smoother and lower the bar for newcomers.
 
-The main view is a task board. It lists every issue in the repo with filters for all, open, blocked and closed. Map rows stay pinned. Each row carries a button that already knows the next step: diagnose, fix, discuss, or execute. Clicking fills the prepared command into the input box, and I confirm before anything runs.
+The sidebar panel opens onto a task board listing every issue in the repo, filterable by all, open, blocked and closed, with map rows pinned. Every map and issue carries a button with the recommended action for its state: diagnose the untriaged, fix reported bugs, discuss the ones under discussion, execute plain tasks. One click fills the prepared command into the input box to confirm. It shows newcomers when to reach for implement, triage, handoff, wayfinder, implement-spec and the rest.
 
 <img src="https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/assets/readme/%E5%8F%B3%E4%BE%A7%E9%9D%A2%E6%9D%BF-%E6%95%B4%E4%BD%93%E9%A2%84%E8%A7%88-%E8%8B%B1%E6%96%87%E7%89%88.png" width="600" alt="Task board panel in English">
 
 (The card titles in this shot are my own Chinese backlog; the panel around them is English.)
 
-Under each input box sits a capsule with live counts: ready, bugs, triage, handoff, environment checks. Each segment jumps to the matching panel page and back, so checking status never breaks the session.
+Status capsule. Above every input box sits a capsule with live numbers: ready, bugs, triage, handoff, environment checks. One click jumps to the matching panel.
 
 <img src="https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/assets/readme/%E7%8A%B6%E6%80%81%E8%83%B6%E5%9B%8A-%E5%AF%B9%E8%AF%9D%E6%A1%86-%E8%8B%B1%E6%96%87%E7%89%88.png" width="600" alt="Status capsule under the input box">
 
-Opening a row shows the description, labels, assignee and comments, with a reply box right there. New session opens a clean session with the follow-up command already filled in. Sessions rename themselves as work takes shape, long sessions hand over through a generated doc, and all 27 skills are one click away in the Skills tab.
+Issue activity. It shows what each session is working on and its trail, so jumping between sessions no longer means digging through chat history to tell which issue a session is handling.
 
 <img src="https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/assets/readme/%E8%83%B6%E5%9B%8A%E7%8A%B6%E6%80%81%E6%A0%8F-issue%E5%A4%84%E7%90%86%E8%B7%AF%E5%BE%84-%E8%8B%B1%E6%96%87%E7%89%88.png" width="600" alt="Session activity in English">
+
+Session updates. Sessions the plugin creates to run an issue/ticket rename themselves automatically, which reads clean, with no renaming one by one. After planning, 20 to 30 sessions often develop concurrently within 30 seconds, and renaming alone is dull work.
 
 Install, after DSH is present:
 
@@ -32,7 +34,7 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck
 
 Then restart that DSH entry. Desktop app users replace --profile web with --profile desktop. Repo: https://github.com/FeatherHunter/dsh-mattpocock-skills-deck
 
-This panel only exists because Matt published these skills. Thank you, Matt. Everything above is what I figured out on my own, so it is probably wrong somewhere. If you spot one, file an issue and I'll take care of it.
+Thanks to Matt for the great skills. How this plugin uses them is all my own figuring out; something is bound to be off. File an issue if you like and I'll get it solved.
 
 ## 中文段（直接粘贴）
 
