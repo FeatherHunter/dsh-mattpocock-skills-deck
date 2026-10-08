@@ -198,6 +198,52 @@ export async function applyBlockEdges(t, repo, opCtx, from, targets, occurrences
 }
 
 /** 一批里有的成、有的没成时，这条总结论是 partial；全成是 ok；全没成是 unsupported。 */
+/** 依赖图里有没有环：邻接表是「票号 → 它的阻塞方集合」，顺着阻塞方走一圈回到自己就是环。
+ *  与 github 房 cycle-check.js 的 DFS 同形，写在这里是因为它是一条「边的规矩」，三个后端共用同一份判据。 */
+export function hasCycleInAdj(adj) {
+  const state = new Map()   // 1 = 在栈上，2 = 已走完
+  function walk(node) {
+    const s = state.get(node) || 0
+    if (s === 1) return true
+    if (s === 2) return false
+    state.set(node, 1)
+    const next = adj.get(node)
+    if (next) for (const n of next) { if (walk(n)) return true }
+    state.set(node, 2)
+    return false
+  }
+  for (const node of Array.from(adj.keys())) { if (walk(node)) return true }
+  return false
+}
+
+/** 整批成环预检（#929）：写任何一条边之前，先读一次整图，把这一批要写的阻塞边按实际写出顺序逐条试放，
+ *  会让依赖图成环的那一条挑出来（返回 refused：票号 → 原因）。
+ *  为什么要整批一起算：「某一条边单独看不成环」不代表安全 —— 缺的那一段可能就是同批另一条边
+ *  （两条互不相干的边加上盘上已有的边照样能闭合成环），所以只有把「本批全部意图 + 完整现状」
+ *  放在同一张图上才算得出来。读不回整图时不猜：回 ok:false，调用方照旧往下写并在 notes 里如实说一句。 */
+export async function precheckBlockBatch(t, repo, opCtx, keyOrder, mergedBlocked) {
+  let res = null
+  try { res = await t.list(repo, {}, opCtx) } catch (e) { return { ok: false, refused: new Map() } }
+  if (!res || res.ok !== true || !Array.isArray(res.data)) return { ok: false, refused: new Map() }
+  const adj = new Map()
+  for (const row of res.data) {
+    if (!row || row.key === undefined || row.key === null) continue
+    adj.set(String(row.key), new Set(((row.blockedBy) || []).map((b) => String((b && b.key) || b)).filter(Boolean)))
+  }
+  const refused = new Map()
+  for (const key of keyOrder) {
+    const want = (mergedBlocked.get(key) || []).filter((x) => x && String(x) !== String(key))
+    if (!want.length) continue
+    const before = adj.get(key)
+    adj.set(key, new Set(want))
+    if (hasCycleInAdj(adj)) {
+      if (before === undefined) adj.delete(key); else adj.set(key, before)
+      refused.set(key, '写前整批预检：这一组阻塞边和同一批里其它边合起来会让依赖图成环（要 ' + want.join('、') + '），所以这条边没写。')
+    }
+  }
+  return { ok: true, refused: refused }
+}
+
 export function statusOfItems(items) {
   const list = Array.isArray(items) ? items : []
   if (!list.length) return 'ok'

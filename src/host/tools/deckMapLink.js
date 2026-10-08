@@ -5,7 +5,7 @@
 // 判不出来就说「说不好」，绝不默认写成「原生层级」（判据与反证方向见 shell.js 的 classifyEdgeLanding）。
 // 校验用计数：改完按父票列一遍子票 / 再读一次依赖，把「要几条、实际几条」对一次，对不上就说 partial。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../../shared/deck-tools/shell.js'
-import { classifyEdgeLanding, edgeEvidence, statusOfItems, applyParentEdge, applyBlockEdges } from '../../shared/deck-tools/edges.js'
+import { classifyEdgeLanding, edgeEvidence, statusOfItems, applyParentEdge, applyBlockEdges, precheckBlockBatch } from '../../shared/deck-tools/edges.js'
 import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/tool-cost.js'
 import { withCallScope } from '../../shared/deck-tools/call-scope.js'
 
@@ -91,6 +91,11 @@ export function createDeckMapLink(deps) {
         if (!jobsByKey.has(k)) { jobsByKey.set(k, []); keyOrder.push(k) }
         jobsByKey.get(k).push(job)
       }
+      // #929：写任何一条边之前先整批过一遍成环预检。逐组的写前检查读的是已经落盘的图，看不见同批里
+      // 还没落盘的边 —— 两条互指的边同批发出时两边都会通过、盘上留下环（已用真件复现）。
+      // 预检只读一次整图、串行算完；下面那份组间并行一个字不动。被拒的票只跳过阻塞边，父子边照旧做。
+      const pre = mergedBlocked.size ? await precheckBlockBatch(t, repo, opCtx, keyOrder, mergedBlocked) : { ok: true, refused: new Map() }
+      if (!pre.ok) notes.push('这一批的整批成环预检没读到整图（列表没回来），成环检查只有每一组自己那一份：同批里互指的边仍可能都通过。')
       const perKey = await Promise.all(keyOrder.map(async (key) => {
         const out = { items: [], notes: [], touched: [], done: 0, readback: null }
         for (const job of jobsByKey.get(key)) {
@@ -101,6 +106,13 @@ export function createDeckMapLink(deps) {
             if (r.applied) { out.done += 1; out.touched.push(key) }
           }
           if (job.blockedBy !== undefined && job.blockedBy !== null) {
+            if (pre.refused.has(key)) {
+              // 整批预检说这一组边会让图成环：这条边不写，逐条如实报失败（别让 AI 当成建好了）。
+              for (const target of asList(job.blockedBy)) {
+                out.items.push(Object.assign({ key: key, status: 'failed' }, edgeEvidence('block', target, { kind: 'unknown', ok: false, text: pre.refused.get(key) })))
+              }
+              continue
+            }
             if (out.readback) {
               // 同一票号的阻塞边已按合并后的完整集合写过并读回过，这一重复项不再重写，
               // 按当时的读回结果为它自己的目标逐个补明细（写失败时同样逐个补失败）。
