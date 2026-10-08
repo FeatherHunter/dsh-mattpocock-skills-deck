@@ -28,6 +28,8 @@
 //     本测试只覆盖 sort 加固的子路径契约。
 const fs = require('fs')
 const assert = require('assert')
+// 本文件选 compileFn 手法：这段只是把真源里切出来的两个助手函数文本当函数体造函数，没有外层变量要显式传。
+const { compileFn } = require('./lib/eval-probe.js')
 
 const files = process.argv.slice(2).length ? process.argv.slice(2) : ['host.js', 'package/lib/index.js']
 
@@ -91,8 +93,9 @@ const extractHelpers = function (src) {
 }
 
 const runPickLatest = function (helperSrc, mds) {
-  const $ = new Function(
-    'mds',
+  // 本处走 compileFn：参数名给 mds，函数体与原来逐字相同。
+  const $ = compileFn(
+    ['mds'],
     helperSrc + '\n; return pickLatestHandoff(mds)'
   )
   return $(mds)

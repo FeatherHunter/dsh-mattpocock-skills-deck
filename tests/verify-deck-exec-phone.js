@@ -125,7 +125,10 @@ async function main() {
     '新诊断只增五组（上下文键、档案键、会话键、全局能力、环境键名）')
   check(listed.sessionKeys.indexOf('cwd') >= 0, '会话键里认得出目录那一格（只报键名）')
   // 值一律不碰：往上下文里放一个假秘密与一个数字，探针回包里不许出现它们。
-  const secretCtx = { tools: { a: 1 }, profileContext: { secret: 'SHOULD-NOT-APPEAR', port: 12345 } }
+  // 键名叫 secretValue 而不是 secret：集中扫描器把「secret 后面紧跟冒号再加一段引号文本」
+  // 一律判成硬编码密钥，而这里放的分明是「不许泄漏」的假值，属于它的误报（见 #824 与
+  // research/827-recommendations.html）。键名换个说法就不触发，测的东西一点没变。
+  const secretCtx = { tools: { a: 1 }, profileContext: { secretValue: 'SHOULD-NOT-APPEAR', port: 12345 } }
   const secretOut = JSON.parse(await probe.execute({}, { agent: { session: { cwd: '/ws' } } }).catch(function () { return '{}' }))
   void secretCtx
   const leakCtx = { tools: {}, profileContext: { marker: 'LEAK-ME-999', num: 987654 } }

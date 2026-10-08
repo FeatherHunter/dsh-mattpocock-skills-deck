@@ -18,6 +18,8 @@ const fs = require('fs')
 const path = require('path')
 const os = require('os')
 const { pathToFileURL } = require('url')
+// 本文件按文本求值统一走共用入口 compileFn：真源文本配假零件造成模块（理由与用法见 tests/lib/eval-probe.js 文件头）。
+const { compileFn } = require('./lib/eval-probe.js')
 
 const ROOT = path.resolve(__dirname, '..')
 const url = (rel) => pathToFileURL(path.join(ROOT, rel)).href
@@ -38,7 +40,8 @@ function loadLeaf(leafPath, extra) {
   while ((m = re.exec(src)) !== null) names.push(m[1])
   const body = src.replace(/^[ \t]*export[ \t]+/gm, '')
   const deps = { React: null, DswsCtx: null, tr: (k) => k, Ic: () => ({}), Tip: () => ({}), pushNav: extra && extra.pushNav, findMapByIdentity: extra && extra.findMapByIdentity }
-  const fn = new Function(Object.keys(deps).join(','), body + '\nreturn { SESSION_CHAIN_FIELD, sessionChainViewOf, sessionChainRowsOf, sessionChainOpenTicket }')
+  // 真源文本配假零件造模块：改走共用入口 compileFn，参数名取 deps 的键。
+  const fn = compileFn(Object.keys(deps), body + '\nreturn { SESSION_CHAIN_FIELD, sessionChainViewOf, sessionChainRowsOf, sessionChainOpenTicket }')
   return fn.apply(null, Object.keys(deps).map((k) => deps[k]))
 }
 

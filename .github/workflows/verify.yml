@@ -16,12 +16,13 @@ jobs:
       fail-fast: false
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      # 第三方步骤统一固定到提交哈希：井号后面的版本只给人看，实际跑的是前面的哈希。标签会被覆盖，哈希不会；以后升级走 Dependabot 的更新请求，不要手工改回标签。
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           # 版本只留一处定版：package.json 的 packageManager（当前 pnpm@11.22.0+sha512…，
           # action 会自己把 +sha512 那段校验串剥掉）。这里再写 version 会与它撞车——
@@ -30,7 +31,7 @@ jobs:
           run_install: false
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           # Node 22：仓库既有口径（票 #581 拍板 Node 22 为工程底座），也是 pnpm 11.22 的下限
           # ——它要求 Node ≥ 22.13，装在 Node 20 上跑 pnpm 会直接崩在 node:sqlite 这个内置模块上。
@@ -73,7 +74,7 @@ jobs:
 
       - name: Upload matrix snapshot (artifact per OS)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: matrix-results-${{ matrix.os }}
           path: |

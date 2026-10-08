@@ -4,6 +4,8 @@
 const fs = require('fs')
 const path = require('path')
 const { pathToFileURL } = require('url')
+// 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
+const { compileFn } = require('./lib/eval-probe.js')
 
 const root = path.resolve(__dirname, '..')
 let failed = false
@@ -44,7 +46,8 @@ async function loadBannerChain() {
     console: { log: function () {}, warn: function () {}, error: function () {} },
   }
   const names = Object.keys(sandbox)
-  const factory = new Function(...names, body + '\n;return { guideBannerStep, guideBannerMeta, runGuideMissing }')
+  // 这里选 compileFn：沙箱的依赖名是运行时拼出来的数组，共用入口同样接数组，所以 names 原样转交、调用参数顺序不变。
+  const factory = compileFn(names, body + '\n;return { guideBannerStep, guideBannerMeta, runGuideMissing }')
   return { mod: factory(...names.map((n) => sandbox[n])), seen, guide }
 }
 

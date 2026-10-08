@@ -2,6 +2,8 @@
 // 用法: node tests/verify-progress.js（在插件根目录）
 // 验证：1) parseProgress 变体解析 2) normalizeBody 容错（字面 \n + BOM） 3) host/package 均带 progress 字段 4) client/package 均含进度渲染
 const fs = require('fs')
+// 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
+const { evalWithScope } = require('./lib/eval-probe.js')
 const host = fs.readFileSync('host.js', 'utf8')
 const pkg = fs.readFileSync('package/lib/index.js', 'utf8')
 const cli = fs.readFileSync('client.js', 'utf8')
@@ -17,7 +19,7 @@ const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if
 // 1) parseProgress 单元测试（从 host 提取函数）
 const fm = hostMap.match(/function parseProgress\(body\) \{[\s\S]*?\n    \}/)
 check(!!fm, 'host 含 parseProgress 定义')
-const parseProgress = fm ? eval('(' + fm[0] + ')') : function () { return null }
+const parseProgress = fm ? evalWithScope(fm[0], {}) : function () { return null }
 const cases = [
   ['## 进度：90%\n下一步：x', 90],
   ['## 进度: 100%', 100],
@@ -40,7 +42,7 @@ cases.forEach(function (c) {
 // T16: normalizeBody 容错测试（从 host 提取；字面 \\n 还原 + 剥 BOM）
 const nfm = hostMap.match(/function normalizeBody\(raw\) \{[\s\S]*?\n    \}/)
 check(!!nfm, 'host 含 normalizeBody 定义（T16）')
-const normalizeBody = nfm ? eval('(' + nfm[0] + ')') : function (s) { return String(s || '') }
+const normalizeBody = nfm ? evalWithScope(nfm[0], {}) : function (s) { return String(s || '') }
 // 坏格式：BOM + 整篇字面 \\n（无真实换行）
 const badBody = String.fromCharCode(0xfeff) + '## Destination\\n\\nDSH-Waystation **v1.5**\\n\\n## Notes\\n\\nnote here'
 const normBad = normalizeBody(badBody)
@@ -52,7 +54,8 @@ check(normalizeBody('') === '', 'normalizeBody 空串安全')
 // T16 端到端回归（#463/#445）：parseMapBody 必须经 normalizeBody 接线 —— 坏格式 body（BOM + 字面 \n）恢复 Destination
 const pfm = hostMap.match(/function parseMapBody\(body\) \{[\s\S]*?\n    \}/)
 check(!!pfm, 'host 含 parseMapBody 定义（T16 端到端）')
-const parseMapBody = pfm ? eval('(' + pfm[0] + ')') : function () { return { destination: '', notes: '' } }
+// parseMapBody 内部要调 normalizeBody，直接求值原本靠外层作用域看得见它；这里改成显式给出。
+const parseMapBody = pfm ? evalWithScope(pfm[0], { normalizeBody }) : function () { return { destination: '', notes: '' } }
 const e2eOut = parseMapBody(badBody)
 check(e2eOut.destination === 'DSH-Waystation **v1.5**', 'parseMapBody 端到端恢复 Destination（BOM+字面 \\n · #445 场景）')
 check(e2eOut.notes === 'note here', 'parseMapBody 端到端恢复 Notes（#445 场景）')

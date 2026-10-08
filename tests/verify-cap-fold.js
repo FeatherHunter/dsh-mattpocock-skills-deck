@@ -33,6 +33,7 @@
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { createServer } from 'node:http'
+import { compileFn } from './lib/eval-probe.js'
 
 let passed = 0, failed = 0
 function ok(msg) { passed++; console.log('  PASS ' + msg) }
@@ -54,7 +55,8 @@ console.log('A) 判据层：那一条阶梯本身（纯函数，不开浏览器�
 const capFold = (function () {
   if (!existsSync(resolve(CAPFOLD))) return null
   try {
-    return new Function(read(CAPFOLD).replace(/^[ \t]*export[ \t]+/gm, '') +
+    // 手法：compileFn——阶梯那段判据是按与 build.mjs 同一套做法切出来的文本，改走共用入口造函数，行为不变。
+    return compileFn([], read(CAPFOLD).replace(/^[ \t]*export[ \t]+/gm, '') +
       '\nreturn { CAP_FOLD_POLICY, CAP_FOLD_START_FOLDED, capFoldLadderOf, capFoldStateAt, capFoldStepCount, capFoldStartWordsOf, capFoldStartFoldedOf, splitTimeStr }')()
   } catch (e) { return null }
 })()
@@ -381,7 +383,10 @@ const CWD = window.__CWD__
 const SNAP = window.__SNAP__
 let loaded = null
 window.__ModuleLoader__ = { load(spec) { loaded = spec; return spec } }
-window.eval(window.__CLIENT_SRC__)
+// 手法：插脚本执行——下面这段探针打包后在真 Chromium 页面里跑，那里没有 node:vm，所以插一段脚本元素执行产物（同步执行，顺序与原来一样）。
+const clientScriptEl = document.createElement('script')
+clientScriptEl.textContent = window.__CLIENT_SRC__
+document.body.appendChild(clientScriptEl)
 const dict = {}
 const trFn = (k, p) => {
   let s = dict[k] !== undefined ? dict[k] : k

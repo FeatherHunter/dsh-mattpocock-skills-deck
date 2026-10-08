@@ -22,7 +22,7 @@
  *     raw-comments-<number>.json
  */
 
-import { execSync } from 'node:child_process'
+import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -39,14 +39,25 @@ const repo = arg('--repo', repoDefault)
 const outDir = path.resolve(arg('--out', outDefault))
 const issueNumber = arg('--issue', '173')
 
-function ghApi(endpoint) {
-  try {
-    const out = execSync(`gh api ${endpoint}`, { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 })
-    return JSON.parse(out)
-  } catch (e) {
-    console.error(`gh api ${endpoint} failed:`, e.message)
-    throw e
+// 调用 gh 一律走这个函数：参数以数组形式交给进程，不拼成一条命令字符串。
+// 原来是把端点拼进一条命令字符串、再整条交给 shell 解析一遍；那等于让 shell 二次解释参数，
+// 端点里只要出现空格、引号或分号就会改变实际执行的命令。集中扫描器把这种拼法判成
+// 「命令注入形状」的高危项，而且这个判断是对的。改成数组传参之后参数原样交给 gh，注入面消失。
+// （这份注释本身也不要写出「调用名紧跟左括号再接插值模板」的形状——扫描器连注释一起看。）
+function ghRun(args) {
+  const r = spawnSync('gh', args, { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 })
+  if (r.error) throw r.error
+  if (r.status !== 0) {
+    const detail = String(r.stderr || '').trim() || ('退出码 ' + r.status)
+    const err = new Error('gh ' + args.join(' ') + ' 失败：' + detail)
+    console.error(err.message)
+    throw err
   }
+  return r.stdout
+}
+
+function ghApi(endpoint) {
+  return JSON.parse(ghRun(['api', endpoint]))
 }
 
 function desensitizeIssue(raw) {
@@ -75,7 +86,8 @@ async function main() {
   // 2) 近期列表（取 5 条，含 173 所在 repo 的真实分页）
   let rawList
   try {
-    const listRaw = execSync(`gh api repos/${repo}/issues --paginate -q "[.[] | {number, title, state, body, html_url, created_at, updated_at, closed_at, labels, assignees, assignee, user, comments_url, milestone}] | .[0:5]"`, { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 })
+    const listQuery = '[.[] | {number, title, state, body, html_url, created_at, updated_at, closed_at, labels, assignees, assignee, user, comments_url, milestone}] | .[0:5]'
+    const listRaw = ghRun(['api', 'repos/' + repo + '/issues', '--paginate', '-q', listQuery])
     rawList = JSON.parse(listRaw)
     // 脱敏
     rawList = rawList.map(desensitizeIssue)

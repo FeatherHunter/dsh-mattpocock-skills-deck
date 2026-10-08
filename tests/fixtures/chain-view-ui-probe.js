@@ -61,7 +61,10 @@ window.host = { call: (method, args) => Promise.resolve(reply(method)) }
 
 let loaded = null
 window.__ModuleLoader__ = { load(spec) { loaded = spec; return spec } }
-window.eval(window.__CLIENT_SRC__)
+// 本文件由门禁用 esbuild 打包后在真 Chromium 的页面里跑，页面里没有 node:vm，也不能用 require 引共用入口；
+//   所以按页面内执行代码的正规做法插一段经典脚本让它自己跑（与 tests/lib/eval-probe.js 里那份插脚本的手法一致）。
+const runInPage = (code) => { const s = document.createElement('script'); s.textContent = String(code); document.body.appendChild(s) }
+runInPage(window.__CLIENT_SRC__)
 
 const regs = []
 const services = {
@@ -96,8 +99,8 @@ const hostOf = function (id) {
 }
 
 // ---- 二、那块的**能力本体**：按 scripts/build.mjs 那套做法求值出来（剥行首 export 之后跑在一个作用域里）----
-const stripFn = new Function('React', 'DswsCtx', 'tr', 'Ic', 'Tip', 'pushNav',
-  'return (function(){' + window.__LEAF_SRC__.replace(/^[ \t]*export[ \t]+/gm, '') + '\nreturn SessionChainStrip })()')
+// 同一手法：叶子源码这一段同样在页面里执行，所以不造函数，改成插一段经典脚本 ——
+//   那六个依赖先摆到 window 上，脚本里再取回来当自由变量；结果由脚本自己挂到 window 上，读回来就是原来的 Strip。
 // DswsCtx 得是一个真的 React context（组件里 React.useContext(DswsCtx) 会读它的 $$typeof）；
 //   给一个空值会在 render 里当场抛错。这里自己造一个：值取 null，组件就退回 React.createElement 画。
 const DSW_CTX = React.createContext(null)
@@ -107,10 +110,15 @@ const TipStub = function (props) {
   const text = String((props && props.content) || '')
   return React.createElement('span', { 'data-tip': text, 'aria-label': text }, props && props.children)
 }
-const Strip = stripFn(React, DSW_CTX, trFn,
-  function Ic(props) { return React.createElement('svg', { width: 12, height: 12 }) },
-  TipStub,
-  undefined)
+const IcStub = function Ic(props) { return React.createElement('svg', { width: 12, height: 12 }) }
+window.__STRIP_DEPS__ = { React: React, DswsCtx: DSW_CTX, tr: trFn, Ic: IcStub, Tip: TipStub, pushNav: undefined }
+runInPage('window.__STRIP__ = (function () {\n' +
+  'var d = window.__STRIP_DEPS__;\n' +
+  'var React = d.React, DswsCtx = d.DswsCtx, tr = d.tr, Ic = d.Ic, Tip = d.Tip, pushNav = d.pushNav;\n' +
+  window.__LEAF_SRC__.replace(/^[ \t]*export[ \t]+/gm, '') +
+  '\nreturn SessionChainStrip;\n' +
+  '})()')
+const Strip = window.__STRIP__
 
 // ---- 三、同一把尺子：两面共用（量的都是这个容器里真实存在的字与属性）----
 const scanOf = function (host) {

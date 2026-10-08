@@ -13,6 +13,9 @@
  */
 const { readFileSync, existsSync } = require('node:fs')
 const { resolve } = require('node:path')
+// 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
+// （本文件是主干 #926 波次新合入的门禁，自带两处旧写法；#824 波次顺手按同一手法转掉，行为不变。若 #926 那边还在改这份文件，合入时以他们为准。）
+const { compileFn } = require('./lib/eval-probe.js')
 
 let passed = 0, failed = 0
 const ok = (msg) => { passed++; console.log('  PASS ' + msg) }
@@ -30,7 +33,8 @@ check(existsSync(resolve(CAPFOLD)) && existsSync(resolve(CAPMACHINE)) && existsS
 // 与 scripts/build.mjs 同一套做法：剥行首 export，拼进同一作用域跑。
 const mod = (function () {
   try {
-    return new Function(
+    // 手法：compileFn——两段源码剥 export 后拼进同一作用域跑，原来无参造函数当场调用，共用入口同样处理。
+    return compileFn([],
       read(CAPFOLD).replace(/^[ \t]*export[ \t]+/gm, '') + '\n' +
       read(CAPMACHINE).replace(/^[ \t]*export[ \t]+/gm, '') +
       '\nreturn { runCapFold: runCapFold, applyCapFoldStart: applyCapFoldStart }'
@@ -159,7 +163,8 @@ check(/capfold-guard/.test(machineSrc), '机器记下守卫复用情况（capfol
 const barSrc = existsSync(resolve(STATUSBAR)) ? read(STATUSBAR) : ''
 
 // 调度器运行时行为：单飞丢弃、回调清位、异常兜底（正则只能证明存在，行为要跑出来）
-const schedMod = new Function('window', read(CAPMACHINE).replace(/^[ \t]*export[ \t]+/gm, '') + '\nreturn { capFoldScheduleFold: capFoldScheduleFold }')
+// 手法：compileFn——机器源码单独求值，window 显式当参数名传进去，下面调用时仍传替身窗口。
+const schedMod = compileFn(['window'], read(CAPMACHINE).replace(/^[ \t]*export[ \t]+/gm, '') + '\nreturn { capFoldScheduleFold: capFoldScheduleFold }')
 const schedWin = { cbs: [], requestAnimationFrame: function (cb) { this.cbs.push(cb); return 1 } }
 const schedRun = schedMod(schedWin)
 let schedRan = 0

@@ -1,6 +1,8 @@
 // verify-issue-detail.js — T6 #11 · IssueDetail 数据通路与渲染白盒校验（map #5 · v1.7.0）
 // 覆盖：host wf.issueDetail / wf.issueComments 双通道 + client store/api 形状 + Markdown 安全白盒（script/iframe/钓鱼链接）+ 双源一致
 const fs = require('fs')
+// 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
+const { compileFn } = require('./lib/eval-probe.js')
 let failed=false
 const check=(ok,msg)=>{ console.log((ok?'  PASS ':'  FAIL ')+msg); if(!ok) failed=true }
 const cli = fs.readFileSync('client.js','utf8')
@@ -84,7 +86,8 @@ const stubH = (tag, props, children) => {
   return '<'+tag+attr+'>'+ch+'</'+tag+'>'
 }
 const run = (src, md) => {
-  const fn = new Function('h', src + '\nreturn { mdToHtml }')
+  // 这里选 compileFn：原来就是按文本造一个只接参数 h 的函数，参数名与方法体逐字照旧搬过来，求值结果不变。
+  const fn = compileFn(['h'], src + '\nreturn { mdToHtml }')
   const out = fn(stubH).mdToHtml(md)
   return (Array.isArray(out) ? out : [out]).join('')
 }

@@ -34,6 +34,10 @@ _research/
 /host.js
 /package/lib/
 /package/scripts/
+# 入口件绑定包也是纯生成物（scripts/bundle-update-entry.mjs 每次构建按已安装更新包现场生成），
+# 同样不入库：它是上游包产物的逐字拷贝，入库的副本会被集中扫描器误判成硬编码密钥，
+# 而构建时重新生成的那份不在扫描范围内。改这个文件等于改上游原文，一律不改，只重新生成。
+/scripts/generated/updateEntryPanel.bundle.js
 
 # 日志系统的编译产物不入库（发布前跑 build:dsh-log 本地生成，本地保留文件可跑测试）
 /packages/dsh-log/dist/

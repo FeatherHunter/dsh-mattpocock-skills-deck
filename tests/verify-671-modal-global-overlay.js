@@ -26,6 +26,8 @@
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { createRequire } from 'node:module'
+// 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头（本文件是 ESM，用 import 取具名导出）。
+import { compileFn } from './lib/eval-probe.js'
 
 let passed = 0
 let failed = 0
@@ -142,7 +144,8 @@ async function renderSeat (withModal) {
       SetupLayoutCard: () => null,
     }
     const names = Object.keys(deps)
-    const factory = new Function(...names, seat.src + '\n;return FormModalSeat')
+    // 把产物里抽出来的那段组件源码当函数体造函数，它的自由变量就是上面 deps 的那些名字，所以走 compileFn（参数名逐个传入）。
+    const factory = compileFn(names, seat.src + '\n;return FormModalSeat')
     const Seat = factory(...names.map((n) => deps[n]))
     const host = window.document.createElement('div')
     window.document.body.appendChild(host)

@@ -17,6 +17,7 @@
 // 以 en 为初始语言重新构建环境，而非中途切换。
 const fs = require('fs')
 const assert = require('assert')
+const { compileFn } = require('./lib/eval-probe.js')
 
 const files = process.argv.slice(2).length ? process.argv.slice(2) : ['client.js', 'package/lib/client.js']
 
@@ -138,10 +139,13 @@ const buildEnv = function (src, lang) {
     return '/wayfinder ' + u + '\n\n' + promptTextFor(st, 'mapInspect', { n: String(num == null ? '' : num), title: String(title || ''), url: u })
   }
   const completePromptSrc = extractBetween(src, 'const completePrompt = function (st, num, title, total, closed) {', "const FIXATE_PROMPT = function (st) { return promptTextFor(st, 'fixate') }")
-  const completePrompt = new Function('COMPLETE_PROMPT', 'BODY_FORMAT', 'repoStr', 'promptText', 'issueUrlFor', completePromptSrc + '; return completePrompt')(COMPLETE_PROMPT, BODY_FORMAT, repoStr, promptText, issueUrlFor)
+  // 本文件选 compileFn：这两处原来都是「把依赖名当参数、把从产物里切出来的源码当函数体」造函数再调用，
+  //   依赖本来就全部显式传参（切出来的代码读不到本文件作用域），与共用入口用法一一对应。
+  const completePrompt = compileFn(['COMPLETE_PROMPT', 'BODY_FORMAT', 'repoStr', 'promptText', 'issueUrlFor'], completePromptSrc + '; return completePrompt')(COMPLETE_PROMPT, BODY_FORMAT, repoStr, promptText, issueUrlFor)
   // #265 起 router 的命名契约段迁至命名守护共享核心（S2 #452 起为 shared/naming-titles.js 等 3 个文件）；终止锚点随迁（#265 后稳定存在于源与产物）
   const startTextSrc = extractBetween(src, 'const startText = (st, t) => {', '// 契约 #205 会话标题')
-  const startText = new Function('repoStr', 'promptText', 'promptTextFor', 'inspectPrompt', 'completePrompt', 'MAP_EXECUTE_PROMPT', 'BODY_FORMAT', 'renderTemplate', 'withWayfinderPrefix', 'issueUrlFor', 'effortOf', 'idOf', startTextSrc + '; return startText')(repoStr, promptText, promptTextFor, inspectPrompt, completePrompt, MAP_EXECUTE_PROMPT, BODY_FORMAT, renderTemplate, withWayfinderPrefix, issueUrlFor, effortOf, idOf)
+  // 同上：startText 这一处的依赖表也是逐字传参，换成 compileFn 后参数与实参一字不变。
+  const startText = compileFn(['repoStr', 'promptText', 'promptTextFor', 'inspectPrompt', 'completePrompt', 'MAP_EXECUTE_PROMPT', 'BODY_FORMAT', 'renderTemplate', 'withWayfinderPrefix', 'issueUrlFor', 'effortOf', 'idOf'], startTextSrc + '; return startText')(repoStr, promptText, promptTextFor, inspectPrompt, completePrompt, MAP_EXECUTE_PROMPT, BODY_FORMAT, renderTemplate, withWayfinderPrefix, issueUrlFor, effortOf, idOf)
   return { startText: startText }
 }
 

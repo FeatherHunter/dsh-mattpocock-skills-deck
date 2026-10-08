@@ -8,6 +8,7 @@
 // 配真实压栈弹栈函数与记录桩；不是照着源码另写一份仿品，所以源码改错名字或改错分支会直接变红。
 // 用法: node tests/verify-map-drill.js（在插件根目录）
 const fs = require('fs')
+const { compileFn } = require('./lib/eval-probe.js')
 
 // effort 维度（2026-09-09）：面板里身份函数来自拼接进闭包的 shared/tracker/constants.js。
 // 本门禁把同一份原文取出来，拼进每个求值沙箱，保证「跑的是真函数」这条纪律不破。
@@ -81,7 +82,8 @@ const prefsSrc = fs.readFileSync('src/client/kernel/store-prefs.js', 'utf8')
 
 // —— 真实导航函数（与 verify-nav-stack 同一加载手法：去行首 export，注入 emit 桩）
 const srcNoExport = prefsSrc.replace(/^\s*export\s+/gm, '')
-const nav = new Function('emit', srcNoExport + '\nreturn { peekNav, pushNav, popNav }')(
+// 手法：compileFn——本文件全都是把真源里截出来的函数文本变成可调用对象，统一交给 tests/lib/eval-probe.js，行为不变。
+const nav = compileFn(['emit'], srcNoExport + '\nreturn { peekNav, pushNav, popNav }')(
   function (st) { st.tick = (st.tick || 0) + 1 }
 )
 const eqStack = (st, arr) => JSON.stringify(st.navStack) === JSON.stringify(arr)
@@ -111,7 +113,8 @@ const e2eMapSrc = ['hasMapTag', 'enterDetail', 'goBack'].map((n) => extractConst
 const e2eSubSrc = ['subLabelsOf', 'subHasRoutingInfo', 'subHasMapTag', 'enterSubDetail'].map((n) => extractConst(issueSrc, n)).join('\n') + '\n' + extractConst(issueSrc, 'goBack').replace('const goBack =', 'const goBackIssue =')
 const runE2E2 = (bundle, names, t, seedStack, maps) => {
   const s = { activeMap: null, activeIssue: null, navStack: seedStack.map((e) => ({ kind: e[0], n: e[1], effortId: '' })), tick: 0, snapshot: { maps: maps } }
-  const fn = new Function('st', 'pushNav', 'popNav', (names.indexOf('enterSubDetail') >= 0 ? withIssueEffort(bundle) : withIdentity(bundle)) + '\nreturn { ' + names + ' }')
+  // 手法：compileFn——同上，参数名收进数组传给共用入口。
+  const fn = compileFn(['st', 'pushNav', 'popNav'], (names.indexOf('enterSubDetail') >= 0 ? withIssueEffort(bundle) : withIdentity(bundle)) + '\nreturn { ' + names + ' }')
   return { s: s, api: fn(s, function (a, k, n, e) { return nav.pushNav(a, k, n, e) }, function (a) { return nav.popNav(a) }) }
 }
 let e = runE2E2(e2eMapSrc, 'enterDetail, goBack', null, [['map', 550]], [{ number: 550 }])
@@ -148,7 +151,8 @@ const runEnter = (t, maps) => {
   const s = { activeMap: 550, activeIssue: null, navStack: [{ kind: 'map', n: 550, effortId: '' }], tick: 0, snapshot: maps === null ? undefined : { maps: maps || [{ number: 550 }, { number: 551 }] } }
   const log = []
   const pushStub = (a, k, n, e) => { log.push([k, n]); return nav.pushNav(a, k, n, e) }
-  const fn = new Function('st', 'pushNav', withIdentity(mapBundleSrc) + '\nreturn { enterDetail }')
+  // 手法：compileFn——同上。
+  const fn = compileFn(['st', 'pushNav'], withIdentity(mapBundleSrc) + '\nreturn { enterDetail }')
   fn(s, pushStub).enterDetail(t)
   return { s: s, last: log[log.length - 1] }
 }
@@ -182,7 +186,8 @@ const runClick = (t, drill) => {
   const log = []
   const pushStub = (a, k, n, e) => { log.push([k, n]); return nav.pushNav(a, k, n, e) }
   const emits = []
-  const fn = new Function('st', 'm', 'tickets', 'fogTitles', 'drill', 'emit', 'pushNav', 'const canDrill = drill !== false\nconst mId = idOf(m)\n' + withIdentity(fogBundleSrc) + '\nreturn { onNodeClick, isFog }')
+  // 手法：compileFn——同上；那段前置声明是代码文本的一部分，照旧拼在同一个函数体里。
+  const fn = compileFn(['st', 'm', 'tickets', 'fogTitles', 'drill', 'emit', 'pushNav'], 'const canDrill = drill !== false\nconst mId = idOf(m)\n' + withIdentity(fogBundleSrc) + '\nreturn { onNodeClick, isFog }')
   const api = fn(s, fogM, fogM.tickets, [], drill !== false ? true : false, function (x) { emits.push(1); x.tick = (x.tick || 0) + 1 }, pushStub)
   api.onNodeClick(t)
   return { s: s, log: log, api: api }
@@ -213,8 +218,10 @@ check(!mapSrc.includes("'列表 / #'") && !issueSrc.includes("'列表 / #'"), '�
 check(locPanelSrc.includes("'panel.tabList': '列表'") && locPanelSrc.includes("'panel.tabList': 'List'"), '矩阵：面包屑根复用主列表页签词条，中英齐备')
 const mapCrumbSrc = extractIife(mapSrc, 'navCrumb')
 const issueCrumbSrc = extractIife(issueSrc, 'navCrumb')
-const mapCrumb = (stack, num) => new Function('st', 'm', 'tr', mapCrumbSrc + '\nreturn navCrumb')({ navStack: stack }, { number: num }, zhTr)
-const issueCrumb = (stack, num) => new Function('st', 'issueNumber', 'tr', issueCrumbSrc + '\nreturn navCrumb')({ navStack: stack }, num, zhTr)
+// 手法：compileFn——面包屑算式同样是切出来的文本，走共用入口造函数。
+const mapCrumb = (stack, num) => compileFn(['st', 'm', 'tr'], mapCrumbSrc + '\nreturn navCrumb')({ navStack: stack }, { number: num }, zhTr)
+// 手法：compileFn——同上。
+const issueCrumb = (stack, num) => compileFn(['st', 'issueNumber', 'tr'], issueCrumbSrc + '\nreturn navCrumb')({ navStack: stack }, num, zhTr)
 check(mapCrumb([], 550) === '列表 / #550', '矩阵：地图面包屑空栈为单层列表形态')
 check(mapCrumb([{ kind: 'map', n: 550, effortId: '' }], 550) === '列表 / #550', '矩阵：地图面包屑单层仍为列表形态')
 check(mapCrumb([{ kind: 'map', n: 550, effortId: '' }, { kind: 'map', n: 551, effortId: '' }], 551) === '#550 / #551', '矩阵：地图进地图显示上一级与当前级')
@@ -228,7 +235,8 @@ check(issueCrumb([{ kind: 'map', n: 1, effortId: '' }, { kind: 'issue', n: 2, ef
 
 // ============ 六、技能页签最近地图祖先（跑源文件里截出来的真算式） ============
 const recSrc = extractIife(skillSrc, 'recMapNum')
-const recOf = (s) => new Function('st', recSrc + '\nreturn recMapNum')(s)
+// 手法：compileFn——同上。
+const recOf = (s) => compileFn(['st'], recSrc + '\nreturn recMapNum')(s)
 check(recOf({ navStack: [{ kind: 'map', n: 10, effortId: '' }, { kind: 'map', n: 20, effortId: '' }] }) === 20, '矩阵：栈顶是地图时推荐源就是它自己')
 check(recOf({ navStack: [{ kind: 'map', n: 10, effortId: '' }, { kind: 'issue', n: 20, effortId: '' }] }) === 10, '矩阵：栈顶是工单时推荐源是把它带进来的地图')
 check(recOf({ navStack: [{ kind: 'map', n: 1, effortId: '' }, { kind: 'issue', n: 2, effortId: '' }, { kind: 'map', n: 3, effortId: '' }, { kind: 'issue', n: 4, effortId: '' }] }) === 3, '矩阵：深栈取最近的地图祖先')
@@ -243,7 +251,8 @@ const runSub = (x, maps) => {
   const s = { activeMap: null, activeIssue: 20, navStack: [{ kind: 'issue', n: 20, effortId: '' }], tick: 0, snapshot: maps === null ? undefined : { maps: maps || [{ number: 551 }] } }
   const log = []
   const pushStub = (a, k, n, e) => { log.push([k, n]); return nav.pushNav(a, k, n, e) }
-  const fn = new Function('st', 'pushNav', withIssueEffort(subBundleSrc) + '\nreturn { enterSubDetail }')
+  // 手法：compileFn——同上。
+  const fn = compileFn(['st', 'pushNav'], withIssueEffort(subBundleSrc) + '\nreturn { enterSubDetail }')
   fn(s, pushStub).enterSubDetail(x)
   return log[log.length - 1]
 }

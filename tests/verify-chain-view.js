@@ -36,6 +36,7 @@ const fs = require('fs')
 const path = require('path')
 const os = require('os')
 const { pathToFileURL } = require('url')
+const { compileFn } = require('./lib/eval-probe.js')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -67,7 +68,8 @@ const findMapByIdentitySrc = (function () {
   }
   throw new Error('截取 findMapByIdentity 失败')
 })()
-const findMapByIdentityReal = new Function(identitySrc + '\n' + findMapByIdentitySrc + '\nreturn findMapByIdentity')()
+// 手法：compileFn——身份小件与查找函数都是从真源里截出来的文本，交给 tests/lib/eval-probe.js 统一造函数，行为不变。
+const findMapByIdentityReal = compileFn([], identitySrc + '\n' + findMapByIdentitySrc + '\nreturn findMapByIdentity')()
 
 /** 把一份「一源两物」的源文件当模块跑起来：剥行首 export，作用域里塞进它在拼接闭包里的邻居。 */
 function loadModule(relPath, deps) {
@@ -78,7 +80,8 @@ function loadModule(relPath, deps) {
   while ((m = re.exec(src)) !== null) names.push(m[1])
   if (!names.length) throw new Error(relPath + ' 里没有找到 export 声明')
   const body = src.replace(/^[ \t]*export[ \t]+/gm, '')
-  const fn = new Function(Object.keys(deps).join(', '), body + '\nreturn { ' + names.join(', ') + ' }')
+  // 手法：compileFn——依赖名原来拼成一个字符串传，现在按名字数组传（元素里带逗号也会被拆开），语义与原来一致。
+  const fn = compileFn(Object.keys(deps), body + '\nreturn { ' + names.join(', ') + ' }')
   return fn.apply(null, Object.keys(deps).map(function (k) { return deps[k] }))
 }
 

@@ -15,6 +15,8 @@
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
+// 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
+const { compileFn } = require('./lib/eval-probe.js')
 
 const ROOT = path.resolve(__dirname, '..')
 const LF = String.fromCharCode(10)
@@ -90,7 +92,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
   }
   const bundleText = fs.readFileSync(path.join(ROOT, 'scripts', 'generated', 'updateEntryPanel.bundle.js'), 'utf8')
   // jsdom 的 window.eval 作用域里没有裸 window，赋值语句会抛；改拿求值返回值。
-  const liveEntry = window.eval(bundleText + '\n__DshUpdateEntry;')
+  // 这里选 compileFn：这份 jsdom 没开 runScripts，原来那个 window.eval 其实是 Node 全局的间接求值（不是页面内执行，插脚本也不会被执行），所以把绑定包当函数体跑、末尾显式 return 那个变量，取到的值与原来逐字相同。
+  const liveEntry = compileFn([], bundleText + '\nreturn __DshUpdateEntry')()
   check(!!liveEntry && typeof liveEntry.mountUpdateEntry === 'function', '绑定包在真浏览器环境可加载（挂载函数可用）')
   check(bundleText.includes('[data-theme="archive"]'), '绑定包内有档案卷皮肤样式（入口件与面板按档案卷呈现）')
   // 入口件运行时读裸 document 与 navigator，挂载前把本轮 jsdom 的对象挂到 Node 全局上。

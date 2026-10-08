@@ -10,6 +10,7 @@
 const fs = require('fs')
 const path = require('path')
 const { pathToFileURL } = require('url')
+const { compileFn } = require('./lib/eval-probe.js')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -179,7 +180,8 @@ function buildView(patch, React, DswsCtx, Tip, Ic, seedReads, logs, trFn, export
   if (patch) src = patch(src)
   const names = exportsList || EXPORTS
   const body = src + '\nreturn { ' + names.join(', ') + ' }\n'
-  const fn = new Function('React', 'log', 'dswsLogHash', 'dswsLogTrunc', 'tr', 'host', 'DswsCtx', 'Tip', 'Ic', 'seedReads', body)
+  // 手法：compileFn——这份门禁照 build.mjs 的做法把叶子拼成一段文本再跑，这里把参数名数组与文本交给共用入口造函数，语义不变。
+  const fn = compileFn(['React', 'log', 'dswsLogHash', 'dswsLogTrunc', 'tr', 'host', 'DswsCtx', 'Tip', 'Ic', 'seedReads'], body)
   return fn(React || {}, function (level, event, fields) { (logs || []).push({ level: level, event: event, fields: fields }) },
     function () { return 'h8' }, function (s) { return String(s) }, trFn, {}, DswsCtx || null, Tip || null, Ic || null, seedReads || null)
 }

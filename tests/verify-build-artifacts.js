@@ -60,6 +60,30 @@ try {
   check(true, '产物 git 跟踪检查跳过（.gitignore 已命中即视为通过）')
 }
 
+// 3b) 入口件绑定包：纯生成物，不入库（#824）
+//   scripts/generated/updateEntryPanel.bundle.js 由 scripts/bundle-update-entry.mjs 每次构建
+//   按已安装更新包现场生成，是上游包产物的逐字拷贝。入库的副本会被集中扫描器误判成硬编码密钥，
+//   而构建时现场生成的那份不在扫描范围内，所以它和 client.js/host.js 一样不入库。
+//   锁三件事：磁盘上有（构建负责生成）、被忽略、未被跟踪，缺一件就红。
+{
+  const rel = 'scripts/generated/updateEntryPanel.bundle.js'
+  const abs = path.resolve(rel)
+  check(fs.existsSync(abs), rel + ' 存在（构建按已安装更新包现场生成，缺失请跑 node scripts/build.mjs）')
+  try {
+    const out = execSync('git check-ignore -v ' + rel, { encoding: 'utf8' })
+    check(out.includes('.gitignore'), rel + ' 被 .gitignore 忽略（生成物不入库）')
+  } catch (e) {
+    check(false, rel + ' 应被忽略：' + e.message)
+  }
+  try {
+    const all = execSync('git ls-files --cached', { encoding: 'utf8' })
+    const bad = all.split('\n').map(s => s.trim()).filter(l => l === rel)
+    check(bad.length === 0, rel + ' 未被 git 跟踪（入库副本会被扫描器误判）')
+    if (bad.length) console.log('    不该被跟踪:', bad.join(', '))
+  } catch (e) {
+    check(false, rel + ' 跟踪检查失败：' + e.message)
+  }
+}
 // 4) 方案 C 原样复制 L2 门禁（#136/#172）：glob 双向差集 + sha256 + 入口冒烟 + import 卫生
 console.log('\n方案C L2：原样复制校验（glob 差集 + sha256 + 入口 + import 卫生）')
 const crypto = require('crypto')

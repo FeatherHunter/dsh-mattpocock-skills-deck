@@ -15,6 +15,8 @@ import * as path from 'node:path'
 import * as os from 'node:os'
 import { pathToFileURL, fileURLToPath } from 'node:url'
 import { resolve } from 'node:path'
+// 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头（本文件是 ESM，用 import 取具名导出）。
+import { compileFn } from './lib/eval-probe.js'
 
 const ROOT = resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 let failed = false
@@ -86,7 +88,8 @@ const identitySrc = ['effortOf', 'idOfParts', 'idOf', 'refKeyOf'].map((n) => {
 const findMapByIdentitySrc = extractConst(derivedSrc, 'findMapByIdentity')
 const findGroupByIdentitySrc = extractConst(derivedSrc, 'findGroupByIdentity')
 {
-  const findMap = new Function(identitySrc + '\n' + findMapByIdentitySrc + '\nreturn findMapByIdentity')()
+  // 把按身份找地图那段源码拼起来当函数体造函数（没有参数名），所以走 compileFn。
+  const findMap = compileFn([], identitySrc + '\n' + findMapByIdentitySrc + '\nreturn findMapByIdentity')()
   const tickets = snapshot.maps.flatMap((m) => m.tickets || [])
   check(tickets.length === 2, `快照里两张子票（实际 ${tickets.length}）`)
   // 每张地图行都要解析到自己，不串到同号的另一张
@@ -103,7 +106,8 @@ const findGroupByIdentitySrc = extractConst(derivedSrc, 'findGroupByIdentity')
   check(findMap(snapshot.maps, 0, 'gamma') === null, '不存在的工作单元 → 返回空')
   check(findMap([{ number: 0, key: '00', title: 'Old' }], 0, 'beta') !== null, '老快照（无工作单元标识）仍按编号回落')
   // 分组版（Dock/Overlay/SkillsTab 用的那个）：包一层 { m: 地图 }
-  const findGroup = new Function(identitySrc + '\n' + findMapByIdentitySrc + '\n' + findGroupByIdentitySrc + '\nreturn findGroupByIdentity')()
+  // 同上（分组版也是几段源码拼成函数体、没有参数名），所以走 compileFn。
+  const findGroup = compileFn([], identitySrc + '\n' + findMapByIdentitySrc + '\n' + findGroupByIdentitySrc + '\nreturn findGroupByIdentity')()
   const groups = snapshot.maps.map((m) => ({ m }))
   check(findGroup(groups, 0, 'beta') === groups.find((g) => effortOf(g.m) === 'beta'), '分组版按 (0, beta) 命中 Beta 分组')
 }
@@ -132,7 +136,8 @@ const findGroupByIdentitySrc = extractConst(derivedSrc, 'findGroupByIdentity')
     truthWriteWindowOpen: () => false,
   }
   const names = Object.keys(stubs)
-  const listIssueRow = new Function('h', 'st', ...names, identitySrc + '\n' + findMapByIdentitySrc + '\n' + rowFnSrc + '\nreturn listIssueRow')(h, { snapshot }, ...names.map((n) => stubs[n]))
+  // 行渲染函数的函数体是几段源码拼的，自由变量由 h / st / names 三组参数名显式传入，所以走 compileFn。
+  const listIssueRow = compileFn(['h', 'st', ...names], identitySrc + '\n' + findMapByIdentitySrc + '\n' + rowFnSrc + '\nreturn listIssueRow')(h, { snapshot }, ...names.map((n) => stubs[n]))
   const ticket = snapshot.maps.flatMap((m) => m.tickets || []).find((t) => effortOf(t) === 'beta')
   const walkAll = (tree) => {
     const flat = []
@@ -158,7 +163,8 @@ const findGroupByIdentitySrc = extractConst(derivedSrc, 'findGroupByIdentity')
 // ---------- ④ 阻断表按 effort 作用域 + 列表接线（筛选 chips / KPI 跟随） ----------
 {
   const mapBlockOfSrc = extractConst(derivedSrc, 'mapBlockOf')
-  const mapBlockOf = new Function(identitySrc + '\n' + mapBlockOfSrc + '\nreturn mapBlockOf')()
+  // 阻断表那段同样是几段源码拼成函数体、没有参数名，所以走 compileFn。
+  const mapBlockOf = compileFn([], identitySrc + '\n' + mapBlockOfSrc + '\nreturn mapBlockOf')()
   // alpha#01 的阻塞者写的是 #02，但 alpha 里没有 02；beta 里的 02 是 open —— 不许跨 effort 认领
   const cross = { maps: [
     { key: '00', number: 0, effortId: 'alpha', title: 'Alpha Map', tickets: [

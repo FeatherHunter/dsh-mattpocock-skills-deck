@@ -7,6 +7,7 @@
 const fs = require('fs')
 const path = require('path')
 const { pathToFileURL } = require('url')
+const { compileFn } = require('./lib/eval-probe.js')
 
 const root = path.resolve(__dirname, '..')
 let failed = false
@@ -57,7 +58,9 @@ async function loadBannerChain(overrides) {
     console: { log: function () {}, warn: function () {}, error: function () {} },
   }
   const names = Object.keys(sandbox)
-  const factory = new Function(...names, body + '\n;return { guideBannerStep: guideBannerStep, runGuideMissing: runGuideMissing }')
+  // 本文件选 compileFn：那批依赖名是当场从沙箱对象上取出来的，正好对应「展开成参数表」那种写法，
+  //   被造的代码只看这些参数（切出来的 bannerChain 源码读不到本文件作用域），语义一一对应。
+  const factory = compileFn(names, body + '\n;return { guideBannerStep: guideBannerStep, runGuideMissing: runGuideMissing }')
   return { mod: factory(...names.map((n) => sandbox[n])), seen: seen, guide: guide }
 }
 

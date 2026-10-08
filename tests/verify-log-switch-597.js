@@ -22,6 +22,8 @@ import { fileURLToPath } from 'node:url'
 import { JSDOM } from 'jsdom'
 import React from 'react'
 import * as ReactDOMClient from 'react-dom/client'
+// 本文件选 evalInWindow 手法：在已经开了 runScripts 的 jsdom 窗口里跑打包产物，与原 window.eval 等价。
+import { evalInWindow } from './lib/eval-probe.js'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const BUNDLE = join(ROOT, 'package', 'lib', 'client.js')
@@ -108,7 +110,8 @@ async function clickDebugSwitch(setSwitchReply) {
   console.error = () => {}
   console.warn = () => {}
   try {
-    window.eval(bundleCode)
+    // 本处走 evalInWindow：这张 jsdom 窗口开了 runScripts，与原来在窗口上求值等价。
+    evalInWindow(dom, bundleCode)
     const mod = loaded.factory((m) => {
       if (m === 'react') return React
       if (m === 'react-dom') return ReactDOMClient

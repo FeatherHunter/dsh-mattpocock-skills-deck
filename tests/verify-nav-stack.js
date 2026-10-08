@@ -7,6 +7,8 @@
 //   4) 接线：Dock 渲染优先级读栈顶；双产物含新函数
 // 用法: node tests/verify-nav-stack.js（在插件根目录）
 const fs = require('fs')
+// 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
+const { compileFn } = require('./lib/eval-probe.js')
 let failed = false
 const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
@@ -27,7 +29,8 @@ check(prefsSrc.includes("kind === 'map'") && prefsSrc.includes("kind === 'issue'
 
 // —— 3) 行为级（把 store-prefs 当纯函数加载：去行首 export，注入 emit 桩）
 const srcNoExport = prefsSrc.replace(/^\s*export\s+/gm, '')
-const nav = new Function('emit', srcNoExport + '\nreturn { peekNav, pushNav, popNav, clearNavStack, setActiveMap, clearActiveMap, setActiveIssue, clearActiveIssue, clearActiveDetail }')(
+// 这里选 compileFn：原来就是把参数名一个个传给按文本造函数的写法，改成共用入口后参数名照旧一个个传，求值出来的函数接法不变。
+const nav = compileFn(['emit'], srcNoExport + '\nreturn { peekNav, pushNav, popNav, clearNavStack, setActiveMap, clearActiveMap, setActiveIssue, clearActiveIssue, clearActiveDetail }')(
   function (st) { st.tick = (st.tick || 0) + 1 }
 )
 const mk = () => ({ activeMap: null, activeIssue: null, navStack: [], tick: 0 })

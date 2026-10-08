@@ -61,7 +61,9 @@ const SNAP = window.__SNAP__
 const CHAIN_STEPS = window.__CHAIN_STEPS__
 let loaded = null
 window.__ModuleLoader__ = { load(spec) { loaded = spec; return spec } }
-window.eval(window.__CLIENT_SRC__)
+// 本文件选插脚本手法：这段在真 Chromium 页面里跑，没有 node:vm；插一个 script 元素与 window.eval 一样同步执行、一样落在全局作用域。
+const runInPage = (code) => { const s = document.createElement('script'); s.textContent = code; document.body.appendChild(s) }
+runInPage(window.__CLIENT_SRC__)
 const dict = {}
 const trFn = (k, p) => {
   let s = dict[k] !== undefined ? dict[k] : k

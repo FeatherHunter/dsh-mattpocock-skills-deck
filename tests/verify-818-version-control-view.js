@@ -19,6 +19,8 @@
 const fs = require('fs')
 const path = require('path')
 const { pathToFileURL } = require('url')
+// 本文件选 compileFn 手法：这段把六个叶子拼成的界面闭包当函数体造函数，依赖本来就一项项按参数名传。
+const { compileFn } = require('./lib/eval-probe.js')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -74,7 +76,8 @@ function buildView(patch, logs, React, DswsCtx, Tip, Ic, seedReads, hostStub) {
   let src = VC_FILES.map((f) => stripExports(read(f))).join('\n')
   if (patch) src = patch(src)
   const body = src + '\nreturn { ' + EXPORTS.join(', ') + ' }\n'
-  const fn = new Function('React', 'log', 'dswsLogHash', 'dswsLogTrunc', 'tr', 'host', 'DswsCtx', 'Tip', 'Ic', 'seedReads', body)
+  // 本处走 compileFn：参数名与参数值一一对应，与原来那种写法同一套依赖。
+  const fn = compileFn(['React', 'log', 'dswsLogHash', 'dswsLogTrunc', 'tr', 'host', 'DswsCtx', 'Tip', 'Ic', 'seedReads'], body)
   return fn(React || {}, function (level, event, fields) { logs.push({ level: level, event: event, fields: fields }) },
     function () { return 'h8' }, function (s) { return String(s) }, tZh, hostStub || {}, DswsCtx || null, Tip || null, Ic || null, seedReads || null)
 }

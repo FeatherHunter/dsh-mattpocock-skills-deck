@@ -16,6 +16,7 @@
 // 本测试不复制 openTextInNewSession 逻辑：从目标文件提取真实函数源码并在沙箱以忠实替身执行
 // （与 verify-b2-map-newsession.js 同范式），能抓住“逻辑改坏 / 双源漂移”两类回归。
 const fs = require('fs')
+const { compileFn } = require('./lib/eval-probe.js')
 
 const API_SRC_FILES = ['src/client/kernel/api-naming.js', 'src/client/kernel/api-workspace.js', 'src/client/kernel/api-new-session.js', 'src/client/kernel/api-io.js'] // #457 K4 + #636：api 拆分文件 + 工作区查找模块，src 侧读四文件拼合
 const files = process.argv.slice(2).length ? process.argv.slice(2) : ['src/client/kernel/api-naming.js+api-workspace.js+api-new-session.js+api-io.js（拼合）', 'package/lib/client.js']
@@ -64,11 +65,13 @@ function runSandbox(fnSrc, faceVariant, wsLib) {
   }
   const workspacesStub = { list: { getSnapshot: () => ({ items: [{ workspaceId: 'ws9', path: 'D:/repo' }] }) } }
   const st = { sessionId: 'src-sess', cwd: 'D:/repo', snapshot: null }
-  const fn = new Function(
-    'st', 'text', 'title', 'ctx', 'host',
-    'inject', 'flash', 'tr', 'getCwdSync', 'keyOf', 'storeOf', 'hydrateFromCache',
-    'getCachedSnapshot', 'issueRefNumbersFrom', 'recordIssuePath', 'namingHintOf',
-    'isNewPlaceholderTitle', 'namingGuardianKick',
+  // 本文件选 compileFn：这一处原来就是把十八个环境名当参数、把从 api 源码里切出来的函数当函数体造函数，
+  //   被造的代码只看这些参数（依赖全部显式注入），与共用入口用法一一对应。
+  const fn = compileFn(
+    ['st', 'text', 'title', 'ctx', 'host',
+      'inject', 'flash', 'tr', 'getCwdSync', 'keyOf', 'storeOf', 'hydrateFromCache',
+      'getCachedSnapshot', 'issueRefNumbersFrom', 'recordIssuePath', 'namingHintOf',
+      'isNewPlaceholderTitle', 'namingGuardianKick'],
     (wsLib ? wsLib + ';\n' : '') + fnSrc + '; return openTextInNewSession'
   )
   const openFn = fn(

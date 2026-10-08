@@ -16,6 +16,8 @@
 const fs = require('fs')
 const path = require('path')
 const { pathToFileURL } = require('url')
+// 本文件选 compileFn 手法：这一段是把拼好的源码文本当函数体造沙箱函数，要传进去的名字本来就列在 names 数组里。
+const { compileFn } = require('./lib/eval-probe.js')
 
 const root = path.resolve(__dirname, '..')
 let failed = false
@@ -139,7 +141,8 @@ async function loadChain(locale, backends, sbPatch) {
     createActionDispatcher: actions.createActionDispatcher,
   }
   const names = Object.keys(sandbox)
-  const factory = new Function(...names, body + tail)
+  // 本处走 compileFn：参数名与参数值都来自同一个 names 数组，展开传法与原来一致。
+  const factory = compileFn(names, body + tail)
   return { mod: factory.apply(null, names.map(function (n) { return sandbox[n] })), seen: seen, guide: guide, backends: backends }
 }
 

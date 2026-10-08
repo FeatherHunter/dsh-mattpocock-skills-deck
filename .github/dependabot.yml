@@ -1,0 +1,22 @@
+# 依赖自动更新配置（Dependabot）
+#
+# 为什么需要这个文件：
+# 集中扫描会检查仓库有没有把自动更新打开，没有就会扣分。
+# 下面两组更新每周跑一次，只提更新拉取请求，不直接合入，合入前仍然走完整门禁。
+#
+# 注意：仓库用 pnpm 安装依赖，但是 Dependabot 没有 pnpm 专用的更新通道，
+# 所以根目录的 JavaScript 依赖走 npm 通道更新，更新内容同样会刷新 pnpm 的锁文件。
+
+version: 2
+updates:
+  # 第一组：第三方 GitHub Action 的版本更新（例如 actions/checkout 这类流水线步骤）。
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  # 第二组：根目录 JavaScript 依赖的版本更新（package.json 里声明的依赖）。
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"

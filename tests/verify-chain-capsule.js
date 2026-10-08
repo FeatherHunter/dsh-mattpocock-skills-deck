@@ -11,6 +11,8 @@
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+// 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
+import { compileFn } from './lib/eval-probe.js'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 let passed = 0, failed = 0
@@ -25,8 +27,9 @@ if (!existsSync(resolve(ROOT, LEAF))) { console.log('缺文件 ' + LEAF); proces
 // 与构建同一套做法：剥行首 export，丢进同名桩那个作用域里跑（只动判据，不渲染组件）。
 function loadLeaf(rowsStub) {
   const src = read(LEAF).replace(/^[ \t]*export[ \t]+/gm, '')
-  const factory = new Function(
-    'React', 'DswsCtx', 'Tip', 'Ic', 'tr', 'sessionChainRowsOf', 'SESSION_CHAIN_FIELD', 'sessionChainOpenTicket', 'openPanel',
+  // 这里选 compileFn：原来就是把九个依赖名逐个传给按文本造函数的写法，共用入口同样收参数名数组，造出来的函数接法不变。
+  const factory = compileFn(
+    ['React', 'DswsCtx', 'Tip', 'Ic', 'tr', 'sessionChainRowsOf', 'SESSION_CHAIN_FIELD', 'sessionChainOpenTicket', 'openPanel'],
     src + '\nreturn { capsuleShardOf, sessionChainCapsuleOf, SessionChainCapsule }'
   )
   const React = { createElement: function (t, p) { return { t: t, p: p, c: Array.prototype.slice.call(arguments, 2) } }, useContext: function () { return null } }
@@ -90,7 +93,8 @@ console.log('B) 版面纪律：可见字里没有散列与内部行话，文件�
     const leafR = (function () {
       const srcR = read(LEAF).replace(/^[ \t]*export[ \t]+/gm, '')
       const h = function (t, p) { return { t: t, p: p, c: Array.prototype.slice.call(arguments, 2) } }
-      const factory = new Function('React', 'DswsCtx', 'Tip', 'Ic', 'tr', 'sessionChainRowsOf', 'SESSION_CHAIN_FIELD', 'sessionChainOpenTicket', 'openPanel', 'PortalOverlay', 'placeStatusOverlay', 'clearStatusClose', 'scheduleStatusClose', 'emit',
+      // 这里选 compileFn：十四个依赖名逐个传（与原写法一致），被求值的叶子源码文本原样。
+      const factory = compileFn(['React', 'DswsCtx', 'Tip', 'Ic', 'tr', 'sessionChainRowsOf', 'SESSION_CHAIN_FIELD', 'sessionChainOpenTicket', 'openPanel', 'PortalOverlay', 'placeStatusOverlay', 'clearStatusClose', 'scheduleStatusClose', 'emit'],
         srcR + '\nreturn { SessionChainCapsule }')
       const refs = []
       const box = { init: false, active: null }
@@ -205,7 +209,8 @@ console.log('C) 接线：挂载、构建、叶子表、让位表、环境段图�
   const leaves = read('tests/verify-leaves.js')
   check(leaves.indexOf('statusbar/SessionChainCapsule.js') >= 0, '叶子表登记了这一叶（含导出与组件断言）')
   const capFoldSrc = read('src/client/statusbar/capFold.js').replace(/^[ \t]*export[ \t]+/gm, '')
-  const capFold = new Function(capFoldSrc + '\nreturn { CAP_FOLD_POLICY }')()
+  // 这里选 compileFn：这段源码不接参数，造出函数后当场调用，取的就是它返回的 CAP_FOLD_POLICY。
+  const capFold = compileFn([], capFoldSrc + '\nreturn { CAP_FOLD_POLICY }')()
   const keys = Object.keys(capFold.CAP_FOLD_POLICY || {}).sort(function (a, b) { return Number(a) - Number(b) })
   check(JSON.stringify(keys) === JSON.stringify(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12']), '让位表是 12 段（环境计数 5 早于时间，在办编号 12 排在最后）')
   const zh = read('src/client/kernel/locale-pages.js')
@@ -234,7 +239,8 @@ console.log('E) 地图那一条：认身份换图标，文字通道仍留号（#
   const icons = []
   const built = (function () {
     const srcR = read(LEAF).replace(/^[ \t]*export[ \t]+/gm, '')
-    const factory = new Function('React', 'DswsCtx', 'Tip', 'Ic', 'tr', 'sessionChainRowsOf', 'SESSION_CHAIN_FIELD', 'sessionChainOpenTicket', 'openPanel', 'PortalOverlay', 'placeStatusOverlay', 'clearStatusClose', 'scheduleStatusClose', 'emit',
+    // 这里选 compileFn：与上面那处同名同参数，只是这次取的只有 SessionChainCapsule 这一个导出。
+    const factory = compileFn(['React', 'DswsCtx', 'Tip', 'Ic', 'tr', 'sessionChainRowsOf', 'SESSION_CHAIN_FIELD', 'sessionChainOpenTicket', 'openPanel', 'PortalOverlay', 'placeStatusOverlay', 'clearStatusClose', 'scheduleStatusClose', 'emit'],
       srcR + '\nreturn { SessionChainCapsule }')
     const React = {
       createElement: h,

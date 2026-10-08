@@ -1,5 +1,11 @@
-# 自动识别文本文件并做换行规范化
-* text=auto
+# 文本文件一律按 LF 检出与存储。
+# 原来这里只写「* text=auto」：它保证入库时是 LF，但检出时跟随操作系统的默认换行，
+# 在 Windows 上就是 CRLF。结果是任何新检出的工作树里近 1200 个文本文件都变成 CRLF，
+# 而 tests/ 下大量门禁是按字节精确匹配源码的（例如 verify-683-choice-store.js 与
+# verify-818-version-control-view.js 的反证断言），于是同一份代码在旧工作树（LF）全绿、
+# 在新工作树（CRLF）必红——门禁结论取决于在哪台机器检出，这就是 #828 踩过的坑。
+# 补上 eol=lf 之后，任何机器、任何 core.autocrlf 设置，检出来都是 LF，门禁结论一致。
+* text=auto eol=lf
 
 # 所有 shell 脚本一律 LF：它们在消费者机器上直接执行，而且 tests/verify-release-contract.js 会用
 # bash -n 做语法检查——CRLF 检出下 wizard/template.sh 第 30 行 `_clear() {` 会被读成 $'{\r' 直接报错。
