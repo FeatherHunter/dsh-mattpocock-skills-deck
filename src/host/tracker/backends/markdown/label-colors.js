@@ -39,9 +39,10 @@ function getFs(ctx) {
   return null
 }
 
-/** 配色文件的完整路径。 */
 // 工作区目录（workspaceDirOf）与工作区钥匙都住在 write-queue.js：
 // 算文件路径与算队列钥匙必须得到同一个答案，不各写一份。
+
+/** 配色文件的完整路径。 */
 export function labelColorsPath(ctx, repo) {
   return getPlat(ctx).join(workspaceDirOf(ctx, repo), LABEL_COLORS_REL_PATH)
 }
