@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>给 mattpocock/skills 讨论区发帖：开工前的 7 个问题</title>
+<style>
+:root{--line:#e3e6ea;--ink:#1f2328;--muted:#5c6773;--blue:#2b7cd3;--bluebg:#f1f7fe;--warn:#b26a00}
+*{box-sizing:border-box}
+body{font-family:system-ui,"Microsoft YaHei",-apple-system,sans-serif;max-width:940px;margin:32px auto;padding:0 20px;line-height:1.75;color:var(--ink)}
+h1{font-size:24px;margin:0 0 8px}
+h2{font-size:18px;margin:38px 0 10px;padding-top:18px;border-top:2px solid var(--line)}
+h3{font-size:14px;margin:16px 0 6px;color:var(--muted);letter-spacing:.5px}
+p{margin:8px 0}
+ul{margin:8px 0;padding-left:20px}
+li{margin:7px 0}
+.meta{color:var(--muted);font-size:14px}
+table{border-collapse:collapse;width:100%;font-size:14px;margin:14px 0}
+th,td{border:1px solid var(--line);padding:8px 10px;vertical-align:top;text-align:left}
+th{background:#f6f8fa;font-weight:600;white-space:nowrap}
+.rec{background:var(--bluebg);border-left:4px solid var(--blue);padding:10px 14px;margin:10px 0;border-radius:0 6px 6px 0}
+.rec b{color:#144a80}
+.warn{background:#fff8ec;border-left:4px solid var(--warn);padding:10px 14px;margin:10px 0;border-radius:0 6px 6px 0;font-size:14px}
+.shots{display:flex;flex-wrap:wrap;gap:10px;margin:10px 0}
+.shots figure{margin:0;width:168px;font-size:12px;color:var(--muted)}
+.shots img{width:168px;border:1px solid var(--line);border-radius:6px;display:block}
+code{background:#f3f4f6;padding:1px 5px;border-radius:4px;font-size:13px}
+.foot{margin-top:42px;padding-top:18px;border-top:2px solid var(--line);color:var(--muted);font-size:14px}
+</style>
+</head>
+<body>
+
+<h1>给 mattpocock/skills 讨论区发帖：开工前的 7 个问题</h1>
+<p class="meta">2026-10-08 ｜ 状态：<b>还没动工单库</b>，等你回答后再建地图与子工单 ｜ 目标位置：<a href="https://github.com/mattpocock/skills/discussions/categories/show-and-tell">mattpocock/skills 的 Show and tell 分类</a></p>
+<p>你要的是：在 Show and tell 发一篇帖子，先中文后英文，用人类平常说话的语气介绍 MattSkillsDeck 这个插件，向 Matt 致谢。我先把已经查清的事实列出来，再把只有你能拍板的 7 个问题摆出来。每题都给你三个答案：我原本的推荐、被人挑毛病之后的推荐、只按事情本身该怎么做推出来的推荐。</p>
+
+<h3>开工前我已经查清的事实</h3>
+<table>
+<tr><th>事项</th><th>结果</th></tr>
+<tr><td>目标分类</td><td>Show and tell 存在，不是"只有管理员能发"的公告类；9 月底到 10 月初都有外部作者在里面发自我介绍帖。</td></tr>
+<tr><td>发布权限</td><td>你的 gh 已登录 FeatherHunter，权限含 <code>write:discussion</code>；你在那个仓库还没有任何发言记录，不存在重复发。</td></tr>
+<tr><td>你贴的 4 张截图</td><td>全部公开可访问（测试返回 200，JPEG），可以直接在帖子里引用，不用重新上传。</td></tr>
+<tr><td>humanizer 命令</td><td><code>npx skills add blader/humanizer --global --agent '*'</code> 是该技能官方文档里给"其它 agent"的写法，命令有效。</td></tr>
+<tr><td>humanizer 安装（已做）</td><td>按你的命令装好了：技能文件在 <code>~/.agents/skills/humanizer</code>（版本 3.1.0，含 SKILL.md 与三个给 agent 用的插件描述文件），并链接进本机各 agent 的目录（其中 Eve、PromptScript 两个 agent 本身不支持全局安装，与本次无关）。</td></tr>
+<tr><td>本会话能不能用它</td><td>能。装完的同一秒，本会话的技能清单里就出现了 humanizer，我直接调用已经取到它的全部正文。原先"装了以后这个会话未必能调用"的疑问就此排除：写完帖子可以立刻用它的规则做改写与自查。</td></tr>
+</table>
+
+<h3>速览</h3>
+<table>
+<tr><th>问题</th><th>一句话</th><th>我的推荐</th><th>两轮审查后</th></tr>
+<tr><td>Q1</td><td>帖子由谁发出去</td><td>我发，发前给你看渲染后的全文</td><td>不变，补一条硬规则</td></tr>
+<tr><td>Q2</td><td>写多长</td><td>中文 500–700 字</td><td>不变，加两条约束</td></tr>
+<tr><td>Q3</td><td>要不要交代背景和身份</td><td>要，但不写成声明</td><td>不变，位置调整</td></tr>
+<tr><td>Q4</td><td>安装信息放多少</td><td>两行命令 + 仓库链接</td><td>由一行改成两行</td></tr>
+<tr><td>Q5</td><td>讲哪几个功能</td><td>讲 4 个点，其余一句带过</td><td>不变，顺序按痛点重排</td></tr>
+<tr><td>Q6</td><td>标题用什么语言</td><td>英文标题一行</td><td>不变</td></tr>
+<tr><td>Q7</td><td>图片怎么放</td><td>分散放，每段限宽</td><td>由 4 张减到 3 张</td></tr>
+</table>
+
+<h2>Q1 帖子由谁发出去</h2>
+<p><b>背景：</b>帖子要发在公开仓库，署你的名字，发出去就有人看到，删掉也会留下记录。你的 gh 已经登录，权限也够，技术上一行命令就能发。</p>
+<h3>选项利弊</h3>
+<ul>
+<li><b>A 我用你的账号直接发，发之前把最终全文渲染成网页给你看，你点头我才发（推荐）。</b>利：一步到位，排版、图片、换行都不会在手工搬运时出错，你只需要看一遍。弊：账号动作由我代做，这一步需要你信任。</li>
+<li><b>B 我把最终文本给你，你自己粘贴发布。</b>利：发布时机和账号动作完全在你手里。弊：你多一道手工活；长文粘贴容易丢换行；图有没有显示对还得你自己确认。</li>
+<li><b>C 只给草稿，不发布。</b>利：最保守。弊：事情只做了一半。</li>
+</ul>
+<div class="rec"><b>我的推荐：A。</b>前提是"预览"这一步不能省。</div>
+<div class="rec"><b>对抗式审查后：仍是 A，但补一条硬规则。</b>预览必须是浏览器里渲染出来的效果，不能是 Markdown 源码——源码里看不出图片多大、段落有没有挤在一起。另外把动作拆成两步：我先把预览给你并写明"你说可以我才发"，你不回话我就不发。只有在你不想让任何工具替你操作账号时，B 才更好。</div>
+<div class="rec"><b>从头想起后：仍是 A。</b>这件事唯一不可逆的是"发出去"那一下。所以原则是：不可逆的一步留给能做最终判断的人，但不必为了这一下让整篇手工搬运。预览确认加我来发，刚好卡在这个点上。</div>
+
+<h2>Q2 帖子写多长</h2>
+<p><b>背景：</b>你给的素材有 5 个功能点和 4 张截图。我读了那个分类里最近反响不错的几篇，长度大致在英文 300–600 词，写法都是"我遇到什么麻烦、我做了什么、想听你的意见"。讨论区不是说明书，读者是刷到的，不是来查文档的。</p>
+<h3>选项利弊</h3>
+<ul>
+<li><b>A 短：中文 300 字左右，只讲最亮的两三件事。</b>利：读完率高。弊：放不下 5 个功能点，4 张图也铺不开。</li>
+<li><b>B 中：中文 500–700 字，5 个功能点讲全，配 3–4 张图（推荐）。</b>利：讲得清又不拖，和图的数量匹配。弊：要砍掉次要功能，写到后面得克制。</li>
+<li><b>C 长：完整功能清单加安装步骤，像一篇文档。</b>利：信息最全。弊：讨论区里没人读完，图片会把页面拉得很长，重点被淹没。</li>
+</ul>
+<div class="rec"><b>我的推荐：B。</b></div>
+<div class="rec"><b>对抗式审查后：仍是 B，加两条约束。</b>一是图必须限宽——那几张截图原始宽度 3833 像素，不限宽会把页面拉得极长；二是中英双语等于篇幅翻倍，所以中文正文控制在 600 字内、英文控制在 350 词内。真正的风险不是"写少了"，而是"读者滚了两屏还没看到重点"，所以开头三句必须把"这是什么、解决什么麻烦"讲完。</div>
+<div class="rec"><b>从头想起后：仍是 B。</b>帖子只有两个任务：让人看懂、让人想试。字数不是目标，"读者在两屏内能记住三件事"才是，按这个标准反推篇幅就落在中档。</div>
+
+<h2>Q3 要不要交代背景和身份</h2>
+<p><b>背景：</b>那个讨论区的读者大多用 Claude Code，不一定知道 DeepSeek Harness（DSH）。你这个插件只对 DSH 用户有用，而且是个人作品，跟 mattpocock/skills 没有官方关系。</p>
+<h3>选项利弊</h3>
+<ul>
+<li><b>A 开头一句话说明 DSH 是什么，第一次提到插件时顺带写明是个人作品、与作者没有官方关系，结尾向 Matt 道谢（推荐）。</b>利：不会让人误会成官方插件，也解释了"为什么只在 DSH 里能用"。弊：多三句话，开场稍慢。</li>
+<li><b>B 不提，直接讲功能。</b>利：开场干脆。弊：多数读者会困惑这是什么环境，甚至以为是官方周边。</li>
+<li><b>C 把"非官方"声明放在开头。</b>利：最不容易误解。弊：像免责声明，读者还没看到价值就先看到声明。</li>
+</ul>
+<div class="rec"><b>我的推荐：A。</b></div>
+<div class="rec"><b>对抗式审查后：仍是 A，但位置调整。</b>"这是什么"放开头一句；"与作者无官方关系"不要单列成声明，而是在第一次出现插件名时用半句话带过（例如"我自己做的、跟 Matt 没有官方关系的插件"）；道谢放结尾一句。这样该说的都说了，又不打断阅读节奏。</div>
+<div class="rec"><b>从头想起后：仍是 A。</b>读者翻开帖子先问"这跟我有什么关系"。开头必须先回答这个问题（用 Matt 的技能干活时，重复的琐事太多），再一句交代环境与身份。</div>
+
+<h2>Q4 安装信息放多少</h2>
+<p><b>背景：</b>能装这个插件的只有 DSH 用户。安装其实是两步：先装 DSH，再装插件；插件还分桌面版和网页版两种 profile，装错等于没装——这是你仓库 README 里专门提醒过的坑。</p>
+<h3>选项利弊</h3>
+<ul>
+<li><b>A 一行命令加仓库链接。</b>利：想试的人马上动手，看不懂的人也不被挡住。弊：桌面版用户可能照抄网页版那条命令，装错地方却以为插件坏了。</li>
+<li><b>B 完整安装块（先装 DSH、再装插件、重启说明）。</b>利：几乎不会装错。弊：占掉帖子近一半篇幅，非 DSH 用户会觉得啰嗦。</li>
+<li><b>C 只放仓库链接。</b>利：最短。弊：想试的人还要多点一层，动手的人会变少。</li>
+</ul>
+<div class="rec"><b>我的推荐：A。</b></div>
+<div class="rec"><b>对抗式审查后：仍是 A，但命令由一行改成两行。</b>桌面版和网页版各一行，再加一句"装错 profile 等于没装"。理由是"装错 profile"是你自己踩过并写进 README 的坑，对读者伤害最直接。两行命令换掉一次踩坑，划算。</div>
+<div class="rec"><b>从头想起后：仍是 A 加两行命令。</b>标准是"想试的人一分钟内能装上、看不懂的人不被挡住"，两行命令刚好满足，完整教程留在仓库里。</div>
+
+<h2>Q5 讲哪几个功能</h2>
+<p><b>背景：</b>你列了 5 条：① 技能操作变成面板；② 当前会话在处理哪个工单、处理过哪些；③ 预置按钮，长会话快满时一键交接；④ 右侧面板按工单状态给不同按钮，一键点；⑤ 新会话自动改名。仓库 README 里还有：任务板按可接/阻塞/已关闭分组、底部状态栏、工单详情与评论、新会话预填指令、27 个技能快捷入口、多后端切换。</p>
+<h3>选项利弊</h3>
+<ul>
+<li><b>A 只讲你列的 5 条。</b>利：忠于你的原意。弊：第①条是总纲（"变成面板"），和第④条重叠，实际只有 4 个独立点。</li>
+<li><b>B 讲 4 个独立点，其余一句带过（推荐）。</b>利：每一条都是别人也能感同身受的麻烦。弊：舍掉一部分工作量展示。</li>
+<li><b>C 把 README 里的都讲。</b>利：展示完整。弊：变成功能清单，读者一条也记不住。</li>
+</ul>
+<div class="rec"><b>我的推荐：B。</b></div>
+<div class="rec"><b>对抗式审查后：仍是 B，但顺序按"读者能感同身受的程度"排，不按你的列表顺序：</b>先讲"工单多了记不住状态"（对应②④），再讲"会话快满、上下文要丢"（对应③），最后讲"二三十个会话同时开、改名很枯燥"（对应⑤）；第①条改成标题和开头的引子。另外，4 张图里那张"预置 prompt 按钮"的图可以并进③一起讲，不必单列一段。</div>
+<div class="rec"><b>从头想起后：仍是 B。</b>帖子不是功能清单，读者只会记住"他也有这个麻烦"的条目。按痛点排序、只留 4 条，是唯一站得住的标准。</div>
+
+<h2>Q6 标题用什么语言</h2>
+<p><b>背景：</b>正文你已定"先中文后英文"。但那个讨论区读者以英文为主，标题是所有人都会看到的一行。</p>
+<h3>选项利弊</h3>
+<ul>
+<li><b>A 英文标题一行（推荐）。</b>利：主要读者一眼看懂，也容易被搜到。弊：中文读者要靠正文第一段才明白。</li>
+<li><b>B 中英各一行标题。</b>利：两种读者都照顾到。弊：标题区重复、占地方，英文读者会觉得奇怪。</li>
+<li><b>C 中文标题。</b>利：中文读者亲切。弊：多数读者看不懂，等于没有标题。</li>
+</ul>
+<div class="rec"><b>我的推荐：A，</b>插件名放最前面，例如 <code>MattSkillsDeck: a task board for the Matt Pocock skills workflow in DeepSeek Harness</code>。</div>
+<div class="rec"><b>对抗式审查后：仍是 A，加一条提醒：</b>标题里不要出现只有中文用户才懂的直译词（"工单""面板"之类），用最普通的英文说清"这是什么"。中文版是正文开头整段，标题不必再照顾一次。</div>
+<div class="rec"><b>从头想起后：仍是 A。</b>标题只有一个职责：让目标读者判断要不要点开。目标读者以英文为主，所以用英文；中文读者进了正文就都懂了。</div>
+
+<h2>Q7 图片怎么放</h2>
+<p><b>背景：</b>你贴的 4 张截图都存在 GitHub 上、可以直接引用（我测过，都能打开）。原始尺寸最宽 3833 像素，不限宽会占满整屏、把文字挤得很远。</p>
+<div class="shots">
+<figure><img src="https://github.com/user-attachments/assets/aa03aeb3-3fd0-4ca5-b18b-5466546dee2c" alt="面板总览"><figcaption>① 整体界面</figcaption></figure>
+<figure><img src="https://github.com/user-attachments/assets/a34f1210-0da6-413d-a3b7-0441b45dc6d1" alt="当前会话在处理哪个工单"><figcaption>② 当前在处理哪个工单</figcaption></figure>
+<figure><img src="https://github.com/user-attachments/assets/118625d8-2f61-4112-97da-e2ba0d163f57" alt="预置 prompt 按钮"><figcaption>③ 预置按钮（很窄）</figcaption></figure>
+<figure><img src="https://github.com/user-attachments/assets/260c7568-069b-4980-8e8f-ca39284a6f26" alt="新会话自动改名"><figcaption>④ 会话自动改名</figcaption></figure>
+</div>
+<h3>选项利弊</h3>
+<ul>
+<li><b>A 分散放，讲到一个功能就放对应的图，并统一限宽（推荐）。</b>利：图就是那段话的说明，读起来顺；限宽后滚动长度可控。弊：每张图要配一句说明，写起来稍费事。</li>
+<li><b>B 全部集中在开头或结尾。</b>利：写起来省事。弊：读者看图时不知道在讲什么，图白放。</li>
+<li><b>C 不放图，只放文字。</b>利：帖子短。弊：界面类工具没有图，很难让人相信好看又好用。</li>
+</ul>
+<div class="rec"><b>我的推荐：A。</b></div>
+<div class="rec"><b>对抗式审查后：仍是 A，但由 4 张减到 3 张：</b>开头一张整体界面，中间一张"按状态给按钮"，末尾一张"会话自动改名"。第③张很窄（1192×78），并进"长会话交接"那段当插图；如果放不下，宁可不放也不凑数。</div>
+<div class="rec"><b>从头想起后：仍是 A。</b>图的作用是替文字解释界面，所以必须紧挨着需要解释的那句话；张数由"读者要记住几件事"决定，不由手上有几张图决定。</div>
+
+<div class="warn"><b>不在这次范围内（如果你有不同意见请说）：</b>不发你自己的仓库讨论区，不发第三方清单，不在贴出后主动追着回复评论。</div>
+
+<h2>你回答之后我会做什么</h2>
+<ul>
+<li>1. 按你的答案写下一句话的目的地：在 mattpocock/skills 的 Show and tell 发出一篇中英双语、读起来像人写的介绍帖。</li>
+<li>2. 建一张地图工单，正文里写清目的地、注意事项、以及现在还没看清的部分。</li>
+<li>3. 把现在就能写清的子工单一起建好（讨论类、调查类、执行类）。</li>
+<li>4. 给每张子工单挂上父子关系与先后依赖，并逐条核对"建了几条、读回来几条"，对不上就如实说。</li>
+<li>5. 读回地图核对子工单数量与进度，然后停手，等你逐张推进。</li>
+</ul>
+<p class="rec"><b>最省事的回复：</b>回一句"按推荐来"，我就照上面 5 步建好并读回给你看。某题要改的话，只写题号和你的选择即可（例如"Q2 选 A，其余按推荐"）。</p>
+
+<p class="foot">相关链接：<a href="https://github.com/mattpocock/skills/discussions/categories/show-and-tell">Show and tell 分类</a> ｜ <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck">插件仓库</a> ｜ <a href="https://github.com/blader/humanizer">humanizer 技能</a><br>
+本文只摆问题和分析，没有改动工单库里的任何内容。</p>
+
+</body>
+</html>
