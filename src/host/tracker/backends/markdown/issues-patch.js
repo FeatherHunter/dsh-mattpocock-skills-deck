@@ -9,26 +9,35 @@ import { ERROR_KIND } from '../../../../shared/tracker/constants.js'
 import { resolveIssueFile, resolveMapFile } from './issues-locate.js'
 import { loadPaintColorMap, applyLabelColors } from './label-colors-paint.js'
 import { replaceOrInsertField } from './issues-status.js'
+// #922：票文件的读—改—写按文件排队，见 write-queue.js。
+import { withFileWriter } from './write-queue.js'
 
 async function resolveTarget(ctx,repo,norm,mode){
   if(norm==='00') return resolveMapFile(ctx,repo,{mode})
   return resolveIssueFile(ctx,repo,norm,{mode})
 }
-async function readParseWrite(ctx,r,norm,fn){
-  try{
-    let txt=await readTextFile(ctx,r.path)
-    const out=fn(txt)
-    const next=typeof out==='string'?out:txt
-    if(next!==txt)await writeTextFile(ctx,r.path,next)
-    return{ok:true,txt:next}
-  }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
+/** 读一份票文件、在内存里改、再整份写回去。
+ *  这三步必须排在该文件的单写者队列里跑完（#922）：中间那一次读会让出事件循环，
+ *  两路并发改同一张票时会一起读到同一份旧内容，各自改各自的，后写的那一路把先写的那一路的改动整份抹掉
+ *  —— 两路都回成功，盘上却少了一半改动。队按文件分：批量补边一次要改很多张票，
+ *  它们是不同的文件、彼此不冲突，仍然可以同时做（#919 的并发改造就是照这个口径放宽的）。 */
+async function readParseWrite(ctx,repo,r,norm,fn){
+  return withFileWriter(ctx,repo,r.path,async function(){
+    try{
+      let txt=await readTextFile(ctx,r.path)
+      const out=fn(txt)
+      const next=typeof out==='string'?out:txt
+      if(next!==txt)await writeTextFile(ctx,r.path,next)
+      return{ok:true,txt:next}
+    }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
+  })
 }
 export async function updateIssue(ctx,repo,key,patch){
   const norm=String(key).padStart(2,'0')
   const colorMap=await loadPaintColorMap(ctx)
   const r=await resolveTarget(ctx,repo,norm,'write')
   if(!r.ok)return{ok:false,error:r.error}
-  const res=await readParseWrite(ctx,r,norm,function(txt){
+  const res=await readParseWrite(ctx,repo,r,norm,function(txt){
     let changed=false
     if(patch&&typeof patch.title==='string'){
       const newTitle=patch.title.trim()
@@ -86,7 +95,7 @@ export async function setBlockedByIssue(ctx,repo,key,blockers){
   if(!r.ok)return{ok:false,error:r.error}
   const arr=Array.isArray(blockers)?blockers:[]
   const line=arr.length?'Blocked by: '+arr.map(k=>'#'+String(k).padStart(2,'0')).join(', '):'Blocked by:'
-  const res=await readParseWrite(ctx,r,norm,function(txt){return replaceOrInsertField(txt,'Blocked\\s+by',line)})
+  const res=await readParseWrite(ctx,repo,r,norm,function(txt){return replaceOrInsertField(txt,'Blocked\\s+by',line)})
   if(!res.ok)return{ok:false,error:res.error}
   try{
     const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:r.effortId})
@@ -101,7 +110,7 @@ export async function setAssigneesIssue(ctx,repo,key,assignees){
   if(!r.ok)return{ok:false,error:r.error}
   const hasAssignee=Array.isArray(assignees)&&assignees.length>0
   const statusLine=hasAssignee?'Status: claimed':'Status: ready-for-agent'
-  const res=await readParseWrite(ctx,r,norm,function(txt){return replaceOrInsertField(txt,'Status',statusLine)})
+  const res=await readParseWrite(ctx,repo,r,norm,function(txt){return replaceOrInsertField(txt,'Status',statusLine)})
   if(!res.ok)return{ok:false,error:res.error}
   try{
     const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:r.effortId})
@@ -120,7 +129,7 @@ export async function setLabelsIssue(ctx,repo,key,labels){
   const r=await resolveTarget(ctx,repo,norm,'write')
   if(!r.ok)return{ok:false,error:r.error}
   const line=names.length? 'Labels: '+names.join(', ') : 'Labels:'
-  const res=await readParseWrite(ctx,r,norm,function(txt){return replaceOrInsertField(txt,'Labels',line)})
+  const res=await readParseWrite(ctx,repo,r,norm,function(txt){return replaceOrInsertField(txt,'Labels',line)})
   if(!res.ok)return{ok:false,error:res.error}
   try{
     const iss=parseMd(res.txt,{key:norm,parentKey: norm==='00'?null:'00',isMap: norm==='00',effortId:r.effortId})

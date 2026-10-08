@@ -9,6 +9,8 @@ import { writeTextFile } from './write.js'
 import { classifyError } from '../../preflight.js'
 import { ERROR_KIND } from '../../../../shared/tracker/constants.js'
 import { resolveIssueFile } from './issues-locate.js'
+// #922：写评论同样是「读整份 → 在内存里改 → 整份写回」，要排在该票文件的单写者队列里，见 write-queue.js。
+import { withFileWriter } from './write-queue.js'
 
 export async function listComments(ctx,repo,key){
   const norm=String(key).padStart(2,'0')
@@ -20,31 +22,35 @@ export async function addComment(ctx,repo,key,body){
   const norm=String(key).padStart(2,'0')
   const r=await resolveIssueFile(ctx,repo,norm,{mode:'write'})
   if(!r.ok)return{ok:false,error:r.error}
-  try{
-    let txt=await readTextFile(ctx,r.path)
-    const nowIso=new Date().toISOString()
-    const actor=(ctx&&ctx.actor)||'local'
-    const block='### '+actor+' \u2014 '+nowIso+'\n'+String(body||'').trim()+'\n'
-    const re=/^\s*##\s*Comments\s*$/im
-    const m=re.exec(txt)
-    if(m){
-      const start=m.index+m[0].length
-      const after=txt.slice(start)
-      const nextH2=/^\s*##\s+/m.exec(after)
-      if(nextH2){
-        const insertPos=start+nextH2.index
-        txt=txt.slice(0,insertPos)+'\n'+block+'\n'+txt.slice(insertPos)
+  // 读—改—写整段排在该票文件的队列里（#922）：不排队的话，同一张票上「发评论」与「关门」并发时，
+  // 后写的那一路会把前一路的改动整份抹掉（评论没了，或状态被抹回 ready-for-agent）。
+  return withFileWriter(ctx,repo,r.path,async function(){
+    try{
+      let txt=await readTextFile(ctx,r.path)
+      const nowIso=new Date().toISOString()
+      const actor=(ctx&&ctx.actor)||'local'
+      const block='### '+actor+' \u2014 '+nowIso+'\n'+String(body||'').trim()+'\n'
+      const re=/^\s*##\s*Comments\s*$/im
+      const m=re.exec(txt)
+      if(m){
+        const start=m.index+m[0].length
+        const after=txt.slice(start)
+        const nextH2=/^\s*##\s+/m.exec(after)
+        if(nextH2){
+          const insertPos=start+nextH2.index
+          txt=txt.slice(0,insertPos)+'\n'+block+'\n'+txt.slice(insertPos)
+        }else{
+          if(!txt.endsWith('\n'))txt+='\n'
+          txt+='\n'+block+'\n'
+        }
       }else{
         if(!txt.endsWith('\n'))txt+='\n'
-        txt+='\n'+block+'\n'
+        txt+='\n## Comments\n\n'+block+'\n'
       }
-    }else{
-      if(!txt.endsWith('\n'))txt+='\n'
-      txt+='\n## Comments\n\n'+block+'\n'
-    }
-    await writeTextFile(ctx,r.path,txt)
-    const comment={author:{login:actor},authorAssociation:'',body:String(body||''),createdAt:nowIso,updatedAt:nowIso}
-    return{ok:true,data:comment}
-  }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
+      await writeTextFile(ctx,r.path,txt)
+      const comment={author:{login:actor},authorAssociation:'',body:String(body||''),createdAt:nowIso,updatedAt:nowIso}
+      return{ok:true,data:comment}
+    }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
+  })
 }
 export default{listComments,addComment}

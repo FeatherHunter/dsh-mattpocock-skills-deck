@@ -24,6 +24,8 @@ import { readTextFile } from './read.js'
 import { writeTextFile, renameFile } from './write.js'
 import { getPlat } from './issues-locate.js'
 import { builtinColorObject } from './label-colors-palette.js'
+// 单写者队列与工作区钥匙：与建票取号、写票文件共用同一份实现（#922），不在这里另写一份。
+import { withWorkspaceWriter, workspaceDirOf, workspaceWriteKey } from './write-queue.js'
 
 /** 配色文件在工作区里的相对位置（工作区根 = 本次调用上下文里的 cwd）。 */
 export const LABEL_COLORS_REL_PATH = 'docs/agents/label-colors.json'
@@ -37,22 +39,9 @@ function getFs(ctx) {
   return null
 }
 
-/** 这个工作区根目录（配色文件落在它的 docs/agents/ 下）。 */
-function workspaceDirOf(ctx, repo) {
-  if (ctx && typeof ctx.cwd === 'string' && ctx.cwd) return ctx.cwd
-  if (repo && typeof repo.refId === 'string' && repo.refId) return repo.refId
-  return (typeof process !== 'undefined' && typeof process.cwd === 'function') ? process.cwd() : '.'
-}
-
-/** 队列钥匙：同一个工作区的不同写法（盘符大小写、斜杠方向、尾部斜杠）必须落到同一把钥匙上。
- *  为什么不能直接用路径串当钥匙：`D:\ws` 与 `d:/ws` 是同一个工作区，用原始串会各走一条队列，
- *  两次并发保存就会交错执行、后写的那份把先写的那份整份覆盖——正是本功能要防的那种「保存成功、
- *  颜色却没变」（审查实测：/ws 与 /WS 同时保存会丢一份）。 */
-function workspaceKeyOf(ctx, repo) {
-  return String(workspaceDirOf(ctx, repo)).replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
-}
-
 /** 配色文件的完整路径。 */
+// 工作区目录（workspaceDirOf）与工作区钥匙都住在 write-queue.js：
+// 算文件路径与算队列钥匙必须得到同一个答案，不各写一份。
 export function labelColorsPath(ctx, repo) {
   return getPlat(ctx).join(workspaceDirOf(ctx, repo), LABEL_COLORS_REL_PATH)
 }
@@ -134,7 +123,7 @@ export function isMissingFile(e) {
  *  是同一套约定，契约测试也是在没有文件服务的上下文里调这个后端的。 */
 export async function readLabelColors(ctx, repo) {
   const path = labelColorsPath(ctx, repo)
-  const where = () => hash8(workspaceKeyOf(ctx, repo))
+  const where = () => hash8(workspaceWriteKey(ctx, repo))
   if (!getFs(ctx)) {
     logRead(ctx, () => ({ cwdHash: where(), present: false, count: 0, ok: true }))
     return { ok: true, colors: {}, raw: {}, present: false }
@@ -193,16 +182,9 @@ export function defaultLabelColorsText() {
   return JSON.stringify(defaultLabelColors(), null, 2) + '\n'
 }
 
-// 单写者队列（照 src/host/logStore.js 的单写者刷盘写法）：同一个文件的读—改—写排成一条链，
-// 后来的调用等前一条做完再做。为什么必须有：两个会话同时保存时交错执行会丢整轮改动（见文件头）。
-const writerChains = new Map()
-function withSingleWriter(key, work) {
-  const prev = writerChains.get(key) || Promise.resolve()
-  const run = prev.then(work, work)
-  // 链上只留「上一条已经结束」这个事实：上一条失败不该把后面的调用一起带崩。
-  writerChains.set(key, run.then(function () {}, function () {}))
-  return run
-}
+// 单写者队列住在 write-queue.js（withWorkspaceWriter）：同一个工作区的读—改—写排成一条链，
+// 后来的调用等前一条做完再做（写法照 src/host/logStore.js 的单写者刷盘）。
+// 为什么必须有：两个会话同时保存时交错执行会丢整轮改动（见文件头）。
 
 /** 原子发布：先把完整内容写进同目录的临时文件，再把它改名成目标文件。
  *  为什么要临时文件＋改名：这份文件是用户会手改、会提交进版本库、而且是「整份一次性覆盖」的文件，
@@ -287,11 +269,11 @@ export function describeWriteFailure(err) {
  *  照默认内容写一遍就等于把用户手写的东西整份抹掉。
  *  返回 {ok:true, placed, reason} 或 {ok:false, error}。placed=true 表示这次真的新建了一份。 */
 export async function ensureLabelColors(ctx, repo) {
-  return await withSingleWriter(workspaceKeyOf(ctx, repo), async () => {
+  return await withWorkspaceWriter(ctx, repo, async () => {
     const read = await readLabelColors(ctx, repo)
     if (!read.ok) {
       // 读不出来就不动它（也不覆盖），并且留痕：调用方与日志都要能看见「这次放置没做成、原因是读不出来」。
-      logWrite(ctx, { cwdHash: hash8(workspaceKeyOf(ctx, repo)), count: 0, ok: false, reason: 'refused-read-fail' })
+      logWrite(ctx, { cwdHash: hash8(workspaceWriteKey(ctx, repo)), count: 0, ok: false, reason: 'refused-read-fail' })
       return read
     }
     if (read.present) return { ok: true, placed: false, reason: 'exists' }
@@ -315,7 +297,7 @@ function defaultLabelColors() {
  *  返回 'rename' 或 'write-text'（走了哪条发布路径，给日志与门禁用）；失败抛错，由调用方分档。 */
 export async function publishLabelColors(ctx, repo, next, reason) {
   const text = JSON.stringify(next, null, 2) + '\n'
-  const key = workspaceKeyOf(ctx, repo)
+  const key = workspaceWriteKey(ctx, repo)
   const count = Object.keys(next).length
   let via = ''
   try {
@@ -334,10 +316,10 @@ export async function publishLabelColors(ctx, repo, next, reason) {
   return via
 }
 
-/** 同一个文件的读—改—写排队执行（单写者队列）。导出给契约操作那两条用。
- *  钥匙按工作区归一（见 workspaceKeyOf）：同一个工作区的不同写法必须排同一条队。 */
+/** 同一个工作区的读—改—写排队执行（单写者队列）。导出给契约操作那两条用。
+ *  钥匙按工作区归一（见 write-queue.js 的 workspaceWriteKey）：同一个工作区的不同写法必须排同一条队。 */
 export function withLabelColorsWriter(ctx, repo, work) {
-  return withSingleWriter(workspaceKeyOf(ctx, repo), work)
+  return withWorkspaceWriter(ctx, repo, work)
 }
 
 
