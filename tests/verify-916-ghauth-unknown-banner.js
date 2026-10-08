@@ -13,7 +13,7 @@ const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8')
 async function loadBannerChain() {
   const guide = await import(pathToFileURL(path.join(root, 'src/shared/tracker/guide-steps.js')).href)
   const body = read('src/client/statusbar/bannerChain.js').replace(/^[ \t]*export[ \t]+/gm, '')
-  const seen = { injected: [], logged: [], detectCalls: 0, chainReloads: 0, snapReloads: 0 }
+  const seen = { injected: [], logged: [], detectCalls: 0, chainReloads: 0, snapReloads: 0, recheckVia: null, recheckTrigger: null }
   const stepsOf = (st) => (st && st.chainSnapshot && Array.isArray(st.chainSnapshot.steps)) ? st.chainSnapshot.steps : []
   const sandbox = {
     guideStepsFor: guide.guideStepsFor,
@@ -35,7 +35,8 @@ async function loadBannerChain() {
     openUrl: () => {},
     host: { call: () => { seen.detectCalls += 1; return Promise.resolve({ ok: true }) } },
     openFormModal: () => {},
-    loadChain: () => { seen.chainReloads += 1 },
+    chainEventRefresh: (st, why) => { seen.chainReloads += 1; seen.recheckVia = 'chainEventRefresh'; seen.recheckTrigger = String(why); return Promise.resolve(null) },
+    loadChain: () => { seen.chainReloads += 1; seen.recheckVia = 'loadChain'; return Promise.resolve(null) },
     loadSnapshot: () => { seen.snapReloads += 1 },
     flash: () => {},
     openStatusGate: () => {},
@@ -73,6 +74,7 @@ async function main() {
   ok(mod.runGuideMissing(pendSt, pendStep) === 'action', 'pending 按钮走重查那一路')
   ok(seen.injected.length === beforeInj, 'pending 一个字都不注入（不给登录指引）')
   ok(seen.detectCalls === 1 && seen.chainReloads === 1 && seen.snapReloads === 1, '重查确实触发了强制重算（detect + 链 + 快照各一次）')
+  ok(seen.recheckTrigger === 'user-recheck', '重查带人亲手点的令牌上去（永不降档，不吃缓存旧快照）')
   ok(!!seen.logged.find((l) => l.event === 'guide.inject' && l.fields.step === 'gh:authed' && l.fields.outcome === 'action'), '重查落一行旧格式日志（只记哪一步与哪一类）')
 
   console.log('== 3. 明确失败的 current 同样走登录指引 ==')

@@ -209,10 +209,19 @@ export const runGuideMissing = function (st, step) {
   } catch (e) {}
   if (!missing || !missing.type) { logGuideInject(stepId, 'none'); return 'none' }
   if (missing.type === 'recheck') {
+    // #916 人亲手点的这一次永不降档：必须带 'user-recheck' 上去（见 chainBackoff），
+    // 否则宿主会按后台档退避、用缓存的旧快照直接回包，点了等于没点。
+    // 写法与「重新检查」按钮真身同形（chainEventRefresh 优先，loadChain 兜底）。
     try {
-      if (typeof host !== 'undefined' && host && host.call) host.call('wf.detect', { cwd: st.cwd || '', force: true, backendId: (typeof userHintOf === 'function' ? userHintOf(st.selection) : undefined) || undefined, baseRev: (typeof baseRevOf === 'function' ? baseRevOf(st.selection) : 0) })
+      if (typeof host !== 'undefined' && host && host.call) {
+        const r = host.call('wf.detect', { cwd: st.cwd || '', force: true, backendId: (typeof userHintOf === 'function' ? userHintOf(st.selection) : undefined) || undefined, baseRev: (typeof baseRevOf === 'function' ? baseRevOf(st.selection) : 0) })
+        if (r && typeof r.catch === 'function') r.catch(function () {})
+      }
     } catch (e) {}
-    try { if (typeof loadChain === 'function') loadChain(st, true) } catch (e2) {}
+    try {
+      if (typeof chainEventRefresh === 'function') { const r2 = chainEventRefresh(st, 'user-recheck'); if (r2 && typeof r2.catch === 'function') r2.catch(function () {}) }
+      else if (typeof loadChain === 'function') { const r3 = loadChain(st, true, 'user-recheck'); if (r3 && typeof r3.catch === 'function') r3.catch(function () {}) }
+    } catch (e2) {}
     try { if (typeof loadSnapshot === 'function') loadSnapshot(st, true, true) } catch (e3) {}
     logGuideInject(stepId, 'action'); return 'action'
   }
