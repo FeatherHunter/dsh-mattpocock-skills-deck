@@ -1,7 +1,7 @@
 # Show and tell 初稿（给 #913，英文在前、中文在后）
 
 > 状态：初稿 + humanizer 自查完成，待 #914 渲染预览与发布。
-> 英文 338 词（上限 350），中文 554 字（区间 500–700）。
+> 英文 338 词（上限 350），中文 513 字（用户全文替换，已超 500–700 区间，待确认）。
 > 图片限宽 600，放在对应段落旁边。英文段用 3 张英文图，中文段沿用 02/03/05/07 中文图。
 
 ## 英文段（直接粘贴）
@@ -36,25 +36,28 @@ This panel only exists because Matt published these skills. Thank you, Matt. Eve
 
 ## 中文段（直接粘贴）
 
-MattSkillsDeck：在 DSH 里给 Matt 的技能配一块任务板
+MattSkillsDeck：用于DSH的mattskillspock skills 配套插件。
 
-我用 DSH（DeepSeek Harness，一个聊天窗口指挥 AI 干活的工具），也用 Matt 的技能。时间一长，两个地方一直别扭：一是技能一多，什么时候该用哪一个，心里没谱；二是就算知道用哪个，每次也要写一堆模板话、做重复动作，比如叫出 /wayfinder 还要再贴一遍工单地址，累。所以我做了 MattSkillsDeck，把技能和任务都收进 DSH 侧边的一块面板里（个人作品，和 Matt 没有官方关系）。
+我在 DSH（DeepSeek Harness）中使用skills套件。发现两个痛点：一是在27个skill中什么时候该用哪一个并不能知道该用哪一个；二是就算知道用哪个，每次也要写一堆模板话、做重复动作，比如每次都是 /wayfinder+ issue url。所以我做了 MattSkillsDeck插件，第一是第一时间更新最新的Mattskillspocock技能，第二是提供大量便捷操作提高开发体验，降低新手使用门槛。
 
-面板打开就是一块任务板，列出仓库里所有工单，能按全部、开放、被阻塞、已关闭筛。地图行置顶，已关闭的工单收成一行，不占地方。每行都有个按钮，上面写好了这一步该干什么：没分流的点诊断，报上来的缺陷点修复，要商量的点讨论，普通任务点执行。点一下，写好的指令填进输入框，人确认后再发。
+侧边栏面板打开就是一块任务板，列出仓库里所有issue，能按全部、开放、被阻塞、已关闭筛选。地图行置顶。每个map和issue都有个按钮，上面提供了当前issue所在状态对应的推荐操作：没分流的点诊断，报上来的缺陷点修复，要商量的点讨论，普通任务点执行。点一下，写好的指令填进输入框，人确认后再发送。帮助新人知道implement、triage、handoff、wayfinder、implement-spec等技能的使用场景。
 
 <img src="https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/assets/readme/%E5%8F%B3%E4%BE%A7%E9%9D%A2%E6%9D%BF-%E6%95%B4%E4%BD%93%E9%A2%84%E8%A7%88-%E8%8B%B1%E6%96%87%E7%89%88.png" width="600" alt="任务板（英文界面）">
 
-每个输入框下面有一条胶囊，上面是实时数字：可接、缺陷、分流、交接、环境检查，数字和面板里的任务对得上，不用自己数。点一下就跳到对应面板，看完回来，刚才聊的不丢。
+状态胶囊
+每个输入框上面有一条胶囊，上面是实时数字：可接、缺陷、分流、交接、环境检查。点一下就跳到对应面板，非常便捷。
 
 <img src="https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/assets/readme/%E7%8A%B6%E6%80%81%E8%83%B6%E5%9B%8A-%E5%AF%B9%E8%AF%9D%E6%A1%86-%E8%8B%B1%E6%96%87%E7%89%88.png" width="600" alt="状态胶囊（英文界面）">
 
-点开任意一行，描述、标签、认领人、评论都在，底下就能回话。网络不好会明确告诉你失败了，点重试就行，不会只剩一片空白。点新会话会另开一个干净会话，跟进的指令已经填好在里面。
+issue活动列表：
+将当前session在处理什么issue和轨迹进行展示，在多个session中快速切换时，不用再去翻聊天记录才能知道当前session在处理哪个issue。
 
 <img src="https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/assets/readme/%E8%83%B6%E5%9B%8A%E7%8A%B6%E6%80%81%E6%A0%8F-issue%E5%A4%84%E7%90%86%E8%B7%AF%E5%BE%84-%E8%8B%B1%E6%96%87%E7%89%88.png" width="600" alt="会话动态（英文界面）">
 
 
 
-会话标题会跟着进展自己改名；聊得很长的会话，一份交接文档就能带到新会话接着聊。27 个技能都在技能页里，点一下就能用，顶部还会按当前打开的地图推荐一个。
+会话动态
+因该插件创建的新会话去执行某个issue	icket 任务时，会话会自动重命名，看的很清爽。不用一个会话一个会话重命名。现在在规划阶段结束后，一般会在30秒内同时20~30个session并发开发，光重命名session都是一个很枯燥的任务。
 
 安装（先装好 DSH）：
 
@@ -64,7 +67,7 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck
 
 装完把 DSH 重启一次就生效，不用另外配置。桌面应用用户把 --profile web 换成 --profile desktop。仓库：https://github.com/FeatherHunter/dsh-mattpocock-skills-deck
 
-我是站在 Matt 公开的这些技能上，才搭出这块面板的，谢谢 Matt。用法都是我自己摸索的，肯定有不对的地方。如果愿意，提交issue，我看到就会去解决。
+谢谢 Mattpocock 提供的伟大的skills。该插件对skills的用法都是我自己摸索的，肯定有不对的地方。如果愿意，提交issue，我看到就会去解决。
 
 ## humanizer 自查记录（2026-10-08，技能版本 3.1.0）
 
