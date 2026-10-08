@@ -215,42 +215,67 @@ export function createDeckMapPlanCreate(deps) {
       }
 
       // ③ 边：端点都在计划里才做；落点由写后读回判（判据见 shell.js 的 classifyEdgeLanding）。
+      // #898：设置阻塞边是整批替换语义，同一张票的多条阻塞边先合并成完整集合再写一次，
+      // 否则后一次写会删掉前一次写上的边；校验按本次该票的全部目标逐个核对。
+      // 父子边是单父语义仍逐条写；阻塞边按写出票号分组，组内一次写完（先父后组，顺序固定）。
       const keyOf = (ref) => (String(ref) === '@map' ? state.mapKey : (state.keys[String(ref)] || ''))
       let edgeCount = 0
+      const blockGroups = new Map()
+      const blockOrder = []
       for (const e of edges) {
         if (sc.outOfBudget()) { stoppedEarly = true; break }
         const from = keyOf(e.from)
         const to = keyOf(e.to)
         if (!from || !to) { items.push({ key: from || '', role: 'edge', status: 'failed', reason: '边的端点还没有票号（' + String(e.from) + ' → ' + String(e.to) + '）：先把它那一张建出来再补这条边。' }); continue }
-        const op = (e.type === 'parent') ? 'parent' : 'block'
-        const written = op === 'parent'
-          ? await t.setParent(repo, from, to, {}, opCtx)
-          : await t.setBlockedBy(repo, from, [to], {}, opCtx)
-        let ev = null
-        let landedOk = false
-        if (written && written.ok === true) {
-          const back = typeof t.get === 'function' ? await t.get(repo, from, {}, opCtx) : null
-          const dep = op === 'block' && typeof t.getDependencies === 'function' ? await t.getDependencies(repo, from, {}, opCtx) : null
-          const afterIssue = (back && back.ok === true) ? back.data : null
-          const afterDep = (dep && dep.ok === true) ? dep.data : null
-          ev = classifyEdgeLanding(op, to, { issue: afterIssue, dependencies: afterDep })
-          // #790：classify 的 ok 只表示“判出来了”，未知也回 true；必须按读回的值是否含目标判。
-          if (op === 'parent') {
+        if (e.type === 'parent') {
+          const written = await t.setParent(repo, from, to, {}, opCtx)
+          let ev = null
+          let landedOk = false
+          if (written && written.ok === true) {
+            const back = typeof t.get === 'function' ? await t.get(repo, from, {}, opCtx) : null
+            const afterIssue = (back && back.ok === true) ? back.data : null
+            ev = classifyEdgeLanding('parent', to, { issue: afterIssue, dependencies: null })
+            // #790：classify 的 ok 只表示“判出来了”，未知也回 true；必须按读回的值是否含目标判。
             const landedKey = (afterIssue && afterIssue.parentKey !== undefined && afterIssue.parentKey !== null) ? String(afterIssue.parentKey) : ''
             landedOk = (landedKey === String(to)) || ((ev && ev.kind) === 'body-line')
             if (!landedOk && ev && ev.kind !== 'unsupported') ev = { kind: 'unknown', ok: false, text: '写后读回：票的 parentKey = ' + (landedKey || '空') + '，要的是 ' + to + '（这条父子没挂上）' }
+            if (landedOk) { edgeCount += 1; state.edges.push({ from: from, to: to, op: 'parent' }); state.done.push('edge:' + from + '-parent-' + to); await store.save(planId, state) }
           } else {
-            const list = Array.isArray(afterDep && afterDep.blockedBy) ? afterDep.blockedBy.map((r) => (r && r.key) || r).map(String)
-              : Array.isArray(afterIssue && afterIssue.blockedBy) ? afterIssue.blockedBy.map((r) => (r && r.key) || r).map(String) : []
-            landedOk = list.indexOf(String(to)) >= 0
-            if (!landedOk) ev = { kind: 'unknown', ok: false, text: '写后读回：这条依赖没出现在票上（要 ' + to + '，读回来 ' + (list.join('、') || '空') + '）' }
-            else ev = classifyEdgeLanding(op, to, { issue: afterIssue, dependencies: afterDep })
+            ev = unsupportedEvidence(String((written && written.error && written.error.message) || '后端没给出原因').slice(0, 200))
           }
-          if (landedOk) { edgeCount += 1; state.edges.push({ from: from, to: to, op: op }); state.done.push('edge:' + from + '-' + op + '-' + to); await store.save(planId, state) }
-        } else {
-          ev = unsupportedEvidence(String((written && written.error && written.error.message) || '后端没给出原因').slice(0, 200))
+          items.push(Object.assign({ key: from, role: 'edge', status: landedOk ? 'ok' : 'failed' }, edgeEvidence('parent', to, ev)))
+          continue
         }
-        items.push(Object.assign({ key: from, role: 'edge', status: landedOk ? 'ok' : 'failed' }, edgeEvidence(op, to, ev)))
+        let g = blockGroups.get(from)
+        if (!g) { g = { targets: [], occurrences: [] }; blockGroups.set(from, g); blockOrder.push(from) }
+        if (g.targets.indexOf(to) < 0) g.targets.push(to)
+        g.occurrences.push(to)
+      }
+      for (const from of blockOrder) {
+        if (sc.outOfBudget()) { stoppedEarly = true; break }
+        const g = blockGroups.get(from)
+        const targets = g.targets
+        const written = await t.setBlockedBy(repo, from, targets, {}, opCtx)
+        if (written && written.ok === true) {
+          const back = typeof t.get === 'function' ? await t.get(repo, from, {}, opCtx) : null
+          const dep = typeof t.getDependencies === 'function' ? await t.getDependencies(repo, from, {}, opCtx) : null
+          const afterIssue = (back && back.ok === true) ? back.data : null
+          const afterDep = (dep && dep.ok === true) ? dep.data : null
+          const list = Array.isArray(afterDep && afterDep.blockedBy) ? afterDep.blockedBy.map((r) => (r && r.key) || r).map(String)
+            : Array.isArray(afterIssue && afterIssue.blockedBy) ? afterIssue.blockedBy.map((r) => (r && r.key) || r).map(String) : []
+          for (const to of g.occurrences) {
+            const hit = list.indexOf(String(to)) >= 0
+            const ev = hit
+              ? classifyEdgeLanding('block', to, { issue: afterIssue, dependencies: afterDep })
+              : { kind: 'unknown', ok: false, text: '写后读回：这条依赖没出现在票上（要 ' + to + '，读回来 ' + (list.join('、') || '空') + '）' }
+            if (hit) { edgeCount += 1; state.edges.push({ from: from, to: to, op: 'block' }); state.done.push('edge:' + from + '-block-' + to) }
+            items.push(Object.assign({ key: from, role: 'edge', status: hit ? 'ok' : 'failed' }, edgeEvidence('block', to, ev)))
+          }
+          await store.save(planId, state)
+        } else {
+          const ev = unsupportedEvidence(String((written && written.error && written.error.message) || '后端没给出原因').slice(0, 200))
+          for (const to of g.occurrences) items.push(Object.assign({ key: from, role: 'edge', status: 'failed' }, edgeEvidence('block', to, ev)))
+        }
       }
 
       // ④ 逐项校验：按父票把子票列一遍，计划几张、实际几张，数字对不上就说 partial。
