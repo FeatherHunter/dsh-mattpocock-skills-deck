@@ -15,6 +15,7 @@
  */
 const fs = require('fs')
 const path = require('path')
+const { compileFn } = require('./lib/eval-probe.js')
 const ROOT = path.join(__dirname, '..')
 let failed = false
 const check = function (cond, msg) {
@@ -28,7 +29,9 @@ const tsrc = fs.readFileSync(path.join(ROOT, 'src/client/views/shared/truthLines
 let mod = null
 try {
   const body = tsrc.replace(/^[ \t]*export[ \t]+/gm, '')
-  mod = new Function('freshnessLevel', 'PATCH_MERGE_WINDOW_MS', 'lagPromiseFor', 'PROBE_INTERVAL_MS', 'idOfParts',
+  // 本文件选 compileFn：原来就是把五个依赖名当参数、把剥掉 export 的源码当函数体造一个函数，
+  //   被造的代码只看这五个参数（显式注入），用不到外层变量，所以与共用入口一一对应。
+  mod = compileFn(['freshnessLevel', 'PATCH_MERGE_WINDOW_MS', 'lagPromiseFor', 'PROBE_INTERVAL_MS', 'idOfParts'],
     body + '\n;return { restFallbackView: restFallbackView, REST_FALLBACK_STALE_MS: REST_FALLBACK_STALE_MS };')(
     function () { return 'fresh' }, 10000, function () { return { maxLagMs: 0 } }, 90000, function () { return 'k' })
 } catch (e) {

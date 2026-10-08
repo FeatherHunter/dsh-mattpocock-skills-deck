@@ -17,6 +17,7 @@ import { createDetectionService } from '../src/host/tracker/detection/detectionS
 import { createWorkspaceStore } from '../src/host/tracker/detection/workspaceStore.js';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { compileFn } from './lib/eval-probe.js';
 
 let passed = 0, failed = 0;
 function ok(cond, msg) { if (cond) { console.log('  PASS ' + msg); passed++; } else { console.log('  FAIL ' + msg); failed++; } }
@@ -73,7 +74,9 @@ async function run() {
       .replace(/^import[^\n]*\n/gm, '')
       .replace(/^export default createDetectionService[^\n]*\n?/gm, '')
       .replace(/^[ \t]*export[ \t]+/gm, '');
-    const brokenCreate = new Function('detectExplicit', 'canonicalWorkspaceKey', brokenBody + '\n;return createDetectionService')(detectExplicit, canonicalWorkspaceKey);
+    // 本文件选 compileFn：这里就是「给两个参数名与函数体造一个函数再当场调用」，语义一一对应；
+    //   被造的代码只用这两个参数（剥掉了 import 的检测服务源码），用不到本文件作用域里的别的变量。
+    const brokenCreate = compileFn(['detectExplicit', 'canonicalWorkspaceKey'], brokenBody + '\n;return createDetectionService')(detectExplicit, canonicalWorkspaceKey);
     ok(typeof brokenCreate === 'function' && typeof realCreate === 'function', '改坏的那一份真的求值出来了（不是只比字符串）');
     const brokenRes = await brokenCreate({ registry: reg, getPlatform: async () => emptyPlat, getFs: () => emptyPlat.fs, getTimers: () => ({ setTimeout, clearTimeout }), workspaceStore: createWorkspaceStore({ ttl: 30000 }), skillProbe: async () => ({ ok: true, missing: [], probes: {} }) }).detect({ cwd: '/tmp/empty-broken' }, { hintBackendId: 'markdown' });
     ok(brokenRes.selection.backendId === null, '反证 A 成立：关掉 hint 那一档之后，空目录 + hint 又被判成无后端（实得 ' + JSON.stringify(brokenRes.selection && brokenRes.selection.backendId) + '）—— 说明 A 组量的就是这道闸');

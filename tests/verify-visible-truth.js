@@ -19,6 +19,7 @@
 //（与 scripts/build.mjs 拼接时同一套做法：剥掉行首 export，丢进同一个作用域里跑）。
 const fs = require('fs')
 const path = require('path')
+const { compileFn } = require('./lib/eval-probe.js')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -35,7 +36,9 @@ function loadModule(relPath, deps) {
   if (!names.length) throw new Error(relPath + ' 里没有找到 export 声明')
   const body = src.replace(/^[ \t]*export[ \t]+/gm, '')
   const deps_ = Object.keys(deps)
-  const fn = new Function(deps_.join(', '), body + '\nreturn { ' + names.join(', ') + ' }')
+  // 本文件选 compileFn：原来就是把这份依赖名清单（deps_）当参数表、把剥掉 export 的源码当函数体造函数，
+  //   依赖本来就全部显式传参（被造的代码读不到本文件作用域），与共用入口一一对应。
+  const fn = compileFn(deps_, body + '\nreturn { ' + names.join(', ') + ' }')
   return fn.apply(null, deps_.map(function (k) { return deps[k] }))
 }
 
