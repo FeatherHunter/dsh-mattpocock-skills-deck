@@ -163,10 +163,12 @@ async function main() {
   }
 
   // ── ① 自停出部分成功 + 同计划标识续跑零重复 ──
+  // 子票是一片同时起跑的，所以假预算要紧到「地图票加预检列表之后就见底」，
+  // 扇出时剩余额度已经不够才会停；续跑那一次给足预算，四张一次建完。
   {
     const tracker = makeStubTracker({ latencyMs: 90 })
     const mem = storeMod.createMemoryPlanStore()
-    const plan = planMod.createDeckMapPlanCreate(shellDeps(tracker, { planStore: mem, toolTimeoutMs: 550, toolMarginMs: 150 }))
+    const plan = planMod.createDeckMapPlanCreate(shellDeps(tracker, { planStore: mem, toolTimeoutMs: 300, toolMarginMs: 150 }))
     const kids = ['k1', 'k2', 'k3', 'k4'].map((k) => ({ key: k, title: '子票' + k }))
     const r1 = await plan.run(execOf(), { title: '图', children: kids, planId: 'p-stop-1' })
     const v1 = r1.value || r1

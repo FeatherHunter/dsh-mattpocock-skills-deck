@@ -5,7 +5,7 @@
 // 判不出来就说「说不好」，绝不默认写成「原生层级」（判据与反证方向见 shell.js 的 classifyEdgeLanding）。
 // 校验用计数：改完按父票列一遍子票 / 再读一次依赖，把「要几条、实际几条」对一次，对不上就说 partial。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../../shared/deck-tools/shell.js'
-import { classifyEdgeLanding, unsupportedEvidence, edgeEvidence, statusOfItems } from '../../shared/deck-tools/edges.js'
+import { classifyEdgeLanding, edgeEvidence, statusOfItems, applyParentEdge, applyBlockEdges } from '../../shared/deck-tools/edges.js'
 import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/tool-cost.js'
 import { withCallScope } from '../../shared/deck-tools/call-scope.js'
 
@@ -82,82 +82,61 @@ export function createDeckMapLink(deps) {
           for (const target of asList(job.blockedBy)) if (arr.indexOf(target) < 0) arr.push(target)
         }
       }
-      const blockedDone = new Map()
+      // 同一张票的边组内逐条写（同时写同一张票会丢一次改动），不同票的组同时写。
+      const keyOrder = []
+      const jobsByKey = new Map()
       for (const job of jobs) {
-        if (sc.outOfBudget()) {
-          items.push({ key: String((job && job.key) || ''), status: 'failed', reason: '剩余额度不够发这一次调用了，这张票的边这次没动：带同样参数再调一次即可。' })
-          continue
-        }
-        const key = String(job.key || '').trim()
-        if (!key) { items.push({ key: '', status: 'failed', reason: 'edges 里有一项没写 key。' }); continue }
-        if (job.parentKey !== undefined && job.parentKey !== null) {
-          const want = String(job.parentKey)
-          const written = await t.setParent(repo, key, want, {}, opCtx)
-          let ev = null
-          let landedOk = false
-          if (written && written.ok === true) {
-            const back = typeof t.get === 'function' ? await t.get(repo, key, {}, opCtx) : null
-            const afterIssue = (back && back.ok === true) ? back.data : null
-            const backError = (back && back.ok !== true && back.error && back.error.message) ? String(back.error.message).slice(0, 200) : ''
-            ev = classifyEdgeLanding('parent', want, { issue: afterIssue })
-            // #790：classify 的 ok 只表示“判出来了”，未知也回 true；必须按读回的 parentKey 是否等于目标判。
-            // 正文兜底行（body-line）仍算落下，其余未知一律按没挂上处理，不再默认成功。
-            const landedKey = (afterIssue && afterIssue.parentKey !== undefined && afterIssue.parentKey !== null) ? String(afterIssue.parentKey) : ''
-            landedOk = (landedKey === String(want)) || ((ev && ev.kind) === 'body-line')
-            if (landedOk) { done += 1; touched.push(key) }
-            else if (ev && ev.kind !== 'unsupported') {
-              // #829：读回本身失败（网络、配额、REST 降级丢 parent）时，不能只说“parentKey = 空”，
-              // 必须把读失败的后端原话一起带出去，否则写成的边会被误报成没建成且无从查起。
-              ev = backError
-                ? { kind: 'unknown', ok: false, text: '写后读回失败：读票没成功（后端原话：' + backError + '）；写操作已回成功，边可能已建成但没确认。票的 parentKey 读到的是 ' + (landedKey || '空') + '，要的是 ' + want }
-                : { kind: 'unknown', ok: false, text: '写后读回：票的 parentKey = ' + (landedKey || '空') + '，要的是 ' + want + '（这条父子没挂上）' }
-            }
-          } else {
-            ev = unsupportedEvidence(String((written && written.error && written.error.message) || '后端没给出原因').slice(0, 200))
+        const k = String((job && job.key) || '').trim()
+        if (!k) { items.push({ key: '', status: 'failed', reason: 'edges 里有一项没写 key。' }); continue }
+        if (!jobsByKey.has(k)) { jobsByKey.set(k, []); keyOrder.push(k) }
+        jobsByKey.get(k).push(job)
+      }
+      const perKey = await Promise.all(keyOrder.map(async (key) => {
+        const out = { items: [], notes: [], touched: [], done: 0, readback: null }
+        for (const job of jobsByKey.get(key)) {
+          if (sc.outOfBudget()) { out.items.push({ key: key, status: 'failed', reason: '剩余额度不够发这一次调用了，这张票的边这次没动：带同样参数再调一次即可。' }); continue }
+          if (job.parentKey !== undefined && job.parentKey !== null) {
+            const r = await applyParentEdge(t, repo, opCtx, key, String(job.parentKey))
+            out.items.push(r.item)
+            if (r.applied) { out.done += 1; out.touched.push(key) }
           }
-          items.push(Object.assign({ key: key, status: landedOk ? 'ok' : 'failed' }, edgeEvidence('parent', want, ev)))
-        }
-        if (job.blockedBy !== undefined && job.blockedBy !== null) {
-          const prev = blockedDone.get(key)
-          if (prev) {
-            // 同一票号的阻塞边已按合并后的完整集合写过并读回过，这一重复项不再重写，
-            // 按当时的读回结果为它自己的目标逐个补明细（写失败时同样逐个补失败）。
-            for (const target of asList(job.blockedBy)) {
-              const hit = !prev.failed && prev.landed.indexOf(target) >= 0
-              const e2 = prev.failed ? prev.failed
-                : hit ? classifyEdgeLanding('block', target, prev.after)
-                : { kind: 'unknown', ok: false, text: '写后读回：这条依赖没出现在票上（要 ' + target + '，读回来 ' + (prev.landed.join('、') || '空') + '）' }
-              items.push(Object.assign({ key: key, status: hit ? 'ok' : 'failed' }, edgeEvidence('block', target, e2)))
-              if (e2.ok) { done += 1; touched.push(key) }
-            }
-          } else {
-            const want = mergedBlocked.get(key) || asList(job.blockedBy)
-            const written = await t.setBlockedBy(repo, key, want, {}, opCtx)
-            let ev = null
-            if (written && written.ok === true) {
-              const back = typeof t.get === 'function' ? await t.get(repo, key, {}, opCtx) : null
-              const dep = typeof t.getDependencies === 'function' ? await t.getDependencies(repo, key, {}, opCtx) : null
-              const after = { issue: (back && back.ok === true) ? back.data : null, dependencies: (dep && dep.ok === true) ? dep.data : null }
-              // 逐条判：要几条、读回来几条，逐项列出来（不是只回一个总数）。
-              // 这一项只为它自己声明的目标出明细，同一票号的其余目标由各自那一项出明细，
-              // 共用这一次合并写的读回结果（明细数与调用形状一致，不重复计数）。
-              const landed = asList(after.dependencies && after.dependencies.blockedBy ? after.dependencies.blockedBy.map((r) => (r && r.key) || r) : (after.issue && after.issue.blockedBy) || [])
+          if (job.blockedBy !== undefined && job.blockedBy !== null) {
+            if (out.readback) {
+              // 同一票号的阻塞边已按合并后的完整集合写过并读回过，这一重复项不再重写，
+              // 按当时的读回结果为它自己的目标逐个补明细（写失败时同样逐个补失败）。
               for (const target of asList(job.blockedBy)) {
-                const hit = landed.indexOf(target) >= 0
-                const e2 = hit ? classifyEdgeLanding('block', target, after) : { kind: 'unknown', ok: false, text: '写后读回：这条依赖没出现在票上（要 ' + target + '，读回来 ' + (landed.join('、') || '空') + '）' }
-                items.push(Object.assign({ key: key, status: hit ? 'ok' : 'failed' }, edgeEvidence('block', target, e2)))
-                if (e2.ok) { done += 1; touched.push(key) }
+                const hit = !out.readback.failed && out.readback.landed.indexOf(target) >= 0
+                const e2 = out.readback.failed ? out.readback.failed
+                  : hit ? classifyEdgeLanding('block', target, out.readback.after)
+                  : { kind: 'unknown', ok: false, text: '写后读回：这条依赖没出现在票上（要 ' + target + '，读回来 ' + (out.readback.landed.join('、') || '空') + '）' }
+                out.items.push(Object.assign({ key: key, status: hit ? 'ok' : 'failed' }, edgeEvidence('block', target, e2)))
+                if (e2.ok) { out.done += 1; out.touched.push(key) }
               }
-              const extra = landed.filter((k) => want.indexOf(k) < 0)
-              if (extra.length) notes.push('票 ' + key + ' 上还有计划外的阻塞边：' + extra.join('、') + '（setBlockedBy 是整批替换，后端却留下了它们，读回来核对一次）。')
-              blockedDone.set(key, { landed: landed, after: after, failed: null })
             } else {
-              ev = unsupportedEvidence(String((written && written.error && written.error.message) || '后端没给出原因').slice(0, 200))
-              items.push(Object.assign({ key: key, status: 'failed' }, edgeEvidence('block', want.join('、'), ev)))
-              blockedDone.set(key, { landed: [], after: { issue: null, dependencies: null }, failed: ev })
+              const want = mergedBlocked.get(key) || asList(job.blockedBy)
+              const r = await applyBlockEdges(t, repo, opCtx, key, want, asList(job.blockedBy))
+              if (r.failed) {
+                out.items.push(Object.assign({ key: key, status: 'failed' }, edgeEvidence('block', want.join('、'), r.failed)))
+                out.readback = { landed: [], after: { issue: null, dependencies: null }, failed: r.failed }
+              } else {
+                for (const item of r.items) {
+                  out.items.push(item)
+                  if (item.status === 'ok') { out.done += 1; out.touched.push(key) }
+                }
+                const extra = r.landed.filter((k) => want.indexOf(k) < 0)
+                if (extra.length) out.notes.push('票 ' + key + ' 上还有计划外的阻塞边：' + extra.join('、') + '（setBlockedBy 是整批替换，后端却留下了它们，读回来核对一次）。')
+                out.readback = { landed: r.landed, after: r.after, failed: null }
+              }
             }
           }
         }
+        return out
+      }))
+      for (const r of perKey) {
+        for (const i of r.items) items.push(i)
+        for (const n of r.notes) notes.push(n)
+        for (const k of r.touched) touched.push(k)
+        done += r.done
       }
       const status = statusOfItems(items)
       if (status !== DECK_STATUS.OK) notes.push('有几条边没建成，逐条原因在上面的 items 里：别把它们当成已经建好。')

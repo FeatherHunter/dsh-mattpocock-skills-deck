@@ -63,7 +63,10 @@ export function createDeckMapSnapshot(deps) {
       const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), now: (typeof d.now === 'function') ? d.now : Date.now })
       const t = sc.tracker
       const opCtx = sc.opCtx
-      const gotMap = await t.get(repo, key, {}, opCtx)
+      // 地图与子票清单互相独立，同时取（两份读缓存的键不同，不会互相覆盖）
+      const mapPromise = t.get(repo, key, {}, opCtx)
+      const kidsPromise = t.list(repo, { parentKey: key }, opCtx)
+      const gotMap = await mapPromise
       if (!gotMap || gotMap.ok !== true) {
         const msg = String((gotMap && gotMap.error && gotMap.error.message) || '后端没给出原因').slice(0, 300)
         return {
@@ -77,7 +80,7 @@ export function createDeckMapSnapshot(deps) {
         }
       }
       const map = gotMap.data || {}
-      const kids = await t.list(repo, { parentKey: key }, opCtx)
+      const kids = await kidsPromise
       const listed = (kids && kids.ok === true && Array.isArray(kids.data)) ? kids.data : []
       const picked = childrenOf(listed, key)
       const children = picked.children

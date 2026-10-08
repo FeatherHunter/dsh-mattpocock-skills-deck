@@ -154,42 +154,47 @@ export function createPatch(deps) {
   }
 
   /**
-   * 取那几条：一条一请求，逐条串行（闸那边也是一条队，扇出永远不并行）。
+   * 取那几条：一条一请求，多条同时发（闸那边不再排队，见 gate.js）。
    * 回 { ok:true, rows, queries }，或 { ok:false, outcome:'deferred'|'dropped'|'failed', keys }。
    *
    * 一条没取到就整批不并 —— 这是本文件最要紧的一条判断：只并进去一半、却把水印推走，
    * 剩下那几条变化就再也发现不了了（正是定稿第十一章点名的那个静默漏报）。
+   * 并行只管取数，并不并由同一条判断决定：有任何一条没取到，整批都不并、水印不动。
    */
   async function fetchRows(cwd, repo, keys) {
-    const rows = []
-    let queries = 0
-    for (let i = 0; i < keys.length; i++) {
-      const k = keys[i]
-      const rest = keys.slice(i)
+    // 这一次是 REST 那一路（每张票一条 `gh api repos/.../issues/N`），所以桶明确写 rest：
+    // 闸的 BUCKET_OF_KIND 把 kind=patch 归在 graphql（那是「一条带别名的薄查询」那种实现）——
+    // 本实现走的是每票一条 REST，如实报 rest 才不会把「几条请求」记成「几点」（两桶互不折算）。
+    const one = async (k) => {
       let captured = null
       const perform = async function () {
-        queries += 1
         stats.thinQueries += 1
         captured = await Promise.resolve(d.runGh(thinArgs(repo, k), cwd))
         return captured && captured.report ? captured.report : { requests: 1, points: 0 }
       }
       if (typeof d.send === 'function') {
-        // 这一次是 REST 那一路（每张票一条 `gh api repos/.../issues/N`），所以桶明确写 rest：
-        // 闸的 BUCKET_OF_KIND 把 kind=patch 归在 graphql（那是「一条带别名的薄查询」那种实现）——
-        // 本实现走的是每票一条 REST，如实报 rest 才不会把「几条请求」记成「几点」（两桶互不折算）。
         const sent = await Promise.resolve(d.send({ source: 'patch.apply', kind: 'patch', bucket: 'rest', workspaceKey: wsKeyOf(cwd) }, perform))
-        if (!sent || sent.sent !== true) return { ok: false, outcome: sent && sent.verdict === 'defer' ? 'deferred' : 'dropped', keys: rest, reason: (sent && sent.reason) || 'deferred' }
+        if (!sent || sent.sent !== true) return { k: k, bad: { outcome: sent && sent.verdict === 'defer' ? 'deferred' : 'dropped', reason: (sent && sent.reason) || 'deferred' } }
       } else {
         await perform()
       }
       const r = await Promise.resolve(captured)
-      if (!r || r.ok !== true || !r.text) return { ok: false, outcome: 'failed', keys: rest, reason: 'thin-query-failed' }
+      if (!r || r.ok !== true || !r.text) return { k: k, bad: { outcome: 'failed', reason: 'thin-query-failed' } }
       let parsed = null
       try { parsed = JSON.parse(r.text) } catch (e) { parsed = null }
-      if (!parsed || parsed.number === undefined || parsed.number === null) return { ok: false, outcome: 'failed', keys: rest, reason: 'thin-query-parse' }
-      rows.push(rowOf(parsed))
+      if (!parsed || parsed.number === undefined || parsed.number === null) return { k: k, bad: { outcome: 'failed', reason: 'thin-query-parse' } }
+      return { k: k, row: rowOf(parsed) }
     }
-    return { ok: true, rows: rows, queries: queries }
+    const got = await Promise.all(keys.map(one))
+    const rows = new Array(keys.length)
+    const failedKeys = []
+    let firstBad = null
+    for (let i = 0; i < got.length; i++) {
+      if (got[i].bad) { failedKeys.push(keys[i]); if (!firstBad) firstBad = got[i].bad }
+      else rows[i] = got[i].row
+    }
+    if (firstBad) return { ok: false, outcome: firstBad.outcome, keys: failedKeys, reason: firstBad.reason }
+    return { ok: true, rows: rows, queries: keys.length }
   }
 
   /**
