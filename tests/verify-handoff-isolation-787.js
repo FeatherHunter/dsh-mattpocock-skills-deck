@@ -12,6 +12,7 @@
 // （与 verify-handoff-split.js 同范式），能抓住“逻辑改坏 / 双源漂移”两类回归。
 const fs = require('fs')
 const assert = require('assert')
+const { compileFn } = require('./lib/eval-probe.js')
 
 const files = process.argv.slice(2).length ? process.argv.slice(2) : ['client.js', 'package/lib/client.js']
 const readSrc = (f) => fs.readFileSync(f, 'utf8')
@@ -85,9 +86,11 @@ function runHandoffSandbox(fnSrc, opt) {
     'var storeOf = storeOfStub; var hydrateFromCache=function(){return false}; var getCachedSnapshot=function(){return null};\n' +
     'var namingHintOf=function(){return null}; var isNewPlaceholderTitle=function(){return false}; var namingGuardianKick=function(){};\n' +
     'var isReusableBlank=function(){return false}; var getRowPreset=function(){return "ptc"}; var isHealthyPreset=function(){return true};\n'
-  const $ = new Function(
-    'st', 'ctx', 'host', 'emit', 'timer', 'timeStampStr', 'handoffPrompt',
-    'inject', 'flash', 'tr', 'copyText', 'handoffReadText', 'mockOpen', 'storeOfStub',
+  // 本文件选 compileFn：三处原来都是「把依赖名当参数、把从产物里切出来的源码当函数体」造函数再调用，
+  //   依赖本来就全部显式传参（切出来的代码读不到本文件作用域），与共用入口用法一一对应。
+  const $ = compileFn(
+    ['st', 'ctx', 'host', 'emit', 'timer', 'timeStampStr', 'handoffPrompt',
+      'inject', 'flash', 'tr', 'copyText', 'handoffReadText', 'mockOpen', 'storeOfStub'],
     prelude + fnSrc + '\n; return { probeHandoffReady: probeHandoffReady, doHandoff: doHandoff, doHandoffOpen: doHandoffOpen }'
   )
   const fns = $(
@@ -124,7 +127,8 @@ function runFactorySandbox(factorySrc, texts, sidValue) {
   let n = 0
   const sessionsStub = { create: function () { n++; return Promise.resolve(sidValue !== undefined ? sidValue : ('sid-factory-' + n)) } }
   const prelude = 'var buildCreateOpts = function(wid,cwd){ return wid?{workspaceId:wid,agentPreset:"ptc"}:{cwd:cwd,agentPreset:"ptc"}};\nvar storeOf = storeOfStub;\n'
-  const g = new Function('sessions', 'storeOfStub', prelude + factorySrc + '\n; return createPTCSession')
+  // 同上：单点工厂这一处的两个依赖也是逐字传参。
+  const g = compileFn(['sessions', 'storeOfStub'], prelude + factorySrc + '\n; return createPTCSession')
   const factory = g(sessionsStub, storeOfStub)
   let p = Promise.resolve()
   const out = []
@@ -274,7 +278,8 @@ async function main() {
           getHours: () => 9, getMinutes: () => 32, getSeconds: () => 4, getMilliseconds: () => 42,
         }
       }
-      const tsFn = new Function('Date', tsSrc + '\n; return timeStampStr()')
+      // 同上：时间戳这一处只把假 Date 传进去，实参一个字没变。
+      const tsFn = compileFn(['Date'], tsSrc + '\n; return timeStampStr()')
       const out = tsFn(fakeDate)
       check(out === '20260930-093204-042', tag + ' · 时间戳形状 YYYYMMDD-HHMMSS-mmm（实得 ' + out + '）')
       global.Date = RealDate

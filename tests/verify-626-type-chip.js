@@ -17,6 +17,7 @@
 // 用法: node tests/verify-626-type-chip.js（在插件根目录；无需 gh / 网络）
 const fs = require('fs')
 const path = require('path')
+const { compileFn } = require('./lib/eval-probe.js')
 const root = path.resolve(__dirname, '..')
 
 let failed = false
@@ -64,7 +65,9 @@ const iconMap = (function () {
 })()
 check(!!iconMap, 'B. 从 index.js 抽到 TYPE_ICON 表')
 if (iconMap) {
-  const makeChip = new Function('React', 'DswsCtx', 'Ic', 'tr', 'TYPE_ICON', 'return (' + arrow + ')')
+  // 本文件选 compileFn：这两处原来都是「把参数名与函数体交给构造器造函数」，语义一一对应，
+  //   且被造的代码只用参数、不读外层变量（arrow 是当场算好的文本），所以不需要额外的作用域表。
+  const makeChip = compileFn(['React', 'DswsCtx', 'Ic', 'tr', 'TYPE_ICON'], 'return (' + arrow + ')')
   const TypeChip = makeChip(
     { useContext: function () { return null }, createElement: function (t, p, c) { return { type: t, props: p || {}, children: c === undefined ? null : c } } },
     {},
@@ -101,7 +104,8 @@ const icLine = (detailSrc.match(/const ic = [^\n]*/) || [''])[0]
 check(icLine.length > 0, 'C. 从 MapDetail.js 抽到节点图标那一行')
 if (icLine.length > 0) {
   const expr = icLine.slice('const ic = '.length).replace(/;\s*$/, '')
-  const icFor = function (wt) { return new Function('_wt', 'return ' + expr)(wt) }
+  // 同上：这里同样只是把 _wt 与一段当场算好的表达式文本交给构造器，照样走 compileFn。
+  const icFor = function (wt) { return compileFn(['_wt'], 'return ' + expr)(wt) }
   check(icFor('issue') === 'dot', "C. 普通票左侧方框图标 = 中性灰点（实际 " + icFor('issue') + '）')
   check(icFor('task') === 'gear', 'C. 任务票方框图标仍是齿轮')
   check(icFor('research') === 'search' && icFor('prototype') === 'hammer' && icFor('grilling') === 'chat' && icFor('map') === 'map', 'C. 其余四种类型图标未变')

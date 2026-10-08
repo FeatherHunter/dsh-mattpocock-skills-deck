@@ -24,6 +24,7 @@
 //      会话状态里真的有了链快照、`envLabel` 不再是 `--` —— 这才是「进工作区后环境被检测过一次」。
 const path = require('path')
 const { pathToFileURL } = require('url')
+const { compileFn } = require('./lib/eval-probe.js')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -190,7 +191,9 @@ async function main () {
   }
   const names = Object.keys(sandbox)
   const body = chainSrc.replace(/^[ \t]*export[ \t]+/gm, '') + '\n;return { loadChain: loadChain, envLabel: envLabel, envTotal: envTotal }'
-  const client = new Function(...names, body)(...names.map((n) => sandbox[n]))
+  // 本文件选 compileFn：客户端源码那份自由变量表就是这里的 names，原来按「展开成参数表」传进去，
+  //   与共用入口的用法一一对应（被造的代码只用参数，读不到本文件作用域）。
+  const client = compileFn(names, body)(...names.map((n) => sandbox[n]))
 
   // 会话状态：一个刚切进来的工作区，链快照还没有（真机现场就是这一格）。
   const st = { cwd: CWD, selection: null, chainSnapshot: null }

@@ -8,6 +8,7 @@
 const fs = require('fs')
 const assert = require('assert')
 const path = require('path')
+const { compileFn } = require('./lib/eval-probe.js')
 
 const root = path.join(__dirname, '..')
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8')
@@ -46,7 +47,9 @@ const extractHelper = (src) => {
       if (depth === 0) {
         const fnSrc = src.slice(start, i + 1).replace('export const ensureInjectFocusAtEnd =', 'module.exports =')
         const mod = { exports: null }
-        const factory = new Function('module', 'exports', 'document', 'window', 'requestAnimationFrame', 'setTimeout', fnSrc + '\nreturn module.exports;')
+        // 本文件选 compileFn：从 api-io.js 切出来的那段代码靠这六个参数拿环境（它读不到调用处的作用域，
+        //   原来就是把它们当参数传的），语义与共用入口一一对应。
+        const factory = compileFn(['module', 'exports', 'document', 'window', 'requestAnimationFrame', 'setTimeout'], fnSrc + '\nreturn module.exports;')
         return factory
       }
     }
