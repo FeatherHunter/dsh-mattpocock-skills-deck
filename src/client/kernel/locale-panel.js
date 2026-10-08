@@ -16,7 +16,7 @@
         'panel.title': 'MattSkills',
         'nav.takeableTitle': '可接 = 未认领可执行的任务数',
         'nav.occupiedTitle': '阻塞 = 已认领未关闭的任务数',
-        'nav.bug': 'BUG',
+        'nav.bug': '故障',
         'nav.bugTitle': '过滤：open + bug 标签',
         'nav.bugNew': '新增',
         'nav.bugNewTitle': '新会话中打开 /wayfinder 新增 BUG 单 prompt',
