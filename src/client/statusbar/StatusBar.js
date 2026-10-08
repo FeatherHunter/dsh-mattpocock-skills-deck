@@ -136,6 +136,7 @@ export const StatusBar = (props) => {
   //   「宽度变了」这条信号在换代之后就断了 —— 量错了的档位会一直挂在那儿，直到有人碰窗口尺寸或
   //   恰好来了别的提交。这里记下当前盯着的那个元素，applyFold 每次进场先对一眼：换了就把观察器挪过去。
   const foldWatch = React.useRef(null)
+  const scheduleFold = function () { capFoldScheduleFold(foldKeep.current, applyFold) } // 926 同帧合并：四路触发进队列，同帧只真跑一次（实现见机器；挂载首跑仍同步）。
   const applyFold = function () {
     const cap = foldRef.current
     if (cap) runCapFold(cap, foldKeep.current)
@@ -156,28 +157,27 @@ export const StatusBar = (props) => {
     // 旧方案量具体 textarea 卡死 780 的根因已消除；此处仅负责内容折叠（applyFold）对可用宽度的响应。
     // 可用宽 = 胶囊 clientWidth（已由 CSS 随对话框 --dsh-conversation-column-width 自动伸缩），
     // 因此只需观察胶囊及其父容器的尺寸变化即可触发折叠，无需再监听输入框。
-    const roFold = new ResizeObserver(function () { applyFold() })
-    const roParent = new ResizeObserver(function () { applyFold() })
-    const applyAll = function () { applyFold() }
+    const roFold = new ResizeObserver(function () { scheduleFold() })
+    const roParent = new ResizeObserver(function () { scheduleFold() })
     applyFold()
     if (foldRef.current) {
       roFold.observe(foldRef.current)
       try { if (foldRef.current.parentElement) roParent.observe(foldRef.current.parentElement) } catch(e){}
       foldWatch.current = { roFold: roFold, roParent: roParent, el: foldRef.current }
     }
-    window.addEventListener('resize', applyAll)
-    if (document.fonts && document.fonts.ready) document.fonts.ready.then(applyFold)
+    window.addEventListener('resize', scheduleFold)
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(scheduleFold)
     return function () {
       try { roFold.disconnect() } catch (e) {}
       try { roParent.disconnect() } catch(e){}
-      window.removeEventListener('resize', applyAll)
+      window.removeEventListener('resize', scheduleFold)
     }
   }, [])
   // 2026-09-24（#725）：原先这里还挂着一个 2 秒轮询（setInterval → applyFold），本票把它去掉了。
   //   它当时兜的是「字被换掉了、但尺寸没有变，观察器不会响」这一种：React 重渲染时会把收短过的那串字
   //   换回完整的一串（时间串一直在变），那一刻胶囊可能当场溢出。这件事现在由下面这条副作用接管 ——
   //   它在每次提交之后跑一次，不排任何定时器、也不自续：谁把字写回完整的，下一帧就又被收一遍。
-  React.useEffect(function () { applyFold() })
+  React.useEffect(function () { scheduleFold() })
   // #196 · 状态栏胶囊移除 backend segment 后不再在此处挂 SwitchConfirmModal（仍由 Dock/Overlay 挂载，状态机保留）
   const _isGatePending = !!(_selSBGate && _selSBGate.pending && !!s.cwd)
   const _gateActive = _isOtherSBGate || _isGatePending

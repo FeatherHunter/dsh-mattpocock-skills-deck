@@ -2,8 +2,9 @@
 // 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export，拼回 src/client/index.js
 //   的 leaf 标记处（一源两物）。
 //
-// 这一台做什么：照 statusbar/capFold.js 那条纯判据把胶囊推到某一档（第几档每一段画什么都是判据算的），
-//   量一次放不放得下（scrollWidth 溢没溢出），放不下就再往下走一档，直到放得下、或者阶梯走完。
+// 这一台做什么：照 statusbar/capFold.js 那条纯判据把胶囊推到某一档（第几档每一段画什么都是判据算的）。
+//   926 起四步分开：守卫（输入没变直接复用上次档位，零写零测）→ 单写（一次写完，不读布局）→
+//   放下判断（capFoldFits 一次）→ 对不上再逐档纠偏。结论与原来逐档试出来的那一档完全一致。
 //   收起来的形状 = 给那一段字的 span 加 .dsws-folded（display:none）—— 图标是它的兄弟节点，
 //   不是这条阶梯里的东西，从头到尾不动它们（本文件只碰 [data-fold-priority] 的字段：
 //   普通计数器在 .dsws-num 上、图标在 svg 上，两者都没有这个属性；进了阶梯表的字段
@@ -22,6 +23,10 @@
 //     再收一次，就会越收越短、再也展不开；所以「完整的那串」必须记在机器外面。
 //   · keep.written —— 机器上一次写进 DOM 的那一串。用来认出「这不是我写的」：React 重渲染时会把收短过的
 //     那串换回完整的一串（时间串一直在变），那一次写入要当成新的事实，重新排一遍阶梯。
+//   · keep.foldGuardKey / keep.foldGuardTier / keep.foldGuardEl —— 926 输入指纹守卫：上次定档时的
+//     （内容盒宽 | 段数 | 完整字散列）拼成的键、上次档位、上次画过的那个元素。三样全对上才复用；
+//     量不到的那趟键记空串（未知不记成结论），元素换了也重算（新元素还没画过这一档）。
+//   · keep.guardLog —— 926 守卫复用记账（命中 / 未命中各几次，每 100 趟按需记一行 input.observe）。
 //   · keep.started —— 这一台有没有量到过有效可用宽（也就是有没有从首帧的起始态里走出来）。
 //     维护者 2026-09-24 晚说清的那一句「默认收成折叠是出来的一瞬间是折叠的，但是因为空间足够所以一定能
 //     看到，除非宽度不够」：首帧（还没量到可用宽）品牌那一段是收起的（见 capFoldStartWordsOf），
@@ -42,42 +47,93 @@ export const runCapFold = function (cap, keep) {
     if (seen === undefined || now !== seen) full[s.p] = now
     return { priority: Number(s.p), word: full[s.p] }
   })
-  const ladder = capFoldLadderOf({ items: items })
-  // 量不到有效可用宽：这一趟到此为止 —— 档号不写、阶梯一个字不画。
+  // 926 先量尺子：量不到有效可用宽，这一趟到此为止 —— 档号不写、阶梯一个字不画、守卫键记空。
   //   量不到不等于放不下，照「量到多少就判多少」写下去反而会把「未知」变成一条错结论（真机回归就是这么来的）。
   //   但首帧要落在**起始态**上：胶囊第一次画出来、还没有过任何一次有效测量时，品牌那一段是收起的
   //   （其余各段照原样）—— 这正是维护者要的「默认折叠」，见本文件上面 keep.started 那一段。
-  if (capFoldRoom(cap) === null) {
+  const roomW = capFoldRoom(cap)
+  if (roomW === null) {
+    keep.foldGuardKey = ''
     if (!keep.started) applyCapFoldStart(cap, slots, keep)
     capFoldRetryOnce(cap, keep)
     return null
   }
   keep.started = true
-  // 把这一条推到第 tier 档：先把所有折叠类去掉、强制重排一次（拿到「基准」那一档的真实宽度），
-  //   再按判据说的把每一段画上 —— 收成空串的那几段加 .dsws-folded，其余原样显示。
-  const applyTier = function (tier) {
+  // 926 输入指纹守卫：折叠结论只由可用宽与各段完整字决定（阶梯是纯函数），三样全对上就直接复用
+  //   上次档位 —— 一个字不写，一次放下判断不跑。React 只在它自己的字变了时才写界面，而那次写入一定
+  //   会进 keep.full 使指纹变化，所以「字被换回完整」那一种不会被跳过；元素换代也必重算。
+  let guardHash = 5381
+  for (let gi = 0; gi < items.length; gi++) {
+    const gw = String(items[gi].word || '')
+    for (let gj = 0; gj < gw.length; gj++) guardHash = ((guardHash * 33) ^ gw.charCodeAt(gj)) | 0
+  }
+  const guardKey = roomW + '|' + items.length + '|' + guardHash
+  if (keep.foldGuardEl === cap && keep.foldGuardKey === guardKey && keep.foldGuardTier !== undefined) {
+    capFoldGuardLog(keep, guardHash, true)
+    return keep.foldGuardTier
+  }
+  capFoldGuardLog(keep, guardHash, false)
+  const ladder = capFoldLadderOf({ items: items })
+  const last = Math.max(0, capFoldStepCount(ladder) - 1)
+  // 926 单写路径：把这一档每一段一次写完（收成空串的加 .dsws-folded，其余去掉），写完不读布局 ——
+  //   读布局只发生在后面的 capFoldFits 里，写与读不再交替。
+  const writeTier = function (tier) {
     const words = capFoldStateAt(ladder, tier).words || {}
-    for (let i = 0; i < slots.length; i++) slots[i].el.classList.remove('dsws-folded')
-    void cap.offsetWidth
     for (let i = 0; i < slots.length; i++) {
       const text = String(words[slots[i].p] || '')
       slots[i].el.textContent = text
       written[slots[i].p] = text
       if (text === '') slots[i].el.classList.add('dsws-folded')
+      else slots[i].el.classList.remove('dsws-folded')
     }
-    void cap.offsetWidth
   }
-  // 每一趟都从第 0 档重新走（不接着上次的档继续往下）：宽度变宽时才能回弹到更完整的档位。
-  const last = Math.max(0, capFoldStepCount(ladder) - 1)
+  // 926 从上一档起步（到这里输入一定变了；起步档夹紧到阶梯内）：放得下就往完整方向回弹，
+  //   放不下就往下走 —— 变宽回弹的语义与原来「每趟从第 0 档重走」一致，只是起步省掉了中间档。
   let tier = 0
-  applyTier(0)
-  if (!capFoldFits(cap)) {
+  if (typeof keep.foldGuardTier === 'number' && (keep.foldGuardEl === cap || keep.foldGuardKey === guardKey)) tier = Math.max(0, Math.min(keep.foldGuardTier, last))
+  const start = tier
+  writeTier(start)
+  if (capFoldFits(cap)) {
+    tier = start
+    while (tier > 0) {
+      writeTier(tier - 1)
+      if (capFoldFits(cap)) tier--
+      else { writeTier(tier); break }
+    }
+  } else {
     tier = last
-    for (let t = 1; t <= tier; t++) { applyTier(t); if (capFoldFits(cap)) { tier = t; break } }
+    for (let t = start + 1; t <= last; t++) {
+      writeTier(t)
+      if (capFoldFits(cap)) { tier = t; break }
+    }
   }
   cap.dataset.foldTier = String(tier)
   cap.dataset.fold = String(slots.filter(function (s) { return s.el.classList.contains('dsws-folded') }).length)
+  // 926 落键：这一趟量到了有效宽度，结论可复用。
+  keep.foldGuardEl = cap
+  keep.foldGuardKey = guardKey
+  keep.foldGuardTier = tier
   return tier
+}
+
+// 926 守卫复用记账：复用已计数事件 input.observe（六组嫌疑的统一观测口），采样每 100 趟一行。
+//   新增的是内存缓存（命中 / 未命中），调用频繁所以记按需级：先判开关，关着不组装字段；
+//   字段只用该事件白名单里的四个键（kind / count / latencyMs / keyHash），不记原文。
+// 926 同帧合并的实现（接线在 StatusBar.js，那里只留一行转调，保持零增长基线）：
+//   同一帧里的多次触发只真跑一次 —— 占位后把活排进帧回调，回调里清占位再跑，画出来是同一帧；
+//   帧回调不可用（异常宿主）时同步兜底，行为退回原样。占位记在调用方跨调用带着走的 keep 上。
+const capFoldScheduleFold = function (keep, applyFold) {
+  if (!keep || keep.foldRaf) return
+  keep.foldRaf = 1
+  try { window.requestAnimationFrame(function () { keep.foldRaf = 0; applyFold() }) } catch (eRaf) { keep.foldRaf = 0; applyFold() }
+}
+const capFoldGuardLog = function (keep, guardHash, hit) {
+  try {
+    const st = keep ? (keep.guardLog || (keep.guardLog = { n: 0, hit: 0, miss: 0 })) : null
+    if (!st) return
+    st.n++; if (hit) st.hit++; else st.miss++
+    if (typeof isEnabled === 'function' && isEnabled('debug') && st.n % 100 === 0) log('debug', 'input.observe', { kind: 'capfold-guard', count: st.hit, latencyMs: st.miss, keyHash: String(guardHash) })
+  } catch (e) {}
 }
 
 /**

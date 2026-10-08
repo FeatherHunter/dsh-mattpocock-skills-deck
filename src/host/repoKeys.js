@@ -9,7 +9,7 @@
 // （同层互引门禁不许），没注入时照旧执行、只是这一笔不在账上（门禁会因此判红，不许静默）。
 // 报账单位是**真实出站请求条数**：一条 gh/git/glab 命令就是一条（分页、重试、兜底链由调用方各自再报）。
 export function createRepoKeys(deps) {
-  const { subprocess, timer, fs, DEFAULT_CWD, TIMEOUT_MS, repoKeys, repoRoots, getGhPath, setGhPath, getGhLastError, setGhLastError, getPlatform, getWorkspaceStore, setCache, clearWorkspaceStore, namingSweepSoon, getChainBackoff, parseGithubRepo, logCtx, gate } = deps
+  const { subprocess, timer, fs, DEFAULT_CWD, TIMEOUT_MS, repoKeys, repoRoots, getGhPath, setGhPath, getGhLastError, setGhLastError, getPlatform, getWorkspaceStore, setCache, clearWorkspaceStore, namingSweepSoon, getChainBackoff, parseGithubRepo, logCtx, gate, getGate } = deps
   // 共享状态归 index.js 单一持有：ghPath/ghLastError 经存取器（基本类型重赋值不能按引用共享）；repoKeys/repoRoots 按引用共享（只做属性读写与删除，从不整体重赋值）。
   // #491 房外埋点 helpers：hash8 只记散列不记原文；P1 事件外层先判开关再组装字段（字段函数只在守卫通过后求值）。
   function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
@@ -19,13 +19,21 @@ export function createRepoKeys(deps) {
   let lastNormKind = ''
   let lastCanonOut = ''
 
-  /** 这一笔真实出站报给闸（I1）。闸没接上时什么都不做——但那正是门禁要判红的现场，不许静默假装记过账。 */
+  /** 这一笔真实出站报给闸（I1）。闸没接上时什么都不做——但那正是门禁要判红的现场，不许静默假装记过账。
+   *  #927：闸可能比这一层晚一步就位（刷新接线要到插件起步时才建好），所以每次报账现问一次，
+   *  拿到就用、还没有就什么都不做。写成一次性快照的话，先建好的那一路会永远拿不到闸。 */
+  function gateOf() {
+    let g = null
+    try { g = (typeof getGate === 'function') ? getGate() : gate } catch (e) { g = null }
+    return (g && typeof g.noteOutbound === 'function') ? g : null
+  }
   function reportOutbound(args) {
     try {
-      if (!gate || typeof gate.noteOutbound !== 'function') return
+      const g = gateOf()
+      if (!g) return
       // GraphQL 那一桶按点数计（一条 gh api graphql 命令算一点），REST 那一桶按请求条数计，两桶互不折算。
       const isGraphql = (String(args && args[0]) === 'api' && String(args && args[1] || '').indexOf('graphql') >= 0)
-      gate.noteOutbound({ requests: 1, points: isGraphql ? 1 : 0 })
+      g.noteOutbound({ requests: 1, points: isGraphql ? 1 : 0 })
     } catch (e) { /* 报账失败不许影响已经起来的这一条命令 */ }
   }
 
