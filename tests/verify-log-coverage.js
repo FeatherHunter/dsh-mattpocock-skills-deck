@@ -46,6 +46,9 @@ const PHONES = [
   'wf.openFolder', 'wf.initPublish', 'wf.retryPush', 'wf.pickDirectory', 'wf.pickFile', 'wf.openPath',
   'wf.logBatch', 'wf.logExport', 'wf.logClear', 'wf.logGetSwitch', 'wf.logSetSwitch',
   'wf.updateStatus', 'wf.updateCheck', 'wf.updateInstall', 'wf.updateChangelog',
+  // #927 只读一条：闸的三个累计数（撞限流 / 记账对不上 / 绕闸）的观察口，现役 54 → 55；
+  // 它不新开事件，成功一行沿用既有常驻 #26 host.call（电话名写在 method 字段，kind 记 gate-stats）。
+  'wf.gateStats',
 ]
 // #875 薄接线：新增取更新日志电话 1 条，现役 53 → 54；增删电话同步改本表（附录 1.7 退役表不动）。
 const RETIRED = ['wf.ping', 'wf.claim']

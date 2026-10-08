@@ -106,7 +106,7 @@ export function createRefreshWiring(deps) {
         deckQuotaSync = createDeckQuotaSync({
           send: function (req, perform) { return gate.send(req, perform) },
           syncDue: function () { try { return ledger.syncDue() } catch (eS) { return false } },
-          syncServer: function (readings) { try { return ledger.syncServer(readings) } catch (eW) { return null } },
+          syncServer: function (readings) { try { return ledger.syncServer(readings) } catch (eW) { return null } }, noteRateLimited: function (bucket, seconds, workspaceKey) { try { return gate.noteRetryAfter({ bucket: bucket, seconds: seconds, workspaceKey: workspaceKey }) } catch (e) { return null } }, // #927 ①：读数里剩 0 时按服务端的重置时刻降档
           runGh: function (a, c) { if (typeof d.runGh === 'function') return d.runGh(a, c); return Promise.resolve({ ok: false, error: 'no-runGh' }) },
           logCtx: logCtx,
         })
@@ -403,7 +403,7 @@ export function createRefreshWiring(deps) {
 
   return {
     ledger: ledger,
-    gate: gate,
+    gate: gate, send: function (req, perform) { return gate.send(req, perform) }, // #927：面板取数那两路要过闸（它们是「人的动作」那一类，只记账、不降档）
     writeEvents: writeEvents,
     sessionTickets: sessionTickets,
     attention: attention,

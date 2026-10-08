@@ -46,6 +46,7 @@ export function createDeckQuotaSync(deps) {
   const send = d.send
   const syncDue = d.syncDue
   const syncServer = d.syncServer
+  const noteRateLimited = d.noteRateLimited
   const runGh = d.runGh
   const logCtx = d.logCtx || null
   // 失败冷却：gh 不在的机器上失败是常态，不加冷却每次调用白起一次失败的 gh。
@@ -75,7 +76,22 @@ export function createDeckQuotaSync(deps) {
             try {
               const r = await runGh(['api', 'rate_limit'], cwd)
               const readings = r && r.ok ? parseRateLimit(r.text) : null
-              if (readings) { try { syncServer(readings); applied = true } catch (eS) {} }
+              if (readings) {
+                try { syncServer(readings); applied = true } catch (eS) {}
+                // #927 ①：读数里哪一桶剩 0，就说明这一桶已经用完——按服务端给的「重置时刻」降档到那时为止。
+                // 秒数取自读数自己的 reset（服务端给的数，不是编的）；拿不到正秒数就不报（noteRetryAfter 会抛）。
+                try {
+                  if (typeof noteRateLimited === 'function') {
+                    for (const b of ['rest', 'graphql']) {
+                      const x = readings[b]
+                      if (!x || x.remaining !== 0) continue
+                      const resetMs = (x.reset > 1e12) ? x.reset : x.reset * 1000
+                      const secs = Math.round((resetMs - Date.now()) / 1000)
+                      if (secs > 0) noteRateLimited(b, secs, String(workspaceKey || 'unknown'))
+                    }
+                  }
+                } catch (eN) {}
+              }
             } catch (eR) {}
             return { requests: 1, points: 0 }
           },
