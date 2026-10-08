@@ -1,14 +1,14 @@
 # Show and tell 初稿（给 #913，英文在前、中文在后）
 
 > 状态：初稿 + humanizer 自查完成，待 #914 渲染预览与发布。
-> 英文 336 词（上限 350），中文 572 字（区间 500–700）。
+> 英文 349 词（上限 350），中文 598 字（区间 500–700）。
 > 图片限宽 600，放在对应段落旁边。英文段用 3 张英文图，中文段沿用 02/03/05/07 中文图。
 
 ## 英文段（直接粘贴）
 
 MattSkillsDeck: a task board inside DSH for working with Matt's skills
 
-I use DSH (DeepSeek Harness), and I use Matt's skills. Over time two things kept bothering me: every slash command had to be typed out letter by letter from memory, and checking where a task stood meant switching to the GitHub page. So I built MattSkillsDeck, a panel in the DSH sidebar that holds both the skills and the tasks. It is my own personal project, with no official connection to Matt, and I would like to hear from anyone who tries it whether it feels right.
+I use DSH (DeepSeek Harness), and I use Matt's skills. Over time two things kept bothering me: with so many skills, I never knew which one the moment called for; and even when I did, each call needed the same boilerplate, like pasting the issue URL after /wayfinder. It wore me down. So I built MattSkillsDeck, a panel in the DSH sidebar that holds both the skills and the tasks. It is my own project, with no official connection to Matt, and I would like to hear from anyone who tries it whether it feels right.
 
 The main view is a task board. It lists every issue in the repo with filters for all, open, blocked and closed. Map rows stay pinned. Each row carries a button that already knows the next step: diagnose, fix, discuss, or execute. Clicking fills the prepared command into the input box, and I confirm before anything runs.
 
@@ -32,13 +32,13 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck
 
 Then restart that DSH entry. Desktop app users replace --profile web with --profile desktop. Repo: https://github.com/FeatherHunter/dsh-mattpocock-skills-deck
 
-This panel only exists because Matt published these skills. Thank you, Matt. Everything above is what I figured out on my own, so if anything is wrong or awkward, just reply and tell me.
+This panel only exists because Matt published these skills. Thank you, Matt. Everything above is what I figured out on my own, so it is probably wrong somewhere. If you spot it, reply and I will fix it.
 
 ## 中文段（直接粘贴）
 
 MattSkillsDeck：在 DSH 里给 Matt 的技能配一块任务板
 
-我用 DSH（DeepSeek Harness，一个聊天窗口指挥 AI 干活的工具），也用 Matt 的技能。时间一长，两个地方一直别扭：一是每个斜杠指令都要记住、一个字母一个字母敲；二是任务做到哪一步了，得去 GitHub 网页上看，来回切。所以我做了 MattSkillsDeck，把技能和任务都收进 DSH 侧边的一块面板里。这是我个人做的，和 Matt 没有官方关系，顺不顺手，想听听用过的人说。
+我用 DSH（DeepSeek Harness，一个聊天窗口指挥 AI 干活的工具），也用 Matt 的技能。时间一长，两个地方一直别扭：一是技能一多，什么时候该用哪一个，心里没谱；二是就算知道用哪个，每次也要写一堆模板话、做重复动作，比如叫出 /wayfinder 还要再贴一遍工单地址，累。所以我做了 MattSkillsDeck，把技能和任务都收进 DSH 侧边的一块面板里。这是我个人做的，和 Matt 没有官方关系，顺不顺手，想听听用过的人说。
 
 面板打开就是一块任务板，列出仓库里所有工单，能按全部、开放、被阻塞、已关闭筛。地图行置顶，已关闭的工单收成一行，不占地方。每行都有个按钮，上面写好了这一步该干什么：没分流的点诊断，报上来的缺陷点修复，要商量的点讨论，普通任务点执行。点一下，写好的指令填进输入框，人确认后再发。
 
@@ -66,7 +66,7 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck
 
 装完把 DSH 重启一次就生效，不用另外配置。桌面应用用户把 --profile web 换成 --profile desktop。仓库：https://github.com/FeatherHunter/dsh-mattpocock-skills-deck
 
-我是站在 Matt 公开的这些技能上，才搭出这块面板的，谢谢 Matt。用法都是我自己摸索的，哪里不对、哪里别扭，回帖说一声就行。
+我是站在 Matt 公开的这些技能上，才搭出这块面板的，谢谢 Matt。用法都是我自己摸索的，肯定有不对的地方。如果愿意，回帖里指出来，我看到就改。
 
 ## humanizer 自查记录（2026-10-08，技能版本 3.1.0）
 
