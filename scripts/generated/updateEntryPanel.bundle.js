@@ -64,7 +64,7 @@ var __DshUpdateEntry = (() => {
   // node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/redaction.js
   var COPY_BUDGET_CHARS = 1500;
   var REDACTED_PATH = "<\u8DEF\u5F84>";
-  var REDACTED_SECRET = "<\u8131\u654F>";
+  var REDACTED_SECRET_TEXT = "<\u8131\u654F>";
   var ABSOLUTE_PATH_RE = /[A-Za-z]:\\[^\s"']*|\\\\[^\s"'()\[\];]+|(^|[\s"'(\[=,])\/\/[^\s"'()\[\];]+|(^|[\s"'(\[=:,])\/(?!\/)[^\s"'()\[\];]+/g;
   var URL_USERINFO_RE = /[A-Za-z][A-Za-z0-9+.-]*:\/\/[^\s/]*@/;
   var NPM_TOKEN_RE = /\bnpm_[A-Za-z0-9_-]{8,}/g;
@@ -88,15 +88,15 @@ var __DshUpdateEntry = (() => {
     GITHUB_TOKEN_RE.lastIndex = 0;
     SK_TOKEN_RE.lastIndex = 0;
     BEARER_TOKEN_RE.lastIndex = 0;
-    return text.replace(NPM_TOKEN_RE, REDACTED_SECRET).replace(GITHUB_TOKEN_RE, REDACTED_SECRET).replace(SK_TOKEN_RE, REDACTED_SECRET).replace(BEARER_TOKEN_RE, (_whole, prefix) => `${prefix}${REDACTED_SECRET}`);
+    return text.replace(NPM_TOKEN_RE, REDACTED_SECRET_TEXT).replace(GITHUB_TOKEN_RE, REDACTED_SECRET_TEXT).replace(SK_TOKEN_RE, REDACTED_SECRET_TEXT).replace(BEARER_TOKEN_RE, (_whole, prefix) => `${prefix}${REDACTED_SECRET_TEXT}`);
   }
   function applyCredPairRule(text) {
     CRED_PAIR_RE.lastIndex = 0;
-    return text.replace(CRED_PAIR_RE, (_whole, head) => `${head}${REDACTED_SECRET}`);
+    return text.replace(CRED_PAIR_RE, (_whole, head) => `${head}${REDACTED_SECRET_TEXT}`);
   }
   function applyEmailRule(text) {
     EMAIL_RE.lastIndex = 0;
-    return text.replace(EMAIL_RE, REDACTED_SECRET);
+    return text.replace(EMAIL_RE, REDACTED_SECRET_TEXT);
   }
   function hasUserinfo(text) {
     URL_USERINFO_RE.lastIndex = 0;
