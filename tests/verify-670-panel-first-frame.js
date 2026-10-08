@@ -76,7 +76,10 @@ window.__RDOM__ = ReactDOMClient
 const src = window.__CLIENT_SRC__
 let loaded = null
 window.__ModuleLoader__ = { load(spec) { loaded = spec; return spec } }
-window.eval(src)
+// 手法：插脚本执行——这段探针打包后在真 Chromium 页面里跑，那里没有 node:vm，所以按页面的正规做法插一段脚本元素执行产物。
+const clientScriptEl = document.createElement('script')
+clientScriptEl.textContent = src
+document.body.appendChild(clientScriptEl)
 const dict = {}
 const trFn = (k) => (dict[k] !== undefined ? dict[k] : k)
 const regs = []

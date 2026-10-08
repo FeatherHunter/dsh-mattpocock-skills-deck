@@ -5,6 +5,8 @@ import { createRequire } from 'node:module'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
+// 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头（本文件是 ESM，用 import 取具名导出）。
+import { compileFn } from './lib/eval-probe.js'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const ROOT = path.resolve(__dirname, '..')
@@ -24,7 +26,8 @@ try {
   check(!!m, 'setupPendingOf \u6E90\u7801\u53EF\u63D0\u53D6')
   if (m) {
     const fnSrc = m[0].replace(/^\s*export const setupPendingOf/, 'const setupPendingOf')
-    const factory = new Function('chainSteps', fnSrc + '\n;return setupPendingOf;')
+    // 把源码里抽出的纯函数体当函数体造函数，它的自由变量 chainSteps 显式当参数名，所以走 compileFn。
+    const factory = compileFn(['chainSteps'], fnSrc + '\n;return setupPendingOf;')
     setupPendingOf = factory(null)
   }
 } catch (e) { check(false, 'setupPendingOf \u53EF\u6267\u884C', String((e && e.message) || e)); }

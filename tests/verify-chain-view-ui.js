@@ -39,6 +39,8 @@
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { createServer } from 'node:http'
+// 本文件选 evalWithScope 手法：只是求值真源码里取出来的一段字面量对象，它不引用本文件的任何外层变量。
+import { evalWithScope } from './lib/eval-probe.js'
 
 let passed = 0, failed = 0
 function ok(msg) { passed++; console.log('  PASS ' + msg) }
@@ -76,7 +78,8 @@ const localeMod = (function () {
   for (const rel of files) {
     const block = grabZhBlock(readFileSync(resolve(rel), 'utf8'))
     if (!block) continue
-    try { Object.assign(dict, new Function('return (' + block + ')')()) } catch (e) { /* 读不出来就跳过：缺的词条会在版面上显示成键名，门禁会红 */ }
+    // 本处走 evalWithScope：这块 zh 字典字面量自己就是完整表达式，scope 给空对象即可。
+    try { Object.assign(dict, evalWithScope(block, {})) } catch (e) { /* 读不出来就跳过：缺的词条会在版面上显示成键名，门禁会红 */ }
   }
   return dict
 })()

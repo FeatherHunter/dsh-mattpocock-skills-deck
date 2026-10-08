@@ -18,6 +18,8 @@
  */
 const fs = require('fs')
 const path = require('path')
+// 本文件选 compileFn 手法：两处都是把真源文本当函数体造函数，依赖一律按参数名显式传进去，不靠外层作用域。
+const { compileFn } = require('./lib/eval-probe.js')
 const ROOT = path.join(__dirname, '..')
 let failed = false
 const check = function (cond, msg) {
@@ -31,7 +33,8 @@ const reasonSrc = fs.readFileSync(path.join(ROOT, 'src/host/tracker/backends/git
 let reasonMod = null
 try {
   const body = reasonSrc.replace(/^[ \t]*export[ \t]+default[^\n]*$/gm, '').replace(/^[ \t]*export[ \t]+/gm, '')
-  reasonMod = new Function(body + '\n;return { pickFallbackReason: (typeof pickFallbackReason !== "undefined" ? pickFallbackReason : null) };')()
+  // 本处走 compileFn：这段真源不引用外层变量，参数名给空数组。
+  reasonMod = compileFn([], body + '\n;return { pickFallbackReason: (typeof pickFallbackReason !== "undefined" ? pickFallbackReason : null) };')()
 } catch (e) {
   console.log('FAIL 求值 fallback-reason.js 拿不到 pickFallbackReason：' + String(e && e.message))
 }
@@ -73,7 +76,8 @@ const tsrc = fs.readFileSync(path.join(ROOT, 'src/client/views/shared/truthLines
 let mod = null
 try {
   const body = tsrc.replace(/^[ \t]*export[ \t]+/gm, '')
-  mod = new Function('freshnessLevel', 'PATCH_MERGE_WINDOW_MS', 'lagPromiseFor', 'PROBE_INTERVAL_MS', 'idOfParts',
+  // 本处走 compileFn：五个依赖本来就在参数表里，照旧按参数名传进去。
+  mod = compileFn(['freshnessLevel', 'PATCH_MERGE_WINDOW_MS', 'lagPromiseFor', 'PROBE_INTERVAL_MS', 'idOfParts'],
     body + '\n;return { restFallbackView: restFallbackView };')(
     function () { return 'fresh' }, 10000, function () { return { maxLagMs: 0 } }, 90000, function () { return 'k' })
 } catch (e) {

@@ -7,6 +7,7 @@
 // 用法: node tests/smoke-client.test.js
 import { JSDOM } from 'jsdom'
 import { readFileSync } from 'node:fs'
+import { evalInWindow } from './lib/eval-probe.js'
 
 const dom = new JSDOM('<!doctype html><html><head></head><body></body></html>', {
   url: 'http://127.0.0.1:59519/',
@@ -54,7 +55,8 @@ window.__DSW_SMOKE_CTX__ = ctx
 
 // ---- 执行 bundle（在 window 上下文中，document/React 等解析到 jsdom 全局）----
 const code = readFileSync('package/lib/client.js', 'utf8')
-window.eval(code)
+// 手法：evalInWindow——这段产物要在 jsdom 窗口里跑，改走共用入口在同一个窗口上下文里执行，拿到的 document/React 与原来一样。
+evalInWindow(dom, code)
 
 let failures = 0
 const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failures++ }

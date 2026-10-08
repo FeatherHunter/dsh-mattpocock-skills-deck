@@ -31,6 +31,7 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { compileFn } from './lib/eval-probe.js'
 
 const root = resolve(import.meta.dirname, '..')
 const read = (rel) => readFileSync(resolve(root, rel), 'utf8')
@@ -108,7 +109,8 @@ console.log('== C 行为层（判据）：答过也问 / 没答过也问 / 不�
     const t = String((st && st.setupLayout) || '').toLowerCase()
     return (t === 'single' || t === 'multi') ? t : null
   }
-  const mod = new Function('readSetupLayout', 'SETUP_LAYOUT_TEXT_KEYS', stripExports(setupSrc) + '\n;return { layoutCardShouldOpen: layoutCardShouldOpen };')(readLayout, layoutKeys)
+  // 手法：compileFn——这段判据本身是从真源里切出来的文本，交给 tests/lib/eval-probe.js 统一造函数；两个参数名按数组传，行为不变。
+  const mod = compileFn(['readSetupLayout', 'SETUP_LAYOUT_TEXT_KEYS'], stripExports(setupSrc) + '\n;return { layoutCardShouldOpen: layoutCardShouldOpen };')(readLayout, layoutKeys)
   check(mod.layoutCardShouldOpen({ setupLayout: 'multi' }, { askLayout: true }) === true, '布局答过（multi）· 传了 askLayout → 照旧问（#698 维护者拍板的那一条）')
   check(mod.layoutCardShouldOpen({ setupLayout: 'single' }, { askLayout: true }) === true, '布局答过（single）· 传了 askLayout → 照旧问')
   check(mod.layoutCardShouldOpen({ setupLayout: null }, { askLayout: true }) === true, '布局没答过 · 传了 askLayout → 问')
@@ -158,7 +160,8 @@ async function runSwitch (srcText, steps, from, to) {
   }
   const names = Object.keys(sandbox)
   const body = stripExports(srcText) + '\n;return { confirmSwitchConfirm: confirmSwitchConfirm, openSwitchConfirm: openSwitchConfirm }'
-  const mod = new Function(...names, body)(...names.map((n) => sandbox[n]))
+  // 手法：compileFn——沙箱里有哪些名字就传哪些名字（原来那种写法也常这么用），这里把名字数组原样交给共用入口。
+  const mod = compileFn(names, body)(...names.map((n) => sandbox[n]))
   const fromId = from || 'github'
   const toId = to || 'markdown'
   const st = { cwd: 'D:\\w', selection: { backendId: fromId, source: 'explicit', userPicked: true }, repository: null, snapshot: null, setupLayout: 'multi', chainSnapshot: { steps: steps }, switchConfirm: { open: true, curBackendId: fromId, targetBackendId: toId, option: 'keep', criChecks: null, criLoading: false, clearInput: '', confirming: false } }
@@ -201,7 +204,8 @@ function makeSettle (steps, opts) {
   }
   const names = Object.keys(sandbox)
   const body = stripExports(sbSrc) + '\n;return { settleSwitchCard: settleSwitchCard, worktreeInitializedState: worktreeInitializedState, cancelStatusSetupPick: cancelStatusSetupPick, cardOwnedBySwitch: cardOwnedBySwitch }'
-  const mod = new Function(...names, body)(...names.map((n) => sandbox[n]))
+  // 手法：compileFn——同上，名字数组交给共用入口造函数。
+  const mod = compileFn(names, body)(...names.map((n) => sandbox[n]))
   const st = { cwd: 'D:\\w', selection: { backendId: 'markdown' }, chainSnapshot: { steps: steps }, setupLayout: 'single', switchCardFrom: 'github', switchCardTo: 'markdown', switchCardLayoutFrom: 'multi', switchAlignDone: false, setupCardOwner: 'switch' }
   return { mod, st, seen }
 }
@@ -290,7 +294,8 @@ function makeStatusFlow (steps, opts) {
   }
   const names = Object.keys(sandbox)
   const body = stripExports(sbSrc) + '\n;return { StatusBackendForTest: { snapshotSetupLayoutForCard: snapshotSetupLayoutForCard, cancelStatusSetupPick: cancelStatusSetupPick, confirmStatusSetupPick: confirmStatusSetupPick, applyStatusSetupLayout: applyStatusSetupLayout, layoutSelectionOf: layoutSelectionOf } };'
-  const mod = new Function(...names, body)(...names.map((n) => sandbox[n])).StatusBackendForTest
+  // 手法：compileFn——同上，名字数组交给共用入口造函数。
+  const mod = compileFn(names, body)(...names.map((n) => sandbox[n])).StatusBackendForTest
   const st = { cwd: 'D:\\w', selection: { backendId: 'markdown' }, chainSnapshot: { steps: steps }, setupLayout: o.layout || 'single', setupLayoutCardOpen: true, switchCardFrom: 'github', switchCardTo: 'markdown', switchCardLayoutFrom: o.layout || 'single', switchAlignDone: false, setupCardOwner: 'switch' }
   return { mod, st, seen, apply: (v) => mod.applyStatusSetupLayout(st, v) }
 }
@@ -315,7 +320,8 @@ console.log('== G 反证：三处实现各做坏一次，对应的断言必须�
   // ① 把「每次都问」改回「答过就不问」—— C 组那条要当场红
   const brokenJudge = setupSrc.replace('return !!(opts && opts.askLayout === true) || !readSetupLayout(st)', 'return !readSetupLayout(st)')
   check(brokenJudge !== setupSrc, '反证 ① 的改法能在真源里落地')
-  const modB = new Function('readSetupLayout', 'SETUP_LAYOUT_TEXT_KEYS', stripExports(brokenJudge) + '\n;return { layoutCardShouldOpen: layoutCardShouldOpen };')((st) => {
+  // 手法：compileFn——反证那一段同样是切出来的文本，走共用入口造函数，改坏的地方保持不变。
+  const modB = compileFn(['readSetupLayout', 'SETUP_LAYOUT_TEXT_KEYS'], stripExports(brokenJudge) + '\n;return { layoutCardShouldOpen: layoutCardShouldOpen };')((st) => {
     const t = String((st && st.setupLayout) || '').toLowerCase()
     return (t === 'single' || t === 'multi') ? t : null
   }, { single: 'setup.layout.single', multi: 'setup.layout.multi' })
@@ -333,7 +339,8 @@ console.log('== G 反证：三处实现各做坏一次，对应的断言必须�
     logSwitchSettle: () => {}, isEnabled: () => false, log: () => {}, emit: () => {}, setTimeout, clearTimeout, console: { log () {}, warn () {}, error () {} },
   }
   const names2 = Object.keys(sb2)
-  const mod2 = new Function(...names2, stripExports(brokenSettle) + '\n;return { settleSwitchCard: settleSwitchCard };')(...names2.map((n) => sb2[n]))
+  // 手法：compileFn——同上，名字数组与代码文本分开交给共用入口。
+  const mod2 = compileFn(names2, stripExports(brokenSettle) + '\n;return { settleSwitchCard: settleSwitchCard };')(...names2.map((n) => sb2[n]))
   const st2 = { selection: { backendId: 'markdown' }, chainSnapshot: { steps: CHAIN_NOT_INIT }, setupLayout: 'single', switchCardFrom: 'github', switchCardTo: 'markdown', switchCardLayoutFrom: 'multi', switchAlignDone: false }
   mod2.settleSwitchCard(st2, 'confirm')
   check(seen2.inject.length === 2 && seen2.decision.length === 0, '反证 ② 成立：不重判场景之后，还没初始化那份现场直接去注入对齐那两条（本该交回决策器、一个字都不自己发）—— 实得 inject=' + seen2.inject.length + ' decision=' + seen2.decision.length)
@@ -347,7 +354,8 @@ console.log('== G 反证：三处实现各做坏一次，对应的断言必须�
     flash: () => {}, emit: () => {}, host: { call: () => Promise.resolve({ ok: true }) }, tr: () => '',
   }
   const names3 = Object.keys(swSandbox)
-  const mod3 = new Function(...names3, stripExports(brokenGate) + '\n;return { openSwitchConfirm: openSwitchConfirm };')(...names3.map((n) => swSandbox[n]))
+  // 手法：compileFn——同上，名字数组与代码文本分开交给共用入口。
+  const mod3 = compileFn(names3, stripExports(brokenGate) + '\n;return { openSwitchConfirm: openSwitchConfirm };')(...names3.map((n) => swSandbox[n]))
   const st3 = { selection: { backendId: 'github' }, setupLayoutCardOpen: true }
   const opened = mod3.openSwitchConfirm(st3, 'markdown')
   check(opened === true && !!st3.switchConfirm && st3.switchConfirm.open === true, '反证 ③ 成立：那道闸摘掉之后，卡还开着也能把「切换后端」那张窗开出来（同屏两张问句）')

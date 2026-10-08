@@ -19,6 +19,8 @@ const os = require('os')
 const nodeFs = require('fs')
 const { execFileSync } = require('child_process')
 const { pathToFileURL } = require('url')
+// 本文件按文本求值统一走共用入口 compileFn：把 router.js 里计时与记日志那三段真代码配上假记录器（理由与用法见 tests/lib/eval-probe.js 文件头）。
+const { compileFn } = require('./lib/eval-probe.js')
 
 let failed = false
 let total = 0
@@ -294,7 +296,8 @@ async function main() {
     let lines = []
     let enabled = false
     const body = routerSrc.slice(start, end).replace(/^\s*export\s+/gm, '')
-    const factory = new Function('isEnabled', 'log', body + '\nreturn { panelClock: panelClock, panelNow: panelNow, logPanelStage: logPanelStage };')
+    // 抽出来的三段真代码配假开关与假记录器：改走共用入口 compileFn，参数名逐个列出。
+    const factory = compileFn(['isEnabled', 'log'], body + '\nreturn { panelClock: panelClock, panelNow: panelNow, logPanelStage: logPanelStage };')
     const mod = factory(
       (level) => (level === 'error' || level === 'warn') ? true : enabled,
       (level, event, fields) => { lines.push({ level, event, fields }) }

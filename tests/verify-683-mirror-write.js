@@ -17,6 +17,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { compileFn } from './lib/eval-probe.js'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 const PREFS_REL = 'src/client/kernel/store-prefs.js'
@@ -55,7 +56,9 @@ const makeHarness = function (srcText, opts) {
     '\n; return { setCachedSelection: setCachedSelection, getCachedSelection: getCachedSelection, selectionByCwd: selectionByCwd,' +
     ' setCachedSetupLayout: setCachedSetupLayout, getCachedSetupLayout: getCachedSetupLayout, setupLayoutByCwd: setupLayoutByCwd,' +
     ' writeTableEntry: writeTableEntry, migrateCachedChoiceToKey: migrateCachedChoiceToKey, SELECTION_BY_CWD_KEY: SELECTION_BY_CWD_KEY, SETUP_LAYOUT_BY_CWD_KEY: SETUP_LAYOUT_BY_CWD_KEY }'
-  const factory = new Function('window', 'localStorage', 'log', 'keyOf', 'wsKeyOf', 'emit', 'shared', 'stores', body)
+  // 本文件选 compileFn：原来就是把八个环境名当参数、把剥掉 export 的 prefs 源码当函数体造一个函数，
+  //   被造的代码只看这八个参数（依赖全部显式注入），与共用入口语义一一对应。
+  const factory = compileFn(['window', 'localStorage', 'log', 'keyOf', 'wsKeyOf', 'emit', 'shared', 'stores'], body)
   const api = factory(win, localStorage, function (level, event, fields) { logs.push({ level: level, event: event, fields: fields }) }, wsKey, wsKey, function () {}, {}, {})
   return { api: api, disk: disk, logs: logs, handlers: storageHandlers }
 }

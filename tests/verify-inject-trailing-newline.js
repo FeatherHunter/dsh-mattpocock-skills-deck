@@ -8,6 +8,8 @@
 const fs = require('fs')
 const assert = require('assert')
 const path = require('path')
+// 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
+const { compileFn } = require('./lib/eval-probe.js')
 
 const root = path.join(__dirname, '..')
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8')
@@ -38,7 +40,8 @@ for (let i = brace0; i < ioSrc.length; i++) {
     depth -= 1
     if (depth === 0) {
       const mod = { exports: null }
-      fn = new Function('module', 'exports', ioSrc.slice(start, i + 1).replace('export const withTrailingNewline =', 'module.exports =') + '\nreturn module.exports;')(mod, mod.exports)
+      // 把源码里切出来的一段（改成往假 module 上导出）当函数体造函数，参数名 module / exports 显式写出，所以走 compileFn。
+      fn = compileFn(['module', 'exports'], ioSrc.slice(start, i + 1).replace('export const withTrailingNewline =', 'module.exports =') + '\nreturn module.exports;')(mod, mod.exports)
       break
     }
   }

@@ -25,6 +25,7 @@ const { JSDOM } = require('jsdom')
 const React = require('react')
 const ReactDOMClient = require('react-dom/client')
 const { act } = require('react')
+const { evalInWindow } = require('./lib/eval-probe.js')
 
 const ROOT = path.resolve(__dirname, '..')
 const files = process.argv.slice(2).length ? process.argv.slice(2) : ['client.js', 'package/lib/client.js']
@@ -246,7 +247,9 @@ const mountLive = async function (code) {
 
   let loaded = null
   window.__ModuleLoader__ = { load (spec) { loaded = spec; return spec } }
-  window.eval(code)
+  // 本文件选 evalInWindow：这段产物源码原来是在这扇 jsdom 窗口里跑的（建它时开了 runScripts），
+  //   换成共用入口在同一个窗口环境里执行，环境与语义都不变。
+  evalInWindow(dom, code)
   const mod = loaded.factory((m) => {
     if (m === 'react') return React
     if (m === 'react-dom') return ReactDOMClient

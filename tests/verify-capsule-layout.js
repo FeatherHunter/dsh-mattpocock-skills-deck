@@ -72,7 +72,9 @@ const SNAP = window.__SNAP__
 const CHAIN_STEPS = window.__CHAIN_STEPS__
 let loaded = null
 window.__ModuleLoader__ = { load(spec) { loaded = spec; return spec } }
-window.eval(window.__CLIENT_SRC__)
+// 这段在真 Chromium 的页面里跑，页面里没有 node:vm，按文本求值只能改成插一段经典脚本执行（与 tests/lib/eval-probe.js 的 injectScript 同一做法）。
+const runInPage = (code) => { const s = document.createElement('script'); s.textContent = code; document.body.appendChild(s) }
+runInPage(window.__CLIENT_SRC__)
 const dict = {}
 const trFn = (k, p) => {
   let s = dict[k] !== undefined ? dict[k] : k

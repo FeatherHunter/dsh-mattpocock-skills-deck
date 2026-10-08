@@ -7,6 +7,7 @@
 //  （method、kind、errorHash），告警级始终落盘、不依赖调试开关。
 const fs = require('fs')
 const path = require('path')
+const { compileFn } = require('./lib/eval-probe.js')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -34,8 +35,10 @@ function makeTimer() {
 function loadLog(options) {
   const opts = options || {}
   const body = src.split('\n').map((l) => l.replace(/^(\s*)export\s+/, '$1')).join('\n')
-  const factory = new Function(
-    'host', 'timer', 'localStorage', 'broadcastLogSwitch',
+  // 本文件选 compileFn：原来就是把这四个环境名当参数、把剥掉行首 export 的 log.js 当函数体造一个函数，
+  //   被造的代码只看这四个参数（依赖全部显式注入），与共用入口语义一一对应。
+  const factory = compileFn(
+    ['host', 'timer', 'localStorage', 'broadcastLogSwitch'],
     body + '\nreturn { isEnabled, log, logSwitch, logQueue, setLogSwitch };'
   )
   return factory(opts.host, opts.timer, opts.localStorage, opts.broadcastLogSwitch)

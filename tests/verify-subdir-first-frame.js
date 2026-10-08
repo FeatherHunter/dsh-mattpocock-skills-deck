@@ -30,6 +30,7 @@
  */
 const fs = require('fs')
 const path = require('path')
+const { compileFn } = require('./lib/eval-probe.js')
 
 const root = path.resolve(__dirname, '..')
 let failed = false
@@ -108,7 +109,8 @@ function makeEnv(opts) {
   const tail = '\n;return { makeStore, loadSnapshot, hydrateFromCache, getCachedSnapshot, getCachedSelection,'
     + ' workspaceRootByCwd, rememberWorkspaceRoot, keyOf, wsKeyOf, emit, mergeSelection, askSelectionOnce,'
     + ' _snapRequestKeyWas, _snapInstallState }'
-  const factory = new Function(...names, moduleText(o.patch) + tail)
+  // 手法：compileFn——这几片内核按 build.mjs 的顺序拼成一段文本后造函数，改走 tests/lib/eval-probe.js 的共用入口；名字数组照原样传。
+  const factory = compileFn(names, moduleText(o.patch) + tail)
   const mod = factory.apply(null, names.map((n) => sandbox[n]))
   return { mod, seen, storage }
 }
@@ -132,7 +134,8 @@ function snapshotReply() {
 // 本地那张表按工作区根存着（真机现场就是这样 —— 根没认出来之前，这份本地镜像读不到）。
 function rootKeyedSeed() {
   const src = noExport(read('src/shared/workspaceKey.js'))
-  const keyOf = new Function(src + '\nreturn keyOf')()
+  // 手法：compileFn——规整函数是从真源切出来的文本，交给共用入口造函数，行为不变。
+  const keyOf = compileFn([], src + '\nreturn keyOf')()
   const k = keyOf(ROOT_DIR, 'win32')
   return { 'dsws.selectionByCwd': JSON.stringify({ [k]: { backendId: 'markdown', source: 'explicit', ref: null, userPicked: true, pickedAt: 1, rev: 3 } }) }
 }
@@ -156,7 +159,8 @@ const bannerApi = (function () {
   const guide = require(path.join(root, 'src/shared/tracker/guide-steps.js'))
   const src = noExport(read('src/client/statusbar/bannerChain.js'))
   return {
-    step: new Function('guideStepsFor', 'guideStepDone', 'chainSteps', 'chainStep', 'checkShowTitle',
+    // 手法：compileFn——横幅判据同样是从真源切出来的文本，参数名收进数组交给共用入口。
+    step: compileFn(['guideStepsFor', 'guideStepDone', 'chainSteps', 'chainStep', 'checkShowTitle'],
       src + '\nreturn { guideBannerStep: guideBannerStep }')(guide.guideStepsFor, guide.guideStepDone,
       (s) => (s && s.chainSnapshot && s.chainSnapshot.steps) || [], () => null,
       (show, fb) => String((show && show.title) || fb || '')).guideBannerStep,

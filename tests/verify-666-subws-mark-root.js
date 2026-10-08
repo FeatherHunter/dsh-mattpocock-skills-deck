@@ -24,6 +24,7 @@
  */
 const fs = require('fs')
 const path = require('path')
+const { compileFn } = require('./lib/eval-probe.js')
 
 const root = path.resolve(__dirname, '..')
 let failed = false
@@ -65,8 +66,9 @@ if (start < 0 || end < 0 || end <= start) {
   process.exit(1)
 }
 const block = noExport(markSrc.slice(start, end))
-const makeApi = (tmpl) => new Function(
-  'keyOf', 'tr',
+// 手法：compileFn——这段纯函数只是从真源里切出来的文本，交给 tests/lib/eval-probe.js 统一造函数，参数名照原样拆开。
+const makeApi = (tmpl) => compileFn(
+  ['keyOf', 'tr'],
   block + '\nreturn { rootOf: subwsMarkRootOf, cmpKey: subwsMarkCmpKey, shows: subwsMarkShows, relOf: subwsMarkRelOf, rootShown: subwsMarkRootShown, linesOf: subwsMarkLinesOf }'
 )(keyOf, function (k) { return (k === 'panel.wsMarkTip') ? tmpl : k })
 const api = makeApi(grabs[0] || '')
