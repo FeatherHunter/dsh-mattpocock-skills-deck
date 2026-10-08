@@ -179,15 +179,43 @@ const runAction = function (st, action) {
 }
 
 /**
- * 横幅那颗按钮点下去：照这一步的 missing 走（清单只声明用哪一种）。
- * 三种去向：注入一段文案（text）/ 没有文案可注入（none）/ 交给弹窗那类端点动作（action：建仓弹窗、选后端窗、初始化小卡）。
+ * 今天该出的那一条横幅的文案（哪一句、哪颗按钮、什么颜色）：默认就是清单里配的那条；
+ * 只有登录那一步在查不到时换成中性那一条（#916）。选哪一步仍由 guideBannerStep 定。
+ */
+export const guideBannerMeta = function (st, step) {
+  try {
+    if (typeof guideBannerOf === 'function') {
+      const meta = guideBannerOf(step, chainStepsOf(st))
+      if (meta) return meta
+    }
+  } catch (e) {}
+  return (step && step.banner) || {}
+}
+
+/**
+ * 横幅那颗按钮点下去：照这一步的有效 missing 走（查不到那一路已换成重查，见上面）。
+ * 去向：注入一段文案（text）/ 没有文案可注入（none）/ 弹窗类端点动作或强制重查（action）。
  * 无论哪一种都在这里落一行常驻日志，见下面 logGuideInject。
  * @returns {'text'|'none'|'action'} 这次给出去的是哪一类（同时写进日志）
  */
 export const runGuideMissing = function (st, step) {
   const stepId = (step && step.id) ? String(step.id) : ''
-  const missing = (step && step.missing) || null
+  let missing = (step && step.missing) || null
+  try {
+    if (typeof guideMissingOf === 'function') {
+      const eff = guideMissingOf(step, chainStepsOf(st))
+      if (eff) missing = eff
+    }
+  } catch (e) {}
   if (!missing || !missing.type) { logGuideInject(stepId, 'none'); return 'none' }
+  if (missing.type === 'recheck') {
+    try {
+      if (typeof host !== 'undefined' && host && host.call) host.call('wf.detect', { cwd: st.cwd || '', force: true, backendId: (typeof userHintOf === 'function' ? userHintOf(st.selection) : undefined) || undefined, baseRev: (typeof baseRevOf === 'function' ? baseRevOf(st.selection) : 0) })
+    } catch (e) {}
+    try { if (typeof loadChain === 'function') loadChain(st, true) } catch (e2) {}
+    try { if (typeof loadSnapshot === 'function') loadSnapshot(st, true, true) } catch (e3) {}
+    logGuideInject(stepId, 'action'); return 'action'
+  }
   if (missing.type === 'open-backend-picker') {
     try { if (typeof openStatusGate === 'function') openStatusGate(st) } catch (e) {}
     logGuideInject(stepId, 'action'); return 'action'

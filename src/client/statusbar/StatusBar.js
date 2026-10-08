@@ -314,7 +314,7 @@ export const StatusBar = (props) => {
   // #663：横幅就这一条 —— 正文与按钮标签用清单里那对词条键，按钮点下去照清单声明的 missing 走
   //   （注入哪段文案 / 开哪个弹窗 / 开选后端窗，都由 bannerChain.js 执行并落一行常驻日志）。
   const stepBanner = (function () {
-    const meta = bannerStep.banner || {}
+    const meta = (typeof guideBannerMeta === 'function') ? guideBannerMeta(s, bannerStep) : (bannerStep.banner || {})
     // 蓝条那一档（后端还没选定）仍是今天这套样式，含「正在探测后端」那个过渡态。
     if (meta.tone === 'info') {
       // #727：这一档原先只有两个形态（正在探测后端 / 还没有设置）。后端还没读到、而理由确实在途时（见上面

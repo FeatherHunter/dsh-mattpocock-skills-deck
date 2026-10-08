@@ -26,6 +26,9 @@ const MISSING = Object.freeze({
   installCli: Object.freeze({ type: STEP_ACTION.INJECT, prompt: 'cliInstall' }),
   // 「已登录 GitHub」注入按当前后端解析的登录指引（提示词 id 与今天一致）。
   ghAuthLogin: Object.freeze({ type: STEP_ACTION.INJECT, prompt: 'ghAuthLogin' }),
+  // 「已登录 GitHub」但链快照里是查不到（pending）：不注入登录指引，只强制重查一次
+  // （#916：查不到也被画成缺登录，文案读起来像确定没登录）。
+  ghAuthRecheck: Object.freeze({ type: 'recheck' }),
   // 「已关联 GitHub 仓库」用后端为这一项声明的第一个修复动作（GitHub 那枚两步建仓弹窗）。
   repoRemoteFix: Object.freeze({ type: STEP_ACTION.FIXES_ACTION }),
   // 「工作区已初始化」注入初始化全文（布局没选过时先弹那张小卡，由注入决策漏斗负责）。
@@ -39,6 +42,7 @@ const BANNER = Object.freeze({
   gate: Object.freeze({ text: 'banner.gate', btn: 'banner.gateBtn', tone: 'info' }),
   ghCli: Object.freeze({ text: 'banner.ghcli', btn: 'banner.ghcliBtn', tone: 'warn' }),
   ghAuth: Object.freeze({ text: 'banner.ghauth', btn: 'banner.ghauthBtn', tone: 'warn' }),
+  ghAuthUnknown: Object.freeze({ text: 'banner.ghauthUnknown', btn: 'banner.ghauthUnknownBtn', tone: 'warn' }),
   setup: Object.freeze({ text: 'banner.setup', btn: 'banner.setupBtn', tone: 'warn' }),
   skills: Object.freeze({ text: 'banner.skills', btn: 'banner.skillsBtn', tone: 'warn' }),
   repo: Object.freeze({ text: 'banner.repo', btn: 'banner.repoBtn', tone: 'warn' }),
@@ -150,6 +154,55 @@ export function guideStepDone(step, chainSteps) {
       return statusOf[String(id)] === 'done'
     })
   } catch (e) { return false }
+}
+
+/**
+ * 这一步在链快照里处于哪一种没过：'failed'（至少一项明确失败）还是 'pending'
+ * （没有失败、只是还没拿到确定结论，例如网络抖动或超时）。
+ * 快照里一项都没有时返回 'absent'（调用处按老口径跳过，不出横幅）。
+ * 目前只有登录那一步区分这两种没过，其余步骤照旧走失败那一套。
+ * @param {Object} step GUIDE_STEPS 里的一步
+ * @param {Array<{id:string,status:string}>} chainSteps 链快照里的步骤
+ * @returns {'done'|'failed'|'pending'|'absent'}
+ */
+export function guideStepState(step, chainSteps) {
+  try {
+    const ids = step && Array.isArray(step.checks) ? step.checks : []
+    if (!ids.length) return 'absent'
+    const list = Array.isArray(chainSteps) ? chainSteps : []
+    const statusOf = {}
+    for (let i = 0; i < list.length; i++) {
+      const it = list[i]
+      if (it && it.id != null) statusOf[String(it.id)] = String((it && it.status) || '')
+    }
+    const present = ids.filter(function (id) { return statusOf[String(id)] !== undefined && statusOf[String(id)] !== '' })
+    if (!present.length) return 'absent'
+    if (present.every(function (id) { return statusOf[String(id)] === 'done' })) return 'done'
+    if (present.some(function (id) { return statusOf[String(id)] === 'fail' || statusOf[String(id)] === 'current' })) return 'failed'
+    return 'pending'
+  } catch (e) { return 'pending' }
+}
+
+/**
+ * 这一步今天该出哪一条横幅：默认就是清单里配的那条；只有登录那一步在查不到
+ * （pending）时换成中性那一条（#916）。选哪一步仍由 guideBannerStep 定，这里只定文案。
+ */
+export function guideBannerOf(step, chainSteps) {
+  try {
+    if (step && String(step.id) === 'gh:authed' && guideStepState(step, chainSteps) === 'pending') return BANNER.ghAuthUnknown
+    return (step && step.banner) || null
+  } catch (e) { return (step && step.banner) || null }
+}
+
+/**
+ * 这一步的按钮点下去该干什么：默认就是清单里配的那一种；只有登录那一步在查不到
+ * 时改成强制重查（#916，不注入登录指引）。
+ */
+export function guideMissingOf(step, chainSteps) {
+  try {
+    if (step && String(step.id) === 'gh:authed' && guideStepState(step, chainSteps) === 'pending') return MISSING.ghAuthRecheck
+    return (step && step.missing) || null
+  } catch (e) { return (step && step.missing) || null }
 }
 
 /**
