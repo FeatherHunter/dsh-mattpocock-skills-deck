@@ -1,4 +1,4 @@
-// 由 dsh-plugin-update@0.8.0 的入口件产物打成浏览器绑定包，人手不改。
+// 由 dsh-plugin-update@0.9.0 的入口件产物打成浏览器绑定包，人手不改。
 // 来源：已安装更新包的 dist/entry.js（含内部 dialog 面板）；摆法与关闭轮询约定全部走包默认。
 var __DshUpdateEntry = (() => {
   var __defProp = Object.defineProperty;
@@ -19,7 +19,7 @@ var __DshUpdateEntry = (() => {
   };
   var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-  // node_modules/.pnpm/dsh-plugin-update@0.8.0/node_modules/dsh-plugin-update/dist/entry.js
+  // ../node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/entry.js
   var entry_exports = {};
   __export(entry_exports, {
     UPDATE_ENTRY_CSS: () => UPDATE_ENTRY_CSS,
@@ -33,7 +33,7 @@ var __DshUpdateEntry = (() => {
     mountUpdateEntry: () => mountUpdateEntry
   });
 
-  // node_modules/.pnpm/dsh-plugin-update@0.8.0/node_modules/dsh-plugin-update/dist/config.js
+  // ../node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/config.js
   var DEFAULT_PREFIX = "wf";
   var DEFAULT_CONFIRMATION_TTL_MS = 10 * 6e4;
   var DEFAULT_INSTALL_TIMEOUT_MS = 15 * 6e4;
@@ -61,7 +61,7 @@ var __DshUpdateEntry = (() => {
     return buildPhoneNames(prefix).updateChangelog;
   }
 
-  // node_modules/.pnpm/dsh-plugin-update@0.8.0/node_modules/dsh-plugin-update/dist/redaction.js
+  // ../node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/redaction.js
   var COPY_BUDGET_CHARS = 1500;
   var REDACTED_PATH = "<\u8DEF\u5F84>";
   var REDACTED_SECRET = "<\u8131\u654F>";
@@ -127,7 +127,7 @@ var __DshUpdateEntry = (() => {
     return truncateForCopy(scrubWithoutBudget(flat));
   }
 
-  // node_modules/.pnpm/dsh-plugin-update@0.8.0/node_modules/dsh-plugin-update/dist/service.js
+  // ../node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/service.js
   var CONFIRMATION_TTL_MS = 10 * 6e4;
   var MAX_METADATA_BYTES = 256 * 1024;
   function updateError(code) {
@@ -214,7 +214,7 @@ var __DshUpdateEntry = (() => {
     return 0;
   }
 
-  // node_modules/.pnpm/dsh-plugin-update@0.8.0/node_modules/dsh-plugin-update/dist/lang.js
+  // ../node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/lang.js
   function normalizeLangTag(tag) {
     if (typeof tag !== "string") return "zh";
     const s = tag.trim().toLowerCase().replace(/_/g, "-");
@@ -345,7 +345,7 @@ var __DshUpdateEntry = (() => {
     };
   }
 
-  // node_modules/.pnpm/dsh-plugin-update@0.8.0/node_modules/dsh-plugin-update/dist/bilingual.js
+  // ../node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/bilingual.js
   var BILINGUAL_STRINGS = {
     "entry.label.idle": { en: "Check for updates", zh: "\u68C0\u67E5\u66F4\u65B0", draft: true },
     "entry.label.failed": { en: "Update failed \u2014 View details", zh: "\u66F4\u65B0\u5931\u8D25\uFF0C\u70B9\u6B64\u67E5\u770B", draft: true },
@@ -692,7 +692,7 @@ var __DshUpdateEntry = (() => {
     ".dsh-upd-bi [lang]{overflow-wrap:anywhere}"
   ].join("\n");
 
-  // node_modules/.pnpm/dsh-plugin-update@0.8.0/node_modules/dsh-plugin-update/dist/changelog.js
+  // ../node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/changelog.js
   var CHANGELOG_MAX_CHARS = 64 * 1024;
   var CHANGELOG_MAX_ENTRIES = 100;
   var CHANGELOG_MAX_BULLETS_PER_SECTION = 200;
@@ -1142,15 +1142,15 @@ ${blocks.join("\n")}
     }
   }
 
-  // node_modules/.pnpm/dsh-plugin-update@0.8.0/node_modules/dsh-plugin-update/dist/log-events.js
+  // ../node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/log-events.js
   var LOG_EVENT_CALL = "host.call";
   var LOG_EVENT_CALL_FAIL = "host.call.fail";
   var LOG_EVENT_INSTALL_EXEC = "update.install.exec";
 
-  // node_modules/.pnpm/dsh-plugin-update@0.8.0/node_modules/dsh-plugin-update/dist/queue.js
+  // ../node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/queue.js
   var QUEUE_INTENT_TTL_MS = 10 * 6e4;
 
-  // node_modules/.pnpm/dsh-plugin-update@0.8.0/node_modules/dsh-plugin-update/dist/panel.js
+  // ../node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/panel.js
   function normalizePanelTheme(value) {
     return value === "archive" ? "archive" : "default";
   }
@@ -1178,6 +1178,7 @@ ${blocks.join("\n")}
     busyBorder: "--dsh-update-busy-border",
     busyText: "--dsh-update-busy-text",
     newText: "--dsh-update-new-text",
+    newOkText: "--dsh-update-new-ok-text",
     fontSans: "--dsh-update-font-sans",
     fontSerif: "--dsh-update-font-serif",
     fontMono: "--dsh-update-font-mono",
@@ -1213,7 +1214,8 @@ ${blocks.join("\n")}
     "busyBg",
     "busyBorder",
     "busyText",
-    "newText"
+    "newText",
+    "newOkText"
   ]);
   function themeTokensError(raw) {
     return new Error(`[dsh-plugin-update] \u4E3B\u9898\u53C2\u6570 themeTokens \u975E\u6CD5\uFF1A\u53EA\u6536\u5DF2\u77E5 token \u952E\uFF08\u989C\u8272\u7528 hex \u6216\u82F1\u6587\u540D\uFF0C\u5B57\u4F53/\u5706\u89D2/\u9634\u5F71/\u5C3A\u5BF8\u4E3A\u5B89\u5168 CSS \u503C\uFF0CentryScale \u4E3A\u5927\u4E8E 0 \u7684\u6709\u9650\u6570\uFF09\uFF08\u6536\u5230 ${JSON.stringify(raw ?? null)})`);
@@ -1588,24 +1590,6 @@ ${blocks.join("\n")}
         queueNote
       };
     }
-    if (snapshot.blockedReason === "pending-restart") {
-      const latest = snapshot.latestVersion ?? snapshot.installedVersion ?? "";
-      return {
-        banner: {
-          kind: "restart",
-          // 文案照原型（archive.html:329）：不带 emoji——警示由横幅左侧的手绘 SVG 标承担，
-          // 印章在状态一侧，两者各司其职，不再三重标记。
-          title: copyText("panel.banner.restart-title", l, { latest }),
-          action: blockedCopy("pending-restart", l)?.action ?? ""
-        },
-        installEnabled: false,
-        installLabel: copyText("panel.action.install", l),
-        skippedLatest: false,
-        showManual: manual ? true : false,
-        showReset: false,
-        queueNote
-      };
-    }
     if (jobState === "installing" || jobState === "verifying") {
       const ver = typeof job?.targetVersion === "string" && job.targetVersion.trim() ? job.targetVersion.trim() : "";
       let installingTitle = copyText("panel.banner.installing-title", l, { version: ver || " " });
@@ -1637,6 +1621,24 @@ ${blocks.join("\n")}
         },
         installEnabled: snapshot.canInstall,
         installLabel: copyText("panel.action.retry-install", l),
+        skippedLatest: false,
+        showManual: manual ? true : false,
+        showReset: false,
+        queueNote
+      };
+    }
+    if (snapshot.blockedReason === "pending-restart") {
+      const latest = snapshot.latestVersion ?? snapshot.installedVersion ?? "";
+      return {
+        banner: {
+          kind: "restart",
+          // 文案照原型（archive.html:329）：不带 emoji——警示由横幅左侧的手绘 SVG 标承担，
+          // 印章在状态一侧，两者各司其职，不再三重标记。
+          title: copyText("panel.banner.restart-title", l, { latest }),
+          action: blockedCopy("pending-restart", l)?.action ?? ""
+        },
+        installEnabled: false,
+        installLabel: copyText("panel.action.install", l),
         skippedLatest: false,
         showManual: manual ? true : false,
         showReset: false,
@@ -2030,9 +2032,12 @@ ${blocks.join("\n")}
       const busyAct = input.busyAct;
       const checkBusy = busyAct === "check";
       const installBusy = busyAct === "install";
+      const jobState = snapshot?.job?.state;
+      const snapshotBusy = jobState === "installing" || jobState === "verifying";
+      const macroBusy = busyAct === "check" || busyAct === "install" || snapshotBusy;
       actions.push('<div class="dsh-upd-actions">');
       actions.push(
-        (checkBusy ? `<button type="button" data-action="check" disabled aria-busy="true" title="${escapeHtml2(copyText("panel.action.checking-busy-title", l))}">${escapeHtml2(copyText("panel.action.checking-busy", l))}</button>` : `<button type="button" data-action="check" title="${escapeHtml2(copyText("panel.action.check-title", l))}">${escapeHtml2(copyText("panel.action.check", l))}</button>`) + (installBusy ? `<button type="button" data-action="install" data-primary="1" disabled aria-busy="true" title="${escapeHtml2(copyText("panel.action.installing-busy-title", l))}">${escapeHtml2(copyText("panel.action.installing-busy", l))}</button>` : `<button type="button" data-action="install" data-primary="1" title="${escapeHtml2(copyText("panel.action.install-title", l))}"${view.installEnabled ? "" : " disabled"}>${escapeHtml2(view.installLabel)}</button>`)
+        (checkBusy ? `<button type="button" data-action="check" disabled aria-busy="true" title="${escapeHtml2(copyText("panel.action.checking-busy-title", l))}">${escapeHtml2(copyText("panel.action.checking-busy", l))}</button>` : `<button type="button" data-action="check" title="${escapeHtml2(copyText("panel.action.check-title", l))}"${macroBusy ? " disabled" : ""}>${escapeHtml2(copyText("panel.action.check", l))}</button>`) + (installBusy ? `<button type="button" data-action="install" data-primary="1" disabled aria-busy="true" title="${escapeHtml2(copyText("panel.action.installing-busy-title", l))}">${escapeHtml2(copyText("panel.action.installing-busy", l))}</button>` : `<button type="button" data-action="install" data-primary="1" title="${escapeHtml2(copyText("panel.action.install-title", l))}"${macroBusy || !view.installEnabled ? " disabled" : ""}>${escapeHtml2(view.installLabel)}</button>`)
       );
       if (snapshot?.latestVersion && !view.skippedLatest && view.banner.kind === "update") {
         actions.push(`<button type="button" data-action="skip" title="${escapeHtml2(copyText("panel.action.skip-title", l))}">${escapeHtml2(copyText("panel.action.skip", l))}</button>`);
@@ -3134,7 +3139,7 @@ ${body}`;
     return { refresh, act, setMode, setTheme, setThemeTokens, setShowOthers, setChangelogCollapsed, setChangelogMarkdown, unmount };
   }
 
-  // node_modules/.pnpm/dsh-plugin-update@0.8.0/node_modules/dsh-plugin-update/dist/entry.js
+  // ../node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/entry.js
   function upToDateVersionOf(snapshot, error) {
     if (error || !snapshot || hasUpdateOf(snapshot)) return null;
     const v = snapshot.runningVersion;
@@ -3150,11 +3155,11 @@ ${body}`;
     const snapshot = state?.snapshot ?? null;
     const job = snapshot?.job ?? null;
     if (job && (job.state === "installing" || job.state === "verifying")) return "busy";
-    if (snapshot && (snapshot.blockedReason === "pending-restart" || job?.state === "restart-required")) {
-      return "restart";
-    }
     if (state && state.error || job && (job.state === "failed" || job.state === "interrupted")) {
       return "failed";
+    }
+    if (snapshot && (snapshot.blockedReason === "pending-restart" || job?.state === "restart-required")) {
+      return "restart";
     }
     if (hasUpdateOf(snapshot)) return "update";
     return "idle";

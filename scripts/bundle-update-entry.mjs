@@ -11,7 +11,7 @@
  * 弹窗用包的 dialog 原样，不传关闭与重启接线，不做语言接入与尺寸对齐等附加项；
  * 皮肤由下一张主题票（#877）切档案卷，本票不传皮肤参数，走包默认皮肤。
  *
- * 数据源与派生脚本同一处：已安装的更新包（node_modules 里那份 0.8.x），不读本地包目录。
+ * 数据源与派生脚本同一处：已安装的更新包（node_modules 里那份 0.9.x），不读本地包目录。
  * 用法：node scripts/bundle-update-entry.mjs（插件根目录）；构建脚本会自动调它，平时不用手工跑。
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
@@ -35,7 +35,7 @@ function installedUpdateDir() {
   } catch {
     const fallback = resolve(ROOT, 'node_modules', 'dsh-plugin-update')
     if (existsSync(join(fallback, 'package.json'))) return fallback
-    throw new Error('[bundle-update-entry] 找不到已安装的更新包：请先运行 pnpm install（依赖 dsh-plugin-update@^0.8.0）')
+    throw new Error('[bundle-update-entry] 找不到已安装的更新包：请先运行 pnpm install（依赖 dsh-plugin-update@^0.9.0）')
   }
 }
 
@@ -49,7 +49,7 @@ export async function bundleEntryPanel() {
   const version = installedUpdateVersion()
   const entryFile = join(pkgDir, 'dist', 'entry.js')
   if (!existsSync(entryFile)) {
-    throw new Error('[bundle-update-entry] 已安装的更新包里没有入口件产物（' + entryFile + '）：请确认装的是 0.8.x，重装一次试试')
+    throw new Error('[bundle-update-entry] 已安装的更新包里没有入口件产物（' + entryFile + '）：请确认装的是 0.9.x，重装一次试试')
   }
   const esbuild = await import('esbuild')
   if (typeof esbuild.build !== 'function') throw new Error('[bundle-update-entry] 读不到 esbuild 的打包入口')
