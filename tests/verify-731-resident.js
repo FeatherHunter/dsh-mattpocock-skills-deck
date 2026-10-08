@@ -44,15 +44,16 @@ const residentOf = (text) => {
 }
 
 // 一、四处名单一致，且与计数门禁的常驻 43 条一致（只许一致，不许各写各的）。
-// 锁的是真正生效的四处：包宿主真源、包客户端真源、宿主派生副本、客户端派生副本。
+// 锁的是真正生效的四处：已安装包宿主（node_modules/dsh-log/dist/store.js）、已安装包客户端（dist/client.js）、宿主派生副本、客户端派生副本。
+// （#892 起不再读本地 packages/dsh-log，意图不变：派生副本必须和包真源一致。）
 // 旧文件 src/host/logStore.js 与 src/client/kernel/log.js 是只读留存（#564 留而不搬），
 // 运行时不走它们，这里不锁它们，免得把派生口径与留存文件混成一谈。
 // （#782 补记：#746 的 naming.summary 落地时漏了这四处名单，本票一并补进，另加新事件 cwd.persisted。
 //   2026-10-04 #817 补记：版本管理宿主侧 git 适配器的两条常驻事件 git.exec 与 git.exec.fail
 //   同日补进四处名单，这里的条数由 41 改成 43，与附录第 1 章的常驻数保持一致。）
 {
-  const pkgHost = readSrc(path.join('packages', 'dsh-log', 'src', 'store.ts'))
-  const pkgClient = readSrc(path.join('packages', 'dsh-log', 'src', 'client.ts'))
+  const pkgHost = readSrc(path.join('node_modules', 'dsh-log', 'dist', 'store.js'))
+  const pkgClient = readSrc(path.join('node_modules', 'dsh-log', 'dist', 'client.js'))
   const derivedHost = readSrc(path.join('src', 'host', 'logPkg', 'store.js'))
   const derivedKernel = readSrc(path.join('scripts', 'generated', 'logKernel.derived.js'))
   const sets = [pkgHost, pkgClient, derivedHost, derivedKernel].map(residentOf)
@@ -67,10 +68,10 @@ const residentOf = (text) => {
 
 // 二、放行判断看事件名，不只看级别；记日志时把事件名透进去。
 {
-  const pkgHost = readSrc(path.join('packages', 'dsh-log', 'src', 'store.ts'))
-  check(/function isEnabled\(level:\s*string,\s*event\?:\s*string\)/.test(pkgHost) && pkgHost.indexOf('RESIDENT_EVENTS.has(event)') >= 0, '包宿主放行看事件名（常驻信息关着也过）')
+  const pkgHost = readSrc(path.join('node_modules', 'dsh-log', 'dist', 'store.js'))
+  check(/function isEnabled\(level,\s*event\)/.test(pkgHost) && pkgHost.indexOf('RESIDENT_EVENTS.has(event)') >= 0, '包宿主放行看事件名（常驻信息关着也过）')
   check(/if\s*\(!isEnabled\(level,\s*event\)\)\s*return/.test(pkgHost), '包宿主记日志透事件名')
-  const pkgClient = readSrc(path.join('packages', 'dsh-log', 'src', 'client.ts'))
+  const pkgClient = readSrc(path.join('node_modules', 'dsh-log', 'dist', 'client.js'))
   check(pkgClient.indexOf('RESIDENT_EVENTS.has(event)') >= 0, '包客户端放行看事件名')
   check(/if\s*\(!isEnabled\(level,\s*event\)\)\s*return/.test(pkgClient), '包客户端记日志透事件名')
   const derivedHost = readSrc(path.join('src', 'host', 'logPkg', 'store.js'))
@@ -103,7 +104,7 @@ const residentOf = (text) => {
 
 // 五、行为仿真：开关关着时常驻过、按需拦；开关开着时都过（逻辑与实现同字面）。
 {
-  const resident = residentOf(readSrc(path.join('packages', 'dsh-log', 'src', 'store.ts')))
+  const resident = residentOf(readSrc(path.join('node_modules', 'dsh-log', 'dist', 'store.js')))
   const fakeEnabled = (level, event, switchOn) => {
     if (level === 'error' || level === 'warn') return true
     if (typeof event === 'string' && resident.indexOf(event) >= 0) return true

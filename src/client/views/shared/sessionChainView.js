@@ -44,8 +44,8 @@
  *      门禁每次运行都对一遍：链上加了新类别而这里没跟上就红。
  *
  * 两件事界面上是「显示」不是「现算」：时间显示的是宿主记下的那一刻（条目里的 at，只做时分格式化）；
- * 票的标题是从面板已经拿到的票列表快照里按号码查出来的（不新增任何取数）——查不到就只显示号码，
- * 不编一个标题给它。
+ * 票的标题是从面板已经拿到的票列表快照里按号码查出来的（不新增任何取数）——查不到就是空（#907 起不再
+ * 拿票号顶上），也不编一个标题给它；首屏不收的行由宿主另留的瘦身行（snap.thinTickets）补上标题。
  */
 export const SESSION_CHAIN_FIELD = 'sessionTickets'
 
@@ -176,6 +176,10 @@ const sessionChainTitlesOf = function (st) {
     const ts = (maps[i] && Array.isArray(maps[i].tickets)) ? maps[i].tickets : []
     for (let j = 0; j < ts.length; j++) put(ts[j])
   }
+  // #907：首屏不收的行（例如已关闭地图的子票）宿主另留了一份瘦身行 —— 处理链那一行仍要显示标题。
+  //   放在最后 put：票池里已有的行以票池那份为准（put 只认第一次写进去的那条）。
+  const thin = Array.isArray(snap.thinTickets) ? snap.thinTickets : []
+  for (let i = 0; i < thin.length; i++) put(thin[i])
   return { byId: byId, byNumber: byNumber }
 }
 

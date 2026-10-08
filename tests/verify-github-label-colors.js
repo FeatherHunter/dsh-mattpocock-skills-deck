@@ -296,7 +296,7 @@ const SEED = [
   check(rl2.ok === false && rl2.error.kind === 'auth', '列标签没登录 → 鉴权档（实得 ' + JSON.stringify(rl2.ok === false ? rl2.error.kind : rl2) + '）')
 }
 
-// ── 五、并发：默认串行，最多 4 路 ───────────────────────────────────────────
+// ── 五、并发：默认拉满到 4 路 ───────────────────────────────────────────
 {
   const six = []
   for (let i = 1; i <= 6; i++) six.push({ name: 'label-' + i, color: '11111' + i })
@@ -304,7 +304,7 @@ const SEED = [
   const serial = makeGh({ labels: repo, delayMs: 2 })
   const rSerial = await tracker.setLabelColors(REF, six, serial.ctx)
   check(rSerial.ok === true && rSerial.data.applied.length === 6, '六条改动逐条都改了（实得 ' + JSON.stringify(rSerial.ok === true ? rSerial.data.applied.length : rSerial) + '）')
-  check(serial.state.maxInFlight === 1, '默认逐条串行（同时最多 1 个 gh 进程，实得 ' + serial.state.maxInFlight + '）')
+  check(serial.state.maxInFlight === 4, '默认直接 4 路并发（同时最多 4 个 gh 进程，实得 ' + serial.state.maxInFlight + '）')
   const capped = makeGh({ labels: repo, delayMs: 2 })
   const ctxCapped = Object.assign({}, capped.ctx, { labelColorConcurrency: 99 })
   await tracker.setLabelColors(REF, six, ctxCapped)

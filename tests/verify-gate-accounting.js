@@ -5,7 +5,8 @@
 // （它每真发一条请求就报给闸，与生产里挂在起 gh 进程那一层同形），然后逐条查：
 //   ① 对账零差异：闸记下来的条数、点数，与传输层真发出去的完全相等；
 //   ② **GraphQL 点数桶单独一条断言**：那一桶按点数记、REST 桶按请求条数记，两桶互不折算；
-//   ③ 扇出排队而不是并行发：一次 send 的多步、以及同时来的多次 send，并发数恒为 1；
+//   ③ 不排队、按步记账：一次 send 的多步、以及同时来的多次 send 都直接发，并发数可以大于 1；
+//      每一步的真实花费按这一步的计数器归属，并发算不进对方（对账零差异与报数一致照旧要过）；
 //   ④ 推迟 ≠ 失败：被推迟的请求一条都不发、进队列，同一工作区只留最后一次，5 分钟过期即丢，
 //      不算失败（连续失败次数保持 0）、不重试；
 //   ⑤ 二级限流（Retry-After）也算降档信号：主桶没用完也降档；
@@ -56,8 +57,8 @@ async function main() {
   check(r1.sent === true && r1.requests === 1 && transport.requests === 1, '一笔探测：闸记 1 条、传输层真发 ' + transport.requests + ' 条')
   check(ledger.hour('plugin', 'rest').requests === 1, '账本按「插件那一档 + REST 桶」记下 1 条（实得 ' + ledger.hour('plugin', 'rest').requests + '）')
 
-  // ③扇出排队：一次 send 三步，每步按 budget.js 的补行单价花（1 条请求、2 点）；再加两次并发 send，
-  //   并发数必须恒为 1。
+  // ③不排队：一次 send 三步，每步按 budget.js 的补行单价花（1 条请求、2 点）；再加两次并发 send
+  //   （同一工作区），以及两个不同工作区的并发 send，并发数可以大于 1。
   const stepPrice = { requests: budget.PATCH_COST_REQUESTS, points: budget.PATCH_COST_POINTS_MAX }
   const fan = await gate.send({ source: 'patch.apply', kind: 'patch', workspaceKey: 'ws-1', plan: [{ page: 1 }, { page: 2 }, { page: 3 }] },
     () => step(stepPrice.requests, stepPrice.points))
@@ -66,7 +67,16 @@ async function main() {
     gate.send({ source: 'probe.tick', kind: 'probe', workspaceKey: 'ws-1' }, () => step(1, 0)),
     gate.send({ source: 'probe.tick', kind: 'probe', workspaceKey: 'ws-1' }, () => step(1, 0)),
   ])
-  check(maxInFlight === 1, '扇出与并发都排队：同时最多只有 1 笔在飞（实得 ' + maxInFlight + '）')
+  check(maxInFlight >= 2, '同一工作区的并发直接发：同时最多有 2 笔在飞（实得 ' + maxInFlight + '）')
+  gate.setWorkspace('ws-A', { active: true })
+  gate.setWorkspace('ws-B', { active: true })
+  const crossBefore = transport.requests
+  await Promise.all([
+    gate.send({ source: 'probe.tick', kind: 'probe', workspaceKey: 'ws-A' }, () => step(1, 0)),
+    gate.send({ source: 'probe.tick', kind: 'probe', workspaceKey: 'ws-B' }, () => step(1, 0)),
+  ])
+  check(transport.requests === crossBefore + 2, '不同工作区各发各的：两笔都发出去了（传输层 +2，实得 +' + (transport.requests - crossBefore) + '）')
+  check(gate.stats().mismatch === 0, '并发下报数仍然对得上（对不上 0 次，实得 ' + gate.stats().mismatch + '）')
 
   // ② GraphQL 点数桶单独一条断言：那一桶按点数记，REST 桶一点都没被带着走。
   //    重建的价钱由 budget.js 的每页单价算出来：工单池 5 页 × 2 点 + 拉取请求 1 页 × 2 点 + 计数 1 点 = 13 点、

@@ -777,23 +777,23 @@ if (buildVersionControlCore) {
 
 // #564 日志系统派生：先把日志包产物派生为运行时文件（旧文件不动），再拼装。
 // #586 更新系统派生：同样先把更新包产物派生为运行时文件（旧文件不动）。
-// #800 面板派生已切到官方工具：取值唯一来源是已安装的更新包（node_modules/dsh-plugin-update@0.8.x），
-//   本构建只做“派生→构建”两步；“升到 0.8.x 最新并提交锁文件”这一步在构建前由人或发版流程执行，
-//   构建时不自动联网升级（顺序：最新 0.8.x → 派生 → 构建）。
+// #800 面板派生已切到官方工具：取值唯一来源是已安装的更新包（node_modules/dsh-plugin-update@0.9.x），
+//   本构建只做“派生→构建”两步；“升到 0.9.x 最新并提交锁文件”这一步在构建前由人或发版流程执行，
+//   构建时不自动联网升级（顺序：最新 0.9.x → 派生 → 构建）。
 // 两个包 dist 缺失时会报错并提示先跑各自的 build。
 try {
   deriveHost()
   deriveClient()
 } catch (e) {
-  throw new Error('[build] 日志派生失败（先跑 node packages/dsh-log/build.mjs 再重跑本构建）：' + ((e && e.message) || e))
+  throw new Error('[build] 日志派生失败（取值来源是已安装的日志包：先确认 pnpm install 已装好 dsh-log@^0.2.2，再重跑本构建）：' + ((e && e.message) || e))
 }
 try {
   const updVersion = deriveUpdateClientVersionForLog()
-  console.log(`[build] 更新包面板取值来源：已安装 dsh-plugin-update@${updVersion}（面板派生唯一数据源；打包前应已先升到 0.8.x 最新并提交锁文件）`)
+  console.log(`[build] 更新包面板取值来源：已安装 dsh-plugin-update@${updVersion}（面板派生唯一数据源；打包前应已先升到 0.9.x 最新并提交锁文件）`)
   deriveUpdateClient()
   await bundleEntryPanel()
 } catch (e) {
-  throw new Error('[build] 更新派生失败（面板取值来源是已安装的更新包：先确认 pnpm install 已装好 dsh-plugin-update@^0.8.0，再重跑本构建）：' + ((e && e.message) || e))
+  throw new Error('[build] 更新派生失败（面板取值来源是已安装的更新包：先确认 pnpm install 已装好 dsh-plugin-update@^0.9.0，再重跑本构建）：' + ((e && e.message) || e))
 }
 
 const out = {}

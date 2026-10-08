@@ -38,10 +38,22 @@ function names(list) {
 /** 只替换「## 进度」那一段：前面的正文与后面的其它区块原样保留。 */
 export function replaceProgressSection(body, text) {
   const src = typeof body === 'string' ? body : ''
-  const block = '## 进度\n\n' + String(text === undefined || text === null ? '' : text).replace(/\s*$/, '') + '\n'
-  const re = /^##\s*进度\s*$[\s\S]*?(?=^##\s|\s*$)/m
-  if (re.test(src)) return src.replace(re, block)
-  return (src.replace(/\s*$/, '') + '\n\n' + block).replace(/^\n+/, '')
+  const clean = String(text === undefined || text === null ? '' : text).replace(/\s*$/, '')
+  const blockBase = '## 进度\n\n' + clean + '\n'
+  // 标题认「## 进度」与「## 进度：80% / ## Progress: 40%」：后者是读进度的人认的写法，写进度的人也要认，否则会再插一段重复的进度区。
+  // 结尾认「真正的文末」：多行模式下行尾的 $ 在每一行尾都成立，惰性匹配会停在标题行尾，只换掉标题五个字，旧内容原地不动。
+  // $(?![\s\S]) 只在整个字符串的末尾成立，后面再没有字符，才是兜底分支要等的那个位置。
+  const single = /^##\s*(?:进度|Progress)(?:\s*[：:]\s*\d{1,3}\s*%?)?\s*$[\s\S]*?(?=^##\s|$(?![\s\S]))/m
+  if (!single.test(src)) return (src.replace(/\s*$/, '') + '\n\n' + blockBase).replace(/^\n+/, '')
+  const reAll = /^##\s*(?:进度|Progress)(?:\s*[：:]\s*\d{1,3}\s*%?)?\s*$[\s\S]*?(?=^##\s|$(?![\s\S]))/gm
+  let first = true
+  const out = src.replace(reAll, function () {
+    if (!first) return ''
+    first = false
+    return blockBase
+  })
+  // 新块后面若直接粘着下一个标题，补一个空行；历史脏数据（之前写坏留下的第二个进度区）已在上面清空，顺手把三连以上的空行压成一段。
+  return out.replace(/([^\n])\n## /g, '$1\n\n## ').replace(/(?:\r?\n){3,}/g, '\n\n')
 }
 
 export function createDeckIssuePatch(deps) {
@@ -126,17 +138,26 @@ export function createDeckIssuePatch(deps) {
 
       if (wants.text) {
         const patch = {}
+        let progressBlocked = false
         if (typeof a.title === 'string') patch.title = a.title
         if (typeof a.body === 'string') patch.body = a.body
         if (typeof a.progress === 'string') {
-          const cur = await c.tracker.get(repo, key, {}, c.opCtx)
-          const base = (cur && cur.ok === true && typeof cur.data.body === 'string') ? cur.data.body : (typeof a.body === 'string' ? a.body : '')
-          patch.body = replaceProgressSection(ensureBody(base, 'task').body, a.progress)
           if (typeof a.body === 'string') patch.body = replaceProgressSection(a.body, a.progress)
+          else {
+            const cur = await c.tracker.get(repo, key, {}, c.opCtx)
+            const base = (cur && cur.ok === true && cur.data && typeof cur.data.body === 'string') ? cur.data.body : null
+            // 旧正文没读回来时不敢拿空正文覆盖：空写一次就会把整张票冲成只剩进度段（#908 亲历）。这次宁可报失败，让调用方等能读回再写，或改传整段 body。
+            if (base === null) { progressBlocked = true; fail('text', { error: { message: '旧正文没读回来，不敢拿半截正文覆盖：这次进度没写，等能读回旧正文再写（若急用，改传整段 body）。' } }) }
+            else patch.body = replaceProgressSection(ensureBody(base, 'task').body, a.progress)
+          }
         }
-        const r = await c.tracker.update(repo, key, patch, c.opCtx)
-        if (r && r.ok === true) items.push({ key: key, step: 'text', status: 'ok', fields: Object.keys(patch) })
-        else fail('text', r)
+        // 进度因读不到旧正文被拦下时：body 不写（免得把整票冲掉），但同批点的标题照写；如果只点了进度，这次文字一个字不动，失败原因已在上面记好。
+        if (progressBlocked) delete patch.body
+        if (!progressBlocked || Object.keys(patch).length > 0) {
+          const r = await c.tracker.update(repo, key, patch, c.opCtx)
+          if (r && r.ok === true) items.push({ key: key, step: 'text', status: 'ok', fields: Object.keys(patch) })
+          else fail('text', r)
+        }
       }
 
       if (wants.state) {

@@ -33,9 +33,9 @@ import { getRepoKey } from './repo.js'
 
 /** 一次最多向 gh 要多少条标签。标签数达到这个数就当作「可能没拿全」，整条操作失败。 */
 export const LABEL_LIST_LIMIT = 1000
-/** 同时最多发几个改色请求。官方文档要求串行、每条之间最好隔一秒，所以默认逐条来，上限只到 4。 */
+/** 同时最多发几个改色请求。官方文档建议串行、每条之间最好隔一秒；并行撞上限流时单条会如实失败、可重试，所以默认直接拉满到上限，调用方仍可用上下文调小。 */
 export const WRITE_CONCURRENCY_MAX = 4
-export const WRITE_CONCURRENCY_DEFAULT = 1
+export const WRITE_CONCURRENCY_DEFAULT = 4
 
 function repoSpec(repo) {
   const parsed = parseRepo(repo)
@@ -152,7 +152,7 @@ function changesProblem(changes) {
   return ''
 }
 
-/** 这次用几路并发。默认逐条串行（官方文档要求串行、每条之间最好隔一秒）；要提速最多 4 路。 */
+/** 这次用几路并发。默认 4 路；调用方要保守可以调小，最多 4 路。 */
 function writeConcurrency(ctx) {
   const raw = ctx && typeof ctx.labelColorConcurrency === 'number' ? ctx.labelColorConcurrency : WRITE_CONCURRENCY_DEFAULT
   if (!Number.isFinite(raw) || raw < 1) return WRITE_CONCURRENCY_DEFAULT

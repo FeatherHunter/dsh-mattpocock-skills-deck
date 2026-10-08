@@ -80,6 +80,8 @@
         'chainView.capsuleDoing': '在办',
         // 同一段悬停里那份单子的标题行（悬停支持多行，从新到旧列出当前会话的记录）。
         'chainView.capsuleListTitle': '当前会话处理记录',
+        // #907：票标题查不到时，匾面上留白，这句话只出现在无障碍名（悬停提示）里。
+        'chainView.titleMissing': '标题未取到',
         'chainView.action.create': '建票',
         'chainView.action.plan': '写计划',
         'chainView.action.comment': '评论',
@@ -144,6 +146,8 @@
         'chainView.capsuleDoing': 'working on',
         // The title line of that strip's hover list (the hover holds multiple lines of this session's records).
         'chainView.capsuleListTitle': 'Current session activity',
+        // #907: shown only in the accessible name (the hover tip) when a ticket title is not known.
+        'chainView.titleMissing': 'title unavailable',
         'chainView.action.create': 'opened a ticket',
         'chainView.action.plan': 'wrote a plan',
         'chainView.action.comment': 'commented',

@@ -120,7 +120,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
   const unmount = (m) => { try { m.entry.unmount() } catch (e) {} try { if (m.el.parentNode) m.el.parentNode.removeChild(m.el) } catch (e) {} }
   const btnTextOf = (el) => { const b = el.querySelector('button'); return b ? (b.textContent || '').trim() : '' }
 
-  // 场景一：已是最新 —— 按钮本身即已是最新（0.8.0 默认摆法，可点再查，不打扰）
+  // 场景一：已是最新 —— 按钮本身即已是最新（0.9.0 默认摆法，可点再查，不打扰）
   {
     const m = await mountWith({})
     const t = btnTextOf(m.el)

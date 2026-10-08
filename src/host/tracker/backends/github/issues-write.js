@@ -11,6 +11,7 @@ import { fail } from '../../preflight.js'
 import { ghClient } from './client.js'
 import { normalizeIssue } from './normalize.js'
 import { classifyGhError } from './errors.js'
+import { rosterUpsert } from './roster.js'
 import { getIssue, parseRepo, repoId } from './issues.js'
 // #711：创建幂等锚。锚那一行怎么拼、命中判据是什么，在刷新核心的产物里（唯一一处判据）；
 // 本间房专属的「建后按锚回查」在 ./idempotency.js（两条路：搜索接口 + 最近更新列表逐张读正文）。
@@ -108,6 +109,7 @@ export async function createIssue(repo, input, ctx) {
         issue.parentError = { kind: 'unknown', message: String((e && e.message) || e).slice(0, 300) }
       }
     }
+    try { if (ctx && ctx.memo) rosterUpsert(ctx.memo, issue) } catch (eU) {}
     return { ok: true, data: issue }
   } catch (e) {
     const kind = classifyGhError(e)
@@ -286,7 +288,8 @@ export async function setAssignees(repo, key, assignees, opts, ctx) {
       const optimisticRaw = { number: Number(k) || k, title: '', state: 'open', body: '', url: '', assignees: { nodes: wanted } }
       const issue = normalizeIssue(optimisticRaw)
       issue.assignees = wanted
-      return { ok: true, data: issue }
+      try { if (ctx && ctx.memo) rosterUpsert(ctx.memo, issue) } catch (eU) {}
+    return { ok: true, data: issue }
     }
     // 覆盖 assignees 为 wanted（确保归一）
     finalRes.data.assignees = wanted

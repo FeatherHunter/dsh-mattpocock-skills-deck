@@ -173,7 +173,7 @@ export function createSessionRefresh(deps) {
           // 共用信封（与 wf.snapshot 同一份 buildSnap）：字段清单只有一处说了算。
           const snap = env.buildSnap({
             repo: null, repoRoot: repoRoot, workspaceRoot: cwd,
-            maps: inner.maps, issues: allForList, labels: labels,
+            maps: inner.maps, issues: allForList, thinTickets: inner.thinTickets, labels: labels,
             repository: repoRef, backendModules: backendModules, selection: _sel,
             deck: inner.deck,
           })
@@ -192,7 +192,7 @@ export function createSessionRefresh(deps) {
           // 共用信封：没有后端时那份空快照与 wf.snapshot 同形。
           const snap = env.buildSnap({
             repo: null, repoRoot, workspaceRoot: cwd,
-            maps: [], issues: [], labels: [],
+            maps: [], issues: [], thinTickets: [], labels: [],
             repository: null, backendModules, selection: _sel,
             deck: { total:0, open:0, closed:0, frontier:0, claimed:0, blocked:0, indeterminate:0, levels:[], levelOf:{} },
           })
@@ -221,7 +221,7 @@ export function createSessionRefresh(deps) {
             // 共用信封：仓库都认不出来时那份空快照与 wf.snapshot 同形。
             const snapNoRepo = env.buildSnap({
               repo: null, repoRoot: repoRootNoRepo, workspaceRoot: cwd,
-              maps: [], issues: [], labels: [],
+              maps: [], issues: [], thinTickets: [], labels: [],
               repository: null, backendModules: backendModulesNoRepo, selection: _selNoRepo,
               deck: { total:0, open:0, closed:0, frontier:0, claimed:0, blocked:0, indeterminate:0, levels:[], levelOf:{} },
             })
@@ -300,7 +300,7 @@ export function createSessionRefresh(deps) {
         // 共用信封：这条路与 wf.snapshot 的 GitHub 分支同形（含 viewer / viewerLogin）。
         const snap2 = env.buildSnap({
           repo: repo0b, repoRoot: repoRoot2, workspaceRoot: cwd,
-          maps: inner2.maps, issues: allForList2, labels: labels2,
+          maps: inner2.maps, issues: allForList2, thinTickets: inner2.thinTickets, labels: labels2,
           repository: repoRef2, backendModules: backendModules2, selection: _sel,
           viewer: viewer2, viewerLogin: viewerLogin2, deck: inner2.deck,
         })

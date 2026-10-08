@@ -10,6 +10,9 @@ import { childrenOf } from '../../shared/deck-tools/edges.js'
 import { deriveDeck, parseProgress } from '../../shared/tracker/deck-derive.js'
 import { parseMapBody } from '../../shared/parser.js'
 import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/tool-cost.js'
+import { withCallScope } from '../../shared/deck-tools/call-scope.js'
+
+function numOpt(v) { return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : undefined }
 
 export const definition = {
   name: 'deck_map_snapshot',
@@ -57,7 +60,13 @@ export function createDeckMapSnapshot(deps) {
     if (effortId) repo.effortId = effortId
 
     return shell.call({ tool: 'deck_map_snapshot', kind: 'read', session: s, pick: pick, repo: repo, estimate: est }, async (c) => {
-      const gotMap = await c.tracker.get(repo, key, {}, c.opCtx)
+      const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), now: (typeof d.now === 'function') ? d.now : Date.now })
+      const t = sc.tracker
+      const opCtx = sc.opCtx
+      // 地图与子票清单互相独立，同时取（两份读缓存的键不同，不会互相覆盖）
+      const mapPromise = t.get(repo, key, {}, opCtx)
+      const kidsPromise = t.list(repo, { parentKey: key }, opCtx)
+      const gotMap = await mapPromise
       if (!gotMap || gotMap.ok !== true) {
         const msg = String((gotMap && gotMap.error && gotMap.error.message) || '后端没给出原因').slice(0, 300)
         return {
@@ -71,7 +80,7 @@ export function createDeckMapSnapshot(deps) {
         }
       }
       const map = gotMap.data || {}
-      const kids = await c.tracker.list(repo, { parentKey: key }, c.opCtx)
+      const kids = await kidsPromise
       const listed = (kids && kids.ok === true && Array.isArray(kids.data)) ? kids.data : []
       const picked = childrenOf(listed, key)
       const children = picked.children
@@ -109,11 +118,12 @@ export function createDeckMapSnapshot(deps) {
         value: {
           status: partial ? DECK_STATUS.PARTIAL : DECK_STATUS.OK,
           reason: partial ? REFUSAL_REASONS.BACKEND_UNSUPPORTED : '',
-          text: '地图 ' + key + '：子票 ' + children.length + ' 张，未关闭 ' + projection.stats.open + ' 张、已关闭 ' + projection.stats.closed + ' 张、可接 ' + projection.stats.frontier + ' 张、被阻塞 ' + projection.stats.blocked + ' 张。',
+          text: partial ? '地图 ' + key + '：子票没取全（后端没给全），手上这 ' + children.length + ' 张算出来的数偏乐观，先重调一次再看数。' : '地图 ' + key + '：子票 ' + children.length + ' 张，未关闭 ' + projection.stats.open + ' 张、已关闭 ' + projection.stats.closed + ' 张、可接 ' + projection.stats.frontier + ' 张、被阻塞 ' + projection.stats.blocked + ' 张。',
           data: {
             map: { key: map.key, title: map.title, state: map.state, labels: Array.isArray(map.labels) ? map.labels.map((l) => (l && l.name) || String(l)) : [], updatedAt: map.updatedAt || '', url: map.url || '' },
             children: shown.map((t) => childRow(t)),
-            stats: projection.stats,
+            stats: partial ? null : projection.stats,
+            truncated: partial,
             labels: projection.labels,
             progressOf: projection.progressOf,
             blockedByKeys: projection.blockedByKeys,
