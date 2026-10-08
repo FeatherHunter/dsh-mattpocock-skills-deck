@@ -15,6 +15,8 @@
 // 本测试与 verify-newsession-blank-seed-315.js 同范式：从目标文件提取真实源码并在沙箱以忠实替身执行，
 // 能抓住“逻辑改坏 / 双源漂移”两类回归。
 const fs = require('fs')
+// 本文件选 compileFn 手法：五处沙箱都是把真源码文本当函数体造函数，依赖一律按参数名显式传进去，不靠外层作用域。
+const { compileFn } = require('./lib/eval-probe.js')
 
 const API_SRC_FILES = ['src/client/kernel/api-naming.js', 'src/client/kernel/api-workspace.js', 'src/client/kernel/api-new-session.js', 'src/client/kernel/api-io.js', 'src/client/kernel/api-preset-guard.js'] // #457 K4 + #478 + #636：api 拆分文件 + 预设守卫模块 + 工作区查找模块，src 侧读五文件拼合（守卫块经独立锚点提取）
 const files = process.argv.slice(2).length ? process.argv.slice(2) : ['src/client/kernel/api-naming.js+api-workspace.js+api-new-session.js+api-io.js+api-preset-guard.js（拼合）', 'package/lib/client.js']
@@ -145,7 +147,8 @@ async function testFile(file) {
     block = block.replace(/^\s*export\s+/gm, '')
     // 去掉注释行首的 export 残留后，提取两个 helper 的源码文本
     const fnBuildSrc = block.slice(block.indexOf('const buildCreateOpts'), block.indexOf('const createPTCSession'))
-    const vmBuild = new Function(fnBuildSrc + '; return { buildCreateOpts }')()
+    // 本处走 compileFn：这段工厂源码不引用外层变量，参数名给空数组。
+    const vmBuild = compileFn([], fnBuildSrc + '; return { buildCreateOpts }')()
     const withWid = vmBuild.buildCreateOpts('ws-123', 'D:/repo')
     check(withWid.workspaceId === 'ws-123' && withWid.agentPreset === 'ptc' && !withWid.cwd, file + ' buildCreateOpts(有 wid) → {workspaceId,ptc}')
     const withCwd = vmBuild.buildCreateOpts(null, 'D:/repo')
@@ -164,7 +167,8 @@ async function testFile(file) {
     const guardHelpersSrc = presetGuardSrc.replace(/^\s*export\s+/gm, '')
     // 换行再接 return：截断点可能落在一条行注释上（如 api-workspace 首行注释），
     // 若直接拼 '; return ...' 会被并进那条注释，函数就没有返回值。
-    const helpers = new Function('keyOf', getPresetSrc + healthySrc + reusableSrc + guardHelpersSrc + '\n; return { getRowPreset, isHealthyPreset, isReusableBlank, describeReuseDecision, verifyFreshPreset, tryQuarantineSession, createVerifiedPTCSession }')(keyOf)
+    // 本处走 compileFn：这些助手函数只认一个 keyOf，照旧按参数名传进去。
+    const helpers = compileFn(['keyOf'], getPresetSrc + healthySrc + reusableSrc + guardHelpersSrc + '\n; return { getRowPreset, isHealthyPreset, isReusableBlank, describeReuseDecision, verifyFreshPreset, tryQuarantineSession, createVerifiedPTCSession }')(keyOf)
     const normTarget = keyOf('D:/my-app')
     // 准备 row 变体
     const healthySame = { blank: true, cwd: 'D:/my-app', projectionValues: { agentPreset: 'ptc' }, updatedAt: 1 }
@@ -264,7 +268,8 @@ async function testFile(file) {
       }
       const workspacesStub = { list: { getSnapshot: ()=>({ items: [{ workspaceId: 'ws1', path: cwd }] }) }, create: async ()=>({workspaceId: 'ws1'}) }
       const st = { sessionId: curSid, cwd: cwd, snapshot: null }
-      const fn = new Function('st','text','title','ctx','host','__dbg','inject','flash','tr','getCwdSync','keyOf','storeOf','hydrateFromCache','getCachedSnapshot','namingHintOf','isNewPlaceholderTitle','namingGuardianKick',
+      // 本处走 compileFn：把拼好的闭包文本当函数体造函数，依赖一律按参数名显式传进去（下面两段创建流程同一套依赖）。
+      const fn = compileFn(['st','text','title','ctx','host','__dbg','inject','flash','tr','getCwdSync','keyOf','storeOf','hydrateFromCache','getCachedSnapshot','namingHintOf','isNewPlaceholderTitle','namingGuardianKick'],
         wsLib + ';\n' + helpersSrc + ';\n' + open + '; return openTextInNewSession'
       )
       const openFn = fn(st,'/wayfinder https://github.com/x/issues/1','[#1] test',
@@ -329,7 +334,8 @@ async function testFile(file) {
       }
       const workspacesStub = { list: { getSnapshot: ()=>({ items: [{ workspaceId: 'ws1', path: cwd }] }) }, create: async ()=>({workspaceId: 'ws1'}) }
       const st = { sessionId: curSid, cwd: cwd, snapshot: null }
-      const fn = new Function('st','text','title','ctx','host','__dbg','inject','flash','tr','getCwdSync','keyOf','storeOf','hydrateFromCache','getCachedSnapshot','namingHintOf','isNewPlaceholderTitle','namingGuardianKick',
+      // 本处走 compileFn：把拼好的闭包文本当函数体造函数，依赖一律按参数名显式传进去（下面两段创建流程同一套依赖）。
+      const fn = compileFn(['st','text','title','ctx','host','__dbg','inject','flash','tr','getCwdSync','keyOf','storeOf','hydrateFromCache','getCachedSnapshot','namingHintOf','isNewPlaceholderTitle','namingGuardianKick'],
         wsLib + ';\n' + helpersSrc + ';\n' + open + '; return openTextInNewSession'
       )
       const openFn = fn(st,'/wayfinder https://github.com/x/issues/1','[#1] test',
@@ -378,7 +384,8 @@ async function testFile(file) {
       }
       const workspacesStub = { list: { getSnapshot: ()=>({ items: [{ workspaceId: 'ws1', path: 'D:/my-app' }] }) }, create: async ()=>({workspaceId: 'ws1'}) }
       const st = { sessionId: 'src-sess', cwd: 'D:/my-app', snapshot: null }
-      const fn = new Function('st','text','title','ctx','host','__dbg','inject','flash','tr','getCwdSync','keyOf','storeOf','hydrateFromCache','getCachedSnapshot','namingHintOf','isNewPlaceholderTitle','namingGuardianKick','parseNumberedTitle',
+      // 本处走 compileFn：K1 对抗那一段与上面同一套依赖，只多一个 parseNumberedTitle，照旧按参数名传进去。
+      const fn = compileFn(['st','text','title','ctx','host','__dbg','inject','flash','tr','getCwdSync','keyOf','storeOf','hydrateFromCache','getCachedSnapshot','namingHintOf','isNewPlaceholderTitle','namingGuardianKick','parseNumberedTitle'],
         wsLib + ';\n' + helpersSrc + ';\n' + open + '; return openTextInNewSession'
       )
       const openFn = fn(st,'/wayfinder https://github.com/x/issues/1','[#1] test',

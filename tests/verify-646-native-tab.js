@@ -24,6 +24,8 @@ import { resolve } from 'node:path'
 import { JSDOM } from 'jsdom'
 import React from 'react'
 import * as ReactDOMClient from 'react-dom/client'
+// 本文件选 evalInWindow 手法：三段都在已经开了 runScripts 的 jsdom 窗口里跑打包产物，与原 window.eval 等价且更直白。
+import { evalInWindow } from './lib/eval-probe.js'
 
 let passed = 0, failed = 0
 function check(ok, msg) { if (ok) { console.log('  PASS ' + msg); passed++ } else { console.log('  FAIL ' + msg); failed++ } }
@@ -183,7 +185,8 @@ console.log('== 运行时断言：拿桩上下文跑一遍 apply，看真的注�
   let loaded = null
   window.__ModuleLoader__ = { load(spec) { loaded = spec; return spec } }
   const code = readFileSync(resolve('package/lib/client.js'), 'utf8')
-  window.eval(code)
+  // 本处走 evalInWindow：在开了 runScripts 的这张 jsdom 窗口里执行产物。
+  evalInWindow(dom, code)
   check(!!loaded, '产物加载成功')
   if (!loaded) { console.log('\ntotal=' + (passed + failed) + ' passed=' + passed + ' failed=' + failed); process.exit(1) }
 
@@ -232,7 +235,8 @@ console.log('== 运行时断言：拿桩上下文跑一遍 apply，看真的注�
   global.ReactDOM = ReactDOMClient
   dom2.window.__ModuleLoader__ = { load(spec) { loaded2 = spec; return spec } }
   dom2.window.host = global.host
-  dom2.window.eval(code)
+  // 本处走 evalInWindow：第二张 jsdom 窗口同样开了 runScripts。
+  evalInWindow(dom2, code)
   const mod2 = loaded2.factory((m) => (m === 'react' ? React : m === 'react-dom' ? ReactDOMClient : null))
   let err2 = null
   try { mod2.apply(ctx2) } catch (e) { err2 = e }
@@ -252,7 +256,8 @@ console.log('== 运行时断言：拿桩上下文跑一遍 apply，看真的注�
   global.ReactDOM = ReactDOMClient
   dom3.window.__ModuleLoader__ = { load(spec) { loaded3 = spec; return spec } }
   dom3.window.host = global.host
-  dom3.window.eval(code)
+  // 本处走 evalInWindow：第三张 jsdom 窗口同样开了 runScripts。
+  evalInWindow(dom3, code)
   const mod3 = loaded3.factory((m) => (m === 'react' ? React : m === 'react-dom' ? ReactDOMClient : null))
   let err3 = null
   try { mod3.apply(ctx3) } catch (e) { err3 = e }

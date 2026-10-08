@@ -19,6 +19,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+// 本文件选 compileFn 手法：只是把内核模块源码当函数体造函数，三个替身本来就按参数名传进去。
+import { compileFn } from './lib/eval-probe.js'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 let failed = false
@@ -34,7 +36,8 @@ function loadIssuePagesModule(fetchStub) {
   const raw = read('src/client/kernel/issue-pages.js').replace(/^(\s*)export\s+/gm, '$1')
   const emitCount = { n: 0 }
   const idOfStub = (x) => String((x && x.effortId ? x.effortId : '') + '|' + (x && x.key != null ? x.key : (x && x.number != null ? x.number : '')))
-  const factory = new Function('idOf', 'emit', 'fetchIssuesPage', raw + '\nreturn { ISSUE_PAGE_MAX: ISSUE_PAGE_MAX, issuePageFilterOf: issuePageFilterOf, issuePageKeyOf: issuePageKeyOf, issuePageBucketRead: issuePageBucketRead, issuePageBucketOf: issuePageBucketOf, issuePageRowsOf: issuePageRowsOf, issuePageStatOf: issuePageStatOf, loadIssuePage: loadIssuePage }')
+  // 本处走 compileFn：参数名与替身一一对应，函数体与原来逐字相同。
+  const factory = compileFn(['idOf', 'emit', 'fetchIssuesPage'], raw + '\nreturn { ISSUE_PAGE_MAX: ISSUE_PAGE_MAX, issuePageFilterOf: issuePageFilterOf, issuePageKeyOf: issuePageKeyOf, issuePageBucketRead: issuePageBucketRead, issuePageBucketOf: issuePageBucketOf, issuePageRowsOf: issuePageRowsOf, issuePageStatOf: issuePageStatOf, loadIssuePage: loadIssuePage }')
   return { mod: factory(idOfStub, () => { emitCount.n++ }, fetchStub), emitCount }
 }
 
