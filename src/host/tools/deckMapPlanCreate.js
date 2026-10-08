@@ -4,12 +4,18 @@
 // 它贵，所以三件事都做在明面上：
 //   1. **先算账再动手**：调用前算出点数、出站请求条数、会不会超单次顶、建议分几片（refresh-core/src/tool-cost.ts）；
 //      超过一片就只做第一片，把「下一次要带的子票清单」原样回给 AI，自己绝不一口气建几百张。
-//   2. **可续跑的中间态**：每建成一张票、每建成一条边都记一笔（deps.planStore 落盘；没注入时退化成进程内存，
-//      那时返回值里会如实说「这次不是落盘的」）。重跑同一个 planId：已经建成的键直接跳过，不再花钱。
+//   2. **可续跑的中间态**：每建成一张票、每建成一条边都记一笔（deps.planStore 落盘；没注入时按工作区
+//      目录建文件游标，再不行退化成进程内存，那时返回值里会如实说「这次不是落盘的」）。
+//      重跑同一个 planId：已经建成的键直接跳过，不再花钱。
 //   3. **逐项校验**：建完按父票列一遍子票，把「计划几张、实际几张」对一次，数字对不上就说 partial，不假装成功。
 //
 // 幂等靠契约层（#711）：每一个建票动作都带一个由 planId 推出来的锚，重试同一次计划不会多出票。
+// 限时（#895）：整包活包一层调用上下文——剩余额度不够就停发新调用（部分成功+游标），
+// 每一次远端调用单独钳制，超时只坏自己那一项；同计划标识并发第二跑直接拒绝。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../../shared/deck-tools/shell.js'
+import { withCallScope } from '../../shared/deck-tools/call-scope.js'
+import { createMemoryPlanStore, createFilePlanStore } from '../../shared/deck-tools/plan-store.js'
+import { matchAnchor, isAnchorHit } from '../../shared/refresh/idempotency.js'
 import { classifyEdgeLanding, unsupportedEvidence, edgeEvidence, statusOfItems, childrenOf } from '../../shared/deck-tools/edges.js'
 import { ensureLabels, ensureBody, anchorKeyFor } from '../../shared/deck-tools/plan.js'
 import * as budget from '../../shared/refresh/budget.js'
@@ -59,13 +65,28 @@ export const definition = {
   },
 }
 
-function memoryStore() {
-  const table = new Map()
-  return {
-    durable: false,
-    load(planId) { return table.get(String(planId)) || null },
-    save(planId, state) { table.set(String(planId), state) },
-  }
+/** 同计划标识的并发执行互斥（进程内）：第二跑直接拒绝，不与第一跑交错写。 */
+const ACTIVE_PLANS = new Map()
+
+function numOpt(v) { return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : undefined }
+
+function storeIoFrom(deps, cwd) {
+  try {
+    const b = (deps && typeof deps.backendCtx === 'function') ? deps.backendCtx() : deps.backendCtx
+    const platform = (b && b.platform) || null
+    const fs = (b && b.fs) || (platform && platform.fs) || null
+    if (!platform || !fs || typeof fs.readText !== 'function' || typeof fs.writeText !== 'function') return null
+    const join = (platform.path && typeof platform.path.join === 'function')
+      ? function (a, c) { return platform.path.join(a, c) }
+      : function (a, c) { return String(a).replace(/\\/g, '/') + '/' + c }
+    const dir = join(String(cwd || ''), '.dsh-mattskillsdeck-cache') + '/deck-plans'
+    return {
+      readText: function (p) { return fs.readText(p) },
+      writeText: function (p, t) { return fs.writeText(p, t) },
+      mkdir: (typeof fs.mkdir === 'function') ? function (p) { return fs.mkdir(p) } : undefined,
+      dir: dir,
+    }
+  } catch (e) { return null }
 }
 
 export function createDeckMapPlanCreate(deps) {
@@ -74,7 +95,8 @@ export function createDeckMapPlanCreate(deps) {
     estimate: d.estimate || estimateToolCost,
     costInputFrom: d.costInputFrom || toolCostInputFrom,
   }))
-  const fallbackStore = memoryStore()
+  const fallbackStore = createMemoryPlanStore()
+  const nowFn = (typeof d.now === 'function') ? d.now : Date.now
 
   async function run(exec, args) {
     const a = args || {}
@@ -87,32 +109,45 @@ export function createDeckMapPlanCreate(deps) {
     if (!title || !children.length) {
       return shell.unsupported('deck_map_plan_create', REFUSAL_REASONS.BAD_ARGS, '建整张地图至少要给 title 与一张子票（children 里每项要有 key 与 title）。', { cost: { estimated: est } })
     }
+    const planId = String(a.planId || anchorKeyFor({ tool: 'deck_map_plan_create', sessionId: s.sessionId, workspaceKey: s.workspaceKey, title: title, labels: children.map((c) => c.key), now: nowFn() }))
+    if (ACTIVE_PLANS.get(planId)) {
+      return shell.unsupported('deck_map_plan_create', REFUSAL_REASONS.BACKEND_UNSUPPORTED, '同一个计划标识（' + planId.slice(0, 60) + '）正在另一次执行里跑（进行中），这次没动手：等它做完再来，或换一个 planId。', { cost: { estimated: est } })
+    }
+    ACTIVE_PLANS.set(planId, 1)
     const pick = await shell.pickBackend(exec, s)
-    if (!pick.ok) return shell.unsupported('deck_map_plan_create', pick.reason, pick.text, { workspace: { root: s.cwd, key: s.workspaceKey }, cost: { estimated: est } })
+    if (!pick.ok) { ACTIVE_PLANS.delete(planId); return shell.unsupported('deck_map_plan_create', pick.reason, pick.text, { workspace: { root: s.cwd, key: s.workspaceKey }, cost: { estimated: est } }) }
     const repo = shell.repoOf(pick, s)
     const effortId = (a.effortId === undefined || a.effortId === null) ? '' : String(a.effortId).trim()
     if (effortId) repo.effortId = effortId
 
-    const store = (d.planStore && typeof d.planStore.load === 'function') ? d.planStore : fallbackStore
-    const now = (typeof d.now === 'function') ? d.now() : Date.now()
-    const planId = String(a.planId || anchorKeyFor({ tool: 'deck_map_plan_create', sessionId: s.sessionId, workspaceKey: s.workspaceKey, title: title, labels: children.map((c) => c.key), now: now }))
+    let store = (d.planStore && typeof d.planStore.load === 'function') ? d.planStore : null
+    if (!store) {
+      const built = storeIoFrom(d, s.cwd)
+      store = built ? createFilePlanStore({ io: built, dir: built.dir, workspaceKey: s.workspaceKey, now: nowFn }) : fallbackStore
+    }
 
-    return shell.call({ tool: 'deck_map_plan_create', kind: 'write', session: s, pick: pick, repo: repo, estimate: est }, async (c) => {
-      const prev = store.load(planId) || { planId: planId, mapKey: '', keys: {}, edges: [], done: [] }
+    let out = null
+    try {
+      out = await shell.call({ tool: 'deck_map_plan_create', kind: 'write', session: s, pick: pick, repo: repo, estimate: est }, async (c) => {
+      const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), now: nowFn })
+      const t = sc.tracker
+      const opCtx = sc.opCtx
+      const prev = (await store.load(planId)) || { planId: planId, mapKey: '', keys: {}, edges: [], done: [] }
       const state = { planId: planId, mapKey: prev.mapKey || '', keys: Object.assign({}, prev.keys), edges: Array.isArray(prev.edges) ? prev.edges.slice() : [], done: Array.isArray(prev.done) ? prev.done.slice() : [] }
       const items = []
       const notes = []
       if (effortId) notes.push('这次带了 effortId（' + effortId.slice(0, 60) + '）：本地后端只在那一个目录里找，远端后端忽略它。')
       const storeDurable = store.durable !== false
       if (!storeDurable) notes.push('这次的中间态只记在本进程的内存里（没有注入落盘的存储器）：进程重启后重跑同一个 planId 会重新建票。')
+      let stoppedEarly = false
 
       // ① 地图票本身：只建一次，锚由 planId 推出来。
       if (!state.mapKey) {
         const mapEnsured = ensureBody(a.body, 'map')
-        const created = await c.tracker.create(repo, {
+        const created = await t.create(repo, {
           title: title, body: mapEnsured.body, type: 'map', labels: ensureLabels(a.labels, 'map').labels,
           idempotencyKey: 'deck-plan-' + planId + '-map',
-        }, c.opCtx)
+        }, opCtx)
         if (!created || created.ok !== true) {
           const msg = String((created && created.error && created.error.message) || '后端没给出原因').slice(0, 300)
           return {
@@ -122,27 +157,52 @@ export function createDeckMapPlanCreate(deps) {
         }
         state.mapKey = String((created.data && created.data.key) || '')
         state.done.push('map')
-        store.save(planId, state)
+        await store.save(planId, state)
         items.push({ key: state.mapKey, role: 'map', title: title, status: 'ok' })
       } else {
         notes.push('地图票 ' + state.mapKey + ' 上次已经建好了，这次直接接着做。')
         items.push({ key: state.mapKey, role: 'map', title: title, status: 'ok', skipped: true })
       }
 
+      // ①b 批量锚预检：一次列表把已建的子票认回来（命中就跳过创建）；拿不准就照常走，不挡事。
+      try {
+        const untouched = children.filter((ch) => !state.keys[String(ch.key)])
+        if (untouched.length) {
+          const all = await t.list(repo, { state: 'all' }, opCtx)
+          const rows = (all && all.ok === true && Array.isArray(all.data)) ? all.data : null
+          const cands = rows ? rows.filter((r) => r && typeof r.body === 'string').map((r) => ({ key: String(r.key), body: r.body, state: r.state })) : []
+          if (cands.length) {
+            for (const ch of untouched) {
+              let m = null
+              try { m = matchAnchor(cands, repo.refId, 'deck-plan-' + planId + '-child-' + String(ch.key)) } catch (eM) { m = null }
+              if (m && isAnchorHit(m)) {
+                state.keys[String(ch.key)] = String(m.key)
+                state.done.push('child:' + String(ch.key))
+                items.push({ key: String(m.key), role: 'child', planKey: String(ch.key), title: String(ch.title), status: 'ok', skipped: true })
+              }
+            }
+            await store.save(planId, state)
+          }
+        }
+      } catch (ePre) {}
+
       // ② 子票：按分片上限做这一片；已经建成的键跳过（这就是「续跑要跳过的键」）。
+      // 剩余额度不够时主动停：剩下的记进 restKeys，下一次带同 planId 接着建。
       const pending = children.filter((ch) => !state.keys[String(ch.key)])
       const skippedKeys = children.filter((ch) => state.keys[String(ch.key)]).map((ch) => String(ch.key))
       const shard = pending.slice(0, est.perShard)
-      const restKeys = pending.slice(est.perShard).map((ch) => String(ch.key))
-      for (const ch of shard) {
+      let restKeys = pending.slice(est.perShard).map((ch) => String(ch.key))
+      for (let si = 0; si < shard.length; si++) {
+        if (sc.outOfBudget()) { stoppedEarly = true; restKeys = shard.slice(si).map((ch) => String(ch.key)).concat(restKeys); break }
+        const ch = shard[si]
         const kind = (ch.kind === 'bug' || ch.kind === 'map') ? ch.kind : 'task'
         const ensured = ensureLabels(ch.labels, kind)
         const body = ensureBody(ch.body, kind)
-        const created = await c.tracker.create(repo, {
+        const created = await t.create(repo, {
           title: String(ch.title).trim(), body: body.body, type: kind, labels: ensured.labels,
           parentKey: state.mapKey, assignees: Array.isArray(ch.assignees) && ch.assignees.length ? ch.assignees : undefined,
           idempotencyKey: 'deck-plan-' + planId + '-child-' + String(ch.key),
-        }, c.opCtx)
+        }, opCtx)
         if (created && created.ok === true) {
           state.keys[String(ch.key)] = String((created.data && created.data.key) || '')
           state.done.push('child:' + String(ch.key))
@@ -151,25 +211,26 @@ export function createDeckMapPlanCreate(deps) {
           const msg = String((created && created.error && created.error.message) || '后端没给出原因').slice(0, 200)
           items.push({ key: '', role: 'child', planKey: String(ch.key), title: String(ch.title), status: 'failed', reason: msg })
         }
-        store.save(planId, state)
+        await store.save(planId, state)
       }
 
       // ③ 边：端点都在计划里才做；落点由写后读回判（判据见 shell.js 的 classifyEdgeLanding）。
       const keyOf = (ref) => (String(ref) === '@map' ? state.mapKey : (state.keys[String(ref)] || ''))
       let edgeCount = 0
       for (const e of edges) {
+        if (sc.outOfBudget()) { stoppedEarly = true; break }
         const from = keyOf(e.from)
         const to = keyOf(e.to)
         if (!from || !to) { items.push({ key: from || '', role: 'edge', status: 'failed', reason: '边的端点还没有票号（' + String(e.from) + ' → ' + String(e.to) + '）：先把它那一张建出来再补这条边。' }); continue }
         const op = (e.type === 'parent') ? 'parent' : 'block'
         const written = op === 'parent'
-          ? await c.tracker.setParent(repo, from, to, {}, c.opCtx)
-          : await c.tracker.setBlockedBy(repo, from, [to], {}, c.opCtx)
+          ? await t.setParent(repo, from, to, {}, opCtx)
+          : await t.setBlockedBy(repo, from, [to], {}, opCtx)
         let ev = null
         let landedOk = false
         if (written && written.ok === true) {
-          const back = typeof c.tracker.get === 'function' ? await c.tracker.get(repo, from, {}, c.opCtx) : null
-          const dep = op === 'block' && typeof c.tracker.getDependencies === 'function' ? await c.tracker.getDependencies(repo, from, {}, c.opCtx) : null
+          const back = typeof t.get === 'function' ? await t.get(repo, from, {}, opCtx) : null
+          const dep = op === 'block' && typeof t.getDependencies === 'function' ? await t.getDependencies(repo, from, {}, opCtx) : null
           const afterIssue = (back && back.ok === true) ? back.data : null
           const afterDep = (dep && dep.ok === true) ? dep.data : null
           ev = classifyEdgeLanding(op, to, { issue: afterIssue, dependencies: afterDep })
@@ -185,7 +246,7 @@ export function createDeckMapPlanCreate(deps) {
             if (!landedOk) ev = { kind: 'unknown', ok: false, text: '写后读回：这条依赖没出现在票上（要 ' + to + '，读回来 ' + (list.join('、') || '空') + '）' }
             else ev = classifyEdgeLanding(op, to, { issue: afterIssue, dependencies: afterDep })
           }
-          if (landedOk) { edgeCount += 1; state.edges.push({ from: from, to: to, op: op }); state.done.push('edge:' + from + '-' + op + '-' + to); store.save(planId, state) }
+          if (landedOk) { edgeCount += 1; state.edges.push({ from: from, to: to, op: op }); state.done.push('edge:' + from + '-' + op + '-' + to); await store.save(planId, state) }
         } else {
           ev = unsupportedEvidence(String((written && written.error && written.error.message) || '后端没给出原因').slice(0, 200))
         }
@@ -193,7 +254,8 @@ export function createDeckMapPlanCreate(deps) {
       }
 
       // ④ 逐项校验：按父票把子票列一遍，计划几张、实际几张，数字对不上就说 partial。
-      const listed = await c.tracker.list(repo, { parentKey: state.mapKey }, c.opCtx)
+      // 剩余额度不够时跳过这一步（以“没校验”如实返回，不硬撑）。
+      const listed = sc.outOfBudget() ? null : await t.list(repo, { parentKey: state.mapKey }, opCtx)
       const liveRows = (listed && listed.ok === true && Array.isArray(listed.data)) ? listed.data : null
       const picked = liveRows ? childrenOf(liveRows, state.mapKey) : { children: null, filtered: false, note: '' }
       const plannedLive = Object.keys(state.keys).length
@@ -206,9 +268,15 @@ export function createDeckMapPlanCreate(deps) {
 
       // #746：地图票直达命名守护（调用会话即建号会话；子票走既有索引轮询分配；hook 不影响返回）。
       try { if (typeof d.onTicketCreated === 'function' && state.mapKey) await d.onTicketCreated({ sessionId: s.sessionId, key: String(state.mapKey), title: title }) } catch (eHook) {}
-      const status = statusOfItems(items)
-      const text = '计划 ' + planId + '：这一片建了 ' + shard.length + ' 张子票（共计划 ' + children.length + ' 张），建成 ' + edgeCount + ' 条边' +
+      const rawStatus = statusOfItems(items)
+      // 没做完（限时自停或还有剩余）但逐项全成时，诚实报部分成功，不假装做完。
+      const status = (rawStatus === DECK_STATUS.OK && (stoppedEarly || restKeys.length)) ? DECK_STATUS.PARTIAL : rawStatus
+      let text = '计划 ' + planId + '：这一片建了 ' + shard.length + ' 张子票（共计划 ' + children.length + ' 张），建成 ' + edgeCount + ' 条边' +
         (restKeys.length ? '；还有 ' + restKeys.length + ' 张没建（' + restKeys.join('、') + '），带同一个 planId 再调一次就接着建。' : '。')
+      if (stoppedEarly) text += '时间不够先停在这里（剩余额度不足），已建的不用重建。'
+      if (status === DECK_STATUS.OK && !restKeys.length && typeof store.remove === 'function') {
+        try { await store.remove(planId) } catch (eRm) {}
+      }
       return {
         value: {
           status: status,
@@ -227,7 +295,9 @@ export function createDeckMapPlanCreate(deps) {
         },
         claimed: { requests: est.requests, points: est.points },
       }
-    })
+      })
+    } finally { ACTIVE_PLANS.delete(planId) }
+    return out
   }
 
   return { definition: definition, run: run }

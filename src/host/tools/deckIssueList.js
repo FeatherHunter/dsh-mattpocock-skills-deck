@@ -9,6 +9,7 @@
 // 的 LIST_QUERY 注释），三后端行为一致，不逐后端写分支。顺序沿用后端原序，不重排。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../../shared/deck-tools/shell.js'
 import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/tool-cost.js'
+import { withCallScope } from '../../shared/deck-tools/call-scope.js'
 
 export const definition = {
   name: 'deck_issue_list',
@@ -81,10 +82,13 @@ export function createDeckIssueList(deps) {
     if (effortId) repo.effortId = effortId
 
     return shell.call({ tool: 'deck_issue_list', kind: 'read', session: s, pick: pick, repo: repo, estimate: est }, async (c) => {
+      const sc = withCallScope(c, exec, { timeoutMs: undefined, marginMs: undefined, now: (typeof d.now === 'function') ? d.now : Date.now })
+      const t = sc.tracker
+      const opCtx = sc.opCtx
       const filter = {}
       if (state !== 'all') filter.state = state
       if (type !== 'all') filter.type = type
-      const listed = await c.tracker.list(repo, filter, c.opCtx)
+      const listed = await t.list(repo, filter, opCtx)
       if (!listed || listed.ok !== true) {
         const msg = String((listed && listed.error && listed.error.message) || '后端没给出原因').slice(0, 300)
         return {

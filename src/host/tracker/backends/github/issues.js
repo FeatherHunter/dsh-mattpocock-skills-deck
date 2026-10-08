@@ -13,6 +13,8 @@ import { fail } from '../../preflight.js'
 import { ghClient } from './client.js'
 import { normalizeIssue } from './normalize.js'
 import { classifyGhError } from './errors.js'
+import { repairParentLinksREST } from './parent-repair.js'
+import { rosterAdoptList, rosterUpsert } from './roster.js'
 import { LIST_QUERY, GET_QUERY, LIST_PR_QUERY, GET_PR_QUERY } from './queries.js'
 import { fetchAllPullsREST, enrichRestPRs, enrichSinglePR } from './pulls.js'
 import { pickFallbackReason } from './fallback-reason.js'
@@ -89,28 +91,7 @@ async function fetchAllIssuesREST(parsed, ctx) {
   return { ok: true, data: out }
 }
 
-// 树边修复：找出所有 wayfinder:map 票，逐个拉 /sub_issues，把子票 raw.parent 设为 {number}（normalize 的 deriveParentKey 直接消费）
-async function repairParentLinksREST(raws, parsed, ctx) {
-  const c = ghClient(ctx)
-  const maps = raws.filter((x) => (x && Array.isArray(x.labels) && x.labels.some((l) => l && l.name === 'wayfinder:map')))
-  if (!maps.length) return raws
-  const childToMap = new Map()
-  await Promise.all(maps.map(async (m) => {
-    try {
-      const r = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/issues/${m.number}/sub_issues?per_page=100`], { cwd: ctx && ctx.cwd })
-      if (!r.ok) return
-      let j
-      try { j = JSON.parse(r.data.stdout || '') } catch { return }
-      if (!Array.isArray(j)) return
-      for (const s of j) { if (s && s.number != null) childToMap.set(String(s.number), { number: m.number }) }
-    } catch { /* 单 map 子票修复失败不阻塞整体，子树降级为孤儿票（诚实可读） */ }
-  }))
-  for (const x of raws) {
-    const p = childToMap.get(String(x && x.number))
-    if (p) x.parent = p
-  }
-  return raws
-}
+
 
 // 内存过滤（list 两路共用）
 function applyIssueFilter(all, filter) {
@@ -243,8 +224,10 @@ export async function listIssues(repo, filter, ctx) {
       // #734：同时带上 `fallbackReason`（quota = 真配额耗尽，other = 其它原因走了 REST；
       //   未知由调用方缺失表示为 null）。界面新鲜时只有 quota 才说「配额耗尽」，other 与未知一律
       //   说中性那句，一个字不许提配额。旧判据 isRateLimitError 一处不动（裸 403 照旧走老路）。
+      try { if (ctx && ctx.memo) rosterAdoptList(ctx.memo, restNorm, filter) } catch (eU) {}
       return { ok: true, data: applyIssueFilter(restNorm, filter), fallback: 'rest', fallbackReason: fbCause }
     }
+    try { if (ctx && ctx.memo) rosterAdoptList(ctx.memo, all, filter) } catch (eU) {}
     return { ok: true, data: applyIssueFilter(all, filter) }
   } catch (e) {
     const kind = classifyGhError(e, ctx)
@@ -301,6 +284,7 @@ export async function getIssue(repo, key, opts, ctx) {
       if (opts && opts.comments && typeof opts.comments.first === 'number' && prNorm.comments && prNorm.comments.length > opts.comments.first) {
         prNorm.comments = prNorm.comments.slice(0, opts.comments.first)
       }
+      try { if (ctx && ctx.memo) rosterUpsert(ctx.memo, prNorm) } catch (eU) {}
       return { ok: true, data: prNorm }
     }
     if (!issueFromGraphQL) {
@@ -312,6 +296,7 @@ export async function getIssue(repo, key, opts, ctx) {
         try { jr = JSON.parse(rr.data.stdout || '') } catch (e) { return fail(ERROR_KIND.PARSE, `get(rest): invalid json ${String(e.message).slice(0, 200)}`) }
         if (jr && typeof jr === 'object' && jr.number != null) {
           if (jr.pull_request != null) await enrichSinglePR(jr, parsed, ctx)
+          try { if (ctx && ctx.memo) rosterUpsert(ctx.memo, jr) } catch (eU) {}
           return { ok: true, data: normalizeIssue(jr) }
         }
       }
@@ -322,6 +307,7 @@ export async function getIssue(repo, key, opts, ctx) {
         try { prj = JSON.parse(prr.data.stdout || '') } catch (e) { return fail(ERROR_KIND.PARSE, `get(rest): invalid json ${String(e.message).slice(0, 200)}`) }
         if (prj && typeof prj === 'object' && prj.number != null) {
           await enrichSinglePR(prj, parsed, ctx)
+          try { if (ctx && ctx.memo) rosterUpsert(ctx.memo, prj) } catch (eU) {}
           return { ok: true, data: normalizeIssue(prj) }
         }
         return fail(ERROR_KIND.NOTFOUND, `get: issue ${k} not found`)
@@ -336,6 +322,7 @@ export async function getIssue(repo, key, opts, ctx) {
     if (opts && opts.comments && typeof opts.comments.first === 'number' && normalized.comments && normalized.comments.length > opts.comments.first) {
       normalized.comments = normalized.comments.slice(0, opts.comments.first)
     }
+    try { if (ctx && ctx.memo) rosterUpsert(ctx.memo, normalized) } catch (eU) {}
     return { ok: true, data: normalized }
   } catch (e) {
     const kind = classifyGhError(e, ctx)

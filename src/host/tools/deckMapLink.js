@@ -7,6 +7,9 @@
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../../shared/deck-tools/shell.js'
 import { classifyEdgeLanding, unsupportedEvidence, edgeEvidence, statusOfItems } from '../../shared/deck-tools/edges.js'
 import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/tool-cost.js'
+import { withCallScope } from '../../shared/deck-tools/call-scope.js'
+
+function numOpt(v) { return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : undefined }
 
 export const definition = {
   name: 'deck_map_link',
@@ -58,21 +61,28 @@ export function createDeckMapLink(deps) {
     if (effortId) repo.effortId = effortId
 
     return shell.call({ tool: 'deck_map_link', kind: 'write', session: s, pick: pick, repo: repo, estimate: est }, async (c) => {
+      const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), now: (typeof d.now === 'function') ? d.now : Date.now })
+      const t = sc.tracker
+      const opCtx = sc.opCtx
       const items = []
       const notes = []
       if (effortId) notes.push('这次带了 effortId（' + effortId.slice(0, 60) + '）：本地后端只在那一个目录里找，远端后端忽略它。')
       const touched = []
       let done = 0
       for (const job of jobs) {
+        if (sc.outOfBudget()) {
+          items.push({ key: String((job && job.key) || ''), status: 'failed', reason: '剩余额度不够发这一次调用了，这张票的边这次没动：带同样参数再调一次即可。' })
+          continue
+        }
         const key = String(job.key || '').trim()
         if (!key) { items.push({ key: '', status: 'failed', reason: 'edges 里有一项没写 key。' }); continue }
         if (job.parentKey !== undefined && job.parentKey !== null) {
           const want = String(job.parentKey)
-          const written = await c.tracker.setParent(repo, key, want, {}, c.opCtx)
+          const written = await t.setParent(repo, key, want, {}, opCtx)
           let ev = null
           let landedOk = false
           if (written && written.ok === true) {
-            const back = typeof c.tracker.get === 'function' ? await c.tracker.get(repo, key, {}, c.opCtx) : null
+            const back = typeof t.get === 'function' ? await t.get(repo, key, {}, opCtx) : null
             const afterIssue = (back && back.ok === true) ? back.data : null
             const backError = (back && back.ok !== true && back.error && back.error.message) ? String(back.error.message).slice(0, 200) : ''
             ev = classifyEdgeLanding('parent', want, { issue: afterIssue })
@@ -95,11 +105,11 @@ export function createDeckMapLink(deps) {
         }
         if (job.blockedBy !== undefined && job.blockedBy !== null) {
           const want = asList(job.blockedBy)
-          const written = await c.tracker.setBlockedBy(repo, key, want, {}, c.opCtx)
+          const written = await t.setBlockedBy(repo, key, want, {}, opCtx)
           let ev = null
           if (written && written.ok === true) {
-            const back = typeof c.tracker.get === 'function' ? await c.tracker.get(repo, key, {}, c.opCtx) : null
-            const dep = typeof c.tracker.getDependencies === 'function' ? await c.tracker.getDependencies(repo, key, {}, c.opCtx) : null
+            const back = typeof t.get === 'function' ? await t.get(repo, key, {}, opCtx) : null
+            const dep = typeof t.getDependencies === 'function' ? await t.getDependencies(repo, key, {}, opCtx) : null
             const after = { issue: (back && back.ok === true) ? back.data : null, dependencies: (dep && dep.ok === true) ? dep.data : null }
             // 逐条判：要几条、读回来几条，逐项列出来（不是只回一个总数）。
             const landed = asList(after.dependencies && after.dependencies.blockedBy ? after.dependencies.blockedBy.map((r) => (r && r.key) || r) : (after.issue && after.issue.blockedBy) || [])

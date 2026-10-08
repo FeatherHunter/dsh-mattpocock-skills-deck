@@ -169,7 +169,8 @@ async function main() {
   check(cacheWrites.length > 0 && cacheWrites[cacheWrites.length - 1].cwd === ws.rootPosix, '写成功之后把那个工作区的快照缓存作废了（' + JSON.stringify(cacheWrites[cacheWrites.length - 1]) + '）')
 
   const plan = await table.tools.deck_map_plan_create.run(exec, { planId: 'host-723c', title: '宿主装配演示地图', children: [{ key: 'c1', title: '子票一' }] })
-  check(plan && plan.data && plan.data.durable === false, '没注入持久化计划表时，批量工具如实说中间态不落盘（durable=' + (plan && plan.data && plan.data.durable) + '）')
+  // #895 新契约：没注入计划表时工具按宿主文件能力自建落盘游标（有 fs 即落盘），durable 如实回 actual（无 fs 才退内存，见 verify-895-bulk-deadline 退化断言）。
+  check(plan && plan.data && plan.data.durable === true, '宿主有文件能力时游标自动落盘（durable=' + (plan && plan.data && plan.data.durable) + '）')
 
   // ── ④ 过的是宿主那一个闸 ──
   const stats = wiring.gate.stats()

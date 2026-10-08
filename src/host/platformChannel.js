@@ -207,15 +207,26 @@ export function createPlatformChannel(deps) {
         throw new Error('exec spawn failed: ' + String((e && e.message) || e))
       }
       const timeoutMs = (opts && opts.timeout != null) ? opts.timeout : TIMEOUT_MS
+      // 调用方取消信号（#895）：中止即杀进程，不留没人等的写入；没有信号时与原来一字不差。
+      let onAbortSig = null
+      const abortP = new Promise(function (resolve) {
+        const sig = opts && opts.signal
+        if (!sig || typeof sig.addEventListener !== 'function') return
+        if (sig.aborted === true) { try { handle.terminate() } catch (e2) {} resolve({ exitCode: -1, signal: 'aborted' }); return }
+        onAbortSig = function () { try { handle.terminate() } catch (e2) {} resolve({ exitCode: -1, signal: 'aborted' }) }
+        try { sig.addEventListener('abort', onAbortSig, { once: true }) } catch (e) {}
+      })
       let outcome
       try {
         outcome = await Promise.race([
           handle.done,
           timer.timeout(timeoutMs).then(function () { try { handle.terminate() } catch (e2) {} return { exitCode: -1, signal: 'timeout' } }),
+          abortP,
         ])
       } catch (e) {
         outcome = { exitCode: -1, signal: 'error' }
       }
+      try { if (opts && opts.signal && onAbortSig && typeof opts.signal.removeEventListener === 'function') opts.signal.removeEventListener('abort', onAbortSig) } catch (e) {}
       const out = (handle.collected && handle.collected.stdout) ? handle.collected.stdout.readFrom(0) : { text: '' }
       const err = (handle.collected && handle.collected.stderr) ? handle.collected.stderr.readFrom(0) : { text: '' }
       try { if (execT0 && logCtx.isEnabled('debug')) logCtx.fire('debug', 'exec.run', { argv0: progName(argv[0]), cwdHash: hash8(c || DEFAULT_CWD), latencyMs: Date.now() - execT0, exitCode: (outcome && typeof outcome.exitCode === 'number') ? outcome.exitCode : -1, via: String(via || 'unspecified') }) } catch (eL) {}

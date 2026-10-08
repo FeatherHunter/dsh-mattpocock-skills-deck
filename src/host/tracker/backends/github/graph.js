@@ -11,7 +11,9 @@ import { ERROR_KIND } from '../../../../shared/tracker/constants.js'
 import { fail } from '../../preflight.js'
 import { ghClient } from './client.js'
 import { classifyGhError } from './errors.js'
-import { getIssue, listIssues } from './issues.js'
+import { getIssue } from './issues.js'
+import { adjacencyFor, hasCycle } from './cycle-check.js'
+import { markDirty } from './roster.js'
 import { normalizeIssue } from './normalize.js'
 
 function parseRepo(repo) {
@@ -73,6 +75,7 @@ export async function setParent(repo, key, parentKey, opts, ctx) {
       if (curRes.ok) return curRes
       return fail(ERROR_KIND.NOTFOUND, `setParent: issue ${k} not found`)
     }
+    try { if (ctx && ctx.memo) markDirty(ctx.memo, k) } catch (eM) { /* 名册脏标记失败不影响写本身 */ }
 
     const c = ghClient(ctx)
     const slug = `${parsed.owner}/${parsed.name}`
@@ -190,16 +193,24 @@ export async function getDependencies(repo, key, opts, ctx) {
     const cur = await getIssue(repo, k, {}, ctx)
     if (!cur.ok) return cur
     const blockedBy = Array.isArray(cur.data.blockedBy) ? cur.data.blockedBy : []
-    // blocking 反向聚合：需全量 list 的 blockedBy 边扫描（避免 N+1，每次 list 全量）
-    // 为控制调用量，此处采用简化：全量 list 后聚合
-    const allRes = await listIssues(repo, {}, ctx)
-    const all = allRes.ok ? allRes.data : []
-    const blocking = []
-    for (const issue of all) {
-      if (!issue.blockedBy || !Array.isArray(issue.blockedBy)) continue
-      if (issue.blockedBy.some((b) => b.key === k)) {
-        blocking.push({ key: issue.key, title: issue.title, state: issue.state, type: issue.type })
+    // blocking 反向聚合：名册优先（脏票定向重读），缺席时退回整仓拉取；阻塞方的标题逐张读回，读不回的键照列（标题空，不吞边）。
+    const adj = await adjacencyFor(repo, ctx)
+    const blockingKeys = []
+    if (adj) {
+      for (const entry of adj) { if (entry[1] && entry[1].has(k) && entry[0] !== k) blockingKeys.push(entry[0]) }
+    } else {
+      const allRes = await listIssues(repo, {}, ctx)
+      const all = allRes.ok ? allRes.data : []
+      for (const issue of all) {
+        if (!issue.blockedBy || !Array.isArray(issue.blockedBy)) continue
+        if (issue.blockedBy.some((b) => b.key === k)) blockingKeys.push(issue.key)
       }
+    }
+    const blocking = []
+    for (const bk of blockingKeys) {
+      let info = null
+      try { const g = await getIssue(repo, bk, {}, ctx); if (g && g.ok === true) info = g.data } catch (e) {}
+      blocking.push(info ? { key: info.key, title: info.title, state: info.state, type: info.type } : { key: bk, title: '', state: 'open' })
     }
     return { ok: true, data: { blockedBy, blocking } }
   } catch (e) {
@@ -208,40 +219,12 @@ export async function getDependencies(repo, key, opts, ctx) {
   }
 }
 
-/**
- * 成环检测（DFS/Kahn）：在图 G = 现有 blockedBy 全量边 + 拟写入边（key -> blockers）上判环
- * 返回 true = 成环
- */
+/** 成环检测：邻接关系名册优先（只定向重读脏票），缺席时退回整仓拉取；DFS 判环。返回 true = 成环。 */
 async function wouldCreateCycle(repo, key, blockers, ctx) {
   try {
-    const allRes = await listIssues(repo, {}, ctx)
-    const all = allRes.ok ? allRes.data : []
-    const adj = new Map() // nodeKey -> Set(blocks)
-    for (const issue of all) {
-      const deps = (issue.blockedBy || []).map((b) => b.key)
-      adj.set(issue.key, new Set(deps))
-    }
-    // 应用拟写入边
-    adj.set(String(key), new Set(blockers.map((b) => String(b))))
-    // DFS 判环
-    const visiting = new Set()
-    const visited = new Set()
-    function dfs(u) {
-      if (visiting.has(u)) return true // 环
-      if (visited.has(u)) return false
-      visiting.add(u)
-      const neigh = adj.get(u) || new Set()
-      for (const v of neigh) {
-        if (dfs(v)) return true
-      }
-      visiting.delete(u)
-      visited.add(u)
-      return false
-    }
-    for (const u of adj.keys()) {
-      if (dfs(u)) return true
-    }
-    return false
+    const adj = await adjacencyFor(repo, ctx)
+    if (!adj) return false
+    return hasCycle(adj, key, blockers)
   } catch {
     return false
   }
@@ -264,6 +247,7 @@ export async function setBlockedBy(repo, key, blockers, opts, ctx) {
     const uniq = [...new Set(want)]
     // 自环
     if (uniq.includes(k)) return fail(ERROR_KIND.CONFLICT, `conflict: self in blockers (${k})`)
+    try { if (ctx && ctx.memo) markDirty(ctx.memo, k) } catch (eM) { /* 名册脏标记失败不影响写本身 */ }
     // If-Match 前置
     if (opts && typeof opts.expectedUpdatedAt === 'string' && opts.expectedUpdatedAt !== '') {
       const cur = await getIssue(repo, k, {}, ctx)
