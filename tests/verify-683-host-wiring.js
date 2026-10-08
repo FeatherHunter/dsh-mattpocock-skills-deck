@@ -20,6 +20,8 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
+// 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
+import { compileFn } from './lib/eval-probe.js'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 const url = (rel) => pathToFileURL(path.join(ROOT, rel)).href
@@ -297,7 +299,8 @@ const snapSrc = read('src/host/sessionSnapshot.js')
       .replace(/^import[^\n]*\n/gm, '')
       .replace(/^export default createDetectionService[^\n]*\n?/gm, '')
       .replace(/^[ \t]*export[ \t]+/gm, '')
-    const createBroken = new Function('detectExplicit', 'canonicalWorkspaceKey', body + '\n;return createDetectionService')(detectExplicit, canonicalWorkspaceKey)
+    // 这里选 compileFn：与 verify-669-choice-precedence.js 同一种写法，两个依赖名逐个传给共用入口，改坏的那段源码文本原样。
+    const createBroken = compileFn(['detectExplicit', 'canonicalWorkspaceKey'], body + '\n;return createDetectionService')(detectExplicit, canonicalWorkspaceKey)
     const ws = makeWorkspace('# Issue tracker: GitHub\n')
     const store = makeStore(['github', 'markdown'])
     await store.rememberWorkspace(ws, 'markdown')

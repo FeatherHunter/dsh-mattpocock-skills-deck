@@ -7,6 +7,8 @@
 const fs = require('fs')
 const path = require('path')
 const { pathToFileURL } = require('url')
+// 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
+const { compileFn } = require('./lib/eval-probe.js')
 
 const root = path.resolve(__dirname, '..')
 let failed = false
@@ -50,7 +52,8 @@ async function loadBannerChain() {
     console: { log: function () {}, warn: function () {}, error: function () {} },
   }
   const names = Object.keys(sandbox)
-  const factory = new Function(...names, body + '\n;return { guideBannerStep: guideBannerStep, guideBannerParams: guideBannerParams, runGuideMissing: runGuideMissing }')
+  // 这里选 compileFn：沙箱依赖名是运行时拼出来的数组、个数还会随桩变化，共用入口同样接数组，names 原样转交即可。
+  const factory = compileFn(names, body + '\n;return { guideBannerStep: guideBannerStep, guideBannerParams: guideBannerParams, runGuideMissing: runGuideMissing }')
   return { mod: factory(...names.map((n) => sandbox[n])), seen: seen, guide: guide }
 }
 
@@ -145,7 +148,8 @@ async function main() {
     console: { log: function () {}, warn: function () {}, error: function () {} },
   }
   const sbNames = Object.keys(sbSandbox)
-  const sbMod = new Function(...sbNames, sbSrc + '\n;return { confirmStatusGate: confirmStatusGate, onStatusSetupInit: onStatusSetupInit, layoutRadios: layoutRadios }')(...sbNames.map((n) => sbSandbox[n]))
+  // 这里选 compileFn：与上一处同理（参数名是拼出来的数组），调用时仍按原顺序把桩挨个传进去。
+  const sbMod = compileFn(sbNames, sbSrc + '\n;return { confirmStatusGate: confirmStatusGate, onStatusSetupInit: onStatusSetupInit, layoutRadios: layoutRadios }')(...sbNames.map((n) => sbSandbox[n]))
   const stGate = { cwd: '/w/demo', selection: null, snapshot: null, gateModalOpen: true, gateModalSource: 'status', gateSelected: 'github' }
   sbMod.confirmStatusGate(stGate)
   await new Promise((r) => setTimeout(r, 0))

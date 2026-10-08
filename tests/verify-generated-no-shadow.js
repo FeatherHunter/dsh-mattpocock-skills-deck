@@ -15,6 +15,8 @@
 //   三、写到产物里：打包产物必须已经带上修好的这份。
 const fs = require('fs')
 const path = require('path')
+// 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
+const { compileFn } = require('./lib/eval-probe.js')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = 0
@@ -84,7 +86,8 @@ function buildOnce() {
   const host = { call: (method, args) => { calls.push(method); return Promise.resolve({ ok: true, enabled: true }) } }
   const timer = { timeout: (fn, ms) => setTimeout(fn, ms) }
   const storage = { getItem: () => null, setItem: () => {}, removeItem: () => {} }
-  const fn = new Function('host', 'timer', 'localStorage', 'broadcastLogSwitch', closureSource)
+  // 这里选 compileFn：原写法就是「四个参数名 + 一段函数体」，参数名逐个传给共用入口，闭包源码文本与调用参数都不动。
+  const fn = compileFn(['host', 'timer', 'localStorage', 'broadcastLogSwitch'], closureSource)
   return { mod: fn(host, timer, storage, () => {}), calls }
 }
 

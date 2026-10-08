@@ -6,6 +6,8 @@
 const fs = require('fs')
 const path = require('path')
 const { pathToFileURL } = require('url')
+// 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
+const { compileFn } = require('./lib/eval-probe.js')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -173,7 +175,8 @@ async function main() {
   // 十、复现 48：队列打满后发送落定，汇总行内容正确；宿主长坏时链条终止。
   {
     const body = logSrc.split('\n').map((l) => l.replace(/^(\s*)export\s+/, '$1')).join('\n')
-    const factory = new Function('host', 'timer', 'localStorage', 'broadcastLogSwitch',
+    // 这里选 compileFn：四个依赖名逐个传（与原写法一模一样），被求值的日志内核源码文本原样，仍跑在 Node 全局环境里。
+    const factory = compileFn(['host', 'timer', 'localStorage', 'broadcastLogSwitch'],
       body + '\nreturn { log, sendLogBatch, getDroppedCount, logExportFail, watchSwitchOp, LOG_WATCHDOG_MS, logSwitch, logQueue, logDroppedState, logForwardState };')
     const latest = (mod) => mod.logQueue[mod.logQueue.length - 1]
     const goodHost = { call(name, args) { return Promise.resolve({ ok: true, accepted: args.entries.length, dropped: 0 }) } }
@@ -197,7 +200,8 @@ async function main() {
   // 十一、复现 49：对账 5 秒未回，看门狗行自举证。
   {
     const body = logSrc.split('\n').map((l) => l.replace(/^(\s*)export\s+/, '$1')).join('\n')
-    const factory = new Function('host', 'timer', 'localStorage', 'broadcastLogSwitch',
+    // 这里选 compileFn：同上（四个依赖名逐个传，源码文本不变），只是取的导出少几样。
+    const factory = compileFn(['host', 'timer', 'localStorage', 'broadcastLogSwitch'],
       body + '\nreturn { reconcileLogSwitch, logQueue };')
     const realTimer = { timeout(fn, ms) { if (typeof fn === 'number') return new Promise((r) => setTimeout(() => r({ exitCode: -1 }), fn)); return setTimeout(fn, ms) } }
     const sent = []
@@ -216,7 +220,8 @@ async function main() {
   // 十二、复现 50：helper 两路（有散列函数走散列，无则记 unknown）。
   {
     const body = logSrc.split('\n').map((l) => l.replace(/^(\s*)export\s+/, '$1')).join('\n')
-    const factory = new Function('host', 'timer', 'localStorage', 'broadcastLogSwitch',
+    // 这里选 compileFn：同上（四个依赖名逐个传，源码文本不变），取的导出只有三样。
+    const factory = compileFn(['host', 'timer', 'localStorage', 'broadcastLogSwitch'],
       body + '\nreturn { log, logQueue, logExportFail };')
     const mod = factory(undefined, { timeout(fn) { return 1 } }, { getItem() { return null }, setItem() {} }, () => {})
     globalThis.dswsLogHash = (s) => 'abcd1234'

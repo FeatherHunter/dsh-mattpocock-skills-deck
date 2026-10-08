@@ -23,6 +23,8 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
+// 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
+import { compileFn, evalWithScope } from './lib/eval-probe.js'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
@@ -81,7 +83,8 @@ const makeDetection = async function (srcText) {
       .replace(/^import[^\n]*\n/gm, '')
       .replace(/^export default createDetectionService[^\n]*\n?/gm, '')
       .replace(/^[ \t]*export[ \t]+/gm, '')
-    createDetectionService = new Function('detectExplicit', 'canonicalWorkspaceKey', body + '\n;return createDetectionService')(detectExplicit, canonicalWorkspaceKey)
+    // 这里选 compileFn：反证用的那份源码剥掉 import 后全靠这两个名字注入真身，参数名逐个传给共用入口，接法与原来一致。
+    createDetectionService = compileFn(['detectExplicit', 'canonicalWorkspaceKey'], body + '\n;return createDetectionService')(detectExplicit, canonicalWorkspaceKey)
   }
   const svc = createDetectionService({ registry, getPlatform: async () => platform, getFs: () => platform.fs, getTimers: () => null, workspaceStore: null, exec: null })
   return svc
@@ -111,20 +114,24 @@ console.log('== B 行为层（客户端）：只有带 userPicked 的选择才�
 {
   const hintLine = prefsSrc.split('\n').filter((l) => l.indexOf('export const userHintOf = function') >= 0)[0] || ''
   check(!!hintLine, '取到 store-prefs.js 里的 userHintOf（真身）')
-  const userHintOf = new Function('return ' + hintLine.trim().replace(/^export const userHintOf = /, ''))()
+  // 这里选 evalWithScope：取出来的就是那个函数表达式本身，它不引用本文件任何变量，所以作用域显式传空对象。
+  const userHintOf = evalWithScope(hintLine.trim().replace(/^export const userHintOf = /, ''), {})
   check(userHintOf({ backendId: 'markdown', userPicked: true }) === 'markdown', '用户亲手选的（带标记）→ 当 hint 上报')
   check(userHintOf({ backendId: 'markdown' }) === undefined, '派生出来的（没标记）→ 不当 hint 上报（ADR 攻击 1）')
   check(userHintOf({ backendId: null, userPicked: true }) === undefined, '没有后端 id 时不上报（诚实）')
   check(userHintOf(null) === undefined, '空选择不上报')
   const keepLine = prefsSrc.split('\n').filter((l) => l.indexOf('export const keepUserPick = function') >= 0)[0] || ''
   check(!!keepLine, '取到 store-prefs.js 里的 keepUserPick（真身）')
-  const keepUserPick = new Function('return ' + keepLine.trim().replace(/^export const keepUserPick = /, ''))()
+  // 这里选 evalWithScope：同上（函数表达式自带全部依赖，作用域传空）。
+  const keepUserPick = evalWithScope(keepLine.trim().replace(/^export const keepUserPick = /, ''), {})
   // mergeSelection 的标记留存：宿主回同一条 → 留；回不同后端 → 消失
   const mergeSrc = snapSrc.match(/export const mergeSelection = function \(st, incoming\) \{[\s\S]*?\n    \}/)[0]
   const makeMerge = function () {
     const cache = []
-    const fn = new Function('log', 'dswsLogHash', 'dswsLogTrunc', 'setCachedSelection', 'keepUserPick', 'return ' + mergeSrc.replace(/^export const mergeSelection = /, ''))(
-      () => {}, () => 'h', (s) => s, (cwd, sel) => cache.push(sel), keepUserPick)
+    // 这里选 evalWithScope：原来这五个名字靠参数注入，现在在作用域里逐个写明（这一处的写入记录器是 cache），函数体一个字不动。
+    const fn = evalWithScope(mergeSrc.replace(/^export const mergeSelection = /, ''), {
+      log: () => {}, dswsLogHash: () => 'h', dswsLogTrunc: (s) => s, setCachedSelection: (cwd, sel) => cache.push(sel), keepUserPick,
+    })
     return { fn, cache }
   }
   const a = makeMerge()
@@ -147,9 +154,14 @@ console.log('== B2 行为层（水合）：loadSnapshot 第一步 hydrateFromCac
   const mergeSrc2 = snapSrc.match(/export const mergeSelection = function \(st, incoming\) \{[\s\S]*?\n    \}/)[0]
   const mkHydrate = function (patched) {
     const writes = []
-    const userHintOf = new Function('return ' + hintLine2.trim().replace(/^export const userHintOf = /, ''))()
-    const keepUserPick = new Function('return ' + keepLine.trim().replace(/^export const keepUserPick = /, ''))()
-    const mergeSelection = new Function('log', 'dswsLogHash', 'dswsLogTrunc', 'setCachedSelection', 'keepUserPick', 'return ' + mergeSrc2.replace(/^export const mergeSelection = /, ''))(() => {}, () => 'h', (s) => s, (cwd, sel) => writes.push(sel), keepUserPick)
+    // 这里选 evalWithScope：与上面同一段源码，作用域同样传空（它不引用本文件任何变量）。
+    const userHintOf = evalWithScope(hintLine2.trim().replace(/^export const userHintOf = /, ''), {})
+    // 这里选 evalWithScope：同上一处，函数表达式自带全部依赖，作用域传空。
+    const keepUserPick = evalWithScope(keepLine.trim().replace(/^export const keepUserPick = /, ''), {})
+    // 这里选 evalWithScope：五个依赖名原来靠参数注入，现在写进作用域（这一处的写入记录器是 writes），函数体不动。
+    const mergeSelection = evalWithScope(mergeSrc2.replace(/^export const mergeSelection = /, ''), {
+      log: () => {}, dswsLogHash: () => 'h', dswsLogTrunc: (s) => s, setCachedSelection: (cwd, sel) => writes.push(sel), keepUserPick,
+    })
     const deps = {
       getCachedSnapshot: () => ({ generatedMs: 100, id: '缓存里那份切换前的快照', selection: { backendId: 'github', source: 'explicit' }, repository: { backend: 'github', name: 'r' } }),
       rememberWorkspaceRoot: () => {}, wsKeyOf: (p) => String(p || ''), snapshotByCwd: new Map(), touchLRUClient: () => {},
@@ -159,7 +171,8 @@ console.log('== B2 行为层（水合）：loadSnapshot 第一步 hydrateFromCac
     }
     const names = Object.keys(deps)
     const body = (patched ? hydrateSrc.replace(patched[0], patched[1]) : hydrateSrc).replace(/^export const hydrateFromCache = /, 'return ')
-    const fn = new Function(...names, body)(...names.map((n) => deps[n]))
+    // 这里选 compileFn：依赖名是运行时拼出来的数组，共用入口同样接数组，调用时逐个按原顺序传。
+    const fn = compileFn(names, body)(...names.map((n) => deps[n]))
     return { fn, writes }
   }
   const pick = () => ({ cwd: 'D:\\x', selection: { backendId: 'markdown', source: 'explicit', userPicked: true }, snapshot: { id: '面板上正显示的那一份', generatedMs: 100 } })
@@ -194,8 +207,10 @@ const makeSwitch = function (srcText) {
   const chainStepsSrc = promptsSrc.match(/const setupChainSteps = function \(st\) \{[\s\S]*?\n    \}/)[0]
   const blockedSrc = promptsSrc.match(/export const setupBlockedByGuide = function \(st, backendId\) \{[\s\S]*?\n    \}/)[0]
   const chainStepsImpl = (st) => (st && st.chainSnapshot && st.chainSnapshot.steps) || []
-  const setupChainSteps = new Function('chainSteps', 'return ' + chainStepsSrc.replace(/^const setupChainSteps = /, ''))(chainStepsImpl)
-  const setupBlockedByGuide = new Function('guideStepsFor', 'guideStepDone', 'setupChainSteps', 'return ' + blockedSrc.replace(/^export const setupBlockedByGuide = /, ''))(GUIDE.guideStepsFor, GUIDE.guideStepDone, setupChainSteps)
+  // 这里选 evalWithScope：这段源码要调 chainSteps，原来靠参数注入，现在在作用域里显式给出来。
+  const setupChainSteps = evalWithScope(chainStepsSrc.replace(/^const setupChainSteps = /, ''), { chainSteps: chainStepsImpl })
+  // 这里选 evalWithScope：这段源码引用的三个名字（真 guide-steps 两件加上面那件）在作用域里逐个写明。
+  const setupBlockedByGuide = evalWithScope(blockedSrc.replace(/^export const setupBlockedByGuide = /, ''), { guideStepsFor: GUIDE.guideStepsFor, guideStepDone: GUIDE.guideStepDone, setupChainSteps: setupChainSteps })
   const sandbox = {
     host: { call: (m, p) => { if (m === 'wf.bind') seen.bind.push(p); return Promise.resolve({ ok: true }) } },
     // 注意：labelOf / openSwitchConfirm / closeSwitchConfirm 这些**本文件自己声明**，不能当参数传进来（会重名）
@@ -230,7 +245,8 @@ const makeSwitch = function (srcText) {
   }
   const names = Object.keys(sandbox)
   const body = stripExports(srcText) + '\n;return { confirmSwitchConfirm: confirmSwitchConfirm, openSwitchConfirm: openSwitchConfirm }'
-  const mod = new Function(...names, body)(...names.map((n) => sandbox[n]))
+  // 这里选 compileFn：沙箱依赖名是运行时拼出来的数组，共用入口同样接数组，桩逐个按原顺序传进去。
+  const mod = compileFn(names, body)(...names.map((n) => sandbox[n]))
   return { mod, seen }
 }
 const runSwitchScenario = async function (srcText, steps, from, to) {
@@ -305,7 +321,8 @@ const makeSettle = function (steps, opts) {
   }
   const names = Object.keys(sandbox)
   const body = stripExports(settleSrc) + '\n;return { settleSwitchCard: settleSwitchCard, worktreeInitializedState: worktreeInitializedState, cancelStatusSetupPick: cancelStatusSetupPick, cardOwnedBySwitch: cardOwnedBySwitch }'
-  const mod = new Function(...names, body)(...names.map((n) => sandbox[n]))
+  // 这里选 compileFn：与上一组同一套写法（参数名数组 + 源码文本），这一处的桩表是 settle 那一份。
+  const mod = compileFn(names, body)(...names.map((n) => sandbox[n]))
   const st = { cwd: 'D:\\w', selection: { backendId: 'markdown' }, chainSnapshot: { steps: steps }, setupLayout: 'single', switchCardFrom: 'github', switchCardTo: 'markdown', switchCardLayoutFrom: 'multi', switchAlignDone: false, setupCardOwner: 'switch' }
   return { mod, st, seen }
 }

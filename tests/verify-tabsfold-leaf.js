@@ -11,6 +11,8 @@
 //       6) 双源镜像特征（文本镜像断言，T5 #98 统一删除）
 const fs = require('fs')
 const path = require('path')
+// 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
+const { evalWithScope } = require('./lib/eval-probe.js')
 let failed = false
 const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
@@ -34,7 +36,8 @@ function productStale(prod) {
 const grab = (src) => {
   const m = src.match(/const tabsLevelDecide\s*=\s*(function[^{]*\{[\s\S]*?\})/)
   if (!m) return null
-  return eval('(function(){var TABS_FOLD_HYST=4; return (' + m[1] + ')})()')
+  // 这里选 evalWithScope：被求值的那段函数体只用它自己 IIFE 里现声明的 TABS_FOLD_HYST，不依赖本文件作用域，所以作用域显式传空对象。
+  return evalWithScope('(function(){var TABS_FOLD_HYST=4; return (' + m[1] + ')})()', {})
 }
 
 // 文本原样抽取（Part E 逐字断言用，不做 eval）

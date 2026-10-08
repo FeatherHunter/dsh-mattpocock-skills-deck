@@ -6,6 +6,8 @@
 //   3) 两处（actionColorOf 与 mkRowAction）口径一致；详情页顶栏调 actionColorOf 自动生效
 //   4) 兜底色 #c084fc 与 10 个核心标签色均不完全相同
 const fs = require('fs')
+// 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
+const { compileFn } = require('./lib/eval-probe.js')
 let failed = false
 const check = function (ok, msg) { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
@@ -34,7 +36,8 @@ check(canonical.every(function (c) { return c.toLowerCase() !== 'c084fc' }), '�
 // 5) 行为抽查：用真实函数跑一遍（容错：若文件是 ES 模块导出，退回静态已覆盖）
 try {
   const m = {}
-  const factory = new Function('module', 'exports', src.replace(/export const /g, 'module.exports.').replace(/export /g, ''))
+  // 这里选 compileFn：原来按 CommonJS 的两个参数名（module / exports）造函数，参数名逐个传给共用入口，被剥 export 的源码文本照旧。
+  const factory = compileFn(['module', 'exports'], src.replace(/export const /g, 'module.exports.').replace(/export /g, ''))
   // store-derived.js 依赖外部作用域，直接跑会缺函数，这里只做存在性检查，不强求执行
   check(typeof src === 'string' && src.includes('rowActionKind'), 'rowActionKind 仍存在（分类口径未动）')
 } catch (e) {

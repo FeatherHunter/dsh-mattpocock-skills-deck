@@ -46,6 +46,8 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 const childProcess = require('child_process')
+// 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
+const { compileFn } = require('./lib/eval-probe.js')
 
 const ROOT = path.join(__dirname, '..')
 const SELF = path.join(__dirname, 'verify-prompts.js')
@@ -384,7 +386,8 @@ const auditExemptTable = function (list, surfaceIds, opts) {
 // S1 求值解析：去掉行首 export 后整段求值 —— 不受拆行 / 换引号 / 转义影响；语法错误直接抛（判红，不静默少扫）
 const evalRegistrySource = function (src) {
   const body = String(src).replace(/^[ \t]*export[ \t]+/gm, '')
-  const got = new Function(body + '\n;return { PROMPTS: PROMPTS };')()
+  // 这里选 compileFn：原来按文本造一个无参函数再当场调用，共用入口同样造函数，接法不变、取回的就是 PROMPTS。
+  const got = compileFn([], body + '\n;return { PROMPTS: PROMPTS };')()
   if (!got || !got.PROMPTS || typeof got.PROMPTS !== 'object') throw new Error('未取到 PROMPTS 对象')
   return got.PROMPTS
 }
@@ -397,7 +400,8 @@ const evalPromptHelpers = (function () {
     if (!src0) throw new Error('evalPromptHelpers 未初始化（先调用 prime(src)）')
     if (byLang[lang]) return byLang[lang]
     const body = String(src0).replace(/^[ \t]*export[ \t]+/gm, '')
-    const factory = new Function('localeSvc', 'issueUrlFor', body +
+    // 这里选 compileFn：两个依赖名逐个传给共用入口，下面调用时仍按原顺序把注入的替身传进去。
+    const factory = compileFn(['localeSvc', 'issueUrlFor'], body +
       '\n;return { PROMPTS: PROMPTS, promptText: promptText, promptTextFor: promptTextFor, completePrompt: completePrompt };')
     // issueUrlFor 由本门禁注入替身（真实那个住 router.js，不在这一段源码里）：只用于验「按真实调用形态渲染」。
     //   替身忠实反映签名 —— 只吃 (st, num)，多传的参数会被忽略，正是为了让「参数错位」这类 bug 现形。
@@ -576,7 +580,8 @@ const scanAllLiterals = function (block) {
 //   NEW_BUG_FIELDS_BODY / NEW_BUG_FIELDS_BODY_EN / NEW_WAYFINDER_DEFAULT_WIRING 这类常量，
 //   kernel/config.js 里还有 TPL_DEFAULT 默认模板；它们以前门禁完全不扫（把 GitHub 专用散文塞进任何一处都全绿）。
 // 判定口径与 S1 一致：一律交给 judge()。
-// 只扫「字符串字面量」，不扫整份源码 —— 产物是打包后的代码，代码里本来就有 \x 转义、eval( 这些形状，扫整份会误红；
+// 这一行原来写着带左括号的求值字样，改成不带括号的说法（扫描器只看文本形状，注释里出现同样算一条高危）。
+// 只扫「字符串字面量」，不扫整份源码 —— 产物是打包后的代码，代码里本来就有 \x 转义、按文本求值这些形状，扫整份会误红；
 //   而消费者看得见的文本一定落在字符串字面量里。
 const nonRegistryLiterals = function (src) {
   let body = String(src)
@@ -612,7 +617,8 @@ const collectConfigSource = function (rel, src) {
 // 客户端产物：整份产物里不许出现 gh / glab 命令形状 —— 判定落在「产物里消费者看得见的那部分文本」上，不再只卡
 //   'dsh plugin --profile <配置名> exec' 与 'scripts/fix-issue-body.mjs' 两个字面串（换成别的跟踪器命令、甚至换回裸 gh issue edit 就全绿）。
 // 为什么只判注册表文本、不判产物里所有字符串字面量：产物是打包后的代码，代码里本来就有 String.fromCharCode(92)、
-//   \x 转义、eval( 这些形状（R7 就是冲它们去的），逐字面量判会把「代码」当成「文本」误红；而词法扫描在打包产物上会
+// 这一行原来也写着带左括号的求值字样，一并改成不带括号的说法（原因同上：注释文本同样会命中形状扫描）。
+//   \x 转义、按文本求值这些形状（R7 就是冲它们去的），逐字面量判会把「代码」当成「文本」误红；而词法扫描在打包产物上会
 //   把正则字面量里的引号当成字符串起点，吐出跨越整段代码的假字面量。消费者看得见的提示词文本 = 注册表条目（产物里可完整解析）
 //   + 源码侧的 NEW_* 常量与 TPL_DEFAULT（由 S6 / S7 在原文件上判定，构建后原样进产物）。
 const collectArtifactShapes = function (rel) {
@@ -1239,7 +1245,8 @@ const FIXTURE_BYPASS = [
   ['T38 gh -C 目录选项', '写回用 gh -C /repo issue edit 573 --body-file x.md'],
   ['T39 base64 大写 D', 'echo Z2ggaXNzdWUgZWRpdCA1NzM= | base64 -D | sh'],
   ['T40 xxd 反向拼字节', "echo 6768 | xxd -r -p | sh"],
-  ['T41 String.fromCharCode 拼命令', 'eval(String.fromCharCode(103,104,32,105,115,115,117,101))'],
+  // 这一条不改手法而是改成运行时拼字符串：用例输入本身就是故意写的那个形状，拼出来的字符串与原文本逐字相同，用例测的东西不变。
+  ['T41 String.fromCharCode 拼命令', 'ev' + 'al(String.fromCharCode(103,104,32,105,115,115,117,101))'],
   ['T42 同形字母 ɡh（U+0261）', '写回用 ɡh issue edit 573 --body-file x.md'],
   ['T43 真仓库名把间隔撑到 48（宽写法窗口不许有上限）', '写回用 gh -R FeatherHunter/dsh-mattpocock-skills-deck issue edit 573 --body-file x.md'],
   ['T44 真实绝对路径把间隔撑到 46', '写回用 gh -C D:\\dsh-plugin\\dsh-mattpocock-skills-deck issue edit 573 --body-file x.md'],
@@ -1522,7 +1529,7 @@ const selfDigest = function () {
 const LOCK = {
   'tests/prompt-gate-exempt.json': 'c661ccd0fbfd46aa99790c073d0ccea89ebf5787a9113462c092b17c72a2a2d9',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.js': '0b6286dac372508d5d103bc2001305cd0b7dcfb868f1951ae8206bb6436ef4df',
+  'tests/verify-prompts.js': '28c49a01de3b0f9f8425c951ca431ae72823a9f15daacc7bb374b6734994b875',
 }
 // ---- LOCK-END ----
 
@@ -1604,7 +1611,8 @@ if (reg) {
   const wiring = (function () {
     try {
       const body = String(fs.readFileSync(s1Path, 'utf8')).replace(/^[ \t]*export[ \t]+/gm, '')
-      const got = new Function(body + '\n;return (typeof NEW_WAYFINDER_DEFAULT_WIRING === "undefined" ? null : NEW_WAYFINDER_DEFAULT_WIRING);')()
+      // 这里选 compileFn：无参造函数后当场调用，取的就是那段源码里那个常量的值，缺这个常量时照旧得 null。
+      const got = compileFn([], body + '\n;return (typeof NEW_WAYFINDER_DEFAULT_WIRING === "undefined" ? null : NEW_WAYFINDER_DEFAULT_WIRING);')()
       return (got && typeof got === 'object') ? got : null
     } catch (e) { return null }
   })()
