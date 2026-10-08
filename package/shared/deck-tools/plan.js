@@ -54,7 +54,8 @@ export function ensureBody(body, kind) {
     }
     return { body: out, added: added }
   }
-  if (!/^##\s*进度\s*$/m.test(text)) {
+  // 进度标题与写进度的人认同一套：「## 进度」与「## 进度：80% / ## Progress: 40%」都算有进度区，否则带百分比的票会被再插一段重复的进度区（#908）。
+  if (!/^##\s*(?:进度|Progress)(?:\s*[：:]\s*\d{1,3}\s*%?)?\s*$/m.test(text)) {
     out = (out.replace(/\s*$/, '') + '\n\n## 进度\n\n<!-- 做到哪一步了，在这里一行一行记 -->\n').replace(/^\n+/, '')
     added.push('## 进度')
   }
