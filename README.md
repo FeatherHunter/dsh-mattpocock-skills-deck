@@ -229,6 +229,14 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https:
 
 [@SKADI0718](https://github.com/SKADI0718) — 提交了 #856（后由作者撤回作废） 🌹
 
+[@asesr](https://github.com/asesr) — 反馈了 #926（状态栏胶囊每次调用都强制一次全文档同步重排，附验证过的补丁） 🌹
+
+[@jack2jiehua](https://github.com/jack2jiehua) — 反馈了 #930（deck 工具看不见用户选的后端、本地写探测一直显示不可写，附复现过程） 🌹
+
+[@zhengcookie](https://github.com/zhengcookie) — 反馈了 #960（桌面版用着用着闪退又重进，定位到出站调用缺少并发准入，附验证过的补丁） 🌹
+
+[@qq1393950873-bit](https://github.com/qq1393950873-bit) — 反馈了 #970（本地后端收到整份正文但缺少状态行时把票写成两份，却返回成功），并提交了修复 PR #974（已合入） 🌹🌹
+
 也感谢在评论区与讨论区留下想法的每一位朋友。如果你也遇到了问题或有新想法，欢迎直接提 Issue 或发起讨论。
 
 </div>
