@@ -337,4 +337,16 @@
       '.dsws-no-repo-form .radio{display:inline-flex;align-items:center;gap:4px;font-size:11px;cursor:pointer}',
       // #876 自有更新弹窗与待重启提示已删（按钮与面板走包的入口件，样式由包自带）：下掉旧排版，只留版本管理页的链接行样式。
       '.dsws-vc-link{color:var(--dsw-alias-interactive-bg-primary,#c084fc);cursor:pointer;text-decoration:none}.dsws-vc-link:hover{text-decoration:underline;filter:brightness(1.12)}.dsws-vc-row{border-radius:6px;padding:2px 6px;margin-left:-6px;transition:background .12s ease}.dsws-vc-row:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.06))}.dsws-vc-card{border:1px solid var(--dsw-alias-border-l1,#2a2d35);border-radius:8px;padding:6px 8px;background:var(--dsw-alias-bg-layer-3,#0c0e12)}.dsws-vc-diff{font-family:ui-monospace,Consolas,Menlo,monospace;font-size:11px;line-height:1.55;max-height:320px;overflow:auto}.dsws-vc-caption{font-size:11px;color:var(--dsw-alias-label-caption,#8b8b95)}.dsws-vc-sep+.dsws-vc-sep{border-top:1px solid var(--dsw-alias-border-l1,#2a2d35)}', // #842 界面打磨（task-61）：版本管理页里那几处「看着像没上样式」的元素的统一取色与悬停；取值风格照既有 .dsws-* 与主题变量（--dsw-alias-*），浅深色都跟着主题走
+      // #948 首批（#949 瞬间底座）：只叠加不顶布局。只用滤镜、外圈描边、阴影三样，
+      //   不动宽高边距，不引入新颜色（描边蓝复用既有 #58a6ff，成功绿失败红本批不用）。
+      //   深底按钮看不清加深时走外圈描边：透明底的 ghost 按钮整类自动用描边，
+      //   另有 .dsws-fb-dark 给行内深色按钮手动挂。悬停浮起直接挂既有 .dsws-btn 上，
+      //   只加阴影不改边框，布局零抖动。
+      '.dsws-chip:active,.dsws-chip-fb:active{filter:brightness(.82)}',
+      '.dsws-trow:active,.dsws-aggrow:active{filter:brightness(.9)}',
+      '.dsws-panel :focus-visible{outline:2px solid #58a6ff;outline-offset:2px}',
+      '.dsws-btn:hover{box-shadow:0 6px 16px rgba(0,0,0,.45)}',
+      '.dsws-btn.ghost:active{outline:2px solid rgba(255,255,255,.55);outline-offset:1px}',
+      '.dsws-fb-dark:active,.dsws-fb-dark.fb-pressed{outline:2px solid rgba(255,255,255,.85);outline-offset:1px}',
+      '@media (prefers-reduced-motion: reduce){.dsws-chip:active,.dsws-chip-fb:active,.dsws-trow:active,.dsws-aggrow:active{filter:brightness(.82)}.dsws-panel :focus-visible{outline:2px solid #58a6ff;outline-offset:2px}}',
     ].join('')
