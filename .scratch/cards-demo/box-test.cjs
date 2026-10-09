@@ -1,0 +1,20 @@
+const { chromium } = require("playwright");
+const path = require("path");
+(async () => {
+  const b = await chromium.launch();
+  const p = await b.newPage({ viewport: { width: 1200, height: 900 } });
+  await p.goto("file:///" + path.resolve(".scratch/cards-demo/demo.html").replace(/\\/g, "/"), { waitUntil: "load" });
+  const s = p.locator(".sec").nth(8);
+  const blocked = s.locator(".cd-card").nth(0);
+  const boxBefore = await blocked.locator(".cd-blocker").count();
+  const sealBefore = await blocked.locator(".cd-bseal").count();
+  const veilBefore = await blocked.locator(".cd-dimveil").isVisible();
+  await blocked.click();
+  await p.waitForTimeout(150);
+  const boxAfter = await blocked.locator(".cd-blocker").count();
+  const sealAfter = await blocked.locator(".cd-bseal").count();
+  const veilAfter = await blocked.locator(".cd-dimveil").isVisible().catch(() => false);
+  const mateChip = await p.locator("#blk-921 .cd-bchip").first().isVisible();
+  console.log(JSON.stringify({ 红框控件: { 点前: boxBefore, 点后: boxAfter }, 斜条: { 点前: sealBefore, 点后: sealAfter }, 暗层: { 点前: veilBefore, 点后: veilAfter }, 挡路卡红条: mateChip }, null, 1));
+  await b.close();
+})().catch((e) => { console.log("ERR " + e.message); process.exit(1); });
