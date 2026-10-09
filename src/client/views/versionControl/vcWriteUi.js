@@ -39,10 +39,15 @@ export const vcWriteUiOf = function (screen, ui, env) {
     // 推送那一条要先摘掉「没有上游 / 上游被删」：它们不是不能推，而是走建/重建上游那一档。
     const d = op === 'push' ? vcPushDecisionOf(decisions[op]) : decisions[op]
     const state = vcOpStateOf(d)
+    const blockedTip = state === 'blocked' ? vcBlockedTipOf(d, t) : ''
+    // #976：警告也要看得见，不只放悬停。warn 时按钮可点，理由同时进悬停与常驻提示。
+    const warnTip = (d && d.verdict === 'warn') ? vcBlockedTipOf(d, t) : ''
     ops[op] = {
       state: state,
       disabled: state === 'blocked',
-      tip: state === 'blocked' ? vcBlockedTipOf(d, t) : '',
+      tip: blockedTip !== '' ? blockedTip : warnTip,
+      hint: blockedTip !== '' ? blockedTip : warnTip,
+      warn: warnTip,
       reasons: vcReasonKeysOf(d && d.reasons).map(function (k) { return t(k) }),
     }
   })
@@ -83,9 +88,9 @@ export const vcWriteUiOf = function (screen, ui, env) {
       ? { op: choice.op === 'fetch' ? 'fetch' : 'push', title: t(choice.op === 'fetch' ? 'vc.pickRemote.fetchTitle' : 'vc.pickRemote.title'), body: t(choice.op === 'fetch' ? 'vc.pickRemote.fetchBody' : 'vc.pickRemote.body'), remotes: choice.remotes.slice(), hint: String(choice.hint || '') }
       : null,
     actions: {
-      pull: { op: 'pull', text: t('vc.action.pull'), disabled: busy || ops.pull.disabled, tip: ops.pull.tip },
-      fetch: { op: 'fetch', text: t('vc.action.fetch'), disabled: busy || ops.fetch.disabled, tip: ops.fetch.tip },
-      push: { op: 'push', text: t('vc.action.push'), disabled: busy || ops.push.disabled, tip: ops.push.tip },
+      pull: { op: 'pull', text: t('vc.action.pull'), disabled: busy || ops.pull.disabled, tip: ops.pull.tip, hint: ops.pull.hint, warn: ops.pull.warn },
+      fetch: { op: 'fetch', text: t('vc.action.fetch'), disabled: busy || ops.fetch.disabled, tip: ops.fetch.tip, hint: ops.fetch.hint, warn: ops.fetch.warn },
+      push: { op: 'push', text: t('vc.action.push'), disabled: busy || ops.push.disabled, tip: ops.push.tip, hint: ops.push.hint, warn: ops.push.warn },
     },
     stageAll: {
       show: unstaged > 0,
@@ -111,6 +116,8 @@ export const vcWriteUiOf = function (screen, ui, env) {
           ttlText: (w.confirm.ticket && w.confirm.ticket.expiresAtMs)
             ? t('vc.confirm.ttl', { sec: String(Math.max(0, Math.round((Number(w.confirm.ticket.expiresAtMs) - Number(env.nowMs || 0)) / 1000))) })
             : '',
+          // #976：警告理由进确认框，不只放按钮悬停。取同一份首屏的判定，和按钮是同一快照。
+          warnText: (function () { var op = w.confirm.op; var dd = op === 'push' ? vcPushDecisionOf(decisions[op]) : decisions[op]; return (dd && dd.verdict === 'warn') ? vcBlockedTipOf(dd, t) : ''; })(),
         })
       : null,
   }
