@@ -2,7 +2,7 @@
 // 用法: node tests/verify-b2-map-newsession.js [file...]（默认 client.js + package/lib/client.js 双源）
 //
 // 验收标准（issue #456）：
-//   a) 未完成 map 行新会话 prompt 首行即 /implement-spec+链接（#897 起；完成态仍 /wayfinder+链接） —— AI 一开新会话即可定位对应 ISSUE（标识由首行承载，不再内嵌标识头）；
+//   a) map 行新会话 prompt 首行即 /wayfinder+链接 —— AI 一开新会话即可定位对应 ISSUE（标识由首行承载，不再内嵌标识头）；
 //   b) 完成态 map（子票全关）新会话 prompt = 完成确认 prompt（COMPLETE_PROMPT 填好 #n/total/closed + map 标识），
 //      未完成 = 推进式（MAP_EXECUTE_PROMPT）+ 工具节（B2 修订：新会话 prompt 跟随左侧主按钮语义）；
 //   c) 详情页执行/完成旁有「在新会话打开」按钮；
@@ -171,10 +171,10 @@ const checkFile = function (file) {
 
   // a) 未完成 map 行（t 无 stats → snapshot 兜底）：推进式 + 工具节
   const out = env.startText(ST, mapIssue(305, '测试 map 标题'))
-  assert.ok(out.indexOf('/implement-spec ' + URL305) === 0, file + ' zh 未完成 prompt 以 /implement-spec+空格+链接 开头')
-  assert.ok(out.includes('推进该 map 目标的达成'), file + ' zh 未完成 = 精简两节文案（#897）')
+  assert.ok(out.indexOf('/wayfinder ' + URL305) === 0, file + ' zh 未完成 prompt 以 /wayfinder+空格+链接 开头')
+  assert.ok(out.includes('请使用 wayfinder 技能推进该 map'), file + ' zh 未完成 = 推进式文案')
   assert.ok(out.includes('## 工具') && out.includes('优先使用 deck_ 开头的工具'), file + ' zh 工具节（issue 操作优先走 deck 工具，不断后路）')
-  assert.ok(!out.includes('## 目标 map') && !out.includes('编号：#305'), file + ' zh 未完成态不再内嵌 map 标识头（标识由首行 /implement-spec+链接承载）')
+  assert.ok(!out.includes('## 目标 map') && !out.includes('编号：#305'), file + ' zh 未完成态不再内嵌 map 标识头（标识由首行 /wayfinder+链接承载）')
   assert.ok(!out.includes('完成确认'), file + ' zh 未完成态不含完成确认')
 
   // b) 完成 map 行（t 自带 stats）：完成确认 prompt + map 标识，非推进式（#69 v4：标题 ## MAP完成确认，票号在首行 /wayfinder URL）
@@ -184,7 +184,7 @@ const checkFile = function (file) {
   assert.ok(out2.includes('4/4'), file + ' zh 完成确认 closed/total 已填')
   assert.ok(!out2.includes('## 目标 map') && !out2.includes('编号：#200'), file + ' zh 完成态不再内嵌 map 标识头（#779：标识由首行 /wayfinder+链接承载）')
   assert.ok(out2.includes('## 工具') && out2.includes('优先使用 deck_ 开头的工具') && out2.includes('deck_issue_report'), file + ' zh 完成态带两行工具节（#779）')
-  assert.ok(!out2.includes('推进该 map 目标的达成'), file + ' zh 完成态不是推进式')
+  assert.ok(!out2.includes('请使用 wayfinder 技能推进该 map'), file + ' zh 完成态不是推进式')
 
   // c) 完成态经 snapshot 兜底（t 无 stats 且 snapshot.maps 有该 map）
   const st2 = { snapshot: { maps: [{ number: 200, stats: { total: 4, closed: 4 } }] } }
@@ -196,7 +196,7 @@ const checkFile = function (file) {
   //    startText 有意改走 map 空态 0/0 检查（列表与详情页的「检查」按钮同一入口），照原语义断言只会永久红。
   const out4 = env.startText(ST, mapIssue(300, '空 map', { total: 0, closed: 0 }))
   assert.ok(out4.includes('该 map 在面板中显示为 0/0') && out4.includes('## 排查'), file + ' zh 零子票 map 走 0/0 检查 prompt（不再推进）')
-  assert.ok(!out4.includes('推进该 map 目标的达成'), file + ' zh 零子票 map 不是推进式')
+  assert.ok(!out4.includes('请使用 wayfinder 技能推进该 map'), file + ' zh 零子票 map 不是推进式')
   assert.ok(out4.includes('编号：#300'), file + ' zh 零子票 map 带标识')
 
   // e) 普通票 execute 模板回归（非 map 分支未被 B2 改坏）
@@ -208,7 +208,7 @@ const checkFile = function (file) {
   // f) en 双语（以 en 为初始语言重建环境，忠实于模块加载时捕获常量别名）
   const enEnv = buildEnv(src, 'en')
   const out6 = enEnv.startText(ST, mapIssue(305, 'Test map title'))
-  assert.ok(out6.includes('Advance this map toward its destination'), file + ' en 精简两节（#897）')
+  assert.ok(out6.includes('Please use the wayfinder skill to advance this map'), file + ' en 推进式')
   assert.ok(out6.includes('## Tools') && out6.includes('Prefer the deck_ tools'), file + ' en 工具节（issue 操作优先走 deck 工具）')
   assert.ok(!out6.includes('## Target map') && !out6.includes('No: #305'), file + ' en 不再内嵌 map 标识头')
   const out7 = enEnv.startText(ST, mapIssue(200, 'Done map', { total: 2, closed: 2 }))
