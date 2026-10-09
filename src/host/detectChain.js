@@ -2,13 +2,18 @@
 // 以后谁改它：改探测编排或检查链快照的人。预估约260行，超 350 打回。
 // 接线：由 index.js 动态 import 加载；harness 注册留守 index，处理器体经 handleDetect/handleChain 供给。
 import { refreshSourceOf } from './refresh/refreshSource.js'
+import { createRideSharing } from './refresh/rideSharing.js'
+import { ghWriteGeneration } from '../shared/gh-write-generation.js'
+import { getGhMeasure } from '../shared/gh-measure.js'
 import { workspaceKeyOf } from '../shared/refresh-workspace-key.js'   // #724：链记账给闸的钥匙，与活跃集合同一把（从前传 cwd 原文 → 同一个工作区在闸里有两格）
 export function createDetectChain(deps) {
   const { canonicalKey, DEFAULT_CWD, resetGhCache, getDetectionService, getPlatform, getTrackerRegistry, getRepoKey, runGh, timer, probeSkill, mdParseOkPredicate, getChainCache, setChainCache, getChainBackoff, logCtx, gate, ghTimeoutMs, sandboxPolicyFor } = deps
   // #491 房外埋点 helpers：hash8 只记散列；P1 外层先判开关（采样/节流/按事件），字段函数只在守卫内求值。
   function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
   let chainSampleN = 0
-  const chainInflight = new Map() // #696 在途合并：同钥匙同后端同语言同强制标记的并发共用同一份求值，强制不进表
+  // #696 在途合并 → #964 同钥匙搭车：同钥匙（工作区 + 后端 + 语言 + 修订号）的并发共用同一份在飞求值；
+  // force 也搭（旧的没回新的不起），写后/失败/超 30 秒不搭，force 连点跑完再补一轮。被合并的不算失败（退避与记账都只记真跑的那一轮）。
+  const chainInflight = createRideSharing({ getGeneration: ghWriteGeneration })
   let lastPredAt = 0
   let lastPredStatus = {}
   /**
@@ -41,11 +46,29 @@ export function createDetectChain(deps) {
   // #709（T5）：退避与全绿缓存整段交给 refresh-core 的纯函数裁定（薄壳 src/host/refresh/chainBackoff.js，
   // 数字真源是 budget.ts）：8 秒 → 30 秒 → 2 分钟 → 5 分钟逐档后退，有进展立刻回第一档，全绿后 30 分钟。
   // 触发只有四种事件，宿主侧一个自续定时器都没有；人亲手点「重新检查」带 trigger='user-recheck' 上来，永不降档。
+  // #964 同钥匙搭车（探测入口）：钥匙 = 工作区 + 后端 hint；规则与链入口同一套（写后/失败/超 30 秒不搭，force 连点跑完补一轮）。
   async function handleDetect(args) {
       const cwd = await canonicalKey((args && args.cwd) || DEFAULT_CWD)
       const force = !!(args && args.force)
+      const detectDedupKey = 'detect|' + cwd + '|' + String((args && args.backendId) || '')
+      if (force && !(args && args._rideMakeup)) { try { getGhMeasure().noteForce('wf.detect') } catch {} }
+      const detectRide = chainInflight.tryRide(detectDedupKey, { force: force, args: args })
+      if (detectRide) {
+        try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'dedup.hit', function () { return { scope: 'detect', keyHash: hash8(detectDedupKey) } }) } catch (eL) {}
+        try { getGhMeasure().noteRideMerged() } catch {}
+        const detectFirst = await detectRide.promise
+        if (detectRide.second) { try { return await detectRide.second } catch (eDs) { return detectFirst } }
+        if (detectRide.followUp) {
+          const detectMakeup = Object.assign({}, detectRide.followUpArgs || args, { _rideMakeup: true })
+          const detectSecond = handleDetect(detectMakeup)
+          detectRide.second = detectSecond
+          try { return await detectSecond } catch (eDm) { return detectFirst }
+        }
+        return detectFirst
+      }
       // #195 修复：force 探测清空 gh 解析缓存（旧实现首次失败永久缓存，force 也救不回来）
       if (force) resetGhCache()
+      const detectPending = (async function () {
       try {
         const svc = await getDetectionService()
         const res = await svc.detect({ cwd }, { force, hintBackendId: (args && args.backendId) || undefined, baseRev: (args && args.baseRev) || 0 })
@@ -55,6 +78,9 @@ export function createDetectChain(deps) {
       } catch (e) {
         try { if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: 'wf.detect', kind: 'detect', errorHash: hash8(String((e && e.message) || e)) }) } catch (eL) {}; return { ok: false, error: String((e && e.message) || e) }
       }
+      })()
+      chainInflight.start(detectDedupKey, detectPending)
+      try { return await detectPending } finally { chainInflight.finish(detectDedupKey) }
   }
   /** 主机侧的链求值入口：通用链 + 当前后端的链，两段各自求值、最后拼成一份快照。 */
   async function handleChain(args) {
@@ -83,9 +109,30 @@ export function createDetectChain(deps) {
           return v.cached
         }
         try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'chain.cache.miss', function () { return { keyHash: hash8(cacheKey), lang: chainLang, reason: force ? 'force' : (v.reason || 'due') } }) } catch (eL) {}
-        // #696 在途合并：同钥匙同后端同语言同强制标记共用同一份（另带修订号，免不同修订串份）；先回来的写缓存，后到的拿同一份；强制不参与合并
-        const chainDedupKey = cacheKey + '|' + (force ? '1' : '0') + '|' + String((args && args.baseRev) || 0)
-        if (!force) { const ongoingChain = chainInflight.get(chainDedupKey); if (ongoingChain) { try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'dedup.hit', function () { return { scope: 'chain', keyHash: hash8(chainDedupKey) } }) } catch (eL) {}; return await ongoingChain } }
+        // #964 同钥匙搭车：钥匙 = 工作区 + 后端 + 语言 + 修订号（修订不同是两件事，不串份）；force 也搭。
+        // 写后/超 30 秒不搭由搭车表按写世代与在飞时长判定（tryRide），失败不留给后人（finish 即删）。
+        const chainDedupKey = cacheKey + '|' + String((args && args.baseRev) || 0)
+        // #967：force 到来记来源排行（补轮触发的第二次不重复记，见 _rideMakeup 标记）。
+        if (force && !(args && args._rideMakeup)) { try { getGhMeasure().noteForce(chainSource) } catch {} }
+        const chainRide = chainInflight.tryRide(chainDedupKey, { force: force, args: args })
+        if (chainRide) {
+          // 搭上旧的：记一次复用（沿用 dedup.hit，不新增事件名），被合并的不算失败（退避与记账只记真跑的那一轮）。
+          try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'dedup.hit', function () { return { scope: 'chain', keyHash: hash8(chainDedupKey) } }) } catch (eL) {}
+          try { getGhMeasure().noteRideMerged() } catch {}
+          const firstResult = await chainRide.promise
+          if (chainRide.second) { try { return await chainRide.second } catch (eSecond) { return firstResult } }
+          // 短窗连点合并：跑完再补一轮（只一轮）。补轮走正常入口（自己登记、自己记账）；补轮失败不连累搭车人，回第一轮结果。
+          if (chainRide.followUp) {
+            const makeupArgs = Object.assign({}, chainRide.followUpArgs || args, { _rideMakeup: true })
+            const second = handleChain(makeupArgs)
+            chainRide.second = second
+            try { return await second } catch (eMakeup) {
+              try { if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: 'wf.chain', kind: 'chain-makeup', errorHash: hash8(String((eMakeup && eMakeup.message) || eMakeup)) }) } catch {}
+              return firstResult
+            }
+          }
+          return firstResult
+        }
         const chainPending = (async function () {
         const platform = await getPlatform()
         // #709（T5 补）：这次求值的环境预检复用位。开不出来（没这个模块）就是 null，后面照走原路。
@@ -332,14 +379,17 @@ export function createDetectChain(deps) {
         try {
           // 判断与落点同一行（tests/verify-log-guards.js 的口径：关着开关时连字段对象都不组装）：
           // 这里原来把判断写成上一行的 if 大括号，判断本身一个字没减，只是搬到同一行。
+          // #967：同一组数同步进内存记分板（供维护者读分布、供 #966 按数定终值；纯计数，不落盘）。
+          try { if (preflightScope) getGhMeasure().notePreflightReuse(preflightScope.asked(), preflightScope.reused()) } catch {}
           if (logCtx && logCtx.isEnabled('debug') && preflightScope) logCtx.fire('debug', 'chain.preflight.reuse', function () {
             return { cwdHash: hash8(cwd), checks: preflightScope.asked(), reused: preflightScope.reused(), userAction: trigger === 'user-recheck' }
           })
         } catch (eL) {}
         return result
         })()
-        if (!force) { chainInflight.set(chainDedupKey, chainPending); try { return await chainPending } finally { chainInflight.delete(chainDedupKey) } }
-        return await chainPending
+        // 自己跑：登记在飞（写世代与起始时刻一起记，供后来的 tryRide 判定写后/超 30 秒不搭）。
+        chainInflight.start(chainDedupKey, chainPending)
+        try { return await chainPending } finally { chainInflight.finish(chainDedupKey) }
       }catch(e){
         try { const m = String((e && e.message) || e); if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: 'wf.chain', kind: 'chain', errorHash: hash8(m), errorKind: (/is not a function|is not defined|of undefined|of null/i.test(m) ? 'missing-dep' : (/timeout|timed out/i.test(m) ? 'timeout' : 'throw')) }) } catch (eL) {}   // #724：异常也留一行（从前静默吞掉，真机查了两天没有原文）；errorKind 把「接线没给全」（missing-dep）与「跑起来真失败」（throw）分开
         return { ok: false, error: String((e && e.message)||e) }
