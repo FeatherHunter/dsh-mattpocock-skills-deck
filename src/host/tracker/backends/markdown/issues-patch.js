@@ -55,14 +55,9 @@ export async function updateIssue(ctx,repo,key,patch){
   if(!r.ok)return{ok:false,error:r.error}
   const res=await readParseWrite(ctx,repo,r,norm,function(txt){
     let changed=false
-    if(patch&&typeof patch.title==='string'){
-      const newTitle=patch.title.trim()
-      if(newTitle){
-        if(/^#+\s+.*$/m.test(txt))txt=txt.replace(/^#+\s+.*$/m,'# '+newTitle)
-        else txt='# '+newTitle+'\n\n'+txt
-        changed=true
-      }
-    }
+    // #972：标题分支必须在正文分支之后：正文的整份替换分支会拿递进来的整份盖掉刚换好的标题。
+    // 标题后置 = 同传时以后一步的标题参数为准；只传一边时行为不变。
+    const newTitle=(patch&&typeof patch.title==='string')?patch.title.trim():''
     if(patch&&typeof patch.body==='string'){
       if(/^\s*Status\s*[:\uFF1A]/im.test(patch.body)){
         txt=String(patch.body);changed=true
@@ -87,6 +82,11 @@ export async function updateIssue(ctx,repo,key,patch){
         txt=before+(before?'\n\n':'')+bodyBlock+'\n\n'+after
         changed=true
       }
+    }
+    if(newTitle){
+      if(/^#+\s+.*$/m.test(txt))txt=txt.replace(/^#+\s+.*$/m,'# '+newTitle)
+      else txt='# '+newTitle+'\n\n'+txt
+      changed=true
     }
     if(patch&&Array.isArray(patch.customFields)){
       for(const cf of patch.customFields){

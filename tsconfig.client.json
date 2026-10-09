@@ -1,0 +1,23 @@
+{
+  // 887 客户端 TS 真源的类型检查配置：只检查不产出（真正的 .js 由构建里的 esbuild 转译生成）。
+  // 保守目标 ES2020（与核心三套一致：Node 宿主与浏览器闭包两边都跑得动）；DOM 库给剪贴板与定时器。
+  // include 只圈 15 个像素风真源加两份声明；生成的 .js 同胞（allowJs 默认关闭）不进检查，
+  // 老的手写 JS 叶子也不进——摸到谁再转谁，不搞大爆炸。
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["ES2020", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "strict": true,
+    "types": [],
+    "skipLibCheck": true
+  },
+  "include": [
+    "src/client/ts-px-ambient.d.ts",
+    "src/client/views/px-props.d.ts",
+    "src/client/views/primitives/Px*.ts",
+    "src/client/views/skills/*.ts",
+    "src/client/kernel/locale-skilldetail.ts"
+  ]
+}

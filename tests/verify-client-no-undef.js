@@ -9,7 +9,10 @@
  *   而渲染里抛错会把整条状态栏从界面上摘掉 —— 用户看到的就是「胶囊整条没了」。
  *   构建那道门只做语法与装载器特征，人眼走查也只会看正常路径，所以这一类名字能一直躺在产物里。
  *
- * 做法：拿 TypeScript 编译器（devDependency，已装）对每个产物的真源做一次**只读**检查，
+ * 做法：拿 TypeScript 编译器对每个产物的真源做一次**只读**检查。注意用的是别名包
+ *   `typescript-ast`（即 TypeScript 5.6.3，只当语法解析器使），而不是主包 `typescript`——
+ *   主包升到 7.x（Go 重写）之后不再导出编译器 JS 接口（createProgram 等一律取不到），
+ *   而构建与类型检查走的是 7.x 的 tsc 本体，不受影响。将来若解析器也能换新，再把这一行换回去。
  *   只挑「找不到名字」这一类诊断（TS2304 / TS2552），把已知的两种情形列成白名单，其余一律报红。
  *   白名单只有两类，各自都写清为什么：宿主提供的全局、以及调用处带 typeof 保护的可选依赖。
  *
@@ -18,7 +21,7 @@
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
-const ts = require('typescript')
+const ts = require('typescript-ast')
 
 const ROOT = path.resolve(__dirname, '..')
 const FILES = process.argv.slice(2).length ? process.argv.slice(2) : ['client.js', 'package/lib/client.js', 'host.js', 'package/lib/index.js']
