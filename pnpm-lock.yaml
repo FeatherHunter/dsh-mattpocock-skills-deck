@@ -25,16 +25,16 @@ importers:
         specifier: ^0.28.2
         version: 0.28.2
       jsdom:
-        specifier: ^30.1.2
+        specifier: ^30.0.1
         version: 30.1.2
       playwright:
-        specifier: ^1.63.0
+        specifier: ^1.62.1
         version: 1.64.0
       react:
-        specifier: ^19.3.0
+        specifier: ^19.2.8
         version: 19.3.0
       react-dom:
-        specifier: ^19.3.0
+        specifier: ^19.2.8
         version: 19.3.0(react@19.3.0)
       typescript:
         specifier: 7.0.2
@@ -53,8 +53,8 @@ packages:
     resolution: {integrity: sha512-YnVzxDxLaqL0t7Q4wfcgHZjg55Wm6y5EaO7Bhu3q9J7wq/8iw3PhsnWiOQhYekx4VexnbkgWpTT6n+QIV7kczw==}
     engines: {node: ^22.22.2 || ^24.15.0 || >=26.0.0}
 
-  '@bramus/specificity@2.4.2':
-    resolution: {integrity: sha512-ctxtJ/eA+t+6q2++vj5j7FYX3nRu311q1wfYH3xjlLOsczhlhxAg2FWNUXhpGvAw3BWo1xBcvOV6/YLc2r5FJw==}
+  '@bramus/specificity@2.4.3':
+    resolution: {integrity: sha512-0GEz8qJWokkUVYQYRukmkSHIFNoBH8QTreeHrAFbvz1XFYc3Y+puhMs8PQ5x8GNugiC2l5jvDBXKLbBIByeSBw==}
     hasBin: true
 
   '@csstools/color-helpers@6.1.2':
@@ -707,7 +707,7 @@ snapshots:
       is-potential-custom-element-name: 1.0.1
       lru-cache: 11.5.3
 
-  '@bramus/specificity@2.4.2':
+  '@bramus/specificity@2.4.3':
     dependencies:
       css-tree: 3.2.1
 
@@ -1083,7 +1083,7 @@ snapshots:
     dependencies:
       '@asamuzakjp/css-color': 7.1.3
       '@asamuzakjp/dom-selector': 9.2.4
-      '@bramus/specificity': 2.4.2
+      '@bramus/specificity': 2.4.3
       '@csstools/css-syntax-patches-for-csstree': 1.1.15(css-tree@3.2.1)
       '@exodus/bytes': 1.16.0
       css-tree: 3.2.1
