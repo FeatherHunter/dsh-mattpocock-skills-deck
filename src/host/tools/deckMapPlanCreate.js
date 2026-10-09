@@ -13,6 +13,7 @@
 // 限时（#895）：整包活包一层调用上下文——剩余额度不够就停发新调用（部分成功+游标），
 // 每一次远端调用单独钳制，超时只坏自己那一项；同计划标识并发第二跑直接拒绝。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../../shared/deck-tools/shell.js'
+import { sessionContextOfAsync } from '../../shared/deck-tools/session-resolve.js'
 import { withCallScope } from '../../shared/deck-tools/call-scope.js'
 import { createMemoryPlanStore, createFilePlanStore } from '../../shared/deck-tools/plan-store.js'
 import { matchAnchor, isAnchorHit } from '../../shared/refresh/idempotency.js'
@@ -104,7 +105,7 @@ export function createDeckMapPlanCreate(deps) {
     const children = Array.isArray(a.children) ? a.children.filter((c) => c && c.key && c.title) : []
     const edges = Array.isArray(a.edges) ? a.edges.filter((e) => e && e.from && e.to) : []
     const est = shell.estimateFor('deck_map_plan_create', a)
-    const s = shell.context(exec)
+    const s = await sessionContextOfAsync(exec, { canonicalKey: d.canonicalKey, workspaceKeyOf: d.workspaceKeyOf })
     if (!s.ok) return shell.unsupported('deck_map_plan_create', s.reason, s.text, { cost: { estimated: est } })
     if (!title || !children.length) {
       return shell.unsupported('deck_map_plan_create', REFUSAL_REASONS.BAD_ARGS, '建整张地图至少要给 title 与一张子票（children 里每项要有 key 与 title）。', { cost: { estimated: est } })
@@ -128,7 +129,7 @@ export function createDeckMapPlanCreate(deps) {
 
     let out = null
     try {
-      out = await shell.call({ tool: 'deck_map_plan_create', kind: 'write', session: s, pick: pick, repo: repo, estimate: est }, async (c) => {
+      out = await shell.call({ tool: 'deck_map_plan_create', kind: 'write', session: s, pick: pick, repo: repo, estimate: est, sandbox: (typeof d.sandboxPolicyFor === 'function' ? await d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }).catch(function(){ return null }) : null) }, async (c) => {
       const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), now: nowFn })
       const t = sc.tracker
       const opCtx = sc.opCtx

@@ -32,10 +32,10 @@ npm install -g @deepseek-ai/dsh
 dsh plugin --profile web add dsh-mattpocock-skills-deck     # 用自启 web 服务（dsh web）
 #     或者
 dsh plugin --profile desktop add dsh-mattpocock-skills-deck   # 用 DSH Desktop 桌面应用
-# 锁定最新版更稳（当前 1.7.47）：
-dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.47 --registry https://registry.npmjs.org
+# 锁定最新版更稳（当前 1.7.51）：
+dsh plugin --profile web add dsh-mattpocock-skills-deck@1.7.51 --registry https://registry.npmjs.org
 #     或者
-dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.7.47 --registry https://registry.npmjs.org
+dsh plugin --profile desktop add dsh-mattpocock-skills-deck@1.7.51 --registry https://registry.npmjs.org
 ```
 
 <div align="center">
@@ -181,42 +181,11 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https:
 
 </details>
 
-<h2 align="center"><sub>ARCHITECTURE</sub><br>架构</h2>
+<h2 align="center"><sub>JOIN</sub><br>欢迎您加入我们</h2>
 
 <div align="center">
 
-整体结构、数据流与关键状态见 [在线预览](https://featherhunter.github.io/dsh-mattpocock-skills-deck/architecture/MattSkills-architecture.html)或本地 [MattSkills-architecture.html](docs/architecture/MattSkills-architecture.html)（克隆后直接打开）。
-
-</div>
-
-<h2 align="center"><sub>DEVELOPMENT</sub><br>开发</h2>
-
-<div align="center">
-
-开发说明（构建、验证、同步、发布）见 [DEV-WORKFLOW.md](docs/workflow/DEV-WORKFLOW.md)。
-
-</div>
-
-<h2 align="center"><sub>MORE</sub><br>作者的其他作品</h2>
-
-<div align="center">
-
-喜欢这个插件的话，这些可能你也用得上：
-
-**[dsh-opencode-palette](https://github.com/FeatherHunter/dsh-opencode-palette)** —— 34 款 opencode 经典配色一键换装 DSH，即点即换，重启不丢
-
-**[dsh-prompt](https://github.com/FeatherHunter/dsh-prompt)** —— Prompt 工具箱：24 条深度模板随手点，别再复制粘贴
-
-**[dsh-chinese-skill-patch](https://github.com/FeatherHunter/dsh-chinese-skill-patch)** —— 让 DSH 直接用中文技能名：输入 /私 就能直达「私家大厨」，技能不必改英文名
-
-**[dsh-im-companion](https://github.com/FeatherHunter/dsh-im-companion)** —— 给每个聊天机器人安个家：哪个工作区有助理在管、在不在线一眼看清，拖一下就能搬家
-
----
-
-有问题、有想法？[提交 ISSUE](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues)，或到 [讨论区](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/discussions)聊聊
-
-个人作品，与 [mattpocock/skills](https://github.com/mattpocock/skills) 官方没有关系。
-MIT © FeatherHunter
+非常欢迎提交PR、共同维护项目，现在迭代中很缺对markdown后端的开发和完善，Gitlab目前无人力开发。
 
 </div>
 
@@ -226,39 +195,47 @@ MIT © FeatherHunter
 
 感谢每一位提交 Issue、PR 与参与讨论的朋友，是你们让这个插件一点点变好。
 
-[@pioneerAlone](https://github.com/pioneerAlone) — 反馈了 #298（details/better-sidebar 重复，附完整复现与截图）、#274、#234 等状态栏与健康检查误报、#645（镜像源滞后导致更新失败），并提交了修复 PR #273、#316，感谢你让「重装后到处异常」的体感得以一次清爽修复 🌹🌹🌹🌹🌹🌹
+[@pioneerAlone](https://github.com/pioneerAlone)🌹🌹🌹🌹🌹🌹 — [#298](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/298) 面板重复、[#274](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/274)/[#234](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/234) 状态栏误报、[#645](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/645) 镜像滞后一路追到底，[PR #273](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/273)/[PR #316](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/316) 连交两份修复，重装体感一次清爽
 
-[@Shimmernight](https://github.com/Shimmernight) — 提交了 #277 等 Issue，以及 PR #287、#275、#106（toast 主题、命名修正、macOS 适配） 🌹🌹🌹🌹
+[@Shimmernight](https://github.com/Shimmernight)🌹🌹🌹🌹 — [#277](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/277) 等议题，[PR #287](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/287)/[PR #275](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/275)/[PR #106](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/106) 连交三份修复，弹窗和 macOS 体验都顺了
 
-[@21967201](https://github.com/21967201) — 提交了 PR #321（完善 triage + wayfinder 标签文档） 🌹
+[@qq1393950873-bit](https://github.com/qq1393950873-bit)🌹🌹 — [#970](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/970) 揪出本地后端静默写坏票的暗坑，[PR #974](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/974) 亲手修好已合入
 
-[@angenet](https://github.com/angenet) — 反馈了 #295、#262 等 macOS 环境检测问题 🌹🌹
+[@anupamme](https://github.com/anupamme)🌹🌹 — [PR #727](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/727)/[PR #728](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/728) 主动给数据通道加两道安全锁（待评审）
 
-[@hyperion2144](https://github.com/hyperion2144) — 反馈了 #110 等环境检查问题，以及 #646（建议直接注册 DSH 原生侧边栏，不再经过 better-sidebar 中转） 🌹🌹
+[@hyperion2144](https://github.com/hyperion2144)🌹🌹 — [#110](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/110) 报出环境检查问题，[#646](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/646) 还指了条原生侧边栏的明路
 
-[@tafcear](https://github.com/tafcear) — 反馈了 #422（非编码工作区状态栏降噪诉求），感谢你让非编码工作区不再被初始化横幅打扰 🌹
+[@arnold117](https://github.com/arnold117)🌹🌹 — [#574](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/574) 揪出多单元撞号读错写错，[PR #575](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/575) 亲手修好已合入
 
-[@271912980](https://github.com/271912980) — 在 #257 下提出把会话做成稳定可寻址端点（会话 ID + 语义名）的想法
+[@angenet](https://github.com/angenet)🌹🌹 — [#295](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/295)/[#262](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/262) 两轮 macOS 实测，环境检测更稳了
 
-[@xiSage](https://github.com/xiSage) — 反馈了 #435（自托管 GitLab 仓库无法识别），并在讨论区发起 #436（按工作区关闭插件功能） 🌹
+[@zhengcookie](https://github.com/zhengcookie)🌹 — [#960](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/960) 把桌面闪退重进的真凶钉死在出站缺少并发准入，还附了验证过的补丁
 
-[@dis0neplay](https://github.com/dis0neplay) — 提交了 PR #493（修 CI 与 Pages 根目录跳转，按请求关闭） 🌹
+[@jack2jiehua](https://github.com/jack2jiehua)🌹 — [#930](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/930) 抓到写操作落错后端的险情，还顺手指出写探测恒灰
 
-[@snmtg1008](https://github.com/snmtg1008) — 在 #476 下留下了自己排查并修好「本地数据目录误报不可写」的完整方案
+[@asesr](https://github.com/asesr)🌹 — [#926](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/926) 用实测数据揪出状态栏卡顿的真凶，还附了验证过的补丁
 
-[@arnold117](https://github.com/arnold117) — 反馈了 #574（本地 Markdown 后端里多个工作单元撞号，只能看到第一个，评论还会写进别的文件），并提交了 PR #575 修好它（已合入），感谢你让一个仓库里并存多个工作单元时不再读错写错 🌹🌹
+[@SKADI0718](https://github.com/SKADI0718)🌹 — [#856](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/856) 热心出手，虽然最后撤回心意照样上榜
 
-[@SbDonger](https://github.com/SbDonger) — 反馈了 #640（状态栏与输入框错位，输入框上方出现一条横向背景带） 🌹
+[@li873582595](https://github.com/li873582595)🌹 — [#835](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/835) 报出桌面初始化阶段断连重连的现象
 
-[@anupamme](https://github.com/anupamme) — 提交了 PR #727、#728（给 rpcChannel.js 加两处安全加固：防原型污染与加资源限制，目前待评审） 🌹🌹
+[@zerocodefast](https://github.com/zerocodefast)🌹 — [#823](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/823) 牵线把本插件推进精选清单
 
-[@seameafst](https://github.com/seameafst) — 反馈了 #793（点「+ 新建需求」后直接回车会发出一份空模板，需求原文在链路里没人收，附完整根因与两档修法） 🌹
+[@seameafst](https://github.com/seameafst)🌹 — [#793](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/793) 把空模板回车的坑连根因带修法一次讲透
 
-[@zerocodefast](https://github.com/zerocodefast) — 发起了 #823（邀请把本插件收录进 awesome-ai-plugins 清单，并给出建议条目） 🌹
+[@SbDonger](https://github.com/SbDonger)🌹 — [#640](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/640) 一眼发现状态栏与输入框错位
 
-[@li873582595](https://github.com/li873582595) — 反馈了 #835（官方桌面版上装插件后初始化阶段反复断开重连，卸载后消失） 🌹
+[@dis0neplay](https://github.com/dis0neplay)🌹 — [PR #493](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/493) 出手修好 CI 与页面跳转
 
-[@SKADI0718](https://github.com/SKADI0718) — 提交了 #856（后由作者撤回作废） 🌹
+[@snmtg1008](https://github.com/snmtg1008)🌹 — [#476](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/476) 留下本地目录误报的完整自救方案
+
+[@xiSage](https://github.com/xiSage)🌹 — [#435](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/435) 报出自托管仓库无法识别，还在讨论区 [#436](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/discussions/436) 出了按区关闭的好主意
+
+[@tafcear](https://github.com/tafcear)🌹 — [#422](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/422) 一句话让非编码工作区清静下来
+
+[@21967201](https://github.com/21967201)🌹 — [PR #321](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/321) 把标签文档补齐整
+
+[@271912980](https://github.com/271912980)🌹 — [#257](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/257) 提出会话稳定寻址的好主意
 
 也感谢在评论区与讨论区留下想法的每一位朋友。如果你也遇到了问题或有新想法，欢迎直接提 Issue 或发起讨论。
 
@@ -282,10 +259,26 @@ MIT © FeatherHunter
 
 <a href="https://featherhunter.github.io/dsh-mattpocock-skills-deck/star-history.html">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/docs/star-history-dark.svg?v=20261008" />
-    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/docs/star-history-light.svg?v=20261008" />
-    <img alt="Star History Chart" src="https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/docs/star-history-light.svg?v=20261008" />
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/docs/star-history-dark.svg?v=20261009" />
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/docs/star-history-light.svg?v=20261009" />
+    <img alt="Star History Chart" src="https://raw.githubusercontent.com/FeatherHunter/dsh-mattpocock-skills-deck/main/docs/star-history-light.svg?v=20261009" />
   </picture>
 </a>
+
+</div>
+
+<h2 align="center"><sub>MORE</sub><br>作者的其他作品</h2>
+
+<div align="left">
+
+喜欢这个插件的话，这些可能你也用得上：
+
+**[dsh-opencode-palette](https://github.com/FeatherHunter/dsh-opencode-palette)** —— 34 款 opencode 经典配色一键换装 DSH，即点即换，重启不丢
+
+**[dsh-prompt](https://github.com/FeatherHunter/dsh-prompt)** —— Prompt 工具箱：24 条深度模板随手点，别再复制粘贴
+
+**[dsh-chinese-skill-patch](https://github.com/FeatherHunter/dsh-chinese-skill-patch)** —— 让 DSH 直接用中文技能名：输入 /私 就能直达「私家大厨」，技能不必改英文名
+
+**[dsh-im-companion](https://github.com/FeatherHunter/dsh-im-companion)** —— 给每个聊天机器人安个家：哪个工作区有助理在管、在不在线一眼看清，拖一下就能搬家
 
 </div>

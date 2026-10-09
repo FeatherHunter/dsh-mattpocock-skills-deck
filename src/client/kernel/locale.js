@@ -8,6 +8,6 @@
  * 接口冻结清单见 docs/architecture/kernel-contract.md（G3 · #91 拍板）。
  */
     export const L = {
-      zh: Object.assign({}, L_PANEL.zh, L_FLOW.zh, L_WORD.zh, L_LABELS.zh, L_PAGES.zh, L_VCWRITE.zh, L_SKILLDESC.zh),
-      en: Object.assign({}, L_PANEL.en, L_FLOW.en, L_WORD.en, L_LABELS.en, L_PAGES.en, L_VCWRITE.en, L_SKILLDESC.en),
+      zh: Object.assign({}, L_PANEL.zh, L_FLOW.zh, L_WORD.zh, L_LABELS.zh, L_PAGES.zh, L_VCWRITE.zh, L_SKILLDESC.zh, L_SKILLDETAIL.zh),
+      en: Object.assign({}, L_PANEL.en, L_FLOW.en, L_WORD.en, L_LABELS.en, L_PAGES.en, L_VCWRITE.en, L_SKILLDESC.en, L_SKILLDETAIL.en),
     }

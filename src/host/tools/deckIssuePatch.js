@@ -5,6 +5,7 @@
 // 做完的每一步都单独记一条 item：哪一步成、哪一步没成、后端原话是什么。
 // 返回值就是写后的真状态（能读回就读回一次），AI 不必再读一次确认。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../../shared/deck-tools/shell.js'
+import { sessionContextOfAsync } from '../../shared/deck-tools/session-resolve.js'
 import { statusOfItems } from '../../shared/deck-tools/edges.js'
 import { ensureBody } from '../../shared/deck-tools/plan.js'
 import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/tool-cost.js'
@@ -67,7 +68,7 @@ export function createDeckIssuePatch(deps) {
     const a = args || {}
     const key = String(a.key === undefined || a.key === null ? '' : a.key).trim()
     const est = shell.estimateFor('deck_issue_patch', a)
-    const s = shell.context(exec)
+    const s = await sessionContextOfAsync(exec, { canonicalKey: d.canonicalKey, workspaceKeyOf: d.workspaceKeyOf })
     if (!s.ok) return shell.unsupported('deck_issue_patch', s.reason, s.text, { cost: { estimated: est } })
     if (!key) return shell.unsupported('deck_issue_patch', REFUSAL_REASONS.BAD_ARGS, '要改哪一张票：把票号写在 key 里。', { cost: { estimated: est } })
     const pick = await shell.pickBackend(exec, s)
@@ -89,7 +90,7 @@ export function createDeckIssuePatch(deps) {
       return shell.unsupported('deck_issue_patch', REFUSAL_REASONS.BAD_ARGS, '这次没说清要改什么：至少点名一件（comment / addLabels / removeLabels / assignees / title / body / progress / close）。', { cost: { estimated: est } })
     }
 
-    return shell.call({ tool: 'deck_issue_patch', kind: 'write', session: s, pick: pick, repo: repo, estimate: est }, async (c) => {
+    return shell.call({ tool: 'deck_issue_patch', kind: 'write', session: s, pick: pick, repo: repo, estimate: est, sandbox: (typeof d.sandboxPolicyFor === 'function' ? await d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }).catch(function(){ return null }) : null) }, async (c) => {
       const items = []
       const notes = []
       if (effortId) notes.push('这次带了 effortId（' + effortId.slice(0, 60) + '）：本地后端只在那一个目录里找，远端后端忽略它。')

@@ -5,6 +5,7 @@
 // 判不出来就说「说不好」，绝不默认写成「原生层级」（判据与反证方向见 shell.js 的 classifyEdgeLanding）。
 // 校验用计数：改完按父票列一遍子票 / 再读一次依赖，把「要几条、实际几条」对一次，对不上就说 partial。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../../shared/deck-tools/shell.js'
+import { sessionContextOfAsync } from '../../shared/deck-tools/session-resolve.js'
 import { classifyEdgeLanding, edgeEvidence, statusOfItems, applyParentEdge, applyBlockEdges, precheckBlockBatch } from '../../shared/deck-tools/edges.js'
 import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/tool-cost.js'
 import { withCallScope } from '../../shared/deck-tools/call-scope.js'
@@ -50,7 +51,7 @@ export function createDeckMapLink(deps) {
   async function run(exec, args) {
     const a = args || {}
     const est = shell.estimateFor('deck_map_link', a)
-    const s = shell.context(exec)
+    const s = await sessionContextOfAsync(exec, { canonicalKey: d.canonicalKey, workspaceKeyOf: d.workspaceKeyOf })
     if (!s.ok) return shell.unsupported('deck_map_link', s.reason, s.text, { cost: { estimated: est } })
     const jobs = Array.isArray(a.edges) && a.edges.length ? a.edges : (a.key ? [a] : [])
     if (!jobs.length) return shell.unsupported('deck_map_link', REFUSAL_REASONS.BAD_ARGS, '要改哪张票的边：给 key（可带 parentKey / blockedBy），或者给 edges 清单。', { cost: { estimated: est } })
@@ -60,7 +61,7 @@ export function createDeckMapLink(deps) {
     const effortId = (a.effortId === undefined || a.effortId === null) ? '' : String(a.effortId).trim()
     if (effortId) repo.effortId = effortId
 
-    return shell.call({ tool: 'deck_map_link', kind: 'write', session: s, pick: pick, repo: repo, estimate: est }, async (c) => {
+    return shell.call({ tool: 'deck_map_link', kind: 'write', session: s, pick: pick, repo: repo, estimate: est, sandbox: (typeof d.sandboxPolicyFor === 'function' ? await d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }).catch(function(){ return null }) : null) }, async (c) => {
       const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), now: (typeof d.now === 'function') ? d.now : Date.now })
       const t = sc.tracker
       const opCtx = sc.opCtx
