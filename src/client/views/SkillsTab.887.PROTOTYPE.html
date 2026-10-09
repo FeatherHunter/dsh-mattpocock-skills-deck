@@ -16,7 +16,9 @@ header.bar b{font-size:15px;letter-spacing:2px}header.bar span{font-size:12px;co
 .panel>h2{margin:0 0 8px;font-size:15px;letter-spacing:2px}
 .skillrow{display:flex;gap:8px;align-items:center;background:var(--card);border:3px solid var(--frame);box-shadow:3px 3px 0 var(--shadow);padding:6px 10px;margin:8px 0}
 .skillrow.rec{background:#efe8fb}
-.dot{flex:none;width:10px;height:10px;border:2px solid var(--frame)}
+.skillrow{transition:transform .12s steps(2,end),box-shadow .12s steps(2,end)}
+.skillrow:hover,.skillrow:focus-within{transform:translate(-2px,-2px);box-shadow:5px 5px 0 var(--shadow);outline:2px solid var(--dc,#e3a92f);outline-offset:1px}
+.dot{flex:none;width:10px;height:10px;border:2px solid var(--frame);background:var(--dc,#0e8a16)}
 .sname{font:700 13px ui-monospace,Menlo,Consolas,monospace;min-width:120px}
 .sname .star{color:var(--acc)}
 .suse{flex:1;font-size:12px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -44,9 +46,13 @@ header.bar b{font-size:15px;letter-spacing:2px}header.bar span{font-size:12px;co
 .banner{background:#fbe3e1;border:3px solid var(--frame);border-left:10px solid var(--bad);box-shadow:3px 3px 0 var(--shadow);padding:8px 10px;font-size:13px;margin:10px 0;display:flex;gap:8px;align-items:center}
 .banner.warn{background:#fdf0d3;border-left-color:var(--warn)}
 .banner .grow{flex:1}
-.toc{background:var(--card);border:3px solid var(--frame);box-shadow:3px 3px 0 var(--shadow);padding:6px 10px;font-size:12.5px;margin:0 0 10px}
-.toc b{letter-spacing:1px}
-.toc a{display:block;color:#5b3df0;cursor:pointer}
+.toc{background:var(--card);border:3px solid var(--frame);box-shadow:3px 3px 0 var(--shadow);margin:0 0 10px;font-size:12.5px}
+.toc b{display:block;background:var(--frame);color:var(--paper);font:700 12px ui-monospace,monospace;letter-spacing:2px;padding:4px 10px}
+.toc a{display:flex;gap:8px;align-items:center;color:var(--ink);text-decoration:none;font-weight:700;padding:6px 10px;cursor:pointer}
+.toc a+a{border-top:2px solid var(--stripe)}
+.toc a .n{flex:none;font:700 11px ui-monospace,monospace;background:var(--frame);color:var(--paper);padding:0 6px;min-width:26px;text-align:center}
+.toc a:hover{background:var(--frame);color:var(--paper)}
+.toc a:hover .n{background:var(--paper);color:var(--ink)}
 .doc{line-height:1.85;font-size:13.5px}
 .doc[data-lang="zh"]{line-height:2.05}
 .doc h1,.doc h2,.doc h3{font-family:ui-monospace,Menlo,Consolas,"Microsoft YaHei",sans-serif}
@@ -64,12 +70,14 @@ header.bar b{font-size:15px;letter-spacing:2px}header.bar span{font-size:12px;co
 .doc ol>li::before{content:counter(it);position:absolute;left:0;top:2px;font:700 12px ui-monospace,monospace;background:var(--frame);color:var(--paper);padding:0 6px;border:2px solid var(--frame);box-shadow:2px 2px 0 var(--shadow)}
 .doc blockquote{border-left:8px solid var(--acc);background:#efe8fb;margin:10px 0;padding:6px 12px}
 .doc pre{background:#241a0c;color:#f2e4c0;padding:10px 12px;font:12px/1.7 ui-monospace,monospace;overflow:auto;white-space:pre-wrap;border:3px solid var(--frame);box-shadow:3px 3px 0 var(--shadow)}
-.doc code{background:var(--popline);border:1px solid var(--frame);padding:0 4px;font:12px ui-monospace,monospace}
+.doc code{font:700 12px ui-monospace,Menlo,Consolas,monospace;background:var(--card);color:var(--ink);padding:1px 6px;border:2px solid var(--frame);box-shadow:2px 2px 0 var(--shadow);white-space:nowrap}
 .doc pre code{background:none;border:none;padding:0;color:inherit;font:inherit}
 .doc a{color:#5b3df0}
-.doc em{color:#5b3df0;font-style:normal;border-bottom:2px dotted #5b3df0}
+.doc em{font-style:normal;font-weight:700;color:var(--ink);background:#ffe1a1;padding:0 3px;border-bottom:3px solid var(--gold)}
 .totop{float:right;position:sticky;bottom:10px}
 #langTip{font-size:12px;color:var(--ink2)}
+#dshBox{float:right;font-size:12px;color:#ffd97a}
+.pbtn.mini{padding:1px 8px;font-size:11px}
 .bubble{position:fixed;z-index:999;background:var(--card);color:var(--ink);border:3px solid var(--frame);box-shadow:3px 3px 0 var(--shadow);padding:4px 10px;font-size:12.5px;font-weight:700}
 .f-ok{animation:fok .5s steps(3,end)}
 .f-err{animation:ferr .5s steps(3,end)}
@@ -81,23 +89,23 @@ header.bar b{font-size:15px;letter-spacing:2px}header.bar span{font-size:12px;co
 </style>
 </head>
 <body>
-<header class="bar"><b>技能详情页·变体A PROTOTYPE 887</b><span>抛弃式草稿·不进生产</span></header>
+<header class="bar"><b>技能详情页·变体A PROTOTYPE 887</b><span>抛弃式草稿·不进生产</span><span id=dshBox>DSH <button class="pbtn mini hot" id=dshZh onclick="setDsh('zh')">中文</button> <button class="pbtn mini" id=dshEn onclick="setDsh('en')">EN</button></span></header>
 <div class="wrap">
-<div class="panel"><h2>■ 技能</h2>
+<div class="panel"><h2 id=hSkill>■ 技能</h2>
 <div style="margin-bottom:4px"><input id="draft" placeholder="先打几个字，再点详情：弹窗盖住后字还在"></div>
 <div id="listBox"></div>
 </div>
-<div class="panel"><h2>■ 详情</h2><div id="bannerSeat"></div><div id="detailMount"></div></div>
+<div class="panel"><h2 id=hDetail>■ 详情</h2><div id="bannerSeat"></div><div id="detailMount"></div></div>
 </div>
 <script>
 "use strict";
 var SKILLS=[
-{n:"prototype",u:"一次性原型回答设计问题",how:"slow"},
-{n:"research",u:"后台调研，写进仓库 markdown",how:"fast"},
-{n:"tdd",u:"红-绿-重构",how:"fail"},
-{n:"grilling",u:"穷追不舍的对齐提问",how:"fast"},
-{n:"ask-matt",u:"不知道用哪个时问它",how:"fast",rec:1},
-{n:"missing-demo",u:"这篇没有随包原文",how:"missing"}];
+{n:"prototype",u:"一次性原型回答设计问题",uen:"Throwaway prototypes that answer a design question",how:"slow"},
+{n:"research",u:"后台调研，写进仓库 markdown",uen:"Background research into repo markdown",how:"fast"},
+{n:"tdd",u:"红-绿-重构",uen:"Red-green-refactor",how:"fail"},
+{n:"grilling",u:"穷追不舍的对齐提问",uen:"Relentless alignment interviews",how:"fast"},
+{n:"ask-matt",u:"不知道用哪个时问它",uen:"Ask it when you don't know which to use",how:"fast",rec:1},
+{n:"missing-demo",u:"这篇没有随包原文",uen:"This one has no bundled copy",how:"missing"}];
 var T={
 copy:{en:"Copy link",zh:"复制链接"},retry:{en:"Retry",zh:"重试"},close:{en:"Close ✕",zh:"关闭 ✕"},
 toTop:{en:"Top ↑",zh:"顶部 ↑"},copied:{en:"Copied",zh:"已复制"},toc:{en:"■ Contents",zh:"■ 本篇目录"},
@@ -111,12 +119,15 @@ miss:{en:"No bundled copy for this one",zh:"这篇没有随包原文"},
 missBody:{en:"There is no bundled copy for this one, so nothing is made up. Short description kept:",zh:"包里没有这一篇，不编内容。下面保留短描述："},
 missShort:{en:"Missing-copy fallback demo.",zh:"演示缺文兜底。"},
 noBody:{en:"Body not loaded, see the banner above. Retry to fetch again.",zh:"正文没拿到，原因见上面横幅，点重试再拉一次。"},
-toLang:{en:"中文",zh:"EN"}};
-var S={skill:null,phase:"idle",pt:"",cache:{},miss:false,draftFocus:false,forceSlow:false,skel:false,lang:"en"};
+toLang:{en:"中文",zh:"EN"},panelSkill:{en:"■ Skills",zh:"■ 技能"},panelDetail:{en:"■ Detail",zh:"■ 详情"},detailBtn:{en:"Details",zh:"详情"},draftPh:{en:"Type a few words, then open details: words stay under the modal",zh:"先打几个字，再点详情：弹窗盖住后字还在"}};
+var S={skill:null,dsh:"zh",phase:"idle",pt:"",cache:{},miss:false,draftFocus:false,forceSlow:false,skel:false,lang:"en"};
 function t(k){return (T[k]&&T[k][S.lang])||k}
+function c(k){return (T[k]&&T[k][S.dsh])||k}
+function renderChrome(){$("hSkill").textContent=c("panelSkill");$("hDetail").textContent=c("panelDetail");$("draft").placeholder=c("draftPh");$("dshZh").className="pbtn mini"+(S.dsh==="zh"?" hot":"");$("dshEn").className="pbtn mini"+(S.dsh==="en"?" hot":"")}
+window.setDsh=function(l){S.dsh=l;S.lang="en";renderChrome();renderList();renderDetail()};
 function $(id){return document.getElementById(id)}
 function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;")}
-function dot(lv){var c=lv==="warn"?"#f59e0b":lv==="bad"?"#a3231a":"#0e8a16";return '<span class=dot style="background:'+c+'"></span>'}
+function dot(){return '<span class=dot></span>'}
 var DOCS={
 prototype:{how:"slow",en:{t:"Prototype",h:["Pick a branch","Rules that apply to both"],b:"<p>A prototype is <strong>throwaway code that answers a question</strong>. The question decides the shape.</p><h2>Pick a branch</h2><p>Identify which question is being answered, using the user's prompt, the surrounding code, or by asking if the user is around:</p><ul><li><strong>\"Does this logic / state model feel right?\"</strong> → LOGIC.md. Build a single shareable HTML file (free-play buttons plus tabbed guided walkthroughs) that pushes the state machine through cases that are hard to reason about on paper, and that a non-developer can drive.</li><li><strong>\"What should this look like?\"</strong> → UI.md. Generate several radically different UI variations on a single route, switchable via a URL search param and a floating bottom bar.</li></ul><p>The two branches produce very different artifacts, so getting this wrong wastes the whole prototype. If the question is genuinely ambiguous and the user isn't reachable, default to whichever branch better matches the surrounding code (a backend module → logic; a page or component → UI) and state the assumption at the top of the prototype.</p><h2>Rules that apply to both</h2><ol><li><strong>Throwaway from day one, and clearly marked as such.</strong> Locate the prototype code close to where it will actually be used so context is obvious, but name it so a casual reader can see it's a prototype, not production.</li><li><strong>Trivial to run.</strong> A UI prototype starts from one command in the project's task runner. A logic demo is a single HTML file the user double-clicks. Either way, no thinking required to start it.</li><li><strong>No persistence by default.</strong> State lives in memory. Persistence is the thing the prototype is <em>checking</em>, not something it should depend on.</li><li><strong>Skip the polish.</strong> No tests, no error handling beyond what makes the prototype <em>runnable</em>, no abstractions. The point is to learn something fast.</li><li><strong>Surface the state.</strong> After every action, print or render the full relevant state so the user can see what changed.</li><li><strong>Capture it when done.</strong> Fold any validated decision into the real code, then capture the prototype itself as a <strong>primary source</strong> on a throwaway branch out of main, pointed at from the implementation issue.</li></ol>"},zh:{t:"原型",h:["选择分支","两条都适用的规则"],b:"<p>原型是<strong>回答一个设计问题的扔掉的代码</strong>。问题决定形状。</p><h2>选择分支</h2><p>先看清要回答的是哪个问题，看提问、看周围代码，人能问到就直接问：</p><ul><li><strong>“这段逻辑 / 状态模型顺吗？”</strong> → LOGIC.md。做一个单文件可分享的网页（随手点的按钮加按步骤走的引导），把纸上难想明白的状态机推一遍，非开发也能点。</li><li><strong>“界面应该长什么样？”</strong> → UI.md。在同一路由上做几个完全不同的界面变体，用网址参数加底部悬浮条切换。</li></ul><p>两种分支产出完全不同的东西，分支选错整个原型白做。如果问题确实模糊、人又问不到，就看周围代码更像哪边（后端模块走逻辑，页面组件走界面），并把这个假设写在原型最上面。</p><h2>两条都适用的规则</h2><ol><li><strong>第一天就是扔掉的，并写清楚它是草稿。</strong>原型代码放在将来真正要用的地方旁边，上下文一目了然，但名字要让路过的人一眼看出这是原型，不是生产代码。</li><li><strong>跑起来不费脑子。</strong>界面原型从任务跑器的一条命令启动，逻辑演示就是双击即开的单文件。两种都不需要动脑子就能跑起来。</li><li><strong>默认不存东西。</strong>状态只在内存里。持久化是原型要验证的东西，不是原型能依赖的东西。</li><li><strong>不打磨。</strong>没有测试，只有让原型跑起来的错误处理，没有抽象。要的就是学得快。</li><li><strong>状态摊开看。</strong>每点一下，就把完整的相关状态打印或画出来，让人看到变了什么。</li><li><strong>做完留下来。</strong>验证过的结论合进真正的代码，原型本身作为<strong>第一手材料</strong>留在一次性分支上，并在实现票里留个指向。结论本身也记在票里。</li></ol>"}},
 research:{how:"fast",en:{t:"/research",h:[],b:"<p>Spin up a <strong>background agent</strong> to do the research, so you keep working while it reads.</p><p>Its job:</p><ol><li>Investigate the question against <strong>primary sources</strong> (official docs, source code, specs, first-party APIs), not a secondary write-up of them. Follow every claim back to the source that owns it.</li><li>Write the findings to a single Markdown file, citing each claim's source.</li><li>Save it where the repo already keeps such notes; match the existing convention, and if there is none, put it somewhere sensible and say where.</li></ol>"},zh:{t:"/research",h:[],b:"<p>起一个<strong>后台调研员</strong>去做调研，你继续干手头的活，它读它的。</p><p>它的活：</p><ol><li>对着<strong>一手来源</strong>（官方文档、源码、规格、第一方接口）查问题，不看二手转述。每条结论都要追到拥有它的那个来源。</li><li>结论写进单个 Markdown 文件，每条结论带出处。</li><li>放在仓库原来就放这类笔记的地方，跟着现有惯例走；没有惯例就找个顺眼的地方放，并说清楚放哪了。</li></ol>"}},
@@ -127,7 +138,8 @@ function $(id){return document.getElementById(id)}
 function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;")}
 function renderList(){
 var h="";SKILLS.forEach(function(sk){
-h+='<div class="skillrow'+(sk.rec?" rec":"")+'">'+dot(sk.how==="missing"?"bad":sk.rec?"warn":"ok")+'<span class=sname>/'+sk.n+(sk.rec?' <span class=star>★</span>':"")+'</span><span class=suse>'+esc(sk.u)+'</span><button class=pbtn data-sk="'+sk.n+'"><span class=spin></span>详情</button></div>'});
+var lv=sk.how==="missing"?"bad":sk.rec?"warn":"ok",dc=lv==="bad"?"#a3231a":lv==="warn"?"#f59e0b":"#0e8a16";
+h+='<div class="skillrow'+(sk.rec?" rec":"")+'" style="--dc:'+dc+'">'+dot()+'<span class=sname>/'+sk.n+(sk.rec?' <span class=star>★</span>':"")+'</span><span class=suse>'+esc(S.dsh==="en"?sk.uen:sk.u)+'</span><button class=pbtn data-sk="'+sk.n+'"><span class=spin></span>'+c("detailBtn")+'</button></div>'});
 $("listBox").innerHTML=h;
 var bs=$("listBox").querySelectorAll("button.pbtn");
 for(var i=0;i<bs.length;i++)(function(b){b.addEventListener("click",function(){openDetail(b.getAttribute("data-sk"),b)})})(bs[i]);
@@ -139,57 +151,57 @@ S.skill=name;S.miss=false;$("bannerSeat").innerHTML="";
 try{S.draftFocus=(document.activeElement&&document.activeElement.id==="draft")}catch(e){S.draftFocus=false}
 if(btn){btn.classList.add("loading");btn.disabled=true;
 setTimeout(function(){btn.classList.remove("loading");btn.disabled=false},docOf(name).how==="slow"?2600:600)}
-if(S.cache[name]){S.phase="ready";S.pt=t("readyHit");renderDetail();return}
+if(S.cache[name]){S.phase="ready";S.pt=c("readyHit");renderDetail();return}
 var how=docOf(name).how;
-if(how==="missing"){failOpen(t("miss"),true);return}
-if(how==="fail"&&!S.forceSlow){failOpen(t("fail"),false);return}
+if(how==="missing"){failOpen(c("miss"),true);return}
+if(how==="fail"&&!S.forceSlow){failOpen(c("fail"),false);return}
 S.forceSlow=false;S.phase="loading";
-if(how==="fast"){S.pt=t("fetch");renderDetail();
-setTimeout(function(){if(S.skill!==name||S.phase!=="loading")return;S.cache[name]=1;S.phase="ready";S.pt=t("ready");renderDetail()},300);
-}else{S.pt=t("fetch");renderDetail();
-setTimeout(function(){if(S.skill!==name||S.phase!=="loading")return;S.pt=t("parse");renderDetail()},800);
-setTimeout(function(){if(S.skill!==name||S.phase!=="loading")return;S.pt=t("layout");renderDetail()},1500);
-setTimeout(function(){if(S.skill!==name||S.phase!=="loading")return;S.pt=t("layoutSlow");S.skel=true;renderDetail()},2000);
-setTimeout(function(){if(S.skill!==name||S.phase!=="loading")return;S.skel=false;S.cache[name]=1;S.phase="ready";S.pt=t("ready");renderDetail()},2600)}}
+if(how==="fast"){S.pt=c("fetch");renderDetail();
+setTimeout(function(){if(S.skill!==name||S.phase!=="loading")return;S.cache[name]=1;S.phase="ready";S.pt=c("ready");renderDetail()},300);
+}else{S.pt=c("fetch");renderDetail();
+setTimeout(function(){if(S.skill!==name||S.phase!=="loading")return;S.pt=c("parse");renderDetail()},800);
+setTimeout(function(){if(S.skill!==name||S.phase!=="loading")return;S.pt=c("layout");renderDetail()},1500);
+setTimeout(function(){if(S.skill!==name||S.phase!=="loading")return;S.pt=c("layoutSlow");S.skel=true;renderDetail()},2000);
+setTimeout(function(){if(S.skill!==name||S.phase!=="loading")return;S.skel=false;S.cache[name]=1;S.phase="ready";S.pt=c("ready");renderDetail()},2600)}}
 function failOpen(reason,missing){
 S.phase="error";S.pt=reason;S.miss=!!missing;
-$("bannerSeat").innerHTML='<div class="banner'+(missing?" warn":"")+'"><b>'+(missing?"!":"✕")+'</b><span class=grow>'+esc((missing?"":"")+reason)+'</span><button class=pbtn onclick="retryOpen()">'+t("retry")+'</button><button class=pbtn onclick="dismissBanner()">'+t("close").replace(" ✕","")+'</button></div>';
+$("bannerSeat").innerHTML='<div class="banner'+(missing?" warn":"")+'"><b>'+(missing?"!":"✕")+'</b><span class=grow>'+esc((missing?"":"")+reason)+'</span><button class=pbtn onclick="retryOpen()">'+c("retry")+'</button><button class=pbtn onclick="dismissBanner()">'+c("close").replace(" ✕","")+'</button></div>';
 renderDetail()}
 window.retryOpen=function(){S.forceSlow=!S.miss;dismissBanner(true);if(S.skill)openDetail(S.skill,null)};
 window.dismissBanner=function(silent){$("bannerSeat").innerHTML="";if(!silent&&S.phase==="error"){S.phase="idle";S.pt="";renderDetail()}};
-function tocHtml(hs){var h='<div class=toc><b>'+esc(t("toc"))+'</b>';for(var i=0;i<hs.length;i++)h+='<a data-toc="'+i+'">· '+esc(hs[i])+"</a>";return h+"</div>"}
+function tocHtml(hs){var h='<div class=toc><b>'+esc(c("toc"))+'</b>';for(var i=0;i<hs.length;i++){var n=i+1;h+='<a data-toc="'+i+'"><span class=n>'+(n<10?"0"+n:""+n)+"</span>"+esc(hs[i])+"</a>"}return h+"</div>"}
 function docHtml(name){
-if(name==="missing-demo")return "<p><span class='ic ic-warn'>!</span><b>"+esc(t("miss"))+"</b></p><p>"+esc(t("missBody"))+"</p><p>"+esc(t("missShort"))+"</p>";
+if(name==="missing-demo")return "<p><span class='ic ic-warn'>!</span><b>"+esc(c("miss"))+"</b></p><p>"+esc(c("missBody"))+"</p><p>"+esc(c("missShort"))+"</p>";
 var d=curDoc(),h=(d.h&&d.h.length?tocHtml(d.h):"")+'<div class=doc data-lang="'+S.lang+'"><h1>'+esc(d.t)+"</h1>"+d.b+"</div>";
 return h}
 function innerParts(){
 var ic=S.phase==="loading"?"<span class='ic ic-idle'>…</span>":S.phase==="ready"?"<span class='ic ic-ok'>✓</span>":S.phase==="error"?(S.miss?"<span class='ic ic-warn'>!</span>":"<span class='ic ic-err'>✕</span>"):"<span class='ic ic-idle'>○</span>";
-var st='<div class=st>'+ic+esc(S.pt||t("idle"))+"</div>",body="";
+var st='<div class=st>'+ic+esc(S.pt||c("idle"))+"</div>",body="";
 if(S.phase==="loading"&&S.skel)body='<div class=skel></div><div class=skel style="width:82%"></div><div class=skel style="width:64%"></div>';
 else if(S.phase==="ready")body=docHtml(S.skill);
 else if(S.phase==="error"&&S.miss)body=docHtml("missing-demo");
-else if(S.phase==="error")body="<p>"+esc(t("noBody"))+"</p>";
-else body="<p>"+esc(t("none"))+"</p>";
-var bar='<button class=pbtn onclick="copyLink(this)">'+t("copy")+'</button>'+(S.phase==="error"&&!S.miss?'<button class=pbtn onclick="retryOpen()">'+t("retry")+'</button>':"");
+else if(S.phase==="error")body="<p>"+esc(c("noBody"))+"</p>";
+else body="<p>"+esc(c("none"))+"</p>";
+var bar='<button class=pbtn onclick="copyLink(this)">'+c("copy")+'</button>'+(S.phase==="error"&&!S.miss?'<button class=pbtn onclick="retryOpen()">'+t("retry")+'</button>':"");
 return {st:st,body:body,bar:bar}}
 function renderDetail(){
 var m=$("detailMount");
-if(S.phase==="idle"){m.innerHTML="<p>"+esc(t("none"))+"</p>";return}
+if(S.phase==="idle"){m.innerHTML="<p>"+esc(c("none"))+"</p>";return}
 var p=innerParts(),title=S.skill?"/"+S.skill:"?",d=curDoc();
-m.innerHTML='<div class=overlay id=ovl><div class="modal '+(S.phase==="ready"?"f-ok":S.phase==="error"&&!S.miss?"f-err shake":"")+'"><span class=seal></span><div class=top><span>'+esc(d.t)+'</span><span style="flex:1"></span><button class="pbtn hot" onclick="toggleLang()">'+t("toLang")+'</button><button class=pbtn onclick="closeDetail()">'+t("close")+'</button></div>'+p.st+'<div class=body id=docBody onscroll="onScroll(this)">'+p.body+'<button class="pbtn totop" id=totop style="display:none" onclick="toTop()">'+t("toTop")+'</button></div><div class=bot>'+p.bar+'<span id=langTip>'+esc(S.lang==="en"?"EN":"中文")+'</span></div></div></div>';
+m.innerHTML='<div class=overlay id=ovl><div class="modal '+(S.phase==="ready"?"f-ok":S.phase==="error"&&!S.miss?"f-err shake":"")+'"><span class=seal></span><div class=top><span>'+esc(d.t)+'</span><span style="flex:1"></span>'+(S.dsh==="zh"?'<button class="pbtn hot" onclick="toggleLang()">'+t("toLang")+'</button>':"")+'<button class=pbtn onclick="closeDetail()">'+c("close")+'</button></div>'+p.st+'<div class=body id=docBody onscroll="onScroll(this)">'+p.body+'<button class="pbtn totop" id=totop style="display:none" onclick="toTop()">'+c("toTop")+'</button></div><div class=bot>'+p.bar+'</div></div></div>';
 var o=$("ovl");if(o)o.addEventListener("click",function(e){if(e.target===o)closeDetail()});bindToc()}
 function bindToc(){var as=document.querySelectorAll("[data-toc]");for(var i=0;i<as.length;i++)(function(a){a.addEventListener("click",function(){var b=$("docBody");if(!b)return;var hs=b.querySelectorAll("h2,h3");var k=+a.getAttribute("data-toc");if(hs[k])b.scrollTop=hs[k].offsetTop-8})})(as[i])}
 window.onScroll=function(el){var t2=$("totop");if(t2)t2.style.display=el.scrollTop>240?"block":"none"};
 window.toTop=function(){var b=$("docBody");if(b)b.scrollTop=0};
 window.toggleLang=function(){S.lang=(S.lang==="en"?"zh":"en");if(S.phase==="ready"||S.phase==="error")renderDetail();var b=$("docBody");if(b)b.scrollTop=0};
 window.closeDetail=function(){S.phase="idle";S.pt="";S.skel=false;renderDetail();try{if(S.draftFocus)$("draft").focus()}catch(e){}};
-window.copyLink=function(btn){var b=document.createElement("span");b.className="bubble";b.setAttribute("role","status");b.textContent=t("copied");document.body.appendChild(b);
+window.copyLink=function(btn){var b=document.createElement("span");b.className="bubble";b.setAttribute("role","status");b.textContent=c("copied");document.body.appendChild(b);
 try{var r=btn.getBoundingClientRect();b.style.left=r.left+"px";b.style.top=(r.top-36)+"px"}catch(e){b.style.left="50%";b.style.top="120px"}
 setTimeout(function(){b.remove()},1500)};
 document.addEventListener("keydown",function(e){
 var tg=e.target;if(tg&&(tg.tagName==="INPUT"||tg.tagName==="TEXTAREA"||tg.isContentEditable))return;
 if(e.key==="Escape"&&(S.phase==="ready"||S.phase==="error"))closeDetail()});
-renderList();renderDetail();
+renderChrome();renderList();renderDetail();
 </script>
 </body>
 </html>
