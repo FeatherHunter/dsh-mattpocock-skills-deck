@@ -181,22 +181,6 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https:
 
 </details>
 
-<h2 align="center"><sub>ARCHITECTURE</sub><br>架构</h2>
-
-<div align="center">
-
-整体结构、数据流与关键状态见 [在线预览](https://featherhunter.github.io/dsh-mattpocock-skills-deck/architecture/MattSkills-architecture.html)或本地 [MattSkills-architecture.html](docs/architecture/MattSkills-architecture.html)（克隆后直接打开）。
-
-</div>
-
-<h2 align="center"><sub>DEVELOPMENT</sub><br>开发</h2>
-
-<div align="center">
-
-开发说明（构建、验证、同步、发布）见 [DEV-WORKFLOW.md](docs/workflow/DEV-WORKFLOW.md)。
-
-</div>
-
 <h2 align="center"><sub>MORE</sub><br>作者的其他作品</h2>
 
 <div align="center">
