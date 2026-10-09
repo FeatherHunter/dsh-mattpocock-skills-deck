@@ -148,6 +148,7 @@ async function runSwitch (srcText, steps, from, to) {
       return 'askLayout'
     },
     promptText: (id, params) => id + '|' + String((params && params.from) || '') + '->' + String((params && params.to) || ''),
+    switchAlignPrompt: (st, targetId, from, to, layout) => 'switchAlign|' + String(from || '') + '->' + String(to || ''),
     chainSteps: setupChainSteps,
     guideStepsFor: GUIDE.guideStepsFor,
     guideStepDone: GUIDE.guideStepDone,
@@ -194,7 +195,8 @@ function makeSettle (steps, opts) {
     tr: (k) => String(k),
     flash: (st, msg, kind) => seen.flash.push({ msg: String(msg), kind: kind || '' }),
     inject: (st, text) => seen.inject.push(String(text)),
-    promptText: (id, params) => { seen.prompt.push({ id: id, params: params || null }); return id + '|' + String((params && params.from) || '') + '->' + String((params && params.to) || '') },
+    promptText: (id, params) => { seen.prompt.push({ id: id, params: params || null }); if (id === 'switchAlign') return 'DIRECT-promptText|' + String((params && params.from) || '') + '->' + String((params && params.to) || ''); return id + '|' + String((params && params.from) || '') + '->' + String((params && params.to) || '') },
+    switchAlignPrompt: (st, targetId, from, to, layout) => { seen.prompt.push({ id: 'switchAlign', targetId: targetId || null, from: from || '', to: to || '', layout: layout || null }); return 'switchAlign|' + String(from || '') + '->' + String(to || '') },
     injectSetupDecision: (st, id, o2) => { seen.decision.push({ id: id, allowCard: !!(o2 && o2.allowCard) }); return o.blocksSetup ? 'blocked' : 'setup' },
     // 轨迹那一段住在内核（statusbar/ 目录里不许新开日志点），这里顶上真身同形的替身，把记了什么收下来
     logSwitchSettle: (what, st) => seen.log.push({ level: 'debug', event: 'inject.decision', fields: { prompt: 'switchSettle', kind: String(what || ''), layout: String((st && st.setupLayout) || 'unset') } }),
@@ -217,8 +219,11 @@ function makeSettle (steps, opts) {
   check(changed.seen.inject[1] === 'switchLayout|setup.layoutMulti->setup.layoutSingle', '第二条是 switchLayout（改之前那一项 → 改之后那一项）—— 实得 ' + JSON.stringify(changed.seen.inject[1]))
   check(changed.seen.log.some((l) => l.fields && l.fields.kind === 'align-layout'), '布局对齐那一条留了一行轨迹（kind=align-layout）')
   check(changed.seen.log.some((l) => l.fields && l.fields.kind === 'align'), '后端对齐那一条也留了一行（kind=align）—— 与「只开了卡」在日志里分得开')
-  check(promptsSrc.slice(promptsSrc.indexOf('"switchLayout"')).includes('本工作区布局已从'), '新模板switchLayout是V15原文+首句（V4有意回归，不再单独写不要重跑）')
+  check(/不要重跑初始化/.test(promptsSrc.slice(promptsSrc.indexOf('"switchLayout"'))), '新模板里点名了「不要重跑初始化、不要重建已有产物」')
   check(/switchLayout/.test(promptsSrc) && /switchLayout/.test(setupSrc) === false, '模板在提示词表里，取值那一步在 statusbar（模板表与代码各一份，不混）')
+  check(/switchAlignPrompt/.test(promptsSrc), 'switchAlign 传参有单点函数 switchAlignPrompt（7 个值一次凑齐）')
+  check(/switchAlignPrompt\(s,/.test(sbSrc) && /switchAlignPrompt\(st,/.test(swSrc), '两处切换调用都走 switchAlignPrompt（收尾与兜底各一处）')
+  check(!/promptText\('switchAlign',\s*\{/.test(sbSrc) && !/promptText\('switchAlign',\s*\{/.test(swSrc), '切换两处不再直调 promptText 只传 from/to（防 5 个大括号裸奔）')
 
   const same = makeSettle(CHAIN_INITIALIZED)
   same.st.setupLayout = 'multi'
@@ -283,6 +288,7 @@ function makeStatusFlow (steps, opts) {
     flash: (st, msg, kind) => seen.flash.push({ msg: String(msg), kind: kind || '' }),
     inject: (st, text) => seen.inject.push(String(text)),
     promptText: (id, params) => id + '|' + String((params && params.from) || '') + '->' + String((params && params.to) || ''),
+    switchAlignPrompt: (st, targetId, from, to, layout) => 'switchAlign|' + String(from || '') + '->' + String(to || ''),
     injectSetupDecision: (st, id, o2) => { seen.decision.push({ id: id, allowCard: !!(o2 && o2.allowCard) }); return 'setup' },
     logSwitchSettle: (what) => seen.log.push({ kind: String(what || '') }),
     isEnabled: () => false,
@@ -335,7 +341,7 @@ console.log('== G 反证：三处实现各做坏一次，对应的断言必须�
     chainSteps: (st) => st.chainSnapshot.steps, guideStepsFor: GUIDE.guideStepsFor, guideStepDone: GUIDE.guideStepDone,
     firstBackendIdOf: () => 'github', tr: (k) => String(k),
     flash: () => {}, inject: (st, t) => seen2.inject.push(String(t)),
-    promptText: (id) => id + '|x->y', injectSetupDecision: (st, id, o) => { seen2.decision.push({ allowCard: !!(o && o.allowCard) }); return 'setup' },
+    promptText: (id) => id + '|x->y', switchAlignPrompt: () => 'switchAlign|x->y', injectSetupDecision: (st, id, o) => { seen2.decision.push({ allowCard: !!(o && o.allowCard) }); return 'setup' },
     logSwitchSettle: () => {}, isEnabled: () => false, log: () => {}, emit: () => {}, setTimeout, clearTimeout, console: { log () {}, warn () {}, error () {} },
   }
   const names2 = Object.keys(sb2)

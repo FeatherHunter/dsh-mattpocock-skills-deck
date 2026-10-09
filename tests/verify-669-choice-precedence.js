@@ -232,6 +232,7 @@ const makeSwitch = function (srcText) {
     // #698：切换那条路的两条收尾轨迹住在内核（statusbar/ 目录里不许新开日志点），这里顶上真身同形的替身
     logSwitchSettle: (what, st) => seen.log.push({ level: 'debug', event: 'inject.decision', fields: { prompt: 'switchSettle', kind: String(what || ''), layout: String((st && st.setupLayout) || 'unset') } }),
     promptText: (id, params) => (id === 'switchAlign' ? 'ALIGN|' + String((params && params.from) || '') + '->' + String((params && params.to) || '') : ''),
+    switchAlignPrompt: (st, targetId, from, to, layout) => 'ALIGN|' + String(from || '') + '->' + String(to || ''),
     chainSteps: chainStepsImpl,
     guideStepsFor: GUIDE.guideStepsFor,
     guideStepDone: GUIDE.guideStepDone,
@@ -311,6 +312,7 @@ const makeSettle = function (steps, opts) {
     flash: (st, msg, kind) => seen.flash.push({ msg: String(msg), kind: kind || '' }),
     inject: (st, text) => seen.inject.push(String(text)),
     promptText: (id, params) => { seen.prompt.push({ id: id, params: params || null }); return id === 'switchLayout' ? 'LAYOUT|' + String((params && params.from) || '') + '->' + String((params && params.to) || '') : 'ALIGN|' + String((params && params.from) || '') + '->' + String((params && params.to) || '') },
+    switchAlignPrompt: (st, targetId, from, to, layout) => { seen.prompt.push({ id: 'switchAlign', targetId: targetId || null, from: from || '', to: to || '', layout: layout || null }); return 'ALIGN|' + String(from || '') + '->' + String(to || '') },
     // 决策器真身（kernel/prompts-setup.js）：这一组只关心「还没初始化」那一支会不会把全文注进去
     injectSetupDecision: (st, id, o2) => { seen.decision = (seen.decision || []).concat([{ id: id, allowCard: !!(o2 && o2.allowCard) }]); return o.blocksSetup ? 'blocked' : 'setup' },
     isEnabled: () => o.debug === true,

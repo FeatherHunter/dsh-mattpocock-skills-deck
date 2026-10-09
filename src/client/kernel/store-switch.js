@@ -233,7 +233,7 @@
             // 卡没开成（例如链里连「工作区已初始化」这一步都没有，这一档走不到这里）—— 退回到原来那一条：
             //   直接注入「把后端对齐」，与 #669 第 6 件定的行为一致。
             try {
-              const _txt = (typeof promptText === 'function') ? promptText('switchAlign', { from: _fromLabel, to: _label }) : ''
+              const _txt = switchAlignPrompt(st, targetId, _fromLabel, _label, ((typeof readSetupLayout === 'function') ? readSetupLayout(st) : null))
               if (_txt && typeof inject === 'function') inject(st, _txt)
               // 日志点（按需 #64 inject.decision，沿用初始化那条的字段与开关纪律）：切换之后到底给出去的是什么。
               //   此前这一段没有任何轨迹，真机出现「切完没有任何指令」时只能靠猜；这里只记三个枚举，不记文案与路径。
