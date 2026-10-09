@@ -74,10 +74,11 @@ export const SkillsTab = ({ st }: any): any => {
         st: st,
         onRetry: function () { if (typeof pixelRetryDetail === 'function') pixelRetryDetail(st) },
       })
+      // 整个页签（头行 + 推荐 + 列表/圆环 + 详情）都包在 .pixel-tab 里：原型那一页的底色与像素语言
       if (st.skillView === 'ring') {
-        return h('div', { style: { position: 'relative' } }, [head, h(RingSkills, { st: st, rec: rec, list: SKILLS }), detail])
+        return h('div', { className: 'pixel-tab' }, [head, h(RingSkills, { st: st, rec: rec, list: SKILLS }), detail])
       }
-      return h('div', { style: { position: 'relative' } }, [
+      return h('div', { className: 'pixel-tab' }, [
         head,
         h('div', { style: { marginBottom: 8 } }, rec.map(function (r, i) {
           return h('span', { key: i, className: 'dsws-chip dsws-chip-m' }, '/' + r)

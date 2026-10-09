@@ -68,5 +68,22 @@ export const PIXEL_STYLE_TEXT = [
   "@keyframes pixel-ferr{0%{background:#fbe3e1}100%{background:var(--pixel-paper)}}",
   ".pixel-shake{animation:pixel-shk .4s steps(4,end)}",
   "@keyframes pixel-shk{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}",
+  // ---- 文字色兜底（2026-10-10 真机修复）----
+  // 面板走深色主题，宿主给正文的默认字色是浅色（#e6edf3）。原型的纸面上是深字，但那些元素
+  // 只在原型页面的 body 上设过一次 color，搬进面板后没人给容器钉字色，浅色就渗进来 ——
+  // 真机表现就是「弹窗里字都发白看不清」。这里把 ink 钉在每一层容器上，里层再各自覆盖。
+  ".pixel-skillrow,.pixel-modal,.pixel-top,.pixel-statusline,.pixel-doc,.pixel-banner,.pixel-toc,.pixel-body,.pixel-bot{color:var(--pixel-ink)}",
+  ".pixel-doc h1,.pixel-doc h2,.pixel-doc h3,.pixel-doc strong,.pixel-doc li,.pixel-doc p{color:var(--pixel-ink)}",
+  ".pixel-doc blockquote{color:var(--pixel-ink2)}",
+  ".pixel-top span,.pixel-statusline span,.pixel-bot span{color:inherit}",
+  // ---- 整个技能页签（不只是列表块）----
+  // 原型那一页的底是棕色棋盘纸，卡片压在纸上。页签根节点自己铺这个底，头行、段选与推荐徽章
+  // 都改成像素语言；类名一律以 .pixel-tab 起头，避免影响别的页签（.dsws-* 是共用的）。
+  ".pixel-tab{position:relative;background-color:#8a6f4d;background-image:repeating-conic-gradient(#93764f 0% 25%,#8a6f4d 0% 50%);background-size:8px 8px;border:4px solid var(--pixel-frame);box-shadow:6px 6px 0 var(--pixel-shadow);padding:10px}",
+  ".pixel-tab .dsws-grp{color:var(--pixel-paper);font-weight:700;letter-spacing:1px}",
+  ".pixel-tab .dsws-grp svg{color:var(--pixel-paper)}",
+  ".pixel-tab .dsws-seg{font:700 11px ui-monospace,Menlo,Consolas,monospace;background:var(--pixel-paper);color:var(--pixel-ink);border:2px solid var(--pixel-frame);box-shadow:2px 2px 0 var(--pixel-shadow);padding:1px 8px;border-radius:0;cursor:pointer}",
+  ".pixel-tab .dsws-seg.on{background:var(--pixel-acc);color:#fff}",
+  ".pixel-tab .dsws-chip{font:700 11px ui-monospace,Menlo,Consolas,monospace;background:var(--pixel-card);color:var(--pixel-ink);border:2px solid var(--pixel-frame);box-shadow:2px 2px 0 var(--pixel-shadow);border-radius:0;padding:0 7px}",
   "@media (prefers-reduced-motion:reduce){.pixel-btn,.pixel-skillrow,.pixel-skel,.pixel-f-ok,.pixel-f-err,.pixel-shake,.pixel-spin{animation:none!important;transition:none!important}}"
 ];

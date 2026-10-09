@@ -62,9 +62,9 @@ export const SkillsTab = ({ st }) => {
     }
   });
   if (st.skillView === "ring") {
-    return h("div", { style: { position: "relative" } }, [head, h(RingSkills, { st, rec, list: SKILLS }), detail]);
+    return h("div", { className: "pixel-tab" }, [head, h(RingSkills, { st, rec, list: SKILLS }), detail]);
   }
-  return h("div", { style: { position: "relative" } }, [
+  return h("div", { className: "pixel-tab" }, [
     head,
     h("div", { style: { marginBottom: 8 } }, rec.map(function(r, i) {
       return h("span", { key: i, className: "dsws-chip dsws-chip-m" }, "/" + r);
