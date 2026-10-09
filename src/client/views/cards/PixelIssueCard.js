@@ -26,6 +26,17 @@ export const PixelIssueCard = function(props) {
   };
   const cls = "cd-card" + (p.closed ? " old closed" : "") + (blocked && !lit ? " dim" : "") + (lit ? " lit" : "");
   const corner = p.bugCorner ? "bug" : p.closed ? null : p.pickCorner === "ready" ? "ready" : p.pickCorner === "doing" ? "doing" : null;
+  const setLitNow = function(e, v) {
+    try {
+      const el = e && e.currentTarget ? e.currentTarget : null;
+      if (el && el.classList) {
+        if (v) el.classList.add("lit");
+        else el.classList.remove("lit");
+      }
+    } catch (err) {
+      void err;
+    }
+  };
   const kids = [];
   kids.push(h(PixelCardPin, { key: "pin", kind: p.closed ? "tape" : void 0 }));
   if (corner) kids.push(h(PixelCornerMark, { key: "cor", kind: corner }));
@@ -39,20 +50,25 @@ export const PixelIssueCard = function(props) {
   if (p.note) kids.push(h(PixelCardNote, { key: "nt", text: p.note }));
   kids.push(h(PixelCardBtns, { key: "ab", mainLabel: tr("card.act." + (p.action || "execute")), icon: st.icon, mainColor, onMain: p.onMain || null, onNew: p.onNew || null, onCopy: p.onCopy || null, onOpen: p.onOpen || null }));
   kids.push(h(PixelCardFoot, { key: "ft", left: tr("card.updated", { n: p.updatedText || "" }), right: p.footActionText || "" }));
-  if (blocked && !lit) kids.push(h(PixelDimVeil, { key: "veil" }));
+  if (blocked) kids.push(h(PixelDimVeil, { key: "veil" }));
   if (p.linkedId || blocked) kids.push(h(PixelBlockerChip, { key: "chip", no: p.blockedBy && p.blockedBy.no || "", title: p.blockedBy && p.blockedBy.title || "" }));
   const attrs = { className: cls, style: { "--cd-act": "#" + mainColor } };
   if (p.cardId) attrs.id = p.cardId;
   if (p.linkedId) attrs["data-link"] = p.linkedId;
   if (blocked || p.linkedId) {
     attrs.tabIndex = 0;
-    attrs.onClick = function() {
+    attrs.onClick = function(e) {
+      setLitNow(e, true);
       flip(true);
     };
     attrs.onFocus = function(e) {
-      if (e && e.target === e.currentTarget) flip(true);
+      if (e && e.target === e.currentTarget) {
+        setLitNow(e, true);
+        flip(true);
+      }
     };
     attrs.onBlur = function(e) {
+      setLitNow(e, false);
       try {
         if (e && e.currentTarget && e.relatedTarget && e.currentTarget.contains(e.relatedTarget)) return;
       } catch (err) {
@@ -67,6 +83,17 @@ export const PixelBlockerTicket = function(props) {
   const p = props || {};
   const cx = React.useContext(DswsCtx);
   const h = cx ? cx.h : React.createElement;
+  const setLitNow = function(e, v) {
+    try {
+      const el = e && e.currentTarget ? e.currentTarget : null;
+      if (el && el.classList) {
+        if (v) el.classList.add("lit");
+        else el.classList.remove("lit");
+      }
+    } catch (err) {
+      void err;
+    }
+  };
   const kids = [];
   kids.push(h(PixelCardPin, { key: "pin" }));
   kids.push(h("div", { key: "hd", className: "cd-hd" }, h(PixelCardNo, { text: p.noText, action: "execute", colorOf: p.colorOf || null })));

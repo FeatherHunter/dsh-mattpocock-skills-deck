@@ -33,6 +33,14 @@ export const PixelIssueMapCard = function (props?: IssueMapCardProps): any {
   const selPair = React.useState(false);
   const sel = selPair[0];
   const cls = "cd-card wide" + (p.open ? "" : " old closed") + (blocked && !lit ? " dim" : "") + (lit ? " lit" : "") + (sel ? " on" : "");
+  const setLitNow = function (e: any, v: boolean): void {
+    // 立刻给本卡加上或摘掉 lit，让红条与暗层不依赖这一次 React 重渲染是否发生
+    // （右边的挡路卡本来就是直接改 DOM 类；两边走同一套，才是同一件事）。
+    try {
+      const el = e && e.currentTarget ? e.currentTarget : null;
+      if (el && el.classList) { if (v) el.classList.add('lit'); else el.classList.remove('lit'); }
+    } catch (err) { void err; }
+  };
   const kids: any[] = [];
   kids.push(h(PixelCardPin, { key: 'pin', kind: 'sealtop' }));
   const noEl = h('span', { key: 'no', className: 'cd-nonum', style: { background: '#8b5cf6', color: '#fff' } }, '#' + (p.mapNo || ''));
@@ -45,15 +53,17 @@ export const PixelIssueMapCard = function (props?: IssueMapCardProps): any {
   kids.push(h(PixelCardBtns, { key: 'ab', mainLabel: tr('card.execute'), icon: 'play', mainColor: '8b5cf6' }));
   kids.push(h(PixelCardFoot, { key: 'ft', left: tr('card.updated', { n: p.updatedText || '' }), right: '' }));
   kids.push(h(PixelMapCorner, { key: 'mc' }));
-  if (blocked && !lit) kids.push(h(PixelDimVeil, { key: 'veil' }));
+  if (blocked) kids.push(h(PixelDimVeil, { key: 'veil' }));
+  if (blocked && p.blockedBy) kids.push(h(PixelBlockerChip, { key: 'chip', no: p.blockedBy.no, title: p.blockedBy.title }));
   const attrs: any = { className: cls, style: { "--cd-act": "#8b5cf6" } };
   if (p.cardId) attrs.id = p.cardId;
   if (p.linkedId) attrs["data-link"] = p.linkedId;
   if (blocked || p.linkedId) {
     attrs.tabIndex = 0;
-    attrs.onClick = function (): void { flip(true); };
-    attrs.onFocus = function (e: any): void { if (e && e.target === e.currentTarget) flip(true); };
+    attrs.onClick = function (e: any): void { setLitNow(e, true); flip(true); };
+    attrs.onFocus = function (e: any): void { if (e && e.target === e.currentTarget) { setLitNow(e, true); flip(true); } };
     attrs.onBlur = function (e: any): void {
+      setLitNow(e, false);
       try { if (e && e.currentTarget && e.relatedTarget && e.currentTarget.contains(e.relatedTarget)) return; } catch (err) { void err; }
       flip(false);
     };

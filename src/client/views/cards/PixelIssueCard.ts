@@ -37,6 +37,14 @@ export const PixelIssueCard = function (props?: IssueCardProps): any {
   };
   const cls = "cd-card" + (p.closed ? " old closed" : "") + (blocked && !lit ? " dim" : "") + (lit ? " lit" : "");
   const corner = p.bugCorner ? "bug" : (p.closed ? null : (p.pickCorner === "ready" ? "ready" : (p.pickCorner === "doing" ? "doing" : null)));
+  const setLitNow = function (e: any, v: boolean): void {
+    // 立刻给本卡加上或摘掉 lit，让红条与暗层不依赖这一次 React 重渲染是否发生
+    // （右边的挡路卡本来就是直接改 DOM 类；两边走同一套，才是同一件事）。
+    try {
+      const el = e && e.currentTarget ? e.currentTarget : null;
+      if (el && el.classList) { if (v) el.classList.add('lit'); else el.classList.remove('lit'); }
+    } catch (err) { void err; }
+  };
   const kids: any[] = [];
   kids.push(h(PixelCardPin, { key: 'pin', kind: p.closed ? 'tape' : undefined }));
   if (corner) kids.push(h(PixelCornerMark, { key: 'cor', kind: corner }));
@@ -50,16 +58,17 @@ export const PixelIssueCard = function (props?: IssueCardProps): any {
   if (p.note) kids.push(h(PixelCardNote, { key: 'nt', text: p.note }));
   kids.push(h(PixelCardBtns, { key: 'ab', mainLabel: tr('card.act.' + (p.action || 'execute')), icon: st.icon, mainColor, onMain: p.onMain || null, onNew: p.onNew || null, onCopy: p.onCopy || null, onOpen: p.onOpen || null }));
   kids.push(h(PixelCardFoot, { key: 'ft', left: tr('card.updated', { n: p.updatedText || '' }), right: p.footActionText || '' }));
-  if (blocked && !lit) kids.push(h(PixelDimVeil, { key: 'veil' }));
+  if (blocked) kids.push(h(PixelDimVeil, { key: 'veil' }));
   if (p.linkedId || blocked) kids.push(h(PixelBlockerChip, { key: 'chip', no: (p.blockedBy && p.blockedBy.no) || '', title: (p.blockedBy && p.blockedBy.title) || '' }));
   const attrs: any = { className: cls, style: { "--cd-act": "#" + mainColor } };
   if (p.cardId) attrs.id = p.cardId;
   if (p.linkedId) attrs["data-link"] = p.linkedId;
   if (blocked || p.linkedId) {
     attrs.tabIndex = 0;
-    attrs.onClick = function (): void { flip(true); };
-    attrs.onFocus = function (e: any): void { if (e && e.target === e.currentTarget) flip(true); };
+    attrs.onClick = function (e: any): void { setLitNow(e, true); flip(true); };
+    attrs.onFocus = function (e: any): void { if (e && e.target === e.currentTarget) { setLitNow(e, true); flip(true); } };
     attrs.onBlur = function (e: any): void {
+      setLitNow(e, false);
       try { if (e && e.currentTarget && e.relatedTarget && e.currentTarget.contains(e.relatedTarget)) return; } catch (err) { void err; }
       flip(false);
     };
@@ -70,6 +79,14 @@ export const PixelBlockerTicket = function (props?: BlockerTicketProps): any {
   const p: BlockerTicketProps = props || {};
   const cx = React.useContext(DswsCtx);
   const h = cx ? cx.h : React.createElement;
+  const setLitNow = function (e: any, v: boolean): void {
+    // 立刻给本卡加上或摘掉 lit，让红条与暗层不依赖这一次 React 重渲染是否发生
+    // （右边的挡路卡本来就是直接改 DOM 类；两边走同一套，才是同一件事）。
+    try {
+      const el = e && e.currentTarget ? e.currentTarget : null;
+      if (el && el.classList) { if (v) el.classList.add('lit'); else el.classList.remove('lit'); }
+    } catch (err) { void err; }
+  };
   const kids: any[] = [];
   kids.push(h(PixelCardPin, { key: 'pin' }));
   kids.push(h('div', { key: 'hd', className: 'cd-hd' }, h(PixelCardNo, { text: p.noText, action: 'execute', colorOf: p.colorOf || null })));

@@ -1,7 +1,6 @@
 /** views/cards/PixelCardBtns.ts - four-button action row with icons. */
 import type { CardBtnsProps, CardIconProps } from './cardBits';
 declare const cardInkOn: (hex: string) => string;
-declare const Tip: (props?: any) => any;
 const ICB: Record<string, string> = {
   chat: "<path d=\"M21 15a2 2 0 01-2 2H8l-5 4V5a2 2 0 012-2h14a2 2 0 012 2z\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>",
   play: "<path d=\"M8 5.5l11 6.5-11 6.5z\" fill=\"currentColor\" stroke=\"none\"/>",
@@ -30,7 +29,7 @@ export const PixelCardBtns = function (props?: CardBtnsProps): any {
   return h('div', { className: 'cd-actions' }, [
     h('button', { key: 'm', className: 'cd-abtn label', style: st, onClick: function (e: any): void { stop(e); if (p.onMain) p.onMain(); } }, [h(PixelCardIcon, { key: 'i', n: p.icon }), p.mainLabel]),
     h('button', { key: 'n', className: 'cd-abtn label', style: st, onClick: function (e: any): void { stop(e); if (p.onNew) p.onNew(); } }, [h(PixelCardIcon, { key: 'i', n: 'ext' }), tr('card.newSession')]),
-    h(Tip, { key: 'c', content: tr('card.copyLink') }, h('button', { className: 'cd-abtn paper icon', onClick: function (e: any): void { stop(e); if (p.onCopy) p.onCopy(); } }, h(PixelCardIcon, { n: 'clip' }))),
-    h(Tip, { key: 'o', content: tr('card.openLink') }, h('button', { className: 'cd-abtn paper icon', onClick: function (e: any): void { stop(e); if (p.onOpen) p.onOpen(); } }, h(PixelCardIcon, { n: 'link' }))),
+    h('button', { key: 'c', className: 'cd-abtn paper icon', title: tr('card.copyLink'), onClick: function (e: any): void { stop(e); if (p.onCopy) p.onCopy(); } }, h(PixelCardIcon, { n: 'clip' })),
+    h('button', { key: 'o', className: 'cd-abtn paper icon', title: tr('card.openLink'), onClick: function (e: any): void { stop(e); if (p.onOpen) p.onOpen(); } }, h(PixelCardIcon, { n: 'link' })),
   ]);
 };

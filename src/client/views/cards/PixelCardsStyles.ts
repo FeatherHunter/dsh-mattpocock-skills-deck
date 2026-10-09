@@ -48,6 +48,7 @@ export const PIXEL_CARDS_STYLE_TEXT: string[] = [
   '.cd-blocker .bk{font-size:11px;color:#a3231a;font-weight:700;font-family:ui-monospace,monospace}',
   '.cd-blocker .bt{font-size:12px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}',
   '.cd-dimveil{position:absolute;inset:-12px;background:rgba(58,36,19,.42);color:#fff9ec;display:flex;align-items:center;justify-content:center;font-size:12px;letter-spacing:2px;pointer-events:none;z-index:5}',
+  '.cd-card.lit .cd-dimveil{display:none}',
   '.cd-card .cd-bchip{display:none;position:absolute;left:8px;top:8px;z-index:8;max-width:240px}',
   '.cd-card.lit .cd-bchip{display:block}',
   '.cd-bchip b{display:block;background:#a3231a;color:#fff;font-weight:700;font-size:12px;padding:3px 10px;border:2px solid #241a0c;box-shadow:3px 3px 0 var(--cd-shadow);text-shadow:1px 1px 0 #000;white-space:nowrap}',
