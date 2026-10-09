@@ -31,7 +31,7 @@ async function main() {
     finish()
     return
   }
-  const { createGhAdmission, getGhLane, READ_BUCKET_MAX, WRITE_BUCKET_MAX, isAdmissionCancelled } = mod
+  const { createGhAdmission, getGhLane, READ_BUCKET_MAX, WRITE_BUCKET_MAX, isAdmissionCancelled, ADMISSION_CANCELLED } = mod
 
   check(READ_BUCKET_MAX === 8, '读桶暂定值是 8（终值等测量回填）', '实得 ' + String(READ_BUCKET_MAX))
   check(WRITE_BUCKET_MAX === 2, '写桶暂定值是 2（终值等测量回填）', '实得 ' + String(WRITE_BUCKET_MAX))
@@ -90,6 +90,15 @@ async function main() {
     ctl.abort()
     const r1 = await queued
     check(r1.ok === false && r1.cancelled === true, '排队中被取消：调用方看到取消而不是失败')
+    // 取消标记是契约：排队取消的错误带着 ADMISSION_CANCELLED 码，调用方靠它区分取消与失败。
+    const ctl3 = new AbortController()
+    const lane3 = createGhAdmission({ readMax: 1, writeMax: 1 })
+    const hold3 = await lane3.acquire({ bucket: 'read' })
+    const q3 = lane3.acquire({ bucket: 'read', signal: ctl3.signal }).then(() => null, (e) => e)
+    ctl3.abort()
+    const e3 = await q3
+    check(e3 && e3.code === ADMISSION_CANCELLED, '取消错误的码是 ADMISSION_CANCELLED（实得 ' + String(e3 && e3.code) + '）')
+    hold3()
     const snapMid = lane.snapshot()
     check(snapMid.cancelled === 1, '被取消的记入取消数（实得 ' + snapMid.cancelled + '），不记入失败')
     releaseFirst()

@@ -66,14 +66,14 @@ export function isPreflightCommand(cmd, args) {
   return false
 }
 
-/** 这条调用的身份键：只取决定「问的是不是同一件事」的那几个字段，绝不含工作区路径原文。 */
+/** 这条调用的身份键：只取决定「问的是不是同一件事」的那几个字段，绝不含工作区路径原文。
+ *  等多久（timeout）不算“哪件事”：同一轮里探活与谓词各自带的超时不同，带着它两边认不出同一条，白问两遍（#963）。 */
 function keyOf(cmd, args, opts) {
   const o = opts || {}
   const parts = [
     String(cmd || ''),
     (args || []).map(String).join(' '),
     String(o.cwd || ''),
-    (o.timeout == null ? '' : String(o.timeout)),
   ]
   return parts.join('\u0000')
 }
