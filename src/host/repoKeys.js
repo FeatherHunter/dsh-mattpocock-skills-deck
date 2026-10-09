@@ -10,6 +10,7 @@
 // 报账单位是**真实出站请求条数**：一条 gh/git/glab 命令就是一条（分页、重试、兜底链由调用方各自再报）。
 import { timeoutForGhArgs, isWriteGhArgs } from '../shared/tracker/outbound-tiers.js'
 import { getGhLane } from '../shared/tracker/outbound-admission.js'
+import { getChainRide } from '../shared/refresh/chain-ride.js'
 export function createRepoKeys(deps) {
   const { subprocess, timer, fs, DEFAULT_CWD, TIMEOUT_MS, repoKeys, repoRoots, getGhPath, setGhPath, getGhLastError, setGhLastError, getPlatform, getWorkspaceStore, setCache, clearWorkspaceStore, namingSweepSoon, getChainBackoff, parseGithubRepo, logCtx, gate, getGate } = deps
   // 共享状态归 index.js 单一持有：ghPath/ghLastError 经存取器（基本类型重赋值不能按引用共享）；repoKeys/repoRoots 按引用共享（只做属性读写与删除，从不整体重赋值）。
@@ -135,6 +136,8 @@ export function createRepoKeys(deps) {
         }
       } catch (e) {}
       try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, kind: 'ok', exitCode: 0 }) } catch (eL) {}
+      // #966 收口：写成功记一笔搭车账，写过东西之后来的探测不搭旧车。
+      try { if (isWriteGhArgs(args)) getChainRide().markWrite() } catch {}
       try { if (rkRelease) rkRelease() } catch {}
       return { ok: true, text: out.text || '' }
     }
