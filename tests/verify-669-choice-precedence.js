@@ -394,7 +394,9 @@ console.log('== D 静态层：删掉的那颗按钮、置灰的三处、中英�
   // #792：这一条原来把版本号钉成 version: 1，可 #698 给这条模板补上布局切换后版本就抬到 2、#792 又抬到 3，
   //   断言跟着每次 bump 变红 —— 它想守的是「这条模板在注册表里、且带 from/to 两个占位符」，不是某一个版本号。
   //   版本号本身该不该动由 verify-prompts.js 的版本底线表管，这里不再重复钉一遍。
-  check(/"switchAlign": \{ version: 4, placeholders: \['trackerLine', 'trackerChoice', 'backendNote', 'labelReqs', 'contextLayout', 'from', 'to'\]/.test(promptsSrc), '新模板 switchAlign 在注册表里（V4七个占位符：5个同V15+from/to）')
+  //   2026-10-10 补正：上面这段道理是对的，可断言正文里还钉着 version: 4 —— 模板一 bump（v5）它照样变红，
+  //   正是它自己说要避免的那种「每次 bump 都要来改一次」。改成不钉具体版本号，只守「这条在注册表里、占位符是这七个」。
+  check(/"switchAlign": \{ version: \d+, placeholders: \['trackerLine', 'trackerChoice', 'backendNote', 'labelReqs', 'contextLayout', 'from', 'to'\]/.test(promptsSrc), '新模板 switchAlign 在注册表里（七个占位符：5个同V15+from/to；版本号不在此处钉）')
   check(/\/setup-matt-pocock-skills/.test(promptsSrc.slice(promptsSrc.indexOf('"switchAlign"'), promptsSrc.indexOf('"newWayfinder"'))), '新模板点名了 /setup-matt-pocock-skills（维护者要求）')
   // 全仓扫一遍：往宿主上报「这次问的是哪个后端」的每一行都必须过 userHintOf 那道闸 ——
   //   漏一处就等于派生值又能冒充用户意图（2026-09-21 对抗式审查就是这样抓到 ChainRenderer / NoRepoCard 两处的）。
