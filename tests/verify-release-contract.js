@@ -69,7 +69,8 @@ function normalizeVersion(input) {
   let v = input.trim();
   if (!v) return null;
   if (!v.startsWith("v")) v = "v" + v;
-  if (!/^v\d+\.\d+\.\d+$/.test(v)) return null;
+  // 预发布号（如 v1.8.0-beta.1）也收：它是 npm 上先行测试版的正式写法，但不算对外宣布的稳定版。
+  if (!/^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(v)) return null;
   return v;
 }
 
@@ -93,6 +94,8 @@ if (!targetVersion) {
   process.exit(2);
 }
 targetNum = targetVersion.slice(1);
+// 预发布与稳定版走不同断言：预发布不签 README／英文文档／包说明的版本锁定（那三处跟的是上一个稳定版）。
+const isPrerelease = targetNum.includes('-');
 
 console.log("verify-release-contract — 单一高层的发布契约校验");
 console.log(`目标版本：${targetVersion}（数字：${targetNum}）`);
@@ -108,6 +111,11 @@ assert(rootPkg && rootPkg.version === targetNum, `根 package.json 版本 == ${t
 assert(pkgPkg && pkgPkg.version === targetNum, `package/package.json 版本 == ${targetNum}（实际 ${pkgPkg?.version || "缺失"}）`);
 assert(rootPkg?.version === pkgPkg?.version, `根与包清单版本同源（${rootPkg?.version} vs ${pkgPkg?.version}）`);
 
+if (isPrerelease) {
+  // 预发布不签这三处版本锁定：README、英文文档、包说明跟的都是上一个稳定版，
+  // 把测试版号写进去，等转正时还要再改一遍，得不偿失。
+  assert(true, `预发布 ${targetNum}：README 三处版本锁定与英文文档、包说明首段的版本锁定跳过（它们跟上一个稳定版）`);
+} else {
 // README 三处锁定
 const readme = read("README.md") || "";
 const readmeCountV = (readme.match(new RegExp(targetVersion.replace(".", "\\."), "g")) || []).length;
@@ -133,6 +141,7 @@ assert(enCount >= 1, `docs/README.en.md 含 ${targetNum} 至少 1 处（实际 $
 const pkgReadme = read("package/README.md") || "";
 const pkgReadmeFirst = pkgReadme.slice(0, 2000);
 assert(pkgReadmeFirst.includes(targetVersion) || pkgReadmeFirst.includes(targetNum), `package/README.md 首段含 ${targetVersion}（或 ${targetNum}）`);
+}
 
 // 构建产物中的版本注入（可选，若产物存在）
 const clientJs = read("client.js") || read("package/lib/client.js") || "";
@@ -198,7 +207,7 @@ if (changelog) {
   const hasHeader = /##\s+\d{4}-\d{2}-\d{2}.*v?\d+\.\d+\.\d+/.test(changelog);
   assert(hasHeader, `CHANGELOG.md 含日期+版本的标准节头（统一模板）`);
   // 若 CHANGELOG 的最新节版本 != 目标，提醒待改
-  const firstHeaderMatch = changelog.match(/v(\d+\.\d+\.\d+)/);
+  const firstHeaderMatch = changelog.match(/v(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)/);
   const firstVer = firstHeaderMatch ? "v" + firstHeaderMatch[1] : null;
   if (firstVer) {
     assert(firstVer === targetVersion, `CHANGELOG 最新节版本 == 目标 ${targetVersion}（实际 ${firstVer}）`);

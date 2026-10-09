@@ -18,6 +18,11 @@
 #     -RepoRoot 缺省＝本脚本上一级；-Registry 缺省 https://registry.npmjs.org/
 #     -TokenEnv 缺省 NODE_AUTH_TOKEN（为空再试 NPM_TOKEN）；-LogPath 缺省 <仓根>\.tmp-publish-token.log
 #     -SkipGate 跳过构建与测试门禁（门禁已在别处跑绿时用；本仓 test 较重：verify＋smoke 全套）
+#     -Tag       发布到哪个 dist-tag，缺省 latest（所有人都默认拿到的那一个）。
+#                发测试版必须显式 -Tag beta：registry 上 tag 只是指向某个版本的别名，
+#                包的存储不按 tag 分目录，latest 指到哪，别人装的就是哪一版。
+#                本脚本带预发布闸：Tag 不是 latest 时，版本号必须是 X.Y.Z-beta.N 这样的预发布号，
+#                否则拒绝（否则一个正式号会被永久压在测试标签下，转正还得再抬号）。
 #
 # 快协议（受理≠可见，两者解耦）：publish exit 0（+包名@版本回执）或 E409 previously-staged
 # 即证明 registry 收下，此时记 DONE（附 STAGED-待可见），不再盲等；可见性只一次采样，
@@ -32,7 +37,8 @@ param(
   [switch]$DryRun,
   [switch]$Probe,
   [switch]$FullPost,
-  [switch]$SkipGate
+  [switch]$SkipGate,
+  [string]$Tag = 'latest'
 )
 $ErrorActionPreference = 'Continue'
 if ($LogPath -eq '') { $LogPath = Join-Path $RepoRoot '.tmp-publish-token.log' }
@@ -127,7 +133,7 @@ try {
     $c = $cand[0]
     Log ('PROBE 重发 ' + $c.name + '@' + $c.version + '（云端已有，期望 E409；无副作用）')
     Push-Location $c.dir
-    $pout = npm @npmBase publish --access public --registry=$Registry 2>&1 | Out-String
+    $pout = npm @npmBase publish --access public --tag $Tag --registry=$Registry 2>&1 | Out-String
     Pop-Location
     $psafe = (Mask $pout).Trim()
     if ($psafe -match 'cannot publish over|previously published|previously staged|E409|409 Conflict') { Log 'PROBE-OK 写权限成立（registry 拒收已存在版本＝写链路通）'; exit 0 }
@@ -136,6 +142,14 @@ try {
   }
   if ($todo.Count -eq 0) { Log 'DONE 本次没有要发的包'; exit 0 }
   Log ('PLAN 待发 ' + $todo.Count + ' 个：' + (($todo | ForEach-Object { $_.name + '@' + $_.version }) -join ', '))
+  # 预发布闸：非 latest 的 tag 只许配预发布号，防止把正式号压在测试标签下。
+  foreach ($p in $todo) {
+    if ($Tag -ne 'latest' -and ($p.version -notmatch '-')) {
+      Log ('FAIL 版本 ' + $p.version + ' 不是预发布号，不能发到 tag ' + $Tag + '：请先把版本号写成 X.Y.Z-beta.N')
+      exit 1
+    }
+  }
+  Log ('TAG ' + $Tag + '（latest 是所有人默认拿到的；其他 tag 只有显式安装才拿到，所以测试版发 beta 不会推给其他用户）')
   if ($DryRun) { Log 'DRYRUN 只验到这里，不跑门禁不发布'; exit 0 }
 
   # ── 门禁：构建＋测试（仓根跑一次；较重，可 -SkipGate 跳过） ─────────────
@@ -155,7 +169,7 @@ try {
   foreach ($p in $todo) {
     Log ('PKG-BEGIN ' + $p.name + '@' + $p.version)
     Push-Location $p.dir
-    $out = npm @npmBase publish --access public --registry=$Registry 2>&1 | Out-String
+    $out = npm @npmBase publish --access public --tag $Tag --registry=$Registry 2>&1 | Out-String
     $code = $LASTEXITCODE
     Pop-Location
     $safe = (Mask $out).Trim()
@@ -166,7 +180,7 @@ try {
       if (Test-Visible $p.name $p.version) { Log ('VERIFIED ' + $p.name + '@' + $p.version + '（即时可见）') }
       else {
         Push-Location $p.dir
-        $rout = npm @npmBase publish --access public --registry=$Registry 2>&1 | Out-String
+        $rout = npm @npmBase publish --access public --tag $Tag --registry=$Registry 2>&1 | Out-String
         Pop-Location
         if ((Mask $rout) -match 'previously staged version|E409|409 Conflict') {
           Log ('STAGED ' + $p.name + '@' + $p.version + '（已受理、待可见）'); $staged += ($p.name + '@' + $p.version)

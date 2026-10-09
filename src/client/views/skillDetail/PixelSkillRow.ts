@@ -10,19 +10,21 @@
 import type { PixelSkillRowProps, PixelDotProps, PixelBtnProps } from '../pixelProps';
 declare const PixelDot: (props?: PixelDotProps) => any;
 declare const PixelBtn: (props?: PixelBtnProps) => any;
+declare const Tip: (props?: any) => any;
 export const PixelSkillRow = function (props?: PixelSkillRowProps): any {
   const p = props || ({} as PixelSkillRowProps)
   const cx = React.useContext(DswsCtx)
   const h = cx ? cx.h : React.createElement
   const level = p.level === 'warn' ? 'warn' : p.level === 'bad' ? 'bad' : 'ok'
   const dc = level === 'bad' ? '#a3231a' : level === 'warn' ? '#f59e0b' : '#0e8a16'
-  return h('div', { className: 'pixel-skillrow' + (p.recommended ? ' rec' : ''), style: { '--pixel-dc': dc }, title: p.use || undefined }, [
+  return h('div', { className: 'pixel-skillrow' + (p.recommended ? ' rec' : ''), style: { '--pixel-dc': dc } }, [
     h(PixelDot, { key: 'd', level: level }),
     h('div', { key: 'n', className: 'pixel-sname' }, [
       '/' + p.name,
       p.recommended ? h('span', { key: 's', className: 'pixel-star' }, ' ★') : null,
     ]),
-    h('div', { key: 'u', className: 'pixel-suse' }, p.use),
+    // 副标题超宽会被省略号裁掉，悬停给全文——走 Tip，不用原生 title（T2/T3 纪律）。
+    h(Tip, { key: 'u', content: p.use || '' }, h('div', { className: 'pixel-suse' }, p.use)),
     p.onLoad ? h(PixelBtn, {
       key: 'l',
       onClick: function () { if (typeof p.onLoad === 'function') p.onLoad(p.name as string) },

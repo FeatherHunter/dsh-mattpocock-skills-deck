@@ -243,7 +243,9 @@ check(recOf({ navStack: [{ kind: 'map', n: 1, effortId: '' }, { kind: 'issue', n
 check(recOf({ navStack: [{ kind: 'issue', n: 5, effortId: '' }] }) === null, '矩阵：纯工单栈无地图祖先，回通用推荐')
 check(recOf({ navStack: [] }) === null, '矩阵：空栈回通用推荐')
 check(recOf({ activeMap: 7 }) === 7, '矩阵：旧对象无栈时按镜像兜底')
-check(skillSrc.includes("e.kind === 'map'") && skillSrc.includes('recMapNum'), '矩阵：推荐源从栈顶往下找第一个地图层')
+// 2026-10-09：技能页签转入 TS 真源后由 esbuild 转译，字符串统一成双引号，这条文本断言改成两种引号都认
+//   （行为本身由上面五条矩阵断言当场跑真算式校验，这条只是留个「算式还在」的标记）。
+check(/e\.kind === ['"]map['"]/.test(skillSrc) && skillSrc.includes('recMapNum'), '矩阵：推荐源从栈顶往下找第一个地图层')
 
 // ============ 七、子票与阻塞票种类分流（跑工单源文件里截出来的真函数） ============
 const subBundleSrc = ['subLabelsOf', 'subHasRoutingInfo', 'subHasMapTag', 'enterSubDetail'].map((n) => extractConst(issueSrc, n)).join('\n')
