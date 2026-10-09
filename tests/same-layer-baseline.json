@@ -839,6 +839,15 @@
       "count": 1,
       "owner": "#875 薄接线",
       "note": "宿主入口到更新包接线的引用边（旧实现边已随文件删除，基线同步清理）"
+    },
+    {
+      "file": "src/host/workspaceCwd.js",
+      "spec": "./workspaceLabelColors.js",
+      "resolved": "src/host/workspaceLabelColors.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#957（工作区文件写器：首绑落盘与无文件保护自动写）",
+      "note": "落盘位置不够：workspaceCwd.js 正好 350 行没有余量，照 #500（logStore→logPhones）/ #821（versionControl→versionControlFiles）同一先例，把改色两条电话搬成自包含叶子，归一与上下文与政策全由父文件显式传入，叶子不引用父文件，父文件只留一行动态加载器。"
     }
   ]
 }
