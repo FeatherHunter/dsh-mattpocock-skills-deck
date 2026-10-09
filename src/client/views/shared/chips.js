@@ -25,12 +25,8 @@ export     const chipKeyDown = function (e) {
       const k = e && e.key
       if (k === 'Enter' || k === ' ') { try { if (e.preventDefault) e.preventDefault() } catch (_) {} try { if (e.currentTarget) e.currentTarget.click() } catch (_) {} }
     }
-    // 同一三件套的打包写法：往调用点传进来的 props 对象上补齐三件套就返回，不新建对象，
-    // 调用点少写三行，行为与逐字写的三行完全一致。
+    // 同一三件套的打包写法：返回一个新对象（带上调用点给的那些 props），不去改调用方传进来的那个对象 ——
+    //   传共享对象时不会被顺手带上三件套（评审 2026-10-09 指出的坑）。行为与逐个写那三行完全一致。
 export     const chipProps = function (p) {
-      const o = p || {}
-      o.tabIndex = 0
-      o.role = 'button'
-      o.onKeyDown = chipKeyDown
-      return o
+      return Object.assign({ tabIndex: 0, role: 'button', onKeyDown: chipKeyDown }, p || {})
     }

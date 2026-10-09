@@ -97,14 +97,19 @@ async function main() {
   const issueDetail = fs.readFileSync(path.join(ROOT, 'src/client/views/IssueDetail.js'), 'utf8')
   const chips = fs.readFileSync(path.join(ROOT, 'src/client/views/shared/chips.js'), 'utf8')
   check(chips.includes('chipKeyDown') && chips.includes('chipProps'), '过滤小药丸有统一键盘处理（共享 chips.js 的 chipKeyDown 与 chipProps）')
-  check(chips.includes('tabIndex') && chips.includes("role = 'button'") && chips.includes('onKeyDown'), '三件套住共享层（Tab 停留 + role=button + 键盘处理）')
+  check(chips.includes('tabIndex') && chips.includes("role: 'button'") && chips.includes('onKeyDown'), '三件套住共享层（Tab 停留 + role=button + 键盘处理）')
   const chipUses = (listTab.match(/chipProps\(\{/g) || []).length
   check(chipUses >= 8, '列表页可点小药丸基本都包了三件套（chipProps ≥ 8）', '实际 ' + chipUses)
   check(!listTab.includes('chipKeyDown'), '列表页不再自带键盘处理（单源在共享层，不各写一份）')
   check(listRow.includes("tabIndex: 0") && listRow.includes("role: 'button'"), '列表整行键盘可达（tabIndex + role=button）')
   check(prTab.includes('tabIndex: 0'), 'PR 行键盘可达（tabIndex）')
   check(issueDetail.includes('tabIndex: 0'), '详情子票与阻塞行键盘可达（tabIndex）')
-  check(listRow.includes('e.currentTarget.click()') && chips.includes('e.currentTarget.click()'), '键盘沿用鼠标同一条路（回车空格调起 click，不另写分支）')
+  // #956 评审后收敛：行内小药丸与整行都改调共享层（chipProps / chipKeyDown），
+  //   所以「回车空格调起 click」只在 chips.js 一处有源码，两边的使用点改判为「确实引用了共享层」。
+  check(chips.includes('e.currentTarget.click()') && listRow.includes('chipProps(') && listRow.includes('chipKeyDown(e)'), '键盘沿用鼠标同一条路（共享层一处实现，调用点只引用不重写）')
+  // #956 评审修正：子孙元素的事件不许冒上来重复触发整行（会话上按回车会既复制又开票）。
+  check(listRow.includes('e.target !== e.currentTarget'), '整行键盘处理忽略来自子孙的事件（不双触发）')
+  check(prTab.includes('e.target !== e.currentTarget') && issueDetail.includes('e.target !== e.currentTarget'), 'PR 行与详情行同样有子孙护栏')
 
   // —— 8. 底座样式落进 styles.js，且只叠加不顶布局 ——
   check(styles.includes('.dsws-chip:active') || styles.includes('.dsws-chip-fb:active'), '过滤小药丸按下加深存在')

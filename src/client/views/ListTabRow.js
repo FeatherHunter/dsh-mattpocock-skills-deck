@@ -7,12 +7,9 @@
 // 参数：h = 行内创建函数；st = 列表 store；x = 本行票据；blockOf/colorOf = 表级派生。
 export const listIssueRow = function (h, st, x, isOpen, narrow, blockOf, colorOf, multiEffort) {
       const has = function (x, nm) { return (x.labels || []).some(function (l) { return l.name === nm }) }
-      // #949 瞬间底座：行内可点小药丸（+N 更多、被阻塞跳转）也要能被键盘走到，
-      //   回车与空格沿用鼠标同一条路（调起 DOM click），整行本体的键盘处理见下面 aggrow。
-      const chipKey = function (e) {
-        const k = e && e.key
-        if (k === 'Enter' || k === ' ') { try { if (e.preventDefault) e.preventDefault() } catch (_) {} try { if (e.currentTarget) e.currentTarget.click() } catch (_) {} }
-      }
+      // #949 瞬间底座：行内可点小药丸（+N 更多、被阻塞跳转）也要能被键盘走到。
+      //   #956 评审修正：本地那份键盘处理退役，改调共享层的 chipKeyDown（同图收敛只留一处）；
+      //   整行本体的键盘处理见下面 aggrow。
       const openBlocked = function (blk) { setActiveMap(st, blk.map, blk.mapEffort) }
       // #951：复制是瞬间动作，不套转圈；按剪贴板真实结果换对勾叉号（同 13 像素）加闪光，
       //   成功 1.3 秒自退，失败留到下一次操作（下一次点复制先清掉）。
@@ -90,8 +87,10 @@ export const listIssueRow = function (h, st, x, isOpen, narrow, blockOf, colorOf
           else { setActiveIssue(st, x.number, effortOf(x)) }
         },
         onKeyDown: function (e) {
-          const k = e && e.key
-          if (k === 'Enter' || k === ' ') { try { if (e.preventDefault) e.preventDefault() } catch (_) {} try { e.currentTarget.click() } catch (_) {} }
+          // #956 评审修正：事件从子孙冒上来时不重复触发 —— 行内还有小药丸与复制、外链、新会话等真按钮，
+          //   不拦的话「在复制按钮上按回车」会既复制又打开这张票。只认落在整行自己身上的那一次。
+          if (!e || e.target !== e.currentTarget) return
+          chipKeyDown(e)
         },
         style: isMap ? { cursor: 'pointer', borderLeft: '3px solid #c084fc', background: 'rgba(188,140,255,.07)' } : { cursor: 'pointer' },
       }, [
@@ -117,10 +116,10 @@ export const listIssueRow = function (h, st, x, isOpen, narrow, blockOf, colorOf
             labels.map(function (l, i) {
               return h('span', { key: i, className: 'dsws-chip', style: { fontSize: 10, background: hexA(l.color, 0.18) || 'rgba(188,140,255,.16)', color: l.color ? '#' + l.color : '#bc8cff', border: '1px solid ' + (darken(l.color, 0.16) || 'rgba(188,140,255,.6)') } }, l.name)
             }),
-            labels.length > 0 ? h(Tip, { content: tr('list.tagsTitle', { names: allNames }) }, h('span', { key: 'more', className: 'dsws-chip dsws-more', tabIndex: 0, role: 'button', onKeyDown: chipKey, onClick: openPop }, '+0')) : null,
+            labels.length > 0 ? h(Tip, { content: tr('list.tagsTitle', { names: allNames }) }, h('span', chipProps({ key: 'more', className: 'dsws-chip dsws-more', onClick: openPop }), '+0')) : null,
             blocked ? ((blk.map === null || blk.map === undefined)
               ? h(Tip, { content: tr('map.subBlocked', { who: blockedTip }) }, h('span', { key: 'blk', className: 'dsws-chip dsws-blocked', style: { fontSize: 10, background: 'rgba(248,113,113,.16)', color: '#f87171', border: '1px solid rgba(248,113,113,.55)' } }, [Ic({ n: 'lock', size: 10 }), h('span', null, tr('list.blocked'))]))
-              : h(Tip, { content: tr('list.blockedTitle', { by: blockedTip }) }, h('span', { key: 'blk', className: 'dsws-chip dsws-blocked', tabIndex: 0, role: 'button', onKeyDown: chipKey, onClick: function (e) { e.stopPropagation(); openBlocked(blk) }, style: { fontSize: 10, background: 'rgba(248,113,113,.16)', color: '#f87171', border: '1px solid rgba(248,113,113,.55)', cursor: 'pointer' } }, [Ic({ n: 'lock', size: 10 }), h('span', null, tr('list.blocked'))]))) : null,
+              : h(Tip, { content: tr('list.blockedTitle', { by: blockedTip }) }, h('span', chipProps({ key: 'blk', className: 'dsws-chip dsws-blocked', onClick: function (e) { e.stopPropagation(); openBlocked(blk) }, style: { fontSize: 10, background: 'rgba(248,113,113,.16)', color: '#f87171', border: '1px solid rgba(248,113,113,.55)', cursor: 'pointer' } }), [Ic({ n: 'lock', size: 10 }), h('span', null, tr('list.blocked'))]))) : null,
           ]),
           h('div', { style: { display: 'flex', alignItems: 'center', gap: 3, flex: 'none', marginLeft: 'auto' } }, [
             isOpen && !blocked ? h('div', { style: { display: 'flex', gap: 3, alignItems: 'center', flex: 'none' } }, [mapEmpty?h(Tip, { content: tr('map.inspectTitle') }, h('button',{className:'dsws-btn primary'+(narrow?' narrow-icon':''),onClick:function(e){e.stopPropagation();let t='';try{t=inspectPrompt(st,x.number,x.title)}catch{const u=typeof issueUrlFor==='function'?(function(){try{return issueUrlFor(st,x.number,effortOf(x))}catch(_){return''}})():'',uu=u||(x.number!=null?'#'+String(x.number):'');t=uu?'/wayfinder '+uu:'/wayfinder';try{t=promptTextFor(st,'mapInspect',{n:String(x.number||''),['title']:String(x.title||''),url:u});if(u)t='/wayfinder '+u+'\n\n'+t}catch(_){}}inject(st,t)},style:{display:'inline-flex',alignItems:'center',gap:3,padding:'1px 6px',fontSize:11,flex:'none',background:'#f59e0b',borderColor:'transparent',color:'#140a1e',fontWeight:600}},[Ic({n:'search',size:10}),narrow?null:h('span',null,tr('act.inspect'))])):mapDone?h(Tip, { content: tr('map.doneTitle') }, h('button',{className:'dsws-btn primary'+(narrow?' narrow-icon':''),onClick:function(e){e.stopPropagation();const t=completePrompt(st,x.number,x.title,mapObj.stats.total,mapObj.stats.closed);inject(st,t)},style:{display:'inline-flex',alignItems:'center',gap:3,padding:'1px 6px',fontSize:11,flex:'none',background:'#3fb950',borderColor:'transparent',color:'#0c1a10',fontWeight:600}},[Ic({n:'check',size:10}),narrow?null:h('span',null,tr('act.done'))])):mkRowAction(st,x,narrow,colorOf),h(Tip, { content: tr('tip.newSession', { n: x.number }) }, h('button',{className:'dsws-btn primary'+(narrow?' narrow-icon':''),onClick:function(e){e.stopPropagation();openInNewSession(st,x)},style:{textDecoration:'none',display:'inline-flex',alignItems:'center',gap:3,padding:'1px 6px',fontSize:11,flex:'none',marginLeft:4,background:mapEmpty?'#f59e0b':mapDone?'#3fb950':actionColorOf(x,colorOf),borderColor:'transparent',color:mapEmpty?'#140a1e':mapDone?'#0c1a10':(isLightHex(actionColorOf(x,colorOf))?'#140a1e':'#ffffff')}},[Ic({n:'external-link',size:10}),narrow?null:h('span',null,tr('list.newSessionLabel'))])),]) : null,

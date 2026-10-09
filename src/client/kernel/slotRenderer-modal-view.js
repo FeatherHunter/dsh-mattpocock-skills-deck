@@ -95,12 +95,14 @@
           try { if (typeof emit === 'function') emit(st) } catch(_){}
         }
       }
-      // #952：宽按钮成功换字（提交→已提交 1.1 秒自退，宽度留死不伸缩；用户中途关窗则令牌作废不重跑）。
+      // #952：宽按钮成功换字（提交→已提交 1.1 秒自退，宽度留死不伸缩）。
+      //   #956 评审修正：节拍到点前若这次弹窗已经不是当前那一个（用户中途关窗、或又开了别的弹窗），
+      //   令牌作废 —— 成功的后续动作（含 #419/#425 那张成功弹窗）不再弹出，免得盖掉用户这 1.1 秒里打开的东西。
       const sentBeat = function (after) {
         m.pending = false; m.justSent = true
         try { if (typeof emit === 'function') emit(st) } catch(_){}
         const tk = (m.sentTk = (m.sentTk || 0) + 1)
-        const fire = function () { if (m.sentTk !== tk || !m.justSent) return; m.justSent = false; try { after() } catch(_){} }
+        const fire = function () { if (m.sentTk !== tk || !m.justSent || m.open !== true) return; m.justSent = false; try { after() } catch(_){} }
         try { setTimeout(fire, 1100) } catch(_) { fire() }
       }
       const onWizardSubmit = async function () {

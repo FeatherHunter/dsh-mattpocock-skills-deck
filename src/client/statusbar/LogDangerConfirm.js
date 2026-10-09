@@ -39,7 +39,7 @@ export const LogDangerConfirmBox = function (props) {
       }, t('logmenu.cancel')),
       h('button', {
         key: 'ok',
-        className: 'dsws-btn dsws-fb-busy-fill' + (busy ? ' dsws-fb-busy' : ''),
+        className: 'dsws-btn' + (busy ? ' dsws-fb-busy' : ''),
         disabled: busy,
         autoFocus: true,
         onClick: function () { if (!busy) p.onConfirm() },

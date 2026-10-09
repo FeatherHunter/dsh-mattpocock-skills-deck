@@ -108,7 +108,7 @@ export const FB_DURATIONS = [
   { fx: 'sheen', css: '.5s', tier: 'instant', why: '光泽扫过是备用效果，只在弹窗大按钮上手动演示' },
   { fx: 'pop', css: '.35s', tier: 'instant', why: '复制成功的轻弹，复制是本地动作（真实耗时约 0.2 秒，落在瞬间档）' },
   { fx: 'success-ring', css: '.6s', tier: 'instant', why: '复制成功的成功圈，与轻弹同一次动作' },
-  { fx: 'dots', css: '.9s', tier: 'short', why: '圆点循环一轮的时长，用在弹窗提交等待（真实调用：提交向导约 1 秒级）' },
+  { fx: 'dots', css: '.9s', tier: 'short', why: '圆点循环一轮的时长；当下没有落点（弹窗提交等待已改用转圈，见 #953），留作短等待的备用形态' },
   { fx: 'okflash-errflash-warnflash', css: '.45s', tier: 'short', why: '结果闪光半秒内自退，强调一下就退场，不占等待时间' },
   { fx: 'shake', css: '.4s', tier: 'short', why: '失败抖动一次，幅度小、只抖一遍' },
   { fx: 'breath', css: '1.6s', tier: 'short', why: '呼吸循环一轮的时长，用在评论翻页加载（真实调用：翻页约 1 秒级）' },
