@@ -40,7 +40,8 @@ check(!/injectSetupDecision\s*\(/.test(og), 'OverlayGate 的门控确认不再�
 check(!/setupRunPrompt\(st,\s*targetId\)/.test(sw), 'store-switch 不自己拼初始化全文（#664 的本意不动）')
 check(/injectSetupDecision\(st,\s*targetId,\s*\{\s*allowCard:\s*true,\s*askLayout:\s*true,\s*source:\s*'switch'\s*\}\)/.test(sw), '未初始化那一支走决策器 + 允许开那张布局小卡 + 每次都问（#669 第 6 件 / #698）')
 check(/injectSetupDecision\(st,\s*targetId,\s*\{\s*allowCard:\s*true,\s*askLayout:\s*true,\s*source:\s*'switch'\s*\}\)/.test(sw), '已初始化那一支也走**同一份判据**（同样是每次都问；#698 维护者 2026-09-22 拍板）')
-check(/promptText\('switchAlign'/.test(sw), '已初始化那一支注入的是 switchAlign（对齐仓库里的后端记录）')
+// 2026-10-09：切换那条路已改成经单点函数 switchAlignPrompt 一次凑齐 7 个值（59dbd98），两种写法都认
+check(/promptText\('switchAlign'|switchAlignPrompt\(/.test(sw), '已初始化那一支注入的是 switchAlign（对齐仓库里的后端记录；现经 switchAlignPrompt 单点函数取模板）')
 // 4) 两处建仓成功消费标记，仅补一次
 check(nr.includes('consumePendingSetup(st)'), '旧红卡建成后消费标记')
 check(mv.includes('consumePendingSetup(st)'), '向导建成后消费标记')

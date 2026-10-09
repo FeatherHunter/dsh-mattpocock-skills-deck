@@ -61,10 +61,11 @@ export const MapDetailTop = ({ st, m, navCrumb, effStats, goBack }) => {
         h('span', { 'data-detail-primary-text': 1, 'data-full': tr('act.execute'), style: { overflow: 'hidden', whiteSpace: 'nowrap', minWidth: 0 } }, tr('act.execute')),
       ]))
   return h('div', { ref: topBarRef, className: 'dsws-stickybar', style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'nowrap', minWidth: 0, overflow: 'hidden' } }, [
-    h('button', { className: 'dsws-btn', onClick: goBack, title: tr('list.back'), style: { display: 'inline-flex', alignItems: 'center', gap: 4, flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' } }, [
+    // 返回按钮的悬停提示走 Tip（T2/T3 纪律），不再用原生 title
+    h(Tip, { content: tr('list.back') }, h('button', { className: 'dsws-btn', onClick: goBack, style: { display: 'inline-flex', alignItems: 'center', gap: 4, flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' } }, [
       Ic({ n: 'back', size: 12 }),
       h('span', { 'data-detail-back-text': 1, 'data-full': tr('list.back'), style: { overflow: 'hidden', whiteSpace: 'nowrap', minWidth: 0 } }, tr('list.back')),
-    ]),
+    ])),
     h(Tip, { content: navCrumb }, h('span', { 'data-detail-crumb': 1, 'data-full': navCrumb, style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', whiteSpace: 'nowrap', flex: 'none', minWidth: 0, overflow: 'hidden' } }, navCrumb)),
     h(Tip, { content: 'wayfinder:map' }, h('span', { className: 'dsws-chip dsws-chip-m', style: { flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' } }, [
       Ic({ n: 'map', size: 11 }),

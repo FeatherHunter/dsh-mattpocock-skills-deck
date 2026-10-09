@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "recordedAt": "2026-09-11",
-  "note": "存量豁免清单：只许减不许增；拆分票消掉一条边就同票删一条。backends 三房间不在此清单（仍由老门禁管同房间放行）。",
+  "recordedAt": "2026-10-09",
+  "note": "存量豁免清单：只许减不许增；拆分票消掉一条边就同票删一条。backends 三房间不在此清单（仍由老门禁管同房间放行）。 2026-10-09：888 技能详情落地新增一条（index 动态加载 ./skillDoc.js）。",
   "entries": [
     {
       "file": "src/host/index.js",
@@ -848,6 +848,15 @@
       "count": 1,
       "owner": "#957（工作区文件写器：首绑落盘与无文件保护自动写）",
       "note": "落盘位置不够：workspaceCwd.js 正好 350 行没有余量，照 #500（logStore→logPhones）/ #821（versionControl→versionControlFiles）同一先例，把改色两条电话搬成自包含叶子，归一与上下文与政策全由父文件显式传入，叶子不引用父文件，父文件只留一行动态加载器。"
+    },
+    {
+      "file": "src/host/index.js",
+      "spec": "./skillDoc.js",
+      "resolved": "src/host/skillDoc.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "888 技能详情页落地",
+      "note": "index 动态加载技能原文直读模块（装配扇入，与 detectChain.js、skillProbe.js 同一条做法）"
     }
   ]
 }

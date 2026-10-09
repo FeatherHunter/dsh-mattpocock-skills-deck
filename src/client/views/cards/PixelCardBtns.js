@@ -35,13 +35,13 @@ export const PixelCardBtns = function(props) {
       stop(e);
       if (p.onNew) p.onNew();
     } }, [h(PixelCardIcon, { key: "i", n: "ext" }), tr("card.newSession")]),
-    h("button", { key: "c", className: "cd-abtn paper icon", title: tr("card.copyLink"), onClick: function(e) {
+    h(Tip, { key: "c", content: tr("card.copyLink") }, h("button", { className: "cd-abtn paper icon", onClick: function(e) {
       stop(e);
       if (p.onCopy) p.onCopy();
-    } }, h(PixelCardIcon, { n: "clip" })),
-    h("button", { key: "o", className: "cd-abtn paper icon", title: tr("card.openLink"), onClick: function(e) {
+    } }, h(PixelCardIcon, { n: "clip" }))),
+    h(Tip, { key: "o", content: tr("card.openLink") }, h("button", { className: "cd-abtn paper icon", onClick: function(e) {
       stop(e);
       if (p.onOpen) p.onOpen();
-    } }, h(PixelCardIcon, { n: "link" }))
+    } }, h(PixelCardIcon, { n: "link" })))
   ]);
 };

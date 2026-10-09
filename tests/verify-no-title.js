@@ -68,7 +68,19 @@ for (const root of SCAN_ROOTS){
       //   h(（用 \bh\s*\( 匹配，push( 这种不算）。本仓库的 h() 属性都写在同一行；哪天有人写换行的
       //   h() 属性，这条判据要连同这一段一起改。
       const ms = Array.from(code.matchAll(TITLE_RE))
-      const attrs = ms.filter((mm) => /\bh\s*\(/.test(code.slice(0, mm.index)))
+      // 2026-10-09 收窄（贴本文件第 5 行的口径）：只认 DOM 元素的属性位。
+      //   判据：取本行 title: 之前最后一个 h( 后面的标签；小写（div/span/button…）才算 DOM，
+      //   大写（PixelCardNo 这类自家组件）说明 title 是当数据传进去的，不算原生提示残留。
+      const domTitleHit = (line, at) => {
+        const before = line.slice(0, at)
+        const re = /\bh\s*\(\s*([A-Za-z_$][\w$]*|'([^']*)'|"([^"]*)")/g
+        let tag = null, mm = null
+        while ((mm = re.exec(before)) !== null) tag = mm[1]
+        if (tag === null) return false
+        const inner = (tag[0] === "'" || tag[0] === '"') ? tag.slice(1) : tag
+        return /^[a-z]/.test(inner)
+      }
+      const attrs = ms.filter((mm) => domTitleHit(code, mm.index))
       if (attrs.length) {
         if (code.includes('aria-label')) continue
         if (code.includes('PREVIEW_VALUES')) continue
