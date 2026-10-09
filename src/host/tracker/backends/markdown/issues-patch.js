@@ -32,14 +32,14 @@ async function readParseWrite(ctx,repo,r,norm,fn){
     }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
   })
 }
-/** 递进来的正文是不是一整份票文件：自带一级标题或幂等锚标记。
- *  为什么要单独判：下面的插入分支把正文粘在现有标题之后，认错了盘上就会留下两个标题、两份正文。
- *  实测（#970）：自带标题又不带状态行的整份正文走了插入分支，票文件被写坏，调用方却收到成功。 */
+/** 递进来的正文是不是「一整份票文件」：自带 H1 标题（或幂等锚）。
+ *  为什么要分开判：下面的插入分支把正文插在现有 H1 之后，认错了盘上就会留下两个 H1、两份正文。
+ *  实测：自带 H1、又不带 Status 行的整份正文走了插入分支，票文件被写坏，调用方却收到 ok。 */
 function looksLikeWholeDocument(body){
   const t=String(body||'')
   return /^\s*#\s+\S/m.test(t)||/^\s*<!--\s*DSH-IDEMPOTENCY-KEY:/m.test(t)
 }
-/** 盘上文本里的字段行（状态、类型、阻塞、标签）：整份替换时用来补齐递进来的正文里缺的字段。 */
+/** 盘上那份文本里的字段行（Status/Type/Blocked by/Labels）：整份替换时用来补齐递进来的正文里缺的字段。 */
 function fieldLinesOf(text){
   const out=[]
   const lines=String(text||'').split('\n')
@@ -47,6 +47,7 @@ function fieldLinesOf(text){
   return out
 }
 function fieldNameOf(line){ return String(line).split(/[:\uFF1A]/)[0].trim().toLowerCase() }
+
 export async function updateIssue(ctx,repo,key,patch){
   const norm=String(key).padStart(2,'0')
   const colorMap=await loadPaintColorMap(ctx)
@@ -66,8 +67,8 @@ export async function updateIssue(ctx,repo,key,patch){
       if(/^\s*Status\s*[:\uFF1A]/im.test(patch.body)){
         txt=String(patch.body);changed=true
       }else if(looksLikeWholeDocument(patch.body)){
-        // 整份正文（自带标题或锚标记）却没带字段块：原来会落到下面的插入分支，把整份文档拼在现有标题之后，
-        // 盘上出现两个标题、两份正文，而调用方收到成功。这里按整份替换处理，并把盘上原有的字段补回文末（#970）。
+        // 整份正文（自带 H1 / 幂等锚）却没带字段块：原实现会落到下面的插入分支，把整份文档拼在现有 H1 之后，
+        // 盘上出现两个 H1、两份正文，而调用方收到 ok。这里按整份替换处理，并把盘上原有的字段补回文末。
         const incoming=String(patch.body)
         const have=fieldLinesOf(incoming).map(fieldNameOf)
         const keep=fieldLinesOf(txt).filter(function(l){ return have.indexOf(fieldNameOf(l))<0 })

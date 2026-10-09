@@ -297,6 +297,7 @@ const KERNEL_MODULES = [
   { name: 'localeVcWrite', file: 'src/client/kernel/locale-vcwrite.js' },
   // #879 技能描述 27 条中英词条：locale-word.js 已贴 350 行上限（363 行超标），照 #621/#690/#842 的做法自成一个片段
   { name: 'localeSkilldesc', file: 'src/client/kernel/locale-skilldesc.js' },
+  { name: 'localeSkilldetail', file: 'src/client/kernel/locale-skilldetail.js' },
   { name: 'locale', file: 'src/client/kernel/locale.js' },
   { name: 'icons', file: 'src/client/kernel/icons.js' },
   // #685：「体检」按钮的件数派生与开新会话注入（游离票口径见 #678、按钮形态见 #681）；
@@ -397,6 +398,15 @@ const LEAF_MODULES = [
   { id: 'chips', file: 'src/client/views/shared/chips.js' },
   { id: 'hoverTip', file: 'src/client/views/primitives/HoverTip.js' },
   { id: 'tip', file: 'src/client/views/primitives/Tip.js' },
+  // 887 技能详情像素风：八个最小组件（无依赖，按使用次序登记）
+  { id: 'pxBtn', file: 'src/client/views/primitives/PxBtn.js' },
+  { id: 'pxDot', file: 'src/client/views/primitives/PxDot.js' },
+  { id: 'pxNum', file: 'src/client/views/primitives/PxNum.js' },
+  { id: 'pxStateIcon', file: 'src/client/views/primitives/PxStateIcon.js' },
+  { id: 'pxSeal', file: 'src/client/views/primitives/PxSeal.js' },
+  { id: 'pxSkel', file: 'src/client/views/primitives/PxSkel.js' },
+  { id: 'pxBanner', file: 'src/client/views/primitives/PxBanner.js' },
+  { id: 'pxStatusLine', file: 'src/client/views/primitives/PxStatusLine.js' },
   { id: 'backendSelector', file: 'src/client/views/shared/BackendSelector.js' },
   { id: 'switchConfirmModal', file: 'src/client/views/shared/SwitchConfirmModal.js' },
   // #621 标签配色的七个叶子（纯函数三份 + 状态机一份 + 界面三份；按拼接次序登记，次序即依赖次序）
@@ -453,6 +463,13 @@ const LEAF_MODULES = [
   { id: 'prTab', file: 'src/client/views/PrTab.js' },
   { id: 'ringSkills', file: 'src/client/views/RingSkills.js' },
   { id: 'skillsTab', file: 'src/client/views/SkillsTab.js' },
+  // 887 技能详情像素风：皮肤、中组件与整页（PxDoc 无横向 import，只调全局 emit/tr）
+  { id: 'pxSkillStyles', file: 'src/client/views/skills/pxSkillStyles.js' },
+  { id: 'pxToc', file: 'src/client/views/skills/PxToc.js' },
+  { id: 'pxDoc', file: 'src/client/views/skills/PxDoc.js' },
+  { id: 'skillRow', file: 'src/client/views/skills/SkillRow.js' },
+  { id: 'skillList', file: 'src/client/views/skills/SkillList.js' },
+  { id: 'skillDetailModal', file: 'src/client/views/skills/SkillDetailModal.js' },
   { id: 'checksTab', file: 'src/client/views/ChecksTab.js' },
   { id: 'SettingsWorkspaces', file: 'src/client/views/SettingsWorkspaces.js' },
   { id: 'debugSwitchFailHint', file: 'src/client/views/shared/DebugSwitchFailHint.js' }, // #597 由 SettingsPage.js 拆出：写开关失败的机器码挑提示词条（无组件，纯函数）
