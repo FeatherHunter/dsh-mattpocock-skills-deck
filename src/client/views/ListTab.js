@@ -235,7 +235,7 @@ export     const ListTab = ({ st, narrow }) => {
             const hex = c ? '#' + c : '#bc8cff'
             return h('span', { key: 'f-label-' + nm, className: 'dsws-chip', style: { fontSize: 10, background: hexA(c, 0.18) || 'rgba(188,140,255,.16)', color: hex, border: '1px solid ' + (darken(c, 0.16) || 'rgba(188,140,255,.6)') } }, [
               nm,
-              h('span', chipProps({ onClick: function (e) { e.stopPropagation(); st.lblFilters = (st.lblFilters || []).filter(function (x) { return x !== nm }); emit(st) }, 'aria-label': '移除过滤 ' + nm, style: { cursor: 'pointer', marginLeft: 4, fontWeight: 700 } }), '✕'),
+              h('span', chipProps({ onClick: function (e) { e.stopPropagation(); st.lblFilters = (st.lblFilters || []).filter(function (x) { return x !== nm }); emit(st) }, 'aria-label': tr('list.filterRemoveAria', { name: nm }), style: { cursor: 'pointer', marginLeft: 4, fontWeight: 700 } }), '✕'),
             ])
           }),
           h('span', chipProps({ key: 'f-label-clear', className: 'dsws-chip', onClick: function (e) { e.stopPropagation(); st.lblFilters = []; emit(st) }, style: { fontSize: 10, cursor: 'pointer', background: 'rgba(255,255,255,.06)', color: 'var(--dsw-alias-label-secondary,#a1a1aa)', border: '1px solid rgba(255,255,255,.15)' } }), tr('list.filterClear')),
