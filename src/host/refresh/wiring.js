@@ -35,6 +35,7 @@ import * as toolCost from '../../shared/refresh/tool-cost.js'
 // #724：闸那一侧的工作区钥匙（短散列）只有一份实现，住在共享层（宿主层文件之间不许互引，而链求值那侧也要用
 // 同一把钥匙）。本文件把它转出来，「活跃集合、写事件白名单、七个 deck_* 工具、行级增量、检查链记账」五处同源。
 import { hash8, workspaceKeyOf } from '../../shared/refresh-workspace-key.js'
+import { parseWorkspaceFile, WORKSPACE_FILE_REL } from '../../shared/deck-tools/workspace-file.js'
 export { workspaceKeyOf } from '../../shared/refresh-workspace-key.js'
 
 /** 把一堆依赖包装成「取一次、以后复用」的惰性实例（模块加载失败不许把整个插件带崩）。 */
@@ -328,6 +329,10 @@ export function createRefreshWiring(deps) {
           handleFor: function (s) { try { const list = (typeof registry.allBindings === 'function') ? registry.allBindings() : []; const want = String((s && s.cwd) || ''); const wash = (p) => String(p || '').replace(/\\/g, '/').replace(/\/+$/, ''); const wantW = wash(want); for (let i = 0; i < list.length; i++) { const c = (list[i] && (list[i].cwd || (list[i].handle && list[i].handle.cwd))) || ''; if (String(c) === want || wash(c) === wantW) return list[i].handle || { cwd: want } } } catch (e) {} return { cwd: (s && s.cwd) || '' } },
           // 934：会话目录洗加锚根的宿主唯一异步出口（与绑定侧同一把钥匙）；缺席时壳沿用原始目录。
           canonicalKey: (typeof d.canonicalKey === 'function') ? function (raw) { return d.canonicalKey(raw) } : undefined,
+          // 947 显式后两层读口：查不到一律 null（缺席即跳过，不猜）。
+          readChoice: function (rootCwd) { try { return (typeof d.getChoiceStore === 'function') ? d.getChoiceStore().then(function (cs) { return (cs && typeof cs.getWorkspace === 'function') ? cs.getWorkspace(rootCwd) : null }, function () { return null }).then(function (got) { return (got && got.found === true && got.backendId) ? { backendId: got.backendId, rev: got.rev || 0 } : null }) : Promise.resolve(null) } catch (e) { return Promise.resolve(null) } },
+          readWorkspaceFileText: function (rootCwd) { try { const fsSvc = backendObj && backendObj.fs; if (!fsSvc || typeof fsSvc.resolve !== 'function' || typeof fsSvc.readText !== 'function') return Promise.resolve(null); return Promise.resolve(fsSvc.resolve(WORKSPACE_FILE_REL, { cwd: rootCwd })).then(function (t) { return fsSvc.readText(t) }, function () { return null }).then(function (txt) { return (typeof txt === 'string' && txt) ? txt : null }, function () { return null }) } catch (e) { return Promise.resolve(null) } },
+          parseWorkspaceFile: parseWorkspaceFile,
           sandboxPolicyFor: createSandboxPolicyFor(d.ctx),
           backendCtx: function () { return backendObj },
           invalidate: function (info) { try { const root = (info && info.workspace && info.workspace.root) || (info && info.cwd); if (typeof d.setCache === 'function' && root) d.setCache({ ts: 0, snapshot: null, error: null, cwd: String(root) }) } catch (e) {} },
