@@ -131,6 +131,8 @@ export const LabelColorDialog = (props) => {
   // 这一档下不能摆「去选定后端」那颗入口按钮：面板头部那颗「切换后端」按钮此刻是禁用的，点了没反应。
   const panelPending = lcPanelPendingOf((typeof storeOf === 'function') ? storeOf(sessionId) : null)
   const busy = lc.saving
+  // #951：保存落定且弹窗还在（部分成功或全失败，全成功已自动关）时，保存按钮给结果图标与闪光
+  const saveResult = (!busy && lc.outcome && lc.outcome.failedCount > 0) ? (lc.outcome.appliedCount > 0 ? 'alert' : 'x') : ''
   // 每一行用的那份文字（用户填的原文，或者这一行现在显示的颜色）——与下面渲染各行时取的是同一份。
   const textOfRow = function (r) { return Object.prototype.hasOwnProperty.call(lc.draft, r.name) ? lc.draft[r.name] : lcToDisplay(r.color) }
   // 只要有一行还没填完（写错字、或把原本有颜色的格子清空），就不让保存按钮亮：后端按解析档逐条拒，
@@ -253,13 +255,13 @@ export const LabelColorDialog = (props) => {
   // 窄面板下按钮只剩一个图标：转圈和勾都是 12 像素见方，那一条本来就等宽（宽度与文字无关）。
   const saveBtn = h('button', {
     key: 'save',
-    className: 'dsws-btn primary',
+    className: 'dsws-btn primary' + (saveResult === 'x' ? ' dsws-fb-errflash dsws-fb-shake' : '') + (saveResult === 'alert' ? ' dsws-fb-warnflash' : ''),
     type: 'button',
     disabled: !canSave,
     'aria-label': saveText,
     onClick: function () { lc.save() },
     style: { fontSize: 12, padding: '5px 14px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, flex: 'none', cursor: canSave ? 'pointer' : 'not-allowed' },
-  }, narrow ? (busy ? h('span', { className: 'dsws-spinner', style: { width: 12, height: 12, borderWidth: 2, display: 'inline-block' } }) : (typeof Ic === 'function' ? Ic({ n: 'check', size: 12 }) : saveText)) : saveFace)
+  }, narrow ? (busy ? h('span', { className: 'dsws-spinner', style: { width: 12, height: 12, borderWidth: 2, display: 'inline-block' } }) : (saveResult && typeof Ic === 'function' ? Ic({ n: saveResult, size: 12 }) : (typeof Ic === 'function' ? Ic({ n: 'check', size: 12 }) : saveText))) : saveFace)
 
   // 底部「退出」按钮：文字固定不变（有未保存改动时也不换成别的字，只变颜色并另起一行摆提示），
   // 所以它的宽度天生不随状态变。位置在按钮区最左、复制按钮左边——三颗按钮挨在一起，都在保存附近。
