@@ -1,7 +1,11 @@
 // src/host/platformChannel.js —— 平台与探测通道（H1 #445 从 host/index.js 259–491 搬出，纯结构、行为零变化）
 // 以后谁改它：改平台抽象、后端注册表或探测级联的人。预估约 280 行，超 350 打回。
-// 接线：由 index.js 动态 import 动态加载；STATUS_CACHE_MS 随本文件搬入（无外部引用）；getMattSkillProbeNames/probeSkill 显式注入；本文件不引用其他新文件。
+// 接线：由 index.js 动态 import 动态加载；STATUS_CACHE_MS 随本文件搬入（无外部引用）；getMattSkillProbeNames/probeSkill 显式注入；共享层只引用 src/shared（出站分档/准入/测量，#963）。本文件不引用其他宿主新文件。
 // #968 技能按需多一个显式注入 getChainSkillNames（链条目录里要的三项技能名，查链时只问这三项）。
+import { tierForGhArgs, timeoutForGhArgs, isWriteGhArgs } from '../shared/gh-timeout-tiers.js'
+import { getGhLane } from '../shared/gh-admission.js'
+import { getGhMeasure } from '../shared/gh-measure.js'
+import { noteGhWrite } from '../shared/gh-write-generation.js'
 // #968 平时问三项、重查问全量的分流判据（纯函数，门禁直测它）：
 //   范围是“链”就只问链条要的三项，其余（全量、未知）都问全量——未知时宁可多问，不漏判。
 export function selectSkillProbeNames(allNames, chainNames, scope) {
@@ -201,9 +205,26 @@ export function createPlatformChannel(deps) {
       const c = (opts && opts.cwd) || ''
       // 起始时刻只在开关打开时才取：关着时这一行读一个布尔就结束，连时钟都不读，后面那行自然也不落。
       const execT0 = (logCtx && logCtx.isEnabled('debug')) ? Date.now() : 0
+      // #963 出站同一口径：gh / glab 是真实出站（git 是本地命令，不进准入）。gh 按读写探活分档，glab 沿用旧默认。
+      const cmdBase = String(cmd || '').split(/[\\/]/).pop() || ''
+      const deIsGh = /^gh(\.exe)?$/i.test(cmdBase)
+      const deIsGlab = /^glab(\.exe)?$/i.test(cmdBase)
+      const deIsOutbound = deIsGh || deIsGlab
+      const deTier = deIsGh ? tierForGhArgs(args) : 'read'
+      const deBucket = (deIsGh && isWriteGhArgs(args)) ? 'write' : 'read'
+      const deStartT0 = Date.now()
+      let deRelease = null
+      if (deIsOutbound) {
+        try { deRelease = await getGhLane().acquire({ bucket: deBucket, signal: (opts && opts.signal) || undefined }) }
+        catch (eDeQ) {
+          try { getGhMeasure().record({ via: String(via || 'unspecified'), tier: deTier, bucket: deBucket, latencyMs: Date.now() - deStartT0, outcome: 'cancelled' }) } catch {}
+          return { stdout: '', stderr: 'cancelled while queued for gh admission', code: -1 }
+        }
+      }
       // #723（T19）：这一笔真实出站先报给闸（I1）。这条通道是操作上下文交给后端的那种 exec 出口
       // （tracker 三个房间与快照那几路都走它），起的是 gh / glab / git 三条命令；gh 与 glab 是真出站，
       // git 只读远端地址，但都是「起了一个进程」，一起报才能保证账上的条数与真起的命令数一一对应。
+      // #965：这一块在拿名额之后 —— 排队等待不算这一笔，取消排队的不进账。
       try {
         const g = gateOf()
         if (g) {
@@ -225,9 +246,14 @@ export function createPlatformChannel(deps) {
           graceMs: 2000,
         })
       } catch (e) {
+        if (deIsOutbound) {
+          try { getGhMeasure().record({ via: String(via || 'unspecified'), tier: deTier, bucket: deBucket, latencyMs: Date.now() - deStartT0, outcome: 'fail' }) } catch {}
+          try { if (deRelease) deRelease() } catch {}
+        }
         throw new Error('exec spawn failed: ' + String((e && e.message) || e))
       }
-      const timeoutMs = (opts && opts.timeout != null) ? opts.timeout : TIMEOUT_MS
+      // #969：gh 默认超时按读写探活分档（调用方显式 timeout 优先）；glab 与 git 沿用旧默认。
+      const timeoutMs = (opts && opts.timeout != null) ? opts.timeout : (deIsGh ? timeoutForGhArgs(args) : TIMEOUT_MS)
       // 调用方取消信号（#895）：中止即杀进程，不留没人等的写入；没有信号时与原来一字不差。
       let onAbortSig = null
       const abortP = new Promise(function (resolve) {
@@ -251,6 +277,16 @@ export function createPlatformChannel(deps) {
       const out = (handle.collected && handle.collected.stdout) ? handle.collected.stdout.readFrom(0) : { text: '' }
       const err = (handle.collected && handle.collected.stderr) ? handle.collected.stderr.readFrom(0) : { text: '' }
       try { if (execT0 && logCtx.isEnabled('debug')) logCtx.fire('debug', 'exec.run', { argv0: progName(argv[0]), cwdHash: hash8(c || DEFAULT_CWD), latencyMs: Date.now() - execT0, exitCode: (outcome && typeof outcome.exitCode === 'number') ? outcome.exitCode : -1, via: String(via || 'unspecified') }) } catch (eL) {}
+      // #967 测量记一笔（四种结局都记）；#964 写成功推高写世代；名额用完放回（只放一次）。
+      const deCode = (outcome && typeof outcome.exitCode === 'number') ? outcome.exitCode : -1
+      if (deIsOutbound) {
+        try {
+          const deOutcome = (outcome && outcome.signal === 'timeout') ? 'timeout' : (deCode === 0 ? 'ok' : 'fail')
+          getGhMeasure().record({ via: String(via || 'unspecified'), tier: deTier, bucket: deBucket, latencyMs: Date.now() - deStartT0, outcome: deOutcome })
+          if (deCode === 0 && deBucket === 'write' && deIsGh) noteGhWrite()
+        } catch {}
+        try { if (deRelease) deRelease() } catch {}
+      }
       return { stdout: out.text || '', stderr: err.text || '', code: outcome.exitCode }
     }
     async function getDetectionService() {

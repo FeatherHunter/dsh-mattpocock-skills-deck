@@ -12,6 +12,10 @@
 import { ERROR_KIND } from '../../../../shared/tracker/constants.js'
 import { fail } from '../../preflight.js'
 import { classifyGhError } from './errors.js'
+import { tierForGhArgs, timeoutForGhArgs, isWriteGhArgs } from '../../../../shared/gh-timeout-tiers.js'
+import { getGhLane, isAdmissionCancelled } from '../../../../shared/gh-admission.js'
+import { getGhMeasure } from '../../../../shared/gh-measure.js'
+import { noteGhWrite } from '../../../../shared/gh-write-generation.js'
 
 // 房内埋点（#494 O1）：gh.exec（#5 常驻）/ gh.timeout（#6 告警）/ gh.resolve.fail（#7 告警），字段按 #489 附录 1.4。
 // gh.exec 高频：外层先判 isEnabled（信息），关闭时不组装字段；告警两项常驻直发；参数只记命令名，不记完整参数（避免令牌落盘）。
@@ -144,6 +148,21 @@ export function ghClient(ctx) {
   async function execGh(args, opts = {}) {
     const cwd = getCwd(ctx, opts.cwd)
     const t0 = Date.now()
+    // #969（T3）：默认超时按读写探活分档（调用方显式 timeout 优先）；#965（T2a）读写分桶准入。
+    const tier = tierForGhArgs(args)
+    const bucket = isWriteGhArgs(args) ? 'write' : 'read'
+    const signal = opts.signal || (ctx && ctx.signal) || undefined
+    const timeout = opts.timeout != null ? opts.timeout : timeoutForGhArgs(args)
+    // #965：先拿名额再起进程，满了就排队等（等不是失败）；排队中被调用方取消则按取消返回，不算失败。
+    let release = null
+    try {
+      release = await getGhLane().acquire({ bucket: bucket, signal: signal || undefined })
+    } catch (eAcquire) {
+      try { getGhMeasure().record({ via: 'room-client', tier: tier, bucket: bucket, latencyMs: Date.now() - t0, outcome: 'cancelled' }) } catch {}
+      emitGhExec('cancelled', -1, t0, cwd)
+      return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: '已取消排队（出站准入等待中被取消），没有发出请求，可重试', code: -1, cancelled: true } }
+    }
+    try {
     const resolved = await resolveGh(cwd)
     if (!resolved.ok) {
       emitGhExec(resolved.error && resolved.error.kind ? resolved.error.kind : 'env', -1, t0, cwd)
@@ -156,12 +175,9 @@ export function ghClient(ctx) {
       return { ok: false, error: { kind: ERROR_KIND.ENV, message: 'ctx.exec unavailable', code: -1 } }
     }
 
-    const signal = opts.signal || (ctx && ctx.signal) || undefined
-    const timeout = opts.timeout != null ? opts.timeout : TIMEOUT_MS
-
     try {
-      // #723（T19）：这一笔真实出站先报给闸（I1）。报在 exec 之前 —— 真起了进程才算这一笔，
-      // 而下面这条路一定起（exec 拿不到时上面已经 return 了）。
+      // #723（T19）：这一笔真实出站先报给闸（I1）。报在拿名额之后 —— 排队等待不算这一笔，
+      // 真要起进程了才报，取消排队的不进账，账与真实出站一一对应。
       reportOutbound(ctx, args)
       const result = await exec('gh', args, { cwd, timeout, signal })
       // DSH ctx.exec 契约：{stdout, stderr, code}
@@ -176,25 +192,47 @@ export function ghClient(ctx) {
       if (code !== 0) {
         const note = code === -1 ? 'gh 这一次没拿到退出码（命令可能被中断，或者根本没起来）' : `gh exit ${code}`
         const err = { message: stderr || stdout || note, stderr: stderr || stdout, code, stdout }
-        // 没有退出码、也没有任何输出 = 拿不到任何可判断的东西 → 环境档并说清责任在插件这边；
-        // 有输出文本时照旧按文本分类（超时、限速、404 这些都要认出来）。
-        const kind = (code === -1 && !stderr && !stdout) ? ERROR_KIND.ENV : classifyGhError(err, ctx)
+        // #969：超时（等满分档才放弃、且没有输出）归网络档，不归环境档，更不归登录档 ——
+        // 慢网下用户看到的是“未知、稍后”，不会被误导去重登。判据两条满足一条即超时：
+        // 文案含超时特征，或耗时已经达到本档超时（执行器杀掉时未必留文案）。
+        const elapsedMs = Date.now() - t0
+        const looksTimeout = isTimeoutText(stderr) || isTimeoutText(stdout) || (code === -1 && elapsedMs >= timeout - 50)
+        const kind = looksTimeout ? ERROR_KIND.NETWORK : ((code === -1 && !stderr && !stdout) ? ERROR_KIND.ENV : classifyGhError(err, ctx))
         emitGhExec(kind, code, t0, cwd)
-        if (isTimeoutText(stderr) || isTimeoutText(stdout)) emitGhTimeout(timeout)
+        if (looksTimeout) emitGhTimeout(timeout)
+        try { getGhMeasure().record({ via: 'room-client', tier: tier, bucket: bucket, latencyMs: elapsedMs, outcome: looksTimeout ? 'timeout' : 'fail' }) } catch {}
         // #620：退出码要一起交回调用方。gh 自己的约定是「需要登录 = 退出码 4」（gh help exit-codes），
         // 只靠错误文案里的词去猜「是不是没登录」是巧合匹配；这里把 code 带上，分类才站得住。
         return { ok: false, error: { kind, message: String(stderr || stdout || err.message).slice(0, 800), code } }
       }
       emitGhExec('ok', 0, t0, cwd)
+      try { getGhMeasure().record({ via: 'room-client', tier: tier, bucket: bucket, latencyMs: Date.now() - t0, outcome: 'ok' }) } catch {}
+      // #964：写成功推高写世代，探测链据此知道“写过东西之后不搭”。
+      try { if (bucket === 'write') noteGhWrite() } catch {}
       return { ok: true, data: { stdout, stderr, code } }
     } catch (e) {
       // exec 抛的错误（timeout/network 等）→ 归一化
+      const elapsedMs = Date.now() - t0
+      // #969：调用方取消（排队/在飞中被杀）按取消返回，不算失败；其余照旧归一。
+      if (isAdmissionCancelled(e) || (signal && signal.aborted === true)) {
+        try { getGhMeasure().record({ via: 'room-client', tier: tier, bucket: bucket, latencyMs: elapsedMs, outcome: 'cancelled' }) } catch {}
+        emitGhExec('cancelled', -1, t0, cwd)
+        return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: '已取消（没有发出有效请求，可重试）', code: -1, cancelled: true } }
+      }
       const kind = classifyGhError(e, ctx)
       emitGhExec(kind, -1, t0, cwd)
-      if (isTimeoutText((e && (e.message || e.stderr)) || e)) emitGhTimeout(timeout)
+      const looksTimeout = isTimeoutText((e && (e.message || e.stderr)) || e) || elapsedMs >= timeout - 50
+      if (looksTimeout) emitGhTimeout(timeout)
+      try { getGhMeasure().record({ via: 'room-client', tier: tier, bucket: bucket, latencyMs: elapsedMs, outcome: looksTimeout ? 'timeout' : 'fail' }) } catch {}
       const message = String((e && (e.message || e.stderr)) || e || 'gh exec failed').slice(0, 800)
       // code: -1 = 这次调用连退出码都没有（超时、spawn 失败之类），调用方据此知道「不是命令自己报的错」
-      return { ok: false, error: { kind, message, code: -1 } }
+      return { ok: false, error: { kind: looksTimeout ? ERROR_KIND.NETWORK : kind, message, code: -1 } }
+    } finally {
+      try { if (release) release() } catch {}
+    }
+    } finally {
+      // 拿了名额但在 resolveGh / exec 不可用分支提前返回时，在这里放回。
+      try { if (release) release() } catch {}
     }
   }
 
