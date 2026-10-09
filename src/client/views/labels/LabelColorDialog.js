@@ -183,7 +183,8 @@ export const LabelColorDialog = (props) => {
     h('span', { style: { fontSize: 13, fontWeight: 700 } }, tr('lc.title')),
     lc.changes.length ? h('span', { key: 'draft', style: { fontSize: 10.5, color: '#f59e0b', border: '1px solid rgba(245,158,11,.45)', borderRadius: 4, padding: '0 5px', lineHeight: 1.6 } }, tr('lc.draftHint')) : null,
     h('span', { key: 'sp', style: { flex: 1 } }),
-    h(Tip, { key: 'close', content: tr('lc.close') }, h('button', { className: 'dsws-btn ghost', type: 'button', 'data-lc-close-x': 1, 'aria-label': tr('lc.close'), onClick: askClose, style: closeXStyle }, typeof Ic === 'function' ? Ic({ n: 'x', size: 12 }) : '✕')),
+    // #955：关闭键原来的字符 ✕ 兜底退役（取不到 Ic 就什么都不画；生产构建里 Ic 恒在）。
+    h(Tip, { key: 'close', content: tr('lc.close') }, h('button', { className: 'dsws-btn ghost', type: 'button', 'data-lc-close-x': 1, 'aria-label': tr('lc.close'), onClick: askClose, style: closeXStyle }, typeof Ic === 'function' ? Ic({ n: 'x', size: 12 }) : null)),
   ])
 
   // 顶部提示带：保存中 / 全部成功 / 部分成功 / 一个都没成，四种各一句，数目都用实际条数。
