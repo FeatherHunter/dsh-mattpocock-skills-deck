@@ -40,3 +40,14 @@ export function createChainRide(opts) {
   function stats() { return { merged: mergedN, inflight: runningByKey.size } }
   return { take, noteRide, park, leave, markWrite, stats, nowMs }
 }
+
+// 进程内共用的一本账（#966 收口）：探测链用它登记在飞，出站写路用它记写，写后不搭在生产里才成立。
+// 注钟就建新账（测试用假钟推进三十秒，不与生产单例串味）；不注钟才用单例。
+let sharedRide = null
+export function getChainRide(opts) {
+  const o = opts || {}
+  const clock = (typeof o.nowMs === 'function') ? o.nowMs : ((typeof o.now === 'function') ? o.now : null)
+  if (clock) return createChainRide({ now: clock })
+  if (!sharedRide) sharedRide = createChainRide()
+  return sharedRide
+}

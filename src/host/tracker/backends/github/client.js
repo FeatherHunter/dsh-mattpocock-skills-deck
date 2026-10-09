@@ -14,6 +14,7 @@ import { fail } from '../../preflight.js'
 import { classifyGhError } from './errors.js'
 import { timeoutForGhArgs, isWriteGhArgs } from '../../../../shared/tracker/outbound-tiers.js'
 import { getGhLane, isAdmissionCancelled } from '../../../../shared/tracker/outbound-admission.js'
+import { getChainRide } from '../../../../shared/refresh/chain-ride.js'
 
 // 房内埋点（#494 O1）：gh.exec（#5 常驻）/ gh.timeout（#6 告警）/ gh.resolve.fail（#7 告警），字段按 #489 附录 1.4。
 // gh.exec 高频：外层先判 isEnabled（信息），关闭时不组装字段；告警两项常驻直发；参数只记命令名，不记完整参数（避免令牌落盘）。
@@ -201,6 +202,8 @@ export function ghClient(ctx) {
         return { ok: false, error: { kind, message: String(stderr || stdout || err.message).slice(0, 800), code } }
       }
       emitGhExec('ok', 0, t0, cwd)
+      // #966 收口：写成功记一笔搭车账，写过东西之后来的探测不搭旧车。
+      try { if (bucket === 'write') getChainRide().markWrite() } catch {}
       return { ok: true, data: { stdout, stderr, code } }
     } catch (e) {
       // exec 抛的错误（timeout/network 等）→ 归一化
