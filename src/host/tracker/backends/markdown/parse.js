@@ -44,7 +44,12 @@ export function stripLabelDecoration(name) {
  *  只认 parentKey 这一行，不认幂等锚那一行（锚是 DSH-IDEMPOTENCY-KEY，不是父子关系）。 */
 export function parentKeyFromFile(text) {
   const raw = String(text || '')
-  const m = /^[ \t]*<!--[ \t]*parentKey[ \t]*:[ \t]*(.*?)-->/im.exec(raw)
+  // 只看文件头（标题之前的那几行）：父注释是文件元数据，写在最前（锚之后、标题之前）。
+  // 正文里也可能出现同样的写法（例如文档里举例怎么写注释），那一行不算数。
+  // 没有标题的坏文件退化成只看前 10 行，照样够到文件头。
+  const h1 = /^#+\s+/m.exec(raw)
+  const head = h1 ? raw.slice(0, h1.index) : String(raw).split('\n').slice(0, 10).join('\n')
+  const m = /^[ \t]*<!--[ \t]*parentKey[ \t]*:[ \t]*(.*?)-->/im.exec(head)
   if (!m) return { found: false, value: null }
   const v = String(m[1] || '').trim()
   if (!v) return { found: true, value: null }

@@ -1,7 +1,7 @@
 // issues-patch.js —— 以后改打补丁类字段更新时改它（预估约 190 行）。
 //
 // effort 维度（2026-09-09）：所有写路径按 (effort 范围, 编号) 定位文件，多命中即 conflict。
-import { parseMd, stripLabelDecoration } from './parse.js'
+import { parseMd, stripLabelDecoration, parentKeyFromFile } from './parse.js'
 import { readTextFile } from './read.js'
 import { writeTextFile } from './write.js'
 import { classifyError } from '../../preflight.js'
@@ -54,6 +54,7 @@ export async function updateIssue(ctx,repo,key,patch){
   const r=await resolveTarget(ctx,repo,norm,'write')
   if(!r.ok)return{ok:false,error:r.error}
   const res=await readParseWrite(ctx,repo,r,norm,function(txt){
+    const fnOldText=String(txt||'')
     let changed=false
     // #972：标题分支必须在正文分支之后：正文的整份替换分支会拿递进来的整份盖掉刚换好的标题。
     // 标题后置 = 同传时以后一步的标题参数为准；只传一边时行为不变。
@@ -102,6 +103,13 @@ export async function updateIssue(ctx,repo,key,patch){
       const line=names.length? 'Labels: '+names.join(', ') : 'Labels:'
       txt=replaceOrInsertField(txt,'Labels',line);changed=true
     }
+    // #971 加固：改正文与标签不许顺手把父注释弄丢。整份替换的两条分支会拿递进来的正文盖掉整份文件，
+    // 父注释不在字段行里，补不回来，下一次读回父就从 01 掉回 00。这里以盘上旧文件的父为准补回。
+    try{
+      const oldP=parentKeyFromFile(fnOldText)
+      const newP=parentKeyFromFile(txt)
+      if(oldP.found&&!newP.found){txt=upsertParentComment(txt,oldP.value);changed=true}
+    }catch{}
     return changed?txt:undefined
   })
   if(!res.ok)return{ok:false,error:res.error}
@@ -150,13 +158,19 @@ export async function setAssigneesIssue(ctx,repo,key,assignees){
  *  这样以后读回来是“没有父票”，而不会回落到老默认值 00。 */
 function upsertParentComment(text, want) {
   const line = want === null ? '<!-- parentKey: null -->' : '<!-- parentKey: ' + String(want) + ' -->'
+  const raw = String(text || '')
+  // 只动文件头的注释：正文里举例写同样的写法不算数（读也只认文件头，这里只换文件头）。
+  const h1 = /^#+\s+/m.exec(raw)
+  const headEnd = h1 ? h1.index : raw.split('\n').slice(0, 10).join('\n').length
+  const head = raw.slice(0, headEnd)
+  const rest = raw.slice(headEnd)
   const re = /^[ \t]*<!--[ \t]*parentKey[ \t]*:[ \t]*.*?-->[ \t]*\r?\n?/im
-  if (re.test(text)) return String(text).replace(re, line + '\n')
-  const lines = String(text || '').split('\n')
+  if (re.test(head)) return head.replace(re, line + '\n') + rest
+  const lines = head.split('\n')
   let at = 0
   if (lines.length && /^[ \t]*<!--[ \t]*DSH-IDEMPOTENCY-KEY:/.test(lines[0])) at = 1
   lines.splice(at, 0, line)
-  return lines.join('\n')
+  return lines.join('\n') + rest
 }
 function normParentKey(v) {
   if (v === undefined || v === null) return null
@@ -187,19 +201,18 @@ export async function setParentIssue(ctx,repo,key,parentKey){
   const r=await resolveTarget(ctx,repo,norm,'write')
   if(!r.ok)return{ok:false,error:r.error}
   const childEffort=r.effortId||''
-  let curTxt=''
-  try{curTxt=await readTextFile(ctx,r.path)}catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
-  let curIss=null
-  try{curIss=parseMd(curTxt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort})}catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
-  const cur=curIss.parentKey===undefined||curIss.parentKey===null?null:normParentKey(curIss.parentKey)
-  // 同值二次写入直接成功（建图流程建票时已带父，随后又为同值补一次边，原来这第二次必败，导致建好了判部分成功）。
-  if(cur===want){
-    applyLabelColors(curIss, colorMap)
-    return{ok:true,data:curIss}
-  }
+  // 同值比较放在写队列里面做（#922）：队外先读一次再比，两路并发改同一张票时，后写的那一路会把先写的那一路的改动盖掉，
+  // 而先读的那一路还按旧值报成功。下面三条写路径都在队内先读 fresh 的那一份，相等就不写直接成功。
   // 解除父子不需要搬文件（同一目录内去掉注释即可），直接成功。
   if(want===null){
-    const res=await readParseWrite(ctx,repo,r,norm,function(txt){return upsertParentComment(txt, null)})
+    const res=await readParseWrite(ctx,repo,r,norm,function(txt){
+      try{
+        const cur0=parseMd(txt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort}).parentKey
+        const curN=cur0===undefined||cur0===null?null:normParentKey(cur0)
+        if(curN===want)return undefined
+      }catch{}
+      return upsertParentComment(txt, null)
+    })
     if(!res.ok)return{ok:false,error:res.error}
     try{
       const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort})
@@ -211,7 +224,14 @@ export async function setParentIssue(ctx,repo,key,parentKey){
   if(want==='00'){
     const mr=await resolveMapFile(ctx,repo,{effortId:childEffort,mode:'read'})
     if(!mr.ok)return{ok:false,error:{kind:ERROR_KIND.NOTFOUND,message:'parent 00 not-found in effort「'+childEffort+'」'}}
-    const res=await readParseWrite(ctx,repo,r,norm,function(txt){return upsertParentComment(txt, '00')})
+    const res=await readParseWrite(ctx,repo,r,norm,function(txt){
+      try{
+        const cur0=parseMd(txt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort}).parentKey
+        const curN=cur0===undefined||cur0===null?null:normParentKey(cur0)
+        if(curN===want)return undefined
+      }catch{}
+      return upsertParentComment(txt, '00')
+    })
     if(!res.ok)return{ok:false,error:res.error}
     try{
       const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort})
@@ -221,7 +241,14 @@ export async function setParentIssue(ctx,repo,key,parentKey){
   }
   const pr=await resolveIssueFile(ctx,repo,want,{effortId:childEffort,mode:'read'})
   if(pr.ok&&(pr.effortId||'')===childEffort){
-    const res=await readParseWrite(ctx,repo,r,norm,function(txt){return upsertParentComment(txt, want)})
+    const res=await readParseWrite(ctx,repo,r,norm,function(txt){
+      try{
+        const cur0=parseMd(txt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort}).parentKey
+        const curN=cur0===undefined||cur0===null?null:normParentKey(cur0)
+        if(curN===want)return undefined
+      }catch{}
+      return upsertParentComment(txt, want)
+    })
     if(!res.ok)return{ok:false,error:res.error}
     try{
       const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort})

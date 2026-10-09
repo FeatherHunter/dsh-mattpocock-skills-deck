@@ -141,10 +141,23 @@ async function main() {
 
   // —— 不存在的父仍如实失败（跨目录与缺失都算做不到，不假装成功） ——
   const { setParentIssue } = await imp('src/host/tracker/backends/markdown/issues-patch.js')
+  const { getIssue: getB } = await imp('src/host/tracker/backends/markdown/issues-read.js')
+  const { updateIssue } = await imp('src/host/tracker/backends/markdown/issues-patch.js')
   const miss = await setParentIssue(ctxB, repoB, String((b1.data && b1.data.key) || '01'), '99')
   check(miss.ok === false, '不存在的父如实失败（实得 ok=' + miss.ok + '）')
   const same = await setParentIssue(ctxB, repoB, String((b1.data && b1.data.key) || '01'), '00')
   check(same.ok === true, '同目录同值改父成功（no-op，不再报做不到）')
+  // —— 加固：正文里举例写同样的注释不算数，只认文件头 ——
+  const evil = await createIssue(ctxB, repoB, { title: '正文举例', type: 'task', body: '下面是写法举例：\n<!-- parentKey: 99 -->\n不要当真。' })
+  const gotEvil = await getB(ctxB, repoB, String((evil.data && evil.data.key) || ''), {})
+  check(gotEvil.ok === true && String((gotEvil.data && gotEvil.data.parentKey) || '') === '00', '正文里的举例注释不劫持归属（实得 ' + ((gotEvil.data && gotEvil.data.parentKey) || '空') + '，应回落 00）')
+  // —— 加固：整份替换改正文不许弄丢父 ——
+  const kidKey = String((b1.data && b1.data.key) || '01')
+  const whole = '# 单根子票一\n\n全新的正文，没有父注释，没有字段行。'
+  const upd = await updateIssue(ctxB, repoB, kidKey, { body: whole })
+  check(upd.ok === true, '整份替换改正文成功')
+  const gotKid = await getB(ctxB, repoB, kidKey, {})
+  check(gotKid.ok === true && String((gotKid.data && gotKid.data.parentKey) || '') === '00', '整份替换后父还在 00（实得 ' + ((gotKid.data && gotKid.data.parentKey) || '空') + '）')
 
   try { dispose.dispose() } catch (e) {}
   try { fs.rmSync(rootA, { recursive: true, force: true }) } catch (e) {}
