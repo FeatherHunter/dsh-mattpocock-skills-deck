@@ -195,41 +195,41 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https:
 
 感谢每一位提交 Issue、PR 与参与讨论的朋友，是你们让这个插件一点点变好。
 
-[@pioneerAlone](https://github.com/pioneerAlone)🌹🌹🌹🌹🌹🌹 — 反馈了 #298（details/better-sidebar 重复，附完整复现与截图）、#274、#234 等状态栏与健康检查误报、#645（镜像源滞后导致更新失败），并提交了修复 PR #273、#316，感谢你让「重装后到处异常」的体感得以一次清爽修复
+[@pioneerAlone](https://github.com/pioneerAlone)🌹🌹🌹🌹🌹🌹 — [#298](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/298) 面板重复、[#274](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/274)/[#234](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/234) 状态栏误报、[#645](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/645) 镜像滞后，[PR #273](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/273)/[PR #316](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/316) 修重装异常
 
-[@Shimmernight](https://github.com/Shimmernight)🌹🌹🌹🌹 — 提交了 #277 等 Issue，以及 PR #287、#275、#106（toast 主题、命名修正、macOS 适配）
+[@Shimmernight](https://github.com/Shimmernight)🌹🌹🌹🌹 — [#277](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/277) 等议题，[PR #287](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/287)/[PR #275](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/275)/[PR #106](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/106) 弹窗主题与 macOS 适配
 
-[@angenet](https://github.com/angenet)🌹🌹 — 反馈了 #295、#262 等 macOS 环境检测问题
+[@angenet](https://github.com/angenet)🌹🌹 — [#295](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/295)/[#262](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/262) macOS 环境检测
 
-[@hyperion2144](https://github.com/hyperion2144)🌹🌹 — 反馈了 #110 等环境检查问题，以及 #646（建议直接注册 DSH 原生侧边栏，不再经过 better-sidebar 中转）
+[@hyperion2144](https://github.com/hyperion2144)🌹🌹 — [#110](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/110) 环境检查、[#646](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/646) 原生侧边栏建议
 
-[@arnold117](https://github.com/arnold117)🌹🌹 — 反馈了 #574（本地 Markdown 后端里多个工作单元撞号，只能看到第一个，评论还会写进别的文件），并提交了 PR #575 修好它（已合入），感谢你让一个仓库里并存多个工作单元时不再读错写错
+[@arnold117](https://github.com/arnold117)🌹🌹 — [#574](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/574) 多单元撞号、[PR #575](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/575) 已合入修复
 
-[@anupamme](https://github.com/anupamme)🌹🌹 — 提交了 PR #727、#728（给 rpcChannel.js 加两处安全加固：防原型污染与加资源限制，目前待评审）
+[@anupamme](https://github.com/anupamme)🌹🌹 — [PR #727](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/727)/[PR #728](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/728) 通道安全加固待评审
 
 [@qq1393950873-bit](https://github.com/qq1393950873-bit)🌹🌹 — [#970](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/970) 整份正文写成两份、[PR #974](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/974) 已合入修复
 
-[@21967201](https://github.com/21967201)🌹 — 提交了 PR #321（完善 triage + wayfinder 标签文档）
+[@21967201](https://github.com/21967201)🌹 — [PR #321](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/321) 标签文档完善
 
-[@tafcear](https://github.com/tafcear)🌹 — 反馈了 #422（非编码工作区状态栏降噪诉求），感谢你让非编码工作区不再被初始化横幅打扰
+[@tafcear](https://github.com/tafcear)🌹 — [#422](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/422) 非编码区降噪
 
-[@271912980](https://github.com/271912980)🌹 — 在 #257 下提出把会话做成稳定可寻址端点（会话 ID + 语义名）的想法
+[@271912980](https://github.com/271912980)🌹 — [#257](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/257) 会话寻址想法
 
-[@xiSage](https://github.com/xiSage)🌹 — 反馈了 #435（自托管 GitLab 仓库无法识别），并在讨论区发起 #436（按工作区关闭插件功能）
+[@xiSage](https://github.com/xiSage)🌹 — [#435](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/435) 自托管仓库识别、讨论 [#436](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/discussions/436) 按区关闭功能
 
-[@dis0neplay](https://github.com/dis0neplay)🌹 — 提交了 PR #493（修 CI 与 Pages 根目录跳转，按请求关闭）
+[@dis0neplay](https://github.com/dis0neplay)🌹 — [PR #493](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/493) 修 CI 与 Pages 跳转
 
-[@snmtg1008](https://github.com/snmtg1008)🌹 — 在 #476 下留下了自己排查并修好「本地数据目录误报不可写」的完整方案
+[@snmtg1008](https://github.com/snmtg1008)🌹 — [#476](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/476) 本地目录误报排查方案
 
-[@SbDonger](https://github.com/SbDonger)🌹 — 反馈了 #640（状态栏与输入框错位，输入框上方出现一条横向背景带）
+[@SbDonger](https://github.com/SbDonger)🌹 — [#640](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/640) 状态栏与输入框错位
 
-[@seameafst](https://github.com/seameafst)🌹 — 反馈了 #793（点「+ 新建需求」后直接回车会发出一份空模板，需求原文在链路里没人收，附完整根因与两档修法）
+[@seameafst](https://github.com/seameafst)🌹 — [#793](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/793) 空模板回车问题
 
-[@zerocodefast](https://github.com/zerocodefast)🌹 — 发起了 #823（邀请把本插件收录进 awesome-ai-plugins 清单，并给出建议条目）
+[@zerocodefast](https://github.com/zerocodefast)🌹 — [#823](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/823) 收录进清单邀请
 
-[@li873582595](https://github.com/li873582595)🌹 — 反馈了 #835（官方桌面版上装插件后初始化阶段反复断开重连，卸载后消失）
+[@li873582595](https://github.com/li873582595)🌹 — [#835](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/835) 桌面初始化断连
 
-[@SKADI0718](https://github.com/SKADI0718)🌹 — 提交了 #856（后由作者撤回作废）
+[@SKADI0718](https://github.com/SKADI0718)🌹 — [#856](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/856) 已撤回作废
 
 [@asesr](https://github.com/asesr)🌹 — [#926](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/926) 状态栏胶囊同步重排
 
