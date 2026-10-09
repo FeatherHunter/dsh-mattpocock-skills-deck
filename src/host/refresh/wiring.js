@@ -26,6 +26,7 @@ import { createDeckToolsForHost, DECK_TOOL_FILES } from '../platform/deckToolsAs
 import { createNamingSummary, readFirstUserText } from '../platform/namingSummary.js'   // #746：命名摘要编排（单例，见下）；#746 首句直读（随单下发供免锁比对）
 import { hookDeckAgentTools, makeDeckRegisterReport } from '../../shared/deck-tools/agent-register.js' // #741 注册那一步（向 agent 交七个工具）：形状、循环与报告住共享层（两边都要用），这里只递表
 import { publishDeckTable, noteDeckGate } from '../../shared/deck-tools/exec-cell.js' // #758 同进程共享格：行与宿主同一进程，表放进格子里行直接取，不经调用面
+import { createSandboxPolicyFor } from '../platform/deckSandbox.js'
 import { createDeckQuotaSync } from '../platform/deckQuotaSync.js' // #758 剩余额度读数接线：差读数先免费读一次，裁决数字不动（平台区，不新增宿主层边）
 // #723（T19c）第 E 件：行级增量那半边（refresh/patch.js）同理收在 src/host/platform/refreshAssembly.js 一处。
 import { createPatchForHost } from '../platform/refreshAssembly.js'
@@ -34,6 +35,7 @@ import * as toolCost from '../../shared/refresh/tool-cost.js'
 // #724：闸那一侧的工作区钥匙（短散列）只有一份实现，住在共享层（宿主层文件之间不许互引，而链求值那侧也要用
 // 同一把钥匙）。本文件把它转出来，「活跃集合、写事件白名单、七个 deck_* 工具、行级增量、检查链记账」五处同源。
 import { hash8, workspaceKeyOf } from '../../shared/refresh-workspace-key.js'
+import { parseWorkspaceFile, WORKSPACE_FILE_REL } from '../../shared/deck-tools/workspace-file.js'
 export { workspaceKeyOf } from '../../shared/refresh-workspace-key.js'
 
 /** 把一堆依赖包装成「取一次、以后复用」的惰性实例（模块加载失败不许把整个插件带崩）。 */
@@ -324,20 +326,16 @@ export function createRefreshWiring(deps) {
           budget: budget,
           estimate: toolCost.estimateToolCost,
           costInputFrom: toolCost.toolCostInputFrom,
-          handleFor: function (s) {
-            try {
-              const list = (typeof registry.allBindings === 'function') ? registry.allBindings() : []
-              for (let i = 0; i < list.length; i++) if (list[i] && list[i].cwd === s.cwd) return list[i].handle
-            } catch (e) { /* 拿不到绑定就用会话里的目录兜底（select 会落到 matches 那一档） */ }
-            return { cwd: s.cwd }
-          },
+          handleFor: function (s) { try { const list = (typeof registry.allBindings === 'function') ? registry.allBindings() : []; const want = String((s && s.cwd) || ''); const wash = (p) => String(p || '').replace(/\\/g, '/').replace(/\/+$/, ''); const wantW = wash(want); for (let i = 0; i < list.length; i++) { const c = (list[i] && (list[i].cwd || (list[i].handle && list[i].handle.cwd))) || ''; if (String(c) === want || wash(c) === wantW) return list[i].handle || { cwd: want } } } catch (e) {} return { cwd: (s && s.cwd) || '' } },
+          // 934：会话目录洗加锚根的宿主唯一异步出口（与绑定侧同一把钥匙）；缺席时壳沿用原始目录。
+          canonicalKey: (typeof d.canonicalKey === 'function') ? function (raw) { return d.canonicalKey(raw) } : undefined,
+          // 947 显式后两层读口：查不到一律 null（缺席即跳过，不猜）。
+          readChoice: function (rootCwd) { try { return (typeof d.getChoiceStore === 'function') ? d.getChoiceStore().then(function (cs) { return (cs && typeof cs.getWorkspace === 'function') ? cs.getWorkspace(rootCwd) : null }, function () { return null }).then(function (got) { return (got && got.found === true && got.backendId) ? { backendId: got.backendId, rev: got.rev || 0 } : null }) : Promise.resolve(null) } catch (e) { return Promise.resolve(null) } },
+          readWorkspaceFileText: function (rootCwd) { try { const fsSvc = backendObj && backendObj.fs; if (!fsSvc || typeof fsSvc.resolve !== 'function' || typeof fsSvc.readText !== 'function') return Promise.resolve(null); return Promise.resolve(fsSvc.resolve(WORKSPACE_FILE_REL, { cwd: rootCwd })).then(function (t) { return fsSvc.readText(t) }, function () { return null }).then(function (txt) { return (typeof txt === 'string' && txt) ? txt : null }, function () { return null }) } catch (e) { return Promise.resolve(null) } },
+          parseWorkspaceFile: parseWorkspaceFile,
+          sandboxPolicyFor: createSandboxPolicyFor(d.ctx),
           backendCtx: function () { return backendObj },
-          invalidate: function (info) {
-            try {
-              const root = (info && info.workspace && info.workspace.root) || (info && info.cwd)
-              if (typeof d.setCache === 'function' && root) d.setCache({ ts: 0, snapshot: null, error: null, cwd: String(root) })
-            } catch (e) {}
-          },
+          invalidate: function (info) { try { const root = (info && info.workspace && info.workspace.root) || (info && info.cwd); if (typeof d.setCache === 'function' && root) d.setCache({ ts: 0, snapshot: null, error: null, cwd: String(root) }) } catch (e) {} },
           onTicketCreated: onDeckWrite, chainNote: function (input) { try { return sessionTickets.note(input) } catch (e) { return null } }, // #746 建票直达命名守护；#775 主动上报写同一份链（report）
           hourUsage: function () { try { return ledger.hourOf('ai-tool') || {} } catch (e) { return {} } },
           ensureReading: function (cwd, workspaceKey) { return ensureDeckReading(cwd, workspaceKey) }, // #758 动手前保读数：差就免费读一次，不差不打；失败调用方照旧被闸推迟

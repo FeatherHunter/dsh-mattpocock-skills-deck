@@ -1,6 +1,6 @@
 // verify-log-fields.js —— #494 第三件事：日志门禁之字段白名单（#489 附录第 4 节断言一）。
 // 用法：在插件根目录执行 node tests/verify-log-fields.js，可独立运行。
-// 断言文字：扫描全部埋点调用，每个事件只含第 1 节允许字段（#746 增补常驻 #90 naming.summary，#782 增补常驻 #92 cwd.persisted，#817 增补常驻 #94 git.exec 与 #95 git.exec.fail，#864 增补按需 #96 vc.cache.screen）；
+// 断言文字：扫描全部埋点调用，每个事件只含第 1 节允许字段（#746 增补常驻 #90 naming.summary，#782 增补常驻 #92 cwd.persisted，#817 增补常驻 #94 git.exec 与 #95 git.exec.fail，#864 增补按需 #96 vc.cache.screen，#958 增补按需 #97 labelColors.listed）；
 // 出现工作区原始路径、仓库地址原文、令牌原文、模板正文、快照全文即红。
 // 做法：从宿主与客户端源码里找出全部日志调用，逐个事件收拢实际字段键，
 // 与下面这张允许表逐项比对；未知事件名、未知字段键都算失败并打印清单。
@@ -12,7 +12,7 @@ let failed = false
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
-console.log('日志字段白名单门禁（#494/#498/#548/#618/#652/#655/#690/#709/#724/#782/#817/#864：93 事件逐个只记已知安全字段，未知字段默认不记）')
+console.log('日志字段白名单门禁（#494/#498/#548/#618/#652/#655/#690/#709/#724/#782/#817/#864/#958：94 事件逐个只记已知安全字段，未知字段默认不记）')
 
 // 允许表：事件名对应它能记的全部字段键，之外的键一律不许出现。
 // 键名取自实现原文，语义与 #489 附录 1.4、1.5 节对照表一致。
@@ -93,6 +93,8 @@ const ALLOWED = {
   'labelColors.read': ['cwdHash', 'present', 'count', 'ok', 'reason'],
   // #635 新增一条按需事件（附录 1.5 节）：保存成功后写进面板那份快照的颜色记录，只记工作区键散列、枚举与条数。
   'labelColors.panelPatch': ['cwdHash', 'kind', 'count'],
+  // 2026-10-09 新增一条按需事件（#958，附录 1.5 节 #97）：调色盘弹窗权威清单进界面状态时记一行，只记行数、被过滤行数与行名散列，名字原文一个字都不记。
+  'labelColors.listed': ['cwdHash', 'count', 'empty', 'namesHash'],
   // #652 新增一条按需事件（附录 1.5 节）：工作区根判定与它那层 30 秒缓存，只记两个散列与两个枚举。
   'workspaceRoot.resolve': ['cwdHash', 'rootHash', 'source', 'cache'],
   // #655 新增一条按需事件（附录 1.5 节）：初始化这段文案「这次该不该注入、按哪种布局注入」这个决定的结果，只记三个枚举。
