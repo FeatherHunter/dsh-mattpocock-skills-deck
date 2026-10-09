@@ -95,6 +95,7 @@ export const SkillFloatList = function (props) {
       h('div', { className: 'dsws-skillpop', style: { minWidth: 150, maxHeight: 'min(300px, calc(100vh - 24px))', overflowY: 'auto', background: 'var(--dsw-alias-bg-layer-2,#16181d)', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 8, boxShadow: '0 8px 30px rgba(0,0,0,.45)', padding: 4 } }, [
         SKILLS.map(function (sk) {
           return h(HoverTip, { key: sk.name, content: tr('skilldesc.' + sk.name), mode: 'anchor', maxWidth: 220 }, h('div', {
+            className: 'dsws-skillpop-row',
             onClick: function (e) { e.stopPropagation(); inject(s, '/' + sk.name); closeSkillPop() },
             onMouseEnter: function () { if (s.skillHover !== sk.name) { s.skillHover = sk.name; emit(s) } },
             onMouseLeave: function () { if (s.skillHover !== null) { s.skillHover = null; emit(s) } },
