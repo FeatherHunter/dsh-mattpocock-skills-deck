@@ -45,8 +45,10 @@ async function main() {
     check(parseWorkspaceFile('{oops') === null, 'W1 坏 JSON 为 null')
     check(parseWorkspaceFile(JSON.stringify({ version: 2, backendId: 'github', pickedAt: 7, source: 'user' })) === null, 'W1 错版本为 null')
     check(parseWorkspaceFile(JSON.stringify({ version: 1, backendId: '', pickedAt: 7, source: 'user' })) === null, 'W1 空 id 为 null')
-    check(parseWorkspaceFile(JSON.stringify({ version: 1, backendId: 'github', pickedAt: 7, source: 'auto' })) === null, 'W1 非 user 来源为 null')
+    check(parseWorkspaceFile(JSON.stringify({ version: 1, backendId: 'github', pickedAt: 7, source: '' })) === null, 'W1 空来源为 null')
     check(parseWorkspaceFile(JSON.stringify({ version: 1, backendId: 'github', source: 'user' })) === null, 'W1 缺档案时间为 null')
+    check(parseWorkspaceFile(JSON.stringify({ version: 1, backendId: 'github', pickedAt: 7, source: 'auto' })).source === 'auto', 'W1 保护自动写来源照认（位序不变）')
+    check(parseWorkspaceFile(JSON.stringify({ version: 1, backendId: 'github', pickedAt: 7, source: 'probe' })) === null, 'W1 未知来源为 null')
     check(parseWorkspaceFile('\uFEFF' + JSON.stringify({ version: 1, backendId: 'github', pickedAt: 7, source: 'user' })).backendId === 'github', 'W1 带 BOM 照认')
     check(WORKSPACE_FILE_REL === 'docs/agents/workspace.json' && WORKSPACE_FILE_VERSION === 1, 'W1 路径与版本钉住')
   }

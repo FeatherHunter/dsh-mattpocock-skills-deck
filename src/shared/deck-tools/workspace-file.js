@@ -7,6 +7,8 @@
 export const WORKSPACE_FILE_REL = 'docs/agents/workspace.json'
 export const WORKSPACE_FILE_VERSION = 1
 export const WORKSPACE_FILE_SOURCE = 'user'
+// 保护自动写用的来源（非人选，如实标记；位序不变，仍输内存与本机记忆，见 957）
+export const WORKSPACE_FILE_SOURCE_AUTO = 'auto'
 
 function finiteNumber(v) { return (typeof v === 'number' && Number.isFinite(v)) }
 
@@ -19,9 +21,9 @@ export function parseWorkspaceFile(text) {
   if (obj.version !== WORKSPACE_FILE_VERSION) return null
   const backendId = (typeof obj.backendId === 'string') ? obj.backendId.trim() : ''
   if (!backendId) return null
-  if (obj.source !== WORKSPACE_FILE_SOURCE) return null
+  if (obj.source !== WORKSPACE_FILE_SOURCE && obj.source !== WORKSPACE_FILE_SOURCE_AUTO) return null
   if (!finiteNumber(obj.pickedAt)) return null
-  return { backendId: backendId, pickedAt: obj.pickedAt, source: WORKSPACE_FILE_SOURCE }
+  return { backendId: backendId, pickedAt: obj.pickedAt, source: obj.source }
 }
 
 // 人选 → 落盘文本。只装四项：版本、后端、档案时间、来源；不装路径、令牌、登录态。
@@ -29,5 +31,6 @@ export function stringifyWorkspaceFile(input) {
   const src = (input && typeof input === 'object') ? input : {}
   const backendId = (typeof src.backendId === 'string') ? src.backendId.trim() : ''
   const pickedAt = finiteNumber(src.pickedAt) ? src.pickedAt : 0
-  return JSON.stringify({ version: WORKSPACE_FILE_VERSION, backendId: backendId, pickedAt: pickedAt, source: WORKSPACE_FILE_SOURCE }, null, 2) + '\n'
+  const source = (src.source === WORKSPACE_FILE_SOURCE_AUTO) ? WORKSPACE_FILE_SOURCE_AUTO : WORKSPACE_FILE_SOURCE
+  return JSON.stringify({ version: WORKSPACE_FILE_VERSION, backendId: backendId, pickedAt: pickedAt, source: source }, null, 2) + '\n'
 }
