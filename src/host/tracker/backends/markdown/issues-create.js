@@ -167,7 +167,7 @@ export async function createIssue(ctx,repo,input){
       if(!finalPath)return{ok:false,error:{kind:ERROR_KIND.CONFLICT,message:'create NN conflict'}}
       // 内容拼装与落盘同样留在队列里：落盘这一步必须发生在**还握着队列**的时候，
       // 否则下一路会在「这一路已经取到号、但还没写下去」的缝里读目录，又读不到这张票、又取到同一个号。
-      await writeTextFile(ctx,finalPath,buildIssueText(input))
+      await writeTextFile(ctx,finalPath,buildIssueText(input), ctx && ctx.sandboxPolicy)
       // ② 落盘之后当场回读核对（#711）：确认锚真的写进了这个文件。只写不核对的话，
       //    写入被拒、写了一半、被别的进程覆盖回去这类情况会以「建票成功」的样子交回去，
       //    而锚没落上去意味着下一次重试再也找不到这张票（重复建票的根就没被切断）。

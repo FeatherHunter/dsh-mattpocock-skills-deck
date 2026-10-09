@@ -27,11 +27,27 @@ async function readParseWrite(ctx,repo,r,norm,fn){
       let txt=await readTextFile(ctx,r.path)
       const out=fn(txt)
       const next=typeof out==='string'?out:txt
-      if(next!==txt)await writeTextFile(ctx,r.path,next)
+      if(next!==txt)await writeTextFile(ctx,r.path,next, ctx && ctx.sandboxPolicy)
       return{ok:true,txt:next}
     }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
   })
 }
+/** 递进来的正文是不是「一整份票文件」：自带 H1 标题（或幂等锚）。
+ *  为什么要分开判：下面的插入分支把正文插在现有 H1 之后，认错了盘上就会留下两个 H1、两份正文。
+ *  实测：自带 H1、又不带 Status 行的整份正文走了插入分支，票文件被写坏，调用方却收到 ok。 */
+function looksLikeWholeDocument(body){
+  const t=String(body||'')
+  return /^\s*#\s+\S/m.test(t)||/^\s*<!--\s*DSH-IDEMPOTENCY-KEY:/m.test(t)
+}
+/** 盘上那份文本里的字段行（Status/Type/Blocked by/Labels）：整份替换时用来补齐递进来的正文里缺的字段。 */
+function fieldLinesOf(text){
+  const out=[]
+  const lines=String(text||'').split('\n')
+  for(const l of lines){ if(/^\s*(Status|Type|Blocked\s+by|Labels)\s*[:\uFF1A]/i.test(l)) out.push(l.replace(/\s+$/,'')) }
+  return out
+}
+function fieldNameOf(line){ return String(line).split(/[:\uFF1A]/)[0].trim().toLowerCase() }
+
 export async function updateIssue(ctx,repo,key,patch){
   const norm=String(key).padStart(2,'0')
   const colorMap=await loadPaintColorMap(ctx)
@@ -39,17 +55,20 @@ export async function updateIssue(ctx,repo,key,patch){
   if(!r.ok)return{ok:false,error:r.error}
   const res=await readParseWrite(ctx,repo,r,norm,function(txt){
     let changed=false
-    if(patch&&typeof patch.title==='string'){
-      const newTitle=patch.title.trim()
-      if(newTitle){
-        if(/^#+\s+.*$/m.test(txt))txt=txt.replace(/^#+\s+.*$/m,'# '+newTitle)
-        else txt='# '+newTitle+'\n\n'+txt
-        changed=true
-      }
-    }
+    // #972：标题分支必须在正文分支之后：正文的整份替换分支会拿递进来的整份盖掉刚换好的标题。
+    // 标题后置 = 同传时以后一步的标题参数为准；只传一边时行为不变。
+    const newTitle=(patch&&typeof patch.title==='string')?patch.title.trim():''
     if(patch&&typeof patch.body==='string'){
       if(/^\s*Status\s*[:\uFF1A]/im.test(patch.body)){
         txt=String(patch.body);changed=true
+      }else if(looksLikeWholeDocument(patch.body)){
+        // 整份正文（自带 H1 / 幂等锚）却没带字段块：原实现会落到下面的插入分支，把整份文档拼在现有 H1 之后，
+        // 盘上出现两个 H1、两份正文，而调用方收到 ok。这里按整份替换处理，并把盘上原有的字段补回文末。
+        const incoming=String(patch.body)
+        const have=fieldLinesOf(incoming).map(fieldNameOf)
+        const keep=fieldLinesOf(txt).filter(function(l){ return have.indexOf(fieldNameOf(l))<0 })
+        txt=incoming.replace(/\s*$/,'')+'\n'+(keep.length?('\n'+keep.join('\n')+'\n'):'')
+        changed=true
       }else{
         const lines=txt.split('\n')
         const titleIdx=lines.findIndex(l=>/^#+\s+/.test(l))
@@ -63,6 +82,11 @@ export async function updateIssue(ctx,repo,key,patch){
         txt=before+(before?'\n\n':'')+bodyBlock+'\n\n'+after
         changed=true
       }
+    }
+    if(newTitle){
+      if(/^#+\s+.*$/m.test(txt))txt=txt.replace(/^#+\s+.*$/m,'# '+newTitle)
+      else txt='# '+newTitle+'\n\n'+txt
+      changed=true
     }
     if(patch&&Array.isArray(patch.customFields)){
       for(const cf of patch.customFields){

@@ -348,7 +348,9 @@ async function main() {
     // 子目录会话在界面上选了后端 → 走的就是这条电话
     const bindOut = await wsCwd.handleBind({ cwd: RAW.subDeep, backendId: 'github' })
     const rows = registry.allBindings()
-    must(bindOut.ok === true && rows.length === 1 && rows[0].handleKey === K.repo && rows[0].cwd === K.repo,
+    // 934 起注册表键只做系统无关洗（斜杠归一）：同一桶的键是洗后形态，cwd 仍是规范根原文；bound() 两写法互查见下条。
+    const washedRepo = (await import(url('src/host/tracker/registryShape.js'))).washHandleKey(K.repo)
+    must(bindOut.ok === true && rows.length === 1 && rows[0].handleKey === washedRepo && rows[0].cwd === K.repo,
       '后端绑定：子目录会话选了后端，这次绑定落在工作区根这一桶上（同一个仓库一处绑定，不各存一份）',
       '回包=' + JSON.stringify(bindOut) + ' 绑定行=' + JSON.stringify(rows))
     must(registry.bound({ cwd: K.repo }) === 'github' && registry.bound({ cwd: K.sub }) === 'github' && registry.bound({ cwd: K.subDeep }) === 'github',

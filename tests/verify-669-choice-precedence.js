@@ -232,6 +232,7 @@ const makeSwitch = function (srcText) {
     // #698：切换那条路的两条收尾轨迹住在内核（statusbar/ 目录里不许新开日志点），这里顶上真身同形的替身
     logSwitchSettle: (what, st) => seen.log.push({ level: 'debug', event: 'inject.decision', fields: { prompt: 'switchSettle', kind: String(what || ''), layout: String((st && st.setupLayout) || 'unset') } }),
     promptText: (id, params) => (id === 'switchAlign' ? 'ALIGN|' + String((params && params.from) || '') + '->' + String((params && params.to) || '') : ''),
+    switchAlignPrompt: (st, targetId, from, to, layout) => 'ALIGN|' + String(from || '') + '->' + String(to || ''),
     chainSteps: chainStepsImpl,
     guideStepsFor: GUIDE.guideStepsFor,
     guideStepDone: GUIDE.guideStepDone,
@@ -311,6 +312,7 @@ const makeSettle = function (steps, opts) {
     flash: (st, msg, kind) => seen.flash.push({ msg: String(msg), kind: kind || '' }),
     inject: (st, text) => seen.inject.push(String(text)),
     promptText: (id, params) => { seen.prompt.push({ id: id, params: params || null }); return id === 'switchLayout' ? 'LAYOUT|' + String((params && params.from) || '') + '->' + String((params && params.to) || '') : 'ALIGN|' + String((params && params.from) || '') + '->' + String((params && params.to) || '') },
+    switchAlignPrompt: (st, targetId, from, to, layout) => { seen.prompt.push({ id: 'switchAlign', targetId: targetId || null, from: from || '', to: to || '', layout: layout || null }); return 'ALIGN|' + String(from || '') + '->' + String(to || '') },
     // 决策器真身（kernel/prompts-setup.js）：这一组只关心「还没初始化」那一支会不会把全文注进去
     injectSetupDecision: (st, id, o2) => { seen.decision = (seen.decision || []).concat([{ id: id, allowCard: !!(o2 && o2.allowCard) }]); return o.blocksSetup ? 'blocked' : 'setup' },
     isEnabled: () => o.debug === true,
@@ -392,7 +394,7 @@ console.log('== D 静态层：删掉的那颗按钮、置灰的三处、中英�
   // #792：这一条原来把版本号钉成 version: 1，可 #698 给这条模板补上布局切换后版本就抬到 2、#792 又抬到 3，
   //   断言跟着每次 bump 变红 —— 它想守的是「这条模板在注册表里、且带 from/to 两个占位符」，不是某一个版本号。
   //   版本号本身该不该动由 verify-prompts.js 的版本底线表管，这里不再重复钉一遍。
-  check(/"switchAlign": \{ version: \d+, placeholders: \['from', 'to'\]/.test(promptsSrc), '新模板 switchAlign 在注册表里（两个占位符 from/to）')
+  check(/"switchAlign": \{ version: 4, placeholders: \['trackerLine', 'trackerChoice', 'backendNote', 'labelReqs', 'contextLayout', 'from', 'to'\]/.test(promptsSrc), '新模板 switchAlign 在注册表里（V4七个占位符：5个同V15+from/to）')
   check(/\/setup-matt-pocock-skills/.test(promptsSrc.slice(promptsSrc.indexOf('"switchAlign"'), promptsSrc.indexOf('"newWayfinder"'))), '新模板点名了 /setup-matt-pocock-skills（维护者要求）')
   // 全仓扫一遍：往宿主上报「这次问的是哪个后端」的每一行都必须过 userHintOf 那道闸 ——
   //   漏一处就等于派生值又能冒充用户意图（2026-09-21 对抗式审查就是这样抓到 ChainRenderer / NoRepoCard 两处的）。

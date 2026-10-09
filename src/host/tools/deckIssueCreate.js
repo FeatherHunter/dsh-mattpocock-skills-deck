@@ -9,6 +9,7 @@
 //
 // 返回值就是**写后的真状态**（契约 create 回的那张票），AI 不必再读一次确认。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../../shared/deck-tools/shell.js'
+import { sessionContextOfAsync } from '../../shared/deck-tools/session-resolve.js'
 import { classifyEdgeLanding, unsupportedEvidence, edgeEvidence } from '../../shared/deck-tools/edges.js'
 import { ensureLabels, ensureBody, anchorKeyFor } from '../../shared/deck-tools/plan.js'
 import * as budget from '../../shared/refresh/budget.js'
@@ -51,7 +52,7 @@ export function createDeckIssueCreate(deps) {
     const title = String(a.title === undefined || a.title === null ? '' : a.title).trim()
     const kind = kindOf(a)
     const est = shell.estimateFor('deck_issue_create', a)
-    const s = shell.context(exec)
+    const s = await sessionContextOfAsync(exec, { canonicalKey: d.canonicalKey, workspaceKeyOf: d.workspaceKeyOf })
     if (!s.ok) return shell.unsupported('deck_issue_create', s.reason, s.text, { cost: { estimated: est } })
     if (!title) return shell.unsupported('deck_issue_create', REFUSAL_REASONS.BAD_ARGS, '要建哪一张票：title 不能空。', { cost: { estimated: est } })
 
@@ -66,7 +67,7 @@ export function createDeckIssueCreate(deps) {
     const now = (typeof d.now === 'function') ? d.now() : Date.now()
     const anchor = a.idempotencyKey ? String(a.idempotencyKey) : anchorKeyFor({ tool: 'deck_issue_create', sessionId: s.sessionId, workspaceKey: s.workspaceKey, title: title, labels: ensured.labels, now: now })
 
-    return shell.call({ tool: 'deck_issue_create', kind: 'write', session: s, pick: pick, repo: repo, estimate: est }, async (c) => {
+    return shell.call({ tool: 'deck_issue_create', kind: 'write', session: s, pick: pick, repo: repo, estimate: est, sandbox: (typeof d.sandboxPolicyFor === 'function' ? await d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }).catch(function(){ return null }) : null) }, async (c) => {
       const rel = (a.parentKey === undefined || a.parentKey === null || a.parentKey === '') ? null : String(a.parentKey)
       const input = { title: title, body: body.body, type: kind, labels: ensured.labels, idempotencyKey: anchor }
       if (rel) input.parentKey = rel
