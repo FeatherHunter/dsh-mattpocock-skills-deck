@@ -47,7 +47,7 @@ function judgePull(s) {
   if (s.conflictCount > 0) return { verdict: "block", reasons: ["conflicts-unresolved"] };
   const mid = midReasons(s);
   if (mid.length > 0) return { verdict: "block", reasons: mid };
-  if (s.stagedCount > 0 || s.unstagedCount > 0) return { verdict: "block", reasons: ["dirty-tree"] };
+  if (s.stagedCount > 0 || s.unstagedCount > 0) return { verdict: "warn", reasons: ["dirty-tree"] };
   if (s.identity.basisMs === null) return { verdict: "warn", reasons: ["basis-unknown"] };
   return { verdict: "allow", reasons: ["ok"] };
 }
