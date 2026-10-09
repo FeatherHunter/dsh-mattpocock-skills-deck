@@ -12,10 +12,10 @@
 import { ERROR_KIND } from '../../../../shared/tracker/constants.js'
 import { fail } from '../../preflight.js'
 import { classifyGhError } from './errors.js'
-import { tierForGhArgs, timeoutForGhArgs, isWriteGhArgs } from '../../../../shared/gh-timeout-tiers.js'
-import { getGhLane, isAdmissionCancelled } from '../../../../shared/gh-admission.js'
-import { getGhMeasure } from '../../../../shared/gh-measure.js'
-import { noteGhWrite } from '../../../../shared/gh-write-generation.js'
+import { tierForGhArgs, timeoutForGhArgs, isWriteGhArgs } from '../../../../shared/tracker/outbound-tiers.js'
+import { getGhLane, isAdmissionCancelled } from '../../../../shared/tracker/outbound-admission.js'
+import { getGhMeasure } from '../../../../shared/tracker/outbound-measure.js'
+import { noteGhWrite } from '../../../../shared/tracker/outbound-write-generation.js'
 
 // 房内埋点（#494 O1）：gh.exec（#5 常驻）/ gh.timeout（#6 告警）/ gh.resolve.fail（#7 告警），字段按 #489 附录 1.4。
 // gh.exec 高频：外层先判 isEnabled（信息），关闭时不组装字段；告警两项常驻直发；参数只记命令名，不记完整参数（避免令牌落盘）。

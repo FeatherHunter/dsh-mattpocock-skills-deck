@@ -1,10 +1,10 @@
 // src/host/platformChannel.js —— 平台与探测通道（H1 #445 从 host/index.js 259–491 搬出，纯结构、行为零变化）
 // 以后谁改它：改平台抽象、后端注册表或探测级联的人。预估约 280 行，超 350 打回。
 // 接线：由 index.js 动态 import 动态加载；STATUS_CACHE_MS 随本文件搬入（无外部引用）；getMattSkillProbeNames/probeSkill 显式注入；共享层只引用 src/shared（出站分档/准入/测量，#963）。本文件不引用其他宿主新文件。
-import { tierForGhArgs, timeoutForGhArgs, isWriteGhArgs } from '../shared/gh-timeout-tiers.js'
-import { getGhLane } from '../shared/gh-admission.js'
-import { getGhMeasure } from '../shared/gh-measure.js'
-import { noteGhWrite } from '../shared/gh-write-generation.js'
+import { tierForGhArgs, timeoutForGhArgs, isWriteGhArgs } from '../shared/tracker/outbound-tiers.js'
+import { getGhLane } from '../shared/tracker/outbound-admission.js'
+import { getGhMeasure } from '../shared/tracker/outbound-measure.js'
+import { noteGhWrite } from '../shared/tracker/outbound-write-generation.js'
 export function createPlatformChannel(deps) {
   const { ctx, subprocess, timer, fs, DEFAULT_CWD, TIMEOUT_MS, getMattSkillProbeNames, probeSkill, logCtx, gate, getGate } = deps
   // #494 O1：旧文本通道退役——backend.diagnostic 不再产生（github 房内零调用；残留 ctx.log.* 调用自动静默，gitlab 房由本房 O 票另行结构化）。房内埋点只走 logEvent/isEnabled。

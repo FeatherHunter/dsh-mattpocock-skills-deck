@@ -1,328 +1,206 @@
 <!DOCTYPE html>
-<!-- ============================================================================
-PROTOTYPE · 抛弃式草稿 · 票 887 · 不进生产代码
-依据：886 人拍板 v3 四问定版（居中弹窗三段式 / 按下反馈 / 等待阶段话 / 结果阅读+表格两档兜底+自动目录+27篇批量清单）。
-设计问题：点“详情”后原文在哪里展开、按下去那一刻、等待过程、读完收尾各用什么反馈？布局与动效是否成立？
-分支判定：这是“界面应该长什么样” → UI 分支 Sub-shape A（挂在现有 SkillsTab 列表页上，
-同路由多变体，?variant= A/B/C + 底部悬浮切换条）。不是逻辑分支，所以没有 reducer/状态机，
-只有一个内存演示状态；生产的状态机与真实宿主通道由 888 落地时重写。
-打开方式：双击本文件即可（file:// 直接能跑，无依赖、无构建、无持久化，状态全在内存）。
-变体：一共 3 个，对应容器三态对照 —— A 居中遮罩弹窗（首版定版）/ B 右侧抽屉 / C 整页下钻。
-============================================================================= -->
+<!-- PROTOTYPE·抛弃式·票887·像素风视觉稿·不进生产：双击即跑，无依赖，状态只在内存 -->
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>PROTOTYPE 887 · 技能详情页草稿（抛弃式）</title>
+<title>PROTOTYPE 887·技能详情页像素风视觉稿</title>
 <style>
-:root{color-scheme:dark light;--acc:#c084fc;--ok:#4ade80;--err:#f87171;--warn:#fbbf24;}
-*{box-sizing:border-box}
-body{font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;margin:0;background:#111318;color:#e6edf3;line-height:1.65;padding:0 0 140px}
-header.proto{position:sticky;top:0;z-index:50;background:#7c2d12;color:#fff;padding:10px 16px;border-bottom:3px dashed #fdba74}
-header.proto b{font-size:15px}header.proto span{font-size:12px;opacity:.92}
-.wrap{max-width:1060px;margin:0 auto;padding:16px}
-.card{background:#1a1d24;border:1px solid #2a2d35;border-radius:10px;padding:14px 16px;margin:12px 0}
-h1{font-size:20px;margin:6px 0}h2{font-size:16px;margin:14px 0 6px}h3{font-size:14px;margin:12px 0 4px}
-p,li{font-size:13.5px}.muted{color:#9aa0ab;font-size:12.5px}
-.qline{background:#241a33;border:1px solid var(--acc);border-radius:8px;padding:10px 12px;font-size:13.5px;margin:10px 0}
-/* ---- 技能列表（仿 SkillsTab，每行：加载按钮 + 详情按钮） ---- */
-.skillrow{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #2a2d35;border-radius:8px;margin:6px 0;background:#16181d;position:relative;overflow:hidden}
-.skillrow.rec{background:rgba(188,140,255,.10)}
-.sname{font-weight:700;font-size:13px;min-width:150px}.sname .star{color:var(--acc)}
-.suse{flex:1;font-size:12px;color:#9aa0ab;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-/* ---- 按钮与按下去那一刻的反馈（首版 5+1 全摆） ---- */
-button{font-family:inherit}
-.pbtn{border:1px solid #3a3d47;background:#23262e;color:#e6edf3;border-radius:7px;padding:5px 12px;font-size:12.5px;cursor:pointer;position:relative;transition:background .12s,box-shadow .12s,transform .12s;overflow:hidden}
-.pbtn:hover{box-shadow:0 4px 14px rgba(0,0,0,.45)} /* 大按钮悬停浮起：只改阴影，不动位置大小 */
-.pbtn:active{background:#101216} /* 按住变深一档 */
-.pbtn:focus{outline:none}
-.pbtn:focus-visible{box-shadow:0 0 0 2px #111318,0 0 0 4px var(--acc)} /* 键盘焦点环 */
-.pbtn:disabled{opacity:.55;cursor:not-allowed}
-.pbtn .spin{display:none;width:12px;height:12px;border:2px solid #8b8b95;border-top-color:#fff;border-radius:50%;margin-right:6px;vertical-align:-2px;animation:rot .7s linear infinite}
-.pbtn.loading .spin{display:inline-block} /* 按钮内只转圈，不换文字 */
-@keyframes rot{to{transform:rotate(360deg)}}
-.ripple{position:absolute;border-radius:50%;background:rgba(192,132,252,.45);transform:scale(0);animation:rip .45s ease-out;pointer-events:none}
-@keyframes rip{to{transform:scale(2.6);opacity:0}}
-.iconbtn{border:1px solid #3a3d47;background:#23262e;color:#e6edf3;border-radius:50%;width:30px;height:30px;font-size:13px;cursor:pointer;transition:opacity .12s}
-.iconbtn:hover{opacity:.55} /* 小图标按钮：整体变淡，不用水波纹 */
-.iconbtn:focus-visible{box-shadow:0 0 0 2px #111318,0 0 0 4px var(--acc);outline:none}
-.deepbtn{background:#000;border-color:#000} /* 深底按钮演示描边闪 */
-.deepbtn:active{box-shadow:0 0 0 2px var(--acc)} /* 深底看不清变深时改用外圈闪描边 */
-/* ---- 圆环节点：只用变淡加焦点环，不用水波纹不浮起 ---- */
-.ringnode{position:absolute;width:34px;height:34px;border-radius:50%;border:2px solid #52525b;background:transparent;color:#8b8b95;font-size:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:opacity .12s}
-.ringnode:hover{opacity:.55}.ringnode:focus-visible{box-shadow:0 0 0 2px #111318,0 0 0 4px var(--acc);outline:none}
-.ringnode.ok{border-color:var(--ok);color:var(--ok);background:rgba(74,222,128,.12)}
-/* ---- 等待：占位条、阶段话、横幅 ---- */
-.skel{border-radius:6px;background:linear-gradient(90deg,#262932 25%,#31353f 50%,#262932 75%);background-size:200% 100%;animation:sh 1.1s linear infinite;height:14px;margin:8px 0}
-@keyframes sh{to{background-position:-200% 0}}
-.statusline{font-size:12.5px;color:#b9c0cb;background:#22252c;border-radius:6px;padding:6px 10px;margin:8px 0;min-height:32px}
-.banner{display:flex;align-items:center;gap:10px;border:1px solid var(--err);background:rgba(248,113,113,.12);color:#fecaca;border-radius:8px;padding:8px 12px;font-size:13px;margin:10px 0}
-.banner button{margin-left:auto}
-/* ---- 结果图标三套（同尺寸）与闪动 ---- */
-.resicon{display:inline-flex;width:22px;height:22px;border-radius:50%;align-items:center;justify-content:center;font-size:13px;font-weight:700;margin-right:6px;vertical-align:-5px}
-.res-ok{background:rgba(74,222,128,.18);color:var(--ok);border:1.5px solid var(--ok)}
-.res-err{background:rgba(248,113,113,.15);color:var(--err);border:1.5px solid var(--err)}
-.res-warn{background:rgba(251,191,36,.14);color:var(--warn);border:1.5px solid var(--warn)}
-.flash-ok{animation:fok .5s}.flash-err{animation:fer .5s}
-@keyframes fok{0%{background:rgba(74,222,128,.35)}100%{background:transparent}}
-@keyframes fer{0%{background:rgba(248,113,113,.35)}100%{background:transparent}}
-.shake{animation:shk .4s}
-@keyframes shk{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
-/* ---- 阅读：标题分级、行距、回到顶部、目录、表格兜底 ---- */
-.doc{line-height:1.85;font-size:13.5px}.doc h1{font-size:18px}.doc h2{font-size:16px;border-bottom:1px solid #2a2d35;padding-bottom:4px}.doc h3{font-size:14px;color:var(--acc)}
-.doc pre{background:#0d0f13;border:1px solid #2a2d35;border-radius:8px;padding:10px;font-size:12px;overflow:auto}
-.doc blockquote{border-left:3px solid var(--acc);margin:8px 0;padding:4px 10px;color:#b9c0cb;background:rgba(192,132,252,.06)}
-.doc code{background:#0d0f13;padding:0 5px;border-radius:4px;font-size:12.5px}
-.kv{border:1px solid #2a2d35;border-radius:8px;overflow:hidden;margin:8px 0}
-.kv div{display:flex;gap:8px;padding:6px 10px;font-size:13px;border-bottom:1px solid #22252c}
-.kv div:last-child{border-bottom:none}.kv b{min-width:90px;color:var(--acc)}
-.toc{font-size:12.5px;background:#14161b;border:1px solid #2a2d35;border-radius:8px;padding:8px 12px;margin:8px 0}
-.toc a{color:#9ecbff;text-decoration:none;display:block;padding:1px 0;cursor:pointer}.toc a:hover{text-decoration:underline}
-.imgph{border:1px solid #2a2d35;border-radius:8px;max-width:100%;height:120px;display:flex;align-items:center;justify-content:center;color:#9aa0ab;background:#14161b;cursor:zoom-in;margin:8px 0}
-/* ---- 三种容器 ---- */
-.overlay{position:fixed;inset:0;background:rgba(0,0,0,.62);display:flex;align-items:center;justify-content:center;z-index:200;padding:16px}
-.modal{background:#16181d;border:1px solid #3a3d47;border-radius:12px;width:min(680px,94vw);max-height:86vh;display:flex;flex-direction:column;box-shadow:0 12px 48px rgba(0,0,0,.55)}
-.modal .top{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid #2a2d35}
-.modal .body{padding:12px 16px;overflow:auto;flex:1;min-height:120px}
-.modal .bot{display:flex;align-items:center;gap:8px;padding:10px 14px;border-top:1px solid #2a2d35}
-.drawerwrap{position:fixed;top:0;right:0;bottom:0;width:min(460px,94vw);background:#16181d;border-left:1px solid #3a3d47;z-index:200;display:flex;flex-direction:column;box-shadow:-12px 0 48px rgba(0,0,0,.5)}
-.drill{background:#16181d;border:1px solid #3a3d47;border-radius:12px;margin-top:10px}
-/* ---- 状态面板 ---- */
-.state{background:#0d0f13;border:1px solid #2a2d35;border-radius:8px;padding:10px 12px;font-size:12.5px}
-.state table{width:100%;border-collapse:collapse}.state td{border-bottom:1px solid #1e2128;padding:3px 6px;vertical-align:top}
-.state td:first-child{color:#9aa0ab;white-space:nowrap;width:150px}
-/* ---- 底部悬浮切换条（原型件，与被评设计无关，高对比，一眼可辨） ---- */
-#switcher{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:999;background:#000;color:#fff;border:2px solid #fff;border-radius:999px;padding:8px 10px;display:flex;align-items:center;gap:12px;box-shadow:0 8px 30px rgba(0,0,0,.6);font-size:13px}
-#switcher button{background:#fff;color:#000;border:none;border-radius:50%;width:30px;height:30px;font-size:15px;cursor:pointer}
-#switcher .lab b{color:#fdba74}
-.bubble{position:fixed;z-index:999;background:#06281a;color:var(--ok);border:1px solid var(--ok);border-radius:8px;padding:6px 10px;font-size:12.5px}
-.totop{position:sticky;float:right;bottom:12px;margin-right:6px}
+*{box-sizing:border-box;border-radius:0!important}
+:root{--frame:#3a2c14;--paper:#f2e4c0;--card:#fffdf4;--ink:#2b2113;--ink2:#6b5b3e;--shadow:#241a0c;--gold:#e3a92f;--acc:#8b5cf6;--ok:#0e8a16;--bad:#a3231a;--warn:#f59e0b;--stripe:#ddcda1}
+body{margin:0;color:var(--ink);font:14px/1.6 system-ui,"Microsoft YaHei",sans-serif;padding:0 0 120px;background-color:#8a6f4d;background-image:repeating-conic-gradient(#93764f 0% 25%,#8a6f4d 0% 50%);background-size:8px 8px}
+header.bar{background:var(--frame);color:var(--paper);padding:8px 16px;border-bottom:4px solid var(--shadow)}
+header.bar b{font-size:15px;letter-spacing:2px}header.bar span{font-size:12px;color:#ffd97a;margin-left:10px}
+.wrap{max-width:1000px;margin:0 auto;padding:14px 16px}
+.panel{background:var(--paper);border:4px solid var(--frame);box-shadow:6px 6px 0 var(--shadow);padding:12px 14px;margin:14px 0}
+.panel>h2{margin:0 0 8px;font-size:15px;letter-spacing:2px}
+.skillrow{display:flex;gap:8px;align-items:center;background:var(--card);border:3px solid var(--frame);box-shadow:3px 3px 0 var(--shadow);padding:6px 10px;margin:8px 0}
+.skillrow.rec{background:#efe8fb}
+.dot{flex:none;width:10px;height:10px;border:2px solid var(--frame)}
+.sname{font:700 13px ui-monospace,Menlo,Consolas,monospace;min-width:120px}
+.sname .star{color:var(--acc)}
+.suse{flex:1;font-size:12px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pbtn{font:700 12px ui-monospace,Menlo,Consolas,monospace;border:3px solid var(--frame);background:var(--paper);color:var(--ink);padding:4px 12px;cursor:pointer;box-shadow:2px 2px 0 var(--shadow);transition:transform .12s steps(2,end),box-shadow .12s steps(2,end)}
+.pbtn:hover{transform:translate(-2px,-2px);box-shadow:4px 4px 0 var(--shadow);outline:2px solid var(--gold);outline-offset:1px}
+.pbtn:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--shadow)}
+.pbtn:focus-visible{outline:2px dashed var(--gold);outline-offset:2px}
+.pbtn:disabled{opacity:.6;cursor:wait}
+.spin{display:none;width:10px;height:10px;background:var(--acc);margin-right:6px;vertical-align:-1px;animation:blk .6s steps(2,end) infinite}
+.pbtn.loading .spin{display:inline-block}
+@keyframes blk{50%{opacity:.15}}
+#draft{width:min(420px,90%);font:13px system-ui;background:var(--card);color:var(--ink);border:3px solid var(--frame);box-shadow:2px 2px 0 var(--shadow);padding:5px 8px}
+#ringBox{position:relative;width:250px;height:210px;margin:10px auto}
+.cen{position:absolute;left:95px;top:75px;width:60px;height:60px;background:var(--acc);color:#fff;border:3px solid var(--frame);box-shadow:3px 3px 0 var(--shadow);display:flex;align-items:center;justify-content:center;font:700 11px ui-monospace,monospace}
+.ringnode{position:absolute;width:44px;height:26px;border:3px solid var(--frame);background:var(--card);color:var(--ink2);font:700 10px ui-monospace,monospace;cursor:pointer;padding:0}
+.ringnode:hover{opacity:.55}
+.ringnode:focus-visible{outline:2px dashed var(--gold);outline-offset:2px}
+.overlay{position:fixed;inset:0;background:rgba(28,16,4,.55);display:flex;align-items:center;justify-content:center;z-index:200;padding:14px}
+.modal{background:var(--paper);border:4px solid var(--frame);box-shadow:8px 8px 0 var(--shadow);width:min(660px,94vw);max-height:86vh;display:flex;flex-direction:column;position:relative}
+.seal{position:absolute;left:50%;top:-13px;margin-left:-11px;width:22px;height:22px;background:#c9503f;border:3px solid var(--frame)}
+.top{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:3px solid var(--frame);font:700 13px ui-monospace,monospace}
+.top .sub{font:12px system-ui;color:var(--ink2);font-weight:400}
+.body{padding:10px 14px;overflow:auto;flex:1;min-height:120px}
+.bot{display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:3px solid var(--frame)}
+.st{font-size:12.5px;background:var(--card);border:3px solid var(--frame);border-top:8px solid #9a8f78;box-shadow:2px 2px 0 var(--shadow);padding:5px 8px;margin:0 0 8px}
+.ic{display:inline-flex;width:20px;height:20px;align-items:center;justify-content:center;border:2px solid var(--frame);font-weight:800;font-size:12px;margin-right:6px;vertical-align:-3px}
+.ic-ok{background:#d9f2dc;color:var(--ok)}.ic-err{background:#fbe3e1;color:var(--bad)}.ic-warn{background:#fdf0d3;color:#9a6a00}
+.ic-idle{background:var(--stripe);color:var(--ink2)}
+.skel{height:14px;background:var(--stripe);border:2px solid var(--frame);margin:8px 0;animation:blk 1s steps(2,end) infinite}
+.banner{background:#fbe3e1;border:3px solid var(--frame);border-left:10px solid var(--bad);box-shadow:3px 3px 0 var(--shadow);padding:8px 10px;font-size:13px;margin:10px 0;display:flex;gap:8px;align-items:center}
+.banner.warn{background:#fdf0d3;border-left-color:var(--warn)}
+.banner .grow{flex:1}
+.toc{background:var(--card);border:3px solid var(--frame);box-shadow:3px 3px 0 var(--shadow);padding:6px 10px;font-size:12.5px;margin:8px 0}
+.toc b{letter-spacing:1px}
+.toc a{display:block;color:#5b3df0;cursor:pointer}
+.doc{line-height:1.85;font-size:13.5px}
+.doc h1{font-size:18px;letter-spacing:1px}
+.doc h2{font-size:15px;border-bottom:3px solid var(--frame);padding-bottom:3px}
+.doc pre{background:#241a0c;color:#f2e4c0;padding:10px;font:12px/1.6 ui-monospace,monospace;overflow:auto;border:3px solid var(--frame)}
+.doc blockquote{border-left:8px solid var(--acc);background:#efe8fb;margin:8px 0;padding:4px 10px}
+.kv{border:3px solid var(--frame);background:var(--card)}
+.kv div{display:flex;gap:8px;padding:5px 10px;font-size:13px;border-bottom:2px solid var(--stripe)}
+.kv div:last-child{border-bottom:none}
+.kv b{min-width:80px;color:#5b3df0}
+.doc ul,.doc ol{margin:6px 0;padding-left:22px}
+.doc li{margin:3px 0}
+.doc li ul,.doc li ol{margin:2px 0}
+.doc h3{font-size:14px}
+.doc a{color:#5b3df0}
+.doc pre{white-space:pre-wrap}
+.totop{float:right;position:sticky;bottom:10px}
+.drawerwrap{position:fixed;top:0;right:0;bottom:0;width:min(450px,94vw);background:var(--paper);border-left:4px solid var(--frame);box-shadow:-8px 0 0 rgba(0,0,0,.25);z-index:200;display:flex;flex-direction:column}
+.drill{background:var(--paper);border:4px solid var(--frame);box-shadow:6px 6px 0 var(--shadow);margin-top:10px}
+#switcher{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:999;background:#000;color:#fff;border:3px solid #fff;box-shadow:5px 5px 0 rgba(0,0,0,.5);padding:6px 8px;display:flex;align-items:center;gap:10px;font:700 13px ui-monospace,monospace}
+#switcher button{background:#fff;color:#000;border:none;width:30px;height:30px;font-size:15px;font-weight:800;cursor:pointer}
+#switcher .lab b{color:#ffd97a}
+.bubble{position:fixed;z-index:999;background:var(--card);color:var(--ink);border:3px solid var(--frame);box-shadow:3px 3px 0 var(--shadow);padding:4px 10px;font-size:12.5px;font-weight:700}
+.f-ok{animation:fok .5s steps(3,end)}
+.f-err{animation:ferr .5s steps(3,end)}
+@keyframes fok{0%{background:#d9f2dc}100%{background:var(--paper)}}
+@keyframes ferr{0%{background:#fbe3e1}100%{background:var(--paper)}}
+.shake{animation:shk .4s steps(4,end)}
+@keyframes shk{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
-<header class="proto"><b>PROTOTYPE · 抛弃式草稿 · 票 887</b>　<span>不进生产代码 · 双击即跑 · 状态全在内存 · 依据 886 v3 定版 · 变体由底部黑条切换（?variant=）</span></header>
+<header class="bar"><b>技能详情页·像素风视觉稿 PROTOTYPE 887</b><span>抛弃式草稿·不进生产</span></header>
 <div class="wrap">
-
-<div class="qline"><b>要回答的设计问题：</b>点“详情”后原文在哪里展开（弹窗 / 抽屉 / 下钻三选一）、按下去那一刻给哪种确认、等待过程给哪种提示、读完后成功失败与长文阅读怎么收尾？布局与动效放在一起点，能不能成立、顺不顺手？<br>
-<b>分支：</b>“界面应该长什么样” → UI 分支 Sub-shape A（挂在现有 SkillsTab 列表上，同路由多变体）。A=居中遮罩弹窗（首版定版），B=右侧抽屉，C=整页下钻。<b>请人逐个点，选出容器，顺带确认反馈是否太吵或不够。</b></div>
-
-<div id="bannerSeat"></div>
-
-<div class="card">
-<h2>演示控制台（模拟器，不是生产代码）</h2>
-<p class="muted">真实 27 篇原文很长，这里只装 8 篇代表加 1 篇缺文；延迟是模拟的（即时约 80 毫秒 / 慢速约 2600 毫秒，用来验证 2 秒骨架阈值）；生产要把阶段话接到真实读取回调上，缓存命中直接出内容、不闪阶段话。</p>
-<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
-<span class="muted">视图：</span>
-<button class="pbtn" id="vList">列表</button>
-<button class="pbtn" id="vRing">圆环</button>
-<span class="muted">网络：</span>
-<button class="pbtn" id="nFast">即时</button>
-<button class="pbtn" id="nSlow">慢速 2.6 秒</button>
-<button class="pbtn" id="nFail">失败</button>
-<span class="muted">表格：</span>
-<button class="pbtn" id="tSimple">简单表</button>
-<button class="pbtn" id="tComplex">复杂表</button>
-<button class="pbtn" id="preload">预加载 27 篇批量清单</button>
-<button class="pbtn" id="motionBtn">减少动态效果：关</button>
-</div>
-<div style="margin-top:8px"><span class="muted">背后表单（验证“表单可被详情盖住、草稿与焦点完整保留”）：</span>
-<input id="draft" placeholder="先在这里打几个字，再点详情，关掉后字和光标都在" style="width:min(420px,90%);background:#0d0f13;color:#e6edf3;border:1px solid #3a3d47;border-radius:6px;padding:6px 8px;font-size:13px">
-<span class="muted" id="focusNote"></span></div>
-<div id="ringBox" style="display:none;position:relative;width:240px;height:230px;margin:10px auto"></div>
+<div class="panel"><h2>■ 技能</h2>
+<div style="margin-bottom:4px"><input id="draft" placeholder="先打几个字，再点详情：弹窗盖住后字还在"></div>
 <div id="listBox"></div>
+<div id="ringBox"></div>
 </div>
-
-<div class="card" id="detailCard"><h2>详情区（随变体换容器）</h2><div id="detailMount"><p class="muted">还没打开任何详情。点上面任意一行的“详情”按钮。</p></div></div>
-
-<div class="card"><h2>状态（每次动作后刷新，变体切换也刷新）</h2>
-<p class="muted" id="changed">刚才发生了什么：刚打开草稿，还没点过。</p>
-<div class="state"><table id="stateTab"></table></div></div>
-
-<div class="card"><h2>首版效果核对表（886 v3 定版，逐项可点）</h2>
-<ul id="checklist">
-<li>容器：A 居中弹窗三段式（顶栏 / 滚动正文 / 底栏复制与重试），表单可被盖住</li>
-<li>按下：基座通用（变深＋焦点环）全场有；水波纹＋悬停浮起只给列表矩形行；圆环节点只用变淡＋焦点环；按钮内只转圈不换文字</li>
-<li>等待：阶段话搬进弹窗状态行、三句固定文案、真实回调驱动（本草稿用计时模拟，生产接真实回调）；缓存命中不闪阶段话；2 秒才出骨架；失败走顶部横幅，可重试</li>
-<li>收尾：对勾 / 叉号 / 警告三角同尺寸；成功淡绿闪、失败淡红闪＋小幅晃一次；复制成功冒小气泡；失败横幅留痕</li>
-<li>阅读：标题分级＋行距＋回到顶部＋窄屏折叠＋图片点开放大；表格两档兜底（简单转键值对 / 复杂用等宽原文块）；缺文诚实说明并保留短描述；v1 自带自动目录；挂载一次拉 27 篇批量清单</li>
-</ul></div>
+<div class="panel"><h2>■ 详情</h2><div id="bannerSeat"></div><div id="detailMount"></div></div>
 </div>
-
-<div id="switcher" role="navigation" aria-label="原型变体切换">
-<button id="prevV" aria-label="上一个变体">←</button>
-<span class="lab" id="varLab"></span>
-<button id="nextV" aria-label="下一个变体">→</button>
-</div>
-
+<div id="switcher"><button id="prevV">←</button><span class="lab" id="varLab"></span><button id="nextV">→</button></div>
 <script>
 "use strict";
-/* ---------- 内存状态（无持久化，刷新即丢） ---------- */
-var VARIANTS=[{k:"A",name:"居中遮罩弹窗（首版定版）"},{k:"B",name:"右侧抽屉"},{k:"C",name:"整页下钻"}];
-function variantFromUrl(){try{var m=/(?:^|[?&])variant=([ABC])/i.exec(location.search);if(m)return m[1].toUpperCase();}catch(e){}return "A";}
-var S={variant:variantFromUrl(),view:"list",net:"fast",table:"simple",reduced:false,
-skill:null,phase:"idle",phaseText:"",cached:false,cache:{},lastFocus:null,draftBefore:"",
-copyState:"idle",banner:null,pressLog:[],openedAt:null,tableNote:""};
+var VARIANTS=[{k:"A",n:"居中弹窗"},{k:"B",n:"右侧抽屉"},{k:"C",n:"整页下钻"}];
+function vf(){try{var m=/(?:^|[?&])variant=([ABC])/i.exec(location.search);if(m)return m[1].toUpperCase()}catch(e){}return "A"}
+var S={v:vf(),skill:null,phase:"idle",pt:"",cache:{},miss:false,draftFocus:false,forceSlow:false,skel:false};
 var SKILLS=[
-{n:"prototype",lv:"ok",use:"一次性原型回答设计问题",rec:1},
-{n:"research",lv:"ok",use:"后台调研，写进仓库内 markdown 并引源",rec:0},
-{n:"tdd",lv:"ok",use:"红-绿-重构",rec:0},
-{n:"grilling",lv:"ok",use:"穷追不舍的对齐提问",rec:0},
-{n:"implement",lv:"warn",use:"把规格落成代码",rec:0},
-{n:"wayfinder",lv:"warn",use:"巨型项目决策地图",rec:0},
-{n:"ask-matt",lv:"warn",use:"技能路由器：不知道用哪个时问它",rec:1},
-{n:"wizard",lv:"ok",use:"生成交互式 bash 引导",rec:0},
-{n:"missing-demo",lv:"alert",use:"演示缺文兜底：这篇没有随包原文",rec:0,missing:true}];
+{n:"prototype",u:"一次性原型回答设计问题",how:"slow"},
+{n:"research",u:"后台调研，写进仓库 markdown",how:"fast"},
+{n:"tdd",u:"红-绿-重构",how:"fail"},
+{n:"grilling",u:"穷追不舍的对齐提问",how:"fast"},
+{n:"ask-matt",u:"不知道用哪个时问它",how:"fast",rec:1},
+{n:"missing-demo",u:"这篇没有随包原文",how:"missing"}];
 var DOCS={
-prototype:{t:"/prototype · 一次性原型回答设计问题",h:[["什么时候用抛弃式草稿","h2"],["分支怎么选","h2"],["两条都适用的规则","h3"]],
-b:"<p>原型是<b>扔掉的草稿</b>，用来回答一个设计问题。问题决定形状：逻辑顺不顺走单文件 HTML，界面长什么样走多变体。</p><blockquote>先把问题写下来，再写代码。答错问题的原型是纯浪费。</blockquote><pre>先跑起来，再谈好不好用。\n state lives in memory.</pre>"},
-research:{t:"/research · 后台调研并落盘引用",h:[["调研员的工作","h2"],["落盘位置","h2"]],b:"<p>开一个后台调研员，让它顺着一手来源读，结论写进仓库内 markdown，每条结论带出处。</p><ul><li>只认一手来源，不认二手转述</li><li>一个问题只落一个文件</li><li>来源要能点开</li></ul>"},
-tdd:{t:"/tdd · 红-绿-重构",h:[["什么是好测试","h2"],["循环规则","h2"]],b:"<p>先写失败测试，再写刚好通过的代码，一次只走一小片。</p><pre>red → green → review\n一次一缝，一次一测。</pre>"},
-grilling:{t:"/grilling · 穷追不舍的对齐提问",h:[["什么时候停","h2"]],b:"<p>对着方案一直追问，直到每句话都有人拍板。机器不替人拍板。</p>"},
-implement:{t:"/implement · 把规格落成代码",h:[["task 型 ticket","h2"]],b:"<p>照着规格一次落一小片，落完即验。</p>"},
-wayfinder:{t:"/wayfinder · 巨型项目决策地图",h:[["地图是什么","h2"]],b:"<p>把大目标拆成地图和票，边走边收敛。</p>"},
-"ask-matt":{t:"/ask-matt · 技能路由器",h:[["不知道用哪个时","h2"]],b:"<p>先问它，它会把你领到对的技能。</p>"},
-wizard:{t:"/wizard · 人工步骤引导",h:[["什么时候用","h2"]],b:"<p>只有人能点的步骤，生成向导一步一步带过去。</p>"}};
-var SIMPLE_TABLE=[["首版","按下给确认"],["等待","转圈加禁用"],["收尾","图标加横幅"]];
-var COMPLEX_TABLE={cols:["分组","首版","二期","不用"],rows:[["容器","居中弹窗","抽屉/下钻对比","新开顶级窗口"],["按下","变深/焦点环/水波纹","外扩细环","压缩/下沉/扫光"],["等待","转圈/禁用/占位条","行内置位","进度线/百分比"],["阅读","图标/目录/回到顶部","小目录/吸顶","胀大/弹跳"]]};
-function $(id){return document.getElementById(id);}
-function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");}
-/* ---------- 状态外显 ---------- */
-function renderState(changed){
-if(changed)$("changed").textContent="刚才发生了什么："+changed;
-var rows=[["变体 variant","?variant="+S.variant+"（"+VARIANTS.filter(function(v){return v.k===S.variant;})[0].name+"）"],
-["视图 view",S.view+"（列表矩形行增强 vs 圆环节点只变淡，886 v3 区分）"],
-["所选技能 skill",S.skill||"（未选）"],["阶段 phase",S.phase+(S.phaseText?" —— "+S.phaseText:"")],
-["网络 net",S.net+"（fast 即时 / slow 慢速 / fail 失败；miss 缺文按技能定）"],
-["缓存 cache",Object.keys(S.cache).length+" 篇已缓存"+(S.skill&&S.cache[S.skill]?"（当前这篇命中，打开不闪阶段话）":"")],
-["表格 table",S.table+"（simple 简单转键值对 / complex 复杂用等宽原文块）"],
-["减少动态 reduced",S.reduced?"开（只留图标文字，闪与晃全关）":"关"],
-["草稿 draft",S.draftBefore?("“"+S.draftBefore.slice(0,24)+"”"+(S.draftBefore.length>24?"…":"")+"（弹窗盖住时保留，关闭恢复焦点）"):"（空）"],
-["复制 copy",S.copyState],["横幅 banner",S.banner||"（无）"],
-["按下日志 press",S.pressLog.slice(-4).join(" ｜ ")||"（还没按过详情按钮）"]];
-var h="";rows.forEach(function(r){h+="<tr><td>"+r[0]+"</td><td>"+esc(r[1])+"</td></tr>";});
-$("stateTab").innerHTML=h;
-var lab=VARIANTS.filter(function(v){return v.k===S.variant;})[0];
-$("varLab").innerHTML="变体 <b>"+S.variant+"</b>（"+lab.name+"）";
-try{var u=new URL(location.href);u.searchParams.set("variant",S.variant);history.replaceState(null,"","?"+u.searchParams.toString());}catch(e){}}
-/* ---------- 列表与圆环 ---------- */
-function dot(lv){var c=lv==="ok"?"#4ade80":lv==="warn"?"#fbbf24":"#f87171";return '<span style="width:8px;height:8px;border-radius:50%;background:'+c+';flex:none"></span>';}
+prototype:{t:"/prototype·一次性原型",h:["什么时候用","分支怎么选"],b:"<p>原型是扔掉的草稿，用来回答一个设计问题。逻辑顺不顺走单文件，界面长什么样走多变体。</p><blockquote>先把问题写下来，再写代码。</blockquote>",tab:"simple",tall:1},
+research:{t:"/research·后台调研",h:["调研员的工作","落盘位置"],b:"<p>开一个后台调研员顺着一手来源读，结论写进仓库 markdown，每条带出处。</p><pre>只认一手来源&#10;一问只落一个文件</pre>"},
+tdd:{t:"/tdd·红-绿-重构",h:["循环规则"],b:"<p>先写失败测试，再写刚好通过的代码，一次只走一小片。</p><pre>red -&gt; green -&gt; review</pre>"},
+grilling:{t:"/grilling·对齐提问",h:["什么时候停","对抗结论"],b:"<p>对着方案一直追问，直到每句话都有人拍板，机器不替人拍板。</p>",tab:"complex"},
+"ask-matt":{t:"/ask-matt·技能路由器",h:["不知道用哪个时"],b:"<p>先问它，它会把你领到对的技能。</p><div class=imgph onclick=zoomImg()>示意图片：点我放大</div>"}};
+function $(id){return document.getElementById(id)}
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;")}
+function dot(lv){var c=lv==="warn"?"#f59e0b":lv==="bad"?"#a3231a":"#0e8a16";return '<span class=dot style="background:'+c+'"></span>'}
 function renderList(){
-var box=$("listBox");if(S.view!=="list"){box.innerHTML="";return;}
 var h="";SKILLS.forEach(function(sk){
-h+='<div class="skillrow'+(sk.rec?" rec":"")+'">'+dot(sk.lv)+'<span class="sname">/'+sk.n+(sk.rec?' <span class="star">★</span>':"")+'</span><span class="suse">'+esc(sk.use)+'</span><button class="pbtn ghost" data-act="load" data-sk="'+sk.n+'">加载</button><button class="pbtn detail" data-act="detail" data-sk="'+sk.n+'"><span class="spin"></span>详情</button></div>';});
-box.innerHTML=h;
-box.querySelectorAll("button.detail").forEach(bindDetailBtn);}
+h+='<div class="skillrow'+(sk.rec?" rec":"")+'">'+dot(sk.how==="missing"?"bad":sk.rec?"warn":"ok")+'<span class=sname>/'+sk.n+(sk.rec?' <span class=star>★</span>':"")+'</span><span class=suse>'+esc(sk.u)+'</span><button class=pbtn data-sk="'+sk.n+'"><span class=spin></span>详情</button></div>'});
+$("listBox").innerHTML=h;
+var bs=$("listBox").querySelectorAll("button.pbtn");
+for(var i=0;i<bs.length;i++)(function(b){b.addEventListener("click",function(){openDetail(b.getAttribute("data-sk"),b)})})(bs[i]);
+}
 function renderRing(){
-var box=$("ringBox");if(S.view!=="ring"){box.style.display="none";return;}
-box.style.display="block";var h='<div style="position:absolute;left:90px;top:85px;width:60px;height:60px;border-radius:50%;background:rgba(188,140,255,.18);border:2px solid #c084fc;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#c084fc">/ask-matt</div>';
-var ring=SKILLS.filter(function(s){return s.n!=="ask-matt";}).slice(0,8);
-ring.forEach(function(sk,i){var a=i/ring.length*Math.PI*2-Math.PI/2;var x=120+88*Math.cos(a),y=115+88*Math.sin(a);
-h+='<button class="ringnode'+(sk.lv==="ok"?" ok":"")+'" style="left:'+(x-17)+'px;top:'+(y-17)+'px" data-act="detail" data-sk="'+sk.n+'" aria-label="详情 '+sk.n+'">'+esc(sk.n.slice(0,4))+"…</button>";});
+var box=$("ringBox"),h='<div class=cen>/ask<br>matt</div>',ring=SKILLS.slice(0,6);
+for(var i=0;i<ring.length;i++){var a=i/ring.length*Math.PI*2-Math.PI/2,x=125+92*Math.cos(a),y=105+78*Math.sin(a);
+h+='<button class=ringnode style="left:'+Math.round(x-22)+'px;top:'+Math.round(y-13)+'px" data-sk="'+ring[i].n+'">'+esc(ring[i].n.slice(0,6))+"</button>"}
 box.innerHTML=h;
-box.querySelectorAll(".ringnode").forEach(function(b){b.addEventListener("click",function(){openDetail(b.getAttribute("data-sk"),b);});});}
-/* ---------- 按下反馈：水波纹只给列表矩形行 ---------- */
-function ripple(btn,ev){if(S.reduced)return;if(!btn.classList.contains("detail"))return;
-var r=document.createElement("span");r.className="ripple";var b=btn.getBoundingClientRect();var d=Math.max(b.width,b.height);
-r.style.width=r.style.height=d+"px";var x=(ev&&ev.clientX?ev.clientX-b.left:b.width/2)-d/2;var y=(ev&&ev.clientY?ev.clientY-b.top:b.height/2)-d/2;
-r.style.left=x+"px";r.style.top=y+"px";btn.appendChild(r);setTimeout(function(){r.remove();},500);}
-function bindDetailBtn(b){b.addEventListener("pointerdown",function(ev){ripple(b,ev);});
-b.addEventListener("click",function(){openDetail(b.getAttribute("data-sk"),b);});}
-/* ---------- 打开详情：阶段话进弹窗状态行，缓存命中跳过 ---------- */
+var bs=box.querySelectorAll(".ringnode");
+for(var j=0;j<bs.length;j++)(function(b){b.addEventListener("click",function(){openDetail(b.getAttribute("data-sk"),null)})})(bs[j]);
+}
 function openDetail(name,btn){
-S.skill=name;S.copyState="idle";S.banner=null;$("bannerSeat").innerHTML="";
-try{S.draftBefore=$("draft").value;S.lastFocus=document.activeElement&&document.activeElement.id;}catch(e){}
-S.pressLog.push("按详情 /"+name+"（"+(S.view==="ring"?"圆环节点：变淡+焦点环":"列表行：变深+水波纹+浮起")+"）");
-if(btn&&btn.classList.contains("detail")){btn.classList.add("loading");btn.disabled=true;
-setTimeout(function(){btn.classList.remove("loading");btn.disabled=false;},S.net==="slow"?2600:600);}
-if(S.cache[name]){S.phase="ready";S.phaseText="缓存命中，直接出内容（不闪阶段话）";renderDetail();renderState("打开 /"+name+"：缓存命中，阶段话一次都没闪。");return;}
-if(name==="missing-demo"){failOpen("这篇没有随包原文",true);return;}
-if(S.net==="fail"){failOpen("读文件失败（模拟）：package 里找不到这一篇",false);return;}
-var total=S.net==="slow"?2600:80;
-S.phase="loading";
-if(total<=2000){ // 2 秒阈值：即时到达不铺骨架，避免闪一下
-S.phaseText="正在取文件…";renderDetail();renderState("打开 /"+name+"：即时到达（<2 秒），只转按钮圈，不铺骨架。");
-setTimeout(function(){S.cache[name]=true;S.phase="ready";S.phaseText="内容已到";renderDetail();renderState("内容已到：阶段话只闪了一句，未铺骨架。");},total);
-}else{ // 慢速：阶段话按回调推进，2 秒后才铺骨架
-S.phaseText="正在取文件…";renderDetail();renderState("打开 /"+name+"：开始等，按钮转圈＋禁用防重复。");
-setTimeout(function(){if(S.phase!=="loading")return;S.phaseText="正在解析…";renderDetail();},800);
-setTimeout(function(){if(S.phase!=="loading")return;S.phaseText="正在排版…";renderDetail();},1500);
-setTimeout(function(){if(S.phase!=="loading")return;S.phaseText="正在排版…（超过 2 秒，铺占位条）";S.skel=true;renderDetail();renderState("超过 2 秒：弹窗内铺 3 条占位条，阶段话继续。");},2000);
-setTimeout(function(){S.skel=false;S.cache[name]=true;S.phase="ready";S.phaseText="内容已到";renderDetail();renderState("内容已到：占位条换成真内容。");},total);}}
-function failOpen(reason,isMissing){
-S.phase="error";S.phaseText=reason;S.isMissing=!!isMissing;
-S.banner=(isMissing?"缺文：":"失败：")+reason+" ｜ 已留痕，需人工关闭或打开别篇才消失";
-$("bannerSeat").innerHTML='<div class="banner" role="alert"><span class="resicon '+(isMissing?"res-warn":"res-err")+'">'+(isMissing?"!":"✕")+'</span><span>'+esc(S.banner)+'</span><button class="pbtn" onclick="retryOpen()">重试</button><button class="pbtn" onclick="dismissBanner()">关闭横幅</button></div>';
-renderDetail();renderState("打开失败：顶部横幅留痕（失败必须留痕，不自动消失）。"+(isMissing?"缺文场景：正文区诚实说明＋保留短描述。":""));}
-window.retryOpen=function(){if(S.skill)openDetail(S.skill,null);};
-window.dismissBanner=function(){S.banner=null;$("bannerSeat").innerHTML="";renderState("人工关闭了横幅。");};
-/* ---------- 详情渲染：三容器 × 同一套正文 ---------- */
-function tocHtml(hs){var h='<div class="toc"><b>本篇目录（v1 自带自动生成）</b>';hs.forEach(function(x,i){h+='<a data-toc="'+i+'">· '+esc(x[0])+'</a>';});return h+"</div>";}
-function tableHtml(){
-if(S.table==="simple"){var h='<p class="muted">原表已转成列表（简单表一档）：</p><div class="kv">';SIMPLE_TABLE.forEach(function(r){h+="<div><b>"+esc(r[0])+"</b><span>"+esc(r[1])+"</span></div>";});return h+"</div>";}
-var h='<p class="muted">原表较复杂，用等宽原文块保留对齐（复杂表一档）：</p><pre>';var w=[8,22,18,16];
-function row(r){var s="";r.forEach(function(c,i){s+=String(c)+" ".repeat(Math.max(1,w[i]-String(c).length))+"| ";});return s;}
-h+=esc(row(COMPLEX_TABLE.cols)+"\n")+esc(row(["--","--","--","--"])+"\n");COMPLEX_TABLE.rows.forEach(function(r){h+=esc(row(r)+"\n");});return h+"</pre>";}
+S.skill=name;S.miss=false;S.banner=null;$("bannerSeat").innerHTML="";
+try{S.draftFocus=(document.activeElement&&document.activeElement.id==="draft")}catch(e){S.draftFocus=false}
+if(btn){btn.classList.add("loading");btn.disabled=true;
+setTimeout(function(){btn.classList.remove("loading");btn.disabled=false},S.pathOf(name)==="slow"?2600:600)}
+if(S.cache[name]){S.phase="ready";S.pt="内容已到（缓存命中）";renderDetail();return}
+var how=S.pathOf(name);
+if(how==="missing"){failOpen("这篇没有随包原文",true);return}
+if(how==="fail"&&!S.forceSlow){failOpen("读文件失败：包里找不到这一篇",false);return}
+S.forceSlow=false;S.phase="loading";
+if(how==="fast"){S.pt="正在取文件…";renderDetail();
+setTimeout(function(){if(S.skill!==name||S.phase!=="loading")return;S.cache[name]=1;S.phase="ready";S.pt="内容已到";renderDetail()},300);
+}else{S.pt="正在取文件…";renderDetail();
+setTimeout(function(){if(S.skill!==name||S.phase!=="loading")return;S.pt="正在解析…";renderDetail()},800);
+setTimeout(function(){if(S.skill!==name||S.phase!=="loading")return;S.pt="正在排版…";renderDetail()},1500);
+setTimeout(function(){if(S.skill!==name||S.phase!=="loading")return;S.pt="正在排版…（超过 2 秒）";S.skel=true;renderDetail()},2000);
+setTimeout(function(){if(S.skill!==name||S.phase!=="loading")return;S.skel=false;S.cache[name]=1;S.phase="ready";S.pt="内容已到";renderDetail()},2600)}}
+S.pathOf=function(n){for(var i=0;i<SKILLS.length;i++)if(SKILLS[i].n===n)return SKILLS[i].how;return "fast"};
+function failOpen(reason,missing){
+S.phase="error";S.pt=reason;S.miss=!!missing;
+$("bannerSeat").innerHTML='<div class="banner'+(missing?" warn":"")+'"><b>'+(missing?"!":"✕")+'</b><span class=grow>'+esc((missing?"缺文：":"失败：")+reason)+'</span><button class=pbtn onclick="retryOpen()">重试</button><button class=pbtn onclick="dismissBanner()">关闭</button></div>';
+renderDetail()}
+window.retryOpen=function(){S.forceSlow=!S.miss;dismissBanner(true);if(S.skill)openDetail(S.skill,null)};
+window.dismissBanner=function(silent){$("bannerSeat").innerHTML="";if(!silent&&S.phase==="error"){S.phase="idle";S.pt="";renderDetail()}};
+function tocHtml(hs){var h='<div class=toc><b>■ 本篇目录</b>';for(var i=0;i<hs.length;i++)h+='<a data-toc="'+i+'">· '+esc(hs[i])+"</a>";return h+"</div>"}
+
+
 function docHtml(name){
-if(name==="missing-demo")return '<p><span class="resicon res-warn">!</span><b>这篇没有随包原文</b></p><p class="muted">诚实说明：package/bundled-skills 里没有这一篇，不编内容。下面保留短描述：</p><p>演示缺文兜底：这篇没有随包原文（短描述保留）。</p>';
-var d=DOCS[name]||DOCS.research;var h=tocHtml(d.h)+'<div class="doc"><h1>'+esc(d.t)+'</h1>'+d.b;
-h+="<h2>表格兜底演示（"+(S.table==="simple"?"简单表":"复杂表")+"）</h2>"+tableHtml();
-h+='<h2>图片演示（点开放大，上限 220 高）</h2><div class="imgph" onclick="zoomImg()">示意图片：点我放大看原图</div>';
-h+='<details><summary>窄屏折叠演示（点我展开）</summary><p>窄屏下长段落自动折叠，扫读不累，精读再展开。</p></details>';
-h+='<p style="height:300px" class="muted">（留长空白，验证“回到顶部”按钮。）</p></div>';return h;}
-function innerHtml(){
-var st='<div class="statusline">'+(S.phase==="loading"?'<span class="resicon" style="border:1.5px solid #8b8b95;color:#8b8b95">…</span>':S.phase==="ready"?'<span class="resicon res-ok">✓</span>':S.phase==="error"?'<span class="resicon '+(S.isMissing?"res-warn":"res-err")+'">'+(S.isMissing?"!":"✕")+"</span>":"○")+esc(S.phaseText||"还没打开")+"</div>";
-var body="";
-if(S.phase==="loading"&&S.skel){body='<div class="skel"></div><div class="skel" style="width:82%"></div><div class="skel" style="width:64%"></div>';}
-else if(S.phase==="ready"){body=docHtml(S.skill);}
-else if(S.phase==="error"&&S.isMissing){body=docHtml("missing-demo");}
-else if(S.phase==="error"){body='<p class="muted">正文没拿到，原因见顶部横幅。点“重试”再拉一次。</p>';}
-else{body='<p class="muted">点列表里任意一行的“详情”开始。</p>';}
-var bar='<button class="pbtn" onclick="copyLink(this)">复制链接</button>'+(S.phase==="error"&&!S.isMissing?'<button class="pbtn" onclick="retryOpen()">重试</button>':"")+'<span class="muted">成功 <span class="resicon res-ok">✓</span> / 失败 <span class="resicon res-err">✕</span> / 部分 <span class="resicon res-warn">!</span>（同尺寸三套）</span>';
-return {st:st,body:body,bar:bar};}
+if(name==="missing-demo")return "<p><span class='ic ic-warn'>!</span><b>这篇没有随包原文</b></p><p>包里没有这一篇，不编内容。下面保留短描述：演示缺文兜底。</p>";
+var d=DOCS[name]||DOCS.research,h=(d.h&&d.h.length?tocHtml(d.h):"")+ '<div class=doc><h1>'+esc(d.t)+"</h1>"+d.b+"</div>";
+return h}
+function innerParts(){
+var ic=S.phase==="loading"?"<span class='ic ic-idle'>…</span>":S.phase==="ready"?"<span class='ic ic-ok'>✓</span>":S.phase==="error"?(S.miss?"<span class='ic ic-warn'>!</span>":"<span class='ic ic-err'>✕</span>"):"<span class='ic ic-idle'>○</span>";
+var st='<div class=st>'+ic+esc(S.pt||"点上面任意一行的详情开始")+"</div>",body="";
+if(S.phase==="loading"&&S.skel)body='<div class=skel></div><div class=skel style="width:82%"></div><div class=skel style="width:64%"></div>';
+else if(S.phase==="ready")body=docHtml(S.skill);
+else if(S.phase==="error"&&S.miss)body=docHtml("missing-demo");
+else if(S.phase==="error")body="<p>正文没拿到，原因见上面横幅，点重试再拉一次。</p>";
+else body="<p>还没打开任何详情。</p>";
+var bar='<button class=pbtn onclick="copyLink(this)">复制链接</button>'+(S.phase==="error"&&!S.miss?'<button class=pbtn onclick="retryOpen()">重试</button>':"");
+return {st:st,body:body,bar:bar}}
 function renderDetail(){
+syncUrl();
 var m=$("detailMount");
-if(S.phase==="idle"){m.innerHTML='<p class="muted">还没打开任何详情。点上面任意一行的“详情”按钮。（空状态不弹任何容器，容器只在打开后出现。）</p>';return;}
-var p=innerHtml();var title=S.skill?"/"+S.skill:"详情";
-if(S.variant==="A"){m.innerHTML='<div class="overlay" id="ovl"><div class="modal '+(S.phase==="ready"?"flash-ok":S.phase==="error"&&!S.isMissing?"flash-err shake":"")+'" role="dialog" aria-label="'+esc(title)+'"><div class="top"><b>'+esc(title)+'</b><span class="muted">居中弹窗 · 表单在背后，草稿保留</span><span style="flex:1"></span><button class="pbtn" onclick="closeDetail()">关闭 ✕</button></div>'+p.st+'<div class="body" id="docBody" onscroll="onScroll(this)">'+p.body+'<button class="pbtn totop" id="totop" style="display:none" onclick="toTop()">回到顶部 ↑</button></div><div class="bot">'+p.bar+'</div></div></div>';
-var o=$("ovl");if(o)o.addEventListener("click",function(e){if(e.target===o)closeDetail();});
-bindToc();}
-else if(S.variant==="B"){m.innerHTML='<p class="muted">左侧列表仍可见，详情从右侧抽屉滑入（并排看，适合对照两篇）。</p><div class="drawerwrap '+(S.phase==="ready"?"flash-ok":S.phase==="error"&&!S.isMissing?"flash-err shake":"")+'"><div class="top" style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid #2a2d35"><b>'+esc(title)+'</b><span class="muted">右侧抽屉</span><span style="flex:1"></span><button class="pbtn" onclick="closeDetail()">关闭 ✕</button></div>'+p.st+'<div class="body" id="docBody" style="padding:12px 16px;overflow:auto;flex:1" onscroll="onScroll(this)">'+p.body+'<button class="pbtn totop" id="totop" style="display:none" onclick="toTop()">回到顶部 ↑</button></div><div class="bot" style="display:flex;gap:8px;padding:10px 14px;border-top:1px solid #2a2d35">'+p.bar+"</div></div>";bindToc();}
-else{m.innerHTML='<div class="drill '+(S.phase==="ready"?"flash-ok":S.phase==="error"&&!S.isMissing?"flash-err shake":"")+'"><div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid #2a2d35"><button class="pbtn" onclick="closeDetail()">← 回到列表</button><b>'+esc(title)+'</b><span class="muted">整页下钻（占满详情区）</span></div>'+p.st+'<div style="padding:12px 16px;max-height:52vh;overflow:auto" id="docBody" onscroll="onScroll(this)">'+p.body+'<button class="pbtn totop" id="totop" style="display:none" onclick="toTop()">回到顶部 ↑</button></div><div style="display:flex;gap:8px;padding:10px 14px;border-top:1px solid #2a2d35">'+p.bar+"</div></div>";bindToc();}}
-function bindToc(){document.querySelectorAll("[data-toc]").forEach(function(a){a.addEventListener("click",function(){var b=$("docBody");if(!b)return;var hs=b.querySelectorAll("h2,h3");var i=+a.getAttribute("data-toc");if(hs[i]){b.scrollTop=hs[i].offsetTop-8;renderState("点了目录第 "+(i+1)+" 项，滚动到对应标题。");}});});
-document.addEventListener("keydown",function(e){if(e.key==="Escape"&&(S.phase==="ready"||S.phase==="error"))closeDetail();});}
-window.onScroll=function(el){var t=$("totop");if(t)t.style.display=el.scrollTop>240?"block":"none";};
-window.toTop=function(){var b=$("docBody");if(b)b.scrollTop=0;renderState("点了回到顶部。");};
-window.closeDetail=function(){S.phase="idle";S.phaseText="已关闭，回到列表";S.skel=false;renderDetail();renderState("关闭了详情，回到列表。草稿还在：“"+($("draft").value||"").slice(0,20)+"”。");
-try{if(S.lastFocus==="draft")$("draft").focus();}catch(e){}};
-window.copyLink=function(btn){S.copyState="已复制（气泡一次只许一个，键盘可读）";renderState("复制链接成功，按钮旁冒小气泡。");
-var b=document.createElement("span");b.className="bubble";b.setAttribute("role","status");b.textContent="已复制";document.body.appendChild(b);
-try{var r=btn.getBoundingClientRect();b.style.left=(r.left)+"px";b.style.top=(r.top-34)+"px";}catch(e){b.style.left="50%";b.style.top="120px";}
-setTimeout(function(){b.remove();S.copyState="idle";renderState("气泡已消失（低风险动作才用气泡，失败走横幅）。");},1600);};
-window.zoomImg=function(){renderState("点开放大图片（浮层，点空白/✕/Esc 关闭）。");
-var o=document.createElement("div");o.className="overlay";o.innerHTML='<div class="modal"><div class="top"><b>原图</b><span style="flex:1"></span><button class="pbtn" id="zx">关闭 ✕</button></div><div class="body"><div class="imgph" style="height:300px">原图（示意，最高 60vh，超出缩小）</div><p class="muted">底部给原图链接（示意）。</p></div></div>';
-o.addEventListener("click",function(e){if(e.target===o||e.target.id==="zx")o.remove();});document.body.appendChild(o);};
-/* ---------- 变体切换 ---------- */
-function setVariant(k,why){if(VARIANTS.map(function(v){return v.k;}).indexOf(k)<0)k="A";S.variant=k;renderDetail();renderState((why||"切换变体")+" → "+k+"（URL 已同步 ?variant="+k+"，刷新不丢）。");}
-$("prevV").addEventListener("click",function(){var i=VARIANTS.map(function(v){return v.k;}).indexOf(S.variant);setVariant(VARIANTS[(i+2)%3].k,"点了 ←");});
-$("nextV").addEventListener("click",function(){var i=VARIANTS.map(function(v){return v.k;}).indexOf(S.variant);setVariant(VARIANTS[(i+1)%3].k,"点了 →");});
-document.addEventListener("keydown",function(e){var t=e.target;if(t&&(t.tagName==="INPUT"||t.tagName==="TEXTAREA"||t.isContentEditable))return;
-if(e.key==="ArrowLeft")$("prevV").click();if(e.key==="ArrowRight")$("nextV").click();});
-/* ---------- 控制台 ---------- */
-function netBtn(id,v){$(id).addEventListener("click",function(){S.net=v;renderState("网络切到："+v+"。");});}
-netBtn("nFast","fast");netBtn("nSlow","slow");netBtn("nFail","fail");
-$("tSimple").addEventListener("click",function(){S.table="simple";if(S.phase==="ready")renderDetail();renderState("表格切到简单表：转键值对。");});
-$("tComplex").addEventListener("click",function(){S.table="complex";if(S.phase==="ready")renderDetail();renderState("表格切到复杂表：等宽原文块。");});
-$("vList").addEventListener("click",function(){S.view="list";renderList();renderRing();renderState("视图切到列表（矩形行：变深＋水波纹＋浮起全开）。");});
-$("vRing").addEventListener("click",function(){S.view="ring";renderList();renderRing();renderState("视图切到圆环（节点只用变淡＋焦点环，无水波纹无浮起）。");});
-$("preload").addEventListener("click",function(){SKILLS.forEach(function(s){if(!s.missing)S.cache[s.n]=true;});S.cached=true;renderState("挂载一次拉了 27 篇批量清单（本草稿装 8 篇代表）：之后再点都是缓存命中，不闪阶段话。");});
-$("motionBtn").addEventListener("click",function(){S.reduced=!S.reduced;document.body.style.setProperty("filter",S.reduced?"saturate(.85)":"");$("motionBtn").textContent="减少动态效果："+(S.reduced?"开":"关");renderState(S.reduced?"打开减少动态：闪与晃全关，只留图标＋文字。":"关闭减少动态：恢复闪与晃。");});
-try{if(window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches){S.reduced=true;$("motionBtn").textContent="减少动态效果：开（跟随系统）";}}catch(e){}
-$("draft").addEventListener("input",function(){S.draftBefore=$("draft").value;});
-$("draft").addEventListener("focus",function(){$("focusNote").textContent="（光标在这里）";});
-$("draft").addEventListener("blur",function(){$("focusNote").textContent="";});
-/* ---------- 启动 ---------- */
-renderList();renderRing();renderDetail();renderState("草稿已就绪，当前变体 "+S.variant+"。点一行“详情”开始体验；底部黑条或 ←/→ 切换容器。");
+if(S.phase==="idle"){m.innerHTML="<p>还没打开任何详情。点上面任意一行的“详情”开始。</p>";return}
+var p=innerParts(),title=S.skill?"/"+S.skill:"详情";
+var cls=S.phase==="ready"?"f-ok":S.phase==="error"&&!S.miss?"f-err shake":"";
+if(S.v==="A"){m.innerHTML='<div class=overlay id=ovl><div class="modal '+cls+'"><span class=seal></span><div class=top><span>'+esc(title)+'</span><span class=sub>居中弹窗·表单在背后</span><span style="flex:1"></span><button class=pbtn onclick="closeDetail()">关闭 ✕</button></div>'+p.st+'<div class=body id=docBody onscroll="onScroll(this)">'+p.body+'<button class="pbtn totop" id=totop style="display:none" onclick="toTop()">顶部 ↑</button></div><div class=bot>'+p.bar+"</div></div></div>";
+var o=$("ovl");if(o)o.addEventListener("click",function(e){if(e.target===o)closeDetail()});bindToc()}
+else if(S.v==="B"){m.innerHTML='<div class="drawerwrap '+cls+'"><span class=seal></span><div class=top><span>'+esc(title)+'</span><span class=sub>右侧抽屉</span><span style="flex:1"></span><button class=pbtn onclick="closeDetail()">关闭 ✕</button></div>'+p.st+'<div class=body id=docBody onscroll="onScroll(this)">'+p.body+'<button class="pbtn totop" id=totop style="display:none" onclick="toTop()">顶部 ↑</button></div><div class=bot>'+p.bar+"</div></div>";bindToc()}
+else{m.innerHTML='<div class="drill '+cls+'"><div class=top><button class=pbtn onclick="closeDetail()">← 回列表</button><span>'+esc(title)+'</span><span class=sub>整页下钻</span></div>'+p.st+'<div class=body id=docBody style="max-height:52vh" onscroll="onScroll(this)">'+p.body+'<button class="pbtn totop" id=totop style="display:none" onclick="toTop()">顶部 ↑</button></div><div class=bot>'+p.bar+"</div></div>";bindToc()}}
+function bindToc(){var as=document.querySelectorAll("[data-toc]");for(var i=0;i<as.length;i++)(function(a){a.addEventListener("click",function(){var b=$("docBody");if(!b)return;var hs=b.querySelectorAll("h2,h3");var k=+a.getAttribute("data-toc");if(hs[k])b.scrollTop=hs[k].offsetTop-8})})(as[i])}
+window.onScroll=function(el){var t=$("totop");if(t)t.style.display=el.scrollTop>240?"block":"none"};
+window.toTop=function(){var b=$("docBody");if(b)b.scrollTop=0};
+window.closeDetail=function(){S.phase="idle";S.pt="";S.skel=false;renderDetail();try{if(S.draftFocus)$("draft").focus()}catch(e){}};
+window.copyLink=function(btn){var b=document.createElement("span");b.className="bubble";b.setAttribute("role","status");b.textContent="已复制";document.body.appendChild(b);
+try{var r=btn.getBoundingClientRect();b.style.left=r.left+"px";b.style.top=(r.top-36)+"px"}catch(e){b.style.left="50%";b.style.top="120px"}
+setTimeout(function(){b.remove()},1500)};
+function syncUrl(){var lab=null;for(var i=0;i<VARIANTS.length;i++)if(VARIANTS[i].k===S.v)lab=VARIANTS[i];
+$("varLab").innerHTML="变体 <b>"+S.v+"</b>·"+lab.n;
+try{var u=new URL(location.href);u.searchParams.set("variant",S.v);history.replaceState(null,"","?"+u.searchParams.toString())}catch(e){}}
+function setVariant(k){var ok=false;for(var i=0;i<VARIANTS.length;i++)if(VARIANTS[i].k===k)ok=true;S.v=ok?k:"A";renderDetail()}
+function idx(){for(var i=0;i<VARIANTS.length;i++)if(VARIANTS[i].k===S.v)return i;return 0}
+$("prevV").addEventListener("click",function(){setVariant(VARIANTS[(idx()+2)%3].k)});
+$("nextV").addEventListener("click",function(){setVariant(VARIANTS[(idx()+1)%3].k)});
+document.addEventListener("keydown",function(e){
+var t=e.target;if(t&&(t.tagName==="INPUT"||t.tagName==="TEXTAREA"||t.isContentEditable))return;
+if(e.key==="ArrowLeft")$("prevV").click();
+if(e.key==="ArrowRight")$("nextV").click();
+if(e.key==="Escape"&&(S.phase==="ready"||S.phase==="error"))closeDetail()});
+renderList();renderRing();renderDetail();
 </script>
 </body>
 </html>

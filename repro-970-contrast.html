@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>970 现象对比：现在 vs 期待</title>
+<style>
+  body { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; color: #222; margin: 24px auto; max-width: 1200px; padding: 0 16px; }
+  h1 { font-size: 20px; }
+  .sub { color: #666; font-size: 13px; }
+  .cols { display: flex; gap: 16px; margin-top: 16px; }
+  .col { flex: 1; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; min-width: 0; }
+  .col header { padding: 10px 12px; font-size: 15px; font-weight: bold; }
+  .col.left header { background: #fdecec; }
+  .col.right header { background: #eef7ee; }
+  .badges { padding: 8px 12px; font-size: 13px; border-top: 1px solid #eee; }
+  .badge { display: inline-block; border-radius: 10px; padding: 2px 10px; margin-right: 6px; font-size: 12px; }
+  .bad { background: #fdecec; border: 1px solid #f0b0b0; }
+  .good { background: #eef7ee; border: 1px solid #9cc49c; }
+  .code { font-family: Consolas, "Courier New", monospace; font-size: 13px; line-height: 1.55; background: #fafafa; padding: 8px 0; white-space: pre-wrap; word-break: break-all; }
+  .ln { display: flex; }
+  .ln .no { width: 36px; flex: none; text-align: right; padding-right: 10px; color: #999; user-select: none; }
+  .ln .tx { flex: 1; padding-right: 12px; }
+  .ln.dup .tx { background: #fdecec; }
+  .foot { margin-top: 14px; font-size: 13px; color: #555; }
+  @media (max-width: 800px) { .cols { flex-direction: column; } }
+</style>
+</head>
+<body>
+<h1>970 现象对比：传“整份正文但缺状态行”时，调用返回成功，盘上却写成两份</h1>
+<p class="sub">输入相同：调用方递进来的是“整份文档”（里面自带一个标题行），不是“片段”。调用都返回成功，区别只在盘上落成的样子。</p>
+<div style="background:#fff8e6;border:1px solid #e8d48b;border-radius:8px;padding:10px 12px;font-size:14px;">为什么有两个标题？旧文件本来就有一个标题（# 原标题）。递进来的整份文档里也带一个标题行（# 新标题，这里用新旧不同只是为了看清两份的来路；即使前后标题一字相同，照样会变成两行）。程序误把它当成“片段”，整份粘到旧标题后面，于是盘上留下两个标题、两个锚、两份正文。没有人单独调“改标题”，标题是整份文档里顺带的那一行。</div>
+<div class="cols">
+<div class="col left">
+<header>左侧：现在的效果（写坏了）</header>
+<div class="badges"><span class="badge bad">一级标题：2 个（应 1 个）</span><span class="badge bad">锚标记：2 个（应 1 个）</span><span class="badge bad">正文：两份</span><span class="badge bad">调用返回：成功（误导）</span></div>
+<div class="code"><div class="ln dup"><span class="no">1</span><span class="tx">&lt;!-- DSH-IDEMPOTENCY-KEY: repro-970-99 --&gt;</span></div><div class="ln dup"><span class="no">2</span><span class="tx"># 原标题</span></div><div class="ln"><span class="no">3</span><span class="tx"></span></div><div class="ln"><span class="no">4</span><span class="tx"></span></div><div class="ln dup"><span class="no">5</span><span class="tx">&lt;!-- DSH-IDEMPOTENCY-KEY: repro-970-99 --&gt;</span></div><div class="ln dup"><span class="no">6</span><span class="tx"># 新标题</span></div><div class="ln"><span class="no">7</span><span class="tx"></span></div><div class="ln"><span class="no">8</span><span class="tx">## 正文</span></div><div class="ln"><span class="no">9</span><span class="tx"></span></div><div class="ln"><span class="no">10</span><span class="tx">新正文内容一行</span></div><div class="ln"><span class="no">11</span><span class="tx"></span></div><div class="ln"><span class="no">12</span><span class="tx">## 进度</span></div><div class="ln"><span class="no">13</span><span class="tx"></span></div><div class="ln"><span class="no">14</span><span class="tx">做了一些事</span></div><div class="ln"><span class="no">15</span><span class="tx"></span></div><div class="ln"><span class="no">16</span><span class="tx">Status: ready-for-agent</span></div><div class="ln"><span class="no">17</span><span class="tx">Type: task</span></div><div class="ln"><span class="no">18</span><span class="tx">Blocked by:</span></div><div class="ln"><span class="no">19</span><span class="tx">Labels: bug</span></div><div class="ln"><span class="no">20</span><span class="tx"></span></div><div class="ln"><span class="no">21</span><span class="tx">## 正文</span></div><div class="ln"><span class="no">22</span><span class="tx"></span></div><div class="ln"><span class="no">23</span><span class="tx">原始正文一行</span></div><div class="ln"><span class="no">24</span><span class="tx"></span></div><div class="ln"><span class="no">25</span><span class="tx">## 进度</span></div><div class="ln"><span class="no">26</span><span class="tx"></span></div><div class="ln"><span class="no">27</span><span class="tx">&lt;!-- 原来进度区的旧内容 --&gt;</span></div></div>
+<div class="badges">红色为重复的两份：旧标题旧锚各留一份，新标题新锚又拼一份；旧正文也在后面留着。</div>
+</div>
+<div class="col right">
+<header>右侧：期待的效果（写对了）</header>
+<div class="badges"><span class="badge good">一级标题：1 个</span><span class="badge good">锚标记：1 个</span><span class="badge good">正文：一份</span><span class="badge good">调用返回：成功（真实）</span></div>
+<div class="code"><div class="ln"><span class="no">1</span><span class="tx">&lt;!-- DSH-IDEMPOTENCY-KEY: repro-970-99 --&gt;</span></div><div class="ln"><span class="no">2</span><span class="tx"># 新标题</span></div><div class="ln"><span class="no">3</span><span class="tx"></span></div><div class="ln"><span class="no">4</span><span class="tx">## 正文</span></div><div class="ln"><span class="no">5</span><span class="tx"></span></div><div class="ln"><span class="no">6</span><span class="tx">新正文内容一行</span></div><div class="ln"><span class="no">7</span><span class="tx"></span></div><div class="ln"><span class="no">8</span><span class="tx">## 进度</span></div><div class="ln"><span class="no">9</span><span class="tx"></span></div><div class="ln"><span class="no">10</span><span class="tx">做了一些事</span></div><div class="ln"><span class="no">11</span><span class="tx"></span></div><div class="ln"><span class="no">12</span><span class="tx">Status: ready-for-agent</span></div><div class="ln"><span class="no">13</span><span class="tx">Type: task</span></div><div class="ln"><span class="no">14</span><span class="tx">Blocked by:</span></div><div class="ln"><span class="no">15</span><span class="tx">Labels: bug</span></div></div>
+<div class="badges">整份按整份替换；盘上原有而新文缺的状态字段补回文末；旧正文不残留。</div>
+</div>
+</div>
+<p class="foot">对照：一级标题 2 对 1、锚标记 2 对 1、正文两份对一份；调用返回都是成功，所以左侧的成功是误导，这就是“静默损坏”。</p>
+</body>
+</html>

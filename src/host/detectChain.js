@@ -2,11 +2,11 @@
 // 以后谁改它：改探测编排或检查链快照的人。预估约260行，超 350 打回。
 // 接线：由 index.js 动态 import 加载；harness 注册留守 index，处理器体经 handleDetect/handleChain 供给。
 import { refreshSourceOf } from './refresh/refreshSource.js'
-import { createRideSharing } from './refresh/rideSharing.js'
-import { ghWriteGeneration } from '../shared/gh-write-generation.js'
-import { getGhMeasure } from '../shared/gh-measure.js'
+import { createRideSharing } from '../shared/ride-sharing.js'
+import { ghWriteGeneration } from '../shared/tracker/outbound-write-generation.js'
+import { getGhMeasure } from '../shared/tracker/outbound-measure.js'
 import { workspaceKeyOf } from '../shared/refresh-workspace-key.js'   // #724：链记账给闸的钥匙，与活跃集合同一把（从前传 cwd 原文 → 同一个工作区在闸里有两格）
-import { timeoutForGhArgs } from '../shared/gh-timeout-tiers.js'   // #969：链上问 gh 也按读写探活分档（读 12 秒、探活 3 秒），不再一档等满 30 秒
+import { timeoutForGhArgs } from '../shared/tracker/outbound-tiers.js'   // #969：链上问 gh 也按读写探活分档（读 12 秒、探活 3 秒），不再一档等满 30 秒
 export function createDetectChain(deps) {
   const { canonicalKey, DEFAULT_CWD, resetGhCache, getDetectionService, getPlatform, getTrackerRegistry, getRepoKey, runGh, timer, probeSkill, mdParseOkPredicate, getChainCache, setChainCache, getChainBackoff, logCtx, gate, ghTimeoutMs, sandboxPolicyFor } = deps
   // #491 房外埋点 helpers：hash8 只记散列；P1 外层先判开关（采样/节流/按事件），字段函数只在守卫内求值。

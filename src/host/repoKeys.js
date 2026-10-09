@@ -8,10 +8,10 @@
 // 调用都必须经过闸」的物理落点。闸由接线处（src/host/registerPhones.js）注入，本文件不 import 它
 // （同层互引门禁不许），没注入时照旧执行、只是这一笔不在账上（门禁会因此判红，不许静默）。
 // 报账单位是**真实出站请求条数**：一条 gh/git/glab 命令就是一条（分页、重试、兜底链由调用方各自再报）。
-import { tierForGhArgs, timeoutForGhArgs, isWriteGhArgs } from '../shared/gh-timeout-tiers.js'
-import { getGhLane } from '../shared/gh-admission.js'
-import { getGhMeasure } from '../shared/gh-measure.js'
-import { noteGhWrite } from '../shared/gh-write-generation.js'
+import { tierForGhArgs, timeoutForGhArgs, isWriteGhArgs } from '../shared/tracker/outbound-tiers.js'
+import { getGhLane } from '../shared/tracker/outbound-admission.js'
+import { getGhMeasure } from '../shared/tracker/outbound-measure.js'
+import { noteGhWrite } from '../shared/tracker/outbound-write-generation.js'
 export function createRepoKeys(deps) {
   const { subprocess, timer, fs, DEFAULT_CWD, TIMEOUT_MS, repoKeys, repoRoots, getGhPath, setGhPath, getGhLastError, setGhLastError, getPlatform, getWorkspaceStore, setCache, clearWorkspaceStore, namingSweepSoon, getChainBackoff, parseGithubRepo, logCtx, gate, getGate } = deps
   // 共享状态归 index.js 单一持有：ghPath/ghLastError 经存取器（基本类型重赋值不能按引用共享）；repoKeys/repoRoots 按引用共享（只做属性读写与删除，从不整体重赋值）。
