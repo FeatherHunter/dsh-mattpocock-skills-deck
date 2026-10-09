@@ -7,8 +7,8 @@ declare const PixelCardFoot: (props?: any) => any;
 declare const PixelInlineSign: (props?: any) => any;
 declare const PixelClosedSeal: () => any;
 declare const PixelBlockedSeal: (props?: any) => any;
-declare const PixelBlockerChip: (props?: any) => any;
 declare const PixelDimVeil: () => any;
+declare const PixelBlockerChip: (props?: any) => any;
 declare const PixelCardBtns: (props?: any) => any;
 declare const PixelMapDots: (props?: any) => any;
 declare const PixelMapStats: (props?: any) => any;
@@ -26,7 +26,7 @@ export const PixelIssueMapCard = function (props?: IssueMapCardProps): any {
     if (p.onLitChange) p.onLitChange(v);
     try {
       const doc: any = (typeof document !== "undefined") ? document : null;
-      const o = doc && p.linkedId ? doc.getElementById(p.linkedId) : null;
+      const o = doc && p.blockedBy && p.blockedBy.cardId ? doc.getElementById(String(p.blockedBy.cardId)) : null;
       if (o && o.classList) { if (v) o.classList.add('lit'); else o.classList.remove('lit'); }
     } catch (err) { void err; }
   };
@@ -53,12 +53,11 @@ export const PixelIssueMapCard = function (props?: IssueMapCardProps): any {
   kids.push(h(PixelCardBtns, { key: 'ab', mainLabel: tr('card.execute'), icon: 'play', mainColor: '8b5cf6' }));
   kids.push(h(PixelCardFoot, { key: 'ft', left: tr('card.updated', { n: p.updatedText || '' }), right: '' }));
   kids.push(h(PixelMapCorner, { key: 'mc' }));
+  if (p.blocksChip) kids.push(h(PixelBlockerChip, { key: 'chip', no: p.blocksChip.no, title: p.blocksChip.title }));
   if (blocked) kids.push(h(PixelDimVeil, { key: 'veil' }));
-  if (blocked && p.blockedBy) kids.push(h(PixelBlockerChip, { key: 'chip', no: p.blockedBy.no, title: p.blockedBy.title }));
   const attrs: any = { className: cls, style: { "--cd-act": "#8b5cf6" } };
   if (p.cardId) attrs.id = p.cardId;
-  if (p.linkedId) attrs["data-link"] = p.linkedId;
-  if (blocked || p.linkedId) {
+  if (blocked) {
     attrs.tabIndex = 0;
     attrs.onClick = function (e: any): void { setLitNow(e, true); flip(true); };
     attrs.onFocus = function (e: any): void { if (e && e.target === e.currentTarget) { setLitNow(e, true); flip(true); } };

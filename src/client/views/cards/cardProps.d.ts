@@ -5,7 +5,8 @@
  */
 export type CardActionKind = string;
 export interface CardTagItem { text?: string; color?: string; }
-export interface BlockedInfo { no?: string; title?: string; }
+export interface BlockedInfo { no?: string; title?: string; cardId?: string | null; }
+export interface BlocksChipInfo { no?: string; title?: string; }
 export interface CardActionStyle { colorKey?: string; icon?: string; hollow?: boolean; }
 export interface IssueCardProps {
   action?: CardActionKind;
@@ -20,7 +21,7 @@ export interface IssueCardProps {
   bugCorner?: boolean;
   pickCorner?: string | null;
   blockedBy?: BlockedInfo | null;
-  linkedId?: string | null;
+  blocksChip?: BlocksChipInfo | null;
   cardId?: string | null;
   lit?: boolean;
   colorOf?: Record<string, string> | null;
@@ -30,26 +31,13 @@ export interface IssueCardProps {
   onOpen?: (() => void) | null;
   onLitChange?: ((lit: boolean) => void) | null;
 }
-export interface BlockerTicketProps {
-  noText?: string;
-  title?: string;
-  tags?: CardTagItem[];
-  updatedText?: string;
-  footActionText?: string;
-  cardId?: string | null;
-  lit?: boolean;
-  full?: boolean;
-  chipNo?: string;
-  chipTitle?: string;
-  colorOf?: Record<string, string> | null;
-}
 export interface IssueMapCardProps {
   mapNo?: string; title?: string; open?: boolean;
   kids?: number; ready?: number; blocked?: number;
   updatedText?: string; claimedBy?: string | null;
   dots?: { color: string; n: number }[];
   sign?: string | null;
-  blockedBy?: BlockedInfo | null; linkedId?: string | null;
+  blockedBy?: BlockedInfo | null; blocksChip?: BlocksChipInfo | null;
   cardId?: string | null; lit?: boolean;
   onLitChange?: ((lit: boolean) => void) | null;
 }

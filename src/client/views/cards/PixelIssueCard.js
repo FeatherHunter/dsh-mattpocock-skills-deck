@@ -15,7 +15,7 @@ export const PixelIssueCard = function(props) {
     if (p.onLitChange) p.onLitChange(v);
     try {
       const doc = typeof document !== "undefined" ? document : null;
-      const o = doc && p.linkedId ? doc.getElementById(p.linkedId) : null;
+      const o = doc && p.blockedBy && p.blockedBy.cardId ? doc.getElementById(String(p.blockedBy.cardId)) : null;
       if (o && o.classList) {
         if (v) o.classList.add("lit");
         else o.classList.remove("lit");
@@ -49,13 +49,12 @@ export const PixelIssueCard = function(props) {
   kids.push(h(PixelCardTags, { key: "tg", tags: p.tags || [] }));
   if (p.note) kids.push(h(PixelCardNote, { key: "nt", text: p.note }));
   kids.push(h(PixelCardBtns, { key: "ab", mainLabel: tr("card.act." + (p.action || "execute")), icon: st.icon, mainColor, onMain: p.onMain || null, onNew: p.onNew || null, onCopy: p.onCopy || null, onOpen: p.onOpen || null }));
+  if (p.blocksChip) kids.push(h(PixelBlockerChip, { key: "chip", no: p.blocksChip.no, title: p.blocksChip.title }));
   kids.push(h(PixelCardFoot, { key: "ft", left: tr("card.updated", { n: p.updatedText || "" }), right: p.footActionText || "" }));
   if (blocked) kids.push(h(PixelDimVeil, { key: "veil" }));
-  if (p.linkedId || blocked) kids.push(h(PixelBlockerChip, { key: "chip", no: p.blockedBy && p.blockedBy.no || "", title: p.blockedBy && p.blockedBy.title || "" }));
   const attrs = { className: cls, style: { "--cd-act": "#" + mainColor } };
   if (p.cardId) attrs.id = p.cardId;
-  if (p.linkedId) attrs["data-link"] = p.linkedId;
-  if (blocked || p.linkedId) {
+  if (blocked) {
     attrs.tabIndex = 0;
     attrs.onClick = function(e) {
       setLitNow(e, true);
@@ -77,33 +76,5 @@ export const PixelIssueCard = function(props) {
       flip(false);
     };
   }
-  return h("div", attrs, kids);
-};
-export const PixelBlockerTicket = function(props) {
-  const p = props || {};
-  const cx = React.useContext(DswsCtx);
-  const h = cx ? cx.h : React.createElement;
-  const setLitNow = function(e, v) {
-    try {
-      const el = e && e.currentTarget ? e.currentTarget : null;
-      if (el && el.classList) {
-        if (v) el.classList.add("lit");
-        else el.classList.remove("lit");
-      }
-    } catch (err) {
-      void err;
-    }
-  };
-  const kids = [];
-  kids.push(h(PixelCardPin, { key: "pin" }));
-  kids.push(h("div", { key: "hd", className: "cd-hd" }, h(PixelCardNo, { text: p.noText, action: "execute", colorOf: p.colorOf || null })));
-  kids.push(h(PixelCardTitle, { key: "tt", text: p.title }));
-  if (p.tags) kids.push(h(PixelCardTags, { key: "tg", tags: p.tags }));
-  if (p.full) kids.push(h(PixelCardBtns, { key: "ab", mainLabel: tr("card.act.execute"), icon: "play", mainColor: cardColorOf("wayfinder:task", p.colorOf || null) }));
-  kids.push(h(PixelCardFoot, { key: "ft", left: tr("card.updated", { n: p.updatedText || "" }), right: p.footActionText || "" }));
-  kids.push(h(PixelBlockerChip, { key: "chip", no: p.chipNo || p.noText, title: p.chipTitle || p.title }));
-  const cls = "cd-card" + (p.lit ? " lit" : "");
-  const attrs = { className: cls, style: { "--cd-act": "#a3231a" } };
-  if (p.cardId) attrs.id = p.cardId;
   return h("div", attrs, kids);
 };

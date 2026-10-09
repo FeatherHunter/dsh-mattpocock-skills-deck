@@ -1,5 +1,5 @@
 /** views/cards/PixelIssueCard.ts - issue card organism (S6, 8 actions). */
-import type { IssueCardProps, BlockerTicketProps } from './cardProps';
+import type { IssueCardProps } from './cardProps';
 declare const PixelCardPin: (props?: any) => any;
 declare const PixelCardNo: (props?: any) => any;
 declare const PixelCardTitle: (props?: any) => any;
@@ -10,8 +10,8 @@ declare const PixelCornerMark: (props?: any) => any;
 declare const PixelClosedSeal: () => any;
 declare const PixelBlockerBox: (props?: any) => any;
 declare const PixelBlockedSeal: (props?: any) => any;
-declare const PixelBlockerChip: (props?: any) => any;
 declare const PixelDimVeil: () => any;
+declare const PixelBlockerChip: (props?: any) => any;
 declare const PixelCardBtns: (props?: any) => any;
 declare const CARD_ACTION_STYLE: Record<string, { colorKey: string; icon: string; hollow: boolean }>;
 declare const cardColorOf: (c: string, m?: Record<string, string> | null) => string;
@@ -31,7 +31,7 @@ export const PixelIssueCard = function (props?: IssueCardProps): any {
     if (p.onLitChange) p.onLitChange(v);
     try {
       const doc: any = (typeof document !== "undefined") ? document : null;
-      const o = doc && p.linkedId ? doc.getElementById(p.linkedId) : null;
+      const o = doc && p.blockedBy && p.blockedBy.cardId ? doc.getElementById(String(p.blockedBy.cardId)) : null;
       if (o && o.classList) { if (v) o.classList.add('lit'); else o.classList.remove('lit'); }
     } catch (err) { void err; }
   };
@@ -57,13 +57,12 @@ export const PixelIssueCard = function (props?: IssueCardProps): any {
   kids.push(h(PixelCardTags, { key: 'tg', tags: p.tags || [] }));
   if (p.note) kids.push(h(PixelCardNote, { key: 'nt', text: p.note }));
   kids.push(h(PixelCardBtns, { key: 'ab', mainLabel: tr('card.act.' + (p.action || 'execute')), icon: st.icon, mainColor, onMain: p.onMain || null, onNew: p.onNew || null, onCopy: p.onCopy || null, onOpen: p.onOpen || null }));
+  if (p.blocksChip) kids.push(h(PixelBlockerChip, { key: 'chip', no: p.blocksChip.no, title: p.blocksChip.title }));
   kids.push(h(PixelCardFoot, { key: 'ft', left: tr('card.updated', { n: p.updatedText || '' }), right: p.footActionText || '' }));
   if (blocked) kids.push(h(PixelDimVeil, { key: 'veil' }));
-  if (p.linkedId || blocked) kids.push(h(PixelBlockerChip, { key: 'chip', no: (p.blockedBy && p.blockedBy.no) || '', title: (p.blockedBy && p.blockedBy.title) || '' }));
   const attrs: any = { className: cls, style: { "--cd-act": "#" + mainColor } };
   if (p.cardId) attrs.id = p.cardId;
-  if (p.linkedId) attrs["data-link"] = p.linkedId;
-  if (blocked || p.linkedId) {
+  if (blocked) {
     attrs.tabIndex = 0;
     attrs.onClick = function (e: any): void { setLitNow(e, true); flip(true); };
     attrs.onFocus = function (e: any): void { if (e && e.target === e.currentTarget) { setLitNow(e, true); flip(true); } };
@@ -73,30 +72,5 @@ export const PixelIssueCard = function (props?: IssueCardProps): any {
       flip(false);
     };
   }
-  return h("div", attrs, kids);
-};
-export const PixelBlockerTicket = function (props?: BlockerTicketProps): any {
-  const p: BlockerTicketProps = props || {};
-  const cx = React.useContext(DswsCtx);
-  const h = cx ? cx.h : React.createElement;
-  const setLitNow = function (e: any, v: boolean): void {
-    // 立刻给本卡加上或摘掉 lit，让红条与暗层不依赖这一次 React 重渲染是否发生
-    // （右边的挡路卡本来就是直接改 DOM 类；两边走同一套，才是同一件事）。
-    try {
-      const el = e && e.currentTarget ? e.currentTarget : null;
-      if (el && el.classList) { if (v) el.classList.add('lit'); else el.classList.remove('lit'); }
-    } catch (err) { void err; }
-  };
-  const kids: any[] = [];
-  kids.push(h(PixelCardPin, { key: 'pin' }));
-  kids.push(h('div', { key: 'hd', className: 'cd-hd' }, h(PixelCardNo, { text: p.noText, action: 'execute', colorOf: p.colorOf || null })));
-  kids.push(h(PixelCardTitle, { key: 'tt', text: p.title }));
-  if (p.tags) kids.push(h(PixelCardTags, { key: 'tg', tags: p.tags }));
-  if (p.full) kids.push(h(PixelCardBtns, { key: 'ab', mainLabel: tr('card.act.execute'), icon: 'play', mainColor: cardColorOf('wayfinder:task', p.colorOf || null) }));
-  kids.push(h(PixelCardFoot, { key: 'ft', left: tr('card.updated', { n: p.updatedText || '' }), right: p.footActionText || '' }));
-  kids.push(h(PixelBlockerChip, { key: 'chip', no: p.chipNo || p.noText, title: p.chipTitle || p.title }));
-  const cls = "cd-card" + (p.lit ? " lit" : "");
-  const attrs: any = { className: cls, style: { "--cd-act": "#a3231a" } };
-  if (p.cardId) attrs.id = p.cardId;
   return h("div", attrs, kids);
 };

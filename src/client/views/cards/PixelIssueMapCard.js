@@ -12,7 +12,7 @@ export const PixelIssueMapCard = function(props) {
     if (p.onLitChange) p.onLitChange(v);
     try {
       const doc = typeof document !== "undefined" ? document : null;
-      const o = doc && p.linkedId ? doc.getElementById(p.linkedId) : null;
+      const o = doc && p.blockedBy && p.blockedBy.cardId ? doc.getElementById(String(p.blockedBy.cardId)) : null;
       if (o && o.classList) {
         if (v) o.classList.add("lit");
         else o.classList.remove("lit");
@@ -47,12 +47,11 @@ export const PixelIssueMapCard = function(props) {
   kids.push(h(PixelCardBtns, { key: "ab", mainLabel: tr("card.execute"), icon: "play", mainColor: "8b5cf6" }));
   kids.push(h(PixelCardFoot, { key: "ft", left: tr("card.updated", { n: p.updatedText || "" }), right: "" }));
   kids.push(h(PixelMapCorner, { key: "mc" }));
+  if (p.blocksChip) kids.push(h(PixelBlockerChip, { key: "chip", no: p.blocksChip.no, title: p.blocksChip.title }));
   if (blocked) kids.push(h(PixelDimVeil, { key: "veil" }));
-  if (blocked && p.blockedBy) kids.push(h(PixelBlockerChip, { key: "chip", no: p.blockedBy.no, title: p.blockedBy.title }));
   const attrs = { className: cls, style: { "--cd-act": "#8b5cf6" } };
   if (p.cardId) attrs.id = p.cardId;
-  if (p.linkedId) attrs["data-link"] = p.linkedId;
-  if (blocked || p.linkedId) {
+  if (blocked) {
     attrs.tabIndex = 0;
     attrs.onClick = function(e) {
       setLitNow(e, true);
