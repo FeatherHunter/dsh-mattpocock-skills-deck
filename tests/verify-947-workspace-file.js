@@ -47,6 +47,7 @@ async function main() {
     check(parseWorkspaceFile(JSON.stringify({ version: 1, backendId: '', pickedAt: 7, source: 'user' })) === null, 'W1 空 id 为 null')
     check(parseWorkspaceFile(JSON.stringify({ version: 1, backendId: 'github', pickedAt: 7, source: 'auto' })) === null, 'W1 非 user 来源为 null')
     check(parseWorkspaceFile(JSON.stringify({ version: 1, backendId: 'github', source: 'user' })) === null, 'W1 缺档案时间为 null')
+    check(parseWorkspaceFile('\uFEFF' + JSON.stringify({ version: 1, backendId: 'github', pickedAt: 7, source: 'user' })).backendId === 'github', 'W1 带 BOM 照认')
     check(WORKSPACE_FILE_REL === 'docs/agents/workspace.json' && WORKSPACE_FILE_VERSION === 1, 'W1 路径与版本钉住')
   }
 

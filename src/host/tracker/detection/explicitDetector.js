@@ -3,7 +3,7 @@
  *
  * 第一性原理（#150 Q4 + #149 9→契约映射 + #113 平台层）：
  *  - 唯一显式写路径 = `wf.bind(handle, backendId|null) → registry.bind`（Q4 不回写 issue-tracker.md）
- *  - 本模块为「文件显式」：读 `docs/agents/issue-tracker.md` 经 `platform.fs`（零 OS 直碰），
+ *  - 本模块为「文件显式」：读内存绑定、`docs/agents/workspace.json`、再读 `docs/agents/issue-tracker.md`，经 `platform.fs`（零 OS 直碰），
  *    产内存 `Selection(explicit)`；不写 `byHandle`，避免文件监听竞态（handoff-150 Q4 *不自动 bind* 推荐）
  *  - 若解析出 `explicitBackendId` 且已注册 → 直接回 `Selection`，跳过 `registry.select` 的 matches 并行；
  *    否则返回 null 由调用方落到 `registry.select`（含 bound-explicit > matches > fallback + pending/multiHit）
