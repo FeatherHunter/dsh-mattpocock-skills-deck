@@ -26,10 +26,8 @@
 
 /** 这批工具的身份（写日志时进 host.call 的 kind 字段；不是新事件，沿用它原有的字段清单）。 */
 export const DECK_TOOL_KIND = 'deck-tool'
-
 /** 三态返回的取值。edges.js 的 statusOfItems 返回的就是这三个字符串（验收脚本有一条断言钉住这件事）。 */
 export const DECK_STATUS = Object.freeze({ OK: 'ok', PARTIAL: 'partial', UNSUPPORTED: 'unsupported' })
-
 /** 「这件事没做成」的原因取值。文案给人的那句话说在返回的 text 里，这里只放机器可读的那一格。 */
 export const REFUSAL_REASONS = Object.freeze({
   NO_SESSION: 'no-session-context',
@@ -47,7 +45,6 @@ export const REFUSAL_REASONS = Object.freeze({
 
 function num(v) { return (typeof v === 'number' && isFinite(v)) ? v : 0 }
 function str(v) { return (typeof v === 'string') ? v : '' }
-
 function hash8(text) {
   let h = 5381
   const t = String(text || '')
@@ -67,38 +64,7 @@ export function limitsFromBudget(b) {
   }
 }
 
-/**
- * 从会话上下文里取工作区。只认「会话里带着的那个目录」，不接受调用方传进来的路径
- * （那样等于允许跨工作区写）。真实运行时的首选位置是 exec.agent.session.cwd；
- * 别的几个位置一起认，是因为会话对象在宿主不同版本里的形状不完全一样，
- * 认不出来时返回 ok:false，让工具如实说做不到，而不是猜一个进程目录。
- */
-export function sessionContextOf(exec, deps) {
-  const e = exec || {}
-  const d = deps || {}
-  const agent = e.agent || {}
-  const session = agent.session || e.session || null
-  const cands = [
-    { where: 'exec.agent.session.cwd', value: session && session.cwd },
-    { where: 'exec.agent.session.workspaceRoot', value: session && session.workspaceRoot },
-    { where: 'exec.agent.session.workspace.cwd', value: session && session.workspace && session.workspace.cwd },
-    { where: 'exec.agent.cwd', value: agent.cwd },
-    { where: 'exec.session.cwd', value: e.session && e.session.cwd },
-    { where: 'exec.cwd', value: e.cwd },
-  ]
-  let cwd = ''
-  let source = ''
-  for (const c of cands) {
-    if (typeof c.value === 'string' && c.value.trim()) { cwd = c.value.trim(); source = c.where; break }
-  }
-  const sessionId = str(session && (session.id || session.sessionId)) || str(agent.sessionId)
-  if (!cwd) {
-    return { ok: false, reason: REFUSAL_REASONS.NO_SESSION, sessionId: sessionId, text: '这次没拿到当前会话的工作区目录（会话上下文里没有可用的路径），所以我不动任何票。请换一个会话再来，或让维护者看一看会话对象的形状。' }
-  }
-  const key = typeof d.workspaceKeyOf === 'function' ? String(d.workspaceKeyOf(cwd)) : ('ws-' + hash8(cwd))
-  return { ok: true, cwd: cwd, workspaceKey: key, sessionId: sessionId, source: source, text: '' }
-}
-
+// 会话目录取法只有 session-resolve.js 一份（九个工具全走它的 Async 版）；本文件曾有的同步复件已删，免得两份分叉。
 // 边的落点判定与逐项证据（landingOf / classifyEdgeLanding / childrenOf / statusOfItems）住在同目录的
 // edges.js：同层的文件不许互相 import，所以那边自带一份最小的字符串工具函数，拆开的理由见 edges.js 文件头。
 // 「一批里有的成、有的没成 → partial」这条总结论也在那边（statusOfItems），这里不再留第二份。
@@ -115,6 +81,10 @@ export function sessionContextOf(exec, deps) {
  *   invalidate 可选，写后失效缓存该票条目：invalidate({ repo, keys, backendId })
  *   ensureReading 可选，动手前保剩余额度读数：ensureReading(cwd, workspaceKey)，缺席时跳过
  *   resolveTimeoutMs 可选，仓库标识补全等待上限毫秒数（缺席 8000，测试可调小）
+ *   readChoice 可选，读本机记忆H：(规范根) => {backendId, rev} | null（缺席跳过H层）
+ *   readWorkspaceFileText 可选，读工作区文件原文：(规范根) => string | null（缺席跳过文件层）
+ *   parseWorkspaceFile 可选，解析文件文本（与 readWorkspaceFileText 同给同缺）
+ *   protectDoubleHit 可选，双命中保护写口：(规范根, 会话号, 本次识别结果) => {backendId} | null（缺席跳过保护）
  */
 export function createDeckShell(deps) {
   const d = deps || {}
@@ -139,8 +109,6 @@ export function createDeckShell(deps) {
   function noteGate(phase, verdict, reason) {
     try { if (typeof d.noteGate === 'function') d.noteGate({ phase: phase, verdict: verdict, reason: reason }) } catch (eN) {}
   }
-
-  function context(exec) { return sessionContextOf(exec, { workspaceKeyOf: d.workspaceKeyOf }) }
 
   /** 后端 ctx（platform / fs / exec 那一套）：可以给对象，也可以给一个现取的函数（多工作区共用一个壳时后者更顺手）。 */
   function backendCtxNow() {
@@ -203,9 +171,37 @@ export function createDeckShell(deps) {
     let sent = null
     const t0 = now()
     try { if (typeof d.ensureReading === 'function') await d.ensureReading(s.cwd, s.workspaceKey) } catch (eR) {}
+    // 显式三层（947：内存绑定 > 本机记忆H > 工作区文件）。缺席的口子跳过，未注册 id 忽略，
+    // 显式无后端（null）落到 select 由注册表诚实判。判定收在闸内：每笔照旧过闸记账，不断 758 口径。
+    const explicitId = async function () {
+      try {
+        const mem = (registry && typeof registry.bound === 'function') ? registry.bound(handle) : undefined
+        if (typeof mem === 'string' && mem && typeof registry.has === 'function' && registry.has(mem)) return mem
+      } catch (eM) {}
+      try {
+        if (typeof d.readChoice === 'function') {
+          const h = await d.readChoice(s.cwd)
+          if (h && typeof h.backendId === 'string' && h.backendId && typeof registry.has === 'function' && registry.has(h.backendId)) return h.backendId
+        }
+      } catch (eH) {}
+      try {
+        if (typeof d.readWorkspaceFileText === 'function' && typeof d.parseWorkspaceFile === 'function') {
+          const parsed = d.parseWorkspaceFile(await d.readWorkspaceFileText(s.cwd))
+          if (parsed && typeof parsed.backendId === 'string' && parsed.backendId && typeof registry.has === 'function' && registry.has(parsed.backendId)) return parsed.backendId
+        }
+      } catch (eF) {}
+      return null
+    }
     try {
       sent = await gate.send({ source: 'tool.call', kind: 'probe', bucket: 'rest', workspaceKey: s.workspaceKey, plan: [{ phase: 'select' }] }, async () => {
-        picked = await registry.select(handle, Object.assign({}, backendCtxNow(), { cwd: s.cwd, caller: DECK_TOOL_KIND }))
+        const ex = await explicitId()
+        if (ex) {
+          let ref = null
+          try { ref = registry.describe(handle, ex) } catch (eD) { ref = null }
+          picked = { backendId: ex, source: 'explicit', ref: ref, pending: false }
+        } else {
+          picked = await registry.select(handle, Object.assign({}, backendCtxNow(), { cwd: s.cwd, caller: DECK_TOOL_KIND }))
+        }
         return { requests: 1, points: 0 }
       })
     } catch (e) { failure = e }
@@ -215,6 +211,9 @@ export function createDeckShell(deps) {
       noteGate('select', 'defer', str(sent && sent.reason))
       return { ok: false, reason: REFUSAL_REASONS.GATE_DEFER, text: '这一次选后端被闸推迟了（' + str(sent && sent.detail) + '），先不做。' }
     }
+    // #957 双命中保护：无显式且双命中含 GitHub 时自动存一份默认值并照此走（缺席跳过，仍诚实报错）。
+    const _prot = (typeof d.protectDoubleHit === 'function') ? await d.protectDoubleHit(s.cwd, s.sessionId, picked).catch(function () { return null }) : null
+    if (_prot && _prot.backendId) picked = _prot
     // 仓库标识补全（#758）：匹配源常带空标识（注册表只认显式 refId），而房间读写真要它。
     // 有该能力的后端（房内 getRepoKey，三层兜底）调用方按通用形状自己补，不逐后端写分支；
     // 没有该能力的后端没有这一格，跳过，下游照旧诚实失败。补全本身也过一次闸（读探针一格）。
@@ -244,6 +243,7 @@ export function createDeckShell(deps) {
         }
       } catch (eR) {}
     }
+    if (picked && picked.backendId && str(picked.source) !== 'explicit' && ((Array.isArray(picked.multiHit) && picked.multiHit.length > 1) || picked.pending)) { const mh = Array.isArray(picked.multiHit) && picked.multiHit.length > 1; return { ok: false, reason: REFUSAL_REASONS.NO_BACKEND, text: mh ? '这个工作区同时被 ' + picked.multiHit.length + ' 个后端认出，请在面板中选定后再试。' : '后端还没定下来，先在面板上选一次后端。' } }
     if (!picked || !picked.backendId) {
       const pending = picked && picked.pending
       return { ok: false, reason: REFUSAL_REASONS.NO_BACKEND, text: pending ? '后端还没定下来（自动识别有超时未决），先在面板上选一次后端。' : '这个工作区还没有后端（既没有手动选过，也没有识别到锚文件）。先在面板上选一个后端。' }
@@ -281,6 +281,7 @@ export function createDeckShell(deps) {
     let failure = null
     let sent = null
     const t0 = now()
+    const sbM = (meta && meta.sandbox && typeof meta.sandbox === 'object') ? meta.sandbox : {}; const sbPolicy = sbM.policy; const sbSessionId = (typeof sbM.sessionId === 'string' && sbM.sessionId) ? sbM.sessionId : str(s && s.sessionId)
     const ctx = {
       session: s,
       pick: meta.pick,
@@ -288,7 +289,7 @@ export function createDeckShell(deps) {
       gate: gate,
       now: now,
       tracker: registry.get(meta.pick.backendId),
-      opCtx: Object.assign({}, backendCtxNow(), { cwd: s.cwd, signal: undefined, caller: DECK_TOOL_KIND }),
+      opCtx: Object.assign({}, backendCtxNow(), { cwd: s.cwd, signal: undefined, caller: DECK_TOOL_KIND, sandboxPolicy: sbPolicy, sessionId: sbSessionId }),
       admit: admit,
     }
     try {
@@ -359,7 +360,6 @@ export function createDeckShell(deps) {
 
   return {
     limits: limits,
-    context: context,
     estimateFor: estimateFor,
     pickBackend: pickBackend,
     repoOf: repoOf,

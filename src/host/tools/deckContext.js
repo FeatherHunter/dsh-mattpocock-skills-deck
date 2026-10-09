@@ -6,6 +6,7 @@
 //
 // 拿不到的东西一律如实说：没有会话工作区、没有后端、后端不认这条路，都在返回值里写明。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../../shared/deck-tools/shell.js'
+import { sessionContextOfAsync } from '../../shared/deck-tools/session-resolve.js'
 import * as budget from '../../shared/refresh/budget.js'
 import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/tool-cost.js'
 
@@ -29,7 +30,7 @@ export function createDeckContext(deps) {
   }))
 
   async function run(exec, args) {
-    const s = shell.context(exec)
+    const s = await sessionContextOfAsync(exec, { canonicalKey: d.canonicalKey, workspaceKeyOf: d.workspaceKeyOf })
     const est = shell.estimateFor('deck_context', args)
     if (!s.ok) return shell.unsupported('deck_context', s.reason, s.text, { cost: { estimated: est } })
 
@@ -45,7 +46,7 @@ export function createDeckContext(deps) {
     }
     const repo = shell.repoOf(pick, s)
 
-    return shell.call({ tool: 'deck_context', kind: 'read', session: s, pick: pick, repo: repo, estimate: est }, async (c) => {
+    return shell.call({ tool: 'deck_context', kind: 'read', session: s, pick: pick, repo: repo, estimate: est, sandbox: (typeof d.sandboxPolicyFor === 'function' ? await d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }).catch(function(){ return null }) : null) }, async (c) => {
       const pre = typeof c.tracker.preflight === 'function' ? await c.tracker.preflight({ cwd: s.cwd }, c.opCtx) : null
       const listed = await c.tracker.list(repo, { type: 'map' }, c.opCtx)
       const maps = (listed.ok && Array.isArray(listed.data)) ? listed.data.map(mapRow) : []

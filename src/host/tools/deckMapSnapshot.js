@@ -6,6 +6,7 @@
 // 五区块（Destination / Notes / Decisions so far / Not yet specified / Out of scope）用共享层的
 // parseMapBody 解析，同样是单源。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../../shared/deck-tools/shell.js'
+import { sessionContextOfAsync } from '../../shared/deck-tools/session-resolve.js'
 import { childrenOf } from '../../shared/deck-tools/edges.js'
 import { deriveDeck, parseProgress } from '../../shared/tracker/deck-derive.js'
 import { parseMapBody } from '../../shared/parser.js'
@@ -49,7 +50,7 @@ export function createDeckMapSnapshot(deps) {
     const a = args || {}
     const key = String(a.key === undefined || a.key === null ? '' : a.key).trim()
     const est = shell.estimateFor('deck_map_snapshot', a)
-    const s = shell.context(exec)
+    const s = await sessionContextOfAsync(exec, { canonicalKey: d.canonicalKey, workspaceKeyOf: d.workspaceKeyOf })
     if (!s.ok) return shell.unsupported('deck_map_snapshot', s.reason, s.text, { cost: { estimated: est } })
     if (!key) return shell.unsupported('deck_map_snapshot', REFUSAL_REASONS.BAD_ARGS, '要看哪一张地图：把地图那张票的票号写在 key 里。', { cost: { estimated: est } })
 
@@ -59,7 +60,7 @@ export function createDeckMapSnapshot(deps) {
     const effortId = (a.effortId === undefined || a.effortId === null) ? '' : String(a.effortId).trim()
     if (effortId) repo.effortId = effortId
 
-    return shell.call({ tool: 'deck_map_snapshot', kind: 'read', session: s, pick: pick, repo: repo, estimate: est }, async (c) => {
+    return shell.call({ tool: 'deck_map_snapshot', kind: 'read', session: s, pick: pick, repo: repo, estimate: est, sandbox: (typeof d.sandboxPolicyFor === 'function' ? await d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }).catch(function(){ return null }) : null) }, async (c) => {
       const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), now: (typeof d.now === 'function') ? d.now : Date.now })
       const t = sc.tracker
       const opCtx = sc.opCtx
