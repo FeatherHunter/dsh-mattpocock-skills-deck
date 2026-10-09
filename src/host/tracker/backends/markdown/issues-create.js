@@ -139,7 +139,9 @@ export async function createIssue(ctx,repo,input){
           const st=await statFile(ctx,hit.path)
           let hitMtime=new Date().toISOString()
           if(st&&st.mtime){try{hitMtime=new Date(st.mtime).toISOString()}catch{}}
-          const hitIss=parseMd(hit.text,{key:hit.key,parentKey:null,isMap:false,effortId,createdAt:hitMtime,updatedAt:hitMtime})
+          // #971：回落值给 00（老单根工作区的地图），文件顶有注释就以注释为准，没有注释但正文写着 Type: map 的视作没有父票。
+          // 这里原来写死 null，复用老票时会把本该是 00 的子票读成没有父票；现在交给 parseMd 按注释与类型判。
+          const hitIss=parseMd(hit.text,{key:hit.key,parentKey:'00',isMap:false,effortId,createdAt:hitMtime,updatedAt:hitMtime})
           applyLabelColors(hitIss, colorMap)
           return{ok:true,effortId,finalPath:hit.path,finalKey:hit.key,reused:true}
         }
@@ -187,7 +189,14 @@ export async function createIssue(ctx,repo,input){
     const st=await statFile(ctx,finalPath)
     let mtime=new Date().toISOString()
     if(st&&st.mtime){try{mtime=new Date(st.mtime).toISOString()}catch{}}
-    const iss=parseMd(content,{key:finalKey,parentKey:input.parentKey||'00',isMap:false,effortId,createdAt:mtime,updatedAt:mtime})
+    // #971：地图本身没有父票（恒为空），其余票有父就用父、没给就回落到 00（老单根工作区的地图）。
+    // 这里原来对地图也回落到 00，导致新建的地图 01 被读成 00 的子票，按 01 筛选恒为 0。
+    // 显式传 null（解除父子）同样视作没有父票，不回落到 00。
+    const _isMapType = String((input && (input.type || input.Type)) || '').trim().toLowerCase() === 'map'
+    const _fallbackParent = (input && input.parentKey !== undefined && input.parentKey !== null && String(input.parentKey).trim() !== '')
+      ? String(input.parentKey).trim()
+      : (_isMapType || (input && input.parentKey === null) ? null : '00')
+    const iss=parseMd(content,{key:finalKey,parentKey:_fallbackParent,isMap:false,effortId,createdAt:mtime,updatedAt:mtime})
     applyLabelColors(iss, colorMap)
     return{ok:true,data:iss}
   }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}

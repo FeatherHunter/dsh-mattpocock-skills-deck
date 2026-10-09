@@ -146,6 +146,7 @@ async function main() {
 
   // ── ② deck_issue_create：建票 + 必备标签 + 进度区 ──
   let createdKey = ''
+  let planMapKey713 = ''
   {
     const r = await callTool('deck_issue_create', { title: '第一张演示票', kind: 'task', body: '正文在这里' })
     createdKey = String((r.data && r.data.ticket && r.data.ticket.key) || '')
@@ -207,6 +208,7 @@ async function main() {
     }
     const filesBefore = ws.ticketFiles().length
     const r = await callTool('deck_map_plan_create', planArgs)
+    planMapKey713 = String((r.data && r.data.mapKey) || '')
     check(envelopeOk(r), 'deck_map_plan_create 正例：回三态之一（实得 ' + (r && r.status) + '）')
     check(r.data && r.data.mapKey && r.data.builtKeys.length === 3, 'deck_map_plan_create 建成地图 + 3 张子票（' + JSON.stringify((r.data || {}).builtKeys) + '）')
     const edgeItems = (r.items || []).filter((i) => i.role === 'edge')
@@ -218,9 +220,10 @@ async function main() {
     check(ws.ticketFiles().length === filesBefore + 4, '盘上的票文件数对得上（地图 1 + 子票 3 = 4 张新票，实得新增 ' + (ws.ticketFiles().length - filesBefore) + '）')
   }
 
-  // ── ⑥ deck_map_link：补边（正例 = 阻塞边；负向 = 这个后端做不到父子 → partial） ──
+  // ── ⑥ deck_map_link：补边（正例 = 阻塞边；正例 = 同目录父子；负向 = 不存在的父） ──
   {
-    const kids = (await callTool('deck_map_snapshot', { key: '00' })).data.children
+    // #971 起计划的子票挂在计划地图下，不再挂在 00 下：按计划地图取子票，00 只剩最初那一张演示票。
+    const kids = (await callTool('deck_map_snapshot', { key: planMapKey713 })).data.children
     const c1 = String(kids.find((k) => k.title === '子票一').key)
     const c3 = String(kids.find((k) => k.title === '子票三').key)
     const ok = await callTool('deck_map_link', { key: c3, blockedBy: [c1] })
@@ -229,10 +232,14 @@ async function main() {
     check(edge && edge.landing && edge.evidence, 'deck_map_link 标出这条边落在哪一列：' + JSON.stringify(edge))
     const text = ws.readTicket(ws.ticketFiles().find((f) => f.indexOf('/') < 0 && f !== '00-untitled.md') || '')
     check(typeof text === 'string', '补边之后票文件还在（不会被写坏）')
-    // 负向：本地 Markdown 的 setParent 是做不到的（单根工作区）→ 这一步失败，工具必须回 partial 而不是抛
-    const partial = await callTool('deck_map_link', { key: c3, parentKey: '00' })
-    check(envelopeOk(partial) && partial.ok === false && partial.status === 'unsupported', '✗ 负向：后端说做不到 → ok:false / unsupported（实得 ' + (partial && partial.status) + '）')
-    check((partial.items || []).some((i) => i.landing && i.landing.indexOf('做不到') >= 0) || (partial.items || []).some((i) => String(i.reason || i.evidence || '').indexOf('unsupported') >= 0), '做不到的那一条逐项写在 items 里：' + JSON.stringify((partial.items || [])[0]))
+    // #971 起同目录改父能做成（文件顶注释即归属）：同值补一次边直接成功，返回落点与证据。
+    const same = await callTool('deck_map_link', { key: c3, parentKey: planMapKey713 })
+    check(envelopeOk(same) && same.status === 'ok', 'deck_map_link 正例：同目录同值补父边直接成功（实得 ' + (same && same.status) + '）')
+    check((same.items || []).some((i) => i.landing && i.evidence), '同值父边逐项写了落点与证据：' + JSON.stringify((same.items || [])[0]))
+    // 负向：父票根本不存在 → 这一步失败，工具必须回 unsupported 而不是抛
+    const partial = await callTool('deck_map_link', { key: c3, parentKey: '99' })
+    check(envelopeOk(partial) && partial.ok === false && partial.status === 'unsupported', '✗ 负向：父票不存在 → ok:false / unsupported（实得 ' + (partial && partial.status) + '）')
+    check((partial.items || []).some((i) => i.landing && i.landing.indexOf('做不到') >= 0) || (partial.items || []).some((i) => String(i.reason || i.evidence || '').indexOf('not-found') >= 0), '做不到的那一条逐项写在 items 里：' + JSON.stringify((partial.items || [])[0]))
   }
 
   // ── ⑦ deck_issue_patch：改一张票（评论 + 标签 + 关闭；负向：后端做不到认领） ──

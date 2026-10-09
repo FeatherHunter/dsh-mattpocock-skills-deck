@@ -142,8 +142,99 @@ export async function setAssigneesIssue(ctx,repo,key,assignees){
     return{ok:true,data:iss}
   }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
 }
+/** 把文件顶的父票注释换成新的值，没有这一行就插一行（#971）。
+ *
+ *  为什么要单独抽出来：改父在本地后端就是改这一行注释，不动文件位置。
+ *  幂等锚那一行（DSH-IDEMPOTENCY-KEY）在最前，父注释紧跟在它后面；
+ *  没有锚的文件直接插在最前。解除父子（null）写成明确的 null 字样，
+ *  这样以后读回来是“没有父票”，而不会回落到老默认值 00。 */
+function upsertParentComment(text, want) {
+  const line = want === null ? '<!-- parentKey: null -->' : '<!-- parentKey: ' + String(want) + ' -->'
+  const re = /^[ \t]*<!--[ \t]*parentKey[ \t]*:[ \t]*.*?-->[ \t]*\r?\n?/im
+  if (re.test(text)) return String(text).replace(re, line + '\n')
+  const lines = String(text || '').split('\n')
+  let at = 0
+  if (lines.length && /^[ \t]*<!--[ \t]*DSH-IDEMPOTENCY-KEY:/.test(lines[0])) at = 1
+  lines.splice(at, 0, line)
+  return lines.join('\n')
+}
+function normParentKey(v) {
+  if (v === undefined || v === null) return null
+  const t = String(v).trim()
+  if (!t) return null
+  if (/^null$/i.test(t) || /^none$/i.test(t) || t === '-') return null
+  if (/^\d+$/.test(t)) return t.padStart(2, '0')
+  return t
+}
 export async function setParentIssue(ctx,repo,key,parentKey){
-  return{ok:false,error:{kind:ERROR_KIND.UNSUPPORTED,message:'markdown setParent unsupported (single-root)'}}
+  const norm=String(key).padStart(2,'0')
+  const want=normParentKey(parentKey)
+  const colorMap=await loadPaintColorMap(ctx)
+  // 地图文件本身没有父票：只要解除（null）就直接成功，其余一律如实说做不到。
+  if(norm==='00'){
+    if(want===null){
+      const r=await resolveMapFile(ctx,repo,{mode:'read'})
+      if(!r.ok)return{ok:false,error:r.error}
+      try{
+        const txt=await readTextFile(ctx,r.path)
+        const iss=parseMd(txt,{key:'00',parentKey:null,isMap:true,effortId:r.effortId})
+        applyLabelColors(iss, colorMap)
+        return{ok:true,data:iss}
+      }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
+    }
+    return{ok:false,error:{kind:ERROR_KIND.UNSUPPORTED,message:'markdown setParent unsupported (map has no parent)'}}
+  }
+  const r=await resolveTarget(ctx,repo,norm,'write')
+  if(!r.ok)return{ok:false,error:r.error}
+  const childEffort=r.effortId||''
+  let curTxt=''
+  try{curTxt=await readTextFile(ctx,r.path)}catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
+  let curIss=null
+  try{curIss=parseMd(curTxt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort})}catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
+  const cur=curIss.parentKey===undefined||curIss.parentKey===null?null:normParentKey(curIss.parentKey)
+  // 同值二次写入直接成功（建图流程建票时已带父，随后又为同值补一次边，原来这第二次必败，导致建好了判部分成功）。
+  if(cur===want){
+    applyLabelColors(curIss, colorMap)
+    return{ok:true,data:curIss}
+  }
+  // 解除父子不需要搬文件（同一目录内去掉注释即可），直接成功。
+  if(want===null){
+    const res=await readParseWrite(ctx,repo,r,norm,function(txt){return upsertParentComment(txt, null)})
+    if(!res.ok)return{ok:false,error:res.error}
+    try{
+      const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort})
+      applyLabelColors(iss, colorMap)
+      return{ok:true,data:iss}
+    }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
+  }
+  // 新父必须在同一个工作单元里（同一个目录树下）：目录即父子，跨目录搬文件不支持，如实失败。
+  if(want==='00'){
+    const mr=await resolveMapFile(ctx,repo,{effortId:childEffort,mode:'read'})
+    if(!mr.ok)return{ok:false,error:{kind:ERROR_KIND.NOTFOUND,message:'parent 00 not-found in effort「'+childEffort+'」'}}
+    const res=await readParseWrite(ctx,repo,r,norm,function(txt){return upsertParentComment(txt, '00')})
+    if(!res.ok)return{ok:false,error:res.error}
+    try{
+      const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort})
+      applyLabelColors(iss, colorMap)
+      return{ok:true,data:iss}
+    }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
+  }
+  const pr=await resolveIssueFile(ctx,repo,want,{effortId:childEffort,mode:'read'})
+  if(pr.ok&&(pr.effortId||'')===childEffort){
+    const res=await readParseWrite(ctx,repo,r,norm,function(txt){return upsertParentComment(txt, want)})
+    if(!res.ok)return{ok:false,error:res.error}
+    try{
+      const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort})
+      applyLabelColors(iss, colorMap)
+      return{ok:true,data:iss}
+    }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
+  }
+  // 同目录里找不到这个父：看它是不是在别的工作单元里，是就是跨目录（不支持），不是就是不存在。
+  try{
+    const anywhere=await resolveIssueFile(ctx,repo,want,{effortId:null,mode:'read'})
+    if(anywhere&&anywhere.ok)return{ok:false,error:{kind:ERROR_KIND.UNSUPPORTED,message:'markdown setParent unsupported (cross-effort '+childEffort+' -> '+(anywhere.effortId||'')+')'}}
+  }catch{}
+  return{ok:false,error:{kind:ERROR_KIND.NOTFOUND,message:'parent '+want+' not-found'}}
 }
 export async function setLabelsIssue(ctx,repo,key,labels){
   const norm=String(key).padStart(2,'0')
