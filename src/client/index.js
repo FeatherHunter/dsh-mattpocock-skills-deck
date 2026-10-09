@@ -72,6 +72,9 @@ export default {
     //   注入仍走同一个 styles.insert 接缝 —— 不是第二个 <style>，也没有新的注入机制。
     // ==== leaf:vcStyles (spliced by build) ====
     styles.insert(VC_STYLE_TEXT)
+    // 887：技能详情像素风皮肤另起一个样式叶子（与 vcStyles 同一套做法）。
+    // ==== leaf:pxSkillStyles (spliced by build) ====
+    styles.insert(PX_STYLE_TEXT)
 
     // ============================================================
     // 0.5 locale（T3 #366 · dsws 命名空间 zh/en；跟随 harness 语言；GitHub 数据不翻译）
@@ -91,6 +94,8 @@ export default {
     // ==== kernel:localeVcWrite (spliced by build) ====
     // #879 技能描述 27 条中英词条：locale-word.js 已贴 350 行上限，照 #621/#690/#842 的做法自成一个片段。
     // ==== kernel:localeSkilldesc (spliced by build) ====
+    // 887：技能详情像素风的中英词条单独一份片段（sd.*）。
+    // ==== kernel:localeSkilldetail (spliced by build) ====
     // ==== kernel:locale (spliced by build) ====
     const localeSvc = ctx.get('locale')
     if (localeSvc && typeof localeSvc.register === 'function') {
@@ -226,6 +231,15 @@ export default {
     // ==== leaf:chips (spliced by build) ====
     // ==== leaf:hoverTip (spliced by build) ====
     // ==== leaf:tip (spliced by build) ====
+    // 887：八个像素风最小组件。
+    // ==== leaf:pxBtn (spliced by build) ====
+    // ==== leaf:pxDot (spliced by build) ====
+    // ==== leaf:pxNum (spliced by build) ====
+    // ==== leaf:pxStateIcon (spliced by build) ====
+    // ==== leaf:pxSeal (spliced by build) ====
+    // ==== leaf:pxSkel (spliced by build) ====
+    // ==== leaf:pxBanner (spliced by build) ====
+    // ==== leaf:pxStatusLine (spliced by build) ====
     // ==== leaf:backendSelector (spliced by build) ====
     // ==== leaf:switchConfirmModal (spliced by build) ====
 
@@ -278,6 +292,12 @@ export default {
     // ==== leaf:ringSkills (spliced by build) ====
 
     // ==== leaf:skillsTab (spliced by build) ====
+    // 887：技能详情像素风中组件与整页（皮肤拼在上面样式区）。
+    // ==== leaf:pxToc (spliced by build) ====
+    // ==== leaf:pxDoc (spliced by build) ====
+    // ==== leaf:skillRow (spliced by build) ====
+    // ==== leaf:skillList (spliced by build) ====
+    // ==== leaf:skillDetailModal (spliced by build) ====
 
     // ==== leaf:checksTab (spliced by build) ====
 

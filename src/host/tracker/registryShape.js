@@ -27,12 +27,35 @@ export class TrackerRegistryError extends Error {
   }
 }
 
-/** handle 稳定键（cwd 或 refId）。 */
+/**
+ * handle 稳定键（cwd 或 refId）。
+ * 只做系统无关洗（934：去首尾空白、反斜杠转正斜杠、折叠连续斜杠、去尾斜杠）：
+ * 同一条目录的斜杠写法不同时仍落同一桶，而大小写与锚到工作区根这两步留给宿主唯一的
+ * 异步出口 canonicalKey（src/host/workspaceKey.js），注册表不替它做系统相关归一。
+ */
+export function washHandleKey(raw) {
+  let s = String(raw == null ? '' : raw).trim()
+  if (!s) return s
+  s = s.replace(/\\/g, '/')
+  const isUnc = s.indexOf('//') === 0
+  if (isUnc) {
+    const rest = s.slice(2).replace(/^\/+/, '').replace(/\/+/g, '/')
+    s = '//' + rest
+  } else {
+    s = s.replace(/\/+/g, '/')
+  }
+  while (s.length > 1 && s.charAt(s.length - 1) === '/') {
+    if (s === '//') break
+    s = s.slice(0, -1)
+  }
+  return s
+}
+/** handle 稳定键（cwd 或 refId，系统无关洗之后）。 */
 export function handleKey(handle) {
   if (!handle || typeof handle !== 'object') throw new TrackerRegistryError('bad-handle', 'handle is required')
   const k = handle.cwd || handle.refId
   if (!k) throw new TrackerRegistryError('bad-handle', 'handle needs cwd or refId')
-  return String(k)
+  return washHandleKey(String(k))
 }
 
 /** 缺方法 → uniform unsupported 桩（能力=运行时调用结果；返回不抛）。 */

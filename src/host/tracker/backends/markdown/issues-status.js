@@ -40,7 +40,7 @@ async function setStatus(ctx,repo,key,statusLine){
     try{
       let txt=await readTextFile(ctx,r.path)
       txt=replaceOrInsertField(txt,'Status',statusLine)
-      await writeTextFile(ctx,r.path,txt)
+      await writeTextFile(ctx,r.path,txt, ctx && ctx.sandboxPolicy)
       const iss=parseMd(txt,{key:norm,parentKey:isMap?null:'00',isMap,effortId:r.effortId})
       applyLabelColors(iss, colorMap)
       return{ok:true,data:iss}

@@ -140,7 +140,7 @@ export const settleSwitchCard = function(s, phase){
   }
   // 已初始化：先给「把后端对齐」那条（确认与取消都一样 —— 这件事与布局那一问无关）。
   if(s&&s.switchAlignDone!==true){
-    try{ const t=(typeof promptText==='function')?promptText('switchAlign',{from:fromLabel,to:toLabel}):''; if(t&&typeof inject==='function') inject(s,t) }catch(eInj){}
+    try{ const t=switchAlignPrompt(s,(s&&s.switchCardTo!=null)?s.switchCardTo:((s&&s.selection&&s.selection.backendId!=null)?s.selection.backendId:null),fromLabel,toLabel,(s&&s.setupLayout!=null)?s.setupLayout:null); if(t&&typeof inject==='function') inject(s,t) }catch(eInj){}
     try{ if(s) s.switchAlignDone=true }catch(eF){}
     // 轨迹：#698 起这一条与「只开了卡」在日志里必须分得开（见 kernel/prompts-setup.js 的 logSwitchSettle；
     //   记在那边而不是这里，是因为 statusbar/ 目录里不许新开日志点 —— 纪律见 tests/verify-log-truncate.js）。
