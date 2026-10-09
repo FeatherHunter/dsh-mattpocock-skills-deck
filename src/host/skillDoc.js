@@ -2,7 +2,9 @@
 // 以后谁改它：改详情取数口径或原文定位的人。接线：由 index.js 动态 import 加载，依赖全显式传入；
 // 不引用其他新文件（H4），定位走与 bootstrap.js 同一套候选目录（随包目录可信口径与它一致）。
 // 只读随包原文目录：技能名只认字母数字与 - _（防跨目录），只拼 <dir>/<name>/SKILL.md，
-// 读不到、非法名、超长一律回 {ok:false, missing:true}，错误原文（含路径）永不返回给界面（日志白名单纪律）。
+// 读不到、非法名、超长一律回 {ok:false, missing:true}。
+// 成功时把该文件的绝对路径一并回给界面：弹窗上那颗「复制路径」要复制的就是它（2026-10-10 人拍板）。
+// 注意分寸：路径可以给界面显示与复制，但**日志里永远不写路径原文**（日志纪律另有其要求，两件事不冲突）。
 export function createSkillDoc(deps) {
   const MAX_BYTES = 200000
   function validName(n) { return typeof n === 'string' && /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(n) }
@@ -62,7 +64,7 @@ export function createSkillDoc(deps) {
       if (raw == null || raw.length > MAX_BYTES) return { ok: false, missing: true }
       const md = stripFrontmatter(raw)
       if (!md || !md.trim()) return { ok: false, missing: true }
-      return { ok: true, md: md }
+      return { ok: true, md: md, path: file }
     } catch { return { ok: false, missing: true } }
   }
   return { readDoc }

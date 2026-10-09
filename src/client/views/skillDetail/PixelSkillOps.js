@@ -56,7 +56,9 @@ export const pixelOpenDetail = function(st, name, item) {
   const created = st.pixelDetail;
   const cached = pixelDetailCache[name];
   if (cached) {
-    created.mdEn = cached;
+    created.mdEn = cached.md;
+    created.docPath = cached.path;
+    created.copyText = cached.path;
     created.phase = "ready";
     created.phaseText = tr("sd.readyHit");
     try {
@@ -96,8 +98,11 @@ export const pixelOpenDetail = function(st, name, item) {
     if (!d || d.name !== name) return;
     pixelClearSkel();
     if (res && res.ok === true && res.md) {
-      pixelDetailCache[name] = String(res.md);
+      const docPath = String(res && res.path || "");
+      pixelDetailCache[name] = { md: String(res.md), path: docPath };
       d.mdEn = String(res.md);
+      d.copyText = docPath || null;
+      d.docPath = docPath || null;
       d.phase = "ready";
       d.phaseText = tr("sd.ready");
       d.showSkel = false;

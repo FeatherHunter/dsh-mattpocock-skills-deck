@@ -836,7 +836,8 @@ function buildPixelTs() {
   for (const f of files) {
     const source = readFileSync(f, 'utf8')
     let code
-    try { code = esbuild.transformSync(source, { loader: 'ts', format: 'esm', target: 'es2020' }).code }
+    try { // charset utf8：产物里的中文保持原样，别转成 \uXXXX 转义（生成物也要人看得懂）
+    code = esbuild.transformSync(source, { loader: 'ts', format: 'esm', target: 'es2020', charset: 'utf8' }).code }
     catch (e) { throw new Error('[pixel-ts] 转译失败 ' + f + '：' + ((e && e.message) || e)) }
     const rel = f.replace(/\\/g, '/').split('src/client/')[1] || f
     // esbuild 把导出收成尾部子句 export { A, B }，拼回闭包时只剥行首 export 会把它变成废块、

@@ -99,7 +99,8 @@ export interface PixelDetailState {
   phaseText?: string;
   isMissing?: boolean;
   dshLang?: string;
-  copyText?: string;
+  copyText?: string | null;
+  docPath?: string | null;
   copied?: boolean;
   showSkel?: boolean;
 }

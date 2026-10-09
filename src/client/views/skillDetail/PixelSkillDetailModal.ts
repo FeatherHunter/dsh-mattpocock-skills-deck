@@ -35,7 +35,7 @@ export const pixelToggleDetailLang = function (s: PixelStore | null | undefined)
   d.bodyLang = d.bodyLang === 'zh' ? 'en' : 'zh'
   try { if (typeof emit === 'function') emit(s) } catch (e) { /* 画布外自测时没有 emit */ }
 }
-export const pixelCopyDetailLink = function (s: PixelStore | null | undefined, text?: string): void {
+export const pixelCopyDetailLink = function (s: PixelStore | null | undefined, text?: string | null): void {
   const d = s && s.pixelDetail
   const done = function (): void {
     if (!d) return
@@ -117,7 +117,7 @@ export const PixelSkillDetailModal = function (props?: PixelSkillDetailModalProp
       body,
     ]),
     h('div', { key: 'bot', className: 'pixel-bot' }, [
-      d.copyText ? h(PixelBtn, { key: 'c', onClick: function () { pixelCopyDetailLink(s, d.copyText) } }, d.copied ? tr('sd.copied') : tr('sd.copy')) : null,
+      d.copyText ? h(PixelBtn, { key: 'c', onClick: function () { pixelCopyDetailLink(s, d.copyText) } }, d.copied ? tr('sd.copied') : (d.docPath ? tr('sd.copyPath') : tr('sd.copy'))) : null,
       (!d.isMissing && d.phase === 'error' && typeof p.onRetry === 'function') ? h(PixelBtn, { key: 'r', onClick: function () { (p.onRetry as (name: string) => void)(d.name as string) } }, tr('sd.retry')) : null,
       h('span', { key: 'f', style: { flex: 1 } }),
       h(PixelBtn, { key: 't', mini: true, onClick: toTop }, tr('sd.top')),

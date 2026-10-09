@@ -3,6 +3,7 @@
  * 契约：本文件为真源；构建经 esbuild 转译出同名 .js（AUTO-GENERATED 头），再剥行首 export
  * 拼回 src/client/index.js 的 `// ==== leaf:pixelSkillOps (spliced by build) ====` 标记处。
  * 用法：pixelOpenDetail(st, name, item) 打开并取原文；pixelRetryDetail(st) 重试当前这篇。
+ * 成功时把原文的绝对路径写进 st.pixelDetail.copyText：弹窗底栏那颗按钮复制的就是它。
  * 取数走宿主电话 skill.readDoc（src/host/skillDoc.js），只读随包原文目录。
  * 三条诚实约定：①阶段话只有两句——发出请求前「正在取文件」，内容到了「内容已到」；
  * 中间没有第三句假阶段（那一跳是宿主读盘，客户端没有真实回调可用，不编）。②超过 2 秒才铺占位块
@@ -12,8 +13,8 @@
  */
 import type { PixelStore, PixelSkillItem } from '../pixelProps';
 declare function pixelCloseDetail(s?: PixelStore | null): void;
-/** 取回来的原文按技能名留一份（本会话内存，不落盘）：再点同一篇直接出内容，不闪阶段话。 */
-export const pixelDetailCache: Record<string, string> = {}
+/** 取回来的原文与它的绝对路径按技能名留一份（本会话内存，不落盘）：再点同一篇直接出内容，不闪阶段话。 */
+export const pixelDetailCache: Record<string, { md: string; path: string }> = {}
 let pixelSkelTimer: any = null
 const pixelClearSkel = function (): void {
   try { if (pixelSkelTimer) { clearTimeout(pixelSkelTimer); pixelSkelTimer = null } } catch (e) { /* 忽略 */ }
@@ -56,7 +57,9 @@ export const pixelOpenDetail = function (st: PixelStore | null | undefined, name
   const created = st.pixelDetail as any
   const cached = pixelDetailCache[name]
   if (cached) {
-    created.mdEn = cached
+    created.mdEn = cached.md
+    created.docPath = cached.path
+    created.copyText = cached.path
     created.phase = 'ready'
     created.phaseText = tr('sd.readyHit')
     try { if (typeof emit === 'function') emit(st) } catch (e) { /* 忽略 */ }
@@ -84,8 +87,12 @@ export const pixelOpenDetail = function (st: PixelStore | null | undefined, name
     if (!d || d.name !== name) return
     pixelClearSkel()
     if (res && res.ok === true && res.md) {
-      pixelDetailCache[name] = String(res.md)
+      const docPath = String((res && res.path) || '')
+      pixelDetailCache[name] = { md: String(res.md), path: docPath }
       d.mdEn = String(res.md)
+      // 弹窗底栏那颗按钮复制的是这份原文在用户电脑上的绝对路径（人拍板 2026-10-10）
+      d.copyText = docPath || null
+      d.docPath = docPath || null
       d.phase = 'ready'
       d.phaseText = tr('sd.ready')
       d.showSkel = false
