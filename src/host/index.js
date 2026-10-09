@@ -123,7 +123,7 @@ export default {
     function touchChainLRU(k, v) { if (chainByKey.has(k)) chainByKey.delete(k); chainByKey.set(k, v); if (chainByKey.size > 20) chainByKey.delete(chainByKey.keys().next().value) }
     function getChainCache(key) { if (!key) return { ts: 0, key: null, value: null }; const k = String(key); const e = chainByKey.get(k); if (e) { chainByKey.delete(k); chainByKey.set(k, e); return e } return { ts: 0, key: k, value: null } }
     function setChainCache(v) { if (!v || !v.key) { chainByKey.clear(); return } /* #696 清全部仅技能广播（无目录）与旧调用 */ touchChainLRU(String(v.key), { ts: v.ts, key: String(v.key), value: v.value }) }
-    function invalidateChainCacheForKey(scopeKey) // #968：按工作区键只清一桶（键形如“工作区键|后端|语言”） { try { const prefix = String(scopeKey) + '|'; for (const k of Array.from(chainByKey.keys())) { if (k === String(scopeKey) || k.indexOf(prefix) === 0) chainByKey.delete(k) } } catch {} }
+    function invalidateChainCacheForKey(scopeKey) { try { const prefix = String(scopeKey) + '|'; for (const k of Array.from(chainByKey.keys())) { if (k === String(scopeKey) || k.indexOf(prefix) === 0) chainByKey.delete(k) } } catch {} } // #968 按工作区键只清一桶
     let _remotePredP = null
     function _remotePred() { if (!_remotePredP) _remotePredP = import('./remotePredicates.js').then(function(m){ return m.createRemotePredicates() }); return _remotePredP }
     let _skillProbeP = null
