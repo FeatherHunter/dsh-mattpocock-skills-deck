@@ -1,13 +1,13 @@
 <!DOCTYPE html>
-<!-- PROTOTYPE·抛弃式·票887·像素风视觉稿·不进生产：双击即跑，无依赖，状态只在内存 -->
+<!-- PROTOTYPE·抛弃式·票887·变体A定版·像素风双语视觉稿·不进生产：双击即跑，无依赖，状态只在内存 -->
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>PROTOTYPE 887·技能详情页像素风视觉稿</title>
+<title>PROTOTYPE 887·技能详情页变体A双语视觉稿</title>
 <style>
 *{box-sizing:border-box;border-radius:0!important}
-:root{--frame:#3a2c14;--paper:#f2e4c0;--card:#fffdf4;--ink:#2b2113;--ink2:#6b5b3e;--shadow:#241a0c;--gold:#e3a92f;--acc:#8b5cf6;--ok:#0e8a16;--bad:#a3231a;--warn:#f59e0b;--stripe:#ddcda1}
+:root{--frame:#3a2c14;--paper:#f2e4c0;--card:#fffdf4;--ink:#2b2113;--ink2:#6b5b3e;--shadow:#241a0c;--gold:#e3a92f;--acc:#8b5cf6;--ok:#0e8a16;--bad:#a3231a;--warn:#f59e0b;--stripe:#ddcda1;--popline:#e8d9ae}
 body{margin:0;color:var(--ink);font:14px/1.6 system-ui,"Microsoft YaHei",sans-serif;padding:0 0 120px;background-color:#8a6f4d;background-image:repeating-conic-gradient(#93764f 0% 25%,#8a6f4d 0% 50%);background-size:8px 8px}
 header.bar{background:var(--frame);color:var(--paper);padding:8px 16px;border-bottom:4px solid var(--shadow)}
 header.bar b{font-size:15px;letter-spacing:2px}header.bar span{font-size:12px;color:#ffd97a;margin-left:10px}
@@ -25,23 +25,18 @@ header.bar b{font-size:15px;letter-spacing:2px}header.bar span{font-size:12px;co
 .pbtn:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--shadow)}
 .pbtn:focus-visible{outline:2px dashed var(--gold);outline-offset:2px}
 .pbtn:disabled{opacity:.6;cursor:wait}
+.pbtn.hot{background:var(--acc);color:#fff}
 .spin{display:none;width:10px;height:10px;background:var(--acc);margin-right:6px;vertical-align:-1px;animation:blk .6s steps(2,end) infinite}
 .pbtn.loading .spin{display:inline-block}
 @keyframes blk{50%{opacity:.15}}
 #draft{width:min(420px,90%);font:13px system-ui;background:var(--card);color:var(--ink);border:3px solid var(--frame);box-shadow:2px 2px 0 var(--shadow);padding:5px 8px}
-#ringBox{position:relative;width:250px;height:210px;margin:10px auto}
-.cen{position:absolute;left:95px;top:75px;width:60px;height:60px;background:var(--acc);color:#fff;border:3px solid var(--frame);box-shadow:3px 3px 0 var(--shadow);display:flex;align-items:center;justify-content:center;font:700 11px ui-monospace,monospace}
-.ringnode{position:absolute;width:44px;height:26px;border:3px solid var(--frame);background:var(--card);color:var(--ink2);font:700 10px ui-monospace,monospace;cursor:pointer;padding:0}
-.ringnode:hover{opacity:.55}
-.ringnode:focus-visible{outline:2px dashed var(--gold);outline-offset:2px}
 .overlay{position:fixed;inset:0;background:rgba(28,16,4,.55);display:flex;align-items:center;justify-content:center;z-index:200;padding:14px}
-.modal{background:var(--paper);border:4px solid var(--frame);box-shadow:8px 8px 0 var(--shadow);width:min(660px,94vw);max-height:86vh;display:flex;flex-direction:column;position:relative}
+.modal{background:var(--paper);border:4px solid var(--frame);box-shadow:8px 8px 0 var(--shadow);width:min(680px,94vw);max-height:86vh;display:flex;flex-direction:column;position:relative}
 .seal{position:absolute;left:50%;top:-13px;margin-left:-11px;width:22px;height:22px;background:#c9503f;border:3px solid var(--frame)}
-.top{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:3px solid var(--frame);font:700 13px ui-monospace,monospace}
-.top .sub{font:12px system-ui;color:var(--ink2);font-weight:400}
-.body{padding:10px 14px;overflow:auto;flex:1;min-height:120px}
+.top{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:3px solid var(--frame);font:700 13px ui-monospace,Menlo,Consolas,"Microsoft YaHei",sans-serif}
+.body{padding:12px 16px;overflow:auto;flex:1;min-height:120px}
 .bot{display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:3px solid var(--frame)}
-.st{font-size:12.5px;background:var(--card);border:3px solid var(--frame);border-top:8px solid #9a8f78;box-shadow:2px 2px 0 var(--shadow);padding:5px 8px;margin:0 0 8px}
+.st{font-size:12.5px;background:var(--card);border:3px solid var(--frame);border-top:8px solid #9a8f78;box-shadow:2px 2px 0 var(--shadow);padding:5px 8px;margin:0 0 10px}
 .ic{display:inline-flex;width:20px;height:20px;align-items:center;justify-content:center;border:2px solid var(--frame);font-weight:800;font-size:12px;margin-right:6px;vertical-align:-3px}
 .ic-ok{background:#d9f2dc;color:var(--ok)}.ic-err{background:#fbe3e1;color:var(--bad)}.ic-warn{background:#fdf0d3;color:#9a6a00}
 .ic-idle{background:var(--stripe);color:var(--ink2)}
@@ -49,30 +44,32 @@ header.bar b{font-size:15px;letter-spacing:2px}header.bar span{font-size:12px;co
 .banner{background:#fbe3e1;border:3px solid var(--frame);border-left:10px solid var(--bad);box-shadow:3px 3px 0 var(--shadow);padding:8px 10px;font-size:13px;margin:10px 0;display:flex;gap:8px;align-items:center}
 .banner.warn{background:#fdf0d3;border-left-color:var(--warn)}
 .banner .grow{flex:1}
-.toc{background:var(--card);border:3px solid var(--frame);box-shadow:3px 3px 0 var(--shadow);padding:6px 10px;font-size:12.5px;margin:8px 0}
+.toc{background:var(--card);border:3px solid var(--frame);box-shadow:3px 3px 0 var(--shadow);padding:6px 10px;font-size:12.5px;margin:0 0 10px}
 .toc b{letter-spacing:1px}
 .toc a{display:block;color:#5b3df0;cursor:pointer}
 .doc{line-height:1.85;font-size:13.5px}
-.doc h1{font-size:18px;letter-spacing:1px}
-.doc h2{font-size:15px;border-bottom:3px solid var(--frame);padding-bottom:3px}
-.doc pre{background:#241a0c;color:#f2e4c0;padding:10px;font:12px/1.6 ui-monospace,monospace;overflow:auto;border:3px solid var(--frame)}
-.doc blockquote{border-left:8px solid var(--acc);background:#efe8fb;margin:8px 0;padding:4px 10px}
-.kv{border:3px solid var(--frame);background:var(--card)}
-.kv div{display:flex;gap:8px;padding:5px 10px;font-size:13px;border-bottom:2px solid var(--stripe)}
-.kv div:last-child{border-bottom:none}
-.kv b{min-width:80px;color:#5b3df0}
-.doc ul,.doc ol{margin:6px 0;padding-left:22px}
-.doc li{margin:3px 0}
-.doc li ul,.doc li ol{margin:2px 0}
-.doc h3{font-size:14px}
+.doc[data-lang="zh"]{line-height:2.05}
+.doc h1,.doc h2,.doc h3{font-family:ui-monospace,Menlo,Consolas,"Microsoft YaHei",sans-serif}
+.doc h1{font-size:19px;letter-spacing:1px;border-bottom:4px solid var(--frame);padding-bottom:4px}
+.doc h2{font-size:15px;background:var(--popline);border:3px solid var(--frame);box-shadow:3px 3px 0 var(--shadow);padding:2px 10px;display:inline-block;margin:14px 0 6px}
+.doc h3{font-size:14px;border-left:8px solid var(--gold);padding-left:8px}
+.doc p{margin:8px 0}
+.doc ul,.doc ol{margin:8px 0;padding-left:0;list-style:none}
+.doc ul>li{position:relative;padding-left:18px;margin:5px 0}
+.doc ul>li::before{content:"";position:absolute;left:0;top:.62em;width:8px;height:8px;background:var(--acc)}
+.doc ul ul>li::before{background:var(--gold)}
+.doc ul ul{margin:3px 0}
+.doc ol{counter-reset:it}
+.doc ol>li{counter-increment:it;position:relative;padding-left:38px;margin:7px 0}
+.doc ol>li::before{content:counter(it);position:absolute;left:0;top:2px;font:700 12px ui-monospace,monospace;background:var(--frame);color:var(--paper);padding:0 6px;border:2px solid var(--frame);box-shadow:2px 2px 0 var(--shadow)}
+.doc blockquote{border-left:8px solid var(--acc);background:#efe8fb;margin:10px 0;padding:6px 12px}
+.doc pre{background:#241a0c;color:#f2e4c0;padding:10px 12px;font:12px/1.7 ui-monospace,monospace;overflow:auto;white-space:pre-wrap;border:3px solid var(--frame);box-shadow:3px 3px 0 var(--shadow)}
+.doc code{background:var(--popline);border:1px solid var(--frame);padding:0 4px;font:12px ui-monospace,monospace}
+.doc pre code{background:none;border:none;padding:0;color:inherit;font:inherit}
 .doc a{color:#5b3df0}
-.doc pre{white-space:pre-wrap}
+.doc em{color:#5b3df0;font-style:normal;border-bottom:2px dotted #5b3df0}
 .totop{float:right;position:sticky;bottom:10px}
-.drawerwrap{position:fixed;top:0;right:0;bottom:0;width:min(450px,94vw);background:var(--paper);border-left:4px solid var(--frame);box-shadow:-8px 0 0 rgba(0,0,0,.25);z-index:200;display:flex;flex-direction:column}
-.drill{background:var(--paper);border:4px solid var(--frame);box-shadow:6px 6px 0 var(--shadow);margin-top:10px}
-#switcher{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:999;background:#000;color:#fff;border:3px solid #fff;box-shadow:5px 5px 0 rgba(0,0,0,.5);padding:6px 8px;display:flex;align-items:center;gap:10px;font:700 13px ui-monospace,monospace}
-#switcher button{background:#fff;color:#000;border:none;width:30px;height:30px;font-size:15px;font-weight:800;cursor:pointer}
-#switcher .lab b{color:#ffd97a}
+#langTip{font-size:12px;color:var(--ink2)}
 .bubble{position:fixed;z-index:999;background:var(--card);color:var(--ink);border:3px solid var(--frame);box-shadow:3px 3px 0 var(--shadow);padding:4px 10px;font-size:12.5px;font-weight:700}
 .f-ok{animation:fok .5s steps(3,end)}
 .f-err{animation:ferr .5s steps(3,end)}
@@ -84,21 +81,16 @@ header.bar b{font-size:15px;letter-spacing:2px}header.bar span{font-size:12px;co
 </style>
 </head>
 <body>
-<header class="bar"><b>技能详情页·像素风视觉稿 PROTOTYPE 887</b><span>抛弃式草稿·不进生产</span></header>
+<header class="bar"><b>技能详情页·变体A PROTOTYPE 887</b><span>抛弃式草稿·不进生产</span></header>
 <div class="wrap">
 <div class="panel"><h2>■ 技能</h2>
 <div style="margin-bottom:4px"><input id="draft" placeholder="先打几个字，再点详情：弹窗盖住后字还在"></div>
 <div id="listBox"></div>
-<div id="ringBox"></div>
 </div>
 <div class="panel"><h2>■ 详情</h2><div id="bannerSeat"></div><div id="detailMount"></div></div>
 </div>
-<div id="switcher"><button id="prevV">←</button><span class="lab" id="varLab"></span><button id="nextV">→</button></div>
 <script>
 "use strict";
-var VARIANTS=[{k:"A",n:"居中弹窗"},{k:"B",n:"右侧抽屉"},{k:"C",n:"整页下钻"}];
-function vf(){try{var m=/(?:^|[?&])variant=([ABC])/i.exec(location.search);if(m)return m[1].toUpperCase()}catch(e){}return "A"}
-var S={v:vf(),skill:null,phase:"idle",pt:"",cache:{},miss:false,draftFocus:false,forceSlow:false,skel:false};
 var SKILLS=[
 {n:"prototype",u:"一次性原型回答设计问题",how:"slow"},
 {n:"research",u:"后台调研，写进仓库 markdown",how:"fast"},
@@ -106,15 +98,33 @@ var SKILLS=[
 {n:"grilling",u:"穷追不舍的对齐提问",how:"fast"},
 {n:"ask-matt",u:"不知道用哪个时问它",how:"fast",rec:1},
 {n:"missing-demo",u:"这篇没有随包原文",how:"missing"}];
-var DOCS={
-prototype:{t:"/prototype·一次性原型",h:["什么时候用","分支怎么选"],b:"<p>原型是扔掉的草稿，用来回答一个设计问题。逻辑顺不顺走单文件，界面长什么样走多变体。</p><blockquote>先把问题写下来，再写代码。</blockquote>",tab:"simple",tall:1},
-research:{t:"/research·后台调研",h:["调研员的工作","落盘位置"],b:"<p>开一个后台调研员顺着一手来源读，结论写进仓库 markdown，每条带出处。</p><pre>只认一手来源&#10;一问只落一个文件</pre>"},
-tdd:{t:"/tdd·红-绿-重构",h:["循环规则"],b:"<p>先写失败测试，再写刚好通过的代码，一次只走一小片。</p><pre>red -&gt; green -&gt; review</pre>"},
-grilling:{t:"/grilling·对齐提问",h:["什么时候停","对抗结论"],b:"<p>对着方案一直追问，直到每句话都有人拍板，机器不替人拍板。</p>",tab:"complex"},
-"ask-matt":{t:"/ask-matt·技能路由器",h:["不知道用哪个时"],b:"<p>先问它，它会把你领到对的技能。</p><div class=imgph onclick=zoomImg()>示意图片：点我放大</div>"}};
+var T={
+copy:{en:"Copy link",zh:"复制链接"},retry:{en:"Retry",zh:"重试"},close:{en:"Close ✕",zh:"关闭 ✕"},
+toTop:{en:"Top ↑",zh:"顶部 ↑"},copied:{en:"Copied",zh:"已复制"},toc:{en:"■ Contents",zh:"■ 本篇目录"},
+idle:{en:"Open any 详情 above to begin.",zh:"点上面任意一行的“详情”开始。"},
+none:{en:"No detail open yet.",zh:"还没打开任何详情。"},
+fetch:{en:"Fetching file…",zh:"正在取文件…"},parse:{en:"Parsing…",zh:"正在解析…"},
+layout:{en:"Laying out…",zh:"正在排版…"},layoutSlow:{en:"Laying out… (over 2s)",zh:"正在排版…（超过 2 秒）"},
+ready:{en:"Ready",zh:"内容已到"},readyHit:{en:"Ready (cache hit)",zh:"内容已到（缓存命中）"},
+fail:{en:"Read failed: not in the bundle",zh:"读文件失败：包里找不到这一篇"},
+miss:{en:"No bundled copy for this one",zh:"这篇没有随包原文"},
+missBody:{en:"There is no bundled copy for this one, so nothing is made up. Short description kept:",zh:"包里没有这一篇，不编内容。下面保留短描述："},
+missShort:{en:"Missing-copy fallback demo.",zh:"演示缺文兜底。"},
+noBody:{en:"Body not loaded, see the banner above. Retry to fetch again.",zh:"正文没拿到，原因见上面横幅，点重试再拉一次。"},
+toLang:{en:"中文",zh:"EN"}};
+var S={skill:null,phase:"idle",pt:"",cache:{},miss:false,draftFocus:false,forceSlow:false,skel:false,lang:"en"};
+function t(k){return (T[k]&&T[k][S.lang])||k}
 function $(id){return document.getElementById(id)}
 function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;")}
 function dot(lv){var c=lv==="warn"?"#f59e0b":lv==="bad"?"#a3231a":"#0e8a16";return '<span class=dot style="background:'+c+'"></span>'}
+var DOCS={
+prototype:{how:"slow",en:{t:"Prototype",h:["Pick a branch","Rules that apply to both"],b:"<p>A prototype is <strong>throwaway code that answers a question</strong>. The question decides the shape.</p><h2>Pick a branch</h2><p>Identify which question is being answered, using the user's prompt, the surrounding code, or by asking if the user is around:</p><ul><li><strong>\"Does this logic / state model feel right?\"</strong> → LOGIC.md. Build a single shareable HTML file (free-play buttons plus tabbed guided walkthroughs) that pushes the state machine through cases that are hard to reason about on paper, and that a non-developer can drive.</li><li><strong>\"What should this look like?\"</strong> → UI.md. Generate several radically different UI variations on a single route, switchable via a URL search param and a floating bottom bar.</li></ul><p>The two branches produce very different artifacts, so getting this wrong wastes the whole prototype. If the question is genuinely ambiguous and the user isn't reachable, default to whichever branch better matches the surrounding code (a backend module → logic; a page or component → UI) and state the assumption at the top of the prototype.</p><h2>Rules that apply to both</h2><ol><li><strong>Throwaway from day one, and clearly marked as such.</strong> Locate the prototype code close to where it will actually be used so context is obvious, but name it so a casual reader can see it's a prototype, not production.</li><li><strong>Trivial to run.</strong> A UI prototype starts from one command in the project's task runner. A logic demo is a single HTML file the user double-clicks. Either way, no thinking required to start it.</li><li><strong>No persistence by default.</strong> State lives in memory. Persistence is the thing the prototype is <em>checking</em>, not something it should depend on.</li><li><strong>Skip the polish.</strong> No tests, no error handling beyond what makes the prototype <em>runnable</em>, no abstractions. The point is to learn something fast.</li><li><strong>Surface the state.</strong> After every action, print or render the full relevant state so the user can see what changed.</li><li><strong>Capture it when done.</strong> Fold any validated decision into the real code, then capture the prototype itself as a <strong>primary source</strong> on a throwaway branch out of main, pointed at from the implementation issue.</li></ol>"},zh:{t:"原型",h:["选择分支","两条都适用的规则"],b:"<p>原型是<strong>回答一个设计问题的扔掉的代码</strong>。问题决定形状。</p><h2>选择分支</h2><p>先看清要回答的是哪个问题，看提问、看周围代码，人能问到就直接问：</p><ul><li><strong>“这段逻辑 / 状态模型顺吗？”</strong> → LOGIC.md。做一个单文件可分享的网页（随手点的按钮加按步骤走的引导），把纸上难想明白的状态机推一遍，非开发也能点。</li><li><strong>“界面应该长什么样？”</strong> → UI.md。在同一路由上做几个完全不同的界面变体，用网址参数加底部悬浮条切换。</li></ul><p>两种分支产出完全不同的东西，分支选错整个原型白做。如果问题确实模糊、人又问不到，就看周围代码更像哪边（后端模块走逻辑，页面组件走界面），并把这个假设写在原型最上面。</p><h2>两条都适用的规则</h2><ol><li><strong>第一天就是扔掉的，并写清楚它是草稿。</strong>原型代码放在将来真正要用的地方旁边，上下文一目了然，但名字要让路过的人一眼看出这是原型，不是生产代码。</li><li><strong>跑起来不费脑子。</strong>界面原型从任务跑器的一条命令启动，逻辑演示就是双击即开的单文件。两种都不需要动脑子就能跑起来。</li><li><strong>默认不存东西。</strong>状态只在内存里。持久化是原型要验证的东西，不是原型能依赖的东西。</li><li><strong>不打磨。</strong>没有测试，只有让原型跑起来的错误处理，没有抽象。要的就是学得快。</li><li><strong>状态摊开看。</strong>每点一下，就把完整的相关状态打印或画出来，让人看到变了什么。</li><li><strong>做完留下来。</strong>验证过的结论合进真正的代码，原型本身作为<strong>第一手材料</strong>留在一次性分支上，并在实现票里留个指向。结论本身也记在票里。</li></ol>"}},
+research:{how:"fast",en:{t:"/research",h:[],b:"<p>Spin up a <strong>background agent</strong> to do the research, so you keep working while it reads.</p><p>Its job:</p><ol><li>Investigate the question against <strong>primary sources</strong> (official docs, source code, specs, first-party APIs), not a secondary write-up of them. Follow every claim back to the source that owns it.</li><li>Write the findings to a single Markdown file, citing each claim's source.</li><li>Save it where the repo already keeps such notes; match the existing convention, and if there is none, put it somewhere sensible and say where.</li></ol>"},zh:{t:"/research",h:[],b:"<p>起一个<strong>后台调研员</strong>去做调研，你继续干手头的活，它读它的。</p><p>它的活：</p><ol><li>对着<strong>一手来源</strong>（官方文档、源码、规格、第一方接口）查问题，不看二手转述。每条结论都要追到拥有它的那个来源。</li><li>结论写进单个 Markdown 文件，每条结论带出处。</li><li>放在仓库原来就放这类笔记的地方，跟着现有惯例走；没有惯例就找个顺眼的地方放，并说清楚放哪了。</li></ol>"}},
+tdd:{how:"fail",en:{t:"Test-Driven Development",h:["What a good test is","Seams: where tests go","Anti-patterns","Rules of the loop"],b:"<p>TDD is the red → green loop. This skill is the reference that makes that loop produce tests worth keeping.</p><p>When exploring the codebase, read <code>GLOSSARY.md</code> (if it exists) so test names match the project's domain language, and respect ADRs in the area you're touching.</p><h2>What a good test is</h2><p>Tests verify behavior through public interfaces, not implementation details. A good test reads like a specification: \"user can checkout with valid cart\" tells you exactly what capability exists.</p><p>See tests.md for examples and mocking.md for mocking guidelines.</p><h2>Seams: where tests go</h2><p>A <strong>seam</strong> is the public boundary you test at. Tests live at seams, never against internals.</p><p><strong>Test only at pre-agreed seams.</strong> Before writing any test, write down the seams under test and confirm them with the user.</p><h2>Anti-patterns</h2><ul><li><strong>Implementation-coupled</strong>: mocks internal collaborators or tests private methods. The tell: the test breaks when you refactor but behavior hasn't changed.</li><li><strong>Tautological</strong>: the assertion recomputes the expected value the way the code does (<code>expect(add(a, b)).toBe(a + b)</code>), so it passes by construction. Expected values must come from an independent source of truth.</li><li><strong>Horizontal slicing</strong>: writing all tests first, then all implementation. Work in <strong>vertical slices</strong> instead: one test → one implementation → repeat.</li></ul><h2>Rules of the loop</h2><ul><li><strong>Red before green.</strong> Write the failing test first, then only enough code to pass it.</li><li><strong>One slice at a time.</strong> One seam, one test, one minimal implementation per cycle.</li><li><strong>Refactoring is not part of the loop.</strong> It belongs to the review stage, not the red → green cycle.</li></ul>"},zh:{t:"测试驱动开发",h:["什么是好测试","接缝：测试落在哪","反模式","循环规则"],b:"<p>TDD 就是红 → 绿的循环。这个技能是让这个循环产出值得留下的测试的参考。</p><p>看代码时先读 <code>GLOSSARY.md</code>（有的话），让测试名对上项目的领域语言，并遵守所碰区域的 ADR。</p><h2>什么是好测试</h2><p>测试走公开接口验行为，不碰实现细节。好测试读起来像规格书：“有效购物车能结算”一句话就把能力说清了，重构也压不垮它。</p><p>例子看 tests.md，模拟写法看 mocking.md。</p><h2>接缝：测试落在哪</h2><p><strong>接缝</strong>就是你站在上面看行为的公开边界：只在外面看，不伸手进去。测试住在接缝上，绝不贴着内部写。</p><p><strong>只在说好的接缝上写测试。</strong>动笔前先把接缝写下来，跟人确认。没确认的接缝上，一个测试也不写。</p><h2>反模式</h2><ul><li><strong>贴实现</strong>：模拟内部协作者、测私有方法。特征：行为没变，重构就红。</li><li><strong>同义反复</strong>：断言把代码的算法又算了一遍（<code>expect(add(a, b)).toBe(a + b)</code>），天生必过。期望值必须来自独立的真相来源。</li><li><strong>横向切片</strong>：先一口气写完所有测试，再一口气写实现。改成<strong>纵向切片</strong>：一个测试 → 一小片实现 → 重复。</li></ul><h2>循环规则</h2><ul><li><strong>先红后绿。</strong>先写失败测试，再写刚好够通过的代码。</li><li><strong>一次一片。</strong>一个接缝、一个测试、一小片实现。</li><li><strong>重构不进循环。</strong>重构归评审阶段，不归红 → 绿的循环。</li></ul>"}},
+grilling:{how:"fast",en:{t:"/grilling",h:[],b:"<p>Interview the user relentlessly until you reach a shared understanding. Map this as a <strong>design tree</strong>: every decision branches into the decisions that hang off it.</p><p>Work the tree in <strong>rounds</strong>. The <strong>frontier</strong> is every decision whose prerequisites are already settled. Ask the whole frontier in one round, then wait for answers before the next round.</p><blockquote>Finding <em>facts</em> is your job, never the user's. The <em>decisions</em> are the user's: put each to them and wait.</blockquote><p>The session is done when the frontier is empty: every branch of the design tree visited, nothing left silently assumed.</p>"},zh:{t:"/grilling",h:[],b:"<p>追着人不停地问，一直问到双方理解对齐。把它画成一棵<strong>决策树</strong>：每个决定下面挂着由它长出来的决定。</p><p>按<strong>轮</strong>往下走。<strong>前沿</strong>就是前提都已落定的那些决定：一轮把整个前沿一次问完，等人答完再进下一轮。</p><blockquote>找<em>事实</em>是你的活，绝不是人的活。<em>拍板</em>是人的活：一个一个摆到人面前，等。</blockquote><p>前沿空了，这一轮就算走完：决策树的每根枝都走到了，没有悄悄假设的东西。</p>"}},
+"ask-matt":{how:"fast",en:{t:"Ask Matt",h:["The main flow: idea → ship","Context hygiene","On-ramps","Codebase health","Vocabulary underneath","Phase boundaries","Standalone","Precondition"],b:"<p>You don't remember every skill, so ask.</p><p>A <strong>flow</strong> is a path through the skills. Most paths run along one <strong>main flow</strong>, and two <strong>on-ramps</strong> merge onto it.</p><h2>The main flow: idea → ship</h2><p>The route most work travels. You have an idea and want it built.</p><ol><li><strong><code>/grill-with-docs</code></strong> sharpens the idea by interview. Start here whenever you are <strong>working in a working directory</strong>: it's stateful, retaining what it learns in <code>GLOSSARY.md</code> and ADRs.</li><li><strong>Branch: can you settle every question in conversation?</strong> If a question needs a runnable answer, detour through a prototype, bridged by <strong><code>/handoff</code></strong> in both directions:<ul><li><strong><code>/handoff</code></strong> out, then open a fresh session against that file,</li><li><strong><code>/prototype</code></strong> to answer the question with throwaway code,</li><li><strong><code>/handoff</code></strong> back what you learned.</li></ul></li><li><strong>Branch: is this a multi-session build?</strong><ul><li><strong>Yes</strong> → <strong><code>/to-spec</code></strong>, then <strong><code>/to-tickets</code></strong> to split it into tracer-bullet tickets, each declaring its <strong>blocking edges</strong>.<ul><li><strong><code>/implement</code></strong> per ticket, <strong><code>/clear</code>ing context between each one</strong>. Each ticket is self-contained, so the last one's context is disposable.</li><li><strong><code>/implement-spec</code></strong> for the whole spec in one run: reads the tickets as a <strong>task graph</strong>, runs implementers across the ready <strong>frontier</strong> in parallel.</li></ul></li><li><strong>No</strong> → <strong><code>/implement</code></strong> right here, in the same context window.</li></ul></li><li><strong><code>/retro</code></strong> closes the loop: looks back over the session and suggests changes to the agent's <strong>environment</strong>, not the code.</li></ol><h3>Context hygiene</h3><p>Keep steps 1–3 in <strong>one unbroken context window</strong> so the grilling, spec, and tickets all build on the same thinking. Run <code>/retro</code> in the session it's looking back on, before you clear.</p><h2>On-ramps</h2><p>A starting situation that generates work, then merges onto the main flow.</p><ul><li><strong>Bugs and requests piling up</strong> → <strong><code>/triage</code></strong>. It moves issues through triage roles and produces agent-ready issues.<p>Triage is only for issues <strong>you didn't create</strong>: bug reports, incoming feature requests, anything that arrives raw.</p></li><li><strong>Something's broken</strong> → <strong><code>/diagnosing-bugs</code></strong>. It refuses to theorise until it has a <strong>tight feedback loop</strong>, then fixes with a regression test.</li><li><strong>A huge, foggy effort</strong> → <strong><code>/wayfinder</code></strong>: charts a <strong>shared map</strong> of <strong>decision tickets</strong> and resolves them one at a time, producing <strong>decisions, not deliverables</strong>.<p>When the map clears, <strong>it hands off, it doesn't build</strong>: merge onto the main flow at <strong><code>/to-spec</code></strong>.</p></li></ul><h2>Codebase health</h2><p>Not feature work, just upkeep.</p><h2>Vocabulary underneath</h2><p>Two model-invoked references that run <em>beneath</em> the other skills, each the single source of truth for its vocabulary.</p><ul><li><strong><code>/domain-modeling</code></strong>: sharpen the project's <em>domain</em> language: challenge a fuzzy term, record a hard-to-reverse decision as an ADR.</li><li><strong><code>/codebase-design</code></strong> is the deep-module vocabulary for designing a module's <em>shape</em>: a lot of behaviour behind a small interface at a clean seam.</li></ul><h2>Phase boundaries</h2><p>A <strong>phase</strong> is a chunk of work inside a session. At the <strong>boundary</strong> between two of them you have five options:</p><ul><li><strong>Continue</strong>: stay put. Costs nothing, loses nothing.</li><li><strong><code>/clear</code></strong>: empty the window, when nothing here matters to what's next.</li><li><strong><code>/handoff</code></strong> writes a portable markdown file for a <strong>new harness</strong>, a <strong>new directory</strong>, or a <strong>colleague</strong>.</li><li><strong>Subagent</strong>: send a tightly-scoped task to its own window and get a report back.</li><li><strong><code>/compact</code></strong> compresses this context and seeds a fresh session. The <strong>default</strong>.</li></ul><h2>Standalone</h2><p>Off the main flow entirely.</p><ul><li><strong><code>/grill-me</code></strong>: the same relentless interview, but <strong>stateless</strong>: it saves nothing locally.</li><li><strong><code>/grilling</code></strong> is the interview primitive itself: rounds, the frontier, facts are the agent's job and decisions are yours.</li><li><strong><code>/wizard</code></strong> is for the steps only a <strong>human</strong> can take: provisioning infrastructure, setting up credentials, clicking through an unfamiliar dashboard.</li><li><strong><code>/teach</code></strong>: learn a concept over multiple sessions, using the current directory as a stateful workspace.</li></ul><h2>Precondition</h2><p><strong><code>/setup-matt-pocock-skills</code></strong>: run before your first engineering flow to configure the tracker and labels the other skills assume.</p>"},zh:{t:"问麦特",h:["主流程：想法到上线","上下文卫生","入口","仓库健康","底层词汇","阶段边界","独立技能","前置条件"],b:"<p>技能太多记不住，那就问。</p><p><strong>流</strong>就是穿过技能的一条路。大多数活都沿着一条<strong>主流程</strong>走，两条<strong>入口</strong>汇入它，其余的独立存在，或者沉在底下当词汇层。</p><h2>主流程：想法到上线</h2><p>大多数活走的路。脑子里有个想法，想把它做出来。</p><ol><li><strong><code>/grill-with-docs</code></strong> 靠访谈把想法磨利。只要<strong>手头有工作目录</strong>就从这儿开始：它是有状态的，学到的东西留在 <code>GLOSSARY.md</code> 和 ADR 里。</li><li><strong>分支：每个问题都能在对话里定吗？</strong>如果哪个问题要一个能跑的答案（状态、业务逻辑、必须亲眼看的界面），就绕道走原型，两头都用 <strong><code>/handoff</code></strong> 搭桥：<ul><li><strong><code>/handoff</code></strong> 出去，对着那个文件开一个新会话，</li><li><strong><code>/prototype</code></strong> 用扔掉的代码回答问题，</li><li>带着学到的东西 <strong><code>/handoff</code></strong> 回来。</li></ul></li><li><strong>分支：这是跨多次会话的大活吗？</strong><ul><li><strong>是</strong> → <strong><code>/to-spec</code></strong>，再 <strong><code>/to-tickets</code></strong> 拆成曳光弹工单，每张声明自己的<strong>阻塞边</strong>。<ul><li>每张工单 <strong><code>/implement</code></strong>，工单之间 <strong><code>/clear</code> 清掉上下文</strong>。每张工单自包含，所以最后一张的上下文扔了也不可惜。</li><li>整个规格 <strong><code>/implement-spec</code></strong> 一次跑完：把工单读成一张<strong>任务图</strong>，在就绪的<strong>前沿</strong>上并行跑实现子代理。</li></ul></li><li><strong>否</strong> → 就在这儿，当前窗口里 <strong><code>/implement</code></strong>。</li></ul></li><li><strong><code>/retro</code></strong> 收尾：回看整个会话，给 agent 的<strong>环境</strong>提改动，不碰代码。</li></ol><h3>上下文卫生</h3><p>第 1–3 步待在<strong>同一个没断过的上下文窗口</strong>里（<code>/to-tickets</code> 之前不压缩不清屏），让访谈、规格、工单都站在同一个思考上。每个 <code>/implement</code> 再新开窗口，拿着工单干。复盘要在它回看的那个会话里做，趁还没清。</p><h2>入口</h2><p>先生出活、再汇入主流程的起始情形。</p><ul><li><strong>缺陷和需求堆起来了</strong> → <strong><code>/triage</code></strong>。它推着工单走完分诊角色，产出 agent 可接的工单。<p>分诊只分<strong>不是你建的</strong>工单：缺陷上报、收到的功能请求，一切 raw 的东西。<code>/to-tickets</code> 产出的工单本来就可接，<strong>不用再分诊</strong>。</p></li><li><strong>有东西坏了</strong> → <strong><code>/diagnosing-bugs</code></strong>。专啃硬的：第一眼看不出来的、时有时无的、两个好版本之间悄悄溜进来的回归。没有<strong>紧反馈环</strong>（一条在这 bug 上已经变红的命令）绝不瞎猜，然后带着回归测试修。</li><li><strong>又大又 fog 的活</strong> → <strong><code>/wayfinder</code></strong>：画一张<strong>共享地图</strong>，把<strong>决策工单</strong>一张一张解决，产出<strong>决定，不是交付物</strong>。<p>雾散了就<strong>交棒，不自己造</strong>：从 <strong><code>/to-spec</code></strong> 汇入主流程。</p></li></ul><h2>仓库健康</h2><p>不是功能活，只是保养。</p><h2>底层词汇</h2><p>两个被模型调用的参考，沉在<em>底下</em>给其他技能当词汇表，各自是自己那套词的唯一真源。</p><ul><li><strong><code>/domain-modeling</code></strong>：磨项目的<em>领域</em>语言：挑战模糊词，给反转代价高的决定记 ADR。</li><li><strong><code>/codebase-design</code></strong> 是深模块词汇（模块、接口、深度、接缝、适配、杠杆、局部性），用来设计模块的<em>形状</em>：小接口后面藏很多行为，接缝干净。</li></ul><h2>阶段边界</h2><p><strong>阶段</strong>就是会话里的一大段活：访谈、实现、验收。两个阶段之间的<strong>边界</strong>上有五个选项：</p><ul><li><strong>留下</strong>：不动。零成本，零损失。</li><li><strong><code>/clear</code></strong>：清空窗口，接下来的活跟这里没关系时用。</li><li><strong><code>/handoff</code></strong> 写一份能带走的 markdown，给<strong>新环境</strong>、<strong>新目录</strong>或<strong>同事</strong>。</li><li><strong>子代理</strong>：把边界清楚的活扔到它自己的窗口，拿报告回来。</li><li><strong><code>/compact</code></strong> 压缩当前上下文，开一个带着记忆的新会话。<strong>默认选它</strong>。</li></ul><h2>独立技能</h2><p>完全不上主流程。</p><ul><li><strong><code>/grill-me</code></strong>：同样的连环访谈，但<strong>无状态</strong>：本地什么都不存。</li><li><strong><code>/grilling</code></strong> 就是访谈原语本身：轮次、前沿，事实归 agent，决定归你。</li><li><strong><code>/wizard</code></strong> 只干<strong>人才能干</strong>的步骤：搭 infra、配密钥、点陌生的后台。</li><li><strong><code>/teach</code></strong>：拿当前目录当有状态的工作区，分多次会话学一个概念。</li></ul><h2>前置条件</h2><p><strong><code>/setup-matt-pocock-skills</code></strong>：第一次走工程流之前先跑它，把其他技能默认的 tracker 和标签配好。</p>"}}};
+function $(id){return document.getElementById(id)}
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;")}
 function renderList(){
 var h="";SKILLS.forEach(function(sk){
 h+='<div class="skillrow'+(sk.rec?" rec":"")+'">'+dot(sk.how==="missing"?"bad":sk.rec?"warn":"ok")+'<span class=sname>/'+sk.n+(sk.rec?' <span class=star>★</span>':"")+'</span><span class=suse>'+esc(sk.u)+'</span><button class=pbtn data-sk="'+sk.n+'"><span class=spin></span>详情</button></div>'});
@@ -122,85 +132,64 @@ $("listBox").innerHTML=h;
 var bs=$("listBox").querySelectorAll("button.pbtn");
 for(var i=0;i<bs.length;i++)(function(b){b.addEventListener("click",function(){openDetail(b.getAttribute("data-sk"),b)})})(bs[i]);
 }
-function renderRing(){
-var box=$("ringBox"),h='<div class=cen>/ask<br>matt</div>',ring=SKILLS.slice(0,6);
-for(var i=0;i<ring.length;i++){var a=i/ring.length*Math.PI*2-Math.PI/2,x=125+92*Math.cos(a),y=105+78*Math.sin(a);
-h+='<button class=ringnode style="left:'+Math.round(x-22)+'px;top:'+Math.round(y-13)+'px" data-sk="'+ring[i].n+'">'+esc(ring[i].n.slice(0,6))+"</button>"}
-box.innerHTML=h;
-var bs=box.querySelectorAll(".ringnode");
-for(var j=0;j<bs.length;j++)(function(b){b.addEventListener("click",function(){openDetail(b.getAttribute("data-sk"),null)})})(bs[j]);
-}
+function docOf(name){return DOCS[name]||DOCS.research}
+function curDoc(){var d=docOf(S.skill);return d[S.lang]||d.en}
 function openDetail(name,btn){
-S.skill=name;S.miss=false;S.banner=null;$("bannerSeat").innerHTML="";
+S.skill=name;S.miss=false;$("bannerSeat").innerHTML="";
 try{S.draftFocus=(document.activeElement&&document.activeElement.id==="draft")}catch(e){S.draftFocus=false}
 if(btn){btn.classList.add("loading");btn.disabled=true;
-setTimeout(function(){btn.classList.remove("loading");btn.disabled=false},S.pathOf(name)==="slow"?2600:600)}
-if(S.cache[name]){S.phase="ready";S.pt="内容已到（缓存命中）";renderDetail();return}
-var how=S.pathOf(name);
-if(how==="missing"){failOpen("这篇没有随包原文",true);return}
-if(how==="fail"&&!S.forceSlow){failOpen("读文件失败：包里找不到这一篇",false);return}
+setTimeout(function(){btn.classList.remove("loading");btn.disabled=false},docOf(name).how==="slow"?2600:600)}
+if(S.cache[name]){S.phase="ready";S.pt=t("readyHit");renderDetail();return}
+var how=docOf(name).how;
+if(how==="missing"){failOpen(t("miss"),true);return}
+if(how==="fail"&&!S.forceSlow){failOpen(t("fail"),false);return}
 S.forceSlow=false;S.phase="loading";
-if(how==="fast"){S.pt="正在取文件…";renderDetail();
-setTimeout(function(){if(S.skill!==name||S.phase!=="loading")return;S.cache[name]=1;S.phase="ready";S.pt="内容已到";renderDetail()},300);
-}else{S.pt="正在取文件…";renderDetail();
-setTimeout(function(){if(S.skill!==name||S.phase!=="loading")return;S.pt="正在解析…";renderDetail()},800);
-setTimeout(function(){if(S.skill!==name||S.phase!=="loading")return;S.pt="正在排版…";renderDetail()},1500);
-setTimeout(function(){if(S.skill!==name||S.phase!=="loading")return;S.pt="正在排版…（超过 2 秒）";S.skel=true;renderDetail()},2000);
-setTimeout(function(){if(S.skill!==name||S.phase!=="loading")return;S.skel=false;S.cache[name]=1;S.phase="ready";S.pt="内容已到";renderDetail()},2600)}}
-S.pathOf=function(n){for(var i=0;i<SKILLS.length;i++)if(SKILLS[i].n===n)return SKILLS[i].how;return "fast"};
+if(how==="fast"){S.pt=t("fetch");renderDetail();
+setTimeout(function(){if(S.skill!==name||S.phase!=="loading")return;S.cache[name]=1;S.phase="ready";S.pt=t("ready");renderDetail()},300);
+}else{S.pt=t("fetch");renderDetail();
+setTimeout(function(){if(S.skill!==name||S.phase!=="loading")return;S.pt=t("parse");renderDetail()},800);
+setTimeout(function(){if(S.skill!==name||S.phase!=="loading")return;S.pt=t("layout");renderDetail()},1500);
+setTimeout(function(){if(S.skill!==name||S.phase!=="loading")return;S.pt=t("layoutSlow");S.skel=true;renderDetail()},2000);
+setTimeout(function(){if(S.skill!==name||S.phase!=="loading")return;S.skel=false;S.cache[name]=1;S.phase="ready";S.pt=t("ready");renderDetail()},2600)}}
 function failOpen(reason,missing){
 S.phase="error";S.pt=reason;S.miss=!!missing;
-$("bannerSeat").innerHTML='<div class="banner'+(missing?" warn":"")+'"><b>'+(missing?"!":"✕")+'</b><span class=grow>'+esc((missing?"缺文：":"失败：")+reason)+'</span><button class=pbtn onclick="retryOpen()">重试</button><button class=pbtn onclick="dismissBanner()">关闭</button></div>';
+$("bannerSeat").innerHTML='<div class="banner'+(missing?" warn":"")+'"><b>'+(missing?"!":"✕")+'</b><span class=grow>'+esc((missing?"":"")+reason)+'</span><button class=pbtn onclick="retryOpen()">'+t("retry")+'</button><button class=pbtn onclick="dismissBanner()">'+t("close").replace(" ✕","")+'</button></div>';
 renderDetail()}
 window.retryOpen=function(){S.forceSlow=!S.miss;dismissBanner(true);if(S.skill)openDetail(S.skill,null)};
 window.dismissBanner=function(silent){$("bannerSeat").innerHTML="";if(!silent&&S.phase==="error"){S.phase="idle";S.pt="";renderDetail()}};
-function tocHtml(hs){var h='<div class=toc><b>■ 本篇目录</b>';for(var i=0;i<hs.length;i++)h+='<a data-toc="'+i+'">· '+esc(hs[i])+"</a>";return h+"</div>"}
-
-
+function tocHtml(hs){var h='<div class=toc><b>'+esc(t("toc"))+'</b>';for(var i=0;i<hs.length;i++)h+='<a data-toc="'+i+'">· '+esc(hs[i])+"</a>";return h+"</div>"}
 function docHtml(name){
-if(name==="missing-demo")return "<p><span class='ic ic-warn'>!</span><b>这篇没有随包原文</b></p><p>包里没有这一篇，不编内容。下面保留短描述：演示缺文兜底。</p>";
-var d=DOCS[name]||DOCS.research,h=(d.h&&d.h.length?tocHtml(d.h):"")+ '<div class=doc><h1>'+esc(d.t)+"</h1>"+d.b+"</div>";
+if(name==="missing-demo")return "<p><span class='ic ic-warn'>!</span><b>"+esc(t("miss"))+"</b></p><p>"+esc(t("missBody"))+"</p><p>"+esc(t("missShort"))+"</p>";
+var d=curDoc(),h=(d.h&&d.h.length?tocHtml(d.h):"")+'<div class=doc data-lang="'+S.lang+'"><h1>'+esc(d.t)+"</h1>"+d.b+"</div>";
 return h}
 function innerParts(){
 var ic=S.phase==="loading"?"<span class='ic ic-idle'>…</span>":S.phase==="ready"?"<span class='ic ic-ok'>✓</span>":S.phase==="error"?(S.miss?"<span class='ic ic-warn'>!</span>":"<span class='ic ic-err'>✕</span>"):"<span class='ic ic-idle'>○</span>";
-var st='<div class=st>'+ic+esc(S.pt||"点上面任意一行的详情开始")+"</div>",body="";
+var st='<div class=st>'+ic+esc(S.pt||t("idle"))+"</div>",body="";
 if(S.phase==="loading"&&S.skel)body='<div class=skel></div><div class=skel style="width:82%"></div><div class=skel style="width:64%"></div>';
 else if(S.phase==="ready")body=docHtml(S.skill);
 else if(S.phase==="error"&&S.miss)body=docHtml("missing-demo");
-else if(S.phase==="error")body="<p>正文没拿到，原因见上面横幅，点重试再拉一次。</p>";
-else body="<p>还没打开任何详情。</p>";
-var bar='<button class=pbtn onclick="copyLink(this)">复制链接</button>'+(S.phase==="error"&&!S.miss?'<button class=pbtn onclick="retryOpen()">重试</button>':"");
+else if(S.phase==="error")body="<p>"+esc(t("noBody"))+"</p>";
+else body="<p>"+esc(t("none"))+"</p>";
+var bar='<button class=pbtn onclick="copyLink(this)">'+t("copy")+'</button>'+(S.phase==="error"&&!S.miss?'<button class=pbtn onclick="retryOpen()">'+t("retry")+'</button>':"");
 return {st:st,body:body,bar:bar}}
 function renderDetail(){
-syncUrl();
 var m=$("detailMount");
-if(S.phase==="idle"){m.innerHTML="<p>还没打开任何详情。点上面任意一行的“详情”开始。</p>";return}
-var p=innerParts(),title=S.skill?"/"+S.skill:"详情";
-var cls=S.phase==="ready"?"f-ok":S.phase==="error"&&!S.miss?"f-err shake":"";
-if(S.v==="A"){m.innerHTML='<div class=overlay id=ovl><div class="modal '+cls+'"><span class=seal></span><div class=top><span>'+esc(title)+'</span><span class=sub>居中弹窗·表单在背后</span><span style="flex:1"></span><button class=pbtn onclick="closeDetail()">关闭 ✕</button></div>'+p.st+'<div class=body id=docBody onscroll="onScroll(this)">'+p.body+'<button class="pbtn totop" id=totop style="display:none" onclick="toTop()">顶部 ↑</button></div><div class=bot>'+p.bar+"</div></div></div>";
+if(S.phase==="idle"){m.innerHTML="<p>"+esc(t("none"))+"</p>";return}
+var p=innerParts(),title=S.skill?"/"+S.skill:"?",d=curDoc();
+m.innerHTML='<div class=overlay id=ovl><div class="modal '+(S.phase==="ready"?"f-ok":S.phase==="error"&&!S.miss?"f-err shake":"")+'"><span class=seal></span><div class=top><span>'+esc(d.t)+'</span><span style="flex:1"></span><button class="pbtn hot" onclick="toggleLang()">'+t("toLang")+'</button><button class=pbtn onclick="closeDetail()">'+t("close")+'</button></div>'+p.st+'<div class=body id=docBody onscroll="onScroll(this)">'+p.body+'<button class="pbtn totop" id=totop style="display:none" onclick="toTop()">'+t("toTop")+'</button></div><div class=bot>'+p.bar+'<span id=langTip>'+esc(S.lang==="en"?"EN":"中文")+'</span></div></div></div>';
 var o=$("ovl");if(o)o.addEventListener("click",function(e){if(e.target===o)closeDetail()});bindToc()}
-else if(S.v==="B"){m.innerHTML='<div class="drawerwrap '+cls+'"><span class=seal></span><div class=top><span>'+esc(title)+'</span><span class=sub>右侧抽屉</span><span style="flex:1"></span><button class=pbtn onclick="closeDetail()">关闭 ✕</button></div>'+p.st+'<div class=body id=docBody onscroll="onScroll(this)">'+p.body+'<button class="pbtn totop" id=totop style="display:none" onclick="toTop()">顶部 ↑</button></div><div class=bot>'+p.bar+"</div></div>";bindToc()}
-else{m.innerHTML='<div class="drill '+cls+'"><div class=top><button class=pbtn onclick="closeDetail()">← 回列表</button><span>'+esc(title)+'</span><span class=sub>整页下钻</span></div>'+p.st+'<div class=body id=docBody style="max-height:52vh" onscroll="onScroll(this)">'+p.body+'<button class="pbtn totop" id=totop style="display:none" onclick="toTop()">顶部 ↑</button></div><div class=bot>'+p.bar+"</div></div>";bindToc()}}
 function bindToc(){var as=document.querySelectorAll("[data-toc]");for(var i=0;i<as.length;i++)(function(a){a.addEventListener("click",function(){var b=$("docBody");if(!b)return;var hs=b.querySelectorAll("h2,h3");var k=+a.getAttribute("data-toc");if(hs[k])b.scrollTop=hs[k].offsetTop-8})})(as[i])}
-window.onScroll=function(el){var t=$("totop");if(t)t.style.display=el.scrollTop>240?"block":"none"};
+window.onScroll=function(el){var t2=$("totop");if(t2)t2.style.display=el.scrollTop>240?"block":"none"};
 window.toTop=function(){var b=$("docBody");if(b)b.scrollTop=0};
+window.toggleLang=function(){S.lang=(S.lang==="en"?"zh":"en");if(S.phase==="ready"||S.phase==="error")renderDetail();var b=$("docBody");if(b)b.scrollTop=0};
 window.closeDetail=function(){S.phase="idle";S.pt="";S.skel=false;renderDetail();try{if(S.draftFocus)$("draft").focus()}catch(e){}};
-window.copyLink=function(btn){var b=document.createElement("span");b.className="bubble";b.setAttribute("role","status");b.textContent="已复制";document.body.appendChild(b);
+window.copyLink=function(btn){var b=document.createElement("span");b.className="bubble";b.setAttribute("role","status");b.textContent=t("copied");document.body.appendChild(b);
 try{var r=btn.getBoundingClientRect();b.style.left=r.left+"px";b.style.top=(r.top-36)+"px"}catch(e){b.style.left="50%";b.style.top="120px"}
 setTimeout(function(){b.remove()},1500)};
-function syncUrl(){var lab=null;for(var i=0;i<VARIANTS.length;i++)if(VARIANTS[i].k===S.v)lab=VARIANTS[i];
-$("varLab").innerHTML="变体 <b>"+S.v+"</b>·"+lab.n;
-try{var u=new URL(location.href);u.searchParams.set("variant",S.v);history.replaceState(null,"","?"+u.searchParams.toString())}catch(e){}}
-function setVariant(k){var ok=false;for(var i=0;i<VARIANTS.length;i++)if(VARIANTS[i].k===k)ok=true;S.v=ok?k:"A";renderDetail()}
-function idx(){for(var i=0;i<VARIANTS.length;i++)if(VARIANTS[i].k===S.v)return i;return 0}
-$("prevV").addEventListener("click",function(){setVariant(VARIANTS[(idx()+2)%3].k)});
-$("nextV").addEventListener("click",function(){setVariant(VARIANTS[(idx()+1)%3].k)});
 document.addEventListener("keydown",function(e){
-var t=e.target;if(t&&(t.tagName==="INPUT"||t.tagName==="TEXTAREA"||t.isContentEditable))return;
-if(e.key==="ArrowLeft")$("prevV").click();
-if(e.key==="ArrowRight")$("nextV").click();
+var tg=e.target;if(tg&&(tg.tagName==="INPUT"||tg.tagName==="TEXTAREA"||tg.isContentEditable))return;
 if(e.key==="Escape"&&(S.phase==="ready"||S.phase==="error"))closeDetail()});
-renderList();renderRing();renderDetail();
+renderList();renderDetail();
 </script>
 </body>
 </html>

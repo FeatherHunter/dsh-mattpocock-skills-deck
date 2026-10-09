@@ -6,15 +6,23 @@ import { createRideSharing } from '../shared/ride-sharing.js'
 import { ghWriteGeneration } from '../shared/tracker/outbound-write-generation.js'
 import { getGhMeasure } from '../shared/tracker/outbound-measure.js'
 import { workspaceKeyOf } from '../shared/refresh-workspace-key.js'   // #724：链记账给闸的钥匙，与活跃集合同一把（从前传 cwd 原文 → 同一个工作区在闸里有两格）
+<<<<<<< HEAD
 import { timeoutForGhArgs } from '../shared/tracker/outbound-tiers.js'   // #969：链上问 gh 也按读写探活分档（读 12 秒、探活 3 秒），不再一档等满 30 秒
+=======
+import { createChainRide } from '../shared/refresh/chain-ride.js'   // #964：同钥匙搭车的小账本住在共享层，宿主层只调它（同层互引门禁不新增边）
+>>>>>>> origin/feat/963-964-same-key-ride
 export function createDetectChain(deps) {
   const { canonicalKey, DEFAULT_CWD, resetGhCache, getDetectionService, getPlatform, getTrackerRegistry, getRepoKey, runGh, timer, probeSkill, mdParseOkPredicate, getChainCache, setChainCache, getChainBackoff, logCtx, gate, ghTimeoutMs, sandboxPolicyFor } = deps
   // #491 房外埋点 helpers：hash8 只记散列；P1 外层先判开关（采样/节流/按事件），字段函数只在守卫内求值。
   function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
+<<<<<<< HEAD
   let chainSampleN = 0
   // #696 在途合并 → #964 同钥匙搭车：同钥匙（工作区 + 后端 + 语言 + 修订号）的并发共用同一份在飞求值；
   // force 也搭（旧的没回新的不起），写后/失败/超 30 秒不搭，force 连点跑完再补一轮。被合并的不算失败（退避与记账都只记真跑的那一轮）。
   const chainInflight = createRideSharing({ getGeneration: ghWriteGeneration })
+=======
+  const chainInflight = createChainRide({ now: (deps && typeof deps.now === 'function') ? deps.now : undefined }) // #696搭车表搬进共享层小账本（#964加写后失败超三十秒三条不搭与合并数，钥匙与强制不进表照旧）
+>>>>>>> origin/feat/963-964-same-key-ride
   let lastPredAt = 0
   let lastPredStatus = {}
   /**
@@ -112,6 +120,7 @@ export function createDetectChain(deps) {
           return v.cached
         }
         try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'chain.cache.miss', function () { return { keyHash: hash8(cacheKey), lang: chainLang, reason: force ? 'force' : (v.reason || 'due') } }) } catch (eL) {}
+<<<<<<< HEAD
         // #964 同钥匙搭车：钥匙 = 工作区 + 后端 + 语言 + 修订号（修订不同是两件事，不串份）；force 也搭。
         // 写后/超 30 秒不搭由搭车表按写世代与在飞时长判定（tryRide），失败不留给后人（finish 即删）。
         const chainDedupKey = cacheKey + '|' + String((args && args.baseRev) || 0)
@@ -136,6 +145,11 @@ export function createDetectChain(deps) {
           }
           return firstResult
         }
+=======
+        // #696 在途合并：同钥匙同后端同语言同强制标记共用同一份（另带修订号，免不同修订串份）；先回来的写缓存，后到的拿同一份；强制不参与合并
+        const chainDedupKey = cacheKey + '|' + (force ? '1' : '0') + '|' + String((args && args.baseRev) || 0)
+        if (!force) { const ongoingRide = chainInflight.take(chainDedupKey); if (ongoingRide) { chainInflight.noteRide(); try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'dedup.hit', function () { return { scope: 'chain', keyHash: hash8(chainDedupKey) } }) } catch (eL) {}; return await ongoingRide } }
+>>>>>>> origin/feat/963-964-same-key-ride
         const chainPending = (async function () {
         const platform = await getPlatform()
         // #709（T5 补）：这次求值的环境预检复用位。开不出来（没这个模块）就是 null，后面照走原路。
@@ -392,13 +406,18 @@ export function createDetectChain(deps) {
         } catch (eL) {}
         return result
         })()
+<<<<<<< HEAD
         // 自己跑：登记在飞（写世代与起始时刻一起记，供后来的 tryRide 判定写后/超 30 秒不搭）。
         chainInflight.start(chainDedupKey, chainPending)
         try { return await chainPending } finally { chainInflight.finish(chainDedupKey) }
+=======
+        if (!force) { const rideEntry = chainInflight.park(chainDedupKey, chainPending); try { return await chainPending } finally { chainInflight.leave(chainDedupKey, rideEntry) } }
+        return await chainPending
+>>>>>>> origin/feat/963-964-same-key-ride
       }catch(e){
         try { const m = String((e && e.message) || e); if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: 'wf.chain', kind: 'chain', errorHash: hash8(m), errorKind: (/is not a function|is not defined|of undefined|of null/i.test(m) ? 'missing-dep' : (/timeout|timed out/i.test(m) ? 'timeout' : 'throw')) }) } catch (eL) {}   // #724：异常也留一行（从前静默吞掉，真机查了两天没有原文）；errorKind 把「接线没给全」（missing-dep）与「跑起来真失败」（throw）分开
         return { ok: false, error: String((e && e.message)||e) }
       }
   }
-  return { handleDetect, handleChain }
+  return { handleDetect, handleChain, markChainWrite: function () { chainInflight.markWrite() }, rideStats: function () { return chainInflight.stats() } }
 }
