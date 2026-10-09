@@ -38,7 +38,7 @@ export const PixelMapCard = function(props) {
     h("div", { key: "hd", className: "cd-hd" }, [
       h("b", { key: "n" }, "#" + (p.mapNo || "")),
       h("span", { key: "m" }, tr("card.mapSign")),
-      h("span", { key: "s", className: "cd-st" + (p.open ? " open" : "") }, p.open ? tr("card.openState") : tr("card.closedSeal"))
+      h("span", { key: "s", className: "cd-st" + (p.open ? " open" : "") }, p.open ? tr("card.openState") : tr("card.closedState"))
     ]),
     h("h3", { key: "tt" }, p.title),
     h("div", { key: "wall", className: "cd-wall" }, wall),

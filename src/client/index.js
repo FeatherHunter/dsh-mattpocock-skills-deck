@@ -95,7 +95,7 @@ export default {
     // #879 技能描述 27 条中英词条：locale-word.js 已贴 350 行上限，照 #621/#690/#842 的做法自成一个片段。
     // ==== kernel:localeSkilldesc (spliced by build) ====
     // 887：技能详情像素风的中英词条单独一份片段（sd.*）。
-    // ==== kernel:localeSkilldetail (spliced by build) ====
+    // ==== kernel:localeSkilldetail (spliced by build) ==== // ==== kernel:localeCards (spliced by build) ====
     // ==== kernel:locale (spliced by build) ====
     const localeSvc = ctx.get('locale')
     if (localeSvc && typeof localeSvc.register === 'function') {
@@ -239,25 +239,8 @@ export default {
     // ==== leaf:pixelSeal (spliced by build) ====
     // ==== leaf:pixelSkeleton (spliced by build) ====
     // ==== leaf:pixelBanner (spliced by build) ====
-    // ==== leaf:pixelStatusLine (spliced by build) ====
-    // S1/S6/S7 三种卡片（次序即依赖次序）。
-    // ==== leaf:cardsTheme (spliced by build) ====
-    // ==== leaf:cardsStyles (spliced by build) ====
+    // ==== leaf:pixelStatusLine (spliced by build) ==== // ==== leaf:cardsTheme (spliced by build) ==== // ==== leaf:cardsStyles (spliced by build) ==== // ==== leaf:cardPin (spliced by build) ==== // ==== leaf:cardTitle (spliced by build) ==== // ==== leaf:cardNo (spliced by build) ==== // ==== leaf:cardTags (spliced by build) ==== // ==== leaf:cardNote (spliced by build) ==== // ==== leaf:cardFoot (spliced by build) ==== // ==== leaf:cardStamp (spliced by build) ==== // ==== leaf:blockedChrome (spliced by build) ==== // ==== leaf:cardBtns (spliced by build) ==== // ==== leaf:mapDots (spliced by build) ==== // ==== leaf:cardHead (spliced by build) ==== // ==== leaf:issueCard (spliced by build) ==== // ==== leaf:issueMapCard (spliced by build) ==== // ==== leaf:mapCard (spliced by build) ==== // S1/S6/S7 三张卡：先主题与皮肤，再共享小件，最后大卡，次序即依赖次序。
     styles.insert(PIXEL_CARDS_STYLE_TEXT)
-    // ==== leaf:cardPin (spliced by build) ====
-    // ==== leaf:cardTitle (spliced by build) ====
-    // ==== leaf:cardNo (spliced by build) ====
-    // ==== leaf:cardTags (spliced by build) ====
-    // ==== leaf:cardNote (spliced by build) ====
-    // ==== leaf:cardFoot (spliced by build) ====
-    // ==== leaf:cardStamp (spliced by build) ====
-    // ==== leaf:blockedChrome (spliced by build) ====
-    // ==== leaf:cardBtns (spliced by build) ====
-    // ==== leaf:mapDots (spliced by build) ====
-    // ==== leaf:cardHead (spliced by build) ====
-    // ==== leaf:issueCard (spliced by build) ====
-    // ==== leaf:issueMapCard (spliced by build) ====
-    // ==== leaf:mapCard (spliced by build) ====
     // ==== leaf:backendSelector (spliced by build) ====
     // ==== leaf:switchConfirmModal (spliced by build) ====
 

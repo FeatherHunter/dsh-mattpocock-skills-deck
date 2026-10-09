@@ -299,6 +299,8 @@ const KERNEL_MODULES = [
   // #879 技能描述 27 条中英词条：locale-word.js 已贴 350 行上限（363 行超标），照 #621/#690/#842 的做法自成一个片段
   { name: 'localeSkilldesc', file: 'src/client/kernel/locale-skilldesc.js' },
   { name: 'localeSkilldetail', file: 'src/client/kernel/locale-skilldetail.js' },
+  // S1/S6/S7 卡片词条：locale-panel.js 已贴 350 行上限，照 #879/#887 的做法自成一个片段。
+  { name: 'localeCards', file: 'src/client/kernel/locale-cards.js' },
   { name: 'locale', file: 'src/client/kernel/locale.js' },
   { name: 'icons', file: 'src/client/kernel/icons.js' },
   // #685：「体检」按钮的件数派生与开新会话注入（游离票口径见 #678、按钮形态见 #681）；
