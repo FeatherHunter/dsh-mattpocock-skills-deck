@@ -5,7 +5,7 @@
 //   1. 等待时按钮里转圈加整颗禁用，连点第二下什么都不发生。
 //   2. 成功变对勾、失败变叉号、部分成功变三角，三只图标互相一样大，也和原来的图标一样大。
 //   3. 成功绿闪失败红闪最多半秒自己退；开了减少动态的人只看图标加文字，不闪不抖不弹。
-//   4. 转圈和呼吸圆点同一时刻只开一个（本仓库没有呼吸，映射里过程主力也是单值）。
+//   4. 转圈和备用过程（圆点/呼吸）同一时刻只开一个（备用只落在无转圈的按钮上，映射里过程主力也是单值）。
 //   5. 成功绿用代码真实值；失败红按路径占位（横幅 bad 那一档 #f87171 系），不对全局硬定一个值，
 //      更不许引入原型占位红 #f85149。
 // 颜色口径（对照代码定的，不编）：按钮成功闪跟提示条 ok 同色（#4ade80 系，与 flash(st,msg,'ok')
@@ -65,8 +65,18 @@ check(styles.includes('forwards'), '闪光收尾回到原样（forwards 退场�
 check(styles.includes('dsws-fb-shake'), '失败抖动类存在（小幅一次）')
 check(/prefers-reduced-motion[\s\S]{0,400}dsws-fb-shake/.test(styles), '减少动态下抖动与闪光降级（媒体查询兜底含新类）')
 
-// —— 4. 转圈与呼吸互斥，同一按钮同一时刻只有一个主力过程 ——
-check(!styles.includes('breath') && !comments.includes('breath') && !labelDialog.includes('breath'), '短等待按钮不引入呼吸（不与转圈同开）')
+// —— 4. 转圈与备用过程互斥，同一按钮同一时刻只有一个主力过程 ——
+//   （#952 起呼吸有了备用归宿：评论分页加载中按钮；圆点归宿是弹窗提交等待中。
+//   再断言“仓库没有呼吸”就是错门禁，改断互斥本身：备用只出现在无转圈的按钮上。）
+//   判据按行：同一物理行里转圈（busy/spinner）与备用（dots/breath）永不同时出现。
+const noDualProcess = function (src) {
+  return String(src).split('\n').every(function (ln) {
+    const hasBusy = ln.indexOf('dsws-fb-busy') !== -1 || ln.indexOf('dsws-spinner') !== -1
+    const hasAlt = ln.indexOf('dsws-fb-dots') !== -1 || ln.indexOf('dsws-fb-breath') !== -1
+    return !(hasBusy && hasAlt)
+  })
+}
+check(noDualProcess(comments) && noDualProcess(labelDialog) && noDualProcess(settings) && noDualProcess(listRow) && noDualProcess(listTab) && noDualProcess(read('src/client/kernel/slotRenderer-modal-view.js')), '备用过程（圆点/呼吸）永不与转圈同处一行（同一按钮只开一个主力）')
 check(listRow.includes('copyFlash') && !/copySending/.test(listRow), '复制是瞬间动作，不套转圈（过程唯一）')
 
 // —— 5. 颜色按路径取真值，不设全局硬值，不引入占位红 ——
