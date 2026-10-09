@@ -195,47 +195,47 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https:
 
 感谢每一位提交 Issue、PR 与参与讨论的朋友，是你们让这个插件一点点变好。
 
-[@pioneerAlone](https://github.com/pioneerAlone) — 反馈了 #298（details/better-sidebar 重复，附完整复现与截图）、#274、#234 等状态栏与健康检查误报、#645（镜像源滞后导致更新失败），并提交了修复 PR #273、#316，感谢你让「重装后到处异常」的体感得以一次清爽修复 🌹🌹🌹🌹🌹🌹
+[@pioneerAlone](https://github.com/pioneerAlone)🌹🌹🌹🌹🌹🌹 — 反馈了 #298（details/better-sidebar 重复，附完整复现与截图）、#274、#234 等状态栏与健康检查误报、#645（镜像源滞后导致更新失败），并提交了修复 PR #273、#316，感谢你让「重装后到处异常」的体感得以一次清爽修复
 
-[@Shimmernight](https://github.com/Shimmernight) — 提交了 #277 等 Issue，以及 PR #287、#275、#106（toast 主题、命名修正、macOS 适配） 🌹🌹🌹🌹
+[@Shimmernight](https://github.com/Shimmernight)🌹🌹🌹🌹 — 提交了 #277 等 Issue，以及 PR #287、#275、#106（toast 主题、命名修正、macOS 适配）
 
-[@21967201](https://github.com/21967201) — 提交了 PR #321（完善 triage + wayfinder 标签文档） 🌹
+[@21967201](https://github.com/21967201)🌹 — 提交了 PR #321（完善 triage + wayfinder 标签文档）
 
-[@angenet](https://github.com/angenet) — 反馈了 #295、#262 等 macOS 环境检测问题 🌹🌹
+[@angenet](https://github.com/angenet)🌹🌹 — 反馈了 #295、#262 等 macOS 环境检测问题
 
-[@hyperion2144](https://github.com/hyperion2144) — 反馈了 #110 等环境检查问题，以及 #646（建议直接注册 DSH 原生侧边栏，不再经过 better-sidebar 中转） 🌹🌹
+[@hyperion2144](https://github.com/hyperion2144)🌹🌹 — 反馈了 #110 等环境检查问题，以及 #646（建议直接注册 DSH 原生侧边栏，不再经过 better-sidebar 中转）
 
-[@tafcear](https://github.com/tafcear) — 反馈了 #422（非编码工作区状态栏降噪诉求），感谢你让非编码工作区不再被初始化横幅打扰 🌹
+[@tafcear](https://github.com/tafcear)🌹 — 反馈了 #422（非编码工作区状态栏降噪诉求），感谢你让非编码工作区不再被初始化横幅打扰
 
 [@271912980](https://github.com/271912980) — 在 #257 下提出把会话做成稳定可寻址端点（会话 ID + 语义名）的想法
 
-[@xiSage](https://github.com/xiSage) — 反馈了 #435（自托管 GitLab 仓库无法识别），并在讨论区发起 #436（按工作区关闭插件功能） 🌹
+[@xiSage](https://github.com/xiSage)🌹 — 反馈了 #435（自托管 GitLab 仓库无法识别），并在讨论区发起 #436（按工作区关闭插件功能）
 
-[@dis0neplay](https://github.com/dis0neplay) — 提交了 PR #493（修 CI 与 Pages 根目录跳转，按请求关闭） 🌹
+[@dis0neplay](https://github.com/dis0neplay)🌹 — 提交了 PR #493（修 CI 与 Pages 根目录跳转，按请求关闭）
 
 [@snmtg1008](https://github.com/snmtg1008) — 在 #476 下留下了自己排查并修好「本地数据目录误报不可写」的完整方案
 
-[@arnold117](https://github.com/arnold117) — 反馈了 #574（本地 Markdown 后端里多个工作单元撞号，只能看到第一个，评论还会写进别的文件），并提交了 PR #575 修好它（已合入），感谢你让一个仓库里并存多个工作单元时不再读错写错 🌹🌹
+[@arnold117](https://github.com/arnold117)🌹🌹 — 反馈了 #574（本地 Markdown 后端里多个工作单元撞号，只能看到第一个，评论还会写进别的文件），并提交了 PR #575 修好它（已合入），感谢你让一个仓库里并存多个工作单元时不再读错写错
 
-[@SbDonger](https://github.com/SbDonger) — 反馈了 #640（状态栏与输入框错位，输入框上方出现一条横向背景带） 🌹
+[@SbDonger](https://github.com/SbDonger)🌹 — 反馈了 #640（状态栏与输入框错位，输入框上方出现一条横向背景带）
 
-[@anupamme](https://github.com/anupamme) — 提交了 PR #727、#728（给 rpcChannel.js 加两处安全加固：防原型污染与加资源限制，目前待评审） 🌹🌹
+[@anupamme](https://github.com/anupamme)🌹🌹 — 提交了 PR #727、#728（给 rpcChannel.js 加两处安全加固：防原型污染与加资源限制，目前待评审）
 
-[@seameafst](https://github.com/seameafst) — 反馈了 #793（点「+ 新建需求」后直接回车会发出一份空模板，需求原文在链路里没人收，附完整根因与两档修法） 🌹
+[@seameafst](https://github.com/seameafst)🌹 — 反馈了 #793（点「+ 新建需求」后直接回车会发出一份空模板，需求原文在链路里没人收，附完整根因与两档修法）
 
-[@zerocodefast](https://github.com/zerocodefast) — 发起了 #823（邀请把本插件收录进 awesome-ai-plugins 清单，并给出建议条目） 🌹
+[@zerocodefast](https://github.com/zerocodefast)🌹 — 发起了 #823（邀请把本插件收录进 awesome-ai-plugins 清单，并给出建议条目）
 
-[@li873582595](https://github.com/li873582595) — 反馈了 #835（官方桌面版上装插件后初始化阶段反复断开重连，卸载后消失） 🌹
+[@li873582595](https://github.com/li873582595)🌹 — 反馈了 #835（官方桌面版上装插件后初始化阶段反复断开重连，卸载后消失）
 
-[@SKADI0718](https://github.com/SKADI0718) — 提交了 #856（后由作者撤回作废） 🌹
+[@SKADI0718](https://github.com/SKADI0718)🌹 — 提交了 #856（后由作者撤回作废）
 
-[@asesr](https://github.com/asesr) — 反馈了 #926（状态栏胶囊每次调用都强制一次全文档同步重排，附验证过的补丁） 🌹
+[@asesr](https://github.com/asesr)🌹 — 反馈了 #926（状态栏胶囊每次调用都强制一次全文档同步重排，附验证过的补丁）
 
-[@jack2jiehua](https://github.com/jack2jiehua) — 反馈了 #930（deck 工具看不见用户选的后端、本地写探测一直显示不可写，附复现过程） 🌹
+[@jack2jiehua](https://github.com/jack2jiehua)🌹 — 反馈了 #930（deck 工具看不见用户选的后端、本地写探测一直显示不可写，附复现过程）
 
-[@zhengcookie](https://github.com/zhengcookie) — 反馈了 #960（桌面版用着用着闪退又重进，定位到出站调用缺少并发准入，附验证过的补丁） 🌹
+[@zhengcookie](https://github.com/zhengcookie)🌹 — 反馈了 #960（桌面版用着用着闪退又重进，定位到出站调用缺少并发准入，附验证过的补丁）
 
-[@qq1393950873-bit](https://github.com/qq1393950873-bit) — 反馈了 #970（本地后端收到整份正文但缺少状态行时把票写成两份，却返回成功），并提交了修复 PR #974（已合入） 🌹🌹
+[@qq1393950873-bit](https://github.com/qq1393950873-bit)🌹🌹 — 反馈了 #970（本地后端收到整份正文但缺少状态行时把票写成两份，却返回成功），并提交了修复 PR #974（已合入）
 
 也感谢在评论区与讨论区留下想法的每一位朋友。如果你也遇到了问题或有新想法，欢迎直接提 Issue 或发起讨论。
 
