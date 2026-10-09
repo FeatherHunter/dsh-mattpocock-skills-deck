@@ -28,7 +28,8 @@
     "playwright": "^1.63.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "typescript": "5.6.3"
+    "typescript": "7.0.2",
+    "typescript-ast": "npm:typescript@5.6.3"
   },
   "allowScripts": {
     "esbuild@0.28.2": true
