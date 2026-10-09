@@ -55,4 +55,9 @@ export const FEEDBACK_STYLE_TEXT = [
       '.dsws-fb-pop{animation:dsws-fb-pop .35s ease-out}',
       '@keyframes dsws-fb-pop{0%{transform:scale(1)}40%{transform:scale(1.1)}100%{transform:scale(1)}}',
       '@media (prefers-reduced-motion: reduce){.dsws-fb-dots i,.dsws-fb-breath,.dsws-fb-success-ring,.dsws-fb-pop{animation:none}}',
+      // #948 第四批（#953 中长等待）：面板列表加载骨架（只列表用，行形占位；每条的宽高圆角走调用点内联，叶子只管微光）。
+      //   微光只用现成的白半透明，本批零十六进制色；减少动态下微光停，只剩静态灰条。
+      '.dsws-fb-skel{background:linear-gradient(90deg,rgba(255,255,255,.05),rgba(255,255,255,.13),rgba(255,255,255,.05));background-size:200% 100%;animation:dsws-fb-skel 1.1s linear infinite}',
+      '@keyframes dsws-fb-skel{to{background-position:-200% 0}}',
+      '@media (prefers-reduced-motion: reduce){.dsws-fb-skel{animation:none;background:rgba(255,255,255,.07)}}',
     ].join('')

@@ -45,8 +45,8 @@ check(labelDialog.includes('dsws-spinner'), '改标签保存等待时有转圈')
 check(settings.includes('dbgPending') && settings.includes('disabled'), '存设置开关切换中禁用')
 check(settings.includes('dbgBusy') && settings.includes('disabled'), '存设置四键忙时禁用')
 check(settings.includes('dbgFlash') && settings.includes('dsws-fb-okflash') && settings.includes('dsws-fb-warnflash'), '存设置开关落定后行内闪光（成功绿失败琥珀，半秒自退）')
-// —— 1d. 拉列表：加载态有转圈；ChecksTab 刷新转圈加禁用；Dock 头部按 #195 可重按（只转圈不断言禁用） ——
-check(listTab.includes('dsws-spinner'), '拉列表加载态有转圈')
+// —— 1d. 拉列表：加载态行形骨架占位（#953 接管：遮罩里的转圈换成行形骨架条，遮罩本身与出现规则不动；同一时刻只用一个主力过程） ——
+check(listTab.includes('dsws-fb-skel') && listTab.includes('dsws-loading-shade'), '拉列表加载态行形骨架占位（遮罩里是行形条）')
 check(checks.includes('st.refreshing') && checks.includes('dsws-spin'), '列表页刷新按钮等待时转圈')
 check(checks.includes('disabled: st.refreshing') || checks.includes('disabled:st.refreshing'), '列表页刷新按钮等待时禁用')
 check(dock.includes("s.refreshing ? ' dsws-spin'"), '头部刷新按钮等待时转圈（#195 故意可重按，不禁用，见 probe-auto.js）')

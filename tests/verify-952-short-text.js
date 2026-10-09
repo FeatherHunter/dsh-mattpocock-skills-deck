@@ -41,9 +41,9 @@ async function main() {
   const nonCopyViews = [modalView, comments, statusbar, read('src/client/views/SettingsPage.js'), read('src/client/views/labels/LabelColorDialog.js')]
   check(nonCopyViews.every(function (s) { return s.indexOf('dsws-fb-success-ring') === -1 && s.indexOf('dsws-fb-pop') === -1 }), '成功圈与弹跳不在非复制落点出现')
 
-  // —— 3. 圆点与呼吸是备用：有归宿（弹窗提交等待中、评论分页加载中），永不与转圈同开 ——
+  // —— 3. 圆点与呼吸是备用：类与映射出口都在；弹窗提交等待中用转圈（953 窄按钮规则，同一按钮只开一个主力），圆点退回备用，永不与转圈同开 ——
   check(fbStyles.includes('dsws-fb-dots') && fbStyles.includes('dsws-fb-breath'), '圆点与呼吸的类存在')
-  check(modalView.includes('dsws-fb-dots'), '圆点落在弹窗提交等待中（无转圈的文字按钮）')
+  check(modalView.includes('dsws-fb-busy') && modalView.indexOf('dsws-fb-dots') === -1, '弹窗提交等待中只开转圈（圆点退回备用，不双开）')
   check(comments.includes('dsws-fb-breath'), '呼吸落在评论分页加载中（无转圈的文字按钮）')
   const dualViews = [modalView, comments, listRow, read('src/client/views/ListTab.js'), read('src/client/views/labels/LabelColorDialog.js'), read('src/client/views/SettingsPage.js')]
   const dual = dualViews.some(function (src) {
