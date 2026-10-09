@@ -240,6 +240,24 @@ export default {
     // ==== leaf:pixelSkeleton (spliced by build) ====
     // ==== leaf:pixelBanner (spliced by build) ====
     // ==== leaf:pixelStatusLine (spliced by build) ====
+    // S1/S6/S7 三种卡片（次序即依赖次序）。
+    // ==== leaf:cardsTheme (spliced by build) ====
+    // ==== leaf:cardsStyles (spliced by build) ====
+    styles.insert(PIXEL_CARDS_STYLE_TEXT)
+    // ==== leaf:cardPin (spliced by build) ====
+    // ==== leaf:cardTitle (spliced by build) ====
+    // ==== leaf:cardNo (spliced by build) ====
+    // ==== leaf:cardTags (spliced by build) ====
+    // ==== leaf:cardNote (spliced by build) ====
+    // ==== leaf:cardFoot (spliced by build) ====
+    // ==== leaf:cardStamp (spliced by build) ====
+    // ==== leaf:blockedChrome (spliced by build) ====
+    // ==== leaf:cardBtns (spliced by build) ====
+    // ==== leaf:mapDots (spliced by build) ====
+    // ==== leaf:cardHead (spliced by build) ====
+    // ==== leaf:issueCard (spliced by build) ====
+    // ==== leaf:issueMapCard (spliced by build) ====
+    // ==== leaf:mapCard (spliced by build) ====
     // ==== leaf:backendSelector (spliced by build) ====
     // ==== leaf:switchConfirmModal (spliced by build) ====
 
@@ -298,6 +316,7 @@ export default {
     // ==== leaf:pixelSkillRow (spliced by build) ====
     // ==== leaf:pixelSkillList (spliced by build) ====
     // ==== leaf:pixelSkillDetailModal (spliced by build) ====
+    // ==== leaf:pixelSkillOps (spliced by build) ====
 
     // ==== leaf:checksTab (spliced by build) ====
 

@@ -16,8 +16,11 @@
   "include": [
     "src/client/ts-pixel-ambient.d.ts",
     "src/client/views/pixelProps.d.ts",
+    "src/client/views/*.ts",
     "src/client/views/pixel/*.ts",
     "src/client/views/skillDetail/*.ts",
+    "src/client/views/cards/cardProps.d.ts",
+    "src/client/views/cards/*.ts",
     "src/client/kernel/locale-skilldetail.ts"
   ]
 }

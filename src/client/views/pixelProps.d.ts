@@ -48,10 +48,14 @@ export interface PixelSkillRowProps {
   use?: string;
   recommended?: boolean;
   onDetail?: (name: string) => void;
+  onLoad?: (name: string) => void;
+  loading?: boolean;
 }
 export interface PixelSkillListProps {
   items?: PixelSkillItem[];
   onDetail?: (name: string) => void;
+  onLoad?: (name: string) => void;
+  loadingName?: string | null;
 }
 export interface PixelContentsProps {
   items?: string[];
@@ -87,8 +91,8 @@ export interface PixelDetailState {
   name?: string;
   titleEn?: string;
   titleZh?: string;
-  mdEn?: string;
-  mdZh?: string;
+  mdEn?: string | null;
+  mdZh?: string | null;
   shortDesc?: string;
   bodyLang?: string;
   phase?: string;

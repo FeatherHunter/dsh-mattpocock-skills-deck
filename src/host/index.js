@@ -205,6 +205,10 @@ export default {
     // H3 #447：远程谓词、技能探测通道、探测编排三组接线都在上面 H3 段（原委见账本 §4）。
     harness.handle('wf.detect', async function (args) { const h = await _detectChain(); return h.handleDetect(args) })
     harness.handle('wf.chain', async function (args) { const h = await _detectChain(); return h.handleChain(args) })
+    // 888 技能原文直读：详情页读随包 SKILL.md（读不到回 missing，不抛原文）。懒加载与 _detectChain 同模式。
+    harness.handle('skill.readDoc', async function (args) { const m = await _skillDoc(); return m.readDoc(args) })
+    let _skillDocP = null
+    function _skillDoc() { if (!_skillDocP) _skillDocP = (async function(){ const mod = await import('./skillDoc.js'); return mod.createSkillDoc({}) })(); return _skillDocP }
     // ---- H4 #448 接线：3 新文件动态 import 加载（D7 禁止静态 import），依赖全显式传入；新文件之间不互引用 ---- harness 留守原因：harness.handle 在 apply 同步注册，动态 import 无法同步供给。 这一组的拆分缘由见账本 §5。
     let _sessLifeP = null
     function _sessLife() { if (!_sessLifeP) _sessLifeP = (async function(){ const mod = await import('./sessionLifecycle.js'); return mod.createSessionLifecycle({ ctx: ctx, DEFAULT_CWD: DEFAULT_CWD, errText: errText, canonicalKey: function(){ return canonicalKey.apply(null, arguments) }, getDetectionService: function(){ return getDetectionService.apply(null, arguments) }, getTrackerRegistry: function(){ return getTrackerRegistry.apply(null, arguments) }, getPlatform: function(){ return getPlatform.apply(null, arguments) }, logCtx: logCtx }) })(); return _sessLifeP }

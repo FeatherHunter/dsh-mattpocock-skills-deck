@@ -66,7 +66,7 @@ export const PixelSkillDetailModal = function (props?: PixelSkillDetailModalProp
   const lang = d.bodyLang === 'zh' && d.mdZh ? 'zh' : 'en'
   const md = lang === 'zh' ? d.mdZh : d.mdEn
   const title = (lang === 'zh' ? d.titleZh : d.titleEn) || d.titleEn || ('/' + (d.name || ''))
-  const heads = pixelDocHeadings(md).filter(function (x: PixelHeading) { return x.level >= 2 }).map(function (x: PixelHeading) { return x.text })
+  const heads = pixelDocHeadings(md || '').filter(function (x: PixelHeading) { return x.level >= 2 }).map(function (x: PixelHeading) { return x.text })
   const canTranslate = d.dshLang !== 'en' && !!d.mdZh
   const toTop = function (): void { try { if (bodyRef.current) bodyRef.current.scrollTop = 0 } catch (e) { /* 忽略 */ } }
   const jump = function (i: number): void {

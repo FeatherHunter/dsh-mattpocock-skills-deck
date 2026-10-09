@@ -8,3 +8,8 @@ declare const React: any;
 declare const DswsCtx: any;
 declare function emit(s: any): void;
 declare function tr(key: string, params?: Record<string, string | number>): string;
+declare const host: any;
+declare function log(level: string, event: string, fields?: Record<string, any>): void;
+declare function promptLang(): string;
+declare function dswsLogHash(s: string): string;
+declare function dswsLogTrunc(s: string, n: number, kind: string): string;
