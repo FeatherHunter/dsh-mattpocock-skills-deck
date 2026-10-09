@@ -299,6 +299,32 @@ console.log('\n== ⑦ 并发建票不许丢票、同一标题不许两路都成�
   fs.rmSync(concTmp, { recursive: true, force: true })
 }
 
+console.log('\n== ⑧ 空字段行不许吃掉下一行（#991 实测带回来的读路径缺陷） ==')
+{
+  // 现象（#991 在本地 Markdown 工作区实测）：同一份票文件上，带某个标签时读出「阻塞」一条，
+  //   去掉那个标签立刻变空 —— 而盘上那行本来就是空的。
+  // 根因：三种字段行的正则里，冒号后面写的是 \s*，而 \s 含换行 —— 字段值为空时 \s* 跨过换行，
+  //   后面的 ([^\n]+) / (.+) 就把**下一行**当成这个字段的值抓走了。
+  // 为什么当初只有带那个特定标签才复现：下一行是 Labels 行，只有当标签名里含数字（例如 deck-conc-991）
+  //   才会被解析出「一条阻塞」，标签名不含数字时读出来同样是空 —— 症状因此看起来时有时无。
+  const emptyBlocked = parseMd('# T\n\nStatus: ready-for-agent\nBlocked by:\nLabels: deck-conc-991\n', { key: '01', parentKey: '00', isMap: false })
+  check(emptyBlocked.blockedBy.length === 0,
+    '空的 Blocked by 行 + 下一行含数字的 Labels 行 → 阻塞列表必须是空的（实得 ' + JSON.stringify(emptyBlocked.blockedBy) + '）')
+  const realBlocked = parseMd('# T\n\nStatus: ready-for-agent\nBlocked by: #12, #13\nLabels:\n', { key: '01', parentKey: '00', isMap: false })
+  check(JSON.stringify(realBlocked.blockedBy.map((b) => b.key)) === JSON.stringify(['12', '13']),
+    '非空的 Blocked by 行照旧读出两条（实得 ' + JSON.stringify(realBlocked.blockedBy.map((b) => b.key)) + '）')
+  // 空的 Type 行后面紧跟 Blocked by 行：老写法会把「Blocked by: #12」整串当成 Type 的值。
+  const emptyType = parseMd('# T\n\nStatus: ready-for-agent\nType:\nBlocked by: #12\n', { key: '01', parentKey: '00', isMap: false })
+  const typeField = (emptyType.customFields || []).filter((f) => f.name === 'Type')[0]
+  check(!typeField,
+    '空的 Type 行 + 紧跟 Blocked by 行 → 不许把那一行当成 Type 的值（实得 ' + JSON.stringify(typeField || null) + '）')
+  check(JSON.stringify(emptyType.blockedBy.map((b) => b.key)) === JSON.stringify(['12']),
+    '同一条文本里 Blocked by 仍照常读出（实得 ' + JSON.stringify(emptyType.blockedBy.map((b) => b.key)) + '）')
+  const realType = parseMd('# T\n\nType: task\n', { key: '01', parentKey: '00', isMap: false })
+  check(JSON.stringify((realType.customFields || []).map((f) => f.value)) === JSON.stringify(['task']),
+    '非空的 Type 行照旧读出（实得 ' + JSON.stringify(realType.customFields || []) + '）')
+}
+
 if (failed || hFailed > 0) {
   console.log('\n存在失败 — verify-markdown-backend 未通过')
   process.exit(1)

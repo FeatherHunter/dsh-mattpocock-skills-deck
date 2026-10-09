@@ -60,7 +60,12 @@ export function parentKeyFromFile(text) {
 
 export function parseMd(text, meta) {
   const raw = String(text || '')
-  const statusRaw = (/^\s*Status\s*[:\uFF1A]\s*([^\n]+)/im.exec(raw)?.[1]?.trim() || '')
+  // 2026-10-10 修（#991 实测带回来的读路径缺陷）：冒号后面原来写的是 \s*，而 \s 含换行 —— 字段值为空的
+  //   那一行（「Status:」单独一行）会让 \s* 跨过换行，再由 ([^\n]+) 把**下一行**当成这个字段的值抓走。
+  //   实测证据：同一份票文件上，带某个标签时读出「阻塞」有一条、去掉该标签立刻变空，而盘上那行本来就是空的。
+  //   改成 [ \t]*：只吃同一行里的空格与制表符，值不许跨行。空值这一档由「匹配不上」处理（回到默认），
+  //   与「空行就是空值」的语义一致。Type / Blocked by 两条同一个毛病，一并改。
+  const statusRaw = (/^\s*Status\s*[:\uFF1A][ \t]*([^\n]+)/im.exec(raw)?.[1]?.trim() || '')
   const statusNorm = statusRaw.toLowerCase().replace(/\s+/g, '-')
   const closedSet = new Set(['resolved', 'completed', 'closed', 'done'])
   const state = closedSet.has(statusNorm) ? STATE.CLOSED : STATE.OPEN
@@ -70,12 +75,12 @@ export function parseMd(text, meta) {
     const first = raw.split('\n').find((l) => l.trim().length > 0) || ''
     return first.replace(/^#+\s*/, '').trim()
   })()
-  const typeRaw = (/^\s*Type\s*[:\uFF1A]\s*([^\n]+)/im.exec(raw)?.[1]?.trim().toLowerCase() || '')
+  const typeRaw = (/^\s*Type\s*[:\uFF1A][ \t]*([^\n]+)/im.exec(raw)?.[1]?.trim().toLowerCase() || '')
   let customFields
   if (typeRaw) {
     customFields = [{ name: 'Type', value: typeRaw, type: 'single', options: ['research', 'prototype', 'grilling', 'task'] }]
   }
-  const blockedRaw = (/^\s*Blocked\s+by\s*[:\uFF1A]\s*(.+)$/im.exec(raw)?.[1]?.trim() || '')
+  const blockedRaw = (/^\s*Blocked\s+by\s*[:\uFF1A][ \t]*(.+)$/im.exec(raw)?.[1]?.trim() || '')
   let blockedBy = []
   if (blockedRaw) {
     const parts = blockedRaw.split(/[,,\s]+/).map((s) => s.trim()).filter(Boolean)
