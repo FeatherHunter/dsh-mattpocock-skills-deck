@@ -84,6 +84,7 @@ export function limitsFromBudget(b) {
  *   readChoice 可选，读本机记忆H：(规范根) => {backendId, rev} | null（缺席跳过H层）
  *   readWorkspaceFileText 可选，读工作区文件原文：(规范根) => string | null（缺席跳过文件层）
  *   parseWorkspaceFile 可选，解析文件文本（与 readWorkspaceFileText 同给同缺）
+ *   protectDoubleHit 可选，双命中保护写口：(规范根, 会话号, 本次识别结果) => {backendId} | null（缺席跳过保护）
  */
 export function createDeckShell(deps) {
   const d = deps || {}
@@ -210,6 +211,9 @@ export function createDeckShell(deps) {
       noteGate('select', 'defer', str(sent && sent.reason))
       return { ok: false, reason: REFUSAL_REASONS.GATE_DEFER, text: '这一次选后端被闸推迟了（' + str(sent && sent.detail) + '），先不做。' }
     }
+    // #957 双命中保护：无显式且双命中含 GitHub 时自动存一份默认值并照此走（缺席跳过，仍诚实报错）。
+    const _prot = (typeof d.protectDoubleHit === 'function') ? await d.protectDoubleHit(s.cwd, s.sessionId, picked).catch(function () { return null }) : null
+    if (_prot && _prot.backendId) picked = _prot
     // 仓库标识补全（#758）：匹配源常带空标识（注册表只认显式 refId），而房间读写真要它。
     // 有该能力的后端（房内 getRepoKey，三层兜底）调用方按通用形状自己补，不逐后端写分支；
     // 没有该能力的后端没有这一格，跳过，下游照旧诚实失败。补全本身也过一次闸（读探针一格）。
