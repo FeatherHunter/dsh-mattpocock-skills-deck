@@ -20,6 +20,7 @@
 // 在自己的成功/失败出口各落一行 host.call / host.call.fail（kind = deck-tool），
 // 沿用既有事件名，不新增事件名、不新增字段。
 import { createDeckTools } from '../../shared/deck-tools/plan.js'
+import { stringifyWorkspaceFile, WORKSPACE_FILE_REL } from '../../shared/deck-tools/workspace-file.js'
 import { createDeckContext } from '../tools/deckContext.js'
 import { createDeckIssueGet } from '../tools/deckIssueGet.js'
 import { createDeckMapSnapshot } from '../tools/deckMapSnapshot.js'
@@ -62,6 +63,41 @@ export const DECK_TOOL_FILES = Object.freeze([
  * invalidate）—— 与 tests/verify-deck-tools.js 里直接喂给工厂的那一份同形，
  * 所以「门禁里跑得通」与「宿主里跑得通」是同一件事，而不是两份各自能跑的实现。
  */
+/** #957 双命中保护写口的工厂（导出只为门禁直验逻辑，生产经 createDeckToolsForHost 装进九个工具共用的那一份）。 */
+export function createDoubleHitProtector(baseDeps) {
+  const base = baseDeps || {}
+  // 四处无显式且自动识别双命中含 GitHub 时，自动存一份 GitHub 默认值（来源自动，如实）并照此走。
+  //   只在文件缺席时写（已在不覆盖）；单命中不写（免得每个仓库都脏一次）；无 GitHub 或有待定照旧返回空（调用方诚实报错）。
+  //   写走正规文件通道加本次写许可；失败返回空（调用方诚实报错，不静默放行）。
+  const protectDoubleHit = async function (cwd, sessionId, picked) {
+    try {
+      if (!picked || !Array.isArray(picked.multiHit) || picked.multiHit.length <= 1) return null
+      if (picked.pending) return null
+      if (picked.multiHit.indexOf('github') < 0) return null
+      try {
+        if (typeof base.readWorkspaceFileText === 'function' && typeof base.parseWorkspaceFile === 'function') {
+          const txt = await base.readWorkspaceFileText(cwd)
+          if (txt && base.parseWorkspaceFile(txt)) return null
+        }
+      } catch (eR) {}
+      const text = stringifyWorkspaceFile({ backendId: 'github', pickedAt: Date.now(), source: 'auto' })
+      const backendObj = (typeof base.backendCtx === 'function') ? base.backendCtx() : (base.backendCtx || {})
+      const fsSvc = (backendObj && backendObj.fs) || (backendObj && backendObj.platform && backendObj.platform.fs) || null
+      if (!fsSvc || typeof fsSvc.resolve !== 'function' || typeof fsSvc.writeText !== 'function') return null
+      const policy = (typeof base.sandboxPolicyFor === 'function') ? await base.sandboxPolicyFor({ cwd: cwd, sessionId: sessionId }).catch(function () { return null }) : null
+      const target = await fsSvc.resolve(WORKSPACE_FILE_REL, { cwd: cwd })
+      try {
+        const platPath = backendObj.platform && backendObj.platform.path
+        if (platPath && typeof platPath.dirname === 'function' && typeof fsSvc.mkdir === 'function') { try { await fsSvc.mkdir(platPath.dirname(target), { recursive: true }) } catch (eM) {} }
+      } catch (eD) {}
+      await fsSvc.writeText(target, text, undefined, undefined, policy)
+      return { backendId: 'github', source: 'auto', ref: null, pending: false }
+    } catch (e) { return null }
+  }
+  return protectDoubleHit
+}
+
 export function createDeckToolsForHost(toolDeps) {
-  return createDeckTools(DECK_TOOL_FACTORIES, { toolDeps: toolDeps || {} })
+  const base = toolDeps || {}
+  return createDeckTools(DECK_TOOL_FACTORIES, { toolDeps: Object.assign({}, base, { protectDoubleHit: createDoubleHitProtector(base) }) })
 }

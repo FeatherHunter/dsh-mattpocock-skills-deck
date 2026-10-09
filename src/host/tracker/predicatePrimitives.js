@@ -150,10 +150,14 @@ export async function execPrimitive(check, ctx) {
         }
         if (dirExists === false) return makeResult('fail', zh ? '目录不存在' : rel + ' not found')
         // 2) 写探测（resolve(探针相对路径) → writeText；清理同理用该 target）
+        // 935：带上本次调用的写许可（ctx.sandboxPolicy，无归属会话时为空，不自己拼宽松政策）；
+        // 有许可时按许可量可写性，无许可时按默认政策判（沙箱外必被拒，诚实判灰，不谎报目录不可写）。
         if (typeof p.fs.writeText === 'function') {
           try {
             const probeT = await p.fs.resolve(probeRel, { cwd: ctx.cwd })
-            await p.fs.writeText(probeT, 'ok')
+            const probePolicy = ctx ? ctx.sandboxPolicy : undefined
+            if (probePolicy !== undefined) await p.fs.writeText(probeT, 'ok', undefined, undefined, probePolicy)
+            else await p.fs.writeText(probeT, 'ok')
             const cleaners = ['unlink', 'remove', 'rm', 'delete']
             for (const m of cleaners) {
               if (typeof p.fs[m] === 'function') {

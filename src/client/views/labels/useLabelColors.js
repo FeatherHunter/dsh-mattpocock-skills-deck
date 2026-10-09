@@ -35,6 +35,22 @@
  * 打电话之前就带上，否则宿主只能自己按注册表规则算，多命中时就只能诚实地失败。
  * 带上它也不是让宿主去猜：宿主只核验这个后端是否真的认得这个工作区，认不得就照旧如实失败。
  */
+/** 按需 #97 的发射体：只在调试开关打开时被调用（调用处同一行先判开关）。
+ *
+ * 记这一行是为了查调色盘名字列空白（#958）：远端逐条有名、弹窗行数对上，
+ * 但名字格全空 —— 到底是回包到界面状态之间丢了名，还是名字到了却没画出来。
+ * 字段只有个数与散列：cwdHash 工作区键散列、count 进界面状态的行数、
+ * empty 回包里有、进状态时被过滤掉的行数（lcLabelsOf 只收非空名）、
+ * namesHash 这批行名的散列（名字原文一个字都不记）。
+ * 记日志失败不影响功能（调用处包着 try）。 */
+const lcListedEmit = function (cwd, res, list) {
+  let rawLen = -1
+  try { const raw = (res && Array.isArray(res.labels)) ? res.labels : ((res && res.data && Array.isArray(res.data)) ? res.data : null); if (raw) rawLen = raw.length } catch (eR) { rawLen = -1 }
+  const rows = Array.isArray(list) ? list : []
+  const hash = function (s) { try { return (typeof dswsLogHash === 'function') ? dswsLogHash(s) : '' } catch (eH) { return '' } }
+  log('debug', 'labelColors.listed', { cwdHash: hash(String(cwd || '')), count: rows.length, empty: (rawLen >= 0 ? (rawLen - rows.length) : -1), namesHash: hash(rows.map(function (r) { return String((r && r.name) || '') }).join('\n')) })
+}
+
 export const useLabelColors = function (cwd, onSaved, sessionId) {
   const [phase, setPhase] = React.useState('loading')
   const [rows, setRows] = React.useState([])
@@ -104,6 +120,7 @@ export const useLabelColors = function (cwd, onSaved, sessionId) {
       const list = lcLabelsOf(res)
       if (list) {
         setRows(list)
+        try { if (typeof isEnabled === 'function' && isEnabled('debug') && typeof log === 'function') lcListedEmit(cwd, res, list) } catch (eL) { /* 记日志失败不影响功能 */ }
         // 清单与「它是哪个后端给的」是同一次选择的产物，一起存：界面挑复制那两套文案时靠的就是它。
         setBackendId(String((res && res.backendId) || ''))
         setPhase('ready')

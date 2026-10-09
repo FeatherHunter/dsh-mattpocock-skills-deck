@@ -187,9 +187,11 @@ function sha256(file) { return crypto.createHash('sha256').update(fs.readFileSyn
   // #875 薄接线：删掉 src/shared/update/ 下 3 个旧核心产物（ports/service/commands），总数 61→58。
   // #895 批量超时自停与续跑游标：新增 src/shared/deck-tools/ 下 2 个产物（call-scope.js / plan-store.js，package/shared 同字节镜像），总数 58→60。
   // 并发改造：闸的按步记账归属新增 src/shared/step-cost.js（package/shared 同字节镜像），总数 60→61。
+  // #934：工具会话归一独占 session-resolve.js（package/shared 同字节镜像），总数 61→62。
+  // #947：工作区配置文件解析独占 workspace-file.js（package/shared 同字节镜像），总数 62→63。
   // 这个数是「src/shared 树里实际有几个文件」，会随别的票增减 —— 每次改完记得重跑本门禁对数。
-  check(srcSharedFiles.length === 61, `src/shared 61 文件（实得 ${srcSharedFiles.length}）`)
-  check(pkgSharedFiles.length === 61, `package/shared 61 文件（实得 ${pkgSharedFiles.length}）`)
+  check(srcSharedFiles.length === 63, `src/shared 63 文件（实得 ${srcSharedFiles.length}）`)
+  check(pkgSharedFiles.length === 63, `package/shared 63 文件（实得 ${pkgSharedFiles.length}）`)
 }
 // 4c) import 卫生：显式 .js（相对 import 必须带 .js 扩展，避免 Node ESM 裸 specifier）
 {

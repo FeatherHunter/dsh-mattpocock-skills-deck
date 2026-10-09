@@ -270,7 +270,7 @@ async function main() {
     // 手法：compileFn——词条源同样按文本加载，这里没有参数要传，给空的名字数组。
     const L = compileFn([], locSrc)().L_LABELS
 
-    // 「没选定后端」这一情形：档位是 conflict，后端返回的说明就是宿主 src/host/workspaceCwd.js 里 UNDECIDED 那一句
+    // 「没选定后端」这一情形：档位是 conflict，后端返回的说明就是宿主 src/host/workspaceLabelColors.js 里 UNDECIDED 那一句（#957 起两条电话搬到那边，口径不变）
     // （这里照它的格式写下来，只为说明这一情形长什么样；断言不看这句话，只看界面取到的那条词条）。
     const backendSaid = '这个工作区使用哪个后端尚未确定：请在面板中选定这个工作区使用的后端，然后重试（当前有 2 个后端同时对应这个工作区：github、markdown）'
     const key = leaf2.lcKindKey('conflict')
