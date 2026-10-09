@@ -268,7 +268,7 @@ export default {
     // #725：状态栏胶囊那条横条的逐字折叠阶梯（纯函数）与它的阶梯机（读写 DOM），都排在 statusBar 之前
     //   —— 状态栏那边只留接线：把胶囊元素与两张跨调用带着走的表交给机器。
     // ==== leaf:capFold (spliced by build) ==== // ==== leaf:capFoldMachine (spliced by build) ====
-    // ==== leaf:StatusMenus (spliced by build) ==== // ==== leaf:StatusBackend (spliced by build) ==== // ==== leaf:bannerChain (spliced by build) ==== // ==== leaf:StatusLogMenu (spliced by build) ==== // ==== leaf:statusBar (spliced by build) ====
+    // ==== leaf:StatusMenus (spliced by build) ==== // ==== leaf:StatusBackend (spliced by build) ==== // ==== leaf:bannerChain (spliced by build) ==== // ==== leaf:logDangerConfirm (spliced by build) ==== // ==== leaf:StatusLogMenu (spliced by build) ==== // ==== leaf:statusBar (spliced by build) ====
     // ==== leaf:sessionChainCapsule (spliced by build) ====
 
     // ==== leaf:md (spliced by build) ====
