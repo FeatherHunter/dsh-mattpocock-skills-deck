@@ -91,7 +91,7 @@ export function createDoubleHitProtector(baseDeps) {
         if (platPath && typeof platPath.dirname === 'function' && typeof fsSvc.mkdir === 'function') { try { await fsSvc.mkdir(platPath.dirname(target), { recursive: true }) } catch (eM) {} }
       } catch (eD) {}
       await fsSvc.writeText(target, text, undefined, undefined, policy)
-      return { backendId: 'github', source: 'explicit', ref: null, pending: false }
+      return { backendId: 'github', source: 'auto', ref: null, pending: false }
     } catch (e) { return null }
   }
   return protectDoubleHit

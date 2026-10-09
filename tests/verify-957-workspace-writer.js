@@ -102,6 +102,7 @@ async function main() {
     const prot = mkProt(dir)
     const out = await prot(posix(dir), 's1', { backendId: 'github', source: 'matches', multiHit: ['github', 'markdown'] })
     check(out && out.backendId === 'github', 'P1 无文件双命中含 GitHub 时照此走（github）')
+    check(out && out.source === 'auto', 'P1 回包来源如实为自动（不是人选，回包与落盘一致）', JSON.stringify(out))
     const obj = JSON.parse(fs.readFileSync(path.join(dir, 'docs', 'agents', 'workspace.json'), 'utf8'))
     check(obj.backendId === 'github' && obj.source === 'auto', 'P1 自动存的标记为自动（不是人选，如实）', JSON.stringify(obj))
   }
@@ -158,7 +159,7 @@ async function main() {
     const exec = { agent: { session: { id: 's', cwd: 'D:\\ws' } } }
     const pNoProt = await mkShell(doubleReg).pickBackend(exec, sOf('D:\\ws'))
     check(pNoProt.ok === false, 'S1 保护缺席时双命中照旧诚实报错（旧接线兼容）', JSON.stringify(pNoProt).slice(0, 160))
-    const pProt = await mkShell(doubleReg, { protectDoubleHit: async () => ({ backendId: 'github', source: 'explicit', ref: null, pending: false }) }).pickBackend(exec, sOf('D:\\ws'))
+    const pProt = await mkShell(doubleReg, { protectDoubleHit: async () => ({ backendId: 'github', source: 'auto', ref: null, pending: false }) }).pickBackend(exec, sOf('D:\\ws'))
     check(pProt.ok === true && pProt.backendId === 'github', 'S2 有保护写口时双命中照此走（github）', JSON.stringify(pProt).slice(0, 160))
   }
 
