@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<title>故障卡两种（p6第三轮）：待诊断和待修复</title>
+<style>
+*{box-sizing:border-box;border-radius:0 !important;}
+:root{--frame:#3a2c14;--card:#f2e4c0;--ink:#2b2113;--ink2:#6b5b3e;--bug:#d73a4a;--closed:#83725e;--shadow:#241a0c;--gold:#e3a92f;}
+body{margin:0;color:var(--ink);font:14px/1.6 system-ui,sans-serif;padding:18px 18px 90px;background-color:#8a6f4d;background-image:repeating-conic-gradient(#93764f 0% 25%, #8a6f4d 0% 50%);background-size:8px 8px;}
+h1{font-size:18px;margin:0 0 4px;background:var(--frame);color:var(--card);display:inline-block;padding:2px 10px;box-shadow:4px 4px 0 var(--shadow);}
+.sub{color:#f5edd6;font-size:12.5px;max-width:1100px;background:rgba(43,33,19,.72);display:inline-block;padding:4px 10px;}
+.sub b{color:#ffd97a;}
+.rule{background:var(--card);border:4px solid var(--frame);box-shadow:6px 6px 0 var(--shadow);padding:10px 12px;max-width:1100px;margin:12px 0;font-size:12.5px;}
+.grid{display:flex;flex-wrap:wrap;gap:18px;margin-top:14px;}
+.variant{background:#54462c;padding:12px;border:4px solid var(--frame);box-shadow:6px 6px 0 var(--shadow);width:360px;}
+.variant h2{margin:0 0 2px;font-size:14px;color:#ffd97a;font-family:ui-monospace,Menlo,Consolas,monospace;}
+.variant .why{font-size:12px;color:#f2e4c0;opacity:.92;margin:0 0 8px;min-height:60px;}
+.card{width:300px;background:#e4d5b0;color:var(--ink);border:4px solid var(--frame);box-shadow:inset 2px 2px 0 #f7edd3,inset -2px -2px 0 #7d5730,6px 6px 0 var(--shadow);padding:10px 11px;position:relative;display:flex;flex-direction:column;gap:6px;}
+.card .tape{position:absolute;left:50%;top:-8px;margin-left:-26px;width:52px;height:14px;background:#d9c48a;transform:rotate(-4deg);box-shadow:inset 0 2px 0 rgba(255,255,255,.45),inset 0 -2px 0 rgba(0,0,0,.18),0 2px 0 rgba(0,0,0,.35);}
+.hd{display:flex;gap:6px;align-items:center;font-size:11px;color:var(--ink2);font-family:ui-monospace,Menlo,Consolas,monospace;}
+.hd b{font-size:13px;color:var(--ink);}
+.st{margin-left:auto;padding:1px 8px;background:none;color:var(--closed);opacity:.34;font-size:11px;border:2px solid currentColor;transform:rotate(-6deg);}
+h3.tt{margin:2px 0;font-size:13px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:38px;}
+.st.seal-cn{background:#a3231a;color:#fff9ec;opacity:1;border:2px solid #7d1a12;box-shadow:inset 0 0 0 2px #fff9ec,2px 2px 0 var(--shadow);font-family:"SimSun","NSimSun","STZhongsong",serif;font-weight:700;letter-spacing:4px;padding:3px 10px;min-width:64px;text-align:center;font-size:13px;line-height:1.3;white-space:nowrap;}
+.ft{border-top:3px solid var(--frame);padding-top:5px;font-size:11px;color:var(--ink2);display:flex;justify-content:space-between;font-family:ui-monospace,Menlo,Consolas,monospace;}
+.chip{display:inline-block;font-size:10px;line-height:16px;padding:0 4px;white-space:nowrap;border:2px solid var(--frame);box-shadow:inset 2px 2px 0 rgba(255,255,255,.35),inset -2px -2px 0 rgba(0,0,0,.28),2px 2px 0 var(--shadow);font-family:ui-monospace,Menlo,Consolas,monospace;margin-right:4px;}
+.lbrow{margin:2px 0;display:flex;flex-wrap:wrap;}
+.fixnote{font-size:11px;color:#8b241a;}
+.a .corner{position:absolute;right:0;top:0;width:0;height:0;border-style:solid;border-width:0 34px 34px 0;border-color:transparent var(--bug) transparent transparent;pointer-events:none;}
+.a .corner b{position:absolute;right:-32px;top:2px;font-size:9px;color:#fff;transform:rotate(45deg);font-weight:700;}
+/* 按钮单排：两红字加两图标，和老按钮同顺序，图标用现成仓库图标，纸面底，居中 */
+.actions{display:flex;gap:6px;margin-top:2px;}
+.abtn{border:3px solid var(--frame);cursor:pointer;box-shadow:2px 2px 0 var(--shadow);display:inline-flex;align-items:center;justify-content:center;gap:4px;font-family:ui-monospace,Menlo,Consolas,monospace;}
+.abtn.label{flex:1;font-size:12px;padding:5px 8px;}
+.abtn.icon{flex:none;width:40px;padding:5px 0;}
+.abtn.primary{color:#fff;}
+/* 主按钮底色不写死，行内取标签色：诊断取 needs-triage，新会话跟主按钮同色，修复取 bug。 */
+.abtn.paper{background:var(--card);color:var(--ink);}
+.abtn svg{flex:none;display:block;}
+.abtn{transition:transform .12s steps(2,end),box-shadow .12s steps(2,end);}
+.abtn:hover{transform:translate(-2px,-2px);box-shadow:4px 4px 0 var(--shadow);outline:2px solid var(--gold);outline-offset:1px;}
+.abtn:focus-visible{outline:2px dashed var(--gold);outline-offset:2px;}
+.abtn:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--shadow);}
+.card.closed{position:relative;}
+.card.closed::after{content:"";position:absolute;inset:0;background:rgba(28,16,4,.45);pointer-events:none;}
+.card.closed .seal-cn{position:relative;z-index:5;}
+</style></head><body>
+<h1>故障卡两种（p6，已定版：待诊断待修复，结案章加整张暗）</h1><br>
+<span class="sub">回答一个问题：<b>结案的缺陷卡暗下去加一枚结案章，该长什么样，待诊断和待修复还分不分得清</b>。左边是待诊断（有待分诊，主按钮诊断），右边是待修复（拿掉待分诊，主按钮修复，广州分诊完的样子）。样张都是850，标题标签时间都是真的。按钮图标用仓库现成的四个，单排两红字加两图标。</span>
+<div class="rule">主按钮按标签走：有待分诊先诊断，纯缺陷才修复。按钮、标签、章的底色都取查到的标签实际颜色（诊断和待分诊章取 needs-triage，新会话跟主按钮同色，修复章取 bug），字色按对比度配黑白。卡面骨架先用角标基线。</div>
+<div class="grid" id="grid"></div>
+<script>
+function svgIcon(n){
+ var s=12;
+ var open='<svg viewBox="0 0 24 24" width="'+s+'" height="'+s+'" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:block;flex:none;">';
+ if(n==="hammer")return open+'<path d="M14 4l6 6-2.5 2.5-6-6z"/><path d="M3 21l7.5-7.5"/><path d="M12.5 9.5l2 2"/></svg>';
+ if(n==="chat")return open+'<path d="M21 15a2 2 0 01-2 2H8l-5 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>';
+ if(n==="external-link")return open+'<path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>';
+ if(n==="clipboard")return open+'<rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 2h6v4H9z"/><path d="M9 11h6M9 15h4"/></svg>';
+ if(n==="link")return open+'<path d="M10 14a5 5 0 007.1 0l2.8-2.8a5 5 0 00-7.1-7.1L11 5.9"/><path d="M14 10a5 5 0 00-7.1 0l-2.8 2.8a5 5 0 007.1 7.1L13 18.1"/></svg>';
+ return "";
+}
+/* 颜色单源：按钮、标签、章的底色都取查到的标签实际颜色，不自己编。例：诊断和待分诊章取 needs-triage，修复章取 bug。值和 src/shared/labels.js 同一份。 */
+var LABEL_COLORS={"bug":"d73a4a","needs-triage":"fbca04","ready-for-agent":"0e8a16","wayfinder:task":"10b981"};
+function lum(hex){hex=hex.replace("#","");function ch(i){return parseInt(hex.substr(i*2,2),16)/255;}function f(x){return x<=0.03928?x/12.92:Math.pow((x+0.055)/1.055,2.4);}return 0.2126*f(ch(0))+0.7152*f(ch(1))+0.0722*f(ch(2));}
+function inkOn(hex){var L=lum(hex);return ((L+0.05)/0.05)>=(1.05/(L+0.05))?"#1c1004":"#fff9ec";}
+function chips(lb){var s='<div class="lbrow">';for(var i=0;i<lb.length;i++)s+='<span class="chip" style="background:'+lb[i][1]+';color:'+inkOn(lb[i][1])+'">'+lb[i][0]+'</span>';return s+'</div>';}
+function btns(primary,actBg){
+ return '<div class="actions">'+primary+'<button class="abtn primary label" style="background:'+actBg+';color:'+inkOn(actBg)+'">'+svgIcon("external-link")+'新会话</button><button class="abtn paper icon" title="复制链接">'+svgIcon("clipboard")+'</button><button class="abtn paper icon" title="打开链接">'+svgIcon("link")+'</button></div>';
+}
+function cardDiag(d){
+ var bg="#"+LABEL_COLORS["needs-triage"];
+ var p='<button class="abtn primary label" style="background:'+bg+';color:'+inkOn(bg)+'">'+svgIcon("chat")+'诊断</button>';
+ return '<div class="card a closed"><span class="tape"></span><span class="corner"><b>BUG</b></span><div class="hd"><b>#'+d.k+'</b><span class="st seal-cn">结案</span></div><h3 class="tt">'+d.t+'</h3><div>'+chips(d.lb)+'</div><div class="fixnote">'+d.fix+'</div>'+btns(p,"#"+LABEL_COLORS["needs-triage"])+'<div class="ft"><span>更新 '+d.up+'</span></div></div>';
+}
+function cardFix(d){
+ var bg="#"+LABEL_COLORS["bug"];
+ var p='<button class="abtn primary label" style="background:'+bg+';color:'+inkOn(bg)+'">'+svgIcon("hammer")+'修复</button>';
+ return '<div class="card a closed"><span class="tape"></span><span class="corner"><b>BUG</b></span><div class="hd"><b>#'+d.k+'</b><span class="st seal-cn">结案</span></div><h3 class="tt">'+d.t+'</h3><div>'+chips(d.lb)+'</div><div class="fixnote">'+d.fix+'</div>'+btns(p,"#"+LABEL_COLORS["bug"])+'<div class="ft"><span>更新 '+d.up+'</span></div></div>';
+}
+var diag={k:"850",t:"修复：未提交改动那一层点文件行打不开差异（展开键与块模型对不上）",lb:[["故障","#d73a4a"],["待分诊","#fbca04"],["可派活","#0e8a16"]],up:"10-04",fix:"待分诊：等确认分类与指派"};
+var fix={k:"850",t:"修复：未提交改动那一层点文件行打不开差异（展开键与块模型对不上）",lb:[["故障","#d73a4a"],["可派活","#0e8a16"]],up:"10-04",fix:"已分诊：可指派执行"};
+var g=document.getElementById("grid");
+g.innerHTML='<div class="variant"><h2>待诊断（有待分诊）</h2><p class="why">主按钮是诊断，气泡图标。标签里有待分诊，脚注写待分诊。图标按钮纸面底，图标居中。</p>'+cardDiag(diag)+'</div>'
+ +'<div class="variant"><h2>待修复（拿掉待分诊，分诊完的样子）</h2><p class="why">主按钮是修复，锤子图标。标签里没有待分诊，脚注写已分诊。按钮和左边同一排同大小。</p>'+cardFix(fix)+'</div>';
+console.log("p6 round3 ready");
+</script></body></html>
