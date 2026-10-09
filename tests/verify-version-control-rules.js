@@ -59,8 +59,8 @@ function scenarios(judge) {
       run: () => judge(base({ unstaged: [], unstagedCount: 0 }), 'pull').verdict === 'allow',
     },
     {
-      id: '拉取：脏树动手前停住（dirty-tree）',
-      run: () => { const r = judge(base(), 'pull'); return r.verdict === 'block' && r.reasons.includes('dirty-tree') },
+      id: '拉取：脏树只提醒不拦住（dirty-tree，#976：不相交时能快进，相交时命令行只快进会拒绝）',
+      run: () => { const r = judge(base(), 'pull'); return r.verdict === 'warn' && r.reasons.includes('dirty-tree') },
     },
     {
       id: '拉取：无上游拦住',

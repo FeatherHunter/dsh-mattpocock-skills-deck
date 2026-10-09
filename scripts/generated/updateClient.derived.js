@@ -1,7 +1,7 @@
-// 由 dsh-plugin-update@0.9.0 的集成工具生成，人手不改。
+// 由 dsh-plugin-update@0.10.0 的集成工具生成，人手不改。
 // 生成命令：node dsh-plugin-update/derive-client-values.mjs --prefix wf --out <本文件路径>
 // 生成对象：dsh-mattpocock-skills-deck。改了前缀或想升级本包，重新跑一次这条命令即可。
-// node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/config.js
+// dsh-mattpocock-skills-deck/node_modules/.pnpm/dsh-plugin-update@0.10.0/node_modules/dsh-plugin-update/dist/config.js
 // 派生后处理（#800）：已按 #597 把三个重名函数改名（build* → updBuild*），顶撞检查已过；数据源是已安装的更新包，本地包目录不是来源。
 var DEFAULT_CONFIRMATION_TTL_MS = 10 * 6e4;
 var DEFAULT_INSTALL_TIMEOUT_MS = 15 * 6e4;
@@ -32,7 +32,7 @@ function updBuildPhoneName(prefix, action) {
   return updBuildPhoneNames(prefix)[action];
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/commands.js
+// dsh-mattpocock-skills-deck/node_modules/.pnpm/dsh-plugin-update@0.10.0/node_modules/dsh-plugin-update/dist/commands.js
 var PACKAGE_NAME = "dsh-mattpocock-skills-deck";
 var NPM_REGISTRY = "https://registry.npmjs.org/";
 var INSTALL_TIMEOUT_MS = 15 * 6e4;
@@ -144,7 +144,7 @@ function manualCommand(input) {
   return `dsh plugin --profile ${arg} add --save-exact ${targetName}@${version} --registry=${registry}`;
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/queue.js
+// dsh-mattpocock-skills-deck/node_modules/.pnpm/dsh-plugin-update@0.10.0/node_modules/dsh-plugin-update/dist/queue.js
 var QUEUE_INTENT_TTL_MS = 10 * 6e4;
 function emptyQueueState() {
   return { version: 1, owner: null, waiting: [] };
@@ -298,7 +298,7 @@ function derivedRequestId(state, viewerPluginId) {
   return mine[0].requestId;
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/batch.js
+// dsh-mattpocock-skills-deck/node_modules/.pnpm/dsh-plugin-update@0.10.0/node_modules/dsh-plugin-update/dist/batch.js
 var BATCH_SESSION_VERSION = 1;
 function isTerminalPhase(phase) {
   return phase === "done" || phase === "failed" || phase === "skipped" || phase === "current";
@@ -465,7 +465,7 @@ function resumeBatchSession(session, now) {
   return changed ? { ...session, entries, updatedAt: at } : session;
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/service.js
+// dsh-mattpocock-skills-deck/node_modules/.pnpm/dsh-plugin-update@0.10.0/node_modules/dsh-plugin-update/dist/service.js
 var CONFIRMATION_TTL_MS = 10 * 6e4;
 var MAX_METADATA_BYTES = 256 * 1024;
 function updateError(code) {
@@ -552,7 +552,7 @@ function compareReleaseVersions2(a, b) {
   return 0;
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/lang.js
+// dsh-mattpocock-skills-deck/node_modules/.pnpm/dsh-plugin-update@0.10.0/node_modules/dsh-plugin-update/dist/lang.js
 function normalizeLangTag(tag) {
   if (typeof tag !== "string") return "zh";
   const s = tag.trim().toLowerCase().replace(/_/g, "-");
@@ -563,7 +563,7 @@ function normalizeLangTag(tag) {
   return "zh";
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/bilingual.js
+// dsh-mattpocock-skills-deck/node_modules/.pnpm/dsh-plugin-update@0.10.0/node_modules/dsh-plugin-update/dist/bilingual.js
 var BILINGUAL_STRINGS = {
   "entry.label.idle": { en: "Check for updates", zh: "\u68C0\u67E5\u66F4\u65B0", draft: true },
   "entry.label.failed": { en: "Update failed \u2014 View details", zh: "\u66F4\u65B0\u5931\u8D25\uFF0C\u70B9\u6B64\u67E5\u770B", draft: true },
@@ -681,8 +681,8 @@ var BILINGUAL_STRINGS = {
   "panel.action.unskip-title": { en: "Undo skip; this version will remind again", zh: "\u64A4\u9500\u8DF3\u8FC7\uFF0C\u8BE5\u7248\u672C\u91CD\u65B0\u63D0\u9192", draft: true },
   "panel.action.copy-manual": { en: "Copy manual command", zh: "\u590D\u5236\u624B\u5DE5\u547D\u4EE4", draft: true },
   "panel.action.copy-manual-title": { en: "Copy the manual command; paste the full line into the terminal", zh: "\u590D\u5236\u624B\u5DE5\u547D\u4EE4\uFF0C\u7C98\u5230\u7EC8\u7AEF\u6574\u884C\u6267\u884C", draft: true },
-  "panel.action.restart-host": { en: "Restart host", zh: "\u91CD\u542F\u5BBF\u4E3B", draft: true },
-  "panel.action.restart-host-title": { en: "This host provides no restart entry; restart the host manually", zh: "\u5BBF\u4E3B\u6CA1\u6709\u81EA\u91CD\u542F\u7535\u8BDD\uFF1A\u8BF7\u624B\u52A8\u91CD\u542F\u5BBF\u4E3B", draft: true },
+  "panel.action.restart-host": { en: "Please restart DSH", zh: "\u8BF7\u91CD\u542FDSH", draft: true },
+  "panel.action.restart-host-title": { en: "Run the caller restart flow if available, otherwise restart DSH manually", zh: "\u70B9\u4E00\u4E0B\u8D70\u8C03\u7528\u65B9\u6D41\u7A0B\uFF0C\u6CA1\u6709\u5C31\u624B\u52A8\u91CD\u542F DSH", draft: true },
   "panel.action.dismiss": { en: "Got it", zh: "\u77E5\u9053\u4E86", draft: true },
   "panel.action.dismiss-title": { en: "Acknowledge the failure and return; next check or install will re-evaluate", zh: "\u786E\u8BA4\u5DF2\u77E5\u6653\u8BE5\u5931\u8D25\uFF1A\u56DE\u5230\u53EF\u88C5\u9875\uFF0C\u4E0B\u6B21\u67E5/\u88C5\u5C06\u91CD\u65B0\u8BC4\u4F30", draft: true },
   "panel.action.copy-diag": { en: "Copy diagnostics", zh: "\u590D\u5236\u8BCA\u65AD", draft: true },
@@ -763,6 +763,7 @@ var BILINGUAL_STRINGS = {
   "panel.diag.copy.block.source": { en: "Source\uFF1A{source}", zh: "\u6765\u6E90\uFF1A{source}", draft: true },
   "panel.diag.copy.block.remedy": { en: "Remedy\uFF1A{remedy}", zh: "\u600E\u4E48\u529E\uFF1A{remedy}", draft: true },
   "batch.action.resume": { en: "Continue the unfinished batch ({count} left)", zh: "\u7EE7\u7EED\u4E0A\u6B21\u672A\u5B8C\u6210\u7684\u66F4\u65B0\uFF08\u8FD8\u5269 {count} \u5BB6\uFF09", draft: true },
+  "batch.action.resume-title": { en: "Continue from where it stopped; installed ones stay", zh: "\u4ECE\u4E0A\u6B21\u6CA1\u505A\u5B8C\u7684\u5730\u65B9\u63A5\u7740\u5B89\u88C5\uFF0C\u5DF2\u5B8C\u6210\u7684\u4E0D\u91CD\u88C5", draft: true },
   "batch.action.discard": { en: "Discard this unfinished batch (installed ones stay)", zh: "\u4E22\u5F03\u8FD9\u6279\u672A\u5B8C\u6210\u7684\u66F4\u65B0\uFF08\u5DF2\u5B8C\u6210\u7684\u4FDD\u7559\uFF09", draft: true },
   "batch.action.confirm-discard": { en: "Confirm discard", zh: "\u786E\u8BA4\u4E22\u5F03", draft: true },
   "batch.fact.close-safe": { en: "Closing this panel won't stop it \u2014 progress is saved on disk.", zh: "\u5173\u6389\u9762\u677F\u4E0D\u4F1A\u4E2D\u65AD\uFF1A\u8FDB\u5EA6\u5DF2\u5199\u76D8\uFF0C\u56DE\u6765\u53EF\u7EE7\u7EED\u3002", draft: true },
@@ -810,7 +811,7 @@ var BILINGUAL_STRINGS = {
   "batch.banner.failed-action": { en: "Retry each one inline; if it keeps failing, send the copied diagnostics to the plugin author.", zh: "\u9010\u5BB6\u70B9\u884C\u5185\u300C\u91CD\u8BD5\u300D\u518D\u6765\u4E00\u6B21\uFF1B\u4E00\u76F4\u5931\u8D25\u5C31\u628A\u590D\u5236\u8BCA\u65AD\u4EA4\u7ED9\u63D2\u4EF6\u4F5C\u8005\u3002", draft: true },
   "batch.banner.restart-title": { en: "{n} installed; restart the host to take effect.", zh: "{n} \u5BB6\u5DF2\u5B89\u88C5\u597D\uFF0C\u91CD\u542F\u5BBF\u4E3B\u540E\u751F\u6548\u3002", draft: true },
   "batch.banner.restart-action": { en: "Restart the host to run the new version; this is a normal end state, not a failure.", zh: "\u91CD\u542F\u5BBF\u4E3B\uFF0C\u8BA9\u65B0\u7248\u8DD1\u8D77\u6765\uFF1B\u8FD9\u662F\u6B63\u5E38\u7EC8\u6001\uFF0C\u4E0D\u662F\u5931\u8D25\u3002", draft: true },
-  "batch.banner.restart-button": { en: "Restart host", zh: "\u91CD\u542F\u5BBF\u4E3B", draft: true },
+  "batch.banner.restart-button": { en: "Please restart DSH", zh: "\u8BF7\u91CD\u542FDSH", draft: true },
   "batch.row.queued-generic": { en: "Queued \xB7 waiting for the running install to finish", zh: "\u5DF2\u6392\u961F \xB7 \u7B49\u524D\u9762\u5B89\u88C5\u5B8C", draft: true },
   "batch.row.queued-n": { en: "Queued \xB7 {n} ahead", zh: "\u5DF2\u6392\u961F \xB7 \u524D\u65B9 {n} \u4E2A", draft: true },
   "batch.row.skipped": { en: "Skipped {version}", zh: "\u5DF2\u8DF3\u8FC7 {version}", draft: true },
@@ -832,7 +833,7 @@ var BILINGUAL_STRINGS = {
   "batch.row-action.install-version": { en: "Install {version}", zh: "\u5B89\u88C5 {version}", draft: true },
   "batch.row-action.install-generic": { en: "Install the new version", zh: "\u5B89\u88C5 \u65B0\u7248", draft: true },
   "batch.row-action.unskip": { en: "Restore ({version})", zh: "\u6062\u590D\uFF08{version}\uFF09", draft: true },
-  "batch.row-action.restart": { en: "Restart host", zh: "\u91CD\u542F\u5BBF\u4E3B", draft: true },
+  "batch.row-action.restart": { en: "Please restart DSH", zh: "\u8BF7\u91CD\u542FDSH", draft: true },
   "batch.row-action.show-detail": { en: "Details", zh: "\u8BE6\u60C5", draft: true },
   "batch.row-action.hide-detail": { en: "Collapse", zh: "\u6536\u8D77", draft: true },
   "batch.row-action.skip": { en: "Skip this version", zh: "\u8DF3\u8FC7\u8FD9\u4E00\u7248", draft: true },
@@ -901,7 +902,7 @@ var BILINGUAL_CSS = [
   ".dsh-upd-bi [lang]{overflow-wrap:anywhere}"
 ].join("\n");
 
-// node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/changelog.js
+// dsh-mattpocock-skills-deck/node_modules/.pnpm/dsh-plugin-update@0.10.0/node_modules/dsh-plugin-update/dist/changelog.js
 var CHANGELOG_FILENAME = "CHANGELOG.md";
 var CHANGELOG_NEUTRAL_HINT = "\u4F5C\u8005\u672A\u63D0\u4F9B\u66F4\u65B0\u8BF4\u660E";
 var CHANGELOG_NEUTRAL_LINE = "\u4F5C\u8005\u672A\u63D0\u4F9B\u66F4\u65B0\u8BF4\u660E\uFF0C\u5B89\u88C5\u4E0D\u53D7\u5F71\u54CD\u3002";
@@ -1329,7 +1330,7 @@ ${blocks.join("\n")}
   }
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.9.0/node_modules/dsh-plugin-update/dist/client.js
+// dsh-mattpocock-skills-deck/node_modules/.pnpm/dsh-plugin-update@0.10.0/node_modules/dsh-plugin-update/dist/client.js
 var CLIENT_POLL = {
   defaultMs: DEFAULT_PANEL_POLL_MS,
   minMs: MIN_PANEL_POLL_MS

@@ -963,17 +963,19 @@ const contractChecksInner = function (reg, src) {
   if (src.includes('STAGE_GATED_IDS.indexOf(id) >= 0')) fail('#77 残留 renderTemplate 闸门追加逻辑')
   if (src.includes("text.indexOf('阶段闸门')") || src.includes("text.indexOf('Stage gate')")) fail('#77 残留 renderTemplate 去重守卫（闸门已内联，无外挂可去重）')
 
-  // mapExecute v14（#897 精简两节：工具+收尾；旧五节与阶段闸门断言已按用户决定删除）
+  // mapExecute v15（#989 恢复纯寻路版 v12 文字：工具/分析/选票/执行/收尾五节，单票推进）
   const me = reg['mapExecute']
   if (me) {
-    if (me.zh.indexOf('- [ ]') < 0) fail('mapExecute zh 缺清单标记 - [ ]')
-    if (me.zh.indexOf('## 工具') < 0 || me.zh.indexOf('## 收尾') < 0) fail('mapExecute zh 缺清单段标题（工具/收尾）')
-    if (me.zh.indexOf('## 分析') >= 0 || me.zh.indexOf('## 选票') >= 0 || me.zh.indexOf('## 执行') >= 0) fail('mapExecute zh 应为精简两节，不应再含分析/选票/执行')
+    if (me.zh.indexOf('阶段闸门') < 0 || me.en.indexOf('stage-gate') < 0) fail('T13 mapExecute 未含阶段闸门引用（needs-triage 先诊断）')
+    if (me.zh.indexOf('needs-triage') < 0) fail('mapExecute zh 缺 needs-triage 标记')
+    if (me.zh.indexOf('- [ ]') < 0) fail('mapExecute zh 缺清单标记 - [ ]（A★ 清单式）')
+    if (me.zh.indexOf('## 工具') < 0 || me.zh.indexOf('## 分析') < 0 || me.zh.indexOf('## 选票') < 0 || me.zh.indexOf('## 执行') < 0 || me.zh.indexOf('## 收尾') < 0) fail('mapExecute zh 缺清单段标题（工具/分析/选票/执行/收尾）')
     if (me.zh.indexOf('|') >= 0) fail('mapExecute zh 含表格 |（已约定无表格，全勾选框）')
+    if (me.zh.indexOf('## 目标 map') >= 0 || me.zh.indexOf('编号：') >= 0 || me.zh.indexOf('加载 wayfinder 技能') >= 0) fail('mapExecute zh 残留已撤掉的标识头/加载行（标识由首行 /wayfinder+链接承载）')
     if (me.zh.indexOf('deck_') < 0) fail('mapExecute zh 缺工具节要求（issue 相关操作优先使用 deck_ 开头的工具处理）')
-    if (me.placeholders.length !== 0) fail('mapExecute 不应再声明占位符（标识由首行 /implement-spec+链接承载）')
+    if (me.placeholders.length !== 0) fail('mapExecute 不应再声明占位符（标识头已撤掉，无 {n}/{title}/{url} 可填）')
     if (me.en.indexOf('- [ ]') < 0) fail('mapExecute en 缺清单标记 - [ ]')
-    if (me.en.indexOf('## Tools') < 0 || me.en.indexOf('## Wrap-up') < 0) fail('mapExecute en 缺清单段标题（Tools/Wrap-up）')
+    if (me.en.indexOf('## Tools') < 0 || me.en.indexOf('## Analyze') < 0 || me.en.indexOf('## Pick the ticket') < 0 || me.en.indexOf('## Execute') < 0 || me.en.indexOf('## Wrap-up') < 0) fail('mapExecute en 缺清单段标题（Tools/Analyze/Pick the ticket/Execute/Wrap-up）')
   }
   // tpl.execute（#64 清单式）
   const ex = reg['tpl.execute']
@@ -1526,10 +1528,11 @@ const selfDigest = function () {
 // #808：tpl.discuss 收尾再补一条（/to-spec 后对抗式审查再关单），中英各一行断言，自摘要跟着重算。
 // #879：逐面归零门禁退役（上游技能文档一字不动，人定案），本文件两处注释同步改说法，自摘要跟着重算。
 // #900：tpl.fix 阶段闸门整节删除，只在读现状留一句兜底，版本底线 7 → 11 并补内容断言，自摘要跟着重算。
+// #989：mapExecute 恢复纯寻路版 v12 文字（五节单票推进），断言同步回到五节版，自摘要跟着重算。
 const LOCK = {
   'tests/prompt-gate-exempt.json': 'c661ccd0fbfd46aa99790c073d0ccea89ebf5787a9113462c092b17c72a2a2d9',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.js': '28c49a01de3b0f9f8425c951ca431ae72823a9f15daacc7bb374b6734994b875',
+  'tests/verify-prompts.js': 'b5fb9ab459512710edf28d3fce3f0d85930dd2ae53d16f0406443d237be1f62b',
 }
 // ---- LOCK-END ----
 

@@ -8,6 +8,9 @@
 // 调用都必须经过闸」的物理落点。闸由接线处（src/host/registerPhones.js）注入，本文件不 import 它
 // （同层互引门禁不许），没注入时照旧执行、只是这一笔不在账上（门禁会因此判红，不许静默）。
 // 报账单位是**真实出站请求条数**：一条 gh/git/glab 命令就是一条（分页、重试、兜底链由调用方各自再报）。
+import { timeoutForGhArgs, isWriteGhArgs } from '../shared/tracker/outbound-tiers.js'
+import { getGhLane } from '../shared/tracker/outbound-admission.js'
+import { getChainRide } from '../shared/refresh/chain-ride.js'
 export function createRepoKeys(deps) {
   const { subprocess, timer, fs, DEFAULT_CWD, TIMEOUT_MS, repoKeys, repoRoots, getGhPath, setGhPath, getGhLastError, setGhLastError, getPlatform, getWorkspaceStore, setCache, clearWorkspaceStore, namingSweepSoon, getChainBackoff, parseGithubRepo, logCtx, gate, getGate } = deps
   // 共享状态归 index.js 单一持有：ghPath/ghLastError 经存取器（基本类型重赋值不能按引用共享）；repoKeys/repoRoots 按引用共享（只做属性读写与删除，从不整体重赋值）。
@@ -66,10 +69,14 @@ export function createRepoKeys(deps) {
 
     async function runGh(args, cwd) {
       const ghT0 = Date.now()
+      // #969 分档超时（读短写长探活最短）；#965 读写分桶拿名额（满了等；不传取消信号，拿不到只会等不会抛）。
+      const rkBucket = isWriteGhArgs(args) ? 'write' : 'read'
+      const rkTimeout = timeoutForGhArgs(args)
+      const rkRelease = await getGhLane().acquire({ bucket: rkBucket })
       const exe = await resolveGh()
-      if (!exe) return { ok: false, kind: 'env', error: getGhLastError() }
-      // #723（T19）：这一笔真实出站先报给闸（I1 的唯一出口）。起来之后才报，是因为「报的条数」必须
-      // 与「真的起了几条命令」一一对应；resolveGh 失败那一条根本没有出站，不该记进账。
+      if (!exe) { try { if (rkRelease) rkRelease() } catch {} return { ok: false, kind: 'env', error: getGhLastError() } }
+      // #723（T19）：这一笔真实出站先报给闸（I1 的唯一出口）。报在拿名额之后 —— 真要起进程了才报；
+      // resolveGh 失败那一条根本没有出站，不该记进账。
       reportOutbound(args)
       let handle
       try {
@@ -81,9 +88,11 @@ export function createRepoKeys(deps) {
         })
       } catch (e) {
         try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, kind: 'spawn', exitCode: -1 }) } catch (eL) {}
+        try { if (rkRelease) rkRelease() } catch {}
         return { ok: false, kind: 'spawn', error: String((e && e.message) || e) }
       }
-      const to = timer.timeout(TIMEOUT_MS)
+      // #969：等待上限按本条命令的分档暂定值（读短、写长、探活最短），不再一律 30 秒。
+      const to = timer.timeout(rkTimeout)
       let outcome
       try {
         outcome = await Promise.race([
@@ -92,6 +101,7 @@ export function createRepoKeys(deps) {
         ])
       } catch (e) {
         try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, kind: 'spawn', exitCode: -1 }) } catch (eL) {}
+        try { if (rkRelease) rkRelease() } catch {}
         return { ok: false, kind: 'spawn', error: String((e && e.message) || e) }
       }
       const out = (handle.collected && handle.collected.stdout) ? handle.collected.stdout.readFrom(0) : { text: '' }
@@ -100,12 +110,16 @@ export function createRepoKeys(deps) {
       if (outcome.exitCode !== 0) {
         let kind = 'exit'
         const t = all.toLowerCase()
-        if (/not logged in|auth failed|bad credentials|failed to log in|token.*invalid|keyring|re-authenticate|auth refresh/i.test(t)) kind = 'auth'
+        // #969：等满分档被杀掉的一律归网络档（慢网下显示未知而不是没登录），即使没有任何输出文本。
+        const rkTimedOut = !!(outcome && outcome.signal === 'timeout')
+        if (rkTimedOut) kind = 'network'
+        else if (/not logged in|auth failed|bad credentials|failed to log in|token.*invalid|keyring|re-authenticate|auth refresh/i.test(t)) kind = 'auth'
         else if (/404|not found|could not resolve to an? (issue|pull request)/i.test(t)) kind = 'notfound'
         else if (/network|econn|unexpected eof|timed out|connect/i.test(t)) kind = 'network'
-        try { if (logCtx && outcome && outcome.signal === 'timeout') logCtx.fire('warn', 'gh.timeout', { argv0: 'gh', timeoutMs: TIMEOUT_MS }) } catch (eL) {}
+        try { if (logCtx && rkTimedOut) logCtx.fire('warn', 'gh.timeout', { argv0: 'gh', timeoutMs: rkTimeout }) } catch (eL) {}
         try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, kind: kind, exitCode: outcome.exitCode || -1 }) } catch (eL) {}
         try { if (logCtx && logCtx.isEnabled('debug') && kind !== lastNormKind) { lastNormKind = kind; logCtx.fire('debug', 'error.normalize', function () { return { rawKind: 'exit:' + String((outcome && outcome.exitCode) || -1), mappedKind: kind } }) } } catch (eL) {}
+        try { if (rkRelease) rkRelease() } catch {}
         return { ok: false, kind: kind, code: outcome.exitCode, error: all.slice(0, 400), text: out.text || '' }
       }
       // 彻底移除：issuePath 1A 白名单检测已移除（#345），只保留两项与面包屑无关的职责：
@@ -122,6 +136,9 @@ export function createRepoKeys(deps) {
         }
       } catch (e) {}
       try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, kind: 'ok', exitCode: 0 }) } catch (eL) {}
+      // #966 收口：写成功记一笔搭车账，写过东西之后来的探测不搭旧车。
+      try { if (isWriteGhArgs(args)) getChainRide().markWrite() } catch {}
+      try { if (rkRelease) rkRelease() } catch {}
       return { ok: true, text: out.text || '' }
     }
 
@@ -133,6 +150,16 @@ export function createRepoKeys(deps) {
     async function execProc(argv, cwd, via) {
       // 起始时刻只在开关打开时才取：关着时这一行读一个布尔就结束，连时钟都不读，后面两行自然也不落。
       const _execT0 = (logCtx && logCtx.isEnabled('debug')) ? Date.now() : 0
+      // #963 出站同一口径：gh / glab 进准入（git 是本地命令不进）；gh 默认超时按读写探活分档。
+      const xpProg = progName(argv && argv[0])
+      const xpIsGh = /^gh(\.exe)?$/i.test(xpProg)
+      const xpIsGlab = /^glab(\.exe)?$/i.test(xpProg)
+      const xpIsOutbound = xpIsGh || xpIsGlab
+      const xpArgs = Array.isArray(argv) ? argv.slice(1) : []
+      const xpBucket = (xpIsGh && isWriteGhArgs(xpArgs)) ? 'write' : 'read'
+      // 出站才拿名额（不传取消信号，拿不到只会等不会抛）；git 本地命令直行。
+      let xpRelease = null
+      if (xpIsOutbound) xpRelease = await getGhLane().acquire({ bucket: xpBucket })
       // #723（T19）：这一笔真实出站先报给闸（I1）。这条路的调用方是 git / glab / gh 三条，
       // 其中 gh 与 glab 是真实出站；git 只读远端地址、不起 HTTP 请求，但它是同一个进程出口，
       // 一起报能保证「起过几条命令」与账上的条数一一对应（宁可多记一笔，也不要漏一笔）。
@@ -146,9 +173,11 @@ export function createRepoKeys(deps) {
           graceMs: 2000,
         })
       } catch (e) {
+        if (xpIsOutbound) { try { if (xpRelease) xpRelease() } catch {} }
         return { ok: false, error: String((e && e.message) || e) }
       }
-      const to = timer.timeout(TIMEOUT_MS)
+      // #969：gh 等待上限按分档暂定值；git / glab 沿用旧默认。
+      const to = timer.timeout(xpIsGh ? timeoutForGhArgs(xpArgs) : TIMEOUT_MS)
       let outcome
       try {
         outcome = await Promise.race([
@@ -157,11 +186,13 @@ export function createRepoKeys(deps) {
         ])
       } catch (e) {
         try { if (_execT0 && logCtx.isEnabled('debug')) logCtx.fire('debug', 'exec.run', { argv0: progName(argv && argv[0]), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - _execT0, exitCode: -1, via: String(via || 'unspecified') }) } catch (eL) {}
+        if (xpIsOutbound) { try { if (xpRelease) xpRelease() } catch {} }
         return { ok: false, error: String((e && e.message) || e) }
       }
       const out = (handle.collected && handle.collected.stdout) ? handle.collected.stdout.readFrom(0) : { text: '' }
       const err = (handle.collected && handle.collected.stderr) ? handle.collected.stderr.readFrom(0) : { text: '' }
       try { if (_execT0 && logCtx.isEnabled('debug')) logCtx.fire('debug', 'exec.run', { argv0: progName(argv && argv[0]), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - _execT0, exitCode: (outcome && typeof outcome.exitCode === 'number') ? outcome.exitCode : -1, via: String(via || 'unspecified') }) } catch (eL) {}
+      if (xpIsOutbound) { try { if (xpRelease) xpRelease() } catch {} }
       if (outcome.exitCode !== 0) return { ok: false, code: outcome.exitCode, error: ((err.text || '') + (out.text || '')).slice(0, 400) }
       // #857：成功必须带整数退出码 0。调用方经 ctx.exec 转给 GitHub 命令执行器时，那边按“拿不到整数退出码就判失败”处理；缺了这个 0，评论写成功了面板也会报失败。
       return { ok: true, text: out.text || '', code: 0 }
@@ -300,7 +331,6 @@ export function createRepoKeys(deps) {
       try { if (logCtx) logCtx.fire('info', 'repo.resolve.tier', { tier: 3, ok: true, latencyMs: Date.now() - rkT0 }) } catch (eL) {}
       return repoKeys[key]
     }
-  // #723（T19）：TIMEOUT_MS 一并交出去，让 detectChain 那侧取这一个数（从前它在自己文件里重复写了
-  // 一个 30000 字面量，两处各写一份，改一处就会静默对不上——见 detectChain.js 的 CHANNEL_GH_TIMEOUT_MS）。
+  // #723（T19）：TIMEOUT_MS 一并交出去，供还读它的老调用方兜底；分档由出站两路按命令认，不再两处各写一份。
   return { resolveGh, resetGhCache, runGh, execProc, resolveGit, getHome, canonicalKey, getRepoRoot, getCacheDir, cacheFileName, readDiskCache, writeDiskCache, getRepoKey, TIMEOUT_MS }
 }

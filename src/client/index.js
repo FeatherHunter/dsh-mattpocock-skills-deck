@@ -73,10 +73,10 @@ export default {
     // ==== leaf:vcStyles (spliced by build) ====
     styles.insert(VC_STYLE_TEXT)
     // 887：技能详情像素风皮肤另起一个样式叶子（与 vcStyles 同一套做法）。
-    // ==== leaf:pxSkillStyles (spliced by build) ====
-    styles.insert(PX_STYLE_TEXT)
+    // ==== leaf:pixelStyles (spliced by build) ====
+    styles.insert(PIXEL_STYLE_TEXT)
     // ==== leaf:feedbackStyles (spliced by build) ====
-    styles.insert(FEEDBACK_STYLE_TEXT) // 948 反馈样式叶子（VC/PX 同款做法，见叶子头）
+    styles.insert(FEEDBACK_STYLE_TEXT) // 948 反馈样式叶子（与像素皮肤同款做法，见叶子头）
 
     // ============================================================
     // 0.5 locale（T3 #366 · dsws 命名空间 zh/en；跟随 harness 语言；GitHub 数据不翻译）
@@ -234,14 +234,14 @@ export default {
     // ==== leaf:hoverTip (spliced by build) ====
     // ==== leaf:tip (spliced by build) ====
     // 887：八个像素风最小组件。
-    // ==== leaf:pxBtn (spliced by build) ====
-    // ==== leaf:pxDot (spliced by build) ====
-    // ==== leaf:pxNum (spliced by build) ====
-    // ==== leaf:pxStateIcon (spliced by build) ====
-    // ==== leaf:pxSeal (spliced by build) ====
-    // ==== leaf:pxSkel (spliced by build) ====
-    // ==== leaf:pxBanner (spliced by build) ====
-    // ==== leaf:pxStatusLine (spliced by build) ====
+    // ==== leaf:pixelBtn (spliced by build) ====
+    // ==== leaf:pixelDot (spliced by build) ====
+    // ==== leaf:pixelNum (spliced by build) ====
+    // ==== leaf:pixelStateIcon (spliced by build) ====
+    // ==== leaf:pixelSeal (spliced by build) ====
+    // ==== leaf:pixelSkeleton (spliced by build) ====
+    // ==== leaf:pixelBanner (spliced by build) ====
+    // ==== leaf:pixelStatusLine (spliced by build) ====
     // ==== leaf:backendSelector (spliced by build) ====
     // ==== leaf:switchConfirmModal (spliced by build) ====
 
@@ -295,11 +295,11 @@ export default {
 
     // ==== leaf:skillsTab (spliced by build) ====
     // 887：技能详情像素风中组件与整页（皮肤拼在上面样式区）。
-    // ==== leaf:pxToc (spliced by build) ====
-    // ==== leaf:pxDoc (spliced by build) ====
-    // ==== leaf:skillRow (spliced by build) ====
-    // ==== leaf:skillList (spliced by build) ====
-    // ==== leaf:skillDetailModal (spliced by build) ====
+    // ==== leaf:pixelContents (spliced by build) ====
+    // ==== leaf:pixelMarkdown (spliced by build) ====
+    // ==== leaf:pixelSkillRow (spliced by build) ====
+    // ==== leaf:pixelSkillList (spliced by build) ====
+    // ==== leaf:pixelSkillDetailModal (spliced by build) ====
 
     // ==== leaf:checksTab (spliced by build) ====
 

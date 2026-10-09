@@ -32,6 +32,32 @@ export function stripLabelDecoration(name) {
   return s
 }
 
+/** 从票文件正文里读出文件顶写着的父票编号（#971）。
+ *
+ *  为什么要有这一步：建票时父票编号写在文件顶的注释里（例如 <!-- parentKey: 01 -->），
+ *  但读回与列举一直用调用方递进来的固定值（永远是 00），注释写了却从不读。
+ *  扁平布局里地图本身是 01 号，固定值 00 永远对不上，按地图筛选恒为 0，快照数不出子票。
+ *  这里把注释读回来：有注释就以注释为准，没有注释的老文件才回落到调用方给的值。
+ *
+ *  返回 {found, value}：found 表示文件里有没有这一行注释；
+ *  value 是归一后的父票编号（数字补成两位），空值与 null 字样都归成 null（根票，没有父票）。
+ *  只认 parentKey 这一行，不认幂等锚那一行（锚是 DSH-IDEMPOTENCY-KEY，不是父子关系）。 */
+export function parentKeyFromFile(text) {
+  const raw = String(text || '')
+  // 只看文件头（标题之前的那几行）：父注释是文件元数据，写在最前（锚之后、标题之前）。
+  // 正文里也可能出现同样的写法（例如文档里举例怎么写注释），那一行不算数。
+  // 没有标题的坏文件退化成只看前 10 行，照样够到文件头。
+  const h1 = /^#+\s+/m.exec(raw)
+  const head = h1 ? raw.slice(0, h1.index) : String(raw).split('\n').slice(0, 10).join('\n')
+  const m = /^[ \t]*<!--[ \t]*parentKey[ \t]*:[ \t]*(.*?)-->/im.exec(head)
+  if (!m) return { found: false, value: null }
+  const v = String(m[1] || '').trim()
+  if (!v) return { found: true, value: null }
+  if (/^null$/i.test(v) || /^none$/i.test(v) || v === '-') return { found: true, value: null }
+  if (/^\d+$/.test(v)) return { found: true, value: v.padStart(2, '0') }
+  return { found: true, value: v }
+}
+
 export function parseMd(text, meta) {
   const raw = String(text || '')
   const statusRaw = (/^\s*Status\s*[:\uFF1A]\s*([^\n]+)/im.exec(raw)?.[1]?.trim() || '')
@@ -125,7 +151,27 @@ export function parseMd(text, meta) {
   }
   const key = String((meta && meta.key) || '00')
   const type = meta && meta.isMap ? ISSUE_TYPE.MAP : ISSUE_TYPE.ISSUE
-  const parentKey = meta && meta.parentKey !== undefined ? meta.parentKey : null
+  // #971：父子关系以文件顶注释为准，有注释就用注释，没有注释的老文件才回落。
+  // 地图文件本身没有父票（恒为空）；计划里用票文件冒充的地图（正文写着 Type: map、却没有父注释）同样视作没有父票。
+  // 其余票没有注释时沿用调用方递进来的固定值（今天是 00，即老单根工作区的地图），保持老数据行为不变。
+  const fileParent = parentKeyFromFile(raw)
+  let parentKey = null
+  if (meta && meta.isMap) {
+    parentKey = null
+  } else if (fileParent.found) {
+    parentKey = fileParent.value
+  } else if (typeRaw === 'map') {
+    parentKey = null
+  } else {
+    parentKey = meta && meta.parentKey !== undefined ? meta.parentKey : null
+  }
+  if (typeof parentKey === 'string') {
+    const t = parentKey.trim()
+    if (!t) parentKey = null
+    else if (/^\d+$/.test(t)) parentKey = t.padStart(2, '0')
+    else parentKey = t
+  }
+  if (parentKey === '') parentKey = null
   // effort 维度：effort 是核心字段（永远存在）；扁平布局 / 单 effort 后端填 ''（EMPTY）
   const effortId = String((meta && meta.effortId) || '')
   const createdAt = (meta && typeof meta.createdAt === 'string' ? meta.createdAt : '') || ''

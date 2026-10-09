@@ -66,7 +66,7 @@ function main() {
   })
   check(outside.length === 0, '新增骨架类只在叶子与列表（版本弹窗更新四处不用）', outside.join(','))
   check(vcTab.includes('dsws-vc-skel'), '版本页原有骨架还在（早于本图，不动）')
-  check(!read('src/client/views/primitives/PxSkel.js').includes('dsws-fb-skel'), '像素风占位块不动（那是详情的，不是列表的）')
+  check(!read('src/client/views/pixel/PixelSkeleton.js').includes('dsws-fb-skel'), '像素风占位块不动（那是详情的，不是列表的）')
 
   // —— 5. 进度环只包方空隙图标：五个落点里没有，生产里不给任何图标套环 ——
   check(!listTab.includes('fb-ring') && !vcView.includes('fb-ring') && !modal.includes('fb-ring'), '五个落点无进度环（没有方空隙图标就不套）')

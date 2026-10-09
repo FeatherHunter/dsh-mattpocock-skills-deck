@@ -1,7 +1,7 @@
 // issues-patch.js —— 以后改打补丁类字段更新时改它（预估约 190 行）。
 //
 // effort 维度（2026-09-09）：所有写路径按 (effort 范围, 编号) 定位文件，多命中即 conflict。
-import { parseMd, stripLabelDecoration } from './parse.js'
+import { parseMd, stripLabelDecoration, parentKeyFromFile } from './parse.js'
 import { readTextFile } from './read.js'
 import { writeTextFile } from './write.js'
 import { classifyError } from '../../preflight.js'
@@ -54,15 +54,11 @@ export async function updateIssue(ctx,repo,key,patch){
   const r=await resolveTarget(ctx,repo,norm,'write')
   if(!r.ok)return{ok:false,error:r.error}
   const res=await readParseWrite(ctx,repo,r,norm,function(txt){
+    const fnOldText=String(txt||'')
     let changed=false
-    if(patch&&typeof patch.title==='string'){
-      const newTitle=patch.title.trim()
-      if(newTitle){
-        if(/^#+\s+.*$/m.test(txt))txt=txt.replace(/^#+\s+.*$/m,'# '+newTitle)
-        else txt='# '+newTitle+'\n\n'+txt
-        changed=true
-      }
-    }
+    // #972：标题分支必须在正文分支之后：正文的整份替换分支会拿递进来的整份盖掉刚换好的标题。
+    // 标题后置 = 同传时以后一步的标题参数为准；只传一边时行为不变。
+    const newTitle=(patch&&typeof patch.title==='string')?patch.title.trim():''
     if(patch&&typeof patch.body==='string'){
       if(/^\s*Status\s*[:\uFF1A]/im.test(patch.body)){
         txt=String(patch.body);changed=true
@@ -88,6 +84,11 @@ export async function updateIssue(ctx,repo,key,patch){
         changed=true
       }
     }
+    if(newTitle){
+      if(/^#+\s+.*$/m.test(txt))txt=txt.replace(/^#+\s+.*$/m,'# '+newTitle)
+      else txt='# '+newTitle+'\n\n'+txt
+      changed=true
+    }
     if(patch&&Array.isArray(patch.customFields)){
       for(const cf of patch.customFields){
         if(cf&&cf.name==='Type'&&typeof cf.value==='string'&&cf.value.trim()){
@@ -102,6 +103,13 @@ export async function updateIssue(ctx,repo,key,patch){
       const line=names.length? 'Labels: '+names.join(', ') : 'Labels:'
       txt=replaceOrInsertField(txt,'Labels',line);changed=true
     }
+    // #971 加固：改正文与标签不许顺手把父注释弄丢。整份替换的两条分支会拿递进来的正文盖掉整份文件，
+    // 父注释不在字段行里，补不回来，下一次读回父就从 01 掉回 00。这里以盘上旧文件的父为准补回。
+    try{
+      const oldP=parentKeyFromFile(fnOldText)
+      const newP=parentKeyFromFile(txt)
+      if(oldP.found&&!newP.found){txt=upsertParentComment(txt,oldP.value);changed=true}
+    }catch{}
     return changed?txt:undefined
   })
   if(!res.ok)return{ok:false,error:res.error}
@@ -142,8 +150,118 @@ export async function setAssigneesIssue(ctx,repo,key,assignees){
     return{ok:true,data:iss}
   }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
 }
+/** 把文件顶的父票注释换成新的值，没有这一行就插一行（#971）。
+ *
+ *  为什么要单独抽出来：改父在本地后端就是改这一行注释，不动文件位置。
+ *  幂等锚那一行（DSH-IDEMPOTENCY-KEY）在最前，父注释紧跟在它后面；
+ *  没有锚的文件直接插在最前。解除父子（null）写成明确的 null 字样，
+ *  这样以后读回来是“没有父票”，而不会回落到老默认值 00。 */
+function upsertParentComment(text, want) {
+  const line = want === null ? '<!-- parentKey: null -->' : '<!-- parentKey: ' + String(want) + ' -->'
+  const raw = String(text || '')
+  // 只动文件头的注释：正文里举例写同样的写法不算数（读也只认文件头，这里只换文件头）。
+  const h1 = /^#+\s+/m.exec(raw)
+  const headEnd = h1 ? h1.index : raw.split('\n').slice(0, 10).join('\n').length
+  const head = raw.slice(0, headEnd)
+  const rest = raw.slice(headEnd)
+  const re = /^[ \t]*<!--[ \t]*parentKey[ \t]*:[ \t]*.*?-->[ \t]*\r?\n?/im
+  if (re.test(head)) return head.replace(re, line + '\n') + rest
+  const lines = head.split('\n')
+  let at = 0
+  if (lines.length && /^[ \t]*<!--[ \t]*DSH-IDEMPOTENCY-KEY:/.test(lines[0])) at = 1
+  lines.splice(at, 0, line)
+  return lines.join('\n') + rest
+}
+function normParentKey(v) {
+  if (v === undefined || v === null) return null
+  const t = String(v).trim()
+  if (!t) return null
+  if (/^null$/i.test(t) || /^none$/i.test(t) || t === '-') return null
+  if (/^\d+$/.test(t)) return t.padStart(2, '0')
+  return t
+}
 export async function setParentIssue(ctx,repo,key,parentKey){
-  return{ok:false,error:{kind:ERROR_KIND.UNSUPPORTED,message:'markdown setParent unsupported (single-root)'}}
+  const norm=String(key).padStart(2,'0')
+  const want=normParentKey(parentKey)
+  const colorMap=await loadPaintColorMap(ctx)
+  // 地图文件本身没有父票：只要解除（null）就直接成功，其余一律如实说做不到。
+  if(norm==='00'){
+    if(want===null){
+      const r=await resolveMapFile(ctx,repo,{mode:'read'})
+      if(!r.ok)return{ok:false,error:r.error}
+      try{
+        const txt=await readTextFile(ctx,r.path)
+        const iss=parseMd(txt,{key:'00',parentKey:null,isMap:true,effortId:r.effortId})
+        applyLabelColors(iss, colorMap)
+        return{ok:true,data:iss}
+      }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
+    }
+    return{ok:false,error:{kind:ERROR_KIND.UNSUPPORTED,message:'markdown setParent unsupported (map has no parent)'}}
+  }
+  const r=await resolveTarget(ctx,repo,norm,'write')
+  if(!r.ok)return{ok:false,error:r.error}
+  const childEffort=r.effortId||''
+  // 同值比较放在写队列里面做（#922）：队外先读一次再比，两路并发改同一张票时，后写的那一路会把先写的那一路的改动盖掉，
+  // 而先读的那一路还按旧值报成功。下面三条写路径都在队内先读 fresh 的那一份，相等就不写直接成功。
+  // 解除父子不需要搬文件（同一目录内去掉注释即可），直接成功。
+  if(want===null){
+    const res=await readParseWrite(ctx,repo,r,norm,function(txt){
+      try{
+        const cur0=parseMd(txt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort}).parentKey
+        const curN=cur0===undefined||cur0===null?null:normParentKey(cur0)
+        if(curN===want)return undefined
+      }catch{}
+      return upsertParentComment(txt, null)
+    })
+    if(!res.ok)return{ok:false,error:res.error}
+    try{
+      const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort})
+      applyLabelColors(iss, colorMap)
+      return{ok:true,data:iss}
+    }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
+  }
+  // 新父必须在同一个工作单元里（同一个目录树下）：目录即父子，跨目录搬文件不支持，如实失败。
+  if(want==='00'){
+    const mr=await resolveMapFile(ctx,repo,{effortId:childEffort,mode:'read'})
+    if(!mr.ok)return{ok:false,error:{kind:ERROR_KIND.NOTFOUND,message:'parent 00 not-found in effort「'+childEffort+'」'}}
+    const res=await readParseWrite(ctx,repo,r,norm,function(txt){
+      try{
+        const cur0=parseMd(txt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort}).parentKey
+        const curN=cur0===undefined||cur0===null?null:normParentKey(cur0)
+        if(curN===want)return undefined
+      }catch{}
+      return upsertParentComment(txt, '00')
+    })
+    if(!res.ok)return{ok:false,error:res.error}
+    try{
+      const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort})
+      applyLabelColors(iss, colorMap)
+      return{ok:true,data:iss}
+    }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
+  }
+  const pr=await resolveIssueFile(ctx,repo,want,{effortId:childEffort,mode:'read'})
+  if(pr.ok&&(pr.effortId||'')===childEffort){
+    const res=await readParseWrite(ctx,repo,r,norm,function(txt){
+      try{
+        const cur0=parseMd(txt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort}).parentKey
+        const curN=cur0===undefined||cur0===null?null:normParentKey(cur0)
+        if(curN===want)return undefined
+      }catch{}
+      return upsertParentComment(txt, want)
+    })
+    if(!res.ok)return{ok:false,error:res.error}
+    try{
+      const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort})
+      applyLabelColors(iss, colorMap)
+      return{ok:true,data:iss}
+    }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
+  }
+  // 同目录里找不到这个父：看它是不是在别的工作单元里，是就是跨目录（不支持），不是就是不存在。
+  try{
+    const anywhere=await resolveIssueFile(ctx,repo,want,{effortId:null,mode:'read'})
+    if(anywhere&&anywhere.ok)return{ok:false,error:{kind:ERROR_KIND.UNSUPPORTED,message:'markdown setParent unsupported (cross-effort '+childEffort+' -> '+(anywhere.effortId||'')+')'}}
+  }catch{}
+  return{ok:false,error:{kind:ERROR_KIND.NOTFOUND,message:'parent '+want+' not-found'}}
 }
 export async function setLabelsIssue(ctx,repo,key,labels){
   const norm=String(key).padStart(2,'0')

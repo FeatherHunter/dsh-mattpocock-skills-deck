@@ -23,6 +23,8 @@ import { parseLog } from '../shared/version-control/parse-log.js'
 import { parseDiffFiles } from '../shared/version-control/parse-diff-files.js'
 import { assemble, classifyStepZero } from '../shared/version-control/state.js'
 import { makeStallWatch } from './stallWatch.js' // #847：字节增长看门狗（自包含叶子，照 #500/#821 先例）
+import { withGhLane } from '../shared/tracker/outbound-admission.js'
+import { failPhone, firstLine, failureFromExec } from '../shared/version-control/exec-envelope.js'
 
 const VIA = 'version-control'          // 日志的 via：这一族 git 命令都由版本管理页签发起
 const GIT_NAME = 'git'                 // 日志的 argv0：只记程序名，不记路径
@@ -66,6 +68,8 @@ export function createVersionControl(deps) {
     const t0 = Date.now()
     const limit = (opts && opts.stdoutLimit) ? opts.stdoutLimit : STDOUT_LIMIT
     const budget = (opts && opts.timeoutMs) ? opts.timeoutMs : timeoutMs
+    // #965：git 只读与 gh 共用同一道（读桶），满了排队等；排队被取消按取消返回，不算失败。名额由包装器拿与放。
+    return withGhLane({ bucket: 'read', signal: (opts && opts.signal) || undefined }, async function () {
     reportOutbound()
     let handle
     try {
@@ -104,8 +108,9 @@ export function createVersionControl(deps) {
     const err = readCollector(handle.collected && handle.collected.stderr)
     const exitCode = (outcome && typeof outcome.exitCode === 'number') ? outcome.exitCode : -1
     fire('info', 'git.exec', { argv0: GIT_NAME, cwdHash: dirHash(dir), latencyMs: Date.now() - t0, exitCode: exitCode, via: VIA })
-    if (exitCode !== 0) return { kind: 'non-zero', exitCode: exitCode, stderr: err.text }
+    if (exitCode !== 0) { return { kind: 'non-zero', exitCode: exitCode, stderr: err.text } }
     return { kind: 'ok', stdout: out.text, truncated: out.truncated }
+    }, function () { return { kind: 'cancelled', cancelled: true, message: '已取消排队，可重试' } })
   }
   /** 找 git 命令；找不到或平台服务缺席都转成明确失败值，不抛。 */
   async function resolveGitExecutable() {
@@ -116,20 +121,8 @@ export function createVersionControl(deps) {
       return (typeof exe === 'string' && exe) ? exe : null
     } catch (e) { return null }
   }
-  /** 失败信封的唯一真源：三条电话共用这一份形状（扁平信封，错误只有一个 kind 与一句人话）。 */
-  function failPhone(kind, message, extra) { return Object.assign({ ok: false, error: { kind: kind, message: message } }, extra || {}) }
-
-  /** 取错误信息的第一行做说明；空的时候给一句兜底，不留空白。 */
-  function firstLine(text) { const t = String(text || '').replace(/\r/g, '').trim(); if (!t) return 'git 没有给出说明'; const i = t.indexOf('\n'); return (i >= 0 ? t.slice(0, i) : t).slice(0, 300) }
-
-  /** 把一次进程执行的四种情形翻译成失败信封；成功交给调用方继续。 */
-  function failureFromExec(res, what) {
-    if (res.kind === 'timeout') return failPhone('timeout', what + '超时了（' + res.timeoutMs + ' 毫秒没有回音）')
-    if (res.kind === 'spawn-failed') return failPhone('spawn', what + '时起不了 git 进程：' + res.message)
-    if (res.kind === 'non-zero') return failPhone('exit', what + '失败（git 退出码 ' + res.exitCode + '）：' + firstLine(res.stderr))
-    return null
-  }
-
+  // 失败信封三件套（failPhone / firstLine / failureFromExec）已下沉到共享核心
+  // src/shared/version-control/exec-envelope.js（纯函数，电话们照旧引用，形状不变；另认 cancelled）。
   /** 第 0 步 + 仓库根：先确认这里是不是仓库，再问出后续命令要钉死的那个目录（裸仓库的根就是它的 git 目录）。 */
   async function resolveRepoRoot(exe, cwd) {
     const step0 = await runPinned(exe, cwd, stepZeroArgs(), { stdoutLimit: STDERR_LIMIT })

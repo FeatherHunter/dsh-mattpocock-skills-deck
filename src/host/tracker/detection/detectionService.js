@@ -278,10 +278,12 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
       }
     }
 
-    // 技能正交探测（10 名，含 setup-matt-pocock-skills 正位；复用 host probeSkill 逻辑）
+    // 技能正交探测（复用 host probeSkill 逻辑；名单由探针闭包按范围选）
     let skillProbes = null
-    // #284：wf.chain 只取 selection，跳过 25 名技能探测（避免等待计数被链加载外的轮次推进；计数仅随真实探针轮次推进）
-    if (!opts.skipSkillProbes) { try { skillProbes = await probeSkills({ cwd, platform }) } catch { skillProbes = null } }
+    // #284：wf.chain 只取 selection，跳过技能探测（避免等待计数被链加载外的轮次推进；计数仅随真实探针轮次推进）
+    // #968 技能按需：调用方明确说要全量就问全量，人亲手重查（force）问全量，其余平时只问链条要的三项。
+    // 范围与重查标记一起交过去：重查的那一次单项探测绕过短时记住，刚装好的技能立即可见。
+    if (!opts.skipSkillProbes) { try { skillProbes = await probeSkills({ cwd, platform, skillScope: opts.skillScope || (force ? 'full' : 'chain'), force: force }) } catch { skillProbes = null } }
 
     const result = {
       handle: { cwd },

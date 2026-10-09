@@ -3,12 +3,12 @@
 // 接线：由 index.js 动态 import 加载；harness 注册留守 index，处理器体经 handleDetect/handleChain 供给。
 import { refreshSourceOf } from './refresh/refreshSource.js'
 import { workspaceKeyOf } from '../shared/refresh-workspace-key.js'   // #724：链记账给闸的钥匙，与活跃集合同一把（从前传 cwd 原文 → 同一个工作区在闸里有两格）
+import { getChainRide } from '../shared/refresh/chain-ride.js'   // #964 小账本住共享层；#966 用进程单例，出站写路能记写
 export function createDetectChain(deps) {
   const { canonicalKey, DEFAULT_CWD, resetGhCache, getDetectionService, getPlatform, getTrackerRegistry, getRepoKey, runGh, timer, probeSkill, mdParseOkPredicate, getChainCache, setChainCache, getChainBackoff, logCtx, gate, ghTimeoutMs, sandboxPolicyFor } = deps
   // #491 房外埋点 helpers：hash8 只记散列；P1 外层先判开关（采样/节流/按事件），字段函数只在守卫内求值。
   function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
-  let chainSampleN = 0
-  const chainInflight = new Map() // #696 在途合并：同钥匙同后端同语言同强制标记的并发共用同一份求值，强制不进表
+  const chainInflight = getChainRide({ now: (deps && deps.now) || undefined }) // #696搭车表用进程单例（写信号由出站路记进来）；测试注钟时建隔离新账
   let lastPredAt = 0
   let lastPredStatus = {}
   /**
@@ -26,8 +26,6 @@ export function createDetectChain(deps) {
   }
   /** 探测级联那一侧用的执行器（签名 = platformChannel 的 detectionExec）。 */
   function scopedDetectionExec(scope) { return function (cmd, args, opts, via) { return scope.exec(cmd, args, opts, via) } }
-  // #723（T19）：默认超时不再写死在这里（数字住在 github/client.js 的 TIMEOUT_MS，由宿主接线经 ghTimeoutMs 传进来）。
-  const CHANNEL_GH_TIMEOUT_MS = (typeof ghTimeoutMs === 'number' && ghTimeoutMs > 0) ? ghTimeoutMs : 30000
   // #723（T19）：这一次求值的裁决与记账经闸落一笔（身份 = refreshSourceOf 算出来的那两个名字之一，所以
   // 「谁按的、哪一档、什么时候」留在账上）。报给闸的条数写 0：这条链真正花出去的每一条出站请求都由传输层
   // 各自报过一笔（repoKeys.runGh 与 detectionExec 的 noteOutbound），再报一遍会把同一笔数成两笔。
@@ -37,7 +35,8 @@ export function createDetectChain(deps) {
       await gate.send({ source: source, kind: 'chain', workspaceKey: workspaceKey }, async function () { return { requests: 0, points: 0 } })
     } catch (e) { /* 记账不许把链求值带崩 */ }
   }
-  function ghOptsFor(cwdIn) { return { cwd: cwdIn, timeout: CHANNEL_GH_TIMEOUT_MS } }
+  // #969：链上不再自带超时数字（分档由出站两路按命令认：读 12 秒、探活 3 秒；自带 30 秒会盖掉分档）。
+  function ghOptsFor(cwdIn) { return { cwd: cwdIn } }
   // #709（T5）：退避与全绿缓存整段交给 refresh-core 的纯函数裁定（薄壳 src/host/refresh/chainBackoff.js，
   // 数字真源是 budget.ts）：8 秒 → 30 秒 → 2 分钟 → 5 分钟逐档后退，有进展立刻回第一档，全绿后 30 分钟。
   // 触发只有四种事件，宿主侧一个自续定时器都没有；人亲手点「重新检查」带 trigger='user-recheck' 上来，永不降档。
@@ -85,7 +84,7 @@ export function createDetectChain(deps) {
         try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'chain.cache.miss', function () { return { keyHash: hash8(cacheKey), lang: chainLang, reason: force ? 'force' : (v.reason || 'due') } }) } catch (eL) {}
         // #696 在途合并：同钥匙同后端同语言同强制标记共用同一份（另带修订号，免不同修订串份）；先回来的写缓存，后到的拿同一份；强制不参与合并
         const chainDedupKey = cacheKey + '|' + (force ? '1' : '0') + '|' + String((args && args.baseRev) || 0)
-        if (!force) { const ongoingChain = chainInflight.get(chainDedupKey); if (ongoingChain) { try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'dedup.hit', function () { return { scope: 'chain', keyHash: hash8(chainDedupKey) } }) } catch (eL) {}; return await ongoingChain } }
+        if (!force) { const ongoingRide = chainInflight.take(chainDedupKey); if (ongoingRide) { chainInflight.noteRide(); try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'dedup.hit', function () { return { scope: 'chain', keyHash: hash8(chainDedupKey) } }) } catch (eL) {}; return await ongoingRide } }
         const chainPending = (async function () {
         const platform = await getPlatform()
         // #709（T5 补）：这次求值的环境预检复用位。开不出来（没这个模块）就是 null，后面照走原路。
@@ -338,12 +337,12 @@ export function createDetectChain(deps) {
         } catch (eL) {}
         return result
         })()
-        if (!force) { chainInflight.set(chainDedupKey, chainPending); try { return await chainPending } finally { chainInflight.delete(chainDedupKey) } }
+        if (!force) { const rideEntry = chainInflight.park(chainDedupKey, chainPending); try { return await chainPending } finally { chainInflight.leave(chainDedupKey, rideEntry) } }
         return await chainPending
       }catch(e){
         try { const m = String((e && e.message) || e); if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: 'wf.chain', kind: 'chain', errorHash: hash8(m), errorKind: (/is not a function|is not defined|of undefined|of null/i.test(m) ? 'missing-dep' : (/timeout|timed out/i.test(m) ? 'timeout' : 'throw')) }) } catch (eL) {}   // #724：异常也留一行（从前静默吞掉，真机查了两天没有原文）；errorKind 把「接线没给全」（missing-dep）与「跑起来真失败」（throw）分开
         return { ok: false, error: String((e && e.message)||e) }
       }
   }
-  return { handleDetect, handleChain }
+  return { handleDetect, handleChain, markChainWrite: function () { chainInflight.markWrite() }, rideStats: function () { return chainInflight.stats() } }
 }
