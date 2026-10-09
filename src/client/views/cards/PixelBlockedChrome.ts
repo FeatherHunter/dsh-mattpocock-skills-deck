@@ -1,14 +1,5 @@
-/** views/cards/PixelBlockedChrome.ts - blocker box, seal, chip, veil. */
+/** views/cards/PixelBlockedChrome.ts - 被阻塞卡上的斜封条、挡路卡上的红条、整卡暗层。 */
 import type { BlockedInfo } from './cardProps';
-export const PixelBlockerBox = function (props?: BlockedInfo): any {
-  const p: BlockedInfo = props || {};
-  const cx = React.useContext(DswsCtx);
-  const h = cx ? cx.h : React.createElement;
-  return h('div', { className: 'cd-blocker' }, [
-    h('div', { key: 'k', className: 'bk' }, tr('card.blockedBy', { n: '#' + (p.no || '') })),
-    h('div', { key: 't', className: 'bt' }, p.title),
-  ]);
-};
 export const PixelBlockedSeal = function (props?: BlockedInfo): any {
   const p: BlockedInfo = props || {};
   const cx = React.useContext(DswsCtx);

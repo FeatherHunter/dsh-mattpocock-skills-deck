@@ -8,7 +8,6 @@ declare const PixelCardNote: (props?: any) => any;
 declare const PixelCardFoot: (props?: any) => any;
 declare const PixelCornerMark: (props?: any) => any;
 declare const PixelClosedSeal: () => any;
-declare const PixelBlockerBox: (props?: any) => any;
 declare const PixelBlockedSeal: (props?: any) => any;
 declare const PixelDimVeil: () => any;
 declare const PixelBlockerChip: (props?: any) => any;
@@ -50,7 +49,6 @@ export const PixelIssueCard = function (props?: IssueCardProps): any {
   if (corner) kids.push(h(PixelCornerMark, { key: 'cor', kind: corner }));
   const headNo = h(PixelCardNo, { key: 'no', text: p.noText, action: p.action, colorOf: p.colorOf || null });
   kids.push(h('div', { key: 'hd', className: 'cd-hd' }, [headNo, p.closed ? h(PixelClosedSeal, { key: 'c' }) : null]));
-  if (blocked && p.blockedBy) kids.push(h(PixelBlockerBox, { key: 'bb', no: p.blockedBy.no, title: p.blockedBy.title }));
   if (blocked && p.blockedBy) kids.push(h(PixelBlockedSeal, { key: 'bs', no: p.blockedBy.no }));
   const suffix = p.claimedBy ? h("span", { className: "cd-take" }, tr("card.claimedBy", { n: p.claimedBy })) : null;
   kids.push(h(PixelCardTitle, { key: 'tt', text: p.title, suffix }));
