@@ -148,4 +148,25 @@ export function getGhLane() {
 /** 测试与特殊场景自建一道（不污染默认单例）。 */
 export function resetGhLaneForTest() { defaultLane = null }
 
+/**
+ * 排队拿名额再跑（#965 共用包装器，给行数到顶的文件用，免得每个调用方各写一遍拿与放）。
+ * 满了等（等不是失败）；排队被取消调 onQueuedCancel；跑完放名额（成功失败都放，抛错也放）。
+ * 用法：return withGhLane({ bucket: 'read', signal: opts.signal }, async function () { …真起进程… },
+ *   function () { return { kind: 'cancelled', cancelled: true } })。
+ */
+export async function withGhLane(laneOpts, run, onQueuedCancel) {
+  const o = laneOpts || {}
+  let release = null
+  try {
+    release = await getGhLane().acquire({ bucket: o.bucket || 'read', signal: o.signal || undefined })
+  } catch (e) {
+    return onQueuedCancel(e)
+  }
+  try {
+    return await run()
+  } finally {
+    try { if (release) release() } catch {}
+  }
+}
+
 export default getGhLane

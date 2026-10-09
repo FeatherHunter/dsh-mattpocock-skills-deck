@@ -115,10 +115,11 @@ async function main() {
     const room = read('src/host/tracker/backends/github/client.js')
     check(repoKeys.includes('getGhLane') && repoKeys.includes('shared/tracker/outbound-admission.js'), '取数层 runGh/execProc 走同一道准入')
     check(plat.includes('getGhLane') && plat.includes('shared/tracker/outbound-admission.js'), '探测通道 detectionExec 走同一道准入')
-    check(vc.includes('getGhLane') && vc.includes('shared/tracker/outbound-admission.js'), '版本管理 runGit 走同一道准入（只读路同口径）')
+    check((vc.includes('getGhLane') || vc.includes('withGhLane')) && vc.includes('shared/tracker/outbound-admission.js'), '版本管理 runGit 走同一道准入（只读路同口径，包装器拿与放）')
     // 房间执行器是宿主直调（不经过下游两条路），房间必须自己拿一次名额；白名单目录引用合规，一次请求只占一个名额。
     check(room.includes('shared/tracker/outbound-admission.js'), '房间经白名单目录拿同一道名额（宿主直调，下游盖不住，不过双）')
-    check(room.includes('cancelled') && repoKeys.includes('cancelled') && plat.includes('cancelled') && vc.includes('cancelled'), '四处都把取消按取消返回（被取消的不算失败）')
+    // 取数层 runGh/execProc 现不接取消信号（调用方无信号可传，无信号的排队只会等不会抛），取消语义由带信号的两路承担。
+    check(room.includes('cancelled') && plat.includes('cancelled') && vc.includes('cancelled'), '带信号的三处把取消按取消返回（被取消的不算失败）')
   }
 
   // 6. 全进程共用同一道计数（三路出站同一口径的前提）。

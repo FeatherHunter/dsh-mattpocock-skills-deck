@@ -12,10 +12,8 @@
 import { ERROR_KIND } from '../../../../shared/tracker/constants.js'
 import { fail } from '../../preflight.js'
 import { classifyGhError } from './errors.js'
-import { tierForGhArgs, timeoutForGhArgs, isWriteGhArgs } from '../../../../shared/tracker/outbound-tiers.js'
+import { timeoutForGhArgs, isWriteGhArgs } from '../../../../shared/tracker/outbound-tiers.js'
 import { getGhLane, isAdmissionCancelled } from '../../../../shared/tracker/outbound-admission.js'
-import { getGhMeasure } from '../../../../shared/tracker/outbound-measure.js'
-import { noteGhWrite } from '../../../../shared/tracker/outbound-write-generation.js'
 
 // 房内埋点（#494 O1）：gh.exec（#5 常驻）/ gh.timeout（#6 告警）/ gh.resolve.fail（#7 告警），字段按 #489 附录 1.4。
 // gh.exec 高频：外层先判 isEnabled（信息），关闭时不组装字段；告警两项常驻直发；参数只记命令名，不记完整参数（避免令牌落盘）。
@@ -148,8 +146,7 @@ export function ghClient(ctx) {
   async function execGh(args, opts = {}) {
     const cwd = getCwd(ctx, opts.cwd)
     const t0 = Date.now()
-    // #969（T3）：默认超时按读写探活分档（调用方显式 timeout 优先）；#965（T2a）读写分桶准入。
-    const tier = tierForGhArgs(args)
+    // #969：默认超时按读写探活分档（调用方显式 timeout 优先）；#965 读写分桶拿名额。
     const bucket = isWriteGhArgs(args) ? 'write' : 'read'
     const signal = opts.signal || (ctx && ctx.signal) || undefined
     const timeout = opts.timeout != null ? opts.timeout : timeoutForGhArgs(args)
@@ -158,7 +155,6 @@ export function ghClient(ctx) {
     try {
       release = await getGhLane().acquire({ bucket: bucket, signal: signal || undefined })
     } catch (eAcquire) {
-      try { getGhMeasure().record({ via: 'room-client', tier: tier, bucket: bucket, latencyMs: Date.now() - t0, outcome: 'cancelled' }) } catch {}
       emitGhExec('cancelled', -1, t0, cwd)
       return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: '已取消排队（出站准入等待中被取消），没有发出请求，可重试', code: -1, cancelled: true } }
     }
@@ -200,22 +196,17 @@ export function ghClient(ctx) {
         const kind = looksTimeout ? ERROR_KIND.NETWORK : ((code === -1 && !stderr && !stdout) ? ERROR_KIND.ENV : classifyGhError(err, ctx))
         emitGhExec(kind, code, t0, cwd)
         if (looksTimeout) emitGhTimeout(timeout)
-        try { getGhMeasure().record({ via: 'room-client', tier: tier, bucket: bucket, latencyMs: elapsedMs, outcome: looksTimeout ? 'timeout' : 'fail' }) } catch {}
         // #620：退出码要一起交回调用方。gh 自己的约定是「需要登录 = 退出码 4」（gh help exit-codes），
         // 只靠错误文案里的词去猜「是不是没登录」是巧合匹配；这里把 code 带上，分类才站得住。
         return { ok: false, error: { kind, message: String(stderr || stdout || err.message).slice(0, 800), code } }
       }
       emitGhExec('ok', 0, t0, cwd)
-      try { getGhMeasure().record({ via: 'room-client', tier: tier, bucket: bucket, latencyMs: Date.now() - t0, outcome: 'ok' }) } catch {}
-      // #964：写成功推高写世代，探测链据此知道“写过东西之后不搭”。
-      try { if (bucket === 'write') noteGhWrite() } catch {}
       return { ok: true, data: { stdout, stderr, code } }
     } catch (e) {
       // exec 抛的错误（timeout/network 等）→ 归一化
       const elapsedMs = Date.now() - t0
       // #969：调用方取消（排队/在飞中被杀）按取消返回，不算失败；其余照旧归一。
       if (isAdmissionCancelled(e) || (signal && signal.aborted === true)) {
-        try { getGhMeasure().record({ via: 'room-client', tier: tier, bucket: bucket, latencyMs: elapsedMs, outcome: 'cancelled' }) } catch {}
         emitGhExec('cancelled', -1, t0, cwd)
         return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: '已取消（没有发出有效请求，可重试）', code: -1, cancelled: true } }
       }
@@ -223,7 +214,6 @@ export function ghClient(ctx) {
       emitGhExec(kind, -1, t0, cwd)
       const looksTimeout = isTimeoutText((e && (e.message || e.stderr)) || e) || elapsedMs >= timeout - 50
       if (looksTimeout) emitGhTimeout(timeout)
-      try { getGhMeasure().record({ via: 'room-client', tier: tier, bucket: bucket, latencyMs: elapsedMs, outcome: looksTimeout ? 'timeout' : 'fail' }) } catch {}
       const message = String((e && (e.message || e.stderr)) || e || 'gh exec failed').slice(0, 800)
       // code: -1 = 这次调用连退出码都没有（超时、spawn 失败之类），调用方据此知道「不是命令自己报的错」
       return { ok: false, error: { kind: looksTimeout ? ERROR_KIND.NETWORK : kind, message, code: -1 } }

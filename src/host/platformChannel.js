@@ -1,10 +1,8 @@
 // src/host/platformChannel.js —— 平台与探测通道（H1 #445 从 host/index.js 259–491 搬出，纯结构、行为零变化）
 // 以后谁改它：改平台抽象、后端注册表或探测级联的人。预估约 280 行，超 350 打回。
 // 接线：由 index.js 动态 import 动态加载；STATUS_CACHE_MS 随本文件搬入（无外部引用）；getMattSkillProbeNames/probeSkill 显式注入；共享层只引用 src/shared（出站分档/准入/测量，#963）。本文件不引用其他宿主新文件。
-import { tierForGhArgs, timeoutForGhArgs, isWriteGhArgs } from '../shared/tracker/outbound-tiers.js'
+import { timeoutForGhArgs, isWriteGhArgs } from '../shared/tracker/outbound-tiers.js'
 import { getGhLane } from '../shared/tracker/outbound-admission.js'
-import { getGhMeasure } from '../shared/tracker/outbound-measure.js'
-import { noteGhWrite } from '../shared/tracker/outbound-write-generation.js'
 export function createPlatformChannel(deps) {
   const { ctx, subprocess, timer, fs, DEFAULT_CWD, TIMEOUT_MS, getMattSkillProbeNames, probeSkill, logCtx, gate, getGate } = deps
   // #494 O1：旧文本通道退役——backend.diagnostic 不再产生（github 房内零调用；残留 ctx.log.* 调用自动静默，gitlab 房由本房 O 票另行结构化）。房内埋点只走 logEvent/isEnabled。
@@ -201,14 +199,11 @@ export function createPlatformChannel(deps) {
       const deIsGh = /^gh(\.exe)?$/i.test(cmdBase)
       const deIsGlab = /^glab(\.exe)?$/i.test(cmdBase)
       const deIsOutbound = deIsGh || deIsGlab
-      const deTier = deIsGh ? tierForGhArgs(args) : 'read'
       const deBucket = (deIsGh && isWriteGhArgs(args)) ? 'write' : 'read'
-      const deStartT0 = Date.now()
       let deRelease = null
       if (deIsOutbound) {
         try { deRelease = await getGhLane().acquire({ bucket: deBucket, signal: (opts && opts.signal) || undefined }) }
         catch (eDeQ) {
-          try { getGhMeasure().record({ via: String(via || 'unspecified'), tier: deTier, bucket: deBucket, latencyMs: Date.now() - deStartT0, outcome: 'cancelled' }) } catch {}
           return { stdout: '', stderr: 'cancelled while queued for gh admission', code: -1 }
         }
       }
@@ -237,10 +232,7 @@ export function createPlatformChannel(deps) {
           graceMs: 2000,
         })
       } catch (e) {
-        if (deIsOutbound) {
-          try { getGhMeasure().record({ via: String(via || 'unspecified'), tier: deTier, bucket: deBucket, latencyMs: Date.now() - deStartT0, outcome: 'fail' }) } catch {}
-          try { if (deRelease) deRelease() } catch {}
-        }
+        if (deIsOutbound) { try { if (deRelease) deRelease() } catch {} }
         throw new Error('exec spawn failed: ' + String((e && e.message) || e))
       }
       // #969：gh 默认超时按读写探活分档（调用方显式 timeout 优先）；glab 与 git 沿用旧默认。
@@ -268,16 +260,7 @@ export function createPlatformChannel(deps) {
       const out = (handle.collected && handle.collected.stdout) ? handle.collected.stdout.readFrom(0) : { text: '' }
       const err = (handle.collected && handle.collected.stderr) ? handle.collected.stderr.readFrom(0) : { text: '' }
       try { if (execT0 && logCtx.isEnabled('debug')) logCtx.fire('debug', 'exec.run', { argv0: progName(argv[0]), cwdHash: hash8(c || DEFAULT_CWD), latencyMs: Date.now() - execT0, exitCode: (outcome && typeof outcome.exitCode === 'number') ? outcome.exitCode : -1, via: String(via || 'unspecified') }) } catch (eL) {}
-      // #967 测量记一笔（四种结局都记）；#964 写成功推高写世代；名额用完放回（只放一次）。
-      const deCode = (outcome && typeof outcome.exitCode === 'number') ? outcome.exitCode : -1
-      if (deIsOutbound) {
-        try {
-          const deOutcome = (outcome && outcome.signal === 'timeout') ? 'timeout' : (deCode === 0 ? 'ok' : 'fail')
-          getGhMeasure().record({ via: String(via || 'unspecified'), tier: deTier, bucket: deBucket, latencyMs: Date.now() - deStartT0, outcome: deOutcome })
-          if (deCode === 0 && deBucket === 'write' && deIsGh) noteGhWrite()
-        } catch {}
-        try { if (deRelease) deRelease() } catch {}
-      }
+      if (deIsOutbound) { try { if (deRelease) deRelease() } catch {} }
       return { stdout: out.text || '', stderr: err.text || '', code: outcome.exitCode }
     }
     async function getDetectionService() {

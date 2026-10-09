@@ -23,7 +23,8 @@ import { parseLog } from '../shared/version-control/parse-log.js'
 import { parseDiffFiles } from '../shared/version-control/parse-diff-files.js'
 import { assemble, classifyStepZero } from '../shared/version-control/state.js'
 import { makeStallWatch } from './stallWatch.js' // #847：字节增长看门狗（自包含叶子，照 #500/#821 先例）
-import { getGhLane } from '../shared/tracker/outbound-admission.js'
+import { withGhLane } from '../shared/tracker/outbound-admission.js'
+import { failPhone, firstLine, failureFromExec } from '../shared/version-control/exec-envelope.js'
 
 const VIA = 'version-control'          // 日志的 via：这一族 git 命令都由版本管理页签发起
 const GIT_NAME = 'git'                 // 日志的 argv0：只记程序名，不记路径
@@ -62,20 +63,13 @@ export function createVersionControl(deps) {
   /** 把一次「钉死目录」的执行跑起来；返回核心 ports.ts 里那四种情形之一。 */
   function runPinned(exe, dir, args, opts) { return runGit(exe, dir, pinned(exe, dir, args).slice(1), opts) }
 
-  /** 跑一条 git 命令：成功与非零退出各落一行 git.exec，超时与起进程失败各落一行 git.exec.fail。opts.env 是给 #839 那一族「可能弹凭据提示」的命令传非交互环境用的（undefined 值是墓碑，从继承环境里删掉这一项）。opts.signal 是 #965 准入的取消信号：排队时被取消按取消返回，不算失败。 */
+  /** 跑一条 git 命令：成功与非零退出各落一行 git.exec，超时与起进程失败各落一行 git.exec.fail。opts.env 是给 #839 那一族「可能弹凭据提示」的命令传非交互环境用的（undefined 值是墓碑，从继承环境里删掉这一项）。 */
   async function runGit(exe, dir, args, opts) {
     const t0 = Date.now()
     const limit = (opts && opts.stdoutLimit) ? opts.stdoutLimit : STDOUT_LIMIT
     const budget = (opts && opts.timeoutMs) ? opts.timeoutMs : timeoutMs
-    const vcSignal = (opts && opts.signal) || undefined
-    // #965：先拿名额再起进程，版本管理只读路与三路出站共用同一道计数，一律读桶。
-    let vcRelease = null
-    try {
-      vcRelease = await getGhLane().acquire({ bucket: 'read', signal: vcSignal || undefined })
-    } catch {
-      return { kind: 'cancelled', cancelled: true, message: '已取消排队（出站准入等待中被取消），没有发出请求，可重试' }
-    }
-    const doneVc = function () { try { if (vcRelease) vcRelease() } catch {} }
+    // #965：git 只读与 gh 共用同一道（读桶），满了排队等；排队被取消按取消返回，不算失败。名额由包装器拿与放。
+    return withGhLane({ bucket: 'read', signal: (opts && opts.signal) || undefined }, async function () {
     reportOutbound()
     let handle
     try {
@@ -87,46 +81,26 @@ export function createVersionControl(deps) {
         env: (opts && opts.env) ? opts.env : undefined,
       })
     } catch (e) {
-      doneVc()
       fire('warn', 'git.exec.fail', { argv0: GIT_NAME, cwdHash: dirHash(dir), via: VIA, errorHash: hash8(String((e && e.message) || e)) })
       return { kind: 'spawn-failed', message: String((e && e.message) || e) }
     }
     const watch = (opts && opts.stallMs) ? makeStallWatch(handle, Math.max(1000, Math.min(600000, Math.floor(opts.stallMs))), budget, timer) : null
-    // #965：在飞时被取消就杀进程。
-    let onAbortVc = null
-    const abortVcP = new Promise(function (resolve) {
-      if (!vcSignal || typeof vcSignal.addEventListener !== 'function') return
-      if (vcSignal.aborted === true) { try { handle.terminate() } catch {} resolve({ exitCode: -1, signal: 'aborted' }); return }
-      onAbortVc = function () { try { handle.terminate() } catch {} resolve({ exitCode: -1, signal: 'aborted' }) }
-      try { vcSignal.addEventListener('abort', onAbortVc, { once: true }) } catch {}
-    })
     let outcome
     try {
       outcome = await Promise.race([
         handle.done,
         timer.timeout(budget).then(function () { try { handle.terminate() } catch (eT) {} return { exitCode: -1, signal: 'timeout' } }),
         watch ? watch : new Promise(function () {}),
-        abortVcP,
       ])
     } catch (e) {
-      try { if (onAbortVc && vcSignal && typeof vcSignal.removeEventListener === 'function') vcSignal.removeEventListener('abort', onAbortVc) } catch {}
-      doneVc()
       fire('warn', 'git.exec.fail', { argv0: GIT_NAME, cwdHash: dirHash(dir), via: VIA, errorHash: hash8(String((e && e.message) || e)) })
       return { kind: 'spawn-failed', message: String((e && e.message) || e) }
     }
-    try { if (onAbortVc && vcSignal && typeof vcSignal.removeEventListener === 'function') vcSignal.removeEventListener('abort', onAbortVc) } catch {}
-    // #965：在飞时被取消按取消返回，不算失败，不记超时。
-    if (outcome && outcome.signal === 'aborted') {
-      doneVc()
-      return { kind: 'cancelled', cancelled: true, message: '已取消在飞请求（出站准入执行中被取消），可重试' }
-    }
     if (outcome && outcome.signal === 'stalled') {
-      doneVc()
       fire('warn', 'git.exec.fail', { argv0: GIT_NAME, cwdHash: dirHash(dir), via: VIA, timeoutMs: outcome.stallMs })
       return { kind: 'stalled', stallMs: outcome.stallMs }
     }
     if (outcome && outcome.signal === 'timeout') {
-      doneVc()
       fire('warn', 'git.exec.fail', { argv0: GIT_NAME, cwdHash: dirHash(dir), via: VIA, timeoutMs: budget })
       return { kind: 'timeout', timeoutMs: budget }
     }
@@ -134,9 +108,9 @@ export function createVersionControl(deps) {
     const err = readCollector(handle.collected && handle.collected.stderr)
     const exitCode = (outcome && typeof outcome.exitCode === 'number') ? outcome.exitCode : -1
     fire('info', 'git.exec', { argv0: GIT_NAME, cwdHash: dirHash(dir), latencyMs: Date.now() - t0, exitCode: exitCode, via: VIA })
-    if (exitCode !== 0) { doneVc(); return { kind: 'non-zero', exitCode: exitCode, stderr: err.text } }
-    doneVc()
+    if (exitCode !== 0) { return { kind: 'non-zero', exitCode: exitCode, stderr: err.text } }
     return { kind: 'ok', stdout: out.text, truncated: out.truncated }
+    }, function () { return { kind: 'cancelled', cancelled: true, message: '已取消排队，可重试' } })
   }
   /** 找 git 命令；找不到或平台服务缺席都转成明确失败值，不抛。 */
   async function resolveGitExecutable() {
@@ -147,20 +121,8 @@ export function createVersionControl(deps) {
       return (typeof exe === 'string' && exe) ? exe : null
     } catch (e) { return null }
   }
-  /** 失败信封的唯一真源：三条电话共用这一份形状（扁平信封，错误只有一个 kind 与一句人话）。 */
-  function failPhone(kind, message, extra) { return Object.assign({ ok: false, error: { kind: kind, message: message } }, extra || {}) }
-
-  /** 取错误信息的第一行做说明；空的时候给一句兜底，不留空白。 */
-  function firstLine(text) { const t = String(text || '').replace(/\r/g, '').trim(); if (!t) return 'git 没有给出说明'; const i = t.indexOf('\n'); return (i >= 0 ? t.slice(0, i) : t).slice(0, 300) }
-
-  /** 把一次进程执行的四种情形翻译成失败信封；成功交给调用方继续。 */
-  function failureFromExec(res, what) {
-    if (res.kind === 'timeout') return failPhone('timeout', what + '超时了（' + res.timeoutMs + ' 毫秒没有回音）')
-    if (res.kind === 'spawn-failed') return failPhone('spawn', what + '时起不了 git 进程：' + res.message)
-    if (res.kind === 'non-zero') return failPhone('exit', what + '失败（git 退出码 ' + res.exitCode + '）：' + firstLine(res.stderr))
-    return null
-  }
-
+  // 失败信封三件套（failPhone / firstLine / failureFromExec）已下沉到共享核心
+  // src/shared/version-control/exec-envelope.js（纯函数，电话们照旧引用，形状不变；另认 cancelled）。
   /** 第 0 步 + 仓库根：先确认这里是不是仓库，再问出后续命令要钉死的那个目录（裸仓库的根就是它的 git 目录）。 */
   async function resolveRepoRoot(exe, cwd) {
     const step0 = await runPinned(exe, cwd, stepZeroArgs(), { stdoutLimit: STDERR_LIMIT })

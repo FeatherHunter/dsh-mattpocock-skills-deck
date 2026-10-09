@@ -8,10 +8,8 @@
 // 调用都必须经过闸」的物理落点。闸由接线处（src/host/registerPhones.js）注入，本文件不 import 它
 // （同层互引门禁不许），没注入时照旧执行、只是这一笔不在账上（门禁会因此判红，不许静默）。
 // 报账单位是**真实出站请求条数**：一条 gh/git/glab 命令就是一条（分页、重试、兜底链由调用方各自再报）。
-import { tierForGhArgs, timeoutForGhArgs, isWriteGhArgs } from '../shared/tracker/outbound-tiers.js'
+import { timeoutForGhArgs, isWriteGhArgs } from '../shared/tracker/outbound-tiers.js'
 import { getGhLane } from '../shared/tracker/outbound-admission.js'
-import { getGhMeasure } from '../shared/tracker/outbound-measure.js'
-import { noteGhWrite } from '../shared/tracker/outbound-write-generation.js'
 export function createRepoKeys(deps) {
   const { subprocess, timer, fs, DEFAULT_CWD, TIMEOUT_MS, repoKeys, repoRoots, getGhPath, setGhPath, getGhLastError, setGhLastError, getPlatform, getWorkspaceStore, setCache, clearWorkspaceStore, namingSweepSoon, getChainBackoff, parseGithubRepo, logCtx, gate, getGate } = deps
   // 共享状态归 index.js 单一持有：ghPath/ghLastError 经存取器（基本类型重赋值不能按引用共享）；repoKeys/repoRoots 按引用共享（只做属性读写与删除，从不整体重赋值）。
@@ -70,17 +68,10 @@ export function createRepoKeys(deps) {
 
     async function runGh(args, cwd) {
       const ghT0 = Date.now()
-      // #969 分档超时（调用方无 opts 传超时，这里直接按读写探活取暂定值）；#965 读写分桶准入。
-      const rkTier = tierForGhArgs(args)
+      // #969 分档超时（读短写长探活最短）；#965 读写分桶拿名额（满了等；不传取消信号，拿不到只会等不会抛）。
       const rkBucket = isWriteGhArgs(args) ? 'write' : 'read'
       const rkTimeout = timeoutForGhArgs(args)
-      const rkStartT0 = Date.now()
-      let rkRelease = null
-      try { rkRelease = await getGhLane().acquire({ bucket: rkBucket }) }
-      catch (eRkQ) {
-        try { getGhMeasure().record({ via: 'runGh', tier: rkTier, bucket: rkBucket, latencyMs: Date.now() - rkStartT0, outcome: 'cancelled' }) } catch {}
-        return { ok: false, kind: 'cancelled', error: 'cancelled while queued for gh admission' }
-      }
+      const rkRelease = await getGhLane().acquire({ bucket: rkBucket })
       const exe = await resolveGh()
       if (!exe) { try { if (rkRelease) rkRelease() } catch {} return { ok: false, kind: 'env', error: getGhLastError() } }
       // #723（T19）：这一笔真实出站先报给闸（I1 的唯一出口）。报在拿名额之后 —— 真要起进程了才报；
@@ -96,7 +87,6 @@ export function createRepoKeys(deps) {
         })
       } catch (e) {
         try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, kind: 'spawn', exitCode: -1 }) } catch (eL) {}
-        try { getGhMeasure().record({ via: 'runGh', tier: rkTier, bucket: rkBucket, latencyMs: Date.now() - rkStartT0, outcome: 'fail' }) } catch {}
         try { if (rkRelease) rkRelease() } catch {}
         return { ok: false, kind: 'spawn', error: String((e && e.message) || e) }
       }
@@ -110,7 +100,6 @@ export function createRepoKeys(deps) {
         ])
       } catch (e) {
         try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, kind: 'spawn', exitCode: -1 }) } catch (eL) {}
-        try { getGhMeasure().record({ via: 'runGh', tier: rkTier, bucket: rkBucket, latencyMs: Date.now() - rkStartT0, outcome: 'fail' }) } catch {}
         try { if (rkRelease) rkRelease() } catch {}
         return { ok: false, kind: 'spawn', error: String((e && e.message) || e) }
       }
@@ -129,7 +118,6 @@ export function createRepoKeys(deps) {
         try { if (logCtx && rkTimedOut) logCtx.fire('warn', 'gh.timeout', { argv0: 'gh', timeoutMs: rkTimeout }) } catch (eL) {}
         try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, kind: kind, exitCode: outcome.exitCode || -1 }) } catch (eL) {}
         try { if (logCtx && logCtx.isEnabled('debug') && kind !== lastNormKind) { lastNormKind = kind; logCtx.fire('debug', 'error.normalize', function () { return { rawKind: 'exit:' + String((outcome && outcome.exitCode) || -1), mappedKind: kind } }) } } catch (eL) {}
-        try { getGhMeasure().record({ via: 'runGh', tier: rkTier, bucket: rkBucket, latencyMs: Date.now() - rkStartT0, outcome: rkTimedOut ? 'timeout' : 'fail' }) } catch {}
         try { if (rkRelease) rkRelease() } catch {}
         return { ok: false, kind: kind, code: outcome.exitCode, error: all.slice(0, 400), text: out.text || '' }
       }
@@ -147,9 +135,6 @@ export function createRepoKeys(deps) {
         }
       } catch (e) {}
       try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, kind: 'ok', exitCode: 0 }) } catch (eL) {}
-      try { getGhMeasure().record({ via: 'runGh', tier: rkTier, bucket: rkBucket, latencyMs: Date.now() - rkStartT0, outcome: 'ok' }) } catch {}
-      // #964：写成功推高写世代，探测链据此知道“写过东西之后不搭”。
-      try { if (rkBucket === 'write') noteGhWrite() } catch {}
       try { if (rkRelease) rkRelease() } catch {}
       return { ok: true, text: out.text || '' }
     }
@@ -168,17 +153,10 @@ export function createRepoKeys(deps) {
       const xpIsGlab = /^glab(\.exe)?$/i.test(xpProg)
       const xpIsOutbound = xpIsGh || xpIsGlab
       const xpArgs = Array.isArray(argv) ? argv.slice(1) : []
-      const xpTier = xpIsGh ? tierForGhArgs(xpArgs) : 'read'
       const xpBucket = (xpIsGh && isWriteGhArgs(xpArgs)) ? 'write' : 'read'
-      const xpStartT0 = Date.now()
+      // 出站才拿名额（不传取消信号，拿不到只会等不会抛）；git 本地命令直行。
       let xpRelease = null
-      if (xpIsOutbound) {
-        try { xpRelease = await getGhLane().acquire({ bucket: xpBucket }) }
-        catch (eXpQ) {
-          try { getGhMeasure().record({ via: String(via || 'unspecified'), tier: xpTier, bucket: xpBucket, latencyMs: Date.now() - xpStartT0, outcome: 'cancelled' }) } catch {}
-          return { ok: false, code: -1, error: 'cancelled while queued for gh admission' }
-        }
-      }
+      if (xpIsOutbound) xpRelease = await getGhLane().acquire({ bucket: xpBucket })
       // #723（T19）：这一笔真实出站先报给闸（I1）。这条路的调用方是 git / glab / gh 三条，
       // 其中 gh 与 glab 是真实出站；git 只读远端地址、不起 HTTP 请求，但它是同一个进程出口，
       // 一起报能保证「起过几条命令」与账上的条数一一对应（宁可多记一笔，也不要漏一笔）。
@@ -192,10 +170,7 @@ export function createRepoKeys(deps) {
           graceMs: 2000,
         })
       } catch (e) {
-        if (xpIsOutbound) {
-          try { getGhMeasure().record({ via: String(via || 'unspecified'), tier: xpTier, bucket: xpBucket, latencyMs: Date.now() - xpStartT0, outcome: 'fail' }) } catch {}
-          try { if (xpRelease) xpRelease() } catch {}
-        }
+        if (xpIsOutbound) { try { if (xpRelease) xpRelease() } catch {} }
         return { ok: false, error: String((e && e.message) || e) }
       }
       // #969：gh 等待上限按分档暂定值；git / glab 沿用旧默认。
@@ -208,25 +183,13 @@ export function createRepoKeys(deps) {
         ])
       } catch (e) {
         try { if (_execT0 && logCtx.isEnabled('debug')) logCtx.fire('debug', 'exec.run', { argv0: progName(argv && argv[0]), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - _execT0, exitCode: -1, via: String(via || 'unspecified') }) } catch (eL) {}
-        if (xpIsOutbound) {
-          try { getGhMeasure().record({ via: String(via || 'unspecified'), tier: xpTier, bucket: xpBucket, latencyMs: Date.now() - xpStartT0, outcome: 'fail' }) } catch {}
-          try { if (xpRelease) xpRelease() } catch {}
-        }
+        if (xpIsOutbound) { try { if (xpRelease) xpRelease() } catch {} }
         return { ok: false, error: String((e && e.message) || e) }
       }
       const out = (handle.collected && handle.collected.stdout) ? handle.collected.stdout.readFrom(0) : { text: '' }
       const err = (handle.collected && handle.collected.stderr) ? handle.collected.stderr.readFrom(0) : { text: '' }
       try { if (_execT0 && logCtx.isEnabled('debug')) logCtx.fire('debug', 'exec.run', { argv0: progName(argv && argv[0]), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - _execT0, exitCode: (outcome && typeof outcome.exitCode === 'number') ? outcome.exitCode : -1, via: String(via || 'unspecified') }) } catch (eL) {}
-      // #967 测量记一笔；#964 gh 写成功推高写世代；名额放回。git 本地命令不记不放。
-      if (xpIsOutbound) {
-        try {
-          const xpCode = (outcome && typeof outcome.exitCode === 'number') ? outcome.exitCode : -1
-          const xpTimedOut = !!(outcome && outcome.signal === 'timeout')
-          getGhMeasure().record({ via: String(via || 'unspecified'), tier: xpTier, bucket: xpBucket, latencyMs: Date.now() - xpStartT0, outcome: xpTimedOut ? 'timeout' : (xpCode === 0 ? 'ok' : 'fail') })
-          if (xpCode === 0 && xpBucket === 'write' && xpIsGh) noteGhWrite()
-        } catch {}
-        try { if (xpRelease) xpRelease() } catch {}
-      }
+      if (xpIsOutbound) { try { if (xpRelease) xpRelease() } catch {} }
       if (outcome.exitCode !== 0) return { ok: false, code: outcome.exitCode, error: ((err.text || '') + (out.text || '')).slice(0, 400) }
       // #857：成功必须带整数退出码 0。调用方经 ctx.exec 转给 GitHub 命令执行器时，那边按“拿不到整数退出码就判失败”处理；缺了这个 0，评论写成功了面板也会报失败。
       return { ok: true, text: out.text || '', code: 0 }
@@ -365,7 +328,6 @@ export function createRepoKeys(deps) {
       try { if (logCtx) logCtx.fire('info', 'repo.resolve.tier', { tier: 3, ok: true, latencyMs: Date.now() - rkT0 }) } catch (eL) {}
       return repoKeys[key]
     }
-  // #723（T19）：TIMEOUT_MS 一并交出去，让 detectChain 那侧取这一个数（从前它在自己文件里重复写了
-  // 一个 30000 字面量，两处各写一份，改一处就会静默对不上——见 detectChain.js 的 CHANNEL_GH_TIMEOUT_MS）。
+  // #723（T19）：TIMEOUT_MS 一并交出去，供还读它的老调用方兜底；分档由出站两路按命令认，不再两处各写一份。
   return { resolveGh, resetGhCache, runGh, execProc, resolveGit, getHome, canonicalKey, getRepoRoot, getCacheDir, cacheFileName, readDiskCache, writeDiskCache, getRepoKey, TIMEOUT_MS }
 }
