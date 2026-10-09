@@ -1,6 +1,6 @@
 // src/host/repoKeys.js —— 执行与仓库钥匙（H1 #445 从 host/index.js 496–720 搬出，纯结构、行为零变化）
 // 以后谁改它：改外部进程执行（gh/git）、工作区钥匙规整或仓库根与磁盘缓存策略的人。预估约 270 行，超 350 打回。
-// 接线：由 index.js 动态 import 动态加载；getPlatform/getWorkspaceStore/setCache/clearWorkspaceStore/namingSweepSoon/parseGithubRepo 显式注入；本文件不引用其他新文件。
+// 接线：由 index.js 动态 import 动态加载；getPlatform/getWorkspaceStore/setCache/clearWorkspaceStore/namingSweepSoon/parseGithubRepo 显式注入；同层新文件不互引（门禁硬卡），契约层 shared/gh-timeout-tiers.js 例外（分档超时唯一真源）。
 // 显式传参编辑：共享状态归 index.js 持有——ghPath/ghLastError 经存取器读写，repoKeys/repoRoots 按引用共享，cache 重赋值改 setCache；resetGhCache 的 _workspaceStore 直访改 clearWorkspaceStore（状态归 platformChannel）。行为与搬前一致。
 //
 // #723（T19）闸接进取数层：这里是唯一的进程出口（全仓绝大多数 GitHub 出站都从 runGh / execProc 出去），
@@ -8,6 +8,7 @@
 // 调用都必须经过闸」的物理落点。闸由接线处（src/host/registerPhones.js）注入，本文件不 import 它
 // （同层互引门禁不许），没注入时照旧执行、只是这一笔不在账上（门禁会因此判红，不许静默）。
 // 报账单位是**真实出站请求条数**：一条 gh/git/glab 命令就是一条（分页、重试、兜底链由调用方各自再报）。
+import { timeoutForGhArgs, PROBE_TIMEOUT_MS } from '../shared/gh-timeout-tiers.js'
 export function createRepoKeys(deps) {
   const { subprocess, timer, fs, DEFAULT_CWD, TIMEOUT_MS, repoKeys, repoRoots, getGhPath, setGhPath, getGhLastError, setGhLastError, getPlatform, getWorkspaceStore, setCache, clearWorkspaceStore, namingSweepSoon, getChainBackoff, parseGithubRepo, logCtx, gate, getGate } = deps
   // 共享状态归 index.js 单一持有：ghPath/ghLastError 经存取器（基本类型重赋值不能按引用共享）；repoKeys/repoRoots 按引用共享（只做属性读写与删除，从不整体重赋值）。
@@ -53,7 +54,8 @@ export function createRepoKeys(deps) {
         // #723（T19）：这一条 `gh --version` 探测也是一笔真实出站（虽然不扣配额），照记一笔。
         reportOutbound(['--version'])
         const probeHandle = subprocess.spawn({ argv: ['gh', '--version'], cwd: DEFAULT_CWD, stdio: { stdin: 'ignore', stdout: { maxBytes: 1024 }, stderr: { maxBytes: 1024 } }, graceMs: 1000 })
-        const probeOutcome = await Promise.race([probeHandle.done, timer.timeout(2000).then(function(){ try{ probeHandle.terminate(); }catch(e){} return { exitCode: -1 } })])
+        // #969 探活最短档：查版本号只等 3 秒（暂定值），不等满 30 秒。
+        const probeOutcome = await Promise.race([probeHandle.done, timer.timeout(PROBE_TIMEOUT_MS).then(function(){ try{ probeHandle.terminate(); }catch(e){} return { exitCode: -1 } })])
         const outProbe = (probeHandle.collected && probeHandle.collected.stdout) ? probeHandle.collected.stdout.readFrom(0) : { text: '' }
         if (probeOutcome && probeOutcome.exitCode === 0 && String(outProbe.text||'').includes('gh version')) { setGhPath('gh'); setGhLastError(null); return 'gh' }
       } catch {}
@@ -83,7 +85,9 @@ export function createRepoKeys(deps) {
         try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, kind: 'spawn', exitCode: -1 }) } catch (eL) {}
         return { ok: false, kind: 'spawn', error: String((e && e.message) || e) }
       }
-      const to = timer.timeout(TIMEOUT_MS)
+      // #969 分档超时：读 12 秒、写 30 秒、探活 3 秒；写超时只试这一次，不自动重试（超时原样交回调用方人工核对）。
+      const tierTimeout = timeoutForGhArgs(args)
+      const to = timer.timeout(tierTimeout)
       let outcome
       try {
         outcome = await Promise.race([
@@ -98,12 +102,17 @@ export function createRepoKeys(deps) {
       const err = (handle.collected && handle.collected.stderr) ? handle.collected.stderr.readFrom(0) : { text: '' }
       const all = (err.text || '') + (out.text || '')
       if (outcome.exitCode !== 0) {
-        let kind = 'exit'
-        const t = all.toLowerCase()
-        if (/not logged in|auth failed|bad credentials|failed to log in|token.*invalid|keyring|re-authenticate|auth refresh/i.test(t)) kind = 'auth'
-        else if (/404|not found|could not resolve to an? (issue|pull request)/i.test(t)) kind = 'notfound'
-        else if (/network|econn|unexpected eof|timed out|connect/i.test(t)) kind = 'network'
-        try { if (logCtx && outcome && outcome.signal === 'timeout') logCtx.fire('warn', 'gh.timeout', { argv0: 'gh', timeoutMs: TIMEOUT_MS }) } catch (eL) {}
+        // #969 慢网显示未知而不是没登录：等满超时才放弃的一律归网络档，不看文本里有没有登录词。
+        let kind
+        if (outcome && outcome.signal === 'timeout') kind = 'network'
+        else {
+          kind = 'exit'
+          const t = all.toLowerCase()
+          if (/not logged in|auth failed|bad credentials|failed to log in|token.*invalid|keyring|re-authenticate|auth refresh/i.test(t)) kind = 'auth'
+          else if (/404|not found|could not resolve to an? (issue|pull request)/i.test(t)) kind = 'notfound'
+          else if (/network|econn|unexpected eof|timed out|timeout|connect/i.test(t)) kind = 'network'
+        }
+        try { if (logCtx && outcome && outcome.signal === 'timeout') logCtx.fire('warn', 'gh.timeout', { argv0: 'gh', timeoutMs: tierTimeout }) } catch (eL) {}
         try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, kind: kind, exitCode: outcome.exitCode || -1 }) } catch (eL) {}
         try { if (logCtx && logCtx.isEnabled('debug') && kind !== lastNormKind) { lastNormKind = kind; logCtx.fire('debug', 'error.normalize', function () { return { rawKind: 'exit:' + String((outcome && outcome.exitCode) || -1), mappedKind: kind } }) } } catch (eL) {}
         return { ok: false, kind: kind, code: outcome.exitCode, error: all.slice(0, 400), text: out.text || '' }

@@ -3,6 +3,7 @@
 // 接线：由 index.js 动态 import 加载；harness 注册留守 index，处理器体经 handleDetect/handleChain 供给。
 import { refreshSourceOf } from './refresh/refreshSource.js'
 import { workspaceKeyOf } from '../shared/refresh-workspace-key.js'   // #724：链记账给闸的钥匙，与活跃集合同一把（从前传 cwd 原文 → 同一个工作区在闸里有两格）
+import { timeoutForGhArgs } from '../shared/gh-timeout-tiers.js'   // #969：链上问 gh 也按读写探活分档（读 12 秒、探活 3 秒），不再一档等满 30 秒
 export function createDetectChain(deps) {
   const { canonicalKey, DEFAULT_CWD, resetGhCache, getDetectionService, getPlatform, getTrackerRegistry, getRepoKey, runGh, timer, probeSkill, mdParseOkPredicate, getChainCache, setChainCache, getChainBackoff, logCtx, gate, ghTimeoutMs, sandboxPolicyFor } = deps
   // #491 房外埋点 helpers：hash8 只记散列；P1 外层先判开关（采样/节流/按事件），字段函数只在守卫内求值。
@@ -27,6 +28,7 @@ export function createDetectChain(deps) {
   /** 探测级联那一侧用的执行器（签名 = platformChannel 的 detectionExec）。 */
   function scopedDetectionExec(scope) { return function (cmd, args, opts, via) { return scope.exec(cmd, args, opts, via) } }
   // #723（T19）：默认超时不再写死在这里（数字住在 github/client.js 的 TIMEOUT_MS，由宿主接线经 ghTimeoutMs 传进来）。
+  // #969：链上已按读写探活分档（见下面 ghOptsFor），这里只留旧单值供老调用方兜底，新链路不再用它。
   const CHANNEL_GH_TIMEOUT_MS = (typeof ghTimeoutMs === 'number' && ghTimeoutMs > 0) ? ghTimeoutMs : 30000
   // #723（T19）：这一次求值的裁决与记账经闸落一笔（身份 = refreshSourceOf 算出来的那两个名字之一，所以
   // 「谁按的、哪一档、什么时候」留在账上）。报给闸的条数写 0：这条链真正花出去的每一条出站请求都由传输层
@@ -37,7 +39,8 @@ export function createDetectChain(deps) {
       await gate.send({ source: source, kind: 'chain', workspaceKey: workspaceKey }, async function () { return { requests: 0, points: 0 } })
     } catch (e) { /* 记账不许把链求值带崩 */ }
   }
-  function ghOptsFor(cwdIn) { return { cwd: cwdIn, timeout: CHANNEL_GH_TIMEOUT_MS } }
+  // #969 分档超时：同一条链上读与探活各等各的（读 12 秒、探活 3 秒）；调用方显式没传才按档来。
+  function ghOptsFor(cwdIn, args) { return { cwd: cwdIn, timeout: timeoutForGhArgs(args, undefined) } }
   // #709（T5）：退避与全绿缓存整段交给 refresh-core 的纯函数裁定（薄壳 src/host/refresh/chainBackoff.js，
   // 数字真源是 budget.ts）：8 秒 → 30 秒 → 2 分钟 → 5 分钟逐档后退，有进展立刻回第一档，全绿后 30 分钟。
   // 触发只有四种事件，宿主侧一个自续定时器都没有；人亲手点「重新检查」带 trigger='user-recheck' 上来，永不降档。
@@ -144,7 +147,8 @@ export function createDetectChain(deps) {
             const zh = (pctx && pctx.lang) !== 'en'
             const rk = await getRepoKey(pctx && pctx.cwd || cwd)
             if (!rk || !rk.owner || !rk.name) return { status: 'fail', detail: zh ? '未找到 GitHub 仓库关联' : 'repo not located' }
-            const r = await ghAsk('gh', ['api', 'repos/' + rk.owner + '/' + rk.name], ghOptsFor(pctx && pctx.cwd || cwd), 'repoAccess')
+            const repoArgs = ['api', 'repos/' + rk.owner + '/' + rk.name]
+            const r = await ghAsk('gh', repoArgs, ghOptsFor(pctx && pctx.cwd || cwd, repoArgs), 'repoAccess')
             if (r.ok) return { status: 'pass', detail: zh ? 'GitHub 接口访问正常' : 'api.github.com 200' }
             // 2026-08-28 实机复核修正（用户反馈：仓库已找到却提示创建发布——错误）：只有「确定仓库不存在/无权限」
             //   （kind=notfound）才判 fail 并挂「创建并发布」修复动作；未登录（auth）/网络/其他异常一律 pending（诚实未知）——
@@ -157,7 +161,8 @@ export function createDetectChain(deps) {
           try {
             // 2026-08-29（审查 S1）：detail 双语——fail 说清「登录失效」，pending 如实区分网络与未知
             const zh = (pctx && pctx.lang) !== 'en'
-            const r = await ghAsk('gh', ['auth', 'status'], ghOptsFor(cwd), 'ghAuth')
+            const authArgs = ['auth', 'status']
+            const r = await ghAsk('gh', authArgs, ghOptsFor(cwd, authArgs), 'ghAuth')
             if (r.ok) { const first = (r.text || '').split(/\r?\n/).map(function (s) { return s.trim() }).filter(Boolean)[0]; return { status: 'pass', detail: first || (zh ? '已登录' : 'Logged in') } }
             // 2026-08-28 实机修复：仅当明确「未登录」（kind=auth）才判 fail 并展示登录指引；
             //   网络失败/其他异常归 pending（诚实未知），避免在 TLS 网络抖动时误导用户「未登录」。

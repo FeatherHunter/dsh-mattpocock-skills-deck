@@ -12,6 +12,7 @@
 import { ERROR_KIND } from '../../../../shared/tracker/constants.js'
 import { fail } from '../../preflight.js'
 import { classifyGhError } from './errors.js'
+import { timeoutForGhArgs, READ_TIMEOUT_MS, WRITE_TIMEOUT_MS, PROBE_TIMEOUT_MS } from '../../../../shared/gh-timeout-tiers.js'
 
 // 房内埋点（#494 O1）：gh.exec（#5 常驻）/ gh.timeout（#6 告警）/ gh.resolve.fail（#7 告警），字段按 #489 附录 1.4。
 // gh.exec 高频：外层先判 isEnabled（信息），关闭时不组装字段；告警两项常驻直发；参数只记命令名，不记完整参数（避免令牌落盘）。
@@ -38,7 +39,9 @@ function roomInfoEnabled(ctx) {
  * 30000 —— 两处各写一份，改一处就会静默对不上（实测踩过：一边带 30000、一边不带，白问两遍）。
  * 现在那个文件从宿主接线接这一个数（`src/host/registerPhones.js` 转发），全仓只有这一处字面量。
  */
-export const TIMEOUT_MS = 30000
+/** 兼容旧默认：写档 30000。三档真源在 shared/gh-timeout-tiers.js（读 12 秒、写 30 秒、探活 3 秒），这里只留写档供老接线兜底。 */
+export const TIMEOUT_MS = WRITE_TIMEOUT_MS
+export { READ_TIMEOUT_MS, WRITE_TIMEOUT_MS, PROBE_TIMEOUT_MS }
 
 function getExec(ctx) {
   if (ctx && typeof ctx.exec === 'function') return ctx.exec.bind(ctx)
@@ -104,7 +107,8 @@ export function ghClient(ctx) {
       if (exec) {
         try {
           reportOutbound(ctx, ['--version'])
-          const probe = await exec('gh', ['--version'], { cwd: cwd || getCwd(ctx, undefined), timeout: 3000 })
+          // #969 探活最短档：查版本号只等 3 秒（暂定值）。
+          const probe = await exec('gh', ['--version'], { cwd: cwd || getCwd(ctx, undefined), timeout: PROBE_TIMEOUT_MS })
           if (probe && probe.stdout && String(probe.stdout).includes('gh version')) {
             return { ok: true, ghPath: 'gh' }
           }
@@ -157,7 +161,9 @@ export function ghClient(ctx) {
     }
 
     const signal = opts.signal || (ctx && ctx.signal) || undefined
-    const timeout = opts.timeout != null ? opts.timeout : TIMEOUT_MS
+    // #969 分档超时：读的短、写的长、探活的最短；调用方显式传的优先，不传才按档来。
+    // 写超时不自动重试（这里只发一次，超时原样交回调用方人工核对，不写第二遍）。
+    const timeout = timeoutForGhArgs(args, opts.timeout != null ? opts.timeout : undefined)
 
     try {
       // #723（T19）：这一笔真实出站先报给闸（I1）。报在 exec 之前 —— 真起了进程才算这一笔，
@@ -176,9 +182,13 @@ export function ghClient(ctx) {
       if (code !== 0) {
         const note = code === -1 ? 'gh 这一次没拿到退出码（命令可能被中断，或者根本没起来）' : `gh exit ${code}`
         const err = { message: stderr || stdout || note, stderr: stderr || stdout, code, stdout }
-        // 没有退出码、也没有任何输出 = 拿不到任何可判断的东西 → 环境档并说清责任在插件这边；
-        // 有输出文本时照旧按文本分类（超时、限速、404 这些都要认出来）。
-        const kind = (code === -1 && !stderr && !stdout) ? ERROR_KIND.ENV : classifyGhError(err, ctx)
+        // #969 慢网不再误报没登录：超时原文先归网络档（未知、稍后），不走没登录那条。
+        // 没有退出码也没有输出时看等了多久：等满超时才放弃的是超时（网络档），
+        // 没等多久就回来的一定是起都没起来（环境档，责任在插件这边）。
+        let kind
+        if (isTimeoutText(stderr) || isTimeoutText(stdout)) kind = ERROR_KIND.NETWORK
+        else if (code === -1 && !stderr && !stdout) kind = (Date.now() - t0 >= timeout - 200) ? ERROR_KIND.NETWORK : ERROR_KIND.ENV
+        else kind = classifyGhError(err, ctx)
         emitGhExec(kind, code, t0, cwd)
         if (isTimeoutText(stderr) || isTimeoutText(stdout)) emitGhTimeout(timeout)
         // #620：退出码要一起交回调用方。gh 自己的约定是「需要登录 = 退出码 4」（gh help exit-codes），
