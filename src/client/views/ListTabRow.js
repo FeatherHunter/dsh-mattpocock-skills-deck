@@ -14,7 +14,24 @@ export const listIssueRow = function (h, st, x, isOpen, narrow, blockOf, colorOf
         if (k === 'Enter' || k === ' ') { try { if (e.preventDefault) e.preventDefault() } catch (_) {} try { if (e.currentTarget) e.currentTarget.click() } catch (_) {} }
       }
       const openBlocked = function (blk) { setActiveMap(st, blk.map, blk.mapEffort) }
-      const copyUrl = function (x) { copyText(st, issueUrlFor(st, x.number, effortOf(x)), tr('toast.copiedLink', { n: x.number })) }
+      // #951：复制是瞬间动作，不套转圈；按剪贴板真实结果换对勾叉号（同 13 像素）加闪光，
+      //   成功 1.3 秒自退，失败留到下一次操作（下一次点复制先清掉）。
+      const copyUrl = function (x) {
+        const key = idOf(x)
+        st.copyFlash = null
+        emit(st)
+        const done = function (ok) {
+          st.copyFlash = { key: key, kind: ok === true ? 'ok' : 'fail', at: Date.now() }
+          emit(st)
+          if (ok === true) { try { setTimeout(function () { if (st.copyFlash && st.copyFlash.key === key && st.copyFlash.kind === 'ok') { st.copyFlash = null; try { emit(st) } catch (eR) {} } }, 1300) } catch (eT) {} }
+        }
+        try {
+          const r = copyText(st, issueUrlFor(st, x.number, effortOf(x)), tr('toast.copiedLink', { n: x.number }))
+          if (r && typeof r.then === 'function') r.then(done, function () { done(false) })
+          else done(!!r)
+        } catch (eC) { done(false) }
+      }
+      const copyRes = (st.copyFlash && st.copyFlash.key === idOf(x)) ? st.copyFlash.kind : ''
       // v14-4：行级动作按 label 四选一（诊断/修复/讨论/执行），全部预填输入框；
       // v19：共享 mkRowAction（列表与 map 详情同逻辑，按钮色动态取 label 配置色）；v14-3 按钮 80%；v14-19 窄屏折叠为纯图标
       // v1.3.3 UI 定稿（用户逐版确认）：两行结构 · 卡片风（C）· 编号/map 竖排（idcol）·
@@ -109,7 +126,7 @@ export const listIssueRow = function (h, st, x, isOpen, narrow, blockOf, colorOf
             isOpen && !blocked ? h('div', { style: { display: 'flex', gap: 3, alignItems: 'center', flex: 'none' } }, [mapEmpty?h(Tip, { content: tr('map.inspectTitle') }, h('button',{className:'dsws-btn primary'+(narrow?' narrow-icon':''),onClick:function(e){e.stopPropagation();let t='';try{t=inspectPrompt(st,x.number,x.title)}catch{const u=typeof issueUrlFor==='function'?(function(){try{return issueUrlFor(st,x.number,effortOf(x))}catch(_){return''}})():'',uu=u||(x.number!=null?'#'+String(x.number):'');t=uu?'/wayfinder '+uu:'/wayfinder';try{t=promptTextFor(st,'mapInspect',{n:String(x.number||''),['title']:String(x.title||''),url:u});if(u)t='/wayfinder '+u+'\n\n'+t}catch(_){}}inject(st,t)},style:{display:'inline-flex',alignItems:'center',gap:3,padding:'1px 6px',fontSize:11,flex:'none',background:'#f59e0b',borderColor:'transparent',color:'#140a1e',fontWeight:600}},[Ic({n:'search',size:10}),narrow?null:h('span',null,tr('act.inspect'))])):mapDone?h(Tip, { content: tr('map.doneTitle') }, h('button',{className:'dsws-btn primary'+(narrow?' narrow-icon':''),onClick:function(e){e.stopPropagation();const t=completePrompt(st,x.number,x.title,mapObj.stats.total,mapObj.stats.closed);inject(st,t)},style:{display:'inline-flex',alignItems:'center',gap:3,padding:'1px 6px',fontSize:11,flex:'none',background:'#3fb950',borderColor:'transparent',color:'#0c1a10',fontWeight:600}},[Ic({n:'check',size:10}),narrow?null:h('span',null,tr('act.done'))])):mkRowAction(st,x,narrow,colorOf),h(Tip, { content: tr('tip.newSession', { n: x.number }) }, h('button',{className:'dsws-btn primary'+(narrow?' narrow-icon':''),onClick:function(e){e.stopPropagation();openInNewSession(st,x)},style:{textDecoration:'none',display:'inline-flex',alignItems:'center',gap:3,padding:'1px 6px',fontSize:11,flex:'none',marginLeft:4,background:mapEmpty?'#f59e0b':mapDone?'#3fb950':actionColorOf(x,colorOf),borderColor:'transparent',color:mapEmpty?'#140a1e':mapDone?'#0c1a10':(isLightHex(actionColorOf(x,colorOf))?'#140a1e':'#ffffff')}},[Ic({n:'external-link',size:10}),narrow?null:h('span',null,tr('list.newSessionLabel'))])),]) : null,
             isOpen ? h('div', { className: 'dsws-aux', style: { display: 'flex', gap: 2, alignItems: 'center', flex: 'none' } }, [
               // v1.3.3：复制/外链图标增大 11 → 13；Q6 解耦：复制=绝对路径/链接，跳转=按 url 前缀分流（https 开网页，file 盘符调 wf.openPath）
-              h(Tip, { content: tr('tip.copyLink') }, h('button', { className: 'dsws-btn ghost', onClick: function (e) { e.stopPropagation(); copyUrl(x) }, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '2px 4px', flex: 'none' } }, Ic({ n: 'clipboard', size: 13 }))),
+              h(Tip, { content: tr('tip.copyLink') }, h('button', { className: 'dsws-btn ghost' + (copyRes === 'ok' ? ' dsws-fb-okflash' : '') + (copyRes === 'fail' ? ' dsws-fb-errflash dsws-fb-shake' : ''), onClick: function (e) { e.stopPropagation(); copyUrl(x) }, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '2px 4px', flex: 'none' } }, copyRes === 'ok' ? Ic({ n: 'check', size: 13 }) : (copyRes === 'fail' ? Ic({ n: 'x', size: 13 }) : Ic({ n: 'clipboard', size: 13 })))),
               (function(){
                 const _u = issueUrlFor(st, x.number, effortOf(x));
                 const _isHttp = /^https?:\/\//i.test(String(_u||''));
