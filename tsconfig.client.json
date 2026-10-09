@@ -14,10 +14,10 @@
     "skipLibCheck": true
   },
   "include": [
-    "src/client/ts-px-ambient.d.ts",
-    "src/client/views/px-props.d.ts",
-    "src/client/views/primitives/Px*.ts",
-    "src/client/views/skills/*.ts",
+    "src/client/ts-pixel-ambient.d.ts",
+    "src/client/views/pixelProps.d.ts",
+    "src/client/views/pixel/*.ts",
+    "src/client/views/skillDetail/*.ts",
     "src/client/kernel/locale-skilldetail.ts"
   ]
 }
