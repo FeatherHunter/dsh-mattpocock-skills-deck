@@ -1,6 +1,7 @@
 // src/host/platformChannel.js —— 平台与探测通道（H1 #445 从 host/index.js 259–491 搬出，纯结构、行为零变化）
 // 以后谁改它：改平台抽象、后端注册表或探测级联的人。预估约 280 行，超 350 打回。
 // 接线：由 index.js 动态 import 动态加载；STATUS_CACHE_MS 随本文件搬入（无外部引用）；getMattSkillProbeNames/probeSkill 显式注入；本文件不引用其他新文件。
+import { getGhLane, bucketForCommand } from '../shared/gh-admission.js'
 export function createPlatformChannel(deps) {
   const { ctx, subprocess, timer, fs, DEFAULT_CWD, TIMEOUT_MS, getMattSkillProbeNames, probeSkill, logCtx, gate, getGate } = deps
   // #494 O1：旧文本通道退役——backend.diagnostic 不再产生（github 房内零调用；残留 ctx.log.* 调用自动静默，gitlab 房由本房 O 票另行结构化）。房内埋点只走 logEvent/isEnabled。
@@ -192,7 +193,18 @@ export function createPlatformChannel(deps) {
       const c = (opts && opts.cwd) || ''
       // 起始时刻只在开关打开时才取：关着时这一行读一个布尔就结束，连时钟都不读，后面那行自然也不落。
       const execT0 = (logCtx && logCtx.isEnabled('debug')) ? Date.now() : 0
-      // #723（T19）：这一笔真实出站先报给闸（I1）。这条通道是操作上下文交给后端的那种 exec 出口
+      // #965：先拿名额再起进程，满了就排队等，等不是失败。与房间、取数层、版本管理共用同一道计数。
+      const detSignal = (opts && opts.signal) || undefined
+      let detRelease = null
+      try {
+        detRelease = await getGhLane().acquire({ bucket: bucketForCommand(cmd, args), signal: detSignal || undefined })
+      } catch {
+        // 排队时被取消：没有起进程，不进账。按在飞取消同一形状返回，调用方按取消处理，不算失败。
+        return { stdout: '', stderr: '已取消排队（出站准入等待中被取消），没有发出请求，可重试', code: -1, cancelled: true, signal: 'aborted' }
+      }
+      const doneDet = function () { try { if (detRelease) detRelease() } catch {} }
+      // #723（T19）：这一笔真实出站先报给闸（I1）。报在拿到名额之后 —— 排队等待不算，取消的不进账。
+      // 这条通道是操作上下文交给后端的那种 exec 出口
       // （tracker 三个房间与快照那几路都走它），起的是 gh / glab / git 三条命令；gh 与 glab 是真出站，
       // git 只读远端地址，但都是「起了一个进程」，一起报才能保证账上的条数与真起的命令数一一对应。
       try {
@@ -216,6 +228,7 @@ export function createPlatformChannel(deps) {
           graceMs: 2000,
         })
       } catch (e) {
+        doneDet()
         throw new Error('exec spawn failed: ' + String((e && e.message) || e))
       }
       const timeoutMs = (opts && opts.timeout != null) ? opts.timeout : TIMEOUT_MS
@@ -242,6 +255,9 @@ export function createPlatformChannel(deps) {
       const out = (handle.collected && handle.collected.stdout) ? handle.collected.stdout.readFrom(0) : { text: '' }
       const err = (handle.collected && handle.collected.stderr) ? handle.collected.stderr.readFrom(0) : { text: '' }
       try { if (execT0 && logCtx.isEnabled('debug')) logCtx.fire('debug', 'exec.run', { argv0: progName(argv[0]), cwdHash: hash8(c || DEFAULT_CWD), latencyMs: Date.now() - execT0, exitCode: (outcome && typeof outcome.exitCode === 'number') ? outcome.exitCode : -1, via: String(via || 'unspecified') }) } catch (eL) {}
+      doneDet()
+      // #965：在飞时被取消按取消返回（带 cancelled 标记），调用方不算失败。
+      if (outcome && outcome.signal === 'aborted') return { stdout: out.text || '', stderr: err.text || '已取消在飞请求（出站准入执行中被取消），可重试', code: -1, cancelled: true, signal: 'aborted' }
       return { stdout: out.text || '', stderr: err.text || '', code: outcome.exitCode }
     }
     async function getDetectionService() {

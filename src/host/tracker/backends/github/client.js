@@ -12,6 +12,9 @@
 import { ERROR_KIND } from '../../../../shared/tracker/constants.js'
 import { fail } from '../../preflight.js'
 import { classifyGhError } from './errors.js'
+// #965：本房不直引准入模块（房间纪律：跨房引用禁，共享模块只许白名单路径）。
+// 同一道计数落在真起进程的三处（取数层 runGh/execProc、探测通道 detectionExec、版本管理 runGit），
+// 本房经 ctx.exec 下去，自然被同一道管住；这里只透传取消信号并把下游的取消按取消返回，不算失败。
 
 // 房内埋点（#494 O1）：gh.exec（#5 常驻）/ gh.timeout（#6 告警）/ gh.resolve.fail（#7 告警），字段按 #489 附录 1.4。
 // gh.exec 高频：外层先判 isEnabled（信息），关闭时不组装字段；告警两项常驻直发；参数只记命令名，不记完整参数（避免令牌落盘）。
@@ -162,6 +165,8 @@ export function ghClient(ctx) {
     try {
       // #723（T19）：这一笔真实出站先报给闸（I1）。报在 exec 之前 —— 真起了进程才算这一笔，
       // 而下面这条路一定起（exec 拿不到时上面已经 return 了）。
+      // #965：同一道计数在真起进程的三处（取数层、探测通道、版本管理）拿，
+      // 本房经 ctx.exec 下去自然被管住，这里不重复拿，避免一次请求占两个名额。
       reportOutbound(ctx, args)
       const result = await exec('gh', args, { cwd, timeout, signal })
       // DSH ctx.exec 契约：{stdout, stderr, code}
@@ -174,6 +179,14 @@ export function ghClient(ctx) {
       const stdout = result && typeof result.stdout === 'string' ? result.stdout : (result && result.text ? result.text : '')
       const stderr = result && typeof result.stderr === 'string' ? result.stderr : ''
       if (code !== 0) {
+        // #965：下游（探测通道/取数层）在排队或在飞时被取消，会带 cancelled 标记回来；
+        // 这里按取消返回，不算失败，调用方可重试。
+        try {
+          if ((signal && signal.aborted === true) || (result && result.cancelled === true)) {
+            emitGhExec('cancelled', -1, t0, cwd)
+            return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: '已取消在飞请求（出站准入执行中被取消），可重试', code: -1, cancelled: true } }
+          }
+        } catch {}
         const note = code === -1 ? 'gh 这一次没拿到退出码（命令可能被中断，或者根本没起来）' : `gh exit ${code}`
         const err = { message: stderr || stdout || note, stderr: stderr || stdout, code, stdout }
         // 没有退出码、也没有任何输出 = 拿不到任何可判断的东西 → 环境档并说清责任在插件这边；
@@ -188,6 +201,14 @@ export function ghClient(ctx) {
       emitGhExec('ok', 0, t0, cwd)
       return { ok: true, data: { stdout, stderr, code } }
     } catch (e) {
+      // #965：下游抛取消错误或调用方信号已中止：按取消返回，不算失败。
+      try {
+        const cancelledMark = e && (e.cancelled === true || e.admissionCancelled === true)
+        if (cancelledMark || (signal && signal.aborted === true)) {
+          emitGhExec('cancelled', -1, t0, cwd)
+          return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: '已取消在飞请求（出站准入执行中被取消），可重试', code: -1, cancelled: true } }
+        }
+      } catch {}
       // exec 抛的错误（timeout/network 等）→ 归一化
       const kind = classifyGhError(e, ctx)
       emitGhExec(kind, -1, t0, cwd)

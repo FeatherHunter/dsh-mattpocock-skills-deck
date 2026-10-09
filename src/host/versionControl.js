@@ -23,6 +23,7 @@ import { parseLog } from '../shared/version-control/parse-log.js'
 import { parseDiffFiles } from '../shared/version-control/parse-diff-files.js'
 import { assemble, classifyStepZero } from '../shared/version-control/state.js'
 import { makeStallWatch } from './stallWatch.js' // #847：字节增长看门狗（自包含叶子，照 #500/#821 先例）
+import { getGhLane } from '../shared/gh-admission.js'
 
 const VIA = 'version-control'          // 日志的 via：这一族 git 命令都由版本管理页签发起
 const GIT_NAME = 'git'                 // 日志的 argv0：只记程序名，不记路径
@@ -61,11 +62,20 @@ export function createVersionControl(deps) {
   /** 把一次「钉死目录」的执行跑起来；返回核心 ports.ts 里那四种情形之一。 */
   function runPinned(exe, dir, args, opts) { return runGit(exe, dir, pinned(exe, dir, args).slice(1), opts) }
 
-  /** 跑一条 git 命令：成功与非零退出各落一行 git.exec，超时与起进程失败各落一行 git.exec.fail。opts.env 是给 #839 那一族「可能弹凭据提示」的命令传非交互环境用的（undefined 值是墓碑，从继承环境里删掉这一项）。 */
+  /** 跑一条 git 命令：成功与非零退出各落一行 git.exec，超时与起进程失败各落一行 git.exec.fail。opts.env 是给 #839 那一族「可能弹凭据提示」的命令传非交互环境用的（undefined 值是墓碑，从继承环境里删掉这一项）。opts.signal 是 #965 准入的取消信号：排队时被取消按取消返回，不算失败。 */
   async function runGit(exe, dir, args, opts) {
     const t0 = Date.now()
     const limit = (opts && opts.stdoutLimit) ? opts.stdoutLimit : STDOUT_LIMIT
     const budget = (opts && opts.timeoutMs) ? opts.timeoutMs : timeoutMs
+    const vcSignal = (opts && opts.signal) || undefined
+    // #965：先拿名额再起进程，版本管理只读路与三路出站共用同一道计数，一律读桶。
+    let vcRelease = null
+    try {
+      vcRelease = await getGhLane().acquire({ bucket: 'read', signal: vcSignal || undefined })
+    } catch {
+      return { kind: 'cancelled', cancelled: true, message: '已取消排队（出站准入等待中被取消），没有发出请求，可重试' }
+    }
+    const doneVc = function () { try { if (vcRelease) vcRelease() } catch {} }
     reportOutbound()
     let handle
     try {
@@ -77,26 +87,46 @@ export function createVersionControl(deps) {
         env: (opts && opts.env) ? opts.env : undefined,
       })
     } catch (e) {
+      doneVc()
       fire('warn', 'git.exec.fail', { argv0: GIT_NAME, cwdHash: dirHash(dir), via: VIA, errorHash: hash8(String((e && e.message) || e)) })
       return { kind: 'spawn-failed', message: String((e && e.message) || e) }
     }
     const watch = (opts && opts.stallMs) ? makeStallWatch(handle, Math.max(1000, Math.min(600000, Math.floor(opts.stallMs))), budget, timer) : null
+    // #965：在飞时被取消就杀进程。
+    let onAbortVc = null
+    const abortVcP = new Promise(function (resolve) {
+      if (!vcSignal || typeof vcSignal.addEventListener !== 'function') return
+      if (vcSignal.aborted === true) { try { handle.terminate() } catch {} resolve({ exitCode: -1, signal: 'aborted' }); return }
+      onAbortVc = function () { try { handle.terminate() } catch {} resolve({ exitCode: -1, signal: 'aborted' }) }
+      try { vcSignal.addEventListener('abort', onAbortVc, { once: true }) } catch {}
+    })
     let outcome
     try {
       outcome = await Promise.race([
         handle.done,
         timer.timeout(budget).then(function () { try { handle.terminate() } catch (eT) {} return { exitCode: -1, signal: 'timeout' } }),
         watch ? watch : new Promise(function () {}),
+        abortVcP,
       ])
     } catch (e) {
+      try { if (onAbortVc && vcSignal && typeof vcSignal.removeEventListener === 'function') vcSignal.removeEventListener('abort', onAbortVc) } catch {}
+      doneVc()
       fire('warn', 'git.exec.fail', { argv0: GIT_NAME, cwdHash: dirHash(dir), via: VIA, errorHash: hash8(String((e && e.message) || e)) })
       return { kind: 'spawn-failed', message: String((e && e.message) || e) }
     }
+    try { if (onAbortVc && vcSignal && typeof vcSignal.removeEventListener === 'function') vcSignal.removeEventListener('abort', onAbortVc) } catch {}
+    // #965：在飞时被取消按取消返回，不算失败，不记超时。
+    if (outcome && outcome.signal === 'aborted') {
+      doneVc()
+      return { kind: 'cancelled', cancelled: true, message: '已取消在飞请求（出站准入执行中被取消），可重试' }
+    }
     if (outcome && outcome.signal === 'stalled') {
+      doneVc()
       fire('warn', 'git.exec.fail', { argv0: GIT_NAME, cwdHash: dirHash(dir), via: VIA, timeoutMs: outcome.stallMs })
       return { kind: 'stalled', stallMs: outcome.stallMs }
     }
     if (outcome && outcome.signal === 'timeout') {
+      doneVc()
       fire('warn', 'git.exec.fail', { argv0: GIT_NAME, cwdHash: dirHash(dir), via: VIA, timeoutMs: budget })
       return { kind: 'timeout', timeoutMs: budget }
     }
@@ -104,7 +134,8 @@ export function createVersionControl(deps) {
     const err = readCollector(handle.collected && handle.collected.stderr)
     const exitCode = (outcome && typeof outcome.exitCode === 'number') ? outcome.exitCode : -1
     fire('info', 'git.exec', { argv0: GIT_NAME, cwdHash: dirHash(dir), latencyMs: Date.now() - t0, exitCode: exitCode, via: VIA })
-    if (exitCode !== 0) return { kind: 'non-zero', exitCode: exitCode, stderr: err.text }
+    if (exitCode !== 0) { doneVc(); return { kind: 'non-zero', exitCode: exitCode, stderr: err.text } }
+    doneVc()
     return { kind: 'ok', stdout: out.text, truncated: out.truncated }
   }
   /** 找 git 命令；找不到或平台服务缺席都转成明确失败值，不抛。 */

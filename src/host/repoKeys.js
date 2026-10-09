@@ -8,6 +8,7 @@
 // 调用都必须经过闸」的物理落点。闸由接线处（src/host/registerPhones.js）注入，本文件不 import 它
 // （同层互引门禁不许），没注入时照旧执行、只是这一笔不在账上（门禁会因此判红，不许静默）。
 // 报账单位是**真实出站请求条数**：一条 gh/git/glab 命令就是一条（分页、重试、兜底链由调用方各自再报）。
+import { getGhLane, bucketForCommand } from '../shared/gh-admission.js'
 export function createRepoKeys(deps) {
   const { subprocess, timer, fs, DEFAULT_CWD, TIMEOUT_MS, repoKeys, repoRoots, getGhPath, setGhPath, getGhLastError, setGhLastError, getPlatform, getWorkspaceStore, setCache, clearWorkspaceStore, namingSweepSoon, getChainBackoff, parseGithubRepo, logCtx, gate, getGate } = deps
   // 共享状态归 index.js 单一持有：ghPath/ghLastError 经存取器（基本类型重赋值不能按引用共享）；repoKeys/repoRoots 按引用共享（只做属性读写与删除，从不整体重赋值）。
@@ -64,12 +65,34 @@ export function createRepoKeys(deps) {
     // #195 修复：force 探测路径调 resetGhCache 清空成功缓存，强制下次 resolveGh 重探
     function resetGhCache() { setGhPath(null); setGhLastError(null); try { if (typeof clearWorkspaceStore === 'function') clearWorkspaceStore(); } catch {} try { getWorkspaceStore().then(function(ws){ try{ ws.clear(); }catch(e){} }).catch(function(){}); } catch {} }
 
-    async function runGh(args, cwd) {
+    // #965：从第三个参数里拿调用方传来的取消信号。老调用方传的是链名（字符串），新调用方传 { signal }，都兼容。
+    function pickSignal(third, fourth) {
+      try {
+        const cands = [third, fourth, third && third.signal, fourth && fourth.signal]
+        for (const c of cands) {
+          if (c && typeof c.aborted === 'boolean' && typeof c.addEventListener === 'function') return c
+        }
+        if (third && third.signal && typeof third.signal.aborted === 'boolean') return third.signal
+        if (fourth && fourth.signal && typeof fourth.signal.aborted === 'boolean') return fourth.signal
+      } catch {}
+      return undefined
+    }
+    async function runGh(args, cwd, third) {
       const ghT0 = Date.now()
+      const runSignal = pickSignal(third)
+      // #965：先拿名额再起进程，满了就排队等，等不是失败。桶按读写分，读桶大写桶小。
+      let runRelease = null
+      try {
+        runRelease = await getGhLane().acquire({ bucket: bucketForCommand('gh', args), signal: runSignal || undefined })
+      } catch {
+        try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, kind: 'cancelled', exitCode: -1 }) } catch (eL) {}
+        return { ok: false, kind: 'cancelled', cancelled: true, error: '已取消排队（出站准入等待中被取消），没有发出请求，可重试' }
+      }
+      const doneRun = function () { try { if (runRelease) runRelease() } catch {} }
       const exe = await resolveGh()
-      if (!exe) return { ok: false, kind: 'env', error: getGhLastError() }
-      // #723（T19）：这一笔真实出站先报给闸（I1 的唯一出口）。起来之后才报，是因为「报的条数」必须
-      // 与「真的起了几条命令」一一对应；resolveGh 失败那一条根本没有出站，不该记进账。
+      if (!exe) { doneRun(); return { ok: false, kind: 'env', error: getGhLastError() } }
+      // #723（T19）：这一笔真实出站先报给闸（I1 的唯一出口）。报在拿到名额之后 ——
+      // 排队等待不算这一笔，排队时被取消的不进账，账与真起的进程一一对应。
       reportOutbound(args)
       let handle
       try {
@@ -80,24 +103,43 @@ export function createRepoKeys(deps) {
           graceMs: 2000,
         })
       } catch (e) {
+        doneRun()
         try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, kind: 'spawn', exitCode: -1 }) } catch (eL) {}
         return { ok: false, kind: 'spawn', error: String((e && e.message) || e) }
       }
       const to = timer.timeout(TIMEOUT_MS)
+      // #965：在飞时被取消就杀进程，不留没人等的写入。
+      let onAbortRun = null
+      const abortRunP = new Promise(function (resolve) {
+        if (!runSignal || typeof runSignal.addEventListener !== 'function') return
+        if (runSignal.aborted === true) { try { handle.terminate() } catch {} resolve({ exitCode: -1, signal: 'aborted' }); return }
+        onAbortRun = function () { try { handle.terminate() } catch {} resolve({ exitCode: -1, signal: 'aborted' }) }
+        try { runSignal.addEventListener('abort', onAbortRun, { once: true }) } catch {}
+      })
       let outcome
       try {
         outcome = await Promise.race([
           handle.done,
           to.then(function () { handle.terminate(); return { exitCode: -1, signal: 'timeout' } }),
+          abortRunP,
         ])
       } catch (e) {
+        try { if (onAbortRun && runSignal && typeof runSignal.removeEventListener === 'function') runSignal.removeEventListener('abort', onAbortRun) } catch {}
+        doneRun()
         try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, kind: 'spawn', exitCode: -1 }) } catch (eL) {}
         return { ok: false, kind: 'spawn', error: String((e && e.message) || e) }
       }
+      try { if (onAbortRun && runSignal && typeof runSignal.removeEventListener === 'function') runSignal.removeEventListener('abort', onAbortRun) } catch {}
       const out = (handle.collected && handle.collected.stdout) ? handle.collected.stdout.readFrom(0) : { text: '' }
       const err = (handle.collected && handle.collected.stderr) ? handle.collected.stderr.readFrom(0) : { text: '' }
       const all = (err.text || '') + (out.text || '')
       if (outcome.exitCode !== 0) {
+        // #965：在飞时被取消按取消返回，不算失败。
+        if (outcome && outcome.signal === 'aborted') {
+          doneRun()
+          try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, kind: 'cancelled', exitCode: -1 }) } catch (eL) {}
+          return { ok: false, kind: 'cancelled', cancelled: true, code: -1, error: '已取消在飞请求（出站准入执行中被取消），可重试' }
+        }
         let kind = 'exit'
         const t = all.toLowerCase()
         if (/not logged in|auth failed|bad credentials|failed to log in|token.*invalid|keyring|re-authenticate|auth refresh/i.test(t)) kind = 'auth'
@@ -106,6 +148,7 @@ export function createRepoKeys(deps) {
         try { if (logCtx && outcome && outcome.signal === 'timeout') logCtx.fire('warn', 'gh.timeout', { argv0: 'gh', timeoutMs: TIMEOUT_MS }) } catch (eL) {}
         try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, kind: kind, exitCode: outcome.exitCode || -1 }) } catch (eL) {}
         try { if (logCtx && logCtx.isEnabled('debug') && kind !== lastNormKind) { lastNormKind = kind; logCtx.fire('debug', 'error.normalize', function () { return { rawKind: 'exit:' + String((outcome && outcome.exitCode) || -1), mappedKind: kind } }) } } catch (eL) {}
+        doneRun()
         return { ok: false, kind: kind, code: outcome.exitCode, error: all.slice(0, 400), text: out.text || '' }
       }
       // 彻底移除：issuePath 1A 白名单检测已移除（#345），只保留两项与面包屑无关的职责：
@@ -122,6 +165,7 @@ export function createRepoKeys(deps) {
         }
       } catch (e) {}
       try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, kind: 'ok', exitCode: 0 }) } catch (eL) {}
+      doneRun()
       return { ok: true, text: out.text || '' }
     }
 
@@ -130,12 +174,20 @@ export function createRepoKeys(deps) {
     //   不走 platformChannel 的 detectionExec。同一个事件 exec.run、同一套字段，两条路互斥，
     //   所以每条外部命令只落一行，两次相加就是「经 ctx.exec 起过多少次」。调试开关关着时只读一次开关就返回。
     // 第三个参数 via 是「这条命令由哪条链起的」：调用方把链名传进来，日志只记这个固定名字。
-    async function execProc(argv, cwd, via) {
+    async function execProc(argv, cwd, via, fourth) {
       // 起始时刻只在开关打开时才取：关着时这一行读一个布尔就结束，连时钟都不读，后面两行自然也不落。
       const _execT0 = (logCtx && logCtx.isEnabled('debug')) ? Date.now() : 0
-      // #723（T19）：这一笔真实出站先报给闸（I1）。这条路的调用方是 git / glab / gh 三条，
-      // 其中 gh 与 glab 是真实出站；git 只读远端地址、不起 HTTP 请求，但它是同一个进程出口，
-      // 一起报能保证「起过几条命令」与账上的条数一一对应（宁可多记一笔，也不要漏一笔）。
+      const procSignal = pickSignal(via, fourth)
+      // #965：先拿名额再起进程，满了就排队等。git 与 gh 共用同一道计数，桶按命令分。
+      let procRelease = null
+      try {
+        procRelease = await getGhLane().acquire({ bucket: bucketForCommand(argv && argv[0], (argv || []).slice(1)), signal: procSignal || undefined })
+      } catch {
+        try { if (_execT0 && logCtx.isEnabled('debug')) logCtx.fire('debug', 'exec.run', { argv0: progName(argv && argv[0]), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: 0, exitCode: -1, via: String((typeof via === 'string' && via) || 'unspecified') }) } catch (eL) {}
+        return { ok: false, cancelled: true, code: -1, error: '已取消排队（出站准入等待中被取消），没有发出请求，可重试' }
+      }
+      const doneProc = function () { try { if (procRelease) procRelease() } catch {} }
+      // #723（T19）：这一笔真实出站先报给闸（I1）。报在拿到名额之后 —— 排队等待不算，取消的不进账。
       reportOutbound(argv)
       let handle
       try {
@@ -146,24 +198,41 @@ export function createRepoKeys(deps) {
           graceMs: 2000,
         })
       } catch (e) {
+        doneProc()
         return { ok: false, error: String((e && e.message) || e) }
       }
       const to = timer.timeout(TIMEOUT_MS)
+      // #965：在飞时被取消就杀进程。via 可能是字符串链名，真正信号在 fourth 里，上面已取出。
+      const viaName = (typeof via === 'string' && via) ? via : (via && via.via) || 'unspecified'
+      let onAbortProc = null
+      const abortProcP = new Promise(function (resolve) {
+        if (!procSignal || typeof procSignal.addEventListener !== 'function') return
+        if (procSignal.aborted === true) { try { handle.terminate() } catch {} resolve({ exitCode: -1, signal: 'aborted' }); return }
+        onAbortProc = function () { try { handle.terminate() } catch {} resolve({ exitCode: -1, signal: 'aborted' }) }
+        try { procSignal.addEventListener('abort', onAbortProc, { once: true }) } catch {}
+      })
       let outcome
       try {
         outcome = await Promise.race([
           handle.done,
           to.then(function () { handle.terminate(); return { exitCode: -1, signal: 'timeout' } }),
+          abortProcP,
         ])
       } catch (e) {
-        try { if (_execT0 && logCtx.isEnabled('debug')) logCtx.fire('debug', 'exec.run', { argv0: progName(argv && argv[0]), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - _execT0, exitCode: -1, via: String(via || 'unspecified') }) } catch (eL) {}
+        try { if (onAbortProc && procSignal && typeof procSignal.removeEventListener === 'function') procSignal.removeEventListener('abort', onAbortProc) } catch {}
+        doneProc()
+        try { if (_execT0 && logCtx.isEnabled('debug')) logCtx.fire('debug', 'exec.run', { argv0: progName(argv && argv[0]), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - _execT0, exitCode: -1, via: String(viaName) }) } catch (eL) {}
         return { ok: false, error: String((e && e.message) || e) }
       }
+      try { if (onAbortProc && procSignal && typeof procSignal.removeEventListener === 'function') procSignal.removeEventListener('abort', onAbortProc) } catch {}
       const out = (handle.collected && handle.collected.stdout) ? handle.collected.stdout.readFrom(0) : { text: '' }
       const err = (handle.collected && handle.collected.stderr) ? handle.collected.stderr.readFrom(0) : { text: '' }
-      try { if (_execT0 && logCtx.isEnabled('debug')) logCtx.fire('debug', 'exec.run', { argv0: progName(argv && argv[0]), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - _execT0, exitCode: (outcome && typeof outcome.exitCode === 'number') ? outcome.exitCode : -1, via: String(via || 'unspecified') }) } catch (eL) {}
-      if (outcome.exitCode !== 0) return { ok: false, code: outcome.exitCode, error: ((err.text || '') + (out.text || '')).slice(0, 400) }
+      try { if (_execT0 && logCtx.isEnabled('debug')) logCtx.fire('debug', 'exec.run', { argv0: progName(argv && argv[0]), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - _execT0, exitCode: (outcome && typeof outcome.exitCode === 'number') ? outcome.exitCode : -1, via: String(viaName) }) } catch (eL) {}
+      // #965：在飞时被取消按取消返回，不算失败。
+      if (outcome && outcome.signal === 'aborted') { doneProc(); return { ok: false, cancelled: true, code: -1, error: '已取消在飞请求（出站准入执行中被取消），可重试' } }
+      if (outcome.exitCode !== 0) { doneProc(); return { ok: false, code: outcome.exitCode, error: ((err.text || '') + (out.text || '')).slice(0, 400) } }
       // #857：成功必须带整数退出码 0。调用方经 ctx.exec 转给 GitHub 命令执行器时，那边按“拿不到整数退出码就判失败”处理；缺了这个 0，评论写成功了面板也会报失败。
+      doneProc()
       return { ok: true, text: out.text || '', code: 0 }
     }
 
