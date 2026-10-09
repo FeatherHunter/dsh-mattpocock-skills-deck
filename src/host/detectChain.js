@@ -3,12 +3,12 @@
 // 接线：由 index.js 动态 import 加载；harness 注册留守 index，处理器体经 handleDetect/handleChain 供给。
 import { refreshSourceOf } from './refresh/refreshSource.js'
 import { workspaceKeyOf } from '../shared/refresh-workspace-key.js'   // #724：链记账给闸的钥匙，与活跃集合同一把（从前传 cwd 原文 → 同一个工作区在闸里有两格）
-import { createChainRide } from '../shared/refresh/chain-ride.js'   // #964：同钥匙搭车的小账本住在共享层，宿主层只调它（同层互引门禁不新增边）
+import { getChainRide } from '../shared/refresh/chain-ride.js'   // #964 小账本住共享层；#966 用进程单例，出站写路能记写
 export function createDetectChain(deps) {
   const { canonicalKey, DEFAULT_CWD, resetGhCache, getDetectionService, getPlatform, getTrackerRegistry, getRepoKey, runGh, timer, probeSkill, mdParseOkPredicate, getChainCache, setChainCache, getChainBackoff, logCtx, gate, ghTimeoutMs, sandboxPolicyFor } = deps
   // #491 房外埋点 helpers：hash8 只记散列；P1 外层先判开关（采样/节流/按事件），字段函数只在守卫内求值。
   function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
-  const chainInflight = createChainRide({ now: (deps && typeof deps.now === 'function') ? deps.now : undefined }) // #696搭车表搬进共享层小账本（#964加写后失败超三十秒三条不搭与合并数，钥匙与强制不进表照旧）
+  const chainInflight = getChainRide({ now: (deps && deps.now) || undefined }) // #696搭车表用进程单例（写信号由出站路记进来）；测试注钟时建隔离新账
   let lastPredAt = 0
   let lastPredStatus = {}
   /**
