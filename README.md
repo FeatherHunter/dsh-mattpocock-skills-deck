@@ -199,27 +199,29 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https:
 
 [@Shimmernight](https://github.com/Shimmernight)🌹🌹🌹🌹 — 提交了 #277 等 Issue，以及 PR #287、#275、#106（toast 主题、命名修正、macOS 适配）
 
-[@21967201](https://github.com/21967201)🌹 — 提交了 PR #321（完善 triage + wayfinder 标签文档）
-
 [@angenet](https://github.com/angenet)🌹🌹 — 反馈了 #295、#262 等 macOS 环境检测问题
 
 [@hyperion2144](https://github.com/hyperion2144)🌹🌹 — 反馈了 #110 等环境检查问题，以及 #646（建议直接注册 DSH 原生侧边栏，不再经过 better-sidebar 中转）
 
+[@arnold117](https://github.com/arnold117)🌹🌹 — 反馈了 #574（本地 Markdown 后端里多个工作单元撞号，只能看到第一个，评论还会写进别的文件），并提交了 PR #575 修好它（已合入），感谢你让一个仓库里并存多个工作单元时不再读错写错
+
+[@anupamme](https://github.com/anupamme)🌹🌹 — 提交了 PR #727、#728（给 rpcChannel.js 加两处安全加固：防原型污染与加资源限制，目前待评审）
+
+[@qq1393950873-bit](https://github.com/qq1393950873-bit)🌹🌹 — [#970](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/970) 整份正文写成两份、[PR #974](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/974) 已合入修复
+
+[@21967201](https://github.com/21967201)🌹 — 提交了 PR #321（完善 triage + wayfinder 标签文档）
+
 [@tafcear](https://github.com/tafcear)🌹 — 反馈了 #422（非编码工作区状态栏降噪诉求），感谢你让非编码工作区不再被初始化横幅打扰
 
-[@271912980](https://github.com/271912980) — 在 #257 下提出把会话做成稳定可寻址端点（会话 ID + 语义名）的想法
+[@271912980](https://github.com/271912980)🌹 — 在 #257 下提出把会话做成稳定可寻址端点（会话 ID + 语义名）的想法
 
 [@xiSage](https://github.com/xiSage)🌹 — 反馈了 #435（自托管 GitLab 仓库无法识别），并在讨论区发起 #436（按工作区关闭插件功能）
 
 [@dis0neplay](https://github.com/dis0neplay)🌹 — 提交了 PR #493（修 CI 与 Pages 根目录跳转，按请求关闭）
 
-[@snmtg1008](https://github.com/snmtg1008) — 在 #476 下留下了自己排查并修好「本地数据目录误报不可写」的完整方案
-
-[@arnold117](https://github.com/arnold117)🌹🌹 — 反馈了 #574（本地 Markdown 后端里多个工作单元撞号，只能看到第一个，评论还会写进别的文件），并提交了 PR #575 修好它（已合入），感谢你让一个仓库里并存多个工作单元时不再读错写错
+[@snmtg1008](https://github.com/snmtg1008)🌹 — 在 #476 下留下了自己排查并修好「本地数据目录误报不可写」的完整方案
 
 [@SbDonger](https://github.com/SbDonger)🌹 — 反馈了 #640（状态栏与输入框错位，输入框上方出现一条横向背景带）
-
-[@anupamme](https://github.com/anupamme)🌹🌹 — 提交了 PR #727、#728（给 rpcChannel.js 加两处安全加固：防原型污染与加资源限制，目前待评审）
 
 [@seameafst](https://github.com/seameafst)🌹 — 反馈了 #793（点「+ 新建需求」后直接回车会发出一份空模板，需求原文在链路里没人收，附完整根因与两档修法）
 
@@ -234,8 +236,6 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https:
 [@jack2jiehua](https://github.com/jack2jiehua)🌹 — [#930](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/930) 后端选择与写探测问题
 
 [@zhengcookie](https://github.com/zhengcookie)🌹 — [#960](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/960) 桌面闪退重进定位
-
-[@qq1393950873-bit](https://github.com/qq1393950873-bit)🌹🌹 — [#970](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/970) 整份正文写成两份、[PR #974](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/974) 已合入修复
 
 也感谢在评论区与讨论区留下想法的每一位朋友。如果你也遇到了问题或有新想法，欢迎直接提 Issue 或发起讨论。
 
