@@ -24,9 +24,9 @@ console.log('== #969 分档超时（读12秒／写30秒／探活3秒） ==')
 // —— 一、纯函数分档：读的短、写的长、探活的最短 ——
 let tiers = null
 try {
-  tiers = await import(pathToFileURL(nodePath.join(ROOT, 'src/shared/gh-timeout-tiers.js')).href)
+  tiers = await import(pathToFileURL(nodePath.join(ROOT, 'src/shared/tracker/outbound-tiers.js')).href)
 } catch (e) {
-  check(false, '一、能读到分档超时纯函数（src/shared/gh-timeout-tiers.js）', String((e && e.message) || e).slice(0, 200))
+  check(false, '一、能读到分档超时纯函数（src/shared/tracker/outbound-tiers.js）', String((e && e.message) || e).slice(0, 200))
 }
 if (tiers) {
   const { READ_TIMEOUT_MS, WRITE_TIMEOUT_MS, PROBE_TIMEOUT_MS, tierForGhArgs, timeoutForGhArgs, timeoutForTier } = tiers
