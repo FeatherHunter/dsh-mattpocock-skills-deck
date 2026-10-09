@@ -68,6 +68,8 @@ function resultOf(cls, shape, cost) {
 
 // 主入口。hasRealTime/hasRealProgress 只认真实时间与真实进度，
 // 没有就不给倒计时与百分比，不编数字骗人。
+// alt 是短等待的备用过程（省略号圆点与呼吸）：只给没有转圈位子的文字按钮用
+// （弹窗提交等待中用圆点，评论分页加载中用呼吸），永不与转圈同开。
 // 非法输入诚实抛错，不猜默认值。
 export function feedbackComboOf(input) {
   const v = input || {}
@@ -85,5 +87,6 @@ export function feedbackComboOf(input) {
     if (v.hasRealProgress === true) detail.push('percent')
   }
   const result = resultOf(cls, v.shape, v.cost)
-  return { cls: cls, moment: moment, process: process, detail: detail, result: result }
+  const alt = cls === 2 ? ['dots', 'breath'] : []
+  return { cls: cls, moment: moment, process: process, detail: detail, result: result, alt: alt }
 }

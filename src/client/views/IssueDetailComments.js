@@ -97,7 +97,8 @@ export const renderIssueDetailComments = function (h, st, issueNumber, detail, m
           const label = st.issueCommentsMoreLoading ? '加载中' : (fail>0 ? '重试' : '加载下 50')
           return h('div', { style: { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 8 } }, [
             h('button', {
-              className: 'dsws-btn' + (st.issueCommentsMoreLoading ? ' loading' : ''),
+              // #952：分页加载中用呼吸备用（无转圈的文字按钮，永不与转圈同开）。
+              className: 'dsws-btn' + (st.issueCommentsMoreLoading ? ' loading dsws-fb-breath' : ''),
               disabled: !!st.issueCommentsMoreLoading,
               onClick: function () {
                 if (st.issueCommentsMoreLoading) return

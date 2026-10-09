@@ -114,10 +114,12 @@ async function main() {
   check(styles.includes('prefers-reduced-motion'), '减少动态兜底存在')
   check(styles.includes('fb-dark') || styles.includes('is-dark'), '深底描边代替加深存在')
   check(!styles.includes('#f85149'), '不引入原型占位红 #f85149')
-  // 新规则里不许出现顶开布局的写法（宽高边距内边距位移布局）
+  // 新规则里不许出现顶开布局的写法（宽高边距内边距位移布局）。
+  // #952 起例外：票面点名“宽度提前按最长一句留死”，留死只许换字类与圆点区两个固定位，其余一律不许。
   const fbRules = styles.split('// #948').slice(1).join('\n')
+  const fbNoReserve = fbRules.replace(/\.dsws-fb-result\{[^}]*\}/g, '').replace(/\.dsws-fb-dots\{[^}]*\}/g, '').replace(/\.dsws-fb-dots i\{[^}]*\}/g, '')
   if (fbRules) {
-    check(!/\.dsws-fb[^{]*\{[^}]*\b(width|height|margin|padding):/.test(fbRules), '新增反馈规则不动宽高边距（不顶布局）')
+    check(!/\.dsws-fb[^{]*\{[^}]*\b(width|height|margin|padding):/.test(fbNoReserve), '新增反馈规则不动宽高边距（不顶布局，留死宽度只许两个固定位）')
   } else {
     check(false, '新增反馈规则有 #948 标记（可追溯）')
   }
