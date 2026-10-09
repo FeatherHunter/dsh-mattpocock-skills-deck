@@ -217,7 +217,7 @@ function makeSettle (steps, opts) {
   check(changed.seen.inject[1] === 'switchLayout|setup.layoutMulti->setup.layoutSingle', '第二条是 switchLayout（改之前那一项 → 改之后那一项）—— 实得 ' + JSON.stringify(changed.seen.inject[1]))
   check(changed.seen.log.some((l) => l.fields && l.fields.kind === 'align-layout'), '布局对齐那一条留了一行轨迹（kind=align-layout）')
   check(changed.seen.log.some((l) => l.fields && l.fields.kind === 'align'), '后端对齐那一条也留了一行（kind=align）—— 与「只开了卡」在日志里分得开')
-  check(/不要重跑初始化/.test(promptsSrc.slice(promptsSrc.indexOf('"switchLayout"'))), '新模板里点名了「不要重跑初始化、不要重建已有产物」')
+  check(promptsSrc.slice(promptsSrc.indexOf('"switchLayout"')).includes('本工作区布局已从'), '新模板switchLayout是V15原文+首句（V4有意回归，不再单独写不要重跑）')
   check(/switchLayout/.test(promptsSrc) && /switchLayout/.test(setupSrc) === false, '模板在提示词表里，取值那一步在 statusbar（模板表与代码各一份，不混）')
 
   const same = makeSettle(CHAIN_INITIALIZED)
