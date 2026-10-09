@@ -1,10 +1,20 @@
 // src/host/platformChannel.js —— 平台与探测通道（H1 #445 从 host/index.js 259–491 搬出，纯结构、行为零变化）
 // 以后谁改它：改平台抽象、后端注册表或探测级联的人。预估约 280 行，超 350 打回。
 // 接线：由 index.js 动态 import 动态加载；STATUS_CACHE_MS 随本文件搬入（无外部引用）；getMattSkillProbeNames/probeSkill 显式注入；共享层只引用 src/shared（出站分档/准入/测量，#963）。本文件不引用其他宿主新文件。
+// #968 技能按需多一个显式注入 getChainSkillNames（链条目录里要的三项技能名，查链时只问这三项）。
 import { timeoutForGhArgs, isWriteGhArgs } from '../shared/tracker/outbound-tiers.js'
 import { getGhLane } from '../shared/tracker/outbound-admission.js'
+// #968 平时问三项、重查问全量的分流判据（纯函数，门禁直测它）：
+//   范围是“链”就只问链条要的三项，其余（全量、未知）都问全量——未知时宁可多问，不漏判。
+export function selectSkillProbeNames(allNames, chainNames, scope) {
+  try {
+    if (String(scope || '') === 'chain' && Array.isArray(chainNames) && chainNames.length) return chainNames.slice()
+  } catch {}
+  try { return (allNames || []).slice() } catch { return [] }
+}
+
 export function createPlatformChannel(deps) {
-  const { ctx, subprocess, timer, fs, DEFAULT_CWD, TIMEOUT_MS, getMattSkillProbeNames, probeSkill, logCtx, gate, getGate } = deps
+  const { ctx, subprocess, timer, fs, DEFAULT_CWD, TIMEOUT_MS, getMattSkillProbeNames, getChainSkillNames, probeSkill, logCtx, gate, getGate } = deps
   // #494 O1：旧文本通道退役——backend.diagnostic 不再产生（github 房内零调用；残留 ctx.log.* 调用自动静默，gitlab 房由本房 O 票另行结构化）。房内埋点只走 logEvent/isEnabled。
   // #927：闸可能比本通道晚一步就位（刷新接线要到插件起步时才建好），所以每次报账现问一次：
   // 拿到就用，还没有就什么都不做。写成一次性快照的话，先建好的那一路会永远拿不到闸。
@@ -272,11 +282,14 @@ export function createPlatformChannel(deps) {
       try {
         const mod = await import('./tracker/detection/detectionService.js')
         const create = mod.createDetectionService || mod.default
-        // skillProbe 内联（复用 probeSkill 双源逻辑；列表 = shared/matt-skills.js 单源，25 项）
+        // skillProbe 内联（复用 probeSkill 双源逻辑；全量名单 = shared/matt-skills.js 单源，二十多项）
         // #280/#fix-banner：旧版硬编码 10 名，遗漏 grill-with-docs / wizard / grill-me / to-questionnaire / wait-what / writing-for-agents 等导致横幅永远报警
-        const skillProbe = async ({ cwd }) => {
-          // probeNames ≈ shared/matt-skills.js:MATT_SKILL_PROBE_NAMES（单源）；改探测集只改 shared 一处即可
-          const probeNames = await getMattSkillProbeNames()
+        // #968 技能按需：平时（链求值、普通探测）只问链条目录要的三项，人亲手点重查才问全量。
+        // 范围由探测编排层按重查标记带来（见 detectionService），这里只按范围选名单；重查标记同时透给单项探测，
+        // 让它绕过短时记住（刚装好的技能重查立即可见），平时则命中记住、不重复问。
+        const skillProbe = async ({ cwd, skillScope, force }) => {
+          // probeNames：全量即 shared/matt-skills.js:MATT_SKILL_PROBE_NAMES（单源）；链上三项即链目录真源；改探测集只改各真源一处即可
+          const probeNames = selectSkillProbeNames(await getMattSkillProbeNames(), (typeof getChainSkillNames === 'function') ? await getChainSkillNames() : null, skillScope)
           const probes = {}
           let missing = []
           let hasPending = false
@@ -284,7 +297,7 @@ export function createPlatformChannel(deps) {
           for (let i = 0; i < probeNames.length; i++) {
             const name = probeNames[i]
             try {
-              const r = await probeSkill(name, 'zh', cwd)
+              const r = await probeSkill(name, 'zh', cwd, { force: !!force })
               probes[name] = r
               if (r.level === 'pending') { hasPending = true; if (!pendingError && r.error) pendingError = r.error }
               else if (r.level !== 'ok') missing.push(name)

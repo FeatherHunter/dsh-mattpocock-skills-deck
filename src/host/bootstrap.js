@@ -204,5 +204,21 @@ export function createBootstrap(deps) {
       }
       return SKILL_PROBE_NAMES
     }
-  return { getMattSkillProbeNames }
+    // #968 链条要的三项技能名（真源 = 链目录视图 GENERIC_CHECK_ITEMS 里挂技能探针的那几项；
+    // 平时探测只问这三项，全量只在人亲手重查时问。目录增减技能项，这里跟着变，不手写第二份名单。）
+    let CHAIN_SKILL_NAMES = null
+    async function getChainSkillNames() {
+      if (CHAIN_SKILL_NAMES) return CHAIN_SKILL_NAMES
+      try {
+        const m = await import('../shared/tracker/check-catalog-views.js')
+        const items = (m && m.GENERIC_CHECK_ITEMS) || []
+        CHAIN_SKILL_NAMES = items.filter(function (it) { return it && it.check && typeof it.check.skill === 'string' }).map(function (it) { return it.check.skill })
+        if (!CHAIN_SKILL_NAMES.length) throw new Error('链目录里没有技能检查项')
+      } catch (e) {
+        // 兜底：与链目录一致的三项（仅在目录文件丢失时使用；目录在场时以上面读到的为准）
+        CHAIN_SKILL_NAMES = ['wayfinder', 'setup-matt-pocock-skills', 'ask-matt']
+      }
+      return CHAIN_SKILL_NAMES
+    }
+  return { getMattSkillProbeNames, getChainSkillNames }
 }
