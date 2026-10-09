@@ -267,7 +267,7 @@ export const VersionControlTab = function (props) {
         b.readAtText ? h('span', { key: 'when', style: { flex: 'none' } }, b.readAtText) : null,
         b.sync.basis ? h('span', { key: 'dot2', style: { flex: 'none' } }, '·') : null,
         b.sync.basis ? tipNode(b.sync.basisTip, h('span', { key: 'basis', 'data-vc-basis': 1, style: { flex: 'none' } }, b.sync.basis)) : null,
-        h('button', { key: 'reload', className: 'dsws-btn', type: 'button', 'data-vc-reload': 1, onClick: reloadNow }, tr('vc.reload')),
+        h('button', { key: 'reload', className: 'dsws-btn' + (screenState === 'loading' ? ' dsws-fb-busy' : ''), type: 'button', 'data-vc-reload': 1, disabled: screenState === 'loading', onClick: reloadNow }, screenState === 'loading' ? [h('span', { key: 't', className: 'fb-t', 'aria-hidden': 'true' }, tr('vc.reload')), h('span', { key: 's', className: 'fb-spin', 'aria-hidden': 'true' }, h('span', { className: 'dsws-spinner', style: { width: 11, height: 11, borderWidth: 2 } }))] : tr('vc.reload')),
       ]),
     ])
     const changeTail = b.kind === 'changes' ? [b.note ? h('div', { key: 'note', 'data-vc-note': 1, style: { fontSize: 11, color: tone('caption'), marginTop: 4, lineHeight: 1.6 } }, b.note) : null,
@@ -284,7 +284,7 @@ export const VersionControlTab = function (props) {
       b.back ? h('div', { key: 'back', className: 'dsws-vc-link', 'data-vc-back': 1, onClick: closeCommit, style: { marginBottom: 4 } }, b.back) : null,
       // 854 布局 C 原型的改动视图没有标题汇总行：标题就是页签，计数就是数字条，这里直接进数字条加视图条。
       vcStatsNode(h, { stats: vcStatsOf(screen), t: tr }),
-      vcViewBarNode(h, { stageAll: b.stageAll, commitArea: b.commitArea, actions: (writeUi && writeUi.actions) || null, startPull: ops.startPull, startPush: ops.startPush, startFetch: ops.startFetch, foldActions: foldState.actions, tone: tone, tipNode: tipNode, t: tr, stagePaths: ops.stagePaths, submitCommit: ops.submitCommit, writeMessageOf: ops.writeMessageOf }),
+      vcViewBarNode(h, { stageAll: b.stageAll, commitArea: b.commitArea, actions: (writeUi && writeUi.actions) || null, runningOp: (writeUi && writeUi.running) || '', startPull: ops.startPull, startPush: ops.startPush, startFetch: ops.startFetch, foldActions: foldState.actions, tone: tone, tipNode: tipNode, t: tr, stagePaths: ops.stagePaths, submitCommit: ops.submitCommit, writeMessageOf: ops.writeMessageOf }),
     ].concat(changeTail))
     if (b.kind === 'commits') return h('div', { key: b.key, 'data-vc-commits': 1 }, [
       h('div', { key: 'title', className: 'dsws-vc-sec', style: { color: tone('primary') } }, b.title),
