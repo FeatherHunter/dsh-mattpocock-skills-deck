@@ -18,3 +18,19 @@ export     const TypeChip = ({ type }) => {
         h('span', null, tr('type.' + type)),
       ])
     }
+    // #949 瞬间底座（收敛：从 ListTab.js 搬出，列表文件守 350 行）：可点小药丸的键盘可达三件套。
+    //   Tab 停留靠 tabIndex: 0，外圈描边走样式叶子的 :focus-visible，不占布局；
+    //   回车与空格沿用鼠标同一条路（调起 DOM click，不另写分支），布局文案都不动。
+export     const chipKeyDown = function (e) {
+      const k = e && e.key
+      if (k === 'Enter' || k === ' ') { try { if (e.preventDefault) e.preventDefault() } catch (_) {} try { if (e.currentTarget) e.currentTarget.click() } catch (_) {} }
+    }
+    // 同一三件套的打包写法：往调用点传进来的 props 对象上补齐三件套就返回，不新建对象，
+    // 调用点少写三行，行为与逐字写的三行完全一致。
+export     const chipProps = function (p) {
+      const o = p || {}
+      o.tabIndex = 0
+      o.role = 'button'
+      o.onKeyDown = chipKeyDown
+      return o
+    }

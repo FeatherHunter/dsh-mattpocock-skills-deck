@@ -18,7 +18,7 @@ const GRANULARITY_BASELINE = (function () {
 })()
 const PRODUCTS = ['client.js', 'package/lib/client.js']
 const LEAVES = [
-  { file: 'src/client/views/shared/chips.js', exports: ['Dot', 'TypeChip'], components: ['Dot', 'TypeChip'] },
+  { file: 'src/client/views/shared/chips.js', exports: ['Dot', 'TypeChip', 'chipKeyDown', 'chipProps'], components: ['Dot', 'TypeChip'] },', 'TypeChip'] },
   { file: 'src/client/views/shared/md.js', exports: ['MD_LINK_RE', 'MD_TASK_RE', 'mdEsc', 'mdInline', 'mdToHtml'], components: [] },
   { file: 'src/client/views/shared/ticket.js', exports: ['tStatus', 'tStatusLabel', 'tProgressBar', 'tStatusBadge'], components: [] },
   { file: 'src/client/views/shared/stateKind.js', exports: ['prStateKind'], components: [] }, // #599 新增：票的状态判据（打开/已关闭/已合并）单源，拉取请求页与单票详情页共用
@@ -83,6 +83,7 @@ const LEAVES = [
   // #842 版本管理写操作那一族的五个新叶子：vcRows 是从 vcBlocks 原样搬出的一层（腾行给写操作），
   //   另三个是写操作的纯规则 / 执行 / 画法。登在这里让「单文件 ≤350 行」与「产物已拼接」两条检查也覆盖到它们。
   { file: 'src/client/views/versionControl/vcStyles.js', exports: ['VC_STYLE_TEXT', 'vcSetTheme', 'vcClearTheme'], components: [] }, // #851：版本管理页签的视觉语言（CSS 文本，经 styles.insert 注入）
+  { file: 'src/client/views/feedback/feedback-styles.js', exports: ['FEEDBACK_STYLE_TEXT'], components: [] }, // 948：交互反馈三批的视觉语言（CSS 文本，经 styles.insert 注入；styles.js 已贴 350 行上限，照 #851 做法另起叶子）
   { file: 'src/client/views/versionControl/vcRows.js', exports: ['vcGroupOfRow', 'vcFileRowsOf', 'vcRowViewOf', 'vcOtherRowOf', 'vcReadsOf', 'vcDiffOpenKeyOf'], components: [] }, // #850：展开键两边共用这一个函数
     { file: 'src/client/views/versionControl/vcDiffOps.js', exports: ['vcDiffOpsOf'], components: [] }, // #857
   { file: 'src/client/views/versionControl/vcViews.js', exports: ['VC_VIEWS', 'vcRememberedView', 'vcRememberView', 'vcResetViewMemory', 'vcViewOf', 'vcViewCountsOf', 'vcViewBlocksOf', 'vcViewTabsNode', 'vcStatsOf', 'vcStatsNode', 'vcViewSkelNode'], components: [] }, // #853 第三步：布局 C 的三个视图

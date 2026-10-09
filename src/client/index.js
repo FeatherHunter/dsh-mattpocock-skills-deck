@@ -75,6 +75,8 @@ export default {
     // 887：技能详情像素风皮肤另起一个样式叶子（与 vcStyles 同一套做法）。
     // ==== leaf:pxSkillStyles (spliced by build) ====
     styles.insert(PX_STYLE_TEXT)
+    // ==== leaf:feedbackStyles (spliced by build) ====
+    styles.insert(FEEDBACK_STYLE_TEXT) // 948 反馈样式叶子（VC/PX 同款做法，见叶子头）
 
     // ============================================================
     // 0.5 locale（T3 #366 · dsws 命名空间 zh/en；跟随 harness 语言；GitHub 数据不翻译）

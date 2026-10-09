@@ -24,7 +24,7 @@ const check = (ok, msg, detail) => { total += 1; console.log((ok ? '  PASS ' : '
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 
 console.log('948 第二批门禁：短等待核心过程与结果（#951）')
-const styles = read('src/client/kernel/styles.js')
+const styles = read('src/client/views/feedback/feedback-styles.js') + '\n' + read('src/client/kernel/styles.js')
 const comments = read('src/client/views/IssueDetailComments.js')
 const labelDialog = read('src/client/views/labels/LabelColorDialog.js')
 const settings = read('src/client/views/SettingsPage.js')

@@ -20,8 +20,10 @@ const check = (ok, msg, detail) => { total += 1; console.log((ok ? '  PASS ' : '
 
 function main() {
   console.log('948 第二批门禁：瞬间点缀补齐并扩到全部瞬间控件（#950）')
-  const styles = fs.readFileSync(path.join(ROOT, 'src/client/kernel/styles.js'), 'utf8')
-  const batch = styles.split('// #948 第二批')[1]
+  const leaf = fs.readFileSync(path.join(ROOT, 'src/client/views/feedback/feedback-styles.js'), 'utf8')
+  const styles = leaf + '\n' + fs.readFileSync(path.join(ROOT, 'src/client/kernel/styles.js'), 'utf8')
+  // 本批只看叶子里的第二批段（样式叶子搬家后，内核样式尾部不再进本批视野）
+  const batch = (leaf.split('// #948 第二批')[1] || '').split('// #951')[0]
   check(!!batch, '第二批样式有 #948 第二批 标记（可追溯、可回滚）')
 
   if (batch) {

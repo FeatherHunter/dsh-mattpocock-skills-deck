@@ -465,6 +465,7 @@ const LEAF_MODULES = [
   { id: 'skillsTab', file: 'src/client/views/SkillsTab.js' },
   // 887 技能详情像素风：皮肤、中组件与整页（PxDoc 无横向 import，只调全局 emit/tr）
   { id: 'pxSkillStyles', file: 'src/client/views/skills/pxSkillStyles.js' },
+  { id: 'feedbackStyles', file: 'src/client/views/feedback/feedback-styles.js' }, // 948 交互反馈三批的视觉语言（样式叶子：一段 CSS 文本，经同一个 styles.insert 接缝注入；styles.js 已贴 350 行上限，照 #851 做法另起叶子）
   { id: 'pxToc', file: 'src/client/views/skills/PxToc.js' },
   { id: 'pxDoc', file: 'src/client/views/skills/PxDoc.js' },
   { id: 'skillRow', file: 'src/client/views/skills/SkillRow.js' },

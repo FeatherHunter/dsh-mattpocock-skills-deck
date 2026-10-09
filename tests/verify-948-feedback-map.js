@@ -21,7 +21,7 @@ const check = (ok, msg, detail) => { total += 1; console.log((ok ? '  PASS ' : '
 async function main() {
   console.log('948 首批门禁：组合映射全函数 + 瞬间底座（#949）')
   const mod = await import(pathToFileURL(path.join(ROOT, 'src/shared/feedback-map.js')).href)
-  const styles = fs.readFileSync(path.join(ROOT, 'src/client/kernel/styles.js'), 'utf8')
+  const styles = fs.readFileSync(path.join(ROOT, 'src/client/views/feedback/feedback-styles.js'), 'utf8') + '\n' + fs.readFileSync(path.join(ROOT, 'src/client/kernel/styles.js'), 'utf8')
 
   // —— 1. 31 种全部分配，6 种已否不在内 ——
   const denied = ['A9', 'A10', 'B2', 'B8', 'B10', 'C13']
@@ -90,17 +90,21 @@ async function main() {
   check(doubles.length === 0, '过程主力唯一（process 是单值，不是数组）', doubles.slice(0, 3).join(','))
 
   // —— 9. 可点控件键盘可达：小药丸与整行 Tab 能停留，回车空格沿用鼠标同一条路 ——
+  //   （收敛：三件套住共享 chips.js 的 chipProps，列表页调用点只包一层；断言跟实现同形）
   const listTab = fs.readFileSync(path.join(ROOT, 'src/client/views/ListTab.js'), 'utf8')
   const listRow = fs.readFileSync(path.join(ROOT, 'src/client/views/ListTabRow.js'), 'utf8')
   const prTab = fs.readFileSync(path.join(ROOT, 'src/client/views/PrTab.js'), 'utf8')
   const issueDetail = fs.readFileSync(path.join(ROOT, 'src/client/views/IssueDetail.js'), 'utf8')
-  check(listTab.includes('chipKeyDown'), '过滤小药丸有统一键盘处理（chipKeyDown）')
-  const chipTabs = (listTab.match(/tabIndex: 0/g) || []).length
-  check(chipTabs >= 8, '列表页可点小药丸基本都有 Tab 停留（tabIndex ≥ 8）', '实际 ' + chipTabs)
+  const chips = fs.readFileSync(path.join(ROOT, 'src/client/views/shared/chips.js'), 'utf8')
+  check(chips.includes('chipKeyDown') && chips.includes('chipProps'), '过滤小药丸有统一键盘处理（共享 chips.js 的 chipKeyDown 与 chipProps）')
+  check(chips.includes('tabIndex') && chips.includes("role = 'button'") && chips.includes('onKeyDown'), '三件套住共享层（Tab 停留 + role=button + 键盘处理）')
+  const chipUses = (listTab.match(/chipProps\(\{/g) || []).length
+  check(chipUses >= 8, '列表页可点小药丸基本都包了三件套（chipProps ≥ 8）', '实际 ' + chipUses)
+  check(!listTab.includes('chipKeyDown'), '列表页不再自带键盘处理（单源在共享层，不各写一份）')
   check(listRow.includes("tabIndex: 0") && listRow.includes("role: 'button'"), '列表整行键盘可达（tabIndex + role=button）')
   check(prTab.includes('tabIndex: 0'), 'PR 行键盘可达（tabIndex）')
   check(issueDetail.includes('tabIndex: 0'), '详情子票与阻塞行键盘可达（tabIndex）')
-  check(listRow.includes('e.currentTarget.click()') && listTab.includes('e.currentTarget.click()'), '键盘沿用鼠标同一条路（回车空格调起 click，不另写分支）')
+  check(listRow.includes('e.currentTarget.click()') && chips.includes('e.currentTarget.click()'), '键盘沿用鼠标同一条路（回车空格调起 click，不另写分支）')
 
   // —— 8. 底座样式落进 styles.js，且只叠加不顶布局 ——
   check(styles.includes('.dsws-chip:active') || styles.includes('.dsws-chip-fb:active'), '过滤小药丸按下加深存在')
