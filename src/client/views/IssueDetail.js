@@ -312,7 +312,7 @@ export const IssueDetail = function (props) {
           h('div', { style: { display: 'flex', flexDirection: 'column', gap: 4 } }, subNodes.map(function (s) {
             const sc = s.state === 'CLOSED' ? '#3fb950' : '#8b8b95'
             // T4 整改 #554：子票按上面 enterSubDetail 分流（有标签按标签，无标签按快照找图）。
-            return h('div', { key: idOfParts((s.effortId!==undefined&&s.effortId!==null)?s.effortId:issueEffort, s.number), className: 'dsws-aggrow', onClick: function () { enterSubDetail(s) }, style: { cursor: 'pointer', padding: '6px 8px' } }, [
+            return h('div', { key: idOfParts((s.effortId!==undefined&&s.effortId!==null)?s.effortId:issueEffort, s.number), className: 'dsws-aggrow', tabIndex: 0, role: 'button', 'aria-label': '#' + s.number + ' ' + (s.title || ''), onClick: function () { enterSubDetail(s) }, onKeyDown: function (e) { if (!e || e.target !== e.currentTarget) return; const k = e && e.key; if (k === 'Enter' || k === ' ') { try { if (e.preventDefault) e.preventDefault() } catch (_) {} try { if (e.currentTarget) e.currentTarget.click() } catch (_) {} } }, style: { cursor: 'pointer', padding: '6px 8px' } }, [
               h('div', { style: { display: 'flex', alignItems: 'center', gap: 6 } }, [
                 h('span', { className: 'dsws-idnum', style: { color: sc, borderColor: sc, fontSize: 11 } }, '#' + s.number),
                 h(Tip, { content: h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 } }, [h('div', { style: { fontSize: 10, color: '#8b8b95', lineHeight: '14px' } }, tr('tip.header.fullTitle')), h('div', { style: { fontSize: 11, color: '#e6edf3', lineHeight: '16px', wordBreak: 'break-word', whiteSpace: 'normal' } }, s.title)]) }, h('span', { className: 'dsws-tt-wrap', style: { flex: 1, fontSize: 12 } }, s.title)),
@@ -326,7 +326,7 @@ export const IssueDetail = function (props) {
           h('div', { style: { fontSize: 11, fontWeight: 600, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', marginBottom: 6 } }, tr('detail.blockedPrefix') + blockedNodes.length),
           h('div', { style: { display: 'flex', flexDirection: 'column', gap: 4 } }, blockedNodes.map(function (b) {
             // T4 整改 #554：阻塞票同样按 enterSubDetail 分流（无标签时按快照找图）。
-            return h('div', { key: idOfParts((b.effortId!==undefined&&b.effortId!==null)?b.effortId:issueEffort, b.number), className: 'dsws-aggrow', onClick: function () { enterSubDetail(b) }, style: { cursor: 'pointer', padding: '6px 8px' } }, [
+            return h('div', { key: idOfParts((b.effortId!==undefined&&b.effortId!==null)?b.effortId:issueEffort, b.number), className: 'dsws-aggrow', tabIndex: 0, role: 'button', 'aria-label': '#' + b.number + ' ' + (b.title || ''), onClick: function () { enterSubDetail(b) }, onKeyDown: function (e) { if (!e || e.target !== e.currentTarget) return; const k = e && e.key; if (k === 'Enter' || k === ' ') { try { if (e.preventDefault) e.preventDefault() } catch (_) {} try { if (e.currentTarget) e.currentTarget.click() } catch (_) {} } }, style: { cursor: 'pointer', padding: '6px 8px' } }, [
               h('div', { style: { display: 'flex', alignItems: 'center', gap: 6 } }, [
                 Ic({ n: 'lock', size: 10, color: '#f0883e' }),
                 h('span', { className: 'dsws-idnum', style: { color: '#f0883e', borderColor: '#f0883e', fontSize: 11 } }, '#' + b.number),

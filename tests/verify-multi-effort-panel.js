@@ -134,6 +134,10 @@ const findGroupByIdentitySrc = extractConst(derivedSrc, 'findGroupByIdentity')
     // #845：listIssueRow 现在会调 truthLines.js 的 truthWriteWindowOpen（真源在 src/client/views/shared/truthLines.js:106），
     //   门禁手工列的闭包桩没跟上，一跑到那一行就 ReferenceError。产品不坏，缺的是这一个桩。
     truthWriteWindowOpen: () => false,
+    // #956 评审后：行内小药丸改调共享层的 chipProps / chipKeyDown（闭包里的自由变量，拼接期在），
+    //   夹具本该按闭包环境提供它们 —— 缺这两个桩，一跑到小药丸那一行就 ReferenceError。
+    chipProps: (p) => Object.assign({ tabIndex: 0, role: 'button' }, p || {}),
+    chipKeyDown: () => {},
   }
   const names = Object.keys(stubs)
   // 行渲染函数的函数体是几段源码拼的，自由变量由 h / st / names 三组参数名显式传入，所以走 compileFn。

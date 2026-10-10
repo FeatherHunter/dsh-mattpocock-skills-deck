@@ -50,8 +50,13 @@ check(menu.includes('fallback === true') && menu.includes('logtoast.exportFallba
 check(menu.includes('displayPath'), '三、记住目录兼容对象形态（读 displayPath 拆盒，对象回包同样认得出）')
 
 // 四、反馈闭环
-check(menu.includes('logmenu.clearTitle') && menu.includes('logmenu.clearDesc'), '四、清空确认框有标题与说明')
-check(menu.includes('logmenu.cancel') && menu.includes('logmenu.confirmClear'), '四、确认框有取消与确认清空')
+// #954 起：清空确认框与留痕横幅搬进了 statusbar/LogDangerConfirm.js（菜单叶子贴 350 行粒度红线，
+//   照 #851 做法另起），所以「框里有什么字、有哪两颗按钮」这两条读两份合起来的内容；
+//   菜单叶子那边仍只留状态与调用（确认框的开合、Esc、结果记账仍在它身上）。
+const danger = (function () { try { return read('src/client/statusbar/LogDangerConfirm.js') } catch (e) { return '' } })()
+const menuUi = menu + '\n' + danger
+check(menuUi.includes('logmenu.clearTitle') && menuUi.includes('logmenu.clearDesc'), '四、清空确认框有标题与说明')
+check(menuUi.includes('logmenu.cancel') && menuUi.includes('logmenu.confirmClear'), '四、确认框有取消与确认清空')
 check(menu.includes('path: shown'), '四、导出成功 toast 把解析出的路径透传给文案')
 check(locale.includes('logtoast.exportFallback') && locale.includes('{path}'), '四、导出成功 toast 含路径展示（文案键带 {path}）')
 check(menu.includes('logtoast.exportFailed') && menu.includes('logtoast.openFailed') && menu.includes('logtoast.clearFailed'), '四、导出／打开／清空三路失败各有错误态')

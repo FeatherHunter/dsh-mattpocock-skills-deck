@@ -76,6 +76,8 @@ export const StatusLogDot = function (props) {
   const [menuPos, setMenuPos] = React.useState(null)
   const [busy, setBusy] = React.useState(null)
   const [clearConfirm, setClearConfirm] = React.useState(false)
+  // #954 高危险留痕：动手后那条写清做了什么、人工关掉才消失的横幅（失败带重试）。
+  const [clearNotice, setClearNotice] = React.useState(null)
   // #522 菜单行悬停高亮：鼠标放上去的行给背景（普通行沿用技能浮层菜单的悬停底，危险行沿用缺陷菜单的红底，不自创色板）。
   const [hoverKey, setHoverKey] = React.useState(null)
   const anchorRef = React.useRef(null)
@@ -238,27 +240,25 @@ export const StatusLogDot = function (props) {
     if (busy) return
     if (!dswsLogHostOk()) { say(tr('logtoast.hostUnavailable'), 'warn'); setClearConfirm(false); return }
     setBusy('clear')
+    const t0 = Date.now()
+    // #954：结果不再走会自动消失的小提示，改走人工关掉才消失的留痕横幅（写清做了什么；失败带重试）。
+    const done = function (ok, n, err) {
+      setBusy(null)
+      if (ok) {
+        try { log('info', 'host.call', { method: 'wf.logClear', latencyMs: Date.now() - t0, ok: true, kind: n > 0 ? 'log-clear' : 'log-clear-empty' }) } catch (eL) {}
+        setClearNotice({ kind: 'ok', text: n > 0 ? tr('logtoast.cleared', { n: String(n) }) : tr('logtoast.clearEmpty') })
+      } else {
+        dswsLogWarnCall('wf.logClear', 'clear', err || 'clear-not-ok')
+        setClearNotice({ kind: 'bad', text: tr('logtoast.clearFailed', { err: String((err && err.message) || err || 'not-ok').slice(0, 120) }) })
+      }
+      setClearConfirm(false)
+    }
     try {
       host.call('wf.logClear', { date: dswsLogToday() }).then(function (res) {
-        setBusy(null)
-        setClearConfirm(false)
-        if (!res || res.ok !== true) {
-          dswsLogWarnCall('wf.logClear', 'clear', 'clear-not-ok'); say(tr('logtoast.clearFailed', { err: 'not-ok' }), 'warn')
-          return
-        }
-        const n = (typeof res.removed === 'number') ? res.removed : 0
-        if (n > 0) say(tr('logtoast.cleared', { n: String(n) }), 'ok')
-        else say(tr('logtoast.clearEmpty'), 'info')
-      }).catch(function (e) {
-        setBusy(null)
-        setClearConfirm(false)
-        dswsLogWarnCall('wf.logClear', 'clear', e); say(tr('logtoast.clearFailed', { err: String((e && e.message) || e).slice(0, 120) }), 'warn')
-      })
-    } catch (e) {
-      setBusy(null)
-      setClearConfirm(false)
-      dswsLogWarnCall('wf.logClear', 'clear', e); say(tr('logtoast.clearFailed', { err: String((e && e.message) || e).slice(0, 120) }), 'warn')
-    }
+        if (!res || res.ok !== true) done(false, 0, (res && res.error) || 'not-ok')
+        else done(true, (typeof res.removed === 'number') ? res.removed : 0, null)
+      }).catch(function (e) { done(false, 0, e) })
+    } catch (e) { done(false, 0, e) }
   }
   const dotColor = debugOn ? '#4ade80' : '#6b6b75'
   const dotTitle = debugOn ? tr('logmenu.titleOn') : tr('logmenu.title')
@@ -314,36 +314,16 @@ export const StatusLogDot = function (props) {
       menuItem('clear', 'alert', tr('logmenu.clear'), doClear, true),
     ]),
   ]) : null
-  const confirmModal = clearConfirm ? PortalOverlay({
-    'data-dsws-logmenu': '1',
-    key: 'dsws-logconfirm',
-    onClick: function (e) { try { if (e.target === e.currentTarget) setClearConfirm(false) } catch (e2) {} },
-    style: { position: 'fixed', inset: 0, zIndex: 2147483000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.55)', padding: 20 },
-  }, [
-    hh('div', {
-      role: 'dialog', 'aria-label': tr('logmenu.clearTitle'),
-      style: {
-        background: 'var(--dsw-alias-bg-layer-2,#16181d)', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 12,
-        padding: 18, width: '100%', maxWidth: 420, boxShadow: '0 8px 30px rgba(0,0,0,.45)',
-      },
-    }, [
-      hh('div', { style: { fontSize: 15, fontWeight: 700, marginBottom: 6 } }, tr('logmenu.clearTitle')),
-      hh('div', { style: { fontSize: 13, color: '#9a9aa5', marginBottom: 14 } }, tr('logmenu.clearDesc')),
-      hh('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: 8 } }, [
-        hh('button', { className: 'dsws-btn ghost', disabled: busy === 'clear', onClick: function () { if (busy === 'clear') return; setClearConfirm(false) }, style: { fontSize: 12 } }, tr('logmenu.cancel')),
-        hh('button', {
-          className: 'dsws-btn', disabled: busy === 'clear',
-          onClick: function (e) { try { e.stopPropagation() } catch (e2) {}; doConfirmClear() },
-          style: {
-            fontSize: 12, fontWeight: 700, background: '#5c2b2b', borderColor: '#5c2b2b', color: '#fca5a5',
-            opacity: busy === 'clear' ? 0.55 : 1, cursor: busy === 'clear' ? 'default' : 'pointer',
-          },
-        }, busy === 'clear' ? (tr('logmenu.clearing') + '…') : tr('logmenu.confirmClear')),
-      ]),
-    ]),
+  const confirmModal = clearConfirm ? PortalOverlay({ 'data-dsws-logmenu': '1', key: 'dsws-logconfirm', onClick: function (e) { try { if (e.target === e.currentTarget && busy !== 'clear') setClearConfirm(false) } catch (e2) {} }, style: { position: 'fixed', inset: 0, zIndex: 2147483000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.55)', padding: 20 } }, [
+    // #954：确认框本体搬进新叶子 LogDangerConfirm.js（本文件贴 350 行粒度红线，调用处一眼能读懂）。
+    hh(LogDangerConfirmBox, { key: 'danger', h: hh, t: tr, busy: busy === 'clear', onConfirm: doConfirmClear, onCancel: function () { if (busy !== 'clear') setClearConfirm(false) } }),
+  ]) : null
+  // #954 留痕横幅：动手结果在这里交代（对勾叉号加闪光），人工关掉才消失；失败了给一条重试。
+  const noticeBox = clearNotice ? PortalOverlay({ 'data-dsws-logmenu': '1', key: 'dsws-lognotice', onClick: function (e) { try { e.stopPropagation() } catch (e2) {} }, style: Object.assign({ position: 'fixed', zIndex: 2147483000, maxWidth: 'calc(100vw - 24px)' }, menuPos ? { left: menuPos.left, bottom: menuPos.bottom } : { right: 12, bottom: 40 }) }, [
+    hh(LogDangerNotice, { key: 'notice', h: hh, t: tr, kind: clearNotice.kind, text: clearNotice.text, busy: busy === 'clear', onRetry: doConfirmClear, onClose: function () { setClearNotice(null) } }),
   ]) : null
   return hh('span', {
     style: { position: 'relative', display: 'inline-flex', alignItems: 'center' },
     onClick: function (e) { try { e.stopPropagation() } catch (e2) {} },
-  }, [dot, menu, confirmModal])
+  }, [dot, menu, confirmModal, noticeBox])
 }

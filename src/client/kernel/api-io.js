@@ -141,10 +141,10 @@
     // v1.6：技能安装引导已收编进 PROMPTS 注册表（installSkills 条目），见下方 promptText('installSkills') 引用
     // v1.5 引导链：打开外部 URL（gh 安装/登录文档）
     export const openUrl = function (url) { try { if (typeof window !== 'undefined' && window.open) window.open(url, '_blank') } catch (e) { /* 忽略 */ } }
-    export const copyText = (st, text, okMsg) => {
+    export const copyText = (st, text, okMsg) => { // #951：多返回真实结果给调用点换图标，提示行为与原来逐字一致
       if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(function () { flash(st, okMsg || tr('toast.copied'), 'ok') }).catch(function () { flash(st, tr('toast.copyFailed'), 'warn') })
-      } else flash(st, tr('toast.clipboardUnavailable'), 'warn')
+        return navigator.clipboard.writeText(text).then(function () { flash(st, okMsg || tr('toast.copied'), 'ok'); return true }).catch(function () { flash(st, tr('toast.copyFailed'), 'warn'); return false })
+      } else { flash(st, tr('toast.clipboardUnavailable'), 'warn'); return Promise.resolve(false) }
     }
     const dswsDetailHitN = { n: 0 } // #498 详情缓存命中采样计数（百一采样，只增不显）
     // T2 #7 · fetchIssueDetail 数据通路（独立缓存 + GraphQL aliases 思路复用 + REST 降级搬运 + 配额止血）

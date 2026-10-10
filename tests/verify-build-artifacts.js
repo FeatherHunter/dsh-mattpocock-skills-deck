@@ -190,6 +190,7 @@ function sha256(file) { return crypto.createHash('sha256').update(fs.readFileSyn
   // #934：工具会话归一独占 session-resolve.js（package/shared 同字节镜像），总数 61→62。
   // #947：工作区配置文件解析独占 workspace-file.js（package/shared 同字节镜像），总数 62→63。
   // #963 出站准入与重查搭车：新增 5 个产物（tracker/outbound-tiers 分档超时、tracker/outbound-admission 读写分桶准入、
+  // #949：交互反馈组合映射纯函数 feedback-map.js（package/shared 同字节镜像），总数 68→69。
   // skill-probe-channels 技能名片通道下沉、version-control/exec-envelope 取数失败信封下沉、refresh/chain-ride 同钥匙搭车小账本，
   // 全部 package/shared 同字节镜像），总数 63→68。
   // 同票并发写单键互斥：新增 src/shared/deck-tools/key-lock.js（package/shared 同字节镜像），总数 68→69。
@@ -200,8 +201,9 @@ function sha256(file) { return crypto.createHash('sha256').update(fs.readFileSyn
   // #992 收口（2026-10-10，修 verify-deck-tools 第 ⑪ 段变红）：新增 src/shared/tracker/backendWritePermissions.js
   //   （「本地文件后端恒可写」这条后端知识的唯一出处，工具层不再自己拿后端 id 做等值比较），总数 73→74。
   // 这个数是「src/shared 树里实际有几个文件」，会随别的票增减 —— 每次改完记得重跑本门禁对数。
-  check(srcSharedFiles.length === 74, `src/shared 74 文件（实得 ${srcSharedFiles.length}）`)
-  check(pkgSharedFiles.length === 74, `package/shared 74 文件（实得 ${pkgSharedFiles.length}）`)
+  // #948（2026-10-10）：新增 src/shared/feedback-map.js（反馈组合映射的唯一判断口，客户端拼接 + 宿主同字节镜像），总数 74→75。
+  check(srcSharedFiles.length === 75, `src/shared 75 文件（实得 ${srcSharedFiles.length}）`)
+  check(pkgSharedFiles.length === 75, `package/shared 75 文件（实得 ${pkgSharedFiles.length}）`)
 }
 // 4c) import 卫生：显式 .js（相对 import 必须带 .js 扩展，避免 Node ESM 裸 specifier）
 {

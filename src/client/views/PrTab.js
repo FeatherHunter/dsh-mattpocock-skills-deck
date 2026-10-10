@@ -72,7 +72,7 @@ export const PrTab = function (props) {
     var login = (x.author && x.author.login) ? String(x.author.login) : ''
     var labels = Array.isArray(x.labels) ? x.labels : []
     var upd = x.updatedAt ? String(x.updatedAt).slice(0, 10) : ''
-    return h('div', { key: String(key), className: 'dsws-aggrow', onClick: function () { openPr(x) }, style: { cursor: 'pointer' } }, [
+    return h('div', { key: String(key), className: 'dsws-aggrow', tabIndex: 0, role: 'button', 'aria-label': '#' + String(key) + ' ' + String(x.title || ''), onClick: function () { openPr(x) }, onKeyDown: function (e) { if (!e || e.target !== e.currentTarget) return; const k = e && e.key; if (k === 'Enter' || k === ' ') { try { if (e.preventDefault) e.preventDefault() } catch (_) {} try { if (e.currentTarget) e.currentTarget.click() } catch (_) {} } }, style: { cursor: 'pointer' } }, [
       h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, width: '100%' } }, [
         h('span', { className: 'dsws-idnum', style: { color: stl.color, borderColor: stl.color } }, '#' + String(key)),
         h('span', { className: 'dsws-tt-wrap', style: { flex: 1, minWidth: 0, fontWeight: 600 } }, String(x.title || ('#' + String(key)))),

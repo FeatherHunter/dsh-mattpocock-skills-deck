@@ -75,6 +75,8 @@ export default {
     // 887：技能详情像素风皮肤另起一个样式叶子（与 vcStyles 同一套做法）。
     // ==== leaf:pixelStyles (spliced by build) ====
     styles.insert(PIXEL_STYLE_TEXT)
+    // ==== leaf:feedbackStyles (spliced by build) ====
+    styles.insert(FEEDBACK_STYLE_TEXT) // 948 反馈样式叶子（与像素皮肤同款做法，见叶子头）
 
     // ============================================================
     // 0.5 locale（T3 #366 · dsws 命名空间 zh/en；跟随 harness 语言；GitHub 数据不翻译）
@@ -267,7 +269,7 @@ export default {
     // #725：状态栏胶囊那条横条的逐字折叠阶梯（纯函数）与它的阶梯机（读写 DOM），都排在 statusBar 之前
     //   —— 状态栏那边只留接线：把胶囊元素与两张跨调用带着走的表交给机器。
     // ==== leaf:capFold (spliced by build) ==== // ==== leaf:capFoldMachine (spliced by build) ====
-    // ==== leaf:StatusMenus (spliced by build) ==== // ==== leaf:StatusBackend (spliced by build) ==== // ==== leaf:bannerChain (spliced by build) ==== // ==== leaf:StatusLogMenu (spliced by build) ==== // ==== leaf:statusBar (spliced by build) ====
+    // ==== leaf:StatusMenus (spliced by build) ==== // ==== leaf:StatusBackend (spliced by build) ==== // ==== leaf:bannerChain (spliced by build) ==== // ==== leaf:logDangerConfirm (spliced by build) ==== // ==== leaf:StatusLogMenu (spliced by build) ==== // ==== leaf:statusBar (spliced by build) ====
     // ==== leaf:sessionChainCapsule (spliced by build) ====
 
     // ==== leaf:md (spliced by build) ====
