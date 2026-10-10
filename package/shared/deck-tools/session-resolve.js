@@ -6,6 +6,15 @@
 function str(v) { return (typeof v === 'string') ? v : '' }
 function hash8(t) { let h = 5381; const s = String(t || ''); for (let i = 0; i < s.length; i++) h = (((h << 5) + h + s.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) }
 const NO_SESSION = 'no-session-context'
+// 归一等待上限（毫秒）：对手是挂住的文件服务。超时与抛错、空结果走同一条老路
+// （如实失败，不凑钥匙），与文件头“算不出规范根时如实失败”同形，不新增语义。
+const CANONICAL_TIMEOUT_MS = 5000
+function withCap(promise, ms) {
+  return Promise.race([
+    Promise.resolve(promise).then(function (v) { return { ok: true, value: v } }, function () { return { ok: false } }),
+    new Promise(function (resolve) { setTimeout(function () { resolve({ ok: false, timedOut: true }) }, ms) }),
+  ])
+}
 export function sessionContextOf(exec, deps) {
   const e = exec || {}; const d = deps || {}; const agent = e.agent || {}; const session = agent.session || e.session || null
   const cands = [{ where: 'exec.agent.session.cwd', value: session && session.cwd }, { where: 'exec.agent.session.workspaceRoot', value: session && session.workspaceRoot }, { where: 'exec.agent.session.workspace.cwd', value: session && session.workspace && session.workspace.cwd }, { where: 'exec.agent.cwd', value: agent.cwd }, { where: 'exec.session.cwd', value: e.session && e.session.cwd }, { where: 'exec.cwd', value: e.cwd }]
@@ -22,7 +31,14 @@ export async function sessionContextOfAsync(exec, deps) {
   const d = deps || {}; const raw = base.cwd
   if (typeof d.canonicalKey !== 'function') return base
   let canon = ''
-  try { canon = await d.canonicalKey(raw) } catch (e) { canon = '' }
+  try {
+    // 调用递延进 promise 链：同步抛错也变成拒绝，走下面同一条如实失败路，
+    // 与原来 try/await 同形（原来同步抛错也被 catch 接住）。
+    const raced = await withCap(Promise.resolve().then(function () { return d.canonicalKey(raw) }), CANONICAL_TIMEOUT_MS)
+    // 超时、抛错都按算不出规范根走老路：如实失败，不凑钥匙、不沿用原文。
+    if (!raced || raced.ok !== true) return { ok: false, reason: NO_SESSION, sessionId: base.sessionId, text: '这次没能把工作区目录归一到工作区根，所以我不动任何票。' }
+    canon = raced.value
+  } catch (e) { return { ok: false, reason: NO_SESSION, sessionId: base.sessionId, text: '这次没能把工作区目录归一到工作区根，所以我不动任何票。' } }
   if (typeof canon !== 'string' || !canon.trim()) return { ok: false, reason: NO_SESSION, sessionId: base.sessionId, text: '这次没能把工作区目录归一到工作区根，所以我不动任何票。' }
   const root = canon.trim()
   if (root === raw) return base
