@@ -82,6 +82,12 @@ const UNITS = [
   // #719（T15）加的第十三份：每个后端的额度桶形状与「按后端算价」（GitHub 两桶 / GitLab 只按
   // 请求数（数值待实测）/ 本地 Markdown 不出站不计费）。本文件不写任何额度数值，只写形状与判定。
   { ts: 'backend-quota.ts', js: 'backend-quota.js' },
+  // #998（2026-10-10 真机故障）加的第十四份：「连续失败」那一轮的窗口状态机。宿主侧
+  // src/host/refresh/gate.js 拿它判「到门槛之后哪一笔可以当探针放进来试一次」。真机故障是：
+  // 到门槛就一律推迟，推迟既不算失败也不算成功，计数永远归不了零 —— 锁自己能维持自己，
+  // gh 已经恢复到 1 秒一条、工具还在一律被推迟，直到人重启进程。时刻、退避档、额外等待
+  // 三个数都由 gate.js 从 budget.js 取好传进来（本文件不 import 任何别的产物）。
+  { ts: 'failure-window.ts', js: 'failure-window.js' },
 ]
 
 function headerFor(tsName) {

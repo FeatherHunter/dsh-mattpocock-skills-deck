@@ -16,11 +16,13 @@
 //   5. **运行期漏网计数**：传输层每真发一条就报一次（noteOutbound），与闸记下来的条数之差就是绕开闸
 //      发出去的条数（escaped()）—— 这个数不为 0，就说明有人偷偷发了请求。
 //
-// 二级限流（Retry-After）也是降档信号：noteRetryAfter() 一次就把所在桶按红档处理（主桶没用完也降档），
-// 并把那个工作区标成撞限流 —— 裁决那侧对它的处置是「后台停、生命周期降级、人的动作照做」。
-import { decide, aiToolAdmission, degradePlanFor, REQUEST_KINDS, REASONS } from '../../shared/refresh/policy.js'
+// 二级限流（Retry-After）也是降档信号：noteRetryAfter() 一次就把所在桶按红档处理（主桶没用完也降档），并把那个工作区标成撞限流。
+// #998：连续失败到门槛之后由 failure-window.js 那台状态机放一笔探针进来试（细节见那个文件）。
+import { decide, aiToolAdmission, degradePlanFor, REQUEST_KINDS, REASONS, FAILURE_DEFER_AT, nextAttemptDelayMs } from '../../shared/refresh/policy.js'
 import * as budget from '../../shared/refresh/budget.js'
+import * as failureWindow from '../../shared/refresh/failure-window.js'
 import { measureStep, noteStepOutbound } from '../../shared/step-cost.js'
+import { refusalTextRef } from '../../shared/refresh/refusal-text.js'
 
 /** 四个类别（谁在做事）。与 policy.js 的 RequestCategory 同一套取值。 */
 export const GATE_CATEGORIES = ['user-action', 'lifecycle', 'background', 'ai-tool']
@@ -83,9 +85,7 @@ export function classify(source, explicitCategory) {
 
 function num(v) { return (typeof v === 'number' && isFinite(v)) ? v : 0 }
 
-/** 报数归一：调用方可以只回一个数字（请求条数），也可以回 { requests, points }。
- *  什么都不回（undefined / null / 没有这两个数的对象）算「没报数」：只按传输层实测记账、不计「对不上」——
- *  「对不上」说的是报的数与真发的数不一致，没报数不是报假数（#927：面板取数那两路拿不出预估）。 */
+/** 报数归一：数字 = 请求条数；对象取 requests/points；两者都没有算「没报数」（只按实测记账，不计对不上）。 */
 function readReport(report) {
   if (typeof report === 'number') return { requests: report, points: 0 }
   const r = report || {}
@@ -95,6 +95,7 @@ function readReport(report) {
   return { requests: num(r.requests), points: num(r.points) }
 }
 
+/** 8 位十六进制短散列：只在日志里代替原文（路径、错误正文），不参与判定。 */
 function shortHash(s) {
   try {
     const t = String(s || '')
@@ -120,7 +121,7 @@ export function createGate(deps) {
   const hash8 = typeof opts.hash8 === 'function' ? opts.hash8 : shortHash
   const limits = policyLimits(opts.budget)
 
-  const workspaces = new Map()   // 工作区键 → { active, failuresSinceSuccess, rateLimitedUntil }
+  const workspaces = new Map()   // 工作区键 → { active, failuresSinceSuccess, rateLimitedUntil, backoffWindowStartedAt }
   const deferred = new Map()     // 工作区键 → { req, category, kind, bucket, at }
   const stats = {
     accounted: { requests: 0, points: 0 },   // 闸记下来的（= 传输层真发的）
@@ -134,13 +135,13 @@ export function createGate(deps) {
 
   function wsState(key) {
     let s = workspaces.get(key)
-    if (!s) { s = { active: false, failuresSinceSuccess: 0, rateLimitedUntil: 0 }; workspaces.set(key, s) }
+    if (!s) { s = { active: false, failuresSinceSuccess: 0, rateLimitedUntil: 0, backoffWindowStartedAt: 0 }; workspaces.set(key, s) }
     return s
   }
 
   function workspaceView(key) {
     const s = wsState(key)
-    return { active: !!s.active, failuresSinceSuccess: s.failuresSinceSuccess, rateLimited: s.rateLimitedUntil > now() }
+    return { active: !!s.active, failuresSinceSuccess: s.failuresSinceSuccess, rateLimited: s.rateLimitedUntil > now(), backoffWindowStartedAt: s.backoffWindowStartedAt }
   }
 
   /** 裁决的输入：类别 + 种类 + 桶的档位与账 + 工作区状态。 */
@@ -148,10 +149,15 @@ export function createGate(deps) {
     const bucket = req.bucket
     const q = ledger.view(bucket)
     const s = wsState(req.workspaceKey)
+    // 连续失败那一轮的窗口（#998）：到门槛之后哪一笔可以当探针放进来试，判据只有 failure-window.js 一份。
+    const win = failureWindow.failureWindowOf(s)
+    const trialDue = win.failures >= FAILURE_DEFER_AT && failureWindow.halfOpenTrialIsDue(
+      win, now(), nextAttemptDelayMs(win.failures, limits), budget.FAILURE_HALF_OPEN_DELAY_MS,
+    )
     return {
       category: req.category, kind: req.kind, tier: q.tier,
       quota: { allowance: q.allowance, used: q.used, remaining: q.remaining, reserve: q.reserve },
-      workspace: { active: !!s.active, failuresSinceSuccess: s.failuresSinceSuccess, rateLimited: s.rateLimitedUntil > now() },
+      workspace: { active: !!s.active, failuresSinceSuccess: s.failuresSinceSuccess, rateLimited: s.rateLimitedUntil > now(), halfOpenTrialDue: trialDue },
     }
   }
 
@@ -168,7 +174,7 @@ export function createGate(deps) {
   /** 只看结论不发送（界面与门禁都要能用同一套裁决问一句）。 */
   function decideFor(req) {
     const r = normalize(req)
-    return decide(inputFor(r))
+    return decide(inputFor(r), limits)
   }
 
   function normalize(req) {
@@ -202,7 +208,13 @@ export function createGate(deps) {
     stats.accounted.points += actual.points
     const account = ACCOUNT_OF_CATEGORY[req.category] || 'plugin'
     const after = ledger.spend({ account: account, bucket: req.bucket, kind: req.kind, requests: actual.requests, points: actual.points })
-    if (failure) { wsState(req.workspaceKey).failuresSinceSuccess += 1; throw failure }
+    if (failure) {
+      // 一次真失败：计数加一，窗口从此刻重开（窗口长短的判据在 refresh-core/src/failure-window.ts）。
+      const next = failureWindow.recordFailure({ failures: wsState(req.workspaceKey).failuresSinceSuccess, windowStartedAt: 0 }, now())
+      wsState(req.workspaceKey).failuresSinceSuccess = next.failures
+      wsState(req.workspaceKey).backoffWindowStartedAt = next.windowStartedAt
+      throw failure
+    }
     wsState(req.workspaceKey).failuresSinceSuccess = 0
     return { requests: actual.requests, points: actual.points, claimed: reported || { requests: 0, points: 0 }, remaining: after.remaining, tier: after.tier, result: m.result }
   }
@@ -213,7 +225,12 @@ export function createGate(deps) {
    */
   async function send(req, perform) {
     const r = normalize(req)
-    const v = decide(inputFor(r))
+    const v = decide(inputFor(r), limits)
+    // 放了探针进来试的那一笔：窗口起点改成此刻（见 refresh-core/src/failure-window.ts）。
+    // ① 这一笔要是失败，下一次等待从此刻重新算，不会连环重试；② 这一笔要是成功，下面的归零当场开锁。
+    if (v.verdict === 'allow' && v.reason === 'failure-half-open') {
+      wsState(r.workspaceKey).backoffWindowStartedAt = failureWindow.consumeHalfOpenTrial(now())
+    }
     fireDecide(r, v.verdict, v.reason, ledger.view(r.bucket).tier)
     byCategory[r.category] = (byCategory[r.category] || 0) + 1
     if (v.verdict === 'defer') {
@@ -286,24 +303,7 @@ export function createGate(deps) {
     fireDecide(r, a.admitted ? 'allow' : 'reject', a.reason, q.tier)
     if (!a.admitted) fireSkipped(r.workspaceKey, 'tool-batch', a.reason, deferred.size)
     return { admitted: a.admitted, reason: a.reason, points: a.points, requests: a.requests, remaining: q.remaining,
-      shards: plan.shards, perShard: plan.perShard, text: a.admitted ? '' : refusalText(a, q, hour, plan) }
-  }
-
-  /**
-   * 拒绝时回给 AI 的那句话。两种原因必须分得开（票面硬要求）：
-   * ①「我花超了」——超过插件自己给工具设的单次或每小时硬顶，是自限，不是别人抢了额度；
-   * ②「额度被别人用掉了」——剩余额度已到保底线，会话里别的 GitHub 调用把额度吃掉了，
-   *   这时先拒 AI 工具写入，绝不挤掉插件刷新与人的动作。
-   */
-  function refusalText(a, q, hour, plan) {
-    const cap = (a.reason === 'ai-tool-over-call-cap' || a.reason === 'ai-tool-over-hour-cap')
-    const head = cap
-      ? '这次调用超过了插件给 AI 工具设的自己那道硬顶（额度没被别人用掉，是这一笔太大或这一小时攒太多了）'
-      : '剩余额度已经到保底线，额度是被别人用掉的（会话里别的 GitHub 调用先花了）：先拒 AI 工具写入'
-    return head + '。这次预计花 ' + a.points + ' 点、' + a.requests + ' 条出站请求；本小时 AI 工具已用 ' +
-      hour.points + ' 点、' + hour.requests + ' 条；这一桶现在还剩 ' + q.remaining + ' 点。建议分 ' +
-      plan.shards + ' 次调用，每片不超过 ' + plan.perShard + ' 张票（单次硬顶 ' + limits.aiToolMaxPointsPerCall + ' 点 / ' +
-      limits.aiToolMaxRequestsPerCall + ' 条，每小时 ' + limits.aiToolMaxPointsPerHour + ' 点 / ' + limits.aiToolMaxRequestsPerHour + ' 条）。'
+      shards: plan.shards, perShard: plan.perShard, text: a.admitted ? '' : refusalTextRef(a, q, hour, plan, limits) }
   }
 
   /** 某个桶现在的降档安排（探测节拍、对账节拍、最短重建间隔），数值全部来自 budget.js。 */

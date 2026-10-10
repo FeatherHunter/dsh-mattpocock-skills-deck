@@ -7,6 +7,7 @@ export const RECONCILE_INTERVAL_MS = 10 * 6e4;
 export const PREFLIGHT_TTL_MS = 10 * 6e4;
 export const PREFLIGHT_RETRY_AFTER_FAILURE = 1;
 export const CHAIN_BACKOFF_MS = [8e3, 3e4, 2 * 6e4, 5 * 6e4];
+export const FAILURE_HALF_OPEN_DELAY_MS = 5 * 6e4;
 export const CHAIN_ALL_GREEN_TTL_MS = 30 * 6e4;
 export const PATCH_MERGE_WINDOW_MS = 1e4;
 export const DEFER_EXPIRY_MS = 5 * 6e4;

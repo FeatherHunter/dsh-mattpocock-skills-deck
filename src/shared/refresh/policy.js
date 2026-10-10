@@ -20,6 +20,7 @@ export const REASONS = {
   "user-action-rate-limited": "\u649E\u4E0A\u9650\u6D41\u65F6\u4EBA\u4EB2\u624B\u505A\u7684\u52A8\u4F5C\uFF1A\u7167\u6837\u505A\uFF0C\u4F46\u754C\u9762\u8981\u8BF4\u6E05\u662F\u989D\u5EA6\u88AB\u522B\u4EBA\u7528\u6389\u4E86",
   "rate-limited": "\u649E\u4E0A\u9650\u6D41\uFF08\u542B\u4E8C\u7EA7\u9650\u6D41\u7684 Retry-After\uFF09\uFF1A\u8FD9\u4E00\u8F6E\u505C\uFF0C\u7B49\u95F8\u7684\u6863\u4F4D\u6062\u590D",
   "failure-backoff": "\u8FDE\u7EED\u5931\u8D25\u5230\u4E86\u9000\u907F\u95E8\u69DB\uFF1A\u62C9\u5F00\u95F4\u9694\u518D\u8BD5\uFF0C\u6210\u529F\u4E00\u6B21\u7ACB\u523B\u5F52\u96F6",
+  "failure-half-open": "\u8FDE\u7EED\u5931\u8D25\u9000\u907F\u4E86\u4E00\u5927\u8F6E\uFF1A\u653E\u8FD9\u4E00\u7B14\u8FDB\u6765\u8BD5\u4E00\u6B21\uFF0C\u6210\u4E86\u89E3\u9501\u3001\u4E0D\u6210\u6309\u4E0B\u4E00\u6863\u63A5\u7740\u7B49",
   "background-fits": "\u540E\u53F0\u6863\uFF1A\u989D\u5EA6\u591F\uFF0C\u6309\u8282\u62CD\u8DD1",
   "background-inactive": "\u4E0D\u5728\u6D3B\u8DC3\u96C6\u5408\u91CC\uFF1A\u540E\u53F0\u6863\u4E00\u6B21\u90FD\u4E0D\u53D1\uFF0C\u5207\u56DE\u6765\u65F6\u6309\u751F\u547D\u5468\u671F\u90A3\u4E00\u6B21\u53D6",
   "background-tier-yellow": "\u540E\u53F0\u6863\u8FDB\u4E86\u9EC4\u6863\uFF1A\u540E\u53F0\u5237\u65B0\u5168\u505C\uFF08\u5148\u727A\u7272\u7684\u4ECE\u6765\u4E0D\u662F\u4EBA\u7684\u52A8\u4F5C\uFF09",
@@ -67,7 +68,7 @@ const READ_KINDS = ["probe", "patch", "rebuild", "reconcile", "preflight", "chai
 function isReadKind(kind) {
   return READ_KINDS.indexOf(kind) >= 0;
 }
-export function decide(input) {
+export function decide(input, limits) {
   const { category, kind, tier, quota, workspace } = input;
   if (kind === "quota-read") return verdict("allow", "quota-read-free");
   if (category === "user-action") {
@@ -78,7 +79,9 @@ export function decide(input) {
   }
   const failures = workspace.failuresSinceSuccess || 0;
   if (failures >= FAILURE_DEFER_AT) {
-    return category === "lifecycle" ? verdict("degrade", "lifecycle-cache-only") : verdict("defer", "failure-backoff");
+    if (category === "lifecycle") return verdict("degrade", "lifecycle-cache-only");
+    if (workspace.halfOpenTrialDue === true) return verdict("allow", "failure-half-open");
+    return verdict("defer", "failure-backoff");
   }
   if (isReadKind(kind) && quota.remaining <= quota.reserve) {
     return category === "lifecycle" ? verdict("degrade", "lifecycle-cache-only") : verdict("defer", "reserve-kept-for-writes");

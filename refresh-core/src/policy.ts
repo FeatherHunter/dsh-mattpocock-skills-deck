@@ -96,6 +96,14 @@ export interface WorkspaceState {
   failuresSinceSuccess?: number
   /** 这一轮撞过限流，含二级限流的 Retry-After。 */
   rateLimited?: boolean
+  /**
+   * 到了门槛之后，「这一笔可不可以放进来试一次」的结论。
+   *
+   * 由闸按 refresh-core/src/failure-window.ts 那台状态机算好传进来（那边才是窗口长短的单一真源）。
+   * 不传（或传 false）时行为与从前一模一样：到门槛就一律推迟 —— 这样没接这一格的地方
+   * （门禁、单测、别的调用方）一个字都不用改。
+   */
+  halfOpenTrialDue?: boolean
 }
 
 /** 一笔 AI 工具调用的花费预估（点数与真实出站请求数两样都要给）。 */
@@ -134,6 +142,7 @@ export const REASONS: Readonly<Record<string, string>> = {
   'user-action-rate-limited': '撞上限流时人亲手做的动作：照样做，但界面要说清是额度被别人用掉了',
   'rate-limited': '撞上限流（含二级限流的 Retry-After）：这一轮停，等闸的档位恢复',
   'failure-backoff': '连续失败到了退避门槛：拉开间隔再试，成功一次立刻归零',
+  'failure-half-open': '连续失败退避了一大轮：放这一笔进来试一次，成了解锁、不成按下一档接着等',
   'background-fits': '后台档：额度够，按节拍跑',
   'background-inactive': '不在活跃集合里：后台档一次都不发，切回来时按生命周期那一次取',
   'background-tier-yellow': '后台档进了黄档：后台刷新全停（先牺牲的从来不是人的动作）',
@@ -226,7 +235,7 @@ function isReadKind(kind: RequestKind): boolean {
  *  ⑥ 后台档：黄档停，不在活跃集合里的停。
  *  ⑦ 剩下的都放行。
  */
-export function decide(input: PolicyInput): VerdictResult {
+export function decide(input: PolicyInput, limits: PolicyLimits): VerdictResult {
   const { category, kind, tier, quota, workspace } = input
 
   // ① 读剩余额度是免费的，而且闸离了它就没法算档位。
@@ -243,7 +252,11 @@ export function decide(input: PolicyInput): VerdictResult {
   }
   const failures = workspace.failuresSinceSuccess || 0
   if (failures >= FAILURE_DEFER_AT) {
-    return category === 'lifecycle' ? verdict('degrade', 'lifecycle-cache-only') : verdict('defer', 'failure-backoff')
+    if (category === 'lifecycle') return verdict('degrade', 'lifecycle-cache-only')
+    // 放一笔探针进来试：这就是给那把「谁也进不来、所以永远没人能归零」的死锁留的出口。
+    // 该不该放由闸按 failure-window.ts 那台状态机判好传进来（见 WorkspaceState.halfOpenTrialDue）。
+    if (workspace.halfOpenTrialDue === true) return verdict('allow', 'failure-half-open')
+    return verdict('defer', 'failure-backoff')
   }
 
   // ④ 读的额度已经花到给写留的保底上：只有读让路，写照做。
