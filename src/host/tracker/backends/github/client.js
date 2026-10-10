@@ -151,16 +151,64 @@ export function ghClient(ctx) {
     const bucket = isWriteGhArgs(args) ? 'write' : 'read'
     const signal = opts.signal || (ctx && ctx.signal) || undefined
     const timeout = opts.timeout != null ? opts.timeout : timeoutForGhArgs(args)
+    // #1007：房内自己掐表，而且计时从「拿名额」那一刻就开始。
+    // 为什么必须盖住排队段：名额被卡住的调用占满时，新调用会在队列里一直等到外层调用钳制（30 秒）才结束，
+    // 既没有上限也没有名字（日志里只看到「30 秒被取消」）。计时器盖住排队段之后，这一笔最多赔本档超时
+    // （读 12 秒 / 写 30 秒 / 探活 3 秒），而且如实归到「超时」，不再混进「被取消」。
+    // 两种中止要分得开：房内到点 = 超时（算失败，归网络档）；调用方取消 = 取消（不算失败，照旧可重试）。
+    const ctrl = (typeof AbortController === 'function') ? new AbortController() : null
+    const laneSignal = ctrl ? ctrl.signal : signal
+    let selfTimedOut = false
+    let deadlineTimer = null
+    let deadlineResolve = null
+    // 到点这件事要能「掀桌子」：光是把信号中止还不够 —— 执行器要是不理中止、那个 promise 就一直不落地，
+    // 所以另备一个只用来宣告到点的 promise，把它与每一步真正在等的东西赛跑（见 raceDeadline）。
+    const deadlineHit = ctrl ? new Promise(function (res) { deadlineResolve = res }) : null
+    if (ctrl && typeof setTimeout === 'function') {
+      deadlineTimer = setTimeout(function () {
+        selfTimedOut = true
+        try { ctrl.abort() } catch (eT) {}
+        try { if (deadlineResolve) deadlineResolve('deadline') } catch (eD) {}
+      }, timeout)
+    }
+    /** 让「真正在等的那件事」与「到点」赛跑；到点先落地时回一个哨兵对象。 */
+    function raceDeadline(p) {
+      if (!deadlineHit) return Promise.resolve(p)
+      return Promise.race([
+        Promise.resolve(p),
+        deadlineHit.then(function () { return { __deadlineHit: true } }),
+      ])
+    }
+    let onCallerAbort = null
+    if (signal && ctrl && typeof signal.addEventListener === 'function') {
+      onCallerAbort = function () { try { ctrl.abort() } catch (eC) {} }
+      try { signal.addEventListener('abort', onCallerAbort, { once: true }) } catch (eA) {}
+    }
+    function clearDeadline() {
+      try { if (deadlineTimer !== null && typeof clearTimeout === 'function') clearTimeout(deadlineTimer) } catch (e1) {}
+      try { if (onCallerAbort && signal && typeof signal.removeEventListener === 'function') signal.removeEventListener('abort', onCallerAbort) } catch (e2) {}
+    }
+    /** 房内到点的统一回执：横幅按超时记，内容说清等了多久、是哪一档。 */
+    function selfTimeoutOutcome() {
+      emitGhExec('network', -1, t0, cwd)
+      emitGhTimeout(timeout)
+      return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: 'gh 在 ' + timeout + ' 毫秒内没有回话（房内分档超时：读 12 秒 / 写 30 秒 / 探活 3 秒），这一笔已经中止', code: -1, timedOut: true } }
+    }
     // #965：先拿名额再起进程，满了就排队等（等不是失败）；排队中被调用方取消则按取消返回，不算失败。
     let release = null
     try {
-      release = await getGhLane().acquire({ bucket: bucket, signal: signal || undefined })
+      const acquired = await raceDeadline(getGhLane().acquire({ bucket: bucket, signal: laneSignal || undefined }))
+      if (acquired && acquired.__deadlineHit === true) { clearDeadline(); return selfTimeoutOutcome() }
+      release = acquired
     } catch (eAcquire) {
+      if (selfTimedOut) { clearDeadline(); return selfTimeoutOutcome() }
+      clearDeadline()
       emitGhExec('cancelled', -1, t0, cwd)
       return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: '已取消排队（出站准入等待中被取消），没有发出请求，可重试', code: -1, cancelled: true } }
     }
     try {
-    const resolved = await resolveGh(cwd)
+    const resolved = await raceDeadline(resolveGh(cwd))
+    if (resolved && resolved.__deadlineHit === true) return selfTimeoutOutcome()
     if (!resolved.ok) {
       emitGhExec(resolved.error && resolved.error.kind ? resolved.error.kind : 'env', -1, t0, cwd)
       // 补上 code: -1，让「失败时 error 里一定有 code」这条形状对所有失败成立（命令根本没跑起来）
@@ -176,7 +224,10 @@ export function ghClient(ctx) {
       // #723（T19）：这一笔真实出站先报给闸（I1）。报在拿名额之后 —— 排队等待不算这一笔，
       // 真要起进程了才报，取消排队的不进账，账与真实出站一一对应。
       reportOutbound(ctx, args)
-      const result = await exec('gh', args, { cwd, timeout, signal })
+      // #1007：起进程这一段同样与「到点」赛跑 —— 执行器要是不落地，房内的表到点就掀桌子。
+      const raced = await raceDeadline(exec('gh', args, { cwd, timeout, signal: laneSignal }))
+      if (raced && raced.__deadlineHit === true) return selfTimeoutOutcome()
+      const result = raced
       // DSH ctx.exec 契约：{stdout, stderr, code}
       // #620 整改（D2）：拿不到**整数**退出码时按失败处理（-1），不再当成 0。
       //   为什么：执行器原样回传底层进程的退出码，而被信号杀掉、或还没跑完就没有退出码时它是
@@ -208,6 +259,8 @@ export function ghClient(ctx) {
     } catch (e) {
       // exec 抛的错误（timeout/network 等）→ 归一化
       const elapsedMs = Date.now() - t0
+      // #1007：先认房内自己那只表（它到点中止的按超时返回），再认调用方取消（那个不算失败）。
+      if (selfTimedOut) return selfTimeoutOutcome()
       // #969：调用方取消（排队/在飞中被杀）按取消返回，不算失败；其余照旧归一。
       if (isAdmissionCancelled(e) || (signal && signal.aborted === true)) {
         emitGhExec('cancelled', -1, t0, cwd)
@@ -226,6 +279,8 @@ export function ghClient(ctx) {
     } finally {
       // 拿了名额但在 resolveGh / exec 不可用分支提前返回时，在这里放回。
       try { if (release) release() } catch {}
+      // #1007：房内那只表无论走哪条路都要收掉（成功、失败、提前返回都不能留着它）。
+      clearDeadline()
     }
   }
 

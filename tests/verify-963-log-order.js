@@ -115,16 +115,19 @@ async function main() {
     for (const r of spy.rows) allEvents.add(r.event); }
   title('S3 准入：满了排队等，等不是失败，峰值不超读桶');
   { const spy = makeSpy(); const g = await makeRunGh(spy, {});
-    const jobs = []; for (let i = 0; i < 12; i++) jobs.push(g.runGh(['issue', 'list', '--limit', '5'], 'D:/repo'));
+    const laneMod0 = await import(url('src/shared/tracker/outbound-admission.js'));
+    const readMax = laneMod0.getGhLane().limits().readMax;
+    const n = readMax + 6;
+    const jobs = []; for (let i = 0; i < n; i++) jobs.push(g.runGh(['issue', 'list', '--limit', '5'], 'D:/repo'));
     const rs = await Promise.all(jobs);
     const laneMod = await import(url('src/shared/tracker/outbound-admission.js'));
     const snap = laneMod.getGhLane().snapshot();
     console.log('  [lane] readPeak=' + snap.readPeak + ' readWaited=' + snap.readWaited + ' max=' + snap.readMax);
     spy.dump(['gh.exec', 'gh.timeout']);
-    must(rs.every((r) => r && r.ok === true), '12 路读全成功（满了等，没失败）');
-    must(g.peak() <= 8, '同时在飞不超过读桶 8', 'peak=' + g.peak());
-    must(snap.readPeak <= 8 && snap.readWaited > 0, '道上峰值不超且有人排过队');
-    must(spy.count('gh.exec') === 12, '每条起过的记一行 gh.exec');
+    must(rs.every((r) => r && r.ok === true), n + ' 路读全成功（满了等，没失败）');
+    must(g.peak() <= readMax, '同时在飞不超过读桶 ' + readMax, 'peak=' + g.peak());
+    must(snap.readPeak <= readMax && snap.readWaited > 0, '道上峰值不超且有人排过队');
+    must(spy.count('gh.exec') === n, '每条起过的记一行 gh.exec');
     must(spy.count('gh.timeout') === 0, '60 毫秒就回，没有一条等满超时');
     for (const r of spy.rows) allEvents.add(r.event); }
   title('S4 分档：读/探活/写各等各的，超时归网络档');

@@ -131,5 +131,59 @@ if (tiers) {
   check(/gh-timeout-tiers|timeoutForGhArgs|tierForGhArgs|READ_TIMEOUT_MS|WRITE_TIMEOUT_MS|PROBE_TIMEOUT_MS/.test(src), '五、取数层按读写探活分档取超时（不是一档写死）')
 }
 
+// —— 六、房内自己掐表（#1007）：排队段也算进这只表，且与「调用方取消」分得开 ——
+{
+  const { ghClient } = await import(pathToFileURL(nodePath.join(ROOT, 'src/host/tracker/backends/github/client.js')).href)
+  const { getGhLane } = await import(pathToFileURL(nodePath.join(ROOT, 'src/shared/tracker/outbound-admission.js')).href)
+  const { ERROR_KIND } = await import(pathToFileURL(nodePath.join(ROOT, 'src/shared/tracker/constants.js')).href)
+
+  // 执行器卡住、连取消都不理：promise 永不落地。房内不能因此被无限拖住。
+  const hangExec = () => new Promise(() => {})
+  const events = []
+  const hangCtx = {
+    platform: { resolveExecutable: async () => 'gh' },
+    exec: hangExec,
+    cwd: '.',
+    logEvent: (level, event, fields) => events.push({ level, event, fields }),
+    isEnabled: () => true,
+  }
+  const hangClient = ghClient(hangCtx)
+
+  // ① 执行器不回来：房内到点即返回，不再拖到外层的调用钳制，并如实归超时
+  const t0 = Date.now()
+  const r1 = await hangClient.execGh(['issue', 'list'], { cwd: '.', timeout: 150 })
+  const took = Date.now() - t0
+  check(r1 && r1.ok === false && r1.error && r1.error.kind === ERROR_KIND.NETWORK, '六、执行器不回来时房内返回超时（归网络档，不报没登录）', JSON.stringify(r1 && r1.error))
+  check(r1 && r1.error && r1.error.timedOut === true && r1.error.cancelled !== true, '六、这一笔按「超时」交回，不混进「被取消」', JSON.stringify(r1 && r1.error))
+  check(took < 2000, '六、到点就返回（不等外层钳制）', '实耗 ' + took + 'ms')
+  check(events.some((e) => e.event === 'gh.timeout' && e.fields && e.fields.timeoutMs === 150), '六、房内到点记一行超时告警（gh.timeout 带本档毫秒）')
+
+  // ② 名额被占满：排队段也算进这只表（旧实现会一路排到外层钳制才结束）
+  const lane = getGhLane()
+  const maxRead = lane.limits().readMax
+  const held = []
+  for (let i = 0; i < maxRead; i++) held.push(await lane.acquire({ bucket: 'read' }))
+  const t1 = Date.now()
+  const r2 = await hangClient.execGh(['issue', 'list'], { cwd: '.', timeout: 150 })
+  const queued = Date.now() - t1
+  for (const rel of held) { try { rel() } catch (eR) {} }
+  check(r2 && r2.ok === false && r2.error && r2.error.timedOut === true, '六、排在名额队列里也算进房内的表（到点即中止）', JSON.stringify(r2 && r2.error))
+  check(queued < 2000, '六、排队段到点即返回', '实耗 ' + queued + 'ms')
+
+  // ③ 调用方取消照旧算「取消」，不算失败（生产里的执行器会因信号而落地，这里照实模拟）
+  const signalAwareExec = (cmd, args, opts) => new Promise((resolve, reject) => {
+    const s = opts && opts.signal
+    if (s && typeof s.addEventListener === 'function') {
+      s.addEventListener('abort', () => { const e = new Error('aborted by caller'); e.aborted = true; reject(e) }, { once: true })
+    }
+  })
+  const cancelClient = ghClient(Object.assign({}, hangCtx, { exec: signalAwareExec }))
+  const ctl = new AbortController()
+  const p = cancelClient.execGh(['issue', 'list'], { cwd: '.', timeout: 5000, signal: ctl.signal })
+  setTimeout(() => { try { ctl.abort() } catch (eA) {} }, 60)
+  const r3 = await p
+  check(r3 && r3.ok === false && r3.error && r3.error.cancelled === true, '六、调用方取消仍按「取消」返回（不算失败、可重试）', JSON.stringify(r3 && r3.error))
+}
+
 console.log('\n共 ' + total + ' 项，' + (failed ? '有失败' : '全部通过'))
 process.exit(failed ? 1 : 0)

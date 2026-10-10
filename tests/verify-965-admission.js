@@ -33,8 +33,8 @@ async function main() {
   }
   const { createGhAdmission, getGhLane, READ_BUCKET_MAX, WRITE_BUCKET_MAX, isAdmissionCancelled, ADMISSION_CANCELLED } = mod
 
-  check(READ_BUCKET_MAX === 8, '读桶暂定值是 8（终值等测量回填）', '实得 ' + String(READ_BUCKET_MAX))
-  check(WRITE_BUCKET_MAX === 2, '写桶暂定值是 2（终值等测量回填）', '实得 ' + String(WRITE_BUCKET_MAX))
+  check(READ_BUCKET_MAX === 24, '读桶上限是 24（#1007 按真机证据放宽：很少排队，同时仍防跑飞）', '实得 ' + String(READ_BUCKET_MAX))
+  check(WRITE_BUCKET_MAX === 4, '写桶上限是 4（写仍比读小得多：写不许重复发）', '实得 ' + String(WRITE_BUCKET_MAX))
 
   // 1. 并发压 16 路读，峰值不超过读上限，且全部成功（等不是失败）。
   {
@@ -137,7 +137,7 @@ async function main() {
     const b = getGhLane()
     check(a === b, '默认单例是同一道（三次拿是同一个对象）')
     const limits = a.limits()
-    check(limits.readMax === 8 && limits.writeMax === 2, '默认单例用暂定值（读 8 写 2）')
+    check(limits.readMax === 24 && limits.writeMax === 4, '默认单例用现行上限（读 24 写 4）')
   }
 
   finish()

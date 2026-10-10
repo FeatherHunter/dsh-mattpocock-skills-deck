@@ -324,12 +324,13 @@ const SEED = [
   const serial = makeGh({ labels: repo, delayMs: 2 })
   const rSerial = await tracker.setLabelColors(REF, six, serial.ctx)
   check(rSerial.ok === true && rSerial.data.applied.length === 6, '六条改动逐条都改了（实得 ' + JSON.stringify(rSerial.ok === true ? rSerial.data.applied.length : rSerial) + '）')
-  // #963：写操作走出站写桶（暂定 2），批内 4 路取小值得 2；读操作不受此限。终值由 #966 按生产数据回填。
-  check(serial.state.maxInFlight === 2, '写桶暂定 2 路（同时最多 2 个 gh 写进程，实得 ' + serial.state.maxInFlight + '）')
+  // #963：写操作走出站写桶，批内限流与写桶上限取小值（#1007 起写桶是 4，批内默认也是 4，所以实得 4）；
+  // 读操作不受此限。终值仍由 #966 按生产数据回填。
+  check(serial.state.maxInFlight === 4, '写桶与批内限流取小值：同时最多 4 个 gh 写进程（实得 ' + serial.state.maxInFlight + '）')
   const capped = makeGh({ labels: repo, delayMs: 2 })
   const ctxCapped = Object.assign({}, capped.ctx, { labelColorConcurrency: 99 })
   await tracker.setLabelColors(REF, six, ctxCapped)
-  check(capped.state.maxInFlight === 2, '要 99 路写也只并发 2 路（实得 ' + capped.state.maxInFlight + '）')
+  check(capped.state.maxInFlight === 4, '要 99 路写也只并发 4 路（出站写桶的上限，实得 ' + capped.state.maxInFlight + '）')
 }
 
 // ── 六、日志点：新的 gh 调用走既有的常驻 gh.exec，字段只取白名单 ───────────────
