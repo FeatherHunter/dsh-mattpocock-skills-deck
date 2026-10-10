@@ -4,6 +4,8 @@
 // 只读随包原文目录：技能名只认字母数字与 - _（防跨目录），只拼 <dir>/<name>/SKILL.md，
 // 读不到、非法名、超长一律回 {ok:false, missing:true}。
 // 成功时把该文件的绝对路径一并回给界面：弹窗上那颗「复制路径」要复制的就是它（2026-10-10 人拍板）。
+// 中文译文包（同目录的 SKILL.zh.md）有就一起回：弹窗上的「中文」按钮据此出现，没有译文就不出现。
+// 英文原文照旧必回；译文缺失、读不动、超长都只是「没有译文」，不影响英文那一份。
 // 注意分寸：路径可以给界面显示与复制，但**日志里永远不写路径原文**（日志纪律另有其要求，两件事不冲突）。
 export function createSkillDoc(deps) {
   const MAX_BYTES = 200000
@@ -64,7 +66,15 @@ export function createSkillDoc(deps) {
       if (raw == null || raw.length > MAX_BYTES) return { ok: false, missing: true }
       const md = stripFrontmatter(raw)
       if (!md || !md.trim()) return { ok: false, missing: true }
-      return { ok: true, md: md, path: file }
+      let mdZh = null
+      let pathZh = null
+      try {
+        const zhFile = file.replace(/SKILL\.md$/, 'SKILL.zh.md')
+        const rawZh = await (fsp.default || fsp).readFile(zhFile, 'utf8')
+        const z = stripFrontmatter(rawZh)
+        if (z && z.trim() && z.length <= MAX_BYTES) { mdZh = z; pathZh = zhFile }
+      } catch {}
+      return { ok: true, md: md, path: file, mdZh: mdZh, pathZh: pathZh }
     } catch { return { ok: false, missing: true } }
   }
   return { readDoc }

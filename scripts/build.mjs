@@ -940,7 +940,9 @@ if (wantSync) {
         // 整树同步 package/lib、package/shared 与 package/scripts（#545：只同步两个文件会漏掉宿主新增模块，
         // 注册了电话但缺模块文件，调用时动态导入失败；与“原样复制”哲学一致，只增不删）。
         // scripts 随包分发；#603 起提示词改走 gh 直连写法，脚本作为可选工具仍在包里。
-        for (const tree of ['lib', 'shared', 'scripts']) {
+        // 2026-10-10：bundled-skills 也要跟着同步 —— 详情页的中文译文（SKILL.zh.md）随包分发，
+        // 不同步的话真机上「中文」按钮永远不出现（源码里有、装好的包里没有）。同口径只增不删。
+        for (const tree of ['lib', 'shared', 'scripts', 'bundled-skills']) {
           const srcDir = resolve(ROOT, 'package', tree)
           const dstDir = resolve(profileBase, tree)
           if (!existsSync(srcDir)) continue
