@@ -92,8 +92,11 @@ const check = function (file) {
     if (zh.indexOf('7 字段清单') >= 0) problems.push('newBugWayfinder zh 提示语仍称「7 字段清单」')
     if (en.indexOf('7-field checklist') >= 0) problems.push('newBugWayfinder en 提示语仍称 "7-field checklist"')
     if (/\bgh\b/i.test(zh) || /gh issue/i.test(en)) problems.push('newBugWayfinder 不应硬编码平台工具 gh')
+    // #107：入口表单不得再引导「先建单」——四项全空先追问、不建单
+    if (zh.indexOf('先建单') >= 0) problems.push('newBugWayfinder zh 仍含「先建单」引导（#107 已改：空表单先追问、不建单）')
+    if (en.indexOf('file first') >= 0) problems.push('newBugWayfinder en 仍含 "file first" 引导（#107 已改：空表单先追问、不建单）')
   }
-  // 1.5) NEW_BUG_FIELDS_BODY（zh 4 字段通用选填括号单行，头带“以下选填。”）+ NEW_BUG_FIELDS_BODY_EN（en 对称，头带“Optional below.”）—— v7 #882
+  // 1.5) NEW_BUG_FIELDS_BODY（zh 4 字段必填括号单行，头带“以下四项均为必填”）+ NEW_BUG_FIELDS_BODY_EN（en 对称，头带“The four fields below are required”）—— v7 #882 + #107 改必填
   const fieldsBodyMatch = /NEW_BUG_FIELDS_BODY\s*=\s*function\s*\(\)\s*\{\s*return\s*'([^']*)'\s*\}/.exec(src)
   if (!fieldsBodyMatch) {
     problems.push('缺 NEW_BUG_FIELDS_BODY 常量定义')
@@ -113,9 +116,10 @@ const check = function (file) {
     if (missingInline.length) problems.push('NEW_BUG_FIELDS_BODY 缺 zh 说明关键字：' + missingInline.join(' / '))
     // v4 分离守护：zh 不应混入英文短语（防止中英混排回潮）
     if (fieldsBody.indexOf('What should happen') >= 0 || fieldsBody.indexOf('What actually happened') >= 0) problems.push('NEW_BUG_FIELDS_BODY 混入英文 inline（v4 zh 只中文说明）')
-    // v7 形态守护：括号单行，末尾以 环境信息（OS 版本 + 软件版本 + 运行环境）：收尾；头带“以下选填。”
+    // v7 形态守护：括号单行，末尾以 环境信息（OS 版本 + 软件版本 + 运行环境）：收尾；头带必填提示（#107 由“以下选填。”改为“以下四项均为必填”）
     if (!fieldsBody.endsWith('环境信息（OS 版本 + 软件版本 + 运行环境）：')) problems.push('NEW_BUG_FIELDS_BODY 末尾非通用环境收尾（v7 #882）')
-    if (fieldsBody.indexOf('以下选填。') < 0) problems.push('NEW_BUG_FIELDS_BODY 缺选填头“以下选填。”（v7 #882）')
+    if (fieldsBody.indexOf('以下四项均为必填') < 0) problems.push('NEW_BUG_FIELDS_BODY 缺必填头“以下四项均为必填”（#107）')
+    if (fieldsBody.indexOf('以下选填。') >= 0) problems.push('NEW_BUG_FIELDS_BODY 仍含旧选填头“以下选填。”（#107 已改必填）')
     if (fieldsBody.indexOf('浏览器 + 插件版本') >= 0) problems.push('NEW_BUG_FIELDS_BODY 残留 DSH 专用环境写法（v7 已通用化）')
     // 括号单行完整性
     const missingBrZh = BRACKET_LINE_ZH.filter(function (g) { return fieldsBody.indexOf(g) < 0 })
@@ -142,7 +146,8 @@ const check = function (file) {
     const missingBrEn = BRACKET_LINE_EN.filter(function (g) { return fieldsBodyEn.indexOf(g) < 0 })
     if (missingBrEn.length) problems.push('NEW_BUG_FIELDS_BODY_EN 缺括号单行：' + missingBrEn.join(' / '))
     if (!fieldsBodyEn.endsWith('Environment (OS version + software version + runtime):')) problems.push('NEW_BUG_FIELDS_BODY_EN 末尾非通用环境收尾（v7 #882）')
-    if (fieldsBodyEn.indexOf('Optional below.') < 0) problems.push('NEW_BUG_FIELDS_BODY_EN 缺选填头 "Optional below."（v7 #882）')
+    if (fieldsBodyEn.indexOf('The four fields below are required') < 0) problems.push('NEW_BUG_FIELDS_BODY_EN 缺必填头 "The four fields below are required"（#107）')
+    if (fieldsBodyEn.indexOf('Optional below.') >= 0) problems.push('NEW_BUG_FIELDS_BODY_EN 仍含旧选填头 "Optional below."（#107 已改必填）')
     if (fieldsBodyEn.indexOf('browser + plugin version') >= 0) problems.push('NEW_BUG_FIELDS_BODY_EN 残留 DSH 专用环境写法（v7 已通用化）')
   }
   // 2) i18n 键
