@@ -3,11 +3,11 @@
 // 这一条门禁盯的是「界面说得清这份数据有多新、上次刷新成不成、现在是不是降级」这件事，
 // 以及最容易做假的一条：**降级标记只能由宿主写**。
 //
-// 它验七件事：
+// 它验八件事：
 //   一、新鲜度：时间戳取快照的**取数时刻**（generatedMs），阈值 5 分钟黄 / 30 分钟红（常量来自 budget.ts）；
 //      2026-09-22 起这条信息显示在面板头部那个小时间标签上（panel/Dock.js），标签只画相对时间、
 //      完整说法与精确时刻在悬停提示里 —— 那一节判据（truthFreshnessBox）也在这里量。
-//   二、两种失败是两句不同的话（「插件自己的取数失败」与「配额已被其他使用者耗尽」）；
+//   二、两种失败是两句不同的话（「插件自己的取数失败」与「配额已被其他使用者耗尽」），放弃等待后活还在跑时说「仍在等」不说失败（无快照也说）；
 //   三、T3 那两句也要有读取点（「自动刷新已暂停」与「未在刷新（同时活跃上限 2）」）；
 //   四、降档时把延迟承诺说出来（"数据可能落后 X 分钟"），绿档不说、红档说的是「已暂停」；
 //   五、推迟发生时说「有更新，已推后」；
@@ -189,6 +189,16 @@ const stWith = function (refresh) { return { snapshot: snapAt(T1204, refresh ? {
   if (t.indexOf('有更新') < 0 || t.indexOf('推后') < 0) fail('推迟发生时应当显示「有更新，已推后」，实际：' + JSON.stringify(t))
 })()
 
+;(function checkPendingLate() {
+  if (!zh['truth.pendingLate']) fail('zh 缺词条 truth.pendingLate')
+  if (!en['truth.pendingLate']) fail('en 缺词条 truth.pendingLate')
+  const pend = truth.truthNoticeLines({ snapshot: snapAt(T1204), snapMode: 'err', snapError: 'client loadSnapshot timeout 30s', snapPending: true }, T1204)
+  if (!pend.some(function (l) { return l.key === 'truth.pendingLate' })) fail('放弃等待后应说仍在等（truth.pendingLate），实际：' + JSON.stringify(pend))
+  if (pend.some(function (l) { return l.kind === 'fail' })) fail('仍在等时不该再说失败，实际：' + JSON.stringify(pend))
+  const pendNoSnap = truth.truthNoticeLines({ snapshot: null, snapMode: 'err', snapError: 'client loadSnapshot timeout 30s', snapPending: true }, T1204)
+  if (!pendNoSnap.some(function (l) { return l.key === 'truth.pendingLate' })) fail('无快照时仍在等也该说出来，实际：' + JSON.stringify(pendNoSnap))
+})()
+
 // ---------- 六、三处文案的真实读取点（静态：界面代码真的把它们画出来）----------
 ;(function checkReadPoints() {
   const listTab = fs.readFileSync(path.join(ROOT, 'src/client/views/ListTab.js'), 'utf8')
@@ -217,7 +227,7 @@ const stWith = function (refresh) { return { snapshot: snapAt(T1204, refresh ? {
   if (!truth.truthWriteWindowOpen(t0, t0 + 1000)) fail('写入窗口内应当算「更新中」')
   if (truth.truthWriteWindowOpen(t0, t0 + budget.PATCH_MERGE_WINDOW_MS + 1)) fail('窗口一过就不该再算「更新中」')
   // 词条两面都在（中英双语，走现有红线检查的那一套）
-  ;['truth.updatedAt', 'truth.failRetry', 'truth.failPaused', 'truth.failQuota', 'truth.deferred', 'truth.paused', 'truth.notRefreshing', 'truth.lag', 'truth.writing'].forEach(function (k) {
+  ;['truth.updatedAt', 'truth.failRetry', 'truth.failPaused', 'truth.failQuota', 'truth.pendingLate', 'truth.deferred', 'truth.paused', 'truth.notRefreshing', 'truth.lag', 'truth.writing'].forEach(function (k) {
     if (!zh[k]) fail('zh 缺词条 ' + k)
     if (!en[k]) fail('en 缺词条 ' + k)
   })
