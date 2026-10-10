@@ -85,10 +85,13 @@ else bad('同一目录的不同写法没归到同一把键')
 // ── B. 缓存分级：写入与读取只有一把键 ────────────────────────────────────
 console.log('\nB) 缓存只有一把键（不再双写「仓库根」与「所选目录」两个桶）')
 const probeSrc = read('src/client/kernel/probe-snapshot.js')
-if (!/const c = snap\.repoRoot \|\| st\.cwd; if \(c\) setCachedSnapshot\(c, snap\)/.test(probeSrc)) {
+// #1009：装快照那一整段搬去 probe-select.js 了（正常那一路与迟到那一路共用同一处），
+//   所以「同一份快照只落一次缓存」这条判据要看整个内核闭包，不能只看一个文件。
+const kernelSrc = probeSrc + '\n' + read('src/client/kernel/probe-select.js')
+if (!/const c = snap\.repoRoot \|\| st\.cwd; if \(c\) setCachedSnapshot\(c, snap\)/.test(kernelSrc)) {
   ok('旧的双写已删除（不再先按 repoRoot 存一把、再按所选目录存一把）')
-} else bad('probe-snapshot.js 仍在按两个键双写同一份快照')
-if (/setCachedSnapshot\(st\.cwd, snap\)/.test(probeSrc)) ok('安装快照时只调一次 setCachedSnapshot(st.cwd, snap)')
+} else bad('内核仍在按两个键双写同一份快照')
+if (/setCachedSnapshot\(st\.cwd, snap\)/.test(kernelSrc)) ok('安装快照时只调一次 setCachedSnapshot(st.cwd, snap)')
 else bad('没找到单次落缓存的调用')
 
 const storeSrc = read('src/client/kernel/store-snapshot.js')

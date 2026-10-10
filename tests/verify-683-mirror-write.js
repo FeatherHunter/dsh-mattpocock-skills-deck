@@ -224,16 +224,22 @@ console.log('')
 console.log('== G 客户端拿到快照就回填本地镜像 ==')
 {
   const probe = fs.readFileSync(path.join(ROOT, 'src/client/kernel/probe-snapshot.js'), 'utf8')
+  // #1009：装快照那一整段（含布局回填）搬去 probe-select.js 了 —— 正常装快照那条路要看内核闭包的两片，
+  //   304 分支仍在 probe-snapshot.js 里。
+  const select = fs.readFileSync(path.join(ROOT, 'src/client/kernel/probe-select.js'), 'utf8')
+  const kernel = probe + '\n' + select
   const i304 = probe.indexOf('snap.notModified===true')
   check(i304 >= 0, 'probe-snapshot.js 里有 304 分支')
   const branch304 = i304 >= 0 ? probe.slice(i304, i304 + 1200) : ''
   check(/mergeSelection\(st, snap\.selection\)/.test(branch304), '304 分支合并回包里的权威选择（版本号没变不代表后端没变）')
   check(/setCachedSetupLayout\(st\.cwd, snap\.setupLayout\)/.test(branch304), '304 分支回填记住的布局')
-  check(/st\.snapshot = snap[\s\S]{0,300}setCachedSetupLayout\(st\.cwd, snap\.setupLayout\)/.test(probe), '正常装快照那条路也回填记住的布局')
+  check(/st\.snapshot = snap[\s\S]{0,300}setCachedSetupLayout\(st\.cwd, snap\.setupLayout\)/.test(kernel), '正常装快照那条路也回填记住的布局')
   // 反证：把 304 分支那两行拿掉 → 上面两条当场红（两处回填都要拿掉，只拿一处不算）
   const backfillRe = /try \{ if \(snap\.setupLayout && typeof setCachedSetupLayout === 'function'\) setCachedSetupLayout\(st\.cwd, snap\.setupLayout\) \} catch \(eSL\) \{\}/g
-  const broken = probe.replace(backfillRe, 'void 0')
-  check(broken !== probe, '反证 G 的改法能在真源里落地（拿掉回填那两行）')
+  const brokenProbe = probe.replace(backfillRe, 'void 0')
+  const brokenSelect = select.replace(backfillRe, 'void 0')
+  const broken = brokenProbe + '\n' + brokenSelect
+  check(brokenProbe !== probe || brokenSelect !== select, '反证 G 的改法能在真源里落地（拿掉回填那两行）')
   check(!/setCachedSetupLayout\(st\.cwd, snap\.setupLayout\)/.test(broken), '反证 G 成立：拿掉之后上面那两条就找不到回填了（说明 G 组量的就是这两行）')
 }
 try { fs.rmSync(brokenDir, { recursive: true, force: true }) } catch (e) {}
