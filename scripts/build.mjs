@@ -481,7 +481,6 @@ const LEAF_MODULES = [
   { id: 'ListTabRow', file: 'src/client/views/ListTabRow.js' },
   { id: 'listTab', file: 'src/client/views/ListTab.js' },
   { id: 'prTab', file: 'src/client/views/PrTab.js' },
-  { id: 'ringSkills', file: 'src/client/views/RingSkills.js' },
   { id: 'skillsTab', file: 'src/client/views/SkillsTab.js' },
   // 887 技能详情像素风：皮肤、中组件与整页（PixelMarkdown 无横向 import，只调全局 emit/tr）
   { id: 'pixelStyles', file: 'src/client/views/skillDetail/PixelStyles.js' },

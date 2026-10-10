@@ -236,7 +236,7 @@ export const PixelMarkdown = function(props) {
             emit(st);
           } catch (err) {
           }
-        } }, "\u2715")
+        } }, "✕")
       ]),
       h("div", { key: "b", className: "pixel-body", style: { display: "flex", alignItems: "center", justifyContent: "center" } }, h("img", { src: ov.src, alt: ov.alt || "Image", style: { maxHeight: "60vh" } })),
       h("div", { key: "f", className: "pixel-bot" }, [

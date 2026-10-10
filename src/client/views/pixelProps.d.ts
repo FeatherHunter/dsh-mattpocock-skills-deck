@@ -111,4 +111,6 @@ export interface PixelStore {
 export interface PixelSkillDetailModalProps {
   st?: PixelStore;
   onRetry?: ((name: string) => void) | null;
+  /** true＝占满页签中间区域（列表已让位），不铺遮罩；缺省是盖在页面上的居中弹窗 */
+  full?: boolean;
 }

@@ -89,10 +89,12 @@ export const PixelSkillDetailModal = function (props?: PixelSkillDetailModalProp
   }
   else if (d.phase === 'error') body = h('p', { key: 'b' }, tr('sd.noBody'))
   else body = h('p', { key: 'b' }, tr('sd.none'))
-  return h('div', {
-    className: 'pixel-overlay',
-    onClick: function (e: any) { try { if (e.target === e.currentTarget) pixelCloseDetail(s) } catch (err) { /* 忽略 */ } },
-  }, h('div', { className: 'pixel-modal ' + frame, role: 'dialog', 'aria-label': title }, [
+  // full：详情占满页签中间区域（列表那时已经让位），不铺遮罩、不套小窗；否则仍是盖在页面上的居中弹窗。
+  const box = h('div', {
+    className: 'pixel-modal ' + frame + (p.full ? ' pixel-modal-full' : ''),
+    role: 'dialog',
+    'aria-label': title,
+  }, [
     h(PixelSeal, { key: 'seal' }),
     h('div', { key: 'top', className: 'pixel-top' }, [
       h('span', { key: 't' }, title),
@@ -122,5 +124,10 @@ export const PixelSkillDetailModal = function (props?: PixelSkillDetailModalProp
       h('span', { key: 'f', style: { flex: 1 } }),
       h(PixelBtn, { key: 't', mini: true, onClick: toTop }, tr('sd.top')),
     ]),
-  ]))
+  ])
+  if (p.full) return h('div', { className: 'pixel-detail-full' }, box)
+  return h('div', {
+    className: 'pixel-overlay',
+    onClick: function (e: any) { try { if (e.target === e.currentTarget) pixelCloseDetail(s) } catch (err) { /* 忽略 */ } },
+  }, box)
 }

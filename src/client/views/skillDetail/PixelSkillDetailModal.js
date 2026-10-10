@@ -86,15 +86,11 @@ export const PixelSkillDetailModal = function(props) {
     ]);
   } else if (d.phase === "error") body = h("p", { key: "b" }, tr("sd.noBody"));
   else body = h("p", { key: "b" }, tr("sd.none"));
-  return h("div", {
-    className: "pixel-overlay",
-    onClick: function(e) {
-      try {
-        if (e.target === e.currentTarget) pixelCloseDetail(s);
-      } catch (err) {
-      }
-    }
-  }, h("div", { className: "pixel-modal " + frame, role: "dialog", "aria-label": title }, [
+  const box = h("div", {
+    className: "pixel-modal " + frame + (p.full ? " pixel-modal-full" : ""),
+    role: "dialog",
+    "aria-label": title
+  }, [
     h(PixelSeal, { key: "seal" }),
     h("div", { key: "top", className: "pixel-top" }, [
       h("span", { key: "t" }, title),
@@ -136,5 +132,15 @@ export const PixelSkillDetailModal = function(props) {
       h("span", { key: "f", style: { flex: 1 } }),
       h(PixelBtn, { key: "t", mini: true, onClick: toTop }, tr("sd.top"))
     ])
-  ]));
+  ]);
+  if (p.full) return h("div", { className: "pixel-detail-full" }, box);
+  return h("div", {
+    className: "pixel-overlay",
+    onClick: function(e) {
+      try {
+        if (e.target === e.currentTarget) pixelCloseDetail(s);
+      } catch (err) {
+      }
+    }
+  }, box);
 };

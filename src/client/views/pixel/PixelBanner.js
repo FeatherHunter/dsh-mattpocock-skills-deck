@@ -5,7 +5,7 @@ export const PixelBanner = function(props) {
   const h = cx ? cx.h : React.createElement;
   const warn = p.kind === "warn";
   return h("div", { className: "pixel-banner" + (warn ? " warn" : ""), role: "alert" }, [
-    h("b", { key: "mark" }, warn ? "!" : "\u2715"),
+    h("b", { key: "mark" }, warn ? "!" : "✕"),
     h("span", { key: "text", className: "grow" }, p.text),
     p.onRetry ? h(PixelBtn, { key: "retry", onClick: p.onRetry }, tr("sd.retry")) : null,
     p.onClose ? h(PixelBtn, { key: "close", onClick: p.onClose }, tr("sd.dismiss")) : null

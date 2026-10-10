@@ -3,6 +3,6 @@ export const PixelStateIcon = function(props) {
   const p = props || {};
   const cx = React.useContext(DswsCtx);
   const h = cx ? cx.h : React.createElement;
-  const mark = p.kind === "ok" ? "\u2713" : p.kind === "err" ? "\u2715" : p.kind === "warn" ? "!" : p.kind === "loading" ? "\u2026" : "\u25CB";
+  const mark = p.kind === "ok" ? "✓" : p.kind === "err" ? "✕" : p.kind === "warn" ? "!" : p.kind === "loading" ? "…" : "○";
   return h("span", { className: "pixel-ic pixel-ic-" + (p.kind || "idle"), "aria-hidden": true }, mark);
 };

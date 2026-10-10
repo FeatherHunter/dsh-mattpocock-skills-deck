@@ -42,43 +42,30 @@ export const SkillsTab = ({ st }) => {
     return null;
   };
   const d = st && st.pixelDetail ? st.pixelDetail : null;
+  const detailOpen = !!(d && d.open);
   const loadingName = d && d.phase === "loading" ? d.name : null;
   const head = h("div", { style: { display: "flex", alignItems: "center", gap: 6, marginBottom: 6 } }, [
-    h("div", { className: "dsws-grp", style: { margin: 0 } }, [Ic({ n: "compass", size: 12 }), h("span", null, recTitle)]),
-    h("span", { style: { flex: 1 } }),
-    h("span", { className: "dsws-seg" + (st.skillView === "list" ? " on" : ""), onClick: function() {
-      st.skillView = "list";
-      emit(st);
-    }, style: { fontSize: 11 } }, tr("skill.list")),
-    h("span", { className: "dsws-seg" + (st.skillView === "ring" ? " on" : ""), onClick: function() {
-      st.skillView = "ring";
-      emit(st);
-    }, style: { fontSize: 11 } }, tr("skill.ring"))
+    h("div", { className: "dsws-grp", style: { margin: 0 } }, [Ic({ n: "compass", size: 12 }), h("span", null, recTitle)])
   ]);
+  const chips = h("div", { style: { marginBottom: 8 } }, rec.map(function(r, i) {
+    return h("span", { key: i, className: "dsws-chip dsws-chip-m" }, "/" + r);
+  }));
   const detail = h(PixelSkillDetailModal, {
     st,
+    full: true,
     onRetry: function() {
       if (typeof pixelRetryDetail === "function") pixelRetryDetail(st);
     }
   });
-  if (st.skillView === "ring") {
-    return h("div", { className: "pixel-tab" }, [head, h(RingSkills, { st, rec, list: SKILLS }), detail]);
-  }
-  return h("div", { className: "pixel-tab" }, [
-    head,
-    h("div", { style: { marginBottom: 8 } }, rec.map(function(r, i) {
-      return h("span", { key: i, className: "dsws-chip dsws-chip-m" }, "/" + r);
-    })),
-    h(PixelSkillList, {
-      items,
-      onDetail: function(name) {
-        if (typeof pixelOpenDetail === "function") pixelOpenDetail(st, name, itemOf(name));
-      },
-      onLoad: function(name) {
-        inject(st, "/" + name);
-      },
-      loadingName
-    }),
-    detail
-  ]);
+  const list = h(PixelSkillList, {
+    items,
+    onDetail: function(name) {
+      if (typeof pixelOpenDetail === "function") pixelOpenDetail(st, name, itemOf(name));
+    },
+    onLoad: function(name) {
+      inject(st, "/" + name);
+    },
+    loadingName
+  });
+  return h("div", { className: "pixel-tab" }, [head, chips, detailOpen ? detail : list]);
 };

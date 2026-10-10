@@ -4,7 +4,9 @@
  * 拼回 src/client/index.js 的 `// ==== leaf:skillsTab (spliced by build) ====` 标记处。
  * 列表与详情都交给 views/skillDetail 下的像素风组件画；本文件只做三件事：
  * ①算推荐组（老逻辑一字不动）；②把 SKILLS 转成组件要的 items；③把加载与详情两个动作接上
- * （加载＝老行为 inject，详情＝pixelOpenDetail 取原文）。详情弹窗就地盖在本页签上（父容器 relative）。
+ * （加载＝老行为 inject，详情＝pixelOpenDetail 取原文）。
+ * 2026-10-10 人拍板两处：①不再有「列表／圆环」切换，技能页只列表这一种（圆环那个入口撤了）；
+ * ②点开详情后，详情占满页签的中间区域（就是列表原来占的那块），不再是浮在列表上的小窗。
  */
 import type { PixelSkillItem } from './pixelProps';
 declare function inject(st: any, name: string): void;
@@ -12,7 +14,6 @@ declare function compute(st: any): any;
 declare function findGroupByIdentity(groups: any, n: number, effort: string): any;
 declare const SKILLS: any[];
 declare function Ic(props?: any): any;
-declare const RingSkills: (props?: any) => any;
 declare const PixelSkillList: (props?: any) => any;
 declare const PixelSkillDetailModal: (props?: any) => any;
 declare function pixelOpenDetail(st: any, name?: string, item?: any): void;
@@ -63,32 +64,27 @@ export const SkillsTab = ({ st }: any): any => {
         return null
       }
       const d = st && st.pixelDetail ? st.pixelDetail : null
+      const detailOpen = !!(d && d.open)
       const loadingName = (d && d.phase === 'loading') ? d.name : null
+      // 头行只留推荐组标题：人拍板撤掉「列表／圆环」那对切换，技能页只有列表这一种。
       const head = h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 } }, [
         h('div', { className: 'dsws-grp', style: { margin: 0 } }, [Ic({ n: 'compass', size: 12 }), h('span', null, recTitle)]),
-        h('span', { style: { flex: 1 } }),
-        h('span', { className: 'dsws-seg' + (st.skillView === 'list' ? ' on' : ''), onClick: function () { st.skillView = 'list'; emit(st) }, style: { fontSize: 11 } }, tr('skill.list')),
-        h('span', { className: 'dsws-seg' + (st.skillView === 'ring' ? ' on' : ''), onClick: function () { st.skillView = 'ring'; emit(st) }, style: { fontSize: 11 } }, tr('skill.ring')),
       ])
+      const chips = h('div', { style: { marginBottom: 8 } }, rec.map(function (r, i) {
+        return h('span', { key: i, className: 'dsws-chip dsws-chip-m' }, '/' + r)
+      }))
+      // 详情占满中间区域：列表换成详情本体（不再叠一层遮罩小窗），关闭即回到列表。
       const detail = h(PixelSkillDetailModal, {
         st: st,
+        full: true,
         onRetry: function () { if (typeof pixelRetryDetail === 'function') pixelRetryDetail(st) },
       })
-      // 整个页签（头行 + 推荐 + 列表/圆环 + 详情）都包在 .pixel-tab 里：原型那一页的底色与像素语言
-      if (st.skillView === 'ring') {
-        return h('div', { className: 'pixel-tab' }, [head, h(RingSkills, { st: st, rec: rec, list: SKILLS }), detail])
-      }
-      return h('div', { className: 'pixel-tab' }, [
-        head,
-        h('div', { style: { marginBottom: 8 } }, rec.map(function (r, i) {
-          return h('span', { key: i, className: 'dsws-chip dsws-chip-m' }, '/' + r)
-        })),
-        h(PixelSkillList, {
-          items: items,
-          onDetail: function (name: string) { if (typeof pixelOpenDetail === 'function') pixelOpenDetail(st, name, itemOf(name)) },
-          onLoad: function (name: string) { inject(st, '/' + name) },
-          loadingName: loadingName,
-        }),
-        detail,
-      ])
+      const list = h(PixelSkillList, {
+        items: items,
+        onDetail: function (name: string) { if (typeof pixelOpenDetail === 'function') pixelOpenDetail(st, name, itemOf(name)) },
+        onLoad: function (name: string) { inject(st, '/' + name) },
+        loadingName: loadingName,
+      })
+      // 整个页签（头行 + 推荐 + 列表或详情）都包在 .pixel-tab 里：原型那一页的底色与像素语言
+      return h('div', { className: 'pixel-tab' }, [head, chips, detailOpen ? detail : list])
     }

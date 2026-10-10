@@ -290,7 +290,6 @@ export default {
 
     // ==== leaf:prTab (spliced by build) ====
 
-    // ==== leaf:ringSkills (spliced by build) ====
 
     // ==== leaf:skillsTab (spliced by build) ====
     // 887：技能详情像素风中组件与整页（皮肤拼在上面样式区）。

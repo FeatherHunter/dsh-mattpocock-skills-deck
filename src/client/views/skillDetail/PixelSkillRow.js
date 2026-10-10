@@ -9,7 +9,7 @@ export const PixelSkillRow = function(props) {
     h(PixelDot, { key: "d", level }),
     h("div", { key: "n", className: "pixel-sname" }, [
       "/" + p.name,
-      p.recommended ? h("span", { key: "s", className: "pixel-star" }, " \u2605") : null
+      p.recommended ? h("span", { key: "s", className: "pixel-star" }, " ★") : null
     ]),
     // 副标题超宽会被省略号裁掉，悬停给全文——走 Tip，不用原生 title（T2/T3 纪律）。
     h(Tip, { key: "u", content: p.use || "" }, h("div", { className: "pixel-suse" }, p.use)),
