@@ -134,7 +134,7 @@ const seen = {}
 })(SRC_CLIENT)
 function inspect(file) {
   const rel = path.relative(SRC_CLIENT, file).replace(/\\/g, '/')
-  if (rel === 'kernel/locale.js' || rel === 'kernel/locale-panel.js' || rel === 'kernel/locale-flow.js' || rel === 'kernel/locale-word.js' || rel === 'kernel/locale-labels.js' || rel === 'kernel/locale-pages.js' || rel === 'kernel/locale-vcwrite.js' || rel === 'kernel/locale-skilldesc.js' || rel === 'kernel/prompts.js' || rel === 'kernel/prompts-skills.js' || rel === 'kernel/prompts-setup.js') return // #458 K5：三片段与合并器均为双语定义本体，不入清单（与原 locale.js 同口径）；#621 的 locale-labels.js、#690 的 locale-pages.js 同为此类；#698 又把 prompts-skills.js（installSkills 的中英长句）与 prompts-setup.js（决策的说明）单列成片，同样不入清单
+  if (rel === 'kernel/locale.js' || rel === 'kernel/locale-panel.js' || rel === 'kernel/locale-flow.js' || rel === 'kernel/locale-word.js' || rel === 'kernel/locale-labels.js' || rel === 'kernel/locale-pages.js' || rel === 'kernel/locale-vcwrite.js' || rel === 'kernel/locale-skilldesc.js' || rel === 'kernel/locale-skilldetail.js' || rel === 'kernel/locale-cards.js' || rel === 'kernel/prompts.js' || rel === 'kernel/prompts-skills.js' || rel === 'kernel/prompts-setup.js') return // #458 K5：三片段与合并器均为双语定义本体，不入清单（与原 locale.js 同口径）；#621 的 locale-labels.js、#690 的 locale-pages.js 同为此类；#698 又把 prompts-skills.js（installSkills 的中英长句）与 prompts-setup.js（决策的说明）单列成片，同样不入清单；技能详情页的 locale-skilldetail.js 与卡片族的 locale-cards.js 也是双语定义本体，同口径排除（2026-10-10）
   const buf = stripComments(fs.readFileSync(file, 'utf8'))
   let count = 0
   const strRe = /'((?:[^'\\\n]|\\.)*)'|"((?:[^"\\\n]|\\.)*)"/g
