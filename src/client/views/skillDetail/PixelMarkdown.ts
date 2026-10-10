@@ -30,71 +30,112 @@ export const PixelMarkdown = function (props?: PixelMarkdownProps): any {
     st.pixelImgOverlay = { src: src, alt: String(alt || '').slice(0, 200) }
     try { if (typeof emit === 'function') emit(st) } catch (e) { /* 画布外自测时没有 emit */ }
   }
+  // ---- 行内解析（2026-10-10 按 27 篇真实原文的组合重做）----
+  // 盘点自 package/bundled-skills 的 27 篇 SKILL.md，真实出现的组合有：
+  //   **`code`** 42 处（粗体里包代码）、**a *b* c** 14 处（粗体里再套斜体）、
+  //   **a _b_ c** 25 处（粗体里套下划线强调）、[`code`](url) 3 处（链接标签本身是代码）、
+  //   **[label](url)** 1 处（粗体包链接）；另有上百处代码跨度里带 *（glob 之类），
+  //   那些星号必须原样，绝不能被当成强调标记。
+  // 次序：①代码跨度抽成原子（里面字符不再参与解析）；②图片；③链接（标签递归，共用同一张原子表）；
+  // ④剩下的文字上递归解析强调；⑤把原子填回（填回要下探到新建节点的子节点里，否则占位符会露在界面上）。
+  // 强调收口的两条细节：** 与 __ 要成对整串；单个 * 只认"孤立的星"收口，
+  // 这样 *a **b** c* 反向嵌套也能正确（否则会被切成三段各自的斜体）。
+  // 下划线守词边界：_x_ 认，snake_case 不认。
   const pxInline = function (text: string, inLink: boolean): any[] {
-    const out: any[] = []
-    // 行内代码嵌在粗体/斜体里是原文常见写法（**`/grill-with-docs`**）：整段粗体先匹配下来，
-    // 再对里面的文字切一次行内代码 —— 代码变徽章，其余仍是这段粗体里的普通文字（2026-10-10 真机反馈）。
-    const withCode = function (text: string): any[] {
-      const kids: any[] = []
-      String(text).split(/(`[^`]+`)/g).forEach(function (seg: string) {
-        if (!seg) return
-        const cm = /^`([^`]+)`$/.exec(seg)
-        if (cm) { kids.push(h('code', { key: key() }, cm[1])); return }
-        kids.push(seg)
-      })
-      return kids
-    }
-    const pushMarks = function (seg: string): void {
-      seg.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|~~[^~]+~~)/g).forEach(function (part: string) {
-        if (!part) return
-        let m = /^\*\*([^*]+)\*\*$/.exec(part)
-        if (m) { out.push(h('strong', { key: key() }, withCode(m[1]))); return }
-        m = /^\*([^*]+)\*$/.exec(part)
-        if (m) { out.push(h('em', { key: key() }, withCode(m[1]))); return }
-        m = /^`([^`]+)`$/.exec(part)
-        if (m) { out.push(h('code', { key: key() }, m[1])); return }
-        m = /^~~([^~]+)~~$/.exec(part)
-        if (m) { out.push(h('span', { key: key(), style: { textDecoration: 'line-through' } }, withCode(m[1]))); return }
-        out.push(part)
-      })
-    }
-    const pushLinks = function (seg: string): void {
-      const re = /\[([^\]]+)\]\(([^\s)]+)\)/g
-      let last = 0
-      let m: RegExpExecArray | null = null
-      let hit = false
-      while ((m = re.exec(seg)) !== null) {
-        hit = true
-        if (m.index > last) pushMarks(seg.slice(last, m.index))
-        if (/^https?:/i.test(m[2])) {
-          out.push(h('a', { key: key(), href: m[2], target: '_blank', rel: 'noreferrer' }, m[1]))
-        } else { out.push(m[1]) }
-        last = m.index + m[0].length
-      }
-      if (!hit) { pushMarks(seg); return }
-      if (last < seg.length) pushMarks(seg.slice(last))
-    }
-    const re = /!\[([^\]]*)\]\(\s*([^\s)]+)(?:\s+["']([^{"']*)["'])?\s*\)/g
-    let last = 0
-    let m: RegExpExecArray | null = null
-    let hit = false
-    while ((m = re.exec(text)) !== null) {
-      hit = true
-      if (m.index > last) pushLinks(text.slice(last, m.index))
-      if (/^https:/i.test(m[2])) {
-        const src = m[2]
-        const alt = m[1] || 'Image'
-        const clickable = !inLink && !!st
-        const imgProps: Record<string, any> = { key: key(), src: src, alt: alt, loading: 'lazy' }
-        if (clickable) imgProps.onClick = function () { openImg(src, alt) }
-        out.push(h('img', imgProps))
-      } else { out.push(m[1] || '') }
-      last = m.index + m[0].length
-    }
-    if (!hit) { pushLinks(text); return out }
-    if (last < text.length) pushLinks(text.slice(last))
-    return out
+    return pxInlineWith(text, inLink, [])
   }
+  const pxInlineWith = function (text: string, inLink: boolean, atoms: any[]): any[] {
+    const mark = function (node: any): string {
+      atoms.push(node)
+      return '\u0002A' + (atoms.length - 1) + '\u0002'
+    }
+    const findClose = function (s: string, ch: string, from: number, need: number): number {
+      let i = from
+      while (i < s.length) {
+        if (s[i] !== ch) { i += 1; continue }
+        let run = 1
+        while (i + run < s.length && s[i + run] === ch) run += 1
+        // 单个强调标记只认孤立的星/下划线；成对的两个必须整串（两个以上也不许拆着用）
+        const fits = (need === 1) ? (run === 1) : (run >= need)
+        if (fits) {
+          if (ch === '_') {
+            const after = (i + run < s.length) ? s[i + run] : ' '
+            if (/[A-Za-z0-9]/.test(after)) { i += run; continue }
+          }
+          return i
+        }
+        i += run
+      }
+      return -1
+    }
+    const expand = function (nodes: any[]): any[] {
+      const out: any[] = []
+      nodes.forEach(function (n: any) {
+        if (typeof n !== 'string') { out.push(n); return }
+        const re = /\u0002A(\d+)\u0002/g
+        let last = 0
+        let m: RegExpExecArray | null = null
+        while ((m = re.exec(n)) !== null) {
+          if (m.index > last) out.push(n.slice(last, m.index))
+          const atom = atoms[parseInt(m[1], 10)]
+          if (atom !== undefined) out.push(atom)
+          last = m.index + m[0].length
+        }
+        if (last < n.length) out.push(n.slice(last))
+      })
+      return out
+    }
+    const emphasisOf = function (s: string): any[] {
+      const out: any[] = []
+      let i = 0
+      while (i < s.length) {
+        const ch = s[i]
+        if (ch !== '*' && ch !== '_' && ch !== '~') {
+          let j = i
+          while (j < s.length && s[j] !== '*' && s[j] !== '_' && s[j] !== '~') j += 1
+          out.push(s.slice(i, j)); i = j; continue
+        }
+        let run = 1
+        while (i + run < s.length && s[i + run] === ch) run += 1
+        const need = (ch === '~') ? 2 : (run >= 2 ? 2 : 1)
+        if (ch === '~' && run < 2) { out.push(s.slice(i, i + run)); i += run; continue }
+        if (ch === '_') {
+          const prev = (i > 0) ? s[i - 1] : ' '
+          if (/[A-Za-z0-9]/.test(prev)) { out.push(s.slice(i, i + 1)); i += 1; continue }
+        }
+        const openEnd = i + need
+        const closeAt = findClose(s, ch, openEnd, need)
+        if (closeAt < 0) { out.push(s.slice(i, openEnd)); i = openEnd; continue }
+        // 子节点先填回原子，再挂进这一层 —— 否则占位符会原样出现在界面上
+        const kids = expand(emphasisOf(s.slice(openEnd, closeAt)))
+        if (ch === '~') out.push(h('span', { key: key(), style: { textDecoration: 'line-through' } }, kids))
+        else if (need === 2) out.push(h('strong', { key: key() }, kids))
+        else out.push(h('em', { key: key() }, kids))
+        i = closeAt + need
+      }
+      return out
+    }
+    let rest = String(text == null ? '' : text)
+    // ① 代码跨度：原子，最高优先级
+    rest = rest.replace(/`([^`]+)`/g, function (all: string, code: string) {
+      return mark(h('code', { key: key() }, code))
+    })
+    // ② 图片：在链接之前（否则 ![](...) 会被链接规则吃掉一半）；只认安全地址
+    rest = rest.replace(/!\[([^\]]*)\]\(\s*([^\s)]+)(?:\s+["']([^"']*)["'])?\s*\)/g, function (all: string, alt: string, url: string) {
+      if (!/^https:/i.test(url)) return alt || ''
+      const clickable = !inLink && !!st
+      const props: Record<string, any> = { key: key(), src: url, alt: alt || 'Image', loading: 'lazy' }
+      if (clickable) props.onClick = function () { openImg(url, alt) }
+      return mark(h('img', props))
+    })
+    // ③ 链接：只认 http(s)；标签递归解析，共用同一张原子表（标签里的代码才找得回自己那条）
+    rest = rest.replace(/\[([^\]]+)\]\(([^\s)]+)\)/g, function (all: string, label: string, url: string) {
+      if (!/^https?:/i.test(url)) return label
+      return mark(h('a', { key: key(), href: url, target: '_blank', rel: 'noreferrer' }, pxInlineWith(label, true, atoms)))
+    })
+    return expand(emphasisOf(rest))
+  }
+
   const matchListLine = function (line: string): PixelListFlatItem | null {
     const im = /^( *)/.exec(line)
     const indent = im ? im[1].length : 0

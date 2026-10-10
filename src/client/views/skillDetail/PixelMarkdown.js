@@ -26,94 +26,118 @@ export const PixelMarkdown = function(props) {
     }
   };
   const pxInline = function(text, inLink) {
-    const out = [];
-    const withCode = function(text2) {
-      const kids = [];
-      String(text2).split(/(`[^`]+`)/g).forEach(function(seg) {
-        if (!seg) return;
-        const cm = /^`([^`]+)`$/.exec(seg);
-        if (cm) {
-          kids.push(h("code", { key: key() }, cm[1]));
+    return pxInlineWith(text, inLink, []);
+  };
+  const pxInlineWith = function(text, inLink, atoms) {
+    const mark = function(node) {
+      atoms.push(node);
+      return "A" + (atoms.length - 1) + "";
+    };
+    const findClose = function(s, ch, from, need) {
+      let i2 = from;
+      while (i2 < s.length) {
+        if (s[i2] !== ch) {
+          i2 += 1;
+          continue;
+        }
+        let run = 1;
+        while (i2 + run < s.length && s[i2 + run] === ch) run += 1;
+        const fits = need === 1 ? run === 1 : run >= need;
+        if (fits) {
+          if (ch === "_") {
+            const after = i2 + run < s.length ? s[i2 + run] : " ";
+            if (/[A-Za-z0-9]/.test(after)) {
+              i2 += run;
+              continue;
+            }
+          }
+          return i2;
+        }
+        i2 += run;
+      }
+      return -1;
+    };
+    const expand = function(nodes2) {
+      const out = [];
+      nodes2.forEach(function(n) {
+        if (typeof n !== "string") {
+          out.push(n);
           return;
         }
-        kids.push(seg);
+        const re = /\u0002A(\d+)\u0002/g;
+        let last = 0;
+        let m = null;
+        while ((m = re.exec(n)) !== null) {
+          if (m.index > last) out.push(n.slice(last, m.index));
+          const atom = atoms[parseInt(m[1], 10)];
+          if (atom !== void 0) out.push(atom);
+          last = m.index + m[0].length;
+        }
+        if (last < n.length) out.push(n.slice(last));
       });
-      return kids;
-    };
-    const pushMarks = function(seg) {
-      seg.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|~~[^~]+~~)/g).forEach(function(part) {
-        if (!part) return;
-        let m2 = /^\*\*([^*]+)\*\*$/.exec(part);
-        if (m2) {
-          out.push(h("strong", { key: key() }, withCode(m2[1])));
-          return;
-        }
-        m2 = /^\*([^*]+)\*$/.exec(part);
-        if (m2) {
-          out.push(h("em", { key: key() }, withCode(m2[1])));
-          return;
-        }
-        m2 = /^`([^`]+)`$/.exec(part);
-        if (m2) {
-          out.push(h("code", { key: key() }, m2[1]));
-          return;
-        }
-        m2 = /^~~([^~]+)~~$/.exec(part);
-        if (m2) {
-          out.push(h("span", { key: key(), style: { textDecoration: "line-through" } }, withCode(m2[1])));
-          return;
-        }
-        out.push(part);
-      });
-    };
-    const pushLinks = function(seg) {
-      const re2 = /\[([^\]]+)\]\(([^\s)]+)\)/g;
-      let last2 = 0;
-      let m2 = null;
-      let hit2 = false;
-      while ((m2 = re2.exec(seg)) !== null) {
-        hit2 = true;
-        if (m2.index > last2) pushMarks(seg.slice(last2, m2.index));
-        if (/^https?:/i.test(m2[2])) {
-          out.push(h("a", { key: key(), href: m2[2], target: "_blank", rel: "noreferrer" }, m2[1]));
-        } else {
-          out.push(m2[1]);
-        }
-        last2 = m2.index + m2[0].length;
-      }
-      if (!hit2) {
-        pushMarks(seg);
-        return;
-      }
-      if (last2 < seg.length) pushMarks(seg.slice(last2));
-    };
-    const re = /!\[([^\]]*)\]\(\s*([^\s)]+)(?:\s+["']([^{"']*)["'])?\s*\)/g;
-    let last = 0;
-    let m = null;
-    let hit = false;
-    while ((m = re.exec(text)) !== null) {
-      hit = true;
-      if (m.index > last) pushLinks(text.slice(last, m.index));
-      if (/^https:/i.test(m[2])) {
-        const src = m[2];
-        const alt = m[1] || "Image";
-        const clickable = !inLink && !!st;
-        const imgProps = { key: key(), src, alt, loading: "lazy" };
-        if (clickable) imgProps.onClick = function() {
-          openImg(src, alt);
-        };
-        out.push(h("img", imgProps));
-      } else {
-        out.push(m[1] || "");
-      }
-      last = m.index + m[0].length;
-    }
-    if (!hit) {
-      pushLinks(text);
       return out;
-    }
-    if (last < text.length) pushLinks(text.slice(last));
-    return out;
+    };
+    const emphasisOf = function(s) {
+      const out = [];
+      let i2 = 0;
+      while (i2 < s.length) {
+        const ch = s[i2];
+        if (ch !== "*" && ch !== "_" && ch !== "~") {
+          let j = i2;
+          while (j < s.length && s[j] !== "*" && s[j] !== "_" && s[j] !== "~") j += 1;
+          out.push(s.slice(i2, j));
+          i2 = j;
+          continue;
+        }
+        let run = 1;
+        while (i2 + run < s.length && s[i2 + run] === ch) run += 1;
+        const need = ch === "~" ? 2 : run >= 2 ? 2 : 1;
+        if (ch === "~" && run < 2) {
+          out.push(s.slice(i2, i2 + run));
+          i2 += run;
+          continue;
+        }
+        if (ch === "_") {
+          const prev = i2 > 0 ? s[i2 - 1] : " ";
+          if (/[A-Za-z0-9]/.test(prev)) {
+            out.push(s.slice(i2, i2 + 1));
+            i2 += 1;
+            continue;
+          }
+        }
+        const openEnd = i2 + need;
+        const closeAt = findClose(s, ch, openEnd, need);
+        if (closeAt < 0) {
+          out.push(s.slice(i2, openEnd));
+          i2 = openEnd;
+          continue;
+        }
+        const kids = expand(emphasisOf(s.slice(openEnd, closeAt)));
+        if (ch === "~") out.push(h("span", { key: key(), style: { textDecoration: "line-through" } }, kids));
+        else if (need === 2) out.push(h("strong", { key: key() }, kids));
+        else out.push(h("em", { key: key() }, kids));
+        i2 = closeAt + need;
+      }
+      return out;
+    };
+    let rest = String(text == null ? "" : text);
+    rest = rest.replace(/`([^`]+)`/g, function(all, code) {
+      return mark(h("code", { key: key() }, code));
+    });
+    rest = rest.replace(/!\[([^\]]*)\]\(\s*([^\s)]+)(?:\s+["']([^"']*)["'])?\s*\)/g, function(all, alt, url) {
+      if (!/^https:/i.test(url)) return alt || "";
+      const clickable = !inLink && !!st;
+      const props2 = { key: key(), src: url, alt: alt || "Image", loading: "lazy" };
+      if (clickable) props2.onClick = function() {
+        openImg(url, alt);
+      };
+      return mark(h("img", props2));
+    });
+    rest = rest.replace(/\[([^\]]+)\]\(([^\s)]+)\)/g, function(all, label, url) {
+      if (!/^https?:/i.test(url)) return label;
+      return mark(h("a", { key: key(), href: url, target: "_blank", rel: "noreferrer" }, pxInlineWith(label, true, atoms)));
+    });
+    return expand(emphasisOf(rest));
   };
   const matchListLine = function(line) {
     const im = /^( *)/.exec(line);
