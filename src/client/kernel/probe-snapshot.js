@@ -178,7 +178,7 @@
         // #653：宿主这次回话里带的工作区根，先记进工作区键表——本会话与同工作区的其它会话随后都按它分桶。
         //   不管 ok 与否都记：它是宿主算出来的事实，与这份快照能不能装没有关系。
         return p.then(function (snap) {
-          if (_snapInstallState) _snapInstallState.handedOff = true // #727：正常那一路跑过了，迟到的处理器从此只认「不重复装」
+          // _snapInstallState.handedOff 已退役：重复安装改按这次请求的 gaveUp/mine.done 判，不跨请求共享。
           _mine.done = true // #1009：那道判据收窄到「**这一次**请求装过没有」—— 更早的请求装过，不挡这一份迟到结果落地
           try { if (snap && snap.workspaceRoot) rememberWorkspaceRoot(st.cwd, snap.workspaceRoot) } catch (eWr) {}
           try { const okSnap = !!(snap && (snap.ok === true || snap.notModified === true || snap.status === 304)); const callKind = force ? 'refresh' : 'snapshot'; if (okSnap) log('info', 'host.call', { method: callMethod, latencyMs: Date.now() - callT0, ok: true, kind: callKind }); else log('warn', 'host.call.fail', { method: callMethod, kind: callKind, errorHash: dswsLogHash(dswsLogTrunc(String((snap && snap.error) || 'snapshot-failed'), 120, 'error')) }) } catch (eL) {}
@@ -235,10 +235,14 @@
           // #1009 收口：放弃等待时立一面诚实旗子 —— 30 秒到点界面会说失败，可活还在跑；
           //   有这面旗子，提示语改说「仍在等，拿到后自动更新」，不再把「没等到」说成「失败了」。
           //   迟到落地或真失败时清掉（落地那两处在 kernel/probe-select.js，迟到失败在上面那行 late 口）。
+          // 优化：过期请求（已有更新一次在后）不碰旗子，免得老超时盖掉新数据的状态。
           try {
             const _msg = String((e && e.message) || e)
-            if (_msg.indexOf('client loadSnapshot timeout') >= 0) st.snapPending = true
-            else st.snapPending = false
+            const _stale = (typeof _snapRespStale === 'function') ? _snapRespStale(_reqNorm, _mine.seq, _mine.reqBackend, st) : false
+            if (!_stale) {
+              if (_msg.indexOf('client loadSnapshot timeout') >= 0) st.snapPending = true
+              else st.snapPending = false
+            }
           } catch (ePend2) {}
           // #727：这一次等待到此为止（超时也算）——「在途」这个理由不再成立，横幅回到原来那套判据上。
           //   注意这里只结束「等待」：那份回包若后来还是回来了，由上面的迟到处理器收下（#1009 起整份落地）。

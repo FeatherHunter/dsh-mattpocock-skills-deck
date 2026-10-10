@@ -77,6 +77,10 @@ export const truthNoticeLines = function (st, nowMs) {
   const refresh = (snap && snap.refresh) || null
   const tierPaused = !!(refresh && refresh.tier && lagPromiseFor(refresh.tier).paused)
   const paused = !!(refresh && refresh.paused === true) || tierPaused
+  // #1009 优化：放弃等待后活还在跑时，无快照也要说「仍在等」，不留白。
+  if (st && st.snapMode === 'err' && st.snapError && st.snapPending === true) {
+    return [{ key: 'truth.pendingLate', params: {}, tone: 'yellow', kind: 'pending' }]
+  }
   if (!snap) return lines
   // 一、上次刷新失败。有旧数据也照说：老数据配一句「刷新失败」，才说得清「你现在看的这份是旧的」。
   //   三种情形三句话，判据全是宿主送进来的事实：
@@ -84,14 +88,8 @@ export const truthNoticeLines = function (st, nowMs) {
   //   ② 插件自己的取数失败、但已经暂停（配额紧张，先不再打请求）
   //   ③ 插件自己的取数失败、还在重试
   if (st && st.snapMode === 'err' && st.snapError) {
-    // #1009 收口：30 秒放弃等待后活还在跑时，不说「失败」，说「仍在等，拿到后自动更新」。
-    //   有这面旗子（st.snapPending，见 kernel/probe-snapshot.js），迟到落地前一直是这一句。
-    if (st.snapPending === true) {
-      push({ key: 'truth.pendingLate', params: {}, tone: 'yellow', kind: 'pending' })
-    } else {
-      const byOthers = ((st.snapFail && st.snapFail.kind) || '') === 'quota-exhausted'
-      push({ key: byOthers ? 'truth.failQuota' : (paused ? 'truth.failPaused' : 'truth.failRetry'), params: {}, tone: 'red', kind: 'fail' })
-    }
+    const byOthers = ((st.snapFail && st.snapFail.kind) || '') === 'quota-exhausted'
+    push({ key: byOthers ? 'truth.failQuota' : (paused ? 'truth.failPaused' : 'truth.failRetry'), params: {}, tone: 'red', kind: 'fail' })
   }
   // 二、降档时把延迟承诺说出来：黄档说「数据可能落后 X 分钟」。绿档（承诺还是 5 秒）不说，
   //   因为那时候没有任何东西变长；红档不说「落后多久」——它说的是下面那句「已暂停」。

@@ -113,11 +113,12 @@ export const _installLateSnapshotSelection = function (st, snap, reqNorm, mine) 
     // #1009 收口 F1：迟到落地只在真的放弃等待之后生效。正常那一路先回来时，这一次还没放弃，
     //   这里一个字节都不装，也不再记那一行日志（原来靠正常路后置的标记挡，会被微任务顺序绕过）。
     if (!mine.gaveUp) return false
-    // 这一次已经走过正常那一路了（两边同时就绪的竞态）：一个字节都不许重复装。
-    if (_snapInstallState.handedOff === true) return false
+    // 同一次请求已装过就不重复装（按这次请求判，不跨请求共享；全局 handedOff 已退役）。
+    if (mine.done === true) return false
     // 后来发过更新的一次、或用户已经换到别的后端：与正常那一路同一把尺子，扔（#669 第 5 件）。
     if (typeof _snapRespStale === 'function' && _snapRespStale(reqNorm, mine.seq, mine.reqBackend, st)) return false
     if (!_snapRequestKeyWas(reqNorm, st)) return false
+    mine.done = true
     let changed = false
     if (snap.selection !== undefined && typeof mergeSelection === 'function') { try { if (mergeSelection(st, snap.selection)) changed = true } catch (eSel) {} }
     if (snap.repository !== undefined) { try { st.repository = snap.repository; if (st.cwd) setCachedRepository(st.cwd, snap.repository) } catch (eRep) {} }
