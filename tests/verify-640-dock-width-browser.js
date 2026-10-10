@@ -2,7 +2,8 @@
 //
 // 起因：#640 报的是「输入框上方出现横向大面积背景带，且提示条 / 状态栏胶囊 / 输入框三者左右边互相对不齐」。
 // 本门的判据是几何的，不是字符串的：
-//   插件状态栏最外层容器的左右边，必须落在输入卡的左右边上（容差 1px）；胶囊不得超过卡片宽。
+//   展开态（无横幅 / 有横幅）插件状态栏最外层容器的左右边，必须落在输入卡的左右边上（容差 1px）；
+//   收起态是例外：只剩一句小字，容器收成包裹内容、居中落在卡片以内（不超出、不等宽）；胶囊不得超过卡片宽。
 //
 // 量尺必须来自外部：fixture 里「卡片那一侧」用的是**宿主产物原文**的算式（由 scripts/gen-fixture-640.js
 // 从 DSH 桌面包里读出来）—— 输入卡外层「padding:0 var(--dsh-composer-side-clearance) <底距>」+
@@ -80,24 +81,34 @@ const check = function (cond, msg) { console.log((cond ? 'PASS ' : 'FAIL ') + ms
   await browser.close();
 
   const TOL = 1.0; // 1px：允许子像素取整
-  console.log('用例                      容器左右            卡片左右            左差   右差   容器=卡片  胶囊≤卡片');
+  console.log('用例                      容器左右            卡片左右            左差   右差   对齐/包住  胶囊≤卡片');
   for (const r of rows) {
     const dL = Math.round((r.wrapL - r.cardL) * 100) / 100;
     const dR = Math.round((r.wrapR - r.cardR) * 100) / 100;
     const aligned = Math.abs(dL) <= TOL && Math.abs(dR) <= TOL;
     const capFits = r.capW < 0 || r.capW <= r.cardW + TOL; // 收起态没有胶囊，跳过这一条
     const isAnti = r.name === 'anti-unconstrained';
+    const isFolded = r.name.indexOf('folded') === 0;
+    // 收起态是例外：只剩一句小字，容器收成包裹内容、居中落在卡片以内（不对齐等宽）。
+    const foldedInside = r.wrapL >= r.cardL - TOL && r.wrapR <= r.cardR + TOL;
+    const foldedCentered = Math.abs((r.wrapL - r.cardL) - (r.cardR - r.wrapR)) <= 2 * TOL;
+    const foldedNarrower = r.wrapW < r.cardW - 10;
+    const foldedOk = foldedInside && foldedCentered && foldedNarrower;
+    const verdict = isFolded ? foldedOk : aligned;
     console.log(
       r.name.padEnd(24) + ' ' +
       (r.wrapL + '..' + r.wrapR).padEnd(19) + ' ' +
       (r.cardL + '..' + r.cardR).padEnd(19) + ' ' +
       String(dL).padStart(6) + ' ' + String(dR).padStart(6) + '   ' +
-      (aligned ? '是  ' : '否  ').padEnd(10) + (capFits ? '是' : '否')
+      (verdict ? '是  ' : '否  ').padEnd(10) + (capFits ? '是' : '否')
     );
     if (isAnti) {
       // 反证：改造前的写法必须量出「容器比卡片宽」；量不出来说明这一页失效
       if (aligned) { console.log('FAIL 反证用例竟然也对齐了 —— 这一页量不出问题，门是假绿的'); ok = false; }
       else console.log('PASS 反证成立：不做宽度约束时容器比卡片宽 ' + Math.round((r.wrapW - r.cardW) * 100) / 100 + 'px');
+    } else if (isFolded) {
+      if (!foldedOk) { console.log('FAIL ' + r.name + ' 收起态容器没有包住居中（是否在卡内 ' + foldedInside + '、是否居中 ' + foldedCentered + '、是否收窄 ' + foldedNarrower + '，容器宽 ' + r.wrapW + '、卡片宽 ' + r.cardW + '）'); ok = false; }
+      else console.log('PASS ' + r.name + '（收起态包住居中：容器宽 ' + r.wrapW + ' < 卡片宽 ' + r.cardW + '）');
     } else if (!aligned) {
       console.log('FAIL ' + r.name + ' 容器左右边没落在卡片左右边上（左差 ' + dL + '，右差 ' + dR + '）');
       ok = false;
@@ -109,8 +120,7 @@ const check = function (cond, msg) { console.log((cond ? 'PASS ' : 'FAIL ') + ms
     }
   }
   console.log(ok
-    ? '全部通过：' + rows.length + ' 种列宽/变量组合（含三种容器分支与宽列下胶囊上限生效的那一档）下，'
-      + '状态栏容器左右边都落在输入卡左右边上，胶囊不超过卡片宽；反证用例仍能测出问题'
+    ? '全部通过：展开态容器左右边落在输入卡左右边上、收起态容器包住一句小字居中、胶囊不超过卡片宽；反证用例仍能测出问题'
     : '存在失败项');
   process.exit(ok ? 0 : 1);
 })().catch((e) => { console.error(e); process.exit(1); });

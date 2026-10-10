@@ -52,7 +52,7 @@ const statChecks = function (src, tag) {
   const helperCalls = (src.match(/dswsStatusDockGeom\(\)/g) || []).length
   ok('外层容器几何被调用（至少 3 次：收起态 / 无横幅 / 有横幅各一次）', helperCalls >= 3)
   const branchHits = [
-    ['收起态（justifyContent:center 那一支）', /Object\.assign\(\{ display:\s*'flex',\s*flex:\s*'none',\s*justifyContent:\s*'center' \},\s*dswsStatusDockGeom\(\)\)/],
+    ['收起态（justifyContent:center + 包裹内容居中那一支）', /Object\.assign\(\{ display:\s*'flex',\s*flex:\s*'none',\s*justifyContent:\s*'center',\s*alignSelf:\s*'center' \},\s*dswsStatusDockGeom\(\),\s*\{ width:\s*'auto' \}\)/],
     ['无横幅那一支（gap: 2）', /Object\.assign\(\{ display:\s*'flex',\s*flex:\s*'none',\s*flexDirection:\s*'column',\s*alignItems:\s*'center',\s*gap:\s*2,[^}]*\},\s*dswsStatusDockGeom\(\)\)/],
     // 这一支的属性顺序与另两支不同（flexDirection 排在 flex 前面），所以断言只钉住它独有的两个词
     // （gap: 4 + position: relative）与末尾的 helper 调用，不钉属性顺序。

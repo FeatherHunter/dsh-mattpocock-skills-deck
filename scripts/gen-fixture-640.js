@@ -139,8 +139,9 @@ const scenarioList = [
 
 const makeDockStyle = function (variant) {
   if (variant === 'folded') {
-    return ['display:flex', 'flex:none', 'justify-content:center',
-      'width:' + geomWidth, 'max-width:' + geomMaxWidth, 'margin-left:auto', 'margin-right:auto',
+    // 收起态是例外：只剩一句小字，容器收成包裹内容居中（与 StatusBar.js 收起态分支同形）。
+    return ['display:flex', 'flex:none', 'justify-content:center', 'align-self:center',
+      'width:auto', 'max-width:' + geomMaxWidth, 'margin-left:auto', 'margin-right:auto',
       'box-sizing:border-box', 'padding:' + geomPad].join(';');
   }
   return ['display:flex', 'flex:none', 'flex-direction:column', 'align-items:center',

@@ -223,8 +223,9 @@ export const StatusBar = (props) => {
     //   维护者看过真机之后不认可那一下改动（收起态原本只有一句 10px 灰字，改完高了一倍多、显眼过头），
     //   要求退回改动前的样子。所以这里照原文写回：10px、无底色、无描边、圆角 99。
     //   收起与展开这条行为一点没动 —— 点它照样把横幅与胶囊一起带回来（下面那道「回来的路」门禁仍然钉着这一点）。
-    // #640：收起态也套同一条几何 —— 三支容器的左右边必须同源，否则「收起 / 展开」之间会横向跳动。
-    return h('div', { style: Object.assign({ display: 'flex', flex: 'none', justifyContent: 'center' }, dswsStatusDockGeom()) }, [
+    // #640：收起态是例外 —— 只剩一句小灰字时不再跟卡片等宽，改收成包裹内容居中，
+    //   避免一条空旷横带占住输入区上方；maxWidth 仍取卡宽变量兜底超长文案，展开/收起之间不横向跳动。
+    return h('div', { style: Object.assign({ display: 'flex', flex: 'none', justifyContent: 'center', alignSelf: 'center' }, dswsStatusDockGeom(), { width: 'auto' }) }, [
       h(Tip, { content: tr('banner.folded') }, h('button', { className: 'dsws-btn ghost', 'aria-label': tr('banner.expandDeck'), onClick: expandBanner, style: { display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, padding: '0 8px', lineHeight: 1.2, border: 'none', borderRadius: 99, color: 'var(--dsws-alias-label-caption,#8b8b95)' } }, [
         Ic({ n: 'chev-up', size: 10 }),
         h('span', null, tr('banner.expandDeck')),
