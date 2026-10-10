@@ -268,11 +268,11 @@ async function main() {
     must(art.indexOf("'dedup.hit'") >= 0, '复用的事件名在日志白名单里（无新增事件，附录对照表不动）')
   }
 
-  title('G) 不要做的事钉死：死线不动，不加节流')
+  title('G) 不要做的事钉死：热刷新那一档死线不动，不加节流')
   {
     const probeSrc = read('src/client/kernel/probe-snapshot.js')
-    must(probeSrc.indexOf('30000') >= 0 && probeSrc.indexOf('timeout 30s') >= 0,
-      '客户端 30 秒死线一字未动（本票禁入，迟到落地是另一张票的范围）')
+    must(probeSrc.indexOf('SNAP_WAIT_WARM_MS = 30000') >= 0 && probeSrc.indexOf('Math.round(_waitMs/1000)') >= 0,
+      '热刷新那一档仍是一条 30 秒死线（本票守的那条没动；#1009 只加了冷启动那一档，并让迟到的结果不再作废）')
     const g1 = read('src/host/sessionSnapshot.js')
     const g2 = read('src/host/sessionRefresh.js')
     const g3 = read('src/host/snapshotInflight.js')

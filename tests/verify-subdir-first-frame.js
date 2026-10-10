@@ -6,7 +6,8 @@
  *   刚进会话时横幅写「该工作区还没有设置 — 点击选择后端」，而旁边「环境 10/10」是绿的、更新时间也是真实时刻；
  *   打开一次右侧面板、或切到别的会话再切回来，就正常了。两条原因：
  *   ①「用哪个后端」这条几十字节的事实，原先只能搭最重的那趟车（wf.snapshot / wf.refresh 那份完整快照）
- *     才回得来，而客户端对它有一条固定的 30 秒死线（client loadSnapshot timeout 30s）。冷启动的大工作区
+ *     才回得来，而客户端对它有一条固定的等待死线（日志原文 client loadSnapshot timeout 30s；#1009 起分两档：
+ *     手上有画面 30 秒、冷启动 180 秒，本门禁把两档都缩成 0.9 秒，复现「死线先到、回包后到」那个次序）。冷启动的大工作区
  *     （这个现场 52 张地图 / 950 张票 / 741 子票 / 磁盘快照 9.7 MB）首次重建要几分钟，死线一到客户端就
  *     放弃、什么都不装；同期的「环境」（走 wf.chain）与「时间」（走 wf.probe）都没有这条死线。
  *   ② 那份回包后来还是到了（真机 12:16:21 落盘，客户端最后一次放弃是 12:16:19），可它一到就被原先那道
@@ -43,7 +44,7 @@ const noExport = (s) => s.replace(/^[ \t]*export[ \t]+/gm, '')
 const SUB_DIR = 'D:\\ilife\\packages\\skill-calorie'
 const ROOT_DIR = 'D:/ilife'
 const OTHER_DIR = 'D:\\other-repo'
-const GATE_TIMEOUT_MS = 900   // 客户端那条 30 秒死线在本门禁里的替身（源里那个常量由下面 moduleText 的断言钉着）
+const GATE_TIMEOUT_MS = 900   // 快照等待那两档在本门禁里的替身（源里那两个常量由下面 moduleText 的断言钉着）
 const SNAP_LATE_MS = 1400     // 那份完整快照到得比死线晚 —— 正是真机那个「客户端放弃了、宿主才拿出来」的次序
 const SEL_MS = 20             // 那条专用电话很快（几十字节的事实，宿主侧本来也是现成的）
 const CWD_FAIL_MS = 5         // wf.cwd 真机上一直失败，只是失败得很快
@@ -60,9 +61,12 @@ const FILES = [
 // 把这几片按构建顺序拼成同一个闭包（与 scripts/build.mjs 的拼接口径一致：去掉行首 export 后求值）。
 function moduleText(patch) {
   const body = FILES.map((f) => noExport((patch && patch.file === f) ? patch.text : read(f))).join('\n')
-  // 那条 30 秒死线只在本门禁里缩短；源里的常量必须还在（不在就说明有人把这条死线改了，门禁当场红）。
-  if (body.indexOf('},30000)') < 0) throw new Error('源里找不到那条 30 秒死线（client loadSnapshot timeout）—— 本门禁的替换不成立')
-  return body.replace('},30000)', '},' + GATE_TIMEOUT_MS + ')')
+  // #1009 起快照等待分两档（冷启动 / 手上有画面），门禁把两档都缩短成同一个短值：
+  //   源里那两个常量必须还在（不在就说明有人把分档改了，门禁当场红）。
+  const WARM_ANCHOR = 'SNAP_WAIT_WARM_MS = 30000'
+  const COLD_ANCHOR = 'SNAP_WAIT_COLD_MS = 180000'
+  if (body.indexOf(WARM_ANCHOR) < 0 || body.indexOf(COLD_ANCHOR) < 0) throw new Error('源里找不到快照等待的两档预算（' + WARM_ANCHOR + ' / ' + COLD_ANCHOR + '）—— 本门禁的替换不成立')
+  return body.replace(WARM_ANCHOR, 'SNAP_WAIT_WARM_MS = ' + GATE_TIMEOUT_MS).replace(COLD_ANCHOR, 'SNAP_WAIT_COLD_MS = ' + GATE_TIMEOUT_MS)
 }
 
 // 按真机样子回话的假宿主 + 真内核。
@@ -181,7 +185,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms))
 // 注意这几条正则都带 \r?\n：这几个内核文件在仓库里是 CRLF 换行的（门禁按原文读，不整篇改写行尾）。
 const NEW_GUARD_RE = /if \(_curNorm !== _reqNorm \&\& !_snapRequestKeyWas\(_reqNorm, st\)\) \{/
 const ASK_LINE_RE = /^[ \t]*try \{ if \(typeof askSelectionOnce === 'function'\) askSelectionOnce\(st\) \} catch \(eSelAsk\) \{\}\r?\n/m
-const LATE_LINE_RE = /^[ \t]*_rawP\.then\(function \(lateSnap\) \{ try \{ _installLateSnapshotSelection\(st, lateSnap, _reqNorm, _mine\) \} catch \(eLate\) \{\} \}, function \(\) \{\}\);\r?\n/m
+const LATE_LINE_RE = /^[ \t]*_rawP\.then\(function \(lateSnap\) \{ try \{ _installLateSnapshot\(st, lateSnap, _reqNorm, _mine\) \} catch \(eLate\) \{\} \}, function \(\) \{\}\);\r?\n/m
 function cut(src, re, label) {
   const out = src.replace(re, '')
   ok(out !== src, '（前提）能在真源里拆掉 ' + label)
@@ -250,6 +254,14 @@ async function main() {
   ok(!!(f.st.selection && f.st.selection.backendId === 'markdown'),
     '迟到的回包到达后 selection 仍然是生效的那一条（实得 ' + (f.st.selection ? String(f.st.selection.backendId) : '空') + '）')
   ok(f.st.selPending === false, '迟到落地之后那个「在途」的理由收回了')
+  // #1009：迟到的这一份不再只补 selection 那一小块 —— 完整快照也落地（人拍板：「已经发出去的请求
+  //   好不容易回来了，结果不能当废」）。这三条与上面那两条一起量同一个次序：死线先到、回包后到。
+  ok(!!(f.st.snapshot && Array.isArray(f.st.snapshot.maps)),
+    '迟到的完整快照也装上了（实得快照 ' + (f.st.snapshot ? '有' : '空') + '）')
+  ok(f.st.snapMode === 'real' && f.st.snapError === null,
+    '装进来之后那一格从「失败」回到「正常」（实得 ' + String(f.st.snapMode) + ' / ' + String(f.st.snapError) + '）')
+  ok(f.env.seen.logs.some((l) => l.event === 'snapshot.late.install' && l.fields.installed === true),
+    '迟到落地如实记了一行 snapshot.late.install（installed 为真）')
   ok(f.env.seen.logs.some((l) => l.event === 'host.call.fail'), '客户端放弃那一次如实记了一行失败日志（host.call.fail）')
 
   // ── I3 单独成立：把补问那一步拆掉，只剩「迟到回包」这一条路 ─────────────────

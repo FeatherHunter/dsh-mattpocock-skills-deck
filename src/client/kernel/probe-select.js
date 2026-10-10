@@ -125,3 +125,92 @@ export const _installLateSnapshotSelection = function (st, snap, reqNorm, mine) 
     return changed
   } catch (eLate) { return false }
 }
+
+// #1009：装一份「真的拿到了」的快照。正常那一路与迟到那一路共用这一处 ——
+//   两处各写一遍的话，判据（缓存优先落表、补标签颜色、回填布局、清错误态）迟早长岔。
+// 装与不装由调用方判（_snapRespStale / _snapRequestKeyWas）；本函数只管装，返回 true = 装上了。
+export const _snapInstallBody = function (st, snap) {
+  try {
+    if (!st || !snap || snap.ok !== true || !Array.isArray(snap.maps)) return false
+    // v1.5 T10 R4：数据层增量 diff（新旧快照对比）—— 供多视图增量与 R5 视觉
+    st.lastDiff = diffSnapshots(st.snapshot, snap)
+    st.rowFlash = {}
+    st.issueFlash = {}
+    var _df = st.lastDiff
+    _df.added.forEach(function (n) { st.rowFlash[n] = 'added' })
+    _df.changed.forEach(function (n) { st.rowFlash[n] = 'changed' })
+    if (_df.issueFlash) Object.keys(_df.issueFlash).forEach(function (k) { st.issueFlash[k] = _df.issueFlash[k] })
+    // R5 视觉：有变化才提示 + 定时清除高亮（防堆积）
+    if (_df.removed.length) flash(st, tr('panel.diffRemoved', { n: _df.removed.length }), 'info')
+    scheduleFlashClear(st)
+    st.snapshot = snap
+    try { if (snap.setupLayout && typeof setCachedSetupLayout === 'function') setCachedSetupLayout(st.cwd, snap.setupLayout) } catch (eSL) {} // #683（F1 · R6）：宿主记住的布局回填本地（两壳各答一样时按时刻仲裁，本地刚点的那一下不会被顶回去）
+    // #635：这份快照如果是「保存前就发出去、保存后才回来」的那一次刷新拿回来的，它不知道刚改过的
+    // 标签颜色，装进来就会把面板倒回旧色。装进来之后先按那次保存确认过的色值补一遍，
+    // 补的规则与记录都住在 views/labels/labelColorPatch.js（比那份记录旧才补，新的就作废记录）。
+    try { if (typeof lcApplySavedColorsOnInstall === 'function') lcApplySavedColorsOnInstall(st, st.snapshot) } catch (eLC) {}
+    st.snapMode = 'real'
+    st.snapError = null
+    // #155：同步 selection/repository 镜像
+    try { if (typeof applySnapshotSelection === 'function') applySnapshotSelection(st, snap) } catch {}
+    // #58 缓存优先：落内存表，供新会话秒开 — suspicious fallback 不污染缓存
+    // #653：这里从前会先把同一份快照按 snap.repoRoot 存一把、再按所选目录存一把（两把键，两个桶），
+    //   子目录会话与根会话因此各看各的。现在 setCachedSnapshot 自己按工作区键（wsKeyOf）落，
+    //   只需要一次调用，同一工作区天然同桶。
+    try {
+      const nxt = snap.selection
+      const cur = st.selection
+      const isSuspicious = !!(nxt && nxt.backendId===null && !nxt.pending && nxt.source==='fallback' && cur && cur.backendId)
+      if (!isSuspicious) {
+        setCachedSnapshot(st.cwd, snap)
+      }
+    } catch (e) { /* 忽略 */ }
+    // 拉取 backendModules（若 snapshot 未带，则另调 registry）
+    try {
+      if (!st.backendModules && typeof host !== 'undefined' && host.call) {
+        host.call('wf.registry', { cwd: st.cwd }).then(function(r){
+          if (r && r.ok && Array.isArray(r.modules)) { st.backendModules = r.modules; try{ setPresentationMap(r.modules) }catch{}; emit(st) }
+        }).catch(function(){})
+      }
+    } catch {}
+    // v1.5 T10：启动自动变化探测（幂等；快照就绪后生效）
+    startAutoProbe()
+    // v1.5 B5 修订：磁盘缓存秒开（fromCache）→ 不再 400ms 强制全量刷新。
+    //   原逻辑每次打开面板 = 1 次额外 wf.refresh（aliases 大查询 ≈ 18 GraphQL 点），
+    //   多仓库会话下成倍放大；变化检测已由低频 probe（5min + focus 限流）接管，
+    //   磁盘缓存本身是最新全量快照，秒开直接展示即可，无需立即重建。
+    return true
+  } catch (e) { return false }
+}
+
+// #1009：等超时了、可那份回包后来还是回来了 —— 它算不算数、怎么算数。三种走法：
+//   ① 还是这把工作区键上最新的一次、后端没换过、工作区也没真的换走 → **整份装上**，并把「上一次刷新」
+//      那根针往前拨一次（这份数据确实是刚拿回来的）。为什么不再只补 selection 那一小块（#727 那版的做法）：
+//      真机上更常见的后果是宿主辛苦拿回来的那份被丢掉，用户既没看到新数据、下一次还得整趟重跑。
+//   ② 工作区确实换走了 → 不装进新视图（#45 串台防线照旧），但按**请求时那把键**落进内存表：
+//      结果不作废，切回那个工作区时秒开。
+//   ③ 回来的不是完整正文（304 / 空结果）→ 退回 #727 的原做法：只补 selection 与仓库引用那一小块。
+// 两个前提：同一个请求的正常那一路没装过（mine.done，两边同时就绪的竞态），以及这份没被判过期。
+export const _installLateSnapshot = function (st, snap, reqNorm, mine) {
+  try {
+    if (!snap || !st || !mine) return false
+    if (mine.done === true) return false
+    if (typeof _snapRespStale === 'function' && _snapRespStale(reqNorm, mine.seq, mine.reqBackend, st)) return false
+    const hasBody = !!(snap.ok === true && Array.isArray(snap.maps))
+    if (!hasBody) return _installLateSnapshotSelection(st, snap, reqNorm, mine)
+    if (!_snapRequestKeyWas(reqNorm, st)) {
+      try { setCachedSnapshot(reqNorm, snap) } catch (eC) {}
+      return false
+    }
+    mine.done = true
+    st.snapLoading = false
+    const installed = _snapInstallBody(st, snap)
+    if (installed) {
+      try { touchProbeAt(reqNorm) } catch (ePA) {}
+      try { emit(st) } catch (eE) {}
+    }
+    // 这条轨迹按需记：迟到本身就少见，而「为什么这一格后来自己好了」正是以后要查的那一问。
+    try { if (isEnabled('debug')) log('debug', 'snapshot.late.install', { keyHash: dswsLogHash(reqNorm), installed: !!installed }) } catch (eL) {}
+    return installed
+  } catch (eLate2) { return false }
+}
