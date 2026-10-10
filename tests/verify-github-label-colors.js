@@ -181,7 +181,8 @@ const SEED = [
   check(r.ok === true && r.data.applied.length === 1 && r.data.applied[0].color === '0b7285', 'applied 里给的是这次写下去的目标颜色（契约口径：不是回读值；实得 ' + JSON.stringify(r.ok === true ? r.data.applied : r) + '）')
   check(gh.labels.find((x) => x.name === 'bug').color === '0b7285', '假仓库里的颜色真的变了（保存后按真值刷新拿得到新色）')
   const kinds = gh.calls.map((c) => c.args[0] + ' ' + c.args[1])
-  check(kinds.every((k) => k === 'label list' || k === 'label edit' || k === 'repo view'), '全程只出现「列标签 / 改颜色 / 问仓库权限」三种命令，没有建标签、删标签、改名（实得 ' + JSON.stringify(kinds) + '）')
+  // #992：问仓库权限走的是 `gh api repos/<仓库>`（viewerPermission 旧口径已退役，不再放行 repo view）
+  check(kinds.every((k) => k === 'label list' || k === 'label edit' || k.indexOf('api repos/') === 0), '全程只出现「列标签 / 改颜色 / 问仓库权限」三种命令，没有建标签、删标签、改名（实得 ' + JSON.stringify(kinds) + '）')
 
   // 带井号与大写：先归一，再发出去
   const gh2 = makeGh({ labels: SEED })
@@ -217,7 +218,7 @@ const SEED = [
     { name: '还没建的标签', color: '444444' },
   ]
   const r2 = await tracker.setLabelColors(REF, many, gh2.ctx)
-  check(edits(gh2).length === 4, '五条改动里前四条都发了命令（中途失败不停下，实得 ' + edits(gh2).length + ' 条）')
+  check(edits(gh2).length === 4, '四条改动都发了命令（中途失败不停下，实得 ' + edits(gh2).length + ' 条）')
   check(r2.ok === true && r2.data.applied.length === 2 && r2.data.failed.length === 2, '失败的那两条如实记进 failed，成功的那两条照记 applied（实得 ' + JSON.stringify(r2.ok === true ? { a: r2.data.applied.length, f: r2.data.failed.length } : r2) + '）')
   check(r2.ok === true && gh2.labels.find((x) => x.name === '带 空格 与:冒号').color === '333333', '失败之后没轮到的标签真的改到了（不回滚、不跳过）')
 

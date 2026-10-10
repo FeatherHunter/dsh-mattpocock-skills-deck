@@ -123,7 +123,7 @@ export function createDeckIssueCreate(deps) {
       const labelFailed = !!(issue && issue.labelError)
       const labelWhy = labelFailed ? String((issue.labelError && issue.labelError.message) || '后端没给出原因').slice(0, 300) : ''
       if (ensured.added.length && !labelFailed) notes.push('我替你补了必备标签：' + ensured.added.join('、'))
-      if (labelFailed) notes.push('标签没挂上，别把它当成已经打上：逐条原因在下面的 items 里。')
+      if (labelFailed) notes.push('标签没挂上，别把它当成已经打上：逐条原因在同包的 items 里。')
       // #746：建票直达命名守护（调用会话即建号会话；hook 缺失、失败或超时都不影响已建成的返回）。
       try {
         if (typeof d.onTicketCreated === 'function' && issue.key) {

@@ -48,6 +48,7 @@ function makeCtx(opts) {
       return { code: 0, stdout: JSON.stringify({ data: { repository: { issue: row } } }), stderr: '' }
     }
     if (list[0] === 'issue' && list[1] === 'edit' && line.includes('--add-label')) {
+      if (o.addLabelFails404) return { code: 1, stdout: '', stderr: 'HTTP 404: Not Found (https://api.github.com/repos/acme/demo/issues/7)' }
       return { code: 1, stdout: '', stderr: PERM_SENTENCE }
     }
     if (list[0] === 'issue' && list[1] === 'edit' && line.includes('--body')) {
@@ -114,6 +115,11 @@ async function main() {
     const f2 = makeCtx({ perms: { push: true, triage: true, admin: false, maintain: false, pull: true } })
     const r2 = await setLabels(repo, '7', [{ name: 'bug' }], {}, f2.ctx)
     check(r2.ok === false && String(r2.error.message).includes('correct permissions'), 'C5 有写权限时原样返回 gh 原文（不瞎改；实得：' + String(r2.ok === false ? r2.error.message : '').slice(0, 60) + '…）')
+    // 权限问不出来时原样返回（404 文案不动档、不瞎说没权限）
+    const f3 = makeCtx({ permsFails: true, addLabelFails404: true })
+    const r3 = await setLabels(repo, '7', [{ name: 'bug' }], {}, f3.ctx)
+    const m3 = r3.ok === false ? String(r3.error.message) : ''
+    check(r3.ok === false && r3.error.kind === 'not-found' && m3.includes('HTTP 404') && !m3.includes('读权限'), 'C6 权限问不出时原样返回 404（不改档、不瞎说没权限；实得：' + m3.slice(0, 60) + '…）')
   }
 
   // ── D) 建票 labelError + 正文区 ──
