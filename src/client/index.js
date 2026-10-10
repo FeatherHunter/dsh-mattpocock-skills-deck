@@ -341,11 +341,7 @@ export default {
 
     // ==== leaf:debugSwitchFailHint (spliced by build) ==== // ==== leaf:SettingsWorkspaces (spliced by build) ====
     // #876：更新入口挂载点（只挂包的入口件，含内部 dialog 面板；本仓不再自带按钮状态机与浮层弹窗）
-    // ==== leaf:updateEntryHost (spliced by build) ====
-    // ==== leaf:settingsPage (spliced by build) ====
-
-    // ==== leaf:runPanel (spliced by build) ====
-
-    // ==== leaf:panelAssembly (spliced by build) ====
+    // ==== leaf:updateEntryHost (spliced by build) ==== // ==== leaf:settingsPage (spliced by build) ====
+    // ==== leaf:runPanel (spliced by build) ==== // ==== leaf:panelAssembly (spliced by build) ====
   },
 }

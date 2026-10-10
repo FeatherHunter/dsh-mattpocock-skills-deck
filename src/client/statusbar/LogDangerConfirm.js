@@ -74,7 +74,7 @@ export const LogDangerNotice = function (props) {
     h('button', {
       key: 'close', className: 'dsws-btn ghost dsws-banner-fold-x', 'aria-label': t('logmenu.noticeClose'),
       onClick: function () { p.onClose() },
-      style: { padding: '1px 6px', display: 'inline-flex', alignItems: 'center', flex: 'none' },
+      style: { padding: '1px 6px', display: 'inline-flex', alignItems: 'center', flex: 'none', marginLeft: 12 },
     }, (typeof Ic === 'function') ? Ic({ n: 'x', size: 11 }) : null),
   ])
 }

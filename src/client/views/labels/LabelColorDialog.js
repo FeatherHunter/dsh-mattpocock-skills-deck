@@ -131,8 +131,7 @@ export const LabelColorDialog = (props) => {
   // 这一档下不能摆「去选定后端」那颗入口按钮：面板头部那颗「切换后端」按钮此刻是禁用的，点了没反应。
   const panelPending = lcPanelPendingOf((typeof storeOf === 'function') ? storeOf(sessionId) : null)
   const busy = lc.saving
-  // #951：保存落定且弹窗还在（部分成功或全失败，全成功已自动关）时，保存按钮给结果图标与闪光
-  const saveResult = (!busy && lc.outcome && lc.outcome.failedCount > 0) ? (lc.outcome.appliedCount > 0 ? 'alert' : 'x') : ''
+  const saveResult = (!busy && lc.outcome && lc.outcome.failedCount > 0) ? (lc.outcome.appliedCount > 0 ? 'alert' : 'x') : '' // #951：保存落定且弹窗还在（部分成功或全失败，全成功已自动关）时，保存按钮给结果图标与闪光
   // 每一行用的那份文字（用户填的原文，或者这一行现在显示的颜色）——与下面渲染各行时取的是同一份。
   const textOfRow = function (r) { return Object.prototype.hasOwnProperty.call(lc.draft, r.name) ? lc.draft[r.name] : lcToDisplay(r.color) }
   // 只要有一行还没填完（写错字、或把原本有颜色的格子清空），就不让保存按钮亮：后端按解析档逐条拒，
@@ -183,8 +182,7 @@ export const LabelColorDialog = (props) => {
     h('span', { style: { fontSize: 13, fontWeight: 700 } }, tr('lc.title')),
     lc.changes.length ? h('span', { key: 'draft', style: { fontSize: 10.5, color: '#f59e0b', border: '1px solid rgba(245,158,11,.45)', borderRadius: 4, padding: '0 5px', lineHeight: 1.6 } }, tr('lc.draftHint')) : null,
     h('span', { key: 'sp', style: { flex: 1 } }),
-    // #955：关闭键原来的字符 ✕ 兜底退役（取不到 Ic 就什么都不画；生产构建里 Ic 恒在）。
-    h(Tip, { key: 'close', content: tr('lc.close') }, h('button', { className: 'dsws-btn ghost', type: 'button', 'data-lc-close-x': 1, 'aria-label': tr('lc.close'), onClick: askClose, style: closeXStyle }, typeof Ic === 'function' ? Ic({ n: 'x', size: 12 }) : null)),
+    h(Tip, { key: 'close', content: tr('lc.close') }, h('button', { className: 'dsws-btn ghost', type: 'button', 'data-lc-close-x': 1, 'aria-label': tr('lc.close'), onClick: askClose, style: closeXStyle }, typeof Ic === 'function' ? Ic({ n: 'x', size: 12 }) : null)), // #955：关闭键原来的字符 ✕ 兜底退役（取不到 Ic 就什么都不画；生产构建里 Ic 恒在）
   ])
 
   // 顶部提示带：保存中 / 全部成功 / 部分成功 / 一个都没成，四种各一句，数目都用实际条数。
