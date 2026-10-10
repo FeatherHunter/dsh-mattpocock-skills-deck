@@ -174,6 +174,12 @@ export const prompts = (function () {
       'network': { zh: '网络异常，请重试', en: 'Network error — please retry' },
       'permission': { zh: '权限不足，请检查登录账号', en: 'Permission denied — check your login account' },
       'half-created': { zh: '仓库已创建，但本地推送未完成', en: 'Repository created, but the local push failed' },
+      // #993：属主不一致（git 原文里的 dubious ownership）单独成一档，不再落进兜底被说成「权限不足」。
+      //   文案要短：它会走过 400/120/160 三道截断，长句会被截掉；照做的命令由界面另给
+      //   （见 src/shared/tracker/workspaceOwnership.js 的 safeDirectoryCommand）。
+      'git-ownership': { zh: '这个工作区的属主不是当前运行用户，git 拒绝操作；把该目录加进 git 的安全目录名单（safe.directory）即可放行', en: 'This workspace is owned by a different user, so git refuses to run; add the directory to the git safe.directory list to unblock it' },
+      // #993：认不出来的错误落这一档，并把 git 的原话原样带给用户（兜底不再等于 permission）。
+      'unknown': { zh: '创建失败，未识别的原因（附 git 的原话）', en: 'Creation failed for an unrecognized reason (the original message is attached)' },
     },
   }
 })()

@@ -7,15 +7,20 @@
 
 import { ghClient } from './client.js'
 import { getRepoKey } from './repo.js'
+// #993 / #994：分类器与「属主不一致」判断都收进 src/shared/tracker/（cross-import 门禁的白名单目录），
+//   与面板那条路（src/host/publishFlow.js）共用同一份实现，避免两处各判一套而漂移。
+import { makeCreateErrorClassifier, KIND_UNKNOWN } from '../../../../shared/tracker/initProjectErrorKinds.js'
+import { isOwnershipMismatch, ownershipPathFrom, safeDirectoryCommand } from '../../../../shared/tracker/workspaceOwnership.js'
 
 // ============ initProject 契约 op（git init→commit→gh repo create→push） ============
 /**
  * 工作区初始化并发布为 GitHub 仓库。
- * 流程与 host 原 wf.initPublish 等价（错误分类六档语义不变）：
- *  - 前置：git / gh / auth（失败快返，避免已改动工作区）
+ * 流程与 host 原 wf.initPublish 等价（错误分类档位语义不变；#993 起兜底为 unknown、增属主一档）：
+ *  - 前置：#994 工作区 git 可用性（属主不一致则补 safe.directory 重试一次）/ git / gh / auth
+ *    （失败快返，避免已改动工作区）
  *  - 步骤：git init(已是 git 则跳过) → git add . → git commit(--allow-empty+user.*兜底) → gh repo create(--source=.--push 或 set-url+push)
  *  - 成功：{ok:true, data:RepositoryRef}
- *  - 失败：{ok:false, error:{kind, message}} kind∈{no-git,no-gh,not-logged-in,already-exists,network,permission,bad-name,parse}
+ *  - 失败：{ok:false, error:{kind, message}} kind∈{no-git,no-gh,not-logged-in,already-exists,network,permission,git-ownership,unknown}
  */
 export async function initProject(handle, input, ctx) {
   const cwd = (handle && handle.cwd) || (ctx && ctx.cwd) || ''
@@ -67,14 +72,53 @@ export async function initProject(handle, input, ctx) {
     return null
   }
 
-  function classifyCreateError(errText, kind) {
-    const low = String(errText || '').toLowerCase()
-    if (/already exists|name already exists|already exists on github|repository.*already exists/i.test(low)) return 'already-exists'
-    if (kind === 'network' || /network|econn|timed out|timeout|enotfound|getaddrinfo|connect etimedout|unable to access|failed to connect|could not resolve host/i.test(low)) return 'network'
-    if (/not logged in|auth failed|bad credentials|authentication required|gh auth login/i.test(low)) return 'not-logged-in'
-    if (/permission|forbidden|403|401|insufficient|not authorized|resource not accessible|must be.*admin/i.test(low)) return 'permission'
-    if (kind === 'auth') return 'not-logged-in'
-    return 'permission'
+  // #993：分类器与宿主那条路（src/host/publishFlow.js）共用一份，见文件头引入说明。
+  const classifyCreateError = makeCreateErrorClassifier({ isOwnership: isOwnershipMismatch })
+
+  // ============ #994：动手前的「工作区 git 可用性」探测与属主自愈 ============
+  // 与 publishFlow.js 同一套判据（探针命令、自愈写法、失败信封都一致），两处共用共享模块出判断。
+  const NOT_A_REPO_RE = /not a git repository/i
+
+  async function probeWorktreeUsable(git, cwd) {
+    const r = await execProcLocal([git, '-C', cwd, 'rev-parse', '--is-inside-work-tree'], cwd)
+    if (r.ok) return { ok: true }
+    const text = String(r.error || '')
+    if (isOwnershipMismatch(text)) return { ok: false, kind: 'git-ownership', text }
+    if (NOT_A_REPO_RE.test(text)) return { ok: true, notRepoYet: true }
+    return { ok: false, kind: classifyCreateError(text, null), text }
+  }
+
+  async function healOwnership(git, cwd, probeText) {
+    const dir = ownershipPathFrom(probeText) || cwd
+    const r = await execProcLocal([git, 'config', '--global', '--add', 'safe.directory', dir], cwd)
+    return { ok: !!r.ok, dir: dir }
+  }
+
+  // git 侧失败的统一信封：属主那一档给可照做的一句话，unknown 那一档把 git 原话带给用户。
+  function gitFail(errText, cwd) {
+    const kind = classifyCreateError(errText, null)
+    const raw = String(errText || '')
+    if (kind === 'git-ownership') {
+      const cmd = safeDirectoryCommand(ownershipPathFrom(raw) || cwd || '')
+      return { ok: false, error: { kind: kind, message: '这个工作区的属主不是当前运行用户，git 拒绝操作（原文：dubious ownership）。' + (cmd ? '修法：' + cmd : '') } }
+    }
+    if (kind === KIND_UNKNOWN) {
+      return { ok: false, error: { kind: kind, message: '创建失败，未识别的原因。git 原话：' + raw.slice(0, 160) } }
+    }
+    return { ok: false, error: { kind: kind, message: raw } }
+  }
+
+  // 返回 ok 时，工作区要么本来就能用 git，要么刚补好 safe.directory 并已确认能用；
+  //   返回失败时，这一步一步都没改过这个目录。
+  async function preflightWorkspaceGit(git, cwd) {
+    const first = await probeWorktreeUsable(git, cwd)
+    if (first.ok) return first
+    if (first.kind !== 'git-ownership') return first
+    await healOwnership(git, cwd, first.text)
+    const second = await probeWorktreeUsable(git, cwd)
+    if (second.ok) return { ok: true, healed: true }
+    // 修了还是不行（写不进全局配置，或配置里的路径与 git 认的不是同一个字符串）—— 如实报。
+    return { ok: false, kind: 'git-ownership', text: second.text, triedRepair: true }
   }
 
   // 前置探测：git / gh / auth（失败快返，避免已改动工作区）
@@ -108,30 +152,25 @@ export async function initProject(handle, input, ctx) {
     if (u && u.ok) currentUser = (u.data.stdout || '').trim()
   } catch (e) { /* 忽略 */ }
 
+  // 0. #994：动手改工作区之前的可用性关卡（属主不一致在这一步被拦下并试着自愈，
+  //    不会等到 git add 才炸；失败时这一步没有改动过这个目录）。
+  const usable = await preflightWorkspaceGit(git, cwd)
+  if (!usable.ok) return gitFail(usable.text, cwd)
+
   // 1. git init（若已是 git 仓库则跳过）
   try {
-    const probe = await execProcLocal([git, '-C', cwd, 'rev-parse', '--is-inside-work-tree'], cwd)
-    if (!probe.ok) {
+    if (usable.notRepoYet) {
       const initR = await execProcLocal([git, 'init'], cwd)
-      if (!initR.ok) {
-        const k = classifyCreateError(initR.error, null)
-        return { ok: false, error: { kind: k === 'already-exists' ? 'permission' : k, message: initR.error } }
-      }
+      if (!initR.ok) return gitFail(initR.error, cwd)
     }
   } catch (e) {
     const initR = await execProcLocal([git, 'init'], cwd)
-    if (!initR.ok) {
-      const k = classifyCreateError(initR.error, null)
-      return { ok: false, error: { kind: k === 'already-exists' ? 'permission' : k, message: initR.error } }
-    }
+    if (!initR.ok) return gitFail(initR.error, cwd)
   }
 
   // 2. git add .
   const addR = await execProcLocal([git, 'add', '.'], cwd)
-  if (!addR.ok) {
-    const k = classifyCreateError(addR.error, null)
-    return { ok: false, error: { kind: k, message: addR.error } }
-  }
+  if (!addR.ok) return gitFail(addR.error, cwd)
 
   // 3. git commit --allow-empty（含 identity 缺失兜底）
   let commitR = await execProcLocal([git, 'commit', '-m', 'initial commit', '--allow-empty'], cwd)
@@ -142,10 +181,7 @@ export async function initProject(handle, input, ctx) {
       await execProcLocal([git, 'config', 'user.name', 'DSH User'], cwd)
       commitR = await execProcLocal([git, 'commit', '-m', 'initial commit', '--allow-empty'], cwd)
     }
-    if (!commitR.ok) {
-      const k = classifyCreateError(commitR.error, null)
-      return { ok: false, error: { kind: k, message: commitR.error } }
-    }
+    if (!commitR.ok) return gitFail(commitR.error, cwd)
   }
 
   // 4. 探测 remote origin 是否已存在（决定 gh 调用分支）
@@ -188,10 +224,7 @@ export async function initProject(handle, input, ctx) {
       await execProcLocal([git, 'remote', 'set-url', 'origin', remoteUrl], cwd)
     }
     const pushR = await execProcLocal([git, 'push', '-u', 'origin', 'HEAD'], cwd)
-    if (!pushR.ok) {
-      const kind = classifyCreateError(pushR.error, null)
-      return { ok: false, error: { kind, message: pushR.error } }
-    }
+    if (!pushR.ok) return gitFail(pushR.error, cwd)
   }
 
   // 成功：解析 owner（优先 getRepoKey，回退 currentUser）

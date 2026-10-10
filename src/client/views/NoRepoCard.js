@@ -182,8 +182,13 @@ export     const NoRepoCard = function (props) {
             try{ var bidE=(st.selection||(st.snapshot&&st.snapshot.selection)||{}).backendId; var mmE=(typeof moduleMetaOf==='function'&&bidE!=null)?moduleMetaOf(st,bidE):null; var ek=mmE&&mmE.prompts&&mmE.prompts.errorKinds&&mmE.prompts.errorKinds[kind]; if(ek){ var lgE=(typeof promptLang==='function')?promptLang():'zh'; bkText=String((lgE==='en'&&ek.en)?ek.en:(ek.zh||'')) } }catch(e){}
             const key = 'panel.noRepoErr.' + kind
             const mapped = tr(key)
-            const base = bkText || ((mapped !== key) ? mapped : (raw ? String(raw).slice(0, 160) : tr('panel.noRepoErr.unknown')))
-            card.error = base + (raw && base !== String(raw).slice(0, 160) && mapped !== raw ? ' · ' + String(raw).slice(0, 120) : '')
+            // #993：原文只截一次（160 字上限保持原样），下面按档位决定要不要把它附在文案后面
+            const rawCut = raw ? String(raw).slice(0, 160) : ''
+            const base = bkText || ((mapped !== key) ? mapped : (rawCut || tr('panel.noRepoErr.unknown')))
+            // #993：认不出原因（unknown）时不许拿兜底文案把原文吞掉 —— 只要正文不是这段原文，就一定要附上它。
+            //   其余档位维持原判据；half-created 那条路在 slotRenderer 的 resolveFailText 里，永远附原文，此处不动。
+            const showRaw = !!raw && base !== rawCut && (kind === 'unknown' || mapped !== raw)
+            card.error = base + (showRaw ? ' · ' + String(raw).slice(0, 120) : '')
             emit(st)
           }
         }).catch(function (e) {

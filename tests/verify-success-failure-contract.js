@@ -57,8 +57,9 @@ check(cli.includes("panel.repoSync.syncing") && cli.includes("panel.repoSync.tim
 check(cli.includes("disabled: !!repoSync") && cli.includes("st.repoSync || null"), 'ChecksTab 同步窗口内创建按钮禁用');
 check(cli.includes("retryRepoSync(st)"), 'ChecksTab 超时态点此重新检查（retryRepoSync）');
 
-// 6) 后端文案真源：7 档 + half-created（中文/English）
-const kinds = ['bad-name', 'no-git', 'no-gh', 'not-logged-in', 'already-exists', 'network', 'permission', 'half-created'];
+// 6) 后端文案真源：9 档 + half-created（中文/English）
+// #993/#994：新增 git-ownership（git 属主不符）与 unknown（认不出来的 git 错误）两档，档位表要跟着加，否则面板这两类失败没有可显示的中英文文案。
+const kinds = ['bad-name', 'no-git', 'no-gh', 'not-logged-in', 'already-exists', 'network', 'permission', 'git-ownership', 'unknown', 'half-created'];
 kinds.forEach(function (k) {
   check(ghSrc.includes("'" + k + "': { zh:"), 'github 后端 prompts.errorKinds 含 ' + k + '（zh）');
   check(ghSrc.includes("'" + k + "': { zh: '") && ghSrc.split("'" + k + "': { zh: '")[1] && /[\u4e00-\u9fa5]/.test(ghSrc.split("'" + k + "': { zh: '")[1]), 'github 后端 ' + k + ' 中文文案非空');

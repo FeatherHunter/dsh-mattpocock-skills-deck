@@ -194,9 +194,12 @@ function sha256(file) { return crypto.createHash('sha256').update(fs.readFileSyn
   // 全部 package/shared 同字节镜像），总数 63→68。
   // 同票并发写单键互斥：新增 src/shared/deck-tools/key-lock.js（package/shared 同字节镜像），总数 68→69。
 // #998（2026-10-10 修 deck 闸死锁）：新增 src/shared/refresh/failure-window.js 与 refusal-text.js（package/shared 同字节镜像），总数 69→71。
+  // #993/#994（2026-10-10）：新增 src/shared/tracker/initProjectErrorKinds.js（「创建并发布」的错误分类器收成一份，
+  //   原先在 src/host/publishFlow.js 与 backends/github/init-project.js 各有一份逐字符相同的复刻）与
+  //   src/shared/tracker/workspaceOwnership.js（「属主与运行用户不一致」的唯一判断，两票共用），总数 71→73。
   // 这个数是「src/shared 树里实际有几个文件」，会随别的票增减 —— 每次改完记得重跑本门禁对数。
-  check(srcSharedFiles.length === 71, `src/shared 71 文件（实得 ${srcSharedFiles.length}）`)
-  check(pkgSharedFiles.length === 71, `package/shared 71 文件（实得 ${pkgSharedFiles.length}）`)
+  check(srcSharedFiles.length === 73, `src/shared 73 文件（实得 ${srcSharedFiles.length}）`)
+  check(pkgSharedFiles.length === 73, `package/shared 73 文件（实得 ${pkgSharedFiles.length}）`)
 }
 // 4c) import 卫生：显式 .js（相对 import 必须带 .js 扩展，避免 Node ESM 裸 specifier）
 {

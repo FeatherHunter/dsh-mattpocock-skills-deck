@@ -1,16 +1,74 @@
 // verify-t1-initpublish.js — 验证 T1 #34 host 链路：git init + gh repo create
+// #993/#994 追加：git 侧的失败档（属主不符 git-ownership、认不出来的错误 unknown），见文末场景 K / L / M。
 // 加载方式：经发货产物 package/lib/index.js 的标准分发通道（connection.rpc.handle('/dsws')），与冒烟测试同法。
+// 注意：本文件跑的 publishFlow 那条路，git 命令经 execProc，返回契约是 { ok, text, error, code }（见 src/host/repoKeys.js:196-198）。
+//   initProject 里 execFn 的契约是 { code, stdout, stderr }，形状不同，不能拿来喂这条流程。
 const fsx = require('fs')
 const fsp = fsx.promises
 const path = require('path')
 const { spawn, spawnSync } = require('child_process')
 const os = require('os')
 
+// ============ #993/#994：git 侧失败的现场原文与 mock 规则 ============
+// 属主不符的 stderr 原文（git 2.49.0.windows.1 实测；用 git 自带开关 GIT_TEST_ASSUME_DIFFERENT_OWNER=1 强制复现）。
+// 现场实测：此时 rev-parse --is-inside-work-tree / status --porcelain / add . 全部退出码 128，stderr 逐字如下。
+function gitDubiousOwnershipText(dir) {
+  return "fatal: detected dubious ownership in repository at '" + dir + "'\n" +
+    'To add an exception for this directory, call:\n\n' +
+    '\tgit config --global --add safe.directory ' + dir + '\n'
+}
+// 认不出来的 git 错误：既不含属主签名，也匹配不上任何既有档位（不是 network、不是 401/403、不是 already-exists）。
+const GIT_UNKNOWN_ERR = 'error: write error: No space left on device\nfatal: adding files failed\n'
+
+// git 调用的「有效 argv」：去掉可执行路径与前置全局选项（-C <目录> / -c <键值> / --git-dir=… 等），
+// 剩下的才是子命令与它的参数，例如 ['add', '.']、['rev-parse', '--is-inside-work-tree']。
+// 匹配按数组精确比较，不按子串：用「包含 init」去判会把 --is-inside-work-tree 误判成 git init，流程提前拐弯。
+function gitEffectiveArgv(argv) {
+  const rest = argv.slice(1)
+  const valueTaking = ['-C', '-c', '--git-dir', '--work-tree', '--namespace', '--super-prefix']
+  const out = []
+  for (let i = 0; i < rest.length; i++) {
+    const a = String(rest[i])
+    if (out.length === 0) {
+      if (valueTaking.indexOf(a) >= 0) { i++; continue }
+      if (a.charAt(0) === '-') continue
+    }
+    out.push(a)
+  }
+  return out
+}
+// 命中失败规则 → 返回 { code, stderr }。规则两种写法：
+//   { any: true }                      所有 git 调用都按这段错误失败（属主不符时现场就是全线失败）
+//   { sub: 'add' } / { argv: ['add','.'] }  只让精确命中的那几条失败，其余走真实 git
+function gitFailOf(gitBehavior, eff) {
+  const rules = []
+  if (gitBehavior && gitBehavior.any) rules.push(Object.assign({ any: true }, gitBehavior.any))
+  if (gitBehavior && Array.isArray(gitBehavior.rules)) rules.push.apply(rules, gitBehavior.rules)
+  for (const rule of rules) {
+    const code = rule.code == null ? 128 : rule.code
+    const stderr = rule.stderr || ''
+    if (rule.any) return { code, stderr }
+    if (rule.argv) { if (rule.argv.length === eff.length && rule.argv.every((x, i) => x === eff[i])) return { code, stderr } }
+    else if (rule.sub) { if (eff[0] === rule.sub) return { code, stderr } }
+  }
+  return null
+}
+function mockFailHandle(code, stderr) {
+  return {
+    done: Promise.resolve({ exitCode: code, signal: null }),
+    collected: { stdout: { readFrom: () => ({ text: '' }) }, stderr: { readFrom: () => ({ text: stderr }) } },
+    terminate: () => {},
+  }
+}
+
 function makeMockSubprocess(opts) {
   const ghBehavior = opts.ghBehavior || {} // {authStatus:'ok'|'not-logged-in'|'network', repoCreate:'ok'|'already-exists'|'network'|'permission'}
+  const gitBehavior = opts.gitBehavior || {} // 见 gitFailOf 注释：{ any:{code,stderr} } 或 { rules:[{sub|argv, code, stderr}] }
   const ghCalls = []
+  const gitCalls = [] // 记到的是有效 argv（如 ['add','.']），供「动手前就拦住」这类序列断言
   return {
     ghCalls,
+    gitCalls,
     async resolveExecutable(name) {
       if (name === 'gh') {
         if (opts.noGh) throw new Error('not found')
@@ -32,13 +90,22 @@ function makeMockSubprocess(opts) {
     },
     spawn(spec) {
       const argv = spec.argv
+      const base0 = String(argv[0] || '').split(/[\\/]/).pop().toLowerCase()
+      // #993/#994：git 调用先记一笔；配了失败规则就按规则失败（要放在下面那条 push 兜底之前，
+      // 否则「所有 git 都失败」的场景里 git push 仍会被兜底成成功，断言就假了）。
+      const isGit = argv[0] === 'MOCK_GIT' || base0 === 'git' || base0 === 'git.exe'
+      if (isGit) {
+        const eff = gitEffectiveArgv(argv)
+        gitCalls.push({ argv: eff, cwd: spec.cwd })
+        const hit = gitFailOf(gitBehavior, eff)
+        if (hit) return mockFailHandle(hit.code, hit.stderr)
+      }
       // Mock git push 对于不存在的远端直接成功（避免真实网络）
-      if (argv[0] && String(argv[0]).toLowerCase().includes('git') && argv.slice(1).join(' ').includes('push')) {
+      if (isGit && argv.slice(1).join(' ').includes('push')) {
         return { done: Promise.resolve({ exitCode: 0, signal: null }), collected: { stdout: { readFrom: () => ({ text: '' }) }, stderr: { readFrom: () => ({ text: '' }) } }, terminate: () => {} }
       }
       // 新 host 另有一条直探兜底：resolveGh 失败后经 subprocess.spawn({ argv: ['gh', '--version'] }) 再探一次。
       // 真机若装有 gh，直探会命中真 gh 并走真实网络，所以这里把真 gh 二进制也拦进 mock：noGh 时 --version 必失败。
-      const base0 = String(argv[0] || '').split(/[\\/]/).pop().toLowerCase()
       const isGh = argv[0] === 'MOCK_GH' || base0 === 'gh' || base0 === 'gh.exe'
       if (isGh) {
         const args = argv.slice(1)
@@ -265,6 +332,57 @@ async function main() {
     // 检查 remote 已被改写
     const ro = spawnSync('git', ['-C', dir, 'remote', 'get-url', 'origin'], { encoding: 'utf8' })
     expect('origin 已改写为新 repo', ro.stdout.trim().includes('new-repo'), ro.stdout.trim())
+  }
+
+  // ---- #993/#994：git 侧失败 ----
+  // mock 的返回按发布链路的 execProc 契约给：{ ok:false, code:128, error:'<stderr 原文>' }（即 repoKeys.js:196-198 的 { ok,text,error,code }），
+  // 不是 initProject 那条 execFn 的 { code, stdout, stderr }；用错形状会变成「所有命令都失败」且 error 为空，看不出真假。
+  console.log('--- 场景 K: git 属主不符（dubious ownership）→ git-ownership，且失败发生在 git add 之前 ---')
+  {
+    const dir = path.join(tmpBase, 'k-ownership')
+    fsx.mkdirSync(dir, { recursive: true })
+    fsx.writeFileSync(path.join(dir, 'README.md'), '# hi')
+    // 现场实测：属主不符时 git 全线退出码 128，所以这里让每一个 git 调用都按那段原文失败
+    const mock = makeMockSubprocess({ gitBehavior: { any: { code: 128, stderr: gitDubiousOwnershipText(dir) } } })
+    const h = await loadPlugin({ subprocess: mock, timer, fs: fsSvc, skills: makeSkills() })
+    const r = await h('initPublish', { cwd: dir, name: 'owner-repo', visibility: 'private' })
+    const gitSeq = mock.gitCalls.map(c => c.argv.join(' '))
+    const addCalls = mock.gitCalls.filter(c => c.argv[0] === 'add')
+    // 诊断行：红了要能一眼看出「跑到哪一个 git 子命令才停」，以及实得档位
+    console.log('    实得 errorKind:', r && r.errorKind, '| git 调用序列:', gitSeq.length ? gitSeq.join(' | ') : '(无)')
+    expect('属主不符 → errorKind git-ownership（不是 permission）', r && !r.ok && r.errorKind === 'git-ownership', JSON.stringify(r))
+    expect('属主不符 → mock 确实拦到了 git 调用（否则「序列里没有 add」是空断言）', mock.gitCalls.length > 0, JSON.stringify(gitSeq))
+    expect('属主不符 → 失败发生在 git add 之前（git 调用序列里没有 add）', addCalls.length === 0, JSON.stringify(gitSeq))
+  }
+  console.log('--- 场景 L: 认不出来的 git 错误 → unknown（不是 permission） ---')
+  {
+    const dir = path.join(tmpBase, 'l-unknown')
+    fsx.mkdirSync(dir, { recursive: true })
+    fsx.writeFileSync(path.join(dir, 'README.md'), '# hi')
+    const mock = makeMockSubprocess({ gitBehavior: { any: { code: 128, stderr: GIT_UNKNOWN_ERR } } })
+    const h = await loadPlugin({ subprocess: mock, timer, fs: fsSvc, skills: makeSkills() })
+    const r = await h('initPublish', { cwd: dir, name: 'diskfull-repo', visibility: 'private' })
+    const gitSeq = mock.gitCalls.map(c => c.argv.join(' '))
+    console.log('    实得 errorKind:', r && r.errorKind, '| git 调用序列:', gitSeq.length ? gitSeq.join(' | ') : '(无)')
+    expect('认不出来的 git 错误 → errorKind unknown（不是 permission）', r && !r.ok && r.errorKind === 'unknown', JSON.stringify(r))
+    expect('认不出来的 git 错误 → mock 确实拦到了 git 调用', mock.gitCalls.length > 0, JSON.stringify(gitSeq))
+    expect('认不出来的 git 错误 → 失败带原因文本（面板要能显示原文）', r && !r.ok && typeof r.error === 'string' && r.error.length > 0, JSON.stringify(r))
+  }
+
+  console.log('--- 场景 M: 只有 git add 失败（精确匹配子命令）→ unknown ---')
+  {
+    const dir = path.join(tmpBase, 'm-add-only')
+    fsx.mkdirSync(dir, { recursive: true })
+    fsx.writeFileSync(path.join(dir, 'README.md'), '# hi')
+    // 只让 `git add`（精确到子命令，不用子串）按原文失败；前置探测、git init 都走真实 git。
+    // 用「包含 add」去判会连 `git config --global --add safe.directory` 一起打中，那是另一条路。
+    const mock = makeMockSubprocess({ gitBehavior: { rules: [{ sub: 'add', code: 128, stderr: GIT_UNKNOWN_ERR }] } })
+    const h = await loadPlugin({ subprocess: mock, timer, fs: fsSvc, skills: makeSkills() })
+    const r = await h('initPublish', { cwd: dir, name: 'addfail-repo', visibility: 'private' })
+    const addCalls = mock.gitCalls.filter(c => c.argv[0] === 'add')
+    console.log('    实得 errorKind:', r && r.errorKind, '| git 调用序列:', mock.gitCalls.map(c => c.argv.join(' ')).join(' | '))
+    expect('只有 add 失败 → errorKind unknown（不是 permission）', r && !r.ok && r.errorKind === 'unknown', JSON.stringify(r))
+    expect('只有 add 失败 → 确实打中的是 git add 这一步', addCalls.length > 0 && addCalls[0].argv.join(' ') === 'add .', JSON.stringify(addCalls))
   }
 
   const failed = checks.filter(c => !c.pass)

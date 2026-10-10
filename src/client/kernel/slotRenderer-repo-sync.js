@@ -18,6 +18,15 @@
       try { fb = tr('panel.noRepoErr.half-created') } catch (e) { /* 兜底 */ }
       let base = bkText || mapped || rawMsg || ''
       if (dispKind === 'half-created') { base = (bkText || mapped || fb || '') + (rawMsg ? '：' + String(rawMsg).slice(0, 120) : '') }
+      // #993：unknown（认不出来）与 git-ownership（属主不一致）这两档，正文里没有 git 原话时一定要补上它 ——
+      //   文案承诺了「附原话」却不附，就是又一处「说的话与事实不符」。判据与 NoRepoCard 那处同一形状：
+      //   正文本身已经是这段原文（或它的前 160 字）时不再重复印一遍。
+      //   上面 half-created 那一支与其余档位的行为一字未动。
+      if (dispKind === 'unknown' || dispKind === 'git-ownership') {
+        const rawFull = rawMsg ? String(rawMsg) : ''
+        const rawCut = rawFull ? rawFull.slice(0, 160) : ''
+        if (rawCut && base !== rawCut && base !== rawFull) base = (base || rawCut) + ' · ' + rawFull.slice(0, 120)
+      }
       return base
     }
     export function startRepoSync(st) {
