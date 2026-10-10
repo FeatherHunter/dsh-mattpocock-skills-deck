@@ -1,7 +1,7 @@
-// 由 dsh-plugin-update@0.10.0 的集成工具生成，人手不改。
+// 由 dsh-plugin-update@0.11.0 的集成工具生成，人手不改。
 // 生成命令：node dsh-plugin-update/derive-client-values.mjs --prefix wf --out <本文件路径>
 // 生成对象：dsh-mattpocock-skills-deck。改了前缀或想升级本包，重新跑一次这条命令即可。
-// node_modules/dsh-plugin-update/dist/config.js
+// node_modules/.pnpm/dsh-plugin-update@0.11.0/node_modules/dsh-plugin-update/dist/config.js
 // 派生后处理（#800）：已按 #597 把三个重名函数改名（build* → updBuild*），顶撞检查已过；数据源是已安装的更新包，本地包目录不是来源。
 var DEFAULT_CONFIRMATION_TTL_MS = 10 * 6e4;
 var DEFAULT_INSTALL_TIMEOUT_MS = 15 * 6e4;
@@ -32,7 +32,7 @@ function updBuildPhoneName(prefix, action) {
   return updBuildPhoneNames(prefix)[action];
 }
 
-// node_modules/dsh-plugin-update/dist/commands.js
+// node_modules/.pnpm/dsh-plugin-update@0.11.0/node_modules/dsh-plugin-update/dist/commands.js
 var PACKAGE_NAME = "dsh-mattpocock-skills-deck";
 var NPM_REGISTRY = "https://registry.npmjs.org/";
 var INSTALL_TIMEOUT_MS = 15 * 6e4;
@@ -132,7 +132,7 @@ function manualCommand(input) {
   const channel = input.releaseChannel === "prerelease" ? "prerelease" : "stable";
   const arg = /^[A-Za-z0-9_.-]+$/.test(name) ? name : JSON.stringify(name);
   const picks = [input.latestVersion, input.jobTargetVersion, input.installedVersion].filter((v) => versionAllowed(v, channel));
-  let version = picks.length > 0 ? picks[0] : "latest";
+  let version = null;
   try {
     const ranked = picks.filter((v) => compareReleaseVersions(v, input.runningVersion) >= 0);
     if (ranked.length > 0) {
@@ -140,11 +140,13 @@ function manualCommand(input) {
       for (const v of ranked) if (compareReleaseVersions(v, version) === 1) version = v;
     }
   } catch {
+    version = null;
   }
+  if (!version) return null;
   return `dsh plugin --profile ${arg} add --save-exact ${targetName}@${version} --registry=${registry}`;
 }
 
-// node_modules/dsh-plugin-update/dist/queue.js
+// node_modules/.pnpm/dsh-plugin-update@0.11.0/node_modules/dsh-plugin-update/dist/queue.js
 var QUEUE_INTENT_TTL_MS = 10 * 6e4;
 function emptyQueueState() {
   return { version: 1, owner: null, waiting: [] };
@@ -298,7 +300,7 @@ function derivedRequestId(state, viewerPluginId) {
   return mine[0].requestId;
 }
 
-// node_modules/dsh-plugin-update/dist/batch.js
+// node_modules/.pnpm/dsh-plugin-update@0.11.0/node_modules/dsh-plugin-update/dist/batch.js
 var BATCH_SESSION_VERSION = 1;
 function isTerminalPhase(phase) {
   return phase === "done" || phase === "failed" || phase === "skipped" || phase === "current";
@@ -465,7 +467,7 @@ function resumeBatchSession(session, now) {
   return changed ? { ...session, entries, updatedAt: at } : session;
 }
 
-// node_modules/dsh-plugin-update/dist/service.js
+// node_modules/.pnpm/dsh-plugin-update@0.11.0/node_modules/dsh-plugin-update/dist/service.js
 var CONFIRMATION_TTL_MS = 10 * 6e4;
 var MAX_METADATA_BYTES = 256 * 1024;
 function updateError(code) {
@@ -552,7 +554,7 @@ function compareReleaseVersions2(a, b) {
   return 0;
 }
 
-// node_modules/dsh-plugin-update/dist/lang.js
+// node_modules/.pnpm/dsh-plugin-update@0.11.0/node_modules/dsh-plugin-update/dist/lang.js
 function normalizeLangTag(tag) {
   if (typeof tag !== "string") return "zh";
   const s = tag.trim().toLowerCase().replace(/_/g, "-");
@@ -563,7 +565,7 @@ function normalizeLangTag(tag) {
   return "zh";
 }
 
-// node_modules/dsh-plugin-update/dist/bilingual.js
+// node_modules/.pnpm/dsh-plugin-update@0.11.0/node_modules/dsh-plugin-update/dist/bilingual.js
 var BILINGUAL_STRINGS = {
   "entry.label.idle": { en: "Check for updates", zh: "\u68C0\u67E5\u66F4\u65B0", draft: true },
   "entry.label.failed": { en: "Update failed \u2014 View details", zh: "\u66F4\u65B0\u5931\u8D25\uFF0C\u70B9\u6B64\u67E5\u770B", draft: true },
@@ -580,6 +582,8 @@ var BILINGUAL_STRINGS = {
   "batch-entry.action.checking": { en: "Checking for updates\u2026", zh: "\u6B63\u5728\u67E5\u65B0\u7248\u2026", draft: true },
   "panel.blocked.unknown-profile.title": { en: "Unrecognized scope or plugin location", zh: "\u4F7F\u7528\u8303\u56F4\u6216\u63D2\u4EF6\u4F4D\u7F6E\u8BA4\u4E0D\u51FA", draft: true },
   "panel.blocked.unknown-profile.action": { en: "Reopen the host and check again; if it persists, send the version and logs to the plugin author; no manual command is provided for this case.", zh: "\u91CD\u5F00\u5BBF\u4E3B\u518D\u67E5\u4E00\u6B21\uFF1B\u4E00\u76F4\u8FD9\u6837\u5C31\u628A\u7248\u672C\u53F7\u4E0E\u65E5\u5FD7\u4EA4\u7ED9\u63D2\u4EF6\u4F5C\u8005\uFF1B\u8FD9\u79CD\u60C5\u5F62\u4E0D\u7ED9\u624B\u5DE5\u547D\u4EE4", draft: true },
+  "panel.blocked.channel-mismatch.title": { en: "Installed version is not in the selected release channel", zh: "\u5DF2\u88C5\u7248\u672C\u4E0D\u5728\u6240\u9009\u7248\u672C\u901A\u9053\u5185", draft: true },
+  "panel.blocked.channel-mismatch.action": { en: "Switch to the prerelease channel, or install the channel release, then check again.", zh: "\u5207\u5230\u9884\u53D1\u5E03\u901A\u9053\uFF0C\u6216\u88C5\u56DE\u672C\u901A\u9053\u6B63\u5F0F\u7248\u540E\u518D\u67E5", draft: true },
   "panel.blocked.source-install.title": { en: "Installed from source, not by version", zh: "\u5F53\u524D\u662F\u4ECE\u6E90\u7801\u88C5\u7684\uFF0C\u4E0D\u662F\u6309\u7248\u672C\u53F7\u88C5\u7684", draft: true },
   "panel.blocked.source-install.action": { en: "No manual command is provided here; to update, reinstall by version first.", zh: "\u8FD9\u79CD\u60C5\u5F62\u4E0D\u7ED9\u624B\u5DE5\u547D\u4EE4\uFF1B\u60F3\u8D70\u66F4\u65B0\u5148\u6309\u7248\u672C\u53F7\u91CD\u88C5\u4E00\u6B21", draft: true },
   "panel.blocked.invalid-installation.title": { en: "Installed package is incomplete (name mismatch, invalid version, or missing entry file)", zh: "\u5DF2\u88C5\u7684\u5305\u4E0D\u5B8C\u6574\uFF08\u540D\u5B57\u5BF9\u4E0D\u4E0A\u3001\u7248\u672C\u975E\u6CD5\u3001\u5165\u53E3\u6587\u4EF6\u7F3A\u5931\uFF09", draft: true },
@@ -871,6 +875,7 @@ var BILINGUAL_STRINGS = {
   "diag.fallback.invalid-release": { en: "Version in the manifest is not valid", zh: "\u6E05\u5355\u91CC\u7684\u7248\u672C\u53F7\u4E0D\u662F\u5408\u6CD5\u7248\u672C", draft: true },
   "diag.fallback.install-failed": { en: "Install failed", zh: "\u5B89\u88C5\u5931\u8D25", draft: true },
   "diag.fallback.unknown-profile": { en: "Scope or plugin location not recognized", zh: "\u4F7F\u7528\u8303\u56F4\u6216\u63D2\u4EF6\u4F4D\u7F6E\u8BA4\u4E0D\u51FA", draft: true },
+  "diag.fallback.channel-mismatch": { en: "Installed version is not in the selected release channel", zh: "\u5DF2\u88C5\u7248\u672C\u4E0D\u5728\u6240\u9009\u7248\u672C\u901A\u9053\u5185", draft: true },
   "diag.fallback.source-install": { en: "Installed from source, not by version", zh: "\u5F53\u524D\u662F\u4ECE\u6E90\u7801\u88C5\u7684\uFF0C\u4E0D\u662F\u6309\u7248\u672C\u53F7\u88C5\u7684", draft: true },
   "diag.fallback.invalid-installation": { en: "Installed package is incomplete", zh: "\u5DF2\u88C5\u7684\u5305\u4E0D\u5B8C\u6574", draft: true },
   "diag.fallback.installation-changed": { en: "Install location changed during use", zh: "\u5B89\u88C5\u4F4D\u7F6E\u5728\u4F7F\u7528\u4E2D\u9014\u53D8\u4E86", draft: true },
@@ -902,7 +907,7 @@ var BILINGUAL_CSS = [
   ".dsh-upd-bi [lang]{overflow-wrap:anywhere}"
 ].join("\n");
 
-// node_modules/dsh-plugin-update/dist/changelog.js
+// node_modules/.pnpm/dsh-plugin-update@0.11.0/node_modules/dsh-plugin-update/dist/changelog.js
 var CHANGELOG_FILENAME = "CHANGELOG.md";
 var CHANGELOG_NEUTRAL_HINT = "\u4F5C\u8005\u672A\u63D0\u4F9B\u66F4\u65B0\u8BF4\u660E";
 var CHANGELOG_NEUTRAL_LINE = "\u4F5C\u8005\u672A\u63D0\u4F9B\u66F4\u65B0\u8BF4\u660E\uFF0C\u5B89\u88C5\u4E0D\u53D7\u5F71\u54CD\u3002";
@@ -1330,7 +1335,7 @@ ${blocks.join("\n")}
   }
 }
 
-// node_modules/dsh-plugin-update/dist/client.js
+// node_modules/.pnpm/dsh-plugin-update@0.11.0/node_modules/dsh-plugin-update/dist/client.js
 var CLIENT_POLL = {
   defaultMs: DEFAULT_PANEL_POLL_MS,
   minMs: MIN_PANEL_POLL_MS

@@ -23,7 +23,7 @@
     "./package.json": "./package.json"
   },
   "dependencies": {
-    "dsh-plugin-update": "^0.10.0"
+    "dsh-plugin-update": "^0.11.0"
   },
   "files": [
     "lib",

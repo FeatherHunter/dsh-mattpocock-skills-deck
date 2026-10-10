@@ -8,7 +8,7 @@
   "private": true,
   "scripts": {
     "build": "node scripts/build.mjs",
-    "update:latest": "pnpm update dsh-plugin-update@^0.10.0 && node scripts/derive-update-from-package.mjs && node scripts/build.mjs",
+    "update:latest": "pnpm update dsh-plugin-update@^0.11.0 && node scripts/derive-update-from-package.mjs && node scripts/build.mjs",
     "prepare": "node scripts/build.mjs",
     "test": "node scripts/verify-chain.js && npm run test:smoke",
     "test:smoke": "node tests/smoke-client.test.js && node tests/smoke-host.test.js && node tests/smoke-host-dispatch.test.js && node tests/smoke-render.test.js && node tests/smoke-naming-persistence.test.js && node tests/smoke-comment-passthrough.test.js",
@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "dsh-log": "^0.2.2",
-    "dsh-plugin-update": "^0.10.0",
+    "dsh-plugin-update": "^0.11.0",
     "ws": "^8.22.0"
   },
   "packageManager": "pnpm@11.22.0+sha512.1ff870c4c6133dfd88fb2afc46dd13d47f09c9794b438c6fdb47ca98caf3bc16381ee0be93a091b8e3824cf01f889f46d7d9e20910fb0be1ab0fb5baa80dd621",
