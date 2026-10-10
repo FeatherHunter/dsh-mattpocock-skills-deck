@@ -26,17 +26,20 @@ export const renderIssueDetailComments = function (h, st, issueNumber, detail, m
         if (k === 'rate-limit') return tr('detail.cmtRateLimit')
         return tr('detail.cmtGeneric', { msg: String((er && er.message) || '').slice(0, 120) })
       }
+      // #951：发送落定后的按钮样子（成功对勾加绿闪 1.5 秒自退，失败叉号加红闪抖动留到下一次操作）
+      const cmtRes = (!st.cmtSending && st.cmtResult) ? st.cmtResult.kind : ''
       const doSubmit = function () {
         if (st.cmtSending) return
         const text = String(st.cmtDraft || '').trim()
         if (!text) return
         if (typeof submitIssueComment !== 'function') { st.cmtError = { kind: 'env' }; emit(st); return }
-        st.cmtSending = true; st.cmtError = null; emit(st)
+        st.cmtSending = true; st.cmtError = null; st.cmtResult = null; emit(st)
         const startedAt = Date.now()
         submitIssueComment(st, issueNumber, text, { effortId: _eff }).then(function (res) {
           st.cmtSending = false
           if (!res || res.ok !== true) {
             st.cmtError = (res && res.error) || { kind: 'network' }
+            st.cmtResult = { kind: 'fail', at: Date.now() }
             emit(st)
             return
           }
@@ -45,12 +48,15 @@ export const renderIssueDetailComments = function (h, st, issueNumber, detail, m
           st.cmtDraft = ''
           st.cmtError = null
           st.cmtConfirm = { body: text, at: startedAt }
+          st.cmtResult = { kind: 'ok', at: startedAt }
           emit(st)
+          try { setTimeout(function () { if (st.cmtResult && st.cmtResult.kind === 'ok' && st.cmtResult.at === startedAt) { st.cmtResult = null; try { emit(st) } catch (eR) {} } }, 1500) } catch (eT) {}
           if (typeof fetchIssueDetail === 'function') fetchIssueDetail(st, issueNumber, { force: true, effortId: _eff })
           try { if (typeof probeNow === 'function') probeNow(false) } catch (ePn) {}
         }).catch(function (eSub) {
           st.cmtSending = false
           st.cmtError = { kind: 'network', message: String((eSub && eSub.message) || eSub) }
+          st.cmtResult = { kind: 'fail', at: Date.now() }
           emit(st)
         })
       }
@@ -91,7 +97,8 @@ export const renderIssueDetailComments = function (h, st, issueNumber, detail, m
           const label = st.issueCommentsMoreLoading ? '加载中' : (fail>0 ? '重试' : '加载下 50')
           return h('div', { style: { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 8 } }, [
             h('button', {
-              className: 'dsws-btn' + (st.issueCommentsMoreLoading ? ' loading' : ''),
+              // #952：分页加载中用呼吸备用（无转圈的文字按钮，永不与转圈同开）。
+              className: 'dsws-btn' + (st.issueCommentsMoreLoading ? ' loading dsws-fb-breath' : ''),
               disabled: !!st.issueCommentsMoreLoading,
               onClick: function () {
                 if (st.issueCommentsMoreLoading) return
@@ -125,18 +132,18 @@ export const renderIssueDetailComments = function (h, st, issueNumber, detail, m
             onKeyDown: function (ev) {
               if ((ev.metaKey || ev.ctrlKey) && ev.key === 'Enter') { try { ev.preventDefault() } catch (ePd) {} doSubmit() }
             },
-            onChange: function (ev) { st.cmtDraft = ev.target.value; emit(st) },
+            onChange: function (ev) { st.cmtDraft = ev.target.value; st.cmtResult = null; emit(st) },
             style: { width: '100%', boxSizing: 'border-box', resize: 'vertical', minHeight: 56, fontSize: 12, lineHeight: 1.5, padding: '7px 9px', borderRadius: 6, border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', background: 'rgba(255,255,255,.03)', color: 'var(--dsw-alias-label-primary,#e6edf3)', outline: 'none' },
           }),
           h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, marginTop: 5 } }, [
             h('span', { style: { fontSize: 10, color: 'var(--dsw-alias-label-caption,#8b8b95)' } }, 'Markdown · ⌘+Enter / Ctrl+Enter 发送'),
             h('span', { style: { flex: 1 } }),
             h(Tip, { content: (st.cmtSending ? tr('tip.sendingComment') : tr('tip.sendComment')) }, h('button', {
-              className: 'dsws-btn primary',
+              className: 'dsws-btn primary' + (st.cmtSending ? ' dsws-fb-busy' : '') + (cmtRes === 'ok' ? ' dsws-fb-okflash' : '') + (cmtRes === 'fail' ? ' dsws-fb-errflash dsws-fb-shake' : ''),
               disabled: !(st.cmtDraft || '').trim() || !!st.cmtSending,
               onClick: function () { doSubmit() },
-              style: { padding: '2px 12px', fontSize: 11, opacity: (!(st.cmtDraft || '').trim() || !!st.cmtSending) ? 0.5 : 1 }
-            }, st.cmtSending ? tr('detail.cmtSending') : tr('detail.cmtSend'))),
+              style: { padding: '2px 12px', fontSize: 11, opacity: (!(st.cmtDraft || '').trim() || !!st.cmtSending) ? 0.5 : 1, cursor: ((!(st.cmtDraft || '').trim() || !!st.cmtSending) ? 'not-allowed' : 'pointer') }
+            }, st.cmtSending ? [h('span', { className: 'fb-t', 'aria-hidden': 'true' }, tr('detail.cmtSending')), h('span', { className: 'fb-spin', 'aria-hidden': 'true' }, h('span', { className: 'dsws-spinner', style: { width: 11, height: 11, borderWidth: 2 } }))] : (cmtRes === 'ok' ? Ic({ n: 'check', size: 11 }) : (cmtRes === 'fail' ? Ic({ n: 'x', size: 11 }) : tr('detail.cmtSend'))))),
           ]),
         ]) : null,
       ]

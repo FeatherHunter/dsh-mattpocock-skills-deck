@@ -19,6 +19,8 @@ export     const SettingsPage = (props) => {
       const [dbgPending, setDbgPending] = React.useState(false)
       const [dbgBusy, setDbgBusy] = React.useState(null)
       const [clearAsked, setClearAsked] = React.useState(false)
+      // #951：开关落定后行内闪光（成功绿跟提示 ok 同色，失败琥珀跟提示 warn 同色，半秒自退）
+      const [dbgFlash, setDbgFlash] = React.useState('')
       const [lastExport, setLastExport] = React.useState(null)
       const dbgChecked = (function () {
         try { if (typeof logSwitch !== 'undefined' && logSwitch) return logSwitch.enabled === true } catch (eDbg) {}
@@ -42,8 +44,10 @@ export     const SettingsPage = (props) => {
           setLogSwitch(next, 1).then(function (res) {
             setDbgPending(false)
             const okSw = !!(res && res.ok)
+            setDbgFlash(okSw ? 'ok' : 'warn')
+            try { setTimeout(function () { setDbgFlash('') }, 600) } catch (eT) {}
             flash(sharedSt, tr(!okSw ? dbgSwitchFailKey(res) : ((res.enabled === true) ? 'cfg.dbgSwitchOnToast' : 'cfg.dbgSwitchOffToast')), okSw ? 'ok' : 'warn')
-          }).catch(function () { setDbgPending(false); flash(sharedSt, tr('cfg.dbgSwitchFail'), 'warn') })
+          }).catch(function () { setDbgPending(false); setDbgFlash('warn'); try { setTimeout(function () { setDbgFlash('') }, 600) } catch (eT2) {}; flash(sharedSt, tr('cfg.dbgSwitchFail'), 'warn') })
         } catch (errDbg) { setDbgPending(false); flash(sharedSt, tr('cfg.dbgSwitchFail'), 'warn') }
       }
       // 静默取导出结果解析目录位置并缓存，不刷提示，供打开与复制复用
@@ -160,7 +164,7 @@ export     const SettingsPage = (props) => {
         h('div', { className: 'dsws-cfg-group' }, [
           h('div', { className: 'dsws-cfg-gtitle' }, [Ic({ n: 'gear', size: 13 }), h('span', null, tr('cfg.dbgTitle'))]),
           h('div', { className: 'dsws-cfg-gdesc' }, tr('cfg.dbgDesc')),
-          h('div', { className: 'dsws-cfg-row' }, [
+          h('div', { className: 'dsws-cfg-row' + (dbgFlash === 'ok' ? ' dsws-fb-okflash' : '') + (dbgFlash === 'warn' ? ' dsws-fb-warnflash' : '') }, [
             h('label', { className: 'dsws-cfg-sw' }, [
               h('input', { type: 'checkbox', checked: dbgChecked, disabled: !!(dbgPending || dbgBusy), onChange: toggleDbg }),
               h('span', { className: 'tr' }), h('span', null, tr(dbgChecked ? 'cfg.dbgSwitchOn' : 'cfg.dbgSwitchOff')),

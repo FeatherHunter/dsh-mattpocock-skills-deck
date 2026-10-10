@@ -46,7 +46,18 @@ check(valueOf(zhPart, 'type.map') === '地图' && valueOf(zhPart, 'type.research
 const chipSrc = read('src/client/views/shared/chips.js')
 const fnStart = chipSrc.indexOf('const TypeChip')
 const fnTail = chipSrc.slice(fnStart)
-const arrow = fnTail.slice(fnTail.indexOf('({'), fnTail.lastIndexOf('}') + 1)
+// 花括号配平取 TypeChip 函数体（不用 lastIndexOf 取文件尾：chips.js 尾部还有键盘三件套，取尾会把 export 也兜进来）
+const arrow = (function () {
+  const bodyOpen = fnTail.indexOf('=>')
+  let i = fnTail.indexOf('{', bodyOpen)
+  if (i < 0) return ''
+  let depth = 0
+  for (let j = i; j < fnTail.length; j += 1) {
+    if (fnTail[j] === '{') depth += 1
+    else if (fnTail[j] === '}') { depth -= 1; if (depth === 0) return fnTail.slice(fnTail.indexOf('({'), j + 1) }
+  }
+  return ''
+})()
 check(fnStart >= 0 && arrow.length > 0, 'B. 从 chips.js 抽到 TypeChip 函数体')
 // index.js 第 90-96 行的取词条语义：字典里有就用，没有就把键名原样返回
 const trStub = function (key) {

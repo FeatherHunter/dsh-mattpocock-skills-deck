@@ -95,7 +95,18 @@
           try { if (typeof emit === 'function') emit(st) } catch(_){}
         }
       }
+      // #952：宽按钮成功换字（提交→已提交 1.1 秒自退，宽度留死不伸缩）。
+      //   #956 评审修正：节拍到点前若这次弹窗已经不是当前那一个（用户中途关窗、或又开了别的弹窗），
+      //   令牌作废 —— 成功的后续动作（含 #419/#425 那张成功弹窗）不再弹出，免得盖掉用户这 1.1 秒里打开的东西。
+      const sentBeat = function (after) {
+        m.pending = false; m.justSent = true
+        try { if (typeof emit === 'function') emit(st) } catch(_){}
+        const tk = (m.sentTk = (m.sentTk || 0) + 1)
+        const fire = function () { if (m.sentTk !== tk || !m.justSent || m.open !== true) return; m.justSent = false; try { after() } catch(_){} }
+        try { setTimeout(fire, 1100) } catch(_) { fire() }
+      }
       const onWizardSubmit = async function () {
+        if (m.pending || m.justSent) return
         if (isWizard && !validateCurrent()) return
         if (isWizard && m.valuesByStep) m.valuesByStep[stepIndex] = Object.assign({}, vals)
         // 合并全步值（Q3 最后一起提交，验收原语：merged = Object.assign({}, ...valuesByStep) 浅合并后一次提交）
@@ -131,22 +142,25 @@
           m.lastVis = String((merged && merged.visibility) || 'public')
           const out = await cb(merged)
           m.pending = false
-          // #419/#425：成功后丢弃队列残留（向导单例），再关闭向导
+          // #419/#425：成功后丢弃队列残留（向导单例）
           try { if (st && Array.isArray(st._formModalQueue)) st._formModalQueue = [] } catch(_){}
           try{ if (typeof consumePendingSetup==='function') consumePendingSetup(st) }catch(_){} // #496 Q2
-          try { closeFormModal(st) } catch(_){ m.open = false; try { if (typeof emit === 'function') emit(st) } catch(__){} }
-          // #419/#425 成功弹窗：真值链接 + 在 GitHub 打开/完成；无 repo 数据时诚实回落为提示
-          const repoData = (out && out.data && out.data.ok) ? out.data : null
-          const repo = repoData && repoData.repo ? repoData.repo : null
-          if (repo && (repo.owner || repo.name)) {
-            m.success = { owner: repo.owner || '', name: repo.name || '', url: (repoData && repoData.repoUrl) ? repoData.repoUrl : '', visLabel: visLabelOf(m.lastVis) }
-          } else {
-            try { if (typeof flash === 'function') flash(st, '已提交，链条重查中…', 'ok') } catch(_){}
-          }
-          // 同步过渡态 + 后台重查（弹窗出现时即开始，不等用户点「完成」）
+          // 同步过渡态 + 后台重查成功即开始，不等 1.1 秒的已提交节拍
           startRepoSync(st)
           runRepoSyncRecheck(st)
-          try { if (typeof emit === 'function') emit(st) } catch(_){}
+          // #952：宽按钮成功换字后再走原来的关闭与成功提示
+          sentBeat(function () {
+            try { closeFormModal(st) } catch(_){ m.open = false; try { if (typeof emit === 'function') emit(st) } catch(__){} }
+            // #419/#425 成功弹窗：真值链接 + 在 GitHub 打开/完成；无 repo 数据时诚实回落为提示
+            const repoData = (out && out.data && out.data.ok) ? out.data : null
+            const repo = repoData && repoData.repo ? repoData.repo : null
+            if (repo && (repo.owner || repo.name)) {
+              m.success = { owner: repo.owner || '', name: repo.name || '', url: (repoData && repoData.repoUrl) ? repoData.repoUrl : '', visLabel: visLabelOf(m.lastVis) }
+            } else {
+              try { if (typeof flash === 'function') flash(st, '已提交，链条重查中…', 'ok') } catch(_){}
+            }
+            try { if (typeof emit === 'function') emit(st) } catch(_){}
+          })
         } catch (e) {
           m.pending = false
           const msg = String((e && e.message) || e)
@@ -187,6 +201,7 @@
         }
       }
       const onSubmit = isWizard ? onWizardSubmit : async function () {
+        if (m.pending || m.justSent) return
         if (!validateCurrent()) return
         if (!m.onSubmit) { try { if (typeof flash === 'function') flash(st, '表单缺少提交句柄', 'warn') } catch(_){} return }
         const cb = m.onSubmit
@@ -195,8 +210,11 @@
         try {
           await cb(vals)
           m.pending = false
-          try { closeFormModal(st) } catch(_){ m.open = false; try { if (typeof emit === 'function') emit(st) } catch(__){} }
-          try { if (typeof flash === 'function') flash(st, '已提交，链条重查中…', 'ok') } catch(_){}
+          // #952：宽按钮成功换字后再走原来的关闭与提示；链条重查成功即开始，不等节拍
+          sentBeat(function () {
+            try { closeFormModal(st) } catch(_){ m.open = false; try { if (typeof emit === 'function') emit(st) } catch(__){} }
+            try { if (typeof flash === 'function') flash(st, '已提交，链条重查中…', 'ok') } catch(_){}
+          })
           try {
             if (typeof host !== 'undefined' && host.call) {
               await host.call('wf.detect', { cwd: st.cwd || '', force: true, backendId: (typeof userHintOf === 'function' ? userHintOf(st.selection) : undefined) || undefined, baseRev: (typeof baseRevOf === 'function' ? baseRevOf(st.selection) : 0) }) // hint 只报「用户亲手选过的那条」：#669 第 6 件 / ADR 20260921
@@ -266,11 +284,11 @@
         ]),
         h('div', { style: { display: 'flex', gap: 6, alignItems: 'center' } }, [
           h('span', { style: { fontSize: 10, color: '#8b8b95' } }, String(stepIndex+1) + ' / ' + String(totalSteps)),
-          stepIndex < totalSteps - 1 ? h('button', { className: 'dsws-btn primary', onClick: onNext, disabled: !!m.pending, style: { fontSize: 11, padding: '4px 10px', background: '#58a6ff', borderColor: '#58a6ff', color: '#0b1220', fontWeight: 600 } }, '下一步') : h('button', { className: 'dsws-btn primary', onClick: onSubmit, disabled: !!m.pending, style: { fontSize: 11, padding: '4px 10px', background: m.pending ? '#6b7280' : '#58a6ff', borderColor: m.pending ? '#6b7280' : '#58a6ff', color: '#0b1220', fontWeight: 600, opacity: m.pending ? 0.7 : 1 } }, m.pending ? '提交中…' : '提交')
+          stepIndex < totalSteps - 1 ? h('button', { className: 'dsws-btn primary', onClick: onNext, disabled: !!m.pending, style: { fontSize: 11, padding: '4px 10px', background: '#58a6ff', borderColor: '#58a6ff', color: '#0b1220', fontWeight: 600 } }, '下一步') : h('button', { className: 'dsws-btn primary' + (m.pending ? ' dsws-fb-busy' : '') + (m.justSent ? ' dsws-fb-result' : ''), onClick: onSubmit, disabled: !!m.pending || !!m.justSent, style: { fontSize: 11, padding: '4px 10px', background: m.pending ? '#6b7280' : '#58a6ff', borderColor: m.pending ? '#6b7280' : '#58a6ff', color: '#0b1220', fontWeight: 600, opacity: m.pending ? 0.7 : 1 } }, m.pending ? [h('span', { key: 't', className: 'fb-t', 'aria-hidden': 'true' }, tr('panel.submitting')), h('span', { key: 's', className: 'fb-spin', 'aria-hidden': 'true' }, h('span', { className: 'dsws-spinner', style: { width: 11, height: 11, borderWidth: 2 } }))] : (m.justSent ? tr('panel.submitted') : '提交'))
         ])
       ]) : h('div', { style: { display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 8 } }, [
         h('button', { className: 'dsws-btn', onClick: onClose, disabled: !!m.pending, style: { fontSize: 11, padding: '4px 10px' } }, '取消'),
-        h('button', { className: 'dsws-btn primary', onClick: onSubmit, disabled: !!m.pending, style: { fontSize: 11, padding: '4px 10px', background: m.pending ? '#6b7280' : '#58a6ff', borderColor: m.pending ? '#6b7280' : '#58a6ff', color: '#0b1220', fontWeight: 600, opacity: m.pending ? 0.7 : 1 } }, m.pending ? '提交中…' : '提交'),
+        h('button', { className: 'dsws-btn primary' + (m.pending ? ' dsws-fb-busy' : '') + (m.justSent ? ' dsws-fb-result' : ''), onClick: onSubmit, disabled: !!m.pending || !!m.justSent, style: { fontSize: 11, padding: '4px 10px', background: m.pending ? '#6b7280' : '#58a6ff', borderColor: m.pending ? '#6b7280' : '#58a6ff', color: '#0b1220', fontWeight: 600, opacity: m.pending ? 0.7 : 1 } }, m.pending ? [h('span', { key: 't', className: 'fb-t', 'aria-hidden': 'true' }, tr('panel.submitting')), h('span', { key: 's', className: 'fb-spin', 'aria-hidden': 'true' }, h('span', { className: 'dsws-spinner', style: { width: 11, height: 11, borderWidth: 2 } }))] : (m.justSent ? tr('panel.submitted') : '提交')),
       ])
       const box = h('div', { className: 'dsws-modalbox', role: 'dialog', 'aria-modal': 'true', 'aria-label': m.label || (isWizard ? '向导' : '表单'), style: { width: 480, maxWidth: '94vw' }, onClick: function (e) { e.stopPropagation() } }, [
         h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 } }, [
