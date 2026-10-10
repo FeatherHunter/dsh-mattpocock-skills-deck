@@ -7,8 +7,8 @@
 // #853：颜色只走**本页的皮肤令牌**（--vc-*，由 vcStyles.js 按宿主主题开关分深浅两套：
 //   深色 = A 工程台账，浅色 = C 纸质便签）。六种变化色由下面的 VC_TONE 映射到这些令牌，
 //   纯规则层只给「success / warning / error / accent / caption / primary」这几个色档名。
-// 定时器：一个都没有（既不自续也不排一次性）；宽度靠 ResizeObserver，提交续读靠
-//   IntersectionObserver，两者都在卸载时断开（#709 的「后台零定时器」那条不变量照旧）。
+// 定时器：一个都没有（既不自续也不排一次性）；宽度靠 ResizeObserver，「还能显示更多」那几处统一走
+//   vcInView.js 的观察器（改动页每组 / 工作树页 / 提交历史页），都在卸载时断开（#709 的不变量照旧）。
 export const VC_TONE = {
   // #853：这六个色档改指本页的皮肤令牌，不再吃宿主那一套 —— 换肤就换这一处。
   success: 'var(--vc-accent,#22c55e)',
@@ -33,7 +33,7 @@ export const VersionControlTab = function (props) {
   const [tier, setTier] = React.useState(0)
   const lastWidthRef = React.useRef(0)
   const rootRef = React.useRef(null)
-  const moreRef = React.useRef(null)
+  const moreStateRef = React.useRef({})
   const logBusyRef = React.useRef(false)
   // 读数与界面状态属于哪个工作区（#819 发现 2）：Dock 在同会话里换工作区**不重挂载**组件，
   //   所以旧工作区的身份行与「点开的那一笔提交」会留在新工作区下面 —— 那是用户最怕的认错工作树。
@@ -115,11 +115,11 @@ export const VersionControlTab = function (props) {
       if (el.scrollWidth > el.clientWidth + 1) setTier(tier + 1)
     } catch (e) { /* 忽略 */ }
   }, [tier, width, contentKey])
-  const commitCount = (screen && Array.isArray(screen.commits) ? screen.commits.length : 0) + (reads.log.commits ? reads.log.commits.length : 0)
   const loadMore = function () {
     // 防重入用自己的一把在途标记（读数的 state 要等回包才写，光看它拦不住同一拍里的第二次点击），
     //   同时先把「正在读更早的提交」这一刻写进读数 —— 界面那一句提示才有机会出现（#819 发现 8）。
-    if (logBusyRef.current) return
+    //   返回值 = 这一枪真的发出去了没有：#997 起接线那边按它决定要不要再判一次。
+    if (logBusyRef.current) return false
     logBusyRef.current = true
     setReads(vcMarkLogLoading(readsRef.current))
     const skip = vcNextSkipOf(screenOf(readsRef.current), readsRef.current.log)
@@ -128,18 +128,24 @@ export const VersionControlTab = function (props) {
       setReads(next)
       vcCacheSave(cwd, next)
     })
+    return true
   }
-  // 滚到底自动接着读更早的提交（规格第 37 条）；浏览器没有这个观察器时，那一行仍然可以点。
-  React.useEffect(function () {
-    const el = moreRef.current
-    if (!el || typeof IntersectionObserver === 'undefined') return
-    const io = new IntersectionObserver(function (entries) { if (entries[0] && entries[0].isIntersecting) loadMore() })
-    io.observe(el)
-    return function () { try { io.disconnect() } catch (e) { /* 忽略 */ } }
-  }, [commitCount, reads.log.state, reads.log.hasMore, fold.commitsCollapsed])
+  // 「还能显示更多」那三处（改动页每组、工作树页、提交历史页）统一走 vcInView.js 那套接线：这句话进入视野
+  //   就接着显示下一批、显示完再判一次，直到它离开视野或没有更多；失败态不自动重试（#997）。
+  const drawMore = function (key) {
+    if (key === 'commits') return loadMore()
+    vcMoreShownOf(setUi, key)
+    return true
+  }
+  const moreSight = vcUseMoreSightOf({
+    stateOf: function (key) { return moreStateRef.current[key] },
+    draw: drawMore,
+  })
   const blocks = vcBlocksOf(screen, reads, ui, { t: tr, nowMs: Date.now(), cwdEmpty: cwdEmpty, decisions: decisions, fold: Object.assign({}, fold, { state: foldState }) })
   // 换工作区的那一帧：一个块都不画（旧工作区的身份行与提交清单绝不留在新工作区下面，见上面 staleCwd）。
   if (staleCwd) blocks.length = 0
+  // 接线那边在观察回调里读「这一处还有没有没显示的」：每帧从刚算好的块清单里抽一次（判定仍是纯函数）。
+  moreStateRef.current = vcMoreStateOf(blocks, reads)
 
   const tone = function (name) { return VC_TONE[name] || VC_TONE.primary }
   const retryScreen = function () { vcReadStatus(readsRef.current, callHost, cwd).then(function (next) { setReads(next); vcCacheSave(cwd, next) }) }
@@ -160,12 +166,6 @@ export const VersionControlTab = function (props) {
   const retryCommit = diffOps.retryCommit
   // 「重新读一次」：面板上唯一的刷新入口（不是定时器 —— 刷新频率那条纪律不变）。
   const reloadNow = function () { retryScreen() }
-  const moreFiles = function (groupKey) {
-    const cur = Number(ui.fileShown[groupKey]) || VC_FILE_ROWS_FIRST
-    const next = Object.assign({}, ui.fileShown)
-    next[groupKey] = cur + VC_FILE_ROWS_BATCH
-    setUi(Object.assign({}, ui, { fileShown: next }))
-  }
   // 悬停包裹层要把孩子的 key 带过去：不带的话，凡是用 tipNode 包过的元素在数组里都会触发
   //   React 的「Each child in a list should have a unique key prop」警告（#842 视觉预览顺手修）。
   const tipNode = function (content, child) { return content ? h(Tip, { key: child && child.key !== undefined ? child.key : undefined, content: content }, child) : child }
@@ -234,7 +234,7 @@ export const VersionControlTab = function (props) {
       // #851 ⑤：分段小标题（原型 C 的 ix-sec）——小字、拉开字距、下压一条细分隔线；文字照旧是既有词条。
       tipNode(g.tip, h('div', { key: 'title', className: 'dsws-vc-sec', style: { display: 'flex', alignItems: 'center', gap: 6 } }, g.title)),
       g.rows.map(fileRow),
-      g.moreCount > 0 ? h('div', { key: 'more', className: 'dsws-vc-link', onClick: function () { moreFiles(g.key) }, style: { padding: '3px 0', color: tone('accent'), cursor: 'pointer' } }, g.moreLabel) : null,
+      g.moreCount > 0 ? h('div', { key: 'more', ref: moreSight.refOf(g.key), className: 'dsws-vc-link', onClick: function () { drawMore(g.key) }, style: { padding: '3px 0', color: tone('accent'), cursor: 'pointer' } }, g.moreLabel) : null,
     ])
   }
   const node = function (b) {
@@ -297,7 +297,7 @@ export const VersionControlTab = function (props) {
           h('span', { key: 'when', className: 'dsws-vc-mono', style: { flex: 'none', fontSize: 11, color: tone('caption') } }, c.when),
         ])
       }),
-      b.more.show ? h('div', { key: 'more', ref: moreRef, className: 'dsws-vc-link', 'data-vc-more': 1, onClick: loadMore, style: { padding: '3px 0' } }, b.more.label) : null,
+      b.more.show ? h('div', { key: 'more', ref: moreSight.refOf('commits'), className: 'dsws-vc-link', 'data-vc-more': 1, onClick: loadMore, style: { padding: '3px 0' } }, b.more.label) : null,
       b.more.allLoaded ? h('div', { key: 'allLoaded', style: { padding: '3px 0', color: tone('caption') } }, b.more.allLoaded) : null,
       b.more.failText ? h('div', { key: 'fail', style: { display: 'flex', gap: 6, alignItems: 'center', color: tone('error') } }, [h('span', { key: 'text' }, b.more.failText), b.more.retry ? h('span', { key: 'retry', style: { display: 'contents' } }, button(b.more.retry, loadMore)) : null]) : null,
     ])
@@ -317,7 +317,7 @@ export const VersionControlTab = function (props) {
         ])
       }),
       // 其他工作树也按同一套规矩分批（#819 发现 12）：一千棵时不一次画一千行。
-      b.moreCount > 0 ? h('div', { key: 'more', className: 'dsws-vc-link', 'data-vc-other-more': 1, onClick: function () { moreFiles('other') }, style: { padding: '3px 0', color: tone('accent'), cursor: 'pointer' } }, b.moreLabel) : null,
+      b.moreCount > 0 ? h('div', { key: 'more', ref: moreSight.refOf('other'), className: 'dsws-vc-link', 'data-vc-other-more': 1, onClick: function () { drawMore('other') }, style: { padding: '3px 0', color: tone('accent'), cursor: 'pointer' } }, b.moreLabel) : null,
     ])
     if (b.kind === 'terminal') return h('div', { key: b.key, 'data-vc-terminal': 1, style: { display: 'flex', gap: 6, alignItems: 'center', color: tone('accent'), borderTop: '1px solid var(--vc-line,#2a2d35)', paddingTop: 6 } }, [
       // 「需要自己动手的事」是一句陈述，不是一个动作：这里没有替你打开命令行的能力，所以不摆任何看着能点的图标

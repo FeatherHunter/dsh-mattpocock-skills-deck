@@ -92,6 +92,7 @@ const LEAVES = [
   { file: 'src/client/views/versionControl/vcWriteOps.js', exports: ['vcWriteOpsOf'], components: [] },
   { file: 'src/client/views/versionControl/vcWriteView.js', exports: ['vcRowStageNodes', 'vcActionsNode', 'vcStageAllNode', 'vcCommitAreaNode', 'vcViewBarNode', 'vcWriteTailNodes'], components: [] },
   { file: 'src/client/views/versionControl/vcCache.js', exports: ['VC_SCREEN_CACHE_MAX', 'vcCacheSeedOf', 'vcCacheSave'], components: [] }, // #864：进出缓存
+  { file: 'src/client/views/versionControl/vcInView.js', exports: ['vcMoreStepOf', 'vcMoreStateOf', 'vcMoreShownOf', 'vcUseMoreSightOf'], components: [] }, // #997：「还能显示更多」那几处什么时候接着显示（纯判定 + 从块清单取状态 + 再画一批 + 接线）
 ]
 const SOURCES = [
   'src/client/index.js', 'scripts/build.mjs', 'package/package.json',

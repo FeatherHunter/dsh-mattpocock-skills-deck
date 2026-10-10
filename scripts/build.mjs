@@ -462,6 +462,7 @@ const LEAF_MODULES = [
   { id: 'vcTabVisible', file: 'src/client/views/versionControl/vcTabVisible.js' },
   { id: 'vcData', file: 'src/client/views/versionControl/vcData.js' },
   { id: 'vcCache', file: 'src/client/views/versionControl/vcCache.js' }, // #864：进出缓存（首屏与历史首批按工作区暂存）
+  { id: 'vcInView', file: 'src/client/views/versionControl/vcInView.js' }, // #997：「还能显示更多」那几处什么时候接着显示（进入视野就接着显示、显示完再判一次；三处共用一套）
   { id: 'versionControlTab', file: 'src/client/views/versionControl/VersionControlTab.js' },
   { id: 'tabs', file: 'src/client/views/shared/Tabs.js' },
   { id: 'truthLines', file: 'src/client/views/shared/truthLines.js' }, // #715 新增：面板头部那几句「上次更新 / 刷新失败 / 现在是不是降级」的判据（纯函数，画在 ListTab 最上面那一行；行上的「更新中」标记也问它）

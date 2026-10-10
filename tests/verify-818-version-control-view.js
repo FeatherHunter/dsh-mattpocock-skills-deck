@@ -49,6 +49,7 @@ const VC_FILES = [
   'src/client/views/versionControl/vcTabVisible.js',
   'src/client/views/versionControl/vcData.js',
   'src/client/views/versionControl/vcCache.js', // #864：进出缓存（与构建同序）
+  'src/client/views/versionControl/vcInView.js', // #997：「还能显示更多」那几处什么时候接着显示（与构建同序）
   'src/client/views/versionControl/VersionControlTab.js',
 ]
 
@@ -71,6 +72,7 @@ const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DI
   'vcCommitKeyOf', 'vcReadCommitFiles', 'vcReadCommitFileDiff', 'vcCommitModeOf', 'vcCommitBlockOf', 'vcShouldRead', 'vcViewOf', 'vcRememberedView', 'vcRememberView', 'vcResetViewMemory', 'vcViewCountsOf', 'vcViewBlocksOf', 'vcViewTabsNode', 'vcPickViewStateOf', 'VC_AI_READ_FAIL_KINDS', 'vcAiHandoffOf', 'vcAiButtonNode', 'vcOpenAiHandoff',
   'vcFreshOnCwd', 'vcScreenShapeOk', 'vcApplyCommitReply', 'vcMarkLogLoading', 'vcOneLine',
   'VC_SCREEN_CACHE_MAX', 'vcCacheSeedOf', 'vcCacheSave',
+  'vcMoreStepOf', 'vcMoreStateOf', 'vcMoreShownOf', 'vcUseMoreSightOf',
   'VersionControlTab']
 function buildView(patch, logs, React, DswsCtx, Tip, Ic, seedReads, hostStub) {
   let src = VC_FILES.map((f) => stripExports(read(f))).join('\n')
