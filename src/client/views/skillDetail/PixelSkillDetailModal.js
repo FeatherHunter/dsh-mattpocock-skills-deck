@@ -96,16 +96,35 @@ export const PixelSkillDetailModal = function(props) {
       }
     };
   }, [p.full, d && d.open, d && d.name]);
+  const [stGone, setStGone] = React.useState(false);
+  const useFx = React.useEffect;
+  useFx(function() {
+    if (!d || !d.open) return void 0;
+    if (d.phase !== "ready") {
+      setStGone(false);
+      return void 0;
+    }
+    const timer = setTimeout(function() {
+      setStGone(true);
+    }, 1e3);
+    return function() {
+      try {
+        clearTimeout(timer);
+      } catch (e) {
+      }
+    };
+  }, [d && d.name, d && d.phase, d && d.open]);
   if (!d || !d.open) return null;
   const lang = d.bodyLang === "zh" && d.mdZh ? "zh" : "en";
   const md = lang === "zh" ? d.mdZh : d.mdEn;
+  const copyPath = lang === "zh" && d.pathZh ? d.pathZh : d.docPath;
   const title = (lang === "zh" ? d.titleZh : d.titleEn) || d.titleEn || "/" + (d.name || "");
   const heads = pixelDocHeadings(md || "").filter(function(x) {
     return x.level >= 2;
   }).map(function(x) {
     return x.text;
   });
-  const canTranslate = d.dshLang !== "en" && !!d.mdZh;
+  const canTranslate = !!d.mdZh;
   const toTop = function() {
     try {
       if (bodyRef.current) bodyRef.current.scrollTop = 0;
@@ -148,7 +167,12 @@ export const PixelSkillDetailModal = function(props) {
         pixelCloseDetail(s);
       } }, tr("sd.close"))
     ]),
-    h(PixelStatusLine, { key: "st", icon, text: d.phaseText || tr("sd.idle") }),
+    stGone ? null : h(PixelStatusLine, {
+      key: "st",
+      icon,
+      texts: d.phase === "loading" ? [tr("sd.fetch"), tr("sd.parse"), tr("sd.layout")] : null,
+      text: d.phaseText || tr("sd.idle")
+    }),
     h("div", {
       key: "body",
       ref: bodyRef,
@@ -170,8 +194,8 @@ export const PixelSkillDetailModal = function(props) {
     ]),
     h("div", { key: "bot", className: "pixel-bot" }, [
       d.copyText ? h(PixelBtn, { key: "c", onClick: function() {
-        pixelCopyDetailLink(s, d.copyText);
-      } }, d.copied ? tr("sd.copied") : d.docPath ? tr("sd.copyPath") : tr("sd.copy")) : null,
+        pixelCopyDetailLink(s, copyPath);
+      } }, d.copied ? tr("sd.copied") : copyPath ? tr("sd.copyPath") : tr("sd.copy")) : null,
       !d.isMissing && d.phase === "error" && typeof p.onRetry === "function" ? h(PixelBtn, { key: "r", onClick: function() {
         p.onRetry(d.name);
       } }, tr("sd.retry")) : null,

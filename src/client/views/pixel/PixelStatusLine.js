@@ -3,8 +3,12 @@ export const PixelStatusLine = function(props) {
   const p = props || {};
   const cx = React.useContext(DswsCtx);
   const h = cx ? cx.h : React.createElement;
+  const seq = Array.isArray(p.texts) && p.texts.length ? p.texts : null;
+  const line = seq ? h("span", { key: "seq", className: "pixel-seq" }, seq.map(function(s, i) {
+    return h("span", { key: i, style: { animationDelay: i + "s" } }, s);
+  })) : h("span", { key: "tx" }, p.text);
   return h("div", { className: "pixel-statusline" }, [
     h(PixelStateIcon, { key: "ic", kind: p.icon }),
-    h("span", { key: "tx" }, p.text)
+    line
   ]);
 };

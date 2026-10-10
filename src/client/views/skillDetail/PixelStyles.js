@@ -16,6 +16,11 @@ export const PIXEL_STYLE_TEXT = [
   ".pixel-ic{display:inline-flex;width:20px;height:20px;align-items:center;justify-content:center;border:2px solid var(--pixel-frame);font-weight:800;font-size:12px;margin-right:6px;vertical-align:-3px}",
   ".pixel-ic-ok{background:#d9f2dc;color:var(--pixel-ok)}.pixel-ic-err{background:#fbe3e1;color:var(--pixel-bad)}.pixel-ic-warn{background:#fdf0d3;color:#9a6a00}.pixel-ic-idle{background:var(--pixel-stripe);color:var(--pixel-ink2)}",
   ".pixel-seal{position:absolute;left:50%;top:-13px;margin-left:-11px;width:22px;height:22px;background:#c9503f;border:3px solid var(--pixel-frame)}",
+  // 加载中的三句节奏话（2026-10-10 人拍板放回）：按顺序 1 秒一句。
+  // 纯 CSS 轮播，客户端不排任何定时器：三句叠在网格的同一格里，各自错开一秒显示。
+  ".pixel-statusline .pixel-seq{display:grid;align-items:center}",
+  ".pixel-statusline .pixel-seq>span{grid-area:1/1;opacity:0;animation:pixel-seq 3s step-end infinite both}",
+  "@keyframes pixel-seq{0%{opacity:0}1%,33.3%{opacity:1}33.4%,100%{opacity:0}}",
   ".pixel-skel{height:14px;background:var(--pixel-stripe);border:2px solid var(--pixel-frame);margin:8px 0;animation:pixel-blk 1s steps(2,end) infinite}",
   ".pixel-banner{background:#fbe3e1;border:3px solid var(--pixel-frame);border-left:10px solid var(--pixel-bad);box-shadow:3px 3px 0 var(--pixel-shadow);padding:8px 10px;font-size:13px;margin:10px 0;display:flex;gap:8px;align-items:center}",
   ".pixel-banner.warn{background:#fdf0d3;border-left-color:var(--pixel-warn)}",
@@ -48,9 +53,12 @@ export const PIXEL_STYLE_TEXT = [
   ".pixel-doc pre code{background:none;border:none;box-shadow:none;padding:0;color:inherit;font:inherit;white-space:pre-wrap}",
   ".pixel-doc a{color:var(--pixel-link)}",
   // 粗体要真的更重：代码徽章自己写着 font-weight:700，会把外层 <strong> 的加粗盖掉，
-  // 于是 `**\`/grill-with-docs\`**` 看起来跟普通代码一样。这里把两层字重分开钉住（2026-10-10 人反馈）。
+  // 于是 `**\`/grill-with-docs\`**` 看起来跟普通代码一样。
   ".pixel-doc strong{font-weight:800}",
-  ".pixel-doc strong code{font-weight:900}",
+  // 但光调字重看不出区别（2026-10-10 人反馈两个徽章一模一样）：等宽字体 ui-monospace / Menlo /
+  // Consolas 都没有 800、900 这两档字面，浏览器把它们归到最近的 700，粗体包代码和普通代码
+  // 就长得一样了。所以强调里的代码改用**反色徽章**（深底浅字、金色投影）——不靠字体粗细也能一眼分开。
+  ".pixel-doc strong code{font-weight:900;background:var(--pixel-ink);color:var(--pixel-paper);border-color:var(--pixel-ink);box-shadow:2px 2px 0 var(--pixel-gold)}",
   ".pixel-doc em{font-style:normal;font-weight:700;color:var(--pixel-ink);background:var(--pixel-hi);padding:0 3px;border-bottom:3px solid var(--pixel-gold)}",
   ".pixel-doc hr{border:none;border-top:3px solid var(--pixel-frame);margin:10px 0}",
   ".pixel-doc img{max-width:100%;max-height:220px;object-fit:contain;display:block;margin:8px 0;border:3px solid var(--pixel-frame);background:var(--pixel-card);cursor:zoom-in}",
@@ -98,5 +106,5 @@ export const PIXEL_STYLE_TEXT = [
   ".pixel-detail-full{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;max-height:calc(100vh - 118px)}",
   ".pixel-modal-full{flex:1;min-height:0;width:100%;max-width:none;max-height:none;box-shadow:4px 4px 0 var(--pixel-shadow)}",
   ".pixel-modal-full .pixel-body{flex:1;min-height:0;overflow:auto}",
-  "@media (prefers-reduced-motion:reduce){.pixel-btn,.pixel-skillrow,.pixel-skel,.pixel-f-ok,.pixel-f-err,.pixel-shake,.pixel-spin{animation:none!important;transition:none!important}}"
+  "@media (prefers-reduced-motion:reduce){.pixel-btn,.pixel-skillrow,.pixel-skel,.pixel-f-ok,.pixel-f-err,.pixel-shake,.pixel-spin{animation:none!important;transition:none!important}.pixel-statusline .pixel-seq>span{animation:none!important}.pixel-statusline .pixel-seq>span:not(:first-child){display:none}}"
 ];

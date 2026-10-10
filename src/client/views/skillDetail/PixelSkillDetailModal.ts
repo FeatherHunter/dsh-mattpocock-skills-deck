@@ -6,7 +6,7 @@
  * st.pixelDetail = {open, name, titleEn, titleZh, mdEn, mdZh, shortDesc, bodyLang,
  *   phase, phaseText, isMissing, dshLang, copyText}，全由外层（888 取数通道）写。
  * 约定：①弹窗就地盖在父容器上（SwitchConfirmModal 同模式），父容器要 position:relative；
- * ②翻译按钮只在 dshLang 中文且有 mdZh 时出现（英文 DSH 下没有这个按钮，正文恒英文）；
+ * ②翻译按钮只要有中文译文（mdZh）就出现，DSH 开英文时也给（2026-10-10 人拍板）；正文默认英文原文；
  * ③复制按钮只在给了 copyText 时出现（复制什么链接由 888 定）；④回到顶部常驻底栏小按钮，
  * 不监听滚动（原型里按滚动显隐的版本有性能代价，生产里简化）；⑤取数计时与重试装载是 888 的活，
  * 本文件只管摆样子：onRetry(name) 由外层传进来，没有就不画重试按钮。
@@ -101,12 +101,25 @@ export const PixelSkillDetailModal = function (props?: PixelSkillDetailModalProp
       try { if (ro) ro.disconnect() } catch (e) { /* 忽略 */ }
     }
   }, [p.full, d && d.open, d && d.name])
+  const [stGone, setStGone] = React.useState(false)
+  const useFx = React.useEffect
+  // 状态行节奏（2026-10-10 人拍板）：加载中按顺序 1 秒一句（三句轮播在 CSS 里），
+  // 内容到了显示「内容已到」，再停一秒把这一行整个撤掉。出错时留着，不撤——人得看见原因。
+  useFx(function () {
+    if (!d || !d.open) return undefined
+    if (d.phase !== 'ready') { setStGone(false); return undefined }
+    const timer = setTimeout(function () { setStGone(true) }, 1000)
+    return function () { try { clearTimeout(timer) } catch (e) { /* 忽略 */ } }
+  }, [d && d.name, d && d.phase, d && d.open])
   if (!d || !d.open) return null
   const lang = d.bodyLang === 'zh' && d.mdZh ? 'zh' : 'en'
   const md = lang === 'zh' ? d.mdZh : d.mdEn
+  // 复制按钮复制的是当前正在看的那一份：切到中文就复制译文包的路径。
+  const copyPath = (lang === 'zh' && d.pathZh) ? d.pathZh : d.docPath
   const title = (lang === 'zh' ? d.titleZh : d.titleEn) || d.titleEn || ('/' + (d.name || ''))
   const heads = pixelDocHeadings(md || '').filter(function (x: PixelHeading) { return x.level >= 2 }).map(function (x: PixelHeading) { return x.text })
-  const canTranslate = d.dshLang !== 'en' && !!d.mdZh
+  // 只要随包带中文译文就出这颗按钮（2026-10-10 人拍板）：DSH 开英文时人照样想对照中文版。
+  const canTranslate = !!d.mdZh
   const toTop = function (): void { try { if (bodyRef.current) bodyRef.current.scrollTop = 0 } catch (e) { /* 忽略 */ } }
   const jump = function (i: number): void {
     try {
@@ -141,7 +154,12 @@ export const PixelSkillDetailModal = function (props?: PixelSkillDetailModalProp
       canTranslate ? h(PixelBtn, { key: 'l', hot: true, onClick: function () { pixelToggleDetailLang(s) } }, lang === 'en' ? tr('sd.toZh') : tr('sd.toEn')) : null,
       h(PixelBtn, { key: 'x', onClick: function () { pixelCloseDetail(s) } }, tr('sd.close')),
     ]),
-    h(PixelStatusLine, { key: 'st', icon: icon, text: d.phaseText || tr('sd.idle') }),
+    stGone ? null : h(PixelStatusLine, {
+      key: 'st',
+      icon: icon,
+      texts: d.phase === 'loading' ? [tr('sd.fetch'), tr('sd.parse'), tr('sd.layout')] : null,
+      text: d.phaseText || tr('sd.idle'),
+    }),
     h('div', {
       key: 'body',
       ref: bodyRef,
@@ -158,7 +176,7 @@ export const PixelSkillDetailModal = function (props?: PixelSkillDetailModalProp
       body,
     ]),
     h('div', { key: 'bot', className: 'pixel-bot' }, [
-      d.copyText ? h(PixelBtn, { key: 'c', onClick: function () { pixelCopyDetailLink(s, d.copyText) } }, d.copied ? tr('sd.copied') : (d.docPath ? tr('sd.copyPath') : tr('sd.copy'))) : null,
+      d.copyText ? h(PixelBtn, { key: 'c', onClick: function () { pixelCopyDetailLink(s, copyPath) } }, d.copied ? tr('sd.copied') : (copyPath ? tr('sd.copyPath') : tr('sd.copy'))) : null,
       (!d.isMissing && d.phase === 'error' && typeof p.onRetry === 'function') ? h(PixelBtn, { key: 'r', onClick: function () { (p.onRetry as (name: string) => void)(d.name as string) } }, tr('sd.retry')) : null,
       h('span', { key: 'f', style: { flex: 1 } }),
       h(PixelBtn, { key: 't', mini: true, onClick: toTop }, tr('sd.top')),

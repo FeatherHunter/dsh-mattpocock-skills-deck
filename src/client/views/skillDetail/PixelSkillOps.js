@@ -41,7 +41,7 @@ export const pixelOpenDetail = function(st, name, item) {
     mdEn: null,
     mdZh: null,
     shortDesc: use,
-    // 正文恒英文：随包原文只有英文一份，中文译文包不在本票范围（888 的另一笔）。
+    // 正文默认英文原文；随包若带中文译文（SKILL.zh.md），弹窗上那颗「中文」按钮就能切过去。
     bodyLang: "en",
     phase: "loading",
     phaseText: tr("sd.fetch"),
@@ -59,6 +59,8 @@ export const pixelOpenDetail = function(st, name, item) {
     created.mdEn = cached.md;
     created.docPath = cached.path;
     created.copyText = cached.path;
+    created.mdZh = cached.mdZh;
+    created.pathZh = cached.pathZh;
     created.phase = "ready";
     created.phaseText = tr("sd.readyHit");
     try {
@@ -99,8 +101,12 @@ export const pixelOpenDetail = function(st, name, item) {
     pixelClearSkel();
     if (res && res.ok === true && res.md) {
       const docPath = String(res && res.path || "");
-      pixelDetailCache[name] = { md: String(res.md), path: docPath };
+      const zh = res && res.mdZh ? String(res.mdZh) : "";
+      const zhPath = zh ? String(res && res.pathZh || "") : "";
+      pixelDetailCache[name] = { md: String(res.md), path: docPath, mdZh: zh || null, pathZh: zhPath || null };
       d.mdEn = String(res.md);
+      d.mdZh = zh || null;
+      d.pathZh = zhPath || null;
       d.copyText = docPath || null;
       d.docPath = docPath || null;
       d.phase = "ready";

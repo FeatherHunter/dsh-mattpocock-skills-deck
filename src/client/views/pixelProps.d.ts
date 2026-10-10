@@ -35,6 +35,8 @@ export interface PixelBannerProps {
 export interface PixelStatusLineProps {
   icon?: string;
   text?: string;
+  /** 节奏话（2026-10-10 人拍板）：给了就按顺序 1 秒一句轮播，不给就只画 text。 */
+  texts?: string[] | null;
 }
 export interface PixelSkillItem {
   name: string;
@@ -101,6 +103,8 @@ export interface PixelDetailState {
   dshLang?: string;
   copyText?: string | null;
   docPath?: string | null;
+  /** 中文译文包（SKILL.zh.md）的绝对路径；没有译文时为空。 */
+  pathZh?: string | null;
   copied?: boolean;
   showSkel?: boolean;
 }
