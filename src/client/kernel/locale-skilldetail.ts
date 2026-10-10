@@ -32,6 +32,8 @@ export const L_SKILLDETAIL: { zh: Record<string, string>; en: Record<string, str
     'sd.miss': '这篇没有随包原文',
     'sd.missBody': '包里没有这一篇，不编内容。下面保留短描述：',
     'sd.noBody': '正文没拿到，原因见上面横幅，点重试再拉一次。',
+    // 详情栈：人看得到自己压了几层，也知道上限是三层（2026-10-10 人拍板）。
+    'sd.stack': '第 {n} 层 / 共 {m} 层',
     'sd.toZh': '中文',
     'sd.toEn': 'EN',
     'sd.openLink': '原图链接',
@@ -59,6 +61,7 @@ export const L_SKILLDETAIL: { zh: Record<string, string>; en: Record<string, str
     'sd.miss': 'No bundled copy for this one',
     'sd.missBody': 'There is no bundled copy for this one, so nothing is made up. Short description kept:',
     'sd.noBody': 'Body not loaded, see the banner above. Retry to fetch again.',
+    'sd.stack': 'Layer {n} of {m}',
     'sd.toZh': '中文',
     'sd.toEn': 'EN',
     'sd.openLink': 'Open link',

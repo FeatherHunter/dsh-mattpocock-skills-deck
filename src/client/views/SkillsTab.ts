@@ -70,14 +70,27 @@ export const SkillsTab = ({ st }: any): any => {
       const head = h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 } }, [
         h('div', { className: 'dsws-grp', style: { margin: 0 } }, [Ic({ n: 'compass', size: 12 }), h('span', null, recTitle)]),
       ])
+      // 推荐条也能点开（2026-10-10 人拍板）：详情开着时它就在详情上方，点一下再压一层，看的还是详情。
+      const openSkill = function (name: string): void {
+        if (typeof pixelOpenDetail === 'function') pixelOpenDetail(st, name, itemOf(name))
+      }
       const chips = h('div', { style: { marginBottom: 8 } }, rec.map(function (r, i) {
-        return h('span', { key: i, className: 'dsws-chip dsws-chip-m' }, '/' + r)
+        return h('span', {
+          key: i,
+          className: 'dsws-chip dsws-chip-m pixel-chipref',
+          role: 'button',
+          tabIndex: 0,
+          onClick: function () { openSkill(r) },
+        }, '/' + r)
       }))
       // 详情占满中间区域：列表换成详情本体（不再叠一层遮罩小窗），关闭即回到列表。
       const detail = h(PixelSkillDetailModal, {
         st: st,
         full: true,
         onRetry: function () { if (typeof pixelRetryDetail === 'function') pixelRetryDetail(st) },
+        // 正文里的 /技能名 点一下就压一层新的详情（2026-10-10 人拍板）。
+        onOpenSkill: openSkill,
+        skillNames: items.map(function (it: PixelSkillItem) { return it.name }),
       })
       const list = h(PixelSkillList, {
         items: items,

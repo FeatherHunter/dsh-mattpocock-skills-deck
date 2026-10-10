@@ -12,6 +12,20 @@ export const PixelMarkdown = function(props) {
   const cx = React.useContext(DswsCtx);
   const h = cx ? cx.h : React.createElement;
   const st = p.st || null;
+  const skillSet = (function() {
+    const names = p.skillNames;
+    if (!names || !names.length) return null;
+    const s = {};
+    for (let i2 = 0; i2 < names.length; i2++) s[String(names[i2])] = true;
+    return s;
+  })();
+  const skillRefOf = function(code) {
+    if (!skillSet || typeof p.onSkill !== "function") return null;
+    const text = String(code || "").trim();
+    const name = text.charAt(0) === "/" ? text.slice(1) : text;
+    if (!/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(name)) return null;
+    return skillSet[name] ? name : null;
+  };
   let k = 0;
   const key = function() {
     k += 1;
@@ -122,6 +136,21 @@ export const PixelMarkdown = function(props) {
     };
     let rest = String(text == null ? "" : text);
     rest = rest.replace(/`([^`]+)`/g, function(all, code) {
+      const ref = skillRefOf(code);
+      if (ref) {
+        return mark(h("code", {
+          key: key(),
+          className: "pixel-skillref",
+          role: "button",
+          tabIndex: 0,
+          onClick: function() {
+            try {
+              p.onSkill(ref);
+            } catch (e) {
+            }
+          }
+        }, code));
+      }
       return mark(h("code", { key: key() }, code));
     });
     rest = rest.replace(/\\([*_`~\[\]()#!>\\\\])/g, function(all, ch) {

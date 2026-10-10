@@ -59,6 +59,18 @@ export const PIXEL_STYLE_TEXT: string[] = [
   ".pixel-doc code{font:400 12px ui-monospace,Menlo,Consolas,monospace;background:var(--pixel-card);color:var(--pixel-ink);padding:1px 6px;border:2px solid var(--pixel-frame);box-shadow:2px 2px 0 var(--pixel-shadow);white-space:nowrap}",
   ".pixel-doc pre code{background:none;border:none;box-shadow:none;padding:0;color:inherit;font:inherit;white-space:pre-wrap}",
   ".pixel-doc a{color:var(--pixel-link)}",
+  // 正文里能点开的技能名（2026-10-10 人拍板）：平时跟普通代码一模一样，指上去才亮出焦点色边框，
+  // 免得整篇正文到处是彩色。推荐条那几颗 chip 同理。
+  ".pixel-doc code.pixel-skillref{cursor:pointer}",
+  ".pixel-doc code.pixel-skillref:hover,.pixel-doc code.pixel-skillref:focus-visible{background:var(--pixel-hi);border-color:var(--pixel-acc);box-shadow:2px 2px 0 var(--pixel-acc);outline:none}",
+  ".pixel-tab .dsws-chip.pixel-chipref{cursor:pointer}",
+  ".pixel-tab .dsws-chip.pixel-chipref:hover,.pixel-tab .dsws-chip.pixel-chipref:focus-visible{background:var(--pixel-hi);border-color:var(--pixel-acc);box-shadow:2px 2px 0 var(--pixel-acc);outline:none}",
+  // 顶栏在窄面板里不许挤成两行：标题一行（放不下就省略号），按钮与层号牌各自不换行。
+  ".pixel-top>span:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}",
+  ".pixel-top .pixel-btn{white-space:nowrap;flex:none}",
+  ".pixel-top .pixel-stack{flex:none}",
+  // 栈深牌：第 n 层 / 共 m 层（详情栈最多三层，超过就把最深的挤掉）
+  ".pixel-stack{font:700 11px ui-monospace,Menlo,Consolas,monospace;background:var(--pixel-card);color:var(--pixel-ink2);border:2px solid var(--pixel-frame);padding:0 6px;white-space:nowrap}",
   // 粗体要真的更重：代码徽章自己写着 font-weight:700，会把外层 <strong> 的加粗盖掉，
   // 于是 `**\`/grill-with-docs\`**` 看起来跟普通代码一样。
   ".pixel-doc strong{font-weight:800}",

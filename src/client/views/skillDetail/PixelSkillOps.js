@@ -17,9 +17,22 @@ const pixelLangOf = function() {
   }
   return "zh";
 };
-const pixelFail = function(st, name, isMissing) {
-  const d = st && st.pixelDetail;
-  if (!d || d.name !== name) return;
+const PIXEL_STACK_MAX = 3;
+const pixelStackOf = function(st) {
+  if (!Array.isArray(st.pixelDetailStack)) st.pixelDetailStack = [];
+  return st.pixelDetailStack;
+};
+const pixelSyncTop = function(st) {
+  const s = pixelStackOf(st);
+  st.pixelDetail = s.length ? s[s.length - 1] : null;
+};
+const pixelAlive = function(st, created) {
+  const s = Array.isArray(st.pixelDetailStack) ? st.pixelDetailStack : [];
+  return s.indexOf(created) >= 0;
+};
+const pixelFail = function(st, created, isMissing) {
+  const d = created;
+  if (!d || !pixelAlive(st, d)) return;
   pixelClearSkel();
   d.phase = "error";
   d.isMissing = !!isMissing;
@@ -30,49 +43,11 @@ const pixelFail = function(st, name, isMissing) {
   } catch (e) {
   }
 };
-export const pixelOpenDetail = function(st, name, item) {
-  if (!st || !name) return;
-  const use = item && item.use || "";
-  st.pixelDetail = {
-    open: true,
-    name,
-    titleEn: "/" + name,
-    titleZh: "/" + name,
-    mdEn: null,
-    mdZh: null,
-    shortDesc: use,
-    // 正文默认英文原文；随包若带中文译文（SKILL.zh.md），弹窗上那颗「中文」按钮就能切过去。
-    bodyLang: "en",
-    phase: "loading",
-    phaseText: tr("sd.fetch"),
-    isMissing: false,
-    dshLang: pixelLangOf(),
-    showSkel: false
-  };
-  try {
-    if (typeof emit === "function") emit(st);
-  } catch (e) {
-  }
-  const created = st.pixelDetail;
-  const cached = pixelDetailCache[name];
-  if (cached) {
-    created.mdEn = cached.md;
-    created.docPath = cached.path;
-    created.copyText = cached.path;
-    created.mdZh = cached.mdZh;
-    created.pathZh = cached.pathZh;
-    created.phase = "ready";
-    created.phaseText = tr("sd.readyHit");
-    try {
-      if (typeof emit === "function") emit(st);
-    } catch (e) {
-    }
-    return;
-  }
+const pixelLoad = function(st, created, name) {
   pixelClearSkel();
   pixelSkelTimer = setTimeout(function() {
-    const d = st.pixelDetail;
-    if (!d || d.name !== name || d.phase !== "loading") return;
+    const d = created;
+    if (!d || !pixelAlive(st, d) || d.phase !== "loading") return;
     d.showSkel = true;
     try {
       if (typeof emit === "function") emit(st);
@@ -87,7 +62,7 @@ export const pixelOpenDetail = function(st, name, item) {
     pending = null;
   }
   if (!pending || typeof pending.then !== "function") {
-    pixelFail(st, name, false);
+    pixelFail(st, created, false);
     return;
   }
   pending.then(function(res) {
@@ -96,8 +71,8 @@ export const pixelOpenDetail = function(st, name, item) {
       else log("warn", "host.call.fail", { method: "skill.readDoc", kind: "skill-doc", errorHash: dswsLogHash(dswsLogTrunc(String("skill-doc-not-ok"), 120, "error")) });
     } catch (eL) {
     }
-    const d = st.pixelDetail;
-    if (!d || d.name !== name) return;
+    const d = created;
+    if (!d || !pixelAlive(st, d)) return;
     pixelClearSkel();
     if (res && res.ok === true && res.md) {
       const docPath = String(res && res.path || "");
@@ -118,25 +93,84 @@ export const pixelOpenDetail = function(st, name, item) {
       }
       return;
     }
-    pixelFail(st, name, true);
+    pixelFail(st, created, true);
   }, function(e) {
     try {
       log("warn", "host.call.fail", { method: "skill.readDoc", kind: "skill-doc", errorHash: dswsLogHash(dswsLogTrunc(String(e && e.message || e), 120, "error")) });
     } catch (eL) {
     }
-    pixelFail(st, name, false);
+    pixelFail(st, created, false);
   });
+};
+export const pixelOpenDetail = function(st, name, item) {
+  if (!st || !name) return;
+  const use = item && item.use || "";
+  const stack = pixelStackOf(st);
+  const top = stack[stack.length - 1];
+  if (top && top.name === name && top.phase !== "error") return;
+  const created = {
+    open: true,
+    name,
+    titleEn: "/" + name,
+    titleZh: "/" + name,
+    mdEn: null,
+    mdZh: null,
+    shortDesc: use,
+    // 正文默认英文原文；随包若带中文译文（SKILL.zh.md），弹窗上那颗「中文」按钮就能切过去。
+    bodyLang: "en",
+    phase: "loading",
+    phaseText: tr("sd.fetch"),
+    isMissing: false,
+    dshLang: pixelLangOf(),
+    showSkel: false
+  };
+  stack.push(created);
+  while (stack.length > PIXEL_STACK_MAX) stack.shift();
+  pixelSyncTop(st);
+  try {
+    if (typeof emit === "function") emit(st);
+  } catch (e) {
+  }
+  const cached = pixelDetailCache[name];
+  if (cached) {
+    created.mdEn = cached.md;
+    created.docPath = cached.path;
+    created.copyText = cached.path;
+    created.mdZh = cached.mdZh;
+    created.pathZh = cached.pathZh;
+    created.phase = "ready";
+    created.phaseText = tr("sd.readyHit");
+    try {
+      if (typeof emit === "function") emit(st);
+    } catch (e) {
+    }
+    return;
+  }
+  pixelLoad(st, created, name);
 };
 export const pixelRetryDetail = function(st) {
   const d = st && st.pixelDetail;
   if (!d || !d.name) return;
   const name = d.name;
-  const use = d.shortDesc;
   try {
     delete pixelDetailCache[name];
   } catch (e) {
   }
-  pixelOpenDetail(st, name, { name, use });
+  d.mdEn = null;
+  d.mdZh = null;
+  d.docPath = null;
+  d.pathZh = null;
+  d.copyText = null;
+  d.copied = false;
+  d.phase = "loading";
+  d.phaseText = tr("sd.fetch");
+  d.isMissing = false;
+  d.showSkel = false;
+  try {
+    if (typeof emit === "function") emit(st);
+  } catch (e) {
+  }
+  pixelLoad(st, d, name);
 };
 export const pixelCloseDetailAndClean = function(st) {
   pixelClearSkel();

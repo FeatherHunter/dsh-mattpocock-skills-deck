@@ -2,7 +2,9 @@
  * views/skillDetail/PixelSkillDetailModal.ts — 技能详情弹窗的 TS 真源（887 TS 化，变体 A 定版）。
  * 契约：本文件为真源；构建经 esbuild 转译出同名 .js（AUTO-GENERATED 头），再剥行首 export
  * 拼回 src/client/index.js 的 `// ==== leaf:pixelSkillDetailModal (spliced by build) ====` 标记处。
- * 用法：PixelSkillDetailModal({st, onRetry})，读 st.pixelDetail，关着就画 null。
+ * 用法：PixelSkillDetailModal({st, onRetry, onOpenSkill, skillNames})，读 st.pixelDetail（＝详情栈栈顶），关着就画 null。
+ * 详情栈（2026-10-10 人拍板）：栈里最多三层；关一层露出上一层；超过三层时最深的被挤掉（在取数那边做）。
+ * 正文里的 /技能名 与顶部推荐条都能点开另一篇（onOpenSkill 由外层接上取数与压栈）。
  * st.pixelDetail = {open, name, titleEn, titleZh, mdEn, mdZh, shortDesc, bodyLang,
  *   phase, phaseText, isMissing, dshLang, copyText}，全由外层（888 取数通道）写。
  * 约定：①弹窗就地盖在父容器上（SwitchConfirmModal 同模式），父容器要 position:relative；
@@ -24,9 +26,14 @@ declare const PixelContents: (props?: PixelContentsProps) => any;
 declare const PixelMarkdown: (props?: PixelMarkdownProps) => any;
 declare const PixelSkeleton: (props?: PixelSkeletonProps) => any;
 declare function pixelDocHeadings(md?: string): PixelHeading[];
+/** 详情栈上限，与取数那边同一个数（超过就挤掉最深的）。 */
+declare const PIXEL_STACK_MAX: number;
+/** 关一层：弹掉栈顶，露出来的就是上一层（栈空了就回到列表）。人拍板 2026-10-10。 */
 export const pixelCloseDetail = function (s: PixelStore | null | undefined): void {
   if (!s) return
-  s.pixelDetail = null
+  const stack = Array.isArray(s.pixelDetailStack) ? s.pixelDetailStack : []
+  stack.pop()
+  s.pixelDetail = stack.length ? stack[stack.length - 1] : null
   try { if (typeof emit === 'function') emit(s) } catch (e) { /* 画布外自测时没有 emit */ }
 }
 export const pixelToggleDetailLang = function (s: PixelStore | null | undefined): void {
@@ -121,11 +128,12 @@ export const PixelSkillDetailModal = function (props?: PixelSkillDetailModalProp
       if (hs[i]) bodyRef.current.scrollTop = hs[i].offsetTop - 8
     } catch (e) { /* 忽略 */ }
   }
+  const depth = Array.isArray(s.pixelDetailStack) ? s.pixelDetailStack.length : 1
   const icon = d.phase === 'loading' ? 'loading' : d.phase === 'ready' ? 'ok' : d.phase === 'error' ? (d.isMissing ? 'warn' : 'err') : 'idle'
   const frame = d.phase === 'ready' ? 'pixel-f-ok' : d.phase === 'error' && !d.isMissing ? 'pixel-f-err pixel-shake' : ''
   let body: any = null
   if (d.phase === 'loading' && d.showSkel) body = h(PixelSkeleton, { key: 'b', lines: 3 })
-  else if (d.phase === 'ready') body = h(PixelMarkdown, { key: 'b', md: md, lang: lang, st: s })
+  else if (d.phase === 'ready') body = h(PixelMarkdown, { key: 'b', md: md, lang: lang, st: s, onSkill: p.onOpenSkill || null, skillNames: p.skillNames || null })
   else if (d.phase === 'error' && d.isMissing) {
     body = h('div', { key: 'b', className: 'pixel-doc', 'data-lang': lang }, [
       h('p', { key: 't' }, [h(PixelStateIcon, { key: 'i', kind: 'warn' }), h('b', { key: 'x' }, tr('sd.miss'))]),
@@ -144,6 +152,7 @@ export const PixelSkillDetailModal = function (props?: PixelSkillDetailModalProp
     h(PixelSeal, { key: 'seal' }),
     h('div', { key: 'top', className: 'pixel-top' }, [
       h('span', { key: 't' }, title),
+      depth > 1 ? h('span', { key: 'ly', className: 'pixel-stack' }, tr('sd.stack', { n: String(depth), m: String(PIXEL_STACK_MAX) })) : null,
       h('span', { key: 'f', style: { flex: 1 } }),
       canTranslate ? h(PixelBtn, { key: 'l', hot: true, onClick: function () { pixelToggleDetailLang(s) } }, lang === 'en' ? tr('sd.toZh') : tr('sd.toEn')) : null,
       h(PixelBtn, { key: 'x', onClick: function () { pixelCloseDetail(s) } }, tr('sd.close')),

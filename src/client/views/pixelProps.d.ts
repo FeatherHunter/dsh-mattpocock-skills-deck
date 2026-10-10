@@ -67,6 +67,10 @@ export interface PixelMarkdownProps {
   md?: string;
   lang?: string;
   st?: any;
+  /** 点开另一篇技能（2026-10-10 人拍板）：给了它，正文里的 /技能名 才做成可点的入口。 */
+  onSkill?: ((name: string) => void) | null;
+  /** 哪些名字算技能：只有随包真有的那些做成入口，别的一律原样当代码。 */
+  skillNames?: string[] | null;
 }
 export interface PixelHeading {
   level: number;
@@ -110,6 +114,11 @@ export interface PixelDetailState {
 }
 export interface PixelStore {
   pixelDetail?: PixelDetailState | null;
+  /**
+   * 详情栈（2026-10-10 人拍板）：从详情里点开另一篇就压一层，关一层就回到上一层。
+   * 最多三层，最后一个是当前看的那一层；st.pixelDetail 恒等于栈顶（老读法不用改）。
+   */
+  pixelDetailStack?: PixelDetailState[] | null;
   pixelImgOverlay?: { src?: string; alt?: string } | null;
 }
 export interface PixelSkillDetailModalProps {
@@ -117,4 +126,8 @@ export interface PixelSkillDetailModalProps {
   onRetry?: ((name: string) => void) | null;
   /** true＝占满页签中间区域（列表已让位），不铺遮罩；缺省是盖在页面上的居中弹窗 */
   full?: boolean;
+  /** 正文里点开另一篇技能：由外层接上取数与压栈（没有它，正文里的技能名只是普通代码）。 */
+  onOpenSkill?: ((name: string) => void) | null;
+  /** 随包真有的技能名清单，交给正文渲染器判断哪些名字可以点。 */
+  skillNames?: string[] | null;
 }

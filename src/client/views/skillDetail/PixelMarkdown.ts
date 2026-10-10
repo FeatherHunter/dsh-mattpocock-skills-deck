@@ -2,7 +2,9 @@
  * views/skillDetail/PixelMarkdown.ts — 像素风 Markdown 渲染的 TS 真源（887 TS 化，中组件）。
  * 契约：本文件为真源；构建经 esbuild 转译出同名 .js（AUTO-GENERATED 头），再剥行首 export
  * 拼回 src/client/index.js 的 `// ==== leaf:pixelMarkdown (spliced by build) ====` 标记处。
- * 用法：PixelMarkdown({md, lang, st})；pixelDocHeadings(md) 纯函数抽标题给目录用。
+ * 用法：PixelMarkdown({md, lang, st, onSkill, skillNames})；pixelDocHeadings(md) 纯函数抽标题给目录用。
+ * onSkill 与 skillNames 都给了的时候，正文里写到的**随包真有的技能名**（`/grill-with-docs` 或 `grilling`）
+ * 才做成可点的入口，点了压一层新的详情（2026-10-10 人拍板）；没给或名字对不上就原样当代码画。
  * 白名单与 views/shared/md.js 对齐（标题/分割线/引用/列表/任务列表/代码块/加粗/斜体/
  * 行内代码/删除线/链接/图片），只有两处不同：①列表支持缩进嵌套（生产渲染器会拍平，
  * 详情页要忠于原文，见 887 票面记录）；②画出来的全是 pixel- 类，由 pxSkillStyles 着色，
@@ -23,6 +25,22 @@ export const PixelMarkdown = function (props?: PixelMarkdownProps): any {
   const cx = React.useContext(DswsCtx)
   const h = cx ? cx.h : React.createElement
   const st = p.st || null
+  // 正文里能点开的技能名（2026-10-10 人拍板）：只有随包真有的那些做成入口，别的原样当代码。
+  // 认两种写法：`/grill-with-docs`（带斜杠）与 `grilling`（不带），名字必须整个对上。
+  const skillSet = (function (): any {
+    const names = p.skillNames
+    if (!names || !names.length) return null
+    const s: Record<string, boolean> = {}
+    for (let i = 0; i < names.length; i++) s[String(names[i])] = true
+    return s
+  })()
+  const skillRefOf = function (code: string): string | null {
+    if (!skillSet || typeof p.onSkill !== 'function') return null
+    const text = String(code || '').trim()
+    const name = text.charAt(0) === '/' ? text.slice(1) : text
+    if (!/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(name)) return null
+    return skillSet[name] ? name : null
+  }
   let k = 0
   const key = function (): string { k += 1; return 'pxd' + k }
   const openImg = function (src: string, alt: string): void {
@@ -118,6 +136,16 @@ export const PixelMarkdown = function (props?: PixelMarkdownProps): any {
     let rest = String(text == null ? '' : text)
     // ① 代码跨度：原子，最高优先级
     rest = rest.replace(/`([^`]+)`/g, function (all: string, code: string) {
+      const ref = skillRefOf(code)
+      if (ref) {
+        return mark(h('code', {
+          key: key(),
+          className: 'pixel-skillref',
+          role: 'button',
+          tabIndex: 0,
+          onClick: function () { try { (p.onSkill as (n: string) => void)(ref) } catch (e) { /* 忽略 */ } },
+        }, code))
+      }
       return mark(h('code', { key: key() }, code))
     })
     // ② 反斜杠转义：\* 这类写法要出原样的字符，且不得再参与强调与链接解析（原文里 0 处，属边角，

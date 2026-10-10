@@ -47,15 +47,31 @@ export const SkillsTab = ({ st }) => {
   const head = h("div", { style: { display: "flex", alignItems: "center", gap: 6, marginBottom: 6 } }, [
     h("div", { className: "dsws-grp", style: { margin: 0 } }, [Ic({ n: "compass", size: 12 }), h("span", null, recTitle)])
   ]);
+  const openSkill = function(name) {
+    if (typeof pixelOpenDetail === "function") pixelOpenDetail(st, name, itemOf(name));
+  };
   const chips = h("div", { style: { marginBottom: 8 } }, rec.map(function(r, i) {
-    return h("span", { key: i, className: "dsws-chip dsws-chip-m" }, "/" + r);
+    return h("span", {
+      key: i,
+      className: "dsws-chip dsws-chip-m pixel-chipref",
+      role: "button",
+      tabIndex: 0,
+      onClick: function() {
+        openSkill(r);
+      }
+    }, "/" + r);
   }));
   const detail = h(PixelSkillDetailModal, {
     st,
     full: true,
     onRetry: function() {
       if (typeof pixelRetryDetail === "function") pixelRetryDetail(st);
-    }
+    },
+    // 正文里的 /技能名 点一下就压一层新的详情（2026-10-10 人拍板）。
+    onOpenSkill: openSkill,
+    skillNames: items.map(function(it) {
+      return it.name;
+    })
   });
   const list = h(PixelSkillList, {
     items,
