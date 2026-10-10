@@ -75,7 +75,10 @@ const EXPECT_BACKEND_KEYS = { github: 8, gitlab: 6, markdown: 4 }
 // #716：github +4（commandVocabulary 的 cli/cliBrand + cliInstall 的 zh/en，同时 subIssue 与 healthCheck 改写、
 //   ensureLabels 与 repoAccessFix 去命令，净 +4）、gitlab +2、markdown +1。
 // #725：正文格式那条声明删掉后，字面量各减 2（zh/en 两份）：46/14/9 → 44/12/7。
-const EXPECT_BACKEND_LITERALS = { github: 44, gitlab: 12, markdown: 7 }
+// #993/#994（2026-10-10）：github 的 prompts.errorKinds 新增两档 —— 'git-ownership' 与 'unknown'（各一条 zh/en
+//   短文案，外加两行解释注释也是字符串字面量），44 → 50。这两档是「创建并发布」失败时给用户看的文案，
+//   修法提示与原文另走界面那两条路，不放这里，所以只加两条短句。
+const EXPECT_BACKEND_LITERALS = { github: 50, gitlab: 12, markdown: 7 }
 // #664：宿主那份「怎么装 gh」的长文（GH_INSTALL_PROMPT）按新流程退役，此后很长一段时间 src/host 全树一个
 //   *_PROMPT 常量都没有（本行原为 0）。#839 起有一个真的了：src/host/gitCredentialExec.js 的
 //   GIT_TERMINAL_PROMPT: '0'（非交互环境那一条固定前缀）。门禁口径是「≥ 这个数」，合法新增不判红，
@@ -1532,7 +1535,7 @@ const selfDigest = function () {
 const LOCK = {
   'tests/prompt-gate-exempt.json': 'c661ccd0fbfd46aa99790c073d0ccea89ebf5787a9113462c092b17c72a2a2d9',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.js': 'b5fb9ab459512710edf28d3fce3f0d85930dd2ae53d16f0406443d237be1f62b',
+  'tests/verify-prompts.js': 'cfcf6f07ec1850698baea7e4e64deea6fe10d515bffb667927c654cf0b5dc765',
 }
 // ---- LOCK-END ----
 
