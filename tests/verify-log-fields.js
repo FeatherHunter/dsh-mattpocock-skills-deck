@@ -22,7 +22,7 @@ const ALLOWED = {
   'snapshot.cache.hit': ['kind', 'ageMs'],
   'snapshot.cache.miss': ['reason'],
   'repo.resolve.tier': ['tier', 'ok', 'latencyMs'],
-  'gh.exec': ['argv0', 'cwdHash', 'latencyMs', 'kind', 'exitCode'],
+  'gh.exec': ['argv0', 'cwdHash', 'latencyMs', 'waitedMs', 'kind', 'exitCode'],
   'gh.timeout': ['argv0', 'timeoutMs'],
   'gh.resolve.fail': ['hasDSH_GH_PATH', 'errorHash'],
   'graphql.fallback': ['scope', 'reason'],
@@ -184,7 +184,7 @@ const ALLOWED = {
 // gh.exec 五键、gh.timeout 两键、gh.resolve.fail 两键，
 // graphql.fallback 与 issues.fallback 各自两键与三键，error.normalize 两键加可选状态码。
 const ROOM_SHAPES = {
-  'gh.exec': ['argv0', 'cwdHash', 'latencyMs', 'kind', 'exitCode'],
+  'gh.exec': ['argv0', 'cwdHash', 'latencyMs', 'waitedMs', 'kind', 'exitCode'],
   'gh.timeout': ['argv0', 'timeoutMs'],
   'gh.resolve.fail': ['hasDSH_GH_PATH', 'errorHash'],
   'graphql.fallback': ['scope', 'reason'],

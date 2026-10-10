@@ -123,10 +123,12 @@ export function ghClient(ctx) {
   }
 
   // #5 gh.exec（信息，常驻）：高频路径，外层先判开关，关闭时不组装字段。
-  function emitGhExec(kind, exitCode, t0, cwd) {
+  // #1007 起多记一格 waitedMs：这一笔在名额队列里等了多久（没等就是 0）。
+  // 有了这一格，「名额到底有没有挡过路、挡了多久」以后由日志回答，不用再靠猜着调数字。
+  function emitGhExec(kind, exitCode, t0, cwd, waitedMs) {
     try {
       if (!roomInfoEnabled(ctx)) return
-      roomLogEvent(ctx, 'info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || ''), latencyMs: Date.now() - t0, kind: String(kind || 'unknown'), exitCode: typeof exitCode === 'number' ? exitCode : -1 })
+      roomLogEvent(ctx, 'info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || ''), latencyMs: Date.now() - t0, waitedMs: (typeof waitedMs === 'number' && isFinite(waitedMs) && waitedMs > 0) ? Math.floor(waitedMs) : 0, kind: String(kind || 'unknown'), exitCode: typeof exitCode === 'number' ? exitCode : -1 })
     } catch {}
   }
 
@@ -161,6 +163,8 @@ export function ghClient(ctx) {
     let selfTimedOut = false
     let deadlineTimer = null
     let deadlineResolve = null
+    // 这一笔在名额队列里等了多久（#1007：gh.exec 多记这一格，answer「名额有没有挡过路」）。
+    let slotWaitedMs = 0
     // 到点这件事要能「掀桌子」：光是把信号中止还不够 —— 执行器要是不理中止、那个 promise 就一直不落地，
     // 所以另备一个只用来宣告到点的 promise，把它与每一步真正在等的东西赛跑（见 raceDeadline）。
     const deadlineHit = ctrl ? new Promise(function (res) { deadlineResolve = res }) : null
@@ -190,7 +194,7 @@ export function ghClient(ctx) {
     }
     /** 房内到点的统一回执：横幅按超时记，内容说清等了多久、是哪一档。 */
     function selfTimeoutOutcome() {
-      emitGhExec('network', -1, t0, cwd)
+      emitGhExec('network', -1, t0, cwd, slotWaitedMs)
       emitGhTimeout(timeout)
       return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: 'gh 在 ' + timeout + ' 毫秒内没有回话（房内分档超时：读 12 秒 / 写 30 秒 / 探活 3 秒），这一笔已经中止', code: -1, timedOut: true } }
     }
@@ -200,10 +204,12 @@ export function ghClient(ctx) {
       const acquired = await raceDeadline(getGhLane().acquire({ bucket: bucket, signal: laneSignal || undefined }))
       if (acquired && acquired.__deadlineHit === true) { clearDeadline(); return selfTimeoutOutcome() }
       release = acquired
+      // #1007：这一笔在名额队列里等了多久（给 gh.exec 那一格记，答「名额到底有没有挡过路」）。
+      slotWaitedMs = Date.now() - t0
     } catch (eAcquire) {
       if (selfTimedOut) { clearDeadline(); return selfTimeoutOutcome() }
       clearDeadline()
-      emitGhExec('cancelled', -1, t0, cwd)
+      emitGhExec('cancelled', -1, t0, cwd, slotWaitedMs)
       return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: '已取消排队（出站准入等待中被取消），没有发出请求，可重试', code: -1, cancelled: true } }
     }
     try {
@@ -246,13 +252,13 @@ export function ghClient(ctx) {
         const elapsedMs = Date.now() - t0
         const looksTimeout = isTimeoutText(stderr) || isTimeoutText(stdout) || (code === -1 && elapsedMs >= timeout - 50)
         const kind = looksTimeout ? ERROR_KIND.NETWORK : ((code === -1 && !stderr && !stdout) ? ERROR_KIND.ENV : classifyGhError(err, ctx))
-        emitGhExec(kind, code, t0, cwd)
+        emitGhExec(kind, code, t0, cwd, slotWaitedMs)
         if (looksTimeout) emitGhTimeout(timeout)
         // #620：退出码要一起交回调用方。gh 自己的约定是「需要登录 = 退出码 4」（gh help exit-codes），
         // 只靠错误文案里的词去猜「是不是没登录」是巧合匹配；这里把 code 带上，分类才站得住。
         return { ok: false, error: { kind, message: String(stderr || stdout || err.message).slice(0, 800), code } }
       }
-      emitGhExec('ok', 0, t0, cwd)
+      emitGhExec('ok', 0, t0, cwd, slotWaitedMs)
       // #966 收口：写成功记一笔搭车账，写过东西之后来的探测不搭旧车。
       try { if (bucket === 'write') getChainRide().markWrite() } catch {}
       return { ok: true, data: { stdout, stderr, code } }
@@ -263,11 +269,11 @@ export function ghClient(ctx) {
       if (selfTimedOut) return selfTimeoutOutcome()
       // #969：调用方取消（排队/在飞中被杀）按取消返回，不算失败；其余照旧归一。
       if (isAdmissionCancelled(e) || (signal && signal.aborted === true)) {
-        emitGhExec('cancelled', -1, t0, cwd)
+        emitGhExec('cancelled', -1, t0, cwd, slotWaitedMs)
         return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: '已取消（没有发出有效请求，可重试）', code: -1, cancelled: true } }
       }
       const kind = classifyGhError(e, ctx)
-      emitGhExec(kind, -1, t0, cwd)
+      emitGhExec(kind, -1, t0, cwd, slotWaitedMs)
       const looksTimeout = isTimeoutText((e && (e.message || e.stderr)) || e) || elapsedMs >= timeout - 50
       if (looksTimeout) emitGhTimeout(timeout)
       const message = String((e && (e.message || e.stderr)) || e || 'gh exec failed').slice(0, 800)

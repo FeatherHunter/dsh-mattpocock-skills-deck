@@ -180,7 +180,7 @@
 | 1 | snapshot.request | 信息 | cwdHash、工作区后端标识、force 是否强制 | H_CWD | R_WIN_ABS、R_HOME_PATH | index.js:1073 快照组装入口、297 找 gh |
 | 3 | snapshot.cache.miss | 信息 | reason 未命中原因（枚举 force、empty、version-mismatch、expired） | —（枚举不截断） | — | index.js:47 缓存超时、589 写盘 |
 | 4 | repo.resolve.tier | 信息 | tier 第几层、ok 是否成功、latencyMs 耗时 | —（不记地址原文） | R_REPO_URL | index.js:601、605-638 三层兜底 |
-| 5 | gh.exec | 信息 | argv0 命令名、cwdHash、latencyMs、kind 归一类别、exitCode 退出码 | H_CWD、B_TOKEN | R_TOKEN_BEARER、R_GH_TOKEN | index.js:311 运行 gh、340 类别归一 |
+| 5 | gh.exec | 信息 | argv0 命令名、cwdHash、latencyMs、waitedMs 在名额队列里等了多久（没等就是 0；#1007 加）、kind 归一类别、exitCode 退出码 | H_CWD、B_TOKEN | R_TOKEN_BEARER、R_GH_TOKEN | index.js:311 运行 gh、340 类别归一 |
 | 6 | gh.timeout | 告警 | argv0 命令名、timeoutMs 超时毫秒 | — | — | index.js:325 超时、338 |
 | 7 | gh.resolve.fail | 告警 | hasDSH_GH_PATH 是否配备用路径、errorHash 错误散列 | H_ERR | R_WIN_ABS | index.js:297、303-305 |
 | 8 | graphql.fallback | 告警 | scope 地图或单票、reason 降级原因（枚举） | — | — | index.js:945 配额判断、903、988 |

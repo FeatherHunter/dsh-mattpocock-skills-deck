@@ -33,7 +33,7 @@ const check = (cond, msg) => { if (!cond) { fail += 1; console.error('FAIL  ' + 
 
 const WS = '/ws/gate'
 const REF = { backend: 'github', refId: 'acme/demo', name: 'demo', url: '' }
-const GH_EXEC_FIELDS = ['argv0', 'cwdHash', 'latencyMs', 'kind', 'exitCode']
+const GH_EXEC_FIELDS = ['argv0', 'cwdHash', 'latencyMs', 'waitedMs', 'kind', 'exitCode']
 
 /** 从参数数组里读 `--flag value` 这种写法（不拼字符串再正则，标签名里可能有空格与冒号）。 */
 function flagsOf(args) {
