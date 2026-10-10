@@ -94,7 +94,6 @@ export function createDeckIssueGet(deps) {
     const effortId = (a.effortId === undefined || a.effortId === null) ? '' : String(a.effortId).trim()
     if (effortId) repo.effortId = effortId
     const first = Math.max(0, Math.min(200, Number(a.comments) > 0 ? Math.floor(Number(a.comments)) : 50))
-    const callerSignal = (exec && exec.signal && typeof exec.signal === 'object') ? exec.signal : undefined
     let sandbox = null
     try {
       if (typeof d.sandboxPolicyFor === 'function') {
@@ -103,7 +102,7 @@ export function createDeckIssueGet(deps) {
       }
     } catch (eS) { sandbox = null }
 
-    return shell.call({ tool: 'deck_issue_get', kind: 'read', session: s, pick: pick, repo: repo, estimate: est, sandbox: sandbox, signal: callerSignal }, async (c) => {
+    return shell.call({ tool: 'deck_issue_get', kind: 'read', session: s, pick: pick, repo: repo, estimate: est, sandbox: sandbox }, async (c) => {
       // 进预算壳：两次远端各有 30 秒单次钳制、可中止，超时只坏自己那一项；
       // 名册随上下文走，后端内部的定向重读能用上。成功路径的形状一字不动。
       const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), now: (typeof d.now === 'function') ? d.now : Date.now })

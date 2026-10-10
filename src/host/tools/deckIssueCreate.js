@@ -86,7 +86,6 @@ export function createDeckIssueCreate(deps) {
     const body = ensureBody(a.body, kind)
     const now = (typeof d.now === 'function') ? d.now() : Date.now()
     const anchor = a.idempotencyKey ? String(a.idempotencyKey) : anchorKeyFor({ tool: 'deck_issue_create', sessionId: s.sessionId, workspaceKey: s.workspaceKey, title: title, labels: ensured.labels, now: now })
-    const callerSignal = (exec && exec.signal && typeof exec.signal === 'object') ? exec.signal : undefined
     let sandbox = null
     try {
       if (typeof d.sandboxPolicyFor === 'function') {
@@ -95,7 +94,7 @@ export function createDeckIssueCreate(deps) {
       }
     } catch (eS) { sandbox = null }
 
-    return shell.call({ tool: 'deck_issue_create', kind: 'write', session: s, pick: pick, repo: repo, estimate: est, sandbox: sandbox, signal: callerSignal }, async (c) => {
+    return shell.call({ tool: 'deck_issue_create', kind: 'write', session: s, pick: pick, repo: repo, estimate: est, sandbox: sandbox }, async (c) => {
       const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), now: (typeof d.now === 'function') ? d.now : Date.now })
       const t = sc.tracker
       const opCtx = sc.opCtx

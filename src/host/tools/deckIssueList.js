@@ -90,7 +90,6 @@ export function createDeckIssueList(deps) {
     const effortId = (a.effortId === undefined || a.effortId === null) ? '' : String(a.effortId).trim()
     if (effortId) repo.effortId = effortId
 
-    const callerSignal = (exec && exec.signal && typeof exec.signal === 'object') ? exec.signal : undefined
     let sandbox = null
     try {
       if (typeof d.sandboxPolicyFor === 'function') {
@@ -99,7 +98,7 @@ export function createDeckIssueList(deps) {
       }
     } catch (eS) { sandbox = null }
 
-    return shell.call({ tool: 'deck_issue_list', kind: 'read', session: s, pick: pick, repo: repo, estimate: est, sandbox: sandbox, signal: callerSignal }, async (c) => {
+    return shell.call({ tool: 'deck_issue_list', kind: 'read', session: s, pick: pick, repo: repo, estimate: est, sandbox: sandbox }, async (c) => {
       const sc = withCallScope(c, exec, { timeoutMs: undefined, marginMs: undefined, now: (typeof d.now === 'function') ? d.now : Date.now })
       const t = sc.tracker
       const opCtx = sc.opCtx

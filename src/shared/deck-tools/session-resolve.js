@@ -32,7 +32,9 @@ export async function sessionContextOfAsync(exec, deps) {
   if (typeof d.canonicalKey !== 'function') return base
   let canon = ''
   try {
-    const raced = await withCap(d.canonicalKey(raw), CANONICAL_TIMEOUT_MS)
+    // 调用递延进 promise 链：同步抛错也变成拒绝，走下面同一条如实失败路，
+    // 与原来 try/await 同形（原来同步抛错也被 catch 接住）。
+    const raced = await withCap(Promise.resolve().then(function () { return d.canonicalKey(raw) }), CANONICAL_TIMEOUT_MS)
     // 超时、抛错都按算不出规范根走老路：如实失败，不凑钥匙、不沿用原文。
     if (!raced || raced.ok !== true) return { ok: false, reason: NO_SESSION, sessionId: base.sessionId, text: '这次没能把工作区目录归一到工作区根，所以我不动任何票。' }
     canon = raced.value

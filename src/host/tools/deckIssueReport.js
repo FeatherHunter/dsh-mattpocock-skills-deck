@@ -78,7 +78,6 @@ export function createDeckIssueReport(deps) {
     if (!pick.ok) return shell.unsupported('deck_issue_report', pick.reason, pick.text, { workspace: { root: s.cwd, key: s.workspaceKey }, cost: { estimated: est } })
     const repo = shell.repoOf(pick, s)
     if (effortId) repo.effortId = effortId
-    const callerSignal = (exec && exec.signal && typeof exec.signal === 'object') ? exec.signal : undefined
     let sandbox = null
     try {
       if (typeof d.sandboxPolicyFor === 'function') {
@@ -87,7 +86,7 @@ export function createDeckIssueReport(deps) {
       }
     } catch (eS) { sandbox = null }
 
-    return shell.call({ tool: 'deck_issue_report', kind: 'write', session: s, pick: pick, repo: repo, estimate: est, sandbox: sandbox, signal: callerSignal }, async (c) => {
+    return shell.call({ tool: 'deck_issue_report', kind: 'write', session: s, pick: pick, repo: repo, estimate: est, sandbox: sandbox }, async (c) => {
       const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), now: (typeof d.now === 'function') ? d.now : Date.now })
       const t = sc.tracker
       const opCtx = sc.opCtx

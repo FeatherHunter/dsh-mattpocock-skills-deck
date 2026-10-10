@@ -63,7 +63,6 @@ export function createDeckContext(deps) {
       })
     }
     const repo = shell.repoOf(pick, s)
-    const callerSignal = (exec && exec.signal && typeof exec.signal === 'object') ? exec.signal : undefined
     let sandbox = null
     try {
       if (typeof d.sandboxPolicyFor === 'function') {
@@ -72,7 +71,7 @@ export function createDeckContext(deps) {
       }
     } catch (eS) { sandbox = null }
 
-    return shell.call({ tool: 'deck_context', kind: 'read', session: s, pick: pick, repo: repo, estimate: est, sandbox: sandbox, signal: callerSignal }, async (c) => {
+    return shell.call({ tool: 'deck_context', kind: 'read', session: s, pick: pick, repo: repo, estimate: est, sandbox: sandbox }, async (c) => {
       // 进预算壳 + 两路并行：预检与清单互相独立，之前串行要等两份慢调用，
       // 并行后只等较慢的那一份。回包的字段与 notes 顺序与之前一致。
       const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), now: (typeof d.now === 'function') ? d.now : Date.now })
