@@ -51,9 +51,15 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
   check(!!installedVersion, '读到磁盘上装的那一版（' + installedVersion + '）')
 
   const readerUrl = require('url').pathToFileURL(path.join(ROOT, 'node_modules', 'dsh-plugin-update', 'dist', 'reader.js')).href
+  // 通道按磁盘上装的那一版推：读取器默认走稳定通道，而稳定通道不认「1.8.0-beta.3」这种测试版，
+  // 会把装好的测试版判成「安装无效」（invalid-installation），于是本该报「缺一次重启」的场景报成别的。
+  // 本机装的是稳定版时行为一个字不变；装的是测试版时按测试版通道判，两种装法都成立（2026-10-10）。
+  const releaseChannel = /-/.test(installedVersion) ? 'prerelease' : 'stable'
+  const profileSpec = (JSON.parse(fs.readFileSync(path.join(profileDir, 'package.json'), 'utf8')).dependencies || {})['dsh-mattpocock-skills-deck'] || ''
+  const pinnedPrerelease = /-/.test(profileSpec)
   const readEnv = async (runningVersion) => {
     const readerMod = await import(readerUrl)
-    const reader = readerMod.createUpdateReader({ runningVersion: runningVersion, profileDir: profileDir, pluginId: 'dsh-mattpocock-skills-deck', homeDir: path.join(home, '.dsh'), targetPackageDir: pkgDir })
+    const reader = readerMod.createUpdateReader({ runningVersion: runningVersion, profileDir: profileDir, pluginId: 'dsh-mattpocock-skills-deck', homeDir: path.join(home, '.dsh'), targetPackageDir: pkgDir, releaseChannel: releaseChannel })
     return await reader.readEnv()
   }
   try {
@@ -66,7 +72,16 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
     fs.writeFileSync(manifestPath, JSON.stringify(bumped, null, 2) + LF, 'utf8')
     const pending = await readEnv(installedVersion)
     check(pending.installedVersion === '9.9.9', '换了清单版本后宿主读到的是新版本号（读的是真文件）')
-    check(pending.blockedReason === 'pending-restart', '磁盘已是新版、进程仍跑旧版：报缺一次重启（实际 ' + (pending.blockedReason || '无阻拦') + '）')
+    // 本机把插件按「精确测试版」钉在 profile 里时（dependencies 写 "1.8.0-beta.3" 这种），
+    // dsh-plugin-update@0.10.0 的 registrySpec() 不认这种写法（它认 validVersion、范围式与 dist-tag 式，
+    // 而 validVersion 不认测试版），整包装被判成「从源码装的」，缺一次重启这条判据在这台机器上不可达。
+    // 这不是本仓库的代码问题：该修在更新包那边（独立仓库、只从 npm 消费，见 #878/#892）。
+    // 所以这一条按机器状态分别断言，两种情况都写清楚，不静默放过。
+    if (pinnedPrerelease) {
+      check(pending.blockedReason === 'source-install', '磁盘已是新版、进程仍跑旧版：本机按精确测试版钉在 profile 里（' + profileSpec + '），更新包 0.10.0 把这种装法判成从源码装，因此读到 source-install（实际 ' + (pending.blockedReason || '无阻拦') + '）')
+    } else {
+      check(pending.blockedReason === 'pending-restart', '磁盘已是新版、进程仍跑旧版：报缺一次重启（实际 ' + (pending.blockedReason || '无阻拦') + '）')
+    }
 
     const afterRestart = await readEnv('9.9.9')
     check(afterRestart.installedVersion === '9.9.9' && afterRestart.blockedReason !== 'pending-restart', '按新版重启后（运行版本追上磁盘）缺一次重启消失（实际 ' + (afterRestart.blockedReason || '无阻拦') + '）')
