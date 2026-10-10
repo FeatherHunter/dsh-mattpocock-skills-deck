@@ -36,8 +36,8 @@ export const PixelMarkdown = function (props?: PixelMarkdownProps): any {
   //   **a _b_ c** 25 处（粗体里套下划线强调）、[`code`](url) 3 处（链接标签本身是代码）、
   //   **[label](url)** 1 处（粗体包链接）；另有上百处代码跨度里带 *（glob 之类），
   //   那些星号必须原样，绝不能被当成强调标记。
-  // 次序：①代码跨度抽成原子（里面字符不再参与解析）；②图片；③链接（标签递归，共用同一张原子表）；
-  // ④剩下的文字上递归解析强调；⑤把原子填回（填回要下探到新建节点的子节点里，否则占位符会露在界面上）。
+  // 次序：①代码跨度抽成原子（里面字符不再参与解析）；②反斜杠转义出原样字符；③图片；
+  // ④链接（标签递归，共用同一张原子表）；⑤剩下文字上递归解析强调；⑥原子填回（填回要下探到新建节点的子节点里，否则占位符会露在界面上）。
   // 强调收口的两条细节：** 与 __ 要成对整串；单个 * 只认"孤立的星"收口，
   // 这样 *a **b** c* 反向嵌套也能正确（否则会被切成三段各自的斜体）。
   // 下划线守词边界：_x_ 认，snake_case 不认。
@@ -120,7 +120,12 @@ export const PixelMarkdown = function (props?: PixelMarkdownProps): any {
     rest = rest.replace(/`([^`]+)`/g, function (all: string, code: string) {
       return mark(h('code', { key: key() }, code))
     })
-    // ② 图片：在链接之前（否则 ![](...) 会被链接规则吃掉一半）；只认安全地址
+    // ② 反斜杠转义：\* 这类写法要出原样的字符，且不得再参与强调与链接解析（原文里 0 处，属边角，
+    //   但既然要按组合考虑就补上）。放在代码之后：代码跨度里的反斜杠是内容，不该被当转义吃掉。
+    rest = rest.replace(/\\([*_`~\[\]()#!>\\\\])/g, function (all: string, ch: string) {
+      return mark(String(ch))
+    })
+    // ③ 图片：在链接之前（否则 ![](...) 会被链接规则吃掉一半）；只认安全地址
     rest = rest.replace(/!\[([^\]]*)\]\(\s*([^\s)]+)(?:\s+["']([^"']*)["'])?\s*\)/g, function (all: string, alt: string, url: string) {
       if (!/^https:/i.test(url)) return alt || ''
       const clickable = !inLink && !!st
@@ -128,7 +133,7 @@ export const PixelMarkdown = function (props?: PixelMarkdownProps): any {
       if (clickable) props.onClick = function () { openImg(url, alt) }
       return mark(h('img', props))
     })
-    // ③ 链接：只认 http(s)；标签递归解析，共用同一张原子表（标签里的代码才找得回自己那条）
+    // ④ 链接：只认 http(s)；标签递归解析，共用同一张原子表（标签里的代码才找得回自己那条）
     rest = rest.replace(/\[([^\]]+)\]\(([^\s)]+)\)/g, function (all: string, label: string, url: string) {
       if (!/^https?:/i.test(url)) return label
       return mark(h('a', { key: key(), href: url, target: '_blank', rel: 'noreferrer' }, pxInlineWith(label, true, atoms)))

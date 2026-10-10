@@ -124,6 +124,9 @@ export const PixelMarkdown = function(props) {
     rest = rest.replace(/`([^`]+)`/g, function(all, code) {
       return mark(h("code", { key: key() }, code));
     });
+    rest = rest.replace(/\\([*_`~\[\]()#!>\\\\])/g, function(all, ch) {
+      return mark(String(ch));
+    });
     rest = rest.replace(/!\[([^\]]*)\]\(\s*([^\s)]+)(?:\s+["']([^"']*)["'])?\s*\)/g, function(all, alt, url) {
       if (!/^https:/i.test(url)) return alt || "";
       const clickable = !inLink && !!st;

@@ -54,6 +54,10 @@ export const PIXEL_STYLE_TEXT: string[] = [
   ".pixel-doc code{font:700 12px ui-monospace,Menlo,Consolas,monospace;background:var(--pixel-card);color:var(--pixel-ink);padding:1px 6px;border:2px solid var(--pixel-frame);box-shadow:2px 2px 0 var(--pixel-shadow);white-space:nowrap}",
   ".pixel-doc pre code{background:none;border:none;box-shadow:none;padding:0;color:inherit;font:inherit;white-space:pre-wrap}",
   ".pixel-doc a{color:var(--pixel-link)}",
+  // 粗体要真的更重：代码徽章自己写着 font-weight:700，会把外层 <strong> 的加粗盖掉，
+  // 于是 `**\`/grill-with-docs\`**` 看起来跟普通代码一样。这里把两层字重分开钉住（2026-10-10 人反馈）。
+  ".pixel-doc strong{font-weight:800}",
+  ".pixel-doc strong code{font-weight:900}",
   ".pixel-doc em{font-style:normal;font-weight:700;color:var(--pixel-ink);background:var(--pixel-hi);padding:0 3px;border-bottom:3px solid var(--pixel-gold)}",
   ".pixel-doc hr{border:none;border-top:3px solid var(--pixel-frame);margin:10px 0}",
   ".pixel-doc img{max-width:100%;max-height:220px;object-fit:contain;display:block;margin:8px 0;border:3px solid var(--pixel-frame);background:var(--pixel-card);cursor:zoom-in}",
