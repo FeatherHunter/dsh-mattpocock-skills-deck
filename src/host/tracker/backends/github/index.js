@@ -90,8 +90,8 @@ export const fixes = Object.freeze({
   },
   'gh:repoAccess': {
     hint: {
-      zh: '仓库在 GitHub 上访问不到（可能还没创建，或你没有权限）。确认后点「创建并发布」；若只是网络问题，它会显示为等待状态。',
-      en: 'The repo is not accessible on GitHub (it may not exist yet, or you lack access). Confirm, then "Create & publish"; if it is only a network issue, this shows as waiting instead.',
+      zh: '仓库在 GitHub 上访问不到（可能还没创建，或你没有权限）。确认后点「创建并发布」；若只是网络问题，它会显示为等待状态。若仓库只读（能看不能写），标签相关操作会失败：建议 fork 到自己名下，再把工作区 origin 指向 fork（插件只认 origin，不代改配置）。',
+      en: 'The repo is not accessible on GitHub (it may not exist yet, or you lack access). Confirm, then "Create & publish"; if it is only a network issue, this shows as waiting instead. If the repo is read-only (you can read but not write), label operations will fail: fork it to your own account, then point the workspace origin at the fork (the plugin only reads origin and never rewrites your config).',
     },
     actions: [
       {
@@ -127,8 +127,8 @@ export const prompts = (function () {
     //   渲染时由这里填 —— 换一个后端（或换一个命令行工具）改的只有这一格，模板一行都不用动。
     commandVocabulary: { cli: 'gh', cliBrand: 'GitHub' },
     ensureLabels: {
-      zh: '请为当前仓库补全缺失的核心标签（共 ' + names.length + ' 个）：\n\n必备标签：' + zhNames + '\n\n步骤：\n- [ ] 先看现在有哪些标签：调 deck_context 拿当前后端与仓库，票上带了哪些标签用 deck_issue_get 读\n- [ ] 缺哪个补哪个：调 deck_issue_patch 并把缺的标签名放进 addLabels —— 它按当前后端自己的方式打标签，已经有的不会重复建，成没成逐条回报\n- [ ] 补完再调一次 deck_context 核对标签已齐\n\n色值/描述以 src/shared/labels.js 单源为准，仅校验名子集。',
-      en: 'Please complete the missing canonical labels (' + names.length + ' total):\n\nRequired labels: ' + enNames + '\n\nSteps:\n- [ ] See what labels exist now: call deck_context for the current backend and repo; read which labels a ticket carries with deck_issue_get\n- [ ] Add whatever is missing: call deck_issue_patch with the missing names in addLabels — it applies labels the way the current backend does, never creates duplicates, and reports each one\n- [ ] Re-check with deck_context until the labels are complete\n\nColors/descriptions are single-sourced in src/shared/labels.js; verification is name-subset only.',
+      zh: '请为当前仓库补全缺失的核心标签（共 ' + names.length + ' 个）：\n\n必备标签：' + zhNames + '\n\n步骤：\n- [ ] 先看现在有哪些标签：调 deck_context 拿当前后端与仓库，票上带了哪些标签用 deck_issue_get 读\n- [ ] 缺哪个补哪个：调 deck_issue_patch 并把缺的标签名放进 addLabels —— 它按当前后端自己的方式打标签，已经有的不会重复建，成没成逐条回报\n- [ ] 补完再调一次 deck_context 核对标签已齐\n\n色值/描述以 src/shared/labels.js 单源为准，仅校验名子集。\n\n只读仓库补不上标签（建标签要 push，给票打标要 triage 及以上）：这时先 fork 到自己名下，再把工作区 origin 指向 fork；插件只认 origin，不代改配置。',
+      en: 'Please complete the missing canonical labels (' + names.length + ' total):\n\nRequired labels: ' + enNames + '\n\nSteps:\n- [ ] See what labels exist now: call deck_context for the current backend and repo; read which labels a ticket carries with deck_issue_get\n- [ ] Add whatever is missing: call deck_issue_patch with the missing names in addLabels — it applies labels the way the current backend does, never creates duplicates, and reports each one\n- [ ] Re-check with deck_context until the labels are complete\n\nColors/descriptions are single-sourced in src/shared/labels.js; verification is name-subset only.\n\nA read-only repo cannot take labels (creating labels needs push, labeling tickets needs triage or higher): fork it to your own account first, then point the workspace origin at the fork. The plugin only reads origin and never rewrites your config.',
     },
     // #716：装 gh 的那句原话（维护者 2026-09-19 给的那一句，逐字不改）。原先它写在共享清单
     //   src/shared/tracker/guide-steps.js 里，是三个后端共用的文件；装 CLI 这件事只跟 GitHub 有关，

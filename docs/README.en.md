@@ -25,6 +25,8 @@ A playable task board for [mattpocock/skills](https://github.com/mattpocock/skil
 
 One prerequisite: [DSH](https://www.npmjs.com/package/@deepseek-ai/dsh) (DeepSeek Harness, an AI coding desktop). You give instructions, the AI does the work — and MattSkillsDeck turns that work into missions on a panel.
 
+The repo your task board is bound to needs write access: creating labels requires push access, and labeling tickets requires triage access or higher. With read-only access you can still create and read tickets, but label backfill, label flow, and wayfinder labels are unavailable.
+
 </div>
 
 ```bash

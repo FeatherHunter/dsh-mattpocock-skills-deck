@@ -11,7 +11,7 @@
  *       wayfinder:grilling 在 GitHub 上存的就是 9D7CD8）。
  *   三、**失败落哪一档**：八档逐条演一遍。最要紧的两条是 404 与退出码 4 ——
  *       「标签不存在 / 仓库不存在 / 没有写权限」在 gh 的错误里是同一句 HTTP 404，所以撞到 404 必须
- *       自己再问一次仓库权限（`gh repo view --json viewerPermission`）才下结论；「没登录」是退出码 4，
+ *       自己再问一次仓库权限（`gh api repos/<仓库>` 取 `.permissions`，#992 起的单源口径）才下结论；「没登录」是退出码 4，
  *       只认退出码、不靠文案里出现某个词。
  *   四、**逐条记账**：一条改动恰好记一次账、中途失败不回滚、整批的形状坏掉才整条失败。
  *
@@ -95,7 +95,15 @@ function makeGh(opts) {
           hit.color = String(f['--color'] || '')
           return { code: 0, stdout: '', stderr: '' }
         }
-        // gh repo view X --json viewerPermission / --json nameWithOwner
+        // gh api repos/X --jq .permissions（#992 权限单源：判据是 .permissions.push，
+        //   不再用 gh repo view --json viewerPermission；o.viewFails 演“权限问不出来”）
+        if (list[0] === 'api' && String(list[1]).indexOf('repos/') === 0) {
+          if (o.viewFails) return { code: 1, stdout: '', stderr: o.viewFails }
+          const p = o.viewerPermission || 'ADMIN'
+          const readonly = (p === 'READ' || p === 'NONE')
+          return { code: 0, stdout: JSON.stringify(readonly ? { push: false, triage: false, pull: true } : { push: true, triage: true, pull: true }), stderr: '' }
+        }
+        // gh repo view X --json viewerPermission / --json nameWithOwner（旧口径，已退役：只留作兼容）
         if (list[0] === 'repo' && list[1] === 'view') {
           if (o.viewFails) return { code: 1, stdout: '', stderr: o.viewFails }
           if (String(f['--json'] || '').includes('nameWithOwner')) return { code: 0, stdout: 'acme/demo\n', stderr: '' }
@@ -116,6 +124,8 @@ const tracker = githubModule.create({})
 const edits = (gh) => gh.calls.filter((c) => c.args[0] === 'label' && c.args[1] === 'edit')
 const lists = (gh) => gh.calls.filter((c) => c.args[0] === 'label' && c.args[1] === 'list')
 const views = (gh) => gh.calls.filter((c) => c.args[0] === 'repo' && c.args[1] === 'view')
+// #992：仓库权限查询（单源 `gh api repos/<仓库>` 取 .permissions）
+const permQueries = (gh) => gh.calls.filter((c) => c.args[0] === 'api' && String(c.args[1]).indexOf('repos/') === 0)
 const reasonOf = (res, name) => {
   const f = (res && res.ok === true && Array.isArray(res.data.failed)) ? res.data.failed.find((x) => x.name === name) : null
   return f ? f.reason : null
@@ -257,7 +267,16 @@ const SEED = [
   const noWrite = makeGh({ labels: SEED, viewerPermission: 'READ' })
   const r4 = await tracker.setLabelColors(REF, one(), noWrite.ctx)
   check(r4.ok === true && reasonOf(r4, 'bug').kind === 'auth', '404 且仓库权限只有读 → 没有写权限，落鉴权档（实得 ' + JSON.stringify(r4.ok === true ? reasonOf(r4, 'bug').kind : '') + '）')
-  check(views(noWrite).length === 1 && views(noWrite)[0].flags['--json'] === 'viewerPermission', '撞到 404 时多发一次 `gh repo view --json viewerPermission` 才下结论（实得 ' + JSON.stringify(views(noWrite).map((v) => v.args)) + '）')
+  check(permQueries(noWrite).length === 1, '撞到 404 时多问一次仓库权限才下结论（`gh api repos/<仓库>` 取 .permissions，实发 ' + permQueries(noWrite).length + ' 次；调用：' + JSON.stringify(permQueries(noWrite).map((v) => v.args)) + '）')
+  check(!views(noWrite).length, '不再用 viewerPermission 那条旧命令（实发 repo view ' + views(noWrite).length + ' 次）')
+
+  // #992：10 个标签同时撞 404，仓库权限只真问一次（批内复用，不再问 10 次）
+  const tenReadonly = makeGh({ labels: SEED, viewerPermission: 'READ' })
+  const tenChanges = []
+  for (let i = 1; i <= 10; i++) tenChanges.push({ name: 'batch-' + i, color: '111111' })
+  const rTen = await tracker.setLabelColors(REF, tenChanges, tenReadonly.ctx)
+  check(rTen.ok === true && rTen.data.failed.length === 10 && rTen.data.failed.every((x) => x.reason.kind === 'auth'), '10 条同撞 404 全落鉴权档（实得 ' + JSON.stringify(rTen.ok === true ? rTen.data.failed.length : rTen) + ' 条失败）')
+  check(permQueries(tenReadonly).length === 1, '10 条同撞 404 也只真问一次仓库权限（实发 ' + permQueries(tenReadonly).length + ' 次）')
 
   // ⑤ 404 + 有写权限 → 标签或仓库真的不存在（找不到档）
   const okWrite = makeGh({ labels: SEED, viewerPermission: 'ADMIN' })

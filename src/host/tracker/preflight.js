@@ -39,8 +39,9 @@ export function classifyError(err) {
   const s = String(msg || '').toLowerCase()
   if (!s) return ERROR_KIND.NETWORK
 
-  // 认证/权限
-  if (/\bnot (logged )?in\b|\bauth\b|\b401\b|\b403\b|credential|unauthorized|permission denied/i.test(s)) return ERROR_KIND.AUTH
+  // 认证/权限（#992：与 backends/github/errors.js 同改 —— GraphQL 的权限句是复数，
+  //   两处各写了一份判据，要同改，否则一边认出 auth、一边仍说 network）
+  if (/\bnot (logged )?in\b|\bauth\b|\b401\b|\b403\b|credential|unauthorized|permission denied|does not have the correct permissions|addlabelstolabelable/i.test(s)) return ERROR_KIND.AUTH
   // 限流
   if (/\brate ?limit\b|\b429\b/i.test(s)) return ERROR_KIND.RATELIMIT
   // 环境问题（缺工具/缺文件/无法识别命令）——必须在 NOTFOUND 之前判，否则被「not found」误吞

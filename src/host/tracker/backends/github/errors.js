@@ -83,7 +83,10 @@ export function classifyGhError(err, ctx) {
   let mapped
   if (/cannot find.*gh|gh not found|not found.*gh|which:.*gh|platform\.resolveexecutable|ENOENT|is not recognized|command not found|no such file/i.test(msg)) {
     mapped = ERROR_KIND.ENV
-  } else if (/not logged in|authentication|bad credentials|unauthorized|permission denied|credential/i.test(s) || /\b401\b|\b403\b/.test(s)) {
+  } else if (/not logged in|authentication|bad credentials|unauthorized|permission denied|does not have the correct permissions|addlabelstolabelable|credential/i.test(s) || /\b401\b|\b403\b/.test(s)) {
+    // #992：GraphQL 的权限句是复数（does not have the correct permissions … AddLabelsToLabelable），
+    //   单数的 permission denied 认不出它；之前它掉到兜底被说成网络问题。这里只加复数句式，
+    //   404 仍归 NOTFOUND（那一档本来就是对的，不动）。
     // auth 必须在 rate-limit 之前（401/403 优先于 429 文案可能共存时的优先级由 contract 固定）
     // 403 且含 rate limit 文案 → 归 rate-limit（API rate limit exceeded 含 403）
     if (isRateLimitText(s)) mapped = ERROR_KIND.RATELIMIT

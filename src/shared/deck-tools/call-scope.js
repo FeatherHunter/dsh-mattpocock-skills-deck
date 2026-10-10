@@ -287,6 +287,13 @@ export function withCallScope(c, exec, opts) {
         if (!real.preflight) return noTracker()
         return mapOpOutcome(await execOp('preflight', function (c2) { return real.preflight(handle, c2) }))
       },
+      // #992：仓库写权限旁路（只读探活一次，次次真问；没有这个方法的后端诚实回未知，
+      //   不走 backend-threw —— 缺方法不是执行层失败，调用方按未知处理）。
+      getRepoPermissions: async function (repo, ctx) {
+        void ctx
+        if (!real.getRepoPermissions) return { ok: false, error: { kind: 'unsupported', message: '这个后端没有仓库写权限旁路，按未知处理' } }
+        return mapOpOutcome(await execOp('repoPermissions', function (c2) { return real.getRepoPermissions(repo, c2) }))
+      },
       close: async function (repo, key, f, ctx) {
         void ctx
         return writeThru('close', repo, key, function (c2) { return real.close(repo, key, f || {}, c2) })

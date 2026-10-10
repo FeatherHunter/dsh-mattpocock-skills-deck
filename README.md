@@ -21,6 +21,8 @@
 
 前置要求：[DSH](https://www.npmjs.com/package/@deepseek-ai/dsh)（DeepSeek Harness）。在 DSH 里，你下指令、AI 干活；MattSkillsDeck 把这些活变成面板上的任务。
 
+任务板绑定的仓库需要写权限：新建标签要 push 权限，给票打标签要 triage 及以上权限；只有读权限时能建票、能读票，但补标签、标签流转与 wayfinder 标签都不可用。
+
 </div>
 
 ```bash

@@ -86,7 +86,34 @@ export async function createIssue(repo, input, ctx) {
         for (const n of wantLabels) if (!merged.includes(n)) merged.push(n);
         const lr = await setLabels(repo, issue.key, merged.map((n) => ({ name: n })), {}, ctx);
         if (lr && lr.ok === true && lr.data) issue = lr.data;
-        else if (wantType === 'map') issue.type = 'map';
+        else {
+          // #992：标签没挂上不再吞错，记在票上让工具层读回时能说清（照 parentError 先例，票照样建成 ok:true）。
+          const kind = String((lr && lr.error && lr.error.kind) || '');
+          const message = String((lr && lr.error && lr.error.message) || '后端没给出原因').slice(0, 300);
+          issue.labelError = { kind: kind, message: message };
+          if (wantType === 'map') issue.type = 'map';
+          // Q6：正文“待补标签（只读未落盘）”区 —— 把没确认挂上的标签名写进正文，区名必带“未落盘”。
+          //   话术按双入口拆：工作区绑在只读库上（板子站错地方）与给只读库的票打标（这张票要的权限不够）
+          //   是同一根因的两面，区里两句都说到，用户无论从哪一面撞上都看得懂。尽力写：改正文本身也可能
+          //   没权限，写不上也不影响建票（没挂上的事实已经记在 labelError 里，工具层按部分成功回报）。
+          //   正文为空时不敢写（会把建票锚与原有内容冲掉），只留 labelError。
+          try {
+            if (typeof issue.body === 'string' && issue.body) {
+              const spec = (parsed.owner + '/' + parsed.name);
+              const section = '## 待补标签（只读未落盘）\n\n以下标签这次没确认挂上（'
+                + wantLabels.join('、')
+                + '）：你在「' + spec + '」上只有读权限时，标签建不上、打不上——这不是网络问题。'
+                + '在只读仓库上建票能成、读票能看，但补标签要 triage 及以上权限（新建标签要 push）。'
+                + '有权限后请把这些标签补打上；要在只读库上长期协作，建议先 fork 到自己名下，再把工作区 origin 指向 fork（插件只认 origin，不代改配置）。\n';
+              const hasSection = /^##\s*待补标签.+未落盘.+$/m.test(issue.body);
+              const newBody = hasSection
+                ? issue.body.replace(/^##\s*待补标签.+未落盘.+$\s*[\s\S]*?(?=^##\s|$(?![\s\S]))/m, section)
+                : (issue.body.replace(/\s*$/, '') + '\n\n' + section);
+              const ur = await updateIssue(repo, issue.key, { body: newBody }, ctx);
+              if (ur && ur.ok === true && ur.data && typeof ur.data.body === 'string') issue.body = ur.data.body;
+            }
+          } catch {}
+        }
       } else if (wantType === 'map' && issue.type !== 'map') issue.type = 'map';
     } catch {}
     try {

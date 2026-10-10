@@ -79,16 +79,34 @@ export function createDeckContext(deps) {
       const opCtx = sc.opCtx
       const preP = (typeof t.preflight === 'function') ? t.preflight({ cwd: s.cwd }, opCtx) : Promise.resolve(null)
       const listP = t.list(repo, { type: 'map' }, opCtx)
+      // #992：仓库写权限能力位（只读旁路，与预检/清单并行；只问 GitHub，本地 Markdown 恒可写，
+      //   GitLab 诚实未知）。问不出来不拦事，按未知处理。
+      const wantPerms = pick.backendId === 'github' && typeof t.getRepoPermissions === 'function' && !sc.outOfBudget()
+      const permP = wantPerms ? t.getRepoPermissions(repo, opCtx) : Promise.resolve(null)
       const pre = await preP
       const listed = await listP
+      const perm = await permP
       const preTransport = transportMessage(pre)
       if (preTransport) throw new Error(preTransport)
       const listedTransport = transportMessage(listed)
       if (listedTransport) throw new Error(listedTransport)
+      const permTransport = transportMessage(perm)
+      if (permTransport) throw new Error(permTransport)
       const maps = (listed.ok && Array.isArray(listed.data)) ? listed.data.map(mapRow) : []
+      // 能力位：Markdown 回恒可写（本地文件可写性归 md:scratchWritable 管，这里不重复判）；
+      //   GitLab 不实现，按未知（不捏造）；GitHub 问到了用真值，问不到按未知。
+      let permissions = null
+      if (pick.backendId === 'markdown') permissions = { push: true, triage: true }
+      else if (perm && perm.ok === true && perm.data && typeof perm.data.push === 'boolean' && typeof perm.data.triage === 'boolean') {
+        permissions = { push: perm.data.push, triage: perm.data.triage }
+      } else permissions = { unknown: true }
       const notes = []
       if (!listed.ok) notes.push('地图清单这次没取到（后端原话：' + String((listed.error && listed.error.message) || '').slice(0, 200) + '）。')
       if (pre && pre.ok === false) notes.push('环境预检没过（' + String((pre.error && pre.error.message) || '').slice(0, 200) + '）：票还是能读，写操作可能失败。')
+      if (permissions && permissions.push === false) {
+        notes.push('这个仓库只读：标签与写操作不可用。')
+        notes.push('要在只读库上长期协作，建议先 fork 到自己名下，再把工作区 origin 指向 fork（插件只认 origin，不代改配置）。')
+      }
       const status = listed.ok ? DECK_STATUS.OK : DECK_STATUS.PARTIAL
       return {
         value: {
@@ -98,7 +116,7 @@ export function createDeckContext(deps) {
           data: {
             workspace: { root: s.cwd, key: s.workspaceKey, sessionId: s.sessionId, source: s.source },
             backend: { id: pick.backendId, source: pick.source, label: '' },
-            repo: { backend: repo.backend, refId: repo.refId, name: repo.name, url: repo.url },
+            repo: { backend: repo.backend, refId: repo.refId, name: repo.name, url: repo.url, permissions: permissions },
             initialized: pre ? pre.ok === true : null,
             preflight: pre ? { ok: pre.ok === true, message: String((pre.error && pre.error.message) || '').slice(0, 300) } : null,
             maps: maps,

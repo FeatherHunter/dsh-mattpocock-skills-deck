@@ -15,6 +15,7 @@ import { listSubIssues } from './sub-issues.js'
 import { createIssue, closeIssue, reopenIssue, updateIssue, setAssignees } from './issues-write.js'
 import { addComment } from './comments.js'
 import { setLabels } from './labels.js'
+import { readRepoPermissions } from './repo-permissions.js'
 import { listLabels, setLabelColors } from './label-colors-ops.js'
 import { setParent, getDependencies, setBlockedBy } from './graph.js'
 import { initProject } from './init-project.js'
@@ -121,5 +122,18 @@ export function createGithubBackend(ctx) {
     // 有该能力的后端把三层兜底（git remote → 配置 → gh 视图）开给调用方自己补；
     // 没有该能力的后端没有这一格，调用方跳过，原样诚实失败。只读，无副作用。
     getRepoKey: (cwd, opCtx) => getRepoKey(cwd, opCtx || ctx),
+    // #992：仓库写权限旁路（只读，不进 OPERATIONS、不驱动渲染分支、不参与能力验证）。
+    //   这是 contract.js「非 op 旁路豁免」那一条的用法（与 listSubIssues 同例）：只回答
+    //   「当前账号在这个仓库上有没有 push / triage」，给 deck_context 的能力位与失败归因共用。
+    //   问不出来（网络、仓库不存在）如实回 ok:false，调用方按「未知」处理，不捏造。
+    getRepoPermissions: async (repo, opCtx) => {
+      const c = ghClient(opCtx || ctx)
+      const refId = repo && typeof repo.refId === 'string' ? repo.refId.trim() : ''
+      const idx = refId.indexOf('/')
+      if (idx <= 0) return { ok: false, error: { kind: ERROR_KIND.NOTFOUND, message: 'getRepoPermissions: repo.refId missing' } }
+      const perms = await readRepoPermissions(c, refId, opCtx || ctx)
+      if (!perms) return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: 'getRepoPermissions: 仓库权限问不出来（网络或仓库不可达），按未知处理' } }
+      return { ok: true, data: perms }
+    },
   }
 }

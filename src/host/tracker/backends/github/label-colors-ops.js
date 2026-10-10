@@ -12,7 +12,8 @@
  *   一、`gh label list` 默认只回 30 条，不传 `--limit` 时标签多的仓库会静默少一截 —— 所以要传，而且
  *       拿到「正好等于上限」的条数时当作「可能没拿全」，整条操作失败。
  *   二、`gh label edit` 的「标签不存在」「仓库不存在」「你没有写权限」返回的是同一句 HTTP 404，
- *       光看错误文本分不开，撞到 404 时得自己再问一次 `gh repo view --json viewerPermission`。
+ *       光看错误文本分不开，撞到 404 时得自己再问一次仓库权限（#992 起走单源 helper，
+ *       用 `gh api repos/<仓库>` 回包里的 `.permissions` 判，不再用 viewerPermission）。
  *   三、「没登录」的退出码是 4（不是 1，见 `gh help exit-codes`），所以只认退出码、不靠文案巧合。
  *
  * 只改颜色：发出去的命令只有 `gh label edit <名字> --repo <仓库> --color <颜色>`，
@@ -29,6 +30,7 @@ import { fail } from '../../preflight.js'
 import { ghClient } from './client.js'
 import { classifyGhError } from './errors.js'
 import { parseRepo } from './labels.js'
+import { readRepoPermissions } from './repo-permissions.js'
 import { getRepoKey } from './repo.js'
 
 /** 一次最多向 gh 要多少条标签。标签数达到这个数就当作「可能没拿全」，整条操作失败。 */
@@ -180,15 +182,16 @@ async function runWithLimit(items, limit, worker) {
   return results
 }
 
-/** 改一个标签的颜色：成功给 {ok:true, entry:{name,color}}，失败给 {ok:false, entry:{name,reason}}。 */
-async function applyOne(c, spec, ch, ctx) {
+/** 改一个标签的颜色：成功给 {ok:true, entry:{name,color}}，失败给 {ok:false, entry:{name,reason}}。
+ *  permCache 是本批共用的权限复用位（#992：10 个标签同时撞 404 也只真问一次仓库权限）。 */
+async function applyOne(c, spec, ch, ctx, permCache) {
   const want = normalizeColor(ch.color)
   if (!want) {
     return { ok: false, entry: { name: ch.name, reason: reason(ERROR_KIND.PARSE, '「' + ch.name + '」的新颜色不正确：请改为不带井号的六位十六进制，例如 9d7cd8。') } }
   }
   const r = await c.execGh(['label', 'edit', ch.name, '--repo', spec, '--color', want], { cwd: ctx && ctx.cwd })
   if (r.ok) return { ok: true, entry: { name: ch.name, color: want } }
-  return { ok: false, entry: { name: ch.name, reason: await explainWriteFailure(c, spec, ch, r.error, ctx) } }
+  return { ok: false, entry: { name: ch.name, reason: await explainWriteFailure(c, spec, ch, r.error, ctx, permCache) } }
 }
 
 /** 批量改标签颜色（契约操作 setLabelColors）。
@@ -201,12 +204,15 @@ export async function setLabelColors(repo, changes, ctx) {
     if (!target) return fail(ERROR_KIND.NOTFOUND, noRepoTarget('修改标签颜色', repo))
     if (changes.length === 0) return { ok: true, data: { applied: [], failed: [] } }
     const c = ghClient(ctx)
+    // #992：本批共用的权限复用位 —— 撞到 404 才问仓库权限，且一批里只真问一次
+    //   （改色链现状是 10 个标签撞 404 就问 10 次）。作用域只活这一批，跑完即弃。
+    const permCache = new Map()
     // 逐条兜底（#620 整改 D5）：某一条上冒出意外异常时，只把这一条记成失败，其余照跑。
     //   不这么写的话：异常会冒到外面那个整批 catch，**已经改好的标签一条都不记账**，
     //   违反契约的「入参里每一条改动必须恰好出现在 applied 或 failed 之一」。
     const results = await runWithLimit(changes, writeConcurrency(ctx), async (ch) => {
       try {
-        return await applyOne(c, target.spec, ch, ctx)
+        return await applyOne(c, target.spec, ch, ctx, permCache)
       } catch (e) {
         return {
           ok: false,
@@ -232,7 +238,7 @@ export async function setLabelColors(repo, changes, ctx) {
 
 /** 一条改动没改成时，它该落契约八档里的哪一档、对用户说什么。
  *  顺序按「能确定程度」排：先看退出码（没登录只靠退出码 4 认），再看 gh 的报错原文。 */
-async function explainWriteFailure(c, spec, ch, err, ctx) {
+async function explainWriteFailure(c, spec, ch, err, ctx, permCache) {
   const code = err && typeof err.code === 'number' ? err.code : null
   const text = String((err && (err.message || err.stderr)) || '')
   const hint = rawHint(err)
@@ -255,7 +261,7 @@ async function explainWriteFailure(c, spec, ch, err, ctx) {
   // ⑤ 404：三种情况（标签不存在 / 仓库不存在 / 没有写权限）长得一模一样，只能再问一次仓库权限。
   //    这里只认状态码 404，不认「not found」这句英文——gh 可执行文件缺失时的那句
   //    「gh not found: …」里也有 not found，认文案会把「本机缺工具」误判成「标签不存在」。
-  if (/HTTP 404|\b404\b/i.test(text)) return await explain404(c, spec, ch, ctx, hint)
+  if (/HTTP 404|\b404\b/i.test(text)) return await explain404(c, spec, ch, ctx, hint, permCache)
   // ⑥ 其余按 client 已经归好的档，只是把说法换成能给用户看的一句
   const kind = (err && err.kind) || classifyGhError(err, ctx)
   if (kind === ERROR_KIND.ENV) return reason(ERROR_KIND.ENV, '修改「' + ch.name + '」的颜色时，本机的 GitHub 助手（gh）没有给出答复，因此无法确认这一条的颜色是否已经改动。这是插件运行环境的问题，不是你的操作有误。请用 gh label list 核对后再重试。' + hint)
@@ -267,25 +273,18 @@ async function explainWriteFailure(c, spec, ch, err, ctx) {
 }
 
 /** 撞到 404 时多问一次仓库权限，把「标签或仓库不存在」与「你没有写权限」分开。
- *  按 #612 实测：有仓库写权限却 404 → 标签或仓库真的不存在；权限只有 READ → 就是没有写权限。 */
-async function explain404(c, spec, ch, ctx, hint) {
-  const perm = await readViewerPermission(c, spec, ctx)
-  if (perm === 'READ' || perm === 'NONE') {
+ *  按 #612 实测：有仓库写权限却 404 → 标签或仓库真的不存在；权限只有读 → 就是没有写权限。
+ *  #992：判据从 viewerPermission 换成 .permissions（单源 helper，批内只真问一次）。
+ *  改标签定义要的是 push，所以这里看 push，不看 triage。 */
+async function explain404(c, spec, ch, ctx, hint, permCache) {
+  const perm = await readRepoPermissions(c, spec, ctx, permCache)
+  if (perm && perm.push === false) {
     return reason(ERROR_KIND.AUTH, '当前账号在「' + spec + '」上没有写权限（只能读取），因此无法修改标签。本次「' + ch.name + '」的颜色未改动，请换用有写权限的账号，或请仓库管理员为该账号授予写权限，然后重试。')
   }
-  if (perm === 'WRITE' || perm === 'MAINTAIN' || perm === 'ADMIN') {
+  if (perm && perm.push === true) {
     return reason(ERROR_KIND.NOTFOUND, '这个仓库中没有名为「' + ch.name + '」的标签。请先核对标签名，或先在这个仓库中创建这个标签，然后重新保存。注意：GitHub 上标签名不区分大小写，冒号与空格都算在标签名里。')
   }
   return reason(ERROR_KIND.NOTFOUND, '修改「' + ch.name + '」的颜色时 GitHub 报告找不到这个标签，插件也无法确认当前账号在「' + spec + '」上的权限，因此分不出是标签不存在、仓库名不正确，还是没有写权限。本次「' + ch.name + '」的颜色未改动，请先确认仓库名与标签名正确、账号已登录，然后重试。' + hint)
-}
-
-/** 问一次「我这个账号在这个仓库上的权限」（gh repo view --json viewerPermission）。
- *  问不出来时返回 null（调用方按「分不清」处理，不瞎猜）。 */
-async function readViewerPermission(c, spec, ctx) {
-  const r = await c.execJson(['repo', 'view', spec, '--json', 'viewerPermission'], { cwd: ctx && ctx.cwd })
-  if (!r || !r.ok) return null
-  const p = r.data && r.data.viewerPermission
-  return typeof p === 'string' && p ? p.toUpperCase() : null
 }
 
 export default { listLabels, setLabelColors }

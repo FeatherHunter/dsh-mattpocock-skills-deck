@@ -1,8 +1,8 @@
 // src/host/tools/deckIssueCreate.js —— deck_issue_create（#713 第六批）
 //
 // 建一张票。三件小事由代码保证，不靠 AI 记得：
-//   1. 必备标签（按种类：地图 wayfinder:map、任务 wayfinder:task、缺陷 bug + needs-triage）缺就补，返回值里
-//      写明「我替你加了什么」；
+//   1. 必备标签（按种类：地图 wayfinder:map、任务 wayfinder:task、缺陷 bug + needs-triage）缺就补，
+//      补没补上按结果说 —— 只读仓库上没挂上时不说“补了”，按部分成功回并写清原因（#992）；
 //   2. 进度区（地图补五个区块，别的票补一个「## 进度」）；
 //   3. 创建幂等锚（#711 的契约字段 idempotencyKey）：同一个会话、同一个标题、同一批标签在 5 分钟窗口里
 //      重复调一次，契约层按锚回查，复用同一张票 —— 重试不会重复花钱，也不会多出票。
@@ -108,7 +108,6 @@ export function createDeckIssueCreate(deps) {
       if (createdTransport) throw new Error(createdTransport)
       const notes = []
       if (effortId) notes.push('这次带了 effortId（' + effortId.slice(0, 60) + '）：本地后端只在那一个目录里找，远端后端忽略它。')
-      if (ensured.added.length) notes.push('我替你补了必备标签：' + ensured.added.join('、'))
       if (body.added.length) notes.push('我替你补了正文区块：' + body.added.join('、'))
       if (!a.idempotencyKey) notes.push('这次用的是自动幂等锚（同会话 + 同标题 + 同标签，5 分钟窗口内重复调用复用同一张票）。')
       if (!created || created.ok !== true) {
@@ -119,6 +118,12 @@ export function createDeckIssueCreate(deps) {
         }
       }
       const issue = created.data || {}
+      // #992：标签没挂上（后端在票上记了 labelError）不再报“补了”——按结果说话。
+      //   幂等锚的取值保持不动（改它会动去重语义，另议）。
+      const labelFailed = !!(issue && issue.labelError)
+      const labelWhy = labelFailed ? String((issue.labelError && issue.labelError.message) || '后端没给出原因').slice(0, 300) : ''
+      if (ensured.added.length && !labelFailed) notes.push('我替你补了必备标签：' + ensured.added.join('、'))
+      if (labelFailed) notes.push('标签没挂上，别把它当成已经打上：逐条原因在下面的 items 里。')
       // #746：建票直达命名守护（调用会话即建号会话；hook 缺失、失败或超时都不影响已建成的返回）。
       try {
         if (typeof d.onTicketCreated === 'function' && issue.key) {
@@ -147,11 +152,29 @@ export function createDeckIssueCreate(deps) {
         // 票建成了、边没挂上：按部分成功回，不再报“建好了（父票 X）”。
         const why = String((parentEvidence && parentEvidence.text) || '后端没给出原因').slice(0, 300)
         notes.push('父子边没建成，别把它当成已经挂上：逐条原因在上面的 items 里。')
+        if (labelFailed) items.push({ key: issue.key, step: 'labels', status: 'failed', reason: labelWhy })
         return {
           value: {
             status: DECK_STATUS.PARTIAL,
             reason: REFUSAL_REASONS.BACKEND_UNSUPPORTED,
-            text: '票 ' + (issue.key || '（后端没回票号）') + ' 建好了：' + title + '。父子边没挂上（要 ' + rel + '）：' + why,
+            text: '票 ' + (issue.key || '（后端没回票号）') + ' 建好了：' + title + '。父子边没挂上（要 ' + rel + '）：' + why
+              + (labelFailed ? '标签也没挂上：' + labelWhy : ''),
+            data: { ticket: issue, kind: kind, idempotencyKey: anchor, limits: { maxChildTicketsPerCall: budget.AI_TOOL_MAX_CHILD_TICKETS_PER_CALL } },
+            items: items,
+            notes: notes,
+            touched: issue.key ? [String(issue.key)] : [],
+          },
+          claimed: { requests: 3, points: 6 },
+        }
+      }
+      if (labelFailed) {
+        // 票建成了、标签没挂上：按部分成功回（照父子边没挂上的 PARTIAL 先例），不再报“我替你补了”。
+        items.push({ key: issue.key, step: 'labels', status: 'failed', reason: labelWhy })
+        return {
+          value: {
+            status: DECK_STATUS.PARTIAL,
+            reason: REFUSAL_REASONS.BACKEND_UNSUPPORTED,
+            text: '票 ' + (issue.key || '（后端没回票号）') + ' 建好了：' + title + '。标签没挂上：' + labelWhy,
             data: { ticket: issue, kind: kind, idempotencyKey: anchor, limits: { maxChildTicketsPerCall: budget.AI_TOOL_MAX_CHILD_TICKETS_PER_CALL } },
             items: items,
             notes: notes,

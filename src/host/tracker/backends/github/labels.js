@@ -17,6 +17,7 @@ import { ERROR_KIND } from '../../../../shared/tracker/constants.js'
 import { normalizeIssue } from './normalize.js'
 import { ghClient } from './client.js'
 import { classifyGhError } from './errors.js'
+import { readRepoPermissions, readonlyMessage } from './repo-permissions.js'
 import { getIssue } from './issues.js'
 
 function normalizeLabelInput(li) {
@@ -64,6 +65,25 @@ export function repoId(repo) {
 }
 
 /**
+ * 给票贴标签失败时的归因（#992）。
+ * 只读仓库上建标签定义（要 push）与给票打标（要 triage 起）撞到的都是 404，
+ * 光看错误文本分不清「标签不存在」还是「你没有写权限」。撞到疑似权限的失败
+ * （404 或 GraphQL 那句复数权限句）就多问一次仓库权限：只有读权限（triage 为假）
+ * 才改判成鉴权档并说清仓库与原因；问不出来或本就有写权限，原样返回、不瞎猜。
+ */
+async function attributeLabelFailure(c, spec, wantNames, err, ctx) {
+  const text = String((err && (err.message || err.stderr)) || '')
+  const suspicious = /HTTP 404|\b404\b|does not have the correct permissions|addlabelstolabelable/i.test(text)
+    || (err && err.kind === ERROR_KIND.AUTH)
+  if (!suspicious) return err
+  const perms = await readRepoPermissions(c, spec, ctx)
+  if (perms && perms.triage === false) {
+    return { kind: ERROR_KIND.AUTH, message: readonlyMessage(spec, wantNames) }
+  }
+  return err
+}
+
+/**
  * 整集替换 labels（GitHub 对齐）。
  * 若提供 expectedUpdatedAt，先取当前 Issue.updatedAt 比对，不匹配 → conflict 不落盘。
  */
@@ -92,14 +112,15 @@ export async function setLabels(repo, key, labels, opts, ctx) {
     const wantNames = wanted.map((l) => l.name)
     const toAdd = wantNames.filter((n) => !curLabels.includes(n))
     const toRemove = curLabels.filter((n) => !wantNames.includes(n))
+    const spec = `${parsed.owner}/${parsed.name}`
 
     for (const n of toRemove) {
-      const r = await c.execGh(['issue', 'edit', k, '--repo', `${parsed.owner}/${parsed.name}`, '--remove-label', n], { cwd: ctx && ctx.cwd })
-      if (!r.ok) return { ok: false, error: r.error }
+      const r = await c.execGh(['issue', 'edit', k, '--repo', spec, '--remove-label', n], { cwd: ctx && ctx.cwd })
+      if (!r.ok) return { ok: false, error: await attributeLabelFailure(c, spec, wantNames, r.error, ctx) }
     }
     for (const n of toAdd) {
-      const r = await c.execGh(['issue', 'edit', k, '--repo', `${parsed.owner}/${parsed.name}`, '--add-label', n], { cwd: ctx && ctx.cwd })
-      if (!r.ok) return { ok: false, error: r.error }
+      const r = await c.execGh(['issue', 'edit', k, '--repo', spec, '--add-label', n], { cwd: ctx && ctx.cwd })
+      if (!r.ok) return { ok: false, error: await attributeLabelFailure(c, spec, wantNames, r.error, ctx) }
     }
 
     // 读回最新
