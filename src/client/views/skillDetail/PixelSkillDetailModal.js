@@ -96,24 +96,7 @@ export const PixelSkillDetailModal = function(props) {
       }
     };
   }, [p.full, d && d.open, d && d.name]);
-  const [stGone, setStGone] = React.useState(false);
-  const useFx = React.useEffect;
-  useFx(function() {
-    if (!d || !d.open) return void 0;
-    if (d.phase !== "ready") {
-      setStGone(false);
-      return void 0;
-    }
-    const timer = setTimeout(function() {
-      setStGone(true);
-    }, 1e3);
-    return function() {
-      try {
-        clearTimeout(timer);
-      } catch (e) {
-      }
-    };
-  }, [d && d.name, d && d.phase, d && d.open]);
+  const showStatus = d && d.open && (d.phase === "loading" || d.phase === "error");
   if (!d || !d.open) return null;
   const lang = d.bodyLang === "zh" && d.mdZh ? "zh" : "en";
   const md = lang === "zh" ? d.mdZh : d.mdEn;
@@ -167,12 +150,12 @@ export const PixelSkillDetailModal = function(props) {
         pixelCloseDetail(s);
       } }, tr("sd.close"))
     ]),
-    stGone ? null : h(PixelStatusLine, {
+    showStatus ? h(PixelStatusLine, {
       key: "st",
       icon,
       texts: d.phase === "loading" ? [tr("sd.fetch"), tr("sd.parse"), tr("sd.layout")] : null,
       text: d.phaseText || tr("sd.idle")
-    }),
+    }) : null,
     h("div", {
       key: "body",
       ref: bodyRef,

@@ -101,16 +101,10 @@ export const PixelSkillDetailModal = function (props?: PixelSkillDetailModalProp
       try { if (ro) ro.disconnect() } catch (e) { /* 忽略 */ }
     }
   }, [p.full, d && d.open, d && d.name])
-  const [stGone, setStGone] = React.useState(false)
-  const useFx = React.useEffect
-  // 状态行节奏（2026-10-10 人拍板）：加载中按顺序 1 秒一句（三句轮播在 CSS 里），
-  // 内容到了显示「内容已到」，再停一秒把这一行整个撤掉。出错时留着，不撤——人得看见原因。
-  useFx(function () {
-    if (!d || !d.open) return undefined
-    if (d.phase !== 'ready') { setStGone(false); return undefined }
-    const timer = setTimeout(function () { setStGone(true) }, 1000)
-    return function () { try { clearTimeout(timer) } catch (e) { /* 忽略 */ } }
-  }, [d && d.name, d && d.phase, d && d.open])
+  // 状态行只在「还在读」和「出错了」两种时候出现（2026-10-10 人拍板，同日第三轮）：
+  // 加载中按顺序 1 秒一句（三句轮播在 CSS 里）；内容一到，这一行**立刻不出现** ——
+  // 人看过一阵子，说「内容已到」那一行没什么价值。出错时留着，不撤，人得看见原因。
+  const showStatus = d && d.open && (d.phase === 'loading' || d.phase === 'error')
   if (!d || !d.open) return null
   const lang = d.bodyLang === 'zh' && d.mdZh ? 'zh' : 'en'
   const md = lang === 'zh' ? d.mdZh : d.mdEn
@@ -154,12 +148,12 @@ export const PixelSkillDetailModal = function (props?: PixelSkillDetailModalProp
       canTranslate ? h(PixelBtn, { key: 'l', hot: true, onClick: function () { pixelToggleDetailLang(s) } }, lang === 'en' ? tr('sd.toZh') : tr('sd.toEn')) : null,
       h(PixelBtn, { key: 'x', onClick: function () { pixelCloseDetail(s) } }, tr('sd.close')),
     ]),
-    stGone ? null : h(PixelStatusLine, {
+    showStatus ? h(PixelStatusLine, {
       key: 'st',
       icon: icon,
       texts: d.phase === 'loading' ? [tr('sd.fetch'), tr('sd.parse'), tr('sd.layout')] : null,
       text: d.phaseText || tr('sd.idle'),
-    }),
+    }) : null,
     h('div', {
       key: 'body',
       ref: bodyRef,
