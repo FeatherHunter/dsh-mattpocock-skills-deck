@@ -201,6 +201,8 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https:
 
 [@Shimmernight](https://github.com/Shimmernight)🌹🌹🌹🌹 — [#277](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/277) 等议题，[PR #287](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/287)/[PR #275](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/275)/[PR #106](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/106) 连交三份修复，弹窗和 macOS 体验都顺了
 
+[@9agj](https://github.com/9agj)🌹🌹🌹 — [#992](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/992) 指出只读仓库下标签能力静默降级、README 也没写明任务板仓库要有 push 权限，[#993](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/993) 抓住建仓失败分类把真实 git 报错说成「权限不足」，[#994](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/994) 报出属主与运行用户不一致的工作区建仓必然失败（Android /sdcard 场景）；三张的修复都已合入
+
 [@qq1393950873-bit](https://github.com/qq1393950873-bit)🌹🌹 — [#970](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/970) 揪出本地后端静默写坏票的暗坑，[PR #974](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/974) 亲手修好已合入
 
 [@anupamme](https://github.com/anupamme)🌹🌹 — [PR #727](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/727)/[PR #728](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/728) 主动给数据通道加两道安全锁（待评审）
@@ -211,7 +213,9 @@ dsh plugin --profile web add dsh-mattpocock-skills-deck@latest --registry https:
 
 [@angenet](https://github.com/angenet)🌹🌹 — [#295](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/295)/[#262](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/262) 两轮 macOS 实测，环境检测更稳了
 
-[@zhengcookie](https://github.com/zhengcookie)🌹 — [#960](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/960) 把桌面闪退重进的真凶钉死在出站缺少并发准入，还附了验证过的补丁
+[@zhengcookie](https://github.com/zhengcookie)🌹🌹 — [#1003](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1003) 报出桌面端启动早期把安装目录当成工作区、改色弹窗误报没有后端，[#960](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/960) 把桌面闪退重进的真凶钉死在出站缺少并发准入，还附了验证过的补丁
+
+[@fishke22](https://github.com/fishke22)🌹 — [PR #1000](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/pull/1000) 把「新增 BUG 单」入口表单的四项改成必填、删掉引导空表单直接建单的旧文案，已合入
 
 [@jack2jiehua](https://github.com/jack2jiehua)🌹 — [#930](https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/930) 抓到写操作落错后端的险情，还顺手指出写探测恒灰
 
