@@ -19,11 +19,13 @@
  *   - pkg 产物：vm 编译 + __ModuleLoader__ 特征 + 单组件单声明
  *   - DSW_VERSION：从 package/package.json 注入（__DSW_VERSION__ 占位符替换）
  *
- * 用法：node scripts/build.mjs [--dev-only|--pkg-only] [--sync] [--out-dir DIR]
+ * 用法：node scripts/build.mjs [--dev-only|--pkg-only]
  *
- * 同步原则：默认不同步。构建只产出 client.js / host.js / package/lib/*，不写任何已装配置。
- * 只有显式加 --sync（或环境变量 DSW_SYNC=1）时，才把产物同步到装过本插件的 profile 并做哈希校验。
+ * 同步原则：永不同步。构建只产出 client.js / host.js / package/lib/*，不写任何已装配置，
+ * 也不读取本机 DSH 环境（不碰 HOME 下的 .dsh/profiles，不做哈希回写）。
  * 新版本一律由人自己升级（市场升级、软件内升级、自己敲安装命令），构建不再代劳。
+ * 历史上的 --sync / DSW_SYNC=1 入口已于 1.8.0-rc.1 彻底移除：再传 --sync 会直接报错退出，
+ * 避免一次编译顺手改掉本机已装插件。
  */
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync, rmSync, cpSync, utimesSync } from 'node:fs'
 import { dirname, resolve, join } from 'node:path'
@@ -915,71 +917,10 @@ console.log(`  package/lib/index.js (pkg)  ${out.hostPkg ? read('package/lib/ind
 // A 自检（build 后）：产物必须带横幅
 gateBuildArtifacts()
 
-// C 手动同步（默认不同步：只在显式要求时写已装配置，加 --sync 或环境变量 DSW_SYNC=1；
-// 旧写法 --no-sync 与 DSW_NO_SYNC=1 仍被接受，含义就是默认行为（不同步），只为兼容历史命令。
-// 新版本一律由人自己升级，构建默认不再碰任何已装配置，发版链路天然安全）
-const wantSync = args.includes('--sync') || process.env.DSW_SYNC === '1'
-if (wantSync) {
-  // 同步为 async 需 await，main 已在顶层 async 上下文（文件整体为 ESM，顶层 await 可用）
-  const _home = process.env.HOME || process.env.USERPROFILE || ''
-  if (_home) {
-    try {
-      // 2026-09-11 现场修复：以前只同步 web 这一个 profile，而界面完全可能跑在别的 profile 上
-      //   （桌面应用用的是 desktop），于是「源码改了、构建也过了」，用户复制出来的提示词却还是旧的。
-      //   现在把「装了本插件的 profile」全部同步，一个不漏。
-      const profilesDir = resolve(_home, '.dsh/profiles')
-      const targets = []
-      try {
-        for (const ent of readdirSync(profilesDir, { withFileTypes: true })) {
-          if (!ent.isDirectory()) continue
-          const base = resolve(profilesDir, ent.name, 'node_modules/dsh-mattpocock-skills-deck')
-          if (existsSync(base)) targets.push(base)
-        }
-      } catch (eEnum) { /* 目录不存在或读不了，走下面的空表提示 */ }
-      if (!targets.length) console.warn('[build] 没找到任何装过本插件的 profile，跳过同步（装过的才会被同步）')
-      for (const profileBase of targets) {
-        // 整树同步 package/lib、package/shared 与 package/scripts（#545：只同步两个文件会漏掉宿主新增模块，
-        // 注册了电话但缺模块文件，调用时动态导入失败；与“原样复制”哲学一致，只增不删）。
-        // scripts 随包分发；#603 起提示词改走 gh 直连写法，脚本作为可选工具仍在包里。
-        // 2026-10-10：bundled-skills 也要跟着同步 —— 详情页的中文译文（SKILL.zh.md）随包分发，
-        // 不同步的话真机上「中文」按钮永远不出现（源码里有、装好的包里没有）。同口径只增不删。
-        for (const tree of ['lib', 'shared', 'scripts', 'bundled-skills']) {
-          const srcDir = resolve(ROOT, 'package', tree)
-          const dstDir = resolve(profileBase, tree)
-          if (!existsSync(srcDir)) continue
-          mkdirSync(dstDir, { recursive: true })
-          const syncRecur = (s, d) => {
-            for (const ent of readdirSync(s, { withFileTypes: true })) {
-              const ps = join(s, ent.name)
-              const pd = join(d, ent.name)
-              if (ent.isDirectory()) {
-                mkdirSync(pd, { recursive: true })
-                syncRecur(ps, pd)
-              } else if (ent.isFile()) {
-                writeFileSync(pd, readFileSync(ps))
-              }
-            }
-          }
-          syncRecur(srcDir, dstDir)
-        }
-        console.log(`[build] 已同步 profile → ${profileBase}`)
-        // hash 校验（入口加动态导入的更新模块，缺一个就红；随包分发的两条消费者脚本同口径抽查）
-        try {
-          const pairs = [['package/lib/client.js', 'lib/client.js'], ['package/lib/index.js', 'lib/index.js'], ['package/lib/update.js', 'lib/update.js'], ['package/scripts/fix-issue-body.mjs', 'scripts/fix-issue-body.mjs'], ['package/scripts/wire-subissues.mjs', 'scripts/wire-subissues.mjs']]
-          let mismatch = ''
-          for (const [srcRel, dstRel] of pairs) {
-            const a = readFileSync(resolve(ROOT, srcRel), 'utf8')
-            const b = readFileSync(resolve(profileBase, dstRel), 'utf8')
-            if (a !== b) mismatch += dstRel + ' '
-          }
-          if (mismatch) console.warn('[build] profile 同步 hash 不一致：' + mismatch)
-          else console.log('[build] profile 同步 hash 校验通过')
-        } catch {}
-      }
-    } catch (e) {
-      console.warn('[build] profile 同步跳过:', e.message)
-    }
-  }
-} else {
-  console.log('[build] 已跳过 profile 同步（默认不同步；要写已装配置请加 --sync）')
+// 本地同步已于 1.8.0-rc.1 彻底移除：构建永不读写本机已装配置（不碰 HOME 下的
+// .dsh/profiles）。历史上的 --sync / DSW_SYNC=1 在这里直接报错，避免一次编译
+// 顺手改掉本机 DSH 环境；新版本一律由人自己升级。
+if (args.includes('--sync') || args.includes('--no-sync') || process.env.DSW_SYNC === '1' || process.env.DSW_NO_SYNC === '1') {
+  throw new Error('[build] 本地同步已取消：构建不再支持 --sync（也不再读取 DSW_SYNC），新版本请走市场升级、软件内升级或自己敲安装命令')
 }
+console.log('[build] 构建只写仓库内产物，不碰本机已装配置')

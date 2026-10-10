@@ -178,10 +178,9 @@ Want to see how the code is put together? This interactive diagram was generated
 Edit `src/` only — `client.js`, `host.js` at the repo root and `package/lib/` are build artifacts, don't touch them.
 
 ```bash
-node scripts/build.mjs      # build
+node scripts/build.mjs      # build (repo artifacts only, never touches an installed DSH)
 npm run test:smoke          # smoke tests
 npm run verify              # contract checks
-bash scripts/build.sh --sync  # build + sync into an installed DSH (plain build does not sync)
 ```
 
 The full build / verify / sync / publish workflow lives in [DEV-WORKFLOW.md](workflow/DEV-WORKFLOW.md).

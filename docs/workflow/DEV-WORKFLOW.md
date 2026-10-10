@@ -80,14 +80,11 @@ src/host/index.js  ── harness shim + dispatch Map ──▶  _dev host.js / 
 ### ② 构建
 
 ```bash
-# 完整构建（默认：_dev + _pkg 双产物，默认不同步已装配置）
+# 完整构建（_dev + _pkg 双产物，只写仓库内产物，不碰本机已装配置）
 node scripts/build.mjs
-# 或经由 npm prepare 钩子（安装/发布时自动触发，同样默认不同步）
+# 或经由 npm prepare 钩子（安装/发布时自动触发，同样只写仓库内产物）
 npm run build
-# 要把产物写进已装配置才显式加 --sync（见 §④；新版本一律由人自己升级）
-node scripts/build.mjs --sync
-bash scripts/build.sh             # 构建 + 门禁，不同步
-bash scripts/build.sh --sync      # 构建 + 门禁 + 同步到已装配置
+bash scripts/build.sh             # 构建 + 门禁，同样不碰本机已装配置
 ```
 
 产物字节数会打印：`client.js (dev) ... bytes` 等；失败则门禁抛 `[G门禁]`。
@@ -135,20 +132,18 @@ node tests/verify-t3-locale.js     # 254 键双语平衡（单产物）
 >
 > 装完这些门禁应当直接跑绿；没装浏览器时它们会当场抛错、退出码 1（不是静默跳过，所以 `npm run verify` 会断在这里）。
 
-### ④ 同步 DSH 安装目录（默认不做，只在显式加 --sync 时做）
+### ④ 本机已装配置（构建永不触碰）
+
+构建只写仓库内产物（`client.js` / `host.js` / `package/lib/*`），永不读写本机已装配置，
+也不读取本机 DSH 环境。历史上的 `--sync` 入口已于 1.8.0-rc.1 彻底移除，再传会直接报错。
 
 ```bash
-# 推荐：构建一步到位（含同步与哈希校验）
-node scripts/build.mjs --sync
-# 或手动复制（若 profile 存在）
-PROFILE="$HOME/.dsh/profiles/web/node_modules/dsh-mattpocock-skills-deck"
-cp -f package/lib/client.js "$PROFILE/lib/client.js"
-cp -f package/lib/index.js  "$PROFILE/lib/index.js"
-# hash 校验必须一致
-node -e "const fs=require('fs');const a=fs.readFileSync('package/lib/client.js','utf8'),b=fs.readFileSync(process.env.HOME+'/.dsh/profiles/web/node_modules/dsh-mattpocock-skills-deck/lib/client.js','utf8');if(a!==b)process.exit(1);console.log('hash OK')"
+# 新版本一律由人自己升级，三选一：
+# 市场升级、软件内升级、自己敲安装命令
+dsh plugin --profile <profile> add dsh-mattpocock-skills-deck@1.8.0-rc.1
 ```
 
-> 只同步 `package/lib/` 产物（真实加载对象），`client.js`/`host.js` 仅作开发 runner 备用，不进 profile。
+> 只发布 `package/` 产物（真实加载对象），`client.js`/`host.js` 仅作开发 runner 备用，不进安装包。
 
 ### ⑤ DSH web 实时复核
 
@@ -218,7 +213,7 @@ npm run test:smoke
 | 三元缺 : null | build 门禁报 precheckCode 失败 | 补 `: null` |
 | Get-Content 中文乱码 | includes 假 MISS | 用 `[IO.File]::ReadAllText(..., UTF8)` |
 | commit 被 hooks 挡 | pre-commit 跑 pytest | `git -c core.hooksPath=/dev/null commit` |
-| 安装目录没同步 | DSH 加载旧 bundle | `bash scripts/build.sh --sync` 或手动 cp + hash 校验（默认构建不同步，这是预期行为，不是漏跑） |
+| DSH 里看到的还是旧版 | 本机装的还是上一版，构建本来就不写已装配置 | 走市场升级、软件内升级或自己敲安装命令装新版 |
 | jsdom 缺失 | smoke 抛 Cannot find module 'jsdom' | `npm i -D jsdom react react-dom`（已在 devDependencies） |
 | Playwright 浏览器没装 | 浏览器类 verify 抛 Please run `npx playwright install`（npm 包装了、浏览器二进制不在包里） | `npx playwright install chromium` 装一次；清单与说明见 §3 ③ 那段 |
 
@@ -226,7 +221,7 @@ npm run test:smoke
 
 ## 7. 发布（G1 三段式）
 
-- **开发**：`bash scripts/build.sh`（构建，不同步；加 `--sync` 才同步 profile）
+- **开发**：`bash scripts/build.sh`（构建，只写仓库内产物，不碰本机已装配置）
 - **发布前**：`npm pack` 前 `prepare` 自动跑 `node scripts/build.mjs`，产物进 tgz（git 忽略的不影响发布）
 - **安装**：`dsh plugin --profile web add dsh-mattpocock-skills-deck` 拉 tgz 内的 `package/lib/*`，无需仓库内 lib
 

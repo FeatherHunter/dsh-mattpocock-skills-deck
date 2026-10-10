@@ -1,27 +1,26 @@
 #!/bin/bash
 # scripts/build.sh — T0 阶段 0 构建入口（DSH 插件生产线惯例）
-# 构建（esbuild 双 entry）→ 门禁（vm 编译 loud fail）→ 按需同步 DSH profile 安装目录（默认不同步）。
-# 用法: bash scripts/build.sh [--sync]
-#   默认只构建不同步；加 --sync 才把产物写进已装配置（历史写法 --no-sync 仍被接受，含义就是默认行为）。
+# 构建（esbuild 双 entry）→ 门禁（vm 编译 loud fail）。永不同步本机已装配置。
+# 用法: bash scripts/build.sh
+#   本地同步已于 1.8.0-rc.1 彻底移除：构建只写仓库内产物，不碰本机 DSH 环境；
+#   新版本一律由人自己升级（市场升级、软件内升级、自己敲安装命令）。
 # 依赖: node + npm（esbuild 已装于根 devDependencies）
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-WANT_SYNC=0
 for a in "$@"; do
-  if [[ "$a" == "--sync" ]]; then WANT_SYNC=1; fi
+  if [[ "$a" == "--sync" || "$a" == "--no-sync" ]]; then
+    echo "本地同步已取消：构建不再支持 --sync（新版本请走市场升级、软件内升级或自己敲安装命令）" >&2
+    exit 1
+  fi
 done
 
-echo "==> [1/3] 构建（esbuild 双 entry：_pkg → package/lib/*，_dev → 根 client.js/host.js）"
-if [[ "$WANT_SYNC" == "1" ]]; then
-  node scripts/build.mjs --sync
-else
-  node scripts/build.mjs
-fi
+echo "==> [1/2] 构建（esbuild 双 entry：_pkg → package/lib/*，_dev → 根 client.js/host.js）"
+node scripts/build.mjs
 
-echo "==> [2/3] 产物 vm 编译 loud fail（门禁在 build.mjs 内：precheckCode / 语法 / __ModuleLoader__ / 单组件单声明）"
+echo "==> [2/2] 产物 vm 编译 loud fail（门禁在 build.mjs 内：precheckCode / 语法 / __ModuleLoader__ / 单组件单声明）"
 node -e "
 const fs = require('fs')
 const vm = require('vm')
@@ -35,31 +34,4 @@ for (const f of ['package/lib/client.js']) {
 }
 "
 
-if [[ "$WANT_SYNC" != "1" ]]; then
-  echo "==> [3/3] 跳过同步（默认不同步；要同步请加 --sync）"
-  exit 0
-fi
-
-echo "==> [3/3] 同步 DSH profile 安装目录（主战场 desktop 优先，全量同步 lib 防漏文件）"
-SYNCED_ANY=0
-for PROFILE in desktop web; do
-  PROFILE_NM="$HOME/.dsh/profiles/$PROFILE/node_modules/dsh-mattpocock-skills-deck"
-  if [ ! -d "$PROFILE_NM/lib" ]; then
-    echo "  - profile 不存在跳过：$PROFILE" >&2
-    continue
-  fi
-  cp -rf "$ROOT/package/lib/." "$PROFILE_NM/lib/"
-  SYNCED_ANY=1
-  node -e "
-const fs = require('fs')
-const a = fs.readFileSync('package/lib/client.js', 'utf8')
-const b = fs.readFileSync(process.env.HOME + '/.dsh/profiles/$PROFILE/node_modules/dsh-mattpocock-skills-deck/lib/client.js', 'utf8')
-if (a !== b) { console.error('  ! client.js 同步 hash 校验失败：$PROFILE'); process.exit(1) }
-console.log('  client.js 同步 OK（$PROFILE，hash 校验通过）')
-"
-done
-if [ "$SYNCED_ANY" = "0" ]; then
-  echo "  ! 没有可用 profile，跳过同步" >&2
-  exit 0
-fi
-echo "==> 完成。刷新 DSH 浏览器（Ctrl+F5）即可看到新 client；host 半需重启 DSH 应用。"
+echo "==> 完成。构建只写仓库内产物，不碰本机已装配置；刷新 DSH 浏览器（Ctrl+F5）即可看到新 client；host 半需重启 DSH 应用。"

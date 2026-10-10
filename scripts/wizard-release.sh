@@ -209,8 +209,8 @@ stage "3/6 隔离门禁（任一失败即阻断）"
 say "在隔离环境中执行构建与全部校验，不污染当前工作区与已装形态。"
 echo ""
 
-say "① 隔离构建：node scripts/build.mjs --no-sync（仅校验产物，不同步 profile）"
-if node scripts/build.mjs --no-sync 2>&1 | sed 's/^/  /' ; then
+say "① 隔离构建：node scripts/build.mjs（只写仓库内产物，不碰本机已装配置）"
+if node scripts/build.mjs 2>&1 | sed 's/^/  /' ; then
   say "✓ 构建完成"
 else
   warn "构建失败，已阻断后续发布。"
