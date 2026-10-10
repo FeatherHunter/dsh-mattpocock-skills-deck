@@ -334,7 +334,9 @@ export const LabelColorDialog = (props) => {
   ]) : null
 
   return h('div', { className: 'dsws-modal', 'data-role': 'label-colors-dialog', onClick: onBackdrop }, [
-    h('div', { className: 'dsws-modalbox', 'data-role': 'label-colors-box', role: 'dialog', 'aria-modal': 'true', 'aria-label': tr('lc.title'), onClick: function (e) { e.stopPropagation() }, style: { width: 520, maxWidth: '94vw', maxHeight: '82vh', display: 'flex', flexDirection: 'column' } }, [
+    // #958 修复：弹窗长在那颗调色盘入口图标里面，外层 span 写着 lineHeight: 0（只为压掉图标自己的行盒）；
+    //   行高会继承，于是这里不自己写行高的字全成了 0 行盒 —— 标签名那格还带 overflow:hidden，字被整段裁掉。
+    h('div', { className: 'dsws-modalbox', 'data-role': 'label-colors-box', role: 'dialog', 'aria-modal': 'true', 'aria-label': tr('lc.title'), onClick: function (e) { e.stopPropagation() }, style: { width: 520, maxWidth: '94vw', maxHeight: '82vh', display: 'flex', flexDirection: 'column', lineHeight: 1.5 } }, [
       head,
       bannerNode,
       h('div', { key: 'body', style: { flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' } }, body),
