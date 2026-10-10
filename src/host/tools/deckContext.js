@@ -10,6 +10,7 @@ import { sessionContextOfAsync } from '../../shared/deck-tools/session-resolve.j
 import { withCallScope } from '../../shared/deck-tools/call-scope.js'
 import * as budget from '../../shared/refresh/budget.js'
 import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/tool-cost.js'
+import { knownWritePermissions } from '../../shared/tracker/backendWritePermissions.js'
 
 function numOpt(v) { return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : undefined }
 function withCap(promise, ms) {
@@ -79,9 +80,11 @@ export function createDeckContext(deps) {
       const opCtx = sc.opCtx
       const preP = (typeof t.preflight === 'function') ? t.preflight({ cwd: s.cwd }, opCtx) : Promise.resolve(null)
       const listP = t.list(repo, { type: 'map' }, opCtx)
-      // #992：仓库写权限能力位（只读旁路，与预检/清单并行；只问 GitHub，本地 Markdown 恒可写，
-      //   GitLab 诚实未知）。问不出来不拦事，按未知处理。
-      const wantPerms = pick.backendId === 'github' && typeof t.getRepoPermissions === 'function' && !sc.outOfBudget()
+      // #992：仓库写权限能力位（只读旁路，与预检/清单并行）。本地文件后端没有远端权限模型，
+      //   由共享判断直接给「可写」（见 shared/tracker/backendWritePermissions.js）；其余后端问一遍
+      //   写权限旁路，问不出来不拦事、按未知处理（GitLab 不实现这条旁路，诚实未知）。
+      const knownPerm = knownWritePermissions(pick.backendId)
+      const wantPerms = !knownPerm && typeof t.getRepoPermissions === 'function' && !sc.outOfBudget()
       const permP = wantPerms ? t.getRepoPermissions(repo, opCtx) : Promise.resolve(null)
       const pre = await preP
       const listed = await listP
@@ -93,10 +96,10 @@ export function createDeckContext(deps) {
       const permTransport = transportMessage(perm)
       if (permTransport) throw new Error(permTransport)
       const maps = (listed.ok && Array.isArray(listed.data)) ? listed.data.map(mapRow) : []
-      // 能力位：Markdown 回恒可写（本地文件可写性归 md:scratchWritable 管，这里不重复判）；
-      //   GitLab 不实现，按未知（不捏造）；GitHub 问到了用真值，问不到按未知。
+      // 能力位：本地文件后端恒可写（本地文件可写性归 md:scratchWritable 管，这里不重复判）；
+      //   其余后端问到了用真值，问不到按未知（不捏造）。
       let permissions = null
-      if (pick.backendId === 'markdown') permissions = { push: true, triage: true }
+      if (knownPerm) permissions = knownPerm
       else if (perm && perm.ok === true && perm.data && typeof perm.data.push === 'boolean' && typeof perm.data.triage === 'boolean') {
         permissions = { push: perm.data.push, triage: perm.data.triage }
       } else permissions = { unknown: true }
