@@ -63,9 +63,10 @@ export const PIXEL_STYLE_TEXT: string[] = [
   // 于是 `**\`/grill-with-docs\`**` 看起来跟普通代码一样。
   ".pixel-doc strong{font-weight:800}",
   // 但光调字重看不出区别（2026-10-10 人反馈两个徽章一模一样）：等宽字体 ui-monospace / Menlo /
-  // Consolas 都没有 800、900 这两档字面，浏览器把它们归到最近的 700，粗体包代码和普通代码
-  // 就长得一样了。所以强调里的代码改用**反色徽章**（深底浅字、金色投影）——不靠字体粗细也能一眼分开。
-  ".pixel-doc strong code{font-weight:900;background:var(--pixel-ink);color:var(--pixel-paper);border-color:var(--pixel-ink);box-shadow:2px 2px 0 var(--pixel-gold)}",
+  // Consolas 都没有 800、900 这两档字面，浏览器把它们归到最近的 700，粗体包代码和普通代码长得一样。
+  // 人拍板（同日第二轮）：外观还是原来那只米白徽章（反色那版不好看），改用**描边把笔画真的加粗**——
+  // -webkit-text-stroke 在字形轮廓上再描一圈，不受字体有没有粗字面影响；Chromium / Safari / Firefox 都认。
+  ".pixel-doc strong code{font-weight:900;-webkit-text-stroke:.5px var(--pixel-ink)}",
   ".pixel-doc em{font-style:normal;font-weight:700;color:var(--pixel-ink);background:var(--pixel-hi);padding:0 3px;border-bottom:3px solid var(--pixel-gold)}",
   ".pixel-doc hr{border:none;border-top:3px solid var(--pixel-frame);margin:10px 0}",
   ".pixel-doc img{max-width:100%;max-height:220px;object-fit:contain;display:block;margin:8px 0;border:3px solid var(--pixel-frame);background:var(--pixel-card);cursor:zoom-in}",
