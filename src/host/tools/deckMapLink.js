@@ -9,8 +9,17 @@ import { sessionContextOfAsync } from '../../shared/deck-tools/session-resolve.j
 import { classifyEdgeLanding, edgeEvidence, statusOfItems, applyParentEdge, applyBlockEdges, precheckBlockBatch } from '../../shared/deck-tools/edges.js'
 import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/tool-cost.js'
 import { withCallScope } from '../../shared/deck-tools/call-scope.js'
+import { withKeyLock } from '../../shared/deck-tools/key-lock.js'
 
 function numOpt(v) { return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : undefined }
+// 沙箱许可等待上限：超时按缺席走老路（不限权），与既有 catch null 同形。
+function withCap(promise, ms) {
+  return Promise.race([
+    Promise.resolve(promise).then(function (v) { return { ok: true, value: v } }, function () { return { ok: false } }),
+    new Promise(function (resolve) { setTimeout(function () { resolve({ ok: false, timedOut: true }) }, ms) }),
+  ])
+}
+const SANDBOX_TIMEOUT_MS = 5000
 
 export const definition = {
   name: 'deck_map_link',
@@ -61,7 +70,7 @@ export function createDeckMapLink(deps) {
     const effortId = (a.effortId === undefined || a.effortId === null) ? '' : String(a.effortId).trim()
     if (effortId) repo.effortId = effortId
 
-    return shell.call({ tool: 'deck_map_link', kind: 'write', session: s, pick: pick, repo: repo, estimate: est, sandbox: (typeof d.sandboxPolicyFor === 'function' ? await d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }).catch(function(){ return null }) : null) }, async (c) => {
+    return shell.call({ tool: 'deck_map_link', kind: 'write', session: s, pick: pick, repo: repo, estimate: est, sandbox: (await (async function () { try { if (typeof d.sandboxPolicyFor !== 'function') return null; const raced = await withCap(d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }), SANDBOX_TIMEOUT_MS); return (raced && raced.ok === true) ? raced.value : null } catch (eS) { return null } })()), signal: (exec && exec.signal && typeof exec.signal === 'object') ? exec.signal : undefined }, async (c) => {
       const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), now: (typeof d.now === 'function') ? d.now : Date.now })
       const t = sc.tracker
       const opCtx = sc.opCtx
@@ -99,8 +108,12 @@ export function createDeckMapLink(deps) {
       if (!pre.ok) notes.push('这一批的整批成环预检没读到整图（列表没回来），成环检查只有每一组自己那一份：同批里互指的边仍可能都通过。')
       const perKey = await Promise.all(keyOrder.map(async (key) => {
         const out = { items: [], notes: [], touched: [], done: 0, readback: null }
-        for (const job of jobsByKey.get(key)) {
-          if (sc.outOfBudget()) { out.items.push({ key: key, status: 'failed', reason: '剩余额度不够发这一次调用了，这张票的边这次没动：带同样参数再调一次即可。' }); continue }
+        // 同票分组持锁 serial：同票并发补边不再丢一次改动；不同票分组照旧并行。
+        // 锁只保证“同一组内逐条”不被别笔穿插，组间并行一个字不动。
+        const lockTimeoutMs = numOpt(d.keyLockTimeoutMs)
+        const held = await withKeyLock(repo, key, async () => {
+          for (const job of jobsByKey.get(key)) {
+            if (sc.outOfBudget()) { out.items.push({ key: key, status: 'failed', reason: '剩余额度不够发这一次调用了，这张票的边这次没动：带同样参数再调一次即可。' }); continue }
           if (job.parentKey !== undefined && job.parentKey !== null) {
             const r = await applyParentEdge(t, repo, opCtx, key, String(job.parentKey))
             out.items.push(r.item)
@@ -142,9 +155,22 @@ export function createDeckMapLink(deps) {
               }
             }
           }
-        }
-        return out
-      }))
+          }
+          }, { timeoutMs: lockTimeoutMs })
+          if (held && held.ok === false && held.timedOut) {
+            // 锁没等到：这组一条没动，逐条诚实记（形状与预检拒绝同形，调用方照既有路续跑）。
+            const lockText = '这张票正被另一次调用改着，这次没动：稍后带同样参数再调一次即可。'
+            for (const job of jobsByKey.get(key)) {
+              if (job.parentKey !== undefined && job.parentKey !== null) {
+                out.items.push(Object.assign({ key: key, status: 'failed' }, edgeEvidence('parent', String(job.parentKey), { kind: 'unknown', ok: false, text: lockText })))
+              }
+              for (const target of asList(job.blockedBy)) {
+                out.items.push(Object.assign({ key: key, status: 'failed' }, edgeEvidence('block', target, { kind: 'unknown', ok: false, text: lockText })))
+              }
+            }
+          }
+          return out
+        }))
       for (const r of perKey) {
         for (const i of r.items) items.push(i)
         for (const n of r.notes) notes.push(n)

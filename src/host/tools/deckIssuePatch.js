@@ -7,8 +7,32 @@
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../../shared/deck-tools/shell.js'
 import { sessionContextOfAsync } from '../../shared/deck-tools/session-resolve.js'
 import { statusOfItems } from '../../shared/deck-tools/edges.js'
+import { withCallScope } from '../../shared/deck-tools/call-scope.js'
+import { withKeyLock } from '../../shared/deck-tools/key-lock.js'
 import { ensureBody } from '../../shared/deck-tools/plan.js'
 import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/tool-cost.js'
+
+function numOpt(v) { return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : undefined }
+function withCap(promise, ms) {
+  return Promise.race([
+    Promise.resolve(promise).then(function (v) { return { ok: true, value: v } }, function () { return { ok: false } }),
+    new Promise(function (resolve) { setTimeout(function () { resolve({ ok: false, timedOut: true }) }, ms) }),
+  ])
+}
+const SANDBOX_TIMEOUT_MS = 5000
+// 执行层失败与后端诚实失败的分界（见 deckIssueCreate.js 同名注释）：前者抛给壳走
+// backend-threw（可重试），后者走逐项 fail（partial）。must() 包住每一次远端调用。
+const TRANSPORT_KINDS = ['backend-threw', 'timeout', 'aborted', 'over-budget']
+function transportMessage(result) {
+  const e = result && result.error
+  if (e && TRANSPORT_KINDS.indexOf(e.kind) >= 0) return String(e.message || '执行层没回来')
+  return null
+}
+function must(result) {
+  const m = transportMessage(result)
+  if (m) throw new Error(m)
+  return result
+}
 
 export const definition = {
   name: 'deck_issue_patch',
@@ -90,7 +114,10 @@ export function createDeckIssuePatch(deps) {
       return shell.unsupported('deck_issue_patch', REFUSAL_REASONS.BAD_ARGS, '这次没说清要改什么：至少点名一件（comment / addLabels / removeLabels / assignees / title / body / progress / close）。', { cost: { estimated: est } })
     }
 
-    return shell.call({ tool: 'deck_issue_patch', kind: 'write', session: s, pick: pick, repo: repo, estimate: est, sandbox: (typeof d.sandboxPolicyFor === 'function' ? await d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }).catch(function(){ return null }) : null) }, async (c) => {
+    return shell.call({ tool: 'deck_issue_patch', kind: 'write', session: s, pick: pick, repo: repo, estimate: est, sandbox: (await (async function () { try { if (typeof d.sandboxPolicyFor !== 'function') return null; const raced = await withCap(d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }), SANDBOX_TIMEOUT_MS); return (raced && raced.ok === true) ? raced.value : null } catch (eS) { return null } })()), signal: (exec && exec.signal && typeof exec.signal === 'object') ? exec.signal : undefined }, async (c) => {
+      const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), now: (typeof d.now === 'function') ? d.now : Date.now })
+      const t = sc.tracker
+      const opCtx = sc.opCtx
       const items = []
       const notes = []
       if (effortId) notes.push('这次带了 effortId（' + effortId.slice(0, 60) + '）：本地后端只在那一个目录里找，远端后端忽略它。')
@@ -99,76 +126,111 @@ export function createDeckIssuePatch(deps) {
         const msg = String((result && result.error && result.error.message) || '后端没给出原因').slice(0, 200)
         items.push({ key: key, step: step, status: 'failed', reason: msg })
       }
+      // 剩余额度不够时停发新调用：与 deck_map_link 同一句话，逐项诚实报失败，不硬撑。
+      const over = (step) => {
+        items.push({ key: key, step: step, status: 'failed', reason: '剩余额度不够发这一次调用了，这一步这次没动：带同样参数再调一次即可。' })
+      }
+      // 同票并发写互斥：等不到锁就诚实记一笔，不硬挤（单次原子写不拿锁，只有读改写序列拿）。
+      const lockOpts = { timeoutMs: numOpt(d.keyLockTimeoutMs) }
+      const lockedOut = (step) => {
+        items.push({ key: key, step: step, status: 'failed', reason: '这张票正被另一次调用改着，这次没动：稍后带同样参数再调一次即可。' })
+      }
 
       if (wants.comment) {
-        const r = await c.tracker.comment(repo, key, a.comment, c.opCtx)
-        if (r && r.ok === true) items.push({ key: key, step: 'comment', status: 'ok' })
-        else fail('comment', r)
+        if (sc.outOfBudget()) over('comment')
+        else {
+          const r = must(await t.comment(repo, key, a.comment, opCtx))
+          if (r && r.ok === true) items.push({ key: key, step: 'comment', status: 'ok' })
+          else fail('comment', r)
+        }
       }
 
       if (wants.labels) {
         // 标签是整批替换：先读回当前标签，再加上去/摘下来 —— 只有读到了才敢整批替换。
-        const cur = await c.tracker.get(repo, key, {}, c.opCtx)
-        if (!cur || cur.ok !== true) fail('labels', cur)
+        // 读改写序列持同票锁：同票并发改标签不再丢一次改动；不同票照旧并行。
+        if (sc.outOfBudget()) over('labels')
         else {
-          const have = names(cur.data && cur.data.labels)
-          const want = have.concat(addLabels).filter((n) => removeLabels.indexOf(n) < 0)
-          const uniq = want.filter((n, i) => want.indexOf(n) === i)
-          const r = await c.tracker.setLabels(repo, key, uniq, {}, c.opCtx)
-          if (r && r.ok === true) items.push({ key: key, step: 'labels', status: 'ok', labels: uniq })
-          else fail('labels', r)
+          const held = await withKeyLock(repo, key, async () => {
+            const cur = must(await t.get(repo, key, {}, opCtx))
+            if (!cur || cur.ok !== true) { fail('labels', cur); return }
+            const have = names(cur.data && cur.data.labels)
+            const want = have.concat(addLabels).filter((n) => removeLabels.indexOf(n) < 0)
+            const uniq = want.filter((n, i) => want.indexOf(n) === i)
+            if (sc.outOfBudget()) { over('labels'); return }
+            const r = must(await t.setLabels(repo, key, uniq, {}, opCtx))
+            if (r && r.ok === true) items.push({ key: key, step: 'labels', status: 'ok', labels: uniq })
+            else fail('labels', r)
+          }, lockOpts)
+          if (held && held.ok === false && held.timedOut) lockedOut('labels')
         }
       }
 
       if (wants.assignees) {
         const want = Array.isArray(a.assignees) ? a.assignees.map((x) => String(x)) : []
-        const r = await c.tracker.setAssignees(repo, key, want, {}, c.opCtx)
-        if (r && r.ok === true) {
-          // 「回了 ok」不等于「认领人记上了」：本地 Markdown 只会把状态改成 claimed，认领人的名字不记。
-          // 判据是读回来的票（后端的回答本身），不是后端是谁 —— 名字没出现在票上就如实说没记上。
-          const back = (r.data && r.data.assignees) ? r.data : (typeof c.tracker.get === 'function' ? ((await c.tracker.get(repo, key, {}, c.opCtx)).data || {}) : {})
-          const got = Array.isArray(back.assignees) ? back.assignees.map((x) => (x && x.login) || String(x)) : []
-          const missing = want.filter((w) => got.indexOf(w) < 0)
-          if (want.length && missing.length) {
-            items.push({ key: key, step: 'assignees', status: 'failed', reason: '后端回了 ok，但读回来的票上没有这些认领人（' + missing.join('、') + '）：它可能只改了状态、没记认领人，别当成认领已经记上。' })
-          } else items.push({ key: key, step: 'assignees', status: 'ok', assignees: want })
-        } else if (r && r.error && r.error.kind === 'unsupported') {
-          items.push({ key: key, step: 'assignees', status: 'failed', reason: '这个后端做不到记认领人（后端原话：' + String(r.error.message || '').slice(0, 160) + '）。' })
-        } else fail('assignees', r)
+        if (sc.outOfBudget()) over('assignees')
+        else {
+          const r = must(await t.setAssignees(repo, key, want, {}, opCtx))
+          if (r && r.ok === true) {
+            // 「回了 ok」不等于「认领人记上了」：本地 Markdown 只会把状态改成 claimed，认领人的名字不记。
+            // 判据是读回来的票（后端的回答本身），不是后端是谁 —— 名字没出现在票上就如实说没记上。
+            const back = (r.data && r.data.assignees) ? r.data : (typeof t.get === 'function' && !sc.outOfBudget() ? ((must(await t.get(repo, key, {}, opCtx)).data || {})) : {})
+            const got = Array.isArray(back.assignees) ? back.assignees.map((x) => (x && x.login) || String(x)) : []
+            const missing = want.filter((w) => got.indexOf(w) < 0)
+            if (want.length && missing.length) {
+              items.push({ key: key, step: 'assignees', status: 'failed', reason: '后端回了 ok，但读回来的票上没有这些认领人（' + missing.join('、') + '）：它可能只改了状态、没记认领人，别当成认领已经记上。' })
+            } else items.push({ key: key, step: 'assignees', status: 'ok', assignees: want })
+          } else if (r && r.error && r.error.kind === 'unsupported') {
+            items.push({ key: key, step: 'assignees', status: 'failed', reason: '这个后端做不到记认领人（后端原话：' + String(r.error.message || '').slice(0, 160) + '）。' })
+          } else fail('assignees', r)
+        }
       }
 
       if (wants.text) {
-        const patch = {}
-        let progressBlocked = false
-        if (typeof a.title === 'string') patch.title = a.title
-        if (typeof a.body === 'string') patch.body = a.body
-        if (typeof a.progress === 'string') {
-          if (typeof a.body === 'string') patch.body = replaceProgressSection(a.body, a.progress)
-          else {
-            const cur = await c.tracker.get(repo, key, {}, c.opCtx)
-            const base = (cur && cur.ok === true && cur.data && typeof cur.data.body === 'string') ? cur.data.body : null
-            // 旧正文没读回来时不敢拿空正文覆盖：空写一次就会把整张票冲成只剩进度段（#908 亲历）。这次宁可报失败，让调用方等能读回再写，或改传整段 body。
-            if (base === null) { progressBlocked = true; fail('text', { error: { message: '旧正文没读回来，不敢拿半截正文覆盖：这次进度没写，等能读回旧正文再写（若急用，改传整段 body）。' } }) }
-            else patch.body = replaceProgressSection(ensureBody(base, 'task').body, a.progress)
-          }
-        }
-        // 进度因读不到旧正文被拦下时：body 不写（免得把整票冲掉），但同批点的标题照写；如果只点了进度，这次文字一个字不动，失败原因已在上面记好。
-        if (progressBlocked) delete patch.body
-        if (!progressBlocked || Object.keys(patch).length > 0) {
-          const r = await c.tracker.update(repo, key, patch, c.opCtx)
-          if (r && r.ok === true) items.push({ key: key, step: 'text', status: 'ok', fields: Object.keys(patch) })
-          else fail('text', r)
+        // 正文读改写序列持同票锁（单次标题直写也一起 serial，保证与进度回写不交错）。
+        if (sc.outOfBudget()) over('text')
+        else {
+          const held = await withKeyLock(repo, key, async () => {
+            const patch = {}
+            let progressBlocked = false
+            if (typeof a.title === 'string') patch.title = a.title
+            if (typeof a.body === 'string') patch.body = a.body
+            if (typeof a.progress === 'string') {
+              if (typeof a.body === 'string') patch.body = replaceProgressSection(a.body, a.progress)
+              else if (sc.outOfBudget()) { progressBlocked = true; over('text') }
+              else {
+                const cur = must(await t.get(repo, key, {}, opCtx))
+                const base = (cur && cur.ok === true && cur.data && typeof cur.data.body === 'string') ? cur.data.body : null
+                // 旧正文没读回来时不敢拿空正文覆盖：空写一次就会把整张票冲成只剩进度段（#908 亲历）。这次宁可报失败，让调用方等能读回再写，或改传整段 body。
+                if (base === null) { progressBlocked = true; fail('text', { error: { message: '旧正文没读回来，不敢拿半截正文覆盖：这次进度没写，等能读回旧正文再写（若急用，改传整段 body）。' } }) }
+                else patch.body = replaceProgressSection(ensureBody(base, 'task').body, a.progress)
+              }
+            }
+            // 进度因读不到旧正文被拦下时：body 不写（免得把整票冲掉），但同批点的标题照写；如果只点了进度，这次文字一个字不动，失败原因已在上面记好。
+            if (progressBlocked) delete patch.body
+            if (!progressBlocked || Object.keys(patch).length > 0) {
+              if (sc.outOfBudget()) over('text')
+              else {
+                const r = must(await t.update(repo, key, patch, opCtx))
+                if (r && r.ok === true) items.push({ key: key, step: 'text', status: 'ok', fields: Object.keys(patch) })
+                else fail('text', r)
+              }
+            }
+          }, lockOpts)
+          if (held && held.ok === false && held.timedOut) lockedOut('text')
         }
       }
 
       if (wants.state) {
-        const r = a.close === true ? await c.tracker.close(repo, key, {}, c.opCtx) : await c.tracker.reopen(repo, key, c.opCtx)
-        if (r && r.ok === true) items.push({ key: key, step: a.close === true ? 'close' : 'reopen', status: 'ok' })
-        else fail(a.close === true ? 'close' : 'reopen', r)
+        if (sc.outOfBudget()) over(a.close === true ? 'close' : 'reopen')
+        else {
+          const r = a.close === true ? must(await t.close(repo, key, {}, opCtx)) : must(await t.reopen(repo, key, opCtx))
+          if (r && r.ok === true) items.push({ key: key, step: a.close === true ? 'close' : 'reopen', status: 'ok' })
+          else fail(a.close === true ? 'close' : 'reopen', r)
+        }
       }
 
       // 写后真状态：能读回就读回一次，读不回来也如实说（别让 AI 以为已经确认过了）。
-      const back = typeof c.tracker.get === 'function' ? await c.tracker.get(repo, key, {}, c.opCtx) : null
+      const back = (typeof t.get === 'function' && !sc.outOfBudget()) ? await t.get(repo, key, {}, opCtx) : null
       const readBack = (back && back.ok === true) ? back.data : null
       if (!readBack) notes.push('写后没读回来（后端原话：' + String((back && back.error && back.error.message) || '没给出原因').slice(0, 160) + '）：上面每步是照后端的回答记的。')
       const status = statusOfItems(items)
