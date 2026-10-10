@@ -29,13 +29,14 @@ function transportMessage(result) {
 
 export const definition = {
   name: 'deck_issue_get',
-  description: '同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。读一个 ISSUE 的完整关系：正文、评论、label、assignee 与 parent 和 blockedBy 边，每条边标出落点。',
+  description: '同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。读一个 ISSUE 的完整关系：正文、评论、label、assignee 与 parent 和 blockedBy 边，每条边标出落点。blocking=false 跳过反向边全仓扫描（快，见 blocking 参数）。',
   parameters: {
     type: 'object',
     properties: {
       key: { type: 'string', description: '票号，例如 713' },
       comments: { type: 'number', description: '最多带回几条评论，缺省 50' },
       section: { type: 'string', description: '只回正文里这一节（## 标题子串），缺省回全文前 2000 字' },
+      blocking: { type: 'boolean', description: '要不要反向阻塞边（谁被这张票阻塞）。缺省要：读全量关系。关掉只读单票本身，跳过一次全仓扫描，快一个数量级；反向边记空并注记，要就再调一次。' },
       effortId: { type: 'string', description: '只有本地后端需要填，填票所在的目录名，根目录的不填' },
     },
     required: ['key'],
@@ -94,6 +95,8 @@ export function createDeckIssueGet(deps) {
     const effortId = (a.effortId === undefined || a.effortId === null) ? '' : String(a.effortId).trim()
     if (effortId) repo.effortId = effortId
     const first = Math.max(0, Math.min(200, Number(a.comments) > 0 ? Math.floor(Number(a.comments)) : 50))
+    // 反向边缺省要：只有显式传 false 才跳过。缺席、true、其它值一律全量，老调用方形状不动。
+    const wantBlocking = a.blocking !== false
     let sandbox = null
     try {
       if (typeof d.sandboxPolicyFor === 'function') {
@@ -124,13 +127,17 @@ export function createDeckIssueGet(deps) {
         }
       }
       const issue = got.data || {}
-      const dep = typeof t.getDependencies === 'function' ? await t.getDependencies(repo, key, {}, opCtx) : null
-      const depTransport = transportMessage(dep)
+      // 反向边是整笔调用里最贵的一段（算“谁被阻塞”要扫全仓）：关掉就整段跳过，
+      // 只读单票本身；反向边记空并注记，不假装 0 条。
+      const dep = (wantBlocking && typeof t.getDependencies === 'function') ? await t.getDependencies(repo, key, {}, opCtx) : null
+      const depTransport = wantBlocking ? transportMessage(dep) : null
       if (depTransport) throw new Error(depTransport)
       const dependencies = (dep && dep.ok === true) ? dep.data : null
       const rel = relationsOf(issue, dependencies)
+      if (!wantBlocking) rel.blocking = []
       const notes = []
       if (effortId) notes.push('这次带了 effortId（' + effortId.slice(0, 60) + '）：本地后端只在那一个目录里找，远端后端忽略它。')
+      if (!wantBlocking) notes.push('反向阻塞边这次没取（blocking=false，跳过一次全仓扫描）：上面“阻塞别人”记空不是 0 条，要就带 blocking=true 再调一次。')
       if (dep && dep.ok !== true) notes.push('阻塞边这次没读到（后端原话：' + String((dep.error && dep.error.message) || '').slice(0, 200) + '）：上面只列了票自己带的那些。')
       const bodyText = typeof issue.body === 'string' ? issue.body : ''
       const sec = sectionOf(bodyText, a.section)
@@ -138,10 +145,11 @@ export function createDeckIssueGet(deps) {
       const excerpt = (sec.found ? sec.text : bodyText).slice(0, sec.found ? 2000 : 2000)
       const stateText = String(issue.state || '未知状态')
       const closedText = issue.closedAt ? '（关闭于 ' + String(issue.closedAt).slice(0, 10) + '）' : ''
+      const blockingText = wantBlocking ? ('阻塞别人 ' + rel.blocking.length + ' 条。') : '阻塞别人未取（blocking=false）。'
       return {
         value: {
           status: DECK_STATUS.OK,
-          text: '票 ' + key + ' 读回来了：状态 ' + stateText + closedText + '，父票 ' + (rel.parentKey || '（没有）') + '，被阻塞 ' + rel.blockedBy.length + ' 条，阻塞别人 ' + rel.blocking.length + ' 条。',
+          text: '票 ' + key + ' 读回来了：状态 ' + stateText + closedText + '，父票 ' + (rel.parentKey || '（没有）') + '，被阻塞 ' + rel.blockedBy.length + ' 条，' + blockingText,
           data: {
             ticket: issueBrief(issue),
             excerpt: excerpt,
@@ -159,7 +167,8 @@ export function createDeckIssueGet(deps) {
           notes: notes,
           touched: [],
         },
-        claimed: { requests: 2, points: 6 },
+        // 按实际读数报账：跳过反向边就是一次读，与取失败那条路同数，闸对账不报“对不上”。
+        claimed: wantBlocking ? { requests: 2, points: 6 } : { requests: 1, points: 3 },
       }
     })
   }
