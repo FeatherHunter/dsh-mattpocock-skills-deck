@@ -1,7 +1,7 @@
 // issues-patch.js —— 以后改打补丁类字段更新时改它（预估约 190 行）。
 //
 // effort 维度（2026-09-09）：所有写路径按 (effort 范围, 编号) 定位文件，多命中即 conflict。
-import { parseMd, stripLabelDecoration, parentKeyFromFile } from './parse.js'
+import { parseMd, stripLabelDecoration, parentKeyFromFile, isWholeIssueBody } from './parse.js'
 import { readTextFile } from './read.js'
 import { writeTextFile } from './write.js'
 import { classifyError } from '../../preflight.js'
@@ -47,6 +47,69 @@ function fieldLinesOf(text){
   return out
 }
 function fieldNameOf(line){ return String(line).split(/[:\uFF1A]/)[0].trim().toLowerCase() }
+/** 取票文件里某骨架区整段（标题加内容，到下一个二级标题或文末）：改正文时用来把盘上旧评论搬回新正文。 */
+function sectionOf(text, name){
+  const re=new RegExp('^##\\s*'+name+'\\s*$[\\s\\S]*?(?=^##\\s|$(?![\\s\\S]))', 'im')
+  const m=re.exec(String(text||''))
+  return m?m[0].replace(/^\s*/, '').replace(/\s*$/, ''):''
+}
+function countRe(text, re){ return (String(text||'').match(re)||[]).length }
+/** 写坏了没有的快速核对：新正文相对旧正文不许新增重复、不许弄丢锚与骨架，坏了就返回原因（调用方转成如实失败，不落盘）。
+ *  缺字段补上（0 到 1）不算坏，那是在治旧数据的缺；翻倍（超过旧数且超过 1 个）才算坏。 */
+function checkNoWorseForPatch(oldText, newText){
+  const o=String(oldText||''), n=String(newText||'')
+  const worse=function(oldC, newC){ return newC>1&&newC>oldC }
+  if(worse(countRe(o, /^#[ \t]+\S.*/gm), countRe(n, /^#[ \t]+\S.*/gm))) return '一级标题变多了'
+  if(worse(countRe(o, /DSH-IDEMPOTENCY-KEY/g), countRe(n, /DSH-IDEMPOTENCY-KEY/g))) return '幂等锚变多了'
+  if(countRe(o, /DSH-IDEMPOTENCY-KEY/g)>=1&&countRe(n, /DSH-IDEMPOTENCY-KEY/g)===0) return '幂等锚丢了'
+  if(worse(countRe(o, /^\s*Status\s*[:\uFF1A]/gim), countRe(n, /^\s*Status\s*[:\uFF1A]/gim))) return 'Status 行变多了'
+  if(worse(countRe(o, /^\s*Type\s*[:\uFF1A]/gim), countRe(n, /^\s*Type\s*[:\uFF1A]/gim))) return 'Type 行变多了'
+  if(worse(countRe(o, /^\s*Blocked\s+by\s*[:\uFF1A]/gim), countRe(n, /^\s*Blocked\s+by\s*[:\uFF1A]/gim))) return 'Blocked by 行变多了'
+  if(worse(countRe(o, /^\s*Labels\s*[:\uFF1A]/gim), countRe(n, /^\s*Labels\s*[:\uFF1A]/gim))) return 'Labels 行变多了'
+  if(worse(countRe(o, /^##\s*Comments\s*$/gim), countRe(n, /^##\s*Comments\s*$/gim))) return 'Comments 骨架变多了'
+  if(worse(countRe(o, /^##\s*Answer\s*$/gim), countRe(n, /^##\s*Answer\s*$/gim))) return 'Answer 骨架变多了'
+  if(countRe(o, /^##\s*Comments\s*$/gim)>=1&&countRe(n, /^##\s*Comments\s*$/gim)===0) return 'Comments 骨架丢了'
+  if(countRe(o, /^##\s*Answer\s*$/gim)>=1&&countRe(n, /^##\s*Answer\s*$/gim)===0) return 'Answer 骨架丢了'
+  return ''
+}
+/** 整份正文合并：锚一律用盘上旧的，缺一级标题用盘上旧标题补回，缺字段行与骨架区从盘上旧文件搬回（字段插在骨架之前）。 */
+function mergeWholeBodyForPatch(incomingRaw, diskText){
+  let incoming=String(incomingRaw||'')
+  incoming=incoming.replace(/^[ \t]*<!--[ \t]*DSH-IDEMPOTENCY-KEY:.*?-->[ \t]*\r?\n?/gim, '')
+  const diskAnchor=(String(diskText||'').match(/^[ \t]*<!--[ \t]*DSH-IDEMPOTENCY-KEY:.*?-->[ \t]*$/m)||[])[0]
+  if(diskAnchor) incoming=String(diskAnchor).trim()+'\n'+incoming.replace(/^\s*/, '')
+  const h1count=(incoming.match(/^#[ \t]+\S.*/gm)||[]).length
+  if(h1count===0){
+    const diskH1=(String(diskText||'').match(/^#[ \t]+.*$/m)||[])[0]
+    if(diskH1){
+      const lines=incoming.split('\n')
+      let at=0
+      while(at<lines.length&&/^[ \t]*<!--[ \t]*(DSH-IDEMPOTENCY-KEY|parentKey)[ \t]*:/.test(lines[at])) at++
+      lines.splice(at, 0, String(diskH1).trim(), '')
+      incoming=lines.join('\n')
+    }
+  }else if(h1count>1){
+    let first=true
+    incoming=incoming.replace(/^#[ \t]+.*$/gm, function(m){ if(first){ first=false; return m } return '' })
+  }
+  const have=fieldLinesOf(incoming).map(fieldNameOf)
+  const keep=fieldLinesOf(diskText).filter(function(l){ return have.indexOf(fieldNameOf(l))<0 })
+  if(keep.length){
+    const skelIdx=incoming.search(/^##\s*(Comments|Answer)\s*$/m)
+    if(skelIdx>=0) incoming=incoming.slice(0, skelIdx).replace(/\s*$/, '')+'\n\n'+keep.join('\n')+'\n\n'+incoming.slice(skelIdx).replace(/^\s*/, '')
+    else incoming=incoming.replace(/\s*$/, '')+'\n\n'+keep.join('\n')+'\n'
+  }
+  const names=['Comments', 'Answer']
+  for(const name of names){
+    const hasRe=new RegExp('^##\\s*'+name+'\\s*$', 'm')
+    if(!hasRe.test(incoming)){
+      const diskSec=sectionOf(diskText, name)
+      if(diskSec) incoming=incoming.replace(/\s*$/, '')+'\n\n'+diskSec+'\n'
+      else incoming=incoming.replace(/\s*$/, '')+'\n\n## '+name+'\n\n'
+    }
+  }
+  return incoming
+}
 
 export async function updateIssue(ctx,repo,key,patch){
   const norm=String(key).padStart(2,'0')
@@ -60,16 +123,9 @@ export async function updateIssue(ctx,repo,key,patch){
     // 标题后置 = 同传时以后一步的标题参数为准；只传一边时行为不变。
     const newTitle=(patch&&typeof patch.title==='string')?patch.title.trim():''
     if(patch&&typeof patch.body==='string'){
-      if(/^\s*Status\s*[:\uFF1A]/im.test(patch.body)){
-        txt=String(patch.body);changed=true
-      }else if(looksLikeWholeDocument(patch.body)){
-        // 整份正文（自带 H1 / 幂等锚）却没带字段块：原实现会落到下面的插入分支，把整份文档拼在现有 H1 之后，
-        // 盘上出现两个 H1、两份正文，而调用方收到 ok。这里按整份替换处理，并把盘上原有的字段补回文末。
-        const incoming=String(patch.body)
-        const have=fieldLinesOf(incoming).map(fieldNameOf)
-        const keep=fieldLinesOf(txt).filter(function(l){ return have.indexOf(fieldNameOf(l))<0 })
-        txt=incoming.replace(/\s*$/,'')+'\n'+(keep.length?('\n'+keep.join('\n')+'\n'):'')
-        changed=true
+      if(isWholeIssueBody(patch.body)){
+        // 整份正文：读回给的是整份文件，写回也按整份合并（锚与标题保住、字段与骨架搬回），不再猜它是片段。
+        txt=mergeWholeBodyForPatch(patch.body, fnOldText);changed=true
       }else{
         const lines=txt.split('\n')
         const titleIdx=lines.findIndex(l=>/^#+\s+/.test(l))
@@ -110,6 +166,11 @@ export async function updateIssue(ctx,repo,key,patch){
       const newP=parentKeyFromFile(txt)
       if(oldP.found&&!newP.found){txt=upsertParentComment(txt,oldP.value);changed=true}
     }catch{}
+    // #1002：落盘前核对不许写坏，变坏就抛错转成如实失败（读改写队列里抛错不会落盘）。
+    if(changed){
+      const worse=checkNoWorseForPatch(fnOldText, txt)
+      if(worse) throw {kind:ERROR_KIND.UNSUPPORTED,message:'改正文核对没过（'+worse+'），这次没写：请换一种正文形态再试。'}
+    }
     return changed?txt:undefined
   })
   if(!res.ok)return{ok:false,error:res.error}

@@ -32,6 +32,24 @@ export function stripLabelDecoration(name) {
   return s
 }
 
+/** 递进来的正文是不是「一整份票文件」：自带一级标题、幂等锚、字段行或骨架标题就是整份，建票与改正文共用同一条判据（#1002）。
+ *
+ *  为什么四条都算整份：读回给的是整份票文件文本，写路径必须用同一条判据认出它，否则读回原样写回会写坏。
+ *  只认一级标题或锚不够：改正文的实测里出现过无一级标题但带字段行的整份（C5），建票的实测里出现过
+ *  只带骨架的正文（C2），它们按片段走都会翻倍或丢东西。片段里正常不会出现这四种写法，误伤的可能很小。
+ *
+ *  房规注：这条判据住在这里（Markdown 房内），建票与改正文同房引用。共享层 plan.js 里有一份逐字相同的
+ *  写法给工具层与门禁读（房规不许后端引用共享层的 deck-tools 目录，共享层也不许互引，所以两份各自手写，
+ *  改一处必须改另一处，两处注释都写明了对方）。 */
+export function isWholeIssueBody(body) {
+  const t = typeof body === 'string' ? body : ''
+  if (/^\s*#\s+\S/m.test(t)) return true
+  if (/^\s*<!--[ \t]*DSH-IDEMPOTENCY-KEY:/m.test(t)) return true
+  if (/^\s*(Status|Type|Blocked\s+by|Labels)\s*[:\uFF1A]/im.test(t)) return true
+  if (/^\s*##\s*(Comments|Answer)\s*$/im.test(t)) return true
+  return false
+}
+
 /** 从票文件正文里读出文件顶写着的父票编号（#971）。
  *
  *  为什么要有这一步：建票时父票编号写在文件顶的注释里（例如 <!-- parentKey: 01 -->），

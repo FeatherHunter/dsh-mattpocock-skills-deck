@@ -5,7 +5,7 @@
 //   - 仓库只有一个 effort → 自动落它（单 effort 仓库用起来无感）；
 //   - 仓库有多个 effort 又没指定 → 返回 conflict 诚实失败，绝不猜（旧实现在所有 effort 之间取全局 max+1，
 //     与契约冲突，而且因为少了 getScratchRoot 的 import 从未生效）。
-import { parseMd, slugify, stripLabelDecoration } from './parse.js'
+import { parseMd, slugify, stripLabelDecoration, isWholeIssueBody } from './parse.js'
 import { readDir, readTextFile, statFile, exists } from './read.js'
 import { writeTextFile, ensureDir } from './write.js'
 import { issuesDir } from './path.js'
@@ -48,7 +48,37 @@ async function resolveCreateTarget(ctx, repo){
  *
  *  #711：锚是这份正文的**第一行**（HTML 注释，渲染后看不见）。为什么放第一行：有人用编辑器打开
  *  这个文件时一眼能看到它、知道这一行是插件写的别删；写在正文中间或末尾，手改正文的人多半会把它
- *  当多余的东西删掉，删掉之后回查就再也找不到这张票了。 */
+ *  当多余的东西删掉，删掉之后回查就再也找不到这张票了。
+ *
+ *  #1002：递进来的正文可能是片段，也可能是整份票文件（读回原样再建）。整份用共享判据认出来后，
+ *  先把里面的旧锚、旧父注释、旧一级标题、旧字段行、旧骨架区都剥掉，再按新票的标题与字段重建一份，
+ *  文件顶的锚一律用本次创建自己的。这样读回原样写回不会翻倍，新票也不会抄走旧票的评论与身份。 */
+function cleanWholeBodyForCreate(rawBody){
+  let clean=String(rawBody||'')
+  clean=clean.replace(/^[ \t]*<!--[ \t]*DSH-IDEMPOTENCY-KEY:.*?-->[ \t]*\r?\n?/gim, '')
+  clean=clean.replace(/^[ \t]*<!--[ \t]*parentKey[ \t]*:.*?-->[ \t]*\r?\n?/gim, '')
+  clean=clean.replace(/^#[ \t]+.*(?:\r?\n)?/gm, '')
+  clean=clean.replace(/^##\s*Comments\s*$[\s\S]*?(?=^##\s|$(?![\s\S]))/gim, '')
+  clean=clean.replace(/^##\s*Answer\s*$[\s\S]*?(?=^##\s|$(?![\s\S]))/gim, '')
+  clean=clean.split('\n').filter(function(l){ return !/^\s*(Status|Type|Blocked\s+by|Labels)\s*[:\uFF1A]/i.test(l) }).join('\n')
+  return clean.trim()
+}
+/** 落盘前核对单例：新票必须恰好一个一级标题、一个锚、一套字段行、一套骨架，做不到就返回原因（调用方转成如实失败）。 */
+function checkSingletonsForCreate(content, wantAnchor){
+  const h1=(String(content).match(/^#[ \t]+\S.*/gm)||[]).length
+  if(h1!==1) return '一级标题有 '+h1+' 个，想要 1 个'
+  const anchors=(String(content).match(/DSH-IDEMPOTENCY-KEY/g)||[]).length
+  if(wantAnchor&&anchors!==1) return '幂等锚有 '+anchors+' 个，想要 1 个'
+  if(!wantAnchor&&anchors>1) return '幂等锚有 '+anchors+' 个，想要至多 1 个'
+  const count=function(re){ return (String(content).match(re)||[]).length }
+  if(count(/^\s*Status\s*[:\uFF1A]/gim)!==1) return 'Status 行不是 1 个'
+  if(count(/^\s*Blocked\s+by\s*[:\uFF1A]/gim)!==1) return 'Blocked by 行不是 1 个'
+  if(count(/^\s*Labels\s*[:\uFF1A]/gim)!==1) return 'Labels 行不是 1 个'
+  if(count(/^##\s*Comments\s*$/gim)!==1) return 'Comments 骨架不是 1 个'
+  if(count(/^##\s*Answer\s*$/gim)!==1) return 'Answer 骨架不是 1 个'
+  if(count(/^\s*Type\s*[:\uFF1A]/gim)>1) return 'Type 行翻倍了'
+  return ''
+}
 function buildIssueText(input){
   const blockedByStr=Array.isArray(input.blockedBy)&&input.blockedBy.length?input.blockedBy.map(k=>'#'+String(k).padStart(2,'0')).join(', '):(typeof input.blockedBy==='string'?input.blockedBy:'')
   const typeField=input.type?String(input.type):(input.Type?String(input.Type):'')
@@ -66,7 +96,8 @@ function buildIssueText(input){
     // 整行直接给字符串时，同样逐个剥净：这是「一次贴一整行」的用法，最容易把引号一起带进来
     labelsStr=String(input.labels).split(/[,\uFF0C]+/).map(function(s){return stripLabelDecoration(s)}).filter(Boolean).join(', ')
   }
-  const bodyPart=input.body?String(input.body).trim():''
+  const rawBody=input.body?String(input.body):''
+  const bodyPart=isWholeIssueBody(rawBody)?cleanWholeBodyForCreate(rawBody):rawBody.trim()
   const title=String(input.title).trim()
   let content='# '+title+'\n\n'
   if(bodyPart)content+=bodyPart+'\n\n'
@@ -169,7 +200,11 @@ export async function createIssue(ctx,repo,input){
       if(!finalPath)return{ok:false,error:{kind:ERROR_KIND.CONFLICT,message:'create NN conflict'}}
       // 内容拼装与落盘同样留在队列里：落盘这一步必须发生在**还握着队列**的时候，
       // 否则下一路会在「这一路已经取到号、但还没写下去」的缝里读目录，又读不到这张票、又取到同一个号。
-      await writeTextFile(ctx,finalPath,buildIssueText(input), ctx && ctx.sandboxPolicy)
+      const builtText=buildIssueText(input)
+      // #1002：落盘前核对单例，拼坏了就如实失败不落盘（静默写坏比失败更贵）。
+      const builtBad=checkSingletonsForCreate(builtText, !!idemKey)
+      if(builtBad)return{ok:false,error:{kind:ERROR_KIND.UNSUPPORTED,message:'建票内容拼装后核对没过（'+builtBad+'），这次没落盘：请换一种正文形态再试。'}}
+      await writeTextFile(ctx,finalPath,builtText, ctx && ctx.sandboxPolicy)
       // ② 落盘之后当场回读核对（#711）：确认锚真的写进了这个文件。只写不核对的话，
       //    写入被拒、写了一半、被别的进程覆盖回去这类情况会以「建票成功」的样子交回去，
       //    而锚没落上去意味着下一次重试再也找不到这张票（重复建票的根就没被切断）。

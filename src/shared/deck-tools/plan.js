@@ -63,6 +63,25 @@ export function ensureBody(body, kind) {
 }
 
 /**
+ * 整份还是片段：自带一级标题、幂等锚、字段行或骨架标题 = 整份，建票与改正文共用同一条判据（#1002）。
+ *
+ * 为什么四条都算整份：读回给的是整份票文件文本，写路径必须用同一条判据认出它，否则读回原样写回会写坏。
+ * 只认一级标题或锚不够：改正文的实测里出现过无一级标题但带字段行的整份（C5），建票的实测里出现过
+ * 只带骨架的正文（C2），它们按片段走都会翻倍或丢东西。片段里正常不会出现这四种写法，误伤的可能很小。
+ * 本文件不引用别的共享文件（同层互引门禁），所以正則式在这里自带一份，与后端的用法逐字一致。
+ * 房规注：Markdown 房内 parse.js 里有一份逐字相同的写法给建票与改正文同房引用（房规不许后端引用
+ * 共享层的 deck-tools 目录，所以两份各自手写，改一处必须改另一处）。
+ */
+export function isWholeIssueBody(body) {
+  const t = typeof body === 'string' ? body : ''
+  if (/^\s*#\s+\S/m.test(t)) return true
+  if (/^\s*<!--[ \t]*DSH-IDEMPOTENCY-KEY:/m.test(t)) return true
+  if (/^\s*(Status|Type|Blocked\s+by|Labels)\s*[:\uFF1A]/im.test(t)) return true
+  if (/^\s*##\s*(Comments|Answer)\s*$/im.test(t)) return true
+  return false
+}
+
+/**
  * 幂等锚：同一个会话 + 同一个标题 + 同一批标签，在同一个 5 分钟窗口里重复调一次，复用同一张票
  *（票面「写操作轻量幂等：同标题 + 同标签 5 分钟内复用」）。窗口把「重试」与「故意再建一张」分开：
  * 5 分钟之内是同一次意图的重试，之外是新的一次。锚本身交给契约层（#711）去回查，工具不自己记表。

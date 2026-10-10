@@ -64,13 +64,35 @@ function names(list) {
 export function replaceProgressSection(body, text) {
   const src = typeof body === 'string' ? body : ''
   const clean = String(text === undefined || text === null ? '' : text).replace(/\s*$/, '')
-  const blockBase = '## 进度\n\n' + clean + '\n'
+  const blockBase = '## 进度\n\n' + clean + '\n\n'
   // 标题认「## 进度」与「## 进度：80% / ## Progress: 40%」：后者是读进度的人认的写法，写进度的人也要认，否则会再插一段重复的进度区。
   // 结尾认「真正的文末」：多行模式下行尾的 $ 在每一行尾都成立，惰性匹配会停在标题行尾，只换掉标题五个字，旧内容原地不动。
   // $(?![\s\S]) 只在整个字符串的末尾成立，后面再没有字符，才是兜底分支要等的那个位置。
-  const single = /^##\s*(?:进度|Progress)(?:\s*[：:]\s*\d{1,3}\s*%?)?\s*$[\s\S]*?(?=^##\s|$(?![\s\S]))/m
-  if (!single.test(src)) return (src.replace(/\s*$/, '') + '\n\n' + blockBase).replace(/^\n+/, '')
-  const reAll = /^##\s*(?:进度|Progress)(?:\s*[：:]\s*\d{1,3}\s*%?)?\s*$[\s\S]*?(?=^##\s|$(?![\s\S]))/gm
+  // #1002：右边界加字段行终点：进度区后面是字段行（Status/Type/Blocked by/Labels）时停在字段行之前，
+  // 否则字段行会被吞进进度段、再由改正文的整份分支补到文件末尾（C7）。没有进度区时插在字段行之前，不落到文末。
+  const fieldAhead = '^\\s*(?:Status|Type|Blocked\\s+by|Labels)\\s*[:\\uFF1A]'
+  const single = new RegExp('^##\\s*(?:进度|Progress)(?:\\s*[：:]\\s*\\d{1,3}\\s*%?)?\\s*$[\\s\\S]*?(?=^##\\s|' + fieldAhead + '|$(?![\\s\\S]))', 'mi')
+  if (!single.test(src)) {
+    const block = blockBase
+    const fieldRe = new RegExp(fieldAhead, 'im')
+    const fieldMatch = fieldRe.exec(src)
+    if (fieldMatch) {
+      const idx = fieldMatch.index
+      const before = src.slice(0, idx).replace(/\s*$/, '')
+      const after = src.slice(idx).replace(/^\s*/, '')
+      return (before + '\n\n' + block + after).replace(/^\n+/, '').replace(/(?:\r?\n){3,}/g, '\n\n')
+    }
+    const skelRe = /^##\s*(?:Comments|Answer)\s*$/im
+    const skelMatch = skelRe.exec(src)
+    if (skelMatch) {
+      const idx = skelMatch.index
+      const before = src.slice(0, idx).replace(/\s*$/, '')
+      const after = src.slice(idx).replace(/^\s*/, '')
+      return (before + '\n\n' + block + after).replace(/^\n+/, '').replace(/(?:\r?\n){3,}/g, '\n\n')
+    }
+    return (src.replace(/\s*$/, '') + '\n\n' + block).replace(/^\n+/, '').replace(/(?:\r?\n){3,}/g, '\n\n')
+  }
+  const reAll = new RegExp('^##\\s*(?:进度|Progress)(?:\\s*[：:]\\s*\\d{1,3}\\s*%?)?\\s*$[\\s\\S]*?(?=^##\\s|' + fieldAhead + '|$(?![\\s\\S]))', 'gmi')
   let first = true
   const out = src.replace(reAll, function () {
     if (!first) return ''
@@ -230,6 +252,8 @@ export function createDeckIssuePatch(deps) {
       }
 
       // 写后真状态：能读回就读回一次，读不回来也如实说（别让 AI 以为已经确认过了）。
+      // 诚实性由后端保证（本地后端在落盘前核对单例、坏了就返回失败，本层按逐项原样记失败）：本层不判后端，
+      // 后端做不到的那一步在上面已经记成失败，顶层按逐项自然非成功。
       const back = (typeof t.get === 'function' && !sc.outOfBudget()) ? await t.get(repo, key, {}, opCtx) : null
       const readBack = (back && back.ok === true) ? back.data : null
       if (!readBack) notes.push('写后没读回来（后端原话：' + String((back && back.error && back.error.message) || '没给出原因').slice(0, 160) + '）：上面每步是照后端的回答记的。')

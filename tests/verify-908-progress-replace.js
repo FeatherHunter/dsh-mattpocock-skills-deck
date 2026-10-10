@@ -86,6 +86,20 @@ async function main() {
   check(outOther.includes('## 进度计划\nxxx'), '别的标题：## 进度计划原样保留')
   check(outOther.includes(NEW) && countProgressHeaders(outOther) === 1, '别的标题：在后面追加真正的进度区')
 
+  // #1002：整份文件形态（之前只喂片段，所以一直绿着放过了这条缺陷）。
+  // G 整份有进度区：替换后字段行还在骨架之前，不被吞掉再补到文末。
+  const fullWith = '<!-- DSH-IDEMPOTENCY-KEY: g -->\n# 标题\n\n## Question\n\nx\n\n## 进度\n\nold\n\nStatus: ready-for-agent\nBlocked by:\nLabels: bug\n\n## Comments\n\n\n## Answer\n\n'
+  const outG = replaceProgressSection(fullWith, NEW)
+  check(outG.includes(NEW) && !outG.includes('\nold\n'), 'G 整份有进度：旧段被换掉')
+  check(countProgressHeaders(outG) === 1, 'G 整份有进度：进度标题恰好一条')
+  check(outG.indexOf('Status:') < outG.indexOf('## Comments'), 'G 整份有进度：字段行还在骨架之前（被吞到文末就失败）')
+  // H 整份无进度区：插在字段行之前，不落到 Answer 之后。
+  const fullWithout = '<!-- DSH-IDEMPOTENCY-KEY: h -->\n# 标题\n\n## Question\n\nx\n\nStatus: ready-for-agent\nBlocked by:\nLabels: bug\n\n## Comments\n\n\n## Answer\n\n'
+  const outH = replaceProgressSection(fullWithout, NEW)
+  check(outH.includes(NEW) && countProgressHeaders(outH) === 1, 'H 整份无进度：追加一段进度')
+  check(outH.indexOf('## 进度') < outH.indexOf('Status:'), 'H 整份无进度：进度插在字段行之前（落到 Answer 之后就失败）')
+  check(outH.indexOf('Status:') < outH.indexOf('## Answer'), 'H 整份无进度：字段行还在 Answer 之前')
+
   // 保命栏：旧正文没读回来时只写进度必须被拦下，不能拿空正文覆盖整张票（#908 处理中亲历：一次空写把整票冲成只剩进度段）。
   const fs = require('fs')
   const patchSrc = fs.readFileSync(require('path').join(ROOT, 'src/host/tools/deckIssuePatch.js'), 'utf8')
