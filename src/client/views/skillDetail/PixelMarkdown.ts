@@ -32,17 +32,29 @@ export const PixelMarkdown = function (props?: PixelMarkdownProps): any {
   }
   const pxInline = function (text: string, inLink: boolean): any[] {
     const out: any[] = []
+    // 行内代码嵌在粗体/斜体里是原文常见写法（**`/grill-with-docs`**）：整段粗体先匹配下来，
+    // 再对里面的文字切一次行内代码 —— 代码变徽章，其余仍是这段粗体里的普通文字（2026-10-10 真机反馈）。
+    const withCode = function (text: string): any[] {
+      const kids: any[] = []
+      String(text).split(/(`[^`]+`)/g).forEach(function (seg: string) {
+        if (!seg) return
+        const cm = /^`([^`]+)`$/.exec(seg)
+        if (cm) { kids.push(h('code', { key: key() }, cm[1])); return }
+        kids.push(seg)
+      })
+      return kids
+    }
     const pushMarks = function (seg: string): void {
       seg.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|~~[^~]+~~)/g).forEach(function (part: string) {
         if (!part) return
         let m = /^\*\*([^*]+)\*\*$/.exec(part)
-        if (m) { out.push(h('strong', { key: key() }, m[1])); return }
+        if (m) { out.push(h('strong', { key: key() }, withCode(m[1]))); return }
         m = /^\*([^*]+)\*$/.exec(part)
-        if (m) { out.push(h('em', { key: key() }, m[1])); return }
+        if (m) { out.push(h('em', { key: key() }, withCode(m[1]))); return }
         m = /^`([^`]+)`$/.exec(part)
         if (m) { out.push(h('code', { key: key() }, m[1])); return }
         m = /^~~([^~]+)~~$/.exec(part)
-        if (m) { out.push(h('span', { key: key(), style: { textDecoration: 'line-through' } }, m[1])); return }
+        if (m) { out.push(h('span', { key: key(), style: { textDecoration: 'line-through' } }, withCode(m[1]))); return }
         out.push(part)
       })
     }

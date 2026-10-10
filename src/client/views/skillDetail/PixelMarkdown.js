@@ -27,17 +27,30 @@ export const PixelMarkdown = function(props) {
   };
   const pxInline = function(text, inLink) {
     const out = [];
+    const withCode = function(text2) {
+      const kids = [];
+      String(text2).split(/(`[^`]+`)/g).forEach(function(seg) {
+        if (!seg) return;
+        const cm = /^`([^`]+)`$/.exec(seg);
+        if (cm) {
+          kids.push(h("code", { key: key() }, cm[1]));
+          return;
+        }
+        kids.push(seg);
+      });
+      return kids;
+    };
     const pushMarks = function(seg) {
       seg.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|~~[^~]+~~)/g).forEach(function(part) {
         if (!part) return;
         let m2 = /^\*\*([^*]+)\*\*$/.exec(part);
         if (m2) {
-          out.push(h("strong", { key: key() }, m2[1]));
+          out.push(h("strong", { key: key() }, withCode(m2[1])));
           return;
         }
         m2 = /^\*([^*]+)\*$/.exec(part);
         if (m2) {
-          out.push(h("em", { key: key() }, m2[1]));
+          out.push(h("em", { key: key() }, withCode(m2[1])));
           return;
         }
         m2 = /^`([^`]+)`$/.exec(part);
@@ -47,7 +60,7 @@ export const PixelMarkdown = function(props) {
         }
         m2 = /^~~([^~]+)~~$/.exec(part);
         if (m2) {
-          out.push(h("span", { key: key(), style: { textDecoration: "line-through" } }, m2[1]));
+          out.push(h("span", { key: key(), style: { textDecoration: "line-through" } }, withCode(m2[1])));
           return;
         }
         out.push(part);
