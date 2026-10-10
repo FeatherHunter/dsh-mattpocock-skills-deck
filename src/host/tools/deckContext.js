@@ -7,8 +7,18 @@
 // 拿不到的东西一律如实说：没有会话工作区、没有后端、后端不认这条路，都在返回值里写明。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../../shared/deck-tools/shell.js'
 import { sessionContextOfAsync } from '../../shared/deck-tools/session-resolve.js'
+import { withCallScope } from '../../shared/deck-tools/call-scope.js'
 import * as budget from '../../shared/refresh/budget.js'
 import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/tool-cost.js'
+
+function numOpt(v) { return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : undefined }
+function withCap(promise, ms) {
+  return Promise.race([
+    Promise.resolve(promise).then(function (v) { return { ok: true, value: v } }, function () { return { ok: false } }),
+    new Promise(function (resolve) { setTimeout(function () { resolve({ ok: false, timedOut: true }) }, ms) }),
+  ])
+}
+const SANDBOX_TIMEOUT_MS = 5000
 
 export const definition = {
   name: 'deck_context',
@@ -45,10 +55,25 @@ export function createDeckContext(deps) {
       })
     }
     const repo = shell.repoOf(pick, s)
+    const callerSignal = (exec && exec.signal && typeof exec.signal === 'object') ? exec.signal : undefined
+    let sandbox = null
+    try {
+      if (typeof d.sandboxPolicyFor === 'function') {
+        const raced = await withCap(d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }), SANDBOX_TIMEOUT_MS)
+        sandbox = (raced && raced.ok === true) ? raced.value : null
+      }
+    } catch (eS) { sandbox = null }
 
-    return shell.call({ tool: 'deck_context', kind: 'read', session: s, pick: pick, repo: repo, estimate: est, sandbox: (typeof d.sandboxPolicyFor === 'function' ? await d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }).catch(function(){ return null }) : null) }, async (c) => {
-      const pre = typeof c.tracker.preflight === 'function' ? await c.tracker.preflight({ cwd: s.cwd }, c.opCtx) : null
-      const listed = await c.tracker.list(repo, { type: 'map' }, c.opCtx)
+    return shell.call({ tool: 'deck_context', kind: 'read', session: s, pick: pick, repo: repo, estimate: est, sandbox: sandbox, signal: callerSignal }, async (c) => {
+      // 进预算壳 + 两路并行：预检与清单互相独立，之前串行要等两份慢调用，
+      // 并行后只等较慢的那一份。回包的字段与 notes 顺序与之前一致。
+      const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), now: (typeof d.now === 'function') ? d.now : Date.now })
+      const t = sc.tracker
+      const opCtx = sc.opCtx
+      const preP = (typeof t.preflight === 'function') ? t.preflight({ cwd: s.cwd }, opCtx) : Promise.resolve(null)
+      const listP = t.list(repo, { type: 'map' }, opCtx)
+      const pre = await preP
+      const listed = await listP
       const maps = (listed.ok && Array.isArray(listed.data)) ? listed.data.map(mapRow) : []
       const notes = []
       if (!listed.ok) notes.push('地图清单这次没取到（后端原话：' + String((listed.error && listed.error.message) || '').slice(0, 200) + '）。')

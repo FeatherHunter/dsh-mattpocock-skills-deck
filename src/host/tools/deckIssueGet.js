@@ -6,7 +6,18 @@
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../../shared/deck-tools/shell.js'
 import { sessionContextOfAsync } from '../../shared/deck-tools/session-resolve.js'
 import { EDGE_LANDING, relationsOf } from '../../shared/deck-tools/edges.js'
+import { withCallScope } from '../../shared/deck-tools/call-scope.js'
 import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/tool-cost.js'
+
+function numOpt(v) { return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : undefined }
+// 沙箱许可等待上限：对手是挂住的会话服务。超时按缺席走老路（不限权），与既有 catch null 同形。
+function withCap(promise, ms) {
+  return Promise.race([
+    Promise.resolve(promise).then(function (v) { return { ok: true, value: v } }, function () { return { ok: false } }),
+    new Promise(function (resolve) { setTimeout(function () { resolve({ ok: false, timedOut: true }) }, ms) }),
+  ])
+}
+const SANDBOX_TIMEOUT_MS = 5000
 
 export const definition = {
   name: 'deck_issue_get',
@@ -75,9 +86,22 @@ export function createDeckIssueGet(deps) {
     const effortId = (a.effortId === undefined || a.effortId === null) ? '' : String(a.effortId).trim()
     if (effortId) repo.effortId = effortId
     const first = Math.max(0, Math.min(200, Number(a.comments) > 0 ? Math.floor(Number(a.comments)) : 50))
+    const callerSignal = (exec && exec.signal && typeof exec.signal === 'object') ? exec.signal : undefined
+    let sandbox = null
+    try {
+      if (typeof d.sandboxPolicyFor === 'function') {
+        const raced = await withCap(d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }), SANDBOX_TIMEOUT_MS)
+        sandbox = (raced && raced.ok === true) ? raced.value : null
+      }
+    } catch (eS) { sandbox = null }
 
-    return shell.call({ tool: 'deck_issue_get', kind: 'read', session: s, pick: pick, repo: repo, estimate: est, sandbox: (typeof d.sandboxPolicyFor === 'function' ? await d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }).catch(function(){ return null }) : null) }, async (c) => {
-      const got = await c.tracker.get(repo, key, { comments: { first: first } }, c.opCtx)
+    return shell.call({ tool: 'deck_issue_get', kind: 'read', session: s, pick: pick, repo: repo, estimate: est, sandbox: sandbox, signal: callerSignal }, async (c) => {
+      // 进预算壳：两次远端各有 30 秒单次钳制、可中止，超时只坏自己那一项；
+      // 名册随上下文走，后端内部的定向重读能用上。成功路径的形状一字不动。
+      const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), now: (typeof d.now === 'function') ? d.now : Date.now })
+      const t = sc.tracker
+      const opCtx = sc.opCtx
+      const got = await t.get(repo, key, { comments: { first: first } }, opCtx)
       if (!got || got.ok !== true) {
         const msg = String((got && got.error && got.error.message) || '后端没给出原因').slice(0, 300)
         return {
@@ -91,7 +115,7 @@ export function createDeckIssueGet(deps) {
         }
       }
       const issue = got.data || {}
-      const dep = typeof c.tracker.getDependencies === 'function' ? await c.tracker.getDependencies(repo, key, {}, c.opCtx) : null
+      const dep = typeof t.getDependencies === 'function' ? await t.getDependencies(repo, key, {}, opCtx) : null
       const dependencies = (dep && dep.ok === true) ? dep.data : null
       const rel = relationsOf(issue, dependencies)
       const notes = []
