@@ -20,14 +20,18 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-// 本插件在更新包里的两个注册参数：插件标识（必填）与电话名前缀。
+// 本插件在更新包里的三个注册参数：插件标识（必填）、电话名前缀与版本通道。
 // 按规格，前缀取包里的默认值即等于旧值 wf，所以这里从头两个电话名的字面一眼可校对，
 // 不另写第二份「期望值」常量去和包里的默认值各说各话。
 export const UPDATE_PLUGIN_ID = 'dsh-mattpocock-skills-deck'
 export const UPDATE_PHONE_PREFIX = 'wf'
+// 版本通道取预发布档（2026-10-10 维护者拍板）：跑着测试版、候选版的人也能正常查更新，
+// 不会再被报「使用范围或插件位置认不出」。代价是跑稳定版的人也可能收到预发布推送——
+// 这是拍板时已知并接受的，见 CHANGELOG 里 v1.8.0-rc.2 一节。
+export const UPDATE_RELEASE_CHANNEL = 'prerelease'
 // 更新包自报的默认目标包名（要检查更新的那个包是谁）与官方源与默认前缀，
 // 供门禁核对「默认值与旧字面一致」。取值只从已安装包的配置面算出来，不在本文件另写字面。
-const __pkgDefaults = resolveUpdateConfig({ pluginId: UPDATE_PLUGIN_ID })
+const __pkgDefaults = resolveUpdateConfig({ pluginId: UPDATE_PLUGIN_ID, releaseChannel: UPDATE_RELEASE_CHANNEL })
 export const DEFAULT_TARGET_PACKAGE = __pkgDefaults.targetPackageName
 export const DEFAULT_REGISTRY = __pkgDefaults.registryUrl
 export const DEFAULT_PREFIX = __pkgDefaults.prefix
@@ -128,6 +132,7 @@ export function createUpdatePhoneHandlers(deps = {}) {
     {
       pluginId: UPDATE_PLUGIN_ID,
       prefix: UPDATE_PHONE_PREFIX,
+      releaseChannel: UPDATE_RELEASE_CHANNEL,
     }
   )
   // 更新包给的是「电话名 → 处理器」的表；调用方要的是四个具名入口，

@@ -44,6 +44,7 @@ async function main() {
   check(updateSrc.includes('phoneNames.updateCheck'), '查新版走包的能力（电话名从包读，不自拼字符串）')
   check(updateSrc.includes('phoneNames.updateChangelog'), '取更新日志走包的能力（面板日志章用，不自拼字符串）')
   check(!updateSrc.includes('registry.npmjs.org'), '胶水电话不另写查询（无官方源地址字面量）')
+  check(updateSrc.includes("UPDATE_RELEASE_CHANNEL = 'prerelease'"), '版本通道取预发布档（跑测试版也能查更新，2026-10-10 拍板，见 CHANGELOG v1.8.0-rc.2）')
   const leafSrc = strip(read('src/client/views/UpdateEntryHost.js'))
   check(!leafSrc.includes('registry.npmjs.org') && !leafSrc.includes('fetch('), '面板不另写查询（无源地址与直连请求）')
 
