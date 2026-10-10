@@ -117,7 +117,7 @@ export function createDeckQuotaSync(deps) {
       if (lastFailAt !== 0 && Date.now() - lastFailAt < cooldownMs) return { ok: false, reason: 'sync-cooldown' }
       const r = await doSync(cwd, workspaceKey)
       if (r && r.ok) lastFailAt = 0
-      else if (lastFailAt === 0) lastFailAt = Date.now()
+      else lastFailAt = Date.now()
       return r
     } catch (e) { return { ok: false, reason: 'ensure-threw' } }
   }

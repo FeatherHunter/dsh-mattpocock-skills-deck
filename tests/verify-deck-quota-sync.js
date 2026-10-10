@@ -150,6 +150,10 @@ async function main() {
   await new Promise(function (r) { setTimeout(r, 60) })
   await chilly.ensureReading('/ws', 'k')
   check(failCalls === 2, '冷却过了再试一次（不永久放弃）')
+  await new Promise(function (r) { setTimeout(r, 60) })
+  await chilly.ensureReading('/ws', 'k')
+  await chilly.ensureReading('/ws', 'k')
+  check(failCalls === 3, '过期后连着失败仍按节流：滑动锚只打一次（#998 Q2）')
 
   // ── 6. 壳动手前保一次：调了、传了目录与键；缺席时跳过老桩照过 ──
   const shell = await imp('src/shared/deck-tools/shell.js')

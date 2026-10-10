@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>#998 现状与计划：连续失败自锁及三个遗留问题</title>
+<style>
+  :root { --ink:#1a1d21; --muted:#5b6470; --line:#e6e8eb; --bg:#f7f8f9; --card:#ffffff;
+    --green:#0e8a16; --green-bg:#e9f6ea; --amber:#9a6700; --amber-bg:#fff6e0; --red:#b3261e; --red-bg:#fdecea; --blue:#0b57d0; --blue-bg:#e8f0fe; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.7 -apple-system,"PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif; }
+  .wrap { max-width:980px; margin:0 auto; padding:32px 20px 64px; }
+  header { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:28px 28px 22px; }
+  .kicker { color:var(--muted); font-size:13px; letter-spacing:.08em; }
+  h1 { margin:8px 0 6px; font-size:28px; line-height:1.35; }
+  .sub { color:var(--muted); font-size:15px; margin:0; }
+  .badges { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
+  .badge { font-size:13px; padding:4px 12px; border-radius:999px; border:1px solid var(--line); background:#fff; }
+  .badge.bug { background:var(--red-bg); border-color:#f3c1bd; color:var(--red); }
+  .badge.ready { background:var(--green-bg); border-color:#bfe3c2; color:var(--green); }
+  section { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:24px 28px; margin-top:18px; }
+  h2 { font-size:20px; margin:0 0 4px; }
+  .lede { color:var(--muted); margin:0 0 14px; font-size:14.5px; }
+  h3 { font-size:16px; margin:22px 0 8px; }
+  p { margin:8px 0; }
+  ul { margin:8px 0 8px 20px; padding:0; }
+  li { margin:6px 0; }
+  code { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:13.5px; background:#f1f3f4; padding:1px 6px; border-radius:6px; }
+  table { width:100%; border-collapse:collapse; margin:12px 0; font-size:14.5px; }
+  th, td { text-align:left; padding:10px 12px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-weight:600; background:#fafbfc; }
+  .callout { border-radius:10px; padding:12px 16px; margin:12px 0; font-size:14.5px; }
+  .callout.green { background:var(--green-bg); border:1px solid #bfe3c2; }
+  .callout.amber { background:var(--amber-bg); border:1px solid #f0d48a; }
+  .callout.blue { background:var(--blue-bg); border:1px solid #c2d7fe; }
+  .grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-top:12px; }
+  .mini { border:1px solid var(--line); border-radius:10px; padding:14px 16px; background:#fff; }
+  .mini b { display:block; margin-bottom:4px; }
+  .step { display:flex; gap:12px; margin:12px 0; }
+  .n { flex:0 0 30px; height:30px; border-radius:50%; background:var(--ink); color:#fff; text-align:center; line-height:30px; font-weight:700; }
+  .foot { color:var(--muted); font-size:13.5px; margin-top:18px; }
+  a { color:var(--blue); }
+  @media (max-width:720px){ .grid{grid-template-columns:1fr;} h1{font-size:23px;} section{padding:18px;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="kicker">#998 · BUG · 2026-10-10</div>
+  <h1>工具整片被“连续失败”锁死：现状与三个遗留问题的计划</h1>
+  <p class="sub">现象 → 根因 → 已落地的修复 → 三份深查证据 → 按第一性原理的后续计划。从“失败必须退避，同时必须可恢复”出发。</p>
+  <div class="badges">
+    <span class="badge bug">bug</span>
+    <span class="badge ready">ready-for-agent</span>
+    <span class="badge">修复 71dbc3e 已合入 · v1.8.0-beta.4</span>
+    <span class="badge">半开门禁 29/29 通过</span>
+  </div>
+</header>
+
+<section>
+  <h2>一、现状：发生了什么，现在在哪里</h2>
+  <p class="lede">第一性原理：闸同时守两条纪律——失败必须退避（不许风暴），失败必须可恢复（锁必须有出口）。#998 是第二条断了。</p>
+  <table>
+    <tr><th style="width:130px">现象</th><td>同一工作区所有 <code>deck_</code> 工具回同一句“连续失败到了退避门槛”（<code>gate-defer</code>）。建单时 5 次跨 15 分钟必现；日志里 19 条工具失败落在 12:33–12:49，同期闸裁决反复写 <code>failure-backoff</code> 且档位是绿的——额度不缺，只被计数挡住。</td></tr>
+    <tr><th>根因（已证实）</th><td>连续失败计数自锁：真失败加一、只有真成功才归零，被推迟的调用既不加一也不归零。到门槛后所有调用在选后端一步就被推迟，永远没机会成功归零。12:41 后再无真正花费，12:42 后传输已恢复但工具仍被推迟到 12:50。建单时的“进程里没有 gh”候选已被否（活日志解析失败 0 次、1333 条成功）。</td></tr>
+    <tr><th>已落地</th><td>半开探针：退避走完一整轮放一笔进来试，成功当场解锁，不成按退避档继续等且越试越稀；在飞不放第二笔；被推迟仍不加计数。重启后上报成功、取现状成功（39 张地图）、<code>failure-backoff</code> 归零。探针自愈路径本身尚未被真机自然触发，判据是下次连续失败时日志出现 <code>failure-half-open</code> 随后计数归零。</td></tr>
+  </table>
+  <div class="callout green"><b>主验收已过：</b>重启后工具恢复 + 29 项门禁全绿 + 构建通过并同步桌面端。本票保持 <code>bug + ready-for-agent</code>，等自然失败观察，不阻塞。</div>
+</section>
+
+<section>
+  <h2>二、三份深查的结论（只读一手来源，每条带出处）</h2>
+  <p class="lede">三份报告在 <code>research/998-q1-*.md</code>，结论先行，细节见文件。</p>
+  <div class="grid">
+    <div class="mini"><b>Q1 · 共用一个计数</b>单计数是写死的：<code>gate.js:124</code> 一区一行一数，<code>policy.ts:74-75</code> 门槛 3。账本分三档两桶，熔断不分档。日志缺“3 次是谁”，1098/116/19 无日志原文，snapshot 疑似本地读。结论：先补归因，不直接分。</div>
+    <div class="mini"><b>Q2 · 冷却锚不推进</b>锚只在首次失败盖戳（<code>deckQuotaSync.js:120</code>），过期后每调用必起 gh；单例全进程共享，A 区失败冷所有区；五档失败混用 60 秒；关键路径每笔先等保读数。结论：两步走，先滑动锚一行，再分区 + 解耦。</div>
+    <div class="mini"><b>Q3 · 超时归因不清</b>末条 <code>backend-threw</code> 与 <code>gate-defer</code> 不是同一条路（发了没回来 vs 不让发）。外层 120 秒 / 单操作 30 秒包全轮，全量多页串行偏紧可证；那一次缺操作名 / 耗时 / 哪层掐的，不可定性。结论：窄单先埋点再等复现。</div>
+  </div>
+</section>
+
+<section>
+  <h2>三、计划：按“先止血，再看清，再动形状”排序</h2>
+  <p class="lede">不计成本、只求长期正确，但不镀金：观测先行，形状后动；每一步可独立合入、可回滚。</p>
+
+  <div class="step"><div class="n">1</div><div>
+    <b>Q2 第一步：滑动冷却（一行，立刻止血）</b>
+    <p>把“锚是 0 才盖戳”改成“每次失败盖本次戳”；门禁加“过期后连续失败仍按 60 秒节流”。效果：过期后失败出站从每分钟 R 次降到约 1 次，<code>gh.exec</code> 噪音减少。风险近零。</p>
+  </div></div>
+
+  <div class="step"><div class="n">2</div><div>
+    <b>Q1 归因 + Q3 埋点（只加观测，不断行）</b>
+    <p>Q1：在裁决与跳过日志里带“当时几次 + 上一笔真失败是谁”，终结闭眼调参。Q3：在已有两行与壳失败行里补操作名 / 真耗时 / 哪层掐的 / 折前细码（只记枚举数字散列，不记原文）。两张都不改阈值、不改重试。验收：下次锁住或超时能回答“是谁、等了多久、谁先掐的”。</p>
+  </div></div>
+
+  <div class="step"><div class="n">3</div><div>
+    <b>Q2 第二步：分区 + 关键路径解耦</b>
+    <p>冷却按工作区分锚；有旧读数先放行、同步放后台；完全无读数也不挡路（剩余恒 0 等也白等，直接诚实推迟、后台去刷）。附带：落账加时间戳比对（旧不盖新）、后台失败界面可见、不新增事件名。指数退避与抖动暂缓；硬软分级只做最粗一档（无 gh 等很久）。</p>
+  </div></div>
+
+  <div class="step"><div class="n">4</div><div>
+    <b>Q1 是否真分：按数据再定</b>
+    <p>前置三条缺一不可：锁住的几次里两组病因不同类已证；面板“后台几组、工具几组、谁在等”三句话文案先定；门禁按组钉住组间不串。否则不分——单数 7–10 分钟一笔是最硬上限，分组会乘以组数，且需另加合并告警。</p>
+  </div></div>
+
+  <div class="callout amber"><b>共同的不做：</b>不重开 #427/#702 的寻址讨论；不合并 #893（断 vs 慢是两种失败模式）；不动 #930/#916/#960；不在 #998 本体里顺手改。三张新票互不阻塞，均为 <code>bug → ready-for-agent</code>。</div>
+  <div class="callout blue"><b>需要拍板的：</b>① Q1 归因单是否开（推荐开，分桶功能单不开）；② Q2 一行止血 + 分区解耦是否开（推荐开）；③ Q3 窄单是否开（推荐开，复现不到只留埋点）。回复即按此建票，#998 本体不动。</div>
+</section>
+
+<div class="foot">来源：#998 正文与 4 条评论 · 提交 71dbc3e · <code>gate.js / policy.ts / budget.ts / ledger.js / deckQuotaSync.js / call-scope.js</code> · 门禁 <code>verify-998-half-open / verify-gate-accounting / verify-deck-quota-sync</code> · <code>CONTEXT.md</code> 不变量 I5/I6 · ADR 20260924 · 三份深查报告。</div>
+
+</div>
+</body>
+</html>
