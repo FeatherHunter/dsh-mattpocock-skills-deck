@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>#993 诊断结论与四问推荐答案</title>
+<style>
+  :root{
+    --ink:#1c1f23; --muted:#5b6672; --line:#e2e6ea; --bg:#f6f7f9; --card:#fff;
+    --good:#1f7a4d; --goodbg:#eef8f2; --bad:#a8322a; --badbg:#fdf1f0;
+    --rev:#7a5a12; --revbg:#fdf8ec; --fp:#1f4e79; --fpbg:#eef4fa;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.75 -apple-system,"Segoe UI","Microsoft YaHei",system-ui,sans-serif;}
+  .wrap{max-width:940px;margin:0 auto;padding:32px 22px 72px}
+  header{border-bottom:3px solid var(--ink);padding-bottom:14px;margin-bottom:8px}
+  h1{font-size:24px;margin:0 0 6px;letter-spacing:.2px}
+  .sub{color:var(--muted);font-size:13.5px}
+  h2{font-size:19px;margin:38px 0 12px;padding-left:10px;border-left:4px solid var(--ink)}
+  h3{font-size:15.5px;margin:20px 0 8px;color:#2b3238}
+  p{margin:9px 0}
+  code{background:#eceff2;padding:1px 5px;border-radius:4px;font-size:13px;
+    font-family:"Cascadia Mono",Consolas,monospace;word-break:break-all}
+  .lead{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin:14px 0}
+  table{width:100%;border-collapse:collapse;background:var(--card);font-size:14px;margin:12px 0}
+  th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+  th{background:#eef1f4;font-weight:600;white-space:nowrap}
+  .q{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:6px 20px 20px;margin:20px 0}
+  .q > h3:first-of-type{margin-top:16px}
+  .tag{display:inline-block;font-size:12px;font-weight:600;padding:2px 8px;border-radius:20px;
+    border:1px solid currentColor;margin-bottom:6px}
+  .tag.rec{color:var(--good);background:var(--goodbg)}
+  .tag.rev{color:var(--rev);background:var(--revbg)}
+  .tag.fp{color:var(--fp);background:var(--fpbg)}
+  ul{margin:8px 0;padding-left:22px}
+  li{margin:5px 0}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0}
+  .box{border-radius:8px;padding:11px 13px;font-size:14px}
+  .pro{background:var(--goodbg);border:1px solid #cbe6d8}
+  .con{background:var(--badbg);border:1px solid #f2d3d0}
+  .box b{display:block;margin-bottom:5px;font-size:13.5px}
+  .pro b{color:var(--good)} .con b{color:var(--bad)}
+  .revbox{background:var(--revbg);border:1px solid #ecdcb6;border-radius:8px;padding:12px 14px;margin:12px 0}
+  .fpbox{background:var(--fpbg);border:1px solid #cfe0ef;border-radius:8px;padding:12px 14px;margin:12px 0}
+  .verdict{border-top:2px solid var(--ink);margin-top:12px;padding-top:10px;font-weight:600}
+  .note{font-size:13.5px;color:var(--muted)}
+  @media(max-width:660px){.two{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>#993 诊断结论与四个待定问题的推荐答案</h1>
+  <div class="sub">针对 <code>FeatherHunter/dsh-mattpocock-skills-deck</code> 的 issue #993（创建并发布把真实 git 错误显示成「权限不足」）<br>
+  整理时间 2026-10-10 · 结论均已在本机复现</div>
+</header>
+
+<div class="lead">
+  <b>一句话结论：</b>问题真实存在，从 2026-08-20「创建并发布」功能落地那次就在，之后两次搬家原样保留，在本票之前没有任何人报过。<br>
+  它和同一天提交的 #992、#994 是同一个现场拆出来的三张票，其中 <b>#994 已经切到 ready-for-agent</b>，和本票的修法建议有重叠。
+</div>
+
+<h2>三个决定答案形状的事实</h2>
+<table>
+  <tr><th>事实</th><th>证据</th><th>对答案的影响</th></tr>
+  <tr>
+    <td><b>1. 仓库里已经有「认不出来」这一档，只有出错的那一头没在用</b></td>
+    <td>向导弹窗的代码写的是「有分类就用，没有就用 unknown」（<code>client.js:11223</code>）；<code>panel.noRepoErr.unknown</code> 的中英文文案也早就在（<code>src/client/kernel/locale-panel.js:144</code> 与第 309 行）</td>
+    <td>改成 unknown 不是发明新东西，是让出错的那一头对齐客户端已经在用的值</td>
+  </tr>
+  <tr>
+    <td><b>2. 只改兜底，用户仍然看不到 git 的原话</b></td>
+    <td>把界面取文案的函数抠出来实跑：分类改成 unknown 后显示「创建失败，请查看错误详情」，原文一个字不显示；现状显示「权限不足，请检查登录账号 · fatal: detected dubious ownership…」</td>
+    <td>「兜底改诚实」和「让用户看见真实原因」必须一起做，缺一个都不算修好</td>
+  </tr>
+  <tr>
+    <td><b>3. 修法那行命令今天到不了用户眼前</b></td>
+    <td>三道截断叠加：出错那头先把错误文本截到 400 字（<code>src/host/repoKeys.js:196</code>），向导弹窗再截到 120 字，红卡截到 160 字。报告那条原文的修法命令正好落在截断之外</td>
+    <td>修法必须由分类器自己产出一句短文案，不能指望原文捎带</td>
+  </tr>
+</table>
+
+<h2>四问速览</h2>
+<table>
+  <tr><th>问题</th><th>推荐答案</th><th>一句话理由</th></tr>
+  <tr><td>Q4 兜底改成哪个取值</td><td><b>改成 unknown</b>，并补后端文案、让红卡在 unknown 档也显示原文</td><td>下游早就按 unknown 写好了，只有出错的那一头在硬塞 permission</td></tr>
+  <tr><td>Q5 本票和 #994 怎么分工</td><td><b>两票都留</b>：本票管兜底与修法文案，#994 管提前发现与自动修；「属主不一致」的判据只写一处</td><td>光改兜底用户看不到修法；两票各写一套识别必然漂移</td></tr>
+  <tr><td>Q6 契约层同类毛病要不要开票</td><td><b>开票，但砍小范围</b>：只收用户能看到的分类，不动错误类别枚举本身</td><td>三处同源毛病，但改枚举的成本与收益不成比例</td></tr>
+  <tr><td>Q7（审查中新增）#994 的探针能不能抓到报告人现场</td><td><b>动工前必须先核实</b>，很可能抓不到，探针要换成真正碰索引的命令</td><td>#994 自己说 rev-parse 成功，报告人的实测说 rev-parse 就失败了，两处对不上</td></tr>
+</table>
+
+<!-- Q4 -->
+<div class="q">
+  <h2 style="border:0;padding:0;margin-top:22px">Q4　兜底改成哪个取值？</h2>
+
+  <h3>背景</h3>
+  <p>出错分类函数认不出来时，最后一行直接返回「没权限」。所以磁盘满、git 身份没配、提交钩子拒绝，全被说成「权限不足，请检查登录账号」，报告人因此先查登录、再查令牌范围，白花一个多小时。可选值有两个：新增一个 unknown，或者沿用契约层「认不出来就归网络」的写法。</p>
+
+  <span class="tag rec">推荐答案</span>
+  <p><b>改成 unknown。</b>同时必须做两件事，缺一件都不算修好：① 后端文案表补一条 unknown 的中英文；② 红卡那条界面路在 unknown 档下也要把原始错误文本显示出来。</p>
+
+  <div class="two">
+    <div class="box pro"><b>优点</b>
+      <ul>
+        <li>下游（界面文案、取值判断）早就按 unknown 写好了，不用新增词汇</li>
+        <li>不再把「不知道」说成「没权限」，用户不会再去查登录和令牌</li>
+        <li>「仓库名已存在」这类被故意改写成 permission 的旧写法可以一并拆掉</li>
+      </ul>
+    </div>
+    <div class="box con"><b>缺点</b>
+      <ul>
+        <li>是出错那一头的输出变更，下游所有消费这个取值的地方都要跟着核对一遍</li>
+        <li>只改取值不改界面，用户会看到「创建失败，请查看错误详情」这种没有信息量的话</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="revbox">
+    <span class="tag rev">对抗式审查</span>
+    <p><b>反对一：错误类别枚举里没有 unknown，这不是既有词汇。</b>成立，但不决定性。这个流程的取值从「没装 git」「没装 gh」开始就不是那套枚举，它是另一套字符串。决定性的是客户端已经按 unknown 写了。</p>
+    <p><b>反对二：改输出就是改契约，风险大。</b>方向反了。现在的 permission 是一个被下游当真值使用的猜测，它会变成错误码去驱动「没登录」那类自动引导。改掉它是在收回一个错误承诺，不是新增契约。</p>
+    <p><b>反对三：那不如只在界面兜底，不动出错那头。</b>不成立。出错那头说的是 permission，界面无从分辨这是真权限问题还是猜的。<b>只有出错那头知道自己是猜的。</b></p>
+    <p><b>反对四：unknown 和 permission 不都是一句话吗？</b>差别在把用户引向哪里：permission 让人去查登录和令牌，unknown 加原文让人直接看到 git 说了什么。报告人的一小时就是这两者的差价。</p>
+  </div>
+
+  <div class="fpbox">
+    <span class="tag fp">从第一性原理出发</span>
+    <p>这个分类函数的输出被当成两样东西用：<b>出了什么错</b>，和<b>用户该去做什么</b>。这是两个不同的轴，被压成了一个值。一旦压成一个值，凡是认不出来的错误，就<b>必须借一个错误的「该做什么」</b>——这就是「兜底归权限」的真正来源。</p>
+    <p>所以 unknown 不是「第九种错误类别」，它是「分类器承认自己不知道」这件事的合法表达。它同时是一个契约承诺：<b>取值是 unknown 时，界面必须把原始错误文本显示出来。</b></p>
+  </div>
+
+  <div class="verdict">Q4 结论：改成 unknown，并且把「显示原文」写进同一张票的验收标准。</div>
+</div>
+
+<!-- Q5 -->
+<div class="q">
+  <h2 style="border:0;padding:0;margin-top:22px">Q5　本票和 #994 的分工怎么划？</h2>
+
+  <h3>背景</h3>
+  <p>#994 说的是「发布流程没有提前检查工作区能不能用 git」，它已经切到 ready-for-agent，并且自己就引用了本票，建议里包含「把属主不一致单独成一档，并给出修法提示」——<b>这和本票的修法建议是同一件事</b>。两票各做各的会写出两套识别。</p>
+
+  <span class="tag rec">推荐答案</span>
+  <p><b>两票都留，但分工写死：</b></p>
+  <ul>
+    <li><b>本票（#993）</b>：兜底改 unknown、后端补文案、红卡在 unknown 档显示原文、属主不一致单独成一档并给一句短修法、补 git 侧失败的回归测试。<b>不碰</b>提前发现、<b>不碰</b>自动修。</li>
+    <li><b>#994</b>：提前发现（动手前就拦住）、自动补 safe.directory 再重试一次，以及这个识别函数本身的归属。</li>
+    <li><b>唯一真源</b>：「属主不一致」的判据和修法提示只写一处，放在三个后端都能引用的共享目录下（<code>src/shared/tracker/</code>，仓库里已有同类先例）。<b>不要</b>让发布流程去引用某个后端房间的文件，那会同时撞上仓库的两道分层门禁。</li>
+  </ul>
+
+  <div class="two">
+    <div class="box pro"><b>优点</b>
+      <ul>
+        <li>两票各自都能独立验收，不会互相等</li>
+        <li>判据只有一处，不会出现「提前发现说属主问题、兜底说权限不足」的自相矛盾</li>
+        <li>共享目录是仓库既有做法，不需要新开分层例外</li>
+      </ul>
+    </div>
+    <div class="box con"><b>缺点</b>
+      <ul>
+        <li>本票要动到「属主不一致」这一档，和 #994 有一小块重叠，需要靠文档把边界钉住</li>
+        <li>两票都动同一个出错分类函数，谁先合并谁的改动会被另一方撞到</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="revbox">
+    <span class="tag rev">对抗式审查</span>
+    <p><b>反对一：既然 #994 会提前拦住并给出修法，本票的专门档就是重复的。</b>一半成立。#994 确实认领了这一档。但本票仍然需要它——理由是事实三：光改兜底，用户看到「创建失败，请查看错误详情」，修法一个字看不到。</p>
+    <p><b>反对二：那本票干脆只做兜底，别管属主问题。</b>我原本也这么想，被事实三推翻了。至少要让这一档带出一句短修法文案。</p>
+    <p><b>反对三：#994 的探针能覆盖报告人的现场吗？</b>这是本次审查最值钱的产出，单列为 Q7。</p>
+    <p><b>反对四：把识别放共享目录会不会绕过门禁？</b>不会。跨后端房引用共享目录是白名单允许的，仓库里已有同类先例（三个后端共用一份「这张票是不是我建的」判断）。</p>
+  </div>
+
+  <div class="fpbox">
+    <span class="tag fp">从第一性原理出发</span>
+    <p>这里有两件不同的事被混在一起谈：<b>动手前主动确认工作区可用</b>（预防），和<b>失败后解释发生了什么</b>（归因）。预防能减少失败，但永远不能消灭失败——磁盘会满、文件会在检查之后被人改掉。所以两者不是二选一，是两层。</p>
+    <p>但两层必须共用同一个事实来源，否则同一个「属主不一致」会在两条路上被说出两种话。这就是「唯一真源」不是洁癖、而是必要的原因。</p>
+  </div>
+
+  <div class="verdict">Q5 结论：两票都留、分工写死、判据只写一处。</div>
+</div>
+
+<!-- Q6 -->
+<div class="q">
+  <h2 style="border:0;padding:0;margin-top:22px">Q6　契约层同类毛病要不要单独开票？</h2>
+
+  <h3>背景</h3>
+  <p>「认不出来就借一个真实档位」这个毛病一共有三处，不是一处：</p>
+  <table>
+    <tr><th>位置</th><th>认不出来时</th><th>用户能看到的后果</th></tr>
+    <tr><td>发布流程的错误分类（本票）</td><td>说成「没权限」</td><td>「权限不足，请检查登录账号」，排查方向跑偏</td></tr>
+    <tr><td>契约层的通用错误分类 <code>src/host/tracker/preflight.js:57</code></td><td>说成「网络」</td><td>未知错误被说成网络问题（影响面待证）</td></tr>
+    <tr><td>重试推送失败的界面兜底 <code>src/client/kernel/slotRenderer-repo-sync.js:102</code> 与 <code>:107</code></td><td>说成「网络」</td><td>取值被填成网络，只在半成功那条路影响副文案</td></tr>
+  </table>
+
+  <span class="tag rec">推荐答案</span>
+  <p><b>开一张票，但把范围砍小</b>：只收「用户能看到的错误分类」，先修两处界面兜底（各一行，零成本），再单独论证契约层那一处。<b>不要</b>把「给错误类别枚举新增 unknown」塞进来。</p>
+
+  <div class="two">
+    <div class="box pro"><b>优点</b>
+      <ul>
+        <li>同一个毛病集中在一张票里，不会散成三张没人管的单子</li>
+        <li>砍掉枚举改造，避免动到所有后端和它们的消费方</li>
+        <li>两处界面兜底是零成本修复，可以立刻落地</li>
+      </ul>
+    </div>
+    <div class="box con"><b>缺点</b>
+      <ul>
+        <li>契约层那一处的实际影响我还没证实，票里必须写明是「同类毛病、影响待证」</li>
+        <li>只修界面兜底不修契约层，同一类错误在不同界面上的说法仍可能不一致</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="revbox">
+    <span class="tag rev">对抗式审查</span>
+    <p><b>反对一：错误分类里返回 unknown 是既有做法，所以契约层那处不算毛病。</b>这句是错的，已核实：那个 unknown 只是写日志用的原始档位标签，不是分类结果；契约层的错误类别八个值里没有 unknown。</p>
+    <p><b>反对二：三处一起修，票据范围太大。</b>成立，所以砍掉枚举改造。要动枚举得改所有后端和每一处消费方，成本与收益不成比例。</p>
+    <p><b>反对三：契约层那处的影响被夸大了。</b>这一条我承认。它在很多调用点只用于日志和分支，不直接产文案。票里不能写成「已确认的用户可见缺陷」。</p>
+    <p><b>反对四：本票顺手修了不就行了。</b>不行。本票的验收标准是「git 侧错误不再被说成权限不足」，塞进契约层会让验收边界糊掉，而 #994 正在同一片区域动刀。</p>
+  </div>
+
+  <div class="fpbox">
+    <span class="tag fp">从第一性原理出发</span>
+    <p>错误分类的输出如果既要给日志看、又要给用户看，就必须回答两个问题：<b>我们知道多少</b>，和<b>这个信息给谁用</b>。只给日志看时，猜一个最可能的档位代价很小；要给用户看时，猜错会把人的时间引到错误的方向——报告人的一小时就是这么花掉的。</p>
+    <p>所以正确的切法是<b>按受众切，不是按代码位置切</b>：凡是要变成用户眼前那句话的分类，认不出来就必须说认不出来；只给日志用的，维持现状即可。这也正是把契约层那一处先列为「影响待证」的原因。</p>
+  </div>
+
+  <div class="verdict">Q6 结论：开票但砍小范围，先修两处界面兜底，契约层那处单独论证。</div>
+</div>
+
+<!-- Q7 -->
+<div class="q">
+  <h2 style="border:0;padding:0;margin-top:22px">Q7　#994 的探针能抓到报告人的现场吗？（审查中新增）</h2>
+
+  <h3>背景</h3>
+  <p>#994 建议用 <code>git rev-parse --is-inside-work-tree</code> 做提前检查，用来发现「属主不一致」。但两处证据对不上：</p>
+  <ul>
+    <li>#994 的正文说：<code>git init</code> 成功，从 <code>git add</code> 才开始报属主不一致。</li>
+    <li>报告人在本票正文里给的实测输出是：<code>git rev-parse --is-inside-work-tree</code> <b>就已经报了</b>属主不一致。</li>
+  </ul>
+  <p>如果 rev-parse 在属主不一致时能成功，那用它做探针就抓不到这个现场，探针必须换成真正碰索引的命令（例如 <code>git add -n .</code> 或 <code>git status</code>）。</p>
+
+  <span class="tag rec">推荐答案</span>
+  <p><b>把「rev-parse 在属主不一致时到底会不会失败」列为 #994 动工前必须核实的第一件事</b>，核实前不要按 rev-parse 做探针。本机无法定论：Windows 上造不出「属主不同」而不改系统权限。</p>
+
+  <div class="two">
+    <div class="box pro"><b>优点</b>
+      <ul>
+        <li>避免 #994 交付一个「看起来做了检查、实际抓不到报告人这个场景」的探针</li>
+        <li>核实成本很低：在真机上跑两条命令即可</li>
+      </ul>
+    </div>
+    <div class="box con"><b>缺点</b>
+      <ul>
+        <li>属于 #994 的范围，本票只能提出，不能替它决定</li>
+        <li>核实需要报告人那类环境（Android 真机 + 属主不一致），本机替代不了</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="revbox">
+    <span class="tag rev">对抗式审查</span>
+    <p><b>反对：这不就是两份描述里有一份记错了吗，值得单列？</b>值得。这不是措辞出入，而是决定探针选哪条命令的分叉点。选错的结果是：检查通过了，流程照样在下一步死掉，而用户又回到「看不懂的报错」。</p>
+    <p><b>反对：既然本票的兜底改成诚实的，探针选错也不致命。</b>半对。兜底诚实只是让失败时说的话是真的，不能让流程成功。#994 的价值恰恰在于让这个场景直接跑通，所以探针必须真的抓得到。</p>
+  </div>
+
+  <div class="fpbox">
+    <span class="tag fp">从第一性原理出发</span>
+    <p>「提前检查」的有效性只取决于一件事：<b>检查用的那条命令，是否覆盖了后面真正会失败的那条命令的前提。</b>如果后面失败在「写索引」这一步，那么只检查「能不能读到仓库」就不构成覆盖。选探针时应该从「哪一步会先失败」往回推，而不是挑一条看起来最轻的命令。</p>
+  </div>
+
+  <div class="verdict">Q7 结论：动工前先核实，探针按「哪一步先失败」往回选，不要默认 rev-parse 够用。</div>
+</div>
+
+<h2>下一步（等你点头）</h2>
+<ul>
+  <li>给 #993 正文补上：与 #994 的分工、unknown 档必须带出修法文案、三道截断的约束。</li>
+  <li>给 #994 补一条评论：探针很可能抓不到报告人现场，动工前先核实（Q7）。</li>
+  <li>按 Q6 建一张票并做诊断。</li>
+</ul>
+<p class="note">以上三件都只改票据正文与评论，不动业务代码、不关闭任何票。本票标签维持 <code>bug</code> + <code>ready-for-agent</code> 不变——四问都不构成信息缺口。</p>
+
+</div>
+</body>
+</html>
