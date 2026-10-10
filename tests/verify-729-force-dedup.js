@@ -271,8 +271,10 @@ async function main() {
   title('G) 不要做的事钉死：热刷新那一档死线不动，不加节流')
   {
     const probeSrc = read('src/client/kernel/probe-snapshot.js')
-    must(probeSrc.indexOf('SNAP_WAIT_WARM_MS = 30000') >= 0 && probeSrc.indexOf('Math.round(_waitMs/1000)') >= 0,
-      '热刷新那一档仍是一条 30 秒死线（本票守的那条没动；#1009 只加了冷启动那一档，并让迟到的结果不再作废）')
+    must(probeSrc.indexOf('SNAP_WAIT_MS = 30000') >= 0 && probeSrc.indexOf('client loadSnapshot timeout 30s') >= 0,
+      '客户端 30 秒死线一字未动（本票禁入，迟到落地是另一张票的范围）')
+    must(probeSrc.indexOf('SNAP_WAIT_COLD_MS') < 0 && probeSrc.indexOf('snapWaitBudgetMs') < 0 && probeSrc.indexOf('Math.round(_waitMs/1000)') < 0,
+      '冷启动分档与动态超时文案不在了（#1009 收口只留一条，分档必须删掉）')
     const g1 = read('src/host/sessionSnapshot.js')
     const g2 = read('src/host/sessionRefresh.js')
     const g3 = read('src/host/snapshotInflight.js')

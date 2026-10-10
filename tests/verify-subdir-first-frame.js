@@ -6,8 +6,8 @@
  *   刚进会话时横幅写「该工作区还没有设置 — 点击选择后端」，而旁边「环境 10/10」是绿的、更新时间也是真实时刻；
  *   打开一次右侧面板、或切到别的会话再切回来，就正常了。两条原因：
  *   ①「用哪个后端」这条几十字节的事实，原先只能搭最重的那趟车（wf.snapshot / wf.refresh 那份完整快照）
- *     才回得来，而客户端对它有一条固定的等待死线（日志原文 client loadSnapshot timeout 30s；#1009 起分两档：
- *     手上有画面 30 秒、冷启动 180 秒，本门禁把两档都缩成 0.9 秒，复现「死线先到、回包后到」那个次序）。冷启动的大工作区
+ *     才回得来，而客户端对它有一条固定的等待死线（日志原文 client loadSnapshot timeout 30s；#1009 收口后
+ *     只留一条 30 秒耐心，本门禁把它缩成 0.9 秒，复现「死线先到、回包后到」那个次序）。冷启动的大工作区
  *     （这个现场 52 张地图 / 950 张票 / 741 子票 / 磁盘快照 9.7 MB）首次重建要几分钟，死线一到客户端就
  *     放弃、什么都不装；同期的「环境」（走 wf.chain）与「时间」（走 wf.probe）都没有这条死线。
  *   ② 那份回包后来还是到了（真机 12:16:21 落盘，客户端最后一次放弃是 12:16:19），可它一到就被原先那道
@@ -61,12 +61,13 @@ const FILES = [
 // 把这几片按构建顺序拼成同一个闭包（与 scripts/build.mjs 的拼接口径一致：去掉行首 export 后求值）。
 function moduleText(patch) {
   const body = FILES.map((f) => noExport((patch && patch.file === f) ? patch.text : read(f))).join('\n')
-  // #1009 起快照等待分两档（冷启动 / 手上有画面），门禁把两档都缩短成同一个短值：
-  //   源里那两个常量必须还在（不在就说明有人把分档改了，门禁当场红）。
-  const WARM_ANCHOR = 'SNAP_WAIT_WARM_MS = 30000'
-  const COLD_ANCHOR = 'SNAP_WAIT_COLD_MS = 180000'
-  if (body.indexOf(WARM_ANCHOR) < 0 || body.indexOf(COLD_ANCHOR) < 0) throw new Error('源里找不到快照等待的两档预算（' + WARM_ANCHOR + ' / ' + COLD_ANCHOR + '）—— 本门禁的替换不成立')
-  return body.replace(WARM_ANCHOR, 'SNAP_WAIT_WARM_MS = ' + GATE_TIMEOUT_MS).replace(COLD_ANCHOR, 'SNAP_WAIT_COLD_MS = ' + GATE_TIMEOUT_MS)
+  // #1009 收口后只留一条 30 秒耐心，门禁把它缩短成同一个短值：
+  //   源里那个单值常量必须还在（不在就说明有人改了等待时长，门禁当场红）；
+  //   冷启动那一档与分档函数必须不在（在就说明分档又回来了，门禁当场红）。
+  const WAIT_ANCHOR = 'SNAP_WAIT_MS = 30000'
+  if (body.indexOf(WAIT_ANCHOR) < 0) throw new Error('源里找不到快照等待的单值预算（' + WAIT_ANCHOR + '）—— 本门禁的替换不成立')
+  if (body.indexOf('SNAP_WAIT_COLD_MS') >= 0 || body.indexOf('snapWaitBudgetMs') >= 0) throw new Error('源里还有冷启动分档（SNAP_WAIT_COLD_MS / snapWaitBudgetMs）—— #1009 收口要求只留一条，分档必须删掉')
+  return body.replace(WAIT_ANCHOR, 'SNAP_WAIT_MS = ' + GATE_TIMEOUT_MS)
 }
 
 // 按真机样子回话的假宿主 + 真内核。
@@ -112,7 +113,8 @@ function makeEnv(opts) {
   const names = Object.keys(sandbox)
   const tail = '\n;return { makeStore, loadSnapshot, hydrateFromCache, getCachedSnapshot, getCachedSelection,'
     + ' workspaceRootByCwd, rememberWorkspaceRoot, keyOf, wsKeyOf, emit, mergeSelection, askSelectionOnce,'
-    + ' _snapRequestKeyWas, _snapInstallState }'
+    + ' _snapRequestKeyWas, _snapInstallState, _snapMarkRequest, _snapRespStale,'
+    + ' _installLateSnapshot, _installLateSnapshotSelection, _snapInstallBody }'
   // 手法：compileFn——这几片内核按 build.mjs 的顺序拼成一段文本后造函数，改走 tests/lib/eval-probe.js 的共用入口；名字数组照原样传。
   const factory = compileFn(names, moduleText(o.patch) + tail)
   const mod = factory.apply(null, names.map((n) => sandbox[n]))
@@ -185,7 +187,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms))
 // 注意这几条正则都带 \r?\n：这几个内核文件在仓库里是 CRLF 换行的（门禁按原文读，不整篇改写行尾）。
 const NEW_GUARD_RE = /if \(_curNorm !== _reqNorm \&\& !_snapRequestKeyWas\(_reqNorm, st\)\) \{/
 const ASK_LINE_RE = /^[ \t]*try \{ if \(typeof askSelectionOnce === 'function'\) askSelectionOnce\(st\) \} catch \(eSelAsk\) \{\}\r?\n/m
-const LATE_LINE_RE = /^[ \t]*_rawP\.then\(function \(lateSnap\) \{ try \{ _installLateSnapshot\(st, lateSnap, _reqNorm, _mine\) \} catch \(eLate\) \{\} \}, function \(\) \{\}\);\r?\n/m
+const LATE_LINE_RE = /^[ \t]*_rawP\.then\(function \(lateSnap\) \{ try \{ _installLateSnapshot\(st, lateSnap, _reqNorm, _mine\)[^\r\n]*\r?\n/m
 function cut(src, re, label) {
   const out = src.replace(re, '')
   ok(out !== src, '（前提）能在真源里拆掉 ' + label)
@@ -263,6 +265,41 @@ async function main() {
   ok(f.env.seen.logs.some((l) => l.event === 'snapshot.late.install' && l.fields.installed === true),
     '迟到落地如实记了一行 snapshot.late.install（installed 为真）')
   ok(f.env.seen.logs.some((l) => l.event === 'host.call.fail'), '客户端放弃那一次如实记了一行失败日志（host.call.fail）')
+
+  // ── #1009 收口 F1：正常回包只落地一次 ───────────────────────────────────────
+  // 正常那一路先回来时（还没放弃等待），迟到处理器一个字节都不装，也不再记那一行日志。
+  console.log('\nF1) 正常回包只落地一次：没放弃等待时迟到处理器不装')
+  {
+    const envF1 = makeEnv({ seedLocal: rootKeyedSeed() })
+    const stF1 = freshStore(envF1)
+    const mineF1 = envF1.mod._snapMarkRequest(stF1)
+    mineF1.gaveUp = false
+    mineF1.done = false
+    const freshSnap = snapshotReply()
+    const logsBefore = envF1.seen.logs.length
+    const installedF1 = envF1.mod._installLateSnapshot(stF1, freshSnap, envF1.mod.wsKeyOf(SUB_DIR), mineF1)
+    ok(installedF1 === false, '没放弃等待时迟到落地返回假（一个字节都不装）')
+    ok(stF1.snapshot === null, '会话里没有多装出一份快照（正常那一路还没跑，这里不许提前装）')
+    ok(!envF1.seen.logs.slice(logsBefore).some((l) => l.event === 'snapshot.late.install'), '没放弃时不记 snapshot.late.install（不再在没迟到的一次上记一行）')
+  }
+
+  // ── #1009 收口 F2：落后版本不装 ─────────────────────────────────────────────
+  console.log('\nF2) 落后版本不装：旧快照晚回来不许盖掉新数据')
+  {
+    const envF2 = makeEnv({ seedLocal: rootKeyedSeed() })
+    const stF2 = freshStore(envF2)
+    const nowMs = Date.now()
+    stF2.snapshot = { ok: true, maps: [], generatedMs: nowMs }
+    const oldSnap = snapshotReply()
+    oldSnap.generatedMs = nowMs - 60000
+    const mineF2 = envF2.mod._snapMarkRequest(stF2)
+    mineF2.gaveUp = true
+    mineF2.done = false
+    const installedF2 = envF2.mod._installLateSnapshot(stF2, oldSnap, envF2.mod.wsKeyOf(SUB_DIR), mineF2)
+    ok(installedF2 === false, '旧版本迟到返回假（不装）')
+    ok(stF2.snapshot && stF2.snapshot.generatedMs === nowMs, '新数据还在（没被旧盖新）')
+    ok(envF2.seen.logs.some((l) => l.event === 'snapshot.late.install' && l.fields.installed === false), '丢掉旧版本时如实记了一行 installed 为假（字段只用 keyHash 与 installed）')
+  }
 
   // ── I3 单独成立：把补问那一步拆掉，只剩「迟到回包」这一条路 ─────────────────
   console.log('\nI3-b) 单独走「迟到回包」这一条路：没有那条专用电话时，迟到的回包自己也要落地')

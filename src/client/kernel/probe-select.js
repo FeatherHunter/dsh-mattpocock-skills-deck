@@ -110,6 +110,9 @@ export const _snapRequestKeyWas = function (reqNorm, st) {
 export const _installLateSnapshotSelection = function (st, snap, reqNorm, mine) {
   try {
     if (!snap || !st || !mine) return false
+    // #1009 收口 F1：迟到落地只在真的放弃等待之后生效。正常那一路先回来时，这一次还没放弃，
+    //   这里一个字节都不装，也不再记那一行日志（原来靠正常路后置的标记挡，会被微任务顺序绕过）。
+    if (!mine.gaveUp) return false
     // 这一次已经走过正常那一路了（两边同时就绪的竞态）：一个字节都不许重复装。
     if (_snapInstallState.handedOff === true) return false
     // 后来发过更新的一次、或用户已经换到别的后端：与正常那一路同一把尺子，扔（#669 第 5 件）。
@@ -119,6 +122,7 @@ export const _installLateSnapshotSelection = function (st, snap, reqNorm, mine) 
     if (snap.selection !== undefined && typeof mergeSelection === 'function') { try { if (mergeSelection(st, snap.selection)) changed = true } catch (eSel) {} }
     if (snap.repository !== undefined) { try { st.repository = snap.repository; if (st.cwd) setCachedRepository(st.cwd, snap.repository) } catch (eRep) {} }
     st.selPending = false
+    try { st.snapPending = false } catch (ePendLate) {}
     if (changed) emit(st)
     // 这条轨迹按需记：迟到本身就少见，而「为什么这一格后来自己好了」正是以后要查的那一问。
     try { if (isEnabled('debug')) log('debug', 'snapshot.late.install', { keyHash: dswsLogHash(reqNorm), installed: !!changed }) } catch (eL) {}
@@ -190,10 +194,13 @@ export const _snapInstallBody = function (st, snap) {
 //   ② 工作区确实换走了 → 不装进新视图（#45 串台防线照旧），但按**请求时那把键**落进内存表：
 //      结果不作废，切回那个工作区时秒开。
 //   ③ 回来的不是完整正文（304 / 空结果）→ 退回 #727 的原做法：只补 selection 与仓库引用那一小块。
-// 两个前提：同一个请求的正常那一路没装过（mine.done，两边同时就绪的竞态），以及这份没被判过期。
+// 三个前提：真的放弃等待过（mine.gaveUp，只在超时那一支立）、同一个请求的正常那一路没装过
+//  （mine.done，两边同时就绪的竞态）、这份没被判过期；整份装之前再比一次数据新旧（最新者胜）。
 export const _installLateSnapshot = function (st, snap, reqNorm, mine) {
   try {
     if (!snap || !st || !mine) return false
+    // #1009 收口 F1：同上。超时那一支立 flag 之前，迟到的处理器不许装（正常回包先到正是这种情况）。
+    if (!mine.gaveUp) return false
     if (mine.done === true) return false
     if (typeof _snapRespStale === 'function' && _snapRespStale(reqNorm, mine.seq, mine.reqBackend, st)) return false
     const hasBody = !!(snap.ok === true && Array.isArray(snap.maps))
@@ -202,8 +209,27 @@ export const _installLateSnapshot = function (st, snap, reqNorm, mine) {
       try { setCachedSnapshot(reqNorm, snap) } catch (eC) {}
       return false
     }
+    // #1009 收口 F2：装之前比数据新旧（最新者胜）。两边都有时间戳才比大小，来者大才装；
+    //   只有一边有时，有值者胜；两边都没有时退回上面的序号判，不因缺字段丢掉。
+    //   丢掉时沿用既有事件记一行（字段只用 keyHash 与 installed，不加字段），原因靠 installed:false 表达。
+    try {
+      const _incMs = (snap && typeof snap.generatedMs === 'number' && snap.generatedMs > 0) ? snap.generatedMs : 0
+      const _curMs = (st.snapshot && typeof st.snapshot.generatedMs === 'number' && st.snapshot.generatedMs > 0) ? st.snapshot.generatedMs : 0
+      if (_incMs > 0 && _curMs > 0) {
+        if (!(_incMs > _curMs)) {
+          try { if (isEnabled('debug')) log('debug', 'snapshot.late.install', { keyHash: dswsLogHash(reqNorm), installed: false }) } catch (eOld) {}
+          try { st.snapPending = false } catch (ePendOld) {}
+          return false
+        }
+      } else if (_incMs === 0 && _curMs > 0) {
+        try { if (isEnabled('debug')) log('debug', 'snapshot.late.install', { keyHash: dswsLogHash(reqNorm), installed: false }) } catch (eOld2) {}
+        try { st.snapPending = false } catch (ePendOld2) {}
+        return false
+      }
+    } catch (eCmp) {}
     mine.done = true
     st.snapLoading = false
+    try { st.snapPending = false } catch (ePendDone) {}
     const installed = _snapInstallBody(st, snap)
     if (installed) {
       try { touchProbeAt(reqNorm) } catch (ePA) {}

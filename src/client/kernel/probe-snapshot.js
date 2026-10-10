@@ -11,17 +11,12 @@
     //   正常那一路已经跑过之后，迟到的这一份一个字节都不许重复装（同一个工作区两边同时就绪是会碰上的）。
     //   判据与落地在 kernel/probe-select.js，读写都在本文件这一行与那里的迟到处理器之间。
     export const _snapInstallState = { handedOff: false }
-    // #1009（人 2026-10-10 认可「分档」）：这一次快照该等多久，看**手上有没有画面**，两档不共用一个数。
-    //   为什么要有冷启动那一档：重启插件宿主之后第一趟重建实测 29.3 秒（2026-10-10 17:49），跟 30 秒死线
-    //   只差 0.7 秒；更早那个现场（950 张票）第一趟要几分钟 —— 那种时候判它超时，等于让宿主白跑一趟。
-    //   为什么热刷新仍是 30 秒：手上有画面时再等下去，用户看到的是「旧数据 + 一直转」，不如早点说没成。
-    //   分档只改「客户端等多久」，不改「这份结果还算不算数」（那条判据在 kernel/probe-select.js）。
-    export const SNAP_WAIT_WARM_MS = 30000
-    export const SNAP_WAIT_COLD_MS = 180000
-    // 「手上有画面」的判据只此一处：会话里已经有一份带 maps 的快照就算有（与装快照那一处的守卫同形状）。
-    export const snapWaitBudgetMs = function (st) {
-      try { return (st && st.snapshot && Array.isArray(st.snapshot.maps)) ? SNAP_WAIT_WARM_MS : SNAP_WAIT_COLD_MS } catch (e) { return SNAP_WAIT_WARM_MS }
-    }
+    // #1009 收口（2026-10-10）：只留一条「界面耐心」30 秒，不再按「手上有没有画面」分两档。
+    //   为什么删掉冷启动那一档：分档判据选错了信号 —— 「有没有画面」不等于「这次要等多久」；
+    //   2026-09-24 那个现场是「磁盘快照已有画面、重建要几分钟」，按该判据仍是热档，照样早放手。
+    //   删档只丢「等待体感」，不丢能力：迟到的结果仍会落地（判据与落地在 kernel/probe-select.js）。
+    //   超时原文回到固定串，散列 246ae7f1 与文档的对应关系继续成立。
+    export const SNAP_WAIT_MS = 30000
     // #491 房外埋点 helpers（同一闭包拼回后全内核文件可见；只记散列与计数，渲染路径不用）：
     const dswsLogHash = function (s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
     const dswsScrubHits = {}
@@ -167,10 +162,9 @@
         // #653 日志纪律：发起这条跨边界调用前先记一行，与收到回包时那一行配成一对（按需级，先判开关）
         try { if (isEnabled('debug')) log('debug', 'host.call', { method: callMethod, kind: force ? 'refresh' : 'snapshot', ok: true, latencyMs: 0 }) } catch (eL) {}
         const _rawP = force ? host.call('wf.refresh', args) : host.call('wf.snapshot', args);
-        // #1009：等多久按上面那两档取。热刷新那一档仍是 30 秒，所以「热点那条路」的超时原文
-        //   （与它的散列）一个字节都没变；冷启动那一档会如实写成 180s。
-        const _waitMs = snapWaitBudgetMs(st)
-        const _timeoutP = new Promise((_,rej)=>{ _timer=setTimeout(()=>{ try{_ctrl.abort();}catch{}; rej(new Error('client loadSnapshot timeout ' + Math.round(_waitMs/1000) + 's')); }, _waitMs); });
+        // #1009 收口：只等上面那一条 30 秒。超时原文是固定串（散列 246ae7f1），不按等待时长拼。
+        const _waitMs = SNAP_WAIT_MS
+        const _timeoutP = new Promise((_,rej)=>{ _timer=setTimeout(()=>{ try{_ctrl.abort();}catch{}; rej(new Error('client loadSnapshot timeout 30s')); }, _waitMs); });
         const p = Promise.race([_rawP, _timeoutP]).finally(function(){ try{clearTimeout(_timer);}catch{}; });
         // #669 第 5 件：登记这一次请求（序号 + 这次问的后端 + 在途键），发出去就记（判据见 kernel/probe-stale.js）。
         const _mine = _snapMarkRequest(st)
@@ -180,7 +174,7 @@
         //   最新的一次、后端没换过、工作区没真的换走，就把**整份**装上（#727 那版只补 selection 与仓库引用
         //   那一小块；真机上更常见的后果是宿主辛苦拿回来的那份被丢掉、下一次还得整趟重跑）。判据与落地都在
         //   kernel/probe-select.js（本文件只留这一行接线）。
-        _rawP.then(function (lateSnap) { try { _installLateSnapshot(st, lateSnap, _reqNorm, _mine) } catch (eLate) {} }, function () {});
+        _rawP.then(function (lateSnap) { try { _installLateSnapshot(st, lateSnap, _reqNorm, _mine) } catch (eLate) {} }, function () { try { if (typeof _snapRespStale !== 'function' || !_snapRespStale(_reqNorm, _mine.seq, _mine.reqBackend, st)) { st.snapPending = false; emit(st) } } catch (eLateFail) {} });
         // #653：宿主这次回话里带的工作区根，先记进工作区键表——本会话与同工作区的其它会话随后都按它分桶。
         //   不管 ok 与否都记：它是宿主算出来的事实，与这份快照能不能装没有关系。
         return p.then(function (snap) {
@@ -210,6 +204,7 @@
             st.snapLoading = false; emit(st); return
           }
           st.snapLoading = false
+          try { st.snapPending = false } catch (ePendOk) {}
           if (snap && (snap.notModified===true || snap.status===304)) {
             // 304 zero emit per spec: version unchanged -> keep old table, no UI change
             st.snapLoading=false;
@@ -234,8 +229,17 @@
           }
           emit(st)
         }).catch(function (e) {
+          try { _mine.gaveUp = true } catch (eGave) {}
           try { log('warn', 'host.call.fail', { method: callMethod, kind: force ? 'refresh' : 'snapshot', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}
           st.snapLoading = false
+          // #1009 收口：放弃等待时立一面诚实旗子 —— 30 秒到点界面会说失败，可活还在跑；
+          //   有这面旗子，提示语改说「仍在等，拿到后自动更新」，不再把「没等到」说成「失败了」。
+          //   迟到落地或真失败时清掉（落地那两处在 kernel/probe-select.js，迟到失败在上面那行 late 口）。
+          try {
+            const _msg = String((e && e.message) || e)
+            if (_msg.indexOf('client loadSnapshot timeout') >= 0) st.snapPending = true
+            else st.snapPending = false
+          } catch (ePend2) {}
           // #727：这一次等待到此为止（超时也算）——「在途」这个理由不再成立，横幅回到原来那套判据上。
           //   注意这里只结束「等待」：那份回包若后来还是回来了，由上面的迟到处理器收下（#1009 起整份落地）。
           if (st.selPending === true) st.selPending = false
