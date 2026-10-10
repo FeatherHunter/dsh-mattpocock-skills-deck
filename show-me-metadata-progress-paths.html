@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>元数据与进度：注入逻辑 · GitHub 房 vs Markdown 房</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2128; --line:rgba(255,255,255,.09);
+    --fg:#e6edf3; --mut:#8b8b95; --blue:#58a6ff; --green:#3fb950; --purple:#8b5cf6;
+    --amber:#f59e0b; --red:#f85149; --code:rgba(255,255,255,.07);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font:14px/1.7 -apple-system,"Segoe UI","Microsoft YaHei",system-ui,sans-serif;}
+  .wrap{max-width:1180px;margin:0 auto;padding:32px 20px 64px}
+  h1{font-size:24px;margin:0 0 6px;letter-spacing:.2px}
+  h2{font-size:17px;margin:0 0 4px}
+  h3{font-size:14px;margin:22px 0 8px;color:var(--fg)}
+  .sub{color:var(--mut);font-size:13px;margin:0 0 28px}
+  .sec{margin:34px 0 0;padding:22px 22px 24px;background:var(--panel);
+    border:1px solid var(--line);border-radius:12px}
+  .sec>.lead{color:var(--mut);font-size:13px;margin:8px 0 18px}
+  code{font-family:Consolas,Menlo,monospace;font-size:12.5px;background:var(--code);
+    padding:1px 5px;border-radius:4px}
+  .tag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:999px;
+    border:1px solid var(--line);color:var(--mut)}
+  .tag.gh{color:#c9d1d9;border-color:rgba(88,166,255,.45)}
+  .tag.md{color:#c9d1d9;border-color:rgba(63,185,80,.45)}
+  .tag.warn{color:var(--amber);border-color:rgba(245,158,11,.5)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media (max-width:860px){.grid2{grid-template-columns:1fr}}
+  .col{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:16px 16px 18px}
+  .col h3{margin:0 0 10px;font-size:14px;display:flex;align-items:center;gap:8px}
+  ol.steps{margin:0;padding-left:20px}
+  ol.steps li{margin:0 0 11px}
+  ol.steps li b{color:var(--fg)}
+  .ref{color:var(--mut);font-size:11.5px;font-family:Consolas,Menlo,monospace;
+    display:block;margin-top:2px;word-break:break-all}
+  pre{margin:10px 0 0;background:#0b0f14;border:1px solid var(--line);border-radius:8px;
+    padding:11px 13px;overflow:auto;font-family:Consolas,Menlo,monospace;font-size:12.5px;
+    line-height:1.65;color:#c9d1d9}
+  pre .c{color:#6e7681}
+  pre .k{color:var(--blue)}
+  pre .p{color:var(--purple)}
+  pre .g{color:var(--green)}
+  pre .a{color:var(--amber)}
+  pre .r{color:var(--red)}
+  table{width:100%;border-collapse:collapse;margin-top:6px;font-size:13px}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--mut);font-weight:600;font-size:12px;letter-spacing:.3px}
+  td.mono{font-family:Consolas,Menlo,monospace;font-size:12px;color:#c9d1d9;word-break:break-all}
+  .flow{display:flex;flex-direction:column;gap:0;margin-top:8px}
+  .node{background:var(--panel2);border:1px solid var(--line);border-left:3px solid var(--blue);
+    border-radius:8px;padding:10px 13px}
+  .node.g{border-left-color:var(--green)}
+  .node.a{border-left-color:var(--amber)}
+  .node.r{border-left-color:var(--red)}
+  .node .t{font-size:13px}
+  .node .d{color:var(--mut);font-size:12px;margin-top:3px}
+  .arrow{color:#30363d;text-align:center;font-size:15px;line-height:1.1;margin:5px 0}
+  .arrow span{color:var(--mut);font-size:11px;margin-left:6px}
+  .branch{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px}
+  @media (max-width:860px){.branch{grid-template-columns:1fr}}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:13px;margin:6px 0 0}
+  .kv dt{color:var(--mut)}
+  .kv dd{margin:0}
+  .callout{margin-top:14px;padding:12px 14px;border-radius:9px;font-size:13px;
+    background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.32)}
+  .callout.bad{background:rgba(248,81,73,.08);border-color:rgba(248,81,73,.3)}
+  .callout.ok{background:rgba(63,185,80,.08);border-color:rgba(63,185,80,.3)}
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px}
+  @media (max-width:860px){.split{grid-template-columns:1fr}}
+  .box{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:12px 14px}
+  .box h4{margin:0 0 6px;font-size:13px}
+  .box p{margin:0;color:var(--mut);font-size:12.5px}
+  .pill{display:inline-block;font-size:11px;padding:1px 7px;border-radius:999px;margin-right:4px}
+  .pill.ok{background:rgba(63,185,80,.15);color:var(--green)}
+  .pill.no{background:rgba(248,81,73,.13);color:var(--red)}
+  .pill.mid{background:rgba(245,158,11,.13);color:var(--amber)}
+  footer{color:var(--mut);font-size:12px;margin-top:26px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>元数据与进度：注入逻辑 · GitHub 房 vs Markdown 房</h1>
+  <p class="sub">同一套 deck 工具，落到两间不同的后端房间时，元数据（幂等锚、父键）与进度分别被写到哪儿、怎么找回来。全部结论都标了代码位置。</p>
+
+  <!-- ============ 1 ============ -->
+  <div class="sec">
+    <h2>一、一张票面上住着三种东西</h2>
+    <p class="lead">锚和父键对人是隐形的（HTML 注释），进度是给人看的。面板的渲染器不处理注释，所以前两种在面板里会当普通文字显示出来。</p>
+    <table>
+      <tr><th style="width:150px">写在票面上的样子</th><th style="width:110px">给谁看</th><th>作用</th><th style="width:280px">定义在哪</th></tr>
+      <tr>
+        <td class="mono">&lt;!-- DSH-IDEMPOTENCY-KEY: … --&gt;</td>
+        <td>机器</td>
+        <td>幂等锚。同一个锚再提交一次，复用同一张票，不再建第二张；已关闭的票不算命中。</td>
+        <td class="mono">shared/refresh/idempotency.js:1</td>
+      </tr>
+      <tr>
+        <td class="mono">&lt;!-- parentKey: 01 --&gt;</td>
+        <td>机器</td>
+        <td>父票编号。只在 Markdown 房需要——GitHub 房用原生子议题层级，票面上不写这行。</td>
+        <td class="mono">markdown/parse.js:45（#971 读回来）</td>
+      </tr>
+      <tr>
+        <td class="mono">## 进度：N%</td>
+        <td>人 + 机器</td>
+        <td>进度区。面板读它画进度条；契约要求 N 是 0–100 整数，另起一段写「下一步：」。</td>
+        <td class="mono">docs/prompts-review.md:193（#75 定版）</td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- ============ 2 ============ -->
+  <div class="sec">
+    <h2>二、带锚建票：两间房各自怎么注入、怎么找回来</h2>
+    <p class="lead">上层是同一套：键先当场体检，再回查，命中就复用，没命中才建，拿不准就如实失败、绝不建票。分叉全在「回查看什么」和「锚写到哪」。</p>
+
+    <div class="grid2">
+      <div class="col">
+        <h3><span class="tag gh">GitHub 房</span> 锚写进 issue 正文首行</h3>
+        <ol class="steps">
+          <li><b>键体检</b>：不合规（空 / 超长 / 带换行或注释收尾符）当场失败，比回查还早。
+            <span class="ref">github/issues-write.js:36</span></li>
+          <li><b>回查①快路</b>：<code>gh search issues --match body</code> 搜锚。便宜，但 GitHub 的正文索引是异步建的、有滞后，刚建好的几十秒常常搜不到。
+            <span class="ref">github/idempotency.js:113</span></li>
+          <li><b>回查②慢路</b>：快路没命中时，列最近更新的 100 张开票，只留创建时间在 30 分钟窗口内的候选，逐张读回正文比对（最多 40 张）。这条路不依赖索引，专治「刚建完马上重试」。
+            <span class="ref">github/idempotency.js:129–165</span></li>
+          <li><b>两条路都真跑通且都没找到</b>，才算「确实还没建过」；任一条出岔子一律如实失败。
+            <span class="ref">github/idempotency.js:168–177</span></li>
+          <li><b>建票</b>：<code>gh api POST</code>，正文前面拼上锚那一行。
+            <span class="ref">github/idempotency.js:45（withAnchor）</span></li>
+        </ol>
+        <pre><span class="c">// 锚是正文第一行：渲染后看不见，读回来还在</span>
+<span class="k">export function</span> withAnchor(body, key) {
+  <span class="k">if</span> (!key) <span class="k">return</span> body
+  <span class="k">return</span> <span class="g">anchorLineFor</span>(String(key)) + (body || <span class="a">''</span>)
+}</pre>
+      </div>
+
+      <div class="col">
+        <h3><span class="tag md">Markdown 房</span> 锚 + 父键写进票文件头两行</h3>
+        <ol class="steps">
+          <li><b>键体检</b>：同一套检查，理由还多一条——键会原样写进票面，落坏就是把文件的正文写坏。
+            <span class="ref">markdown/issues-create.js:114</span></li>
+          <li><b>进串行写者队列</b>：取号、探测、落盘三段必须在同一条按工作区排队的队列里跑完，否则多路会读到同一个 max、算出同一个编号、互相覆盖（本机实测 8 路并发全部回 <code>key="01"</code>）。
+            <span class="ref">markdown/issues-create.js:118–128（#712）</span></li>
+          <li><b>回查</b>：在队列里扫目标 effort 的 issues 目录，逐个文件读锚比对，命中就直接复用、不取号不落盘。
+            <span class="ref">markdown/issues-create.js:136–147 / :92–106</span></li>
+          <li><b>建票</b>：编号取 max+1 并探测到没人占为止，然后整份写文件；文件头先放父键注释、再放锚注释。
+            <span class="ref">markdown/issues-create.js:80–82</span></li>
+        </ol>
+        <pre><span class="c">// 两次前置插入：先父键，再把锚插到最前</span>
+<span class="k">if</span>(input.parentKey) content = <span class="p">'&lt;!-- parentKey: '</span>+input.parentKey+<span class="p">' --&gt;\n'</span> + content
+<span class="c">// 锚在最前（含它自己的换行）</span>
+<span class="k">if</span>(input.idempotencyKey) content = <span class="g">anchorLineFor</span>(…)+content</pre>
+      </div>
+    </div>
+
+    <div class="callout">
+      <b>同一件事，两间房的「证据」不同。</b> GitHub 房的证据是远端票面正文里的锚那一行——搜索接口说「找到了」不算数、内存里记着谁建过也不算数；Markdown 房的证据是票文件里那一行，因为进程重启、插件重载后内存里什么都没有，而文件还在盘上。
+    </div>
+  </div>
+
+  <!-- ============ 3 ============ -->
+  <div class="sec">
+    <h2>三、父键：一间房靠层级，一间房靠注释</h2>
+    <p class="lead">这是两间房差别最大的一处，也是工具每次都说「分不出原生层级还是平级链接」的原因。</p>
+    <div class="flow">
+      <div class="node g">
+        <div class="t"><span class="tag gh">GitHub 房</span> 走原生子议题层级，票面上不写父键</div>
+        <div class="d">子议题是平台能力，父边直接建在层级上；所以正文里看不到 <code>parentKey</code> 那一行。</div>
+      </div>
+      <div class="arrow">▼ <span>是否同目录</span></div>
+      <div class="branch">
+        <div>
+          <div class="node a">
+            <div class="t"><span class="tag md">Markdown 房 · 建图时</span> 写文件头注释</div>
+            <div class="d">建整图时给每张子票文件头写 <code>&lt;!-- parentKey: 15 --&gt;</code>，这是降级承载，不是原生层级。读回、列举、快照都以这行注释为准（#971 修掉了「注释写了却从不读」）。</div>
+            <div class="ref">markdown/issues-create.js:80 · markdown/parse.js:45</div>
+          </div>
+        </div>
+        <div>
+          <div class="node r">
+            <div class="t"><span class="tag md">Markdown 房 · 事后补边</span> 直接做不到</div>
+            <div class="d">补边工具传父键时两间房都诚实失败（本地后端恒为单根树，原生不支持），而且补边这条路径<strong>不</strong>顺手写注释——与建图时带注释是两条路径，行为实测已分开留证。</div>
+            <div class="ref">markdown/issues-patch.js:183（setParentIssue）</div>
+          </div>
+        </div>
+      </div>
+      <div class="arrow">▼ <span>还有一层保险</span></div>
+      <div class="node">
+        <div class="t">改正文时不许把父键弄丢</div>
+        <div class="d">整份替换正文的分支会用递进来的正文盖掉整个文件，而父注释不在字段行里、补不回来。所以写之前先以盘上旧文件的父为准补回，否则下一次读回父就从 01 掉回 00。</div>
+        <div class="ref">markdown/issues-patch.js:106–112</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 4 ============ -->
+  <div class="sec">
+    <h2>四、进度：契约、写入路径、以及断在哪</h2>
+    <p class="lead">进度是唯一一件「写的人」和「读的人」口径不一致的东西。定义很完整，落地断了三处。</p>
+
+    <h3>当初的定义（#75 grill 定版）</h3>
+    <pre><span class="c">进度表达（每次动作结束前必须更新 —— 这是动作的一部分，不是可选项）</span>
+1. 格式：正文维护固定进度区 <span class="a">`## 进度：N%`</span>（N 为 0-100 整数；禁止「大概 / 基本」等模糊词）
+   更新前先读当前值，按最新状态写真值（可上调也可下调）
+2. 阶梯：0% 未动工 · 1-94% 进行中 · <span class="a">95% 已完成待确认</span>（下一步须写明待确认什么；<span class="r">未确认不得 close</span>）
+   确认后立即写 100% 并 close
+3. 兜底：100% = 确认完成（close 后进度区保留为历史）；首次接触无进度区的票，按现状补写</pre>
+    <p class="ref">docs/prompts-review.md:193–202（写法正例见 :224–227；工作流文档称其为 prompt.progress 契约）</p>
+
+    <h3>写入路径：一个参数，两间房的落点不同</h3>
+    <div class="split">
+      <div class="box">
+        <h4><span class="tag">共用的一步</span> 改票工具的 progress 参数</h4>
+        <p>参数说明就一句：只改「## 进度」那一段的内容。实现是把整段换掉，前面的正文与后面的区块原样保留，顺手清理历史留下的重复进度区。</p>
+        <p class="ref" style="margin-top:8px">host/tools/deckIssuePatch.js:26 · :40–58</p>
+      </div>
+      <div class="box">
+        <h4><span class="tag gh">GitHub 房</span> 改 issue 正文</h4>
+        <p>拼好新正文后走 <code>gh issue edit --body</code>，再 <code>gh issue view</code> 读回核对。</p>
+        <p class="ref" style="margin-top:8px">github/issues-write.js:206–212</p>
+      </div>
+      <div class="box">
+        <h4><span class="tag md">Markdown 房</span> 整份覆盖票文件</h4>
+        <p>读文件、判断递进来的是整份正文还是片段、拼好、整份写回。整份替换 / 插入 / 字段行三条分支的边界判断，就是「改正文把新正文追加到旧正文之后」「首部出现重复锚与重复标题」这类缺陷的来源。</p>
+        <p class="ref" style="margin-top:8px">markdown/issues-patch.js:56–86 · write.js:21</p>
+      </div>
+    </div>
+
+    <h3>断点：写的人不写数字，读的人只要数字</h3>
+    <div class="flow">
+      <div class="node g"><div class="t">写的人（AI）</div><div class="d">现行注入的提示词模板里，「进度」两个字<strong>一次都没有</strong>——只剩一句「结束前把这张票的真实状态写进正文」。</div><div class="ref">src/client/kernel/prompts.js（搜「进度」零命中）</div></div>
+      <div class="arrow">▼ <span>于是写出来的是整段文字，没有百分比</span></div>
+      <div class="node a"><div class="t">建票骨架</div><div class="d">只塞 <code>## 进度</code> 加一行占位注释「做到哪一步了，在这里一行一行记」，没有 N%、也没有「下一步：」。</div><div class="ref">shared/deck-tools/plan.js:58–61</div></div>
+      <div class="arrow">▼</div>
+      <div class="node r"><div class="t">读的人（面板）</div><div class="d">解析器三级锚定，三级都要求百分号；解析不出就是空值，进度条画「—」、状态算作未动工。</div><div class="ref">shared/tracker/deck-derive.js:33–43 · client/views/shared/ticket.js:24–26</div></div>
+    </div>
+
+    <h3>占位注释为什么时有时无</h3>
+    <div class="split">
+      <div class="box">
+        <h4><span class="pill ok">走 progress 参数</span> 占位行消失</h4>
+        <p>整段替换会连占位行一起换掉。本会话关掉的 980 / 984 / 981 / 985 / 987 都走这条路，所以那几张票里没有占位行。</p>
+      </div>
+      <div class="box">
+        <h4><span class="pill no">走改正文或人工编辑</span> 占位行留下</h4>
+        <p>工具不认识进度段的边界，占位行原地不动，与后写的记录并存。dsh-log 的 02 号票就是现场：票上评论自己记着「改正文时把新正文追加到了旧正文之后…已由人工整理」。</p>
+      </div>
+    </div>
+    <div class="callout bad">
+      <b>硬证据：</b>地图 979 最后一次快照里，八张子票每行的进度值全是 <code>null</code>——可其中五张的进度段明明有整段文字。文字进去了，数字没出来。
+    </div>
+  </div>
+
+  <!-- ============ 5 ============ -->
+  <div class="sec">
+    <h2>五、代码索引</h2>
+    <table>
+      <tr><th style="width:210px">作用</th><th style="width:120px">房间</th><th>位置</th></tr>
+      <tr><td>锚的构造与命中判据</td><td>共用</td><td class="mono">src/shared/refresh/idempotency.js:1–18（#711）</td></tr>
+      <tr><td>锚行拼进正文</td><td>GitHub</td><td class="mono">src/host/tracker/backends/github/idempotency.js:45</td></tr>
+      <tr><td>锚回查：快路 + 慢路 + 窗口常量</td><td>GitHub</td><td class="mono">…/github/idempotency.js:103–178（30 分钟 / 40 张 / 100 条）</td></tr>
+      <tr><td>带锚建票与键体检</td><td>GitHub</td><td class="mono">…/github/issues-write.js:29–48</td></tr>
+      <tr><td>改 body（进度落点）</td><td>GitHub</td><td class="mono">…/github/issues-write.js:206–212</td></tr>
+      <tr><td>锚 + 父键写进文件头</td><td>Markdown</td><td class="mono">…/markdown/issues-create.js:80–82</td></tr>
+      <tr><td>按工作区串行队列、取号、回查</td><td>Markdown</td><td class="mono">…/markdown/issues-create.js:92–159（#712）</td></tr>
+      <tr><td>父键读回来、只认文件头</td><td>Markdown</td><td class="mono">…/markdown/parse.js:45–59（#971）</td></tr>
+      <tr><td>改正文不许丢父注释</td><td>Markdown</td><td class="mono">…/markdown/issues-patch.js:106–112</td></tr>
+      <tr><td>整份覆盖票文件</td><td>Markdown</td><td class="mono">…/markdown/issues-patch.js:56–86 · …/markdown/write.js:21</td></tr>
+      <tr><td>进度段整段替换</td><td>共用</td><td class="mono">src/host/tools/deckIssuePatch.js:26 · :40–58</td></tr>
+      <tr><td>进度契约原文</td><td>文档</td><td class="mono">docs/prompts-review.md:193–202</td></tr>
+      <tr><td>进度解析（要百分号）</td><td>共用</td><td class="mono">src/shared/tracker/deck-derive.js:33–43</td></tr>
+      <tr><td>空进度的画法（画「—」）</td><td>面板</td><td class="mono">src/client/views/shared/ticket.js:24–26</td></tr>
+      <tr><td>面板渲染不处理 HTML 注释</td><td>面板</td><td class="mono">src/client/views/shared/md.js:194（无 &lt;!-- 分支）</td></tr>
+    </table>
+  </div>
+
+  <footer>依据本仓当前代码与文档整理；行号对应当次读取的版本。</footer>
+</div>
+</body>
+</html>
