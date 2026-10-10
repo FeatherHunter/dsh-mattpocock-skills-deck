@@ -216,6 +216,15 @@ export function withCallScope(c, exec, opts) {
     return { ok: false, error: { kind: 'backend-threw', message: '这次没拿到后端实现，我没往下做。' } }
   }
 
+  // 写穿透共用（新增七个操作中的六个写操作）：无记忆缓存，成功只脏该票
+  // （与 setParent/setBlockedBy 同形）；超时与中止的回执与现有六个一字同形。
+  async function writeThru(op, repo, key, invoke) {
+    if (!real[op]) return noTracker()
+    const out = mapOpOutcome(await execOp(op, function (c2) { return invoke(c2) }))
+    if (out && out.ok === true) rosterDirty(memo, repo, [String(key)])
+    return out
+  }
+
   let tracker = null
   if (real) {
     tracker = {
@@ -269,6 +278,38 @@ export function withCallScope(c, exec, opts) {
         const out = mapOpOutcome(await execOp('setBlockedBy', function (c2) { return real.setBlockedBy(repo, key, blockers, f || {}, c2) }))
         if (out && out.ok === true) rosterDirty(memo, repo, [String(key)])
         return out
+      },
+      // 以下七个是本次补的钳制与预算口（deck_context/patch/create/report 在此之前直调后端，
+      // 无单次钳制、无剩余额度检查，串行几个慢调用就撞上外层 120 秒被掐）。形状与契约同形：
+      // preflight 不记名册（环境探活次次真问）；六个写操作成功只脏该票，与上面两写同形。
+      preflight: async function (handle, ctx) {
+        void ctx
+        if (!real.preflight) return noTracker()
+        return mapOpOutcome(await execOp('preflight', function (c2) { return real.preflight(handle, c2) }))
+      },
+      close: async function (repo, key, f, ctx) {
+        void ctx
+        return writeThru('close', repo, key, function (c2) { return real.close(repo, key, f || {}, c2) })
+      },
+      reopen: async function (repo, key, ctx) {
+        void ctx
+        return writeThru('reopen', repo, key, function (c2) { return real.reopen(repo, key, c2) })
+      },
+      comment: async function (repo, key, body, ctx) {
+        void ctx
+        return writeThru('comment', repo, key, function (c2) { return real.comment(repo, key, body, c2) })
+      },
+      update: async function (repo, key, patch, ctx) {
+        void ctx
+        return writeThru('update', repo, key, function (c2) { return real.update(repo, key, patch, c2) })
+      },
+      setLabels: async function (repo, key, labels, f, ctx) {
+        void ctx
+        return writeThru('setLabels', repo, key, function (c2) { return real.setLabels(repo, key, labels, f || {}, c2) })
+      },
+      setAssignees: async function (repo, key, assignees, f, ctx) {
+        void ctx
+        return writeThru('setAssignees', repo, key, function (c2) { return real.setAssignees(repo, key, assignees, f || {}, c2) })
       },
     }
   }
