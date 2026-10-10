@@ -22,7 +22,12 @@ import { createAttention, createFocusHandler } from './attention.js'
 // #723（T19c）第 D 件：七个 deck_* 工具。装配口在共享层（createDeckTools 只收参数、不 import 工具文件），七个
 // 工厂由 ../platform/deckToolsAssembly.js 一处读进来 —— 收在那一层是因为宿主层文件之间不许互引（同层引用门禁），
 // 宿主层里再读一次那七个文件就要新增 7 条同层边，本票不许。见那个文件的文件头与交付报告第 6 节。
-import { createDeckToolsForHost, DECK_TOOL_FILES } from '../platform/deckToolsAssembly.js'
+import { createDeckToolsForHost, DECK_TOOL_FILES, withCap } from '../platform/deckToolsAssembly.js'
+// deck 工具前置三处的等待上限：保读数含一次远端读数（读档 12 秒加排队），给 15 秒；
+// 本机记忆与工作区文件是本地读，给 5 秒。超时都走既有的失败继续路径（保不住照旧往下走、
+// 读不到按缺席跳过），成功路径一字不动——挂住的文件服务或排满的出站队列不能卡住整笔调用。
+const DECK_ENSURE_TIMEOUT_MS = 15000
+const DECK_EXPLICIT_TIMEOUT_MS = 5000
 import { createNamingSummary, readFirstUserText } from '../platform/namingSummary.js'   // #746：命名摘要编排（单例，见下）；#746 首句直读（随单下发供免锁比对）
 import { hookDeckAgentTools, makeDeckRegisterReport } from '../../shared/deck-tools/agent-register.js' // #741 注册那一步（向 agent 交七个工具）：形状、循环与报告住共享层（两边都要用），这里只递表
 import { publishDeckTable, noteDeckGate } from '../../shared/deck-tools/exec-cell.js' // #758 同进程共享格：行与宿主同一进程，表放进格子里行直接取，不经调用面
@@ -120,7 +125,8 @@ export function createRefreshWiring(deps) {
     try {
       const q = quotaSyncOf()
       if (!q || typeof q.ensureReading !== 'function') return Promise.resolve({ ok: false, reason: 'missing-dep' })
-      return q.ensureReading(cwd, workspaceKey)
+      // 排队无上限的出站不能卡住整笔调用：超时按保不住走老路（调用方照旧被闸推迟）。
+      return withCap(q.ensureReading(cwd, workspaceKey), DECK_ENSURE_TIMEOUT_MS).then(function (r) { return (r && r.ok === true) ? r.value : { ok: false, reason: (r && r.timedOut) ? 'sync-timeout' : 'ensure-threw' } }, function () { return Promise.resolve({ ok: false, reason: 'ensure-threw' }) })
     } catch (eE) { return Promise.resolve({ ok: false, reason: 'ensure-threw' }) }
   }
 
@@ -329,9 +335,9 @@ export function createRefreshWiring(deps) {
           handleFor: function (s) { try { const list = (typeof registry.allBindings === 'function') ? registry.allBindings() : []; const want = String((s && s.cwd) || ''); const wash = (p) => String(p || '').replace(/\\/g, '/').replace(/\/+$/, ''); const wantW = wash(want); for (let i = 0; i < list.length; i++) { const c = (list[i] && (list[i].cwd || (list[i].handle && list[i].handle.cwd))) || ''; if (String(c) === want || wash(c) === wantW) return list[i].handle || { cwd: want } } } catch (e) {} return { cwd: (s && s.cwd) || '' } },
           // 934：会话目录洗加锚根的宿主唯一异步出口（与绑定侧同一把钥匙）；缺席时壳沿用原始目录。
           canonicalKey: (typeof d.canonicalKey === 'function') ? function (raw) { return d.canonicalKey(raw) } : undefined,
-          // 947 显式后两层读口：查不到一律 null（缺席即跳过，不猜）。
-          readChoice: function (rootCwd) { try { return (typeof d.getChoiceStore === 'function') ? d.getChoiceStore().then(function (cs) { return (cs && typeof cs.getWorkspace === 'function') ? cs.getWorkspace(rootCwd) : null }, function () { return null }).then(function (got) { return (got && got.found === true && got.backendId) ? { backendId: got.backendId, rev: got.rev || 0 } : null }) : Promise.resolve(null) } catch (e) { return Promise.resolve(null) } },
-          readWorkspaceFileText: function (rootCwd) { try { const fsSvc = backendObj && backendObj.fs; if (!fsSvc || typeof fsSvc.resolve !== 'function' || typeof fsSvc.readText !== 'function') return Promise.resolve(null); return Promise.resolve(fsSvc.resolve(WORKSPACE_FILE_REL, { cwd: rootCwd })).then(function (t) { return fsSvc.readText(t) }, function () { return null }).then(function (txt) { return (typeof txt === 'string' && txt) ? txt : null }, function () { return null }) } catch (e) { return Promise.resolve(null) } },
+          // 947 显式后两层读口：查不到一律 null（缺席即跳过，不猜）。挂住时同样按缺席跳过。
+          readChoice: function (rootCwd) { try { const p = (typeof d.getChoiceStore === 'function') ? d.getChoiceStore().then(function (cs) { return (cs && typeof cs.getWorkspace === 'function') ? cs.getWorkspace(rootCwd) : null }, function () { return null }).then(function (got) { return (got && got.found === true && got.backendId) ? { backendId: got.backendId, rev: got.rev || 0 } : null }) : Promise.resolve(null); return withCap(p, DECK_EXPLICIT_TIMEOUT_MS).then(function (r) { return (r && r.ok === true) ? r.value : null }, function () { return null }) } catch (e) { return Promise.resolve(null) } },
+          readWorkspaceFileText: function (rootCwd) { try { const fsSvc = backendObj && backendObj.fs; if (!fsSvc || typeof fsSvc.resolve !== 'function' || typeof fsSvc.readText !== 'function') return Promise.resolve(null); const p = Promise.resolve(fsSvc.resolve(WORKSPACE_FILE_REL, { cwd: rootCwd })).then(function (t) { return fsSvc.readText(t) }, function () { return null }).then(function (txt) { return (typeof txt === 'string' && txt) ? txt : null }, function () { return null }); return withCap(p, DECK_EXPLICIT_TIMEOUT_MS).then(function (r) { return (r && r.ok === true) ? r.value : null }, function () { return null }) } catch (e) { return Promise.resolve(null) } },
           parseWorkspaceFile: parseWorkspaceFile,
           sandboxPolicyFor: createSandboxPolicyFor(d.ctx),
           backendCtx: function () { return backendObj },

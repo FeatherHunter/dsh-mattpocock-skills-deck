@@ -31,8 +31,7 @@ import { createDeckMapLink } from '../tools/deckMapLink.js'
 import { createDeckIssuePatch } from '../tools/deckIssuePatch.js'
 import { createDeckIssueReport } from '../tools/deckIssueReport.js'
 
-/** 九个工厂（顺序与 plan.js 的 DECK_TOOL_ORDER 一致；装配口按名字收口，这里只负责传全）。 */
-export const DECK_TOOL_FACTORIES = Object.freeze([
+/** 九个工厂（顺序与 plan.js 的 DECK_TOOL_ORDER 一致；装配口按名字收口，这里只负责传全）。 */export const DECK_TOOL_FACTORIES = Object.freeze([
   createDeckContext,
   createDeckIssueGet,
   createDeckMapSnapshot,
@@ -64,11 +63,21 @@ export const DECK_TOOL_FILES = Object.freeze([
  * 所以「门禁里跑得通」与「宿主里跑得通」是同一件事，而不是两份各自能跑的实现。
  */
 /** #957 双命中保护写口的工厂（导出只为门禁直验逻辑，生产经 createDeckToolsForHost 装进九个工具共用的那一份）。 */
+// 等待竞速共用（装配层自带：挂住的文件服务不能卡住选后端；超时按缺席跳过，调用方诚实报错）。
+// 接线层（wiring.js 的保读数/记忆/文件三处）与下面的保护写口共用同一份；单测直验它。
+export function withCap(promise, ms) {
+  return Promise.race([
+    Promise.resolve(promise).then(function (v) { return { ok: true, value: v } }, function () { return { ok: false } }),
+    new Promise(function (resolve) { setTimeout(function () { resolve({ ok: false, timedOut: true }) }, ms) }),
+  ])
+}
+export const DECK_ASSEMBLY_TIMEOUT_MS = 8000
 export function createDoubleHitProtector(baseDeps) {
   const base = baseDeps || {}
   // 四处无显式且自动识别双命中含 GitHub 时，自动存一份 GitHub 默认值（来源自动，如实）并照此走。
   //   只在文件缺席时写（已在不覆盖）；单命中不写（免得每个仓库都脏一次）；无 GitHub 或有待定照旧返回空（调用方诚实报错）。
   //   写走正规文件通道加本次写许可；失败返回空（调用方诚实报错，不静默放行）。
+  //   每一步文件等待都加竞速：超时按缺席跳过（读按已在、写按失败），与既有 catch 同形。
   const protectDoubleHit = async function (cwd, sessionId, picked) {
     try {
       if (!picked || !Array.isArray(picked.multiHit) || picked.multiHit.length <= 1) return null
@@ -76,7 +85,8 @@ export function createDoubleHitProtector(baseDeps) {
       if (picked.multiHit.indexOf('github') < 0) return null
       try {
         if (typeof base.readWorkspaceFileText === 'function' && typeof base.parseWorkspaceFile === 'function') {
-          const txt = await base.readWorkspaceFileText(cwd)
+          const raced = await withCap(base.readWorkspaceFileText(cwd), DECK_ASSEMBLY_TIMEOUT_MS)
+          const txt = (raced && raced.ok === true) ? raced.value : null
           if (txt && base.parseWorkspaceFile(txt)) return null
         }
       } catch (eR) {}
@@ -84,13 +94,15 @@ export function createDoubleHitProtector(baseDeps) {
       const backendObj = (typeof base.backendCtx === 'function') ? base.backendCtx() : (base.backendCtx || {})
       const fsSvc = (backendObj && backendObj.fs) || (backendObj && backendObj.platform && backendObj.platform.fs) || null
       if (!fsSvc || typeof fsSvc.resolve !== 'function' || typeof fsSvc.writeText !== 'function') return null
-      const policy = (typeof base.sandboxPolicyFor === 'function') ? await base.sandboxPolicyFor({ cwd: cwd, sessionId: sessionId }).catch(function () { return null }) : null
-      const target = await fsSvc.resolve(WORKSPACE_FILE_REL, { cwd: cwd })
+      const policy = (typeof base.sandboxPolicyFor === 'function') ? await withCap(base.sandboxPolicyFor({ cwd: cwd, sessionId: sessionId }), DECK_ASSEMBLY_TIMEOUT_MS).then(function (r) { return (r && r.ok === true) ? r.value : null }, function () { return null }) : null
+      const target = await withCap(fsSvc.resolve(WORKSPACE_FILE_REL, { cwd: cwd }), DECK_ASSEMBLY_TIMEOUT_MS).then(function (r) { return (r && r.ok === true) ? r.value : null }, function () { return null })
+      if (!target) return null
       try {
         const platPath = backendObj.platform && backendObj.platform.path
-        if (platPath && typeof platPath.dirname === 'function' && typeof fsSvc.mkdir === 'function') { try { await fsSvc.mkdir(platPath.dirname(target), { recursive: true }) } catch (eM) {} }
+        if (platPath && typeof platPath.dirname === 'function' && typeof fsSvc.mkdir === 'function') { try { await withCap(fsSvc.mkdir(platPath.dirname(target), { recursive: true }), DECK_ASSEMBLY_TIMEOUT_MS) } catch (eM) {} }
       } catch (eD) {}
-      await fsSvc.writeText(target, text, undefined, undefined, policy)
+      const written = await withCap(fsSvc.writeText(target, text, undefined, undefined, policy), DECK_ASSEMBLY_TIMEOUT_MS)
+      if (!written || written.ok !== true) return null
       return { backendId: 'github', source: 'auto', ref: null, pending: false }
     } catch (e) { return null }
   }

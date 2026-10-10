@@ -46,8 +46,16 @@ function namesOf(list, pick) {
 function labelNames(list) { return namesOf(list, (l) => l.name) }
 function assigneeNames(list) { return namesOf(list, (a) => (a && a.login) || '') }
 
-function isMapRow(issue) {
-  try {
+// 沙箱许可等待上限：超时按缺席走老路（不限权），与既有 catch null 同形。
+function withCap(promise, ms) {
+  return Promise.race([
+    Promise.resolve(promise).then(function (v) { return { ok: true, value: v } }, function () { return { ok: false } }),
+    new Promise(function (resolve) { setTimeout(function () { resolve({ ok: false, timedOut: true }) }, ms) }),
+  ])
+}
+const SANDBOX_TIMEOUT_MS = 5000
+
+function isMapRow(issue) {  try {
     if (!issue || typeof issue !== 'object') return false
     if (issue.type === 'map' || issue.isMap === true) return true
     const labs = labelNames(issue.labels).map((s) => s.toLowerCase())
@@ -82,7 +90,16 @@ export function createDeckIssueList(deps) {
     const effortId = (a.effortId === undefined || a.effortId === null) ? '' : String(a.effortId).trim()
     if (effortId) repo.effortId = effortId
 
-    return shell.call({ tool: 'deck_issue_list', kind: 'read', session: s, pick: pick, repo: repo, estimate: est, sandbox: (typeof d.sandboxPolicyFor === 'function' ? await d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }).catch(function(){ return null }) : null) }, async (c) => {
+    const callerSignal = (exec && exec.signal && typeof exec.signal === 'object') ? exec.signal : undefined
+    let sandbox = null
+    try {
+      if (typeof d.sandboxPolicyFor === 'function') {
+        const raced = await withCap(d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }), SANDBOX_TIMEOUT_MS)
+        sandbox = (raced && raced.ok === true) ? raced.value : null
+      }
+    } catch (eS) { sandbox = null }
+
+    return shell.call({ tool: 'deck_issue_list', kind: 'read', session: s, pick: pick, repo: repo, estimate: est, sandbox: sandbox, signal: callerSignal }, async (c) => {
       const sc = withCallScope(c, exec, { timeoutMs: undefined, marginMs: undefined, now: (typeof d.now === 'function') ? d.now : Date.now })
       const t = sc.tracker
       const opCtx = sc.opCtx

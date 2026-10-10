@@ -45,18 +45,6 @@ export const REFUSAL_REASONS = Object.freeze({
 
 function num(v) { return (typeof v === 'number' && isFinite(v)) ? v : 0 }
 function str(v) { return (typeof v === 'string') ? v : '' }
-// 等待上限竞速（零导入自带）：超时按失败回，与各调用点既有的 catch 继续路径同形，
-// 成功路径一字不动。对手是挂住的文件服务与排队无上限的额度同步。
-function withCap(promise, ms) {
-  return Promise.race([
-    Promise.resolve(promise).then(function (v) { return { ok: true, value: v } }, function () { return { ok: false } }),
-    new Promise(function (resolve) { setTimeout(function () { resolve({ ok: false, timedOut: true }) }, ms) }),
-  ])
-}
-// 预步骤等待上限：保读数含一次远端读数（读档 12 秒加排队），给 15 秒；
-// 本机记忆与工作区文件是本地读，给 5 秒。超时都走既有的失败继续路径，不新增语义。
-const ENSURE_READING_TIMEOUT_MS = 15000
-const EXPLICIT_READ_TIMEOUT_MS = 5000
 function hash8(text) {
   let h = 5381
   const t = String(text || '')
@@ -182,16 +170,7 @@ export function createDeckShell(deps) {
     let failure = null
     let sent = null
     const t0 = now()
-    // 调用方取消信号透传：harness 中止或 120 秒外层超时经 exec.signal 进来，
-    // 透传后底层的匹配与出站能真正停下来并放回名额；不传时与今天一字不差。
-    const callerSignal = (exec && exec.signal && typeof exec.signal === 'object') ? exec.signal : undefined
-    // 保读数加竞速：超时按保不住走老路（照旧往下走，闸诚实推迟），与 catch 继续同形。
-    try {
-      if (typeof d.ensureReading === 'function') {
-        const raced = await withCap(d.ensureReading(s.cwd, s.workspaceKey), ENSURE_READING_TIMEOUT_MS)
-        void raced
-      }
-    } catch (eR) {}
+    try { if (typeof d.ensureReading === 'function') await d.ensureReading(s.cwd, s.workspaceKey) } catch (eR) {}
     // 显式三层（947：内存绑定 > 本机记忆H > 工作区文件）。缺席的口子跳过，未注册 id 忽略，
     // 显式无后端（null）落到 select 由注册表诚实判。判定收在闸内：每笔照旧过闸记账，不断 758 口径。
     const explicitId = async function () {
@@ -201,16 +180,13 @@ export function createDeckShell(deps) {
       } catch (eM) {}
       try {
         if (typeof d.readChoice === 'function') {
-          const raced = await withCap(d.readChoice(s.cwd), EXPLICIT_READ_TIMEOUT_MS)
-          const h = (raced && raced.ok === true) ? raced.value : null
+          const h = await d.readChoice(s.cwd)
           if (h && typeof h.backendId === 'string' && h.backendId && typeof registry.has === 'function' && registry.has(h.backendId)) return h.backendId
         }
       } catch (eH) {}
       try {
         if (typeof d.readWorkspaceFileText === 'function' && typeof d.parseWorkspaceFile === 'function') {
-          const raced = await withCap(d.readWorkspaceFileText(s.cwd), EXPLICIT_READ_TIMEOUT_MS)
-          const txt = (raced && raced.ok === true) ? raced.value : null
-          const parsed = txt ? d.parseWorkspaceFile(txt) : null
+          const parsed = d.parseWorkspaceFile(await d.readWorkspaceFileText(s.cwd))
           if (parsed && typeof parsed.backendId === 'string' && parsed.backendId && typeof registry.has === 'function' && registry.has(parsed.backendId)) return parsed.backendId
         }
       } catch (eF) {}
@@ -224,9 +200,7 @@ export function createDeckShell(deps) {
           try { ref = registry.describe(handle, ex) } catch (eD) { ref = null }
           picked = { backendId: ex, source: 'explicit', ref: ref, pending: false }
         } else {
-          const selCtx = Object.assign({}, backendCtxNow(), { cwd: s.cwd, caller: DECK_TOOL_KIND })
-          if (callerSignal) selCtx.signal = callerSignal
-          picked = await registry.select(handle, selCtx)
+          picked = await registry.select(handle, Object.assign({}, backendCtxNow(), { cwd: s.cwd, caller: DECK_TOOL_KIND }))
         }
         return { requests: 1, points: 0 }
       })
@@ -238,16 +212,8 @@ export function createDeckShell(deps) {
       return { ok: false, reason: REFUSAL_REASONS.GATE_DEFER, text: '这一次选后端被闸推迟了（' + str(sent && sent.detail) + '），先不做。' }
     }
     // #957 双命中保护：无显式且双命中含 GitHub 时自动存一份默认值并照此走（缺席跳过，仍诚实报错）。
-    // 写文件加竞速：超时按缺席跳过，与 catch null 同形，不挡主流程。
-    let _prot = null
-    try {
-      if (typeof d.protectDoubleHit === 'function') {
-        const raced = await withCap(d.protectDoubleHit(s.cwd, s.sessionId, picked), 8000)
-        _prot = (raced && raced.ok === true) ? raced.value : null
-      }
-    } catch (eP) { _prot = null }
-    const _protV = _prot
-    if (_protV && _protV.backendId) picked = _protV
+    const _prot = (typeof d.protectDoubleHit === 'function') ? await d.protectDoubleHit(s.cwd, s.sessionId, picked).catch(function () { return null }) : null
+    if (_prot && _prot.backendId) picked = _prot
     // 仓库标识补全（#758）：匹配源常带空标识（注册表只认显式 refId），而房间读写真要它。
     // 有该能力的后端（房内 getRepoKey，三层兜底）调用方按通用形状自己补，不逐后端写分支；
     // 没有该能力的后端没有这一格，跳过，下游照旧诚实失败。补全本身也过一次闸（读探针一格）。
@@ -316,9 +282,6 @@ export function createDeckShell(deps) {
     let sent = null
     const t0 = now()
     const sbM = (meta && meta.sandbox && typeof meta.sandbox === 'object') ? meta.sandbox : {}; const sbPolicy = sbM.policy; const sbSessionId = (typeof sbM.sessionId === 'string' && sbM.sessionId) ? sbM.sessionId : str(s && s.sessionId)
-    // 调用方取消信号透传（与 pickBackend 同理）：之前写死 undefined，中止后远端照跑、
-    // 名额不放，下一笔排队等槽。透传后中止走诚实的 aborted/timeout 回执，成功路径不动。
-    const callSignal = (meta && meta.signal && typeof meta.signal === 'object') ? meta.signal : undefined
     const ctx = {
       session: s,
       pick: meta.pick,
@@ -326,7 +289,7 @@ export function createDeckShell(deps) {
       gate: gate,
       now: now,
       tracker: registry.get(meta.pick.backendId),
-      opCtx: Object.assign({}, backendCtxNow(), { cwd: s.cwd, caller: DECK_TOOL_KIND, sandboxPolicy: sbPolicy, sessionId: sbSessionId }, callSignal ? { signal: callSignal } : { signal: undefined }),
+      opCtx: Object.assign({}, backendCtxNow(), { cwd: s.cwd, signal: undefined, caller: DECK_TOOL_KIND, sandboxPolicy: sbPolicy, sessionId: sbSessionId }),
       admit: admit,
     }
     try {

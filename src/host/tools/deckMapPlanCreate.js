@@ -70,6 +70,9 @@ export const definition = {
 const ACTIVE_PLANS = new Map()
 
 function numOpt(v) { return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : undefined }
+// 等待竞速：沙箱超时按缺席走老路；游标读超时按空游标（锚预检与幂等键仍是去重权威，不多出票），写超时吞掉。
+function withCap(promise, ms) { return Promise.race([Promise.resolve(promise).then(function (v) { return { ok: true, value: v } }, function () { return { ok: false } }), new Promise(function (resolve) { setTimeout(function () { resolve({ ok: false, timedOut: true }) }, ms) })]) }
+const SANDBOX_TIMEOUT_MS = 5000; const STORE_TIMEOUT_MS = 10000
 
 function storeIoFrom(deps, cwd) {
   try {
@@ -126,11 +129,25 @@ export function createDeckMapPlanCreate(deps) {
       const built = storeIoFrom(d, s.cwd)
       store = built ? createFilePlanStore({ io: built, dir: built.dir, workspaceKey: s.workspaceKey, now: nowFn }) : fallbackStore
     }
+    // 游标读写加竞速：挂住的文件服务不能卡住整笔建图。读超时按空游标继续——去重权威
+    // 从来不是游标，而是幂等锚预检与建票幂等键，只多花几次列表读数，不多出票；写超时吞掉。
+    const rawStore = store
+    store = {
+      durable: rawStore.durable,
+      load: function (id) {
+        return withCap(rawStore.load(id), STORE_TIMEOUT_MS).then(function (r) { return (r && r.ok === true) ? r.value : null })
+      },
+      save: function (id, st) {
+        return withCap(rawStore.save(id, st), STORE_TIMEOUT_MS).then(function () {}, function () {})
+      },
+      remove: (typeof rawStore.remove === 'function') ? function (id) {
+        return withCap(rawStore.remove(id), STORE_TIMEOUT_MS).then(function () {}, function () {})
+      } : undefined,
+    }
 
     let out = null
     try {
-      out = await shell.call({ tool: 'deck_map_plan_create', kind: 'write', session: s, pick: pick, repo: repo, estimate: est, sandbox: (typeof d.sandboxPolicyFor === 'function' ? await d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }).catch(function(){ return null }) : null) }, async (c) => {
-      const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), now: nowFn })
+      out = await shell.call({ tool: 'deck_map_plan_create', kind: 'write', session: s, pick: pick, repo: repo, estimate: est, sandbox: (await (async function () { try { if (typeof d.sandboxPolicyFor !== 'function') return null; const raced = await withCap(d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }), SANDBOX_TIMEOUT_MS); return (raced && raced.ok === true) ? raced.value : null } catch (eS) { return null } })()), signal: (exec && exec.signal && typeof exec.signal === 'object') ? exec.signal : undefined }, async (c) => {      const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), now: nowFn })
       const t = sc.tracker
       const opCtx = sc.opCtx
       const prev = (await store.load(planId)) || { planId: planId, mapKey: '', keys: {}, edges: [], done: [] }

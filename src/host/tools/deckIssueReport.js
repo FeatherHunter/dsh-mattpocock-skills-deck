@@ -10,7 +10,26 @@
 // 本地后端多工作单元时用 effortId 指到那一个目录（根目录的不填）；远端后端忽略它。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../../shared/deck-tools/shell.js'
 import { sessionContextOfAsync } from '../../shared/deck-tools/session-resolve.js'
+import { withCallScope } from '../../shared/deck-tools/call-scope.js'
 import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/tool-cost.js'
+
+function numOpt(v) { return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : undefined }
+function withCap(promise, ms) {
+  return Promise.race([
+    Promise.resolve(promise).then(function (v) { return { ok: true, value: v } }, function () { return { ok: false } }),
+    new Promise(function (resolve) { setTimeout(function () { resolve({ ok: false, timedOut: true }) }, ms) }),
+  ])
+}
+const SANDBOX_TIMEOUT_MS = 5000
+const HOOK_TIMEOUT_MS = 5000
+// 执行层失败与后端诚实失败的分界（见 deckIssueCreate.js 同名注释）：前者抛给壳走
+// backend-threw（可重试），后者走 BACKEND_UNSUPPORTED。钳制只管超时，不改判。
+const TRANSPORT_KINDS = ['backend-threw', 'timeout', 'aborted', 'over-budget']
+function transportMessage(result) {
+  const e = result && result.error
+  if (e && TRANSPORT_KINDS.indexOf(e.kind) >= 0) return String(e.message || '执行层没回来')
+  return null
+}
 
 export const definition = {
   name: 'deck_issue_report',
@@ -59,12 +78,25 @@ export function createDeckIssueReport(deps) {
     if (!pick.ok) return shell.unsupported('deck_issue_report', pick.reason, pick.text, { workspace: { root: s.cwd, key: s.workspaceKey }, cost: { estimated: est } })
     const repo = shell.repoOf(pick, s)
     if (effortId) repo.effortId = effortId
+    const callerSignal = (exec && exec.signal && typeof exec.signal === 'object') ? exec.signal : undefined
+    let sandbox = null
+    try {
+      if (typeof d.sandboxPolicyFor === 'function') {
+        const raced = await withCap(d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }), SANDBOX_TIMEOUT_MS)
+        sandbox = (raced && raced.ok === true) ? raced.value : null
+      }
+    } catch (eS) { sandbox = null }
 
-    return shell.call({ tool: 'deck_issue_report', kind: 'write', session: s, pick: pick, repo: repo, estimate: est, sandbox: (typeof d.sandboxPolicyFor === 'function' ? await d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }).catch(function(){ return null }) : null) }, async (c) => {
+    return shell.call({ tool: 'deck_issue_report', kind: 'write', session: s, pick: pick, repo: repo, estimate: est, sandbox: sandbox, signal: callerSignal }, async (c) => {
+      const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), now: (typeof d.now === 'function') ? d.now : Date.now })
+      const t = sc.tracker
+      const opCtx = sc.opCtx
       const notes = []
       if (effortId) notes.push('这次带了 effortId（' + effortId.slice(0, 60) + '）：本地后端只在那一个目录里找，远端后端忽略它。')
       if (note) notes.push('备注只回显，不进链（链上每条只留票键、时间与动作类别）。')
-      const got = typeof c.tracker.get === 'function' ? await c.tracker.get(repo, key, { comments: { first: 0 } }, c.opCtx) : null
+      const got = typeof t.get === 'function' ? await t.get(repo, key, { comments: { first: 0 } }, opCtx) : null
+      const gotTransport = transportMessage(got)
+      if (gotTransport) throw new Error(gotTransport)
       if (!got || got.ok !== true) {
         const msg = String((got && got.error && got.error.message) || '后端没给出原因').slice(0, 300)
         return {
@@ -83,12 +115,15 @@ export function createDeckIssueReport(deps) {
       try {
         if (typeof d.chainNote === 'function') {
           const chainEffort = (issue && typeof issue.effortId === 'string' && issue.effortId) ? String(issue.effortId) : effortId
-          const r = await d.chainNote({
+          // 记链加竞速：超时按没记进走老路（被动推断仍会记），与既有 not-recorded 同形。
+          const raced = await withCap(d.chainNote({
             sessionId: s.sessionId, rootKey: s.cwd, backend: pick.backendId,
             tool: 'deck_issue_report', source: 'tool-args', tier: 'write-confirmed',
             reason: 'tool.deck-write', verb: 'report', ticketKey: key, effortId: chainEffort, args: { key: key },
-          })
+          }), HOOK_TIMEOUT_MS)
+          const r = (raced && raced.ok === true) ? raced.value : null
           if (r && typeof r === 'object') chain = { recorded: !!r.recorded, reason: String(r.reason || ''), count: Number(r.count || 0) }
+          else chain = { recorded: false, reason: (raced && raced.timedOut) ? 'chain-note-timeout' : 'no-chain-note', count: 0 }
         } else {
           chain = { recorded: false, reason: 'no-chain-note', count: 0 }
         }

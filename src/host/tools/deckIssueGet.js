@@ -18,6 +18,14 @@ function withCap(promise, ms) {
   ])
 }
 const SANDBOX_TIMEOUT_MS = 5000
+// 执行层失败与后端诚实失败的分界（见 deckIssueCreate.js 同名注释）：前者抛给壳走
+// backend-threw（可重试），后者走逐项的 BACKEND_UNSUPPORTED。钳制只管超时，不改判。
+const TRANSPORT_KINDS = ['backend-threw', 'timeout', 'aborted', 'over-budget']
+function transportMessage(result) {
+  const e = result && result.error
+  if (e && TRANSPORT_KINDS.indexOf(e.kind) >= 0) return String(e.message || '执行层没回来')
+  return null
+}
 
 export const definition = {
   name: 'deck_issue_get',
@@ -102,6 +110,8 @@ export function createDeckIssueGet(deps) {
       const t = sc.tracker
       const opCtx = sc.opCtx
       const got = await t.get(repo, key, { comments: { first: first } }, opCtx)
+      const gotTransport = transportMessage(got)
+      if (gotTransport) throw new Error(gotTransport)
       if (!got || got.ok !== true) {
         const msg = String((got && got.error && got.error.message) || '后端没给出原因').slice(0, 300)
         return {
@@ -116,6 +126,8 @@ export function createDeckIssueGet(deps) {
       }
       const issue = got.data || {}
       const dep = typeof t.getDependencies === 'function' ? await t.getDependencies(repo, key, {}, opCtx) : null
+      const depTransport = transportMessage(dep)
+      if (depTransport) throw new Error(depTransport)
       const dependencies = (dep && dep.ok === true) ? dep.data : null
       const rel = relationsOf(issue, dependencies)
       const notes = []

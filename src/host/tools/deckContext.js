@@ -19,6 +19,14 @@ function withCap(promise, ms) {
   ])
 }
 const SANDBOX_TIMEOUT_MS = 5000
+// 执行层失败与后端诚实失败的分界（见 deckIssueCreate.js 同名注释）：前者抛给壳走
+// backend-threw（可重试），后者走 PARTIAL/notes。钳制只管超时，不改判。
+const TRANSPORT_KINDS = ['backend-threw', 'timeout', 'aborted', 'over-budget']
+function transportMessage(result) {
+  const e = result && result.error
+  if (e && TRANSPORT_KINDS.indexOf(e.kind) >= 0) return String(e.message || '执行层没回来')
+  return null
+}
 
 export const definition = {
   name: 'deck_context',
@@ -74,6 +82,10 @@ export function createDeckContext(deps) {
       const listP = t.list(repo, { type: 'map' }, opCtx)
       const pre = await preP
       const listed = await listP
+      const preTransport = transportMessage(pre)
+      if (preTransport) throw new Error(preTransport)
+      const listedTransport = transportMessage(listed)
+      if (listedTransport) throw new Error(listedTransport)
       const maps = (listed.ok && Array.isArray(listed.data)) ? listed.data.map(mapRow) : []
       const notes = []
       if (!listed.ok) notes.push('地图清单这次没取到（后端原话：' + String((listed.error && listed.error.message) || '').slice(0, 200) + '）。')

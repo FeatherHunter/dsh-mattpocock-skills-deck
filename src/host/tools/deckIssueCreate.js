@@ -11,9 +11,29 @@
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../../shared/deck-tools/shell.js'
 import { sessionContextOfAsync } from '../../shared/deck-tools/session-resolve.js'
 import { classifyEdgeLanding, unsupportedEvidence, edgeEvidence } from '../../shared/deck-tools/edges.js'
+import { withCallScope } from '../../shared/deck-tools/call-scope.js'
 import { ensureLabels, ensureBody, anchorKeyFor } from '../../shared/deck-tools/plan.js'
 import * as budget from '../../shared/refresh/budget.js'
 import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/tool-cost.js'
+
+function numOpt(v) { return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : undefined }
+function withCap(promise, ms) {
+  return Promise.race([
+    Promise.resolve(promise).then(function (v) { return { ok: true, value: v } }, function () { return { ok: false } }),
+    new Promise(function (resolve) { setTimeout(function () { resolve({ ok: false, timedOut: true }) }, ms) }),
+  ])
+}
+const SANDBOX_TIMEOUT_MS = 5000
+const HOOK_TIMEOUT_MS = 5000
+// 执行层失败（抛错/超时/中止/预算耗尽）与后端诚实失败的分界：前者在进壳之前会直接抛到
+// 壳的统一出口（reason=backend-threw，可重试），后者走逐项的 BACKEND_UNSUPPORTED（能力缺失，
+// 不当成 transient 重试）。壳外新加的钳制不能把前者改判成后者，否则 AI 会放弃重试。
+const TRANSPORT_KINDS = ['backend-threw', 'timeout', 'aborted', 'over-budget']
+function transportMessage(result) {
+  const e = result && result.error
+  if (e && TRANSPORT_KINDS.indexOf(e.kind) >= 0) return String(e.message || '执行层没回来')
+  return null
+}
 
 export const definition = {
   name: 'deck_issue_create',
@@ -66,13 +86,27 @@ export function createDeckIssueCreate(deps) {
     const body = ensureBody(a.body, kind)
     const now = (typeof d.now === 'function') ? d.now() : Date.now()
     const anchor = a.idempotencyKey ? String(a.idempotencyKey) : anchorKeyFor({ tool: 'deck_issue_create', sessionId: s.sessionId, workspaceKey: s.workspaceKey, title: title, labels: ensured.labels, now: now })
+    const callerSignal = (exec && exec.signal && typeof exec.signal === 'object') ? exec.signal : undefined
+    let sandbox = null
+    try {
+      if (typeof d.sandboxPolicyFor === 'function') {
+        const raced = await withCap(d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }), SANDBOX_TIMEOUT_MS)
+        sandbox = (raced && raced.ok === true) ? raced.value : null
+      }
+    } catch (eS) { sandbox = null }
 
-    return shell.call({ tool: 'deck_issue_create', kind: 'write', session: s, pick: pick, repo: repo, estimate: est, sandbox: (typeof d.sandboxPolicyFor === 'function' ? await d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }).catch(function(){ return null }) : null) }, async (c) => {
+    return shell.call({ tool: 'deck_issue_create', kind: 'write', session: s, pick: pick, repo: repo, estimate: est, sandbox: sandbox, signal: callerSignal }, async (c) => {
+      const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), now: (typeof d.now === 'function') ? d.now : Date.now })
+      const t = sc.tracker
+      const opCtx = sc.opCtx
       const rel = (a.parentKey === undefined || a.parentKey === null || a.parentKey === '') ? null : String(a.parentKey)
       const input = { title: title, body: body.body, type: kind, labels: ensured.labels, idempotencyKey: anchor }
       if (rel) input.parentKey = rel
       if (Array.isArray(a.assignees) && a.assignees.length) input.assignees = a.assignees
-      const created = await c.tracker.create(repo, input, c.opCtx)
+      const created = await t.create(repo, input, opCtx)
+      // 执行层失败原样抛给壳（走 backend-threw，可重试）；后端诚实失败才走下面的部分成功。
+      const createdTransport = transportMessage(created)
+      if (createdTransport) throw new Error(createdTransport)
       const notes = []
       if (effortId) notes.push('这次带了 effortId（' + effortId.slice(0, 60) + '）：本地后端只在那一个目录里找，远端后端忽略它。')
       if (ensured.added.length) notes.push('我替你补了必备标签：' + ensured.added.join('、'))
@@ -86,15 +120,20 @@ export function createDeckIssueCreate(deps) {
         }
       }
       const issue = created.data || {}
-      // #746：建票直达命名守护（调用会话即建号会话；hook 缺失或失败都不影响已建成的返回）。
-      try { if (typeof d.onTicketCreated === 'function' && issue.key) await d.onTicketCreated({ sessionId: s.sessionId, key: String(issue.key), title: title }) } catch (eHook) {}
+      // #746：建票直达命名守护（调用会话即建号会话；hook 缺失、失败或超时都不影响已建成的返回）。
+      try {
+        if (typeof d.onTicketCreated === 'function' && issue.key) {
+          const raced = await withCap(d.onTicketCreated({ sessionId: s.sessionId, key: String(issue.key), title: title }), HOOK_TIMEOUT_MS)
+          void raced
+        }
+      } catch (eHook) {}
       const items = []
       let parentLanded = true
       let parentEvidence = null
       if (rel) {
         // 父子边：写入已在 create 里做过（contract 的 parentKey 输入），这里只判它落在哪一列。
         // #790：classify 的 ok 只表示“判出来了”，未知也回 true；必须按读回的 parentKey 是否等于目标判。
-        const readBack = typeof c.tracker.get === 'function' ? await c.tracker.get(repo, issue.key, {}, c.opCtx) : null
+        const readBack = (typeof t.get === 'function' && !sc.outOfBudget()) ? await t.get(repo, issue.key, {}, opCtx) : null
         const after = (readBack && readBack.ok === true) ? { issue: readBack.data } : null
         const ev = after ? classifyEdgeLanding('parent', rel, after) : unsupportedEvidence('写后没读回来，判不了这条父子落点')
         parentEvidence = ev
