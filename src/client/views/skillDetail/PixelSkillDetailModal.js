@@ -50,6 +50,52 @@ export const PixelSkillDetailModal = function(props) {
   const s = p.st;
   const d = s && s.pixelDetail;
   const bodyRef = React.useRef(null);
+  const fitRef = React.useRef(null);
+  const useFit = React.useLayoutEffect || React.useEffect;
+  useFit(function() {
+    if (!p.full) return void 0;
+    const el = fitRef.current;
+    if (!el || typeof window === "undefined") return void 0;
+    const fit = function() {
+      try {
+        let host = el.parentElement;
+        let limit = 0;
+        while (host && host !== document.body) {
+          const cs = window.getComputedStyle(host);
+          if (/(auto|scroll|hidden)/.test(cs.overflowY) && host.clientHeight >= 200) {
+            const pbd = parseFloat(cs.paddingBottom) || 0;
+            const r = host.getBoundingClientRect();
+            limit = r.top + host.clientTop + host.clientHeight - Math.max(pbd, 8);
+            break;
+          }
+          host = host.parentElement;
+        }
+        const top = el.getBoundingClientRect().top;
+        let h2 = limit ? limit - top : window.innerHeight - top - 12;
+        h2 = Math.max(240, Math.min(h2, window.innerHeight - top - 6));
+        el.style.height = Math.round(h2) + "px";
+        el.style.maxHeight = "none";
+      } catch (e) {
+      }
+    };
+    fit();
+    window.addEventListener("resize", fit);
+    let ro = null;
+    try {
+      if (typeof ResizeObserver === "function") {
+        ro = new ResizeObserver(fit);
+        ro.observe(el.parentElement || el);
+      }
+    } catch (e) {
+    }
+    return function() {
+      window.removeEventListener("resize", fit);
+      try {
+        if (ro) ro.disconnect();
+      } catch (e) {
+      }
+    };
+  }, [p.full, d && d.open, d && d.name]);
   if (!d || !d.open) return null;
   const lang = d.bodyLang === "zh" && d.mdZh ? "zh" : "en";
   const md = lang === "zh" ? d.mdZh : d.mdEn;
@@ -133,7 +179,7 @@ export const PixelSkillDetailModal = function(props) {
       h(PixelBtn, { key: "t", mini: true, onClick: toTop }, tr("sd.top"))
     ])
   ]);
-  if (p.full) return h("div", { className: "pixel-detail-full" }, box);
+  if (p.full) return h("div", { className: "pixel-detail-full", ref: fitRef, "data-fit": "on" }, box);
   return h("div", {
     className: "pixel-overlay",
     onClick: function(e) {

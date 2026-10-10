@@ -67,5 +67,5 @@ export const SkillsTab = ({ st }) => {
     },
     loadingName
   });
-  return h("div", { className: "pixel-tab" }, [head, chips, detailOpen ? detail : list]);
+  return h("div", { className: "pixel-tab" + (detailOpen ? " pixel-tab-detail" : "") }, [head, chips, detailOpen ? detail : list]);
 };

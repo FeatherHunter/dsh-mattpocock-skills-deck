@@ -86,5 +86,6 @@ export const SkillsTab = ({ st }: any): any => {
         loadingName: loadingName,
       })
       // 整个页签（头行 + 推荐 + 列表或详情）都包在 .pixel-tab 里：原型那一页的底色与像素语言
-      return h('div', { className: 'pixel-tab' }, [head, chips, detailOpen ? detail : list])
+      // 详情打开时页签自己按父容器可见高定高（面板内容区是定高滚动容器）：底栏才会停在可见底部
+      return h('div', { className: 'pixel-tab' + (detailOpen ? ' pixel-tab-detail' : '') }, [head, chips, detailOpen ? detail : list])
     }

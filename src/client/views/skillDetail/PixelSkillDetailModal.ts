@@ -62,6 +62,45 @@ export const PixelSkillDetailModal = function (props?: PixelSkillDetailModalProp
   const s = p.st
   const d = s && s.pixelDetail
   const bodyRef: any = React.useRef(null)
+  const fitRef: any = React.useRef(null)
+  const useFit = React.useLayoutEffect || React.useEffect
+  // 详情本体按**用户可见区域**定高：不再猜"面板外框有多高"，而是量最近的滚动/裁剪祖先的可见高，
+  // 再把详情撑到它剩下的部分——底栏那两颗按钮因此停在可见底部，正文在盒子里自己滚。
+  // 量不到（画布外自测、祖先高度不定）就不设内联高度，交给 CSS 的 height:100% 与一屏兜底。
+  useFit(function () {
+    if (!p.full) return undefined
+    const el = fitRef.current
+    if (!el || typeof window === 'undefined') return undefined
+    const fit = function (): void {
+      try {
+        let host: any = el.parentElement
+        let limit = 0
+        while (host && host !== document.body) {
+          const cs = window.getComputedStyle(host)
+          if (/(auto|scroll|hidden)/.test(cs.overflowY) && host.clientHeight >= 200) {
+            const pbd = parseFloat(cs.paddingBottom) || 0
+            const r = host.getBoundingClientRect()
+            limit = r.top + host.clientTop + host.clientHeight - Math.max(pbd, 8)
+            break
+          }
+          host = host.parentElement
+        }
+        const top = el.getBoundingClientRect().top
+        let h = limit ? limit - top : window.innerHeight - top - 12
+        h = Math.max(240, Math.min(h, window.innerHeight - top - 6))
+        el.style.height = Math.round(h) + 'px'
+        el.style.maxHeight = 'none'
+      } catch (e) { /* 忽略：走 CSS 兜底 */ }
+    }
+    fit()
+    window.addEventListener('resize', fit)
+    let ro: any = null
+    try { if (typeof ResizeObserver === 'function') { ro = new ResizeObserver(fit); ro.observe(el.parentElement || el) } } catch (e) { /* 忽略 */ }
+    return function () {
+      window.removeEventListener('resize', fit)
+      try { if (ro) ro.disconnect() } catch (e) { /* 忽略 */ }
+    }
+  }, [p.full, d && d.open, d && d.name])
   if (!d || !d.open) return null
   const lang = d.bodyLang === 'zh' && d.mdZh ? 'zh' : 'en'
   const md = lang === 'zh' ? d.mdZh : d.mdEn
@@ -125,7 +164,7 @@ export const PixelSkillDetailModal = function (props?: PixelSkillDetailModalProp
       h(PixelBtn, { key: 't', mini: true, onClick: toTop }, tr('sd.top')),
     ]),
   ])
-  if (p.full) return h('div', { className: 'pixel-detail-full' }, box)
+  if (p.full) return h('div', { className: 'pixel-detail-full', ref: fitRef, 'data-fit': 'on' }, box)
   return h('div', {
     className: 'pixel-overlay',
     onClick: function (e: any) { try { if (e.target === e.currentTarget) pixelCloseDetail(s) } catch (err) { /* 忽略 */ } },

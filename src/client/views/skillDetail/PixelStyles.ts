@@ -96,11 +96,13 @@ export const PIXEL_STYLE_TEXT: string[] = [
   ".pixel-tab .dsws-seg{font:700 11px ui-monospace,Menlo,Consolas,monospace;background:var(--pixel-paper);color:var(--pixel-ink);border:2px solid var(--pixel-frame);box-shadow:2px 2px 0 var(--pixel-shadow);padding:1px 8px;border-radius:0;cursor:pointer}",
   ".pixel-tab .dsws-seg.on{background:var(--pixel-acc);color:#fff}",
   ".pixel-tab .dsws-chip{font:700 11px ui-monospace,Menlo,Consolas,monospace;background:var(--pixel-card);color:var(--pixel-ink);border:2px solid var(--pixel-frame);box-shadow:2px 2px 0 var(--pixel-shadow);border-radius:0;padding:0 7px}",
-  // ---- 详情占满页签中间区域（2026-10-10 人拍板，同日按真机反馈改高度口径）----
-  // 列表让位、详情本体就是内容。高度按**用户可见区域**定：盒子贴着可见高度（sticky 钉在顶部），
-  // 正文在盒子里自己滚，底栏那两颗按钮因此永远停在可见底部 —— 不再跟着整篇正文长到页面最底下。
-  // 132px 是面板自身外框的估算（应用顶栏 + 页签行 + 面板标题行）；宁可略矮，也不要让底栏掉出屏幕。
-  ".pixel-detail-full{position:sticky;top:0;height:calc(100vh - 132px);min-height:360px;display:flex;flex-direction:column}",
+  // ---- 详情占满可见区域（2026-10-10 人拍板，两轮真机反馈后改成量父容器）----
+  // 列表让位、详情本体就是内容；正文在盒子里自己滚，底栏那两颗按钮停在**用户可见区域的底部**。
+  // 高度不再靠"面板外框大概多高"去减：面板内容区本身是定高的滚动容器，页签取它的高度（height:100%），
+  // 详情再撑满页签剩下的部分。万一某层拿不到定高（height:100% 退化成 auto），
+  // 还有 max-height: calc(100vh - 120px) 兜底 —— 最坏情况也只是一屏以内，底栏不会掉出屏幕。
+  ".pixel-tab-detail{height:100%;display:flex;flex-direction:column;box-sizing:border-box}",
+  ".pixel-detail-full{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;max-height:calc(100vh - 118px)}",
   ".pixel-modal-full{flex:1;min-height:0;width:100%;max-width:none;max-height:none;box-shadow:4px 4px 0 var(--pixel-shadow)}",
   ".pixel-modal-full .pixel-body{flex:1;min-height:0;overflow:auto}",
   "@media (prefers-reduced-motion:reduce){.pixel-btn,.pixel-skillrow,.pixel-skel,.pixel-f-ok,.pixel-f-err,.pixel-shake,.pixel-spin{animation:none!important;transition:none!important}}",
