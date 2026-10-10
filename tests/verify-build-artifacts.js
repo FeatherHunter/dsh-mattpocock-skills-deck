@@ -193,9 +193,10 @@ function sha256(file) { return crypto.createHash('sha256').update(fs.readFileSyn
   // skill-probe-channels 技能名片通道下沉、version-control/exec-envelope 取数失败信封下沉、refresh/chain-ride 同钥匙搭车小账本，
   // 全部 package/shared 同字节镜像），总数 63→68。
   // 同票并发写单键互斥：新增 src/shared/deck-tools/key-lock.js（package/shared 同字节镜像），总数 68→69。
+// #998（2026-10-10 修 deck 闸死锁）：新增 src/shared/refresh/failure-window.js 与 refusal-text.js（package/shared 同字节镜像），总数 69→71。
   // 这个数是「src/shared 树里实际有几个文件」，会随别的票增减 —— 每次改完记得重跑本门禁对数。
-  check(srcSharedFiles.length === 69, `src/shared 69 文件（实得 ${srcSharedFiles.length}）`)
-  check(pkgSharedFiles.length === 69, `package/shared 69 文件（实得 ${pkgSharedFiles.length}）`)
+  check(srcSharedFiles.length === 71, `src/shared 71 文件（实得 ${srcSharedFiles.length}）`)
+  check(pkgSharedFiles.length === 71, `package/shared 71 文件（实得 ${pkgSharedFiles.length}）`)
 }
 // 4c) import 卫生：显式 .js（相对 import 必须带 .js 扩展，避免 Node ESM 裸 specifier）
 {
