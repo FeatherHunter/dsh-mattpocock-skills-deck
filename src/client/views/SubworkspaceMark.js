@@ -135,26 +135,41 @@ export const SubworkspaceMark = function (props) {
   const shown = subwsMarkLinesOf(root, cwd, inited)
   const isSub = shown.length > 0
   // 「第一次自动展开」按工作区记一份状态：记在工作区根这把键上，同一个工作区只展开一次。
+  //   #1012 起这份状态的真源是本机设置文件（kernel/settings-view.js 的 viewFlagOf / setViewFlag，
+  //   键取工作区根的可读路径），下面这两个函数只是旧键兜底：新模块不在（老产物、或渲染替身里）时才用。
   const AUTO_KEY = 'dsws.subwsAutoShown'
   const readAutoMap = function () {
     try { const raw = localStorage.getItem(AUTO_KEY); const m = raw ? JSON.parse(raw) : null; return (m && typeof m === 'object') ? m : {} } catch (e) { return {} }
+  }
+  // 这个工作区以前自动展开过没有：先问新模块，它不在时才读旧键（旧键按工作区根那把折算键记）。
+  //   已知的过渡代价：第一次用到时新模块才去问宿主要文档，问回来之前它会先按旧表答；文档到手会让界面
+  //   重画一次，但本组件的自动展开判断挂在挂载效果上、依赖没变不会重跑，所以那个工作区可能多自动展开
+  //   一次（多弹一次浮层，不是功能坏掉）。宁可按手上已有的信息答，也不为了这一条把挂载效果改成反复弹的东西。
+  const autoShownBefore = function () {
+    try { if (typeof viewFlagOf === 'function') return viewFlagOf(cwd, 'subwsMarkAutoShown') === true } catch (eN) {}
+    try { return !!readAutoMap()[subwsMarkCmpKey(root)] } catch (e) { return false }
   }
   const [autoOpen, setAutoOpen] = React.useState(false)
   const [autoDone, setAutoDone] = React.useState(false)
   React.useEffect(function () {
     if (!isSub || !root) return
     try {
-      const m = readAutoMap()
-      if (m[subwsMarkCmpKey(root)]) { setAutoDone(true); return } // 这个工作区已经自动展开过，不再打扰
+      if (autoShownBefore()) { setAutoDone(true); return } // 这个工作区已经自动展开过，不再打扰
       setAutoOpen(true)
     } catch (e) {}
   }, [isSub, root])
   const markAutoShown = function () {
-    try {
-      const m = readAutoMap()
-      m[subwsMarkCmpKey(root)] = 1
-      localStorage.setItem(AUTO_KEY, JSON.stringify(m))
-    } catch (e) {}
+    // 交给新模块写：它接下了就不再写旧键（写成功那条路上一个字都不写旧键）；
+    // 它接不下（认不出可读路径、文档问不到、文件只读）或不在时，才照老办法写旧键。
+    let handled = false
+    try { if (typeof setViewFlag === 'function') handled = (setViewFlag(cwd, 'subwsMarkAutoShown', true) === true) } catch (eNew) { handled = false }
+    if (!handled) {
+      try {
+        const m = readAutoMap()
+        m[subwsMarkCmpKey(root)] = 1
+        localStorage.setItem(AUTO_KEY, JSON.stringify(m))
+      } catch (e) {}
+    }
     setAutoOpen(false)
     setAutoDone(true)
   }

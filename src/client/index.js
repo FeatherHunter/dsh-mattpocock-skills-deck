@@ -190,6 +190,9 @@ export default {
     // 宿主执行前那次判定各说各话。
     // ==== shared:vcRules (spliced by build) ====
     // ==== kernel:storePrefs (spliced by build) ====
+    // #1012：按工作区的观看状态（横幅折叠、红文件夹标志自动展开过没有）读写本机设置文件的那一片。
+    //   排在 storePrefs 之后 —— 这一片替掉的正是它里面那两个函数的读写体（导出名与签名都不变）。
+    // ==== kernel:settingsView (spliced by build) ====
     // ==== kernel:storeSwitch (spliced by build) ====
     // ==== kernel:storeSnapshot (spliced by build) ====
     // ==== kernel:storeDerived (spliced by build) ====

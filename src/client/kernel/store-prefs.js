@@ -197,16 +197,20 @@
       } catch (e) { /* 存储不可用降级为仅内存 */ }
     })()
     const persistBannerFold = function () { try { localStorage.setItem(BANNER_FOLD_KEY, JSON.stringify(bannerFoldByCwd)) } catch (e) { /* 忽略 */ } }
-    export const isBannerFolded = function (cwd) { try { if (!cwd) return false; const k = (typeof keyOf === 'function' ? keyOf(cwd) : String(cwd || '')); return !!bannerFoldByCwd[k] } catch (e) { return false } }
-    export const setBannerFolded = function (cwd, folded) {
-      try {
-        const k = (typeof keyOf === 'function' ? keyOf(cwd) : String(cwd || ''))
-        if (!cwd || !k) return
-        if (folded) bannerFoldByCwd[k] = 1
-        else delete bannerFoldByCwd[k]
-        persistBannerFold()
-      } catch (e) { /* 忽略 */ }
-      // 同工作区各会话跟随重渲染（与 touchProbeAt 同例；设置页另有本地刷新兜底）
+    // #1012：读写体搬去 kernel/settings-view.js（本机设置文件是唯一真源；旧表只当兜底）。
+    //   导出名与签名一字不变，旧表那几行原地留着当兜底 —— 新模块不在（老产物、或渲染替身里）时照旧干活。
+    export const isBannerFolded = function (cwd) {
+      try { const v = (typeof viewFlagOf === 'function') ? viewFlagOf(cwd, 'bannerFolded') : undefined; if (typeof v === 'boolean') return v } catch (eN) {}
+      try { if (!cwd) return false; const k = (typeof keyOf === 'function' ? keyOf(cwd) : String(cwd || '')); return !!bannerFoldByCwd[k] } catch (e) { return false }
+    }
+    // 把这一次折叠交给新模块（写本机设置文件那条路）：回 true 表示它接下了，旧表一个字都不动；
+    //   回 false 表示它接不下（认不出可读路径、文档问不到、文件只读）或根本不在，调用方照老办法写旧表。
+    const handoffBannerFold = function (cwd, folded) {
+      try { if (typeof setViewFlag === 'function' && cwd) return setViewFlag(cwd, 'bannerFolded', !!folded) === true } catch (eN) {}
+      return false
+    }
+    // 同工作区各会话跟随重渲染（与 touchProbeAt 同例；设置页另有本地刷新兜底）：两条路都要走这一趟。
+    const emitBannerFold = function (cwd) {
       try {
         const nk = (typeof keyOf === 'function' ? keyOf(cwd) : String(cwd || ''))
         if (typeof shared !== 'undefined' && shared && shared.cwd && keyOf(shared.cwd) === nk) emit(shared)
@@ -214,6 +218,17 @@
       try {
         if (typeof stores !== 'undefined') Object.keys(stores).forEach(function (kk) { const st2 = stores[kk]; if (st2 && st2.cwd && keyOf(st2.cwd) === (typeof keyOf === 'function' ? keyOf(cwd) : String(cwd || ''))) emit(st2) })
       } catch (e2) {}
+    }
+    export const setBannerFolded = function (cwd, folded) {
+      if (handoffBannerFold(cwd, folded)) { emitBannerFold(cwd); return }
+      try {
+        const k = (typeof keyOf === 'function' ? keyOf(cwd) : String(cwd || ''))
+        if (!cwd || !k) return
+        if (folded) bannerFoldByCwd[k] = 1
+        else delete bannerFoldByCwd[k]
+        persistBannerFold()
+      } catch (e) { /* 忽略 */ }
+      emitBannerFold(cwd)
     }
     // #1003 退役：镜像读写已删，这两个只剩空壳（调用方在本次范围外，留名免崩；一律按“无镜像”答）。
     export const getCachedSelection = function (cwd) { return null }

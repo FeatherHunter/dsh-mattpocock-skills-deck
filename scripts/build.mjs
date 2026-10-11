@@ -331,6 +331,10 @@ const KERNEL_MODULES = [
   { name: 'log', file: 'scripts/generated/logKernel.derived.js' },
   // 构建内核清单含日志模块（旧真源 src/client/kernel/log.js 原地只读留存，运行时拼入上面的派生文件，#564 留而不搬）
   { name: 'storePrefs', file: 'src/client/kernel/store-prefs.js' },
+  // #1012：按工作区的观看状态（横幅折叠、红文件夹标志自动展开过没有）从 localStorage 搬到本机设置文件。
+  //   store-prefs.js 已 315 行（上限 350），这一族读写照仓库惯例单独成一片：
+  //   读文档、合并着写、旧表只读兜底三件事都在 src/client/kernel/settings-view.js 里。
+  { name: 'settingsView', file: 'src/client/kernel/settings-view.js' },
   { name: 'storeSwitch', file: 'src/client/kernel/store-switch.js' },
   { name: 'storeSnapshot', file: 'src/client/kernel/store-snapshot.js' },
   { name: 'storeDerived', file: 'src/client/kernel/store-derived.js' },
