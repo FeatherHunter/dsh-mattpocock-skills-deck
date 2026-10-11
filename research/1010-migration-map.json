@@ -1,0 +1,1587 @@
+{
+  "meta": {
+    "title": "deck 重构：老路径到新路径的迁移映射表",
+    "generated": "2026-10-12",
+    "purpose": "供后续自动改路径使用：modules 说谁搬到哪，specifiers 说哪条 import 字符串改成什么，rules 说整类改写怎么批量做",
+    "sourceOfTruth": [
+      "docs/adr/20261011-deck-ts-rewrite.md（新树与编译模型）",
+      "research/1010-deck-chain-dirs.md（调用链八层目录表）",
+      "research/1010-deck-blast-radius.md（改动影响面）",
+      "真实源码的 import 语句（本轮逐条读过，行号写在 specifiers.evidence）"
+    ],
+    "conventions": {
+      "extension": "新文件一律 .ts；import 目标写全扩展名 .ts（仓库现行风格是写全扩展名，此处照旧）",
+      "rooms": "两房文件名不变，只换扩展名与父目录名（backends → rooms）",
+      "trackerOutside": "src/tracker/** 其余件也只换扩展名、不重命名（保守做法，重命名可另立一票）",
+      "deckTree": "src/deck/** 是全新树，文件名按 ADR 起（kebab-case），故有重命名"
+    },
+    "counts": {
+      "modules": 112,
+      "modulesMoveRename": 89,
+      "modulesSplit": 3,
+      "modulesPathOnly": 14,
+      "specifiers": 91,
+      "unchangedSpecifiers": 18,
+      "rules": 5,
+      "buildGenerated": 25,
+      "manualOnly": 2,
+      "outOfScope": 7
+    }
+  },
+  "modules": [
+    {
+      "old": "src/host/tools/deckContext.js",
+      "new": "src/deck/tools/context.ts",
+      "kind": "move-rename",
+      "symbols": [
+        "deck_context"
+      ]
+    },
+    {
+      "old": "src/host/tools/deckIssueGet.js",
+      "new": "src/deck/tools/issue-get.ts",
+      "kind": "move-rename",
+      "symbols": [
+        "deck_issue_get"
+      ]
+    },
+    {
+      "old": "src/host/tools/deckMapSnapshot.js",
+      "new": "src/deck/tools/map-snapshot.ts",
+      "kind": "move-rename",
+      "symbols": [
+        "deck_map_snapshot"
+      ]
+    },
+    {
+      "old": "src/host/tools/deckIssueList.js",
+      "new": "src/deck/tools/issue-list.ts",
+      "kind": "move-rename",
+      "symbols": [
+        "deck_issue_list"
+      ]
+    },
+    {
+      "old": "src/host/tools/deckIssueCreate.js",
+      "new": "src/deck/tools/issue-create.ts",
+      "kind": "move-rename",
+      "symbols": [
+        "deck_issue_create"
+      ]
+    },
+    {
+      "old": "src/host/tools/deckMapPlanCreate.js",
+      "new": "src/deck/tools/map-plan-create.ts",
+      "kind": "move-rename",
+      "symbols": [
+        "deck_map_plan_create"
+      ]
+    },
+    {
+      "old": "src/host/tools/deckMapLink.js",
+      "new": "src/deck/tools/map-link.ts",
+      "kind": "move-rename",
+      "symbols": [
+        "deck_map_link"
+      ]
+    },
+    {
+      "old": "src/host/tools/deckIssuePatch.js",
+      "new": "src/deck/tools/issue-patch.ts",
+      "kind": "move-rename",
+      "symbols": [
+        "deck_issue_patch"
+      ]
+    },
+    {
+      "old": "src/host/tools/deckIssueReport.js",
+      "new": "src/deck/tools/issue-report.ts",
+      "kind": "move-rename",
+      "symbols": [
+        "deck_issue_report"
+      ]
+    },
+    {
+      "old": "src/shared/deck-tools/shell.js",
+      "new": "src/deck/shell/call-shell.ts",
+      "kind": "move-rename",
+      "symbols": [
+        "createDeckShell",
+        "DECK_STATUS",
+        "REFUSAL_REASONS",
+        "limitsFromBudget",
+        "DECK_TOOL_KIND"
+      ]
+    },
+    {
+      "old": "src/shared/deck-tools/plan.js",
+      "new": "src/deck/shell/minimal-spec.ts",
+      "kind": "split",
+      "splitOf": "src/shared/deck-tools/plan.js",
+      "symbols": [
+        "MINIMAL_LABELS",
+        "MAP_BLOCK_TITLES",
+        "ensureLabels",
+        "ensureBody",
+        "isWholeIssueBody",
+        "anchorKeyFor"
+      ]
+    },
+    {
+      "old": "src/shared/deck-tools/plan.js",
+      "new": "src/deck/shell/tool-table.ts",
+      "kind": "split",
+      "splitOf": "src/shared/deck-tools/plan.js",
+      "symbols": [
+        "createDeckTools"
+      ]
+    },
+    {
+      "old": "src/shared/deck-tools/plan.js",
+      "new": "src/deck/tools/tool-order.ts",
+      "kind": "split",
+      "splitOf": "src/shared/deck-tools/plan.js",
+      "symbols": [
+        "DECK_TOOL_ORDER"
+      ]
+    },
+    {
+      "old": "src/shared/deck-tools/edges.js",
+      "new": "src/deck/shell/edge-landing.ts",
+      "kind": "move-rename",
+      "symbols": [
+        "EDGE_LANDING",
+        "landingOf",
+        "classifyEdgeLanding",
+        "edgeEvidence",
+        "unsupportedEvidence",
+        "childrenOf",
+        "relationsOf",
+        "applyParentEdge",
+        "applyBlockEdges",
+        "precheckBlockBatch",
+        "statusOfItems"
+      ]
+    },
+    {
+      "old": "src/shared/deck-tools/call-scope.js",
+      "new": "src/deck/shell/call-budget.ts",
+      "kind": "move-rename",
+      "symbols": [
+        "withCallScope"
+      ]
+    },
+    {
+      "old": "src/shared/deck-tools/session-resolve.js",
+      "new": "src/deck/shell/session-workdir.ts",
+      "kind": "move-rename",
+      "symbols": [
+        "sessionContextOfAsync"
+      ]
+    },
+    {
+      "old": "src/shared/deck-tools/key-lock.js",
+      "new": "src/deck/shell/write-mutex.ts",
+      "kind": "move-rename",
+      "symbols": [
+        "withKeyLock"
+      ]
+    },
+    {
+      "old": "src/shared/deck-tools/plan-store.js",
+      "new": "src/deck/shell/plan-cursor.ts",
+      "kind": "move-rename",
+      "symbols": [
+        "createMemoryPlanStore",
+        "createFilePlanStore"
+      ]
+    },
+    {
+      "old": "src/shared/deck-tools/exec-cell.js",
+      "new": "src/deck/shell/table-cell.ts",
+      "kind": "move-rename",
+      "symbols": [
+        "publishDeckTable",
+        "awaitDeckTable",
+        "peekDeckTable",
+        "noteDeckGate",
+        "readDeckGate",
+        "noteDeckPath",
+        "readDeckPath"
+      ]
+    },
+    {
+      "old": "src/shared/deck-tools/workspace-file.js",
+      "new": "src/deck/shell/workspace-anchor.ts",
+      "kind": "move-rename",
+      "symbols": [
+        "parseWorkspaceFile",
+        "stringifyWorkspaceFile",
+        "WORKSPACE_FILE_REL"
+      ]
+    },
+    {
+      "old": "src/shared/deck-tools/agent-register.js",
+      "new": "src/deck/registration/register-options.ts",
+      "kind": "move-rename",
+      "symbols": [
+        "registerDeckAgentTools",
+        "hookDeckAgentTools",
+        "makeDeckRegisterReport",
+        "deckAgentOutputSpec",
+        "deckAgentOutputSchemaRaw",
+        "buildAgentToolOptions",
+        "makePendingExecute",
+        "toAgentParameterSpec",
+        "probeDefinition",
+        "probeServices",
+        "AGENT_TOOL_TIMEOUT_MS"
+      ]
+    },
+    {
+      "old": "src/host/platform/deckToolsAssembly.js",
+      "new": "src/deck/registration/host-assemble.ts",
+      "kind": "move-rename",
+      "symbols": [
+        "createDeckToolsForHost",
+        "DECK_TOOL_FACTORIES",
+        "DECK_TOOL_FILES",
+        "withCap",
+        "createDoubleHitProtector"
+      ]
+    },
+    {
+      "old": "src/host/platform/deckToolsRow.js",
+      "new": "src/deck/registration/agent-row.ts",
+      "kind": "move-rename",
+      "symbols": [
+        "name",
+        "inject"
+      ]
+    },
+    {
+      "old": "src/host/platform/deckExec.js",
+      "new": "src/deck/registration/host-delegate.ts",
+      "kind": "move-rename",
+      "symbols": [
+        "createDeckExec"
+      ]
+    },
+    {
+      "old": "src/host/platform/deckQuotaSync.js",
+      "new": "src/deck/registration/quota-sync.ts",
+      "kind": "move-rename",
+      "symbols": [
+        "createDeckQuotaSync"
+      ]
+    },
+    {
+      "old": "src/host/platform/deckSandbox.js",
+      "new": "src/deck/registration/sandbox-guard.ts",
+      "kind": "move-rename",
+      "symbols": [
+        "createSandboxPolicyFor"
+      ]
+    },
+    {
+      "old": "src/host/tracker/backends/github/backend.js",
+      "new": "src/tracker/rooms/github/backend.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/github/checks.js",
+      "new": "src/tracker/rooms/github/checks.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/github/client.js",
+      "new": "src/tracker/rooms/github/client.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/github/comments.js",
+      "new": "src/tracker/rooms/github/comments.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/github/counts.js",
+      "new": "src/tracker/rooms/github/counts.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/github/cycle-check.js",
+      "new": "src/tracker/rooms/github/cycle-check.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/github/errors.js",
+      "new": "src/tracker/rooms/github/errors.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/github/fallback-reason.js",
+      "new": "src/tracker/rooms/github/fallback-reason.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/github/graph.js",
+      "new": "src/tracker/rooms/github/graph.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/github/idempotency.js",
+      "new": "src/tracker/rooms/github/idempotency.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/github/index.js",
+      "new": "src/tracker/rooms/github/index.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/github/init-project.js",
+      "new": "src/tracker/rooms/github/init-project.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/github/issues-write.js",
+      "new": "src/tracker/rooms/github/issues-write.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/github/issues.js",
+      "new": "src/tracker/rooms/github/issues.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/github/label-colors-ops.js",
+      "new": "src/tracker/rooms/github/label-colors-ops.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/github/labels.js",
+      "new": "src/tracker/rooms/github/labels.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/github/normalize.js",
+      "new": "src/tracker/rooms/github/normalize.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/github/page.js",
+      "new": "src/tracker/rooms/github/page.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/github/parent-repair.js",
+      "new": "src/tracker/rooms/github/parent-repair.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/github/preflight.js",
+      "new": "src/tracker/rooms/github/preflight.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/github/pulls.js",
+      "new": "src/tracker/rooms/github/pulls.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/github/queries.js",
+      "new": "src/tracker/rooms/github/queries.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/github/repo-permissions.js",
+      "new": "src/tracker/rooms/github/repo-permissions.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/github/repo.js",
+      "new": "src/tracker/rooms/github/repo.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/github/roster.js",
+      "new": "src/tracker/rooms/github/roster.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/github/sub-issues.js",
+      "new": "src/tracker/rooms/github/sub-issues.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/markdown/comments.js",
+      "new": "src/tracker/rooms/markdown/comments.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/markdown/counts.js",
+      "new": "src/tracker/rooms/markdown/counts.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/markdown/graph.js",
+      "new": "src/tracker/rooms/markdown/graph.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/markdown/index.js",
+      "new": "src/tracker/rooms/markdown/index.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/markdown/issues-create.js",
+      "new": "src/tracker/rooms/markdown/issues-create.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/markdown/issues-locate.js",
+      "new": "src/tracker/rooms/markdown/issues-locate.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/markdown/issues-patch.js",
+      "new": "src/tracker/rooms/markdown/issues-patch.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/markdown/issues-read.js",
+      "new": "src/tracker/rooms/markdown/issues-read.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/markdown/issues-status.js",
+      "new": "src/tracker/rooms/markdown/issues-status.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/markdown/issues.js",
+      "new": "src/tracker/rooms/markdown/issues.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/markdown/label-colors-codec.js",
+      "new": "src/tracker/rooms/markdown/label-colors-codec.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/markdown/label-colors-errors.js",
+      "new": "src/tracker/rooms/markdown/label-colors-errors.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/markdown/label-colors-ops.js",
+      "new": "src/tracker/rooms/markdown/label-colors-ops.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/markdown/label-colors-paint.js",
+      "new": "src/tracker/rooms/markdown/label-colors-paint.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/markdown/label-colors-palette.js",
+      "new": "src/tracker/rooms/markdown/label-colors-palette.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/markdown/label-colors.js",
+      "new": "src/tracker/rooms/markdown/label-colors.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/markdown/normalize.js",
+      "new": "src/tracker/rooms/markdown/normalize.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/markdown/page.js",
+      "new": "src/tracker/rooms/markdown/page.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/markdown/parse.js",
+      "new": "src/tracker/rooms/markdown/parse.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/markdown/path.js",
+      "new": "src/tracker/rooms/markdown/path.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/markdown/read.js",
+      "new": "src/tracker/rooms/markdown/read.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/markdown/write-queue.js",
+      "new": "src/tracker/rooms/markdown/write-queue.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/markdown/write.js",
+      "new": "src/tracker/rooms/markdown/write.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/backends/gitlab/client.js",
+      "new": "src/tracker/rooms/gitlab/client.js",
+      "kind": "path-only",
+      "note": "只跟着父目录改名，代码不转写（GitLab 房不在本次任务内）；另加 rooms/gitlab/MIGRATION-SLOT.md"
+    },
+    {
+      "old": "src/host/tracker/backends/gitlab/comments.js",
+      "new": "src/tracker/rooms/gitlab/comments.js",
+      "kind": "path-only",
+      "note": "只跟着父目录改名，代码不转写（GitLab 房不在本次任务内）；另加 rooms/gitlab/MIGRATION-SLOT.md"
+    },
+    {
+      "old": "src/host/tracker/backends/gitlab/create-write.js",
+      "new": "src/tracker/rooms/gitlab/create-write.js",
+      "kind": "path-only",
+      "note": "只跟着父目录改名，代码不转写（GitLab 房不在本次任务内）；另加 rooms/gitlab/MIGRATION-SLOT.md"
+    },
+    {
+      "old": "src/host/tracker/backends/gitlab/errors.js",
+      "new": "src/tracker/rooms/gitlab/errors.js",
+      "kind": "path-only",
+      "note": "只跟着父目录改名，代码不转写（GitLab 房不在本次任务内）；另加 rooms/gitlab/MIGRATION-SLOT.md"
+    },
+    {
+      "old": "src/host/tracker/backends/gitlab/graph-blocking.js",
+      "new": "src/tracker/rooms/gitlab/graph-blocking.js",
+      "kind": "path-only",
+      "note": "只跟着父目录改名，代码不转写（GitLab 房不在本次任务内）；另加 rooms/gitlab/MIGRATION-SLOT.md"
+    },
+    {
+      "old": "src/host/tracker/backends/gitlab/graph-membership.js",
+      "new": "src/tracker/rooms/gitlab/graph-membership.js",
+      "kind": "path-only",
+      "note": "只跟着父目录改名，代码不转写（GitLab 房不在本次任务内）；另加 rooms/gitlab/MIGRATION-SLOT.md"
+    },
+    {
+      "old": "src/host/tracker/backends/gitlab/graph.js",
+      "new": "src/tracker/rooms/gitlab/graph.js",
+      "kind": "path-only",
+      "note": "只跟着父目录改名，代码不转写（GitLab 房不在本次任务内）；另加 rooms/gitlab/MIGRATION-SLOT.md"
+    },
+    {
+      "old": "src/host/tracker/backends/gitlab/idempotency.js",
+      "new": "src/tracker/rooms/gitlab/idempotency.js",
+      "kind": "path-only",
+      "note": "只跟着父目录改名，代码不转写（GitLab 房不在本次任务内）；另加 rooms/gitlab/MIGRATION-SLOT.md"
+    },
+    {
+      "old": "src/host/tracker/backends/gitlab/index.js",
+      "new": "src/tracker/rooms/gitlab/index.js",
+      "kind": "path-only",
+      "note": "只跟着父目录改名，代码不转写（GitLab 房不在本次任务内）；另加 rooms/gitlab/MIGRATION-SLOT.md"
+    },
+    {
+      "old": "src/host/tracker/backends/gitlab/issues.js",
+      "new": "src/tracker/rooms/gitlab/issues.js",
+      "kind": "path-only",
+      "note": "只跟着父目录改名，代码不转写（GitLab 房不在本次任务内）；另加 rooms/gitlab/MIGRATION-SLOT.md"
+    },
+    {
+      "old": "src/host/tracker/backends/gitlab/labels.js",
+      "new": "src/tracker/rooms/gitlab/labels.js",
+      "kind": "path-only",
+      "note": "只跟着父目录改名，代码不转写（GitLab 房不在本次任务内）；另加 rooms/gitlab/MIGRATION-SLOT.md"
+    },
+    {
+      "old": "src/host/tracker/backends/gitlab/normalize.js",
+      "new": "src/tracker/rooms/gitlab/normalize.js",
+      "kind": "path-only",
+      "note": "只跟着父目录改名，代码不转写（GitLab 房不在本次任务内）；另加 rooms/gitlab/MIGRATION-SLOT.md"
+    },
+    {
+      "old": "src/host/tracker/backends/gitlab/preflight.js",
+      "new": "src/tracker/rooms/gitlab/preflight.js",
+      "kind": "path-only",
+      "note": "只跟着父目录改名，代码不转写（GitLab 房不在本次任务内）；另加 rooms/gitlab/MIGRATION-SLOT.md"
+    },
+    {
+      "old": "src/host/tracker/backends/gitlab/queries.js",
+      "new": "src/tracker/rooms/gitlab/queries.js",
+      "kind": "path-only",
+      "note": "只跟着父目录改名，代码不转写（GitLab 房不在本次任务内）；另加 rooms/gitlab/MIGRATION-SLOT.md"
+    },
+    {
+      "old": "src/host/tracker/backends/README.md",
+      "new": "src/tracker/rooms/README.md",
+      "kind": "move-rename",
+      "note": "房规白名单文件，随目录改名，内容要同步改（禁跨房引用与一次只改一房两条纪律）"
+    },
+    {
+      "old": "src/host/tracker/contract.js",
+      "new": "src/tracker/contract/index.ts",
+      "kind": "move-rename",
+      "symbols": [
+        "TRACKER_CONTRACT",
+        "OPERATIONS",
+        "NORMALIZE_RULES"
+      ],
+      "note": "文件夹与入口同名会读成 contract/contract.ts，故入口取 index.ts；备选待维护者定"
+    },
+    {
+      "old": "src/host/tracker/contract-idempotency.js",
+      "new": "src/tracker/contract/contract-idempotency.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/contract-label-colors.js",
+      "new": "src/tracker/contract/contract-label-colors.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/contract-page.js",
+      "new": "src/tracker/contract/contract-page.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/fixContract.js",
+      "new": "src/tracker/contract/fixContract.ts",
+      "kind": "move-rename",
+      "symbols": [
+        "attachFixContract"
+      ]
+    },
+    {
+      "old": "src/host/tracker/registryCore.js",
+      "new": "src/tracker/registry/registryCore.ts",
+      "kind": "move-rename",
+      "symbols": [
+        "createRegistry",
+        "TRACKER_REGISTRY"
+      ]
+    },
+    {
+      "old": "src/host/tracker/registryShape.js",
+      "new": "src/tracker/registry/registryShape.ts",
+      "kind": "move-rename",
+      "symbols": [
+        "TrackerRegistryError",
+        "MIGRATE_KEY",
+        "handleKey",
+        "wrapTracker",
+        "validateMod"
+      ]
+    },
+    {
+      "old": "src/host/tracker/registryViews.js",
+      "new": "src/tracker/registry/registryViews.ts",
+      "kind": "move-rename",
+      "symbols": [
+        "describe",
+        "issueUrl",
+        "linkPattern",
+        "searchUrl"
+      ]
+    },
+    {
+      "old": "src/host/tracker/detection/backendDecision.js",
+      "new": "src/tracker/detection/backendDecision.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/detection/detectionService.js",
+      "new": "src/tracker/detection/detectionService.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/detection/explicitDetector.js",
+      "new": "src/tracker/detection/explicitDetector.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/detection/parseIssueTracker.js",
+      "new": "src/tracker/detection/parseIssueTracker.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/detection/preflightScope.js",
+      "new": "src/tracker/detection/preflightScope.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/detection/workspaceStore.js",
+      "new": "src/tracker/detection/workspaceStore.ts",
+      "kind": "move-rename"
+    },
+    {
+      "old": "src/host/tracker/preflight.js",
+      "new": "src/tracker/preflight.ts",
+      "kind": "move-rename",
+      "symbols": [
+        "classifyError",
+        "fail",
+        "PREFLIGHT"
+      ],
+      "note": "两房与识别层都引用它，留在 tracker 顶层"
+    },
+    {
+      "old": "src/host/tracker/index.js",
+      "new": "src/tracker/index.ts",
+      "kind": "move-rename",
+      "note": "桶文件：对外出口路径随之改变，调用方要改 import"
+    },
+    {
+      "old": "src/host/index.js",
+      "new": "src/host/index.ts",
+      "kind": "stay-ext-change",
+      "note": "宿主入口：动态引代执行与房间 client（位置不动，只转 TypeScript）"
+    },
+    {
+      "old": "src/host/platformChannel.js",
+      "new": "src/host/platformChannel.ts",
+      "kind": "stay-ext-change",
+      "note": "平台通道：装配注册表、三房与识别层（位置不动，只转 TypeScript）"
+    },
+    {
+      "old": "src/host/refresh/wiring.js",
+      "new": "src/host/refresh/wiring.ts",
+      "kind": "stay-ext-change",
+      "note": "刷新接线：deck 工具装配与注册那一段（位置不动，只转 TypeScript）"
+    },
+    {
+      "old": "src/host/workspaceCwd.js",
+      "new": "src/host/workspaceCwd.ts",
+      "kind": "stay-ext-change",
+      "note": "工作区目录：读锚文件（位置不动，只转 TypeScript）"
+    },
+    {
+      "old": "src/host/issueDetail.js",
+      "new": "src/host/issueDetail.ts",
+      "kind": "stay-ext-change",
+      "note": "单票详情：引 GitHub 房 normalize（位置不动，只转 TypeScript）"
+    },
+    {
+      "old": "src/host/remotePredicates.js",
+      "new": "src/host/remotePredicates.ts",
+      "kind": "stay-ext-change",
+      "note": "远端谓词：引 Markdown 房 parse（位置不动，只转 TypeScript）"
+    }
+  ],
+  "specifiers": [
+    {
+      "from": "src/host/tools/deckContext.js",
+      "specifier": "../../shared/deck-tools/shell.js",
+      "to": "../shell/call-shell.ts",
+      "kind": "import",
+      "evidence": "同文件第 6 至 11 行区段"
+    },
+    {
+      "from": "src/host/tools/deckContext.js",
+      "specifier": "../../shared/deck-tools/session-resolve.js",
+      "to": "../shell/session-workdir.ts",
+      "kind": "import"
+    },
+    {
+      "from": "src/host/tools/deckContext.js",
+      "specifier": "../../shared/deck-tools/call-scope.js",
+      "to": "../shell/call-budget.ts",
+      "kind": "import"
+    },
+    {
+      "from": "src/host/tools/deckIssueGet.js",
+      "specifier": "../../shared/deck-tools/shell.js",
+      "to": "../shell/call-shell.ts",
+      "kind": "import",
+      "evidence": "同文件第 6 至 11 行区段"
+    },
+    {
+      "from": "src/host/tools/deckIssueGet.js",
+      "specifier": "../../shared/deck-tools/session-resolve.js",
+      "to": "../shell/session-workdir.ts",
+      "kind": "import"
+    },
+    {
+      "from": "src/host/tools/deckIssueGet.js",
+      "specifier": "../../shared/deck-tools/call-scope.js",
+      "to": "../shell/call-budget.ts",
+      "kind": "import"
+    },
+    {
+      "from": "src/host/tools/deckMapSnapshot.js",
+      "specifier": "../../shared/deck-tools/shell.js",
+      "to": "../shell/call-shell.ts",
+      "kind": "import",
+      "evidence": "同文件第 6 至 11 行区段"
+    },
+    {
+      "from": "src/host/tools/deckMapSnapshot.js",
+      "specifier": "../../shared/deck-tools/session-resolve.js",
+      "to": "../shell/session-workdir.ts",
+      "kind": "import"
+    },
+    {
+      "from": "src/host/tools/deckMapSnapshot.js",
+      "specifier": "../../shared/deck-tools/call-scope.js",
+      "to": "../shell/call-budget.ts",
+      "kind": "import"
+    },
+    {
+      "from": "src/host/tools/deckIssueList.js",
+      "specifier": "../../shared/deck-tools/shell.js",
+      "to": "../shell/call-shell.ts",
+      "kind": "import",
+      "evidence": "同文件第 6 至 11 行区段"
+    },
+    {
+      "from": "src/host/tools/deckIssueList.js",
+      "specifier": "../../shared/deck-tools/session-resolve.js",
+      "to": "../shell/session-workdir.ts",
+      "kind": "import"
+    },
+    {
+      "from": "src/host/tools/deckIssueList.js",
+      "specifier": "../../shared/deck-tools/call-scope.js",
+      "to": "../shell/call-budget.ts",
+      "kind": "import"
+    },
+    {
+      "from": "src/host/tools/deckIssueCreate.js",
+      "specifier": "../../shared/deck-tools/shell.js",
+      "to": "../shell/call-shell.ts",
+      "kind": "import",
+      "evidence": "同文件第 6 至 11 行区段"
+    },
+    {
+      "from": "src/host/tools/deckIssueCreate.js",
+      "specifier": "../../shared/deck-tools/session-resolve.js",
+      "to": "../shell/session-workdir.ts",
+      "kind": "import"
+    },
+    {
+      "from": "src/host/tools/deckIssueCreate.js",
+      "specifier": "../../shared/deck-tools/call-scope.js",
+      "to": "../shell/call-budget.ts",
+      "kind": "import"
+    },
+    {
+      "from": "src/host/tools/deckMapPlanCreate.js",
+      "specifier": "../../shared/deck-tools/shell.js",
+      "to": "../shell/call-shell.ts",
+      "kind": "import",
+      "evidence": "同文件第 6 至 11 行区段"
+    },
+    {
+      "from": "src/host/tools/deckMapPlanCreate.js",
+      "specifier": "../../shared/deck-tools/session-resolve.js",
+      "to": "../shell/session-workdir.ts",
+      "kind": "import"
+    },
+    {
+      "from": "src/host/tools/deckMapPlanCreate.js",
+      "specifier": "../../shared/deck-tools/call-scope.js",
+      "to": "../shell/call-budget.ts",
+      "kind": "import"
+    },
+    {
+      "from": "src/host/tools/deckMapLink.js",
+      "specifier": "../../shared/deck-tools/shell.js",
+      "to": "../shell/call-shell.ts",
+      "kind": "import",
+      "evidence": "同文件第 6 至 11 行区段"
+    },
+    {
+      "from": "src/host/tools/deckMapLink.js",
+      "specifier": "../../shared/deck-tools/session-resolve.js",
+      "to": "../shell/session-workdir.ts",
+      "kind": "import"
+    },
+    {
+      "from": "src/host/tools/deckMapLink.js",
+      "specifier": "../../shared/deck-tools/call-scope.js",
+      "to": "../shell/call-budget.ts",
+      "kind": "import"
+    },
+    {
+      "from": "src/host/tools/deckIssuePatch.js",
+      "specifier": "../../shared/deck-tools/shell.js",
+      "to": "../shell/call-shell.ts",
+      "kind": "import",
+      "evidence": "同文件第 6 至 11 行区段"
+    },
+    {
+      "from": "src/host/tools/deckIssuePatch.js",
+      "specifier": "../../shared/deck-tools/session-resolve.js",
+      "to": "../shell/session-workdir.ts",
+      "kind": "import"
+    },
+    {
+      "from": "src/host/tools/deckIssuePatch.js",
+      "specifier": "../../shared/deck-tools/call-scope.js",
+      "to": "../shell/call-budget.ts",
+      "kind": "import"
+    },
+    {
+      "from": "src/host/tools/deckIssueReport.js",
+      "specifier": "../../shared/deck-tools/shell.js",
+      "to": "../shell/call-shell.ts",
+      "kind": "import",
+      "evidence": "同文件第 6 至 11 行区段"
+    },
+    {
+      "from": "src/host/tools/deckIssueReport.js",
+      "specifier": "../../shared/deck-tools/session-resolve.js",
+      "to": "../shell/session-workdir.ts",
+      "kind": "import"
+    },
+    {
+      "from": "src/host/tools/deckIssueReport.js",
+      "specifier": "../../shared/deck-tools/call-scope.js",
+      "to": "../shell/call-budget.ts",
+      "kind": "import"
+    },
+    {
+      "from": "src/host/tools/deckIssueGet.js",
+      "specifier": "../../shared/deck-tools/edges.js",
+      "to": "../shell/edge-landing.ts",
+      "kind": "import",
+      "evidence": "第 8 行"
+    },
+    {
+      "from": "src/host/tools/deckIssueCreate.js",
+      "specifier": "../../shared/deck-tools/edges.js",
+      "to": "../shell/edge-landing.ts",
+      "kind": "import",
+      "evidence": "第 13 行"
+    },
+    {
+      "from": "src/host/tools/deckMapSnapshot.js",
+      "specifier": "../../shared/deck-tools/edges.js",
+      "to": "../shell/edge-landing.ts",
+      "kind": "import",
+      "evidence": "第 10 行"
+    },
+    {
+      "from": "src/host/tools/deckMapPlanCreate.js",
+      "specifier": "../../shared/deck-tools/edges.js",
+      "to": "../shell/edge-landing.ts",
+      "kind": "import",
+      "evidence": "第 20 行"
+    },
+    {
+      "from": "src/host/tools/deckMapLink.js",
+      "specifier": "../../shared/deck-tools/edges.js",
+      "to": "../shell/edge-landing.ts",
+      "kind": "import",
+      "evidence": "第 9 行"
+    },
+    {
+      "from": "src/host/tools/deckIssuePatch.js",
+      "specifier": "../../shared/deck-tools/edges.js",
+      "to": "../shell/edge-landing.ts",
+      "kind": "import",
+      "evidence": "第 9 行"
+    },
+    {
+      "from": "src/host/tools/deckIssueCreate.js",
+      "specifier": "../../shared/deck-tools/plan.js",
+      "to": "../shell/minimal-spec.ts",
+      "kind": "import",
+      "evidence": "第 15 行，只用补标签补正文三件"
+    },
+    {
+      "from": "src/host/tools/deckMapPlanCreate.js",
+      "specifier": "../../shared/deck-tools/plan.js",
+      "to": "../shell/minimal-spec.ts",
+      "kind": "import",
+      "evidence": "第 21 行"
+    },
+    {
+      "from": "src/host/tools/deckIssuePatch.js",
+      "specifier": "../../shared/deck-tools/plan.js",
+      "to": "../shell/minimal-spec.ts",
+      "kind": "import",
+      "evidence": "第 12 行"
+    },
+    {
+      "from": "src/host/tools/deckMapPlanCreate.js",
+      "specifier": "../../shared/deck-tools/plan-store.js",
+      "to": "../shell/plan-cursor.ts",
+      "kind": "import",
+      "evidence": "第 18 行"
+    },
+    {
+      "from": "src/host/tools/deckMapLink.js",
+      "specifier": "../../shared/deck-tools/key-lock.js",
+      "to": "../shell/write-mutex.ts",
+      "kind": "import",
+      "evidence": "第 12 行"
+    },
+    {
+      "from": "src/host/tools/deckIssuePatch.js",
+      "specifier": "../../shared/deck-tools/key-lock.js",
+      "to": "../shell/write-mutex.ts",
+      "kind": "import",
+      "evidence": "第 11 行"
+    },
+    {
+      "from": "src/host/platform/deckToolsAssembly.js",
+      "specifier": "../../shared/deck-tools/plan.js",
+      "to": "../shell/tool-table.ts",
+      "kind": "import",
+      "evidence": "第 22 行，只有装配口"
+    },
+    {
+      "from": "src/host/platform/deckToolsAssembly.js",
+      "specifier": "../../shared/deck-tools/workspace-file.js",
+      "to": "../shell/workspace-anchor.ts",
+      "kind": "import",
+      "evidence": "第 23 行"
+    },
+    {
+      "from": "src/host/platform/deckToolsAssembly.js",
+      "specifier": "../tracker/detection/backendDecision.js",
+      "to": "../../tracker/detection/backendDecision.ts",
+      "kind": "import",
+      "evidence": "第 26 行，跨层引用，目标改到新 tracker 树"
+    },
+    {
+      "from": "src/host/platform/deckToolsAssembly.js",
+      "specifier": "../tracker/detection/parseIssueTracker.js",
+      "to": "../../tracker/detection/parseIssueTracker.ts",
+      "kind": "dynamic-import",
+      "evidence": "第 104 行"
+    },
+    {
+      "from": "src/host/platform/deckToolsAssembly.js",
+      "specifier": "../tools/deckContext.js",
+      "to": "../tools/context.ts",
+      "kind": "import",
+      "evidence": "第 27 至 35 行"
+    },
+    {
+      "from": "src/host/platform/deckToolsAssembly.js",
+      "specifier": "../tools/deckIssueGet.js",
+      "to": "../tools/issue-get.ts",
+      "kind": "import",
+      "evidence": "第 27 至 35 行"
+    },
+    {
+      "from": "src/host/platform/deckToolsAssembly.js",
+      "specifier": "../tools/deckMapSnapshot.js",
+      "to": "../tools/map-snapshot.ts",
+      "kind": "import",
+      "evidence": "第 27 至 35 行"
+    },
+    {
+      "from": "src/host/platform/deckToolsAssembly.js",
+      "specifier": "../tools/deckIssueList.js",
+      "to": "../tools/issue-list.ts",
+      "kind": "import",
+      "evidence": "第 27 至 35 行"
+    },
+    {
+      "from": "src/host/platform/deckToolsAssembly.js",
+      "specifier": "../tools/deckIssueCreate.js",
+      "to": "../tools/issue-create.ts",
+      "kind": "import",
+      "evidence": "第 27 至 35 行"
+    },
+    {
+      "from": "src/host/platform/deckToolsAssembly.js",
+      "specifier": "../tools/deckMapPlanCreate.js",
+      "to": "../tools/map-plan-create.ts",
+      "kind": "import",
+      "evidence": "第 27 至 35 行"
+    },
+    {
+      "from": "src/host/platform/deckToolsAssembly.js",
+      "specifier": "../tools/deckMapLink.js",
+      "to": "../tools/map-link.ts",
+      "kind": "import",
+      "evidence": "第 27 至 35 行"
+    },
+    {
+      "from": "src/host/platform/deckToolsAssembly.js",
+      "specifier": "../tools/deckIssuePatch.js",
+      "to": "../tools/issue-patch.ts",
+      "kind": "import",
+      "evidence": "第 27 至 35 行"
+    },
+    {
+      "from": "src/host/platform/deckToolsAssembly.js",
+      "specifier": "../tools/deckIssueReport.js",
+      "to": "../tools/issue-report.ts",
+      "kind": "import",
+      "evidence": "第 27 至 35 行"
+    },
+    {
+      "from": "src/host/platform/deckToolsRow.js",
+      "specifier": "../tools/deckContext.js",
+      "to": "../tools/context.ts",
+      "kind": "import",
+      "evidence": "第 19 至 27 行"
+    },
+    {
+      "from": "src/host/platform/deckToolsRow.js",
+      "specifier": "../tools/deckIssueGet.js",
+      "to": "../tools/issue-get.ts",
+      "kind": "import",
+      "evidence": "第 19 至 27 行"
+    },
+    {
+      "from": "src/host/platform/deckToolsRow.js",
+      "specifier": "../tools/deckMapSnapshot.js",
+      "to": "../tools/map-snapshot.ts",
+      "kind": "import",
+      "evidence": "第 19 至 27 行"
+    },
+    {
+      "from": "src/host/platform/deckToolsRow.js",
+      "specifier": "../tools/deckIssueList.js",
+      "to": "../tools/issue-list.ts",
+      "kind": "import",
+      "evidence": "第 19 至 27 行"
+    },
+    {
+      "from": "src/host/platform/deckToolsRow.js",
+      "specifier": "../tools/deckIssueCreate.js",
+      "to": "../tools/issue-create.ts",
+      "kind": "import",
+      "evidence": "第 19 至 27 行"
+    },
+    {
+      "from": "src/host/platform/deckToolsRow.js",
+      "specifier": "../tools/deckMapPlanCreate.js",
+      "to": "../tools/map-plan-create.ts",
+      "kind": "import",
+      "evidence": "第 19 至 27 行"
+    },
+    {
+      "from": "src/host/platform/deckToolsRow.js",
+      "specifier": "../tools/deckMapLink.js",
+      "to": "../tools/map-link.ts",
+      "kind": "import",
+      "evidence": "第 19 至 27 行"
+    },
+    {
+      "from": "src/host/platform/deckToolsRow.js",
+      "specifier": "../tools/deckIssuePatch.js",
+      "to": "../tools/issue-patch.ts",
+      "kind": "import",
+      "evidence": "第 19 至 27 行"
+    },
+    {
+      "from": "src/host/platform/deckToolsRow.js",
+      "specifier": "../tools/deckIssueReport.js",
+      "to": "../tools/issue-report.ts",
+      "kind": "import",
+      "evidence": "第 19 至 27 行"
+    },
+    {
+      "from": "src/host/platform/deckToolsRow.js",
+      "specifier": "../../shared/deck-tools/agent-register.js",
+      "to": "./register-options.ts",
+      "kind": "import",
+      "evidence": "第 28 行"
+    },
+    {
+      "from": "src/host/platform/deckToolsRow.js",
+      "specifier": "../../shared/deck-tools/exec-cell.js",
+      "to": "../shell/table-cell.ts",
+      "kind": "import",
+      "evidence": "第 29 行"
+    },
+    {
+      "from": "src/host/platform/deckExec.js",
+      "specifier": "../../shared/deck-tools/plan.js",
+      "to": "../tools/tool-order.ts",
+      "kind": "import",
+      "evidence": "第 14 行，只取 DECK_TOOL_ORDER，随它落到 tools/tool-order.ts"
+    },
+    {
+      "from": "src/host/refresh/wiring.js",
+      "specifier": "../platform/deckToolsAssembly.js",
+      "to": "../../deck/registration/host-assemble.ts",
+      "kind": "import",
+      "evidence": "第 25 行"
+    },
+    {
+      "from": "src/host/refresh/wiring.js",
+      "specifier": "../../shared/deck-tools/agent-register.js",
+      "to": "../../deck/registration/register-options.ts",
+      "kind": "import",
+      "evidence": "第 32 行"
+    },
+    {
+      "from": "src/host/refresh/wiring.js",
+      "specifier": "../../shared/deck-tools/exec-cell.js",
+      "to": "../../deck/shell/table-cell.ts",
+      "kind": "import",
+      "evidence": "第 33 行"
+    },
+    {
+      "from": "src/host/refresh/wiring.js",
+      "specifier": "../platform/deckSandbox.js",
+      "to": "../../deck/registration/sandbox-guard.ts",
+      "kind": "import",
+      "evidence": "第 34 行"
+    },
+    {
+      "from": "src/host/refresh/wiring.js",
+      "specifier": "../platform/deckQuotaSync.js",
+      "to": "../../deck/registration/quota-sync.ts",
+      "kind": "import",
+      "evidence": "第 35 行"
+    },
+    {
+      "from": "src/host/refresh/wiring.js",
+      "specifier": "../../shared/deck-tools/workspace-file.js",
+      "to": "../../deck/shell/workspace-anchor.ts",
+      "kind": "import",
+      "evidence": "第 43 行"
+    },
+    {
+      "from": "src/host/index.js",
+      "specifier": "./platform/deckExec.js",
+      "to": "../deck/registration/host-delegate.ts",
+      "kind": "dynamic-import",
+      "evidence": "第 239 行"
+    },
+    {
+      "from": "src/host/index.js",
+      "specifier": "./tracker/backends/github/client.js",
+      "to": "../tracker/rooms/github/client.ts",
+      "kind": "dynamic-import",
+      "evidence": "第 137 行，取 TIMEOUT_MS"
+    },
+    {
+      "from": "src/host/issueDetail.js",
+      "specifier": "./tracker/backends/github/normalize.js",
+      "to": "../tracker/rooms/github/normalize.ts",
+      "kind": "import",
+      "evidence": "第 4 行"
+    },
+    {
+      "from": "src/host/remotePredicates.js",
+      "specifier": "./tracker/backends/markdown/parse.js",
+      "to": "../tracker/rooms/markdown/parse.ts",
+      "kind": "dynamic-import",
+      "evidence": "第 19 行"
+    },
+    {
+      "from": "src/host/workspaceCwd.js",
+      "specifier": "../shared/deck-tools/workspace-file.js",
+      "to": "../deck/shell/workspace-anchor.ts",
+      "kind": "import",
+      "evidence": "第 5 行"
+    },
+    {
+      "from": "src/host/tracker/detection/explicitDetector.js",
+      "specifier": "../../../shared/deck-tools/workspace-file.js",
+      "to": "../../deck/shell/workspace-anchor.ts",
+      "kind": "import",
+      "evidence": "第 14 行，随文件搬到 src/tracker/detection/ 后少一层：原三层上跳到 src，现两层"
+    },
+    {
+      "from": "src/host/tracker/detection/backendDecision.js",
+      "specifier": "../../../shared/deck-tools/workspace-file.js",
+      "to": "../../deck/shell/workspace-anchor.ts",
+      "kind": "import",
+      "evidence": "第 18 行，同上少一层"
+    },
+    {
+      "from": "src/host/tracker/index.js",
+      "specifier": "./contract.js",
+      "to": "./contract/index.ts",
+      "kind": "export-from",
+      "evidence": "第 10 行"
+    },
+    {
+      "from": "src/host/tracker/index.js",
+      "specifier": "./registryCore.js",
+      "to": "./registry/registryCore.ts",
+      "kind": "export-from",
+      "evidence": "第 11 行"
+    },
+    {
+      "from": "src/host/tracker/index.js",
+      "specifier": "./registryShape.js",
+      "to": "./registry/registryShape.ts",
+      "kind": "export-from",
+      "evidence": "第 13 行"
+    },
+    {
+      "from": "src/host/tracker/index.js",
+      "specifier": "./preflight.js",
+      "to": "./preflight.ts",
+      "kind": "export-from",
+      "evidence": "第 15 行"
+    },
+    {
+      "from": "src/host/tracker/registryCore.js",
+      "specifier": "./registryShape.js",
+      "to": "./registryShape.ts",
+      "kind": "import",
+      "evidence": "第 11 行，同目录，只换扩展名"
+    },
+    {
+      "from": "src/host/tracker/registryCore.js",
+      "specifier": "./registryViews.js",
+      "to": "./registryViews.ts",
+      "kind": "import",
+      "evidence": "第 12 行，同目录，只换扩展名"
+    },
+    {
+      "from": "src/host/platformChannel.js",
+      "specifier": "./tracker/registryCore.js",
+      "to": "../tracker/registry/registryCore.ts",
+      "kind": "dynamic-import",
+      "evidence": "第 48 行与第 84 行两处"
+    },
+    {
+      "from": "src/host/platformChannel.js",
+      "specifier": "./tracker/backends/github/index.js",
+      "to": "../tracker/rooms/github/index.ts",
+      "kind": "dynamic-import",
+      "evidence": "第 53 行"
+    },
+    {
+      "from": "src/host/platformChannel.js",
+      "specifier": "./tracker/backends/markdown/index.js",
+      "to": "../tracker/rooms/markdown/index.ts",
+      "kind": "dynamic-import",
+      "evidence": "第 58 行"
+    },
+    {
+      "from": "src/host/platformChannel.js",
+      "specifier": "./tracker/backends/gitlab/index.js",
+      "to": "../tracker/rooms/gitlab/index.js",
+      "kind": "dynamic-import",
+      "evidence": "第 74 行，目标只随目录改名，扩展名仍是 .js（GitLab 房不转写）"
+    },
+    {
+      "from": "src/host/platformChannel.js",
+      "specifier": "./tracker/detection/workspaceStore.js",
+      "to": "../tracker/detection/workspaceStore.ts",
+      "kind": "dynamic-import",
+      "evidence": "第 184 行"
+    },
+    {
+      "from": "src/host/platformChannel.js",
+      "specifier": "./tracker/detection/detectionService.js",
+      "to": "../tracker/detection/detectionService.ts",
+      "kind": "dynamic-import",
+      "evidence": "第 283 行"
+    },
+    {
+      "from": "src/host/platformChannel.js",
+      "specifier": "./tracker/detection/explicitDetector.js",
+      "to": "../tracker/detection/explicitDetector.ts",
+      "kind": "dynamic-import",
+      "evidence": "第 318 行"
+    },
+    {
+      "from": "src/host/platformChannel.js",
+      "specifier": "./tracker/detection/backendDecision.js",
+      "to": "../tracker/detection/backendDecision.ts",
+      "kind": "dynamic-import",
+      "evidence": "第 341 行"
+    }
+  ],
+  "unchangedSpecifiers": [
+    {
+      "from": "src/host/tools/deckContext.js",
+      "specifier": "../../shared/refresh/budget.js",
+      "reason": "目标不进本次搬家（src/shared/** 或 src/host 其他层）",
+      "evidence": "额度常量真源在 refresh-core，产物路径不变"
+    },
+    {
+      "from": "src/host/tools/deckContext.js",
+      "specifier": "../../shared/refresh/tool-cost.js",
+      "reason": "目标不进本次搬家（src/shared/** 或 src/host 其他层）",
+      "evidence": "算账函数真源在 refresh-core，产物路径不变"
+    },
+    {
+      "from": "src/host/tools/deckIssueGet.js",
+      "specifier": "../../shared/refresh/budget.js",
+      "reason": "目标不进本次搬家（src/shared/** 或 src/host 其他层）",
+      "evidence": "额度常量真源在 refresh-core，产物路径不变"
+    },
+    {
+      "from": "src/host/tools/deckIssueGet.js",
+      "specifier": "../../shared/refresh/tool-cost.js",
+      "reason": "目标不进本次搬家（src/shared/** 或 src/host 其他层）",
+      "evidence": "算账函数真源在 refresh-core，产物路径不变"
+    },
+    {
+      "from": "src/host/tools/deckMapSnapshot.js",
+      "specifier": "../../shared/refresh/budget.js",
+      "reason": "目标不进本次搬家（src/shared/** 或 src/host 其他层）",
+      "evidence": "额度常量真源在 refresh-core，产物路径不变"
+    },
+    {
+      "from": "src/host/tools/deckMapSnapshot.js",
+      "specifier": "../../shared/refresh/tool-cost.js",
+      "reason": "目标不进本次搬家（src/shared/** 或 src/host 其他层）",
+      "evidence": "算账函数真源在 refresh-core，产物路径不变"
+    },
+    {
+      "from": "src/host/tools/deckIssueList.js",
+      "specifier": "../../shared/refresh/budget.js",
+      "reason": "目标不进本次搬家（src/shared/** 或 src/host 其他层）",
+      "evidence": "额度常量真源在 refresh-core，产物路径不变"
+    },
+    {
+      "from": "src/host/tools/deckIssueList.js",
+      "specifier": "../../shared/refresh/tool-cost.js",
+      "reason": "目标不进本次搬家（src/shared/** 或 src/host 其他层）",
+      "evidence": "算账函数真源在 refresh-core，产物路径不变"
+    },
+    {
+      "from": "src/host/tools/deckIssueCreate.js",
+      "specifier": "../../shared/refresh/budget.js",
+      "reason": "目标不进本次搬家（src/shared/** 或 src/host 其他层）",
+      "evidence": "额度常量真源在 refresh-core，产物路径不变"
+    },
+    {
+      "from": "src/host/tools/deckIssueCreate.js",
+      "specifier": "../../shared/refresh/tool-cost.js",
+      "reason": "目标不进本次搬家（src/shared/** 或 src/host 其他层）",
+      "evidence": "算账函数真源在 refresh-core，产物路径不变"
+    },
+    {
+      "from": "src/host/tools/deckMapPlanCreate.js",
+      "specifier": "../../shared/refresh/budget.js",
+      "reason": "目标不进本次搬家（src/shared/** 或 src/host 其他层）",
+      "evidence": "额度常量真源在 refresh-core，产物路径不变"
+    },
+    {
+      "from": "src/host/tools/deckMapPlanCreate.js",
+      "specifier": "../../shared/refresh/tool-cost.js",
+      "reason": "目标不进本次搬家（src/shared/** 或 src/host 其他层）",
+      "evidence": "算账函数真源在 refresh-core，产物路径不变"
+    },
+    {
+      "from": "src/host/tools/deckMapLink.js",
+      "specifier": "../../shared/refresh/budget.js",
+      "reason": "目标不进本次搬家（src/shared/** 或 src/host 其他层）",
+      "evidence": "额度常量真源在 refresh-core，产物路径不变"
+    },
+    {
+      "from": "src/host/tools/deckMapLink.js",
+      "specifier": "../../shared/refresh/tool-cost.js",
+      "reason": "目标不进本次搬家（src/shared/** 或 src/host 其他层）",
+      "evidence": "算账函数真源在 refresh-core，产物路径不变"
+    },
+    {
+      "from": "src/host/tools/deckIssuePatch.js",
+      "specifier": "../../shared/refresh/budget.js",
+      "reason": "目标不进本次搬家（src/shared/** 或 src/host 其他层）",
+      "evidence": "额度常量真源在 refresh-core，产物路径不变"
+    },
+    {
+      "from": "src/host/tools/deckIssuePatch.js",
+      "specifier": "../../shared/refresh/tool-cost.js",
+      "reason": "目标不进本次搬家（src/shared/** 或 src/host 其他层）",
+      "evidence": "算账函数真源在 refresh-core，产物路径不变"
+    },
+    {
+      "from": "src/host/tools/deckIssueReport.js",
+      "specifier": "../../shared/refresh/budget.js",
+      "reason": "目标不进本次搬家（src/shared/** 或 src/host 其他层）",
+      "evidence": "额度常量真源在 refresh-core，产物路径不变"
+    },
+    {
+      "from": "src/host/tools/deckIssueReport.js",
+      "specifier": "../../shared/refresh/tool-cost.js",
+      "reason": "目标不进本次搬家（src/shared/** 或 src/host 其他层）",
+      "evidence": "算账函数真源在 refresh-core，产物路径不变"
+    }
+  ],
+  "rules": [
+    {
+      "id": "rooms-shared-depth",
+      "match": "src/tracker/rooms/<房名>/ 下所有文件里的 '../../../../shared/",
+      "replace": "'../../../shared/",
+      "reason": "房间从 src/host/tracker/backends/<房名>/ 搬到 src/tracker/rooms/<房名>/，到 src/shared/ 的层数由四层变三层",
+      "countHint": "github 房 20 处、markdown 房 12 处（本轮抽样所见，全量以重写脚本实测为准）"
+    },
+    {
+      "id": "rooms-tracker-top",
+      "match": "src/tracker/rooms/<房名>/ 下对 tracker 顶层的引用 '../../preflight.js' 与 '../../contract.js'",
+      "replace": "'../../preflight.ts' 与 '../../contract/index.ts'",
+      "reason": "preflight 留在 tracker 顶层、contract 进 contract/ 目录，房间到它们的层数不变（仍是两层）"
+    },
+    {
+      "id": "rooms-jsdoc-types",
+      "match": "两房里 JSDoc 里的 import('../../contract.js')",
+      "replace": "import('../../contract/index.ts')",
+      "reason": "JSDoc 类型引用也指向契约入口，转 TypeScript 后由编译器读，必须同步改"
+    },
+    {
+      "id": "rooms-internal-ext",
+      "match": "src/tracker/rooms/<房名>/ 内部的相对引用 './x.js'",
+      "replace": "'./x.ts'",
+      "reason": "房间内文件名不动，只换扩展名"
+    },
+    {
+      "id": "tracker-moved-internal-ext",
+      "match": "src/tracker/contract 与 src/tracker/detection 内部相对引用（如 ./parseIssueTracker.js）",
+      "replace": "同名 .ts",
+      "reason": "同目录搬迁，只换扩展名"
+    }
+  ],
+  "buildGenerated": [
+    "package/shared/deck-tools/agent-register.js（随 src/shared/deck-tools/ 一起退役；新产物路径由新构建布局决定）",
+    "package/shared/deck-tools/call-scope.js（随 src/shared/deck-tools/ 一起退役；新产物路径由新构建布局决定）",
+    "package/shared/deck-tools/edges.js（随 src/shared/deck-tools/ 一起退役；新产物路径由新构建布局决定）",
+    "package/shared/deck-tools/exec-cell.js（随 src/shared/deck-tools/ 一起退役；新产物路径由新构建布局决定）",
+    "package/shared/deck-tools/key-lock.js（随 src/shared/deck-tools/ 一起退役；新产物路径由新构建布局决定）",
+    "package/shared/deck-tools/plan-store.js（随 src/shared/deck-tools/ 一起退役；新产物路径由新构建布局决定）",
+    "package/shared/deck-tools/plan.js（随 src/shared/deck-tools/ 一起退役；新产物路径由新构建布局决定）",
+    "package/shared/deck-tools/session-resolve.js（随 src/shared/deck-tools/ 一起退役；新产物路径由新构建布局决定）",
+    "package/shared/deck-tools/shell.js（随 src/shared/deck-tools/ 一起退役；新产物路径由新构建布局决定）",
+    "package/shared/deck-tools/workspace-file.js（随 src/shared/deck-tools/ 一起退役；新产物路径由新构建布局决定）",
+    "package/lib/platform/deckExec.js",
+    "package/lib/platform/deckQuotaSync.js",
+    "package/lib/platform/deckSandbox.js",
+    "package/lib/platform/deckToolsAssembly.js",
+    "package/lib/platform/deckToolsRow.js",
+    "package/lib/tools/deckContext.js",
+    "package/lib/tools/deckIssueGet.js",
+    "package/lib/tools/deckMapSnapshot.js",
+    "package/lib/tools/deckIssueList.js",
+    "package/lib/tools/deckIssueCreate.js",
+    "package/lib/tools/deckMapPlanCreate.js",
+    "package/lib/tools/deckMapLink.js",
+    "package/lib/tools/deckIssuePatch.js",
+    "package/lib/tools/deckIssueReport.js",
+    "package/shared/ 与 package/lib/ 整树由构建生成，不手改；新布局落地后旧副本随构建清理消失"
+  ],
+  "manualOnly": [
+    {
+      "file": "package/package.json",
+      "line": 21,
+      "current": "\"./tools\": \"./lib/platform/deckToolsRow.js\"",
+      "problem": "行模块搬到 src/deck/registration/agent-row.ts，这一行是手写的发包出口，不跟着构建走",
+      "status": "needs-decision",
+      "note": "新取值取决于绿色编译模型下 src/deck/registration/agent-row.ts 的产物落点（未核实，待构建布局定案后回填）"
+    },
+    {
+      "file": "scripts/build.mjs",
+      "current": "通用复制逻辑（src/host 整树进 package/lib、src/shared 进 package/shared）",
+      "problem": "新树 src/deck/** 与 src/tracker/** 需要新增转译与投放步骤；deck 专属清单段落现无（本轮搜索无命中）",
+      "status": "needs-decision"
+    }
+  ],
+  "outOfScope": [
+    "src/host/tracker/capability.js：属检查链与谓词那一摊，deck 调用链不经过，本次不动",
+    "src/host/tracker/generic.js：属检查链与谓词那一摊，deck 调用链不经过，本次不动",
+    "src/host/tracker/predicateCore.js：属检查链与谓词那一摊，deck 调用链不经过，本次不动",
+    "src/host/tracker/predicatePrimitives.js：属检查链与谓词那一摊，deck 调用链不经过，本次不动",
+    "src/host/tracker/snapshot.js：属检查链与谓词那一摊，deck 调用链不经过，本次不动",
+    "src/host/tracker/backends/gitlab/**：只随目录改名，代码不转写",
+    "src/client/**、src/shared/** 其余件、refresh-core 等四个计算核：不在本次任务内"
+  ]
+}
