@@ -241,7 +241,9 @@ function gateSyntax(code, label) {
   // 校验语义等价（只解析不执行），临时文件落在仓库 .tmp 内（已忽略），删不掉也不碍事。
   if (/\bexport\b/.test(code)) {
     try {
-      const tmpFile = resolve(ROOT, '.tmp/gate-syntax-check.mjs')
+      // 临时文件名带上进程号：同一台机器上两个构建同时跑时（本仓常有并发会话，门禁内部也可能再跑一次构建），
+      // 固定文件名会出现「一个刚写完、另一个已删掉」，node --check 于是报找不到文件，把一次正常构建误判成语法失败。
+      const tmpFile = resolve(ROOT, `.tmp/gate-syntax-check-${process.pid}.mjs`)
       mkdirSync(dirname(tmpFile), { recursive: true })
       writeFileSync(tmpFile, code, 'utf8')
       const r = spawnSync(process.execPath, ['--check', tmpFile], { encoding: 'utf8' })
