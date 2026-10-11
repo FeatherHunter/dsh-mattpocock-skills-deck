@@ -28,14 +28,17 @@
  *      取 src/client/kernel/store-prefs.js 的真身。实测（node v24.19.0，本仓 package.json 没有
  *      "type":"module"）导入**不抛**：它顶层的 window/localStorage 访问全都在 try 里
  *      （DEFAULT_PANEL_H / listPrefs / labelClicks / bannerFoldByCwd 那几段），拿不到就降级；
- *      Node 按语法探测把它重新当 ESM 解析并打一条 MODULE_TYPELESS_PACKAGE_JSON 警告 —— 那条只是
- *      提醒加载方式，不改断言结论，tests/ 下既有的 ESM 门禁同样吃这条。所以这里不退回「只读文本断言」。
+ *      Node 按语法探测把这些没声明类型的 .js 重新当 ESM 解析，同一进程里只打一条
+ *      MODULE_TYPELESS_PACKAGE_JSON 警告（实测落在本门禁文件自己身上）—— 那条只是提醒加载方式，
+ *      不改断言结论，tests/ 下既有的 ESM 门禁同样吃这条。所以这里不退回「只读文本断言」。
  *   2) 需要「有 h 的那一支」与「改坏之后必须红」这两处，按文本求值：走 tests/lib/eval-probe.js 的
  *      compileFn（与 tests/verify-683-choice-rev.js 对同一个文件的做法一致），把真身函数文本连同
  *      参数名（h / workspaceFileNoteOf）一起求值，仓库里不新增裸 eval 点。
  *
  * 用法：node tests/verify-workspace-file-note.js
  *   产物那几条（E 组）要求先跑 node scripts/build.mjs；源码改过而产物没重建时，E 组会红并提示重跑构建。
+ *   本门禁还没挂进 package.json 的 scripts.verify 链（本票只允许新建这一个文件，不碰既有文件）；
+ *   要挂的统筹者照 tests/verify-gitlab-single-write.js 的做法加一节 `node tests/verify-workspace-file-note.js` 即可。
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -194,7 +197,7 @@ if (elFnExpr) {
   const node = withH({ workspaceFileResult: { ok: true, placed: true, reason: 'created' } })
   check(!!node && node.tag === 'div', '给它一个 h 就回一个 div 节点（状态栏那一行小灰字）—— 实得 ' + JSON.stringify(node && node.tag))
   check(!!node && node.children === noteCreated, '节点里写的正是翻译出来那句话（实得「' + (node && node.children) + '」）')
-  check(!!node && !!node.props && !!node.props.style, '那一行带着自己的样式（不靠调用方补样式，字号颜色都在这一个节点上说清）')
+  check(!!node && !!node.props && !!node.props.style, '回的那个节点自带 style（这一行怎么显示它自己说清，不靠调用方补样式）')
   check(withH({ workspaceFileResult: { ok: true, skipped: 'explicit-none' } }) === null, '有 h 时跳过那一档照旧回 null（跳过就是不占位）')
   check(withH({}) === null, '有 h 时没有结果照旧回 null')
 }
