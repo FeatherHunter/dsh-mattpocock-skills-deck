@@ -75,21 +75,35 @@ export function createWorkspaceCwd(deps) {
       return { ok: false, error: msg }
     }
   }
-  // #683（F1 · ADR 的 R6）：卡片确认写的是「卡上当时显示的那一个」—— 同时写 H（宿主侧那份记忆）与 C（本地那份）；layout 没给就是读：新壳/新地址第一次打开时，就靠这一问知道上次选了 single 还是 multi。
-  // #1003 空目录闸：没目录时不读写布局（布局跟着工作区走，没工作区就没有布局可记）。
+  // #1003 拍板（2026-10-12）：布局就是「这个工作区用单栏还是多栏」的选择，属于这份工作区文件——写进去、也从它读回；
+  // 本机记忆只在文件里还没有后端记录时兜底（老工作区过渡用）。读与写挤在一处，是因为两段共用同一套取通道与解析的写法。
   async function handleSetupLayout(args) {
-    const _rawLayoutCwd = (args && typeof args.cwd === 'string' && args.cwd.trim()) ? args.cwd : ''
-    if (!_rawLayoutCwd) {
-      const v0 = args ? args.layout : undefined
-      if (v0 == null) return { ok: true, cwd: '', layout: null, pickedAt: 0 }
-      return { ok: false, cwd: '', error: 'not-stored' }
+    const raw = (args && typeof args.cwd === 'string' && args.cwd.trim()) ? args.cwd : ''; if (!raw) { const v0 = args ? args.layout : undefined; return v0 == null ? { ok: true, cwd: '', layout: null, pickedAt: 0 } : { ok: false, cwd: '', error: 'not-stored' } }
+    const cwd = await normCwd(raw); const cs = (typeof getChoiceStore === 'function') ? await getChoiceStore().catch(function () { return null }) : null; const v = args ? args.layout : undefined
+    const plat = await getPlatform().catch(function () { return null }); let f = (plat && plat.fs) || null
+    if (!f && ctx && typeof ctx.get === 'function') { try { f = ctx.get('fs') } catch (eG) { f = null } }
+    const usable = !!(f && typeof f.resolve === 'function' && typeof f.readText === 'function' && typeof f.writeText === 'function')
+    let target = null; let rec = null
+    if (usable) { try { target = await f.resolve(WORKSPACE_FILE_REL, { cwd: cwd }); rec = parseWorkspaceFile(await f.readText(target)) } catch (eR) {} }
+    if (v == null) {
+      if (rec && (rec.layout === 'single' || rec.layout === 'multi')) return { ok: true, cwd: cwd, layout: rec.layout, pickedAt: 0 }
+      const r = (cs && typeof cs.getLayout === 'function') ? await cs.getLayout(cwd).catch(function () { return null }) : null
+      return (r && r.found === true) ? { ok: true, cwd: cwd, layout: r.layout, pickedAt: r.pickedAt } : { ok: true, cwd: cwd, layout: null, pickedAt: 0 }
     }
-    const cwd = await normCwd(_rawLayoutCwd)
-    const cs = (typeof getChoiceStore === 'function') ? await getChoiceStore().catch(function () { return null }) : null
-    const v = args ? args.layout : undefined
-    if (v == null) { const r = (cs && typeof cs.getLayout === 'function') ? await cs.getLayout(cwd).catch(function () { return null }) : null; return (r && r.found === true) ? { ok: true, cwd: cwd, layout: r.layout, pickedAt: r.pickedAt } : { ok: true, cwd: cwd, layout: null, pickedAt: 0 } }
-    const w = (cs && typeof cs.rememberLayout === 'function') ? await cs.rememberLayout(cwd, String(v).toLowerCase()).catch(function () { return null }) : null
-    return (w && w.ok === true) ? { ok: true, cwd: cwd, layout: String(v).toLowerCase(), pickedAt: w.pickedAt } : { ok: false, cwd: cwd, error: 'not-stored' }
+    const want = String(v).toLowerCase(); let why = usable ? 'no-record' : 'no-channel'
+    if (rec && rec.backendId) {
+      try {
+        const text = stringifyWorkspaceFile({ backendId: rec.backendId, pickedAt: rec.pickedAt, source: rec.source, layout: want })
+        const pp = plat && plat.path
+        if (pp && typeof pp.dirname === 'function' && typeof f.mkdir === 'function') { try { await f.mkdir(pp.dirname(target), { recursive: true }) } catch (eM) {} }
+        await f.writeText(target, text, undefined, undefined, resolveSandboxPolicy(args, cwd).policy)
+        try { const ws = await getWorkspaceStore(); ws.invalidate({ cwd: cwd }) } catch {}; try { setCache({ ts: 0, snapshot: null, error: null, cwd: cwd }) } catch {}
+        why = 'written'
+      } catch (e) { why = 'write-failed' }
+    }
+    const w = (cs && typeof cs.rememberLayout === 'function') ? await cs.rememberLayout(cwd, want).catch(function () { return null }) : null
+    if (why === 'written') return { ok: true, cwd: cwd, layout: want, pickedAt: (w && w.pickedAt) || 0, workspaceFile: 'written' }
+    return (w && w.ok === true) ? { ok: true, cwd: cwd, layout: want, pickedAt: w.pickedAt, workspaceFile: why } : { ok: false, cwd: cwd, error: 'not-stored' }
   }
   async function handleBindings() {
     try {
