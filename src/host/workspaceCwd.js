@@ -4,7 +4,7 @@
 import { resolveSessionCwd } from '../shared/session-cwd.js'
 import { parseWorkspaceFile, stringifyWorkspaceFile, WORKSPACE_FILE_REL } from '../shared/deck-tools/workspace-file.js'
 export function createWorkspaceCwd(deps) {
-  const { ctx, DEFAULT_CWD, getPlatform, getTrackerRegistry, getWorkspaceStore, getChoiceStore, canonicalKey, setCache, logCtx, timer, detectionExec } = deps
+  const { ctx, DEFAULT_CWD, getPlatform, getTrackerRegistry, getWorkspaceStore, getChoiceStore, getDecisionFn, canonicalKey, setCache, logCtx, timer, detectionExec } = deps
   // #176 + #190 修复：cwd 归一（绝对直通 + 相对尝试 fs.resolve + home 试探）
   // 根因：workspaces 服务在 client runtime 暴露的 item.path 可能是相对名（如 "matt-demo-markdown"），
   // 传给 wf.selection 后 select() 三级联中 markdown.matches 收到相对 cwd，plat.join(cwd,...) 仍是相对，
@@ -140,7 +140,7 @@ export function createWorkspaceCwd(deps) {
   }
   // #957 拆分：改色两条电话住自包含叶子（./workspaceLabelColors.js），本文件只做装配与日志包装（动态加载、单向，同一出口、同一信封、同一 loggedPhone）。
   let _labelColorsP = null
-  function labelColorsPhones() { if (!_labelColorsP) _labelColorsP = import('./workspaceLabelColors.js').then(function (m) { return m.createWorkspaceLabelColors({ normCwd: normCwd, getTrackerRegistry: getTrackerRegistry, getPlatform: getPlatform, ctx: ctx, opCtxFor: opCtxFor, resolveSandboxPolicy: resolveSandboxPolicy }) }); return _labelColorsP }
+  function labelColorsPhones() { if (!_labelColorsP) _labelColorsP = import('./workspaceLabelColors.js').then(function (m) { return m.createWorkspaceLabelColors({ normCwd: normCwd, getTrackerRegistry: getTrackerRegistry, getPlatform: getPlatform, ctx: ctx, opCtxFor: opCtxFor, resolveSandboxPolicy: resolveSandboxPolicy, getDecisionFn: getDecisionFn, getChoiceStore: getChoiceStore }) }); return _labelColorsP }
   async function handleListLabels(args) { const p = await labelColorsPhones(); return p.handleListLabels(args) }
   async function handleSetLabelColors(args) { const p = await labelColorsPhones(); return p.handleSetLabelColors(args) }
   function msgOf(e) { return String((e && e.message) || e) }

@@ -282,13 +282,8 @@ export function createPlatformChannel(deps) {
       try {
         const mod = await import('./tracker/detection/detectionService.js')
         const create = mod.createDetectionService || mod.default
-        // #1003 单出口：判定函数由平台层递给探测服务（平台→探测跨层，门禁不计数；探测服务内部零新增引用边）。
-        //   没递到（极罕见的加载失败）时探测服务走老路，行为不变。
-        let decideBackend = null
-        try {
-          const decMod = await import('./tracker/detection/backendDecision.js')
-          decideBackend = decMod.decideBackend || (decMod.default && decMod.default.decideBackend) || null
-        } catch (eDec) { decideBackend = null }
+        const dec = await getDecisionFn().catch(function () { return { decideBackend: null } })
+        const decideBackend = (dec && dec.decideBackend) || null
         // skillProbe 内联（复用 probeSkill 双源逻辑；全量名单 = shared/matt-skills.js 单源，二十多项）
         // #280/#fix-banner：旧版硬编码 10 名，遗漏 grill-with-docs / wizard / grill-me / to-questionnaire / wait-what / writing-for-agents 等导致横幅永远报警
         // #968 技能按需：平时（链求值、普通探测）只问链条目录要的三项，人亲手点重查才问全量。
@@ -343,5 +338,17 @@ export function createPlatformChannel(deps) {
     })().catch(function () { return null })
     return _choiceStoreP
   }
-  return { getTrackerRegistry, getPlatform, getWorkspaceStore, detectionExec, getDetectionService, getChoiceStore, clearWorkspaceStore }
+  // #1003 单出口：判定函数的唯一装配点（全进程一份，失败记空不抛）。
+  //   平台层引用探测层是跨层（门禁不计数，基线记一条理由与归属）；下游只收函数值，零新增同层边。
+  let _decideBackendP = null
+  function getDecisionFn() {
+    if (!_decideBackendP) {
+      _decideBackendP = import('./tracker/detection/backendDecision.js').then(
+        function (m) { return { decideBackend: m.decideBackend || (m.default && m.default.decideBackend) || null } },
+        function () { return { decideBackend: null } }
+      )
+    }
+    return _decideBackendP
+  }
+  return { getTrackerRegistry, getPlatform, getWorkspaceStore, detectionExec, getDetectionService, getChoiceStore, clearWorkspaceStore, getDecisionFn }
 }

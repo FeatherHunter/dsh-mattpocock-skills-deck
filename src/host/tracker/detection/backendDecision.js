@@ -15,7 +15,10 @@
  *    新界面按 origin 区分。下一期（#1012 核落地后）再把 source 也换成新枚举。
  */
 
-import { parseWorkspaceFile, WORKSPACE_FILE_REL } from '../../../shared/deck-tools/workspace-file.js';
+import * as workspaceFileNS from '../../../shared/deck-tools/workspace-file.js';
+const parseWorkspaceFile = workspaceFileNS.parseWorkspaceFile;
+const WORKSPACE_FILE_REL = workspaceFileNS.WORKSPACE_FILE_REL;
+// 老路径兜底：切核前常量不存在（只有 yaml），切核后是 json。读永远双路径（新优先、老兼容），与核的读写口同顺序。
 
 // 声明文件解析不另起第二套口径：调用方把完整解析器经 deps.parseDeclaration 交进来；
 // 没交时用标题行最小判定（覆盖高置信标题，旧文档无标题的低兜底仍走探测器那条路）。
@@ -64,13 +67,21 @@ export function decidePure({ boundId, fileParsed, declarationId, choiceRecord, a
 }
 
 async function readFileLayer(cwd, deps) {
+  // 新优先、老兼容：两个路径都试，先读到的有效记录赢（与核的读口同顺序；老 json 只作兼容读）。
+  const rels = [WORKSPACE_FILE_REL];
+  const legacyRel = (workspaceFileNS.WORKSPACE_FILE_LEGACY_REL || 'docs/agents/workspace.json');
+  if (legacyRel && legacyRel !== WORKSPACE_FILE_REL) rels.push(legacyRel);
   try {
     const fsSvc = deps.fs || (deps.platform && deps.platform.fs) || null;
     if (fsSvc && typeof fsSvc.resolve === 'function' && typeof fsSvc.readText === 'function') {
-      const target = await fsSvc.resolve(WORKSPACE_FILE_REL, { cwd });
-      const txt = await fsSvc.readText(target);
-      const parsed = parseWorkspaceFile(txt);
-      if (parsed && parsed.backendId) return parsed;
+      for (const rel of rels) {
+        try {
+          const target = await fsSvc.resolve(rel, { cwd });
+          const txt = await fsSvc.readText(target);
+          const parsed = parseWorkspaceFile(txt);
+          if (parsed && parsed.backendId) return parsed;
+        } catch (eOne) { /* 这条路径没有或读坏就试下一条 */ }
+      }
       return null;
     }
     if (typeof deps.readWorkspaceFileText === 'function' && typeof deps.parseWorkspaceFile === 'function') {

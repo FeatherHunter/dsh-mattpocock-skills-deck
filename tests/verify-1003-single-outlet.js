@@ -77,13 +77,16 @@ async function main() {
     gate: makeGateLedger(gateMod, ledgerMod), registry: reg, budget,
     estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, backendCtx: {},
   }, extra || {}));
-  const lcOf = (reg, fss) => lcMod.createWorkspaceLabelColors({
+  const lcOf = (reg, fss, mem) => lcMod.createWorkspaceLabelColors({
     normCwd: async (r) => r,
     getTrackerRegistry: async () => reg,
     getPlatform: async () => ({ fs: fss, path: path }),
     ctx: { get: (k) => (k === 'fs' ? fss : undefined) },
     opCtxFor: () => ({}),
     resolveSandboxPolicy: () => ({ policy: undefined, sessionId: '' }),
+    // 测的就是出口这条路（生产由平台经工作区入口递进来，这里直递同一函数）
+    getDecisionFn: async () => ({ decideBackend: decMod.decideBackend }),
+    getChoiceStore: async () => ({ getWorkspace: async () => (mem || { ok: true, found: false }) }),
   });
   const detOf = (reg, fss, mem) => detMod.createDetectionService({
     registry: reg,
@@ -174,10 +177,10 @@ async function main() {
       getChoiceStore: async () => ({ getWorkspace: async () => mem }),
     });
     const d = await detOf(reg, fss, mem).detect({ cwd: dir }, { skipSkillProbes: true });
-    const l = await lcOf(Object.assign({}, reg, { get: () => fakeTracker() }), fss).handleListLabels({ cwd: dir });
+    const l = await lcOf(Object.assign({}, reg, { get: () => fakeTracker() }), fss, mem).handleListLabels({ cwd: dir });
     check(u.backendId === 'github', 'S5 统一判定读到记忆', JSON.stringify(u));
     check(d.selection && d.selection.backendId === 'github', 'S5 探测服务读到记忆', JSON.stringify(d.selection));
-    check(l.ok === false, 'S5 改色电话今天读不到记忆（分歧点，改调后改本条）', JSON.stringify(l).slice(0, 160));
+    check(l.ok === true && l.backendId === 'github', 'S5 改色电话改调出口后同答记忆（分歧已收）', JSON.stringify(l).slice(0, 160));
   }
 
   console.log(failed ? `\nFAIL（${total} 条）` : `\n全部通过（${total} 条）`);

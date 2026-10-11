@@ -866,6 +866,15 @@
       "count": 1,
       "owner": "#1003",
       "note": "单出口接线：平台层把统一判定函数递给探测服务（动态引入，失败回退老路）；三路改调同一出口，老短清单删除时复评本条"
+    },
+    {
+      "file": "src/shared/deck-tools/workspace-file.js",
+      "spec": "../config-store/workspace.js",
+      "resolved": "src/shared/config-store/workspace.js",
+      "layer": "shared",
+      "count": 1,
+      "owner": "#1012 配置存储统一改造（三轮切核）",
+      "note": "兼容垫片调核：唯一读写实现住核里，老调用方经此垫片切YAML而不用改；垫片不调核就得另写一份解析。待维护者review确认此例外。"
     }
   ]
 }

@@ -10,7 +10,7 @@
 // 选中的后端即可，不必让别的文件再走一遍这两步（同层互引门禁也不许新开的文件之间互相引用）。
 /** 造两条标签配色电话的处理体。依赖全部由父文件 createWorkspaceCwd 显式传入，本文件不自取任何环境。 */
 export function createWorkspaceLabelColors(deps) {
-  const { normCwd, getTrackerRegistry, getPlatform, ctx, opCtxFor, resolveSandboxPolicy } = deps
+  const { normCwd, getTrackerRegistry, getPlatform, ctx, opCtxFor, resolveSandboxPolicy, getDecisionFn, getChoiceStore } = deps
   // ============ 标签配色两条电话（#627 契约票）============
   // 「列出标签与颜色」与「批量改色」两个契约操作，界面经下面两条电话调到。
   // 为什么曾住在绑定文件、现搬成叶子：两条电话的第一步都要把工作区路径归一、第二步都要按工作区问出当前后端。归一（normCwd）与上下文（opCtxFor、政策）由父文件显式传进来，就地转交选中的后端即可，
@@ -63,9 +63,34 @@ export function createWorkspaceLabelColors(deps) {
     const reg = await getTrackerRegistry()
     if (!reg) return { ok: false, error: { kind: 'env', message: '插件尚未就绪：还没有可用的后端清单，请稍后重试。这是插件运行环境的问题，不是你的操作有误。' } }
     const platform = await getPlatform()
-    // #1003 收敛：先看内存绑定、工作区文件、声明文件（不含自动识别），只放声明文件的工作区在此即有答案。
-    //   与面板那条链同答案，不再掉进下面那条只认自动识别的短链。本文件不引用判定服务（同层门禁），
-    //   读与判 inline：文件解析走共享层纯函数，声明只看高置信标题行（旧文档无标题的低兜底仍走探测器那条路）。
+    // #1003 单出口：调用方经平台层把统一判定函数递进来时，显式三层整段交出去（内存绑定→文件→声明→记忆，
+    //   自动识别仍由出口内同一注册表跑，不再掉进下面那条只认自动识别的短链）；没递时走下面老内联（存量测试指它）。
+    //   老内联删除时连同本段一起删。本文件不引用判定服务（同层门禁），函数只经依赖值递进来。
+    const useOutlet = (typeof getDecisionFn === 'function') ? await getDecisionFn().catch(function () { return null }) : null
+    let sel = null
+    if (useOutlet && typeof useOutlet.decideBackend === 'function') {
+      const fsSvc0 = ctx.get('fs');
+      const hasId0 = function (id) { try { return !!(id && reg.has(id)); } catch { return false; } };
+      const o = await useOutlet.decideBackend(cwd, {
+        registry: reg, platform: platform, fs: fsSvc0, caller: caller, signal: signal,
+        getChoiceStore: getChoiceStore,
+      }).catch(function () { return null })
+      if (o && o.backendId && hasId0(o.backendId)) {
+        const t9 = reg.get(o.backendId);
+        if (t9) { let r9 = null; try { r9 = reg.describe({ cwd }, o.backendId); } catch { r9 = { backend: o.backendId, refId: '', name: '', url: '' }; } return { ok: true, backendId: o.backendId, repoRef: r9, tracker: t9, platform }; }
+      }
+      // 出口无显式答案时：自动识别它已经跑过一次，不再跑第二次，下面只做核验与分档。
+      //   未注册的 id 与老内联同口径直接跳过（不把它当答案，落到下面诚实失败）。
+      //   出口抛错（o 为空）时 sel 保持空，照旧走下面老内联，不丢答案。
+      if (o) {
+        sel = o.pending
+          ? { backendId: o.backendId || null, source: o.source || 'fallback', multiHit: o.multiHit, pending: true, ref: o.ref || null }
+          : { backendId: null, source: 'fallback', multiHit: o.multiHit || undefined, pending: undefined, ref: null }
+      }
+    }
+    if (!sel) {
+    // #1003 收敛（老内联）：先看内存绑定、工作区文件、声明文件（不含自动识别），只放声明文件的工作区在此即有答案。
+    //   与面板那条链同答案。文件解析走共享层纯函数，声明只看高置信标题行（旧文档无标题的低兜底仍走探测器那条路）。
     try {
       const fsSvc = ctx.get('fs');
       const hasId = function (id) { try { return !!(id && reg.has(id)); } catch { return false; } };
@@ -102,7 +127,8 @@ export function createWorkspaceLabelColors(deps) {
         } catch (eD) {}
       }
     } catch (eU) {}
-    const sel = await reg.select({ cwd: cwd }, { cwd: cwd, platform: platform, fs: ctx.get('fs'), caller: caller, signal: signal })
+    sel = await reg.select({ cwd: cwd }, { cwd: cwd, platform: platform, fs: ctx.get('fs'), caller: caller, signal: signal })
+    }
     // 客户端显式声明了它面板上正在用的那个后端 → **核验**它确实在这次算出来的名单里，是就直接交给它。
     //   核验不通过的两种情况，一律照下面那条诚实的失败办（绝不退回「宿主自己挑一个」）：
     //     · 身份识别还没出结果（pending）——这时名单里的那个名字只是注册序的暂时赢家，还没定下来；
