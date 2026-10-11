@@ -8,7 +8,8 @@ import { normalizeColor } from '../../../../shared/label-color/colors.js'
 import { readTextFile, readDir } from './read.js'
 import { getPlat, listEfforts } from './issues-locate.js'
 import { parseMd } from './parse.js'
-import { LABEL_COLORS_REL_PATH, readLabelColors, ensureLabelColors, publishLabelColors, withLabelColorsWriter, describeWriteFailure, isMissingFile } from './label-colors.js'
+import { LABEL_COLORS_REL_PATH, readLabelColors, ensureLabelColors, publishLabelColors, withLabelColorsWriter, isMissingFile } from './label-colors.js'
+import { describeWriteFailure } from './label-colors-errors.js'
 import { builtinLabelColors } from './label-colors-palette.js'
 
 /** 本文件要用到的文件服务（与 label-colors.js 同一套取法）。 */
@@ -160,7 +161,7 @@ export async function listLabels(ctx, repo) {
 async function ensureForDialog(ctx, repo) {
   try {
     return await ensureLabelColors(ctx, repo)
-  } catch (e) { return { ok: false, error: describeWriteFailure(e) } }
+  } catch (e) { return { ok: false, error: describeWriteFailure(e, LABEL_COLORS_REL_PATH) } }
 }
 
 /** 批量改标签颜色（契约操作 setLabelColors）。
@@ -172,6 +173,11 @@ export async function setLabelColors(ctx, repo, changes) {
   return await withLabelColorsWriter(ctx, repo, async () => {
     const read = await readLabelColors(ctx, repo)
     if (!read.ok) return { ok: false, error: read.error }              // 读不出来 → 一律不许写
+    // 只读文件不许写：版本号比核认识的新，旧版本写回去会把新字段抹掉，等用户升级插件。
+    // 展示（列标签）不受影响，照读；这一档只拦写入。
+    if (read.readonly === true) {
+      return fail(ERROR_KIND.PARSE, '工作区里的标签配色文件（' + LABEL_COLORS_REL_PATH + '）是新版本，当前插件只认识旧版本，改色前请先升级插件，否则会把新内容抹掉。这次什么都没改。')
+    }
     // 文件不存在不算「读不出来」：这时一份颜色都没有，每一要改的标签都落「标签不存在」这一条，
     // 一个字节都不写（契约：两边一律报不存在、都不许新增一行），提示里说清怎么才能成功。
     const fileExists = read.present === true
@@ -210,7 +216,7 @@ export async function setLabelColors(ctx, repo, changes) {
       await publishLabelColors(ctx, repo, next, 'saved')
     } catch (e) {
       // 写失败：整条操作失败、不留半截账（原本说会改的那几条一起报失败），理由按失败语义分档。
-      const reason = describeWriteFailure(e)
+      const reason = describeWriteFailure(e, LABEL_COLORS_REL_PATH)
       return { ok: false, error: { kind: reason.kind, message: reason.message + ' 本次 ' + applied.length + ' 个标签的颜色均未改动。' } }
     }
     return { ok: true, data: { applied: applied, failed: failed } }

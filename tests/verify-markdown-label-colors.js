@@ -13,8 +13,9 @@
 // 没有任何可执行守卫」，本文件就是那三条的守卫。把实现临时改成「直接覆盖目标」或「读不出来也照写」，
 // 这一条会立刻亮红（自证记录见 .scratch/map610/reports/issue-618.md）。
 import nodePath from 'node:path'
+import { parse as parseYaml } from 'yaml'
 import { markdownModule } from '../src/host/tracker/backends/markdown/index.js'
-import { describeWriteFailure } from '../src/host/tracker/backends/markdown/label-colors.js'
+import { describeWriteFailure } from '../src/host/tracker/backends/markdown/label-colors-errors.js'
 import { CANONICAL_LABELS } from '../src/shared/labels.js'
 import { colorsDiffer } from '../src/shared/label-color/colors.js'
 
@@ -23,8 +24,13 @@ let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
 const WS = '/ws'
-const COLOR_PATH = '/ws/docs/agents/label-colors.json'
+const COLOR_PATH = '/ws/docs/agents/label-colors.yaml'
+const LEGACY_COLOR_PATH = '/ws/docs/agents/label-colors.json'
+const REL = 'docs/agents/label-colors.yaml'
 const REF = { backend: 'markdown', refId: '/ws', name: 'ws', url: '' }
+
+/** YAML 文本读成对象（门禁用；实现里走核，这里只为断言读文件内容）。 */
+const readYaml = (text) => parseYaml(String(text || ''))
 
 /** 假文件系统：只替换磁盘，接口形状照 DSH 文件服务（resolve 出句柄、readText/writeText 吃句柄）。
  *  每一次写与改名都记在 calls 里，三条硬要求就靠它取证。 */
@@ -126,9 +132,10 @@ const tracker = markdownModule.create({})
   check(r.ok === true && r.placed === true, '放置配色文件：文件不存在时新建一份（实得 ' + JSON.stringify(r) + '）')
   const text = fake.show(COLOR_PATH)
   let parsed = null
-  try { parsed = JSON.parse(String(text)) } catch (e) { parsed = null }
-  check(!!parsed && typeof parsed === 'object' && !Array.isArray(parsed), '新文件是「标签名 → 颜色」的 JSON 对象')
-  const names = parsed ? Object.keys(parsed) : []
+  try { parsed = readYaml(text) } catch (e) { parsed = null }
+  check(!!parsed && typeof parsed === 'object' && !Array.isArray(parsed), '新文件是 YAML 格式的「标签名 → 颜色」对应表（老 JSON 照读）')
+  check(parsed && parsed.version === 1, '新文件带版本号 version: 1（核不认识的新版本只读不写）')
+  const names = parsed ? Object.keys(parsed).filter((n) => n !== 'version') : []
   check(names.length === 11, '新文件预填 11 个内置标签（实得 ' + names.length + '）')
   check(names.every((n) => typeof parsed[n] === 'string' && /^[0-9a-f]{6}$/.test(parsed[n])), '新文件里的颜色都是不带井号的小写六位十六进制')
   // 与 src/shared/labels.js 单源对齐：两边都收录的标签，颜色（忽略大小写）必须一致。
@@ -160,7 +167,7 @@ const tracker = markdownModule.create({})
   check(r1.ok === true && names1.indexOf('root-only') >= 0, '子目录会话：读到的是工作区根那一份配色文件（实得 ' + JSON.stringify(names1) + '）')
   check(names1.indexOf('sub-only') < 0 && names1.indexOf('deep-only') < 0, '子目录会话：子目录里那两份文件里的标签一个都没混进来')
   check(colorOf('root-only') === 'aaaaaa', '子目录会话：根上那份里的颜色原样读出来（实得 ' + colorOf('root-only') + '）')
-  check(fake.calls.readText.every((p) => p.indexOf('/docs/agents/label-colors.json') < 0 || p === COLOR_PATH), '子目录会话：一次都没去读子目录里的那份（读过的路径：' + JSON.stringify(fake.calls.readText) + '）')
+  check(fake.calls.readText.every((p) => p.indexOf('/docs/agents/label-colors.yaml') < 0 || p === COLOR_PATH), '子目录会话：一次都没去读子目录里的那份（读过的路径：' + JSON.stringify(fake.calls.readText) + '）')
   check(fake.show('/ws/sub/docs/agents/label-colors.json') === subMine && fake.show('/ws/sub/deep/docs/agents/label-colors.json') === '{"deep-only":"cccccc"}', '子目录里那份文件原样不动')
   check(fake.calls.rename.length === 0 && fake.calls.writeText.every((w) => String(w.path).indexOf('/ws/sub') < 0), '子目录会话：没有一次写或改名落到子目录里（写过的路径：' + JSON.stringify(fake.calls.writeText.map((w) => w.path)) + '）')
 }
@@ -228,7 +235,7 @@ const tracker = markdownModule.create({})
   check(targets.some((p) => p !== COLOR_PATH && p.startsWith(COLOR_PATH)), '硬要求②：先把完整内容写进同目录的临时文件')
   const published = fake.calls.rename.some((x) => x.to === COLOR_PATH)
   check(published, '硬要求②：再改名把临时文件发布成目标文件（改名记录：' + JSON.stringify(fake.calls.rename) + '）')
-  const after = JSON.parse(String(fake.show(COLOR_PATH)))
+  const after = readYaml(fake.show(COLOR_PATH))
   check(after.bug === '0b7285', '硬要求②：发布之后目标文件里是新颜色（实得 ' + after.bug + '）')
   check(fake.show(targets[0]) === null || fake.show(targets[0]) === undefined, '硬要求②：临时文件发布后不留在工作区里')
 }
@@ -241,7 +248,7 @@ const tracker = markdownModule.create({})
   const p2 = tracker.setLabelColors(REF, [{ name: 'wayfinder:map', color: 'ff00ff' }], ctx)
   const both = await Promise.all([p1, p2])
   check(both.every((r) => r.ok === true && r.data.applied.length === 1), '两次并发保存都报成功（实得 ' + JSON.stringify(both) + '）')
-  const after = JSON.parse(String(fake.show(COLOR_PATH)))
+  const after = readYaml(fake.show(COLOR_PATH))
   check(after.bug === '0b7285' && after['wayfinder:map'] === 'ff00ff', '硬要求③：两次改动都在文件里，没有被后写的那次抹掉（实得 ' + JSON.stringify(after) + '）')
 }
 
@@ -255,7 +262,7 @@ const tracker = markdownModule.create({})
   const p2 = tracker.setLabelColors(REF, [{ name: 'wayfinder:map', color: 'ff00ff' }], ctxUpper)
   const both = await Promise.all([p1, p2])
   check(both.every((r) => r.ok === true && r.data.applied.length === 1), '不同写法（/ws 与 /WS）并发保存都报成功（实得 ' + JSON.stringify(both) + '）')
-  const after = JSON.parse(String(fake.show(COLOR_PATH)))
+  const after = readYaml(fake.show(COLOR_PATH))
   check(after.bug === '0b7285' && after['wayfinder:map'] === 'ff00ff', 'D2：不同写法并发保存两边的改动都在，没有丢一份（实得 ' + JSON.stringify(after) + '）')
 }
 
@@ -271,32 +278,32 @@ const tracker = markdownModule.create({})
 
 // ── 五之四、D3：EPERM/EACCES 不许断言单一原因 ──
 {
-  const d = describeWriteFailure(Object.assign(new Error('EPERM: operation not permitted, rename \'x.tmp\' -> \'label-colors.json\''), { code: 'EPERM' }))
+  const d = describeWriteFailure(Object.assign(new Error('EPERM: operation not permitted, rename \'x.tmp\' -> \'label-colors.yaml\''), { code: 'EPERM' }), REL)
   const m = String(d.message || '')
   // 文风口径（#633 终审第 14—16 条）：三种情形都写成「工作区里的标签配色文件（...）」完整定位短语，
   // 不再用「这个文件 / 这个位置」这类没有落点的说法，也不再出现「普通文件」这个自造词。
-  check(m.includes('工作区里的标签配色文件（docs/agents/label-colors.json）'), 'D3：三种情形都用完整定位短语指这份文件')
+  check(m.includes('工作区里的标签配色文件（docs/agents/label-colors.yaml）'), 'D3：三种情形都用完整定位短语指这份文件')
   check(m.includes('普通文件') === false, 'D3：不再用「普通文件」这个自造词')
   check(['只读', '占用', '不是文件'].every((k) => m.includes(k)), 'D3：EPERM/EACCES 这类失败把三种可能一并说清（实得 ' + m + '）')
   // 第 13 条点名要做的改动：原来「你的文件没有被改动」的「你的文件」没有落点，改成点明是哪一份文件。
   // 所以这里不再固定写旧句子，而是要求「没有被改动」这句确实挂在「标签配色文件」上。
   check(m.includes('这个标签配色文件没有被改动'), 'D3：仍然说清文件没有被改动，并且点明是哪一份文件')
-  const d2 = describeWriteFailure(Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' }))
+  const d2 = describeWriteFailure(Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' }), REL)
   check(d2.message === m, 'D3：EACCES 与 EPERM 用同一段文案（发布方式决定了这两种错误的原因本来就分不开）')
 
   // 第 17 条点名要做的改动：「位置不存在」与「位置是一份目录」原来共用一个动作，用户不知道
   // 该删哪份目录、该建哪个文件。现在拆成两条各自能照做的说法，这里守住拆开这件事与两条动作的方向。
-  const d3 = describeWriteFailure(Object.assign(new Error('ENOENT: no such file or directory, rename'), { code: 'ENOENT' }))
+  const d3 = describeWriteFailure(Object.assign(new Error('ENOENT: no such file or directory, rename'), { code: 'ENOENT' }), REL)
   const m3 = String(d3.message || '')
   check(m3.includes('有两种') && m3.includes('①') && m3.includes('②'), 'E1：位置不存在／位置是目录拆成两条分别说（实得 ' + m3 + '）')
-  check(m3.includes('新建这份标签配色文件（docs/agents/label-colors.json）'), 'E1：①「不存在」给的是新建这份文件这一步')
+  check(m3.includes('新建这份标签配色文件（docs/agents/label-colors.yaml）'), 'E1：①「不存在」给的是新建这份文件这一步')
   check(m3.includes('先删掉这份目录'), 'E1：②「是一份目录」给的是先删掉这份目录这一步')
   check(m3.includes('它上一层的 docs/agents/ 目录'), 'E1：①还说了上层目录没建出来时怎么办')
 
   // 第 18 条点名要做的改动：原来那一档写「写坏的临时文件已经清掉」，可发布还有一条不落临时文件的
   // 直写路径（label-colors.js 的 publishAtomically 里 rename 原语不存在时走 writeTextFile 直写），
   // 那条路上根本没有临时文件，这句话有时与事实不符。现在改成「可能留了一份写到一半的中间文件」。
-  const d4 = describeWriteFailure(Object.assign(new Error('认不出来的怪错'), { code: 'SOMETHING_ELSE' }))
+  const d4 = describeWriteFailure(Object.assign(new Error('认不出来的怪错'), { code: 'SOMETHING_ELSE' }), REL)
   const m4 = String(d4.message || '')
   check(m4.includes('写坏的临时文件已经清掉') === false, 'E2：不再声称临时文件已经清掉（直写那条路上没有临时文件）')
   check(m4.includes('可能留了一份写到一半的中间文件'), 'E2：改成「可能留了一份写到一半的中间文件，可以直接删掉」——两条路都说得通')
@@ -307,11 +314,11 @@ const tracker = markdownModule.create({})
   check(m4.includes('这个标签配色文件没有被改动'), 'E2：仍然说清文件没有被改动，并且点明是哪一份文件')
 }
 
-// ── 六、并集语义与「不许新增一行」──
+// ── 六、并集语义与「不许新增一行」（种子放老文件，顺带覆盖迁移）──
 {
   const ticket = '# 一张票\n\nStatus: ready-for-agent\nLabels: bug, 只出现在票面上\n'
   const fake = makeFakeFs({
-    [COLOR_PATH]: JSON.stringify({ bug: 'd73a4a', '只在文件里的标签': 'abcdef' }),
+    [LEGACY_COLOR_PATH]: JSON.stringify({ bug: 'd73a4a', '只在文件里的标签': 'abcdef' }),
     '/ws/.scratch/demo/map.md': '# 地图\n\nStatus: ready-for-agent\nLabels: wayfinder:map\n',
     '/ws/.scratch/demo/issues/01-some-ticket.md': ticket,
   })
@@ -327,12 +334,39 @@ const tracker = markdownModule.create({})
   check(byName('只出现在票面上').color === '', '文件里没有的标签颜色是空串（界面按灰显示）')
   check(byName('bug').color === 'd73a4a', '文件里写了的标签颜色取文件里的值（覆盖内置默认色）')
   check(Object.keys(byName('bug')).sort().join(',') === 'color,name', '列表项只有 name 与 color 两个键（给不了描述时省略 description）')
+  // 迁移已发生：读到老文件就搬进新文件，写成功后老文件删掉。
+  const migrated = readYaml(fake.show(COLOR_PATH))
+  check(migrated && migrated.bug === 'd73a4a' && migrated['只在文件里的标签'] === 'abcdef', '老文件内容原样迁进新文件（写法与值都在）')
+  check(fake.show(LEGACY_COLOR_PATH) === null, '写成功后老文件删掉（下次直接读新文件）')
 
   const before = fake.show(COLOR_PATH)
   const rs = await tracker.setLabelColors(REF, [{ name: '还没进文件的标签', color: 'abcdef' }], ctx)
   check(rs.ok === true && rs.data.failed.length === 1 && rs.data.failed[0].reason.kind === 'not-found', '要改的标签不在文件里 → 找不到档（实得 ' + JSON.stringify(rs) + '）')
-  check(String((rs.data.failed[0] || {}).reason ? rs.data.failed[0].reason.message : '').includes('label-colors.json'), '失败提示说清怎么做才能成功（指向那个文件）')
+  check(String((rs.data.failed[0] || {}).reason ? rs.data.failed[0].reason.message : '').includes('label-colors.yaml'), '失败提示说清怎么做才能成功（指向那个文件）')
   check(fake.show(COLOR_PATH) === before, '不许新增一行：文件内容一个字节没变')
+}
+
+// ── 六之二、只读文件：版本号比核认识的新，展示照读、写入明确拒绝 ──
+{
+  const fake = makeFakeFs({ [COLOR_PATH]: 'version: 9\nbug: d73a4a\n' })
+  const ctx = mkCtx(fake)
+  const rl = await tracker.listLabels(REF, ctx)
+  const names = rl.ok === true ? rl.data.map((x) => x.name) : []
+  check(rl.ok === true && names.includes('bug'), '新版本文件：列标签照读（读来展示，不拦）')
+  const rs = await tracker.setLabelColors(REF, [{ name: 'bug', color: '0b7285' }], ctx)
+  check(rs.ok === false && String((rs.error || {}).message || '').includes('升级插件'), '新版本文件：改色明确拒绝并提示升级（旧版本不许抹掉新字段）')
+  check(fake.show(COLOR_PATH) === 'version: 9\nbug: d73a4a\n', '新版本文件：拒绝写入后一个字节没变')
+}
+
+// ── 六之三、超大文件与别名炸弹走真实房间路径也不崩 ──
+{
+  const fake = makeFakeFs({ [COLOR_PATH]: 'version: 1\n' + 'k: v\n'.repeat(20000) })
+  const rl = await tracker.listLabels(REF, mkCtx(fake))
+  check(rl.ok === false, '超大文件：列标签如实失败不崩（实得 ' + JSON.stringify(rl).slice(0, 120) + '）')
+  const bomb = 'version: 1\nx: &a [1]\n' + Array.from({ length: 60 }, (_, i) => 'k' + i + ': *a\n').join('')
+  const fake2 = makeFakeFs({ [COLOR_PATH]: bomb })
+  const rl2 = await tracker.listLabels(REF, mkCtx(fake2))
+  check(rl2.ok === false, '别名炸弹：列标签如实失败不崩（实得 ' + JSON.stringify(rl2).slice(0, 120) + '）')
 }
 
 // ── 七、颜色的空值语义：两边都空不算变（不给没配色的标签白发请求）──

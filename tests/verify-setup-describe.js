@@ -52,7 +52,7 @@ const LAYOUT_KEY_OF = { single: 'setup.layout.single', multi: 'setup.layout.mult
 // 卡片上那句问题与两个选项也各有中英两份（界面文案，不是注入文案）：键在则语言齐、值非空。
 const LAYOUT_UI_KEYS = ['setup.layoutQuestion', 'setup.layoutSingle', 'setup.layoutMulti']
 // #619（2026-09-13）：v10 在注入末尾追加的那节「标签调色盘」整段删除 —— 标签颜色改由插件自己放置的
-//   配色文件（工作区里的 docs/agents/label-colors.json）与面板改色弹窗负责，初始化注入不再引导任何人
+//   配色文件（工作区里的 docs/agents/label-colors.yaml）与面板改色弹窗负责，初始化注入不再引导任何人
 //   去建那张已经没人读的 md 表格。
 // 判据升级（不许放水）：原来断言「注入文本 == 调色盘金样」，现在断言「注入文本里不许再出现这份旧文案的
 //   任何特征片段」——下面每一条都是旧文案里独有的字符串，任一条复活即红。

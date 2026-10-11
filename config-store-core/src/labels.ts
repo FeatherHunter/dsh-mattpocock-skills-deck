@@ -7,10 +7,18 @@
  * 颜色值本身的合法性（六位十六进制）由配色核定，这里只管形状：
  * 非法颜色按「还没配颜色」由调用方归一，不算文件坏掉（沿房间既有口径）。
  * 自包含：小工具自己写一遍，不引用别的单元（产物零相对引用，见 workspace.ts 头注）。
- * YAML 入口守卫住宿主适配器的 parseConfig（唯一入口）。
+ * 文本入口（parseLabelsText）也住这里：房间文件不许用裸包引用（跨房门禁），
+ * 而产物在 shared 层用裸包是允许的方向；入口守卫的数字与适配器同值，
+ * 两处行为一致由门禁钉（超大与别名各有一条走房间路径的用例）。
  */
 
+import { parse as parseYaml } from 'yaml'
 import type { ConfigParseResult, ConfigStringifyResult } from './ports.js'
+
+/** 文件字符数上限（与适配器同数；超了说明拿错了文件）。 */
+export const MAX_LABELS_FILE_CHARS = 65536
+/** 别名数量上限（与适配器同数；正常文件里一个别名都不会有）。 */
+export const MAX_LABELS_ALIASES = 50
 
 /** 标签配色数据的新路径（YAML）与老路径（JSON，只做兼容读）。 */
 export const LABEL_COLORS_YAML_REL = 'docs/agents/label-colors.yaml'
@@ -57,6 +65,53 @@ function esc(text: string): string {
       .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, (c) => '\\u' + ('0000' + c.charCodeAt(0).toString(16)).slice(-4)) +
     '"'
   )
+}
+
+/** 数一数文本里用了多少个别名。注释里的不算，先去掉行注释。 */
+function countAliases(text: string): number {
+  const noComments = text.replace(/(^|\s)#[^\n]*$/gm, '$1')
+  const hits = noComments.match(/(^|[\s\[{,])\*[A-Za-z0-9_-]+/g)
+  return hits ? hits.length : 0
+}
+
+/**
+ * 文本入口：超大与别名两道守卫 → YAML 解析（钉死 core 模式）→ 校验。
+ * 给不能用裸包引用的调用方（后端房间）；宿主适配器走自己的 parseConfig，
+ * 两处守卫数字相同、行为一致（门禁从行为上钉住）。
+ */
+export function parseLabelsText(text: unknown): ConfigParseResult {
+  if (typeof text !== 'string') {
+    return { ok: false, reason: 'yaml-error', message: '要解析的不是一段文字' }
+  }
+  const stripped = text.replace(/^\uFEFF/, '')
+  if (stripped.length > MAX_LABELS_FILE_CHARS) {
+    return {
+      ok: false,
+      reason: 'oversize',
+      message: '这份文件太大了（' + stripped.length + ' 字，上限 ' + MAX_LABELS_FILE_CHARS + ' 字），核拒绝解析：配置文件本该很小，超了说明拿错了文件',
+    }
+  }
+  if (countAliases(stripped) > MAX_LABELS_ALIASES) {
+    return {
+      ok: false,
+      reason: 'aliases',
+      message: '这份文件里的别名太多了（上限 ' + MAX_LABELS_ALIASES + ' 个），核拒绝解析：正常配置文件里一个别名都不会有',
+    }
+  }
+  let doc: unknown = null
+  try {
+    doc = parseYaml(stripped, { schema: 'core', maxAliasCount: MAX_LABELS_ALIASES, uniqueKeys: true })
+  } catch (e) {
+    const msg = String((e && (e as Error).message) || e || '')
+    if (/alias/i.test(msg)) {
+      return { ok: false, reason: 'aliases', message: '这份文件里的别名太多了，核拒绝解析：正常配置文件里一个别名都不会有' }
+    }
+    return { ok: false, reason: 'yaml-error', message: '这份文件的内容不是合法的 YAML（也就是老的 JSON 也不是）：' + msg.slice(0, 160) }
+  }
+  if (doc === undefined || doc === null || (typeof doc === 'string' && (doc as string).trim() === '')) {
+    return { ok: false, reason: 'bad-shape', message: '这份文件里什么都没有（空白文件）' }
+  }
+  return parseLabelColors(doc)
 }
 
 /** 校验一份已解析出来的标签配色。版本高于认识时读成功标只读。 */

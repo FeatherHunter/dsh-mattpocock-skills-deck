@@ -158,7 +158,7 @@ console.log('\n== ③ 既有 verify 回归（抽样） ==')
 console.log('\n== ⑤ 干净切断：不再读旧的调色盘表（#618） ==')
 {
   // 旧的读法（读 docs/agents/triage-labels.md 的调色盘表）连同文件一起删掉了：
-  // 这个房间里不该再出现那些函数名与那个文件路径，颜色只从 docs/agents/label-colors.json 来。
+  // 这个房间里不该再出现那些函数名与那个文件路径，颜色只从 docs/agents/label-colors.yaml 来。
   const roomDir = path.join(process.cwd(), 'src/host/tracker/backends/markdown')
   const roomFiles = fs.readdirSync(roomDir).filter((n) => n.endsWith('.js'))
   check(roomFiles.indexOf('issues-labels.js') < 0, '旧的 issues-labels.js 已删除')
@@ -166,7 +166,7 @@ console.log('\n== ⑤ 干净切断：不再读旧的调色盘表（#618） ==')
   const code = joined.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
   check(!/loadPaletteMap|recolorLabels/.test(code), '房间里不再有 loadPaletteMap / recolorLabels 这两个旧函数')
   check(!/triage-labels\.md/.test(code), '房间里不再引用 docs/agents/triage-labels.md（那个表不读了）')
-  check(/label-colors\.json/.test(joined), '房间里读的是新的配色文件 docs/agents/label-colors.json')
+  check(/label-colors\.yaml/.test(code), '房间里读的是新的配色文件 docs/agents/label-colors.yaml（老 json 只做兼容读）')
   check(roomFiles.indexOf('label-colors.js') >= 0 && roomFiles.indexOf('label-colors-ops.js') >= 0, '本地配色文件这条路的两个文件在位')
 }
 

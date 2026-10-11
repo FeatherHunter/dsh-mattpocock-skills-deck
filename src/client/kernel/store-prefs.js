@@ -30,8 +30,6 @@
       return {}
     })()
     export const saveLabelClicks = function () { try { localStorage.setItem(LABEL_CLICKS_KEY, JSON.stringify(labelClicks)) } catch (e) { try { log('warn', 'storage.fail', { key: LABEL_CLICKS_KEY, op: 'write' }) } catch (eL) {} } }
-    // 彻底移除：清理遗留的 dsws.issuePath（v1.7.0 遗留，见 #345 移除落地）
-    try { localStorage.removeItem('dsws.issuePath'); } catch (e) {}
     // T2 #35 · 无仓库红卡状态机（按工作区维度持久化 dismiss；表单态 expanded/name/visibility/loading/error）
     // #653 修正：此前这里用 cwdHash 散列**原始串**（没走规整函数），同一个目录换一种写法（多一个尾斜杠、
     //   盘符大小写不同）就会散出另一把键，收起过的红卡会重新冒出来。现在统一走工作区键（wsKeyOf）：

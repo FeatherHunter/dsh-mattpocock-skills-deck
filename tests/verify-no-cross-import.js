@@ -44,6 +44,8 @@ const WHITELIST_RE = [
   /^src\/host\/platform\//,
   // #711: the idempotency-anchor product of refresh-core (src/shared/refresh/idempotency.js). The three backend rooms judge "did I already create this ticket" by this one shared module.
   /^src\/shared\/refresh\//,
+  // #1012: the label-colors schema unit of config-store-core (src/shared/config-store/labels.js). The markdown room reads/writes label-colors.yaml through the core instead of its own parser.
+  /^src\/shared\/config-store\//,
 ]
 
 const BUILTIN_SET = new Set(builtinModules)

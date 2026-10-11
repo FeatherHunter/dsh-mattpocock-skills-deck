@@ -1,15 +1,20 @@
-// label-colors.js —— 工作区里那份本地配色文件（docs/agents/label-colors.json）的读写与放置。
+// label-colors.js —— 工作区里那份本地配色文件（docs/agents/label-colors.yaml）的读写与放置。
 // 以后谁改它：改配色文件的位置、形状、默认内容、写入方式（原子写与串行化）、放置时机的人。
-// 另外两半各自住一个文件：内置默认色表在 label-colors-palette.js，票面上色在 label-colors-paint.js；
+// 另外三半各自住一个文件：内置默认色表在 label-colors-palette.js，票面上色在 label-colors-paint.js，
+// 文本与形状互转在 label-colors-codec.js（调核，#1012）；
 // 契约那两条操作（列出标签 / 批量改色）在 label-colors-ops.js。
 //
-// 这份文件是「本地 Markdown 后端的标签颜色从哪来」的唯一真源（#618）：JSON 里的键值对就是标签与颜色，
-// 用户可以直接手改它，插件只写这一个文件。旧的那张 docs/agents/triage-labels.md 调色盘表已经不再读
+// 这份文件是「本地 Markdown 后端的标签颜色从哪来」的唯一真源（#618）：YAML 里的键值对就是标签与颜色，
+// 用户可以直接手改它，插件只写这一个文件（新路径 .yaml；老 .json 只做兼容读，读到就迁走）。
+// 旧的那张 docs/agents/triage-labels.md 调色盘表已经不再读
 // （按「干净切断」的口径：不做迁移、也不回填）。
 //
-// 文件形状（先按 #615 定下的形状写，一个 JSON 对象）：
-//   {"wayfinder:map": "8b5cf6", "bug": "d73a4a", "还没配色的": ""}
-//   键是标签名原样（可以有冒号、空格），值是颜色：不带井号的六位十六进制，大小写都收，读进来统一成小写；
+// 文件形状（#1012 起是 YAML，注释由程序生成；键是标签名原样，值是颜色）：
+//   version: 1
+//   wayfinder:map: 8b5cf6
+//   bug: d73a4a
+//   还没配色的: ''
+//   值是颜色：不带井号的六位十六进制，大小写都收，读进来统一成小写；
 //   空串表示「这个标签还没配颜色」（界面按灰显示）。想给某个标签写一句含义说明时，
 //   把值写成 {"color": "8b5cf6", "description": "地图票"} 也可以，读的时候两种写法都认。
 //
@@ -19,7 +24,7 @@
 //   无声抹掉（保存成功、颜色却没变，最难查）；配色文件又是用户会手改、会提交进版本库的文件，
 //   写一半崩掉就会留下半截内容；读不出来（被占用、写坏了）时若照常覆盖，用户手写的内容就被推平了。
 import { ERROR_KIND } from '../../../../shared/tracker/constants.js'
-import { normalizeColor } from '../../../../shared/label-color/colors.js'
+import { decodeLabelsText, encodeLabelsTable } from './label-colors-codec.js'
 import { readTextFile } from './read.js'
 import { writeTextFile, renameFile } from './write.js'
 import { getPlat } from './issues-locate.js'
@@ -28,7 +33,9 @@ import { builtinColorObject } from './label-colors-palette.js'
 import { withWorkspaceWriter, workspaceDirOf, workspaceWriteKey } from './write-queue.js'
 
 /** 配色文件在工作区里的相对位置（工作区根 = 本次调用上下文里的 cwd）。 */
-export const LABEL_COLORS_REL_PATH = 'docs/agents/label-colors.json'
+export const LABEL_COLORS_REL_PATH = 'docs/agents/label-colors.yaml'
+/** 老配色文件的位置：只做兼容读，读到就迁进新文件，写成功后删掉它。 */
+export const LABEL_COLORS_LEGACY_REL_PATH = 'docs/agents/label-colors.json'
 
 // ── 路径与文件服务 ─────────────────────────────────────────────────────────────
 
@@ -45,6 +52,11 @@ function getFs(ctx) {
 /** 配色文件的完整路径。 */
 export function labelColorsPath(ctx, repo) {
   return getPlat(ctx).join(workspaceDirOf(ctx, repo), LABEL_COLORS_REL_PATH)
+}
+
+/** 老配色文件的完整路径（只做兼容读与迁移删除）。 */
+export function legacyLabelColorsPath(ctx, repo) {
+  return getPlat(ctx).join(workspaceDirOf(ctx, repo), LABEL_COLORS_LEGACY_REL_PATH)
 }
 
 /** 工作区键散列（日志只记散列，不记路径原文）。 */
@@ -88,17 +100,6 @@ function readFailure(why, action, detail) {
   }
 }
 
-// 顶层不是「标签与颜色的对应表」时，如实说清「这次读到的到底是什么」。
-// 为什么不用 typeof 直接吐类型名：用户看到「string」不知道说的是文件里哪一截，所以换成大白话。
-function describeContent(parsed) {
-  if (Array.isArray(parsed)) return '一个清单'
-  if (parsed === null) return '空白（文件里什么都没有）'
-  if (typeof parsed === 'number') return '一个数字'
-  if (typeof parsed === 'boolean') return '真假值（true 或 false）'
-  if (typeof parsed === 'string') return '直接是一段文字，不是标签与颜色的对应表'
-  return '一个分组'
-}
-
 /** 「文件确实不在」的判据：只有它才允许按「还没有这份文件」处理。
  *  为什么定得这么窄：其余任何读探测失败（权限、被占用、位置被换成目录、磁盘故障）都不能证明文件不存在，
  *  照「没有这份文件」处理的话，下一步的放置就会用默认 11 色把用户手写的内容整份覆盖掉——那是真实的数据丢失
@@ -114,73 +115,77 @@ export function isMissingFile(e) {
 }
 
 /** 读配色文件。
- *  返回 {ok:true, colors, raw, present} 或 {ok:false, error}。
+ *  返回 {ok:true, colors, raw, present, from, readonly} 或 {ok:false, error}。
  *    colors —— 标签名 → 颜色（不带井号的小写六位；空串 = 文件里写了但还没配颜色，或写了个不合法的颜色）
- *    raw    —— 文件里原本的那份对象（保存时要按原样保留用户自己写的其它行与写法）
+ *    raw    —— 文件里原本的标签表（保存时按它合并：用户写的含义说明与写法都保留；版本号不进这里）
  *    present—— 文件确确实实不在（只有明确的「不在」才是 false；读不出来是另一档，见下）
+ *    from   —— 这次读到的是新文件（yaml）还是老文件（json）；present 为 false 时是 'none'
+ *    readonly —— 文件版本比核认识的新：可以展示，不许写（写入口据此拒绝，防止旧版本抹掉新字段）
+ *  新老并存时以新为准；只有老文件时照读（由放置与保存迁走，见 ensureLabelColors）。
  *  不存在与读不出来是两件事：不存在不算错（新工作区还没建过这份文件，用内置默认色就够，也可以放置一份）；
- *  读不出来（权限、被占用、位置被换成目录、内容不是合法 JSON）一律 {ok:false}，调用方据此拒绝写入。
+ *  读不出来（权限、被占用、位置被换成目录、内容不合法）一律 {ok:false}，调用方据此拒绝写入。
+ *  文本到形状的翻译在 label-colors-codec.js（调核），这里只管按路径拿文本、分新老、记日志。
  *  没有文件服务时按「文件确确实实不在」处理：这与本房间既有的读辅助件（readDir 返回空表、exists 返回 false）
  *  是同一套约定，契约测试也是在没有文件服务的上下文里调这个后端的。 */
 export async function readLabelColors(ctx, repo) {
   const path = labelColorsPath(ctx, repo)
+  const legacyPath = legacyLabelColorsPath(ctx, repo)
   const where = () => hash8(workspaceWriteKey(ctx, repo))
   if (!getFs(ctx)) {
     logRead(ctx, () => ({ cwdHash: where(), present: false, count: 0, ok: true }))
-    return { ok: true, colors: {}, raw: {}, present: false }
+    return { ok: true, colors: {}, raw: {}, present: false, from: 'none', readonly: false }
   }
-  let text = ''
-  try { text = await readTextFile(ctx, path) } catch (e) {
+  // 先读新文件：只有「确实不在」才去读老文件；新文件在但读动作出错，不拿老文件顶（会掩盖这次的错）。
+  let yamlText = null
+  let yamlError = null
+  try { yamlText = await readTextFile(ctx, path) } catch (e) {
+    if (isMissingFile(e)) yamlText = null
+    else yamlError = e
+  }
+  if (yamlError !== null) {
+    logRead(ctx, () => ({ cwdHash: where(), present: true, count: 0, ok: false, reason: 'read-fail' }))
+    // 这一档只接「读这个动作本身出错」（明确的「文件不在」在上一支就走开了），所以不列举「可能是文件不在」
+    // 这类不成立的猜测；也不把责任写成用户的动作——只如实说插件没读到，再给出两条能查的方向。
+    return readFailure(
+      '插件按这个位置去读，读这个文件这一步出错了（不是文件里的内容不合法）。可能是当前账号读不到它，也可能是它正被别的程序占用；插件分不出是哪一种',
+      '请检查这个文件当前账号能不能读取、有没有别的程序正打开着它，然后重新保存。',
+      '错误原文 ' + String((yamlError && yamlError.message) || yamlError).slice(0, 120))
+  }
+  if (typeof yamlText === 'string') return finishLabelsRead(ctx, where, yamlText, 'yaml')
+  // 新文件确实不在：读老文件（兼容；读到就由放置与保存迁走）。
+  let jsonText = null
+  try { jsonText = await readTextFile(ctx, legacyPath) } catch (e) {
     if (isMissingFile(e)) {
       logRead(ctx, () => ({ cwdHash: where(), present: false, count: 0, ok: true }))
-      return { ok: true, colors: {}, raw: {}, present: false }
+      return { ok: true, colors: {}, raw: {}, present: false, from: 'none', readonly: false }
     }
     logRead(ctx, () => ({ cwdHash: where(), present: true, count: 0, ok: false, reason: 'read-fail' }))
-    // 这一档只接「读这个动作本身出错」（明确的「文件不在」在上一支就返回了），所以不列举「可能是文件不在」
-    // 这类不成立的猜测；也不把责任写成用户的动作——只如实说插件没读到，再给出两条能查的方向。
     return readFailure(
       '插件按这个位置去读，读这个文件这一步出错了（不是文件里的内容不合法）。可能是当前账号读不到它，也可能是它正被别的程序占用；插件分不出是哪一种',
       '请检查这个文件当前账号能不能读取、有没有别的程序正打开着它，然后重新保存。',
       '错误原文 ' + String((e && e.message) || e).slice(0, 120))
   }
-  let parsed = null
-  try { parsed = JSON.parse(String(text || '')) } catch (e) {
-    logRead(ctx, () => ({ cwdHash: where(), present: true, count: 0, ok: false, reason: 'not-json' }))
-    return readFailure(
-      '这个文件里的内容不是合法的文字格式。这一档只可能是内容本身写坏了，与权限、被别的程序占用都无关',
-      '请手工把内容改成「标签名 → 颜色」的写法、每个标签一行，例如 "bug": "d73a4a"，然后重新保存。')
+  return finishLabelsRead(ctx, where, jsonText, 'json')
+}
+
+/** 文本读到之后：翻译、记日志、装成房间形状。from 告诉调用方这次读的是哪个文件。 */
+function finishLabelsRead(ctx, where, text, from) {
+  const decoded = decodeLabelsText(text)
+  if (!decoded.ok) {
+    logRead(ctx, () => ({ cwdHash: where(), present: true, count: 0, ok: false, reason: decoded.reason }))
+    return readFailure(decoded.why, decoded.action, decoded.detail)
   }
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    logRead(ctx, () => ({ cwdHash: where(), present: true, count: 0, ok: false, reason: 'not-object' }))
-    return readFailure(
-      '这个文件里现在放的不是「标签名 → 颜色」的对应表（本次读到的是' + describeContent(parsed) + '）',
-      '请把这个文件改成一个标签与颜色的对应表：每个标签写一行，例如 "bug": "d73a4a"，然后重新保存。')
-  }
-  const colors = {}
-  for (const name of Object.keys(parsed)) {
-    const value = parsed[name]
-    let colorText = ''
-    if (typeof value === 'string') colorText = value
-    else if (value && typeof value === 'object' && !Array.isArray(value) && typeof value.color === 'string') colorText = value.color
-    else {
-      logRead(ctx, () => ({ cwdHash: where(), present: true, count: Object.keys(parsed).length, ok: false, reason: 'bad-entry' }))
-      return readFailure(
-        '标签「' + name + '」的颜色写法不对，这个位置只能写两种样子：直接写颜色，例如 "8b5cf6"；或者写成 {"color": "8b5cf6", "description": "地图票"}',
-        '请照着上面两种样子中的一种改好这个标签的颜色，然后重新保存。')
-    }
-    // 颜色写错了不算文件坏掉：按「还没配颜色」处理（界面显示为灰），用户改回来就能恢复。
-    colors[name] = normalizeColor(colorText) || ''
-  }
-  logRead(ctx, () => ({ cwdHash: where(), present: true, count: Object.keys(colors).length, ok: true }))
-  return { ok: true, colors: colors, raw: parsed, present: true }
+  logRead(ctx, () => ({ cwdHash: where(), present: true, count: Object.keys(decoded.colors).length, ok: true }))
+  return { ok: true, colors: decoded.colors, raw: decoded.raw, present: true, from, readonly: decoded.readonly }
 }
 
 // ── 写 ────────────────────────────────────────────────────────────────────────
 
-/** 默认文件内容：内置默认的那些标签，颜色按内置表预填。
- *  形状与用户手写的形状一致（一个 JSON 对象，键是标签名、值是颜色），方便人直接看懂、直接改。 */
+/** 默认文件内容（YAML 文本）：内置默认的那些标签，颜色按内置表预填。
+ *  形状与用户手写的形状一致（键是标签名、值是颜色），方便人直接看懂、直接改。 */
 export function defaultLabelColorsText() {
-  return JSON.stringify(defaultLabelColors(), null, 2) + '\n'
+  const made = encodeLabelsTable(defaultLabelColors())
+  return made.ok ? made.text : ''
 }
 
 // 单写者队列住在 write-queue.js（withWorkspaceWriter）：同一个工作区的读—改—写排成一条链，
@@ -216,59 +221,16 @@ async function publishAtomically(ctx, targetPath, text) {
   return 'rename'
 }
 
-/** 写失败分档（按「研究：宿主往用户工作区写文件的边界与失败语义」#614 的结论）：
- *  沙箱拒绝必须能单独辨认——那是插件自己的限制，不是用户的文件权限问题（不许说成「目录不可写」）；
- *  其余按路径类 / 占用类 / 只读类 / 空间类给不同的说法；分不出来时归环境档但不说成权限问题。 */
-export function describeWriteFailure(err) {
-  const message = String((err && err.message) || err || '')
-  const code = String((err && (err.code || err.kind)) || '')
-  if (err && err.readBackMismatch === true) {
-    // 这一档能确定的只有「这次没写成功或没写全」，所以动作要带用户把最后一条退路走完：
-    // 核对下来内容不对就手动补改，否则再重试一次只会拿到同一句话。
-    return { kind: ERROR_KIND.ENV, message: '保存失败：写完之后重新读这个文件，读到的内容与刚写进去的不一致，因此不能确认标签颜色已经保存。请打开工作区里的标签配色文件（' + LABEL_COLORS_REL_PATH + '）核对内容：如果里面写的不是你想保存的那份颜色，请手动改成你想保存的颜色，然后重新保存。' }
-  }
-  if (code === 'FS_SANDBOX_DENIED' || /file access denied|workspace-write|read-only mode/i.test(message)) {
-    return { kind: ERROR_KIND.ENV, message: '保存失败：插件没有被允许往当前工作区里写标签配色文件（' + LABEL_COLORS_REL_PATH + '），这个限制来自插件自己这一侧，不是你的文件权限问题，修改文件或文件夹的权限不会有帮助。请换一个允许写入的工作区，然后重试。' }
-  }
-  if (/ENOSPC/.test(message) || code === 'ENOSPC') {
-    return { kind: ERROR_KIND.ENV, message: '保存失败：磁盘空间不足，标签颜色没有写进标签配色文件（' + LABEL_COLORS_REL_PATH + '）。请腾出磁盘空间，然后重试；这个标签配色文件没有被改动。' }
-  }
-  // EPERM / EACCES 在「临时文件 + 改名」这种发布方式下原因不止一种（研究 #614 实测：只读、被别的程序
-  // 占用、目标位置被换成目录，三种都会走到改名这一步并抛同一个 EPERM），所以这里不断言单一原因，
-  // 把三种可能一并说清，每种都给一句「怎么做能解决」。
-  if (/EACCES|EPERM/.test(message) || code === 'EACCES' || code === 'EPERM' || code === 'FS_NOT_REGULAR_FILE') {
-    return {
-      kind: ERROR_KIND.ENV,
-      message: '保存失败：写不进工作区里的标签配色文件（' + LABEL_COLORS_REL_PATH + '）。下面三种情形插件分不出是哪一种，请按实际看到的情况处理：' +
-        '① 工作区里的标签配色文件（' + LABEL_COLORS_REL_PATH + '）正被其它程序占用（编辑器、同步盘、杀毒软件都常见），请关掉那个程序后重试；' +
-        '② 工作区里的标签配色文件（' + LABEL_COLORS_REL_PATH + '）或它所在的目录是只读的，请去掉只读属性后重试；' +
-        '③ 工作区里的标签配色文件（' + LABEL_COLORS_REL_PATH + '）这个位置现在是一份目录、不是文件，请删掉这份目录、把这个文件恢复成一份文件，然后重试。' +
-        '这个标签配色文件没有被改动，可以重试。',
-    }
-  }
-  // 位置不存在与位置是目录这两种情形，要办的事正好相反（一个要建、一个要删），
-  // 所以拆成两条各自能照做的说法，并且都写明是在哪一份文件上做；插件认不出是哪一种，照实说。
-  if (/ENOENT/.test(message) || code === 'ENOENT' || code === 'EISDIR' || code === 'FS_NOT_FOUND') {
-    return {
-      kind: ERROR_KIND.ENV,
-      message: '保存失败：写不进工作区里的标签配色文件（' + LABEL_COLORS_REL_PATH + '）。写不进的情形有两种，插件分不出是哪一种，请按实际看到的情况处理：' +
-        '① 这个位置上的文件不存在：请在工作区里新建这份标签配色文件（' + LABEL_COLORS_REL_PATH + '），它上一层的 docs/agents/ 目录还没有的话，先把这层目录一并建出来，然后重试；' +
-        '② 这个位置现在是一份目录、不是文件：请先删掉这份目录，再在工作区里新建这份标签配色文件（' + LABEL_COLORS_REL_PATH + '），然后重试。' +
-        '这两种情形下这个标签配色文件都没有被改动。',
-    }
-  }
-  // 认不出来的一律归环境档，并说清责任在插件这边（错误原文不进给用户的文案：
-  // 原子写失败时错误里的路径是临时文件名，用户会去找一个不存在的文件）。
-  // 「写坏的临时文件已经清掉」这句原来对所有情形都成立、其实只对「改名失败」那一支成立，所以改成
-  // 「可能留了一份写到一半的中间文件、可以直接删掉」——直写那条路上没有中间文件，两种情形都说得通。
-  return { kind: ERROR_KIND.ENV, message: '保存失败：标签颜色没有写进工作区里的标签配色文件（' + LABEL_COLORS_REL_PATH + '），插件认不出是哪一种失败原因。这个标签配色文件没有被改动。它的同一个目录里可能留了一份写到一半的中间文件，可以直接删掉，不影响这个文件。这是插件运行环境的问题，不是你的操作有误。请重试一次；如果仍然失败，请把这条提示原文报告给插件维护者。' }
-}
+/** 写失败分档住 label-colors-errors.js（调用时把文件位置递进去，房间内部不转圈引用）。
+ *  下面是原子发布、放置与写入口。 */
+import { describeWriteFailure } from './label-colors-errors.js'
 
 /** 放置配色文件（幂等）。两条路都走它：① 用户为工作区选定后端时；② 首次打开改色弹窗时。
  *  硬要求：文件已经存在时一个字都不改——先读一次，能读到就原样返回，绝不覆盖用户改过的内容。
  *  读不出来（不是「确确实实不在」）时也不动它，并如实报错：那种情况下我们并不知道文件里有什么，
  *  照默认内容写一遍就等于把用户手写的东西整份抹掉。
- *  返回 {ok:true, placed, reason} 或 {ok:false, error}。placed=true 表示这次真的新建了一份。 */
+ *  只有老文件时顺手迁进新文件（写法与说明都保留），写成功后删老文件——下次读到的就是新文件。
+ *  返回 {ok:true, placed, reason} 或 {ok:false, error}。placed=true 表示这次真的新建或迁移了一份。 */
 export async function ensureLabelColors(ctx, repo) {
   return await withWorkspaceWriter(ctx, repo, async () => {
     const read = await readLabelColors(ctx, repo)
@@ -277,14 +239,40 @@ export async function ensureLabelColors(ctx, repo) {
       logWrite(ctx, { cwdHash: hash8(workspaceWriteKey(ctx, repo)), count: 0, ok: false, reason: 'refused-read-fail' })
       return read
     }
-    if (read.present) return { ok: true, placed: false, reason: 'exists' }
+    if (read.present) {
+      // 新版本只读文件不动它：版本号比核认识的新，迁移也不许抹字段，等用户升级插件。
+      if (read.from === 'json' && read.readonly !== true) {
+        try {
+          await publishLabelColors(ctx, repo, read.raw, 'migrated')
+        } catch (e) {
+          return { ok: false, error: describeWriteFailure(e, LABEL_COLORS_REL_PATH) }
+        }
+        if (!(await removeLegacyLabelsFile(ctx, repo))) {
+          logWrite(ctx, { cwdHash: hash8(workspaceWriteKey(ctx, repo)), count: Object.keys(read.colors).length, ok: true, reason: 'migrate-legacy-kept' })
+        }
+        return { ok: true, placed: true, reason: 'migrated', from: 'yaml' }
+      }
+      return { ok: true, placed: false, reason: 'exists', from: read.from || 'yaml' }
+    }
     try {
       await publishLabelColors(ctx, repo, defaultLabelColors(), 'placed')
     } catch (e) {
-      return { ok: false, error: describeWriteFailure(e) }
+      return { ok: false, error: describeWriteFailure(e, LABEL_COLORS_REL_PATH) }
     }
-    return { ok: true, placed: true, reason: 'created' }
+    return { ok: true, placed: true, reason: 'created', from: 'yaml' }
   })
+}
+
+/** 删老文件（迁移成功后顺手做）：删不掉返回 false，调用方记一条日志，主流程不受影响。 */
+async function removeLegacyLabelsFile(ctx, repo) {
+  try {
+    const fs = getFs(ctx)
+    if (!fs || typeof fs.rm !== 'function') return false
+    await fs.rm(getPlat(ctx).join(workspaceDirOf(ctx, repo), LABEL_COLORS_LEGACY_REL_PATH), { force: true })
+    return true
+  } catch (e) {
+    return isMissingFile(e)
+  }
 }
 
 /** 默认文件内容里那份「标签 → 颜色」对象（表与颜色都来自 label-colors-palette.js 注入的那份表）。 */
@@ -292,12 +280,20 @@ function defaultLabelColors() {
   return builtinColorObject()
 }
 
-/** 把一份新的标签 → 颜色对象发布进文件（整份覆盖，原子写），写成功后记一条常驻日志。
+/** 把一份新的标签 → 颜色对象发布进文件（整份覆盖，原子写，YAML 格式），写成功后记一条常驻日志。
  *  保存成功后回读比对（研究 #614 §3.3 点名要做的事）：只写不校验的话，被别的进程覆盖或这次写其实
  *  没落盘时，用户会看到「保存成功、颜色却没变」而没有任何线索。回读不一致就如实报错，不静默当成功。
+ *  写成功后顺手删老文件（删不掉只记一条日志，主流程不受影响）。
  *  返回 'rename' 或 'write-text'（走了哪条发布路径，给日志与门禁用）；失败抛错，由调用方分档。 */
 export async function publishLabelColors(ctx, repo, next, reason) {
-  const text = JSON.stringify(next, null, 2) + '\n'
+  const made = encodeLabelsTable(next)
+  if (!made.ok) {
+    const err = new Error(made.message)
+    err.encodeFailed = true
+    logWrite(ctx, { cwdHash: hash8(workspaceWriteKey(ctx, repo)), count: 0, ok: false, reason: 'write-fail' })
+    throw err
+  }
+  const text = made.text
   const key = workspaceWriteKey(ctx, repo)
   const count = Object.keys(next).length
   let via = ''
@@ -309,11 +305,17 @@ export async function publishLabelColors(ctx, repo, next, reason) {
       err.readBackMismatch = true
       throw err
     }
+    if (!(await removeLegacyLabelsFile(ctx, repo))) {
+      logWrite(ctx, { cwdHash: hash8(key), count: count, ok: true, reason: 'migrate-legacy-kept' })
+    }
   } catch (e) {
+    // 拼装失败那支上面已经记过日志，直接透出去，不记第二次。
+    if (e && e.encodeFailed === true) throw e
     logWrite(ctx, { cwdHash: hash8(key), count: count, ok: false, reason: 'write-fail' })
     throw e
   }
-  logWrite(ctx, { cwdHash: hash8(key), count: count, ok: true, reason: reason === 'placed' ? 'placed' : 'saved', via: via })
+  const loggedReason = reason === 'placed' ? 'placed' : (reason === 'migrated' ? 'migrated' : 'saved')
+  logWrite(ctx, { cwdHash: hash8(key), count: count, ok: true, reason: loggedReason, via: via })
   return via
 }
 
@@ -324,5 +326,5 @@ export function withLabelColorsWriter(ctx, repo, work) {
 }
 
 
-export default { LABEL_COLORS_REL_PATH, labelColorsPath, readLabelColors, ensureLabelColors, publishLabelColors, describeWriteFailure, isMissingFile, withLabelColorsWriter, defaultLabelColorsText }
+export default { LABEL_COLORS_REL_PATH, LABEL_COLORS_LEGACY_REL_PATH, labelColorsPath, legacyLabelColorsPath, readLabelColors, ensureLabelColors, publishLabelColors, describeWriteFailure, isMissingFile, withLabelColorsWriter, defaultLabelColorsText }
 
