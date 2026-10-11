@@ -127,9 +127,9 @@ export function createWorkspaceCwd(deps) {
   async function handleListLabels(args) { const p = await labelColorsPhones(); return p.handleListLabels(args) }
   async function handleSetLabelColors(args) { const p = await labelColorsPhones(); return p.handleSetLabelColors(args) }
   function msgOf(e) { return String((e && e.message) || e) }
-  // #957 首绑落盘：用户亲手选定的这一下，顺手在工作区里存一份默认后端（幂等：文件已在就一个字都不改）。
-  //   只记人选：入参是空（显式无后端逃生舱）不写；文件已在（能读出后端）不覆盖——之后个人切换只写本机记忆 H，工作区默认值保持第一次那个。
-  //   写走正规文件通道加本次写许可（与配色文件同一条路：platform.fs + 按会话算的政策）；失败不回滚绑定与 H，但如实放进回包（workspaceFile 一项）。
+  // #1003 唯一写入口：用户在任何能选后端的地方点确认，都走这一处写工作区文件（后端、时间、来源）。
+  //   旧规则“文件已在就不覆盖”已废：唯一真源意味着用户明确选择时必须能覆盖它，否则换后端永远换不动。
+  //   只记人选：入参是空（显式无后端逃生舱）不写；写走正规文件通道加本次写许可；失败不回滚绑定与 H，但如实放进回包。
   async function writeWorkspaceFileOnFirstBind(cwd, backendId, args) {
     if (!backendId || typeof backendId !== 'string' || backendId.trim() === '') return { ok: true, skipped: 'explicit-none' }
     try {
@@ -142,11 +142,12 @@ export function createWorkspaceCwd(deps) {
       fsSvc = (platform && platform.fs) || null
       if (!fsSvc && ctx && typeof ctx.get === 'function') { try { fsSvc = ctx.get('fs') } catch (eG) { fsSvc = null } }
       if (!fsSvc || typeof fsSvc.resolve !== 'function' || typeof fsSvc.readText !== 'function' || typeof fsSvc.writeText !== 'function') return { ok: false, error: { kind: 'env', message: '首选后端已记下，但工作区配置文件没能存进工作区（这次没拿到可用的文件通道）。绑定与本机记忆不受影响，仍按这次选定的后端走。' } }
+      let existed = false;
       try {
         const target = await fsSvc.resolve(WORKSPACE_FILE_REL, { cwd: cwd })
         const txt = await fsSvc.readText(target)
         const parsed = parseWorkspaceFile(txt)
-        if (parsed && typeof parsed.backendId === 'string' && parsed.backendId) return { ok: true, placed: false, reason: 'exists' }
+        if (parsed && typeof parsed.backendId === 'string' && parsed.backendId) existed = true;
       } catch (eR) {}
       const text = stringifyWorkspaceFile({ backendId: backendId, pickedAt: Date.now(), source: 'user' })
       const sb = resolveSandboxPolicy(args, cwd)
@@ -156,7 +157,7 @@ export function createWorkspaceCwd(deps) {
         if (platPath && typeof platPath.dirname === 'function' && typeof fsSvc.mkdir === 'function') { try { await fsSvc.mkdir(platPath.dirname(target2), { recursive: true }) } catch (eM) {} }
       } catch (eD) {}
       await fsSvc.writeText(target2, text, undefined, undefined, sb.policy)
-      return { ok: true, placed: true, reason: 'created' }
+      return { ok: true, placed: true, reason: existed ? 'overwritten' : 'created' }
     } catch (eW) { return { ok: false, error: { kind: 'env', message: '首选后端已记下，但工作区配置文件没能存进工作区（' + msgOf(eW).slice(0, 120) + '）。绑定与本机记忆不受影响，仍按这次选定的后端走。' } } }
   }
   function opCtxFor(cwd, platform, repoRef, caller, signal, sandboxPolicy, sessionId) {

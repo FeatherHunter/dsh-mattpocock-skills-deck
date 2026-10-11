@@ -56,9 +56,28 @@ export function createWorkspaceLabelColors(deps) {
     return (sel && sel.backendId) ? [sel.backendId] : []
   }
   async function pickBackend(cwd, caller, signal, declared) {
+    // #1003 空目录闸：还不知道工作区是哪条时，不探测、不起外部命令，直接说还没就绪。
+    if (!cwd || String(cwd).trim() === '') {
+      return { ok: false, error: { kind: 'conflict', message: UNDECIDED + '（这个工作区还没就绪，等面板认出工作区后再试）' } };
+    }
     const reg = await getTrackerRegistry()
     if (!reg) return { ok: false, error: { kind: 'env', message: '插件尚未就绪：还没有可用的后端清单，请稍后重试。这是插件运行环境的问题，不是你的操作有误。' } }
     const platform = await getPlatform()
+    // #1003 收敛：先问统一判定（内存 → 文件 → 声明 → 记忆，不含自动识别），只放声明文件的工作区在此即有答案，
+    //   与面板那条链同答案，不再掉进下面那条只认自动识别的短链。
+    try {
+      const { decideBackend } = await import('./tracker/detection/backendDecision.js');
+      const unified = await decideBackend(cwd, { registry: reg, platform, fs: ctx.get('fs'), caller, signal, skipAutodetect: true });
+      if (unified && unified.backendId) {
+        const trackerU = reg.get(unified.backendId);
+        if (trackerU) {
+          let refU = null;
+          try { refU = reg.describe({ cwd }, unified.backendId); } catch (e) { refU = { backend: unified.backendId, refId: '', name: '', url: '' }; }
+          // 客户端带了它面板上那一个且与统一答案一致时，沿用原核验语义直接用；不一致时以统一答案为准。
+          return { ok: true, backendId: unified.backendId, repoRef: refU, tracker: trackerU, platform };
+        }
+      }
+    } catch (eU) {}
     const sel = await reg.select({ cwd: cwd }, { cwd: cwd, platform: platform, fs: ctx.get('fs'), caller: caller, signal: signal })
     // 客户端显式声明了它面板上正在用的那个后端 → **核验**它确实在这次算出来的名单里，是就直接交给它。
     //   核验不通过的两种情况，一律照下面那条诚实的失败办（绝不退回「宿主自己挑一个」）：
@@ -119,7 +138,9 @@ export function createWorkspaceLabelColors(deps) {
   //   形状把关：后端回的 data 必须是一份清单（数组），否则算插件这边的错，不把坏形状漏给客户端。
   //   args.backendId（#631 追加，可缺）：客户端说它面板上现在用的是哪个后端；只做核验，不照单全收（见 pickBackend）。
   async function handleListLabels(args) {
-    const cwd = await normCwd((args && args.cwd) || DEFAULT_CWD)
+    // #1003 空目录不兜进程目录：没给目录就按未知走，pickBackend 会说“还没就绪”，不再拿安装目录去探测。
+    const _rawCwd = (args && typeof args.cwd === 'string' && args.cwd) ? args.cwd : '';
+    const cwd = _rawCwd ? await normCwd(_rawCwd) : '';
     const signal = new AbortController().signal
     let picked = null
     try { picked = await pickBackend(cwd, 'wf.listLabels', signal, args && args.backendId) } catch (e) { return pluginTrouble('修改标签颜色', '插件没能确定这个工作区使用哪个后端这一步出错（内部叫 pickBackend），所以没有动仓库里的任何东西。请重试一次；如果仍然失败，请把这条提示原文报告给插件维护者', msgOf(e)) }
@@ -136,7 +157,9 @@ export function createWorkspaceLabelColors(deps) {
   //   形状把关：两个名单缺一不可（缺了就是后端没按契约回话，算插件这边的错）；
   //   回包只发契约里约定的四个键（ok / backendId / applied / failed），后端多给的字段不往客户端漏。
   async function handleSetLabelColors(args) {
-    const cwd = await normCwd((args && args.cwd) || DEFAULT_CWD)
+    // #1003 空目录不兜进程目录：同上。
+    const _rawCwd2 = (args && typeof args.cwd === 'string' && args.cwd) ? args.cwd : '';
+    const cwd = _rawCwd2 ? await normCwd(_rawCwd2) : '';
     const changes = args && args.changes
     if (!Array.isArray(changes)) return { ok: false, error: { kind: 'parse', message: '修改标签颜色需要一份「标签 → 新颜色」的改动清单（内部把这个清单叫 changes），本次保存带上来的内容不是这种格式。请回到改色弹窗重新保存一次。' } }
     const signal = new AbortController().signal

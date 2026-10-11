@@ -111,6 +111,11 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
       } catch (e) {}
     }
     const cwd = (handle && handle.cwd) || ''
+    // #1003 空目录语义：拿不到目录时按未知处理——不产出“没有后端”的结论、不起任何外部命令。
+    //   调用方（面板）据此显示“工作区还没就绪”，就绪后自行恢复。
+    if (!cwd) {
+      return { handle: { cwd: '' }, selection: null, repoHandle: { cwd: '', refId: '' }, explicit: { raw: null, parsed: { explicitBackendId: null, rawHint: '', confidence: 'none', reason: 'empty-cwd' } }, preflight: null, skillProbes: null, at: Date.now(), rev: 0, fromHint: false, choiceSource: 'empty-cwd' };
+    }
     const force = !!opts.force
     const platform = getPlatform ? await getPlatform() : null
     const fs = getFs ? getFs() : (platform && platform.fs) || null

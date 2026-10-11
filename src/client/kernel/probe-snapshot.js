@@ -108,6 +108,13 @@
       //   清掉它的地方两处：回包处理完（含失败与超时）、以及迟到的回包落地时。
       try { if (!(st.selection && st.selection.backendId)) st.selPending = true } catch (ePend) {}
       const doLoad = async function () {
+        // #1003 空目录闸：还没认出工作区目录之前，不发任何会被宿主补成进程目录的取数请求。
+        //   不产出“没有后端”的结论、不在这条目录里起任何外部命令；界面保持“还没就绪”，就绪后自行恢复。
+        if (!st.cwd) {
+          try { st.selPending = false } catch (ePendEmpty) {}
+          try { st.snapLoading = false } catch (eLoadEmpty) {}
+          return Promise.resolve();
+        }
         // #370 次要观察：force 刷新时跳过 snapLoading 守卫（加载中点击「刷新」不再 no-op）
         // #669 第 5 件：在途复用（含「换过后端就不复用」「force 不复用非 force」两条判据）都判在 kernel/probe-stale.js。
         const _reuse = _snapReuseInFlight(st, force)

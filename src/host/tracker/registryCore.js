@@ -127,6 +127,12 @@ export function createRegistry(backendCtx = {}, opts = {}) {
 
     /** 同步、无副作用**之外**：仅布尔 matches 运行时调用 + 并行 allSettled + 超时 + AbortSignal。 */
     async select(handle, ctx = {}) {
+      // #1003 空目录语义：拿不到目录时按未知处理，不起任何外部命令，不产出选择。
+      //   调用方据此显示“工作区还没就绪”。集中在此一处，所有经注册表的探测共用同一道闸。
+      const _cwdEmpty = !(handle && typeof handle.cwd === 'string' && handle.cwd.trim() !== '');
+      if (_cwdEmpty) {
+        return { backendId: null, source: 'unknown', origin: 'unknown-workspace', pending: undefined };
+      }
       const k = handleKey(handle)
       const selT0 = Date.now()
       const rlog = (backendCtx && typeof backendCtx.logEvent === 'function') ? backendCtx.logEvent : null

@@ -22,8 +22,6 @@
 //   ok          这一次做成了（部分成功用 partial）；
 //   partial     一批里有的成、有的没成，逐项列出谁成了谁没成；
 //   unsupported 这件事没做成，并且如实说了为什么 —— 原因写在 reason 字段里，取值见下面 REFUSAL_REASONS。
-//               额度超顶、没有后端、后端说做不到、工具自己判不了落点，都归这一档，绝不假装成功。
-
 /** 这批工具的身份（写日志时进 host.call 的 kind 字段；不是新事件，沿用它原有的字段清单）。 */
 export const DECK_TOOL_KIND = 'deck-tool'
 /** 三态返回的取值。edges.js 的 statusOfItems 返回的就是这三个字符串（验收脚本有一条断言钉住这件事）。 */
@@ -84,7 +82,7 @@ export function limitsFromBudget(b) {
  *   readChoice 可选，读本机记忆H：(规范根) => {backendId, rev} | null（缺席跳过H层）
  *   readWorkspaceFileText 可选，读工作区文件原文：(规范根) => string | null（缺席跳过文件层）
  *   parseWorkspaceFile 可选，解析文件文本（与 readWorkspaceFileText 同给同缺）
- *   protectDoubleHit 可选，双命中保护写口：(规范根, 会话号, 本次识别结果) => {backendId} | null（缺席跳过保护）
+ *   readDeclarationId 可选，读声明文件写明的后端（#1003，缺席跳过声明层）
  */
 export function createDeckShell(deps) {
   const d = deps || {}
@@ -164,6 +162,7 @@ export function createDeckShell(deps) {
    * 保不住就照旧往下走，闸会诚实推迟——保读数永不代替裁决。
    */
   async function pickBackend(exec, s) {
+    if (!(s && typeof s.cwd === 'string' && s.cwd.trim() !== '')) return { ok: false, reason: REFUSAL_REASONS.NO_BACKEND, text: '这个工作区还没就绪（还没认出是哪个目录），等面板认出工作区后再试。' }; // #1003 空目录闸
     // 「会话 → 句柄」由接线方给（宿主知道这个工作区绑了哪个 refId / effortId）；没给时只用会话里的目录。
     const handle = (typeof d.handleFor === 'function') ? (d.handleFor(s) || { cwd: s.cwd }) : { cwd: s.cwd }
     let picked = null
@@ -171,8 +170,7 @@ export function createDeckShell(deps) {
     let sent = null
     const t0 = now()
     try { if (typeof d.ensureReading === 'function') await d.ensureReading(s.cwd, s.workspaceKey) } catch (eR) {}
-    // 显式三层（947：内存绑定 > 本机记忆H > 工作区文件）。缺席的口子跳过，未注册 id 忽略，
-    // 显式无后端（null）落到 select 由注册表诚实判。判定收在闸内：每笔照旧过闸记账，不断 758 口径。
+    // 显式四层（#1003：内存 > H > 文件 > 声明 > 自动识别；缺席跳过，未注册忽略）。
     const explicitId = async function () {
       try {
         const mem = (registry && typeof registry.bound === 'function') ? registry.bound(handle) : undefined
@@ -188,6 +186,10 @@ export function createDeckShell(deps) {
         if (typeof d.readWorkspaceFileText === 'function' && typeof d.parseWorkspaceFile === 'function') {
           const parsed = d.parseWorkspaceFile(await d.readWorkspaceFileText(s.cwd))
           if (parsed && typeof parsed.backendId === 'string' && parsed.backendId && typeof registry.has === 'function' && registry.has(parsed.backendId)) return parsed.backendId
+        }
+        if (typeof d.readDeclarationId === 'function') { // #1003 声明层：只放声明文件时工具与面板同答案
+          const did = await d.readDeclarationId(s.cwd)
+          if (typeof did === 'string' && did && typeof registry.has === 'function' && registry.has(did)) return did
         }
       } catch (eF) {}
       return null
@@ -211,9 +213,6 @@ export function createDeckShell(deps) {
       noteGate('select', 'defer', str(sent && sent.reason))
       return { ok: false, reason: REFUSAL_REASONS.GATE_DEFER, text: '这一次选后端被闸推迟了（' + str(sent && sent.detail) + '），先不做。' }
     }
-    // #957 双命中保护：无显式且双命中含 GitHub 时自动存一份默认值并照此走（缺席跳过，仍诚实报错）。
-    const _prot = (typeof d.protectDoubleHit === 'function') ? await d.protectDoubleHit(s.cwd, s.sessionId, picked).catch(function () { return null }) : null
-    if (_prot && _prot.backendId) picked = _prot
     // 仓库标识补全（#758）：匹配源常带空标识（注册表只认显式 refId），而房间读写真要它。
     // 有该能力的后端（房内 getRepoKey，三层兜底）调用方按通用形状自己补，不逐后端写分支；
     // 没有该能力的后端没有这一格，跳过，下游照旧诚实失败。补全本身也过一次闸（读探针一格）。

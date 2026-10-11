@@ -67,8 +67,9 @@ async function main() {
     const api = mkBind(dir)
     const r = await api.handleBind({ cwd: dir, backendId: 'github' })
     const obj = JSON.parse(fs.readFileSync(path.join(dir, 'docs', 'agents', 'workspace.json'), 'utf8'))
-    check(obj.backendId === 'markdown', 'B2 文件已在不覆盖（工作区默认值保持第一次那个）', JSON.stringify(obj))
-    check(r.ok === true && r.backendId === 'github' && r.workspaceFile && r.workspaceFile.placed === false, 'B2 回包说明没覆盖（placed:false），绑定仍是这次选的 github', JSON.stringify(r.workspaceFile))
+    // #1003 唯一真源：用户明确选择时必须能覆盖文件（旧“文件已在就不覆盖”已废）。
+    check(obj.backendId === 'github', 'B2 文件已在时用户新选覆盖（唯一真源可改写）', JSON.stringify(obj))
+    check(r.ok === true && r.backendId === 'github' && r.workspaceFile && r.workspaceFile.placed === true && r.workspaceFile.reason === 'overwritten', 'B2 回包说明已覆盖（placed:true, overwritten），绑定是这次选的 github', JSON.stringify(r.workspaceFile))
   }
   {
     const dir = makeTemp()
@@ -101,10 +102,9 @@ async function main() {
     const dir = makeTemp()
     const prot = mkProt(dir)
     const out = await prot(posix(dir), 's1', { backendId: 'github', source: 'matches', multiHit: ['github', 'markdown'] })
-    check(out && out.backendId === 'github', 'P1 无文件双命中含 GitHub 时照此走（github）')
-    check(out && out.source === 'auto', 'P1 回包来源如实为自动（不是人选，回包与落盘一致）', JSON.stringify(out))
-    const obj = JSON.parse(fs.readFileSync(path.join(dir, 'docs', 'agents', 'workspace.json'), 'utf8'))
-    check(obj.backendId === 'github' && obj.source === 'auto', 'P1 自动存的标记为自动（不是人选，如实）', JSON.stringify(obj))
+    // #1003 退役自动写：多命中不再自动存文件，直接返回空，由调用方如实拒绝并引导去面板选一次。
+    check(out === null, 'P1 多命中不再自动写文件（退役 auto，直接返回空）')
+    check(!fs.existsSync(path.join(dir, 'docs', 'agents', 'workspace.json')), 'P1 确实没写文件')
   }
   {
     const dir = makeTemp()
@@ -159,8 +159,9 @@ async function main() {
     const exec = { agent: { session: { id: 's', cwd: 'D:\\ws' } } }
     const pNoProt = await mkShell(doubleReg).pickBackend(exec, sOf('D:\\ws'))
     check(pNoProt.ok === false, 'S1 保护缺席时双命中照旧诚实报错（旧接线兼容）', JSON.stringify(pNoProt).slice(0, 160))
+    // #1003 退役自动写：壳不再调用保护写口（即使传了也忽略），多命中一律诚实拒绝。
     const pProt = await mkShell(doubleReg, { protectDoubleHit: async () => ({ backendId: 'github', source: 'auto', ref: null, pending: false }) }).pickBackend(exec, sOf('D:\\ws'))
-    check(pProt.ok === true && pProt.backendId === 'github', 'S2 有保护写口时双命中照此走（github）', JSON.stringify(pProt).slice(0, 160))
+    check(pProt.ok === false, 'S2 保护写口已退役（传了也忽略，多命中照旧诚实报错）', JSON.stringify(pProt).slice(0, 160))
   }
 
   console.log(failed ? ('\nFAIL（' + total + ' 条）') : ('\n全部通过（' + total + ' 条）'))
