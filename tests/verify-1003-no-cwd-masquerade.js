@@ -6,8 +6,15 @@
  * 为什么单独立一扇：兜底值一旦回到「进程自己的目录」，缺目录的调用会静默落到一条真实存在的、
  * 别人的目录上——读会在错的仓库里读，写会在错的仓库里写，而且**不报错**，最难查。
  *
- * 钉一件事（跑起来看结果，不读源码文本）：凭据 git 出口（真会执行 git 的那一条）在空目录上如实失败，
- * 且一次都没有起进程；有目录时照常执行（对照）。
+ * 钉两件事（都跑起来看结果，不读源码文本）：
+ *   ① 凭据 git 出口（真会执行 git 的那一条）在空目录上如实失败，且一次都没有起进程；有目录时照常执行（对照）。
+ *   ② 真宿主入口装配出来的那几条电话：从 src/host/index.js 的 apply 起，经它注册的 RPC 路由真调两次——
+ *      后端探测（空目录时如实说「工作区还没就绪」、不产出任何后端、一次外部命令都不起）与按页取票
+ *      （空目录时如实拒绝，且起过的命令里一条都不许带真实目录）；最后给一个真目录作对照，证明功能没被关掉。
+ *
+ * 为什么第 ② 条非有不可（2026-10-12 实测）：装配时递给各模块的兜底值，只有从真入口调一次才看得见。
+ * 只给模块塞一个空串的话，把 src/host/index.js 里那一行改回进程自己的目录（也就是 #1003 的病根）
+ * 也照样全绿——那一次负控证明了这一点。
  *
  * 用法：node tests/verify-1003-no-cwd-masquerade.js
  */
@@ -44,6 +51,94 @@ console.log('== ① 凭据 git 出口：空目录如实失败，且一次都没�
   const withDir = await safe.runOnce({ args: ['status'], cwd: 'D:\\ws' })
   check(withDir && withDir.ok === true, '对照：有目录时照常执行（说明上面两条拦的就是「缺目录」，不是把功能整个关掉）')
   check(calls.length === 1 && calls[0].cwd === 'D:\\ws', '对照：这一趟确实带着那个目录起了进程 —— 实得 cwd=' + (calls[0] && calls[0].cwd))
+}
+
+console.log('')
+console.log('== ② 真宿主入口：空目录调一次后端探测，看它有没有拿进程目录顶上 ==')
+{
+  const entry = (await imp('src/host/index.js')).default
+  const spawns = []
+  const subprocess = {
+    spawn: (o) => { spawns.push({ argv: (o && o.argv) || [], cwd: o && o.cwd }); return { ok: true, stdout: '', stderr: '', code: 0, kill() {} } },
+    exec: async () => ({ ok: true, stdout: '', stderr: '', code: 0 }),
+  }
+  // 定时器给「永不触发」的桩：装配里那些重试/兜底定时器不该在门禁里真的跑起来（跑起来会挂住进程，也不确定）。
+  const timer = { setTimeout: () => 0, clearTimeout: () => {}, setInterval: () => 0, clearInterval: () => {}, now: () => Date.now() }
+  const fsStub = {
+    readText: async () => null,
+    writeText: async () => ({ ok: true }),
+    exists: async () => false,
+    mkdir: async () => ({ ok: true }),
+    resolve: (p) => p,
+    listDir: async () => [],
+    unlink: async () => ({ ok: true }),
+  }
+  // 平台服务给最小可用桩：电话们要先问出 git/gh 的可执行文件，问不出来它们会在「起命令」之前就早退，
+  // 那样就看不见「起命令时用的是哪条目录」这件事了。
+  const platformStub = {
+    resolveExecutable: async (n) => (n === 'git' ? 'C:/verify/git.exe' : (n === 'gh' ? 'C:/verify/gh.exe' : null)),
+    path: {
+      join: (...p) => p.filter(Boolean).join('/'),
+      dirname: (p) => String(p).replace(/[\\/][^\\/]*$/, ''),
+      basename: (p) => String(p).split(/[\\/]/).pop(),
+      resolve: (...p) => p.filter(Boolean).join('/'),
+      isAbsolute: (p) => /^([A-Za-z]:[\\/]|\/)/.test(String(p)),
+    },
+    fs: fsStub,
+    getHome: async () => 'C:/verify-home',
+    env: { get: () => undefined },
+    openFolder: async () => ({ ok: true }),
+  }
+  // 假连接：宿主入口把它的 RPC 路由注册到这里，我们拿着这条路由真的发一次请求。
+  const routes = []
+  const connection = { fetch: { register: (r) => { routes.push(r); return () => {} } } }
+  const stubs = { subprocess, timer, fs: fsStub, connection, platform: platformStub }
+  const ctx = { get: (n) => stubs[n], inject: () => {}, effect: () => {} }
+
+  entry.apply(ctx)
+  const t0 = Date.now()
+  while (routes.length === 0 && Date.now() - t0 < 15000) await new Promise((r) => setTimeout(r, 100))
+  check(routes.length > 0, '真宿主入口把电话路由注册出来了（注册不出来说明装配没起来，下面几条就不算数）')
+
+  const route = routes[0]
+  // 走线格式与客户端一致（src/seam/rpc.js 会把 wf. 前缀摘掉再发，所以这里发的是不带前缀的名字）。
+  // 走线格式与客户端一致（src/seam/rpc.js 会把 wf. 前缀摘掉再发，所以这里发的是不带前缀的名字）。
+  const callPhone = async (method, payload) => {
+    const req = new Request('http://verify.local/api/dsws', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ type: 'client-request', rpcId: 'verify-1003-no-cwd', payload: { method, payload } }),
+    })
+    const res = await route.fetch(req)
+    const envelope = JSON.parse(await res.text())
+    return (envelope && envelope.result) || {}
+  }
+
+  // 甲、后端探测这条电话：空目录如实说「还没就绪」。
+  const before = spawns.length
+  const empty = await callPhone('detect', { cwd: '' })
+  const emptyValue = (empty && empty.value) || {}
+  check(empty.ok === true, '空目录：宿主回了成功信封（不是「宿主整个没起来」被当成守住了）—— 实得 ' + JSON.stringify(empty).slice(0, 180))
+  check(emptyValue.workspaceNotReady === true, '空目录：如实说「工作区还没就绪」—— 实得 ' + JSON.stringify(emptyValue).slice(0, 180))
+  check(emptyValue.selection === null || emptyValue.selection === undefined, '空目录：不产出任何后端（不拿进程目录去认一个出来）—— 实得 ' + JSON.stringify(emptyValue.selection))
+  check(spawns.length === before, '空目录：一次外部命令都没起 —— 实得起了 ' + (spawns.length - before) + ' 次')
+
+  // 乙、按页取票这条电话：cwd 缺席时它会用到装配递进来的兜底值，所以它是这条不变式最灵的那一根探针。
+  //     2026-10-12 实测：把 src/host/index.js 里那一行改回进程自己的目录，这条电话会带着进程目录起命令、
+  //     并在那个目录里「读成功」（回 ok:true）——这就是「读会在错的仓库里读」。
+  const before2 = spawns.length
+  const page = await callPhone('issuesPage', {})
+  const pageValue = (page && page.value) || {}
+  const pageCwds = spawns.slice(before2).map((s) => s.cwd)
+  check(page.ok === true && pageValue.ok === false, '空目录：按页取票如实拒绝（不许产出一份「读成功」的回话）—— 实得 ' + JSON.stringify(pageValue).slice(0, 180))
+  check(pageCwds.every((c) => !c || String(c).trim() === ''), '空目录：起过的命令里没有一条带真实目录（不拿进程目录顶上）—— 实得 ' + JSON.stringify(pageCwds))
+
+  // 丙、对照：给一个真目录时照常干活。
+  const before3 = spawns.length
+  const withDir = await callPhone('detect', { cwd: ROOT })
+  const withValue = (withDir && withDir.value) || {}
+  check(withDir.ok === true && withValue.workspaceNotReady !== true, '对照：给一个真目录时它照常干活（说明上面拦的是「缺目录」，不是把功能整个关掉）')
+  check(spawns.length > before3, '对照：给真目录时确实去看了那个目录（起了外部命令）—— 实得起了 ' + (spawns.length - before3) + ' 次')
 }
 
 console.log('')
