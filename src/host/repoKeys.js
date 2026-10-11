@@ -69,6 +69,13 @@ export function createRepoKeys(deps) {
 
     async function runGh(args, cwd) {
       const ghT0 = Date.now()
+      // #1003 契约（2026-10-12 维护者拍板）：拿不到工作区目录时如实失败，不许拿进程目录顶上——
+      //   gh 命令会按工作区解析仓库身份（`gh repo view`、`gh api` 等），落到别人的目录就是在错的仓库上读或写。
+      //   这一条发生在拿名额之前，所以没有名额要还；如实回一条环境档失败，让调用方按「还没就绪」处理。
+      if (!(typeof cwd === 'string' && cwd.trim())) {
+        try { if (logCtx) logCtx.fire('warn', 'gh.exec', { argv0: 'gh', cwdHash: hash8(''), latencyMs: Date.now() - ghT0, kind: 'no-cwd', exitCode: -1 }) } catch (eL) {}
+        return { ok: false, kind: 'env', error: '这个工作区还没就绪（还没认出是哪个目录），所以这一次没有执行任何 gh 命令' }
+      }
       // #969 分档超时（读短写长探活最短）；#965 读写分桶拿名额（满了等；不传取消信号，拿不到只会等不会抛）。
       const rkBucket = isWriteGhArgs(args) ? 'write' : 'read'
       const rkTimeout = timeoutForGhArgs(args)
@@ -82,7 +89,7 @@ export function createRepoKeys(deps) {
       try {
         handle = subprocess.spawn({
           argv: [exe].concat(args),
-          cwd: cwd || DEFAULT_CWD,
+          cwd: cwd, // 走到这里 cwd 一定非空（空的那条在上面早返回了）：不再写「缺省回退兜底值」那种死写法
           stdio: { stdin: 'ignore', stdout: { maxBytes: 4 * 1024 * 1024 }, stderr: { maxBytes: 256 * 1024 } },
           graceMs: 2000,
         })
@@ -168,7 +175,9 @@ export function createRepoKeys(deps) {
       try {
         handle = subprocess.spawn({
           argv: argv,
-          cwd: cwd || DEFAULT_CWD,
+          // 这条通道也跑与工作区无关的命令（版本探测、凭据检查）：没给目录就交给宿主默认落点，
+          // 但**不写「回退兜底值」那种死写法**——兜底值已是空串，写成回退只会让后人以为这里有工作区。
+          cwd: cwd || undefined,
           stdio: { stdin: 'ignore', stdout: { maxBytes: 1024 * 1024 }, stderr: { maxBytes: 256 * 1024 } },
           graceMs: 2000,
         })

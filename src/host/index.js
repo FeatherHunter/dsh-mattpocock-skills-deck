@@ -27,9 +27,9 @@ export default {
       }
     }
     // ============ 配置 ============
-    // v1.5.0（公共发布）：兜底 gh 路径经 platform.env.get('DSH_GH_PATH')（#171 migrated，零直读 process.env）
-    // 默认工作区 = DSH 进程当前目录（可被 wf.snapshot args.cwd 覆盖；去本机硬编码）
-    const DEFAULT_CWD = (typeof process !== 'undefined' && typeof process.cwd === 'function') ? process.cwd() : ''
+    // v1.5.0（公共发布）：兜底 gh 路径经 platform.env.get('DSH_GH_PATH')（#171 migrated，零直读 process.env）。
+    // #1003（2026-10-12 维护者拍板）：这里原来是 DSH 进程的当前目录——那会把「还不知道工作区是哪条目录」冒充成一条真实存在的、别人的目录（桌面端上就是安装目录），所以改成空串：调用方拿到空目录一律如实失败，不许拿它去解析路径或起外部命令。
+    const DEFAULT_CWD = ''
     const TIMEOUT_MS = 30000
     // v1.3.3 提速：快照缓存 5s → 60s（面板打开基本命中缓存，不再每次全量重建 11 次 gh 调用）
     const CACHE_MS = 60000

@@ -190,7 +190,10 @@ export function createCredentialSafeGit(deps) {
     const exe = await resolveGitExecutable()
     if (!exe) return fail('env', '找不到 git 命令（platform.resolveExecutable("git") 没有给出路径）')
     if (typeof runGit !== 'function') return fail('env', '没有拿到共享的 git 进程出口（runGit）')
-    const cwd = (typeof req.cwd === 'string' && req.cwd) ? req.cwd : DEFAULT_CWD
+    // #1003 契约（2026-10-12 维护者拍板）：拿不到工作区目录时如实失败，不许拿进程目录顶上——
+    //   这一条会真的执行 git（凭据操作），落到别人的目录里就是在错的仓库上动手。
+    const cwd = (typeof req.cwd === 'string' && req.cwd.trim()) ? req.cwd : ''
+    if (!cwd) return fail('cwd', '这个工作区还没就绪（还没认出是哪个目录），所以这一次没有执行任何 git 命令')
     const clearHelpers = req.clearHelpers === true || (callOpts && callOpts.clearHelpers === true)
     const perOp = clamp(req.timeoutMs, budgetFor(args), MIN_BUDGET_MS, MAX_BUDGET_MS)
     const budget = Math.max(MIN_BUDGET_MS, Math.min(perOp, total))
