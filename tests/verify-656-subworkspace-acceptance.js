@@ -422,11 +422,11 @@ async function main() {
     const lc = await import(url('src/host/tracker/backends/markdown/label-colors.js'))
     const atRoot = lc.labelColorsPath({ cwd: K.sub, platform: PLATFORM }, {})
     const atSelected = lc.labelColorsPath({ cwd: normPath(RAW.sub), platform: PLATFORM }, {})
-    const want = nodePath.join(K.repo, 'docs', 'agents', 'label-colors.json')
+    const want = nodePath.join(K.repo, 'docs', 'agents', 'label-colors.yaml')
     must(atRoot === want && atSelected !== want,
-      '标签配色文件只有工作区根那一份（<工作区根>/docs/agents/label-colors.json）：子目录会话读写的都是根上那份',
+      '标签配色文件只有工作区根那一份（<工作区根>/docs/agents/label-colors.yaml）：子目录会话读写的都是根上那份',
       '按根=' + atRoot + ' 按所选目录=' + atSelected)
-    must(lc.LABEL_COLORS_REL_PATH === 'docs/agents/label-colors.json',
+    must(lc.LABEL_COLORS_REL_PATH === 'docs/agents/label-colors.yaml',
       '配色文件在工作区里的相对位置是固定的一条，不含任何「再往上找一层」的逻辑（位置只由这一条决定）',
       lc.LABEL_COLORS_REL_PATH)
   }
@@ -535,7 +535,7 @@ async function main() {
     const files = {
       '会话快照（面板数据）': ['src/host/sessionSnapshot.js', /handleSnapshot\(args\) \{[\s\S]{0,200}?const cwd = await canonicalKey\(\(args && args\.cwd\) \|\| DEFAULT_CWD\)/, /workspaceRoot: cwd/],
       '强制刷新': ['src/host/sessionRefresh.js', /const cwd = await canonicalKey\(\(args && args\.cwd\) \|\| DEFAULT_CWD\)/],
-      '后端绑定与选择': ['src/host/workspaceCwd.js', /async function normCwd\(raw\)\{\s*[\s\S]{0,120}?canonicalKey/, /async function handleBind\(args\) \{\s*[\s\S]{0,120}?canonicalKey/],
+      '后端绑定与选择': ['src/host/workspaceCwd.js', /async function normCwd\(raw\)\{\s*[\s\S]{0,120}?canonicalKey/, /async function handleBind\(args\) \{[\s\S]{0,300}?canonicalKey/, /还没就绪/],
       '交接文档落点': ['src/host/handoffClaim.js', /normCwd\(\(args && args\.cwd\) \|\| DEFAULT_CWD\)/],
     }
     for (const label of Object.keys(files)) {

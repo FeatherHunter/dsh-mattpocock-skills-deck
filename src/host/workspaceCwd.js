@@ -39,7 +39,9 @@ export function createWorkspaceCwd(deps) {
     }
   }
   async function handleBind(args) {
-    const cwd = await canonicalKey((args && args.cwd) || DEFAULT_CWD)
+    // #1003 空目录闸：还没认出工作区是哪条时，不拿进程目录冒充去绑定写文件，直接说还没就绪。
+    if (!args || typeof args.cwd !== 'string' || !args.cwd.trim()) return { ok: false, error: '这个工作区还没就绪（还没认出是哪个目录），等面板认出工作区后再试。' }
+    const cwd = await canonicalKey(args.cwd)
     const backendId = args && ('backendId' in args ? args.backendId : args.backend)
     try {
       const reg = await getTrackerRegistry()
@@ -74,8 +76,15 @@ export function createWorkspaceCwd(deps) {
     }
   }
   // #683（F1 · ADR 的 R6）：卡片确认写的是「卡上当时显示的那一个」—— 同时写 H（宿主侧那份记忆）与 C（本地那份）；layout 没给就是读：新壳/新地址第一次打开时，就靠这一问知道上次选了 single 还是 multi。
+  // #1003 空目录闸：没目录时不读写布局（布局跟着工作区走，没工作区就没有布局可记）。
   async function handleSetupLayout(args) {
-    const cwd = await normCwd((args && args.cwd) || '')
+    const _rawLayoutCwd = (args && typeof args.cwd === 'string' && args.cwd.trim()) ? args.cwd : ''
+    if (!_rawLayoutCwd) {
+      const v0 = args ? args.layout : undefined
+      if (v0 == null) return { ok: true, cwd: '', layout: null, pickedAt: 0 }
+      return { ok: false, cwd: '', error: 'not-stored' }
+    }
+    const cwd = await normCwd(_rawLayoutCwd)
     const cs = (typeof getChoiceStore === 'function') ? await getChoiceStore().catch(function () { return null }) : null
     const v = args ? args.layout : undefined
     if (v == null) { const r = (cs && typeof cs.getLayout === 'function') ? await cs.getLayout(cwd).catch(function () { return null }) : null; return (r && r.found === true) ? { ok: true, cwd: cwd, layout: r.layout, pickedAt: r.pickedAt } : { ok: true, cwd: cwd, layout: null, pickedAt: 0 } }
@@ -104,14 +113,22 @@ export function createWorkspaceCwd(deps) {
       const mods = reg.modules().map(function(m){ return Object.assign({ id: m.id, label: m.label, presentation: m.presentation }, m.setupPrompt ? { setupPrompt: m.setupPrompt } : {}, m.labelPalette ? { labelPalette: m.labelPalette } : {}, m.links ? { links: m.links } : {}, m.capabilities ? { capabilities: m.capabilities } : {}, m.prompts ? { prompts: m.prompts } : {}, m.openRepository ? { openRepository: m.openRepository } : {}) })
       // #652：这一条问的是「这个工作区绑了哪个后端」，所以入参要先洗成与绑定同一把钥匙。 旧写法把 args.cwd 原样交给 reg.bound()，而 wf.bind 用的是规整后的钥匙——同一条目录两把钥匙，
       //   绑定写进一个桶、这里读另一个桶，回包一直看不到那份绑定（研究 #648 第四节的实测在案）。
-      const cwd = await normCwd((args && args.cwd) || DEFAULT_CWD)
+      // #1003 空目录闸：没目录时只回模块名单，不问绑定（没工作区就没有绑定可问，不拿进程目录冒充）。
+      const _rawRegCwd = (args && typeof args.cwd === 'string' && args.cwd.trim()) ? args.cwd : ''
+      if (!_rawRegCwd) return { ok: true, modules: mods, bound: undefined }
+      const cwd = await normCwd(_rawRegCwd)
       let bound = undefined
       try { bound = reg.bound({ cwd: cwd }) } catch {}
       return { ok: true, modules: mods, bound: bound }
     } catch (e) { return { ok: false, error: String((e && e.message) || e) } }
   }
   async function handleSelection(args) {
-    const cwd = await normCwd((args && args.cwd) || DEFAULT_CWD)
+    // #1003 空目录闸：还没认出工作区是哪条时，不拿进程目录冒充去探测，直接按未知回（界面说还没就绪）。
+    const _rawSelCwd = (args && typeof args.cwd === 'string' && args.cwd.trim()) ? args.cwd : ''
+    if (!_rawSelCwd) return { ok: true, selection: { backendId: null, source: 'unknown', origin: 'unknown-workspace', canWrite: false, reason: 'workspace-not-ready' }, repository: null }
+    const cwd = await normCwd(_rawSelCwd)
+    // #1003 老用户迁移（后台捎带，不挡回包）：文件缺席 + 记忆有 → 建一次文件，每工作区每进程只试一次。
+    try { migrateChoiceToFile(cwd, args).catch(function () {}) } catch (eMigKick) {}
     try {
       const reg = await getTrackerRegistry()
       if (!reg) return { ok: false, error: 'registry unavailable' }
@@ -130,7 +147,12 @@ export function createWorkspaceCwd(deps) {
   // #1003 唯一写入口：用户在任何能选后端的地方点确认，都走这一处写工作区文件（后端、时间、来源）。
   //   旧规则“文件已在就不覆盖”已废：唯一真源意味着用户明确选择时必须能覆盖它，否则换后端永远换不动。
   //   只记人选：入参是空（显式无后端逃生舱）不写；写走正规文件通道加本次写许可；失败不回滚绑定与 H，但如实放进回包。
-  async function writeWorkspaceFileOnFirstBind(cwd, backendId, args) {
+  //   日志沿用既有事件（不新增事件、不新增字段）：成功记常驻 host.call，失败记常驻 host.call.fail，
+  //   附录与计数由后完成方统一收口，这里只落点。
+  async function writeWorkspaceFileOnFirstBind(cwd, backendId, args, via) {
+    const _via = (via === 'migrate') ? 'migrate' : 'bind';
+    const _method = (_via === 'migrate') ? 'wf.bind.migrate' : 'wf.bind.workspaceFile';
+    const _t0 = Date.now();
     if (!backendId || typeof backendId !== 'string' || backendId.trim() === '') return { ok: true, skipped: 'explicit-none' }
     try {
       const reg = await getTrackerRegistry()
@@ -141,7 +163,10 @@ export function createWorkspaceCwd(deps) {
       const platform = await getPlatform()
       fsSvc = (platform && platform.fs) || null
       if (!fsSvc && ctx && typeof ctx.get === 'function') { try { fsSvc = ctx.get('fs') } catch (eG) { fsSvc = null } }
-      if (!fsSvc || typeof fsSvc.resolve !== 'function' || typeof fsSvc.readText !== 'function' || typeof fsSvc.writeText !== 'function') return { ok: false, error: { kind: 'env', message: '首选后端已记下，但工作区配置文件没能存进工作区（这次没拿到可用的文件通道）。绑定与本机记忆不受影响，仍按这次选定的后端走。' } }
+      if (!fsSvc || typeof fsSvc.resolve !== 'function' || typeof fsSvc.readText !== 'function' || typeof fsSvc.writeText !== 'function') {
+        try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('warn', 'host.call.fail', { method: _method, kind: 'bind', errorHash: hash8('no-fs') }) } catch (eL) {}
+        return { ok: false, error: { kind: 'env', message: '首选后端已记下，但工作区配置文件没能存进工作区（这次没拿到可用的文件通道）。绑定与本机记忆不受影响，仍按这次选定的后端走。' } }
+      }
       let existed = false;
       try {
         const target = await fsSvc.resolve(WORKSPACE_FILE_REL, { cwd: cwd })
@@ -157,8 +182,54 @@ export function createWorkspaceCwd(deps) {
         if (platPath && typeof platPath.dirname === 'function' && typeof fsSvc.mkdir === 'function') { try { await fsSvc.mkdir(platPath.dirname(target2), { recursive: true }) } catch (eM) {} }
       } catch (eD) {}
       await fsSvc.writeText(target2, text, undefined, undefined, sb.policy)
+      try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('info', 'host.call', { method: _method, latencyMs: Date.now() - _t0, ok: true, kind: 'bind' }) } catch (eL) {}
+      try { const ws = await getWorkspaceStore(); ws.invalidate({ cwd: cwd }) } catch {}
+      try { setCache({ ts: 0, snapshot: null, error: null, cwd: cwd }) } catch {}
       return { ok: true, placed: true, reason: existed ? 'overwritten' : 'created' }
-    } catch (eW) { return { ok: false, error: { kind: 'env', message: '首选后端已记下，但工作区配置文件没能存进工作区（' + msgOf(eW).slice(0, 120) + '）。绑定与本机记忆不受影响，仍按这次选定的后端走。' } } }
+    } catch (eW) {
+      try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('warn', 'host.call.fail', { method: _method, kind: 'bind', errorHash: hash8(msgOf(eW)) }) } catch (eL) {}
+      return { ok: false, error: { kind: 'env', message: '首选后端已记下，但工作区配置文件没能存进工作区（' + msgOf(eW).slice(0, 120) + '）。绑定与本机记忆不受影响，仍按这次选定的后端走。' } } }
+  }
+  // #1003 老用户迁移：文件缺席 + 本机记忆有 → 把记忆写进工作区文件，写成功才算迁移成。
+  //   人话：老工作区从没建过那份文件（本机记忆替它答了上万次），删记忆之前必须先把选择落到文件，
+  //   否则删完面板仍绿而工具全说没后端。来源先记人选（老文件只认 user/auto，migrated 等 #1012 切核后再记，
+  //   记忆里那条本来就是人选的，记 user 不撒谎）；布局那条老文件装不下，留给 #1012。
+  //   节流：每个工作区每进程只试一次（Set），不在探测热路径上试（只在选择电话里后台捎带一次，
+  //   不挡回包）；失败留痕（host.call.fail 一行）可重试（下次进程再试，Set 是进程内的）。
+  //   退役：文件一旦建好，判定天然优先读文件（统一判定文件层在记忆层之前），记忆那条自动失效；
+  //   整份记忆文件的删除等全部工作区迁完再做（choiceStore 无单条删除口，不在此动它）。
+  const migratedAttempted = new Set()
+  async function migrateChoiceToFile(cwd, args) {
+    const key = String(cwd || '')
+    if (!key || !key.trim()) return { ok: true, skipped: 'empty-cwd' }
+    if (migratedAttempted.has(key)) return { ok: true, skipped: 'already-tried' }
+    migratedAttempted.add(key)
+    try {
+      const platform = await getPlatform().catch(function () { return null })
+      const fsSvc = (platform && platform.fs) || (ctx && typeof ctx.get === 'function' ? (function () { try { return ctx.get('fs') } catch (eG) { return null } })() : null)
+      if (fsSvc && typeof fsSvc.resolve === 'function' && typeof fsSvc.readText === 'function') {
+        try {
+          const target = await fsSvc.resolve(WORKSPACE_FILE_REL, { cwd: key })
+          const txt = await fsSvc.readText(target)
+          const parsed = parseWorkspaceFile(txt)
+          if (parsed && parsed.backendId) return { ok: true, skipped: 'file-present' }
+        } catch (eR) {}
+      }
+      const cs = (typeof getChoiceStore === 'function') ? await getChoiceStore().catch(function () { return null }) : null
+      if (!cs || typeof cs.getWorkspace !== 'function') return { ok: true, skipped: 'no-store' }
+      const got = await cs.getWorkspace(key).catch(function () { return null })
+      if (!got || got.found !== true || !got.backendId || typeof got.backendId !== 'string' || !got.backendId.trim()) return { ok: true, skipped: 'no-memory' }
+      const backendId = String(got.backendId).trim()
+      try {
+        const reg = await getTrackerRegistry().catch(function () { return null })
+        if (!reg || typeof reg.has !== 'function' || !reg.has(backendId)) return { ok: true, skipped: 'unregistered' }
+      } catch (eG2) { return { ok: true, skipped: 'registry-unavailable' } }
+      const out = await writeWorkspaceFileOnFirstBind(key, backendId, args, 'migrate')
+      return out && out.ok === true ? { ok: true, migrated: true, reason: out.reason || 'created' } : { ok: false, error: (out && out.error) || { kind: 'env', message: '迁移写文件失败' } }
+    } catch (eM) {
+      try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('warn', 'host.call.fail', { method: 'wf.bind.migrate', kind: 'bind', errorHash: hash8(msgOf(eM)) }) } catch (eL) {}
+      return { ok: false, error: { kind: 'env', message: msgOf(eM).slice(0, 120) } }
+    }
   }
   function opCtxFor(cwd, platform, repoRef, caller, signal, sandboxPolicy, sessionId) {
     return {
@@ -247,5 +318,5 @@ export function createWorkspaceCwd(deps) {
     else if (res && res.ok) { if (logCtx) logCtx.fire('info', 'host.call', { method: method, latencyMs: Date.now() - t0, ok: true, kind: kind }) }
     else if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: method, kind: kind, errorHash: hash8(String((res && (res.error || res.errorKind)) || 'workspace-not-ok')) }) } catch (eL) {} }
   function loggedPhone(method, kind, fn) { return async function () { const t0 = Date.now(); try { const r = await fn.apply(null, arguments); phoneLog(method, kind, t0, r); return r } catch (e) { phoneLog(method, kind, t0, null, e); throw e } } }
-  return { normCwd: normCwd, handleBind: loggedPhone('wf.bind', 'bind', handleBind), handleSetupLayout: loggedPhone('wf.setupLayout', 'setup-layout', handleSetupLayout), handleBindings: loggedPhone('wf.bindings', 'bindings', handleBindings), handleRegistry: loggedPhone('wf.registry', 'registry', handleRegistry), handleSelection: loggedPhone('wf.selection', 'selection', handleSelection), handleListLabels: loggedPhone('wf.listLabels', 'label-colors', handleListLabels), handleSetLabelColors: loggedPhone('wf.setLabelColors', 'label-colors', handleSetLabelColors) }
+  return { normCwd: normCwd, handleBind: loggedPhone('wf.bind', 'bind', handleBind), handleSetupLayout: loggedPhone('wf.setupLayout', 'setup-layout', handleSetupLayout), handleBindings: loggedPhone('wf.bindings', 'bindings', handleBindings), handleRegistry: loggedPhone('wf.registry', 'registry', handleRegistry), handleSelection: loggedPhone('wf.selection', 'selection', handleSelection), handleListLabels: loggedPhone('wf.listLabels', 'label-colors', handleListLabels), handleSetLabelColors: loggedPhone('wf.setLabelColors', 'label-colors', handleSetLabelColors), _migrateChoiceToFile: migrateChoiceToFile }
 }

@@ -23,8 +23,17 @@ check(/hydrateFromCache\(s\)/.test(srcDock), 'hydrateFromCache 存在')
 check(/repoRoot/.test(srcDock) && /cwdBasename/.test(srcDock) || /repository/.test(srcDock), '污染判断含 repoRoot/repository')
 
 console.log('P3: host 兜底与回切保障')
-check(/const cwd = \(args && args\.cwd\) \|\| DEFAULT_CWD/.test(srcHost), 'host wf.snapshot/wf.refresh 保留 DEFAULT_CWD 兜底')
+const srcNonDecision = fs.readFileSync('src/host/commentThreads.js','utf8')
+check(/\|\| DEFAULT_CWD/.test(srcNonDecision), '非判定电话保留 DEFAULT_CWD 兜底（#1003 范围外不动，#179 回切自愈仍在）')
 check(!/bad-cwd/.test(srcHost), '无 bad-cwd（回切不再空白）')
+
+console.log('P3b: 判定链空目录不冒充（#1003）')
+const srcDecision = fs.readFileSync('src/host/tracker/detection/backendDecision.js','utf8')
+const srcShell = fs.readFileSync('src/shared/deck-tools/shell.js','utf8')
+const srcWsCwd = fs.readFileSync('src/host/workspaceCwd.js','utf8')
+check(/unknown-workspace/.test(srcDecision), '统一判定空目录按未知回')
+check(/还没就绪/.test(srcShell), '工具壳空目录说还没就绪')
+check(/还没就绪/.test(srcWsCwd), '绑定/选择空输入说还没就绪（不拿进程目录冒充）')
 
 console.log('P4: 构建产物')
 if(builtClient){ check(builtClient.includes('summaryCwd') || builtClient.includes('useSessions'), 'client.js 含 summaryCwd') } else { console.log('  SKIP client.js 未生成') }

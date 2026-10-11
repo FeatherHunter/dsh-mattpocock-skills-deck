@@ -93,8 +93,12 @@ const storeCross = makeStore(cwdDSH, snapDSH)
 newApply(storeCross, cwdDeck)
 ok(storeCross.cwd===cwdDeck, '跨 sid 切工作区亦正确')
 
-// 回切保障：host 保留兜底，客户端保证同 sid 亦触发（空 cwd 窗口极短）
-ok(/\|\| DEFAULT_CWD/.test(srcHost), 'host 保留 DEFAULT_CWD 兜底')
+// 回切保障：非判定电话保留兜底（#1003 范围外不动），判定链空目录不冒充（#1003 新纪律，见 ADR 3.3）
+ok(/\|\| DEFAULT_CWD/.test(srcHost), 'host 保留 DEFAULT_CWD 兜底（非判定电话）')
+try {
+  const srcWsCwd = fs.readFileSync('src/host/workspaceCwd.js','utf8')
+  ok(/还没就绪/.test(srcWsCwd), '判定链空目录说还没就绪（不拿进程目录冒充，#1003）')
+} catch (e) { ok(false, '读 workspaceCwd.js 失败') }
 
 // 构建产物校验（构建后才有 host.js）
 if(clientBuilt){
