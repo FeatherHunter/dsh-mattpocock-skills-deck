@@ -92,6 +92,8 @@ async function main() {
     workspaceStore: null,
     getChoiceStore: async () => ({ getWorkspace: async () => (mem || { ok: true, found: false }) }),
     logCtx: null,
+    // 测的就是出口这条路（生产由平台层递进来，这里直递同一函数）
+    decideBackend: decMod.decideBackend,
   });
 
   // —— S1：只放声明文件 ——

@@ -857,6 +857,15 @@
       "count": 1,
       "owner": "888 技能详情页落地",
       "note": "index 动态加载技能原文直读模块（装配扇入，与 detectChain.js、skillProbe.js 同一条做法）"
+    },
+    {
+      "file": "src/host/platformChannel.js",
+      "spec": "./tracker/detection/backendDecision.js",
+      "resolved": "src/host/tracker/detection/backendDecision.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1003",
+      "note": "单出口接线：平台层把统一判定函数递给探测服务（动态引入，失败回退老路）；三路改调同一出口，老短清单删除时复评本条"
     }
   ]
 }

@@ -91,7 +91,7 @@ async function isWorkspaceEmpty(cwd, platform) {
   }
 }
 
-export function createDetectionService({ registry, getPlatform, getFs, getTimers, workspaceStore, skillProbe, resolveRepoHandle, exec, getChoiceStore, logCtx } = {}) {
+export function createDetectionService({ registry, getPlatform, getFs, getTimers, workspaceStore, skillProbe, resolveRepoHandle, exec, getChoiceStore, logCtx, decideBackend } = {}) {
   const store = workspaceStore || null
   // skillProbe 为可选：未注入时返回空技能集（正交，复用 host probeSkill 旧逻辑但不在二联版强依赖）
   const probeSkills = typeof skillProbe === 'function' ? skillProbe : async () => ({ ok: true, missing: [], probes: {} })
@@ -205,19 +205,57 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
     //   ④ 客户端没报选择（新壳、清了缓存、换了访问地址）→ 也按 H 回答（跨壳、跨重启不失忆的那一半）。
     //   文件坏的那一轮（R5c）既不采纳 hint、也不写；用户当场点确认的那一通走的是 wf.bind（它先把 H 推到
     //   H.rev+1 再回包），所以下一轮它的 baseRev 与 H.rev 必然相等 —— 当场那一下永远赢，不必在这条路上特判。
+    // #1003 单出口：调用方经平台层把统一判定函数递进来时，选择整段交出去（内存绑定→文件→声明→记忆→自动识别，
+    //   同 backendDecision 一处顺序）；没递时走下面老路（存量测试与兜底二联指它）。老路删除时连同本注释一起删。
+    const useOutlet = (typeof decideBackend === 'function') ? decideBackend : null
     const hintUsable = !!(opts.hintBackendId && registry && typeof registry.has === 'function' && registry.has(opts.hintBackendId))
     const hintRev = (Number.isInteger(opts.baseRev) && opts.baseRev > 0) ? opts.baseRev : 0
     let choiceRev = 0
     let choiceFromHint = false
     let choiceSource = ''
-    {
-      const h = await readChoiceNow()
+    if (useOutlet) {
+      // 出口直调：自动识别沿用本轮执行器（含调用方包过的那一层、超时与中止信号），行为与老 matches 块一致。
+      const autoHook = async function (h, c) {
+        const opCtx = buildOpContextBase(cwd, platform, fs, timers, execForThisRound, 'detect-select')
+        if (opts.signal) opCtx.signal = opts.signal
+        opCtx.caller = 'detection-service'
+        return registry.select(h, Object.assign({}, opCtx, { caller: (c && c.caller) || 'detection-service' }))
+      }
+      const o = await useOutlet(cwd, {
+        registry: registry, platform: platform, fs: fs, caller: 'detection-service',
+        signal: opts.signal, getChoiceStore: getChoiceStore, autodetect: autoHook,
+      }).catch(function () { return null })
+      const describeOf = function (id) { try { return registry.describe(handle, id) } catch (e) { return null } }
+      // 出口抛错（o 为空）时不丢级联已读到的答案；有答案时以出口为准（顺序与级联一致，不会打架）。
+      if (o && o.backendId) {
+        selection = { backendId: o.backendId, source: o.source || 'explicit', ref: (o.ref || describeOf(o.backendId)) }
+        if (o.multiHit) selection.multiHit = o.multiHit
+        if (o.pending) selection.pending = o.pending
+        if (o.origin === 'migrated-memory') {
+          try {
+            const h = await readChoiceNow()
+            if (h && h.found) { selection.rev = h.rev; selection.pickedAt = h.pickedAt; choiceRev = h.rev }
+          } catch (eH) {}
+        }
+        choiceSource = (o.origin || '')
+      } else if (!selection) {
+        if (o && o.pending) {
+          selection = { backendId: null, source: 'fallback', pending: true }
+          choiceSource = (o.origin || 'pending')
+        } else {
+          selection = { backendId: null, source: 'fallback' }
+          choiceSource = (o && o.origin) || 'none'
+        }
+      }
+    }
+    if (!useOutlet) {
       const describeOf = function (id) { try { return registry.describe(handle, id) } catch (e) { return null } }
       const fromH = function () {
         selection = { backendId: h.backendId, source: 'explicit', ref: describeOf(h.backendId), rev: h.rev, pickedAt: h.pickedAt }
         choiceRev = h.rev
         choiceSource = h.reason || 'h'
       }
+      const h = await readChoiceNow()
       if (h.unreadable) {
         // R5c：文件存在但读不出来/形状不对 → 这一轮既不采纳 hint、也不往里写（半截文件不许把浏览器里那份
         //   可能更旧的选择重新灌进来并永久化）。选择保持锚文件读出来的那一份。
@@ -226,7 +264,9 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
         // 档三：客户端手里那份比宿主记的旧（含没带版本位）→ 按 H 回答。
         //   ADR 的 R11 那条「被更旧的 hint 顶回」：用户报「刚选完又变回去了」时，这是唯一的轨迹。
         try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'choiceStore.hint.reject', { keyHash: hash8(cwd), baseRev: hintRev, rev: h.rev }) } catch (eL) {}
-        fromH()
+        selection = { backendId: h.backendId, source: 'explicit', ref: describeOf(h.backendId), rev: h.rev, pickedAt: h.pickedAt }
+        choiceRev = h.rev
+        choiceSource = h.reason || 'h'
       } else if (hintUsable) {
         // 档二（以及档一）：采纳用户报上来的这一条
         let ref = null
@@ -246,12 +286,15 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
           } catch (eMig) {}
         }
       } else if (h.found) {
-        fromH() // 档四：客户端没报选择 → 按 H 回答
+        selection = { backendId: h.backendId, source: 'explicit', ref: describeOf(h.backendId), rev: h.rev, pickedAt: h.pickedAt }
+        choiceRev = h.rev
+        choiceSource = h.reason || 'h'
       }
     }
 
     // ③ matches > fallback（经 registry.select，含 pending/multiHit + 超时 3000ms + AbortSignal）
-    if (!selection) {
+    //   单出口已含自动识别层，本块只在老路且前两层都没答案时跑。
+    if (!selection && !useOutlet) {
       const opCtx = buildOpContextBase(cwd, platform, fs, timers, execForThisRound, 'detect-select')
       // 若调用方传 signal，可在此注入 opCtx.signal = opts.signal（registry withTimeout 内部会合并）
       if (opts.signal) opCtx.signal = opts.signal
