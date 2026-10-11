@@ -63,19 +63,43 @@ export function createWorkspaceLabelColors(deps) {
     const reg = await getTrackerRegistry()
     if (!reg) return { ok: false, error: { kind: 'env', message: '插件尚未就绪：还没有可用的后端清单，请稍后重试。这是插件运行环境的问题，不是你的操作有误。' } }
     const platform = await getPlatform()
-    // #1003 收敛：先问统一判定（内存 → 文件 → 声明 → 记忆，不含自动识别），只放声明文件的工作区在此即有答案，
-    //   与面板那条链同答案，不再掉进下面那条只认自动识别的短链。
+    // #1003 收敛：先看内存绑定、工作区文件、声明文件（不含自动识别），只放声明文件的工作区在此即有答案。
+    //   与面板那条链同答案，不再掉进下面那条只认自动识别的短链。本文件不引用判定服务（同层门禁），
+    //   读与判 inline：文件解析走共享层纯函数，声明只看高置信标题行（旧文档无标题的低兜底仍走探测器那条路）。
     try {
-      const { decideBackend } = await import('./tracker/detection/backendDecision.js');
-      const unified = await decideBackend(cwd, { registry: reg, platform, fs: ctx.get('fs'), caller, signal, skipAutodetect: true });
-      if (unified && unified.backendId) {
-        const trackerU = reg.get(unified.backendId);
-        if (trackerU) {
-          let refU = null;
-          try { refU = reg.describe({ cwd }, unified.backendId); } catch (e) { refU = { backend: unified.backendId, refId: '', name: '', url: '' }; }
-          // 客户端带了它面板上那一个且与统一答案一致时，沿用原核验语义直接用；不一致时以统一答案为准。
-          return { ok: true, backendId: unified.backendId, repoRef: refU, tracker: trackerU, platform };
+      const fsSvc = ctx.get('fs');
+      const hasId = function (id) { try { return !!(id && reg.has(id)); } catch { return false; } };
+      try {
+        const boundNow = reg.bound({ cwd });
+        if (typeof boundNow === 'string' && boundNow && hasId(boundNow)) {
+          const t0 = reg.get(boundNow);
+          if (t0) { let r0 = null; try { r0 = reg.describe({ cwd }, boundNow); } catch { r0 = { backend: boundNow, refId: '', name: '', url: '' }; } return { ok: true, backendId: boundNow, repoRef: r0, tracker: t0, platform }; }
         }
+      } catch (eB) {}
+      if (fsSvc && typeof fsSvc.resolve === 'function' && typeof fsSvc.readText === 'function') {
+        try {
+          const { parseWorkspaceFile } = await import('../shared/deck-tools/workspace-file.js');
+          const t = await fsSvc.resolve('docs/agents/workspace.json', { cwd });
+          const txt = await fsSvc.readText(t);
+          const parsed = parseWorkspaceFile(txt);
+          if (parsed && parsed.backendId && hasId(parsed.backendId)) {
+            const t1 = reg.get(parsed.backendId);
+            if (t1) { let r1 = null; try { r1 = reg.describe({ cwd }, parsed.backendId); } catch { r1 = { backend: parsed.backendId, refId: '', name: '', url: '' }; } return { ok: true, backendId: parsed.backendId, repoRef: r1, tracker: t1, platform }; }
+          }
+        } catch (eF) {}
+        try {
+          const t2 = await fsSvc.resolve('docs/agents/issue-tracker.md', { cwd });
+          const raw = await fsSvc.readText(t2);
+          const text = String(raw || '');
+          let did = null;
+          if (/^#\s*issue\s*tracker\s*:\s*gitlab/im.test(text)) did = 'gitlab';
+          else if (/^#\s*issue\s*tracker\s*:\s*(markdown|local)/im.test(text)) did = 'markdown';
+          else if (/^#\s*issue\s*tracker\s*:\s*github/im.test(text)) did = 'github';
+          if (did && hasId(did)) {
+            const t3 = reg.get(did);
+            if (t3) { let r3 = null; try { r3 = reg.describe({ cwd }, did); } catch { r3 = { backend: did, refId: '', name: '', url: '' }; } return { ok: true, backendId: did, repoRef: r3, tracker: t3, platform }; }
+          }
+        } catch (eD) {}
       }
     } catch (eU) {}
     const sel = await reg.select({ cwd: cwd }, { cwd: cwd, platform: platform, fs: ctx.get('fs'), caller: caller, signal: signal })

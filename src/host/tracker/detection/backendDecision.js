@@ -15,8 +15,18 @@
  *    新界面按 origin 区分。下一期（#1012 核落地后）再把 source 也换成新枚举。
  */
 
-import { parseIssueTracker, normalizeTrackerText } from './parseIssueTracker.js';
 import { parseWorkspaceFile, WORKSPACE_FILE_REL } from '../../../shared/deck-tools/workspace-file.js';
+
+// 声明文件解析不另起第二套口径：调用方把完整解析器经 deps.parseDeclaration 交进来；
+// 没交时用标题行最小判定（覆盖高置信标题，旧文档无标题的低兜底仍走探测器那条路）。
+function titleOnlyDeclarationId(raw) {
+  const text = String(raw || '').replace(/^﻿/, '').trim();
+  if (!text) return null;
+  if (/^#\s*issue\s*tracker\s*:\s*gitlab/im.test(text)) return 'gitlab';
+  if (/^#\s*issue\s*tracker\s*:\s*(markdown|local)/im.test(text)) return 'markdown';
+  if (/^#\s*issue\s*tracker\s*:\s*github/im.test(text)) return 'github';
+  return null;
+}
 
 function isKnown(registry, id) {
   try {
@@ -78,18 +88,20 @@ async function readFileLayer(cwd, deps) {
 
 async function readDeclarationLayer(cwd, deps) {
   try {
+    if (typeof deps.readDeclarationId === 'function') {
+      const did = await deps.readDeclarationId(cwd);
+      if (typeof did === 'string' && did) return did;
+    }
     const fsSvc = deps.fs || (deps.platform && deps.platform.fs) || null;
     if (fsSvc && typeof fsSvc.resolve === 'function' && typeof fsSvc.readText === 'function') {
       const target = await fsSvc.resolve('docs/agents/issue-tracker.md', { cwd });
       const raw = await fsSvc.readText(target);
-      const parsed = parseIssueTracker(normalizeTrackerText(raw));
-      if (parsed && parsed.explicitBackendId) return parsed.explicitBackendId;
-      return null;
-    }
-    if (typeof deps.readDeclarationId === 'function') {
-      const did = await deps.readDeclarationId(cwd);
-      if (typeof did === 'string' && did) return did;
-      return null;
+      if (typeof deps.parseDeclaration === 'function') {
+        const did2 = await deps.parseDeclaration(raw);
+        if (typeof did2 === 'string' && did2) return did2;
+        return null;
+      }
+      return titleOnlyDeclarationId(raw);
     }
   } catch {
     return null;
