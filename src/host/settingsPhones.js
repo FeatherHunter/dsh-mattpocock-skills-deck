@@ -173,18 +173,18 @@ export function createSettingsPhones(deps) {
     })
   }
 
-  // 带日志的包装，电话名写在方法字段里，类型统一记成设置。
-  async function handleGetSettingsLogged(args) {
-    const t0 = Date.now()
-    try { const r = await handleGetSettings(args); phoneLog('wf.getSettings', t0, r); return r } catch (e) { phoneLog('wf.getSettings', t0, null, e); throw e }
+  // 带日志的包装：形状与仓库既有叶子完全一致（见 workspaceCwd.js 的 loggedPhone），
+  //   按电话名逐条包住处理体，出口只记一行（成功 host.call，业务失败与抛错 host.call.fail）。
+  //   写成这个形状而不是各写一份包装，是为了让日志覆盖门禁的既有判据照样量得到这两条电话，
+  //   不需要为了新增两条电话去放宽那道门禁。
+  function loggedPhone(method, fn) {
+    return async function () {
+      const t0 = Date.now()
+      try { const r = await fn.apply(null, arguments); phoneLog(method, t0, r); return r } catch (e) { phoneLog(method, t0, null, e); throw e }
+    }
   }
 
-  async function handleSetSettingsLogged(args) {
-    const t0 = Date.now()
-    try { const r = await handleSetSettings(args); phoneLog('wf.setSettings', t0, r); return r } catch (e) { phoneLog('wf.setSettings', t0, null, e); throw e }
-  }
-
-  return { handleGetSettings: handleGetSettingsLogged, handleSetSettings: handleSetSettingsLogged }
+  return { handleGetSettings: loggedPhone('wf.getSettings', handleGetSettings), handleSetSettings: loggedPhone('wf.setSettings', handleSetSettings) }
 }
 
 export default { createSettingsPhones, isSettingsAbsenceError }

@@ -112,11 +112,6 @@ const CALLEE_COVERS = [
     const names = ALIAS[p] ? [p, ALIAS[p]] : [p]
     if (names.some((n) => all.indexOf('method: ' + Q + n + Q) >= 0)) return true
     if (names.some((n) => perFile.some((t) => t.indexOf('loggedPhone(' + Q + n + Q) >= 0 && t.indexOf(Q + 'host.call' + Q) >= 0 && t.indexOf(Q + 'host.call.fail' + Q) >= 0))) return true
-    // 第三种形状（本机设置叶子先例）：电话名作为参数逐个传给一个共用发射函数（本机设置叶子写作 phoneLog('wf.x', …)），
-    // 而发射函数体里 method 取的是形参，所以源码里没有 method: 'wf.x' 这个字面。这里认「按电话名逐条调函数」
-    // 加「同一文件里两种电话事件都在」两条同时成立——与上面 loggedPhone 那条判据同构，只是不写死函数名，
-    // 免得以后每加一个叶子都要回来改这道门禁。仅提到电话名（注释、字符串表）不算，必须是函数调用的第一个实参。
-    if (names.some((n) => { const reCall = new RegExp('[A-Za-z_$][A-Za-z0-9_$]*\\(' + Q + n.replace('.', '\\.') + Q); return perFile.some((t) => reCall.test(t) && t.indexOf(Q + 'host.call' + Q) >= 0 && t.indexOf(Q + 'host.call.fail' + Q) >= 0) })) return true
     return false
   }
   const hasEvent = (e) => all.indexOf(Q + e + Q) >= 0
