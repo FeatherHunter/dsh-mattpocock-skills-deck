@@ -56,8 +56,19 @@ export interface PreflightResult {
  */
 export interface Selection {
   backendId: BackendId | null
-  /** 这个结论是怎么来的：显式选择 / 命中 / 兜底（没有 `detect` 这个取值，历史写法已改）。 */
-  source: 'explicit' | 'matches' | 'fallback'
+  /**
+   * 这个结论是怎么来的：显式选择 / 命中 / 兜底，以及 `unknown`。
+   * `unknown` 表示「还不知道这个工作区是哪条目录」——它与「已决的无后端」（backendId 为 null 且 source 为 fallback）
+   * 是两件相反的事：前者等就绪后自行恢复，后者要人去面板选一次。三种取值的穷尽分支里不许把 unknown 当 fallback。
+   */
+  source: 'explicit' | 'matches' | 'fallback' | 'unknown'
+  /**
+   * 结论的具体出处（比 source 更细一档）：`user-memory-bind`（本次进程内人亲手绑定）、
+   * `user-file` / `migrated` / `detected`（工作区配置文件里的三种来源）、`declaration`（仓库里的说明文件）、
+   * `autodetect`（自动识别）、`unknown-workspace`（还没认出目录）、`pending` / `none`（没有结论）。
+   * 界面与排查读它说清「这个答案凭什么」，不要拿 source 反推。
+   */
+  origin?: string
   /** `backendId` 不为 null 时给出的仓库身份。 */
   ref?: RepositoryRef
   /** 同时命中的多个后端（平局按注册顺序取第一个，这里如实全部给出）。 */

@@ -228,11 +228,14 @@ export interface Tracker {
   /**
    * 问这个仓库的写权限（本轮从旁路升为契约操作）。
    * 只回答 push / triage 两个布尔；问不出来如实失败，调用方按「未知」处理。
-   * 本地 Markdown 房不需要问（本地文件可写性由沙箱与文件权限决定），
-   * 由共享判断直接给「可写」，实现可以返回固定值 —— 但**必须实现**，
-   * 不许靠注册表补桩（补桩返回的是 unsupported，而上层要的是「能写」这个事实）。
+   *
+   * **可选成员**：只有 GitHub 房真有这个方法，本地 Markdown 房没有（它不需要问，本地文件可写性
+   * 由沙箱与文件权限决定）。写成必填是错的，有两个硬证据：一是它不在 `contract.js` 的十九条操作
+   * 清单里，注册表只给那份清单里的名字补桩，所以运行期也没有「补一个能写的桩」这条退路；
+   * 二是真实调用方本来就是自己判空的（`call-scope.js` 与 `deckContext.js` 都是「先看有没有这个方法再调」）。
+   * 所以：调用方必须自己判空，拿不到就按「未知」处理，不许当成「能写」。
    */
-  getRepoPermissions(repo: RepositoryRef, ctx: OpContext): Promise<OpResult<RepoPermissions>>
+  getRepoPermissions?(repo: RepositoryRef, ctx: OpContext): Promise<OpResult<RepoPermissions>>
 }
 
 /**

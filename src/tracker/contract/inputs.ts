@@ -29,8 +29,17 @@ import type { CustomField, Milestone } from './entities.js'
 export interface ListFilter {
   /** 只要某一类（票或地图）。 */
   type?: IssueType
-  /** 只要某一种状态。 */
+  /**
+   * 只要某一种状态。两种真实口径并存，调用方要知道自己在用哪一种：
+   * 列出票时按严格相等筛；计数与分页认不出这个取值时当「两种状态都要」。
+   * 所以 `state: 'all'` 这种写法在列出票上会把所有行都筛掉，不要用它表达「全部」——省略才是全部。
+   */
   state?: State
+  /**
+   * 只要带这些标签的票（两个后端的计数实现都真按它筛，仓库里的契约原文也写了这一项）。
+   * 空数组与省略不同：省略是不过滤，空数组是「一个标签都不带」。
+   */
+  labels?: string[]
   /** `null` = 只要根票；省略 = 全部。 */
   parentKey?: string | null
   /** 批量按编号取。 */

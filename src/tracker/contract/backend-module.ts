@@ -27,7 +27,7 @@
 
 import type { BackendId } from './identity.js'
 import type { RepositoryRef } from './entities.js'
-import type { BackendContext, RepoHandle } from './contexts.js'
+import type { BackendContext, OpContext, RepoHandle } from './contexts.js'
 import type {
   GitHubRoomExtension,
   MarkdownRoomExtension,
@@ -80,6 +80,11 @@ export interface RoomCapabilities {
   labelsGuide?: boolean
   /** 要不要显示「创建并发布仓库」那条链。 */
   repoCreateChain?: boolean
+  /**
+   * 要不要显示与拉取请求有关的界面扩展（GitHub 房真给了这一格，见 `backends/github/repo.js`）。
+   * 同样只驱动界面，不进数据路径。
+   */
+  pullRequests?: boolean
 }
 
 /**
@@ -167,8 +172,12 @@ export interface BackendModule {
    * 两条纪律：**不确定一律回 `false`**（宁可不认，也不认错——认错会把票写进错的地方）；
    * 回 `false` 的判据要记一行诊断日志，否则用户看不出「为什么没认出我的仓库」。
    * 识别有超时：超时按「未决」处理，由注册表把这一点如实透出去（见 `Selection.pending`）。
+   * 返回值的两种写法都合法：直接给布尔，或给一个布尔承诺（两个房间的真实实现都是异步的，
+   * 注册表本来就 `await` 它，所以类型上必须允许承诺，否则房间照原样实现当场编译不过）。
+   * `ctx` 是**这一次调用**的上下文（`OpContext`，带 `cwd`）：房间要读当前目录就从这个参数读，
+   * 不许拿 `create` 时那份 `BackendContext` 顶替——那份里没有 `cwd`。
    */
-  matches(handle: RepoHandle, ctx: BackendContext): boolean
+  matches(handle: RepoHandle, ctx: OpContext): boolean | Promise<boolean>
 
   /**
    * 产出仓库身份（`refId` / `name` / `url`）。
@@ -209,8 +218,14 @@ export interface BackendModule {
    */
   openRepository?: 'url' | 'folder'
 
-  /** 注入给会话的文案数据：词条键 → 双语全文。界面只透传，不持有品牌语义。 */
-  prompts?: Record<string, { zh: string; en: string }>
+  /**
+   * 注入给会话的文案数据：词条键 → 该键的内容。
+   * 两种真实形状并存，所以值写成联合而不是只认一种：
+   * - 双语全文 `{ zh, en }`（多数词条是这种）；
+   * - 命令词表 `{ cli, cliBrand }`（GitHub 房给 `cli: 'gh'`、本地 Markdown 房给 `cliBrand: '本地 Markdown'`，
+   *   两个键都不是双语文案）。按只认 `{zh,en}` 写，两房照原样实现会因多余属性当场编译不过。
+   */
+  prompts?: Record<string, { zh: string; en: string } | { cli?: string; cliBrand?: string }>
 
   /** 这个后端自己的检查目录（见 `RoomCheckEntry`）。 */
   checks?: RoomCheckEntry[]
