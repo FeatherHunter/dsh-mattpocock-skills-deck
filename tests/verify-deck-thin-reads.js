@@ -10,6 +10,9 @@
 // 本文件不联网：后端全是桩，只验“调没调、记没记、数对不对”。
 const path = require('path')
 const { pathToFileURL } = require('url')
+// 判定出口桩（#1003 单出口）：壳拿不到它时一律回「判定出口这次没装上」，
+// 生产装配总会给，夹具照生产接上；桩的来历见 tests/lib/deck-decide-stub.js 文件头。
+const { makeDecideStub } = require('./lib/deck-decide-stub.js')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -26,7 +29,7 @@ function stubGateLedger(gateMod, ledgerMod) {
 }
 
 function baseDeps(gate, registry, budget, over) {
-  return Object.assign({
+  const base = Object.assign({
     gate: gate,
     registry: registry,
     budget: budget,
@@ -41,6 +44,10 @@ function baseDeps(gate, registry, budget, over) {
     toolTimeoutMs: 60000,
     toolMarginMs: 5000,
   }, over || {})
+  // 判定出口（#1003 单出口）：壳拿不到它时一律回「判定出口这次没装上」，生产装配总会给。
+  // 这里按夹具自己那张桩注册表的绑定补上（桩的来历见 tests/lib/deck-decide-stub.js 文件头）。
+  if (!base.decideBackend && base.registry) base.decideBackend = makeDecideStub(base.registry)
+  return base
 }
 
 const execFor = () => ({ agent: { session: { id: 's-thin', cwd: 'D:/demo' } } })

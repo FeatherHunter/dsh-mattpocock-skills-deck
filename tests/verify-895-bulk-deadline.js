@@ -13,6 +13,9 @@ const path = require('path')
 const fs = require('fs')
 const os = require('os')
 const { pathToFileURL } = require('url')
+// 判定出口桩（#1003 单出口）：壳拿不到它时一律回「判定出口这次没装上」，
+// 生产装配总会给，夹具照生产接上；桩的来历见 tests/lib/deck-decide-stub.js 文件头。
+const { makeDecideStub } = require('./lib/deck-decide-stub.js')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -154,11 +157,14 @@ async function main() {
   check(typeof storeMod.createFilePlanStore === 'function' && typeof storeMod.createMemoryPlanStore === 'function', '落盘与内存游标工厂存在')
 
   function shellDeps(tracker, extra) {
-    const registry = { select: async () => ({ backendId: 'stub', source: 'test' }), get: () => tracker }
+    // bound 与 select 一起给：真注册表两个都有（registryCore 的 bound 读的是显式绑定），
+    // 判定出口桩靠它认出「这个工作区已经选定这个后端」，否则壳会按「没选过后端」拒绝动手。
+    const registry = { select: async () => ({ backendId: 'stub', source: 'test' }), get: () => tracker, bound: () => 'stub' }
     return Object.assign({
       gate: stubGate(), registry: registry, budget: budget,
       estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom,
       now: Date.now, hourUsage: () => ({}),
+      decideBackend: makeDecideStub(registry),
     }, extra || {})
   }
 

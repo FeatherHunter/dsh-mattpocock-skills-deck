@@ -12,6 +12,9 @@ const path = require('path')
 const fs = require('fs')
 const os = require('os')
 const { pathToFileURL } = require('url')
+// 判定出口桩（#1003 单出口）：壳拿不到它时一律回「判定出口这次没装上」，
+// 生产装配总会给，夹具照生产接上；桩的来历见 tests/lib/deck-decide-stub.js 文件头。
+const { makeDecideStub } = require('./lib/deck-decide-stub.js')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -67,6 +70,7 @@ async function main() {
     backendCtx: ctxA, handleFor: () => handleA,
     log: { fire: () => {} }, now: () => clock,
     invalidate: () => {},
+    decideBackend: makeDecideStub(registry),
     planStore: (() => { const t = new Map(); return { durable: true, load(id) { return t.get(id) || null }, save(id, s) { t.set(id, s) } } })(),
   }
   const planMod = await imp('src/host/tools/deckMapPlanCreate.js')

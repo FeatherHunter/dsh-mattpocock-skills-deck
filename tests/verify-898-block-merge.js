@@ -9,6 +9,9 @@
 // 用法：在插件根目录执行 node tests/verify-898-block-merge.js，可独立运行。
 const path = require('path')
 const { pathToFileURL } = require('url')
+// 判定出口桩（#1003 单出口）：壳拿不到它时一律回「判定出口这次没装上」，
+// 生产装配总会给，夹具照生产接上；桩的来历见 tests/lib/deck-decide-stub.js 文件头。
+const { makeDecideStub } = require('./lib/deck-decide-stub.js')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -117,11 +120,13 @@ async function main() {
   const planMod = await imp('src/host/tools/deckMapPlanCreate.js')
   const linkMod = await imp('src/host/tools/deckMapLink.js')
   function shellDeps(tracker, extra) {
-    const registry = { select: async () => ({ backendId: 'stub', source: 'test' }), get: () => tracker }
+    // bound 与 select 一起给：真注册表两个都有，判定出口桩靠 bound 认出「这个工作区已选定后端」。
+    const registry = { select: async () => ({ backendId: 'stub', source: 'test' }), get: () => tracker, bound: () => 'stub' }
     return Object.assign({
       gate: stubGate(), registry: registry, budget: budget,
       estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom,
       now: Date.now, hourUsage: () => ({}),
+      decideBackend: makeDecideStub(registry),
     }, extra || {})
   }
 

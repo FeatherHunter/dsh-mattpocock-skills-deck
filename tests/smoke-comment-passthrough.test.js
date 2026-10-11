@@ -76,11 +76,14 @@ const unwrap = (r) => (r && r.ok === true && 'value' in r ? r.value : r) // disp
 if (await waitRoute()) {
   check(!!route && route.path === '/api/dsws', '通道注册在 /api/dsws（客户端请求路径与宿主注册路径同源）')
   // 1) 校验：缺 body → parse
-  const bad = unwrap(await callHandler('commentIssue', { number: 255 }))
+  // 每次调用都带 cwd：#1003 空目录闸之后，宿主电话要求调用方给出工作区目录
+  //（`src/host/commentThreads.js:173-176`：没给就按「工作区还没就绪」直接拒绝，连参数校验都走不到），
+  // 而这条冒烟测的是参数校验与透传，不是空目录那一支，所以按「工作区已就绪」发。
+  const bad = unwrap(await callHandler('commentIssue', { number: 255, cwd: 'D:/work/repo' }))
   check(!!bad && bad.ok === false && bad.error && bad.error.kind === 'parse', '缺 body → {ok:false,kind:parse}')
 
   // 2) 校验：缺 number → parse
-  const badN = unwrap(await callHandler('commentIssue', { body: 'hi' }))
+  const badN = unwrap(await callHandler('commentIssue', { body: 'hi', cwd: 'D:/work/repo' }))
   check(!!badN && badN.ok === false && badN.error && badN.error.kind === 'parse', '缺 number → {ok:false,kind:parse}')
 
   // 3) happy path：select→describe→tracker.comment 参数无损
@@ -92,17 +95,17 @@ if (await waitRoute()) {
 
   // 4) 错误直透：comment 返回 auth → 端点原样返回（UI 分流数据源）
   ghTracker.comment = async () => ({ ok: false, error: { kind: 'auth', message: 'not logged in' } })
-  const authed = unwrap(await callHandler('commentIssue', { number: 255, body: 'x' }))
+  const authed = unwrap(await callHandler('commentIssue', { number: 255, body: 'x', cwd: 'D:/work/repo' }))
   check(!!authed && authed.ok === false && authed.error && authed.error.kind === 'auth', 'TrackerError{kind:auth} 直透')
 
   // 5) 未实现 comment 的后端 → unsupported（诚实失败，非假装成功）
   fakeRegistry.select = async () => ({ backendId: 'gitlab-x', source: 'explicit' })
-  const unsup = unwrap(await callHandler('commentIssue', { number: 255, body: 'y' }))
+  const unsup = unwrap(await callHandler('commentIssue', { number: 255, body: 'y', cwd: 'D:/work/repo' }))
   check(!!unsup && unsup.ok === false && unsup.error && unsup.error.kind === 'unsupported', '后端无 comment 方法 → kind:unsupported')
 
   // 6) select 失败 / 无后端 → unsupported
   fakeRegistry.select = async () => null
-  const nosel = unwrap(await callHandler('commentIssue', { number: 255, body: 'z' }))
+  const nosel = unwrap(await callHandler('commentIssue', { number: 255, body: 'z', cwd: 'D:/work/repo' }))
   check(!!nosel && nosel.ok === false && nosel.error && nosel.error.kind === 'unsupported', 'selection 为空 → kind:unsupported')
 } else {
   check(false, 'dispatch fn 未注册')

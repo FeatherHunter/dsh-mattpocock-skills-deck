@@ -15,6 +15,9 @@
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
+// 判定出口桩（#1003 单出口）：壳拿不到它时一律回「判定出口这次没装上」，
+// 生产装配总会给，夹具照生产接上；桩的来历见 tests/lib/deck-decide-stub.js 文件头。
+import { makeDecideStub } from './lib/deck-decide-stub.js'
 
 const require = createRequire(import.meta.url)
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..')
@@ -62,11 +65,14 @@ function makeEnv(opts) {
     exec, isEnabled: () => false, logEvent: () => {},
   }
   function toolDeps() {
+    // bound 与 select 一起给：真注册表两个都有，判定出口桩靠 bound 认出「这个工作区已选定后端」。
+    const registryStub = { select: async () => ({ backendId: 'github', source: 'test', ref: { backend: 'github', refId: 'acme/demo', name: 'demo', url: '' } }), get: () => tracker, bound: () => 'github' }
     return {
       gate: { admitAiTool: () => ({ admitted: true }), send: async (req, fn) => { await fn(); return { sent: true, requests: 1, points: 0, remaining: 100, tier: 'ai' } } },
-      registry: { select: async () => ({ backendId: 'github', source: 'test', ref: { backend: 'github', refId: 'acme/demo', name: 'demo', url: '' } }), get: () => tracker },
+      registry: registryStub,
       budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom,
       backendCtx, now: Date.now, hourUsage: () => ({}),
+      decideBackend: makeDecideStub(registryStub),
     }
   }
   return { gh, sink, events, exec, backendCtx, tracker, toolDeps, ctl }

@@ -14,6 +14,9 @@
 // 本文件不联网：后端全是桩，只量“回不回、快不快、判得对不对”。
 const path = require('path')
 const { pathToFileURL } = require('url')
+// 判定出口桩（#1003 单出口）：壳拿不到它时一律回「判定出口这次没装上」，
+// 生产装配总会给，夹具照生产接上；桩的来历见 tests/lib/deck-decide-stub.js 文件头。
+const { makeDecideStub } = require('./lib/deck-decide-stub.js')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -53,7 +56,7 @@ function stubRegistry(pickRefId, tracker) {
 
 function baseDeps(over) {
   const o = over || {}
-  return Object.assign({
+  const base = Object.assign({
     estimate: (input) => ({ points: 1, requests: 1, tickets: 0, withinCallCap: true, shards: 1, perShard: 60, text: '' }),
     costInputFrom: () => ({ tool: 't' }),
     backendCtx: {},
@@ -65,6 +68,10 @@ function baseDeps(over) {
     toolTimeoutMs: 2000,
     toolMarginMs: 500,
   }, o)
+  // 判定出口（#1003 单出口）：壳拿不到它时一律回「判定出口这次没装上」，生产装配总会给。
+  // 这里按夹具自己那张桩注册表的绑定补上（桩的来历见 tests/lib/deck-decide-stub.js 文件头）。
+  if (!base.decideBackend && base.registry) base.decideBackend = makeDecideStub(base.registry)
+  return base
 }
 
 const demoIssue = { key: '7', title: '演练票', state: 'open', type: 'issue', labels: [], assignees: [], updatedAt: '', closedAt: '', url: '', body: '# 演练票\n\n## 进度\n\n- 第一步\n' }

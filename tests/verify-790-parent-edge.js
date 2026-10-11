@@ -7,6 +7,10 @@
 //   E) deck_issue_create：票建成、边没挂上 → partial +“没挂上”，不再报“建好了（父票 X）”
 const path = require('path')
 const { pathToFileURL } = require('url')
+// 判定出口桩（#1003 单出口）：壳拿不到它时一律回「判定出口这次没装上」，
+// 生产装配总会给（deckToolsAssembly.js 的 decideBackend），夹具照生产接上。
+// 桩按注册表当下的绑定回后端 id，理由见 tests/lib/deck-decide-stub.js 文件头。
+const { makeDecideStub } = require('./lib/deck-decide-stub.js')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -158,6 +162,7 @@ async function main() {
     const deps = {
       gate, registry, budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom,
       handleFor: () => handle, backendCtx: {}, now: () => clock, log: { fire: () => {} }, invalidate: () => {},
+      decideBackend: makeDecideStub(registry),
     }
     const linkMod = await imp('src/host/tools/deckMapLink.js')
     const createMod = await imp('src/host/tools/deckIssueCreate.js')

@@ -10,6 +10,9 @@
 // 本文件不联网：后端全是桩，只验“丢不丢、堵不堵、诚实不诚实”。
 const path = require('path')
 const { pathToFileURL } = require('url')
+// 判定出口桩（#1003 单出口）：壳拿不到它时一律回「判定出口这次没装上」，
+// 生产装配总会给，夹具照生产接上；桩的来历见 tests/lib/deck-decide-stub.js 文件头。
+const { makeDecideStub } = require('./lib/deck-decide-stub.js')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -53,7 +56,7 @@ function stubRegistry(tracker) {
 }
 
 function baseDeps(over) {
-  return Object.assign({
+  const base = Object.assign({
     estimate: () => ({ points: 1, requests: 1, tickets: 0, withinCallCap: true, shards: 1, perShard: 60, text: '' }),
     costInputFrom: () => ({ tool: 't' }),
     backendCtx: {},
@@ -65,6 +68,10 @@ function baseDeps(over) {
     toolTimeoutMs: 60000,
     toolMarginMs: 5000,
   }, over || {})
+  // 判定出口（#1003 单出口）：壳拿不到它时一律回「判定出口这次没装上」，生产装配总会给。
+  // 这里按夹具自己那张桩注册表的绑定补上（桩的来历见 tests/lib/deck-decide-stub.js 文件头）。
+  if (!base.decideBackend && base.registry) base.decideBackend = makeDecideStub(base.registry)
+  return base
 }
 
 const execFor = (cwd) => ({ agent: { session: { id: 's-p', cwd: cwd || 'D:/demo' } } })
