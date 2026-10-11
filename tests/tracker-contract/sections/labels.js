@@ -704,9 +704,12 @@ export async function run() {
       const dm2 = regMulti.register(mod('labels-multi-b', {}))
       // 多命中：两个后端的 matches 都说「这是我的工作区」→ 不许静默挑一个（可能改错仓库）
       // #631 追加：c / d 给出可分辨的清单与记账，好让下面「客户端声明的就是哪一个」看得见。
+      // writeCalls：谁真的收到了这一批改动。用来证明「被拒绝的那一次一个字节都没动」——只看回包是 conflict
+      //   还不够，回包可以是拒绝了但改动仍然漏了出去，所以两个后端都把收到的写调用记下来。
+      const writeCalls = []
       const implMulti = (id) => ({
         listLabels: async () => ({ ok: true, data: [{ name: id, color: '', description: '' }] }),
-        setLabelColors: async (repo, cs) => ({ ok: true, data: { applied: cs.map((x) => ({ name: x.name, color: x.color })), failed: [] } }),
+        setLabelColors: async (repo, cs) => { writeCalls.push(id); return { ok: true, data: { applied: cs.map((x) => ({ name: x.name, color: x.color })), failed: [] } } },
       })
       regMulti.register({ id: 'labels-multi-c', label: 'c', create: () => implMulti('labels-multi-c'), matches: async () => true })
       regMulti.register({ id: 'labels-multi-d', label: 'd', create: () => implMulti('labels-multi-d'), matches: async () => true })
@@ -717,12 +720,21 @@ export async function run() {
       // ⑤ #631 追加：客户端**显式声明**了它面板上正在用的那个后端。宿主只做核验——声明的那个确实出现在
       //    这次算出来的候选名单里（multiHit 那份名单）就交给它；核验不通过的一律保持上面那条诚实的失败。
       //    这不是把「不许猜」放松了：猜是「宿主自己挑一个」，这里挑的动作在客户端，宿主只是核对这一句真不真。
+      //    #1003 追加（2026-10-12 维护者拍板）：核验只在**读用途**上够用。改色是写用途，除核验之外还要有一个
+      //    凭据——这个工作区的那份配置文件，或者用户这次亲手绑定过——两样都没有时，就算声明得没错也一律拒绝，
+      //    所以下面「列标签认声明」和「改色不认声明」是同一口径的两面，不是互相打架。
       const rlDeclared = await hMulti.host.handleListLabels({ cwd: '/ws/multi', backendId: 'labels-multi-d' })
       await assert('#631 声明的后端在候选名单里 → 直接交给它（回包写的就是它，清单也出自它）',
         rlDeclared.ok === true && rlDeclared.backendId === 'labels-multi-d' && rlDeclared.labels.length === 1 && rlDeclared.labels[0].name === 'labels-multi-d', JSON.stringify(rlDeclared))
+      // 读用途不受写用途那条门槛约束（上面刚验过）；写用途在这个还没选定后端的 /ws/multi 上必须如实拒绝。
       const rsDeclared = await hMulti.host.handleSetLabelColors({ cwd: '/ws/multi', backendId: 'labels-multi-d', changes: changes })
-      await assert('#631 改色这条电话同样认这个声明（不是只在列标签那一条上生效）',
-        rsDeclared.ok === true && rsDeclared.backendId === 'labels-multi-d', JSON.stringify(rsDeclared))
+      await assert('#1003 还没选定后端（只有自动识别与面板声明）→ 改色如实拒绝，并指路去面板选定',
+        rsDeclared.ok === false && rsDeclared.error.kind === 'conflict' && String(rsDeclared.error.message).includes('先在面板上选定'), JSON.stringify(rsDeclared))
+      await assert('#1003 拒绝那一次确实没落到任何后端上（回包说拒绝不等于改动没漏出去，所以要查后端收没收到）',
+        writeCalls.length === 0, '这一次被拒了，改动却还是交给了 ' + JSON.stringify(writeCalls))
+      // 记下「被拒那一刻后端一共收到过几次写调用」，好让最后那条断言只比较它自己这一趟，
+      //   而不是把前面几条的调用数一起算进来（否则前面一红，这条也跟着红，两句话混成一句）。
+      const writeCallsBeforePick = writeCalls.length
       const rlOther = await hMulti.host.handleListLabels({ cwd: '/ws/multi', backendId: 'labels-multi-c' })
       await assert('#631 声明另一个也在名单里的后端 → 交给声明的那个（不是交给注册序排前面的那个）',
         rlOther.ok === true && rlOther.backendId === 'labels-multi-c' && rlOther.labels[0].name === 'labels-multi-c', JSON.stringify(rlOther))
@@ -735,6 +747,18 @@ export async function run() {
       const rlSilent2 = await hMulti.host.handleListLabels({ cwd: '/ws/multi' })
       await assert('#631 什么都没声明 → 仍然 conflict（老行为一个字没松）',
         rlSilent2.ok === false && rlSilent2.error.kind === 'conflict' && String(rlSilent2.error.message).includes('同时对应'), JSON.stringify(rlSilent2))
+
+      // 用户在面板上选定 d：生产里这一步落在「进程内绑定一次」（工作区入口按人的选择调 reg.bind）外加一份
+      //   写进工作区的配置文件上。夹具照这一步补一次绑定，代表用户亲手选过。
+      //   为什么这一段必须放在最后：绑定之后宿主手里就有人的记录，不再回头看面板声明的那个名字，
+      //   上面那五条「按声明核验」的断言一旦排到它后面，就都测不到东西了。
+      regMulti.bind({ cwd: '/ws/multi' }, 'labels-multi-d')
+      const rsBound = await hMulti.host.handleSetLabelColors({ cwd: '/ws/multi', backendId: 'labels-multi-d', changes: changes })
+      await assert('#1003 用户亲手选定之后，改色这条电话照样落到选定的那个后端上，逐条记账也过检查器',
+        rsBound.ok === true && rsBound.backendId === 'labels-multi-d'
+          && writeCalls.length === writeCallsBeforePick + 1 && writeCalls[writeCalls.length - 1] === 'labels-multi-d'
+          && labelBatchCheck(changes, { applied: rsBound.applied, failed: rsBound.failed }).length === 0,
+        JSON.stringify(rsBound) + '；这一趟之前收到过 ' + writeCallsBeforePick + ' 次写调用，之后是 ' + JSON.stringify(writeCalls))
       dm1.dispose(); dm2.dispose()
 
       // 显式选了「无后端」（逃生舱）时，客户端声明别的后端也不认：那是用户自己选的

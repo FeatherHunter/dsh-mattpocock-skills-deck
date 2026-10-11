@@ -166,7 +166,15 @@ async function main() {
     },
     admitAiTool: function () { return { admitted: true, reason: 'ai-tool-within-caps', points: 1, requests: 1 } },
   }
-  const stubRegistry = { has: function () { return true }, select: async function () { return { backendId: 'github', source: 'test', ref: {} } } }
+  // bound() 代表「用户在这个工作区里亲手选定过 github」。写用途拦截（#1003 契约期望行为第 4 条）要求写操作
+  //   必须有一个凭据——工作区里那份记录，或者本次进程内绑定一次；只有自动识别算不出这个凭据。生产装配的
+  //   注册表一直有这个口，夹具原先没给，于是壳拿到的判定是 canWrite:false，选后端会被如实拒绝。
+  //   这一段要验的是「保读数不挡路」与「口子缺席不影响干活」，所以夹具照生产补上绑定，让它真的走到选后端那一步。
+  const stubRegistry = {
+    has: function () { return true },
+    bound: function () { return 'github' },
+    select: async function () { return { backendId: 'github', source: 'test', ref: {} } },
+  }
   const sh = shell.createDeckShell({
     gate: stubGate,
     registry: stubRegistry,
