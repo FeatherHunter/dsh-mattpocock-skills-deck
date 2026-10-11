@@ -91,6 +91,29 @@ async function isWorkspaceEmpty(cwd, platform) {
   }
 }
 
+/**
+ * 取工作区配置文件的修改时间（手改文件即时生效的判据，#1003 甲）。
+ * 依次看新 yaml 与老 json，任一能取到即回；取不到回 null（调用方按“判不了”处理，不误判）。
+ * 只读时间不读内容，不碰令牌与路径原文。
+ */
+async function workspaceFileMs(cwd, platform) {
+  try {
+    if (!cwd) return null
+    const fs = platform && platform.fs
+    if (!fs || typeof fs.resolve !== 'function' || typeof fs.stat !== 'function') return null
+    const rels = ['docs/agents/workspace.yaml', 'docs/agents/workspace.json']
+    for (const rel of rels) {
+      try {
+        const target = await fs.resolve(rel, { cwd })
+        const st = await fs.stat(target)
+        const ms = st && (st.mtimeMs || (st.mtime && Number(st.mtime)))
+        if (Number.isFinite(ms)) return ms
+      } catch {}
+    }
+  } catch {}
+  return null
+}
+
 export function createDetectionService({ registry, getPlatform, getFs, getTimers, workspaceStore, skillProbe, resolveRepoHandle, exec, getChoiceStore, logCtx, decideBackend } = {}) {
   const store = workspaceStore || null
   // skillProbe 为可选：未注入时返回空技能集（正交，复用 host probeSkill 旧逻辑但不在二联版强依赖）
@@ -161,14 +184,20 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
           } catch {}
           // #683（F1 · ADR 的 R2c）：这份缓存里的选择还作不作数，要看那份记忆（H）变过没有。
           //   判据是「当时那条的修订号」与「H 现在的修订号」对不对得上（H 里没有记录时按 0 算）——
-          //   对不上就丢掉重算：只换了后端时，其余内容一个字没变，光看快照版本号是看不出来的。
-          //   这条比 ADR 写的还严一格：除了「带 hint 的那一次」，连「按锚文件答出来、而别的壳刚绑过」
-          //   这一种也一起收进来了（那一种同样会让面板头与链说两个后端）。
+          //   对不上就丢掉重算。上报已退役，不再参与这一判据。
           try {
             const hNow = await readChoiceNow()
             const cachedRev = Number.isInteger(cached.selection.rev) ? cached.selection.rev : 0
             const wantedRev = hNow.found ? hNow.rev : 0
             if (cachedRev !== wantedRev) isStale = true
+          } catch {}
+          // 手改配置文件即时生效（#1003 甲）：缓存时记下了文件的修改时间，对不上就重算；
+          // 取不到时间（无文件、读不出）按“判不了”处理，不误判（出现与消失照样算对不上）。
+          try {
+            if (cached.fileMs !== undefined) {
+              const nowMs = await workspaceFileMs(cwd, platform)
+              if (nowMs !== cached.fileMs) isStale = true
+            }
           } catch {}
           if (isStale) {
             try { store.invalidate(handle) } catch {}
@@ -262,10 +291,11 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
       at: Date.now(),
       // #683（F1 · ADR 的 R4）：权威修订号挂在每一次答复上（与 selection.rev 同一个值，另给一处方便调用方取）。
       rev: choiceRev,
-      // 这一次的结论是不是「客户端报上来的选择」得出的（R2c）。缓存那一条要用它判新旧，也是 R11 那句
-      // 「H 命中 / 未命中 / 被更旧的 hint 顶回」要记的现场。
+      // 这一次的结论是不是「客户端报上来的选择」得出的：老路径已删，恒为 false（上报不再参与判定）。
       fromHint: choiceFromHint,
       choiceSource: choiceSource,
+      // 手改配置文件即时生效的判据（#1003 甲）：缓存校验用，调用方按普通元数据忽略。
+      fileMs: null,
     }
 
     // 缓存：pending 不缓存（Q6）；force 重算后仍按同规则决定是否入缓存
@@ -273,7 +303,7 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
     if (store && selection && !selection.pending) {
       const pf2 = result.preflight
       const isEnvFail2 = pf2 && !pf2.ok && pf2.error && pf2.error.kind === 'env'
-      if (!isEnvFail2) { try { store.set(handle, result) } catch {} }
+      if (!isEnvFail2) { try { result.fileMs = await workspaceFileMs(cwd, platform); store.set(handle, result) } catch {} }
     }
     return result
   }

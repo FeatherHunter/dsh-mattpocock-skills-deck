@@ -140,7 +140,7 @@ export function createSnapshotBuilder(deps) {
           //   经 detectionService 判定（explicit 主锚 → matches → fallback），主锚是权威。
           //   此前快照裸 registry.select 不读主锚：「GitHub 版锚 + 非 git 目录」在快照侧判 fallback null，
           //   客户端保留旧 markdown 意向 → 头部 chip=Markdown 与环境检查=github（链按锚判定）互相矛盾（用户观察）。
-          const selMod = await deps.getDetectionService().then(function(svc){ return svc.detect({ cwd }, { skipSkillProbes: true, hintBackendId: hintBackendId || undefined }) }).catch(function(){ return null })
+          const selMod = await deps.getDetectionService().then(function(svc){ return svc.detect({ cwd }, { skipSkillProbes: true }) }).catch(function(){ return null }) // 上报已退役不传：刚选的经写入口直达文件
           let sel = selMod && selMod.selection
           // #297 失效维度：显式空（source explicit + null）是权威“无后端”（空目录 stale），不退回裸 select，否则旧绑定会复活
           if (!sel || (sel.backendId == null && (!sel.source || sel.source !== 'explicit'))) {

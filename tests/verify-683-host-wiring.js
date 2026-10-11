@@ -170,6 +170,11 @@ console.log('== C R2c：缓存里的选择随那份记忆变旧就必须重算 =
   const bumped = await store.rememberWorkspace(ws, 'github') // 别的壳把它改成了 github，rev 推到 2
   const c2 = await svc.detect({ cwd: ws }, { skipSkillProbes: true })
   check(c2.selection && c2.selection.backendId === 'github' && c2.rev === (bumped.rev || 0), '别的壳改过 H 之后，第二次读缓存也要重算、按新的 H 回答 —— 实得「' + (c2.selection && c2.selection.backendId) + '」rev=' + c2.rev)
+  // 甲：手改配置文件即时生效 —— 缓存里是 H 的 github，文件里手写了 markdown，下一轮必须按文件的来
+  fs.mkdirSync(path.join(ws, 'docs', 'agents'), { recursive: true })
+  fs.writeFileSync(path.join(ws, 'docs', 'agents', 'workspace.json'), '{"version":1,"backendId":"markdown","pickedAt":1758500000000,"source":"user"}', 'utf8')
+  const c3 = await svc.detect({ cwd: ws }, { skipSkillProbes: true })
+  check(c3.selection && c3.selection.backendId === 'markdown', '手改配置文件后缓存即失效、按文件的 markdown 回答（不是缓存里的 github）—— 实得「' + (c3.selection && c3.selection.backendId) + '」')
 }
 
 // ── D R4：快照那几条路都要带权威选择 ───────────────────────────────────────────────────

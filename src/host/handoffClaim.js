@@ -113,7 +113,7 @@ export function createHandoffClaim(deps) {
     try {
       const svc = await getDetectionService()
       if (svc && typeof svc.detect === 'function') {
-        const det = await svc.detect({ cwd }, { skipSkillProbes: true, hintBackendId: (args && args.backendId) || undefined })
+        const det = await svc.detect({ cwd }, { skipSkillProbes: true }) // 上报已退役不传：刚选的经写入口直达文件
         if (det && det.selection) _sel = det.selection
       }
     } catch {}

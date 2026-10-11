@@ -148,12 +148,12 @@ export function createSessionLifecycle(deps) {
   // 两处前奏的同一判据收敛：显式绑定优先，否则实时探测。快照与刷新经显式参数复用本函数，不各留一份拷贝。
   async function selectEarly(selCtx) {
     const cwd = selCtx.cwd
-    const backendId = selCtx.backendId
     let sel = null
     try {
       const svc = await getDetectionService()
       if (svc && typeof svc.detect === 'function') {
-        const det = await svc.detect({ cwd }, { skipSkillProbes: true, hintBackendId: backendId, baseRev: (selCtx && Number.isInteger(selCtx.baseRev)) ? selCtx.baseRev : 0 })
+        // 上报已退役不传：刚选的经写入口直达文件（内存绑定 + 落盘 + 清缓存），本轮即读到。
+        const det = await svc.detect({ cwd }, { skipSkillProbes: true })
         if (det && det.selection) sel = det.selection
       }
     } catch {}

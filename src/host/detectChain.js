@@ -47,7 +47,7 @@ export function createDetectChain(deps) {
       if (force) resetGhCache()
       try {
         const svc = await getDetectionService()
-        const res = await svc.detect({ cwd }, { force, hintBackendId: (args && args.backendId) || undefined, baseRev: (args && args.baseRev) || 0 })
+        const res = await svc.detect({ cwd }, { force }) // 上报已退役不传：刚选的经写入口直达文件，本轮即读到
         try { if (logCtx) logCtx.fire('info', 'detection.detect', { cwdHash: hash8(cwd), explicit: !!((res && res.selection && res.selection.source === 'explicit')), pending: !!((res && res.selection && res.selection.pending)), selection: String((res && res.selection && res.selection.backendId) || '') }) } catch (eL) {}
         // 对抗式：ensure DetectionResult 形态（含 selection/pending/multiHit，按 #125）
         return { ok: true, ...res }
@@ -92,10 +92,10 @@ export function createDetectChain(deps) {
         const ghTunnel = preflightScope ? scopedDetectionExec(preflightScope) : null
         /** 这条链上要问 gh 的时候走这里：有复用位就用它（同一轮里成名的预检只真问一次），没有就原样问。 */
         const ghAsk = ghTunnel || function (cmd, args, opts, via) { return runGh(args, (opts && opts.cwd) || undefined, via) }
-        // 用户显式选择（客户端持久化绑定）作为 detect hint——「主锚 > 用户选择 > matches」层级，见 detectionService.detect
+        // 用户显式选择经写入口直达文件（内存绑定 + 落盘 + 清缓存），本轮即读到，不再经上报参数。
         // #709（T5 补）：这次探测的预检（登录态、仓库可达）走 ghTunnel —— 与下面后端链那两个谓词共用同一份
         // 复用位，所以一次求值里这两条命令各只真问一次（从前各问两遍，一次求值 5 条 REST）。
-        const selMod = await getDetectionService().then(function(svc){ return svc.detect({ cwd }, { force, skipSkillProbes: true, hintBackendId: (args && args.backendId) || undefined, baseRev: (args && args.baseRev) || 0, exec: ghTunnel || undefined }) }).catch(function(){ return null })
+        const selMod = await getDetectionService().then(function(svc){ return svc.detect({ cwd }, { force, skipSkillProbes: true, exec: ghTunnel || undefined }) }).catch(function(){ return null })
         // 2026-08-28 语义修正（锚即真相，Q4 契约）：落盘主锚（detect 的 explicit/matches 判定）是权威——
         //   工作区「错误地用 GitHub 模板初始化」→ 检测就是 github（工作区名字不影响检测）；
         //   客户端绑定仅在 detect 无结论（无锚 fallback null / 探测中）时兜底，旧绑定记忆不得篡改已落盘的真相。
