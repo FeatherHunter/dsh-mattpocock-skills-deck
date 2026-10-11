@@ -1,82 +1,11 @@
-// verify-issue-detail.js — T6 #11 · IssueDetail 数据通路与渲染白盒校验（map #5 · v1.7.0）
-// 覆盖：host wf.issueDetail / wf.issueComments 双通道 + client store/api 形状 + Markdown 安全白盒（script/iframe/钓鱼链接）+ 双源一致
+// verify-issue-detail.js — T6 #11 · IssueDetail Markdown 安全白盒校验（map #5 · v1.7.0）
+// 覆盖：从构建产物切出 mdToHtml 真源，用含 script/iframe/钓鱼链接的 fixture 渲染，断言渲染结果安全
 const fs = require('fs')
 // 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
 const { compileFn } = require('./lib/eval-probe.js')
 let failed=false
 const check=(ok,msg)=>{ console.log((ok?'  PASS ':'  FAIL ')+msg); if(!ok) failed=true }
 const cli = fs.readFileSync('client.js','utf8')
-const pcli = fs.readFileSync('package/lib/client.js','utf8')
-const host = fs.readFileSync('host.js','utf8')
-const phost = fs.readFileSync('package/lib/index.js','utf8')
-// H2 #446：详情实现搬到 issueDetail.js（行为零变化）；双通道存在性断言跟随位置，意图不变。
-const hostDetail = fs.readFileSync('src/host/issueDetail.js','utf8')
-const hostComments = fs.readFileSync('src/host/commentThreads.js','utf8') // H5 #449：评论通路搬到评论电话文件，拼合断言意图不变
-const hostSide = host + hostDetail + hostComments
-const mdCli = (()=>{ const i=cli.indexOf('const MD_LINK_RE'); const e=cli.indexOf('// ============================================================', i+10); return e>i?cli.slice(i,e):cli.slice(i,i+9000) })()
-
-// —— host 双通道存在性
-check(host.includes("harness.handle('wf.issueDetail'"), 'host 含 wf.issueDetail handle')
-check(phost.includes("harness.handle('wf.issueDetail'") || phost.includes("wf.issueDetail"), 'package host 含 wf.issueDetail 镜像')
-check(host.includes('async function fetchIssueDetail('), 'host 含 fetchIssueDetail')
-check(host.includes('async function fetchIssueDetailREST('), 'host 含 fetchIssueDetailREST')
-check(host.includes("harness.handle('wf.issueComments'"), 'host 含 wf.issueComments handle')
-check(hostSide.includes('async function fetchIssueComments('), 'host 含 fetchIssueComments')
-check(hostSide.includes('async function fetchIssueCommentsREST('), 'host 含 fetchIssueCommentsREST')
-check(hostSide.includes("comments(first:50){nodes{author{login}"), 'host GraphQL 含 comments(first:50) with author')
-check(hostSide.includes("pageInfo{hasNextPage endCursor}"), 'host GraphQL 含 pageInfo{hasNextPage endCursor}')
-check(hostSide.includes("labels(first:20){nodes{name color}}"), 'host GraphQL 含 labels color')
-check(hostSide.includes("blockedBy(first:20){nodes{number title state}}"), 'host GraphQL 含 blockedBy')
-
-// —— REST 降级逐请求容错
-check(hostSide.includes("repos/' + repo.owner + '/' + repo.name + '/issues/' + n") || hostSide.includes("repos/' + repo.owner"), 'host REST 含 issues/{n} 路径')
-check(hostSide.includes("/comments?per_page=50"), 'host REST 含 comments per_page 50')
-check(hostSide.includes("/sub_issues?per_page=50"), 'host REST 含 sub_issues')
-check(hostSide.includes("/dependencies/blocked_by"), 'host REST 含 blocked_by')
-
-// —— 错误形状 7 档
-const kinds = ['env','parse','graphql','network','rateLimit','notFound','404']
-kinds.forEach(k=> check(host.includes(k) || cli.includes(k), '错误 kind 含 '+k))
-
-// —— client store 形状
-const storeCli = ['src/client/kernel/store-prefs.js', 'src/client/kernel/store-switch.js', 'src/client/kernel/store-snapshot.js', 'src/client/kernel/store-derived.js'].map((f) => fs.readFileSync(f, 'utf8')).join('\n') // 原 store.js 已消除，读四文件拼合断言（缓存形状在 snapshot，互斥语义在 prefs）
-check(storeCli.includes('issueCache'), 'store 含 issueCache')
-check(storeCli.includes('ISSUE_CACHE_TTL'), 'store 含 ISSUE_CACHE_TTL')
-check(storeCli.includes('60000'), 'store TTL 60000')
-check(storeCli.includes('issueMode'), 'store 含 issueMode')
-check(storeCli.includes('issueDetail'), 'store 含 issueDetail')
-check(storeCli.includes('issueCommentsMoreLoading'), 'store 含 issueCommentsMoreLoading')
-check(storeCli.includes('issueCommentsFailCount') || storeCli.includes('issueCommentsHasMore'), 'store 含 issueCommentsFailCount/hasMore')
-
-// —— client api 形状
-const apiCli = ['src/client/kernel/api-naming.js', 'src/client/kernel/api-new-session.js', 'src/client/kernel/api-io.js'].map((f) => fs.readFileSync(f, 'utf8')).join('\n') // 原 api.js 已消除，读三文件拼合断言（详情数据通路在输入输出文件）
-check(apiCli.includes('fetchIssueDetail'), 'api 含 fetchIssueDetail')
-check(apiCli.includes('fetchIssueComments'), 'api 含 fetchIssueComments')
-check(apiCli.includes("host.call('wf.issueDetail'"), 'api 调 wf.issueDetail')
-check(apiCli.includes("host.call('wf.issueComments'"), 'api 调 wf.issueComments')
-check(apiCli.includes('ISSUE_CACHE_TTL'), 'api 复用 ISSUE_CACHE_TTL')
-check(apiCli.includes('issueCache'), 'api 操作 issueCache')
-
-// —— IssueDetail 视图分支
-const detailCli = ['src/client/views/IssueDetail.js', 'src/client/views/IssueDetailComments.js'].map((f) => fs.readFileSync(f, 'utf8')).join('\n') // V3 #463：评论区搬到评论文件，拼合断言意图不变
-check(detailCli.includes('fetchIssueDetail'), 'IssueDetail 调 fetchIssueDetail')
-check(detailCli.includes('issueMode'), 'IssueDetail 读 issueMode')
-check(detailCli.includes('issueError'), 'IssueDetail 读 issueError')
-check(detailCli.includes('const goBack = function () { popNav(st) }'), 'IssueDetail 返回直调弹栈（只退一层，不绕旧入口）')
-check(detailCli.includes('mdToHtml'), 'IssueDetail 用 mdToHtml 渲染 body/comments')
-check(detailCli.includes('subIssues'), 'IssueDetail 渲染 subIssues')
-check(detailCli.includes('blockedBy'), 'IssueDetail 渲染 blockedBy')
-check(detailCli.includes('comments'), 'IssueDetail 渲染 comments')
-check(detailCli.includes('加载下 50') || detailCli.includes('加载下'), 'IssueDetail 含 加载下 50 按钮')
-check(detailCli.includes('issueCommentsMoreLoading'), 'IssueDetail 读 issueCommentsMoreLoading')
-check(detailCli.includes('issueCommentsFailCount'), 'IssueDetail 读 issueCommentsFailCount')
-check(detailCli.includes('以下评论未加载'), 'IssueDetail 含 3 次兜底 banner')
-
-// —— 双源一致（关键特征在双产物）
-check(cli.includes('fetchIssueDetail') && pcli.includes('fetchIssueDetail'), '双产物含 fetchIssueDetail')
-check(cli.includes('fetchIssueComments') && pcli.includes('fetchIssueComments'), '双产物含 fetchIssueComments')
-check(cli.includes('IssueDetail') && pcli.includes('IssueDetail'), '双产物含 IssueDetail')
-check(host.includes('wf.issueDetail') && phost.includes('wf.issueDetail'), '双产物 host 含 wf.issueDetail')
 
 // —— Markdown 安全白盒（fixture 含 script/iframe/钓鱼链接 → 渲染结果不含脚本与危险 href）
 const stubH = (tag, props, children) => {

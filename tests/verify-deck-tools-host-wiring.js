@@ -6,10 +6,10 @@
 // 装的时候拿的是不是宿主那一套真东西（同一个闸、同一个后端注册表、同一个工作区），它证明不了。
 //
 // 所以这一段盯四件事：
-//   ① 装配只有一处：九个工具文件只在 src/host/platform/deckToolsAssembly.js 里被读进来一次，
-//      而且那一步走的是共享层的装配口 createDeckTools（不是手拼一张表）。宿主层（src/host/ 下，
-//      platform/ 与 tracker/backends/ 除外）里的文件一次都不许自己去读那七个文件 ——
-//      本票的纪律是不给宿主层新增 7 条同层引用边（tests/verify-no-same-layer-import.js 管这条墙）。
+//   ① 层判据自检：把「宿主层里的文件去读宿主层的工具文件」这件事喂给本文件的层判据 layerOf，
+//      它必须判违规。原先这里还有三条读源码文本的断言（装配点读了哪几个工具文件、装配点里有没有
+//      createDeckTools、宿主层里有没有同层引用边），那些钉的是手写源码的写法，改写法或搬文件就会
+//      变红，按维护者的要求已清掉；真正管这面墙的是 tests/verify-no-same-layer-import.js。
 //   ② 真在宿主装配形状下装起来：用 src/host/refresh/wiring.js 的 createRefreshWiring（宿主入口
 //      实际调用的那一份）装出一套刷新机制，从它拿到的九个工具表必须齐（names 九条、missing 空）。
 //   ③ 真跑一次：在一个真实临时工作区（本地 Markdown 后端，票就是盘上的文件）上，让 AI 那一侧
@@ -17,8 +17,7 @@
 //   ④ 每次后端调用都过闸**那一份闸**：断言用的是宿主接线对象上的那一个 gate（不是门禁自己另造一个），
 //      它的账里必须有「AI 工具」那一档，且绕开闸的请求数为 0。
 //
-// 末尾一条内存夹具是为了让 ① 不空转：把「宿主层里的文件读宿主层的工具文件」这件事喂给本文件
-// 同一套判据，它必须判违规。
+// ① 那条内存夹具不读任何源码文本，测的就是判据函数本身，所以留着。
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
@@ -29,20 +28,7 @@ let failed = false
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href)
-const readText = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 
-const ASSEMBLY = 'src/host/platform/deckToolsAssembly.js'
-const SEVEN = [
-  'src/host/tools/deckContext.js',
-  'src/host/tools/deckIssueGet.js',
-  'src/host/tools/deckMapSnapshot.js',
-  'src/host/tools/deckIssueList.js',
-  'src/host/tools/deckIssueCreate.js',
-  'src/host/tools/deckMapPlanCreate.js',
-  'src/host/tools/deckMapLink.js',
-  'src/host/tools/deckIssuePatch.js',
-  'src/host/tools/deckIssueReport.js',
-]
 const NAMES = ['deck_context', 'deck_issue_get', 'deck_map_snapshot', 'deck_issue_list', 'deck_issue_create', 'deck_map_plan_create', 'deck_map_link', 'deck_issue_patch', 'deck_issue_report']
 
 /**
@@ -87,38 +73,12 @@ function markdownWorkspace() {
 }
 
 async function main() {
-  console.log('九个 deck_* 工具的宿主装配门禁（#723 T19c：装配口、宿主形状、真跑一次、过宿主那一个闸）')
+  console.log('九个 deck_* 工具的宿主装配门禁（#723 T19c：宿主形状、真跑一次、过宿主那一个闸）')
 
-  // ── ① 装配只有一处，而且走装配口 ──
-  const wiringSrc = readText('src/host/refresh/wiring.js')
-  const assemblySrc = readText(ASSEMBLY)
-  const importedSeven = SEVEN.filter((f) => assemblySrc.indexOf(f.slice(f.lastIndexOf('/') + 1)) >= 0)
-  check(importedSeven.length === 9, '装配点把八个工具文件都读进来了（' + importedSeven.length + ' / 9，装配点：' + ASSEMBLY + '）')
-  check(/createDeckTools\s*\(/.test(assemblySrc), '装配点走的是共享层装配口 createDeckTools（不是手拼一张表）')
-
-  const hostLayerHits = []
-  const walk = (dir) => {
-    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-      const full = path.join(dir, e.name)
-      if (e.isDirectory()) { walk(full); continue }
-      if (!e.name.endsWith('.js')) continue
-      const rel = path.relative(ROOT, full).split(path.sep).join('/')
-      if (layerOf(rel) !== 'host') continue
-      const text = readText(rel).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
-      for (const tool of SEVEN) {
-        const base = tool.slice(tool.lastIndexOf('/') + 1)
-        if (new RegExp('[\'"](\\.\\.?/)+' + base.replace(/\./g, '\\.') + '[\'"]').test(text)) hostLayerHits.push(rel + ' -> ' + base)
-      }
-    }
-  }
-  walk(path.join(ROOT, 'src', 'host'))
-  check(hostLayerHits.length === 0, '宿主层里没有任何文件自己去读那九个工具文件（0 条同层边；实得 ' + (hostLayerHits.length ? hostLayerHits.join('、') : '零命中') + '）')
-
-  // 内存夹具（反证 ① 不空转）：宿主层里的文件读宿主层的工具文件 → 同一条判据必须判违规。
+  // ── ① 层判据自检 ──
+  // 内存夹具：宿主层里的文件读宿主层的工具文件 → 层判据 layerOf 必须把两头都判成 host。
   const fixture = { file: 'src/host/refresh/wiring.js', import: './tools/deckContext.js', resolved: 'src/host/tools/deckContext.js' }
   check(layerOf(fixture.file) === 'host' && layerOf(fixture.resolved) === 'host', '✗ probe：宿主层文件引用宿主层工具文件，会被同一条层判据判成同层边（' + fixture.file + ' -> ' + fixture.resolved + '）')
-
-  check(wiringSrc.indexOf('deckToolsForHost') >= 0, '宿主接线对象把装好的表交出来了（deckToolsForHost）')
 
   // ── ② 真在宿主装配形状下装起来 ──
   const registryMod = await imp('src/host/tracker/registryCore.js')

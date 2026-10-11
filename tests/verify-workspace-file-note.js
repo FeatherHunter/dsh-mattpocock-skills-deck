@@ -11,18 +11,13 @@
  *   客户端那一侧只负责把这份回执翻成人话，不重算判断（见 src/client/kernel/store-prefs.js 的
  *   workspaceFileNoteOf / workspaceFileNoteEl / adoptBoundRev）。
  *
- * 本门禁量六件事：
- *   A 宿主那一侧的形状：上面那几行返回字面量还在；这一段里 ok:true 的落点恰好四个（写成一处 +
- *     跳过三处，客户端要翻的就是这几个）；跳过今天仍只有那三个取值；另核一条客户端口径：
- *     宿主回包里 placed 那个布尔，客户端一个字都不看；
+ * 本门禁量四件事（组号沿用下面各节的标题）：
  *   B 五种回执翻出来的人话：已创建、已覆盖（要写明覆盖了原来那一条）、三种跳过（回空串，不打扰人）、
  *     环境失败（如实说没写进工作区，并明说绑定照旧有效）、没有结果（回空串）；
  *   C adoptBoundRev 把回执记进会话状态（回执在顶层 / 回执在 res.value 里 / 两个字段同时在时取哪一份 /
  *     没有回执 / 回包整个缺席）且仍然返回 null；
  *   D workspaceFileNoteEl 没有结果回 null；有结果但纯 node 里没有 h 时也回 null（不抛）；
  *     给它一个 h（假节点工厂）就回一个 div 节点，节点里写的正是翻译出来那句话；
- *   E 构建产物：根 client.js（dev 产物）与 package/lib/client.js（发布产物）里确实有 workspaceFileNoteEl
- *     的定义，状态栏里也确实调用了它 —— 证明「一源两物」的拼接真的生效，而不是只在源文件里躺着；
  *   F 反证（本轮重做）：把 B 组那批语义判据收成一个可复用函数（runNoteCases），拿真模块里那个真身
  *     翻译函数包一层、在运行时按回执的字段改坏一处（跳过也给人话 / 覆盖那句不再说覆盖 / 失败那句不再
  *     提绑定照旧有效 / 已创建谎称覆盖），对每个变异体跑同一批判据，断言「至少有一条红」——
@@ -53,9 +48,14 @@
  *      顺带补了同一种崩法的另一处：真源把这三个导出名改掉/删掉时，B/C/D 三组会崩在「拿 undefined
  *      当函数调」上，现在也当场按红退出（正常路径不多不少一条断言）；
  *   3) 更早两轮的改动（留着看）：F 组原来那三条「反证成立」是恒真的（锚里就含判据要找的词、替换文本
- *      必然非空），所以改成跑同一批语义判据；E 组不再冻结展示位置，只要求状态栏里「至少有一处」调用点、
- *      产物里也带着同一处调用；条件断言改成取不到就红，末尾另有一条「断言条数恰为预期总数」兜住
- *      将来有人再加 if 又忘了报账。
+ *      必然非空），所以改成跑同一批语义判据；条件断言改成取不到就红，末尾另有一条「断言条数恰为预期
+ *      总数」兜住将来有人再加 if 又忘了报账。
+ *   4) 清掉一切「读源码文本钉形状」的判据（仓库维护口径：这类门禁会因为等价重构 —— 改写法、搬文件、
+ *      改注释 —— 而变红，浪费人的时间）：删掉 A 组（宿主返回字面量、这一段里 ok:true 的落点数、跳过
+ *      三个取值去源文件核对、请求/回包字段名的正则）与 E 组（状态栏里有没有调用点、两个构建产物里有没有
+ *      定义/调用、有没有去掉行首 export）两组纯文本判据，另删掉「翻译函数的函数体里不出现 placed」
+ *      那一条。跳过那三个取值仍列在下面的 DOCUMENTED_SKIPS 里，只是不再去源文件核对了。抠真源文本
+ *      求值那条路（D 组「有 h 的那一支」）与 B/C/F 三组的行为判据一条没动。
  *
  * 两种取值路线，哪一条走哪种方式（实测结论写在这里，照做即可）：
  *   1) 行为断言（B/C/D 里凡是量真模块行为的那几条）走**真模块直接 import**：本文件是 ESM，用 import()
@@ -72,7 +72,6 @@
  *      直接拿上面 import 进来的那个 —— 改回按文本求值，等于又把真源措辞请回来当依赖。
  *
  * 用法：node tests/verify-workspace-file-note.js
- *   产物那几条（E 组）要求先跑 node scripts/build.mjs；源码改过而产物没重建时，E 组会红并提示重跑构建。
  *   本门禁已经挂进 package.json 的 scripts.verify 链（挂在链尾，跑法见 scripts/verify-chain.js），
  *   也可以单跑：node tests/verify-workspace-file-note.js。
  */
@@ -84,12 +83,6 @@ import { compileFn } from './lib/eval-probe.js'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 const PREFS_REL = 'src/client/kernel/store-prefs.js'
-const HOST_REL = 'src/host/workspaceCwd.js'
-const STATUSBAR_REL = 'src/client/statusbar/StatusBar.js'
-// 产物真路径（本仓没有 src/client/client.js 这个文件，别照名字猜）：
-//   根 client.js 是 scripts/build.mjs 写的 dev 产物（cordis_define 函数体形态），
-//   package/lib/client.js 是同一份函数体外加 ModuleLoader 工厂壳的发布产物。
-const ARTIFACTS = ['client.js', 'package/lib/client.js']
 
 let passed = 0
 let failed = 0
@@ -100,12 +93,10 @@ let skipped = 0
 const check = (ok, msg) => { if (ok) { console.log('  PASS ' + msg); passed++ } else { console.log('  FAIL ' + msg); failed++ } }
 const skip = (msg) => { console.log('  SKIP ' + msg); skipped++ }
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
-const exists = (rel) => fs.existsSync(path.join(ROOT, rel))
 
 const prefsSrc = read(PREFS_REL)
-const hostSrc = read(HOST_REL)
 
-// 宿主那一侧今天只算这三个跳过取值（下面 A 组会去源文件里核对，B 组按核对结果逐个喂给翻译函数）。
+// 宿主那一侧今天只算这三个跳过取值（B 组逐个喂给翻译函数，看每一档都翻得出人话）。
 const DOCUMENTED_SKIPS = ['explicit-none', 'unregistered', 'registry-unavailable']
 
 // 判据认的同义表达：写成数组，命中任意一个就算有这层意思（理由见文件头「判据钉到什么程度」）。
@@ -134,45 +125,6 @@ const fnExprOf = function (srcText, name) {
 }
 
 console.log('工作区配置文件那一行门禁（#1012：绑定回执里「写进工作区配置文件」的结果翻成人话）')
-
-// ── A 宿主那一侧的形状：翻译要对得上宿主真能回的那几个值 ─────────────────────────
-console.log('')
-console.log('== A 宿主那一侧的形状（' + HOST_REL + ' 的 writeWorkspaceFileOnFirstBind）==')
-const hostBindBody = (function () {
-  const i = hostSrc.indexOf('async function writeWorkspaceFileOnFirstBind')
-  const j = hostSrc.indexOf('async function migrateChoiceToFile')
-  return (i >= 0 && j > i) ? hostSrc.slice(i, j) : ''
-})()
-check(hostBindBody !== '', '整段取到 writeWorkspaceFileOnFirstBind 的函数体（下面几个取值都从这一段里认，不认别处的同名写法）')
-const hostSkips = Array.from(new Set((hostBindBody.match(/skipped:\s*'([^']+)'/g) || []).map((s) => s.replace(/[^']*'([^']+)'[^']*/, '$1')))).sort()
-check(
-  hostSkips.length === 3 && hostSkips.join(',') === DOCUMENTED_SKIPS.slice().sort().join(','),
-  '跳过一档今天只有那三个取值（实得 ' + JSON.stringify(hostSkips) + '；多出一个就说明客户端那边该同步看一眼怎么翻）',
-)
-check(
-  /return\s*\{\s*ok:\s*true,\s*placed:\s*true,\s*reason:\s*existed\s*\?\s*'overwritten'\s*:\s*'created'\s*\}/.test(hostBindBody),
-  '写成那一档回的是 { ok:true, placed:true, reason: existed ? \'overwritten\' : \'created\' }（客户端就按 reason 分「新建」与「覆盖」两句）',
-)
-const envFailSites = (hostBindBody.match(/ok:\s*false,\s*error:\s*\{\s*kind:\s*'env'/g) || []).length
-check(
-  envFailSites >= 2,
-  '失败那一档回的是 { ok:false, error:{ kind:\'env\', message } }（这一段里两处落点：拿不到文件通道、写文件本身抛错；实得 ' + envFailSites + ' 处）',
-)
-check(
-  /workspaceFile:\s*workspaceFile/.test(hostSrc),
-  '这份结果挂在绑定回执的 workspaceFile 字段上（客户端就是从这儿取的，不是另编一个字段名）',
-)
-// 闭合性：这一段里 ok:true 的落点要恰好四个 —— 写成一处（带 placed）加跳过三处，客户端翻的就是这四个；
-//   多出第五个（例如新增一档「没写成但也算 ok」）就说明客户端那边少翻了一句，这里先红。
-const okTrueSites = (hostBindBody.match(/return\s*\{\s*ok:\s*true\s*,/g) || []).length
-check(
-  okTrueSites === 4,
-  '这一段里 ok:true 的落点恰好四个（写成一处 + 跳过' + hostSkips.length + '处；实得 ' + okTrueSites + ' 处 —— 少一个说明聚合口径变了，多一个说明客户端那边少翻了一档）',
-)
-check(
-  okTrueSites === hostSkips.length + 1,
-  '四个 ok:true 落点 = 三处跳过 + 一处写成（跳过取值 ' + hostSkips.length + ' 个、写成落点 1 个、实测 ok:true 共 ' + okTrueSites + ' 个）—— 两边对得上，说明没有第五种 ok:true 形态漏在客户端视野外',
-)
 
 // ── 真模块直取（路线 1）：B/C/D 里量行为的那几条都拿真身函数来跑 ────────────────────
 let prefs = null
@@ -220,20 +172,11 @@ const noteCreated = noteOf({ ok: true, placed: true, reason: 'created' })
     '客户端不看 placed：这一项给 true、给 false、不给，翻出来的都是同一句（三种实得「' + noteCreated + '」/「' + withFalse + '」/「' + withoutIt + '」）',
   )
 }
-// 上面那条量的只是「已创建」这一支（三种喂法都只喂 created）；这里从文本上再补一刀：
-//   翻译函数的函数体里一次都不该出现 placed，所以四个分支都不看那个布尔，不是只有已创建那一支碰巧不看。
-const noteFnBodyExpr = fnExprOf(prefsSrc, 'workspaceFileNoteOf')
-const placedHits = (noteFnBodyExpr.match(/placed/g) || []).length
-check(
-  noteFnBodyExpr !== '' && placedHits === 0,
-  '翻译函数的函数体里不出现 placed（覆盖到已创建以外的分支：四个分支都不看那个布尔；实得 '
-  + (noteFnBodyExpr === '' ? '按现在的锚从真源里切不出这个函数的文本，这一条按红' : placedHits + ' 处 placed') + '）',
-)
 
 // ── B 五种回执翻出来的人话 ──────────────────────────────────────────────────────
 // B 组那批语义判据写成一张可复用的清单：每一条 = { name, wf（喂进去的回执）, ok(t, say) }。
 //   t 是这个回执翻出来的话；say(另一个回执) 是同批里另一条翻出来的话（用来量「两句不许合并成一句」）。
-//   「跳过」那几条按 skipValues 现场生成：宿主今天只有三个取值（A 组已核对），万一多出一种，
+//   「跳过」那几条按 skipValues 现场生成：宿主今天只算那三个取值，万一多出一种，
 //   这里跟着多测一条翻译，不用等人想起来改门禁。
 const buildNoteCases = function (skipValues) {
   const cases = [
@@ -272,7 +215,7 @@ const runNoteCases = function (noteFn) {
 }
 console.log('')
 console.log('== B 五种回执翻出来的人话 ==')
-const skipValues = Array.from(new Set(DOCUMENTED_SKIPS.concat(hostSkips))).sort()
+const skipValues = DOCUMENTED_SKIPS.slice().sort()
 const NOTE_CASES = buildNoteCases(skipValues)
 // 固定 10 条：已创建 1 + 已覆盖 2（像不像、句不同）+ 环境失败 2（像不像、句不同）+ 只给 ok:false 1 + 没有结果 4。
 const FIXED_CASE_COUNT = 10
@@ -384,32 +327,6 @@ check(!!nodeWithH && !!nodeWithH.props && !!nodeWithH.props.style, '回的那个
 check(callWithH({ workspaceFileResult: { ok: true, skipped: 'explicit-none' } }) === null, '有 h 时跳过那一档照旧回 null（跳过就是不占位）')
 check(callWithH({}) === null, '有 h 时没有结果照旧回 null')
 
-// ── E 构建产物：拼接真的生效（定义与调用点都在产物里）─────────────────────────────
-console.log('')
-console.log('== E 构建产物：一源两物的拼接真的生效 ==')
-// 调用点只要求「挂上了」，**不冻结展示位置**：这一行放胶囊上方还是黄条下方、包在哪个容器里、
-//   排在第几个，都属于展示形态，挪位置/换容器/调顺序都不用改这里；只要状态栏还在调用它，
-//   产物里就该带着同一处调用。要冻结展示位置的话，先当产品决定写下来，再加断言。
-const statusSrc = read(STATUSBAR_REL)
-const srcSites = (statusSrc.match(/workspaceFileNoteEl\(s\)/g) || []).length
-const firstSite = ((statusSrc.match(/[^\n]*workspaceFileNoteEl\(s\)[^\n]*/) || [''])[0]).trim()
-check(
-  srcSites >= 1,
-  STATUSBAR_REL + ' 里至少有一处调用点（实得 ' + srcSites + ' 处；第一处是「' + firstSite.slice(0, 60) + '…」）',
-)
-for (const rel of ARTIFACTS) {
-  if (!exists(rel)) {
-    check(false, rel + ' 存在（缺了就先跑 node scripts/build.mjs；本仓没有 src/client/client.js 这个文件，产物真路径就是这两个）')
-    continue
-  }
-  const txt = read(rel)
-  check(/const workspaceFileNoteEl = function \(s\) \{/.test(txt), rel + ' 里有 workspaceFileNoteEl 的定义（内核那一片被拼进来了）')
-  check(!/export const workspaceFileNoteEl/.test(txt), rel + ' 里那一行开头不再带 export（拼接时按约定去掉了行首 export，说明它确实走的是拼接这条路）')
-  check(/const txt = \(s && s\.workspaceFileResult\) \? workspaceFileNoteOf\(s\.workspaceFileResult\) : ''/.test(txt), rel + ' 里那一行读的是会话状态里的 workspaceFileResult')
-  const sites = (txt.match(/workspaceFileNoteEl\(s\)/g) || []).length
-  check(sites >= 1, rel + ' 里至少有一处调用点（实得 ' + sites + ' 处；不冻结展示位置 —— 状态栏换了个位置放它也是过，只要还调用它）')
-}
-
 // ── F 反证：改坏翻译函数，B 组那批判据必须当场红（本轮重做）────────────────────────
 console.log('')
 console.log('== F 反证：把翻译函数改坏，B 组同一批判据必须当场红 ==')
@@ -477,7 +394,7 @@ check(
 console.log('')
 check(skipped === 0, '本次没有一条判据因为「找不到锚 / 取不出真身」被跳过（实测跳过 ' + skipped + ' 条 —— 跳过一律在这里算红）')
 // 上面所有 check 的条数 + 这一条自身 = 预期总数（下面这条自己也算一条，所以用 +1）。
-const TOTAL_ASSERTIONS = 68
+const TOTAL_ASSERTIONS = 51
 check(
   passed + failed + 1 === TOTAL_ASSERTIONS,
   '断言条数恰为预期总数（预期 ' + TOTAL_ASSERTIONS + ' 条，实得 ' + (passed + failed + 1) + ' 条）。两个方向都算：'

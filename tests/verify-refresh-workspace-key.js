@@ -10,7 +10,8 @@
 //   真接线 src/host/refresh/wiring.js 的 createRefreshWiring + 真闸与真账本（refresh/gate.js、ledger.js）
 //   + 真检查链 src/host/detectChain.js 的 createDetectChain（gh 那一侧在假进程接缝上跑，不起真进程）。
 // 它盯三件事：
-//   一、钥匙只有一处：接线转出来的那把与共享层那一把是**同一个函数**，接线里不再有第二份散列写法；
+//   一、钥匙只有一处：接线转出来的那把与共享层那一把是**同一个函数**；
+//      （2026-10-12 修订：原来还有半条读 wiring.js 源码文本、数「自己抄了几处散列」的断言，已删。）
 //   二、三条路进闸带的是同一把钥匙、落在同一格上：① 视图模型标活跃（wf.focus → syncAttention）；
 //      ② 检查链求值那一笔记账（detectChain 的 noteChainEval）；③ 七个 deck_* 工具里的一次调用过闸。
 //      其中 ① 与 ② 正是真机那次错位的两半。
@@ -26,7 +27,6 @@ let failed = false
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href)
-const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 
 /** 本门禁的「宿主洗衣机」替身：与 src/host/workspaceKey.js 同一套口径（小写化、斜杠转正、去尾斜杠）。 */
 function canon(p) {
@@ -197,12 +197,6 @@ async function main() {
   const sharedMod = await imp('src/shared/refresh-workspace-key.js')
   check(typeof wiringMod.workspaceKeyOf === 'function', '接线转出 workspaceKeyOf（宿主这一侧取钥匙的唯一入口）')
   check(wiringMod.workspaceKeyOf === sharedMod.workspaceKeyOf, '接线转出的那把与共享层那把是同一个函数（实现只有一处）')
-  const wiringSrc = read('src/host/refresh/wiring.js')
-  // #845：这条判据原来把「任何 hash8(String(…))」都算成自己抄了一份工作区钥匙，于是把错误散列
-  //   （errorHash: hash8(String(…))，见 wiring.js 里那条 host.call.fail）也误判进来。收窄成
-  //   「同一行里不是 errorHash 的那些调用」—— 真正抄钥匙的写法照样会被数到。
-  const ownHash = wiringSrc.split(/\r?\n/).filter((l) => /hash8\(String\(/.test(l) && !/errorHash\s*:/.test(l)).length
-  check(ownHash === 0, '接线里不再自己抄一份钥匙（非 errorHash 的 hash8(String(…)) 出现 ' + ownHash + ' 处，应为 0）')
 
   // ── 二、三条路进闸带的是同一把钥匙、落在同一格上 ──
   const host = await makeHost()

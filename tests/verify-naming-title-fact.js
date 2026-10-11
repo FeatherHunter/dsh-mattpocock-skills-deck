@@ -24,8 +24,7 @@ function check(ok, msg, detail) {
 
 const src = readFileSync(join(ROOT, 'src/host/refresh/wiring.js'), 'utf8')
 const line = src.split('\n').map(function (l) { return l.trim() }).find(function (l) { return l.indexOf('titleFactOf: function') === 0 })
-check(!!line, '断言读法仍在：wiring.js 里有 titleFactOf（被改名的化本测试会红，不会静默放过）')
-if (!line) { console.log('\n宿主标题来源读法不存在'); process.exit(1) }
+if (!line) { console.log('\n宿主标题来源读法不存在（抽取目标缺失，无法运行本文件）'); process.exit(1) }
 
 const fragment = line.slice(0, line.lastIndexOf('},') + 1)
 let titleFactOf = null

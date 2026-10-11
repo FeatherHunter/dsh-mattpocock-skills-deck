@@ -61,12 +61,10 @@ const FILES = [
 // 把这几片按构建顺序拼成同一个闭包（与 scripts/build.mjs 的拼接口径一致：去掉行首 export 后求值）。
 function moduleText(patch) {
   const body = FILES.map((f) => noExport((patch && patch.file === f) ? patch.text : read(f))).join('\n')
-  // #1009 收口后只留一条 30 秒耐心，门禁把它缩短成同一个短值：
-  //   源里那个单值常量必须还在（不在就说明有人改了等待时长，门禁当场红）；
-  //   冷启动那一档与分档函数必须不在（在就说明分档又回来了，门禁当场红）。
+  // 门禁把源里那条 30 秒耐心缩短成 0.9 秒，好把「死线先到、回包后到」那个次序造出来。
+  //   下面这句替换就是本门禁跑起来的前提：替换不成立（源里换了写法）时早点报错，别让它静悄悄地按 30 秒跑。
   const WAIT_ANCHOR = 'SNAP_WAIT_MS = 30000'
   if (body.indexOf(WAIT_ANCHOR) < 0) throw new Error('源里找不到快照等待的单值预算（' + WAIT_ANCHOR + '）—— 本门禁的替换不成立')
-  if (body.indexOf('SNAP_WAIT_COLD_MS') >= 0 || body.indexOf('snapWaitBudgetMs') >= 0) throw new Error('源里还有冷启动分档（SNAP_WAIT_COLD_MS / snapWaitBudgetMs）—— #1009 收口要求只留一条，分档必须删掉')
   return body.replace(WAIT_ANCHOR, 'SNAP_WAIT_MS = ' + GATE_TIMEOUT_MS)
 }
 
@@ -172,7 +170,7 @@ const bannerApi = (function () {
       (show, fb) => String((show && show.title) || fb || '')).guideBannerStep,
   }
 })()
-// 横幅第一帧是什么样（与 StatusBar.js 里那几条判据同一个口径；那处的真身由下面「反向 4」的真源断言钉着）。
+// 横幅第一帧是什么样（与 StatusBar.js 里那几条判据同一个口径）。
 function bannerVariant(st) {
   const decision = bannerApi.step(st, true) // 后端还没定 → 门控那一步是开着的
   const undecided = !(st.selection && st.selection.backendId)
@@ -356,13 +354,6 @@ async function main() {
     // 学到根之后，现在这条键是根 —— 改动前那句（`_reqNorm !== _curNorm`）拿子目录键去比根，必然判过期。
     const mod = makeEnv({ seedLocal: rootKeyedSeed() }).mod
     const reqKey = mod.keyOf(SUB_DIR)
-    ok(reqKey === mod.wsKeyOf(SUB_DIR), '（前提）请求发出时，这条目录还没有根可折算 —— 请求键就是它自己')
-    const srcA = noExport(probeSnapshotSrc).replace(/\r?\n/g, '\n')
-    const srcB = noExport(oldGuardSrc).replace(/\r?\n/g, '\n')
-    ok(srcA.indexOf('if (_curNorm !== _reqNorm && !_snapRequestKeyWas(_reqNorm, st)) {') >= 0
-      && srcB.indexOf('if (_curNorm !== _reqNorm) {') >= 0
-      && srcB.indexOf('_snapRequestKeyWas(_reqNorm, st)') < 0,
-      '（前提）改动后那句与改动前那句各自都在真源文本里（这就是本式的两版：换过尺子 / 原样）')
     mod.rememberWorkspaceRoot(SUB_DIR, ROOT_DIR) // 这份回包顺路把根教给了客户端（改动前后都这样）
     const curKey = mod.wsKeyOf(SUB_DIR)
     ok(curKey !== reqKey, '学到根之后，同一把请求键折算出来的值变了（子目录键 → 根键）—— 改动前那句正是在这里误判')
@@ -395,9 +386,6 @@ async function main() {
 
   // ── 反向 4：把第 4 条（表达面）改回原样 → I2 必须红 ────────────────────────
   console.log('\n反向 4) 把状态栏那处表达面改回原样 → I2 必须红')
-  const sbSrc = read('src/client/statusbar/StatusBar.js')
-  ok(sbSrc.indexOf('const _selReading = !!(s.cwd && _backendUndecided && (s.snapLoading === true || s.selPending === true))') >= 0,
-    '（前提）状态栏里那条判据就是「在途时算正在读取」')
   // 改回原样 = 这一支不存在（改动前根本没有这条判据），于是同一帧必然取回 banner.gate 那一档。
   const decisionOld = bannerApi.step({ cwd: SUB_DIR, selection: null, snapLoading: true }, true)
   ok(decisionOld && decisionOld.banner && decisionOld.banner.text === 'banner.gate',
@@ -420,16 +408,6 @@ async function main() {
   // ── 这次超时路上那几条「先无人接、随后被接住」的派生链：只许是那条超时 ────────
   const stray = strayRejections.filter((m) => m.indexOf('client loadSnapshot timeout') < 0)
   ok(stray.length === 0, '超时路上那几条派生链的临时拒绝只有「那条死线」一种原因' + (stray.length ? ' —— 另见：' + stray.join('、') : ''))
-
-  // ── 接线：双产物里真的带着这一批（改完没重新构建就会红在这）────────────────
-  console.log('\n接线）双产物里带着这几处')
-  for (const product of ['client.js', path.join('package', 'lib', 'client.js')]) {
-    const buf = read(product)
-    ok(buf.indexOf('askSelectionOnce') >= 0, product + ' 里带着那条专用电话的补问')
-    ok(buf.indexOf('_installLateSnapshotSelection') >= 0, product + ' 里带着迟到回包的落地')
-    ok(buf.indexOf('_snapRequestKeyWas') >= 0, product + ' 里带着换过尺子的那条守卫')
-    ok(buf.indexOf("'banner.gateReading'") >= 0, product + ' 里带着「正在读取」那一档词条')
-  }
 
   console.log(failed ? '\n存在失败 — verify-subdir-first-frame 未通过' : '\n全部通过 — ' + total + ' 项断言（子目录会话第一帧的三条不变量）')
   process.exit(failed ? 1 : 0)

@@ -1,6 +1,10 @@
-// tests/verify-344-chain-auto-refresh.js — #344 修复验证：链自动重求值与探测加固
+// tests/verify-344-chain-auto-refresh.js — #344 加固验证：FILE_EXISTS 直读兜底
 // 用法：node tests/verify-344-chain-auto-refresh.js
-import { readFileSync } from 'node:fs';
+//
+// 本文件只留功能面：起真实的谓词执行器，喂一个「平台全部失效」的 mock，
+// 看 FILE_EXISTS 这条原语能不能靠直读兜底给出正确结论（文件在就 pass、不在就 fail）。
+// 原来还夹着两批静态读源码的断言（自轮询常量已退役、probe 里有 #344 注释、发货产物里含某段字符串），
+// 那些断言的对象是手写源码文本，等价重构就会误报，已按维护者要求清掉。
 
 let failed = false;
 let total = 0, passed = 0;
@@ -12,47 +16,7 @@ function check(ok, msg, detail=''){
 
 console.log('== #344 修复验证 ==');
 
-// 1. client probe 自动重求值：**#709（T5）起改事件驱动，自轮询整体退役**
-//    改动说明（不许删测试，只改断言方向）：原来这 5 条斷言是「必须存在 CHAIN_AUTO_POLL_MS /
-//    scheduleChainAutoRefresh / cancelChainAutoRefresh」，那是 #344 加 8 秒自轮询时的验收。
-//    #709 把这条自轮询删掉了（票面硬要求「没有定时器」），所以同样这 5 条断言翻成「必须不存在」：
-//    谁把自轮询抄回来，这一条立刻红。功能面（修好之后检查页仍能自动变绿）改由事件驱动承担，
-//    断言在下面第一节后半段与 tests/verify-709-no-self-continuing-timers.js 里。
-console.log('\n— client 链自动重求值（#709 起为事件驱动）—');
-try{
-  const probeSrc = ['src/client/kernel/probe-chain.js','src/client/kernel/probe-snapshot.js','src/client/kernel/probe-auto.js'].map((f) => readFileSync(f,'utf8')).join('\n'); // 456 收尾：probe.js 已拆为三文件，读三文件拼起来的内容断言
-  check(!probeSrc.includes('CHAIN_AUTO_POLL_MS'), '#709：8 秒自轮询常量 CHAIN_AUTO_POLL_MS 已退役');
-  check(!probeSrc.includes('scheduleChainAutoRefresh'), '#709：scheduleChainAutoRefresh 已退役');
-  check(!probeSrc.includes('cancelChainAutoRefresh'), '#709：cancelChainAutoRefresh 已退役');
-  check(probeSrc.includes('#344'), 'probe.js 含 #344 修复注释');
-  check(probeSrc.includes('chainEventRefresh'), '#709：改为事件驱动入口 chainEventRefresh');
-  check(probeSrc.includes("'user-recheck'"), '#709：人亲手点的「重新检查」永不降档');
-  check(probeSrc.includes("'action-done'"), '#709：做完可能改变它的动作也触发一次');
-  // 构建产物：client.js 由构建重新生成。产物里同样不许再出现自轮询。
-  const clientBuilt = readFileSync('client.js','utf8');
-  check(!clientBuilt.includes('CHAIN_AUTO_POLL_MS'), '构建产物 client.js 里自轮询已消失（需重新构建）');
-  check(clientBuilt.includes('chainEventRefresh'), '构建产物 client.js 里事件驱动入口在（需重新构建）');
-  const pkgBuilt = readFileSync('package/lib/client.js','utf8');
-  check(!pkgBuilt.includes('CHAIN_AUTO_POLL_MS'), '构建产物 package/lib/client.js 里自轮询已消失（需重新构建）');
-}catch(e){ check(false, '读取 probe 相关文件', String(e.message)); }
-
-// 2. host 探测加固
-console.log('\n— host 探测加固 —');
-try{
-  const predSrc = readFileSync('src/host/tracker/predicatePrimitives.js','utf8'); // V1 #461：#344 加固随原语执行器搬出
-  check(predSrc.includes('#344 加固'), 'predicatePrimitives.js 含 #344 加固注释');
-  check(predSrc.includes("import('node:fs/promises')"), 'predicatePrimitives.js 含直读兜底 import');
-  check(predSrc.includes('absDirect') || predSrc.includes('directOk'), 'predicatePrimitives.js 有直读路径分支');
-  const hostBuilt = readFileSync('host.js','utf8');
-  // 构建为分包形态：加固住在 package/lib/tracker/predicatePrimitives.js，host.js 以运行时 import 挂载（非内联），故断言指向真实发货产物而非 bundle 文本
-  const shippedPred = readFileSync('package/lib/tracker/predicatePrimitives.js','utf8'); // V1 #461：发货路径随拆分
-  check(shippedPred.includes('directOk') && shippedPred.includes('absDirect'), '发货产物 tracker/predicatePrimitives.js 含加固（directOk/absDirect）');
-  // V1 #461 修正：dev host.js 包内零 tracker/ 字串（分包形态下 tracker 经 package/lib 运行时挂载），挂载边断言指到真实位置
-  const pkgDetect = readFileSync('package/lib/detectChain.js','utf8');
-  check(pkgDetect.includes('./tracker/predicateCore.js'), '发货 detectChain 保留谓词装配入口挂载边（./tracker/predicateCore.js）');
-}catch(e){ check(false, '读取 host 相关文件', String(e.message)); }
-
-// 3. 功能性：FILE_EXISTS 直读兜底在 mock 平台失效时仍能 pass
+// 功能性：FILE_EXISTS 直读兜底在 mock 平台失效时仍能 pass
 console.log('\n— 功能性：mock 平台失效时直读兜底 —');
 try{
   const { createPredicateRegistry } = await import('../src/host/tracker/predicateCore.js'); // V1 #461：predicateRegistry.js 已拆为两块

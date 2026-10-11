@@ -37,8 +37,6 @@ function extractFactoryBlock(src) {
   return src.slice(i, j)
 }
 
-const stripComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
-
 // ---- 会话 store 替身工厂（每个会话独立对象 = 真实 storeOf 语义）----
 function mkSt(sid, cwd) {
   return {
@@ -152,24 +150,6 @@ async function main() {
     console.log('=== ' + file + ' ===')
     let src
     try { src = readSrc(file) } catch (e) { check(false, tag + ' 可读 — ' + e.message); continue }
-    const code = stripComments(src)
-
-    // ---- Part S：静态契约（新形状已落定，旧全局名已删除）----
-    try {
-      check(!/(^|[^.\w])(export\s+)?let\s+handoffTs\b/.test(src), tag + ' · 旧全局 handoffTs 已删除')
-      check(!/(^|[^.\w])(export\s+)?let\s+handoffFile\b/.test(src), tag + ' · 旧全局 handoffFile 已删除')
-      check(!/(^|[^.\w])(export\s+)?let\s+pendingDraft\b/.test(src), tag + ' · 旧全局 pendingDraft 已删除')
-      check(!/(^|[^.\w])(export\s+)?let\s+pendingDraftTargetSid\b/.test(src), tag + ' · 旧全局 pendingDraftTargetSid 已删除')
-      check(!/(^|[^.\w])let\s+lastHandoffOpenTs\b/.test(code), tag + ' · 旧全局 lastHandoffOpenTs 已删除')
-      check(/(^|[^.\w])handoffTs\s*=[^=]/.test(code) === false || /st\.handoffTs\s*=/.test(code), tag + ' · 交接时间戳只写会话自己身上')
-      check(!/(^|[^.\w])handoffFile\s*=[^=]/.test(code), tag + ' · 真实文件名无裸写（只许 st.handoffFile）')
-      check(!/(^|[^.\w])pendingDraft\s*=[^=]/.test(code), tag + ' · 草稿无裸写（只许目标 store 的 incomingDraft）')
-      check(!/(^|[^.\w])pendingDraftTargetSid\s*=[^=]/.test(code), tag + ' · 目标编号无裸写（单槽门已退役）')
-      check(/st\._lastHandoffOpenTs/.test(code), tag + ' · 防抖计时在会话自己身上')
-      check(/incomingDraft\s*=/.test(code), tag + ' · 草稿写进目标会话存放')
-      check(/handoffCwdMatches/.test(code) && /handoffMemoryValid/.test(code), tag + ' · 目录校验助手与记忆有效判断存在')
-      check(/handoffCwd/.test(code), tag + ' · 记下那一刻的目录有地方存')
-    } catch (e) { check(false, tag + ' 静态契约异常 — ' + e.message) }
 
     // ---- Part B：行为（双会话沙箱）----
     let fnSrc
@@ -288,9 +268,6 @@ async function main() {
     // ---- Part F：单点工厂草稿各归各 ----
     try {
       const fSrc = extractFactoryBlock(src)
-      const fCode = stripComments(fSrc)
-      check(!/(^|[^.\w])pendingDraft\s*=[^=]/.test(fCode), tag + ' · 工厂无裸草稿写（只许 store 写入）')
-      check(/incomingDraft/.test(fCode), tag + ' · 工厂写目标会话存放')
       const res = await runFactorySandbox(fSrc, ['草稿甲', '草稿乙'])
       const got = res.sids.map(function (sid) { return storeOfText(res.storeMap, sid) })
       check(got[0] === '草稿甲' && got[1] === '草稿乙', tag + ' · F 草稿各归各（连续两次创建不覆盖）')

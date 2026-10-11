@@ -6,7 +6,10 @@
 //   （假子进程、假计时器、假记录器）把两件事量出来：
 //     一、开关打开：每条命令恰好落一行，五个字段齐，工作区只落短指纹不落原始路径，发起链名对得上；
 //     二、开关关闭：一条都不落，而且日志点连时钟都不读 —— 唯一代价是读一次开关的布尔值。
-// 另外还有两段：把整条回路走一遍真的落盘并从文件里读回数字；以及核一遍客户端的临时测点确实撤干净了。
+// 另外两段都是运行核：把整条回路走一遍真的落盘并从文件里读回数字；把 router.js 里计时与记日志那三段
+//   真代码抽出来配假记录器跑。
+// 原来还核过「客户端的临时测点撤干净了」——那是读 router.js / Dock.js / DockSync.js / ListTab.js 的源码
+//   文本，点名 mode 取值、临时全局变量、四个阶段名与 panelClock 字面，盯的是写法，已按维护者要求删除。
 //
 // 顺带把关一件事：**提交信息不得以不可见字符开头**。这张票自己的两个提交就踩过这个坑（提交标题首三字节
 //   是 UTF-8 BOM `EF BB BF`，来历是本机 PowerShell 的 `Out-File -Encoding utf8` 与 `>` 重定向默认会写 BOM）。
@@ -257,37 +260,14 @@ async function main() {
     try { nodeFs.rmSync(tmpDir, { recursive: true, force: true }) } catch (e) {}
   }
 
-  // ---- 五、客户端：临时测点撤干净了，正式的 panel.render 能用 ----
-  // 先按文本核：这是本仓库对客户端文件惯用的核实方式（渲染目录没法直接跑起来）。
+  // ---- 五、客户端：正式的 panel.render 能用 ----
+  // 这里原来还有一批「先按文本核」的断言：数 panel.open 在 router.js 里出现几行、点名 mode 取值、
+  // 列临时全局变量与阶段名清单、要求四个文件都写着 panelClock、正则查 globalThis。
+  // 它们盯的是 router.js / Dock.js / DockSync.js / ListTab.js 的源码写成什么样（等价重构就变红），
+  // 已按维护者要求删除。下面的运行核（把真代码抽出来配假记录器跑）原样保留。
   {
     const read = (rel) => nodeFs.readFileSync(path.join(ROOT, rel), 'utf8')
     const routerSrc = read(path.join('src', 'client', 'kernel', 'router.js'))
-    const dockSrc = read(path.join('src', 'client', 'panel', 'Dock.js'))
-    const dockSyncSrc = read(path.join('src', 'client', 'panel', 'DockSync.js'))
-    const listTabSrc = read(path.join('src', 'client', 'views', 'ListTab.js'))
-
-    // 1) panel.open 只剩正式那一条，字段就是下面这五个（2026-09-21 去掉了 mode：面板只有一条路，
-    //    「走哪个入口」不再是一个可记的东西），没有多也没有少。
-    const panelOpenSites = routerSrc.split('\n').filter((l) => l.includes("'panel.open'"))
-    check(panelOpenSites.length === 1, 'panel.open 只剩一行记录点（实得 ' + panelOpenSites.length + ' 行）')
-    const formalOk = panelOpenSites.length === 1 && ['hasCache', 'snapFresh', 'keyHash', 'snapVersion', 'backendId'].every((k) => panelOpenSites[0].includes(k + ':')) && panelOpenSites[0].includes("log('info', 'panel.open'")
-    check(formalOk, 'panel.open 仍是那条正式记录（信息级、五个字段：hasCache、snapFresh、keyHash、snapVersion、backendId）')
-    check(!panelOpenSites[0].includes('mode:'), 'panel.open 不再记 mode（面板只有一条路之后它没有第二种取值）')
-    // 2) 把耗时编码进 mode 取值的临时写法没了。
-    const tempModes = ['sidebar-t0', 'sidebar-beforeTab', 'sidebar-ensureDone', 'sidebar-tabReturned', 'sidebar-painted', 'dock-render', 'loaf-late']
-    const leftOver = tempModes.filter((m) => routerSrc.includes(m) || dockSyncSrc.includes(m) || dockSrc.includes(m) || listTabSrc.includes(m))
-    check(leftOver.length === 0, '临时写在 mode 取值里的那几个名字全撤了' + (leftOver.length ? ' —— 残留：' + leftOver.join('、') : '（查过 ' + tempModes.length + ' 个）'))
-    // 3) 挂在全局变量与状态对象上的临时计时字段全撤了。
-    const tempGlobals = ['__dswsLoaf', '__dswsDockRenderStart', '__dswsDockRenderLogged', '__dswsDockCommitMs', '__dswsDockSeg', '__dswsMarkFn', '__dswsFitMs', '__openMs', '_dswsLoafText']
-    const globalsLeft = tempGlobals.filter((g) => routerSrc.includes(g) || dockSyncSrc.includes(g) || dockSrc.includes(g) || listTabSrc.includes(g))
-    check(globalsLeft.length === 0, '全局变量与状态对象上的临时计时字段全撤了' + (globalsLeft.length ? ' —— 残留：' + globalsLeft.join('、') : '（查过 ' + tempGlobals.length + ' 个）'))
-    // 4) 四个文件都往同一个计时对象写，阶段名齐（2026-09-21 去掉 sidebar-registered / sidebar-opened 两个：
-    //    那两个是 better-sidebar 那条路的测点，那条路已删）。
-    const stages = ['render-commit', 'render-paint', 'fit-measure', 'click-to-painted']
-    const missingStage = stages.filter((s) => !(routerSrc + dockSyncSrc).includes("'" + s + "'"))
-    check(missingStage.length === 0, '四个阶段名都在代码里' + (missingStage.length ? ' —— 缺：' + missingStage.join('、') : '（' + stages.join('、') + '）'))
-    check(routerSrc.includes('panelClock') && dockSyncSrc.includes('panelClock') && dockSrc.includes('panelClock') && listTabSrc.includes('panelClock'), '四个文件共用同一个 panelClock 计时对象（启动、渲染、提交、折叠各自写自己那段）')
-    check(!/\bglobalThis\b/.test(dockSyncSrc.split('\n').filter((l) => l.includes('panelClock')).join('')), '计时对象没挂在 globalThis 上')
 
     // 再按运行核：把 router.js 里那三段真代码抽出来，配假记录器跑一遍。
     const start = routerSrc.indexOf('export const panelClock')

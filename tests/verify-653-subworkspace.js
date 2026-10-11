@@ -11,7 +11,7 @@
  *      ——行为级，直接跑内核里的 wsKeyOf 真函数（去掉行首 export 后 as 纯函数加载）。
  *   B. 落盘/读取只有一把键：同一份快照按子目录存进去，根会话按根就读得出来（不再双写两个桶）。
  *   C. 污染判定的白名单已删除：两个工作区的目录互为祖先时，仍然判为污染（#45 同类问题）。
- *   D. 归属标志：只在「所选目录 ≠ 工作区根」时出现，浮层文本按定稿四行的顺序拼出来。
+ *   D. 归属标志：只在「所选目录 ≠ 工作区根」时出现（行为级，跑真函数）。
  *   E. 双产物一致：client.js 与 package/lib/client.js 都带着这套接线。
  */
 const fs = require('fs')
@@ -84,16 +84,9 @@ else bad('同一目录的不同写法没归到同一把键')
 
 // ── B. 缓存分级：写入与读取只有一把键 ────────────────────────────────────
 console.log('\nB) 缓存只有一把键（不再双写「仓库根」与「所选目录」两个桶）')
-const probeSrc = read('src/client/kernel/probe-snapshot.js')
-// #1009：装快照那一整段搬去 probe-select.js 了（正常那一路与迟到那一路共用同一处），
-//   所以「同一份快照只落一次缓存」这条判据要看整个内核闭包，不能只看一个文件。
-const kernelSrc = probeSrc + '\n' + read('src/client/kernel/probe-select.js')
-if (!/const c = snap\.repoRoot \|\| st\.cwd; if \(c\) setCachedSnapshot\(c, snap\)/.test(kernelSrc)) {
-  ok('旧的双写已删除（不再先按 repoRoot 存一把、再按所选目录存一把）')
-} else bad('内核仍在按两个键双写同一份快照')
-if (/setCachedSnapshot\(st\.cwd, snap\)/.test(kernelSrc)) ok('安装快照时只调一次 setCachedSnapshot(st.cwd, snap)')
-else bad('没找到单次落缓存的调用')
-
+// 【已删除】原先这里读 probe-snapshot.js 与 probe-select.js 的源码文本，用正则断言「旧的双写没了」
+// 与「落缓存只调一次 setCachedSnapshot(st.cwd, snap)」。那是钉源码文本的门禁，等价改写法一变就红；
+// 下面接着把真源里那两段切出来跑，用运行结果证明「写入与读取只有一把键」。
 const storeSrc = read('src/client/kernel/store-snapshot.js')
 const storeBlock = noExport(
   storeSrc.slice(storeSrc.indexOf('export const getCachedSnapshot'), storeSrc.indexOf('export const lastProbeAtByCwd'))
@@ -128,8 +121,8 @@ const isPolluted = compileFn(
   keyOfFn, KEY.wsKeyOf,
   (c) => { const s = String(c || '').split(/[\\/]/); for (let i = s.length - 1; i >= 0; i--) if (s[i]) return s[i]; return 'repo' }
 )
-if (dockSrc.indexOf("startsWith(rr + '/')") < 0) ok('旧白名单（互为祖先就放行）已从代码里删除')
-else bad('DockSync.js 里仍留着「互为祖先就放行」的旧白名单')
+// 【已删除】原先还断言 DockSync.js 的源码文本里不出现 "startsWith(rr + '/')"（旧白名单的写法）。
+// 钉源码文本，撤掉；下面直接跑切出来的真函数，看「两个工作区互为祖先」判不判污染。
 
 // 两个工作区互为祖先：都认得出来且不相同 → 判为污染
 if (isPolluted({ ok: true, maps: [], workspaceRoot: ROOT_DIR }, NESTED) === true) {
@@ -174,31 +167,10 @@ else bad('嵌套仓库出现了标志')
 if (isSubOf('', SUB_DIR) === false) ok('宿主还没回话（没有工作区根）：不出现')
 else bad('没有工作区根时出现了标志')
 
-// 浮层文案：一个键装四行，顺序固定 结论 → 证据 → 动作 → 提醒
-const locSrc = read('src/client/kernel/locale-panel.js')
-const tipLines = [...locSrc.matchAll(/'panel\.wsMarkTip':\s*'((?:[^'\\]|\\.)*)'/g)].map((m) => m[1])
-if (tipLines.length === 2) ok('浮层文案中英各一套（panel.wsMarkTip 出现 2 次）')
-else bad('浮层文案不是中英各一套（实得 ' + tipLines.length + ' 次）')
-const zhTip = tipLines.find((s) => s.indexOf('面板数据来自工作区') === 0) || ''
-const zhParts = zhTip.split('\\n')
-if (zhParts.length === 4) ok('中文浮层四行齐全')
-else bad('中文浮层不是四行，实得 ' + zhParts.length + ' 行：' + zhTip)
-const orderOk = zhParts[0] && zhParts[0].indexOf('面板数据来自工作区 {root}') === 0 &&
-  zhParts[1] && zhParts[1].indexOf('当前目录是它的子目录：{rel}') === 0 &&
-  zhParts[2] && zhParts[2].indexOf('点一下打开 {root}') === 0 &&
-  zhParts[3] && zhParts[3].indexOf('{root}还未初始化') === 0
-if (orderOk) ok('四行顺序固定：结论 → 证据 → 动作 → 提醒')
-else bad('浮层四行顺序不符定稿：' + JSON.stringify(zhParts))
-if (!/子工作区|工作区根/.test(zhTip)) ok('用户可见文案里没有「子工作区」「工作区根」这类内部术语')
-else bad('用户可见文案里出现了内部术语')
-
-// 七种情形对照表里要求「只在这个条件下出现」的两处硬判据
-if (/chainStepOk\('tracker:initialized'\)/.test(markSrc) && /!== false/.test(markSrc)) ok('第四行按工作区根是否已初始化决定是否显示（拿不准时不出，不吓人）')
-else bad('没有按初始化状态决定第四行')
-if (/wf\.openFolder/.test(markSrc)) ok('点击动作复用宿主已有的打开文件夹能力（wf.openFolder）')
-else bad('点击动作没有接打开文件夹')
-if (/aria-label/.test(markSrc)) ok('图标带 aria-label（读屏用户没有悬停这个动作）')
-else bad('图标没有 aria-label')
+// 【已删除】原先这里读 locale-panel.js 的源码文本，断言 panel.wsMarkTip 中英各一套、中文四行、
+// 四行顺序固定（结论 → 证据 → 动作 → 提醒）、文案里不出现内部术语；又对 SubworkspaceMark.js 的
+// 源码文本做正则，断言出现 chainStepOk('tracker:initialized')、wf.openFolder、aria-label。
+// 这些断言的对象都是源码文本（等价改写法一变就红），整段撤掉。D 段保留的是上面跑真函数的那几条。
 
 // ── E. 单条链路走到底：宿主报回根 → 客户端三张表都落同一把键 ────────────
 // 这是本门禁最要紧的一条：不是为了断言某个函数对不对，而是把「子目录会话打开面板要秒显根工作区的缓存」

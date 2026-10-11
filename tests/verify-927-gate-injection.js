@@ -3,13 +3,10 @@
 //
 // 守的是什么：#723（T19）写好那两处报账（platformChannel 的 detectionExec、repoKeys 的 runGh）之后，
 // 宿主装配处一直没把闸交给它们，于是生产里「每一笔真实出站都记在账上」这条不变式是空的：
-// transport 与 accounted 不动、escaped 是个空 0。这一条门禁钉三件事：
-//   ① 装配处（src/host/index.js）必须把闸交给这两处（带一个活的取值口 getGate）；
-//   ② 两处传输层必须每次现问一次闸，不能只认创建时拿到的那份快照；
-//   ③ 用真件跑一遍：建通道时闸还没有 → 报账静默；闸随后就位 → 同一处立刻开始报账。
-//     第 ③ 条是关键：刷新接线要到插件起步时才建好，先建好的那一路老写法永远拿不到闸。
+// transport 与 accounted 不动、escaped 是个空 0。这一条门禁用真件跑一遍：
+//   建通道时闸还没有 → 报账静默；闸随后就位 → 同一处立刻开始报账。
+//   关键在这里：刷新接线要到插件起步时才建好，先建好的那一路老写法永远拿不到闸。
 import nodePath from 'node:path'
-import { readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { createPlatformChannel } from '../src/host/platformChannel.js'
 import { createRepoKeys } from '../src/host/repoKeys.js'
@@ -39,21 +36,7 @@ function mkGate() {
   return { seen: seen, noteOutbound: function (entry) { seen.push(entry); return { requests: seen.length, points: 0 } } }
 }
 
-// ── ① 装配处必须把闸交给两处传输层，并且用活的取值口 ──
-{
-  const idx = readFileSync(nodePath.join(ROOT, 'src/host/index.js'), 'utf8')
-  const plat = /createPlatformChannel\(\{[\s\S]*?getGate: function \(\) \{ return refreshGate \}/.test(idx)
-  const repo = /createRepoKeys\(\{[\s\S]*?getGate: function \(\) \{ return refreshGate \}/.test(idx)
-  check(plat, '① 建 platformChannel 时把闸交出去了（装配处带 getGate）')
-  check(repo, '① 建 repoKeys 时把闸交出去了（装配处带 getGate）')
-  check(/refreshGate = \(w && w\.gate\) \|\| null/.test(idx), '① 刷新接线一就位就把闸填进取值口（不填的话取值口永远是空的）')
-  const pc = readFileSync(nodePath.join(ROOT, 'src/host/platformChannel.js'), 'utf8')
-  const rk = readFileSync(nodePath.join(ROOT, 'src/host/repoKeys.js'), 'utf8')
-  check(/function gateOf\(\)/.test(pc) && /gateOf\(\)/.test(pc), '② platformChannel 每次报账现问一次闸（gateOf）')
-  check(/function gateOf\(\)/.test(rk) && /gateOf\(\)/.test(rk), '② repoKeys 每次报账现问一次闸（gateOf）')
-}
-
-// ── ③ 真件：闸晚一步就位也接得上 ──
+// ── 真件：闸晚一步就位也接得上 ──
 {
   let gateNow = null
   const pc = createPlatformChannel({
@@ -95,20 +78,6 @@ function mkGate() {
   check(g.seen.length === 1, '④ repoKeys 这一处也在闸就位之后开始报账（实得 ' + g.seen.length + '）')
 }
 
-
-// ── ⑤ 静态：面板取数那两路的每条命令都过闸，装配处真的把 send 交给了它们，累计数有只读出口 ──
-{
-  const snap = readFileSync(nodePath.join(ROOT, 'src/host/sessionSnapshot.js'), 'utf8')
-  const ref = readFileSync(nodePath.join(ROOT, 'src/host/sessionRefresh.js'), 'utf8')
-  const idx = readFileSync(nodePath.join(ROOT, 'src/host/index.js'), 'utf8')
-  const wir = readFileSync(nodePath.join(ROOT, 'src/host/refresh/wiring.js'), 'utf8')
-  check(/send\(\{ source: 'panel\.refresh'/.test(snap), '⑤ 快照那一路的 exec 过闸（源码里出现 send({ source: panel.refresh … })）')
-  const n = (ref.match(/send\(\{ source: 'panel\.refresh'/g) || []).length
-  check(n === 2, '⑤ 刷新那两处 exec 也都过闸（实得 ' + n + ' 处）')
-  check(/send: function \(req, perform\) \{ return _refreshWiringP/.test(idx), '⑤ 装配处把 send 交给这两路')
-  check(/send: function \(req, perform\) \{ return gate\.send\(req, perform\) \}/.test(wir), '⑤ 刷新接线把闸的 send 交出来')
-  check(/wf\.gateStats/.test(idx), '⑤ 三个累计数有只读出口（wf.gateStats）')
-}
 
 // ── ⑥ 活件：过闸的调用把结果带回来；没报数不算「对不上」；报假数仍被抓 ──
 {

@@ -1,11 +1,10 @@
-// verify-leaves.js — dsh-mattpocock-skills-deck 阶段 2 叶子迁移（#97 T4）：叶子模块契约验证
+// verify-leaves.js — dsh-mattpocock-skills-deck 阶段 2 叶子迁移（#97 T4）：叶子文件清单门禁
 // 验证：
-//   1) 全部叶子文件存在且含预期导出（G3 共享 → views/shared/ · G4 严格一文件）
-//   2) 每个叶子文件 ≤350 行（G4 Q1：≤350 默认、>500 强制拆）
-//   3) 组件叶子含 React.useContext(DswsCtx) 消费（ARCHITECTURE-CTX.md §2 插座式）
-//   4) 构建产物（_dev client.js / _pkg package/lib/client.js）已拼接全部叶子（一源两物 · 无标记残留）
-//   5) 去重指标：tabsTip 单源（12→5）/ fitAllTags 单源（views/shared/tagsFit.js）/ Dock+Overlay tabs 行合成一处
-//   6) 产物新鲜度门禁（缺失/过期 → FAIL，提示先构建；与 verify-kernel 同口径）
+//   1) 全部叶子文件存在（G3 共享 → views/shared/ · G4 严格一文件）
+//   2) 每个叶子文件 ≤350 行（G4 Q1：≤350 默认、>500 强制拆；在册文件按零增长基线判）
+//   3) 产物新鲜度门禁（缺失/过期 → FAIL，提示先构建；与 verify-kernel 同口径）
+// 「叶子导出齐全」「组件消费 useContext」「产物里拼进没拼进」这三类读源码文本钉形状的断言，
+// 已按维护者要求删除；LEAVES 表里的 exports / components 两列从此只是档案记录，不再参与断言。
 // 用法: node tests/verify-leaves.js（在插件根目录；先运行 node scripts/build.mjs 生成产物）
 const fs = require('fs')
 const path = require('path')
@@ -132,63 +131,11 @@ function main() {
     const frozen = GRANULARITY_BASELINE[file]
     const limit = frozen === undefined ? 350 : Number(frozen)
     check(lines <= limit, file + ' ≤' + limit + ' 行' + (frozen === undefined ? '（G4）' : '（零增长基线冻结值）') + ' · 实际 ' + lines + '）')
-    for (const ex of l.exports) {
-      const ok = new RegExp('export\\s+(const|let|function|var)\\s+' + ex + '\\b').test(src)
-      check(ok, file + ' 导出 ' + ex)
-    }
-    for (const c of l.components) {
-      check(src.includes('React.useContext(DswsCtx)'), file + ' 组件 ' + c + ' 消费 useContext(DswsCtx)')
-      // 故障回归（2026-08-21 修复 9d0de74）：禁止「cx 缺失 → return null」的静默空白模式——
-      //   必须兜底回退闭包依赖（h/useStore 在 text-splice 架构下恒在闭包作用域）
-      check(!/if\s*\(!cx\)\s*return\s*null/.test(src), file + ' 组件 ' + c + ' 无 if(!cx) return null（静默空白模式已禁用）')
-      check(src.includes('cx ? cx.h : React.createElement'), file + ' 组件 ' + c + ' 含 cx 兜底回退（h）')
-    }
   }
 
-  // ---- 产物已拼接（无标记残留 + 关键导出在双产物）----
-  const cli = fs.readFileSync('client.js', 'utf8')
-  const pcli = fs.readFileSync('package/lib/client.js', 'utf8')
-  for (const l of LEAVES) {
-    const marker = 'leaf:' + (l.file.split('/').pop().replace(/\.js$/, '')) + ' (spliced'
-    check(!cli.includes(marker) && !pcli.includes(marker), '双产物无 ' + l.file + ' 拼接标记残留')
-  }
-  const spot = [
-    'const Dot = ({ level })', 'const mdToHtml = function', 'const tStatus = function',
-    'const fitAllTags = function', 'const useTabsRow = function', 'const TicketRow = React.memo(({ st, g, t',
-    'const MapDetail = ({ st, g, drill })', 'const NoRepoCard = function', 'const ListTab = ({ st, narrow })',
-    'const SkillsTab = ({ st })', 'const ChecksTab = ({ st })',
-    'const SettingsPage = (props)', 'const RunPanel = (props)', 'const DetailsDock = (props)',
-    'const checksumsOf = function', 'const StatusBar = (props)',
-    'const SkillFloatList = function', 'const showPop = function',
-  ]
-  // IssueDetail spot（新增叶 · 独立 detail 插件化）
-  check(cli.includes('const IssueDetail = function') && pcli.includes('const IssueDetail = function'), '双产物含 const IssueDetail …（' + (cli.includes('const IssueDetail = function') ? '✓' : '✗') + '/' + (pcli.includes('const IssueDetail = function') ? '✓' : '✗') + '）')
-  spot.forEach((k) => {
-    check(cli.includes(k) && pcli.includes(k), '双产物含 ' + k.slice(0, 30) + '…（' + (cli.includes(k) ? '✓' : '✗') + '/' + (pcli.includes(k) ? '✓' : '✗') + '）')
-  })
-
-  // ---- 去重指标（T4 验收）：tabsTip 单源 12→≤6 / fitAllTags 单源 / Dock+Overlay tabs 行合成一处 ----
-  const countOf = (src, needle) => (src.match(new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length
-  // tabsTip 指标 = tabsTip 出现次数（排除 tabsTipOff 子串）：迁移前 Dock+Overlay 各 5 处 = 10/产物 → 单源后 5/产物
-  const tipRe = /tabsTip(?!Off)/g
-  const cliTip = (cli.match(tipRe) || []).length
-  const pkgTip = (pcli.match(tipRe) || []).length
-  check(cliTip <= 6 && pkgTip <= 6, '产物 tabsTip 单源（10→≤6 · 实际 _dev ' + cliTip + ' / _pkg ' + pkgTip + '）')
-  check(cliTip === pkgTip, '双产物 tabsTip 计数一致（' + cliTip + '）')
-  check(countOf(cli, 'const tabBtn') === 1 && countOf(pcli, 'const tabBtn') === 1, '产物 tabBtn 仅 1 处声明（Dock/Overlay tabs 行合成一处 · _dev ' + countOf(cli, 'const tabBtn') + ' / _pkg ' + countOf(pcli, 'const tabBtn') + '）')
-  check(countOf(cli, 'const fitAllTags') === 1 && countOf(pcli, 'const fitAllTags') === 1, '产物 fitAllTags 仅 1 处定义（单源）')
-  check(cli.includes('fitAllTags()') && pcli.includes('fitAllTags()'), '产物 ListTab 调用 fitAllTags（消费点保留）')
-
-  // ---- index.js 无残留大块（组件已全部迁出，只剩装配 + tabsfold 机器 + 接线）----
-  const idx = fs.readFileSync('src/client/index.js', 'utf8')
-  check(!idx.includes('const StatusBar = '), 'src/client/index.js 已不含 StatusBar（迁出 statusbar/StatusBar.js）')
-  check(!idx.includes('const DetailsDock = '), 'src/client/index.js 已不含 DetailsDock（迁出 panel/Dock.js）')
-  // #646：页内浮窗退役 —— 组件本体与它的拼接标记一起删除，源码里不该再有它的名字
+  // ---- 页内浮窗退役（只查文件在不在，不读源码文本） ----
+  // #646：浮窗组件本体与它的拼接标记一起删除，源码里不该再有它的名字。
   check(!fs.existsSync('src/client/panel/Overlay.js'), 'src/client/panel/Overlay.js 已删除（页内浮窗退役）')
-  check(!idx.includes('OverlayPanel') && !cli.includes('OverlayPanel') && !pcli.includes('OverlayPanel'), '双产物与 index.js 里都不再有 OverlayPanel')
-  check(!idx.includes('const ListTab = '), 'src/client/index.js 已不含 ListTab（迁出 views/ListTab.js）')
-  check(!idx.includes('const SettingsPage = '), 'src/client/index.js 已不含 SettingsPage（迁出 views/SettingsPage.js）')
-  check(idx.includes('tabsLevelDecide'), 'src/client/index.js 保留 tabsfold 机器（verify-tabsfold-leaf 文本基准）')
 
   console.log(failed ? '\n存在失败' : '\n全部通过')
   process.exit(failed ? 1 : 0)

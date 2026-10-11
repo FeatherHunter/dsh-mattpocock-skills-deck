@@ -14,7 +14,9 @@
  *   C 行为层（切换之后按场景分流）：真求值 store-switch.js 的 confirmSwitchConfirm，配真 guide-steps ——
  *     已初始化 → 注入 switchAlign（点名 /setup-matt-pocock-skills，带 from/to）；未初始化且仓库就绪 →
  *     走决策器（允许开布局小卡）+ 未初始化那句提示条；未初始化且仓库没就绪 → 一个字都不注入。
- *   D 静态层：那张弹窗上「清除后端选择」没了、迁移/清空两张卡与 GitLab 置灰、中英词条成对。
+ *   D 静态层（已整段删除）：原先读弹窗、词表、后端名单、提示词注册表、面板与状态栏那几个文件的源码文本，
+ *     断言「哪颗按钮没了」「谁进了置灰名单」「中英词条成对」。这类断言会因为等价重构而变红，所以拆掉了；
+ *     能跑起来的那部分仍在 A、B、C 三组（真调 detectionService、真求值那几个纯函数）与 E 组的反证里。
  *   E 反证：把 A、C 两组的实现各自做坏一次，对应的断言必须当场变红。
  *
  * 用法：node tests/verify-669-choice-precedence.js
@@ -39,8 +41,9 @@ const detectionSrc = read('src/host/tracker/detection/detectionService.js')
 const prefsSrc = read('src/client/kernel/store-prefs.js')
 const snapSrc = read('src/client/kernel/store-snapshot.js')
 const switchSrc = read('src/client/kernel/store-switch.js')
-const modalSrc = read('src/client/views/shared/SwitchConfirmModal.js')
-const wordSrc = read('src/client/kernel/locale-word.js')
+// 【已删除】原先这里还读两份源码文本 —— src/client/views/shared/SwitchConfirmModal.js 与
+//   src/client/kernel/locale-word.js，两份都只服务于上面整段删掉的 D 静态层，一并去掉。
+//   下面那份 prompts.js 留着：C 组要把切换那条路真跑起来，用的是它里面两个真身函数。
 const promptsSrc = read('src/client/kernel/prompts.js')
 
 // ── A 组：宿主判定链（真 detectionService + 真注册表 + 真锚文件读）────────────────────────
@@ -371,57 +374,15 @@ const makeSettle = function (steps, opts) {
   check(plainCancel.seen.inject.length === 0, '黄条那条路开的卡点取消：一个字都不注入（取消还是取消）—— 实得 ' + JSON.stringify(plainCancel.seen.inject))
 }
 
-// ── D 静态层：本来只该在仓库里出现一次的东西 ─────────────────────────────────────────
-console.log('')
-console.log('== D 静态层：删掉的那颗按钮、置灰的三处、中英成对 ==')
-{
-  check(!/clearBackendBinding/.test(modalSrc) && !/switch\.clearBind/.test(modalSrc), '弹窗里「清除后端选择」那颗按钮没了（连同它的两条词条引用）')
-  check(!/clearBackendBinding/.test(switchSrc), '内核里那条路径也退役了（全仓无调用点）')
-  check(/OPTION_LOCKED = \{ migrate: 'switch\.optLockedTip', clear: 'switch\.optLockedTip' \}/.test(modalSrc), '「迁移」「清空」两张卡进了置灰名单')
-  check(/'data-opt-locked': locked \? 1 : 0/.test(modalSrc) && /data-target-locked/.test(modalSrc), '置灰状态在 DOM 上可查（data-opt-locked / data-target-locked）')
-  check(/SWITCH_UNAVAILABLE_BACKENDS = \['gitlab'\]/.test(read('src/client/kernel/builtin-backends.js')), 'GitLab 进「暂不可选」名单（今天能选的是 GitHub 与本地 Markdown）')
-  check(/if \(OPTION_LOCKED\[opt\]\) return/.test(modalSrc), '置灰的选项在 onOption 里也挡一道（双保险）')
-  const keys = ['switch.bindOk', 'switch.bindOkFresh', 'switch.bindOkNotReady', 'switch.optLockedTip', 'switch.targetLockedTip']
-  const zhBlock = wordSrc.slice(0, wordSrc.indexOf('// #529'))
-  const enBlock = wordSrc.slice(wordSrc.indexOf("'switch.bindOk': 'Switched to"))
-  for (const k of keys) {
-    const inZh = new RegExp("'" + k.replace('.', '\\.') + "':").test(zhBlock)
-    const inEn = enBlock.indexOf("'" + k + "':") >= 0
-    check(inZh && inEn, '词条成对：' + k)
-  }
-  check(!/switch\.clearBind'/.test(wordSrc) && !/switch\.clearBindTitle/.test(wordSrc) && !/switch\.clearBindOk/.test(wordSrc), '退役的三条 clearBind 词条都不在词表里了')
-  // #792：这一条原来把版本号钉成 version: 1，可 #698 给这条模板补上布局切换后版本就抬到 2、#792 又抬到 3，
-  //   断言跟着每次 bump 变红 —— 它想守的是「这条模板在注册表里、且带 from/to 两个占位符」，不是某一个版本号。
-  //   版本号本身该不该动由 verify-prompts.js 的版本底线表管，这里不再重复钉一遍。
-  //   2026-10-10 补正：上面这段道理是对的，可断言正文里还钉着 version: 4 —— 模板一 bump（v5）它照样变红，
-  //   正是它自己说要避免的那种「每次 bump 都要来改一次」。改成不钉具体版本号，只守「这条在注册表里、占位符是这七个」。
-  check(/"switchAlign": \{ version: \d+, placeholders: \['trackerLine', 'trackerChoice', 'backendNote', 'labelReqs', 'contextLayout', 'from', 'to'\]/.test(promptsSrc), '新模板 switchAlign 在注册表里（七个占位符：5个同V15+from/to；版本号不在此处钉）')
-  check(/\/setup-matt-pocock-skills/.test(promptsSrc.slice(promptsSrc.indexOf('"switchAlign"'), promptsSrc.indexOf('"newWayfinder"'))), '新模板点名了 /setup-matt-pocock-skills（维护者要求）')
-  // 全仓扫一遍：往宿主上报「这次问的是哪个后端」的每一行都必须过 userHintOf 那道闸 ——
-  //   漏一处就等于派生值又能冒充用户意图（2026-09-21 对抗式审查就是这样抓到 ChainRenderer / NoRepoCard 两处的）。
-  const offenders = []
-  const walkClient = function (dir) {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      const full = path.join(dir, entry.name)
-      if (entry.isDirectory()) { walkClient(full); continue }
-      if (!entry.name.endsWith('.js')) continue
-      const rel = path.relative(ROOT, full).split(path.sep).join('/')
-      fs.readFileSync(full, 'utf8').split(/\r?\n/).forEach(function (line, i) {
-        if (!/'wf\.(detect|chain)'/.test(line)) return
-        if (!/backendId\s*:/.test(line)) return
-        if (!/userHintOf/.test(line)) offenders.push(rel + ':' + (i + 1))
-      })
-    }
-  }
-  walkClient(path.join(ROOT, 'src', 'client'))
-  check(offenders.length === 0, '客户端里每一处带 backendId 的 wf.detect / wf.chain 都过了 userHintOf 那道闸（漏 ' + offenders.length + ' 处' + (offenders.length ? '：' + offenders.join('、') : '') + '）')
-  const dockSrc = read('src/client/panel/Dock.js')
-  const barSrc = read('src/client/statusbar/StatusBar.js')
-  const sbSrc = read('src/client/statusbar/StatusBackend.js')
-  check(/isBackendUnavailable/.test(dockSrc) && /isBackendUnavailable/.test(barSrc) && /isBackendUnavailable/.test(sbSrc), '三个选后端的窗（切换弹窗 / 面板门控 / 状态栏门控）都问同一个「今天能不能选」判据（GitLab 置灰 + 确认时再挡一道）')
-  check(!/tr\('switch\.bindOk'/.test(dockSrc) && !/tr\('switch\.bindOk'/.test(sbSrc), '门控窗的提示条不再说「旧数据已保留」（那个窗只在「还没有后端」时开，从来没有旧数据）')
-  check(/'data-target-locked'/.test(dockSrc) && /'data-target-locked'/.test(barSrc), '门控窗的置灰状态在 DOM 上可查（data-target-locked）')
-}
+// ── D 静态层（已整段删除）─────────────────────────────────────────────────────────
+// 【已删除】原先这一组读 src/client/views/shared/SwitchConfirmModal.js、src/client/kernel/locale-word.js、
+//   src/client/kernel/builtin-backends.js、src/client/kernel/prompts.js、src/client/panel/Dock.js、
+//   src/client/statusbar/StatusBar.js、src/client/statusbar/StatusBackend.js 的源码文本，还用正则把
+//   src/client 下每个 .js 逐行扫一遍，断言「某颗按钮没了」「某两处进了置灰名单」「中英词条成对」
+//   「模板在注册表里、占位符是这七个」「全仓没有漏过 userHintOf 那道闸的行」。
+//   落点全是手写源码的文本与写法，等价重构就会红，整段拆掉。
+//   行为那一半仍在：A 组真调 detectionService、C 组真跑切换那条路与结算那两个函数；
+//   E 组再把 A / C 的实现各做坏一次，量对应断言当场红（那几刀都是「抠真源来跑」，保留）。
 
 // ── E 反证：把 A、C 的实现做坏，对应的断言必须当场变红 ──────────────────────────────
 console.log('')

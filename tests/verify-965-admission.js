@@ -7,6 +7,10 @@
  * 2. 满了就等，调用方看到等待而不是失败（全部成功，等过的人记入等待数）。
  * 3. 取消能出队，被取消的不算失败（取消数加一，成功数不受影响）。
  * 4. 终值可回填（读桶写桶上限可配，#966 执行时换数字不用改调用处）。
+ * 5. 全进程共用同一道默认单例（三次拿是同一个对象，上限一致）。
+ *
+ * 原来那组「读宿主源码文本、断言 getGhLane / outbound-admission 字样出现过」的接线检查
+ * 已删：断言对象是手写源码文件的文本，等价重构（换写法、搬文件、改注释）就会误报。
  *
  * 用法：node tests/verify-965-admission.js
  * 退出码：0 = 通过；1 = 有违规。
@@ -114,24 +118,7 @@ async function main() {
     check(limits.readMax === 3 && limits.writeMax === 5, '读写上限可配（实得读 ' + limits.readMax + ' 写 ' + limits.writeMax + '），终值回填只换数字')
   }
 
-  // 5. 接线：真起进程的四处共用同一道（房间纪律走白名单目录；一次请求只占一个名额）。
-  {
-    const fs = require('fs')
-    const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8')
-    const repoKeys = read('src/host/repoKeys.js')
-    const plat = read('src/host/platformChannel.js')
-    const vc = read('src/host/versionControl.js')
-    const room = read('src/host/tracker/backends/github/client.js')
-    check(repoKeys.includes('getGhLane') && repoKeys.includes('shared/tracker/outbound-admission.js'), '取数层 runGh/execProc 走同一道准入')
-    check(plat.includes('getGhLane') && plat.includes('shared/tracker/outbound-admission.js'), '探测通道 detectionExec 走同一道准入')
-    check((vc.includes('getGhLane') || vc.includes('withGhLane')) && vc.includes('shared/tracker/outbound-admission.js'), '版本管理 runGit 走同一道准入（只读路同口径，包装器拿与放）')
-    // 房间执行器是宿主直调（不经过下游两条路），房间必须自己拿一次名额；白名单目录引用合规，一次请求只占一个名额。
-    check(room.includes('shared/tracker/outbound-admission.js'), '房间经白名单目录拿同一道名额（宿主直调，下游盖不住，不过双）')
-    // 取数层 runGh/execProc 现不接取消信号（调用方无信号可传，无信号的排队只会等不会抛），取消语义由带信号的两路承担。
-    check(room.includes('cancelled') && plat.includes('cancelled') && vc.includes('cancelled'), '带信号的三处把取消按取消返回（被取消的不算失败）')
-  }
-
-  // 6. 全进程共用同一道计数（三路出站同一口径的前提）。
+  // 5. 全进程共用同一道计数（三路出站同一口径的前提）。
   {
     const a = getGhLane()
     const b = getGhLane()

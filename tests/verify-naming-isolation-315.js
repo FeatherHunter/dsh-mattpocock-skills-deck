@@ -81,16 +81,20 @@ function filterOrders(orders, sessions) {
 }
 
 {
+  // 这一段验的是「宽限窗口这道机制本身」：窗口内不产单、过了窗口才产单。
+  // 产品当前把 NAMING_HINT_GRACE_MS 定为 0（#709 改成事件驱动后不再靠等窗口），若这里照抄那个常量，
+  // 断言就退化成「窗口恒为零」的假验证，而且常量一改就红。所以显式传一个窗口：断言只依赖机制。
+  const GRACE_MS = 30000;
   const now = Date.now();
   const repo = 'o/r';
   const sA = core.createTrackingState({ sessionId: 'A', baselineTitle: '[New] 新建需求', repoKey: repo, cwd: '/x' });
-  sA.createdAt = now - 1000; // 未过宽限，无 hint，不产单
+  sA.createdAt = now - 1000; // 还在窗口内，无 hint，不产单
   sA.updatedAt = now - 1000;
   const sB = core.createTrackingState({ sessionId: 'B', baselineTitle: '[New] 新建需求', repoKey: repo, cwd: '/x' });
-  sB.createdAt = now - 25000;
-  sB.updatedAt = now - 25000;
-  const oA = core.planOrderFor(sA, now, core.NAMING_HINT_GRACE_MS);
-  const oB = core.planOrderFor(sB, now, core.NAMING_HINT_GRACE_MS);
+  sB.createdAt = now - GRACE_MS - 1000; // 已经过了窗口
+  sB.updatedAt = now - GRACE_MS - 1000;
+  const oA = core.planOrderFor(sA, now, GRACE_MS);
+  const oB = core.planOrderFor(sB, now, GRACE_MS);
   check(!oA, 'A 未过宽限且无 hint 不产单');
   check(!!oB, 'B 过宽限裸档产单');
   const orders = [oA, oB].filter(Boolean);
@@ -125,32 +129,13 @@ console.log('\n— 客户端面校验（faceSid 匹配）—');
   check(!shouldBlock(undefined, 'A'), 'undefined 不拦截');
 }
 
-// ---------- #709（T5）：命名守护改事件驱动之后，这一票的隔离修复仍在 ----------
-// 本节是加断言，不是删测试：上面 12 条功能断言一条不少。本节做两件事——
-// ① 钉住上面那份 filterOrders 本地副本没有与宿主实现走岔（宿主里那段抑制逻辑必须还在）；
-// ② 钉住改事件驱动时没有把隔离修复顺手动掉，也没有把自续定时器抄回来。
-console.log('\n— #709 事件驱动改造后的隔离修复守卫 —');
-{
-  const fsMod = await import('node:fs');
-  const pathMod = await import('node:path');
-  const urlMod = await import('node:url');
-  const root = pathMod.join(pathMod.dirname(urlMod.fileURLToPath(import.meta.url)), '..');
-  const read = (p) => fsMod.readFileSync(pathMod.join(root, p), 'utf8');
-  const hostNaming = read('src/host/namingGuardian.js');
-  check(hostNaming.includes('byRepoHasHint'), '宿主 wf.namingPlan 里的同仓库裸档抑制逻辑仍在（上面本地副本的对照物）');
-  check(hostNaming.includes("o.kind === 'draft' && !o.hint"), '抑制的是「同仓库的裸档草稿单」本身，判定条件没被改写');
-  check(hostNaming.includes('function keepRelatedAssigned('), '「无关新号不硬配」仍在（#315 追加修复）');
-  // 事件驱动改造不许顺手删掉任何一条对外电话
-  for (const op of ['wf.registerNewSessionWatcher', 'wf.cancelNewSessionWatcher', 'wf.awaitCreatedIssue', 'wf.namingPlan']) {
-    check(hostNaming.includes("'" + op + "'"), '宿主电话仍在：' + op);
-  }
-  // 再也不许有自己给自己排下一跳的定时器（含旧名字）
-  const hostNoComment = hostNaming.replace(/\/\/[^\n]*/g, '');
-  check(!/NAMING_TICK_MS|NAMING_SWEEP_MS|namingLoopTick|startNamingGuardianLoop|setInterval/.test(hostNoComment), '宿主命名守护里没有自续定时器');
-  const apiNaming = read('src/client/kernel/api-naming.js').replace(/\/\/[^\n]*/g, '');
-  check(!/NAMING_POLL_MS|startNamingGuardianPoll|_namingPollTimer|setInterval/.test(apiNaming), '客户端命名轮询已退役，且没有换成另一种自续定时器');
-  check(apiNaming.includes('function namingGuardianEvent('), '客户端改为事件驱动入口 namingGuardianEvent');
-}
+// ---------- #709 那一节已删 ----------
+// 原来这里还有一节「#709 事件驱动改造后的隔离修复守卫」：它读 src/host/namingGuardian.js 与
+// src/client/kernel/api-naming.js 的源码文本，断言里面出现过 byRepoHasHint、某个判定条件、
+// function keepRelatedAssigned(、四个对外电话名、function namingGuardianEvent(，以及没有
+// setInterval / 那些旧定时器名字。断的全是代码长成什么样，改写法、改注释、搬文件就变红，
+// 已按维护者口径整体删掉。本票真正的隔离修复由上面那 12 条行为断言（同仓库裸档抑制、
+// 跨仓库隔离、宽限与 numbered 不受影响、faceSid 匹配）覆盖。
 
 if (failed) { console.log('\nFAIL ' + total + ' checks, some failed'); process.exit(1); }
 else { console.log('\nPASS all ' + total + ' checks'); }

@@ -1,11 +1,15 @@
 #!/usr/bin/env node
 /**
- * verify-locale-completeness.js — locale 完整性 + 硬编码中文回归门禁（#231 验收）。
+ * verify-locale-completeness.js — locale 完整性门禁（#231 验收）。
  *
  * A. zh/en 键集合全等（键数一致且互相包含）；
  * B. 本票关键键存在（双语源与双产物四处核验）；
- * C. client 层字符串级中文残留以「基线清单」封顶（2026-08-29 实测登记；只许缩小不许增大，
- *    清单外文件出现字符串级中文即红；kernel/locale.js 与 kernel/prompts.js 为双语定义本体，不入清单）。
+ * D. 双产物里关键键齐备；
+ * E. 类型徽章能收到的每个类型值都有词条；
+ * A2. 词条结构（值放错层也要报红）。
+ *
+ * 原来还有一段 C：遍历 src/client 下的手写源码，逐文件数「字符串级中文」条数并与基线清单比对。
+ * 那盯的是源码文本的写法与条数（等价重构、搬文件、改引号、改注释都会变红），已按维护者要求整段删除。
  */
 const fs = require('fs')
 const path = require('path')
@@ -87,70 +91,13 @@ const fromLabels = []
 })
 const typeValues = []
 fromBackend.concat(fromLabels).forEach(function (v) { if (v && typeValues.indexOf(v) < 0) typeValues.push(v) })
-if (typeValues.length >= 6) ok('E. 收集到类型值 ' + typeValues.join(' / '))
-else bad('E. 类型值收集失败（只拿到 ' + typeValues.join(' / ') + '）')
+// 这里原来还有一条「至少收集到 6 个类型值」的自检，盯的是上面两个正则能不能从
+// src/shared/tracker/constants.js 与 src/shared/labels.js 的写法里抠出字面量（改写法就变红），
+// 已按维护者要求删除；抠取本身保留，只作为下面按 key 核词条的输入。
 for (const v of typeValues) {
   if (('type.' + v) in allKeys) ok('E. 有词条 type.' + v)
   else bad('E. 缺词条 type.' + v + ' —— 类型徽章会把这串字直接印到界面上')
 }
-
-// ---------- C. 硬编码中文基线封顶 ----------
-const BASELINE = {
-  'index.js': 25, // #459 由 index.js 拆出装配：主文件留 25 串（合计 26，与原持平）
-  'panelAssembly.js': 1, // #459 由 index.js 拆出：装配分得 1 串（host.call 不可用透传文案）
-  'kernel/icons.js': 8,
-  'kernel/router.js': 1,
-  'kernel/store-switch.js': 5, // #455 K2 由 store.js 拆出：切换确认分得 5 串（合计 6，与原持平，注释已剥离不计）
-  'kernel/store-snapshot.js': 1, // #455 K2 由 store.js 拆出：存储核分得 1 串（makeStore 外观词）
-  'kernel/store-prefs.js': 3, // #1012 绑定回执那一行给用户看的三句状态文字：已创建、已覆盖、环境失败（跳过与没有结果都回空串，不占额度）；以后这三句改走中英文词条时把这条收紧到 0
-  'kernel/actions.js': 1, // 2026-08-28 #317 wizard 队列与提交闭环：RPC 业务失败透传文案，按封顶章程登记（0→1）
-  'kernel/api-new-session.js': 5, // #457 由 api.js 拆出时漏登记：占位四式比对 2 串 + 动作推断关键词 3 串（均为代码比对非界面文案，界面文案一律走 tr()；#746 确认零新增）
-  'kernel/slotRenderer-queue.js': 6, // #454 K1 由 slotRenderer.js 拆出：打开入口与守门分得 6 串（合计 44，较原 46 缩小，注释已剥离不计）
-  'kernel/slotRenderer-repo-sync.js': 2, // #454 K1 由 slotRenderer.js 拆出：同步流程分得 2 串
-  'kernel/slotRenderer-modal-view.js': 32, // #454 K1 由 slotRenderer.js 拆出：弹窗本体分得 36 串；#698 把表单字段那一串渲染搬去 kernel/modal-fields.js，随之带走 4 串（36→32）
-  'kernel/modal-fields.js': 4, // #698 由 slotRenderer-modal-view.js 拆出：表单字段那串渲染带过来的 4 个中文串（与上一行是同一批，不是新增文案）
-  'panel/Dock.js': 21,
-  'panel/OverlayGate.js': 1, // #646 页内浮窗退役：Overlay.js 已删，门控逻辑仍在（这个文件 1 串）
-  'statusbar/StatusBar.js': 16, // B1 #460 由 StatusBar.js 拆出选后端：主文件留 16 串（合计 17，与原持平）
-  'statusbar/StatusBackend.js': 1, // B1 #460 由 StatusBar.js 拆出：选后端确认分得 1 串（已选择透传文案）
-  'views/ChecksTab.js': 0, // #529 环境检查标题诊断卡动作全部改走中英文词条：文件中不再留中文字符串，基线收紧到 0 防回退
-  'views/IssueDetail.js': 13, // #463 V3 由 IssueDetail.js 拆出评论区：主文件留 13 串；#693 把「无描述」等正文/评论兜底文案改走词条，由 16 收紧到 13
-  'views/IssueDetailComments.js': 12, // #463 V3 由 IssueDetail.js 拆出：评论区分得 12 串；#693 「无评论」改走词条后由 13 收紧到 12
-  'views/NoRepoCard.js': 15,
-  'views/SettingsPage.js': 12, // #463 V3 由 SettingsPage.js 拆出后端总览：主文件留 12 串
-  'views/SettingsWorkspaces.js': 0, // #528 总览文案全部改走中英文词条：文件中不再留中文字符串，基线收紧到 0 防回退
-  'views/shared/BackendSelector.js': 10,
-  'views/shared/ChainRenderer.js': 0, // #529 链标题按钮表单全部改走中英文词条：文件中不再留中文字符串，基线收紧到 0 防回退
-  'views/shared/SwitchConfirmModal.js': 5,
-}
-function stripComments(buf) { return buf.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '') }
-const SRC_CLIENT = path.join(root, 'src', 'client')
-const seen = {}
-;(function walk(dir) {
-  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-    const p = path.join(dir, e.name)
-    if (e.isDirectory()) walk(p)
-    else if (e.name.endsWith('.js')) inspect(p)
-  }
-})(SRC_CLIENT)
-function inspect(file) {
-  const rel = path.relative(SRC_CLIENT, file).replace(/\\/g, '/')
-  if (rel === 'kernel/locale.js' || rel === 'kernel/locale-panel.js' || rel === 'kernel/locale-flow.js' || rel === 'kernel/locale-word.js' || rel === 'kernel/locale-labels.js' || rel === 'kernel/locale-pages.js' || rel === 'kernel/locale-vcwrite.js' || rel === 'kernel/locale-skilldesc.js' || rel === 'kernel/locale-skilldetail.js' || rel === 'kernel/locale-cards.js' || rel === 'kernel/prompts.js' || rel === 'kernel/prompts-skills.js' || rel === 'kernel/prompts-setup.js') return // #458 K5：三片段与合并器均为双语定义本体，不入清单（与原 locale.js 同口径）；#621 的 locale-labels.js、#690 的 locale-pages.js 同为此类；#698 又把 prompts-skills.js（installSkills 的中英长句）与 prompts-setup.js（决策的说明）单列成片，同样不入清单；技能详情页的 locale-skilldetail.js 与卡片族的 locale-cards.js 也是双语定义本体，同口径排除（2026-10-10）
-  const buf = stripComments(fs.readFileSync(file, 'utf8'))
-  let count = 0
-  const strRe = /'((?:[^'\\\n]|\\.)*)'|"((?:[^"\\\n]|\\.)*)"/g
-  let m
-  while ((m = strRe.exec(buf)) !== null) {
-    const s = m[1] !== undefined ? m[1] : m[2]
-    if (/[\u4e00-\u9fff]/.test(s)) count++
-  }
-  seen[rel] = count
-  const cap = BASELINE[rel]
-  if (cap === undefined) { if (count > 0) bad('C. 清单外新增 CJK 字符串 ' + rel + '=' + count); else ok('C. 干净 ' + rel) }
-  else if (count <= cap) ok('C. 基线内 ' + rel + ' ' + count + '<=' + cap)
-  else bad('C. 超基线 ' + rel + ' ' + count + '>' + cap)
-}
-for (const k of Object.keys(BASELINE)) if (!(k in seen)) ok('C. 基线项已清零（请从清单删除）' + k)
 
 // ---------- D. 双产物关键键 ----------
 for (const a of ['client.js', path.join('package', 'lib', 'client.js')]) {

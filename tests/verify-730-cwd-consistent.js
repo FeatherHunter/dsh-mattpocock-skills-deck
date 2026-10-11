@@ -5,8 +5,10 @@
 //   就是空分支。电话体（src/host/sessionLifecycle.js）与沙箱那一路
 //  （src/host/workspaceCwd.js 的 sessionsOfWorkspace）各写一遍取法，前者认 11 个字段、
 //   后者只认 2 个，同一份会话两处答案不同，写操作的沙箱政策静默落错档。
-//   本门禁只锁一件事：两处经同一只共用函数取值，分歧结构上不可能再出现。
-//   反证：把两处改回各写一遍（或删掉共用引用），本门禁必须变红。
+//   本门禁留下的断言都是跑起来的结果：共用取法的返回值、电话体的真回包、落盘补问那一问的真行为。
+//   原先还有一段读 src/host/sessionLifecycle.js 与 src/host/workspaceCwd.js 源码文本、
+//   断言「两处都调了共用函数、都没有自写取法」的静态锁，2026-10 按维护者口径撤掉：
+//   那种断言的对象是手写源码的文本，等价重构（改写法、搬文件、改注释）就会变红。
 //
 // 用法：node tests/verify-730-cwd-consistent.js（插件根目录，可独立运行）
 // 接线说明：本文件暂不进 package.json 的 verify 链（接线由统筹者统一做），
@@ -20,9 +22,6 @@ const SHARED_REL = path.join('src', 'shared', 'session-cwd.js')
 let failed = false
 let total = 0
 const ok = (cond, msg) => { total += 1; if (cond) console.log('  PASS ' + msg); else { failed = true; console.log('  FAIL ' + msg) } }
-const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
-// 注释不算数：只查代码里的取法，注释里提到字段名不算分歧。
-const stripComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' ')).replace(/\/\/.*$/gm, '')
 
 async function main() {
   console.log('== #730 同一会话两处同值门禁 ==')
@@ -155,32 +154,6 @@ async function main() {
     const e7 = await makeHost(null, makeQuery({ headerCwd: '' }).svc)({ sessionId: 's-ghost' })
     ok(e7 && e7.ok === false && e7.kind === 'not-found', '盘上那条头里也没有目录时：照旧如实报找不到（不造事实）')
 
-    // E8 结构锚点：落盘那一问真的接在电话体里，而且读的是与内存同一只取法（同一个字段）。
-    //   为什么锚「调用行」而不只锚函数名：只锚函数名的话，把调用删掉（等于取消这一步）门禁照样绿。
-    const lifeSrcRaw = read(path.join('src', 'host', 'sessionLifecycle.js'))
-    ok(/const fromDisk = await persistedCwdOf\(sid\)/.test(lifeSrcRaw), '（前提）电话体里真的调了落盘那一问（反证锚点）')
-    const lifeSrcCode = stripComments(lifeSrcRaw)
-    ok(lifeSrcCode.indexOf("ctx.get('sessionQuery')") >= 0, '（前提）落盘那一问走的是 ctx 上的会话查询服务')
-    ok(/resolveSessionCwd\(rec\)/.test(lifeSrcCode), '落盘那一条记录仍走共用取法（不另写一套读法）')
-  }
-
-  // C 组：两处经同一只函数取值（结构不断即判红，不靠自觉）。
-  //   D 组：沙箱无归属会话时不取默认政策（过去传空对象静默拿默认档，写操作落错档也不响）。
-  {
-    const lifeSrc = stripComments(read(path.join('src', 'host', 'sessionLifecycle.js')))
-    const wsSrc = stripComments(read(path.join('src', 'host', 'workspaceCwd.js')))
-    const sharedSrc = stripComments(read(SHARED_REL))
-    ok(lifeSrc.indexOf('resolveSessionCwd') >= 0, '电话体调共用函数（不自写取法）')
-    ok(wsSrc.indexOf('resolveSessionCwd') >= 0, '沙箱那一路调共用函数（不自写取法）')
-    ok(lifeSrc.indexOf('header.worktree') < 0 && lifeSrc.indexOf('header.projectDir') < 0 && lifeSrc.indexOf('header.directory') < 0,
-      '电话体无自写多字段取法（取法只活在共用函数里）')
-    ok(wsSrc.indexOf('header.worktree') < 0 && wsSrc.indexOf('header.cwd || header.path') < 0,
-      '沙箱那一路无自写取法（取法只活在共用函数里）')
-    ok(sharedSrc.indexOf('worktree') < 0 && sharedSrc.indexOf('projectDir') < 0 && sharedSrc.indexOf('directory') < 0
-      && sharedSrc.indexOf('s.meta') < 0 && sharedSrc.indexOf('s.cwd') < 0,
-      '共用函数无无证据字段（只读头的目录）')
-    ok(wsSrc.indexOf('sessionsOfWorkspace') >= 0, '沙箱按工作区找会话的函数仍在（只换取法，不换行为骨架）')
-    ok(wsSrc.indexOf('resolve({})') < 0, '沙箱无归属会话时不调默认政策（免静默落错档）')
   }
 
   // D 组行为：标签电话在无归属会话时如实失败，不拿默认政策写（走真实 handleListLabels，全套夹具）。

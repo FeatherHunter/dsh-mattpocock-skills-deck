@@ -12,9 +12,7 @@
  *   A 判据层（纯函数，不开浏览器）：statusbar/capFold.js 那条阶梯 —— 第 0 档各段字全在（品牌那串也
  *     看得见）、每往下一档只少一个单位（char 少一个字 / word 少一整段词）、收的第一段是品牌、
  *     所有词都空之后就再也没有台阶（计数器与图标是载荷，不许撤）、档号超界停在最后一档。
- *   B 源码与产物层：判据与机器都真的拼进两份产物；那条 2 秒轮询确实退役了；
- *     接线（状态栏把胶囊交给机器、每次提交后重算一次、两条 ResizeObserver + fonts.ready 还在）；
- *     平铺那两条 CSS（胶囊两端分布、品牌段吃余量且列间距有上限）真的落地了。
+ *   B 文件层：判据、机器、状态栏、样式与两份产物这些文件都在（产物缺失时给出重建提示）。
  *   C 真渲染层（真 Chromium + 真产物 + 真数据）：宽度 900 → 240 每 6 像素扫一档，逐档量
  *     「档号、每一段还在几个单位、胶囊溢不溢出、计数器数字还在不在」，核心断言是那句原话的可执行版：
  *     **每往下一档，版面上恰好多让掉一个单位**（档号涨几，可见单位就少几）。
@@ -29,6 +27,12 @@
  *
  * 依赖：playwright（含 chromium）与 esbuild，都在本仓 devDependencies。全程本机，不碰真仓库、不用登录令牌。
  * 运行：node tests/verify-cap-fold.js（先 node scripts/build.mjs 生成产物）
+ *
+ * 【2026-10-12 清理】维护者要求清掉「读源码文本钉形状」的门禁：原先 B 组是一整段读源码/产物文本的静态
+ *   断言（判据与机器拼没拼进两份产物、那条 2 秒轮询退役没有、十二个挂点与优先级字面量、状态栏接线的
+ *   几行正则、平铺那几条 CSS 规则本身），断言对象是文件文本，换个写法、抽个函数、改一句注释就会红，
+ *   已整段撤掉（保住文件存在性那一条），连带只服务它们的辅助与产物文本读取。这些事实现在由 C/D 两组
+ *   在真 Chromium 里按跑出来的版面量（同一份产物、同一个台阶）。
  */
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -315,49 +319,20 @@ if (!capFold) {
 }
 
 console.log('')
-console.log('B) 源码与产物层：判据与机器都拼进去了，那条 2 秒轮询确实退役了')
+console.log('B) 文件层：判据、机器、状态栏、样式与两份产物这些文件都在')
 
+// 【2026-10-12 清理】原先这一组是读源码/产物文本的静态断言，已整段撤掉，逐类说明留在这里：
+//   · 读两份 client.js 产物文本，断里面出现 capFoldStateAt / capFoldLadderOf / runCapFold /
+//     dataset.foldTier / 'data-fold-priority': 1 / 5 / 12 这些标识符与字面量，断那条
+//     setInterval(applyAll, 2000) 不在了 —— 断言对象是产物文本，改个写法或重建产物就红；
+//   · 读 StatusBar.js 源码文本，用正则钉住接线那几行的写法（runCapFold(cap, foldKeep.current)、
+//     React.useEffect(function () { scheduleFold() })、两条 ResizeObserver、fonts.ready）；
+//   · 读 capFoldMachine.js 源码文本，用正则钉住合并单飞那几行的写法；
+//   · 读 styles.js 与两份产物文本，用正则钉住平铺那几条 CSS 规则（flatRules 辅助）本身。
+//   这些事实（判据与机器真拼进了产物、接线与合并队列真在、平铺那几条 CSS 真落到版面上）现在由 C/D
+//   两组在真 Chromium 里按跑出来的版面量：同一份产物、同一个台阶，看的是结果不是文本。
 const missing = [CAPFOLD, CAPMACHINE, STATUSBAR, STYLES, ...ARTIFACTS].filter((rel) => !existsSync(resolve(rel)))
 for (const rel of missing) bad(rel + ' 读不到' + (ARTIFACTS.indexOf(rel) >= 0 ? '（先跑 node scripts/build.mjs 重建产物）' : ''))
-const artifacts = {}
-for (const rel of ARTIFACTS) artifacts[rel] = existsSync(resolve(rel)) ? read(rel) : ''
-for (const rel of ARTIFACTS) {
-  const t = artifacts[rel]
-  if (!t) continue
-  check(t.indexOf('capFoldStateAt') >= 0 && t.indexOf('capFoldLadderOf') >= 0, rel + ' 里拼进了判据（capFoldLadderOf / capFoldStateAt）')
-  check(t.indexOf('runCapFold') >= 0 && t.indexOf('dataset.foldTier') >= 0, rel + ' 里拼进了机器（runCapFold 与档号锚点）')
-  check(!t.includes('setInterval(applyAll, 2000)'), rel + ' 里已经没有那条 2 秒轮询（#725 退役）')
-  check(t.indexOf("'data-fold-priority': 1") >= 0 || t.indexOf("'data-fold-priority':1") >= 0, rel + ' 里十二个挂点还在（品牌 1、更新字 2、日期串 3、环境字 4、环境计数 5、时间串 6、在办编号 12）')
-  check(t.indexOf("'data-fold-priority': 5") >= 0 || t.indexOf("'data-fold-priority':5") >= 0, rel + ' 里环境计数挂在优先级 5（早于时间）')
-  check(t.indexOf("'data-fold-priority': 12") >= 0 || t.indexOf("'data-fold-priority':12") >= 0, rel + ' 里在办编号挂在优先级 12（排在最后）')
-}
-const barSrc = existsSync(resolve(STATUSBAR)) ? read(STATUSBAR) : ''
-check(/runCapFold\(cap, foldKeep\.current\)/.test(barSrc), '状态栏只留接线：把胶囊与两张跨调用带着走的表交给阶梯机（statusbar/capFoldMachine.js）')
-check(/React\.useEffect\(function \(\) \{ scheduleFold\(\) \}\)/.test(barSrc), '每次提交之后进合并队列一次（那条 2 秒轮询的位置由它接管，926 起同帧只真跑一次）')
-const machineSrc = existsSync(resolve(CAPMACHINE)) ? read(CAPMACHINE) : ''
-check(/const capFoldScheduleFold = function \(keep, applyFold\)/.test(machineSrc) && /if \(!keep \|\| keep\.foldRaf\) return/.test(machineSrc), '合并单飞：同帧多次触发只跑一次（keep.foldRaf 占位，实现住机器，接线零增长）')
-check(/window\.requestAnimationFrame\(function \(\) \{ keep\.foldRaf = 0; applyFold\(\) \}\)/.test(machineSrc), '合并走帧回调（同一帧画出来）')
-check(/catch \(eRaf\) \{ keep\.foldRaf = 0; applyFold\(\) \}/.test(machineSrc), '帧回调不可用时同步兜底（行为退回原样）')
-check(/new ResizeObserver\(function \(\) \{ scheduleFold\(\) \}\)[\s\S]{0,300}roFold\.observe\(foldRef\.current\)/.test(barSrc) && /roParent\.observe/.test(barSrc),
-  '两条 ResizeObserver（胶囊自己 + 它的父容器）仍是宽度的第一信号源')
-check(/document\.fonts\.ready\.then\(scheduleFold\)/.test(barSrc), '字体加载完再重算一次（防字体宽差误判，走合并队列）')
-const stylesSrc = existsSync(resolve(STYLES)) ? read(STYLES) : ''
-// 平铺那几条 CSS：2026-09-24 维护者看过真机之后改了两处（「图标与文字之间的间隙太大」、
-//   「按钮过于集中在右侧，应该均匀分布」），所以这一组断的是**改完之后的真实落点**：
-//   · 胶囊两端分布（space-between）不变 —— 余量均分在各项之间；
-//   · 那一段不再吃余量：它只占自己的内容宽（flex:0 1 auto + max-width:max-content），仍可收缩（min-width:0）；
-//   · 「图标↔自己的文字」的间隙在它自己那条规则里写死（5px），不再随视口放大（那件事由
-//     tests/verify-capsule-layout.js 在真浏览器里量；这里断的是规则本身还在，改完 src 忘了重建产物同样红）。
-const flatRules = function (src) {
-  return /\.dsws-capsule\s*\{[^}]*justify-content:\s*space-between/.test(src) &&
-    /\.dsws-capsule\s+\.dsws-capsule-word[^{]*\{[^}]*flex:0 1 auto/.test(src) &&
-    /\.dsws-capsule\s+\.dsws-capsule-word[^{]*\{[^}]*max-width:max-content/.test(src) &&
-    /\.dsws-capsule\s+\.dsws-capsule-word[^{]*\{[^}]*min-width:0/.test(src) &&
-    /\.dsws-capsule\s+\.dsws-capsule-word[^{]*\{[^}]*justify-content:flex-start/.test(src) &&
-    /\.dsws-capsule\s+\.dsws-capsule-word[^{]*\{[^}]*column-gap:5px/.test(src)
-}
-check(flatRules(stylesSrc), '平铺那几条 CSS 在 styles.js 里（胶囊两端分布；品牌段只占内容宽 flex:0 1 auto + max-width:max-content + min-width:0 + 左对齐 + 图标↔文字写死 5px）')
-check(ARTIFACTS.every((rel) => !artifacts[rel] || flatRules(artifacts[rel])), '两份产物里带着同一套平铺 CSS（改完 src 忘了重建产物就红在这里）')
 
 // ---------- 真渲染层：真 Chromium + 真产物 ----------
 const CLIENT = 'package/lib/client.js'
@@ -510,7 +485,7 @@ html,body{margin:0;background:#10131a}
 #capHost{display:block}
 </style></head>
 <body>
-<script>window.__CLIENT_SRC__ = ${JSON.stringify(artifacts[CLIENT] || read(CLIENT))};</script>
+<script>window.__CLIENT_SRC__ = ${JSON.stringify(read(CLIENT))};</script>
 <script>window.__CWD__ = ${JSON.stringify(CWD)};window.__SNAP__ = ${JSON.stringify(SNAP)};</script>
 <script>${probeJs}</script></body></html>`
 const server = createServer((req, res) => {

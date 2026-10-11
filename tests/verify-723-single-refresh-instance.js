@@ -1,29 +1,17 @@
 #!/usr/bin/env node
 /**
- * verify-723-single-refresh-instance.js —— 门禁：宿主里只许有**一套**刷新机制（#723 T19）
+ * verify-723-single-refresh-instance.js —— 门禁：宿主里只许有一套刷新机制（票 #723）
  *
- * 守的是什么（这一条不是「代码长得像」，是「五条路认的是同一个实例」）：
- *   闸的活跃集合、写事件的白名单、视野模型（wf.focus）、会话↔票处理链、界面读数、行级增量，
- *   这六件必须来自**同一个**刷新机制实例。宿主要是建了两套（哪怕两套代码一模一样）：
- *     ① `wf.focus` 标活跃标在第一套上，写事件与行级增量过闸走在第二套上 →
- *        后台档的 `background-inactive` 把每一笔都判「推迟」，生产里看起来谁都在工作、实际一次都发不出去；
- *     ② 界面读数取自第二套的处理链、喂数据发生在第一套上 → 面板上「每个会话在处理哪些票」永远空着，
- *        而它读到的不是「读不到」而是「取到了、就是没有」——比不显示更坏。
- *   2026-09-23 的复核（T19b）实测到的正是这个形态：入口第 98 行一处、`wf.focus` 那行又一处。
+ * 留下的断言都是跑起来的结果：
+ *   三、一套实例下五条路互相看得见（真装配、真过闸、真读数）；
+ *   四、负控：两套实例的旧形状必须重现后果（被读数的那一套恒空）；
+ *   五、宿主侧字段名等于读数模块导出的那个常量（拿真装配交回来的对象与真快照回包量）。
+ *   原先的「一、全仓只有一处装配点」「二、五条路都从同一个句柄取」两段读的是
+ *   src/host/index.js 与 src/host/refresh/wiring.js 的源码文本（数出现次数、跑正则），
+ *   2026-10 按维护者口径撤掉：那种断言的对象是手写源码的文本，等价重构（改写法、
+ *   搬文件、改注释）就会变红，挡不住真回归。
  *
- * 它怎么判（四段，前两段静态、后两段行为）：
- *   一、静态：全仓只许有**一处**刷新机制装配点（另一处是 wiring.js 里的定义）；
- *   二、静态：wf.focus / 界面读数 / wf.chain 的闸 / 行级增量这四条路，都从**同一个句柄**取自己那一件，
- *       写事件订阅则在同一套实例里挂（wiring 的 attach）；
- *   三、行为：按生产依赖形状真的建一套 → 上报「我在看谁」→ 喂一笔真写事件 →
- *       断言五条路互相看得见（闸记了放行、读数里有那一笔、行级增量过闸会放行、deltaRefresh 在同一条实例上）；
- *   四、行为负控：照**旧形状**建两套 → 断言读数空、写事件在被读数的那一套上门前就被拒
- *       （证明第三段那几条断言不是恒绿的装饰）。
- *   另有一段钉「宿主侧字段名」：宿主写读数用的字段名必须等于读数模块导出的那个常量
- *   （今天只有「界面常量 == 读数模块常量」两边被钉，宿主那一侧没有——改名会静默让界面恒说读不到）。
- *
- * 用法：node tests/verify-723-single-refresh-instance.js（在插件根目录）
- * 退出码：0 = 通过；1 = 有违规。
+ * 用法：node tests/verify-723-single-refresh-instance.js
  */
 const fs = require('fs')
 const path = require('path')
@@ -31,7 +19,6 @@ const os = require('os')
 const { pathToFileURL } = require('url')
 
 const ROOT = path.resolve(__dirname, '..')
-const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 const url = (rel) => pathToFileURL(path.join(ROOT, rel)).href
 
 let failed = false
@@ -40,32 +27,6 @@ const check = (ok, msg, detail) => {
   total += 1
   console.log((ok ? '  PASS ' : '  FAIL ') + msg + (ok || !detail ? '' : '\n         → ' + detail))
   if (!ok) failed = true
-}
-const info = (msg) => console.log('  INFO ' + msg)
-
-/** 数一个字符串在正文里出现几次（只看代码，不看注释）。 */
-function countIn(text, needle) {
-  let n = 0
-  let i = 0
-  for (;;) {
-    const at = text.indexOf(needle, i)
-    if (at < 0) return n
-    n += 1
-    i = at + needle.length
-  }
-}
-
-function listJsFiles(dir) {
-  const out = []
-  const walk = (d) => {
-    for (const ent of fs.readdirSync(d, { withFileTypes: true })) {
-      const p = path.join(d, ent.name)
-      if (ent.isDirectory()) walk(p)
-      else if (ent.name.endsWith('.js')) out.push(path.relative(ROOT, p).split(path.sep).join('/'))
-    }
-  }
-  if (fs.existsSync(dir)) walk(dir)
-  return out
 }
 
 /** 一套「生产依赖形状」的假件：形状照 src/host/index.js 里 makeRefreshLoader( 那一份抄（不另造一套 API）。 */
@@ -105,34 +66,6 @@ const WRITE_CMD = JSON.stringify({ command: 'gh issue comment 723 --body "复核
 
 async function main() {
   console.log('#723 唯一刷新机制门禁（一套实例 / 五条路同源 / 宿主侧字段名）')
-
-  // ── 一、静态：全仓只许有一处装配点 ──
-  console.log('\n== 一、全仓只有一处刷新机制装配点 ==')
-  const indexSrc = read('src/host/index.js')
-  const wiringSrc = read('src/host/refresh/wiring.js')
-  const indexCalls = countIn(indexSrc, 'makeRefreshLoader(')
-  check(indexCalls === 1, '宿主入口只造一套刷新机制（src/host/index.js 里 makeRefreshLoader( 出现 ' + indexCalls + ' 次，应为 1）',
-    '两处就是两套实例：标活跃标在一套、过闸走在另一套')
-  const callSites = listJsFiles(path.join(ROOT, 'src')).filter((rel) => countIn(read(rel), 'makeRefreshLoader(') > 0)
-  const starters = callSites.filter((rel) => rel !== 'src/host/refresh/wiring.js')
-  check(starters.length === 1 && starters[0] === 'src/host/index.js',
-    '整个 src 里只有宿主入口一处调用装配点（实得：' + (starters.join('、') || '无') + '）',
-    '别处再冒出一处 = 又多了第二套机制')
-
-  // ── 二、静态：五条路都从同一个句柄取自己那一件 ──
-  console.log('\n== 二、五条路从同一个句柄取自己那一件 ==')
-  check(/harness\.handle\('wf\.focus',\s*function \(args\) \{ return _refreshWiringP\.then\(/.test(indexSrc),
-    'wf.focus 走同一个句柄（_refreshWiringP.then(w => w.focus)）',
-    'wf.focus 若自己再建一套，视野模型与白名单就分家了（复核实测过这个形态）')
-  check(/_detectChain[\s\S]{0,600}?gate:\s*\(w && w\.gate\)/.test(indexSrc),
-    'wf.chain 求值用的闸取自同一个句柄（gate: (w && w.gate)）', '链求值的账与写事件的账会记到两本账上')
-  check(/ckr\s*=\s*w0 && w0\.chainReadout/.test(indexSrc) && /chainField:\s*\(w0 && w0\.chainField\)/.test(indexSrc),
-    '界面读数（含字段名）取自同一个句柄（ckr = w0.chainReadout、chainField = w0.chainField）',
-    '读数与实际喂数据的那一份会不是同一条链')
-  check(/deltaRefresh:\s*function \(cwd, opts\) \{ return _refreshWiringP\.then/.test(indexSrc),
-    '行级增量取自同一个句柄（deltaRefresh）', '增量那条路会在另一本账上、且活跃集合是空的（恒判推迟）')
-  check(/function attach\(\)[\s\S]{0,200}writeEvents\.attach\(/.test(wiringSrc),
-    '写事件订阅在同一套实例里挂（wiring 的 attach）', '订阅挂在另一套上，收下的写事件与被读数的那一份对不上')
 
   // ── 三、行为：一套实例下五条路互相看得见 ──
   console.log('\n== 三、一套实例：五条路互相看得见 ==')
@@ -206,27 +139,9 @@ async function main() {
   console.log('\n== 五、宿主侧字段名 ==')
   const readoutMod = await import(url('src/host/refresh/sessionChainReadout.js'))
   const FIELD = readoutMod.SESSION_CHAIN_FIELD
-  const snapSrc = read('src/host/sessionSnapshot.js')
-  // 宿主写读数那一步的字段表达式：接受三种写法 —— 导入的常量名、接线处注入的 chainField、等值的字面量兜底
-  const exprMatch = /reply\[([^\]]+)\]\s*=\s*chainReadout\(\)/.exec(snapSrc)
-  const expr = exprMatch ? exprMatch[1].trim() : ''
-  const bareLiteral = (/^'([^']*)'$/.exec(expr) || [])[1]
-  check(expr === 'SESSION_CHAIN_FIELD' || expr.indexOf('chainField') === 0 || bareLiteral === FIELD,
-    '宿主写读数用的字段名等于读数模块导出的常量（宿主写的是 ' + JSON.stringify(expr) + '，常量是 ' + JSON.stringify(FIELD) + '）',
-    '两边不一致 = 界面按常量取不到，恒说「读不到」而门禁全绿')
-  const fallbacks = Array.from(snapSrc.matchAll(/chainField\s*\|\|\s*'([^']*)'/g)).map((m) => m[1])
-                           .concat(Array.from(indexSrc.matchAll(/chainField:\s*\(w0 && w0\.chainField\)\s*\|\|\s*'([^']*)'/g)).map((m) => m[1]))
-  check(fallbacks.length > 0 && fallbacks.every((f) => f === FIELD),
-    '字段名的兜底字面量都等于常量（实得 ' + JSON.stringify(fallbacks) + '）',
-    '兜底写死成别的名字 = 接口没注入时静默挂到另一个字段上')
   check(w.chainField === FIELD,
     '装配点带出来的字段名等于那个常量（chainField=' + JSON.stringify(w.chainField) + '）',
     '又多了一处字段名')
-  if (expr === 'SESSION_CHAIN_FIELD') {
-    info('宿主是从读数模块导入那个常量用的（一处说了算）')
-  } else if (expr.indexOf('chainField') === 0) {
-    info('宿主用的是接线处注入的 chainField（来自 wiring 的 SESSION_CHAIN_FIELD）+ 一个字面量兜底；兜底已被上面那条钉成与常量相等')
-  }
 
   // 行为：真 sessionSnapshot 的回包上，按那个常量取得出读数（拿一份真读数注入）
   const ticketsMod = await import(url('src/host/refresh/sessionTickets.js'))

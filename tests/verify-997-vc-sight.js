@@ -1,16 +1,17 @@
 // tests/verify-997-vc-sight.js — 「滑到那句提示就接着显示」的门禁（#997 落地）
 // 用法：在插件根目录执行 node tests/verify-997-vc-sight.js，可独立运行。
 //
-// 守四件事：
+// 守三件事：
 //   1) 纯判定 vcMoreStepOf：什么时候接着显示（draw）、什么时候等上一批落地（wait）、什么时候停（stop，
 //      含「没有更多」与「上一次失败了」两档 —— 失败不自动重试，交给那句失败提示与它的重试按钮）。
 //   2) vcMoreStateOf：从块清单里取出改动页三个分组、工作树页、提交历史页各自「还有没有没显示的」；
 //      视图里没有那个块就没有那个键（也就不会被触发）。
 //   3) vcMoreShownOf：再画一批是本地动作（把已取回的行多画一批），用函数式更新，不改传进来的那份状态。
-//   4) 接线：三处都挂在同一套观察器上；组件里不再自己建观察器（旧那段「读数一变就重建观察器」就是
-//      失败重试环的来源）；叶子不新增任何定时器（#709 的不变量）。
-// 反证（仓库既有纪律：每道门禁必须带一条）：把判定、接线、级联重判、词条各改坏一处，同一套断言必须
-//   当场变红；而且反证自己也要自证「真的改到了源码」（改不中就等于没证）。
+// 反证（仓库既有纪律：每道门禁必须带一条）：把判定与「再画一批」各改坏一处，同一套断言必须当场变红；
+//   而且反证自己也要自证「真的改到了源码」（改不中就等于没证）。
+// 原来还守着「接线」与「词条」两段：接线那一段是把组件源码当文本、用正则要求它长成某种写法
+//   （ref: moreSight.refOf(...) 必须原样出现、moreRef 不许出现…），等价重构就会变红，已按维护者的
+//   要求整段删除；「接线对不对」改由真 Chromium 里跑的 tests/verify-997-vc-sight-browser.js 量。
 const fs = require('fs')
 const path = require('path')
 const { compileFn } = require('./lib/eval-probe.js')
@@ -23,7 +24,6 @@ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 const strip = (t) => t.replace(/^(\s*)export\s+/gm, '$1')
 
 const LEAF = 'src/client/views/versionControl/vcInView.js'
-const TAB = 'src/client/views/versionControl/VersionControlTab.js'
 const FLOW = 'src/client/kernel/locale-flow.js'
 const PANEL = 'src/client/kernel/locale-panel.js'
 
@@ -106,22 +106,7 @@ function shownProblems(mod) {
   return bad
 }
 
-// ---------- 4) 接线与词条（源码文本判据） ----------
-function wiringProblems(tab, leaf) {
-  const bad = []
-  if (!/ref: moreSight\.refOf\(g\.key\)/.test(tab)) bad.push('改动页每个文件分组没有挂上观察器（查 ref: moreSight.refOf(g.key)）')
-  if (!/ref: moreSight\.refOf\('other'\)/.test(tab)) bad.push('工作树页那句没有挂上观察器（查 ref: moreSight.refOf(\'other\')）')
-  if (!/ref: moreSight\.refOf\('commits'\)/.test(tab)) bad.push('提交历史页那句没有挂上观察器（查 ref: moreSight.refOf(\'commits\')）')
-  if (!/moreStateRef\.current = vcMoreStateOf\(blocks, reads\)/.test(tab)) bad.push('每帧没有把各处的「还有没有」交给接线（查 moreStateRef.current = vcMoreStateOf(...)）')
-  if (tab.indexOf('new IntersectionObserver(') >= 0) bad.push('组件里又自己建观察器了：观察器只该住在 vcInView.js（旧那段就是失败重试环的来源）')
-  if (/moreRef/.test(tab)) bad.push('组件里还留着旧的单个 ref（moreRef）')
-  if (/moreFiles/.test(tab)) bad.push('组件里还留着旧的「点击展开」函数（moreFiles）：点与自动应当是同一条 draw')
-  if (leaf.indexOf('new IntersectionObserver(') < 0) bad.push('vcInView.js 里没有观察器：接线没落在叶子上')
-  if (!/io\.unobserve\(el\); io\.observe\(el\)/.test(leaf)) bad.push('画完一批之后没有显式重判一次（级联的写法：重新观察同一句提示）')
-  if (/setTimeout|setInterval|requestAnimationFrame/.test(leaf)) bad.push('叶子里出现了定时器或逐帧回调（#709 的不变量：一个都不加）')
-  if (!/typeof IntersectionObserver === 'undefined'/.test(leaf)) bad.push('没有观察器时要留退路（那句提示照旧可以点），叶子里少了这道判断')
-  return bad
-}
+// ---------- 4) 词条（这句话说行为、不说点击） ----------
 function wordingProblems(flow, panel) {
   const bad = []
   const valuesOf = (src, key) => {
@@ -154,10 +139,6 @@ const original = {
 check(original.rule.length === 0, '判定真值表全过（10 档）' + (original.rule.length ? '：' + original.rule[0] : ''))
 check(original.state.length === 0, '从块清单里取「还有没有」全过（11 档）' + (original.state.length ? '：' + original.state[0] : ''))
 check(original.shown.length === 0, '再画一批：函数式更新、不改原状态、只动点名的分组' + (original.shown.length ? '：' + original.shown[0] : ''))
-const tabSrc = read(TAB)
-const leafSrc = read(LEAF)
-const wiring = wiringProblems(tabSrc, leafSrc)
-check(wiring.length === 0, '接线：三处挂同一套观察器、组件不自建观察器、叶子无定时器' + (wiring.length ? '：' + wiring[0] : ''))
 const wording = wordingProblems(read(FLOW), read(PANEL))
 check(wording.length === 0, '词条：这句话说行为、不说点击（中英成对）' + (wording.length ? '：' + wording[0] : ''))
 
@@ -172,16 +153,6 @@ check(stateProblems(brokenState).length > 0, '反证：提交历史那处的失�
 const brokenShown = modOf((s) => s.replace('next[key] = shown + VC_FILE_ROWS_BATCH', 'next[key] = shown'))
 check(shownProblems(brokenShown).length > 0, '反证：把「再画一批」改成「画同样多」之后当场变红')
 
-const noGroupRef = tabSrc.replace('ref: moreSight.refOf(g.key), ', '')
-const noOtherRef = tabSrc.replace("ref: moreSight.refOf('other'), ", '')
-const noCommitsRef = tabSrc.replace("ref: moreSight.refOf('commits'), ", '')
-check(noGroupRef !== tabSrc && wiringProblems(noGroupRef, leafSrc).length > 0, '反证：摘掉改动页那处 ref 之后，接线断言当场变红（且确实改到了源码）')
-check(noOtherRef !== tabSrc && wiringProblems(noOtherRef, leafSrc).length > 0, '反证：摘掉工作树页那处 ref 之后当场变红')
-check(noCommitsRef !== tabSrc && wiringProblems(noCommitsRef, leafSrc).length > 0, '反证：摘掉提交历史那处 ref 之后当场变红')
-const noRearm = leafSrc.replace('io.unobserve(el); io.observe(el)', '')
-check(noRearm !== leafSrc && wiringProblems(tabSrc, noRearm).length > 0, '反证：删掉「画完一批显式重判」之后当场变红')
-const withTimer = leafSrc.replace('const nodesRef = React.useRef({})', 'const nodesRef = React.useRef({}); setTimeout(function () {}, 1000)')
-check(wiringProblems(tabSrc, withTimer).length > 0, '反证：叶子里插一个定时器之后当场变红（#709 那条不变量有牙齿）')
 const oldWording = read(FLOW).replace("'vc.more': '另有 {n} 个文件，下滑会自动显示'", "'vc.more': '另有 {n} 个文件，点击展开查看'")
 check(oldWording !== read(FLOW) && wordingProblems(oldWording, read(PANEL)).length > 0, '反证：词条改回「点击展开查看」之后当场变红')
 

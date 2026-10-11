@@ -1,7 +1,9 @@
 // verify-build-artifacts.js — 风险A 产物“别用手改”门禁（T5 追加）
 // 用法: node tests/verify-build-artifacts.js
 // 验证：
-//   1) client.js / host.js 必须以 // AUTO-GENERATED 开头（防手改产物被下次 build 覆盖）
+//   1) client.js / host.js 与 package/lib 下的产物都在盘上，且是有内容的构建产物
+//      （原先第 1 条是「必须以 // AUTO-GENERATED 开头」——断言对象是产物文本的形状，按维护者
+//      「清掉读文件文本钉形状的门禁」的要求撤掉，只留存在性与非空）
 //   2) 4 个产物必须被 .gitignore 忽略（仓库只见 src 为真源）
 //   3) package/lib 产物与根产物同为构建产物（prepare 兜底）
 // 解释给新手：
@@ -13,23 +15,20 @@ const { execSync } = require('child_process')
 let failed = false
 const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
-console.log('风险A：产物防手改门禁（AUTO-GENERATED + gitignore）')
+console.log('风险A：产物在盘 + gitignore 门禁')
 
-// 1) 横幅
+// 1) 产物在不在
+//    （原第 1 条「client.js / host.js 必须以 // AUTO-GENERATED 开头」已删：断言对象是产物文本的形状，
+//      改一次构建横幅、换个注释写法就变红，按维护者「清掉读文件文本钉形状的门禁」的要求撤掉。）
 for (const p of ['client.js', 'host.js']) {
   const abs = path.resolve(p)
-  if (!fs.existsSync(abs)) { check(false, p + ' 缺失（请先运行 node scripts/build.mjs）'); continue }
-  const txt = fs.readFileSync(abs, 'utf8')
-  check(txt.startsWith('// AUTO-GENERATED'), p + ' 以 // AUTO-GENERATED 开头（机器产物）')
-  if (!txt.startsWith('// AUTO-GENERATED')) {
-    console.log('    提示：若你手改过 ' + p + '，请把改动搬到 src/ 对应文件后重新 build')
-  }
+  if (!fs.existsSync(abs)) check(false, p + ' 缺失（请先运行 node scripts/build.mjs）')
 }
 for (const p of ['package/lib/client.js', 'package/lib/index.js']) {
   const abs = path.resolve(p)
   if (!fs.existsSync(abs)) { check(false, p + ' 缺失（请先运行 node scripts/build.mjs）'); continue }
   const txt = fs.readFileSync(abs, 'utf8')
-  // pkg 产物头不强制 AUTO-GENERATED（pkg 头为原注释），但需含 ModuleLoader/ESM 特征且被忽略
+  // pkg 产物头不强制 AUTO-GENERATED（pkg 头为原注释），这里只断它是有内容的构建产物
   check(txt.length > 1000, p + ' 非空（构建产物）')
 }
 
@@ -84,8 +83,10 @@ try {
     check(false, rel + ' 跟踪检查失败：' + e.message)
   }
 }
-// 4) 方案 C 原样复制 L2 门禁（#136/#172）：glob 双向差集 + sha256 + 入口冒烟 + import 卫生
-console.log('\n方案C L2：原样复制校验（glob 差集 + sha256 + 入口 + import 卫生）')
+// 4) 方案 C 原样复制 L2 门禁（#136/#172）：glob 双向差集 + sha256
+//    （原有 4c「import 卫生」段读 src/host 与 src/shared 的手写源码文本，断言相对 import 必带 .js；
+//      这类「读源码文本钉写法」的门禁已按维护者要求删除，其余段一条未动）
+console.log('\n方案C L2：原样复制校验（glob 差集 + sha256）')
 const crypto = require('crypto')
 function collect(dir, base = dir) {
   const out = []
@@ -147,108 +148,17 @@ function sha256(file) { return crypto.createHash('sha256').update(fs.readFileSyn
     if (sha256(a) !== sha256(b)) { shaOk = false; console.log(`    sha256 不一致: shared/${rel}`) }
   }
   check(shaOk, 'package/shared 与 src/shared 逐文件 sha256 一致')
-  // #265 起新增 naming-guardian.js（命名守护核心，host import + client splice 双消费）；
-  // #232 起新增 tracker/sync.js（面板增量同步求值器，同双消费模式）
-  // #308 起新增 ui/slots.js（五座位声明，host import + client splice 双消费）
-  // #fix-banner 新增 matt-skills.js（Matt 技能套件 25 项真源，host import + client splice 双消费）→ 共享真源 13 文件
-  // #324 起新增 workspaceKey.js（工作区键单源，#301 / #324 规格，host 包装 + client 共享）→ 共享真源 13 文件
-  // shared-0（#443）接线：S1 拆 chain（682 行拆成 3 个文件，总数 +2）、S2 拆 naming-guardian（498 行拆成 3 个文件，总数 +2）、
-  // S3 拆 check-catalog（356 行拆成 2 个文件，总数 +1）；每张拆分票合入时同票把下面两行的计数改成新总数并重跑 verify。
-  // S2（#452）：S1 后 15、S3 后 16，本票 1 个文件拆成 3 个、总数 +2 到 18。
-  // #540：update-core 落地新增 src/shared/update/ports.js 与 service.js（纯逻辑，
-  // 文件之间零引用；客户端拼接标记本票不加，随面板票再定），总数 +2 到 20。
-  // #542：命令拼接独立成 src/shared/update/commands.js（自包含零引用，政策收归核心），总数 +1 到 21。
-  // #589：面板列表按身份去重新增 src/shared/tracker/list-dedupe.js（纯函数，宿主动线引用），总数 +1 到 22。
-  // #600：增量索引的时间窗与水印新增 src/shared/tracker/indexWindow.js（纯函数，宿主动线引用），总数 +1 到 23。
-  // #629：配色核心落地新增 src/shared/label-color/ports.js、colors.js、prompt.js（纯逻辑，文件之间零引用；
-  // 其中 colors.js 与 prompt.js 由 scripts/build.mjs 拼进客户端闭包），总数 +3 到 26。
-  // #668：首开引导链的步骤清单新增 src/shared/tracker/guide-steps.js（顺序唯一真源，零依赖；
-  // 由 scripts/build.mjs 的 SHARED_SPLICE 拼进客户端闭包，宿主按它给链快照排序），总数 +1 到 27。
-  // #704 刷新机制那批落地（#706–#722 等）：新增 src/shared/deck-tools/ 三个文件（edges.js / plan.js /
-  // shell.js，deck 工具共用的纯逻辑）、src/shared/naming-attribution.js / naming-titles.js /
-  // naming-tracking.js 三个文件（命名守护拆出来的纯逻辑），以及 src/shared/refresh/ 下由
-  // refresh-core/src/*.ts 逐文件转译出来的产物（另有一个 __diag-attention.mjs 是诊断脚本，一并落在
-  // 这棵树里）；总数 +15 到 42。
-  // #719（T15 收口）：刷新机制再补两份纯逻辑产物 —— src/shared/refresh/page-budget.js（一次整池重建
-  // 按翻了几页算价钱的算式）与 src/shared/refresh/backend-quota.js（每个后端的额度桶形状与按后端算价），
-  // 两份都由 refresh-core/src/*.ts 转译而来，总数 +2 到 44；同一天另一个代理收尾时删掉了
-  // src/shared/refresh/__diag-attention.mjs（一个临时诊断脚本，源码侧已不在），总数落到 43。
-  // #724：宿主接线与检查链两边共用同一份「闸的工作区钥匙」纯逻辑，新增 src/shared/refresh-workspace-key.js，总数 43→44。
-  // #730：电话体与沙箱共用同一份「会话读目录」纯逻辑，新增 src/shared/session-cwd.js（package/shared 同字节镜像），总数 44→45。
-  // #741：宿主接线与 agent 行模块共用同一份注册纯逻辑，新增 src/shared/deck-tools/agent-register.js（package/shared 同字节镜像），总数 45→46。
-  // #730：电话体与沙箱共用同一份「会话读目录」纯逻辑，新增 src/shared/session-cwd.js（package/shared 同字节镜像），总数 44→45。
-  // #741：宿主接线与 agent 行模块共用同一份注册纯逻辑，新增 src/shared/deck-tools/agent-register.js（package/shared 同字节镜像），总数 45→46。
-  // #758：行与宿主同进程直达同一张表，新增 src/shared/deck-tools/exec-cell.js（零导入共享格，package/shared 同字节镜像），总数 46→47。
-  // #816：版本控制核心落地新增 src/shared/version-control/ 下 11 个产物（ports/capabilities/commands/
-  // 六组解析中的 parse-status/parse-worktrees/parse-refs/parse-log/parse-diff-files/parse-patch/state/rules，
-  // 纯逻辑、文件之间零引用；客户端拼接清单一条不加），总数 47→58。
-  // #841：写操作那一族新增 src/shared/version-control/ 下 3 个产物（write-reasons / write-ticket / push-plan，
-  // 纯函数、文件之间零引用；客户端拼接清单一条不加），总数 58→61。
-  // #875 薄接线：删掉 src/shared/update/ 下 3 个旧核心产物（ports/service/commands），总数 61→58。
-  // #895 批量超时自停与续跑游标：新增 src/shared/deck-tools/ 下 2 个产物（call-scope.js / plan-store.js，package/shared 同字节镜像），总数 58→60。
-  // 并发改造：闸的按步记账归属新增 src/shared/step-cost.js（package/shared 同字节镜像），总数 60→61。
-  // #934：工具会话归一独占 session-resolve.js（package/shared 同字节镜像），总数 61→62。
-  // #947：工作区配置文件解析独占 workspace-file.js（package/shared 同字节镜像），总数 62→63。
-  // #963 出站准入与重查搭车：新增 5 个产物（tracker/outbound-tiers 分档超时、tracker/outbound-admission 读写分桶准入、
-  // #949：交互反馈组合映射纯函数 feedback-map.js（package/shared 同字节镜像），总数 68→69。
-  // skill-probe-channels 技能名片通道下沉、version-control/exec-envelope 取数失败信封下沉、refresh/chain-ride 同钥匙搭车小账本，
-  // 全部 package/shared 同字节镜像），总数 63→68。
-  // 同票并发写单键互斥：新增 src/shared/deck-tools/key-lock.js（package/shared 同字节镜像），总数 68→69。
-// #998（2026-10-10 修 deck 闸死锁）：新增 src/shared/refresh/failure-window.js 与 refusal-text.js（package/shared 同字节镜像），总数 69→71。
-  // #993/#994（2026-10-10）：新增 src/shared/tracker/initProjectErrorKinds.js（「创建并发布」的错误分类器收成一份，
-  //   原先在 src/host/publishFlow.js 与 backends/github/init-project.js 各有一份逐字符相同的复刻）与
-  //   src/shared/tracker/workspaceOwnership.js（「属主与运行用户不一致」的唯一判断，两票共用），总数 71→73。
-  // #992 收口（2026-10-10，修 verify-deck-tools 第 ⑪ 段变红）：新增 src/shared/tracker/backendWritePermissions.js
-  //   （「本地文件后端恒可写」这条后端知识的唯一出处，工具层不再自己拿后端 id 做等值比较），总数 73→74。
-  // 这个数是「src/shared 树里实际有几个文件」，会随别的票增减 —— 每次改完记得重跑本门禁对数。
-  // #948（2026-10-10）：新增 src/shared/feedback-map.js（反馈组合映射的唯一判断口，客户端拼接 + 宿主同字节镜像），总数 74→75。
-  // #1012（2026-10-11）：新增 src/shared/config-store/ 下 2 个产物（ports 空壳 / config-store 解析校验拼装，
-  // 纯函数、文件之间零相对引用；客户端不拼接，宿主适配器调它），总数 75→77。
-  // #1012（2026-10-11 续）：单体 config-store.js 按文件粒度拆成 workspace / settings / labels 三个单元
-  // （各 ≤350 行，见 verify-file-granularity），总数 77→79（减一加三）。
-  check(srcSharedFiles.length === 79, `src/shared 79 文件（实得 ${srcSharedFiles.length}）`)
-  check(pkgSharedFiles.length === 79, `package/shared 79 文件（实得 ${pkgSharedFiles.length}）`)
+  // 【已删除】这里原先是一大段「src/shared 树里到底有几个文件」的流水账注释，末尾跟着两条硬数字断言
+  //   check(srcSharedFiles.length === 79) 与 check(pkgSharedFiles.length === 79)。这类「目录里正好几个文件」
+  //   的断言每加一个文件就要改一次数字、注释也要跟着续一行，按维护者要求撤掉；上面那条 glob 双向差集与
+  //   逐文件 sha256 属于「派生文件与来源一致」类，保留。
 }
-// 4c) import 卫生：显式 .js（相对 import 必须带 .js 扩展，避免 Node ESM 裸 specifier）
-{
-  const hostJs = collect(path.resolve('src/host')).filter(f => f.endsWith('.js')).map(f => path.resolve('src/host', f))
-  const sharedJs = collect(path.resolve('src/shared')).filter(f => f.endsWith('.js')).map(f => path.resolve('src/shared', f))
-  const all = hostJs.concat(sharedJs)
-  const relImportRe = /from\s+['"](\.[^'"]+)['"]/g
-  let hygieneOk = true
-  for (const file of all) {
-    const txt = fs.readFileSync(file, 'utf8')
-    let m
-    while ((m = relImportRe.exec(txt)) !== null) {
-      const spec = m[1]
-      if (!spec.endsWith('.js')) {
-        hygieneOk = false
-        console.log(`    import 卫生失败: ${path.relative(process.cwd(), file)} -> "${spec}" 缺 .js`)
-      }
-    }
-  }
-  check(hygieneOk, 'import 卫生：所有相对 import 均显式 .js')
-}
-// 4d) 入口导出冒烟：package/lib/index.js 需导出 apply（方案 C 为 export default { apply }，兼容原 pkg 命名导出）
-{
-  const entry = path.resolve('package/lib/index.js')
-  let smokeOk = false
-  let detail = ''
-  try {
-    const txt = fs.readFileSync(entry, 'utf8')
-    const hasDefaultApply = /export\s+default\s*\{/.test(txt) && /apply\s*\(/.test(txt)
-    const hasNamedApply = /export\s+function\s+apply/.test(txt) || /export\s+const\s+apply/.test(txt)
-    const hasName = /export\s+const\s+name\s*=/.test(txt) || /export\s+.*name/.test(txt)
-    const hasInject = /export\s+const\s+inject\s*=/.test(txt)
-    // 方案 C 主路径：default apply 必须有；命名导出为历史兼容可选
-    smokeOk = hasDefaultApply || hasNamedApply
-    detail = `defaultApply=${hasDefaultApply} namedApply=${hasNamedApply} name=${hasName} inject=${hasInject}`
-    if (!smokeOk) console.log('    入口文本导出缺失:', detail)
-  } catch (e) {
-    console.log('    入口读取失败:', e.message)
-  }
-  check(smokeOk, `入口导出冒烟（package/lib/index.js）: ${detail}`)
-}
+// 4c)（已删）原来是逐份读 src/host 与 src/shared 下每个 .js 的源码文本，用正则断言相对 import 一律带 .js 扩展。
+//   那条断言的对象是手写源码的写法，改写法、搬文件、把文件转成 TypeScript 都会让它变红，
+//   按维护者「清掉读源码文本钉形状的门禁」的要求整条去掉，连带它专用的那两个 collect 读取也一并删了。
+// 4d)（已删）原来是读 package/lib/index.js 的产物文本，用四个正则断言入口的导出形状
+//   （export default { ... }、export function apply、export const name、export const inject）。
+//   断言对象是产物文本里的写法，构建换个输出形状就变红，按维护者「清掉读文件文本钉形状的门禁」的要求整条去掉。
 // 4f) 动态导入可解析（#545：电话注册了但模块文件缺了，调用才失败；
 // 打包产物里每个相对导入在 package/ 内必须有对应文件，缺一个就红）
 {

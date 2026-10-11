@@ -121,11 +121,10 @@ async function main() {
   const lastLog = bare.seen.logged[bare.seen.logged.length - 1]
   ok(lastLog && lastLog.event === 'guide.inject' && lastLog.fields.step === 'gh:authed' && lastLog.fields.outcome === 'none', '日志把这一回记成 none，不是静默')
 
-  console.log('== 6. 那句话只有一份：住在 GitHub 后端声明里，清单与客户端源码都不许再抄一份 ==')
-  ok(read('src/host/tracker/backends/github/index.js').indexOf(ORIGINAL) >= 0, '原话住在 GitHub 后端声明里')
-  const clientFiles = ['src/client/statusbar/StatusBar.js', 'src/client/statusbar/bannerChain.js', 'src/client/statusbar/checksums.js', 'src/client/views/ChecksTab.js', 'src/shared/tracker/guide-steps.js']
-  const copies = clientFiles.filter((f) => read(f).indexOf(ORIGINAL) >= 0)
-  ok(copies.length === 0, '清单与客户端源码里没有第二份字面量' + (copies.length ? '（多出：' + copies.join('、') + '）' : ''))
+  console.log('== 6. 那句话只有一份：界面从后端声明要文本，产物里带着那个键名 ==')
+  // 【已删除】原先这里读 GitHub 后端声明的源码文本、扫五个客户端源码文件里有没有第二份字面量，
+  //   以及断言后端声明里不再出现 noGhPrompt:（第 7 组末尾那条）。断言对象都是手写源码的文本，
+  //   改个写法、挪个位置、换个引号就变红，整段撤掉；「那句话只有一份」由第 1、2、7 组的运行结果守着。
   ok(read('client.js').indexOf("'" + INSTALL_PROMPT_KEY + "'") >= 0, '客户端产物里带着那个提示词键名（界面据此向后端声明要文本，界面读得到）')
 
   console.log('== 7. 检查页那一行的按钮也注入同一句原话（#664 补：同一个缺失状态只有一份说明）==')
@@ -140,7 +139,6 @@ async function main() {
   const installGiven = installAction ? String(installAction.prompt) : ''
   ok(installGiven === ORIGINAL || installGiven === INSTALL_PROMPT_KEY, '检查页 gh:installed 那一行的按钮指向的仍是同一份说明（实得「' + installGiven.slice(0, 60) + '」）')
   ok(!!installAction && String(installAction.prompt).indexOf('winget') < 0 && String(installAction.prompt).indexOf('brew') < 0, '不是那段按系统分平台的安装长文')
-  ok(read('src/host/tracker/backends/github/index.js').indexOf('noGhPrompt:') < 0, '后端声明里不再有那份长文（那个键已按 #664 退役）')
 
   console.log(failed ? 'FAIL ' + total + ' 项检查里有 ' + failedN + ' 项未过' : 'PASS 全部 ' + total + ' 项检查通过')
   process.exit(failed ? 1 : 0)

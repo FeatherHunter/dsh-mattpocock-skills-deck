@@ -1,4 +1,4 @@
-// verify-669-collapsed-recoverable.js — 「收起之后必须回得来」，并把收起态那两处写法钉住（#669）
+// verify-669-collapsed-recoverable.js — 「收起之后必须回得来」（#669）
 //
 // 起因（2026-09-20 真机报告）：「在某个全新工作区一直操作到 /setup 黄条时点击了黄条后，整个胶囊状态栏全部消失了」。
 //   那一次查到底的结论是：真凶为渲染当场抛错 —— 初始化小卡调了一个从来没定义过的函数，React 把整棵子树摘掉。
@@ -7,15 +7,16 @@
 //
 // 2026-09-21 维护者裁定还原界面：2026-09-20 那两轮一度把横幅那颗叉改成带字的「收起」、把收起态那颗按钮画成
 //   「有底色、有描边、12px 粗体、带面板图标」的一颗按钮；维护者看过真机之后要求退回改动前的样子。
-//   所以 A、B 两组改成钉「图形叉 + 细小灰字」这一套写法；C 组钉的是行为，一个字没动 —— 还原的是样子，不是行为。
 //
-// 这一门钉四件事：
-//   A 静态层：收起态那颗按钮是细小的灰字幽灵（10px、无描边、无底色、圆角 99）；三处收起都是图形叉、都不带字，
-//     并且都离左边那颗主按钮 12px；放大版与带字那两套写法都必须已经消失。
+// 2026-10-12：原本还有一组「A 静态层」的断言，读产物文本钉那几处写法的样子（字号 10、无描边、三处收起都不带字……），
+//   维护者要求清掉这类「读源码文本钉形状」的门禁，整组已删。从产物里读字号 / 内边距 / 描边 / 圆角那几行留下了，
+//   它们不断言任何东西，只当 B 组的输入（B 组量的是浏览器真渲染出来的样式）。
+//
+// 这一门现在钉三件事：
 //   B 真 Chromium：两套写法按真样式渲染出来确实量得出差别（还原后的那一套：矮、无描边、无底色）。
 //   C 真产物行为层：把状态栏真身挂起来，逐个点一遍 —— 除了那两处收起，任何一个点击都不许让横幅与胶囊消失；
 //     收起之后必须出现一颗写着「展开」的按钮，点它整体回得来。
-//   D 反证：把 A、C 里量到的东西做坏（给黄条整条挂上收起 / 把带字的写法塞回那三处收起），对应的断言必须当场变红。
+//   D 反证：把 C 里量到的东西做坏（给黄条整条挂上收起 / 把带字的写法塞回那三处收起），对应的断言必须当场变红。
 //
 // 用法：node tests/verify-669-collapsed-recoverable.js
 const fs = require('fs')
@@ -34,8 +35,8 @@ let failed = false
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
-// ── 从产物里抠出「收起态那颗按钮」的样式与其身上的几处断言 ─────────────────────────
-// 抠法照 verify-640 的先例：值必须从真源里读出来，读不到就报错，不许在门里另抄一份常量。
+// ── 从产物里抠出「收起态那颗按钮」的四个样式数值（只当 B 组的输入，这里不作断言） ─────────
+// 抠法照 verify-640 的先例：值必须从真源里读出来，不许在门里另抄一份常量。
 const collapsedBranchOf = function (src) {
   const at = src.indexOf('if (deckFolded) {')
   if (at < 0) throw new Error('产物里找不到收起态那一支（if (deckFolded)）')
@@ -49,96 +50,22 @@ const fieldOf = function (block, field) {
   return m ? (m[1] !== undefined ? m[1] : m[2]) : null
 }
 
-// 三处「收起」触发（黄条 / 探测中黄条 / 蓝条）的写法 —— 同一份声明，三处都该长这样。
-const TRIGGER_CLASS = 'dsws-btn ghost dsws-banner-fold-x'
-// 一处收起触发身上该有的：一个叉形字形（Ic n:'x'），而且**不许**再带文字（带字的「收起」2026-09-21 已撤回）。
-const glyphAt = function (slice) { return /n:\s*'x'/.test(slice) }
-const labelAt = function (slice) { return slice.indexOf("tr('banner.foldShort')") >= 0 }
-const spaceAt = function (slice) { return /marginLeft:\s*12/.test(slice) }
-// 按类名逐处取切片再问一句（三处触发写法一致，判据也只能逐处问，不能只看总数）。
-const countTriggers = function (src, ask) {
-  let n = 0
-  let at = src.indexOf(TRIGGER_CLASS)
-  while (at >= 0) { if (ask(src.slice(at, at + 420))) n += 1; at = src.indexOf(TRIGGER_CLASS, at + 1) }
-  return n
-}
-
-const runStatic = function (src, tag) {
+const runStatic = function (src) {
   const block = collapsedBranchOf(src)
   const fontSize = fieldOf(block, 'fontSize')
   const padding = fieldOf(block, 'padding')
   const border = fieldOf(block, 'border')
   const radius = fieldOf(block, 'borderRadius')
-  check(Number(fontSize) === 10, tag + ' · 收起态那颗按钮字号是 10（还原后的细小灰字；现在是 ' + fontSize + '）')
-  check(padding === '0 8px', tag + ' · 收起态那颗按钮内边距是 0 8px（现在是 ' + padding + '）')
-  check(border === 'none', tag + ' · 收起态那颗按钮没有描边（现在是 ' + border + '）')
-  check(Number(radius) === 99, tag + ' · 收起态那颗按钮是胶囊形圆角 99（现在是 ' + radius + '）')
-  check(/lineHeight:\s*1\.2/.test(block), tag + ' · 收起态那颗按钮用紧凑行高 1.2')
-  check(block.indexOf("tr('banner.expandDeck')") >= 0, tag + ' · 收起态那颗按钮写着面板名（tr banner.expandDeck）')
-  check(/'?aria-label'?:\s*tr\('banner.expandDeck'\)/.test(block), tag + ' · 收起态那颗按钮保留无障碍名')
-  check(/onClick:\s*expandBanner/.test(block), tag + ' · 收起态那颗按钮点下去调 expandBanner（回来的路还在）')
-  // 放大版那一套必须已经消失：否则这一门会对着放大版误绿
-  check(!/dsws-cap-recover/.test(block), tag + ' · 放大版那颗按钮身上的类名已消失（2026-09-21 撤回）')
-  check(Number(fontSize) !== 12 && !/fontWeight:\s*600/.test(block), tag + ' · 放大版的字号 12 与加粗 600 都没有了')
-  check(!/Icon\(\{\s*scheme/.test(block), tag + ' · 面板图标不再挂在收起态那颗按钮上')
-  // 回得来：展开仍然把这条工作区的收起标记删掉
-  const prefs = fs.readFileSync(path.join(ROOT, 'src/client/kernel/store-prefs.js'), 'utf8')
-  check(/setBannerFolded = function \(cwd, folded\)[\s\S]{0,400}else delete bannerFoldByCwd\[k\]/.test(prefs),
-    tag + ' · setBannerFolded(cwd,false) 仍然是删掉标记（展开真回得来）')
-  // 三处「收起」都是图形叉：带叉形字形、不带字、都离主按钮 12px
-  const triggers = src.match(new RegExp(TRIGGER_CLASS.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []
-  check(triggers.length >= 3, tag + ' · 收起触发共 ' + triggers.length + ' 处（黄条 / 探测中黄条 / 蓝条）')
-  const glyphAll = countTriggers(src, glyphAt)
-  check(glyphAll >= triggers.length, tag + ' · 每一处收起都是图形叉（带叉形字形的 ' + glyphAll + ' / 共 ' + triggers.length + '）')
-  const labeledAll = countTriggers(src, labelAt)
-  check(labeledAll === 0, tag + ' · 三处收起都不带字了（带字的 ' + labeledAll + ' 处，应为 0）')
-  const spacedAll = countTriggers(src, spaceAt)
-  check(spacedAll >= triggers.length, tag + ' · 每处收起都带 marginLeft:12 离开主按钮（带距离的 ' + spacedAll + ' / 共 ' + triggers.length + '）')
-  check(!/className:\s*'dsws-btn ghost dsws-banner-collapse'/.test(src), tag + ' · 带字那一版的写法已消失（不再有一颗写着「收起」的按钮）')
-  // #669 第 4 件：那张初始化小卡上的话是维护者 2026-09-21 给的原文，逐字钉住（顺序也钉住：
-  //   标题 → 问题与两个选项 → 只读说明 → 两个按钮），免得以后有人顺手改字或把顺序调了。
-  // #698（2026-09-22）：这张卡的**界面**搬去了弹窗座位那一层（src/client/views/SetupCard.js）——
-  //   它原先只渲染在黄条下面，工作区一旦初始化过就没有地方可画。所以这一段改成读那个文件；
-  //   卡的关闭/确认也不再是本文件里那两个转调包装，而是直接调 StatusBackend.js 的那两个函数。
-  const loc = fs.readFileSync(path.join(ROOT, 'src/client/kernel/locale-panel.js'), 'utf8')
-  const locPages = fs.readFileSync(path.join(ROOT, 'src/client/kernel/locale-pages.js'), 'utf8')
-  const card = fs.readFileSync(path.join(ROOT, 'src/client/views/SetupCard.js'), 'utf8')
-  check(loc.indexOf("'setup.cardTitle': '初始化前最后一问：'") >= 0,
-    tag + ' · 卡片标题就是维护者给的那句（初始化前最后一问：）')
-  check(loc.indexOf("'setup.cardBackend': '将用 {name} 执行初始化。要换后端：右侧面板「切换后端」。'") >= 0,
-    tag + ' · 只读说明就是维护者给的那句（后端名用 {name} 填）')
-  check(locPages.indexOf("'setup.layoutQuestion':") >= 0, tag + ' · 那一问的正文在 locale-pages.js（#698 搬过去的）')
-  const iTitle = card.indexOf("tr('setup.cardTitle')")
-  const iRadios = card.indexOf('layoutRadios(st, h)')
-  const iBackend = card.indexOf("tr('setup.cardBackend'")
-  const iConfirm = card.indexOf('confirmStatusSetupPick(st)')
-  check(iTitle >= 0 && iRadios > iTitle && iBackend > iRadios && iConfirm > iBackend,
-    tag + ' · 卡上的顺序是 标题 → 问题与两个选项 → 只读说明 → 两个按钮（实得 ' + [iTitle, iRadios, iBackend, iConfirm].join(' < ') + '）')
-  // 那句橙字注解（gate.wipNotice）在别处还留着（面板的门控浮层等），这里只要求「这张卡那一段里没有它」。
-  const cardSlice = card.slice(iTitle, iConfirm)
-  const wipInCard = cardSlice.indexOf("tr('gate.wipNotice')")
-  check(iTitle >= 0 && iConfirm > iTitle && wipInCard < 0,
-    tag + ' · 那句橙字注解不再出现在这张卡上（卡那一段 ' + cardSlice.length + ' 字里实得 ' + wipInCard + '，应为 -1）')
   return { fontSize, padding, border, radius }
 }
 
-console.log('== A 静态层：收起态是细小灰字、三处收起都是不带字的图形叉 ==')
+console.log('== 从产物里取出收起态那颗按钮的样式数值（B 组拿它当输入，这里不判任何东西） ==')
 let values = null
 for (const file of files) {
   const tag = file.indexOf('package/') >= 0 ? 'npm' : 'dyn'
   console.log('=== ' + file + ' ===')
   const src = fs.readFileSync(path.join(ROOT, file), 'utf8')
-  try { const v = runStatic(src, tag); if (!values) values = v } catch (e) { failed = true; console.log('  FAIL ' + tag + ' — ' + e.message) }
-}
-// 反证：把带字的「收起」塞回那三处触发，上面那条「都不带字」必须当场变红。
-{
-  const src = fs.readFileSync(path.join(ROOT, files[0]), 'utf8')
-  const WITH_LABEL = /Ic\(\{\s*n:\s*'x',\s*size:\s*11\s*\}\)/g
-  const stripped = src.replace(WITH_LABEL, "[Ic({ n: 'x', size: 11 }), h('span', null, tr('banner.foldShort'))]")
-  check(stripped !== src, '反证 A：能把带字的写法塞回那三处收起（说明那条断言量的就是这几处）')
-  const triggers = (stripped.match(new RegExp(TRIGGER_CLASS.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length
-  check(countTriggers(src, labelAt) === 0 && countTriggers(stripped, labelAt) > 0,
-    '反证 A：塞回去之后，「三处收起都不带字」当场变红（带字的 ' + countTriggers(stripped, labelAt) + ' / 共 ' + triggers + '）')
+  try { const v = runStatic(src); if (!values) values = v } catch (e) { failed = true; console.log('  FAIL ' + tag + ' — ' + e.message) }
 }
 
 const main = async function () {
@@ -452,7 +379,6 @@ console.log('== D 反证：把量到的东西做坏，C 里对应的那几条必
   const code = fs.readFileSync(path.join(ROOT, 'package/lib/client.js'), 'utf8')
   // D1：给黄条整条挂上收起（模拟真机现场那一种「点一下黄条整条就没了」）
   const NEEDLE = "return h('div', { className: 'dsws-banner warn', style: { margin: 0, maxWidth: 560, cursor: 'default' } }"
-  check(code.indexOf(NEEDLE) >= 0, '反证 D1：能在产物里找到黄条那一处渲染（找不到就是这一道反证本身坏了）')
   const d1 = code.replace(NEEDLE, "return h('div', { className: 'dsws-banner warn', onClick: foldBanner, style: { margin: 0, maxWidth: 560, cursor: 'default' } }")
   check(d1 !== code, '反证 D1：改动落到了产物上')
   const rows1 = await runSweep(d1)

@@ -123,49 +123,25 @@ async function main() {
   assert.strictEqual(raw.map((s) => s.id).join(','), before, '排序不改动入参数组')
   ok('orderStepsByGuide：三个后端都排成定版那条链（行数不变、缺项跳过、清单里没有的项原样保留在尾部、空输入不崩、不改入参）')
 
-  // —— 场景 5：宿主真的用了它（不是只写了个没人调的模块） ——
-  const host = read('src/host/detectChain.js')
-  assert(host.indexOf("import('../shared/tracker/guide-steps.js')") >= 0, '宿主加载清单模块')
-  assert(/orderStepsByGuide\s*\(/.test(host) && /guideStepsFor\s*\(/.test(host), '宿主按清单给链快照排序')
-  const hostOrderPos = host.indexOf('orderStepsByGuide(')
-  const firstNotDonePos = host.indexOf('const firstNotDone = allSteps.findIndex')
-  assert(hostOrderPos > 0 && firstNotDonePos > hostOrderPos, '排序发生在算 currentIndex 之前（currentIndex 与横幅那一步天然一致）')
-  assert(host.indexOf('allSteps = genSteps.concat(backSteps)') < 0, '宿主不再用旧的「通用段 + 后端段」直拼顺序')
-  ok('宿主按清单排链快照，且排完才算第一个没过的下标')
+  // 【已删除】原先这里读 src/host/detectChain.js 的源码文本，断言它 import 了清单模块、调了 orderStepsByGuide /
+  //   guideStepsFor、排序发生在算 currentIndex 之前、以及没有旧的直拼写法。断言对象是手写源码里的写法与先后，
+  //   等价重构（换个写法、搬个位置、改注释）就会红，所以整段拆掉。宿主有没有真按清单排，由场景 4 守：
+  //   那一段用真函数、真检查目录把三个后端的行序排出来逐项比对。
 
-  // —— 场景 6：界面不自己再排一份（检查页只照快照渲染） ——
-  const checksTab = read('src/client/views/ChecksTab.js')
-  assert(checksTab.indexOf('chainSteps(st)') >= 0, '检查页照旧渲染链快照')
-  assert(!/steps\.sort\(|\.slice\(\)\.sort\(|sort\(function|sort\(\(/.test(checksTab), '检查页没有第二处排序')
-  assert(checksTab.indexOf('gh:installed') < 0 && checksTab.indexOf('tracker:initialized') < 0, '检查页不写死任何步骤顺序')
-  // #663 起，状态栏那条横幅也改读清单（src/client/statusbar/bannerChain.js 用 guideStepsFor + guideStepDone
-  //   逐步判「第一个没过的那一步」，不再按字面 id 自己认领检查项），所以读源加上那个模块；
-  //   「按字面 id 读链步骤」那一路照旧收 —— 谁再写死一个清单外的 id（例如 gh:labels）仍然红。
-  const statusBar = read('src/client/statusbar/StatusBar.js') + read('src/client/statusbar/checksums.js') + read('src/client/statusbar/bannerChain.js')
-  const readIds = new Set()
-  let mRead
-  const readRe = /chainStep\(\s*[A-Za-z_$][\w$]*\s*,\s*'([^']+)'\s*\)/g
-  while ((mRead = readRe.exec(statusBar)) !== null) readIds.add(mRead[1])
-  const readsByGuide = statusBar.indexOf('guideStepsFor(') >= 0 && statusBar.indexOf('guideStepDone(') >= 0
-  assert(readIds.size > 0 || readsByGuide, '状态栏确实在读链步骤（按字面 id 读，或照清单逐步判；不是没接上）')
-  for (const id of readIds) {
-    assert(guide.GUIDE_STEPS.some((s) => s.checks.indexOf(id) >= 0), `状态栏读的「${id}」是清单里声明过的检查项（它不能自己认领清单外的项）`)
-  }
-  assert(statusBar.indexOf('gh:labels') < 0, '状态栏不认领清单外的检查项（gh:labels 不在链上）')
-  ok('检查页与状态栏都不再自己排一份顺序，状态栏读的每个 id 都在清单里')
+  // 【已删除】原先这里读 src/client/views/ChecksTab.js 与 src/client/statusbar/ 下三个文件的源码文本，断言
+  //   「检查页里出现 chainSteps(st)、没有第二处 sort、不写死 gh:installed / tracker:initialized，状态栏认领的
+  //   检查项 id 都在清单里」。落点同样是手写源码里的字符串与写法，等价重构就会红，整段拆掉。
+  //   「界面不自己再排一份」由场景 4 守（真函数排出来的行序逐项比对）；横幅那条链在真沙箱里另有用例
+  //   （tests/verify-663-banner-chain.js、tests/verify-665-fresh-workspace-chain.js 喂假链快照看它出哪一段）。
 
-  // —— 场景 7：清单零依赖，且已经拼进客户端产物 ——
-  const src = read('src/shared/tracker/guide-steps.js')
-  assert(!/^\s*import\s/m.test(src) && !/require\(/.test(src), '清单模块零依赖（不 import / 不 require）')
-  const build = read('scripts/build.mjs')
-  assert(build.indexOf('// ==== shared:guideSteps (spliced by build) ====') >= 0, '构建脚本登记了拼接标记')
-  assert(build.indexOf("src/shared/tracker/guide-steps.js") >= 0, '构建脚本登记了清单文件')
-  const clientIndex = read('src/client/index.js')
-  assert(clientIndex.indexOf('// ==== shared:guideSteps (spliced by build) ====') >= 0, '客户端入口留了拼接标记')
+  // —— 场景 7：这份清单真的拼进客户端产物了（量的是构建产物，不是手写源码） ——
+  // 【已删除】原先还读 src/shared/tracker/guide-steps.js、scripts/build.mjs、src/client/index.js 的源码文本，
+  //   断言「清单模块零依赖」「两份文件都登记了拼接标记」——那是在钉手写源码的写法，已拆掉。
+  //   产物这一条留着：拼接有没有生效只有产物里看得出来，而构建产物是派生文件、不是手写源码。
   const clientBundle = fs.existsSync(path.join(ROOT, 'client.js')) ? read('client.js') : ''
   assert(clientBundle.indexOf('const GUIDE_STEPS') >= 0 && clientBundle.indexOf('function guideStepsFor') >= 0, '客户端产物里带着这份清单（界面半边读得到）')
   assert(clientBundle.indexOf('export const GUIDE_STEPS') < 0, '拼接进闭包时已去掉行首 export（不在产物里留第二份声明）')
-  ok('清单零依赖，且已随构建拼进客户端产物')
+  ok('这份清单已随构建拼进客户端产物')
 
   // —— 场景 8：那道「定版的原话」真的有去处，且清单不抄载荷（逐字文本本身按 #716 的口径住在后端声明里） ——
   // #716 起的现状：装 CLI 的地址与名字跟具体后端有关，那句话搬回了 GitHub 模块的 prompts.cliInstall；

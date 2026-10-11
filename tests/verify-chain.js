@@ -59,14 +59,6 @@ console.log('\n— 枚举 —')
     const lv = Object.values(mod.SHOW_LEVELS)
     check(lv.includes('info') || lv.includes('bad'), 'SHOW_LEVELS 含 info/bad — got=' + lv.join(','))
   }
-  // G5 双名制注释：动作数据永不被数据路径读取 — 检查文件含该注释
-  try {
-    const fs = await import('node:fs')
-    const txt = fs.readFileSync('src/shared/tracker/chain-types.js', 'utf8') + '\n' + fs.readFileSync('src/shared/tracker/chain-validate.js', 'utf8') + '\n' + fs.readFileSync('src/shared/tracker/chain-evaluate.js', 'utf8')
-    check(txt.includes('永不被数据路径读取') || txt.includes('永不进入数据路径'), 'G5 双名制注释存在（动作/检查项不入数据路径）')
-    check(txt.includes('2026-08-27'), '生效日期 2026-08-27 携带')
-    check(txt.includes('推进只来自重求值') || txt.includes('重求值'), 'D5 推进原则注释存在（动作不承诺修复）')
-  } catch {}
 }
 
 // ---------- 2. 形状校验 ----------

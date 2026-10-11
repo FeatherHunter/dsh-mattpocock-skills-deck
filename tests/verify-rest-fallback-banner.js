@@ -7,11 +7,12 @@
  * —— 于是横幅在某些工作区出现过就常驻（维护者 2026-09-24 反馈）。
  *
  * 判据只有一份，在 src/client/views/shared/truthLines.js 的 restFallbackView（纯函数）。
- * 本门禁分三段：
+ * 本门禁分两段：
  *   一、纯函数行为：不画 / 照旧说「已切换」/ 超过一小时改口成「上次取数走的」/ 时刻缺失也不冒充现在 /
  *       本次会话关掉就不画、但**新的一次降级要能重新出现**；
- *   二、界面接线：ListTab 用的是这个纯函数，并且**不给宿主的标记赋值**（那条静态规矩在 verify-visible-truth 里，这里再钉一遍）；
- *   三、词条与产物：两个语言都有那句新话，且构建产物里带着它（产物不重建就是没生效）。
+ *   二、词条与产物：两个语言都有那句新话，且构建产物里带着它（产物不重建就是没生效）。
+ *   2026-10-12 修订：原来中间还有一段「界面接线」，那是读 RestFallbackBanner.js 与 ListTab.js 的源码文本
+ *   钉写法（谁调谁、有没有那个属性名），等价重构就会变红，已删；界面上到底画没画由别处的真渲染门禁管。
  */
 const fs = require('fs')
 const path = require('path')
@@ -71,18 +72,6 @@ check(view(st('rest', NOW - 5 * MIN, 'quota'), NOW, NOW - 5 * MIN) === null, '�
 const again = view(st('rest', NOW - 1 * MIN, 'quota'), NOW, NOW - 5 * MIN)
 check(!!again && again.key === 'list.restFallback', '新的一次降级（时刻更晚）→ 横幅重新出现（关掉的记的是「哪一次」）')
 
-// ── 二、界面接线 ──
-// 2026-09-24：横幅本体从 ListTab.js 搬进 views/shared/RestFallbackBanner.js（ListTab 贴着 350 行上限）。
-//   判据跟着**真实落点**走：判据仍要在界面代码里被调用、词条仍要被画出来，另加一条「ListTab 真的把它挂上去」
-//   —— 只查组件本身会因为「组件写了没人用」而变成假绿。
-const bannerSrc = fs.readFileSync(path.join(ROOT, 'src/client/views/shared/RestFallbackBanner.js'), 'utf8')
-const listSrc = fs.readFileSync(path.join(ROOT, 'src/client/views/ListTab.js'), 'utf8')
-check(bannerSrc.indexOf('restFallbackView(') >= 0, '降级横幅走的是那个纯函数判据（RestFallbackBanner.js 里调它）')
-check(bannerSrc.indexOf('data-rest-fallback-dismiss') >= 0, '横幅上有一颗「本次会话不再提示」的关闭钮')
-check(bannerSrc.indexOf('data-rest-fallback') >= 0, '横幅带着它与哪一档对应（now / stale）的标记，可被真机量到')
-check(/h\(RestFallbackBanner,\s*\{[^}]*st:\s*st/.test(listSrc), 'ListTab 把这条横幅挂上去了（组件写了没人用同样是假绿）')
-const assign = /(snapshot|snap)\s*\.\s*fallback\s*=/.test(bannerSrc + listSrc)
-check(!assign, '界面不给宿主的降级标记赋值（承认事实、不制造事实）')
 
 // ── 三、词条与产物 ──
 // 2026-09-24：这两条词条随横幅本体一起从 locale-flow.js 搬进 locale-word.js（键名与文案一字未改），
@@ -96,7 +85,7 @@ check(nDis === 2, '关闭钮的无障碍名两种语言各一条（实测 ' + nD
 // 2026-09-24（维护者截图：横幅左边两个警告三角）：那枚三角由画面画**一次** ——
 //   RestFallbackBanner.js 里那颗 Ic({ n: 'alert' })。词条文本自己再带一枚就成了「图标 + ⚠」叠在一起，
 //   所以这两句词条里不许再出现任何字符版的警告三角（⚠ 与带异体选择符的 ⚠️ 两种写法都算）。
-//   断的是「词条这一侧一条都没有」＋「画面那一侧确实画了一枚」，两头一起才拦得住「两个三角」。
+//   断的是「词条这一侧一条都没有」（画面那一侧画几枚，由组件自己的真渲染门禁管，不在这里读文本）。
 //   两句词条都在上面那份合体文本里，各出现两次（中英各一次），所以逐条读出来看 —— 这条检查
 //   不能用「取第一个匹配」那种写法：那样第二条词条永远读的是第一条，等于漏了一半。
 const triangles = function (s) { return (String(s).match(/[\u26a0\ufe0f]/g) || []).length }
@@ -107,8 +96,6 @@ const triangles = function (s) { return (String(s).match(/[\u26a0\ufe0f]/g) || [
   check(texts.length === 2 && bad.length === 0,
     '词条 ' + k + ' 的中英两条里都没有字符版的警告三角（它由画面画一次；实测读到 ' + texts.length + ' 条：' + JSON.stringify(texts) + '）')
 })
-check((bannerSrc.match(/Ic\(\{\s*n:\s*'alert'/g) || []).length === 1,
-  '横幅自己画着恰好一枚警告三角（画面这一侧负责那一次；实测 ' + ((bannerSrc.match(/Ic\(\{\s*n:\s*'alert'/g) || []).length) + ' 枚）')
 ;['client.js', 'package/lib/client.js'].forEach(function (rel) {
   const p = path.join(ROOT, rel)
   if (!fs.existsSync(p)) { check(false, rel + ' 不存在（先跑 node scripts/build.mjs）'); return }

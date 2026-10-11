@@ -1,8 +1,11 @@
 // verify-log-selfmon.js —— #499 日志管道自监控门禁（附录第 4 节断言九）。
 // 用法：在插件根目录执行 node tests/verify-log-selfmon.js，可独立运行。
-// 断言文字：46～50 五个事件逐个有点名、级别全为错误与告警、字段全在附录 1.6 白名单内、
-// 告警行无外层是否开启判断；看门狗超时字面为 5000 毫秒；落盘失败行带防繁殖守卫。
-// 做法：前半静态扫描源码字面，后半运行时复现四类故障（分发抛错只做静态，因完整分发上下文需真机）。
+// 断言文字：46～50 五个事件逐个在附录 1.6 里点名，附录末尾「枚举取值」段逐个登记齐全。
+// 做法：运行时复现四类故障（落盘失败、队列打满后的转发汇总、看门狗超时、导出失败两路散列）。
+// 原来还有「一～七」七段静态扫描：读 logStore.js、client/kernel/log.js、StatusLogMenu.js、SettingsPage.js、
+// rpcChannel.js、dispatchMeta.js 的源码文本，断言里面有某个事件名字面、某个级别字面、某个字段键集合、
+// 某处不带开关判断、某个常量等于 5000、某个变量名存在。那些盯的是源码写成什么样，等价重构就会变红，
+// 已按维护者要求整段删除；附录与实现的字面锁死一并取消，只留附录自身的登记核对。
 const fs = require('fs')
 const path = require('path')
 const { pathToFileURL } = require('url')
@@ -18,106 +21,12 @@ const readSrc = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 
 console.log('日志自监控门禁（#499：五类故障逐类有行，看门狗 5 秒自举证）')
 
-const indexSrc = readSrc(path.join('src', 'host', 'index.js'))
-const storeSrc = readSrc(path.join('src', 'host', 'logStore.js'))
+// 客户端日志内核的真源码文本：第十～十二段把它抠出来配上假零件跑（不是拿它比对写法）。
 const logSrc = readSrc(path.join('src', 'client', 'kernel', 'log.js'))
-const menuSrc = readSrc(path.join('src', 'client', 'statusbar', 'StatusLogMenu.js'))
-const settingsSrc = readSrc(path.join('src', 'client', 'views', 'SettingsPage.js'))
-// #596：46 的发射点（分发 catch 与通道注册失败记账）随协议代码搬进 rpcChannel.js，门禁跟着它走，
-// 否则这段代码搬到哪、门禁就瞎到哪（附录 1.6 的落点列已同步改成这个文件）。
-const dispatchSrc = readSrc(path.join('src', 'host', 'rpcChannel.js'))
-// #515：errorKind 的那几个字面（auth / network / notfound / exit / internal）从来不在发射点旁边，而在
-// 分发异常的归类函数里；那段归类随 #515 从 host/index.js 搬进 dispatchMeta.js 之后，原来只扫 index.js 的
-// 枚举检查就再也看不见 exit 了（附录 1.6 一直写着它，属于门禁的实现面漏了文件，不是登记缺失）。
-// 所以实现面 = 发射点（rpcChannel.js）+ 归类函数（dispatchMeta.js）两处，缺一处这门禁就会对着空气断言。
-const metaSrc = readSrc(path.join('src', 'host', 'dispatchMeta.js'))
 
-// 一、五事件逐个有点名（注释不算，只算代码里的加引号事件名）。
-{
-  const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^A-Za-z0-9_$:])\/\/.*$/gm, '$1')
-  check(code(dispatchSrc).includes("'host.dispatch.error'"), '46 分发异常行在宿主分发处有点名')
-  check(code(storeSrc).includes("'log.persist.fail'"), '47 落盘失败行在日志库有点名')
-  check(code(logSrc).includes("'log.forward.summary'"), '48 转发汇总行在客户端底座有点名')
-  check(code(logSrc).includes("'log.switch.watchdog'"), '49 看门狗行在客户端底座有点名')
-  check(code(logSrc).includes("'log.export.fail'"), '50 导出链路行在客户端底座有 helper')
-  check(code(menuSrc).includes('logExportFail(') && code(settingsSrc).includes('logExportFail('), '50 两处界面（状态栏菜单与设置页）都经 helper 记账')
-}
-
-// 二、级别全为错误与告警（自监控行始终落盘，不用信息与调试）。
-{
-  check(dispatchSrc.includes("fireLog('error', 'host.dispatch.error'"), '46 取错误级（直通落盘）')
-  check(storeSrc.includes("log('warn', 'log.persist.fail'"), '47 取告警级（直通落盘）')
-  check(logSrc.includes("log('warn', 'log.forward.summary'"), '48 取告警级（开关关闭时仍可见）')
-  check(logSrc.includes("log('warn', 'log.switch.watchdog'"), '49 取告警级（开关关闭时仍可见）')
-  check(logSrc.includes("log('warn', 'log.export.fail'"), '50 取告警级（开关关闭时仍可见）')
-}
-
-// 三、字段全在附录 1.6 白名单内（发射点对象字面量逐键核对，之外的键一律不许出现）。
-{
-  const keysAt = (src, event) => {
-    const at = src.indexOf("'" + event + "'")
-    if (at < 0) return null
-    const openAt = src.indexOf('{', at)
-    if (openAt < 0 || openAt - at > 120) return null
-    let depth = 0
-    for (let i = openAt; i < src.length && i < openAt + 400; i++) {
-      if (src[i] === '{') depth += 1
-      if (src[i] === '}') { depth -= 1; if (depth === 0) return src.slice(openAt, i + 1) }
-    }
-    return null
-  }
-  const keysOf = (seg) => Array.from(seg.matchAll(/([A-Za-z_$][A-Za-z0-9_$]*)\s*:/g)).map((m) => m[1])
-  const want = {
-    'host.dispatch.error': ['method', 'argsHash', 'errorKind'],
-    'log.persist.fail': ['op', 'reason', 'dirHash'],
-    'log.forward.summary': ['droppedDelta', 'totalDropped', 'reason', 'windowMs'],
-    'log.switch.watchdog': ['op', 'timeoutMs', 'stage'],
-    'log.export.fail': ['op', 'reason', 'errorHash'],
-  }
-  const hold = {
-    'host.dispatch.error': dispatchSrc, 'log.persist.fail': storeSrc, 'log.forward.summary': logSrc,
-    'log.switch.watchdog': logSrc, 'log.export.fail': logSrc,
-  }
-  for (const name of Object.keys(want)) {
-    const seg = keysAt(hold[name], name)
-    const actual = seg ? keysOf(seg).sort() : []
-    const expected = want[name].slice().sort()
-    check(seg !== null && JSON.stringify(actual) === JSON.stringify(expected), '发射点字段 ' + name + '（实得 ' + (actual.join('、') || '无') + '）')
-  }
-}
-
-// 四、告警行无外层是否开启判断（复用直通口径：warn 行带判断即红）。
-{
-  const warnLines = []
-  const scan = (src, rel) => src.split('\n').forEach((line, i) => {
-    if (/['"]warn['"]\s*,\s*['"]log\.(persist\.fail|forward\.summary|switch\.watchdog|export\.fail)['"]/.test(line)) {
-      warnLines.push({ rel, i: i + 1, guarded: /isEnabled\s*\(/.test(line) })
-    }
-  })
-  scan(storeSrc, 'logStore.js'); scan(logSrc, 'log.js'); scan(menuSrc, 'StatusLogMenu.js'); scan(settingsSrc, 'SettingsPage.js')
-  check(warnLines.length >= 4, '告警发射点不少于 4 处（实得 ' + warnLines.length + ' 处）')
-  const guarded = warnLines.filter((w) => w.guarded)
-  check(guarded.length === 0, '告警直发不判开关' + (guarded.length ? ' —— 带判断：' + guarded.map((w) => w.rel + ' 第 ' + w.i + ' 行').join('；') : ''))
-}
-
-// 五、看门狗字面：5000 毫秒竞跑，set 与 reconcile 都挂表。
-{
-  check(logSrc.includes('LOG_WATCHDOG_MS = 5000'), '看门狗阈值 5000 毫秒（#499 票面 5 秒）')
-  check(logSrc.includes("watchSwitchOp('reconcile'") && logSrc.includes("watchSwitchOp('set'"), '对账与设置都挂看门狗（竞跑，不取消原调用）')
-}
-
-// 六、汇总节流与防自激（有新增丢弃才记；汇总自己失败只计数，不再记新汇总）。
-{
-  check(logSrc.includes('logForwardState.lastSummaryDropped'), '汇总记上次位置（无新增丢弃不打扰）')
-  check(logSrc.includes('onlySummary'), '汇总防自激（只剩汇总自己时失败只计数）')
-}
-
-// 七、防繁殖（落盘失败行在途未落定不再追加，全盘皆坏时链条终止）。
-{
-  check(storeSrc.includes('persistFailOutstanding'), '失败行带在途守卫（避免失败自我繁殖）')
-}
-
-// 八、附录 1.6 与枚举字面（实现与附录逐字锁死）。
+// 一～七段静态扫描已按维护者要求删除（原来读六份手写源码文本，钉事件名、级别、字段键、常量值、
+// 变量名与「某行不带开关判断」这些写法）。下面只剩附录那一面与运行时复现。
+// 八、附录 1.6 与枚举登记。
 {
   const appendix = readSrc(path.join('research', '489-appendix.md'))
   check(appendix.includes('### 1.6'), '附录有 1.6 自监控节')
@@ -131,8 +40,9 @@ const metaSrc = readSrc(path.join('src', 'host', 'dispatchMeta.js'))
   const enumNote = appendix.split('\n').filter((l) => l.indexOf('枚举取值') >= 0).join('\n')
   check(enumNote.length > 0, '附录有「枚举取值」那一段（本组判据的附录面）')
   for (const w of ['queue-full', 'packet-trim', 'send-fail', 'host-reject', 'path-missing', 'waiting-host', 'exit']) {
-    const inSrc = indexSrc.includes(w) || storeSrc.includes(w) || logSrc.includes(w) || menuSrc.includes(w) || settingsSrc.includes(w) || metaSrc.includes(w)
-    check(enumNote.includes(w) && inSrc, '枚举 ' + w + ' 附录与实现一致')
+    // 这里原来还要求这些取值在实现源码里也出现（把六份手写源码的文本各扫一遍），那是盯源码写法，
+    // 已按维护者要求去掉，只核附录这一面的登记。
+    check(enumNote.includes(w), '枚举 ' + w + ' 已在附录「枚举取值」段登记')
   }
   const pkg = JSON.parse(readSrc(path.join('package.json')))
   check(pkg.scripts.verify.includes('verify-log-selfmon.js'), '本门禁已接入 npm run verify 链')

@@ -2,14 +2,14 @@
 // 用法: node tests/verify-newsession-workspace-fallback.js [file...]（默认 src 源 + package/lib/client.js 双源）
 //
 // 验收标准（#364 = #363 之后剩余 40% 的“创时即正”三要素中，工作区回退矩阵与首条保真）：
-//  a) 静態：ensureWorkspaceId 含 #364 矩阵注释与 workspaces.create 双参试探（path→cwd）及回落 null 语义
-//  b) 静態：buildCreateOpts 两分支互斥且必带 agentPreset:'ptc'（判据 P 不漂移）
-//  c) 静態：createPTCSession 含首条原子挂载且含 workspaceId/agentPreset 兼容回退（alpha 新参）
 //  d) 沙箱：ensureWorkspaceId — 命中复用、未命中创建、创建失败回落、alpha path→cwd 回退、多形态 snapshot 兼容
 //  e) 沙箱：buildCreateOpts — 有 wid / 无 wid / 空 cwd 三态
 //  f) 沙箱：createPTCSession — 正常 wid/cwd 分支、workspaceId 失败回落 cwd+ptc、agentPreset 更名回退仍写目标会话自己的草稿
 //  g) 沙箱：openTextInNewSession 工作区回退集成 — cwd 缺失走 fallback、workspaceId 创建失败走 cwd+ptc、成功走 wid+ptc、首条写目标会话自己的存放
 //  h) 双源一致（src 与构建产物逐字 splice 保留）
+//
+// 2026-10-12 修订：原来还有 a/b/c 三条「静態：源码必含某段字」的断言，它们读源码文本钉写法，等价重构就会变红，
+//   已连同只服务它们的读取语句与临时变量一并删掉；下面 d/e/f/g 四条沙箱断言是真跑代码，一条都没动。
 //
 // 与 verify-newsession-preset-guard.js 同范式：从目标文件提取真实源码并在沙箱以忠实替身执行。
 
@@ -96,33 +96,6 @@ async function testFile(file) {
   // #636 拆分：ensureWorkspaceId 只是薄转发，真实逻辑在 api-workspace.js；下面沙箱把两段拼在一起跑。
   let wsLib = ''
   try { wsLib = extractWorkspaceBlock(src).replace(/^\s*export\s+/gm, '') } catch (eWs) { wsLib = '' }
-  check(wsLib.indexOf('resolveWorkspaceEntry') >= 0, file + ' 工作区查找块可提取（含 resolveWorkspaceEntry）')
-
-  // a) 静態：工作区查找含 #364 矩阵与多参试探（#636 起住在 api-workspace.js，拼合与产物双源都含它）
-  check(src.indexOf('#364')>=0 && src.indexOf('工作区回退')>=0, file + ' 工作区查找含 #364 矩阵注释')
-  check(src.indexOf('workspaces.create')>=0, file + ' 工作区查找含 workspaces.create')
-  check(src.indexOf('{ path: cwd }')>=0, file + ' 工作区查找以 {path:cwd} 为主')
-  check(src.indexOf('{ cwd: cwd }')>=0 || src.indexOf('{cwd: cwd}')>=0, file + ' 工作区查找含 {cwd} 兼容回退')
-  check(src.indexOf('return null')>=0 && src.indexOf('.catch')>=0, file + ' 工作区查找失败回落 null（不阻断）')
-  check(src.indexOf('workspaces || !cwd')>=0, file + ' 工作区查找空 cwd/无服务回落 null')
-  check(src.indexOf('workspacePath')>=0 || src.indexOf('workspace_id')>=0, file + ' 工作区查找兼容多形态 w.path/ workspacePath')
-  check(src.indexOf('snap.workspaces')>=0, file + ' 工作区查找兼容 snap.workspaces 形态')
-  check(ensureSrc.indexOf('resolveWorkspaceEntry')>=0, file + ' ensureWorkspaceId 薄转发调 resolveWorkspaceEntry（#636 拆分）')
-
-  // b) 静態：buildCreateOpts
-  check(factoryBlock.indexOf('buildCreateOpts')>=0, file + ' 工厂块含 buildCreateOpts')
-  check(factoryBlock.indexOf("agentPreset: 'ptc'")>=0, file + ' buildCreateOpts 显式 ptc')
-  check(factoryBlock.indexOf('#364')>=0, file + ' 工厂块含 #364 注释（回退矩阵）')
-
-  // c) 静態：createPTCSession 含首条原子与兼容回退
-  const cStart = factoryBlock.indexOf('const createPTCSession')
-  const createSrc = cStart>=0 ? factoryBlock.slice(cStart, factoryBlock.indexOf('// ============ 命名守护')) : ''
-  check(createSrc.indexOf('incomingDraft')>=0 && createSrc.indexOf('storeOf(')>=0, file + ' createPTCSession 原子写入目标 store（#787 会话隔离）')
-  check(createSrc.indexOf('presetId')>=0 || createSrc.indexOf('agentPresetId')>=0, file + ' createPTCSession 含 preset 兼容回退')
-  check(createSrc.indexOf('workspaceId')>=0 && createSrc.indexOf('buildCreateOpts')>=0, file + ' createPTCSession 经 buildCreateOpts 且提及 workspaceId')
-  check(createSrc.indexOf('bad-request')>=0 || createSrc.indexOf('workspaceId')>=0, file + ' createPTCSession 含 workspaceId 失败回退语义')
-  // 旧单一 promise 链不应裸露（应有 catch 回退）
-  check(createSrc.indexOf('.catch')>=0, file + ' createPTCSession 含 catch 回退（兼容 alpha）')
 
   // d) 沙箱：ensureWorkspaceId
   try {
@@ -302,11 +275,6 @@ async function testFile(file) {
     const createBlock = cStart>=0 ? block.slice(cStart, cEnd>=0 ? cEnd : block.length) : ''
     // 提取 buildCreateOpts 以供 createPTCSession 使用
     const buildSrc = block.slice(block.indexOf('const buildCreateOpts'), block.indexOf('const createPTCSession'))
-    // 正常：有 wid — 仅源码文本检查
-    {
-      const hasFallback = createBlock.indexOf('presetId')>=0 && createBlock.indexOf('workspaceId')>=0 && createBlock.indexOf('incomingDraft')>=0
-      check(hasFallback, file + ' createPTCSession 源码含回退与目标 store 原子写入')
-    }
     // 更直接的 sandbox：运行 createPTCSession 的真实逻辑（注入 buildCreateOpts + 按编号缓存的 storeOf）
     const mkStoreOf = () => { const m = {}; const f = (sid) => (m[sid] || (m[sid] = { incomingDraft: null })); f.map = m; return f }
     {

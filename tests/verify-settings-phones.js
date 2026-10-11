@@ -122,11 +122,6 @@ async function main() {
     const r = await phones.handleGetSettings({})
     check(w.ok === true && r.ok === true && platWrites === 0, '平台文件服务全坏时读写照样成功，证明走的是系统文件直连。', JSON.stringify({ w, platWrites }).slice(0, 200))
   }
-  {
-    const src = readText('src/host/settingsPhones.js')
-    check(src.indexOf('platform.getHome') >= 0, '新叶子从平台取用户主目录。')
-    check(src.indexOf('platform.fs.writeText') < 0 && src.indexOf('platform.fs.mkdir') < 0, '新叶子没有走平台文件服务写主目录。')
-  }
 
   // —— 第二件事：失败分档 ——
   console.log('')
@@ -177,8 +172,6 @@ async function main() {
     const kinds = lines.map((l) => String((l.fields && l.fields.kind) || ''))
     check(lines.length >= 2 && events.every((e) => e === 'host.call' || e === 'host.call.fail'), '日志只用已有的两个电话事件，不新增事件名。', JSON.stringify(events))
     check(kinds.every((k) => k === 'settings'), '日志类型统一记成设置。', JSON.stringify(kinds))
-    const src = readText('src/host/settingsPhones.js')
-    check(src.indexOf("'host.call'") >= 0 && src.indexOf("'host.call.fail'") >= 0, '新叶子引用了已有的两个电话事件。')
   }
 
   // —— 第三件事：只读写入拒绝 ——
@@ -211,9 +204,6 @@ async function main() {
   }
   {
     // 写路径进程内串行：两笔写同时发起，后到的等前面的落盘之后再开始。
-    const src = readText('src/host/settingsPhones.js')
-    check(/writeQueue/.test(src) && /serialWrite/.test(src), '写路径有进程内串行队列。')
-    check(/串行/.test(src), '文件头书面声明了写路径串行。')
     const home = makeHome('serial')
     const order = []
     const base = wrapSysFs([], null)
@@ -236,9 +226,6 @@ async function main() {
     check(nLeaf <= 350, '新叶子不超过三百五十行，实得 ' + nLeaf + ' 行。')
     const nIndex = countLines('src/host/index.js')
     check(nIndex <= 350, '宿主入口不超过三百五十行，实得 ' + nIndex + ' 行。')
-    const idx = readText('src/host/index.js')
-    check(idx.indexOf("import('./settingsPhones.js')") >= 0, '宿主入口动态加载了新叶子。')
-    check(idx.indexOf("harness.handle('wf.getSettings'") >= 0 && idx.indexOf("harness.handle('wf.setSettings'") >= 0, '读与写两条电话都注册了。')
   }
 
   // —— 第五件事：每条电话真跑一遍并断言真的落了一行对应的日志 ——

@@ -13,8 +13,7 @@
  *   8) 工作区后端不是 GitHub（Markdown / GitLab / 没有主锚）：直接拒绝并指明正确做法；
  *   8b) 子目录里跑（#654）：一路向上找到工作区根并跑通、每条 gh 命令都在根那一层起、自带 .git 的子目录
  *      自成一套、一个标记都没有时话里给出「请到工作区根目录去跑」这条出路（且不泄本地绝对路径）；
- *   9) 差分钉住：脚本的校正结果逐字等于 src/shared/parser.js 的 normalizeBody（真源）；
- *  10) 本门禁已接进 npm run verify 链。
+ *   9) 差分钉住：脚本的校正结果逐字等于 src/shared/parser.js 的 normalizeBody（真源）。
  */
 const fs = require('fs')
 const path = require('path')
@@ -301,12 +300,6 @@ console.log('正文写回脚本门禁（#571 · 命令行黑盒）')
     else check(false, '10.x 差分不一致（夹具 ' + (i + 1) + '）：脚本=' + JSON.stringify(r.json && r.json.body) + ' 真源=' + JSON.stringify(expected))
   })
   check(same === cases.length, '10.1 校正结果与真源 normalizeBody 逐字一致（' + same + '/' + cases.length + '）')
-}
-
-// ——— 11) 已接入 npm run verify 链 ———
-{
-  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
-  check(String(pkg.scripts.verify || '').indexOf('verify-issue-body-script.js') >= 0, '11.1 npm run verify 链已纳入本门禁')
 }
 
 try { fs.rmSync(TMP, { recursive: true, force: true }) } catch (e) { /* 临时目录清不掉不影响判定 */ }

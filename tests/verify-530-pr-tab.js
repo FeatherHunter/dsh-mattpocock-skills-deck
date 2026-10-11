@@ -3,9 +3,19 @@
  * 回归门禁：#530 拉取请求页签在 GitHub 数据下必须出现（中英文无关）。
  *
  * 背景：页签显示条件只看后端模块能力标记（prTabVisible），与语言无关；
- * 中文曾验收通过（#506），现双语都不显示。用新构建产物 + 真实 React 在 jsdom 里
- * 渲染 DetailsDock，喂 GitHub 选择态与带能力标记的模块数据，断言页签出现；
- * 无模块数据时断言不出现（灵敏度对照）。
+ * 中文曾验收通过（#506），现双语都不显示。
+ *
+ * 2026-10-12 改动：原先本文件末尾有三条「读构建产物文本、断言产物里必须出现某个字符串」的检查
+ *   （产物含 prTabVisible / 含词条键 panel.tabPr / tabs 行仍有 tabBtn('pr')）。这类检查断言的是
+ *   源码文本长成什么样，改一处写法就变红、却证明不了页签真的会显示，按维护者要求整类删掉。
+ *   留下的三条是渲染轨的存在性校验（组件注册成功、空态渲染不抛错、渲染出的标签行还在）。
+ *
+ * 为什么渲染轨只做存在性校验、不直接断言「GitHub 选择态下出现拉取请求页签」：
+ *   面板内容体是从插件自己的 React 上下文里取 store 的（旧文件第 129-131 行的注记已记下这一点），
+ *   本门禁在 jsdom 里渲染的是注册进来的原组件，喂不进自己的 store 夹具；这样渲染出来的是真实默认
+ *   store（选择态为空），断言「必须出现」会变成一条永远红的假门禁。真要在渲染层断言能力门控，
+ *   得先让门禁能替换组件取 store 的那条通道，那属于另一张票的事。
+ *
  * 运行：node tests/verify-530-pr-tab.js（先跑 node scripts/build.mjs，保证产物新鲜）
  */
 import { JSDOM } from 'jsdom'
@@ -89,46 +99,6 @@ const byName = Object.fromEntries(registrations.map((r) => [r.meta && r.meta.nam
 const DetailsDockComp = byName['sidebar.right.pane.tab']
 check(!!DetailsDockComp, 'DetailsDock 已注册可渲染')
 
-const GH_MODULES = [{ id: 'github', label: 'GitHub', capabilities: { labelsGuide: true, repoCreateChain: true, pullRequests: true } }]
-const GH_SELECTION = { backendId: 'github', source: 'matches' }
-const GH_REPO = { backend: 'github', refId: 'FeatherHunter/dsh-mattpocock-skills-deck', name: 'FeatherHunter/dsh-mattpocock-skills-deck', url: 'https://github.com/FeatherHunter/dsh-mattpocock-skills-deck' }
-function fakeStore(over) {
-  const base = {
-    open: true, tab: 'list', activeMap: null, activeIssue: null, cwd: 'D:\\ws',
-    snapMode: 'real', snapError: null, snapLoading: false, refreshing: false,
-    selection: GH_SELECTION, repository: GH_REPO, backendModules: GH_MODULES,
-    snapshot: { maps: [], issues: [], labels: [], repo: { owner: 'FeatherHunter', name: 'dsh-mattpocock-skills-deck' }, selection: GH_SELECTION, repository: GH_REPO, backendModules: GH_MODULES },
-    notice: null, switchConfirm: null, gateModalOpen: false, gateModalSource: null,
-    noRepoCard: { expanded: false },
-  }
-  return Object.assign(base, over || {})
-}
-async function renderDockHtml(store) {
-  const container = window.document.createElement('div')
-  window.document.body.appendChild(container)
-  let root = null
-  try {
-    const useSessions = () => 'sid-530'
-    const storeSvc = { useStore: () => store }
-    await act(async () => {
-      root = ReactDOMClient.createRoot(container)
-      root.render(React.createElement(DetailsDockComp, { sessionId: 'sid-530', session: { cwd: 'D:\\ws' }, useSessions, __storeSvc: storeSvc }))
-    })
-    // #646 起这一格挂的是面板内容体，它是「先出空壳、下一帧再挂内容」的组件（#603）：
-    //   等它把内容挂上来再读 HTML（原来直接挂 DetailsDock，第一帧就有内容）。
-    for (let i = 0; i < 20; i++) {
-      await act(async () => { await new Promise((r) => setTimeout(r, 25)) })
-      if (container.innerHTML.includes('dsws-tabs')) break
-    }
-    return container.innerHTML
-  } finally {
-    try { if (root) root.unmount() } catch (e) {}
-    try { if (container.parentNode) container.parentNode.removeChild(container) } catch (e) {}
-  }
-}
-// 注意：DetailsDock 经 DswsCtx 取 storeSvc；这里用原组件 + 默认上下文会走真实 storeSvc。
-// 若默认上下文渲染不含测试 store，改走下述直调：复用已注册组件的 tabs 行需要 store 注入，
-// 因此本门禁改为“产物源码级断言 + 逻辑直调”双轨（见下），渲染轨只做存在性校验。
 const htmlSmoke = await (async () => {
   const container = window.document.createElement('div')
   window.document.body.appendChild(container)
@@ -138,7 +108,8 @@ const htmlSmoke = await (async () => {
       root = ReactDOMClient.createRoot(container)
       root.render(React.createElement(DetailsDockComp, { sessionId: 'sid-530', session: { cwd: 'D:\\ws' }, useSessions: () => null }))
     })
-    // 同上：等内容体把内容挂上来（两跳之后才是真正的面板）
+    // #646 起这一格挂的是面板内容体，它是「先出空壳、下一帧再挂内容」的组件（#603）：
+    //   等它把内容挂上来再读 HTML（原来直接挂 DetailsDock，第一帧就有内容）。
     for (let i = 0; i < 20; i++) {
       await act(async () => { await new Promise((r) => setTimeout(r, 25)) })
       if (container.innerHTML.includes('dsws-tabs')) break
@@ -153,11 +124,6 @@ const htmlSmoke = await (async () => {
 })()
 check(typeof htmlSmoke === 'string' && !htmlSmoke.startsWith('RENDER-THREW'), 'DetailsDock 空态渲染不抛错')
 check(htmlSmoke.includes('dsws-tabs'), 'DetailsDock 渲染含标签行')
-
-// 源码级：页签按能力位显隐的接线仍在（防回归删分支）
-check(code.includes('prTabVisible'), '产物含能力门控 prTabVisible')
-check(code.includes('panel.tabPr'), '产物含拉取请求词条键 panel.tabPr')
-check(code.includes("tabBtn('pr'"), '产物 tabs 行仍有 pr 分支')
 
 console.log(failures ? '\n[verify-530-pr-tab] FAIL (' + failures + ' 项)' : '\n[verify-530-pr-tab] GREEN 页签门禁就绪')
 process.exit(failures ? 1 : 0)

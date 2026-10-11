@@ -11,8 +11,8 @@
 //   三、T3 那两句也要有读取点（「自动刷新已暂停」与「未在刷新（同时活跃上限 2）」）；
 //   四、降档时把延迟承诺说出来（"数据可能落后 X 分钟"），绿档不说、红档说的是「已暂停」；
 //   五、推迟发生时说「有更新，已推后」；
-//   六、三处文案在界面代码里都有真实读取点（不是写了没人读）；
-//   七、降级标记（fallback: 'rest'）只由宿主快照组装处写，界面层一处赋值都不许有（静态断言）。
+//   六、写入窗口判据（窗口内算「更新中」、窗口外不算）与那批词条中英两面都在；
+//   七、降级标记（fallback: 'rest'）到得了界面：把快照回包组装函数真跑一遍，上游真降级时回包带 'rest'、没降级时是 null。
 //
 // 跑法：node tests/verify-visible-truth.js
 // 判据不是「字符串出现过」，而是把界面那一半的**真代码**加载起来喂两组输入、看它吐出什么话
@@ -40,27 +40,6 @@ function loadModule(relPath, deps) {
   //   依赖本来就全部显式传参（被造的代码读不到本文件作用域），与共用入口一一对应。
   const fn = compileFn(deps_, body + '\nreturn { ' + names.join(', ') + ' }')
   return fn.apply(null, deps_.map(function (k) { return deps[k] }))
-}
-
-function countLinesHits(relPath, regex) {
-  const src = fs.readFileSync(path.join(ROOT, relPath), 'utf8')
-  const hits = []
-  src.split(/\r?\n/).forEach(function (line, i) {
-    // 只看代码那一截：注释里为了解释而提到某个数字或某个字段名，不算「代码里写了这个数字/这一处赋值」。
-    const code = line.replace(/\/\/.*$/, '')
-    if (regex.test(code)) hits.push((i + 1) + ': ' + line.trim())
-  })
-  return hits
-}
-
-function walk(dir, out) {
-  for (const name of fs.readdirSync(dir)) {
-    const p = path.join(dir, name)
-    const st = fs.statSync(p)
-    if (st.isDirectory()) walk(p, out)
-    else if (name.endsWith('.js')) out.push(path.relative(ROOT, p).replace(/\\/g, '/'))
-  }
-  return out
 }
 
 // ---------- 加载真代码：新鲜度常量（budget.ts 的产物）与界面那一半的判据 ----------
@@ -100,12 +79,6 @@ const stWith = function (refresh) { return { snapshot: snapAt(T1204, refresh ? {
   ;[fresh, yellow, red].forEach(function (ln) {
     const t = ln ? textOf(ln) : ''
     if (t.indexOf('12:04') < 0) fail('那一行的时间应当是快照取数时刻 12:04（不是渲染时刻），实际：' + JSON.stringify(t))
-  })
-  // 阈值不许在界面里另写一份：界面文件里不许出现这些毫秒字面量
-  const banned = /(\b300000\b|\b1800000\b|\b120000\b|\b10000\b|5\s*\*\s*60\s*\*\s*1000|30\s*\*\s*60\s*\*\s*1000)/
-  ;['src/client/views/shared/truthLines.js', 'src/client/views/ListTab.js', 'src/client/views/ListTabRow.js'].forEach(function (f) {
-    const hits = countLinesHits(f, banned)
-    if (hits.length) fail(f + ' 里出现了阈值/窗口的毫秒字面量（应当只用 budget.ts 的常量）：' + hits.join(' | '))
   })
 })()
 
@@ -199,29 +172,8 @@ const stWith = function (refresh) { return { snapshot: snapAt(T1204, refresh ? {
   if (!pendNoSnap.some(function (l) { return l.key === 'truth.pendingLate' })) fail('无快照时仍在等也该说出来，实际：' + JSON.stringify(pendNoSnap))
 })()
 
-// ---------- 六、三处文案的真实读取点（静态：界面代码真的把它们画出来）----------
-;(function checkReadPoints() {
-  const listTab = fs.readFileSync(path.join(ROOT, 'src/client/views/ListTab.js'), 'utf8')
-  const row = fs.readFileSync(path.join(ROOT, 'src/client/views/ListTabRow.js'), 'utf8')
-  // 2026-09-22：「上次更新」那一条从面板正文那一行搬到了面板头部那个小时间标签，所以新鲜度那条判据的
-  //   读取点跟着搬了家 —— 判据跟着真实落点走。两处都读：ListTab 仍读通知那一路（写了两边没人读就红）。
-  if (!/truthNoticeLines\(st/.test(listTab)) fail('ListTab.js 没有读通知那一批判据（写了没人读）')
-  const dock = fs.readFileSync(path.join(ROOT, 'src/client/panel/Dock.js'), 'utf8')
-  if (!/truthFreshnessBox\(s/.test(dock) || !/tr\(headBox\.agoKey/.test(dock)) fail('panel/Dock.js 没有读新鲜度判据、也没有把那一句画出来（头部那个小时间标签；写了没人读 / 读了没画）')
-  if (!/tr\(ln\.key/.test(listTab)) fail('ListTab.js 没有把判据吐出来的词条画出来（读了没画）')
-  // 2026-09-24：降级横幅的判据搬进了纯函数 restFallbackView（views/shared/truthLines.js，行为由
-  //   tests/verify-rest-fallback-banner.js 逐档钉住）；横幅本体同日从 ListTab.js 搬到
-  //   views/shared/RestFallbackBanner.js（ListTab 贴着 350 行上限）。判据跟着**真实落点**走，强度不减：
-  //   ① 界面确实读了那个判据、也把词条画出来了 —— 量住横幅本体那一处；
-  //   ② ListTab 确实把这条横幅挂上去了 —— 只量组件本身会因为「组件写了没人用」变成假绿。
-  //   另外仍然钉死「界面不许自己给宿主的降级标记赋值」——承认事实，不制造事实。
-  const banner = fs.readFileSync(path.join(ROOT, 'src/client/views/shared/RestFallbackBanner.js'), 'utf8')
-  if (!/restFallbackView\(/.test(banner) || !/tr\(view\.key/.test(banner)) fail('降级横幅没有读那个纯函数判据、也没有把判据吐出来的词条画出来（写了没人读 / 读了没画）')
-  if (!/h\(RestFallbackBanner,\s*\{[^}]*st:\s*st/.test(listTab)) fail('ListTab.js 没有把降级横幅挂上去（组件写了没人用）')
-  if (/(snapshot|snap)\s*\.\s*fallback\s*=/.test(banner + listTab)) fail('界面自己给降级标记赋值了（界面只许读、不许写）')
-  if (!/truthWriteWindowOpen\(st\.writeAt/.test(row) || !/tr\('truth\.writing'\)/.test(row)) fail('ListTabRow.js 没有在写入窗口期画出那一行「更新中」标记')
-  const apiIo = fs.readFileSync(path.join(ROOT, 'src/client/kernel/api-io.js'), 'utf8')
-  if (!/markRowWrite\(st, num, ciEffort\)/.test(apiIo)) fail('api-io.js 写入成功那一处没有记下时刻（「更新中」就没有事实来源）')
+// ---------- 六、写入窗口判据与词条两面 ----------
+;(function checkWriteWindowAndLocales() {
   // 窗口判据本身：窗口内 true，窗口外 false
   const t0 = 1_700_000_000_000
   if (!truth.truthWriteWindowOpen(t0, t0 + 1000)) fail('写入窗口内应当算「更新中」')
@@ -231,40 +183,12 @@ const stWith = function (refresh) { return { snapshot: snapAt(T1204, refresh ? {
     if (!zh[k]) fail('zh 缺词条 ' + k)
     if (!en[k]) fail('en 缺词条 ' + k)
   })
-  // 拼接登记：界面读的那些常量来自 budget.ts 的产物，缺登记就会在运行时变成 undefined
-  const build = fs.readFileSync(path.join(ROOT, 'scripts/build.mjs'), 'utf8')
-  const index = fs.readFileSync(path.join(ROOT, 'src/client/index.js'), 'utf8')
-  const marker = '// ==== shared:refreshBudget (spliced by build) ===='
-  if (build.indexOf(marker) < 0) fail('scripts/build.mjs 没有登记 ' + marker)
-  if (index.indexOf(marker) < 0) fail('src/client/index.js 没有放 ' + marker)
-  if (build.indexOf("id: 'truthLines'") < 0) fail('scripts/build.mjs 的叶子清单没有登记 truthLines')
-  if (index.indexOf('// ==== leaf:truthLines (spliced by build) ====') < 0) fail('src/client/index.js 没有放 leaf:truthLines 标记')
 })()
 
-// ---------- 七、降级标记只由宿主写：界面层一处赋值都不许有（静态断言）----------
-;(function checkDegradeMarkerOwnership() {
-  const clientFiles = walk(path.join(ROOT, 'src/client'), [])
-  // 界面层：不许给降级标记赋值（属性赋值、对象字面量里给 snapshot 补一个 fallback、把 'rest' 塞给降级字段）
-  const assignRe = /\.(fallback|degraded|degradeReason)\s*=(?!=)/
-  const litRe = /(fallback|degraded)\s*[:=]\s*['"]rest['"]/
-  clientFiles.forEach(function (f) {
-    const hits = countLinesHits(f, assignRe).concat(countLinesHits(f, litRe))
-    if (hits.length) fail('界面层不许给降级标记赋值（只能由宿主快照组装处写）：' + f + ' → ' + hits.join(' | '))
-  })
-  // 宿主快照组装处：必须有这一处写入，而且写的是真实降级事实（不是写死的 'rest'）
-  const asm = fs.readFileSync(path.join(ROOT, 'src/host/tracker/snapshot.js'), 'utf8')
-  if (!/snapshot\.fallback\s*=\s*listFallback === 'rest' \? 'rest' : null/.test(asm)) fail('宿主快照组装处没有按真实降级事实写 snapshot.fallback')
-  if (!/res\.fallback === 'rest'|fast\.fallback === 'rest'/.test(asm)) fail('宿主快照组装处没有读上游带回来的真实降级事实（listFallback）')
-  // 上游那一处降级事实：github 后端的 REST 通道真的降级时才带 fallback: 'rest'
-  const gh = fs.readFileSync(path.join(ROOT, 'src/host/tracker/backends/github/issues.js'), 'utf8')
-  if (!/return \{ ok: true, data: applyIssueFilter\(restNorm, filter\), fallback: 'rest'[^}]*\}/.test(gh)) fail('github 后端的 REST 降级通道没有把 fallback: \'rest\' 这个事实带回来')
-  // 快照回包要把这两个字段带上（否则宿主写了、界面读不到）。
-  //   #723（T19）把信封组装从 sessionSnapshot.js 搬到了 src/host/snapshotEnvelope.js —— 判据跟着**真实落点**走：
-  //   不再按字面找那一行，而是把组装函数真的加载起来、喂两组输入，看它吐出来的那份回包上带没带那个标记。
-  //   它原来断言的是「宿主写了却到不了界面」，这里断言的是「到得了」的同一件事（强度不减）：
+// ---------- 七、降级标记到得了界面：把回包组装函数真跑一遍 ----------
+;(function checkSnapshotEnvelope() {
+  // 快照回包要把降级事实带上（否则宿主写了、界面读不到）：把组装函数真加载起来、喂两组输入，看回包上带没带。
   //   上游真降级 → 回包上必须是 'rest'；上游没降级 → 必须是 null（不许把没降级的也写成降级）。
-  //   再加一条接线断言：那条电话真的在用这个组装函数、也真的把上游的降级事实交给它 —— 只查组装函数本身
-  //   会因为「电话根本没接上」而变成假绿。
   const envRel = 'src/host/snapshotEnvelope.js'
   let snapFromRest = null
   let snapFromNone = null
@@ -278,9 +202,6 @@ const stWith = function (refresh) { return { snapshot: snapAt(T1204, refresh ? {
   }
   if (!snapFromRest || snapFromRest.fallback !== 'rest') fail('wf.snapshot 的回包没有把降级标记带出去（宿主写了却到不了界面）：上游真的降级时，回包上的 fallback 实得 ' + JSON.stringify(snapFromRest && snapFromRest.fallback))
   if (!snapFromNone || snapFromNone.fallback !== null) fail('wf.snapshot 的回包把没降级的也写成了降级（这条上界要如实）：上游没带降级事实时，回包上的 fallback 实得 ' + JSON.stringify(snapFromNone && snapFromNone.fallback))
-  const snapReply = fs.readFileSync(path.join(ROOT, 'src/host/sessionSnapshot.js'), 'utf8')
-  if (snapReply.indexOf('createSnapshotEnvelope') < 0 || !/buildSnap\(\{/.test(snapReply)) fail('快照那条电话没有用 ' + envRel + ' 里的组装函数（组装得再好也到不了界面）')
-  if (!/fallback: inner2?\.fallback/.test(snapReply)) fail('快照那条电话没有把上游的真实降级事实交给组装函数（宿主写了却到不了界面）')
 })()
 
 // ---------- 输出 ----------
@@ -295,6 +216,6 @@ console.log('  PASS 头部那个小时间标签：四档相对时间（刚刚 / 
 console.log('  PASS 两种失败两句不同的话（插件自己的取数失败 / 配额已被其他使用者耗尽）')
 console.log('  PASS T3 两句有读取点（自动刷新已暂停 / 未在刷新（同时活跃上限 2））')
 console.log('  PASS 降档说出延迟承诺（数据可能落后 ' + Math.round(budget.PROBE_INTERVAL_YELLOW_MS / 60000) + ' 分钟）')
-console.log('  PASS 推迟说「有更新，已推后」；降级横幅与写入中的「更新中」都有读取点')
-console.log('  PASS 降级标记只由宿主快照组装处写，界面层一处赋值都没有')
+console.log('  PASS 推迟说「有更新，已推后」；写入窗口内/外判得对，那批词条中英两面都在')
+console.log('  PASS 降级标记到得了界面：上游真降级时回包带 \'rest\'、没降级时是 null')
 console.log('\n全部通过')

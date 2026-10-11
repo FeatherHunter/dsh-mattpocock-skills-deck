@@ -7,6 +7,11 @@
 //   2) tsc --noEmit 必须通过。
 //   3) 全部产物之间零相对引用（import type 转译后不留痕迹，同层互引门禁天然能过）。
 //   4) 插口产物带模块标识 PORTS_SOURCE（类型擦掉后唯一可追溯来源的东西）。
+//   【2026-10-12 清理】上面 3)、4) 两条原先都是读产物文本断的（4) 断 ports.js 文本里出现 PORTS_SOURCE；
+//   3) 用正则断产物文本里不许出现相对 import）。断言对象是文件文本，改一次构建输出、挪一次文件就变红，
+//   按维护者「清掉读文件文本钉形状的门禁」的要求撤掉。下面第 1) 条（逐字比对产物与其 TS 来源）与第 2) 条
+//   （tsc --noEmit）一条没动；产物「带不带自己的模块标识、值指向哪个 TS」改由导入产物、读它导出的常量来断
+//   —— 那看的是跑起来的结果，不是文本。
 // 本票没有把任何产物拼进客户端闭包，所以这里不查行首 export 与版本占位符；
 // 将来哪一票真要拼，那一票把这两条检查加进来。
 // 用法：node tests/verify-version-control-freshness.js（在仓库根目录）
@@ -18,8 +23,6 @@ const { pathToFileURL } = require('url')
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
 const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
-
-const stripComments = (text) => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^A-Za-z0-9_$:])\/\/.*$/gm, '$1')
 
 async function main() {
   console.log('版本控制核心新鲜度门禁（#816：TS 改了产物没跟上就红）')
@@ -54,13 +57,9 @@ async function main() {
     check(actual === expected, u.js + ' 与 ' + u.ts + ' 转译一致（不一致请跑 node scripts/build.mjs）')
   }
 
-  let portsJs = ''
-  try {
-    portsJs = fs.readFileSync(path.join(ROOT, 'src/shared/version-control/ports.js'), 'utf8')
-  } catch (e) {
-    check(false, 'src/shared/version-control/ports.js 可读：' + (e && e.message))
-  }
-  if (portsJs) check(portsJs.includes('PORTS_SOURCE'), '插口产物带模块标识 PORTS_SOURCE（空壳可追溯）')
+  // 【已删除】原 4)：读 src/shared/version-control/ports.js 的产物文本，断言里面出现 PORTS_SOURCE。
+  //   断言对象是产物文本的形状，撤掉；「产物能不能追溯回源码」这件事由下面那段导入产物、读它导出的
+  //   <文件名大写>_SOURCE 常量来断（看的是跑起来的结果）。
 
   // #845：每个产物都要带自己的模块标识（<文件名大写>_SOURCE，值指向它来自哪个 TS）。
   //   这条判据本来就该有：仓库里同类的三份门禁都在读各自的模块标识（label-color 的 PORTS_SOURCE、
@@ -77,13 +76,8 @@ async function main() {
     check(mod[constName] === u.ts, u.js + ' 带模块标识 ' + constName + ' 且指向 ' + u.ts + '（实得 ' + String(mod[constName]) + '）')
   }
 
-  for (const u of UNITS) {
-    const abs = path.join(ROOT, u.js)
-    if (!fs.existsSync(abs)) continue
-    const code = stripComments(fs.readFileSync(abs, 'utf8'))
-    check(!/from\s+['"]\.\.?[^'"]*['"]/.test(code) && !/import\s+['"]\.\.?[^'"]*['"]/.test(code),
-      u.js + ' 零相对引用（自包含，同层互引门禁天然能过）')
-  }
+  // 【已删除】原 3)：逐份读产物文本，用正则断言里面不许出现相对 import。
+  //   断言对象同样是产物文本的形状（改一次构建输出就会变红），撤掉，连同只服务它的 stripComments 辅助。
 
   const tscBin = path.join(ROOT, 'node_modules', 'typescript', 'bin', 'tsc')
   if (!fs.existsSync(tscBin)) {

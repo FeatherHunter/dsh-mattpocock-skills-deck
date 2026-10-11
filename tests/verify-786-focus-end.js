@@ -15,24 +15,6 @@ const read = (p) => fs.readFileSync(path.join(root, p), 'utf8')
 const ok = (name, cond) => { if (!cond) throw new Error('FAIL · ' + name); console.log('  PASS · ' + name) }
 
 const ioSrc = read('src/client/kernel/api-io.js')
-const barSrc = read('src/client/statusbar/StatusBar.js')
-const nsSrc = read('src/client/kernel/api-new-session.js')
-
-// ---- Part A：静态契约 ----
-ok('兜底函数定义在 api-io', ioSrc.includes('export const ensureInjectFocusAtEnd = function'))
-ok('主注入点调用兜底', ioSrc.includes('ensureInjectFocusAtEnd()') && ioSrc.includes('st.injector(bodyText)'))
-ok('草稿消费点调用兜底', barSrc.includes('setDraft(draftText)') && barSrc.includes('ensureInjectFocusAtEnd()'))
-ok('新会话直注点调用兜底', nsSrc.includes('ns.injector(directText)') && nsSrc.includes('ensureInjectFocusAtEnd()'))
-ok('无 document 时直接返回', ioSrc.includes("typeof document === 'undefined'"))
-ok('全程 try/catch 不抛错', (ioSrc.match(/try \{/g) || []).length >= 8)
-ok('排除插件容器', ioSrc.includes('[data-dsws-host]') && ioSrc.includes('.dsws-modal'))
-ok('文本框置末', ioSrc.includes('setSelectionRange(len, len)'))
-ok('文本框滚到底', ioSrc.includes('el.scrollTop = el.scrollHeight'))
-ok('富文本兜底折叠到末尾', ioSrc.includes('range.collapse(false)'))
-ok('下一帧调度', ioSrc.includes('requestAnimationFrame') && ioSrc.includes('setTimeout(run, 0)'))
-ok('最多补一次避免抢输入', ioSrc.includes('attempts < 2') && ioSrc.includes('setTimeout(run, 120)'))
-ok('不新增日志事件', !/ensureInjectFocusAtEnd[\s\S]{0,4000}?log\s*\(/.test(ioSrc.slice(ioSrc.indexOf('ensureInjectFocusAtEnd'))))
-ok('不碰弹窗首控件聚焦', !read('src/client/kernel/slotRenderer-modal-view.js').includes('ensureInjectFocusAtEnd'))
 
 // ---- Part B：行为沙箱 ----
 const extractHelper = (src) => {
@@ -118,4 +100,4 @@ assert.strictEqual(ce._focused, true, '富文本应聚焦')
 assert.strictEqual(fakeRange._end, false, '富文本 range 应折叠到末尾')
 console.log('  PASS · 富文本折叠到末尾')
 
-console.log('\n全部通过 — #786 兜底生效（静态 13 项 + 行为 5 项）')
+console.log('\n全部通过 — #786 兜底生效（行为 5 项）')

@@ -44,16 +44,9 @@ if (!existsSync(PRODUCT)) {
 }
 
 // ------------------------------------------------------------------
-// 一、源码口径（不渲染也能验的两条）：正文与评论的取数来源
+// 一、门禁本身挂进了 verify 链（不渲染也能验）
 // ------------------------------------------------------------------
 {
-  const detailSrc = readFileSync(resolve(ROOT, 'src/client/views/IssueDetail.js'), 'utf8')
-  const commentsSrc = readFileSync(resolve(ROOT, 'src/client/views/IssueDetailComments.js'), 'utf8')
-  // 「无描述」这句话本身不再由详情页自己写死（改走词条），写死会让中英两语漏一份
-  check(!detailSrc.includes("'无描述'"), '详情页不再写死「无描述」（改走词条，中英各一份）')
-  check(!detailSrc.includes('无描述（快照未命中'), '连兜底占位那句也不再从「无描述」起头')
-  // 评论区的取数来源只能是详情那次取数，不是快照那一行
-  check(commentsSrc.includes('detail.notYet'), '评论区有「还没拿到」这一档说法（不是只有加载中与无评论两档）')
   const pkg = JSON.parse(readFileSync(resolve(ROOT, 'package.json'), 'utf8'))
   check(String((pkg.scripts || {}).verify || '').includes('verify-693-detail-fallback-honesty.js'), '本门禁已挂进 npm run verify 链')
 }

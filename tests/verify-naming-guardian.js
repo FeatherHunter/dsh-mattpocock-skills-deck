@@ -1,4 +1,4 @@
-// tests/verify-naming-guardian.js — #265 命名守护核心纯函数校验 + 单一真源守卫
+// tests/verify-naming-guardian.js — #265 命名守护核心纯函数校验 + 定败横幅双语文案
 // 规约：#264（分档状态机 / 草稿标题合成 / 值比对锁 / 跟踪态 / 计划单）
 // 用法：node tests/verify-naming-guardian.js
 
@@ -279,68 +279,12 @@ console.log('\n— 摘要编排纯函数 —')
   check(reads2 === 2, '瞬态未遂每次都重走（可再试，#746）')
 }
 
-// ---------- 7) 单一真源守卫（防 e98f636 式静默删除 / 第二处实现回流）----------
-console.log('\n— 单一真源守卫 —')
-{
-  const hostSrc = ['index.js', 'namingGuardian.js'].map((f) => readFileSync(join(ROOT, 'src/host', f), 'utf8')).join('\n') // #450 H6：命名 host 半已搬入 namingGuardian.js，此处读两文件拼合断言（注册仍在 index，体在新模块）
-  check(hostSrc.includes("import('../shared/naming-titles.js')") && hostSrc.includes("import('../shared/naming-tracking.js')") && hostSrc.includes("import('../shared/naming-attribution.js')"), 'host 半运行时引用共享核心三文件（引用合并）')
-  for (const op of ['wf.namingRegister', 'wf.namingSignal', 'wf.namingPlan', 'wf.namingResult']) {
-    check(hostSrc.includes("'" + op + "'"), 'host 注册操作 ' + op)
-  }
-  // #266：建号感知三操作复原 —— e98f636 曾整块静默删除（#258 F1），此断言令再删必红（AC3）
-  for (const op of ['wf.registerNewSessionWatcher', 'wf.cancelNewSessionWatcher', 'wf.awaitCreatedIssue']) {
-    check(hostSrc.includes("'" + op + "'"), 'host 注册操作（#211 复原 · 建号感知） ' + op)
-  }
-  check(hostSrc.includes('core.attributeNewNumbers') && hostSrc.includes('core.isNumberAwaitStage'), 'host 索引差值/候选取样走共享核心纯函数')
-  check(hostSrc.includes('function getEntry(') && hostSrc.includes('function applySummaryResult(') && hostSrc.includes('function handleDirectCreated('), 'host 摘要编排三公开方法存在（#746：只读快照/摘要入账/建票直达，状态写操作不出守护）')
-  check(hostSrc.includes('function namingSweepNow(') && hostSrc.includes('function namingSweepSoon('), 'host 索引差值结算 + 即时推进存在')
-  check(!hostSrc.includes('newSessionWatchers'), '旧 #211 内存轮询结构（newSessionWatchers Map）已退役（职责并入持久化守护）')
-  check(hostSrc.includes('.dsh-mattskillsdeck-cache') && hostSrc.includes("naming-guardian.json"), '跟踪态落盘既有缓存目录')
-  // #709（T5）：宿主侧那条 15 秒自续 tick 整体退役，换成事件驱动入口。断言方向跟着翻：
-  // 不再查「启动了一个循环」，改查「事件入口在、旧循环一个名字都不剩」。
-  check(hostSrc.includes('startNamingGuardianEvents()'), '#709：host 事件驱动入口随 apply 启动（不再是常驻循环）')
-  check(hostSrc.includes('function namingGuardianEvent('), '#709：host 事件入口存在（四种事件与兜底都汇到它）')
-  check(!/NAMING_TICK_MS|NAMING_SWEEP_MS|namingLoopTick|startNamingGuardianLoop/.test(hostSrc.replace(/\/\/[^\n]*/g, '')), '#709：host 的 15 秒自续 tick 已彻底退役')
-  check(hostSrc.includes('NAMING_FALLBACK_MS') && hostSrc.includes('_namingSweepCursor'), '#709：命名守护留 10 分钟兜底，每跳最多扫 1 个仓库且轮转')
-
-  const buildSrc = readFileSync(join(ROOT, 'scripts/build.mjs'), 'utf8')
-  check(buildSrc.includes("'src/shared/naming-titles.js'") && buildSrc.includes("'src/shared/naming-tracking.js'") && buildSrc.includes("'src/shared/naming-attribution.js'"), '构建登记 shared splice 三文件（client 半同源注入）')
-  const clientIdx = ['src/client/index.js', 'src/client/panelAssembly.js'].map((f) => readFileSync(join(ROOT, f), 'utf8')).join('\n') // #459：index.js 已拆出装配，此处读两文件拼起来的内容断言
-  check(clientIdx.includes('// ==== shared:namingTitles (spliced by build) ====') && clientIdx.includes('// ==== shared:namingTracking (spliced by build) ====') && clientIdx.includes('// ==== shared:namingAttribution (spliced by build) ===='), 'client 闭包挂共享核心三拼接标记')
-  check(clientIdx.includes('startNamingGuardianEvents()'), '#709：client 渲染钩子改为事件驱动启动（不再是 5 秒轮询）')
-  const trigSrc = ['probe-auto.js', 'store-snapshot.js'].map((f) => readFileSync(join(ROOT, 'src/client/kernel', f), 'utf8')).join('\n')
-  check(trigSrc.includes("namingGuardianEvent('manual-refresh')"), '#746：手动刷新入口顺带催改名拉取（三个刷新按钮同一入口全包）')
-  check(trigSrc.includes("namingGuardianEvent('store-touch')"), '#746：会话store首次落定顺带拉取（对话框挂载必经此路，不点面板也执行）')
-  check(trigSrc.includes("namingGuardianEvent('dialog-focus')") && trigSrc.includes('installDialogSignals') && trigSrc.includes('_dialogSignalsOn'), '#746：对话框焦点/可见性顺带拉取只装一次（标题在自己对话框里一定可读；无新增定时器）')
-  check(!trigSrc.includes("namingGuardianEvent('heartbeat-carry')") && !readFileSync(join(ROOT, 'src/client/kernel/attention-heartbeat.js'), 'utf8').includes("namingGuardianEvent('heartbeat-carry')"), '#746：心跳不顺带拉取（心跳是刷新系统的油表，改名走用户动作事件）')
-  const wrSrc = ['refresh/writeEvents.js', 'refresh/wiring.js'].map((f) => readFileSync(join(ROOT, 'src/host', f), 'utf8')).join('\n')
-  check(wrSrc.includes('isNamingTracked'), '写事件认受踪会话的首句摘要（#746：白名单之外但受踪之内也触发摘要，取数记账链一律不碰）')
-  const skipSrc = readFileSync(join(ROOT, 'src/client/kernel/api-naming.js'), 'utf8')
-  check(skipSrc.includes("reason: 'skip-cur-null") && skipSrc.includes("reason: 'skip-unknown"), '#746：排队单执行跳过留常驻可查原因（原因带会话指纹，不记标题原文）')
-  check(skipSrc.includes('_skipLogged') && !skipSrc.includes('dbg762f'), '#746：跳过信号每会话每窗口只记一次，临时诊断标记清零')
-
-  const apiSrc = ['api-naming.js', 'api-new-session.js', 'api-io.js'].map((f) => readFileSync(join(ROOT, 'src/client/kernel', f), 'utf8')).join('\n') // #457 K4：api.js 已拆为三文件，此处读三文件拼起来的内容断言（naming 含命名守护全家与工厂，new-session 含 openTextInNewSession，io 含 openInNewSession/inject）
-  // （namingSignal 的 client 发送点在 store.js recordIssuePath，下一节单独断言）
-  for (const needle of ["host.call('wf.namingPlan'", "host.call('wf.registerNewSessionWatcher'", "host.call('wf.cancelNewSessionWatcher'", "host.call('wf.namingResult'", 'executeNamingOrder(', 'classifyDivergence(', 'composeDraftTitle(', 'newSessionTitle(', "o.kind === 'numbered'"]) {
-    check(apiSrc.includes(needle), '界面渲染钩子链存在：' + needle.replace(/^\s+/, ''))
-  }
-  const storeSrc0 = ['store-prefs.js', 'store-switch.js', 'store-snapshot.js', 'store-derived.js'].map((f) => readFileSync(join(ROOT, 'src/client/kernel', f), 'utf8')).join('\n') // #455 K2：store.js 已拆为四文件，此处读四文件拼起来的内容断言
-  check(!storeSrc0.includes("host.call('wf.awaitCreatedIssue'") && !storeSrc0.includes('pollIssuePathHost'), '认领/推送 nudge 的面包屑通道已随 issuePath 彻底移除（#345）；host 侧 wf.awaitCreatedIssue 仍由索引差值驱动')
-  check(!apiSrc.includes('pendingNewSessions') && !apiSrc.includes('startNewSessionRenamePoll') && !apiSrc.includes('tryAutoRename'), '旧 #211 内存双通道簿记（pending map/轮询/自动改名）全库清除')
-
-  const routerSrc = readFileSync(join(ROOT, 'src/client/kernel/router.js'), 'utf8')
-  check(!/(export\s+)?(const|function)\s+(SESSION_TITLE_MAX_BYTES|SESSION_TITLE_RE_ALLOW_BARE|SESSION_TITLE_PREFIX|cleanTitleText|utf8Bytes|truncateTitleUtf8|newSessionTitle|isNewPlaceholderTitle|newSessionTitleNew|composeDraftTitle)\b/.test(routerSrc), 'router.js 无第二处命名真源声明')
-
-  const storeSrc = ['store-prefs.js', 'store-switch.js', 'store-snapshot.js', 'store-derived.js'].map((f) => readFileSync(join(ROOT, 'src/client/kernel', f), 'utf8')).join('\n') // #455 K2：同上
-  check(!storeSrc.includes("host.call('wf.namingSignal'") && !storeSrc.includes('recordIssuePath'), '面包屑线索信号已随 issuePath 彻底移除（#345）；host 侧 wf.namingSignal 仍保留供其余线索源使用')
-  const allClient = routerSrc + apiSrc + storeSrc + clientIdx
-  check(!allClient.includes('userRenamed'), 'userRenamed 死代码全库清除（client 半）')
-  const hostClean = !hostSrc.includes('userRenamed')
-  check(hostClean, 'userRenamed 死代码全库清除（host 半）')
-  const dupInClientKernel = (apiSrc.match(/function\s+(composeDraftTitle|evaluateRenameLock|isPlaceholderTitle)\s*\(/g) || []).length
-  eq(dupInClientKernel, 0, 'client 内核无第二份核心实现（由共享核心 splice 注入）')
-  check(apiSrc.includes('classifyDivergence('), '渲染钩子执行前只问共享核心的归因函数（#746 + 对抗审查：底座先写首句不得判手改，让位要带理由码）')
-}
+// ---------- 7) 单一真源守卫（已删）----------
+// 原来这一节读 src/host、src/client/kernel、scripts/build.mjs 等十几个文件的源码文本，断言里面
+// 出现过哪些函数名、注册了哪些操作名、拼接下来的标记、某个常量只准出现在一处、某个旧名字已经清干净。
+// 断的全是代码长成什么样——改写法、搬文件、给构建登记表换个写法就会变红，已按维护者口径整体删掉。
+// 这一节当初要防的事（第二处命名真源回流、旧内存轮询结构复活）改由本文件前面的纯函数与状态机用例看着：
+// 判据只从共享核心 import 一次，行为不对立刻红。
 
 // ---------- 8) 编号跃迁消费（P2 · #266）----------
 console.log('\n— 编号跃迁（P2 · 建号感知消费）—')
@@ -465,51 +409,17 @@ console.log('\n— 失败可见性与有限重试（#267）—')
   eq(stLF.failCount, 0, '锁定会话失败入账忽略')
 }
 
-// ---------- 11) 守卫断言随迁（#267 · F4 · 防 e98f636 式静默删除）----------
-console.log('\n— #267 守卫断言 —')
+// ---------- 11) 定败横幅的双语文案（只留文案完整性）----------
+// 原来这一节还读 host / client 内核 / Dock / NamingFailBanner 的源码文本，断言里面出现过哪些函数名、
+// 哪个常量只准出现在一处、横幅挂了哪个 data 属性。断的全是代码长成什么样，已按维护者口径删掉。
+// 只留下面这条：它比对的是词条本身——定败横幅要用的三个 key 在中文与英文词条里是否成对存在，
+// 断的是用户看得见的文案缺不缺，不是代码写法。
+console.log('\n— 定败横幅文案 —')
 {
-  const hostG = ['index.js', 'namingGuardian.js'].map((f) => readFileSync(join(ROOT, 'src/host', f), 'utf8')).join('\n') // #450 H6：同上（namingResult/failures 体随命名模块搬迁）
-  const sumSrc = readFileSync(join(ROOT, 'src/host/platform/namingSummary.js'), 'utf8')
-  const clientNamingSrc = readFileSync(join(ROOT, 'src/client/kernel/api-naming.js'), 'utf8')
-  const wireSrc = readFileSync(join(ROOT, 'src/host/refresh/wiring.js'), 'utf8')
-  const trackingSrc = readFileSync(join(ROOT, 'src/shared/naming-tracking.js'), 'utf8')
-  check(clientNamingSrc.includes('executeNamingOrder') && clientNamingSrc.includes('face.rename(target)'), '改名只有一个执行者：客户端执行器（#264 D2：宿主定计划、界面执行）')
-  check(!sumSrc.includes('executeOrdersHost') && !sumSrc.includes('face.rename'), '宿主半不直接改名（2026-10-03：宿主会话服务没有 scope/sessionOf，那段路进不去，已删）')
-  check(trackingSrc.includes('titleSource'), '共享判据收「这条名是谁写的」事实（用户 2026-10-03 定的加固）')
-  check(hostG.includes('getTitleFact') && wireSrc.includes('titleFactOf'), '宿主把来源事实随单下发（读宿主会话与标题两个原生服务）')
-  check(clientNamingSrc.includes('cur2') && clientNamingSrc.includes('title changed before rename'), '客户端执行器写前二次确认标题未变（TOCTOU 关口）')
-  check(hostG.includes("outcome === 'failed'"), 'host namingResult 收 failed 回报')
-  check(hostG.includes("{ type: 'renameFailed', error: args.error }"), 'host failed 走共享核心 renameFailed 入账（单一真源）')
-  check(hostG.includes('core.namingFailureInfo(s)'), 'host 定败画像取自共享核心纯函数')
-  check(hostG.includes('failures: failures'), 'wf.namingPlan 回包携带 failures 清单')
-  check(hostG.includes('exhausted: !!core.namingFailureInfo(next)'), 'failed 回报回执携带定败标记')
-  // 预算常量只活在共享核心（两半均不得私藏第二份预算实现）
-  check(!hostG.includes('NAMING_RETRY_MAX') && !hostG.includes('NAMING_RETRY_COOLDOWN_MS'), 'host 半无私藏重试预算常量')
-  check(hostG.includes('firstUserText'), 'host 计划单下发首句原文供免锁比对（#746：读而不激活，失败即 null）')
-
-  const apiG = ['api-naming.js', 'api-new-session.js', 'api-io.js'].map((f) => readFileSync(join(ROOT, 'src/client/kernel', f), 'utf8')).join('\n') // #457 K4：同上（reconcile/apply 在 naming，拉询链跨三文件）
-  check(apiG.includes('function reconcileNamingFailure'), '界面半协商化解函数存在（只读探测绝不盲写）')
-  check(apiG.includes('function applyNamingFailurePanel'), '面板级同步函数存在（共享 store 落账）')
-  check(apiG.includes('Array.isArray(res.failures)') && apiG.includes('reconcileNamingFailure(fails[i])') && apiG.includes('applyNamingFailurePanel(fails)'), '渲染钩子拉询链消费 failures 清单')
-  check(apiG.includes('classifyDivergence('), '协商化解走同一归因真源（对抗审查：判据只留一处）')
-  check(!apiG.includes('NAMING_RETRY_MAX') && !apiG.includes('NAMING_RETRY_COOLDOWN_MS'), 'client 内核无私藏重试预算常量')
-
-  const dockG = readFileSync(join(ROOT, 'src/client/panel/Dock.js'), 'utf8')
-  check(dockG.includes('h(NamingFailBanner)'), 'DetailsDock 挂载面板级定败横幅（NamingFailBanner 叶子组件）')
-  const bannerG = readFileSync(join(ROOT, 'src/client/panel/NamingFailBanner.js'), 'utf8')
-  check(bannerG.includes('cx.storeSvc.useStore(null)'), '横幅自订阅共享 store（面板级而非会话级）')
-  check(bannerG.includes('shS.namingFailures'), '横幅消费共享 store 定败清单（渲染钩子落账）')
-  check(bannerG.includes("'data-naming-fail-banner': '1'"), '面板级定败横幅节点存在（非目标会话内 toast）')
-  check(bannerG.includes("tr('naming.failTitle')") && bannerG.includes("tr('naming.failHint')") && bannerG.includes("tr('naming.stageDraft')"), '横幅文案经 locale（双语跟随）')
-
   const locG = ['locale-panel.js', 'locale-flow.js', 'locale-word.js', 'locale.js'].map((f) => readFileSync(join(ROOT, 'src/client/kernel', f), 'utf8')).join('\n') // #458 K5：locale.js 已拆为三片段加合并器，此处读四文件拼合断言（naming 三键在 word 片段）
   for (const k of ['naming.failTitle', 'naming.failHint', 'naming.stageDraft']) {
     check(locG.split("'" + k + "':").length - 1 === 2, 'locale 双语配对键：' + k)
   }
-
-  const coreG = ['naming-titles.js', 'naming-tracking.js', 'naming-attribution.js'].map((f) => readFileSync(join(ROOT, 'src/shared', f), 'utf8')).join('\n') // S2（#452）：三文件拼合断言
-  check(coreG.includes('export const NAMING_RETRY_MAX') && coreG.includes('export const NAMING_RETRY_COOLDOWN_MS'), '重试预算常量单一真源在共享核心')
-  check(coreG.includes("kind: state.stage === NAMING_STAGES.NUMBERED ? 'numbered' : 'draft'"), '定败画像档位形态判定在核心')
 }
 
 console.log(failed ? '\n存在失败' : '\n全部通过 (' + total + ' checks)')

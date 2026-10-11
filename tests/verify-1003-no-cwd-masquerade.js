@@ -6,34 +6,21 @@
  * 为什么单独立一扇：兜底值一旦回到「进程自己的目录」，缺目录的调用会静默落到一条真实存在的、
  * 别人的目录上——读会在错的仓库里读，写会在错的仓库里写，而且**不报错**，最难查。
  *
- * 钉三件事：
- *   ① 兜底值本身不再取进程目录（静态读源码那一行）；
- *   ② 凭据 git 出口（真会执行 git 的那一条）在空目录上如实失败，且一次都没有起进程；有目录时照常执行（对照）；
- *   ③ gh 出口在空目录上如实失败，且起进程那一处不再拿兜底值顶上（静态钉住）。
+ * 钉一件事（跑起来看结果，不读源码文本）：凭据 git 出口（真会执行 git 的那一条）在空目录上如实失败，
+ * 且一次都没有起进程；有目录时照常执行（对照）。
  *
  * 用法：node tests/verify-1003-no-cwd-masquerade.js
  */
-import fs from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
-const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href)
 let passed = 0
 let failed = 0
 const check = (ok, msg) => { if (ok) { console.log('  PASS ' + msg); passed++ } else { console.log('  FAIL ' + msg); failed++ } }
 
-console.log('== ① 兜底值本身：不许再取进程自己的目录 ==')
-{
-  const src = read('src/host/index.js')
-  const defLine = src.split(/\r?\n/).find((l) => /const DEFAULT_CWD =/.test(l)) || ''
-  check(/const DEFAULT_CWD = ''/.test(defLine), '宿主兜底值是空串（不是进程目录）—— 实得：' + defLine.trim())
-  check(!/process\.cwd\(\)/.test(defLine), '那一行里不再出现 process.cwd()（兜底值不再指向任何真实目录）')
-}
-
-console.log('')
-console.log('== ② 凭据 git 出口：空目录如实失败，且一次都没起进程 ==')
+console.log('== ① 凭据 git 出口：空目录如实失败，且一次都没起进程 ==')
 {
   const mod = await imp('src/host/gitCredentialExec.js')
   const calls = []
@@ -57,18 +44,6 @@ console.log('== ② 凭据 git 出口：空目录如实失败，且一次都没�
   const withDir = await safe.runOnce({ args: ['status'], cwd: 'D:\\ws' })
   check(withDir && withDir.ok === true, '对照：有目录时照常执行（说明上面两条拦的就是「缺目录」，不是把功能整个关掉）')
   check(calls.length === 1 && calls[0].cwd === 'D:\\ws', '对照：这一趟确实带着那个目录起了进程 —— 实得 cwd=' + (calls[0] && calls[0].cwd))
-}
-
-console.log('')
-console.log('== ③ gh 出口：空目录如实失败，起进程那一处不再拿兜底值顶上 ==')
-{
-  const src = read('src/host/repoKeys.js')
-  const hasGuard = /这个工作区还没就绪（还没认出是哪个目录），所以这一次没有执行任何 gh 命令/.test(src)
-  check(hasGuard, 'gh 出口里有一段「拿不到目录就如实失败」的早返回')
-  const guardBeforeLane = /async function runGh\(args, cwd\) \{[\s\S]{0,900}?还没就绪[\s\S]{0,900}?getGhLane\(\)\.acquire/.test(src)
-  check(guardBeforeLane, '那段早返回在拿命令名额之前（这一笔没有出站，不该占名额）')
-  const spawnFallback = /cwd:\s*cwd\s*\|\|\s*DEFAULT_CWD/.test(src)
-  check(!spawnFallback, '起进程那一处不再写「cwd 缺省就回退兜底值」')
 }
 
 console.log('')

@@ -5,9 +5,12 @@
 // 这一段只做三件事，门禁按三组量：
 //   A 判据（纯函数，不开浏览器）：没快照/没记录/当前会话没记录 → 空；读坏了 → 原因透出；
 //     对上格了 → 挑当前会话最新一条，剩几条数出来；散列与链同一套算法（与 chain.ts 对拍）。
-//   B 版面纪律：可见字里没有 8 位散列、没有内部行话（与 chain-view-ui 的 R8 同一条尺子）；
-//     文件零中文字符串（文案全走词条）；空态不占位、坏态不独占一行（读源码结构断言）。
-//   C 接线：StatusBar 胶囊里挂着它；构建、index 标记、叶子表三处登记齐全；折叠让位表没被动过（还是 9 段）。
+//   B 版面纪律：真渲染出来的版面上没有 8 位散列、没有内部行话（与 chain-view-ui 的 R8 同一条尺子）；
+//     空态不占位、坏态不独占一行。
+//   C 折叠让位表没被动过（还是 12 段）与环境段那条词条已经落了。
+// 【2026-10-12 清理】原先 B、C 两组里还有一批读文件文本钉形状的断言（文件零中文字符串、几种写法的正则、
+//   StatusBar / build.mjs / index.js / 叶子表里必须出现哪些字面量、源码里不许出现哪些词），断言对象都是
+//   文件文本，按维护者「清掉读源码文本钉形状的门禁」的要求撤掉，逐条说明留在各组的注释里。
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -66,23 +69,14 @@ console.log('A) 判据：跟谁走、空态、坏态')
   check(absent.state === 'empty', 'host.chain.absent 归空不归坏（与展示面同一条纪律）')
 }
 
-console.log('B) 版面纪律：可见字里没有散列与内部行话，文件零中文')
+console.log('B) 版面纪律：真渲染出来的版面上没有散列与内部行话')
 {
-  const src = read(LEAF)
-  const stripComments = function (buf) { return buf.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '') }
-  const code = stripComments(src)
-  let cjk = 0
-  const strRe = /'((?:[^'\\\n]|\\.)*)'|"((?:[^"\\\n]|\\.)*)"/g
-  let m
-  while ((m = strRe.exec(code)) !== null) { const s = m[1] !== undefined ? m[1] : m[2]; if (/[一-鿿]/.test(s)) cjk++ }
-  check(cjk === 0, '零中文字符串（文案全走词条，实得 ' + cjk + ' 处）')
-  check(/data-fold-priority/.test(src) === false || (src.indexOf("'data-fold-priority': 12") >= 0 && src.match(/data-fold-priority/g).length === 1), '版面那个号挂在让位表 12 号（排在最后；单子里的行不进阶梯）')
-  check(src.indexOf('maxWidth') >= 0 && src.indexOf('ellipsis') >= 0, '宽度用省略号收（窄宽度下不把胶囊撑爆）')
-  // 可见文本由「在办 #号 标题 · 动作 · 时间」拼成：号与标题来自链与快照，动作走词条键，散列只进悬停
-  // 号前缀的规则只写一处（地图写裸号、普通票写 #号），地图图标也只写一处 —— 两处调用点都读这两个小件。
-  check(/const chainKeyTextOf = function \(isMap, key\) \{ return isMap === true \? String\(key\) : '#' \+ String\(key\) \}/.test(src), '号前缀规则只有一处：地图写裸号，普通票写 #号')
-  check(/const chainMapIconOf = function \(isMap, size\)/.test(src), '地图图标只有一处（普通票没有这一枚）')
-  check(src.indexOf("tr('chainView.capsuleDoing')") >= 0, '版面那个号的无障碍朗读里带着「在办」这句词条')
+  // 【已删除】原先 B 组开头是六条读 SessionChainCapsule.js 源码文本的断言：文件里零中文字符串、
+  //   data-fold-priority 只能出现一次且挂在 12 号、宽度用省略号收（文本里出现 maxWidth 与 ellipsis 两个字）、
+  //   号前缀规则只写一处、地图图标只有一处、无障碍朗读里出现 tr('chainView.capsuleDoing')。
+  //   断言对象都是源码文本的写法，改写法、拆函数、换个词条键、动一句注释就变红，按维护者「清掉读源码文本
+  //   钉形状的门禁」的要求整组撤掉，连带只服务它们的 src / stripComments / code 三个局部读取一并删了。
+  //   下面留的是真渲染出来的版面读数（开单子、看行、看无障碍名与徽章）。
   // 真渲染两条：版面只有号；单子打开时是当前会话的单子，点行能进详情（行上挂着跳转）
   {
     const shardOf = (function () { const l = loadLeaf(function () { return [] }); return l.capsuleShardOf('s1') })()
@@ -186,28 +180,20 @@ console.log('B) 版面纪律：可见字里没有散列与内部行话，文件�
     })(hovered)
     check(pillBadges.length === 2 && pillBadges.some(function (t) { return t === '#950' }) && pillBadges.some(function (t) { return t === '#951' }), '号做成了徽章（两行的号徽章各就各位，实得 ' + JSON.stringify(pillBadges) + '）')
   }
-  const banned = ['宿主读数', '宿主', '读数', '分格', '散列']
-  const shown = banned.filter(function (w) {
-    // 注释里的说明文字不算版面：只看代码里进 Tip content 与 text 的那几行
-    const lines = code.split('\n').filter(function (ln) { return /text|content|tip/i.test(ln) })
-    return lines.some(function (ln) { return ln.indexOf(w) >= 0 })
-  })
-  check(shown.length === 0, '可见字里没有内部行话（实测 ' + JSON.stringify(shown) + '）')
+  // 【已删除】原先这里读 LEAF 的源码文本（剥注释之后只看含 text / content / tip 的那几行），
+  //   断言里面不出现「宿主读数 / 宿主 / 读数 / 分格 / 散列」这几个内部行话。断言对象是源码文本，
+  //   撤掉；版面上「不出现内部行话」由上面真渲染出来的读数守（比如单子里没有散列号那条）。
 }
 
-console.log('C) 接线：挂载、构建、叶子表、让位表、环境段图标')
+console.log('C) 接线：折叠让位表与环境段')
 {
-  const bar = read('src/client/statusbar/StatusBar.js')
-  check(bar.indexOf('h(SessionChainCapsule, { st: s, sid: sid })') >= 0, 'StatusBar 胶囊品牌字之后挂着这一段（跟当前会话走）')
-  // 环境段图标随状态走（全好对勾圈/欠缺大圆点/不好警告三角），尺寸比别段大一圈；颜色走整段状态色。
-  check(bar.indexOf("seg(n < 0 ? 'alert' : (n === envTotal(s) ? 'check' : 'dot')") >= 0, '环境段图标按状态挑（全好对勾圈/欠缺圆点/不好警告三角）')
-  check(bar.indexOf("function () { go('checks') }, 14)") >= 0, '环境段图标尺寸 14（比旁边两段大一圈）')
-  const build = read('scripts/build.mjs')
-  check(build.indexOf("id: 'sessionChainCapsule'") >= 0, '构建 LEAF_MODULES 登记了这一叶')
-  const idx = read('src/client/index.js')
-  check(idx.indexOf('leaf:sessionChainCapsule (spliced by build)') >= 0, 'index.js 留了拼接标记')
-  const leaves = read('tests/verify-leaves.js')
-  check(leaves.indexOf('statusbar/SessionChainCapsule.js') >= 0, '叶子表登记了这一叶（含导出与组件断言）')
+  // 【已删除】原先 C 组开头是六条读文件文本的断言：StatusBar.js 里出现 h(SessionChainCapsule, { st: s, sid: sid })、
+  //   环境段图标按状态挑（"seg(n < 0 ? 'alert' : …"）、图标尺寸那句 "function () { go('checks') }, 14)"、
+  //   scripts/build.mjs 里出现 "id: 'sessionChainCapsule'"、src/client/index.js 里留着
+  //   'leaf:sessionChainCapsule (spliced by build)' 这条拼接标记注释、tests/verify-leaves.js 的叶子表里出现
+  //   'statusbar/SessionChainCapsule.js'。断言对象全是文件文本的写法（连注释改一句都会红），
+  //   按维护者「清掉读源码文本钉形状的门禁」的要求整组撤掉，连带只服务它们的四个局部读取一并删了。
+  //   下面留的是：从 capFold.js 文本里抠出真函数跑一遍看让位表（抠源码执行），与词条确实已落。
   const capFoldSrc = read('src/client/statusbar/capFold.js').replace(/^[ \t]*export[ \t]+/gm, '')
   // 这里选 compileFn：这段源码不接参数，造出函数后当场调用，取的就是它返回的 CAP_FOLD_POLICY。
   const capFold = compileFn([], capFoldSrc + '\nreturn { CAP_FOLD_POLICY }')()
@@ -229,7 +215,8 @@ console.log('D) 散列与链同一套（与 chain.ts 对拍，不另抄一份期
 
 console.log('E) 地图那一条：认身份换图标，文字通道仍留号（#780）')
 {
-  check(read(LEAF).indexOf("Ic({ n: 'map'") >= 0, '源码里地图那一条画的是地图图标（不是一律图钉）')
+  // 【已删除】原先这里读 LEAF 的源码文本，断言里面出现 Ic({ n: 'map' })（地图那一条画的是地图图标）。
+  //   断言对象是源码文本的写法，撤掉；版面上真的是不是地图图标，由下面真渲染出来的图标与号徽章读数守。
   const shardOf = (function () { const l = loadLeaf(function () { return [] }); return l.capsuleShardOf('s1') })()
   const rows = [
     { shardId: shardOf, label: 'x', sessionFull: 'x', sessionIndex: 0, firstOfSession: true, backend: 'github', ticketKey: '40', ticketTitle: '某地图', effortId: '', isMap: true, action: 'edit', actionKey: 'chainView.action.edit', at: 200, time: '16:50' },

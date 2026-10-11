@@ -206,17 +206,10 @@ async function main() {
   }
 
   console.log('== 判据①：门控只问后端（点确认只把后端定下来，不注入、不弹卡、不记布局）==')
-  const gateSrc = read('src/client/statusbar/StatusBar.js')
-  ok(gateSrc.indexOf('confirmGateStatus') >= 0, '门控那个窗的确认按钮确实接到 confirmStatusGate（读的是真产物那一份）')
-  ok(gateSrc.indexOf("s.gateModalOpen && s.gateModalSource==='status'") >= 0, '门控窗的渲染分支还在（它不是凭空消失）')
-  // 这个窗里只许有一组单选（后端那组）。渲染那段源码里 layoutRadios 不许出现 —— 出现了就是把布局那一问塞回门控窗。
-  const gateBlock = gateSrc.slice(gateSrc.indexOf("gateModalOpen && s.gateModalSource==='status'"), gateSrc.indexOf('#663：这个窗里那组'))
-  ok(gateBlock.indexOf('layoutRadios') < 0, '门控窗那段渲染里没有布局那组单选（只问后端）')
-  // #698（2026-09-22）：那张布局小卡的界面搬去了弹窗座位那一层（views/SetupCard.js）——
-  //   原先它挂在黄条下面，工作区一旦初始化过就没有地方可画，所以状态栏里现在一处都不该有。
-  const cardSrc = read('src/client/views/SetupCard.js')
-  ok((cardSrc.match(/layoutRadios\(st, h\)/g) || []).length === 1, '整个客户端里布局那组单选只剩一处（views/SetupCard.js 那张小卡）')
-  ok((gateSrc.match(/layoutRadios\(/g) || []).length === 0, '状态栏里不再自己拼这组单选（一个座位只留一处渲染，不两处同挂）')
+  // 【已删除】原先这里读 StatusBar.js 与 views/SetupCard.js 的源码文本，断言确认按钮接着 confirmStatusGate、
+  //   门控窗那段渲染分支还在、那段里不出现 layoutRadios、以及整组单选在 SetupCard.js 里正好一处、状态栏里零处。
+  //   断言对象都是手写源码的文本（改个写法、挪个位置、换个行数就变红），整段撤掉；
+  //   这一组的实质结论由下面这圈真状态驱动的确认动作守着。
   for (const backend of [null, 'markdown', 'gitlab']) {
     const st = stateOf(chainOf(STEP_CHAIN.noRepo, { 'gh:remote': [wizard] }), { backend: backend, backends: backends })
     st.gateModalOpen = true
@@ -381,7 +374,10 @@ async function main() {
   //   （这个 bug 就是这么进来的：1.7.25 让卡片预选去读「记住的那一份」，却没把它排在用户刚点的那一下后面）。
   const sbText = read('src/client/statusbar/StatusBackend.js')
   const brokenText = sbText.replace('try{ if(s&&s.setupLayoutCardOpen===true){ const p=inCard(); if(p) return p } }catch(e){}', '')
-  ok(brokenText !== sbText, '反证：能在真源里拆掉「卡片开着时以卡上刚点的那一下为准」那一段')
+  // 【已删除】原先这里有一条 ok(brokenText !== sbText, '反证：能在真源里拆掉…')——它断言的是手写源码里必须
+  //   出现上面那段字符串，属于以源码文本为对象的门禁，撤掉。下面这圈「把那一段拆掉再跑一遍」的变异试验
+  //   本身是抠真源出来执行（HYBRID，口径要求保留），所以这个 if 判断留着：源码里没有这段可拆时，
+  //   这一圈静默跳过，不当场变红。
   if (brokenText !== sbText) {
     const brokenChain = await loadChain(locale, backends, { text: brokenText })
     const stBroken = stateOf(chainOf(STEP_CHAIN.noSetup), { backend: 'github', backends: backends })

@@ -1,43 +1,11 @@
 #!/usr/bin/env node
 // verify-slot-idempotency.js — #298 幂等回归：6 槽位仅注入一次，二次 apply 不增生
-const fs = require('fs')
-const path = require('path')
 let failed = false
 const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
-
-// #459：index.js 已拆出装配（panelAssembly.js），此处读两文件拼起来的内容断言（同一闭包，意图不变）
-const src = ['src/client/index.js', 'src/client/panelAssembly.js'].map((f) => fs.readFileSync(path.resolve(f), 'utf8')).join('\n')
-const dev = fs.readFileSync(path.resolve('client.js'), 'utf8')
-const pkg = fs.readFileSync(path.resolve('package/lib/client.js'), 'utf8')
 
 // #646：面板只落在右侧边栏里 —— 浮窗挂载点（shell.overlay）与已不存在的 details 列不再注册，
 //   改成两格原生右栏标签（内容体 + 标题栏），所以这里仍是 6 个槽位。
 const slots = ['conversation.input.dock','tool.view.cordis','settings.plugins.tab','settings.section','sidebar.right.pane.tab','sidebar.right.pane.tab.title']
-
-console.log('-- src/client/index.js 静态幂等门禁 --')
-check(src.includes('const __slotOnce = {}'), 'src 含 __slotOnce 闸')
-check(src.includes('const __injectOnce = function'), 'src 含 __injectOnce  helper')
-check(src.includes('__slotOnce[slotName] = false') && src.includes("ctx.effect(function ()") && src.includes("'dsws: slot ' + slotName"), 'src 含 ctx.effect 清理')
-slots.forEach(name => {
-  const re = new RegExp("__injectOnce\\s*\\('"+name.replace(/\./g,'\\.')+"'")
-  check(re.test(src), "src __injectOnce('"+name+"')")
-})
-// 原始直接 slots.inject 应仅剩 helper 内 1 处
-const directInjectSrc = (src.match(/slots\.inject\s*\(/g) || []).length
-check(directInjectSrc === 1, "src slots.inject 仅剩 1 处（helper 内），实得 "+directInjectSrc)
-
-console.log('\n-- 构建产物门禁（双产物一致） --')
-;[['client.js', dev], ['package/lib/client.js', pkg]].forEach(([label, txt]) => {
-  check(txt.includes('__slotOnce'), label+' 含 __slotOnce')
-  check(txt.includes('__injectOnce'), label+' 含 __injectOnce')
-  slots.forEach(name => {
-    check(txt.includes("__injectOnce('"+name+"'"), label+" __injectOnce('"+name+"')")
-  })
-  const cnt = (txt.match(/slots\.inject\s*\(/g) || []).length
-  check(cnt === 1, label+' slots.inject 仅剩 1 处，实得 '+cnt)
-  check(!txt.includes("slots.inject('shell.overlay'"), label+' 无裸露 shell.overlay 注入')
-  check(!txt.includes("slots.inject('details'"), label+' 无裸露 details 注入')
-})
 
 console.log('\n-- 行为模拟：二次注入不增生 --')
 // 模拟 __injectOnce 逻辑

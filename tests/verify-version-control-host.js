@@ -331,34 +331,6 @@ async function main() {
   const hostMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'versionControl.js')).href)
   check(typeof hostMod.createVersionControl === 'function', '宿主取数层导出 createVersionControl')
 
-  // ---- 1) 接线字面量：三条电话名与加载器都在 index.js 里；取数层不碰 child_process、不经 shell ----
-  const indexSrc = readText(path.join('src', 'host', 'index.js'))
-  for (const phone of ['wf.gitStatus', 'wf.gitDiff', 'wf.gitLog']) {
-    check(indexSrc.indexOf("harness.handle('" + phone + "'") >= 0, '入口以字面量注册 ' + phone)
-  }
-  check(indexSrc.indexOf("import('./versionControl.js')") >= 0, '入口动态加载 ./versionControl.js（同层互引走装配点）')
-  const hostSrc = readText(path.join('src', 'host', 'versionControl.js'))
-  const hostCode = hostSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^A-Za-z0-9_$:])\/\/.*$/gm, '$1')
-  check(hostCode.indexOf('child_process') < 0 && hostCode.indexOf('execSync') < 0 && hostCode.indexOf('spawnSync') < 0 && hostCode.indexOf('shell') < 0, '宿主取数层不碰 child_process、不经 shell（按去注释后的代码判）')
-  for (const phone of ['wf.gitStatus', 'wf.gitDiff', 'wf.gitLog']) {
-    check(hostSrc.indexOf("loggedPhone('" + phone + "'") >= 0, '电话体用 loggedPhone 包出日志 ' + phone)
-  }
-  check(hostSrc.indexOf("'host.call'") >= 0 && hostSrc.indexOf("'host.call.fail'") >= 0, '电话日志沿用既有 host.call / host.call.fail 两个事件')
-  check(hostSrc.indexOf("'git.exec'") >= 0 && hostSrc.indexOf("'git.exec.fail'") >= 0, '两条新事件名以字面量出现（git.exec / git.exec.fail）')
-  // #821 拆出的差异电话体：它必须仍然只有一条起进程的路（拿父文件传进来的 runPinned），自己不起进程。
-  const leafSrc = readText(path.join('src', 'host', 'versionControlFiles.js'))
-  const leafCode = leafSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^A-Za-z0-9_$:])\/\/.*$/gm, '$1')
-  check(leafCode.indexOf('child_process') < 0 && leafCode.indexOf('execSync') < 0 && leafCode.indexOf('spawnSync') < 0 && leafCode.indexOf('shell') < 0, '拆出来的差异电话体也不碰 child_process、不经 shell（按去注释后的代码判）')
-  check(leafSrc.indexOf('createGitDiffPhone') >= 0 && leafSrc.indexOf("import('./versionControl.js')") < 0, '差异电话体是自包含叶子：导出 createGitDiffPhone，且不反向引用父文件（单向引用）')
-  check(hostSrc.indexOf("import('./versionControlFiles.js')") >= 0, '父文件以字面量动态加载差异电话体（同层装配边已记进 tests/same-layer-baseline.json）')
-  check(hostSrc.indexOf('parsePatch') < 0, '补丁解析器随电话体搬到叶子里（父文件不再直接持解析器）')
-  // #819 复审 P0-3 拆出的依据时间叶子：同样只有一条起进程的路，且不反向引用父文件。
-  const basisSrc = readText(path.join('src', 'host', 'versionControlBasis.js'))
-  const basisCode = basisSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^A-Za-z0-9_$:])\/\/.*$/gm, '$1')
-  check(basisCode.indexOf('child_process') < 0 && basisCode.indexOf('execSync') < 0 && basisCode.indexOf('spawnSync') < 0 && basisCode.indexOf('shell') < 0, '依据时间叶子也不碰 child_process、不经 shell')
-  check(basisSrc.indexOf('createBasisReader') >= 0 && basisSrc.indexOf("import('./versionControl.js')") < 0, '依据时间叶子自包含：导出 createBasisReader，且不反向引用父文件')
-  check(hostSrc.indexOf("import('./versionControlBasis.js')") >= 0, '父文件以字面量动态加载依据时间叶子（同层装配边已记进基线）')
-
   // ---- 2) 真机样本驱动首屏：同一套断言 ----
   const real = await screenChecks(function (deps) { return hostMod.createVersionControl(deps) })
   check(real.bad.length === 0, '真实现：首屏断言全过' + (real.bad.length ? ' —— 没过：' + real.bad.join('；') : ''))

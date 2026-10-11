@@ -14,9 +14,11 @@
  *   组件每次却返回 null」这一层，只断文本拦不住它。所以这里把**真产物**（package/lib/client.js）挂进
  *   真 Chromium，走真 rpc 载体（connection.rpc.call）喂一份带仓库的快照，再量那一行。
  *
- * 四组：
- *   A 源码层：头部那一段不再有品牌图标的画法与文字、它的第一个孩子就是仓库芯片那一段；两处「不碰」的还带着品牌；
- *     两份产物里也带着这次改动（改完 src 忘了重建产物，红在这里）。
+ * 几组（原先的源码文本层已拆掉，理由见下）：
+ *   【已删除】原先 A 组与 B-pre 组读 Dock.js / StatusBar.js / panelAssembly.js / router.js / SettingsPage.js 的源码文本，
+ *     用正则断言「哪段文本还在、哪个钩子没了、第一个孩子是什么写法、两个控件谁在前」。那种门禁会因为等价重构
+ *     （换写法、搬文件、改注释）而变红，所以整段删掉；这些事改由真渲染层（B / C / D / E）与两份产物（C-pre）来守 ——
+ *     画出来是什么、位置对不对、有没有溢出。产物那一条照旧：改完 src 忘了重建产物，红在 C-pre。
  *   B 真渲染层（真 Chromium + 真产物 + 真数据）：头部第一个孩子是仓库芯片、贴着左内边距（左侧没有空位）、
  *     整行没有品牌字样也没有罗盘图形、一行不溢出；360 像素窄面板下这四条照旧（#28 那条收缩链还在跑）。
  *   C 反向两处照旧：DSH 右栏标签页的名字仍是「MattSkills」；状态胶囊栏里那枚品牌图标与字样仍在，
@@ -27,7 +29,8 @@
  *     （仓库名那一长串 / 刷新按钮上的字 / 时间标签那句相对时间 / 三颗单字形小图标）**不许整块一下子不见**——
  *     一次让步最多只能少一个字符。核心断言就是这句话的可执行版：任意相邻两档之间，版面上的可见字符数最多减 1；
  *     另加：完整仓库名与完整的上次更新说法在每一档的悬停提示里都读得到，刷新那颗齿轮图标每一档都还在。
- *   F 源码层：一串字的元素身上不许挂折叠类（不许整块消失）；单字形小图标的折叠标记要落在不写死 display 的那层。
+ *   【已删除】F 组读 Dock.js 的源码文本、数「哪几行挂了折叠类」——同上属源码文本门禁，整段拆掉；
+ *     「一串字不整块消失、折叠标记落对了层」这件事由 E 组在真渲染里逐档量（可见字符数最多减 1、齿轮每档都在）。
  *   G 判据层（纯函数，不开浏览器）：把 panel/headFold.js 那条阶梯喂一份同形数据，逐档核对「最多少一个字符」与让位顺序。
  *
  * 依赖：playwright（含 chromium）与 esbuild，都在本仓 devDependencies。全程本机，不碰真仓库、不用登录令牌。
@@ -44,102 +47,22 @@ function ok(msg) { passed++; console.log('  PASS ' + msg) }
 function bad(msg) { failed++; console.log('  FAIL ' + msg) }
 function check(cond, msg) { if (cond) ok(msg); else bad(msg) }
 
-const DOCK = 'src/client/panel/Dock.js'
-const STATUS = 'src/client/statusbar/StatusBar.js'
-const ROUTER = 'src/client/kernel/router.js'
-const ASSEMBLY = 'src/client/panelAssembly.js'
-const SETTINGS = 'src/client/views/SettingsPage.js'
+// ICONS 留着：只用来从真源里取出罗盘那几笔，喂给浏览器里的反证（D 组插回旧品牌时要照它画图形）——
+//   这是「读源码文本当输入」，不是断言源码文本。原先还读 Dock.js / StatusBar.js / router.js /
+//   panelAssembly.js / SettingsPage.js 的源码文本做断言，那两段已整段删除（见文件头与下面的【已删除】）。
 const ICONS = 'src/client/kernel/icons.js'
 const ARTIFACTS = ['client.js', 'package/lib/client.js']
 
 const read = (rel) => readFileSync(resolve(rel), 'utf8')
-const missing = [DOCK, STATUS, ROUTER, ASSEMBLY, SETTINGS, ICONS, ...ARTIFACTS].filter((rel) => !existsSync(resolve(rel)))
+const missing = [ICONS, ...ARTIFACTS].filter((rel) => !existsSync(resolve(rel)))
 for (const rel of missing) bad(rel + ' 读不到' + (ARTIFACTS.indexOf(rel) >= 0 ? '（先跑 node scripts/build.mjs 重建产物）' : ''))
 
 console.log('=== #667 面板头部不再有品牌图标与文字（状态胶囊栏与标签页名字照旧）===')
 console.log('')
-console.log('A) 源码层：头部那一段里不再有品牌那两样，且从仓库芯片开始')
-
-const dockSrc = existsSync(resolve(DOCK)) ? read(DOCK) : ''
-// 头部那一行整段：从它的 ref 起，到下一段（Pending / MultiHit 黄条）之前。
-//   不按行号取，行号会漂；也不按「第一个孩子」取，那样反证那一步就没法插东西。
-const headStart = dockSrc.indexOf('ref: headRef')
-const headEnd = dockSrc.indexOf('// #155 Q5：Pending / MultiHit 黄条')
-const headBlock = (headStart >= 0 && headEnd > headStart) ? dockSrc.slice(headStart, headEnd) : ''
-if (!headBlock) {
-  bad('A 没取到头部那一段（Dock.js 里 ref: headRef 到「Pending / MultiHit 黄条」之间）')
-} else {
-  // 判「没有品牌」时先把注释剥掉：注释里提到「MattSkills」是在讲这件事的来历，不是画在界面上的东西。
-  const headCode = headBlock.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
-
-  if (!/data-head-title/.test(headCode)) ok('A1 标题字那个元素的钩子（data-head-title）不在这段里了')
-  else bad('A1 头部还写着 data-head-title —— 标题字元素又回来了')
-
-  if (!/tr\(\s*'panel\.title'\s*\)/.test(headCode)) ok('A2 这段代码里不再出现 tr(\'panel.title\')（品牌字样不画在这一行）')
-  else bad("A2 头部这一段里还有 tr('panel.title') —— 品牌字样会画在仓库名左侧")
-
-  if (!/scheme:\s*'compass'/.test(headCode) && !/n:\s*'compass'/.test(headCode)) ok('A3 罗盘图标（compass）不在这段里了（两种写法都查过）')
-  else bad('A3 头部这一段里还画着罗盘图标')
-
-  // 第一个孩子必须就是仓库芯片那一段：`}, [` 之后第一个代码 token 是那段 (function(){ ... })()
-  const firstTok = (/},\s*\[\s*([\s\S]{0,60})/.exec(headCode) || [])[1] || ''
-  check(/^\(function\s*\(\s*\)\s*\{/.test(firstTok.trim()),
-    'A4 头部这一行的第一个孩子就是仓库芯片那一段（实测开头：' + JSON.stringify(firstTok.trim().slice(0, 30)) + '）')
-
-  for (const [needle, label] of [
-    ['data-repo-chip', '仓库芯片'],
-    ['h(SubworkspaceMark', '归属标志'],
-    ['data-repo-switch', '切换后端按钮'],
-    ['h(LabelColorEntry', '标签配色入口'],
-    ['data-head-refresh', '刷新按钮'],
-    ['data-head-updated', '上次更新时间控件'],
-  ]) {
-    check(headCode.indexOf(needle) >= 0, 'A5 其余元素还在：' + label)
-  }
-
-  // #28 那条自适应收缩链：去掉标题字之后只剩仓库名一条，且三段（全长 → 短名 → 交给芯片自己省略）都在。
-  //   这一段要把整台折叠机都取到（2026-09-22 起这台机器里还管头部右侧那两个控件的逐级收回），
-  //   所以按「到下一段注释为止」取，不按固定字数截口 —— 截口会随着机器变长而漏掉后半段。
-  const fitStart = dockSrc.indexOf('const applyHead = function')
-  const fitStop = dockSrc.indexOf('// #670', fitStart)
-  const fitBlock = fitStart >= 0 ? dockSrc.slice(fitStart, fitStop > fitStart ? fitStop : fitStart + 3000) : ''
-  check(!!fitBlock && fitBlock.indexOf('titleEl') < 0, 'A6 头部自适应里不再找那个标题字元素（原先那段「先隐藏标题」已随元素一起去掉）')
-  // A7（2026-09-22 第三轮改写）：仓库名不再是「全长 / 短名 / 交给芯片自己省略」三段，也不再靠 flex 收缩截断
-  //   （那样一次会掉好几个字）。现在的判据是：折叠机照 panel/headFold.js 那条阶梯一档一档推，仓库名的那串字
-  //   由阶梯算出来写进去 —— 「一次最多少一个字符」这条在 G 组逐档核对，这里只钉「机器拿的是阶梯算的字」。
-  check(!!fitBlock && /headFoldStateAt\(/.test(fitBlock) && /nameEl\.textContent = st\.name/.test(fitBlock),
-    'A7 折叠机画的是阶梯算出来的那串字（headFoldStateAt + 写进仓库名那个元素）')
-  check(!!fitBlock && /for \(let t = 1; t <= headLadder\.steps\.length; t\+\+\)/.test(fitBlock) && /settle\(headLadder\.steps\.length\)/.test(fitBlock),
-    'A8 折叠机是一档一档推的（先试第 1 档、放不下再试第 2 档…推到阶梯走完为止），不是一刀切')
-
-  // A13-A15（2026-09-22 维护者定）：这一行右侧放两个各自独立的控件 —— 左边一颗「刷新」，右边一个装时间的盒子。
-  //   两个控件之间只用间距，不许用「·」之类的分隔符把它们粘成一句。
-  //   这两条静态判据就是「两个独立元素 + 之间没有分隔符」这件事在源码上的样子（反证：插一个「·」进去必红）。
-  const ri = headCode.indexOf('data-head-refresh')
-  const ui = headCode.indexOf('data-head-updated')
-  check(ri >= 0 && ui > ri, 'A13 两个控件各有一个钩子，且刷新按钮在时间控件之前（实测下标 ' + ri + ' / ' + ui + '）')
-  if (ri >= 0 && ui > ri) {
-    const between = headCode.slice(ri, ui)
-    check(between.indexOf('·') < 0, 'A14 两个控件之间没有分隔符「·」（实测之间那段代码的尾巴：' + JSON.stringify(between.slice(-48)) + '）')
-    check(between.indexOf('h(') >= 0, 'A15 时间控件在刷新按钮之后另起一个元素（不是把两个钩子写在同一个元素上）')
-  }
-
-  // F 组（2026-09-22 第三轮，维护者要求）：这一行的逐字折叠在源码上必须满足两条 ——
-  //   一串字的元素永远不整块消失（不许在它身上挂折叠类），单字形小图标的折叠标记必须落在不写死 display 的那一层
-  //   （上一轮踩过：标记落在自己写着 display 的元素上，CSS 那条 .dsws-folded 规则盖不住它）。
-  const nameLine = headBlock.split(/\r?\n/).filter((l) => /'data-repo-text'/.test(l))[0] || ''
-  check(!!nameLine && nameLine.indexOf('dsws-folded') < 0,
-    'F1 仓库名那串字身上没有折叠类（它是逐字变短的，不许整块消失；实测那一行含 dsws-folded：' + (nameLine.indexOf('dsws-folded') >= 0) + '）')
-  const textSpanLines = headBlock.split(/\r?\n/).filter((l) => /'data-head-refresh-text'|'data-updated-ago'/.test(l))
-  check(textSpanLines.length === 2 && textSpanLines.every((l) => l.indexOf('dsws-folded') < 0),
-    'F2 刷新按钮的字与时间标签那两串字身上也没有折叠类（实测命中 ' + textSpanLines.length + ' 行，带折叠类的 ' + textSpanLines.filter((l) => l.indexOf('dsws-folded') >= 0).length + ' 行）')
-  const iconTags = headBlock.match(/h\('span', \{[^}]*'data-head-icon'[^}]*\}/g) || []
-  check(iconTags.length === 3 && iconTags.every((s) => s.indexOf('display') < 0),
-    'F3 三颗单字形小图标的标记落在**不写死 display** 的那一层上（写了就会盖住 .dsws-folded 那条规则；实测那三处标记各自的属性对象：' + JSON.stringify(iconTags.join(' / ')) + '）')
-  const gearLines = headBlock.split(/\r?\n/).filter((l) => /dsws-rficon|'data-head-refresh':/.test(l))
-  check(gearLines.length >= 2 && gearLines.every((l) => l.indexOf('data-head-icon') < 0 && l.indexOf('dsws-folded') < 0),
-    'F4 刷新那颗齿轮图标不在阶梯里（它身上既没有小图标的标记、也没有折叠类，谁也收不走它；实测命中 ' + gearLines.length + ' 行）')
-}
+// 【已删除】原先这里读 src/client/panel/Dock.js 的源码文本，断言头部那一段里没有 data-head-title、
+//   没有 tr('panel.title')、没有 compass 图标，第一个孩子是那一段 IIFE，其余元素都还在、两个控件谁在前，
+//   折叠机拿的是 headFoldStateAt 算出来的字，以及哪几行挂了折叠类 —— 全是「钉源码写法」，等价重构就会变红。
+//   这些事现在只由真渲染层（B / C / D / E 组）与两份产物（C-pre）来守：画出来是什么、位置对不对、有没有溢出。
 
 console.log('')
 console.log('G) 逐字阶梯的判据本身（纯函数，不开浏览器）：相邻两档之间每个元素最多少一个字符')
@@ -207,20 +130,9 @@ if (!headFold) {
 }
 
 console.log('')
-console.log('B-pre) 两处「这次不碰」的源码：品牌还长在原来的地方')
-const statusSrc = existsSync(resolve(STATUS)) ? read(STATUS) : ''
-const assemblySrc = existsSync(resolve(ASSEMBLY)) ? read(ASSEMBLY) : ''
-const routerSrc = existsSync(resolve(ROUTER)) ? read(ROUTER) : ''
-const settingsSrc = existsSync(resolve(SETTINGS)) ? read(SETTINGS) : ''
-check(/data-fold-priority':\s*1[\s\S]{0,40}tr\('panel\.title'\)/.test(statusSrc),
-  "A8 状态胶囊栏里那枚品牌字样还在（data-fold-priority 1 + tr('panel.title')）")
-check(/Icon\(\{\s*scheme:\s*s\.ui\.icon/.test(statusSrc), 'A9 状态胶囊栏里那枚品牌图标还在')
-check(/title:\s*function\s*\(\)\s*\{\s*return tr\('panel\.title'\)\s*\}/.test(assemblySrc) || /title:\s*function\s*\(\)\s*\{\s*return tr\('panel\.title'\)\s*\}/.test(routerSrc),
-  'A10 注册标签类型时给的名字仍是 tr(\'panel.title\')（DSH 标签页上那行字不变）')
-check(/DeckNativeTabTitle\s*=\s*function\s*\(\)\s*\{\s*return h\('span',\s*null,\s*tr\('panel\.title'\)\)\s*\}/.test(routerSrc),
-  'A11 右栏标题栏那格仍画品牌字样（DeckNativeTabTitle 没动）')
-check(/Icon\(\{\s*scheme:\s*'compass'[\s\S]{0,200}?tr\('panel\.title'\)/.test(settingsSrc),
-  'A12 设置页开头那处品牌（罗盘 + 字样）仍在')
+// 【已删除】原先这里读 src/client/statusbar/StatusBar.js、src/client/panelAssembly.js、src/client/kernel/router.js、
+//   src/client/views/SettingsPage.js 的源码文本，用正则断言「两处不碰的品牌还长在原来的地方」——同样是钉源码写法。
+//   这两处改由真渲染层守：C 组把标签标题与状态胶囊栏真的挂起来、量出来（A8-A12 那五条已随本段删除）。
 
 console.log('')
 console.log('C-pre) 两份产物里也带着这次改动（改完 src 忘了重建产物就红在这里）')

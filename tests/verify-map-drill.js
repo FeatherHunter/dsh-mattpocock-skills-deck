@@ -1,8 +1,11 @@
 // verify-map-drill.js — #555 地图下钻与返回全链路验证矩阵（T5 收尾验证，只加检查不改业务导航逻辑）
-// 矩阵十项：地图进普通工单再返回地图、地图进地图再返回上一级、四层混合链逐级返回、
-// 雾态去雾与下钻共存、已关闭按标签分流（只读提示字符串保留，真只读留后续）、
+// 矩阵各节：地图进普通工单再返回地图、地图进地图再返回上一级、四层混合链逐级返回、
+// 雾态去雾与下钻共存、已关闭按标签分流（真只读留后续）、
 // 深栈面包屑字符串（含单层列表形态与超两级省略形态，根走主列表页签词条）、
-// 技能页签最近地图祖先、两处返回直调弹栈、子票种类分流、空快照回落。
+// 技能页签最近地图祖先、子票种类分流、空快照回落、双产物同步。
+// 原来那些「读源码文本钉写法」的断言（两处返回直调弹栈的写法、enterDetail 里不许出现的词、
+// 评论输入那段切片、onNodeClick 里两句的先后顺序、面包屑根不许出现的字面量、技能页签里的引号写法）
+// 已按维护者要求删除，删处各留一行说明。
 // 另有行进详情再返回端到端：真分流函数压栈、真返回函数弹栈，闭环回到出发层。
 // 手法：凡是行为级断言，跑的都是从源文件里原文截出来的函数体（花括号配平截取后求值），
 // 配真实压栈弹栈函数与记录桩；不是照着源码另写一份仿品，所以源码改错名字或改错分支会直接变红。
@@ -138,12 +141,9 @@ e = runE2E2(e2eSubSrc, 'enterSubDetail, goBackIssue', null, [['issue', 20]], [{ 
 e.api.enterSubDetail({ number: 551, effortId: 'beta', labels: [{ name: 'wayfinder:map' }] })
 check(eqStack(e.s, [{ kind: 'issue', n: 20, effortId: '' }, { kind: 'map', n: 551, effortId: 'beta' }]), '端到端 B：子票带 effortId 时压栈坐标带该 effort')
 
-// ============ 二、两处返回直调弹栈（判别式：要求直接调用，不用或条件） ============
-const mapGoBack = extractConst(mapSrc, 'goBack')
-const issueGoBack = extractConst(issueSrc, 'goBack')
-check(mapGoBack.replace(/\s+/g, ' ').includes('function () { popNav(st) }'), '矩阵：地图详情返回直调弹栈（只退一层）')
-check(issueGoBack.replace(/\s+/g, ' ').includes('function () { popNav(st) }'), '矩阵：工单详情返回直调弹栈（只退一层）')
-check(!mapGoBack.includes('clearActive') && !issueGoBack.includes('clearActive'), '矩阵：两处返回都不绕旧按种类守卫入口（混合栈也只退一级）')
+// 原来的「二、两处返回直调弹栈」已按维护者要求删除：它把 MapDetail.js / IssueDetail.js 里的 goBack
+// 抠出来当文本比对（要求恰好写成 function () { popNav(st) }、不许出现 clearActive），盯的是写法。
+// 返回弹栈的行为改由第一节的端到端断言（真跑 enterDetail / goBack）与第五节的深栈面包屑覆盖。
 
 // ============ 三、地图行分流行为（跑地图源文件里截出来的真函数） ============
 const mapBundleSrc = ['hasMapTag', 'enterDetail'].map((n) => extractConst(mapSrc, n)).join('\n')
@@ -165,14 +165,9 @@ check(JSON.stringify(runEnter({ number: 999, labels: [{ name: 'wayfinder:map' }]
 check(JSON.stringify(runEnter({ number: 551, labels: [{ name: 'wayfinder:map' }], state: 'OPEN' }, null).last) === JSON.stringify(['issue', 551]), '矩阵：空快照回落普通工单详情（有字可看，不静默回列表）')
 check(JSON.stringify(runEnter({ number: 551, labels: [{ name: 'wayfinder:map' }], state: 'CLOSED' }).last) === JSON.stringify(['map', 551]), '矩阵：已关闭有地图标签同样进地图详情（按标签分流）')
 check(JSON.stringify(runEnter({ number: 9, labels: [], state: 'CLOSED' }).last) === JSON.stringify(['issue', 9]), '矩阵：已关闭无标签进普通工单详情')
-check(!extractConst(mapSrc, 'enterDetail').includes('CLOSED') && !extractConst(mapSrc, 'enterDetail').includes('state'), '矩阵：分流入口无已关闭特判')
-check(issueSrc.includes('readOnlyHint'), '矩阵：工单详情保留只读提示字符串（真只读留后续，见报告）')
-// 实证：评论输入区的显隐只看评论通路有没有数据、是不是拉取请求，不看已关闭；
-// 所以已关闭且有评论的工单今天仍有输入框，真只读是后续票的事，本票不断言它。
-const ccStart = issueSrc.indexOf('let canComment')
-const ccEnd = issueSrc.indexOf('canComment = false', ccStart) + 'canComment = false'.length
-const ccBlock = issueSrc.slice(ccStart, ccEnd)
-check(ccBlock.includes('isPullRequest') && !/state|CLOSED/.test(ccBlock), '实证：评论输入显隐不看已关闭（只看评论通路与是否拉取请求）')
+// 这里原来还有三条文本断言：要求 enterDetail 的源码里不出现 'CLOSED' / 'state'、要求 IssueDetail.js
+// 里有 readOnlyHint 字符串、把评论输入那一段（let canComment 到 canComment = false）切出来查里面的词。
+// 它们盯的是这几份源码写成什么样，已按维护者要求删除；分流行为由上面九条真跑 enterDetail 的断言覆盖。
 
 // ============ 四、雾态去雾与下钻共存（跑地图源文件里截出来的真函数） ============
 const fogBundleSrc = ['hasMapTag', 'enterDetail', 'isFog', 'isFogTitle', 'isRevealed', 'toggleReveal', 'onNodeClick'].map((n) => extractConst(mapSrc, n)).join('\n')
@@ -207,14 +202,15 @@ check(r.log.length === 0 && r.s.reveal['550'] && r.s.reveal['550']['2'] === true
 const closedT = { number: 4, title: '已关', labels: [], state: 'CLOSED', blockedBy: [1] }
 r = runClick(closedT, true)
 check(JSON.stringify(r.log[r.log.length - 1]) === JSON.stringify(['issue', 4]), '矩阵：已关闭的行不算雾，直接按标签分流')
-const onNodeSrc = extractConst(mapSrc, 'onNodeClick')
-check(onNodeSrc.indexOf('toggleReveal') >= 0 && onNodeSrc.indexOf('toggleReveal') < onNodeSrc.indexOf('enterDetail'), '矩阵：点击先判雾去雾、再谈下钻（顺序写死）')
+// 这里原来还断言 onNodeClick 的源码文本里 toggleReveal 写在 enterDetail 前面（顺序钉在写法上），
+// 已按维护者要求删除；「先去雾、再下钻」这个顺序由上面真跑 onNodeClick 的那几条断言覆盖。
 
 // ============ 五、深栈面包屑字符串（跑两处源文件里截出来的真算式） ============
 // 面包屑根复用主列表页签词条（中英齐备），测试里用中文取值的桩代入，另单查词条双语一致。
 const zhTr = (k) => k === 'panel.tabList' ? '列表' : k
 const locPanelSrc = fs.readFileSync('src/client/kernel/locale-panel.js', 'utf8')
-check(!mapSrc.includes("'列表 / #'") && !issueSrc.includes("'列表 / #'"), '矩阵：两处面包屑根不再锁死中文字符串（走词条，导航逻辑未动）')
+// 原来这里还断言 mapSrc / issueSrc 的源码里不出现 '列表 / #' 这个中文字面量（盯写法），
+// 已按维护者要求删除；面包屑根走词条这件事由下面那一条读 locale 数据的断言负责。
 check(locPanelSrc.includes("'panel.tabList': '列表'") && locPanelSrc.includes("'panel.tabList': 'List'"), '矩阵：面包屑根复用主列表页签词条，中英齐备')
 const mapCrumbSrc = extractIife(mapSrc, 'navCrumb')
 const issueCrumbSrc = extractIife(issueSrc, 'navCrumb')
@@ -243,9 +239,9 @@ check(recOf({ navStack: [{ kind: 'map', n: 1, effortId: '' }, { kind: 'issue', n
 check(recOf({ navStack: [{ kind: 'issue', n: 5, effortId: '' }] }) === null, '矩阵：纯工单栈无地图祖先，回通用推荐')
 check(recOf({ navStack: [] }) === null, '矩阵：空栈回通用推荐')
 check(recOf({ activeMap: 7 }) === 7, '矩阵：旧对象无栈时按镜像兜底')
-// 2026-10-09：技能页签转入 TS 真源后由 esbuild 转译，字符串统一成双引号，这条文本断言改成两种引号都认
-//   （行为本身由上面五条矩阵断言当场跑真算式校验，这条只是留个「算式还在」的标记）。
-check(/e\.kind === ['"]map['"]/.test(skillSrc) && skillSrc.includes('recMapNum'), '矩阵：推荐源从栈顶往下找第一个地图层')
+// 原来这里还有一条文本断言：在技能页签源码里找 e.kind === 'map' 这个写法与 recMapNum 这个名字
+// （2026-10-09 还因为转 TS 后引号统一而改过一次）。它盯的是源码写法，已按维护者要求删除；
+// 「从栈顶往下找第一个地图层」由上面六条真跑 recMapNum 算式的断言覆盖。
 
 // ============ 七、子票与阻塞票种类分流（跑工单源文件里截出来的真函数） ============
 const subBundleSrc = ['subLabelsOf', 'subHasRoutingInfo', 'subHasMapTag', 'enterSubDetail'].map((n) => extractConst(issueSrc, n)).join('\n')

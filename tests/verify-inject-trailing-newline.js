@@ -13,23 +13,10 @@ const { compileFn } = require('./lib/eval-probe.js')
 
 const root = path.join(__dirname, '..')
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8')
-const ok = (name, cond) => { if (!cond) throw new Error('FAIL · ' + name); console.log('  PASS · ' + name) }
 
 const ioSrc = read('src/client/kernel/api-io.js')
-const barSrc = read('src/client/statusbar/StatusBar.js')
-const nsSrc = read('src/client/kernel/api-new-session.js')
 
-// ---- Part A：静态契约 ----
-ok('归一函数定义在 api-io', ioSrc.includes('export const withTrailingNewline = function'))
-ok('主注入点用归一后文本', ioSrc.includes('withTrailingNewline(text)') && ioSrc.includes('st.injector(bodyText)'))
-ok('草稿消费点用归一后文本', barSrc.includes('withTrailingNewline(text)') && barSrc.includes('setDraft(draftText)'))
-ok('新会话直注点用归一后文本', nsSrc.includes('withTrailingNewline(text)') && nsSrc.includes('ns.injector(directText)'))
-ok('已是换行不重复补', ioSrc.includes("=== '\\n'"))
-ok('空文本不动', ioSrc.includes('if (!s) return s'))
-ok('兜底仍在归一后跑', ioSrc.includes('ensureInjectFocusAtEnd()'))
-ok('不新增日志事件', !/withTrailingNewline[\s\S]{0,2000}?log\s*\(/.test(ioSrc.slice(ioSrc.indexOf('withTrailingNewline'))))
-
-// ---- Part B：行为 ----
+// ---- 行为：把源码里的归一函数切出来跑 ----
 const start = ioSrc.indexOf('export const withTrailingNewline = function')
 const brace0 = ioSrc.indexOf('{', start)
 let depth = 0
@@ -55,4 +42,4 @@ eq('空串不动', fn(''), '')
 eq('null 不抛错', fn(null), '')
 eq('前导换行只看尾部', fn('\nabc'), '\nabc\n')
 
-console.log('\n全部通过 — #789 归一生效（静态 8 项 + 行为 6 项）')
+console.log('\n全部通过 — #789 归一生效（行为 6 项）')

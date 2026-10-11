@@ -7,31 +7,18 @@
  * 面板刷新（wf.refresh → composer → listIssues(GraphQL)）因此失败，
  * 客户端静默保留旧快照 → 列表不出现 414、状态栏时间却走针。
  *
- * 本测试两路：
- *  - 文件断言：issues.js 含 REST 降级辅助（fetchAllIssuesREST / repairParentLinksREST / applyIssueFilter）；
- *  - 行为断言：stub ctx（GraphQL 恒失败 / REST 恒成功），listIssues 必须经 REST 返回
- *    全量并修复树边（子票 parentKey 指向 wayfinder:map 地图票），getIssue 同样可用。
+ * 本测试走行为断言：stub ctx（GraphQL 恒失败 / REST 恒成功），listIssues 必须经 REST 返回
+ * 全量并修复树边（子票 parentKey 指向 wayfinder:map 地图票），getIssue 同样可用。
  *
  * 运行：node --no-warnings tests/verify-github-rest-fallback.js
  */
-import { readFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 function check (cond, msg) { if (!cond) { console.error('FAIL', msg); process.exitCode = 1 } else console.log('PASS', msg) }
 
-// ---------- 1) 文件断言 ----------
-const src = readFileSync(resolve(ROOT, 'src/host/tracker/backends/github/issues.js'), 'utf8')
-check(src.includes('fetchAllIssuesREST'), 'issues.js 含 fetchAllIssuesREST（REST 分页降级）')
-check(src.includes('repairParentLinksREST'), 'issues.js 含 repairParentLinksREST（sub_issues 树边修复）')
-check(src.includes('applyIssueFilter'), 'issues.js 含 applyIssueFilter（两路共用过滤）')
-const normSrc = readFileSync(resolve(ROOT, 'src/host/tracker/backends/github/normalize.js'), 'utf8')
-check(normSrc.includes('html_url'), 'normalize.js 优先 html_url（REST 展示地址）')
-const probeSrc = ['src/client/kernel/probe-chain.js','src/client/kernel/probe-snapshot.js','src/client/kernel/probe-auto.js'].map((f) => readFileSync(resolve(ROOT, f), 'utf8')).join('\n') // 456 收尾：probe.js 已拆为三文件，读三文件拼起来的内容断言
-check(!probeSrc.includes('sanitizeIssueUrls') && !probeSrc.includes('api\\.github\\.com'), '客户端 kernel 不含 github 专属 url 归一（后端无关，UI 零耦合）')
-
-// ---------- 2) 行为断言（stub 双路）----------
+// ---------- 行为断言（stub 双路）----------
 const { listIssues, getIssue } = await import(pathToFileURL(resolve(ROOT, 'src/host/tracker/backends/github/issues.js')).href)
 
 // 固定夹具：150 条（page1=100, page2=50），其中 #1 为 wayfinder:map 地图；#7 为地图（有子票 414、8）；#414 在 page2

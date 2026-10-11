@@ -4,9 +4,9 @@
 // 这条电话只做一件事：替 agent 行把七个工具真正跑一次，
 // 跑的还是宿主那同一张表、同一份闸、同一个账，不另起一本账。
 // 本门禁盯住：入参不对不抛、表不在诚实说、执行只回三态那一份、
-// 记账数不外露、日志只落既有事件、入口只增这一处动态接线。
+// 记账数不外露、日志只落既有事件。
+// （原先还有一条「入口只增这一处动态接线」，是读源码文本钉写法，已按维护者要求清掉。）
 const path = require('path')
-const fs = require('fs')
 const { pathToFileURL } = require('url')
 
 const ROOT = path.resolve(__dirname, '..')
@@ -14,7 +14,6 @@ let failed = false
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href)
-const readText = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 
 const SEVEN = ['deck_context', 'deck_issue_get', 'deck_map_snapshot', 'deck_issue_list', 'deck_issue_create', 'deck_map_plan_create', 'deck_map_link', 'deck_issue_patch', 'deck_issue_report']
 
@@ -104,14 +103,10 @@ async function main() {
   check(seenExec && seenExec.agent && seenExec.agent.session && seenExec.agent.session.cwd === '/ws' && !('workspaceKey' in seenExec.agent.session),
     '只把目录与编号交下去，不把调用方传的工作区键当真（键由宿主侧重算）')
 
-  // ── 7. 接线形状：入口只增这一处动态接线，老电话不动 ──
-  const indexSrc = readText('src/host/index.js')
-  check(indexSrc.indexOf("harness.handle('wf.deckExec'") >= 0, '宿主入口注册 wf.deckExec（只增这一处）')
-  check(indexSrc.indexOf("import('./platform/deckExec.js')") >= 0, '新电话走动态引入（D7），不静态引用')
-  check(indexSrc.indexOf('deckToolsForHost') >= 0, '取的还是接线那同一张表（不另起一本账）')
-  const execSrc = readText('src/host/platform/deckExec.js')
-  check(!/from\s+['"]@deepseek-ai\/dsh-tools['"]/.test(execSrc), '代执行模块不直引工具包（零框架引用不断）')
-  check(execSrc.split('\n').length < 350, '单文件行数在上限内（350 行）')
+  // ── 7.（已删）原来是读 src/host/index.js 与 src/host/platform/deckExec.js 的源码文本，
+  //   断言入口里写着 wf.deckExec 那几行字、代执行模块里没有直引工具包、文件不超过 350 行。
+  //   这几条钉的都是手写源码的写法与行数，改写法、搬文件、转 TypeScript 就会变红，
+  //   按维护者「清掉读源码文本钉形状的门禁」的要求整段去掉，连带只用在这里的 readText 与 fs 引用。
 
   // ── 8. 探针扩展（只加键名诊断，不报值；旧 14 个有无不动）──
   const row = await imp('src/host/platform/deckToolsRow.js')

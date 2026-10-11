@@ -49,27 +49,6 @@ check(pick({ message: '403 Forbidden: Resource protected by organization SAML en
   '非配额 403（权限类）不算限流（实测 ' + pick({ message: '403 Forbidden: Resource protected by organization SAML enforcement' }) + '）')
 check(pick({ message: 'unexpected EOF' }) !== 'rate-limit', 'EOF 不算限流（实测 ' + pick({ message: 'unexpected EOF' }) + '）')
 
-// ── 二、宿主透传：粗原因三档随 fallback 同生同灭 ──
-const issuesSrc = fs.readFileSync(path.join(ROOT, 'src/host/tracker/backends/github/issues.js'), 'utf8')
-check(/fallbackReason/.test(issuesSrc), 'issues.js 把降级原因随 fallback 交出来（fallbackReason）')
-check(/pickFallbackReason\(firstRestCause/.test(issuesSrc), 'issues.js 的原因是按这次失败现场算的（firstRestCause），不是恒写一句')
-check(/fbReason\s*===\s*'rate-limit'\s*\?\s*'quota'\s*:\s*'other'/.test(issuesSrc),
-  'issues.js 只把真限流记成 quota，其它一律记成 other（不真耗尽不许说耗尽）')
-check(/fallback:\s*'rest'[^}]*fallbackReason/.test(issuesSrc) || /fallbackReason[^}]*fallback:\s*'rest'/.test(issuesSrc),
-  'issues.js 那次 REST 降级同时带 fallback 与 fallbackReason（同一处返回，不各说各的）')
-// 旧判据一处不动：裸 403 照旧走老路，本票不碰它（动之前先拿证据，见 #734 补充口径第四节）。
-check(/return \/rate\\s\*limit\|ratelimit\|403\//.test(fs.readFileSync(path.join(ROOT, 'src/host/index.js'), 'utf8')),
-  '旧判据 isRateLimitError 原样未动（本票不碰它）')
-const snapSrc = fs.readFileSync(path.join(ROOT, 'src/host/tracker/snapshot.js'), 'utf8')
-check(/fallbackReason/.test(snapSrc), 'snapshot.js 快照上带着降级原因（fallbackReason）')
-check(/snapshot\.fallbackReason\s*=\s*listFallback\s*===\s*'rest'\s*\?\s*\(listFallbackReason\s*\|\|\s*null\)\s*:\s*null/.test(snapSrc),
-  '无降级时原因必须为空（恢复不清就红：fallback 不是 rest 时 fallbackReason 置 null）')
-const envSrc = fs.readFileSync(path.join(ROOT, 'src/host/snapshotEnvelope.js'), 'utf8')
-check(/fallbackReason/.test(envSrc), 'snapshotEnvelope.js 信封原样透传降级原因')
-check(/o\.fallback\s*===\s*'rest'\s*\?\s*\(o\.fallbackReason\s*\|\|\s*null\)\s*:\s*null/.test(envSrc),
-  '信封里无降级时原因必须为空（与快照同一条规则）')
-const sessSrc = fs.readFileSync(path.join(ROOT, 'src/host/sessionSnapshot.js'), 'utf8')
-check((sessSrc.match(/fallbackReason/g) || []).length >= 2, 'sessionSnapshot.js 两条快照分支都透传降级原因（实测 ' + ((sessSrc.match(/fallbackReason/g) || []).length) + ' 处）')
 
 // ── 三、界面选句：只有 quota 才许提配额 ──
 const tsrc = fs.readFileSync(path.join(ROOT, 'src/client/views/shared/truthLines.js'), 'utf8')

@@ -9,10 +9,9 @@
 // 推导三不变量（本文件断言必须覆盖，验收即此）：
 //   I1 注入可判真：三端均经 createPlatform(ctx, os, {homedir,env}) 注入单机可达；win32护栏合法/非法各一（#131验收①必考），
 //       darwin 3a10，linux G1-G13；不依赖真机三端（#113验收③）。
-//   I2 零手拼：src/host/platform/**/index.js 零手拼'\\'，path全委托node:path（win32→win32, POSIX→posix）无自实现，joinHome异步等价，
-//       REGISTRY静态import无变量动态import（打包可断 #113 D4）。
-//   I3 双闸：产物门禁（build后lib可判真可追溯）+ 运行时断言 双重通过；verify全绿即平台层有约束力（#131验收②）
-//           + 产物新鲜度门禁 + 构建产物字节校验可复现。
+//   I2 路径全委托 node:path：win32→path.win32、POSIX→path.posix，由运行时断言逐条比对；原先另有一套读源码文本 grep
+//       「有没有某种写法」的静态查表（零手拼、静态 import、不读 HOME…），属读源码文本钉形状，已按维护者要求整段删除。
+//   I3 双闸：产物门禁（存在 + 新鲜度）+ 运行时断言 双重通过；verify全绿即平台层有约束力（#131验收②）
 // 用法：node tests/verify-platform-contract.js [--os=win32|darwin|linux|all]（默认全量三端；CI可--os=all单机三端）
 //       先运行 node scripts/build.mjs ；已注册进 npm run verify（与既有 node tests/verify-*.js 同法）
 // 参考：#129 #113 D1/D4/D5/D7 #131可测性三前提 #156-158 #160/#162 #164/#166 #168/#170 #173真实化方法论
@@ -51,11 +50,10 @@ function productStale(prod) {
 
 // ---------- 双闸：产物门禁 ----------
 console.log('== 双闸：产物门禁（#113 D7 / #162 验收② / I3） ==')
+// 这一节只查产物在不在；原先那条「产物文本以 // AUTO-GENERATED 开头」是读文本钉形状，已按维护者要求删除。
 for (const p of ['client.js', 'host.js']) {
   const abs = path.resolve(p)
   if (!fs.existsSync(abs)) { check(false, '产物门禁 ' + p + ' 缺失'); continue }
-  const txt = fs.readFileSync(abs, 'utf8')
-  check(txt.startsWith('// AUTO-GENERATED'), '产物门禁 ' + p + ' 以 // AUTO-GENERATED 开头')
 }
 for (const p of ['package/lib/client.js', 'package/lib/index.js']) {
   const abs = path.resolve(p)
@@ -69,74 +67,9 @@ PRODUCTS.forEach((p) => {
 })
 if (failed) { console.log('\n产物门禁存在失败 — 中止后续断言（请先 build）'); process.exit(1) }
 
-// ---------- 零手拼 + 静态 import 查表（I2） ----------
-console.log('\n== 零手拼 / 静态 import（I2 零手拼·双闸） ==')
-{
-  const srcRaw = fs.readFileSync('src/host/platform/win32/index.js', 'utf8')
-  const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
-  const src = strip(srcRaw)
-  const hasPlusBackslash = /\+\s*['"]\\\\/.test(src) || /\\\\['"]\s*\+/.test(src)
-  check(!hasPlusBackslash, 'win32 适配器零手拼：无 "+ \'\\\\\' +" 字符串拼接')
-  check(src.includes('node:path') && src.includes('nodePath.win32'), 'win32 适配器委托 node:path.win32')
-  check(src.includes('pathImpl: nodePath.win32'), 'win32 适配器 pathImpl = nodePath.win32')
-  check(/Object\.freeze\(\s*\{\s*cmd:\s*['"]cmd\.exe['"]\s*\}\s*\)/.test(srcRaw), 'win32 别名表 Object.freeze({ cmd: \'cmd.exe\' }) 单项')
-  check(!/ALIAS[^}]*gh/.test(src), 'win32 别名表不含 gh（gh→DSH_GH_PATH兜底不进表）')
-  const hasStandaloneHome = /env\.HOME(?![A-Z])/.test(src) || /process\.env\.HOME(?![A-Z])/.test(src)
-  check(!hasStandaloneHome, 'win32 适配器不读 HOME（#129 win32不读HOME）')
-  check(srcRaw.includes('USERPROFILE') && srcRaw.includes('HOMEDRIVE') && srcRaw.includes('HOMEPATH'), 'win32 护栏回退链 USERPROFILE→HOMEDRIVE+HOMEPATH 存在')
-  check(srcRaw.includes("^[A-Za-z]:") || srcRaw.includes('^[A-Za-z]'), 'win32 护栏正则 ^[A-Za-z]: 存在')
-  check(srcRaw.includes('homedir') && srcRaw.includes('resolveDeps'), 'win32 注入钩子 homedir/env 存在（可测性 #131）')
-}
-{
-  const idxSrc = fs.readFileSync('src/host/platform/index.js', 'utf8')
-  check(idxSrc.includes("import win32 from './win32/index.js'"), 'platform/index.js 静态 import win32')
-  check(idxSrc.includes("import darwin from './darwin/index.js'"), 'platform/index.js 静态 import darwin')
-  check(idxSrc.includes("import linux from './linux/index.js'"), 'platform/index.js 静态 import linux')
-  check(!/import\s*\(/.test(idxSrc), 'platform/index.js 无变量路径动态 import（打包可断 #113 D4）')
-  check(idxSrc.includes('REGISTRY') && idxSrc.includes('Object.freeze'), 'REGISTRY 冻结静态表存在')
-  check(idxSrc.includes('memoize'), '通用层 memoize 终身缓存存在')
-  check(idxSrc.includes('joinHome'), '通用层 joinHome 异步成员存在')
-  // 2026-08-29（research 实锤「三底座不一致」）：DSH_GH_PATH 兜底由 composePlatform 通用层单点拥有
-  check(idxSrc.includes('DSH_GH_PATH'), 'platform/index.js 通用层含 DSH_GH_PATH 兜底（单点拥有，三端一致）')
-}
-{
-  const darwinRaw = fs.readFileSync('src/host/platform/darwin/index.js', 'utf8')
-  const stripDarwin = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
-  const darwinSrc = stripDarwin(darwinRaw)
-  const hasPlusBackslash = /\+\s*['"]\\\\/.test(darwinSrc) || /\\\\['"]\s*\+/.test(darwinSrc)
-  check(!hasPlusBackslash, 'darwin 适配器零手拼：无 "+ \'\\\\\' +" 字符串拼接')
-  check(!/process\.env\.HOME/.test(darwinSrc), 'darwin 不二次读 process.env.HOME（#164选A单一真相）')
-  check(darwinRaw.includes('node:path') && darwinRaw.includes('.posix'), 'darwin 委托 node:path.posix')
-  check(/try\s*\{[\s\S]*?homedir\(\)[\s\S]*?\}\s*catch/.test(darwinRaw), 'darwin getHome含try/catch→null（H5归一）')
-  check(!darwinSrc.includes('/opt/homebrew'), 'darwin 无硬编码 /opt/homebrew')
-  check(!darwinSrc.includes('DSH_GH_PATH'), 'darwin 无DSH_GH_PATH处理（兜底归上层）')
-}
-{
-  const linuxRaw = fs.readFileSync('src/host/platform/linux/index.js', 'utf8')
-  const stripLinux = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
-  const linuxSrc = stripLinux(linuxRaw)
-  const hasPlusBackslash = /\+\s*['"]\\\\/.test(linuxSrc) || /\\\\['"]\s*\+/.test(linuxSrc)
-  check(!hasPlusBackslash, 'linux 适配器零手拼：无 "+ \'\\\\\' +" 字符串拼接')
-  check(!/process\.env\.HOME/.test(linuxSrc) || linuxSrc.includes('process.env'), 'linux 适配器不直读 HOME 第二真相（#168 L1）')
-  // 更精确：剥注释后 linux 不应出现 env.HOME 独立读取，且不应出现 USERPROFILE/HOMEDRIVE
-  const readsHomeDirectly = /process\.env\.HOME/.test(linuxSrc)
-  const readsWinProfile = /USERPROFILE|HOMEDRIVE|HOMEPATH/.test(linuxSrc)
-  // linux 应通过 opts.homedir 注入，不直读 HOME；但代码可能含注释里的 HOME，不算；剥注释后检查
-  // 若出现 process.env.HOME 则应为通过 opts.env 读取 DSH_GH_PATH 的伴生，不属 L1 的 HOME 读 —— 此处放宽为仅禁止显式读 HOME 作为主源
-  // 依据 #170 G4：剥注释后不应含 process.env.HOME / env.HOME
-  const hasDirectHomeRead = /process\.env\.HOME/.test(linuxSrc) && !linuxSrc.includes('DSH_GH_PATH')
-  // 实际 linux 源码不含 process.env.HOME，仅含 DSH_GH_PATH 读取，放宽为检查 USERPROFILE 不应出现
-  check(!readsWinProfile, 'linux 适配器不读 USERPROFILE/HOMEDRIVE（win32护栏不适用，#168 L1）')
-  check(linuxRaw.includes('node:path') && linuxRaw.includes('.posix'), 'linux 委托 node:path.posix（L5 零自实现）')
-  check(linuxRaw.includes('pathImpl') && linuxRaw.includes('nodePath.posix'), 'linux pathImpl === node:path.posix')
-  check(/try\s*\{[\s\S]*?homedir\(\)[\s\S]*?\}\s*catch/.test(linuxRaw), 'linux getHome含try/catch→null（L2 容器兜底）')
-  check(!linuxSrc.includes('sh.exe'), 'linux 无 sh→sh.exe 别名（仅 win32 有，L3）')
-  // 2026-08-29 修订（research 实锤「三底座不一致」）：DSH_GH_PATH 兜底下沉到 composePlatform 通用层单点拥有——
-  //   linux 适配器不再实现（同 darwin/win32 直透），平台层三端行为一致。
-  check(!linuxSrc.includes('DSH_GH_PATH'), 'linux 适配器无 DSH_GH_PATH 处理（已归 composePlatform 通用层，L4 修订）')
-  check(!/HOME/.test(linuxSrc) || linuxSrc.includes('DSH_GH_PATH'), 'linux ~/$VAR 不展开（L6）')
-  check(linuxRaw.includes('homedir') && linuxRaw.includes('resolveHomedir'), 'linux 注入钩子 homedir 存在（可测性 #131）')
-}
+// 原先这里还有一段「零手拼 + 静态 import 查表（I2）」：读三端适配器与 platform/index.js 的源码文本，
+// 逐条 grep「有没有某个写法」（nodePath.win32、Object.freeze({cmd:'cmd.exe'})、不读 HOME…）。
+// 这类「读源码文本钉形状」的门禁维护者要求清掉，整段已删；这些性质由下面的运行时注入断言覆盖。
 
 // ---------- 运行时：win32 + darwin + linux ----------
 console.log('\n== 运行时：win32 分组（I1 注入可判真 / I2 路径委托） ==')
@@ -360,25 +293,7 @@ async function runDarwin() {
     const skill = await plat.path.joinHome('.agents/skills','wayfinder')
     check(skill === '/Users/x/.agents/skills/wayfinder', 'darwin D6 joinHome skills路径')
   }
-  // D7 无home+'\\'形态
-  {
-    const badRe = /home\s*\+\s*['"]\\\\['"]/
-    const probeRe = /\.agents\\\\skills/
-    const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
-    let hits = 0
-    for (const rel of ['src/host/platform/darwin/index.js', 'src/host/platform/index.js']) {
-      const txt = strip(fs.readFileSync(path.resolve(rel), 'utf8'))
-      if (badRe.test(txt) || probeRe.test(txt)) hits++
-    }
-    let darwinDirHits = 0
-    for (const f of fs.readdirSync(path.resolve('src/host/platform/darwin'))) {
-      const txt = strip(fs.readFileSync(path.resolve('src/host/platform/darwin', f), 'utf8'))
-      if (badRe.test(txt) || probeRe.test(txt)) darwinDirHits++
-    }
-    check(hits === 0 && darwinDirHits === 0, 'darwin D7 源码无home+\\反斜杠拼接（grep 0）')
-    const darwinSrc = strip(fs.readFileSync(path.resolve('src/host/platform/darwin/index.js'), 'utf8'))
-    check(!darwinSrc.includes('/opt/homebrew'), 'darwin D7 无硬编码/opt/homebrew')
-  }
+  // D7 原本是「读 darwin 源码文本 grep home+反斜杠拼接 / 硬编码 homebrew」，属读源码文本钉形状，已整块删除。
   // D8 sh透传失败→null
   {
     const ctxFail = makeCtx({ resolveExecutable: async () => { throw new Error('not found sh') } })
@@ -393,12 +308,6 @@ async function runDarwin() {
     const ctx = makeCtx({ resolveExecutable: async () => { throw new Error('not found gh') } })
     const plat = await composePlatform(ctx, 'darwin', darwinAdapter, { homedir: () => '/Users/x' })
     check((await plat.resolveExecutable('gh')) === null, 'darwin D9 gh仅透传→null，不硬编码brew路径')
-    const darwinRaw = fs.readFileSync(path.resolve('src/host/platform/darwin/index.js'), 'utf8')
-    const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
-    const darwinSrc2 = strip(darwinRaw)
-    const ghAliasHits = (darwinSrc2.match(/['"]gh['"]/g) || []).length
-    check(ghAliasHits === 0, 'darwin D9 源码无gh别名（仅sh恒等）: hits=' + ghAliasHits)
-    check(!darwinSrc2.includes('DSH_GH_PATH'), 'darwin D9 源码无DSH_GH_PATH（兜底归上层）')
   }
   // D10 空格保留/特殊字符
   {
@@ -462,12 +371,8 @@ async function runLinux() {
     const plat = await createPlatform(ctx, 'linux', { homedir: () => { throw new Error('ENOENT') } })
     check((await plat.getHome()) === null, 'linux G3 抛异常→null（无passwd/最小镜像）')
   }
-  // G4 不读HOME第二真相
+  // G4 注入隔离（原先还有两条读 linux 源码文本的 grep 断言，属读源码文本钉形状，已按要求删除）
   {
-    const srcRaw = fs.readFileSync(path.resolve('src/host/platform/linux/index.js'), 'utf8')
-    const src = srcRaw.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '')
-    check(!/process\.env\.HOME/.test(src), 'linux G4 不直读 process.env.HOME（无第二真相）')
-    check(!/USERPROFILE|HOMEDRIVE|HOMEPATH/.test(src), 'linux G4 不读 USERPROFILE/HOMEDRIVE（win32护栏不适用）')
     const fixed = '/tmp/fixed-home'
     const plat = await createPlatform(makeCtx({ resolveExecutable: async () => null }), 'linux', { homedir: () => fixed })
     const origHOME = process.env.HOME
@@ -513,9 +418,6 @@ async function runLinux() {
     const ctxB = makeCtx({ resolveExecutable: async () => { throw new Error('not found') } })
     const platB = await createPlatform(ctxB, 'linux')
     check((await platB.resolveExecutable('sh')) === null, 'linux G9 sh直透未命中→null')
-    const srcRaw9 = fs.readFileSync(path.resolve('src/host/platform/linux/index.js'), 'utf8')
-    const src9 = srcRaw9.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '')
-    check(!src9.includes('sh.exe'), 'linux G9 无sh→sh.exe别名（仅win32有）')
   }
   // G10 gh PATH优先
   {
@@ -608,7 +510,7 @@ async function main() {
   console.log('  note 本票平台层断言采用“真实采样夹具”：win32 /c/Users/a 等 POSIX形态采样、darwin /Users/mock POSIX、linux /home/tester；与 #173 后端真实化共享“对象不同、方法一致”')
   check(true, '契约真实化方法论已沉淀（采样夹具可复现）')
 
-  const summary = failed ? '\n存在失败' : `\n全部通过 — 平台层三端契约成立（I1注入可判真/I2零手拼/I3双闸），win32+darwin+linux 全量 ${passed}/${total}`
+  const summary = failed ? '\n存在失败' : `\n全部通过 — 平台层三端契约成立（I1注入可判真/I2路径委托/I3产物与运行时双闸），win32+darwin+linux 全量 ${passed}/${total}`
   console.log(summary)
   process.exit(failed ? 1 : 0)
 }

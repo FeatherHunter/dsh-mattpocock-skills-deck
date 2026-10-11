@@ -34,13 +34,7 @@ const SEVEN_NAMES = [
 async function main() {
   console.log('行模块零框架引用门禁（#741：无自带工具包、工具行在、形状原生合法）')
 
-  // 1. 行模块不引用框架包
-  const rowSrc = readText('src/host/platform/deckToolsRow.js')
-  check(rowSrc.indexOf('@deepseek-ai/dsh-tools') < 0, '行模块不引用工具包（无自带副本可对不上）')
-  check(!/require\(\s*['"]@deepseek-ai\/dsh-tools['"]\s*\)/.test(rowSrc), '行模块无 require 工具包')
-  check(!/from\s+['"]@deepseek-ai\/(dsh-brand|dsh-storage-domain|dsh-agent)['"]/.test(rowSrc), '行模块无其他框架引用')
-
-  // 2. 发布清单：有工具行导出、无运行时工具包依赖
+  // 1. 发布清单：有工具行导出、无运行时工具包依赖
   const pkg = JSON.parse(readText('package/package.json'))
   const exports = (pkg && pkg.exports) || {}
   check(exports['./tools'] === './lib/platform/deckToolsRow.js', '发布清单导出工具行（./tools 指向行模块）')
@@ -49,7 +43,7 @@ async function main() {
   const patch = readText('package/cordis.patch.yml')
   check(patch.indexOf('dsh-mattpocock-skills-deck/tools') >= 0, '装配补丁含工具行（agent 层能装上）')
 
-  // 3. 行模块交出七个加探针，且形状过真原生判定
+  // 2. 行模块交出七个加探针，且形状过真原生判定
   let row = null
   try { row = await imp('src/host/platform/deckToolsRow.js') } catch (e) {
     check(false, '行模块可加载（' + String((e && e.message) || e).slice(0, 120) + '）')
@@ -85,7 +79,7 @@ async function main() {
     }
   }
 
-  // 4. 发包镜像与源一致（构建会整树复制，手改发包即红）
+  // 3. 发包镜像与源一致（构建会整树复制，手改发包即红）
   try {
     const crypto = require('crypto')
     const sha = (rel) => crypto.createHash('sha256').update(fs.readFileSync(path.join(ROOT, rel))).digest('hex')

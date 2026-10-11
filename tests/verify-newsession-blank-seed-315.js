@@ -111,12 +111,11 @@ for (const file of files) {
   let wsLib = ''
   try { wsLib = extractWorkspaceBlock(src) } catch (eWs) { check(false, file + ' 工作区查找块可提取 — ' + eWs.message); continue }
   check(wsLib.indexOf('resolveWorkspaceEntry') >= 0, file + ' 工作区查找块含 resolveWorkspaceEntry（#636 拆分）')
-  // 文本级守护：不含自动发送逻辑
-  check(fnSrc.indexOf('seedNewSession') < 0, file + ' 源码不含 seedNewSession（已回滚）')
-  check(fnSrc.indexOf('face.prompt(') < 0 && fnSrc.indexOf('seedNewSession') < 0, file + ' 源码不含 face.prompt 自动发送（草稿-only）')
-  check(fnSrc.indexOf('pendingDraft = text') < 0 && fnSrc.indexOf('pendingDraftTargetSid = sid') < 0, file + ' 源码无全局单槽写入（#787 已搬进目标 store）')
-  check(fnSrc.indexOf('incomingDraft = text') >= 0 || fnSrc.indexOf('incomingDraft=text') >= 0, file + ' 源码写目标会话自己的 incomingDraft（草稿挂载）')
-  check(fnSrc.indexOf('#315 回滚') >= 0 || fnSrc.indexOf('先填草稿') >= 0, file + ' 源码含回滚注释（可追溯）')
+  // 原来这里还有六条「把切出来的那段源码当文本、断言里面有没有某段字」的检查
+  //   （不含 seedNewSession、不含 face.prompt 自动发送、没有 pendingDraft 全局单槽写入、
+  //     写了 incomingDraft、带 #315 回滚注释）。它们断的是代码长成什么样，改写法、改注释、
+  //     换个变量名就变红，已按维护者口径删掉。真正的关切由下面的沙箱行为用例接管：
+  //     face 即使在手也一次都不许调 prompt（a），草稿必须落在目标会话自己的 store 上（a、b）。
 
   // a) 有 prompt 能力的面对象：也不应调用 prompt（草稿-only）
   const env = runSandbox(fnSrc, 'with-prompt', wsLib)

@@ -7,11 +7,10 @@
  * 盘里有旧数据，读数里永远看不见。修法只动接线一处（wiring.js 的 attach 与
  * syncAttention），本门禁钉住那两处调用，真跑一遍“记→重启→回来”。
  *
- * 它怎么判（四段）：
- *   一、静态：src 全树里 `.restore(` 只许出现在接线那一个文件（定义文件里只有
- *      `function restore(`，没有带点的调用）；且接线里必须有“按根过滤”形状——
- *      缺了就是没修（启动全量被 350 行上限否决：首见某根时读回已覆盖重启，
- *      见 #735 评论区的瘦身说明）。
+ * 它怎么判（三段，编号沿用原先四段里的二、三、四）：
+ *   原先的第一段是「读 src/** 的源码文本、数 `.restore(` 只出现在哪个文件」的静态形状门禁，
+ *   2026-10 按维护者口径整段撤掉：那种断言的对象是手写源码的文本，等价重构（改写法、
+ *   搬文件、改注释）就会变红。
  *   二、行为：真接线加真盘，记一笔 → 用同一目录建第二套接线并 focus 那个根
  *      （模拟重启后的新进程第一次切进工作区）→ 读数里必须有那一笔，
  *      且日志里有一行按根的 `kind:restore`。
@@ -29,7 +28,6 @@ const os = require('os')
 const { pathToFileURL } = require('url')
 
 const ROOT = path.resolve(__dirname, '..')
-const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 const url = (rel) => pathToFileURL(path.join(ROOT, rel)).href
 
 let failed = false
@@ -49,19 +47,6 @@ async function waitFor(fn, timeoutMs) {
     if (Date.now() - t0 > (timeoutMs || 5000)) return null
     await new Promise((r) => setTimeout(r, 25))
   }
-}
-
-function listSrcJs() {
-  const out = []
-  const walk = (d) => {
-    for (const ent of fs.readdirSync(d, { withFileTypes: true })) {
-      const p = path.join(d, ent.name)
-      if (ent.isDirectory()) walk(p)
-      else if (ent.name.endsWith('.js')) out.push(path.relative(ROOT, p).split(path.sep).join('/'))
-    }
-  }
-  walk(path.join(ROOT, 'src'))
-  return out.sort()
 }
 
 /** 一套能跑起来的接线依赖：形状照宿主入口传进去的那一份抄，只把目录与日志换成测试的。 */
@@ -87,16 +72,6 @@ function restoreLogs(events) {
 async function main() {
   console.log('#735 处理链落盘读回门禁（按根读回 / 一根一次 / 负控）')
 
-  // ── 一、静态：调用只许在接线一处，且按根形状在 ──
-  console.log('\n== 一、restore 的调用只许在接线一处 ==')
-  const wiringSrc = read('src/host/refresh/wiring.js')
-  check(wiringSrc.indexOf('sessionTickets.restore({ rootKey:') >= 0,
-    '接线在切进工作区时按根读回（sessionTickets.restore({ rootKey: … })）',
-    '缺这一行 = 重启后内存永远是空的，盘只是摆设')
-  const callers = listSrcJs().filter((rel) => read(rel).indexOf('.restore(') >= 0)
-  check(callers.length === 1 && callers[0] === 'src/host/refresh/wiring.js',
-    'src 全树带点的 .restore( 调用只许在接线文件（实得：' + (callers.join('、') || '无') + '）',
-    '多一处就是第二条接线，读回时机就有了两个主人')
 
   const wiringMod = await import(url('src/host/refresh/wiring.js'))
   const chainMod = await import(url('src/shared/refresh/chain.js'))

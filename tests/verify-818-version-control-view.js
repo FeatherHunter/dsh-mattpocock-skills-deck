@@ -16,6 +16,13 @@
 //   vcTimeKind 与核心 describeTime 同一条 7 天分界。
 // 反证（规格与仓库既有纪律都要求）：把被守的东西改坏，同一套断言必须当场变红，本文件带五处源码改动
 //   加两条字典与渲染级的反证（词条位置那条真机缺陷就在这里被钉住）。
+// 2026-10 撤掉的源码文本门禁：A2–A7（读 Tabs.js / VersionControlTab.js / scripts/build.mjs /
+//   src/client/index.js 的文本，钉导出名、登记次序与拼接标记）、F1/F2/F3/F5/F5b/F5c/F6（读界面
+//   源码文本数行数、数中文字面量、抠词条键、扫硬编码颜色与定时器字样）、G3（读组件文本数
+//   `b.kind === '…'` 分支）、V10/V11b（读组件文本找 view:'changes' 与页签回调的写法）、G14（按
+//   标记抠出 useEffect 函数体再正则断言首句）、N15/N17/N18/N19（读组件文本找按钮与守卫的名字）、
+//   M4（读组件文本找悬停那一行）。它们的断言对象是手写源码的文本，等价重构（改写法、搬文件、
+//   改注释）就会变红，按维护者口径撤掉；留下的断言都跑真代码或真渲染，H 组的反证照旧。
 const fs = require('fs')
 const path = require('path')
 const { pathToFileURL } = require('url')
@@ -154,18 +161,6 @@ function envOf(screen, reads, width) {
 const blockOf = (blocks, kind) => blocks.filter((b) => b.kind === kind)[0] || null
 const allText = (blocks) => JSON.stringify(blocks)
 const rowsOf = (blocks) => { const c = blockOf(blocks, 'changes'); return c ? c.groups.reduce((a, g) => a.concat(g.rows), []) : [] }
-/** 从某个 `React.useEffect(function () {` 的起点取出它的函数体（花括号配对）；取不到回空串。 */
-function effectBodyAfter(src, at) {
-  const open = src.indexOf('{', at)
-  if (open < 0) return ''
-  let depth = 0
-  for (let i = open; i < src.length; i++) {
-    const c = src.charAt(i)
-    if (c === '{') depth += 1
-    else if (c === '}') { depth -= 1; if (depth === 0) return src.slice(open + 1, i) }
-  }
-  return ''
-}
 
 // ============================================================
 async function main() {
@@ -188,18 +183,6 @@ async function main() {
   //   三个入参就是 A1 点名的三种：普通对象、带 repoRoot 的快照、null。
   const tabVisibleJudgmentOf = (v) => v.vcTabVisible({}) === true && v.vcTabVisible({ snapshot: { repoRoot: null } }) === true && v.vcTabVisible(null) === true
   check(tabVisibleJudgmentOf(VIEW), 'A1 显隐谓词一律回真（总工程师裁定的偏离：不藏页签，空态由视图说真话）')
-  const tabsSrc = read('src/client/views/shared/Tabs.js')
-  check(tabsSrc.indexOf("typeof vcTabVisible === 'function'") >= 0 && tabsSrc.indexOf("'versionControl'") >= 0 && tabsSrc.indexOf("'branch'") >= 0, 'A2 壳层按名字调用 vcTabVisible、页签 id 与图标名与接口一致')
-  const tabSrc = read('src/client/views/versionControl/VersionControlTab.js')
-  check(/export\s+const\s+VersionControlTab\s*=/.test(tabSrc), 'A3 入口导出名 VersionControlTab（壳层按这个名字调）')
-  const buildSrc = read('scripts/build.mjs')
-  const leafOrder = VC_FILES.map((f) => buildSrc.indexOf("'" + f + "'"))
-  check(leafOrder.every((i) => i > 0) && leafOrder.every((i, k) => k === 0 || i > leafOrder[k - 1]), 'A4 八个叶子按依赖次序登记在 LEAF_MODULES 里')
-  check(buildSrc.indexOf("src/client/views/versionControl/vcText.js") < buildSrc.indexOf("file: 'src/client/views/shared/Tabs.js'"), 'A5 新叶子排在 tabs 之前（Tabs.js 要按 vcTabVisible 判显隐）')
-  const idxSrc = read('src/client/index.js')
-  const VC_IDS = ['vcText', 'vcFold', 'vcDiff', 'vcCommit', 'vcBlocks', 'vcViews', 'vcTabVisible', 'vcData', 'versionControlTab', 'vcDiffOps']
-  check(VC_IDS.every((id) => idxSrc.indexOf('leaf:' + id + ' (spliced') >= 0), 'A6 index.js 里拼接标记齐备（标记 id 就是 LEAF_MODULES 登记的那个，多一个 vcDiffOps）')
-  check(idxSrc.indexOf('leaf:vcText (spliced') < idxSrc.indexOf('leaf:tabs (spliced'), 'A7 六个标记排在 tabs 标记之前')
 
   // ---- B 组：主缝（真机样本 → 块与文字）----
   const hostMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'versionControl.js')).href)
@@ -528,36 +511,9 @@ async function main() {
   check(clientNotRepo.screen.error.kind === 'not-repo' && V2.vcFailKeyOf(clientNotRepo.screen.error.kind) === 'vc.fail.notRepo', 'E16 界面侧认下真宿主这份失败信封，翻成那句「不在任何 git 仓库里」')
 
   // ---- F 组：纪律 ----
-  const stripComments = (buf) => buf.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '')
-  let cjk = 0
-  let linesOk = true
-  for (const f of VC_FILES) {
-    const src = read(f)
-    const n = src.split(/\r?\n/).length
-    if (n > 350) { linesOk = false; console.log('    （' + f + ' 有 ' + n + ' 行）') }
-    const buf = stripComments(src)
-    const strRe = /'((?:[^'\\\n]|\\.)*)'|"((?:[^"\\\n]|\\.)*)"/g
-    let m
-    while ((m = strRe.exec(buf)) !== null) { const s = m[1] !== undefined ? m[1] : m[2]; if (/[\u4e00-\u9fff]/.test(s)) cjk += 1 }
-  }
-  check(linesOk, 'F1 六个界面文件每个都不超过 350 行')
-  check(cjk === 0, 'F2 界面文件里零个中文字面量（文案一律走词条，实得 ' + cjk + ' 处）')
-  const keysUsed = new Set()
-  for (const f of VC_FILES) {
-    const src = stripComments(read(f))
-    const re = /\bt\('([A-Za-z0-9_.]+)'/g
-    let m
-    while ((m = re.exec(src)) !== null) keysUsed.add(m[1])
-  }
-  const missingZh = [...keysUsed].filter((k) => LOC.zh[k] === undefined)
-  const missingEn = [...keysUsed].filter((k) => LOC.en[k] === undefined)
-  check(missingZh.length === 0 && missingEn.length === 0, 'F3 界面用到的 ' + keysUsed.size + ' 个词条键中英两边都有（缺的中文 ' + missingZh.length + ' / 缺的英文 ' + missingEn.length + '）')
   const topKeys = Object.keys(L_PANEL).join(',') + '|' + Object.keys(L_FLOW).join(',')
   check(topKeys === 'zh,en|zh,en', 'F8 两份词条模块的顶层键都只有 zh 与 en（实得 ' + topKeys + '）—— 词条插到 zh 块外面时，中文界面会把键名原样印出来')
   const missingOf = function (zh, en, keys) { return keys.filter(function (k) { return typeof zh[k] !== 'string' || zh[k] === '' || typeof en[k] !== 'string' || en[k] === '' }) }
-  const usedKeys = [...keysUsed]
-  const missKeys = missingOf(LOC.zh, LOC.en, usedKeys)
-  check(missKeys.length === 0, 'F9 界面用到的每个词条键在中英两份真字典里都存在且非空（共 ' + usedKeys.length + ' 个，缺 ' + missKeys.length + ' 个' + (missKeys.length ? '：' + missKeys.slice(0, 6).join('、') : '') + '）')
   check(LOC.zh['panel.tabVersionControl'] === '版本管理' && LOC.en['panel.tabVersionControl'] === 'Version control', 'F10 页签名中英成对（版本管理 / Version control）')
   // 三条真机缺陷的回归（独立验收者报的，已修）
   const tailLadder = VIEW.vcFoldLadderOf({ path: 'abcdefghijklmnop', others: ['副本名'], commits: [] })
@@ -567,17 +523,9 @@ async function main() {
   check(tailSeq[0][0] === 16 && tailSeq[tailSeq.length - 1][0] === VIEW.VC_MIDDLE_MIN && tailSeq[tailSeq.length - 1][1] === 0, 'D9 折叠到最后一档：路径停在最短可砍长度、名字收成空，都不会弹回全长（长度序列 ' + tailLens.join(' → ') + '）')
   check(VIEW.vcWhenText(tZh, NOW, null) === '' && VIEW.vcWhenText(tZh, NOW, undefined) === '', 'D10 没有时间这一项时回空串，不画成 1970 年')
   const toneKeys = Object.keys(VIEW.VC_TONE)
-  const toneSrc = read('src/client/views/versionControl/VersionControlTab.js')
   const vcTone = Object.keys(VIEW.VC_TONE).filter((k) => String(VIEW.VC_TONE[k]).indexOf('var(--vc-') < 0)
-  check(vcTone.length === 0 && toneSrc.indexOf('--vc-accent') >= 0, 'F4 颜色只走本页皮肤令牌（每个色档都是 var(--vc-…)，带一个兜底色；不是令牌的色档：' + (vcTone.join('、') || '无') + '）')
-  const noVar = stripComments(toneSrc).replace(/var\(--vc-[a-z0-9-]+(,[^)]*)?\)/g, '')
-  check(!/#[0-9a-fA-F]{3,8}\b/.test(noVar), 'F5 除皮肤令牌的兜底色之外，界面文件里没有别的硬编码颜色（注释里的票号不算）')
+  check(vcTone.length === 0, 'F4 颜色只走本页皮肤令牌（每个色档都是 var(--vc-…)，带一个兜底色；不是令牌的色档：' + (vcTone.join('、') || '无') + '）')
   // 令牌定义文件本身当然要有十六进制 —— 那是它该待的地方；这里只确认它确实按主题开关分成深浅两套。
-  const vcStyleSrc = read('src/client/views/versionControl/vcStyles.js')
-  const skinsOk = vcStyleSrc.indexOf('body[data-ds-dark-theme] [data-vc-root]') >= 0 && vcStyleSrc.indexOf('body:not([data-ds-dark-theme]) [data-vc-root]') >= 0
-  check(skinsOk, 'F5b 皮肤令牌按宿主主题开关分成深浅两套（深色那一套在 body[data-ds-dark-theme] 下，浅色那一套在 :not 里）')
-  check(vcStyleSrc.indexOf('.dsws-vc-skel') >= 0 && vcStyleSrc.indexOf('@keyframes dsws-vc-shimmer') >= 0 && vcStyleSrc.indexOf('prefers-reduced-motion') >= 0, 'F5c 骨架条有微光动画，并在减弱动态偏好下静止（动画不是装饰，是「正在来」的信号）')
-  check(!/setInterval|setTimeout/.test(VC_FILES.map(read).join('\n')), 'F6 界面文件里没有任何定时器（#709 的零定时器不变量）')
   const toneNames = new Set()
   const collectTones = function (x) {
     if (!x || typeof x !== 'object') return
@@ -599,10 +547,7 @@ async function main() {
   const stamps = [NOW - 1000, NOW - 3600000, NOW - 6 * 24 * 3600 * 1000, NOW - 7 * 24 * 3600 * 1000, NOW - 30 * 24 * 3600 * 1000]
   check(stamps.every((ms) => VIEW.vcTimeKind(NOW, ms) === core.describeTime(NOW, ms).style), 'G2 vcTimeKind 与核心 describeTime 同一条 7 天分界（相对 / 绝对不说两套话）')
 
-  // ---- G3/G4：模型与画法对得上 + 首帧真渲染一次（空态不许崩、也不许冒字）----
-  const compSrc = stripComments(read('src/client/views/versionControl/VersionControlTab.js'))
-  const kindsMissing = VIEW.VC_BLOCK_ORDER.filter((k) => compSrc.indexOf("b.kind === '" + k + "'") < 0)
-  check(kindsMissing.length === 0, 'G3 块模型会产出的每一种块，界面那一边都有画它的分支（缺的：' + (kindsMissing.join('、') || '无') + '）')
+  // ---- G4：首帧真渲染一次（空态不许崩、也不许冒字）----
   const React = require('react')
   const { renderToStaticMarkup } = require('react-dom/server')
   const DswsCtx = React.createContext(null)
@@ -659,11 +604,8 @@ async function main() {
   const memOk = VIEW.vcRememberedView() === 'worktrees'
   VIEW.vcResetViewMemory()
   check(memOk && VIEW.vcRememberedView() === 'changes', 'V9 同一会话内记住上次选的视图，复位回到改动页')
-  const viewTabSrc = read('src/client/views/versionControl/VersionControlTab.js')
-  check(viewTabSrc.indexOf("view: 'changes'") >= 0 && viewTabSrc.indexOf('vcResetViewMemory()') >= 0, 'V10 换工作区复位到改动页（读数、展开、视图一起清，不把旧视图带进新仓库）')
   const picked = VIEW.vcPickViewStateOf({ view: 'commits', openCommit: 'abc1234', openDiff: 'k', write: { op: '' } }, 'worktrees')
   check(picked.view === 'worktrees' && picked.openCommit === '' && picked.openDiff === 'k' && picked.write.op === '', 'V11 页签点下去就离开提交详情（原子切换：view 落点、openCommit 清空，其余状态不动）')
-  check(viewTabSrc.indexOf('vcPickViewStateOf(cur, v)') >= 0, 'V11b 页签回调走的正是这个纯函数（实现与断言同源）')
   // AI 组 · #854：面板解决不了的事 —— 按钮在四个落点，prompt 三段式，预填不发送。
   const aiScreen = screenOf({ conflictCount: 1, stagedCount: 0, unstagedCount: 1, unstaged: [{ path: 'c.txt', origPath: null, staged: false, unstaged: true, conflict: true, change: 'modified', addedLines: 1, deletedLines: 1 }], repo: { merging: false, rebasing: true, cherryPicking: false, reverting: false, hasCommits: true, bare: false, tier: 'full', autocrlm: null, autocrlf: null } })
   const aiReads = readsOf(aiScreen)
@@ -750,28 +692,6 @@ async function main() {
   check(VIEW.vcShouldRead('') === false && VIEW.vcShouldRead('   ') === false && VIEW.vcShouldRead(null) === false && VIEW.vcShouldRead('D:/w/repo') === true, 'G12 空 cwd 的判据：读数据的谓词回假（宿主对空串会退回它自己的默认目录，那是插件自己那个仓库的数据）')
   const emptyCwdBlocks = VIEW.vcBlocksOf(null, VIEW.vcNewReads(), {}, { t: tZh, nowMs: NOW, cwdEmpty: true, fold: VIEW.vcFoldOf(460, {}) })
   check(emptyCwdBlocks.length === 1 && emptyCwdBlocks[0].text === '当前会话尚未关联工作区，无法读取版本信息' && emptyCwdBlocks[0].retry === '', 'G13 空 cwd 画出那句如实的空态（不是读取失败，所以不给重试）')
-  const cwdGuardSrc = read('src/client/views/versionControl/VersionControlTab.js')
-  // #845b：G14 的判据从「字节形状」改成「行为形状」。旧写法要求 effect 的下一行恰好是四空格缩进的
-  //   `if (!cwd) return` —— 真源一被格式化（换缩进、折行、中间插一行注释）就判红，而守卫其实还在。
-  //   现在两问：① `cwdEmpty` 仍由 `vcShouldRead(cwd)` 取反得到（空白怎么写都行）；
-  //   ② 找到**函数体里调 `vcReadStatus(` 的那个 `React.useEffect`**（就是读取那一个），花括号配对取出
-  //   函数体、去掉注释与多余空白后，断言第一句可执行语句是 `if (!cwd) return` —— 空 cwd 时它先返回，
-  //   一个电话都不发。把守卫删掉、或挪到调用之后，这条当场红。
-  let readEffectBody = ''
-  {
-    const effRe = /React\.useEffect\(function \(\) \{/g
-    let em
-    while ((em = effRe.exec(cwdGuardSrc))) {
-      const body = effectBodyAfter(cwdGuardSrc, em.index)
-      if (body.indexOf('vcReadStatus(') >= 0) { readEffectBody = body; break }
-    }
-  }
-  const readFirstStmt = readEffectBody
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .replace(/(^|[^:\w])\/\/[^\n]*/g, '$1 ')
-    .trim()
-    .replace(/\s+/g, ' ')
-  check(/const\s+cwdEmpty\s*=\s*!\s*vcShouldRead\(\s*cwd\s*\)/.test(cwdGuardSrc) && /^if\s*\(\s*!cwd\s*\)\s*return(?![A-Za-z0-9_$])/.test(readFirstStmt), 'G14 组件里那道闸：空 cwd 时读取效果第一句就返回（不发电话），空态走 cwdEmpty 那条路')
   let htmlNoCwd = ''
   let noCwdCalls = 0
   try {
@@ -837,24 +757,18 @@ async function main() {
   const newerB = Object.assign({}, readsA, { commit: { rev: 'bbbb', seq: 2, state: 'ok', files: commitFiles, truncated: false, reason: 'ok', error: null } })
   check(V2.vcApplyCommitReply(loadingB, newerB) === newerB, 'N12 新回包照常落库（判据不是恒假）')
 
-  // N13 读数时刻 + 重新读一次的入口。
+  // N13/N14 读数时刻。
   check(blockOf(liveBlocks, 'identity').readAtText === '读取于 刚刚', 'N13 身份行写着这份读数是什么时候取的（实得「' + blockOf(liveBlocks, 'identity').readAtText + '」）')
   const noReadAt = readsOf(liveScreen, { screen: { state: 'ok', data: { screen: liveScreen, tier: 'full', gitVersion: 'g', readAtMs: 0 }, error: null } })
   check(blockOf(VIEW.vcBlocksOf(liveScreen, noReadAt, {}, envOf(liveScreen, noReadAt)), 'identity').readAtText === '', 'N14 读数时刻读不到就不写那几个字（不画成 1970）')
-  check(compSrc.indexOf('data-vc-reload') >= 0 && compSrc.indexOf('reloadNow') >= 0, 'N15 界面上有「重新读一次」这颗按钮（不是定时器）')
 
-  // N16 极端宽度：台阶总数有上限，且窄到第三档以下直接跳到收尾档。
+  // N16 极端宽度：台阶总数有上限。
   const hugeLadder = VIEW.vcFoldLadderOf({ path: 'p'.repeat(300), others: [], commits: new Array(200).fill('s'.repeat(20)) })
   check(hugeLadder.steps.length === VIEW.VC_FOLD_STEP_CAP && VIEW.VC_FOLD_STEP_CAP <= 200, 'N16 台阶总数有上限（三百字符路径 + 两百条说明也只有 ' + hugeLadder.steps.length + ' 档，不再上千档）')
-  check(compSrc.indexOf('width < VC_FOLD_BANDS[2]') >= 0, 'N17 窄到第三档以下时折叠机直接跳到收尾档（不再一格一格试，允许溢出）')
 
-  // N18「需要自己动手的事」是一句陈述：不摆点不动的图标，也不许再指向侧栏终端。
-  check(compSrc.indexOf("Ic({ n: 'external-link'") < 0 && compSrc.indexOf('data-vc-terminal') >= 0, 'N18 「需要自己动手的事」不摆外链图标（看着能点却点不动比不画更差）')
   const noSidebar = /侧栏终端/.test(LOC.zh) === false && /terminal on the same row/.test(LOC.en) === false
   check(noSidebar, 'N18b 中英词条里都不许再出现「侧栏终端 / terminal on the same row」（中文命中：' + /侧栏终端/.test(LOC.zh) + '，英文命中：' + /terminal on the same row/.test(LOC.en) + '）')
 
-  // N19 续读防重入 + 「正在读更早的提交」这一刻真的进读数。
-  check(compSrc.indexOf('logBusyRef') >= 0 && compSrc.indexOf('vcMarkLogLoading') >= 0, 'N19 续读有自己的在途守卫，并先把 loading 写进读数')
   check(V2.vcMarkLogLoading(V2.vcNewReads()).log.state === 'loading', 'N20 vcMarkLogLoading 把「正在读更早的提交」这一刻写进读数（那一句提示才有机会出现）')
 
   // N21 依据时间给 0 或负数：按读不到说，不画成 1970。
@@ -946,7 +860,6 @@ async function main() {
   const manyOthers25 = screenOf({ otherWorktrees: Array.from({ length: 25 }, function (_, i) { return { path: 'D:/w/w' + i, display: 'w' + i, head: 'h', branch: 'dev', bare: false, current: false, locked: false, lockReason: null, lockUnknown: false, prunable: false } }) })
   const manyNarrow = blockOf(VIEW.vcBlocksOf(manyOthers25, readsOf(manyOthers25), {}, envOf(manyOthers25, readsOf(manyOthers25), 300)), 'other')
   check(manyNarrow.summaryText.indexOf('（另有 5 个未列出）') >= 0 && (manyNarrow.tip.match(/D:\/w\/w/g) || []).length === VIEW.VC_OTHER_SUMMARY_NAMES, 'M3 摘要最多列 ' + VIEW.VC_OTHER_SUMMARY_NAMES + ' 个名字、其余明说「还有 N 棵没列出来」，悬停只给列出来的那些（实得 ' + (manyNarrow.tip.match(/D:\/w\/w/g) || []).length + ' 条路径）')
-  check(compSrc.indexOf("tipNode(b.tip, h('div', { 'data-vc-other-summary': 1") >= 0, 'M4 组件里摘要那一行确实挂在悬停上（不是只把字段算出来没人用）')
   // M5 「另一个 git 在操作」的兜底话术要说清「等它结束」（中英都要有这层意思）。
   const exitZh = LOC.zh['vc.fail.exit'] || ''
   const exitEn = LOC.en['vc.fail.exit'] || ''

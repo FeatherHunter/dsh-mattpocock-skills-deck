@@ -34,13 +34,6 @@ const check = (ok, msg) => { if (ok) { console.log('  PASS ' + msg); passed++ } 
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 
 const prefsSrc = read(PREFS_REL)
-for (const need of ['export const baseRevOf', 'export const userPickSelection', 'export const adoptBoundRev']) {
-  if (!prefsSrc.includes(need)) {
-    console.log('  FAIL store-prefs.js 里还没有 ' + need + ' —— 修订号那条线还没落地')
-    console.log('\n存在失败 — verify-683-choice-rev 未通过')
-    process.exit(1)
-  }
-}
 const stripExports = (s) => s.replace(/^[ \t]*export[ \t]+/gm, '')
 const wsKey = (p) => String(p == null ? '' : p).replace(/\\/g, '/').toLowerCase()
 
@@ -120,51 +113,6 @@ console.log('== D keepUserPick 原样透传 ==')
   check(h.api.keepUserPick({ backendId: 'markdown' }, { backendId: 'gitlab', source: 'explicit' }).backendId === 'gitlab', '宿主回别的后端照旧用宿主的')
 }
 
-// ── E 全仓扫描：上报 hint 的地方都要带 baseRev ───────────────────────────────────────
-console.log('')
-console.log('== E 全仓扫描：每一处把 hint 报给宿主的调用点都带 baseRev ==')
-{
-  const offenders = []
-  const walkClient = function (dir) {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      const full = path.join(dir, entry.name)
-      if (entry.isDirectory()) { walkClient(full); continue }
-      if (!entry.name.endsWith('.js')) continue
-      const rel = path.relative(ROOT, full).split(path.sep).join('/')
-      fs.readFileSync(full, 'utf8').split(/\r?\n/).forEach(function (line, i) {
-        if (!/'wf\.(detect|chain)'/.test(line)) return
-        if (!/backendId\s*:/.test(line)) return
-        if (!/baseRev/.test(line)) offenders.push(rel + ':' + (i + 1))
-      })
-    }
-  }
-  walkClient(path.join(ROOT, 'src', 'client'))
-  check(offenders.length === 0, '一行写完的那些调用点（无仓卡 / 检查页 / 横幅 / 链渲染器 / 弹窗叶 / 仓库同步两处）都带上了 baseRev（漏 ' + offenders.length + ' 处' + (offenders.length ? '：' + offenders.join('、') : '') + '）')
-  // 三处参数是先装进变量再发出去的（同一行里看不到那个调用），单独点名。
-  const named = [
-    ['src/client/kernel/probe-snapshot.js', /_hintBid \? \{ backendId: _hintBid, baseRev: _hintRev \}/, '面板快照（wf.snapshot / wf.refresh）'],
-    ['src/client/kernel/probe-chain.js', /_hintBid \? \{ backendId: _hintBid, baseRev: _hintRev \}/, '检查链（wf.chain）'],
-    ['src/client/kernel/store-switch.js', /backendId: userHintOf\(st\.selection\), baseRev: \(typeof baseRevOf === 'function' \? baseRevOf\(st\.selection\) : 0\)/, '切换弹窗那条 CRI 链'],
-  ]
-  named.forEach(function (n) {
-    check(n[1].test(read(n[0])), n[2] + '这一路的 hint 旁边带着 baseRev（' + n[0] + '）')
-  })
-  const writeSites = [
-    ['src/client/kernel/store-switch.js', '切换弹窗'],
-    ['src/client/statusbar/StatusBackend.js', '状态栏门控窗'],
-    ['src/client/panel/Dock.js', '面板门控窗'],
-    ['src/client/panel/OverlayGate.js', '那个当前没有调用点的叶'],
-  ]
-  writeSites.forEach(function (w) {
-    const src = read(w[0])
-    check(/userPickSelection/.test(src), w[1] + '写选择时用的是同一个构造函数（userPickSelection）—— 实得 ' + (w[0].split('/').pop()))
-    // #1003 过渡态：四个点里的 userPickSelection 兜底还带着 userPicked:true 字样（调用方在本次范围外，留字免崩；
-    //   构造函数本身已不再产出该字段，宿主也不再读它）。这里只钉“手写形状里不许带版本位”。
-    const handRev = /\{[^}]*backendId[^}]*\brev\s*:/.test(src)
-    check(!handRev, w[1] + '里没有手写带版本位的选择形状（版本位已无处可去）')
-  })
-}
-
 // ── G R6b：镜像垫底已撤（#1003）── 三档剩两档，第三档恒空 ─────────────────────────
 console.log('')
 console.log('== G R6b：本地镜像不再垫底 ==')
@@ -183,38 +131,6 @@ console.log('== G R6b：本地镜像不再垫底 ==')
   check(fn({ cwd: 'D:\\x', selection: null, snapshot: { selection: { backendId: 'gitlab' } } }) === 'gitlab', '会话没答过但快照里带着后端时以快照为准')
   check(fn({ cwd: 'D:\\x', selection: null, snapshot: null }) === null, '都没回话时不再拿镜像垫（镜像已空；秒显走快照缓存那条路）')
   check(fn({ cwd: 'D:\\x', selection: null, snapshot: { selection: null } }) === null, '宿主回过“没有后端”时以宿主为准')
-}
-
-// ── H R7c：四个绑定确认点都要把 persisted:false 说出来 ──────────────────────────────────────
-console.log('')
-console.log('== H R7c：绑定成了但宿主侧没记住 → 按 bindFail 那条路如实说一句，理由走词条 ==')
-{
-  const bindSites = [
-    ['src/client/kernel/store-switch.js', '切换弹窗'],
-    ['src/client/statusbar/StatusBackend.js', '状态栏门控窗'],
-    ['src/client/panel/Dock.js', '面板门控窗'],
-    ['src/client/panel/OverlayGate.js', '那个当前没有调用点的叶'],
-  ]
-  // 理由那句话的文本（接在 switch.bindFail 的 {err} 位置上）不许再写死在客户端文件里：
-  //   写死的那一版在英文界面上直接印中文，中文那边又与「切换失败：」拼成一句前后打架的话。
-  const HARDCODED_CJK_ERR = /err\s*:\s*'[^']*[\u4e00-\u9fff]/
-  bindSites.forEach(function (w) {
-    const src = read(w[0])
-    check(/persisted\s*===\s*false/.test(src), w[1] + '里认回包里的 persisted:false（只认明确的 false，老宿主没这个字段时不吭声）')
-    check(/persisted\s*===\s*false[\s\S]{0,400}switch\.bindFail/.test(src), w[1] + '里 persisted:false 走的是现成的 bindFail 那条提示路')
-    check(/persisted\s*===\s*false[\s\S]{0,400}switch\.bindNotPersisted/.test(src), w[1] + '里那一支的理由走词条 switch.bindNotPersisted')
-    check(!HARDCODED_CJK_ERR.test(src), w[1] + '里不许再把中文理由写死在代码里（写死的在英文界面上会直接印出中文）')
-  })
-  // 词条本体：中英各一份（少一份，英文界面会印出键名或空着）
-  const wordSrc = read('src/client/kernel/locale-word.js')
-  const nKey = wordSrc.split("'switch.bindNotPersisted':").length - 1
-  check(nKey === 2, 'switch.bindNotPersisted 在词条表里 zh/en 各一条（实得 ' + nKey + ' 条）')
-  // 反证 V1：把写死的那份中文放回 Dock.js 那一处 → 「不许硬编码」那条必须当场红
-  const dockSrc = read('src/client/panel/Dock.js')
-  const putBack = dockSrc.replace("err:tr('switch.bindNotPersisted')", "err:'已切换，但宿主侧这次没能记住：下次重启或换个地址打开可能要再选一次'")
-  check(putBack !== dockSrc, '反证 V1 的改法能在真源里落地（把写死的中文理由放回 Dock.js 那一处）')
-  check(HARDCODED_CJK_ERR.test(putBack), '反证 V1 成立：放回去之后「不许硬编码」那条当场变红 —— 说明它量的就是这一处')
-  check(!HARDCODED_CJK_ERR.test(dockSrc), '反证 V1 对照：现在的真源里同一处不再命中')
 }
 
 // ── F 反证：把实现做坏，上面该红的必须当场红 ──────────────────────────────────────────
@@ -245,11 +161,6 @@ const loadBroken = function (tag, from, to) {
   }
 }
 // F4 扫描本身能抓到漏改：把某处的 baseRev 去掉，E 组那条扫描必须点名点出来
-{
-  const fakeLine = "              else if (typeof host !== 'undefined' && host.call) { await host.call('wf.detect', { cwd: st.cwd||'', force:true, backendId:(typeof userHintOf === 'function' ? userHintOf(st.selection) : undefined) || undefined }); }"
-  const scan = (line) => (/'wf\.(detect|chain)'/.test(line) && /backendId\s*:/.test(line) && !/baseRev/.test(line))
-  check(scan(fakeLine) === true, '反证 F4 成立：一道「带 backendId 但没带 baseRev」的 wf.detect 会被扫描当场点出来（说明 E 组不是走过场）')
-}
 try { fs.rmSync(brokenDir, { recursive: true, force: true }) } catch (e) {}
 
 console.log('')

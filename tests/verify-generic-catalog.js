@@ -174,28 +174,6 @@ console.log('\n— 验收4：注册表验形状不验内容 —')
   check(validateGenericShape(anySkill).length===0, '任意 skill 名形状仍合法（不验内容）')
 }
 
-// ---------- 5. 无 na 承载字段（2026-08-27 已删） ----------
-console.log('\n— 验收5：无 na 承载字段 —')
-{
-  let hasNa = false
-  try {
-    const fs = await import('node:fs')
-    const txt1 = fs.readFileSync('src/shared/tracker/check-catalog-dirs.js','utf8') + fs.readFileSync('src/shared/tracker/check-catalog-views.js','utf8')
-    const txt2 = fs.readFileSync('src/host/tracker/predicateCore.js','utf8') + fs.readFileSync('src/host/tracker/predicatePrimitives.js','utf8') // V1 #461：断言覆盖随拆分两文件
-    const txt3 = fs.readFileSync('src/host/tracker/generic.js','utf8')
-    // 允许注释中提及 "删 na"，但不应有 '"na"' 字段或 CHECK_STATE.NA 引用
-    const bad1 = /CHECK_STATE\.NA/.test(txt1) || /CHECK_STATE\.NA/.test(txt2) || /CHECK_STATE\.NA/.test(txt3)
-    const bad2 = /'na'|"na"\s*:/.test(txt1) && !txt1.includes('删 na')
-    // 更严格：检查 _chain.js 之外是否还有 na 枚举
-    // 我们只判 CHECK_STATE.NA 存在即 fail
-    check(!bad1, '源码无 CHECK_STATE.NA 引用')
-    // 允许字符串 "na" 在注释里，但不应有 level: 'na'
-    const badLevel = /level\s*:\s*['"]na['"]/.test(txt1+txt2+txt3)
-    check(!badLevel, '无 level na')
-    hasNa = bad1 || badLevel
-  } catch (e) { check(false, '读取源码校验 na 失败 — ' + String(e.message)) }
-}
-
 console.log('\n— 汇总 —')
 console.log('  total=' + total + ' passed=' + passed + ' failed=' + (total-passed))
 if (failed) { console.log('\n  FAIL  verify-generic-catalog — 有失败'); process.exit(1) }

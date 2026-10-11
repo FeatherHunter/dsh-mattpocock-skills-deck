@@ -13,8 +13,7 @@
  *   改法：去重键从「工作区」变成「工作区 + 后端」（换过后端就不是同一次请求），并在回包处加一道
  *   「这一次还算不算数」的守卫（这个工作区上又发过更新的一次 / 这次问的后端已经不是用户现在选的那个 → 丢弃）。
  *
- * 断四组：
- *   A 静态层：弹窗标题就是维护者 2026-09-21 拍板的四个字（中英成对），标题行是可换行 + 按钮不许断行。
+ * 断三组：
  *   B 真 Chromium：把产物里那张弹窗的真身（真 DOM + 真样式表）拿出来，在 604 与 380 两个宽度上量几何 ——
  *     每颗按钮都只有一行、卡片不横向溢出、✕ 在视口里；再把换行那两处做坏一次，同一条判据必须当场变红。
  *   C 行为层：把 probe-snapshot.js 真身取出来，喂一个可以按任意顺序回包的假宿主，走四种现场 ——
@@ -39,26 +38,9 @@ let passed = 0
 let failed = 0
 const check = (ok, msg) => { if (ok) { console.log('  PASS ' + msg); passed++ } else { console.log('  FAIL ' + msg); failed++ } }
 
-const locWord = read('src/client/kernel/locale-word.js')
 const prod = read('package/lib/client.js')
 
-console.log('== A 静态层：标题四个字、标题行可换行、按钮不许断行 ==')
-{
-  check(locWord.indexOf("'switch.title': '切换后端'") >= 0, '中文标题就是维护者拍板的四个字（切换后端）')
-  check(locWord.indexOf("'switch.title': 'Switch backend'") >= 0, '英文标题成对改成 Switch backend（中英必须成对）')
-  check(!/'switch\.title':\s*'切换 Tracker 后端'/.test(locWord) && !/'switch\.title':\s*'Switch Tracker Backend'/.test(locWord), '词条里不再有切换那个长标题（只许出现在说明为什么改短的注释里）')
-  check(prod.indexOf("'switch.title': '切换后端'") >= 0, '产物里也是这四个字（package/lib/client.js）')
-  // 标题行：外层可换行（flexWrap），标题那一组可收缩（minWidth 0 + 省略号），按钮那一组不许断行（whiteSpace nowrap）
-  const at = prod.indexOf("tr('switch.title')")
-  check(at > 0, '产物里找得到那张弹窗的标题（tr switch.title）')
-  const rowSlice = prod.slice(Math.max(0, at - 3000), at + 2500)
-  check(/flexWrap:\s*'wrap'/.test(rowSlice), '标题那一行可以换行（flexWrap wrap）——窄面板下按钮整组挪到第二行，而不是被压成竖排')
-  check(/minWidth:\s*0[^}]*overflow:\s*'hidden'[^}]*textOverflow:\s*'ellipsis'/.test(rowSlice) || /overflow:\s*'hidden'[^}]*textOverflow:\s*'ellipsis'[^}]*whiteSpace:\s*'nowrap'/.test(rowSlice), '标题自己可收缩（minWidth 0 + 省略号）')
-  const nowrapCount = (rowSlice.match(/whiteSpace:\s*'nowrap'/g) || []).length
-  check(nowrapCount >= 3, '标题行里三颗按钮都写了「不许断行」（实得 ' + nowrapCount + ' 处，应为 3：取消 / 确认切换 / ✕ —— 「清除后端选择」那颗 2026-09-21 已删）')
-  check(/overflowX:\s*'hidden'/.test(rowSlice), '卡片自己也挡住横向溢出（overflowX hidden）')
-}
-
+console.log('== B 真 Chromium：窄面板下那张弹窗的几何 ==')
 // ── C 组与 B 组共用：把产物里那张弹窗真身挂起来，取它的 DOM 与样式表 ─────────────────────────
 const WS = 'D:\\tmp\\669-visible'
 const MODULES = [

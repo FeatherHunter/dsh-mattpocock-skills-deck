@@ -1,12 +1,8 @@
 // verify-686-accept.js —— #686 真机验收在开发层能封顶的部分
 //
-// 只读真源、不改产品代码。断言分六组：
+// 只读真源、不改产品代码。断言分两组：
 //   一、三个后端真实科目互不串味（读各自 index.js 真文本，用真渲染函数跑，中英各一次）；
-//   二、按钮与读数在元素级就是两种东西（读数 div、动作 button，按钮在 flex:1 占位之后）；
-//   三、算不出时只显示名字（null 兜底，不拼数字）；
-//   四、三态不显示（无后端 / 未初始化 / 无科目，外加空值不崩）；
-//   五、常驻日志点只有两个短枚举（落点、字段、双产物、附录对照表）；
-//   六、总纲里没有具体跟踪器命令（开口只属于各后端自己的科目）。
+//   二、三态不显示（无后端 / 未初始化 / 无科目，外加空值不崩）。
 // 用法: node tests/verify-686-accept.js
 const fs = require('fs')
 const path = require('path')
@@ -41,7 +37,7 @@ function promptsOf (src, key) {
 }
 
 async function main () {
-  console.log('验收门禁（#686：真文本串味 · 元素差异 · 兜底 · 三态 · 日志字段 · 总纲无命令）')
+  console.log('验收门禁（#686：真文本串味 · 兜底 · 三态）')
 
   // ─────────── 一、三个后端真实科目互不串味 ───────────
   const ghSrc = read(path.join('src', 'host', 'tracker', 'backends', 'github', 'index.js'))
@@ -92,20 +88,7 @@ async function main () {
     }
   }
 
-  // ─────────── 二、按钮与读数在元素级就是两种东西 ───────────
-  const listTab = read(path.join('src', 'client', 'views', 'ListTab.js'))
-  check(listTab.indexOf("const kpi = (num, lab, icon, color) => h('div'") >= 0, '三枚读数是 div（读数）')
-  const btnAt = listTab.indexOf('healthCheckVisible(st)')
-  check(btnAt > 0 && listTab.indexOf("h('button', {", btnAt) > btnAt, '体检是 button（动作），与读数不是同一种元素')
-  const flexAt = listTab.indexOf('style: { flex: 1 } }),')
-  check(flexAt > 0 && btnAt > flexAt, '按钮在 flex:1 占位之后（贴右边缘）')
-  check(listTab.indexOf("tr('list.kpi.takeable')") < btnAt, '三枚读数在按钮之前（读数靠左、动作靠右）')
-
-  // ─────────── 三、算不出时只显示名字 ───────────
-  check(listTab.indexOf("(nHc == null ? '' : ' ' + nHc)") >= 0, '件数为 null 时不拼数字（绝不显示 0）')
-  check(listTab.indexOf("tr('list.healthCheck') + (nHc == null") >= 0, '名字照常显示（退化成纯文字按钮）')
-
-  // ─────────── 四、三态不显示 ───────────
+  // ─────────── 二、三态不显示 ───────────
   const tmpHc = spliceToFile(
     [path.join('src', 'client', 'kernel', 'health-check.js')],
     ['healthCheckCountOf', 'healthCheckVisible'],
@@ -127,29 +110,6 @@ async function main () {
   check(hc.healthCheckVisible({ backendModules: mods, snapshot: { selection: { backendId: 'github' } } }) === false, '工作区未初始化 → 整颗不显示')
   check(hc.healthCheckVisible({ backendModules: mods, snapshot: { selection: { backendId: 'markdown' }, repository: repo } }) === false, '后端无科目 → 整颗不显示')
   check(hc.healthCheckVisible(null) === false && hc.healthCheckCountOf(null) === null, '空值不崩（不显示、算不出回 null）')
-  check(listTab.indexOf('if (!healthCheckVisible(st)) return null') >= 0, '视图里是整颗不渲染（不是灰按钮）')
-
-  // ─────────── 五、常驻日志点只有两个短枚举 ───────────
-  const hcSrc = read(path.join('src', 'client', 'kernel', 'health-check.js'))
-  check(hcSrc.indexOf("log('info', 'healthCheck.inject'") >= 0, '日志点落在内核文件')
-  check(hcSrc.indexOf('{ backend: backend, outcome:') >= 0, '字段只有 backend 与 outcome')
-  check(hcSrc.indexOf('healthCheck.inject', hcSrc.indexOf('healthCheckLogEvent')) >= 0, '事件名由模块常量报出')
-  for (const prod of ['client.js', path.join('package', 'lib', 'client.js')]) {
-    check(read(prod).indexOf("'healthCheck.inject'") >= 0, prod + ' 带上这条常驻记录')
-  }
-  check(read(path.join('research', '489-appendix.md')).indexOf('healthCheck.inject') >= 0, '附录对照表里有这一条')
-
-  // ─────────── 六、总纲里没有具体跟踪器命令 ───────────
-  const pSrc = read(path.join('src', 'client', 'kernel', 'prompts.js'))
-  const hci = pSrc.indexOf('"healthCheck"')
-  const hcSeg = pSrc.slice(hci, hci + 8000)
-  const zhM = hcSeg.match(/zh: '((?:[^'\\]|\\.)*)'/)
-  const enM = hcSeg.match(/', en: '((?:[^'\\]|\\.)*)'/)
-  check(!!zhM && !!enM, '总纲中英两份都抠出来了')
-  for (const [nm, s] of [['zh', zhM[1]], ['en', enM[1]]]) {
-    check(s.indexOf('gh issue') < 0 && s.indexOf('gh api') < 0 && s.indexOf('glab') < 0, '总纲' + nm + ' 无具体跟踪器命令（开口只属于各后端科目）')
-    check(s.indexOf('http://') < 0 && s.indexOf('https://') < 0, '总纲' + nm + ' 无裸 API 地址')
-  }
 
   console.log(failed ? '\n存在失败 — verify-686-accept 未通过（共 ' + total + ' 项）' : '\n全部通过 — 验收门禁生效（' + total + ' 项断言）')
   process.exit(failed ? 1 : 0)

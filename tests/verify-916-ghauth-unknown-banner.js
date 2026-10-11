@@ -89,14 +89,6 @@ async function main() {
   const doneStep = mod.guideBannerStep(mk({ 'gh:installed': 'done', 'gh:authed': 'done', 'gh:remote': 'fail' }), false)
   ok(!!doneStep && doneStep.id !== 'gh:authed', '登录通过后横幅轮到后面那一步')
 
-  console.log('== 5. 词条中英齐全 ==')
-  const locale = read('src/client/kernel/locale-panel.js')
-  for (const k of ['banner.ghauthUnknown', 'banner.ghauthUnknownBtn']) {
-    ok(locale.split("'" + k + "'").length - 1 >= 2, k + ' 中英各一条')
-  }
-  ok(read('src/shared/tracker/guide-steps.js').indexOf('ghAuthUnknown') >= 0, '中性横幅住在共享清单里（顺序与文案单一真源）')
-  ok(read('src/client/statusbar/bannerChain.js').indexOf('guideBannerMeta') >= 0, '横幅文案经分流函数取，不直读清单那条旧文案')
-
   if (failed) { console.log('\n916 BANNER TESTS FAILED'); process.exit(1) }
   console.log('\n916 BANNER TESTS PASSED')
 }

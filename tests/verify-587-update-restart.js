@@ -8,6 +8,13 @@
 //   3) 关闭与轮询收尾按包的约定：挂载点卸载只停轮询，不自己起定时器，不加关闭与重启接线。
 //   4) 文案与埋点：挂载点不写死中文，不新增事件名。
 //   5) 文件粒度：相关文件都在 350 行以内。
+//
+// 【2026-10-12 清理】上面 1)～4) 原先是一条条读文件文本去断的：面板挂载点与配置页的源码里必须出现哪些
+//   字面量、两份构建产物里必须出现哪个标识符、源码里不许出现哪个词、挂载点里有没有写死的中文与事件名……
+//   断言的对象都是文件文本，改个写法、搬一次文件、把文件转成 TypeScript、构建换个输出，都会让它变红。
+//   按维护者「清掉读源码文本钉形状的门禁」的要求，这些断言连同只服务它们的读取与文本处理（read / strip
+//   两个辅助、外部包与产物的路径常量）一并撤掉；上面那几条约定的实质结论现在由人工评审与包里自带面板的
+//   行为守着。留下的是两类完全不看文本的：文件存在性（旧面板三件确实不在了）与文件行数上限。
 // 用法：node tests/verify-587-update-restart.js（在仓库根目录）
 const fs = require('fs')
 const path = require('path')
@@ -16,62 +23,21 @@ const ROOT = path.resolve(__dirname, '..')
 let failed = false
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
-const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 const exists = (rel) => fs.existsSync(path.join(ROOT, rel))
-const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^A-Za-z0-9_$:])\/\/.*$/gm, '$1')
-const lines = (rel) => read(rel).split(/\r?\n/).length
+const lines = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8').split(/\r?\n/).length
 
 const HOST = 'src/client/views/UpdateEntryHost.js'
 const PAGE = 'src/client/views/SettingsPage.js'
-// #801 按 #798 决策 4 改读新来源：宿主判据活在已安装更新包里，不在冻结的旧派生目录里。
-const HOST_READER = 'node_modules/dsh-plugin-update/dist/reader.js'
-const BUNDLE = 'scripts/generated/updateEntryPanel.bundle.js'
 
 async function main() {
-  console.log('待重启与更新弹窗委托门禁（#876 搭架 + #877 档案卷皮肤：判据在包内 + 本仓无自带横幅弹窗 + 挂载收尾按约定）')
+  console.log('待重启与更新弹窗委托门禁（#876 搭架 + #877 档案卷皮肤：本仓无自带横幅弹窗 + 文件粒度）')
 
-  // ---- 1) 判据：只看宿主当场算的那条，宿主侧不动 ----
-  const reader = read(HOST_READER)
-  check(reader.includes('result.installedVersion !== runningVersion') && reader.includes('result.blockedReason = "pending-restart"'),
-    '宿主判据不变：磁盘已装版本与运行版本不一致时报缺一次重启')
-  const hookSrc = strip(read(HOST))
-  check(hookSrc.includes("prefix: 'wf'") && hookSrc.includes('mountUpdateEntry'), '面板待重启只走包的入口件（前缀与宿主侧一致，不自拼判据）')
-  check(hookSrc.includes("theme: 'archive'"), '待重启横幅走包的档案卷呈现（挂载传档案卷皮肤）')
-  check(!hookSrc.includes('themeTokens'), '待重启横幅不自定义皮肤变量（深浅跟随系统）')
-  check(!/installedVersion\s*!==\s*runningVersion|installed\s*!==\s*running|semver|localeCompare/.test(hookSrc),
-    '挂载点不自己比版本号（判据单源在宿主与包内）')
-  check(!hookSrc.includes('restart-required'), '挂载点不拿任务记录的状态当待重启判据')
-
-  // ---- 2) 本仓无自带横幅与弹窗，包内覆盖 ----
+  // ---- 1) 本仓无自带横幅与弹窗，包内覆盖 ----
   for (const rel of ['src/client/views/useUpdatePanel.js', 'src/client/views/UpdateDialog.js', 'src/client/views/UpdateRestartBanner.js']) {
     check(!exists(rel), '自有实现已删：' + rel)
   }
-  const pageSrc = strip(read(PAGE))
-  check(pageSrc.includes('UpdateEntryHost'), '配置页挂载入口件（标题行按钮走包的默认摆法）')
-  check(!pageSrc.includes('upd.banner') && !pageSrc.includes('upd.dialog'), '配置页不再另画常驻横幅与浮层弹窗（收在入口件打开的面板里）')
-  check(!pageSrc.includes('useUpdatePanel') && !pageSrc.includes('UpdateDialog') && !pageSrc.includes('UpdateRestartBanner'), '配置页不再引用旧面板三件')
-  const bundle = read(BUNDLE)
-  check(bundle.includes('pending-restart'), '绑定包内有待重启判据与横幅（包的面板负责说这件事）')
-  check(bundle.includes('dsh-upd-overlay'), '绑定包内有 dialog 浮层形态（包的面板原样）')
-  check(bundle.includes('install-failed') || bundle.includes('update-failed'), '绑定包内有安装失败的显性提示（不是点完没反应）')
 
-  // ---- 3) 关闭与轮询收尾按包的约定 ----
-  check(hookSrc.includes('.unmount()'), '卸载走包的收尾（只停轮询，安装在宿主侧继续跑）')
-  check(!hookSrc.includes('setInterval') && !hookSrc.includes('UPD_POLL'), '不自己起定时器（轮询间隔走包默认）')
-  check(!hookSrc.includes('onCloseRequested') && !hookSrc.includes('onRestartRequested'), '不加关闭与重启接线（走包默认）')
-
-  // ---- 4) 文案与埋点纪律 ----
-  {
-    const body = strip(read(HOST)).split('\n').filter((l) => !/^\s*\*/.test(l)).join('\n')
-    const cjk = (body.match(/'(?:[^'\\\n]|\\.)*'/g) || []).filter((s) => /[\u4e00-\u9fff]/.test(s))
-    check(cjk.length === 0, '挂载点没有写死的中文字符串（实际 ' + cjk.length + ' 处）')
-    const hookEvents = [...hookSrc.matchAll(/(?:fire|log)\s*\(\s*'(info|warn|debug|error)'\s*,\s*'([^']+)'/g)].map((m) => m[2])
-    const known = new Set(['host.call', 'host.call.fail', 'panel.render'])
-    const fresh = [...new Set(hookEvents)].filter((e) => !known.has(e))
-    check(fresh.length === 0, '挂载点不新增事件名（实得 ' + [...new Set(hookEvents)].join('、') + '）')
-  }
-
-  // ---- 5) 文件粒度 ----
+  // ---- 2) 文件粒度 ----
   for (const rel of [HOST, PAGE, 'src/client/kernel/styles.js']) {
     check(lines(rel) <= 350, rel + ' ' + lines(rel) + ' 行（上限 350）')
   }

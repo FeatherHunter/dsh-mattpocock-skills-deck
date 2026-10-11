@@ -559,47 +559,6 @@ async function groupE(view) {
 }
 
 // ============================================================
-// F 组 · 纪律（行数 / 硬编码中文 / 导出登记 / 前缀 / 定时器）
-// ============================================================
-const NEW_LEAVES = ['vcRows.js', 'vcWrite.js', 'vcWriteRun.js', 'vcWriteUi.js', 'vcWriteOps.js', 'vcWriteView.js', 'vcDiffOps.js']
-const leafPath = (f) => 'src/client/views/versionControl/' + f
-const stripComments = (t) => String(t).replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
-
-function groupF(view, exportsList) {
-  const over = NEW_LEAVES.filter(function (f) { return read(leafPath(f)).split(/\r?\n/).length > 350 })
-  check(over.length === 0, 'F1 七个新叶子各自 ≤350 行（超的：' + (over.join('、') || '无') + '）')
-
-  const cjk = []
-  NEW_LEAVES.forEach(function (f) {
-    const body = stripComments(read(leafPath(f)))
-    const re = /'((?:[^'\\\n]|\\.)*)'|"((?:[^"\\\n]|\\.)*)"/g
-    let m
-    while ((m = re.exec(body)) !== null) {
-      const s = m[1] !== undefined ? m[1] : m[2]
-      if (/[\u4e00-\u9fff]/.test(s)) cjk.push(f)
-    }
-  })
-  check(cjk.length === 0, 'F2 新叶子里没有硬编码中文（命中的：' + (cjk.join('、') || '无') + '）')
-
-  const srcExports = []
-  VC_FILES.forEach(function (f) {
-    const t = read(f)
-    const re = /^\s*export\s+(?:const|let|var|function)\s+([A-Za-z_$][\w$]*)/gm
-    let m
-    while ((m = re.exec(t)) !== null) srcExports.push(m[1])
-  })
-  const names = exportsList || EXPORTS
-  const missing = srcExports.filter(function (n) { return names.indexOf(n) < 0 })
-  check(missing.length === 0, 'F3 闭包里 ' + srcExports.length + ' 个 export 全部登记进 EXPORTS（漏的：' + (missing.join('、') || '无') + '）')
-
-  const bad = NEW_LEAVES.filter(function (f) { return /'vc\.fail\./.test(read(leafPath(f))) })
-  check(bad.length === 0, 'F4 写路径只用 vc.writeErr.*，不借只读的 vc.fail.*（借了的：' + (bad.join('、') || '无') + '）')
-
-  const timers = NEW_LEAVES.filter(function (f) { return /setTimeout|setInterval/.test(read(leafPath(f))) })
-  check(timers.length === 0, 'F5 新叶子里没有定时器（命中的：' + (timers.join('、') || '无') + '）')
-}
-
-// ============================================================
 // G 组 · 跨层比照（核心判定 / 电话名 / 回包字段）
 // ============================================================
 async function groupG(view) {
@@ -981,7 +940,7 @@ async function groupH(React, DswsCtx, TipStub, IcStub, logs) {
 
   const shortExports = EXPORTS.filter(function (n) { return n !== 'vcConfirmOf' })
   const v6 = build(null, shortExports)
-  check(typeof v6.vcConfirmOf === 'undefined', 'H6 反证：从 EXPORTS 名单里去掉一个新导出 → F3 那条当场不成立')
+  check(typeof v6.vcConfirmOf === 'undefined', 'H6 反证：拼装名单里去掉一个新导出 → 拼出来的模块就没有那个导出（守的是拼接台自己）')
 
   // H7：把「多远端要用户选」那一档的判据改坏（show 永远 false）→ A6/I2 那条不成立。
   const v7 = build(function (s) { return s.replace("show: r.ok === false && String(err.reason || '') === 'need-remote-choice' && remotes.length > 0,", "show: false,") })
@@ -1192,7 +1151,6 @@ async function main() {
   await groupC(view, logs)
   groupD(view, writeReasons)
   await groupE(view)
-  groupF(view, EXPORTS)
   await groupG(view)
   groupJ(React, DswsCtx, TipStub, IcStub)
   groupK(view, React, DswsCtx, TipStub, IcStub)

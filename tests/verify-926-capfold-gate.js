@@ -155,14 +155,7 @@ if (mod) {
   check(cap5._els[0]._text === '' && cap5._els[0].classList.contains('dsws-folded'), '首帧未知时品牌段收起（起始态保持）')
 }
 
-// 结构断言：机器与接线的新形状
-const machineSrc = existsSync(resolve(CAPMACHINE)) ? read(CAPMACHINE) : ''
-check(/foldGuardKey/.test(machineSrc), '机器含输入指纹守卫（foldGuardKey）')
-check(/foldGuardEl/.test(machineSrc), '机器认得出元素换代（foldGuardEl）')
-check(/capfold-guard/.test(machineSrc), '机器记下守卫复用情况（capfold-guard 日志点）')
-const barSrc = existsSync(resolve(STATUSBAR)) ? read(STATUSBAR) : ''
-
-// 调度器运行时行为：单飞丢弃、回调清位、异常兜底（正则只能证明存在，行为要跑出来）
+// 调度器运行时行为：单飞丢弃、回调清位、异常兜底（行为要跑出来）
 // 手法：compileFn——机器源码单独求值，window 显式当参数名传进去，下面调用时仍传替身窗口。
 const schedMod = compileFn(['window'], read(CAPMACHINE).replace(/^[ \t]*export[ \t]+/gm, '') + '\nreturn { capFoldScheduleFold: capFoldScheduleFold }')
 const schedWin = { cbs: [], requestAnimationFrame: function (cb) { this.cbs.push(cb); return 1 } }
@@ -199,15 +192,5 @@ const shortWords = WORDS.slice(); shortWords[0] = 'M'; shortWords[5] = 'x'
 const capS2 = makeCap(shortWords, 300)
 const tS2 = mod.runCapFold(capS2, { full: {}, written: {} })
 check(capNa.stats.textWrites > 0 && tS1 === tS2, '阶梯变短后重算且与全新起步一致（档号 ' + tS1 + '）')
-check(/const scheduleFold = function/.test(barSrc), '接线含同帧合并（scheduleFold）')
-check(/const scheduleFold = function \(\) \{ capFoldScheduleFold\(foldKeep\.current, applyFold\)/.test(barSrc), '接线只留一行转调（实现住机器，StatusBar.js 行数不变）')
-check(/window\.requestAnimationFrame\(function \(\) \{ keep\.foldRaf = 0; applyFold\(\) \}\)/.test(machineSrc) && /catch \(eRaf\) \{ keep\.foldRaf = 0; applyFold\(\) \}/.test(machineSrc), '合并走帧回调、异常回同步（实现在机器）')
-check(/React\.useEffect\(function \(\) \{ scheduleFold\(\) \}\)/.test(barSrc), '每次提交后进合并队列（语义接管旧直接调用）')
-check(/new ResizeObserver\(function \(\) \{ scheduleFold\(\) \}\)/.test(barSrc), '两条尺寸观察走合并队列')
-check(/document\.fonts\.ready\.then\(scheduleFold\)/.test(barSrc), '字体就绪走合并队列')
-// 日志点：复用已计数事件 input.observe，白名单字段，是否开启判断同行
-const logLine = machineSrc.split('\n').filter((l) => l.indexOf('capfold-guard') >= 0 && l.indexOf('input.observe') >= 0)
-check(logLine.length >= 1 && /isEnabled\(/.test(logLine[0]) && /log\(/.test(logLine[0]), '日志点与是否开启判断同行（关着不组装字段）')
-
 console.log(failed ? '\n存在失败 — verify-926-capfold-gate 未通过' : '\n全部通过 — 926 门禁生效（' + passed + ' 项断言）')
 process.exit(failed ? 1 : 0)

@@ -2,17 +2,13 @@
  * tests/verify-690-closed-pages.js — #690（已关闭票按需翻页与三个触发点）门禁。
  *
  * 为什么要有这一条：契约那一段（tests/tracker-contract/sections/listPage.js）守的是「后端那一页取得对不对」，
- *   而这一票真正要做到的是**界面上那件事**：「需要的时候能看到全部已关闭票」。中间隔着两处只有跑起来才看得见的
- *   东西 —— 一份跨静默刷新活着的页数据（kernel/issue-pages.js），和三个必须走同一条路的触发点（ListTab 与它的
- *   叶子 ListTabClosed.js）。这一段把这两处钉住。
+ *   而这一票真正要做到的是**界面上那件事**：「需要的时候能看到全部已关闭票」。中间隔着只有跑起来才看得见的
+ *   东西 —— 一份跨静默刷新活着的页数据（kernel/issue-pages.js）。这一段把它钉住。
  *
- * 两半：
+ * 做法：
  *   一、行为断言：把内核模块的源码取出来，喂进三个替身（身份算法 idOf、通知 emit、取页 fetchIssuesPage）跑真行为
  *      —— 分桶、去重、静默刷新不清空、上限十页、游标失效重取第一页、后端不支持时不再重试，逐条验。
  *      页数据是「状态层」，不这么喂就只能对着源码猜，而猜不出的正是这些容易写错的边界。
- *   二、接线断言：对 ListTab.js / ListTabClosed.js / api-io.js / 词条文件 / 宿主电话的源码文本判「这三处触发点
- *      走的是同一条路」。文本判据容易被「改了个名字但行为没变」误伤 —— 所以每条都配 ✗ 反例：把写坏的样本喂给
- *      检查器，它必须报违规（否则这一段等于没写）。
  *
  * 用法：node tests/verify-690-closed-pages.js（在插件根目录）
  */
@@ -210,64 +206,6 @@ function mkFetcher(responses) {
   }
 }
 
-// ── 二、接线断言：三个触发点走同一条路 ──
-/** 列表页检查器：三个触发点齐不齐、是不是都走 loadIssuePage / issuePageRowsOf。 */
-export function listTabWiringCheck(src) {
-  const bad = []
-  if (!/const issues = ticketRowsOf\(.*\)\.concat\(issuePageRowsOf\(st, 'list'\)\)/.test(src)) bad.push('主列表没有把翻回来的页并进已关闭那一堆（应 concat(issuePageRowsOf(st, \'list\'))）')
-  if (!/useClosedPageScroll\(st, st\.stateFilter === 'closed' \|\| st\.closedFoldOpen === true\)/.test(src)) bad.push('滚到底触发点没有挂上（查 useClosedPageScroll 的启用条件）')
-  if (!/onToggle: function \(e\) \{.*loadIssuePage\(st, \{ view: 'list' \}\)/.test(src)) bad.push('展开折叠行没有触发取页（details 的 onToggle 里要调 loadIssuePage）')
-  if (!/closedPagesNode\(h, st, closedRows\.length\)/.test(src)) bad.push('「已加载 x / 共 N」那一行没有挂上（应调 closedPagesNode）')
-  return bad
-}
-/** 叶子检查器：滚到底这件事盯的是面板那个滚动容器，且只顺着游标往后取。 */
-export function leafWiringCheck(src) {
-  const bad = []
-  if (!/querySelector\('\.dsws-body'\)/.test(src)) bad.push('滚到底没有盯面板的滚动容器（.dsws-body）')
-  if (!/loadIssuePage\(st, \{ view: 'list', next: true \}\)/.test(src)) bad.push('滚到底没有走「要下一页」这一支')
-  if (!/loadIssuePage\(st, \{ view: 'list' \}\)/.test(src)) bad.push('进「已关闭」视图时没有先备第一页')
-  if (!/addEventListener\('scroll', onScroll, \{ passive: true, capture: true \}\)/.test(src)) bad.push('滚动监听不是 passive 且捕获相（会把滚动拖卡，或收不到不冒泡的滚动事件）')
-  for (const k of ['list.pageLoaded', 'list.pageAllOnWeb', 'list.pageStale', 'list.pageFail']) {
-    if (src.indexOf("'" + k + "'") < 0) bad.push('这一行少了一条要说的情形：' + k)
-  }
-  return bad
-}
-/** 电话检查器：客户端走 wf.issuesPage，并且这一页的取数落在 issues.page 这条常驻日志上。 */
-export function apiIoWiringCheck(src) {
-  const bad = []
-  if (!/host\.call\('wf\.issuesPage'/.test(src)) bad.push('没有走 wf.issuesPage 这条电话')
-  if (!/log\('info', 'issues\.page'/.test(src) || !/log\('warn', 'issues\.page'/.test(src)) bad.push('issues.page 这条常驻日志没有落点（成功与失败各一条）')
-  for (const f of ['state', 'labelsCount', 'returned', 'total', 'latencyMs', 'ok', 'errorHash']) {
-    if (src.indexOf(f + ':') < 0) bad.push('issues.page 少了字段 ' + f)
-  }
-  return bad
-}
-/** 词条检查器：五条文案中英各一份。 */
-export function localeCheck(src) {
-  const keys = ['list.pageLoaded', 'list.pageAllOnWeb', 'list.pageStale', 'list.pageFail', 'list.pageTrimmed']
-  return keys.filter((k) => (src.split("'" + k + "':").length - 1) !== 2).map((k) => k + ' 不是中英各一份')
-}
-
-{
-  const listTab = read('src/client/views/ListTab.js')
-  const leaf = read('src/client/views/ListTabClosed.js')
-  const apiIo = read('src/client/kernel/api-io.js')
-  const locale = read('src/client/kernel/locale-pages.js')
-  const hostIndex = read('src/host/index.js')
-  check(listTabWiringCheck(listTab).length === 0, 'ListTab：三个触发点齐、并走同一条路（' + (listTabWiringCheck(listTab).join('；') || '全部命中') + '）')
-  check(leafWiringCheck(leaf).length === 0, 'ListTabClosed：滚到底盯 .dwsb-body、四种情形都说得出（' + (leafWiringCheck(leaf).join('；') || '全部命中') + '）')
-  check(apiIoWiringCheck(apiIo).length === 0, 'api-io：走 wf.issuesPage 并落 issues.page（' + (apiIoWiringCheck(apiIo).join('；') || '全部命中') + '）')
-  check(localeCheck(locale).length === 0, '词条：五条文案中英各一份（' + (localeCheck(locale).join('；') || '全部命中') + '）')
-  check(hostIndex.indexOf("harness.handle('wf.issuesPage'") >= 0, '宿主：wf.issuesPage 已注册（电话入口在 index.js）')
-
-  // ✗ 反例：把写坏的样本喂给检查器，必须报违规（否则这一段形同虚设）
-  check(listTabWiringCheck(listTab.replace(/useClosedPageScroll\(st, [^\n]*\)/, 'useClosedPageScroll(st, false)')).length > 0, '✗ probe: 滚到底触发点被摘掉被逮')
-  check(listTabWiringCheck(listTab.replace(/onToggle: function \(e\) \{[^\n]*\}/, '')).length > 0, '✗ probe: 展开折叠行不再取页被逮')
-  check(leafWiringCheck(leaf.replace(/querySelector\('\.dsws-body'\)/g, "querySelector('.dsws-nowhere')")).length > 0, '✗ probe: 滚到底盯错了容器被逮')
-  check(apiIoWiringCheck(apiIo.replace(/host\.call\('wf\.issuesPage'/, "host.call('wf.issuesPageX'")).length > 0, '✗ probe: 电话名写错被逮')
-  check(apiIoWiringCheck(apiIo.replace(/'issues\.page'/g, "'issues.pages'")).length > 0, '✗ probe: 事件名写成另一个被逮（日志点必须落在白名单上的那一个）')
-  check(localeCheck(locale.replace(/'list\.pageStale': '[^']+',\n?/g, '')).length > 0, '✗ probe: 少一条词条被逮')
-}
 
 console.log('\n共 ' + total + ' 条断言')
 if (failed) { console.log('存在失败'); process.exit(1) }

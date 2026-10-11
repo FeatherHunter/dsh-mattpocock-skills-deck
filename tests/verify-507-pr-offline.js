@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 /**
- * 回归门禁：拉取请求离线桩验收 #507（契约三字段 / 双路降级合成 / 快照三态 / 前端四验收 / 同号异类 / 评论只读 / 失败空态）。
+ * 回归门禁：拉取请求离线桩验收 #507（契约三字段空值 / 双路降级合成 / 快照三态）。
  *
  * 只读不断网：全部用内存桩代替真实网络，不调用真实 gh，不读令牌，不记仓库地址原文。
- * 只覆盖验收房：本文件与说明文档，不碰后端房与快照组装与界面实现。
  * 运行：node --no-warnings tests/verify-507-pr-offline.js
  *
- * 每组用例配一条日志链指纹（只用已有事件名与白名单字段，见 research/489-appendix.md 第 1 章）：
- * 契约三字段=纯形状无日志；双路降级=graphql.fallback+issues.fallback+fallback.chain；
- * 快照三态=snapshot.cache.miss 常驻；前端四验收与评论只读与失败空态=复用快照链路无新增。
- * 脱敏：指纹只记原因枚举与通道名与计数，不记令牌原文与仓库地址原文与标题原文。
+ * 2026-10-12 清理（维护者要求删掉「读源码文本钉形状」的断言）：
+ *   这份文件原来还有一批「读 src 源码文本、断言某段字必须出现/不许出现」的断言
+ *   （契约字段名在不在、界面接线写法、词条键名、加载态/失败态分支写法等，共 13 条）。
+ *   它们会因为等价重构而变红，与产品行为无关，已按令删除；真正跑产品代码的断言一条没动：
+ *   A5/A6 归一化空值与坏值收空、B1–B4 双路降级与过滤字段消费、C1–C5 快照三态与版号推进。
+ *   F 组「评论只读」原来是本地重写一遍判据再断言自己——那不是产品行为，删源码文本断言后它已无意义，一并删除。
  */
-import { readFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
@@ -20,20 +20,7 @@ let pass = 0
 let fail = 0
 function check(cond, msg) { if (!cond) { fail++; console.error('FAIL', msg) } else { pass++; console.log('PASS', msg) } }
 
-const shapeSrc = readFileSync(resolve(ROOT, 'src/shared/tracker/shape.js'), 'utf8')
-const contractSrc = readFileSync(resolve(ROOT, 'src/host/tracker/contract.js'), 'utf8')
-const prTabSrc = readFileSync(resolve(ROOT, 'src/client/views/PrTab.js'), 'utf8')
-const detailSrc = readFileSync(resolve(ROOT, 'src/client/views/IssueDetail.js'), 'utf8')
-const dockSrc = readFileSync(resolve(ROOT, 'src/client/panel/Dock.js'), 'utf8')
-const reasonSrc = readFileSync(resolve(ROOT, 'src/host/tracker/backends/github/fallback-reason.js'), 'utf8')
-const deckSrc = readFileSync(resolve(ROOT, 'src/shared/tracker/deck-derive.js'), 'utf8')
-
 // ---------- A 契约三字段（形状 A：复用工单形状加三个可选字段，不新增实体）----------
-check(shapeSrc.includes('isPullRequest') && shapeSrc.includes('mergedAt') && shapeSrc.includes('reviews'), 'A1 形状声明三字段齐全（是否为拉取请求、合并时间、评审细分）')
-check(contractSrc.includes('isPullRequest') && contractSrc.includes('#506') && contractSrc.includes('界面过滤分界'), 'A2 过滤字段登记三字段之一并写明界面过滤分界（注记可懂）')
-check(reasonSrc.includes('pickFallbackReason'), 'A3 降级分类谓词具名（不写匿名判断，#506 留尾已验）')
-check(deckSrc.includes('candidatesOf') && deckSrc.includes('poolIdOfTicket'), 'A4 池内身份与同号候选谓词具名（评审合并展示留后续但身份可查）')
-
 const { normalizeIssue } = await import(pathToFileURL(resolve(ROOT, 'src/host/tracker/backends/github/normalize.js')).href)
 const empty = normalizeIssue({})
 check(empty.isPullRequest === false && empty.mergedAt === null && Array.isArray(empty.reviews) && empty.reviews.length === 0, 'A5 空来源逐票必带三字段空值（假、空、空数组，不省略）')
@@ -79,7 +66,7 @@ check(chainOk, 'B2 合成链指纹含耗时毫秒（fallback.chain 记 in/out/la
   const blob = JSON.stringify(logs.map((l) => l.fields))
   check(!blob.includes('gho_') && !blob.includes('github_pat_') && !blob.includes('bearer ') && !blob.includes('C:\\'), 'B3 降级指纹脱敏（无令牌原文与路径原文，只记枚举与通道名）')
 }
-// 过滤字段消费（#504 留尾已接：后端按该字段过滤，前端按同形登记）
+// 过滤字段消费（#504 留尾已接：后端按该字段过滤）
 {
   const good = (n) => ({ number: n, title: 'good ' + n, state: 'open', labels: [], user: { login: 'a' }, html_url: 'https://x/issues/' + n })
   const pr = { number: 493, title: 'pr', state: 'OPEN', body: '', url: 'https://x/pull/493', createdAt: '', updatedAt: '', closedAt: null, mergedAt: null, author: { login: 'a' }, assignees: { nodes: [] }, labels: { nodes: [] }, milestone: null, comments: { nodes: [] }, reviews: { nodes: [] } }
@@ -123,33 +110,6 @@ const prData = [
   check(r2.version !== v1, 'C5 只改合并时间版号变化（不 serve 陈旧快照）')
 }
 
-// ---------- D 前端四验收（只读源码断言，不改实现）----------
-check((dockSrc.includes('prTabVisible')) && dockSrc.includes("s.tab = 'list'"), 'D1 页签回归：面板容器读能力位且无能力回列表（#646 后只剩右侧边栏这一个容器）')
-check(detailSrc.includes('canComment') && detailSrc.includes('src.isPullRequest === true') && detailSrc.includes('snapIssue') && detailSrc.includes('Array.isArray(rawComments)') && detailSrc.includes('rawComments.nodes'), 'D2 评论隐藏双路：数组与图形状都兼容，任一来源标拉取请求即隐藏')
-check(prTabSrc.includes('prFilterForList()') && prTabSrc.includes("listIssues({ refId: 'owner/name' }"), 'D3 接线可抄：列表以过滤函数为依据并留后端直调示例')
-check(prTabSrc.includes('prIssuesOf') && prTabSrc.includes('只收 isPullRequest 为真'), 'D4 注记可懂：过滤归属写清快照全留过滤归前端')
-
-// ---------- E 同号异类与评审留痕（#506 留尾：合并展示留后续，本票只验不吞与留痕）----------
-check(prTabSrc.includes('同号') && detailSrc.includes('评审合并展示留后续'), 'E1 同号留痕：源码明示同号进同一详情且评审合并展示留后续（不静默缺失）')
-
-// ---------- F 评论只读（行为仿真，不起浏览器）----------
-{
-  const basePred = (raw) => !!raw && (Array.isArray(raw) ? true : (typeof raw === 'object' && raw !== null && Array.isArray(raw.nodes)))
-  const withPR = (raw, src, snap) => { let c = basePred(raw); if ((src && src.isPullRequest === true) || (snap && snap.isPullRequest === true)) c = false; return c }
-  const arr = withPR([], { isPullRequest: true }, null)
-  const nodes = withPR({ nodes: [], pageInfo: {} }, null, { isPullRequest: true })
-  const missing = withPR(undefined, { isPullRequest: false }, { isPullRequest: false })
-  const normal = withPR([], { isPullRequest: false }, { isPullRequest: false })
-  check(arr === false && nodes === false, 'F1 拉取请求详情只读（数组与图形状有评论也不给输入框）')
-  check(missing === false && normal === true, 'F2 非拉取请求保持原语义（省略隐藏、空数组显示）')
-  check(detailSrc.includes("readOnlyKnown ? h('span'"), 'F3 只读提示条件化（只在确实不能评论时才提示；#693 起「还没拿到评论」不再冒充「只读」，拉取请求照旧提示）')
-}
-
-// ---------- G 失败空态（入口保留，不白屏）----------
-check(prTabSrc.includes("snapMode === 'loading'") && prTabSrc.includes('list.loading'), 'G1 加载态保留入口（转圈加文案，不白屏）')
-check(prTabSrc.includes("snapMode === 'err'") && prTabSrc.includes('pr.loadFail') && prTabSrc.includes('pr.retry') && prTabSrc.includes('loadSnapshot(st, true)'), 'G2 失败态保留重试（失败横幅加重试按钮可重拉）')
-check(prTabSrc.includes('pr.empty'), 'G3 空态保留占位（零拉取请求给空文案，不崩）')
-check(detailSrc.includes("mode === 'err'") && detailSrc.includes('issueUrlFor(st, issueNumber)'), 'G4 详情失败保留外部入口（重试加源站链接可跳出）')
-
 if (!fail) console.log('\nGREEN 全部通过 — #507 离线桩验收就绪（' + pass + ' 项）')
 else console.log('\nRED 存在失败项（过 ' + pass + ' / 败 ' + fail + '）')
+process.exit(fail ? 1 : 0)

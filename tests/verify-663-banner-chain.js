@@ -175,17 +175,11 @@ async function main() {
   ok(sbSeen.decisions.length === 1 && sbSeen.decisions[0].allowCard === true, '初始化那颗按钮仍然只走允许弹小卡的那条入口（#655 的漏斗没动）')
   ok(sbSeen.decisions.length === 1 && sbSeen.decisions[0].askLayout === true, '而且黄条这一颗每次都要先问布局（askLayout:true，2026-09-21 维护者拍板 A）')
 
-  console.log('== 10. 接线：状态栏真的用了它，旧的手写优先级没了 ==')
-  const barSrc = read('src/client/statusbar/StatusBar.js')
-  const sumSrc = read('src/client/statusbar/checksums.js')
-  ok(barSrc.indexOf('guideBannerStep(s,') >= 0 && barSrc.indexOf('runGuideMissing(s, bannerStep)') >= 0, '状态栏按清单取那一步，按钮点下去走统一入口')
-  ok(barSrc.indexOf('guideBannerParams(s, bannerStep)') >= 0, '横幅正文的占位符也照清单那一步取（技能那条的 {list}）')
-  ok(barSrc.indexOf('firstBlock') < 0 && sumSrc.indexOf('ghCliBad') < 0 && sumSrc.indexOf('ghAuthBad') < 0, '手写的那串优先级与它那几个布尔读数都删了')
-  // #698（2026-09-22）：那张布局小卡的界面搬去了弹窗座位那一层（views/SetupCard.js）——
-  //   原先它挂在黄条下面，工作区一旦初始化过就没有地方可画。所以这组单选现在既不在门控窗里，也不在本文件里。
-  const cardSrc = read('src/client/views/SetupCard.js')
-  ok((cardSrc.match(/layoutRadios\(st, h\)/g) || []).length === 1, '布局那组单选只剩那张小卡一处（门控窗里那处撤了；#698 起卡在 views/SetupCard.js）')
-  ok((barSrc.match(/layoutRadios\(/g) || []).length === 0, '状态栏不再自己拼这组单选（一个座位只留一处渲染）')
+  console.log('== 10. 双产物里带着这份横幅链，顺序真源那一步仍然挡初始化全文 ==')
+  // 【已删除】原先这里读 StatusBar.js / checksums.js / views/SetupCard.js 的源码文本，断言：
+  //   状态栏里出现 guideBannerStep(s, / runGuideMissing(s, bannerStep) / guideBannerParams(s, bannerStep)、
+  //   不出现 firstBlock / ghCliBad / ghAuthBad，以及 layoutRadios 在 SetupCard.js 里正好 1 处、状态栏里 0 处。
+  //   这些断言的对象都是手写源码的文本（改个写法、挪个位置、换个行数就变红），整段撤掉。
   const clientBundle = read('client.js')
   const pkgBundle = read('package/lib/client.js')
   ok(clientBundle.indexOf('const guideBannerStep = function') >= 0 && pkgBundle.indexOf('const guideBannerStep = function') >= 0, '双产物里都带着这份横幅链（已随构建拼进闭包）')

@@ -1,30 +1,24 @@
 /**
  * tests/verify-691-map-subissues.js — 「地图子票拉全 · 已关闭地图不进首屏」门禁（#691 阶段 3）。
  *
- * 这张票要的是三件事，这一段逐件断：
+ * 这张票要的是两件事，这一段逐件断：
  *   一、**拉全**：GitHub 的 listSubIssues 按页翻到底，用连接上的 totalCount 核对「拉到的张数 == 总数」，
  *       对不上就把差额（missing）带回来；撞到 1000 张硬上限时 capped 为真、也带回来。
  *       全程用脚本化的 gh（不打真网、不碰真仓库），只断「它答应了什么就做到什么」，不锁查询语句怎么写。
  *   二、**已关闭地图不进首屏**：宿主编排 composeSnapshot 组装出来的快照里，已关闭的地图只有容器行、
  *       不带子票；而那些子票**也不许**从「未挂图的票」那条路漏回首屏。开放地图的子票一行不少。
- *   三、**界面把该说的话说出来**：地图详情头部那一行（取数中／取不到／本图 N 张（已关闭 M 张）／
- *       只加载了前 1000 张／还差 x 张）与中英词条都在；列表里已关闭的地图行不画进度环。
  *
  * 运行：node tests/verify-691-map-subissues.js
  */
 
-import * as fs from 'node:fs'
-import * as path from 'node:path'
 import { listSubIssues } from '../src/host/tracker/backends/github/sub-issues.js'
 import { createSnapshotComposer } from '../src/host/tracker/snapshot.js'
 import { createMapTickets } from '../src/host/mapTickets.js'
 import { createMapBody } from '../src/host/mapBody.js'
 import { createTicketGrouping } from '../src/host/ticketGrouping.js'
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..')
 let failed = false
 const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
-const src = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 
 // ── 一、GitHub 侧：翻页拉到底 + 总数核对 + 硬上限 ──────────────────────────────
 function mkCtx(pages, opts = {}) {
@@ -141,32 +135,6 @@ const REPO = { backend: 'github', refId: 'acme/demo', name: 'demo', url: '' }
   })
   const r2 = await phone2.handleMapTickets({ cwd: '/ws/fake', key: '692' })
   check(r2.ok === false && r2.error.kind === 'unsupported', '三.6 后端没实现这条读路径 → unsupported（界面据此照旧画快照那份）')
-}
-
-// ── 四、界面：那一行话都在，已关闭的地图行不画环；中英词条成对 ────────────────────
-{
-  const head = src('src/client/views/MapDetailHead.js')
-  for (const key of ['map.subCount', 'map.subCountLoading', 'map.subCountFail', 'map.subCountRetry', 'map.subCountCapped', 'map.subCountShort']) {
-    check(head.indexOf("tr('" + key + "'") >= 0, '四.1 地图详情头部用了词条 ' + key)
-  }
-  check(head.indexOf('mt.capped') >= 0 && head.indexOf('mt.missing') >= 0, '四.2 上限截断与差额都各自说了一句')
-  check(head.indexOf("'unsupported'") >= 0, '四.3 后端说「做不到」时不多说话（按真实返回退化，不做能力表）')
-  const detail = src('src/client/views/MapDetail.js')
-  check(detail.indexOf('fetchMapTickets') >= 0 && detail.indexOf('MapDetailHead') >= 0, '四.4 地图详情打开时触发按需取数，并用上了拆出来的头部')
-  const listRow = src('src/client/views/ListTabRow.js')
-  check(/mapClosed\s*=\s*!!\(isMap&&mapObj&&String\(mapObj\.state\|\|''\)\.toUpperCase\(\)==='CLOSED'\)/.test(listRow.replace(/\r/g, '')), '四.5 列表行先判「这张地图是不是已关闭」')
-  check(listRow.indexOf('&& !mapClosed) ? ringOf(') >= 0, '四.6 已关闭的地图行不画进度环')
-  const locale = src('src/client/kernel/locale-flow.js')
-  for (const key of ['map.subCount', 'map.subCountLoading', 'map.subCountFail', 'map.subCountRetry', 'map.subCountCapped', 'map.subCountShort']) {
-    const hits = (locale.match(new RegExp("'" + key.replace('.', '\\.') + "'", 'g')) || []).length
-    check(hits >= 2, '四.7 词条 ' + key + ' 中英各一份（实得 ' + hits + ' 处）')
-  }
-  const apiIo = src('src/client/kernel/api-io.js')
-  check(apiIo.indexOf("host.call('wf.mapTickets'") >= 0 && apiIo.indexOf("method: 'wf.mapTickets'") >= 0, '四.8 客户端包装：调用点与日志点都在（电话名写在 method）')
-  const hostIdx = src('src/host/index.js')
-  check(hostIdx.indexOf("harness.handle('wf.mapTickets'") >= 0, '四.9 宿主注册了这条电话')
-  const hostPhone = src('src/host/mapTickets.js')
-  check(hostPhone.indexOf("phoneLog('wf.mapTickets'") >= 0 && hostPhone.indexOf("'host.call'") >= 0 && hostPhone.indexOf("'host.call.fail'") >= 0, '四.10 电话体沿用既有两个日志事件（不新增事件名）')
 }
 
 console.log(failed ? '\n存在失败 — verify-691-map-subissues 未通过' : '\n全部通过 — 地图子票拉全与已关闭地图不进首屏的判据都在')

@@ -5,10 +5,6 @@
 //      函数 transpileUnit，两边永远不会漂移；UNITS 清单也是同一份，不手抄；
 //      四个单元是 ports 空壳 + workspace / settings / labels 三份 schema，各自独立）。
 //   2) tsc --noEmit 必须通过。
-//   3) 产物之间零相对引用（同层互引门禁天然能过；单元里连裸包引用都没有，YAML 只在宿主适配器里用）。
-//   4) 要用的东西都带行首 export，并且不含 __DSW_VERSION__ 与 __DSW_REPO_URL__ 两个占位符。
-//   5) 插口空壳产物里还留着模块标识 PORTS_SOURCE（类型被擦掉之后唯一能追溯来源的东西）。
-//   6) 单元数钉死四个：多一个少一个都说明有人绕过清单手加文件。
 // 用法：node tests/verify-config-store-freshness.js（在仓库根目录）
 const fs = require('fs')
 const path = require('path')
@@ -18,9 +14,6 @@ const { pathToFileURL } = require('url')
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
 const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
-
-// 去掉块注释与整行注释之后再找相对 import，避免把注释里的示例当成真的引用（写法同其它核）。
-const stripComments = (text) => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^A-Za-z0-9_$:])\/\/.*$/gm, '$1')
 
 async function main() {
   console.log('配置读写核新鲜度门禁（#1012：TS 改了产物没跟上就红）')
@@ -58,22 +51,7 @@ async function main() {
     check(actual === expected, u.js + ' 与 ' + u.ts + ' 转译一致（不一致请跑 node scripts/build.mjs）')
   }
 
-  // ---- 2) 产物自身的边界条件 ----
-  const portsJs = fs.readFileSync(path.join(ROOT, 'src/shared/config-store/ports.js'), 'utf8')
-  check(portsJs.includes('PORTS_SOURCE'), '插口产物带模块标识 PORTS_SOURCE（空壳可追溯）')
-
-  for (const u of units) {
-    const text = fs.readFileSync(path.join(ROOT, u.js), 'utf8')
-    const code = stripComments(text)
-    check(!/from\s+['"]\.\.?[^'"]*['"]/.test(code) && !/import\s+['"]\.\.?[^'"]*['"]/.test(code),
-      u.js + ' 零相对引用（自包含，同层互引门禁天然能过；裸包 yaml 不算）')
-    const declared = text.split('\n').filter((l) => /^export\s+(?:async\s+)?(?:function|const|let|var|class)\s+/.test(l)).length
-    check(declared > 0, u.js + ' 要用的东西都带行首 export')
-    check(!text.includes('__DSW_VERSION__') && !text.includes('__DSW_REPO_URL__'),
-      u.js + ' 不含版本与仓库地址两个占位符')
-  }
-
-  // ---- 3) 类型检查 ----
+  // ---- 2) 类型检查 ----
   const tscBin = path.join(ROOT, 'node_modules', 'typescript', 'bin', 'tsc')
   if (!fs.existsSync(tscBin)) {
     check(false, 'typescript 已安装（node_modules/typescript 缺失，请跑 pnpm install）')

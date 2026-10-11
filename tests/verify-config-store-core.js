@@ -55,7 +55,16 @@ async function main() {
     const stOut = stringifyConfig(st, 'settings')
     check(stOut.ok === true, 'C1 设置能拼', stOut.ok ? '' : stOut.message)
     const stBack = stOut.ok ? parseConfig(stOut.text, 'settings') : null
-    check(!!stBack && stBack.ok === true && JSON.stringify(stBack.value) === JSON.stringify(st), 'C1 设置往返值不变', JSON.stringify(stBack))
+    // labelClicks 不落盘（维护者 2026-10-12 拍板），所以往返只保证其余部分逐字不变：
+    // 值里那一项写出去时被丢掉，再读回来是空的。
+    const stExpected = JSON.parse(JSON.stringify(st))
+    stExpected.ui.labelClicks = {}
+    check(!!stBack && stBack.ok === true && JSON.stringify(stBack.value) === JSON.stringify(stExpected), 'C1 设置往返值不变（labelClicks 除外，它不落盘）', JSON.stringify(stBack))
+    check(stOut.ok === true && stOut.text.indexOf('labelClicks') < 0, 'C1 写出去的一份里不写 labelClicks', stOut.ok ? stOut.text : '')
+    // 读这一侧仍要包容老文件：里面已经有 labelClicks 时读得回来，而且不影响写。
+    const legacyText = stOut.ok ? stOut.text.replace('  sortDir: desc\n', '  sortDir: desc\n  labelClicks:\n    bug: 3\n') : ''
+    const legacyBack = legacyText ? parseConfig(legacyText, 'settings') : null
+    check(!!legacyBack && legacyBack.ok === true && legacyBack.value.ui.labelClicks.bug === 3, 'C1 老文件里的 labelClicks 照读（读包容）', JSON.stringify(legacyBack))
     const lb = { version: 1, colors: { bug: 'd73a4a', 'wayfinder:map': { color: '8b5cf6', description: '地图票' }, '还没配色': '' } }
     const lbOut = stringifyConfig(lb, 'label-colors')
     check(lbOut.ok === true, 'C1 配色能拼', lbOut.ok ? '' : lbOut.message)

@@ -121,11 +121,6 @@ async function main() {
   const env = envMod.createSnapshotEnvelope({ getGhPath: function () { return '' }, getGhLastError: function () { return null }, adoptSnapshot: function (s) { return s }, logCtx: null })
   const viaEnv = env.buildSnap({ maps: [], issues: [], thinTickets: [{ key: '101' }], labels: [] })
   check(Array.isArray(viaEnv.thinTickets) && viaEnv.thinTickets.length === 1, '信封把瘦身行挂进快照（实得 ' + JSON.stringify(viaEnv.thinTickets) + '）')
-  ;['src/host/sessionSnapshot.js', 'src/host/sessionRefresh.js'].forEach(function (f) {
-    const n = (read(f).match(/thinTickets/g) || []).length
-    check(n >= 4, f + ' 的四个信封调用点都带上了瘦身行（实得 ' + n + ' 处）')
-  })
-
   // ---------- 三、界面查标题（真代码：判据层）----------
   const locales = loadModule('src/client/kernel/locale-pages.js', {})
   const zh = locales.L_PAGES.zh

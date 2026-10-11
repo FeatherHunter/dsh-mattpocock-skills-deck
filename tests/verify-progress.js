@@ -1,18 +1,13 @@
 // verify-progress.js — dsh-waystation v1.5 T12/T16：进度块解析 + 正文容错 + 渲染契约校验
 // 用法: node tests/verify-progress.js（在插件根目录）
-// 验证：1) parseProgress 变体解析 2) normalizeBody 容错（字面 \n + BOM） 3) host/package 均带 progress 字段 4) client/package 均含进度渲染
+// 验证：1) parseProgress 变体解析 2) normalizeBody 容错（字面 \n + BOM） 3) parseMapBody 端到端（真跑 src/host/mapBody.js 里那三个函数）
+// 2026-10-12 修订：原来还有「host/package 均带 progress 字段」与「client/package 均含进度渲染符号」两条，
+//   那是读 host.js / package/lib/index.js / client.js / package/lib/client.js 的文本钉字段名与符号名，已删。
 const fs = require('fs')
 // 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
 const { evalWithScope } = require('./lib/eval-probe.js')
-const host = fs.readFileSync('host.js', 'utf8')
-const pkg = fs.readFileSync('package/lib/index.js', 'utf8')
-const cli = fs.readFileSync('client.js', 'utf8')
-const pcli = fs.readFileSync('package/lib/client.js', 'utf8')
 // H2 #446：解析三函数搬到 mapBody.js、详情拼装搬到 issueDetail.js（行为零变化）；断言跟随位置，意图不变。
 const hostMap = fs.readFileSync('src/host/mapBody.js', 'utf8')
-const hostDetail = fs.readFileSync('src/host/issueDetail.js', 'utf8')
-const pkgMap = fs.readFileSync('package/lib/mapBody.js', 'utf8')
-const pkgDetail = fs.readFileSync('package/lib/issueDetail.js', 'utf8')
 let failed = false
 const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
@@ -59,84 +54,6 @@ const parseMapBody = pfm ? evalWithScope(pfm[0], { normalizeBody }) : function (
 const e2eOut = parseMapBody(badBody)
 check(e2eOut.destination === 'DSH-Waystation **v1.5**', 'parseMapBody 端到端恢复 Destination（BOM+字面 \\n · #445 场景）')
 check(e2eOut.notes === 'note here', 'parseMapBody 端到端恢复 Notes（#445 场景）')
-
-// 2) host/package 均带 progress 字段
-check(host.includes('progress: parseProgress') || hostMap.includes('progress: parseProgress'), 'host mapTicket 带 progress')
-check(pkg.includes('progress: parseProgress') || pkgMap.includes('progress: parseProgress'), 'package index mapTicket 带 progress')
-check(pkg.includes('function parseProgress') || pkgMap.includes('function parseProgress'), 'package index 含 parseProgress')
-check(host.includes('nodes{number title state body url') || hostDetail.includes('nodes{number title state body url'), 'host frag 子票查询含 body（fetchMapsDetail）')
-check(pkg.includes('nodes{number title state body url') || pkgDetail.includes('nodes{number title state body url'), 'package index frag 子票查询含 body')
-check(host.includes('progress: parseProgress') || hostMap.includes('progress: parseProgress'), 'host mapTicket 带 progress（重复守卫）')
-check(host.includes('function normalizeBody') || hostMap.includes('function normalizeBody'), 'host 含 normalizeBody（重复守卫）')
-check(pkg.includes('function normalizeBody') || pkgMap.includes('function normalizeBody'), 'package index 含 normalizeBody')
-check(host.includes('normalizeBody(body).split') || hostMap.includes('normalizeBody(body).split'), 'host parseMapBody 经 normalizeBody 接线（双源）')
-check(pkg.includes('normalizeBody(body).split') || pkgMap.includes('normalizeBody(body).split'), 'package index parseMapBody 经 normalizeBody 接线（双源）')
-
-// 3) client/package 均含进度渲染
-check(cli.includes('const tProgressBar'), 'client 含 tProgressBar')
-check(cli.includes('const tStatusBadge'), 'client 含 tStatusBadge')
-check(pcli.includes('const tProgressBar'), 'package client 含 tProgressBar')
-check(pcli.includes('const tStatusBadge'), 'package client 含 tStatusBadge')
-check(cli.includes("'progress.done'") && cli.includes("'progress.accept'"), 'client 含进度 locale 键')
-check(pcli.includes("'progress.done'") && pcli.includes("'progress.accept'"), 'package client 含进度 locale 键')
-check(cli.includes('tProgressBar(t)') && cli.includes('tStatusBadge(t)'), 'client 渲染点存在')
-check(pcli.includes('tProgressBar(t)') && pcli.includes('tStatusBadge(t)'), 'package client 渲染点存在')
-// B4：0% = 未动工（契约）—— tStatus 0 分支 + parseProgress 标题行锚定守卫
-check(cli.includes('t.progress <= 0'), 'client tStatus 0% → todo（B4）')
-check(pcli.includes('t.progress <= 0'), 'package client tStatus 0% → todo（B4）')
-check(host.includes('#{1,6}') || hostMap.includes('#{1,6}'), 'host parseProgress 标题行锚定（B4）')
-check(pkg.includes('#{1,6}') || pkgMap.includes('#{1,6}'), 'package parseProgress 标题行锚定（B4）')
-
-// #725：正文格式契约（bodyFormat 条目 / BODY_FORMAT 追加点 / 按后端解析的渲染入口）整节删除 ——
-//   票的正文读写交给 deck_* 工具，模板不再讲「正文怎么写」。这里留反向断言，防这套东西被悄悄加回来。
-check(!cli.includes('bodyFormat'), 'client 不再含正文格式契约 bodyFormat（#725 整节删除）')
-check(!pcli.includes('bodyFormat'), 'package client 不再含正文格式契约 bodyFormat（#725 整节删除）')
-check(!cli.includes('BODY_FORMAT'), 'client 不再含 BODY_FORMAT 追加点（#725）')
-check(!pcli.includes('BODY_FORMAT'), 'package client 不再含 BODY_FORMAT 追加点（#725）')
-check(cli.includes('## MAP完成确认'), 'client complete 模板本体仍在（只删了正文格式标记与进度契约句）')
-check(pcli.includes('## MAP完成确认'), 'package client complete 模板本体仍在')
-// #725：进度契约（## 进度：N% 的格式与 95% 语义阶梯）也从提示词里删掉了 —— 留给 AI 自由表达。
-check(!cli.includes('## 进度：N%'), 'client 不再要求固定进度区格式（#725：进度交还 AI 自由表达）')
-check(!pcli.includes('## 进度：N%'), 'package client 不再要求固定进度区格式（#725：进度交还 AI 自由表达）')
-check(!cli.includes('未确认不得 close'), 'client 不再有「未确认不得 close」这条规矩（#725）')
-check(!pcli.includes('未确认不得 close'), 'package client 不再有「未确认不得 close」这条规矩（#725）')
-// #595：client 侧不许再硬抄 GitHub 专用的写回脚本 / 插件目录解析（那三处文案搬进 github 后端的 prompts.bodyFormat）
-const fixNameCount = (s) => (s.match(/scripts\/fix-issue-body\.mjs/g) || []).length
-check(fixNameCount(cli) === 0, 'client 不再硬抄写回脚本路径 ×0（#595：搬进 github 后端 prompts.bodyFormat）')
-check(fixNameCount(pcli) === 0, 'package client 不再硬抄写回脚本路径 ×0（#595：搬进 github 后端 prompts.bodyFormat）')
-// #600：客户端不许出现「解析插件安装目录」的那条命令（旧写法 dsh plugin exec …，新写法 dsh plugin --profile <名> exec …）。
-//   这里不能拿 'dsh plugin' 当标记：客户端本来就带着更新用的手工命令 dsh plugin --profile <名> add …
-const RE_PLUGIN_EXEC = /dsh\s+plugin\s+(?:--profile\s+\S+\s+)?exec\b/
-check(!RE_PLUGIN_EXEC.test(cli), 'client 正文格式文案不再含插件目录解析（dsh plugin … exec）')
-check(!RE_PLUGIN_EXEC.test(pcli), 'package client 正文格式文案不再含插件目录解析（dsh plugin … exec）')
-
-// T10 R7（#458 用户拍板）：手动刷新去「刷新中」遮罩 —— 无全屏遮罩渲染；st.refreshing 仅驱动按钮 spinner
-check(!cli.includes("className: 'dsws-shade'") && !cli.includes('dsws-shade{'), 'client 无刷新遮罩渲染（R7）')
-check(!pcli.includes("className: 'dsws-shade'") && !pcli.includes('dsws-shade{'), 'package client 无刷新遮罩渲染（R7）')
-check(cli.includes('loadChain(st, true)') && cli.includes('loadSnapshot(st, true, true)'), 'client refreshAll 静默路径（R7）')
-check(pcli.includes('loadChain(st, true)') && pcli.includes('loadSnapshot(st, true, true)'), 'package client refreshAll 静默路径（R7）')
-// T10 R7 反馈半（用户拍板 2026-08-16 修订）：图标常驻转圈 + 文字恒定（控件宽度零变化）
-check(cli.includes('dsws-spin') && !cli.includes("s.refreshing ? tr('list.refreshing')") && !cli.includes("s.refreshing ? [h('span', { className: 'dsws-spin' }") && !cli.includes("st.refreshing) ? tr('env.checking')"), 'client 刷新入口图标转圈 · 文字恒定（R7 反馈）')
-check(pcli.includes('dsws-spin') && !pcli.includes("s.refreshing ? tr('list.refreshing')") && !pcli.includes("s.refreshing ? [h('span', { className: 'dsws-spin' }") && !pcli.includes("st.refreshing) ? tr('env.checking')"), 'package client 刷新入口图标转圈 · 文字恒定（R7 反馈）')
-// T10 提速（2026-08-17 用户反馈卡顿）：spinner 命令式即时转（spinAll + dsws-rficon，不依赖 React 重渲染）+ fitAllTags 指纹跳过
-check(cli.includes('const spinAll') && cli.includes('dsws-rficon') && cli.includes("querySelectorAll('[data-dsws-host] .dsws-rficon')"), 'client 即时转圈（spinAll/rficon）')
-check(pcli.includes('const spinAll') && pcli.includes('dsws-rficon') && pcli.includes("querySelectorAll('[data-dsws-host] .dsws-rficon')"), 'package client 即时转圈（spinAll/rficon）')
-check(cli.includes('_tagsFpOf') && cli.includes('fitAllTags()') && cli.includes('generatedMs'), 'client fitAllTags 指纹跳过')
-check(pcli.includes('_tagsFpOf') && pcli.includes('fitAllTags()') && pcli.includes('generatedMs'), 'package client fitAllTags 指纹跳过')
-// T10 R9（Q4 拍板）：关键动作后延迟探测
-check(cli.includes('scheduleActionProbe') && cli.includes('probeNow(false)'), 'client 动作后探测（R9）')
-check(pcli.includes('scheduleActionProbe') && pcli.includes('probeNow(false)'), 'package client 动作后探测（R9）')
-// T10 R4（用户拍板）：数据层增量 diff
-check(cli.includes('diffSnapshots') && cli.includes('st.lastDiff') && cli.includes('st.rowFlash'), 'client 数据层 diff（R4）')
-check(pcli.includes('diffSnapshots') && pcli.includes('st.lastDiff') && pcli.includes('st.rowFlash'), 'package client 数据层 diff（R4）')
-// T10 R5（用户拍板方向 + 详谈定稿）：变化行高亮（变更琥珀/新增绿闪）+ 删除提示 + 定时清除
-check(cli.includes('dsws-row-changed') && cli.includes('dsws-row-added') && cli.includes('panel.diffRemoved') && cli.includes('scheduleFlashClear') && cli.includes('issueFlash'), 'client R5 变化视觉（高亮/删除提示/清除）')
-check(pcli.includes('dsws-row-changed') && pcli.includes('dsws-row-added') && pcli.includes('panel.diffRemoved') && pcli.includes('scheduleFlashClear') && pcli.includes('issueFlash'), 'package client R5 变化视觉（高亮/删除提示/清除）')
-// #458 字段实证修复：map 子票字段是 tickets（非 issues），且票级变化含 claimedBy
-check(cli.includes('(x.tickets || [])') && cli.includes('a2.claimedBy'), 'client diff 用 tickets + claimedBy（字段实证）')
-check(pcli.includes('(x.tickets || [])') && pcli.includes('a2.claimedBy'), 'package client diff 用 tickets + claimedBy（字段实证）')
-// #458 用户拍板：diff toast 置面板左下角（明显可见）
-check(cli.includes("'.dsws-note{position:absolute;left:14px;bottom:14px") && pcli.includes("'.dsws-note{position:absolute;left:14px;bottom:14px"), 'note toast 左下角（双源）')
 
 if (failed) { console.log('\n存在失败'); process.exit(1) }
 console.log('\n全部通过')

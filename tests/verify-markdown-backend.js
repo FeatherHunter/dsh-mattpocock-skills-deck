@@ -36,53 +36,14 @@ for (const r of all) {
 }
 let hPassed = all.filter((r) => r.ok).length
 let hFailed = all.filter((r) => !r.ok).length
-console.log(`\nG4 harness: ${hPassed} passed, ${hFailed} failed`)
-// 额外：旧字段检查（④）
-console.log('\n== ④ 无旧字段检查 ==')
-{
-  const srcFiles = [
-    'src/host/tracker/backends/markdown/index.js',
-    'src/host/tracker/backends/markdown/parse.js',
-    'src/host/tracker/backends/markdown/normalize.js',
-    'src/host/tracker/backends/markdown/path.js',
-    'src/host/tracker/backends/markdown/read.js',
-    'src/host/tracker/backends/markdown/write.js',
-    'src/host/tracker/backends/markdown/issues.js',
-    'src/host/tracker/backends/markdown/issues-locate.js',
-    // #618：旧的 issues-labels.js（读 docs/agents/triage-labels.md 调色盘表的加载与染色函数）已删除，
-    // 换成本地配色文件这条路的几个文件（按「一个文件一件事」拆开，各自都在 350 行以内）。
-    'src/host/tracker/backends/markdown/label-colors.js',
-    'src/host/tracker/backends/markdown/label-colors-palette.js',
-    'src/host/tracker/backends/markdown/label-colors-paint.js',
-    'src/host/tracker/backends/markdown/label-colors-ops.js',
-    'src/host/tracker/backends/markdown/issues-read.js',
-    'src/host/tracker/backends/markdown/issues-create.js',
-    'src/host/tracker/backends/markdown/issues-status.js',
-    'src/host/tracker/backends/markdown/issues-patch.js',
-    'src/host/tracker/backends/markdown/graph.js',
-    'src/host/tracker/backends/markdown/comments.js',
-  ]
-  for (const f of srcFiles) {
-    const txt = fs.readFileSync(f, 'utf8')
-    check(!/EMPTY_CAPS/.test(txt), `${f} 无 EMPTY_CAPS 布尔能力表`)
-    check(!/\bdetect\s*:/.test(txt) || f.includes('matches'), `${f} 无旧 detect 字段（允许 matches）`)
-    check(!/\bnumber\s*:\s*null/.test(txt) && !/Issue\.number/.test(txt), `${f} 无 number 旧字段`)
-    // 允许防御性 delete 'subIssues' 检查，不视为旧字段
-    check(!/subIssues\s*:\s*\[/.test(txt) && !/subIssues\s*=\s*\[/.test(txt), `${f} 无 subIssues 旧字段`)
-    // blocking 作为 Issue 字段禁止，但 getDependencies 返回的 blocking 是允许的（仅检查 Issue 形状）
-    if (f.endsWith('parse.js') || f.endsWith('normalize.js')) {
-      check(!/['"]blocking['"]\s*:/.test(txt) && !/blocking:\s*\[/.test(txt), `${f} 无 blocking 字段（Issue 形状）`)
-    }
-    check(!/capabilities\s*:\s*\{/.test(txt) || /diagnoseCapabilities/.test(txt), `${f} 无布尔 capabilities 声明`)
-  }
-  // 平台化：路径拼接必须经 platform.path（通过 plat.join 亦可，plat 来自 platform.path）
-  const pathTxt = fs.readFileSync('src/host/tracker/backends/markdown/path.js', 'utf8')
-  check(pathTxt.includes('platform.path') || pathTxt.includes('plat.join'), 'path.js 经 platform.path/plat.join')
-  check(!/\+ *['"]\/\.scratch/.test(pathTxt), 'path.js 无硬编码 "/.scratch" 拼接')
-  check(pathTxt.includes('getRoot'), 'path.js 含 getRoot 抽象')
-}
+console.log('\nG4 harness: ' + hPassed + ' passed, ' + hFailed + ' failed')
 
 console.log('\n== ② 回环测试（同一文件集镜像） ==')
+// 注：原来这里还有几节「读源码文本、断言里面出现了哪些字」的检查（无旧字段、干净切断、
+//   平台路径写法、挂链抽样），以及 ⑦ 里那段「取号段在写者队列里」的源码文本断言。
+//   它们断的是代码长成什么样，等价重构（搬文件、改写法、改注释）就会变红，已按维护者口径删掉。
+//   其中真正的行为关切由本文件其它节与其它 verify 覆盖：回环与标签剥壳走真实文件读写（①②⑥⑧），
+//   并发建票不丢票由 ⑦ 的并发用例覆盖。
 {
   // 创建临时目录模拟 deck 写 → 技能集读
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'md-backend-'))
@@ -144,30 +105,6 @@ console.log('\n== ② 回环测试（同一文件集镜像） ==')
   // 清理临时目录
   fs.rmSync(tmp, { recursive: true, force: true })
   console.log('  回环临时目录已清理')
-}
-
-console.log('\n== ③ 既有 verify 回归（抽样） ==')
-{
-  // 抽样检查 platform 契约仍通过（与 npm run verify 一致的零手拼断言）
-  const platIdx = fs.readFileSync('src/host/platform/index.js', 'utf8')
-  check(platIdx.includes("import win32 from './win32/index.js'"), '回归抽样 platform 静态 import 仍存在')
-  const deckDerive = fs.readFileSync('src/shared/tracker/deck-derive.js', 'utf8')
-  check(deckDerive.includes('parseProgress'), '回归抽样 deck-derive 仍存在')
-}
-
-console.log('\n== ⑤ 干净切断：不再读旧的调色盘表（#618） ==')
-{
-  // 旧的读法（读 docs/agents/triage-labels.md 的调色盘表）连同文件一起删掉了：
-  // 这个房间里不该再出现那些函数名与那个文件路径，颜色只从 docs/agents/label-colors.yaml 来。
-  const roomDir = path.join(process.cwd(), 'src/host/tracker/backends/markdown')
-  const roomFiles = fs.readdirSync(roomDir).filter((n) => n.endsWith('.js'))
-  check(roomFiles.indexOf('issues-labels.js') < 0, '旧的 issues-labels.js 已删除')
-  const joined = roomFiles.map((n) => fs.readFileSync(path.join(roomDir, n), 'utf8')).join('\n')
-  const code = joined.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
-  check(!/loadPaletteMap|recolorLabels/.test(code), '房间里不再有 loadPaletteMap / recolorLabels 这两个旧函数')
-  check(!/triage-labels\.md/.test(code), '房间里不再引用 docs/agents/triage-labels.md（那个表不读了）')
-  check(/label-colors\.yaml/.test(code), '房间里读的是新的配色文件 docs/agents/label-colors.yaml（老 json 只做兼容读）')
-  check(roomFiles.indexOf('label-colors.js') >= 0 && roomFiles.indexOf('label-colors-ops.js') >= 0, '本地配色文件这条路的两个文件在位')
 }
 
 console.log('\n== ⑥ 标签名外层写法要剥净（#634：读这一层与写这一层） ==')
@@ -282,19 +219,10 @@ console.log('\n== ⑦ 并发建票不许丢票、同一标题不许两路都成�
   check(!dupOk || (new Set(dupKeys).size === 2 && dupFiles === 2),
     `用例三：同一标题并发两次不许「两路都成功、盘上只剩一张」（两路回 ${JSON.stringify(dupKeys)}，标题相同的票文件 ${dupFiles} 张）`)
 
-  // 静态断言：取号与落盘这一段必须在写者队列里。
-  //   为什么不只看运行结果：运行结果依赖时序，静态断言在 CI 上 100% 稳定，且能防住日后有人把队列拆掉。
-  //   #922 起队列本体统一住在 write-queue.js（建票取号、写票文件、配色文件共用这一份实现），
-  //   所以这里同时钉三件事：建票确实调了队列、队列本体确实导出那两个函数、写票文件也在队列里。
-  const createTxt = fs.readFileSync('src/host/tracker/backends/markdown/issues-create.js', 'utf8')
-  check(/withWorkspaceWriter\(/.test(createTxt),
-    '静态断言：issues-create.js 的取号与落盘这一段在写者队列里（源码出现 withWorkspaceWriter(）')
-  const queueTxt = fs.readFileSync('src/host/tracker/backends/markdown/write-queue.js', 'utf8')
-  check(/export function withWorkspaceWriter/.test(queueTxt) && /export function withSingleWriter/.test(queueTxt),
-    '静态断言：队列本体（write-queue.js）导出工作区排队与按钥匙串行两个函数')
-  const patchTxt = fs.readFileSync('src/host/tracker/backends/markdown/issues-patch.js', 'utf8')
-  check(/withFileWriter\(ctx,repo,r\.path/.test(patchTxt),
-    '静态断言：写票文件的读—改—写也在队列里（#922：issues-patch.js 用 withFileWriter 包住该文件）')
+  // 原来这里还有三条「读源码文本、断言取号与落盘那段在写者队列里」的静态断言
+  //   （issues-create.js 出现 withWorkspaceWriter(、write-queue.js 导出那两个函数、issues-patch.js 用 withFileWriter）。
+  //   上面三个并发用例已经把「不丢票、不覆盖、同标题不双成功」这个真正的关切跑实了；
+  //   那三条断的是代码长成什么样，搬文件或改名就变红，已按维护者口径删掉。
 
   fs.rmSync(concTmp, { recursive: true, force: true })
 }

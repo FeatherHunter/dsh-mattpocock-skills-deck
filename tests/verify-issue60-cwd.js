@@ -1,29 +1,9 @@
-const fs = require("fs")
+// verify-issue60-cwd.js — 会话工作目录（cwd）的取值回落：同步取值拿不到时，继续走 host 的 wf.cwd 调用。
+// 只测跑起来的结果，不看源码文本。
+// 运行：node tests/verify-issue60-cwd.js
 let failed = false
 const check = (ok, msg) => { console.log((ok ? "  PASS " : "  FAIL ") + msg); if (!ok) failed = true }
-const files = ["client.js", "package/lib/client.js"]
-const hostFiles = ["host.js", "package/lib/index.js"]
-console.log("P1: getCwdSync")
-files.forEach(f => {
-  const src = fs.readFileSync(f, "utf8")
-  check(src.includes("sessions.list.getSnapshot"), f + " getCwdSync list")
-  check(src.includes("header.cwd"), f + " header.cwd")
-})
-console.log("P2: host wf.cwd")
-hostFiles.forEach(f => {
-  const src = fs.readFileSync(f, "utf8")
-  check(src.includes("sessionLifecycle") && src.includes("wf.cwd"), f + " wf.cwd 委托不断链 (H4 动态加载)")
-})
-console.log("P2b: host 真源 sessionLifecycle")
-check(fs.readFileSync("src/host/sessionLifecycle.js", "utf8").includes("header.cwd"), "src/host/sessionLifecycle.js wf.cwd header")
-console.log("P3: openTextInNewSession")
-files.forEach(f => {
-  const src = fs.readFileSync(f, "utf8")
-  check(src.includes("getCwdSync(st.sessionId)"), f + " ensureCwd getCwdSync")
-  check(src.includes("ensureWorkspaceId"), f + " workspaceId")
-  check(src.includes("workspaceId ? { workspaceId"), f + " workspaceId create")
-})
-console.log("P4: dynamic")
+console.log("dynamic: ensureCwd 回落取值")
 async function dynamic() {
   function mockGetCwdSync(map) { return sid => (map[sid] && map[sid].cwd) || "" }
   async function ensureCwd(st, host, getCwdSync) {

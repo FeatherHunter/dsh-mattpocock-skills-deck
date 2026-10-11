@@ -15,7 +15,6 @@ function check(cond, msg) { if (cond) ok(msg); else bad(msg) }
 
 const read = (rel) => readFileSync(resolve(rel), 'utf8')
 const FOLD = 'src/client/views/issueDetailFold.js'
-const DETAIL = 'src/client/views/IssueDetail.js'
 
 console.log('=== #763 详情页顶栏：返回优先逐字收到图标，不放省略号 ===')
 
@@ -70,16 +69,6 @@ if (fold) {
   }
   check(singleOk, '同一档最多只有一个控件半截字，不多按钮同时显示不全')
 }
-
-const src = read(DETAIL)
-const hookSrc = existsSync(resolve('src/client/views/useIssueDetailFold.js')) ? read('src/client/views/useIssueDetailFold.js') : ''
-check(src.includes('data-detail-back-text') && src.includes('data-detail-crumb') && src.includes('data-detail-primary-text') && src.includes('data-detail-new-text'), '顶栏五串字挂折叠标记')
-check(src.includes('useIssueDetailFold') && src.includes('topBarRef'), '折叠机 hook 接线在')
-check(hookSrc.includes('issueDetailFoldLadderOf') && hookSrc.includes('issueDetailFoldStateAt'), '折叠机读判据')
-check(!/data-detail-(back-text|crumb|snapshot|primary-text|new-text)[\s\S]{0,220}flex:\s*'(0 1 auto|1 1 auto)'/.test(src), '折叠字不靠 CSS 并行收缩（除空隙外全 flex:none）')
-check(!/data-detail-(back-text|crumb|snapshot|primary-text|new-text)[\s\S]{0,200}textOverflow/.test(src), '折叠字不走省略号')
-check(src.includes("h('span', { 'data-detail-primary-text': 1"), '主动作按钮自建以便逐字裁字')
-check(src.includes('primaryInfo'), '主动作口径与列表行同源')
 
 console.log('')
 console.log(`共 ${passed} 通过，${failed} 失败`)

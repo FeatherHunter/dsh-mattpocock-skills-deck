@@ -11,7 +11,6 @@
 //   （D、E 组）；把日志点拆掉，本文件必须变红（F 组与计数门禁）。
 //
 // 用法：node tests/verify-782-cwd-disk.js（插件根目录，可独立运行）
-const fs = require('fs')
 const path = require('path')
 const { pathToFileURL } = require('url')
 
@@ -19,8 +18,6 @@ const ROOT = path.resolve(__dirname, '..')
 let failed = false
 let total = 0
 const ok = (cond, msg) => { total += 1; if (cond) console.log('  PASS ' + msg); else { failed = true; console.log('  FAIL ' + msg) } }
-const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
-const stripComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' ')).replace(/\/\/.*$/gm, '')
 
 async function main() {
   console.log('== #782 落盘补问按号直读门禁 ==')
@@ -181,18 +178,6 @@ async function main() {
     const r = await life.handleCwd({ sessionId: 's-live' })
     ok(r && r.ok === true && r.cwd === 'D:\\memory', 'F1 内存答得出：照旧走内存')
     ok(logs.filter((l) => l.e === 'cwd.persisted').length === 0, 'F2 内存命中不记落盘行（热路径不付这笔钱）')
-  }
-
-  // G 组：结构锚点（取法不分叉，直读不断）。
-  {
-    const src = stripComments(read(path.join('src', 'host', 'sessionLifecycle.js')))
-    ok(src.indexOf("ctx.get('sessionPersistence')") >= 0, 'G1 落盘那一问首选持久化服务（按号打开）')
-    ok(/\.open\(\s*\w+\s*,\s*['"]read['"]/.test(src), 'G2 打开方式是只读（不拿写所有权，不激活会话）')
-    ok(/resolveSessionCwd\(\s*\{\s*header\s*:/.test(src), 'G3 句柄的头仍走共用取法（不另写一套读法）')
-    ok(/resolveSessionCwd\(rec\)/.test(src), 'G4 旧路回退仍走共用取法（两条路同一个字段）')
-    ok(src.indexOf('diskCache') >= 0 && src.indexOf('diskInflight') >= 0, 'G5 缓存与单飞结构在（拆掉 D/E 组变红）')
-    ok(src.indexOf("'cwd.persisted'") >= 0, 'G6 日志点结构在（拆掉 F 组与计数门禁变红）')
-    ok(src.indexOf('filterSessions') >= 0, 'G7 旧路回退留守（老 DSH 不断链）')
   }
 
   // H 组：性能结构（有直读服务时，给了过滤服务也不许用它列全量）。

@@ -7,11 +7,10 @@
 //   并把「任务票」的齿轮留给任务票自己。
 //
 // 本脚本不看注释、不看愿望，按真实词条与真实代码算一遍这一格的文字与图标：
-//   A. 词条：中文块与英文块里 type.issue 的取值（不是抄一份常量，是从语言包读出来的）
+//   A. 词条：从语言包取出中文块，只作为真词条喂给 B 段被测的 TypeChip（不再单独断言语言包文本）
 //   B. 徽章：把 chips.js 里真实的 TypeChip 拿出来执行（tr 用 index.js 同款「缺词条退回键名」语义），
 //      断言 type=issue 出「普通票」而不是 'type.issue'，且 task 仍是「任务」
-//   C. 图标：把 index.js 的 TYPE_ICON 与 MapDetail.js 里那一行三元表达式求值，
-//      断言 issue→dot、task→gear（两者不再撞脸）
+//   C. 图标：把 MapDetail.js 里那一行三元表达式抠出来求值，断言 issue→dot、task→gear（两者不再撞脸）
 //   D. 双产物：client.js 与 package/lib/client.js 都带上了新词条
 //
 // 用法: node tests/verify-626-type-chip.js（在插件根目录；无需 gh / 网络）
@@ -27,20 +26,16 @@ const bad = function (name) { failed = true; console.log('  FAIL', name) }
 const check = function (cond, name) { if (cond) ok(name); else bad(name) }
 const read = function (rel) { try { return fs.readFileSync(path.join(root, rel), 'utf8') } catch (e) { return '' } }
 
-// ---- A. 语言包：两端各自的 type.issue 取值 ----
+// ---- A. 语言包：取出真词条 ----
+// 【已删除】原先这里读 locale-flow.js 的源码文本，用正则抠出中英文 type.issue / type.task /
+// type.map / type.research 的值并逐条断言。那是钉源码文本的门禁（等价改写法就会变红），撤掉。
+// 保留下面的 zhPart 与 valueOf：它们不再被单独断言，而是作为真词条喂给 B 段被测的 TypeChip。
 const locSrc = read('src/client/kernel/locale-flow.js')
 const zhPart = locSrc.slice(locSrc.indexOf('zh: {'), locSrc.indexOf('en: {'))
-const enPart = locSrc.slice(locSrc.indexOf('en: {'))
 const valueOf = function (part, key) {
   const m = part.match(new RegExp("'" + key.replace('.', '\\.') + "':\\s*'((?:[^'\\\\]|\\\\.)*)'"))
   return m ? m[1] : null
 }
-const zhIssue = valueOf(zhPart, 'type.issue')
-const enIssue = valueOf(enPart, 'type.issue')
-check(zhIssue === '普通票', "A. 中文词条 type.issue = 普通票（实际 " + zhIssue + '）')
-check(enIssue === 'Issue', "A. 英文词条 type.issue = Issue（实际 " + enIssue + '）')
-check(valueOf(zhPart, 'type.task') === '任务' && valueOf(enPart, 'type.task') === 'Task', 'A. 任务票词条未被改动')
-check(valueOf(zhPart, 'type.map') === '地图' && valueOf(zhPart, 'type.research') === '研究', 'A. 其余类型词条仍在')
 
 // ---- B. 徽章：执行 chips.js 里真实的 TypeChip ----
 const chipSrc = read('src/client/views/shared/chips.js')
@@ -103,13 +98,10 @@ if (iconMap) {
   // 兜底语义本身没动：将来冒出新类型值，仍会退回键名（那是 tr 的既有行为，本票不碰）
   check(textOf('brandnewtype').text === 'type.brandnewtype', 'B. 未知类型仍退回键名（tr 的既有兜底未被改动）')
 }
-check(chipSrc.indexOf('TYPE_LABEL[type]') < 0, 'B. chips.js 不再保留那条从 TYPE_LABEL 取文字的死代码')
 
-// ---- C. 图标：TYPE_ICON 与 MapDetail 那一行三元表达式 ----
-if (iconMap) {
-  check(!('issue' in iconMap), 'C. TYPE_ICON 里没有 issue —— 普通票徽章不出图标（实际 ' + JSON.stringify(iconMap) + '）')
-  check(iconMap.task === 'gear', 'C. TYPE_ICON.task 仍是 gear')
-}
+// ---- C. 图标：把 MapDetail.js 那一行三元表达式抠出来求值 ----
+// 【已删除】原先还断言 TYPE_ICON 表（从 index.js 抠出来）里没有 issue、task 是 gear。
+// 那是钉源码文本的断言；TYPE_ICON 现在只作为参数喂给 B 段被测的 TypeChip，不再单独断言它的内容。
 const detailSrc = read('src/client/views/MapDetail.js')
 const icLine = (detailSrc.match(/const ic = [^\n]*/) || [''])[0]
 check(icLine.length > 0, 'C. 从 MapDetail.js 抽到节点图标那一行')
@@ -121,11 +113,10 @@ if (icLine.length > 0) {
   check(icFor('task') === 'gear', 'C. 任务票方框图标仍是齿轮')
   check(icFor('research') === 'search' && icFor('prototype') === 'hammer' && icFor('grilling') === 'chat' && icFor('map') === 'map', 'C. 其余四种类型图标未变')
 }
-check(detailSrc.indexOf(": _wt === 'task' ? 'gear' : 'dot'") >= 0, 'C. MapDetail 末位兜底已改为中性灰点')
+// 【已删除】两处钉源码文本的断言：MapDetail.js 里「末位兜底写成 'dot'」的那段文本，
+// 以及 styles.js 里必须出现 '.dsws-chip-i{'。等价改写法一变它们就变红，撤掉。
 
-// ---- D. 样式类与双产物 ----
-const stylesSrc = read('src/client/kernel/styles.js')
-check(stylesSrc.indexOf('.dsws-chip-i{') >= 0, 'D. styles.js 有中性灰徽章样式 .dsws-chip-i')
+// ---- D. 双产物 ----
 const artifacts = ['client.js', 'package/lib/client.js']
 for (const a of artifacts) {
   const buf = read(a)

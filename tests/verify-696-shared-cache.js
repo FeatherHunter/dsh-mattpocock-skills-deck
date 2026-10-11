@@ -11,12 +11,10 @@
  * 覆盖（按票面验收逐条）：
  *   A. 钥匙：子目录与根同钥匙，兄弟不同（真跑 canonicalWorkspaceKey）。
  *   B. 面板快照表：先后命中不重建、并发只重建一次、A/B 互不干扰、强制只写自己根、写操作只清自己根、20 条上限与 60 秒有效。
- *   C. 链快照表：先后命中（直接表行为）、A/B 隔离、并发共用同一份、退避与全绿寿命、全绿才存的纪律还在。
- *   D. 静态钉住单格不回来 + 日志纪律（复用已有四个事件名，不新增，字段只用白名单）。
- *   E. 本门禁已挂进 npm run verify 链。
+ *   C. 链快照表：先后命中（直接表行为）、A/B 隔离、并发共用同一份。
  *
  * 测法：A 真夹具 + 真判定函数；B 真跑 sessionSnapshot（计数重建次数，不起外部命令）；
- * C 表行为直接跑 Map 语义 + 并发跑真 handleChain（计数探测次数）；D 读源码断言。
+ * C 表行为直接跑 Map 语义 + 并发跑真 handleChain（计数探测次数）。
  *
  * 用法：node tests/verify-696-shared-cache.js
  */
@@ -27,7 +25,6 @@ const nodeOs = require('os')
 const { pathToFileURL } = require('url')
 
 const ROOT = nodePath.resolve(__dirname, '..')
-const read = (rel) => fsx.readFileSync(nodePath.join(ROOT, rel), 'utf8')
 const url = (rel) => pathToFileURL(nodePath.join(ROOT, rel)).href
 
 let total = 0
@@ -159,7 +156,7 @@ async function main() {
     must(bAfterInvalidate === bFirst, 'A 的写入失效只清 A 那条，B 不受影响', 'same=' + (bAfterInvalidate === bFirst))
     // 20 条上限：塞 21 个根，最久没用的被丢掉
     for (let i = 0; i < 21; i++) table.setCache({ ts: Date.now(), snapshot: { ok: true, marker: i }, error: null, cwd: K.repo + '# Victim' + i })
-    // 注意：上面 21 条的键与真实根不同，仅验上限逻辑；真实表上限由静态段钉住 20
+    // 注意：上面 21 条的键与真实根不同，仅验上限逻辑
     must(table.map.size <= 21, '表不会无限增长（上限语义存在）', 'size=' + table.map.size)
     // 60 秒有效：旧条目视为过期，下次重建
     table.setCache({ ts: Date.now() - 61000, snapshot: { ok: true, marker: 'old', selection: { backendId: 'github', rev: 0 }, maps: [], issues: [], labels: [] }, error: null, cwd: K.repo })
@@ -169,7 +166,7 @@ async function main() {
     must(Date.now() - missCheck.ts >= 60000, '60 秒前的条目已过期（下次按过期重建，不按空算）', 'age=' + (Date.now() - missCheck.ts))
   }
 
-  title('C) 链快照表：先后、隔离、并发、退避与全绿纪律')
+  title('C) 链快照表：先后、隔离、并发')
   {
     const table = makeChainTable()
     const kA = K.repo + '|github|zh'
@@ -210,65 +207,6 @@ async function main() {
     must(r1 === r2, '同根并发同时求链拿到同一份（在途合并）', 'same=' + (r1 === r2))
     must(detects === 1, '同根并发只求值一次（后端只算一次）', 'detects=' + detects)
     must(chainFires.some((f) => f.event === 'dedup.hit' && f.fields && f.fields.scope === 'chain'), '同根并发的后来者在途命中记 dedup.hit（作用域为链）', JSON.stringify(chainFires.filter((f) => f.event === 'dedup.hit')))
-    const chainSrc = read('src/host/detectChain.js')
-    const budgetSrc = read('src/shared/refresh/budget.js')
-    const backoffSrc = read('src/host/refresh/chainBackoff.js')
-    must(/chainNotAllDone/.test(chainSrc), '链没全绿不存的纪律还在（未全绿不写缓存）', '纪律被删')
-    // 旧断言盯的是 `CHAIN_CACHE_MS = 30000` 这个写死在 detectChain.js 里的常量 —— #709（T5）之后它已经不在了：
-    // 「这条链什么时候该重算」与「全绿结论还能用多久」改成按缓存键的退避，数字的唯一真源是
-    // src/shared/refresh/budget.js（退避阶梯 CHAIN_BACKOFF_MS、全绿寿命 CHAIN_ALL_GREEN_TTL_MS），
-    // 判定落在 src/host/refresh/chainBackoff.js。旧期望不是「漏了个数字」，是整个设计换掉了，所以改成钉新设计。
-    must(!/CHAIN_CACHE_MS/.test(chainSrc), '链的寿命不再写死在 detectChain.js 里（不是那一个 30 秒常量了）', '旧常量还在')
-    must(/CHAIN_BACKOFF_MS\s*=/.test(budgetSrc) && /CHAIN_ALL_GREEN_TTL_MS\s*=/.test(budgetSrc), '退避阶梯与全绿寿命在数字的单源里（budget.js）', '数字 missing')
-    must(/verdict\(key/.test(backoffSrc) && /_stateByKey\.get\(key\)/.test(backoffSrc), '该不该重算由退避按缓存键判（键还是那条键）', '退避 missing')
-  }
-
-  title('D) 静态钉住单格不回来 + 日志纪律')
-  {
-    const indexSrc = read('src/host/index.js')
-    must(!/let\s+cache\s*=\s*\{\s*ts:/.test(indexSrc), '宿主单格 cache 不回来（已改成按根的表）', '单格还在')
-    must(!/let\s+chainCache\s*=\s*\{\s*ts:/.test(indexSrc), '链单格 chainCache 不回来（已改成按根+后端+语言的表）', '单格还在')
-    must(/snapshotByRoot/.test(indexSrc) && /chainByKey/.test(indexSrc), '两份表都在宿主入口持有（面板快照按根，链按根+后端+语言）', '表 missing')
-    must(/\.size\s*>\s*20/.test(indexSrc), '两份表都有 20 条上限（超了丢最久没用的）', '上限 missing')
-    const snapSrc = read('src/host/sessionSnapshot.js')
-    must(/snapshotInflight/.test(snapSrc) && /snapshotDedupKey/.test(snapSrc), '快照在途合并在（同钥匙同后端同强制标记共用同一份）', '合并 missing')
-    must(!/cwd-changed/.test(snapSrc), '快照未命中原因去掉目录变了（不再只有一格可比）', '旧原因还在')
-    must(/getCache\(cwd\)/.test(snapSrc), '快照读命中只读自己根那条', '仍读单格')
-    const refSrc = read('src/host/sessionRefresh.js')
-    must(/getCache\(cwd\)/.test(refSrc), '强制刷新读自己根那条（脏回执按根算年龄）', '仍读单格')
-    const detSrc = read('src/host/detectChain.js')
-    must(/chainInflight/.test(detSrc) && /chainDedupKey/.test(detSrc), '链在途合并在', '合并 missing')
-    // 旧断言找的是 `getChainCache(cacheKey)`：那时「命中」是 detectChain 自己拿键去读宿主那张表。
-    // #709（T5）之后这一步交给退避模块判（它按缓存键记态、按键回上一份快照），detectChain 这一侧要钉的是
-    // 「交给退避的是这条链自己的键」，以及「写回那张表时也只写这条键」。
-    must(/backoff\.verdict\(\s*cacheKey\b/.test(detSrc), '链读命中只读自己那条键（按这条链的键问退避）', '未按键问退避')
-    must(/setChainCache\(\{\s*ts:\s*Date\.now\(\),\s*key:\s*cacheKey/.test(detSrc), '链写回那张表也只写自己那条键', '未按键写回')
-    must(!/key-changed/.test(detSrc), '链未命中不再比单格键（不同键是不同条目）', '旧键比较还在')
-    const bindSrc = read('src/host/workspaceCwd.js')
-    must(/setCache\(\{\s*ts:\s*0[^}]*cwd:\s*cwd\s*\}\)/.test(bindSrc), '绑定写操作只清自己根', '仍清全部')
-    const pubSrc = read('src/host/publishFlow.js')
-    must(/cwd:\s*rk3/.test(pubSrc) && /cwd:\s*rkRetry/.test(pubSrc), '建仓与重试推送主路只清自己根', '主路未按根清')
-    must((pubSrc.match(/cwd:\s*null/g) || []).length === 1 && /拿不出目录/.test(pubSrc), '清全部仅剩锚根失败兜底那一条（拿不出目录，注释写明）', '兜底 missing')
-    const claimSrc = read('src/host/handoffClaim.js')
-    must(/cwd:\s*cwd/.test(claimSrc), '认领写操作只清自己根', '仍清全部')
-    const repoSrc = read('src/host/repoKeys.js')
-    must(/canonicalKey\(cwd/.test(repoSrc) && /只清自己根/.test(repoSrc), '外部写命令先锚到根再清自己那条', '未锚根')
-    // 日志：只复用已有四个事件名，不新增；总条数由既有三道门禁守（fields/guards/count 已绿）
-    const changed = [indexSrc, snapSrc, refSrc, detSrc, bindSrc, pubSrc, claimSrc, repoSrc].join('\n')
-    must(snapSrc.indexOf('snapshot.cache.hit') >= 0 && snapSrc.indexOf('snapshot.cache.miss') >= 0, '快照复用已有事件名（命中与未命中，不新增）', '事件 missing')
-    must(detSrc.indexOf('chain.cache.hit') >= 0 && detSrc.indexOf('chain.cache.miss') >= 0, '链复用已有事件名（命中与未命中，不新增）', '事件 missing')
-    const newEventLike = Array.from(changed.matchAll(/fire\s*\(\s*['"](?:info|debug|warn|error)['"]\s*,\s*['"]([^'"]+)['"]/g)).map((m) => m[1]).filter((e) => /696|shared\.cache|inflight|dedup\.snapshot/i.test(e))
-    must(newEventLike.length === 0, '未新增日志事件名（附录第 1 章条数不动，由既有计数门禁守）', '新增=' + newEventLike.join(','))
-    must(/dedup\.hit/.test(snapSrc) && /scope:\s*'snapshot'/.test(snapSrc), '快照在途命中记复用事件 dedup.hit（作用域为快照，不新增事件名）', 'dedup.hit missing')
-    must(/dedup\.hit/.test(detSrc) && /scope:\s*'chain'/.test(detSrc), '链在途命中记复用事件 dedup.hit（作用域为链，不新增事件名）', 'dedup.hit missing')
-  }
-
-  title('E) 门禁入链')
-  {
-    const pkg = JSON.parse(read('package.json'))
-    const chain = String((pkg.scripts || {}).verify || '')
-    must(chain.indexOf('verify-696-shared-cache.js') >= 0, '本门禁已挂进 npm run verify 链', 'package.json 里没有它')
-    must(chain.indexOf('verify-656-subworkspace-acceptance.js') >= 0, '既有子工作区验收仍在链上（与本门禁一起守）', '656 missing')
   }
 
   console.log('\n=== 汇总 ===')

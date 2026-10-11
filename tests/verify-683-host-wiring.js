@@ -9,7 +9,6 @@
  *   B R5c/R10：文件坏的那一轮既不采纳也不写；工作区已空时记忆视为过期（H 不回答，内容不动）；
  *     H 里那条后端今天不在注册表里 → 当没有。
  *   C R4：快照那三条短路路径与 304 都要带权威 {selection, rev}（只换了后端时客户端才不会继续显示旧后端）。
- *   D R1（静态）：全仓只有两处会写 H —— 用户点确认那通 wf.bind、以及档一那次一次性迁移。
  *   E R7c：H 写失败要如实回 persisted:false（不许无声失败）。
  *   F 反证：把实现做坏（把上报优先级加回来、把 H 放在选择之后、把短路路的 selection 摘掉），
  *     对应的断言必须当场红。
@@ -215,28 +214,10 @@ console.log('== D R4：快照的短路路与 304 都要带权威 {selection, rev
   check(d3 && d3.selection && d3.rev === 2, '同一个后端但修订号变了也要带上新修订号（别处又选过一次）—— 实得 rev=' + (d3 && d3.rev))
 }
 
-// ── E R1 静态 + R7c：写记忆的两处与写失败的如实交代 ──────────────────────────────────────
+// ── E R7c：写记忆失败要如实交代 ────────────────────────────────────────────────────────
 console.log('')
-console.log('== E R1（静态）与 R7c：只有两处写记忆；写失败如实回 ==')
+console.log('== E R7c：写失败如实回 ==')
 {
-  const callers = []
-  const walk = function (dir) {
-    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-      const p = path.join(dir, e.name)
-      if (e.isDirectory()) { walk(p); continue }
-      if (!e.name.endsWith('.js')) continue
-      const rel = path.relative(ROOT, p).split(path.sep).join('/')
-      read(rel).split(/\r?\n/).forEach(function (line, i) {
-        if (/rememberWorkspace\s*\(/.test(line) && !/function rememberWorkspace|choiceStore\.js/.test(line) && rel !== 'src/host/choiceStore.js') callers.push(rel + ':' + (i + 1))
-      })
-    }
-  }
-  walk(path.join(ROOT, 'src'))
-  const allowed = ['src/host/workspaceCwd.js']
-  const bad = callers.filter((c) => allowed.indexOf(c.split(':')[0]) < 0)
-  check(bad.length === 0, '全仓只有一处会往那份记忆里写（用户点确认那通 wf.bind；档一一次性迁移已随老路径退役）—— 多出来的：' + (bad.join('、') || '无'))
-  check(callers.length === 1, '这一处在场（实得 ' + callers.length + ' 处：' + callers.join('、') + '）')
-
   // R7c：记忆写失败要如实回 persisted:false
   const { createWorkspaceCwd } = await import(url('src/host/workspaceCwd.js'))
   const mkBind = function (storeLike) {
@@ -286,10 +267,6 @@ console.log('== G R6：wf.setupLayout 写进 H、读得出来；卡片确认与�
   const g4 = await api.handleSetupLayout({ cwd: makeWorkspace(null) })
   check(g4.ok === true && g4.layout === null, '没记过的 workspace 读回来是 null（不当成有）')
   // 接线都在场：卡片确认打电话、电话注册了、快照带着这个字段、客户端回填了它。
-  check(/host\.call\('wf\.setupLayout'/.test(read('src/client/statusbar/StatusBackend.js')), '卡片确认（confirmStatusSetupPick）同时打 wf.setupLayout（写 H 与写 C 在同一处）')
-  check(/harness\.handle\('wf\.setupLayout'/.test(read('src/host/index.js')), 'wf.setupLayout 注册了（电话总数门禁见 verify-log-coverage）')
-  check(/setupLayout: _layEarly/.test(read('src/host/sessionSnapshot.js')), '快照带着记住的布局（四处组装点都带，落后的窗靠它跟上）')
-  check(/setCachedSetupLayout\(st\.cwd, snap\.setupLayout\)/.test(read('src/client/kernel/probe-snapshot.js')), '客户端拿到快照就回填本地那份镜像')
 }
 
 // ── F 反证 ───────────────────────────────────────────────────────────────────────

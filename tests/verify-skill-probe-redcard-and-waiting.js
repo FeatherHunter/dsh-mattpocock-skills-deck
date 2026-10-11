@@ -17,6 +17,9 @@ function check(ok, msg, detail='') {
   else { failed = true; console.log('  FAIL ' + msg + (detail ? ' — ' + String(detail).slice(0,800) : '')) }
 }
 
+// 宿主注册 RPC 分发口用的精确路径由 rpcChannel.js 给出（#596：客户端 conn.rpc.call('/api','dsws')，
+// 宿主注册的精确路径是 '/api/dsws'）。这里按同一个常量取分发口：通道改名时测试自动跟上，
+// 不会像以前那样拿到 undefined、只报一句「dispatch is not a function」。
 // #284 迁移桥：wf.status 已退役，断言目标改为 wf.chain 全链快照；把链步骤归一化为旧行形状（key/level/detail/hint）
 function chainToRow(chainRes) {
   const v = chainRes && chainRes.value ? chainRes.value : chainRes
@@ -36,6 +39,25 @@ function chainToRow(chainRes) {
     }),
   }
 }
+// ---- 取宿主分发口（#596）----
+// 宿主不再走 connection.rpc.handle：它经 connection.fetch.register 注册一条精确路由 /api/dsws，
+// 端点名与入参装在请求体里（与 tests/smoke-host-dispatch.test.js 同一条真实路径）。测试照这条真实路径调用，
+// 免得注册方式一换，这里只剩一句「dispatch is not a function」，看不出是路由没注册还是名字改了。
+function connectionStubOf(box) { return { fetch: { register: (r) => { box.route = r; return () => {} } } } }
+async function routeReady(box) {
+  const t0 = Date.now()
+  while (!(box.route && typeof box.route.fetch === 'function') && Date.now() - t0 < 3000) await new Promise(r => setTimeout(r, 20))
+  return box.route
+}
+function dispatcherOf(box) {
+  return async function (endpoint, args) {
+    const route = await routeReady(box)
+    if (!route || typeof route.fetch !== 'function') throw new Error('宿主没有注册 /api/dsws 路由，取不到分发口')
+    const res = await route.fetch({ method: 'POST', url: 'http://127.0.0.1:1/api/dsws', json: async () => ({ type: 'client-request', rpcId: 'd-' + endpoint, method: endpoint, payload: { method: endpoint, payload: args } }) })
+    const env = await res.json()
+    return env && env.result
+  }
+}
 const callChain = async (dispatch, payload) => {
   if (!dispatch) return { checks: [] }
   // 链为串行求值：前置（已选后端/已初始化）须通过，技能步才会被求值；测试环境显式给定后端
@@ -46,32 +68,6 @@ const callChain = async (dispatch, payload) => {
 
 console.log('== #281 红牌分拣与等待合同门禁（#284 迁移：断言经 wf.chain 全链快照）==')
 
-// ---------- 1. 源码门禁 ----------
-console.log('\n— 验收1：源码门禁（纪律与线索） —')
-{
-  const hostSrc = readFileSync('src/host/index.js', 'utf8')
-  check(hostSrc.includes('SKILL_PENDING_MAX'), 'src/host/index.js 含 SKILL_PENDING_MAX（有界等待）')
-  check(hostSrc.includes('lightProbeReason'), '含 lightProbeReason（轻探分拣）')
-  check(hostSrc.includes('isSkillCardValid'), '含 isSkillCardValid（名片校验）')
-  check(hostSrc.includes('ensureSkillsInvalidateSubscription'), '含失效广播订阅')
-  check(hostSrc.includes('pending:skills-unavailable'), '含 pending hint 前缀')
-  check(!/SKILL_PROBE_DIRS/.test(hostSrc), '仍无 SKILL_PROBE_DIRS（单一尺度未回退）')
-  check(hostSrc.includes('source:') || hostSrc.includes('来源：'), '绿牌来源路径逻辑存在')
-  check(hostSrc.includes('directSkillCardRead'), '#296: host 含只读直读通道（directSkillCardRead）')
-  check(hostSrc.includes('probeCardViaDirect'), '#296: host 含直读探卡（probeCardViaDirect）')
-  check(hostSrc.includes('evidenceSummary'), '#296: host 含判据摘要（evidenceSummary）')
-  // 轻探仅涉标准根
-  const lightProbeSnippet = hostSrc.slice(hostSrc.indexOf('async function lightProbeReason'))
-  check(lightProbeSnippet.includes('.agents') && lightProbeSnippet.includes('SKILL.md'), '轻探仅涉标准根 SKILL.md')
-  check(!lightProbeSnippet.includes('.claude') && !lightProbeSnippet.includes('.minimax'), '轻探不含 .claude/.minimax（已退役）')
-}
-{
-  const predSrc = readFileSync('src/host/tracker/predicatePrimitives.js', 'utf8') // V1 #461：技能探测随原语执行器搬出
-  check(!predSrc.includes('.claude'), 'predicatePrimitives 无 .claude（仅标准根）')
-  // 确保仅一个候选
-  const candCount = (predSrc.match(/\.agents\/skills/g) || []).length
-  check(candCount === 1, 'predicatePrimitives 仅一个 .agents/skills 候选 — 实际 ' + candCount)
-}
 {
   // #284：statusDerive.js 已随九格目录视图退役；拼写防线移到链目录（check-catalog 单一真源）
   const catSrc = readFileSync('src/shared/tracker/check-catalog-dirs.js', 'utf8') + readFileSync('src/shared/tracker/check-catalog-views.js', 'utf8')
@@ -100,7 +96,10 @@ console.log('\n— 验收1：源码门禁（纪律与线索） —')
     check(existsSync(pkgLog), '构建产物存在：' + pkgLog)
     if (existsSync(pkgLog)) {
       const lib = readFileSync(pkgLog, 'utf8')
-      check(lib.includes('SKILL_PENDING_MAX'), 'pkg 产物含 SKILL_PENDING_MAX（产物不陈旧）')
+      // SKILL_PENDING_MAX 那个封顶常量住在宿主模块 package/lib/skillProbe.js 里，入口 index.js 只做装配、
+      // 不会把模块内容拼进来（它靠动态 import 加载）。所以这条按模块文件读，才真的在查「产物与 src 同步」。
+      const probeLib = existsSync('package/lib/skillProbe.js') ? readFileSync('package/lib/skillProbe.js', 'utf8') : ''
+      check(probeLib.includes('SKILL_PENDING_MAX'), 'pkg 产物含 SKILL_PENDING_MAX（产物不陈旧）')
       check(lib.includes('lightProbeReason'), 'pkg 产物含 lightProbeReason')
       check(lib.includes('probeFsExists'), 'pkg 产物含 probeFsExists（path-shaped 纪律）')
       check(lib.includes('directSkillCardRead'), 'pkg 产物含 directSkillCardRead（产物不陈旧）')
@@ -194,8 +193,7 @@ console.log('\n— 验收2：轻探分拣 缺失 vs 名片无效（永不绿） 
     timeout: (a,b) => (typeof a==='function' ? setTimeout(a,b) : new Promise(r=>setTimeout(r,a))),
     interval: () => () => {},
   }
-  const connection = { rpc: { handle: (path, fn) => { handlers[path] = fn } } }
-  const handlers = {}
+  const box = {}
   const ctx = {
     get(k) {
       if (k === 'skills') return skillsMock
@@ -203,7 +201,7 @@ console.log('\n— 验收2：轻探分拣 缺失 vs 名片无效（永不绿） 
       if (k === 'platform') return platformStub
       if (k === 'subprocess') return subprocess
       if (k === 'timer') return timer
-      if (k === 'connection') return connection
+      if (k === 'connection') return connectionStubOf(box)
       if (k === 'sessions') return { get: () => null }
       return undefined
     },
@@ -225,7 +223,7 @@ console.log('\n— 验收2：轻探分拣 缺失 vs 名片无效（永不绿） 
     // 需要触发一次订阅（probe 会尝试订阅）
     let statusA = null
     {
-      const dispatch = handlers['/dsws']
+      const dispatch = dispatcherOf(box)
       statusA = await callChain(dispatch, { cwd: tmpHome, lang: 'zh' })
     }
     if (!statusA || !Array.isArray(statusA.checks)) {
@@ -248,7 +246,7 @@ console.log('\n— 验收2：轻探分拣 缺失 vs 名片无效（永不绿） 
     files.set(join(tmpHome, '.agents', 'skills', 'wayfinder') + '/.dir', 'dir')
     let statusB = null
     {
-      const dispatch = handlers['/dsws']
+      const dispatch = dispatcherOf(box)
       statusB = await callChain(dispatch, { cwd: tmpHome, lang: 'zh' })
     }
     if (statusB && Array.isArray(statusB.checks)) {
@@ -268,7 +266,7 @@ console.log('\n— 验收2：轻探分拣 缺失 vs 名片无效（永不绿） 
     files.delete(join(tmpHome, '.agents', 'skills', 'wayfinder') + '/.dir')
     let statusC = null
     {
-      const dispatch = handlers['/dsws']
+      const dispatch = dispatcherOf(box)
       statusC = await callChain(dispatch, { cwd: tmpHome, lang: 'zh' })
     }
     const rowC = statusC && statusC.checks ? statusC.checks.find(c=> c.key==='skill:wayfinder') : null
@@ -279,7 +277,7 @@ console.log('\n— 验收2：轻探分拣 缺失 vs 名片无效（永不绿） 
       const wfDir2 = join(tmpHome, '.agents', 'skills', 'wayfinder')
       files.set(wfDir2 + '/.dir', 'dir')
       let statusD1 = null
-      const dispatchD1 = handlers['/dsws']
+      const dispatchD1 = dispatcherOf(box)
       statusD1 = await callChain(dispatchD1, { cwd: tmpHome, lang: 'zh' })
       const rowD1 = statusD1 && statusD1.checks ? statusD1.checks.find(c=> c.key==='skill:wayfinder') : null
       check(rowD1 && rowD1.level==='bad', '目录在·SKILL.md 缺失 → 红牌（bad）', JSON.stringify(rowD1))
@@ -294,7 +292,7 @@ console.log('\n— 验收2：轻探分拣 缺失 vs 名片无效（永不绿） 
       files.set(cardP3, '---\nname: wayfinder\n---')
       blockedRead.add(cardP3)
       let statusD2 = null
-      const dispatchD2 = handlers['/dsws']
+      const dispatchD2 = dispatcherOf(box)
       statusD2 = await callChain(dispatchD2, { cwd: tmpHome, lang: 'zh' })
       const rowD2 = statusD2 && statusD2.checks ? statusD2.checks.find(c=> c.key==='skill:wayfinder') : null
       check(rowD2 && rowD2.level==='bad', '名片存在但不可读 → 红牌（bad）', JSON.stringify(rowD2))
@@ -344,7 +342,7 @@ console.log('\n— 验收3：标准根外有效副本 绿+来源行 —')
   }
   const subprocess2 = { async resolveExecutable(){return null}, spawn(){ return { done: Promise.resolve({exitCode:0}), collected:{stdout:{readFrom:()=>({text:''})}, stderr:{readFrom:()=>({text:''})}}, terminate(){} } } }
   const timer2 = { timeout: (a,b)=> (typeof a==='function'? setTimeout(a,b): new Promise(r=>setTimeout(r,a))) }
-  const handlers2 = {}
+  const box2 = {}
   const ctx2 = {
     get(k){
       if(k==='skills') return skillsOffMock
@@ -352,7 +350,7 @@ console.log('\n— 验收3：标准根外有效副本 绿+来源行 —')
       if(k==='platform') return platformStub2
       if(k==='subprocess') return subprocess2
       if(k==='timer') return timer2
-      if(k==='connection') return { rpc: { handle: (p,fn)=>{handlers2[p]=fn} } }
+      if(k==='connection') return connectionStubOf(box2)
       if(k==='sessions') return { get: ()=>null }
       return undefined
     },
@@ -366,7 +364,7 @@ console.log('\n— 验收3：标准根外有效副本 绿+来源行 —')
   await new Promise(r=> setTimeout(r,50))
   let statusOff = null
   {
-    const dispatch = handlers2['/dsws']
+    const dispatch = dispatcherOf(box2)
     statusOff = await callChain(dispatch, { cwd: tmpHome2, lang: 'zh' })
   }
   if (statusOff && Array.isArray(statusOff.checks)) {
@@ -435,7 +433,7 @@ console.log('\n— 验收3.5：多通道并联 — 注册表未命中时任一�
   }
   const subprocess5 = { async resolveExecutable(){return null}, spawn(){ return { done: Promise.resolve({exitCode:0}), collected:{stdout:{readFrom:()=>({text:''})}, stderr:{readFrom:()=>({text:''})}}, terminate(){} } } }
   const timer5 = { timeout: (a,b)=> (typeof a==='function'? setTimeout(a,b): new Promise(r=>setTimeout(r,a))) }
-  const handlers5 = {}
+  const box5 = {}
   const ctx5 = {
     get(k){
       if(k==='skills') return skillsOffMiss5
@@ -443,7 +441,7 @@ console.log('\n— 验收3.5：多通道并联 — 注册表未命中时任一�
       if(k==='platform') return platformStub5
       if(k==='subprocess') return subprocess5
       if(k==='timer') return timer5
-      if(k==='connection') return { rpc: { handle: (p,fn)=>{handlers5[p]=fn} } }
+      if(k==='connection') return connectionStubOf(box5)
       if(k==='sessions') return { get: ()=>null }
       return undefined
     },
@@ -456,11 +454,11 @@ console.log('\n— 验收3.5：多通道并联 — 注册表未命中时任一�
   try{ (mod5.apply ?? mod5).call(null, ctx5) } catch{}
   await new Promise(r=> setTimeout(r,50))
   const call5 = async () => {
-    const dispatch = handlers5['/dsws']
+    const dispatch = dispatcherOf(box5)
     return await callChain(dispatch, { cwd: tmpHome5, lang: 'zh' })
   }
   const call5Plain = async () => {
-    const dispatch = handlers5['/dsws']
+    const dispatch = dispatcherOf(box5)
     const res = await dispatch('chain', { cwd: tmpHome5, lang: 'zh' })
     return chainToRow(res)
   }
@@ -556,7 +554,7 @@ console.log('\n— 验收3.6：BOM 名片 — Windows 编辑器另存的合法�
   }
   const subprocess6 = { async resolveExecutable(){return null}, spawn(){ return { done: Promise.resolve({exitCode:0}), collected:{stdout:{readFrom:()=>({text:''})}, stderr:{readFrom:()=>({text:''})}}, terminate(){} } } }
   const timer6 = { timeout: (a,b)=> (typeof a==='function'? setTimeout(a,b): new Promise(r=>setTimeout(r,a))) }
-  const handlers6 = {}
+  const box6 = {}
   const ctx6 = {
     get(k){
       if(k==='skills') return skillsMiss6
@@ -564,7 +562,7 @@ console.log('\n— 验收3.6：BOM 名片 — Windows 编辑器另存的合法�
       if(k==='platform') return platformStub6
       if(k==='subprocess') return subprocess6
       if(k==='timer') return timer6
-      if(k==='connection') return { rpc: { handle: (p,fn)=>{handlers6[p]=fn} } }
+      if(k==='connection') return connectionStubOf(box6)
       if(k==='sessions') return { get: ()=>null }
       return undefined
     },
@@ -577,7 +575,7 @@ console.log('\n— 验收3.6：BOM 名片 — Windows 编辑器另存的合法�
   try{ (mod6.apply ?? mod6).call(null, ctx6) } catch{}
   await new Promise(r=> setTimeout(r,50))
   const call6 = async () => {
-    const dispatch = handlers6['/dsws']
+    const dispatch = dispatcherOf(box6)
     return await callChain(dispatch, { cwd: tmpHome6, lang: 'zh' })
   }
   // 6a：fs 通道读 BOM 名片 → 绿（旧代码此处误判「名片无效 · frontmatter invalid」）
@@ -637,7 +635,7 @@ console.log('\n— 验收4：等待态 有界推进 + 失效广播 + 封顶失�
     off(event, handler){ if(capturedHandler===handler) capturedHandler=null },
     trigger(){ if(capturedHandler) capturedHandler() }
   }
-  const handlers3 = {}
+  const box3 = {}
   const ctx3 = {
     get(k){
       if(k==='skills') return skillsMock3
@@ -645,7 +643,7 @@ console.log('\n— 验收4：等待态 有界推进 + 失效广播 + 封顶失�
       if(k==='platform') return platformStub3
       if(k==='subprocess') return { async resolveExecutable(){return null}, spawn(){ return { done: Promise.resolve({exitCode:0}), collected:{stdout:{readFrom:()=>({text:''})}, stderr:{readFrom:()=>({text:''})}}, terminate(){} } } }
       if(k==='timer') return { timeout: (a,b)=> (typeof a==='function'? setTimeout(a,b): new Promise(r=>setTimeout(r,a))) }
-      if(k==='connection') return { rpc: { handle: (p,fn)=>{handlers3[p]=fn} } }
+      if(k==='connection') return connectionStubOf(box3)
       if(k==='sessions') return { get: ()=>null }
       return undefined
     },
@@ -659,13 +657,13 @@ console.log('\n— 验收4：等待态 有界推进 + 失效广播 + 封顶失�
   await new Promise(r=> setTimeout(r,50))
   // 连续 force 调用 4 次，验证前 3 pending，第 4 bad 且携带原文
   const getStatus = async () => {
-    const dispatch = handlers3['/dsws']
+    const dispatch = dispatcherOf(box3)
     if (!dispatch) return null
     return await callChain(dispatch, { cwd: tmpHome3, lang: 'zh' })
   }
   // #284 断链回归：广播后【无 force】一次 chain 亦须全量重判（callChain 固定 force 仅用于显式刷新路径；此处直接 dispatch）
   const getStatusPlain = async () => {
-    const dispatch = handlers3['/dsws']
+    const dispatch = dispatcherOf(box3)
     if (!dispatch) return null
     const res = await dispatch('chain', { cwd: tmpHome3, lang: 'zh' })
     return chainToRow(res)

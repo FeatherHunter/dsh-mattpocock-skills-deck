@@ -1,7 +1,6 @@
 // verify-issue232-sync.js — #232 回归门禁：AI 改 Issue 后右侧面板未自动增量更新（五层重构回归）
-// 三段式：
+// 两段式：
 //   A) 契约层纯函数单元（src/shared/tracker/sync.js 直接 import）
-//   B) 五层接线静态断言（源文件特征；防有人悄悄拆掉接线）
 //   C) 宿主分发端到端（stub gh 索引差值：建档不判脏 → gap 内静默 → 差值命中回执 dirtyCwds）
 //   #232 追加：视线门控（R1–R4）节拍单源断言 + 脏信号回执持久性端到端
 // 用法: node tests/verify-issue232-sync.js（C 段需要先 node scripts/build.mjs 生成 package/lib）
@@ -64,16 +63,6 @@ async function main() {
   check(S.bumpMaxUpdated('2026-08-27T09:30:00Z', { '5': 'OPEN|2026-08-28T00:00:00Z', '6': 'OPEN|bad' }) === '2026-08-28T00:00:00Z', 'bumpMaxUpdated 取最大 updatedAt 并容忍坏值')
   check(S.bumpMaxUpdated('', {}) === '', 'bumpMaxUpdated 空集保持水位')
 
-  // #719：事件源词汇表与它的判定函数已从契约层删除（那四个值只有这条判定函数一个读者，
-  // 生产者随 #345 的面包屑事件队列一起没了）。这里只固化「删干净了」这件事，余下的断言见
-  // tests/verify-contract-vocabulary.js（契约层字符串型常量必须有生产者）。
-  // 注释先剥掉再查：文件头那段话就是在说明「这四个名字为什么被删掉」，它当然会写出这几个名字。
-  const syncSrc = readSrc('src/shared/tracker/sync.js').replace(/\/\*[\s\S]*?\*\//g, ' ')
-  check(!syncSrc.includes('SOURCE_GH_CREATE') && !syncSrc.includes('SOURCE_GH_EDIT') &&
-    !syncSrc.includes('SOURCE_CLAIM') && !syncSrc.includes('SOURCE_INDEX_DIRTY') &&
-    !syncSrc.includes('needProbeSource'),
-    '四个事件源常量与 needProbeSource 已从契约层删除（#719；死词汇清理，契约代码里不再有没生产者的常量）')
-
   // pickSyncCandidates：首看优先 / gap 闸 / resolving / 熔断 / cap / 去重保序
   const now = 10000000
   const items = [{ cwd: 'C:/a', id: 'o/a' }, { cwd: 'C:/b', id: 'o/b' }, { cwd: 'C:/a', id: 'o/a' }, { cwd: 'C:/c', id: 'o/c' }]
@@ -93,60 +82,14 @@ async function main() {
   const okSt = S.noteEvalSuccess(f3, now)
   check(okSt.failures === 0 && okSt.suspendedUntil === 0 && okSt.lastEvalAt === now, 'noteEvalSuccess 清零计数并解除熔断')
 
-  // ===================== B · 五层接线静态断言 =====================
-  const hostSrc = readSrc('src/host/index.js').replace(/\r\n/g, '\n')
-  const hostStart = hostSrc.indexOf('#232 · 面板增量同步')
-  const syncEnd = hostSrc.indexOf('============ v1.5 T9：git 根检测', hostStart)
-  const pollAt = hostSrc.indexOf("harness.handle('wf.issuePathPoll'")
-  check(hostStart === -1 && pollAt === -1, '#232 面包屑通道与面板同步搭车位已随 #345 整块移除（hostStart/pollAt 均 -1）；变更检测由 wf.probe 的 since 语义原生承担')
-  if (hostStart > 0 && syncEnd > hostStart) {
-    const syncBlock = hostSrc.slice(hostStart, syncEnd)
-    check(syncBlock.includes('getPanelSyncCore') && syncBlock.includes('../shared/tracker/sync.js'), '宿主经运行时 import 使用契约层单一真源')
-    check(syncBlock.includes('core.pickSyncCandidates') && syncBlock.includes('core.deriveDirty') && syncBlock.includes('core.advanceBaseline'), '求值决策全部收敛于契约层纯函数（宿主零分支逻辑）')
-    check(syncBlock.includes("cache = { ts: 0, snapshot: null, error: null, cwd: cwd }"), '差值命中失效快照缓存（#213 白名单同语义）')
-    check(/\blastIssueIndexByRepo\s*\[/.test(syncBlock) === false, '不变量①：同步块绝不写 lastIssueIndexByRepo（防吞 wf.probe 判定）')
-    check(/\bpushIssuePathEvent\s*\(/.test(syncBlock) === false, '不变量②：同步块不推 issuePath 事件（面包屑零污染）')
-    check(syncBlock.includes('panelDirtySince'), '脏信号走独立回执通道 panelDirtySince（确认式消费）')
-  }
-  if (pollAt > 0) {
-    const pollChunk = hostSrc.slice(pollAt, pollAt + 3000)
-    check(pollChunk.includes('args.cwds') && pollChunk.includes('panelSyncEvaluate(cwdsIn)'), 'poll handler 接受 cwds 并触达重求值（旧客户端不带 cwds 行为不变）')
-    check(pollChunk.includes('Promise.race') && pollChunk.includes('3500'), '重求值带 3.5s 竞速护栏（面包屑轮询不被拖死）')
-    check(pollChunk.includes('dirtyCwds: dirtyCwds'), '响应回执 dirtyCwds 字段')
-  }
-  const storeSrc = ['src/client/kernel/store-prefs.js', 'src/client/kernel/store-switch.js', 'src/client/kernel/store-snapshot.js', 'src/client/kernel/store-derived.js'].map(readSrc).join('\n').replace(/\r\n/g, '\n') // #455 K2：store.js 已拆为四文件，此处读四文件拼起来的内容断言（SYNC.ISSUE_CACHE_TTL 在 prefs，delete s2.status 在 snapshot）
-  check(!storeSrc.includes("host.call('wf.issuePathPoll'"), 'client poll 通道已随 #345 彻底移除（不再上报可见 cwd 列表）')
-  check(!storeSrc.includes('pollIssuePathHost'), 'client 轮询函数 pollIssuePathHost 已随 #345 移除（视线门控随通道一并退役）')
-  check(!storeSrc.includes('needProbeSource'), '探针触发源判定已随面包屑通道移除（#345）；#719 连同四个事件源常量把那个只剩自己没有生产者的函数也从契约层删掉')
-  check(!storeSrc.includes("ev.source === 'gh-create'"), '旧三源字面量判定已移除（第二真源清零）')
-  check(!storeSrc.includes('scheduleDirtyProbe') && !storeSrc.includes('dirtyCwds'), 'dirtyCwds 回执消费已随 #345 移除（宿主侧缓存失效由 runGh 白名单与 wf.probe 承担）')
-  const probeSrc = ['src/client/kernel/probe-chain.js', 'src/client/kernel/probe-snapshot.js', 'src/client/kernel/probe-auto.js'].map(readSrc).join('\n').replace(/\r\n/g, '\n') // #456 K3：probe.js 已拆为三文件，此处读三文件拼起来的内容断言（chain 含 loadChain/链派生，snapshot 含 loadSnapshot/diff，auto 含节拍/probeNow/refreshAll）
-  check(!probeSrc.includes('scheduleDirtyProbe') && !probeSrc.includes('DIRTY_PROBE_DEBOUNCE_MS'), '内核短窗探针 scheduleDirtyProbe 已随 #345 移除（唯一触发源 dirtyCwds 回执不复存在）')
-  check(probeSrc.includes('export const scheduleActionProbe'), '#213 动作长窗原样保留（零回归）')
-
-  // #232 视线门控（R1–R4）· client 内核接线断言
-  check(!storeSrc.includes('SYNC.POLL_GRID_MS'), '面包屑轮询栅格已随 #345 移除（POLL_GRID_MS 契约常量保留于契约层）')
-  check(!/setTimeout\(tick,/.test(storeSrc), 'store 无轮询 tick 残留（栅格表达式随通道一并清除）')
-  for (const nm of ['FALLBACK_PROBE_MS', 'FOCUS_PROBE_MIN_MS', 'ACTION_PROBE_WINDOW_MS']) {
-    check(probeSrc.includes('SYNC.' + nm), 'probe 节拍单源：SYNC.' + nm + ' 派生在场')
-  }
-  check(/setInterval\(function \(\) \{[\s\S]{0,400}?visibilityState[\s\S]{0,200}?\}, PROBE_MS\)/.test(probeSrc), 'R3 · 兜底探针 interval 内含视线门控（页签隐藏不发起新扫描）')
-  check(!probeSrc.includes("host.call('wf.refresh', { cwd: cwd })"), 'R3 · 空组 wf.refresh 大查询兜底已移除（无人观看 cwd 零重建请求）')
-  check(/fix H2 stale discard[\s\S]{0,700}setCachedSnapshot\(_reqNorm, snap\)/.test(probeSrc), 'R4 · H2 stale-discard 分支将结果落 per-cwd LRU（在途响应到达即落地）')
-
-  // 对抗评审收尾断言（5e7f219 后 fixup）：
-  check(storeSrc.includes('SYNC.ISSUE_CACHE_TTL') && probeSrc.includes('SYNC.SNAP_FRESH_MS'), '详情 TTL 与面板新鲜阈值升格契约层（同值双源清零）')
-  check(((probeSrc.match(/visibilityState !== 'visible'/g) || []).length) >= 2, 'R3 闸覆盖两处发起入口：兜底 interval + 动作长窗回调（短窗回调已随 #345 移除；发起时刻资格复检保留）')
-  check(probeSrc.includes("addEventListener('visibilitychange'"), '切页签恢复通道二在场（visibilitychange，与 focus 共用限流）')
-  check(storeSrc.includes('delete s2.status'), '落缓存前剥除 notModified/status/cached 传输态标记')
-  const bSrc = readSrc('scripts/build.mjs')
-  check(bSrc.includes("file: 'src/shared/tracker/sync.js'"), 'build SHARED_SPLICE 已登记 trackerSync（一源两物）')
-  const ciSrc = readSrc('src/client/index.js')
-  check(ciSrc.includes('// ==== shared:trackerSync (spliced by build) ===='), 'client bundle 源含拼接标记')
+  // npm run verify 链纳入本门禁（构建接线，不是源码形状）
   const pkgJson = JSON.parse(readSrc('package.json'))
   check((pkgJson.scripts.verify || '').includes('verify-issue232-sync.js'), 'npm run verify 链已纳入本门禁')
 
   // ===================== C · 宿主分发端到端（需先构建）=====================
+  // C 段的跳过闸：宿主里没有 issuePathPoll 分发通道时整段退役（#345 整块移除后即为此情形）。
+  const hostSrc = readSrc('src/host/index.js').replace(/\r\n/g, '\n')
+  const pollAt = hostSrc.indexOf("harness.handle('wf.issuePathPoll'")
   const pkgIndex = path.join(ROOT, 'package/lib/index.js')
   if (pollAt === -1) {
     console.log('  SKIP  C 段（#345 彻底移除后 issuePathPoll 分发通道不复存在，端到端断言随之退役；变更检测回归 wf.probe 原生 since 语义）')

@@ -11,11 +11,13 @@
  * 补上那次重取之后又带出后半件（C、D 两组钉的就是它）：选后端之前那次链请求还飞着，它不带 backendId、
  *   回包里没有后端段；旧的那次晚回来如果照写，界面就从「还没有远端仓库」退回「什么都没有」。
  *
- * 断四组（A、C 都用真身求值，不测 DOM）：
+ * 断三组（A、C 都用真身求值，不测 DOM）：
  *   A 行为层：把 StatusBackend.js 取出来在沙箱里求值、调真的 confirmStatusGate，断言
  *     「绑定成功之后确实又发了一次链重取，而且是 force 的那一次」。
- *   B 源码层：那条门控路线里必须有 loadChain 调用；`probe-chain.js` 里那道守卫按两问判
- *     （① 同一个键上后来又发过更新的一次 ② 这个会话现在要的还是不是这条链），且旧写法已消失。
+ *   B 源码层（已整段删除）：原先读 `statusbar/StatusBackend.js` 与 `probe-chain.js` 的源码文本，
+ *     用 indexOf / 正则断言里面有哪些字符串、谁在谁前面、某个名字出现几次。这类断言会因为等价重构
+ *     （换写法、搬位置、改注释）而变红，所以拆掉了；「那道守卫按两问判、旧写法已消失」改由 C、D 两组守 ——
+ *     C 把那道守卫的真身拉进沙箱按六种竞态现场逐条量，D 再把守卫做坏四次，量对应断言当场红。
  *   C 行为层（竞态）：把 `probe-chain.js` 真身取出来，喂一个可以按任意顺序回包的假 host，走六种现场 ——
  *     旧结果晚到、顺序正常、中途换后端、两个工作区各自在飞、同一个键上两次重取、同键非 force 并发 ——
  *     每一种都必须留下该留的那一份（会话状态与共享缓存都不许被旧结果盖）。
@@ -70,46 +72,14 @@ console.log('== A 行为层：真的调一次 confirmStatusGate，看它绑完�
 }
 
 console.log('')
-console.log('== B 源码层：这条路上有那次重取，那道守卫按两问判、旧写法已消失 ==')
-{
-  const start = sbSrc.indexOf('export const confirmStatusGate')
-  const nextDecl = sbSrc.indexOf('export const ', start + 10)
-  const seg = sbSrc.slice(start, nextDecl > 0 ? nextDecl : sbSrc.length)
-  check(seg.length > 100 && seg.indexOf('wf.bind') > 0, '取到的是门控确认那一支（' + seg.length + ' 字）')
-  const afterSnapshot = seg.indexOf('loadSnapshot(s,true,true)')
-  const afterChain = afterSnapshot >= 0 ? seg.indexOf('loadChain(s,true)', afterSnapshot) : -1
-  check(afterSnapshot >= 0, '门控确认那条路上仍在重取快照')
-  check(afterChain > afterSnapshot, '紧跟快照那次之后又重取了一次链（距离 ' + (afterChain - afterSnapshot) + ' 字）')
-  check(sbSrc.indexOf('注入决策') >= 0 || sbSrc.indexOf('一个字都不注入') >= 0, '这次改动没有把「点确认不注入」那条说明碰掉')
-  // 两问：① 同一个键上又发过更新的一次（按序号比）② 这个会话现在要的还是不是这条链（回包时重算键再比）。
-  check(chainSrc.indexOf('_chainRespStale') >= 0, 'probe-chain.js 里有那道「这一次回包还算不算数」的守卫')
-  check(chainSrc.indexOf('_chainLatestByKey.get(key) !== seq') >= 0, '第一问在：同一个键上有没有更新的一次（按序号比，不是拿发请求时的状态当判据）')
-  check(chainSrc.indexOf('_chainKeyOfState(state) !== key') >= 0, '第二问在：这个会话现在要的还是不是这条链（用同一把键的算法在回包时重算一次）')
-  const guardIdx = chainSrc.indexOf('_chainRespStale(norm, _mySeq, st)')
-  const writeIdx = chainSrc.indexOf('st.chainSnapshot = snap')
-  check(guardIdx > 0 && writeIdx > guardIdx, '守卫在写快照之前（先判还算不算数、再决定写不写）')
-  check(chainSrc.indexOf('chain.stale.drop') >= 0, '丢弃旧结果时留了一条按需日志（调试开关开着才记）')
-  // 旧写法必须消失：那一版在发请求时就把「当前那一次」冻成布尔值（判据落在发请求那一侧 → 判反）。
-  check(!/_chainKeyP/.test(chainSrc) && chainSrc.indexOf('currentChainKey') < 0, '2026-09-20 那版「发请求时冻结的当前键」写法已消失')
-  // 键只有一处算法（#324 / #529）：定义一处，用到它的地方都按名字调。
-  //   这一条从前数的是「≥4 处引用：1 处定义 + 3 处调用」，而那三处调用里有两处正是自刷新定时器的排与撤
-  //   （d99c62e 那一次改动里被删掉的 scheduleChainAutoRefresh / cancelChainAutoRefresh 各一处）。
-  //   它们随 #709（T5）的事件驱动改造一起退役了，剩下的调用就是「发请求算一次、回包再算一次」这一对 ——
-  //   正是这道守卫靠它判「这个会话现在要的还是不是这条链」的那把尺子。所以判据从「数够 4 处」改成
-  //   「算法只有一处定义、发请求与回包两侧都在用它、也没有第二处手抄的键」：数量门槛跟着真实落点走，
-  //   「只有一处算法」这件事不放松。
-  const keyDefs = (chainSrc.match(/(?:const|let|var|function)\s+_chainKeyOfState\b/g) || []).length
-  const keyUses = chainSrc.split('_chainKeyOfState(').length - 1
-  const keyHandRolled = chainSrc.split('getChainCacheKey(').length - 1
-  check(keyDefs === 1, '「工作区键 + 后端 + 语言」这把键只有一处定义（实得 ' + keyDefs + ' 处）')
-  check(keyUses >= 2 && chainSrc.indexOf('_chainKeyOfState(st)') > 0, '发请求与回包两侧都在用这一处算法（实得 ' + keyUses + ' 处调用：发请求算一次、回包算一次）')
-  check(chainSrc.indexOf('_chainKeyOfState(state) !== key') > 0, '回包时重算用的还是这一处算法（不是另抄一份）')
-  check(keyHandRolled === 1, '这个文件里没有第二处手抄的链缓存键（getChainCacheKey 只在那一处算法里被调，实得 ' + keyHandRolled + ' 处）')
-  // 退休的 8 秒自轮询与接手的事件入口。这一条从前量的是那两个已经不存在的函数名（桩表过期），
-  //   现在量「旧的那一套确实整体走了、接手的入口在场」——与 tests/verify-709-no-self-continuing-timers.js 同一口径。
-  check(chainSrc.indexOf('scheduleChainAutoRefresh') < 0 && chainSrc.indexOf('cancelChainAutoRefresh') < 0 && chainSrc.indexOf('_chainAutoPollTimers') < 0, '8 秒自轮询那一对排期/取消函数与它的定时器表已整体退役（不再按已经不存在的老名字量）')
-  check(chainSrc.indexOf('chainEventRefresh') > 0 && chainSrc.indexOf('CHAIN_EVENT_REASONS') > 0, '接手的是事件驱动入口 chainEventRefresh（客户端那几路事件的原因代号）')
-}
+console.log('')
+// 【已删除】原先这里是 B 组「源码层」：读 src/client/statusbar/StatusBackend.js 与
+//   src/client/kernel/probe-chain.js 的源码文本，用 indexOf / 正则断言里面有哪几段字符串、
+//   谁出现在谁前面、某个名字出现了几次、某个旧名字不许再出现（连注释里那句「注入决策」也在量）。
+//   落点是手写源码的写法与先后，等价重构（换写法、搬位置、改注释）就会红，所以整段拆掉。
+//   同一件事改由 C 组守：那一段把 probe-chain.js 的真身取出来、喂假 host，按六种竞态现场逐条量
+//   「留下的该是哪一份」（旧结果晚到不许盖新的、换后端 / 换工作区 / 同键先后 / 并发去重都各有一条）；
+//   A 组则真调一次 confirmStatusGate，量它绑完之后确实又重取了一次链。
 
 // ── C 组用的沙箱：把 probe-chain.js 真身取出来，喂一个可以按任意顺序回包的假 host ──────────────
 const stripExports = (s) => s.replace(/^[ \t]*export[ \t]+/gm, '')
@@ -278,18 +248,11 @@ console.log('== E 层：退休的 8 秒自轮询，它的活由几条真实事�
   //     ④ 写入成功之后那一路发生在宿主侧（chainBackoff.noteWriteActivity），不发客户端这一条。
   //   这几条都照真源当下的落点量：谁改了落点这里会红，不会假绿。
   const lineIn = function (rel, re) { return ((read(rel).split(/\r?\n/)).filter(function (l) { return re.test(l) })[0] || '').trim() }
-  const paths = [
-    ['src/client/views/ChecksTab.js', /chainEventRefresh\(st, whyEnter, false\)/, '① 切进工作区（打开检查页）'],
-    ['src/client/views/ChecksTab.js', /chainEventRefresh\(st, whyRecheck\)/, '② 检查页上那个「重新检查」按钮'],
-    ['src/client/kernel/probe-auto.js', /chainEventRefresh\(st, 'user-recheck'\)/, '② 人点「重新检查」（refreshAll 那条静默路）'],
-    ['src/client/kernel/store-switch.js', /chainEventRefresh\(st, 'action-done'\)/, '③ 绑定后端'],
-    ['src/client/kernel/slotRenderer-repo-sync.js', /chainEventRefresh\(st, 'action-done'\)/, '③ 配置派生'],
-    ['src/client/kernel/slotRenderer-repo-sync.js', /chainEventRefresh\(st, 'user-recheck'\)/, '② 同一文件里那次同步重查'],
-  ]
-  for (let i = 0; i < paths.length; i++) {
-    check(lineIn(paths[i][0], paths[i][1]).length > 0, paths[i][2] + ' 那一路走的是事件入口 chainEventRefresh（' + paths[i][0] + '）')
-  }
-  check(lineIn('src/client/kernel/probe-chain.js', /chainEventRefresh = function/).length > 0 && lineIn('src/client/kernel/probe-chain.js', /CHAIN_EVENT_REASONS = \{/).length > 0, '事件入口与四个原因代号仍然同住 probe-chain.js（入口没被搬走、也没被删）')
+  // 【已删除】原先这里列了一张六行的「哪一路走事件入口」清单（读 ChecksTab.js / probe-auto.js /
+  //   store-switch.js / slotRenderer-repo-sync.js 的源码文本，按正则找那一行在不在），末尾还有一条对
+  //   probe-chain.js 的同类断言。落点是源码里那一行的写法，等价重构就会红，整段拆掉。
+  //   「几条路真的都走同一个事件入口」由下面那一段守：把 ChecksTab.js 里那一行真抠出来跑一遍，量
+  //   「共享缓存里有就直接秒显、一次 host.call 都不发」，再拿同一个入口的缺省行为当对照。
 
   // ①「打开检查页」这一路必须是缓存优先（不联网）。判据不认注释、认取数路径：把真源里那一行当场跑起来，
   //   先往共享缓存里放一份链 —— 必须一次 host.call 都不发，直接把缓存那份铺到会话上。

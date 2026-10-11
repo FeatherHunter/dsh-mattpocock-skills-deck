@@ -19,12 +19,17 @@
  *   C. 跨路：快照路强制在途 + 刷新路到达 → 共 1 次（只有共享表能过，是本方案区别于止血版的证明）。
  *   D. 口径钉死：强制撞非强制仍为 2（#366 不动）；非强制搭强制为 1；换后端为 2（键能分清）。
  *   E. 反证：把协调器规则拆掉（补丁副本），Take 永不搭车 —— 证明规则行是承重的；
- *      把整单回滚（临摹旧码：强制不查表）→ A/B/C 当场变红；静态钉住两处电话路的 Take/Park/Leave 接线。
- *   F. 本门禁已挂进 npm run verify 链；三处 src 文件都在 350 行内；两处电话路的新增同层边已记基线。
- *   G. 不要做的事钉死：客户端 30 秒死线一字未动；三处宿主文件无节流与防抖。
+ *      把整单回滚（临摹旧码：强制不查表）→ A/B/C 当场变红。
+ *   F. 本门禁已挂进 npm run verify 链；两处电话路的新增同层边已记基线。
  *   H. 同 tick 并发（零延迟）：Take 到 Park 之间无等待点，确定性仍为 1（延迟 10ms 只是常量，不是遮羞布）。
  *
- * 测法：真跑 sessionSnapshot / sessionRefresh（计数重建次数，不起外部命令）+ 读源码断言。
+ *   原先的 E2（读 src/host/sessionSnapshot.js 与 src/host/sessionRefresh.js 的源码文本、
+ *   断言 Take/Park/Leave 的调用都在）、F 里的「三处 src 文件都在 350 行内」、以及 G 组
+ *   （读客户端与宿主源码文本钉 30 秒死线、扫节流防抖字样）都是源码文本门禁，2026-10 按
+ *   维护者口径撤掉：断言的对象是手写源码的文本，等价重构就会变红。
+ *
+ * 测法：真跑 sessionSnapshot / sessionRefresh（计数重建次数，不起外部命令），外加把源码
+ *   抠出来改坏后真跑一遍的反证（E 组）。
  *
  * 用法：node tests/verify-729-force-dedup.js
  */
@@ -235,19 +240,6 @@ async function main() {
         must(counter.n === 2, '反证 C 成立：回滚后跨路回到 2 次', 'builds=' + counter.n)
       }
     } finally { try { fsx.rmSync(tmpTree, { recursive: true, force: true }) } catch (eRm2) {} }
-    // E2：静态钉住接线 —— 两处电话路的 Take/Park/Leave 任一段被摘，A/B/C 的行为必红（A–D 已证非恒绿）。
-    const snapSrc = read('src/host/sessionSnapshot.js')
-    const refSrc = read('src/host/sessionRefresh.js')
-    for (const [name, src] of [['sessionSnapshot.js', snapSrc], ['sessionRefresh.js', refSrc]]) {
-      must(src.indexOf('./snapshotInflight.js') >= 0, name + ' 接了共用协调器（动态引入在）')
-      must(src.indexOf('snapshotInflightTake(') >= 0, name + ' 搭车那一段在（Take）')
-      must(src.indexOf('snapshotInflightPark(') >= 0, name + ' 发车登记那一段在（Park）')
-      must(src.indexOf('snapshotInflightLeave(') >= 0, name + ' 收车删键那一段在（Leave，只删自己那一条）')
-    }
-    must(snapSrc.indexOf('snapshotInflightTake(snapshotDedupKey, isForce') >= 0,
-      '快照路把“是不是强制”交给了协调器（非对称规则吃得到这个参数）')
-    must(refSrc.indexOf('snapshotInflightTake(refreshDedupKey, true') >= 0,
-      '刷新路恒以强制身份进表（搭车只搭强制的车）')
   }
 
   title('F) 门禁入链与文件纪律')
@@ -256,10 +248,6 @@ async function main() {
     const chain = String((pkg.scripts || {}).verify || '')
     must(chain.indexOf('verify-729-force-dedup.js') >= 0, '本门禁已挂进 npm run verify 链', 'package.json 里没有它')
     must(chain.indexOf('verify-696-shared-cache.js') >= 0, '既有 #696 门禁仍在链上（与本门禁一起守）', '696 missing')
-    for (const rel of ['src/host/snapshotInflight.js', 'src/host/sessionSnapshot.js', 'src/host/sessionRefresh.js']) {
-      const n = read(rel).split(/\r?\n/).length
-      must(n <= 350, rel + ' 不超 350 行（实得 ' + n + ' 行）')
-    }
     const baseline = JSON.parse(read('tests/same-layer-baseline.json'))
     const keys = new Set((baseline.entries || []).map((e) => e.file + '|' + e.resolved))
     must(keys.has('src/host/sessionSnapshot.js|src/host/snapshotInflight.js'), '同层基线记了快照路 → 协调器这条边（owner #729）')
@@ -268,20 +256,6 @@ async function main() {
     must(art.indexOf("'dedup.hit'") >= 0, '复用的事件名在日志白名单里（无新增事件，附录对照表不动）')
   }
 
-  title('G) 不要做的事钉死：热刷新那一档死线不动，不加节流')
-  {
-    const probeSrc = read('src/client/kernel/probe-snapshot.js')
-    must(probeSrc.indexOf('SNAP_WAIT_MS = 30000') >= 0 && probeSrc.indexOf('client loadSnapshot timeout 30s') >= 0,
-      '客户端 30 秒死线一字未动（本票禁入，迟到落地是另一张票的范围）')
-    must(probeSrc.indexOf('SNAP_WAIT_COLD_MS') < 0 && probeSrc.indexOf('snapWaitBudgetMs') < 0 && probeSrc.indexOf('Math.round(_waitMs/1000)') < 0,
-      '冷启动分档与动态超时文案不在了（#1009 收口只留一条，分档必须删掉）')
-    const g1 = read('src/host/sessionSnapshot.js')
-    const g2 = read('src/host/sessionRefresh.js')
-    const g3 = read('src/host/snapshotInflight.js')
-    for (const [name, src] of [['sessionSnapshot.js', g1], ['sessionRefresh.js', g2], ['snapshotInflight.js', g3]]) {
-      must(!/[Tt]hrottle|[Dd]ebounce/.test(src), name + ' 无节流与防抖（症状不许被时间窗压后）')
-    }
-  }
 
   title('H) 同 tick 并发（零延迟）：Take 到 Park 之间无等待点，确定性仍为 1')
   {

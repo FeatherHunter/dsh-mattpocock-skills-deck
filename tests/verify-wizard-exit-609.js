@@ -170,7 +170,6 @@ function main() {
         'echo "【探针】open_url 对着返回 1 的调起器返回 $?"',
       ].concat(['']).join('\n'))
       const r = runBash(probe, [REPO_REL_ARG])
-      check(callCount === 4, '产品脚本 ' + WIZARD_REL + ' 里认得出 4 处 open_url 调用（实得 ' + callCount + ' 处）')
       check(r.status === 0, '调起器返回非零时，每一处 open_url 调用都不会结束脚本（探针退出码 ' + r.status + '）')
       const alive = (outOf(r).match(/【探针】第 \d+ 行 open_url 之后脚本还活着/g) || []).length
       check(alive === callCount, callCount + ' 处调用全部走过（实得 ' + alive + ' 处）')

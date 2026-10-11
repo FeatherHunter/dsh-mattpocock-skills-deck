@@ -33,19 +33,6 @@ async function main() {
   check(ports.PORTS_SOURCE === 'label-color-core/src/ports.ts',
     '插口产物带模块标识 PORTS_SOURCE（实得 ' + String(ports.PORTS_SOURCE) + '）')
 
-  // 失败条目的形状钉死成与 tracker 契约层逐字一致（总工裁决：核心是后来者，向已定版的契约对齐，
-  // 同一个概念只允许一种写法）。类型在产物里已被擦掉，所以这条只能读 TypeScript 源码来断言。
-  {
-    const portsTs = fs.readFileSync(path.join(ROOT, 'label-color-core/src/ports.ts'), 'utf8')
-    const decl = /export interface ColorChangeFailure \{([\s\S]*?)\n\}/.exec(portsTs)
-    check(!!decl, 'ports.ts 里能读到 ColorChangeFailure 的形状声明')
-    const body = decl ? decl[1] : ''
-    check(/name:\s*string/.test(body), 'ColorChangeFailure 带 name 字段')
-    check(/reason:\s*\{\s*kind:\s*string;\s*message:\s*string\s*\}/.test(body),
-      'ColorChangeFailure 的 reason 是 { kind, message }（与契约层的失败条目逐字一致）')
-    check(!/\bcode\s*:/.test(body), 'ColorChangeFailure 里不再出现 code 这个字段名（同一个概念只有一种写法）')
-  }
-
   // ---- 1) 归一化：不带井号的小写六位 ----
   const normalized = [
     ['#8B5CF6', '8b5cf6'],
@@ -846,10 +833,8 @@ async function main() {
   }
 
   // ---- 13) #637：入口图标的颜色（四个 wayfinder 标签的真实颜色，缺哪个哪个回默认色）----
-  // 负责人定的三件事：① 盘身也要上色（暖木色）；② 按钮尺寸形状一个字不动，只上色；
-  // ③ 四颗颜料点取 wayfinder:map / research / prototype / task 四个标签的真实颜色，
-  // 异常、不存在等任何特殊情况用默认色兜底。钉三处：纯函数给的颜色对不对、图标用不用传进来的颜色、
-  // 两处调用点（入口按钮与弹窗标题）传没传同一套颜色。
+  // 负责人定的口径：四颗颜料点取 wayfinder:map / research / prototype / task 四个标签的真实颜色，
+  // 异常、不存在等任何特殊情况用默认色兜底；盘身是暖木色。这一节只验纯函数给出来的颜色对不对。
   {
     console.log('  #637：入口图标的颜色（真实颜色加默认兜底）')
     const palSrc = fs.readFileSync(path.join(ROOT, 'src/client/views/labels/labelColorPalette.js'), 'utf8')
@@ -910,28 +895,6 @@ async function main() {
       odd[2] === pal.LC_ENTRY_PALETTE_DEFAULTS[2] && odd[3] === pal.LC_ENTRY_PALETTE_DEFAULTS[3],
       '三位、八位、非字符串颜色一律回默认（实得 ' + JSON.stringify(odd) + '）')
 
-    // 图标用传进来的颜色，不自己定：盘身取 bodyFill / bodyStroke，四点取 colors[0..3]；
-    // 没传时退回以前的样子（盘身不填、四点取当前文字色），图标在任何调用下都画得出来。
-    const iconsSrc = fs.readFileSync(path.join(ROOT, 'src/client/kernel/icons.js'), 'utf8')
-    const palBranch = iconsSrc.slice(iconsSrc.indexOf("case 'palette'"), iconsSrc.indexOf('default:'))
-    check(/fill:\s*pDot\(0\)/.test(palBranch) && /fill:\s*pDot\(1\)/.test(palBranch) &&
-      /fill:\s*pDot\(2\)/.test(palBranch) && /fill:\s*pDot\(3\)/.test(palBranch),
-      '调色盘四个圆点的填充色取传进来的 colors[0..3]')
-    check(!/fill:\s*'currentColor'/.test(palBranch), '调色盘分支里不再有写死的灰色圆点（整只上色，不留灰）')
-    check(/fill:\s*pFill/.test(palBranch) && /stroke:\s*pStroke/.test(palBranch), '盘身取传进来的 bodyFill / bodyStroke')
-    check(/r:\s*1\.1/.test(palBranch), '圆点半径没动（按钮什么都不改，只是上色）')
-
-    // 两处调用点都把颜色传进去：入口按钮传取回来的清单，弹窗标题传它这次取回来的行
-    const entrySrc = fs.readFileSync(path.join(ROOT, 'src/client/views/labels/LabelColorEntry.js'), 'utf8')
-    check(/Ic\(\{\s*n:\s*'palette',\s*size:\s*10,\s*colors:\s*dots,\s*bodyFill:\s*LC_ENTRY_PALETTE_BODY\.fill,\s*bodyStroke:\s*LC_ENTRY_PALETTE_BODY\.stroke\s*\}\)/.test(entrySrc),
-      '入口按钮把取到的四色与盘身两色传进图标（尺寸仍是 10）')
-    check(entrySrc.includes("host.call('wf.listLabels'") && entrySrc.includes('lcEntryPaletteOf(null)') && entrySrc.includes('lcEntryPaletteOf(list)'),
-      '入口按钮挂载就取一次清单：先摆默认色，取回来换真实颜色，取失败保持默认色不报错')
-    check(/border:\s*'1px solid '\s*\+\s*edgeTint/.test(entrySrc) && /edgeTint\s*=\s*LC_ENTRY_PALETTE_BODY\.stroke/.test(entrySrc),
-      '按钮那圈描边与调色盘盘身边框是同一个木色（尺寸圆角不动，只换描边色，不再是灰的）')
-    const dialogSrc = fs.readFileSync(path.join(ROOT, 'src/client/views/labels/LabelColorDialog.js'), 'utf8')
-    check(/Ic\(\{\s*n:\s*'palette',\s*size:\s*14,\s*colors:\s*lcEntryPaletteOf\(lc\.rows\)/.test(dialogSrc),
-      '弹窗标题用同一只图标、同一套颜色（取它这次取回来的行）')
   }
 
   console.log(failed ? `\n存在失败（共 ${total} 项）` : `\n全部通过 — 配色核心纯函数门禁生效（${total} 项）`)

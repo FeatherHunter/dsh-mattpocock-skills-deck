@@ -63,7 +63,7 @@ layout: multi
     check(t.split('\n')[0] === HEADER, '设置文件头第一句是注释生成规则', t.split('\n')[0])
     check(commentBefore(t, '# 界面偏好（本机全工作区默认生效）', 'ui:'), 'ui 节有注释', '')
     check(commentBefore(t, '# 主列表的状态过滤与排序', '  stateFilter: open'), 'stateFilter 有注释', '')
-    check(commentBefore(t, '# 标签被点过的次数，用于标签 chip 排序', '  labelClicks: {}'), 'labelClicks 有注释', '')
+    check(t.indexOf('labelClicks') < 0, '写出去的一份里不写 labelClicks（维护者 2026-10-12 拍板：这项不落盘）', t)
     check(commentBefore(t, '# 按工作区区分的观看状态（键 = 工作区根目录）', 'workspaces:'), 'workspaces 节有注释', '')
     check(commentBefore(t, '# 状态栏横幅与胶囊是否收起', '    bannerFolded: true'), 'bannerFolded 有注释', '')
     check(commentBefore(t, '# 无仓库红卡是否已收起', '    noRepoDismissed: true'), 'noRepoDismissed 有注释', '')

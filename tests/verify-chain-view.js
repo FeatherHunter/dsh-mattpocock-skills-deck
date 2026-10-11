@@ -3,17 +3,19 @@
 //
 // 2026-09-24 维护者改口径：这一块的**展示面暂时下线** —— UI 上先不显示，能力全留着
 //   （去向与原因写在 src/client/views/shared/sessionChainView.js 文件头那段指针里）。
-//   于是本门禁按「能力保留、暂不挂载」这一条事实量，判据层与画法层的断言**一条都没删**：
-//   它们量的是这一份能力本身（将来在别处挂回来时照用），只是不再拿「面板里画出来了」当结论；
-//   另加一节（第五件）静态盯住「面板那处挂载点确实摘掉了、下线处留了指针」。
+//   于是本门禁按「能力保留、暂不挂载」这一条事实量：判据层与画法层的断言留着不删
+//   （它们量的是这一份能力本身，将来在别处挂回来时照用），只是不再拿「面板里画出来了」当结论。
 //   面板里到底有没有这一块，由 tests/verify-chain-view-ui.js 在真 Chromium 里量。
+// 【2026-10-12 清理】维护者要求清掉「读源码文本钉形状」的门禁：原先第五件里的「界面代码里不许写死
+//   中文串」、第六件「没有第二个数据来源」、第七件「挂载点那一处」整三块都是读源码文本的静态断言
+//   （连改一句注释、换个措辞都会红），已整段撤掉，下文对应各节留了说明。留下的全是真跑代码看结果的。
 //
 // 这一条门禁跑的是**真代码**，一路到底：
 //   真的链（#714 的 createSessionTickets 记下五次写）→ 真的宿主读数（src/host/refresh/sessionChainReadout.js）
 //   → 真的界面判据与画法（src/client/views/shared/sessionChainView.js，按 scripts/build.mjs 同一套做法
 //     剥掉行首 export、放进一个作用域里跑，React 用最小的假件代替）。
 //
-// 它盯七件事：
+// 它盯五件事：
 //   一、**取数路径**：界面读的就是快照里那一个字段（sessionTickets）。真跑一遍：两个会话各几张票，
 //      按会话分组不串；界面拿不到会话 id 原文（链只留散列）。
 //   二、**「还没有记录」归空、「真读坏了」才可见**（2026-09-24 维护者改的口径）：
@@ -22,16 +24,13 @@
 //   三、**不可读时不占额外一行**：不许再有一整句道歉独占一行 —— 整句文案只许在悬停里，
 //      容器纵向不许有 padding；absent 与 empty 两种空态的容器高度必须都是 0（逐字对上票面那句）。
 //   四、**宿主说「取到了、就是没有」时整块不画**（票面要求：不猜、不占位、不显示空框）。
-//   五、**话都在词条里**：中英两份键集合全等；这一块画的每个字都来自词条（代码里不许有中文串）；
-//      动作类别的词条键与链的闭集合 CHAIN_ACTIONS 逐个对上（链上加了新类别而这里没跟上就红）。
-//      读不到那句主句仍要短（≤12 字）、没有括号，解释与原因代号都在悬停提示里。
-//   六、**没有第二个数据来源**（静态断言）：界面代码里不许出现会话事件、命令行解析、链的键构造、
-//      链的过滤判定、落盘文件名、任何 host.call / fetch。
-//   七、**挂载点那一处**（2026-09-24 维护者改口径后新增）：面板不再挂它（能力保留、暂不挂载），
-//      而且下线那一处留了指针（写清「暂时下线、能力保留、未来在别处挂」），别让后来人当废弃代码删掉。
+//   五、**话都在词条里**：中英两份键集合全等；动作类别的词条键与链的闭集合 CHAIN_ACTIONS 逐个对上
+//      （链上加了新类别而这里没跟上就红）。读不到那句主句仍要短（≤12 字）、没有括号，
+//      解释与原因代号都在悬停提示里。
 //
 // 反证（人工做过三次，见回报）：把一句中文写死在界面里、把「读不到」改成显示空列表、
-//   把 absent 改回「整句独占一行」的旧画法 —— 都被本门禁打红。
+//   把 absent 改回「整句独占一行」的旧画法 —— 后两件都被本门禁打红；第一件原先是靠「界面代码里
+//   不许有中文串」那条静态断言打红的，那条已按维护者要求撤掉，现在只在人工评审时看。
 const fs = require('fs')
 const path = require('path')
 const os = require('os')
@@ -85,23 +84,6 @@ function loadModule(relPath, deps) {
   return fn.apply(null, Object.keys(deps).map(function (k) { return deps[k] }))
 }
 
-/** 去掉注释之后的代码（静态断言只看代码：注释里提到某个名字不算「用了它」）。 */
-function codeOnly(relPath) {
-  return fs.readFileSync(path.join(ROOT, relPath), 'utf8')
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/(^|[^:"])\/\/.*$/gm, '$1')
-}
-
-/** 代码里那些「写死的文案」：字符串字面量里出现中日韩字。文案必须走词条，否则这里报出来。 */
-function hardcodedTextHits(src) {
-  const hits = []
-  src.split(/\r?\n/).forEach(function (line, i) {
-    const m = line.match(/'[^'\n]*[\u4e00-\u9fff][^'\n]*'|"[^"\n]*[\u4e00-\u9fff][^"\n]*"/g)
-    if (m) hits.push((i + 1) + ': ' + m.join(' '))
-  })
-  return hits
-}
-
 /**
  * 「读不到」那一行的红色判据：只认仓库既有的危险色变量（var(--dsw-alias-state-error-primary,…)）。
  * 写死色值（'#f87171' 这种）不算通过 —— 换主题时写死的那个不会跟着走。
@@ -143,7 +125,7 @@ function textOf(node) {
 }
 
 async function main() {
-  console.log('#721 处理链展示面门禁（取数路径 / 读不到就说读不到 / 空态不画 / 词条 / 没有第二个来源）')
+  console.log('#721 处理链展示面门禁（取数路径 / 读不到就说读不到 / 空态不画 / 词条）')
   const chain = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'refresh', 'chain.js')).href)
   const ticketsMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'refresh', 'sessionTickets.js')).href)
   const readoutMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'refresh', 'sessionChainReadout.js')).href)
@@ -482,60 +464,35 @@ async function main() {
     const k = leaf.SESSION_CHAIN_ACTION_KEYS[code]
     if (!zh[k] || !en[k]) fail('动作类别 ' + code + ' 的中英词条缺一个：' + k)
   })
-  const leafSrc = fs.readFileSync(path.join(ROOT, LEAF), 'utf8')
-  const capsuleSrc = fs.readFileSync(path.join(ROOT, 'src/client/statusbar/SessionChainCapsule.js'), 'utf8')
   const keysInLeaf = zhKeys.filter(function (k) { return k.indexOf('chainView.') === 0 })
   if (keysInLeaf.length < 8) fail('界面那一半没有自己的词条（chainView.*）：实得 ' + keysInLeaf.length + ' 条')
-  // 胶囊那一段的词条（如 chainView.capsuleDoing）读在胶囊叶子，不在面板这片叶子：两处都算读者。
-  keysInLeaf.forEach(function (k) { if (leafSrc.indexOf("'" + k + "'") < 0 && capsuleSrc.indexOf("'" + k + "'") < 0) fail('词条写了没人读：' + k) })
+  // 【已删除】原先这里还读 sessionChainView.js 与 SessionChainCapsule.js 的源码文本，逐个断言每个
+  //   chainView.* 词条都在某处被 'key' 这个字面量引过（「词条写了没人读」）。断言对象是源码文本，
+  //   把词条名改成变量、挪一次读取点都会红，按维护者「清掉读源码文本钉形状的门禁」的要求撤掉，
+  //   连带只服务它的两份读取一并删了。词条本身齐不齐仍由上面「中英键集合全等」那条守着。
+
   if (leaf.sessionChainActionKeyOf('made-up-action') !== '') fail('认不出的动作类别被翻成了一个像样的词（那就是编事实）')
   if (leaf.sessionChainActionKeyOf('state') !== 'chainView.action.state') fail('动作类别的挑词入口坏了')
 
-  // ---------- 四、没有第二个数据来源（静态断言，只看代码不看注释）----------
-  const code = codeOnly(LEAF)
-  const banned = [
-    ['tool/result', '会话事件'], ['tool/call', '会话事件'], ['ptc-dispatch', '会话事件'],
-    ['sessionQuery', '直接读会话'], ['listSessions', '直接读会话'],
-    ['gh issue', '自己解析命令行'], ['glab ', '自己解析命令行'], ['--json', '自己解析命令行'],
-    ['chainEntryKey', '自己拼链的键'], ['chainRootHash', '自己拼链的键'], ['chainSessionShardId', '自己拼链的键'],
-    ['chainVerdictOf', '自己判读与写'], ['mergeEntries', '自己重排链'],
-    ['session-tickets.json', '自己去读落盘那份'], ['readFileSync', '自己去读文件'], ['require(', '自己去读文件'],
-    ['host.call', '新增取数调用'], ['fetch(', '新增取数调用'], ['XMLHttpRequest', '新增取数调用'],
-  ]
-  banned.forEach(function (b) { if (code.indexOf(b[0]) >= 0) fail('界面代码里出现了「' + b[1] + '」的痕迹（' + b[0] + '）—— 这一块只许读宿主写下的那一份读数') })
-  const fieldLit = code.match(/'sessionTickets'/g) || []
-  if (fieldLit.length !== 1) fail('字段名在界面里出现了 ' + fieldLit.length + ' 次（应当只有常量那一处）')
-  if (code.indexOf('snap[SESSION_CHAIN_FIELD]') < 0) fail('界面没有从那个常量去读快照字段（取数路径的口径就不唯一了）')
-  const hard = hardcodedTextHits(code)
-  if (hard.length) fail('界面代码里写死了文案（一个字都不许写死，必须走词条）：' + hard.join(' | '))
-  // 这条静态判据本身要有牙齿：造一份坏样本，它必须报出来
-  const badSample = "export const x = function () { return tr('chainView.title') + '这里是写死的一句中文' }\n"
-  if (!hardcodedTextHits(badSample).length) fail('反证：写死中文的坏样本没有被静态判据逮住（判据本身失灵了）')
-  const badSource = "export const y = function (st) { return st.snapshot['sessionTickets'] + host.call('wf.x', {}) }\n"
-  if (badSource.indexOf('host.call') < 0) fail('反证：取数调用的坏样本没有被判据逮住')
+  // ---------- 四、（已删）没有第二个数据来源 ----------
+  // 【已删除】原先这一节读 sessionChainView.js 的源码文本（剥掉注释），断言里面不出现一串子串：
+  //   会话事件（tool/result、tool/call、ptc-dispatch）、直接读会话（sessionQuery、listSessions）、
+  //   自己解析命令行（gh issue、glab、--json）、自己拼链的键（chainEntryKey、chainRootHash、
+  //   chainSessionShardId）、自己判读与写（chainVerdictOf）、自己重排链（mergeEntries）、
+  //   自己去读落盘那份（session-tickets.json、readFileSync、require(）、新增取数调用
+  //   （host.call、fetch(、XMLHttpRequest）；外加「字段名 'sessionTickets' 只许出现一次」与
+  //   「必须从 SESSION_CHAIN_FIELD 常量去读」两条，以及为它们写的中文串与坏样本两份反证。
+  //   断言对象全是源码文本的写法，换个写法、抽个函数、把取值改成解构就变红，按维护者「清掉读源码文本
+  //   钉形状的门禁」的要求整节撤掉，连带只服务它的 codeOnly / hardcodedTextHits 两个辅助与两处反证。
+  //   这一节要守的事实（这一块只读宿主写下的那一份读数）现在靠人工评审；真跑数据那几节仍在下文。
 
-  // ---------- 五、挂载点那一处：能力保留、面板暂不挂载（2026-09-24 维护者改口径后新增）----------
-  // 口径的来路（维护者原话）：「UI 上先不显示这个，但是能力层面还具备这个能力，未来会根据之前的
-  //   issuePath 找个地方进行显示。」所以这一节盯四件事，缺一不可：
-  //   ① 面板那一处挂载点确实摘掉了（只查组件本身会因为「组件还在、却没人挂」变成假绿 —— 那种状态下
-  //      界面上确实没有它，可原因不是这次改动，而是从来就没挂上过）；
-  //   ② 能力本体还在（组件与它的导出原样留在 LEAF 里，谁也没趁「反正不画了」把它删掉）——
-  //      这一条与 verify-leaves 的导出清单互为表里；
-  //   ③ 下线处留了指针：Dock.js 那一处与组件文件头都写清「暂时下线、能力保留、未来在别处挂」，
-  //      免得后来人把它当成废弃代码顺手删掉；
-  //   ④ 指针里如实交代了去向到哪一步（票号没有找到，就写「未找到，待维护者指明」，
-  //      不许拿另一张票的号顶上去 —— 编一个票号比不写更坏）。
-  const dockSrc = fs.readFileSync(path.join(ROOT, 'src/client/panel/Dock.js'), 'utf8')
-  // 「还挂着没有」只看代码那一截（剥掉注释）：下线那一处留的指针里会写到组件的名字，
-  //   按整份文本找 h(SessionChainStrip 会把指针本身当成人还在挂它。
-  const dockCode = codeOnly('src/client/panel/Dock.js')
-  if (/h\(\s*SessionChainStrip/.test(dockCode)) fail('面板正文那一处还挂着 SessionChainStrip（展示面应当先下线、暂不挂载）')
-  if (dockSrc.indexOf('SessionChainStrip') < 0) fail('Dock.js 里连一行指针都没有了（下线那一处要写清「暂时下线、将来在别处挂」，别让后来人当废弃代码）')
-  if (dockSrc.indexOf('SessionChainStrip') < 0) fail('Dock.js 里连一行指针都没有了（下线那一处要写清「暂时下线、将来在别处挂」，别让后来人当废弃代码）')
-  if (dockSrc.indexOf('暂时不挂载') < 0 && dockSrc.indexOf('暂时下线') < 0) fail('Dock.js 下线那一处没有写清「暂时不挂载」（只删不写，看起来像被废弃了）')
-  if (!/export[ \t]+const[ \t]+SessionChainStrip/.test(leafSrc)) fail('能力本体被拆了：' + LEAF + ' 里没有 SessionChainStrip 的导出了（展示面下线不等于把能力删掉）')
-  if (leafSrc.indexOf('展示面暂时下线') < 0) fail(LEAF + ' 文件头没有「展示面暂时下线」这段指针（能力保留、未来按票号在别处挂载）')
-  if (leafSrc.indexOf('待维护者指明') < 0) fail(LEAF + ' 文件头没有如实交代去向到哪一步（找不到票号就写「未找到，待维护者指明」，不许编一个号）')
+  // ---------- 五、（已删）挂载点那一处 ----------
+  // 【已删除】原先这一节读 Dock.js 与 sessionChainView.js 的源码文本，断言四件事：面板正文里不再出现
+  //   h(SessionChainStrip（用正则扫剥掉注释之后的代码）、Dock.js 里仍留着一行提到 SessionChainStrip 的
+  //   指针、那行指针里写着「暂时不挂载」或「暂时下线」、叶子文件里仍有 SessionChainStrip 的导出且文件头
+  //   写着「展示面暂时下线」与「待维护者指明」。断言对象全是文件文本（连改一句注释、换个措辞都会红），
+  //   按维护者「清掉读源码文本钉形状的门禁」的要求整节撤掉，连带只服务它的 dockSrc / dockCode 两处读取。
+  //   这一节要守的口径（能力保留、面板暂不挂载、下线处留指针）现在靠人工评审。
 
   try { fs.rmSync(dir, { recursive: true, force: true }) } catch (e) { /* 临时目录清不掉不影响结论 */ }
 
@@ -546,8 +503,6 @@ async function main() {
   console.log('  PASS 只有 read-failed / shape 才可见：一枚标记、自己不带文案、纵向 padding 为 0、原因代号在悬停里')
   console.log('  PASS 读不到那句主句短、没有括号；那一块用危险色变量上色（旧画法更高，反证量得出差别）')
   console.log('  PASS 中英词条键集合全等；动作词的键与链的闭集合 CHAIN_ACTIONS 逐个对上')
-  console.log('  PASS 静态：界面只读快照里那一个字段，没有第二个数据来源，没有写死的文案')
-  console.log('  PASS 能力保留、暂不挂载：面板那一处不再挂它，能力本体与导出原样都在，下线处留了指针且如实交代去向')
   console.log('\n全部通过')
 }
 

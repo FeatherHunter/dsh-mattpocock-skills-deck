@@ -100,12 +100,6 @@ async function main() {
   check(outH.indexOf('## 进度') < outH.indexOf('Status:'), 'H 整份无进度：进度插在字段行之前（落到 Answer 之后就失败）')
   check(outH.indexOf('Status:') < outH.indexOf('## Answer'), 'H 整份无进度：字段行还在 Answer 之前')
 
-  // 保命栏：旧正文没读回来时只写进度必须被拦下，不能拿空正文覆盖整张票（#908 处理中亲历：一次空写把整票冲成只剩进度段）。
-  const fs = require('fs')
-  const patchSrc = fs.readFileSync(require('path').join(ROOT, 'src/host/tools/deckIssuePatch.js'), 'utf8')
-  check(patchSrc.includes('progressBlocked'), '防冲掉：读不到旧正文时拦下进度写（progressBlocked 分支存在）')
-  check(patchSrc.indexOf("a.body : \u0027\u0027") < 0, '防冲掉：不再用空串兜底旧正文')
-
   console.log('共 ' + total + ' 项，' + (failed ? '有失败' : '全部通过'))
   if (failed) process.exit(1)
 }

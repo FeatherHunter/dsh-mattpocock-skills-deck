@@ -6,6 +6,10 @@
 //   2) tsc --noEmit 必须通过（形态照 update-core 与 label-color-core：转译之外另做类型检查）。
 //   3) 两个产物之间零相对引用（同层互引门禁天然能过，产物自身也真的自包含）。
 //   4) 插口空壳产物里还留着模块标识 PORTS_SOURCE（类型被擦掉之后唯一能追溯来源的东西）。
+//   【2026-10-12 清理】上面 3)、4) 两条原先都是读产物文本断的（4) 断 ports.js 文本里出现 PORTS_SOURCE；
+//   3) 用正则断产物文本里不许出现相对 import）。断言对象是文件文本，改一次构建输出、挪一次文件就变红，
+//   按维护者「清掉读文件文本钉形状的门禁」的要求撤掉。下面第 1) 条（逐字比对产物与其 TS 来源）与第 2) 条
+//   （tsc --noEmit）是「派生文件与来源一致/新鲜」与真跑类型检查，一条没动。
 // 本票没有把任何产物拼进客户端闭包，所以这里不查「行首 export」与「不含版本占位符」两条边界条件；
 // 将来哪一票真要拼，那一票把这两条检查加进来（做法见 label-color-core 的同名门禁）。
 // 用法：node tests/verify-refresh-freshness.js（在仓库根目录）
@@ -37,7 +41,7 @@ const UNITS = [
   // 有进展立刻回快档、全绿缓存 30 分钟、环境预检寿命 10 分钟、失败后允许立刻重试几次。同一口径。
   { ts: 'refresh-core/src/backoff.ts', js: 'src/shared/refresh/backoff.js' },
   // #713（T9）加的第十份：AI 工具的「调用前算账」（预估点数、预估出站请求数、是否超单次顶、建议分几片）。
-  // 额度常量由宿主侧从 budget.js 现取现传，所以产物自己一个相对引用都没有 —— 上面那条「零相对引用」正好管它。
+  // 额度常量由宿主侧从 budget.js 现取现传，所以产物自己一个相对引用都没有。
   { ts: 'refresh-core/src/tool-cost.ts', js: 'src/shared/refresh/tool-cost.js' },
   // #722（T18）加的第十一份：GitLab 建票写请求的结果判据。同一口径 —— 改了 TS 没重新生成产物就红。
   { ts: 'refresh-core/src/create-write.ts', js: 'src/shared/refresh/create-write.js' },
@@ -46,9 +50,6 @@ const UNITS = [
   { ts: 'refresh-core/src/page-budget.ts', js: 'src/shared/refresh/page-budget.js' },
   { ts: 'refresh-core/src/backend-quota.ts', js: 'src/shared/refresh/backend-quota.js' },
 ]
-
-// 去掉块注释与整行注释之后再找相对 import，避免把注释里的示例当成真的引用（写法同 verify-update-freshness.js）。
-const stripComments = (text) => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^A-Za-z0-9_$:])\/\/.*$/gm, '$1')
 
 async function main() {
   console.log('刷新核心新鲜度门禁（#720：TS 改了产物没跟上就红）')
@@ -82,22 +83,10 @@ async function main() {
     check(actual === expected, u.js + ' 与 ' + u.ts + ' 转译一致（不一致请跑 node scripts/build.mjs）')
   }
 
-  // ---- 2) 产物自身的两条硬条件 ----
-  let portsJs = ''
-  try {
-    portsJs = fs.readFileSync(path.join(ROOT, 'src/shared/refresh/ports.js'), 'utf8')
-  } catch (e) {
-    check(false, 'src/shared/refresh/ports.js 可读：' + (e && e.message))
-  }
-  if (portsJs) check(portsJs.includes('PORTS_SOURCE'), '插口产物带模块标识 PORTS_SOURCE（空壳可追溯）')
-
-  for (const rel of UNITS.map((u) => u.js)) {
-    const abs = path.join(ROOT, rel)
-    if (!fs.existsSync(abs)) continue
-    const code = stripComments(fs.readFileSync(abs, 'utf8'))
-    check(!/from\s+['"]\.\.?[^'"]*['"]/.test(code) && !/import\s+['"]\.\.?[^'"]*['"]/.test(code),
-      rel + ' 零相对引用（自包含，同层互引门禁天然能过）')
-  }
+  // ---- 2) 产物自身的两条硬条件（已删，见文件头「2026-10-12 清理」）----
+  //   原 4)：读 src/shared/refresh/ports.js 产物文本，断言里面出现 PORTS_SOURCE。
+  //   原 3)：逐份读产物文本，用正则断言里面不许出现相对 import。
+  //   两条的断言对象都是产物文本的形状，撤掉；连同只服务它们的 stripComments 辅助一起删了。
 
   // ---- 3) 类型检查 ----
   const tscBin = path.join(ROOT, 'node_modules', 'typescript', 'bin', 'tsc')

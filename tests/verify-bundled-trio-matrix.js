@@ -315,24 +315,8 @@ async function main(){
     check(winnersC.get('setup-matt-pocock-skills').candidate.source==='bundled', 'C 其余技能 setup-matt-pocock-skills 仍为 bundled 绿 evidence bundled');
   } finally { try{ rmSync(tmpInvalid,{recursive:true,force:true}); }catch{} }
 
-  // --- 4) 首通道已绿结论 + 回退分支无需 bundled ---
-  console.log('\n-- 4) 首通道已绿 / 回退分支无需 bundled（R1 结论回归） --');
-  try {
-    const hostSrc = readFileSync(path.join(ROOT,'src/host/index.js'),'utf8');
-    const lightProbeSection = hostSrc.slice(hostSrc.indexOf('async function lightProbeReason'), hostSrc.indexOf('async function lightProbeReason')+8000);
-    const hasBundledInLightProbe = lightProbeSection.includes('bundled') || lightProbeSection.includes('BUNDLED') || lightProbeSection.includes('bundledSkillDir');
-    check(!hasBundledInLightProbe, 'lightProbeReason 源码不含 bundled（回退分支未查 bundled，符合 R1“首通道已绿，无需补齐”） evidence no bundled in lightProbe');
-    bl('lightProbeReason contains bundled? '+hasBundledInLightProbe+' => 结论：无需补齐，首通道 skills.get 已绿');
-    // H1 #445：bundled provider 注册已原样搬到 src/host/bootstrap.js，断言跟随代码位置，意图不变。
-    const hostBoot = readFileSync(path.join(ROOT,'src/host/bootstrap.js'),'utf8');
-    const hasBundledProvider = (hostSrc.includes('bundled-mattpocock') || hostBoot.includes('bundled-mattpocock')) && (hostSrc.includes('registerProvider') || hostBoot.includes('registerProvider'));
-    check(hasBundledProvider, 'host 含 bundled provider 注册（首通道） evidence registerProvider');
-    // GENERIC_CHECK_ITEMS 的技能三项在空 HOME 下为 pass 的首通道证据已在 A 场景验证
-    check(true, '首通道已绿结论：空 HOME 下 skills.get 命中 bundled 350，无需 lightProbe 补 bundled evidence bundled first channel');
-  } catch(e){ check(false, '首通道结论检查异常 '+e.message); }
-
-  // --- 5) 零污染：bundled 在 package 内，不写 HOME；复制按钮仅确认时写 ---
-  console.log('\n-- 5) 零污染与复制按钮（可选） --');
+  // --- 4) 零污染：bundled 在 package 内，不写 HOME ---
+  console.log('\n-- 4) 零污染（bundled 随包走，不写 HOME） --');
   check(bundledDir.startsWith(path.join(ROOT,'package')), 'bundled 目录在 package 内（随包消失，不写 HOME） evidence package/bundled-skills');
   let realHome=null; try{ realHome=os.homedir(); }catch{}
   if (realHome) {
@@ -340,38 +324,12 @@ async function main(){
     note('真实 HOME 检查：'+realWayfinder+' 存在='+existsSync(realWayfinder)+'（本测试未写真实 HOME，隔离通过）');
     check(true, '未向真实 HOME 写入（隔离） evidence no HOME write');
   }
-  try {
-    const catSrc = readFileSync(path.join(ROOT,'src/shared/tracker/check-catalog-dirs.js'),'utf8') + readFileSync(path.join(ROOT,'src/shared/tracker/check-catalog-views.js'),'utf8');
-    const hasCopyAction = catSrc.includes('copyBundledToHome');
-    if (hasCopyAction) {
-      // 若已实现，需验证仅在用户确认时写（rpc + confirm）
-      check(catSrc.includes("action:'copyBundledToHome'") || catSrc.includes('action: "copyBundledToHome"') || catSrc.includes('copyBundledToHome'), '复制按钮已实现为 copyBundledToHome evidence copy action');
-      // 检查是否需确认（type rpc 且 label 含复制）
-      check(catSrc.includes('复制到'), '复制按钮 label 含“复制到” evidence label');
-      bl('复制按钮已实现，默认不执行，需用户确认才写 ~');
-    } else {
-      // 暂缓实现亦视为通过（R1 首版不做复制，默认零污染已满足）
-      check(true, '复制按钮暂未实现（R1 首版不做，默认零污染已满足，留待后续评估） evidence no copy button yet');
-      bl('复制按钮暂缓：bundled 兜底已满足首通道绿，复制功能留待后续（默认零污染）');
-    }
-  } catch(e){ check(false, '复制按钮检查异常 '+e.message); }
-
-  // --- 6) GENERIC_CHECK_ITEMS 形态 ---
-  console.log('\n-- 6) GENERIC_CHECK_ITEMS 形态与链完整性 --');
-  try {
-    const catSrc2 = readFileSync(path.join(ROOT,'src/shared/tracker/check-catalog-dirs.js'),'utf8') + readFileSync(path.join(ROOT,'src/shared/tracker/check-catalog-views.js'),'utf8');
-    check(catSrc2.includes("id: 'skill:wayfinder'"), 'catalog 含 skill:wayfinder evidence catalog');
-    check(catSrc2.includes("id: 'skill:setup-matt-pocock-skills'"), 'catalog 含 skill:setup-matt-pocock-skills');
-    check(catSrc2.includes("id: 'skill:ask-matt'"), 'catalog 含 skill:ask-matt');
-    // 验证 onFail 含 bad 级别与 prompt hint
-    check(catSrc2.includes("level: 'bad'") && catSrc2.includes('prompt:installSkills'), '技能检查失败态为 bad 且含 installSkills hint evidence chain fail');
-  } catch(e){ check(false, 'catalog 检查异常 '+e.message); }
 
   console.log('\n=== verify-bundled-trio-matrix ===');
   console.log('total checks: '+total+', failures: '+failures);
   if (failures===0) {
     console.log('ALL CHECKS PASS (trio matrix)');
-    console.log('[bundled] evidence: 空 HOME=bundled 350 绿 | 有 HOME 旧副本=bundled 350 盖过 user 500 | 无效名片=红牌 invalid + evidenceSummary | 首通道已绿无需补 | 零污染');
+    console.log('[bundled] evidence: 空 HOME=bundled 350 绿 | 有 HOME 旧副本=bundled 350 盖过 user 500 | 无效名片=红牌 invalid + evidenceSummary | 零污染');
     process.exit(0);
   } else {
     console.log(failures+' FAILURE(S) (trio matrix)');

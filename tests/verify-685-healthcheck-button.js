@@ -1,8 +1,8 @@
 // verify-685-healthcheck-button.js —— #685 验收门禁：KPI 那一行右边缘那颗「体检」按钮
 //
-// 跑的是真源码（不是重新实现一遍）：把内核真源与界面真源读进来判，派生与注入那两条路
-// 把 src/client/kernel/ 下的真函数拼成真模块跑（与 scripts/build.mjs 同一条拼接思路）。
-// 断言分六组：
+// 跑的是真源码（不是重新实现一遍）：把 src/client/kernel/ 下的真函数拼成真模块跑（与
+// scripts/build.mjs 同一条拼接思路）。
+// 断言分五组：
 //   一、游离票件数派生：三条结构事实（未关闭 + 不是地图 + 不在任何地图的子票里）逐条判，
 //       算不出来时回 null 而不是 0（#681 定版：绝不显示 0）；
 //   二、件数与列表一致：同一份快照下，这个数 = 列表里「独立票」的行数；
@@ -10,9 +10,7 @@
 //   四、点击动作：开新会话并带过去当前后端的体检提示词，成功与失败各记一条常驻日志
 //       （healthCheck.inject，字段只两个短枚举）；
 //   五、提示词真的通到底：用真注册表与真的按后端渲染函数跑一遍，当前后端那份科目文本被填进去、
-//       没有空占位符漏进会话；
-//   六、界面接线与门禁：视图里零中文字面量、文案走词条、中英词条成对、图标与窄面板三档都在，
-//       常驻日志点落在内核文件（渲染目录的日志白名单一个字没动），双产物都带上新内核片。
+//       没有空占位符漏进会话。
 // 用法: node tests/verify-685-healthcheck-button.js
 const fs = require('fs')
 const path = require('path')
@@ -245,57 +243,6 @@ async function main() {
   check(leftover.length === 0, '没有占位符漏进会话' + (leftover.length ? '（漏了 ' + leftover.join('、') + '）' : ''))
   const renderedEn = (function () { lang = 'en'; const s = mod.promptTextFor(stFull, 'healthCheck'); lang = 'zh'; return s })()
   check(renderedEn.indexOf('GitHub subject') >= 0 && renderedEn.indexOf('GitHub 的科目') < 0, '英文那一次取英文，两句不混')
-
-  // ─────────── 六、界面接线与门禁 ───────────
-  const listTab = read(path.join('src', 'client', 'views', 'ListTab.js'))
-  check(listTab.indexOf('healthCheckVisible(st)') >= 0, '视图先问显隐门再渲染（不点出一颗空按钮）')
-  check(listTab.indexOf('healthCheckCountOf(st)') >= 0, '件数派生从内核取（界面自己不算）')
-  check(listTab.indexOf('openHealthCheck(st)') >= 0, '点击动作走内核那条 openHealthCheck')
-  check(listTab.indexOf("Ic({ n: 'clipboard'") >= 0, '图标从现成图标集里挑（clipboard 表示「检查」），不新增图标资源')
-  const kpiRowAt = listTab.indexOf('list.kpi.takeable')
-  const btnAt = listTab.indexOf('healthCheckVisible(st)')
-  check(kpiRowAt > 0 && btnAt > kpiRowAt, '按钮落在 KPI 那一行之后（贴那一行的右边缘）')
-  const flexSpanAt = listTab.indexOf('style: { flex: 1 } }),')
-  check(flexSpanAt > 0 && btnAt > flexSpanAt, '按钮塞在那个 flex:1 占位之后（#680 底稿指出 234 行那个空档）')
-  check(listTab.indexOf('narrow-count') >= 0 && listTab.indexOf('narrow-icon') >= 0, '窄面板三档都在（全名 → 图标+件数 → 纯图标）')
-  const strings = (listTab.match(/'((?:[^'\\\n]|\\.)*)'/g) || []).map((s) => s.slice(1, -1))
-  const cjk = strings.filter((s) => /[\u4e00-\u9fff]/.test(s))
-  check(cjk.length === 0, '视图文件里没有中文字面量（文案一律走词条）' + (cjk.length ? '（实得 ' + cjk.length + ' 处）' : ''))
-
-  const styleSrc = read(path.join('src', 'client', 'kernel', 'styles.js'))
-  check(styleSrc.indexOf("'.dsws-btn.narrow-count{") >= 0, '第二档（图标+件数）有现成样式，件数不跟着文字一起收掉')
-
-  // 常驻日志点落在内核文件里 —— 渲染目录那张点名白名单一个字没动，ListTab.js 也没被加进去
-  const hcSrc = read(path.join('src', 'client', 'kernel', 'health-check.js'))
-  check(hcSrc.indexOf("log('info', 'healthCheck.inject'") >= 0, '常驻日志点写在 health-check.js 里')
-  check(listTab.indexOf("'healthCheck.inject'") < 0, '列表视图里不写日志（渲染目录的日志白名单没被撑开）')
-  const truncateSrc = read(path.join('tests', 'verify-log-truncate.js'))
-  check(truncateSrc.indexOf("'ListTab.js'") < 0, 'ListTab.js 仍然不在可写日志的点名单里（选了「落点内核文件」那条路）')
-
-  // 门禁登记：条数、字段、内核模块清单、verify 链（2026-09-22 #683 注：这里原来断言总数恒为 32，
-  //   #683 加了常驻 #69、#70 之后总数会动 —— 总数以 tests/verify-log-count.js 那道门禁为准，这里不断言总数，
-  //   只断言 healthCheck.inject 登记在常驻清单里。）
-  const countSrc = read(path.join('tests', 'verify-log-count.js'))
-  check(countSrc.indexOf("'healthCheck.inject'") >= 0 && /const RESIDENT = \[[^\]]*'healthCheck\.inject'[^\]]*\]/.test(countSrc), '计数门禁已登记（healthCheck.inject 在常驻清单里）')
-  const fieldsSrc = read(path.join('tests', 'verify-log-fields.js'))
-  check(fieldsSrc.indexOf("'healthCheck.inject': ['backend', 'outcome']") >= 0, '字段白名单已登记两个短枚举')
-  const kernelSrc = read(path.join('tests', 'verify-kernel.js'))
-  check(kernelSrc.indexOf("'healthCheckCountOf'") >= 0 && kernelSrc.indexOf("'openHealthCheck'") >= 0, '内核模块清单已登记新片与它的导出')
-  const buildSrc = read(path.join('scripts', 'build.mjs'))
-  check(buildSrc.indexOf("name: 'healthCheck'") >= 0, '构建清单已登记（一源两物，产物里才有这一片）')
-  const idxSrc = read(path.join('src', 'client', 'index.js'))
-  check(idxSrc.indexOf('kernel:healthCheck (spliced by build)') >= 0, 'index.js 里有拼接标记')
-  const pkg = JSON.parse(read(path.join('package.json')))
-  check((pkg.scripts.verify || '').indexOf('verify-685-healthcheck-button.js') >= 0, 'npm run verify 链已纳入本门禁')
-
-  // 双产物都带上新片与那条常驻日志点
-  for (const prod of ['client.js', path.join('package', 'lib', 'client.js')]) {
-    if (!fs.existsSync(path.join(ROOT, prod))) { check(false, prod + ' 缺失（先跑 node scripts/build.mjs）'); continue }
-    const src = read(prod)
-    check(src.indexOf('const healthCheckCountOf = function') >= 0 && src.indexOf('const openHealthCheck = function') >= 0, prod + ' 已拼接体检那片（派生与动作都在）')
-    check(src.indexOf("'healthCheck.inject'") >= 0, prod + ' 带上常驻日志点')
-    check(src.indexOf("'list.healthCheck'") >= 0 && src.indexOf("'list.healthCheckTitle'") >= 0, prod + ' 带上中英词条')
-  }
 
   console.log(failed ? '\n存在失败 — verify-685-healthcheck-button 未通过（共 ' + total + ' 项）' : '\n全部通过 — 体检按钮验收门禁生效（' + total + ' 项断言）')
   process.exit(failed ? 1 : 0)

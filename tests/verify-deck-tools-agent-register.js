@@ -4,7 +4,9 @@
 // 为什么要这一段：七个工具的实现与宿主装配都在（verify-deck-tools.js 与
 // verify-deck-tools-host-wiring.js 盯着那两半），但 agent 的工具列表里一个都看不见 ——
 // 从来没有一处调用过工具注册。这一段盯最后那一步：
-//   ① 注册入口只有一处（刷新接线装好表就调钩子，宿主入口零增长）；
+//   ① 注册入口只有一处（刷新接线装好表就调钩子，宿主入口零增长）——这条原来靠读
+//      src/host/refresh/wiring.js 与 src/host/index.js 的源码文本断言，属于「读源码文本钉写法」，
+//      按维护者要求已清掉；注册行为本身由下面第 ②③④ 段用桩真跑着证明。
 //   ② 注册用的形状就是工具注册表认的那份（名字、描述、参数、输出模式、执行函数），
 //      参数写法只含注册表允许的键，对象节点必带显式的 additionalProperties；
 //   ③ 执行只是转发：调宿主已装好的那张表，回它的 value，不多不少，不抛异常；
@@ -13,7 +15,6 @@
 // 本文件不联网、不读 DSH 安装目录、不依赖档案里装没装包：
 // 工具定义用桩，工具表用桩，defineTool 用桩；真定义只读“形状”（名字与参数），不执行。
 const path = require('path')
-const fs = require('fs')
 const { pathToFileURL } = require('url')
 
 const ROOT = path.resolve(__dirname, '..')
@@ -21,7 +22,6 @@ let failed = false
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href)
-const readText = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 async function waitFor(cond, what, rounds) {
   const total = rounds || 100
@@ -124,9 +124,6 @@ async function main() {
   }
   check(agent && typeof agent.buildAgentToolOptions === 'function', '交出 buildAgentToolOptions（定义 → 注册选项）')
   check(agent && typeof agent.registerDeckAgentTools === 'function', '交出 registerDeckAgentTools（批量注册）')
-  const agentSrc = readText('src/shared/deck-tools/agent-register.js')
-  check(!/from\s+['"]@deepseek-ai\/dsh-tools['"]/.test(agentSrc) && !/require\(['"]@deepseek-ai\/dsh-tools['"]\)/.test(agentSrc),
-    '帮助模块不直引工具包（defineTool 由调用方传进来）')
   let row = null
   try { row = await imp('src/host/platform/deckToolsRow.js') } catch (e) {
     check(false, '行模块可加载（src/host/platform/deckToolsRow.js）')
@@ -252,12 +249,10 @@ async function main() {
   check(rawBad.status === shell.DECK_STATUS.UNSUPPORTED, '没做成的状态取值与壳一致')
   check(out.status === 'ok' && out.status !== shell.DECK_STATUS.UNSUPPORTED, '做成的状态取值与壳一致')
 
-  // ── 4. 接线形状：接线处只留两行（引钩子 + 调钩子），入口保持干净 ──
-  const wiringSrc = readText('src/host/refresh/wiring.js')
-  check(wiringSrc.indexOf('hookDeckAgentTools(d.ctx, deckToolsForHost') >= 0, '刷新接线装好表就调钩子（注册入口只有这一处）')
-  const indexSrc = readText('src/host/index.js')
-  check(indexSrc.indexOf('registerDeckAgentTools') < 0, '宿主入口不直接碰注册（钩子住在接线里，入口零增长）')
-  check(/inject:\s*\[[^\]]*['"]connection['"][^\]]*\]/.test(indexSrc) && !/['"]webServer['"]/.test(indexSrc.match(/inject:\s*\[[^\]]*\]/)[0]), '宿主注入声明仅 connection + #746 的 llm/sessionQuery（webServer 仍禁，注册不加新服务）')
+  // ── 4.（已删）原来是读 src/host/refresh/wiring.js 与 src/host/index.js 的源码文本，
+  //   断言接线里写着 hookDeckAgentTools(...) 那一行、入口里没有 registerDeckAgentTools、
+  //   inject 声明里是 connection 而不是 webServer。这些钉的都是手写源码的写法与字面量，
+  //   改写法、搬文件、调注入顺序就会变红，按维护者要求整段去掉（连带只用在这里的 readText）。
 
   // ── 5. 钩子行为（全桩）：有服务就交八个，没服务静默跳过 ──
   check(typeof agent.hookDeckAgentTools === 'function', '交出 hookDeckAgentTools（接线调的就是它）')

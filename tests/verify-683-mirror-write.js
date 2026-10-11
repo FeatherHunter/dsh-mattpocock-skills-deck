@@ -97,17 +97,6 @@ console.log('== C 跨窗口合并只剩布局表 ==')
   check(h.api.getCachedSetupLayout('D:/other/window') === 'multi', '布局表跨窗口合并读得到')
 }
 
-// ── D 静态：选择读写链已不在源文件里 ─────────────────────────────────────────
-console.log('')
-console.log('== D 静态：选择落盘链已不在源文件里 ==')
-{
-  check(!/selectionByCwd\[k\] = sel/.test(prefsSrc), '源文件里没有往 selectionByCwd 写内存那一句了')
-  check(!/writeTableEntry\(SELECTION_BY_CWD_KEY/.test(prefsSrc), '源文件里没有往选择表写盘那一句了')
-  check(/getCachedSelection = function \(cwd\) \{ return null/.test(prefsSrc), 'getCachedSelection 是空壳（恒空）')
-  const snapSrc = fs.readFileSync(path.join(ROOT, 'src/client/kernel/store-snapshot.js'), 'utf8')
-  check(/migrateCachedChoiceToKey\(sk, rk\)/.test(snapSrc), '工作区根认出来的那一刻仍会调搬家那一步（布局部分）')
-}
-
 // ── E 搬家只搬布局 ──────────────────────────────────────────────────────────
 console.log('')
 console.log('== E 搬家只搬布局，选择不搬 ==')
@@ -147,15 +136,6 @@ const loadBroken = function (tag, from, to) {
   }
 }
 
-// ── G 快照装配仍回填布局 ────────────────────────────────────────────────────
-console.log('')
-console.log('== G 快照装配仍回填布局 ==')
-{
-  const probe = fs.readFileSync(path.join(ROOT, 'src/client/kernel/probe-snapshot.js'), 'utf8')
-  const select = fs.readFileSync(path.join(ROOT, 'src/client/kernel/probe-select.js'), 'utf8')
-  const kernel = probe + '\n' + select
-  check(/setCachedSetupLayout\(st\.cwd, snap\.setupLayout\)/.test(kernel), '装快照那条路回填记住的布局')
-}
 try { fs.rmSync(brokenDir, { recursive: true, force: true }) } catch (e) {}
 
 console.log('')

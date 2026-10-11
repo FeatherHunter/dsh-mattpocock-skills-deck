@@ -1,11 +1,13 @@
 // verify-markdown.js — dsh-waystation v1.5 T17：markdown 白名单渲染契约校验
 // 用法: node tests/verify-markdown.js（在插件根目录）
-// 覆盖：源码存在性 + 行为级渲染（用 stub h() 执行真实渲染器，验证输出结构与防注入边界）
+// 覆盖：行为级渲染（从两份产物里原文切出渲染器，用 stub h() 执行它，验证输出结构与防注入边界）。
+// 原来还有一批「源码里出现了哪些字」的存在性检查，已按维护者口径删掉。
 const fs = require('fs')
 // 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
 const { compileFn } = require('./lib/eval-probe.js')
 const cli = fs.readFileSync('client.js', 'utf8')
 const pcli = fs.readFileSync('package/lib/client.js', 'utf8')
+// cli / pcli 只用来给 extract() 供料：从两份产物里各切出渲染器那一段，下面按行为跑它。
 let failed = false
 const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
@@ -21,34 +23,11 @@ const mdPkg = extract(pcli)
 
 check(mdCli.length > 0, 'client 含渲染器（MD_LINK_RE 起）')
 check(mdPkg.length > 0, 'package client 含渲染器')
-check(cli.includes('const mdToHtml = function'), 'client 含 mdToHtml 定义')
-check(pcli.includes('const mdToHtml = function'), 'package 含 mdToHtml 定义')
 
-// 渲染点接入（图片版传共享状态用于点开放大，查前缀不查完整括号）
-check(cli.includes('mdToHtml(m.notes'), 'client Notes 渲染接入')
-check(cli.includes("mdToHtml('· ' + f"), 'client Fog 渲染接入')
-check(cli.includes("mdToHtml('· ' + o"), 'client OutOfScope 渲染接入')
-check(pcli.includes('mdToHtml(m.notes'), 'package Notes 渲染接入')
-check(pcli.includes("mdToHtml('· ' + f"), 'package Fog 渲染接入')
-check(pcli.includes("mdToHtml('· ' + o"), 'package OutOfScope 渲染接入')
-
-// 白名单标签（图片已放行，但只认安全协议，见下方行为级断言）
-const tags = ['strong', 'em', 'code', 'ul', 'li', 'blockquote', 'input', 'a', 'hr', 'div', 'img']
-tags.forEach(function (t) {
-  check(mdCli.includes("h('" + t + "',") || mdCli.includes("h('" + t + "')"), '渲染器构造 ' + t)
-})
-
-// 语法正则
-check(mdCli.includes('MD_LINK_RE'), '链接正则定义')
-check(mdCli.includes('MD_TASK_RE'), '任务项正则定义')
-check(mdCli.includes('MD_IMG_RE'), '图片 Markdown 正则定义')
-check(mdCli.includes('MD_HTML_IMG_RE'), '图片标签正则定义')
-check(mdCli.includes('mdSafeImgUrl'), '图片地址白名单定义')
-
-// 防注入（源码级）
-check(!mdCli.includes('dangerouslySetInnerHTML'), '渲染器不使用 dangerouslySetInnerHTML')
-check(!mdCli.includes('innerHTML'), '渲染器不直接操作 innerHTML')
-check(!mdPkg.includes('dangerouslySetInnerHTML'), 'package 渲染器不使用 dangerouslySetInnerHTML')
+// 原来这里还有一批「读源码文本、断言里面出现了哪些字」的检查（mdToHtml 定义、三处渲染点接入、
+//   白名单标签构造、四个正则与白名单函数名、源码里没有 dangerouslySetInnerHTML / innerHTML）。
+//   它们断的是代码长成什么样，改写法、改注释、搬文件就变红，已按维护者口径删掉。
+//   真正的关切——渲染出来的东西对不对、危险协议会不会漏——由下面行为级断言逐条跑真渲染器来管。
 
 // 双源体量一致性已移除（T5 #98：一源两物，src 为真源；渲染器体量一致由 build 保证）
 
@@ -61,8 +40,12 @@ const stubH = (tag, props, children) => {
   return '<' + tag + attr + '>' + ch + '</' + tag + '>'
 }
 const run = (src, md) => {
-  const fn = compileFn(['h'], src + '\nreturn { mdToHtml }')
-  const out = fn(stubH).mdToHtml(md)
+  // Tip 是图片标题跟随式悬浮用的那个提示组件，在插件里由模块闭包提供。这里按源码截出来的渲染器
+  //   没有闭包环境，得跟着 h 一起当参数喂进去；缺了它，一渲染带 title/alt 的图片就 ReferenceError，
+  //   下面那几条图片断言全跑不到（2026-10-12 补的桩，只补环境，不改被测代码）。
+  const stubTip = (props, children) => stubH('span', { 'data-tip': (props && props.content) || '' }, children)
+  const fn = compileFn(['h', 'Tip'], src + '\nreturn { mdToHtml }')
+  const out = fn(stubH, stubTip).mdToHtml(md)
   return (Array.isArray(out) ? out : [out]).join('')
 }
 const rCli = (md) => run(mdCli, md)
@@ -92,8 +75,6 @@ check(rCli('> 引用').includes('<blockquote>引用</blockquote>'), '引用块')
 check(rCli('---').includes('<hr>'), '分隔线')
 
 // 防注入（行为级）：脚本标签永不构造；图片只认安全协议，危险地址降级为文字
-check(!/h\('script'/.test(mdCli), '恶意 <script> 不构造 script 元素')
-check(/h\('img'/.test(mdCli), '安全图片构造 img 元素')
 check(rCli('<b>不是加粗</b>').includes('<b>不是加粗</b>'), '原始 HTML 标签原样当文本（不解析）')
 // 图片三写法：Markdown 写法、图片标签写法、包在链接里的写法保持跳转
 check(rCli('看图 ![说明](https://github.com/user-attachments/assets/abc.png) 尾').includes('<img src="https://github.com/user-attachments/assets/abc.png"'), 'Markdown 图片写法渲染为 img')

@@ -1,8 +1,6 @@
-// verify-issue-comment.js — #255 四缝验证：契约缝 + UI 缝 + 集成差异冒烟（宿主透传冒烟见 smoke-comment-passthrough）
+// verify-issue-comment.js — #255 四缝验证：契约缝 + 集成差异冒烟（宿主透传冒烟见 smoke-comment-passthrough）
 // - 契约缝：canComment 显隐谓词对三形状（MISSING / EMPTY 数组 / EMPTY nodes）的行为断言（从构建产物提取真源表达式求值）
-// - UI 缝：输入区受控交互 / ⌘+Enter / 分流文案 / 只读提示替换 / 无乐观证据闪烁的源码特征
 // - 集成差异冒烟：diffSnapshots 对「纯评论变化（updatedAt bump）」产出行闪烁——根票（孤儿票）补口 + 子票元组扩展
-// - 门禁自检：UI 层零 backendId 字面量（贪婪后端分支红线）+ locale 中英键完整
 // 用法: node tests/verify-issue-comment.js
 const fs = require('fs')
 // 本文件按文本求值统一走共用入口 compileFn：从构建产物里切出谓词与函数体再造成真函数（理由与用法见 tests/lib/eval-probe.js 文件头）。
@@ -10,37 +8,7 @@ const { compileFn } = require('./lib/eval-probe.js')
 let failed = false
 const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
-const cli = fs.readFileSync('client.js', 'utf8')
 const pcli = fs.readFileSync('package/lib/client.js', 'utf8')
-const host = fs.readFileSync('host.js', 'utf8')
-const phost = fs.readFileSync('package/lib/index.js', 'utf8')
-const hostComments = fs.readFileSync('src/host/commentThreads.js', 'utf8') // H5 #449：评论通路搬到评论电话文件，拼合断言意图不变
-const hostSide = host + hostComments
-const phostComments = fs.readFileSync('package/lib/commentThreads.js', 'utf8')
-const phostSide = phost + phostComments
-const detailSrc = ['src/client/views/IssueDetail.js', 'src/client/views/IssueDetailComments.js'].map((f) => fs.readFileSync(f, 'utf8')).join('\n') // V3 #463：评论区搬到评论文件，拼合断言意图不变（输入区与提交逻辑在评论文件）
-const apiSrc = ['src/client/kernel/api-naming.js', 'src/client/kernel/api-new-session.js', 'src/client/kernel/api-io.js'].map((f) => fs.readFileSync(f, 'utf8')).join('\n') // 原 api.js 已消除，读三文件拼合断言（评论提交在输入输出文件）
-const probeSrc = ['src/client/kernel/probe-chain.js','src/client/kernel/probe-snapshot.js','src/client/kernel/probe-auto.js'].map((f) => fs.readFileSync(f, 'utf8')).join('\n') // 456 收尾：probe.js 已拆为三文件，读三文件拼起来的内容断言（本变量仅作源存在性 tripwire，行为断言走构建产物）
-const localeSrc = ['src/client/kernel/locale-panel.js', 'src/client/kernel/locale-flow.js', 'src/client/kernel/locale-word.js', 'src/client/kernel/locale.js'].map((f) => fs.readFileSync(f, 'utf8')).join('\n') // 原 locale.js 已瘦身为合并器（无键仅合并逻辑），读四文件拼合断言（评论键在流程文案文件）
-
-// ============ host 透传存在性（唯一宿主改动）============
-check(host.includes("harness.handle('wf.commentIssue'"), 'host 含 wf.commentIssue handle')
-check(phost.includes("wf.commentIssue"), 'package host 镜像含 wf.commentIssue')
-check(hostSide.includes('.comment(repoRef'), 'host 经 tracker.comment（契约 op）转发，不走私 gh 直调')
-check(/r.ok[sS]{0,80}cache = { ts: 0, snapshot: null/.test(phostSide.replace(/\n/g, ' ')) || phostSide.includes('#213 同语义') || phostSide.includes('#213 白名单同语义'), '成功路径含面板快照缓存失效（#213 同语义）')
-
-// ============ client api 层 ============
-check(apiSrc.includes("host.call('wf.commentIssue'"), 'api.submitIssueComment 调 wf.commentIssue')
-check(apiSrc.includes("'rate-limit'") || apiSrc.includes('rate.?limit'), 'api 错误归一化覆盖 rate-limit（双拼写兼容）')
-
-// ============ UI 缝：受控输入区特征 ============
-check(detailSrc.includes('submitIssueComment'), 'IssueDetail 调 submitIssueComment')
-check(detailSrc.includes('metaKey || ev.ctrlKey') || detailSrc.includes('metaKey||ev.ctrlKey'), '支持 ⌘+Enter / Ctrl+Enter 快捷发送')
-check(detailSrc.includes('disabled: !(st.cmtDraft'), '空内容发送按钮 disabled')
-check(detailSrc.includes("st.cmtSending = true"), '提交态置位（防重复提交）')
-check(detailSrc.includes("readOnlyKnown ? h('span'"), '只读提示条件化（只在确实不能评论时才提示；#693 起「还没拿到评论」不再冒充「只读」）')
-check(detailSrc.includes("placeholder: tr('detail.cmtPlaceholder')"), 'Markdown 提示占位符接入 locale')
-;['detail.cmtAuthFail', 'detail.cmtRateLimit', 'detail.cmtGeneric'].forEach(k => check(detailSrc.includes("'" + k + "'"), '分流文案键 ' + k))
 
 // —— 契约缝 A：显隐谓词行为（从构建产物提取真源比较式直接求值，杜绝测试私有副本漂移）
 const predM = pcli.match(/canComment = !!rawComments && \((.+?)\)\s*\r?\n/)
@@ -58,21 +26,6 @@ if (predM) {
   } catch (e) { predOk = false }
 }
 check(predOk, '谓词行为：MISSING 隐 / EMPTY([]) 显 / EMPTY(nodes) 显 / 异形隐')
-
-// —— 契约缝 B：OpResult 错误分流（auth/rate-limit/其他 三路文案选择函数）
-check(detailSrc.includes("k === 'auth'") && detailSrc.includes("k === 'rate-limit'"), '路由按 kind 分流（鉴权/限流/通用）')
-
-// —— 门禁自检：UI 层零 backendId 字面量（贪婪后端分支红线 · G5）
-const branchHits = (detailSrc.match(/backendId/g) || []).length
-check(branchHits === 0, 'IssueDetail 零 backendId 字面量（命中 ' + branchHits + ' 处）')
-
-// —— 无乐观假设：闪烁必须依赖服务端重取证据；提交函数不做本地评论节点注入
-check(detailSrc.includes('st.cmtConfirm') && detailSrc.includes('__cb'), '确认闪烁仅由服务端重取证据驱动')
-{
-  const si = apiSrc.indexOf('submitIssueComment')
-  const fnTxt = si >= 0 ? apiSrc.slice(si, apiSrc.indexOf('export', si + 10) > 0 ? apiSrc.indexOf('export', si + 10) : undefined) : ''
-  check(fnTxt.length > 200 && fnTxt.indexOf('issueDetail =') < 0 && fnTxt.indexOf('.push(') < 0, 'submitIssueComment 不做本地评论注入')
-}
 
 // ============ 集成差异冒烟：从产物提取 diffSnapshots 真源求值 ============
 const dStart = pcli.indexOf('const diffSnapshots = function')
@@ -116,17 +69,6 @@ check(ticketUpd, '子票 updatedAt bump → issueFlash changed')
 check(orphans, '根票（孤儿票）updatedAt bump → 行闪烁数据源产出')
 check(diffBehavior !== false, '内容同版本异 → 空差异（不误闪）')
 check(shortCircuit, '同版本短路 skipped=true（304 零扰动语义保留）')
-
-// ============ locale 双语完整门禁 ============
-;['detail.cmtPlaceholder', 'detail.cmtSend', 'detail.cmtSending', 'detail.cmtAuthFail', 'detail.cmtRateLimit', 'detail.cmtGeneric'].forEach(k => {
-  const hits = localeSrc.split("'" + k + "'").length - 1
-  check(hits >= 2, 'locale 键双语齐全 ' + k + '（拼合出现 ' + hits + ' 次，中英各一）')
-})
-
-// ============ 双产物一致性 ============
-check(cli.includes('wf.commentIssue') && pcli.includes('wf.commentIssue'), '双产物 client 含 wf.commentIssue')
-check(cli.includes('cmtDraft') && pcli.includes('cmtDraft'), '双产物 client 含受控草稿状态')
-check(host.includes('wf.commentIssue') && phost.includes('wf.commentIssue'), '双产物 host 含 wf.commentIssue')
 
 console.log(failed ? '\n#255 四缝验证失败' : '\n#255 四缝验证全部通过')
 process.exit(failed ? 1 : 0)

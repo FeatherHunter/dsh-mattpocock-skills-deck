@@ -28,7 +28,7 @@
  *
  * 用法：node tests/verify-698-switch-asks-layout.js
  */
-import { readFileSync, readdirSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { compileFn } from './lib/eval-probe.js'
@@ -42,12 +42,9 @@ const check = (ok, msg) => { if (ok) { console.log('  PASS ' + msg); passed++ } 
 const stripExports = (s) => s.replace(/^[ \t]*export[ \t]+/gm, '')
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-const cardSrc = read('src/client/views/SetupCard.js')
-const barSrc = read('src/client/statusbar/StatusBar.js')
 const sbSrc = read('src/client/statusbar/StatusBackend.js')
 const swSrc = read('src/client/kernel/store-switch.js')
 const setupSrc = read('src/client/kernel/prompts-setup.js')
-const promptsSrc = read('src/client/kernel/prompts.js')
 
 // ── 公共夹具：真 guide-steps ────────────────────────────────────────────────────────────
 const GUIDE = await import(url('src/shared/tracker/guide-steps.js'))
@@ -55,49 +52,6 @@ const GUIDE = await import(url('src/shared/tracker/guide-steps.js'))
 const CHAIN_INITIALIZED = GUIDE.GUIDE_STEPS.map((s) => ({ id: s.checks[0], status: 'done' }))
 const CHAIN_NOT_INIT = GUIDE.GUIDE_STEPS.map((s) => ({ id: s.checks[0], status: s.id === 'tracker:initialized' ? 'fail' : 'done' }))
 
-console.log('== A 源码层：那张卡有自己的位置（不再挂在黄条下面）==')
-{
-  check(/const SetupLayoutCard = function/.test(cardSrc), '卡的界面在 views/SetupCard.js（一个独立的叶子模块）')
-  check(/className: 'dsws-modal'/.test(cardSrc) && /portalTop\(overlay\)/.test(cardSrc), '卡盖住整个应用（.dsws-modal + portalTop 挂到 body），与面板在不在无关')
-  check(/confirmStatusSetupPick\(st\)/.test(cardSrc) && /cancelStatusSetupPick\(st\)/.test(cardSrc), '卡上的两个按钮直接调 StatusBackend.js 那两个动作（不在别处再包一层）')
-  check(!/layoutRadios\(/.test(barSrc), '状态栏黄条不再自己拼一份这组单选（一个座位上只留一处渲染）')
-  const modalView = read('src/client/kernel/slotRenderer-modal-view.js')
-  check(/st\.setupLayoutCardOpen === true\) \{ try \{ return SetupLayoutCard\(/.test(modalView), '弹窗座位按「卡开着」分派到它（座位是它唯一的渲染入口）')
-  const decls = (barSrc.match(/const modalSeat = /g) || []).length
-  const uses = (barSrc.match(/modalSeat\b/g) || []).length
-  check(decls === 1 && uses === 4, '那个座位仍在状态栏里声明一处、三支渲染都用上（收起态 / 无横幅 / 有横幅）—— 实得声明 ' + decls + ' 次、总共 ' + uses + ' 次')
-}
-
-console.log('')
-console.log('== B 判据单源：整个客户端只有一处判「要不要先问布局」==')
-{
-  check(/export const layoutCardShouldOpen = function/.test(setupSrc), '判据收在 kernel/prompts-setup.js 的 layoutCardShouldOpen 一份里')
-  const hits = []
-  // 注释里提到这个名字不算「抄了一份判据」——先把注释剥掉再找（与 verify-locale-completeness 同一做法）
-  const stripComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '')
-  const walk = (dir) => {
-    for (const e of readdirSync(dir, { withFileTypes: true })) {
-      const full = resolve(dir, e.name)
-      if (e.isDirectory()) { walk(full); continue }
-      if (!e.name.endsWith('.js')) continue
-      const rel = full.replace(root + '\\', '').replace(/\\/g, '/')
-      if (rel === 'src/client/kernel/prompts-setup.js') continue
-      if (/layoutCardShouldOpen/.test(stripComments(readFileSync(full, 'utf8')))) hits.push(rel)
-    }
-  }
-  walk(resolve(root, 'src/client'))
-  check(hits.length === 0, '客户端里没有第二处在抄这个判据（实得 ' + hits.length + ' 处' + (hits.length ? '：' + hits.join('、') : '') + '）')
-  check(/injectSetupDecision\(s,id,\{allowCard:true, askLayout:true\}\)/.test(sbSrc), '黄条那颗「初始化」按钮每次都问（askLayout:true）')
-  const swCode = stripComments(swSrc)
-  const swAsks = (swCode.match(/askLayout:\s*true/g) || []).length
-  check(swAsks === 2, '切换那条路每次都问：两支各传一次 askLayout:true（已初始化那一支也传）—— 实得 ' + swAsks + ' 处')
-  const swSrcFlag = (swCode.match(/source:\s*'switch'/g) || []).length
-  check(swSrcFlag === 2, '两支都告诉决策器这一问由切换那条路收尾（source:switch）—— 实得 ' + swSrcFlag + ' 处')
-  check(/snapshotSetupLayoutForCard/.test(sbSrc), '开卡时留一份草稿（取消那条路要拿它把答案退回）')
-  check(/delete s\.setupPickLayout/.test(sbSrc), '取消时把卡上刚点的那一下作废')
-  check(/export const snapshotSetupLayoutForCard = function/.test(sbSrc), '那份草稿只有一处落点（两个入口共用它）')
-  check(/snapshotSetupLayoutForCard\(st\)/.test(setupSrc), '开卡那一个分支里记草稿 —— 黄条与切换两条路都经过这里，不会漏记')
-}
 
 console.log('')
 console.log('== C 行为层（判据）：答过也问 / 没答过也问 / 不传 askLayout 时才不问 ==')
@@ -118,7 +72,6 @@ console.log('== C 行为层（判据）：答过也问 / 没答过也问 / 不�
   check(mod.layoutCardShouldOpen({ setupLayout: 'multi' }, {}) === false, '布局答过 · **不**传 askLayout → 不问（检查页那颗按钮这条口径不动）')
   check(mod.layoutCardShouldOpen({ setupLayout: null }, {}) === true, '布局没答过 · 不传 askLayout → 仍然问')
 }
-
 console.log('')
 console.log('== D 行为层（切换那条路）：两支都先开卡，不再当场注入 ==')
 async function runSwitch (srcText, steps, from, to) {
@@ -219,12 +172,6 @@ function makeSettle (steps, opts) {
   check(changed.seen.inject[1] === 'switchLayout|setup.layoutMulti->setup.layoutSingle', '第二条是 switchLayout（改之前那一项 → 改之后那一项）—— 实得 ' + JSON.stringify(changed.seen.inject[1]))
   check(changed.seen.log.some((l) => l.fields && l.fields.kind === 'align-layout'), '布局对齐那一条留了一行轨迹（kind=align-layout）')
   check(changed.seen.log.some((l) => l.fields && l.fields.kind === 'align'), '后端对齐那一条也留了一行（kind=align）—— 与「只开了卡」在日志里分得开')
-  check(/不要重跑初始化/.test(promptsSrc.slice(promptsSrc.indexOf('"switchLayout"'))), '新模板里点名了「不要重跑初始化、不要重建已有产物」')
-  check(/switchLayout/.test(promptsSrc) && /switchLayout/.test(setupSrc) === false, '模板在提示词表里，取值那一步在 statusbar（模板表与代码各一份，不混）')
-  check(/switchAlignPrompt/.test(promptsSrc), 'switchAlign 传参有单点函数 switchAlignPrompt（7 个值一次凑齐）')
-  check(/switchAlignPrompt\(s,/.test(sbSrc) && /switchAlignPrompt\(st,/.test(swSrc), '两处切换调用都走 switchAlignPrompt（收尾与兜底各一处）')
-  check(!/promptText\('switchAlign',\s*\{/.test(sbSrc) && !/promptText\('switchAlign',\s*\{/.test(swSrc), '切换两处不再直调 promptText 只传 from/to（防 5 个大括号裸奔）')
-
   const same = makeSettle(CHAIN_INITIALIZED)
   same.st.setupLayout = 'multi'
   same.mod.settleSwitchCard(same.st, 'confirm')
@@ -307,19 +254,6 @@ function makeStatusFlow (steps, opts) {
 }
 
 console.log('')
-console.log('== F 同屏只许一张卡：卡开着时不许再开「切换后端」那张窗 ==')
-{
-  check(/if \(st\.setupLayoutCardOpen === true\) \{/.test(swSrc), 'openSwitchConfirm 里有一道「卡还开着」的闸')
-  const m = swSrc.slice(swSrc.indexOf('export const openSwitchConfirm'), swSrc.indexOf('export const closeSwitchConfirm'))
-  check(/flash\(st, tr\('switch\.setupCardOpen'\)/.test(m), '被挡住时说一句人话（词条 switch.setupCardOpen）')
-  check(/return false/.test(m), '挡下来是「没开成」（返回 false），不是装作开了')
-  const wordSrc = read('src/client/kernel/locale-word.js')
-  const zh = wordSrc.slice(0, wordSrc.indexOf('// #529'))
-  const en = wordSrc.slice(wordSrc.indexOf("'switch.bindOk': 'Switched to"))
-  check(zh.indexOf("'switch.setupCardOpen':") >= 0 && en.indexOf("'switch.setupCardOpen':") >= 0, '那条词条中英各一份')
-  check(zh.indexOf("'switch.bindOkAskLayout':") >= 0 && en.indexOf("'switch.bindOkAskLayout':") >= 0, '「请先回答下面那一问」那条提示中英各一份')
-}
-
 console.log('')
 console.log('== G 反证：三处实现各做坏一次，对应的断言必须当场变红 ==')
 {

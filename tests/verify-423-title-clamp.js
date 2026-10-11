@@ -36,8 +36,11 @@ checks.push(["标题节点 -webkit-line-clamp = 2", cs.webkitLineClamp === "2"])
 checks.push(["标题节点 overflow = hidden", cs.overflow === "hidden"]);
 checks.push(["外层仍为 flex 横排（标题+头像各自占据一行）", pc.display === "flex"]);
 checks.push(["标题节点为外层首个子节点（宽度优先给标题）", wrapper.firstElementChild === wrap]);
-checks.push(["外层 min-width:0 保留（允许收缩不撑破）", pc.minWidth === "0px"]);
 checks.push(["头像在标题之后（附加元素不被截断）", wrapper.querySelectorAll("img").length === 1]);
+// 外层 min-width:0 是「允许收缩不撑破」的判据；读浏览器算出来的计算样式，不再反过来断言源码里写了这行样式。
+checks.push(["外层 min-width:0 保留（允许收缩不撑破）", pc.minWidth === "0px"]);
+// measureRule 是给被测样式当输入的那段真实 CSS 文本，两处契约仍要成立，否则 JSDOM 量到的东西不是被测规则。
+checks.push(["测量态规则含 !important（不被内联 style 覆盖）", measureRule.includes("!important") && measureRule.includes("white-space:nowrap")]);
 let ok = true;
 for (const [name, pass] of checks) { console.log(pass ? "PASS" : "FAIL", "-", name); if (!pass) ok = false; }
 const broken = "<span class='dsws-tt-wrap' style='flex:1;display:flex;align-items:center;gap:6px;flex-wrap:wrap'><span style='flex:1;min-width:0'>" + title + "</span>" + avatar + "</span>";
@@ -48,22 +51,5 @@ console.log("旧结构对照：dsws-tt-wrap 计算 display =", bcs.display);
 checks.push(["反证成立：旧结构 dsws-tt-wrap 计算 display ≠ -webkit-box（内联覆盖使 clamp 失效）", bcs.display !== "-webkit-box"]);
 for (const [name, pass] of checks) { if (!pass) ok = false; }
 console.log("---");
-const lt = ["src/client/views/ListTab.js", "src/client/views/ListTabRow.js"].map((f) => fs.readFileSync(f, "utf8")).join("\n"); // V3 #463：行渲染（含标题截断）搬到行文件，拼合断言意图不变
-const tr = fs.readFileSync("src/client/views/TicketRow.js", "utf8");
-function hasClampSource(src) { return src.indexOf("className: 'dsws-tt-wrap'") >= 0; }
-function noInlineDisplayOnWrap(src) {
-  const re = /className:\s*'dsws-tt-wrap'[\s\S]{0,220}?style:\s*\{[^}]*display/;
-  return !re.test(src);
-}
-const srcChecks = [
-  ["ListTab 标题带 dsws-tt-wrap（截断契约落在文本节点）", hasClampSource(lt)],
-  ["ListTab dsws-tt-wrap 无内联 display（走样式表 -webkit-box）", noInlineDisplayOnWrap(lt)],
-  ["TicketRow 标题带 dsws-tt-wrap", hasClampSource(tr)],
-  ["TicketRow dsws-tt-wrap 无内联 display", noInlineDisplayOnWrap(tr)],
-  ["测量态规则含 !important（不被内联 style 覆盖）", measureRule.includes("!important") && measureRule.includes("white-space:nowrap")]
-];
-console.log("---");
-for (const [name, pass] of srcChecks) { console.log(pass ? "PASS" : "FAIL", "-", name); if (!pass) ok = false; }
-console.log("---");
-console.log(ok ? "全部通过（共 " + (checks.length + srcChecks.length) + " 项）" : "存在失败项！");
+console.log(ok ? "全部通过（共 " + checks.length + " 项）" : "存在失败项！");
 if (!ok) process.exit(1);

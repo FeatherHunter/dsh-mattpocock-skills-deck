@@ -6,8 +6,10 @@
 // 本门禁用同一条常驻告警 host.dispatch.empty 加第四种形状 unknown-endpoint 把它补上，
 // 与 #724 那三档（no-value / null-value / no-error）共用事件名与字段，不新增事件、不改计数。
 //
-// 判定分四段（回滚其中任何一段都变红，见末尾反证说明）：
-//   ① 源码里不认识分支必须走 log('warn','host.dispatch.empty',{method,shape,version})，字段不多不少；
+// 判定分三段（回滚其中任何一段都变红，见末尾反证说明）：
+//   原先的第一段是「读 src/host/rpcChannel.js 的源码文本、断言里面必须出现某段字符串」的
+//   形状门禁，2026-10 按维护者口径撤掉了：那种断言的对象是手写源码的文本，等价重构
+//   （改写法、搬文件、改注释）就会变红，挡不住真回归，只浪费人的时间。
 //   ② 真跑一次：调不存在的端点，回失败信封且留痕一行（电话名、形状、版本齐）；
 //   ③ 负控：业务性正常失败（ok:false 带 error）不触发留痕，已有三档行为不变；
 //   ④ 附录 #88 登记了 unknown-endpoint，计数仍是常驻 38 条。
@@ -18,22 +20,6 @@ import { readFileSync } from 'node:fs'
 let failures = 0
 const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failures++ }
 const src = (p) => readFileSync(p, 'utf8')
-
-// ---------- ① 源码形状 ----------
-const rpcSrc = src('src/host/rpcChannel.js')
-check(rpcSrc.includes("'host.dispatch.empty'"), 'rpcChannel.js 有 host.dispatch.empty 落点')
-check(rpcSrc.includes('unknown-endpoint'), 'rpcChannel.js 登记了 unknown-endpoint 形状')
-// 字段门禁只认 log('级别','事件名',{…}) 形状，写成 fireLog 会成野点（见文件里 #724 那段说明）。
-check(rpcSrc.includes("log('warn', 'host.dispatch.empty'"), '未知端点走 log 告警（字段门禁可扫到）')
-// 告警级始终落盘，不许加外层开关判断（与 #724 三档一致）。
-{
-  const lines = rpcSrc.split('\n')
-  const hit = lines.filter((l) => l.includes('host.dispatch.empty') && l.includes('unknown-endpoint'))
-  check(hit.length >= 1, '未知端点留痕行存在（实得 ' + hit.length + ' 行）')
-  check(hit.every((l) => !/isEnabled\s*\(/.test(l)), '告警直发不判开关')
-}
-// 形状字面只出现一处（不散写两处，不另包单值小函数）。
-check((rpcSrc.match(/unknown-endpoint/g) || []).length >= 2, 'unknown-endpoint 字面收口（实现与门禁各一处）')
 
 // ---------- ② 真跑一次 ----------
 const services = { connection: { fetch: { register: (route) => { globalThis.__733route = route; return () => {} } } } }
@@ -100,6 +86,6 @@ const call = async (endpoint, payload) => {
 }
 
 // 反证（把修复回滚则变红）：删掉 dispatchRpcEndpoint 里未知分支那行 log，
-// ① 的“未知端点留痕行存在”与 ② 的“留痕一行”当场变红；只报“改完绿了”不算证据。
+// ② 的“留痕一行”当场变红；只报“改完绿了”不算证据。
 console.log(failures ? '\n#733 门禁失败 ' + failures + ' 项' : '\n#733 门禁全部通过')
 process.exit(failures ? 1 : 0)
