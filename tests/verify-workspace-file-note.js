@@ -59,8 +59,8 @@
  *
  * 用法：node tests/verify-workspace-file-note.js
  *   产物那几条（E 组）要求先跑 node scripts/build.mjs；源码改过而产物没重建时，E 组会红并提示重跑构建。
- *   本门禁还没挂进 package.json 的 scripts.verify 链（本票只允许新建这一个文件，不碰既有文件）；
- *   要挂的统筹者照 tests/verify-gitlab-single-write.js 的做法加一节 `node tests/verify-workspace-file-note.js` 即可。
+ *   本门禁已经挂进 package.json 的 scripts.verify 链（挂在链尾，跑法见 scripts/verify-chain.js），
+ *   也可以单跑：node tests/verify-workspace-file-note.js。
  */
 import fs from 'node:fs'
 import path from 'node:path'

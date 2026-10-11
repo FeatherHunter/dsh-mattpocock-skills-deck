@@ -43,7 +43,7 @@ function failCode(code, msg) {
 }
 
 async function main() {
-  console.log('本机设置两条电话门禁（task-7：缺席与分档与只读拒绝与行数）')
+  console.log('本机设置两条电话门禁（task-7：缺席与分档与只读拒绝与行数与真跑日志）')
   const leafUrl = pathToFileURL(path.join(ROOT, 'src', 'host', 'settingsPhones.js')).href
   const storeUrl = pathToFileURL(path.join(ROOT, 'src', 'host', 'configStore.js')).href
   let leaf = null
@@ -288,6 +288,7 @@ async function main() {
       const fake = wrapSysFs([], { readFile: async () => { throw failCode('EPERM', 'operation not permitted') } })
       const r = await makePhones(home, log.logCtx, fake).handleGetSettings({})
       check(r.ok === false, '读失败这一次真的失败了，先把这份失败备好。', JSON.stringify(r).slice(0, 200))
+      check(r.error && r.error.kind === 'environment', '读失败这一档归环境问题：权限被拒既不是文件不在，也不是内容坏了。', JSON.stringify(r.error))
       check(log.lines.length === 1, '读失败这一次照样落一行，不少记也不多记。', JSON.stringify(log.lines))
       const line = log.lines[0] || {}
       check(line.event === 'host.call.fail' && line.level === 'warn', '读失败落的是失败那一行（host.call.fail，级别 warn）。', JSON.stringify(line))
@@ -301,6 +302,7 @@ async function main() {
       const fake = wrapSysFs([], { writeFile: async () => { throw failCode('EPERM', 'operation not permitted') } })
       const w = await makePhones(home, log.logCtx, fake).handleSetSettings({ value: goodValue })
       check(w.ok === false, '写失败这一次真的失败了，先把这份失败备好。', JSON.stringify(w).slice(0, 200))
+      check(w.error && w.error.kind === 'environment', '写失败这一档同样归环境问题，不冒充分档里的别的种类。', JSON.stringify(w.error))
       check(log.lines.length === 1, '写失败这一次照样落一行，不少记也不多记。', JSON.stringify(log.lines))
       const line = log.lines[0] || {}
       check(line.event === 'host.call.fail' && line.level === 'warn', '写失败落的是失败那一行（host.call.fail，级别 warn）。', JSON.stringify(line))
