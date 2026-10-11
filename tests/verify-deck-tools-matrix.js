@@ -96,6 +96,11 @@ async function main() {
   const gitlabBackend = (await imp('src/host/tracker/backends/gitlab/index.js')).gitlabBackend
   const markdownModule = (await imp('src/host/tracker/backends/markdown/index.js')).markdownModule
   const toolCost = await imp('src/shared/refresh/tool-cost.js')
+  // 选后端的判定出口（#1003 单出口）。生产装配总是把它递给工具（见 src/host/platform/deckToolsAssembly.js
+  //   的 `decideBackend: decideBackend || null`），壳拿不到它时会一律回「判定出口这次没装上」，
+  //   所以夹具也必须照生产的接法给上。接上它之后，下面每个车道那次 registry.bind(lane.handle, lane.id)
+  //   才会被读成「用户亲手选过这个工作区」，三个车道的写用途才会被放行（#1003 契约期望行为第 4 条）。
+  const decMod = await imp('src/host/tracker/detection/backendDecision.js')
 
   let clock = 1700000000000
   const ledger = ledgerMod.createLedger({ now: () => clock })
@@ -146,6 +151,7 @@ async function main() {
     backendCtx: () => (currentLane ? currentLane.backendCtx : {}),
     now: () => clock,
     log: { fire: () => {} },
+    decideBackend: decMod.decideBackend,
     planStore: (() => { const t = new Map(); return { durable: true, load(id) { return t.get(id) || null }, save(id, s) { t.set(id, s) } } })(),
     invalidate: () => {},
   }

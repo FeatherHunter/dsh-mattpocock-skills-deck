@@ -41,6 +41,14 @@ export function createWorkspaceLabelColors(deps) {
   //   客户端没带这个名字时，仍按注册表这次算出来的那一个走；「没选定 / 多命中 / 待定」这三种仍然明确失败
   //   （conflict 档），让用户先选定后端再试——绝不许静默挑一个「匹配的赢家」，那可能把颜色改到另一个仓库上去。
   const UNDECIDED = '这个工作区使用哪个后端尚未确定：请在面板中选定这个工作区使用的后端，然后重试'
+  /**
+   * 写用途没凭据时的同一句话（#1003 契约期望行为第 4 条）：这一次的结论不是来自工作区里那份配置文件、
+   * 也不是用户这次亲手绑定的（只是仓库说明文件或自动识别算出来的），所以一个字节都不许动外部世界。
+   * 读用途（列标签）不查这一条：看票与展示可以用生成结果兜。
+   */
+  const notPickedYet = function () {
+    return { ok: false, error: { kind: 'conflict', message: '这个工作区还没选定后端：现在这个结论是按仓库里的说明文件或自动识别得出的，不算你亲手选过，所以这一次没有改任何东西。请先在面板上选定这个工作区使用的后端，然后重试。' } }
+  }
   /** 「选中的后端在注册表里找不到」这一档（env）：声明的与注册表算出来的是同一句，措辞只此一处。 */
   const unknownBackend = function (id) {
     return { ok: false, error: { kind: 'env', message: '列出标签与修改标签颜色时插件运行出错：已选定的后端「' + id + '」不在当前可用的后端清单里。这是插件运行环境的问题，不是你的操作有误。' } }
@@ -55,7 +63,7 @@ export function createWorkspaceLabelColors(deps) {
     if (sel && Array.isArray(sel.multiHit) && sel.multiHit.length > 1) return sel.multiHit
     return (sel && sel.backendId) ? [sel.backendId] : []
   }
-  async function pickBackend(cwd, caller, signal, declared) {
+  async function pickBackend(cwd, caller, signal, declared, needWritable) {
     // #1003 空目录闸：还不知道工作区是哪条时，不探测、不起外部命令，直接说还没就绪。
     if (!cwd || String(cwd).trim() === '') {
       return { ok: false, error: { kind: 'conflict', message: UNDECIDED + '（这个工作区还没就绪，等面板认出工作区后再试）' } };
@@ -71,16 +79,17 @@ export function createWorkspaceLabelColors(deps) {
       return { ok: false, error: { kind: 'env', message: '列出标签与修改标签颜色时插件运行出错：判定出口这次没装上，所以没有动仓库里的任何东西。请重试一次；如果仍然失败，请把这条提示原文报告给插件维护者。' } }
     }
     let sel = null
+    let canWrite0 = undefined
     {
       const fsSvc0 = ctx.get('fs');
       const hasId0 = function (id) { try { return !!(id && reg.has(id)); } catch { return false; } };
       const o = await useOutlet.decideBackend(cwd, {
         registry: reg, platform: platform, fs: fsSvc0, caller: caller, signal: signal,
-        getChoiceStore: getChoiceStore,
       }).catch(function () { return null })
+      canWrite0 = !!(o && o.canWrite === true)
       if (o && o.backendId && hasId0(o.backendId) && !(Array.isArray(o.multiHit) && o.multiHit.length > 1) && !o.pending) {
         const t9 = reg.get(o.backendId);
-        if (t9) { let r9 = null; try { r9 = reg.describe({ cwd }, o.backendId); } catch { r9 = { backend: o.backendId, refId: '', name: '', url: '' }; } return { ok: true, backendId: o.backendId, repoRef: r9, tracker: t9, platform }; }
+        if (t9) { let r9 = null; try { r9 = reg.describe({ cwd }, o.backendId); } catch { r9 = { backend: o.backendId, refId: '', name: '', url: '' }; } if (needWritable && !canWrite0) return notPickedYet(); return { ok: true, backendId: o.backendId, repoRef: r9, tracker: t9, platform }; }
       }
       // 出口无可用显式答案时：自动识别它已经跑过一次，不再跑第二次，下面只做核验与分档。
       //   多命中与待定落到下面那两条诚实失败（与老路同序：先看 multiHit/pending，再拿 id）。
@@ -107,6 +116,7 @@ export function createWorkspaceLabelColors(deps) {
       if (!trackerWant) return unknownBackend(want)
       let refWant = null
       try { refWant = reg.describe({ cwd: cwd }, want) } catch (e) { refWant = { backend: want, refId: '', name: '', url: '' } }
+      if (needWritable && !canWrite0) return notPickedYet()
       return { ok: true, backendId: want, repoRef: refWant, tracker: trackerWant, platform: platform }
     }
     if (sel && Array.isArray(sel.multiHit) && sel.multiHit.length > 1) {
@@ -129,6 +139,7 @@ export function createWorkspaceLabelColors(deps) {
     if (!tracker) return unknownBackend(backendId)
     let repoRef = (sel && sel.ref) || null
     if (!repoRef) { try { repoRef = reg.describe({ cwd: cwd }, backendId) } catch (e) { repoRef = { backend: backendId, refId: '', name: '', url: '' } } }
+    if (needWritable && !canWrite0) return notPickedYet()
     return { ok: true, backendId: backendId, repoRef: repoRef, tracker: tracker, platform: platform }
   }
   // 「插件这边的错」只有一种口径：后端回的形状不符合契约、后端抛异常、宿主自己出错，一律归 env（插件自身/环境问题），
@@ -179,7 +190,7 @@ export function createWorkspaceLabelColors(deps) {
     if (!Array.isArray(changes)) return { ok: false, error: { kind: 'parse', message: '修改标签颜色需要一份「标签 → 新颜色」的改动清单（内部把这个清单叫 changes），本次保存带上来的内容不是这种格式。请回到改色弹窗重新保存一次。' } }
     const signal = new AbortController().signal
     let picked = null
-    try { picked = await pickBackend(cwd, 'wf.setLabelColors', signal, args && args.backendId) } catch (e) { return pluginTrouble('修改标签颜色', '插件没能确定这个工作区使用哪个后端这一步出错（内部叫 pickBackend），所以没有动仓库里的任何东西。请重试一次；如果仍然失败，请把这条提示原文报告给插件维护者', msgOf(e)) }
+    try { picked = await pickBackend(cwd, 'wf.setLabelColors', signal, args && args.backendId, true) } catch (e) { return pluginTrouble('修改标签颜色', '插件没能确定这个工作区使用哪个后端这一步出错（内部叫 pickBackend），所以没有动仓库里的任何东西。请重试一次；如果仍然失败，请把这条提示原文报告给插件维护者', msgOf(e)) }
     if (!picked.ok) return picked
     const sb = resolveSandboxPolicy(args, cwd)
     let res = null

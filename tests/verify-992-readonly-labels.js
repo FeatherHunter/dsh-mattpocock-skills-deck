@@ -70,6 +70,12 @@ const permCalls = (calls) => calls.filter((l) => l.startsWith('api repos/') && l
 async function main() {
   console.log('#992 只读仓库标签能力降级专属门禁（不联网）')
   const { ERROR_KIND } = await imp('src/shared/tracker/constants.js')
+  // 选后端的判定出口（#1003 单出口）。下面 E）与 G）两段都是经工具壳调后端的，生产装配总是把它递给工具
+  //   （见 src/host/platform/deckToolsAssembly.js 的 `decideBackend: decideBackend || null`），壳拿不到它时
+  //   会一律回「判定出口这次没装上」，两段都跑不到真实路径。接上它之后，两段夹具里那句
+  //   registry.bind(handle, ...) 才会被读成「用户亲手选过这个工作区」，写用途才会被放行
+  //   （#1003 契约期望行为第 4 条）。
+  const decMod = await imp('src/host/tracker/detection/backendDecision.js')
 
   // ── A) 分类 ──
   {
@@ -171,7 +177,7 @@ async function main() {
     const disp = registry.register(mkStub(true))
     const handle = { cwd: '/ws/992', refId: 'o/r' }
     registry.bind(handle, 'stub-992-err')
-    const deps = { gate, registry, budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, handleFor: () => handle, backendCtx: {}, now: () => clock, log: { fire: () => {} }, invalidate: () => {} }
+    const deps = { gate, registry, budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, handleFor: () => handle, backendCtx: {}, now: () => clock, log: { fire: () => {} }, invalidate: () => {}, decideBackend: decMod.decideBackend }
     const createMod = await imp('src/host/tools/deckIssueCreate.js')
     const tool = createMod.createDeckIssueCreate(deps)
     const exec = { agent: { session: { id: 's-992', cwd: '/ws/992' } } }
@@ -255,7 +261,7 @@ async function main() {
       const disp = registry.register(stub)
       const handle = { cwd: '/ws/992', refId: 'o/r' }
       registry.bind(handle, stubId)
-      const deps = { gate, registry, budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, handleFor: () => handle, backendCtx: {}, now: () => clock, log: { fire: () => {} }, invalidate: () => {} }
+      const deps = { gate, registry, budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, handleFor: () => handle, backendCtx: {}, now: () => clock, log: { fire: () => {} }, invalidate: () => {}, decideBackend: decMod.decideBackend }
       const tool = ctxMod.createDeckContext(deps)
       const out = await tool.run({ agent: { session: { id: 's-992', cwd: '/ws/992' } } }, {})
       disp.dispose()

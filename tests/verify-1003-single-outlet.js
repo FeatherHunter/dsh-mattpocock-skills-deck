@@ -113,13 +113,22 @@ async function main() {
     const noAuto = regOf(async () => ({ backendId: null, source: 'fallback' }));
     const u = await decideBackend(dir, { registry: noAuto, platform: { fs: fss }, fs: fss, caller: 'test-s1' });
     check(u.backendId === 'github', 'S1 统一判定读到声明文件（github）', JSON.stringify(u));
-    const p = await shellOf(noAuto, { readDeclarationId: async () => 'github' })
-      .pickBackend({ agent: { session: { id: 's', cwd: dir } } }, sOf(dir));
-    check(p.ok === true && p.backendId === 'github', 'S1 工具壳同样读到声明文件', JSON.stringify({ ok: p.ok, backendId: p.backendId }));
+    check(u.canWrite !== true, 'S1 声明文件来的结论不算「人选的」：出口标了不可写', JSON.stringify({ canWrite: u.canWrite, reason: u.reason }));
+    const shell1 = shellOf(noAuto, { readDeclarationId: async () => 'github' });
+    const p = await shell1.pickBackend({ agent: { session: { id: 's', cwd: dir } } }, sOf(dir));
+    check(p.ok === false && /先在面板上选定/.test(String(p.text)), 'S1 写用途（工具壳）拒绝：只有声明文件不算人亲手选过', JSON.stringify({ ok: p.ok, text: p.text }));
     const l = await lcOf(Object.assign({}, noAuto, { get: () => fakeTracker() }), fss).handleListLabels({ cwd: dir });
-    check(l.ok === true && l.backendId === 'github', 'S1 改色电话同样读到声明文件', JSON.stringify(l).slice(0, 160));
+    check(l.ok === true && l.backendId === 'github', 'S1 读用途（列标签）不受影响，照旧读到声明文件', JSON.stringify(l).slice(0, 160));
+    const w1 = await lcOf(Object.assign({}, noAuto, { get: () => fakeTracker() }), fss).handleSetLabelColors({ cwd: dir, changes: [{ name: 'bug', color: '0b7285' }] });
+    check(w1.ok === false && /先在面板上选定/.test(String(w1.error && w1.error.message)), 'S1 写用途（改色）拒绝：只有声明文件不算人亲手选过', JSON.stringify(w1).slice(0, 200));
     const d = await detOf(noAuto, fss).detect({ cwd: dir }, { skipSkillProbes: true });
     check(d.selection && d.selection.backendId === 'github', 'S1 探测服务同样读到声明文件', JSON.stringify(d.selection));
+    // 对照：同一条工作区补上「人亲手绑定过」的状态之后，写用途放行 —— 证明上面两条拒绝的原因就是缺人的记录，不是别的。
+    const boundReg = Object.assign({}, noAuto, { bound: () => 'github' });
+    const p2 = await shellOf(boundReg, { readDeclarationId: async () => 'github' }).pickBackend({ agent: { session: { id: 's', cwd: dir } } }, sOf(dir));
+    check(p2.ok === true && p2.backendId === 'github', 'S1 对照：有人的绑定后工具壳放行', JSON.stringify({ ok: p2.ok, backendId: p2.backendId }));
+    const w2 = await lcOf(Object.assign({}, boundReg, { get: () => fakeTracker() }), fss).handleSetLabelColors({ cwd: dir, changes: [{ name: 'bug', color: '0b7285' }] });
+    check(w2.ok === true && Array.isArray(w2.applied), 'S1 对照：有人的绑定后改色写放行（夹具的桩返回空清单，这里只看它被放行且确实交给了后端）', JSON.stringify(w2).slice(0, 160));
   }
 
   // —— S2：文件在就听文件的 ——
@@ -167,7 +176,7 @@ async function main() {
     check(u.multiHit && u.multiHit.length === 2, 'S4 统一判定把 multiHit 原样交出（调用方凭它拒绝）', JSON.stringify(u));
   }
 
-  // —— S5：已知分歧（纯记忆工作区）——
+  // —— S5：只放本机记忆的工作区（#1003 契约 2026-10-12 拍板：记忆只用来生成一次文件，不再参与判定）——
   {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'v1003s5-'));
     const dir = path.join(tmp, 'mem-only');
@@ -175,16 +184,19 @@ async function main() {
     fs.writeFileSync(path.join(dir, 'README.md'), 'non-empty\n');
     const fss = makeFs();
     const mem = { ok: true, found: true, backendId: 'github', rev: 3, pickedAt: 9 };
+    let asked = 0;
+    const storeStub = { getWorkspace: async () => { asked += 1; return mem } };
     const reg = regOf(async () => ({ backendId: null, source: 'fallback' }));
     const u = await decideBackend(dir, {
       registry: reg, platform: { fs: fss }, fs: fss, caller: 'test-s5',
-      getChoiceStore: async () => ({ getWorkspace: async () => mem }),
+      getChoiceStore: async () => storeStub,
     });
     const d = await detOf(reg, fss, mem).detect({ cwd: dir }, { skipSkillProbes: true });
     const l = await lcOf(Object.assign({}, reg, { get: () => fakeTracker() }), fss, mem).handleListLabels({ cwd: dir });
-    check(u.backendId === 'github', 'S5 统一判定读到记忆', JSON.stringify(u));
-    check(d.selection && d.selection.backendId === 'github', 'S5 探测服务读到记忆', JSON.stringify(d.selection));
-    check(l.ok === true && l.backendId === 'github', 'S5 改色电话改调出口后同答记忆（分歧已收）', JSON.stringify(l).slice(0, 160));
+    check(u.backendId === null && u.origin === 'none', 'S5 统一判定不再拿记忆回答（如实未知）', JSON.stringify(u));
+    check(d.selection && d.selection.backendId === null, 'S5 探测服务同样不再拿记忆回答', JSON.stringify(d.selection));
+    check(l.ok === false, 'S5 改色电话（列标签）同样不再拿记忆回答：如实说这个工作区还没选定后端', JSON.stringify(l).slice(0, 200));
+    check(asked === 0, 'S5 判定链一次都没去读记忆库（记录留在机器上不删，但判定不再问它）', 'asked=' + asked);
   }
 
   console.log(failed ? `\nFAIL（${total} 条）` : `\n全部通过（${total} 条）`);

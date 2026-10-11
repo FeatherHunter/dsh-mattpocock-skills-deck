@@ -186,12 +186,12 @@ export function createDeckShell(deps) {
       try {
         sent = await gate.send({ source: 'tool.call', kind: 'probe', bucket: 'rest', workspaceKey: s.workspaceKey, plan: [{ phase: 'select' }] }, async () => {
           const o = await useOutlet(s.cwd, {
-            registry: registry, backendCtx: backendCtxNow(), readChoice: d.readChoice,
+            registry: registry, backendCtx: backendCtxNow(),
             readWorkspaceFileText: d.readWorkspaceFileText, parseWorkspaceFile: d.parseWorkspaceFile,
             readDeclarationId: d.readDeclarationId, caller: DECK_TOOL_KIND, autodetect: directSelect,
           })
           if (o && o.backendId) {
-            picked = { backendId: o.backendId, source: o.source, ref: o.ref || null, multiHit: o.multiHit, pending: o.pending }
+            picked = { backendId: o.backendId, source: o.source, ref: o.ref || null, multiHit: o.multiHit, pending: o.pending, canWrite: o.canWrite }
             if (!picked.ref) { try { picked.ref = registry.describe(handle, picked.backendId) } catch (eD) { picked.ref = null } }
           } else if (o && o.pending) {
             picked = { backendId: null, source: 'fallback', pending: true, multiHit: o.multiHit }
@@ -242,6 +242,8 @@ export function createDeckShell(deps) {
       const pending = picked && picked.pending
       return { ok: false, reason: REFUSAL_REASONS.NO_BACKEND, text: pending ? '后端还没定下来（自动识别有超时未决），先在面板上选一次后端。' : '这个工作区还没有后端（既没有手动选过，也没有识别到锚文件）。先在面板上选一个后端。' }
     }
+    // #1003 写用途只认文件里的记录（契约期望行为第 4 条）：结论不是来自工作区配置文件、也不是你这次亲手绑定的，就一律不做（读用途不受影响）。
+    if (picked.canWrite !== true) return { ok: false, reason: REFUSAL_REASONS.NO_BACKEND, text: '这个工作区还没选定后端：现在这个结论是按仓库里的说明文件或自动识别得出的，不算你亲手选过，所以我没有动任何东西。请先在面板上选定这个工作区使用的后端，然后重试。' }
     fire('deck.select', ms, true)
     noteGate('select', 'allow', '')
     return { ok: true, backendId: str(picked.backendId), source: str(picked.source), ref: picked.ref || null, pending: !!picked.pending, requests: num(sent.requests), points: num(sent.points) }

@@ -74,8 +74,10 @@ function isKnown(registry, id) {
 /**
  * 统一判定的纯核：输入已经读到的各层候选，输出唯一答案。
  * 不碰文件系统与注册表，只做排序，方便单测与三处共用。
+ * #1003 契约（2026-10-12 维护者拍板）：本机记忆只用来把工作区配置文件生成出来一次，
+ *   此后不再参与任何判定，所以纯核里没有记忆这一层——判定顺序是「内存绑定 → 工作区文件 → 声明文件 → 自动识别」。
  */
-export function decidePure({ boundId, fileParsed, declarationId, choiceRecord, autodetect, registry }) {
+export function decidePure({ boundId, fileParsed, declarationId, autodetect, registry }) {
   if (boundId !== undefined && boundId !== null && boundId !== '') {
     if (isKnown(registry, boundId)) return { backendId: boundId, source: 'explicit', origin: 'user-memory-bind' };
   }
@@ -85,9 +87,6 @@ export function decidePure({ boundId, fileParsed, declarationId, choiceRecord, a
   }
   if (declarationId && isKnown(registry, declarationId)) {
     return { backendId: declarationId, source: 'explicit', origin: 'declaration' };
-  }
-  if (choiceRecord && choiceRecord.backendId && isKnown(registry, choiceRecord.backendId)) {
-    return { backendId: choiceRecord.backendId, source: 'explicit', origin: 'migrated-memory' };
   }
   if (autodetect && autodetect.backendId && isKnown(registry, autodetect.backendId)) {
     return { backendId: autodetect.backendId, source: autodetect.source || 'matches', origin: 'autodetect', ref: autodetect.ref || null, multiHit: autodetect.multiHit, pending: autodetect.pending };
@@ -152,25 +151,10 @@ async function readDeclarationLayer(cwd, deps) {
   return null;
 }
 
-async function readChoiceLayer(cwd, deps) {
-  try {
-    if (deps.workspaceEmpty === true) return null; // #297：工作区已空时那份记忆视为过期（内容不动，只是不拿它回答）
-    if (typeof deps.readChoice === 'function') {
-      const got = await deps.readChoice(cwd);
-      if (got && got.backendId) return got;
-      return null;
-    }
-    if (typeof deps.getChoiceStore === 'function') {
-      const cs = await deps.getChoiceStore();
-      const got = cs && typeof cs.getWorkspace === 'function' ? await cs.getWorkspace(cwd) : null;
-      if (got && got.found === true && got.backendId) return { backendId: got.backendId };
-      return null;
-    }
-  } catch {
-    return null;
-  }
-  return null;
-}
+// #1003 契约（2026-10-12 维护者拍板）：原来这里有一层「读本机记忆当判定依据」（readChoiceLayer），
+//   已整段删除——记忆只用来把工作区配置文件生成出来一次（那条路在工作区入口的迁移里，直接读记忆库），
+//   此后不再参与任何判定。记录本身留在机器上不删（先只停用），文件万一被删还能再生成一次。
+
 
 /**
  * 唯一判定出口：输入工作区根，输出 { backendId, source, origin, canWrite, reason }。
@@ -201,10 +185,9 @@ export async function decideBackend(root, deps = {}) {
   if (declarationId && isKnown(registry, declarationId)) {
     return { backendId: declarationId, source: 'explicit', origin: 'declaration', canWrite: false, reason: 'needs-generate' };
   }
-  const choiceRecord = await readChoiceLayer(cwd, deps);
-  if (choiceRecord && choiceRecord.backendId && isKnown(registry, choiceRecord.backendId)) {
-    return { backendId: choiceRecord.backendId, source: 'explicit', origin: 'migrated-memory', canWrite: true, reason: 'needs-migrate' };
-  }
+  // #1003 契约（2026-10-12 维护者拍板）：本机记忆这一层从判定里去掉——它只用来把工作区配置文件
+  //   生成出来一次（那条路在工作区入口的迁移里，不经这里），此后不再拿它回答判定。
+  //   记录本身留在机器上不删（先只停用），文件万一被删还能再生成一次。
   let autodetect = null;
   try {
     if (typeof deps.autodetect === 'function') {

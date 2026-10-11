@@ -89,14 +89,16 @@ console.log('== A 上报即忽略；H 经出口记忆层回答；文件赢 ==')
   const stored = await store.getWorkspace(ws)
   check(stored.found === false, '上报不再写进 H（一次性迁移已随老路径退役）—— 实得 ' + JSON.stringify(stored))
 
-  // H 经出口记忆层照旧回答（无文件无声明时）：上报 github 也盖不掉 H 里的 markdown，并带上修订号
-  // （目录里放一条占位文件：全空目录按 #297 视为已删，记忆过期是不回答的，见 B 组 b2）
+  // #1003 契约（2026-10-12 维护者拍板）：记忆不再参与判定 —— 无文件无声明时，即使 H 里记着 markdown，
+  //   判定也如实未知（记录留在机器上不删，只用来把工作区文件生成一次，那条路在工作区入口的迁移里）。
   const wsM = makeWorkspace(null)
   fs.writeFileSync(path.join(wsM, 'README.md'), 'x', 'utf8')
   const memFirst = await store.rememberWorkspace(wsM, 'markdown')
   const aM = await svc.detect({ cwd: wsM }, { skipSkillProbes: true, hintBackendId: 'github' })
-  check(aM.selection && aM.selection.backendId === 'markdown', '无文件无声明时 H 经出口记忆层回答 markdown（上报 github 盖不掉）—— 实得「' + (aM.selection && aM.selection.backendId) + '」')
-  check(aM.rev === (memFirst.rev || 0), '记忆层回答带上 H 的修订号 —— 实得 rev=' + aM.rev)
+  check(!(aM.selection && aM.selection.backendId), '无文件无声明时不再拿 H 回答（如实未知，不猜）—— 实得「' + (aM.selection && aM.selection.backendId) + '」')
+  const keptM = await store.getWorkspace(wsM)
+  check(keptM.found === true && keptM.backendId === 'markdown', 'H 里那条记录留在机器上不删（只停用不删，文件万一被删还能再生成一次）—— 实得 ' + JSON.stringify({ found: keptM.found, backendId: keptM.backendId, rev: keptM.rev }))
+  check((memFirst.rev || 0) > 0, '（布置）记忆里确实有这条带修订号的记录 —— 实得 rev=' + memFirst.rev)
 
   // 文件赢：锚写着 GitHub、工作区文件里是 markdown → markdown（上报 github 也盖不掉）
   const wsF = makeWorkspace('# Issue tracker: GitHub\n')
@@ -166,15 +168,16 @@ console.log('== C R2c：缓存里的选择随那份记忆变旧就必须重算 =
   const svc = makeService(store, wsStore)
   await store.rememberWorkspace(ws, 'markdown') // rev 推到 1
   const c1 = await svc.detect({ cwd: ws }, { skipSkillProbes: true })
-  check(c1.selection && c1.selection.backendId === 'markdown' && c1.rev === 1, '（布置）H 里是 markdown 时出口记忆层回答 markdown 并带修订号 —— 实得「' + (c1.selection && c1.selection.backendId) + '」rev=' + c1.rev)
+  check(!(c1.selection && c1.selection.backendId), '（布置）H 里记着 markdown 时判定也不再拿它回答（#1003 契约：记忆只用来生成一次文件）—— 实得「' + (c1.selection && c1.selection.backendId) + '」')
   const bumped = await store.rememberWorkspace(ws, 'github') // 别的壳把它改成了 github，rev 推到 2
   const c2 = await svc.detect({ cwd: ws }, { skipSkillProbes: true })
-  check(c2.selection && c2.selection.backendId === 'github' && c2.rev === (bumped.rev || 0), '别的壳改过 H 之后，第二次读缓存也要重算、按新的 H 回答 —— 实得「' + (c2.selection && c2.selection.backendId) + '」rev=' + c2.rev)
-  // 甲：手改配置文件即时生效 —— 缓存里是 H 的 github，文件里手写了 markdown，下一轮必须按文件的来
+  check(!(c2.selection && c2.selection.backendId), '别的壳改过 H 之后同样不回答（判定不看它，所以改它也不影响结论）—— 实得「' + (c2.selection && c2.selection.backendId) + '」')
+  check((bumped.rev || 0) > 1, '（布置）H 的修订号确实推到了 2 —— 实得 rev=' + bumped.rev)
+  // 甲：手改配置文件即时生效 —— 先落到「没有答案」，文件里手写 markdown，下一轮必须按文件的来（缓存不许挡住）
   fs.mkdirSync(path.join(ws, 'docs', 'agents'), { recursive: true })
   fs.writeFileSync(path.join(ws, 'docs', 'agents', 'workspace.json'), '{"version":1,"backendId":"markdown","pickedAt":1758500000000,"source":"user"}', 'utf8')
   const c3 = await svc.detect({ cwd: ws }, { skipSkillProbes: true })
-  check(c3.selection && c3.selection.backendId === 'markdown', '手改配置文件后缓存即失效、按文件的 markdown 回答（不是缓存里的 github）—— 实得「' + (c3.selection && c3.selection.backendId) + '」')
+  check(c3.selection && c3.selection.backendId === 'markdown', '手改配置文件后当轮即按文件的 markdown 回答（不被缓存挡住）—— 实得「' + (c3.selection && c3.selection.backendId) + '」')
 }
 
 // ── D R4：快照那几条路都要带权威选择 ───────────────────────────────────────────────────

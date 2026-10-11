@@ -73,6 +73,12 @@ async function main() {
   const toolCost = await imp('src/shared/refresh/tool-cost.js')
   const planMod = await imp('src/shared/deck-tools/plan.js')
   const shellMod = await imp('src/shared/deck-tools/shell.js')
+  // 选后端的判定出口（#1003 单出口）。生产装配总是把它递给工具（见 src/host/platform/deckToolsAssembly.js
+  //   的 `decideBackend: decideBackend || null`），壳拿不到它时会一律回「判定出口这次没装上」，
+  //   所以夹具也必须照生产的接法给上，否则下面这些正例一条都跑不到真实路径。
+  //   接上它之后，下面那次 registry.bind(handle, 'markdown') 才会被读成「用户亲手选过这个工作区」，
+  //   写用途才会被放行（#1003 契约期望行为第 4 条：写用途只认文件里的记录或本次进程内亲手绑定）。
+  const decMod = await imp('src/host/tracker/detection/backendDecision.js')
 
   // ── 组装：真闸 + 真账本 + 真注册表 + 真实本地 Markdown 后端 ──
   const ws = makeWorkspace()
@@ -104,6 +110,7 @@ async function main() {
     gate: gate, registry: registry, budget: budget,
     estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom,
     backendCtx: ws.ctx, handleFor: () => handle,
+    decideBackend: decMod.decideBackend,
     log: { fire: (level, event, fields) => logs.push({ level: level, event: event, fields: fields }) },
     now: () => clock,
     invalidate: (info) => invalidated.push(info),

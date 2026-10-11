@@ -143,30 +143,9 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
     const platform = getPlatform ? await getPlatform() : null
     const fs = getFs ? getFs() : (platform && platform.fs) || null
     const timers = getTimers ? getTimers() : null
-    // #683（F1 · ADR 20260921 的 R3/R5c/R10）：读一次宿主侧那份记忆（H，用户选的后端按工作区记着）。
-    //   读到的三种结局分得清：H 里有没有这条记录；这次是不是读不到（文件坏 —— 这一轮既不采纳 hint、
-    //   也不往里写，见 R5c）。同一个工作区里**没有注册表认得的后端**那条记录也当没有（答出去只会画一个
-    //   没有模块的后端）；工作区已空（#297）时那条记忆视为过期、同样不回答（H 的内容不动）。
-    //   这一次 detect 里只读一次（几条分支都要用），所以在这里记住结果。
-    let _hRead = null
-    const readChoiceNow = async function () {
-      if (_hRead) return _hRead
-      _hRead = { found: false, rev: 0, backendId: null, pickedAt: 0, unreadable: false, reason: 'no-store' }
-      try {
-        const cs = typeof getChoiceStore === 'function' ? await getChoiceStore() : null
-        if (!cs || typeof cs.getWorkspace !== 'function') return _hRead
-        const got = await cs.getWorkspace(cwd)
-        if (got && got.ok === false) { _hRead = { found: false, rev: 0, backendId: null, pickedAt: 0, unreadable: true, reason: got.reason || 'unreadable' }; return _hRead }
-        if (!got || got.found !== true) { _hRead = { found: false, rev: 0, backendId: null, pickedAt: 0, unreadable: false, reason: 'miss' }; return _hRead }
-        const known = !!(registry && typeof registry.has === 'function' && registry.has(got.backendId))
-        if (!known) { _hRead = { found: false, rev: 0, backendId: null, pickedAt: 0, unreadable: false, reason: 'unregistered' }; return _hRead }
-        let empty = false
-        try { empty = await isWorkspaceEmpty(cwd, platform) } catch (e) {}
-        if (empty) { _hRead = { found: false, rev: 0, backendId: null, pickedAt: 0, unreadable: false, reason: 'workspace-empty' }; return _hRead }
-        _hRead = { found: true, rev: Number.isInteger(got.rev) ? got.rev : 0, backendId: got.backendId, pickedAt: got.pickedAt || 0, unreadable: false, reason: '' }
-      } catch (e) {}
-      return _hRead
-    }
+    // #1003 契约（2026-10-12 维护者拍板）：本机记忆（H）已从判定链里退出——它只用来把工作区配置文件
+    //   生成一次（那条路在工作区入口的迁移里），此后不再参与判定，也不再作缓存作废的判据。
+    //   所以这里不再读它；缓存作废只看两条：工作区是否已空、配置文件有没有被改过（下面那段）。
     // per-workspace 缓存（Q6 pending 不缓存；force 直通）
     // #195 修复：env 失败不缓存（gh 可随时安装，缓存会导致“已装仍报未装”）；仅 pending 已在上游跳过，此处追加 env 守卫
     // #297 失效维度：若工作区已空（全部文件已删），已缓存的显式选择视为过期，不直接返回
@@ -182,15 +161,9 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
               isStale = await isWorkspaceEmpty(cwd, platform)
             }
           } catch {}
-          // #683（F1 · ADR 的 R2c）：这份缓存里的选择还作不作数，要看那份记忆（H）变过没有。
-          //   判据是「当时那条的修订号」与「H 现在的修订号」对不对得上（H 里没有记录时按 0 算）——
-          //   对不上就丢掉重算。上报已退役，不再参与这一判据。
-          try {
-            const hNow = await readChoiceNow()
-            const cachedRev = Number.isInteger(cached.selection.rev) ? cached.selection.rev : 0
-            const wantedRev = hNow.found ? hNow.rev : 0
-            if (cachedRev !== wantedRev) isStale = true
-          } catch {}
+          // 原来这里还有一条「按记忆修订号作废缓存」的判据（#683 R2c）：记忆已退出判定（#1003 契约
+          //   2026-10-12），判据一并撤掉——留着它会让缓存每次都被判过期（缓存里的修订号恒为 0，
+          //   而记忆里那条的修订号非 0），等于缓存白做。
           // 手改配置文件即时生效（#1003 甲）：缓存时记下了文件的修改时间，对不上就重算；
           // 取不到时间（无文件、读不出）按“判不了”处理，不误判（出现与消失照样算对不上）。
           try {
@@ -229,16 +202,12 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
         opCtx.caller = 'detection-service'
         return registry.select(h, Object.assign({}, opCtx, { caller: (c && c.caller) || 'detection-service' }))
       }
-      // #297 失效维度：工作区已空时那份记忆视为过期 —— 判空逻辑仍在这一处（出口只收一个标记，不另写一份）。
-      let workspaceEmpty = false
-      try { workspaceEmpty = await isWorkspaceEmpty(cwd, platform) } catch (eEmpty) {}
-      const o = await useOutlet(cwd, { registry: registry, platform: platform, fs: fs, caller: 'detection-service', signal: opts.signal, getChoiceStore: getChoiceStore, autodetect: autoHook, workspaceEmpty: workspaceEmpty }).catch(function () { return null })
+      // #1003 契约（2026-10-12）：判定链里已没有「本机记忆」这一层，所以这里也不再为它算「工作区是否已空」，
+      //   更不往出口递记忆口子（getChoiceStore）——出口已经不读它了。
+      const o = await useOutlet(cwd, { registry: registry, platform: platform, fs: fs, caller: 'detection-service', signal: opts.signal, autodetect: autoHook }).catch(function () { return null })
       const mapped = (useOutlet.selectionFromOutlet && o) ? useOutlet.selectionFromOutlet(o, describeOf) : null
       if (mapped && mapped.backendId) {
         selection = mapped
-        if (o.origin === 'migrated-memory') {
-          try { const h = await readChoiceNow(); if (h && h.found) { selection.rev = h.rev; selection.pickedAt = h.pickedAt; choiceRev = h.rev } } catch (eH) {}
-        }
         choiceSource = (o.origin || '')
       } else if (!selection) {
         selection = mapped || { backendId: null, source: 'fallback' }

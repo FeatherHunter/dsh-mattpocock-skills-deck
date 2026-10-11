@@ -521,15 +521,30 @@ const SEED = [
     '#631 面板说是 github → 核验通过，直接交给 GitHub（实得 ' + JSON.stringify(rlDeclared).slice(0, 160) + '）')
   check(lists(gh).length === listsBefore + 1, '#631 这一趟真的接到了 GitHub 上（真的发出了 gh label list）')
 
-  const rsDeclared = await host.handleSetLabelColors({ cwd: HOST_CWD, backendId: 'github', changes: [{ name: 'bug', color: '0b7285' }] })
-  check(rsDeclared.ok === true && rsDeclared.backendId === 'github' && labelBatchCheck([{ name: 'bug', color: '0b7285' }], { applied: rsDeclared.applied, failed: rsDeclared.failed }).length === 0,
-    '#631 改色这条电话同样直接交给 GitHub（实得 ' + JSON.stringify(rsDeclared).slice(0, 160) + '）')
-  check(gh.labels.find((x) => x.name === 'bug').color === '0b7285', '#631 假仓库里的颜色真的改了（这一趟确实落到 GitHub 那侧）')
-  check(vias.length >= 1 && vias.every((v) => v.via === 'label-colors'), '#631 这些外部命令仍然由标签配色这条链发起（via 是 label-colors）')
-
+  // 这一条要在「用户在面板上选定」之前问：选定之后宿主手里有人的记录，就不再回头看面板声明的那个名字了。
   const rlGhost = await host.handleListLabels({ cwd: HOST_CWD, backendId: 'never-heard-of' })
   check(rlGhost.ok === false && rlGhost.error.kind === 'conflict',
     '#631 面板说的后端根本不在这份候选名单里 → 仍然 conflict，不将就（实得 ' + JSON.stringify(rlGhost).slice(0, 160) + '）')
+
+  // #1003 契约期望行为第 4 条：写用途只认文件里的记录，或者用户这次亲手绑定过。
+  //   上面那条列标签是读用途，不受这条约束；改色是写用途，此刻这个工作区还没有人的记录
+  //   （两个后端都认领它，面板只是显示着 github），所以必须一个字节都不动地拒绝，并指路去面板选定。
+  const bugColorBefore = gh.labels.find((x) => x.name === 'bug').color
+  const rsUnpicked = await host.handleSetLabelColors({ cwd: HOST_CWD, backendId: 'github', changes: [{ name: 'bug', color: '0b7285' }] })
+  check(rsUnpicked.ok === false && rsUnpicked.error.kind === 'conflict' && String(rsUnpicked.error.message).includes('先在面板上选定'),
+    '#631 用户还没选定（这个工作区没有人的记录）→ 改色如实拒绝，并指路去面板选定（实得 ' + JSON.stringify(rsUnpicked).slice(0, 160) + '）')
+  check(gh.labels.find((x) => x.name === 'bug').color === bugColorBefore,
+    '#631 拒绝那一次确实没动仓库（bug 的颜色还是 ' + bugColorBefore + '）')
+
+  // 用户在面板上选定 github：生产里这一步落在「进程内绑定一次」（见 src/host/workspaceCwd.js 的 reg.bind）
+  //   外加一份工作区配置文件上。夹具照这一步补一次绑定，代表用户亲手选过。
+  regBoth.bind({ cwd: HOST_CWD }, 'github')
+
+  const rsDeclared = await host.handleSetLabelColors({ cwd: HOST_CWD, backendId: 'github', changes: [{ name: 'bug', color: '0b7285' }] })
+  check(rsDeclared.ok === true && rsDeclared.backendId === 'github' && labelBatchCheck([{ name: 'bug', color: '0b7285' }], { applied: rsDeclared.applied, failed: rsDeclared.failed }).length === 0,
+    '#631 用户选定之后，改色这条电话落到 GitHub（实得 ' + JSON.stringify(rsDeclared).slice(0, 160) + '）')
+  check(gh.labels.find((x) => x.name === 'bug').color === '0b7285', '#631 假仓库里的颜色真的改了（这一趟确实落到 GitHub 那侧）')
+  check(vias.length >= 1 && vias.every((v) => v.via === 'label-colors'), '#631 这些外部命令仍然由标签配色这条链发起（via 是 label-colors）')
 
   dOther.dispose()
   dGh.dispose()

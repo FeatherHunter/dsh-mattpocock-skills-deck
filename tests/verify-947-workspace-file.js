@@ -6,7 +6,8 @@
 //      老 JSON（v1）照读（auto 来源照认）；新 YAML（v2）照读（布局缺席允许，auto 不认）；
 //      高版本按 null 回（旧版本读不懂新字段，当没有这层）。
 //   W2 探测顺序：内存绑定 > 工作区文件 > 主锚；未知 id 的层跳过。
-//   W3 工具顺序：内存 > 本机记忆H > 文件 > 自动识别；口子缺席照旧走自动识别（旧接线兼容）。
+//   W3 工具顺序：内存 > 文件 > 声明 > 自动识别；口子缺席照旧走自动识别。
+//      本机记忆这一层自 2026-10-12（维护者拍板）起退出判定，夹具里给的 readChoice 不再作数，见下面 p2。
 //   W4 落盘形状：版本 2 的 YAML，字段齐全（布局缺席整段省略），不带路径与令牌字样，拼装可往返。
 const path = require('path')
 const fs = require('fs')
@@ -101,13 +102,29 @@ async function main() {
     const p1 = await shellOf(regOf('markdown', 'github')).pickBackend(exec, sOf('D:\\ws'))
     check(p1.ok && p1.backendId === 'markdown' && p1.source === 'explicit', 'W3 内存胜一切', JSON.stringify(p1).slice(0, 200))
     const p2 = await shellOf(regOf(undefined, 'github'), { readChoice: async () => ({ backendId: 'markdown', rev: 3 }), parseWorkspaceFile }).pickBackend(exec, sOf('D:\\ws'))
-    check(p2.ok && p2.backendId === 'markdown', 'W3 H 胜文件与自动识别', JSON.stringify(p2).slice(0, 200))
+    // 这条原本断言「本机记忆这一层胜文件与自动识别」。按 2026-10-12 维护者拍板的 #1003 契约，
+    //   本机记忆已退出判定（出处见 src/host/tracker/detection/backendDecision.js 那段中文说明：记忆只用来
+    //   把工作区配置文件生成出来一次，此后不再拿它回答判定），所以这里给了 readChoice 也不再作数：
+    //   结论落到自动识别的 github，而写用途不认自动识别这个来源，按 #1003 契约第 4 条如实拒绝。
+    //   这条是可判别的：记忆层一旦回来，这里就会变回 ok + markdown，断言当场红。
+    check(p2.ok === false && p2.reason === 'no-backend' && String(p2.text).includes('不算你亲手选过') && String(p2.text).includes('先在面板上选定'),
+      'W3 本机记忆已退出判定（给了 readChoice 也不作数，结论落到自动识别的 github）——按 #1003 契约第 4 条：写用途只认文件里的记录，自动识别来的结论不许写，如实拒绝', JSON.stringify(p2).slice(0, 200))
     const p3 = await shellOf(regOf(undefined, 'github'), { readChoice: async () => null, readWorkspaceFileText: async () => JSON.stringify({ version: 1, backendId: 'markdown', pickedAt: 9, source: 'user' }), parseWorkspaceFile }).pickBackend(exec, sOf('D:\\ws'))
     check(p3.ok && p3.backendId === 'markdown', 'W3 文件胜自动识别', JSON.stringify(p3).slice(0, 200))
     const p4 = await shellOf(regOf(undefined, 'github'), { readChoice: async () => ({ backendId: 'nope', rev: 1 }), readWorkspaceFileText: async () => JSON.stringify({ version: 1, backendId: 'alsono', pickedAt: 9, source: 'user' }), parseWorkspaceFile }).pickBackend(exec, sOf('D:\\ws'))
-    check(p4.ok && p4.backendId === 'github', 'W3 未知 id 的层跳过', JSON.stringify(p4).slice(0, 200))
+    // 这条原本断言「回 ok，后端是自动识别来的 github」。按 #1003 契约期望行为第 4 条：写用途只认文件里的记录，
+    //   或者用户这次亲手绑定过；自动识别来的结论不算人选过，所以工具壳必须如实拒绝。
+    //   这条拒绝文案里那句「不算你亲手选过」只有先选中了一个已注册的后端才可能出现（壳是先选中后端、
+    //   再判这一次算不算人选过的），所以它同时保住了本来的证明：文件层里那个没注册的 id（alsono）被跳过，
+    //   结论确实落到自动识别上（注册表里只有 github 认得这个工作区）。
+    check(p4.ok === false && p4.reason === 'no-backend' && String(p4.text).includes('不算你亲手选过') && String(p4.text).includes('先在面板上选定'),
+      'W3 未知 id 的层跳过（结论落到自动识别的 github）——按 #1003 契约第 4 条：写用途只认文件里的记录，自动识别来的结论不许写，如实拒绝', JSON.stringify(p4).slice(0, 200))
     const p5 = await shellOf(regOf(undefined, 'github')).pickBackend(exec, sOf('D:\\ws'))
-    check(p5.ok && p5.backendId === 'github', 'W3 口子缺席照旧走自动识别', JSON.stringify(p5).slice(0, 200))
+    // 同一条口径：记忆口子与文件口子都缺席时，自动识别照样被问到并答了 github（拒绝文案里那句
+    //   「不算你亲手选过」就是它答上了的证据），只是写用途不认这个来源，所以回绝；对照见上面 p1：
+    //   同一个夹具补上进程内绑定之后，写用途照旧放行。
+    check(p5.ok === false && p5.reason === 'no-backend' && String(p5.text).includes('不算你亲手选过') && String(p5.text).includes('先在面板上选定'),
+      'W3 口子缺席照旧走自动识别（自动识别被问到并答了 github）——按 #1003 契约第 4 条：写用途只认文件里的记录，自动识别来的结论不许写，如实拒绝', JSON.stringify(p5).slice(0, 200))
   }
 
   // —— W4：落盘形状（版本 2 的 YAML，布局缺席整段省略，无路径无令牌，可往返） ——

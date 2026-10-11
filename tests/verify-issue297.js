@@ -84,9 +84,9 @@ async function run() {
     // 记忆里明明记着 markdown，但工作区已空 -> 那条记忆不回答，照旧 fallback
     const withMem = await mkSvc(emptyPlat, { getChoiceStore: mkMemory('markdown') }).detect({ cwd: '/tmp/empty-mem' }, {});
     ok(withMem.selection.backendId === null && withMem.selection.source === 'fallback', '空目录、记忆里记着 markdown -> 记忆视为过期，仍 fallback（实得 ' + JSON.stringify(withMem.selection) + '）');
-    // 对照：同一个记忆库，工作区非空时它就该说话（否则上面那条可能只是「记忆这条路根本没接上」）
+    // 对照（#1003 契约 2026-10-12）：同样这份记忆、工作区非空，判定也不再拿它回答 —— 记忆只用来生成一次文件
     const memNonEmpty = await mkSvc(nonEmptyPlat, { getChoiceStore: mkMemory('markdown') }).detect({ cwd: '/tmp/nonempty-mem' }, {});
-    ok(memNonEmpty.selection.backendId === 'markdown', '对照：同样这份记忆、工作区非空 -> 采纳它（实得 ' + JSON.stringify(memNonEmpty.selection && memNonEmpty.selection.backendId) + '）');
+    ok(!memNonEmpty.selection || memNonEmpty.selection.backendId === null, '对照：同样这份记忆、工作区非空 -> 判定同样不拿它回答（实得 ' + JSON.stringify(memNonEmpty.selection && memNonEmpty.selection.backendId) + '）');
     // 只有 .DS_Store 的目录同样算空
     const igMem = await mkSvc(ignorablePlat, { getChoiceStore: mkMemory('markdown') }).detect({ cwd: '/tmp/ignorable-mem' }, {});
     ok(igMem.selection.backendId === null, '对照：只有 .DS_Store 的目录 -> 也算空，记忆同样不回答');
@@ -110,18 +110,29 @@ async function run() {
     ok(!r1.selection || r1.selection.backendId === null, '空目录 + hint：上报不参与，第一次就是未知');
     const r2 = await svc.detect({ cwd: '/tmp/cached' }, { hintBackendId: 'markdown' });
     ok(!r2.selection || r2.selection.backendId === null, '第二次（不带 force、会走缓存那一路）仍然是同一个未知答复');
-    // 工作区从「非空」变「空」：缓存里那条不许直接端出去，重算之后按当下的口径回答
+    // 工作区从「非空」变「空」：缓存里那条不许直接端出去，要重算。
+    //   #1003 契约（2026-10-12）：记忆不再参与判定，所以这里改用「数自动识别被调了几次」来观测缓存有没有被作废。
+    //   注意预期：重算之后的答案仍是 github —— 自动识别不随目录里有没有文件变，所以这一条量的是「重算发生了」，不是答案变了。
+    let selectCalls = 0;
+    const regCount = {
+      has: (id) => id === 'github' || id === 'markdown',
+      get: () => ({ id: 'github', preflight: async () => ({ ok: true }) }),
+      describe: () => ({ backend: 'github', refId: '', name: '', url: '' }),
+      select: async () => { selectCalls += 1; return { backendId: 'github', source: 'matches' } },
+    };
     let plat = nonEmptyPlat;
     const ws2 = createWorkspaceStore({ ttl: 30000 });
-    const memD = mkMemory('markdown');
-    const baseD = { registry: reg, getTimers: () => ({ setTimeout, clearTimeout }), workspaceStore: ws2, skillProbe: async () => ({ ok: true, missing: [], probes: {} }), getChoiceStore: memD, decideBackend: outletDecideBackend };
+    const baseD = { registry: regCount, getTimers: () => ({ setTimeout, clearTimeout }), workspaceStore: ws2, skillProbe: async () => ({ ok: true, missing: [], probes: {} }), decideBackend: outletDecideBackend };
     const svc2 = createDetectionService(Object.assign({ getPlatform: async () => plat, getFs: () => plat.fs }, baseD));
     const a1 = await svc2.detect({ cwd: '/tmp/cache-invalidate' }, {});
-    ok(a1.selection && a1.selection.backendId === 'markdown', '先是非空目录：记忆回答 markdown');
+    ok(a1.selection && a1.selection.backendId === 'github' && selectCalls === 1, '先是非空目录：自动识别给 github，这一条进了缓存（实得 ' + JSON.stringify(a1.selection && a1.selection.backendId) + '，识别跑了 ' + selectCalls + ' 次）');
+    const a1b = await svc2.detect({ cwd: '/tmp/cache-invalidate' }, {});
+    ok(a1b.selection && a1b.selection.backendId === 'github' && selectCalls === 1, '同一个工作区再问一次走缓存：识别没有重跑（实得跑了 ' + selectCalls + ' 次）');
     plat = emptyPlat;
     const svc3 = createDetectionService(Object.assign({ getPlatform: async () => plat, getFs: () => plat.fs }, baseD));
     const a2 = await svc3.detect({ cwd: '/tmp/cache-invalidate' }, {});
-    ok(!a2.selection || a2.selection.backendId === null, '目录清空之后：缓存那条被判过期、重算，记忆已过期，如实未知（不是缓存里的旧值）');
+    ok(selectCalls === 2, '目录清空之后：缓存那条被判过期、重算了一次（识别累计跑了 ' + selectCalls + ' 次，不是拿缓存里的旧答案）');
+    ok(a2.selection && a2.selection.backendId === 'github', '重算之后的答案仍是 github（自动识别不随目录空不空变，这一条只证明重算发生了）—— 实得 ' + JSON.stringify(a2.selection));
   }
 }
 
