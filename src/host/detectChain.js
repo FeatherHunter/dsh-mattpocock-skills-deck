@@ -232,7 +232,7 @@ export function createDetectChain(deps) {
                 try {
                   if (String(backendId) === 'github') {
                     const _u = await Promise.race([
-                      runGh(['api', 'user', '-q', '.login']),
+                      runGh(['api', 'user', '-q', '.login'], cwd),
                       timer.timeout(2500).then(function () { return null }),
                     ])
                     if (_u && _u.ok) _fixOwner = String(_u.text || '').trim()

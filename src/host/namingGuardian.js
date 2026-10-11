@@ -84,7 +84,7 @@ export function createNamingGuardian(deps) {
   async function namingFetchIndex(repoKey, cwd) {
     try {
       const url = 'repos/' + repoKey + '/issues?state=all&per_page=100'
-      const r = await runGh(['api', '--paginate', url, '--jq', '.[] | select(.pull_request == null) | {number: .number, title: .title, state: .state, updatedAt: .updated_at}'], cwd || DEFAULT_CWD)
+      const r = await runGh(['api', '--paginate', url, '--jq', '.[] | select(.pull_request == null) | {number: .number, title: .title, state: .state, updatedAt: .updated_at}'], cwd)
       if (!r.ok) return { ok: false, error: r }
       const index = {}
       const lines = String(r.text || '').split(/\r?\n/).filter(Boolean)

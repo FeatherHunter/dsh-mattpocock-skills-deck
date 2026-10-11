@@ -148,7 +148,7 @@ export function createHandoffClaim(deps) {
       // 若仍为 me，尝试 gh
       if (assignee === 'me') {
         try {
-          const u = await runGh(['api', 'user', '-q', '.login'])
+          const u = await runGh(['api', 'user', '-q', '.login'], cwd)
           if (u.ok && u.text.trim()) assignee = u.text.trim()
         } catch {}
       }
@@ -163,7 +163,7 @@ export function createHandoffClaim(deps) {
     if (!r.ok) return { ok: false, error: r }
     // 认领成功 → 取当前用户 login 供面板展示；只清自己根，让下次快照拉到新 assignee（#696）
     let assignedTo = ''
-    const u = await runGh(['api', 'user', '-q', '.login'])
+    const u = await runGh(['api', 'user', '-q', '.login'], cwd)
     if (u.ok) assignedTo = u.text.trim()
     setCache({ ts: 0, snapshot: null, error: null, cwd: cwd })
     return { ok: true, number: n, assignedTo: assignedTo, url: 'https://github.com/' + repo.owner + '/' + repo.name + '/issues/' + String(n) }
