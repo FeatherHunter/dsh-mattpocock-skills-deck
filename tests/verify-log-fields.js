@@ -120,7 +120,8 @@ const ALLOWED = {
   'choiceStore.read': ['keyHash', 'outcome'],
   'choiceStore.file.bad': ['reason'],
   'choiceStore.write.fail': ['keyHash', 'reason'],
-  'choiceStore.hint.reject': ['keyHash', 'baseRev', 'rev'],
+  // 2026-10-12 退役一条：choiceStore.hint.reject（#1003 把上报优先与修订号仲裁从判定链里删掉之后，
+  //   这一档在代码里不再存在；原行保留在附录里只作追溯，本表不再要求它有落点）。
   'choiceStore.evict': ['count', 'max'],
   // 2026-09-22 新增一条常驻事件（#690，附录 1.4 节）：界面向后端要一页历史票（展开折叠行 / 筛到已关闭 / 滚到底）。
   //   只记这一页要的是哪一档状态、筛了几个标签、取回几行、后端说一共多少行，以及耗时、成没成与失败散列。
