@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 // verify-settings-phones.js —— 本机设置两条电话的门禁（共享板 task-7 落地）。
 //
-// 这份门禁只量四件事，每一件都用完整的一句话说清，第一次读的人能直接看懂。
+// 这份门禁只量五件事，每一件都用完整的一句话说清，第一次读的人能直接看懂。
 // 第一件事是缺席：文件不在时按没有处理，两种失败码都要认。
 // 第二件事是失败分档：内容坏了与环境问题与缺席要分三种回执种类，种类名不照抄内部原因名。
 // 第三件事是只读写入拒绝：高版本文件只许读来展示，不许写回去，写之前先读一次，读到只读直接回升级文案。
 // 第四件事是行数：新叶子与宿主入口各自都不超过三百五十行。
+// 第五件事是真跑日志：读与写两条电话各成功跑一次、各失败跑一次，每一次都恰好落一行，事件名与电话名与类型都对得上。
 //
 // 用法：在插件根目录执行 node tests/verify-settings-phones.js，可独立运行。
 const fs = require('fs')
@@ -238,6 +239,74 @@ async function main() {
     const idx = readText('src/host/index.js')
     check(idx.indexOf("import('./settingsPhones.js')") >= 0, '宿主入口动态加载了新叶子。')
     check(idx.indexOf("harness.handle('wf.getSettings'") >= 0 && idx.indexOf("harness.handle('wf.setSettings'") >= 0, '读与写两条电话都注册了。')
+  }
+
+  // —— 第五件事：每条电话真跑一遍并断言真的落了一行对应的日志 ——
+  console.log('')
+  console.log('== 第五件事：每条电话真跑一遍并断言真的落了一行对应的日志（读与写各成功一次、各失败一次） ==')
+  {
+    // 为什么单独立这一节：日志覆盖门禁只认「电话名以字面出现在一个规范包装里」这个形状，
+    // 它挡不住两种走样 —— 包装体留着但体内那一次发射调用被抽掉，或者发射器把电话名写死成别人的名字。
+    // 所以这里改成真跑：假日志口把每一次发射的级别、事件名与字段原样收下来，
+    // 读与写两条电话各成功跑一次、各失败跑一次，每一次都断言恰好一行、事件名对、电话名对、类型对。
+    const collectLog = () => {
+      const lines = []
+      const logCtx = { fire: (level, event, fields) => { lines.push({ level, event, fields }) } }
+      return { lines, logCtx }
+    }
+    const makePhones = (home, logCtx, fsPort) => createSettingsPhones({ getPlatform: async () => ({ getHome: async () => home }), readLocalSettings, writeLocalSettings, fs: fsPort || null, logCtx })
+
+    // 读成功：先在没有日志口的实例上把一份好设置写进主目录，再用带日志口的实例读回来，这样收下来的行只属于这一次读。
+    {
+      const home = makeHome('fire-read-ok')
+      const seeded = await makePhones(home, null).handleSetSettings({ value: goodValue })
+      const log = collectLog()
+      const r = await makePhones(home, log.logCtx).handleGetSettings({})
+      check(seeded.ok === true && r.ok === true, '读成功这一次真的读成了，先把这份成功备好。', JSON.stringify({ seeded, r }).slice(0, 200))
+      check(log.lines.length === 1, '读成功这一次只记一行，不多记。', JSON.stringify(log.lines))
+      const line = log.lines[0] || {}
+      check(line.event === 'host.call' && line.level === 'info', '读成功落的是成功那一行（host.call，级别 info）。', JSON.stringify(line))
+      check(line.fields && line.fields.method === 'wf.getSettings', '读成功那一行写的电话名恰是 wf.getSettings，没有被写死成别人的名字。', JSON.stringify(line.fields))
+      check(line.fields && line.fields.kind === 'settings', '读成功那一行的类型记成设置。', JSON.stringify(line.fields))
+    }
+    // 写成功：空主目录里直接写一份好设置，这一次写自己的日志行单独收。
+    {
+      const home = makeHome('fire-write-ok')
+      const log = collectLog()
+      const w = await makePhones(home, log.logCtx).handleSetSettings({ value: goodValue })
+      check(w.ok === true, '写成功这一次真的写成了，先把这份成功备好。', JSON.stringify(w).slice(0, 200))
+      check(log.lines.length === 1, '写成功这一次只记一行，不多记。', JSON.stringify(log.lines))
+      const line = log.lines[0] || {}
+      check(line.event === 'host.call' && line.level === 'info', '写成功落的是成功那一行（host.call，级别 info）。', JSON.stringify(line))
+      check(line.fields && line.fields.method === 'wf.setSettings', '写成功那一行写的电话名恰是 wf.setSettings，没有被写死成别人的名字。', JSON.stringify(line.fields))
+      check(line.fields && line.fields.kind === 'settings', '写成功那一行的类型记成设置。', JSON.stringify(line.fields))
+    }
+    // 读失败：读文件这一步按权限问题抛错，电话回环境问题；失败这一次同样要落一行，不能因为没读成就一行都不记。
+    {
+      const home = makeHome('fire-read-fail')
+      const log = collectLog()
+      const fake = wrapSysFs([], { readFile: async () => { throw failCode('EPERM', 'operation not permitted') } })
+      const r = await makePhones(home, log.logCtx, fake).handleGetSettings({})
+      check(r.ok === false, '读失败这一次真的失败了，先把这份失败备好。', JSON.stringify(r).slice(0, 200))
+      check(log.lines.length === 1, '读失败这一次照样落一行，不少记也不多记。', JSON.stringify(log.lines))
+      const line = log.lines[0] || {}
+      check(line.event === 'host.call.fail' && line.level === 'warn', '读失败落的是失败那一行（host.call.fail，级别 warn）。', JSON.stringify(line))
+      check(line.fields && line.fields.method === 'wf.getSettings', '读失败那一行写的电话名恰是 wf.getSettings。', JSON.stringify(line.fields))
+      check(line.fields && line.fields.kind === 'settings', '读失败那一行的类型记成设置。', JSON.stringify(line.fields))
+    }
+    // 写失败：写文件这一步抛错，电话回环境问题；失败这一次同样只落一行。
+    {
+      const home = makeHome('fire-write-fail')
+      const log = collectLog()
+      const fake = wrapSysFs([], { writeFile: async () => { throw failCode('EPERM', 'operation not permitted') } })
+      const w = await makePhones(home, log.logCtx, fake).handleSetSettings({ value: goodValue })
+      check(w.ok === false, '写失败这一次真的失败了，先把这份失败备好。', JSON.stringify(w).slice(0, 200))
+      check(log.lines.length === 1, '写失败这一次照样落一行，不少记也不多记。', JSON.stringify(log.lines))
+      const line = log.lines[0] || {}
+      check(line.event === 'host.call.fail' && line.level === 'warn', '写失败落的是失败那一行（host.call.fail，级别 warn）。', JSON.stringify(line))
+      check(line.fields && line.fields.method === 'wf.setSettings', '写失败那一行写的电话名恰是 wf.setSettings。', JSON.stringify(line.fields))
+      check(line.fields && line.fields.kind === 'settings', '写失败那一行的类型记成设置。', JSON.stringify(line.fields))
+    }
   }
 
   console.log(failed ? ('\n存在失败 — verify-settings-phones 未通过（' + passed + ' 项通过、' + failed + ' 项失败）') : ('\n全部通过 — 本机设置门禁生效（' + passed + ' 项断言）'))

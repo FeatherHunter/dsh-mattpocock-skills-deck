@@ -110,6 +110,15 @@ const CALLEE_COVERS = [
   const perFile = listJsFiles(path.join(ROOT, 'src', 'host')).concat(listJsFiles(path.join(ROOT, 'src', 'client')))
     .map((f) => fs.readFileSync(f, 'utf8'))
   const ALIAS = { 'wf.namingRegister': 'wf.registerNewSessionWatcher' } // 双名同一本体，按规范入口记行
+  // 下面这道判据证的是「电话名以字面出现在一个规范包装里」这个形状，不证发射器可达，也不证发射时写的名字就是自己的。
+  // 换成大白话：它只回答「源码里有没有出现过这个名字」，不回答「这条电话跑起来会不会真的落一行、落的那一行名字对不对」。
+  // 所以有三种情况它查不出来或者查错，写在这里是让后来的人知道这道门禁的边界；判据的宽严保持现状：
+  // 早先为了让本机设置两条电话过关而临时加的那条更宽的认法已经撤回（提交 bfbcd693），不要再往宽里放。
+  // 已知漏网形状一：包装体还留着，只把包装体里那一次发射调用（例如 phoneLog(method, …)）抽掉 —— 字面全都还在，判据照样绿。
+  // 已知漏网形状二：发射器把电话名写死成别人的名字（例如按甲电话名建起的包装，体内或发射函数里写的却是乙电话名）—— 判据照样绿。
+  // 已知假红形状三：判据按字面整串匹配，源码把 method: 'wf.xx' 或者 loggedPhone('wf.xx', …) 折了行之后字面被换行断开，判据会误报这条电话没有记行。
+  // 真正的兜底目前只有本机设置那两条电话有：tests/verify-settings-phones.js 里的真跑断言拿假日志口把两条电话各成功跑一次、各失败跑一次，
+  // 每一次都断言行数、事件名、电话名与类型，所以前两种漏网形状在那两条电话上会当场变红；其余电话暂时仍只有这道形状判据。
   const hasMethod = (p) => {
     const names = ALIAS[p] ? [p, ALIAS[p]] : [p]
     if (names.some((n) => all.indexOf('method: ' + Q + n + Q) >= 0)) return true
