@@ -64,36 +64,33 @@ const makeHarness = function (srcText, opts) {
   return { api: api, disk: disk, logs: logs }
 }
 
-console.log('修订号那条线门禁（#683 F1：写入带版本位、上报带 baseRev、版本位活过一次往返）')
+console.log('修订号那条线已退役门禁（#1003：无标记、无版本位；宿主读文件）')
 
-// ── A 用户亲手选的那一条的形状（R2）──────────────────────────────────────────────────
+// ── A 乐观选择的形状：后端 + 引用 + 点击时刻（R2 作废）──────────────────────────
 console.log('')
-console.log('== A 用户亲手选的那一条：标记 + 点击时刻 + 「从哪个修订号来的」==')
+console.log('== A 用户点的那一条：后端 + 引用 + 点击时刻（无标记无版本位）==')
 {
   const h = makeHarness(prefsSrc)
   const first = h.api.userPickSelection('markdown', { backend: 'markdown' }, null)
-  check(first.backendId === 'markdown' && first.userPicked === true && first.source === 'explicit', '四个写入点用的那个构造函数给出的还是原来那条选择（后端 + 标记 + source）—— 实得 ' + JSON.stringify(first))
-  check(typeof first.pickedAt === 'number' && first.pickedAt > 0, '带上了点击时刻 pickedAt（只作档案与淘汰排序用，不参与胜负判定）—— 实得 ' + first.pickedAt)
-  check(first.rev === 0, '第一次选（前面还没有任何选择）时 rev 记 0 —— 那种记录只在宿主那边还没有该工作区记录时被采纳一次 —— 实得 ' + first.rev)
-  const second = h.api.userPickSelection('github', null, { backendId: 'markdown', source: 'explicit', userPicked: true, rev: 4 })
-  check(second.rev === 4, '上一条有版本位时，新选的这一条接着记它（这条选择是基于第 4 版做的）—— 实得 ' + second.rev)
+  check(first.backendId === 'markdown' && first.source === 'explicit', '构造函数给出后端 + source —— 实得 ' + JSON.stringify(first))
+  check(first.userPicked !== true && first.rev === undefined, '不再盖亲手标记、不带版本位 —— 实得 ' + JSON.stringify(first))
+  check(typeof first.pickedAt === 'number' && first.pickedAt > 0, '带上点击时刻 pickedAt（水合守卫认它）—— 实得 ' + first.pickedAt)
+  const second = h.api.userPickSelection('github', null, { backendId: 'markdown', source: 'explicit', rev: 4 })
+  check(second.rev === undefined, '上一条的版本位不再带到新选的那条上 —— 实得 ' + second.rev)
   check(second.ref === null, '没有仓库引用时 ref 记 null（形状不缺字段）')
-  const third = h.api.userPickSelection('github', undefined, { backendId: 'markdown', userPicked: true, rev: 4 })
+  const third = h.api.userPickSelection('github', undefined, { backendId: 'markdown', rev: 4 })
   check(third.ref === null, 'ref 传 undefined 也记 null')
 }
 
-// ── B 没有版本位的老记录按 0 处理 ─────────────────────────────────────────────────────
+// ── B baseRevOf 恒 0（R2 作废：无版本位可上报） ──────────────────────────────────
 console.log('')
-console.log('== B 没有版本位的老记录按 0 处理 ==')
+console.log('== B baseRevOf 恒 0 ==')
 {
   const h = makeHarness(prefsSrc)
   const cases = [
-    [{ backendId: 'x', userPicked: true }, 0, '完全没有 rev 字段（老记录）'],
+    [{ backendId: 'x', userPicked: true }, 0, '老形状照旧传进来'],
+    [{ backendId: 'x', rev: 9 }, 0, '带版本位的老形状'],
     [{ backendId: 'x', rev: 0 }, 0, 'rev 是 0'],
-    [{ backendId: 'x', rev: Number.NaN }, 0, 'rev 是 NaN'],
-    [{ backendId: 'x', rev: -3 }, 0, 'rev 是负数'],
-    [{ backendId: 'x', rev: '2' }, 0, 'rev 是字符串（不是数字就不认）'],
-    [{ backendId: 'x', rev: 9 }, 9, '正常的版本位'],
   ]
   cases.forEach(function (c) {
     const got = h.api.baseRevOf(c[0])
@@ -102,38 +99,25 @@ console.log('== B 没有版本位的老记录按 0 处理 ==')
   check(h.api.baseRevOf(null) === 0 && h.api.baseRevOf(undefined) === 0, '没有选择时按 0（不抛错）')
 }
 
-// ── C 绑定回包里的新修订号要落到本地那条上（§5 接线）────────────────────────────────────
+// ── C adoptBoundRev 恒空（§5 接线作废：本地无镜像可落）───────────────────────────
 console.log('')
-console.log('== C 绑定回包回来之后：把宿主发的新修订号落到本地 ==')
+console.log('== C 绑定回包不再往本地落版本 ==')
 {
   const h = makeHarness(prefsSrc)
-  const st = { cwd: 'D:\\X', selection: { backendId: 'markdown', source: 'explicit', userPicked: true, rev: 0, pickedAt: 1 } }
-  const got = h.api.adoptBoundRev(st, { ok: true, cwd: 'd:\\X', backendId: 'markdown', rev: 5 })
-  check(got === 5 && st.selection.rev === 5, '裸回包（{ok, rev}）→ 回 5 并写进会话里那条 —— 实得 ' + got + ' / ' + st.selection.rev)
-  check(h.api.getCachedSelection('D:\\X') && h.api.getCachedSelection('D:\\X').rev === 5, '同时写进本地那份缓存（此后换页面/重开面板也带着它）')
-  const st2 = { cwd: 'D:\\Y', selection: { backendId: 'github', source: 'explicit', userPicked: true, rev: 0 } }
-  const got2 = h.api.adoptBoundRev(st2, { ok: true, value: { ok: true, rev: 7 } })
-  check(got2 === 7 && st2.selection.rev === 7, '包在信封里的回包（{value:{ok,rev}}）同样认 —— 实得 ' + got2)
-  const st3 = { cwd: 'D:\\Z', selection: { backendId: 'github', source: 'explicit', userPicked: true, rev: 3 } }
-  check(h.api.adoptBoundRev(st3, { ok: true }) === null && st3.selection.rev === 3, '回包里没有 rev 时什么都不动（不把已知的版本位抹成空）')
-  const st4 = { cwd: 'D:\\W', selection: { backendId: 'github', source: 'explicit' } }
-  check(h.api.adoptBoundRev(st4, { ok: true, rev: 4 }) === null && st4.selection.rev === undefined, '会话里那条不是「用户亲手选的」时不动它（派生值不许凭空获得版本位）')
+  const st = { cwd: 'D:\\X', selection: { backendId: 'markdown', source: 'explicit', pickedAt: 1 } }
+  check(h.api.adoptBoundRev(st, { ok: true, cwd: 'd:\\X', backendId: 'markdown', rev: 5 }) === null, '裸回包也回空（无处可落）')
+  check(h.api.adoptBoundRev(st, { ok: true, value: { ok: true, rev: 7 } }) === null, '信封回包同样回空')
+  check(st.selection.rev === undefined, '会话里那条不被加上版本位 —— 实得 ' + st.selection.rev)
 }
 
-// ── D 版本位活过一次快照往返（R2b）───────────────────────────────────────────────────
+// ── D keepUserPick 原样透传（R2b 作废：无标记可留）────────────────────────────────
 console.log('')
-console.log('== D 版本位必须活过一次快照合并（R2b）==')
+console.log('== D keepUserPick 原样透传 ==')
 {
   const h = makeHarness(prefsSrc)
-  const mine = { backendId: 'markdown', source: 'explicit', userPicked: true, rev: 6, pickedAt: 111 }
-  const noRev = h.api.keepUserPick(mine, { backendId: 'markdown', source: 'explicit', ref: null })
-  check(noRev.userPicked === true && noRev.rev === 6 && noRev.pickedAt === 111, '宿主这次没带 rev/pickedAt 时，本地那份留住（标记 + 版本位 + 时刻）—— 实得 ' + JSON.stringify(noRev))
-  const withRev = h.api.keepUserPick(mine, { backendId: 'markdown', source: 'explicit', rev: 8, pickedAt: 222 })
-  check(withRev.rev === 8 && withRev.pickedAt === 222, '宿主带了就以宿主的为准（宿主是发号的那一方）—— 实得 ' + JSON.stringify(withRev))
-  const other = h.api.keepUserPick(mine, { backendId: 'gitlab', source: 'explicit', rev: 9 })
-  check(other.userPicked !== true && other.backendId === 'gitlab', '宿主回的是别的后端时标记照旧消失（#669 既有行为不许破）')
-  const stale = h.api.keepUserPick({ backendId: 'markdown', userPicked: true, rev: 6 }, { backendId: 'markdown', source: 'explicit', rev: 4, pickedAt: 222 })
-  check(stale.rev === 4, '宿主明确带了下一位修订号时不许拿本地那份去顶（宿主的答复算数）—— 实得 ' + stale.rev)
+  const incoming = { backendId: 'markdown', source: 'explicit', ref: null }
+  check(h.api.keepUserPick({ backendId: 'markdown', pickedAt: 111 }, incoming) === incoming, '宿主回包原样透传')
+  check(h.api.keepUserPick({ backendId: 'markdown' }, { backendId: 'gitlab', source: 'explicit' }).backendId === 'gitlab', '宿主回别的后端照旧用宿主的')
 }
 
 // ── E 全仓扫描：上报 hint 的地方都要带 baseRev ───────────────────────────────────────
@@ -174,37 +158,31 @@ console.log('== E 全仓扫描：每一处把 hint 报给宿主的调用点都�
   writeSites.forEach(function (w) {
     const src = read(w[0])
     check(/userPickSelection/.test(src), w[1] + '写选择时用的是同一个构造函数（userPickSelection）—— 实得 ' + (w[0].split('/').pop()))
-    // 手写那条四字段形状只许作为那个三元的兜底出现（前面紧挨着 userPickSelection(...)：这是仓里通用的
-    //   「内核函数可能不在场」防御写法）。单独一处手写 = 那条选择没有版本位，上报时会被宿主当最旧的顶回。
-    const alone = /\{[^}]*userPicked:\s*true\s*\}/.test(src) && !/userPickSelection\([^)]*\)\s*:\s*\{[^}]*userPicked:\s*true\s*\}/.test(src)
-    check(!alone, w[1] + '里没有「单独手写四个字段」的写法（只作为 userPickSelection 的兜底）')
+    // #1003 过渡态：四个点里的 userPickSelection 兜底还带着 userPicked:true 字样（调用方在本次范围外，留字免崩；
+    //   构造函数本身已不再产出该字段，宿主也不再读它）。这里只钉“手写形状里不许带版本位”。
+    const handRev = /\{[^}]*backendId[^}]*\brev\s*:/.test(src)
+    check(!handRev, w[1] + '里没有手写带版本位的选择形状（版本位已无处可去）')
   })
 }
 
-// ── G R6b：那个「回读本地镜像」的第三档只许在宿主回过话之前生效 ─────────────────────────────
+// ── G R6b：镜像垫底已撤（#1003）── 三档剩两档，第三档恒空 ─────────────────────────
 console.log('')
-console.log('== G R6b：宿主回过话之后不再回头看本地镜像 ==')
+console.log('== G R6b：本地镜像不再垫底 ==')
 {
   const promptsSrc = read('src/client/kernel/prompts.js')
   const m = promptsSrc.match(/export const currentBackendId = function \(st\) \{[\s\S]*?\n    \}/)
   const fnSrc = m ? m[0] : ''
   check(!!fnSrc, '取到 prompts.js 里的 currentBackendId（真身，整段取出）')
-  const mk = function (srcText, cached) {
+  const mk = function (srcText) {
     const body = srcText.trim().replace(/^export const currentBackendId = /, '')
-    // 从真源切出的函数表达式配一个假回读函数求值：改走共用入口 compileFn。
-    return compileFn(['getCachedSelection'], 'return ' + body)(() => cached)
+    // 回读函数按生产行为恒空（镜像已退役）：改走共用入口 compileFn。
+    return compileFn(['getCachedSelection'], 'return ' + body)(() => null)
   }
-  const cachedSel = { backendId: 'markdown', source: 'explicit', userPicked: true, rev: 2 }
-  const fn = mk(fnSrc, cachedSel)
+  const fn = mk(fnSrc)
   check(fn({ cwd: 'D:\\x', selection: { backendId: 'github' }, snapshot: null }) === 'github', '会话里已经答过就以会话为准（不看镜像）')
   check(fn({ cwd: 'D:\\x', selection: null, snapshot: { selection: { backendId: 'gitlab' } } }) === 'gitlab', '会话没答过但快照里带着后端时以快照为准')
-  check(fn({ cwd: 'D:\\x', selection: null, snapshot: null }) === 'markdown', '宿主一次都还没回过话（一份快照都没有）时，拿本地镜像垫一下（刷新页面不闪「还没有设置」）')
-  check(fn({ cwd: 'D:\\x', selection: null, snapshot: { selection: null } }) === null, '宿主已经回过话（有快照，只是这条没后端）时不再回头看镜像 —— 否则会把宿主说的「没有后端」重新变成镜像里那个')
-  // 反证：把「一份快照都没有」这个前提摘掉 → 上面最后一条当场红
-  const stripped = fnSrc.replace('!(st && st.snapshot) && ', '')
-  check(stripped !== fnSrc, '反证 G 的改法能在真源里落地（摘掉「一份快照都没有」这个前提）')
-  const broken = mk(stripped, cachedSel)
-  check(broken({ cwd: 'D:\\x', selection: null, snapshot: { selection: null } }) === 'markdown', '反证 G 成立：前提摘掉之后，宿主明明回过「没有后端」也会被镜像顶成 markdown —— 说明 G 组量的就是这道前提')
+  check(fn({ cwd: 'D:\\x', selection: null, snapshot: null }) === null, '都没回话时不再拿镜像垫（镜像已空；秒显走快照缓存那条路）')
+  check(fn({ cwd: 'D:\\x', selection: null, snapshot: { selection: null } }) === null, '宿主回过“没有后端”时以宿主为准')
 }
 
 // ── H R7c：四个绑定确认点都要把 persisted:false 说出来 ──────────────────────────────────────
@@ -250,31 +228,20 @@ const loadBroken = function (tag, from, to) {
   return { src: fs.readFileSync(file, 'utf8') }
 }
 {
-  // F1 新选的那一条不再记「从哪个修订号来的」
-  const b1 = loadBroken('no-rev', "rev: baseRevOf(prevSelection)", 'rev: 0')
-  check(!b1.bad, '反证 F1 的改法能在真源里落地（新选的那条不再记版本位）' + (b1.bad ? ' —— ' + b1.bad : ''))
+  // F1 构造函数里加回版本位 → A 组“无版本位”那条当场红
+  const b1 = loadBroken('has-rev', 'ref: (ref === undefined ? null : ref), pickedAt: Date.now()', 'ref: (ref === undefined ? null : ref), pickedAt: Date.now(), rev: 1')
+  check(!b1.bad, '反证 F1 的改法能在真源里落地（给乐观选择加回版本位）' + (b1.bad ? ' —— ' + b1.bad : ''))
   if (b1.src) {
     const h = makeHarness(b1.src)
-    const second = h.api.userPickSelection('github', null, { backendId: 'markdown', userPicked: true, rev: 4 })
-    check(second.rev === 0, '反证 F1 成立：不记版本位之后，新选的那一条总是 0（上报时会被宿主当成最旧的一版顶回）—— 说明 A 组量的就是这一步')
+    const second = h.api.userPickSelection('github', null, { backendId: 'markdown' })
+    check(second.rev === 1, '反证 F1 成立：加回去之后构造出来的选择又带版本位了 —— 说明 A 组量的就是“无版本位”')
   }
-  // F2 keepUserPick 不再留住版本位
-  const b2 = loadBroken('no-carry', "if (!(typeof out.rev === 'number' && isFinite(out.rev)) && typeof cur.rev === 'number' && isFinite(cur.rev)) out.rev = cur.rev;", '')
-  check(!b2.bad, '反证 F2 的改法能在真源里落地（合并时不留住版本位）' + (b2.bad ? ' —— ' + b2.bad : ''))
+  // F2 读数不再恒空
+  const b2 = loadBroken('read-back', 'export const getCachedSelection = function (cwd) { return null }', 'export const getCachedSelection = function (cwd) { return { backendId: "github" } }')
+  check(!b2.bad, '反证 F2 的改法能在真源里落地（把选择读数加回去）' + (b2.bad ? ' —— ' + b2.bad : ''))
   if (b2.src) {
     const h = makeHarness(b2.src)
-    const out = h.api.keepUserPick({ backendId: 'markdown', userPicked: true, rev: 6, pickedAt: 111 }, { backendId: 'markdown', source: 'explicit' })
-    check(out.rev === undefined, '反证 F2 成立：不留住之后，第一次快照合并就把版本位抹掉了（此后上报都是「没带版本位」）—— 说明 D 组量的就是这一步')
-  }
-  // F3 绑定的新版本号不写进本地缓存
-  const b3 = loadBroken('no-cache', "if (st.cwd) { try { setCachedSelection(st.cwd, st.selection) } catch (eC) {} }", 'void 0')
-  check(!b3.bad, '反证 F3 的改法能在真源里落地（新版本号不写进本地缓存）' + (b3.bad ? ' —— ' + b3.bad : ''))
-  if (b3.src) {
-    const h = makeHarness(b3.src)
-    const st = { cwd: 'D:\\X', selection: { backendId: 'markdown', source: 'explicit', userPicked: true, rev: 0 } }
-    h.api.adoptBoundRev(st, { ok: true, rev: 5 })
-    const cached = h.api.getCachedSelection('D:\\X')
-    check(!cached || cached.rev !== 5, '反证 F3 成立：不写缓存之后，重开面板就回到 rev=0（版本位活不过一次重开）—— 说明 C 组量的就是这一步')
+    check(h.api.getCachedSelection('D:\\X') !== null, '反证 F2 成立：加回去之后读恒不为空 —— 说明退役门禁量的就是“读恒空”')
   }
 }
 // F4 扫描本身能抓到漏改：把某处的 baseRev 去掉，E 组那条扫描必须点名点出来

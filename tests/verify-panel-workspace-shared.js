@@ -88,8 +88,8 @@ console.log('\n4) 全部工作区抽屉按工作区键（#653 起锚到工作区
 const checks = [
   ['src/client/kernel/store-snapshot.js', /getCachedSnapshot/, 'getCachedSnapshot 按工作区键'],
   ['src/client/kernel/store-snapshot.js', /setCachedSnapshot/, 'setCachedSnapshot 按工作区键'],
-  ['src/client/kernel/store-prefs.js', /getCachedSelection.*wsKeyOf/, 'getCachedSelection 按 wsKeyOf'],
-  ['src/client/kernel/store-prefs.js', /setCachedSelection.*wsKeyOf/, 'setCachedSelection 按 wsKeyOf'],
+  ['src/client/kernel/store-prefs.js', /getCachedSelection = function \(cwd\) \{ return null/, 'getCachedSelection 已退役（恒空，真相在宿主文件里）'],
+  ['src/client/kernel/store-prefs.js', /export const setCachedSelection = function \(cwd, sel\) \{\}/, 'setCachedSelection 已退役（空壳，不写盘）'],
   ['src/client/kernel/store-prefs.js', /getCachedRepository.*wsKeyOf/, 'getCachedRepository 按 wsKeyOf'],
   ['src/client/kernel/store-snapshot.js', /getCachedChain.*wsKeyOf|getChainCacheKey/, 'getCachedChain 存在且按工作区键'],
   ['src/client/kernel/store-snapshot.js', /chainByCwd/, 'chainByCwd 共享缓存存在'],

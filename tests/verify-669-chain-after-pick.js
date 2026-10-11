@@ -120,8 +120,7 @@ function makeChain (srcText) {
   const calls = []
   const cache = new Map()
   const keyOf = (cwd, bid, lang) => String(cwd) + '|' + String(bid || '') + '|' + String(lang || '')
-  // #669 第 6 件（ADR 20260921）：hint 只报「用户亲手选过的那条」——这条闸的真身住在 store-prefs.js，
-  //   本门禁取它的真身来判（不另写一份替身），所以下面那些 fixture 必须带上 userPicked 才会上报后端。
+  // #1003 退役 hint 上报（宿主读文件）：真身恒返回空，链请求不再带后端，下列现场只量“发了几次、 stale 怎么判”。
   const hintLine = read('src/client/kernel/store-prefs.js').split('\n').filter((l) => l.indexOf('export const userHintOf = function') >= 0)[0] || ''
   // 从真源切出一行函数表达式求值：改走共用入口 compileFn，这段源码不需要外部变量，参数表传空数组。
   const userHintOf = compileFn([], 'return ' + hintLine.trim().replace(/^export const userHintOf = /, ''))()
@@ -170,9 +169,9 @@ const runScenarios = async function (srcText) {
     const c = makeChain(srcText)
     const st = { cwd: 'D:\\demo1', selection: null, chainSnapshot: null }
     c.loadChain(st, false)
-    st.selection = { backendId: 'github', userPicked: true } // #669 第 6 件：这一处是「用户在门控窗点确认选出来的那条」，只有带标记的才当 hint 上报
+    st.selection = { backendId: 'github', source: 'explicit', pickedAt: Date.now() } // 用户在门控窗点确认选出来的那条（乐观，会话内存）
     c.loadChain(st, true)
-    out.scenarioOneSent = c.calls.length === 2 && !c.calls[0].params.backendId && c.calls[1].params.backendId === 'github'
+    out.scenarioOneSent = c.calls.length === 2 && !c.calls[0].params.backendId && !c.calls[1].params.backendId
     c.calls[1].d.res(snapOf(NEW10))
     await tick()
     c.calls[0].d.res(snapOf('旧（6 步，没有仓库那一段）'))
@@ -257,7 +256,7 @@ const runScenarios = async function (srcText) {
 console.log('')
 console.log('== C 行为层：六种竞态现场，每一种都要留下该留的那一份 ==')
 const real = await runScenarios(chainSrc)
-check(real.scenarioOneSent, '现场 1 确实先后发出了两次（先不带后端、后带 github）')
+check(real.scenarioOneSent, '现场 1 确实先后发出了两次（都不带后端：宿主按文件判，不靠上报）')
 check(real.afterStaleLate === NEW10, '现场 1 旧结果晚到之后，会话状态里仍是新快照（实得「' + real.afterStaleLate + '」）')
 check(real.newKeyCache === NEW10, '现场 1 新快照进了共享缓存（实得「' + real.newKeyCache + '」）')
 check(real.staleKeyCacheEmpty, '现场 1 被判过期的那一次一个字都没落（连它自己那把键的共享缓存也没写）')

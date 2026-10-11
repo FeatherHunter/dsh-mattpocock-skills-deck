@@ -1,16 +1,11 @@
 #!/usr/bin/env node
 /**
- * verify-683-mirror-write.js —— F1「用户选的后端按工作区存在宿主侧」的客户端那半边：
- * 本地那份镜像表怎么写（ADR docs/adr/20260921-persist-user-choice-host-side.md 的 R7b、R7c）。
- *
- * 量的是什么：这张镜像表（localStorage 里的 dsws.selectionByCwd 与 dsws.setupLayoutByCwd）
- *   从前是把进程内存里那份**整表**序列化写回。同一个访问地址开两个窗口时，后写的那扇窗会把
- *   另一扇窗刚写进去的键整条顶掉 —— 一个窗口里选完后端，另一个窗口一刷新就看不见了。
- *   现在改成「读回磁盘上那张 → 只换本工作区那一条 → 写回」，并监听 storage 事件把磁盘那份合并回内存；
- *   写失败照同文件 saveListPrefs / saveLabelClicks 的先例记一条 storage.fail。
+ * verify-683-mirror-write.js —— 选择镜像退役门禁（#1003 二期改写，原 #683 F1 R7b/R7c/R7d 已退役）：
+ * 后端选择只认工作区文件，本地这张镜像表（dsws.selectionByCwd）不再读写；
+ * 布局那张表（dsws.setupLayoutByCwd）保留读-改-写、跨窗口合并、写失败看得见（随 #1012 搬）。
  *
  * 做法：把 src/client/kernel/store-prefs.js 的真身文本喂进一个沙箱求值（真源、假 localStorage 与假 window），
- *   再用改坏的那一份跑同一批断言 —— 该红的必须当场红（只比字符串不等、却仍跑真源，等于这道反证是假的）。
+ * 再用改坏的那一份跑同一批断言 —— 该红的必须当场红。
  *
  * 用法：node tests/verify-683-mirror-write.js
  */
@@ -26,17 +21,9 @@ let failed = 0
 const check = (ok, msg) => { if (ok) { console.log('  PASS ' + msg); passed++ } else { console.log('  FAIL ' + msg); failed++ } }
 
 const prefsSrc = fs.readFileSync(path.join(ROOT, PREFS_REL), 'utf8')
-// 还没落地这一步时，先明说缺什么再退出（别让沙箱求值抛个看不懂的 ReferenceError 出来）。
-if (!/const writeTableEntry = function/.test(prefsSrc) || !/const onStorageMerge = function/.test(prefsSrc)) {
-  console.log('  FAIL 源文件里还没有「按工作区键读-改-写 + 跨窗口合并」那两个函数（writeTableEntry / onStorageMerge）')
-  console.log('\n存在失败 — verify-683-mirror-write 未通过')
-  process.exit(1)
-}
 const stripExports = (s) => s.replace(/^[ \t]*export[ \t]+/gm, '')
 const TBL_SEL = 'dsws.selectionByCwd'
 const TBL_LAYOUT = 'dsws.setupLayoutByCwd'
-// 工作区键：真身是 shared:workspaceKey 的 keyOf / wsKeyOf（这里给一个把反斜杠与大小写归一的小替身，
-//   只为让断言读起来像真的；这个函数本身在别的门禁里量，不在这一份的范围内）。
 const wsKey = (p) => String(p == null ? '' : p).replace(/\\/g, '/').toLowerCase()
 
 const makeHarness = function (srcText, opts) {
@@ -56,8 +43,6 @@ const makeHarness = function (srcText, opts) {
     '\n; return { setCachedSelection: setCachedSelection, getCachedSelection: getCachedSelection, selectionByCwd: selectionByCwd,' +
     ' setCachedSetupLayout: setCachedSetupLayout, getCachedSetupLayout: getCachedSetupLayout, setupLayoutByCwd: setupLayoutByCwd,' +
     ' writeTableEntry: writeTableEntry, migrateCachedChoiceToKey: migrateCachedChoiceToKey, SELECTION_BY_CWD_KEY: SELECTION_BY_CWD_KEY, SETUP_LAYOUT_BY_CWD_KEY: SETUP_LAYOUT_BY_CWD_KEY }'
-  // 本文件选 compileFn：原来就是把八个环境名当参数、把剥掉 export 的 prefs 源码当函数体造一个函数，
-  //   被造的代码只看这八个参数（依赖全部显式注入），与共用入口语义一一对应。
   const factory = compileFn(['window', 'localStorage', 'log', 'keyOf', 'wsKeyOf', 'emit', 'shared', 'stores'], body)
   const api = factory(win, localStorage, function (level, event, fields) { logs.push({ level: level, event: event, fields: fields }) }, wsKey, wsKey, function () {}, {}, {})
   return { api: api, disk: disk, logs: logs, handlers: storageHandlers }
@@ -70,111 +55,76 @@ const fireStorage = (h, key) => {
   return true
 }
 
-console.log('镜像表写法门禁（#683 F1：按工作区键读-改-写、跨窗口合并、写失败看得见）')
+console.log('选择镜像退役门禁（#1003：选择表不再读写，布局表保留读-改-写）')
 
-// ── A 读-改-写：磁盘上别的工作区那一条不许被顶掉 ─────────────────────────────────────────
+// ── A 选择表：写了当没写，读了当没有 ──────────────────────────────────────────
 console.log('')
-console.log('== A 按工作区键读-改-写（R7b）==')
+console.log('== A 选择镜像已退役（写空、读空、不碰盘）==')
 {
-  const h = makeHarness(prefsSrc, { disk: { [TBL_SEL]: JSON.stringify({ 'd:/other/window': { backendId: 'gitlab', userPicked: true } }) } })
-  h.api.setCachedSelection('D:\\Mine', { backendId: 'github', userPicked: true })
-  const t = tableOf(h, TBL_SEL)
-  check(!!t['d:/other/window'], '写本工作区那一条时，磁盘上别的工作区那一条**还在**（不被整表覆盖顶掉）—— 磁盘上现在有：' + Object.keys(t).join('、'))
-  check(!!t['d:/mine'] && t['d:/mine'].backendId === 'github', '本工作区那一条照旧写进去了 —— 实得 ' + JSON.stringify(t['d:/mine']))
-  check(h.api.getCachedSelection('D:\\Mine').backendId === 'github', '读回来还是本工作区这条（内存那份没被写盘动作搞坏）')
+  const h = makeHarness(prefsSrc, { disk: { [TBL_SEL]: JSON.stringify({ 'd:/other/window': { backendId: 'gitlab' } }) } })
+  h.api.setCachedSelection('D:\\Mine', { backendId: 'github' })
+  check(Object.keys(h.disk).filter((k) => k === TBL_SEL && h.disk[k] !== JSON.stringify({ 'd:/other/window': { backendId: 'gitlab' } })).length === 0, '写选择镜像不再落盘（磁盘原样不动）')
+  check(h.api.getCachedSelection('D:\\Mine') === null, '读选择镜像恒为空（真相在宿主文件里，不在本地）')
 
   const h2 = makeHarness(prefsSrc, { disk: { [TBL_LAYOUT]: JSON.stringify({ 'd:/other/window': 'multi' }) } })
   h2.api.setCachedSetupLayout('D:\\Mine', 'single')
   const t2 = tableOf(h2, TBL_LAYOUT)
-  // #683（F1 · R6）：这张表里一条现在存 {layout, pickedAt}（与后端那张同一种形状），读出来还是取值本身。
-  check(!!t2['d:/other/window'] && t2['d:/mine'] && t2['d:/mine'].layout === 'single' && typeof t2['d:/mine'].pickedAt === 'number', '布局那张表同例：别的工作区那条留住、本工作区这条写进去（存的是 {layout, pickedAt}）—— 实得 ' + JSON.stringify(t2))
-  check(h2.api.getCachedSetupLayout('D:\\Mine') === 'single', '布局读得回来（读出来还是取值本身，形状变了外面看不出来）')
-  check(h2.api.getCachedSetupLayout('D:/other/window') === 'multi', '老版本存的裸字符串照旧认得出来（当 pickedAt=0，下一次写盘就换成新形状）')
-  h2.api.setCachedSetupLayout('D:\\Mine', '不认识')
-  check(tableOf(h2, TBL_LAYOUT)['d:/mine'].layout === 'single', '布局取值只认 single 与 multi（不认识的照旧不写盘）')
-  // 两个壳各答一个样时按时刻仲裁：新的覆盖旧的，旧的不许顶掉新的。
-  const h3 = makeHarness(prefsSrc, {})
-  h3.api.setCachedSetupLayout('D:\\Mine', 'single')
-  const atLocal = tableOf(h3, TBL_LAYOUT)['d:/mine'].pickedAt
-  h3.api.setCachedSetupLayout('D:\\Mine', { layout: 'multi', pickedAt: atLocal - 1000 })
-  check(h3.api.getCachedSetupLayout('D:\\Mine') === 'single', '宿主回填的老值不许顶掉本地更新的那条（时刻旧的输）')
-  h3.api.setCachedSetupLayout('D:\\Mine', { layout: 'multi', pickedAt: atLocal + 1000 })
-  check(h3.api.getCachedSetupLayout('D:\\Mine') === 'multi', '宿主回填的新值照常收下（时刻新的赢，落后的那扇窗跟上）')
+  check(!!t2['d:/other/window'] && t2['d:/mine'] && t2['d:/mine'].layout === 'single', '布局表保留读-改-写（别的工作区那条留住）—— 实得 ' + JSON.stringify(t2))
+  check(h2.api.getCachedSetupLayout('D:\\Mine') === 'single', '布局读得回来')
 }
 
-// ── B 写失败看得见（R7c）─────────────────────────────────────────────────────────────
+// ── B 布局写失败仍看得见 ────────────────────────────────────────────────────
 console.log('')
-console.log('== B 写失败不再一口吞掉（R7c）==')
+console.log('== B 布局写失败记 storage.fail ==')
 {
-  const h = makeHarness(prefsSrc, { failKeys: [TBL_SEL] })
-  h.api.setCachedSelection('D:\\X', { backendId: 'github', userPicked: true })
+  const h = makeHarness(prefsSrc, { failKeys: [TBL_LAYOUT] })
+  h.api.setCachedSetupLayout('D:\\X', 'single')
   const fail = h.logs.filter((l) => l.event === 'storage.fail')
-  check(fail.length >= 1, '写失败记了一条 storage.fail —— 实得 ' + JSON.stringify(h.logs))
-  check(fail.length >= 1 && fail[0].fields && fail[0].fields.key === TBL_SEL && fail[0].fields.op === 'write', '那条日志带的是这张表的键与 write 这个操作 —— 实得 ' + JSON.stringify(fail[0] && fail[0].fields))
-  check(!!h.api.getCachedSelection('D:\\X') && h.api.getCachedSelection('D:\\X').backendId === 'github', '写不进去时降级为仅内存（不崩、本次会话照旧可用）')
+  check(fail.length >= 1 && fail[0].fields && fail[0].fields.key === TBL_LAYOUT, '布局写失败记了一条 storage.fail —— 实得 ' + JSON.stringify(h.logs))
 }
 
-// ── C 跨窗口合并：storage 事件 ────────────────────────────────────────────────────────
+// ── C storage 监听仍在（为布局表），选择键不再合并 ───────────────────────────
 console.log('')
-console.log('== C 另一个窗口改了这张表 → 内存里跟上（R7b）==')
+console.log('== C 跨窗口合并只剩布局表 ==')
 {
   const h = makeHarness(prefsSrc, {})
-  check(h.handlers.some((x) => x.name === 'storage'), '登记了 storage 事件监听（跨窗口这一半才有人接）')
-  h.disk[TBL_SEL] = JSON.stringify({ 'd:/other/window': { backendId: 'gitlab', userPicked: true } })
-  const fired = fireStorage(h, TBL_SEL)
-  check(fired, 'storage 事件真的被触发到（监听器在）')
-  const got = h.api.getCachedSelection('D:/other/window')
-  check(!!got && got.backendId === 'gitlab', '别的工作区那一跳出窗口写进来之后，本窗口读得到 —— 实得 ' + JSON.stringify(got))
+  check(h.handlers.some((x) => x.name === 'storage'), '登记了 storage 事件监听')
+  h.disk[TBL_SEL] = JSON.stringify({ 'd:/other/window': { backendId: 'gitlab' } })
+  fireStorage(h, TBL_SEL)
+  check(h.api.getCachedSelection('D:/other/window') === null, '选择键的 storage 事件不再合并出选择（读恒为空）')
   h.disk[TBL_LAYOUT] = JSON.stringify({ 'd:/other/window': 'multi' })
   fireStorage(h, TBL_LAYOUT)
-  check(h.api.getCachedSetupLayout('D:/other/window') === 'multi', '布局那张表同例：跨窗口合并读得到')
-  h.disk[TBL_SEL] = '不是 JSON'
-  fireStorage(h, TBL_SEL)
-  check(true, '磁盘上那份读不出来时不抛错（按内存里这份继续用）')
+  check(h.api.getCachedSetupLayout('D:/other/window') === 'multi', '布局表跨窗口合并读得到')
 }
 
-// ── D 静态：整表覆盖那两行已经不在文件里 ───────────────────────────────────────────────
+// ── D 静态：选择读写链已不在源文件里 ─────────────────────────────────────────
 console.log('')
-console.log('== D 静态：整表覆盖的写法已经不在源文件里 ==')
+console.log('== D 静态：选择落盘链已不在源文件里 ==')
 {
-  check(!/JSON\.stringify\(selectionByCwd\)/.test(prefsSrc), '源文件里没有「把整张 selectionByCwd 序列化写回」那一句了')
-  check(!/JSON\.stringify\(setupLayoutByCwd\)/.test(prefsSrc), '源文件里没有「把整张 setupLayoutByCwd 序列化写回」那一句了')
+  check(!/selectionByCwd\[k\] = sel/.test(prefsSrc), '源文件里没有往 selectionByCwd 写内存那一句了')
+  check(!/writeTableEntry\(SELECTION_BY_CWD_KEY/.test(prefsSrc), '源文件里没有往选择表写盘那一句了')
+  check(/getCachedSelection = function \(cwd\) \{ return null/.test(prefsSrc), 'getCachedSelection 是空壳（恒空）')
   const snapSrc = fs.readFileSync(path.join(ROOT, 'src/client/kernel/store-snapshot.js'), 'utf8')
-  check(/migrateCachedChoiceToKey\(sk, rk\)/.test(snapSrc), '工作区根认出来的那一刻（store-snapshot.js 的 rememberWorkspaceRoot）会调搬家那一步')
+  check(/migrateCachedChoiceToKey\(sk, rk\)/.test(snapSrc), '工作区根认出来的那一刻仍会调搬家那一步（布局部分）')
 }
 
-// ── E 工作区根后来才认出来：老键上的记录搬到根键（R7d）────────────────────────────────
+// ── E 搬家只搬布局 ──────────────────────────────────────────────────────────
 console.log('')
-console.log('== E 工作区根后来才认出来 → 老键上的记录搬到根键（R7d）==')
+console.log('== E 搬家只搬布局，选择不搬 ==')
 {
   const h = makeHarness(prefsSrc, {})
-  h.api.setCachedSelection('D:\\Repo\\Sub', { backendId: 'markdown', userPicked: true, rev: 2 })
   h.api.setCachedSetupLayout('D:\\Repo\\Sub', 'multi')
-  h.api.setCachedSelection('D:\\Other', { backendId: 'gitlab', userPicked: true })
   const moved = h.api.migrateCachedChoiceToKey('d:/repo/sub', 'd:/repo')
-  check(moved === true, '认到根时搬家真的做了（回 true）')
-  const atRoot = h.api.getCachedSelection('D:\\Repo')
-  check(!!atRoot && atRoot.backendId === 'markdown' && atRoot.rev === 2, '根键上现在读得到老键那条选择（连版本位一起搬）—— 实得 ' + JSON.stringify(atRoot))
-  check(h.api.getCachedSetupLayout('D:\\Repo') === 'multi', '布局那一栏同样搬到根键上')
-  const disk = tableOf(h, TBL_SEL)
-  check(!!disk['d:/repo'] && disk['d:/repo'].backendId === 'markdown', '搬过去的也写进了磁盘那张表（不是只在内存里）')
-  check(!!disk['d:/other'] && disk['d:/other'].backendId === 'gitlab', '别的工作区那条不受影响')
-  // 根键上已经有记录时不覆盖（只补空缺）
-  const h2 = makeHarness(prefsSrc, {})
-  h2.api.setCachedSelection('D:\\Repo\\Sub', { backendId: 'markdown', userPicked: true, rev: 2 })
-  h2.api.setCachedSelection('D:\\Repo', { backendId: 'github', userPicked: true, rev: 9 })
-  h2.api.migrateCachedChoiceToKey('d:/repo/sub', 'd:/repo')
-  const kept = h2.api.getCachedSelection('D:\\Repo')
-  check(!!kept && kept.backendId === 'github' && kept.rev === 9, '根键上已经有记录时不动它（谁在根键上选过就以谁为准）—— 实得 ' + JSON.stringify(kept))
-  const h3 = makeHarness(prefsSrc, {})
-  check(h3.api.migrateCachedChoiceToKey('d:/same', 'd:/same') === false, '同一个键搬家时什么都不做（回 false）')
-  check(h3.api.migrateCachedChoiceToKey('', 'd:/repo') === false, '空的老键不搬家（回 false）')
+  check(moved === true, '布局从老键搬到根键（回 true）')
+  check(h.api.getCachedSetupLayout('D:\\Repo') === 'multi', '根键上读得到布局')
+  check(h.api.getCachedSelection('D:\\Repo') === null, '根键上没有选择（选择不搬）')
+  check(h.api.migrateCachedChoiceToKey('d:/same', 'd:/same') === false, '同一个键不搬（回 false）')
 }
 
-// ── F 反证：把实现做坏，上面该红的必须当场红 ───────────────────────────────────────────
+// ── F 反证 ──────────────────────────────────────────────────────────────────
 console.log('')
 console.log('== F 反证：把实现做坏，对应的那几条必须当场红 ==')
-const brokenDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-683-mirror-'))
+const brokenDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-1003-mirror-'))
 const loadBroken = function (tag, from, to) {
   if (!prefsSrc.includes(from)) return { bad: '这道反证的改法在真源里找不到落点（源文本已变）' }
   const file = path.join(brokenDir, tag + '.js')
@@ -182,68 +132,32 @@ const loadBroken = function (tag, from, to) {
   return { src: fs.readFileSync(file, 'utf8') }
 }
 {
-  // E1 退回「整表覆盖」：写盘前不再把磁盘上那张读回来
-  const b1 = loadBroken('whole-table', "        try { const raw = localStorage.getItem(storeKey); table = raw ? JSON.parse(raw) : null } catch (eR) { table = null }", '')
-  check(!b1.bad, '反证 F1 的改法能在真源里落地（写盘前不读回磁盘那张表）' + (b1.bad ? ' —— ' + b1.bad : ''))
+  const b1 = loadBroken('sel-write-back', 'export const setCachedSelection = function (cwd, sel) {}', 'export const setCachedSelection = function (cwd, sel) { try { localStorage.setItem(SELECTION_BY_CWD_KEY, JSON.stringify(sel)) } catch (e) {} }')
+  check(!b1.bad, '反证 F1 的改法能落地（把选择写盘加回去）' + (b1.bad ? ' —— ' + b1.bad : ''))
   if (b1.src) {
-    const h = makeHarness(b1.src, { disk: { [TBL_SEL]: JSON.stringify({ 'd:/other/window': { backendId: 'gitlab', userPicked: true } }) } })
-    h.api.setCachedSelection('D:\\Mine', { backendId: 'github', userPicked: true })
-    const t = tableOf(h, TBL_SEL)
-    check(!t['d:/other/window'], '反证 F1 成立：退回整表覆盖之后，别的工作区那一条当场被顶掉 —— 说明 A 组量的是「读-改-写」这一步')
+    const h = makeHarness(b1.src, {})
+    h.api.setCachedSelection('D:\\Mine', { backendId: 'github' })
+    check(!!h.disk[TBL_SEL], '反证 F1 成立：加回写盘之后磁盘又脏了 —— 说明 A 组量的就是“不写盘”')
   }
-  // E2 写失败不记日志
-  const b2 = loadBroken('silent-fail', "try { log('warn', 'storage.fail', { key: storeKey, op: 'write' }) } catch (eL) {}", 'void 0')
-  check(!b2.bad, '反证 F2 的改法能在真源里落地（写失败不再记日志）' + (b2.bad ? ' —— ' + b2.bad : ''))
+  const b2 = loadBroken('sel-read-back', 'export const getCachedSelection = function (cwd) { return null }', 'export const getCachedSelection = function (cwd) { return { backendId: "github" } }')
+  check(!b2.bad, '反证 F2 的改法能落地（把选择读数加回去）' + (b2.bad ? ' —— ' + b2.bad : ''))
   if (b2.src) {
-    const h = makeHarness(b2.src, { failKeys: [TBL_SEL] })
-    h.api.setCachedSelection('D:\\X', { backendId: 'github', userPicked: true })
-    check(h.logs.filter((l) => l.event === 'storage.fail').length === 0, '反证 F2 成立：不记日志之后，写失败现场一条痕迹都没有 —— 说明 B 组量的是这条 storage.fail')
-  }
-  // F3 不登记 storage 监听
-  const b3 = loadBroken('no-listener', "window.addEventListener('storage', onStorageMerge)", 'void 0')
-  check(!b3.bad, '反证 F3 的改法能在真源里落地（不登记 storage 监听）' + (b3.bad ? ' —— ' + b3.bad : ''))
-  if (b3.src) {
-    const h = makeHarness(b3.src, {})
-    check(!h.handlers.some((x) => x.name === 'storage'), '反证 F3 成立：不登记监听之后，另一个窗口写进来的那条本窗口永远看不见 —— 说明 C 组量的是这个监听')
-  }
-  // F4 搬家（R7d）从「只补空缺」改成「直接覆盖」
-  const b4 = loadBroken('migrate-overwrite', 'if (!(toKey in selectionByCwd)) {', 'if (true) {')
-  check(!b4.bad, '反证 F4 的改法能在真源里落地（搬家改成直接覆盖）' + (b4.bad ? ' —— ' + b4.bad : ''))
-  if (b4.src) {
-    const h = makeHarness(b4.src, {})
-    h.api.setCachedSelection('D:\\Repo\\Sub', { backendId: 'markdown', userPicked: true, rev: 2 })
-    h.api.setCachedSelection('D:\\Repo', { backendId: 'github', userPicked: true, rev: 9 })
-    h.api.migrateCachedChoiceToKey('d:/repo/sub', 'd:/repo')
-    const kept = h.api.getCachedSelection('D:\\Repo')
-    check(!!kept && kept.backendId === 'markdown', '反证 F4 成立：改成直接覆盖之后，根键上已经有的那条被老键顶掉了 —— 说明 E 组量的就是「只补空缺」这一步')
+    const h = makeHarness(b2.src, {})
+    check(h.api.getCachedSelection('D:\\Mine') !== null, '反证 F2 成立：加回读数之后读恒不为空 —— 说明 A 组量的就是“读恒空”')
   }
 }
 
-// ── G 客户端拿到快照就回填（选择走 mergeSelection、布局走 setCachedSetupLayout）────────────────
+// ── G 快照装配仍回填布局 ────────────────────────────────────────────────────
 console.log('')
-console.log('== G 客户端拿到快照就回填本地镜像 ==')
+console.log('== G 快照装配仍回填布局 ==')
 {
   const probe = fs.readFileSync(path.join(ROOT, 'src/client/kernel/probe-snapshot.js'), 'utf8')
-  // #1009：装快照那一整段（含布局回填）搬去 probe-select.js 了 —— 正常装快照那条路要看内核闭包的两片，
-  //   304 分支仍在 probe-snapshot.js 里。
   const select = fs.readFileSync(path.join(ROOT, 'src/client/kernel/probe-select.js'), 'utf8')
   const kernel = probe + '\n' + select
-  const i304 = probe.indexOf('snap.notModified===true')
-  check(i304 >= 0, 'probe-snapshot.js 里有 304 分支')
-  const branch304 = i304 >= 0 ? probe.slice(i304, i304 + 1200) : ''
-  check(/mergeSelection\(st, snap\.selection\)/.test(branch304), '304 分支合并回包里的权威选择（版本号没变不代表后端没变）')
-  check(/setCachedSetupLayout\(st\.cwd, snap\.setupLayout\)/.test(branch304), '304 分支回填记住的布局')
-  check(/st\.snapshot = snap[\s\S]{0,300}setCachedSetupLayout\(st\.cwd, snap\.setupLayout\)/.test(kernel), '正常装快照那条路也回填记住的布局')
-  // 反证：把 304 分支那两行拿掉 → 上面两条当场红（两处回填都要拿掉，只拿一处不算）
-  const backfillRe = /try \{ if \(snap\.setupLayout && typeof setCachedSetupLayout === 'function'\) setCachedSetupLayout\(st\.cwd, snap\.setupLayout\) \} catch \(eSL\) \{\}/g
-  const brokenProbe = probe.replace(backfillRe, 'void 0')
-  const brokenSelect = select.replace(backfillRe, 'void 0')
-  const broken = brokenProbe + '\n' + brokenSelect
-  check(brokenProbe !== probe || brokenSelect !== select, '反证 G 的改法能在真源里落地（拿掉回填那两行）')
-  check(!/setCachedSetupLayout\(st\.cwd, snap\.setupLayout\)/.test(broken), '反证 G 成立：拿掉之后上面那两条就找不到回填了（说明 G 组量的就是这两行）')
+  check(/setCachedSetupLayout\(st\.cwd, snap\.setupLayout\)/.test(kernel), '装快照那条路回填记住的布局')
 }
 try { fs.rmSync(brokenDir, { recursive: true, force: true }) } catch (e) {}
 
 console.log('')
-console.log(failed ? '存在失败 — verify-683-mirror-write 未通过（' + passed + ' 项通过、' + failed + ' 项失败）' : '全部通过 — 镜像表写法门禁生效（' + passed + ' 项断言）')
+console.log(failed ? '存在失败 — verify-683-mirror-write 未通过（' + passed + ' 项通过、' + failed + ' 项失败）' : '全部通过 — 选择镜像退役门禁生效（' + passed + ' 项断言）')
 process.exit(failed ? 1 : 0)

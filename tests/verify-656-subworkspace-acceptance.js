@@ -368,11 +368,10 @@ async function main() {
     must(bindingsOut.ok === true && bindingsOut.bindings.length === 1 && bindingsOut.bindings[0].cwd === K.repo,
       '后端绑定总览：工作区总览里这条绑定挂在工作区根那一行上，只有一行（不出现「子目录一条、根一条」两份）',
       JSON.stringify(bindingsOut).slice(0, 240))
-    // 界面这一侧的镜像表（同一样抽屉的另一半）
-    const sel = { backendId: 'github', source: 'explicit' }
-    P.setCachedSelection(RAW.subDeep, sel)
-    must(P.getCachedSelection(RAW.repo) === sel && P.getCachedSelection(RAW.sub) === sel && P.getCachedSelection(RAW.sibling) === null,
-      '后端选择镜像：界面上这张表也按工作区根分桶——子目录会话选的，根会话读得到；兄弟工作区读不到',
+    // 界面这一侧的选择镜像已随 #1003 退役（真相在宿主文件里，不在本地表里）
+    P.setCachedSelection(RAW.subDeep, { backendId: 'github', source: 'explicit' })
+    must(P.getCachedSelection(RAW.repo) === null && P.getCachedSelection(RAW.sub) === null && P.getCachedSelection(RAW.sibling) === null,
+      '后端选择镜像已退役：写了当没写，读恒为空（子目录/根/兄弟一律 null，不再分桶存选择）',
       'root=' + JSON.stringify(P.getCachedSelection(RAW.repo)) + ' sibling=' + JSON.stringify(P.getCachedSelection(RAW.sibling)))
   }
 

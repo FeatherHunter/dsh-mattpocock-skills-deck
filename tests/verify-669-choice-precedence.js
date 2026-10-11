@@ -108,66 +108,65 @@ console.log('== A 行为层（宿主）：带用户选择 → 压过锚文件；
   check(fresh.selection && fresh.selection.backendId === 'github', '没有锚文件的工作区里，用户选择照旧生效 —— 实得「' + (fresh.selection && fresh.selection.backendId) + '」')
 }
 
-// ── B 组：客户端的「什么算用户的选择」闸门 ────────────────────────────────────────────
+// ── B 组：客户端不再上报 hint（#1003 退役镜像与修订号仲裁，宿主直接读文件） ──────────
 console.log('')
-console.log('== B 行为层（客户端）：只有带 userPicked 的选择才当 hint；宿主回同一条时标记留住 ==')
+console.log('== B 行为层（客户端）：不上报 hint；合并照宿主回包来 ==')
 {
   const hintLine = prefsSrc.split('\n').filter((l) => l.indexOf('export const userHintOf = function') >= 0)[0] || ''
   check(!!hintLine, '取到 store-prefs.js 里的 userHintOf（真身）')
   // 这里选 evalWithScope：取出来的就是那个函数表达式本身，它不引用本文件任何变量，所以作用域显式传空对象。
   const userHintOf = evalWithScope(hintLine.trim().replace(/^export const userHintOf = /, ''), {})
-  check(userHintOf({ backendId: 'markdown', userPicked: true }) === 'markdown', '用户亲手选的（带标记）→ 当 hint 上报')
-  check(userHintOf({ backendId: 'markdown' }) === undefined, '派生出来的（没标记）→ 不当 hint 上报（ADR 攻击 1）')
+  check(userHintOf({ backendId: 'markdown', userPicked: true }) === undefined, '亲手选的也不当 hint 上报（宿主读文件，不靠上报）')
+  check(userHintOf({ backendId: 'markdown' }) === undefined, '派生出来的不上报')
   check(userHintOf({ backendId: null, userPicked: true }) === undefined, '没有后端 id 时不上报（诚实）')
   check(userHintOf(null) === undefined, '空选择不上报')
   const keepLine = prefsSrc.split('\n').filter((l) => l.indexOf('export const keepUserPick = function') >= 0)[0] || ''
   check(!!keepLine, '取到 store-prefs.js 里的 keepUserPick（真身）')
   // 这里选 evalWithScope：同上（函数表达式自带全部依赖，作用域传空）。
   const keepUserPick = evalWithScope(keepLine.trim().replace(/^export const keepUserPick = /, ''), {})
-  // mergeSelection 的标记留存：宿主回同一条 → 留；回不同后端 → 消失
+  // 合并：宿主回什么就用什么，不再留标记
   const mergeSrc = snapSrc.match(/export const mergeSelection = function \(st, incoming\) \{[\s\S]*?\n    \}/)[0]
   const makeMerge = function () {
     const cache = []
-    // 这里选 evalWithScope：原来这五个名字靠参数注入，现在在作用域里逐个写明（这一处的写入记录器是 cache），函数体一个字不动。
+    // 这里选 evalWithScope：原来这五个名字靠参数注入，现在在作用域里逐个写明，函数体一个字不动。
     const fn = evalWithScope(mergeSrc.replace(/^export const mergeSelection = /, ''), {
       log: () => {}, dswsLogHash: () => 'h', dswsLogTrunc: (s) => s, setCachedSelection: (cwd, sel) => cache.push(sel), keepUserPick,
     })
     return { fn, cache }
   }
   const a = makeMerge()
-  const stA = { cwd: 'D:\\x', selection: { backendId: 'markdown', source: 'explicit', userPicked: true } }
+  const stA = { cwd: 'D:\\x', selection: { backendId: 'markdown', source: 'explicit' } }
   a.fn(stA, { backendId: 'markdown', source: 'explicit' })
-  check(stA.selection.userPicked === true, '宿主回的同一条（后端相同）→ userPicked 标记留住')
+  check(stA.selection.backendId === 'markdown', '宿主回的同一条照用（无标记可留）')
   const b = makeMerge()
-  const stB = { cwd: 'D:\\x', selection: { backendId: 'markdown', source: 'explicit', userPicked: true } }
+  const stB = { cwd: 'D:\\x', selection: { backendId: 'markdown', source: 'explicit' } }
   b.fn(stB, { backendId: 'gitlab', source: 'explicit' })
-  check(stB.selection.userPicked !== true && stB.selection.backendId === 'gitlab', '宿主回的是别的后端 → 标记消失、照宿主的来（谁改了锚文件谁是真相）')
+  check(stB.selection.backendId === 'gitlab', '宿主回的是别的后端 → 照宿主的来（谁改了文件谁是真相）')
 }
 
-// ── B2 水合：缓存里那份旧快照不许抹掉用户刚点的那一下（真机上那次「切完仓库标回退」就是在这里丢的）──
+// ── B2 水合：缓存里那份旧快照不许抹掉用户刚点的那一下（#1003 用 pickedAt 时刻判，不用标记）──
 console.log('')
-console.log('== B2 行为层（水合）：loadSnapshot 第一步 hydrateFromCache 不许把用户刚选的覆盖回旧后端 ==')
+console.log('== B2 行为层（水合）：hydrateFromCache 不许把刚点的选择覆盖回旧后端 ==')
 {
   const hydrateSrc = snapSrc.match(/export const hydrateFromCache = function \(st\) \{[\s\S]*?\n    \}/)[0]
-  const hintLine2 = prefsSrc.split('\n').filter((l) => l.indexOf('export const userHintOf = function') >= 0)[0] || ''
   const keepLine = prefsSrc.split('\n').filter((l) => l.indexOf('export const keepUserPick = function') >= 0)[0] || ''
   const mergeSrc2 = snapSrc.match(/export const mergeSelection = function \(st, incoming\) \{[\s\S]*?\n    \}/)[0]
+  const justSrc = snapSrc.match(/export const justPicked = function \(st, c\) \{[\s\S]*?\n    \}/)[0]
   const mkHydrate = function (patched) {
     const writes = []
-    // 这里选 evalWithScope：与上面同一段源码，作用域同样传空（它不引用本文件任何变量）。
-    const userHintOf = evalWithScope(hintLine2.trim().replace(/^export const userHintOf = /, ''), {})
-    // 这里选 evalWithScope：同上一处，函数表达式自带全部依赖，作用域传空。
+    // 这里选 evalWithScope：函数表达式自带全部依赖，作用域传空。
     const keepUserPick = evalWithScope(keepLine.trim().replace(/^export const keepUserPick = /, ''), {})
-    // 这里选 evalWithScope：五个依赖名原来靠参数注入，现在写进作用域（这一处的写入记录器是 writes），函数体不动。
+    // 这里选 evalWithScope：五个依赖名原来靠参数注入，现在写进作用域，函数体不动。
     const mergeSelection = evalWithScope(mergeSrc2.replace(/^export const mergeSelection = /, ''), {
       log: () => {}, dswsLogHash: () => 'h', dswsLogTrunc: (s) => s, setCachedSelection: (cwd, sel) => writes.push(sel), keepUserPick,
     })
+    const justPicked = justSrc ? evalWithScope(justSrc.replace(/^export const justPicked = /, ''), {}) : (() => false)
     const deps = {
       getCachedSnapshot: () => ({ generatedMs: 100, id: '缓存里那份切换前的快照', selection: { backendId: 'github', source: 'explicit' }, repository: { backend: 'github', name: 'r' } }),
       rememberWorkspaceRoot: () => {}, wsKeyOf: (p) => String(p || ''), snapshotByCwd: new Map(), touchLRUClient: () => {},
-      mergeSelection, setCachedRepository: () => {}, setPresentationMap: () => {}, getCachedSelection: () => ({ backendId: 'markdown', source: 'explicit', userPicked: true }),
+      mergeSelection, setCachedRepository: () => {}, setPresentationMap: () => {}, getCachedSelection: () => null,
       getCachedRepository: () => null, getCachedChain: () => null, promptLang: () => 'zh', nowStr: () => '', log: () => {}, dswsLogHash: () => 'h',
-      userHintOf, setCachedSelection: (cwd, sel) => writes.push(sel),
+      justPicked, setCachedSelection: (cwd, sel) => writes.push(sel),
     }
     const names = Object.keys(deps)
     const body = (patched ? hydrateSrc.replace(patched[0], patched[1]) : hydrateSrc).replace(/^export const hydrateFromCache = /, 'return ')
@@ -175,20 +174,20 @@ console.log('== B2 行为层（水合）：loadSnapshot 第一步 hydrateFromCac
     const fn = compileFn(names, body)(...names.map((n) => deps[n]))
     return { fn, writes }
   }
-  const pick = () => ({ cwd: 'D:\\x', selection: { backendId: 'markdown', source: 'explicit', userPicked: true }, snapshot: { id: '面板上正显示的那一份', generatedMs: 100 } })
+  const now = Date.now()
+  const pick = () => ({ cwd: 'D:\\x', selection: { backendId: 'markdown', source: 'explicit', pickedAt: now }, snapshot: { id: '面板上正显示的那一份', generatedMs: 100 } })
   const good = mkHydrate(null)
   const stG = pick()
   good.fn(stG)
-  check(stG.selection.backendId === 'markdown' && stG.selection.userPicked === true, '水合之后用户刚点的那一下还在（markdown + 标记没被缓存里那份 github 顶掉）—— 实得 ' + JSON.stringify(stG.selection))
-  check(!good.writes.some((s) => s && String(s.backendId) !== 'markdown'), '水合也没有把旧后端写回本地缓存（标记不会随缓存丢）—— 实得 ' + JSON.stringify(good.writes))
+  check(stG.selection.backendId === 'markdown', '水合之后刚点的那一下还在（旧缓存 github 没盖回来）—— 实得 ' + JSON.stringify(stG.selection))
   const noPick = mkHydrate(null)
   const stN = { cwd: 'D:\\x', selection: null, snapshot: null }
   noPick.fn(stN)
-  check(stN.selection && stN.selection.backendId === 'github', '这段守卫只管「用户亲手选过的那一条」：没有标记时旧快照照旧水合进来（正常秒显不受影响）—— 实得 ' + JSON.stringify(stN.selection))
-  const broken = mkHydrate(["&& !(typeof userHintOf === 'function' && userHintOf(st.selection))", '&& true'])
+  check(stN.selection && stN.selection.backendId === 'github', '没点过时旧快照照旧水合进来（正常秒显不受影响）—— 实得 ' + JSON.stringify(stN.selection))
+  const broken = mkHydrate(['!justPicked(st, c)', 'true'])
   const stB2 = pick()
   broken.fn(stB2)
-  check(stB2.selection.backendId === 'github' && stB2.selection.userPicked !== true, '反证 B2 成立：把这道守卫摘掉之后，同一份现场当场退回 github（正是真机上报的那次回退）—— 实得 ' + JSON.stringify(stB2.selection))
+  check(stB2.selection.backendId === 'github', '反证 B2 成立：把这道守卫摘掉之后，同一份现场当场退回 github —— 实得 ' + JSON.stringify(stB2.selection))
 }
 
 // ── C 组：切换之后按场景分流（真 store-switch + 真 guide-steps）──────────────────────────

@@ -164,6 +164,17 @@
     export const getChainCacheKey = function(cwd, backendId, lang){ try{ return wsKeyOf(cwd) + '|' + String(backendId||'') + '|' + String(lang||''); }catch(e){ return String(cwd||'')+'|'+String(backendId||'')+'|'+String(lang||''); } }
     export const getCachedChain = function(cwd, backendId, lang){ try{ const k=getChainCacheKey(cwd, backendId, lang); const e=chainByCwd.get(k); return e?e.snapshot:null; }catch(e){ return null; } }
     export const setCachedChain = function(cwd, backendId, lang, snap){ if(!cwd||!snap) return; try{ const k=getChainCacheKey(cwd, backendId, lang); const ent={snapshot:snap, ts:Date.now()}; if(chainByCwd.has(k)) chainByCwd.delete(k); chainByCwd.set(k, ent); if(chainByCwd.size>CHAIN_CWD_LRU_MAX){ const first=chainByCwd.keys().next().value; chainByCwd.delete(first);} }catch(e){} }
+    // 水合守卫：刚点的那一下不被旧缓存盖掉（#1003 接替 userPicked 标记；只看时间，不落盘）。
+    export const justPicked = function (st, c) {
+      try {
+        const sel = st && st.selection
+        if (!sel || !sel.backendId || typeof sel.pickedAt !== 'number' || sel.pickedAt <= 0) return false
+        const cacheMs = (c && typeof c.generatedMs === 'number' && c.generatedMs > 0) ? c.generatedMs : 0
+        if (cacheMs > 0) return sel.pickedAt > cacheMs
+        const incBid = c && c.selection && c.selection.backendId
+        return !!(incBid && String(incBid) !== String(sel.backendId) && (Date.now() - sel.pickedAt) < 60000)
+      } catch (e) { return false }
+    }
     export const hydrateFromCache = function (st) {
       if (!st || !st.cwd) return false
       const c = getCachedSnapshot(st.cwd)
@@ -197,16 +208,12 @@
           st.snapError = null
           changed=true
         }
-        // 同步 selection/repository 镜像（per-cwd）。2026-08-28 审查：快照 selection 合并统一走 mergeSelection——旧快照的 fallback null 不得覆盖新意图（LocalStorage 绑定）；#669 第 6 件补一句：这里水合的是**缓存**里那份旧快照，它带的 selection 是切换前那份结论，所以当会话这一侧已有「用户刚点的那一下」（带 userPicked 的选择）时整条不合并 —— 否则 hint 还没发出去就被抹掉、仓库标回退；宿主这次的真回包仍走 mergeSelection，照旧能纠正用户的选择。
-        if (c.selection !== undefined && !(typeof userHintOf === 'function' && userHintOf(st.selection))) { if (mergeSelection(st, c.selection)) changed = true }
+        // 同步 selection：水合的是旧缓存（切换前结论），刚点的那一下（pickedAt 更新）不合并，宿主新回包照旧纠正。
+        if (c.selection !== undefined && !justPicked(st, c)) { if (mergeSelection(st, c.selection)) changed = true }
         if (c.repository !== undefined) { st.repository = c.repository; setCachedRepository(st.cwd, c.repository) }
         if (c.backendModules) { st.backendModules = c.backendModules; setPresentationMap(c.backendModules) } // backendModules 缓存
       }
-      // selection/repository 单独缓存兜底（snapshot 未命中但 selection 有缓存）
-      if (!st.selection) {
-        const sel = getCachedSelection(st.cwd)
-        if (sel) { st.selection = sel; changed=true }
-      }
+      // selection 单独缓存兜底已随镜像退役而删（真相在宿主文件里，不在本地）。
       if (!st.repository) {
         const rep = getCachedRepository(st.cwd)
         if (rep) { st.repository = rep; changed=true }
@@ -239,35 +246,27 @@
       return changed
     }
     /**
-     * 客户端 selection 合并唯一点（2026-08-28 覆盖逻辑审查修正）。
-     * 优先级：真相（backendId 非空 / explicit 显式 Other）> 意图（localStorage 持久化绑定）> fallback null 尊重意图 > pending 保留。
-     *  - explicit/matches（backendId 非空）：落盘/绑定真相 → 覆盖并写回缓存（意图自愈为真相）
-     *  - explicit null（source='explicit'，用户显式无后端逃生舱）：明确意图 → 覆盖
-     *  - fallback null（source='fallback'，无锚无匹配）：尊重客户端持久化意图——cur 已选则不覆盖不写缓存；同时等效承接旧 isSuspiciousFallback 的 idle-refresh flake 防抖（flake 即 fallback null，不覆盖即防抖、不污染 localStorage）
-     *  - pending（探测中）：保留现状，不闪
-     * @returns {boolean} 是否发生覆盖（changed）
+     * 客户端 selection 合并唯一点（#1003：真相即宿主回包；本地无镜像，不写回）。
+     *  - 有后端：覆盖；显式空：覆盖；fallback 空且当前有值：保留（防抖）；pending：保留。
      */
     export const mergeSelection = function (st, incoming) {
       if (!incoming || typeof incoming !== 'object') return false
-      incoming = (typeof keepUserPick === 'function') ? keepUserPick(st.selection, incoming) : incoming // #669 第 6 件（ADR 攻击 1）：宿主回同一条后端时留住「用户亲手选的」标记，规则住在 store-prefs.js
+      incoming = (typeof keepUserPick === 'function') ? keepUserPick(st.selection, incoming) : incoming
       if (!incoming.backendId) {
         if (incoming.pending) return false
         if (incoming.source === 'explicit') {
-          try { log('info', 'backend.switch', { from: String((st.selection && st.selection.backendId) || ''), to: String(incoming.backendId || ''), cwdHash: dswsLogHash(st.cwd) }) } catch (eL) {} // 自动合并胜出记一条 #31（串门自证用：合并落定的选择，非用户在界面上手切）
+          try { log('info', 'backend.switch', { from: String((st.selection && st.selection.backendId) || ''), to: String(incoming.backendId || ''), cwdHash: dswsLogHash(st.cwd) }) } catch (eL) {}
           st.selection = incoming
-          if (st.cwd) setCachedSelection(st.cwd, incoming)
           return true
         }
         const cur = st.selection
-        if (cur && cur.backendId) return false // fallback null：尊重意图，不覆盖不写缓存
-          try { log('info', 'backend.switch', { from: String((st.selection && st.selection.backendId) || ''), to: String(incoming.backendId || ''), cwdHash: dswsLogHash(st.cwd) }) } catch (eL) {} // 自动合并胜出记一条 #31（串门自证用：合并落定的选择，非用户在界面上手切）
+        if (cur && cur.backendId) return false // fallback null：尊重当前，不覆盖
+          try { log('info', 'backend.switch', { from: String((st.selection && st.selection.backendId) || ''), to: String(incoming.backendId || ''), cwdHash: dswsLogHash(st.cwd) }) } catch (eL) {}
         st.selection = incoming
-        if (st.cwd) setCachedSelection(st.cwd, incoming)
         return true
       }
-      try { log('info', 'backend.switch', { from: String((st.selection && st.selection.backendId) || ''), to: String(incoming.backendId || ''), cwdHash: dswsLogHash(st.cwd) }) } catch (eL) {} // 自动合并胜出记一条 #31（串门自证用：合并落定的选择，非用户在界面上手切）
+      try { log('info', 'backend.switch', { from: String((st.selection && st.selection.backendId) || ''), to: String(incoming.backendId || ''), cwdHash: dswsLogHash(st.cwd) }) } catch (eL) {}
       st.selection = incoming
-      if (st.cwd) setCachedSelection(st.cwd, incoming)
       return true
     }
     export const applySnapshotSelection = function (st, snap) {
