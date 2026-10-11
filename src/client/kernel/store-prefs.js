@@ -24,8 +24,9 @@
     // #1012（2026-10-12 维护者拍板）：这一项不落盘。它只是标签 chip 排序用的热度，丢了不影响
     //   功能，本机设置文件里也不存它（核不再写 ui 节的 labelClicks）。所以这份计数只活在本次
     //   会话的内存里：不读也不写 localStorage；旧键 dsws.labelClicks 里的历史数据不再读，
-    //   窗口一关热度就归零。导出名保留——调用方 ListTab 与接口冻结清单都还按这个名字引用，
-    //   值只当内存表用；saveLabelClicks 保留成空动作，调用点因此不必改。
+    //   窗口一关热度就归零。两个导出名都保留：labelClicks 仍是 ListTab 读写的内存表，
+    //   saveLabelClicks 是空动作（调用点因此不必改）；LABEL_CLICKS_KEY 现在仓里没有一处读它，
+    //   留着是因为它写在 docs/architecture/kernel-contract.md 的接口冻结清单里，摘掉要连那份文档一起改。
     export const LABEL_CLICKS_KEY = 'dsws.labelClicks'
     export const labelClicks = {}
     export const saveLabelClicks = function () {}
@@ -155,7 +156,8 @@
     // #683（F1 · ADR 20260921 的 R7b）：写这张镜像表要「读回磁盘上那张 → 只换本工作区那一条 → 写回」。
     //   从前这里是把进程内存里那份**整表**序列化写回：同一个访问地址开两个窗口时，后写的那扇窗会把
     //   另一扇窗刚写进去的键整条顶掉（一个窗口里选完后端，另一个窗口一刷新就看不见了）。
-    //   写失败也不再一口吞掉：与同文件 saveListPrefs / saveLabelClicks 同例记一条 storage.fail（ADR 的 R7c）。
+    //   写失败也不再一口吞掉：与同文件 saveListPrefs 同例记一条 storage.fail（ADR 的 R7c）。
+    //   （saveLabelClicks 从前也是这一档的例子；#1012 起标签点击次数不落盘，它已是空动作，不再记日志。）
     //   本文件另有一张横幅折叠表（bannerFoldByCwd）还是老写法 —— 那条路今天没有跨窗口场景，本次不动它。
     const writeTableEntry = function (storeKey, entryKey, value) {
       try {

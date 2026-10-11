@@ -141,6 +141,15 @@ export const subwsMarkAutoDecide = function (ready, shownBefore) {
   if (ready !== true) return 'wait'
   return (shownBefore === true) ? 'skip' : 'open'
 }
+// 「这个工作区以前自动展开过没有」这道判断的纯函数形态（门禁从真源里切出来验，见 tests/verify-settings-view.js）：
+//   设置视图答得出这一格（认得出这个工作区的根，或文档里查得到这一条）就以它为准 —— 搬进文件之后它是唯一真源；
+//   它答不出（认不出根：本目录所有会话都没报过根、折算表里也没有）时才看旧表那一份。旧表按工作区根记，
+//   而本组件自己认得出根（subwsMarkRootOf 那一路），迁移前正是靠旧表判的；不这么退一步，这个工作区
+//   就会在每次挂载时白弹一次浮层 —— 与 #650 承诺的「同一个工作区只自动展开一次」正好相反。
+export const subwsMarkShownBefore = function (docAnswer, docCanAnswer, legacyShown) {
+  if (docCanAnswer === true) return docAnswer === true
+  return legacyShown === true
+}
 export const SubworkspaceMark = function (props) {
   const p = props || {}
   const st = p.st || null
@@ -178,12 +187,23 @@ export const SubworkspaceMark = function (props) {
   const readAutoMap = function () {
     try { const raw = localStorage.getItem(AUTO_KEY); const m = raw ? JSON.parse(raw) : null; return (m && typeof m === 'object') ? m : {} } catch (e) { return {} }
   }
-  // 这个工作区以前自动展开过没有：先问新模块，它不在时才读旧键（旧键按工作区根那把折算键记）。
+  // 这个工作区以前自动展开过没有：先问新模块；它认不出这个工作区的根（或这一片不在）时读旧键兜底
+  //   （旧键按工作区根那把折算键记）。判断本身在纯函数 subwsMarkShownBefore 里，这里只负责把三样东西凑齐。
   //   同一次调用有两种含义：文档还在路上时它只能按旧表答，那一次调用真正的作用是把「读一次设置文档」
   //   这件事叫起来，答出来的值不作数；要等 viewFlagReadyNow() 说就绪了，再拿它下判断（见下面那个效果）。
   const autoShownBefore = function () {
-    try { if (typeof viewFlagOf === 'function') return viewFlagOf(cwd, 'subwsMarkAutoShown') === true } catch (eN) {}
-    try { return !!readAutoMap()[subwsMarkCmpKey(root)] } catch (e) { return false }
+    let docAnswer = false
+    let docCanAnswer = false
+    try {
+      if (typeof viewFlagOf === 'function') {
+        docAnswer = viewFlagOf(cwd, 'subwsMarkAutoShown') === true
+        // 「它答得出这一格吗」的判据就是它认不认得出根：写键非空即认得出，认得出时文档与旧键两条路它都查得了。
+        docCanAnswer = (typeof viewFlagWriteKeyOf === 'function') ? (viewFlagWriteKeyOf(cwd) !== '') : true
+      }
+    } catch (eN) {}
+    let legacyShown = false
+    try { legacyShown = !!readAutoMap()[subwsMarkCmpKey(root)] } catch (e) {}
+    return subwsMarkShownBefore(docAnswer, docCanAnswer, legacyShown)
   }
   const [autoOpen, setAutoOpen] = React.useState(false)
   const [autoDone, setAutoDone] = React.useState(false)

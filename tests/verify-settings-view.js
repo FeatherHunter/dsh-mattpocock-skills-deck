@@ -141,6 +141,15 @@ function autoDecideFn() {
   return compileFn(['keyOf', 'tr'], noExport(src.slice(start, end)) + '\nreturn subwsMarkAutoDecide')(keyOfFn(), (k) => k)
 }
 
+// ── 真件三之二：自动展开「以前展开过没有」那道判断（同样从真源里切出纯函数，不另写仿制品） ──
+function shownBeforeFn() {
+  const src = readText('src/client/views/SubworkspaceMark.js')
+  const start = src.indexOf('export const subwsMarkRootOf')
+  const end = src.indexOf('export const SubworkspaceMark')
+  if (start < 0 || end <= start) throw new Error('SubworkspaceMark.js 里找不到那组纯函数（subwsMarkRootOf … SubworkspaceMark 之间）')
+  return compileFn(['keyOf', 'tr'], noExport(src.slice(start, end)) + '\nreturn subwsMarkShownBefore')(keyOfFn(), (k) => k)
+}
+
 async function main() {
   console.log('客户端观看状态搬进本机设置文件门禁（#1012：回退读、不双写、写失败兜底、合并写、键的写法、防抖、接线）')
 
@@ -600,6 +609,29 @@ async function main() {
       '设置文件里记过时，重跑那一判是 skip（真源说了算，同一个工作区不再自动展开第二次）。', JSON.stringify(seen))
   }
   {
+    // ⑧ 设置视图认不出这个工作区的根、组件却认得（st.snapshot.workspaceRoot 那一路）时，旧表那份记录照样算数。
+    //   这一条是复核 d9d0e50a 时量出来的窄残留：此前读口只在 viewFlagOf 整个不在时才回旧表，于是这种组合下
+    //   答 false，判决从迁移前的 skip 变成每次挂载都 open —— 同一个工作区白弹一次浮层（#650 要的是只弹一次）。
+    const cwd = 'D:\\ilife\\packages\\skill-calorie'
+    const shownFn = shownBeforeFn()
+    const decideFn = autoDecideFn()
+    check(shownFn(false, true, true) === false, '设置视图答得出这一格时以它为准（文件里说没展开过，旧表里那条不作数）。')
+    check(shownFn(true, true, false) === true, '设置视图答得出这一格、文件里说展开过时算展开过（旧表空着也照它）。')
+    check(shownFn(false, false, true) === true && shownFn(false, false, false) === false,
+      '认不出根时回退旧表那一份：旧表记过算展开过，没记过才算没展开过。')
+    // 真内核那一侧：一个谁都没报过根的目录（折算表空、会话对象上没有根）—— 写键为空就是「答不出这一格」。
+    //   root: '' 就是「这条会话没有工作区根」那一档（makeEnv 的默认值会把根教给这一片，这里必须按缺席造）。
+    const env = makeEnv({ tag: 'decide-unknown-root', cwd: cwd, root: '', localStorage: { 'dsws.subwsAutoShown': JSON.stringify({ [KEY_OF('D:\\ilife')]: 1 }) } })
+    const canAnswer = (env.mod.viewFlagWriteKeyOf(cwd) !== '')
+    const docAnswer = env.mod.viewFlagOf(cwd, 'subwsMarkAutoShown') === true
+    await sleep(80)
+    check(canAnswer === false && docAnswer === false, '认不出根时设置视图这一侧答不出这一格（写键为空、读口回 false）。', JSON.stringify({ canAnswer: canAnswer, docAnswer: docAnswer }))
+    // 组件自己认得根（浮层出现的前提就是它认得），旧表里那条记录正记在这个根那把折算键上。
+    const shownBefore = shownFn(docAnswer, canAnswer, true)
+    check(decideFn(env.mod.viewFlagReadyNow(), shownBefore) === 'skip',
+      '但组件认得根、旧表里记过，判决仍是 skip（不因为设置视图这一刻认不出根就白弹一次）。')
+  }
+  {
     // ⑨ 真渲染一遍（真 jsdom + 真 React）：把「设置文档迟到」那一刻真的画出来看浮层弹没弹。
     //   为什么非画不可：前面几条断的都是「就绪口、订阅口、判决函数各自对不对」，而这次回退的病因恰恰在
     //   「三者都对、组件却把它们用错了地方」—— 挂载时没等文档就弹（#666 那次也是「纯函数全对、组件却每次返回 null」）。
@@ -639,12 +671,14 @@ async function main() {
       }
       const readFlag = function (cwd, name) {
         if (k.doc && Object.prototype.hasOwnProperty.call(k.doc, name)) return k.doc[name] === true
+        // 认不出根那一档（E/F）照真内核的样子答：旧键按工作区根记，这一片算不出那把折算键，于是读不回来。
+        if (opts.kernelCantResolve === true) return false
         try { const raw = window.localStorage.getItem('dsws.subwsAutoShown'); const m = raw ? JSON.parse(raw) : null; return !!(m && m[KEY_OF(ROOT_DIR)]) } catch (e) { return false }
       }
       const tipCalls = []
       const Tip = function (props) { tipCalls.push(props || {}); return React.createElement('span', null, (props || {}).children) }
       const factory = compileFn(
-        ['keyOf', 'tr', 'Tip', 'host', 'React', 'h', 'localStorage', 'chainStep', 'viewFlagOf', 'viewFlagReadyNow', 'viewFlagSubscribe', 'setViewFlag'],
+        ['keyOf', 'tr', 'Tip', 'host', 'React', 'h', 'localStorage', 'chainStep', 'viewFlagOf', 'viewFlagReadyNow', 'viewFlagSubscribe', 'setViewFlag', 'viewFlagWriteKeyOf'],
         MARK_SRC + '\nreturn SubworkspaceMark'
       )
       const Comp = factory(KEY_OF,
@@ -652,7 +686,9 @@ async function main() {
         Tip,
         { call: function () { return Promise.resolve({ ok: true }) } },
         React, React.createElement, window.localStorage, function () { return null },
-        readFlag, readyNow, subscribe, function () { return true })
+        readFlag, readyNow, subscribe, function () { return true },
+        // 这一片认不认得出本工作区的根：E/F 两档造的就是「认不出」（写键为空），其余档照常认得出。
+        (opts.kernelCantResolve === true) ? function () { return '' } : function () { return KEY_OF(ROOT_DIR) })
       const container = window.document.createElement('div')
       window.document.body.appendChild(container)
       let root = null
@@ -688,6 +724,16 @@ async function main() {
     const d = await drawMark({ readyAtOnce: true })
     check(d.before === 1 && d.after === 1,
       'D 手机不通时按旧键当场弹一次（问不到真源不等于永远不弹，老行为照旧）。', JSON.stringify(d))
+    // E：设置视图认不出这个工作区的根、组件自己认得（st.snapshot.workspaceRoot 那一路）、旧键里记过。
+    //   复核 d9d0e50a 时量出来的窄残留就在这里：从前只在「读口整个不在」时才回旧键，这种组合下答 false，
+    //   于是每挂载一次白弹一次（#650 要的是同一个工作区只弹一次）。
+    const e = await drawMark({ legacyShown: true, kernelCantResolve: true })
+    check(e.before === 0 && e.after === 0,
+      'E 设置视图认不出根时，组件按自己认得的根读旧键：记过就不弹（不因为这一刻认不出根就白弹一次）。', JSON.stringify(e))
+    // F：同一档，但旧键里没记过 —— 该弹的那一次照弹（读不到不等于已经弹过，别把两者混成一件事）。
+    const f = await drawMark({ kernelCantResolve: true })
+    check(f.before === 0 && f.after === 1,
+      'F 认不出根、旧键里也没记过时，文档到手后照弹一次（读不到不等于已经弹过）。', JSON.stringify(f))
     console.log('    （说明）这一组用的是真 jsdom + 真 React，但内核那一片是符合契约的替身、宿主是替身；')
     console.log('    （说明）真机上那一趟（真宿主、真设置文件）仍由人工验证兜底，画法本身由 verify-666 的 E 组兜住。')
   }
