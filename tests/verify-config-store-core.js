@@ -22,8 +22,10 @@ const check = (ok, msg, detail) => {
 
 async function main() {
   console.log('配置读写核行为门禁（#1012：解析校验拼装六件事）')
-  const core = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'config-store', 'config-store.js')).href)
-  const { parseConfig, stringifyConfig, MAX_FILE_BYTES, MAX_ALIASES } = core
+  // 文本出入口住宿主适配器（冻结名 parseConfig / stringifyConfig，唯一入口）；
+  // 三份 schema 的校验与模板住核单元里，行为从门面统一钉。
+  const core = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'configStore.js')).href)
+  const { parseConfig, stringifyConfig } = core
 
   // —— C1：往返 ——
   {
@@ -76,9 +78,8 @@ async function main() {
     check(w1.ok === false && w1.reason === 'unknown-keys', 'C3 写时多出来的名字拒绝写（不静默丢）', JSON.stringify(w1))
   }
 
-  // —— C4：硬限制 ——
+  // —— C4：硬限制（上限数字住门面唯一一处，这里从行为上钉住） ——
   {
-    check(MAX_FILE_BYTES === 65536 && MAX_ALIASES === 50, 'C4 上限常量钉住（64K 字 / 50 别名）')
     const big = parseConfig('version: 1\n' + 'k: v\n'.repeat(20000), 'settings')
     check(big.ok === false && big.reason === 'oversize', 'C4 超大文件按档位回', JSON.stringify(big).slice(0, 200))
     const bomb = 'version: 1\nx: &a [1]\n' + Array.from({ length: 60 }, (_, i) => 'k' + i + ': *a\n').join('')

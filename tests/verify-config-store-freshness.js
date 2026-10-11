@@ -2,11 +2,13 @@
 // 规则（照 tests/verify-label-color-freshness.js 的形态）：
 //   1) config-store-core/src/ 每个 TS 转译后必须与 src/shared/config-store/ 下同名 JS 逐字一致；
 //      改了 TS 没重新生成产物就变红（转译口径直接复用 config-store-core/build.mjs 导出的同一个
-//      函数 transpileUnit，两边永远不会漂移；UNITS 清单也是同一份，不手抄）。
+//      函数 transpileUnit，两边永远不会漂移；UNITS 清单也是同一份，不手抄；
+//      四个单元是 ports 空壳 + workspace / settings / labels 三份 schema，各自独立）。
 //   2) tsc --noEmit 必须通过。
-//   3) 产物之间零相对引用（同层互引门禁天然能过；`from 'yaml'` 这种裸包引用不算同层边，允许）。
+//   3) 产物之间零相对引用（同层互引门禁天然能过；单元里连裸包引用都没有，YAML 只在宿主适配器里用）。
 //   4) 要用的东西都带行首 export，并且不含 __DSW_VERSION__ 与 __DSW_REPO_URL__ 两个占位符。
 //   5) 插口空壳产物里还留着模块标识 PORTS_SOURCE（类型被擦掉之后唯一能追溯来源的东西）。
+//   6) 单元数钉死四个：多一个少一个都说明有人绕过清单手加文件。
 // 用法：node tests/verify-config-store-freshness.js（在仓库根目录）
 const fs = require('fs')
 const path = require('path')
@@ -31,7 +33,7 @@ async function main() {
     transpileUnit = buildMod.transpileUnit
     UNITS = buildMod.UNITS
     check(typeof transpileUnit === 'function', '构建脚本导出同一转译口径 transpileUnit')
-    check(Array.isArray(UNITS) && UNITS.length === 2, '构建脚本导出 UNITS 清单（两项，不手抄）')
+    check(Array.isArray(UNITS) && UNITS.length === 4, '构建脚本导出 UNITS 清单（四项：ports + 三份 schema，不手抄）')
   } catch (e) {
     check(false, '构建脚本可加载（config-store-core/build.mjs）：' + (e && e.message))
     console.log('\n存在失败')

@@ -22,9 +22,14 @@
 
 - `src/ports.ts`：插口形状（三种文件的标识、解析与拼装的成功失败形状，
   最后一行是模块标识 `PORTS_SOURCE`）。核心只管做决定，插口由核心定，跑腿的活全在外面。
-- `src/config-store.ts`：`parseConfig(text, schema)` / `stringifyConfig(value, schema)`，
-  加路径、版本、上下限常量。严格校验：白名单键、精确类型、未知键策略、
-  版本号高于认识时只读不写；两条硬限制：文件字符数上限（64K）与别名数量上限（50）。
+- `src/workspace.ts` / `src/settings.ts` / `src/labels.ts`：三份文件各自的校验与拼装
+  （字段定义、类型、注释文字、键顺序都在各文件一处）。严格校验：白名单键、精确类型、
+  未知键策略、版本号高于认识时只读不写。
+  三个文件各自独立、共用小工具只抄不引——产物之间零相对引用（文件粒度门禁要求
+  每个文件 ≤350 行，单体会超标；与 label-color-core 把同一段打印在两个文件各写一遍同理）。
+- 文本出入口 `parseConfig(text, schema)` / `stringifyConfig(value, schema)` 住在宿主适配器
+  （`src/host/configStore.js`，冻结名）：超大与别名两道守卫在此做一次、YAML 解析一次，
+  再交对应单元校验。上限数字（64K 字 / 50 别名）的唯一出处就是这里。
 - `build.mjs`：编译脚本。esbuild 只转译不打包，一对一生成 `src/shared/config-store/` 下的
   同名 JS；另跑 `tsc --noEmit` 只做类型检查。导出 `transpileUnit`、`runTypeCheck`、
   `buildAll` 三个函数与 `UNITS` 清单，`scripts/build.mjs` 会在派生步骤之前调用一次 `buildAll`。
@@ -60,17 +65,18 @@
 
 ## deck 侧落点
 
-- 产物两个：`src/shared/config-store/ports.js`（空壳，只有模块标识）、
-  `config-store.js`（解析、校验、拼装的全部实现）。两个都提交进 git。
+- 产物四个：`src/shared/config-store/ports.js`（空壳，只有模块标识）、
+  `workspace.js` / `settings.js` / `labels.js`（三份 schema 各自的校验与拼装）。
+  四个都提交进 git。
 - 宿主侧直接相对 import 产物，例如
-  `import { parseConfig } from '../shared/config-store/config-store.js'`。
+  `import { parseWorkspace } from '../shared/config-store/workspace.js'`。
   这是宿主调共享的跨层方向，同层互引门禁不管这一方向。
+  文本出入口（`parseConfig` / `stringifyConfig`）住宿主适配器，
+  `yaml` 包也只在适配器里用，产物里没有任何引用（连裸包都没有）。
 - 共享层自己不调核：`src/shared` 内部文件之间不许互相引用（同层互引门禁），
   所以 `workspace-file.js` 那份老实现保持原样不动，等 #1003 把调用方切到
   宿主适配器（`src/host/configStore.js`，调核的唯一入口）之后再退役。
-- 客户端半边不直接调核：客户端经宿主电话读写设置，不拼进闭包，
-  产物里因此可以出现 `from 'yaml'` 这种裸包引用（同层互引门禁只看相对引用，
-  不看裸包名；宿主运行时能解析生产依赖）。
+- 客户端半边不直接调核：客户端经宿主电话读写设置，不拼进闭包。
 - 后端房间（标签配色那间）要换格式时同样调核，不各写一份解析。
 
 ## 日志点

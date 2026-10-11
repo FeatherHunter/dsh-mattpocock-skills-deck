@@ -204,8 +204,10 @@ function sha256(file) { return crypto.createHash('sha256').update(fs.readFileSyn
   // #948（2026-10-10）：新增 src/shared/feedback-map.js（反馈组合映射的唯一判断口，客户端拼接 + 宿主同字节镜像），总数 74→75。
   // #1012（2026-10-11）：新增 src/shared/config-store/ 下 2 个产物（ports 空壳 / config-store 解析校验拼装，
   // 纯函数、文件之间零相对引用；客户端不拼接，宿主适配器调它），总数 75→77。
-  check(srcSharedFiles.length === 77, `src/shared 77 文件（实得 ${srcSharedFiles.length}）`)
-  check(pkgSharedFiles.length === 77, `package/shared 77 文件（实得 ${pkgSharedFiles.length}）`)
+  // #1012（2026-10-11 续）：单体 config-store.js 按文件粒度拆成 workspace / settings / labels 三个单元
+  // （各 ≤350 行，见 verify-file-granularity），总数 77→79（减一加三）。
+  check(srcSharedFiles.length === 79, `src/shared 79 文件（实得 ${srcSharedFiles.length}）`)
+  check(pkgSharedFiles.length === 79, `package/shared 79 文件（实得 ${pkgSharedFiles.length}）`)
 }
 // 4c) import 卫生：显式 .js（相对 import 必须带 .js 扩展，避免 Node ESM 裸 specifier）
 {

@@ -30,7 +30,9 @@ const TSCONFIG = resolve(ROOT, 'config-store-core/tsconfig.json')
 
 export const UNITS = [
   { ts: 'ports.ts', js: 'ports.js' },
-  { ts: 'config-store.ts', js: 'config-store.js' },
+  { ts: 'workspace.ts', js: 'workspace.js' },
+  { ts: 'settings.ts', js: 'settings.js' },
+  { ts: 'labels.ts', js: 'labels.js' },
 ]
 
 function headerFor(tsName) {

@@ -1,36 +1,23 @@
 // src/host/configStore.js —— 配置文件的宿主适配器：调核的唯一入口（#1012）
 //
-// 人话：三份配置文件（工作区后端配置、本机全局设置、标签配色数据）要读要写都走这里。
-// 它只做核不会做的事：拼路径、读文件、写文件、写完读回来比对、写成功后删老文件。
-// 解析、校验、拼文本全在核里（src/shared/config-store/），这里一行都不重写。
+// 人话：三份配置文件要读要写都走这里。它只做核不会做的事：
+// 文本出入口（parseConfig / stringifyConfig，超大与别名守卫在此做一次）、
+// 拼路径、读文件、写文件、写完读回比对、写成功后删老文件。
+// 三份 schema 的校验与模板住在核单元里（src/shared/config-store/），这里不重写。
 //
 // 冻结接口（与 #1003 票里那份逐字一致；要改必须同时改两份）：
+//   parseConfig(text, schema) / stringifyConfig(value, schema)（文本出入口）
 //   readWorkspaceConfig(root, io) / writeWorkspaceConfig(root, value, io)
 //   readLocalSettings(homeDir, io) / writeLocalSettings(value, homeDir, io)
 //   readLabelColors(root, io) / writeLabelColors(root, value, io)
-// root 是工作区根的绝对路径，homeDir 是用户主目录的绝对路径，io 是文件读写口：
-//   { readText(absPath), writeText(absPath, text), rm(absPath), mkdir(dirAbsPath) }
-// 为什么 io 由调用方递进来：宿主在不同运行时拿文件通道的方式不一样（桌面端走平台文件服务），
-// 适配器不自己决定去哪里拿，只认这个口子，测试时给假实现即可。
-//
-// 三条并发约定（#1012 票里定的，#1003 那边照着用）：
-// 1. 新老并存时以新（.yaml）为准，老（.json）只做兼容读；读到老文件不自动写，
-//    由调用方决定何时迁移（老用户迁移的顺序「先写成功、再退役记忆」在 #1003）。
-// 2. 写成功后再删老文件；删除失败只放在回执的 warnings 里，不影响主流程。
-// 3. 不新增日志事件：迁移遗留、新老并存这些事实经回执字段（from / legacyPresent /
-//    warnings）带出来，由调用方用已有事件记。日志附录与日志门禁是单写者文件，本票不动。
-//
-// 以后谁改它：改三份文件的读写顺序、迁移时机、失败说法的人。核里的格式与校验归核，
-// 判定「当前后端是谁」归 #1003 的判定服务，这里只管把文件读写对。
-import {
-  LABEL_COLORS_JSON_REL,
-  LABEL_COLORS_YAML_REL,
-  SETTINGS_REL_SEGMENTS,
-  WORKSPACE_JSON_REL,
-  WORKSPACE_YAML_REL,
-  parseConfig,
-  stringifyConfig,
-} from '../shared/config-store/config-store.js'
+// io 是文件读写口 { readText, writeText, rm, mkdir }，由调用方递进来
+// （桌面端走平台文件服务；测试给假实现）。新老并存以新为准，写成功后删老文件
+// （删不掉只警告）；迁移事实经回执字段带出来，不新增日志事件（单写者文件本票不动）。
+// 以后谁改它：改读写顺序、迁移时机、失败说法的人。判定归 #1003 的判定服务。
+import { parse as parseYaml } from 'yaml'
+import { parseLabelColors, stringifyLabelColors, LABEL_COLORS_JSON_REL, LABEL_COLORS_YAML_REL } from '../shared/config-store/labels.js'
+import { parseSettings, stringifySettings, SETTINGS_REL_SEGMENTS } from '../shared/config-store/settings.js'
+import { parseWorkspace, stringifyWorkspace, WORKSPACE_JSON_REL, WORKSPACE_YAML_REL } from '../shared/config-store/workspace.js'
 
 // ── 路径（只拼字符串，不碰文件系统） ──
 
@@ -76,6 +63,64 @@ function envFail(what, rel, detail) {
     reason: 'env',
     message: what + '（' + rel + '）。' + detail,
   }
+}
+
+// ── 文本出入口（parseConfig / stringifyConfig，冻结名） ──
+// 核按文件拆成三个单元（产物各自独立、零相对引用），入口只留这一处：
+// 字符数与别名两道守卫在此做一次，YAML 解析（钉死 core 模式）一次，再交对应单元校验。
+// 上限数字的唯一出处就是这里（门禁从行为上钉住这两个数）。
+
+/** 文件字符数上限：配置文件本该很小，64K 绰绰有余，超了说明拿错了文件。 */
+const MAX_FILE_BYTES = 65536
+/** 别名（`*名字`）数量上限：正常配置文件里一个别名都不会有，50 是宽松的哨兵。 */
+const MAX_ALIASES = 50
+
+/** 数一数文本里用了多少个别名。注释里的不算，先去掉行注释。 */
+function countAliases(text) {
+  const noComments = String(text).replace(/(^|\s)#[^\n]*$/gm, '$1')
+  const hits = noComments.match(/(^|[\s\[{,])\*[A-Za-z0-9_-]+/g)
+  return hits ? hits.length : 0
+}
+
+/**
+ * 解析一份配置文本。schema 三选一：workspace（工作区后端配置）、
+ * settings（本机全局设置）、label-colors（标签配色数据）。
+ * 老的 `.json` 是 YAML 的子集，直接可读，不用区分。
+ */
+export function parseConfig(text, schema) {
+  if (schema !== 'workspace' && schema !== 'settings' && schema !== 'label-colors') {
+    return { ok: false, reason: 'bad-shape', message: '核不认识这个 schema：' + String(schema) }
+  }
+  if (typeof text !== 'string') return { ok: false, reason: 'bad-shape', message: '要解析的不是一段文字' }
+  const stripped = text.replace(/^\uFEFF/, '')
+  if (stripped.length > MAX_FILE_BYTES) {
+    return { ok: false, reason: 'oversize', message: '这份文件太大了（' + stripped.length + ' 字，上限 ' + MAX_FILE_BYTES + ' 字），核拒绝解析：配置文件本该很小，超了说明拿错了文件' }
+  }
+  if (countAliases(stripped) > MAX_ALIASES) {
+    return { ok: false, reason: 'aliases', message: '这份文件里的别名（`*名字`）太多了（上限 ' + MAX_ALIASES + ' 个），核拒绝解析：正常配置文件里一个别名都不会有' }
+  }
+  let doc = null
+  try {
+    doc = parseYaml(stripped, { schema: 'core', maxAliasCount: MAX_ALIASES })
+  } catch (e) {
+    const msg = String((e && e.message) || e || '')
+    if (/alias/i.test(msg)) return { ok: false, reason: 'aliases', message: '这份文件里的别名太多了，核拒绝解析：正常配置文件里一个别名都不会有' }
+    return { ok: false, reason: 'yaml-error', message: '这份文件的内容不是合法的 YAML（也就是老的 JSON 也不是）：' + msg.slice(0, 160) }
+  }
+  if (doc === undefined || doc === null || (typeof doc === 'string' && doc.trim() === '')) {
+    return { ok: false, reason: 'bad-shape', message: '这份文件里什么都没有（空白文件）' }
+  }
+  if (schema === 'workspace') return parseWorkspace(doc)
+  if (schema === 'settings') return parseSettings(doc)
+  return parseLabelColors(doc)
+}
+
+/** 把一份值拼成要落盘的文本（含程序生成的注释）。字段定义与注释文字都在各单元一处。 */
+export function stringifyConfig(value, schema) {
+  if (schema === 'workspace') return stringifyWorkspace(value)
+  if (schema === 'settings') return stringifySettings(value)
+  if (schema === 'label-colors') return stringifyLabelColors(value)
+  return { ok: false, reason: 'bad-shape', message: '核不认识这个 schema：' + String(schema) }
 }
 
 // ── 读写的公共骨架（新优先、老兼容） ──
@@ -283,4 +328,4 @@ export async function writeLabelColors(root, value, io) {
   )
 }
 
-export default { readWorkspaceConfig, writeWorkspaceConfig, readLocalSettings, writeLocalSettings, readLabelColors, writeLabelColors }
+export default { parseConfig, stringifyConfig, readWorkspaceConfig, writeWorkspaceConfig, readLocalSettings, writeLocalSettings, readLabelColors, writeLabelColors }

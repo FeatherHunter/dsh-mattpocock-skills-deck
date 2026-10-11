@@ -28,7 +28,7 @@ function commentBefore(text, comment, keyLine) {
 
 async function main() {
   console.log('配置注释门禁（#1012：字段注释由程序生成且与 schema 同源）')
-  const core = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'config-store', 'config-store.js')).href)
+  const core = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'configStore.js')).href)
   const { stringifyConfig } = core
 
   const HEADER = '# 本文件的注释由插件生成；你自己加的注释会在下次写入时被替换。'

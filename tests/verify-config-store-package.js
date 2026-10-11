@@ -45,13 +45,16 @@ async function main() {
   // —— P3：产物随包发布 ——
   const files = shipPkg.files || []
   check(files.indexOf('shared') >= 0, '发布包 files 白名单含 shared（核产物能进包）', JSON.stringify(files))
-  check(fs.existsSync(path.join(ROOT, 'src', 'shared', 'config-store', 'config-store.js')), '核产物在 shared 下已生成', '')
+  for (const name of ['ports.js', 'workspace.js', 'settings.js', 'labels.js']) {
+    check(fs.existsSync(path.join(ROOT, 'src', 'shared', 'config-store', name)), '核产物在 shared 下已生成：' + name, '')
+  }
+  check(!fs.existsSync(path.join(ROOT, 'src', 'shared', 'config-store', 'config-store.js')), '老单体产物已拆掉（不留双份实现）', '')
   check(fs.existsSync(path.join(ROOT, 'src', 'host', 'configStore.js')), '宿主适配器在', '')
 
-  // —— P4：适配器可加载，六个冻结函数都在 ——
+  // —— P4：适配器可加载，冻结函数都在（文本出入口两个 + 文件读写六个） ——
   try {
     const adapter = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'configStore.js')).href)
-    for (const name of ['readWorkspaceConfig', 'writeWorkspaceConfig', 'readLocalSettings', 'writeLocalSettings', 'readLabelColors', 'writeLabelColors']) {
+    for (const name of ['parseConfig', 'stringifyConfig', 'readWorkspaceConfig', 'writeWorkspaceConfig', 'readLocalSettings', 'writeLocalSettings', 'readLabelColors', 'writeLabelColors']) {
       check(typeof adapter[name] === 'function', '冻结函数在：' + name)
     }
   } catch (e) {
