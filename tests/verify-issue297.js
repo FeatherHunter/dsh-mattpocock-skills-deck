@@ -1,19 +1,15 @@
-// verify-issue297.js —— 「工作区已空」这条失效维度（#297），以及 2026-09-21 对它的那次收窄（#669 第 1 件）。
+// verify-issue297.js —— 「工作区已空」这条失效维度（#297）。
 //
-// 这条维度今天管两件事，判据都落在 src/host/tracker/detection/detectionService.js：
-//   ① 记忆里的选择（宿主侧那份 H）：工作区已空 → 那条记录视为过期、不拿它回答（#297 的反向约束）；
+// 这条维度今天管两件事：
+//   ① 记忆里的选择（宿主侧那份 H）：工作区已空 → 那条记录视为过期、不拿它回答
+//      （判空逻辑在探测服务这一处，出口只收一个过期标记，不另写一份）；
 //   ② 缓存里那条选择：工作区已空 → 这份缓存不作数，重算。
-// 2026-09-21 的收窄（#669 第 1 件）：① 与 ② 都只作废「记忆与缓存里的选择」，
-//   **不作废「客户端当场报上来的那一个（hint）」** —— 全新空目录里用户刚在蓝条上选完后端，
-//   若把它一并作废，宿主的后端是空的、后端链整段不组装，链快照里连「已关联 GitHub 仓库」那一行都没有，
-//   界面那条横幅于是把「该工作区尚未初始化」黄条提前给出去（把用户往错误的一步引）。
-//
-// 为什么这一道要进 npm run verify：这个文件原来没挂在链上，而它写的还是收窄之前的口径
-//   （空目录 + hint → stale），于是一边红着一边没人看得见 —— 收窄之后，「当场选的那一个要算数」
-//   与「记忆里的那一个要失效」这两条约束在链上都没有判据。2026-09-22 把它按收窄后的口径改准、
-//   补上「记忆」那一条，并挂进 verify 链（每一组都带反证或对照，避免又变成一道白跑的绿灯）。
+// 2026-09-21 的收窄（#669 第 1 件：空目录里当场报上来的 hint 要算数）已随 #1003 老路径删除而退役 ——
+//   上报一律忽略，空目录 + hint 如实未知；下面 A/C/D 三组按退役后改准，B 组（记忆过期）原样保留。
 import { createRegistry } from '../src/host/tracker/registryCore.js'; // V1 #461：registry.js 已拆为三块
 import { createDetectionService } from '../src/host/tracker/detection/detectionService.js';
+import { decideBackend as outletDecideBackend, selectionFromOutlet as outletSelectionFromOutlet } from '../src/host/tracker/detection/backendDecision.js';
+try { outletDecideBackend.selectionFromOutlet = outletSelectionFromOutlet } catch (eAttachOutlet297) {}
 import { createWorkspaceStore } from '../src/host/tracker/detection/workspaceStore.js';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -44,6 +40,7 @@ const mkSvc = (plat, extra) => createDetectionService(Object.assign({
   getTimers: () => ({ setTimeout, clearTimeout }),
   workspaceStore: createWorkspaceStore({ ttl: 30000 }),
   skillProbe: async () => ({ ok: true, missing: [], probes: {} }),
+  decideBackend: outletDecideBackend,
 }, extra || {}));
 
 // 一份「记忆里记着 markdown」的假记忆库（形状照 src/host/choiceStore.js 的读口）
@@ -53,33 +50,30 @@ const mkMemory = (backendId) => async () => ({
 
 async function run() {
   console.log('');
-  console.log('-- A #669 正向：空工作区里「当场报上来的那一个」要算数（收窄之前这里被判成无后端）--');
+  console.log('-- A 上报即忽略（#669 收窄已随老路径退役）：空工作区里当场报上来的那一个不再算数 --');
   {
     const res = await mkSvc(emptyPlat).detect({ cwd: '/tmp/empty' }, { hintBackendId: 'markdown' });
-    ok(res.selection.backendId === 'markdown' && res.selection.source === 'explicit', '空目录 + hint -> 采纳 hint（实得 ' + JSON.stringify(res.selection && res.selection.backendId) + '）');
+    ok(!res.selection || res.selection.backendId === null, '空目录 + hint -> 上报不再参与，如实未知（实得 ' + JSON.stringify(res.selection && res.selection.backendId) + '）');
     const ig = await mkSvc(ignorablePlat).detect({ cwd: '/tmp/ignorable' }, { hintBackendId: 'markdown' });
-    ok(ig.selection.backendId === 'markdown', '只有 .DS_Store 的目录 + hint -> 同样采纳（实得 ' + JSON.stringify(ig.selection && ig.selection.backendId) + '）');
+    ok(!ig.selection || ig.selection.backendId === null, '只有 .DS_Store 的目录 + hint -> 同样未知（实得 ' + JSON.stringify(ig.selection && ig.selection.backendId) + '）');
     const ne = await mkSvc(nonEmptyPlat).detect({ cwd: '/tmp/nonempty' }, { hintBackendId: 'markdown' });
-    ok(ne.selection.backendId === 'markdown', '非空目录 + hint -> 采纳（这条没变过）');
-    // 反证：把 hint 这一档整个关掉（等于回到收窄之前的「一律作废」），上面第一条必须当场变红。
-    // 做法照 tests/verify-669-choice-precedence.js 的先例：把改坏的那一份**真的求值出来跑**，
-    // 剥掉两行 import、改用参数注入，只比字符串不等就是假反证。
+    ok(!ne.selection || ne.selection.backendId === null, '非空目录 + hint（无锚无文件无记忆）-> 上报仍不参与，如实未知（实得 ' + JSON.stringify(ne.selection && ne.selection.backendId) + '）');
+    // 反证：把上报优先级加回来，上面第一条必须当场变红（做法同 669 门禁）。
     const srcText = fs.readFileSync(fileURLToPath(new URL('../src/host/tracker/detection/detectionService.js', import.meta.url)), 'utf8')
-    const brokenText = srcText.replace('const hintUsable = !!(opts.hintBackendId', 'const hintUsable = false && !!(opts.hintBackendId')
-    ok(brokenText !== srcText, '反证 A 的改法能在真源里落地（把 hint 那一档关掉）');
-    const { createDetectionService: realCreate } = await import(new URL('../src/host/tracker/detection/detectionService.js', import.meta.url).href);
+    const readdedText = srcText.replace('let selection = explicitRes.selection', "let selection = (opts && opts.hintBackendId && registry && typeof registry.has === 'function' && registry.has(opts.hintBackendId)) ? { backendId: opts.hintBackendId, source: 'explicit', ref: null } : explicitRes.selection")
+    ok(readdedText !== srcText, '反证 A 的改法能在真源里落地（上报优先级加回来）');
     const { detectExplicit } = await import(new URL('../src/host/tracker/detection/explicitDetector.js', import.meta.url).href);
     const { canonicalWorkspaceKey } = await import(new URL('../src/host/workspaceKey.js', import.meta.url).href);
-    const brokenBody = brokenText
+    const brokenBody = readdedText
       .replace(/^import[^\n]*\n/gm, '')
       .replace(/^export default createDetectionService[^\n]*\n?/gm, '')
       .replace(/^[ \t]*export[ \t]+/gm, '');
-    // 本文件选 compileFn：这里就是「给两个参数名与函数体造一个函数再当场调用」，语义一一对应；
-    //   被造的代码只用这两个参数（剥掉了 import 的检测服务源码），用不到本文件作用域里的别的变量。
     const brokenCreate = compileFn(['detectExplicit', 'canonicalWorkspaceKey'], brokenBody + '\n;return createDetectionService')(detectExplicit, canonicalWorkspaceKey);
-    ok(typeof brokenCreate === 'function' && typeof realCreate === 'function', '改坏的那一份真的求值出来了（不是只比字符串）');
+    ok(typeof brokenCreate === 'function', '改坏的那一份真的求值出来了（不是只比字符串）');
     const brokenRes = await brokenCreate({ registry: reg, getPlatform: async () => emptyPlat, getFs: () => emptyPlat.fs, getTimers: () => ({ setTimeout, clearTimeout }), workspaceStore: createWorkspaceStore({ ttl: 30000 }), skillProbe: async () => ({ ok: true, missing: [], probes: {} }) }).detect({ cwd: '/tmp/empty-broken' }, { hintBackendId: 'markdown' });
-    ok(brokenRes.selection.backendId === null, '反证 A 成立：关掉 hint 那一档之后，空目录 + hint 又被判成无后端（实得 ' + JSON.stringify(brokenRes.selection && brokenRes.selection.backendId) + '）—— 说明 A 组量的就是这道闸');
+    ok(brokenRes.selection && brokenRes.selection.backendId === 'markdown', '反证 A 成立：上报优先级加回来之后，空目录 + hint 又变出 markdown（实得 ' + JSON.stringify(brokenRes.selection && brokenRes.selection.backendId) + '）—— 说明 A 组量的就是上报不再参与');
+    const honestRes = await mkSvc(emptyPlat).detect({ cwd: '/tmp/empty-honest' }, { hintBackendId: 'markdown' });
+    ok(!honestRes.selection || honestRes.selection.backendId === null, '（对照）真源里空目录 + hint 仍是未知');
   }
 
   console.log('');
@@ -99,12 +93,12 @@ async function run() {
   }
 
   console.log('');
-  console.log('-- C 其余两条不变的口径 --');
+  console.log('-- C 其余两条不变的口径（上报不再参与之后） --');
   {
     const noFs = await mkSvc(noFsPlat).detect({ cwd: '/tmp/empty' }, { hintBackendId: 'markdown' });
-    ok(noFs.selection.backendId === 'markdown', '平台没有 fs 时保守处理：不判空，hint 照采纳');
+    ok(!noFs.selection || noFs.selection.backendId === null, '平台没有 fs 时上报仍不参与，如实未知（实得 ' + JSON.stringify(noFs.selection && noFs.selection.backendId) + '）');
     const unreg = await mkSvc(emptyPlat).detect({ cwd: '/tmp/empty' }, { hintBackendId: 'unknown' });
-    ok(unreg.selection.backendId === null && unreg.selection.source === 'fallback', '注册表不认的 hint -> fallback（不许答一个没有模块的后端）');
+    ok(unreg.selection && unreg.selection.backendId === null && unreg.selection.source === 'fallback', '注册表不认的 hint -> fallback（不许答一个没有模块的后端）');
   }
 
   console.log('');
@@ -113,19 +107,21 @@ async function run() {
     const ws = createWorkspaceStore({ ttl: 30000 });
     const svc = mkSvc(emptyPlat, { workspaceStore: ws });
     const r1 = await svc.detect({ cwd: '/tmp/cached' }, { hintBackendId: 'markdown' });
-    ok(r1.selection.backendId === 'markdown', '空目录 + hint：第一次就是 hint（不再是 stale 的 explicit null）');
+    ok(!r1.selection || r1.selection.backendId === null, '空目录 + hint：上报不参与，第一次就是未知');
     const r2 = await svc.detect({ cwd: '/tmp/cached' }, { hintBackendId: 'markdown' });
-    ok(r2.selection.backendId === 'markdown', '第二次（不带 force、会走缓存那一路）仍然是同一个答复');
+    ok(!r2.selection || r2.selection.backendId === null, '第二次（不带 force、会走缓存那一路）仍然是同一个未知答复');
     // 工作区从「非空」变「空」：缓存里那条不许直接端出去，重算之后按当下的口径回答
     let plat = nonEmptyPlat;
     const ws2 = createWorkspaceStore({ ttl: 30000 });
-    const svc2 = createDetectionService({ registry: reg, getPlatform: async () => plat, getFs: () => plat.fs, getTimers: () => ({ setTimeout, clearTimeout }), workspaceStore: ws2, skillProbe: async () => ({ ok: true, missing: [], probes: {} }) });
-    const a1 = await svc2.detect({ cwd: '/tmp/cache-invalidate' }, { hintBackendId: 'markdown' });
-    ok(a1.selection.backendId === 'markdown', '先是非空目录：采纳 hint');
+    const memD = mkMemory('markdown');
+    const baseD = { registry: reg, getTimers: () => ({ setTimeout, clearTimeout }), workspaceStore: ws2, skillProbe: async () => ({ ok: true, missing: [], probes: {} }), getChoiceStore: memD, decideBackend: outletDecideBackend };
+    const svc2 = createDetectionService(Object.assign({ getPlatform: async () => plat, getFs: () => plat.fs }, baseD));
+    const a1 = await svc2.detect({ cwd: '/tmp/cache-invalidate' }, {});
+    ok(a1.selection && a1.selection.backendId === 'markdown', '先是非空目录：记忆回答 markdown');
     plat = emptyPlat;
-    const svc3 = createDetectionService({ registry: reg, getPlatform: async () => plat, getFs: () => plat.fs, getTimers: () => ({ setTimeout, clearTimeout }), workspaceStore: ws2, skillProbe: async () => ({ ok: true, missing: [], probes: {} }) });
-    const a2 = await svc3.detect({ cwd: '/tmp/cache-invalidate' }, { hintBackendId: 'markdown' });
-    ok(a2.selection.backendId === 'markdown', '目录清空之后：缓存那条被判过期、重算，答复按当下的口径给（不是缓存里的旧值）');
+    const svc3 = createDetectionService(Object.assign({ getPlatform: async () => plat, getFs: () => plat.fs }, baseD));
+    const a2 = await svc3.detect({ cwd: '/tmp/cache-invalidate' }, {});
+    ok(!a2.selection || a2.selection.backendId === null, '目录清空之后：缓存那条被判过期、重算，记忆已过期，如实未知（不是缓存里的旧值）');
   }
 }
 
