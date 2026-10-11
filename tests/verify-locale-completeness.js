@@ -102,6 +102,7 @@ const BASELINE = {
   'kernel/router.js': 1,
   'kernel/store-switch.js': 5, // #455 K2 由 store.js 拆出：切换确认分得 5 串（合计 6，与原持平，注释已剥离不计）
   'kernel/store-snapshot.js': 1, // #455 K2 由 store.js 拆出：存储核分得 1 串（makeStore 外观词）
+  'kernel/store-prefs.js': 3, // #1012 绑定回执那一行给用户看的三句状态文字：已创建、已覆盖、环境失败（跳过与没有结果都回空串，不占额度）；以后这三句改走中英文词条时把这条收紧到 0
   'kernel/actions.js': 1, // 2026-08-28 #317 wizard 队列与提交闭环：RPC 业务失败透传文案，按封顶章程登记（0→1）
   'kernel/api-new-session.js': 5, // #457 由 api.js 拆出时漏登记：占位四式比对 2 串 + 动作推断关键词 3 串（均为代码比对非界面文案，界面文案一律走 tr()；#746 确认零新增）
   'kernel/slotRenderer-queue.js': 6, // #454 K1 由 slotRenderer.js 拆出：打开入口与守门分得 6 串（合计 44，较原 46 缩小，注释已剥离不计）
