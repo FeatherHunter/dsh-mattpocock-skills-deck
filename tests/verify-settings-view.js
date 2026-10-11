@@ -346,7 +346,10 @@ async function main() {
     check(env.mod.setViewFlag(cwd, 'bannerFolded', true) === true, '在预置文件的基础上写本工作区这一格。')
     await wait(env)
     const doc = await readDoc(env.home)
-    check(!!doc && JSON.stringify(doc.ui) === JSON.stringify(preset.ui), 'ui 节原样保留（状态过滤、排序、标签点击次数一个不动）。', JSON.stringify(doc && doc.ui))
+    // 标签点击次数不落盘（维护者 2026-10-12 拍板），所以「一个不动」的只有状态过滤与排序两项，
+    //   ui 节里那一项写出去时被丢掉，读回来是空的。
+    const uiExpected = { stateFilter: preset.ui.stateFilter, sortKey: preset.ui.sortKey, sortDir: preset.ui.sortDir, labelClicks: {} }
+    check(!!doc && JSON.stringify(doc.ui) === JSON.stringify(uiExpected), 'ui 节原样保留（状态过滤、排序一个不动；标签点击次数不落盘，写出去的一份里没有它）。', JSON.stringify(doc && doc.ui))
     check(!!doc && JSON.stringify(doc.debug) === JSON.stringify(preset.debug), 'debug 节原样保留（开关与采样率一个不动）。', JSON.stringify(doc && doc.debug))
     check(!!doc && JSON.stringify(doc.templates) === JSON.stringify(preset.templates), 'templates 节原样保留（用户自己写的模板文本一个不动）。', JSON.stringify(doc && doc.templates))
     check(!!doc && !!doc.workspaces['D:\\other'] && doc.workspaces['D:\\other'].bannerFolded === true && doc.workspaces['D:\\other'].noRepoDismissed === true,
@@ -862,6 +865,25 @@ async function main() {
     check(sent.length >= 2, '这一笔没有被误划掉：回包之后又排了一趟写，实得 ' + sent.length + ' 次写电话。')
     check(settled, '盘上最后是用户最后那一下的值 true（不是中途那个 false）。', JSON.stringify(doc && doc.workspaces))
     check(env.mod.viewFlagOf(cwd, 'bannerFolded') === true, '内存里也是 true —— 盘上与内存一致。')
+  }
+
+  // ── 标签点击次数不落盘（#1012 · 维护者 2026-10-12 拍板）──────────────────────────
+  //   这一项只是标签 chip 排序用的热度，丢了不影响功能：客户端既不读旧本地键，也不写本地存储；
+  //   核那一侧写本机设置文件时也不再写它（那一半在 tests/verify-config-store-core.js 的 C1 里验）。
+  {
+    const seeded = { 'dsws.labelClicks': JSON.stringify({ bug: 9, task: 4 }) }
+    const writes = []
+    globalThis.localStorage = {
+      getItem: (k) => (Object.prototype.hasOwnProperty.call(seeded, k) ? seeded[k] : null),
+      setItem: (k, v) => { writes.push(k); seeded[k] = String(v) },
+      removeItem: (k) => { delete seeded[k] },
+    }
+    const prefs = await import(pathToFileURL(path.join(ROOT, 'src/client/kernel/store-prefs.js')).href)
+    check(JSON.stringify(prefs.labelClicks) === '{}', '标签点击次数不读旧本地键（窗口一开就是空的）', JSON.stringify(prefs.labelClicks))
+    prefs.labelClicks.bug = 1
+    prefs.saveLabelClicks()
+    check(writes.length === 0, '标签点击次数不写本地存储（这一项不落盘）', JSON.stringify(writes))
+    check(seeded['dsws.labelClicks'] === JSON.stringify({ bug: 9, task: 4 }), '旧本地键里的历史数据也没被改写', seeded['dsws.labelClicks'])
   }
 
   console.log(failed ? ('\n存在失败 — verify-settings-view 未通过（' + passed + ' 项通过、' + failed + ' 项失败）') : ('\n全部通过 — 客户端观看状态门禁生效（' + passed + ' 项断言）'))

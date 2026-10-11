@@ -19,7 +19,6 @@ export const SETTINGS_REL_SEGMENTS = ['.dsh', 'mattskillsdeck', 'settings.yaml']
 const HEADER = ['# 本文件的注释由插件生成；你自己加的注释会在下次写入时被替换。']
 const COMMENT_UI = '# 界面偏好（本机全工作区默认生效）'
 const COMMENT_STATE = '# 主列表的状态过滤与排序'
-const COMMENT_CLICKS = '# 标签被点过的次数，用于标签 chip 排序'
 const COMMENT_WORKSPACES = '# 按工作区区分的观看状态（键 = 工作区根目录）'
 const COMMENT_BANNER = '# 状态栏横幅与胶囊是否收起'
 const COMMENT_NOREPO = '# 无仓库红卡是否已收起'
@@ -28,6 +27,8 @@ const COMMENT_DEBUG = '# 本地诊断日志开关'
 const COMMENT_TEMPLATES = '# 动作模板（空 = 用默认文本）'
 
 const TOP_KEYS = ['version', 'ui', 'workspaces', 'debug', 'templates']
+// labelClicks 只在「读」这一侧认得（老文件里可能已经写进去了，读出来不能报错），写出去的一份里没有它：
+// 维护者 2026-10-12 拍板这项不落盘——它只是标签 chip 排序用的热度，丢了不影响功能，没必要占文件。
 const UI_KEYS = ['stateFilter', 'sortKey', 'sortDir', 'labelClicks']
 const WS_KEYS = ['bannerFolded', 'noRepoDismissed', 'subwsMarkAutoShown']
 const DEBUG_KEYS = ['enabled', 'sampleRate']
@@ -213,14 +214,7 @@ export function stringifySettings(value: unknown): ConfigStringifyResult {
   lines.push('  stateFilter: ' + esc(String(ui['stateFilter'])))
   lines.push('  sortKey: ' + esc(String(ui['sortKey'])))
   lines.push('  sortDir: ' + esc(String(ui['sortDir'])))
-  lines.push('  ' + COMMENT_CLICKS)
-  const clickKeys = Object.keys(ui['labelClicks'] as Record<string, unknown>)
-  if (clickKeys.length === 0) {
-    lines.push('  labelClicks: {}')
-  } else {
-    lines.push('  labelClicks:')
-    for (const name of clickKeys) lines.push('    ' + esc(name) + ': ' + String((ui['labelClicks'] as Record<string, unknown>)[name]))
-  }
+  // labelClicks 不写出去（理由见上面 UI_KEYS 旁的注释）。老文件里那一节在下次写入时自然消失。
   lines.push(COMMENT_WORKSPACES)
   const wsKeys = Object.keys(workspaces)
   if (wsKeys.length === 0) {

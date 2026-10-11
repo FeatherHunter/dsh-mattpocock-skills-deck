@@ -4,7 +4,6 @@ export const SETTINGS_REL_SEGMENTS = [".dsh", "mattskillsdeck", "settings.yaml"]
 const HEADER = ["# \u672C\u6587\u4EF6\u7684\u6CE8\u91CA\u7531\u63D2\u4EF6\u751F\u6210\uFF1B\u4F60\u81EA\u5DF1\u52A0\u7684\u6CE8\u91CA\u4F1A\u5728\u4E0B\u6B21\u5199\u5165\u65F6\u88AB\u66FF\u6362\u3002"];
 const COMMENT_UI = "# \u754C\u9762\u504F\u597D\uFF08\u672C\u673A\u5168\u5DE5\u4F5C\u533A\u9ED8\u8BA4\u751F\u6548\uFF09";
 const COMMENT_STATE = "# \u4E3B\u5217\u8868\u7684\u72B6\u6001\u8FC7\u6EE4\u4E0E\u6392\u5E8F";
-const COMMENT_CLICKS = "# \u6807\u7B7E\u88AB\u70B9\u8FC7\u7684\u6B21\u6570\uFF0C\u7528\u4E8E\u6807\u7B7E chip \u6392\u5E8F";
 const COMMENT_WORKSPACES = "# \u6309\u5DE5\u4F5C\u533A\u533A\u5206\u7684\u89C2\u770B\u72B6\u6001\uFF08\u952E = \u5DE5\u4F5C\u533A\u6839\u76EE\u5F55\uFF09";
 const COMMENT_BANNER = "# \u72B6\u6001\u680F\u6A2A\u5E45\u4E0E\u80F6\u56CA\u662F\u5426\u6536\u8D77";
 const COMMENT_NOREPO = "# \u65E0\u4ED3\u5E93\u7EA2\u5361\u662F\u5426\u5DF2\u6536\u8D77";
@@ -167,14 +166,6 @@ export function stringifySettings(value) {
   lines.push("  stateFilter: " + esc(String(ui["stateFilter"])));
   lines.push("  sortKey: " + esc(String(ui["sortKey"])));
   lines.push("  sortDir: " + esc(String(ui["sortDir"])));
-  lines.push("  " + COMMENT_CLICKS);
-  const clickKeys = Object.keys(ui["labelClicks"]);
-  if (clickKeys.length === 0) {
-    lines.push("  labelClicks: {}");
-  } else {
-    lines.push("  labelClicks:");
-    for (const name of clickKeys) lines.push("    " + esc(name) + ": " + String(ui["labelClicks"][name]));
-  }
   lines.push(COMMENT_WORKSPACES);
   const wsKeys = Object.keys(workspaces);
   if (wsKeys.length === 0) {

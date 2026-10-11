@@ -21,15 +21,14 @@
     })()
     export const saveListPrefs = function () { try { localStorage.setItem(LIST_PREFS_KEY, JSON.stringify(listPrefs)) } catch (e) { try { log('warn', 'storage.fail', { key: LIST_PREFS_KEY, op: 'write' }) } catch (eL) {} } }
     // #375：label 点击记忆（次数 + 最近点击时间，双键排序）
+    // #1012（2026-10-12 维护者拍板）：这一项不落盘。它只是标签 chip 排序用的热度，丢了不影响
+    //   功能，本机设置文件里也不存它（核不再写 ui 节的 labelClicks）。所以这份计数只活在本次
+    //   会话的内存里：不读也不写 localStorage；旧键 dsws.labelClicks 里的历史数据不再读，
+    //   窗口一关热度就归零。导出名保留——调用方 ListTab 与接口冻结清单都还按这个名字引用，
+    //   值只当内存表用；saveLabelClicks 保留成空动作，调用点因此不必改。
     export const LABEL_CLICKS_KEY = 'dsws.labelClicks'
-    export const labelClicks = (function () {
-      try {
-        const raw = localStorage.getItem(LABEL_CLICKS_KEY)
-        if (raw) { const o = JSON.parse(raw); return (o && typeof o === 'object') ? o : {} }
-      } catch (e) { try { log('warn', 'storage.fail', { key: LABEL_CLICKS_KEY, op: 'read' }) } catch (eL) {} }
-      return {}
-    })()
-    export const saveLabelClicks = function () { try { localStorage.setItem(LABEL_CLICKS_KEY, JSON.stringify(labelClicks)) } catch (e) { try { log('warn', 'storage.fail', { key: LABEL_CLICKS_KEY, op: 'write' }) } catch (eL) {} } }
+    export const labelClicks = {}
+    export const saveLabelClicks = function () {}
     // T2 #35 · 无仓库红卡状态机（按工作区维度持久化 dismiss；表单态 expanded/name/visibility/loading/error）
     // #653 修正：此前这里用 cwdHash 散列**原始串**（没走规整函数），同一个目录换一种写法（多一个尾斜杠、
     //   盘符大小写不同）就会散出另一把键，收起过的红卡会重新冒出来。现在统一走工作区键（wsKeyOf）：
