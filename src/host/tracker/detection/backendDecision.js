@@ -163,7 +163,12 @@ export async function decideBackend(root, deps = {}) {
   }
   let autodetect = null;
   try {
-    if (registry && typeof registry.select === 'function' && deps.skipAutodetect !== true) {
+    if (typeof deps.autodetect === 'function') {
+      // 可选钩子：调用方把自己的自动识别包一层再交进来（例如工具壳把配额闸包在外面，
+      // 行为与直接调注册表一致，只多记账）。不传钩子时直调注册表，其余三路走这一条。
+      const ctx = { cwd, platform: deps.platform || null, fs: deps.fs || null, caller: deps.caller || 'backend-decision', signal: deps.signal };
+      autodetect = await deps.autodetect(handle, ctx);
+    } else if (registry && typeof registry.select === 'function' && deps.skipAutodetect !== true) {
       const ctx = { cwd, platform: deps.platform || null, fs: deps.fs || null, caller: deps.caller || 'backend-decision', signal: deps.signal };
       autodetect = await registry.select(handle, ctx);
     }
