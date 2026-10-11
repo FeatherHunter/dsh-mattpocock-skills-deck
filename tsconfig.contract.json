@@ -1,0 +1,24 @@
+{
+  // 契约层的 TypeScript 类型检查配置：只检查不产出。
+  // 这一层是纯类型（接口与形状），**没有任何运行时实现**：真正的 JS 由各房与 contract.js
+  // 继续承担，等迁移批次把它们换过来。所以这里不需要 esbuild 转译步骤，也没有派生产物。
+  //
+  // 与四个计算核（label-color-core 等）的差别只有一处：本文件要多给一个 DOM 库。
+  // 原因是契约里会出现 AbortSignal（中止信号）与 setTimeout（定时器）这两个类型，
+  // 它们由 DOM 库提供；Node 侧的同名能力与这里声明的是同一形状，不需要再引 @types/node。
+  "compilerOptions": {
+    // 保守目标：宿主（Node）与客户端闭包两边都跑得动，与四个核同一套保证。
+    "target": "ES2020",
+    "lib": ["ES2020", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    // 只做类型检查不产出（这一层没有运行时实现可产出）。
+    "noEmit": true,
+    "strict": true,
+    // 不引任何 @types 包：类型只用语言自带的标准写法，不依赖特殊编译选项。
+    "types": [],
+    "skipLibCheck": true
+  },
+  // 只圈契约目录：别的目录还没转过来，圈进来会当场红一片（那是迁移批次的事）。
+  "include": ["src/tracker/contract/**/*.ts"]
+}
