@@ -5,7 +5,7 @@
  *   拼回 src/client/index.js 里那一行 kernel:settingsView 拼接标记处（apply 闭包内原位），
  *   与 ctx.js/seam 同模式，一源两物，src 零复制。
  *
- * 本片管四件事：这把键怎么认（viewFlagDocKeyOf 读、viewFlagWriteKeyOf 写）、文档里这一条记录怎么找、
+ * 本片管四件事：这把键怎么认（viewFlagDocKeyOf，读与写共用同一把）、文档里这一条记录怎么找、
  *   读一格（viewFlagOf）、把读回来的文档交给界面（settingsViewLoad 与 viewFlagSettle）。
  *   「写这一趟」（待写队列、防抖、写前重读合并、写失败重试）住在 kernel/settings-view-write.js，
  *   拼在本文之后 —— 它要用本文这几个键与文档工具。两片共用的状态对象与「问完真源了没有」那两个口子
@@ -18,6 +18,7 @@
  * 为什么写成 JavaScript 而不是 TypeScript：内核模块的运行时形状来自拼接 —— scripts/build.mjs 把本文件的
  *   声明体拼进 src/client/index.js 的闭包，tsconfig 不覆盖内核这几片；写成 TypeScript 既进不了类型检查也
  *   进不了产物，是静默失效。仓库现行口径是「动到哪里转哪里」，内核这几片的转写另立一票。
+ *   内核片登记以本片门禁为准：tests/verify-kernel.js 那份模块清单没登记这三片（存量口径），导出名、拼接次序与产物内容由 tests/verify-settings-view.js 逐条量。
  *
  * 真相只有一份：本机设置文件（用户主目录下的 .dsh/mattskillsdeck/settings.yaml，核校验见
  *   src/shared/config-store/settings.js）里 workspaces 那一节，是按工作区记住的观看状态的唯一真源。
@@ -31,16 +32,21 @@
  *
  * 键用工作区根的可读路径（设置文件是写给人看的，人在里面要认得出这是哪个工作区），不用那个折叠散列
  *   （noRepoDismissKey 那种「前缀 + 折叠后算出来的数字」，人看不懂）。可读路径的来源按序取：
- *   ① 会话状态上的工作区根：src/client/kernel/store-snapshot.js 第 29 行的 sessionWorkspaceRoot，由
+ *   ① 本会话（或同目录别的会话）状态上的工作区根：src/client/kernel/store-snapshot.js 第 29 行的
+ *      sessionWorkspaceRoot，由
  *      src/client/kernel/probe-snapshot.js 第 83–90 行的 rememberSessionWorkspaceRoot 从 wf.cwd 回包里
  *      收下；它是折算过的键，所以按本会话所选目录的写法还原一遍（与
  *      src/client/views/SubworkspaceMark.js 第 45–67 行同一条规矩：比对用折算键、给人看用原样写法）。
  *      这一手还原在 Windows 上成立（盘符自己占一段）；在 POSIX 上还原不出来 —— 绝对路径开头那个斜杠
  *      按段拼不回来（/home/u/p 切出来是 home/u/p，前面那个斜杠没了），于是写进文件的就是那份折算键。
  *      这是如实写下的边界，不是待修的缺陷：POSIX 上文件里的键是折算键，它仍是一条人认得出的路径，不是散列。
- *   ② 会话状态上没有根时退到内核那把工作区键 wsKeyOf（store-snapshot.js 第 69 行）：已认出根就是根、
- *      只认出会话目录就是会话目录。**只有读这一侧**退到这一档；写这一侧不退（见 viewFlagWriteKeyOf）。
- *   ③ 两条都拿不到（cwd 为空）时回空串：这一笔只读旧表、也只写旧表，绝不猜一把键。
+ *   ② 会话状态上没有根时看内核那把工作区键 wsKeyOf（store-snapshot.js 第 69 行）：它折出了另一条目录，
+ *      或那张表里记着「这条键就是某个工作区根」（第 63 行的 root → root 那一份，所选目录本身就是工作区根
+ *      时折不出区别），都算真认得根；两样都不是，就是谁都没认出来。
+ *   ③ 谁都没认出来（或 cwd 为空）时回空串：**读与写共用这一把键、都在这一个口子上判**，两边对「这把键
+ *      有没有」答案必然一致，这一刻只读旧表、也只写旧表，绝不猜一把键。从前读这一侧还会退到会话目录
+ *      （写这一侧不退），于是出现「读口已按文件里那条根记录答、写口却判成认不出」的错位：用户点一下
+ *      等于没反应、浮层「自动展开过没有」退化成每进一次子目录会话白弹一次（#1012 后续修复的 M5）。
  * 同一个工作区的不同写法落到同一条记录上（找条目时两边都折算过再比），换一种写法不会在文件里长出第二条。
  * 写是整份写回：wf.setSettings 收的是整份文档，所以只改内存文档里「这一个工作区的这一格」，
  *   别的节与别的字段原样带回去。写之前的重读合并、防抖窗口与失败重试见 kernel/settings-view-write.js。
@@ -98,54 +104,44 @@
         return String(known == null ? '' : known)
       } catch (e) { return String(known == null ? '' : known) }
     }
-    // 会话状态里与本会话目录相同的那一条会话（同一工作区的会话共享同一个根，找到任意一条就够）：
-    //   扫法与 store-prefs.js 第 210–216 行同例，先 shared 再 stores，按折算键比。
-    const viewFlagStoreOf = function (cwd) {
+    // 这个所选目录确实认得工作区根吗：认得就回那把根（折算过的键），认不出回空串。
+    //   读与写共用这一个口子 —— 两边对「这把键有没有」必须给同一个答案，否则会出现「读口已按文件里那条
+    //   记录答、写口却判成认不出」的错位：用户点一下等于没反应，浮层「自动展开过没有」也会退化成每进
+    //   一次子目录会话白弹一次（#1012 后续修复的 M5；父提交 335bbd20 上同一现场是有效的，所以是新引入的）。
+    //   三个来源任一成立就算认得根：①同目录任一条会话状态上写着根 —— 不只「先命中」那一条：shared
+    //   这条会话没有会话号、永远不问根，而同一目录另一条 store 可能早就知道；②内核那把工作区键
+    //   wsKeyOf（store-snapshot.js 第 69 行）折出了另一条目录，说明表里记着这条键属于某个根；
+    //   ③表里记着「这条键就是某个根」那一份自指（第 63 行的 root → root），此时它折回来还是自己。
+    //   三条都不成立就是谁都没认出来：回空串，这一笔只走旧表 —— 绝不猜一把会话目录键，等根认出来
+    //   键就变了，文件里会留下一条既读不回来、也永远合并不到的孤儿记录（M3 的口径，仍然照旧守着）。
+    const viewFlagKnownRootOf = function (raw) {
       try {
-        const want = viewFlagNormOf(cwd)
-        if (!want) return null
-        if (typeof shared !== 'undefined' && shared && shared.cwd && viewFlagNormOf(shared.cwd) === want) return shared
-        if (typeof stores !== 'undefined' && stores) {
-          const ks = Object.keys(stores)
-          for (let i = 0; i < ks.length; i++) {
-            const st = stores[ks[i]]
-            if (st && st.cwd && viewFlagNormOf(st.cwd) === want) return st
-          }
+        const want = viewFlagNormOf(raw)
+        if (!want) return ''
+        const pick = function (st) {
+          return (st && st.cwd && viewFlagNormOf(st.cwd) === want && st.sessionWorkspaceRoot) ? String(st.sessionWorkspaceRoot).trim() : ''
         }
-      } catch (e) {}
-      return null
-    }
-    // 会话状态上认出来的工作区根（认不出回空串）：这一档是「真的认出了根」，不是「退到会话目录」。
-    const viewFlagRootOf = function (cwd) {
-      try {
-        const st = viewFlagStoreOf(cwd)
-        return (st && st.sessionWorkspaceRoot) ? String(st.sessionWorkspaceRoot).trim() : ''
+        let hit = ''
+        try { if (typeof shared !== 'undefined' && shared) hit = pick(shared) } catch (e0) {}
+        if (!hit && typeof stores !== 'undefined' && stores) {
+          const ks = Object.keys(stores)
+          for (let i = 0; i < ks.length; i++) { hit = pick(stores[ks[i]]); if (hit) break }
+        }
+        if (hit) return hit
+        if (typeof wsKeyOf !== 'function') return ''
+        const folded = String(wsKeyOf(raw) || '')
+        if (!folded) return ''
+        if (folded !== want) return folded
+        try { if (typeof workspaceRootByCwd !== 'undefined' && workspaceRootByCwd && workspaceRootByCwd[want]) return folded } catch (e1) {}
+        return ''
       } catch (e) { return '' }
     }
-    // 读这一侧要用的那把键：已认出工作区根就用根的可读写法，只认出会话目录就用会话目录本身，
-    //   两条都没有（cwd 为空）就回空串（调用方据此只走旧表，不猜一把键）。
+    // 读这一侧要用的那把键：与写侧同一个口子，只多一手「还原成本会话自己的写法」。
     export const viewFlagDocKeyOf = function (cwd) {
-      try {
-        const raw = String(cwd == null ? '' : cwd).trim()
-        if (!raw) return ''
-        const known = viewFlagRootOf(raw) || ((typeof wsKeyOf === 'function') ? String(wsKeyOf(raw) || '') : '')
-        if (!known) return ''
-        return viewFlagShownRootOf(known, raw)
-      } catch (e) { return '' }
+      try { return viewFlagShownRootOf(viewFlagKnownRootOf(cwd), cwd) } catch (e) { return '' }
     }
-    // 写这一侧要用的那把键：只有真认出工作区根才回一把键，认不出就回空串 —— 写这一趟据此直接判不接。
-    //   为什么写这一侧不退到会话目录（#1012 后续修复的 M3）：会话目录当键写下去之后，等根认出来键就变了，
-    //   文件里会留下一条既读不回来、也永远不会被合并的孤儿记录（同一个工作区两条记录各说各话）。
-    //   认不出根时写这一侧返回失败，调用方照改动前的老办法写旧表 —— 行为与搬迁前一致，只是这一次不落新家。
-    export const viewFlagWriteKeyOf = function (cwd) {
-      try {
-        const raw = String(cwd == null ? '' : cwd).trim()
-        if (!raw) return ''
-        const known = viewFlagRootOf(raw)
-        if (!known) return ''
-        return viewFlagShownRootOf(known, raw)
-      } catch (e) { return '' }
-    }
+    // 写这一侧要用的那把键：同一把键 —— 空串就表示认不出根，写这一趟据此一个字都不写文件。
+    export const viewFlagWriteKeyOf = function (cwd) { return viewFlagDocKeyOf(cwd) }
     // 文档里这一条记录的那把键：已经有同一条工作区的记录就沿用它原来那把键（人的写法不同也算同一条），
     //   于是同一个工作区只留一条，也不会因为某次会话的写法不同而长出第二条。
     const viewFlagEntryKeyOf = function (doc, key) {
@@ -272,7 +268,7 @@
           const d = viewFlagState.deferred[keys[i]]
           const key = (status === 'ready') ? viewFlagWriteKeyOf(d.cwd) : ''
           if (key && viewFlagSetInDoc(viewFlagState.doc, d.cwd, key, d.name, d.value)) {
-            viewFlagState.journal[viewFlagJournalKeyOf(key, d.name)] = d
+            viewFlagState.journal[viewFlagJournalKeyOf(key, d.name)] = { cwd: d.cwd, name: d.name, value: d.value, key: key }
             continue
           }
           // 这一笔没能进文档：文档没到手、认不出工作区根、或文档形状对不上写不进去 —— 三种都走同一条

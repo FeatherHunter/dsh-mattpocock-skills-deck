@@ -28,8 +28,9 @@
  *   三、真正要写之前先重读一次文件，把本窗改过的那几格合并进刚读回来的那一份再写出去。不这么做，
  *       每一笔写都是整份覆盖，而后写的窗会把先写那扇窗刚写进去的别的格整节顶掉（先写那扇窗还以为
  *       自己成功了）。做不到原子这一点如实写下：重读与写回是两条电话，中间隔着一次往返，浏览器里也
- *       没有文件锁或事务，所以两扇窗同时改**同一格**时仍可能丢掉后落盘的那一次；能保证的是不会再
- *       把别人改的整节顶掉。
+ *       没有文件锁或事务，所以两扇窗同时改**同一格**时仍可能丢掉后落盘的那一次。重读把「整节被顶掉」
+ *       的窗口从「上一趟写到现在」缩到「重读→写回」这一个来回，但缩不到零：重读之后、写回之前别人
+ *       写进去的别的格，照样可能被这一趟整份顶掉（实测），不许说成不会。
  *   四、认不出工作区根时这一片直接返回失败、一个字都不写文件（见 settings-view.js 的 viewFlagWriteKeyOf）：
  *       会话目录当键写下去会留下永远合并不到一起的孤儿记录。
  */
@@ -60,7 +61,9 @@
           for (let i = 0; i < sentKeys.length; i++) {
             const d = viewFlagState.journal[sentKeys[i]]
             if (!d) continue
-            const key = viewFlagDocKeyOf(d.cwd)
+            // 用队列里这一笔自带的键，不重算（#1012 后续修复的建议 2）：本会话若在排期与落盘之间跟丢了根，
+            //   重算出来的键会换成会话目录那一条，文件里就长出同一工作区的第二条记录、根那条还是旧值。
+            const key = d.key || viewFlagDocKeyOf(d.cwd)
             if (key) viewFlagSetInDoc(fresh, d.cwd, key, d.name, d.value)
           }
           // 内存那一份换成刚读回来的那一份：这样界面接下来读到的，与盘上那一份是同一份（含别人写进去的格）。
@@ -107,11 +110,34 @@
     const viewFlagSnapshotDoc = function (doc) {
       try { return JSON.parse(JSON.stringify(doc)) } catch (e) { return doc }
     }
-    // 把这一份文档交给宿主（wf.setSettings 收的是整份文档），回包按上面那两条约定处理。
-    const viewFlagSendDoc = function (value, sentKeys, sentVals, t0) {
+    // 这一趟真正写出去的值：从交给宿主的那份快照里按格取，不是从队列里取「发出前那一刻的值」。
+    //   为什么必须这样（#1012 后续修复的 M1 残留）：重读那一个来回里用户又改了值，合并用的是「合并那一刻」
+    //   的值、快照里落的也是它；判据若仍比发出前的值，用户在回包前又改回发出前那个值就会被判成「没改过」，
+    //   这一笔被划掉 —— 盘上留中间值、内存是最后那一下，两边从此不一致（要等用户再点这一格才可能修回来）。
+    //   按格取值时先按折算键找那条记录（同一工作区的两种写法算同一条），找不到就退回队列里的值。
+    const viewFlagSentValIn = function (snap, d) {
+      try {
+        const key = d.key || viewFlagDocKeyOf(d.cwd)
+        if (!key || !snap || !snap.workspaces || typeof snap.workspaces !== 'object') return d.value
+        const ek = viewFlagEntryKeyOf(snap, key)
+        const v = ek ? (snap.workspaces[ek] || {})[d.name] : undefined
+        return (typeof v === 'boolean') ? v : d.value
+      } catch (e) { return d.value }
+    }
+    const viewFlagSentValsOf = function (snap, sentKeys) {
+      const out = {}
+      for (let i = 0; i < sentKeys.length; i++) {
+        const d = viewFlagState.journal[sentKeys[i]]
+        if (d) out[sentKeys[i]] = viewFlagSentValIn(snap, d)
+      }
+      return out
+    }
+    // 把这一份已经照过相的文档交给宿主（wf.setSettings 收的是整份文档），回包按上面那两条约定处理。
+    //   sentVals 必须是对着同一份快照算出来的（见 viewFlagSentValIn）：这一趟发的是哪个值只有一个答案。
+    const viewFlagSendDoc = function (snap, sentKeys, sentVals, t0) {
       try {
         if (typeof host === 'undefined' || !host || typeof host.call !== 'function') { viewFlagFallbackToLegacy(sentKeys); return }
-        host.call('wf.setSettings', { value: viewFlagSnapshotDoc(value) }).then(function (res) {
+        host.call('wf.setSettings', { value: snap }).then(function (res) {
           const okRes = !!(res && res.ok === true)
           try {
             if (okRes) log('info', 'host.call', { method: 'wf.setSettings', latencyMs: Date.now() - t0, ok: true, kind: 'settings' })
@@ -123,23 +149,26 @@
         }, function () { viewFlagFallbackToLegacy(sentKeys) })
       } catch (e) { viewFlagFallbackToLegacy(sentKeys) }
     }
-    // 真写一趟：先把队列里那几笔「发出去那一刻的值」记一份，再重读合并，最后整份写出去。
+    // 真写一趟：先重读合并，再把「真正要发出去的那一份」照一张相，按这一份记下这一趟发出去的值，最后整份写出去。
     const viewFlagWriteNow = function () {
       try {
         viewFlagState.timer = 0
         if (viewFlagState.status !== 'ready' || !viewFlagState.doc) return
         const sentKeys = Object.keys(viewFlagState.journal)
         if (!sentKeys.length) return
-        const sentVals = {}
-        for (let i = 0; i < sentKeys.length; i++) sentVals[sentKeys[i]] = viewFlagState.journal[sentKeys[i]].value
         if (typeof host === 'undefined' || !host || typeof host.call !== 'function') { viewFlagFallbackToLegacy(sentKeys); return }
         const t0 = Date.now()
+        // 照相与记值必须对着同一份：先照相，再从这份相里按格取出「这一趟发出去的值」（文件头那一条判据）。
+        const sendOf = function (doc) {
+          const snap = viewFlagSnapshotDoc(doc)
+          viewFlagSendDoc(snap, sentKeys, viewFlagSentValsOf(snap, sentKeys), t0)
+        }
         viewFlagFreshDocFor(sentKeys).then(function (fresh) {
           const value = fresh || viewFlagState.doc
           if (!value) { viewFlagFallbackToLegacy(sentKeys); return }
-          viewFlagSendDoc(value, sentKeys, sentVals, t0)
+          sendOf(value)
         }, function () {
-          if (viewFlagState.doc) viewFlagSendDoc(viewFlagState.doc, sentKeys, sentVals, t0)
+          if (viewFlagState.doc) sendOf(viewFlagState.doc)
           else viewFlagFallbackToLegacy(sentKeys)
         })
       } catch (e) { try { viewFlagFallbackToLegacy(Object.keys(viewFlagState.journal)) } catch (e2) {} }
@@ -180,7 +209,7 @@
           viewFlagLogDocFail()
           return false
         }
-        viewFlagState.journal[viewFlagJournalKeyOf(key, name)] = { cwd: cwd, name: name, value: on }
+        viewFlagState.journal[viewFlagJournalKeyOf(key, name)] = { cwd: cwd, name: name, value: on, key: key }
         viewFlagScheduleWrite()
         return true
       } catch (e) { return false }

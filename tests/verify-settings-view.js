@@ -2,14 +2,16 @@
 /**
  * verify-settings-view.js —— 客户端「按工作区的观看状态」搬到本机设置文件的门禁（#1012）。
  *
- * 这一份门禁只量十二件事，每一件都用完整的一句话说清，第一次读的人能直接看懂。
+ * 这一份门禁只量十四件事，每一件都用完整的一句话说清，第一次读的人能直接看懂。
  * 第一件事是缺席时回退旧表读：设置文件还没建出来的时候，读到的值要与改动前一样来自 localStorage 那两个旧键。
  * 第二件事是写成功后旧 localStorage 键一个字节都不写：新后端这条路成了，两处都写就是两份真相。
  * 第三件事是写失败才过渡写旧键：只有写不进文件（或文件是更高版本、不许写回去）时，才把这一次的值写回旧键。
  * 第四件事是合并着写不丢别人的东西：只换这一个工作区的这一格，别的节、别的字段、别的工作区的记录原样保留。
  * 第五件事是键的写法：用工作区根的可读路径（本会话自己的那一种写法），不是折叠散列，同一个工作区只留一条。
  * 第六件事是防抖：连着来的几下写合并成一次电话调用。
- * 第七件事是接线：store-prefs.js 与 SubworkspaceMark.js 真的改调了这一片，旧表过渡还留着，四份文件都不超三百五十行。
+ * 第七件事是行数：这一片拆出来的几份文件与 src/client/index.js 都不超三百五十行。
+ *   （2026-10-12 修订：原来这一件事还读 store-prefs.js 与 SubworkspaceMark.js 的源码文本，断言它们「改调了
+ *   这一片」的写法，等价重构就会变红，已删；剩下的只是行数配额。）
  *
  * 第八件事是「文档还在路上时不许下结论」：这份设置文档是异步读来的，谁要按它下判断都得先问
  *   viewFlagReadyNow()「现在手上这个判断问过真源了没有」，问不到就等 viewFlagSubscribe() 那一声重判；
@@ -24,6 +26,13 @@
  *   不许被回包一起划掉（划掉就再也不会补写，盘上与内存从此不一致），认不出工作区根时一个字都不写文件
  *   （写下去会留下永远合并不到一起的孤儿记录），以及真正要写之前先重读一次文件、把本窗改过的那几格
  *   合并进最新那一份再写出去（不然后写的窗会把先写那扇窗刚写进去的别的格整节顶掉）。
+ *
+ * 第十三件事与第十四件事是复核抓出的两条必修（第一轮修复自己带出来的回退）：
+ *   第十三件事是读与写必须对「这个所选目录认不认得工作区根」给同一个答案 —— 客户端已经从内核那张
+ *   「所选目录的键 → 工作区根」的表里认出根、而本会话对象上还是空的时候，从前读这一侧答得出一条记录、
+ *   写这一侧答认不出，用户点一下写这一笔直接不接，界面上横幅又弹回来；
+ *   第十四件事是回包划队列要按「真正交给宿主的那份快照里的值」判 —— 从前比的是发出前记下的值，
+ *   重读窗口里改过、回包前又改回原值的交错会被误判成「没改过」而划掉，盘上留中间值、内存是最后那一下。
  *
  * 怎么保证量的是真件：客户端那三片（src/client/kernel/settings-view-state.js、settings-view.js 与
  *   settings-view-write.js）的真源按构建同一种做法、同一次序拼起来当场造出函数来跑
@@ -118,7 +127,7 @@ const VIEW_WRITE_REL = 'src/client/kernel/settings-view-write.js'
 const noExport = (s) => s.replace(/^\s*export\s+/gm, '')
 function makeView(env) {
   const body = noExport(readText(VIEW_STATE_REL)) + '\n' + noExport(readText(VIEW_REL)) + '\n' + noExport(readText(VIEW_WRITE_REL))
-  const names = ['keyOf', 'wsKeyOf', 'shared', 'stores', 'emit', 'host', 'localStorage', 'log', 'dswsLogHash', 'timer', 'currentOs']
+  const names = ['keyOf', 'wsKeyOf', 'shared', 'stores', 'emit', 'host', 'localStorage', 'log', 'dswsLogHash', 'timer', 'currentOs', 'workspaceRootByCwd']
   const factory = compileFn(names, body + '\nreturn { viewFlagOf: viewFlagOf, setViewFlag: setViewFlag, viewFlagDocKeyOf: viewFlagDocKeyOf, viewFlagWriteKeyOf: viewFlagWriteKeyOf, settingsViewLoad: settingsViewLoad, viewFlagReadyNow: viewFlagReadyNow, viewFlagSubscribe: viewFlagSubscribe, VIEW_FLAG_WRITE_DEBOUNCE_MS: VIEW_FLAG_WRITE_DEBOUNCE_MS }')
   return factory.apply(null, names.map((n) => env[n]))
 }
@@ -155,19 +164,6 @@ async function main() {
       check(t.indexOf('const setViewFlag = function') > t.indexOf('const viewFlagWriteKeyOf = function'),
         rel + ' 里写这一趟排在它用到的读那一片之后（键与文档工具都先有定义）。')
     }
-    check(readText('src/client/index.js').indexOf('// ==== kernel:settingsView (spliced by build) ====') >= 0, '客户端入口留了 kernel:settingsView 拼接标记。')
-    const idxSrc = readText('src/client/index.js')
-    const atState = idxSrc.indexOf('// ==== kernel:settingsViewState (spliced by build) ====')
-    const atView = idxSrc.indexOf('// ==== kernel:settingsView (spliced by build) ====')
-    const atWrite = idxSrc.indexOf('// ==== kernel:settingsViewWrite (spliced by build) ====')
-    check(atState >= 0, '客户端入口留了 kernel:settingsViewState 拼接标记（新的一片也照一源两物接上）。')
-    check(atState >= 0 && atState < atView,
-      '入口里新标记排在它的使用方（settingsView）之前（不然状态对象与两个口子还没有定义）。')
-    check(atWrite >= 0, '客户端入口留了 kernel:settingsViewWrite 拼接标记（写这一趟也照一源两物接上）。')
-    check(atWrite > atView, '入口里写这一趟的标记排在它用到的读那一片之后（不然那些键与文档工具还没有定义）。')
-    check(readText(path.join('scripts', 'build.mjs')).indexOf("name: 'settingsView'") >= 0, '构建清单里登记了这一片。')
-    check(readText(path.join('scripts', 'build.mjs')).indexOf("name: 'settingsViewState'") >= 0, '构建清单里登记了加载状态与订阅这一片。')
-    check(readText(path.join('scripts', 'build.mjs')).indexOf("name: 'settingsViewWrite'") >= 0, '构建清单里登记了写这一趟这一片。')
   }
 
   // 真件：宿主的核与两条电话
@@ -197,9 +193,20 @@ async function main() {
     const shared = { cwd: '', subs: [], tick: 0 }
     const stores = { 'sess-1': st }
     const logs = []
+    // 内核那张「所选目录的键 → 工作区根」的表（store-snapshot.js 第 57–63 行的真口径：同一个工作区的
+    //   每条所选目录都记一份，根自己也记一份 root → root）。这一片要靠它回答「这个所选目录认不认得根」，
+    //   所以这里按同一种记法造一张真表，wsKeyOf 也从它里面取（与 store-snapshot.js 第 69–78 行同例）。
+    const rootTable = {}
+    if (o.rootByKey) {
+      Object.keys(o.rootByKey).forEach(function (k) {
+        rootTable[k] = o.rootByKey[k]
+        if (o.rootByKey[k]) rootTable[o.rootByKey[k]] = o.rootByKey[k]
+      })
+    }
     const mod = makeView({
       keyOf: KEY_OF,
-      wsKeyOf: function (c) { const k = KEY_OF(c); if (!k) return ''; return (o.rootByKey && o.rootByKey[k]) || k },
+      wsKeyOf: function (c) { const k = KEY_OF(c); if (!k) return ''; return rootTable[k] || k },
+      workspaceRootByCwd: rootTable,
       shared: shared,
       stores: stores,
       emit: function (s) { s.tick += 1 },
@@ -221,6 +228,19 @@ async function main() {
     return (r && r.ok === true) ? r.value : null
   }
   const wait = (env) => sleep(env.mod.VIEW_FLAG_WRITE_DEBOUNCE_MS + 260)
+  // 轮询等一个条件成立（复核建议 3：门禁里几处固定 sleep 的余量偏薄 —— 700 毫秒要装下 500 毫秒防抖加一次
+  //   真文件写，机器忙时会假红；改成等到条件成立再断言，最多等 8 秒，等不到按失败走）。
+  async function waitFor(fn, capMs) {
+    const t0 = Date.now()
+    const cap = capMs || 8000
+    for (;;) {
+      let hit = false
+      try { hit = !!(await fn()) } catch (e) { hit = false }
+      if (hit) return true
+      if (Date.now() - t0 > cap) return false
+      await sleep(50)
+    }
+  }
 
   // ── 第一件事：文件缺席时回退旧表读 ──
   console.log('')
@@ -350,10 +370,22 @@ async function main() {
     const doc = await readDoc(env.home)
     check(!!doc && Object.keys(doc.workspaces).length === 1 && doc.workspaces['D:\\ilife'] !== undefined,
       '文件里只有一条，键就是那条可读路径。', JSON.stringify(doc && Object.keys(doc.workspaces)))
-    // 只认出会话目录（会话状态上没有根、内核那把键也没认出根）时，就用会话目录本身，绝不猜一个根。
+    // 谁都没认出工作区根（会话状态上没有根、内核那张表里也没有这一条）时，读与写给同一个答案：空串。
+    //   从前读这一侧会退到会话目录、写这一侧不退，于是同一现场下读答一条记录、写答认不出（M5）。
     const env3 = makeEnv({ tag: 'key3', cwd: 'D:\\scratch\\no-repo\\sub', root: '' })
-    check(env3.mod.viewFlagDocKeyOf('D:\\scratch\\no-repo\\sub') === 'D:\\scratch\\no-repo\\sub',
-      '认不出工作区根时，键就是会话目录本身（只认出会话目录就用会话目录）。', JSON.stringify(env3.mod.viewFlagDocKeyOf('D:\\scratch\\no-repo\\sub')))
+    check(env3.mod.viewFlagDocKeyOf('D:\\scratch\\no-repo\\sub') === '' && env3.mod.viewFlagWriteKeyOf('D:\\scratch\\no-repo\\sub') === '',
+      '谁都没认出工作区根时，读与写给出同一个答案：空串（这一笔只走旧表，绝不猜一把会话目录键）。',
+      JSON.stringify([env3.mod.viewFlagDocKeyOf('D:\\scratch\\no-repo\\sub'), env3.mod.viewFlagWriteKeyOf('D:\\scratch\\no-repo\\sub')]))
+    // 根是内核那张表认出来的（本会话对象上还空着）时，两边同样给同一把键，而且键就是那条根。
+    const env4 = makeEnv({ tag: 'key4', cwd: 'D:\\ilife\\packages\\skill-calorie', root: '', rootByKey: { [KEY_OF('D:\\ilife\\packages\\skill-calorie')]: KEY_OF('D:\\ilife') } })
+    check(env4.mod.viewFlagDocKeyOf('D:\\ilife\\packages\\skill-calorie') === 'D:\\ilife' && env4.mod.viewFlagWriteKeyOf('D:\\ilife\\packages\\skill-calorie') === 'D:\\ilife',
+      '表里认出根时，读与写都按那条根给键（客户端已经知道根，就不许写口再说认不出）。',
+      JSON.stringify([env4.mod.viewFlagDocKeyOf('D:\\ilife\\packages\\skill-calorie'), env4.mod.viewFlagWriteKeyOf('D:\\ilife\\packages\\skill-calorie')]))
+    // 所选目录本身就是工作区根（表里记着 root → root 那一份）时，它折回来还是自己，也算真认得根，不是空串。
+    const env5 = makeEnv({ tag: 'key5', cwd: 'D:\\ilife', root: '', rootByKey: { [KEY_OF('D:\\ilife')]: KEY_OF('D:\\ilife') } })
+    check(env5.mod.viewFlagDocKeyOf('D:\\ilife') === 'D:\\ilife' && env5.mod.viewFlagWriteKeyOf('D:\\ilife') === 'D:\\ilife',
+      '所选目录本身就是工作区根时（表里 root → root 那一份），读与写都认这把键，不回空串。',
+      JSON.stringify([env5.mod.viewFlagDocKeyOf('D:\\ilife'), env5.mod.viewFlagWriteKeyOf('D:\\ilife')]))
   }
   {
     // 同一个工作区两条不同写法的会话：文件里只留一条，后到的会话沿用它。
@@ -439,19 +471,8 @@ async function main() {
 
   // ── 第七件事（之二）：接线与行数 ──
   console.log('')
-  console.log('== 第七件事之二：store-prefs 与 SubworkspaceMark 真的改调了这一片，旧表过渡还留着，五份文件都 ≤350 行 ==')
+  console.log('== 第七件事之二：五份文件都 ≤350 行 ==')
   {
-    const prefs = readText('src/client/kernel/store-prefs.js')
-    check(prefs.indexOf("viewFlagOf(cwd, 'bannerFolded')") >= 0, 'store-prefs 的 isBannerFolded 改调新模块读。')
-    check(prefs.indexOf("setViewFlag(cwd, 'bannerFolded'") >= 0, 'store-prefs 的 setBannerFolded 改调新模块写。')
-    check(prefs.indexOf('bannerFoldByCwd[k] = 1') >= 0 && prefs.indexOf('persistBannerFold()') >= 0, 'store-prefs 里旧表那段读写原地留着（新模块不在时照旧干活）。')
-    const mark = readText('src/client/views/SubworkspaceMark.js')
-    check(mark.indexOf("viewFlagOf(cwd, 'subwsMarkAutoShown')") >= 0, 'SubworkspaceMark 的「自动展开过没有」改调新模块读。')
-    check(mark.indexOf("setViewFlag(cwd, 'subwsMarkAutoShown', true)") >= 0, 'SubworkspaceMark 的标记改调新模块写。')
-    check(mark.indexOf('readAutoMap') >= 0 && mark.indexOf("localStorage.setItem(AUTO_KEY") >= 0, 'SubworkspaceMark 里旧键那段读写原地留着（过渡）。')
-    // 拼回可读写法时的分隔符按平台判，不按「这一条路径里有没有反斜杠」判：那一手在 POSIX 上会判错平台。
-    check(mark.indexOf('subwsMarkSepOf') >= 0 && mark.indexOf('.join(sep)') >= 0,
-      'SubworkspaceMark 拼回写法时按平台取分隔符（subwsMarkSepOf），不再把反斜杠写死在拼装那一行。')
     const nView = countLines(VIEW_REL)
     check(nView <= 350, '「键与文档、读、把文档交给界面」那一片不超过三百五十行，实得 ' + nView + ' 行。')
     const nViewState = countLines(VIEW_STATE_REL)
@@ -576,18 +597,6 @@ async function main() {
       '设置文件里记过时，重跑那一判是 skip（真源说了算，同一个工作区不再自动展开第二次）。', JSON.stringify(seen))
   }
   {
-    // ⑧ 写法面：组件里那两处接线能钉住的只有「写法长这样」，钉不住「真渲染里效果真的重跑了」。
-    //   挡的回退分别是：判决被换回另一份实现、依赖里少了那个计数（文档到手不重跑）、未就绪就当场弹。
-    const mark = readText('src/client/views/SubworkspaceMark.js')
-    check(mark.indexOf('subwsMarkAutoDecide(ready, shownBefore)') >= 0,
-      '组件用的是本门禁量过的那个判据（不是另写一份判决）—— 挡的是「门禁量 A、界面跑 B」这种回退。')
-    check(mark.indexOf('}, [isSub, root, flagTick])') >= 0,
-      '自动展开那一次的判据挂在「文档问完了没有」这个计数上（依赖里含 flagTick）—— 挡的是「文档到手后效果不重跑」。')
-    check(mark.indexOf("if (verdict === 'wait') return") >= 0 && mark.indexOf('viewFlagReadyNow') >= 0,
-      '未就绪时直接返回、不当场把浮层弹出来（先判就绪，再按判决弹）—— 挡的是「还没问过真源就按旧表弹一次」。')
-    console.log('    （说明）上面三条是文本断言，只证明组件是这么写的；「真渲染里文档迟到那一刻真的重跑了」由下面 ⑨ 真画一遍兜住。')
-  }
-  {
     // ⑨ 真渲染一遍（真 jsdom + 真 React）：把「设置文档迟到」那一刻真的画出来看浮层弹没弹。
     //   为什么非画不可：前面几条断的都是「就绪口、订阅口、判决函数各自对不对」，而这次回退的病因恰恰在
     //   「三者都对、组件却把它们用错了地方」—— 挂载时没等文档就弹（#666 那次也是「纯函数全对、组件却每次返回 null」）。
@@ -692,10 +701,11 @@ async function main() {
       fsOverrides: { writeFile: async (p, text, enc) => { if (failNext > 0) { failNext -= 1; throw failCode('EPERM', 'operation not permitted') } return realFs.writeFile(p, text, enc) } },
     })
     check(env.mod.setViewFlag(cwd, 'bannerFolded', true) === true, '写这一笔时先按能写接下来（落盘失败再走过渡）。')
-    await sleep(700)
+    // 等到旧键真的落地再断言（复核建议：固定 700 毫秒要装下 500 毫秒防抖加一次真写，机器忙时会假红）。
+    await waitFor(() => { try { return JSON.parse(env.ls.getItem('dsws.bannerFold') || '{}')[KEY_OF(cwd)] === 1 } catch (e) { return false } })
     const oldMap = JSON.parse(env.ls.getItem('dsws.bannerFold') || '{}')
     check(oldMap[KEY_OF(cwd)] === 1, '第一趟写失败时照旧把这一格写回旧键做过渡（与改动前一致）。', JSON.stringify(oldMap))
-    await sleep(1200)
+    await waitFor(async () => { const d = await readDoc(env.home); return !!d && !!d.workspaces['D:\\ilife'] && d.workspaces['D:\\ilife'].bannerFolded === true })
     const doc = await readDoc(env.home)
     check(!!doc && !!doc.workspaces['D:\\ilife'] && doc.workspaces['D:\\ilife'].bannerFolded === true,
       '这一笔没有被丢掉：失败后留在待写队列里，后面那一趟把它落进了文件（盘上这一格是 true）。', JSON.stringify(doc && doc.workspaces))
@@ -708,7 +718,7 @@ async function main() {
     const env = makeEnv({ tag: 'lsfail', cwd: cwd, fsOverrides: { writeFile: async () => { throw failCode('EPERM', 'operation not permitted') } } })
     env.ls.setItem = function () { throw new Error('这份浏览器存储写不进去了') }
     env.mod.setViewFlag(cwd, 'bannerFolded', true)
-    await sleep(1300)
+    await waitFor(() => env.logs.some((l) => l.event === 'storage.fail' && l.fields && l.fields.op === 'write' && l.fields.key === 'dsws.bannerFold'))
     const hit = env.logs.filter((l) => l.event === 'storage.fail' && l.fields && l.fields.op === 'write' && l.fields.key === 'dsws.bannerFold')
     check(hit.length >= 1, '写旧表这一步自己失败时补了一行 storage.fail（沿用既有事件名，键与操作写在字段里）。', JSON.stringify(env.logs))
     check(fs.existsSync(settingsPathIn(env.home)) === false, '这一趟文件始终没写进去（写失败不是「换一份假的写成功」）。')
@@ -730,7 +740,7 @@ async function main() {
     })
     box.mod = env.mod
     check(env.mod.setViewFlag(cwd, 'bannerFolded', true) === true, '先点一下收起（这一笔排进待写队列）。')
-    await sleep(1600)
+    await waitFor(() => env.calls.filter((c) => c.method === 'wf.setSettings').length >= 2)
     const sent = env.calls.filter((c) => c.method === 'wf.setSettings')
     check(sent.length >= 2, '第一趟飞在天上时改的那一下没有被划掉：真的又排了第二趟写，实得 ' + sent.length + ' 次。')
     const firstEntry = sent[0] && sent[0].args && sent[0].args.value && sent[0].args.value.workspaces['D:\\ilife']
@@ -790,6 +800,68 @@ async function main() {
     check(gets >= 2, '真正要写之前又读了一次文件（不是只有第一页那一次懒读），实得 ' + gets + ' 次读电话。')
     check(env.mod.viewFlagOf(cwd, 'bannerFolded') === true && env.mod.viewFlagOf(cwd, 'subwsMarkAutoShown') === true,
       '写完这一趟之后内存里那份文档与盘上一致（两格都是 true）。')
+  }
+
+  // ── 第十三件事：读与写对「认不认得工作区根」必须给同一个答案（M5 回归） ──
+  console.log('')
+  console.log('== 第十三件事：客户端已经从别的路认出工作区根时，用户点一下要真的落盘（不许读得到、写说认不出） ==')
+  {
+    // 实测到的现场：本会话对象上还没有根，但内核那张「所选目录的键 → 工作区根」的表里已经有一条，
+    //   文件里也有这个工作区的一条记录（横幅是收起的）。此时用户点开横幅：
+    //   从前读这一侧从表里认出根、答得出一条记录，写这一侧只认会话对象上的根、答认不出 —— 写这一笔直接不接，
+    //   旧键写了也没人读，界面上一看横幅又弹回来（同一条路也让浮层「自动展开过」退化成每进一次子目录白弹一次）。
+    const cwd = 'D:\\ilife\\packages\\skill-calorie'
+    const env = makeEnv({ tag: 'm5', cwd: cwd, root: '', rootByKey: { [KEY_OF(cwd)]: KEY_OF('D:\\ilife') } })
+    const preset = {
+      version: 1,
+      ui: { stateFilter: '', sortKey: '', sortDir: '', labelClicks: {} },
+      workspaces: { 'D:\\ilife': { bannerFolded: true, noRepoDismissed: false, subwsMarkAutoShown: false } },
+      debug: { enabled: false, sampleRate: 1 },
+      templates: {},
+    }
+    const w0 = await store.writeLocalSettings(preset, env.home, realIo)
+    check(w0.ok === true, '预置一份设置文件：这个工作区已经有一条记录、横幅是收起的。', JSON.stringify(w0))
+    check(env.mod.viewFlagDocKeyOf(cwd) === 'D:\\ilife' && env.mod.viewFlagWriteKeyOf(cwd) === 'D:\\ilife',
+      '读与写对这把键给同一个答案：都是那条工作区根（表里认得出来，就不许写口再说认不出）。',
+      JSON.stringify([env.mod.viewFlagDocKeyOf(cwd), env.mod.viewFlagWriteKeyOf(cwd)]))
+    // 先问一次读：这一次会把懒读起起来（文档到手之前，读这一侧先答旧表里的 false，这是过渡期的老行为）。
+    check(env.mod.viewFlagOf(cwd, 'bannerFolded') === false, '文档还没到手时读这一侧先答旧表里的 false（过渡期的老行为）。')
+    const ready = await waitFor(() => env.mod.viewFlagReadyNow() === true)
+    check(ready, '这份设置文档读到手了（读这一侧要按真源判，不能还没问到就下结论）。')
+    check(env.mod.viewFlagOf(cwd, 'bannerFolded') === true, '文档到手后读这一侧答文件里那条记录：横幅是收起的。')
+    check(env.mod.setViewFlag(cwd, 'bannerFolded', false) === true, '用户点开横幅这一笔要接下来（从前这里返回 false，点了等于没反应）。')
+    const landed = await waitFor(async () => { const d = await readDoc(env.home); return !!d && !!d.workspaces['D:\\ilife'] && d.workspaces['D:\\ilife'].bannerFolded === false })
+    check(landed, '这一笔真的落进了文件（盘上这一格变成 false）。')
+    check(env.calls.filter((c) => c.method === 'wf.setSettings').length === 1, '只发了一趟写电话（认得出根就走文件这一条路，不是又去写旧键）。', JSON.stringify(env.calls.map((c) => c.method)))
+    check(env.ls.getItem('dsws.bannerFold') === null, '写文件这一条路走通了，就绝不再写旧键（两处都写就是两份真相）。')
+    check(env.mod.viewFlagOf(cwd, 'bannerFolded') === false, '内存里也是 false —— 盘上与内存一致。')
+  }
+
+  // ── 第十四件事：回包划队列要按「真正写出去的那份快照」判，不是按发出前记下的值 ──
+  console.log('')
+  console.log('== 第十四件事：重读窗口里改过、回包前又改回原值的交错，不许把这一笔划掉 ==')
+  {
+    // 实测到的现场：发出 true 之后、重读回来之前用户改成 false，重读回来之后、回包之前又改回 true。
+    //   从前划队列比的是「发出前记下的 true」，一看现在的值还是 true 就当成没改过、把这一笔划掉，
+    //   盘上留的是中途那个 false、内存是最后的 true —— 两边从此不一致，而且用户没再点就不会自愈。
+    const cwd = 'D:\\ilife\\packages\\skill-calorie'
+    const box = { reads: 0, back: false }
+    const env = makeEnv({
+      tag: 'm1back', cwd: cwd,
+      onCall: function (method) {
+        if (method === 'wf.getSettings') { box.reads += 1; if (box.reads === 2) box.mod.setViewFlag(cwd, 'bannerFolded', false) }
+        if (method === 'wf.setSettings' && !box.back) { box.back = true; box.mod.setViewFlag(cwd, 'bannerFolded', true) }
+      },
+    })
+    box.mod = env.mod
+    check(env.mod.setViewFlag(cwd, 'bannerFolded', true) === true, '先点一下收起（这一笔排进待写队列）。')
+    // 等到最后一趟写真的落地（盘上回到 true），再判盘上与内存是否一致。
+    const settled = await waitFor(async () => { const d = await readDoc(env.home); return !!d && !!d.workspaces['D:\\ilife'] && d.workspaces['D:\\ilife'].bannerFolded === true })
+    const doc = await readDoc(env.home)
+    const sent = env.calls.filter((c) => c.method === 'wf.setSettings')
+    check(sent.length >= 2, '这一笔没有被误划掉：回包之后又排了一趟写，实得 ' + sent.length + ' 次写电话。')
+    check(settled, '盘上最后是用户最后那一下的值 true（不是中途那个 false）。', JSON.stringify(doc && doc.workspaces))
+    check(env.mod.viewFlagOf(cwd, 'bannerFolded') === true, '内存里也是 true —— 盘上与内存一致。')
   }
 
   console.log(failed ? ('\n存在失败 — verify-settings-view 未通过（' + passed + ' 项通过、' + failed + ' 项失败）') : ('\n全部通过 — 客户端观看状态门禁生效（' + passed + ' 项断言）'))

@@ -199,7 +199,7 @@
     const persistBannerFold = function () { try { localStorage.setItem(BANNER_FOLD_KEY, JSON.stringify(bannerFoldByCwd)) } catch (e) { /* 忽略 */ } }
     // #1012：读写体搬去 kernel/settings-view.js（本机设置文件是唯一真源；旧表只是过渡）。
     //   导出名与签名一字不变，旧表那几行原地留着当过渡 —— 新模块不在（老产物、或渲染替身里）时照旧干活。
-    //   新模块会在这三种情况下回 false（认不出工作区根、文档问不到、文件是更高版本），那时才走旧表这条路。
+    //   新模块会在这四种情况下回 false（认不出工作区根、文档问不到、文件是更高版本、文档在手却写不进这一格），那时才走旧表这条路。
     //   说准这一手兜得住什么：文件里已经有这个工作区的记录时，写进旧表这一份读不回来（读侧以文件里那条为准），
     //   它只在本窗口内充当记性，页面一关就只剩文件里那一份。真正让一次改动不丢的是写那一趟自己：
     //   写失败时把这一格留在待写队列里，下一趟写再试一次（见 kernel/settings-view-write.js）。
@@ -208,7 +208,7 @@
       try { if (!cwd) return false; const k = (typeof keyOf === 'function' ? keyOf(cwd) : String(cwd || '')); return !!bannerFoldByCwd[k] } catch (e) { return false }
     }
     // 把这一次折叠交给新模块（写本机设置文件那条路）：回 true 表示它接下了，旧表一个字都不动；
-    //   回 false 表示它接不下（认不出可读路径、文档问不到、文件只读）或根本不在，调用方照老办法写旧表。
+    //   回 false 表示它接不下（认不出工作区根、文档问不到、文件只读、文档在手却写不进这一格）或根本不在，调用方照老办法写旧表。
     const handoffBannerFold = function (cwd, folded) {
       try { if (typeof setViewFlag === 'function' && cwd) return setViewFlag(cwd, 'bannerFolded', !!folded) === true } catch (eN) {}
       return false
