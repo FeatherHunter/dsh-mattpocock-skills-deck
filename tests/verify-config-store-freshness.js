@@ -51,7 +51,20 @@ async function main() {
     check(actual === expected, u.js + ' 与 ' + u.ts + ' 转译一致（不一致请跑 node scripts/build.mjs）')
   }
 
-  // ---- 2) 类型检查 ----
+  // ---- 2) 插口空壳产物还带着模块标识（读导出值，不读文本）----
+  //   ports 是空壳产物：类型被擦掉之后，它只剩这一行模块标识。把模块加载起来看导出值，
+  //   就知道这个标识还在不在、指的是不是那份源码。不读文本、不钉写法。
+  //   2026-10-12：原先这里有一条「读产物文本、断言里面出现 PORTS_SOURCE」的检查，断言对象是文本形状，
+  //   按维护者要求撤掉；改成读导出值，问的还是同一件事（产物能不能追溯回源码）。
+  try {
+    const portsMod = await import(pathToFileURL(path.join(ROOT, 'src/shared/config-store/ports.js')).href)
+    check(portsMod.PORTS_SOURCE === 'config-store-core/src/ports.ts',
+      '插口产物导出模块标识 PORTS_SOURCE（实得 ' + String(portsMod.PORTS_SOURCE) + '）')
+  } catch (e) {
+    check(false, '插口产物可加载（src/shared/config-store/ports.js）：' + (e && e.message))
+  }
+
+  // ---- 3) 类型检查 ----
   const tscBin = path.join(ROOT, 'node_modules', 'typescript', 'bin', 'tsc')
   if (!fs.existsSync(tscBin)) {
     check(false, 'typescript 已安装（node_modules/typescript 缺失，请跑 pnpm install）')

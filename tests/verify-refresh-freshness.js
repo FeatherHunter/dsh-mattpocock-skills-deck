@@ -8,7 +8,9 @@
 //   4) 插口空壳产物里还留着模块标识 PORTS_SOURCE（类型被擦掉之后唯一能追溯来源的东西）。
 //   【2026-10-12 清理】上面 3)、4) 两条原先都是读产物文本断的（4) 断 ports.js 文本里出现 PORTS_SOURCE；
 //   3) 用正则断产物文本里不许出现相对 import）。断言对象是文件文本，改一次构建输出、挪一次文件就变红，
-//   按维护者「清掉读文件文本钉形状的门禁」的要求撤掉。下面第 1) 条（逐字比对产物与其 TS 来源）与第 2) 条
+//   按维护者「清掉读文件文本钉形状的门禁」的要求撤掉。第 4) 条改成把产物模块加载起来看导出值
+//   （`ports.PORTS_SOURCE === 'refresh-core/src/ports.ts'`）：问的是「这个值还在不在、指的是不是那份源码」，
+//   不是「文件里写着什么字样」，产品怎么写都不影响它。下面第 1) 条（逐字比对产物与其 TS 来源）与第 2) 条
 //   （tsc --noEmit）是「派生文件与来源一致/新鲜」与真跑类型检查，一条没动。
 // 本票没有把任何产物拼进客户端闭包，所以这里不查「行首 export」与「不含版本占位符」两条边界条件；
 // 将来哪一票真要拼，那一票把这两条检查加进来（做法见 label-color-core 的同名门禁）。
@@ -83,10 +85,17 @@ async function main() {
     check(actual === expected, u.js + ' 与 ' + u.ts + ' 转译一致（不一致请跑 node scripts/build.mjs）')
   }
 
-  // ---- 2) 产物自身的两条硬条件（已删，见文件头「2026-10-12 清理」）----
-  //   原 4)：读 src/shared/refresh/ports.js 产物文本，断言里面出现 PORTS_SOURCE。
-  //   原 3)：逐份读产物文本，用正则断言里面不许出现相对 import。
-  //   两条的断言对象都是产物文本的形状，撤掉；连同只服务它们的 stripComments 辅助一起删了。
+  // ---- 2) 插口空壳产物还带着模块标识（读导出值，不读文本）----
+  //   类型被擦掉之后，ports 产物里只剩这一行模块标识。把模块加载起来看导出值就知道它还在不在、
+  //   指的是不是那份源码；不读文本、不钉写法，产品怎么写都不影响这条断言。
+  //   原 3)：逐份读产物文本、用正则断言里面不许出现相对 import —— 那条断言对象是文本形状，已撤掉。
+  try {
+    const portsMod = await import(pathToFileURL(path.join(ROOT, 'src/shared/refresh/ports.js')).href)
+    check(portsMod.PORTS_SOURCE === 'refresh-core/src/ports.ts',
+      '插口产物导出模块标识 PORTS_SOURCE（实得 ' + String(portsMod.PORTS_SOURCE) + '）')
+  } catch (e) {
+    check(false, '插口产物可加载（src/shared/refresh/ports.js）：' + (e && e.message))
+  }
 
   // ---- 3) 类型检查 ----
   const tscBin = path.join(ROOT, 'node_modules', 'typescript', 'bin', 'tsc')
