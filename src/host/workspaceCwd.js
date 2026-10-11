@@ -3,6 +3,11 @@
 // 接线：由 index.js 动态 import 加载；normCwd 由本文件单一持有，评论线程经 index 转供给复用；改色叶子经本文件动态加载（单向，基线有记录），工作区文件纯函数经静态引用（跨层允许）；目录取法调 shared 共用函数（#730）。
 import { resolveSessionCwd } from '../shared/session-cwd.js'
 import { parseWorkspaceFile, stringifyWorkspaceFile, WORKSPACE_FILE_REL } from '../shared/deck-tools/workspace-file.js'
+/**
+ * 写工作区文件失败时把原因分成四档（#1003 契约期望行为第 2 条：失败必须带原因，四档各说各的）：
+ * 拿不到文件通道、沙箱不给本次写许可、文件系统只读、目录不存在；判不出来归 other，绝不编一个具体原因。
+ */
+function fileWriteReasonOf(e) { const s = String((e && (e.code || e.message)) || e || ''); return /EACCES|EPERM|permission|denied|permit|沙箱/i.test(s) ? 'no-permit' : (/EROFS|read-only|readonly/i.test(s) ? 'readonly' : (/ENOENT|not found|不存在/i.test(s) ? 'no-dir' : 'other')) }
 export function createWorkspaceCwd(deps) {
   const { ctx, DEFAULT_CWD, getPlatform, getTrackerRegistry, getWorkspaceStore, getChoiceStore, getDecisionFn, canonicalKey, setCache, logCtx, timer, detectionExec } = deps
   // #176 + #190 修复：cwd 归一（绝对直通 + 相对尝试 fs.resolve + home 试探）
@@ -66,7 +71,7 @@ export function createWorkspaceCwd(deps) {
       const cw = (typeof getChoiceStore === 'function') ? await getChoiceStore().catch(function () { return null }) : null
       const wr = (cw && typeof cw.rememberWorkspace === 'function') ? await cw.rememberWorkspace(cwd, persistedBackendId).catch(function () { return null }) : null
       let workspaceFile = null
-      try { workspaceFile = await writeWorkspaceFileOnFirstBind(cwd, persistedBackendId, args) } catch (eW) { workspaceFile = { ok: false, error: { kind: 'env', message: msgOf(eW) } } }
+      try { workspaceFile = await writeWorkspaceFileOnFirstBind(cwd, persistedBackendId, args) } catch (eW) { workspaceFile = { ok: false, error: { kind: 'env', reason: fileWriteReasonOf(eW), message: msgOf(eW) } } } // 失败原因分档：#1003 契约要求四档各说各的（拿不到文件通道 / 沙箱不给写许可 / 只读 / 目录不存在）
       const out = { ok: true, cwd: cwd, backendId: persistedBackendId, labelColorsFile: labelColorsFile, workspaceFile: workspaceFile, rev: (wr && wr.ok === true) ? (wr.rev || 0) : 0, persisted: !!(wr && wr.ok === true) }
       return out
     } catch (e) {
@@ -75,15 +80,12 @@ export function createWorkspaceCwd(deps) {
       return { ok: false, error: msg }
     }
   }
-  // #1003 拍板（2026-10-12）：布局就是「这个工作区用单栏还是多栏」的选择，属于这份工作区文件——写进去、也从它读回；
-  // 本机记忆只在文件里还没有后端记录时兜底（老工作区过渡用）。读与写挤在一处，是因为两段共用同一套取通道与解析的写法。
+  // #1003 拍板：布局是「这个工作区用单栏还是多栏」的选择，属于这份工作区文件——写进去、也从它读回；本机记忆只在文件里还没有后端记录时兜底（老工作区过渡用）。
   async function handleSetupLayout(args) {
     const raw = (args && typeof args.cwd === 'string' && args.cwd.trim()) ? args.cwd : ''; if (!raw) { const v0 = args ? args.layout : undefined; return v0 == null ? { ok: true, cwd: '', layout: null, pickedAt: 0 } : { ok: false, cwd: '', error: 'not-stored' } }
     const cwd = await normCwd(raw); const cs = (typeof getChoiceStore === 'function') ? await getChoiceStore().catch(function () { return null }) : null; const v = args ? args.layout : undefined
-    const plat = await getPlatform().catch(function () { return null }); let f = (plat && plat.fs) || null
-    if (!f && ctx && typeof ctx.get === 'function') { try { f = ctx.get('fs') } catch (eG) { f = null } }
-    const usable = !!(f && typeof f.resolve === 'function' && typeof f.readText === 'function' && typeof f.writeText === 'function')
-    let target = null; let rec = null
+    const plat = await getPlatform().catch(function () { return null }); let f = (plat && plat.fs) || null; if (!f && ctx && typeof ctx.get === 'function') { try { f = ctx.get('fs') } catch (eG) { f = null } }
+    const usable = !!(f && typeof f.resolve === 'function' && typeof f.readText === 'function' && typeof f.writeText === 'function'); let target = null; let rec = null
     if (usable) { try { target = await f.resolve(WORKSPACE_FILE_REL, { cwd: cwd }); rec = parseWorkspaceFile(await f.readText(target)) } catch (eR) {} }
     if (v == null) {
       if (rec && (rec.layout === 'single' || rec.layout === 'multi')) return { ok: true, cwd: cwd, layout: rec.layout, pickedAt: 0 }
@@ -91,16 +93,13 @@ export function createWorkspaceCwd(deps) {
       return (r && r.found === true) ? { ok: true, cwd: cwd, layout: r.layout, pickedAt: r.pickedAt } : { ok: true, cwd: cwd, layout: null, pickedAt: 0 }
     }
     const want = String(v).toLowerCase(); let why = usable ? 'no-record' : 'no-channel'
-    if (rec && rec.backendId) {
-      try {
-        const text = stringifyWorkspaceFile({ backendId: rec.backendId, pickedAt: rec.pickedAt, source: rec.source, layout: want })
-        const pp = plat && plat.path
+    if (rec && rec.backendId) { try {
+        const text = stringifyWorkspaceFile({ backendId: rec.backendId, pickedAt: rec.pickedAt, source: rec.source, layout: want }); const pp = plat && plat.path
         if (pp && typeof pp.dirname === 'function' && typeof f.mkdir === 'function') { try { await f.mkdir(pp.dirname(target), { recursive: true }) } catch (eM) {} }
         await f.writeText(target, text, undefined, undefined, resolveSandboxPolicy(args, cwd).policy)
         try { const ws = await getWorkspaceStore(); ws.invalidate({ cwd: cwd }) } catch {}; try { setCache({ ts: 0, snapshot: null, error: null, cwd: cwd }) } catch {}
         why = 'written'
-      } catch (e) { why = 'write-failed' }
-    }
+      } catch (e) { why = fileWriteReasonOf(e) } }
     const w = (cs && typeof cs.rememberLayout === 'function') ? await cs.rememberLayout(cwd, want).catch(function () { return null }) : null
     if (why === 'written') return { ok: true, cwd: cwd, layout: want, pickedAt: (w && w.pickedAt) || 0, workspaceFile: 'written' }
     return (w && w.ok === true) ? { ok: true, cwd: cwd, layout: want, pickedAt: w.pickedAt, workspaceFile: why } : { ok: false, cwd: cwd, error: 'not-stored' }
@@ -203,14 +202,15 @@ export function createWorkspaceCwd(deps) {
         const platPath = await getPlatform().then(function (p) { return (p && p.path) || null }).catch(function () { return null })
         if (platPath && typeof platPath.dirname === 'function' && typeof fsSvc.mkdir === 'function') { try { await fsSvc.mkdir(platPath.dirname(target2), { recursive: true }) } catch (eM) {} }
       } catch (eD) {}
-      await fsSvc.writeText(target2, text, undefined, undefined, sb.policy)
+      // #1003：写不进去先重试一次（重试前再建一次父目录）——目标是尽量百分百写成，失败才如实报因。
+      try { await fsSvc.writeText(target2, text, undefined, undefined, sb.policy) } catch (eW1) { const pp2 = await getPlatform().then(function (p) { return (p && p.path) || null }).catch(function () { return null }); if (pp2 && typeof pp2.dirname === 'function' && typeof fsSvc.mkdir === 'function') { try { await fsSvc.mkdir(pp2.dirname(target2), { recursive: true }) } catch (eM2) {} }; await fsSvc.writeText(target2, text, undefined, undefined, sb.policy) }
       try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('info', 'host.call', { method: _method, latencyMs: Date.now() - _t0, ok: true, kind: 'bind' }) } catch (eL) {}
       try { const ws = await getWorkspaceStore(); ws.invalidate({ cwd: cwd }) } catch {}
       try { setCache({ ts: 0, snapshot: null, error: null, cwd: cwd }) } catch {}
       return { ok: true, placed: true, reason: existed ? 'overwritten' : 'created' }
     } catch (eW) {
       try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('warn', 'host.call.fail', { method: _method, kind: 'bind', errorHash: hash8(msgOf(eW)) }) } catch (eL) {}
-      return { ok: false, error: { kind: 'env', message: '首选后端已记下，但工作区配置文件没能存进工作区（' + msgOf(eW).slice(0, 120) + '）。绑定与本机记忆不受影响，仍按这次选定的后端走。' } } }
+      return { ok: false, error: { kind: 'env', reason: fileWriteReasonOf(eW), message: '首选后端已记下，但工作区配置文件没能存进工作区（' + msgOf(eW).slice(0, 120) + '）。绑定与本机记忆不受影响，仍按这次选定的后端走。' } } }
   }
   // #1003 老用户迁移：文件缺席 + 本机记忆有 → 把记忆写进工作区文件，写成功才算迁移成。
   //   人话：老工作区从没建过那份文件（本机记忆替它答了上万次），先把选择落到文件，
