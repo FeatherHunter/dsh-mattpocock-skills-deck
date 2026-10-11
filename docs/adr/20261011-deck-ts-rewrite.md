@@ -68,7 +68,15 @@ src/deck/
 
 注（2026-10-12 修定，与 3.1 归属原则对齐）：契约接口归 `src/tracker/contract/`，**不放** `src/deck/contract/`。理由是契约是面板与 deck 共用的承诺，deck 引用它、不拥有它；放在 `src/deck/` 下面等于让 deck 独占两家共用的东西，与 3.1 那条自相矛盾。该目录第一批已落地，形状见下一节。
 
-### 3.3 故意不动的三处（是设计，不是遗漏）
+### 3.3 命名细目（2026-10-12 定，来自迁移映射表要人拍板的三处）
+
+命名规矩只有一条：**目录名已经说清的事，文件名不再重复**；文件名要说清它装的是什么，而不是它属于谁。
+
+- 契约目录 `src/tracker/contract/`：`ports.ts`（核心类型）、`operations.ts`（19 个操作的签名与两房扩展）、`backend-module.ts`（房间模块对象形状）、`operations-catalog.ts`（运行时数据：19 个操作名录与契约版本，从今天的 `src/host/tracker/contract.js` 余留下来的那半）、`index.ts`（统一出口，外部只从这里进）。这样分是因为「签名」与「名录」是两件事：前者编译期管形状，后者运行时给注册表用。
+- 注册表 `src/tracker/registry/`：今天叫 `registryCore.js` / `registryShape.js` / `registryViews.js`，住进 `registry/` 目录后前缀重复，改叫 `core.ts`、`shape.ts`、`views.ts`。
+- 房间 `src/tracker/rooms/`：三个房间统一搬进来（GitHub、Markdown、GitLab），**文件名一个不改**（`client`、`issues`、`comments`、`graph`、`queries` 本来就是功能名）。GitLab 房只随目录改名、代码一个字不转，另放 `MIGRATION-SLOT.md` 写清以后怎么按契约补齐；不搞「两房在新目录、一房留在旧目录」的分裂布局。
+
+### 3.4 故意不动的三处（是设计，不是遗漏）
 
 - GitHub 与 Markdown 两房留在跟踪器目录下，文件名不动（`client`、`issues`、`issues-write`、`comments`、`graph`、`queries` 本来就是功能名），因为房间是面板与 deck 共用的，不归 deck 独有，搬进 `src/deck/` 会撒谎。房间目录按仓库词典改叫 `rooms/`（词典原话：三座内置后端各自的目录就叫房间）。
 - 闸、账本、注册表只转被 deck 调到的行，不整文件扫荡，因为它们另有主人（面板刷新）。
@@ -110,3 +118,4 @@ src/deck/
 
 - 2026-10-11 初版（维护者当日拍板五项目标、三项执行决议、新树、编译模型与开工顺序）。
 - 2026-10-12 修定：契约的家从树里的 `src/deck/contract/` 挪到 `src/tracker/contract/`，与 3.1 归属原则对齐（共用归共用家，deck 引用不拥有）；§4 补该目录四个文件与非契约面三处定案。
+- 2026-10-12 补 3.3 命名细目：契约目录五个文件名、注册表三件改名去重前缀、三房统一搬进 `rooms/`（GitLab 只改名不转码）。依据是迁移映射表（`research/1010-migration-map.md`）要人拍板的三处。

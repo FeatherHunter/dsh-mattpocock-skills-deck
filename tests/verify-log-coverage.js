@@ -49,8 +49,10 @@ const PHONES = [
   // #927 只读一条：闸的三个累计数（撞限流 / 记账对不上 / 绕闸）的观察口，现役 54 → 55；
   // 它不新开事件，成功一行沿用既有常驻 #26 host.call（电话名写在 method 字段，kind 记 gate-stats）。
   'wf.gateStats',
-  // 本机设置两条电话（wf.getSettings 读 / wf.setSettings 写）：现役 55 → 57。
-  // 两条同样不新开事件，成功与失败都沿用既有常驻 host.call / host.call.fail（电话名写在 method 字段，kind 记 settings）。
+  // #1012 本机设置两条电话：wf.getSettings 读用户主目录下那份本机设置文件（读出里面存的值、警告、只读标记与来路），
+  // wf.setSettings 把界面上改好的设置写回同一个文件（写之前先读一次；文件是高版本插件写的就只读不改，一个字都不写回）。现役 55 → 57。
+  // 两条同样不新开事件，成功与失败都沿用既有常驻 host.call / host.call.fail（电话名写在 method 字段，kind 记 settings）；
+  // 落点一处：宿主侧叶子 src/host/settingsPhones.js，与仓库其余电话体同一个包装形状（loggedPhone 按电话名记行）。
   'wf.getSettings', 'wf.setSettings',
 ]
 // #875 薄接线：新增取更新日志电话 1 条，现役 53 → 54；增删电话同步改本表（附录 1.7 退役表不动）。

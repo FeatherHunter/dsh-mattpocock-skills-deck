@@ -306,4 +306,91 @@ export interface GitHubRoomExtension {
 export interface MarkdownRoomExtension {
   /** 确保工作区里有那份用户可手改的配色文件。 */
   ensureLabelColorsFile(repo: RepositoryRef, ctx: OpContext): Promise<OpResult<unknown>>
+
+  /**
+   * 把一份 Markdown 票文本规整成票对象（房间私有解析口的第二个，见 `parse`）。
+   * 今天只有本地 Markdown 房有（`backends/markdown/index.js:151`，实现是 `normalize.js` 的
+   * `normalizeIssue`）：它比 `parse` 多做一步清理 —— 删掉里程碑、作者、编号、子票、反向阻塞
+   * 这些本地文件里根本不存在的字段，并给缺失的 `key`/`effortId`/`type`/`title` 补默认值。
+   *
+   * 为什么标可选：GitHub 房的 create() 产物里没有这个名字（它走自己的 `normalize.js`，
+   * 但那是房内模块级函数，不挂在实例上），写必填会让 GitHub 房当场编译不过。
+   * 为什么返回类型写 `unknown` 而不是契约的 `Issue`：它回的是**房间自己的完整解析结果**
+   * （比契约 `Issue` 多出正文、评论等房间私有字段，字段类型也没有按契约归一）。
+   * 契约层不复制房间私有形状，也不许为了迁就它去改契约；房外调用方若真要用，自己按需断言。
+   *
+   * 谁在用：本轮在 `src/host` 与 `tests` 里没有查到房外调用方（房内模块各自直接 import
+   * `parse.js` / `normalize.js`，不经实例）；是否有别处经实例动态取用，未核实。
+   */
+  normalize?(text: string, meta: MarkdownParseMeta): unknown
+
+  /**
+   * 把一份 Markdown 票文本解析成票对象（房间私有解析口的第一个）。
+   * 今天只有本地 Markdown 房有（`backends/markdown/index.js:152`，实现是 `parse.js` 的 `parseMd`）。
+   * 它是整个本地文件后端的读入口：票、评论、依赖、地图正文都先经它。
+   *
+   * 与 `normalize` 的关系（别搞反）：`normalize` 内部调 `parse` 再清理，
+   * 所以要拿「和契约最接近」的那一份时用 `normalize`；要拿「原文里有什么就是什么」时用 `parse`。
+   * 可选与返回类型写法的理由同 `normalize`，不再重复。
+   */
+  parse?(text: string, meta: MarkdownParseMeta): unknown
+}
+
+/**
+ * 本地 Markdown 房两个解析口收的第二个参数（房间私有约定，契约层只做记录、不解释）。
+ *
+ * 这一份形状是从房内真实调用点抄来的，例如 `markdown/graph.js:17` 的
+ * `parseMd(txt, {key, parentKey:'00', isMap:false, effortId})`。四个字段的含义：
+ * `key` 是这份文本对应的票号、`parentKey` 是它挂在哪张票下（地图固定 `'00'`，`null` 表示没有父）、
+ * `isMap` 表示这份文本是不是地图本体、`effortId` 是工作单元标识（扁平布局与单工作单元后端为空串）。
+ * 末尾留索引签名，是为了以后房间往这个参数里加字段时不必改契约 —— 房间私有的东西，契约不挡。
+ */
+export interface MarkdownParseMeta {
+  /** 这份文本对应的票号。 */
+  key?: string
+  /** 父票号；地图固定 `'00'`，`null` 表示没有父。 */
+  parentKey?: string | null
+  /** 这份文本是不是地图本体。 */
+  isMap?: boolean
+  /** 工作单元标识（扁平布局与单工作单元后端为空串）。 */
+  effortId?: string
+  /** 房间以后往这个参数里加字段，不必回来改契约。 */
+  [extra: string]: unknown
+}
+
+/**
+ * 房间实例上的只读辅助口（**两房都可能有的旁路，不进契约操作清单**）。
+ *
+ * 为什么要单独一个接口：这三个键今天挂在 `create()` 造出来的**实例**上，既不在 `Tracker`，
+ * 也不属于哪个房间独有的扩展。若不给它们类型位置，两房照原样 `implements` 时会当场报
+ * 「对象字面量只能指定已知属性」（多余属性检查），迁移第一步就卡住。
+ *
+ * 三个成员全部可选，因为两房并不都有（下面是本轮核过的实情）：
+ * - `getRepoKey`：只有 GitHub 实例有（`backends/github/backend.js:124`）。本地 Markdown 房
+ *   的身份就是工作区目录本身，没有什么可解析的，所以没有这个方法才是对的。
+ * - `describe` / `issueUrl`：GitHub 实例有（`backend.js:119` / `:120`）；本地 Markdown 实例
+ *   **没有**（`backends/markdown/index.js:87-153` 的返回对象里逐键核过，这两个名字不在其中）。
+ *
+ * 调用方怎么对待缺席（**别把缺席当故障**）：
+ * - 注册表视图有回退链：先问模块对象，再问实例，最后按后端 id 拼骨架
+ *   （`registryViews.js:32-46` 与 `:59-64`）—— 实例上没有这两个方法时，正是回退链在起作用。
+ * - 共享壳取仓库标识时先看有没有这个方法再调，并对调用加了竞速上限
+ *   （`src/shared/deck-tools/shell.js:216-227`，上限缺省 8000 毫秒、可经 `resolveTimeoutMs` 配）；
+ *   没有方法或超时，壳按「补不出来」如实往下走，绝不编一个仓库名。
+ */
+export interface RoomAuxiliaries {
+  /**
+   * 从工作区目录解析出 `owner/name`（GitHub 专用）。
+   * 返回 `null` 表示这一趟没解析出来（不是异常，调用方按「补不出来」处理）。
+   */
+  getRepoKey?(cwd: string, ctx: OpContext): Promise<{ owner: string; name: string } | null>
+
+  /**
+   * 产出仓库身份（与模块对象上同名的那个方法同义，实例版供回退链用）。
+   * 第二个参数是后端 id；实例自己知道身份，可以忽略它，故标可选参数。
+   */
+  describe?(handle: RepoHandle, backendId?: BackendId): RepositoryRef
+
+  /** 一张票在这个后端里的链接（与模块对象上同名方法同义，实例版供回退链用）。 */
+  issueUrl?(ref: RepositoryRef, key: string): string
 }

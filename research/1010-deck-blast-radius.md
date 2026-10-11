@@ -58,14 +58,45 @@
 
 注：本类 13 条中有 9 条的文件同时出现在第一类，两类合计去重后为 34 个文件，与全仓搜索的去重文件数一致。
 
-## 三、src 内部引用者（共 4 个文件，不搬家但搬家后必改 import）
+## 三、src 内部引用者（2026-10-12 回填：初版只列了 4 个文件，实测 9 个必改加 4 个只改注释）
 
-上面两类只覆盖了测试脚本，本类是旧路径搬家后必须同步改引用的源文件。
+上面两类只覆盖了测试脚本，本类是旧路径搬家后必须同步改引用的源文件。本节每一行的行号都是回填时重新打开源码数出来的，不是照抄别处。分三小类，因为改法不同。
 
-1. `src/host/index.js:239`：动态引入代执行模块，改新路径。
-2. `src/host/workspaceCwd.js:5`：静态引用锚文件读写，改新路径。
-3. `src/host/tracker/detection/explicitDetector.js:14`：静态引用锚文件读写，改新路径。
-4. `src/host/tracker/detection/backendDecision.js:18`：整体引用锚文件读写，改新路径。
+### 三甲、不搬家、但引用会断的文件（7 个文件，共 21 条 import，必须改）
+
+1. `src/host/platformChannel.js`（9 条，全为动态 import）：`:48` 与 `:84` 各引一次 `./tracker/registryCore.js`（主路与回落分支各一次）、`:53` 引 `./tracker/backends/github/index.js`、`:58` 引 `./tracker/backends/markdown/index.js`、`:74` 引 `./tracker/backends/gitlab/index.js`、`:184` 引 `./tracker/detection/workspaceStore.js`、`:283` 引 `./tracker/detection/detectionService.js`、`:318` 引 `./tracker/detection/explicitDetector.js`、`:341` 引 `./tracker/detection/backendDecision.js`。
+   新路径：注册表两条改 `src/tracker/registry/core.ts`；三个房间改 `src/tracker/rooms/<房名>/index.ts`；四层识别改 `src/tracker/detection/*.ts`。
+2. `src/host/index.js`（2 条）：`:137` 动态引 `./tracker/backends/github/client.js`（取 `TIMEOUT_MS` 交给检查链）、`:239` 动态引 `./platform/deckExec.js`（代执行电话）。
+3. `src/host/refresh/wiring.js`（6 条）：`:25` 引 `../platform/deckToolsAssembly.js`、`:32` 引 `../../shared/deck-tools/agent-register.js`、`:33` 引 `../../shared/deck-tools/exec-cell.js`、`:34` 引 `../platform/deckSandbox.js`、`:35` 引 `../platform/deckQuotaSync.js`、`:43` 引 `../../shared/deck-tools/workspace-file.js`。
+4. `src/host/issueDetail.js`（1 条）：`:4` 静态引 `./tracker/backends/github/normalize.js` 的 `pullStateOf`。
+5. `src/host/remotePredicates.js`（1 条）：`:19` 动态引 `./tracker/backends/markdown/parse.js`。
+6. `src/host/workspaceCwd.js`（1 条）：`:5` 静态引 `../shared/deck-tools/workspace-file.js` 的三件导出。
+7. `src/host/detectChain.js`（1 条）：`:22` 动态引 `./tracker/detection/preflightScope.js`。
+
+### 三乙、随目录一起搬家、同时要改对 deck 层引用（2 个文件，2 条）
+
+8. `src/host/tracker/detection/explicitDetector.js:14`：引 `../../../shared/deck-tools/workspace-file.js`。
+9. `src/host/tracker/detection/backendDecision.js:18`：整体引 `../../../shared/deck-tools/workspace-file.js`。
+
+这两条要改两件事：目录随 `detection/` 搬进 `src/tracker/detection/`（到 `src/shared/` 的上跳层数由四层变三层），引的锚文件读写改到 `src/deck/shell/workspace-anchor.ts`。
+更正说明：初版把这两个文件归进「不搬家」那一类，与设计文档里「`detection/` 搬进 `src/tracker/detection/`」不符，这里改正——它们是随目录搬、同时改引用。
+
+### 三丙、只有注释提到旧路径（4 个文件 4 处，不改也能跑，但该顺手改文案，免得后人照抄）
+
+10. `src/host/publishFlow.js:6`（注释里写 `src/host/tracker/backends/github/init-project.js`）。
+11. `src/client/kernel/link.js:111`（注释里写 `src/host/tracker/backends/<id>/index.js`）。
+12. `src/client/kernel/locale-labels.js:28`（注释里写 `src/host/tracker/backends/markdown/label-colors-ops.js` 的行号）。
+13. `src/shared/tracker/initProjectErrorKinds.js:5`（注释里写 `src/host/tracker/backends/github/init-project.js`）。
+
+另有 2 个文件（`src/host/refresh/wiring.js` 的 `:23` 与 `:308`、`src/host/detectChain.js` 的 `:17`）也在注释里提旧路径，但它们已经算在三甲里，不重复计数，改 import 时顺手把注释一起改。
+
+### 假阳性说明（别误改）
+
+`src/host/tracker/index.js:17` 与 `src/host/tracker/snapshot.js:26` 引的是 `src/shared/tracker/deck-derive.js`，那是面板派生的共享件，不在本次搬家范围（`src/shared/**` 除 `deck-tools/` 外都不动），看到「deck」字样不要顺手改。
+
+### 为什么这一类证明「房间是面板与 deck 共用、归 `src/tracker/` 不归 `src/deck/`」
+
+三甲这 7 个文件里，有四个与 deck 工具毫无关系却在用房间：`platformChannel.js` 引三房与注册表（宿主起步装配，面板要用）、`issueDetail.js` 引 GitHub 房的 `normalize`、`remotePredicates.js` 引 Markdown 房的 `parse`、`index.js:137` 引 GitHub 房的 `client` 取超时常量。也就是说房间至少有两个独立调用方——deck 工具链与面板/宿主装配。把房间搬进 `src/deck/` 下面，这四个文件就从「同层或邻近层引用」变成「向上引用另一个功能的私有目录」，与 3.1 归属原则（共用归共用家）直接冲突。
 
 ## 四、构建脚本（1 个文件）
 
@@ -100,4 +131,4 @@
 
 ## 总数
 
-测试脚本 34 个（含两类，去重后），src 内部引用者 4 个，构建脚本 1 个，发布包镜像 24 个（自动生成）加手写映射 1 处，门禁基线 2 个，文档标题 10 个（仅列出不改）。手改总数为 42 个文件（37 加 4 加 1），另 24 个镜像由构建自动处理。
+测试脚本 34 个（含两类，去重后），src 内部引用者 9 个（三甲 7 个不搬家的加三乙 2 个随目录搬家的，共 23 条 import），构建脚本 1 个，发布包镜像 24 个（自动生成）加手写映射 1 处，门禁基线 2 个，文档标题 10 个（仅列出不改）。**手改总数为 47 个文件**（旧口径 42 = 34 测试加 1 构建加 2 基线加 4 src 加 1 映射；本次回填把 src 那一类由 4 个更正为 9 个，故 42 加 5 得 47）。另 24 个镜像由构建自动处理，另有 4 个文件只有注释提到旧路径（三丙），不计入必改数。

@@ -29,6 +29,7 @@ import type { BackendContext, BackendId, RepoHandle, RepositoryRef } from './por
 import type {
   GitHubRoomExtension,
   MarkdownRoomExtension,
+  RoomAuxiliaries,
   RoomOperations,
 } from './operations.js'
 
@@ -148,12 +149,15 @@ export interface BackendModule {
   /**
    * 造一个能干活的后端实例。
    * 只实现真会的那几条；缺的方法由注册表包一层代理自动补「做不到」的桩。
-   * 返回类型里带上两个房内扩展，是因为 GitHub 房的 `listSubIssues` 与本地 Markdown 房的
-   * `ensureLabelColorsFile` 确实会被房外的宿主电话调用（它们不是契约操作，但也不是私有的）。
+   * 返回类型里带上三样东西，各有各的理由：
+   * - 两个房内扩展（`listSubIssues`、`ensureLabelColorsFile` 等）：它们确实会被房外的宿主电话调用，
+   *   不是契约操作，但也不是私有的。
+   * - `RoomAuxiliaries`：实例上的只读辅助口（`getRepoKey` / `describe` / `issueUrl`），
+   *   注册表视图的回退链与共享壳会取用；不给类型位置的话，两房照原样实现会因多余属性当场报错。
    */
   create(
     ctx: BackendContext,
-  ): RoomOperations & Partial<GitHubRoomExtension> & Partial<MarkdownRoomExtension>
+  ): RoomOperations & Partial<GitHubRoomExtension> & Partial<MarkdownRoomExtension> & RoomAuxiliaries
 
   /**
    * 启发式识别：这个工作区是不是我的地盘？
@@ -221,6 +225,6 @@ export interface BackendModule {
   labelPalette?: { name: string; color: string }[]
 }
 
-// 类型再导出：`create` 的返回形状直接引用了这两个房内扩展，调用方从本文件取用更顺手，
+// 类型再导出：`create` 的返回形状直接引用了这三个房内/旁路形状，调用方从本文件取用更顺手，
 // 免得每次都去 operations.ts 再 import 一次。
-export type { GitHubRoomExtension, MarkdownRoomExtension }
+export type { GitHubRoomExtension, MarkdownRoomExtension, RoomAuxiliaries }

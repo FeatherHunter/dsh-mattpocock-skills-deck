@@ -46,10 +46,22 @@ GitHub 房与本地 Markdown 房用 `implements Tracker` 去实现，少一个�
 | `listSubIssues` | GitHub 房扩展（`GitHubRoomExtension`，**不进契约**） | 它是读路径的实现细节，唯一调用者是宿主电话；没实现它的后端由那条电话按「做不到」退化 |
 | `ensureLabelColorsFile` | 本地 Markdown 房扩展（`MarkdownRoomExtension`，**不进契约**） | 宿主在「用户选定后端」那一步要放一份默认配色文件，但**不许问后端是谁**；做成「实现了就放、没实现就跳过」的口子，只有本地 Markdown 房实现它 |
 
-另外两个名字也住在 GitHub 房与本地 Markdown 房的实例上，但**不建模**，理由写在这里免得
-以后被当成漏掉：本地 Markdown 房的 `normalize` 与 `parse` 是房内自用的解析函数
-（房外的读者是它自己的别的文件），它们不是给上层用的口子，等房间自己迁成 TypeScript 时
-按房内模块处理即可。
+另外两类名字也住在两个房间的**实例**上（`create()` 造出来的那一份），不在这 19 条里，本轮都给它们定了类型位置，写法与理由如下：
+
+- **实例旁路口三个**：`getRepoKey`、`describe`、`issueUrl`，落在 `RoomAuxiliaries`（三个成员全可选），
+  由 `BackendModule.create()` 的返回类型交叉进来。它们今天真实挂在 GitHub 实例上
+  （`backends/github/backend.js:119`、`:120`、`:124`），本地 Markdown 实例上没有 ——
+  所以三个都标可选，谁有谁写。有两个真实读者：注册表视图的回退链
+  （`registryViews.js:32-46` 与 `:59-64`，先问模块对象、再问实例、最后按后端 id 拼骨架）与
+  共享壳取仓库标识那一处（`src/shared/deck-tools/shell.js:216-227`，先看有没有这个方法再调，
+  外加竞速上限）。**缺席不是故障**：没有方法时前两条路各自回退，壳按「补不出来」如实往下走。
+- **本地 Markdown 房的两个解析口**：`normalize` 与 `parse`，落在 `MarkdownRoomExtension` 的可选成员上。
+  它们只有本地文件后端有（`backends/markdown/index.js:151`、`:152`），返回的是房间自己的完整解析结果，
+  所以契约层把返回类型写成 `unknown` 而不复制房间私有形状；参数形状记在 `MarkdownParseMeta`。
+  本轮在 `src/host` 与 `tests` 里没有查到房外调用方（房内别的文件直接 import `parse.js` / `normalize.js`，
+  不经实例），是否有别处动态取用未核实。**注意**：早先这一版 README 写它们「不建模」，
+  2026-10-12 补丁时改成建模为可选成员 —— 理由是不建模的话，房间照原样实现时这两个键会因
+  多余属性检查当场报错，迁移第一步就卡住。
 
 ## 与今天的运行时真源的关系（迁移期必读）
 
