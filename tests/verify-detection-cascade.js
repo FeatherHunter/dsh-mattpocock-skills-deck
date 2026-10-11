@@ -10,6 +10,8 @@ import { parseIssueTracker } from '../src/host/tracker/detection/parseIssueTrack
 import { detectExplicit } from '../src/host/tracker/detection/explicitDetector.js'
 import { createWorkspaceStore } from '../src/host/tracker/detection/workspaceStore.js'
 import { createDetectionService } from '../src/host/tracker/detection/detectionService.js'
+import { decideBackend as outletDecideBackend, selectionFromOutlet as outletSelectionFromOutlet } from '../src/host/tracker/detection/backendDecision.js'
+try { outletDecideBackend.selectionFromOutlet = outletSelectionFromOutlet } catch (eAttachOutlet) {}
 import { createRegistry } from '../src/host/tracker/registryCore.js' // V1 #461：registry.js 已拆为三块
 
 let passed=0, failed=0
@@ -87,16 +89,17 @@ console.log('== ① 三级联探测正确性（explicit>matches>fallback + pendi
   const ghMod = { id:'github', label:'G', create: () => ({ id:'github', preflight: async()=>({ok:true}) }), matches: async (h)=> String(h.cwd).includes('gh') }
   reg.register(mdMod); reg.register(ghMod)
   const platformA = { fs: { resolve: async(p)=>p, readText: async()=> '# Issue tracker: GitHub\n', lstat: async()=>null }, path:{join:(...a)=>a.join('/'), sep:'/'}, resolveExecutable: async()=>null, getHome: async()=>null, env:{get:()=>undefined,has:()=>false} }
-  const svcA = createDetectionService({ registry: reg, getPlatform: async()=>platformA, getFs: ()=>platformA.fs, getTimers: ()=>({setTimeout, clearTimeout}), workspaceStore: createWorkspaceStore({ttl:30000}), skillProbe: async()=>({ok:true, missing:[], probes:{}}) })
+  const svcA = createDetectionService({ registry: reg, getPlatform: async()=>platformA, getFs: ()=>platformA.fs, getTimers: ()=>({setTimeout, clearTimeout}), workspaceStore: createWorkspaceStore({ttl:30000}), skillProbe: async()=>({ok:true, missing:[], probes:{}}), getChoiceStore: async () => null, decideBackend: outletDecideBackend })
   const rA = await svcA.detect({ cwd:'/tmp/a' }, {})
   ok(rA.selection.backendId==='github' && rA.selection.source==='explicit', 'detectionService explicit 优先（文件声明 github 头于 matches）')
   const platformB = { fs: { resolve: async(p)=>{ throw new Error('no file') }, readText: async()=>{throw new Error()}, lstat: async()=>null }, path:{join:(...a)=>a.join('/'), sep:'/'}, resolveExecutable: async()=>null, getHome: async()=>null, env:{get:()=>undefined,has:()=>false} }
-  const svcB = createDetectionService({ registry: reg, getPlatform: async()=>platformB, getFs: ()=>platformB.fs, getTimers: ()=>({setTimeout, clearTimeout}), workspaceStore: createWorkspaceStore({ttl:30000}), skillProbe: async()=>({ok:true, missing:[], probes:{}}) })
+  // 回退那一级自动识别住在统一判定出口里（老路径已删，服务不再另跑一次），这一路把出口接上再量。
+  const svcB = createDetectionService({ registry: reg, getPlatform: async()=>platformB, getFs: ()=>platformB.fs, getTimers: ()=>({setTimeout, clearTimeout}), workspaceStore: createWorkspaceStore({ttl:30000}), skillProbe: async()=>({ok:true, missing:[], probes:{}}), getChoiceStore: async () => null, decideBackend: outletDecideBackend })
   const rB = await svcB.detect({ cwd:'/tmp/mdproj' }, {})
   ok(rB.selection.backendId==='markdown' && rB.selection.source==='matches', 'detectionService fallback → matches (md)')
 
   const platformC = { fs: { resolve: async(p)=>{ throw new Error()}, readText: async()=>{throw new Error()} }, path:{join:(...a)=>a.join('/'), sep:'/'}, resolveExecutable: async()=>null, getHome: async()=>null, env:{get:()=>undefined,has:()=>false} }
-  const svcC = createDetectionService({ registry: reg, getPlatform: async()=>platformC, getFs: ()=>platformC.fs, getTimers: ()=>({setTimeout, clearTimeout}), workspaceStore: createWorkspaceStore({ttl:30000}), skillProbe: async()=>({ok:true, missing:[], probes:{}}) })
+  const svcC = createDetectionService({ registry: reg, getPlatform: async()=>platformC, getFs: ()=>platformC.fs, getTimers: ()=>({setTimeout, clearTimeout}), workspaceStore: createWorkspaceStore({ttl:30000}), skillProbe: async()=>({ok:true, missing:[], probes:{}}), getChoiceStore: async () => null, decideBackend: outletDecideBackend })
   const rC = await svcC.detect({ cwd:'/tmp/none' }, {})
   ok(rC.selection.backendId===null && rC.selection.source==='fallback', 'detectionService fallback 无命中 → null')
 }

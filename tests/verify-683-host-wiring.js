@@ -2,16 +2,16 @@
 /**
  * verify-683-host-wiring.js —— F1「用户选的后端按工作区存一份在宿主侧」的宿主接线门禁（#683）
  *
- * 量的是 ADR docs/adr/20260921-persist-user-choice-host-side.md 第 8 节里属于「接上判定链」的那几组：
- *   A R3 四档：H（宿主侧那份记忆）里没有这条 → 采纳客户端报上来的选择并写进 H（一次性迁移）；
- *     baseRev 与 H 的修订号相等 → 采纳；更旧或没带 → 被 H 顶回、按 H 回答；没报选择 → 按 H 回答；
- *     H 里没有、也没报 → 照旧落回锚文件。
+ * 量的是 ADR docs/adr/20260921-persist-user-choice-host-side.md 第 8 节里属于「接上判定链」的那几组
+ * （#1003 老路径已删：上报优先与修订号四档仲裁已退役，上报一律忽略；H 经统一判定出口的记忆层照旧回答）：
+ *   A 上报即忽略：带上报也按锚文件回答，且不再写进 H；无文件无声明时 H 经出口记忆层回答并带修订号；
+ *     文件在就听文件的；H 里没有、也没报 → 照旧落回锚文件。
  *   B R5c/R10：文件坏的那一轮既不采纳也不写；工作区已空时记忆视为过期（H 不回答，内容不动）；
  *     H 里那条后端今天不在注册表里 → 当没有。
  *   C R4：快照那三条短路路径与 304 都要带权威 {selection, rev}（只换了后端时客户端才不会继续显示旧后端）。
  *   D R1（静态）：全仓只有两处会写 H —— 用户点确认那通 wf.bind、以及档一那次一次性迁移。
  *   E R7c：H 写失败要如实回 persisted:false（不许无声失败）。
- *   F 反证：把实现做坏（把「没带版本位就采纳」写回去、把 H 放在选择之后、把短路路的 selection 摘掉），
+ *   F 反证：把实现做坏（把上报优先级加回来、把 H 放在选择之后、把短路路的 selection 摘掉），
  *     对应的断言必须当场红。
  *
  * 用法：node tests/verify-683-host-wiring.js
@@ -35,6 +35,8 @@ const makeDir = function (tag) { const d = fs.mkdtempSync(path.join(os.tmpdir(),
 const { createDetectionService } = await import(url('src/host/tracker/detection/detectionService.js'))
 const { createRegistry } = await import(url('src/host/tracker/registryCore.js'))
 const { createChoiceStore } = await import(url('src/host/choiceStore.js'))
+const { decideBackend: outletDecideBackend, selectionFromOutlet: outletSelectionFromOutlet } = await import(url('src/host/tracker/detection/backendDecision.js'))
+try { outletDecideBackend.selectionFromOutlet = outletSelectionFromOutlet } catch (eAttachOutlet683) {}
 
 // 现场：一个工作区目录（可选放一份锚文件，写着 GitHub），一份真 choiceStore（落在临时主目录上）。
 const makeWorkspace = function (anchor) {
@@ -64,45 +66,45 @@ const makeService = function (store, wsStore) {
     },
     path: path,
   }
-  return createDetectionService({ registry, getPlatform: async () => platform, getFs: () => platform.fs, getTimers: () => null, workspaceStore: wsStore || null, getChoiceStore: async () => store, exec: null })
+  return createDetectionService({ registry, getPlatform: async () => platform, getFs: () => platform.fs, getTimers: () => null, workspaceStore: wsStore || null, getChoiceStore: async () => store, exec: null, decideBackend: outletDecideBackend })
 }
 const makeWsStore = function () {
   const m = new Map()
   return { get: (h) => m.get(h.cwd || ''), set: (h, v) => { m.set(h.cwd || '', v) }, invalidate: (h) => { m.delete(h.cwd || '') }, clear: () => m.clear() }
 }
 
-console.log('宿主接线门禁（#683 F1：四档判定、坏文件与空工作区、每条回包都带权威选择、只有两处写记忆）')
+console.log('宿主接线门禁（#683 F1：上报即忽略、H 经出口记忆层回答、每条回包都带权威选择、只有一处写记忆）')
 
-// ── A R3 四档 ─────────────────────────────────────────────────────────────────────
+// ── A 上报即忽略，H 经出口记忆层回答 ────────────────────────────────────────────────────
 console.log('')
-console.log('== A R3 四档：谁说话 ==')
+console.log('== A 上报即忽略；H 经出口记忆层回答；文件赢 ==')
 {
-  // 档一：H 里没有这条 → 采纳客户端报上来的选择，并写进 H（一次性迁移），答复带新的修订号
+  // 上报一律忽略：H 里没有这条、锚文件写着 GitHub，带上报 markdown 也按锚回答，且不写进 H
   const ws = makeWorkspace('# Issue tracker: GitHub\n')
   const store = makeStore(['github', 'markdown'])
   const svc = makeService(store)
   const a1 = await svc.detect({ cwd: ws }, { skipSkillProbes: true, hintBackendId: 'markdown', baseRev: 0 })
-  check(a1.selection && a1.selection.backendId === 'markdown', '档一：H 里没有这条时采纳客户端报上来的选择（锚文件写着 GitHub）—— 实得「' + (a1.selection && a1.selection.backendId) + '」')
-  check(a1.rev === 1 && a1.selection.rev === 1, '档一：这条同时被写进 H（一次性迁移），宿主发号 rev=1 并随答复回去 —— 实得 rev=' + a1.rev)
+  check(a1.selection && a1.selection.backendId === 'github', '上报的选择不再参与判定（老路径已删），锚文件照旧说话 —— 实得「' + (a1.selection && a1.selection.backendId) + '」')
+  check(a1.rev === 0 && a1.fromHint === false, '上报不产生修订号、不标记为上报 —— 实得 rev=' + a1.rev + ' fromHint=' + a1.fromHint)
   const stored = await store.getWorkspace(ws)
-  check(stored.found === true && stored.backendId === 'markdown' && stored.rev === 1, '档一：H 里确实落下了这条（后端 + rev）—— 实得 ' + JSON.stringify(stored))
+  check(stored.found === false, '上报不再写进 H（一次性迁移已随老路径退役）—— 实得 ' + JSON.stringify(stored))
 
-  // 档二：baseRev 与 H 的修订号相等 → 采纳客户端那条
-  const a2 = await svc.detect({ cwd: ws }, { skipSkillProbes: true, hintBackendId: 'markdown', baseRev: 1 })
-  check(a2.selection && a2.selection.backendId === 'markdown' && a2.rev === 1, '档二：版本位对得上时采纳客户端那条、答复带同一个修订号 —— 实得 rev=' + a2.rev)
+  // H 经出口记忆层照旧回答（无文件无声明时）：上报 github 也盖不掉 H 里的 markdown，并带上修订号
+  // （目录里放一条占位文件：全空目录按 #297 视为已删，记忆过期是不回答的，见 B 组 b2）
+  const wsM = makeWorkspace(null)
+  fs.writeFileSync(path.join(wsM, 'README.md'), 'x', 'utf8')
+  const memFirst = await store.rememberWorkspace(wsM, 'markdown')
+  const aM = await svc.detect({ cwd: wsM }, { skipSkillProbes: true, hintBackendId: 'github' })
+  check(aM.selection && aM.selection.backendId === 'markdown', '无文件无声明时 H 经出口记忆层回答 markdown（上报 github 盖不掉）—— 实得「' + (aM.selection && aM.selection.backendId) + '」')
+  check(aM.rev === (memFirst.rev || 0), '记忆层回答带上 H 的修订号 —— 实得 rev=' + aM.rev)
 
-  // 档三：客户端手里那份更旧（或没带版本位）→ 不采纳，按 H 回答
-  const bumped = await store.rememberWorkspace(ws, 'github') // 别的壳把它改成了 github，rev 推到 2
-  check(bumped.ok === true && bumped.rev === 2, '（布置）另一个壳把这个工作区改成了 github，H 的修订号推到 2 —— 实得 rev=' + bumped.rev)
-  const a3 = await svc.detect({ cwd: ws }, { skipSkillProbes: true, hintBackendId: 'markdown', baseRev: 1 })
-  check(a3.selection && a3.selection.backendId === 'github', '档三：客户端手里是旧的那一版时**不采纳**它，按 H 回答（这就是「localStorage 还是老状态时不许说话」）—— 实得「' + (a3.selection && a3.selection.backendId) + '」')
-  check(a3.rev === 2, '档三：答复带的是 H 的修订号（客户端据此覆盖本地那份）—— 实得 rev=' + a3.rev)
-  const a3b = await svc.detect({ cwd: ws }, { skipSkillProbes: true, hintBackendId: 'markdown' })
-  check(a3b.selection && a3b.selection.backendId === 'github', '档三（没带版本位的老客户端）：同样被 H 顶回 —— 实得「' + (a3b.selection && a3b.selection.backendId) + '」')
-
-  // 档四：客户端没报选择（新壳、清了缓存、换了访问地址）→ 按 H 回答
-  const a4 = await svc.detect({ cwd: ws }, { skipSkillProbes: true })
-  check(a4.selection && a4.selection.backendId === 'github' && a4.rev === 2, '档四：客户端什么都没报时按 H 回答（跨壳、跨重启不失忆的那一半）—— 实得「' + (a4.selection && a4.selection.backendId) + '」rev=' + a4.rev)
+  // 文件赢：锚写着 GitHub、工作区文件里是 markdown → markdown（上报 github 也盖不掉）
+  const wsF = makeWorkspace('# Issue tracker: GitHub\n')
+  fs.writeFileSync(path.join(wsF, 'docs', 'agents', 'workspace.json'), '{"version":1,"backendId":"markdown","pickedAt":1758500000000,"source":"user"}', 'utf8')
+  const storeF = makeStore(['github', 'markdown'])
+  const svcF = makeService(storeF)
+  const aF = await svcF.detect({ cwd: wsF }, { skipSkillProbes: true, hintBackendId: 'github' })
+  check(aF.selection && aF.selection.backendId === 'markdown', '文件在就听文件的（markdown 胜锚 github），上报也盖不掉 —— 实得「' + (aF.selection && aF.selection.backendId) + '」')
 
   // H 里没有、也没报 → 照旧落回锚文件
   const ws2 = makeWorkspace('# Issue tracker: GitHub\n')
@@ -153,19 +155,21 @@ console.log('== B R5c/R10：坏文件不采纳也不写、空工作区不回答�
   check(b3.selection && b3.selection.backendId === 'github', 'H 里那条后端今天不在注册表里时当没有（落回锚文件，不发一个没有模块的后端）—— 实得「' + (b3.selection && b3.selection.backendId) + '」')
 }
 
-// ── C R2c：带 hint 的那一次结果不许当通用答案端出去 ─────────────────────────────────────
+// ── C R2c：缓存里的选择随那份记忆变旧就必须重算 ─────────────────────────────────────
 console.log('')
 console.log('== C R2c：缓存里的选择随那份记忆变旧就必须重算 ==')
 {
-  const ws = makeWorkspace('# Issue tracker: GitHub\n')
+  const ws = makeWorkspace(null)
+  fs.writeFileSync(path.join(ws, 'README.md'), 'x', 'utf8')
   const store = makeStore(['github', 'markdown'])
   const wsStore = makeWsStore()
   const svc = makeService(store, wsStore)
-  const c1 = await svc.detect({ cwd: ws }, { skipSkillProbes: true, hintBackendId: 'markdown', baseRev: 0 })
-  check(c1.selection && c1.selection.backendId === 'markdown', '（布置）第一次带 hint 的探测结论是 markdown')
-  const bumped = await store.rememberWorkspace(ws, 'github')
+  await store.rememberWorkspace(ws, 'markdown') // rev 推到 1
+  const c1 = await svc.detect({ cwd: ws }, { skipSkillProbes: true })
+  check(c1.selection && c1.selection.backendId === 'markdown' && c1.rev === 1, '（布置）H 里是 markdown 时出口记忆层回答 markdown 并带修订号 —— 实得「' + (c1.selection && c1.selection.backendId) + '」rev=' + c1.rev)
+  const bumped = await store.rememberWorkspace(ws, 'github') // 别的壳把它改成了 github，rev 推到 2
   const c2 = await svc.detect({ cwd: ws }, { skipSkillProbes: true })
-  check(c2.selection && c2.selection.backendId === 'github' && c2.rev === (bumped.rev || 0), '别的壳改过 H 之后，第二次（没带 hint）读缓存也要重算、按新的 H 回答 —— 实得「' + (c2.selection && c2.selection.backendId) + '」rev=' + c2.rev)
+  check(c2.selection && c2.selection.backendId === 'github' && c2.rev === (bumped.rev || 0), '别的壳改过 H 之后，第二次读缓存也要重算、按新的 H 回答 —— 实得「' + (c2.selection && c2.selection.backendId) + '」rev=' + c2.rev)
 }
 
 // ── D R4：快照那几条路都要带权威选择 ───────────────────────────────────────────────────
@@ -220,10 +224,10 @@ console.log('== E R1（静态）与 R7c：只有两处写记忆；写失败如�
     }
   }
   walk(path.join(ROOT, 'src'))
-  const allowed = ['src/host/workspaceCwd.js', 'src/host/tracker/detection/detectionService.js']
+  const allowed = ['src/host/workspaceCwd.js']
   const bad = callers.filter((c) => allowed.indexOf(c.split(':')[0]) < 0)
-  check(bad.length === 0, '全仓只有两处会往那份记忆里写（用户点确认那通 wf.bind、以及档一那次一次性迁移）—— 多出来的：' + (bad.join('、') || '无'))
-  check(callers.length === 2, '这两处都在场、各一处（实得 ' + callers.length + ' 处：' + callers.join('、') + '）')
+  check(bad.length === 0, '全仓只有一处会往那份记忆里写（用户点确认那通 wf.bind；档一一次性迁移已随老路径退役）—— 多出来的：' + (bad.join('、') || '无'))
+  check(callers.length === 1, '这一处在场（实得 ' + callers.length + ' 处：' + callers.join('、') + '）')
 
   // R7c：记忆写失败要如实回 persisted:false
   const { createWorkspaceCwd } = await import(url('src/host/workspaceCwd.js'))
@@ -286,10 +290,10 @@ console.log('== F 反证：把实现做坏，上面该红的必须当场红 ==')
 const detectionSrc = read('src/host/tracker/detection/detectionService.js')
 const snapSrc = read('src/host/sessionSnapshot.js')
 {
-  // F1 把「没带版本位就采纳」写回去（档三失效）
-  const from = '} else if (hintUsable && h.found && hintRev !== h.rev) {'
-  const to = '} else if (false) {'
-  check(detectionSrc.includes(from), '反证 F1 的改法能在真源里落地（把「被 H 顶回」那一档关掉）')
+  // F1 上报优先级加回来（老路径复活）→ A 组第一条变红
+  const from = 'let selection = explicitRes.selection'
+  const to = "let selection = (opts && opts.hintBackendId && registry && typeof registry.has === 'function' && registry.has(opts.hintBackendId)) ? { backendId: opts.hintBackendId, source: 'explicit', ref: null } : explicitRes.selection"
+  check(detectionSrc.includes(from), '反证 F1 的改法能在真源里落地（上报优先级加回来）')
   if (detectionSrc.includes(from)) {
     // 改坏的那一份**真的求值出来跑**：剥掉那两行 import，改由参数注入（两件都取真身）——
     //   与 tests/verify-669-choice-precedence.js 同一种写法（只比字符串不等却仍跑真源，等于这道反证是假的）。
@@ -311,7 +315,10 @@ const snapSrc = read('src/host/sessionSnapshot.js')
     const platform = { fs: { resolve: async (rel, o) => path.resolve((o && o.cwd) || '.', rel), readText: async (p) => fs.readFileSync(p, 'utf8'), lstat: async (p) => fs.lstatSync(p), stat: async (p) => fs.statSync(p), readdir: async (p) => fs.readdirSync(p) }, path: path }
     const svc = createBroken({ registry, getPlatform: async () => platform, getFs: () => platform.fs, getTimers: () => null, workspaceStore: null, getChoiceStore: async () => store, exec: null })
     const r = await svc.detect({ cwd: ws }, { skipSkillProbes: true, hintBackendId: 'markdown', baseRev: 1 })
-    check(r.selection && r.selection.backendId === 'markdown', '反证 F1 成立：关掉那一档之后，旧的那一版又把新的顶掉了（正是本票要避免的错乱）—— 实得「' + (r.selection && r.selection.backendId) + '」')
+    check(r.selection && r.selection.backendId === 'markdown', '反证 F1 成立：上报优先级加回来之后，带上报又压过锚文件（正是老路径要结束的那件事）—— 实得「' + (r.selection && r.selection.backendId) + '」')
+    const svcTrue = createDetectionService({ registry, getPlatform: async () => platform, getFs: () => platform.fs, getTimers: () => null, workspaceStore: null, getChoiceStore: async () => store, exec: null })
+    const rTrue = await svcTrue.detect({ cwd: ws }, { skipSkillProbes: true, hintBackendId: 'markdown', baseRev: 1 })
+    check(rTrue.selection && rTrue.selection.backendId === 'github', '（对照）真源里带上报时仍是锚文件的 github —— 实得「' + (rTrue.selection && rTrue.selection.backendId) + '」')
   }
   // F2 短路路不再带上权威选择 —— 跑改坏的那一份，同一份现场就会把旧后端发出去
   const from2 = 'if (sameBackend && prevRev === nowRev && (sameLayout || !_layEarly)) return s'

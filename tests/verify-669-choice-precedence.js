@@ -7,8 +7,8 @@
  *   用户那一下根本轮不到；客户端再把快照给的结论合并回来，把用户的选择盖掉并写进本地缓存。
  *
  * 断五组：
- *   A 行为层（宿主）：真调 detectionService.detect —— 带用户选择时压过锚文件；不带时锚照旧说话；
- *     锚文件不存在时自动识别照旧兜底；未注册的后端 id 忽略（诚实）。每条都配反证。
+ *   A 行为层（宿主）：真调 detectionService.detect —— 上报的选择一律忽略，锚文件照旧说话；
+ *     没有锚文件也没有工作区文件时如实未知（不猜）；未注册的后端 id 忽略（诚实）。每条都配反证。
  *   B 行为层（客户端）：真求值 store-prefs.js 的 userHintOf 与 store-snapshot.js 的 mergeSelection ——
  *     只有带 userPicked 标记的选择才当 hint 上报；宿主回同一条时标记留住，回不同后端时标记消失。
  *   C 行为层（切换之后按场景分流）：真求值 store-switch.js 的 confirmSwitchConfirm，配真 guide-steps ——
@@ -90,22 +90,22 @@ const makeDetection = async function (srcText) {
   return svc
 }
 
-console.log('== A 行为层（宿主）：带用户选择 → 压过锚文件；不带 → 锚照旧说话 ==')
+console.log('== A 行为层（宿主）：上报即忽略，锚照旧说话；无锚无文件 → 如实未知 ==')
 {
   const ws = makeWorkspace('# Issue tracker: GitHub\n')
   const svc = await makeDetection()
   const withHint = await svc.detect({ cwd: ws }, { skipSkillProbes: true, hintBackendId: 'markdown' })
   const noHint = await svc.detect({ cwd: ws }, { skipSkillProbes: true })
-  check(withHint.selection && withHint.selection.backendId === 'markdown', '带用户选择（hint=markdown）时，判定结果是 markdown（锚文件写着 GitHub）—— 实得「' + (withHint.selection && withHint.selection.backendId) + '」')
+  check(withHint.selection && withHint.selection.backendId === 'github', '上报的选择不再压过锚文件（老路径已删，唯一真源是文件与锚），判定结果是锚文件的 github —— 实得「' + (withHint.selection && withHint.selection.backendId) + '」')
   check(noHint.selection && noHint.selection.backendId === 'github', '不带用户选择时，锚文件照旧说话（markdown → github 的锚）—— 实得「' + (noHint.selection && noHint.selection.backendId) + '」')
   check(!!withHint.explicit && !!withHint.explicit.raw, '带用户选择的那一次**也照旧读了锚文件**（结果里的 explicit 一栏不空，界面与排查要用）')
   const badHint = await svc.detect({ cwd: ws }, { skipSkillProbes: true, hintBackendId: 'not-a-backend' })
   check(badHint.selection && badHint.selection.backendId === 'github', '未注册的后端 id 被忽略（诚实）→ 落回锚文件 —— 实得「' + (badHint.selection && badHint.selection.backendId) + '」')
-  // 锚文件不存在的工作区：用户选择照旧生效（空目录里的蓝条那一下）
+  // 锚文件不存在、工作区文件也不存在：光靠上报不再变出选择（用户点确认走写入口落文件，文件赢的那条见单出口 S2）
   const ws2 = makeWorkspace(null)
   const svc2 = await makeDetection()
   const fresh = await svc2.detect({ cwd: ws2 }, { skipSkillProbes: true, hintBackendId: 'github' })
-  check(fresh.selection && fresh.selection.backendId === 'github', '没有锚文件的工作区里，用户选择照旧生效 —— 实得「' + (fresh.selection && fresh.selection.backendId) + '」')
+  check(!(fresh.selection && fresh.selection.backendId), '没有锚文件的工作区里，光靠上报不再产生选择（如实未知，不猜）—— 实得「' + (fresh.selection && fresh.selection.backendId) + '」')
 }
 
 // ── B 组：客户端不再上报 hint（#1003 退役镜像与修订号仲裁，宿主直接读文件） ──────────
@@ -445,7 +445,7 @@ console.log('== E 反证：把实现做坏，上面该红的必须当场红 ==')
   check(brokenC3 !== switchSrc, '反证 C3 的改法能在真源里落地')
   const brC3 = await runSwitchScenario(brokenC3, null, 'github', 'markdown')
   check(brC3.decision.length === 1 && brC3.inject.length === 0, '反证 C3 成立：那道闸摘掉之后，链还没到就落进「还没初始化」那一支（去开卡 / 注入初始化全文）—— 实得 decision=' + brC3.decision.length + ' inject=' + brC3.inject.length)
-  // A 的反证：把 hint 分支关掉（等价于旧顺序：锚先说话）—— 带 hint 的那一次就应当退回锚文件的 github
+  // A 的反证（#1003 老路径已删）：若有人把上报优先级加回来，带上报就会压过锚文件，本组第一条变红。
   const wsA = makeWorkspace('# Issue tracker: GitHub\n')
   const { createDetectionService } = await import(url('src/host/tracker/detection/detectionService.js'))
   const { createRegistry } = await import(url('src/host/tracker/registryCore.js'))
@@ -455,25 +455,25 @@ console.log('== E 反证：把实现做坏，上面该红的必须当场红 ==')
   regA.register(mkA('markdown'))
   const platA = { fs: { resolve: async (rel, o) => path.resolve((o && o.cwd) || '.', rel), readText: async (p) => fs.readFileSync(p, 'utf8'), lstat: async (p) => fs.lstatSync(p), stat: async (p) => fs.statSync(p), readdir: async (p) => fs.readdirSync(p) }, path: path }
   const svcA = createDetectionService({ registry: regA, getPlatform: async () => platA, getFs: () => platA.fs, getTimers: () => null, workspaceStore: null, exec: null })
-  // A 的反证：把 hint 分支整段关掉（等价于旧顺序：锚先说话）—— 那一份现场里带 hint 的一次必须退回锚文件的 github
-  // 2026-09-22（#683 F1）：hint 那一支改成按修订号判的四档之后，这一刀的落点从 `if (opts.hintBackendId && registry`
-  //   换成那句 `const hintUsable = !!(opts.hintBackendId …)` —— 关掉它等于「客户端报上来的选择一律不算数」，意图不变。
-  const staleSrc = detectionSrc.replace('const hintUsable = !!(opts.hintBackendId', 'const hintUsable = false && !!(opts.hintBackendId')
-  check(staleSrc !== detectionSrc, '反证 A 的改法能在真源里落地（hint 分支关掉）')
-  const svcBroken = await makeDetection(staleSrc)
-  const hintWins = await svcA.detect({ cwd: wsA }, { skipSkillProbes: true, hintBackendId: 'markdown' })
-  check(hintWins.selection.backendId === 'markdown', '（对照）真源里带 hint 时是 markdown —— 下面那一条量的是「把 hint 关掉就退回 github」')
-  const hintIgnored = await svcBroken.detect({ cwd: wsA }, { skipSkillProbes: true, hintBackendId: 'markdown' })
-  check(hintIgnored.selection && hintIgnored.selection.backendId === 'github', '反证 A 成立：把 hint 那一支关掉之后，同一份现场带着 hint 也退回锚文件的 github —— 实得「' + (hintIgnored.selection && hintIgnored.selection.backendId) + '」（说明这一门量的就是 hint 那一支的优先级）')
+  // A 的反证：把上报优先级加回来（等价于老路径复活）—— 那一份现场里带上报的一次必须变成 markdown。
+  const readdedSrc = detectionSrc.replace('let selection = explicitRes.selection', "let selection = (opts && opts.hintBackendId && registry && typeof registry.has === 'function' && registry.has(opts.hintBackendId)) ? { backendId: opts.hintBackendId, source: 'explicit', ref: null } : explicitRes.selection")
+  check(readdedSrc !== detectionSrc, '反证 A 的改法能在真源里落地（上报优先级加回来）')
+  const svcReadded = await makeDetection(readdedSrc)
+  const hintBackdoor = await svcReadded.detect({ cwd: wsA }, { skipSkillProbes: true, hintBackendId: 'markdown' })
+  check(hintBackdoor.selection && hintBackdoor.selection.backendId === 'markdown', '反证 A 成立：上报优先级加回来之后，带上报又压过锚文件成 markdown —— 实得「' + (hintBackdoor.selection && hintBackdoor.selection.backendId) + '」（说明本组第一条量的正是上报不再优先）')
+  const hintIgnoredNow = await svcA.detect({ cwd: wsA }, { skipSkillProbes: true, hintBackendId: 'markdown' })
+  check(hintIgnoredNow.selection && hintIgnoredNow.selection.backendId === 'github', '（对照）真源里带上报时仍是锚文件的 github —— 实得「' + (hintIgnoredNow.selection && hintIgnoredNow.selection.backendId) + '」')
   const noHintA = await svcA.detect({ cwd: wsA }, { skipSkillProbes: true })
-  check(noHintA.selection.backendId === 'github', '（对照）真源里不带 hint 时也是锚文件的 github')
-  // A 的反证二：把 hint 分支挪到锚文件读取**之前**（先判 hint、再读锚）不会改变结论，但把它挪到
-  //   `if (!selection)` 兜底里就会「锚赢」——这一条量的是「hint 与锚的先后不许被调换」。
-  const lateSrc = detectionSrc.replace('} else if (hintUsable) {', '} else if (hintUsable && !selection) {')
-  check(lateSrc !== detectionSrc, '反证 A2 的改法能在真源里落地（hint 分支挪到兜底里）')
-  const svcLate = await makeDetection(lateSrc)
-  const lateHint = await svcLate.detect({ cwd: wsA }, { skipSkillProbes: true, hintBackendId: 'markdown' })
-  check(lateHint.selection && lateHint.selection.backendId === 'github', '反证 A2 成立：hint 挪进兜底之后，锚文件重新压过用户的选择（回到修之前那个毛病）—— 实得「' + (lateHint.selection && lateHint.selection.backendId) + '」')
+  check(noHintA.selection.backendId === 'github', '（对照）真源里不上报时也是锚文件的 github')
+  // A 的反证二（#1003 老路径已删）：上报在兜底里复活也不许 —— 没有锚文件时光靠上报必须仍是未知。
+  const fallbackSrc = detectionSrc.replace('//   没走出口又没结论时如实返回未知（锚文件那一份），不猜。', "//   没走出口又没结论时如实返回未知（锚文件那一份），不猜。\n    if (!selection && opts && opts.hintBackendId) { try { selection = { backendId: opts.hintBackendId, source: 'explicit', ref: null } } catch (eFb) {} }")
+  check(fallbackSrc !== detectionSrc, '反证 A2 的改法能在真源里落地（上报兜底加回来）')
+  const svcFallback = await makeDetection(fallbackSrc)
+  const wsEmpty = makeWorkspace(null)
+  const fallbackHint = await svcFallback.detect({ cwd: wsEmpty }, { skipSkillProbes: true, hintBackendId: 'github' })
+  check(fallbackHint.selection && fallbackHint.selection.backendId === 'github', '反证 A2 成立：上报兜底加回来之后，无锚文件时光靠上报也能变出 github —— 实得「' + (fallbackHint.selection && fallbackHint.selection.backendId) + '」')
+  const honestNow = await svcA.detect({ cwd: wsEmpty }, { skipSkillProbes: true, hintBackendId: 'github' })
+  check(!(honestNow.selection && honestNow.selection.backendId), '（对照）真源里无锚文件时光靠上报仍是未知（不猜）—— 实得「' + (honestNow.selection && honestNow.selection.backendId) + '」')
 }
 
 for (const d of tmpDirs) { try { fs.rmSync(d, { recursive: true, force: true }) } catch (e) {} }

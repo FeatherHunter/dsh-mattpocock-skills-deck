@@ -154,6 +154,7 @@ async function readDeclarationLayer(cwd, deps) {
 
 async function readChoiceLayer(cwd, deps) {
   try {
+    if (deps.workspaceEmpty === true) return null; // #297：工作区已空时那份记忆视为过期（内容不动，只是不拿它回答）
     if (typeof deps.readChoice === 'function') {
       const got = await deps.readChoice(cwd);
       if (got && got.backendId) return got;

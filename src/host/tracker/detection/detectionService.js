@@ -185,33 +185,13 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
     let selection = explicitRes.selection
     const explicit = { raw: explicitRes.raw, parsed: explicitRes.parsed }
 
-    // ② 用户的手动选择（意图）：ADR 20260921 定的顺序是「人的意图 > 人写下过的声明 > 机器推断」——
-    //   所以带 hint 的那一次调用**压过锚文件**（此前是「锚有结论时本分支不参与」，那条 2026-08-27 的
-    //   顺序在真机上表现成「面板里切了后端，仓库标仍是旧后端」：锚文件写着 GitHub，快照照旧回 GitHub，
-    //   客户端再把用户刚选的那一条盖掉）。
-    //   谁算「用户的手动选择」：只有客户端能分清 —— 用户亲手点过的那条选择带 userPicked 标记，
-    //   客户端只把带标记的那条当 hint 上报；派生出来的选择（快照/链/自动识别的结论）不带标记、不上报。
-    //   这一条是 ADR 攻击 1 的整改：不区分来源的话，锚文件的历史结论会被缓存下来冒充用户意图，
-    //   之后谁改锚文件都不再生效（比修之前更糟）。宿主这一侧不做判别：上报即信任，判别在客户端那一次写入。
-    //   未注册 id 忽略（诚实）→ 落回锚文件。
-    //   #297 失效维度：工作区已空（文件全删）时「记忆里的选择」视为过期 —— 那条判定在缓存分支、
-    //   本文件那份记忆（H）的读法里，以及 `registry.select` 的记忆侧；带 hint 的这一次是用户当场的选择，照采纳。
-    // ②b #683（F1 · ADR 的 R3）：用户的选择有两份存储 —— 客户端报上来的 hint（带它上次收到的修订号
-    //   baseRev）与宿主侧那份记忆（H）。两份都会旧，所以按**宿主发号的修订号**判谁说话，四档：
-    //   ① H 里没有这条 → 采纳 hint，并把它落进 H（一次性迁移；老记录没有版本位，只在这一档被采纳一次）；
-    //   ② hint 的 baseRev 与 H 的 rev 相等 → 采纳 hint（客户端手里就是最新那一版）；
-    //   ③ baseRev 更旧、或压根没带版本位 → **不采纳**，按 H 回答并把 H 的值与 rev 回给客户端
-    //      （这一档就是维护者点名的「localStorage 还是老状态时不许说话」）；
-    //   ④ 客户端没报选择（新壳、清了缓存、换了访问地址）→ 也按 H 回答（跨壳、跨重启不失忆的那一半）。
-    //   文件坏的那一轮（R5c）既不采纳 hint、也不写；用户当场点确认的那一通走的是 wf.bind（它先把 H 推到
-    //   H.rev+1 再回包），所以下一轮它的 baseRev 与 H.rev 必然相等 —— 当场那一下永远赢，不必在这条路上特判。
-    // #1003 单出口：有函数整段交出去（顺序同出口），自动识别沿用本轮执行器；没递走老路（669 反证钉着它）。
+    // ② 唯一真源是工作区里的配置文件，判定顺序由统一判定出口定（内存绑定 → 工作区文件 → 声明文件 → 本机记忆 → 自动识别）。
+    //   调用方上报的选择与修订号一律忽略：用户点确认走写入口落文件，不经上报参数；这里再判一次就是第二套答案（#1003 老路径已删）。
+    // #1003 单出口：调用方经平台层把统一判定函数递进来时，选择整段交出去；没递时按锚文件结论诚实返回，不另起第二套判定。
     const useOutlet = (typeof decideBackend === 'function') ? decideBackend : null
     const describeOf = function (id) { try { return registry.describe(handle, id) } catch (e) { return null } }
-    const hintUsable = !!(opts.hintBackendId && registry && typeof registry.has === 'function' && registry.has(opts.hintBackendId))
-    const hintRev = (Number.isInteger(opts.baseRev) && opts.baseRev > 0) ? opts.baseRev : 0
     let choiceRev = 0
-    let choiceFromHint = false
+    const choiceFromHint = false
     let choiceSource = ''
     if (useOutlet) {
       const autoHook = async function (h, c) {
@@ -220,7 +200,10 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
         opCtx.caller = 'detection-service'
         return registry.select(h, Object.assign({}, opCtx, { caller: (c && c.caller) || 'detection-service' }))
       }
-      const o = await useOutlet(cwd, { registry: registry, platform: platform, fs: fs, caller: 'detection-service', signal: opts.signal, getChoiceStore: getChoiceStore, autodetect: autoHook }).catch(function () { return null })
+      // #297 失效维度：工作区已空时那份记忆视为过期 —— 判空逻辑仍在这一处（出口只收一个标记，不另写一份）。
+      let workspaceEmpty = false
+      try { workspaceEmpty = await isWorkspaceEmpty(cwd, platform) } catch (eEmpty) {}
+      const o = await useOutlet(cwd, { registry: registry, platform: platform, fs: fs, caller: 'detection-service', signal: opts.signal, getChoiceStore: getChoiceStore, autodetect: autoHook, workspaceEmpty: workspaceEmpty }).catch(function () { return null })
       const mapped = (useOutlet.selectionFromOutlet && o) ? useOutlet.selectionFromOutlet(o, describeOf) : null
       if (mapped && mapped.backendId) {
         selection = mapped
@@ -233,57 +216,9 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
         choiceSource = (o && o.origin) || 'none'
       }
     }
-    if (!useOutlet) {
-      const h = await readChoiceNow()
-      const fromH = function () {
-        selection = { backendId: h.backendId, source: 'explicit', ref: describeOf(h.backendId), rev: h.rev, pickedAt: h.pickedAt }
-        choiceRev = h.rev
-        choiceSource = h.reason || 'h'
-      }
-      if (h.unreadable) {
-        // R5c：文件存在但读不出来/形状不对 → 这一轮既不采纳 hint、也不往里写（半截文件不许把浏览器里那份
-        //   可能更旧的选择重新灌进来并永久化）。选择保持锚文件读出来的那一份。
-        choiceSource = 'file-bad'
-      } else if (hintUsable && h.found && hintRev !== h.rev) {
-        // 档三：客户端手里那份比宿主记的旧（含没带版本位）→ 按 H 回答。
-        //   ADR 的 R11 那条「被更旧的 hint 顶回」：用户报「刚选完又变回去了」时，这是唯一的轨迹。
-        try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'choiceStore.hint.reject', { keyHash: hash8(cwd), baseRev: hintRev, rev: h.rev }) } catch (eL) {}
-        selection = { backendId: h.backendId, source: 'explicit', ref: describeOf(h.backendId), rev: h.rev, pickedAt: h.pickedAt }
-        choiceRev = h.rev
-        choiceSource = h.reason || 'h'
-      } else if (hintUsable) {
-        // 档二（以及档一）：采纳用户报上来的这一条
-        let ref = null
-        try { ref = registry.describe(handle, opts.hintBackendId) } catch {}
-        selection = { backendId: opts.hintBackendId, source: 'explicit', ref: ref, rev: hintRev }
-        choiceRev = hintRev
-        choiceFromHint = true
-        if (!h.unreadable && !h.found) {
-          // 档一：宿主还没记过这个工作区 → 把这条落进 H（ADR 的 R1 第二条写路：一次性迁移），
-          //   并把宿主发的新修订号带上（客户端拿到之后此后上报都带着它）。
-          try {
-            const cs = typeof getChoiceStore === 'function' ? await getChoiceStore() : null
-            if (cs && typeof cs.rememberWorkspace === 'function') {
-              const w = await cs.rememberWorkspace(cwd, opts.hintBackendId)
-              if (w && w.ok === true) { choiceRev = w.rev || 0; selection.rev = choiceRev; choiceSource = 'migrated' }
-            }
-          } catch (eMig) {}
-        }
-      } else if (h.found) {
-        selection = { backendId: h.backendId, source: 'explicit', ref: describeOf(h.backendId), rev: h.rev, pickedAt: h.pickedAt }
-        choiceRev = h.rev
-        choiceSource = h.reason || 'h'
-      }
-    }
-
-    // ③ matches > fallback（经 registry.select，含 pending/multiHit + 超时 3000ms + AbortSignal）
-    //   单出口已含自动识别层，本块只在老路且前两层都没答案时跑。
-    if (!selection && !useOutlet) {
-      const opCtx = buildOpContextBase(cwd, platform, fs, timers, execForThisRound, 'detect-select')
-      // 若调用方传 signal，可在此注入 opCtx.signal = opts.signal（registry withTimeout 内部会合并）
-      if (opts.signal) opCtx.signal = opts.signal
-      opCtx.caller = 'detection-service'; selection = await registry.select(handle, opCtx)
-    }
+    // 老路径已删：此处原为上报优先的第二套判定（含修订号四档仲裁），与统一判定出口互为两个真相，现整块移除（#1003）。
+    // ③ 自动识别由统一判定出口内含（经递进来的自动识别执行器跑，含超时与中止信号），这里不再另跑一次。
+    //   没走出口又没结论时如实返回未知（锚文件那一份），不猜。
 
     // repoHandle：轻量化复用 getRepoKey 语义中的 handle → describe ref
     let repoHandle = null
