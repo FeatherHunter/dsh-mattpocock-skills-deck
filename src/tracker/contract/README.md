@@ -2,8 +2,9 @@
 
 这一目录是 deck 工具与面板**共用的那一份书面承诺**。它回答两个问题：
 
-1. **一个后端要能做哪些事，每件事收什么、回什么** —— 见 `operations.ts`。
-2. **票、仓库、失败这些东西长什么样** —— 见 `ports.ts`。
+1. **一个后端要能做哪些事，每件事收什么、回什么** —— 见 `operations.ts`（操作名本身在 `operations-catalog.ts`）。
+2. **票、仓库、失败这些东西长什么样** —— 见形状层的五件（`identity.ts`、`entities.ts`、`contexts.ts`、
+   `results.ts`、`inputs.ts`，各自的读者见下面的文件清单）。
 
 外加一份注册表真正读的「模块对象」形状（`backend-module.ts`）：进程刚启动、还没有工作区、
 还没有登录的时候，界面靠它画出「有哪些后端可选」。
@@ -29,7 +30,7 @@ GitHub 房与本地 Markdown 房用 `implements Tracker` 去实现，少一个�
 ## 三条不变量（改了就是破坏承诺）
 
 1. **失败是返回值，不是异常**：任何操作失败都回 `{ ok: false, error }`，
-   `error.kind` 取 `ports.ts` 里那八个值。房间抛异常会让上层两条写路径同时开火。
+   `error.kind` 取 `identity.ts` 里那八个值。房间抛异常会让上层两条写路径同时开火。
 2. **字段要么永远在、要么按能力省略**：核心字段永远存在（缺了用 `''`/`null` 补），
    能力字段能实现就给值或给空数组（EMPTY），不能实现就整个字段省略（MISSING）。
    「空数组」与「没有这个能力」是两件事，界面靠这个区别说话。
@@ -83,10 +84,31 @@ npx tsc -p tsconfig.contract.json
 
 ## 文件清单
 
-- `ports.ts` —— 形状层：身份、实体（票/标签/评论/参与人）、调用上下文、返回值、各操作的入参、
-  标签配色专用形状、房内扩展要用的数据形状。
-- `operations.ts` —— 操作层：19 条契约操作的名字（`OpName`）、`Tracker` 接口（含本轮新升的
-  `getRepoPermissions`，共 20 个成员）、房间能拿出来的那份（`RoomOperations`）、
-  两个房内扩展（`GitHubRoomExtension`、`MarkdownRoomExtension`）。
+形状层按「谁读它」分成五件（2026-10-12 拆开，原先堆在一个 `ports.ts` 里）：五件之间
+**引用方向永远单向**，地基在下、读者在上，不允许反过来（反过来就是循环引用，编译器会当场报）。
+
+| 文件 | 装什么 | 读者 |
+| --- | --- | --- |
+| `identity.ts` | 身份与枚举：`BackendId`、`State`、`IssueType`、`ClosedReason`、`ActorKind`、`ErrorKind`、`Actor` | 其余四件、房间、注册表、工具、面板（谁都要用，所以它谁也不引） |
+| `entities.ts` | 实体：`Issue`、`IssueRef`、`Label`、`Comment`、`Milestone`、`CustomField`、`Review`、`RepositoryRef`、`LabelColor`、`LabelColorChange` | 房间（造出它们）、工具与面板（消费它们） |
+| `contexts.ts` | 调用上下文：`BackendContext`（这台机器能干什么）、`OpContext`（这一次调用是谁）、`RepoHandle` | 房间实现与装配那一层 |
+| `results.ts` | **回给调用方**的形状：`TrackerError`、`OpResult`、`PreflightResult`、`Selection`、`RepoPermissions`、`Dependencies`、`Counts`、`PageResult`、`LabelColorBatchResult` | 工具、面板、注册表 |
+| `inputs.ts` | **调用方交进来**的形状：`ListFilter`、`GetOpts`、`DepsOpts`、`CreateInput`、`InitProjectInput`、`UpdatePatch`、`CloseOpts`、`SetOpts`、`LabelInput`、`AssigneeInput`、`PageOpts` | 房间实现（当参数）、工具（当实参） |
+
+两条容易问到的归位（都是有意的，不是搬错）：
+
+- `Dependencies`、`Counts`、`PageResult` 三个写在旧文件的「入参与选项」一节里，其实是**回值**，
+  按「谁读它」的尺子搬进了 `results.ts`。
+- `LabelColorBatchResult`（逐条记账的结果）没有跟 `LabelColor` 放在实体那一件：它要用失败形状
+  `TrackerError`，而失败形状属于 `results.ts`；放进实体会形成「实体引回值、回值引实体」的环。
+
+其余文件：
+
+- `operations.ts` —— 操作层：`Tracker` 接口（19 条契约操作 + 本轮新升的 `getRepoPermissions`，
+  共 20 个成员）、房间能拿出来的那份（`RoomOperations`）、两个房内扩展（`GitHubRoomExtension`、
+  `MarkdownRoomExtension`）、实例旁路口（`RoomAuxiliaries`）、房间私有解析口的参数（`MarkdownParseMeta`）。
+- `operations-catalog.ts` —— **操作名录单源**：19 个操作名的 `as const` 数组；`operations.ts` 的
+  `OpName` 由它生成（`typeof OPERATIONS[number]`），不再手抄一份联合类型。
+  迁移期它与运行时 `src/host/tracker/contract.js` 的 `OPERATIONS` 暂时并存，两边同集由门禁第四项守着。
 - `backend-module.ts` —— 模块对象形状：`id` / `label` / `create` / `matches` 四件套，
   加品牌色板、设置页文案键、链接模板、界面能力位、检查目录、修复知识、默认调色盘。

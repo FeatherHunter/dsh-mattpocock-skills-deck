@@ -4,8 +4,11 @@
  * ── 这份文件回答一个问题 ────────────────────────────────────────────────────────
  * 「一个后端要能做哪些事，每件事收什么、回什么。」答完这一份，上层就能不认识后端是谁。
  *
- * ── 与形状层的分工 ──────────────────────────────────────────────────────────────
- * 形状（票长什么样、失败长什么样）在 `./ports.ts`；本文件只放**动词**：方法名、参数、返回。
+ * ── 与形状件的分工 ──────────────────────────────────────────────────────────────
+ * 形状（票长什么样、失败长什么样、上下文是什么）分成五件：`identity.ts`（身份与枚举）、
+ * `entities.ts`（实体）、`contexts.ts`（调用上下文）、`results.ts`（回给调用方的）、
+ * `inputs.ts`（调用方交进来的），五件各自的读者见同目录 README.md。
+ * 本文件只放**动词**：方法名、参数、返回；操作名本身由 `operations-catalog.ts` 单源提供。
  * 两处都不含任何运行时实现 —— 真正的实现今天还在
  * `src/host/tracker/contract.js`（JSDoc 版）与两个房间的 `.js` 文件里，等迁移批次搬过来。
  *
@@ -22,70 +25,52 @@
  *    在本文件末尾单独定形状，**不进 `Tracker`**。
  */
 
+import type { Actor, BackendId } from './identity.js'
+import type { Comment, Issue, LabelColor, LabelColorChange, RepositoryRef } from './entities.js'
+import type { OpContext, RepoHandle } from './contexts.js'
 import type {
-  Actor,
-  BackendId,
-  CloseOpts,
   Counts,
-  CreateInput,
   Dependencies,
-  DepsOpts,
-  GetOpts,
-  Issue,
-  LabelColor,
   LabelColorBatchResult,
-  LabelColorChange,
-  LabelInput,
-  AssigneeInput,
-  InitProjectInput,
-  ListFilter,
-  OpContext,
   OpResult,
-  PageOpts,
   PageResult,
   PreflightResult,
-  RepoHandle,
   RepoPermissions,
-  RepositoryRef,
+} from './results.js'
+import type {
+  AssigneeInput,
+  CloseOpts,
+  CreateInput,
+  DepsOpts,
+  GetOpts,
+  InitProjectInput,
+  LabelInput,
+  ListFilter,
+  PageOpts,
   SetOpts,
   UpdatePatch,
-  Comment,
-} from './ports.js'
+} from './inputs.js'
+import type { OPERATIONS } from './operations-catalog.js'
 
 /**
- * 19 条契约操作的名字，与今天的 `contract.js` 里 `OPERATIONS` 数组**逐字同集**：
+ * 19 条契约操作的名字，**由名录单源生成**（`operations-catalog.ts` 的 `OPERATIONS` 数组）：
  * `preflight`、`list`、`get`、`getDependencies`、`create`、`close`、`reopen`、`comment`、
  * `update`、`setLabels`、`setAssignees`、`setParent`、`setBlockedBy`、`getCurrentUser`、
  * `initProject`、`listLabels`、`setLabelColors`、`counts`、`listPage`。
  *
+ * 为什么这么写（原来是一份手抄的联合类型）：手抄的联合类型与运行时那份 `OPERATIONS` 数组
+ * 是两份数据，靠人眼对齐，漏改一处的后果是「类型说有、注册表不补桩」—— 那种错只在运行时
+ * 才炸，且只炸没实现它的那个后端。改成从数组生类型之后，加一条操作只改名录一处。
+ *
+ * 迁移期仍有第二份真源（`src/host/tracker/contract.js:58-74` 的数组）：两边的同集关系
+ * 由门禁 `tests/verify-contract-types.js` 的第四项守着，不等即判红；等 contract.js 退休时
+ * 那条断言与本段一起撤掉。
+ *
  * 为什么没有 `detect`：身份识别不是操作，它是 `matches`（布尔）+ 注册表仲裁 + `describe`。
  * 为什么没有 `snapshot` / `children` / `listSubIssues`：那些是读路径的实现细节或宿主编排的
  * 便利函数，进了这份清单就等于把「谁来拼装」这件事写死进契约。
- *
- * ⚠️ 运行时的真源仍是 `contract.js` 的 `OPERATIONS` 数组（注册表按它补桩）。
- * 本联合类型与它必须同集：**加一条操作 = 改两处**，漏改一处的后果是「类型说有、注册表不补桩」，
- * 那种错在运行时才炸，且只炸没实现它的那个后端。
  */
-export type OpName =
-  | 'preflight'
-  | 'list'
-  | 'counts'
-  | 'listPage'
-  | 'get'
-  | 'getDependencies'
-  | 'create'
-  | 'close'
-  | 'reopen'
-  | 'comment'
-  | 'update'
-  | 'setLabels'
-  | 'setAssignees'
-  | 'setParent'
-  | 'setBlockedBy'
-  | 'getCurrentUser'
-  | 'initProject'
-  | 'listLabels'
-  | 'setLabelColors'
+export type OpName = (typeof OPERATIONS)[number]
 
 /**
  * 一个后端适配器对上层承诺的全部操作。

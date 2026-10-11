@@ -25,7 +25,9 @@
  * 与「能力 = 运行时调用结果」直接冲突。
  */
 
-import type { BackendContext, BackendId, RepoHandle, RepositoryRef } from './ports.js'
+import type { BackendId } from './identity.js'
+import type { RepositoryRef } from './entities.js'
+import type { BackendContext, RepoHandle } from './contexts.js'
 import type {
   GitHubRoomExtension,
   MarkdownRoomExtension,

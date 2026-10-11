@@ -1,17 +1,23 @@
-// tests/verify-contract-types.js — 契约层类型门禁（deck 重构第二批 B 落地）
+// tests/verify-contract-types.js — 契约层类型门禁（deck 重构第二批 B 落地，拆分工加第四项）
 //
-// 这个门禁替契约层守三件事，三件都过才算绿：
+// 这个门禁替契约层守四件事，四件都过才算绿：
 //   一、类型检查：用仓库 devDependencies 里的 typescript 跑一遍 `tsc -p tsconfig.contract.json`，
 //       零错误才算过；tsc 的输出原样透出，看错在哪一行不用再自己跑一遍。
-//   二、接口清单齐：读 src/tracker/contract/operations.ts 的文本，断言 19 个契约操作名全部出现，
-//       缺哪个报哪个（名字清单与 research/1010-deck-contract-surface.md 表 E2 的 19 项逐字一致）。
+//   二、接口清单齐：读 operations.ts 与 operations-catalog.ts 两份文本，断言 19 个契约操作名
+//       全部出现，缺哪个报哪个（名字清单与 research/1010-deck-contract-surface.md 表 E2 的 19 项逐字一致）。
+//       为什么要读两份：拆分工把操作名改成「名录单源」——名字住在 operations-catalog.ts，
+//       operations.ts 只从它生类型；只扫一份会漏掉真正的住处。
 //   三、没有运行时实现：契约层只许有类型与数据，不许出现函数体实现、也不许引运行时模块
 //       （只许 `import type` 与逐项 `type` 前缀的内联写法）。发现就判红，并指出文件与行号。
+//   四、名录与运行时真源同集（迁移期临时项）：契约层的 OPERATIONS 名录与运行时
+//       src/host/tracker/contract.js 的 OPERATIONS 数组必须同集 —— 注册表按后者给没实现的后端补桩，
+//       两边不一致就会出现「类型说有、注册表不补桩」，那种错只在运行时才炸。
+//       等 contract.js 退休（退休时点由迁移批次定）时，这一项与它一起撤掉。
 //
 // 并行期规则（为什么文件不存在时退出码是 0 而不是 1）：本门禁与写契约真源的那一路子任务并行开发，
 //   真源目录、tsconfig 与操作清单三样都可能还没落地。缺任何一样就打印一行「等 A 落地后再跑」、
 //   把缺的东西逐个列出来、退出 0，不阻塞别人的验证。三样齐了才按正式规则判红：
-//   tsc 有错、清单里缺名字、出现运行时实现，三种都判红。
+//   tsc 有错、清单里缺名字、出现运行时实现、两份名录不同集，四种都判红。
 //   注意这条口径的代价（如实写在这里）：只要 operations.ts 一直不落地，第二件事就一直是「跳过」而不是
 //   「失败」；所以缺件时打印的那一行会点名它，谁看到都该知道契约真源还没写完，而不是以为已经绿了。
 //
@@ -36,6 +42,10 @@ const resolveInRoot = (p) => (path.isAbsolute(p) ? p : path.join(ROOT, p))
 const CONTRACT_DIR = resolveInRoot(process.env.DSH_CONTRACT_DIR || 'src/tracker/contract')
 const TSCONFIG = resolveInRoot(process.env.DSH_CONTRACT_TSCONFIG || 'tsconfig.contract.json')
 const OPERATIONS_REL = 'operations.ts'
+/** 操作名录的住处（拆分工起的单源文件）：操作名真正写在这里，operations.ts 只从它生类型。 */
+const CATALOG_REL = 'operations-catalog.ts'
+/** 运行时真源的路径：它的 OPERATIONS 数组是注册表补桩的依据，第四项要拿它跟名录比同集。 */
+const RUNTIME_CONTRACT_REL = 'src/host/tracker/contract.js'
 
 /** 19 个契约操作名（逐字照 research/1010-deck-contract-surface.md 表 E2 与 contract.js 的 OPERATIONS）。 */
 const OPERATION_NAMES = [
@@ -73,6 +83,26 @@ function listTsFiles(dir) {
 /** 名字出现判定：前后不能是标识符字符，免得 list 命中 listPage、get 命中 getDependencies。 */
 function hasName(text, name) {
   return new RegExp('(^|[^A-Za-z0-9_$])' + name + '([^A-Za-z0-9_$]|$)').test(text)
+}
+
+/**
+ * 从一段源码里抽出「某个字符串数组里写了哪些名字」。
+ * 起止标记由调用方给，因为两份 OPERATIONS 的写法不同：契约层名录用 `as const` 收尾，
+ * 运行时那份是 `Object.freeze([...])`。读不出来（标记不见了）回 null，由调用方判红 ——
+ * 形状变了要让人看见，不许静默按空集处理（那会把「读不到」说成「两边都空、同集」）。
+ */
+function namesInArray(text, startMarker, endMarker) {
+  const start = text.indexOf(startMarker)
+  if (start < 0) return null
+  const from = start + startMarker.length
+  const end = text.indexOf(endMarker, from)
+  if (end < 0) return null
+  const body = text.slice(from, end)
+  const out = []
+  const re = /'([A-Za-z][A-Za-z0-9]*)'/g
+  let m
+  while ((m = re.exec(body))) out.push(m[1])
+  return out
 }
 
 /**
@@ -124,7 +154,7 @@ function findRuntimeImpl(code) {
 }
 
 function main() {
-  console.log('契约层类型门禁（tsc 零错误 + 19 个操作名齐 + 无运行时实现）')
+  console.log('契约层类型门禁（tsc 零错误 + 19 个操作名齐 + 无运行时实现 + 名录与运行时同集）')
 
   // ---- 0) 并行期：三样输入缺任何一样就不阻塞 ----
   const dirExists = fs.existsSync(CONTRACT_DIR) && fs.statSync(CONTRACT_DIR).isDirectory()
@@ -163,10 +193,14 @@ function main() {
   }
 
   // ---- 2) 接口清单齐：19 个操作名一个不少 ----
-  // 到这里 operations.ts 一定在（第 0 步的并行期检查已经拦下缺件的情况），所以直接读、直接查名字。
-  const opsCode = stripComments(fs.readFileSync(path.join(CONTRACT_DIR, OPERATIONS_REL), 'utf8'))
+  // 到这里 operations.ts 一定在（第 0 步的并行期检查已经拦下缺件的情况）。
+  // 名字的**住处**是名录件 operations-catalog.ts，operations.ts 只从它生类型，
+  // 所以两份合起来查：只扫 operations.ts 会在「名录单源」之后漏掉真正写名字的地方。
+  const catalogPath = path.join(CONTRACT_DIR, CATALOG_REL)
+  const catalogCode = fs.existsSync(catalogPath) ? stripComments(fs.readFileSync(catalogPath, 'utf8')) : ''
+  const opsCode = stripComments(fs.readFileSync(path.join(CONTRACT_DIR, OPERATIONS_REL), 'utf8')) + '\n' + catalogCode
   const missingOps = OPERATION_NAMES.filter((n) => !hasName(opsCode, n))
-  check(missingOps.length === 0, '19 个契约操作名全部出现' + (missingOps.length ? '，缺：' + missingOps.join('、') : '（' + OPERATION_NAMES.length + ' 个逐个查过）'))
+  check(missingOps.length === 0, '19 个契约操作名全部出现' + (missingOps.length ? '，缺：' + missingOps.join('、') : '（' + OPERATION_NAMES.length + ' 个逐个查过，含名录件 ' + CATALOG_REL + '）'))
 
   // ---- 3) 没有运行时实现：只许类型与数据 ----
   const tsFiles = listTsFiles(CONTRACT_DIR)
@@ -184,6 +218,37 @@ function main() {
       failed = true
     }
     check(bad === 0, '契约目录下 ' + tsFiles.length + ' 个 .ts 文件都没有运行时实现（只许类型与数据）')
+  }
+
+  // ---- 4) 名录与运行时真源同集（迁移期临时项，contract.js 退休时撤） ----
+  const runtimePath = path.join(ROOT, RUNTIME_CONTRACT_REL)
+  if (!fs.existsSync(catalogPath)) {
+    check(false, '名录件在（缺 ' + path.relative(ROOT, catalogPath) + '：操作名没地方写，第四项比不了）')
+  } else if (!fs.existsSync(runtimePath)) {
+    check(false, '运行时真源在（缺 ' + RUNTIME_CONTRACT_REL + '：第四项没法比同集；若它已退休，本项与该分支一起删）')
+  } else {
+    const catNames = namesInArray(catalogCode, 'export const OPERATIONS = [', '] as const')
+    const rtNames = namesInArray(
+      stripComments(fs.readFileSync(runtimePath, 'utf8')),
+      'export const OPERATIONS = Object.freeze([',
+      '])',
+    )
+    if (!catNames || !rtNames) {
+      check(false, '两份 OPERATIONS 都读得出来（有一份的写法变了、起止标记没命中：' +
+        (catNames ? '' : '名录件 ') + (rtNames ? '' : '运行时真源 ') + '读不出来，请先核对写法再改本门禁）')
+    } else {
+      const rtSet = new Set(rtNames)
+      const catSet = new Set(catNames)
+      const onlyCat = catNames.filter((n) => !rtSet.has(n))
+      const onlyRt = rtNames.filter((n) => !catSet.has(n))
+      check(
+        onlyCat.length === 0 && onlyRt.length === 0,
+        '名录与运行时 contract.js 的 OPERATIONS 同集（名录 ' + catNames.length + ' 条、运行时 ' + rtNames.length + ' 条' +
+          (onlyCat.length || onlyRt.length
+            ? '；只在名录里：' + (onlyCat.join('、') || '无') + '；只在运行时里：' + (onlyRt.join('、') || '无')
+            : '，逐条比过') + '）',
+      )
+    }
   }
 
   console.log(failed ? '\n存在失败 — 契约层类型门禁没通过' : '\n全部通过 — 契约层类型门禁生效')
