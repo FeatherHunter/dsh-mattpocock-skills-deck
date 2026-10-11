@@ -228,7 +228,32 @@
       return { backendId: backendId, source: 'explicit', ref: (ref === undefined ? null : ref), pickedAt: Date.now() }
     }
     // 绑定回包的版本号无处可落（本地无镜像）：直接返回空，调用方照旧判绑定成败。
-    export const adoptBoundRev = function (st, res) { return null }
+    //   #1012 顺带把回包里「工作区配置文件写成什么样」记进会话状态，供状态栏如实展示；
+    //   每次调用整条替换（这次回包没有那一项就记空），所以上一次的旧话不会一直挂在那里误导人。
+    export const adoptBoundRev = function (st, res) {
+      try { if (st) st.workspaceFileResult = (res && (res.workspaceFile || (res.value && res.value.workspaceFile))) || null } catch (e) {}
+      return null
+    }
+    // #1012 绑定回执里工作区配置文件的写入结果翻成人话：宿主已经算好四种，这里只翻译，不重算判断。
+    //   已创建与已覆盖各说一句（覆盖是原来那条被这次选择换掉）；跳过（没有后端、后端没注册、注册表问不到）
+    //   属于正常不做，回空串不打扰人；环境失败如实说没写进工作区，并明说绑定照旧有效。
+    export const workspaceFileNoteOf = function (wf) {
+      try {
+        if (!wf || typeof wf !== 'object') return ''
+        if (wf.ok !== true) return '这次没能把选择写进工作区里的配置文件（绑定照旧有效，下次再选一次可以重试）。'
+        if (wf.skipped) return ''
+        if (wf.reason === 'overwritten') return '已把这次选择写进工作区里的配置文件（覆盖了原来那一条）。'
+        return '已把这次选择写进工作区里的配置文件。'
+      } catch (e) { return '' }
+    }
+    // 状态栏那一行小灰字的节点：有结果才有这一行，没有结果回空（不占位，现有布局一个像素都不动）。
+    export const workspaceFileNoteEl = function (s) {
+      try {
+        const txt = (s && s.workspaceFileResult) ? workspaceFileNoteOf(s.workspaceFileResult) : ''
+        if (!txt) return null
+        return h('div', { style: { fontSize: 10, color: 'var(--dsw-alias-label-caption,#8b8b95)', lineHeight: 1.4, textAlign: 'center', padding: '0 8px', wordBreak: 'break-word', whiteSpace: 'normal' } }, txt)
+      } catch (e) { return null }
+    }
     // #1003 退役：亲手标记已无生产者，合并时不再留标记，直接用宿主回包。
     export const keepUserPick = function (cur, incoming) { return incoming }
     export const getCachedRepository = function (cwd) { try { const k = wsKeyOf(cwd); return (cwd && k) ? repositoryByCwd[k] : null } catch(e){ return cwd ? repositoryByCwd[cwd] : null } }

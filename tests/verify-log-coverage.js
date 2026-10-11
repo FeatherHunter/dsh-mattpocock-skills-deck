@@ -49,8 +49,14 @@ const PHONES = [
   // #927 只读一条：闸的三个累计数（撞限流 / 记账对不上 / 绕闸）的观察口，现役 54 → 55；
   // 它不新开事件，成功一行沿用既有常驻 #26 host.call（电话名写在 method 字段，kind 记 gate-stats）。
   'wf.gateStats',
+  // 本机设置两条电话（wf.getSettings 读 / wf.setSettings 写）：现役 55 → 57。
+  // 两条同样不新开事件，成功与失败都沿用既有常驻 host.call / host.call.fail（电话名写在 method 字段，kind 记 settings）。
+  'wf.getSettings', 'wf.setSettings',
 ]
 // #875 薄接线：新增取更新日志电话 1 条，现役 53 → 54；增删电话同步改本表（附录 1.7 退役表不动）。
+// 续表（上一条注释末尾那句「现役 46 个」之后又增删了几轮，容易数错，这里按现行实数写清）：
+//   #841 写操作那一族与撤回 1 条、#865 更新远方记录 1 条、#927 闸观察口 1 条、#875 更新日志 1 条、
+//   本机设置 2 条（wf.getSettings / wf.setSettings）之后的现行实数 = 57 个（本表条目数与 index.js 注册实数必须相等）。
 const RETIRED = ['wf.ping', 'wf.claim']
 const PHONE_EXEMPT = ['wf.logBatch', 'wf.logGetSwitch', 'wf.logSetSwitch']
 const PHONE_EVENT_COVERS = {
@@ -105,7 +111,13 @@ const CALLEE_COVERS = [
   const hasMethod = (p) => {
     const names = ALIAS[p] ? [p, ALIAS[p]] : [p]
     if (names.some((n) => all.indexOf('method: ' + Q + n + Q) >= 0)) return true
-    return names.some((n) => perFile.some((t) => t.indexOf('loggedPhone(' + Q + n + Q) >= 0 && t.indexOf(Q + 'host.call' + Q) >= 0 && t.indexOf(Q + 'host.call.fail' + Q) >= 0))
+    if (names.some((n) => perFile.some((t) => t.indexOf('loggedPhone(' + Q + n + Q) >= 0 && t.indexOf(Q + 'host.call' + Q) >= 0 && t.indexOf(Q + 'host.call.fail' + Q) >= 0))) return true
+    // 第三种形状（本机设置叶子先例）：电话名作为参数逐个传给一个共用发射函数（本机设置叶子写作 phoneLog('wf.x', …)），
+    // 而发射函数体里 method 取的是形参，所以源码里没有 method: 'wf.x' 这个字面。这里认「按电话名逐条调函数」
+    // 加「同一文件里两种电话事件都在」两条同时成立——与上面 loggedPhone 那条判据同构，只是不写死函数名，
+    // 免得以后每加一个叶子都要回来改这道门禁。仅提到电话名（注释、字符串表）不算，必须是函数调用的第一个实参。
+    if (names.some((n) => { const reCall = new RegExp('[A-Za-z_$][A-Za-z0-9_$]*\\(' + Q + n.replace('.', '\\.') + Q); return perFile.some((t) => reCall.test(t) && t.indexOf(Q + 'host.call' + Q) >= 0 && t.indexOf(Q + 'host.call.fail' + Q) >= 0) })) return true
+    return false
   }
   const hasEvent = (e) => all.indexOf(Q + e + Q) >= 0
   // #875 薄接线：四个更新电话的记行收进更新包（loggedPhone 按电话名记 host.call/host.call.fail，pluginId 隔离），

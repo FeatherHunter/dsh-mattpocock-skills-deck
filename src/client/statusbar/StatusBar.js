@@ -297,7 +297,7 @@ export const StatusBar = (props) => {
   //   这里因此不再声明它；两个转调包装留着，卡的界面在那边直接调用它们。
   if (!bannerStep) {
     // 无 banner 时为胶囊 + 常驻收起按钮（#422：收起即整个功能区消失）
-    return h('div', { style: Object.assign({ display: 'flex', flex: 'none', flexDirection: 'column', alignItems: 'center', gap: 2, overflow: RDOM ? 'hidden' : 'visible' }, dswsStatusDockGeom()) }, [modalSeat, capsule])
+    return h('div', { style: Object.assign({ display: 'flex', flex: 'none', flexDirection: 'column', alignItems: 'center', gap: 2, overflow: RDOM ? 'hidden' : 'visible' }, dswsStatusDockGeom()) }, [modalSeat, workspaceFileNoteEl(s), capsule])
   }
   const bann = function (text, btnLabel, onBtn, foldable) {
     // #669：这颗叉（收起整个功能区）与左边那颗主按钮之间留 12px —— 原来只隔 6px，两颗按钮长得一样高、
@@ -333,8 +333,7 @@ export const StatusBar = (props) => {
     return node
   })()
   return h('div', { style: Object.assign({ display: 'flex', flex: 'none', flexDirection: 'column', alignItems: 'center', gap: 4, position: 'relative' }, dswsStatusDockGeom()) }, [
-
-    stepBanner,
+    stepBanner, workspaceFileNoteEl(s),
     capsule,
     modalSeat,
     (s.gateModalOpen && s.gateModalSource==='status' ? h('div', { onClick:function(e){ if(e.target===e.currentTarget) closeGate() }, style:{ position:'absolute', inset:0, background:'rgba(0,0,0,.65)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:10, borderRadius:8, padding:12 } }, [

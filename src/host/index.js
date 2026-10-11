@@ -291,8 +291,7 @@ export default {
     function _group() { if (!_groupP) _groupP = import('./ticketGrouping.js').then(function(m){ return m.createTicketGrouping() }); return _groupP }
     // H6 同步外形保持：_repo 接线经此同步函数取即时推进（原命名块内同步定义；现为加载后防火即发，无返回值、永不抛，调用方 try 包裹语义不变）。
     function namingSweepSoon(delayMs) { _naming().then(function(h){ try { h.namingSweepSoon(delayMs) } catch (eSw) {} }).catch(function(){}) }
-    harness.handle('wf.handoffLatest', async function () { const h = await _handoff(); return h.handleHandoffLatest.apply(h, arguments) })
-    harness.handle('wf.handoffResolve', async function () { const h = await _handoff(); return h.handleHandoffResolve.apply(h, arguments) })
+    harness.handle('wf.handoffLatest', async function () { const h = await _handoff(); return h.handleHandoffLatest.apply(h, arguments) }); harness.handle('wf.handoffResolve', async function () { const h = await _handoff(); return h.handleHandoffResolve.apply(h, arguments) }) // 两句合一行：本文件已顶三百五十行上限，腾出的一行留给本机设置两条电话
     // #498 退役：wf.claim 删注册（全仓零调用点、零日志行；认领取走 wf.handoffResolve）。handleClaim 实现留守（删注册不断链）。
     harness.handle('wf.namingRegister', async function () { const h = await _naming(); return h.namingRegisterHandler.apply(h, arguments) })
     harness.handle('wf.registerNewSessionWatcher', async function () { const h = await _naming(); return h.namingRegisterHandler.apply(h, arguments) })
@@ -304,9 +303,10 @@ export default {
     harness.handle('wf.openFolder', async function () { const h = await _picker(); return h.handleOpenFolder.apply(h, arguments) })
     harness.handle('wf.initPublish', async function () { const h = await _publish(); return h.handleInitPublish.apply(h, arguments) })
     harness.handle('wf.retryPush', async function () { const h = await _publish(); return h.handleRetryPush.apply(h, arguments) })
-    harness.handle('wf.pickDirectory', async function () { const h = await _picker(); return h.handlePickDirectory.apply(h, arguments) })
-    harness.handle('wf.pickFile', async function () { const h = await _picker(); return h.handlePickFile.apply(h, arguments) })
+    harness.handle('wf.pickDirectory', async function () { const h = await _picker(); return h.handlePickDirectory.apply(h, arguments) }); harness.handle('wf.pickFile', async function () { const h = await _picker(); return h.handlePickFile.apply(h, arguments) }) // 两句合一行：本文件已顶三百五十行上限，腾出的一行留给本机设置两条电话
     harness.handle('wf.openPath', async function () { const h = await _picker(); return h.handleOpenPath.apply(h, arguments) })
+    let _settingsP = null; function _settings() { if (!_settingsP) _settingsP = (async function(){ const sm = await import('./settingsPhones.js'); const cm = await import('./configStore.js'); return sm.createSettingsPhones({ getPlatform: function(){ return getPlatform.apply(null, arguments) }, readLocalSettings: cm.readLocalSettings, writeLocalSettings: cm.writeLocalSettings, logCtx: logCtx }) })(); return _settingsP } // 本机设置叶子懒加载器：第一次用时才动态引入，之后复用同一份实例。
+    harness.handle('wf.getSettings', async function (args) { const h = await _settings(); return h.handleGetSettings(args) }); harness.handle('wf.setSettings', async function (args) { const h = await _settings(); return h.handleSetSettings(args) }) // 读与写两句合一行：两条电话共用同一个懒加载器。
 
     // ---- #490 host 日志底座 + #564 切日志包：优先走包派生（./logFromPackage.js），失败回退旧实现（旧文件留而不搬） ----
     let _logP = null

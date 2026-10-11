@@ -875,6 +875,24 @@
       "count": 1,
       "owner": "#1012 配置存储统一改造（三轮切核）",
       "note": "兼容垫片调核：唯一读写实现住核里，老调用方经此垫片切YAML而不用改；垫片不调核就得另写一份解析。待维护者review确认此例外。"
+    },
+    {
+      "file": "src/host/index.js",
+      "spec": "./settingsPhones.js",
+      "resolved": "src/host/settingsPhones.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "共享板 task-7 本机设置两条电话",
+      "note": "本机设置接线：入口动态加载设置叶子（装配扇入），依赖全由入口显式传入，叶子不引用其他宿主干活文件。"
+    },
+    {
+      "file": "src/host/index.js",
+      "spec": "./configStore.js",
+      "resolved": "src/host/configStore.js",
+      "layer": "host",
+      "count": 1,
+      "owner": "共享板 task-7 本机设置两条电话",
+      "note": "本机设置接线：入口动态加载配置适配器，把读写函数转交给设置叶子，叶子经依赖调用而不直接引用适配器文件。"
     }
   ]
 }
