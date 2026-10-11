@@ -159,6 +159,25 @@ async function readDeclarationLayer(cwd, deps) {
 /**
  * 唯一判定出口：输入工作区根，输出 { backendId, source, origin, canWrite, reason }。
  * 空根直接按未知返回，不读文件、不问注册表、不起外部命令。
+ *
+ * 下面这四层只有两类（2026-10-12 维护者拍板，全文见 docs/adr/20261012-backend-decision-two-classes.md）：
+ *
+ * 一、**人选**（第 1、2 层）——它们是同一件事的两份记录，不是两个来源：
+ *   第 1 层是本次进程内那份副本（origin 记成 user-memory-bind；这个名字是历史遗留，它今天指的是
+ *   「人在界面上点确认」那一下写下的进程内绑定，不是本机记忆）；
+ *   第 2 层是工作区配置文件 docs/agents/workspace.yaml，它是人选的唯一真源（跨重启、跨机器都靠它）。
+ *   两份都由同一个动作写下，见 src/host/workspaceCwd.js 的 handleBind（一次动作同时写内存绑定、
+ *   本机记忆与工作区文件），写文件那处的注释写明「唯一真源意味着用户明确选择时必须能覆盖它」。
+ *
+ * 二、**程序自己认**（第 3、4 层）——都不是人选：
+ *   第 3 层读工作区里的声明文件 docs/agents/issue-tracker.md（仓库里写明用哪个后端，由初始化那一步的
+ *   AI 写下，插件自己不写）；
+ *   第 4 层是后端自己的 matches 命中（看 .git/config、看目录里有没有 .scratch/map.md 之类）。
+ *   声明文件同时也是第 4 层里 matches 的输入（见 src/host/tracker/backends/gitlab/index.js 的 matches
+ *   注释），所以它是「程序自己认」的一条规则，不是人选。
+ *
+ * 写权限今天只给人选：第 1、2 层 canWrite: true；第 3、4 层 canWrite: false（reason: 'needs-generate'）。
+ * 读用途不受这条限制；写用途的拦截在 src/shared/deck-tools/shell.js 与 src/host/workspaceLabelColors.js。
  */
 export async function decideBackend(root, deps = {}) {
   const cwd = String(root || '');
