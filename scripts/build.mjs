@@ -71,6 +71,16 @@ try {
   console.log('[build] 没能加载 version-control-core/build.mjs（' + ((e && e.message) || e) + '），本次构建跳过版本控制核心的转译与类型检查。')
 }
 
+// #1012 配置读写核（config-store-core/）：形态与上面的版本控制核心一致，转译与类型检查都写在
+// 它自己的 build.mjs 里（UNITS 清单由它导出，新鲜度门禁直接读，不手抄）。同样先试加载、
+// 加载不到只打印提示：那棵源码树不进 npm 包，子树构建时跳过、其余照跑。
+let buildConfigStoreCore = null
+try {
+  buildConfigStoreCore = await import('../config-store-core/build.mjs')
+} catch (e) {
+  console.log('[build] 没能加载 config-store-core/build.mjs（' + ((e && e.message) || e) + '），本次构建跳过配置读写核的转译与类型检查。')
+}
+
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
 // ---------- 工具 ----------
@@ -817,6 +827,14 @@ if (buildVersionControlCore) {
   buildVersionControlCore.buildAll()
 }
 
+// #1012 配置读写核：类型检查与转译各调用一次，产物落进 src/shared/config-store/。
+// 与版本控制核心一样放在两段派生之前：产物是宿主适配器要用的纯逻辑，必须先就位。
+// 注意它不拼进客户端闭包（客户端经宿主电话读写设置），所以这里只转译、不拼接。
+if (buildConfigStoreCore) {
+  buildConfigStoreCore.runTypeCheck()
+  buildConfigStoreCore.buildAll()
+}
+
 // 887 客户端 TS 真源（px 系列）：真源是同名 .ts，esbuild 逐文件转译出 .js（AUTO-GENERATED 头），
 // tsc --noEmit 只做类型检查；拼接拼的是生成的 .js。与三个核心同模式，只是真源与产物同目录并排。
 const PX_TS_DIRS = ['src/client/views', 'src/client/views/pixel', 'src/client/views/skillDetail', 'src/client/views/cards', 'src/client/kernel']
@@ -885,9 +903,9 @@ checkPixelTs()
 
 // #564 日志系统派生：先把日志包产物派生为运行时文件（旧文件不动），再拼装。
 // #586 更新系统派生：同样先把更新包产物派生为运行时文件（旧文件不动）。
-// #800 面板派生已切到官方工具：取值唯一来源是已安装的更新包（node_modules/dsh-plugin-update@0.12.x），
-//   本构建只做“派生→构建”两步；“升到 0.12.x 最新并提交锁文件”这一步在构建前由人或发版流程执行，
-//   构建时不自动联网升级（顺序：最新 0.12.x → 派生 → 构建）。
+// #800 面板派生已切到官方工具：取值唯一来源是已安装的更新包（node_modules/dsh-plugin-update@0.13.x），
+//   本构建只做“派生→构建”两步；“升到 0.13.x 最新并提交锁文件”这一步在构建前由人或发版流程执行，
+//   构建时不自动联网升级（顺序：最新 0.13.x → 派生 → 构建）。
 // 两个包 dist 缺失时会报错并提示先跑各自的 build。
 try {
   deriveHost()
@@ -897,11 +915,11 @@ try {
 }
 try {
   const updVersion = deriveUpdateClientVersionForLog()
-  console.log(`[build] 更新包面板取值来源：已安装 dsh-plugin-update@${updVersion}（面板派生唯一数据源；打包前应已先升到 0.12.x 最新并提交锁文件）`)
+  console.log(`[build] 更新包面板取值来源：已安装 dsh-plugin-update@${updVersion}（面板派生唯一数据源；打包前应已先升到 0.13.x 最新并提交锁文件）`)
   deriveUpdateClient()
   await bundleEntryPanel()
 } catch (e) {
-  throw new Error('[build] 更新派生失败（面板取值来源是已安装的更新包：先确认 pnpm install 已装好 dsh-plugin-update@^0.12.0，再重跑本构建）：' + ((e && e.message) || e))
+  throw new Error('[build] 更新派生失败（面板取值来源是已安装的更新包：先确认 pnpm install 已装好 dsh-plugin-update@^0.13.0，再重跑本构建）：' + ((e && e.message) || e))
 }
 
 const out = {}

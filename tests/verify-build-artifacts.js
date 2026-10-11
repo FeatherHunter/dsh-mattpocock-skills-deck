@@ -202,8 +202,10 @@ function sha256(file) { return crypto.createHash('sha256').update(fs.readFileSyn
   //   （「本地文件后端恒可写」这条后端知识的唯一出处，工具层不再自己拿后端 id 做等值比较），总数 73→74。
   // 这个数是「src/shared 树里实际有几个文件」，会随别的票增减 —— 每次改完记得重跑本门禁对数。
   // #948（2026-10-10）：新增 src/shared/feedback-map.js（反馈组合映射的唯一判断口，客户端拼接 + 宿主同字节镜像），总数 74→75。
-  check(srcSharedFiles.length === 75, `src/shared 75 文件（实得 ${srcSharedFiles.length}）`)
-  check(pkgSharedFiles.length === 75, `package/shared 75 文件（实得 ${pkgSharedFiles.length}）`)
+  // #1012（2026-10-11）：新增 src/shared/config-store/ 下 2 个产物（ports 空壳 / config-store 解析校验拼装，
+  // 纯函数、文件之间零相对引用；客户端不拼接，宿主适配器调它），总数 75→77。
+  check(srcSharedFiles.length === 77, `src/shared 77 文件（实得 ${srcSharedFiles.length}）`)
+  check(pkgSharedFiles.length === 77, `package/shared 77 文件（实得 ${pkgSharedFiles.length}）`)
 }
 // 4c) import 卫生：显式 .js（相对 import 必须带 .js 扩展，避免 Node ESM 裸 specifier）
 {
