@@ -2,14 +2,14 @@
 /**
  * verify-settings-view.js —— 客户端「按工作区的观看状态」搬到本机设置文件的门禁（#1012）。
  *
- * 这一份门禁只量八件事，每一件都用完整的一句话说清，第一次读的人能直接看懂。
+ * 这一份门禁只量十二件事，每一件都用完整的一句话说清，第一次读的人能直接看懂。
  * 第一件事是缺席时回退旧表读：设置文件还没建出来的时候，读到的值要与改动前一样来自 localStorage 那两个旧键。
  * 第二件事是写成功后旧 localStorage 键一个字节都不写：新后端这条路成了，两处都写就是两份真相。
- * 第三件事是写失败才兜底写旧键：只有写不进文件（或文件是更高版本、不许写回去）时，才把这一次的值写回旧键做过渡。
+ * 第三件事是写失败才过渡写旧键：只有写不进文件（或文件是更高版本、不许写回去）时，才把这一次的值写回旧键。
  * 第四件事是合并着写不丢别人的东西：只换这一个工作区的这一格，别的节、别的字段、别的工作区的记录原样保留。
  * 第五件事是键的写法：用工作区根的可读路径（本会话自己的那一种写法），不是折叠散列，同一个工作区只留一条。
  * 第六件事是防抖：连着来的几下写合并成一次电话调用。
- * 第七件事是接线：store-prefs.js 与 SubworkspaceMark.js 真的改调了这一片，旧表兜底还留着，三份文件都不超三百五十行。
+ * 第七件事是接线：store-prefs.js 与 SubworkspaceMark.js 真的改调了这一片，旧表过渡还留着，四份文件都不超三百五十行。
  *
  * 第八件事是「文档还在路上时不许下结论」：这份设置文档是异步读来的，谁要按它下判断都得先问
  *   viewFlagReadyNow()「现在手上这个判断问过真源了没有」，问不到就等 viewFlagSubscribe() 那一声重判；
@@ -19,8 +19,15 @@
  *   这一件事最后真画一遍：真 jsdom + 真 React 把「文档迟到」那一刻渲染出来，看浮层到底弹没弹
  *   （修复前那一版组件在这几条上会变红：文档里记过也照弹、文档没到就先弹）。
  *
- * 怎么保证量的是真件：客户端那两片（src/client/kernel/settings-view-state.js 与 settings-view.js）的真源
- *   按构建同一种做法、同一次序拼起来当场造出函数来跑（第一片是第二片的前置，构建时也拼在它之前）；
+ * 第九件事到第十二件事是 #1012 后续修复补的四条真行为：写失败的那一笔不许丢（失败后留在待写队列里，
+ *   下一趟写把它落进文件；写旧表这一步自己失败时补一行 storage.fail），同一格在这一趟飞在天上时被改过
+ *   不许被回包一起划掉（划掉就再也不会补写，盘上与内存从此不一致），认不出工作区根时一个字都不写文件
+ *   （写下去会留下永远合并不到一起的孤儿记录），以及真正要写之前先重读一次文件、把本窗改过的那几格
+ *   合并进最新那一份再写出去（不然后写的窗会把先写那扇窗刚写进去的别的格整节顶掉）。
+ *
+ * 怎么保证量的是真件：客户端那三片（src/client/kernel/settings-view-state.js、settings-view.js 与
+ *   settings-view-write.js）的真源按构建同一种做法、同一次序拼起来当场造出函数来跑
+ *   （第一片是后两片的前置、第二片又是第三片的前置，构建时也照这个次序拼）；
  *   它打的宿主那两条电话（wf.getSettings / wf.setSettings）用的是
  *   src/host/settingsPhones.js 与 src/host/configStore.js 的真实现，读写落在系统临时目录里的真文件上 ——
  *   只有手机（假 host 的 call）与文件系统（可以按需制造写失败的那一层包装）是替身。
@@ -68,10 +75,13 @@ function wrapSysFs(calls, overrides) {
 function failCode(code, msg) { const e = new Error(msg || String(code)); e.code = code; return e }
 
 // 假的一台手机：把两条设置电话接到真实现上；failMode 用来制造「手机说不行」与「手机自己坏了」两种失败。
-function makeHost(phones, calls, failMode) {
+//   hooks.before 在每一次电话真正交给真实现之前调一次，参数是（电话名、这一趟的参数、到目前为止的调用清单）——
+//   门禁用它来演「这一趟还在天上飞的时候，用户或另一扇窗又动了一下」。
+function makeHost(phones, calls, failMode, hooks) {
   return {
     call: function (method, args) {
       calls.push({ method: method, args: args })
+      if (hooks && typeof hooks.before === 'function') { try { hooks.before(method, args, calls) } catch (eH) {} }
       if (method === 'wf.getSettings') return phones.handleGetSettings(args || {})
       if (method === 'wf.setSettings') {
         if (failMode === 'throw') return Promise.reject(new Error('这台手机自己坏了'))
@@ -93,20 +103,23 @@ function makeLocalStorage(initial) {
   }
 }
 
-// ── 真件一：闭包里那把规整函数 keyOf（src/shared/workspaceKey.js 的真源码，不另写仿制品） ──
-function keyOfFn() {
+// ── 真件一：闭包里那把规整函数 keyOf 与它判平台用的 currentOs（src/shared/workspaceKey.js 的真源码，不另写仿制品） ──
+function sharedKeyFn(name) {
   const src = readText('src/shared/workspaceKey.js').replace(/^\s*export\s+/gm, '')
-  return compileFn([], src + '\nreturn keyOf')()
+  return compileFn([], src + '\nreturn ' + name)()
 }
-// ── 真件二：被测那两片（按构建同一种做法取声明体、按同一次序拼起来，当场造出一个全新的实例） ──
-//   第一片（加载状态与订阅）是第二片的前置：构建时它的标记排在 settings-view 之前，这里也照同一次序拼。
+function keyOfFn() { return sharedKeyFn('keyOf') }
+// ── 真件二：被测那三片（按构建同一种做法取声明体、按同一次序拼起来，当场造出一个全新的实例） ──
+//   第一片（加载状态与订阅）是后两片的前置，第二片（键与文档、读、把文档交给界面）又是第三片（写这一趟）
+//   的前置：构建时三个标记就是这个次序，这里也照同一次序拼。
 const VIEW_REL = 'src/client/kernel/settings-view.js'
 const VIEW_STATE_REL = 'src/client/kernel/settings-view-state.js'
+const VIEW_WRITE_REL = 'src/client/kernel/settings-view-write.js'
 const noExport = (s) => s.replace(/^\s*export\s+/gm, '')
 function makeView(env) {
-  const body = noExport(readText(VIEW_STATE_REL)) + '\n' + noExport(readText(VIEW_REL))
-  const names = ['keyOf', 'wsKeyOf', 'shared', 'stores', 'emit', 'host', 'localStorage', 'log', 'dswsLogHash', 'timer']
-  const factory = compileFn(names, body + '\nreturn { viewFlagOf: viewFlagOf, setViewFlag: setViewFlag, viewFlagDocKeyOf: viewFlagDocKeyOf, settingsViewLoad: settingsViewLoad, viewFlagReadyNow: viewFlagReadyNow, viewFlagSubscribe: viewFlagSubscribe, VIEW_FLAG_WRITE_DEBOUNCE_MS: VIEW_FLAG_WRITE_DEBOUNCE_MS }')
+  const body = noExport(readText(VIEW_STATE_REL)) + '\n' + noExport(readText(VIEW_REL)) + '\n' + noExport(readText(VIEW_WRITE_REL))
+  const names = ['keyOf', 'wsKeyOf', 'shared', 'stores', 'emit', 'host', 'localStorage', 'log', 'dswsLogHash', 'timer', 'currentOs']
+  const factory = compileFn(names, body + '\nreturn { viewFlagOf: viewFlagOf, setViewFlag: setViewFlag, viewFlagDocKeyOf: viewFlagDocKeyOf, viewFlagWriteKeyOf: viewFlagWriteKeyOf, settingsViewLoad: settingsViewLoad, viewFlagReadyNow: viewFlagReadyNow, viewFlagSubscribe: viewFlagSubscribe, VIEW_FLAG_WRITE_DEBOUNCE_MS: VIEW_FLAG_WRITE_DEBOUNCE_MS }')
   return factory.apply(null, names.map((n) => env[n]))
 }
 // ── 真件三：自动展开那三档判决（从 SubworkspaceMark.js 的真源里切出那个纯函数，不另写仿制品） ──
@@ -135,23 +148,33 @@ async function main() {
         rel + ' 里拼进了这一片的读写两个入口（读与写都在，才算真接上）。')
       check(t.indexOf('const viewFlagReadyNow = function') >= 0 && t.indexOf('const viewFlagSubscribe = function') >= 0,
         rel + ' 里拼进了「问完真源了没有」那两个公开口子（加载状态与订阅这一片真的进了产物）。')
+      check(t.indexOf('const viewFlagWriteNow = function') >= 0 && t.indexOf('const viewFlagFreshDocFor = function') >= 0,
+        rel + ' 里拼进了写这一趟（待写队列、防抖、写前重读合并都在，写这条路才算真接上）。')
       check(t.indexOf('const viewFlagState = {') >= 0 && t.indexOf('const viewFlagState = {') < t.indexOf('const viewFlagOf = function'),
         rel + ' 里状态对象排在它的使用方之前（拼接次序对，先有定义再有用它的那一片）。')
+      check(t.indexOf('const setViewFlag = function') > t.indexOf('const viewFlagWriteKeyOf = function'),
+        rel + ' 里写这一趟排在它用到的读那一片之后（键与文档工具都先有定义）。')
     }
     check(readText('src/client/index.js').indexOf('// ==== kernel:settingsView (spliced by build) ====') >= 0, '客户端入口留了 kernel:settingsView 拼接标记。')
     const idxSrc = readText('src/client/index.js')
     const atState = idxSrc.indexOf('// ==== kernel:settingsViewState (spliced by build) ====')
+    const atView = idxSrc.indexOf('// ==== kernel:settingsView (spliced by build) ====')
+    const atWrite = idxSrc.indexOf('// ==== kernel:settingsViewWrite (spliced by build) ====')
     check(atState >= 0, '客户端入口留了 kernel:settingsViewState 拼接标记（新的一片也照一源两物接上）。')
-    check(atState >= 0 && atState < idxSrc.indexOf('// ==== kernel:settingsView (spliced by build) ===='),
+    check(atState >= 0 && atState < atView,
       '入口里新标记排在它的使用方（settingsView）之前（不然状态对象与两个口子还没有定义）。')
+    check(atWrite >= 0, '客户端入口留了 kernel:settingsViewWrite 拼接标记（写这一趟也照一源两物接上）。')
+    check(atWrite > atView, '入口里写这一趟的标记排在它用到的读那一片之后（不然那些键与文档工具还没有定义）。')
     check(readText(path.join('scripts', 'build.mjs')).indexOf("name: 'settingsView'") >= 0, '构建清单里登记了这一片。')
     check(readText(path.join('scripts', 'build.mjs')).indexOf("name: 'settingsViewState'") >= 0, '构建清单里登记了加载状态与订阅这一片。')
+    check(readText(path.join('scripts', 'build.mjs')).indexOf("name: 'settingsViewWrite'") >= 0, '构建清单里登记了写这一趟这一片。')
   }
 
   // 真件：宿主的核与两条电话
   const leaf = await import(pathToFileURL(path.join(ROOT, 'src/host', 'settingsPhones.js')).href)
   const store = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'configStore.js')).href)
   const KEY_OF = keyOfFn()
+  const CURRENT_OS = sharedKeyFn('currentOs')
 
   // 一个场景的全套夹具：临时主目录、假手机、假 localStorage、一条会话状态。
   function makeEnv(opts) {
@@ -169,7 +192,7 @@ async function main() {
       logCtx: null,
     })
     const calls = []
-    const host = o.noHost ? undefined : makeHost(phones, calls, o.failMode)
+    const host = o.noHost ? undefined : makeHost(phones, calls, o.failMode, { before: o.onCall })
     const st = { cwd: cwd, sessionWorkspaceRoot: root, subs: [], tick: 0 }
     const shared = { cwd: '', subs: [], tick: 0 }
     const stores = { 'sess-1': st }
@@ -185,6 +208,8 @@ async function main() {
       log: function (level, event, fields) { logs.push({ level: level, event: event, fields: fields }) },
       dswsLogHash: function (s) { return 'h' + String(s || '').length },
       timer: undefined,
+      // 拼回可读写法时用哪个分隔符由这一片按平台判，所以这里喂的是真 currentOs（与 keyOf 同源那份真源码）。
+      currentOs: CURRENT_OS,
     })
     return { mod, ls, calls, logs, home, cwd, root, st, shared, stores, fnCalls }
   }
@@ -213,6 +238,14 @@ async function main() {
     const doc = await readDoc(env.home)
     check(!!doc && !!doc.workspaces && !!doc.workspaces['D:\\ilife'] && doc.workspaces['D:\\ilife'].bannerFolded === true,
       '缺席起步的那一份空文档，写下去之后文件真的建出来了，而且这一格是 true。', JSON.stringify(doc && doc.workspaces))
+    // A4：新建这一条记录时，无仓库红卡那一格不由本窗口替用户答 false（那张卡要退役，答了会在以后把用户
+    //   已经收起的红卡重新弹出来）。这里量的是发出去的那一份文档：它不该带这一格。
+    const sentFirst = env.calls.filter((c) => c.method === 'wf.setSettings')[0]
+    const sentEntry = sentFirst && sentFirst.args && sentFirst.args.value && sentFirst.args.value.workspaces['D:\\ilife']
+    check(!!sentEntry && sentEntry.noRepoDismissed === undefined,
+      '新建记录时本窗口不替无仓库红卡那一格答 false（发出去的文档里没有这一格）。', JSON.stringify(sentEntry))
+    check(!!sentEntry && typeof sentEntry.bannerFolded === 'boolean' && typeof sentEntry.subwsMarkAutoShown === 'boolean',
+      '另外两格照旧种上（值取旧表里还知道的那一份，新建的那一刻不把用户收起过的横幅重新展开）。', JSON.stringify(sentEntry))
   }
 
   // ── 第二件事：写成功之后旧 localStorage 键一个字节都不写 ──
@@ -406,7 +439,7 @@ async function main() {
 
   // ── 第七件事（之二）：接线与行数 ──
   console.log('')
-  console.log('== 第七件事之二：store-prefs 与 SubworkspaceMark 真的改调了这一片，旧表兜底还留着，三份文件都 ≤350 行 ==')
+  console.log('== 第七件事之二：store-prefs 与 SubworkspaceMark 真的改调了这一片，旧表过渡还留着，五份文件都 ≤350 行 ==')
   {
     const prefs = readText('src/client/kernel/store-prefs.js')
     check(prefs.indexOf("viewFlagOf(cwd, 'bannerFolded')") >= 0, 'store-prefs 的 isBannerFolded 改调新模块读。')
@@ -415,17 +448,22 @@ async function main() {
     const mark = readText('src/client/views/SubworkspaceMark.js')
     check(mark.indexOf("viewFlagOf(cwd, 'subwsMarkAutoShown')") >= 0, 'SubworkspaceMark 的「自动展开过没有」改调新模块读。')
     check(mark.indexOf("setViewFlag(cwd, 'subwsMarkAutoShown', true)") >= 0, 'SubworkspaceMark 的标记改调新模块写。')
-    check(mark.indexOf('readAutoMap') >= 0 && mark.indexOf("localStorage.setItem(AUTO_KEY") >= 0, 'SubworkspaceMark 里旧键那段读写原地留着（兜底）。')
+    check(mark.indexOf('readAutoMap') >= 0 && mark.indexOf("localStorage.setItem(AUTO_KEY") >= 0, 'SubworkspaceMark 里旧键那段读写原地留着（过渡）。')
+    // 拼回可读写法时的分隔符按平台判，不按「这一条路径里有没有反斜杠」判：那一手在 POSIX 上会判错平台。
+    check(mark.indexOf('subwsMarkSepOf') >= 0 && mark.indexOf('.join(sep)') >= 0,
+      'SubworkspaceMark 拼回写法时按平台取分隔符（subwsMarkSepOf），不再把反斜杠写死在拼装那一行。')
     const nView = countLines(VIEW_REL)
-    check(nView <= 350, '新的一片不超过三百五十行，实得 ' + nView + ' 行。')
+    check(nView <= 350, '「键与文档、读、把文档交给界面」那一片不超过三百五十行，实得 ' + nView + ' 行。')
     const nViewState = countLines(VIEW_STATE_REL)
     check(nViewState <= 350, '拆出来的「加载状态与订阅」那一片不超过三百五十行，实得 ' + nViewState + ' 行。')
+    const nViewWrite = countLines(VIEW_WRITE_REL)
+    check(nViewWrite <= 350, '拆出来的「写这一趟」那一片不超过三百五十行，实得 ' + nViewWrite + ' 行。')
     const nPrefs = countLines('src/client/kernel/store-prefs.js')
     check(nPrefs <= 350, 'store-prefs.js 不超过三百五十行，实得 ' + nPrefs + ' 行。')
     const nMark = countLines('src/client/views/SubworkspaceMark.js')
     check(nMark <= 350, 'SubworkspaceMark.js 不超过三百五十行，实得 ' + nMark + ' 行。')
     const nIdx = countLines('src/client/index.js')
-    check(nIdx <= 350, 'src/client/index.js 不超过三百五十行（新标记是在原地换掉两行注释腾出来的位子），实得 ' + nIdx + ' 行。')
+    check(nIdx <= 350, 'src/client/index.js 不超过三百五十行（新标记是在原地换掉一行注释腾出来的位子），实得 ' + nIdx + ' 行。')
   }
 
   // ── 第八件事：文档还在路上时不许下结论（就绪查询、问完通知、自动展开的三档判决）──
@@ -640,6 +678,118 @@ async function main() {
       'D 手机不通时按旧键当场弹一次（问不到真源不等于永远不弹，老行为照旧）。', JSON.stringify(d))
     console.log('    （说明）这一组用的是真 jsdom + 真 React，但内核那一片是符合契约的替身、宿主是替身；')
     console.log('    （说明）真机上那一趟（真宿主、真设置文件）仍由人工验证兜底，画法本身由 verify-666 的 E 组兜住。')
+  }
+
+  // ── 第九件事：写失败的那一笔不许丢 ──
+  console.log('')
+  console.log('== 第九件事：写失败时那一笔留在待写队列里，下一趟写把它落进文件（瞬时故障自愈） ==')
+  {
+    // 第一次落盘失败、之后恢复正常：这一笔必须自己活过来，不能因为「用户没再点」就永远留在半路上。
+    const cwd = 'D:\\ilife\\packages\\skill-calorie'
+    let failNext = 1
+    const env = makeEnv({
+      tag: 'keepqueue', cwd: cwd,
+      fsOverrides: { writeFile: async (p, text, enc) => { if (failNext > 0) { failNext -= 1; throw failCode('EPERM', 'operation not permitted') } return realFs.writeFile(p, text, enc) } },
+    })
+    check(env.mod.setViewFlag(cwd, 'bannerFolded', true) === true, '写这一笔时先按能写接下来（落盘失败再走过渡）。')
+    await sleep(700)
+    const oldMap = JSON.parse(env.ls.getItem('dsws.bannerFold') || '{}')
+    check(oldMap[KEY_OF(cwd)] === 1, '第一趟写失败时照旧把这一格写回旧键做过渡（与改动前一致）。', JSON.stringify(oldMap))
+    await sleep(1200)
+    const doc = await readDoc(env.home)
+    check(!!doc && !!doc.workspaces['D:\\ilife'] && doc.workspaces['D:\\ilife'].bannerFolded === true,
+      '这一笔没有被丢掉：失败后留在待写队列里，后面那一趟把它落进了文件（盘上这一格是 true）。', JSON.stringify(doc && doc.workspaces))
+    const writes = env.calls.filter((c) => c.method === 'wf.setSettings').length
+    check(writes >= 2, '失败之后又试了一趟（不是失败一次就再也不管），实得 ' + writes + ' 次写电话。')
+  }
+  {
+    // 旧表这一步自己写不进去（浏览器存储满、被策略挡住）时，补一行 storage.fail，不再一口吞掉。
+    const cwd = 'D:\\ilife\\packages\\skill-calorie'
+    const env = makeEnv({ tag: 'lsfail', cwd: cwd, fsOverrides: { writeFile: async () => { throw failCode('EPERM', 'operation not permitted') } } })
+    env.ls.setItem = function () { throw new Error('这份浏览器存储写不进去了') }
+    env.mod.setViewFlag(cwd, 'bannerFolded', true)
+    await sleep(1300)
+    const hit = env.logs.filter((l) => l.event === 'storage.fail' && l.fields && l.fields.op === 'write' && l.fields.key === 'dsws.bannerFold')
+    check(hit.length >= 1, '写旧表这一步自己失败时补了一行 storage.fail（沿用既有事件名，键与操作写在字段里）。', JSON.stringify(env.logs))
+    check(fs.existsSync(settingsPathIn(env.home)) === false, '这一趟文件始终没写进去（写失败不是「换一份假的写成功」）。')
+  }
+
+  // ── 第十件事：同一格在这一趟飞在天上时被改过，不许被回包一起划掉 ──
+  console.log('')
+  console.log('== 第十件事：一趟写飞在天上时用户又改了同一格，回包只划「值没被改过」的那几笔 ==')
+  {
+    // 实测到的现场：收起之后 500 毫秒内又点开。第一趟发出去的是 true，飞在天上时用户点了 false；
+    //   回包若按名字盲删，队列就空了、第二趟再也不会来 —— 盘上留 true、内存是 false，两边从此不一致。
+    const cwd = 'D:\\ilife\\packages\\skill-calorie'
+    const box = {}
+    const env = makeEnv({
+      tag: 'inflight', cwd: cwd,
+      onCall: function (method) {
+        if (method === 'wf.setSettings' && !box.done) { box.done = true; box.mod.setViewFlag(cwd, 'bannerFolded', false) }
+      },
+    })
+    box.mod = env.mod
+    check(env.mod.setViewFlag(cwd, 'bannerFolded', true) === true, '先点一下收起（这一笔排进待写队列）。')
+    await sleep(1600)
+    const sent = env.calls.filter((c) => c.method === 'wf.setSettings')
+    check(sent.length >= 2, '第一趟飞在天上时改的那一下没有被划掉：真的又排了第二趟写，实得 ' + sent.length + ' 次。')
+    const firstEntry = sent[0] && sent[0].args && sent[0].args.value && sent[0].args.value.workspaces['D:\\ilife']
+    check(!!firstEntry && firstEntry.bannerFolded === true, '第一趟发出去的确实是当时那个值 true（这一条才有东西可丢）。', JSON.stringify(firstEntry))
+    const doc = await readDoc(env.home)
+    check(!!doc && !!doc.workspaces['D:\\ilife'] && doc.workspaces['D:\\ilife'].bannerFolded === false,
+      '盘上留下的是后改的那个值 false（不是第一趟那个 true）。', JSON.stringify(doc && doc.workspaces))
+    check(env.mod.viewFlagOf(cwd, 'bannerFolded') === false, '内存里也是后改的那个值 false —— 盘上与内存一致。')
+  }
+
+  // ── 第十一件事：认不出工作区根时一个字都不写文件 ──
+  console.log('')
+  console.log('== 第十一件事：认不出工作区根时不写文件（写下去会留下永远合并不到一起的孤儿记录） ==')
+  {
+    const cwd = 'D:\\scratch\\no-repo\\sub'
+    const env = makeEnv({ tag: 'noroot', cwd: cwd, root: '' })
+    check(env.mod.viewFlagWriteKeyOf(cwd) === '', '认不出工作区根时，写这一侧要用的键是空串（不退到会话目录）。', JSON.stringify(env.mod.viewFlagWriteKeyOf(cwd)))
+    check(env.mod.setViewFlag(cwd, 'bannerFolded', true) === false, '认不出工作区根时写这一笔不接（返回 false，调用方照改动前的老办法写旧表）。')
+    await wait(env)
+    check(env.calls.filter((c) => c.method === 'wf.setSettings').length === 0, '认不出工作区根时一次写电话都没发出去。', JSON.stringify(env.calls.map((c) => c.method)))
+    check(fs.existsSync(settingsPathIn(env.home)) === false, '设置文件一个字节都没写（不会留下一条读不回来、也永远不会被合并的孤儿记录）。')
+    check(env.ls.getItem('dsws.bannerFold') === null, '这一片自己也不写旧键（旧键由调用方按老办法写，这一片不替它写）。')
+    check(env.mod.viewFlagOf(cwd, 'bannerFolded') === false, '读这一侧照旧答得出来（文档里没有这一条，回旧表里的 false）。')
+    // 根认出来之后（同一台机器上 wf.cwd 回过话），键就是根的可读路径，记录落在根上而不是会话目录上。
+    env.st.sessionWorkspaceRoot = 'd:\\scratch\\no-repo'
+    check(env.mod.viewFlagWriteKeyOf(cwd) === 'D:\\scratch\\no-repo', '根认出来之后，写这一侧的键就是根的可读路径。', JSON.stringify(env.mod.viewFlagWriteKeyOf(cwd)))
+  }
+
+  // ── 第十二件事：真正要写之前先重读一次文件，把本窗改过的那几格合并进最新那一份 ──
+  console.log('')
+  console.log('== 第十二件事：写之前重读一次，另一扇窗刚写进去的别的格不许被本窗整份顶掉 ==')
+  {
+    const cwd = 'D:\\ilife\\packages\\skill-calorie'
+    const env = makeEnv({ tag: 'twowin', cwd: cwd })
+    const preset = {
+      version: 1,
+      ui: { stateFilter: '', sortKey: '', sortDir: '', labelClicks: {} },
+      workspaces: { 'D:\\ilife': { bannerFolded: false, noRepoDismissed: false, subwsMarkAutoShown: false } },
+      debug: { enabled: false, sampleRate: 1 },
+      templates: {},
+    }
+    const w0 = await store.writeLocalSettings(preset, env.home, realIo)
+    check(w0.ok === true, '预置一份别人写过的设置文件（这个工作区已经有一条记录）。', JSON.stringify(w0))
+    check(env.mod.setViewFlag(cwd, 'bannerFolded', true) === true, '本窗在预置文件的基础上写自己那一格（此刻还在防抖窗口里）。')
+    await sleep(80) // 让本窗那一次懒读落地：内存里那一份是别人写的那一版
+    // 另一扇窗此刻把**别的**那一格写进同一个文件 —— 这一笔本窗没有读到过（客户端只在第一页懒读一次）。
+    const other = Object.assign({}, preset, { workspaces: { 'D:\\ilife': { bannerFolded: false, noRepoDismissed: false, subwsMarkAutoShown: true } } })
+    const w1 = await store.writeLocalSettings(other, env.home, realIo)
+    check(w1.ok === true, '另一扇窗把 subwsMarkAutoShown 写成了 true。', JSON.stringify(w1))
+    await wait(env)
+    const doc = await readDoc(env.home)
+    check(!!doc && !!doc.workspaces['D:\\ilife'] && doc.workspaces['D:\\ilife'].subwsMarkAutoShown === true,
+      '另一扇窗刚写进去的**别的**那一格没有被本窗整份顶掉（写之前重读了一遍文件）。', JSON.stringify(doc && doc.workspaces))
+    check(!!doc && !!doc.workspaces['D:\\ilife'] && doc.workspaces['D:\\ilife'].bannerFolded === true,
+      '本窗改的那一格照样写进去了（重读没有把本窗的改动丢掉）。', JSON.stringify(doc && doc.workspaces))
+    const gets = env.calls.filter((c) => c.method === 'wf.getSettings').length
+    check(gets >= 2, '真正要写之前又读了一次文件（不是只有第一页那一次懒读），实得 ' + gets + ' 次读电话。')
+    check(env.mod.viewFlagOf(cwd, 'bannerFolded') === true && env.mod.viewFlagOf(cwd, 'subwsMarkAutoShown') === true,
+      '写完这一趟之后内存里那份文档与盘上一致（两格都是 true）。')
   }
 
   console.log(failed ? ('\n存在失败 — verify-settings-view 未通过（' + passed + ' 项通过、' + failed + ' 项失败）') : ('\n全部通过 — 客户端观看状态门禁生效（' + passed + ' 项断言）'))

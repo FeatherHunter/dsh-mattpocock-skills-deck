@@ -5,38 +5,46 @@
  *   拼回 src/client/index.js 里那一行 kernel:settingsView 拼接标记处（apply 闭包内原位），
  *   与 ctx.js/seam 同模式，一源两物，src 零复制。
  *
- * 为什么单独一个文件：这一族读写原先住在 kernel/store-prefs.js 里，那份文件已经 315 行（文件粒度门禁上限
- *   350 行，见 tests/verify-file-granularity.js），本票要加的「读文档、合并着写、旧表兜底」三件事塞不进去，
- *   所以照仓库惯例搬成一个自包含的内核片段；store-prefs.js 只留调用与旧表兜底。
+ * 本片管四件事：这把键怎么认（viewFlagDocKeyOf 读、viewFlagWriteKeyOf 写）、文档里这一条记录怎么找、
+ *   读一格（viewFlagOf）、把读回来的文档交给界面（settingsViewLoad 与 viewFlagSettle）。
+ *   「写这一趟」（待写队列、防抖、写前重读合并、写失败重试）住在 kernel/settings-view-write.js，
+ *   拼在本文之后 —— 它要用本文这几个键与文档工具。两片共用的状态对象与「问完真源了没有」那两个口子
+ *   住在 kernel/settings-view-state.js，拼在本文之前。
+ *
+ * 为什么单独一个文件：这一族读写原先住在 kernel/store-prefs.js 里，那份文件在搬出这一族之前
+ *   （父提交 3a7063b9，即 #1012 落地那次提交的上一提交）按门禁算法已经 317 行（文件粒度门禁上限 350 行，
+ *   见 tests/verify-file-granularity.js），本票要加的「读文档、合并着写、旧表过渡」三件事塞不进去，
+ *   所以照仓库惯例搬成一个自包含的内核片段；store-prefs.js 只留调用与旧表那几行。
  * 为什么写成 JavaScript 而不是 TypeScript：内核模块的运行时形状来自拼接 —— scripts/build.mjs 把本文件的
  *   声明体拼进 src/client/index.js 的闭包，tsconfig 不覆盖内核这几片；写成 TypeScript 既进不了类型检查也
  *   进不了产物，是静默失效。仓库现行口径是「动到哪里转哪里」，内核这几片的转写另立一票。
  *
  * 真相只有一份：本机设置文件（用户主目录下的 .dsh/mattskillsdeck/settings.yaml，核校验见
  *   src/shared/config-store/settings.js）里 workspaces 那一节，是按工作区记住的观看状态的唯一真源。
- *   localStorage 那两个旧键（dsws.bannerFold、dsws.subwsAutoShown）从此只当兜底：文档缺席、读失败、
- *   手机不通这三种情况才读它；只有写不进文件（或文件是更高版本、不许写回去）时才把这一次的值写回旧键
- *   做过渡；写成功那条路上一个字都不写旧键 —— 那不是双写，是过渡。
+ *   localStorage 那两个旧键（dsws.bannerFold、dsws.subwsAutoShown）从此只是过渡：文档缺席、读失败、
+ *   手机不通这三种情况才读它；只有写不进文件（或文件是更高版本、不许写回去）时才把这一次的值写回旧键；
+ *   写成功那条路上一个字都不写旧键 —— 那不是双写，是过渡。
+ *   这一手过渡能兜住什么、兜不住什么必须说准（#1012 后续修复按实测改准）：文件里**已经有**这个工作区的
+ *   记录时，写进旧键的这一份读不回来 —— 读侧的口径是「文件里这条记录有值就以它为准」，所以它只在本次
+ *   窗口内充当记性（用户当场再点一下，看到的是刚点的那一下），页面一关就只剩文件里那一份。真正让一次改动
+ *   不丢的是写这一趟：写失败时把这一格留在待写队列里、下一趟写再试一次（见 kernel/settings-view-write.js）。
  *
  * 键用工作区根的可读路径（设置文件是写给人看的，人在里面要认得出这是哪个工作区），不用那个折叠散列
  *   （noRepoDismissKey 那种「前缀 + 折叠后算出来的数字」，人看不懂）。可读路径的来源按序取：
  *   ① 会话状态上的工作区根：src/client/kernel/store-snapshot.js 第 29 行的 sessionWorkspaceRoot，由
  *      src/client/kernel/probe-snapshot.js 第 83–90 行的 rememberSessionWorkspaceRoot 从 wf.cwd 回包里
- *      收下；它是折算过的键（Windows 上小写），所以按本会话所选目录的写法还原一遍（与
+ *      收下；它是折算过的键，所以按本会话所选目录的写法还原一遍（与
  *      src/client/views/SubworkspaceMark.js 第 45–67 行同一条规矩：比对用折算键、给人看用原样写法）。
+ *      这一手还原在 Windows 上成立（盘符自己占一段）；在 POSIX 上还原不出来 —— 绝对路径开头那个斜杠
+ *      按段拼不回来（/home/u/p 切出来是 home/u/p，前面那个斜杠没了），于是写进文件的就是那份折算键。
+ *      这是如实写下的边界，不是待修的缺陷：POSIX 上文件里的键是折算键，它仍是一条人认得出的路径，不是散列。
  *   ② 会话状态上没有根时退到内核那把工作区键 wsKeyOf（store-snapshot.js 第 69 行）：已认出根就是根、
- *      只认出会话目录就是会话目录，正是本票要的口径。
+ *      只认出会话目录就是会话目录。**只有读这一侧**退到这一档；写这一侧不退（见 viewFlagWriteKeyOf）。
  *   ③ 两条都拿不到（cwd 为空）时回空串：这一笔只读旧表、也只写旧表，绝不猜一把键。
  * 同一个工作区的不同写法落到同一条记录上（找条目时两边都折算过再比），换一种写法不会在文件里长出第二条。
  * 写是整份写回：wf.setSettings 收的是整份文档，所以只改内存文档里「这一个工作区的这一格」，
- *   别的节与别的字段原样带回去。防抖窗口见 VIEW_FLAG_WRITE_DEBOUNCE_MS。
+ *   别的节与别的字段原样带回去。写之前的重读合并、防抖窗口与失败重试见 kernel/settings-view-write.js。
  */
-    // 防抖窗口取 500 毫秒，理由有三条。第一条：一次收起或展开在界面上往往连着来两下（点按钮那一下，
-    //   加同一个工作区别的会话跟着重渲染那一趟），而每一次落盘都是宿主先读整份文件、再整份写回。
-    // 第二条：与仓库既有的写合并窗口同一量级（日志转发的 1000 毫秒、交接的 800 毫秒），比它们略短。
-    // 第三条：观看状态是人点一下就期待下次打开还在的东西，窗口太长，点完立刻关掉整个窗口那一下
-    //   （页面卸载之后定时器不再有机会跑）就会把最后一次改动丢掉。
-    export const VIEW_FLAG_WRITE_DEBOUNCE_MS = 500
     // 旧键登记表：本模块管的名字 → 旧 localStorage 键名，以及旧表里那一把键是按哪条路径记的。
     //   「按哪条路径记」不能省：横幅折叠按会话所选目录记（store-prefs.js 第 191–206 行，键是 keyOf(cwd)），
     //   红文件夹标志按工作区根记（SubworkspaceMark.js 第 138–157 行，键是 subwsMarkCmpKey(root)）。
@@ -45,12 +53,16 @@
       bannerFolded: { key: 'dsws.bannerFold', by: 'cwd' },
       subwsMarkAutoShown: { key: 'dsws.subwsAutoShown', by: 'root' },
     }
-    // 一条记录长成什么样：与核（src/shared/config-store/settings.js 第 16 行的 WS_KEYS 与第 93 行的默认值）
-    //   一字对齐。noRepoDismissed 这一票不接线（无仓库红卡那张票还没搬过来），写它只为让每一条都长成核认得的形状。
-    const VIEW_FLAG_ENTRY_DEFAULTS = { bannerFolded: false, noRepoDismissed: false, subwsMarkAutoShown: false }
-    // 状态对象（status / doc / deferred / journal / timer）与「问完真源了没有」那两个公开口子
-    //   （viewFlagReadyNow / viewFlagSubscribe）住在 kernel/settings-view-state.js 里，拼在本文之前；
-    //   收口时调的那个 viewFlagNotifySettled 同出那里。本文件贴着文件粒度门禁上限，那一块是能自成一体的最小一片。
+    // 新建一条工作区记录时要顺手种上的那两格：与核（src/shared/config-store/settings.js 第 16 行的 WS_KEYS
+    //   与第 93 行的默认值）一字对齐，值取旧表里还知道的那一份 —— 新建的那一刻别顺手把用户原来收起过的
+    //   横幅重新展开，那不是双写，只是别把已经知道的事忘掉。
+    //   为什么这张表里没有 noRepoDismissed（#1012 后续修复的 A4）：无仓库红卡那张卡要退役，本窗口替它写一个
+    //   false，等以后红卡的记录也搬进这份文件时，就会拿这个 false 当「用户没收起过」，把人家早就收起的红卡
+    //   重新弹出来。所以这一格不由本窗口种。
+    //   说清这一手管得到哪，不许夸大：核在写盘时会把缺的那一格按 false 补上（settings.js 第 93 行的默认值，
+    //   stringifySettings 每次都写全三格），所以文件里那一行照旧出现 —— 这里改掉的只是「本窗口不主动替用户
+    //   答这一格」。真正决定以后红卡弹不弹的是核里那个默认值，不在这里；要真治它得动核或等红卡搬过来那票。
+    const VIEW_FLAG_SEED_NAMES = ['bannerFolded', 'subwsMarkAutoShown']
     // 折算到同一把键再比较：这一片一律走闭包里那把 keyOf（与仓库其余位置同口径），拿不到时才退回本地写法。
     const viewFlagNormOf = function (p) {
       try { if (typeof keyOf === 'function') return String(keyOf(p) || '') } catch (e) {}
@@ -59,9 +71,20 @@
     // 一条路径按[\\/]切成几段（空段丢掉）：还原写法按段取前缀，绝不按字符切（`D:\ilife-other` 的前几个字符
     //   恰好是 `D:\ilife` 的写法，按字符切会切出看不出所以然的东西）。
     const viewFlagSegsOf = function (v) { return String(v == null ? '' : v).split(/[\\/]+/).filter(function (x) { return !!x }) }
+    // 拼回可读写法时用哪个分隔符：按平台判，不按「这一条路径里有没有反斜杠」判（#1012 后续修复的 A7）。
+    //   反斜杠在 POSIX 上也是合法的文件名字符（/home/u/a\b 就是一个目录名），拿它当「这台机器是 Windows」
+    //   的证据会判错平台。平台的唯一真源是 src/shared/workspaceKey.js 的 currentOs()（与 keyOf 判平台同一处
+    //   口径，已随 shared:workspaceKey 拼进界面闭包）；真闭包里拿不到它（老产物、渲染替身）时退回进程平台；
+    //   两条都没有就按 POSIX 拼 —— 与 currentOs() 认不出平台时给的默认值一致，不另立一套默认。
+    const viewFlagSepOf = function () {
+      try { if (typeof currentOs === 'function') return (currentOs() === 'win32') ? '\\' : '/' } catch (e) {}
+      try { if (typeof process !== 'undefined' && process && process.platform) return (process.platform === 'win32') ? '\\' : '/' } catch (e1) {}
+      return '/'
+    }
     // 把「折算过的根」还原成本会话所选目录的那一种写法：拿会话目录的前 N 段（N＝根有几段）拼一条候选，
     //   折算回来等于根就是它。还原不出来（两侧不是同一条目录、或写法对不齐）就原样交回那一份折算键 ——
     //   它仍是一条路径而不是散列，写进设置文件照样认得出是哪个盘哪条目录。
+    //   POSIX 上按段拼不回开头那个斜杠，所以这条还原在 POSIX 上永远不成立，落盘的就是折算键（见文件头）。
     const viewFlagShownRootOf = function (known, cwd) {
       try {
         const rootKey = viewFlagNormOf(known)
@@ -69,8 +92,7 @@
         const cs = viewFlagSegsOf(cwd)
         const rs = viewFlagSegsOf(known)
         if (rs.length > 0 && cs.length >= rs.length) {
-          const sep = String(cwd == null ? '' : cwd).indexOf('\\') >= 0 ? '\\' : '/'
-          const cand = cs.slice(0, rs.length).join(sep)
+          const cand = cs.slice(0, rs.length).join(viewFlagSepOf())
           if (viewFlagNormOf(cand) === rootKey) return cand
         }
         return String(known == null ? '' : known)
@@ -93,15 +115,33 @@
       } catch (e) {}
       return null
     }
-    // 这一次要落到设置文件里的那把键：已认出工作区根就用根的可读写法，只认出会话目录就用会话目录本身，
-    //   两条都没有就回空串（调用方据此只走旧表，不猜一把键）。
+    // 会话状态上认出来的工作区根（认不出回空串）：这一档是「真的认出了根」，不是「退到会话目录」。
+    const viewFlagRootOf = function (cwd) {
+      try {
+        const st = viewFlagStoreOf(cwd)
+        return (st && st.sessionWorkspaceRoot) ? String(st.sessionWorkspaceRoot).trim() : ''
+      } catch (e) { return '' }
+    }
+    // 读这一侧要用的那把键：已认出工作区根就用根的可读写法，只认出会话目录就用会话目录本身，
+    //   两条都没有（cwd 为空）就回空串（调用方据此只走旧表，不猜一把键）。
     export const viewFlagDocKeyOf = function (cwd) {
       try {
         const raw = String(cwd == null ? '' : cwd).trim()
         if (!raw) return ''
-        const st = viewFlagStoreOf(raw)
-        const fromSession = (st && st.sessionWorkspaceRoot) ? String(st.sessionWorkspaceRoot).trim() : ''
-        const known = fromSession || ((typeof wsKeyOf === 'function') ? String(wsKeyOf(raw) || '') : '')
+        const known = viewFlagRootOf(raw) || ((typeof wsKeyOf === 'function') ? String(wsKeyOf(raw) || '') : '')
+        if (!known) return ''
+        return viewFlagShownRootOf(known, raw)
+      } catch (e) { return '' }
+    }
+    // 写这一侧要用的那把键：只有真认出工作区根才回一把键，认不出就回空串 —— 写这一趟据此直接判不接。
+    //   为什么写这一侧不退到会话目录（#1012 后续修复的 M3）：会话目录当键写下去之后，等根认出来键就变了，
+    //   文件里会留下一条既读不回来、也永远不会被合并的孤儿记录（同一个工作区两条记录各说各话）。
+    //   认不出根时写这一侧返回失败，调用方照改动前的老办法写旧表 —— 行为与搬迁前一致，只是这一次不落新家。
+    export const viewFlagWriteKeyOf = function (cwd) {
+      try {
+        const raw = String(cwd == null ? '' : cwd).trim()
+        if (!raw) return ''
+        const known = viewFlagRootOf(raw)
         if (!known) return ''
         return viewFlagShownRootOf(known, raw)
       } catch (e) { return '' }
@@ -150,12 +190,16 @@
       } catch (e) { return false }
       return false
     }
-    // 写旧表：只在这一条路接不下这一次改动时才走（写文件失败、文件只读、或认不出可读路径）。
+    // 写旧表：只在这一条路接不下这一次改动时才走（写文件失败、文件只读、或认不出工作区根）。
     //   置上就是那把键记 1，取消就是把它删掉（与 store-prefs.js 第 205–206 行同一种做法）；
     //   表里别的键原样保留，所以只动这一次涉及的那一条。
+    //   写旧表本身失败时补一行 storage.fail（既有事件名，字段只有 key 与 op 两个，与全库其余位置一致），
+    //   不再一口吞掉：兜不住这件事要能在日志里看见，不然排查时只剩「用户点了、什么都没发生」。
+    //   再说一遍这一手兜不住什么：文件里已经有这个工作区的记录时，写进旧键的这一份读不回来（见文件头），
+    //   它只在本窗口内充当记性。
     const viewFlagLegacyWrite = function (cwd, name, on) {
+      const meta = VIEW_FLAG_LEGACY[name]
       try {
-        const meta = VIEW_FLAG_LEGACY[name]
         if (!meta) return false
         if (typeof localStorage === 'undefined' || !localStorage) return false
         const key = viewFlagLegacyKeyOf(cwd, name)
@@ -173,10 +217,13 @@
         else if (hit) delete map[hit]
         localStorage.setItem(meta.key, JSON.stringify(map))
         return true
-      } catch (e) { return false }
+      } catch (e) {
+        try { log('warn', 'storage.fail', { key: (meta && meta.key) || String(name || ''), op: 'write' }) } catch (eL) {}
+        return false
+      }
     }
-    // 把这一格改进内存文档：别的节与别的字段一律不动；新建这一条记录时，另外两格按旧表里还知道的那一份
-    //   填上 —— 这不是双写，也不是搬运工具，只是新建的那一刻别顺手把用户原来收起过的横幅重新展开。
+    // 把这一格改进内存文档：别的节与别的字段一律不动；新建这一条记录时，按上面 VIEW_FLAG_SEED_NAMES 种上
+    //   另外那两格（值取旧表里还知道的那一份）。这一格自己照旧写在最后一行，所以不管名字是哪一个都落得下。
     const viewFlagSetInDoc = function (doc, cwd, key, name, on) {
       try {
         if (!doc || typeof doc !== 'object') return false
@@ -184,10 +231,9 @@
         let entryKey = viewFlagEntryKeyOf(doc, key)
         if (!entryKey) {
           const seed = {}
-          const names = Object.keys(VIEW_FLAG_ENTRY_DEFAULTS)
-          for (let i = 0; i < names.length; i++) {
-            const n = names[i]
-            seed[n] = (n === name) ? on : (VIEW_FLAG_LEGACY[n] ? viewFlagLegacyRead(cwd, n) : VIEW_FLAG_ENTRY_DEFAULTS[n])
+          for (let i = 0; i < VIEW_FLAG_SEED_NAMES.length; i++) {
+            const n = VIEW_FLAG_SEED_NAMES[i]
+            seed[n] = (n === name) ? on : viewFlagLegacyRead(cwd, n)
           }
           doc.workspaces[key] = seed
           entryKey = key
@@ -196,55 +242,15 @@
         return true
       } catch (e) { return false }
     }
-    // 整份写回：宿主那条写电话收的是整份文档（value），所以这里把内存文档原样交出去。
-    //   写成功只要做一件事——把这一次被确认的那几笔从 journal 里划掉（它们已经落进文件了）；
-    //   写这一趟期间又改过的那些还留在 journal 里，自然会再排一次写。
-    const viewFlagWriteNow = function () {
-      try {
-        viewFlagState.timer = 0
-        if (viewFlagState.status !== 'ready' || !viewFlagState.doc) return
-        const sentKeys = Object.keys(viewFlagState.journal)
-        if (!sentKeys.length) return
-        // 文档在手但手机不通（宿主不在，或这条电话不在）：同样按兜底处理，不能让这一笔就这么没了。
-        if (typeof host === 'undefined' || !host || typeof host.call !== 'function') { viewFlagFallbackToLegacy(sentKeys); return }
-        const t0 = Date.now()
-        host.call('wf.setSettings', { value: viewFlagState.doc }).then(function (res) {
-          const okRes = !!(res && res.ok === true)
-          try {
-            if (okRes) log('info', 'host.call', { method: 'wf.setSettings', latencyMs: Date.now() - t0, ok: true, kind: 'settings' })
-            else log('warn', 'host.call.fail', { method: 'wf.setSettings', kind: 'settings', errorHash: dswsLogHash(String((res && res.error && (res.error.message || res.error.kind)) || 'set-not-ok')) })
-          } catch (eL) {}
-          if (okRes) {
-            // 写成功之后一个字都不写旧键：新后端这条路成了，两处都写就是两份真相。
-            for (let i = 0; i < sentKeys.length; i++) delete viewFlagState.journal[sentKeys[i]]
-            return
-          }
-          // 写失败（含文件只读被拒）才把这几笔写回旧键做过渡兜底 —— 是兜底，不是双写。
-          viewFlagFallbackToLegacy(sentKeys)
-        }, function () { viewFlagFallbackToLegacy(sentKeys) })
-      } catch (e) { try { viewFlagFallbackToLegacy(Object.keys(viewFlagState.journal)) } catch (e2) {} }
-    }
-    // 兜底：把这一次没写进文件的那几笔按旧表的老办法记下来，然后从 journal 里划掉（已经交代过了）。
-    const viewFlagFallbackToLegacy = function (sentKeys) {
-      try {
-        for (let i = 0; i < sentKeys.length; i++) {
-          const d = viewFlagState.journal[sentKeys[i]]
-          if (d) viewFlagLegacyWrite(d.cwd, d.name, d.value)
-          delete viewFlagState.journal[sentKeys[i]]
-        }
-      } catch (e) {}
-    }
-    // 排一次落盘（一次只排一个：连着来的几下会并进同一个窗口）。只排一次、跑完就停，不是自续的定时器，
-    //   与 log.js / store-snapshot.js 用 timer 的写法同例（拿不到宿主那只 timer 就退回页面自己的 setTimeout）。
-    const viewFlagScheduleWrite = function () {
-      try {
-        let arm = null
-        try { if (typeof timer !== 'undefined' && timer && typeof timer.timeout === 'function') arm = function (fn, ms) { return timer.timeout(fn, ms) } } catch (eT) {}
-        if (!arm && typeof setTimeout === 'function') arm = function (fn, ms) { return setTimeout(fn, ms) }
-        if (!arm) { viewFlagWriteNow(); return }
-        if (viewFlagState.timer) { try { clearTimeout(viewFlagState.timer) } catch (eC) {} }
-        viewFlagState.timer = arm(viewFlagWriteNow, VIEW_FLAG_WRITE_DEBOUNCE_MS)
-      } catch (e) {}
+    // 待写队列里那一笔的键：文档里那条记录的键 + 一个不会出现在路径或格子名里的分隔符 + 这一格的名字。
+    //   队列本身（进队、出队、防抖、重试）住在 kernel/settings-view-write.js；这里只放这把键的算法 ——
+    //   读这一侧收口（viewFlagSettle）也要按同一个算法，把等在路上的那几笔放进队列。
+    const viewFlagJournalKeyOf = function (key, name) { return key + '\u0000' + name }
+    // 一笔值写不进内存文档时记一行（沿用既有的 storage.fail，不新开事件名；字段只有 key 与 op 两个，
+    //   与全库其余 storage.fail 一致，见 tests/verify-log-fields.js 的字段白名单）。
+    //   key 记一个固定的记号，不记工作区路径：日志纪律不许把工作区原始路径写进日志。
+    const viewFlagLogDocFail = function () {
+      try { log('warn', 'storage.fail', { key: 'settings.workspaces', op: 'write' }) } catch (eL) {}
     }
     // 文档到手那一刻重画一次（与 touchProbeAt / setBannerFolded 同例：同一个工作区的各会话都跟着重画）。
     const viewFlagEmitAll = function () {
@@ -264,9 +270,16 @@
         const keys = Object.keys(viewFlagState.deferred)
         for (let i = 0; i < keys.length; i++) {
           const d = viewFlagState.deferred[keys[i]]
-          const key = (status === 'ready') ? viewFlagDocKeyOf(d.cwd) : ''
-          if (key && viewFlagSetInDoc(viewFlagState.doc, d.cwd, key, d.name, d.value)) viewFlagState.journal[key + '\u0000' + d.name] = d
-          else if (status !== 'ready' || !key) viewFlagLegacyWrite(d.cwd, d.name, d.value)
+          const key = (status === 'ready') ? viewFlagWriteKeyOf(d.cwd) : ''
+          if (key && viewFlagSetInDoc(viewFlagState.doc, d.cwd, key, d.name, d.value)) {
+            viewFlagState.journal[viewFlagJournalKeyOf(key, d.name)] = d
+            continue
+          }
+          // 这一笔没能进文档：文档没到手、认不出工作区根、或文档形状对不上写不进去 —— 三种都走同一条
+          //   过渡兜底（写旧键），后一种再补一行日志。从前「文档到手、键也有、却写不进文档」这一档
+          //   既不写也不记，用户在界面上点的那一下就这么静默消失（#1012 后续修复的 A5）。
+          viewFlagLegacyWrite(d.cwd, d.name, d.value)
+          if (status === 'ready' && key) viewFlagLogDocFail()
         }
         viewFlagState.deferred = {}
         if (status === 'ready') {
@@ -311,6 +324,7 @@
     }
     // 读一格：先看内存文档里这个工作区这一格（查到就回布尔，文档里已经有这一条就以它为准）；
     //   文档缺席、读失败、手机不通、或文档里还没有这一条时，回退读旧 localStorage 键。
+    //   注意这一档的兜底同样兜不住「文件里已经有这个工作区的记录」那种情形（见文件头那段）。
     export const viewFlagOf = function (cwd, name) {
       try {
         settingsViewLoad()
@@ -322,27 +336,5 @@
           if (entry && typeof entry === 'object' && typeof entry[name] === 'boolean') return entry[name]
         }
         return viewFlagLegacyRead(cwd, name)
-      } catch (e) { return false }
-    }
-    // 写一格。返回值是给调用方看的两种意思：
-    //   true ＝ 这一次交给本机设置文件这条路了（可能还在防抖窗口里没落盘），调用方不要再写旧表；
-    //   false ＝ 这条路接不下（认不出可读路径，或文档问不到、是更高版本），调用方按老办法写旧表。
-    export const setViewFlag = function (cwd, name, value) {
-      try {
-        const on = value === true
-        settingsViewLoad()
-        const key = viewFlagDocKeyOf(cwd)
-        if (!key) return false
-        if (viewFlagState.status === 'loading') {
-          // 文档还在路上：先记下这一笔，等它落地再并进文档（此刻先写旧键的话，文档一到手就会拿文件里的
-          //   旧值把「刚点的那一下」顶掉，横幅会当着人的面自己弹回来）。
-          viewFlagState.deferred[key + '\u0000' + name] = { cwd: cwd, name: name, value: on }
-          return true
-        }
-        if (viewFlagState.status !== 'ready') return false
-        if (!viewFlagSetInDoc(viewFlagState.doc, cwd, key, name, on)) return false
-        viewFlagState.journal[key + '\u0000' + name] = { cwd: cwd, name: name, value: on }
-        viewFlagScheduleWrite()
-        return true
       } catch (e) { return false }
     }

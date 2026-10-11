@@ -55,6 +55,10 @@ export const subwsMarkRootOf = function (st) {
 //   写法是用户自己的那一种，所以按它逐段还原；**比对该用键、显示该用原样**（与设置页工作区总览同一条规矩）。
 //   比对仍然只用折算后的键，绝不按字符切目录名（`D:\ilife-other` 那种会切出残留片段）。
 //   还原不出来（两侧根本不是同一条目录，或写法对不齐）就原样回退回那个键 —— 宁可与规格差一点，也不猜。
+//   如实写明这条还原的边界（2026-10-12 按平台口径改准）：它靠「逐段拼回去」实现，而绝对路径开头那个
+//   斜杠不是一段，所以 POSIX 上永远拼不回来（/home/u/p 拼出来是 home/u/p），那里交回的就是折算键；
+//   盘符开头的 Windows 路径与它自己的 UNC 写法同样按段拼，UNC 开头那两个反斜杠也拼不回来。
+//   这些情形下浮层里显示的是折算键 —— 它仍是一条人认得出的路径，不是一个散列。
 export const subwsMarkRootShown = function (root, cwd) {
   try {
     const key = subwsMarkCmpKey(root)
@@ -64,12 +68,23 @@ export const subwsMarkRootShown = function (root, cwd) {
     const rs = segsOf(root)
     if (cs.length <= rs.length) return String(root)
     // 从根那一段往外逐段试着取（取几段就是几段，不去按字符切），谁折算出来的键等于根，谁就是它
+    const sep = subwsMarkSepOf()
     for (let take = rs.length; take < cs.length; take++) {
-      const cand = cs.slice(0, take).join('\\')
+      const cand = cs.slice(0, take).join(sep)
       if (subwsMarkCmpKey(cand) === key) return cand
     }
     return String(root)
   } catch (e) { return String(root == null ? '' : root) }
+}
+// 拼回可读写法时用哪个分隔符：按平台判，不按「这一条路径里有没有反斜杠」判（2026-10-12 改准）。
+//   反斜杠在 POSIX 上也是合法的文件名字符（/home/u/a\b 就是一个目录名），拿它当「这台机器是 Windows」
+//   的证据会判错平台。平台的真源是 src/shared/workspaceKey.js 的 currentOs()，与 keyOf 判平台同一处口径；
+//   这一组纯函数会被单独求值出来喂给门禁（参数表只有 keyOf 与 tr），拿不到 currentOs 时退回进程平台，
+//   再拿不到就按 POSIX 拼 —— 与 currentOs() 认不出平台时给的默认值一致，不另立一套默认。
+export const subwsMarkSepOf = function () {
+  try { if (typeof currentOs === 'function') return (currentOs() === 'win32') ? '\\' : '/' } catch (e) {}
+  try { if (typeof process !== 'undefined' && process && process.platform) return (process.platform === 'win32') ? '\\' : '/' } catch (e1) {}
+  return '/'
 }
 // 折算到同一把键再比较（大小写、分隔符写法不同也算同一条目录）。keyOf 是内核里那把规整函数的单源；
 //   真闭包里拿不到它时退回原样比较 —— 两串本就同源同写法，结论仍然对，不会把子目录误判成根。
@@ -154,7 +169,11 @@ export const SubworkspaceMark = function (props) {
   const isSub = shown.length > 0
   // 「第一次自动展开」按工作区记一份状态：记在工作区根这把键上，同一个工作区只展开一次。
   //   #1012 起这份状态的真源是本机设置文件（kernel/settings-view.js 的 viewFlagOf / setViewFlag，
-  //   键取工作区根的可读路径），下面这两个函数只是旧键兜底：新模块不在（老产物、或渲染替身里）时才用。
+  //   键取工作区根的可读路径），下面这两个函数只是过渡：新模块不在（老产物、或渲染替身里）、
+  //   或它接不下这一笔（还没认出工作区根、文档问不到、文件只读）时才用。
+  //   说准这一手兜得住什么：设置文件里已经有这个工作区的记录时，写进旧键这一份读不回来
+  //   （读侧以文件里那条为准），它只在本窗口内充当记性；真正让这次改动不丢的是新模块的待写队列
+  //   （写失败时留着那一格，下一趟写再试一次）。
   const AUTO_KEY = 'dsws.subwsAutoShown'
   const readAutoMap = function () {
     try { const raw = localStorage.getItem(AUTO_KEY); const m = raw ? JSON.parse(raw) : null; return (m && typeof m === 'object') ? m : {} } catch (e) { return {} }
@@ -196,7 +215,8 @@ export const SubworkspaceMark = function (props) {
   }, [isSub, root, flagTick])
   const markAutoShown = function () {
     // 交给新模块写：它接下了就不再写旧键（写成功那条路上一个字都不写旧键）；
-    // 它接不下（认不出可读路径、文档问不到、文件只读）或不在时，才照老办法写旧键。
+    // 它接不下（还没认出工作区根、文档问不到、文件只读）或不在时，才照老办法写旧键 ——
+    // 与搬迁前的行为一致，只是这一次暂时不落新家。
     let handled = false
     try { if (typeof setViewFlag === 'function') handled = (setViewFlag(cwd, 'subwsMarkAutoShown', true) === true) } catch (eNew) { handled = false }
     if (!handled) {
