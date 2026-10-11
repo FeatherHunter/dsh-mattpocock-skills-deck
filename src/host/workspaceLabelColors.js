@@ -63,12 +63,15 @@ export function createWorkspaceLabelColors(deps) {
     const reg = await getTrackerRegistry()
     if (!reg) return { ok: false, error: { kind: 'env', message: '插件尚未就绪：还没有可用的后端清单，请稍后重试。这是插件运行环境的问题，不是你的操作有误。' } }
     const platform = await getPlatform()
-    // #1003 单出口：调用方经平台层把统一判定函数递进来时，显式三层整段交出去（内存绑定→文件→声明→记忆，
-    //   自动识别仍由出口内同一注册表跑，不再掉进下面那条只认自动识别的短链）；没递时走下面老内联（存量测试指它）。
-    //   老内联删除时连同本段一起删。本文件不引用判定服务（同层门禁），函数只经依赖值递进来。
+    // #1003 单出口：显式三层（内存绑定→文件→声明→记忆）整段交统一判定，自动识别仍由出口内同一注册表跑；
+    //   下面只做核验与分档，不再自己判一次。本文件不引用判定服务（同层门禁），函数只经依赖值由工作区入口递进来。
     const useOutlet = (typeof getDecisionFn === 'function') ? await getDecisionFn().catch(function () { return null }) : null
+    if (!useOutlet || typeof useOutlet.decideBackend !== 'function') {
+      // 缺依赖即装配错：如实说插件这边有问题，不抛，不编一个后端出来。
+      return { ok: false, error: { kind: 'env', message: '列出标签与修改标签颜色时插件运行出错：判定出口这次没装上，所以没有动仓库里的任何东西。请重试一次；如果仍然失败，请把这条提示原文报告给插件维护者。' } }
+    }
     let sel = null
-    if (useOutlet && typeof useOutlet.decideBackend === 'function') {
+    {
       const fsSvc0 = ctx.get('fs');
       const hasId0 = function (id) { try { return !!(id && reg.has(id)); } catch { return false; } };
       const o = await useOutlet.decideBackend(cwd, {
@@ -80,54 +83,14 @@ export function createWorkspaceLabelColors(deps) {
         if (t9) { let r9 = null; try { r9 = reg.describe({ cwd }, o.backendId); } catch { r9 = { backend: o.backendId, refId: '', name: '', url: '' }; } return { ok: true, backendId: o.backendId, repoRef: r9, tracker: t9, platform }; }
       }
       // 出口无显式答案时：自动识别它已经跑过一次，不再跑第二次，下面只做核验与分档。
-      //   未注册的 id 与老内联同口径直接跳过（不把它当答案，落到下面诚实失败）。
-      //   出口抛错（o 为空）时 sel 保持空，照旧走下面老内联，不丢答案。
+      //   未注册的 id 直接跳过（不把它当答案，落到下面诚实失败）；出口抛错（o 为空）同样落到下面那条失败。
       if (o) {
         sel = o.pending
           ? { backendId: o.backendId || null, source: o.source || 'fallback', multiHit: o.multiHit, pending: true, ref: o.ref || null }
           : { backendId: null, source: 'fallback', multiHit: o.multiHit || undefined, pending: undefined, ref: null }
+      } else {
+        return { ok: false, error: { kind: 'env', message: '列出标签与修改标签颜色时插件运行出错：判定出口这次没有拿回结果，所以没有动仓库里的任何东西。请重试一次；如果仍然失败，请把这条提示原文报告给插件维护者。' } }
       }
-    }
-    if (!sel) {
-    // #1003 收敛（老内联）：先看内存绑定、工作区文件、声明文件（不含自动识别），只放声明文件的工作区在此即有答案。
-    //   与面板那条链同答案。文件解析走共享层纯函数，声明只看高置信标题行（旧文档无标题的低兜底仍走探测器那条路）。
-    try {
-      const fsSvc = ctx.get('fs');
-      const hasId = function (id) { try { return !!(id && reg.has(id)); } catch { return false; } };
-      try {
-        const boundNow = reg.bound({ cwd });
-        if (typeof boundNow === 'string' && boundNow && hasId(boundNow)) {
-          const t0 = reg.get(boundNow);
-          if (t0) { let r0 = null; try { r0 = reg.describe({ cwd }, boundNow); } catch { r0 = { backend: boundNow, refId: '', name: '', url: '' }; } return { ok: true, backendId: boundNow, repoRef: r0, tracker: t0, platform }; }
-        }
-      } catch (eB) {}
-      if (fsSvc && typeof fsSvc.resolve === 'function' && typeof fsSvc.readText === 'function') {
-        try {
-          const { parseWorkspaceFile } = await import('../shared/deck-tools/workspace-file.js');
-          const t = await fsSvc.resolve('docs/agents/workspace.json', { cwd });
-          const txt = await fsSvc.readText(t);
-          const parsed = parseWorkspaceFile(txt);
-          if (parsed && parsed.backendId && hasId(parsed.backendId)) {
-            const t1 = reg.get(parsed.backendId);
-            if (t1) { let r1 = null; try { r1 = reg.describe({ cwd }, parsed.backendId); } catch { r1 = { backend: parsed.backendId, refId: '', name: '', url: '' }; } return { ok: true, backendId: parsed.backendId, repoRef: r1, tracker: t1, platform }; }
-          }
-        } catch (eF) {}
-        try {
-          const t2 = await fsSvc.resolve('docs/agents/issue-tracker.md', { cwd });
-          const raw = await fsSvc.readText(t2);
-          const text = String(raw || '');
-          let did = null;
-          if (/^#\s*issue\s*tracker\s*:\s*gitlab/im.test(text)) did = 'gitlab';
-          else if (/^#\s*issue\s*tracker\s*:\s*(markdown|local)/im.test(text)) did = 'markdown';
-          else if (/^#\s*issue\s*tracker\s*:\s*github/im.test(text)) did = 'github';
-          if (did && hasId(did)) {
-            const t3 = reg.get(did);
-            if (t3) { let r3 = null; try { r3 = reg.describe({ cwd }, did); } catch { r3 = { backend: did, refId: '', name: '', url: '' }; } return { ok: true, backendId: did, repoRef: r3, tracker: t3, platform }; }
-          }
-        } catch (eD) {}
-      }
-    } catch (eU) {}
-    sel = await reg.select({ cwd: cwd }, { cwd: cwd, platform: platform, fs: ctx.get('fs'), caller: caller, signal: signal })
     }
     // 客户端显式声明了它面板上正在用的那个后端 → **核验**它确实在这次算出来的名单里，是就直接交给它。
     //   核验不通过的两种情况，一律照下面那条诚实的失败办（绝不退回「宿主自己挑一个」）：

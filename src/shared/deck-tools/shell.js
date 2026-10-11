@@ -170,36 +170,16 @@ export function createDeckShell(deps) {
     let sent = null
     const t0 = now()
     try { if (typeof d.ensureReading === 'function') await d.ensureReading(s.cwd, s.workspaceKey) } catch (eR) {}
-    // #1003 单出口：装配层把统一判定函数递进来时，显式四层整段交出去（内存 > H > 文件 > 声明，缺席跳过，
-    //   未注册忽略）；自动识别包着配额闸走（行为与老路一致，只多记账）。没递时走下面老路（存量测试指它）。
-    //   本文件不引用判定服务（同层门禁），函数只经依赖值递进来。老路删除时连同本段一起删。
+    // #1003 单出口：显式四层（内存 > H > 文件 > 声明，缺席跳过，未注册忽略）整段交统一判定；
+    //   自动识别包着配额闸走（probe 一格，成功记 1 请求；里面直调，不 double 记账）。
+    //   本文件不引用判定服务（同层门禁），函数只经依赖值由装配层递进来。
     const useOutlet = (typeof d.decideBackend === 'function') ? d.decideBackend : null
-    // 显式四层（#1003：内存 > H > 文件 > 声明 > 自动识别；缺席跳过，未注册忽略）。
-    const explicitId = async function () {
-      try {
-        const mem = (registry && typeof registry.bound === 'function') ? registry.bound(handle) : undefined
-        if (typeof mem === 'string' && mem && typeof registry.has === 'function' && registry.has(mem)) return mem
-      } catch (eM) {}
-      try {
-        if (typeof d.readChoice === 'function') {
-          const h = await d.readChoice(s.cwd)
-          if (h && typeof h.backendId === 'string' && h.backendId && typeof registry.has === 'function' && registry.has(h.backendId)) return h.backendId
-        }
-      } catch (eH) {}
-      try {
-        if (typeof d.readWorkspaceFileText === 'function' && typeof d.parseWorkspaceFile === 'function') {
-          const parsed = d.parseWorkspaceFile(await d.readWorkspaceFileText(s.cwd))
-          if (parsed && typeof parsed.backendId === 'string' && parsed.backendId && typeof registry.has === 'function' && registry.has(parsed.backendId)) return parsed.backendId
-        }
-        if (typeof d.readDeclarationId === 'function') { // #1003 声明层：只放声明文件时工具与面板同答案
-          const did = await d.readDeclarationId(s.cwd)
-          if (typeof did === 'string' && did && typeof registry.has === 'function' && registry.has(did)) return did
-        }
-      } catch (eF) {}
-      return null
+    if (!useOutlet) {
+      // 缺依赖即装配错：如实说没动手，不抛（工具永不抛），不编一个后端出来。
+      return unsupported(REFUSAL_REASONS.BACKEND_THREW, '判定出口这次没装上，我没往下做。请重试一次；如果仍然失败，请把这条提示原文报告给插件维护者。', { errorHash: hash8('missing-decideBackend') })
     }
-    if (useOutlet) {
-      // 整段包进闸（与老路同一闸口径：probe 一格，成功记 1 请求；自动识别在里面直调，不 double 记账）。
+    {
+      // 整段包进闸（与接单出口前同一闸口径）：probe 一格。
       const directSelect = async function (h, actx) {
         return registry.select(h, Object.assign({}, backendCtxNow(), { cwd: s.cwd, caller: (actx && actx.caller) || DECK_TOOL_KIND, signal: (actx && actx.signal) || undefined }))
       }
@@ -221,21 +201,6 @@ export function createDeckShell(deps) {
           return { requests: 1, points: 0 }
         })
       } catch (e) { failure = e }
-    }
-    if (!useOutlet) {
-    try {
-      sent = await gate.send({ source: 'tool.call', kind: 'probe', bucket: 'rest', workspaceKey: s.workspaceKey, plan: [{ phase: 'select' }] }, async () => {
-        const ex = await explicitId()
-        if (ex) {
-          let ref = null
-          try { ref = registry.describe(handle, ex) } catch (eD) { ref = null }
-          picked = { backendId: ex, source: 'explicit', ref: ref, pending: false }
-        } else {
-          picked = await registry.select(handle, Object.assign({}, backendCtxNow(), { cwd: s.cwd, caller: DECK_TOOL_KIND }))
-        }
-        return { requests: 1, points: 0 }
-      })
-    } catch (e) { failure = e }
     }
     const ms = now() - t0
     if (failure) return { ok: false, reason: REFUSAL_REASONS.BACKEND_THREW, text: '选后端这一步的后端实现抛错了，我没往下做。', errorHash: hash8(String((failure && failure.message) || failure)) }

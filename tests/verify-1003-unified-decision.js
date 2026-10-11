@@ -96,6 +96,7 @@ async function main() {
           estimate: toolCost.estimateToolCost,
           costInputFrom: toolCost.toolCostInputFrom,
           backendCtx: {},
+          decideBackend: decMod.decideBackend,
         },
         extra || {}
       )
@@ -127,7 +128,7 @@ async function main() {
     const dir = path.join(tmp, 'with-file');
     fs.mkdirSync(path.join(dir, 'docs', 'agents'), { recursive: true });
     fs.writeFileSync(
-      path.join(dir, 'docs', 'agents', 'workspace.json'),
+      path.join(dir, 'docs', 'agents', 'workspace.yaml'),
       JSON.stringify({ version: 1, backendId: 'markdown', pickedAt: 1, source: 'user' })
     );
     fs.writeFileSync(path.join(dir, 'docs', 'agents', 'issue-tracker.md'), '# Issue tracker: GitHub\n');
@@ -137,7 +138,7 @@ async function main() {
     check(r1.backendId === 'markdown', 'D2 文件存在时听文件的（markdown 胜声明 github）', JSON.stringify(r1));
     // 手改立刻反映：改文件后下一次判定即新值（本期无缓存，每次直读）
     fs.writeFileSync(
-      path.join(dir, 'docs', 'agents', 'workspace.json'),
+      path.join(dir, 'docs', 'agents', 'workspace.yaml'),
       JSON.stringify({ version: 1, backendId: 'github', pickedAt: 2, source: 'user' })
     );
     const r2 = await decideBackend(dir, { registry: reg, platform: { fs: fss }, fs: fss, caller: 'test-d2' });

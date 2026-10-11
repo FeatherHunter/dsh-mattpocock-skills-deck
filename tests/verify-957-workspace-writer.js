@@ -54,21 +54,21 @@ async function main() {
     const api = mkBind(dir)
     const r = await api.handleBind({ cwd: dir, backendId: 'github' })
     check(r.ok === true && r.backendId === 'github', 'B1 首绑成功回包不变（绑定本身不受写器影响）')
-    const fp = path.join(dir, 'docs', 'agents', 'workspace.json')
-    let obj = null
-    try { obj = JSON.parse(fs.readFileSync(fp, 'utf8')) } catch (e) { obj = null }
-    check(obj && obj.backendId === 'github' && obj.source === 'user' && obj.version === 1 && typeof obj.pickedAt === 'number', 'B1 首绑落盘（人选，来源 user，四项齐全）', JSON.stringify(obj))
+    const fp = path.join(dir, 'docs', 'agents', 'workspace.yaml')
+    let body = '';
+    try { body = fs.readFileSync(fp, 'utf8') } catch (e) { body = '' }
+    check(body.includes('backendId: github') && body.includes('source: user') && body.includes('version: 2'), 'B1 首绑落盘（人选，来源 user，新格式 YAML 版本 2）', body.slice(0, 200))
     check(r.workspaceFile && r.workspaceFile.ok === true && r.workspaceFile.placed === true, 'B1 回包如实带上落盘结果（placed:true）', JSON.stringify(r.workspaceFile))
   }
   {
     const dir = makeTemp()
     fs.mkdirSync(path.join(dir, 'docs', 'agents'), { recursive: true })
-    fs.writeFileSync(path.join(dir, 'docs', 'agents', 'workspace.json'), JSON.stringify({ version: 1, backendId: 'markdown', pickedAt: 7, source: 'user' }))
+    fs.writeFileSync(path.join(dir, 'docs', 'agents', 'workspace.yaml'), JSON.stringify({ version: 1, backendId: 'markdown', pickedAt: 7, source: 'user' }))
     const api = mkBind(dir)
     const r = await api.handleBind({ cwd: dir, backendId: 'github' })
-    const obj = JSON.parse(fs.readFileSync(path.join(dir, 'docs', 'agents', 'workspace.json'), 'utf8'))
+    const body = fs.readFileSync(path.join(dir, 'docs', 'agents', 'workspace.yaml'), 'utf8')
     // #1003 唯一真源：用户明确选择时必须能覆盖文件（旧“文件已在就不覆盖”已废）。
-    check(obj.backendId === 'github', 'B2 文件已在时用户新选覆盖（唯一真源可改写）', JSON.stringify(obj))
+    check(body.includes('backendId: github'), 'B2 文件已在时用户新选覆盖（唯一真源可改写）', body.slice(0, 200))
     check(r.ok === true && r.backendId === 'github' && r.workspaceFile && r.workspaceFile.placed === true && r.workspaceFile.reason === 'overwritten', 'B2 回包说明已覆盖（placed:true, overwritten），绑定是这次选的 github', JSON.stringify(r.workspaceFile))
   }
   {
@@ -76,7 +76,7 @@ async function main() {
     const api = mkBind(dir)
     const r = await api.handleBind({ cwd: dir, backendId: null })
     check(r.ok === true && r.backendId === null, 'B3 显式无后端绑定照旧成功')
-    check(!fs.existsSync(path.join(dir, 'docs', 'agents', 'workspace.json')), 'B3 显式无后端不持久化（不写文件）')
+    check(!fs.existsSync(path.join(dir, 'docs', 'agents', 'workspace.yaml')), 'B3 显式无后端不持久化（不写文件）')
     check(r.workspaceFile && r.workspaceFile.skipped === 'explicit-none', 'B3 回包说明跳过原因', JSON.stringify(r.workspaceFile))
   }
   {
@@ -150,11 +150,12 @@ async function main() {
     const ledgerMod = await imp('src/host/refresh/ledger.js')
     const gateMod = await imp('src/host/refresh/gate.js')
     const toolCost = await imp('src/shared/refresh/tool-cost.js')
+    const decMod957 = await imp('src/host/tracker/detection/backendDecision.js')
     const ledger = ledgerMod.createLedger({ now: () => 1700000000000 })
     const gate = gateMod.createGate({ ledger: ledger, logCtx: null, now: () => 1700000000000 })
     ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: 1700003600000 }, graphql: { limit: 5000, remaining: 5000, reset: 1700003600000 } }, 1700000000000)
     const sOf = (cwd) => ({ cwd: cwd, workspaceKey: 'k957', sessionId: 's957', source: 't', text: '' })
-    const mkShell = (reg, extra) => shellMod.createDeckShell(Object.assign({ gate: gate, registry: reg, budget: budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, backendCtx: {} }, extra || {}))
+    const mkShell = (reg, extra) => shellMod.createDeckShell(Object.assign({ gate: gate, registry: reg, budget: budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, backendCtx: {}, decideBackend: decMod957.decideBackend }, extra || {}))
     const doubleReg = { bound: () => undefined, has: (id) => id === 'github' || id === 'markdown', describe: (h, id) => ({ backend: id, refId: 'o/n', name: id, url: '' }), select: async () => ({ backendId: 'github', source: 'matches', ref: null, multiHit: ['github', 'markdown'] }) }
     const exec = { agent: { session: { id: 's', cwd: 'D:\\ws' } } }
     const pNoProt = await mkShell(doubleReg).pickBackend(exec, sOf('D:\\ws'))

@@ -157,6 +157,7 @@ async function main() {
 
   // ── 6. 壳动手前保一次：调了、传了目录与键；缺席时跳过老桩照过 ──
   const shell = await imp('src/shared/deck-tools/shell.js')
+  const decModQuota = await imp('src/host/tracker/detection/backendDecision.js')
   let ensured = null
   const stubGate = {
     send: async function (req, perform) {
@@ -165,7 +166,7 @@ async function main() {
     },
     admitAiTool: function () { return { admitted: true, reason: 'ai-tool-within-caps', points: 1, requests: 1 } },
   }
-  const stubRegistry = { select: async function () { return { backendId: 'github', source: 'test', ref: {} } } }
+  const stubRegistry = { has: function () { return true }, select: async function () { return { backendId: 'github', source: 'test', ref: {} } } }
   const sh = shell.createDeckShell({
     gate: stubGate,
     registry: stubRegistry,
@@ -173,11 +174,12 @@ async function main() {
     estimate: function () { return { points: 1, requests: 1, tickets: 0, withinCallCap: true, shards: 1, perShard: 1, text: '' } },
     costInputFrom: function () { return {} },
     ensureReading: async function (cwd, key) { ensured = { cwd: cwd, key: key }; return { ok: true, fresh: true } },
+    decideBackend: decModQuota.decideBackend,
   })
   const picked = await sh.pickBackend({ agent: { session: { cwd: '/ws-shell' } } }, { cwd: '/ws-shell', workspaceKey: 'ws-shell-1', sessionId: 's1', source: 't', text: '' })
   check(picked && picked.ok === true, '壳照常选出后端（保读数不挡路）')
   check(ensured && ensured.cwd === '/ws-shell' && ensured.key === 'ws-shell-1', '壳动手前保一次读数，目录与键都递过去')
-  const shOld = shell.createDeckShell({ gate: stubGate, registry: stubRegistry, budget: {}, estimate: function () { return { points: 1, requests: 1, tickets: 0, withinCallCap: true, shards: 1, perShard: 1, text: '' } }, costInputFrom: function () { return {} } })
+  const shOld = shell.createDeckShell({ gate: stubGate, registry: stubRegistry, budget: {}, estimate: function () { return { points: 1, requests: 1, tickets: 0, withinCallCap: true, shards: 1, perShard: 1, text: '' } }, costInputFrom: function () { return {} }, decideBackend: decModQuota.decideBackend })
   const pickedOld = await shOld.pickBackend({ agent: { session: { cwd: '/ws' } } }, { cwd: '/ws', workspaceKey: 'k', sessionId: '', source: '', text: '' })
   check(pickedOld && pickedOld.ok === true, '没给保读数的老桩照样过（缺席跳过）')
 
@@ -201,12 +203,13 @@ async function main() {
     estimate: function () { return { points: 1, requests: 1, tickets: 0, withinCallCap: true, shards: 1, perShard: 1, text: '' } },
     costInputFrom: function () { return {} },
     noteGate: function (info) { noted.push(info) },
+    decideBackend: decModQuota.decideBackend,
   })
   const deferOut = await shDefer.pickBackend({ agent: { session: { cwd: '/ws' } } }, { cwd: '/ws', workspaceKey: 'k', sessionId: '', source: '', text: '' })
   check(deferOut && deferOut.ok === false && deferOut.reason === 'gate-defer', '推迟照旧回做不到（口径迹不改变裁决）')
   check(noted.length === 1 && noted[0].phase === 'select' && noted[0].verdict === 'defer' && noted[0].reason === 'reserve-kept-for-writes',
     '推迟那一笔的机器码记下来了（给探针读）')
-  const shNoNote = shell.createDeckShell({ gate: deferGate, registry: stubRegistry, budget: {}, estimate: function () { return { points: 1, requests: 1, tickets: 0, withinCallCap: true, shards: 1, perShard: 1, text: '' } }, costInputFrom: function () { return {} } })
+  const shNoNote = shell.createDeckShell({ gate: deferGate, registry: stubRegistry, budget: {}, estimate: function () { return { points: 1, requests: 1, tickets: 0, withinCallCap: true, shards: 1, perShard: 1, text: '' } }, costInputFrom: function () { return {} }, decideBackend: decModQuota.decideBackend })
   const deferOld = await shNoNote.pickBackend({ agent: { session: { cwd: '/ws' } } }, { cwd: '/ws', workspaceKey: 'k', sessionId: '', source: '', text: '' })
   check(deferOld && deferOld.ok === false && deferOld.reason === 'gate-defer', '没给口子缺席跳过，老行为不动')
 

@@ -90,23 +90,23 @@ async function main() {
     const ws = await h.build();
     await ws.handleSelection({ cwd: dir });
     await new Promise((r) => setTimeout(r, 300));
-    const fp = path.join(dir, 'docs', 'agents', 'workspace.json');
+    const fp = path.join(dir, 'docs', 'agents', 'workspace.yaml');
     let ok = false, body = '';
-    try { body = fs.readFileSync(fp, 'utf8'); const o = JSON.parse(body); ok = o.backendId === 'github' && o.source === 'user'; } catch (e) {}
-    check(ok, 'M1 文件缺席+记忆有，选择后文件被建出来（github/user）', body.slice(0, 200));
+    try { body = fs.readFileSync(fp, 'utf8'); ok = body.includes('backendId: github') && body.includes('source: user') && body.includes('version: 2'); } catch (e) {}
+    check(ok, 'M1 文件缺席+记忆有，选择后文件被建出来（github/user，新格式 YAML 版本 2）', body.slice(0, 200));
   }
   // M2 文件已在 → 不覆盖
   {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'v1003m2-'));
     const dir = path.join(tmp, 'ws');
     fs.mkdirSync(path.join(dir, 'docs', 'agents'), { recursive: true });
-    fs.writeFileSync(path.join(dir, 'docs', 'agents', 'workspace.json'), JSON.stringify({ version: 1, backendId: 'markdown', pickedAt: 1, source: 'user' }));
+    fs.writeFileSync(path.join(dir, 'docs', 'agents', 'workspace.yaml'), JSON.stringify({ version: 1, backendId: 'markdown', pickedAt: 1, source: 'user' }));
     const h = makeWs(dir, 'github');
     const ws = await h.build();
     await ws.handleSelection({ cwd: dir });
     await new Promise((r) => setTimeout(r, 300));
-    const o = JSON.parse(fs.readFileSync(path.join(dir, 'docs', 'agents', 'workspace.json'), 'utf8'));
-    check(o.backendId === 'markdown', 'M2 文件已在不覆盖（文件赢，记忆 github 不顶掉 markdown）', JSON.stringify(o));
+    const o = fs.readFileSync(path.join(dir, 'docs', 'agents', 'workspace.yaml'), 'utf8');
+    check(o.includes('markdown') && !o.includes('github'), 'M2 文件已在不覆盖（文件赢，记忆 github 不顶掉 markdown）', o.slice(0, 200));
   }
   // M3 记忆没有 → 不写；未注册 → 不写
   {
@@ -117,7 +117,7 @@ async function main() {
     const ws1 = await h1.build();
     await ws1.handleSelection({ cwd: dir });
     await new Promise((r) => setTimeout(r, 300));
-    check(!fs.existsSync(path.join(dir, 'docs', 'agents', 'workspace.json')), 'M3 记忆没有不写文件');
+    check(!fs.existsSync(path.join(dir, 'docs', 'agents', 'workspace.yaml')), 'M3 记忆没有不写文件');
     const tmp2 = fs.mkdtempSync(path.join(os.tmpdir(), 'v1003m3b-'));
     const dir2 = path.join(tmp2, 'ws');
     fs.mkdirSync(dir2, { recursive: true });
@@ -125,7 +125,7 @@ async function main() {
     const ws2 = await h2.build();
     await ws2.handleSelection({ cwd: dir2 });
     await new Promise((r) => setTimeout(r, 300));
-    check(!fs.existsSync(path.join(dir2, 'docs', 'agents', 'workspace.json')), 'M3 未注册后端不写文件（不把猜写进真源）');
+    check(!fs.existsSync(path.join(dir2, 'docs', 'agents', 'workspace.yaml')), 'M3 未注册后端不写文件（不把猜写进真源）');
   }
   // M4 空目录 → 未知，不建文件；bind 空输入直接拒绝
   {

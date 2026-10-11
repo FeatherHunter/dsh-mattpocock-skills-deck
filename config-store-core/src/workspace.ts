@@ -8,9 +8,13 @@
  * 本文件自包含：要用的小工具自己写一遍，不引用别的单元。
  * 原因是产物之间零相对引用（同层互引门禁），与 label-color-core 把同一段
  * 十六进制打印在 colors.ts 与 prompt.ts 各写一遍是同一个道理。
- * YAML 入口守卫（超大、别名）不住这里，住宿主适配器的 parseConfig（唯一入口）。
+ * 文本入口（parseWorkspaceText）也住这里：兼容垫片与房间文件不许用裸包引用，
+ * 产物在 shared 层用裸包是允许的方向；入口守卫数字与适配器同值，行为一致由门禁钉。
+ * 布局缺席：读（v1 老文件本来就没有）与写（调用方还没拿到值，如迁移与首次绑定）
+ * 都允许缺，缺了整段省略，绝不编默认值；一旦写进去，覆盖写必须由调用方读改写保住。
  */
 
+import { parse as parseYaml } from 'yaml'
 import type { ConfigParseResult, ConfigStringifyResult } from './ports.js'
 
 /** 工作区后端配置的新路径（YAML）与老路径（JSON，只做兼容读）。 */
@@ -18,6 +22,11 @@ export const WORKSPACE_YAML_REL = 'docs/agents/workspace.yaml'
 export const WORKSPACE_JSON_REL = 'docs/agents/workspace.json'
 /** 核认识的版本就是 2（老 JSON 是版本 1，读进来做迁移）。 */
 export const WORKSPACE_KNOWN_VERSION = 2
+
+/** 文件字符数上限（与适配器同数；超了说明拿错了文件）。 */
+export const MAX_WORKSPACE_FILE_CHARS = 65536
+/** 别名数量上限（与适配器同数；正常文件里一个别名都不会有）。 */
+export const MAX_WORKSPACE_ALIASES = 50
 
 const HEADER = [
   '# 本文件的注释由插件生成；你自己加的注释会在下次写入时被替换。',
@@ -66,6 +75,53 @@ function esc(text: string): string {
   )
 }
 
+/** 数一数文本里用了多少个别名。注释里的不算，先去掉行注释。 */
+function countAliases(text: string): number {
+  const noComments = text.replace(/(^|\s)#[^\n]*$/gm, '$1')
+  const hits = noComments.match(/(^|[\s\[{,])\*[A-Za-z0-9_-]+/g)
+  return hits ? hits.length : 0
+}
+
+/**
+ * 文本入口：超大与别名两道守卫 → YAML 解析（钉死 core 模式）→ 校验。
+ * 给不能用裸包引用的调用方（兼容垫片）；宿主适配器走自己的 parseConfig，
+ * 两处守卫数字相同、行为一致（门禁从行为上钉住）。
+ */
+export function parseWorkspaceText(text: unknown): ConfigParseResult {
+  if (typeof text !== 'string') {
+    return { ok: false, reason: 'yaml-error', message: '要解析的不是一段文字' }
+  }
+  const stripped = text.replace(/^\uFEFF/, '')
+  if (stripped.length > MAX_WORKSPACE_FILE_CHARS) {
+    return {
+      ok: false,
+      reason: 'oversize',
+      message: '这份文件太大了（' + stripped.length + ' 字，上限 ' + MAX_WORKSPACE_FILE_CHARS + ' 字），核拒绝解析：配置文件本该很小，超了说明拿错了文件',
+    }
+  }
+  if (countAliases(stripped) > MAX_WORKSPACE_ALIASES) {
+    return {
+      ok: false,
+      reason: 'aliases',
+      message: '这份文件里的别名太多了（上限 ' + MAX_WORKSPACE_ALIASES + ' 个），核拒绝解析：正常配置文件里一个别名都不会有',
+    }
+  }
+  let doc: unknown = null
+  try {
+    doc = parseYaml(stripped, { schema: 'core', maxAliasCount: MAX_WORKSPACE_ALIASES, uniqueKeys: true })
+  } catch (e) {
+    const msg = String((e && (e as Error).message) || e || '')
+    if (/alias/i.test(msg)) {
+      return { ok: false, reason: 'aliases', message: '这份文件里的别名太多了，核拒绝解析：正常配置文件里一个别名都不会有' }
+    }
+    return { ok: false, reason: 'yaml-error', message: '这份文件的内容不是合法的 YAML（也就是老的 JSON 也不是）：' + msg.slice(0, 160) }
+  }
+  if (doc === undefined || doc === null || (typeof doc === 'string' && (doc as string).trim() === '')) {
+    return { ok: false, reason: 'bad-shape', message: '这份文件里什么都没有（空白文件）' }
+  }
+  return parseWorkspace(doc)
+}
+
 /** 校验一份已解析出来的工作区配置。版本高于认识时读成功标只读（写时由拼装拒绝）。 */
 export function parseWorkspace(doc: unknown): ConfigParseResult {
   if (!isRecord(doc)) return fail('bad-shape', '工作区配置文件里放的不是一组「名字 → 值」，读到的是清单或一段文字')
@@ -99,11 +155,9 @@ export function parseWorkspace(doc: unknown): ConfigParseResult {
         : '工作区配置文件里的 source 必须是 user、migrated、detected、auto 四者之一',
     )
   }
-  if (version === 2) {
-    if (typeof doc['layout'] !== 'string' || LAYOUTS.indexOf(doc['layout']) < 0) {
-      return fail('bad-shape', '工作区配置文件里的 layout 必须是 single（单栏）或 multi（多栏）')
-    }
-  } else if (doc['layout'] !== undefined && (typeof doc['layout'] !== 'string' || LAYOUTS.indexOf(doc['layout']) < 0)) {
+  // 布局缺席允许：v1 老文件本来就没有；v2 文件缺了也照读（值里不带 layout 键）。
+  // 写布局是调用方的事（有点确认/迁移时带上）；一旦写进去，覆盖写必须读改写保住。
+  if (doc['layout'] !== undefined && (typeof doc['layout'] !== 'string' || LAYOUTS.indexOf(doc['layout']) < 0)) {
     return fail('bad-shape', '工作区配置文件里的 layout 必须是 single（单栏）或 multi（多栏）')
   }
   const value: Record<string, unknown> = {
@@ -116,25 +170,26 @@ export function parseWorkspace(doc: unknown): ConfigParseResult {
   return { ok: true, value, readonly: false, warnings: [] }
 }
 
-/** 拼装：模板 + 值，只写版本 2；高版本拒绝写（旧版本不许把新字段抹掉）。 */
+/** 拼装：模板 + 值，一律出版本 2；高版本拒绝写（旧版本不许把新字段抹掉）。
+ *  version 缺席默认 2，传 1 视为升级写出（老版本 1 只用来读）；布局缺席整段省略。 */
 export function stringifyWorkspace(value: unknown): ConfigStringifyResult {
   if (!isRecord(value)) return { ok: false, reason: 'bad-shape', message: '要写入的工作区配置不是一组「名字 → 值」' }
   const strange = Object.keys(value).filter((k) => KNOWN_KEYS.indexOf(k) < 0)
   if (strange.length > 0) {
     return { ok: false, reason: 'unknown-keys', message: '要写入的工作区配置里有多出来的名字，核不会把它们写进去：' + strange.join('、'), keys: strange }
   }
-  if (!isInt(value['version'])) return { ok: false, reason: 'bad-shape', message: '要写入的工作区配置里的 version 必须是数字 2' }
-  const version = value['version'] as number
-  if (version > WORKSPACE_KNOWN_VERSION) {
+  const version = value['version'] === undefined ? WORKSPACE_KNOWN_VERSION : value['version']
+  if (!isInt(version)) return { ok: false, reason: 'bad-shape', message: '要写入的工作区配置里的 version 必须是数字（缺席默认 2）' }
+  if ((version as number) > WORKSPACE_KNOWN_VERSION) {
     return {
       ok: false,
       reason: 'version-newer',
-      message: '拒绝写入：这份工作区配置是版本 ' + version + '，核只认识到版本 2。旧版本写回去会把新字段抹掉，请升级插件后再改。',
+      message: '拒绝写入：这份工作区配置是版本 ' + String(version) + '，核只认识到版本 2。旧版本写回去会把新字段抹掉，请升级插件后再改。',
     }
   }
-  if (version !== WORKSPACE_KNOWN_VERSION) return { ok: false, reason: 'bad-shape', message: '要写入的工作区配置里的 version 必须是 2（老版本 1 只用来读，不用来写）' }
+  if (version !== 1 && version !== WORKSPACE_KNOWN_VERSION) return { ok: false, reason: 'bad-shape', message: '要写入的工作区配置里的 version 必须是 1（升级写出）或 2' }
   const check = parseWorkspace({
-    version: value['version'],
+    version: WORKSPACE_KNOWN_VERSION,
     backendId: value['backendId'],
     pickedAt: value['pickedAt'],
     source: value['source'],
@@ -150,7 +205,9 @@ export function stringifyWorkspace(value: unknown): ConfigStringifyResult {
   lines.push('pickedAt: ' + String(v['pickedAt']))
   lines.push(COMMENT_SOURCE)
   lines.push('source: ' + esc(String(v['source'])))
-  lines.push(COMMENT_LAYOUT)
-  lines.push('layout: ' + esc(String(v['layout'])))
+  if (v['layout'] !== undefined) {
+    lines.push(COMMENT_LAYOUT)
+    lines.push('layout: ' + esc(String(v['layout'])))
+  }
   return { ok: true, text: lines.join('\n') + '\n' }
 }

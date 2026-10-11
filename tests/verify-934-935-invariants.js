@@ -38,6 +38,7 @@ async function main() {
   const ledgerMod = await imp('src/host/refresh/ledger.js')
   const gateMod = await imp('src/host/refresh/gate.js')
   const toolCost = await imp('src/shared/refresh/tool-cost.js')
+  const decMod934 = await imp('src/host/tracker/detection/backendDecision.js')
   const markdownModule = (await imp('src/host/tracker/backends/markdown/index.js')).markdownModule
 
   // —— I2 先行：注册表只做系统无关洗（斜杠与尾斜杠归一，大小写不动） ——
@@ -90,8 +91,8 @@ async function main() {
     const ledger = ledgerMod.createLedger({ now: () => 1700000000000 })
     const gate = gateMod.createGate({ ledger, now: () => 1700000000000 })
     ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: 1700003600000 }, graphql: { limit: 5000, remaining: 5000, reset: 1700003600000 } }, 1700000000000)
-    const shellA = shellMod.createDeckShell({ gate, registry, budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, backendCtx: fakeCtx, canonicalKey, workspaceKeyOf })
-    const shellB = shellMod.createDeckShell({ gate, registry, budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, backendCtx: fakeCtx, canonicalKey, workspaceKeyOf })
+    const shellA = shellMod.createDeckShell({ gate, registry, budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, backendCtx: fakeCtx, decideBackend: decMod934.decideBackend, canonicalKey, workspaceKeyOf })
+    const shellB = shellMod.createDeckShell({ gate, registry, budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, backendCtx: fakeCtx, decideBackend: decMod934.decideBackend, canonicalKey, workspaceKeyOf })
     const pickA = await shellA.pickBackend(execA, sA)
     // 第二路用原始写法进，但上下文已归一，显式必须命中
     const pickB = await shellB.pickBackend(execB, sB)
@@ -108,7 +109,7 @@ async function main() {
     const ledger = ledgerMod.createLedger({ now: () => 1700000000000 })
     const gate = gateMod.createGate({ ledger, now: () => 1700000000000 })
     ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: 1700003600000 }, graphql: { limit: 5000, remaining: 5000, reset: 1700003600000 } }, 1700000000000)
-    const shell = shellMod.createDeckShell({ gate, registry, budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, backendCtx: fakeCtx, canonicalKey: async (x) => String(x), workspaceKeyOf })
+    const shell = shellMod.createDeckShell({ gate, registry, budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, backendCtx: fakeCtx, decideBackend: decMod934.decideBackend, canonicalKey: async (x) => String(x), workspaceKeyOf })
     const s = { cwd: '/ws-multi', workspaceKey: 'deadbeef', sessionId: 's-m' }
     const pick = await shell.pickBackend({}, s)
     check(!pick.ok, 'I1b 多命中无显式即冲突（不回注册序第一个）', JSON.stringify(pick).slice(0, 300))

@@ -34,6 +34,17 @@ async function main() {
     check(out.ok === true, 'C1 工作区能拼', out.ok ? '' : out.message)
     const back = out.ok ? parseConfig(out.text, 'workspace') : null
     check(!!back && back.ok === true && JSON.stringify(back.value) === JSON.stringify(ws), 'C1 工作区往返值不变', JSON.stringify(back))
+    // 布局缺席（切核过渡：迁移与首次绑定还没拿到布局值）——读与写都允许缺，缺了整段省略，绝不编默认值。
+    const noLayoutWs = { version: 2, backendId: 'github', pickedAt: 5, source: 'user' }
+    const nlOut = stringifyConfig(noLayoutWs, 'workspace')
+    check(nlOut.ok === true && nlOut.text.indexOf('layout') < 0, 'C1 缺布局可写（整段省略，不编默认值）', nlOut.ok ? nlOut.text : nlOut.message)
+    const nlBack = nlOut.ok ? parseConfig(nlOut.text, 'workspace') : null
+    check(!!nlBack && nlBack.ok === true && nlBack.value.layout === undefined, 'C1 缺布局可读（值里不带布局键）', JSON.stringify(nlBack))
+    // 写时 version 缺席默认当前版，传 1 视为升级写出（老版本只用来读）。
+    const vDefault = stringifyConfig({ backendId: 'github', pickedAt: 5, source: 'migrated' }, 'workspace')
+    check(vDefault.ok === true && vDefault.text.indexOf('version: 2') >= 0, 'C1 写时缺版本默认出 v2', vDefault.ok ? vDefault.text : vDefault.message)
+    const vUpgrade = stringifyConfig({ version: 1, backendId: 'github', pickedAt: 5, source: 'user' }, 'workspace')
+    check(vUpgrade.ok === true && vUpgrade.text.indexOf('version: 2') >= 0, 'C1 老版本输入升级写出 v2', vUpgrade.ok ? vUpgrade.text : vUpgrade.message)
     const st = {
       version: 1,
       ui: { stateFilter: 'open', sortKey: 'updatedAt', sortDir: 'desc', labelClicks: { bug: 3 } },

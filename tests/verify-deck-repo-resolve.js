@@ -14,6 +14,7 @@ let failed = false
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href)
+let DECIDE_BACKEND = null
 
 function baseShellDeps(over) {
   return Object.assign({
@@ -25,6 +26,7 @@ function baseShellDeps(over) {
     estimate: function () { return { points: 1, requests: 1, tickets: 0, withinCallCap: true, shards: 1, perShard: 1, text: '' } },
     costInputFrom: function () { return {} },
     resolveTimeoutMs: 50,
+    decideBackend: DECIDE_BACKEND,
   }, over || {})
 }
 
@@ -36,10 +38,12 @@ async function main() {
   console.log('仓库标识补全门禁（#758：空才补，不逐后端写分支）')
 
   const shell = await imp('src/shared/deck-tools/shell.js')
+  DECIDE_BACKEND = (await imp('src/host/tracker/detection/backendDecision.js')).decideBackend
 
   // ── 1. 空标识补上，有标识不动 ──
   let resolveCalls = 0
   const withCap = {
+    has: function () { return true },
     select: async function () { return { backendId: 'github', source: 'matches', ref: { backend: 'github', refId: '', name: 'ws', url: '' } } },
     get: function () {
       return {
@@ -58,6 +62,7 @@ async function main() {
   check(resolveCalls === 1, '补全只调一次')
 
   const keepRef = {
+    has: function () { return true },
     select: async function () { return { backendId: 'github', source: 'explicit', ref: { backend: 'github', refId: 'keep/me', name: 'keep/me', url: '' } } },
     get: function () {
       return { getRepoKey: async function () { throw new Error('不该调到这里') } }
@@ -69,6 +74,7 @@ async function main() {
 
   // ── 2. 没能力的后端跳过，下游照旧 ──
   const noCap = {
+    has: function () { return true },
     select: async function () { return { backendId: 'markdown', source: 'matches', ref: { backend: 'markdown', refId: '', name: 'ws', url: '' } } },
     get: function () { return {} },
   }
@@ -78,6 +84,7 @@ async function main() {
 
   // ── 3. 补全失败、超时、被闸推迟，都诚实 ──
   const failResolve = {
+    has: function () { return true },
     select: async function () { return { backendId: 'github', source: 'matches', ref: { backend: 'github', refId: '', name: 'ws', url: '' } } },
     get: function () { return { getRepoKey: async function () { return null } } },
   }
@@ -85,6 +92,7 @@ async function main() {
   const p4 = await sh4.pickBackend({ agent: { session: { cwd: '/ws' } } }, sess('/ws'))
   check(p4 && p4.ok === true && p4.ref.refId === '', '解析不出空着交下去，不抛')
   const throwResolve = {
+    has: function () { return true },
     select: async function () { return { backendId: 'github', source: 'matches', ref: { backend: 'github', refId: '', name: 'ws', url: '' } } },
     get: function () { return { getRepoKey: async function () { throw new Error('炸了') } } },
   }
@@ -92,6 +100,7 @@ async function main() {
   const p5 = await sh5.pickBackend({ agent: { session: { cwd: '/ws' } } }, sess('/ws'))
   check(p5 && p5.ok === true, '补全抛错吞掉，选后端本身不受影响')
   const hangResolve = {
+    has: function () { return true },
     select: async function () { return { backendId: 'github', source: 'matches', ref: { backend: 'github', refId: '', name: 'ws', url: '' } } },
     get: function () { return { getRepoKey: function () { return new Promise(function () {}) } } },
   }
@@ -109,6 +118,7 @@ async function main() {
   }
   let deferResolveCalls = 0
   const deferReg = {
+    has: function () { return true },
     select: async function () { return { backendId: 'github', source: 'matches', ref: { backend: 'github', refId: '', name: 'ws', url: '' } } },
     get: function () { return { getRepoKey: async function () { deferResolveCalls += 1; return { owner: 'a', name: 'b' } } } },
   }
