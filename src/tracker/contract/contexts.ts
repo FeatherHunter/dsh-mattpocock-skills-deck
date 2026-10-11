@@ -80,16 +80,33 @@ export interface BackendPlatform {
   path: {
     join(...parts: string[]): string
     sep: string
+    /**
+     * 这个路径是不是绝对路径。**必填**，依据是本地 Markdown 房的真实读法：
+     * `markdown/index.js:16` 写 `plat.isAbsolute(p)`、`markdown/path.js:3` 同一处，
+     * 且 `markdown/index.js:24` 拿它决定「当绝对路径用」还是「拼到工作区目录下」。
+     * 缺这一格时那几处照原样迁移会报 TS2741（平台那个对象上缺 isAbsolute）。
+     */
+    isAbsolute(p: string): boolean
+    /**
+     * 取所在目录。**必填**，依据是 `markdown/write.js:23` 与 `:33`：两处都是拿到 plat 就直接调
+     * `await ensureDir(ctx, plat.dirname(fullPath))`，中间没有判空。写成可选成员的话，
+     * 那两处照原样迁移会报 TS2722（不能调用可能是 undefined 的东西）。
+     */
+    dirname(p: string): string
     resolve?(...parts: string[]): string
-    dirname?(p: string): string
     basename?(p: string): string
   }
   /** 沙箱文件服务（受栅栏约束，不能绕过它直连 node:fs）。 */
   fs: SandboxFs
   /** 把命令名解析成可执行文件的绝对路径；解析不出来回 null。房间直接调它，所以是必填。 */
   resolveExecutable(name: string): Promise<string | null> | string | null
-  /** 起进程（宿主侧实现会把每一笔出站报给闸记账）。房间直接调它，所以是必填。 */
-  exec(
+  /**
+   * 起进程（宿主侧实现会把每一笔出站报给闸记账）。
+   * **可选**：真实平台对象上今天没有这一格，房间起命令走的是上下文自己的 `exec`（`OpContext.exec`，
+   * 见 `github/backend.js:48` 与 `github/client.js:47`）。写成必填是「话说得比实情满」，
+   * 会让照契约实现的人多背一个从不存在的成员。
+   */
+  exec?(
     cmd: string,
     args: string[],
     opts?: { cwd?: string; timeout?: number; signal?: AbortSignal },
