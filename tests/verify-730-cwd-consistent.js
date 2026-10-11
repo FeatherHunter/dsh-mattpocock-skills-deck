@@ -186,6 +186,8 @@ async function main() {
   // D 组行为：标签电话在无归属会话时如实失败，不拿默认政策写（走真实 handleListLabels，全套夹具）。
   {
     const mod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'workspaceCwd.js')).href)
+    const decMod730 = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'tracker', 'detection', 'backendDecision.js')).href)
+    try { decMod730.decideBackend.selectionFromOutlet = decMod730.selectionFromOutlet } catch (eAttach730) {}
     const resolveCalls = []
     let seenPolicy = 'untouched'
     const tracker = {
@@ -207,12 +209,14 @@ async function main() {
       DEFAULT_CWD: 'D:\\',
       getPlatform: async () => ({}),
       getTrackerRegistry: async () => ({
+        has: (id) => id === 'markdown',
         select: async () => ({ backendId: 'markdown' }),
         get: () => tracker,
         describe: () => ({ backend: 'markdown', refId: '', name: '', url: '' }),
       }),
       getWorkspaceStore: async () => null,
       getChoiceStore: async () => null,
+      getDecisionFn: async () => ({ decideBackend: decMod730.decideBackend }),
       canonicalKey: async (raw) => raw,
       setCache: () => {},
       logCtx: null,

@@ -42,6 +42,27 @@ function fileOriginOf(fileSource) {
   return 'user-file';
 }
 
+/**
+ * 出口答案 → 调用方选择形状（三处共用一处：探测服务、改色电话、工具壳）。
+ * 有后端给 id 加引用（引用缺席现算）；无后端给 fallback；待定与多命中原样带出，由调用方拒绝。
+ * 未注册的 id 由调用方先判（hasId），这里只做形状；o 为空（出口抛错）回空，由调用方走老路或诚实失败。
+ */
+export function selectionFromOutlet(o, describeFn) {
+  if (!o) return null;
+  if (o.backendId) {
+    let ref = o.ref || null;
+    if (!ref && typeof describeFn === 'function') {
+      try { ref = describeFn(o.backendId); } catch (e) { ref = null; }
+    }
+    const out = { backendId: o.backendId, source: o.source || 'explicit', ref: ref };
+    if (o.multiHit) out.multiHit = o.multiHit;
+    if (o.pending) out.pending = o.pending;
+    return out;
+  }
+  if (o.pending) return { backendId: null, source: 'fallback', pending: true, multiHit: o.multiHit };
+  return { backendId: null, source: 'fallback' };
+}
+
 function isKnown(registry, id) {
   try {
     return !!(id && registry && typeof registry.has === 'function' && registry.has(id));
@@ -201,9 +222,9 @@ export async function decideBackend(root, deps = {}) {
     return { backendId: autodetect.backendId, source: autodetect.source || 'matches', origin: 'autodetect', canWrite: false, reason: 'needs-generate', ref: autodetect.ref || null, multiHit: autodetect.multiHit, pending: autodetect.pending };
   }
   if (autodetect && autodetect.pending) {
-    return { backendId: null, source: 'fallback', origin: 'pending', canWrite: false, reason: 'pending' };
+    return { backendId: null, source: 'fallback', origin: 'pending', pending: true, canWrite: false, reason: 'pending' };
   }
   return { backendId: null, source: 'fallback', origin: 'none', canWrite: false, reason: 'no-backend' };
 }
 
-export default { decideBackend, decidePure };
+export default { decideBackend, decidePure, selectionFromOutlet };

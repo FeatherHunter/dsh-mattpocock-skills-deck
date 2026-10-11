@@ -66,7 +66,10 @@ export function createCommentThreads(deps) {
   }
   async function handleIssueDetail(args) {
     const n = args && args.number
-    const cwd = await normCwd((args && args.cwd) || DEFAULT_CWD)
+    // #1003 空目录闸：不拿进程目录冒充去读票，诚实失败等就绪。
+    const _rawDetailCwd = (args && typeof args.cwd === 'string' && args.cwd.trim()) ? args.cwd : ''
+    if (!_rawDetailCwd) return { ok: false, error: '这个工作区还没就绪（还没认出是哪个目录），等面板认出工作区后再试。' }
+    const cwd = await normCwd(_rawDetailCwd)
     if (!n) return { ok: false, error: { kind: 'parse', message: '缺少 number' } }
     try {
       // 第一性原理分发：经 index 从会话启停模块转供给共享判据（H4 同例），不各留一份拷贝。
@@ -124,7 +127,10 @@ export function createCommentThreads(deps) {
   async function handleIssueComments(args) {
     const n = args && args.number
     const after = args && args.after
-    const cwd = await normCwd((args && args.cwd) || DEFAULT_CWD)
+    // #1003 空目录闸：同上。
+    const _rawCommentsCwd = (args && typeof args.cwd === 'string' && args.cwd.trim()) ? args.cwd : ''
+    if (!_rawCommentsCwd) return { ok: false, error: '这个工作区还没就绪（还没认出是哪个目录），等面板认出工作区后再试。' }
+    const cwd = await normCwd(_rawCommentsCwd)
     if (!n) return { ok: false, error: { kind: 'parse', message: '缺少 number' } }
     try {
       // 第一性原理分发：经 index 从会话启停模块转供给共享判据（H4 同例），不各留一份拷贝。
@@ -164,7 +170,10 @@ export function createCommentThreads(deps) {
   async function handleCommentIssue(args) {
     const n = args && args.number
     const body = args && args.body
-    const cwd = await normCwd((args && args.cwd) || DEFAULT_CWD)
+    // #1003 空目录闸：写操作更不许冒充（会写到错的仓库），直接拒绝等就绪。
+    const _rawCommentCwd = (args && typeof args.cwd === 'string' && args.cwd.trim()) ? args.cwd : ''
+    if (!_rawCommentCwd) return { ok: false, error: '这个工作区还没就绪（还没认出是哪个目录），等面板认出工作区后再试。' }
+    const cwd = await normCwd(_rawCommentCwd)
     if (!n || isNaN(Number(n))) return { ok: false, error: { kind: 'parse', message: '缺少 number' } }
     if (typeof body !== 'string' || !body.trim()) return { ok: false, error: { kind: 'parse', message: '评论内容为空' } }
     try {
@@ -203,7 +212,10 @@ export function createCommentThreads(deps) {
   //   故"列表不更新状态"。since 语义：返回数组非空 = 自上次快照以来有变化 → 视为 changed。
   //   配额仍走 REST 5000/h 池（独立于 GraphQL 5000 点/h），不烧穿。
   async function handleProbe(args) {
-    const cwd = await canonicalKey((args && args.cwd) || DEFAULT_CWD)
+    // #1003 空目录闸：同上。
+    const _rawProbeCwd = (args && typeof args.cwd === 'string' && args.cwd.trim()) ? args.cwd : ''
+    if (!_rawProbeCwd) return { ok: false, error: '这个工作区还没就绪（还没认出是哪个目录），等面板认出工作区后再试。' }
+    const cwd = await canonicalKey(_rawProbeCwd)
     // 第一性原理分发：经 index 从会话启停模块转供给共享判据（H4 同例），不各留一份拷贝。
     // markdown 等走轻量 list 探针，github 仍走 gh issue index
     const _selProbe = await selectEarly({ cwd, backendId: (args && args.backendId) || undefined })

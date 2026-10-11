@@ -29,8 +29,11 @@ export function createSessionRefresh(deps) {
   let _sharedInflightP = null
   function _loadSharedInflight() { if (!_sharedInflightP) _sharedInflightP = import('./snapshotInflight.js'); return _sharedInflightP }
   async function refreshOf(args) {
+      // #1003 空目录闸：同快照，不拿进程目录冒充去重建，诚实失败等就绪。
+      const _rawRefCwd = (args && typeof args.cwd === 'string' && args.cwd.trim()) ? args.cwd : ''
+      if (!_rawRefCwd) return { ok: false, error: '这个工作区还没就绪（还没认出是哪个目录），等面板认出工作区后再试。' }
       // #652 与快照同钥匙（规整键+工作区根）；#696 起宿主内存按根分表，强制刷新只重写自己根那条。
-      const cwd = await canonicalKey((args && args.cwd) || DEFAULT_CWD)
+      const cwd = await canonicalKey(_rawRefCwd)
       const refT0 = Date.now()
       try { if (logCtx) logCtx.fire('info', 'panelSync.dirty', { cwdHash: hash8(cwd), ageMs: (function () { try { const c = getCache(cwd); return (c && c.ts) ? Math.max(0, refT0 - c.ts) : 0 } catch (e) { return 0 } })() }) } catch (eL) {}
       let _sel = null

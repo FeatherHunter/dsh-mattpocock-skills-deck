@@ -282,8 +282,7 @@ export function createPlatformChannel(deps) {
       try {
         const mod = await import('./tracker/detection/detectionService.js')
         const create = mod.createDetectionService || mod.default
-        const dec = await getDecisionFn().catch(function () { return { decideBackend: null } })
-        const decideBackend = (dec && dec.decideBackend) || null
+        const decideBackend = (((await getDecisionFn().catch(function () { return {} })) || {}).decideBackend) || null
         // skillProbe 内联（复用 probeSkill 双源逻辑；全量名单 = shared/matt-skills.js 单源，二十多项）
         // #280/#fix-banner：旧版硬编码 10 名，遗漏 grill-with-docs / wizard / grill-me / to-questionnaire / wait-what / writing-for-agents 等导致横幅永远报警
         // #968 技能按需：平时（链求值、普通探测）只问链条目录要的三项，人亲手点重查才问全量。
@@ -338,17 +337,9 @@ export function createPlatformChannel(deps) {
     })().catch(function () { return null })
     return _choiceStoreP
   }
-  // #1003 单出口：判定函数的唯一装配点（全进程一份，失败记空不抛）。
-  //   平台层引用探测层是跨层（门禁不计数，基线记一条理由与归属）；下游只收函数值，零新增同层边。
-  let _decideBackendP = null
-  function getDecisionFn() {
-    if (!_decideBackendP) {
-      _decideBackendP = import('./tracker/detection/backendDecision.js').then(
-        function (m) { return { decideBackend: m.decideBackend || (m.default && m.default.decideBackend) || null } },
-        function () { return { decideBackend: null } }
-      )
-    }
-    return _decideBackendP
-  }
+  let _decideBackendP = null // #1003 单出口装配点（跨层引用基线记名；映射挂函数上整包递，下游零新增边）
+  const getDecisionFn = () => (_decideBackendP || (_decideBackendP = import('./tracker/detection/backendDecision.js').then(
+    function (m) { const fn = m.decideBackend || (m.default && m.default.decideBackend) || null; if (fn) { try { fn.selectionFromOutlet = m.selectionFromOutlet || (m.default && m.default.selectionFromOutlet) || null } catch (eAttach) {} } return { decideBackend: fn } },
+    function () { return { decideBackend: null } })))
   return { getTrackerRegistry, getPlatform, getWorkspaceStore, detectionExec, getDetectionService, getChoiceStore, clearWorkspaceStore, getDecisionFn }
 }

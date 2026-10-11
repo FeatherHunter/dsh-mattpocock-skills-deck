@@ -413,6 +413,9 @@ const SEED = [
 {
   const { createWorkspaceCwd } = await import('../src/host/workspaceCwd.js')
   const { createRegistry } = await import('../src/host/tracker/registryCore.js')
+  const decModGh = await import('../src/host/tracker/detection/backendDecision.js')
+  try { decModGh.decideBackend.selectionFromOutlet = decModGh.selectionFromOutlet } catch (eAttachGh) {}
+  const getDecisionFnGh = async () => ({ decideBackend: decModGh.decideBackend })
   const HOST_CWD = '/ws/gh-project'
   const gh = makeGh({ labels: SEED })
   const vias = []
@@ -425,6 +428,7 @@ const SEED = [
     getWorkspaceStore: async () => ({ invalidate: () => {} }),
     canonicalKey: async (c) => c,
     setCache: () => {},
+    getDecisionFn: getDecisionFnGh,
     logCtx: { fire: () => {}, isEnabled: () => false },
     timer: { timeout: (fn, ms) => setTimeout(fn, ms) },
     detectionExec: async (cmd, args, opts, via) => { vias.push({ cmd: cmd, args: args, via: via }); return gh.ctx.exec(cmd, args) },
@@ -470,6 +474,9 @@ const SEED = [
 {
   const { createWorkspaceCwd } = await import('../src/host/workspaceCwd.js')
   const { createRegistry } = await import('../src/host/tracker/registryCore.js')
+  const decModGh2 = await import('../src/host/tracker/detection/backendDecision.js')
+  try { decModGh2.decideBackend.selectionFromOutlet = decModGh2.selectionFromOutlet } catch (eAttachGh2) {}
+  const getDecisionFnGh = async () => ({ decideBackend: decModGh2.decideBackend })
   const HOST_CWD = '/ws/gh-and-markdown'
   const gh = makeGh({ labels: SEED })
   const vias = []
@@ -492,6 +499,7 @@ const SEED = [
     getWorkspaceStore: async () => ({ invalidate: () => {} }),
     canonicalKey: async (c) => c,
     setCache: () => {},
+    getDecisionFn: getDecisionFnGh,
     logCtx: { fire: () => {}, isEnabled: () => false },
     timer: { timeout: (fn, ms) => setTimeout(fn, ms) },
     detectionExec: async (cmd, args, opts, via) => { vias.push({ cmd: cmd, args: args, via: via }); return gh.ctx.exec(cmd, args) },

@@ -55,7 +55,10 @@ export function createMapTickets(deps) {
   }
 
   async function handleMapTickets(args) {
-    const cwd = await canonicalKey((args && args.cwd) || DEFAULT_CWD)
+    // #1003 空目录闸：不拿进程目录冒充去取子票，诚实失败等就绪。
+    const _rawMapCwd = (args && typeof args.cwd === 'string' && args.cwd.trim()) ? args.cwd : ''
+    if (!_rawMapCwd) return { ok: false, error: '这个工作区还没就绪（还没认出是哪个目录），等面板认出工作区后再试。' }
+    const cwd = await canonicalKey(_rawMapCwd)
     const key = String((args && (args.key != null ? args.key : args.number)) || '').trim()
     if (!key) return { ok: false, error: { kind: 'parse', message: '缺少地图编号（key）' } }
     const sel = await selectEarly({ cwd, backendId: (args && args.backendId) || undefined, baseRev: (args && args.baseRev) || 0 })

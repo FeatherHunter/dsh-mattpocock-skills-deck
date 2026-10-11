@@ -63,7 +63,10 @@ export function createHandoffClaim(deps) {
   // #652：交接文档住在工作区的 .scratch/ 里（票仓那一级），所以先按工作区根归一再去读——
   //   会话开在子目录里时，旧写法会去子目录下找一份并不存在的 .scratch/handoff，永远答「还没有交接文档」。
   async function handleHandoffLatest(args) {
-    const cwd = await normCwd((args && args.cwd) || DEFAULT_CWD)
+    // #1003 空目录闸：不拿进程目录冒充去读交接目录，诚实失败等就绪。
+    const _rawLatestCwd = (args && typeof args.cwd === 'string' && args.cwd.trim()) ? args.cwd : ''
+    if (!_rawLatestCwd) return { ok: false, error: '这个工作区还没就绪（还没认出是哪个目录），等面板认出工作区后再试。' }
+    const cwd = await normCwd(_rawLatestCwd)
     const r = await scanHandoffDir(cwd)
     if (r.error) return { ok: false, error: r.error }
     return { ok: true, file: pickLatestHandoff(r.mds) }
@@ -75,7 +78,10 @@ export function createHandoffClaim(deps) {
   // 区别于初版：初版「name 不在目录也 fallback 到 mtime 最新」在实际场景下被验证为反模式 —— 当 AI 还没写完
   // 文档时（handoffFile 设了但文件未落盘），fallback 会让右半亮蓝且点开后错误引用上次的老文档，与修复目标相悖。
   async function handleHandoffResolve(args) {
-    const cwd = await normCwd((args && args.cwd) || DEFAULT_CWD)
+    // #1003 空目录闸：同上。
+    const _rawResolveCwd = (args && typeof args.cwd === 'string' && args.cwd.trim()) ? args.cwd : ''
+    if (!_rawResolveCwd) return { ok: false, error: '这个工作区还没就绪（还没认出是哪个目录），等面板认出工作区后再试。' }
+    const cwd = await normCwd(_rawResolveCwd)
     const r = await scanHandoffDir(cwd)
     if (r.error) return { ok: false, error: r.error }
     const want = args && args.name
@@ -97,7 +103,10 @@ export function createHandoffClaim(deps) {
   // 写操作前 UI 已二次确认（用户点击即同意），不走 approval 服务（RESEARCH-NOTES §3 结论）。
   async function handleClaim(args) {
     const n = args && args.number
-    const cwd = await normCwd((args && args.cwd) || DEFAULT_CWD)
+    // #1003 空目录闸：写操作不冒充（会写到错的仓库），直接拒绝等就绪。
+    const _rawClaimCwd = (args && typeof args.cwd === 'string' && args.cwd.trim()) ? args.cwd : ''
+    if (!_rawClaimCwd) return { ok: false, error: '这个工作区还没就绪（还没认出是哪个目录），等面板认出工作区后再试。' }
+    const cwd = await normCwd(_rawClaimCwd)
     if (!n) return { ok: false, error: '缺少参数 number（ticket 号）' }
     // 第一性原理分发
     let _sel = null

@@ -78,10 +78,12 @@ export function createWorkspaceLabelColors(deps) {
         registry: reg, platform: platform, fs: fsSvc0, caller: caller, signal: signal,
         getChoiceStore: getChoiceStore,
       }).catch(function () { return null })
-      if (o && o.backendId && hasId0(o.backendId)) {
+      if (o && o.backendId && hasId0(o.backendId) && !(Array.isArray(o.multiHit) && o.multiHit.length > 1) && !o.pending) {
         const t9 = reg.get(o.backendId);
         if (t9) { let r9 = null; try { r9 = reg.describe({ cwd }, o.backendId); } catch { r9 = { backend: o.backendId, refId: '', name: '', url: '' }; } return { ok: true, backendId: o.backendId, repoRef: r9, tracker: t9, platform }; }
       }
+      // 出口无可用显式答案时：自动识别它已经跑过一次，不再跑第二次，下面只做核验与分档。
+      //   多命中与待定落到下面那两条诚实失败（与老路同序：先看 multiHit/pending，再拿 id）。
       // 出口无显式答案时：自动识别它已经跑过一次，不再跑第二次，下面只做核验与分档。
       //   未注册的 id 直接跳过（不把它当答案，落到下面诚实失败）；出口抛错（o 为空）同样落到下面那条失败。
       if (o) {

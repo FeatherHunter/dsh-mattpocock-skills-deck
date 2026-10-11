@@ -35,6 +35,8 @@ import { gitlabBackend } from '../../../src/host/tracker/backends/gitlab/index.j
 import { githubModule } from '../../../src/host/tracker/backends/github/index.js'
 import { markdownModule } from '../../../src/host/tracker/backends/markdown/index.js'
 import { createWorkspaceCwd } from '../../../src/host/workspaceCwd.js'
+import { decideBackend as decDecideBackend, selectionFromOutlet as decSelectionFromOutlet } from '../../../src/host/tracker/detection/backendDecision.js'
+try { decDecideBackend.selectionFromOutlet = decSelectionFromOutlet } catch (eAttachDec) {}
 import nodePath from 'node:path'
 
 const HEX6 = /^[0-9a-f]{6}$/
@@ -609,6 +611,7 @@ export async function run() {
         getPlatform: async () => ({ path: nodePath.posix, getHome: async () => '/home/u' }),
         getTrackerRegistry: async () => reg,
         getWorkspaceStore: async () => ({ invalidate: () => {} }),
+        getDecisionFn: async () => ({ decideBackend: decDecideBackend }),
         canonicalKey: async (c) => c,
         setCache: () => {},
         logCtx: { fire: (level, event, fields) => events.push({ level: level, event: event, fields: fields }), isEnabled: () => false },

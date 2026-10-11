@@ -71,6 +71,8 @@ async function main() {
   const detMod = await imp('src/host/tracker/detection/detectionService.js');
   const lcMod = await imp('src/host/workspaceLabelColors.js');
   const { decideBackend } = decMod;
+  // 映射函数挂判定函数上整包递（与生产装配点同形，见 platformChannel.getDecisionFn）
+  try { decideBackend.selectionFromOutlet = decMod.selectionFromOutlet } catch (eAttach) {}
 
   const sOf = (cwd) => ({ cwd, workspaceKey: 'k1003s', sessionId: 's1003s', source: 't', text: '' });
   const shellOf = (reg, extra) => shellMod.createDeckShell(Object.assign({

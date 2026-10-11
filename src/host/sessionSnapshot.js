@@ -47,7 +47,7 @@ export function createSessionSnapshot(deps) {
   }
   async function handleSnapshot(args) { return withChainReadout(await snapshotOf(args)) }
   async function snapshotOf(args) {
-      const cwd = await canonicalKey((args && args.cwd) || DEFAULT_CWD)
+      const _rawSnapCwd = (args && args.cwd) || ''; if (!String(_rawSnapCwd).trim()) return { ok: false, error: '这个工作区还没就绪（还没认出是哪个目录），等面板认出工作区后再试。' }; const cwd = await canonicalKey(_rawSnapCwd) // #1003 空目录闸：没目录不冒充取快照
       const now = Date.now()
       // 第一性原理分发前置：先算 selection，再决定缓存与数据链路（避免旧 GitHub 缓存遮住 Markdown）
       const _selEarly = await selectEarly({ cwd, backendId: (args && args.backendId) || undefined, baseRev: (args && args.baseRev) || 0 })

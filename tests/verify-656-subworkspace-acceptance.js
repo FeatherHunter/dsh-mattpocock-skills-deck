@@ -518,25 +518,27 @@ async function main() {
   }
 
   // —— D4 检查链按同一把钥匙缓存：不重复求值 ——
+  // #1003 空目录闸之后：入参先判空（没目录直接说还没就绪），有目录才锚到工作区根。两段都在判据里。
   {
     const chainSrc = read('src/host/detectChain.js')
-    const anchored = /handleChain\(args\) \{[\s\S]{0,200}?const cwd = await canonicalKey\(\(args && args\.cwd\) \|\| DEFAULT_CWD\)/.test(chainSrc)
+    const anchored = /handleChain\(args\) \{[\s\S]{0,600}?const cwd = await canonicalKey\(_rawChainCwd\)/.test(chainSrc)
     const keyedByAnchoredCwd = /const cacheKey = cwd \+ '\|' \+ String\(args && args\.backendId \|\| ''\) \+ '\|' \+ chainLang/.test(chainSrc)
     must(anchored && keyedByAnchoredCwd,
       '检查链快照按「工作区根 + 后端 + 语言」缓存：同一个工作区里的会话共用一次求值结果，不各算各的',
       'anchored=' + anchored + ' keyedByAnchoredCwd=' + keyedByAnchoredCwd)
-    must(/handleDetect\(args\) \{[\s\S]{0,200}?const cwd = await canonicalKey\(\(args && args\.cwd\) \|\| DEFAULT_CWD\)/.test(chainSrc),
-      '后端探测（wf.detect）同样先把入参锚到工作区根：子目录会话探测出来的身份就是那个仓库的身份',
-      'wf.detect 没有把入参锚到工作区根')
+    must(/handleDetect\(args\) \{[\s\S]{0,600}?const cwd = await canonicalKey\(_rawDetectCwd\)/.test(chainSrc) && /还没就绪/.test(chainSrc),
+      '后端探测（wf.detect）空时说还没就绪、有目录时把入参锚到工作区根：子目录会话探测出来的身份就是那个仓库的身份',
+      'wf.detect 没有空闸或没有把入参锚到工作区根')
   }
 
   // —— D5 宿主的每条电话都从同一个出口拿钥匙 ——
+  // #1003 空目录闸之后：先判空再锚根（判空用原文 args.cwd，锚根走同一出口）。模式串同步新形状。
   {
     const files = {
-      '会话快照（面板数据）': ['src/host/sessionSnapshot.js', /handleSnapshot\(args\) \{[\s\S]{0,200}?const cwd = await canonicalKey\(\(args && args\.cwd\) \|\| DEFAULT_CWD\)/, /workspaceRoot: cwd/],
-      '强制刷新': ['src/host/sessionRefresh.js', /const cwd = await canonicalKey\(\(args && args\.cwd\) \|\| DEFAULT_CWD\)/],
+      '会话快照（面板数据）': ['src/host/sessionSnapshot.js', /snapshotOf\(args\) \{[\s\S]{0,600}?const cwd = await canonicalKey\(_rawSnapCwd\)/, /workspaceRoot: cwd/, /还没就绪/],
+      '强制刷新': ['src/host/sessionRefresh.js', /const cwd = await canonicalKey\(_rawRefCwd\)/, /还没就绪/],
       '后端绑定与选择': ['src/host/workspaceCwd.js', /async function normCwd\(raw\)\{\s*[\s\S]{0,120}?canonicalKey/, /async function handleBind\(args\) \{[\s\S]{0,300}?canonicalKey/, /还没就绪/],
-      '交接文档落点': ['src/host/handoffClaim.js', /normCwd\(\(args && args\.cwd\) \|\| DEFAULT_CWD\)/],
+      '交接文档落点': ['src/host/handoffClaim.js', /还没就绪/, /normCwd\(_raw(Latest|Resolve|Claim)Cwd\)/],
     }
     for (const label of Object.keys(files)) {
       const rel = files[label][0]

@@ -41,7 +41,7 @@ export function createDetectChain(deps) {
   // 数字真源是 budget.ts）：8 秒 → 30 秒 → 2 分钟 → 5 分钟逐档后退，有进展立刻回第一档，全绿后 30 分钟。
   // 触发只有四种事件，宿主侧一个自续定时器都没有；人亲手点「重新检查」带 trigger='user-recheck' 上来，永不降档。
   async function handleDetect(args) {
-      const cwd = await canonicalKey((args && args.cwd) || DEFAULT_CWD)
+      const _rawDetectCwd = (args && args.cwd) || ''; if (!String(_rawDetectCwd).trim()) return { ok: true, handle: { cwd: '' }, selection: null, repoHandle: { cwd: '', refId: '' }, explicit: { raw: null, parsed: { explicitBackendId: null } }, preflight: null, skillProbes: null, at: Date.now(), workspaceNotReady: true }; const cwd = await canonicalKey(_rawDetectCwd) // #1003 空目录闸：没目录不冒充
       const force = !!(args && args.force)
       // #195 修复：force 探测清空 gh 解析缓存（旧实现首次失败永久缓存，force 也救不回来）
       if (force) resetGhCache()
@@ -57,7 +57,7 @@ export function createDetectChain(deps) {
   }
   /** 主机侧的链求值入口：通用链 + 当前后端的链，两段各自求值、最后拼成一份快照。 */
   async function handleChain(args) {
-      const cwd = await canonicalKey((args && args.cwd) || DEFAULT_CWD)
+      const _rawChainCwd = (args && args.cwd) || ''; if (!String(_rawChainCwd).trim()) return { ok: false, error: '这个工作区还没就绪（还没认出是哪个目录），等面板认出工作区后再试。' }; const cwd = await canonicalKey(_rawChainCwd) // #1003 空目录闸
       const force = !!(args && args.force)
       const chainLang = (args && args.lang === 'en') ? 'en' : 'zh'
       const trigger = String((args && args.trigger) || '')
