@@ -197,8 +197,15 @@ export const SubworkspaceMark = function (props) {
     try {
       if (typeof viewFlagOf === 'function') {
         docAnswer = viewFlagOf(cwd, 'subwsMarkAutoShown') === true
-        // 「它答得出这一格吗」的判据就是它认不认得出根：写键非空即认得出，认得出时文档与旧键两条路它都查得了。
-        docCanAnswer = (typeof viewFlagWriteKeyOf === 'function') ? (viewFlagWriteKeyOf(cwd) !== '') : true
+        // 「它答得出这一格吗」＝ 它认出的那个根与本组件手上这个根是同一条目录。只问「认不认得出根」不够
+        //   （2026-10-12 复核 Q2 量出来的窄反例）：内核那张「所选目录 → 工作区根」的表是快照缓存，同一个
+        //   目录的工作区根变过时它可能还留着旧条目，视图认出的就是另一个根 —— 那时它答的是别的根那一格
+        //   （多半是「没记过」），而本组件自己那把旧键里明明记过，判决就从「不弹」翻成「弹」，这个工作区
+        //   又白弹一次。两边认的不是同一个根，就退回旧表那一份（旧表按工作区根记，本组件自己认得出根）。
+        //   比之前两边都过 subwsMarkCmpKey 折算：写键有时是根路径原文、有时是折算过的键，写法不同也算同一条。
+        docCanAnswer = (typeof viewFlagWriteKeyOf === 'function')
+          ? (subwsMarkCmpKey(viewFlagWriteKeyOf(cwd)) === subwsMarkCmpKey(root))
+          : true
       }
     } catch (eN) {}
     let legacyShown = false

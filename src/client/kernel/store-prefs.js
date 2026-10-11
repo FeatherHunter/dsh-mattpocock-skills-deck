@@ -19,7 +19,12 @@
       } catch (e) { try { log('warn', 'storage.fail', { key: LIST_PREFS_KEY, op: 'read' }) } catch (eL) {} }
       return d
     })()
-    export const saveListPrefs = function () { try { localStorage.setItem(LIST_PREFS_KEY, JSON.stringify(listPrefs)) } catch (e) { try { log('warn', 'storage.fail', { key: LIST_PREFS_KEY, op: 'write' }) } catch (eL) {} } }
+    // #1012 第 3 步：这三格的新家是本机设置文件的 ui 节，读写那一趟住在 kernel/settings-ui.js。
+    //   下面这一条是改动前的老办法（整份写回旧键），只在那条新路接不下时兜底；过渡期里还写旧键的只此一处。
+    export const saveListPrefsLegacy = function () { try { localStorage.setItem(LIST_PREFS_KEY, JSON.stringify(listPrefs)) } catch (e) { try { log('warn', 'storage.fail', { key: LIST_PREFS_KEY, op: 'write' }) } catch (eL) {} } }
+    // 列表面板上点一下筛选或排序调的就是这里：先交给文件这条路（写进去了就不写旧键，先立后破），
+    //   接不下（文档问不到、是更高版本、或形状对不上）才照老办法整份写回旧键。
+    export const saveListPrefs = function () { try { if (typeof saveUiPrefs === 'function' && saveUiPrefs() === true) return } catch (e) {} saveListPrefsLegacy() }
     // #375：label 点击记忆（次数 + 最近点击时间，双键排序）
     // #1012（2026-10-12 维护者拍板）：这一项不落盘。它只是标签 chip 排序用的热度，丢了不影响
     //   功能，本机设置文件里也不存它（核不再写 ui 节的 labelClicks）。所以这份计数只活在本次

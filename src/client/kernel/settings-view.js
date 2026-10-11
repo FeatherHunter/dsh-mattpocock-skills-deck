@@ -266,6 +266,9 @@
         const keys = Object.keys(viewFlagState.deferred)
         for (let i = 0; i < keys.length; i++) {
           const d = viewFlagState.deferred[keys[i]]
+          // 界面偏好那一族（kernel/settings-ui.js）在队列里没有工作区路径，交给它自己收口；按下面那条路
+          //   处理会拿 undefined 当工作区根，往旧键里写出一条谁也读不回来的记录。
+          if (d.section === 'ui') { settingsUiDrainDeferred(d, status); continue }
           const key = (status === 'ready') ? viewFlagWriteKeyOf(d.cwd) : ''
           if (key && viewFlagSetInDoc(viewFlagState.doc, d.cwd, key, d.name, d.value)) {
             viewFlagState.journal[viewFlagJournalKeyOf(key, d.name)] = { cwd: d.cwd, name: d.name, value: d.value, key: key }

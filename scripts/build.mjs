@@ -344,6 +344,10 @@ const KERNEL_MODULES = [
   { name: 'settingsViewState', file: 'src/client/kernel/settings-view-state.js' },
   { name: 'settingsView', file: 'src/client/kernel/settings-view.js' },
   { name: 'settingsViewWrite', file: 'src/client/kernel/settings-view-write.js' },
+  // #1012 第 3 步：界面偏好那三格（列表筛选/排序键/排序方向）从 localStorage 搬到本机设置文件的 ui 节。
+  //   与上面那一族共用同一个待写队列与同一份文档，所以标记必须排在 settingsViewWrite 之后；
+  //   旧键 dsws.listPrefs 那一条留着当过渡，读写两头的分工见该文件开头的说明。
+  { name: 'settingsUi', file: 'src/client/kernel/settings-ui.js' },
   { name: 'storeSwitch', file: 'src/client/kernel/store-switch.js' },
   { name: 'storeSnapshot', file: 'src/client/kernel/store-snapshot.js' },
   { name: 'storeDerived', file: 'src/client/kernel/store-derived.js' },

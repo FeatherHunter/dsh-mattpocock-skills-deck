@@ -61,6 +61,8 @@
           for (let i = 0; i < sentKeys.length; i++) {
             const d = viewFlagState.journal[sentKeys[i]]
             if (!d) continue
+            // 界面偏好那一族（kernel/settings-ui.js）只有格名、没有工作区路径，直接改进 ui 节。
+            if (d.section === 'ui') { settingsUiSetInDoc(fresh, d.name, d.value); continue }
             // 用队列里这一笔自带的键，不重算（#1012 后续修复的建议 2）：本会话若在排期与落盘之间跟丢了根，
             //   重算出来的键会换成会话目录那一条，文件里就长出同一工作区的第二条记录、根那条还是旧值。
             const key = d.key || viewFlagDocKeyOf(d.cwd)
@@ -99,7 +101,10 @@
       try {
         for (let i = 0; i < sentKeys.length; i++) {
           const d = viewFlagState.journal[sentKeys[i]]
-          if (d) viewFlagLegacyWrite(d.cwd, d.name, d.value)
+          if (!d) continue
+          // 界面偏好那一族照改动前的老办法兜底：整份三格写回旧键 dsws.listPrefs（由 store-prefs.js 管那把键）。
+          if (d.section === 'ui') { saveListPrefsLegacy(); continue }
+          viewFlagLegacyWrite(d.cwd, d.name, d.value)
         }
         if (viewFlagState.retryLeft > 0) { viewFlagState.retryLeft -= 1; viewFlagScheduleWrite() }
       } catch (e) {}
@@ -117,6 +122,11 @@
     //   按格取值时先按折算键找那条记录（同一工作区的两种写法算同一条），找不到就退回队列里的值。
     const viewFlagSentValIn = function (snap, d) {
       try {
+        // 界面偏好那一格发出去的值就在 ui 节里（同一个格名）；文件那一份里没写进去时退回队列里的值。
+        if (d.section === 'ui') {
+          const uv = (snap && snap.ui && typeof snap.ui === 'object') ? snap.ui[d.name] : undefined
+          return (typeof uv === 'string' && uv !== '') ? uv : d.value
+        }
         const key = d.key || viewFlagDocKeyOf(d.cwd)
         if (!key || !snap || !snap.workspaces || typeof snap.workspaces !== 'object') return d.value
         const ek = viewFlagEntryKeyOf(snap, key)

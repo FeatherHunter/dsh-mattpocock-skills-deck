@@ -2,7 +2,7 @@
 /**
  * verify-settings-view.js —— 客户端「按工作区的观看状态」搬到本机设置文件的门禁（#1012）。
  *
- * 这一份门禁只量十四件事，每一件都用完整的一句话说清，第一次读的人能直接看懂。
+ * 这一份门禁只量十五件事，每一件都用完整的一句话说清，第一次读的人能直接看懂。
  * 第一件事是缺席时回退旧表读：设置文件还没建出来的时候，读到的值要与改动前一样来自 localStorage 那两个旧键。
  * 第二件事是写成功后旧 localStorage 键一个字节都不写：新后端这条路成了，两处都写就是两份真相。
  * 第三件事是写失败才过渡写旧键：只有写不进文件（或文件是更高版本、不许写回去）时，才把这一次的值写回旧键。
@@ -34,9 +34,15 @@
  *   第十四件事是回包划队列要按「真正交给宿主的那份快照里的值」判 —— 从前比的是发出前记下的值，
  *   重读窗口里改过、回包前又改回原值的交错会被误判成「没改过」而划掉，盘上留中间值、内存是最后那一下。
  *
- * 怎么保证量的是真件：客户端那三片（src/client/kernel/settings-view-state.js、settings-view.js 与
- *   settings-view-write.js）的真源按构建同一种做法、同一次序拼起来当场造出函数来跑
- *   （第一片是后两片的前置、第二片又是第三片的前置，构建时也照这个次序拼）；
+ * 第十五件事是 #1012 第 3 步：界面偏好那三格（列表面板的状态筛选、排序键、排序方向）从 localStorage 的
+ *   dsws.listPrefs 搬进本机设置文件的 ui 节。量的是四条：文件里写过的那一格到手后换成文件里那一份
+ *   （本次会话没动过的面板跟着换、已经动过的不顶回去），文件里没写过的格（空串）保留旧表那一份，
+ *   点一下筛选或排序写进文件成功就不写旧键，写失败（含文档还在路上、文件是更高版本）才照老办法整份写回旧键。
+ *
+ * 怎么保证量的是真件：客户端那几片（src/client/kernel/settings-view-state.js、settings-view.js、
+ *   settings-view-write.js 与 settings-ui.js）的真源按构建同一种做法、同一次序拼起来当场造出函数来跑
+ *   （第一片是后两片的前置、第二片又是第三片的前置，第四片与第三片共用同一个待写队列，构建时也照这个
+ *   次序拼；界面偏好那三格的内存那一份与旧键写法取自 store-prefs.js 里「主列表偏好」那一段真源码）；
  *   它打的宿主那两条电话（wf.getSettings / wf.setSettings）用的是
  *   src/host/settingsPhones.js 与 src/host/configStore.js 的真实现，读写落在系统临时目录里的真文件上 ——
  *   只有手机（假 host 的 call）与文件系统（可以按需制造写失败的那一层包装）是替身。
@@ -124,11 +130,22 @@ function keyOfFn() { return sharedKeyFn('keyOf') }
 const VIEW_REL = 'src/client/kernel/settings-view.js'
 const VIEW_STATE_REL = 'src/client/kernel/settings-view-state.js'
 const VIEW_WRITE_REL = 'src/client/kernel/settings-view-write.js'
+const UI_REL = 'src/client/kernel/settings-ui.js'
 const noExport = (s) => s.replace(/^\s*export\s+/gm, '')
+// store-prefs.js 里「主列表偏好」那一段的真源码（LIST_PREFS_KEY / listPrefs / saveListPrefsLegacy / saveListPrefs）：
+//   界面偏好那一族要用的就是这一段。整份 store-prefs.js 还牵着面板高度、无仓库红卡、选中与仓库等别的东西，
+//   所以只切这一段 —— 仍然是真源码，不另写仿制品。
+function listPrefsSlice() {
+  const src = readText('src/client/kernel/store-prefs.js')
+  const start = src.indexOf('// #374：主列表偏好')
+  const end = src.indexOf('// #375：label 点击记忆')
+  if (start < 0 || end <= start) throw new Error('store-prefs.js 里找不到主列表偏好那一段（#374 到 #375 之间）')
+  return noExport(src.slice(start, end))
+}
 function makeView(env) {
-  const body = noExport(readText(VIEW_STATE_REL)) + '\n' + noExport(readText(VIEW_REL)) + '\n' + noExport(readText(VIEW_WRITE_REL))
+  const body = listPrefsSlice() + '\n' + noExport(readText(VIEW_STATE_REL)) + '\n' + noExport(readText(VIEW_REL)) + '\n' + noExport(readText(VIEW_WRITE_REL)) + '\n' + noExport(readText(UI_REL))
   const names = ['keyOf', 'wsKeyOf', 'shared', 'stores', 'emit', 'host', 'localStorage', 'log', 'dswsLogHash', 'timer', 'currentOs', 'workspaceRootByCwd']
-  const factory = compileFn(names, body + '\nreturn { viewFlagOf: viewFlagOf, setViewFlag: setViewFlag, viewFlagDocKeyOf: viewFlagDocKeyOf, viewFlagWriteKeyOf: viewFlagWriteKeyOf, settingsViewLoad: settingsViewLoad, viewFlagReadyNow: viewFlagReadyNow, viewFlagSubscribe: viewFlagSubscribe, VIEW_FLAG_WRITE_DEBOUNCE_MS: VIEW_FLAG_WRITE_DEBOUNCE_MS }')
+  const factory = compileFn(names, body + '\nreturn { viewFlagOf: viewFlagOf, setViewFlag: setViewFlag, viewFlagDocKeyOf: viewFlagDocKeyOf, viewFlagWriteKeyOf: viewFlagWriteKeyOf, settingsViewLoad: settingsViewLoad, viewFlagReadyNow: viewFlagReadyNow, viewFlagSubscribe: viewFlagSubscribe, setUiPref: setUiPref, saveUiPrefs: saveUiPrefs, listPrefs: listPrefs, saveListPrefs: saveListPrefs, saveListPrefsLegacy: saveListPrefsLegacy, LIST_PREFS_KEY: LIST_PREFS_KEY, VIEW_FLAG_WRITE_DEBOUNCE_MS: VIEW_FLAG_WRITE_DEBOUNCE_MS }')
   return factory.apply(null, names.map((n) => env[n]))
 }
 // ── 真件三：自动展开那三档判决（从 SubworkspaceMark.js 的真源里切出那个纯函数，不另写仿制品） ──
@@ -172,6 +189,10 @@ async function main() {
         rel + ' 里状态对象排在它的使用方之前（拼接次序对，先有定义再有用它的那一片）。')
       check(t.indexOf('const setViewFlag = function') > t.indexOf('const viewFlagWriteKeyOf = function'),
         rel + ' 里写这一趟排在它用到的读那一片之后（键与文档工具都先有定义）。')
+      check(t.indexOf('const setUiPref = function') >= 0 && t.indexOf('const saveUiPrefs = function') >= 0,
+        rel + ' 里拼进了界面偏好那一族的两个口子（#1012 第 3 步：列表筛选、排序键、排序方向搬进 ui 节）。')
+      check(t.indexOf('const settingsUiAdoptFromDoc = function') > t.indexOf('const viewFlagWriteNow = function'),
+        rel + ' 里界面偏好那一片排在写这一趟之后（它要用那一片的待写队列与排期）。')
     }
   }
 
@@ -671,8 +692,9 @@ async function main() {
       }
       const readFlag = function (cwd, name) {
         if (k.doc && Object.prototype.hasOwnProperty.call(k.doc, name)) return k.doc[name] === true
-        // 认不出根那一档（E/F）照真内核的样子答：旧键按工作区根记，这一片算不出那把折算键，于是读不回来。
-        if (opts.kernelCantResolve === true) return false
+        // 认不出根那一档（E/F）、以及认得的是另一个根那一档（G/H）都照真内核的样子答：它查的是自己认得
+        //   那个根那一格，本组件手上这个根的那条它读不到，于是答 false（G/H 里旧键明明记过也读不回来）。
+        if (opts.kernelCantResolve === true || opts.kernelOtherRoot) return false
         try { const raw = window.localStorage.getItem('dsws.subwsAutoShown'); const m = raw ? JSON.parse(raw) : null; return !!(m && m[KEY_OF(ROOT_DIR)]) } catch (e) { return false }
       }
       const tipCalls = []
@@ -687,8 +709,10 @@ async function main() {
         { call: function () { return Promise.resolve({ ok: true }) } },
         React, React.createElement, window.localStorage, function () { return null },
         readFlag, readyNow, subscribe, function () { return true },
-        // 这一片认不认得出本工作区的根：E/F 两档造的就是「认不出」（写键为空），其余档照常认得出。
-        (opts.kernelCantResolve === true) ? function () { return '' } : function () { return KEY_OF(ROOT_DIR) })
+        // 这一片认不认得出本工作区的根：E/F 两档造的是「认不出」（写键为空），G/H 两档造的是「认得出，
+        //   但认得的是另一个工作区根」（写键非空却指向别的根），其余档照常认得出本工作区这个根。
+        (opts.kernelCantResolve === true) ? function () { return '' }
+          : (opts.kernelOtherRoot ? function () { return KEY_OF(opts.kernelOtherRoot) } : function () { return KEY_OF(ROOT_DIR) }))
       const container = window.document.createElement('div')
       window.document.body.appendChild(container)
       let root = null
@@ -734,6 +758,16 @@ async function main() {
     const f = await drawMark({ kernelCantResolve: true })
     check(f.before === 0 && f.after === 1,
       'F 认不出根、旧键里也没记过时，文档到手后照弹一次（读不到不等于已经弹过）。', JSON.stringify(f))
+    // G：设置视图认得的是**另一个**工作区根（内核那张折算表里还留着旧条目），组件自己认得手上这个根、
+    //   旧键里也记过。只问「认不认得出根」不够：那时读口答的是别的根那一格（读不回来，答 false），
+    //   判决会从「不弹」翻成「弹」，这个工作区又白弹一次 —— 与 E 档同一个症状，触发条件换了一个。
+    const g = await drawMark({ legacyShown: true, kernelOtherRoot: 'D:\\other-ws' })
+    check(g.before === 0 && g.after === 0,
+      'G 设置视图认得的根与组件手上这个不是同一条目录时，按旧键读：记过就不弹（认得别的根不算答得出这一格）。', JSON.stringify(g))
+    // H：同一档，旧键里没记过 —— 该弹的那一次照弹（退回旧表不等于干脆不弹了）。
+    const h = await drawMark({ kernelOtherRoot: 'D:\\other-ws' })
+    check(h.before === 0 && h.after === 1,
+      'H 认得的是别的根、旧键里也没记过时，文档到手后照弹一次（与 F 档同一口径）。', JSON.stringify(h))
     console.log('    （说明）这一组用的是真 jsdom + 真 React，但内核那一片是符合契约的替身、宿主是替身；')
     console.log('    （说明）真机上那一趟（真宿主、真设置文件）仍由人工验证兜底，画法本身由 verify-666 的 E 组兜住。')
   }
@@ -911,6 +945,92 @@ async function main() {
     check(sent.length >= 2, '这一笔没有被误划掉：回包之后又排了一趟写，实得 ' + sent.length + ' 次写电话。')
     check(settled, '盘上最后是用户最后那一下的值 true（不是中途那个 false）。', JSON.stringify(doc && doc.workspaces))
     check(env.mod.viewFlagOf(cwd, 'bannerFolded') === true, '内存里也是 true —— 盘上与内存一致。')
+  }
+
+  // ── 第十五件事：界面偏好那三格搬进本机设置文件的 ui 节（#1012 第 3 步） ──
+  console.log('')
+  console.log('== 第十五件事：界面偏好（列表筛选/排序键/排序方向）搬进 ui 节，旧表 dsws.listPrefs 留着当过渡 ==')
+  {
+    // 文件里那一份与旧表那一份故意不同：文件里筛选是 blocked，旧表里是 all。
+    const cwd = 'D:\\ilife\\packages\\skill-calorie'
+    const oldPrefs = { sortKey: 'number', sortDir: 'asc', stateFilter: 'all' }
+    const env = makeEnv({ tag: 'uipref-adopt', cwd: cwd, localStorage: { 'dsws.listPrefs': JSON.stringify(oldPrefs) } })
+    const pre = await store.writeLocalSettings({ version: 1, ui: { stateFilter: 'blocked', sortKey: '', sortDir: '', labelClicks: {} }, workspaces: {}, debug: { enabled: false, sampleRate: 1 }, templates: {} }, env.home, realIo)
+    check(pre && pre.ok === true, '先把一份设置文件放进临时主目录（文件里筛选是 blocked，旧表里是 all）。', JSON.stringify(pre))
+    // 摆两个面板：一个本会话已经动过（用户刚点了筛选），一个没动过（建会话时照旧表画的是 all）。
+    env.st.stateFilter = 'frontier'
+    env.stores['sess-2'] = { cwd: cwd, sessionWorkspaceRoot: env.root, stateFilter: 'all', sortKey: 'number', sortDir: 'asc', tick: 0 }
+    env.mod.settingsViewLoad()
+    await waitFor(async () => env.mod.viewFlagReadyNow() === true)
+    check(env.mod.listPrefs.stateFilter === 'blocked', '文档到手后，内存这一份换成文件里那一格（文件写过就以文件为准）。', env.mod.listPrefs.stateFilter)
+    check(env.stores['sess-2'].stateFilter === 'blocked', '本会话还没动过的面板也跟着换成文件里那一份（建会话时它照旧表画的是 all）。', String(env.stores['sess-2'].stateFilter))
+    check(env.st.stateFilter === 'frontier', '本会话已经动过的面板不被文件里的旧值顶回去（用户刚点的那一下优先）。', String(env.st.stateFilter))
+    check(env.mod.listPrefs.sortKey === 'number' && env.mod.listPrefs.sortDir === 'asc', '文件里没写过的格（空串）保留旧表那一份 —— 空串的意思是「这台机器还没写过」，不是「用户选了空」。', JSON.stringify({ sortKey: env.mod.listPrefs.sortKey, sortDir: env.mod.listPrefs.sortDir }))
+  }
+  {
+    // 点一下筛选或排序（列表面板调的就是 saveListPrefs）：写进文件这条路成了，旧键一个字节都不许动。
+    const cwd = 'D:\\ilife\\packages\\skill-calorie'
+    const oldPrefs = { sortKey: 'number', sortDir: 'asc', stateFilter: 'all' }
+    const env = makeEnv({ tag: 'uipref-write', cwd: cwd, localStorage: { 'dsws.listPrefs': JSON.stringify(oldPrefs) } })
+    env.mod.settingsViewLoad()
+    await waitFor(async () => env.mod.viewFlagReadyNow() === true)
+    env.mod.listPrefs.stateFilter = 'closed'
+    env.mod.listPrefs.sortKey = 'updated'
+    env.mod.saveListPrefs()
+    const landed = await waitFor(async () => { const d = await readDoc(env.home); return !!d && !!d.ui && d.ui.stateFilter === 'closed' && d.ui.sortKey === 'updated' })
+    check(landed, '点一下筛选或排序：这两格真的落进了文件的 ui 节。', JSON.stringify((await readDoc(env.home)) || null))
+    check(env.ls.getItem('dsws.listPrefs') === JSON.stringify(oldPrefs), '写进文件这条路走通了，就绝不再写旧键（旧键一个字节都没动）。', env.ls.getItem('dsws.listPrefs'))
+    check(env.mod.setUiPref('sortDir', 'desc') === true, '单独写一格也接得下来（返回 true 表示交给文件这条路了）。')
+    const landed2 = await waitFor(async () => { const d = await readDoc(env.home); return !!d && !!d.ui && d.ui.sortDir === 'desc' })
+    check(landed2, '这一格也落进了文件，而且别的格没有被带丢（合并着写，不是整份推平）。', JSON.stringify((await readDoc(env.home)) || null))
+    check(env.mod.setUiPref('labelClicks', '3') === false, '不在这三格里的名字一律不写文件（标签点击计数那一项按维护者拍板不落盘）。')
+  }
+  {
+    // 写失败（手机自己坏了）：照改动前的老办法整份写回旧键，而且设置文件不许被建出来。
+    const cwd = 'D:\\ilife\\packages\\skill-calorie'
+    const oldPrefs = { sortKey: 'number', sortDir: 'asc', stateFilter: 'all' }
+    const env = makeEnv({ tag: 'uipref-fail', cwd: cwd, localStorage: { 'dsws.listPrefs': JSON.stringify(oldPrefs) }, failMode: 'throw' })
+    env.mod.settingsViewLoad()
+    await waitFor(async () => env.mod.viewFlagReadyNow() === true)
+    env.mod.listPrefs.sortDir = 'desc'
+    check(env.mod.saveUiPrefs() === true, '写这一趟先按能写接下来（落盘失败再兜底）。')
+    await wait(env)
+    check(env.ls.getItem('dsws.listPrefs') === JSON.stringify({ sortKey: 'number', sortDir: 'desc', stateFilter: 'all' }), '写失败之后这一次的值整份写回了旧键（过渡兜底，与改动前一致）。', env.ls.getItem('dsws.listPrefs'))
+    check(fs.existsSync(settingsPathIn(env.home)) === false, '写失败时设置文件没有被建出来（兜底不是「换一份假的写成功」）。')
+  }
+  {
+    // 文档还在路上时点一下：先记着不写旧键（此刻写旧键，文档一到手就会拿文件里的旧值把刚点的那一下顶掉），
+    //   等文档到手再并进文件。
+    const cwd = 'D:\\ilife\\packages\\skill-calorie'
+    const oldPrefs = { sortKey: 'number', sortDir: 'asc', stateFilter: 'all' }
+    const box = {}
+    const env = makeEnv({
+      tag: 'uipref-loading', cwd: cwd, localStorage: { 'dsws.listPrefs': JSON.stringify(oldPrefs) },
+      onCall: function (method) {
+        if (method === 'wf.getSettings' && !box.done) { box.done = true; env.mod.listPrefs.stateFilter = 'closed'; box.accepted = env.mod.saveUiPrefs() }
+      },
+    })
+    env.mod.settingsViewLoad()
+    const landed = await waitFor(async () => { const d = await readDoc(env.home); return !!d && !!d.ui && d.ui.stateFilter === 'closed' })
+    check(box.accepted === true, '文档还在路上时点一下也接得下来（这一笔先记着，等文档到手再并进去）。')
+    check(landed, '文档到手之后这一笔真的落进了文件（不是被丢掉，也不是只留在内存里）。')
+    check(env.ls.getItem('dsws.listPrefs') === JSON.stringify(oldPrefs), '文档在路上时不写旧键（写了就会在文档到手那一刻被文件里的旧值顶掉）。', env.ls.getItem('dsws.listPrefs'))
+  }
+  {
+    // 文件是更高版本插件写的（读不懂、也不许写回去）：这一族不接，交回调用方照老办法写旧键。
+    const cwd = 'D:\\ilife\\packages\\skill-calorie'
+    const oldPrefs = { sortKey: 'number', sortDir: 'asc', stateFilter: 'all' }
+    const env = makeEnv({ tag: 'uipref-readonly', cwd: cwd, localStorage: { 'dsws.listPrefs': JSON.stringify(oldPrefs) } })
+    fs.mkdirSync(path.dirname(settingsPathIn(env.home)), { recursive: true })
+    fs.writeFileSync(settingsPathIn(env.home), 'version: 9\n', 'utf8')
+    env.mod.settingsViewLoad()
+    await waitFor(async () => env.mod.viewFlagReadyNow() === true)
+    check(env.mod.setUiPref('stateFilter', 'closed') === false, '文件是高版本时这一格不接（返回 false，调用方按老办法写旧键）。')
+    env.mod.listPrefs.stateFilter = 'closed'
+    env.mod.saveListPrefs()
+    check(env.ls.getItem('dsws.listPrefs') === JSON.stringify({ sortKey: 'number', sortDir: 'asc', stateFilter: 'closed' }), '不接之后照改动前的老办法整份写回旧键（这一次的改动没有丢）。', env.ls.getItem('dsws.listPrefs'))
+    await wait(env)
+    check(fs.readFileSync(settingsPathIn(env.home), 'utf8').indexOf('version: 9') === 0, '高版本文件一个字节都没被改（不许拿读不懂的内容去覆盖）。')
   }
 
   // ── 标签点击次数不落盘（#1012 · 维护者 2026-10-12 拍板）──────────────────────────
