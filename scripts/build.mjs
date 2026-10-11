@@ -336,6 +336,9 @@ const KERNEL_MODULES = [
   // #1012：按工作区的观看状态（横幅折叠、红文件夹标志自动展开过没有）从 localStorage 搬到本机设置文件。
   //   store-prefs.js 已 315 行（上限 350），这一族读写照仓库惯例单独成一片：
   //   读文档、合并着写、旧表只读兜底三件事都在 src/client/kernel/settings-view.js 里。
+  //   上面那一片（settingsViewState）是这一片的前置：设置文档异步读来，「问完真源了没有」这两个口子
+  //   （viewFlagReadyNow / viewFlagSubscribe）与状态对象都在它里面，标记必须排在本文这一行之前。
+  { name: 'settingsViewState', file: 'src/client/kernel/settings-view-state.js' },
   { name: 'settingsView', file: 'src/client/kernel/settings-view.js' },
   { name: 'storeSwitch', file: 'src/client/kernel/store-switch.js' },
   { name: 'storeSnapshot', file: 'src/client/kernel/store-snapshot.js' },

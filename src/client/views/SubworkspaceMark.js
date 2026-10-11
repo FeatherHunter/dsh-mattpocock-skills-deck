@@ -25,6 +25,12 @@
 //   注意快照里那个值是**折算过的键**（小写、正斜杠），不能直接显示给用户看 —— 显示用的写法由下面的
 //   subwsMarkRootShown 按会话原始目录还原。
 //
+// #1012 后续修复（2026-10-12）：这份「以前自动展开过没有」的记录搬到本机设置文件之后是**异步读来的**，
+//   挂载那一刻文档往往还在路上。所以这一次判断必须先问 kernel/settings-view-state.js 的 viewFlagReadyNow()：
+//   文档还在路上就先不弹，等它到手（或判定问不到）重跑再判。不这么等，就会拿旧 localStorage 键那一版答案
+//   当场弹一次 —— 那个工作区每进一次子目录会话都白弹一次，#650 承诺的「同一个工作区只弹一次」就没了。
+//   三档判决（等 / 弹 / 不弹）见下面的 subwsMarkAutoDecide，怎么重跑见下面那个订阅效果。
+//
 // 渲染之外的决定（取根、该不该出现、相对尾巴怎么拼、显示哪几行、显示成哪种写法）全在这几个纯函数里，
 //   组件只负责画与点击。门禁既直接跑这几个纯函数，也把组件真的渲染一次（tests/verify-666-subws-mark-root.js
 //   的 A～D 组跑纯函数，E 组渲染组件）—— 因为本票的缺陷是「纯函数全对、组件却每次都返回 null」，
@@ -108,6 +114,18 @@ export const subwsMarkLinesOf = function (root, cwd, rootInitialized) {
     return (rootInitialized === false) ? parts : parts.slice(0, 3)
   } catch (e) { return [] }
 }
+// 该不该自动展开这一次浮层？三选一，'wait'（等）必须与 'skip'（不弹）分开 —— 这两件事在界面上完全不同：
+//   'wait' ＝ 设置文档还在路上，这一次先不弹，等它到手（或判定问不到）之后重跑再判；
+//   'skip' ＝ 问过真源了，这个工作区以前自动展开过，不再打扰；
+//   'open' ＝ 问过真源了，以前没展开过，弹这一次。
+// 为什么必须有 'wait' 这一档：文档是异步读来的，挂载那一刻往往还没到手，那时读口只能按旧 localStorage
+//   键答（旧键是兜底），拿这个答案去弹就成了「每进一次子目录会话都白弹一次」—— #650 要的是同一个工作区只弹一次。
+// 「问过真源了没有」由调用方去问 kernel/settings-view-state.js 的 viewFlagReadyNow() 再传进来，本函数自己不去问：
+//   这样它是纯函数，门禁可以直接喂它几组输入把三档判决钉住，不必渲染 React。
+export const subwsMarkAutoDecide = function (ready, shownBefore) {
+  if (ready !== true) return 'wait'
+  return (shownBefore === true) ? 'skip' : 'open'
+}
 export const SubworkspaceMark = function (props) {
   const p = props || {}
   const st = p.st || null
@@ -142,22 +160,40 @@ export const SubworkspaceMark = function (props) {
     try { const raw = localStorage.getItem(AUTO_KEY); const m = raw ? JSON.parse(raw) : null; return (m && typeof m === 'object') ? m : {} } catch (e) { return {} }
   }
   // 这个工作区以前自动展开过没有：先问新模块，它不在时才读旧键（旧键按工作区根那把折算键记）。
-  //   已知的过渡代价：第一次用到时新模块才去问宿主要文档，问回来之前它会先按旧表答；文档到手会让界面
-  //   重画一次，但本组件的自动展开判断挂在挂载效果上、依赖没变不会重跑，所以那个工作区可能多自动展开
-  //   一次（多弹一次浮层，不是功能坏掉）。宁可按手上已有的信息答，也不为了这一条把挂载效果改成反复弹的东西。
+  //   同一次调用有两种含义：文档还在路上时它只能按旧表答，那一次调用真正的作用是把「读一次设置文档」
+  //   这件事叫起来，答出来的值不作数；要等 viewFlagReadyNow() 说就绪了，再拿它下判断（见下面那个效果）。
   const autoShownBefore = function () {
     try { if (typeof viewFlagOf === 'function') return viewFlagOf(cwd, 'subwsMarkAutoShown') === true } catch (eN) {}
     try { return !!readAutoMap()[subwsMarkCmpKey(root)] } catch (e) { return false }
   }
   const [autoOpen, setAutoOpen] = React.useState(false)
   const [autoDone, setAutoDone] = React.useState(false)
+  // 「设置文档问完了没有」这件事推动的计数：文档到手、或判定问不到时加一，下面那个自动展开效果依赖它重跑一次。
+  //   没有它，挂载那一刻文档还在路上，判断就永远停在旧 localStorage 键那一版上，再也不会按真源重判。
+  const [flagTick, setFlagTick] = React.useState(0)
+  // 只挂一次的效果：登记「问完了叫我一声」，卸载时取消登记。找不到那个口子（老产物、渲染替身里没有这一片）
+  //   就不登记，下面那个效果按「这道门不存在」照旧判断（那时读口本来也只有旧表那一条路）。
+  React.useEffect(function () {
+    try {
+      if (typeof viewFlagSubscribe === 'function') {
+        return viewFlagSubscribe(function () { setFlagTick(function (n) { return n + 1 }) })
+      }
+    } catch (e) {}
+    return undefined
+  }, [])
   React.useEffect(function () {
     if (!isSub || !root) return
     try {
-      if (autoShownBefore()) { setAutoDone(true); return } // 这个工作区已经自动展开过，不再打扰
+      // 先问一句「以前自动展开过没有」：这一次问话顺手把设置文档读起来（第一次用到时才问宿主一次）。
+      const shownBefore = autoShownBefore()
+      // 读口在不在（老产物、渲染替身）决定「就绪这道门有没有」：没有就当作已经问过真源，照旧判断。
+      const ready = (typeof viewFlagReadyNow === 'function') ? (viewFlagReadyNow() === true) : true
+      const verdict = subwsMarkAutoDecide(ready, shownBefore)
+      if (verdict === 'wait') return // 文档还在路上：这一次先不弹，等加载结束重跑再判
+      if (verdict === 'skip') { setAutoDone(true); return } // 这个工作区已经自动展开过，不再打扰
       setAutoOpen(true)
     } catch (e) {}
-  }, [isSub, root])
+  }, [isSub, root, flagTick])
   const markAutoShown = function () {
     // 交给新模块写：它接下了就不再写旧键（写成功那条路上一个字都不写旧键）；
     // 它接不下（认不出可读路径、文档问不到、文件只读）或不在时，才照老办法写旧键。

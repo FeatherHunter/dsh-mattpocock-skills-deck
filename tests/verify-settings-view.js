@@ -2,7 +2,7 @@
 /**
  * verify-settings-view.js —— 客户端「按工作区的观看状态」搬到本机设置文件的门禁（#1012）。
  *
- * 这一份门禁只量七件事，每一件都用完整的一句话说清，第一次读的人能直接看懂。
+ * 这一份门禁只量八件事，每一件都用完整的一句话说清，第一次读的人能直接看懂。
  * 第一件事是缺席时回退旧表读：设置文件还没建出来的时候，读到的值要与改动前一样来自 localStorage 那两个旧键。
  * 第二件事是写成功后旧 localStorage 键一个字节都不写：新后端这条路成了，两处都写就是两份真相。
  * 第三件事是写失败才兜底写旧键：只有写不进文件（或文件是更高版本、不许写回去）时，才把这一次的值写回旧键做过渡。
@@ -11,11 +11,19 @@
  * 第六件事是防抖：连着来的几下写合并成一次电话调用。
  * 第七件事是接线：store-prefs.js 与 SubworkspaceMark.js 真的改调了这一片，旧表兜底还留着，三份文件都不超三百五十行。
  *
- * 怎么保证量的是真件：客户端那一片（src/client/kernel/settings-view.js）的真源按构建同一种做法取出声明体
- *   （去掉每行行首 export），当场造出函数来跑；它打的宿主那两条电话（wf.getSettings / wf.setSettings）用的是
+ * 第八件事是「文档还在路上时不许下结论」：这份设置文档是异步读来的，谁要按它下判断都得先问
+ *   viewFlagReadyNow()「现在手上这个判断问过真源了没有」，问不到就等 viewFlagSubscribe() 那一声重判；
+ *   文档到手、或判定问不到（手机不通、读失败、文件是更高版本）都算就绪。这一条治的是 #1012 落下的行为回退：
+ *   红文件夹标志的浮层自动展开原先挂在挂载效果上，文档还没到手就按旧键判成「没展开过」当场弹一次，
+ *   于是 #650 承诺的「同一个工作区只自动展开一次」退化成「每进一次子目录会话都白弹一次」。
+ *
+ * 怎么保证量的是真件：客户端那两片（src/client/kernel/settings-view-state.js 与 settings-view.js）的真源
+ *   按构建同一种做法、同一次序拼起来当场造出函数来跑（第一片是第二片的前置，构建时也拼在它之前）；
+ *   它打的宿主那两条电话（wf.getSettings / wf.setSettings）用的是
  *   src/host/settingsPhones.js 与 src/host/configStore.js 的真实现，读写落在系统临时目录里的真文件上 ——
  *   只有手机（假 host 的 call）与文件系统（可以按需制造写失败的那一层包装）是替身。
- * 本门禁自己先跑一次 node scripts/build.mjs：客户端那一片的运行时形状来自拼接，不跑构建就证明不了它真的进了双产物。
+ *   自动展开那三档判决走的是 SubworkspaceMark.js 里那个纯函数 subwsMarkAutoDecide 的真源码，不另写一份仿制品。
+ * 本门禁自己先跑一次 node scripts/build.mjs：客户端那几片的运行时形状来自拼接，不跑构建就证明不了它真的进了双产物。
  *
  * 用法：node tests/verify-settings-view.js（在插件根目录；本脚本自己会先构建）
  */
@@ -88,13 +96,25 @@ function keyOfFn() {
   const src = readText('src/shared/workspaceKey.js').replace(/^\s*export\s+/gm, '')
   return compileFn([], src + '\nreturn keyOf')()
 }
-// ── 真件二：被测那一片（按构建同一种做法取声明体，当场造出一个全新的实例） ──
+// ── 真件二：被测那两片（按构建同一种做法取声明体、按同一次序拼起来，当场造出一个全新的实例） ──
+//   第一片（加载状态与订阅）是第二片的前置：构建时它的标记排在 settings-view 之前，这里也照同一次序拼。
 const VIEW_REL = 'src/client/kernel/settings-view.js'
+const VIEW_STATE_REL = 'src/client/kernel/settings-view-state.js'
+const noExport = (s) => s.replace(/^\s*export\s+/gm, '')
 function makeView(env) {
-  const body = readText(VIEW_REL).replace(/^\s*export\s+/gm, '')
+  const body = noExport(readText(VIEW_STATE_REL)) + '\n' + noExport(readText(VIEW_REL))
   const names = ['keyOf', 'wsKeyOf', 'shared', 'stores', 'emit', 'host', 'localStorage', 'log', 'dswsLogHash', 'timer']
-  const factory = compileFn(names, body + '\nreturn { viewFlagOf: viewFlagOf, setViewFlag: setViewFlag, viewFlagDocKeyOf: viewFlagDocKeyOf, settingsViewLoad: settingsViewLoad, VIEW_FLAG_WRITE_DEBOUNCE_MS: VIEW_FLAG_WRITE_DEBOUNCE_MS }')
+  const factory = compileFn(names, body + '\nreturn { viewFlagOf: viewFlagOf, setViewFlag: setViewFlag, viewFlagDocKeyOf: viewFlagDocKeyOf, settingsViewLoad: settingsViewLoad, viewFlagReadyNow: viewFlagReadyNow, viewFlagSubscribe: viewFlagSubscribe, VIEW_FLAG_WRITE_DEBOUNCE_MS: VIEW_FLAG_WRITE_DEBOUNCE_MS }')
   return factory.apply(null, names.map((n) => env[n]))
+}
+// ── 真件三：自动展开那三档判决（从 SubworkspaceMark.js 的真源里切出那个纯函数，不另写仿制品） ──
+//   切法与 tests/verify-666-subws-mark-root.js 同一段（subwsMarkRootOf 到 SubworkspaceMark 之间那组纯函数）。
+function autoDecideFn() {
+  const src = readText('src/client/views/SubworkspaceMark.js')
+  const start = src.indexOf('export const subwsMarkRootOf')
+  const end = src.indexOf('export const SubworkspaceMark')
+  if (start < 0 || end <= start) throw new Error('SubworkspaceMark.js 里找不到那组纯函数（subwsMarkRootOf … SubworkspaceMark 之间）')
+  return compileFn(['keyOf', 'tr'], noExport(src.slice(start, end)) + '\nreturn subwsMarkAutoDecide')(keyOfFn(), (k) => k)
 }
 
 async function main() {
@@ -111,9 +131,19 @@ async function main() {
       const t = fs.existsSync(path.join(ROOT, rel)) ? readText(rel) : ''
       check(t.indexOf('const viewFlagOf = function') >= 0 && t.indexOf('const setViewFlag = function') >= 0,
         rel + ' 里拼进了这一片的读写两个入口（读与写都在，才算真接上）。')
+      check(t.indexOf('const viewFlagReadyNow = function') >= 0 && t.indexOf('const viewFlagSubscribe = function') >= 0,
+        rel + ' 里拼进了「问完真源了没有」那两个公开口子（加载状态与订阅这一片真的进了产物）。')
+      check(t.indexOf('const viewFlagState = {') >= 0 && t.indexOf('const viewFlagState = {') < t.indexOf('const viewFlagOf = function'),
+        rel + ' 里状态对象排在它的使用方之前（拼接次序对，先有定义再有用它的那一片）。')
     }
     check(readText('src/client/index.js').indexOf('// ==== kernel:settingsView (spliced by build) ====') >= 0, '客户端入口留了 kernel:settingsView 拼接标记。')
+    const idxSrc = readText('src/client/index.js')
+    const atState = idxSrc.indexOf('// ==== kernel:settingsViewState (spliced by build) ====')
+    check(atState >= 0, '客户端入口留了 kernel:settingsViewState 拼接标记（新的一片也照一源两物接上）。')
+    check(atState >= 0 && atState < idxSrc.indexOf('// ==== kernel:settingsView (spliced by build) ===='),
+      '入口里新标记排在它的使用方（settingsView）之前（不然状态对象与两个口子还没有定义）。')
     check(readText(path.join('scripts', 'build.mjs')).indexOf("name: 'settingsView'") >= 0, '构建清单里登记了这一片。')
+    check(readText(path.join('scripts', 'build.mjs')).indexOf("name: 'settingsViewState'") >= 0, '构建清单里登记了加载状态与订阅这一片。')
   }
 
   // 真件：宿主的核与两条电话
@@ -386,10 +416,228 @@ async function main() {
     check(mark.indexOf('readAutoMap') >= 0 && mark.indexOf("localStorage.setItem(AUTO_KEY") >= 0, 'SubworkspaceMark 里旧键那段读写原地留着（兜底）。')
     const nView = countLines(VIEW_REL)
     check(nView <= 350, '新的一片不超过三百五十行，实得 ' + nView + ' 行。')
+    const nViewState = countLines(VIEW_STATE_REL)
+    check(nViewState <= 350, '拆出来的「加载状态与订阅」那一片不超过三百五十行，实得 ' + nViewState + ' 行。')
     const nPrefs = countLines('src/client/kernel/store-prefs.js')
     check(nPrefs <= 350, 'store-prefs.js 不超过三百五十行，实得 ' + nPrefs + ' 行。')
     const nMark = countLines('src/client/views/SubworkspaceMark.js')
     check(nMark <= 350, 'SubworkspaceMark.js 不超过三百五十行，实得 ' + nMark + ' 行。')
+    const nIdx = countLines('src/client/index.js')
+    check(nIdx <= 350, 'src/client/index.js 不超过三百五十行（新标记是在原地换掉两行注释腾出来的位子），实得 ' + nIdx + ' 行。')
+  }
+
+  // ── 第八件事：文档还在路上时不许下结论（就绪查询、问完通知、自动展开的三档判决）──
+  console.log('')
+  console.log('== 第八件事：设置文档还在路上时先不判，等它到手（或判定问不到）再判一次 ==')
+  {
+    // ① 就绪的确切意思：还没人问过、正问着都算没就绪；问到了、问不到都算就绪。
+    const cwd = 'D:\\ilife\\packages\\skill-calorie'
+    const env = makeEnv({ tag: 'ready', cwd: cwd })
+    check(env.mod.viewFlagReadyNow() === false, '还没有人开始问宿主时不算就绪（此刻给出的判断没有问过真源）。')
+    env.mod.viewFlagOf(cwd, 'subwsMarkAutoShown')
+    check(env.mod.viewFlagReadyNow() === false, '读文档这条电话还在路上时也不算就绪（答复没到手就不许拿它下结论）。')
+    await sleep(80)
+    check(env.mod.viewFlagReadyNow() === true, '文档到手之后算就绪（这时给出的判断才问过真源）。')
+  }
+  {
+    // ② 手机不通：没有宿主可问，这一趟当场就结束了，所以当场算就绪 —— 这时读口按旧 localStorage 键答。
+    //   老用户「同一个工作区只自动展开一次」的记录正是记在旧表里的，不能因为问不到就永远不判。
+    const cwd = 'D:\\ilife\\packages\\skill-calorie'
+    const env = makeEnv({ tag: 'ready-nohost', cwd: cwd, noHost: true })
+    env.mod.viewFlagOf(cwd, 'subwsMarkAutoShown')
+    check(env.mod.viewFlagReadyNow() === true, '没有宿主可问时也算就绪（问不到也是这一趟的结论，判断按旧表走）。')
+  }
+  {
+    // ③ 读电话失败（手机自己坏了）：答复一到就算这一趟结束，同样算就绪。
+    const cwd = 'D:\\ilife\\packages\\skill-calorie'
+    const env = makeEnv({ tag: 'ready-fail', cwd: cwd, failMode: 'throw' })
+    env.mod.viewFlagOf(cwd, 'subwsMarkAutoShown')
+    check(env.mod.viewFlagReadyNow() === false, '读电话还没失败回来时仍不算就绪（和还在路上是同一种状态）。')
+    await sleep(80)
+    check(env.mod.viewFlagReadyNow() === true, '读电话失败（手机自己坏了）之后也算就绪（读口这时回退旧表）。')
+  }
+  {
+    // ④ 订阅：加载结束时叫一次；已经结束时登记就立刻叫一次；返回的取消函数挡得住后续回调。
+    const cwd = 'D:\\ilife\\packages\\skill-calorie'
+    const env = makeEnv({ tag: 'subscribe', cwd: cwd })
+    let hits = 0
+    const off = env.mod.viewFlagSubscribe(function () { hits += 1 })
+    check(typeof off === 'function', '登记返回一个取消登记的函数（调用方在卸载时用它）。', typeof off)
+    check(hits === 0, '登记时还没问完，回调不当场调（问完那一声才叫它）。')
+    env.mod.viewFlagOf(cwd, 'subwsMarkAutoShown') // 起这一次问话
+    check(hits === 0, '问话还在路上时回调仍然不调（没到终点就不叫）。')
+    await sleep(80)
+    check(hits === 1, '加载结束时回调被调一次（成功或失败都算结束）。', '实得 ' + hits + ' 次')
+    let late = 0
+    const offLate = env.mod.viewFlagSubscribe(function () { late += 1 })
+    check(late === 1, '已经结束之后才登记的回调立刻被调一次（晚来的调用方不会永远等不到那一声）。', '实得 ' + late + ' 次')
+    let threw = false
+    try { offLate() } catch (e) { threw = true }
+    check(threw === false, '已经结束时拿到的那张取消登记单子照常能调（是空动作，不抛错）。')
+
+    const env2 = makeEnv({ tag: 'unsubscribe', cwd: cwd })
+    let cancelled = 0
+    const off2 = env2.mod.viewFlagSubscribe(function () { cancelled += 1 })
+    off2()
+    env2.mod.viewFlagOf(cwd, 'subwsMarkAutoShown')
+    await sleep(80)
+    check(env2.mod.viewFlagReadyNow() === true, '这一趟照样问完了（取消登记只影响那一个回调，不影响加载本身）。')
+    check(cancelled === 0, '取消登记之后加载结束不再叫它（返回的那个函数真的挡得住）。', '实得 ' + cancelled + ' 次')
+  }
+  {
+    // ⑤ 判决面：挂载那一刻文档还在路上、标记还没记过时不许判成「要展开」；文档到手之后按真源判。
+    //   这里用的是真内核那两个读口（viewFlagReadyNow / viewFlagOf）加真组件里那个纯判据 subwsMarkAutoDecide；
+    //   「文档到手后效果重跑一次」这件事由真订阅推动 —— 登记的回调被叫到时再判一遍，正是组件里那个计数干的事。
+    const cwd = 'D:\\ilife\\packages\\skill-calorie'
+    const decideFn = autoDecideFn()
+    const env = makeEnv({ tag: 'decide-open', cwd: cwd })
+    const decide = function () { return decideFn(env.mod.viewFlagReadyNow(), env.mod.viewFlagOf(cwd, 'subwsMarkAutoShown')) }
+    const seen = [decide()] // 挂载那一刻：文档还在路上
+    env.mod.viewFlagSubscribe(function () { seen.push(decide()) })
+    await sleep(80)
+    check(seen[0] === 'wait', '文档还没到时第一判是 wait（先不弹，等问过真源再判）—— 这就是 #650「只弹一次」退化的那一处。', JSON.stringify(seen))
+    check(seen[1] === 'open', '文档到手、里面没记过这个工作区时，重跑那一判是 open（该弹这一次）。', JSON.stringify(seen))
+    check(decideFn(false, false) === 'wait' && decideFn(false, true) === 'wait',
+      '就绪为假时，不管旧表那一版答案是什么都是 wait（没问过真源就不下结论，这一档与「不弹」是两件事）。')
+    check(decideFn(true, false) === 'open' && decideFn(true, true) === 'skip' && decideFn(true, undefined) === 'open',
+      '就绪为真时按真源答案分两档：没记过就 open、记过就 skip（答案缺失当成没记过）。')
+  }
+  {
+    // ⑥ 文档到手、里面没有这一条，但旧键记过：重跑那一判仍是 skip —— 过渡期的老用户照样只弹一次。
+    const cwd = 'D:\\ilife\\packages\\skill-calorie'
+    const decideFn = autoDecideFn()
+    const env = makeEnv({ tag: 'decide-legacy', cwd: cwd, localStorage: { 'dsws.subwsAutoShown': JSON.stringify({ [KEY_OF('D:\\ilife')]: 1 }) } })
+    const decide = function () { return decideFn(env.mod.viewFlagReadyNow(), env.mod.viewFlagOf(cwd, 'subwsMarkAutoShown')) }
+    const seen = [decide()]
+    env.mod.viewFlagSubscribe(function () { seen.push(decide()) })
+    await sleep(80)
+    check(seen[0] === 'wait' && seen[1] === 'skip',
+      '文档到手但里面没有这一条时，回退读旧键，重跑那一判是 skip（老用户「只弹一次」的记录不因为搬家而丢）。', JSON.stringify(seen))
+  }
+  {
+    // ⑦ 设置文件里已经记过：重跑那一判是 skip（文件里的记录说了算，不再打扰）。
+    const cwd = 'D:\\ilife\\packages\\skill-calorie'
+    const decideFn = autoDecideFn()
+    const env = makeEnv({ tag: 'decide-doc', cwd: cwd })
+    const preset = {
+      version: 1,
+      ui: { stateFilter: '', sortKey: '', sortDir: '', labelClicks: {} },
+      workspaces: { 'D:\\ilife': { bannerFolded: false, noRepoDismissed: false, subwsMarkAutoShown: true } },
+      debug: { enabled: false, sampleRate: 1 },
+      templates: {},
+    }
+    const w = await store.writeLocalSettings(preset, env.home, realIo)
+    check(w.ok === true, '预置一份设置文件，里面记着这个工作区已经自动展开过。', JSON.stringify(w))
+    const decide = function () { return decideFn(env.mod.viewFlagReadyNow(), env.mod.viewFlagOf(cwd, 'subwsMarkAutoShown')) }
+    const seen = [decide()]
+    env.mod.viewFlagSubscribe(function () { seen.push(decide()) })
+    await sleep(80)
+    check(seen[0] === 'wait' && seen[1] === 'skip',
+      '设置文件里记过时，重跑那一判是 skip（真源说了算，同一个工作区不再自动展开第二次）。', JSON.stringify(seen))
+  }
+  {
+    // ⑧ 写法面：组件里那两处接线能钉住的只有「写法长这样」，钉不住「真渲染里效果真的重跑了」。
+    //   挡的回退分别是：判决被换回另一份实现、依赖里少了那个计数（文档到手不重跑）、未就绪就当场弹。
+    const mark = readText('src/client/views/SubworkspaceMark.js')
+    check(mark.indexOf('subwsMarkAutoDecide(ready, shownBefore)') >= 0,
+      '组件用的是本门禁量过的那个判据（不是另写一份判决）—— 挡的是「门禁量 A、界面跑 B」这种回退。')
+    check(mark.indexOf('}, [isSub, root, flagTick])') >= 0,
+      '自动展开那一次的判据挂在「文档问完了没有」这个计数上（依赖里含 flagTick）—— 挡的是「文档到手后效果不重跑」。')
+    check(mark.indexOf("if (verdict === 'wait') return") >= 0 && mark.indexOf('viewFlagReadyNow') >= 0,
+      '未就绪时直接返回、不当场把浮层弹出来（先判就绪，再按判决弹）—— 挡的是「还没问过真源就按旧表弹一次」。')
+    console.log('    （说明）上面三条是文本断言，只证明组件是这么写的；「真渲染里文档迟到那一刻真的重跑了」由下面 ⑨ 真画一遍兜住。')
+  }
+  {
+    // ⑨ 真渲染一遍（真 jsdom + 真 React）：把「设置文档迟到」那一刻真的画出来看浮层弹没弹。
+    //   为什么非画不可：前面几条断的都是「就绪口、订阅口、判决函数各自对不对」，而这次回退的病因恰恰在
+    //   「三者都对、组件却把它们用错了地方」—— 挂载时没等文档就弹（#666 那次也是「纯函数全对、组件却每次返回 null」）。
+    //   为什么不走 tests/lib/render-subws-mark.js 那把现成的渲染工具：它的闭包名字表是固定的
+    //   （keyOf/tr/Tip/host/React/h/localStorage/chainStep），这一片的名字（viewFlagOf / viewFlagReadyNow /
+    //   viewFlagSubscribe / setViewFlag）一个都不在里面，喂不进新的那条路；改那把工具不在本次改动范围内。
+    //   所以这里照同一套做法自己装一次，参数表把这一片的名字一并列上；浮层文案仍从真 locale 取（不另抄一份）。
+    //   内核那一片在这里是替身（就绪、订阅、读三个口子，语义与①～⑦量过的真件一致）：真件的行为上面已经逐条量过，
+    //   这一条量的是组件拿这三个口子用对没有。
+    const { JSDOM } = require('jsdom')
+    const React = require('react')
+    const ReactDOMClient = require('react-dom/client')
+    const { act } = React
+    const { tipsFromLocale } = require('./lib/render-subws-mark.js')
+    const tips = tipsFromLocale()
+    const MARK_SRC = noExport(readText('src/client/views/SubworkspaceMark.js'))
+    const ROOT_DIR = 'D:\\ilife'
+    const SUB_DIR = 'D:\\ilife\\packages\\skill-calorie'
+    // 画一次：opts.doc 是文档到手后里面记的那一格，opts.legacyShown 是旧键里记过没有，
+    //   opts.readyAtOnce 模拟「手机不通」那一档（问话当场结束、当场就绪）。
+    const drawMark = async function (opts) {
+      const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://127.0.0.1:59519/' })
+      const { window } = dom
+      global.window = window
+      global.document = window.document
+      global.Node = window.Node
+      global.HTMLElement = window.HTMLElement
+      global.IS_REACT_ACT_ENVIRONMENT = true
+      window.IS_REACT_ACT_ENVIRONMENT = true
+      if (opts.legacyShown) window.localStorage.setItem('dsws.subwsAutoShown', JSON.stringify({ [KEY_OF(ROOT_DIR)]: 1 }))
+      const k = { ready: opts.readyAtOnce === true, doc: null, waiters: [] }
+      const readyNow = function () { return k.ready }
+      const subscribe = function (fn) {
+        if (k.ready) { fn(); return function () {} }
+        k.waiters.push(fn)
+        return function () { const i = k.waiters.indexOf(fn); if (i >= 0) k.waiters.splice(i, 1) }
+      }
+      const readFlag = function (cwd, name) {
+        if (k.doc && Object.prototype.hasOwnProperty.call(k.doc, name)) return k.doc[name] === true
+        try { const raw = window.localStorage.getItem('dsws.subwsAutoShown'); const m = raw ? JSON.parse(raw) : null; return !!(m && m[KEY_OF(ROOT_DIR)]) } catch (e) { return false }
+      }
+      const tipCalls = []
+      const Tip = function (props) { tipCalls.push(props || {}); return React.createElement('span', null, (props || {}).children) }
+      const factory = compileFn(
+        ['keyOf', 'tr', 'Tip', 'host', 'React', 'h', 'localStorage', 'chainStep', 'viewFlagOf', 'viewFlagReadyNow', 'viewFlagSubscribe', 'setViewFlag'],
+        MARK_SRC + '\nreturn SubworkspaceMark'
+      )
+      const Comp = factory(KEY_OF,
+        function (key) { return (key === 'panel.wsMarkTip') ? tips[0] : key },
+        Tip,
+        { call: function () { return Promise.resolve({ ok: true }) } },
+        React, React.createElement, window.localStorage, function () { return null },
+        readFlag, readyNow, subscribe, function () { return true })
+      const container = window.document.createElement('div')
+      window.document.body.appendChild(container)
+      let root = null
+      const settle = async function (ms) { await act(async function () { await new Promise(function (r) { setTimeout(r, ms) }) }) }
+      const opens = function () { return tipCalls.filter(function (c) { return c.visible === true }).length }
+      await act(async function () { root = ReactDOMClient.createRoot(container) })
+      await act(async function () { root.render(React.createElement(Comp, { st: { cwd: SUB_DIR, snapshot: { workspaceRoot: ROOT_DIR } } })) })
+      await settle(15)
+      const before = opens()
+      // 文档到达：真内核收口时就是叫订阅过的那几位（viewFlagNotifySettled），这里照同一种做法叫一声。
+      k.doc = opts.doc || null
+      k.ready = true
+      await act(async function () { const ws = k.waiters.splice(0, k.waiters.length); for (let i = 0; i < ws.length; i++) ws[i]() })
+      await settle(25)
+      const after = opens()
+      try { await act(async function () { root.unmount() }) } catch (e) {}
+      return { before: before, after: after }
+    }
+    // A：回退现场 —— 设置文件里记着这个工作区已经自动展开过，而文档还没到手、旧键里没记过。
+    //   修复前：挂载当场就按旧键弹一次（before 会是 1），文档到手也不收回，于是每进一次子目录会话白弹一次。
+    const a = await drawMark({ doc: { subwsMarkAutoShown: true } })
+    check(a.before === 0 && a.after === 0,
+      'A 文档里记过、旧键没记过时，浮层一次都不自动展开（文档没到先不弹，到手后按真源判成不弹）。', JSON.stringify(a))
+    // B：第一次进这个工作区 —— 文档没到先不弹，到手后按真源判、弹这一次（该弹的还是要弹）。
+    const b = await drawMark({ doc: { bannerFolded: false } })
+    check(b.before === 0 && b.after === 1,
+      'B 文档里没记过时，文档到手后弹一次（不是「干脆不弹了」：该弹的那一次照弹）。', JSON.stringify(b))
+    // C：老用户 —— 旧键记过、文档里没有这一条，兜底读旧键，照样一次都不弹（老行为不丢）。
+    const c = await drawMark({ legacyShown: true, doc: { bannerFolded: false } })
+    check(c.before === 0 && c.after === 0,
+      'C 旧键记过、文档里没有这一条时一次都不弹（过渡期的老用户照样只弹一次）。', JSON.stringify(c))
+    // D：手机不通 —— 这一趟当场就结束（就绪为真），判断按旧键走：没记过就当场弹一次（老行为不丢）。
+    const d = await drawMark({ readyAtOnce: true })
+    check(d.before === 1 && d.after === 1,
+      'D 手机不通时按旧键当场弹一次（问不到真源不等于永远不弹，老行为照旧）。', JSON.stringify(d))
+    console.log('    （说明）这一组用的是真 jsdom + 真 React，但内核那一片是符合契约的替身、宿主是替身；')
+    console.log('    （说明）真机上那一趟（真宿主、真设置文件）仍由人工验证兜底，画法本身由 verify-666 的 E 组兜住。')
   }
 
   console.log(failed ? ('\n存在失败 — verify-settings-view 未通过（' + passed + ' 项通过、' + failed + ' 项失败）') : ('\n全部通过 — 客户端观看状态门禁生效（' + passed + ' 项断言）'))

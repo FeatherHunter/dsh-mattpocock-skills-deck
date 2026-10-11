@@ -48,12 +48,9 @@
     // 一条记录长成什么样：与核（src/shared/config-store/settings.js 第 16 行的 WS_KEYS 与第 93 行的默认值）
     //   一字对齐。noRepoDismissed 这一票不接线（无仓库红卡那张票还没搬过来），写它只为让每一条都长成核认得的形状。
     const VIEW_FLAG_ENTRY_DEFAULTS = { bannerFolded: false, noRepoDismissed: false, subwsMarkAutoShown: false }
-    // 内存文档与这条路的状态机，五个取值各决定读走哪条路、写走哪条路：idle 还没有人用过（第一次读或写时
-    //   才去问宿主一次）、loading 正问着、ready 文档在内存里、unavailable 这次问不出结果（环境问题、内容
-    //   坏了、或根本没有宿主可问）、readonly 文件在但它是更高版本插件写的（读得回却读不懂字段，也绝不许写
-    //   回去）。deferred 是文档还在路上时进来的那几笔写，journal 是已改进内存文档、还没被某次成功落盘确认
-    //   的那几笔（写失败时按它写回旧键做过渡）。
-    const viewFlagState = { status: 'idle', doc: null, deferred: {}, journal: {}, timer: 0 }
+    // 状态对象（status / doc / deferred / journal / timer）与「问完真源了没有」那两个公开口子
+    //   （viewFlagReadyNow / viewFlagSubscribe）住在 kernel/settings-view-state.js 里，拼在本文之前；
+    //   收口时调的那个 viewFlagNotifySettled 同出那里。本文件贴着文件粒度门禁上限，那一块是能自成一体的最小一片。
     // 折算到同一把键再比较：这一片一律走闭包里那把 keyOf（与仓库其余位置同口径），拿不到时才退回本地写法。
     const viewFlagNormOf = function (p) {
       try { if (typeof keyOf === 'function') return String(keyOf(p) || '') } catch (e) {}
@@ -279,6 +276,9 @@
           viewFlagScheduleWrite()
         }
       } catch (e) {}
+      // 这一次问话到此结束（成功或失败都算）：通知那些等着「问过真源了」的调用方，让他们把手上的判断重做一遍。
+      //   放在收口全部做完之后调 —— 被叫醒的人看到的应当是一个已经稳下来的世界（状态、文档、待并的写都落地了）。
+      viewFlagNotifySettled()
     }
     // 惰性读一次文档：第一次有人读或写时才问宿主，只问一次 —— 问不到就标成不可用并全程走旧表，不反复重试。
     export const settingsViewLoad = function () {
