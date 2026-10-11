@@ -54,7 +54,10 @@ function makeWs(dir, memBackendId, opts) {
       if (memBackendId == null) return { ok: true, found: false };
       return { ok: true, found: true, backendId: memBackendId, rev: 7, pickedAt: 123 };
     },
-    async getLayout(cwd) { return { ok: true, found: false }; },
+    async getLayout(cwd) {
+      if (o && (o.layout === 'single' || o.layout === 'multi')) return { ok: true, found: true, layout: o.layout, pickedAt: 124 };
+      return { ok: true, found: false };
+    },
     async rememberWorkspace() { return { ok: true, rev: 8 }; },
   };
   let invalidated = 0;
@@ -92,8 +95,21 @@ async function main() {
     await new Promise((r) => setTimeout(r, 300));
     const fp = path.join(dir, 'docs', 'agents', 'workspace.yaml');
     let ok = false, body = '';
-    try { body = fs.readFileSync(fp, 'utf8'); ok = body.includes('backendId: github') && body.includes('source: user') && body.includes('version: 2'); } catch (e) {}
-    check(ok, 'M1 文件缺席+记忆有，选择后文件被建出来（github/user，新格式 YAML 版本 2）', body.slice(0, 200));
+    try { body = fs.readFileSync(fp, 'utf8'); ok = body.includes('backendId: github') && body.includes('source: migrated') && body.includes('version: 2'); } catch (e) {}
+    check(ok, 'M1 文件缺席+记忆有，选择后文件被建出来（github/migrated，新格式 YAML 版本 2：来源如实记搬来的）', body.slice(0, 200));
+  }
+  // M1b 记忆里的版式一起搬过去（没有就不写，不丢也不造）
+  {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'v1003m1b-'));
+    const dir = path.join(tmp, 'ws');
+    fs.mkdirSync(dir, { recursive: true });
+    const h = makeWs(dir, 'github', { layout: 'multi' });
+    const ws = await h.build();
+    await ws.handleSelection({ cwd: dir });
+    await new Promise((r) => setTimeout(r, 300));
+    let ok = false, body = '';
+    try { body = fs.readFileSync(path.join(dir, 'docs', 'agents', 'workspace.yaml'), 'utf8'); ok = body.includes('layout: multi'); } catch (e) {}
+    check(ok, 'M1b 记忆里的版式一起搬进文件（multi）', body.slice(0, 200));
   }
   // M2 文件已在 → 不覆盖
   {

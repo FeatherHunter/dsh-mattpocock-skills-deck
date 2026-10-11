@@ -31,6 +31,17 @@ function titleOnlyDeclarationId(raw) {
   return null;
 }
 
+/**
+ * 文件来源 → 判定来源：调用方凭它分辨“人选的 / 搬来的 / 生成的 / 机器猜的”。
+ * 核认 user/migrated/detected 三档，老 auto 只在读历史文件时出现（新文件不再产出）。
+ */
+function fileOriginOf(fileSource) {
+  if (fileSource === 'migrated') return 'file-migrated';
+  if (fileSource === 'detected') return 'file-detected';
+  if (fileSource === 'auto') return 'file-auto';
+  return 'user-file';
+}
+
 function isKnown(registry, id) {
   try {
     return !!(id && registry && typeof registry.has === 'function' && registry.has(id));
@@ -48,7 +59,7 @@ export function decidePure({ boundId, fileParsed, declarationId, choiceRecord, a
     if (isKnown(registry, boundId)) return { backendId: boundId, source: 'explicit', origin: 'user-memory-bind' };
   }
   if (fileParsed && fileParsed.backendId && isKnown(registry, fileParsed.backendId)) {
-    const origin = fileParsed.source === 'auto' ? 'file-auto' : 'user-file';
+    const origin = fileOriginOf(fileParsed.source);
     return { backendId: fileParsed.backendId, source: 'explicit', origin };
   }
   if (declarationId && isKnown(registry, declarationId)) {
@@ -161,7 +172,7 @@ export async function decideBackend(root, deps = {}) {
   }
   const fileParsed = await readFileLayer(cwd, deps);
   if (fileParsed && isKnown(registry, fileParsed.backendId)) {
-    const origin = fileParsed.source === 'auto' ? 'file-auto' : 'user-file';
+    const origin = fileOriginOf(fileParsed.source);
     return { backendId: fileParsed.backendId, source: 'explicit', origin, canWrite: true, reason: '' };
   }
   const declarationId = await readDeclarationLayer(cwd, deps);
