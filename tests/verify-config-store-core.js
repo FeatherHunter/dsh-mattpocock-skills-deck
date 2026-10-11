@@ -50,6 +50,21 @@ async function main() {
     check(lbOut.ok === true, 'C1 配色能拼', lbOut.ok ? '' : lbOut.message)
     const lbBack = lbOut.ok ? parseConfig(lbOut.text, 'label-colors') : null
     check(!!lbBack && lbBack.ok === true && JSON.stringify(lbBack.value) === JSON.stringify(lb), 'C1 配色往返值不变', JSON.stringify(lbBack))
+    //  hostile 语料（对抗审查补）：换行、引号、冒号、前导空格、emoji、反斜杠、怪标签名，往返必须一致。
+    const hostile = {
+      version: 1,
+      ui: { stateFilter: '', sortKey: '', sortDir: '', labelClicks: {} },
+      workspaces: {},
+      debug: { enabled: false, sampleRate: 1 },
+      templates: { nl: '第一行\n第二行', quote: '他说 "你好"', colon: 'key: value 冒号', leadSpace: '  前导空格', unicode: '标签🏷️混合中文', backslash: 'C:\\path\\x', single: "it's", empty: '' },
+    }
+    const hOut = stringifyConfig(hostile, 'settings')
+    const hBack = hOut.ok ? parseConfig(hOut.text, 'settings') : null
+    check(!!hBack && hBack.ok === true && JSON.stringify(hBack.value.templates) === JSON.stringify(hostile.templates), 'C1 刁钻模板文字往返一致', JSON.stringify(hBack && hBack.value.templates))
+    const hostileTags = { 'bug:fix': 'd73a4a', ' leading': 'ffffff', 'a"b': '000000', 'C:\\x': '123456', no: '654321', 123: 'abcdef' }
+    const htOut = stringifyConfig({ version: 1, colors: hostileTags }, 'label-colors')
+    const htBack = htOut.ok ? parseConfig(htOut.text, 'label-colors') : null
+    check(!!htBack && htBack.ok === true && JSON.stringify(htBack.value.colors) === JSON.stringify(hostileTags), 'C1 刁钻标签名往返一致', htOut.ok ? htOut.text : '')
   }
 
   // —— C2：精确类型（YAML 隐式类型的坑） ——
@@ -87,6 +102,9 @@ async function main() {
     check(bombR.ok === false && bombR.reason === 'aliases', 'C4 别名炸弹按档位回', JSON.stringify(bombR).slice(0, 200))
     check(parseConfig('', 'workspace').ok === false, 'C4 空白文件不崩', '')
     check(parseConfig('{oops', 'workspace').ok === false, 'C4 坏文本不崩', '')
+    // 重复键必须拒（对抗审查补：这是解析库的默认行为，升级解析库时若默认变了，这里会红）。
+    const dup = parseConfig('version: 2\nbackendId: a\nbackendId: b\npickedAt: 1\nsource: user\nlayout: multi\n', 'workspace')
+    check(dup.ok === false, 'C4 重复键拒绝', JSON.stringify(dup))
   }
 
   // —— C5：版本（只读不写 + 老格式） ——

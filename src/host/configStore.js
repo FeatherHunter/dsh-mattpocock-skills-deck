@@ -70,8 +70,9 @@ function envFail(what, rel, detail) {
 // 字符数与别名两道守卫在此做一次，YAML 解析（钉死 core 模式）一次，再交对应单元校验。
 // 上限数字的唯一出处就是这里（门禁从行为上钉住这两个数）。
 
-/** 文件字符数上限：配置文件本该很小，64K 绰绰有余，超了说明拿错了文件。 */
-const MAX_FILE_BYTES = 65536
+/** 文件字符数上限：配置文件本该很小，64K 字绰绰有余，超了说明拿错了文件。
+ * 按字数不按字节（中文一字多字节也照一字算，反正超了就是拿错文件）。 */
+const MAX_FILE_CHARS = 65536
 /** 别名（`*名字`）数量上限：正常配置文件里一个别名都不会有，50 是宽松的哨兵。 */
 const MAX_ALIASES = 50
 
@@ -93,15 +94,15 @@ export function parseConfig(text, schema) {
   }
   if (typeof text !== 'string') return { ok: false, reason: 'bad-shape', message: '要解析的不是一段文字' }
   const stripped = text.replace(/^\uFEFF/, '')
-  if (stripped.length > MAX_FILE_BYTES) {
-    return { ok: false, reason: 'oversize', message: '这份文件太大了（' + stripped.length + ' 字，上限 ' + MAX_FILE_BYTES + ' 字），核拒绝解析：配置文件本该很小，超了说明拿错了文件' }
+  if (stripped.length > MAX_FILE_CHARS) {
+    return { ok: false, reason: 'oversize', message: '这份文件太大了（' + stripped.length + ' 字，上限 ' + MAX_FILE_CHARS + ' 字），核拒绝解析：配置文件本该很小，超了说明拿错了文件' }
   }
   if (countAliases(stripped) > MAX_ALIASES) {
     return { ok: false, reason: 'aliases', message: '这份文件里的别名（`*名字`）太多了（上限 ' + MAX_ALIASES + ' 个），核拒绝解析：正常配置文件里一个别名都不会有' }
   }
   let doc = null
   try {
-    doc = parseYaml(stripped, { schema: 'core', maxAliasCount: MAX_ALIASES })
+    doc = parseYaml(stripped, { schema: 'core', maxAliasCount: MAX_ALIASES, uniqueKeys: true })
   } catch (e) {
     const msg = String((e && e.message) || e || '')
     if (/alias/i.test(msg)) return { ok: false, reason: 'aliases', message: '这份文件里的别名太多了，核拒绝解析：正常配置文件里一个别名都不会有' }
