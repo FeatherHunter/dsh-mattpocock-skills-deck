@@ -76,6 +76,8 @@ async function main() {
   const shellOf = (reg, extra) => shellMod.createDeckShell(Object.assign({
     gate: makeGateLedger(gateMod, ledgerMod), registry: reg, budget,
     estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, backendCtx: {},
+    // 测的就是出口这条路（生产由装配层递进来，这里直递同一函数；过闸钩子壳内自建）
+    decideBackend: decMod.decideBackend,
   }, extra || {}));
   const lcOf = (reg, fss, mem) => lcMod.createWorkspaceLabelColors({
     normCwd: async (r) => r,

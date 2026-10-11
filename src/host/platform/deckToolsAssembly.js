@@ -21,6 +21,9 @@
 // 沿用既有事件名，不新增事件名、不新增字段。
 import { createDeckTools } from '../../shared/deck-tools/plan.js'
 import { stringifyWorkspaceFile, WORKSPACE_FILE_REL } from '../../shared/deck-tools/workspace-file.js'
+// #1003 单出口：判定函数由平台层递进九个工具共用的依赖（平台→探测跨层，门禁不计数；壳内部零新增引用边）。
+//   没递到时壳走老路；老路删除时本行与壳里的 fallback 一起删。
+import { decideBackend } from '../tracker/detection/backendDecision.js'
 import { createDeckContext } from '../tools/deckContext.js'
 import { createDeckIssueGet } from '../tools/deckIssueGet.js'
 import { createDeckMapSnapshot } from '../tools/deckMapSnapshot.js'
@@ -110,5 +113,5 @@ export function createDeckToolsForHost(toolDeps) {
       }
     };
   }
-  return createDeckTools(DECK_TOOL_FACTORIES, { toolDeps: Object.assign({}, base, { readDeclarationId, protectDoubleHit: createDoubleHitProtector(base) }) })
+  return createDeckTools(DECK_TOOL_FACTORIES, { toolDeps: Object.assign({}, base, { readDeclarationId, protectDoubleHit: createDoubleHitProtector(base), decideBackend: decideBackend || null }) })
 }

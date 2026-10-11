@@ -170,6 +170,10 @@ export function createDeckShell(deps) {
     let sent = null
     const t0 = now()
     try { if (typeof d.ensureReading === 'function') await d.ensureReading(s.cwd, s.workspaceKey) } catch (eR) {}
+    // #1003 单出口：装配层把统一判定函数递进来时，显式四层整段交出去（内存 > H > 文件 > 声明，缺席跳过，
+    //   未注册忽略）；自动识别包着配额闸走（行为与老路一致，只多记账）。没递时走下面老路（存量测试指它）。
+    //   本文件不引用判定服务（同层门禁），函数只经依赖值递进来。老路删除时连同本段一起删。
+    const useOutlet = (typeof d.decideBackend === 'function') ? d.decideBackend : null
     // 显式四层（#1003：内存 > H > 文件 > 声明 > 自动识别；缺席跳过，未注册忽略）。
     const explicitId = async function () {
       try {
@@ -194,6 +198,31 @@ export function createDeckShell(deps) {
       } catch (eF) {}
       return null
     }
+    if (useOutlet) {
+      // 整段包进闸（与老路同一闸口径：probe 一格，成功记 1 请求；自动识别在里面直调，不 double 记账）。
+      const directSelect = async function (h, actx) {
+        return registry.select(h, Object.assign({}, backendCtxNow(), { cwd: s.cwd, caller: (actx && actx.caller) || DECK_TOOL_KIND, signal: (actx && actx.signal) || undefined }))
+      }
+      try {
+        sent = await gate.send({ source: 'tool.call', kind: 'probe', bucket: 'rest', workspaceKey: s.workspaceKey, plan: [{ phase: 'select' }] }, async () => {
+          const o = await useOutlet(s.cwd, {
+            registry: registry, backendCtx: backendCtxNow(), readChoice: d.readChoice,
+            readWorkspaceFileText: d.readWorkspaceFileText, parseWorkspaceFile: d.parseWorkspaceFile,
+            readDeclarationId: d.readDeclarationId, caller: DECK_TOOL_KIND, autodetect: directSelect,
+          })
+          if (o && o.backendId) {
+            picked = { backendId: o.backendId, source: o.source, ref: o.ref || null, multiHit: o.multiHit, pending: o.pending }
+            if (!picked.ref) { try { picked.ref = registry.describe(handle, picked.backendId) } catch (eD) { picked.ref = null } }
+          } else if (o && o.pending) {
+            picked = { backendId: null, source: 'fallback', pending: true, multiHit: o.multiHit }
+          } else {
+            picked = { backendId: null, source: 'fallback' }
+          }
+          return { requests: 1, points: 0 }
+        })
+      } catch (e) { failure = e }
+    }
+    if (!useOutlet) {
     try {
       sent = await gate.send({ source: 'tool.call', kind: 'probe', bucket: 'rest', workspaceKey: s.workspaceKey, plan: [{ phase: 'select' }] }, async () => {
         const ex = await explicitId()
@@ -207,6 +236,7 @@ export function createDeckShell(deps) {
         return { requests: 1, points: 0 }
       })
     } catch (e) { failure = e }
+    }
     const ms = now() - t0
     if (failure) return { ok: false, reason: REFUSAL_REASONS.BACKEND_THREW, text: '选后端这一步的后端实现抛错了，我没往下做。', errorHash: hash8(String((failure && failure.message) || failure)) }
     if (!sent || sent.sent !== true) {
