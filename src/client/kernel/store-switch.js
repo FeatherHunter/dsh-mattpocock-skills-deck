@@ -117,7 +117,7 @@
       // #529：附带当前语言与绑定后端（与 loadChain 同口径；否则英文界面下明细恒为中文）
       const criT0 = Date.now()
       const criLang = (typeof promptLang === 'function' ? promptLang() : 'zh')
-      const criArgs = Object.assign({}, st.cwd ? { cwd: st.cwd } : {}, (typeof userHintOf === 'function' && userHintOf(st.selection)) ? { backendId: userHintOf(st.selection), baseRev: (typeof baseRevOf === 'function' ? baseRevOf(st.selection) : 0) } : {}, { lang: criLang })
+      const criArgs = Object.assign({}, st.cwd ? { cwd: st.cwd } : {}, (typeof userHintOf === 'function' && userHintOf(st.selection)) ? { backendId: userHintOf(st.selection) } : {}, { lang: criLang })
       host.call('wf.chain', criArgs).then(function (res) {
         try { if (res && res.ok) log('info', 'host.call', { method: 'wf.chain', latencyMs: Date.now() - criT0, ok: true, kind: 'chain-cri' }); else log('warn', 'host.call.fail', { method: 'wf.chain', kind: 'chain-cri', errorHash: dswsLogHash(dswsLogTrunc(String((res && res.error) || 'chain-not-ok'), 120, 'error')) }) } catch (eL) {}
         if (!st.switchConfirm) return

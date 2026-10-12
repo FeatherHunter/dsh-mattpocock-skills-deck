@@ -2,18 +2,14 @@
 /**
  * verify-683-choice-rev.js —— F1 的「修订号那条线」：客户端这一半（ADR 的 R2、R2b、§5 接线）。
  *
- * 为什么要有修订号：用户的选择现在两份存储（浏览器本地一份、宿主侧一份），两边都会旧。
- *   谁更新不能靠时间戳比大小（同一毫秒落笔、NTP 校时、两个壳同毫秒各选一个，这三种可达情况下时间比较
- *   都会让面板跟着旧值走），所以用**宿主发号的修订号**：宿主每接受一次用户选择 +1，客户端把它一路带着走，
- *   上报时用 baseRev 这个名字回给宿主。这一份量的是客户端这一半有没有把版本位带好：
- *   - A：用户亲手选的那一条长什么样（带 pickedAt、带「从哪个修订号来的」）；
- *   - B：没有版本位的老记录按 0 处理；
- *   - C：绑定回包里宿主发的新修订号要落到本地那条上、并写进本地缓存；
- *   - D：版本位必须活过一次快照往返（宿主这次没带时不许把它抹掉）；
- *   - E：全仓扫描 —— 每一处把 hint 报给宿主的调用点都要同时带 baseRev（漏一处就等于那一条上报时会冒充最新版）。
- *   - H：R7c 那条「绑定成了，但宿主没把这次选择记住」的提示 —— 四个绑定确认点都要说，而且理由那句话走词条
- *        （原先四个点各写一份硬编码中文：英文界面上直接印中文，中文那边又与「切换失败：{err}」这个模板
- *        拼成一句自相矛盾的话）。
+ * #1003 收尾后的口径：修订号那条线整条退役 —— 用户的选择只存在工作区配置文件里（宿主直接读文件），
+ *   客户端既不上报「亲手选的哪条」，也不上报版本号。这一份量的是退役退干净了：
+ *   - A：用户亲手选的那一条长什么样（后端 + 引用 + 点击时刻；不带标记、不带版本位）；
+ *   - B：全仓扫描 —— src/ 下没有任何一处还提到 baseRev（漏一处就是那根管子没拔净）；
+ *   - C：绑定回包不再往本地落版本号（本地没有镜像可落）；
+ *   - D：宿主回的那条照旧优先（原样透传）；
+ *   - G：R6b 的本地镜像不再垫底（秒显走快照缓存那条路）；
+ *   - F：反证 —— 把实现做坏时上面该红的必须当场红（含 B 组那把扫描自己抓不抓得到漏改）。
  *
  * 做法：把 src/client/kernel/store-prefs.js 的真身文本喂进沙箱求值（真源 + 假 localStorage/window），
  *   再用改坏的那一份跑同一批断言 —— 该红的必须当场红。
@@ -32,6 +28,21 @@ let passed = 0
 let failed = 0
 const check = (ok, msg) => { if (ok) { console.log('  PASS ' + msg); passed++ } else { console.log('  FAIL ' + msg); failed++ } }
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
+// #1003 收尾：版本位那根管子要拔净 —— 扫描一棵源码树下还有没有哪一处提到 baseRev，返回「文件:行号」清单。
+//   真源扫的是 src/（B 组）；反证 F4 拿它扫一份塞了 baseRev 的临时副本，证明这把扫描抓得到漏改。
+const scanBaseRev = function (rootDir) {
+  const hits = []
+  const walk = function (dir) {
+    fs.readdirSync(dir, { withFileTypes: true }).forEach(function (e) {
+      const p = path.join(dir, e.name)
+      if (e.isDirectory()) { if (e.name !== 'node_modules') walk(p); return }
+      if (!/\.(js|mjs|cjs|ts|mts)$/.test(e.name)) return
+      fs.readFileSync(p, 'utf8').split(/\r?\n/).forEach(function (line, i) { if (line.includes('baseRev')) hits.push(path.relative(ROOT, p) + ':' + (i + 1)) })
+    })
+  }
+  walk(rootDir)
+  return hits
+}
 
 const prefsSrc = read(PREFS_REL)
 const stripExports = (s) => s.replace(/^[ \t]*export[ \t]+/gm, '')
@@ -49,7 +60,7 @@ const makeHarness = function (srcText, opts) {
   }
   const win = { innerHeight: 800, addEventListener: function () {} }
   const body = stripExports(srcText) +
-    '\n; return { baseRevOf: baseRevOf, userPickSelection: userPickSelection, adoptBoundRev: adoptBoundRev, keepUserPick: keepUserPick,' +
+    '\n; return { userPickSelection: userPickSelection, adoptBoundRev: adoptBoundRev, keepUserPick: keepUserPick,' +
     ' userHintOf: userHintOf, getCachedSelection: getCachedSelection, selectionByCwd: selectionByCwd, SELECTION_BY_CWD_KEY: SELECTION_BY_CWD_KEY }'
   // 真源文本配假 window/localStorage：改走共用入口 compileFn，参数名逐个列出。
   const factory = compileFn(['window', 'localStorage', 'log', 'keyOf', 'wsKeyOf', 'emit', 'shared', 'stores'], body)
@@ -75,21 +86,12 @@ console.log('== A 用户点的那一条：后端 + 引用 + 点击时刻（无�
   check(third.ref === null, 'ref 传 undefined 也记 null')
 }
 
-// ── B baseRevOf 恒 0（R2 作废：无版本位可上报） ──────────────────────────────────
+// ── B 全仓扫描：src/ 下没有任何一处还提版本位（#1003 收尾）────────────────────────
 console.log('')
-console.log('== B baseRevOf 恒 0 ==')
+console.log('== B 全仓扫描：src/ 下没有任何一处还提到 baseRev ==')
 {
-  const h = makeHarness(prefsSrc)
-  const cases = [
-    [{ backendId: 'x', userPicked: true }, 0, '老形状照旧传进来'],
-    [{ backendId: 'x', rev: 9 }, 0, '带版本位的老形状'],
-    [{ backendId: 'x', rev: 0 }, 0, 'rev 是 0'],
-  ]
-  cases.forEach(function (c) {
-    const got = h.api.baseRevOf(c[0])
-    check(got === c[1], 'baseRevOf：' + c[2] + ' → ' + c[1] + '（实得 ' + got + '）')
-  })
-  check(h.api.baseRevOf(null) === 0 && h.api.baseRevOf(undefined) === 0, '没有选择时按 0（不抛错）')
+  const hits = scanBaseRev(path.join(ROOT, 'src'))
+  check(hits.length === 0, 'src/ 下 0 处提到 baseRev（版本位那根管子已拔净）—— 实得 ' + (hits.length ? hits.join('、') : '0 处'))
 }
 
 // ── C adoptBoundRev 恒空（§5 接线作废：本地无镜像可落）───────────────────────────
@@ -160,7 +162,14 @@ const loadBroken = function (tag, from, to) {
     check(h.api.getCachedSelection('D:\\X') !== null, '反证 F2 成立：加回去之后读恒不为空 —— 说明退役门禁量的就是“读恒空”')
   }
 }
-// F4 扫描本身能抓到漏改：把某处的 baseRev 去掉，E 组那条扫描必须点名点出来
+// F4 扫描本身能抓到漏改：往一份临时副本里塞回一个 baseRev，B 组那把扫描必须点名点出来
+{
+  const probeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-683-rev-scan-'))
+  fs.writeFileSync(path.join(probeDir, 'with-baserev.js'), 'const x = { baseRev: 0 }\n', 'utf8')
+  const hits = scanBaseRev(probeDir)
+  check(hits.length === 1, '反证 F4 成立：塞回一处 baseRev 后扫描当场点名 —— 说明 B 组量的就是「一处都没有」（实得 ' + hits.length + ' 处）')
+  try { fs.rmSync(probeDir, { recursive: true, force: true }) } catch (e) {}
+}
 try { fs.rmSync(brokenDir, { recursive: true, force: true }) } catch (e) {}
 
 console.log('')

@@ -159,8 +159,7 @@
         // #669 第 6 件（ADR 20260921）：只有用户亲手选过的那条才当 hint 上报 —— 派生值不许冒充意图
         //   （宿主那边带 hint 就压过锚文件，见 store-prefs.js 的 userHintOf 与 ADR 的攻击 1）。
         const _hintBid = (typeof userHintOf === 'function') ? userHintOf(st.selection) : undefined
-        const _hintRev = (typeof baseRevOf === 'function') ? baseRevOf(st.selection) : 0 // #683（F1 · ADR 的 R2）：hint 旁边带上「这条选择是从哪个修订号来的」，宿主才判得出新旧
-        const args = Object.assign({}, st.cwd ? { cwd: st.cwd, ifNoneMatch: ver, version: ver } : (ver?{ifNoneMatch:ver,version:ver}:{}), _hintBid ? { backendId: _hintBid, baseRev: _hintRev } : {})
+        const args = Object.assign({}, st.cwd ? { cwd: st.cwd, ifNoneMatch: ver, version: ver } : (ver?{ifNoneMatch:ver,version:ver}:{}), _hintBid ? { backendId: _hintBid } : {})
         const _normKeyP = wsKeyOf(st.cwd||'');
         let _ctrl=null; try{ _ctrl=typeof AbortController!=='undefined'?new AbortController():{signal:{aborted:false},abort(){}}; }catch(e){ _ctrl={signal:{aborted:false},abort(){}}; }
         let _timer=null;

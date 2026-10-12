@@ -37,11 +37,11 @@ export function createSessionRefresh(deps) {
       const refT0 = Date.now()
       try { if (logCtx) logCtx.fire('info', 'panelSync.dirty', { cwdHash: hash8(cwd), ageMs: (function () { try { const c = getCache(cwd); return (c && c.ts) ? Math.max(0, refT0 - c.ts) : 0 } catch (e) { return 0 } })() }) } catch (eL) {}
       let _sel = null
-      try { _sel = await selectEarly({ cwd, backendId: (args && args.backendId) || undefined, baseRev: (args && args.baseRev) || 0 }) }
+      try { _sel = await selectEarly({ cwd, backendId: (args && args.backendId) || undefined }) }
       catch (eSel) { setCache({ ts: Date.now(), snapshot: null, error: errText(eSel), cwd: cwd }); return { ok: false, error: errText(eSel) } }
       // #729：在途键与快照路同一把；强制只搭强制的车（在途是非强制就另起一趟，#366），搭上记现成的 dedup.hit。
       const _sharedInflight = await _loadSharedInflight()
-      const refreshDedupKey = _sharedInflight.snapshotDedupKeyOf({ cwd: cwd, backendId: (_sel && _sel.backendId), lang: (args && args.lang), baseRev: (args && args.baseRev), version: (args && (args.ifNoneMatch || args.version)) })
+      const refreshDedupKey = _sharedInflight.snapshotDedupKeyOf({ cwd: cwd, backendId: (_sel && _sel.backendId), lang: (args && args.lang), version: (args && (args.ifNoneMatch || args.version)) })
       { const _ride = _sharedInflight.snapshotInflightTake(refreshDedupKey, true, function () { try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'dedup.hit', function () { return { scope: 'snapshot', keyHash: hash8(refreshDedupKey) } }) } catch (eL) {} }); if (_ride) return _ride }
       const _rebuild = refreshBuild(args, cwd, _sel)
       const _entry = _sharedInflight.snapshotInflightPark(refreshDedupKey, true, _rebuild)

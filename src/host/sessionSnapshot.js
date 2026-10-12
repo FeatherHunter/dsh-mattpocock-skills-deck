@@ -50,7 +50,7 @@ export function createSessionSnapshot(deps) {
       const _rawSnapCwd = (args && args.cwd) || ''; if (!String(_rawSnapCwd).trim()) return { ok: false, error: '这个工作区还没就绪（还没认出是哪个目录），等面板认出工作区后再试。' }; const cwd = await canonicalKey(_rawSnapCwd) // #1003 空目录闸：没目录不冒充取快照
       const now = Date.now()
       // 第一性原理分发前置：先算 selection，再决定缓存与数据链路（避免旧 GitHub 缓存遮住 Markdown）
-      const _selEarly = await selectEarly({ cwd, backendId: (args && args.backendId) || undefined, baseRev: (args && args.baseRev) || 0 })
+      const _selEarly = await selectEarly({ cwd, backendId: (args && args.backendId) || undefined })
       const _layEarly = await readSetupLayoutOf(cwd) // #683（F1 · R6）：记住的布局答案随每条回包一起回去（同 R4 那条路）
       const useComposerEarly = isComposerSelection(_selEarly)
       const isForce = !!(args && args.force)
@@ -86,13 +86,13 @@ export function createSessionSnapshot(deps) {
       try { if (logCtx) logCtx.fire('info', 'snapshot.cache.miss', { reason: missReason }) } catch (eL) {}
       // #729：在途合并与刷新路共用一张表（键不带强制标记；强制只搭强制的车，非强制搭任何车）
       const _sharedInflight = await _loadSharedInflight()
-      const snapshotDedupKey = _sharedInflight.snapshotDedupKeyOf({ cwd: cwd, backendId: (_selEarly && _selEarly.backendId), lang: (args && args.lang), baseRev: (args && args.baseRev), version: (args && (args.ifNoneMatch || args.version)) })
+      const snapshotDedupKey = _sharedInflight.snapshotDedupKeyOf({ cwd: cwd, backendId: (_selEarly && _selEarly.backendId), lang: (args && args.lang), version: (args && (args.ifNoneMatch || args.version)) })
       { const _ride = _sharedInflight.snapshotInflightTake(snapshotDedupKey, isForce, function () { try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'dedup.hit', function () { return { scope: 'snapshot', keyHash: hash8(snapshotDedupKey) } }) } catch (eL) {} }); if (_ride) return await _ride }
       const snapshotPending = (async function () {
       try {
         // 复用已算的 selection，避免二次探测
         let _sel = _selEarly
-        if (!_sel) _sel = await selectEarly({ cwd, backendId: (args && args.backendId) || undefined, baseRev: (args && args.baseRev) || 0 })
+        if (!_sel) _sel = await selectEarly({ cwd, backendId: (args && args.backendId) || undefined })
         const useComposer = isComposerSelection(_sel)
         if (useComposer) {
           const reg = await getTrackerRegistry()

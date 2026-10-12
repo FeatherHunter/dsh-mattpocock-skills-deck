@@ -61,7 +61,7 @@ export function createMapTickets(deps) {
     const cwd = await canonicalKey(_rawMapCwd)
     const key = String((args && (args.key != null ? args.key : args.number)) || '').trim()
     if (!key) return { ok: false, error: { kind: 'parse', message: '缺少地图编号（key）' } }
-    const sel = await selectEarly({ cwd, backendId: (args && args.backendId) || undefined, baseRev: (args && args.baseRev) || 0 })
+    const sel = await selectEarly({ cwd, backendId: (args && args.backendId) || undefined })
     if (!isComposerSelection(sel)) return unsupported('这个后端不能按需取一张地图的子票（在它自己的网页上看全部）')
     const reg = await getTrackerRegistry()
     const backendId = sel.backendId

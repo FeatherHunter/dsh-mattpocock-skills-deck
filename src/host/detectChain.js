@@ -82,8 +82,8 @@ export function createDetectChain(deps) {
           return v.cached
         }
         try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'chain.cache.miss', function () { return { keyHash: hash8(cacheKey), lang: chainLang, reason: force ? 'force' : (v.reason || 'due') } }) } catch (eL) {}
-        // #696 在途合并：同钥匙同后端同语言同强制标记共用同一份（另带修订号，免不同修订串份）；先回来的写缓存，后到的拿同一份；强制不参与合并
-        const chainDedupKey = cacheKey + '|' + (force ? '1' : '0') + '|' + String((args && args.baseRev) || 0)
+        // #696 在途合并：同钥匙同后端同语言同强制标记共用同一份；先回来的写缓存，后到的拿同一份；强制不参与合并
+        const chainDedupKey = cacheKey + '|' + (force ? '1' : '0')
         if (!force) { const ongoingRide = chainInflight.take(chainDedupKey); if (ongoingRide) { chainInflight.noteRide(); try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'dedup.hit', function () { return { scope: 'chain', keyHash: hash8(chainDedupKey) } }) } catch (eL) {}; return await ongoingRide } }
         const chainPending = (async function () {
         const platform = await getPlatform()

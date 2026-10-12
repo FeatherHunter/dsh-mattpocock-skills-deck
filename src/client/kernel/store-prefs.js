@@ -246,7 +246,7 @@
     // #1003 退役：宿主直接读文件，不再需要客户端上报“亲手选的哪条 + 版本号”。
     //   名字留空壳，调用方拼出来的 hint 参数宿主侧直接忽略（判定只看文件）。
     export const userHintOf = function (sel) { return undefined }
-    export const baseRevOf = function (sel) { return 0 }
+    // #1003 收尾：原先那个恒回 0 的「版本位」空壳随这一批删掉 —— 调用方不再上报它，宿主也不再读它。
     // 用户点确认的乐观形状：后端、引用与点击时刻（pickedAt 只活在会话内存里，不落盘不上报）。
     //   水合时凭它认出“刚点的那一下”，旧缓存不许盖掉它；宿主新回包不受影响（照旧合并）。
     export const userPickSelection = function (backendId, ref, prevSelection) {

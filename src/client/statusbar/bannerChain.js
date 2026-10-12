@@ -162,7 +162,7 @@ const runAction = function (st, action) {
       refresh: async function () {
         try {
           // #669 第 6 件（ADR 20260921）：hint 只报「用户亲手选过的那条」（派生值不许冒充意图）
-          if (typeof host !== 'undefined' && host && host.call) await host.call('wf.detect', { cwd: st.cwd || '', force: true, backendId: (typeof userHintOf === 'function' ? userHintOf(st.selection) : undefined) || undefined, baseRev: (typeof baseRevOf === 'function' ? baseRevOf(st.selection) : 0) })
+          if (typeof host !== 'undefined' && host && host.call) await host.call('wf.detect', { cwd: st.cwd || '', force: true, backendId: (typeof userHintOf === 'function' ? userHintOf(st.selection) : undefined) || undefined })
         } catch (e) {}
         try { if (typeof loadChain === 'function') loadChain(st, true) } catch (e2) {}
         try { if (typeof loadSnapshot === 'function') loadSnapshot(st, true, true) } catch (e3) {}
@@ -214,7 +214,7 @@ export const runGuideMissing = function (st, step) {
     // 写法与「重新检查」按钮真身同形（chainEventRefresh 优先，loadChain 兜底）。
     try {
       if (typeof host !== 'undefined' && host && host.call) {
-        const r = host.call('wf.detect', { cwd: st.cwd || '', force: true, backendId: (typeof userHintOf === 'function' ? userHintOf(st.selection) : undefined) || undefined, baseRev: (typeof baseRevOf === 'function' ? baseRevOf(st.selection) : 0) })
+        const r = host.call('wf.detect', { cwd: st.cwd || '', force: true, backendId: (typeof userHintOf === 'function' ? userHintOf(st.selection) : undefined) || undefined })
         if (r && typeof r.catch === 'function') r.catch(function () {})
       }
     } catch (e) {}
