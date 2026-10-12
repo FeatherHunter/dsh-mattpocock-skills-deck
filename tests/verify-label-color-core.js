@@ -395,7 +395,7 @@ async function main() {
   // （.scratch/map610/selfcheck/exit-guard.test.mjs；那份脚本已随 #632 删掉，它的覆盖就落在这一节里）：
   // jsdom 起一个真 DOM，挂**真源组件**，对一个会记账的 onClose 桩点按钮、点遮罩，看它到底调没调。
   // 状态机（草稿/改动）在这一节是替身：本节只问弹窗组件对「有草稿 / 没草稿」的反应，不问草稿怎么算出来的
-  // （那由上面第 10 节与 verify-label-color-freshness 管）。
+  // （那由上面第 4 节「只挑出真正变了的行」那批草稿表断言管）。
   {
     const { JSDOM } = await import('jsdom')
 

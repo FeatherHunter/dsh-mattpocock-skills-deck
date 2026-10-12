@@ -20,7 +20,7 @@
 import type { BackoffLimits, ChainBackoffState, ChainFreshness } from './ports.js'
 
 // 这里原来有一行 `export const BACKOFF_SOURCE = 'src/shared/refresh/src/backoff.ts'`。#719 把它删掉：
-// 全仓没有任何代码读它，而产物第一行的 AUTO-GENERATED 包头（由 refresh-core/build.mjs 按真实文件名
+// 全仓没有任何代码读它，而产物第一行的 AUTO-GENERATED 包头（由构建按真实文件名
 // 生成）已经把「这份 JS 从哪来」写清楚了——手写一份同样的字符串只可能漂移。
 // 空壳产物（src/shared/refresh/src/ports.ts）不一样：它的产物里只剩那一行标识，所以 PORTS_SOURCE 留着。
 

@@ -17,13 +17,14 @@
  * 水印那一条同样来自定稿第十一章：现在实现里是探测一回来就无条件推进水印，一旦这一笔取数被推迟或丢弃，
  * 那条变化就再也发现不了了；本文件把「能不能推进」变成一条可以单独测的判定（watermarkAfter）。
  *
- * 形状照 refresh-core 前四份（ports / budget / idempotency / policy）：产物落
- * src/shared/refresh/delta.js，逐字由 refresh-core/build.mjs 生成。本文件不 import 任何其他产物 ——
+ * 形状照本域前四份（ports / budget / idempotency / policy）：产物落
+ * src/shared/refresh/delta.js，逐字由根构建脚本的逐文件转译那一段生成（#1023 第二刀起，本域不再有
+ * 各自的构建脚本）。本文件不 import 任何其他产物 ——
  * src/shared/ 同层互引会被 tests/verify-no-same-layer-import.js 判红，需要用的东西一律由调用方传进来。
  */
 
 // 这里原来有一行 `export const DELTA_SOURCE = 'src/shared/refresh/src/delta.ts'`。#719 把它删掉：
-// 全仓没有任何代码读它，而产物第一行的 AUTO-GENERATED 包头（由 refresh-core/build.mjs 按真实文件名
+// 全仓没有任何代码读它，而产物第一行的 AUTO-GENERATED 包头（由构建按真实文件名
 // 生成）已经把「这份 JS 从哪来」写清楚了——手写一份同样的字符串只可能漂移。
 // 空壳产物（src/shared/refresh/src/ports.ts）不一样：它的产物里只剩那一行标识，所以 PORTS_SOURCE 留着。
 
