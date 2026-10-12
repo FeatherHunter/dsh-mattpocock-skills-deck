@@ -67,9 +67,9 @@
 
 - **纯逻辑住 `src/shared/refresh/src/*.ts`，转译成 `src/shared/refresh/*.js`**（产物带 `AUTO-GENERATED` 头、提交进仓库），由 `node src/shared/refresh/build.mjs` 生成，`tsc --noEmit` 与新鲜度门禁一起管着。形态依据是 `docs/adr/20260913-builtin-ts-shape.md`（它定的是「插件内置 TypeScript」的通用形状：不发 npm 包、源码不进 `src/`、逐文件转译、产物提交）。
 - **I/O 留 JS**：取数与落盘住在 `src/host/**`（三个后端房间、闸、账本、视野模型、行级增量）。判定一句「这段代码该放哪」的标准只有一条——**碰不碰磁盘、网络、时间、进程**：碰就留 JS，不碰就进 TS。
-- **产物之间零相对引用是硬约束**（`tests/verify-refresh-freshness.js` 的「产物零相对引用」与 `tests/verify-no-same-layer-import.js` 一起守）。所以纯函数不许 `import` 另一个产物；要用的数字与形状一律**由宿主侧取好、当参数传进来**。
+- **产物之间零相对引用是硬约束**（`tests/verify-refresh-freshness.js` 的「产物零相对引用」与 `tests/verify-dependency-rules.ts` 一起守）。所以纯函数不许 `import` 另一个产物；要用的数字与形状一律**由宿主侧取好、当参数传进来**。
 - **`src/shared/refresh/` 下的 `.ts` 源文件不受「单文件 350 行」这条数字约束**（2026-09-24 统筹者定）。
-  - 为什么：350 行那条门禁（`tests/verify-file-granularity.js`）只扫 `src/**/*.js`，`src/shared/refresh/` 根本不在它的范围内；这是**有意如此**，不是漏掉。核心里几个文件（`chain.ts`、`attention.ts`、`budget.ts`）都是为了「一件事写在一处」才长到几百行的。
+  - 为什么：350 行要的是「文件别长到读不动」，不是「拆成多份就好」。原来那条门禁（`tests/verify-file-granularity.js`）只扫 `src/**/*.js`，`src/shared/refresh/` 根本不在它的范围内；**#1017 换轨之后它读 `.ts` 真源了**（按有效行判，注释与空行不计），这批 `.ts` 里只有 `chain.ts` 一个超线，它按零增长基线冻结在 `tests/file-granularity-baseline.json`（只许减不许增），**不强制拆**。核心里几个文件（`chain.ts`、`attention.ts`、`budget.ts`）都是为了「一件事写在一处」才长到几百行的。
   - **不能靠拆 `.ts` 来满足 350 行**：产物之间零相对引用是硬约束，拆出去的那一半要读另一半的东西时，唯一的合法做法就是把那段逻辑再抄一遍——那是往核心里种重复代码，比行数超标坏得多。
   - 它们受的是另一套纪律，一共三条：**单一职责**（一个文件一件事，文件名说清是哪件事）、**纯逻辑**（不碰磁盘、网络、时间、进程）、**可单测**（能只喂参数、只读返回值地测）。
   - 真到了「一个文件里明显是两件事」的时候，拆法只有一条：**按职责边界拆，拆完两边互不 import（各自只靠参数拿数据）**；这跟 350 行那条数字没有关系。

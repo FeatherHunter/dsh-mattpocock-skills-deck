@@ -66,18 +66,33 @@ async function main() {
   check(fs.existsSync(path.join(ROOT, TS_ADR_REL)), '形态依据那份 ADR 文件真的在：' + TS_ADR_REL)
 
   // ③ 那句话必须写全：src/shared/refresh/ 的 .ts 不受 350 行约束，理由是三条。
-  check(text.indexOf('不受「单文件 350 行」这条数字约束') >= 0 || text.indexOf('不受「单文件 350 行」这条数字约束') >= 0,
+  check(text.indexOf('不受「单文件 350 行」这条数字约束') >= 0,
     'ADR 写明 src/shared/refresh/ 下的 .ts 源文件不受「单文件 350 行」这条数字约束')
-  check(/只扫 `src\/\*\*\/\*\.js`/.test(text), '理由之一写明了：350 行那条门禁只扫 src/**/*.js')
+  check(text.indexOf('零增长基线') >= 0 && text.indexOf('只许减不许增') >= 0,
+    '理由之一写明了：#1017 换轨后那条门禁也读 .ts 真源，超线的那份按零增长基线冻结（只许减不许增），不强制拆')
   check(text.indexOf('产物之间零相对引用是硬约束') >= 0 && /拆\s*`?\.ts`?/.test(text) && text.indexOf('重复代码') >= 0,
     '理由之二写明了：产物之间零相对引用是硬约束，拆 .ts 会逼出重复代码')
   check(text.indexOf('单一职责') >= 0 && text.indexOf('纯逻辑') >= 0 && text.indexOf('可单测') >= 0,
     '替代纪律三条写全：单一职责、纯逻辑、可单测')
 
-  // ③b 上面那句「只扫 src/**/*.js」必须与代码当场对得上——去读那条门禁本身，不许只信文档。
+  // ③b 上面那句必须与代码当场对得上——去读那条门禁和它记的基线，不许只信文档。
+  //   #1017 之前这里核的是「门禁只扫 .js、没把 refresh 纳进去」；换轨之后那句话反了过来：
+  //   门禁确实读 .ts 了，所以这句话的对照组变成「超线的那份真的冻结在基线里」。
   const granularity = fs.readFileSync(path.join(ROOT, 'tests', 'verify-file-granularity.js'), 'utf8')
-  const scansSrcOnly = /const SRC = path\.join\(ROOT, 'src'\)/.test(granularity) && !/src\/shared\/refresh/.test(granularity)
-  check(scansSrcOnly, '当场核一遍：tests/verify-file-granularity.js 扫的确实是 src 那棵树，没有把 src/shared/refresh/ 纳进去')
+  const scansSrc = /const SRC = path\.join\(ROOT, 'src'\)/.test(granularity)
+  const readsTs = /\.ts/.test(granularity) && granularity.indexOf('effective-lines') >= 0
+  check(scansSrc && readsTs,
+    '当场核一遍：tests/verify-file-granularity.js 扫的确实是 src 那棵树，而且真的把 .ts 真源读进来（#1017 换轨后）')
+  const frozenRel = 'src/shared/refresh/src/chain.ts'
+  let frozenAt = null
+  let frozenMetric = null
+  try {
+    const baseline = JSON.parse(fs.readFileSync(path.join(ROOT, 'tests', 'file-granularity-baseline.json'), 'utf8'))
+    frozenMetric = baseline.metric
+    frozenAt = (baseline.files || {})[frozenRel]
+  } catch (e) { /* 读不到就是没冻结，下面那条断言会红 */ }
+  check(frozenMetric === 'effective-lines' && typeof frozenAt === 'number',
+    '当场核一遍：这条 ADR 点名的 chain.ts 真的按有效行冻结在零增长基线里（口径 effective-lines，冻结值 ' + frozenAt + '）')
 
   // ④ 额度常量的落点与做法写全了。
   check(text.indexOf('只有一处物理真源') >= 0 && text.indexOf('src/shared/refresh/src/budget.ts') >= 0,

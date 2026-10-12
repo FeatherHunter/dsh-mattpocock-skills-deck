@@ -73,6 +73,7 @@ const ReactDOMClient = require('react-dom/client')
 // 防抖窗口是五百毫秒，这一份门禁里有十几处等它落地；接上虚拟时钟把等待压成几毫秒，断言一条没动
 //   （为什么这么压是安全的见 tests/lib/time-compress.js 文件头）。
 const { installTimeCompression } = require('./lib/time-compress.js')
+const { countEffectiveLines } = require('../scripts/lib/effective-lines.mts')
 installTimeCompression()
 
 const ROOT = path.resolve(__dirname, '..')
@@ -82,9 +83,10 @@ const check = (ok, msg, detail) => {
   if (ok) { console.log('  PASS ' + msg); passed += 1 } else { console.log('  FAIL ' + msg + (detail ? ' —— ' + String(detail).slice(0, 300) : '')); failed += 1 }
 }
 const readText = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
-// 行数口径与 tests/verify-file-granularity.js 的 LIMIT=350 是同一个算法：按换行切段计数，文件末尾那个换行
-//   会多算一段（两个地方同一种口径，不另立一套，也不在这里做「减一」的修正）。
-const countLines = (rel) => readText(rel).split(/\r?\n/).length
+// 行数口径与 tests/verify-file-granularity.js 的 LIMIT=350 共用同一份实现（scripts/lib/effective-lines.mts）：
+//   #1017 起两条门禁都按**有效行**算（注释与空行不计）。此前这里数的是总行数，同一条尺子两处两种算法，
+//   一份文件多写几行注释就会两边给出不同的数；现在统一成有效行，注释随便写，只有真内容增长才算增长。
+const countLines = (rel) => countEffectiveLines(readText(rel))
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const makeHome = (tag) => fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-dbg-' + tag + '-'))
 const settingsPathIn = (home) => path.join(home, '.dsh', 'mattskillsdeck', 'settings.yaml')

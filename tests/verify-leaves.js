@@ -8,12 +8,18 @@
 // 用法: node tests/verify-leaves.js（在插件根目录；先运行 node scripts/build.mjs 生成产物）
 const fs = require('fs')
 const path = require('path')
+const { countEffectiveLines, EFFECTIVE_LINES_METRIC } = require('../scripts/lib/effective-lines.mts')
 let failed = false
 const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
 /** 零增长基线（#845）：在册文件按基线值判，不在册的按 350 判；与 verify-file-granularity.js 同一份文件。 */
 const GRANULARITY_BASELINE = (function () {
-  try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'file-granularity-baseline.json'), 'utf8')).files || {} } catch (e) { return {} }
+  try {
+    const data = JSON.parse(fs.readFileSync(path.join(__dirname, 'file-granularity-baseline.json'), 'utf8'))
+    // 口径不符就当成没有基线：#1017 起那份文件按「有效行」记，数字换成旧口径（总行数）后会偏大，
+    // 拿它当上限等于偷偷放宽；这里退回纯 350，宁可直接红，也不静默变松。
+    return data.metric === EFFECTIVE_LINES_METRIC ? (data.files || {}) : {}
+  } catch (e) { return {} }
 })()
 const PRODUCTS = ['client.js', 'package/lib/client.js']
 const LEAVES = [
@@ -123,14 +129,15 @@ function main() {
     const file = l.file
     if (!fs.existsSync(file)) { check(false, file + ' 缺失'); continue }
     const src = fs.readFileSync(file, 'utf8')
-    const lines = src.split(/\r?\n/).length
+    const lines = countEffectiveLines(src)
     // #845：这条断言原来写死「全员 350」，但 3ccef80 起仓库有一份零增长基线
     //   （tests/file-granularity-baseline.json：门禁落地时已超标的文件把当时行数记进去，只许减不许增）。
-    //   照 350 判会把基线里那些**冻结**的文件（StatusBar.js 359 行就在册）误判成回归。
     //   判据改成与 verify-file-granularity.js 同一口径：在基线里的文件 ≤ 基线值，不在基线的 ≤350。
+    // #1017：口径换成**有效行**（注释与空行不计），实现与那条门禁共用 scripts/lib/effective-lines.mts。
+    //   同一份文件按总行数算是 359 行、按有效行算是 233 行，两处口径不一致会让这条断言凭空变红。
     const frozen = GRANULARITY_BASELINE[file]
     const limit = frozen === undefined ? 350 : Number(frozen)
-    check(lines <= limit, file + ' ≤' + limit + ' 行' + (frozen === undefined ? '（G4）' : '（零增长基线冻结值）') + ' · 实际 ' + lines + '）')
+    check(lines <= limit, file + ' ≤' + limit + ' 有效行' + (frozen === undefined ? '（G4）' : '（零增长基线冻结值）') + ' · 实际 ' + lines + '）')
   }
 
   // ---- 页内浮窗退役（只查文件在不在，不读源码文本） ----
