@@ -3,9 +3,17 @@
 //   注册路径是精确路径 /api/dsws（不带端点尾巴），端点名与入参装在请求体 payload 里（#596）；
 //   wf.logGetSwitch → logGetSwitch 端点 → { ok: true, enabled, sampleRate }（#498 退役 wf.ping，探活改走免参开关读电话）
 import { readFileSync } from 'node:fs'
+import pathMod from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const modRaw = await import('../package/lib/index.js')
 const mod = modRaw.default ?? modRaw
+
+// 登记受踪会话时必须给一个真实存在的目录。2026-10-12 的 #1003 之后，空目录会被宿主如实拒绝
+// （src/host/repoKeys.js:75-78 在起 gh 命令之前就返回失败），命名守护因此拉不到议题索引，
+// 会话就永远停在草稿档、升不到编号档——那不是「还在等」，是「被拒绝」。
+// 这里取仓库根目录：它一定存在，而且不随「从哪个目录跑测试」变化。不要图省事改回空串。
+const ROOT = pathMod.resolve(pathMod.dirname(fileURLToPath(import.meta.url)), '..')
 
 let route = null
 // #266 建号感知冒烟：gh api 索引快照由 stub 返回（测试可控 JSON Lines；按调用序切换新旧快照）
@@ -181,7 +189,7 @@ if (route && typeof route.fetch === 'function') {
   }
   try {
     // 注册监视（#211 复原名）：占位基准 + repoKey；注册后 800ms 内打索引基线（GH_BASE）
-    const regWatch = await callHandler('registerNewSessionWatcher', { sessionId: 'smoke-266', baselineTitle: '[New] 新建需求', cwd: '', repoKey: 'acme/demo', hint: '新建的修复需求' })
+    const regWatch = await callHandler('registerNewSessionWatcher', { sessionId: 'smoke-266', baselineTitle: '[New] 新建需求', cwd: ROOT, repoKey: 'acme/demo', hint: '新建的修复需求' })
     check(!!regWatch && regWatch.ok === true, 'registerNewSessionWatcher 受理（注册监视复原）')
     await sleep(1100)  // 等待基线建档（无归属）
     const planBase = await callHandler('namingPlan', {})
@@ -207,7 +215,7 @@ if (route && typeof route.fetch === 'function') {
     // 取消监视：未知 sid 幂等；已注册 sid 移除
     const cancelNone = await callHandler('cancelNewSessionWatcher', { sessionId: 'smoke-unknown' })
     check(!!cancelNone && cancelNone.ok === true && cancelNone.cancelled === false, 'cancelNewSessionWatcher 未知 sid 幂等')
-    const regX = await callHandler('registerNewSessionWatcher', { sessionId: 'smoke-prune', baselineTitle: '[New] New Bug', cwd: '', repoKey: 'acme/demo' })
+    const regX = await callHandler('registerNewSessionWatcher', { sessionId: 'smoke-prune', baselineTitle: '[New] New Bug', cwd: ROOT, repoKey: 'acme/demo' })
     const cancelX = await callHandler('cancelNewSessionWatcher', { sessionId: 'smoke-prune' })
     check(!!regX && regX.ok === true && !!cancelX && cancelX.ok === true && cancelX.cancelled === true, 'cancelNewSessionWatcher 移除受踪账目')
     const planPrune = await callHandler('namingPlan', {})
