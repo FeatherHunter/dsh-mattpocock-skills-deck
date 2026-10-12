@@ -63,6 +63,8 @@
             if (!d) continue
             // 界面偏好那一族（kernel/settings-ui.js）只有格名、没有工作区路径，直接改进 ui 节。
             if (d.section === 'ui') { settingsUiSetInDoc(fresh, d.name, d.value); continue }
+            // 动作模板那一族（kernel/settings-templates.js）同样只有格名、没有工作区路径，直接改进 templates 节。
+            if (d.section === 'templates') { settingsTemplatesSetInDoc(fresh, d.name, d.value); continue }
             // 用队列里这一笔自带的键，不重算（#1012 后续修复的建议 2）：本会话若在排期与落盘之间跟丢了根，
             //   重算出来的键会换成会话目录那一条，文件里就长出同一工作区的第二条记录、根那条还是旧值。
             const key = d.key || viewFlagDocKeyOf(d.cwd)
@@ -104,6 +106,8 @@
           if (!d) continue
           // 界面偏好那一族照改动前的老办法兜底：整份三格写回旧键 dsws.listPrefs（由 store-prefs.js 管那把键）。
           if (d.section === 'ui') { saveListPrefsLegacy(); continue }
+          // 动作模板那一族照改动前的老办法兜底：整份写回旧键 dsws.templates（由 config.js 那一份管那把键）。
+          if (d.section === 'templates') { tplLegacyWriteAll(); continue }
           viewFlagLegacyWrite(d.cwd, d.name, d.value)
         }
         if (viewFlagState.retryLeft > 0) { viewFlagState.retryLeft -= 1; viewFlagScheduleWrite() }
@@ -126,6 +130,11 @@
         if (d.section === 'ui') {
           const uv = (snap && snap.ui && typeof snap.ui === 'object') ? snap.ui[d.name] : undefined
           return (typeof uv === 'string' && uv !== '') ? uv : d.value
+        }
+        // 动作模板那一格发出去的值就在 templates 节里（同一个格名）；文件那一份里没写进去时退回队列里的值。
+        if (d.section === 'templates') {
+          const tv = (snap && snap.templates && typeof snap.templates === 'object') ? snap.templates[d.name] : undefined
+          return (typeof tv === 'string' && tv !== '') ? tv : d.value
         }
         const key = d.key || viewFlagDocKeyOf(d.cwd)
         if (!key || !snap || !snap.workspaces || typeof snap.workspaces !== 'object') return d.value
@@ -194,6 +203,36 @@
         if (viewFlagState.timer) { try { clearTimeout(viewFlagState.timer) } catch (eC) {} }
         viewFlagState.timer = arm(viewFlagWriteNow, VIEW_FLAG_WRITE_DEBOUNCE_MS)
       } catch (e) {}
+    }
+    // 写一格，键由调用方点名（2026-10-12 复核 Q2）：调用方自己认得出工作区根时（views/SubworkspaceMark.js
+    //   的 subwsMarkRootOf 那一路），读写都按它手上这把根走 —— 内核那把「所选目录 → 工作区根」的表是快照
+    //   缓存，同一条目录的根变过时可能还留着旧条目，按目录算出来的键会落到另一条记录上（同一份状态读在一
+    //   把键、写在另一把键）。第四个参数是会话目录，只用来新建这条记录时从旧表种上另外那几格（横幅折叠那
+    //   一格按会话目录记，不传它就种不准）。返回值与 setViewFlag 同义：true ＝ 交给文件这条路了（可能还在
+    //   防抖窗口里没落盘），false ＝ 接不下（根是空串、文档问不到、是更高版本、形状对不上），调用方写旧表。
+    export const setViewFlagRoot = function (root, name, value, cwd) {
+      try {
+        const on = value === true
+        const key = String(root == null ? '' : root).trim()
+        if (!key) return false
+        settingsViewLoad()
+        const dir = String(cwd == null ? '' : cwd)
+        if (viewFlagState.status === 'loading') {
+          // 文档还在路上：先记下这一笔，队列里连键一起带着（settle 收口时按 d.key 落，不重算 —— 重算可能
+          //   换成会话目录那一条，文件里就长出同一工作区的第二条记录、根那条还是旧值）。
+          viewFlagState.deferred[viewFlagJournalKeyOf(key, name)] = { cwd: dir, name: name, value: on, key: key }
+          return true
+        }
+        if (viewFlagState.status !== 'ready') return false
+        if (!viewFlagSetInDoc(viewFlagState.doc, dir, key, name, on)) {
+          // 文档在手却写不进这一格（形状对不上）：记一行再交回调用方写旧表，别让用户那一下静默消失。
+          viewFlagLogDocFail()
+          return false
+        }
+        viewFlagState.journal[viewFlagJournalKeyOf(key, name)] = { cwd: dir, name: name, value: on, key: key }
+        viewFlagScheduleWrite()
+        return true
+      } catch (e) { return false }
     }
     // 写一格。返回值是给调用方看的两种意思：
     //   true ＝ 这一次交给本机设置文件这条路了（可能还在防抖窗口里没落盘），调用方不要再写旧表；

@@ -348,6 +348,10 @@ const KERNEL_MODULES = [
   //   与上面那一族共用同一个待写队列与同一份文档，所以标记必须排在 settingsViewWrite 之后；
   //   旧键 dsws.listPrefs 那一条留着当过渡，读写两头的分工见该文件开头的说明。
   { name: 'settingsUi', file: 'src/client/kernel/settings-ui.js' },
+  // #1012 第 4 步：11 条动作模板从 localStorage 的旧键 dsws.templates 搬到本机设置文件的 templates 节。
+  //   与上面那两族共用同一个待写队列与同一份文档，所以标记必须排在 settingsViewWrite 之后；
+  //   旧键那一条留着当过渡（读先看文件、写成功就不写旧键），读写两头与拼接次序的理由见该文件开头的说明。
+  { name: 'settingsTemplates', file: 'src/client/kernel/settings-templates.js' },
   { name: 'storeSwitch', file: 'src/client/kernel/store-switch.js' },
   { name: 'storeSnapshot', file: 'src/client/kernel/store-snapshot.js' },
   { name: 'storeDerived', file: 'src/client/kernel/store-derived.js' },

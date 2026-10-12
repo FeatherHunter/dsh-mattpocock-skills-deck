@@ -149,7 +149,7 @@ function listPrefsSlice() {
 function makeView(env) {
   const body = listPrefsSlice() + '\n' + noExport(readText(VIEW_STATE_REL)) + '\n' + noExport(readText(VIEW_REL)) + '\n' + noExport(readText(VIEW_WRITE_REL)) + '\n' + noExport(readText(UI_REL))
   const names = ['keyOf', 'wsKeyOf', 'shared', 'stores', 'emit', 'host', 'localStorage', 'log', 'dswsLogHash', 'timer', 'currentOs', 'workspaceRootByCwd']
-  const factory = compileFn(names, body + '\nreturn { viewFlagOf: viewFlagOf, setViewFlag: setViewFlag, viewFlagDocKeyOf: viewFlagDocKeyOf, viewFlagWriteKeyOf: viewFlagWriteKeyOf, settingsViewLoad: settingsViewLoad, viewFlagReadyNow: viewFlagReadyNow, viewFlagSubscribe: viewFlagSubscribe, setUiPref: setUiPref, saveUiPrefs: saveUiPrefs, listPrefs: listPrefs, saveListPrefs: saveListPrefs, saveListPrefsLegacy: saveListPrefsLegacy, LIST_PREFS_KEY: LIST_PREFS_KEY, VIEW_FLAG_WRITE_DEBOUNCE_MS: VIEW_FLAG_WRITE_DEBOUNCE_MS }')
+  const factory = compileFn(names, body + '\nreturn { viewFlagOf: viewFlagOf, viewFlagOfRoot: viewFlagOfRoot, setViewFlag: setViewFlag, setViewFlagRoot: setViewFlagRoot, viewFlagDocKeyOf: viewFlagDocKeyOf, viewFlagWriteKeyOf: viewFlagWriteKeyOf, settingsViewLoad: settingsViewLoad, viewFlagReadyNow: viewFlagReadyNow, viewFlagSubscribe: viewFlagSubscribe, setUiPref: setUiPref, saveUiPrefs: saveUiPrefs, listPrefs: listPrefs, saveListPrefs: saveListPrefs, saveListPrefsLegacy: saveListPrefsLegacy, LIST_PREFS_KEY: LIST_PREFS_KEY, VIEW_FLAG_WRITE_DEBOUNCE_MS: VIEW_FLAG_WRITE_DEBOUNCE_MS }')
   return factory.apply(null, names.map((n) => env[n]))
 }
 // ── 真件三：自动展开那三档判决（从 SubworkspaceMark.js 的真源里切出那个纯函数，不另写仿制品） ──
@@ -702,9 +702,11 @@ async function main() {
         try { const raw = window.localStorage.getItem('dsws.subwsAutoShown'); const m = raw ? JSON.parse(raw) : null; return !!(m && m[KEY_OF(ROOT_DIR)]) } catch (e) { return false }
       }
       const tipCalls = []
+      // 按根读写那一对（2026-10-12 复核 Q2 之后组件走的主路）的调用记录：这一组要量的是「组件把哪把根递下来」。
+      const rootCalls = []
       const Tip = function (props) { tipCalls.push(props || {}); return React.createElement('span', null, (props || {}).children) }
       const factory = compileFn(
-        ['keyOf', 'tr', 'Tip', 'host', 'React', 'h', 'localStorage', 'chainStep', 'viewFlagOf', 'viewFlagReadyNow', 'viewFlagSubscribe', 'setViewFlag', 'viewFlagWriteKeyOf'],
+        ['keyOf', 'tr', 'Tip', 'host', 'React', 'h', 'localStorage', 'chainStep', 'viewFlagOf', 'viewFlagReadyNow', 'viewFlagSubscribe', 'setViewFlag', 'viewFlagWriteKeyOf', 'viewFlagOfRoot', 'setViewFlagRoot'],
         MARK_SRC + '\nreturn SubworkspaceMark'
       )
       const Comp = factory(KEY_OF,
@@ -716,7 +718,19 @@ async function main() {
         // 这一片认不认得出本工作区的根：E/F 两档造的是「认不出」（写键为空），G/H 两档造的是「认得出，
         //   但认得的是另一个工作区根」（写键非空却指向别的根），其余档照常认得出本工作区这个根。
         (opts.kernelCantResolve === true) ? function () { return '' }
-          : (opts.kernelOtherRoot ? function () { return KEY_OF(opts.kernelOtherRoot) } : function () { return KEY_OF(ROOT_DIR) }))
+          : (opts.kernelOtherRoot ? function () { return KEY_OF(opts.kernelOtherRoot) } : function () { return KEY_OF(ROOT_DIR) }),
+        // 按根读：照真内核的语义答 —— 文件里这个根这一格有真假值才算答得出（known:true），否则 known:false。
+        //   替身里 k.doc 代表「文件里本工作区（ROOT_DIR）这条记录」，所以只有问的是这个根时才答得出。
+        function (root, name) {
+          rootCalls.push({ kind: 'read', root: root, name: name })
+          if (KEY_OF(root) === KEY_OF(ROOT_DIR) && k.doc && typeof k.doc[name] === 'boolean') return { known: true, value: k.doc[name] }
+          return { known: false, value: false }
+        },
+        // 按根写：记下组件递下来的那把根（这一组量的是键，不量落盘；落盘那一趟在第十七件事里用真件量）。
+        function (root, name, value, cwd) {
+          rootCalls.push({ kind: 'write', root: root, name: name, value: value, cwd: cwd })
+          return opts.rootWriteRefused === true ? false : true
+        })
       const container = window.document.createElement('div')
       window.document.body.appendChild(container)
       let root = null
@@ -733,7 +747,7 @@ async function main() {
       await settle(25)
       const after = opens()
       try { await act(async function () { root.unmount() }) } catch (e) {}
-      return { before: before, after: after }
+      return { before: before, after: after, rootCalls: rootCalls, tipCalls: tipCalls, legacyRaw: window.localStorage.getItem('dsws.subwsAutoShown') }
     }
     // A：回退现场 —— 设置文件里记着这个工作区已经自动展开过，而文档还没到手、旧键里没记过。
     //   修复前：挂载当场就按旧键弹一次（before 会是 1），文档到手也不收回，于是每进一次子目录会话白弹一次。
@@ -772,6 +786,27 @@ async function main() {
     const h = await drawMark({ kernelOtherRoot: 'D:\\other-ws' })
     check(h.before === 0 && h.after === 1,
       'H 认得的是别的根、旧键里也没记过时，文档到手后照弹一次（与 F 档同一口径）。', JSON.stringify(h))
+    // I：内核那把折算表指向别的根，而文件里明明记着本工作区这一格（2026-10-12 复核 Q2 的现场）。
+    //   主路（按根读）在这一档要赢：文件是唯一真源，问得出就不该退回旧表 —— 退回就等于每开一次窗白弹一次。
+    const i = await drawMark({ doc: { subwsMarkAutoShown: true }, kernelOtherRoot: 'D:\\other-ws' })
+    check(i.before === 0 && i.after === 0,
+      'I 文件里记过、内核认得的是别的根时，按组件手上那把根读得到这一格，一次都不弹（主路赢过内核那张缓存表）。', JSON.stringify(i))
+    check(i.rootCalls.some(function (c) { return c.kind === 'read' && c.root === ROOT_DIR }),
+      'I 组件问的是自己手上那把工作区根（不是会话目录，也不是内核那张表认得的别的根）。', JSON.stringify(i.rootCalls))
+    // J：同一档但文件里没这一格 —— 主路答「问不出」，退回旧表那一条路照旧兜住（旧键记过就不弹）。
+    const j = await drawMark({ legacyShown: true, kernelOtherRoot: 'D:\\other-ws' })
+    check(j.before === 0 && j.after === 0,
+      'J 文件里问不出这一格时退回旧表那一份：旧键记过就不弹（退回不等于干脆不弹了）。', JSON.stringify(j))
+    // K：写这一笔也按组件手上那把根（读写的键必须是同一把，不然同一份状态读在一把键、写在另一把键）。
+    const kk = await drawMark({ readyAtOnce: true })
+    check(kk.before === 1 && kk.after === 1, 'K 先照常自动展开一次（这一档要的是「收起」那一笔写在哪把键上）。', JSON.stringify({ before: kk.before, after: kk.after }))
+    const lastTip = kk.tipCalls.filter(function (c) { return typeof c.onVisibleChange === 'function' }).pop()
+    check(!!lastTip, 'K 浮层把「收起」这件事报出来（组件靠它记下这个工作区已经自动展开过）。')
+    if (lastTip) await act(async function () { lastTip.onVisibleChange(false) })
+    const w = kk.rootCalls.filter(function (c) { return c.kind === 'write' })[0]
+    check(!!w && w.root === ROOT_DIR && w.name === 'subwsMarkAutoShown' && w.value === true && w.cwd === SUB_DIR,
+      'K 收起那一笔记在组件手上这把工作区根上（与读口同一把键，不按会话目录另算一把）。', JSON.stringify(kk.rootCalls))
+    check(kk.legacyRaw === null, 'K 这一笔被新路接下之后，旧键一个字都没写（两处都写就是两份真相）。', String(kk.legacyRaw))
     console.log('    （说明）这一组用的是真 jsdom + 真 React，但内核那一片是符合契约的替身、宿主是替身；')
     console.log('    （说明）真机上那一趟（真宿主、真设置文件）仍由人工验证兜底，画法本身由 verify-666 的 E 组兜住。')
   }
@@ -1035,6 +1070,164 @@ async function main() {
     check(env.ls.getItem('dsws.listPrefs') === JSON.stringify({ sortKey: 'number', sortDir: 'asc', stateFilter: 'closed' }), '不接之后照改动前的老办法整份写回旧键（这一次的改动没有丢）。', env.ls.getItem('dsws.listPrefs'))
     await wait(env)
     check(fs.readFileSync(settingsPathIn(env.home), 'utf8').indexOf('version: 9') === 0, '高版本文件一个字节都没被改（不许拿读不懂的内容去覆盖）。')
+  }
+
+  // ── 第十六件事：界面偏好只交用户真动过的那几格（2026-10-12 复核 Q4 的必修） ──
+  //   老写法是「点一下就把内存里那三格整份交出去」。文档还在路上时，没被动过的那两格带的是旧表那一份
+  //   （这一刻内存还没被文件里那一份换过），文档一到手就把文件里另外两格较新的值顶掉并落盘 ——
+  //   用户在另一个窗口刚选好的排序会被静默改回默认。这里量三档：两窗口、点名提交、以及「文件里那一格
+  //   与旧表那一份恰好相等」不算动过（这一档原来是假绿：去掉实现里那一行守卫，门禁照样全绿）。
+  console.log('')
+  console.log('== 第十六件事：只把用户动过的那几格交给文件（没动过的格不许把文件里较新的值顶掉） ==')
+  {
+    // 两个窗口：窗口 A 早把排序选成 name/desc 并落进了文件；窗口 B 开窗那一刻（文档还在路上）点了一下筛选。
+    const cwd = 'D:\\ilife\\packages\\skill-calorie'
+    const oldPrefs = { sortKey: 'number', sortDir: 'asc', stateFilter: 'all' }
+    const box = {}
+    const env = makeEnv({
+      tag: 'uipref-two-window', cwd: cwd, localStorage: { 'dsws.listPrefs': JSON.stringify(oldPrefs) },
+      onCall: function (method) {
+        if (method === 'wf.getSettings' && !box.done) {
+          box.done = true
+          env.mod.listPrefs.stateFilter = 'mine'
+          // 列表面板点一下调的就是这个（saveListPrefs 是只管交出去、不回值的写口，见 store-prefs.js）。
+          env.mod.saveListPrefs('stateFilter')
+        }
+      },
+    })
+    const pre = await store.writeLocalSettings({ version: 1, ui: { stateFilter: '', sortKey: 'name', sortDir: 'desc', labelClicks: {} }, workspaces: {}, debug: { enabled: false, sampleRate: 1 }, templates: {} }, env.home, realIo)
+    check(pre && pre.ok === true, '先摆好窗口 A 写下的那一份（文件里排序是 name/desc）。', JSON.stringify(pre))
+    env.mod.settingsViewLoad()
+    await waitFor(async () => env.mod.viewFlagReadyNow() === true)
+    const landed = await waitFor(async () => { const d = await readDoc(env.home); return !!d && !!d.ui && d.ui.stateFilter === 'mine' })
+    const doc = await readDoc(env.home)
+    check(box.done === true, '窗口 B 是在文档还在路上的那一刻点的（这一档才量得到交错）。')
+    check(landed, '窗口 B 点的那一格真的落进了文件。', JSON.stringify(doc && doc.ui))
+    check(!!doc && doc.ui.sortKey === 'name' && doc.ui.sortDir === 'desc',
+      '文件里窗口 A 选的另外两格没被顶掉（没动过的格不许跟着一起提交）。', JSON.stringify(doc && doc.ui))
+    check(env.ls.getItem('dsws.listPrefs') === JSON.stringify(oldPrefs), '这一趟同样不写旧键。', env.ls.getItem('dsws.listPrefs'))
+  }
+  {
+    // 点名提交：传哪几格就只交哪几格（列表面板点一下排序一次改两格，见 views/ListTab.js）。
+    const cwd = 'D:\\ilife\\packages\\skill-calorie'
+    const oldPrefs = { sortKey: 'number', sortDir: 'asc', stateFilter: 'all' }
+    const env = makeEnv({ tag: 'uipref-named', cwd: cwd, localStorage: { 'dsws.listPrefs': JSON.stringify(oldPrefs) } })
+    const pre = await store.writeLocalSettings({ version: 1, ui: { stateFilter: 'blocked', sortKey: 'name', sortDir: 'desc', labelClicks: {} }, workspaces: {}, debug: { enabled: false, sampleRate: 1 }, templates: {} }, env.home, realIo)
+    check(pre && pre.ok === true, '先摆一份文件（筛选 blocked、排序 name/desc）。')
+    env.mod.settingsViewLoad()
+    await waitFor(async () => env.mod.viewFlagReadyNow() === true)
+    env.mod.listPrefs.sortKey = 'title'
+    env.mod.listPrefs.sortDir = 'asc'
+    // saveListPrefs 不回值（只管把这一趟交出去，与改动前一致），所以这里量的是后果：两格都落进了文件。
+    env.mod.saveListPrefs(['sortKey', 'sortDir'])
+    const landed = await waitFor(async () => { const d = await readDoc(env.home); return !!d && !!d.ui && d.ui.sortKey === 'title' && d.ui.sortDir === 'asc' })
+    const doc = await readDoc(env.home)
+    check(landed, '这两格落进了文件。', JSON.stringify(doc && doc.ui))
+    check(!!doc && doc.ui.stateFilter === 'blocked', '没点名的那一格保持文件里那一份（点名提交不牵连别的格）。', JSON.stringify(doc && doc.ui))
+  }
+  {
+    // 文档还在路上时点了「当前就选着的那一格」（值恰好与旧表那一份相同）：也要交出去 —— 用户点过就以
+    //   用户那一下为准。这一档同时把「格名真的传到了」钉住：若 saveListPrefs 把格名丢掉（退回按记账推），
+    //   这一格会因为「与上次确认过的值相同」不被提交，文件里另一个窗口写的 blocked 就把用户点的那一下顶掉。
+    const cwd = 'D:\\ilife\\packages\\skill-calorie'
+    const oldPrefs = { sortKey: 'number', sortDir: 'asc', stateFilter: 'all' }
+    const box = {}
+    const env = makeEnv({
+      tag: 'uipref-named-same', cwd: cwd, localStorage: { 'dsws.listPrefs': JSON.stringify(oldPrefs) },
+      onCall: function (method) {
+        if (method === 'wf.getSettings' && !box.done) { box.done = true; env.mod.saveListPrefs('stateFilter') }
+      },
+    })
+    const pre = await store.writeLocalSettings({ version: 1, ui: { stateFilter: 'blocked', sortKey: '', sortDir: '', labelClicks: {} }, workspaces: {}, debug: { enabled: false, sampleRate: 1 }, templates: {} }, env.home, realIo)
+    check(pre && pre.ok === true, '先摆一份文件：文件里筛选是 blocked，旧表（界面此刻显示的）是 all。')
+    env.mod.settingsViewLoad()
+    await waitFor(async () => env.mod.viewFlagReadyNow() === true)
+    check(box.done === true, '这一档真的是在文档还在路上的那一刻点的（不然量不到「格名传没传到」这件事）。')
+    const landed = await waitFor(async () => { const d = await readDoc(env.home); return !!d && !!d.ui && d.ui.stateFilter === 'all' })
+    const doc = await readDoc(env.home)
+    check(landed, '用户点的那一格赢了：文件里那一格改成用户点的值（点过就算数，不因为与旧表相同被当成没动过）。', JSON.stringify(doc && doc.ui))
+  }
+  {
+    // 文件里那一格与旧表那一份恰好相等：不算「用户动过」，不重画。这一档原来在门禁下没有任何断言把守
+    //   （去掉实现里那一行守卫门禁照样全绿，复核点名的假绿），所以这里钉住「只重画一次」这个可观测后果。
+    const cwd = 'D:\\ilife\\packages\\skill-calorie'
+    const oldPrefs = { sortKey: 'number', sortDir: 'asc', stateFilter: 'all' }
+    const env = makeEnv({ tag: 'uipref-equal', cwd: cwd, localStorage: { 'dsws.listPrefs': JSON.stringify(oldPrefs) } })
+    const pre = await store.writeLocalSettings({ version: 1, ui: { stateFilter: 'all', sortKey: 'number', sortDir: 'asc', labelClicks: {} }, workspaces: {}, debug: { enabled: false, sampleRate: 1 }, templates: {} }, env.home, realIo)
+    check(pre && pre.ok === true, '先摆一份文件：三格与旧表那一份逐格相同。')
+    env.mod.settingsViewLoad()
+    await waitFor(async () => env.mod.viewFlagReadyNow() === true)
+    check(env.shared.tick === 1 && env.st.tick === 1, '文件里那一份与旧表逐格相同时不重画（只算「问话收口」那一次，搬那一趟不出第二次）。', JSON.stringify({ shared: env.shared.tick, st: env.st.tick }))
+  }
+
+  // ── 第十七件事：按工作区根读一格、按工作区根写一格（2026-10-12 复核 Q2 的必修） ──
+  //   组件自己认得出根时（SubworkspaceMark.js 的 subwsMarkRootOf 那一路），读写都按它手上这把根走。为什么
+  //   必须这样：内核那把「所选目录 → 工作区根」的表是快照缓存，同一条目录的根变过时它可能还留着旧条目 ——
+  //   按会话目录算键会落到另一条记录上，于是同一份状态读在一把键、写在另一把键：文件里明明记过却判成问不出
+  //   （每开一次窗白弹一次浮层），或者写出一条谁也读不回来的记录。
+  console.log('')
+  console.log('== 第十七件事：按根读一格、按根写一格（读写同一把键） ==')
+  {
+    const cwd = 'D:\\ilife\\packages\\skill-calorie'
+    const env = makeEnv({ tag: 'root-read', cwd: cwd })
+    const pre = await store.writeLocalSettings({ version: 1, ui: { stateFilter: '', sortKey: '', sortDir: '', labelClicks: {} }, workspaces: { 'D:\\ilife': { bannerFolded: false, subwsMarkAutoShown: true } }, debug: { enabled: false, sampleRate: 1 }, templates: {} }, env.home, realIo)
+    check(pre && pre.ok === true, '先摆一份文件：本工作区这条记录里「自动展开过」是 true。', JSON.stringify(pre))
+    env.mod.settingsViewLoad()
+    await waitFor(async () => env.mod.viewFlagReadyNow() === true)
+    const hit = env.mod.viewFlagOfRoot('D:\\ilife', 'subwsMarkAutoShown')
+    check(!!hit && hit.known === true && hit.value === true,
+      '按根读得到这一格：known 说文件里查得到、value 是文件里那一份（文件是唯一真源）。', JSON.stringify(hit))
+    const spelled = env.mod.viewFlagOfRoot('d:/ILIFE/', 'subwsMarkAutoShown')
+    check(!!spelled && spelled.known === true && spelled.value === true,
+      '文件里那条记录的写法与手上这把根不同也算同一条记录（折算之后再比）。', JSON.stringify(spelled))
+    const other = env.mod.viewFlagOfRoot('D:\\elsewhere', 'subwsMarkAutoShown')
+    check(!!other && other.known === false,
+      '文件里没有这条记录时 known 是 false（调用方据此退回旧表那一份，不猜）。', JSON.stringify(other))
+    const missing = env.mod.viewFlagOfRoot('D:\\ilife', 'subwsMarkAutoShown2')
+    check(!!missing && missing.known === false,
+      '这条记录里没有这一格时也算问不出（不是拿别的格凑一个答案）。', JSON.stringify(missing))
+    check(env.mod.viewFlagOf('D:\\ilife\\packages\\skill-calorie', 'subwsMarkAutoShown') === true,
+      '按所选目录那条老口子照旧回布尔（它内部先按认出来的根问，问不出才回退旧键）。', String(env.mod.viewFlagOf('D:\\ilife\\packages\\skill-calorie', 'subwsMarkAutoShown')))
+  }
+  {
+    // 形状对不上：文件里这一格不是真假值（更高版本插件写的、或人手工改坏了）时算「问不出」，交回调用方退旧表。
+    const crafted = { version: 1, ui: { stateFilter: '', sortKey: '', sortDir: '', labelClicks: {} }, workspaces: { 'D:\\ilife': { subwsMarkAutoShown: 'yes' } }, debug: { enabled: false, sampleRate: 1 }, templates: {} }
+    const mod = makeView({
+      keyOf: KEY_OF, wsKeyOf: function (c) { return KEY_OF(c) }, workspaceRootByCwd: {},
+      shared: { cwd: '', subs: [], tick: 0 }, stores: {}, emit: function () {},
+      host: { call: function () { return Promise.resolve({ ok: true, value: crafted }) } },
+      localStorage: makeLocalStorage({}), log: function () {}, dswsLogHash: function () { return 'h' },
+      timer: undefined, currentOs: CURRENT_OS,
+    })
+    mod.settingsViewLoad()
+    await waitFor(async () => mod.viewFlagReadyNow() === true)
+    const shaped = mod.viewFlagOfRoot('D:\\ilife', 'subwsMarkAutoShown')
+    check(!!shaped && shaped.known === false,
+      '这一格在文件里不是真假值时算问不出（形状对不上不猜，交回调用方退旧表）。', JSON.stringify(shaped))
+  }
+  {
+    // 写这一侧：文档还在路上时按根写一笔 —— 队列里连键一起带着，文档到手后落在同一把键上，不按会话目录另算。
+    const cwd = 'D:\\ilife\\packages\\skill-calorie'
+    const env = makeEnv({ tag: 'root-write', cwd: cwd })
+    check(env.mod.setViewFlagRoot('D:\\other-ws', 'subwsMarkAutoShown', true, cwd) === true,
+      '文档还在路上时按根写一笔：先接下来（这一笔记着，等文档到手再并进去）。')
+    const landed = await waitFor(async () => { const d = await readDoc(env.home); return !!d && !!d.workspaces['D:\\other-ws'] && d.workspaces['D:\\other-ws'].subwsMarkAutoShown === true })
+    const doc = await readDoc(env.home)
+    check(landed, '这一笔落在调用方点名的那把根上（不按会话目录另算一把）。', JSON.stringify(doc && doc.workspaces))
+    check(!doc || !doc.workspaces['D:\\ilife'] || doc.workspaces['D:\\ilife'].subwsMarkAutoShown !== true,
+      '没有顺手在会话目录那条记录上再写一笔（同一份状态只落一把键）。', JSON.stringify(doc && doc.workspaces))
+    const readBack = env.mod.viewFlagOfRoot('D:\\other-ws', 'subwsMarkAutoShown')
+    check(!!readBack && readBack.known === true && readBack.value === true,
+      '写进去的那一条按根读得回来（读写同一把键，这是这一档真正要钉住的东西）。', JSON.stringify(readBack))
+    check(env.ls.getItem('dsws.subwsAutoShown') === null, '写成功之后旧键一个字都没写。', JSON.stringify(env.ls.dump()))
+  }
+  {
+    // 根是空串（组件这一刻认不出工作区根）：一个字都不许写文件，交回调用方写旧表（与 setViewFlag 同一口径）。
+    const env = makeEnv({ tag: 'root-empty', cwd: 'D:\\ilife\\packages\\skill-calorie' })
+    check(env.mod.setViewFlagRoot('', 'subwsMarkAutoShown', true, 'D:\\ilife\\packages\\skill-calorie') === false,
+      '根是空串时不接这一笔（返回 false，调用方按老办法写旧表）。')
+    await wait(env)
+    check(await readDoc(env.home) === null, '这一档一个字都没写文件（会话目录当键写下去会留下读不回来的孤儿记录）。')
   }
 
   // ── 标签点击次数不落盘（#1012 · 维护者 2026-10-12 拍板）──────────────────────────

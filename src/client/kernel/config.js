@@ -28,6 +28,9 @@
     // #519 落地 A：配置页模板编辑入口已删，只删人改入口。已存模板值按“忽略旧模板”处理：
     // 读取仍合并旧键（旧自定义值继续对行级快捷按钮生效），设置页不再调用 saveTemplates 覆盖，
     // 动手前备份即本地存档原文不动，回滚写回即恢复本提交前的设置页写入口。
+    // #1012 第 4 步：模板的新家是本机设置文件的 templates 节（读与写的分工见
+    //   kernel/settings-templates.js 文件头）。下面这个 templates 对象从此是「旧键那一份与文件那一份的
+    //   合体」：模块加载时它是旧键那一份的快照，文档到手那一刻文件里非空的格搬进来（文件赢）。
     export const templates = (function () {
       const d = { diagnose: '', fix: '', discuss: '', research: '', prototype: '', takeover: '', supplement: '', execute: '', handoff1: '', handoff2: '', fixate: '' }
       try {
@@ -36,8 +39,39 @@
       } catch (e) { try { log('warn', 'storage.fail', { key: TPL_KEY, op: 'read' }) } catch (eL) {} }
       return d
     })()
-    export const saveTemplates = function () { try { localStorage.setItem(TPL_KEY, JSON.stringify(templates)) } catch (e) { try { log('warn', 'storage.fail', { key: TPL_KEY, op: 'write' }) } catch (eL) {} } }
-    // 迁移：旧 dsws.startCfg（{withWayfinder, custom}）→ cfg.withWayfinder + templates.execute，成功后清旧 key
+    // 整份写回旧键：只有设置文件那条路接不下时才走（文件问不到、是更高版本、或拼接次序上那一族还没就绪）。
+    //   为什么单留一个函数而不复用 saveTemplates：saveTemplates 这个名字在接口冻结清单
+    //   docs/architecture/kernel-contract.md 里有它，它已经改成走设置文件那条路；兜底再调它就会绕回新路自己。
+    //   写旧键自己失败时补一行 storage.fail（既有事件名，字段只有 key 与 op 两个，与全库其余位置一致），
+    //   不再一口吞掉：兜不住这件事要能在日志里看见，不然排查时只剩「用户改过、什么都没剩下」。
+    const tplLegacyWriteAll = function () {
+      try { localStorage.setItem(TPL_KEY, JSON.stringify(templates)); return true }
+      catch (e) { try { log('warn', 'storage.fail', { key: TPL_KEY, op: 'write' }) } catch (eL) {} ; return false }
+    }
+    // 「整份模板交给设置文件」这件事的接手人：kernel/settings-templates.js 在自己末尾装上它（拼接次序上那一片
+    //   排在本片之后，加载这一刻它还没执行完，const 还在暂时性死区里，本片不能直接调它）。装上之前为 null，
+    //   saveTemplates 会照老办法整份写旧键。
+    let tplSaveAllToSettings = null
+    // 旧存档 dsws.startCfg 里那一笔 custom 的待办：见下面 migrateStartCfg 与 settings-templates.js 末尾那段。
+    let tplMigratePending = false
+    // 把整份模板交给设置文件那条路：与文件不同的每一格交给同一个待写队列（逐格判法与理由见
+    //   kernel/settings-templates.js 的 settingsTemplatesSaveAll）。返回值是给调用方看的两种意思：
+    //   true ＝ 交给新路了（可能还在防抖窗口里没落盘），调用方不要再写旧键；
+    //   false ＝ 新路接不下，本函数照旧办法整份写回旧键兜底（写失败只记一行 storage.fail，不静默吞）。
+    export const saveTemplates = function () {
+      let took = false
+      try { if (typeof tplSaveAllToSettings === 'function') took = (tplSaveAllToSettings() === true) } catch (e) { took = false }
+      if (took) return true
+      tplLegacyWriteAll()
+      return false
+    }
+    // 迁移：旧 dsws.startCfg（{withWayfinder, custom}）→ cfg.withWayfinder + 设置文件 templates 节的 execute，
+    //   成功后清旧 key（失败保留，下次再试）。
+    //   模板那一笔的落点是设置文件，不是旧键：本片在拼接次序上排在设置文件那一族之前，加载这一刻那一片还没
+    //   执行完（直接调它会撞上暂时性死区当场抛错），所以这里只把值写进内存（templates.execute）并留下待办
+    //   （tplMigratePending），由 kernel/settings-templates.js 末尾接上以后立刻补写这一趟 —— 文档那一刻多半
+    //   还在路上，这一笔正好进待写队列。旧 key dsws.startCfg 的删除不依赖这下半趟是否落盘：与改动前一样，
+    //   只要求上面这一次读与解析没有抛错（写旧存档本身当时也是吞错的）。
     export const migrateStartCfg = function () {
       try {
         const raw = localStorage.getItem('dsws.startCfg')
@@ -45,8 +79,8 @@
         const old = JSON.parse(raw)
         if (old && typeof old === 'object') {
           if (typeof old.withWayfinder === 'boolean') cfg.withWayfinder = old.withWayfinder
-          if (typeof old.custom === 'string' && old.custom) templates.execute = old.custom
-          saveCfg(); saveTemplates()
+          if (typeof old.custom === 'string' && old.custom) { templates.execute = old.custom; tplMigratePending = true }
+          saveCfg()
         }
         localStorage.removeItem('dsws.startCfg')
       } catch (e) { /* 迁移失败保留旧 key，下次再试 */ }

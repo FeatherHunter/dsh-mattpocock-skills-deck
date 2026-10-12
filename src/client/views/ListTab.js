@@ -290,7 +290,7 @@ export     const ListTab = ({ st, narrow }) => {
           ['all', 'open', 'closed', 'blocked', 'frontier'].map(function (k) {
             const on = st.stateFilter === k
             return h('span', chipProps({ key: 'stf-' + k, className: 'dsws-chip', onClick: function (e) {
-              e.stopPropagation(); st.stateFilter = k; listPrefs.stateFilter = k; saveListPrefs(); emit(st)
+              e.stopPropagation(); st.stateFilter = k; listPrefs.stateFilter = k; saveListPrefs('stateFilter'); emit(st)
             }, style: { cursor: 'pointer', marginRight: 4, marginBottom: 3, fontSize: 10, background: on ? 'rgba(188,140,255,.18)' : 'rgba(255,255,255,.06)', color: on ? '#c084fc' : 'var(--dsw-alias-label-secondary,#a1a1aa)', border: '1px solid ' + (on ? 'rgba(188,140,255,.6)' : 'rgba(255,255,255,.15)') } }), tr('list.state.' + k))
           }),
           h('span', { style: { width: 1, height: 12, background: 'var(--dsw-alias-border-l1,#2a2d35)', margin: '0 4px 3px', flex: 'none' } }),
@@ -301,7 +301,9 @@ export     const ListTab = ({ st, narrow }) => {
               e.stopPropagation()
               if (st.sortKey === k) { st.sortDir = st.sortDir === 'asc' ? 'desc' : 'asc' }
               else { st.sortKey = k; st.sortDir = (k === 'title') ? 'asc' : 'desc' }
-              listPrefs.sortKey = st.sortKey; listPrefs.sortDir = st.sortDir; saveListPrefs(); emit(st)
+              // 点一下排序同时改两格（排序键与方向），所以两格一起点名交出去；别的格不许跟着提交
+              //   （理由见 kernel/store-prefs.js 的 saveListPrefs：文档还在路上时，没动过的格会把文件里较新的值顶掉）。
+              listPrefs.sortKey = st.sortKey; listPrefs.sortDir = st.sortDir; saveListPrefs(['sortKey', 'sortDir']); emit(st)
             }, style: { cursor: 'pointer', marginRight: 4, marginBottom: 3, fontSize: 10, background: on ? 'rgba(88,166,255,.16)' : 'rgba(255,255,255,.06)', color: on ? '#58a6ff' : 'var(--dsw-alias-label-secondary,#a1a1aa)', border: '1px solid ' + (on ? 'rgba(88,166,255,.55)' : 'rgba(255,255,255,.15)') } }), tr('list.sort.' + k) + arrow)
           }),
           h('span', { style: { width: 1, height: 12, background: 'var(--dsw-alias-border-l1,#2a2d35)', margin: '0 4px 3px', flex: 'none' } }),

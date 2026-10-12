@@ -269,7 +269,9 @@
           // 界面偏好那一族（kernel/settings-ui.js）在队列里没有工作区路径，交给它自己收口；按下面那条路
           //   处理会拿 undefined 当工作区根，往旧键里写出一条谁也读不回来的记录。
           if (d.section === 'ui') { settingsUiDrainDeferred(d, status); continue }
-          const key = (status === 'ready') ? viewFlagWriteKeyOf(d.cwd) : ''
+          // 动作模板那一族（kernel/settings-templates.js）同 ui：队列里没有工作区路径，由它自己收口。
+          if (d.section === 'templates') { settingsTemplatesDrainDeferred(d, status); continue }
+          const key = (status === 'ready') ? (d.key || viewFlagWriteKeyOf(d.cwd)) : ''
           if (key && viewFlagSetInDoc(viewFlagState.doc, d.cwd, key, d.name, d.value)) {
             viewFlagState.journal[viewFlagJournalKeyOf(key, d.name)] = { cwd: d.cwd, name: d.name, value: d.value, key: key }
             continue
@@ -321,19 +323,27 @@
         }, function () { viewFlagSettle('unavailable') })
       } catch (e) { viewFlagSettle('unavailable') }
     }
-    // 读一格：先看内存文档里这个工作区这一格（查到就回布尔，文档里已经有这一条就以它为准）；
-    //   文档缺席、读失败、手机不通、或文档里还没有这一条时，回退读旧 localStorage 键。
-    //   注意这一档的兜底同样兜不住「文件里已经有这个工作区的记录」那种情形（见文件头那段）。
-    export const viewFlagOf = function (cwd, name) {
+    // 按调用方手上那个工作区根读一格（2026-10-12 复核 Q2）：返回 { known, value }。known=true ＝ 文件里查得到
+    //   这个工作区这一条记录、且这一格是真假值（以文件为准）；known=false ＝ 问不出（还没写过、读失败、更高
+    //   版本、形状对不上），调用方退回旧表那一份。为什么要按根读：本组件自己认得出根（subwsMarkRootOf），
+    //   而内核那把「所选目录 → 工作区根」的表是快照缓存，同一条目录的根变过时可能还留着旧条目 —— 按会话
+    //   目录读会落到另一把键上，文件里明明记过却判成问不出，用户每开一次窗就白弹一次浮层（比搬迁前差）。
+    export const viewFlagOfRoot = function (root, name) {
       try {
         settingsViewLoad()
-        const key = viewFlagDocKeyOf(cwd)
-        if (key && viewFlagState.doc) {
-          const hit = viewFlagEntryKeyOf(viewFlagState.doc, key)
-          const entry = hit ? viewFlagState.doc.workspaces[hit] : null
-          // 只认真正的真假值：形状对不上（例如更高版本插件写的文件）时当「文档答不出」，回旧表兜底，不猜。
-          if (entry && typeof entry === 'object' && typeof entry[name] === 'boolean') return entry[name]
-        }
+        const key = String(root == null ? '' : root).trim()
+        const hit = (key && viewFlagState.doc) ? viewFlagEntryKeyOf(viewFlagState.doc, key) : ''
+        const entry = hit ? viewFlagState.doc.workspaces[hit] : null
+        if (entry && typeof entry === 'object' && typeof entry[name] === 'boolean') return { known: true, value: entry[name] }
+      } catch (e) {}
+      return { known: false, value: false }
+    }
+    // 按所选目录那条路读一格：先按认出来的根问上面那个口子，问不出才回退旧 localStorage 键（这一手兜不住
+    //   「文件里已经有这个工作区的记录」那种情形，见文件头那段）。
+    export const viewFlagOf = function (cwd, name) {
+      try {
+        const ans = viewFlagOfRoot(viewFlagDocKeyOf(cwd), name)
+        if (ans.known) return ans.value
         return viewFlagLegacyRead(cwd, name)
       } catch (e) { return false }
     }

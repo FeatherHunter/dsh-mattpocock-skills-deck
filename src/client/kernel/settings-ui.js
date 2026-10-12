@@ -33,6 +33,10 @@
     const UI_PREF_NAMES = ['stateFilter', 'sortKey', 'sortDir']
     // 文件里那一份搬进内存这件事只做一次（一次问话只有一个终点，做完就放下，后续以内存这一份为准）。
     let uiPrefAdopted = false
+    // 「上一次我们确认过的这一格是什么」—— 只用来在提交时判断用户到底动过哪几格（见 saveUiPrefs）。
+    //   起点是旧表那一份：文档还没到手时旧表就是唯一知道的真相；文档到手搬完之后内存这一份就是真相，
+    //   跟着更新；每交出去一笔也跟着更新。它记的是「上次确认过的值」，不是「文件里现在是什么」。
+    const uiPrefKnown = { stateFilter: listPrefs.stateFilter, sortKey: listPrefs.sortKey, sortDir: listPrefs.sortDir }
     // 队列里 ui 那几笔的记号：见文件头第一条（工作区路径里不可能出现 \u0000，所以两族不会撞）。
     const settingsUiJournalKeyOf = function (name) { return '\u0000ui\u0000' + name }
     // 把一格界面偏好改进内存文档的 ui 节：别的节与别的格一律不动；ui 节缺失或形状不对就新建一份空的。
@@ -99,6 +103,8 @@
           listPrefs[name] = v
           changed = true
         }
+        // 搬完之后内存这一份就是真相：记账跟着改成内存这一份，后面提交时才判得准「用户动过哪几格」。
+        for (let i = 0; i < UI_PREF_NAMES.length; i++) uiPrefKnown[UI_PREF_NAMES[i]] = listPrefs[UI_PREF_NAMES[i]]
         if (changed) viewFlagEmitAll()
       } catch (e) {}
     }
@@ -117,6 +123,7 @@
           // 文档还在路上：先记下这一笔，等它落地再并进文档（此刻先写旧键的话，文档一到手就会拿文件里的
           //   旧值把「刚点的那一下」顶掉，用户会看见列表自己跳回上一次的顺序）。
           viewFlagState.deferred[settingsUiJournalKeyOf(name)] = { section: 'ui', name: name, value: v }
+          uiPrefKnown[name] = v
           return true
         }
         if (viewFlagState.status !== 'ready') return false
@@ -126,18 +133,36 @@
           return false
         }
         viewFlagState.journal[settingsUiJournalKeyOf(name)] = { section: 'ui', name: name, value: v }
+        uiPrefKnown[name] = v
         viewFlagScheduleWrite()
         return true
       } catch (e) { return false }
     }
-    // 把当前这三格整体交给文件（列表面板点一下筛选或排序时调的就是这里，见 views/ListTab.js）。
-    //   三格里只要有一格接不下就返回 false，让调用方照改动前的老办法整份写回旧键 —— 不写两份互相打架的
-    //   真相，也不半途而废（三格里写进去一格、剩下两格还在旧键上，下次启动就会一半新一半旧）。
-    export const saveUiPrefs = function () {
+    // 这一趟要交出去哪几格。调用方点名的优先（列表面板点一下改的就是它写的那几格，见 views/ListTab.js：
+    //   点筛选改 stateFilter，点排序一次改 sortKey 与 sortDir 两格）；没点名时按「与上次确认过的值不同」推。
+    //   为什么绝不能整份三格都交：文档还在路上时，没被动过的那两格带的是旧表那一份（这一刻内存还没被文件里
+    //   那一份换过），文档一到手就会把文件里另外两格较新的值顶掉并落盘 —— 用户在另一个窗口刚选好的排序
+    //   会被静默改回默认（2026-10-12 复核 Q4 用两个窗口复现：窗口 A 选 name/desc，窗口 B 开窗那一刻点筛选，
+    //   文件里的 sortKey 被写成 number）。没点名的调用方按记账推，同样只交动过的格。
+    const settingsUiNamesToSubmit = function (changed) {
+      const want = (changed == null) ? null : (Array.isArray(changed) ? changed : [changed])
+      const out = []
+      for (let i = 0; i < UI_PREF_NAMES.length; i++) {
+        const name = UI_PREF_NAMES[i]
+        if (want) { if (want.indexOf(name) >= 0) out.push(name) }
+        else if (listPrefs[name] !== uiPrefKnown[name]) out.push(name)
+      }
+      return out
+    }
+    // 把用户动过的那几格交给文件（列表面板点一下筛选或排序时调的就是这里，见 views/ListTab.js）。
+    //   只要有一格接不下就返回 false，让调用方照改动前的老办法写回旧键 —— 不写两份互相打架的真相。
+    //   传参 changed 可以是格名或格名数组；不传时按记账推（见上面那个函数）。
+    export const saveUiPrefs = function (changed) {
       try {
         settingsViewLoad()
-        for (let i = 0; i < UI_PREF_NAMES.length; i++) {
-          if (!setUiPref(UI_PREF_NAMES[i], listPrefs[UI_PREF_NAMES[i]])) return false
+        const names = settingsUiNamesToSubmit(changed)
+        for (let i = 0; i < names.length; i++) {
+          if (!setUiPref(names[i], listPrefs[names[i]])) return false
         }
         return true
       } catch (e) { return false }

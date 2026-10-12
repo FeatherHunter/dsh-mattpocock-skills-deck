@@ -142,10 +142,10 @@ export const subwsMarkAutoDecide = function (ready, shownBefore) {
   return (shownBefore === true) ? 'skip' : 'open'
 }
 // 「这个工作区以前自动展开过没有」这道判断的纯函数形态（门禁从真源里切出来验，见 tests/verify-settings-view.js）：
-//   设置视图答得出这一格（认得出这个工作区的根，或文档里查得到这一条）就以它为准 —— 搬进文件之后它是唯一真源；
-//   它答不出（认不出根：本目录所有会话都没报过根、折算表里也没有）时才看旧表那一份。旧表按工作区根记，
-//   而本组件自己认得出根（subwsMarkRootOf 那一路），迁移前正是靠旧表判的；不这么退一步，这个工作区
-//   就会在每次挂载时白弹一次浮层 —— 与 #650 承诺的「同一个工作区只自动展开一次」正好相反。
+//   设置视图答得出这一格（文件里查得到这个工作区这一条记录，或按会话目录认得出的根那一格）就以它为准 ——
+//   搬进文件之后它是唯一真源；它答不出（认不出根、文档读失败、文件是更高版本）时才看旧表那一份。旧表按
+//   工作区根记，而本组件自己认得出根（subwsMarkRootOf 那一路），迁移前正是靠旧表判的；不这么退一步，
+//   这个工作区就会在每次挂载时白弹一次浮层 —— 与 #650 承诺的「同一个工作区只自动展开一次」正好相反。
 export const subwsMarkShownBefore = function (docAnswer, docCanAnswer, legacyShown) {
   if (docCanAnswer === true) return docAnswer === true
   return legacyShown === true
@@ -195,14 +195,21 @@ export const SubworkspaceMark = function (props) {
     let docAnswer = false
     let docCanAnswer = false
     try {
-      if (typeof viewFlagOf === 'function') {
+      if (typeof viewFlagOfRoot === 'function') {
+        // 按本组件手上这个根读（2026-10-12 复核 Q2）：这一格的状态是「按工作区记」的，而内核那把
+        //   「所选目录 → 工作区根」的表是快照缓存，同一条目录的根变过时它可能还留着旧条目 —— 视图认出的
+        //   就是另一个根，于是同一份记录读在一把键上、写在另一把键上：文件里明明记过，判据却认为
+        //   「问不出这一格」，退回空的旧表，用户每开一次窗就白弹一次（搬迁前只弹一次，这是比搬迁前差）。
+        //   本组件自己认得出根（subwsMarkRootOf 那一路），读写都按这把根走，两边就是同一把键。
+        //   known 的含义：文件里查得到这个工作区这一条记录 —— 查得到就以它为准（文件是唯一真源）；
+        //   查不到（文件还没建、这一条还没写过、读失败、更高版本）才退回旧表那一份。
+        const ans = viewFlagOfRoot(root, 'subwsMarkAutoShown')
+        docAnswer = !!(ans && ans.value === true)
+        docCanAnswer = !!(ans && ans.known === true)
+      } else if (typeof viewFlagOf === 'function') {
+        // 老产物（或渲染替身）没有按根读的口子：退回原来的会话目录路，判据仍要求「视图认出的根与本组件
+        //   手上这个根是同一条目录」；两边认的不是同一个根就退回旧表那一份。
         docAnswer = viewFlagOf(cwd, 'subwsMarkAutoShown') === true
-        // 「它答得出这一格吗」＝ 它认出的那个根与本组件手上这个根是同一条目录。只问「认不认得出根」不够
-        //   （2026-10-12 复核 Q2 量出来的窄反例）：内核那张「所选目录 → 工作区根」的表是快照缓存，同一个
-        //   目录的工作区根变过时它可能还留着旧条目，视图认出的就是另一个根 —— 那时它答的是别的根那一格
-        //   （多半是「没记过」），而本组件自己那把旧键里明明记过，判决就从「不弹」翻成「弹」，这个工作区
-        //   又白弹一次。两边认的不是同一个根，就退回旧表那一份（旧表按工作区根记，本组件自己认得出根）。
-        //   比之前两边都过 subwsMarkCmpKey 折算：写键有时是根路径原文、有时是折算过的键，写法不同也算同一条。
         docCanAnswer = (typeof viewFlagWriteKeyOf === 'function')
           ? (subwsMarkCmpKey(viewFlagWriteKeyOf(cwd)) === subwsMarkCmpKey(root))
           : true
@@ -241,11 +248,16 @@ export const SubworkspaceMark = function (props) {
     } catch (e) {}
   }, [isSub, root, flagTick])
   const markAutoShown = function () {
-    // 交给新模块写：它接下了就不再写旧键（写成功那条路上一个字都不写旧键）；
-    // 它接不下（还没认出工作区根、文档问不到、文件只读）或不在时，才照老办法写旧键 ——
-    // 与搬迁前的行为一致，只是这一次暂时不落新家。
+    // 交给新模块写，而且按本组件手上这个根写（与上面读的那把键同一把，见 autoShownBefore 的说明）：
+    // 它接下了就不再写旧键（写成功那条路上一个字都不写旧键）；它接不下（还没认出工作区根、文档问不到、
+    // 文件只读）或不在时，才照老办法写旧键 —— 与搬迁前的行为一致，只是这一次暂时不落新家。
+    // 第四个参数是会话目录，只用来在文件里新建这条记录时从旧表种上另外那几格（见 kernel/settings-view.js
+    // 的 viewFlagSetInDoc）：横幅折叠那一格按会话目录记，不传它就种不准。
     let handled = false
-    try { if (typeof setViewFlag === 'function') handled = (setViewFlag(cwd, 'subwsMarkAutoShown', true) === true) } catch (eNew) { handled = false }
+    try { if (typeof setViewFlagRoot === 'function') handled = (setViewFlagRoot(root, 'subwsMarkAutoShown', true, cwd) === true) } catch (eRoot) { handled = false }
+    if (!handled) {
+      try { if (typeof setViewFlag === 'function') handled = (setViewFlag(cwd, 'subwsMarkAutoShown', true) === true) } catch (eNew) { handled = false }
+    }
     if (!handled) {
       try {
         const m = readAutoMap()

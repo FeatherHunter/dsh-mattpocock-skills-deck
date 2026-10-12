@@ -24,7 +24,11 @@
     export const saveListPrefsLegacy = function () { try { localStorage.setItem(LIST_PREFS_KEY, JSON.stringify(listPrefs)) } catch (e) { try { log('warn', 'storage.fail', { key: LIST_PREFS_KEY, op: 'write' }) } catch (eL) {} } }
     // 列表面板上点一下筛选或排序调的就是这里：先交给文件这条路（写进去了就不写旧键，先立后破），
     //   接不下（文档问不到、是更高版本、或形状对不上）才照老办法整份写回旧键。
-    export const saveListPrefs = function () { try { if (typeof saveUiPrefs === 'function' && saveUiPrefs() === true) return } catch (e) {} saveListPrefsLegacy() }
+    //   changed 是「这一下改的是哪几格」，由调用方点名往下传（见 views/ListTab.js）：只把动过的格交给文件，
+    //   没动过的格不许跟着一起提交 —— 文档还在路上时它们带的是旧表那一份，交上去会把文件里另外两格较新的值
+    //   顶掉并落盘（2026-10-12 复核 Q4 用两个窗口复现的缺陷）。不传时由 kernel/settings-ui.js 按记账推，
+    //   结果一样是「只交动过的格」。
+    export const saveListPrefs = function (changed) { try { if (typeof saveUiPrefs === 'function' && saveUiPrefs(changed) === true) return } catch (e) {} saveListPrefsLegacy() }
     // #375：label 点击记忆（次数 + 最近点击时间，双键排序）
     // #1012（2026-10-12 维护者拍板）：这一项不落盘。它只是标签 chip 排序用的热度，丢了不影响
     //   功能，本机设置文件里也不存它（核不再写 ui 节的 labelClicks）。所以这份计数只活在本次

@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-12T00:17:38.955Z",
+  "generatedAt": "2026-10-12T00:46:16.652Z",
   "generatedBy": "node scripts/gate-map.mjs",
-  "chainLength": 229,
-  "gateCount": 229,
-  "attributedGates": 203,
+  "chainLength": 230,
+  "gateCount": 230,
+  "attributedGates": 204,
   "unattributedGates": 26,
   "buildOutputOnlyGates": 20,
   "graphFileCount": 516,
@@ -3074,17 +3074,19 @@
       "step": "node tests/verify-683-choice-rev.js",
       "file": "tests/verify-683-choice-rev.js",
       "guards": [
+        "src",
         "src/client/kernel/prompts.js",
         "src/client/kernel/store-prefs.js",
         "tests/lib/eval-probe.js"
       ],
       "dirs": [
+        "src",
         "src/client/kernel",
         "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 2 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；静态 import 说明符 1 条；源码里的路径字面量 2 条"
     },
     {
       "step": "node tests/verify-683-host-wiring.js",
@@ -4485,6 +4487,40 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 9 条"
     },
     {
+      "step": "node tests/verify-settings-templates.js",
+      "file": "tests/verify-settings-templates.js",
+      "guards": [
+        "package/lib/client.js",
+        "scripts/build.mjs",
+        "src/client/index.js",
+        "src/client/kernel/config.js",
+        "src/client/kernel/settings-templates.js",
+        "src/client/kernel/settings-ui.js",
+        "src/client/kernel/settings-view-state.js",
+        "src/client/kernel/settings-view-write.js",
+        "src/client/kernel/settings-view.js",
+        "src/client/kernel/store-prefs.js",
+        "src/host",
+        "src/host/configStore.js",
+        "src/host/settingsPhones.js",
+        "src/shared/workspaceKey.js",
+        "tests/lib/eval-probe.js",
+        "tests/lib/time-compress.js"
+      ],
+      "dirs": [
+        "package/lib",
+        "scripts",
+        "src/client",
+        "src/client/kernel",
+        "src/host",
+        "src/shared",
+        "tests/lib"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 11 条"
+    },
+    {
       "step": "node tests/verify-1003-single-outlet.js",
       "file": "tests/verify-1003-single-outlet.js",
       "guards": [
@@ -4819,6 +4855,7 @@
       "node tests/verify-rest-fallback-banner.js",
       "node tests/verify-chain-view-ui.js",
       "node tests/verify-settings-view.js",
+      "node tests/verify-settings-templates.js",
       "node tests/verify-deck-slots.js",
       "node tests/verify-gate-map.js"
     ],
@@ -4871,6 +4908,7 @@
       "node tests/verify-log-artifacts.js",
       "node tests/verify-wizard-exit-609.js",
       "node tests/verify-settings-view.js",
+      "node tests/verify-settings-templates.js",
       "node tests/verify-gate-map.js"
     ],
     "scripts/generated": [
@@ -4886,6 +4924,7 @@
     "src": [
       "node tests/verify-file-granularity.js",
       "node tests/verify-strict-module-syntax.js",
+      "node tests/verify-683-choice-rev.js",
       "node tests/verify-gh-gateway.js",
       "node tests/verify-gate-map.js"
     ],
@@ -4907,6 +4946,7 @@
       "node tests/verify-646-native-tab.js",
       "node tests/verify-contract-vocabulary.js",
       "node tests/verify-settings-view.js",
+      "node tests/verify-settings-templates.js",
       "node tests/verify-gate-map.js"
     ],
     "src/client/floating": [
@@ -4981,6 +5021,7 @@
       "node tests/verify-907-chain-titles.js",
       "node tests/verify-workspace-file-note.js",
       "node tests/verify-settings-view.js",
+      "node tests/verify-settings-templates.js",
       "node tests/verify-deck-slots.js"
     ],
     "src/client/panel": [
@@ -5142,6 +5183,7 @@
       "node tests/verify-config-store-package.js",
       "node tests/verify-settings-phones.js",
       "node tests/verify-settings-view.js",
+      "node tests/verify-settings-templates.js",
       "node tests/verify-1003-single-outlet.js",
       "node tests/verify-1003-migration.js",
       "node tests/verify-1003-no-cwd-masquerade.js",
@@ -5373,7 +5415,8 @@
       "node tests/verify-948-feedback-map.js",
       "node tests/verify-952-short-text.js",
       "node tests/verify-955-alignment.js",
-      "node tests/verify-settings-view.js"
+      "node tests/verify-settings-view.js",
+      "node tests/verify-settings-templates.js"
     ],
     "src/shared/config-store": [
       "node tests/verify-config-store-freshness.js",
@@ -5596,7 +5639,8 @@
       "node tests/verify-907-chain-titles.js",
       "node tests/verify-963-log-order.js",
       "node tests/verify-workspace-file-note.js",
-      "node tests/verify-settings-view.js"
+      "node tests/verify-settings-view.js",
+      "node tests/verify-settings-templates.js"
     ],
     "tests/tracker-contract": [
       "node tests/verify-tracker-contract.js",
