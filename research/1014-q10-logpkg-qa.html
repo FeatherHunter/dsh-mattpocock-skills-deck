@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>票 #1014 · Q10 深挖：src/host/logPkg 是什么，gate-map 与 DERIVED_PREFIXES 是什么</title>
+<style>
+  :root {
+    --ink: #1b1c1e;
+    --muted: #6b7280;
+    --line: #e6e7eb;
+    --bg: #fbfbfa;
+    --card: #ffffff;
+    --accent: #0f766e;
+    --accent-soft: #eefaf7;
+    --code-bg: #f4f5f7;
+    --warn: #92400e;
+    --warn-soft: #fef7ec;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 40px 24px 72px;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.8 -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+  }
+  main { max-width: 880px; margin: 0 auto; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 18px; margin-bottom: 30px; }
+  .kicker { margin: 0 0 6px; color: var(--muted); font-size: 13px; letter-spacing: .04em; }
+  h1 { margin: 0 0 10px; font-size: 25px; line-height: 1.35; letter-spacing: -.01em; }
+  .meta { margin: 0; color: var(--muted); font-size: 13px; }
+  .summary {
+    margin: 0 0 30px; padding: 14px 18px; background: var(--accent-soft);
+    border-left: 3px solid var(--accent); border-radius: 4px;
+  }
+  .summary strong { color: var(--accent); }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 6px;
+    padding: 20px 22px; margin-bottom: 14px;
+  }
+  h2 { font-size: 17px; margin: 0 0 10px; line-height: 1.5; }
+  h2 .n {
+    display: inline-block; min-width: 24px; height: 24px; line-height: 24px; text-align: center;
+    background: var(--ink); color: #fff; border-radius: 50%; font-size: 13px; margin-right: 9px;
+    vertical-align: 2px;
+  }
+  h3 { font-size: 15px; margin: 16px 0 6px; }
+  p { margin: 0 0 10px; }
+  p:last-child { margin-bottom: 0; }
+  ul { margin: 6px 0 10px; padding-left: 20px; }
+  li { margin-bottom: 5px; }
+  code {
+    font-family: ui-monospace, Consolas, "Cascadia Mono", monospace;
+    font-size: 12.5px; background: var(--code-bg); padding: 1px 5px; border-radius: 3px;
+    word-break: break-all;
+  }
+  pre {
+    margin: 8px 0 12px; padding: 12px 14px; background: var(--code-bg); border-radius: 4px;
+    overflow-x: auto; font-family: ui-monospace, Consolas, "Cascadia Mono", monospace;
+    font-size: 12.5px; line-height: 1.7;
+  }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0 12px; font-size: 14px; }
+  th, td { border: 1px solid var(--line); padding: 7px 10px; text-align: left; vertical-align: top; }
+  /* 表格首列是文件名，不许被断行拆成“config.j / s”这种样子 */
+  td:first-child { width: 130px; }
+  td:first-child code { word-break: normal; white-space: nowrap; }
+  th { background: #f7f8f8; font-weight: 600; }
+  .why {
+    margin: 12px 0 0; padding: 10px 14px; background: #f7f8f8;
+    border-left: 3px solid #c9ccd1; border-radius: 4px; font-size: 14px; color: #3f4247;
+  }
+  .why b { color: var(--ink); }
+  .note {
+    margin: 12px 0 0; padding: 11px 14px; background: var(--warn-soft);
+    border-left: 3px solid #f59e0b; border-radius: 4px; font-size: 14px; color: var(--warn);
+  }
+  .ok {
+    margin: 12px 0 0; padding: 11px 14px; background: var(--accent-soft);
+    border-left: 3px solid var(--accent); border-radius: 4px; font-size: 14px; color: #0b5f57;
+  }
+  footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <p class="kicker">GitHub issue #1014（地图 #1013 的子票）· 问题 Q10 的展开</p>
+  <h1>Q10 深挖：<code>src/host/logPkg/</code> 是什么，<code>gate-map.mjs</code> 与 <code>DERIVED_PREFIXES</code> 是什么</h1>
+  <p class="meta">2026-10-12 · 写给 TypeScript 新手 · 只讲你点名的四件事</p>
+</header>
+
+<p class="summary"><strong>一句话总结：</strong>这个插件运行时要用的日志库叫 <code>dsh-log</code>；<code>src/host/logPkg/</code> 里那 4 个 <code>.js</code> 就是它的已编译产物被原样拷进来的本地副本，构建每次都会重新拷一遍。<code>scripts/gate-map.mjs</code> 是「哪扇门禁守着哪些源码文件」那张表的生成器；<code>DERIVED_PREFIXES</code> 是那张表里的一份小名单，用来标记「这是别的包编译后拷进来的目录」。</p>
+
+<div class="card">
+  <h2><span class="n">1</span><code>src/host/logPkg/</code> 是干什么的？</h2>
+  <p>它是<strong>宿主侧日志库的本地副本目录</strong>。日志库叫 <code>dsh-log</code>，已经搬去独立仓库维护（票 #892），本插件从 npm 安装它（<code>package.json:22</code> 写着 <code>dsh-log ^0.2.2</code>），装了以后它躺在 <code>node_modules/dsh-log/</code>。</p>
+  <p>为什么不直接 <code>import 'dsh-log/host'</code>，而要拷一份进来？两条原因：</p>
+  <ul>
+    <li>宿主这份代码要<strong>随插件包一起发布</strong>，并且在发布包里被<strong>逐文件按相对路径加载</strong>（<code>package/package.json</code> 的 <code>files</code> 白名单里有 <code>lib</code>，宿主整树都在里面）。</li>
+    <li>插件运行时装机环境不一定规则齐全，<strong>发布包里自带最稳</strong>，不依赖对方包的目录结构。</li>
+  </ul>
+  <h3>这 4 个文件是怎么来的</h3>
+  <p><code>scripts/derive-log-from-package.mjs</code> 把已安装包的 <code>node_modules/dsh-log/dist/</code> 里四个文件<strong>原样复制</strong>到 <code>src/host/logPkg/</code>，只在每个文件开头加一段说明头（写明「派生文件、人手不改」），正文一个字节不改。</p>
+  <p>它是自动跑的：<code>scripts/build.mjs:37</code> 导入这个派生函数，<code>scripts/build.mjs:1105-1110</code> 每次构建都调用一遍。所以这 4 个文件不是靠人手工同步的，它跟着「当前装着的 dsh-log 版本」走。</p>
+  <h3>谁在用它</h3>
+  <p><code>src/host/logFromPackage.js:11</code> 那一句：</p>
+  <pre>const mod = await import('./logPkg/host.js')</pre>
+  <p>它<strong>相对自己</strong>解析：源码树里能从 <code>src/host/</code> 找到这个文件；构建把 <code>src/host</code> 整树原样拷进 <code>package/lib</code> 之后（<code>scripts/build.mjs:818-847</code>），同一个相对路径在发布包里也一样成立。<strong>这就是它必须待在 <code>src/host/</code> 下的原因。</strong>源码树里的宿主模块是能被直接加载的（测试就是这么做的，例如 <code>tests/verify-969-tiered-timeout.js:69</code> 直接 import <code>src/host/</code> 下的模块），所以这条相对引用必须解析得到。</p>
+  <h3>它和旧实现在共存</h3>
+  <p>这次迁移记在票 #564。旧的宿主日志实现 <code>src/host/logStore.js</code>、<code>src/host/logPhones.js</code> <strong>原地留着、只读</strong>（有些门禁还在读它们），运行时走上面这条新路；真删旧文件另开票。</p>
+  <p class="note">和 Q10 直接相关的一点：这 4 个文件是 <strong><code>src/</code> 下唯一由构建写进来的 <code>.js</code></strong>——所以「<code>src/</code> 下不再生成 <code>.js</code>」这条规则要落地，就得先给它们一个明白的说法（见第 4 节结尾）。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">2</span>那 4 个镜像 <code>.js</code> 又是什么？是 <code>dsh-log</code> 的日志系统吗？</h2>
+  <p><strong>是。</strong>它们就是 <code>dsh-log</code> 这个独立日志包的已编译产物，四件各管一摊：</p>
+  <table>
+    <tr><th>文件</th><th>管什么</th></tr>
+    <tr><td><code>config.js</code></td><td>配置与命名：日志目录名、开关文件名、电话名前缀、按天日志文件名；还有事件名册的校验（允许哪些事件、字段、条数）</td></tr>
+    <tr><td><code>store.js</code></td><td>落盘那一侧：建日志库、攒批写入（去抖）、按天分文件、开关的读写；处理 <code>logBatch</code> 那个电话</td></tr>
+    <tr><td><code>phones.js</code></td><td>宿主侧另外四个电话的实作：导出日志、清理日志、读开关、写开关（<code>createLogPhones</code>）</td></tr>
+    <tr><td><code>host.js</code></td><td>组装入口：<code>createHostLog(deps, config)</code> 把存储与电话名装起来；<code>registerHostLogPhones</code> 把五个电话注册进宿主</td></tr>
+  </table>
+  <p><strong>「电话」是本仓对「宿主与界面之间按名字调用的那条通道」的叫法。</strong>日志这套一共五个名字：<code>logBatch</code>、<code>logExport</code>、<code>logClear</code>、<code>logGetSwitch</code>、<code>logSetSwitch</code>；插件标识传的是 <code>wf</code>（<code>src/host/logFromPackage.js:20</code>），拼出来就是 <code>wf.logBatch</code> 这一组。</p>
+  <p>客户端那一半不在这个目录里：客户端用的是 <code>scripts/generated/logKernel.derived.js</code>，同一个派生脚本从日志包的 <code>dist/client.js</code> 打包出来的单文件，构建时拼进界面那份闭包。</p>
+  <p class="why"><b>为什么原样拷、不重新编译：</b>这份代码的真源在日志包自己的仓库里，本插件只需要「消费者视角的一份可运行副本」。在本仓重新编译它，等于又造一份真源，改了一边忘了另一边就会漂移。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">3</span><code>scripts/gate-map.mjs</code> 是干什么的？</h2>
+  <p>它是<strong>「门禁归属表」的生成器</strong>：算出「每扇门禁守着哪些源码路径」，写进 <code>tests/gate-map.json</code>（这份 json 是入库的）。</p>
+  <h3>为什么要有它</h3>
+  <p><code>npm run verify</code> 是一条两百多步的长链（清单写在 <code>package.json</code> 的 <code>scripts.verify</code> 里），改一个文件就把整条链跑一遍太贵。想要做到「改了 E 目录的代码，就只跑守着 E、守着它的父目录 B、再上一级 A 的门禁」，先得有一张表回答「每扇门禁守着哪些目录」——这张表就是它的产物。</p>
+  <h3>它怎么推出来的</h3>
+  <p>按可信度从高到低认五条来源：① 文件头写了 <code>// 门禁归属: &lt;相对路径&gt;</code> 这类注释的，以它为准；② 读文件（<code>readFileSync</code> 之类）；③ 载入模块（<code>require</code> / <code>import</code>）；④ 静态 <code>import</code> / <code>export ... from</code> 里指向本仓源码的说明符；⑤ 兜底：文件里出现的、指向本仓源码且磁盘上真实存在的字符串字面量。五条都推不出来的，记成 <code>unattributed</code> 并写明原因。</p>
+  <h3>谁在用它</h3>
+  <ul>
+    <li><code>scripts/lib/select-gates.mjs</code>：按「这次改了哪些文件」挑出该跑哪些门禁。</li>
+    <li><code>scripts/verify-parallel.mjs</code>：<code>--changed</code> 与 <code>--tier</code> 两种跑法靠它挑门禁；一条都没选中时会退回全链并提示这是异常。</li>
+    <li><code>tests/verify-gate-map.js</code>：这张表自己的门禁——表和现状不符就红（<code>verify</code> 长链上有它）。</li>
+  </ul>
+  <p class="ok"><b>和本票相关的部分：</b>它的产物里有一节 <code>coverage</code>，专门报「<code>src/</code> 下哪些文件没有被任何门禁守着」，并且给每一条写一句人能看懂的原因。Q10 想要的「例外被点名，而不是默认容忍」，用的正是这套现成机制。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">4</span><code>DERIVED_PREFIXES</code> 是什么？</h2>
+  <p>它不是什么框架或 TypeScript 的概念，就是 <code>scripts/gate-map.mjs</code> 里的一个常量，一行、一个前缀：</p>
+  <pre>export const DERIVED_PREFIXES = ['src/host/logPkg/']</pre>
+  <p>给「<strong>别的包编译好之后拷进来的目录</strong>」一个统一记号。用途只有一处：gate-map 在给「没有被门禁守着」的文件写解释时先看这份名单，命中就写——</p>
+  <p class="why">「这是 <code>src/host/logPkg/</code> 下的派生文件：由外部包（dsh-log / dsh-plugin-update）的编译产物原样复制进来，本仓库不手写它，正确性由逐字节比对发布包的门禁钉住，所以这里不另设门禁。」</p>
+  <p>同一份文件里还有几个同类常量，作用都是「把一类目录一次说清」：<code>CODE_ROOTS</code>（哪算本仓源码）、<code>PATH_PREFIXES</code>（哪算可归属路径）、<code>GRAPH_ROOTS</code>（建依赖图扫哪）、<code>BUILD_OUTPUT_PREFIXES</code>（哪是构建产物）。</p>
+  <p class="note"><b>一个边界要说清：</b><code>DERIVED_PREFIXES</code> 今天只影响「coverage 报告里的解释文字」这一处（全仓唯一的消费点在 <code>scripts/gate-map.mjs:837</code>）。<strong>它不是门禁，不拦任何东西</strong>——所以 Q10 建议「把 <code>src/</code> 下允许出现的 <code>.js</code> 收进一张点名表、由门禁按表判红」时，那张表要落在门禁那侧（<code>tests/verify-build-artifacts.js</code>），不能指望这个常量替你拦住。</p>
+  <p class="ok"><b>它值得记的地方：</b>示范了「例外写在一处、人和机器读的是同一份」的做法——这正是 Q10 那个「<code>logPkg</code> 是例外，但必须是被点名的例外」结论的现成模板。</p>
+</div>
+
+<footer>
+  数据取自本仓当前状态（<code>package.json:22</code>、<code>scripts/derive-log-from-package.mjs</code>、<code>scripts/build.mjs:37,818-847,1105-1110</code>、<code>src/host/logFromPackage.js</code>、<code>node_modules/dsh-log/dist/</code> 四个产物的导出面、<code>scripts/gate-map.mjs:2-22,41-91,837</code>、<code>scripts/lib/select-gates.mjs</code>、<code>scripts/verify-parallel.mjs:103-119</code>、<code>tests/verify-gate-map.js</code>）· 2026-10-12 · 票 #1014 Q10 待维护者表态
+</footer>
+
+</main>
+</body>
+</html>

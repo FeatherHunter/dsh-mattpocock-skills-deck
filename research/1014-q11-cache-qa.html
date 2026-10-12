@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>票 #1014 · Q11 深挖：缓存与「删掉守门脚本」的关系</title>
+<style>
+  :root {
+    --ink: #1b1c1e; --muted: #6b7280; --line: #e6e7eb; --bg: #fbfbfa; --card: #ffffff;
+    --accent: #0f766e; --accent-soft: #eefaf7; --code-bg: #f4f5f7; --warn: #92400e; --warn-soft: #fef7ec;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 40px 24px 72px; background: var(--bg); color: var(--ink);
+    font: 15px/1.8 -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif; }
+  main { max-width: 880px; margin: 0 auto; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 18px; margin-bottom: 26px; }
+  .kicker { margin: 0 0 6px; color: var(--muted); font-size: 13px; letter-spacing: .04em; }
+  h1 { margin: 0 0 10px; font-size: 25px; line-height: 1.35; letter-spacing: -.01em; }
+  .meta { margin: 0; color: var(--muted); font-size: 13px; }
+  .summary { margin: 0 0 26px; padding: 16px 18px; background: var(--accent-soft); border-left: 3px solid var(--accent); border-radius: 4px; }
+  .summary p { margin: 0 0 8px; }
+  .summary p:last-child { margin-bottom: 0; }
+  .summary strong { color: var(--accent); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 20px 22px; margin-bottom: 14px; }
+  h2 { font-size: 17px; margin: 0 0 10px; line-height: 1.5; }
+  h2 .n { display: inline-block; min-width: 24px; height: 24px; line-height: 24px; text-align: center;
+    background: var(--ink); color: #fff; border-radius: 50%; font-size: 13px; margin-right: 9px; vertical-align: 2px; }
+  h3 { font-size: 15px; margin: 16px 0 6px; }
+  p { margin: 0 0 10px; }
+  p:last-child { margin-bottom: 0; }
+  ul { margin: 6px 0 10px; padding-left: 20px; }
+  li { margin-bottom: 5px; }
+  code { font-family: ui-monospace, Consolas, "Cascadia Mono", monospace; font-size: 12.5px;
+    background: var(--code-bg); padding: 1px 5px; border-radius: 3px; word-break: break-all; }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0 12px; font-size: 14px; }
+  th, td { border: 1px solid var(--line); padding: 7px 10px; text-align: left; vertical-align: top; }
+  th { background: #f7f8f8; font-weight: 600; }
+  .why { margin: 12px 0 0; padding: 10px 14px; background: #f7f8f8; border-left: 3px solid #c9ccd1; border-radius: 4px; font-size: 14px; color: #3f4247; }
+  .why b { color: var(--ink); }
+  .note { margin: 12px 0 0; padding: 11px 14px; background: var(--warn-soft); border-left: 3px solid #f59e0b; border-radius: 4px; font-size: 14px; color: var(--warn); }
+  .ok { margin: 12px 0 0; padding: 11px 14px; background: var(--accent-soft); border-left: 3px solid var(--accent); border-radius: 4px; font-size: 14px; color: #0b5f57; }
+  .ask { margin: 14px 0 0; padding: 13px 16px; border: 1px solid var(--accent); border-radius: 4px; background: #fff; font-size: 14.5px; }
+  .ask b { color: var(--accent); }
+  footer { margin-top: 36px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <p class="kicker">GitHub issue #1014（地图 #1013 的子票）· 问题 Q11 的展开</p>
+  <h1>Q11 深挖：为什么要先修好「构建怎么判断该不该重跑」，再删掉四个守门脚本</h1>
+  <p class="meta">2026-10-12 · 写给 TypeScript 新手 · 只讲你点名的两件事</p>
+</header>
+
+<p class="summary">
+  <strong>问题一（Q11 在决定什么）：</strong>仓库里有一份「构建缓存」，跑过一次构建之后，只要没改东西，下次就跳过整个构建（省约 30 秒）。它判断「有没有改东西」，靠的是一张<strong>手写的输入清单</strong>。今天另有四条脚本，专门核对「盘上的产物和源码是否一致」。产物要从 git 里取出来（不入库）之后，那四条脚本就没有存在理由了，要删。<strong>Q11 要你定的只有一件事：删它们之前，要不要先把那张手写清单换成自动收集的，并且两件事放在同一张票、同一批交付里完成。</strong>
+</p>
+<p class="summary">
+  <strong>问题二（缓存输入集合结构化）：</strong>把「哪些目录算改动」从手写清单改成让构建自己去发现——<code>src</code>、<code>scripts</code> 两棵固定大树，加上「凡是含 <code>tsconfig</code> 的顶层目录」（自动发现），再加上所有 <code>tsconfig</code> 文件本身；并加一条断言：如果一个域目录一个输入都没收到，构建当场失败，而不是安静地跳过。
+</p>
+
+<div class="card">
+  <h2><span class="n">1</span>先把三个东西讲清，Q11 就不用猜了</h2>
+  <h3>构建缓存</h3>
+  <p>跑 <code>node scripts/build.mjs</code> 时会先算一个「总指纹」：把所有输入文件逐个算内容摘要（sha256），拼在一起。指纹和上次一样，就认为「没改东西」，整个构建跳过；不一样才重新构建。缓存文件在 <code>node_modules/.cache/dsh-build.json</code>，不进版本库。</p>
+  <h3>手写输入清单</h3>
+  <p>算指纹之前，得先知道「哪些文件算输入」。这份名单是手写的两行：</p>
+  <ul>
+    <li><code>scripts/build.mjs:103</code> 的 <code>INPUT_ROOTS</code>：<code>src</code>、<code>scripts</code> 和四个核的目录，共六项；</li>
+    <li><code>scripts/build.mjs:104</code> 的 <code>INPUT_EXTRA</code>：<code>package.json</code>、<code>package/package.json</code>、<code>README.md</code>、<code>tsconfig.client.json</code>、<code>tsconfig.contract.json</code>，共五项。</li>
+  </ul>
+  <h3>四条新鲜度门禁</h3>
+  <p>指 <code>tests/verify-label-color-freshness.js</code>、<code>verify-refresh-freshness.js</code>、<code>verify-version-control-freshness.js</code>、<code>verify-config-store-freshness.js</code>。它们的做法是：把四个核的 TypeScript 源码<strong>重新转译一遍</strong>，和盘上已有的产物 <code>.js</code> 逐字比对。它们存在的唯一理由是「产物今天提交在 git 里，怕产物和源码对不上」。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">2</span>Q11 到底要你决定什么</h2>
+  <p><strong>要你决定的是顺序和范围，不是技术细节。</strong>两条路：</p>
+  <table>
+    <tr><th>选法</th><th>做法</th><th>后果</th></tr>
+    <tr>
+      <td><strong>甲（我推荐）</strong></td>
+      <td>同一张票、同一批交付里，先把「输入清单自动化 + 域目录断言 + 修好构建里那条会静默变绿的旧检查」做完，再删那四条新鲜度门禁。</td>
+      <td>多约 10～30 行构建脚本改动，不新增任何门禁脚本；删门禁那一刻，剩下的保证已经站得住。</td>
+    </tr>
+    <tr>
+      <td>乙</td>
+      <td>分两张票：先删四条门禁，以后再补输入清单的自动化。</td>
+      <td>中间这段时间里，「产物过期」没有任何东西看得见——构建跳过、门禁也没了，谁都不会报错。</td>
+    </tr>
+    <tr>
+      <td>丙</td>
+      <td>只删四条门禁，输入清单的手写名单长期不动。</td>
+      <td>等于长期留一个看不见的坑：将来新开一个顶层域目录、或新增一份根上的 <code>tsconfig</code>，忘了补名单，改代码不会触发重建。</td>
+    </tr>
+  </table>
+  <p class="ask"><b>需要你决策吗：需要。</b>因为「删四条门禁」听起来像一件独立的小事，很容易被当成顺手清理做掉；而它其实是「把唯一的独立核对手段拿掉」。你只需回答一句话：<strong>照甲绑在一起，还是走乙／丙。</strong>（如果你觉得这属于实现细节、不想逐条过，也可以直接说「按推荐来」，我就按甲记。）</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">3</span>为什么删门禁之前必须先修好缓存（这条是 Q11 的核心理由）</h2>
+  <p>今天「盘上的产物与源码一致」这句话，由三条互不相干的检查撑着：</p>
+  <table>
+    <tr><th>检查</th><th>在哪</th><th>产物出库、源码变 <code>.ts</code> 之后</th></tr>
+    <tr><td>四条新鲜度门禁：重转一遍再逐字比对</td><td>四个核各自的 <code>tests/verify-*-freshness.js</code></td><td>按 Q4 的决定要删掉（它们的存在理由消失了）</td></tr>
+    <tr><td><code>package/shared</code> 与 <code>src/shared</code> 逐文件摘要双向比对</td><td><code>tests/verify-build-artifacts.js:132-155</code></td><td>做不到：一边是 <code>.ts</code> 源码、一边是 <code>.js</code> 产物，摘要不可能相等</td></tr>
+    <tr><td>「<code>package/lib/index.js</code> 与 <code>src/host/index.js</code> 逐字节一致」</td><td><code>scripts/build.mjs:867-874</code></td><td>同样做不到：字节相等的前提是两边都是 <code>.js</code></td></tr>
+  </table>
+  <p>三条里两条物理上失效、一条要删，最后只剩下一条：<strong>「构建刚跑过，所以产物一定是新的」</strong>。而这句话能不能成立，全部押在「算指纹的那份输入清单是否完整」上——名单漏了谁，谁的改动就不触发构建，产物就一直旧着，而且没声音。</p>
+  <p class="why"><b>所以顺序不能反：</b>先把「缓存不可能过期」这件事做成结构性的（名单自己发现，漏了就报错），再删那四条门禁。反过来做，就是先拆保险、再谈修车。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">4</span>「缓存输入集合结构化」是什么</h2>
+  <h3>今天它是手写的，两个具体漏法</h3>
+  <ul>
+    <li><strong>新开一个顶层目录</strong>（例如将来可能叫 <code>deck-core/</code> 的那种），忘了加进 <code>INPUT_ROOTS</code>：改它的文件，指纹不变，构建跳过，产物是旧的，且不报错。</li>
+    <li><strong>新增一份根上的 <code>tsconfig</code></strong>（例如 <code>tsconfig.deck.json</code>），忘了加进 <code>INPUT_EXTRA</code>：同上。</li>
+  </ul>
+  <p class="note">今天没出事的原因：<code>src/</code> 与 <code>scripts/</code> 是整棵树遍历的，绝大多数改动都落在它们里面；四个核也都逐个列了。风险面窄，但一旦踩到，症状是安静的。</p>
+  <h3>改成什么样（这就是「结构化」）</h3>
+  <ul>
+    <li><strong>固定两棵大树：</strong><code>src</code>、<code>scripts</code> 整树算输入（今天已经这样）。</li>
+    <li><strong>自动发现域目录：</strong>凡是含 <code>tsconfig</code> 的顶层目录，都算输入根——不再手写「四个核」这样一份名册；将来新开域目录，只要它自带一份 <code>tsconfig</code>，就自动进入输入集合。</li>
+    <li><strong>自动收 <code>tsconfig</code> 文件本身：</strong>不再手写 <code>INPUT_EXTRA</code> 里的两份配置。</li>
+    <li><strong>加一条断言：</strong>输入集合不许为空；每个域目录至少要收到 1 个输入；不满足就让构建当场失败。这条不是新门禁脚本，是构建脚本自己的一句检查。</li>
+  </ul>
+  <p class="ok"><b>一个类比：</b>今天像门口保安照一张手写名单认人——名单忘改，人进去了他也不认识。改完之后是「住在小区里的住户都认」，再加一条「如果发现一个住户都没认出来，立刻报警」。</p>
+  <p class="why"><b>和 Q5 是同一个原则的两次应用：</b>Q5 解决「<code>.ts</code> 文件怎么被构建和类型检查看见」（目录通配 + 目录扫描），Q11 解决「构建怎么知道该不该重跑」（自动发现的输入集合）。两处都是同一句话——<b>能自动数出来的，不许手写。</b></p>
+  <p class="note"><b>顺手要修的一条旧检查：</b><code>scripts/build.mjs:748-768</code> 早就有个「有叶子文件却没登记」的反向检查，但它只认 <code>.js</code>、只扫四个写死的目录，而且外层把异常吞掉。这次迁移把叶子文件改成 <code>.ts</code> 之后，它会<strong>扫到空集合还判绿</strong>——正是第 3 节说的那种「没声音的错」。修它不用新写门禁，是这条旧检查自己的漏洞。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">5</span>位置速查（都在今天的主干上）</h2>
+  <table>
+    <tr><th>位置</th><th>是什么</th></tr>
+    <tr><td><code>scripts/build.mjs:103-104</code></td><td>两份手写输入名单（六项 + 五项）</td></tr>
+    <tr><td><code>scripts/build.mjs:146-158</code></td><td>收集输入：遍历名单里的树，跳过派生文件</td></tr>
+    <tr><td><code>scripts/build.mjs:172-177</code></td><td>算总指纹：版本号 + Node 版本 + 构建模式 + 逐文件摘要</td></tr>
+    <tr><td><code>node_modules/.cache/dsh-build.json</code></td><td>缓存本体（不进版本库）</td></tr>
+    <tr><td><code>scripts/build.mjs:748-768</code></td><td>已有的反向检查：只认 <code>.js</code>、只扫四个写死目录、吞异常</td></tr>
+    <tr><td><code>scripts/build.mjs:867-874</code></td><td>逐字节一致检查（源码变 <code>.ts</code> 后失效）</td></tr>
+    <tr><td><code>tests/verify-build-artifacts.js:132-155</code></td><td>摘要双向比对（同样失效）</td></tr>
+    <tr><td><code>tests/verify-{label-color,refresh,version-control,config-store}-freshness.js</code></td><td>四条新鲜度门禁（Q4 要删）</td></tr>
+  </table>
+  <p class="ask"><b>你要回答的只有一句：</b>照甲（绑在一起：先让输入集合自己发现，再删四条门禁）／乙（分两票）／丙（只删门禁）。</p>
+</div>
+
+<footer>
+  数据取自本仓当前状态（<code>scripts/build.mjs</code> 的缓存段与反向检查段、四条新鲜度门禁、<code>tests/verify-build-artifacts.js</code>）· 2026-10-12 · 票 #1014 待维护者表态
+</footer>
+
+</main>
+</body>
+</html>

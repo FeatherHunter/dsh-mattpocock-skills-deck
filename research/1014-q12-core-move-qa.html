@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>票 #1014 · Q12：四个核搬进 src/shared/</title>
+<style>
+  :root {
+    --ink: #1b1c1e;
+    --muted: #6b7280;
+    --line: #e6e7eb;
+    --bg: #fbfbfa;
+    --card: #ffffff;
+    --accent: #0f766e;
+    --accent-soft: #eefaf7;
+    --code-bg: #f4f5f7;
+    --warn: #92400e;
+    --warn-soft: #fef7ec;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 40px 24px 72px; background: var(--bg); color: var(--ink);
+    font: 15px/1.8 -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+  }
+  main { max-width: 880px; margin: 0 auto; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 18px; margin-bottom: 30px; }
+  .kicker { margin: 0 0 6px; color: var(--muted); font-size: 13px; letter-spacing: .04em; }
+  h1 { margin: 0 0 10px; font-size: 25px; line-height: 1.35; letter-spacing: -.01em; }
+  .meta { margin: 0; color: var(--muted); font-size: 13px; }
+  .summary {
+    margin: 0 0 30px; padding: 14px 18px; background: var(--accent-soft);
+    border-left: 3px solid var(--accent); border-radius: 4px; font-size: 15px;
+  }
+  .summary strong { color: var(--accent); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 20px 22px; margin-bottom: 14px; }
+  h2 { font-size: 17px; margin: 0 0 10px; line-height: 1.5; }
+  h2 .n {
+    display: inline-block; min-width: 24px; height: 24px; line-height: 24px; text-align: center;
+    background: var(--ink); color: #fff; border-radius: 50%; font-size: 13px; margin-right: 9px; vertical-align: 2px;
+  }
+  p { margin: 0 0 10px; }
+  p:last-child { margin-bottom: 0; }
+  ul { margin: 6px 0 10px; padding-left: 20px; }
+  li { margin-bottom: 5px; }
+  code {
+    font-family: ui-monospace, Consolas, "Cascadia Mono", monospace; font-size: 12.5px;
+    background: var(--code-bg); padding: 1px 5px; border-radius: 3px; word-break: break-all;
+  }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0 12px; font-size: 14px; }
+  th, td { border: 1px solid var(--line); padding: 7px 10px; text-align: left; vertical-align: top; }
+  th { background: #f7f8f8; font-weight: 600; }
+  .quote {
+    margin: 0 0 12px; padding: 12px 16px; background: #fff; border: 1px dashed var(--line);
+    border-radius: 4px; font-size: 14px; color: #3f4247;
+  }
+  .why { margin: 12px 0 0; padding: 10px 14px; background: #f7f8f8; border-left: 3px solid #c9ccd1; border-radius: 4px; font-size: 14px; color: #3f4247; }
+  .why b { color: var(--ink); }
+  .note { margin: 12px 0 0; padding: 11px 14px; background: var(--warn-soft); border-left: 3px solid #f59e0b; border-radius: 4px; font-size: 14px; color: var(--warn); }
+  .ok { margin: 12px 0 0; padding: 11px 14px; background: var(--accent-soft); border-left: 3px solid var(--accent); border-radius: 4px; font-size: 14px; color: #0b5f57; }
+  footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <p class="kicker">GitHub issue #1014（地图 #1013 的子票）· 问题 Q12 的展开</p>
+  <h1>Q12：把四个核的源码搬进 <code>src/shared/&lt;功能名&gt;/</code></h1>
+  <p class="meta">2026-10-12 · 写给 TypeScript 新手 · 只讲 Q12 要动的那些东西</p>
+</header>
+
+<p class="summary"><strong>一句话：</strong>四个核的源码从顶层 <code>xxx-core/src/</code> 搬进 <code>src/shared/&lt;功能名&gt;/</code>，与它们现在的产物目录<strong>同名同位置</strong>；引用点一个字不用改；搬完顶层四个目录、四份子构建、四份 tsconfig、四条新鲜度门禁一起退场。</p>
+
+<div class="card">
+  <h2><span class="n">0</span>维护者本次的两条表态（原话）</h2>
+  <p class="quote">「认可甲，但是目录名会变不会再是 xxx-core 这种命名而是非常规范的符合这个核的功能的命名」</p>
+  <p class="quote">「那句『不用单独成票』我理解只覆盖『产物出库与落点』——是的，未来肯定会有 ISSUE 的」</p>
+  <p>两条都记在下面：第 4 节回答命名，第 8 节写清哪部分留给未来的票。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">1</span>先弄清「核」是什么</h2>
+  <p><strong>核＝一块纯逻辑</strong>：只算数、不碰宿主能力（不起进程、不读文件、不起定时器）。今天的四个核各是一个<strong>顶层目录</strong>，里面固定四件套：</p>
+  <table>
+    <tr><th>件</th><th>作用</th></tr>
+    <tr><td><code>&lt;名&gt;-core/src/*.ts</code></td><td>手写真源（TypeScript）</td></tr>
+    <tr><td><code>&lt;名&gt;-core/tsconfig.json</code></td><td>只给这个核做类型检查</td></tr>
+    <tr><td><code>&lt;名&gt;-core/build.mjs</code></td><td>把它逐文件转译成 <code>.js</code></td></tr>
+    <tr><td>产物 <code>src/shared/&lt;功能名&gt;/*.js</code></td><td>给宿主运行时与界面闭包读</td></tr>
+  </table>
+  <p>四个核与它们的产物目录：<code>label-color-core</code> → <code>src/shared/label-color/</code>（3 个）、<code>refresh-core</code> → <code>src/shared/refresh/</code>（14 生成 + 2 手写）、<code>version-control-core</code> → <code>src/shared/version-control/</code>（14 生成 + 1 手写）、<code>config-store-core</code> → <code>src/shared/config-store/</code>（4 个）。</p>
+  <p class="why"><b>为什么会有这种「源码住楼上、产物住楼下」的形状：</b>因为核当初是按「独立子包」造的——自带一份构建脚本，把产物写回共享层。搬进来之后它不再是子包，只是一个域目录，那四件套就没有理由继续存在。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">2</span>为什么必须搬：三条要求今天凑不齐</h2>
+  <ul>
+    <li><strong>① 源码树要能直接跑</strong>：宿主代码与测试都是直接读 <code>src/</code> 下的模块（例：<code>src/host/configStore.js:18-20</code> 引 <code>../shared/config-store/labels.js</code>，<code>src/host/versionControl.js:17-24</code> 引 <code>../shared/version-control/*.js</code>，<code>tests/verify-969-tiered-timeout.js:69</code> 直接 import <code>src/host</code> 的模块）。</li>
+    <li><strong>② <code>src/</code> 下不要有生成物</strong>（Q4 定的口径）：否则分不清读到的是昨天的产物还是今天的真源，13 号「手写 <code>.js</code> 归零」也没法机械核对。</li>
+    <li><strong>③ 产物只落发布包</strong>：<code>package/shared/&lt;名&gt;/*.js</code>，由根构建统一产出。</li>
+  </ul>
+  <p>今天这三条只能同时满足两条。装载钩子只会把 <code>./x.js</code> 解到<strong>同名</strong>的 <code>x.ts</code>——它做不到「跳到另一个顶层目录里的核源码」。所以只要核源码留在楼上、产物又搬走，第 ① 条就断。</p>
+  <p class="ok"><b>搬进来之后三条同时成立：</b>引用点写的是 <code>../shared/refresh/budget.js</code>，磁盘上是 <code>src/shared/refresh/budget.ts</code>——钩子按同名规则解析，一个字都不用改；<code>src/</code> 里不再有生成物；产物只落 <code>package/shared/</code>。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">3</span>装载钩子在这里干的那一件事</h2>
+  <p>Node 本身跑不了 <code>.ts</code>。测试与开发链要在源码树上直接跑，就挂一只小钩子（本次已定：同步的 <code>module.registerHooks()</code>，约三十行，零新增依赖），规则只有一条：</p>
+  <p><code>import('./x.js')</code> → 磁盘上有同名 <code>x.ts</code> 就加载它，没有才加载 <code>x.js</code>。</p>
+  <p><strong>它的能力边界＝同名。</strong>举例：</p>
+  <ul>
+    <li>搬完之后：<code>src/host/refresh/gate.js</code> 里的 <code>'../../shared/refresh/policy.js'</code> → 命中 <code>src/shared/refresh/policy.ts</code> ✅</li>
+    <li>不搬：那个说明符会去找 <code>src/shared/refresh/policy.ts</code>，而源码此刻还在 <code>refresh-core/src/policy.ts</code> ❌（钩子不会跨目录猜）</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h2><span class="n">4</span>目录名叫什么：<code>-core</code> 消失，名字沿用功能名</h2>
+  <p><strong><code>-core</code> 是「我是一个自带构建的核」的记号</strong>，不是功能描述。子构建退场，这个记号自然没有存在的理由——这一点与你的要求完全一致。</p>
+  <p>但要说清一条硬约束：<strong>搬进去的目录名不能自由取</strong>。它由那几十处引用点钉死——引用写的是 <code>../shared/refresh/budget.js</code>，所以磁盘上必须真的叫 <code>src/shared/refresh/</code>。现有四个名字（<code>label-color</code>、<code>refresh</code>、<code>version-control</code>、<code>config-store</code>）本来就是功能名，已经符合「不带实现史、按功能命名」的口径。</p>
+  <table>
+    <tr><th>顶层旧名（消失）</th><th>搬进去之后</th><th>功能</th></tr>
+    <tr><td><code>label-color-core/</code></td><td><code>src/shared/label-color/</code></td><td>标签配色：颜色归一与调色板文本</td></tr>
+    <tr><td><code>refresh-core/</code></td><td><code>src/shared/refresh/</code></td><td>刷新机制的纯逻辑：闸判据、账本预算、写判定</td></tr>
+    <tr><td><code>version-control-core/</code></td><td><code>src/shared/version-control/</code></td><td>版本管理：命令拼装、解析、写前判定</td></tr>
+    <tr><td><code>config-store-core/</code></td><td><code>src/shared/config-store/</code></td><td>配置读写：三份 schema 的校验与模板</td></tr>
+  </table>
+  <p class="note"><b>若你要换更准确的名字</b>（例如给 <code>refresh</code> 换个说法），代价会翻倍：要同时改几十处引用、产物路径、客户端闭包拼接清单（<code>scripts/build.mjs:586-596</code> 有 4 条指向核产物）。建议把「改名」单独一张票，不要混进这次机械搬家——混在一起，<code>git diff -M</code> 就不再是「清一色改名」，回滚也分不清是哪件事出的问题。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">5</span>搬家后各件去哪（一张表看完）</h2>
+  <table>
+    <tr><th>东西</th><th>搬家后</th></tr>
+    <tr><td>核的源码 <code>&lt;名&gt;-core/src/*.ts</code>（35 个文件）</td><td>移到 <code>src/shared/&lt;功能名&gt;/*.ts</code>；<strong>引用点一个字不改</strong></td></tr>
+    <tr><td>核的产物</td><td>由根构建统一转译到 <code>package/shared/&lt;功能名&gt;/*.js</code>（今天各核自己写 <code>src/shared/&lt;名&gt;/</code>，根构建再整树拷进 <code>package/shared/</code>，见 <code>scripts/build.mjs:847</code>）</td></tr>
+    <tr><td>顶层四个 <code>&lt;名&gt;-core/</code> 目录</td><td>删（子构建不再存在）</td></tr>
+    <tr><td>四份 <code>build.mjs</code></td><td>删（逐文件转译交给根构建）</td></tr>
+    <tr><td>四份 <code>tsconfig.json</code></td><td>移进域目录（<code>src/shared/&lt;名&gt;/tsconfig.json</code>），由 glob 发现——「域自带配置」是本次定的默认形状</td></tr>
+    <tr><td>四条 <code>verify-*-freshness.js</code></td><td>删（产物不再入库，一致性由构建保证；删它们的前提见第 6 节）</td></tr>
+    <tr><td>客户端闭包那 4 条拼接项</td><td>路径不变，取文本改走同一条「<code>.ts</code> 优先」规则</td></tr>
+  </table>
+</div>
+
+<div class="card">
+  <h2><span class="n">6</span>删「新鲜度门禁」的前提：构建必须不可能给出过期产物</h2>
+  <p>这四条门禁的做法是「把产物重转一遍、与已入库的产物逐字比对」。产物一出库，这条就没有对象了。但今天「产物与真源一致」还有另外两条检查，它们在源码变 <code>.ts</code> 之后<strong>物理上不可能再成立</strong>：</p>
+  <ul>
+    <li><code>tests/verify-build-artifacts.js:132-155</code> 的 <code>package/shared</code> ↔ <code>src/shared</code> 逐文件 sha256 双向比对（字节相等的前提没了）</li>
+    <li><code>scripts/build.mjs:867-874</code> 的「<code>package/lib/index.js</code> 与 <code>src/host/index.js</code> 逐字节一致」（同上）</li>
+  </ul>
+  <p>于是「产物一定新」只剩一个支点：构建的内容指纹缓存。而它的输入清单今天是手写的（<code>scripts/build.mjs:103-104</code>），漏一个目录就会静默给出过期产物。</p>
+  <p class="ok"><b>所以要绑在一起做：</b>把输入集合改成「扫描出来的域目录 ＋ glob 发现的所有 tsconfig」，并加三条断言——域目录不重叠、每个域至少 1 个输入、扫到 0 个就判红。这不是新增门禁，是构建脚本自己的事。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">7</span>怎么算搬对了（三条判据）</h2>
+  <ul>
+    <li><code>git diff -M</code> 显示这一提交<strong>全是重命名</strong>，行为零变化（不改一个字符的代码）</li>
+    <li><code>src/</code> 下没有生成的 <code>.js</code>（唯一被点名的例外是上游包镜像 <code>src/host/logPkg/</code>）</li>
+    <li>发布包里 <code>package/shared/</code> 四份文件数不变：<code>label-color</code> 3、<code>refresh</code> 14、<code>version-control</code> 14、<code>config-store</code> 4；故意改坏一个域里的一个文件，类型检查必须红</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h2><span class="n">8</span>哪些留给未来的票（本次不解决）</h2>
+  <ul>
+    <li><strong>子构建的存废</strong>（删四份 <code>build.mjs</code>、删四条新鲜度门禁、四核 tsconfig 并进 glob 发现）：本次只确认「产物出库与落点」并入 01 号地图，<strong>这一块未来另有 ISSUE</strong>（你的原话已确认）。</li>
+    <li><strong>改名</strong>（把 <code>refresh</code> 等换成别的功能名）：要动引用点与产物路径，单独一张票。</li>
+    <li><strong>两个手写 <code>.js</code></strong> 还躺在 <code>src/shared/refresh/</code> 与 <code>src/shared/version-control/</code> 里（共 3 个）：它们是真源、不是产物，靠后面的迁移票转 <code>.ts</code>，本次不动。</li>
+    <li><strong>工程引用上线</strong>（把「引用方向」交给编译器）：挂 13 号收口图，写死触发条件。</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h2><span class="n">9</span>术语小抄</h2>
+  <ul>
+    <li><strong>说明符</strong>：<code>import ... from '写在这里的那段路径'</code>；本仓约定写 <code>./x.js</code>，哪怕磁盘上是 <code>x.ts</code>。</li>
+    <li><strong>装载钩子</strong>：挂在 Node 模块解析上的一小段代码，只在加载时改「去哪找文件」，不改代码内容。</li>
+    <li><strong>逐文件转译</strong>：一个 <code>.ts</code> 产出一个同名 <code>.js</code>；不做打包，因为宿主是按路径动态加载模块的。</li>
+    <li><strong>域</strong>：一块代码分区，决定「谁检查它、它允许引用谁」；域目录自带一份 <code>tsconfig.json</code>。</li>
+    <li><strong>新鲜度门禁</strong>：过去用来核对「入库的产物与真源一致」的检查脚本，产物出库后可删。</li>
+    <li><strong>派生件</strong>：不是人手写、也不是本仓源码转译来的文件（例：从已装 <code>dsh-log</code> 包原样拷来的 <code>src/host/logPkg/</code>）。</li>
+  </ul>
+</div>
+
+<footer>
+  依据：本仓当前代码（<code>scripts/build.mjs</code>、四个核的目录与构建脚本、<code>src/host</code> 与 <code>tests</code> 里的引用点）与票 #1014 评论区 Q1–Q6 的结论 · 2026-10-12 · 本页与同族页面一样只放在工作区、尚未入库
+</footer>
+
+</main>
+</body>
+</html>
