@@ -213,6 +213,24 @@ function buildTasks(list) {
       lanes.push({ key: 'lane:' + gs.slice().sort().join('+'), steps: [s], estimate: estimateOf(s), groups: gs.slice() })
     }
   }
+  // 预构建：源码刚改过时，第一次 `node scripts/build.mjs` 要真花 30 秒。链上有十几扇门禁各自会跑它，
+  // 把它们排在车厢最前面先构建一次，后面的门禁就都命中构建缓存（各 0.2 秒），
+  // 而且先读产物的门禁看到的一定是刚构建出来的产物，不会读到半旧的一份。
+  // 说明：这不减少总工作量（构建与这些门禁本来就同在一节车厢里、只能串着跑），
+  // 减掉的是「同一轮里反复重建」和「读到半旧产物」这两种意外。
+  for (const lane of lanes) {
+    if (!lane.groups.includes('build')) continue
+    const prebuild = {
+      cmd: 'node scripts/build.mjs',
+      file: 'scripts/build.mjs',
+      label: 'scripts/build.mjs（预构建：让后面十几扇门禁直接命中构建缓存）',
+      // 预构建是提速手段，不是门禁：它失败不算链红（比如同一台机器上还有别人在构建，两边撞了）。
+      // 真需要构建的门禁自己会再跑一次，失败会由它们如实报出来。
+      optional: true
+    }
+    lane.steps.unshift(prebuild)
+    lane.estimate += Math.max(estimateOf(prebuild), 30000)
+  }
   return [...free, ...lanes].sort((a, b) => b.estimate - a.estimate)
 }
 
@@ -253,10 +271,11 @@ async function worker() {
     for (const step of tasks[i].steps) {
       if (stop) return
       const r = await runStep(step)
+      r.optional = !!step.optional
       results.push(r)
-      const tag = r.code === 0 ? 'PASS' : 'FAIL'
-      console.log('  ' + tag + ' ' + String(r.ms).padStart(6) + ' ms  ' + r.file)
-      if (r.code !== 0 && !has('--keep-going')) {
+      const tag = r.code === 0 ? 'PASS' : step.optional ? 'WARN' : 'FAIL'
+      console.log('  ' + tag + ' ' + String(r.ms).padStart(6) + ' ms  ' + (step.label || r.file))
+      if (r.code !== 0 && !step.optional && !has('--keep-going')) {
         // 与串行链一样：遇红就停（已在跑的等它跑完再报）。
         stop = true
         return
@@ -280,7 +299,7 @@ try {
 // 并发跑会碰到「抢同一个外部资源」造成的假红（实测：两扇门禁同时 `npm pack`、有人正在构建时别人读产物）。
 // 所以并发跑完只当第一轮：凡是红的，再**一个一个串行复跑**一遍，以串行的结果为准。
 // 这样既拿到并行的速度，又不会把假红当成真红报出去（真红会在复跑里再红一次）。
-let failed = results.filter((r) => r.code !== 0)
+let failed = results.filter((r) => r.code !== 0 && !r.optional)
 if (failed.length && !has('--no-retry-failed')) {
   console.log('')
   console.log('[并行门禁] 第一轮有 ' + failed.length + ' 步红，串行复跑一遍以排除「抢资源造成的假红」：')
@@ -296,12 +315,14 @@ if (failed.length && !has('--no-retry-failed')) {
     f.flaky = again.code === 0
     console.log('  ' + (again.code === 0 ? '复跑绿（并发假红）' : '复跑仍红（真红）') + '  ' + String(again.ms).padStart(6) + ' ms  ' + f.file)
   }
-  failed = results.filter((r) => r.code !== 0)
+  failed = results.filter((r) => r.code !== 0 && !r.optional)
 }
 
 const slow = [...results].sort((a, b) => b.ms - a.ms).slice(0, 10)
 console.log('')
-console.log('[并行门禁] 跑完 ' + results.length + '/' + steps.length + ' 步，墙钟 ' + (wall / 1000).toFixed(1) + ' 秒；真红 ' + failed.length + ' 步')
+// 预构建不是链上的步骤，算总数时把它摘出去（它自己的耗时照旧打在明细里）。
+const chainRan = results.filter((r) => steps.some((s) => s.file === r.file)).length
+console.log('[并行门禁] 跑完 ' + chainRan + '/' + steps.length + ' 步，墙钟 ' + (wall / 1000).toFixed(1) + ' 秒；真红 ' + failed.length + ' 步')
 const flaky = results.filter((r) => r.flaky)
 if (flaky.length) console.log('  并发假红（复跑已绿）' + flaky.length + ' 步：' + flaky.map((f) => f.file.replace('tests/', '')).join('、'))
 if (slow.length) {
