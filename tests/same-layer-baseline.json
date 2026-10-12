@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "recordedAt": "2026-10-09",
-  "note": "存量豁免清单：只许减不许增；拆分票消掉一条边就同票删一条。backends 三房间不在此清单（仍由老门禁管同房间放行）。 2026-10-09：888 技能详情落地新增一条（index 动态加载 ./skillDoc.js）。",
+  "recordedAt": "2026-10-13",
+  "note": "存量豁免清单：只许减不许增；拆分票消掉一条边就同票删一条。backends 三房间不在此清单（房间纪律由 .dependency-cruiser.cjs 的 cross-room-import 一条守着，没有豁免）。 2026-10-09：888 技能详情落地新增一条（index 动态加载 ./skillDoc.js）。 2026-10-13（#1017 换轨）：判据从「扫 .js 文本」换成「读依赖图（.js 与 .ts 一起看）」，键仍是 file|resolved；换轨后 .ts 源码里的同层边第一次可见，共 27 条，已按条记名（owner 标 #1017）。以后只许减。",
   "entries": [
     {
       "file": "src/host/index.js",
@@ -839,6 +839,249 @@
       "count": 1,
       "owner": "共享板 task-7 本机设置两条电话",
       "note": "本机设置接线：入口动态加载配置适配器，把读写函数转交给设置叶子，叶子经依赖调用而不直接引用适配器文件。"
+    },
+    {
+      "file": "src/shared/config-store/src/labels.ts",
+      "spec": "./ports.js",
+      "resolved": "src/shared/config-store/src/ports.ts",
+      "layer": "shared",
+      "count": 1,
+      "owner": "#1017（读依赖图后 .ts 边首次可见）",
+      "note": "同层互引的存量边：labels 引同目录的 ports.ts（老门禁只读 .js 文本，这条一直没进过清单）"
+    },
+    {
+      "file": "src/shared/config-store/src/settings.ts",
+      "spec": "./ports.js",
+      "resolved": "src/shared/config-store/src/ports.ts",
+      "layer": "shared",
+      "count": 1,
+      "owner": "#1017（读依赖图后 .ts 边首次可见）",
+      "note": "同层互引的存量边：settings 引同目录的 ports.ts（老门禁只读 .js 文本，这条一直没进过清单）"
+    },
+    {
+      "file": "src/shared/config-store/src/workspace.ts",
+      "spec": "./ports.js",
+      "resolved": "src/shared/config-store/src/ports.ts",
+      "layer": "shared",
+      "count": 1,
+      "owner": "#1017（读依赖图后 .ts 边首次可见）",
+      "note": "同层互引的存量边：workspace 引同目录的 ports.ts（老门禁只读 .js 文本，这条一直没进过清单）"
+    },
+    {
+      "file": "src/shared/label-color/src/colors.ts",
+      "spec": "./ports.js",
+      "resolved": "src/shared/label-color/src/ports.ts",
+      "layer": "shared",
+      "count": 1,
+      "owner": "#1017（读依赖图后 .ts 边首次可见）",
+      "note": "同层互引的存量边：colors 引同目录的 ports.ts（老门禁只读 .js 文本，这条一直没进过清单）"
+    },
+    {
+      "file": "src/shared/label-color/src/prompt.ts",
+      "spec": "./ports.js",
+      "resolved": "src/shared/label-color/src/ports.ts",
+      "layer": "shared",
+      "count": 1,
+      "owner": "#1017（读依赖图后 .ts 边首次可见）",
+      "note": "同层互引的存量边：prompt 引同目录的 ports.ts（老门禁只读 .js 文本，这条一直没进过清单）"
+    },
+    {
+      "file": "src/shared/refresh/src/backoff.ts",
+      "spec": "./ports.js",
+      "resolved": "src/shared/refresh/src/ports.ts",
+      "layer": "shared",
+      "count": 1,
+      "owner": "#1017（读依赖图后 .ts 边首次可见）",
+      "note": "同层互引的存量边：backoff 引同目录的 ports.ts（老门禁只读 .js 文本，这条一直没进过清单）"
+    },
+    {
+      "file": "src/shared/refresh/src/budget.ts",
+      "spec": "./ports.js",
+      "resolved": "src/shared/refresh/src/ports.ts",
+      "layer": "shared",
+      "count": 1,
+      "owner": "#1017（读依赖图后 .ts 边首次可见）",
+      "note": "同层互引的存量边：budget 引同目录的 ports.ts（老门禁只读 .js 文本，这条一直没进过清单）"
+    },
+    {
+      "file": "src/shared/refresh/src/policy.ts",
+      "spec": "./ports.js",
+      "resolved": "src/shared/refresh/src/ports.ts",
+      "layer": "shared",
+      "count": 1,
+      "owner": "#1017（读依赖图后 .ts 边首次可见）",
+      "note": "同层互引的存量边：policy 引同目录的 ports.ts（老门禁只读 .js 文本，这条一直没进过清单）"
+    },
+    {
+      "file": "src/shared/refresh/src/write-detect.ts",
+      "spec": "./ports.js",
+      "resolved": "src/shared/refresh/src/ports.ts",
+      "layer": "shared",
+      "count": 1,
+      "owner": "#1017（读依赖图后 .ts 边首次可见）",
+      "note": "同层互引的存量边：write-detect 引同目录的 ports.ts（老门禁只读 .js 文本，这条一直没进过清单）"
+    },
+    {
+      "file": "src/shared/version-control/src/capabilities.ts",
+      "spec": "./ports.js",
+      "resolved": "src/shared/version-control/src/ports.ts",
+      "layer": "shared",
+      "count": 1,
+      "owner": "#1017（读依赖图后 .ts 边首次可见）",
+      "note": "同层互引的存量边：capabilities 引同目录的 ports.ts（老门禁只读 .js 文本，这条一直没进过清单）"
+    },
+    {
+      "file": "src/shared/version-control/src/commands.ts",
+      "spec": "./ports.js",
+      "resolved": "src/shared/version-control/src/ports.ts",
+      "layer": "shared",
+      "count": 1,
+      "owner": "#1017（读依赖图后 .ts 边首次可见）",
+      "note": "同层互引的存量边：commands 引同目录的 ports.ts（老门禁只读 .js 文本，这条一直没进过清单）"
+    },
+    {
+      "file": "src/shared/version-control/src/parse-diff-files.ts",
+      "spec": "./ports.js",
+      "resolved": "src/shared/version-control/src/ports.ts",
+      "layer": "shared",
+      "count": 1,
+      "owner": "#1017（读依赖图后 .ts 边首次可见）",
+      "note": "同层互引的存量边：parse-diff-files 引同目录的 ports.ts（老门禁只读 .js 文本，这条一直没进过清单）"
+    },
+    {
+      "file": "src/shared/version-control/src/parse-log.ts",
+      "spec": "./ports.js",
+      "resolved": "src/shared/version-control/src/ports.ts",
+      "layer": "shared",
+      "count": 1,
+      "owner": "#1017（读依赖图后 .ts 边首次可见）",
+      "note": "同层互引的存量边：parse-log 引同目录的 ports.ts（老门禁只读 .js 文本，这条一直没进过清单）"
+    },
+    {
+      "file": "src/shared/version-control/src/parse-patch.ts",
+      "spec": "./ports.js",
+      "resolved": "src/shared/version-control/src/ports.ts",
+      "layer": "shared",
+      "count": 1,
+      "owner": "#1017（读依赖图后 .ts 边首次可见）",
+      "note": "同层互引的存量边：parse-patch 引同目录的 ports.ts（老门禁只读 .js 文本，这条一直没进过清单）"
+    },
+    {
+      "file": "src/shared/version-control/src/parse-refs.ts",
+      "spec": "./ports.js",
+      "resolved": "src/shared/version-control/src/ports.ts",
+      "layer": "shared",
+      "count": 1,
+      "owner": "#1017（读依赖图后 .ts 边首次可见）",
+      "note": "同层互引的存量边：parse-refs 引同目录的 ports.ts（老门禁只读 .js 文本，这条一直没进过清单）"
+    },
+    {
+      "file": "src/shared/version-control/src/parse-status.ts",
+      "spec": "./ports.js",
+      "resolved": "src/shared/version-control/src/ports.ts",
+      "layer": "shared",
+      "count": 1,
+      "owner": "#1017（读依赖图后 .ts 边首次可见）",
+      "note": "同层互引的存量边：parse-status 引同目录的 ports.ts（老门禁只读 .js 文本，这条一直没进过清单）"
+    },
+    {
+      "file": "src/shared/version-control/src/parse-worktrees.ts",
+      "spec": "./ports.js",
+      "resolved": "src/shared/version-control/src/ports.ts",
+      "layer": "shared",
+      "count": 1,
+      "owner": "#1017（读依赖图后 .ts 边首次可见）",
+      "note": "同层互引的存量边：parse-worktrees 引同目录的 ports.ts（老门禁只读 .js 文本，这条一直没进过清单）"
+    },
+    {
+      "file": "src/shared/version-control/src/push-plan.ts",
+      "spec": "./ports.js",
+      "resolved": "src/shared/version-control/src/ports.ts",
+      "layer": "shared",
+      "count": 1,
+      "owner": "#1017（读依赖图后 .ts 边首次可见）",
+      "note": "同层互引的存量边：push-plan 引同目录的 ports.ts（老门禁只读 .js 文本，这条一直没进过清单）"
+    },
+    {
+      "file": "src/shared/version-control/src/rules.ts",
+      "spec": "./ports.js",
+      "resolved": "src/shared/version-control/src/ports.ts",
+      "layer": "shared",
+      "count": 1,
+      "owner": "#1017（读依赖图后 .ts 边首次可见）",
+      "note": "同层互引的存量边：rules 引同目录的 ports.ts（老门禁只读 .js 文本，这条一直没进过清单）"
+    },
+    {
+      "file": "src/shared/version-control/src/state.ts",
+      "spec": "./parse-diff-files.js",
+      "resolved": "src/shared/version-control/src/parse-diff-files.ts",
+      "layer": "shared",
+      "count": 1,
+      "owner": "#1017（读依赖图后 .ts 边首次可见）",
+      "note": "同层互引的存量边：state 引同目录的 parse-diff-files.ts（老门禁只读 .js 文本，这条一直没进过清单）"
+    },
+    {
+      "file": "src/shared/version-control/src/state.ts",
+      "spec": "./parse-log.js",
+      "resolved": "src/shared/version-control/src/parse-log.ts",
+      "layer": "shared",
+      "count": 1,
+      "owner": "#1017（读依赖图后 .ts 边首次可见）",
+      "note": "同层互引的存量边：state 引同目录的 parse-log.ts（老门禁只读 .js 文本，这条一直没进过清单）"
+    },
+    {
+      "file": "src/shared/version-control/src/state.ts",
+      "spec": "./parse-refs.js",
+      "resolved": "src/shared/version-control/src/parse-refs.ts",
+      "layer": "shared",
+      "count": 1,
+      "owner": "#1017（读依赖图后 .ts 边首次可见）",
+      "note": "同层互引的存量边：state 引同目录的 parse-refs.ts（老门禁只读 .js 文本，这条一直没进过清单）"
+    },
+    {
+      "file": "src/shared/version-control/src/state.ts",
+      "spec": "./parse-status.js",
+      "resolved": "src/shared/version-control/src/parse-status.ts",
+      "layer": "shared",
+      "count": 1,
+      "owner": "#1017（读依赖图后 .ts 边首次可见）",
+      "note": "同层互引的存量边：state 引同目录的 parse-status.ts（老门禁只读 .js 文本，这条一直没进过清单）"
+    },
+    {
+      "file": "src/shared/version-control/src/state.ts",
+      "spec": "./parse-worktrees.js",
+      "resolved": "src/shared/version-control/src/parse-worktrees.ts",
+      "layer": "shared",
+      "count": 1,
+      "owner": "#1017（读依赖图后 .ts 边首次可见）",
+      "note": "同层互引的存量边：state 引同目录的 parse-worktrees.ts（老门禁只读 .js 文本，这条一直没进过清单）"
+    },
+    {
+      "file": "src/shared/version-control/src/state.ts",
+      "spec": "./ports.js",
+      "resolved": "src/shared/version-control/src/ports.ts",
+      "layer": "shared",
+      "count": 1,
+      "owner": "#1017（读依赖图后 .ts 边首次可见）",
+      "note": "同层互引的存量边：state 引同目录的 ports.ts（老门禁只读 .js 文本，这条一直没进过清单）"
+    },
+    {
+      "file": "src/shared/version-control/src/write-reasons.ts",
+      "spec": "./ports.js",
+      "resolved": "src/shared/version-control/src/ports.ts",
+      "layer": "shared",
+      "count": 1,
+      "owner": "#1017（读依赖图后 .ts 边首次可见）",
+      "note": "同层互引的存量边：write-reasons 引同目录的 ports.ts（老门禁只读 .js 文本，这条一直没进过清单）"
+    },
+    {
+      "file": "src/shared/version-control/src/write-ticket.ts",
+      "spec": "./ports.js",
+      "resolved": "src/shared/version-control/src/ports.ts",
+      "layer": "shared",
+      "count": 1,
+      "owner": "#1017（读依赖图后 .ts 边首次可见）",
+      "note": "同层互引的存量边：write-ticket 引同目录的 ports.ts（老门禁只读 .js 文本，这条一直没进过清单）"
     }
   ]
 }

@@ -7,6 +7,15 @@ engineStrict: true
 allowBuilds:
   esbuild: true
 
+packageExtensions:
+  # dependency-cruiser 只认 typescript >=2.0.0 <7.0.0（它要调用编译器接口读源码）。
+  # 根上装的是 7.0.2：Go 重写之后不再导出这种接口，于是它把 .ts 扩展名整个关掉，
+  # 方向检查会看不见所有 .ts 文件。这里给它自己那一份 5.6.3（与 typescript-ast 同版本），
+  # 只挂在它自己的 node_modules 下，不影响根上 tsc 用的 7.0.2。
+  dependency-cruiser@18:
+    dependencies:
+      typescript: ^5.6.3
+
 minimumReleaseAgeExclude:
   # 刚上线不久的包会被 pnpm 的「新包先观察一段时间」这条闸拦下，这里按版本号放行。
   # 日志包已搬到独立仓库维护（#892），0.2.2 是含 43 条常驻逻辑的新版，需临时放行直到过观察期，删掉会装不上。

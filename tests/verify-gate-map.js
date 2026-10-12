@@ -148,6 +148,36 @@ const derived = buildGateMap(ROOT)
 }
 
 // ---------------------------------------------------------------------------
+// 2b) 归属条数下限：链条换血时「能推出归属」的步数不许悄悄往下掉
+// ---------------------------------------------------------------------------
+// 为什么要有这条下限（出处 #1017，票面第三条硬要求）：
+//   这张表是给「按改动挑门禁」用的。某一步的归属推不出来，那一步守着的源码就没人挑得动，
+//   红的信号会一直到合并之后才出现——而且它不会报错，只是安静地变松。链条换血（删两条老门禁、
+//   加一条读依赖图的新门禁）正是最容易掉数的时候，光靠「表和链的 step 集合一致」看不出来。
+// 2026-10-13 换轨后实测：链上 226 步里 200 步能推出源码归属，其余 26 步是发布、构建、打包一类
+//   本来就不指向 src 文件的步骤。
+// 这个数是下限，不是目标：链上加了能推出归属的步骤，它就该跟着涨（下面会提示新的数）；
+//   确需调低，必须在这一行注明理由与票号，不许默默改小。
+const MIN_ATTRIBUTED_GATES = 200
+{
+  check(
+    map.attributedGates >= MIN_ATTRIBUTED_GATES,
+    '落盘的表里能推出归属的步数 ' + map.attributedGates + ' 不低于下限 ' + MIN_ATTRIBUTED_GATES,
+  )
+  check(
+    derived.attributedGates >= MIN_ATTRIBUTED_GATES,
+    '刚推导出来的归属步数 ' + derived.attributedGates + ' 不低于下限 ' + MIN_ATTRIBUTED_GATES,
+  )
+  check(
+    map.attributedGates + map.unattributedGates === map.gateCount,
+    '能推出归属的与推不出的加起来等于门禁条数（' + map.attributedGates + ' + ' + map.unattributedGates + ' = ' + map.gateCount + '）',
+  )
+  if (map.attributedGates > MIN_ATTRIBUTED_GATES) {
+    info('归属步数比下限高 ' + (map.attributedGates - MIN_ATTRIBUTED_GATES) + ' 步，可以把下限抬到 ' + map.attributedGates)
+  }
+}
+
+// ---------------------------------------------------------------------------
 // 3) 覆盖面：src/ 下每个文件要么有门禁守着，要么写清了原因
 // ---------------------------------------------------------------------------
 {

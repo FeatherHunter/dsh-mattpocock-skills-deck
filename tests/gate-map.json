@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-12T21:39:51.828Z",
+  "generatedAt": "2026-10-12T22:23:35.968Z",
   "generatedBy": "node scripts/gate-map.mjs",
-  "chainLength": 227,
-  "gateCount": 227,
-  "attributedGates": 201,
+  "chainLength": 226,
+  "gateCount": 226,
+  "attributedGates": 200,
   "unattributedGates": 26,
   "buildOutputOnlyGates": 20,
   "graphFileCount": 502,
@@ -1450,19 +1450,6 @@
       "reason": "它读的是构建产物（package/ 下的打包结果）。产物由整份源码打出来，脚本里看不出产物跟哪个源码文件对应，所以算不出它守着哪条源码路径；挑选门禁时按「只要动到源码就先跑它」保守处理"
     },
     {
-      "step": "node tests/verify-no-cross-import.js",
-      "file": "tests/verify-no-cross-import.js",
-      "guards": [
-        "src/host/tracker/backends"
-      ],
-      "dirs": [
-        "src/host/tracker/backends"
-      ],
-      "unattributed": false,
-      "buildOutputOnly": false,
-      "reason": "归属来自：源码里的路径字面量 1 条"
-    },
-    {
       "step": "node tests/verify-no-mixed-session.js",
       "file": "tests/verify-no-mixed-session.js",
       "guards": [
@@ -1470,20 +1457,18 @@
         "src/host/tracker/backends/github",
         "src/host/tracker/backends/gitlab",
         "src/host/tracker/preflight.js",
-        "src/shared/tracker/constants.js",
-        "tests/verify-no-cross-import.js"
+        "src/shared/tracker/constants.js"
       ],
       "dirs": [
         "src/host/tracker",
         "src/host/tracker/backends",
         "src/host/tracker/backends/github",
         "src/host/tracker/backends/gitlab",
-        "src/shared/tracker",
-        "tests"
+        "src/shared/tracker"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；源码里的路径字面量 4 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；源码里的路径字面量 3 条"
     },
     {
       "step": "node tests/verify-multilevel-cache.js",
@@ -1910,39 +1895,26 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条"
     },
     {
-      "step": "node tests/verify-no-same-layer-import.js",
-      "file": "tests/verify-no-same-layer-import.js",
+      "step": "node tests/verify-dependency-rules.ts",
+      "file": "tests/verify-dependency-rules.ts",
       "guards": [
+        "scripts/gate-map.mjs",
         "src/host",
-        "src/host/index.js",
-        "src/host/platform",
-        "src/host/platform/index.js",
-        "src/host/platform/linux/index.js",
-        "src/host/tracker/backends",
-        "src/host/tracker/backends/github/index.js",
-        "src/host/tracker/contract.js",
-        "src/host/tracker/index.js",
         "src/seam",
         "src/seam/gate.js",
-        "src/seam/index.js",
         "src/shared",
-        "src/shared/tracker/constants.js",
-        "src/shared/tracker/shape.js"
+        "tests/same-layer-baseline.json"
       ],
       "dirs": [
+        "scripts",
         "src/host",
-        "src/host/platform",
-        "src/host/platform/linux",
-        "src/host/tracker",
-        "src/host/tracker/backends",
-        "src/host/tracker/backends/github",
         "src/seam",
         "src/shared",
-        "src/shared/tracker"
+        "tests"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：源码里的路径字面量 15 条"
+      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 5 条"
     },
     {
       "step": "node tests/verify-markdown-backend.js",
@@ -4837,6 +4809,7 @@
       "node tests/verify-release-template.js",
       "node tests/verify-release-contract.js",
       "node tests/verify-640-dock-width-browser.js",
+      "node tests/verify-dependency-rules.ts",
       "node tests/verify-log-client.js",
       "node tests/verify-log-artifacts.js",
       "node tests/verify-wizard-exit-609.js",
@@ -5072,7 +5045,7 @@
       "node tests/verify-3-workspace-switch.js",
       "node tests/verify-matt-skills-sync.js",
       "node tests/verify-bundled-discovery.js",
-      "node tests/verify-no-same-layer-import.js",
+      "node tests/verify-dependency-rules.ts",
       "node tests/verify-691-map-subissues.js",
       "node tests/verify-markdown-label-colors.js",
       "node tests/verify-github-label-colors.js",
@@ -5141,7 +5114,6 @@
       "node tests/verify-deck-quota-sync.js",
       "node tests/verify-deck-no-hang.js",
       "node tests/verify-deck-tools-row-zero-dep.js",
-      "node tests/verify-no-same-layer-import.js",
       "node tests/verify-927-gate-injection.js",
       "node tests/verify-497-slash.js",
       "node tests/verify-delta-wiring.js",
@@ -5155,7 +5127,6 @@
     "src/host/platform/linux": [
       "node tests/verify-platform-contract.js",
       "node tests/verify-platform-linux.js",
-      "node tests/verify-no-same-layer-import.js",
       "node tests/verify-497-slash.js"
     ],
     "src/host/platform/win32": [
@@ -5228,7 +5199,6 @@
       "node tests/verify-895-github-memo.js",
       "node tests/verify-971-markdown-parent.js",
       "node tests/verify-no-mixed-session.js",
-      "node tests/verify-no-same-layer-import.js",
       "node tests/verify-691-map-subissues.js",
       "node tests/verify-github-label-colors.js",
       "node tests/verify-992-readonly-labels.js",
@@ -5252,9 +5222,7 @@
       "node tests/verify-prompt-newlines.js",
       "node tests/verify-prompts.js",
       "node tests/verify-deck-tools-host-wiring.js",
-      "node tests/verify-no-cross-import.js",
-      "node tests/verify-no-mixed-session.js",
-      "node tests/verify-no-same-layer-import.js"
+      "node tests/verify-no-mixed-session.js"
     ],
     "src/host/tracker/backends/github": [
       "node tests/verify-prompts.js",
@@ -5267,7 +5235,6 @@
       "node tests/verify-labels-sync.js",
       "node tests/verify-no-mixed-session.js",
       "node tests/verify-success-failure-contract.js",
-      "node tests/verify-no-same-layer-import.js",
       "node tests/verify-691-map-subissues.js",
       "node tests/verify-github-label-colors.js",
       "node tests/verify-992-readonly-labels.js",
@@ -5330,7 +5297,7 @@
     ],
     "src/seam": [
       "node tests/verify-deck-tools-host-wiring.js",
-      "node tests/verify-no-same-layer-import.js",
+      "node tests/verify-dependency-rules.ts",
       "node tests/verify-chain-env-e2e.js"
     ],
     "src/shared": [
@@ -5344,7 +5311,7 @@
       "node tests/verify-locale-completeness.js",
       "node tests/verify-panel-workspace-shared.js",
       "node tests/verify-matt-skills-sync.js",
-      "node tests/verify-no-same-layer-import.js",
+      "node tests/verify-dependency-rules.ts",
       "node tests/verify-markdown-label-colors.js",
       "node tests/verify-subdir-first-frame.js",
       "node tests/verify-653-subworkspace.js",
@@ -5447,7 +5414,6 @@
       "node tests/verify-locale-completeness.js",
       "node tests/verify-no-mixed-session.js",
       "node tests/verify-map-drill.js",
-      "node tests/verify-no-same-layer-import.js",
       "node tests/verify-992-readonly-labels.js",
       "node tests/verify-544-standalone-blocked.js",
       "node tests/verify-subdir-first-frame.js",
@@ -5496,7 +5462,7 @@
       "node tests/verify-prompts.js",
       "node tests/verify-deck-tools-matrix.js",
       "node tests/verify-895-github-memo.js",
-      "node tests/verify-no-mixed-session.js",
+      "node tests/verify-dependency-rules.ts",
       "node tests/verify-929-batch-cycle.js",
       "node tests/verify-729-force-dedup.js",
       "node tests/verify-refresh-adr.js",
