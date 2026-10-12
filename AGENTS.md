@@ -58,7 +58,7 @@ Single-context layout — root `CONTEXT.md` plus `docs/adr/`. See `docs/agents/d
 node --import ./scripts/ts-hook.mjs tests/你的测试.ts
 ```
 
-`npm test`（经 `scripts/verify-chain.js`）与 `npm run verify:parallel`（经 `scripts/verify-parallel.mjs`）跑链条目时会自动挂上这个钩子，写测试的人不用自己加。
+`npm test`（经 `scripts/verify-chain.js`）、`npm run verify:parallel`（经 `scripts/verify-parallel.mjs`）、`node scripts/verify-all.mjs`（CI 的 `.github/workflows/verify.yml` 跑的就是它，逐道跑完再汇总）与 `npm run test:smoke`（六条冒烟）四个入口跑测试时都会自动挂上这个钩子，写测试的人不用自己加。同一个判定分散在这四处，改一处必须全改——漏掉哪个入口，哪个入口里的 `.ts` 迁移就会跟别处表现不一样，典型症状是「本机 `npm test` 全绿、CI 红」。
 
 **Node 下限怎么来的**：钩子用的是同步的 `module.registerHooks()`，它同时管 ESM 的 `import` 与 CommonJS 的 `require`；异步的 `module.register()` 管不到 `require`，替代不了它。同步的 `registerHooks()` 从 Node 22.15 才有，这是这条线的起点——但 22.15 不等于能跑：钩子开着的时候测试加载的是 `.ts` 源码，而 Node 默认开启 TypeScript 类型剥离要到 22.18，再往上还有依赖自己的硬线（`jsdom` 声明 `^22.22.2 || ^24.15.0 || >=26.0.0`，8 个用例在用它）。所以根 `package.json` 的 `engines.node` 写的是 `"^22.22.2 || ^24.15.0 || >=26.0.0"`：22 线要 22.22.2 及以上，24 线要 24.15 及以上，26 及以上任意（23、25 是短命版本线，不单独支持）。这个范围是从最严的那个依赖抄来的，依赖一升要跟着复核；写窄了人会卡在「根项目通过、依赖拒绝」的信息里。
 

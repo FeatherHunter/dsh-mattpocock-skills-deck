@@ -14,7 +14,7 @@
     "update:latest": "pnpm update dsh-plugin-update@^0.13.0 && node scripts/derive-update-from-package.mjs && node scripts/build.mjs",
     "prepare": "node scripts/build.mjs",
     "test": "node scripts/verify-chain.js && npm run test:smoke",
-    "test:smoke": "node tests/smoke-client.test.js && node tests/smoke-host.test.js && node tests/smoke-host-dispatch.test.js && node tests/smoke-render.test.js && node tests/smoke-naming-persistence.test.js && node tests/smoke-comment-passthrough.test.js",
+    "test:smoke": "node --import ./scripts/ts-hook.mjs tests/smoke-client.test.js && node --import ./scripts/ts-hook.mjs tests/smoke-host.test.js && node --import ./scripts/ts-hook.mjs tests/smoke-host-dispatch.test.js && node --import ./scripts/ts-hook.mjs tests/smoke-render.test.js && node --import ./scripts/ts-hook.mjs tests/smoke-naming-persistence.test.js && node --import ./scripts/ts-hook.mjs tests/smoke-comment-passthrough.test.js",
     "verify:parallel": "node scripts/verify-parallel.mjs --keep-going",
     "verify:fast": "node scripts/verify-parallel.mjs --tier fast",
     "verify:changed": "node scripts/verify-parallel.mjs --changed",

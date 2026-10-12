@@ -31,16 +31,24 @@ const optOf = (name, fallback) => {
 }
 const allOf = (name) => args.flatMap((a, i) => (a === name && args[i + 1] && !args[i + 1].startsWith('--') ? [args[i + 1]] : []))
 
+// 读 package.json 的 scripts.verify 并切成一条条步骤。
+//
+// 后缀清单里必须有 .ts：从 #1021 起测试与门禁可以写成 .ts（装载钩子把它跑起来），
+// 迁移一条链条目就是 `node tests/x.js` 改成 `node tests/x.ts`。这里漏掉 .ts 不会报错，
+// 而是那一条**悄悄不跑**——少一道门禁却看不出来，所以下面把读不懂的条目单独记下来交给调用方报错。
 function chainSteps() {
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
   const raw = String((pkg.scripts && pkg.scripts.verify) || '')
   const steps = []
+  const unknown = []
   for (const piece of raw.split(' && ')) {
     const s = piece.trim()
-    const m = /^node\s+(tests\/\S+\.(?:js|mjs|cjs))$/.exec(s)
+    if (!s) continue
+    const m = /^node\s+(tests\/\S+\.(?:js|mjs|cjs|ts|mts|cts))$/.exec(s)
     if (m) steps.push({ cmd: s, file: m[1] })
+    else unknown.push(s)
   }
-  return steps
+  return { steps, unknown }
 }
 
 // 「真浏览器」的步骤：文件里出现 playwright。它们各自要起一个 Chromium，最慢的那扇 34.6 秒。
@@ -113,7 +121,7 @@ async function selectChanged() {
   const { selectGates } = await import(pathToFileURL(modPath).href)
   const map = JSON.parse(fs.readFileSync(path.join(ROOT, 'tests', 'gate-map.json'), 'utf8'))
   // 注意：归属表里的步骤写法是 `node tests/xxx.js`，要和它同一格式，否则一条都对不上。
-  const picked = selectGates({ changedPaths: changed, map, chainSteps: chainSteps().map((s) => s.cmd) })
+  const picked = selectGates({ changedPaths: changed, map, chainSteps: chainSteps().steps.map((s) => s.cmd) })
   if (!picked.fullChain && (!picked.steps || !picked.steps.length)) {
     // 一条都没选中说明挑选规则失效了。宁可跑全链，也绝不「什么都没跑却报成功」。
     console.log('[并行门禁] 挑选规则一条都没选中，这是异常情况，退回全链（请检查 tests/gate-map.json 与 scripts/lib/select-gates.mjs）')
@@ -134,8 +142,12 @@ async function selectChanged() {
 
 // 装载钩子：链上的测试步骤要能把 "./x.js" 解析到同目录的同名 .ts（迁移中的单元靠它）。
 // 没有同名 .ts 时钩子什么都不做，所以没迁移的步骤行为与今天完全一样。
-// 判定只有一条：要跑的是 tests/ 下的文件才挂。与 scripts/verify-chain.js 的 argvOf 是同一条口径，
-// 两处任一处改了，另一处必须跟着改。
+// 判定只有一条：要跑的是 tests/ 下的文件才挂。同一个判定分散在四个入口，改一处必须全改：
+//   1. scripts/verify-chain.js 的 argvOf（本地 npm test / npm run verify 的串行执行器）
+//   2. 本文件的 argvOf（并行执行器）
+//   3. scripts/verify-all.mjs 的 withTsHook（CI 的 .github/workflows/verify.yml 跑的就是它）
+//   4. package.json 的 test:smoke（六条冒烟，逐条挂 --import）
+// 漏掉哪一个，那个入口里的 .ts 迁移就会跟别处表现不一样（本地绿、CI 红就是这么来的）。
 // 预构建那一步（scripts/build.mjs）因此不挂：它不加载测试，挂上去只是多一次没用的加载。
 // 这一层只改「怎么起进程」，不动 package.json 里那条链的文字。
 const TS_HOOK = pathToFileURL(path.join(ROOT, 'scripts', 'ts-hook.mjs')).href
@@ -156,7 +168,13 @@ function runStep(step) {
   })
 }
 
-const steps0 = chainSteps()
+const { steps: steps0, unknown } = chainSteps()
+if (unknown.length) {
+  console.error('[并行门禁] 链上这 ' + unknown.length + ' 条命令本执行器读不懂，拒绝静默跳过（少跑一条就是少一道门禁）：')
+  for (const u of unknown) console.error('    ' + u.slice(0, 160))
+  console.error('  要么把它写成 `node tests/xxx.js|ts|mjs|cjs` 的样子，要么更新本脚本的 chainSteps 解析规则。')
+  process.exit(1)
+}
 if (!steps0.length) {
   console.error('[并行门禁] 读不出 package.json 的 scripts.verify')
   process.exit(1)

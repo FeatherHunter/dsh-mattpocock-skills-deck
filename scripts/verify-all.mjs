@@ -14,7 +14,7 @@
 import { execSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
 const pkg = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
@@ -24,6 +24,18 @@ if (!chain) {
   process.exit(2)
 }
 const gates = chain.split('&&').map(function (s) { return s.trim() }).filter(Boolean)
+
+// 装载钩子：链上的测试要能把 "./x.js" 解析到同目录的同名 .ts（迁移中的单元靠它）。
+// 判定只有一条：要跑的是 tests/ 下的文件才挂。同一个判定分散在四个入口，改一处必须全改：
+//   1. scripts/verify-chain.js 的 argvOf   2. scripts/verify-parallel.mjs 的 argvOf
+//   3. 本文件的 withTsHook                4. package.json 的 test:smoke
+// 本脚本尤其不能漏：CI（.github/workflows/verify.yml）跑的就是它，漏挂的后果是
+// 「本机 npm test 全绿、CI 红」——迁移成 .ts 的门禁在本地由钩子解析到源码，在 CI 那边解析不到。
+const TS_HOOK = pathToFileURL(path.join(ROOT, 'scripts', 'ts-hook.mjs')).href
+function withTsHook(cmd) {
+  const m = /^node\s+(tests\/\S+)$/.exec(cmd)
+  return m ? 'node --import ' + JSON.stringify(TS_HOOK) + ' ' + m[1] : cmd
+}
 
 const argv = process.argv.slice(2)
 if (argv.indexOf('--list') >= 0) {
@@ -43,7 +55,7 @@ for (let i = 0; i < gates.length; i++) {
   const t0 = Date.now()
   console.log('\n[' + n + '/' + gates.length + '] ' + cmd)
   try {
-    execSync(cmd, { cwd: ROOT, stdio: 'inherit' })
+    execSync(withTsHook(cmd), { cwd: ROOT, stdio: 'inherit' })
     console.log('    ✓ 通过（' + ((Date.now() - t0) / 1000).toFixed(1) + 's）')
   } catch (e) {
     failed.push({ n: n, cmd: cmd, code: (e && e.status != null) ? e.status : '?' })
