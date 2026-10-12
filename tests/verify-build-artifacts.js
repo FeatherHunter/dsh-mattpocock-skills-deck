@@ -319,6 +319,26 @@ check(domains.length > 0, `扫到 ${domains.length} 个域（${domains.join('、
       '双向判据：域里一份源码都没有要报出来（' + (emptyDomain[0] ? emptyDomain[0].problem : '没报') + '）')
     const handWritten = tu.checkDomainConsistency({ sources: ['a.ts'], outputs: ['a.js', 'mine.js'], handWritten: ['mine.js'] })
     check(handWritten.length === 0, '双向判据：名单里的手写产物不算无源产物')
+
+    // 转译参数：仓里所有逐文件转译共用同一份（scripts/lib/transpile-unit.mjs 的 TRANSPILE_OPTIONS）。
+    // 为什么这条要真转一段代码来验、而不是只比对几个字段：这个参数表里最容易被漏掉的是 charset，
+    // 而漏掉它不会报任何错——产物照常生成，只是里面的中文悄悄变成 \uXXXX 转义。历史上就是这样漏过一次
+    // （客户端像素那一段传了、四个计算核那一段没传），所以这里拿一段带中文的代码走一遍真实转译，
+    // 直接看中文有没有原样留下来。
+    const opts = tu.TRANSPILE_OPTIONS
+    check(!!opts && opts.loader === 'ts' && opts.format === 'esm' && opts.target === 'es2020' && opts.charset === 'utf8',
+      '转译参数：loader / format / target / charset 四项都在（' + JSON.stringify(opts) + '）')
+    check(Object.isFrozen(opts), '转译参数：这份参数被冻结，调用方改不动它')
+    let esbuildForProbe = null
+    try { esbuildForProbe = require('esbuild') } catch (e) { /* 没装 esbuild 时下面那条会如实报出来 */ }
+    if (esbuildForProbe) {
+      const probe = 'const msg = "读服务端剩余额度：这个接口不扣配额";\nexport { msg };\n'
+      const out = esbuildForProbe.transformSync(probe, opts).code
+      check(out.indexOf('读服务端剩余额度') >= 0 && out.indexOf('\\u8BFB') < 0,
+        '转译参数：带中文的代码转出来中文原样保留，没有变成 \\uXXXX 转义')
+    } else {
+      check(false, '转译参数：没装 esbuild，无法真转一段代码来验 charset（先跑 pnpm install）')
+    }
   }
 }
 

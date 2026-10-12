@@ -21,7 +21,7 @@ import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 
-import { checkDomainConsistency, deriveOutputPath, domainDir, generatedHeader, inlineExportDeclarations } from './transpile-unit.mjs'
+import { TRANSPILE_OPTIONS, checkDomainConsistency, deriveOutputPath, domainDir, generatedHeader, inlineExportDeclarations } from './transpile-unit.mjs'
 
 /** 仓库根：本文件在 scripts/lib/ 下，往上两层就是根。 */
 export const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
@@ -134,14 +134,9 @@ export function transpileUnit(sourcePath) {
     throw new Error(`[transpile] 没装 esbuild（先跑 pnpm install 再构建）：${(e && e.message) || e}`)
   }
   const source = readFileSync(resolve(REPO_ROOT, sourcePath), 'utf8')
-  const out = esbuild.transformSync(source, {
-    loader: 'ts',
-    format: 'esm',
-    // 保守目标：Node 宿主与浏览器闭包两边都跑得动。
-    target: 'es2020',
-    // 产物里的中文保持原样，别转成 \uXXXX 转义——生成物也要人看得懂。客户端像素那一段早就是这样。
-    charset: 'utf8',
-  })
+  // 参数取自 scripts/lib/transpile-unit.mjs 的 TRANSPILE_OPTIONS：仓里所有逐文件转译共用同一份，
+  // 客户端像素那一段也用这一份，两处不会各自漂移。
+  const out = esbuild.transformSync(source, TRANSPILE_OPTIONS)
   const prefix = `[${domainDir(domain)}]`
   const normalized = out.code.replace(/\r\n/g, '\n').replace(/\s+$/, '') + '\n'
   return generatedHeader(sourcePath) + inlineExportDeclarations(normalized, prefix)

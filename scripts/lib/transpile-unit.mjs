@@ -9,6 +9,32 @@
  * 判据为什么是这几条，见下面每个函数自己的说明。
  */
 
+/**
+ * 转译参数只在这一处写：仓里所有把 TypeScript 逐份转成 JavaScript 的地方都用这一份。
+ *
+ * 为什么必须只有一份：这些参数是「产物的字节长什么样」的全部来源，两处各写一份时，只要有人
+ * 给其中一处补一个参数（历史上就是 `charset` 这个参数只补给了客户端像素那一段），同一份源码
+ * 在两条流水线上就会产出两种字节，而这种差别不会报错、只会静默留在产物里。统一成一份之后，
+ * 「两条流水线产出的字节形态一致」不再靠人记得，而是结构上只有一种写法。
+ *
+ * 四个参数各自的意思：
+ *   - `loader: 'ts'`：输入是 TypeScript，让 esbuild 认这个后缀并剥掉类型标注。
+ *   - `format: 'esm'`：产物用 ES 模块写法，Node 宿主与浏览器闭包两边都能用。
+ *   - `target: 'es2020'`：保守目标，保住运行时下限（见根 package.json 的 engines.node）。
+ *   - `charset: 'utf8'`：产物里的中文保持原样，不转成 `\uXXXX` 转义。生成物也是给人看的，
+ *     中文被转义之后读日志、读产物、比对两份产物都会变得难认。不传这个参数时 esbuild 默认
+ *     转义非 ASCII 字符。
+ *
+ * 这是一份纯数据，不是函数，所以放在这个「只放纯函数」的文件里也不破例：它不读盘、不碰环境，
+ * 谁都可以直接拿去用或直接比对。
+ */
+export const TRANSPILE_OPTIONS = Object.freeze({
+  loader: 'ts',
+  format: 'esm',
+  target: 'es2020',
+  charset: 'utf8',
+})
+
 /** 域名到「这个域在源码里的位置」的换算只在这一处写：域目录就是 src/shared/<域名>/。 */
 export function domainDir(domain) {
   return `src/shared/${domain}`
