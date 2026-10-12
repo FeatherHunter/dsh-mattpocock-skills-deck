@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>票 #1014 · Q2 深挖：引用方向怎么管住</title>
+<style>
+  :root {
+    --ink: #1b1c1e;
+    --muted: #6b7280;
+    --line: #e6e7eb;
+    --bg: #fbfbfa;
+    --card: #ffffff;
+    --accent: #0f766e;
+    --accent-soft: #eefaf7;
+    --code-bg: #f4f5f7;
+    --warn: #92400e;
+    --warn-soft: #fef7ec;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 40px 24px 72px;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.8 -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+  }
+  main { max-width: 860px; margin: 0 auto; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 18px; margin-bottom: 32px; }
+  .kicker { margin: 0 0 6px; color: var(--muted); font-size: 13px; letter-spacing: .04em; }
+  h1 { margin: 0 0 10px; font-size: 26px; line-height: 1.35; letter-spacing: -.01em; }
+  .meta { margin: 0; color: var(--muted); font-size: 13px; }
+  .summary {
+    margin: 0 0 32px; padding: 14px 18px; background: var(--accent-soft);
+    border-left: 3px solid var(--accent); border-radius: 4px; font-size: 15px;
+  }
+  .summary strong { color: var(--accent); }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 6px;
+    padding: 20px 22px; margin-bottom: 14px;
+  }
+  h2 { font-size: 17px; margin: 0 0 10px; line-height: 1.5; }
+  h2 .n {
+    display: inline-block; min-width: 24px; height: 24px; line-height: 24px; text-align: center;
+    background: var(--ink); color: #fff; border-radius: 50%; font-size: 13px; margin-right: 9px;
+    vertical-align: 2px;
+  }
+  p { margin: 0 0 10px; }
+  p:last-child { margin-bottom: 0; }
+  ul { margin: 6px 0 10px; padding-left: 20px; }
+  li { margin-bottom: 5px; }
+  code {
+    font-family: ui-monospace, Consolas, "Cascadia Mono", monospace;
+    font-size: 12.5px; background: var(--code-bg); padding: 1px 5px; border-radius: 3px;
+    word-break: break-all;
+  }
+  .why {
+    margin: 12px 0 0; padding: 10px 14px; background: #f7f8f8;
+    border-left: 3px solid #c9ccd1; border-radius: 4px; font-size: 14px; color: #3f4247;
+  }
+  .why b { color: var(--ink); }
+  .note {
+    margin: 12px 0 0; padding: 11px 14px; background: var(--warn-soft);
+    border-left: 3px solid #f59e0b; border-radius: 4px; font-size: 14px; color: var(--warn);
+  }
+  footer { margin-top: 44px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <p class="kicker">GitHub issue #1014（地图 #1013 的子票）· 问题 Q2 的展开</p>
+  <h1>Q2 深挖：<span style="white-space:nowrap">「引用只能朝下」到底怎么管住</span></h1>
+  <p class="meta">2026-10-12 · 写给 TypeScript 新手</p>
+</header>
+
+<p class="summary"><strong>一句话总结：</strong>过渡期用一个社区标准的依赖检查工具看着（不自己写门禁），终态把「方向」交给 TypeScript 编译器保证，两条规则各有唯一判据、不许并存。</p>
+
+<div class="card">
+  <h2><span class="n">1</span>「依赖图门禁」是什么</h2>
+  <p>把「哪个文件引用了哪个文件」全部读出来，画成一张图：<strong>点 = 文件，线 = 引用</strong>；然后按目录规则看这张图上有没有不该有的线。</p>
+  <p>具体例子：如果 <code>src/deck/shell/xxx.ts</code> 里写着 <code>import ... from '../../host/tracker/backends/github/yyy.js'</code>，图上就多出一条「deck → GitHub 房」的线；规则说这条线不许有，它就报红。</p>
+  <p>它什么时候跑：跟现在 <code>tests/verify-*.js</code> 一样，挂在 <code>npm run verify</code> 里，非 0 就阻塞发布。</p>
+  <p>仓里今天已经有两条这种门禁，只是判据是「读文件文本 + 正则」：</p>
+  <ul>
+    <li><code>tests/verify-no-same-layer-import.js</code> —— 同一层内部不许互相引用（host / platform / shared / seam 四层，各层内部禁引）。</li>
+    <li><code>tests/verify-no-cross-import.js</code> —— 三座后端房间之间不许跨房引用。</li>
+  </ul>
+  <p class="note">顺带说清：你提到的第三条 <code>tests/verify-file-granularity.js</code> 其实<strong>不是</strong>依赖图，它数的是「每个文件多少行」，只是同样靠读文件文本。票里把三条归成一类，是因为它们的判据都是「读 <code>.js</code> 的文本」，换成 <code>.ts</code> 之后全都看不见。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">2</span>「用 TypeScript 编译器 API 解析 import」是什么</h2>
+  <p>不用正则去猜，而是把源码交给 TypeScript 自己的<strong>解析器</strong>，让它把文件读成一棵语法树，再从树上读「这条 import 指向哪」。</p>
+  <p>仓里已经有现成例子：<code>tests/verify-client-no-undef.js:24</code> 就是 <code>const ts = require('typescript-ast')</code>，紧接着 <code>ts.createProgram(...)</code>、<code>ts.getPreEmitDiagnostics(program)</code> 拿诊断结果 —— 那就是在调用编译器。</p>
+  <p><strong>为什么比正则好：</strong>注释里写的 import、字符串里出现的 import 字样、<code>import type {...}</code>、<code>export ... from '...'</code>、<code>import(变量)</code> 这些情况，正则要一条条写规则，而且很容易漏；编译器给出的答案就是「这段代码实际会怎么解析」。</p>
+  <p>老门禁为了绕开这些，注释里专门写了「先去掉块注释与行注释，JSDoc 里的 <code>import()</code> 不算数」—— 那些都是正则方案自己要还的债。</p>
+  <p class="why"><b>这条路仓里已经能走通，不需要新增依赖。</b>但我们最终不自己写这套检查，改用社区工具（见第 7 条）；理解它是为了看懂「门禁到底在做什么」。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">3</span><code>typescript-ast</code> 是什么</h2>
+  <p>就是根 <code>package.json:36</code> 的那一行：</p>
+  <p><code>"typescript": "7.0.2"</code><br><code>"typescript-ast": "npm:typescript@5.6.3"</code></p>
+  <p>第二行是 npm 的<strong>别名</strong>写法：把 <code>typescript</code> 这个包<strong>再装一份</strong>，名字叫 <code>typescript-ast</code>，版本 5.6.3。</p>
+  <p><strong>为什么要这么干</strong>，<code>tests/verify-client-no-undef.js:12-15</code> 写得很清楚：主包 <code>typescript</code> 升到 7.x（Go 重写）之后，<strong>不再导出可以在代码里调用的编译器接口</strong>（<code>createProgram</code> 这类取不到），而构建与类型检查用的是 7.x 的 <code>tsc</code> 命令行本体，不受影响。所以凡是要「在脚本里调用编译器」的地方，就 require <code>typescript-ast</code>（5.6.3）当解析器；将来解析器也能用新版了，把那行换回去即可。</p>
+  <p class="why"><b>一句话：</b>它是同一个包的第二份安装，专门给需要调用编译器的脚本使用。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">4</span>那三条规则怎么管到、为什么能管到</h2>
+  <ul>
+    <li><strong>引用只能朝下</strong>：每条线的两头各落在哪个域（deck / tracker 契约 / 内核 / 三座房间……），把「允许的方向」写成一张表 —— <code>deck → tracker 契约</code> 允许，<code>契约 → deck</code> 没写就是不许。出现表外的线就报红。</li>
+    <li><strong>禁循环</strong>：A 引 B、B 引 A，或者绕一圈回到自己。这在图上就是「环」，工具自带这个判定，不需要你写规则。</li>
+    <li><strong>禁跨层深引用</strong>：把「允许连到谁」收窄成白名单 —— deck 的文件只许连到 <code>src/tracker/contract/</code> 里的公开入口；连到 <code>src/host/tracker/backends/**</code>（房间实现）或 <code>src/host/tracker/detection/**</code>（识别判定）就算违规。</li>
+  </ul>
+  <p><strong>为什么能管到：</strong>这三条的判据都只是「这条线的两头是谁」，而线的两头在源码里是静态写死的（<code>import ... from './x.js'</code>），<strong>不需要运行程序就能读出来</strong>。它就是「照着一张表逐条核对」，没有玄机。</p>
+  <p class="note"><strong>它管不到什么</strong>（这条你必须知道）：路径是算出来的就看不见，例如 <code>await import('./' + name + '.js')</code>。今天老门禁对此的口径是「一律算违规」（<code>verify-no-same-layer-import.js</code> 的注释里写着这条），新工具要沿用同样的严格度，否则这里就是一个洞。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">5</span>「终态（12 号收口后）」是什么</h2>
+  <p>指地图 #1010 里排在最后的几张图做完之后的局面：</p>
+  <ul>
+    <li><strong>12 号「宿主接线」</strong>做完的标志：全仓没有指向旧路径的活引用、面板读数与今天一致。</li>
+    <li><strong>13 号「收口」</strong>：全域索引 + 手写 <code>.js</code> 归零核对通过。</li>
+    <li>在这之前还有：1019 那次机械搬家（91 处引用一次改完）、08/09 两房改造、11 号最底层。</li>
+  </ul>
+  <p><strong>为什么工程引用要等到那时候：</strong>工程引用要求「每个文件固定属于哪个工程」。而在此之前，文件还在搬 —— 三座房间要搬进 <code>rooms/</code>、契约刚挪过家、91 处引用要一次改完。此刻立工程图，等于一边搬家一边改门牌，编译器报的错会把真问题埋在噪声里。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">6</span>「把方向从检查升级成编译期事实」——这样对吗</h2>
+  <p>对，但有三个细节必须补上，不然会把它想成万能：</p>
+  <ul>
+    <li><strong>它只管编译器看得见的文件（<code>.ts</code>）。</strong>过渡期那 348 个手写 <code>.js</code> 不在任何工程里，所以现在只能靠检查工具 —— 这就是「分阶段」的原因。</li>
+    <li><strong>它有实测代价。</strong>被引用的域必须真的产出 <code>.d.ts</code>（实测报 <code>TS6310</code>），类型检查入口从 <code>tsc -p</code> 换成 <code>tsc -b</code>，多一个声明产物目录。</li>
+    <li><strong>它的边界。</strong>编译器保证的是「不许引用没被 references 的域」（实测写反方向的导入，报 <code>TS6059</code> / <code>TS6307</code>）；但<strong>同一个工程内部随便引</strong>，「只许走契约入口」这条它管不了。所以「深引用」这条规则即使上了工程引用，也要继续由工具管。</li>
+  </ul>
+  <p class="why"><b>大白话：</b>检查工具是「交卷前有人替你核对一遍」，编译器是「写错当场不让你编译过」。前者可能漏（脚本写得不好就漏），后者是解析器自己说的，不会漏。所以终态那一步值得做。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">7</span>你讨厌门禁 → 推荐改成这样</h2>
+  <p>先站你这边。你讨厌的大概是「自己写的、读文件文本钉写法」的那一类，而仓里<strong>已经按你的意思删过一批</strong>：<code>tests/verify-build-artifacts.js</code> 里三条读文本钉形状的断言被删掉了，注释还留在文件里（第 4-8 行、156-161 行）。你们自己的 ADR 也早写了这条方向：「今天约三十个按路径文本断言的旧门禁，换成标准依赖检查工具……工具换成社区的。」</p>
+  <p>所以改后的做法是：</p>
+  <ul>
+    <li><strong>引一个社区标准的依赖检查工具。</strong><code>dependency-cruiser</code> 是这一行的主流（npm 当前 18.6.0，自述就是「Validate and visualize dependencies. With your rules. JavaScript, TypeScript……」，昨天还在更新）。规则写成它的配置文件：禁循环、禁跨层深引用（白名单）、方向表。</li>
+    <li><strong>它一次替掉现在两条老门禁</strong>（<code>verify-no-same-layer-import.js</code>、<code>verify-no-cross-import.js</code>），而且同时能看 <code>.js</code> 与 <code>.ts</code>，过渡期不用另写一套。</li>
+    <li><strong>终态上了工程引用之后，把「方向」那条规则从配置里删掉</strong>，不是并存。</li>
+  </ul>
+  <p class="note"><strong>为什么坚决不许并存：</strong>同一条规则有两个判据，迟早不一致，最后没人知道哪个说了算 —— 那就是「假绿」的来源。</p>
+  <p>关于「讨厌门禁」我说一句反向的话，你可以驳：问题不在「有门禁」，而在「自己写的、读文本钉写法、一条规则两个判据」—— 这三样都该消掉。但<strong>完全没有检查等于靠自觉</strong>，这次要跨十几张图和多个会话，靠自觉的东西一定退化。建议口径定成：</p>
+  <p class="why"><b>能交给编译器的不写检查；非写不可的用社区工具；自己写的检查只留「只有这个仓库知道」的规则，而且每条都要能说出它防的是哪一次真实事故。</b></p>
+</div>
+
+<div class="card">
+  <h2><span class="n">8</span>为什么这张票挂 13 号、写死触发条件与「上线即删」</h2>
+  <ul>
+    <li><strong>挂 13 号</strong>：13 号本来就是「收口」。工程引用的判据是终态（全仓 <code>.ts</code>、目录不再动），放在收口图里，它既不会被提前做（提前做会和搬家打架），也不会被忘（收口图就是清账的地方）。</li>
+    <li><strong>写死触发条件</strong>：跨会话的工作里，「以后再说」基本等于「永远不做」。条件必须是可判定的，例如：12 号收口 + 手写 <code>.js</code> 归零核对通过。</li>
+    <li><strong>「上线即删」</strong>：就是第 7 条那条原则的落地方式 —— 防止两套判据并存。</li>
+  </ul>
+  <p><strong>优点：</strong>① 过渡期不付工程引用的代价（声明产物目录、搬家期 <code>tsc -b</code> 的噪声）；② 终态拿到最硬的保证（编译器级，不是脚本级）；③ 删掉的是「检查」，不是「判断力」—— 规则交给了更硬的那一方，没有能力损失。</p>
+</div>
+
+<footer>
+  依据仓库当前代码与两次实测（TypeScript 7.0.2 的工程引用行为、<code>allowJs</code> 下的调用检查行为）· 票 #1014 待维护者表态
+</footer>
+
+</main>
+</body>
+</html>

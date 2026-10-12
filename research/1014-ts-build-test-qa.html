@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>票 #1014 讨论稿：让 TypeScript 进构建与测试</title>
+<style>
+  :root {
+    --ink: #1b1c1e;
+    --muted: #6b7280;
+    --line: #e6e7eb;
+    --bg: #fbfbfa;
+    --card: #ffffff;
+    --accent: #0f766e;
+    --accent-soft: #eefaf7;
+    --code-bg: #f4f5f7;
+    --warn: #92400e;
+    --warn-soft: #fef7ec;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 40px 24px 72px;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.75 -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+  }
+  main { max-width: 900px; margin: 0 auto; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 20px; margin-bottom: 36px; }
+  .kicker { margin: 0 0 6px; color: var(--muted); font-size: 13px; letter-spacing: .04em; }
+  h1 { margin: 0 0 10px; font-size: 27px; line-height: 1.35; letter-spacing: -.01em; }
+  .meta { margin: 0 0 16px; color: var(--muted); font-size: 13px; }
+  .goal {
+    margin: 0; padding: 12px 16px; background: var(--card);
+    border: 1px solid var(--line); border-left: 3px solid var(--ink); border-radius: 4px;
+    font-size: 14px;
+  }
+  h2 { font-size: 19px; margin: 44px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+  h3 { font-size: 16px; margin: 0 0 8px; line-height: 1.5; }
+  p { margin: 0 0 10px; }
+  code {
+    font-family: ui-monospace, Consolas, "Cascadia Mono", monospace;
+    font-size: 12.5px; background: var(--code-bg); padding: 1px 5px; border-radius: 3px;
+    word-break: break-all;
+  }
+  table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); font-size: 14px; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: #f7f7f6; font-weight: 600; white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  .qa, .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 6px;
+    padding: 18px 20px; margin-bottom: 14px;
+  }
+  .qnum { color: var(--muted); font-weight: 700; margin-right: 6px; }
+  .options { margin: 8px 0 12px; padding: 0 0 0 18px; font-size: 14px; color: #3f4247; }
+  .options li { margin-bottom: 5px; }
+  .options li.chosen { color: var(--ink); }
+  .badge {
+    display: inline-block; font-size: 11px; font-weight: 700; color: var(--accent);
+    background: var(--accent-soft); border-radius: 3px; padding: 0 6px; margin-left: 6px; vertical-align: 1px;
+  }
+  .rec {
+    margin: 0; padding: 12px 14px; background: var(--accent-soft);
+    border-left: 3px solid var(--accent); border-radius: 4px; font-size: 14px;
+  }
+  .rec .label { font-weight: 700; color: var(--accent); }
+  .note {
+    background: var(--warn-soft); border-left: 3px solid #f59e0b; border-radius: 4px;
+    padding: 12px 14px; font-size: 14px; color: var(--warn); margin: 0 0 14px;
+  }
+  .card h3 { margin-bottom: 6px; }
+  .card p:last-child, .qa p:last-child { margin-bottom: 0; }
+  ul.tight { margin: 6px 0 10px; padding-left: 20px; }
+  ul.tight li { margin-bottom: 4px; }
+  ol.checks { counter-reset: c; list-style: none; margin: 0; padding: 0; }
+  ol.checks > li {
+    counter-increment: c; position: relative; padding: 12px 16px 12px 46px;
+    background: var(--card); border: 1px solid var(--line); border-radius: 6px; margin-bottom: 10px; font-size: 14px;
+  }
+  ol.checks > li::before {
+    content: "☐"; position: absolute; left: 16px; top: 11px; font-size: 17px; color: var(--muted);
+  }
+  ol.checks > li strong { display: block; margin-bottom: 2px; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
+  footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <p class="kicker">GitHub issue #1014 · 地图 #1013（构建与测试基建）的子票 · 阻塞其下 9 张开发票</p>
+  <h1>让 TypeScript 进构建与测试：结论草案</h1>
+  <p class="meta">2026-10-12 · 状态：待维护者逐条表态，未落盘</p>
+  <p class="goal"><strong>目标复述：</strong>01 号地图不改任何产品行为，只把「源码与运行时之间那道转译线」立起来，让后面每张图「改完立刻看见效果、坏了立刻知道」。做完的标志：随手写一个 <code>.ts</code>，一条命令就能被构建、被测试、被类型检查、被门禁看见，且发布探测仍通过。</p>
+</header>
+
+<section>
+  <h2>一、现状要点（推荐建立在这些事实上）</h2>
+  <table>
+    <tr><th>事</th><th>现状</th></tr>
+    <tr><td>构建吃的 <code>.ts</code></td><td>只覆盖客户端像素风 34 个文件（<code>scripts/build.mjs:1035</code> 目录扫描）与四个计算核；<code>src/host</code> 下 0 个 <code>.ts</code></td></tr>
+    <tr><td>类型检查覆盖</td><td>6 份 tsconfig，只圈四个核 + 契约目录 + 像素风；<strong>348 个手写 <code>.js</code> 一个都不在检查之下</strong></td></tr>
+    <tr><td>已发生的漏登记</td><td><code>src/client/kernel/locale-cards.ts</code> 被转译了，却从没进过 tsc（<code>tsconfig.client.json</code> 的 include 漏了它）</td></tr>
+    <tr><td>产物入库情况</td><td><code>.gitignore</code> 只忽略 <code>/client.js</code>、<code>/host.js</code>、<code>/package/lib/</code>；<strong><code>package/shared</code> 的 79 个 <code>.js</code> 还在库里</strong>，另有像素风 34 个同名 <code>.js</code>、四个核在 <code>src/shared/</code> 的转译产物</td></tr>
+    <tr><td>产物一致性校验</td><td><code>scripts/build.mjs:867-874</code> 断言「<code>package/lib/index.js</code> 与 <code>src/host/index.js</code> 逐字节一致」——源码换 <code>.ts</code> 后这条物理上不成立，要改写</td></tr>
+    <tr><td>测试现状</td><td>231 条 <code>tests/verify-*.js</code> + 6 条 smoke，全是 <code>.js</code>/<code>.mjs</code>，没有一条 <code>.ts</code>；<code>npm run verify</code> 是 8639 字的 <code>&amp;&amp;</code> 长串</td></tr>
+    <tr><td>实测代价</td><td><code>tsc -p tsconfig.client.json</code> 102 毫秒；<code>node scripts/build.mjs</code> 冷跑约 30 秒（有内容指纹缓存）；单条 verify 211 毫秒</td></tr>
+    <tr><td>发布链路</td><td><code>scripts/publish-token.ps1:157-162</code> 门禁 = <code>npm run build</code> + <code>npm test</code>；<code>-Probe</code> 只测写权限、不跑构建；<code>package/package.json:16</code> 的 <code>prepare</code> 发布时再构建一次</td></tr>
+    <tr><td>Node 下限</td><td>没有写。根 <code>package.json</code> 无 <code>engines</code>；<code>package/package.json:10</code> 只有 <code>engines: {dsh: "&gt;=0.2.0-rc.2"}</code>（那是用户侧的）</td></tr>
+    <tr><td>两条实测结论</td><td>① 被引用的 TypeScript 工程若「只检查不产出」，<code>tsc -b</code> 报 <code>TS6310</code>；② <code>.ts</code> 引未转的 <code>.js</code>：不开 <code>allowJs</code> 报 <code>TS7016</code>，开了就不报，但对 <code>.js</code> 的调用是<strong>不检查的 any</strong></td></tr>
+  </table>
+</section>
+
+<section>
+  <h2>二、八个问题与最终推荐</h2>
+
+  <article class="qa">
+    <h3><span class="qnum">Q1</span>01 的验收证据算哪一条</h3>
+    <ul class="options">
+      <li class="chosen">甲：新增类型检查命令 + 一条自检门禁（临时写 <code>.ts</code>，正确版全绿、错误版各自变红）<span class="badge">推荐</span></li>
+      <li>乙：真挑一个小文件转成 <code>.ts</code> 留在仓库当活样板</li>
+      <li>丙：只要求 <code>npm run build</code> + <code>npm test</code> 跑通，不新增门禁</li>
+    </ul>
+    <p class="rec"><span class="label">✅ 推荐甲（加强版）：</span>新增 <code>npm run check</code> 当那条「一条命令」（构建 → 类型检查 → 测试 → 门禁）。自检门禁分两段：<strong>快段</strong>进默认链（临时 <code>.ts</code> 走同一条转译函数、断言产物落位、断言 tsc 看见它、断言装载钩子能 import 它）；<strong>慢段</strong>（真的跑一次完整构建往返）交给发布门禁——它本来就是 build → test。临时文件用唯一名、<code>try/finally</code> 清理、结束断言该路径 <code>git status</code> 为空、目录名进扫描排除表。理由：验收必须是机器判据，但 30 秒冷构建不该塞进 231 条门禁的日常链。</p>
+  </article>
+
+  <article class="qa">
+    <h3><span class="qnum">Q2</span>「引用只能朝下」靠编译器还是靠检查工具</h3>
+    <ul class="options">
+      <li>甲：照 ADR 上 TypeScript 工程引用（代价：被引用的域必须产出 <code>.d.ts</code>，多一个声明产物目录 + 增量状态，入口换成 <code>tsc -b</code>）</li>
+      <li>乙：不上工程引用，用依赖图检查判方向</li>
+      <li class="chosen">丙：两条都要，分阶段 <span class="badge">推荐</span></li>
+    </ul>
+    <p class="rec"><span class="label">✅ 推荐分阶段的丙（已按「讨厌门禁」修订）：</span><strong>现在</strong>引一个社区依赖检查工具（<code>dependency-cruiser</code>，npm 上 18.6.0，自述支持 JavaScript/TypeScript），规则写在它的配置里——禁循环、禁跨层深引用、方向表；它一次替掉现有两条老门禁（<code>verify-no-same-layer-import.js</code>、<code>verify-no-cross-import.js</code>），并且同时能看 <code>.js</code> 与 <code>.ts</code>。<strong>终态</strong>（域边界稳定后）上工程引用，方向由编译器接管，同时把工具配置里那条方向规则<strong>删掉</strong>，不许两套并存。工程师自己写门禁这条路取消。</p>
+  </article>
+
+  <article class="qa">
+    <h3><span class="qnum">Q3</span>混存期里 <code>.ts</code> 引 <code>.js</code> 怎么算</h3>
+    <ul class="options">
+      <li class="chosen">甲：开 <code>allowJs: true</code>、<code>checkJs: false</code>，配一把只降不升的尺子 <span class="badge">推荐</span></li>
+      <li>乙：不开 allowJs，靠「契约先行 + 自上而下转」保证 <code>.ts</code> 只引 <code>.ts</code></li>
+      <li>丙：给 348 个还没转的 <code>.js</code> 手写 <code>.d.ts</code></li>
+    </ul>
+    <p class="rec"><span class="label">✅ 推荐甲 + 棘轮：</span>先否掉乙——计划是<strong>自上而下转</strong>（03 注册 → … → 12 宿主接线），转上层时下层还是 <code>.js</code>，乙在这套顺序下做不到。实测：开了 <code>allowJs</code> 之后 <code>.js</code> 侧是<strong>不检查的 any</strong>，收益只是「能过」。因此配棘轮：把「<code>.ts</code> 直接 import 的 <code>.js</code> 边数」与「手写 <code>.js</code> 文件数」做成基线文件（仓里已有两份基线先例），只降不升，基线外新增 <code>.js</code> 判红。最重要的缝（契约）本来已是 <code>.ts</code>；个别重要的房内扩展缝，手写一份 <code>.d.ts</code> 顶到转换完成。</p>
+  </article>
+
+  <article class="qa">
+    <h3><span class="qnum">Q4</span>「产物不入库」这次收到哪一步</h3>
+    <ul class="options">
+      <li>甲：只清 <code>package/shared</code></li>
+      <li class="chosen">乙：三处一起清，并把产物落点收敛干净 <span class="badge">推荐</span></li>
+      <li>丙：一处都不清，留给 13 号收口图</li>
+    </ul>
+    <p class="rec"><span class="label">✅ 推荐乙：</span><code>package/shared</code> 的 79 个 <code>.js</code>、像素风 34 个同名 <code>.js</code>、四个核在 <code>src/shared/&lt;核名&gt;/</code> 的产物全部出库；再加一步终态——<strong>产物只落 <code>package/lib</code>、<code>package/shared</code> 与一个构建缓存目录，<code>src/</code> 下不再生成 <code>.js</code></strong>（四个核的输出目录要挪出 <code>src/</code>）。理由：入库产物是第二真源，逼出了四条 <code>verify-*-freshness.js</code> 当永久税；而 <code>src/</code> 里不再有生成物，13 号那句「手写 <code>.js</code> 归零核对通过」才可能用目录扫描判。落地：<code>git rm --cached</code> 只动索引、文件留在盘上；单独立票、单独一次提交；把 <code>tests/verify-build-artifacts.js:132-155</code> 的守门对象改成「构建会生成、且不入库」。这条超出 01 原边界，单独成票、单一写者。</p>
+  </article>
+
+  <article class="qa">
+    <h3><span class="qnum">Q5</span>新树的 <code>.ts</code> 怎么登记进构建与类型检查</h3>
+    <ul class="options">
+      <li class="chosen">甲：目录扫描 + 一条「不漏不重」门禁（顺手补 <code>locale-cards.ts</code>）<span class="badge">推荐</span></li>
+      <li>乙：继续按 AGENTS.md 现行做法手工登记进 tsconfig include 与 build.mjs 清单</li>
+    </ul>
+    <p class="rec"><span class="label">✅ 推荐甲（加强版）：</span>按域目录通配收集要转译的 <code>.ts</code>；<strong>客户端闭包的拼接顺序仍用手写有序清单</strong>（顺序是信息，扫不出来）；再加一条「不漏不重」门禁把三者对齐——每个 <code>.ts</code> 恰好属于一个域、恰好被一个转译集合覆盖、闭包清单里没有多余项；构建时打印「本域收录 N 个 <code>.ts</code>」，让扫描结果可见。</p>
+  </article>
+
+  <article class="qa">
+    <h3><span class="qnum">Q6</span>测试跑法与 231 条旧门禁怎么退场</h3>
+    <ul class="options">
+      <li class="chosen">甲：<code>node --test</code> + 约三十行装载钩子；旧长串按条迁移；新测试一律 <code>.ts</code> <span class="badge">推荐</span></li>
+      <li>乙：一次性把 231 条全部改成新跑法</li>
+      <li>丙：长串保留，新测试另走一套，不设退场期限</li>
+    </ul>
+    <p class="rec"><span class="label">✅ 推荐甲 + 棘轮 + 两条细则：</span>钩子定优先级——<strong>同名 <code>.ts</code> 存在就加载 <code>.ts</code>，否则加载 <code>.js</code></strong>（同时解决「陈旧产物冒充真源」）；默认<strong>串行</strong>跑（<code>--test-concurrency=1</code>，或把有状态门禁标 serial，因为现有门禁里有动夹具、动 git 索引、占端口的）；未迁移测试数只降不升。乙会一次性拆掉后面每张图都依赖的「行为零变化」尺子；丙会让两套跑法永久并存。</p>
+  </article>
+
+  <article class="qa">
+    <h3><span class="qnum">Q7</span>要不要写 Node 版本下限</h3>
+    <ul class="options">
+      <li class="chosen">甲：写 <code>engines.node</code> + 一条会报错的门禁 <span class="badge">推荐</span></li>
+      <li>乙：不写，只在文档里说明</li>
+    </ul>
+    <p class="rec"><span class="label">✅ 推荐甲，但只写在根 <code>package.json</code>：</span><code>package/package.json</code> 的 <code>engines</code> 是给用户侧的，不动；Node 下限属于开发者工具链，建议 <code>&gt;=22</code>（<code>module.register</code> 最低 20.6，但 Node 20 的维护期 2026 年 4 月已结束）。注意 <code>engines</code> 默认只警告不拦人，<strong>真正的拦截是那条门禁</strong>；下限同时写进 <code>AGENTS.md</code>。</p>
+  </article>
+
+  <article class="qa">
+    <h3><span class="qnum">Q8</span>类型检查要不要进阻塞发布链</h3>
+    <ul class="options">
+      <li class="chosen">甲：新增 <code>npm run typecheck</code> 并挂进 <code>npm run verify</code> <span class="badge">推荐</span></li>
+      <li>乙：只做 <code>npm run typecheck</code>，不进 verify</li>
+    </ul>
+    <p class="rec"><span class="label">✅ 推荐甲 + 防「绿而没检查」：</span><code>typecheck</code> 用 glob 发现全部 tsconfig（不手写清单），跑完断言「发现的份数与文件数」达到预期下限。理由：<code>tsc -p</code> 只检查它 include 到的文件，include 漏了照样绿（<code>locale-cards.ts</code> 是活证）；实测成本亚秒级，不进阻塞链则「写错编译就报错」这条收益只在本地生效。</p>
+  </article>
+</section>
+
+<section>
+  <h2>三、Q2 深挖（给 TypeScript 新手）</h2>
+
+  <div class="card">
+    <h3>1. 「依赖图门禁」是什么</h3>
+    <p>把「哪个文件引用了哪个文件」全部读出来，画成一张图（点 = 文件，线 = 引用），再按目录规则看这张图上有没有不该有的线。</p>
+    <p>例子：<code>src/deck/shell/xxx.ts</code> 里若写着 <code>import ... from '../../host/tracker/backends/github/yyy.js'</code>，图上就多出一条「deck → GitHub 房」的线，规则说这条线不许有，它报红。它跟现在的 <code>tests/verify-*.js</code> 一样挂在 <code>npm run verify</code> 里，非 0 阻塞发布。</p>
+    <p>仓里今天有两条这种门禁，判据是「读文件文本 + 正则」：<code>tests/verify-no-same-layer-import.js</code>（同层内部不许互引）、<code>tests/verify-no-cross-import.js</code>（三座房间之间不许跨房）。你提到的第三条 <code>tests/verify-file-granularity.js</code> 数的是「每个文件多少行」，不是依赖图，只是同样靠读文本。</p>
+  </div>
+
+  <div class="card">
+    <h3>2. 「用 TypeScript 编译器 API 解析 import」是什么</h3>
+    <p>不用正则去猜，而是把源码交给 TypeScript 自己的<strong>解析器</strong>，让它读成一棵语法树，再从树上读「这条 import 指向哪」。</p>
+    <p>仓里已有现成例子：<code>tests/verify-client-no-undef.js:24</code> 就是 <code>const ts = require('typescript-ast')</code>，接着 <code>ts.createProgram(...)</code>、<code>ts.getPreEmitDiagnostics(program)</code> 拿诊断——那就是在调用编译器。</p>
+    <p>为什么比正则好：注释里的 import、字符串里的 import 字样、<code>import type</code>、<code>export ... from</code>、<code>import(变量)</code>，正则要一条条写规则还容易漏；编译器给的就是「代码实际会怎么解析」。老门禁为了绕开这些，注释里专门写了「先去掉块注释与行注释，JSDoc 里的 import() 不算数」，那都是要还的债。</p>
+  </div>
+
+  <div class="card">
+    <h3>3. <code>typescript-ast</code> 是什么</h3>
+    <p>就是根 <code>package.json:36</code> 那一行：<code>"typescript-ast": "npm:typescript@5.6.3"</code>。这是 npm 的<strong>别名</strong>写法：把 <code>typescript</code> 这个包<strong>再装一份</strong>，名字叫 <code>typescript-ast</code>，版本 5.6.3。</p>
+    <p>为什么这么干，<code>tests/verify-client-no-undef.js:12-15</code> 写清了：主包 <code>typescript</code> 升到 7.x（Go 重写）之后<strong>不再导出可以在代码里调用的编译器接口</strong>（<code>createProgram</code> 这类取不到），而构建与类型检查用的是 7.x 的 <code>tsc</code> 命令行本体，不受影响。所以凡是要在脚本里调用编译器的地方，就 require <code>typescript-ast</code>。</p>
+    <p>结论：这套「解析 import」的能力<strong>不需要新增任何依赖</strong>，仓里已经装好了。</p>
+  </div>
+
+  <div class="card">
+    <h3>4. 那三条规则怎么管到、为什么能管到</h3>
+    <ul class="tight">
+      <li><strong>引用只能朝下</strong>：每条线的两头各落在哪个域（deck / tracker 契约 / 内核 / 三座房间），把允许的方向写成一张表；表外的线出现就报红。</li>
+      <li><strong>禁循环</strong>：A 引 B、B 引 A，或绕一圈回到自己，这是图上的「环」，工具自带判定。</li>
+      <li><strong>禁跨层深引用</strong>：把「允许连到谁」收窄成白名单——deck 只许连到 <code>src/tracker/contract/</code> 的公开入口，连到 <code>src/host/tracker/backends/**</code>（房间实现）或 <code>src/host/tracker/detection/**</code>（识别判定）即违规。</li>
+      <li><strong>为什么能管到</strong>：这三条的判据都只是「线的两头是谁」，而线的两头在源码里是静态写死的，不需要运行程序就能读出来。</li>
+      <li><strong>管不到什么</strong>：路径是算出来的看不见，例如 <code>await import('./' + name + '.js')</code>。今天老门禁对此的口径是「一律算违规」，新工具要沿用同样的严格度，否则这里就是一个洞。</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>5. 「终态（12 号收口后）」是什么</h3>
+    <p>指地图 #1010 里排在最后的几张图做完之后的局面：12 号「宿主接线」做完的标志是全仓没有指向旧路径的活引用、面板读数与今天一致；13 号「收口」是全域索引加手写 <code>.js</code> 归零核对。在它们之前还有 1019 那次机械搬家（91 处引用一次改完）、08/09 两房改造、11 号最底层。</p>
+    <p><strong>为什么工程引用要等到那时候</strong>：工程引用要求「每个文件固定属于哪个工程」。在此之前文件还在搬（三座房间要搬进 <code>rooms/</code>、契约刚挪过家、91 处引用要一次改完）。此刻立工程图，等于一边搬家一边改门牌，编译器报的错会把真问题埋在噪声里。</p>
+  </div>
+
+  <div class="card">
+    <h3>6. 「把方向从检查升级成编译期事实」——这样对吗</h3>
+    <p>对，但有三个细节必须补上：</p>
+    <ul class="tight">
+      <li><strong>它只管编译器看得见的文件（<code>.ts</code>）</strong>：过渡期那 348 个手写 <code>.js</code> 不在任何工程里，所以现在只能靠检查工具。</li>
+      <li><strong>它有实测代价</strong>：被引用的域必须真的产出 <code>.d.ts</code>（实测报 <code>TS6310</code>），类型检查入口从 <code>tsc -p</code> 换成 <code>tsc -b</code>，多一个声明产物目录。</li>
+      <li><strong>它的边界</strong>：编译器保证「不许引用没被 references 的域」（实测写反方向导入报 <code>TS6059</code>/<code>TS6307</code>），但<strong>同一工程内部随便引</strong>，「只许走契约入口」这条它管不了——深引用这条规则即使上了工程引用也要继续由工具管。</li>
+    </ul>
+    <p>大白话：检查工具是「交卷前有人替你核对一遍」，编译器是「写错当场不让你编译过」。前者可能漏，后者不会漏，所以终态那一步值得做。</p>
+  </div>
+
+  <div class="card">
+    <h3>7. 你讨厌门禁 → 推荐改成这样</h3>
+    <p>先站你这边：你讨厌的大概是「自己写的、读文件文本钉写法」的那类，而仓里<strong>已经按你的意思删过一批</strong>——<code>tests/verify-build-artifacts.js</code> 里三条读文本钉形状的断言被删掉了，注释还留在文件里（第 4-8 行、156-161 行）。ADR 也早写了「换成社区的」。</p>
+    <ul class="tight">
+      <li><strong>引社区标准工具</strong>：<code>dependency-cruiser</code>（npm 当前 18.6.0，自述支持 JavaScript/TypeScript），规则写配置文件：禁循环、禁跨层深引用、方向表。</li>
+      <li><strong>一次替掉两条老门禁</strong>，且同时能看 <code>.js</code> 与 <code>.ts</code>，过渡期不用另写一套。</li>
+      <li><strong>终态删掉方向规则</strong>：工程引用上线后，方向归编译器，配置里那条删掉，不许并存。同一条规则两个判据，迟早不一致，最后没人知道哪个说了算——那就是「假绿」的来源。</li>
+    </ul>
+    <p>一句反向的话供你驳：问题不在「有门禁」，而在「自己写的、读文本钉写法、一条规则两个判据」。这三样都该消掉；但完全没有检查等于靠自觉，这次要跨十几张图和多个会话，靠自觉的东西一定退化。建议口径：<strong>能交给编译器的不写检查；非写不可的用社区工具；自己写的检查只留「只有这个仓库知道」的规则，且每条都要能说出它防的是哪一次真实事故。</strong></p>
+  </div>
+
+  <div class="card">
+    <h3>8. 为什么这张票挂 13 号、写死触发条件与「上线即删」</h3>
+    <ul class="tight">
+      <li><strong>挂 13 号</strong>：13 号本来就是「收口」，工程引用的判据是终态。放这里，既不会被提前做（提前做与搬家打架），也不会被忘（收口图就是清账的地方）。</li>
+      <li><strong>写死触发条件</strong>：跨会话的工作里「以后再说」基本等于「永远不做」。条件必须可判定，例如：12 号收口 + 手写 <code>.js</code> 归零核对通过。</li>
+      <li><strong>「上线即删」</strong>：第 7 条那条原则的落地方式，防止两套判据并存。</li>
+      <li><strong>优点</strong>：① 过渡期不付工程引用的代价（声明产物目录、搬家期 <code>tsc -b</code> 的噪声）；② 终态拿到最硬的保证（编译器级，不是脚本级）；③ 删掉的是「检查」，不是「判断力」——规则交给了更硬的那一方。</li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <h2>四、建议写进票里的结论骨架</h2>
+  <div class="two-col">
+    <div class="card"><h3>I1 一份真源</h3><p>源码树只有 <code>.ts</code>；生成物只落 <code>package/lib</code>、<code>package/shared</code> 与构建缓存目录，永不入库。</p></div>
+    <div class="card"><h3>I2 一种写法</h3><p>源码里的相对引用一律写 <code>./x.js</code>（TS 会解析到同名 <code>.ts</code>，产物正好就是 <code>.js</code>——实测成立）。</p></div>
+    <div class="card"><h3>I3 一条命令</h3><p><code>npm run check</code> = 构建 + 类型检查 + 测试 + 门禁；发布门禁另跑完整链。</p></div>
+    <div class="card"><h3>I4 两把棘轮</h3><p>手写 <code>.js</code> 数、<code>.ts</code> 引 <code>.js</code> 的边数，只降不升，基线入库。</p></div>
+    <div class="card"><h3>I5 空集合判红</h3><p>任何门禁扫到的输入集为空时必须红，不许绿。</p></div>
+    <div class="card"><h3>另需一张新票</h3><p>工程引用上线：挂 13 号收口图，写死触发条件与「上线即删门禁里的方向规则」。</p></div>
+  </div>
+  <p class="note"><strong>留在 01 的只有四件</strong>（改变日常写法的）：说明符写法、登记方式（Q5）、测试跑法（Q6）、类型检查入口（Q8）；Q1 是它们的验收；Q4、Q7、Q2 的第二阶段各自单独成票。</p>
+</section>
+
+<section>
+  <h2>五、待你表态</h2>
+  <ol class="checks">
+    <li><strong>Q1 验收证据</strong>：同意甲（<code>npm run check</code> + 两段自检门禁）？</li>
+    <li><strong>Q2 方向机制</strong>：同意改后的分阶段方案（现在用社区工具，终态交编译器，不自己写门禁）？</li>
+    <li><strong>Q3 混存期</strong>：同意开 <code>allowJs</code> + 两把棘轮？</li>
+    <li><strong>Q4 产物出库</strong>：同意三处一起清 + 产物落点收敛（四个核输出目录挪出 <code>src/</code>）？这条超出 01 原边界，需单独成票。</li>
+    <li><strong>Q5 登记方式</strong>：同意目录扫描 + 「不漏不重」门禁 + 补 <code>locale-cards.ts</code>？</li>
+    <li><strong>Q6 测试跑法</strong>：同意 <code>node --test</code> + 装载钩子 + 按条迁移 + 默认串行？</li>
+    <li><strong>Q7 Node 下限</strong>：同意写根 <code>package.json</code> 的 <code>engines.node</code>，具体定 22 还是别值？</li>
+    <li><strong>Q8 类型检查进链</strong>：同意挂进 <code>npm run verify</code>？</li>
+    <li><strong>新增开发依赖</strong>：同意引入 <code>dependency-cruiser</code>？（Q2 的前置）</li>
+    <li><strong>动态 import 口径</strong>：沿用老门禁「非字面量动态 import 一律算违规」的严格度？</li>
+  </ol>
+</section>
+
+<footer>
+  票 #1014 讨论稿 · 内容依据仓库当前代码与两次实测（TypeScript 7.0.2 的工程引用行为、<code>allowJs</code> 下的调用检查行为）· 你确认后写进该票正文。
+</footer>
+
+</main>
+</body>
+</html>

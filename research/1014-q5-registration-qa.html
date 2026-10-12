@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>票 #1014 · Q5 深挖：TS 文件怎么被「看见」，怎么不再漏登记</title>
+<style>
+  :root {
+    --ink: #1b1c1e;
+    --muted: #6b7280;
+    --line: #e6e7eb;
+    --bg: #fbfbfa;
+    --card: #ffffff;
+    --accent: #0f766e;
+    --accent-soft: #eefaf7;
+    --code-bg: #f4f5f7;
+    --warn: #92400e;
+    --warn-soft: #fef7ec;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 40px 24px 72px;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.8 -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+  }
+  main { max-width: 880px; margin: 0 auto; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 18px; margin-bottom: 30px; }
+  .kicker { margin: 0 0 6px; color: var(--muted); font-size: 13px; letter-spacing: .04em; }
+  h1 { margin: 0 0 10px; font-size: 26px; line-height: 1.35; letter-spacing: -.01em; }
+  .meta { margin: 0; color: var(--muted); font-size: 13px; }
+  .summary {
+    margin: 0 0 30px; padding: 14px 18px; background: var(--accent-soft);
+    border-left: 3px solid var(--accent); border-radius: 4px; font-size: 15px;
+  }
+  .summary strong { color: var(--accent); }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 6px;
+    padding: 20px 22px; margin-bottom: 14px;
+  }
+  h2 { font-size: 17px; margin: 0 0 10px; line-height: 1.5; }
+  h2 .n {
+    display: inline-block; min-width: 24px; height: 24px; line-height: 24px; text-align: center;
+    background: var(--ink); color: #fff; border-radius: 50%; font-size: 13px; margin-right: 9px;
+    vertical-align: 2px;
+  }
+  h3 { font-size: 14.5px; margin: 16px 0 6px; }
+  p { margin: 0 0 10px; }
+  p:last-child { margin-bottom: 0; }
+  ul { margin: 6px 0 10px; padding-left: 20px; }
+  li { margin-bottom: 5px; }
+  code {
+    font-family: ui-monospace, Consolas, "Cascadia Mono", monospace;
+    font-size: 12.5px; background: var(--code-bg); padding: 1px 5px; border-radius: 3px;
+    word-break: break-all;
+  }
+  pre {
+    margin: 8px 0 12px; padding: 12px 14px; background: #f7f8f8; border: 1px solid var(--line);
+    border-radius: 4px; overflow-x: auto;
+    font-family: ui-monospace, Consolas, "Cascadia Mono", monospace; font-size: 12.5px; line-height: 1.6;
+  }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0 12px; font-size: 13.5px; }
+  th, td { border: 1px solid var(--line); padding: 7px 10px; text-align: left; vertical-align: top; }
+  th { background: #f4f5f7; font-weight: 600; }
+  .why {
+    margin: 12px 0 0; padding: 10px 14px; background: #f7f8f8;
+    border-left: 3px solid #c9ccd1; border-radius: 4px; font-size: 14px; color: #3f4247;
+  }
+  .why b { color: var(--ink); }
+  .note {
+    margin: 12px 0 0; padding: 11px 14px; background: var(--warn-soft);
+    border-left: 3px solid #f59e0b; border-radius: 4px; font-size: 14px; color: var(--warn);
+  }
+  footer { margin-top: 42px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <p class="kicker">GitHub issue #1014（地图 #1013 的子票）· 问题 Q5 的展开</p>
+  <h1>Q5 深挖：<span style="white-space:nowrap">TS 文件怎么被「看见」，怎么不再漏登记</span></h1>
+  <p class="meta">2026-10-12 · 写给 TypeScript 新手</p>
+</header>
+
+<p class="summary"><strong>一句话总结：</strong>文件被谁看见由两处决定——<strong>类型检查看 <code>tsconfig</code> 的 <code>include</code></strong>、<strong>构建看它自己扫的目录</strong>。今天这两处都靠人手登记，所以漏过（<code>locale-cards.ts</code>）；改成「目录通配 + 目录扫描 + 一个文件只属于一个域目录」，就不再有逐文件登记这件事。</p>
+
+<div class="card">
+  <h2><span class="n">1</span>「域」是什么意思</h2>
+  <p><strong>域＝一块代码分区：谁检查它、它允许引用谁，都以它为单位定。</strong>它不是文件夹的别名，而是按「谁能引谁」划出来的边界。</p>
+  <p>今天仓库里已有四个域（每个域配一份自己的 <code>tsconfig</code>）：</p>
+  <table>
+    <tr><th>域</th><th>管哪些目录</th><th>归哪份配置管</th></tr>
+    <tr><td>客户端界面（像素风真源）</td><td><code>src/client/views/**</code> 系列目录、<code>src/client/kernel/</code> 的一部分</td><td><code>tsconfig.client.json</code></td></tr>
+    <tr><td>契约层</td><td><code>src/tracker/contract/**</code></td><td><code>tsconfig.contract.json</code></td></tr>
+    <tr><td>四个计算核（各自一个域）</td><td><code>label-color-core/src</code>、<code>refresh-core/src</code>、<code>version-control-core/src</code>、<code>config-store-core/src</code></td><td>各自目录下的 <code>tsconfig.json</code>（共 4 份）</td></tr>
+  </table>
+  <p>将来（地图 #1010 的改造）还会多几个域：<code>src/deck/</code>（deck 工具自己的家）、<code>src/tracker/</code>（跟踪器与契约）、<code>src/host/tracker/rooms/**</code>（三座后端房间，今天叫 <code>backends/</code>）。</p>
+  <p>域与域之间还有<strong>方向</strong>：按 ADR §5 的定版，<code>deck</code> 引用 <code>tracker</code>、<code>tracker</code> 引用内核，<strong>只能朝下</strong>；写反了不许通过。</p>
+  <div class="why"><b>为什么这件事对 Q5 重要：</b>「登记」就是告诉机器「这个文件属于哪个域」。域划清了，登记这件事才能由「文件放在哪」自动决定。</div>
+</div>
+
+<div class="card">
+  <h2><span class="n">2</span><code>tsconfig</code> 是什么</h2>
+  <p><strong>一句话：TypeScript 的配置文件。</strong>它告诉 <code>tsc</code>（TypeScript 官方编译器）三件事——① 检查哪些文件；② 用什么语法等级和严格程度检查；③ 要不要产出文件。</p>
+  <p>今天仓库里有 <strong>6 份</strong>，没有根上的那份（每份各管一个域）：</p>
+  <table>
+    <tr><th>配置文件</th><th>管哪个域</th><th><code>include</code> 写的是什么</th></tr>
+    <tr><td><code>tsconfig.client.json</code>（<code>:16-25</code>）</td><td>客户端像素风</td><td>7 条模式（逐文件 2 条 + 逐目录通配 5 条）</td></tr>
+    <tr><td><code>tsconfig.contract.json</code>（<code>:23</code>）</td><td>契约层</td><td><code>["src/tracker/contract/**/*.ts"]</code></td></tr>
+    <tr><td>四个核各自的 <code>tsconfig.json</code></td><td>各自的核</td><td><code>["src/**/*.ts"]</code>（相对自己的核目录）</td></tr>
+  </table>
+  <p>六份的共同口径（都是「只检查、不产出」）：</p>
+  <pre>"strict": true,           // 严格模式：类型可疑就报错
+"target": "ES2020",      // 生成的目标语法版本（保守，宿主与浏览器都跑得动）
+"module": "ESNext",      // 用 ES 模块语法
+"moduleResolution": "Bundler",
+"noEmit": true,          // 只看不产出——真正的 .js 由构建里的 esbuild 生成
+"types": []              // 不引任何 @types 包</pre>
+  <p>谁在跑它们（没有 <code>npm run tsc</code> 这种脚本，全是别的脚本顺手拉起）：客户端是 <code>scripts/build.mjs:1089</code>；契约是 <code>tests/verify-contract-types.js:61,275</code>；四个核是各自的 <code>build.mjs</code> 与 <code>tests/verify-*-freshness.js</code>。</p>
+  <div class="note"><b>别混淆：</b><code>noEmit: true</code> 不是说「不生成代码」，而是「这次只做检查」。生成 <code>.js</code> 的活由构建脚本里的 <code>esbuild</code> 干。</div>
+</div>
+
+<div class="card">
+  <h2><span class="n">3</span><code>include</code> 是什么</h2>
+  <p><strong>一句话：<code>tsconfig</code> 里那条「哪些文件归我检查」的名单。</strong>没被 <code>include</code> 圈到的文件，<code>tsc</code> 根本不看——不是「看了说没问题」，而是<strong>压根没看</strong>。</p>
+  <p>写法有两种：</p>
+  <ul>
+    <li><strong>逐文件列</strong>：<code>"src/client/kernel/locale-skilldetail.ts"</code> —— 写谁才检查谁，新增文件必须回来补一行。</li>
+    <li><strong>目录通配</strong>：<code>"src/tracker/contract/**/*.ts"</code> —— 这个目录（含子目录）里所有 <code>.ts</code> 都检查，新增文件自动进。</li>
+  </ul>
+  <h3>真实事故（这就是「漏登记」长什么样）</h3>
+  <p>文件：<code>src/client/kernel/locale-cards.ts</code>。</p>
+  <ul>
+    <li>构建的目录扫描扫的是 <code>src/client/kernel</code>（<code>scripts/build.mjs:1035</code> 那 5 个目录之一），所以它<strong>被转译成了 <code>.js</code> 产物</strong>；</li>
+    <li>但 <code>tsconfig.client.json</code> 的 <code>include</code> 里，<code>kernel</code> 只列了 <code>locale-skilldetail.ts</code>（<code>:24</code>）这一条逐文件写法——<strong>没有它</strong>；</li>
+    <li>结果：它转了、能跑，却<strong>从来没被类型检查过</strong>。</li>
+  </ul>
+  <h3>为什么会漏</h3>
+  <p>今天要人记<strong>两处</strong>：<code>AGENTS.md:49</code> 明确要求「新增 <code>.ts</code> 要同步登记到对应 <code>tsconfig</code> 的 <code>include</code> 与 <code>scripts/build.mjs</code> 清单」。两份名单、两处手工维护，靠人记，迟早漏一边。</p>
+  <div class="note"><b>注意 <code>tsconfig.client.json:4</code> 那句注释已经过期</b>（写着「只圈 15 个像素风真源加两份声明」），实际包含的文件早已超过这个数——手写名单还会带来第二种债：注释与现实脱节。</div>
+</div>
+
+<div class="card">
+  <h2><span class="n">4</span>「用目录通配」「构建用目录扫描收集」是什么</h2>
+  <p>它们是同一件事的两半，一边管检查（<code>tsconfig</code>），一边管构建（构建脚本）。</p>
+  <h3>4.1 目录通配（配置侧）</h3>
+  <p>把 <code>include</code> 写成模式而不是文件名：</p>
+  <pre>"include": ["src/deck/**/*.ts"]     // 这个目录里以后新增的 .ts 自动进检查，不用改配置</pre>
+  <p><code>**</code> 表示「含任意层子目录」，<code>*</code> 表示「任意文件名」。契约层今天已经是这个写法（<code>tsconfig.contract.json:23</code>）。</p>
+  <h3>4.2 目录扫描收集（构建侧）</h3>
+  <p>构建脚本运行时自己去读目录、挑出 <code>.ts</code>，不靠手写文件名。仓里<strong>已经有现成例子</strong>，就在客户端像素风这条管线上：</p>
+  <ul>
+    <li><code>scripts/build.mjs:1035</code>：<code>PX_TS_DIRS</code> 列了 5 个目录——<code>src/client/views</code>、<code>views/pixel</code>、<code>views/skillDetail</code>、<code>views/cards</code>、<code>src/client/kernel</code>；</li>
+    <li><code>scripts/build.mjs:1036-1046</code>：<code>pixelTsTruthFiles()</code> 挨个目录 <code>readdirSync</code>，收 <code>*.ts</code>、跳过 <code>*.d.ts</code>；</li>
+    <li><code>scripts/build.mjs:1047-1082</code>：<code>buildPixelTs()</code> 把收来的每个文件逐个转译成同名 <code>.js</code>（<code>:1057</code> 调用 esbuild）。</li>
+  </ul>
+  <p>所以：<strong>这 5 个目录里新增一个 <code>.ts</code>，不用改构建脚本，它就会自动被收进去转译</strong>——这正是「目录扫描收集」。</p>
+  <h3>4.3 今天两种登记方式并存的另一套</h3>
+  <p>客户端闭包那条路仍是<strong>手写清单</strong>，而且登记的是<strong>产物 <code>.js</code></strong>，不是真源：</p>
+  <table>
+    <tr><th>清单</th><th>位置</th><th>规模</th></tr>
+    <tr><td><code>KERNEL_MODULES</code></td><td><code>scripts/build.mjs:466-557</code></td><td>约 60 项</td></tr>
+    <tr><td><code>SHARED_SPLICE</code></td><td><code>scripts/build.mjs:567-597</code></td><td>13 项</td></tr>
+    <tr><td><code>LEAF_MODULES</code></td><td><code>scripts/build.mjs:604-720</code></td><td>约 120 项</td></tr>
+  </table>
+  <div class="why"><b>打个比方：</b>手写清单＝每次进货都要在册子上誊一遍，册子忘了改就少一件；目录扫描＝按货架取货，货架上有什么就拿什么，不用誊册子。</div>
+</div>
+
+<div class="card">
+  <h2><span class="n">5</span>我们可以避免漏登记吗</h2>
+  <p><strong>可以——改结构就行，既不用靠人记，也不用再加门禁。</strong>三层结构性保证：</p>
+  <ul>
+    <li><strong>第一层：<code>tsconfig</code> 的 <code>include</code> 一律写目录通配</strong>（如 <code>"src/deck/**/*.ts"</code>）→ 新增 <code>.ts</code> 自动被类型检查看见。</li>
+    <li><strong>第二层：构建按目录扫描收集</strong>（像 <code>pixelTsTruthFiles()</code> 那样读目录）→ 新增 <code>.ts</code> 自动被构建看见。</li>
+    <li><strong>第三层：一个文件只属于一个域目录</strong> → 归属由「文件放在哪」决定，没有第二处要登记，「两处不一致」这种问题从根上不存在。</li>
+  </ul>
+  <p>再加一条兜底，而且它<strong>写进构建脚本本身，不是新加门禁</strong>：</p>
+  <ul>
+    <li><strong>某个域扫描到 0 个文件，构建直接失败。</strong>目录改名、扫描路径写错、配置漏挂，都会当场红，而不会静默地少编译一批文件。</li>
+  </ul>
+  <h3>诚实说清：还剩三种「漏」的残留</h3>
+  <ul>
+    <li><strong>新开一个「域目录」时，要在域清单里加一行</strong>——那份清单大约 5～10 行（今天就是 <code>PX_TS_DIRS</code> 那 5 个），不是 348 行文件。登记量从「每文件两处」降到「每个新目录一处」。</li>
+    <li><strong>文件放错域目录不会被发现</strong>——症状是产物缺文件或测试加载失败，定位比现在稍绕；重复归属的问题在工程引用上线后由编译器报错兜住。</li>
+    <li><strong>客户端闭包的拼接顺序仍要手写有序清单</strong>——顺序本身就是信息，扫不出来；这块要靠「金标准回执夹具」那条线守（另一张票）。</li>
+  </ul>
+  <p class="why"><b>结论：</b>漏登记从「每个新文件要记两个地方」降成「每个新域目录记一个地方」，<code>locale-cards.ts</code> 那类事故在结构上就不会再出现。</p>
+</div>
+
+<footer>
+  本文依据仓库当前状态：<code>tsconfig.client.json</code>、<code>tsconfig.contract.json</code>、四个核的 <code>tsconfig.json</code>、<code>scripts/build.mjs</code>（<code>:466-557</code>、<code>:567-597</code>、<code>:604-720</code>、<code>:1035-1082</code>、<code>:1089</code>）、<code>tests/verify-contract-types.js</code>、<code>AGENTS.md:49</code>、<code>docs/adr/20261011-deck-ts-rewrite.md</code> §5。<br>
+  票 #1014 · Q5 讲解记录（与 <code>research/1014-q1-terms-qa.html</code>、<code>research/1014-q2-direction-qa.html</code> 同一批）。
+</footer>
+
+</main>
+</body>
+</html>

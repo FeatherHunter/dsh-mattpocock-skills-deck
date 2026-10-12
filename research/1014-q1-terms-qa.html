@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Q1 推荐里的 14 个说法</title>
+<style>
+  :root {
+    --text: #1f2328;
+    --muted: #656d76;
+    --line: #d8dee4;
+    --soft: #f6f8fa;
+    --accent: #0969da;
+    --warn: #9a6700;
+    --warn-soft: #fff8e5;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 48px 20px 80px;
+    background: #fff;
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", sans-serif;
+    font-size: 16px;
+    line-height: 1.85;
+    -webkit-font-smoothing: antialiased;
+  }
+  main { max-width: 800px; margin: 0 auto; }
+  h1 { font-size: 27px; line-height: 1.4; margin: 0 0 12px; letter-spacing: .2px; }
+  .lead { color: var(--muted); font-size: 15px; margin: 0 0 36px; }
+  .overview {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--soft);
+    padding: 20px 22px;
+    margin: 0 0 44px;
+    font-size: 15px;
+  }
+  .overview h2 { margin: 0 0 12px; font-size: 15px; letter-spacing: .5px; color: var(--muted); font-weight: 600; }
+  .overview ol { margin: 0; padding-left: 22px; }
+  .overview li { margin: 4px 0; }
+  section { margin: 0 0 34px; padding-top: 26px; border-top: 1px solid var(--line); }
+  section:first-of-type { border-top: none; padding-top: 0; }
+  .num {
+    display: inline-block;
+    min-width: 26px;
+    height: 26px;
+    line-height: 26px;
+    text-align: center;
+    border-radius: 6px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    margin-right: 10px;
+    vertical-align: 2px;
+  }
+  h2.term { font-size: 19px; margin: 0 0 8px; line-height: 1.5; }
+  .oneline { margin: 0 0 12px; font-size: 16.5px; }
+  .oneline strong { font-weight: 600; }
+  p { margin: 0 0 12px; }
+  ul, ol.body { margin: 0 0 12px; padding-left: 22px; }
+  li { margin: 6px 0; }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Consolas, "Cascadia Mono", monospace;
+    font-size: 13.5px;
+    background: var(--soft);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 1px 5px;
+    white-space: nowrap;
+  }
+  pre {
+    background: var(--soft);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-family: ui-monospace, SFMono-Regular, Consolas, "Cascadia Mono", monospace;
+    font-size: 13.5px;
+    line-height: 1.7;
+    margin: 0 0 12px;
+  }
+  pre code { background: none; border: none; padding: 0; white-space: pre; }
+  .sub { font-weight: 600; margin: 14px 0 4px; }
+  .callout {
+    border-left: 3px solid var(--warn);
+    background: var(--warn-soft);
+    border-radius: 0 8px 8px 0;
+    padding: 14px 18px;
+    margin: 0 0 12px;
+    font-size: 15px;
+  }
+  .callout p:last-child, .callout ul:last-child, .callout ol:last-child { margin-bottom: 0; }
+  .muted { color: var(--muted); font-size: 14.5px; }
+  footer { margin-top: 52px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13.5px; }
+  footer code { font-size: 12.5px; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Q1 推荐里的 14 个说法</h1>
+<p class="lead">这些词都出自「Q1：01 号地图的验收证据算哪一条」的推荐答案。按你问的顺序解释，每条先给一句话，再讲在我们这个仓库里具体指什么。</p>
+
+<div class="overview">
+  <h2>先看一眼它们的关系</h2>
+  <ol>
+    <li>你敲一条命令：<code>npm run check</code>。</li>
+    <li>它依次跑四件事：构建 → 类型检查 → 测试 → 门禁。</li>
+    <li>门禁里有一条「自检门禁」，它平时只跑<b>快段</b>（几百毫秒）。</li>
+    <li>自检门禁的<b>慢段</b>（完整构建往返）不占日常时间，搭发布门禁的车，发布时才跑。</li>
+  </ol>
+</div>
+
+<section>
+  <h2 class="term"><span class="num">1</span>npm run check 是什么</h2>
+  <p class="oneline"><strong>一句话：它是一条新加的命令，把「构建、类型检查、测试、门禁」四件事串成一条，你只敲一次就全跑完。</strong></p>
+  <p><code>npm</code> 是包管理器。<code>npm run X</code> 的作用是去 <code>package.json</code> 的 <code>scripts</code> 段里找名叫 <code>X</code> 的那条命令并执行。有一个例外要单独记住：<code>npm test</code> 不属于这种写法，它是 npm 内置的简写，等价于 <code>npm run test</code>（内置简写只有 <code>test</code>、<code>start</code>、<code>stop</code>、<code>restart</code> 这几个名字）。仓里今天已有 <code>npm run build</code>（构建）、<code>npm test</code>（测试）、<code>npm run verify</code>（门禁）等；<code>check</code> 是推荐里新加的名字，写法是 <code>npm run check</code>。</p>
+  <p>从 TypeScript 新手角度看，这条命令解决的是「谁来检查」的问题：编辑器里代码底下的红波浪线是编辑器的语言服务给的，它不会替你跑命令行上的检查；<code>tsc</code>（TypeScript 官方编译器）必须有人主动执行才会检查。写成一条 <code>npm run check</code>，就是让「该检查的都在这一条里」，不用记四条命令，也不会漏跑。</p>
+</section>
+
+<section>
+  <h2 class="term"><span class="num">2</span>自检门禁是什么，为什么要做门禁</h2>
+  <p class="oneline"><strong>一句话：自检门禁是一条专门检查「这条 TypeScript 流水线本身还能不能用」的脚本——临时写一个 <code>.ts</code> 文件，看它能不能被构建、被类型检查、被测试加载，四关都通才算过。</strong></p>
+  <p><b>门禁</b>在本仓有明确定义：<code>tests/verify-*.js</code> 里对不变式做自动判定的脚本，失败时返回非 0 退出码，<code>npm run verify</code> 非 0 就阻塞发布（定义见 <code>CONTEXT.md:75</code>）。「自检门禁」就是其中一条，只是它检查的对象不是产品行为，而是这条转译流水线自己。</p>
+
+  <div class="callout">
+    <p><b>关于「我不喜欢门禁这种代码形式，浪费效率」——这个感觉有道理，仓里已经按同样的理由删过一批。</b></p>
+    <p>门禁的成本是真实的：每条门禁都是要人维护的代码，会过时、会误报，也会在变红之后被人绕过。本仓吃过这个亏，<code>tests/verify-build-artifacts.js</code> 里就留着记录：按维护者要求删掉了「读源码文本钉写法」的几条断言（<code>:5-7</code>、<code>:87-88</code>、<code>:151-154</code>、<code>:156-161</code>），理由写在注释里——断言对象是文本写法时，改写法就变红。</p>
+    <p>所以现在的口径是分三类：</p>
+    <ul>
+      <li>能用编译器或类型系统表达的，写成类型，不写门禁。编译器免费，编辑器和构建时一直在跑。</li>
+      <li>能删的就删。已定：约三十条「按路径文本断言」的旧门禁换成标准依赖检查工具（循环依赖、跨层深引用、单文件行数上限），见 <code>docs/adr/20261011-deck-ts-rewrite.md</code> §5 第 4 条。</li>
+      <li>只有编译器表达不了、又必须由机器来判的，才写门禁。自检门禁属于这一类：它判的是「这条流水线还通不通」，没有别的东西能替它判。</li>
+    </ul>
+    <p>它买到的也具体：人不会每次改完都手动核对，机器会。仓里现有 231 条门禁撑着「改了这里会不会弄坏那里」这件事不必靠记忆。它的花费也在明面上：单条门禁实测 211 毫秒，231 条串行跑是分钟级——所以自检门禁才要拆成快段和慢段（见第 3、6 条）。</p>
+  </div>
+</section>
+
+<section>
+  <h2 class="term"><span class="num">3</span>快段是什么</h2>
+  <p class="oneline"><strong>一句话：自检门禁里花几百毫秒就能跑完的那部分。</strong></p>
+  <p>快段只做一件事：拿一个临时 <code>.ts</code> 文件走一遍关键环节——调转译函数、看类型检查认不认它、看测试能不能加载它。它不跑完整构建，所以能进日常命令，天天跑也不心疼。</p>
+</section>
+
+<section>
+  <h2 class="term"><span class="num">4</span>默认链是什么</h2>
+  <p class="oneline"><strong>一句话：你日常敲的那条命令会跑的东西，也就是「默认就会跑到的检查集合」。</strong></p>
+  <p>对应的是「只在发布时才跑的完整链」。快段进默认链，意思是每次跑 <code>npm run check</code> 都会验一遍流水线；慢段不进默认链，意思是它不会拖慢你的日常。</p>
+</section>
+
+<section>
+  <h2 class="term"><span class="num">5</span>快段里那四个断言分别是什么</h2>
+  <p class="oneline"><strong>一句话：四个断言就是四道关，临时文件必须四关全过才算流水线是通的。</strong></p>
+
+  <p class="sub">5.1 「走同一条转译函数」</p>
+  <p>仓库里把 <code>.ts</code> 变成 <code>.js</code> 的是这段代码：<code>esbuild.transformSync(source, { loader: 'ts', format: 'esm', target: 'es2020', charset: 'utf8' })</code>（在 <code>scripts/build.mjs:1057</code>，客户端像素系列那条管线在 <code>:1047-1082</code>）。快段不另写一套转译，而是调用同一个函数——否则你验的是「另一条流水线」，不是真正在用的那条。</p>
+
+  <p class="sub">5.2 「断言产物落位」</p>
+  <p>转译出来的 <code>.js</code> 必须出现在该出现的地方，也就是发布包读的两个目录：<code>package/lib</code>（宿主与根入口）和 <code>package/shared</code>（四个独立核的产物）。只在内存里生成过、盘上没有文件，不算过。</p>
+
+  <p class="sub">5.3 「断言 tsc 看见它」</p>
+  <p><code>tsc</code> 是 TypeScript 官方编译器（本仓版本 7.0.2），加 <code>--noEmit</code> 只做类型检查、不产出文件。断言 tsc 看见它，意思是这个临时 <code>.ts</code> 必须真的被某份 <code>tsconfig</code> 的 <code>include</code> 圈进去。今天就有反面例子：<code>src/client/kernel/locale-cards.ts</code> 被转译进产物了，却不在 <code>tsconfig.client.json</code> 的 <code>include</code> 里，所以它从来没被类型检查过。</p>
+
+  <p class="sub">5.4 「断言装载钩子能 import 它」</p>
+  <p>Node 本身跑不了 <code>.ts</code>，只能跑 <code>.js</code>。测试要直接跑 <code>.ts</code>，就得在 Node 的模块解析上挂一个「钩子」：看到 <code>import './x.js'</code> 时，如果磁盘上只有 <code>x.ts</code>，就加载那个 <code>.ts</code>（这个钩子约三十行，零新增依赖）。断言钩子能 import 它，就是确认测试这条路真的通了。</p>
+</section>
+
+<section>
+  <h2 class="term"><span class="num">6</span>慢段是什么</h2>
+  <p class="oneline"><strong>一句话：真的跑一次完整构建，先放一个正确的 <code>.ts</code> 看全绿，再放一个故意写错的看它是不是真的变红。</strong></p>
+  <p>「正反两面都验」是它的重点：只会变绿的门禁可能是没检查到东西（永远绿），所以必须证明它在该红的时候真的红。完整构建冷跑约 30 秒（见第 12 条），放进日常链不划算，所以它搭发布门禁的车。</p>
+</section>
+
+<section>
+  <h2 class="term"><span class="num">7</span>发布门禁是什么</h2>
+  <p class="oneline"><strong>一句话：发布之前必须过的那套检查，任何一条失败就不发布。</strong></p>
+  <p>本仓就是发布脚本在发之前跑的 <code>npm run build</code> 加 <code>npm test</code>，退出码非 0 立即中止（<code>scripts/publish-token.ps1:155-165</code>）。它比日常链重，因为它跑完整构建和全部测试。</p>
+</section>
+
+<section>
+  <h2 class="term"><span class="num">8</span><code>scripts/publish-token.ps1:157-162</code> 是什么</h2>
+  <p class="oneline"><strong>一句话：这是发布脚本里第 157 到 162 行，那几行干的事就是「先跑构建，再跑测试，红了就退出」。</strong></p>
+  <p>原文行为：<code>:157-158</code> 记录并执行 <code>cmd /c 'npm run build'</code>；<code>:159</code> 退出码非 0 就写 <code>GATE-FAIL 构建红</code> 并 <code>exit 1</code>；<code>:161-162</code> 记录并执行 <code>cmd /c 'npm test'</code>；<code>:163</code> 非 0 就写 <code>GATE-FAIL 测试红</code> 并附最后 600 字输出，然后 <code>exit 1</code>。这段外面有开关：<code>:156</code> 的 <code>if (-not $SkipGate)</code>，加 <code>-SkipGate</code> 可以跳过。</p>
+  <p>推荐里引用它的原因很实际：完整构建往返这件事，发布路径上本来就会做一次，自检门禁的慢段可以直接搭这趟车，不必在日常链里重复一遍。</p>
+</section>
+
+<section>
+  <h2 class="term"><span class="num">9</span>「临时文件用唯一名」是什么</h2>
+  <p class="oneline"><strong>一句话：临时 <code>.ts</code> 的文件名不能写死，要带时间戳或随机串。</strong></p>
+  <p>写死名字（比如固定叫 <code>probe.ts</code>）有两种坏事：两条检查同时跑时会互相覆盖；上一次检查崩了、文件没删干净，下一次就会把残留文件当成自己的结果来判。带随机串之后，每次检查用的都是自己的新文件。</p>
+</section>
+
+<section>
+  <h2 class="term"><span class="num">10</span>try/finally 清理是什么</h2>
+  <p class="oneline"><strong>一句话：<code>try</code> 里写正文，<code>finally</code> 里写「不管中间出没出错都一定要做」的收尾，这里指删掉临时文件。</strong></p>
+<pre><code>try {
+  // 写临时 .ts、跑检查、看结果
+} finally {
+  // 删掉临时 .ts：即使上面抛错，这里也会执行
+}</code></pre>
+  <p>没有 <code>finally</code> 的话，检查中途一抛错就直接跳出，临时文件留在盘上，下一次检查或别人提交时就会看到这个来路不明的文件。</p>
+</section>
+
+<section>
+  <h2 class="term"><span class="num">11</span>「结束时断言该路径 git status --porcelain 为空、目录名进扫描排除表」是在干什么</h2>
+  <p class="oneline"><strong>一句话：检查做完后确认临时文件真被删干净了，同时让自动扫描知道「这个目录别管」。</strong></p>
+  <p><code>git status</code> 是看工作区有哪些改动；<code>--porcelain</code> 是给机器读的简短格式。检查结束时看这条路径的输出为空，意思是那里没有残留文件、工作区是干净的。</p>
+  <p>「目录名进扫描排除表」是配套的另一半：新树里的 <code>.ts</code> 是靠扫描目录收集的（见 Q5），如果放临时文件的目录不显式跳过，临时文件会被当成「未登记的新源文件」而让门禁报红——一次自检反而弄出一堆假警报。</p>
+</section>
+
+<section>
+  <h2 class="term"><span class="num">12</span>「30 秒的冷构建」是什么</h2>
+  <p class="oneline"><strong>一句话：没有缓存可用、必须真跑的时候，<code>node scripts/build.mjs</code> 大约 30 秒。</strong></p>
+  <p>里面包含两遍 esbuild 打包，各约 14.5 秒（<code>scripts/build.mjs:89</code> 附近有这条记录）。「冷」指输入变了、缓存用不上；构建脚本按内容指纹做了缓存，命中时会直接跳过，所以日常并不总是 30 秒。</p>
+</section>
+
+<section>
+  <h2 class="term"><span class="num">13</span>「231 条门禁」是什么</h2>
+  <p class="oneline"><strong>一句话：<code>npm run verify</code> 这一条命令里串了 231 个 <code>node tests/verify-*.js</code>。</strong></p>
+  <p>它们用 <code>&amp;&amp;</code> 连成一行，前面红了后面就不跑。实测这行有 9558 个字符，超过了 Windows 命令行 8191 字的上限，所以实际执行由 <code>scripts/verify-chain.js</code> 负责切开来逐条跑。另外 <code>npm test</code> = 这 231 条 + 6 条冒烟测试（<code>tests/smoke-*.test.js</code>）。<code>tests</code> 目录里其实有 283 个 <code>verify-*.js</code> 文件，231 是挂在 <code>verify</code> 链上的条数；仓里另有 <code>verify:fast</code>、<code>verify:changed</code>、<code>verify:parallel</code> 用来只跑一小部分。</p>
+</section>
+
+<section>
+  <h2 class="term"><span class="num">14</span>「日常链」是什么</h2>
+  <p class="oneline"><strong>一句话：你或 AI 每次改完代码顺手跑的那套检查，目标是几十秒内给出结论。</strong></p>
+  <p>它就是第 4 条说的默认链，具体形态是 <code>npm run check</code>（或 <code>npm run verify:fast</code> 这类小集合）。和它相对的是发布前才跑的完整链：231 条门禁 + 6 条冒烟 + 完整构建。</p>
+</section>
+
+<footer>
+  <p>文中数据与行号来自本仓当前状态：<code>scripts/build.mjs</code>（转译与构建）、<code>scripts/publish-token.ps1:155-165</code>（发布门禁）、<code>scripts/verify-chain.js</code>（门禁执行）、<code>tests/verify-build-artifacts.js</code>（产物门禁与已删门禁的记录）、<code>tsconfig.client.json</code>（客户端类型检查范围）、<code>CONTEXT.md:75</code>（门禁定义）、<code>docs/adr/20261011-deck-ts-rewrite.md</code> §5（绿色编译模型与门禁换轨）。</p>
+</footer>
+
+</main>
+</body>
+</html>

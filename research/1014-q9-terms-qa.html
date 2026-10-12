@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>票 #1014 · Q9 讲解：产物、落点、根两份、_dev、ARTIFACT_FILES、点名</title>
+<style>
+  :root {
+    --ink: #1b1c1e;
+    --muted: #6b7280;
+    --line: #e6e7eb;
+    --bg: #fbfbfa;
+    --card: #ffffff;
+    --accent: #0f766e;
+    --accent-soft: #eefaf7;
+    --code-bg: #f4f5f7;
+    --warn: #92400e;
+    --warn-soft: #fef7ec;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 40px 24px 72px;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.8 -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+  }
+  main { max-width: 880px; margin: 0 auto; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 18px; margin-bottom: 30px; }
+  .kicker { margin: 0 0 6px; color: var(--muted); font-size: 13px; letter-spacing: .04em; }
+  h1 { margin: 0 0 10px; font-size: 25px; line-height: 1.35; letter-spacing: -.01em; }
+  .meta { margin: 0; color: var(--muted); font-size: 13px; }
+  .summary {
+    margin: 0 0 30px; padding: 14px 18px; background: var(--accent-soft);
+    border-left: 3px solid var(--accent); border-radius: 4px; font-size: 15px;
+  }
+  .summary strong { color: var(--accent); }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 6px;
+    padding: 20px 22px; margin-bottom: 14px;
+  }
+  h2 { font-size: 17px; margin: 0 0 10px; line-height: 1.5; }
+  h2 .n {
+    display: inline-block; min-width: 24px; height: 24px; line-height: 24px; text-align: center;
+    background: var(--ink); color: #fff; border-radius: 50%; font-size: 13px; margin-right: 9px;
+    vertical-align: 2px;
+  }
+  h3 { font-size: 15px; margin: 16px 0 6px; }
+  p { margin: 0 0 10px; }
+  p:last-child { margin-bottom: 0; }
+  ul { margin: 6px 0 10px; padding-left: 20px; }
+  li { margin-bottom: 5px; }
+  code {
+    font-family: ui-monospace, Consolas, "Cascadia Mono", monospace;
+    font-size: 12.5px; background: var(--code-bg); padding: 1px 5px; border-radius: 3px;
+    word-break: break-all;
+  }
+  pre {
+    margin: 8px 0 12px; padding: 12px 14px; background: var(--code-bg); border-radius: 4px;
+    overflow-x: auto; font-family: ui-monospace, Consolas, "Cascadia Mono", monospace;
+    font-size: 12.5px; line-height: 1.7;
+  }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0 12px; font-size: 14px; }
+  th, td { border: 1px solid var(--line); padding: 7px 10px; text-align: left; vertical-align: top; }
+  th { background: #f7f8f8; font-weight: 600; }
+  .why {
+    margin: 12px 0 0; padding: 10px 14px; background: #f7f8f8;
+    border-left: 3px solid #c9ccd1; border-radius: 4px; font-size: 14px; color: #3f4247;
+  }
+  .why b { color: var(--ink); }
+  .note {
+    margin: 12px 0 0; padding: 11px 14px; background: var(--warn-soft);
+    border-left: 3px solid #f59e0b; border-radius: 4px; font-size: 14px; color: var(--warn);
+  }
+  .ok {
+    margin: 12px 0 0; padding: 11px 14px; background: var(--accent-soft);
+    border-left: 3px solid var(--accent); border-radius: 4px; font-size: 14px; color: #0b5f57;
+  }
+  footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <p class="kicker">GitHub issue #1014（地图 #1013 的子票）· 问题 Q9 的名词讲解</p>
+  <h1>Q9 里的五个词：产物、落点、根两份、_dev、ARTIFACT_FILES、点名</h1>
+  <p class="meta">2026-10-12 · 写给 TypeScript 新手 · 只讲你点名的五件事</p>
+</header>
+
+<p class="summary"><strong>一句话：</strong>产物＝构建跑一遍、机器写出来的文件；落点＝这些文件被写进磁盘的哪个目录；<strong>根两份</strong>＝仓库根目录下的 <code>client.js</code> 与 <code>host.js</code>；<code>_dev</code>＝构建的一档输出目标（给「在仓库里直接跑」的那份，相对的是发布包那份 <code>_pkg</code>）；<code>ARTIFACT_FILES</code>＝构建脚本里那份「哪些文件是我写的」名单；<strong>点名</strong>＝写规矩时把这些路径一条条写进文字里，让规矩能被机械核对。</p>
+
+<div class="card">
+  <h2><span class="n">1</span>「产物」是什么？「落地」是什么意思？</h2>
+  <p><strong>产物</strong>＝构建（<code>node scripts/build.mjs</code>）跑一遍以后，机器写出来的那些文件。它跟手写的那份相对：手写的源码住在 <code>src/</code> 等目录里，产物是机器照着它生成的。<code>tests/verify-build-artifacts.js:10</code> 用一句话概括过这件事：<strong>产物＝机器炒好的菜，菜谱＝<code>src/</code></strong>。</p>
+  <p><strong>落地（落点）</strong>＝这些文件被写到磁盘上的哪个目录。所以「产物落点规则」就是一句话：<strong>机器写出来的东西，只允许出现在哪几个目录里</strong>——这条规矩要解决的问题是「别让产物和手写源码混在一起」。</p>
+  <h3>今天这个仓库里，产物实际散落在八处（实测）</h3>
+  <table>
+    <tr><th>落点</th><th>里面装什么</th><th>进发布包吗</th><th>进 git 吗</th></tr>
+    <tr><td>根 <code>client.js</code>、<code>host.js</code></td><td>界面与宿主的「开发态」产物（<code>scripts/build.mjs:105</code> 点名的那两份）</td><td>不进</td><td>不进（已忽略）</td></tr>
+    <tr><td><code>package/lib/**</code></td><td>宿主那棵树的逐文件产物，加一个打包出来的 <code>client.js</code>（今天 169 个文件）</td><td>进</td><td>不进（已忽略）</td></tr>
+    <tr><td><code>package/shared/**</code></td><td><code>src/shared</code> 整棵树的逐文件产物（今天 79 个文件）</td><td>进</td><td><strong>今天错在进了</strong>，要移出</td></tr>
+    <tr><td><code>scripts/generated/*</code></td><td>两个派生脚本的产物</td><td>不进</td><td>部分已忽略</td></tr>
+    <tr><td><code>src/host/logPkg/*</code></td><td>上游日志包 <code>dsh-log</code> 的镜像（4 个文件，由派生脚本原样拷来）</td><td>随 <code>package/lib</code> 进</td><td>在（唯一要先讲清定性的例外）</td></tr>
+    <tr><td><code>src/</code> 里像素风那 34 个同名 <code>.js</code></td><td>每个 <code>.ts</code> 旁边生成的同名产物（与真源并排躺在一起）</td><td>不进</td><td>在，要出库</td></tr>
+    <tr><td><code>src/shared/&lt;核名&gt;/*.js</code></td><td>四个计算核转译出的产物（35 个，落在 <code>src/</code> 里）</td><td>进（被 <code>package/shared</code> 收走）</td><td>在，要出库</td></tr>
+    <tr><td><code>packages/*/dist</code></td><td>两个子包自己构建出来的产物</td><td>不进主包</td><td>不进（已忽略）</td></tr>
+  </table>
+  <p class="why"><b>为什么这条规矩值得写清楚：</b>前两行和后两行的区别，就是「产物有没有跟手写源码混在一个目录里」。混在一起时，测试 <code>import './X.js'</code> 读到的是今天刚写的真源、还是昨天生成的产物，要靠人记；13 号收口要核「手写 <code>.js</code> 归零」时，也没法用一个目录扫描判出来。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">2</span>「根两份」是哪两份？</h2>
+  <p><strong>「根」＝仓库根目录</strong>（也就是 <code>D:\dsh-plugin\dsh-mattpocock-skills-deck\</code> 这一层，不是 <code>package/</code> 子目录）。<strong>「两份」＝<code>client.js</code> 与 <code>host.js</code></strong>。它们就是 <code>scripts/build.mjs:105</code> 那一行里点名的前两个文件。</p>
+  <p>它俩与「包内那两份」是<strong>同一份源码的两个形态</strong>（构建脚本开头 <code>:9-11</code> 写着「一源出两物」）：</p>
+  <table>
+    <tr><th>开发态（根）</th><th>发布态（包内）</th><th>是什么</th></tr>
+    <tr><td><code>client.js</code></td><td><code>package/lib/client.js</code></td><td>界面那份闭包</td></tr>
+    <tr><td><code>host.js</code></td><td><code>package/lib/index.js</code></td><td>宿主那份插件入口</td></tr>
+  </table>
+  <p><strong>谁在读它们：</strong><code>tests/</code> 里对这两个名字的命中 <strong>333 处</strong>，其中上百条门禁拿「根产物」与「包内产物」互相比对（叫「双源一致」）——例如 <code>tests/verify-kernel.js:10</code>、<code>tests/verify-ctx.js:14</code>、<code>tests/verify-client-no-undef.js:27</code>、<code>tests/verify-handoff-latest-sort.js:34</code>。</p>
+  <p class="note"><b>这就是 Q9 的由来：</b>Q4 那句「产物只落三处」没把这两份点进去。照字面执行的人，第一个动作就会把它们搬进构建缓存目录——然后上面那上百条门禁一起红，换来的只是「仓库根少两个文件」。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">3</span><code>_dev</code> 是什么东西？</h2>
+  <p><strong>它不是文件后缀、不是环境变量、不是目录名，而是构建的一档「输出目标」</strong>——同一份源码，构建可以产出两种形态，脚本用 <code>_dev</code>、<code>_pkg</code> 这两个后缀给它们命名。<code>scripts/build.mjs:8-11</code> 的原文：</p>
+  <pre>规范方言 = 动态版方言（src/client/index.js / src/host/index.js …）
+一源出两物：
+  _dev → 根 client.js / host.js（cordis_define 函数体形态，须过 precheckCode）
+  _pkg → package/lib/client.js / package/lib/index.js（ModuleLoader / ESM 形态，pkg entry 提供 shim）</pre>
+  <ul>
+    <li><code>_dev</code> 取「development」：<strong>给「在仓库里直接跑、被门禁读文本」的那份</strong>（形态是 <code>cordis_define</code> 函数体，构建时会做一次包装编译校验，见 <code>:18</code>）。</li>
+    <li><code>_pkg</code> 取「package」：<strong>给安装这个插件的人用的那份</strong>（形态是 <code>ModuleLoader</code> 工厂壳 / ESM，另过三关：vm 编译、<code>__ModuleLoader__</code> 特征、单组件单声明，见 <code>:19</code>）。</li>
+    <li>怎么选：<code>node scripts/build.mjs</code> 两份都出；<code>--dev-only</code> 只出根那份、<code>--pkg-only</code> 只出包内那份（<code>:22</code>、<code>:989-990</code>）。发布包里 <code>package/package.json:16</code> 的 <code>prepare</code> 用的就是 <code>--pkg-only</code>。</li>
+  </ul>
+  <p class="why"><b>顺带一条相关的事实：</b>根产物有「降级声明」——<code>scripts/build.mjs:944-953</code> 的 <code>gateBuildArtifacts()</code> 会看根 <code>client.js</code>／<code>host.js</code> 开头有没有 <code>// AUTO-GENERATED</code> 横幅；没有就警告「可能是手改产物，下次构建会被覆盖」。这条就是「产物不许手碰」的现场提示。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">4</span><code>ARTIFACT_FILES</code> 是什么？</h2>
+  <p>它是 <code>scripts/build.mjs:105</code> 的一行常量——<strong>构建脚本自己那份「哪些文件是我写的」名单</strong>：</p>
+  <pre>const ARTIFACT_FILES = ['client.js', 'host.js', 'package/README.md']</pre>
+  <p>它跟下一行的 <code>ARTIFACT_DIRS</code>（<code>:108</code>）是<strong>一对</strong>：一个列单文件，一个列整目录。目录那份列了五个：<code>package/lib</code>、<code>scripts/generated</code>、<code>src/host/logPkg</code>、<code>package/scripts</code>、<code>package/bundled-skills</code>。</p>
+  <h3>它被用来干什么</h3>
+  <ul>
+    <li><code>:161-170</code> 的 <code>listOutputs()</code> 把两者合成一份完整的产物清单（文件部分来自 <code>ARTIFACT_FILES</code>，目录部分来自 <code>ARTIFACT_DIRS</code>）。</li>
+    <li><code>:242-247</code> 拿这份清单逐个算 <code>sha256</code>，记进构建缓存 <code>node_modules/.cache/dsh-build.json</code>——构建靠它记住「上次我写了哪些文件」。</li>
+    <li><code>:227</code> 还会把清单里每个产物的修改时间提一档，让外部工具（编辑器、监听器）知道「这次构建动过它」。</li>
+  </ul>
+  <p class="note"><b>它本身就是一个「手写清单」的例子：</b>要构建记住哪些是产物，作者手写了 3 个文件名加 5 个目录名。这类清单的典型毛病是「漏一个，缓存和自检就看不见它」——这正是本次讨论里「能算出来的就别手写」那条原则要治的病。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">5</span>「点名」是什么意思？</h2>
+  <p><strong>点名＝写规矩的时候，把具体的路径或者名字一条条写进文字里</strong>，而不是笼统一句「其余的不管」「其他的照旧」。</p>
+  <h3>为什么非要点名</h3>
+  <p>因为规矩要能被<strong>机械核对</strong>：核对的人拿着这条规矩，应该能对每个文件给出「算例外」还是「算违规」，不需要猜。<strong>Q4 那句「产物只落三处」就是一次漏点名</strong>——<code>packages/*/dist</code>、根 <code>client.js</code>/<code>host.js</code>、<code>scripts/generated/*</code> 都没被点进去。等到 13 号收口核「手写 <code>.js</code> 归零」时，没人知道 <code>packages/*/dist</code> 里那些文件到底算合理的例外、还是算违规。</p>
+  <h3>点名写出来是什么样</h3>
+  <p>一句话里既有路径、也有它的性质，例如：</p>
+  <p><code>packages/*/dist</code>：两个子包各自构建出来的产物；已被 <code>.gitignore</code> 忽略、不进主包、本次不动。</p>
+  <p>这样写的好处是：以后任何人（包括 AI）核这条规矩时，照着念就能判。</p>
+  <p class="ok"><b>我的建议（等你定）：</b>Q9 的规则照<strong>四类</strong>点名写——发布包内产物、仓库根 dev 产物、构建缓存、子包自己的 <code>dist</code>，其中 <code>packages/*/dist</code> 单独写一句如上。</p>
+</div>
+
+<footer>
+  数据取自本仓当前状态（<code>scripts/build.mjs</code> 的 <code>:8-11</code>／<code>:22</code>／<code>:105</code>／<code>:108</code>／<code>:161-170</code>／<code>:227</code>／<code>:242-247</code>／<code>:944-953</code>／<code>:989-990</code>，<code>tests/verify-build-artifacts.js</code>，<code>package/package.json</code>，<code>git ls-files</code> 实测计数）· 2026-10-12 · 票 #1014 待维护者表态 · 本页未改动票面与代码
+</footer>
+
+</main>
+</body>
+</html>

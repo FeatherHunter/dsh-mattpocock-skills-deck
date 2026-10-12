@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>票 #1014 · Q7 深挖：Node 版本这件事</title>
+<style>
+  :root {
+    --ink: #1b1c1e;
+    --muted: #6b7280;
+    --line: #e6e7eb;
+    --bg: #fbfbfa;
+    --card: #ffffff;
+    --accent: #0f766e;
+    --accent-soft: #eefaf7;
+    --code-bg: #f4f5f7;
+    --warn: #92400e;
+    --warn-soft: #fef7ec;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 40px 24px 72px;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.8 -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+  }
+  main { max-width: 880px; margin: 0 auto; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 18px; margin-bottom: 26px; }
+  .kicker { margin: 0 0 6px; color: var(--muted); font-size: 13px; letter-spacing: .04em; }
+  h1 { margin: 0 0 10px; font-size: 25px; line-height: 1.35; letter-spacing: -.01em; }
+  .meta { margin: 0; color: var(--muted); font-size: 13px; }
+  .summary {
+    margin: 0 0 24px; padding: 14px 18px; background: var(--accent-soft);
+    border-left: 3px solid var(--accent); border-radius: 4px; font-size: 15px;
+  }
+  .summary strong { color: var(--accent); }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 6px;
+    padding: 18px 20px; margin-bottom: 12px;
+  }
+  h2 { font-size: 16.5px; margin: 0 0 10px; line-height: 1.5; }
+  h2 .n {
+    display: inline-block; min-width: 23px; height: 23px; line-height: 23px; text-align: center;
+    background: var(--ink); color: #fff; border-radius: 50%; font-size: 12.5px; margin-right: 9px;
+    vertical-align: 2px;
+  }
+  p { margin: 0 0 9px; }
+  p:last-child { margin-bottom: 0; }
+  ul { margin: 6px 0 9px; padding-left: 20px; }
+  li { margin-bottom: 4px; }
+  code {
+    font-family: ui-monospace, Consolas, "Cascadia Mono", monospace;
+    font-size: 12.5px; background: var(--code-bg); padding: 1px 5px; border-radius: 3px;
+    word-break: break-all;
+  }
+  pre {
+    margin: 8px 0 10px; padding: 11px 13px; background: var(--code-bg); border-radius: 4px;
+    overflow-x: auto; font-family: ui-monospace, Consolas, "Cascadia Mono", monospace;
+    font-size: 12.5px; line-height: 1.7;
+  }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0 10px; font-size: 14px; }
+  th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; vertical-align: top; }
+  td code, th code { word-break: keep-all; }
+  th { background: #f7f8f8; font-weight: 600; }
+  .why {
+    margin: 10px 0 0; padding: 10px 14px; background: #f7f8f8;
+    border-left: 3px solid #c9ccd1; border-radius: 4px; font-size: 14px; color: #3f4247;
+  }
+  .why b { color: var(--ink); }
+  .note {
+    margin: 10px 0 0; padding: 11px 14px; background: var(--warn-soft);
+    border-left: 3px solid #f59e0b; border-radius: 4px; font-size: 14px; color: var(--warn);
+  }
+  .ok {
+    margin: 10px 0 0; padding: 11px 14px; background: var(--accent-soft);
+    border-left: 3px solid var(--accent); border-radius: 4px; font-size: 14px; color: #0b5f57;
+  }
+  footer { margin-top: 34px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <p class="kicker">GitHub issue #1014（地图 #1013 的子票）· 问题 Q7 的展开</p>
+  <h1>Q7 深挖：要求哪个 Node 版本，这件事到底在管什么</h1>
+  <p class="meta">2026-10-12 · 写给 TypeScript 新手 · 只讲你点名的六个知识点</p>
+</header>
+
+<p class="summary"><strong>一句话总结：</strong><code>package.json</code> 是 Node 与 npm 世界的包裹清单，不是 TypeScript 的配置文件；<code>engines.node</code> 是它里面的标准字段，不是我们自造的名字；我们写 <strong>22.15</strong> 不是因为「版本越高越好」，而是因为测试侧那只装载钩子用到的同步接口从 22.15 才有；装插件<strong>不会</strong>替用户装 Node；最新的 Node 确实能直接跑 <code>.ts</code>，但它<strong>不做类型检查、也不把 <code>./x.js</code> 映到 <code>x.ts</code></strong>，所以替不掉那只钩子，也替不掉 <code>tsc</code>。</p>
+
+<div class="card">
+  <h2><span class="n">1</span><code>package.json</code> 是 TypeScript 规定的配置文件吗？</h2>
+  <p><strong>不是。TypeScript 自己的配置文件是 <code>tsconfig.json</code>；<code>package.json</code> 属于 Node 与 npm/pnpm 的世界。</strong>两者的分工：</p>
+  <table>
+    <tr><th>文件</th><th>回答什么问题</th><th>谁认它</th></tr>
+    <tr><td><code>package.json</code></td><td>这个包叫什么、什么版本、依赖谁、入口文件是哪个、怎么安装、有哪些脚本</td><td>Node 与包管理器（npm / pnpm / yarn）</td></tr>
+    <tr><td><code>tsconfig.json</code></td><td>检查哪些文件、用什么严格程度、要不要产出文件</td><td>TypeScript 编译器 <code>tsc</code></td></tr>
+  </table>
+  <p>TypeScript 只是<strong>借用了</strong> <code>package.json</code> 里几个字段来表达自己：<code>types</code>（指向类型声明文件 <code>.d.ts</code>）、<code>exports</code> 里的 <code>types</code> 条件。没有 <code>package.json</code>，<code>tsc</code> 照样能编译一个 <code>.ts</code> 文件；反过来，没有 <code>tsconfig.json</code>，<code>tsc</code> 会用一套默认参数，几乎什么都不检查。</p>
+  <p class="why"><b>本仓实例：</b>根 <code>package.json</code> 的 <code>scripts.build</code> 拉起 <code>node scripts/build.mjs</code>（构建入口）；<code>tsconfig.client.json</code> 决定客户端那一域检查哪些文件。两份文件各管一件事，互不替代。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">2</span><code>engines.node</code> 是 TypeScript 规定的，还是我们自己取的名字？</h2>
+  <p><strong>都不是 TypeScript 的东西，也不是我们自造的名字：<code>engines</code> 是 npm 包清单里的标准字段，<code>node</code> 是它规定的标准引擎名之一</strong>（另一个是 <code>npm</code>）。写法就是一句版本范围：</p>
+  <pre>"engines": { "node": ">=22.15" }</pre>
+  <p>顺带分清本仓已有的那个：</p>
+  <ul>
+    <li><code>package/package.json:10</code> 的 <code>"engines": { "dsh": ">=0.2.0-rc.2" }</code>——<code>dsh</code> <strong>不是</strong>标准引擎名，是 DSH 自己定的约定：npm 不认识它（只照旧检查 <code>node</code> 和 <code>npm</code>），DSH 认识它。</li>
+    <li>所以「<code>node</code> 与 <code>dsh</code> 并列写在同一段」完全合法：一个给包管理器看，一个给 DSH 看。</li>
+  </ul>
+  <p class="note"><b>要记住它的性质：</b><code>engines</code> 默认<strong>只警告、不拦截</strong>——版本不满足时 npm 打印一条 <code>EBADENGINE</code> 提示，包还是照装（除非使用方自己打开 <code>engine-strict</code>）。所以它是一句「声明」，不是一道「闸」；真想拦住，得靠脚本自己在启动时检查版本并报错。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">3</span>为什么是 22.15？——下限由「用到的那条 API 从哪版才有」决定</h2>
+  <p>不是「越高越好」，而是<strong>我们依赖的最新一条 Node 接口的引入版本</strong>。相关的那条接口，正是 Q6 里讲的那只装载钩子：</p>
+  <table>
+    <tr><th>接口</th><th>从哪个版本才有</th><th>它管得到 CJS 的 <code>require()</code> 吗</th></tr>
+    <tr><td><code>module.register()</code>（异步）</td><td>Node 20.6</td><td><strong>管不到</strong>——只加异步钩子的话，那条 <code>require(.../guide-steps.js)</code> 会在文件改名当天就断</td></tr>
+    <tr><td><code>module.registerHooks()</code>（同步）</td><td><strong>Node 22.15</strong></td><td>管得到，正是我们要用的那只</td></tr>
+  </table>
+  <p class="ok"><b>本机实测（Node v24.19.0）：</b><code>registerHooks=function</code>、<code>register=function</code>、<code>typescript=strip</code>（原生跑 <code>.ts</code> 的能力默认已开）。所以 22.15 这个数字不是拍的，是「同步钩子 + 我们那 7 处 CJS <code>require</code>」算出来的最小充分值。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">4</span>版本高对插件使用者意味着什么？越高性能越好吗？</h2>
+  <p><strong>先把两件事分开：</strong>① 仓库与开发链的下限（我们写进根 <code>package.json</code> 的那个）；② 使用者那一侧的要求（<strong>由 DSH 决定，不由我们决定</strong>）。</p>
+  <ul>
+    <li>发布包今天只要求 <code>dsh &gt;= 0.2.0-rc.2</code>（<code>package/package.json:10</code>），因为那只装载钩子<strong>只在仓库的测试与开发链上跑，不随包发布</strong>；发布出去的是普通 <code>.js</code> 产物，能被 DSH 跑起来的 Node 都能跑。</li>
+    <li>「越高越快」只在大方向上成立：新版 Node 换了新版 V8，常见场景会快一些。但版本下限存在的理由<strong>不是快，而是「这条接口有没有」</strong>。</li>
+    <li>抬高下限的代价很实在：把还在旧版本的同事、CI 和使用方一起挡在外面。</li>
+  </ul>
+  <p class="why"><b>所以本仓的 22.15 是「刚刚够」，不是追新。</b>真要抬高，得先说清抬到哪一版、为哪条接口抬；说不出来就不该抬。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">5</span>用户没装最新 Node，装我们的插件会替他装吗？</h2>
+  <p><strong>不会。npm 与 pnpm 只装「包」，从不安装或升级 Node 本身。</strong>Node 是用户自己装在机器上的运行时（官方安装包，或 nvm / fnm / Volta 这类版本管理工具）。包管理器在这件事上能做到的，最多是：</p>
+  <ul>
+    <li>照 <code>engines</code> 打印警告（默认），或在使用方开了 <code>engine-strict</code> 时拒绝安装；</li>
+    <li>注意别和 <code>Corepack</code> 搞混：本仓 <code>package.json</code> 里的 <code>packageManager: pnpm@11.22.0</code> 管的是<strong>包管理器</strong>（Corepack 能按它下载 pnpm），<strong>不是 Node</strong>。</li>
+  </ul>
+  <p>另外，用户装到的是我们<strong>发布时就已经构建好的包</strong>：<code>package/package.json:16</code> 的 <code>prepare</code> 在我们这一侧跑（发布时的 <code>npm publish</code> 会再触发一次构建），不会在用户机器上编译一遍源码。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">6</span>用最新 Node 就能直接「编译」TypeScript 吗？</h2>
+  <p><strong>能跑一部分，但它和「编译」是两件事。</strong>新 Node 的做法是<strong>擦掉类型</strong>再把代码交给 V8 执行（type stripping）：</p>
+  <ul>
+    <li><strong>不产出 <code>.js</code> 文件</strong>，也<strong>不做类型检查</strong>——类型写错了它不报错，那是 <code>tsc</code> 的活。</li>
+    <li><strong>不改写引用路径</strong>：源码写 <code>import './x.js'</code>、而磁盘上只有 <code>x.ts</code> 时，直接报错退出（本机 v24.19.0 实测 exit 1）。</li>
+    <li>有些依赖类型的语法用不了：<code>enum</code>、带运行时代码的 <code>namespace</code>、参数属性、装饰器（全仓今天一处都没有）。</li>
+    <li>这份能力还要看<strong>使用者那一侧的 Node 版本</strong>，而我们控制不了别人的机器。</li>
+  </ul>
+  <p class="note"><b>本仓为什么不靠它：</b>两条发布产物是<strong>逐文件被加载</strong>的（<code>src/host</code> → <code>package/lib</code>、四个核 → <code>package/shared</code>），源码里的相对引用写 <code>./x.js</code> 是为了让产物里的路径正确。靠 Node 原生就得把源码改成 <code>./x.ts</code>，等于把风险搬到发布产物上——所以自己写约三十行装载钩子，只在测试与开发链上把 <code>./x.js</code> 映到同名 <code>.ts</code>。</p>
+  <p class="ok"><b>一句话：</b>Node 原生跑 <code>.ts</code> 让「单测直接跑 <code>.ts</code>」这条路更近，但它<strong>替不掉钩子，也替不掉 <code>tsc</code></strong>——三件事各归各：Node 负责跑，钩子负责找文件，<code>tsc</code> 负责挑错。</p>
+</div>
+
+<footer>
+  数据取自本机 Node v24.19.0 实测（<code>process.features.typescript</code>、<code>module.registerHooks</code>）与本仓文件（<code>package.json</code>、<code>package/package.json:10,16</code>、<code>tests/verify-subdir-first-frame.js:170</code>） · 2026-10-12 · 票 #1014 待维护者表态
+</footer>
+
+</main>
+</body>
+</html>

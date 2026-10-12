@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>票 #1014 · Q6 深挖：测试怎么跑 .ts，旧门禁怎么办</title>
+<style>
+  :root {
+    --ink: #1b1c1e;
+    --muted: #6b7280;
+    --line: #e6e7eb;
+    --bg: #fbfbfa;
+    --card: #ffffff;
+    --accent: #0f766e;
+    --accent-soft: #eefaf7;
+    --code-bg: #f4f5f7;
+    --warn: #92400e;
+    --warn-soft: #fef7ec;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 40px 24px 72px;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.8 -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+  }
+  main { max-width: 860px; margin: 0 auto; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 18px; margin-bottom: 32px; }
+  .kicker { margin: 0 0 6px; color: var(--muted); font-size: 13px; letter-spacing: .04em; }
+  h1 { margin: 0 0 10px; font-size: 26px; line-height: 1.35; letter-spacing: -.01em; }
+  .meta { margin: 0; color: var(--muted); font-size: 13px; }
+  .summary {
+    margin: 0 0 32px; padding: 14px 18px; background: var(--accent-soft);
+    border-left: 3px solid var(--accent); border-radius: 4px; font-size: 15px;
+  }
+  .summary strong { color: var(--accent); }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 6px;
+    padding: 20px 22px; margin-bottom: 14px;
+  }
+  h2 { font-size: 17px; margin: 0 0 10px; line-height: 1.5; }
+  h2 .n {
+    display: inline-block; min-width: 24px; height: 24px; line-height: 24px; text-align: center;
+    background: var(--ink); color: #fff; border-radius: 50%; font-size: 13px; margin-right: 9px;
+    vertical-align: 2px;
+  }
+  h3 { font-size: 15px; margin: 16px 0 6px; }
+  p { margin: 0 0 10px; }
+  p:last-child { margin-bottom: 0; }
+  ul, ol { margin: 6px 0 10px; padding-left: 20px; }
+  li { margin-bottom: 5px; }
+  code {
+    font-family: ui-monospace, Consolas, "Cascadia Mono", monospace;
+    font-size: 12.5px; background: var(--code-bg); padding: 1px 5px; border-radius: 3px;
+    word-break: break-all;
+  }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0 12px; font-size: 14px; }
+  th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: #f7f8f8; font-weight: 600; }
+  .why {
+    margin: 12px 0 0; padding: 10px 14px; background: #f7f8f8;
+    border-left: 3px solid #c9ccd1; border-radius: 4px; font-size: 14px; color: #3f4247;
+  }
+  .why b { color: var(--ink); }
+  .note {
+    margin: 12px 0 0; padding: 11px 14px; background: var(--warn-soft);
+    border-left: 3px solid #f59e0b; border-radius: 4px; font-size: 14px; color: var(--warn);
+  }
+  footer { margin-top: 44px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <p class="kicker">GitHub issue #1014（地图 #1013 的子票）· 问题 Q6 的展开</p>
+  <h1>Q6 深挖：测试怎么跑 <code>.ts</code>，旧的 231 条门禁怎么办</h1>
+  <p class="meta">2026-10-12 · 写给 TypeScript 新手</p>
+</header>
+
+<p class="summary"><strong>一句话总结：</strong>源码里照旧写 <code>./x.js</code>（发布产物本来就要这个写法），测试侧加一个约三十行的 Node 装载钩子，把 <code>./x.js</code> 领到同名 <code>.ts</code>；旧测试<strong>不一次性重写</strong>，谁被迁移谁退场，13 号收口时清空。</p>
+
+<div class="card">
+  <h2><span class="n">1</span>「写 <code>./x.js</code> + 三十行钩子」是保留了 js 门禁、不改造了？为什么？</h2>
+  <p>先分清两样东西 —— 它们在这一条里被写在一起，但不是一件事：</p>
+  <table>
+    <tr><th>东西</th><th>它管什么</th><th>它是门禁吗</th></tr>
+    <tr>
+      <td><strong>装载钩子</strong><br>（约三十行，新增）</td>
+      <td>测试怎么把 <code>.ts</code> 加载起来</td>
+      <td><strong>不是。</strong>它不判任何规则、不会红不会绿，是运行环境的一部分</td>
+    </tr>
+    <tr>
+      <td><strong>旧测试文件</strong><br>（<code>tests/verify-*.js</code>，现有 231 条挂在链上）</td>
+      <td>判定不变式，红了阻塞发布</td>
+      <td><strong>是。</strong>它们这次<strong>不一次性重写</strong>，按条迁移</td>
+    </tr>
+  </table>
+  <h3>不一次性重写的三个原因</h3>
+  <ol>
+    <li><strong>它是尺子。</strong>后面每张改写单元图都要用「转完行为零变化」来判自己有没有改坏，判据就是这 231 条。一次性重写等于把尺子拆了再量。</li>
+    <li><strong>零新增依赖。</strong>钩子约三十行，转译复用仓里已有的 esbuild，不引测试框架（不引 vitest 那类全家桶）。</li>
+    <li><strong>生产链路零改动。</strong><code>./x.js</code> 是发布产物本来就需要的写法（产物是逐文件加载的 <code>.js</code>），源码跟着写 <code>.js</code>，产物一个字不用改。</li>
+  </ol>
+  <h3>那旧门禁怎么退场</h3>
+  <p>谁被迁移，就从那条长串里删一条、登记进新跑法；<strong>未迁移的数量只降不升</strong>；13 号收口时长串清空。新写的测试一律 <code>.ts</code>。</p>
+  <h3>为什么不干脆用 Node 原生跑 <code>.ts</code></h3>
+  <p>本机 Node v24.19.0 确实能直接跑 <code>.ts</code>（<code>node --test</code> 会连同 <code>.test.ts</code> 一起发现），但 Node <strong>不做 <code>./x.js</code> → <code>x.ts</code> 的映射</strong>：<code>import './b.js'</code> 而磁盘上只有 <code>b.ts</code> 时会直接失败。</p>
+  <p>若把源码改成写 <code>./x.ts</code>，这个写法会一路带进发布产物 —— 而产物是宿主与四个核<strong>逐文件直接加载</strong>的 <code>.js</code>，等于把风险从测试搬到线上。所以：源码保持 <code>./x.js</code>，测试侧用钩子补上那一步映射。</p>
+  <p class="note">另一条要记住：Node 原生的类型剥离不支持 <code>enum</code>、带运行时代码的 <code>namespace</code>、参数属性、装饰器（报 <code>ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX</code>）。本仓全仓扫描目前一处都没有，属于「现在不用，但要知道这条线在哪」。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">2</span>为什么是 <code>package/lib</code>？符合权威 TS 项目的思路吗？</h2>
+  <p><strong>它是什么：</strong><code>package/</code> 是<strong>发布出去的那个 npm 包</strong>（用户装到的是 <code>package/package.json</code> 那一份），<code>package/lib/</code> 是它的运行时目录 —— 包的 <code>main</code> 就是 <code>lib/index.js</code>，<code>exports</code> 指向的也都是 <code>lib/</code> 下的文件。</p>
+  <p><strong>构建怎么填它：</strong><code>src/host/**</code> <strong>原样拷贝</strong>成 <code>package/lib/**</code>（零打包），再写入面板入口的打包产物 <code>lib/client.js</code>。</p>
+  <p><strong>名字权威吗：</strong><code>lib</code> 是 npm 生态沿用几十年的产物目录名（与 <code>dist</code>、<code>build</code> 同族），不是本仓自造词。</p>
+  <table>
+    <tr><th>和主流 TS 项目比</th><th>本仓</th></tr>
+    <tr><td><strong>相同</strong></td><td>源码在 <code>src/</code>；产物不与源码混放；产物不入库；发布包只装产物（靠 <code>files</code> 白名单）</td></tr>
+    <tr><td><strong>不同</strong></td><td>主流常见的是仓库根的 <code>dist/</code>、由 <code>tsc</code> 产出；本仓把「发布包」做成了子目录 <code>package/</code>，产物落在包内的 <code>lib/</code></td></tr>
+  </table>
+  <p><strong>为什么不同（不是口味问题）：</strong>这是插件形态决定的 —— 宿主<strong>按路径逐个加载</strong>模块，例如 <code>src/host/platform/deckToolsAssembly.js:104</code> 写的是 <code>await import('../tracker/detection/parseIssueTracker.js')</code>。打成一个大文件之后，这类路径就不存在了，所以宿主那一侧必须逐文件保留。</p>
+  <p class="why"><b>一句话：</b>目录名是常规的；目录位置由「发布包是一棵可以逐文件被加载的树」这条物理事实决定。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">3</span>为什么是 <code>package/shared</code>？符合吗？</h2>
+  <p><strong>它是什么：</strong><code>src/shared/</code> 是<strong>宿主与面板都要用</strong>的那部分代码（四个独立计算核的产物也落在这里）；发布包里它是 <code>lib/</code> 的兄弟目录。</p>
+  <p><strong>为什么必须和 <code>lib</code> 一起进包：</strong><code>package/lib</code> 里的代码是用<strong>相对相邻目录</strong>引用它的 —— 例如 <code>src/host/configStore.js:18</code> 写 <code>from '../shared/config-store/labels.js'</code>；拷进包之后，同一条路径正好指向 <code>package/shared/config-store/labels.js</code>。所以 <code>package/package.json</code> 的 <code>files</code> 白名单同时收了 <code>lib</code> 与 <code>shared</code>。</p>
+  <p><strong>名字权威吗：</strong><code>shared</code> 是主流命名，表示「跨层共用、不属于任何一层」。大仓库里常把它做成独立包（<code>packages/shared/</code>），本仓这个规模做成一个目录就够。</p>
+  <p class="why"><b>一句话：</b>名字常规；位置同样是发布形态决定的 —— 它是 <code>lib</code> 的相对邻居，两个目录一起构成可运行的包。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">4</span>esbuild 是什么技术？权威的 TS 项目用它吗？</h2>
+  <p><strong>一句话：</strong>用 Go 写的<strong>打包 / 转译器</strong>；它只做「把源码变成能跑的 JS」这一件事，<strong>不做类型检查</strong>。</p>
+  <p><strong>谁在用：</strong>Vite（前端构建的主流工具）底层就是它；Vitest、tsx、Deno 等也在用。属于当红工具，不是冷门自造件。</p>
+  <p><strong>TS 世界里的常见分工：</strong><code>tsc</code>（TypeScript 官方编译器）负责<strong>类型检查</strong>，esbuild 负责<strong>快速转译与打包</strong>。很多项目就是「<code>tsc --noEmit</code> 检查 + esbuild 出产物」。</p>
+  <p><strong>本仓正是这个分工：</strong>esbuild（<code>^0.28.2</code>，已经是仓里的开发依赖）做逐文件转译（<code>scripts/build.mjs:1057</code>）；<code>tsc</code>（仓里版本 7.0.2）只用来做 <code>--noEmit</code> 类型检查。这条改造路线<strong>不新增依赖</strong>。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">5</span>「逐文件转译」是什么行为？</h2>
+  <p>一个 <code>.ts</code> 进去，一个<strong>同名</strong> <code>.js</code> 出来：文件个数不变、目录形状不变、相对引用原样保留。</p>
+  <table>
+    <tr><th></th><th>做什么</th><th>本仓哪里在用</th></tr>
+    <tr><td><strong>逐文件转译</strong></td><td>一个文件对一个文件</td><td>宿主树、共用树、四个计算核、客户端像素系列</td></tr>
+    <tr><td><strong>打包</strong></td><td>把很多文件合成一个 <code>.js</code></td><td>只有面板入口 <code>lib/client.js</code></td></tr>
+  </table>
+  <p><strong>宿主那侧为什么必须逐文件：</strong>宿主按路径动态加载模块（见第 2 条的 <code>await import('../tracker/detection/parseIssueTracker.js')</code>）；另外发布包里还有一条老约定「<code>package/lib/index.js</code> 与源入口逐字节一致」，源码换成 <code>.ts</code> 之后，这条要改写成「与转译结果一致」。</p>
+  <p><strong>好处：</strong>报错里出现的路径与源码一一对应；改一个文件只影响一个产物。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">6</span>「说明符」是什么？</h2>
+  <p><strong>说明符（specifier）</strong>就是 <code>import ... from '<u>这里</u>'</code> 引号里的那个字符串；<code>import('...')</code> 这种动态导入里的字符串也算。</p>
+  <p><strong>本仓的规矩：</strong>源码里一律写 <code>./x.js</code>（写 <code>.js</code>，不写 <code>.ts</code>，也不省掉扩展名）。两个原因：</p>
+  <ol>
+    <li><strong>为了产物：</strong>发布产物是 <code>.js</code>，Node 的 ESM 要求把扩展名写全，所以产物里的说明符必须是 <code>./x.js</code>；源码写 <code>.js</code>，转译时原样保留，产物就不用改。</li>
+    <li><strong>能编译过：</strong>TypeScript 检查时会把这个 <code>./x.js</code> 解析到磁盘上的同名 <code>x.ts</code>（本仓 <code>moduleResolution: "Bundler"</code> 下实测成立）。</li>
+  </ol>
+  <p class="why"><b>一句话：</b>写 <code>.js</code> 是为了产物；写得通，是因为 TypeScript 认识这种写法。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">7</span>「钩子」是什么技术？</h2>
+  <p>它是 Node 的<strong>模块加载钩子</strong>（ESM loader hooks，用 <code>node:module</code> 的 <code>register()</code> 注册）：Node 在「找到底是哪个文件」和「这个文件怎么读进来」这两步上，允许你插一段自己的代码。</p>
+  <p><strong>为什么需要它：</strong>Node 不认识 <code>.ts</code>；测试想直接 import <code>.ts</code> 源码，又不想先整棵树编译一遍。</p>
+  <p><strong>计划中的形状</strong>（约三十行，落在 1021 那票）分两步：</p>
+  <ol>
+    <li><strong>解析那一步：</strong>看到 <code>./x.js</code>，磁盘上没有 <code>x.js</code>、只有同名 <code>x.ts</code> 时，就把它指向 <code>x.ts</code>。</li>
+    <li><strong>读取那一步：</strong>把 <code>.ts</code> 用仓里已有的 esbuild 转成 JS，再交给 Node 执行。</li>
+  </ol>
+  <p>细则一条：<strong>同名 <code>.ts</code> 优先于 <code>.js</code></strong> —— 防止一份陈旧的生成产物冒充真源。</p>
+  <p><strong>它不是什么：</strong>不是门禁、不改任何产品代码、不进发布包；只在「跑测试」那条命令里生效。</p>
+  <p class="note">配套两件：它跟 Node 版本有关（<code>register()</code> 需要 Node 20.6 以上），所以要写下限（见 Q7）；钩子本身要有一条测试，确认 <code>./x.js</code> 真能加载到 <code>.ts</code>。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">8</span>为什么「钩子」能让旧的 200 多条门禁一个字都不用改？</h2>
+  <p>先把它说准：钩子保证的是<strong>那些门禁的文本一个字都不用改</strong>，不是「这些门禁以后不用管」。分三层说清。</p>
+
+  <h3>8.1 门禁是怎么取源码的</h3>
+  <p>主流写法是<strong>「按路径拼一个 URL，再动态 import」</strong>，全仓有 <strong>175 处</strong>：</p>
+  <p><code>await import(pathToFileURL(path.join(ROOT, 'src/host/detectChain.js')).href)</code></p>
+  <p>在这行里，<code>x.js</code> 只是一段<strong>文本</strong>；「这段路径最终指向磁盘上哪个文件」是 Node 在<strong>解析阶段</strong>决定的。文件从 <code>x.js</code> 改成 <code>x.ts</code> 之后：文本没变，解析结果变了 —— 而钩子挂的正好就是解析阶段，把那一步补上。</p>
+  <p>所以省掉的是「去 200 多个文件里把 <code>.js</code> 挨个改成 <code>.ts</code>」这件事：<strong>改一处解析规则，抵 200 多处文本改动</strong>。</p>
+
+  <h3>8.2 实测：钩子要用「同步那一种」</h3>
+  <p>本机 Node v24.19.0，两条路各跑一次，结果不同：</p>
+  <table>
+    <tr>
+      <th>钩子</th>
+      <th>动态 <code>import('./x.js')</code><br>（磁盘上只有 <code>x.ts</code>）</th>
+      <th>CJS 的 <code>require('./x.js')</code></th>
+    </tr>
+    <tr>
+      <td><code>module.register()</code><br>（异步，老 APIs）</td>
+      <td>✅ 拿到值</td>
+      <td>❌ 找不到模块</td>
+    </tr>
+    <tr>
+      <td><code>module.registerHooks()</code><br>（同步，Node 22.15+）</td>
+      <td>✅ 拿到值</td>
+      <td>✅ 拿到值</td>
+    </tr>
+  </table>
+  <p>结论：<strong>钩子要用 <code>registerHooks</code> 这一种</strong>。因为门禁里确实有几条直接用 CJS <code>require</code> 取产品源码，例如 <code>tests/verify-subdir-first-frame.js:170</code> 写着 <code>require(path.join(root, 'src/shared/tracker/guide-steps.js'))</code> —— 只用异步钩子，这几条会在文件改名当天就断。</p>
+
+  <h3>8.3 两个「看着不用动、其实要动」的分清</h3>
+  <ul>
+    <li><strong>读文本的门禁</strong>（数行数、扫 <code>.js</code> 文本抓 import，如 <code>tests/verify-file-granularity.js</code>、<code>tests/verify-no-same-layer-import.js</code>）：文件改名后它们不会崩，但会<strong>扫不到文件还判绿</strong> —— 这是空集合假绿，归 1017（门禁换轨读 <code>.ts</code>）与 Q2（方向类换成社区工具）处理，<strong>不是钩子能解决的</strong>。</li>
+    <li><strong>写死旧路径/目录的门禁</strong>：文件搬家之后必须改（1019 那次 91 处引用、三房改叫 <code>rooms/</code>），ADR §7 已经点名约三十个脚本。</li>
+  </ul>
+
+  <h3>8.4 顺带一条底气</h3>
+  <p>283 个 <code>verify-*.js</code> 里，相对 <code>require</code> 的目标只有 7 个，全部落在 <code>tests/</code> 自己的辅助件（<code>tests/lib/*.js</code> 等）和 <code>scripts/</code> 一件脚本上，<strong>没有一件指向产品源码</strong>；这些辅助件不会跟着转成 <code>.ts</code>，所以那条路不受影响。</p>
+
+  <p class="why"><b>一句话收口：</b>钩子把「文件改名」这件事从 200 多处门禁里一次拿走 —— 路径照旧写 <code>.js</code>，解析时领到 <code>.ts</code>。</p>
+</div>
+
+<footer>
+  依据仓库当前状态：<code>package/package.json</code>（main / exports / files 白名单）、<code>package/lib</code> 与 <code>package/shared</code> 盘上实际目录、<code>src/host</code> 里的引用写法（<code>configStore.js:18</code>、<code>platform/deckToolsAssembly.js:104</code>）、<code>scripts/build.mjs:1057</code>（逐文件转译）、本机 Node v24.19.0 与 TypeScript 7.0.2 的实测结果 · 票 #1014 待维护者表态
+</footer>
+
+</main>
+</body>
+</html>

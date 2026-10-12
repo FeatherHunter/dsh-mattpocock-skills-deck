@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>票 #1014 · Q4 深挖：产物出库与产物落点</title>
+<style>
+  :root {
+    --ink: #1b1c1e;
+    --muted: #6b7280;
+    --line: #e6e7eb;
+    --bg: #fbfbfa;
+    --card: #ffffff;
+    --accent: #0f766e;
+    --accent-soft: #eefaf7;
+    --code-bg: #f4f5f7;
+    --warn: #92400e;
+    --warn-soft: #fef7ec;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 40px 24px 72px;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.8 -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+  }
+  main { max-width: 880px; margin: 0 auto; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 18px; margin-bottom: 30px; }
+  .kicker { margin: 0 0 6px; color: var(--muted); font-size: 13px; letter-spacing: .04em; }
+  h1 { margin: 0 0 10px; font-size: 25px; line-height: 1.35; letter-spacing: -.01em; }
+  .meta { margin: 0; color: var(--muted); font-size: 13px; }
+  .summary {
+    margin: 0 0 30px; padding: 14px 18px; background: var(--accent-soft);
+    border-left: 3px solid var(--accent); border-radius: 4px; font-size: 15px;
+  }
+  .summary strong { color: var(--accent); }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 6px;
+    padding: 20px 22px; margin-bottom: 14px;
+  }
+  h2 { font-size: 17px; margin: 0 0 10px; line-height: 1.5; }
+  h2 .n {
+    display: inline-block; min-width: 24px; height: 24px; line-height: 24px; text-align: center;
+    background: var(--ink); color: #fff; border-radius: 50%; font-size: 13px; margin-right: 9px;
+    vertical-align: 2px;
+  }
+  h3 { font-size: 15px; margin: 16px 0 6px; }
+  p { margin: 0 0 10px; }
+  p:last-child { margin-bottom: 0; }
+  ul { margin: 6px 0 10px; padding-left: 20px; }
+  li { margin-bottom: 5px; }
+  code {
+    font-family: ui-monospace, Consolas, "Cascadia Mono", monospace;
+    font-size: 12.5px; background: var(--code-bg); padding: 1px 5px; border-radius: 3px;
+    word-break: break-all;
+  }
+  pre {
+    margin: 8px 0 12px; padding: 12px 14px; background: var(--code-bg); border-radius: 4px;
+    overflow-x: auto; font-family: ui-monospace, Consolas, "Cascadia Mono", monospace;
+    font-size: 12.5px; line-height: 1.7;
+  }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0 12px; font-size: 14px; }
+  th, td { border: 1px solid var(--line); padding: 7px 10px; text-align: left; vertical-align: top; }
+  th { background: #f7f8f8; font-weight: 600; }
+  .why {
+    margin: 12px 0 0; padding: 10px 14px; background: #f7f8f8;
+    border-left: 3px solid #c9ccd1; border-radius: 4px; font-size: 14px; color: #3f4247;
+  }
+  .why b { color: var(--ink); }
+  .note {
+    margin: 12px 0 0; padding: 11px 14px; background: var(--warn-soft);
+    border-left: 3px solid #f59e0b; border-radius: 4px; font-size: 14px; color: var(--warn);
+  }
+  .ok {
+    margin: 12px 0 0; padding: 11px 14px; background: var(--accent-soft);
+    border-left: 3px solid var(--accent); border-radius: 4px; font-size: 14px; color: #0b5f57;
+  }
+  footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <p class="kicker">GitHub issue #1014（地图 #1013 的子票）· 问题 Q4 的展开</p>
+  <h1>Q4 深挖：产物出库，以及产物今后落在哪</h1>
+  <p class="meta">2026-10-12 · 写给 TypeScript 新手 · 只讲你点名要知道的七件事</p>
+</header>
+
+<p class="summary"><strong>一句话总结：</strong>手写的源码只留 <code>.ts</code> 一份；机器生成的 <code>.js</code> 只落三个地方——<code>package/lib</code>、<code>package/shared</code>、一个构建缓存目录；<code>src/</code> 下不再出现生成的 <code>.js</code>；这件事<strong>不单独成票</strong>，在 1014 敲定后并入 01 号地图的范围。</p>
+
+<div class="card">
+  <h2><span class="n">1</span>「三处一起出库」是哪三处</h2>
+  <p>「出库」＝从 git 里移除（<code>git rm --cached</code>，只动索引、文件留在盘上，不删文件）、写进 <code>.gitignore</code>、改由构建负责生成。</p>
+  <table>
+    <tr><th>哪一处</th><th>是什么</th><th>今天的状态</th></tr>
+    <tr>
+      <td><code>package/shared/</code></td>
+      <td>构建把 <code>src/shared/</code> 整棵树原样拷过来的一份镜像（<code>scripts/build.mjs:847</code>）</td>
+      <td>79 个 <code>.js</code> 全被 git 跟踪。注意：<code>.gitignore</code> 只忽略了 <code>/package/lib/</code>，漏了它</td>
+    </tr>
+    <tr>
+      <td>像素风 34 个同名 <code>.js</code></td>
+      <td>每一个 <code>.ts</code> 旁边生成的同名 <code>.js</code>（<code>cards</code> 16、<code>pixel</code> 8、<code>skillDetail</code> 7、<code>views</code> 1、<code>kernel</code> 2）</td>
+      <td>34 个全部被 git 跟踪（与 34 个 <code>.ts</code> 并排放在 <code>src/</code> 里）</td>
+    </tr>
+    <tr>
+      <td>四个核的转译产物 35 个</td>
+      <td>四个 <code>xxx-core</code> 把 <code>.ts</code> 转译出的 <code>.js</code>，落在 <code>src/shared/&lt;核名&gt;/</code>（label-color 3、refresh 14、version-control 14、config-store 4）</td>
+      <td>35 个全部被 git 跟踪</td>
+    </tr>
+  </table>
+  <p class="note">别把两组数字搞混：<code>src/shared/refresh/</code> 与 <code>src/shared/version-control/</code> 里另外还有 <strong>3 个</strong> <code>.js</code> 是<strong>手写源码</strong>，不属于上面那 35 个生成物；它们要靠后面的迁移票转成 <code>.ts</code>，不在这件事里删。</p>
+  <p class="why"><b>为什么要把它们请出库：</b>入库的产物就是<strong>第二份真源</strong>——改一边忘另一边就会漂移。为了防这次漂移，仓里现在养着四条「新鲜度门禁」当永久税：<code>tests/verify-label-color-freshness.js</code>、<code>verify-refresh-freshness.js</code>、<code>verify-version-control-freshness.js</code>、<code>verify-config-store-freshness.js</code>（做法是重转一遍、逐字比对）。产物不入库，这四条就没有存在理由，可以删。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">2</span>「产物只落三处」是什么意思</h2>
+  <p>意思是一句分类原则：<strong>手写的那一份永远只有 <code>.ts</code>；机器写的那一份只允许出现在下面三个地方</strong>，别处（尤其是 <code>src/</code> 里）不许有。</p>
+  <table>
+    <tr><th>落点</th><th>装什么</th><th>进发布包吗</th><th>进 git 吗</th></tr>
+    <tr><td><code>package/lib/</code></td><td>宿主那份逐文件产物（<code>src/host/**</code> 整树 + 一个 esbuild 打出来的 <code>client.js</code>）。今天 169 个文件</td><td>进（<code>files</code> 白名单里有 <code>lib</code>）</td><td>不进（已被忽略）</td></tr>
+    <tr><td><code>package/shared/</code></td><td>纯逻辑那份逐文件产物（对应 <code>src/shared/**</code>）。今天 79 个文件</td><td>进（<code>files</code> 白名单里有 <code>shared</code>）</td><td>今天错在进了，要移出</td></tr>
+    <tr><td>构建缓存目录（新增，例如 <code>.build/</code>）</td><td>客户端闭包拼接要用的逐文件 <code>.js</code>；今天这批产物写在 <code>src/</code> 里与真源并排（就是第 1 节那 34 个）</td><td>不进（只是构建中间品）</td><td>不进（写进 <code>.gitignore</code>）</td></tr>
+  </table>
+  <p class="why"><b>为什么必须有第三个地方：</b>客户端那份界面代码不是逐文件发布的，它是构建时把几十个文件按顺序拼成一个闭包（<code>scripts/build.mjs</code> 里的 <code>KERNEL_MODULES</code>、<code>SHARED_SPLICE</code>、<code>LEAF_MODULES</code> 三张清单）。拼接读的是<strong>逐文件产物</strong>，所以这些产物必须落到磁盘上某个目录；今天它们落在 <code>src/</code> 里，于是 <code>src/</code> 混着「手写真源」和「昨天生成的产物」——这正是要消掉的那种混乱。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">3</span><code>package/lib</code> 是干什么的？传统用法是这样吗？</h2>
+  <p><strong>先说结论：名字不是 TypeScript 的约定，位置也跟传统项目不一样；它是本仓发布包的布局。</strong></p>
+  <ul>
+    <li>本仓的 npm 包根目录不是仓库根，而是 <code>package/</code> 这个子目录。</li>
+    <li><code>package/package.json</code> 的 <code>main</code> 就是 <code>lib/index.js</code>：安装这个插件的人，入口文件是它。</li>
+    <li>它的 <code>files</code> 白名单是 <code>lib</code>、<code>shared</code>、<code>cordis.patch.yml</code>、<code>bundled-skills</code>、<code>scripts/</code>、<code>CHANGELOG.md</code>——发布包里只有这些。</li>
+    <li>里面装的是宿主那棵树的<strong>逐文件产物</strong>：<code>src/host/**</code> 被整树原样复制过来（构建注释原话「零打包」），再加一个 esbuild 打出来的 <code>package/lib/client.js</code>（客户端那份闭包）。</li>
+  </ul>
+  <h3>传统 TS 项目怎么放产物</h3>
+  <p>最常见是 <code>dist/</code>（也有 <code>build/</code>、<code>out/</code>，老式的库会用 <code>lib/</code>）：源码在 <code>src/</code>，编译产物整棵进 <code>dist/</code>，<code>dist/</code> 写进 <code>.gitignore</code>，<code>package.json</code> 里写 <code>"files": ["dist"]</code>、<code>"main": "dist/index.js"</code>。</p>
+  <p class="ok"><b>对照：</b>「产物集中放一个目录、只发布那个目录、不发布源码树」这套做法，本仓已经在用；不同的只是名字叫 <code>lib</code> 而不是 <code>dist</code>，而且发布包整体住在 <code>package/</code> 子目录里。所以 <code>package/lib</code> 不奇怪，它就是「这个包的代码目录」，恰好叫 <code>lib</code>。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">4</span><code>package/shared</code> 是干什么的？传统用法是这样吗？</h2>
+  <p>它是<strong>第二棵逐文件产物树</strong>：对应源码 <code>src/shared/**</code>，同样是整树原样复制（<code>scripts/build.mjs:847</code>），今天 79 个文件。</p>
+  <p>它装的东西是「宿主与客户端闭包两边都要用的纯逻辑」——例如契约形状、标签、工作区键这类不带宿主能力（不起进程、不读文件系统）的代码。宿主用 <code>require('../shared/xxx.js')</code> 直接加载它，客户端那份闭包则由构建把它拼进去。</p>
+  <p class="note"><b>「shared」这个名字不是 TypeScript 或 npm 的约定</b>，它是本仓自定的语义（两边共用的纯逻辑）。传统项目里同类的做法是「一个 workspace 包（例如 <code>packages/shared</code>）各自产出自己的 <code>dist</code>」；本仓没有拆成多个 npm 包，而是在同一个发布包里用两个目录把「宿主那份」和「共用那份」分开：<code>lib</code> 与 <code>shared</code>，两个都进 <code>files</code> 白名单。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">5</span><code>src/</code> 下不再生成 <code>.js</code>——经典 TS 项目会落到哪里</h2>
+  <p><strong>经典 TS 项目：</strong>源码只有 <code>src/**/*.ts</code>；编译产物落 <code>dist/**</code>（或 <code>build/</code>、<code>out/</code>），整棵进 <code>.gitignore</code>；测试与编辑器直接吃 <code>src/</code> 里的 <code>.ts</code>，不需要先产出 <code>.js</code>。<code>src/</code> 里永远不会出现同名 <code>.js</code>。</p>
+  <p><strong>本仓的现状：</strong>像素风那 34 个文件是「产物与真源并排同名」（源码 <code>PixelCardHead.ts</code> 旁边躺着生成的 <code>PixelCardHead.js</code>，都入库）。这是本仓早期为客户端闭包留下的形状，带来两个具体麻烦：</p>
+  <ul>
+    <li><strong>分不清读的是谁：</strong>测试或门禁 import <code>./PixelCardHead.js</code> 时，读到的是昨天生成的产物还是今天的真源，要靠人记；真源改了没重跑构建，检查照样绿。</li>
+    <li><strong>「手写 <code>.js</code> 归零」没法机械判定：</strong>13 号收口票要核「手写 <code>.js</code> 归零」，但 <code>src/</code> 里混着生成物时，任何自动核对都得先学会区分「哪份是手写的、哪份是生成的」。</li>
+  </ul>
+  <p class="ok"><b>改法：</b>客户端闭包拼接用的那批逐文件产物挪进构建缓存目录（第 2 节第三行）；<code>src/</code> 下只剩手写文件——将来只剩 <code>.ts</code>。宿主那棵树的逐文件产物本来就只在 <code>package/lib</code>，不落 <code>src/</code>，不受影响。</p>
+  <p class="note"><b>一个容易误解的点：</b>Node 侧没有打包，宿主的代码是<strong>逐文件同名加载</strong>的（因为要动态 import 模块），所以「产物集中到一处」不等于「打成一个 bundle」。前两个落点依旧是逐文件、同文件名、同相对路径，只是整棵树挪了位置；构建缓存目录也一样。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">6</span>不单独成票（你的表态）</h2>
+  <p>记录你的口径：<strong>Q4 不新开票</strong>——做法在本讨论票（#1014）里敲定，执行并入 01 号地图（#1013）的范围。</p>
+  <p>要随之写进 01 边界的一句：<strong>「产物出库与产物落点收敛」</strong>——三处产物移出 git、新增构建缓存目录、<code>src/</code> 下不再生成 <code>.js</code>、四个核的输出目录跟着改。01 原本的边界是「只碰构建、测试、类型检查、门禁与发布探测」，这件事正好落在这条线内，只是比原来多碰了四个核的构建脚本。</p>
+  <p class="note">仍然要守的仓库硬规则：同一条边界同一时间只允许一个写者——所以这件事在执行时是一条单独的工作线、单独一次提交，不与其他改写单元并行改动同一批文件。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">7</span>四个 <code>xxx-core</code> 是什么，为什么要动它们</h2>
+  <p><strong>你的理解是对的。</strong>就是仓库根目录下这四个目录：</p>
+  <table>
+    <tr><th>核</th><th>TS 源码</th><th>产物落点</th><th>新鲜度门禁</th></tr>
+    <tr><td><code>label-color-core/</code></td><td>3 个 <code>.ts</code></td><td><code>src/shared/label-color/*.js</code>（3 个）</td><td><code>verify-label-color-freshness.js</code></td></tr>
+    <tr><td><code>refresh-core/</code></td><td>14 个 <code>.ts</code></td><td><code>src/shared/refresh/*.js</code>（14 个生成 + 2 个手写）</td><td><code>verify-refresh-freshness.js</code></td></tr>
+    <tr><td><code>version-control-core/</code></td><td>14 个 <code>.ts</code></td><td><code>src/shared/version-control/*.js</code>（14 个生成 + 1 个手写）</td><td><code>verify-version-control-freshness.js</code></td></tr>
+    <tr><td><code>config-store-core/</code></td><td>4 个 <code>.ts</code></td><td><code>src/shared/config-store/*.js</code>（4 个）</td><td><code>verify-config-store-freshness.js</code></td></tr>
+  </table>
+  <p>每个核的构成完全一样：<code>src/</code> 下是手写 <code>.ts</code>、一份自己的 <code>tsconfig.json</code>、一份自己的 <code>build.mjs</code>（逐文件转译成同名 <code>.js</code>），产物提交入库，另有上面那条新鲜度门禁守着「产物必须与真源一致」。它们是本仓<strong>已有的 TypeScript 先例</strong>，也是现行那种<strong>折中形状</strong>：源码已经是 TS 了，但产物还在库里、还要靠门禁看着。</p>
+  <p class="ok"><b>「让它们向我们学习」＝</b>这次讨论给 deck 工具定下的规矩（源码只有 <code>.ts</code>、产物只落那三处且不入库、新文件靠目录扫描自动收录、一条命令跑完检查、没有新鲜度门禁），定下来之后就是全仓的统一规范；四个核按同一套改，那四条新鲜度门禁随之删除。仓库 ADR 里已经写着「四核形态统一另立决策」——本次讨论正好把这套规范写清楚，剩下的只是「什么时候改、由哪张票改」。</p>
+</div>
+
+<footer>
+  数据取自本仓当前状态（<code>scripts/build.mjs</code> 的复制与转译段、<code>package/package.json</code>、<code>.gitignore</code>、四个核的目录与四条新鲜度门禁、<code>git ls-files</code> 实测计数）· 2026-10-12 · 票 #1014 待维护者表态
+</footer>
+
+</main>
+</body>
+</html>

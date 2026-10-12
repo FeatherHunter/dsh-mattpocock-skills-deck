@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>票 #1014 · Q8 讲解：typecheck 这个名字、这套设计、两种下限、构建里那次 tsc</title>
+<style>
+  :root {
+    --ink: #1b1c1e;
+    --muted: #6b7280;
+    --line: #e6e7eb;
+    --bg: #fbfbfa;
+    --card: #ffffff;
+    --accent: #0f766e;
+    --accent-soft: #eefaf7;
+    --code-bg: #f4f5f7;
+    --warn: #92400e;
+    --warn-soft: #fef7ec;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 40px 24px 72px;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.8 -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+  }
+  main { max-width: 880px; margin: 0 auto; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 18px; margin-bottom: 30px; }
+  .kicker { margin: 0 0 6px; color: var(--muted); font-size: 13px; letter-spacing: .04em; }
+  h1 { margin: 0 0 10px; font-size: 25px; line-height: 1.35; letter-spacing: -.01em; }
+  .meta { margin: 0; color: var(--muted); font-size: 13px; }
+  .summary {
+    margin: 0 0 30px; padding: 14px 18px; background: var(--accent-soft);
+    border-left: 3px solid var(--accent); border-radius: 4px; font-size: 15px;
+  }
+  .summary strong { color: var(--accent); }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 6px;
+    padding: 20px 22px; margin-bottom: 14px;
+  }
+  h2 { font-size: 17px; margin: 0 0 10px; line-height: 1.5; }
+  h2 .n {
+    display: inline-block; min-width: 24px; height: 24px; line-height: 24px; text-align: center;
+    background: var(--ink); color: #fff; border-radius: 50%; font-size: 13px; margin-right: 9px;
+    vertical-align: 2px;
+  }
+  h3 { font-size: 15px; margin: 16px 0 6px; }
+  p { margin: 0 0 10px; }
+  p:last-child { margin-bottom: 0; }
+  ul { margin: 6px 0 10px; padding-left: 20px; }
+  li { margin-bottom: 5px; }
+  code {
+    font-family: ui-monospace, Consolas, "Cascadia Mono", monospace;
+    font-size: 12.5px; background: var(--code-bg); padding: 1px 5px; border-radius: 3px;
+    word-break: break-all;
+  }
+  pre {
+    margin: 8px 0 12px; padding: 12px 14px; background: var(--code-bg); border-radius: 4px;
+    overflow-x: auto; font-family: ui-monospace, Consolas, "Cascadia Mono", monospace;
+    font-size: 12.5px; line-height: 1.7;
+  }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0 12px; font-size: 14px; }
+  th, td { border: 1px solid var(--line); padding: 7px 10px; text-align: left; vertical-align: top; }
+  th { background: #f7f8f8; font-weight: 600; }
+  .why {
+    margin: 12px 0 0; padding: 10px 14px; background: #f7f8f8;
+    border-left: 3px solid #c9ccd1; border-radius: 4px; font-size: 14px; color: #3f4247;
+  }
+  .why b { color: var(--ink); }
+  .note {
+    margin: 12px 0 0; padding: 11px 14px; background: var(--warn-soft);
+    border-left: 3px solid #f59e0b; border-radius: 4px; font-size: 14px; color: var(--warn);
+  }
+  .ok {
+    margin: 12px 0 0; padding: 11px 14px; background: var(--accent-soft);
+    border-left: 3px solid var(--accent); border-radius: 4px; font-size: 14px; color: #0b5f57;
+  }
+  footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <p class="kicker">GitHub issue #1014（地图 #1013 的子票）· 问题 Q8 的展开</p>
+  <h1>Q8 讲解：typecheck 这个名字、这套设计、两种下限、构建里那次 tsc</h1>
+  <p class="meta">2026-10-12 · 写给 TypeScript 新手 · 只讲你点名的四件事</p>
+</header>
+
+<p class="summary"><strong>一句话总结：</strong><code>typecheck</code> 这个名字是社区惯例，不是 npm 内建命令；「一个域一份配置、逐份跑」符合官方多工程做法，但「自动发现配置 + 断言下限」是我们补的胶水；两种下限抓的漏不一样，建议两句都写且都用自动方式表达；构建里那次 <code>tsc</code> 不属于门禁，保不保留取决于你要不要「构建时就出声」。</p>
+
+<div class="card">
+  <h2><span class="n">1</span><code>npm run typecheck</code> 是我们发明的吗？</h2>
+  <p><strong>不是。名字是社区惯例，命令机制是 npm 自带的。</strong></p>
+  <ul>
+    <li><code>npm run &lt;名字&gt;</code> 是 npm 的通用机制：<code>package.json</code> 的 <code>scripts</code> 里你起什么名字，它就跑什么。</li>
+    <li>npm 只对四个保留名有默认行为——<code>start</code>、<code>test</code>、<code>stop</code>、<code>restart</code>（所以 <code>npm test</code> 可以不写 <code>run</code>）。其余名字都必须带 <code>npm run</code>。</li>
+    <li><code>typecheck</code> 在 TypeScript 项目里是很常见的命名习惯；也有项目叫 <code>check</code>、<code>tsc</code>、<code>lint:types</code>。它不是规范，谁都可以自取。</li>
+  </ul>
+  <p><strong>本仓今天没有这条。</strong><code>package.json</code> 里现在只有这些脚本名：</p>
+  <pre>build · update:latest · prepare · test · test:smoke
+verify:parallel · verify:fast · verify:changed · verify · sync:matt</pre>
+  <p>所以「新增 <code>typecheck</code>」的意思是：给一个社区常用的名字，挂上一条我们自己写的脚本（脚本里真正调的还是同一条 <code>tsc</code>）。</p>
+  <p class="ok"><b>一句话：</b>名字是借的，工具是真的——<code>typecheck</code> 里没有新发明的检查，只是把「官方编译器、逐份配置」这件事收到一条命令上。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">2</span>「逐份 <code>tsc -p</code> + 自动发现配置 + 断言下限」符合权威 TS 项目的思路吗？</h2>
+  <p>这三截的出身不一样，要分开看。</p>
+  <table>
+    <tr><th>这一截</th><th>官方怎么做</th><th>我们这套的定性</th></tr>
+    <tr>
+      <td>一个域一份 <code>tsconfig</code>，逐份 <code>tsc -p</code> 检查</td>
+      <td>官方给多工程仓库的答案叫「工程引用」：每个工程仍有自己那份 <code>tsconfig.json</code>，另加一份根配置列出 <code>references</code>，用 <code>tsc -b</code> 一次跑完</td>
+      <td><strong>方向一致</strong>，只是我们现在是「手动一份份跑」，终点是官方那条 <code>tsc -b</code></td>
+    </tr>
+    <tr>
+      <td>自动发现仓库里所有 <code>tsconfig</code></td>
+      <td>没有这个命令：<code>tsc -b</code> 要你把 <code>references</code> 清单写出来，它不替你把配置全找出来</td>
+      <td><strong>我们补的胶水</strong>（少一份手写清单）。到 13 号收口上工程引用时，发现这件事应交回编译器——引用写错，编译就不过</td>
+    </tr>
+    <tr>
+      <td>断言「配置份数、编译文件数」的下限</td>
+      <td>社区通行做法是 CI 里跑一次 <code>tsc</code>；不额外断数字</td>
+      <td><strong>不是社区通行做法，是本仓纪律</strong>：对应我们那条「检查要能被看见」。仓内已有同款先例，见下</td>
+    </tr>
+  </table>
+  <p><strong>仓内先例（真实存在）：</strong><code>tests/verify-contract-types.js</code> 就是两步走——第 1 步跑 <code>tsc -p</code> 只求「这次编过的文件里没有错」（<code>:269-275</code>）；第 2 步另跑一次要 <code>--listFiles</code>，拿它跟自己列出来的契约目录 <code>.ts</code> 清单逐一对账（<code>:279-291</code>），理由写在注释里：「第 1 步管不住某个文件根本没进这次编译」。若契约目录一个 <code>.ts</code> 都没有，它判红（<code>:284-285</code>）——这正是「扫到的集合是空的，就不许判绿」。</p>
+  <p class="note"><b>诚实说清：</b>「自动发现 + 断言下限」这一截，官方文档里没有。它的价值不在「符合权威」，而在于挡住一个真实事故：<code>src/client/kernel/locale-cards.ts</code> 被构建转译成产物、能跑，却从来不在任何 <code>tsconfig</code> 的检查名单里——「绿」是真的，因为它压根没被看过。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">3</span>两种下限写法，区别在哪？</h2>
+  <p>两者都在防「绿而没检查」，但防的是不同的漏。</p>
+  <h3>写法甲：「≥ 今天实测数字」</h3>
+  <p>一条绝对值，例如「发现的配置 ≥ 6 份、编译到的文件 ≥ 72 个」。</p>
+  <ul>
+    <li><strong>抓得到：</strong>配置被误删、发现路径写错、整体塌了——总数会掉下下限，当场红。</li>
+    <li><strong>抓不到：</strong>数量守恒的搬家。比如 A 域掉了 4 个文件、B 域多了 4 个，总数没变，照样绿。</li>
+  </ul>
+  <h3>写法乙：「每个域至少 1 个文件 + 总数 ≥ N」</h3>
+  <p>多了一层「逐域」的下限。</p>
+  <ul>
+    <li><strong>抓得到：</strong>某个域整个没被检查（那份配置挂错目录、域目录改名后指向空）。</li>
+    <li><strong>代价：</strong>得知道「域有哪些」。好消息是这件事不必手写——<strong>每一份被发现的 <code>tsconfig</code> 就是一个域</strong>，逐份断言「你至少编到 1 个文件」即可，零手工登记。</li>
+  </ul>
+  <p class="why"><b>打个比方：</b>写法甲像「冰箱里总共至少 6 样菜」；写法乙像「每个抽屉至少 1 样菜」。抽屉被搬空、但总数恰好补回来了的时候，只有乙看得见。</p>
+  <p class="ok"><b>我的建议（等你定）：</b>两句都写，而且都用自动方式表达——① 对每一份被发现的 <code>tsconfig</code> 断言「编译文件数 ≥ 1」（自动枚举，不需要域清单）；② 对总数断言「≥ 一个只升不降的基线数字」（基线文件入库，与 Q3 那把棘轮同一套做法）。这样「某个域空了」和「总体塌了」都会当场红，而且维护量是零（没有新的手工清单）。</p>
+</div>
+
+<div class="card">
+  <h2><span class="n">4</span>构建里顺手跑的那次 <code>tsc</code>，要不要保留？</h2>
+  <p><strong>先分清它是什么：</strong>它<strong>不是门禁</strong>，它就在构建脚本自己身上——今天 <code>scripts/build.mjs:1089</code> 在转译像素风那批文件时顺手跑一次 <code>tsc -p tsconfig.client.json</code>。你排斥的是「再养一批判定脚本、给仓库加税」，不是「构建脚本检查一下自己刚处理的东西」。</p>
+  <h3>保留的理由</h3>
+  <ul>
+    <li><strong>早失败：</strong>写错类型的 <code>.ts</code> 在构建那一刻就出声，而不是等到单独跑 <code>typecheck</code> 才发现。</li>
+    <li><strong>不违背经典 TS 项目惯例：</strong>不少 TS 项目的 <code>build</code> 脚本本身就是「先类型检查、再打包」一串步骤串起来的。</li>
+  </ul>
+  <h3>保留的代价</h3>
+  <ul>
+    <li>同一件事跑两遍（构建里一次、<code>typecheck</code> 里一次）。实测客户端那份 <code>tsc</code> 约 <strong>102 毫秒</strong>，可以忽略。</li>
+  </ul>
+  <h3>更彻底的做法</h3>
+  <p>构建<strong>只转译、完全不跑 <code>tsc</code></strong>，类型检查全归 <code>typecheck</code>。代价是构建可能产出「类型有错但语法没问题」的产物——产物不入库、又要过发布门禁，实务上也能接受。好处是职责更干净：一个命令只做一件事。</p>
+  <p class="note"><b>与你至今的理念合不合：</b>按我们讨论出来的口径（一条命令跑完检查、检查要能被看见、不新增门禁），<strong>保留不冲突</strong>——因为它没有新增任何判定脚本。真正要守的纪律只有一条：<strong>判定职责只有一处</strong>——完整性与下限断言归 <code>typecheck</code>，构建里那次只当「早失败」，两边跑的是同一条 <code>tsc -p &lt;同一份配置&gt;</code>，不会出现两套口径。</p>
+  <p class="ok"><b>我的建议（等你定）：</b>保留，构建里那次保持原样；<code>typecheck</code> 负责完整性（发现配置 + 逐域 ≥ 1 + 总数 ≥ 基线）。若你更想「一处只做一件事」，就选更彻底那种，我按你的选择写结论。</p>
+</div>
+
+<footer>
+  数据取自本仓当前状态（<code>package.json</code> 的脚本清单实测、<code>scripts/build.mjs</code> 的像素风检查段、<code>tests/verify-contract-types.js</code> 的两步对账段）· 2026-10-12 · 票 #1014 待维护者逐条表态 · 本页未改动票面与代码
+</footer>
+
+</main>
+</body>
+</html>
