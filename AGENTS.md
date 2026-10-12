@@ -50,6 +50,20 @@ Single-context layout — root `CONTEXT.md` plus `docs/adr/`. See `docs/agents/d
 3. 转完要把注释补足：公开函数、类型、关键分支用中文完整句写清为什么、什么约定不能改、什么反例，不要复述类型名。样板看 `label-color-core/src/colors.ts` 开头。
 4. 转完顺手加日志，走下一节“日志埋点纪律”，以排查优先、多记但无垃圾为准。
 
+### 测试怎么直接加载 .ts（Node 下限 22.15）
+
+旧测试与旧源码是「按单元分批」从 `.js` 转成 `.ts` 的：一个文件改名之后，引用它的地方仍然写着 `./x.js`。`scripts/ts-hook.mjs` 就是这件事的装载钩子——它把这类说明符改指同目录下的同名 `.ts`；同名 `.ts` 不存在时原样交给 Node，所以没迁移的文件行为与今天完全一样。用法是把钩子挂在要跑的脚本前面：
+
+```
+node --import ./scripts/ts-hook.mjs tests/你的测试.ts
+```
+
+`npm test`（经 `scripts/verify-chain.js`）与 `npm run verify:parallel`（经 `scripts/verify-parallel.mjs`）跑链条目时会自动挂上这个钩子，写测试的人不用自己加。
+
+**Node 下限 22.15 的理由**：钩子用的是同步的 `module.registerHooks()`，它同时管 ESM 的 `import` 与 CommonJS 的 `require`；异步的 `module.register()` 管不到 `require`，替代不了它。同步的 `registerHooks()` 从 Node 22.15 才有，所以根 `package.json` 写 `engines.node: ">=22.15"`，`.npmrc` 里 `engine-strict=true` 让版本不符时安装直接失败，钩子自己还做一次能力检测——Node 太旧时抛出能指路的一句话，而不是难懂的 `TypeError`。
+
+**已知代价（不算故障）**：挂着钩子加载 `.ts` 时，Node 会打一条 `MODULE_TYPELESS_PACKAGE_JSON` 警告，提示可以给 `package.json` 加 `"type": "module"`。这条警告今天加载 `.js` 产物时同样会出现（原因相同：最近的 `package.json` 没有 `type` 字段），所以钩子没有引入新一类噪音。
+
 ### 日志埋点纪律（先读总纲票 #502：日志体系采用总纲与查阅入口）
 
 目标：穿过不透明边界的流程做完，不用人补话，AI 只看本地诊断日志就能说出走到哪一步、停在哪个环节。日志多多益善，但只收信号、不收垃圾。

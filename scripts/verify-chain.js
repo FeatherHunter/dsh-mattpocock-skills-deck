@@ -10,8 +10,13 @@
 const fs = require('fs')
 const path = require('path')
 const { spawnSync } = require('child_process')
+const { pathToFileURL } = require('url')
 
 const ROOT = path.resolve(__dirname, '..')
+// 装载钩子：让链上的脚本能把 "./x.js" 解析到同目录的同名 .ts（迁移中的单元靠它，引用点一个字不改）。
+// 没有同名 .ts 时钩子什么都不做，所以没迁移的条目行为与今天完全一样。
+// 这一层只改「怎么起进程」，不动 package.json 里那条链的文字——不断链是不断言链内容的门禁钉住的约定。
+const TS_HOOK = pathToFileURL(path.join(ROOT, 'scripts', 'ts-hook.mjs')).href
 const raw = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
 const chain = (raw.scripts && raw.scripts.verify) || ''
 if (!chain) { console.error('FAIL verify 链为空'); process.exit(1) }
@@ -60,7 +65,7 @@ let done = 0
 for (const entry of entries) {
   const parts = splitArgs(entry)
   if (parts[0] !== 'node') { console.error('FAIL 非 node 条目拒绝执行：' + entry.slice(0, 120)); process.exit(1) }
-  const r = spawnSync(process.execPath, parts.slice(1), { cwd: ROOT, stdio: 'inherit', shell: false })
+  const r = spawnSync(process.execPath, ['--import', TS_HOOK, ...parts.slice(1)], { cwd: ROOT, stdio: 'inherit', shell: false })
   if (r.error) { console.error('FAIL 起不来：' + entry.slice(0, 120) + ' ' + String(r.error.message || r.error)); process.exit(1) }
   if (r.status !== 0) { console.error('FAIL 止于：' + entry.slice(0, 160) + '（exit ' + r.status + '）'); process.exit(r.status) }
   done += 1

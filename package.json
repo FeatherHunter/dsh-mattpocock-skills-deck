@@ -6,6 +6,9 @@
     "url": "https://github.com/FeatherHunter/dsh-mattpocock-skills-deck.git"
   },
   "private": true,
+  "engines": {
+    "node": ">=22.15"
+  },
   "scripts": {
     "build": "node scripts/build.mjs",
     "update:latest": "pnpm update dsh-plugin-update@^0.13.0 && node scripts/derive-update-from-package.mjs && node scripts/build.mjs",

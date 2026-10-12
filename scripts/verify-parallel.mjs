@@ -132,10 +132,19 @@ async function selectChanged() {
   return picked.fullChain ? null : picked.steps
 }
 
+// 装载钩子：链上的测试步骤要能把 "./x.js" 解析到同目录的同名 .ts（迁移中的单元靠它）。
+// 没有同名 .ts 时钩子什么都不做，所以没迁移的步骤行为与今天完全一样。
+// 预构建那一步（scripts/build.mjs）不挂：它不加载测试，挂上去只是多一次没用的加载。
+// 这一层只改「怎么起进程」，不动 package.json 里那条链的文字。
+const TS_HOOK = pathToFileURL(path.join(ROOT, 'scripts', 'ts-hook.mjs')).href
+function argvOf(step) {
+  return step.file.startsWith('tests/') ? ['--import', TS_HOOK, step.file] : [step.file]
+}
+
 function runStep(step) {
   return new Promise((resolve) => {
     const started = Date.now()
-    const child = spawn(process.execPath, [step.file], { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] })
+    const child = spawn(process.execPath, argvOf(step), { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] })
     let out = ''
     let err = ''
     child.stdout.on('data', (d) => (out += d))
