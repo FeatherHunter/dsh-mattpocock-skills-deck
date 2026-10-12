@@ -224,7 +224,18 @@ async function main() {
     const calls = []
     const host = o.noHost ? undefined : makeHost(phones, calls, o.failMode, { before: o.onCall })
     const st = { cwd: cwd, sessionWorkspaceRoot: root, subs: [], tick: 0 }
-    const shared = { cwd: '', subs: [], tick: 0 }
+    // 单例 shared 也是一个「还没被用户动过的面板」（store-snapshot.js:81 是 makeStore() 单独造的对象，
+    //   不在 stores 里）：建会话时照旧表那一份画。这三格必须在夹具里出现，才量得到「文件里那一份搬进
+    //   内存时 shared 也要跟着换」—— 2026-10-12 复核发现夹具里 shared 没有这三格，settings-ui.js 只换
+    //   stores、漏掉 shared 的那个缺口在门禁里量不到。
+    const seedPrefs = (function () {
+      try {
+        const raw = o.localStorage && o.localStorage['dsws.listPrefs']
+        if (raw) { const p = JSON.parse(raw); return { stateFilter: p.stateFilter, sortKey: p.sortKey, sortDir: p.sortDir } }
+      } catch (e) {}
+      return { stateFilter: 'all', sortKey: 'number', sortDir: 'asc' }
+    })()
+    const shared = { cwd: '', subs: [], tick: 0, stateFilter: seedPrefs.stateFilter, sortKey: seedPrefs.sortKey, sortDir: seedPrefs.sortDir }
     const stores = { 'sess-1': st }
     const logs = []
     // 内核那张「所选目录的键 → 工作区根」的表（store-snapshot.js 第 57–63 行的真口径：同一个工作区的
@@ -867,7 +878,15 @@ async function main() {
     check(sent.length >= 2, '第一趟飞在天上时改的那一下没有被划掉：真的又排了第二趟写，实得 ' + sent.length + ' 次。')
     const firstEntry = sent[0] && sent[0].args && sent[0].args.value && sent[0].args.value.workspaces['D:\\ilife']
     check(!!firstEntry && firstEntry.bannerFolded === true, '第一趟发出去的确实是当时那个值 true（这一条才有东西可丢）。', JSON.stringify(firstEntry))
+    // 电话是「先记一笔、后落盘」，而第二趟写还要先重读一次文档（多一个 await）。只等电话出现就抢着读盘，
+    //   会读到第一趟那个 true —— 门禁在跟自己抢时序（2026-10-12 复核量到 25% 概率的抖动红）。
+    //   这里等到盘上真是后改的那个值再看，断言才有确定性。
+    const settled = await waitFor(async () => {
+      const d = await readDoc(env.home)
+      return !!(d && d.workspaces['D:\\ilife'] && d.workspaces['D:\\ilife'].bannerFolded === false)
+    })
     const doc = await readDoc(env.home)
+    check(settled, '第二趟写真的落到盘上了（后改的那个值 false）—— 这一条等的是写落定，不是电话出现。', JSON.stringify(doc && doc.workspaces))
     check(!!doc && !!doc.workspaces['D:\\ilife'] && doc.workspaces['D:\\ilife'].bannerFolded === false,
       '盘上留下的是后改的那个值 false（不是第一趟那个 true）。', JSON.stringify(doc && doc.workspaces))
     check(env.mod.viewFlagOf(cwd, 'bannerFolded') === false, '内存里也是后改的那个值 false —— 盘上与内存一致。')
@@ -1003,6 +1022,7 @@ async function main() {
     await waitFor(async () => env.mod.viewFlagReadyNow() === true)
     check(env.mod.listPrefs.stateFilter === 'blocked', '文档到手后，内存这一份换成文件里那一格（文件写过就以文件为准）。', env.mod.listPrefs.stateFilter)
     check(env.stores['sess-2'].stateFilter === 'blocked', '本会话还没动过的面板也跟着换成文件里那一份（建会话时它照旧表画的是 all）。', String(env.stores['sess-2'].stateFilter))
+    check(env.shared.stateFilter === 'blocked', '单例 shared 那块面板（还没有会话落定、面板先拿它画的那一份）也跟着换 —— 它不在 stores 里，漏了就会一直停在旧表那一份。', String(env.shared.stateFilter))
     check(env.st.stateFilter === 'frontier', '本会话已经动过的面板不被文件里的旧值顶回去（用户刚点的那一下优先）。', String(env.st.stateFilter))
     check(env.mod.listPrefs.sortKey === 'number' && env.mod.listPrefs.sortDir === 'asc', '文件里没写过的格（空串）保留旧表那一份 —— 空串的意思是「这台机器还没写过」，不是「用户选了空」。', JSON.stringify({ sortKey: env.mod.listPrefs.sortKey, sortDir: env.mod.listPrefs.sortDir }))
   }

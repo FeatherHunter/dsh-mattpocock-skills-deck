@@ -91,7 +91,12 @@
           const v = ui[name]
           if (typeof v !== 'string' || v === '') continue
           if (v === before[name]) continue
+          // 面板状态有两处，都要换：单例 shared（还没有会话落定、面板先拿它画的那一份）与 stores 里
+          //   每个会话各一份。store-snapshot.js 里 shared 是 makeStore() 单独造的对象，不在 stores 里，
+          //   只换 stores 会让那块面板一直停在旧表那一份（2026-10-12 复核实测：shared 停在 'all'，
+          //   stores 里已经是 'blocked'）。判据与 stores 同一套：这一格还等于旧表那一份才算没被动过。
           try {
+            if (typeof shared !== 'undefined' && shared && shared[name] === before[name]) shared[name] = v
             if (typeof stores !== 'undefined' && stores) {
               const ks = Object.keys(stores)
               for (let j = 0; j < ks.length; j++) {
@@ -155,12 +160,21 @@
       return out
     }
     // 把用户动过的那几格交给文件（列表面板点一下筛选或排序时调的就是这里，见 views/ListTab.js）。
-    //   只要有一格接不下就返回 false，让调用方照改动前的老办法写回旧键 —— 不写两份互相打架的真相。
+    //   整批先验一遍再动：三格里有一格接不下（名字不在列、值是空串、文档形状对不上）就一格都不写，
+    //   返回 false 让调用方整份写回旧键 —— 免得出现「文件里有 A、旧键里有 A+B」两份打架的真相。
     //   传参 changed 可以是格名或格名数组；不传时按记账推（见上面那个函数）。
     export const saveUiPrefs = function (changed) {
       try {
         settingsViewLoad()
         const names = settingsUiNamesToSubmit(changed)
+        if (names.length === 0) return true
+        for (let i = 0; i < names.length; i++) {
+          const name = names[i]
+          if (UI_PREF_NAMES.indexOf(name) < 0) return false
+          if (String(listPrefs[name] == null ? '' : listPrefs[name]) === '') return false
+        }
+        // 文档还在路上时这一批全进 deferred（setUiPref 自己处理）；已经问完却拿不到文档对象，整批接不下。
+        if (viewFlagState.status !== 'loading' && (viewFlagState.status !== 'ready' || !viewFlagState.doc || typeof viewFlagState.doc !== 'object')) return false
         for (let i = 0; i < names.length; i++) {
           if (!setUiPref(names[i], listPrefs[names[i]])) return false
         }
