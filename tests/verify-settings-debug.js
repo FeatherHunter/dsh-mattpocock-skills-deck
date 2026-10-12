@@ -899,7 +899,10 @@ async function main() {
       }
       const click = async (container) => {
         const box = boxOf(container)
-        if (!box) return false
+        // 2026-10-12 复核第四轮建议 3：禁用中的复选框照样能 click()，所以「还在就 return true」会让「这一拨点得动」
+        //   这一族断言在页面卡死时照样变绿（实测：把失败分支那句 setDbgPending(false) 短路之后页面永远禁用，
+        //   以旧写法写的断言仍然全绿）。按 disabled 判，这一族才算真的量到东西。
+        if (!box || box.disabled) return false
         const realE = console.error
         const realW = console.warn
         console.error = () => {}
@@ -1129,8 +1132,9 @@ async function main() {
         '窗口里那一趟之前先发了「开」（这一档的起点是对的，不然后面两条是空的）。', JSON.stringify(queuedAdded))
       const queuedOff = queuedAdded.filter((x) => x.enabled === false)
       check(queuedOff.length >= 1 && queuedOff[0].duringPending === true,
-        '排队那一趟自己到了宿主，而且是在 B 页这一拨还没收场（复选框还禁用着）的时候发出去的 —— 删掉 next 格赋值之后，'
-        + '这一趟只可能是收场之后由自愈补推的，采样必然落在 false 上。', JSON.stringify(queuedOff))
+        '排队那一趟自己到了宿主，而且是在 B 页这一拨还没收场（复选框还禁用着）的时候发出去的。'
+        + '注意这一条只量「什么时候发出去的」：实测把 settings-debug.js 里排队格那句赋值删掉，它照样绿，'
+        + '真正把「排队那趟拿到的是自己那趟的结果」钉住的是下面那条提示文案断言。', JSON.stringify(queuedOff))
       const wantOff = p.dict['cfg.dbgSwitchOffToast']
       let bToast = ''
       let bSeen = ''
@@ -1198,7 +1202,8 @@ async function main() {
     //   SETTINGS_DEBUG_PUSH_WAIT_MS = 5000），页面里取的是 window.setTimeout —— 门禁只把这一个 5000 毫秒的定时器
     //   换成抛错，Promise.race 整体被拒，拨动交回一个被拒的 Promise，成功分支一个字都没跑，收场只能走 .catch。
     //   代价要说清：这一拒之后 settingsDebugPushBusy 停在真上（产品里这条拒够不到，只有门禁这么逼），所以这一档
-    //   不再量宿主电话的趟数（那件事在第七条里量，用的是不伤链子的抛错）。
+    //   不再量宿主电话的趟数（那件事在第七条里量，用的是不伤链子的抛错）。也正因为这一页的链子坏了，**别在本段
+    //   后面再接新段复用这一页** —— 新段会默认「推得动」，量出来的都不是真的。
     {
       const p = await openPage({ docEnabled: false })
       const a = await p.mount()
