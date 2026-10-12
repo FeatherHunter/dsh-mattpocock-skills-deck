@@ -113,9 +113,11 @@ src/deck/
 - 地图 #1010 及评论区 2026-10-11 决议评论（七节：目标、执行决议、目录树、契约解释、归属原则、编译模型、开工顺序）。
 - `research/1010-deck-chain-dirs.md`（调用链八层目录表、新树、范围更正与决议追记）、`research/deck-tools-language-1010.md`（九个工具今天全是 JavaScript 的证据）。
 - `docs/adr/20260913-builtin-ts-shape.md`（四个计算核的形态先例；本决策不改它，将来统一另立决策）。
+- `specs/1010-ts-rewrite-spec.md`（施工规格：谁做什么、怎么算做完、测试缝与完成判据。本决议说「为什么这么定」，规格说「怎么落地」）。
 
 ## 9. 变更记录
 
 - 2026-10-11 初版（维护者当日拍板五项目标、三项执行决议、新树、编译模型与开工顺序）。
 - 2026-10-12 修定：契约的家从树里的 `src/deck/contract/` 挪到 `src/tracker/contract/`，与 3.1 归属原则对齐（共用归共用家，deck 引用不拥有）；§4 补该目录四个文件与非契约面三处定案。
 - 2026-10-12 补 3.3 命名细目：契约目录五个文件名、注册表三件改名去重前缀、三房统一搬进 `rooms/`（GitLab 只改名不转码）。依据是迁移映射表（`research/1010-migration-map.md`）要人拍板的三处。
+- 2026-10-12 施工规格定稿并从 `research/` 挪进 `specs/`（`specs/1010-ts-rewrite-spec.md`）：`specs/` 专放施工规格（先例是 `specs/960-fix-spec.md`），`research/` 只放调研证据；§8 加指针。
