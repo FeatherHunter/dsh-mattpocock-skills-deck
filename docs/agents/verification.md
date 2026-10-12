@@ -138,8 +138,9 @@ node scripts/lib/select-gates.mjs src/client/views/versionControl/VersionControl
    `tests/verify-no-title.js` 点名了 `src/client/views`）是**递归**扫那个目录的，所以它守着的文件算「有门禁」——
    覆盖面这一栏因此是满的（510/510）。但「这一层自己有没有被点名」是另一回事：`coverage.dedicatedDirs`
    记的就是后者，`coverage.dirsWithoutDedicated` 列出没有专属门禁的目录和它们的文件数。
-   2026-10-13 这一版（#1016 删掉 `src/host/logPkg` 之后重算）：43 个目录里 42 个有专属门禁，
-   唯一没有的是 `src/shared/config-store/src`（4 个文件）。
+   2026-10-13 这一版（#1016 删掉 `src/host/logPkg` 之后按磁盘实况数）：43 个目录里 42 个有专属门禁，
+   唯一没有的是 `src/shared/config-store/src`（4 个文件）。`tests/gate-map.json` 那份表的重算归 #1017，
+   在它落地之前，表里的文件数与目录数还按删之前记着（多算了那 4 个已删文件）。
    想让某个目录有专属门禁，要么给它写一扇门禁，要么在既有的、确实守着它的门禁里加一条
    `// 门禁归属:` 注释——注意注释会**取代**该门禁原有的全部线索，写的时候要写全。
 

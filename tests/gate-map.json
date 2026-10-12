@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-12T20:22:55.016Z",
+  "generatedAt": "2026-10-12T18:18:49.610Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 227,
   "gateCount": 227,
   "attributedGates": 201,
   "unattributedGates": 26,
   "buildOutputOnlyGates": 20,
-  "graphFileCount": 502,
+  "graphFileCount": 506,
   "gates": [
     {
       "step": "node tests/verify-596-rpc-carrier.js",
@@ -5622,9 +5622,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 510,
-    "dirCount": 43,
-    "coveredFileCount": 510,
+    "fileCount": 514,
+    "dirCount": 44,
+    "coveredFileCount": 514,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 42,
@@ -5852,6 +5852,10 @@
       "src/host/issuePage.js",
       "src/host/logFromPackage.js",
       "src/host/logPhones.js",
+      "src/host/logPkg/config.js",
+      "src/host/logPkg/host.js",
+      "src/host/logPkg/phones.js",
+      "src/host/logPkg/store.js",
       "src/host/logStore.js",
       "src/host/mapBody.js",
       "src/host/mapTickets.js",
@@ -6157,6 +6161,7 @@
       "src/client/views/skillDetail",
       "src/client/views/versionControl",
       "src/host",
+      "src/host/logPkg",
       "src/host/platform",
       "src/host/platform/darwin",
       "src/host/platform/linux",
@@ -6230,6 +6235,10 @@
       "src/tracker/contract"
     ],
     "dirsWithoutDedicated": [
+      {
+        "path": "src/host/logPkg",
+        "fileCount": 4
+      },
       {
         "path": "src/shared/config-store/src",
         "fileCount": 4
