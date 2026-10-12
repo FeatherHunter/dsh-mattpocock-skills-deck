@@ -20,6 +20,8 @@
  *     切换前飞着重取、同一个后端上两次重取、非 force 在途撞 force、旧后端那份晚回来。
  *   D 反证：把去重键改回「只按工作区」、把守卫整段摘掉，C 里对应的那几条必须当场量不通过。
  *
+ * 依赖：playwright（含 chromium）—— 浏览器实例经 tests/lib/browser-pool.js 取：没设 DSH_TEST_BROWSER_WS 时自己起一个，设了就共用 scripts/browser-host.mjs 起的那一只。
+ *
  * 用法：node tests/verify-669-switch-visible.js
  */
 const fs = require('fs')
@@ -28,7 +30,7 @@ const { JSDOM } = require('jsdom')
 const React = require('react')
 const ReactDOMClient = require('react-dom/client')
 const { act } = require('react')
-const { chromium } = require('playwright')
+const { getBrowser, closeBrowser } = require('./lib/browser-pool.js')
 // 本文件三处手法不同：窗口里跑产物走 evalInWindow，取真源里一行函数表达式走 evalWithScope，拼闭包造模块走 compileFn。
 const { compileFn, evalWithScope, evalInWindow } = require('./lib/eval-probe.js')
 
@@ -41,7 +43,17 @@ const check = (ok, msg) => { if (ok) { console.log('  PASS ' + msg); passed++ } 
 const prod = read('package/lib/client.js')
 
 console.log('== B 真 Chromium：窄面板下那张弹窗的几何 ==')
-// ── C 组与 B 组共用：把产物里那张弹窗真身挂起来，取它的 DOM 与样式表 ─────────────────────────
+// ── B 组：把产物里那张弹窗真身挂起来，取它的 DOM 与样式表 ───────────────────────────────────
+// 2026-10-12 修：这一门原先写死「挂 sidebar.right.pane.tab 那一份、给它的 props 里塞 session.cwd」，
+//   于是红了很久（红在「等 [data-repo-switch] 等空之后拿 null 去 dispatchEvent」）。
+//   查下来根因与「按钮搬去了别的槽位」无关，而是**喂给面板的会话目录没送到**：
+//   产物里 pane.tab 这一格注册的是 router.js 的 DeckSidebarTab，它按注册时的 inject 约定只收 sessionId，
+//   转手交给 DetailsDock 的 props 里**没有 session**（那颗按钮就长在 DetailsDock 的头部，panel/Dock.js）。
+//   真实宿主给这一格的就只有 sessionId，工作区目录是面板自己打电话（wf.cwd）问回来的 ——
+//   旧桩把 wf.cwd 也答成一句空话 `{ok:true}`，于是会话永远没有 cwd → 不发快照 → 没有 selection →
+//   那颗按钮按源码的判据（Dock.js: `_bid==null` 直接不渲染）本来就不该出现。桩补齐 wf.cwd 之后一切照旧。
+//   同时这一门不再预设按钮属于哪个槽位：先把产物注册的槽位名单打出来，再逐个试挂，
+//   挑**真的把 [data-repo-switch] 画出来**的那一份来量（按钮将来真搬了家，这里自动跟上）。
 const WS = 'D:\\tmp\\669-visible'
 const MODULES = [
   { id: 'github', label: 'GitHub', presentation: { color: '#58a6ff' } },
@@ -75,6 +87,9 @@ const mountModal = async function () {
     sidebarRightTabs: { register: () => () => {} },
     connection: { rpc: { call: async (channel, endpoint, req) => {
       const method = (req && req.method) || ''
+      // 面板的工作区目录走的就是这条电话（panel/DockSync.js 里 host.call('wf.cwd', {sessionId})）：
+      //   槽位注册时宿主只交进来一个 sessionId，目录得面板自己问。这里如实答上，缺了它整条取数链不启动。
+      if (method === 'cwd') return { ok: true, value: { ok: true, cwd: WS, workspaceRoot: WS } }
       if (method === 'snapshot' || method === 'refresh') return { ok: true, value: SNAP('github') }
       if (method === 'chain') return { ok: true, value: { ok: true, backendId: 'github', fullSnapshot: { steps: [{ id: 'gh:remote', status: 'done' }] } } }
       if (method === 'registry') return { ok: true, value: { ok: true, modules: MODULES } }
@@ -93,21 +108,55 @@ const mountModal = async function () {
   evalInWindow(dom, prod)
   const mod = loaded.factory((m) => { if (m === 'react') return React; if (m === 'react-dom') return ReactDOMClient; throw new Error('产物要了一份没准备的模块：' + m) })
   mod.apply(ctx)
-  const reg = registrations.filter((r) => r.meta && r.meta.name === 'sidebar.right.pane.tab')[0]
-  const container = window.document.getElementById('pane')
-  const root = ReactDOMClient.createRoot(container)
+  // 先把产物注册了哪些槽位打出来：按钮搬家（换槽位、换组件）时这一行就是下一次改这一门的入口。
+  console.log('  产物注册的槽位：' + registrations.map((r) => (r.meta && r.meta.name) || '(无名)').join(' / '))
   const step = async (ms) => { await act(async () => { await sleep(ms || 30) }) }
-  await act(async () => { root.render(React.createElement(reg.comp, { sessionId: 'sid-669v', session: { id: 'sid-669v', cwd: WS }, useSessions: () => undefined, inputActions: { setDraft: () => {} } })); await sleep(30) })
-  for (let i = 0; i < 60 && !container.querySelector('[data-repo-switch]'); i++) await step(50)
+  // 逐个试挂，挑真的把 [data-repo-switch] 画出来的那一份。props 按产物注册时声明的 inject 约定给：
+  //   pane.tab 那一份声明的是 inject(sessionId)，真实宿主交进来的就只有这一个值，所以这里也只给这一个。
+  //   试挂没命中的那几份留在原地不再拆（拆 React 根会引出调度器在微任务里崩那一步，见文件末尾那段说明），
+  //   它们各自的根节点互不相干，量的时候只认命中那一份的容器。
+  let reg = null
+  let container = null
+  for (let i = 0; i < registrations.length && !reg; i++) {
+    const cand = registrations[i]
+    const name = (cand.meta && cand.meta.name) || '(无名)'
+    const box = window.document.createElement('div')
+    window.document.body.appendChild(box)
+    try {
+      const root = ReactDOMClient.createRoot(box)
+      await act(async () => { root.render(React.createElement(cand.comp, { sessionId: 'sid-669v' })); await sleep(30) })
+      for (let k = 0; k < 60 && !box.querySelector('[data-repo-switch]'); k++) await step(50)
+    } catch (e) {
+      console.log('  试挂 ' + name + ' 抛错（与这一门无关，跳过）：' + String((e && e.message) || e).slice(0, 120))
+      continue
+    }
+    if (box.querySelector('[data-repo-switch]')) {
+      reg = cand
+      container = box
+      console.log('  挂的是 ' + name + ' 这一份：它真的把 [data-repo-switch] 画出来了')
+    } else {
+      console.log('  试挂 ' + name + '：这一份里没有那颗按钮')
+    }
+  }
+  if (!reg) {
+    // 一条命都挂不上的时候不许闷声崩（旧写法就是在这里拿 null 去 dispatchEvent）：
+    //   如实报「产物注册的这几份里没有一份画出那颗按钮」，这一条由调用处判红。
+    return { overlayHTML: '', cardHTML: '', css: '', mountedFrom: null, registeredSlots: registrations.map((r) => (r.meta && r.meta.name) || '(无名)') }
+  }
   await act(async () => { container.querySelector('[data-repo-switch]').dispatchEvent(new window.MouseEvent('click', { bubbles: true })); await sleep(40) })
   await step(150)
-  await act(async () => { container.querySelector('[data-target-id="markdown"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true })); await sleep(40) })
+  // 弹窗里那几个后端按钮：走到这里要是没出来，同样不许拿 null 去 dispatch（旧写法崩的就是这一手），
+  //   如实回一份空的，由调用处那几条判红。
+  const targetBtn = container.querySelector('[data-target-id="markdown"]')
+  if (!targetBtn) return { overlayHTML: '', cardHTML: '', css: '', mountedFrom: (reg.meta && reg.meta.name) || null, registeredSlots: registrations.map((r) => (r.meta && r.meta.name) || '(无名)') }
+  await act(async () => { targetBtn.dispatchEvent(new window.MouseEvent('click', { bubbles: true })); await sleep(40) })
   await step(150)
   // 弹窗最外层（覆盖层）与卡片：含内联样式的真身
-  const overlay = container.querySelector('[data-target-id]').closest('div[style*="position: absolute"]')
+  const anyTarget = container.querySelector('[data-target-id]')
+  const overlay = anyTarget && anyTarget.closest('div[style*="position: absolute"]')
   const card = overlay && overlay.firstElementChild
   const css = Array.prototype.slice.call(window.document.querySelectorAll('style')).map((s) => s.textContent || '').join('\n')
-  const out = { overlayHTML: overlay ? overlay.outerHTML : '', cardHTML: card ? card.outerHTML : '', css: css }
+  const out = { overlayHTML: overlay ? overlay.outerHTML : '', cardHTML: card ? card.outerHTML : '', css: css, mountedFrom: (reg.meta && reg.meta.name) || null, registeredSlots: registrations.map((r) => (r.meta && r.meta.name) || '(无名)') }
   // 这一份 jsdom 窗口不拆：拆（unmount + window.close）之后 React 的调度器还会在微任务里跑一步，
   //   进程会以一句「performWorkUntilDeadline」的栈崩掉（实测）。这一门跑完就 process.exit，留着更稳。
   return out
@@ -118,10 +167,13 @@ global.IS_REACT_ACT_ENVIRONMENT = true
 console.log('')
 console.log('== B 真 Chromium：窄面板下那张弹窗的几何 ==')
 const mounted = await mountModal()
+// 先自报「按钮是从哪一份组件里长出来的」：这一条红了说明产物注册的槽位里没有一份画出那颗按钮，
+//   后面几条量的就是空页面（它们会跟着红，不用另判）。
+check(!!mounted.mountedFrom, 'B 挂上了真的画出 [data-repo-switch] 的那一份组件（挂的是「' + (mounted.mountedFrom || '没有一份画出那颗按钮') + '」；产物注册的槽位：' + (mounted.registeredSlots || []).join(' / ') + '）')
 check(mounted.overlayHTML.length > 500 && mounted.cardHTML.length > 500, '取到了弹窗真身（覆盖层 ' + mounted.overlayHTML.length + ' 字 / 卡片 ' + mounted.cardHTML.length + ' 字）')
 check(mounted.css.indexOf('.dsws-btn') >= 0, '取到了产物自己的样式表（含 .dsws-btn）')
 {
-  const browser = await chromium.launch({ headless: true })
+  const browser = await getBrowser({ headless: true })
   const measure = async function (width, html, css) {
     const p = await browser.newPage({ viewport: { width: width + 40, height: 900 } })
     await p.setContent('<!doctype html><html><head><meta charset=utf-8><style>html,body{margin:0;background:#0a0a0a}body{padding:20px}#stage{position:relative;width:' + width + 'px;height:820px}' + css + '</style></head><body><div id="stage"></div></body></html>')
@@ -169,7 +221,7 @@ check(mounted.css.indexOf('.dsws-btn') >= 0, '取到了产物自己的样式表�
   const mb = await measure(380, broken, mounted.css)
   const vb = verdict(mb)
   check(!vb.ok, '反证 B 成立：放进长标签之后 380 宽度当场量不通过（竖排按钮 ' + vb.tall.length + ' 颗、越出卡片 ' + vb.over.length + ' 颗、卡片 ' + JSON.stringify(vb.card) + '）')
-  await browser.close()
+  await closeBrowser()
 }
 
 console.log('')
@@ -228,7 +280,8 @@ const makeSnap = function (srcText) {
   const body = 'with (scope) {\n' + srcText + '\n; return { loadSnapshot: loadSnapshot, pendingSnapshotByCwd: pendingSnapshotByCwd }\n}'
   // 本处走 compileFn：把拼好的闭包文本当函数体造函数，原来靠 with(scope) 显式拿外层名字，语义不变。
   const mod = compileFn(['scope'], body)(scope)
-  return { loadSnapshot: mod.loadSnapshot, calls }
+  // pending 那张在途登记表一并交出来：「这一次请求算在哪个后端名下」现在只剩这一个可观测的落点（见现场 1）。
+  return { loadSnapshot: mod.loadSnapshot, calls, pending: mod.pendingSnapshotByCwd }
 }
 const snapOf = (bid, tag) => ({ ok: true, bid, tag, maps: [], selection: { backendId: bid, source: 'explicit' }, repository: { backend: bid, name: bid } })
 
@@ -245,7 +298,13 @@ const runScenarios = async function (srcText) {
     out.debug = s.calls.map((c) => c.method + '|' + ((c.params && c.params.backendId) || '-'))
     out.switchSentTwo = s.calls.length
     if (!s.calls[1]) return out
-    out.secondCarriesNewBackend = !!(s.calls[1] && s.calls[1].params && s.calls[1].params.backendId === 'markdown')
+    // 「第二次请求算的是切换后那个后端」这条改在**在途登记键**上量（2026-10-12）：产物这一版的取数请求
+    //   参数里已经不带后端号了 —— #1003 起客户端不再上报「亲手选的那条」hint（store-prefs.js 的 userHintOf
+    //   只剩一个返回 undefined 的空壳，宿主改用工作区文件判），所以后端身份现在只活在
+    //   「工作区键 + 后端 id」这把登记键上：去重与回包守卫读的都是它。判据本身没松 —— 仍然要求
+    //   「切换后那一次是新后端名下的一次请求」，D 组第 1 条反证（键里去掉后端）照样把它压红。
+    out.pendKeys = Array.from(s.pending.keys()).map(String)
+    out.secondOnNewBackendKey = out.pendKeys.filter((k) => /\|markdown$/.test(k)).length === 1 && out.pendKeys.filter((k) => /\|github$/.test(k)).length === 1
     // 新的那份先回，旧的那份（切换前）后回
     s.calls[1].d.res(snapOf('markdown', '切换后那一份'))
     await tick()
@@ -290,7 +349,7 @@ const runScenarios = async function (srcText) {
 const real = await runScenarios(snapSrc)
 console.log('  [现场 1 发出去的请求] ' + JSON.stringify(real.debug))
 check(real.switchSentTwo === 2, '现场 1：切换前那次在途不吞掉切换后那次 —— 两个后端各自真发了一次请求（实得 ' + real.switchSentTwo + ' 次）')
-check(real.secondCarriesNewBackend, '现场 1：第二次请求带的是切换后的后端（实得 ' + JSON.stringify(real.debug && real.debug[1]) + '）')
+check(real.secondOnNewBackendKey, '现场 1：切换后那一次请求登记在「新后端」名下、切换前那次登记在旧后端名下（在途键实得 ' + JSON.stringify(real.pendKeys) + '；请求参数这一版已不带后端号，理由见这一处的注释）')
 check(real.afterSwitch === '切换后那一份', '现场 1：切换后装进去的是新后端那一份（实得「' + real.afterSwitch + '」）')
 check(real.selectionAfterSwitch === 'markdown', '现场 1：切换前那份晚回来之后，会话里的后端仍是切换后的那一个（实得「' + real.selectionAfterSwitch + '」）')
 check(real.sameBackendReuse === 1, '现场 2（回归）：同一个后端上第二次强制重取照旧复用第一次、只发一次（实得 ' + real.sameBackendReuse + ' 次）')
@@ -301,11 +360,12 @@ console.log('')
 console.log('== D 反证：把这两处做坏，C 里对应的那几条必须当场量不通过 ==')
 {
   const variants = [
-    { label: '去重键改回「只按工作区」（不带后端）', patches: [["return wsKeyOf(cwd || '') + '|' + String(backendId || '')", "return wsKeyOf(cwd || '') + '|'"]], must: ['现场 1 发两次', '现场 1 装新的', '现场 1 后端保持'] },
+    { label: '去重键改回「只按工作区」（不带后端）', patches: [["return wsKeyOf(cwd || '') + '|' + String(backendId || '')", "return wsKeyOf(cwd || '') + '|'"]], must: ['现场 1 发两次', '现场 1 问的是新后端', '现场 1 装新的', '现场 1 后端保持'] },
     { label: '回包守卫整段摘掉', patches: [['if (_snapRespStale(_reqNorm, _mine.seq, _mine.reqBackend, st)) {', 'if (false) {']], must: ['现场 1 后端保持', '现场 4 旧的不装'] },
   ]
   const worse = (key, got) => {
     if (key === '现场 1 发两次') return got.switchSentTwo !== 2
+    if (key === '现场 1 问的是新后端') return got.secondOnNewBackendKey !== true
     if (key === '现场 1 装新的') return got.afterSwitch !== '切换后那一份'
     if (key === '现场 1 后端保持') return got.selectionAfterSwitch !== 'markdown'
     if (key === '现场 4 旧的不装') return got.staleDropped !== true

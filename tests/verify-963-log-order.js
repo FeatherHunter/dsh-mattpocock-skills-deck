@@ -3,6 +3,14 @@
 const nodePath = require('path');
 const nodeOs = require('os');
 const { pathToFileURL } = require('url');
+// 时间压缩：本门的墙钟时间几乎全花在「等超时」上 —— S3/S4 里每一条 runGh 都按档位排下一个预算
+//（读 12 秒、写 30 秒、探活 3 秒），命令几十毫秒就回来了，那些预算没人清掉，于是进程要空等 30 秒才肯退出。
+// 压缩成虚拟时间以后真实只等几毫秒，而 Date.now() 报出来的仍是 12 / 30 / 3 秒：S4「读档等 12 秒、写档等 30 秒、
+// 探活档等 3 秒」这几条按记录下来的预算值判，S4「3500 毫秒的探活比 3000 毫秒的预算慢、超时归网络档」这一条
+// 靠的是虚拟队列按到期时间排队（3 秒那个先到），S3「60 毫秒就回、没有一条等满超时」也照旧成立。断言一条没动；
+// 理由、两条不能破的语义与边界见 tests/lib/time-compress.js 文件头。
+const { installTimeCompression, uninstallTimeCompression } = require('./lib/time-compress.js');
+installTimeCompression();
 const WT = nodePath.resolve(__dirname, '..');
 const url = (rel) => pathToFileURL(nodePath.join(WT, rel)).href;
 let total = 0; const broken = [];
@@ -164,6 +172,8 @@ async function main() {
     console.log('  事件集合：' + [...allEvents].sort().join(', '));
     must(unknown.length === 0, '无新增事件名', unknown.join(',')); }
   console.log('\n共 ' + total + ' 项，' + (broken.length ? ('破 ' + broken.length + ' 项：' + broken.join('；')) : '全部通过'));
+  // 收工先把全局时钟还原：本仓打算把多扇门禁放进同一个进程跑，别把虚拟时钟留给后面那几扇。
+  uninstallTimeCompression();
   process.exitCode = broken.length ? 1 : 0;
 }
-main().catch((e) => { console.error('SCRIPT-ERROR', (e && e.stack) || e); process.exitCode = 2; });
+main().catch((e) => { console.error('SCRIPT-ERROR', (e && e.stack) || e); uninstallTimeCompression(); process.exitCode = 2; });

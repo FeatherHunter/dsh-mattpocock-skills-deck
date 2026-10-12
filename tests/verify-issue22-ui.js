@@ -1,7 +1,9 @@
 // verify-issue22-ui.js - issue #22 real Chrome regression
 // Usage: node tests/verify-issue22-ui.js [url]
 // Requires the running DSH web GUI and Chrome.
-const { chromium } = require('playwright')
+// 依赖：playwright（含 chromium）—— 浏览器实例经 tests/lib/browser-pool.js 取：没设 DSH_TEST_BROWSER_WS 时照旧自己起「真 Chrome、带头、最大化窗口」那一只；
+//   设了就共用 scripts/browser-host.mjs 起的那一只（那一只是无头的，这一门要在真窗口里看界面时别设这个变量）。
+const { getBrowser, closeBrowser } = require('./lib/browser-pool.js')
 const fs = require('fs')
 
 const DSH = process.argv[2] || 'http://127.0.0.1:59519'
@@ -40,7 +42,9 @@ const assert = (condition, message) => {
 }
 
 ;(async () => {
-  const browser = await chromium.launch({ channel: 'chrome', headless: false, args: ['--start-maximized'] })
+  // 自己起的时候照旧是「真 Chrome、带头（headless:false）、最大化窗口」这些选项；
+  // 连共享实例（DSH_TEST_BROWSER_WS）时这些选项用不上 —— 共享那一只是宿主的无头 Chromium。
+  const browser = await getBrowser({ channel: 'chrome', headless: false, args: ['--start-maximized'] })
   try {
     const context = await browser.newContext({ viewport: null })
     await context.addInitScript(() => {
@@ -125,7 +129,7 @@ const assert = (condition, message) => {
     console.log('PASS issue #22 real Chrome')
     console.log(JSON.stringify({ wrapper: wrapperBefore, skill: skillState, bridged, bug: bugState }, null, 2))
   } finally {
-    await browser.close()
+    await closeBrowser()
   }
 })().catch((error) => {
   console.error('FAIL issue #22 real Chrome:', error.message)

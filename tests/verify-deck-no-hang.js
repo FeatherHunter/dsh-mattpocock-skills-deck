@@ -17,6 +17,13 @@ const { pathToFileURL } = require('url')
 // 判定出口桩（#1003 单出口）：壳拿不到它时一律回「判定出口这次没装上」，
 // 生产装配总会给，夹具照生产接上；桩的来历见 tests/lib/deck-decide-stub.js 文件头。
 const { makeDecideStub } = require('./lib/deck-decide-stub.js')
+// 时间压缩：本门的墙钟时间几乎全花在「等超时」上 —— ① ② ⑥ ⑦ 那四处挂住的等待各等满 5 秒竞速、
+// ⑧ 等满游标读写那 10 秒竞速、③ 等满工具的单次钳制。桩后端本来就永不回话，这些竞速必然走到超时那一支，
+// 等的时间全是空等。压缩成虚拟时间以后真实只等几毫秒，而 Date.now() 报出来的仍是 5 秒 / 10 秒，
+// 下面「不许等太久」（dt < 12000 这类）与「诚实回超时」的判据照旧成立。断言一条没动；
+// 理由、两条不能破的语义与边界见 tests/lib/time-compress.js 文件头。
+const { installTimeCompression, uninstallTimeCompression } = require('./lib/time-compress.js')
+installTimeCompression()
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -221,7 +228,9 @@ async function main() {
   }
 
   console.log('\n' + total + ' 条断言，' + (failed ? '失败' : '通过') + '（总耗时 ' + (Date.now() - t0) + 'ms）')
+  // 收工先把全局时钟还原：本仓打算把多扇门禁放进同一个进程跑，别把虚拟时钟留给后面那几扇。
+  uninstallTimeCompression()
   process.exit(failed ? 1 : 0)
 }
 
-main().catch((e) => { console.error('门禁抛错：' + ((e && e.stack) || e)); process.exit(1) })
+main().catch((e) => { console.error('门禁抛错：' + ((e && e.stack) || e)); uninstallTimeCompression(); process.exit(1) })

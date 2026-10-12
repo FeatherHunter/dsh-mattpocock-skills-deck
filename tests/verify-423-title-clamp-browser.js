@@ -1,10 +1,10 @@
 // verify-423-title-clamp-browser.js — 真实 Chromium 复现窄面板标题行数截断（#423）
 // 依赖：playwright（含浏览器）；fixture 由 scripts/gen-fixture-423.js 从真源 styles.js 生成
 // 判据：以渲染高度（clientHeight ÷ lineHeight = 行数）为准；clamp=2 时固定结构 ≤2 行，旧结构 >2 行（反证）
-const { chromium } = require('playwright');
+const { getBrowser, closeBrowser } = require('./lib/browser-pool.js');
 const path = require('path');
 ; (async () => {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await getBrowser({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1200, height: 1000 } });
   const url = 'file:///' + path.resolve(__dirname, 'fixtures/423-clamp-repro.html').replace(/\\/g, '/');
   await page.goto(url);
@@ -38,7 +38,7 @@ const path = require('path');
       else console.log('PASS', d.name, 'lines=' + d.lines, 'clamp=' + d.clamp, 'h=' + d.h);
     }
   }
-  await browser.close();
+  await closeBrowser();
   console.log(ok ? '全部通过：真实浏览器中 fixed 结构两行截断、broken 结构无限制换行（反证成立）' : '存在失败项');
   process.exit(ok ? 0 : 1);
 })().catch(e => { console.error(e); process.exit(1); });

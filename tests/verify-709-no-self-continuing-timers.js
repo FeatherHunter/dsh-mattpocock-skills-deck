@@ -8,6 +8,15 @@
 //   ② 拼一个最小宿主接一次真的 wf.chain 求值，数这一轮对外问了几条 REST。
 import { join, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+// 时间压缩：本门的墙钟时间全花在「等超时」上 —— 那套最小宿主给 repoKeys 的 timer 是按 TIMEOUT_MS=30000
+// 排的每操作预算，假进程几十微秒就回，预算没人清掉，于是进程要空等 30 秒才肯退出（实测 30.1 秒里 30 秒是它）。
+// 压缩成虚拟时间以后真实只等几毫秒。这一段里两条断言都不看时间：退避算术是纯函数（喂进去的毫秒数都是字面量），
+// 「一次评估的 REST 条数」数的是假进程的 spawn 次数 —— 假进程的 done 是已经落定的 Promise，竞速里永远赢过定时器，
+// 虚拟时钟怎么走都不改变这个次序。所以断言一条没动；理由、两条不能破的语义与边界见 tests/lib/time-compress.js 文件头。
+// 本文件原先兼的那道「全库不再有自续定时器」源码文本门禁已于 2026-10 整段撤掉（见文件头第 3～5 行），
+// 现在留下的两段都是「跑起来的结果」，与真实触发时刻无关。
+import { installTimeCompression, uninstallTimeCompression } from './lib/time-compress.js'
+installTimeCompression()
 
 let failed = false
 let total = 0
@@ -218,5 +227,7 @@ console.log('\n— 一次评估里环境预检只花一次（断言取数路径�
 
 console.log('\n— 汇总 —')
 console.log('  total=' + total + '  failed=' + (failed ? '有' : '0'))
+// 收工先把全局时钟还原：本仓打算把多扇门禁放进同一个进程跑，别把虚拟时钟留给后面那几扇。
+uninstallTimeCompression()
 if (failed) { console.log('\n  FAIL verify-709-no-self-continuing-timers — 有失败'); process.exit(1) }
 console.log('\n  PASS verify-709-no-self-continuing-timers — 全部通过 (#709)')

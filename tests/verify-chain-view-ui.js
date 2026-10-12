@@ -140,8 +140,8 @@ const server = createServer((req, res) => {
 })
 await new Promise((r) => server.listen(0, '127.0.0.1', r))
 const origin = 'http://127.0.0.1:' + server.address().port
-const { chromium } = await import('playwright')
-const browser = await chromium.launch({ headless: true })
+const { getBrowser, closeBrowser } = await import('./lib/browser-pool.js')
+const browser = await getBrowser({ headless: true })
 
 const pageErrors = []
 /** 开一页（一份快照一页：见文件头那段「一份快照只管一趟页面」）。 */
@@ -277,7 +277,7 @@ try {
   const thrown = pageErrors.filter((e) => e.indexOf('pageerror:') >= 0)
   check(thrown.length === 0, '整段扫描期间三页都没有未捕获的报错（实测 ' + thrown.length + ' 条' + (thrown.length ? '：' + JSON.stringify(thrown.slice(0, 3)) : '') + '）')
 } finally {
-  await browser.close()
+  await closeBrowser()
   server.close()
 }
 console.log('')

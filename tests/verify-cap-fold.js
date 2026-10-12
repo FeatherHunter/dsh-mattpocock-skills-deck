@@ -494,8 +494,8 @@ const server = createServer((req, res) => {
 })
 await new Promise((r) => server.listen(0, '127.0.0.1', r))
 const origin = 'http://127.0.0.1:' + server.address().port + '/'
-const { chromium } = await import('playwright')
-const browser = await chromium.launch({ headless: true })
+const { getBrowser, closeBrowser } = await import('./lib/browser-pool.js')
+const browser = await getBrowser({ headless: true })
 try {
   const page = await browser.newPage({ viewport: { width: 1100, height: 700 } })
   const pageErrors = []
@@ -658,7 +658,7 @@ try {
     }
   }
 } finally {
-  await browser.close()
+  await closeBrowser()
   server.close()
 }
 console.log('')

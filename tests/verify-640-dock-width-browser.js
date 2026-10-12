@@ -18,7 +18,7 @@
 //   打印 SKIP + 试过的路径清单、exit 0；设 DSWS_REQUIRE_HOST_BUNDLE=1 时跳过算失败（exit 1），防假绿。
 //
 // 依赖：playwright（含 chromium）。无登录令牌也能跑（纯本地 fixture 页）。
-const { chromium } = require('playwright');
+const { getBrowser, closeBrowser } = require('./lib/browser-pool.js');
 const path = require('path');
 const fs = require('fs');
 
@@ -53,7 +53,7 @@ const check = function (cond, msg) { console.log((cond ? 'PASS ' : 'FAIL ') + ms
   const fixture = path.resolve(__dirname, 'fixtures/640-dock-width-repro.html');
   if (!fs.existsSync(fixture)) { console.error('fixture 缺失：' + fixture); process.exit(1); }
 
-  const browser = await chromium.launch({ headless: true });
+  const browser = await getBrowser({ headless: true });
   const page = await browser.newPage({ viewport: { width: 2500, height: 1600 } });
   await page.goto('file:///' + fixture.replace(/\\/g, '/'));
   const rows = await page.evaluate(() => {
@@ -78,7 +78,7 @@ const check = function (cond, msg) { console.log((cond ? 'PASS ' : 'FAIL ') + ms
     if (!out.length) throw new Error('fixture 里一个用例都没有：' + document.body.innerHTML.slice(0, 200));
     return out;
   });
-  await browser.close();
+  await closeBrowser();
 
   const TOL = 1.0; // 1px：允许子像素取整
   console.log('用例                      容器左右            卡片左右            左差   右差   对齐/包住  胶囊≤卡片');

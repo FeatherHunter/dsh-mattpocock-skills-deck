@@ -246,8 +246,8 @@ async function run(browser, build) {
   const css = String(stylesMod.STYLE_TEXT || '') + String(stylesVcMod.VC_STYLE_TEXT || '')
 
   const closure = VC_FILES.map((f) => strip(read(f))).join('\n')
-  const { chromium } = require('playwright')
-  const browser = await chromium.launch({ headless: true })
+  const { getBrowser, closeBrowser } = require('./lib/browser-pool.js')
+  const browser = await getBrowser({ headless: true })
   try {
     await run(browser, { closure, dict, css })
     // 反证：把三处 ref 接线摘掉，同样的滚动步骤必须一行都不涨。
@@ -267,7 +267,7 @@ async function run(browser, build) {
       check(r1.rows === 10 && r2.rows === 10, '反证：接线摘掉之后，滚到那句话也不再接着显示（行数停在 ' + r1.rows + ' / ' + r2.rows + '）')
     } finally { await close() }
   } finally {
-    await browser.close()
+    await closeBrowser()
   }
 
   console.log('')

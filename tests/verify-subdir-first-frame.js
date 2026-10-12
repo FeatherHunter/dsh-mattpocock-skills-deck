@@ -32,6 +32,13 @@
 const fs = require('fs')
 const path = require('path')
 const { compileFn } = require('./lib/eval-probe.js')
+// 时间压缩：本门的墙钟时间全花在「等」上 —— 每个现场都要等那条 0.9 秒的等待死线走完、再等那份 1.4 秒才到的
+// 完整快照落地（每个现场 0.9 + 1.7 秒，门里一共有七个现场，合计 18 秒左右）。这两笔等待都是假宿主按毫秒数排的
+// 定时器，压成虚拟时间以后真实只等几毫秒，而「死线先到、回包后到」这个次序照旧：虚拟队列按到期时间排队，
+// 0.9 秒那条死线仍然先于 1.4 秒那份回包到（这正是本门要造出来的次序，见文件头第 20～22 行）。
+// 断言一条没动；理由、两条不能破的语义与边界见 tests/lib/time-compress.js 文件头。
+const { installTimeCompression, uninstallTimeCompression } = require('./lib/time-compress.js')
+installTimeCompression()
 
 const root = path.resolve(__dirname, '..')
 let failed = false
@@ -410,7 +417,9 @@ async function main() {
   ok(stray.length === 0, '超时路上那几条派生链的临时拒绝只有「那条死线」一种原因' + (stray.length ? ' —— 另见：' + stray.join('、') : ''))
 
   console.log(failed ? '\n存在失败 — verify-subdir-first-frame 未通过' : '\n全部通过 — ' + total + ' 项断言（子目录会话第一帧的三条不变量）')
+  // 收工先把全局时钟还原：本仓打算把多扇门禁放进同一个进程跑，别把虚拟时钟留给后面那几扇。
+  uninstallTimeCompression()
   process.exit(failed ? 1 : 0)
 }
 
-main().catch(function (e) { console.error('RUNNER ERROR:', e); process.exit(2) })
+main().catch(function (e) { console.error('RUNNER ERROR:', e); uninstallTimeCompression(); process.exit(2) })

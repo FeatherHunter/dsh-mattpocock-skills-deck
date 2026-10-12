@@ -3,7 +3,7 @@
 // 依赖：DSH GUI 已在 http://127.0.0.1:59519 运行；本机 git/playwright/chrome 已安装。
 // 用法：node tests/verify-t2-repokey-ui.js [outDir]
 
-const { chromium } = require('playwright')
+const { getBrowser, closeBrowser } = require('./lib/browser-pool.js')
 const fsx = require('fs')
 const fsp = fsx.promises
 const path = require('path')
@@ -16,7 +16,9 @@ const sleep = ms => new Promise(res => setTimeout(res, ms))
 
 async function main() {
   await fsp.mkdir(OUT, { recursive: true })
-  const browser = await chromium.launch({
+  // 自己起的时候照旧是「真 Chrome、带头（headless:false）、最大化窗口」这些选项；
+  // 连共享实例（DSH_TEST_BROWSER_WS）时这些选项用不上 —— 共享那一只是宿主的无头 Chromium。
+  const browser = await getBrowser({
     channel: 'chrome',
     headless: false,
     args: ['--start-maximized'],
@@ -39,7 +41,7 @@ async function main() {
     if (healthy) break
     console.log('  健康重试 #' + attempt)
   }
-  if (!healthy) { console.error('  ✗ 6 次重试后仍未健康'); await browser.close(); process.exit(1) }
+  if (!healthy) { console.error('  ✗ 6 次重试后仍未健康'); await closeBrowser(); process.exit(1) }
   console.log('  ✓ 健康检查通过')
   await page.screenshot({ path: path.join(OUT, '01-main.png'), fullPage: false })
 
@@ -65,7 +67,7 @@ async function main() {
   if (wsList.length === 0) {
     console.error('  ✗ 未找到 dsh-im workspace 入口')
     await page.screenshot({ path: path.join(OUT, 'debug-no-dshim.png'), fullPage: false })
-    await browser.close()
+    await closeBrowser()
     process.exit(1)
   }
   const wsTarget = wsList[0]
@@ -206,7 +208,7 @@ async function main() {
   if (!panelReady) {
     console.error('  ✗ 3 次重试后仍未能打开面板')
     await page.screenshot({ path: path.join(OUT, 'debug-no-panel.png'), fullPage: false })
-    await browser.close()
+    await closeBrowser()
     process.exit(1)
   }
   await page.screenshot({ path: path.join(OUT, '05-panel-open.png'), fullPage: false })
@@ -259,7 +261,7 @@ async function main() {
   // 显示行数
   expect('列表至少渲染 5 行 issue', readings.rows.length >= 5, 'rows=' + readings.rows.length)
 
-  await browser.close()
+  await closeBrowser()
   const failed = checks.filter(c => !c.pass)
   console.log('\\nTOTAL ' + checks.length + ' PASS ' + (checks.length - failed.length) + ' FAIL ' + failed.length)
   console.log('截图：' + OUT)

@@ -12,6 +12,11 @@ const { pathToFileURL } = require('url')
 // 判定出口桩（#1003 单出口）：壳拿不到它时一律回「判定出口这次没装上」，
 // 生产装配总会给，夹具照生产接上；桩的来历见 tests/lib/deck-decide-stub.js 文件头。
 const { makeDecideStub } = require('./lib/deck-decide-stub.js')
+// 时间压缩：本门每条断言都跟时间无关，但收尾时那两个没人清掉的定时器（等锁 60000 毫秒、
+// 游标读写竞速 10000 毫秒）让进程空等一分钟才退出。装上这个助手以后进程里走虚拟时间，
+// 真实只等几毫秒。断言一条没动；理由、两条不能破的语义与边界见 tests/lib/time-compress.js 文件头。
+const { installTimeCompression, uninstallTimeCompression } = require('./lib/time-compress.js')
+installTimeCompression()
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -213,3 +218,4 @@ async function main() {
 }
 
 main().catch((e) => { console.error('FATAL ' + String((e && e.message) || e)); process.exitCode = 1 })
+  .finally(() => { uninstallTimeCompression() })

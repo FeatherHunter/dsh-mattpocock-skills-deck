@@ -279,8 +279,8 @@ html,body{margin:0;background:#10131a;color:#e6edf3;font-family:system-ui,-apple
 const server = createServer((req, res) => { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(html) })
 await new Promise((r) => server.listen(0, '127.0.0.1', r))
 const origin = 'http://127.0.0.1:' + server.address().port + '/'
-const { chromium } = await import('playwright')
-const browser = await chromium.launch({ headless: true })
+const { getBrowser, closeBrowser } = await import('./lib/browser-pool.js')
+const browser = await getBrowser({ headless: true })
 
 const ratioOf = function (gaps) {
   const vals = gaps.map((g) => g.gap).filter((v) => v >= 0)
@@ -372,7 +372,7 @@ try {
     check(thrown.length === 0, '整段扫描期间页面没有未捕获的报错（实测 ' + thrown.length + ' 条' + (thrown.length ? '：' + JSON.stringify(thrown.slice(0, 3)) : '') + '）')
   }
 } finally {
-  await browser.close()
+  await closeBrowser()
   server.close()
 }
 console.log('')

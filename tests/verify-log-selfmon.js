@@ -11,6 +11,13 @@ const path = require('path')
 const { pathToFileURL } = require('url')
 // 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
 const { compileFn } = require('./lib/eval-probe.js')
+// 时间压缩：本门的墙钟时间几乎全花在「等超时」上 —— 第十一段要等那条 5 秒的对账看门狗真的烧完
+// （`await wait(5400)` 加产品自己那条 5000 毫秒的定时器，合计 5.4 秒，占全门 5.7 秒里的绝大部分）。
+// 压成虚拟时间以后真实只等几毫秒，而 Date.now() 报出来的仍是 5 秒多：看门狗仍在虚拟 5 秒那一刻自举证，
+// 「5 秒多一点即出看门狗行」（Date.now() - t0 < 6000）与「恰好一行」两条判据照旧成立（虚拟队列按到期时间排队，
+// 5000 毫秒那条先于 5400 毫秒那条到）。断言一条没动；理由、两条不能破的语义与边界见 tests/lib/time-compress.js 文件头。
+const { installTimeCompression, uninstallTimeCompression } = require('./lib/time-compress.js')
+installTimeCompression()
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -148,10 +155,13 @@ async function main() {
   }
 
   console.log(failed ? '\n存在失败 — verify-log-selfmon 未通过' : '\n全部通过 — 自监控门禁生效（' + total + ' 项断言）')
+  // 收工先把全局时钟还原：本仓打算把多扇门禁放进同一个进程跑，别把虚拟时钟留给后面那几扇。
+  uninstallTimeCompression()
   process.exit(failed ? 1 : 0)
 }
 
 main().catch((e) => {
   console.log('  FAIL 门禁执行异常：' + (e && e.message ? e.message : String(e)))
+  uninstallTimeCompression()
   process.exit(1)
 })

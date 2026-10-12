@@ -155,8 +155,8 @@ html,body{margin:0;background:#151517;color:#e6edf3;font-family:system-ui,-apple
 const server = createServer((req, res) => { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(html) })
 await new Promise((r) => server.listen(0, '127.0.0.1', r))
 const origin = 'http://127.0.0.1:' + server.address().port
-const { chromium } = await import('playwright')
-const browser = await chromium.launch({ headless: true })
+const { getBrowser, closeBrowser } = await import('./lib/browser-pool.js')
+const browser = await getBrowser({ headless: true })
 try {
   const page = await browser.newPage({ viewport: { width: 1200, height: 900 } })
   await page.goto(origin)
@@ -176,7 +176,7 @@ try {
   const m2 = await page.evaluate(() => window.__MEASURE__())
   check(m2.zeroHeight === 22, '反证：行高按回 0 之后，同一把尺子量出 22 行行盒塌掉（实得 ' + m2.zeroHeight + ' 行）—— 量不出说明这道门量不到东西')
 } finally {
-  await browser.close()
+  await closeBrowser()
   server.close()
 }
 console.log(failed ? '\n存在失败 — verify-958 未通过' : '\n全部通过 — 标签配色弹窗可见性门禁生效（' + passed + ' 项断言）')

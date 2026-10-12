@@ -10,6 +10,13 @@ const path = require('path')
 const fs = require('fs')
 const os = require('os')
 const { pathToFileURL } = require('url')
+// 时间压缩：本门的墙钟时间全花在「等超时」上 —— 两处注册表各带一条 200 毫秒的 matches 竞速、
+// I4b 那两处谓词注册表各带一条 2000 毫秒的超时，桩后端都是当场就回的，这些竞速必然走到「桩先回」那一支，
+// 剩下的定时器没人清掉，进程于是要空等它们烧完（实测 5.1 秒里 4.2 秒是这几条）。压成虚拟时间以后真实只等几毫秒。
+// 这一门里没有一条断言看时间：桩是当场落定的 Promise（微任务），竞速里永远赢过定时器，虚拟时钟怎么走都不改变这个次序。
+// 断言一条没动；理由、两条不能破的语义与边界见 tests/lib/time-compress.js 文件头。
+const { installTimeCompression, uninstallTimeCompression } = require('./lib/time-compress.js')
+installTimeCompression()
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -176,7 +183,9 @@ async function main() {
   }
 
   console.log('\n' + (failed ? '有失败 — 两条不变式门禁未通过（' + total + ' 条）' : '全部通过 — 两条不变式成立（' + total + ' 条）'))
+  // 收工先把全局时钟还原：本仓打算把多扇门禁放进同一个进程跑，别把虚拟时钟留给后面那几扇。
+  uninstallTimeCompression()
   if (failed) process.exitCode = 1
 }
 
-main().catch((e) => { console.error('门禁抛错：' + String((e && e.message) || e)); process.exitCode = 1 })
+main().catch((e) => { console.error('门禁抛错：' + String((e && e.message) || e)); uninstallTimeCompression(); process.exitCode = 1 })

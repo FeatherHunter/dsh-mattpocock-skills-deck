@@ -18,10 +18,12 @@
 //     收起之后必须出现一颗写着「展开」的按钮，点它整体回得来。
 //   D 反证：把 C 里量到的东西做坏（给黄条整条挂上收起 / 把带字的写法塞回那三处收起），对应的断言必须当场变红。
 //
+// 依赖：playwright（含 chromium）—— 浏览器实例经 tests/lib/browser-pool.js 取：没设 DSH_TEST_BROWSER_WS 时自己起一个，设了就共用 scripts/browser-host.mjs 起的那一只。
+//
 // 用法：node tests/verify-669-collapsed-recoverable.js
 const fs = require('fs')
 const path = require('path')
-const { chromium } = require('playwright')
+const { getBrowser, closeBrowser } = require('./lib/browser-pool.js')
 const { JSDOM } = require('jsdom')
 const React = require('react')
 const ReactDOMClient = require('react-dom/client')
@@ -87,7 +89,7 @@ console.log('== B 真 Chromium：还原后的收起态是细小灰字那一档 =
     '</body></html>',
   ].join('\n')
 
-  const browser = await chromium.launch({ headless: true })
+  const browser = await getBrowser({ headless: true })
   const p = await browser.newPage({ viewport: { width: 900, height: 400 } })
   await p.setContent(page)
   const m = await p.evaluate(() => {
@@ -105,7 +107,7 @@ console.log('== B 真 Chromium：还原后的收起态是细小灰字那一档 =
     }
     return out
   })
-  await browser.close()
+  await closeBrowser()
 
   const slim = (x) => x.h < 18 && x.borderW === 0 && x.bg === 'rgba(0, 0, 0, 0)'
   console.log('真样式：高 ' + m.real.h + 'px、宽 ' + m.real.w + 'px、描边 ' + m.real.borderW + 'px、底色 ' + m.real.bg)
@@ -113,6 +115,19 @@ console.log('== B 真 Chromium：还原后的收起态是细小灰字那一档 =
   check(slim(m.real), '收起态那颗按钮量出来是细小灰字那一档：矮、无描边、无底色（实测 高 ' + m.real.h + 'px / 描边 ' + m.real.borderW + 'px / 底色 ' + m.real.bg + '）')
   check(!slim(m.past), '反证 B 成立：放大版那一套量不通过（高 ' + m.past.h + 'px、描边 ' + m.past.borderW + 'px、底色 ' + m.past.bg + '）')
 }
+
+// ── 时间压缩：本门 C/D 两组要挂十六次真产物，每次都得真等 React 那几拍（sleep 30 / step 25 / 点一下 40+40），
+//    合计四秒多，等的时间全是空等。压成虚拟时间以后真实只等几毫秒，而门里判「收起之后回得来」靠的是点完之后的
+//    版面状态，与真实触发时刻无关。
+//    为什么装在这里、而不是文件开头：本门 B 组真起 Chromium，而 Playwright 自己的协议死线（例如 launch 的
+//    180 秒）用的就是本进程的 setTimeout。装在文件开头会让那条死线在几毫秒内到期，B 组当场变成
+//    「browserType.launch: Timeout 180000ms exceeded」——实测如此（2026-10-12）。所以压缩只罩住后面纯 jsdom 的
+//    C/D 两组：B 组收工（closeBrowser）之后才装，装的位置就在这一行。
+//    后人在本行之后再加真浏览器 / 真子进程的段落时注意：那些段落会踩到同一个坑，要么把它们放到压缩之前，
+//    要么别在这一门里加。
+//    断言一条没动；理由、两条不能破的语义与边界见 tests/lib/time-compress.js 文件头。
+const { installTimeCompression, uninstallTimeCompression } = require('./lib/time-compress.js')
+installTimeCompression()
 
 // ── C 组：把真产物挂起来，逐个点一遍 ────────────────────────────────────────────────
 // 假宿主只做两件事：快照里带上「这个工作区选的是 GitHub」（否则界面停在蓝条那一档），
@@ -397,6 +412,8 @@ console.log('== D 反证：把量到的东西做坏，C 里对应的那几条必
 
 console.log('')
 console.log('共 ' + total + ' 项检查')
+// 收工先把全局时钟还原：本仓打算把多扇门禁放进同一个进程跑，别把虚拟时钟留给后面那几扇。
+uninstallTimeCompression()
 if (failed) { console.log('存在失败'); process.exit(1) }
 console.log('全部通过')
 // 显式收工：这一门每走一步都会挂一份真产物（里面带着 2 秒的定时器与 React 根），
@@ -404,4 +421,4 @@ console.log('全部通过')
 process.exit(0)
 }
 
-main().catch((e) => { console.error(e); process.exit(1) })
+main().catch((e) => { console.error(e); uninstallTimeCompression(); process.exit(1) })

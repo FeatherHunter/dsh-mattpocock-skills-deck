@@ -64,7 +64,11 @@ function conflictGroupsOf(step) {
   }
   if (/npm pack|npm publish/.test(src)) groups.push('npm-pack')
   // 只是提一句「先跑 node scripts/build.mjs」的不算，真去构建（起子进程）的才算。
-  if (/scripts\/build\.mjs/.test(src) && /spawnSync|execFileSync|execSync|spawn\(/.test(src)) groups.push('build')
+  // 路径有两种写法都要认：`scripts/build.mjs` 和 `path.join('scripts', 'build.mjs')`
+  // （verify-settings-view.js 用的是后一种；漏认会让它跟别的构建并发，构建互相踩，出现假红）。
+  if (/(scripts\/build\.mjs|['"]build\.mjs['"])/.test(src) && /spawnSync|execFileSync|execSync|spawn\(/.test(src)) {
+    groups.push('build')
+  }
   return groups
 }
 const groupLocks = new Map()
@@ -117,13 +121,24 @@ async function selectChanged() {
   }
   const { selectGates } = await import(pathToFileURL(modPath).href)
   const map = JSON.parse(fs.readFileSync(path.join(ROOT, 'tests', 'gate-map.json'), 'utf8'))
-  const picked = selectGates({ changedPaths: changed, map, chainSteps: chainSteps() })
+  // 注意：归属表里的步骤写法是 `node tests/xxx.js`，要和它同一格式，否则一条都对不上。
+  const picked = selectGates({ changedPaths: changed, map, chainSteps: chainSteps().map((s) => s.cmd) })
+  if (!picked.fullChain && (!picked.steps || !picked.steps.length)) {
+    // 一条都没选中说明挑选规则失效了。宁可跑全链，也绝不「什么都没跑却报成功」。
+    console.log('[并行门禁] 挑选规则一条都没选中，这是异常情况，退回全链（请检查 tests/gate-map.json 与 scripts/lib/select-gates.mjs）')
+    return null
+  }
   console.log('[并行门禁] 改动 ' + changed.length + ' 个文件；选中 ' + picked.steps.length + ' 步' + (picked.fullChain ? '（全链，原因：' + picked.fullChainReason + '）' : ''))
-  for (const r of (picked.reasons || []).slice(0, 8)) {
+  // 全链时挑选规则会把同一个理由按步数重复给出来，这里去重后再打，免得刷屏。
+  const reasonTexts = []
+  for (const r of picked.reasons || []) {
     const text = typeof r === 'string' ? r : r && (r.reason || r.why || r.text) ? r.reason || r.why || r.text : JSON.stringify(r)
+    if (text && !reasonTexts.includes(text)) reasonTexts.push(text)
+  }
+  for (const text of reasonTexts.slice(0, 8)) {
     console.log('    · ' + text)
   }
-  return picked.steps
+  return picked.fullChain ? null : picked.steps
 }
 
 function runStep(step) {

@@ -1,5 +1,10 @@
 // tests/verify-contract-types.js — 契约层类型门禁（deck 重构第二批 B 落地；拆分工加第四项，补判别力加第五、六项）
 //
+// 门禁归属: src/tracker/contract
+// 门禁归属: src/host/tracker/contract.js
+// 为什么显式写这两条：契约目录的路径是 resolveInRoot(process.env.DSH_CONTRACT_DIR || 'src/tracker/contract')
+// 拼出来的，归属表按字面量路径认不出它，会把这 9 个契约文件算成「没人守」。这两条把归属钉死。
+//
 // 这个门禁替契约层守六件事，六件都过才算绿：
 //   一、类型检查：用仓库 devDependencies 里的 typescript 跑一遍 `tsc -p tsconfig.contract.json`，
 //       零错误才算过；tsc 的输出原样透出，看错在哪一行不用再自己跑一遍。

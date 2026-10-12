@@ -58,6 +58,10 @@ const { pathToFileURL } = require('url')
 const { spawnSync } = require('child_process')
 const realFs = require('node:fs/promises')
 const { compileFn } = require('./lib/eval-probe.js')
+// 这一门里有几十处 sleep(防抖窗口 + 几百毫秒) 的等待，真实跑要五十秒；接上虚拟时钟把等待压成几毫秒，
+// 断言一条没动（为什么这么压是安全的、两条不能破的语义，见 tests/lib/time-compress.js 文件头）。
+const { installTimeCompression, uninstallTimeCompression } = require('./lib/time-compress.js')
+installTimeCompression()
 
 const ROOT = path.resolve(__dirname, '..')
 let passed = 0
@@ -1056,4 +1060,4 @@ async function main() {
   process.exit(failed ? 1 : 0)
 }
 
-main().catch((e) => { console.error('FATAL ' + String((e && e.stack) || e)); process.exit(2) })
+main().catch((e) => { console.error('FATAL ' + String((e && e.stack) || e)); process.exit(2) }).finally(() => { uninstallTimeCompression() })

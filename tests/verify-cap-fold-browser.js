@@ -278,8 +278,8 @@ html,body{margin:0;background:#10131a;color:#e6edf3;font-family:system-ui,-apple
 const server = createServer((req, res) => { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(html) })
 await new Promise((r) => server.listen(0, '127.0.0.1', r))
 const origin = 'http://127.0.0.1:' + server.address().port + '/'
-const { chromium } = await import('playwright')
-const browser = await chromium.launch({ headless: true })
+const { getBrowser, closeBrowser } = await import('./lib/browser-pool.js')
+const browser = await getBrowser({ headless: true })
 // 四枚计数器的数字：可接 / BUG / 诊断 / 环境（顺序与状态栏那四段一致，环境排最后、最后才让）。
 const numLine = (m) => JSON.stringify(m.nums.map((n) => n.text))
 const payLine = (m) => '档' + m.tier + ' 收' + m.folded + '/' + m.labelCount + ' 大写' + m.cap.clientW + '/滑' + m.cap.scrollW +
@@ -504,7 +504,7 @@ try {
   const thrown = pageErrors.filter((e) => e.indexOf('pageerror:') === 0)
   check(thrown.length === 0, '整段扫描期间页面没有未捕获的报错（实测 ' + thrown.length + ' 条' + (thrown.length ? '：' + JSON.stringify(thrown.slice(0, 3)) : '') + '）')
 } finally {
-  await browser.close()
+  await closeBrowser()
   server.close()
 }
 console.log('')
