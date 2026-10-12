@@ -152,7 +152,7 @@
         'cfg.dbgClearTitle': '确认清空今日日志？',
         'cfg.dbgClearDesc': '将删除今天的本地诊断日志，此操作不可恢复。如需留档请先点“导出今日日志”。',
         'cfg.dbgConfirmClear': '确认清空',
-        'cfg.dbgSwitchOnToast': '调试日志已打开：控制台开始打印详细日志', 'cfg.dbgSwitchOffToast': '调试日志已关闭：不再记详细日志；关闭也不影响导出',
+        'cfg.dbgSwitchOnToast': '调试日志已打开：控制台开始打印详细日志', 'cfg.dbgSwitchOffToast': '调试日志已关闭：不再记详细日志；关闭也不影响导出', 'cfg.dbgSwitchOnNoHost': '调试日志已打开：这一笔已写进本机设置文件；宿主那份副本还没接上，本机日志暂时记不下调试行（下一次机会会自动重推）',
         // 写开关失败的五类专用文案（#597）：界面不再一律弹通用的那句，而是按失败原因分别说是哪一类。
         'cfg.dbgSwitchFail': '开关保存失败，已保持原状态，请重试', 'cfg.dbgSwitchFailNoHost': '开关保存失败：面板没接上宿主通道（宿主还没就绪，或插件没装全），已保持原状态', 'cfg.dbgSwitchFailTimeout': '开关保存失败：宿主超过 5 秒没有回应，已保持原状态，请重试',
         'cfg.dbgSwitchFailRejected': '开关保存失败：宿主拒收这个值，已保持原状态（宿主诊断日志里有一条 host.call.fail 分类行）', 'cfg.dbgSwitchFailStale': '开关保存失败：这次点击已被后来的一次取代，已保持原状态（以后来那次的结果为准）', 'cfg.dbgSwitchFailUnknownEndpoint': '开关保存失败：宿主不认识「写调试开关」这条电话（面板与宿主版本可能对不上），已保持原状态',
@@ -317,7 +317,7 @@
         'cfg.dbgClearTitle': 'Clear today’s log?',
         'cfg.dbgClearDesc': 'Deletes today’s local diagnostic log. This cannot be undone — export first if you need a copy.',
         'cfg.dbgConfirmClear': 'Clear now',
-        'cfg.dbgSwitchOnToast': 'Debug log on: detailed logs now print to the console', 'cfg.dbgSwitchOffToast': 'Debug log off: detailed logging stopped; exporting still works',
+        'cfg.dbgSwitchOnToast': 'Debug log on: detailed logs now print to the console', 'cfg.dbgSwitchOffToast': 'Debug log off: detailed logging stopped; exporting still works', 'cfg.dbgSwitchOnNoHost': 'Debug log on and saved to this machine settings file, but the host copy is not in sync yet, so debug lines are not being recorded (it will retry automatically)',
         // The five class-specific write-failure messages (#597): the UI no longer collapses every failure into the generic one.
         'cfg.dbgSwitchFail': 'Could not save the switch — kept the previous state, please retry', 'cfg.dbgSwitchFailNoHost': 'Could not save the switch: the panel has no channel to the host (host not ready, or the plugin did not load fully) — kept the previous state', 'cfg.dbgSwitchFailTimeout': 'Could not save the switch: the host did not answer within 5 seconds — kept the previous state, please retry',
         'cfg.dbgSwitchFailRejected': 'Could not save the switch: the host refused to write this value — kept the previous state (see the host.call.fail line in the host diagnostic log)', 'cfg.dbgSwitchFailStale': 'Could not save the switch: a later click replaced this one — kept the previous state (the later click decides)', 'cfg.dbgSwitchFailUnknownEndpoint': 'Could not save the switch: the host does not know the write-debug-switch call (panel and host versions may not match) — kept the previous state',

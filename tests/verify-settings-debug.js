@@ -2,7 +2,7 @@
 /**
  * verify-settings-debug.js —— 调试开关真源搬进本机设置文件 debug 节的门禁（#1012 第 8 条）。
  *
- * 这一份门禁量十七件事，每一件都用完整的一句话说清，第一次读的人能直接看懂。
+ * 这一份门禁量十八件事，每一件都用完整的一句话说清，第一次读的人能直接看懂。
  * 第一件事是构建与登记：这一片的运行时形状来自拼接，不跑构建就证明不了它进了双产物；它必须排在写这一趟
  *   之后（要用待写队列与排期）与运行时那份日志内核之后（要用 logSwitch / persistLocalDebugSwitch 等名字）。
  * 第二件事是开机秒显仍读旧键 dsws.debug：同步、不等文件（这是包里的行为，本次不回归）。
@@ -19,9 +19,10 @@
  * 第九件事是开机对账那一趟（包里的 reconcileLogSwitch 拿宿主副本覆盖内存）之后，采纳仍以文件为准，并把
  *   真源推给宿主副本（宿主收到 wf.logSetSwitch，带的是文件里的值）。
  * 第十件事是采样率越界不许写进文件：核会整份拒绝 0 到 1 之外的数，这一层要自己挡掉，回退成内存里那个合法值。
- * 第十一件事是文档从没问过那一档（新会话第一次打开设置页，status 是 idle）拨开关：这一下先走包里的老路，
- *   但要当场把两笔记进待写队列 —— 不然同一个拨动引出的那趟采纳会照文件里的旧值把用户刚拨的那一下顶回去，
- *   这次的关/开此后永远进不了文件（2026-10-12 复核实测出来的确定性丢失）。
+ * 第十一件事是文档从没问过那一档（新会话第一次打开设置页，status 是 idle）拨开关：这一下先走包里的老路，等老路
+ *   真的成功了才把两笔记进待写队列（2026-10-12 复核的必修 3：还不知道结果就留必写痕迹，会出现「界面说失败、文件
+ *   里却写着那个值」）；老路被拒时一滴痕迹都不许留。记下来的两笔保证同一趟采纳不会照文件里的旧值把用户刚拨的
+ *   那一下顶回去，这次的关/开也就真进了文件（2026-10-12 复核实测出来的确定性丢失）。
  * 第十二件事是文件里根本没有 debug 这一节（只有一份手写的旧文件）而在 idle 下拨开：文件里要长出
  *   enabled: true，且别的节不许被写坏。
  * 第十三件事是文档始终问不到时拨开关：老路接手、旧键快照里留着用户拨的那个值、有日志留痕，且不凭空造文件。
@@ -29,7 +30,10 @@
  *   文档时也不许拿它当基底整份写回 —— 别的节（ui / workspaces / templates）要被保住。
  * 第十五件事是更高版本插件写的文档（只读那一档）拨开关：走老路，文件逐字节不变。
  * 第十六件事是旧键只在文件这条路接不下时才由本片兜底写（接得下时它只当秒显快照，一次不多写）。
- * 第十七件事是不新增日志事件名：这一片只用既有的 host.call.fail 与 storage.fail，两个名字都在 #489 附录里。
+ * 第十七件事是不新增日志事件名：这一片只用既有的 host.call.fail 与 storage.fail，两个名字都在 #489 附录里，
+ *   而且是对着构建产物里这一片的实际字符串查（源码里事件名走变量就漏，2026-10-12 复核指出）。
+ * 第十八件事是宿主那份副本没跟上（推送失败）时怎么收场：回包带上 hostPushed 把副本状态交给界面，界面换一句
+ *   带限定语的文案（不许只弹「已开启」），并且下一次文档到手（下一次打开设置页）会自动再推一次，让一次失败自愈。
  *
  * 怎么保证量的是真件：运行时那几个名字不是替身，而是构建真正拼进去的那一份
  *   （scripts/generated/logKernel.derived.js，即 npm 包 dsh-log 的客户端产物，scripts/build.mjs 第 500 行）
@@ -165,6 +169,9 @@ async function main() {
       const t = fs.existsSync(path.join(ROOT, rel)) ? readText(rel) : ''
       check(t.indexOf('const settingsDebugSet = function') >= 0 && t.indexOf('const settingsDebugToggle = function') >= 0 && t.indexOf('const settingsDebugAdoptFromDoc = function') >= 0,
         rel + ' 里拼进了调试开关这一片（排队写、拨开关、采纳三样都在，才算真接上）。')
+      // 次序断言的两个锚点先证明存在：锚点一旦改名，indexOf 是 -1，`A > -1` 恒真，次序就没人管了（2026-10-12 复核指出）。
+      const seqAnchors = ['const settingsDebugToggle = function', 'const viewFlagWriteNow = function', 'const logSwitch = readLocalDebugSwitch()']
+      check(seqAnchors.every((a) => t.indexOf(a) >= 0), rel + ' 里三个次序锚点都找得到（找不到时 indexOf 是 -1，次序断言会恒真）。', JSON.stringify(seqAnchors.map((a) => t.indexOf(a))))
       check(t.indexOf('const settingsDebugToggle = function') > t.indexOf('const viewFlagWriteNow = function'),
         rel + ' 里这一片排在写这一趟之后（它要用待写队列与防抖排期）。')
       check(t.indexOf('const settingsDebugToggle = function') > t.indexOf('const logSwitch = readLocalDebugSwitch()'),
@@ -253,6 +260,8 @@ async function main() {
     await sleep(env.mod.VIEW_FLAG_WRITE_DEBOUNCE_MS + 120)
     return callsOf(env, 'wf.setSettings').length === n
   }, capMs)
+  // 「一次都没写」这类断言要先等防抖窗口走完再数：窗口没过就数 0 是结构上不可能失败的断言（2026-10-12 复核指出）。
+  const quietAfter = async (env) => { await sleep(env.mod.VIEW_FLAG_WRITE_DEBOUNCE_MS + 200) }
 
   // ── 第二件事：开机秒显仍读旧键（同步、不等文件）──
   console.log('')
@@ -281,6 +290,7 @@ async function main() {
     check(!!push && push.args.enabled === true && push.args.sampleRate === 0.25,
       '真源被推给宿主那份副本，带的就是文件里的值（enabled true、sampleRate 0.25）。', JSON.stringify(push && push.args))
     check(legacyOf(env) && legacyOf(env).enabled === true, '旧键被写成开，当这一趟的秒显快照。', JSON.stringify(legacyOf(env)))
+    await quietAfter(env)
     check(callsOf(env, 'wf.setSettings').length === 0, '文件里已经是这个值 → 不往文件里写多余的东西（一次 wf.setSettings 都没有）。', String(callsOf(env, 'wf.setSettings').length))
   }
 
@@ -311,6 +321,7 @@ async function main() {
     env.mod.settingsViewLoad()
     check(await ready(env), '读口就绪（文档到手，文件说关、旧键没有）。')
     check(env.mod.logSwitch.enabled === false, '没有任何证据说开 → 默认关。', String(env.mod.logSwitch.enabled))
+    await quietAfter(env)
     check(callsOf(env, 'wf.setSettings').length === 0, '不往用户从没碰过的文件里添一笔默认值（没有 wf.setSettings）。', String(callsOf(env, 'wf.setSettings').length))
     const push = lastCall(env, 'wf.logSetSwitch')
     check(!!push && push.args.enabled === false, '宿主副本照旧对齐成关（推一次措辞相同的一份）。', JSON.stringify(push && push.args))
@@ -427,14 +438,14 @@ async function main() {
   {
     // 文件里本来写着开，用户在 idle 下把它拨成关。2026-10-12 复核实测：这一档若不记账，同一个拨动引出的
     //   那趟采纳会照文件里的开把用户刚拨的关覆盖回去，而这次的关此后没有任何机会写进文件 —— 文件恒为 true，
-    //   是确定性丢失而不是竞态。所以第一句话就查「当场记了两笔待写」。
+    //   是确定性丢失而不是竞态。记的时点在老路成功之后（失败那一档见本节末尾），第一句话查的就是这两笔在不在。
     const env = makeEnv({ tag: 'idle-off', localStorage: { 'dsws.debug': JSON.stringify({ enabled: true, sampleRate: 0.25, rev: 5 }) } })
     await store.writeLocalSettings(dbgDoc({ enabled: true, sampleRate: 0.25 }), env.home, realIo)
     check(env.mod.viewFlagState.status === 'idle', '拨之前这份文档从没问过（status 是 idle）。', env.mod.viewFlagState.status)
     const res = await env.mod.settingsDebugToggle(false, 1)
     check(!!res && res.ok === true && res.enabled === false, '这一下先交给包里的老路，回的是关（老路的形状一字不改）。', JSON.stringify(res))
     check(Object.keys(env.mod.viewFlagState.deferred).length === 2,
-      '这一下当场记了两笔待写（enabled 与 sampleRate），文档到手那趟采纳才看得见。', JSON.stringify(Object.keys(env.mod.viewFlagState.deferred)))
+      '老路成功之后补记了两笔待写（enabled 与 sampleRate），文档到手那趟采纳才看得见。', JSON.stringify(Object.keys(env.mod.viewFlagState.deferred)))
     check(await ready(env), '文档到手（这一下自己把文档问起来了）。', env.mod.viewFlagState.status)
     const offInFile = await waitFor(async () => { const d = await readDoc(env.home); return !!d && d.debug.enabled === false })
     check(offInFile, '文件里 debug.enabled 变成关 —— 用户在 idle 下拨的关既没被采纳用文件里的开顶回去，也真进了文件。', JSON.stringify(((await readDoc(env.home)) || {}).debug))
@@ -442,6 +453,21 @@ async function main() {
     check(!!dOff && dOff.debug.sampleRate === 1, '同一节的采样率也跟着这一下写成了 1（两格一起写，不留半份）。', JSON.stringify(dOff && dOff.debug))
     check(env.mod.logSwitch.enabled === false, '内存还是用户拨的关。', String(env.mod.logSwitch.enabled))
     check(legacyOf(env) && legacyOf(env).enabled === false, '旧键快照也写成了关（开机秒显那一路跟着走）。', JSON.stringify(legacyOf(env)))
+
+    // 老路被拒这一档（2026-10-12 复核的必修 3）：还不知道老路结果之前不许留下必写痕迹。旧写法在这里就记了两笔
+    //   待写，文档一到手就把「界面刚说失败」的那个值写进文件 —— 界面说没成、文件说成了。
+    const envR = makeEnv({ tag: 'idle-rejected', logSetRefuse: true })
+    await store.writeLocalSettings(dbgDoc({ enabled: false, sampleRate: 1 }), envR.home, realIo)
+    check(envR.mod.viewFlagState.status === 'idle', '拒绝这一档拨之前也没问过文档（status 是 idle）。', envR.mod.viewFlagState.status)
+    const resR = await envR.mod.settingsDebugToggle(true, 1)
+    check(!!resR && resR.ok === false, 'idle 档老路被拒 → 回包是失败（界面会照实说失败）。', JSON.stringify(resR))
+    check(Object.keys(envR.mod.viewFlagState.deferred).length === 0,
+      '失败之后队列里一笔痕迹都不留（不许「界面说失败、文件里却写着这一笔」）。', JSON.stringify(Object.keys(envR.mod.viewFlagState.deferred)))
+    check(await ready(envR), '文档照样到手（这一下自己把它问起来了）。', envR.mod.viewFlagState.status)
+    await quietAfter(envR)
+    const dR = await readDoc(envR.home)
+    check(!!dR && dR.debug.enabled === false && callsOf(envR, 'wf.setSettings').length === 0,
+      '文件里的 debug 节没被写（还是原来那个关，一次 wf.setSettings 都没有）。', JSON.stringify({ debug: dR && dR.debug, writes: callsOf(envR, 'wf.setSettings').length }))
   }
 
   // ── 第十二件事：idle 档 + 文件里没有 debug 这一节 + 拨开 → 文件里要长出 enabled: true ──
@@ -462,7 +488,7 @@ async function main() {
     // 这一档的结局也靠老路那条线索（旧键快照，以及老路留在内存里的那个开）兜得住；所以要单独钉住「当场记了
     //   两笔待写」——「文件里这一节是缺的」与「文件里写着关」两种情形都得走同一条记账，不能只靠线索侥幸接住。
     check(Object.keys(env.mod.viewFlagState.deferred).length === 2,
-      '这一下当场记了两笔待写（缺这一节时也要记账）。', JSON.stringify(Object.keys(env.mod.viewFlagState.deferred)))
+      '老路成功之后补记了两笔待写（缺这一节时也要记账）。', JSON.stringify(Object.keys(env.mod.viewFlagState.deferred)))
     check(await ready(env), '文档到手。', env.mod.viewFlagState.status)
     const onInFile = await waitFor(async () => { const d = await readDoc(env.home); return !!d && d.debug.enabled === true })
     check(onInFile, '文件里长出了 debug.enabled: true（这一下没丢）。', JSON.stringify(((await readDoc(env.home)) || {}).debug))
@@ -495,10 +521,12 @@ async function main() {
     // 一、拨动那一档：getSettings 答 {ok:true, value:{}}（老宿主或占位电话的假回复）。
     const env = makeEnv({ tag: 'shell-toggle', getSeq: [{ ok: true, value: {} }] })
     env.mod.settingsViewLoad()
-    check(await ready(env), '空壳也被当成文档到手了（本门禁量的是它不许被拿去写真源）。', env.mod.viewFlagState.status)
+    check(await waitFor(async () => env.mod.viewFlagState.status === 'unavailable'), '空壳这一档收口在「问不到」（不够格当文档，不当真源）。', env.mod.viewFlagState.status)
+    check(env.mod.viewFlagState.doc === null, '空壳没被收进内存（拿它当基底会把别的节写成空值）。', JSON.stringify(env.mod.viewFlagState.doc))
     const res = await env.mod.settingsDebugToggle(true, 1)
     check(!!res && res.ok === true, '拨动照样成立（走老路兜底）。', JSON.stringify(res))
     check(callsOf(env, 'wf.logSetSwitch').length >= 1, '这一下走的是包里的老路（宿主开关电话收到了）。', String(callsOf(env, 'wf.logSetSwitch').length))
+    await quietAfter(env)
     check(callsOf(env, 'wf.setSettings').length === 0, '没有拿空壳当文档往文件里写（写这条电话一次都没调）。', String(callsOf(env, 'wf.setSettings').length))
     check((await readDoc(env.home)) === null, '文件没有被凭空造出来。', JSON.stringify(await readDoc(env.home)))
     check(env.mod.logSwitch.enabled === true, '内存里这一下是开（老路写的）。', String(env.mod.logSwitch.enabled))
@@ -524,6 +552,50 @@ async function main() {
     check(!!dShell && dShell.ui.stateFilter === 'open' && dShell.templates.comment === 'hello',
       '半份文档没被当成基底：别的节（ui.stateFilter、templates.comment）原样还在，没被写成空值。',
       JSON.stringify({ ui: dShell && dShell.ui, templates: dShell && dShell.templates }))
+    // 三、第一趟问到真文档（debug 节是 {enabled: true, sampleRate: 0.25}），写之前那次重读答半份 {version:1}：这一笔
+    //   要退回内存那一份当基底，所以内存文档里刚写进去的采样率必须跟着走 —— 只写开关那一格时，文件里会留着 0.25
+    //   （2026-10-12 复核的必修 4：变异体下这一档原来 105 条全绿）。
+    const home3 = makeHome('rate-base')
+    await store.writeLocalSettings(dbgDoc({ enabled: true, sampleRate: 0.25 }), home3, realIo)
+    const env3 = makeEnv({ tag: 'rate-base', home: home3, getSeq: [null, { ok: true, value: { version: 1 } }] })
+    env3.mod.settingsViewLoad()
+    check(await ready(env3), '第一趟问到真那一份（后面那次重读才答半份）。', env3.mod.viewFlagState.status)
+    check(env3.mod.logSwitch.sampleRate === 0.25, '采纳把文件里的采样率 0.25 搬进了内存。', String(env3.mod.logSwitch.sampleRate))
+    const res3 = await env3.mod.settingsDebugToggle(true, 1)
+    check(!!res3 && res3.ok === true && res3.sampleRate === 1, 'ready 档拨开，递进去的采样率是 1。', JSON.stringify(res3))
+    check(await waitWrite(env3), '这一笔落了盘。', String(callsOf(env3, 'wf.setSettings').length))
+    const dRate = await waitFor(async () => { const d = await readDoc(home3); return !!d && d.debug.enabled === true && d.debug.sampleRate === 1 })
+    check(dRate, '落盘后 debug 节是 {enabled: true, sampleRate: 1}（重读答半份时以内存那一份当基底，两格都是新写的值）。', JSON.stringify(((await readDoc(home3)) || {}).debug))
+    // 光看盘上最后那一份还不够：这一趟若只把开关那一格写进内存文档，盘上那份带着旧的 0.25，回包按值划队列时这条
+    //   对不上，于是自己又重排一趟、把队列里的值补写进去，最后盘上看起来也是对的（复核指出：变异体下 105 条全绿）。
+    //   所以要直接查「第一趟发出去的那份文档」与「一共发了几趟」，这两条才是这一格的判据。
+    const firstWrite = callsOf(env3, 'wf.setSettings')[0]
+    const sentDbg = firstWrite && firstWrite.args && firstWrite.args.value && firstWrite.args.value.debug
+    check(!!sentDbg && sentDbg.enabled === true && sentDbg.sampleRate === 1,
+      '第一趟发出去的 debug 节就是 {enabled: true, sampleRate: 1}（只写开关那一格时这里会是旧的 0.25）。', JSON.stringify(sentDbg))
+    check(callsOf(env3, 'wf.setSettings').length === 1, '写这一趟只发一次（第一趟就带对了值，不必自己再补一趟）。', String(callsOf(env3, 'wf.setSettings').length))
+    // 四、第一趟就答半份 {version:1}（2026-10-12 复核的必修 1）：收文档那一步只判「是不是对象」时，这份半成品会被收进
+    //   内存，写这一趟重读又答同一份半成品，于是拿它当基底整份写回 —— 核归一之后用户的 ui / workspaces / templates
+    //   就成了空值。修法是把判据收在收文档那一步，这一份连内存都不许进。
+    const home4 = makeHome('half-first')
+    const full4 = dbgDoc({ enabled: false, sampleRate: 1 })
+    full4.ui.stateFilter = 'open'
+    full4.workspaces = { 'D:\\proj': { bannerFolded: true } }
+    full4.templates = { comment: 'hello' }
+    await store.writeLocalSettings(full4, home4, realIo)
+    const env4 = makeEnv({ tag: 'half-first', home: home4, getSeq: [{ ok: true, value: { version: 1 } }, { ok: true, value: { version: 1 } }] })
+    env4.mod.settingsViewLoad()
+    check(await waitFor(async () => env4.mod.viewFlagState.status === 'unavailable'), '第一趟答半份 → 这一趟不收它（落在「问不到」那一档）。', env4.mod.viewFlagState.status)
+    check(env4.mod.viewFlagState.doc === null, '半份文档没被收进内存（内存里一份文档都没有）。', JSON.stringify(env4.mod.viewFlagState.doc))
+    const res4 = await env4.mod.settingsDebugToggle(true, 1)
+    check(!!res4 && res4.ok === true, '拨动照样成立（走老路兜底）。', JSON.stringify(res4))
+    check(callsOf(env4, 'wf.logSetSwitch').length >= 1, '这一下走的是包里的老路。', String(callsOf(env4, 'wf.logSetSwitch').length))
+    await quietAfter(env4)
+    check(callsOf(env4, 'wf.setSettings').length === 0, '半份文档没被当基底写回文件（写电话一次都没调）。', String(callsOf(env4, 'wf.setSettings').length))
+    const d4 = await readDoc(home4)
+    check(!!d4 && d4.ui.stateFilter === 'open' && !!d4.workspaces['D:\\proj'] && d4.templates.comment === 'hello',
+      '盘上文件原样还在：ui / workspaces / templates 三节都没被写成空值。', JSON.stringify({ ui: d4 && d4.ui, ws: d4 && d4.workspaces, tpl: d4 && d4.templates }))
+    check(!!d4 && d4.debug.enabled === false, '文件里的 debug 节也没被这一下改动。', JSON.stringify(d4 && d4.debug))
   }
 
   // ── 第十五件事：更高版本的文档（只读）不许被写，文件逐字节不动 ──
@@ -542,6 +614,7 @@ async function main() {
     const res = await env.mod.settingsDebugToggle(true, 1)
     check(!!res && res.ok === true, '这一下照样成立（走老路兜底）。', JSON.stringify(res))
     check(callsOf(env, 'wf.logSetSwitch').length >= 1, '走的是包里的老路。', String(callsOf(env, 'wf.logSetSwitch').length))
+    await quietAfter(env)
     check(callsOf(env, 'wf.setSettings').length === 0, '只读文档一次都没被写回去。', String(callsOf(env, 'wf.setSettings').length))
     check(fs.readFileSync(settingsPathIn(home), 'utf8') === rawBefore, '文件逐字节没变（只读这一档不许动它）。')
   }
@@ -571,16 +644,59 @@ async function main() {
   console.log('')
   console.log('== 第十七件事：不新增日志事件名（只用既有的两档，名字都在 #489 附录里） ==')
   {
-    const src = readText(DEBUG_REL)
-    const re = /(?:^|[^A-Za-z0-9_$])log\s*\(\s*(?:'[^']*'|"[^"]*")\s*,\s*'([^']+)'/g
-    const names = []
-    let m
-    while ((m = re.exec(src)) !== null) names.push(m[1])
-    check(names.length >= 2, '这一片里确实有日志点（数到 ' + names.length + ' 处）。', JSON.stringify(names))
+    // 扫构建产物里这一片的实际字符串（源码里事件名走变量就漏，2026-10-12 复核指出）：先把这一片从产物里切出来。
+    const built = readText('client.js')
+    const head = built.indexOf('const SETTINGS_DEBUG_NAMES')
+    const tail = built.indexOf('viewFlagSubscribe(settingsDebugAdoptFromDoc)', head)
+    const slice = (head >= 0 && tail > head) ? built.slice(head, tail) : ''
+    check(slice.length > 0, '从构建产物里切出了这一片的正文（产物里找得到起止两个锚点）。', String(slice.length))
     const allowed = ['host.call.fail', 'storage.fail']
-    check(names.every((n) => allowed.indexOf(n) >= 0), '用的都是既有事件名（host.call.fail / storage.fail），没有新造的。', JSON.stringify(names))
+    const re = /(?:^|[^A-Za-z0-9_$.])log\s*\(\s*'([^']+)'\s*,\s*'([^']+)'/g
+    const calls = []
+    let m
+    while ((m = re.exec(slice)) !== null) calls.push(m[2])
+    check(calls.length >= 2, '这一片在产物里确实留下了日志点（数到 ' + calls.length + ' 处）。', JSON.stringify(calls))
+    // 产物里每一处 log 调用的事件名都要是写死的字面量：走变量（log('warn', name, …)）会在这里露出来。
+    const allLogCalls = slice.match(/(?:^|[^A-Za-z0-9_$.])log\s*\(/g) || []
+    check(allLogCalls.length === calls.length, '产物里每一处 log 调用的事件名都是写死的字面量（数到 ' + allLogCalls.length + ' 处调用）。', JSON.stringify({ calls: allLogCalls.length, literal: calls.length }))
+    check(calls.every((n) => allowed.indexOf(n) >= 0), '用的都是既有事件名（host.call.fail / storage.fail），没有新造的。', JSON.stringify(calls))
     const appendix = readText('research/489-appendix.md')
     check(allowed.every((n) => appendix.indexOf(n) >= 0), '两个名字都在 #489 附录的现行清单里（那个文件本次没改）。', JSON.stringify(allowed))
+  }
+
+  // ── 第十八件事：宿主那份副本没跟上时怎么收场（回包带上副本状态、界面换限定语、下一次机会自动重推）──
+  console.log('')
+  console.log('== 第十八件事：宿主副本没跟上 → 回包带 hostPushed、界面换限定语文案、下一次文档到手自动重推 ==')
+  {
+    // 一、副本拒绝：文件这条路接得下，真源照样算成功，但回包要把副本状态带出来；下一次文档到手要自己重推一次。
+    const env = makeEnv({ tag: 'hostpushed-no', logSetRefuse: true })
+    await store.writeLocalSettings(dbgDoc({ enabled: false, sampleRate: 1 }), env.home, realIo)
+    env.mod.settingsViewLoad()
+    check(await ready(env), '文档到手。')
+    const res = await env.mod.settingsDebugToggle(true, 1)
+    check(!!res && res.ok === true && res.hostPushed === false,
+      '副本被拒 → 真源照样算成功，但回包把副本状态带出来（hostPushed: false）。', JSON.stringify(res))
+    const pushesBefore = callsOf(env, 'wf.logSetSwitch').length
+    env.mod.settingsDebugAdoptFromDoc()
+    check(callsOf(env, 'wf.logSetSwitch').length > pushesBefore,
+      '下一次文档到手时自己重推了一次（一次失败能自愈，不用用户再拨一遍）。', String(callsOf(env, 'wf.logSetSwitch').length - pushesBefore))
+    // 二、副本接受：回包 hostPushed: true（界面照旧弹那句不带限定语的）。
+    const env2 = makeEnv({ tag: 'hostpushed-yes' })
+    await store.writeLocalSettings(dbgDoc({ enabled: false, sampleRate: 1 }), env2.home, realIo)
+    env2.mod.settingsViewLoad()
+    check(await ready(env2), '文档到手。')
+    const res2 = await env2.mod.settingsDebugToggle(true, 1)
+    check(!!res2 && res2.ok === true && res2.hostPushed === true, '副本接上了 → 回包 hostPushed: true。', JSON.stringify(res2))
+    // 三、界面：副本没跟上时不弹没限定语的「已开启」，换的是那一句说清「文件已写、本机日志暂时记不下」的文案；
+    //   这句话中文与英文两份词表里都得有（界面文案一律走词表，不许写字面量）。
+    const page = readText('src/client/views/SettingsPage.js')
+    check(page.indexOf('res.hostPushed === false') >= 0 && page.indexOf("'cfg.dbgSwitchOnNoHost'") >= 0,
+      '设置页按 hostPushed 换文案：副本没跟上时不弹没限定语的「已开启」。', String(page.indexOf('cfg.dbgSwitchOnNoHost')))
+    const localeLines = readText('src/client/kernel/locale-flow.js').split(/\r?\n/).filter((l) => l.indexOf("'cfg.dbgSwitchOnNoHost'") >= 0)
+    const zhLine = localeLines.find((l) => l.indexOf('调试日志已打开') >= 0) || ''
+    const enLine = localeLines.find((l) => l.indexOf('Debug log on') >= 0) || ''
+    check(zhLine.length > 0 && enLine.length > 0 && zhLine !== enLine,
+      '这句限定语在中文与英文两份词表里都有，而且各自写成本国语言（不是同一句抄两遍）。', JSON.stringify(localeLines.map((l) => l.length)))
   }
 
   console.log('')

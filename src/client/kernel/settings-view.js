@@ -308,10 +308,10 @@
             else log('warn', 'host.call.fail', { method: 'wf.getSettings', kind: 'settings', errorHash: dswsLogHash(String((res && res.error && (res.error.message || res.error.kind)) || 'get-not-ok')) })
           } catch (eL) {}
           if (okRes) {
-            // 更高版本的文件：核只认到版本 1，里面的字段读不懂，所以既不照着它答（宁可回旧表），
-            //   也绝不写回去（写回去会把新版本的字段抹掉）。
+            // 更高版本的文件：核只认到版本 1，里面的字段读不懂，所以既不照着它答（宁可回旧表），也绝不写回去（会抹掉新字段）。
             if (res.readonly === true) { viewFlagSettle('readonly'); return }
-            if (!res.value || typeof res.value !== 'object') { viewFlagSettle('unavailable'); return }
+            // 形状对不上（「ok 但没有文档」的半份回复）不许当文档收下：拿它当基底整份写回会把别的节写成空值（严格档：五节齐全才算能用的文档；缺席那一档的 viewFlagEmptyDoc 五节齐全，过得了）。
+            if (!res.value || typeof res.value !== 'object' || (typeof settingsDebugDocLooksReal === 'function' && !settingsDebugDocLooksReal(res.value, true))) { viewFlagSettle('unavailable'); return }
             viewFlagState.doc = res.value
             viewFlagSettle('ready')
             return

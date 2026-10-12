@@ -44,7 +44,9 @@ export     const SettingsPage = (props) => {
         try {
           // 拨开关走 kernel/settings-debug.js 的 settingsDebugToggle（#1012 第 8 条）：真源是本机设置文件的
           //   debug 节，它先把这一笔写进文件，文件这条路接不下才原样退回包里的 setLogSwitch（老路）。
-          //   两个名字都认：老产物里没有新名字，新产物里那个才是主路，返回形状两者一致。
+          //   两个名字都认：老产物里没有新名字，新产物里那个才是主路，返回形状两者一致；比包里多回的那一格
+          //   hostPushed 只说宿主那份副本跟没跟上 —— 真源落地了就算成功，但副本没跟上时不弹没限定语的「已开启」
+          //   （说清已写进本机设置文件、本机日志暂时记不下调试行；那条缺口与归属写在 kernel/settings-debug.js 文件头）。
           const dbgSwitch = (typeof settingsDebugToggle === 'function') ? settingsDebugToggle : ((typeof setLogSwitch === 'function') ? setLogSwitch : null)
           if (typeof dbgSwitch !== 'function') throw new Error('no-switch')
           dbgSwitch(next, 1).then(function (res) {
@@ -52,7 +54,10 @@ export     const SettingsPage = (props) => {
             const okSw = !!(res && res.ok)
             setDbgFlash(okSw ? 'ok' : 'warn')
             try { setTimeout(function () { setDbgFlash('') }, 600) } catch (eT) {}
-            flash(sharedSt, tr(!okSw ? dbgSwitchFailKey(res) : ((res.enabled === true) ? 'cfg.dbgSwitchOnToast' : 'cfg.dbgSwitchOffToast')), okSw ? 'ok' : 'warn')
+            // 宿主那份副本没跟上（hostPushed 为 false）时不许只弹一句「已开启」：文案要说清本机真源已经落地、本机日志
+            //   暂时记不下调试行，并按告警着色（一次失败会自愈：下一次采纳文档或下一次打开设置页会自己重推一次）。
+            const staleHost = (okSw && res.hostPushed === false)
+            flash(sharedSt, tr(!okSw ? dbgSwitchFailKey(res) : (staleHost ? 'cfg.dbgSwitchOnNoHost' : ((res.enabled === true) ? 'cfg.dbgSwitchOnToast' : 'cfg.dbgSwitchOffToast'))), (okSw && !staleHost) ? 'ok' : 'warn')
           }).catch(function () { setDbgPending(false); setDbgFlash('warn'); try { setTimeout(function () { setDbgFlash('') }, 600) } catch (eT2) {}; flash(sharedSt, tr('cfg.dbgSwitchFail'), 'warn') })
         } catch (errDbg) { setDbgPending(false); flash(sharedSt, tr('cfg.dbgSwitchFail'), 'warn') }
       }
