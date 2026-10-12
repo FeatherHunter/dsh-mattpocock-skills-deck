@@ -5,19 +5,25 @@
  * 旧文件一个字节都不动（src/host/logStore.js、src/host/logPhones.js、src/client/kernel/log.js 原地只读留存，
  * 门禁仍读它们）；运行时走这里生成的新文件。真删除旧文件另开票，本票只做共存。
  *
- * 派生内容（两处）：
- *   1. 宿主侧：已安装包 dist/{config,store,phones,host}.js 原样复制到 src/host/logPkg/（同目录，
- *      包内相对引用 ./config.js 等保持有效；构建时原样复制进 package/lib/logPkg，随包发布，线上可用）。
- *   2. 客户端侧：把已安装包 dist/client.js 打包成单文件（依赖的配置面内联，无外部引用；来源注释归一到与旧输出一致），
+ * 派生内容（只剩客户端那一处；宿主那半按 #1016 退场，理由见下）：
+ *   客户端侧：把已安装包 dist/client.js 打包成单文件（依赖的配置面内联，无外部引用；来源注释归一到与旧输出一致），
  *      末尾用闭包里现成的四个名字（host、timer、localStorage、broadcastLogSwitch）建日志器，
  *      落到 scripts/generated/logKernel.derived.js；构建时拼入原来日志模块的位置。
  *      放 scripts 下是因为内容含中文错误文案， src/client 下会被中文基线门禁误拦；构建产物里早有中文注释，
  *      行为一致，只是换个地方放。
  *
+ * 宿主那半为什么没了（#1016）：从前这里还把上游 dist/{config,store,phones,host}.js 原样复制到
+ *   src/host/logPkg/，让插件在自己的源码树里自带一份上游代码。现在宿主改成常规依赖——
+ *   src/host/logFromPackage.js 直接 import 已安装包的 'dsh-log/host'，src/ 下不再留这份副本，
+ *   派生脚本也就不再有宿主那一半。
+ *   代价是「客户端打包用的那份」与「宿主取值用的那份」第一次有了版本不一致的可能，所以构建里加了一条
+ *   「两半版本一致」的断言（scripts/build.mjs）：它比对 package/package.json 里 pin 死的版本与已安装的
+ *   那份，不一致就当场拦住构建，不把这个错配留到运行时才发现。
+ *
  * 用法：node scripts/derive-log-from-package.mjs（插件根目录；要求已安装的 dsh-log 与当前依赖一致）。
  * 构建脚本 scripts/build.mjs 会在需要时自动调本脚本，平时不用手工跑。
  */
-import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
@@ -33,16 +39,14 @@ function resolveInstalledPkgDir() {
 }
 const PKG_DIST = resolve(resolveInstalledPkgDir(), 'dist')
 
-const HOST_UNITS = ['config.js', 'store.js', 'phones.js', 'host.js']
-const HOST_OUT_DIR = resolve(ROOT, 'src', 'host', 'logPkg')
 const CLIENT_OUT = resolve(ROOT, 'scripts', 'generated', 'logKernel.derived.js')
 
-const HOST_HEADER = (name) =>
-  '// 派生文件（#564）：由 packages/dsh-log/dist/' +
-  name +
-  ' 原样复制，内容与日志包 0.1.0 一致，人手不改。\n' +
-  '// 旧实现（src/host/logStore.js、src/host/logPhones.js）原地只读留存；运行时走本目录经 logFromPackage.js 接线。\n' +
-  '// 共存关系：旧文件只读、新文件派生，真搬迁或真删除旧文件另开票。重新生成：node scripts/derive-log-from-package.mjs。\n'
+// 已安装日志包的真实版本号。头部那句「内容与日志包 X 一致」要说真话，所以每次现读，不写死字面：
+// 从前这里写死过 0.1.0，而包早已升到 0.2.x，那句话就成了假话（#1016 顺手改掉）。
+// 读法经已开放的 host 入口反推包目录，理由同 resolveInstalledPkgDir()。
+function installedVersion() {
+  return JSON.parse(readFileSync(resolve(resolveInstalledPkgDir(), 'package.json'), 'utf8')).version
+}
 
 function requireEsbuild() {
   const require = createRequire(resolve(ROOT, 'package.json'))
@@ -50,16 +54,6 @@ function requireEsbuild() {
     return require('esbuild')
   } catch {
     throw new Error('[derive-log] 找不到 esbuild：请先运行 pnpm install（根 devDependencies 含 esbuild）')
-  }
-}
-
-export function deriveHost() {
-  mkdirSync(HOST_OUT_DIR, { recursive: true })
-  for (const name of HOST_UNITS) {
-    const from = resolve(PKG_DIST, name)
-    const body = readFileSync(from, 'utf8').replace(/\r\n/g, '\n').replace(/\s+$/, '') + '\n'
-    writeFileSync(resolve(HOST_OUT_DIR, name), HOST_HEADER(name) + body, 'utf8')
-    console.log('[derive-log] dist/' + name + ' -> src/host/logPkg/' + name)
   }
 }
 
@@ -127,7 +121,7 @@ export function deriveClient() {
     '// 零变化断言字面（默认 wf 下 5 个电话名与旧字面一致；双产物检查直接看到这些字面，运行时走上面的工厂拼名）\n' +
     'void (__pkgLog.phoneNames.logBatch === \'wf.logBatch\' && __pkgLog.phoneNames.logExport === \'wf.logExport\' && __pkgLog.phoneNames.logClear === \'wf.logClear\' && __pkgLog.phoneNames.logGetSwitch === \'wf.logGetSwitch\' && __pkgLog.phoneNames.logSetSwitch === \'wf.logSetSwitch\')\n'
   const header =
-    '// 派生文件（#564）：由 packages/dsh-log/src/client.ts（含配置面）打包生成，内容与日志包 0.1.0 一致，人手不改。\n' +
+    '// 派生文件（#564）：由 packages/dsh-log/src/client.ts（含配置面）打包生成，内容与日志包 ' + installedVersion() + ' 一致，人手不改。\n' +
     '// 旧模块（src/client/kernel/log.js）原地只读留存；构建时本文件拼入原来日志模块的位置（kernel:log 标记处）。\n' +
     '// 共存关系：旧文件只读、新文件派生，真搬迁或真删除旧文件另开票。重新生成：node scripts/derive-log-from-package.mjs。\n'
   mkdirSync(dirname(CLIENT_OUT), { recursive: true })
@@ -136,7 +130,6 @@ export function deriveClient() {
 }
 
 function main() {
-  deriveHost()
   deriveClient()
 }
 

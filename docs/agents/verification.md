@@ -136,11 +136,10 @@ node scripts/lib/select-gates.mjs src/client/views/versionControl/VersionControl
    两者之间没有 import 边。这类文件要么让它的门禁同时守着源文件，要么在生成器跑完之后补一次全链。
 5. **「有门禁」和「有专属门禁」是两件事，别混。** 归属写成目录的门禁（`tests/verify-reuse.js`、
    `tests/verify-no-title.js` 点名了 `src/client/views`）是**递归**扫那个目录的，所以它守着的文件算「有门禁」——
-   覆盖面这一栏因此是满的（469/469）。但「这一层自己有没有被点名」是另一回事：`coverage.dedicatedDirs`
+   覆盖面这一栏因此是满的（510/510）。但「这一层自己有没有被点名」是另一回事：`coverage.dedicatedDirs`
    记的就是后者，`coverage.dirsWithoutDedicated` 列出没有专属门禁的目录和它们的文件数。
-   2026-10-12 这一版：40 个目录里 38 个有专属门禁，没有的两个是
-   `src/client/views/cards`（34 个原型页面，改它们只有宽口径的目录门禁拦得住）和
-   `src/host/logPkg`（4 个自动生成文件，属于派生物，不单独设门禁）。
+   2026-10-13 这一版（#1016 删掉 `src/host/logPkg` 之后重算）：43 个目录里 42 个有专属门禁，
+   唯一没有的是 `src/shared/config-store/src`（4 个文件）。
    想让某个目录有专属门禁，要么给它写一扇门禁，要么在既有的、确实守着它的门禁里加一条
    `// 门禁归属:` 注释——注意注释会**取代**该门禁原有的全部线索，写的时候要写全。
 

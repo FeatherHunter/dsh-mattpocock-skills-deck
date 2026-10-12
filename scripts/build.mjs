@@ -34,7 +34,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
 import vm from 'node:vm'
 import { spawnSync } from 'node:child_process'
-import { deriveHost, deriveClient } from './derive-log-from-package.mjs'
+import { deriveClient } from './derive-log-from-package.mjs'
 import { deriveClient as deriveUpdateClient } from './derive-update-from-package.mjs'
 import { bundleEntryPanel } from './bundle-update-entry.mjs'
 
@@ -81,9 +81,11 @@ const CACHE_PATH = join(ROOT, 'node_modules', '.cache', 'dsh-build.json')
 const INPUT_ROOTS = ['src', 'scripts', 'tests']
 const INPUT_EXTRA = ['package.json', 'package/package.json', 'README.md', 'tsconfig.client.json', 'tsconfig.contract.json']
 const ARTIFACT_FILES = ['client.js', 'host.js', 'package/README.md']
-// package/lib 要整目录收进来：它下面除了两份入口，还有 logPkg/* 这类打包镜像，
+// package/lib 要整目录收进来：它下面除了两份入口，还有构建写出来的其他镜像，
 // 而 verify-log-artifacts 比的是「package/lib 里的镜像 vs src 里的真源」，两边必须一起提 mtime。
-const ARTIFACT_DIRS = ['package/lib', 'scripts/generated', 'src/host/logPkg', 'package/scripts', 'package/bundled-skills']
+// 从前这里还列着 src/host/logPkg（上游日志包在本仓源码树里的副本）；#1016 把宿主日志改成直接取用
+// 已安装的 dsh-log 包之后，src/ 下不再有那份副本，这一项跟着删掉。
+const ARTIFACT_DIRS = ['package/lib', 'scripts/generated', 'package/scripts', 'package/bundled-skills']
 
 /** 派生文件的标记：这些文件是构建写出来的，不算输入（否则构建一跑，指纹就自己变了，缓存永远命中不了）。 */
 function looksDerived(abs) {
@@ -807,6 +809,10 @@ async function buildHost({ version }) {
     join(pkgLib, 'index.js'),
     join(pkgLib, 'platform'),
     join(pkgLib, 'tracker'),
+    // #1016：src/host/logPkg 已删（宿主日志改成直接取用已安装的 dsh-log 包），
+    // 这里要跟着清掉旧构建留下的 package/lib/logPkg。不清的话，它会作为「src 里没有、
+    // 包里还留着」的多余产物一直躺在发布包里，tests/verify-build-artifacts.js 的双向差集也会因此变红。
+    join(pkgLib, 'logPkg'),
   ]
   for (const p of toRemove) {
     try { rmSync(p, { recursive: true, force: true }) } catch {}
@@ -1094,14 +1100,51 @@ function checkPixelTs() {
 buildPixelTs()
 checkPixelTs()
 
-// #564 日志系统派生：先把日志包产物派生为运行时文件（旧文件不动），再拼装。
+// #1016 两半版本一致断言：宿主那一半与客户端那一半必须来自同一个 dsh-log 版本。
+// 为什么必须有这一条：宿主侧从裸包名 'dsh-log/host' 取用（装机时按 package/package.json 里声明的版本解析），
+// 客户端那一半是构建时按本仓已安装的那一份打包出来的。两半的事件名册、配置校验、电话名靠版本对齐，
+// 一旦解析到不同版本就会静默错配（症状是日志行对不上、开关读不出，现场还看不出是版本问题）。
+// 从前插件在自己的源码树里自带一份副本，两半天然同版本，所以不需要这条；副本删掉之后（#1016）必须补上。
+// 判据两条：package/package.json 里必须钉死一个确切版本（写 ^ 这类浮动范围等于放弃这条保证），
+// 且它与本仓已安装的那一份必须相同。已安装版本的读法：包只开放 host/client/node 三个子路径，
+// 读不到它的 package.json，所以经已开放的 host 入口反推包目录再读清单（同派生脚本里的做法）。
+function assertLogHalvesVersionMatch() {
+  const pkgJsonPath = resolve(ROOT, 'package', 'package.json')
+  let declared = ''
+  try {
+    declared = (JSON.parse(readFileSync(pkgJsonPath, 'utf8')).dependencies || {})['dsh-log'] || ''
+  } catch (e) {
+    throw new Error('读不出 package/package.json 里声明的 dsh-log 版本：' + ((e && e.message) || e))
+  }
+  if (!declared) {
+    throw new Error('package/package.json 里没有声明 dsh-log：宿主那半 import 的 dsh-log/host 装机后解析不到，启动即失败')
+  }
+  if (!/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$/.test(declared)) {
+    throw new Error('package/package.json 里 dsh-log 的版本写的是「' + declared + '」，不是钉死的确切版本：浮动范围会让宿主与客户端两半各自解析到不同版本，这条保证就没了')
+  }
+  const require = createRequire(resolve(ROOT, 'package.json'))
+  let installed = ''
+  try {
+    const hostEntry = require.resolve('dsh-log/host')
+    installed = JSON.parse(readFileSync(resolve(dirname(dirname(hostEntry)), 'package.json'), 'utf8')).version
+  } catch (e) {
+    throw new Error('读不出本仓已安装的 dsh-log 版本（先跑 pnpm install）：' + ((e && e.message) || e))
+  }
+  if (installed !== declared) {
+    throw new Error('日志两半版本不一致：package/package.json 声明 ' + declared + '，本仓已安装的是 ' + installed + '（客户端那半按已安装的这一份打包，宿主那半按声明的版本解析）')
+  }
+  console.log('[build] 日志两半版本一致：dsh-log@' + installed + '（宿主按包声明解析，客户端按本仓这一份打包）')
+}
+
+// #1016 日志系统派生：先把日志包产物派生为运行时文件（旧文件不动），再拼装。
 // #586 更新系统派生：同样先把更新包产物派生为运行时文件（旧文件不动）。
 // #800 面板派生已切到官方工具：取值唯一来源是已安装的更新包（node_modules/dsh-plugin-update@0.13.x），
 //   本构建只做“派生→构建”两步；“升到 0.13.x 最新并提交锁文件”这一步在构建前由人或发版流程执行，
 //   构建时不自动联网升级（顺序：最新 0.13.x → 派生 → 构建）。
 // 两个包 dist 缺失时会报错并提示先跑各自的 build。
+// 两半版本一致的断言放在派生之前：错配当场拦住，不留给运行时（理由见上面那条注释）。
+assertLogHalvesVersionMatch()
 try {
-  deriveHost()
   deriveClient()
 } catch (e) {
   throw new Error('[build] 日志派生失败（取值来源是已安装的日志包：先确认 pnpm install 已装好 dsh-log@^0.2.2，再重跑本构建）：' + ((e && e.message) || e))

@@ -23,10 +23,10 @@ const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if
 
 // 派生目录不进本门禁：这些文件是别的包编译产物原样复制过来的，人手不能拆、
 // 拆了也会被下一次派生覆盖回去，所以「拆到 350 行以内」这条要求对它无解。
-// 它们的正确性由逐字节门禁钉住（与发布包一致），不受这里放宽的影响：
-//   src/host/logPkg/            ← node_modules/dsh-log（#564，#892 起不再读本地 packages/dsh-log）
-//   src/host/updatePkg/         ← packages/dsh-plugin-update（#586）
-const DERIVED_DIRS = ['src/host/logPkg/']
+// 它们的正确性由逐字节门禁钉住（与发布包一致），不受这里放宽的影响。
+// 今天 src/ 下没有这种目录：#1016 删掉了最后一份上游副本 src/host/logPkg/（宿主日志改成
+// 直接取用已安装的 dsh-log 包）。名单留着——将来再有别的包编译产物原样拷进 src/，把前缀写这里。
+const DERIVED_DIRS = []
 
 function listJsFiles() {
   const out = []

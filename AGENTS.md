@@ -45,7 +45,7 @@ Single-context layout — root `CONTEXT.md` plus `docs/adr/`. See `docs/agents/d
 
 最终目标是项目里手写代码只有 TypeScript，没有手写 JavaScript（构建产物和派生文件生成的 `.js` 不算）。以后凡是需求、修 bug、做规划、写设计时动到本插件的手写代码，一律优先用 TypeScript 写；存量 JavaScript 不单独立项重写，采取“动到哪里就转到哪里”的方式转，直到清零。本条继承 `tsconfig.client.json` 里“摸到谁再转谁，不搞大爆炸”的口径，并把它推广到全仓。
 
-1. 以文件为单位，先修后转、两次提交，不再新增手写 JS：先提交一次纯修复，再提交一次把这个文件转成 TypeScript，转完行为零变化。只转本次真正动到的文件；以后新增文件一律写 `.ts`（含 `.mts`/`.d.ts`）。派生文件（例如 `src/host/logPkg/*`、`scripts/generated/*`）、自动检查本身、临时目录永不转。清零口径是手写 `.js` 归零，构建产物不计。
+1. 以文件为单位，先修后转、两次提交，不再新增手写 JS：先提交一次纯修复，再提交一次把这个文件转成 TypeScript，转完行为零变化。只转本次真正动到的文件；以后新增文件一律写 `.ts`（含 `.mts`/`.d.ts`）。派生文件（例如 `scripts/generated/*`、`package/lib/*`）、自动检查本身、临时目录永不转。清零口径是手写 `.js` 归零，构建产物不计。
 2. 转完要接上构建：同步登记到对应 `tsconfig` 的 `include` 与 `scripts/build.mjs` 清单（不登记会静默不编译），沿用 `target ES2020`、`strict`、`noEmit` 加 `esbuild` 转译，然后把 `tsc -p`、构建、相关 `tests/verify-*` 与冒烟跑通才算完。
 3. 转完要把注释补足：公开函数、类型、关键分支用中文完整句写清为什么、什么约定不能改、什么反例，不要复述类型名。样板看 `src/shared/label-color/src/colors.ts` 开头。
 4. 转完顺手加日志，走下一节“日志埋点纪律”，以排查优先、多记但无垃圾为准。

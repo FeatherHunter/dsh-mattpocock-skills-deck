@@ -73,6 +73,19 @@ function collectQuotedNames() {
   return found
 }
 const quoted = collectQuotedNames()
+// #1016 起的委托核对：宿主侧日志库改成直接取用已安装的 dsh-log 包之后，插件不再自带
+// src/host/logPkg/ 那份副本，而 update.install.exec 这个事件名在本仓 src/ 下只出现在那份副本的
+// 事件白名单里（它不是本仓代码发出的，发射器在已安装的更新包里）。所以本仓找不到时，到已安装的
+// 日志包里的同一份白名单核对 —— 与 tests/verify-log-fields.js 里 #875 对该事件的委托口径一致；
+// 已安装包里也找不到仍然红，不放过。
+if (!quoted['update.install.exec']) {
+  try {
+    const store = fs.readFileSync(path.join(ROOT, 'node_modules', 'dsh-log', 'dist', 'store.js'), 'utf8')
+    if (store.includes('"update.install.exec"')) {
+      quoted['update.install.exec'] = ['node_modules/dsh-log/dist/store.js（已安装的日志包，事件白名单）']
+    }
+  } catch {}
+}
 for (const name of RESIDENT) {
   check(!!quoted[name], '常驻事件有埋点 ' + name + (quoted[name] ? '（' + quoted[name].length + ' 处以上）' : ''))
 }

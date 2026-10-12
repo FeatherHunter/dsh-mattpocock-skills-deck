@@ -553,60 +553,6 @@
       "note": "当前插件迁移到日志包：宿主运行时走日志包派生（旧文件留而不搬），接线与派生副本的引用边"
     },
     {
-      "file": "src/host/logFromPackage.js",
-      "spec": "./logPkg/host.js",
-      "resolved": "src/host/logPkg/host.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "#564",
-      "note": "当前插件迁移到日志包：宿主运行时走日志包派生（旧文件留而不搬），接线与派生副本的引用边"
-    },
-    {
-      "file": "src/host/logPkg/host.js",
-      "spec": "./config.js",
-      "resolved": "src/host/logPkg/config.js",
-      "layer": "host",
-      "count": 3,
-      "owner": "#564",
-      "note": "当前插件迁移到日志包：宿主运行时走日志包派生（旧文件留而不搬），接线与派生副本的引用边"
-    },
-    {
-      "file": "src/host/logPkg/host.js",
-      "spec": "./store.js",
-      "resolved": "src/host/logPkg/store.js",
-      "layer": "host",
-      "count": 2,
-      "owner": "#564",
-      "note": "当前插件迁移到日志包：宿主运行时走日志包派生（旧文件留而不搬），接线与派生副本的引用边"
-    },
-    {
-      "file": "src/host/logPkg/phones.js",
-      "spec": "./config.js",
-      "resolved": "src/host/logPkg/config.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "#564",
-      "note": "当前插件迁移到日志包：宿主运行时走日志包派生（旧文件留而不搬），接线与派生副本的引用边"
-    },
-    {
-      "file": "src/host/logPkg/store.js",
-      "spec": "./config.js",
-      "resolved": "src/host/logPkg/config.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "#564",
-      "note": "当前插件迁移到日志包：宿主运行时走日志包派生（旧文件留而不搬），接线与派生副本的引用边"
-    },
-    {
-      "file": "src/host/logPkg/store.js",
-      "spec": "./phones.js",
-      "resolved": "src/host/logPkg/phones.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "#564",
-      "note": "当前插件迁移到日志包：宿主运行时走日志包派生（旧文件留而不搬），接线与派生副本的引用边"
-    },
-    {
       "file": "src/host/index.js",
       "spec": "./rpcChannel.js",
       "resolved": "src/host/rpcChannel.js",

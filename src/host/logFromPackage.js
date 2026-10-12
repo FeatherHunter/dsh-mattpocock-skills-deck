@@ -4,11 +4,13 @@
 // 调日志包建日志库并拿回日志库（插件标识 wf，默认派生出的目录名、开关文件名、电话名与旧字面一致）。
 // 旧实现（./logStore.js、./logPhones.js）原地只读留存，本文件不引用它们；包不可用时由调用方回退旧实现。
 // 共存关系：旧文件只读、新文件派生，真搬迁或真删除旧文件另开票。
-// 日志包派生副本在 ./logPkg/（由 node scripts/derive-log-from-package.mjs 生成，人手不改），
-// 本文件经相对路径引用它，构建原样复制后两边都有效，随包发布线上可用。
+// 取哪一份（#1016 起）：这里直接 import 已安装的 npm 包 dsh-log 的宿主入口，
+// 插件不再在自己的源码树里带一份上游代码副本（那份副本原先在 ./logPkg/，已随本次改动删除）。
+// 宿主用哪一版由 package/package.json 里 pin 死的 dsh-log 版本说了算；客户端那半是构建时按同一个包
+// 打包出来的，两半版本一致由 scripts/build.mjs 里的断言盯着，错配当场拦住构建。
 export async function createLogFromPackage(deps) {
   const input = deps || {}
-  const mod = await import('./logPkg/host.js')
+  const mod = await import('dsh-log/host')
   const holder = mod.createHostLog(
     {
       fs: input.fs,

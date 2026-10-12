@@ -76,7 +76,9 @@ export const BUILD_OUTPUT_PREFIXES = ['package/']
 
 // 明确是别的包编译产物复制过来的派生目录：不手写、不拆行、由逐字节比对的门禁钉住。
 // 归属推导照常看它们（有的门禁确实读这里），但覆盖报告里会给一句能看懂的解释。
-export const DERIVED_PREFIXES = ['src/host/logPkg/']
+// 今天这份名单是空的：#1016 删掉了最后一项 src/host/logPkg/（宿主日志改成直接取用已安装的
+// dsh-log 包，插件源码树里不再留上游副本）。将来再有别的包编译产物原样拷进 src/ 时，把前缀写这里。
+export const DERIVED_PREFIXES = []
 
 // 扫仓库时跳过的目录：依赖、临时工作区、日志、隐藏目录。
 const SKIP_DIR_NAMES = new Set(['node_modules', 'logs', '__pycache__', 'dist', 'coverage'])

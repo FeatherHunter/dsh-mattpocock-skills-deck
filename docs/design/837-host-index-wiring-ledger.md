@@ -109,7 +109,7 @@
 | H6 #450 | `handoffClaim.js`、`namingGuardian.js`、`publishFlow.js`、`pickerShell.js`、`ticketGrouping.js` |
 | H7 #515 | `dispatchMeta.js` |
 | #723（T19） | `refresh/wiring.js`（闸 + 账本 + 写事件订阅 + 视野模型 + 会话↔票处理链），`refresh/chainBackoff.js`（#709） |
-| #490 / #586 / #875 | `logFromPackage.js`、`updateFromPackage.js`（#875 起更新只走已安装包，无回退分支；旧实现已删） |
+| #490 / #586 / #875 / #1016 | `logFromPackage.js`（#1016 起宿主日志直接取用已安装的 dsh-log 包，插件源码树里不再带上游副本；包取不到仍回退旧实现）、`updateFromPackage.js`（#875 起更新只走已安装包，无回退分支；旧实现已删） |
 | #596 | `rpcChannel.js`（把端点表交给 `/api/dsws` 通道） |
 | #817 | `versionControl.js`（三条只读电话 `wf.gitStatus` / `wf.gitDiff` / `wf.gitLog`，地图 #810） |
 
