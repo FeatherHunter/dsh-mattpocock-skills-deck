@@ -14,7 +14,7 @@
  * 以及第一章不变量 I2（后台零定时器，只留限时收尾）与 I4（用量与工作区数量无关）。
  *
  * 数字一个都不在这里：全部来自 budget.ts，由调用方取好装进 AttentionLimits 传进来。
- * 为什么不直接 import budget.ts：产物文件之间同层互引会被 tests/verify-no-same-layer-import.js
+ * 为什么不直接 import budget.ts：产物文件之间同层互引会被 tests/verify-dependency-rules.ts
  * 判红（src/shared/ 内部不许互相引用），所以照 policy.ts 的先例，数字由调用方注入。
  *
  * **两条设计上要命的取舍，先说清：**

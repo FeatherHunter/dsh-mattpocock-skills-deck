@@ -11,7 +11,7 @@
  *     拿实测当最坏会把最坏情况算小，而门禁存在的意义正是盯住最坏情况。
  *
  * 为什么本文件一个数字都不写、全部从参数进来：刷新核心的产物（src/shared/refresh/*.js）之间
- * 不许互相 import（tests/verify-no-same-layer-import.js 的「同层不许互引」一条门禁守着这件事）。
+ * 不许互相 import（tests/verify-dependency-rules.ts 的「同层不许互引」一条门禁守着这件事）。
  * 额度与单价常量因此仍然只有一处物理真源
  * （src/shared/refresh/src/budget.ts），由宿主侧从 budget.js 取好再传进来 —— 做法与
  * policy.ts / backoff.ts / tool-cost.ts 完全一致。这里只放形状与算式。

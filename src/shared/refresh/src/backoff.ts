@@ -15,7 +15,7 @@
  *
  * 数字一个都不在这里写：全部来自 src/shared/refresh/src/budget.ts（那是唯一真源），由调用方取好装进
  * BackoffLimits 传进来。理由与 policy.ts 一样：产物文件之间同层互引会被
- * tests/verify-no-same-layer-import.js 判红，所以本文件不 import 任何产物的常量。
+ * tests/verify-dependency-rules.ts 判红，所以本文件不 import 任何产物的常量。
  */
 import type { BackoffLimits, ChainBackoffState, ChainFreshness } from './ports.js'
 

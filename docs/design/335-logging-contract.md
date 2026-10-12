@@ -198,7 +198,7 @@ getDroppedCount()       // 读累计丢弃数（写盘失败与通道丢弃都�
 - `package.json`：`verify` 链追加新门禁脚本。
 - `src/shared/`（可选）：事件名与级别枚举常量放共享区；共享区不归属任何房间，可两端引用。
 
-房间纪律：房间口径仅 `src/host/tracker/backends/<name>/` 属于房间文件。埋点落点多在房外公共区；凡落点进入某房间文件的事件，随该房批次走，一次会话只改一房；现有 `verify-no-cross-import` 与 `verify-no-mixed-session` 门禁不动，埋点不得新增跨房引用。
+房间纪律：房间口径仅 `src/host/tracker/backends/<name>/` 属于房间文件。埋点落点多在房外公共区；凡落点进入某房间文件的事件，随该房批次走，一次会话只改一房；现有 `verify-dependency-rules.ts`（跨房那条规则写在根目录 `.dependency-cruiser.cjs`）与 `verify-no-mixed-session` 门禁不动，埋点不得新增跨房引用。
 
 ### 4.2 构建同步
 

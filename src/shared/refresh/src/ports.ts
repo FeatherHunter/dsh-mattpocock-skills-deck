@@ -176,7 +176,7 @@ export interface WriteDetectLimits {
 //
 // backoff.ts 只算「这一刻该等多久」，数字一律由调用方从 budget.ts 取好、装进 BackoffLimits 传进来。
 // 这样做有两个原因：数字的唯一真源是 budget.ts（同一份额度不许写在两处）；产物文件之间同层互引
-// 会被 tests/verify-no-same-layer-import.js 判红，所以 backoff.ts 连预算产物的常量也不能 import。
+// 会被 tests/verify-dependency-rules.ts 判红，所以 backoff.ts 连预算产物的常量也不能 import。
 
 /**
  * 退避与缓存寿命这一组数字的容器，由调用方从 budget.ts 取好再传进来。

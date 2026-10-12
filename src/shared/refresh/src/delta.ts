@@ -20,7 +20,7 @@
  * 形状照本域前四份（ports / budget / idempotency / policy）：产物落
  * src/shared/refresh/delta.js，逐字由根构建脚本的逐文件转译那一段生成（#1023 第二刀起，本域不再有
  * 各自的构建脚本）。本文件不 import 任何其他产物 ——
- * src/shared/ 同层互引会被 tests/verify-no-same-layer-import.js 判红，需要用的东西一律由调用方传进来。
+ * src/shared/ 同层互引会被 tests/verify-dependency-rules.ts 判红，需要用的东西一律由调用方传进来。
  */
 
 // 这里原来有一行 `export const DELTA_SOURCE = 'src/shared/refresh/src/delta.ts'`。#719 把它删掉：

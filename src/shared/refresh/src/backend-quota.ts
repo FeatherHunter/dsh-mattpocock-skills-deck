@@ -16,7 +16,7 @@
  * 就不写一个看起来像真的点数制。宁可缺一个数，也不要多一个编出来的数。
  *
  * 为什么本文件一个数字都不写、全部是形状与判定：刷新核心的产物（src/shared/refresh/*.js）之间
- * 不许互相 import（tests/verify-no-same-layer-import.js 的「同层不许互引」一条门禁守着这件事）。
+ * 不许互相 import（tests/verify-dependency-rules.ts 的「同层不许互引」一条门禁守着这件事）。
  * 额度常量因此只有一处物理真源（budget.ts），
  * 做法与 policy.ts / backoff.ts / tool-cost.ts 一致。
  */

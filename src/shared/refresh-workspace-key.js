@@ -8,7 +8,7 @@
 // 为什么单开一份共享文件的实现、而不是写在宿主某个文件里：宿主要用它的有三处 ——
 //   · src/host/refresh/wiring.js（活跃集合、写事件白名单、七个 deck_* 工具、行级增量那一半）；
 //   · src/host/detectChain.js（检查链求值那一笔记账的钥匙）。
-// 宿主层的文件之间不许互相引用（tests/verify-no-same-layer-import.js），而宿主入口 src/host/index.js
+// 宿主层的文件之间不许互相引用（tests/verify-dependency-rules.ts），而宿主入口 src/host/index.js
 // 已经贴着 350 行上限、没法再把这一份依赖注入给链那一侧。所以「算钥匙」这件事落在共享层一处，
 // 宿主两侧各自从这一个文件取（宿主引用共享层是允许的方向）。
 //

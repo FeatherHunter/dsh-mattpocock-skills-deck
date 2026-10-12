@@ -7,7 +7,7 @@
 //   issueDetail.js = 「单张票的详情读取」：GraphQL 与 REST 两路，含已合并的状态归一。
 // 两半的改动理由不同：前者随卡片字段与选择/仓库身份变，后者随单票字段与降级路变。
 //
-// 接线：同层互引门禁（tests/verify-no-same-layer-import.js）不许两个「干活的」文件互相引用 ——
+// 接线：同层互引门禁（tests/verify-dependency-rules.ts）不许两个「干活的」文件互相引用 ——
 // 组合点放在宿主入口 src/host/index.js：地图详情拉取与 buildSnapshot 都产自本文件，
 // issueDetail.js 要的那份也由入口转交。
 export function createSnapshotBuilder(deps) {

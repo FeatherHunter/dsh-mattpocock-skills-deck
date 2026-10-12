@@ -9,7 +9,7 @@
 //   ① 层判据自检：把「宿主层里的文件去读宿主层的工具文件」这件事喂给本文件的层判据 layerOf，
 //      它必须判违规。原先这里还有三条读源码文本的断言（装配点读了哪几个工具文件、装配点里有没有
 //      createDeckTools、宿主层里有没有同层引用边），那些钉的是手写源码的写法，改写法或搬文件就会
-//      变红，按维护者的要求已清掉；真正管这面墙的是 tests/verify-no-same-layer-import.js。
+//      变红，按维护者的要求已清掉；真正管这面墙的是 tests/verify-dependency-rules.ts（规则写在根目录 .dependency-cruiser.cjs）。
 //   ② 真在宿主装配形状下装起来：用 src/host/refresh/wiring.js 的 createRefreshWiring（宿主入口
 //      实际调用的那一份）装出一套刷新机制，从它拿到的九个工具表必须齐（names 九条、missing 空）。
 //   ③ 真跑一次：在一个真实临时工作区（本地 Markdown 后端，票就是盘上的文件）上，让 AI 那一侧
@@ -32,7 +32,7 @@ const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href)
 const NAMES = ['deck_context', 'deck_issue_get', 'deck_map_snapshot', 'deck_issue_list', 'deck_issue_create', 'deck_map_plan_create', 'deck_map_link', 'deck_issue_patch', 'deck_issue_report']
 
 /**
- * 本文件用的层判据，与 tests/verify-no-same-layer-import.js 的文件头逐字同一条：
+ * 本文件用的层判据，与 tests/verify-dependency-rules.ts 读的那套规则逐字同一条（层划分写在根目录 .dependency-cruiser.cjs）：
  * 宿主层 = src/host/ 下，但排除 src/host/platform/ 与 src/host/tracker/backends/。
  * （只用来判「这一条引用边算不算宿主层内部的边」——真正的墙还是那一条门禁。）
  */

@@ -5,7 +5,7 @@
 // 探测索引 / 跑 gh / 取仓库键 / 过闸）全部由宿主接线方现取现传，本文件不判断任何业务。
 //
 // 为什么住在 src/host/platform/：与同目录的 deckToolsAssembly.js 同一个理由 —— 同层互引门禁
-// （tests/verify-no-same-layer-import.js）把 src/host/ 整棵树算作「宿主层」，宿主层里的文件之间
+// （tests/verify-dependency-rules.ts）把 src/host/ 整棵树算作「宿主层」，宿主层里的文件之间
 // 不许互相引用；patch.js 也在宿主层里，所以「谁把它读进来」这件事落在宿主层的文件上就要新增一条
 // 同层引用边。代价与备选见 #723 交付报告第 6 节。
 //

@@ -10,7 +10,7 @@
  * AI 工具那两组硬顶）。**本文件一样都不重复。**
  *
  * 为什么不直接 import budget.ts 的常量，而要调用方把数字装进 PolicyLimits 传进来：
- * 产物文件之间同层互引会被 tests/verify-no-same-layer-import.js 判红（src/shared/ 内部不许互相引用，
+ * 产物文件之间同层互引会被 tests/verify-dependency-rules.ts 判红（src/shared/ 内部不许互相引用，
  * 该门禁只许减不许增），而 ports.ts 那种 `import type` 在转译时会被擦掉、不产生引用边。
  * 所以数字统一由调用方（src/host/refresh/gate.js）从 budget.ts 取好再注入，本文件一个额度数字都不写。
  *

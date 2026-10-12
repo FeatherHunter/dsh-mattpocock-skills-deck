@@ -54,7 +54,7 @@ function shortHash(s) {
  *   canonicalKey —— **必给**：宿主那支把会话目录洗成工作区键的既有出口，生产里传
  *                   `src/host/index.js` 的 canonicalKey（它内部走 src/host/workspaceKey.js 的
  *                   canonicalWorkspaceKey，归一化与「上溯到工作区根」都在那里，本文件不另写一套）。
- *                   这里不直接 import 那个文件：同层互引门禁（tests/verify-no-same-layer-import.js）
+ *                   这里不直接 import 那个文件：同层互引门禁（tests/verify-dependency-rules.ts）
  *                   要求宿主层的文件之间不互相引用，依赖一律由接线处显式传入（本目录既有做法）。
  *   fetch     —— 真去取数的函数（由宿主接线传进来，T3/T4 那一层）。签名 fetch(step, meta)。
  *   note      —— 可选：把判定过的那一笔喂给会话↔票处理链（生产里是 sessionTickets.js 的 note）。

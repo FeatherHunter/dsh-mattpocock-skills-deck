@@ -75,7 +75,7 @@
   行首 `export`；不含 `__DSW_VERSION__` 与 `__DSW_REPO_URL__` 两个占位符），并把那个产物的顶层名字
   加进 `tests/verify-generated-no-shadow.js` 的比对集合。本目录的转译已经把导出改成行首形式，
   第一条边界条件天然满足。
-- 后端房间要 import 这份共享代码时，`tests/verify-no-cross-import.js` 的导入白名单要加一条
+- 后端房间要 import 这份共享代码时，根目录 `.dependency-cruiser.cjs` 里那份房间导入白名单要加一条（判据由 `tests/verify-dependency-rules.ts` 跑）
   `/^src\/shared\/refresh\//`——本票还没人引用它，所以白名单本票不加，接线那一票加。
 
 ## 日志点

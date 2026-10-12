@@ -33,7 +33,7 @@
 
 两条纪律，CI 硬卡，本地 npm run verify 可复现。
 
-纪律一：代码门禁 —— 禁止跨房引用（verify-no-cross-import）
+纪律一：代码门禁 —— 禁止跨房引用（tests/verify-dependency-rules.ts；跨房规则与白名单写在根目录 .dependency-cruiser.cjs）
 
 - 扫描域：src/host/tracker/backends/github/、gitlab/、markdown/ 三座内置后端，两两禁止相互 import；examples/demo-mini 等第三方扩展不在域内。
 - 检查对象：静态 import / export ... from 与动态 import('...') 的字面量说明符；每条违规输出文件、行号、目标房间。
@@ -42,6 +42,9 @@
   - 同房间内相对路径（解析后仍在 src/host/tracker/backends/<self>/ 内）
   - src/shared/tracker/**
   - src/shared/labels.js
+  - src/shared/label-color/**（#629）
+  - src/shared/refresh/**（#711）
+  - src/shared/config-store/**（#1012）
   - src/host/tracker/preflight.js
   - src/host/platform/**
 - 纪律：后端文件的引用说明符必须是字面量字符串（import(someVar) 视为违规）；host 主程序引用后端（如 #284 复用 markdown 解析）不在检查范围。
@@ -59,7 +62,7 @@
 
 常驻位置
 
-白名单与两条纪律同时写入本文件与两条门禁的常量，新增共享依赖须改白名单并在票据留痕（#313 D2）。
+白名单与两条纪律同时写入本文件与根目录 `.dependency-cruiser.cjs`（判据门禁 `tests/verify-dependency-rules.ts`），新增共享依赖须改白名单并在票据留痕（#313 D2）。
 
 ## 第三方扩展（#117 #148 范式）
 

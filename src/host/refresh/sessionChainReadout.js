@@ -12,7 +12,7 @@
  *      （不许让界面拿「空列表」冒充「没有人在处理票」）。
  *
  * 本文件是纯映射：不读盘、不联网、不看时钟（时刻由调用方传进来）、不记日志。它不 import 同层的
- * sessionTickets.js（同层互引是仓库明令禁止的，门禁 tests/verify-no-same-layer-import.js 会红），
+ * sessionTickets.js（同层互引是仓库明令禁止的，门禁 tests/verify-dependency-rules.ts 会红），
  * 只要求调用方把一个「有 snapshot() 的对象」交进来——#714 的 createSessionTickets 返回值正好是它。
  *
  * **接线还没做（不属于本票的改动范围）**：宿主组装快照回包时挂上这一个字段，界面才会真的画出来。

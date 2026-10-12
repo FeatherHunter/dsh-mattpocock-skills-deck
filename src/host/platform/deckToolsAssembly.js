@@ -6,13 +6,13 @@
 // 都由宿主接线方现取现传（见 src/host/refresh/wiring.js 的 deckToolsForHost）。
 //
 // 为什么这个文件住在 src/host/platform/，而不是 src/host/tools/ 或 src/host/refresh/：
-//   同层互引门禁（tests/verify-no-same-layer-import.js）把 src/host/ 整棵树算作「宿主层」，
+//   同层互引门禁（tests/verify-dependency-rules.ts）把 src/host/ 整棵树算作「宿主层」，
 //   宿主层里的文件之间不许互相引用。七个工具文件都在宿主层里，所以「谁把这七个文件读进来」这件事
 //   只要落在宿主层的文件上，就要新增 7 条同层引用边（本票的纪律是不许新增这 7 条）。
 //   同一份门禁把 src/host/platform/ 从宿主层里排除，并在文件头把它称作「平台装配扇出」——
 //   也就是说，需要一个「宿主内部的装配扇入点」时，它是 src/host 下唯一空着的位置
 //   （另一个被排除的位置是后端三个房间所在的 src/host/tracker/backends/，那里归老门禁
-//   tests/verify-no-cross-import.js 管，不适合放工具接线）。
+//   tests/verify-dependency-rules.ts 管，不适合放工具接线）。
 //   换句话说：本文件住在这里是为了守住门票那条「不给宿主层新增 7 条同层边」的形状，
 //   不是因为它与操作系统有关。备选做法与代价写在 #723 交付报告第 6 节，请统筹者定夺。
 //
