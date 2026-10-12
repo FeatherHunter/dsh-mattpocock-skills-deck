@@ -129,33 +129,91 @@ function sha256(file) { return crypto.createHash('sha256').update(fs.readFileSyn
   check(hasPlatform, 'package/lib 含 platform/ 目录及入口')
   check(hasTracker, 'package/lib 含 tracker/ 目录及入口')
 }
-// 4b) package/shared 与 src/shared 里的产物一一对应（双向差集 0 + 逐文件 sha256 一致）
-//   2026-10-13 起域目录里住着源码（.ts）、编译脚本、类型配置、说明文档与测试样本，
-//   它们**不进发布包**（构建的整树复制只带 .js），所以这条比对收窄到 .js 产物：
-//   比的是「产物集合两边一致」，不是「整棵源码树镜像一致」。
+// 4b) 四类落点之外没有产物（#1017 换守门对象）
+//   换掉的是什么：这一段原先守「package/shared 与 src/shared 逐字节一致 + 双向差集 0」。
+//   产物出库之后（#1023 第三刀把三处产物移出 git：package/shared、像素风 34 件、四个域 35 件），
+//   那个对照要守的「两份拷贝别漂移」已经由构建这一个写者保证：转译与复制在同一次构建里做完，
+//   域目录的双向判据（少一份产物、多一份无源产物、域里没源码）由构建现场核对
+//   （scripts/lib/transpile-domains.mjs 调 checkDomainConsistency）。留下逐字节比对的代价是
+//   每次产物换落点都要跟着改，而它守不到「产物有没有跑到不该去的地方」——那才是出库后的真风险。
+//   Q9 定的新守门对象是「四类之外没有产物」，四类逐类点名：
+//     ① 发布包内两棵产物树：package/lib/**、package/shared/**
+//     ② 仓库根两份开发态产物：client.js、host.js
+//     ③ 构建缓存目录：scripts/generated/**（按需存在；已入库两件点名为例外：logKernel.derived.js、
+//        updateClient.derived.js，它们必须入库，因为客户端那份闭包要能离线拼出来）
+//     ④ 子包各自产物目录：packages/*/dist/**
+//   两条断言：
+//     A. 入库（git ls-files）里一件产物都没有：四类里的 ①②④ 不该被跟踪，src/ 下「有同名 .ts 的 .js」
+//        是转译产物、同样不该被跟踪（③ 里的两件例外是唯一允许入库的产物）。
+//     B. 盘上的产物只许落在四类里，或者落在源码树里那两处**还没搬家的过渡位**
+//        （src/client/** 与 src/shared/<域>/**，共 34 + 35 = 69 件）。过渡位的件数记在上限里，
+//        只许降不许升；「把客户端闭包那批产物搬进构建缓存目录」是 Q4 第 5 节那条单独工作线的事，
+//        这条上限就是它的进度表——搬完把 TRANSITIONAL_PRODUCTS_MAX 改成 0，这条断言自然升级成
+//        「四类之外一件都没有」。
+//   怎么认出「产物」（不手写名单，认构建自己留下的两处痕迹）：
+//     · 第一行带 AUTO-GENERATED 头（scripts/lib/transpile-unit.mjs 与 build.mjs 的 pixel-ts 段写的）；
+//     · 或者同名 .ts 就住在旁边（逐文件转译的形状，src/client 那 34 件两处痕迹都有）。
 {
-  const only = (list) => list.filter((f) => f.endsWith('.js'))
-  const srcSharedFiles = only(collect(path.resolve('src/shared')))
-  const pkgSharedFiles = only(collect(path.resolve('package/shared')))
-  const srcSet = new Set(srcSharedFiles)
-  const pkgSet = new Set(pkgSharedFiles)
-  const onlySrc = srcSharedFiles.filter(f => !pkgSet.has(f))
-  const onlyPkg = pkgSharedFiles.filter(f => !srcSet.has(f))
-  check(onlySrc.length === 0 && onlyPkg.length === 0, `package/shared 与 src/shared 的 .js 产物双向差集 0（src=${srcSharedFiles.length} pkg=${pkgSharedFiles.length}）`)
-  if (onlySrc.length) console.log('    仅 src/shared 有:', onlySrc.join(', '))
-  if (onlyPkg.length) console.log('    仅 package/shared 有:', onlyPkg.join(', '))
-  let shaOk = true
-  for (const rel of srcSharedFiles) {
-    const a = path.resolve('src/shared', rel)
-    const b = path.resolve('package/shared', rel)
-    if (!fs.existsSync(b)) { shaOk = false; continue }
-    if (sha256(a) !== sha256(b)) { shaOk = false; console.log(`    sha256 不一致: shared/${rel}`) }
+  const CATEGORY_PREFIXES = ['package/lib/', 'package/shared/', 'scripts/generated/']
+  const CATEGORY_FILES = ['client.js', 'host.js']
+  const SUBPKG_DIST_RE = /^packages\/[^/]+\/dist\//
+  const IN_GIT_PRODUCT_EXCEPTIONS = ['scripts/generated/logKernel.derived.js', 'scripts/generated/updateClient.derived.js']
+  // 2026-10-13 实测 69 件（src/client 34 + src/shared 35）。这是「还没搬家」的存量，不是允许长期存在的额度：
+  // 只许降不许升，降到 0 之后这条上限就改成 0。
+  const TRANSITIONAL_PRODUCTS_MAX = 69
+  const SKIP_DIRS = new Set(['node_modules', '.git'])
+
+  const toPosix = (p) => p.split(path.sep).join('/')
+  const inCategory = (rel) => CATEGORY_PREFIXES.some((p) => rel.startsWith(p)) || CATEGORY_FILES.includes(rel) || SUBPKG_DIST_RE.test(rel)
+  const twinOf = (abs) => abs.replace(/\.(js|mjs|cjs)$/, '.ts')
+  const looksProduct = (abs) => {
+    if (/\.(js|mjs|cjs)$/.test(abs) === false) return false
+    if (fs.existsSync(twinOf(abs))) return true
+    try { return fs.readFileSync(abs, 'utf8').slice(0, 80).includes('AUTO-GENERATED') } catch (e) { return false }
   }
-  check(shaOk, 'package/shared 与 src/shared 逐文件 sha256 一致')
-  // 【已删除】这里原先是一大段「src/shared 树里到底有几个文件」的流水账注释，末尾跟着两条硬数字断言
-  //   check(srcSharedFiles.length === 79) 与 check(pkgSharedFiles.length === 79)。这类「目录里正好几个文件」
-  //   的断言每加一个文件就要改一次数字、注释也要跟着续一行，按维护者要求撤掉；上面那条 glob 双向差集与
-  //   逐文件 sha256 属于「派生文件与来源一致」类，保留。
+
+  // A. 入库里没有产物
+  const tracked = execSync('git ls-files --cached', { encoding: 'utf8' }).split('\n').map((s) => s.trim()).filter(Boolean)
+  const trackedProducts = tracked.filter((rel) => {
+    if (IN_GIT_PRODUCT_EXCEPTIONS.includes(rel)) return false
+    if (CATEGORY_FILES.includes(rel) || rel.startsWith('package/lib/') || rel.startsWith('package/shared/') || SUBPKG_DIST_RE.test(rel)) return true
+    if (rel.startsWith('src/') && /\.(js|mjs|cjs)$/.test(rel) && fs.existsSync(twinOf(path.resolve(rel)))) return true
+    return false
+  })
+  if (trackedProducts.length) console.log('    入库的产物:\n    ' + trackedProducts.join('\n    '))
+  check(trackedProducts.length === 0, `入库里一件产物都没有（git ls-files ${tracked.length} 条，产物 ${trackedProducts.length} 件）`)
+
+  // B. 盘上产物只许落在四类或源码树的过渡位
+  const outside = []
+  const transitional = []
+  // 遍历整棵树，但四类落点整目录跳过（那里的产物本来就合法，不必逐件读），点开头的目录按仓里的约定
+  // 一律是工具自己用的（缓存、临时输出、编辑器状态），也不进这趟。
+  const walkAll = (dir, relBase) => {
+    for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+      const rel = relBase ? relBase + '/' + ent.name : ent.name
+      if (ent.isDirectory()) {
+        if (ent.name.startsWith('.') || ent.name === 'node_modules') continue
+        if (inCategory(rel + '/')) continue
+        walkAll(path.join(dir, ent.name), rel)
+        continue
+      }
+      if (!ent.isFile() || !looksProduct(path.join(dir, ent.name))) continue
+      if (inCategory(rel)) continue
+      if (rel.startsWith('src/')) { transitional.push(rel); continue }
+      outside.push(rel)
+    }
+  }
+  walkAll(process.cwd(), '')
+  if (outside.length) console.log('    四类之外、又不在源码树里的产物:\n    ' + outside.join('\n    '))
+  check(outside.length === 0, '四类落点之外没有产物（四类：package/lib、package/shared、根 client.js/host.js、scripts/generated、packages/*/dist）')
+  check(transitional.length <= TRANSITIONAL_PRODUCTS_MAX,
+    `源码树里的过渡产物没有变多（现 ${transitional.length} 件，上限 ${TRANSITIONAL_PRODUCTS_MAX} 件；搬家那条工作线做完后应降到 0）`)
+  if (transitional.length) {
+    const byDir = {}
+    for (const rel of transitional) { const k = rel.slice(0, rel.lastIndexOf('/')); byDir[k] = (byDir[k] || 0) + 1 }
+    console.log('    INFO 源码树里还剩 ' + transitional.length + ' 件待搬家的产物：'
+      + Object.entries(byDir).sort().map(([k, v]) => k + ' ' + v + ' 件').join('、'))
+  }
 }
 // 4c)（已删）原来是逐份读 src/host 与 src/shared 下每个 .js 的源码文本，用正则断言相对 import 一律带 .js 扩展。
 //   那条断言的对象是手写源码的写法，改写法、搬文件、把文件转成 TypeScript 都会让它变红，
