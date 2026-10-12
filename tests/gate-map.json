@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-12T03:28:44.108Z",
+  "generatedAt": "2026-10-12T04:54:23.621Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 231,
   "gateCount": 231,
@@ -4529,11 +4529,13 @@
         "scripts/build.mjs",
         "scripts/generated/logKernel.derived.js",
         "src/client/index.js",
+        "src/client/kernel/locale-flow.js",
         "src/client/kernel/log.js",
         "src/client/kernel/settings-debug.js",
         "src/client/kernel/settings-view-state.js",
         "src/client/kernel/settings-view-write.js",
         "src/client/kernel/settings-view.js",
+        "src/client/views/SettingsPage.js",
         "src/host",
         "src/host/configStore.js",
         "src/host/settingsPhones.js",
@@ -4548,13 +4550,14 @@
         "scripts/generated",
         "src/client",
         "src/client/kernel",
+        "src/client/views",
         "src/host",
         "src/shared",
         "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 11 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 13 条"
     },
     {
       "step": "node tests/verify-1003-single-outlet.js",
@@ -5116,6 +5119,7 @@
       "node tests/verify-671-modal-global-overlay.js",
       "node tests/verify-669-chain-after-pick.js",
       "node tests/verify-settings-view.js",
+      "node tests/verify-settings-debug.js",
       "node tests/verify-deck-slots.js",
       "node tests/verify-gate-map.js"
     ],
