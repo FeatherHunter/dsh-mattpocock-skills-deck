@@ -2,7 +2,7 @@
 /**
  * verify-settings-debug.js —— 调试开关真源搬进本机设置文件 debug 节的门禁（#1012 第 8 条）。
  *
- * 这一份门禁量十八件事，每一件都用完整的一句话说清，第一次读的人能直接看懂。
+ * 这一份门禁量十九件事，每一件都用完整的一句话说清，第一次读的人能直接看懂。
  * 第一件事是构建与登记：这一片的运行时形状来自拼接，不跑构建就证明不了它进了双产物；它必须排在写这一趟
  *   之后（要用待写队列与排期）与运行时那份日志内核之后（要用 logSwitch / persistLocalDebugSwitch 等名字）。
  * 第二件事是开机秒显仍读旧键 dsws.debug：同步、不等文件（这是包里的行为，本次不回归）。
@@ -33,7 +33,13 @@
  * 第十七件事是不新增日志事件名：这一片只用既有的 host.call.fail 与 storage.fail，两个名字都在 #489 附录里，
  *   而且是对着构建产物里这一片的实际字符串查（源码里事件名走变量就漏，2026-10-12 复核指出）。
  * 第十八件事是宿主那份副本没跟上（推送失败）时怎么收场：回包带上 hostPushed 把副本状态交给界面，界面换一句
- *   带限定语的文案（不许只弹「已开启」），并且下一次文档到手（下一次打开设置页）会自动再推一次，让一次失败自愈。
+ *   带限定语的文案（拨成开、拨成关各一句，不许只弹「已开启」），并且下一次打开设置页会自动再推一次，让一次
+ *   失败自愈（2026-10-12 复核的必修 B：真触发路径在设置页挂载那一趟，不在内部函数上）。
+ * 第十九件事是在真产物上真跑一遍设置页（jsdom + 真 React，手法照 tests/verify-log-switch-597.js）：量三件
+ *   只有用户视角才量得到的事 —— ① 老路慢、文档先到手那一趟不许把用户刚拨的值顶回去（复核的必修 A，用
+ *   D:\Temp\rev-probe\q3-race-both.js 复现过的确定性丢拨动）；② 副本没跟上之后，下一次打开设置页那一趟
+ *   （真挂载）自己把副本重推一次（必修 B 的真触发路径）；③ 副本没跟上时拨成开、拨成关各弹各的限定语，
+ *   拨成关那一趟绝不许出现「已打开」那种把话说反的字样（必修 C）。
  *
  * 怎么保证量的是真件：运行时那几个名字不是替身，而是构建真正拼进去的那一份
  *   （scripts/generated/logKernel.derived.js，即 npm 包 dsh-log 的客户端产物，scripts/build.mjs 第 500 行）
@@ -54,7 +60,12 @@ const path = require('path')
 const { pathToFileURL } = require('url')
 const { spawnSync } = require('child_process')
 const realFs = require('node:fs/promises')
-const { compileFn } = require('./lib/eval-probe.js')
+const { compileFn, evalInWindow } = require('./lib/eval-probe.js')
+// 第十九件事要真跑一遍设置页：在开了 runScripts 的 jsdom 窗口里跑打包产物、用真 React 挂载真组件，
+//   与 tests/verify-log-switch-597.js 同一套手法（那一份是现成的样板，本门禁照抄它的桩形状）。
+const { JSDOM } = require('jsdom')
+const React = require('react')
+const ReactDOMClient = require('react-dom/client')
 // 防抖窗口是五百毫秒，这一份门禁里有十几处等它落地；接上虚拟时钟把等待压成几毫秒，断言一条没动
 //   （为什么这么压是安全的见 tests/lib/time-compress.js 文件头）。
 const { installTimeCompression } = require('./lib/time-compress.js')
@@ -67,6 +78,8 @@ const check = (ok, msg, detail) => {
   if (ok) { console.log('  PASS ' + msg); passed += 1 } else { console.log('  FAIL ' + msg + (detail ? ' —— ' + String(detail).slice(0, 300) : '')); failed += 1 }
 }
 const readText = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
+// 行数口径与 tests/verify-file-granularity.js 的 LIMIT=350 是同一个算法：按换行切段计数，文件末尾那个换行
+//   会多算一段（两个地方同一种口径，不另立一套，也不在这里做「减一」的修正）。
 const countLines = (rel) => readText(rel).split(/\r?\n/).length
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const makeHome = (tag) => fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-dbg-' + tag + '-'))
@@ -262,6 +275,13 @@ async function main() {
   }, capMs)
   // 「一次都没写」这类断言要先等防抖窗口走完再数：窗口没过就数 0 是结构上不可能失败的断言（2026-10-12 复核指出）。
   const quietAfter = async (env) => { await sleep(env.mod.VIEW_FLAG_WRITE_DEBOUNCE_MS + 200) }
+  // 光数「没发写电话」还不够：这一趟还可能在队列里留着一笔、或排期还挂着（排期一到就又发一趟）。所以再钉一句
+  //   「定时器已停、待写队列为空」，把「真的什么都没打算写」量完整（2026-10-12 复核的顺带建议 ①）。
+  const checkNoPending = (env, msg) => {
+    const st = env.mod.viewFlagState
+    const left = Object.keys(st.journal).length + Object.keys(st.deferred).length
+    check(st.timer === 0 && left === 0, msg, JSON.stringify({ timer: st.timer, journal: Object.keys(st.journal), deferred: Object.keys(st.deferred) }))
+  }
 
   // ── 第二件事：开机秒显仍读旧键（同步、不等文件）──
   console.log('')
@@ -292,6 +312,7 @@ async function main() {
     check(legacyOf(env) && legacyOf(env).enabled === true, '旧键被写成开，当这一趟的秒显快照。', JSON.stringify(legacyOf(env)))
     await quietAfter(env)
     check(callsOf(env, 'wf.setSettings').length === 0, '文件里已经是这个值 → 不往文件里写多余的东西（一次 wf.setSettings 都没有）。', String(callsOf(env, 'wf.setSettings').length))
+    checkNoPending(env, '这一趟也没留下待写与排期（定时器已停、队列为空）。')
   }
 
   // ── 第四件事：文件说关、旧键说开 → 认旧键（升级前用户的选择），并排队写回文件 ──
@@ -323,6 +344,7 @@ async function main() {
     check(env.mod.logSwitch.enabled === false, '没有任何证据说开 → 默认关。', String(env.mod.logSwitch.enabled))
     await quietAfter(env)
     check(callsOf(env, 'wf.setSettings').length === 0, '不往用户从没碰过的文件里添一笔默认值（没有 wf.setSettings）。', String(callsOf(env, 'wf.setSettings').length))
+    checkNoPending(env, '默认关这一档也没留下待写与排期。')
     const push = lastCall(env, 'wf.logSetSwitch')
     check(!!push && push.args.enabled === false, '宿主副本照旧对齐成关（推一次措辞相同的一份）。', JSON.stringify(push && push.args))
   }
@@ -365,7 +387,9 @@ async function main() {
     const res = await env.mod.settingsDebugToggle(true, 1)
     check(!!res && res.ok === false && res.error === 'host-rejected', '宿主拒绝 → 回包原样是 host-rejected。', JSON.stringify(res))
     check(callsOf(env, 'wf.logSetSwitch').length >= 1, '走的是老路那条宿主电话（宿主收到了 wf.logSetSwitch）。', String(callsOf(env, 'wf.logSetSwitch').length))
+    await quietAfter(env)
     check(callsOf(env, 'wf.setSettings').length === 0, '接不下时一个字节都不往设置文件写。', String(callsOf(env, 'wf.setSettings').length))
+    checkNoPending(env, '接不下这一档也没留下待写与排期（老路失败，什么都不许排）。')
     check(env.mod.logSwitch.enabled === false, '老路失败 → 本地值保持原样（不假装成功）。', String(env.mod.logSwitch.enabled))
 
     const env2 = makeEnv({ tag: 'fallback-throw', getFail: true, logSetThrow: true })
@@ -528,6 +552,7 @@ async function main() {
     check(callsOf(env, 'wf.logSetSwitch').length >= 1, '这一下走的是包里的老路（宿主开关电话收到了）。', String(callsOf(env, 'wf.logSetSwitch').length))
     await quietAfter(env)
     check(callsOf(env, 'wf.setSettings').length === 0, '没有拿空壳当文档往文件里写（写这条电话一次都没调）。', String(callsOf(env, 'wf.setSettings').length))
+    checkNoPending(env, '空壳这一档也没留下待写与排期。')
     check((await readDoc(env.home)) === null, '文件没有被凭空造出来。', JSON.stringify(await readDoc(env.home)))
     check(env.mod.logSwitch.enabled === true, '内存里这一下是开（老路写的）。', String(env.mod.logSwitch.enabled))
     // 二、写之前那次重读答半份文档：不许拿它当基底整份写回，别的几节要被保住。
@@ -573,6 +598,9 @@ async function main() {
     const sentDbg = firstWrite && firstWrite.args && firstWrite.args.value && firstWrite.args.value.debug
     check(!!sentDbg && sentDbg.enabled === true && sentDbg.sampleRate === 1,
       '第一趟发出去的 debug 节就是 {enabled: true, sampleRate: 1}（只写开关那一格时这里会是旧的 0.25）。', JSON.stringify(sentDbg))
+    // 「只发一趟」也要等防抖窗口走完再数（2026-10-12 复核的顺带建议 ②）：窗口没过时「补的那一趟」还没排上，
+    //   数出来永远是 1，那条断言就成了结构上不可能失败的断言。判据仍是上面「第一趟发出去的那份文档」。
+    await quietAfter(env3)
     check(callsOf(env3, 'wf.setSettings').length === 1, '写这一趟只发一次（第一趟就带对了值，不必自己再补一趟）。', String(callsOf(env3, 'wf.setSettings').length))
     // 四、第一趟就答半份 {version:1}（2026-10-12 复核的必修 1）：收文档那一步只判「是不是对象」时，这份半成品会被收进
     //   内存，写这一趟重读又答同一份半成品，于是拿它当基底整份写回 —— 核归一之后用户的 ui / workspaces / templates
@@ -592,6 +620,7 @@ async function main() {
     check(callsOf(env4, 'wf.logSetSwitch').length >= 1, '这一下走的是包里的老路。', String(callsOf(env4, 'wf.logSetSwitch').length))
     await quietAfter(env4)
     check(callsOf(env4, 'wf.setSettings').length === 0, '半份文档没被当基底写回文件（写电话一次都没调）。', String(callsOf(env4, 'wf.setSettings').length))
+    checkNoPending(env4, '半份文档这一档也没留下待写与排期。')
     const d4 = await readDoc(home4)
     check(!!d4 && d4.ui.stateFilter === 'open' && !!d4.workspaces['D:\\proj'] && d4.templates.comment === 'hello',
       '盘上文件原样还在：ui / workspaces / templates 三节都没被写成空值。', JSON.stringify({ ui: d4 && d4.ui, ws: d4 && d4.workspaces, tpl: d4 && d4.templates }))
@@ -616,6 +645,7 @@ async function main() {
     check(callsOf(env, 'wf.logSetSwitch').length >= 1, '走的是包里的老路。', String(callsOf(env, 'wf.logSetSwitch').length))
     await quietAfter(env)
     check(callsOf(env, 'wf.setSettings').length === 0, '只读文档一次都没被写回去。', String(callsOf(env, 'wf.setSettings').length))
+    checkNoPending(env, '只读这一档也没留下待写与排期（老路成功时只补旧键快照）。')
     check(fs.readFileSync(settingsPathIn(home), 'utf8') === rawBefore, '文件逐字节没变（只读这一档不许动它）。')
   }
 
@@ -666,7 +696,7 @@ async function main() {
 
   // ── 第十八件事：宿主那份副本没跟上时怎么收场（回包带上副本状态、界面换限定语、下一次机会自动重推）──
   console.log('')
-  console.log('== 第十八件事：宿主副本没跟上 → 回包带 hostPushed、界面换限定语文案、下一次文档到手自动重推 ==')
+  console.log('== 第十八件事：宿主副本没跟上 → 回包带 hostPushed、界面按方向换限定语文案、下一次打开设置页自动重推 ==')
   {
     // 一、副本拒绝：文件这条路接得下，真源照样算成功，但回包要把副本状态带出来；下一次文档到手要自己重推一次。
     const env = makeEnv({ tag: 'hostpushed-no', logSetRefuse: true })
@@ -676,10 +706,12 @@ async function main() {
     const res = await env.mod.settingsDebugToggle(true, 1)
     check(!!res && res.ok === true && res.hostPushed === false,
       '副本被拒 → 真源照样算成功，但回包把副本状态带出来（hostPushed: false）。', JSON.stringify(res))
-    const pushesBefore = callsOf(env, 'wf.logSetSwitch').length
-    env.mod.settingsDebugAdoptFromDoc()
-    check(callsOf(env, 'wf.logSetSwitch').length > pushesBefore,
-      '下一次文档到手时自己重推了一次（一次失败能自愈，不用用户再拨一遍）。', String(callsOf(env, 'wf.logSetSwitch').length - pushesBefore))
+    // 自愈那一步的真触发路径在第十九件事里真跑一遍设置页来量（2026-10-12 复核的必修 B：直接调内部函数
+    //   只能证明那个函数还在，证明不了产品里那一趟真的会走到它 —— adopt 一个会话只跑一次，这条路上的
+    //   重推在产品里到不了）。这里先钉一句静态的：设置页挂载那一趟确实留了口子。
+    const pageRetry = readText('src/client/views/SettingsPage.js')
+    check(pageRetry.indexOf('settingsDebugRetryHost') >= 0 && pageRetry.indexOf('React.useEffect') >= 0,
+      '设置页在挂载那一趟留了重推口子（settingsDebugRetryHost 在 useEffect 里被调用）。', String(pageRetry.indexOf('settingsDebugRetryHost')))
     // 二、副本接受：回包 hostPushed: true（界面照旧弹那句不带限定语的）。
     const env2 = makeEnv({ tag: 'hostpushed-yes' })
     await store.writeLocalSettings(dbgDoc({ enabled: false, sampleRate: 1 }), env2.home, realIo)
@@ -687,16 +719,264 @@ async function main() {
     check(await ready(env2), '文档到手。')
     const res2 = await env2.mod.settingsDebugToggle(true, 1)
     check(!!res2 && res2.ok === true && res2.hostPushed === true, '副本接上了 → 回包 hostPushed: true。', JSON.stringify(res2))
-    // 三、界面：副本没跟上时不弹没限定语的「已开启」，换的是那一句说清「文件已写、本机日志暂时记不下」的文案；
-    //   这句话中文与英文两份词表里都得有（界面文案一律走词表，不许写字面量）。
+    // 三、界面：副本没跟上时不弹没限定语的「已开启」，而且两个方向各有一句（拨成开说「文件已写、副本没接上」，
+    //   拨成关说「文件已写、副本还开着，调试行还在记」）—— 拿同一句套两个方向，总有一边把话说反。这句话中文
+    //   与英文两份词表里都得有（界面文案一律走词表，不许写字面量）。
     const page = readText('src/client/views/SettingsPage.js')
-    check(page.indexOf('res.hostPushed === false') >= 0 && page.indexOf("'cfg.dbgSwitchOnNoHost'") >= 0,
-      '设置页按 hostPushed 换文案：副本没跟上时不弹没限定语的「已开启」。', String(page.indexOf('cfg.dbgSwitchOnNoHost')))
-    const localeLines = readText('src/client/kernel/locale-flow.js').split(/\r?\n/).filter((l) => l.indexOf("'cfg.dbgSwitchOnNoHost'") >= 0)
-    const zhLine = localeLines.find((l) => l.indexOf('调试日志已打开') >= 0) || ''
-    const enLine = localeLines.find((l) => l.indexOf('Debug log on') >= 0) || ''
-    check(zhLine.length > 0 && enLine.length > 0 && zhLine !== enLine,
-      '这句限定语在中文与英文两份词表里都有，而且各自写成本国语言（不是同一句抄两遍）。', JSON.stringify(localeLines.map((l) => l.length)))
+    check(page.indexOf('res.hostPushed === false') >= 0 && page.indexOf("'cfg.dbgSwitchOnNoHost'") >= 0 && page.indexOf("'cfg.dbgSwitchOffNoHost'") >= 0,
+      '设置页按 hostPushed 与方向换文案：副本没跟上时拨成开、拨成关各一句，都不弹没限定语的那句。',
+      JSON.stringify({ hostPushed: page.indexOf('res.hostPushed === false'), on: page.indexOf('cfg.dbgSwitchOnNoHost'), off: page.indexOf('cfg.dbgSwitchOffNoHost') }))
+    const localeSrc = readText('src/client/kernel/locale-flow.js')
+    const localeOf = (key) => localeSrc.split(/\r?\n/).filter((l) => l.indexOf("'" + key + "'") >= 0)
+    const zhOn = localeOf('cfg.dbgSwitchOnNoHost').find((l) => l.indexOf('调试日志已打开') >= 0) || ''
+    const enOn = localeOf('cfg.dbgSwitchOnNoHost').find((l) => l.indexOf('Debug log on') >= 0) || ''
+    const zhOff = localeOf('cfg.dbgSwitchOffNoHost').find((l) => l.indexOf('调试日志已关') >= 0) || ''
+    const enOff = localeOf('cfg.dbgSwitchOffNoHost').find((l) => l.indexOf('Debug log off') >= 0) || ''
+    check(zhOn.length > 0 && enOn.length > 0 && zhOn !== enOn,
+      '拨成开那句限定语在中文与英文两份词表里都有，而且各自写成本国语言（不是同一句抄两遍）。', JSON.stringify([zhOn.length, enOn.length]))
+    check(zhOff.length > 0 && enOff.length > 0 && zhOff !== enOff,
+      '拨成关那句限定语同样中英各一份。', JSON.stringify([zhOff.length, enOff.length]))
+  }
+
+  // ── 第十九件事：真产物里真跑一遍设置页（jsdom + 真 React）──
+  //   为什么要真跑（2026-10-12 复核的必修 A / B / C）：前面那些分节量的是内核函数，量不到「用户点一下之后
+  //   界面到底走了哪条路、弹的是哪句话」。这一节用 tests/verify-log-switch-597.js 那套手法把打包产物在
+  //   jsdom 里跑起来、用真 React 挂载设置页，按用户的样子点复选框，只读页面上真正显示出来的东西。
+  //   三件事都在这里量：① 老路慢、文档先到手那一趟不许把用户的关顶回开（必修 A）；② 副本没跟上之后，
+  //   下一次打开设置页那一趟（真挂载）要自己把副本重推一次（必修 B）；③ 两个方向的文案各说各话（必修 C）。
+  console.log('')
+  console.log('== 第十九件事：真产物里真跑设置页（jsdom）——老路与文档赛跑、下一次打开自己重推、两个方向各说各话 ==')
+  {
+    const bundleCode = readText('package/lib/client.js')
+    // 五节齐全的一份真文档（核归一之后就是这个形状）；enabled 是这一张页面文件里的那个值。
+    const fullDocOf = (enabled) => ({ version: 1, ui: { stateFilter: '', sortKey: '', sortDir: '', labelClicks: {} }, workspaces: {}, debug: { enabled: enabled, sampleRate: 1 }, templates: {} })
+    // 一张干净的页面：真产物 + 真 React + 假宿主。桩的信封与产品一致（scripts/build.mjs:297-307 的 __rpcCall
+    //   会替 host.call 拆一层），所以这里回的是「载体那一层」：getSettings 回 {ok,value:{ok,value:文档}}。
+    //   logSetSwitch 按 setReply 走：第一拨（走包里的老路）要它收下，第二拨（走文件这条路）要它拒收。
+    const openPage = async (opts) => {
+      const dom = new JSDOM('<!doctype html><html><head></head><body></body></html>', { url: 'http://127.0.0.1:59519/', runScripts: 'dangerously' })
+      const { window } = dom
+      for (const [k, v] of Object.entries({
+        window, document: window.document, navigator: window.navigator, Node: window.Node,
+        HTMLElement: window.HTMLElement, getComputedStyle: window.getComputedStyle,
+        requestAnimationFrame: window.requestAnimationFrame || ((cb) => setTimeout(cb, 0)),
+        cancelAnimationFrame: window.cancelAnimationFrame || clearTimeout,
+      })) { try { global[k] = v } catch (e) {} }
+      if (typeof window.ResizeObserver === 'undefined') window.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} }
+      global.ResizeObserver = window.ResizeObserver
+      if (!window.document.fonts) window.document.fonts = { ready: Promise.resolve() }
+      window.React = React; window.ReactDOM = ReactDOMClient; global.React = React; global.ReactDOM = ReactDOMClient
+      if (opts.legacyOn) { try { window.localStorage.setItem('dsws.debug', JSON.stringify({ enabled: true, sampleRate: 1 })) } catch (e) {} }
+      const dict = {}
+      const trFn = (key, params) => {
+        let s = dict[key] !== undefined ? dict[key] : key
+        if (params) s = s.replace(/\{(\w+)\}/g, (m, name) => (name in params ? String(params[name]) : m))
+        return s
+      }
+      const logSet = []
+      const setCalls = []
+      const endpoints = []
+      const logSends = []
+      let setReply = opts.setReply
+      let setDelayMs = opts.setDelayMs || 0
+      const hostReply = (endpoint, args) => {
+        endpoints.push(endpoint)
+        if (endpoint === 'logBatch') { try { logSends.push(JSON.stringify(args).slice(0, 400)) } catch (e) {} return { ok: true, value: { ok: true, accepted: 1 } } }
+        if (endpoint === 'getSettings') return { ok: true, value: { ok: true, value: fullDocOf(opts.docEnabled) } }
+        // 只留一份能安全打印的摘要（真文档里带 getter 之类时 JSON.stringify 整份会抛，门禁不该踩这个坑）。
+        if (endpoint === 'setSettings') { setCalls.push({ keys: Object.keys(args || {}), valueKeys: (args && args.value) ? Object.keys(args.value) : null, dbg: (args && args.value && args.value.debug) ? JSON.parse(JSON.stringify(args.value.debug)) : null }); return { ok: true, value: { ok: true } } }
+        if (endpoint === 'logGetSwitch') return { ok: true, value: { ok: true, enabled: opts.docEnabled === true, sampleRate: 1 } }
+        if (endpoint === 'logSetSwitch') { logSet.push(args); return setReply(args) }
+        return { ok: true, value: { ok: true } }
+      }
+      // 宿主回话慢的那一档：先把电话记下来（＝宿主收到了），再等一段时间才回（虚拟时钟里这一步是确定的，
+      //   与 tests/lib/time-compress.js 的虚拟时钟一起用，「文档在这中间到手」这件事可复现）。
+      const callHost = async (endpoint, args) => {
+        if (endpoint !== 'logSetSwitch') return hostReply(endpoint, args)
+        logSet.push(args)
+        const reply = setReply(args)
+        if (setDelayMs > 0) await sleep(setDelayMs)
+        return reply
+      }
+      let settingsComp = null
+      const services = {
+        slots: { register: (meta, comp) => { if (meta && meta.name === 'settings.plugins.tab') settingsComp = comp; return () => {} }, inject: (n, fn) => { try { fn() } catch (e) {} } },
+        locale: { register: (ns, d) => { Object.assign(dict, d.zh || {}, d.en || {}); return () => {} }, bind: () => trFn },
+        workspaces: { list: async () => [] },
+        sessions: { list: async () => [] },
+        // 计时器：只压两处 —— 看门狗那 5 秒压成 600 毫秒（虚拟时钟里仍比 300 毫秒慢的宿主晚，顺序不变）、
+        //   防抖那 500 毫秒压成 20 毫秒。其余延时照常：提示条自己那条 2800 毫秒的退场计时器必须留着原值，
+        //   压了它提示条会在读到之前就没了（本门禁第一版就踩过这一脚）。
+        timer: { timeout: (fn, ms) => setTimeout(fn, ms >= 5000 ? 600 : (ms === 500 ? 20 : ms)) },
+      }
+      services.connection = {
+        rpc: {
+          call: async (channel, carrier, call) => callHost(String((call && call.method) || '').replace(/^wf\./, ''), call ? call.payload : undefined),
+        },
+      }
+      const ctx = { get: (k) => services[k], effect: (fn) => { const r = fn(); return typeof r === 'function' ? r : () => {} } }
+      let loaded = null
+      window.__ModuleLoader__ = { load(spec) { loaded = spec; return spec } }
+      const realError = console.error
+      const realWarn = console.warn
+      console.error = () => {}
+      console.warn = () => {}
+      try {
+        evalInWindow(dom, bundleCode)
+        const mod = loaded.factory((m) => {
+          if (m === 'react') return React
+          if (m === 'react-dom') return ReactDOMClient
+          throw new Error('unexpected require: ' + m)
+        })
+        try { mod.apply(ctx) } catch (e) { /* 深层依赖没 stub 全，不影响本场景 */ }
+      } finally {
+        console.error = realError
+        console.warn = realWarn
+      }
+      // 挂载一趟（＝用户打开一次设置页）。宿主每次打开都重新挂载这一页，所以这一趟就是「下一次机会」。
+      const mount = async () => {
+        const container = window.document.createElement('div')
+        window.document.body.appendChild(container)
+        const root = ReactDOMClient.createRoot(container)
+        const realE = console.error
+        const realW = console.warn
+        console.error = () => {}
+        console.warn = () => {}
+        try {
+          await React.act(async () => {
+            root.render(React.createElement(settingsComp, { sessionId: 'sid-19' }))
+            await new Promise((r) => setTimeout(r, 60))
+          })
+        } finally {
+          console.error = realE
+          console.warn = realW
+        }
+        return { container, root }
+      }
+      const boxOf = (container) => {
+        for (const lab of Array.from(container.querySelectorAll('label'))) {
+          if (/调试日志|Debug log/i.test(lab.textContent || '')) { const b = lab.querySelector('input[type=checkbox]'); if (b) return b }
+        }
+        return null
+      }
+      const toastOf = (container) => {
+        const m = container.innerHTML.match(/dsws-note[^>]*>(.*?)<\/div>/i)
+        return m ? m[1].replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() : ''
+      }
+      const click = async (container) => {
+        const box = boxOf(container)
+        if (!box) return false
+        const realE = console.error
+        const realW = console.warn
+        console.error = () => {}
+        console.warn = () => {}
+        try {
+          await React.act(async () => {
+            box.click()
+            await new Promise((r) => setTimeout(r, 120))
+          })
+        } finally {
+          console.error = realE
+          console.warn = realW
+        }
+        return true
+      }
+      // 本页自己那一格反馈（点完 600 毫秒后自己清掉，所以要紧接着读）：它出现就说明点开关那一趟的 .then 跑到了，
+      //   与共享提示（dsws-note）是同一个回调里设的 —— 用来区分「提示早被清掉」与「回调压根没跑」。
+      const flashOf = (container) => {
+        const html = container.innerHTML
+        if (html.indexOf('dsws-fb-warnflash') >= 0) return 'warn'
+        if (html.indexOf('dsws-fb-okflash') >= 0) return 'ok'
+        return ''
+      }
+      // 提示在页面上只留 600 毫秒（SettingsPage 里那个 setTimeout），所以点完要紧接着轮询着读，别等太久。
+      const waitToast = async (container, capMs) => {
+        const cap = capMs || 400
+        let t = ''
+        for (let i = 0; i < Math.ceil(cap / 20) && !t; i++) { await sleep(20); t = toastOf(container) }
+        return t
+      }
+      return { window, dict, logSet, setCalls, endpoints, logSends, mount, click, toastOf, waitToast, flashOf, boxOf, setReply: (f) => { setReply = f } }
+    }
+    // 一、老路慢、文档先到手那一趟（必修 A 的决定性用例）：页面打开时文档还没问过（status 是 idle），
+    //   这一拨先走包里的老路（宿主 300 毫秒才回），文档在这中间到手 —— 采纳那一趟必须因为「簿子上有痕迹」
+    //   而让开，不许照文件里的 true 把用户刚拨的关顶回去。老毛病实测（D:\Temp\rev-probe\q3-race-both.js）：
+    //   宿主依次收到 enabled=[false,true]，最终副本是 true（用户想要 false），文件里也还是 true。
+    {
+      const p = await openPage({
+        docEnabled: true, legacyOn: true, setDelayMs: 300,
+        setReply: (args) => ({ ok: true, value: { ok: true, enabled: args.enabled === true, sampleRate: 1 } }),
+      })
+      const a = await p.mount()
+      const box0 = p.boxOf(a.container)
+      check(!!box0 && box0.checked === true, '这一张页面开局是开（文件与旧键都说开）。', String(!!box0 && box0.checked))
+      check(await p.click(a.container), '拨成关（走包里的老路，宿主 300 毫秒后才回）点得动。')
+      await sleep(700)
+      check(p.setCalls.length >= 1, '这一拨还是排进了设置文件（簿子上的痕迹让采纳那一趟让开，用户这一下没丢）。', String(p.setCalls.length))
+      const dbgSends = p.setCalls.map((c) => c.dbg).filter(Boolean)
+      check(dbgSends.length >= 1 && dbgSends[dbgSends.length - 1].enabled === false, '写进文件的是用户拨的关（不是文件里原来的 true）。', JSON.stringify(dbgSends))
+      const lastPush = p.logSet[p.logSet.length - 1]
+      check(!!lastPush && lastPush.enabled === false, '宿主副本最后收到的值跟用户这一下一致（没有把用户的关顶回开）。', JSON.stringify(p.logSet))
+      try { a.root.unmount() } catch (e) {}
+    }
+    // 二、副本没跟上（必修 B + C 的拨成关方向）：第一拨拨成开（走老路，宿主收下，文档被问起来），
+    //   文档到手后再拨成关 —— 这一趟走文件这条路、副本拒收：界面必须说「已关、副本还开着」，不许出现
+    //   「已打开」；卸掉页面重新挂一次（＝下一次打开设置页），自愈口子要把内存这一份重推给副本。
+    {
+      const p = await openPage({
+        docEnabled: false,
+        setReply: (args) => ({ ok: true, value: { ok: true, enabled: args.enabled === true, sampleRate: 1 } }),
+      })
+      const a = await p.mount()
+      const boxA = p.boxOf(a.container)
+      check(!!boxA && boxA.checked === false, '这一张页面开局是关。', String(!!boxA && boxA.checked))
+      check(await p.click(a.container), '第一拨（拨成开，走老路）点得动。')
+      check(p.logSet.length >= 1 && p.logSet[0].enabled === true, '第一拨走了老路，宿主收到开。', JSON.stringify(p.logSet[0]))
+      await sleep(200)
+      p.setReply(() => ({ ok: true, value: { ok: false } }))
+      check(await p.click(a.container), '第二拨（拨成关，走文件这条路）点得动。')
+      check(p.setCalls.length >= 1, '第二拨把整份文档交给宿主（wf.setSettings 收到了）。', String(p.setCalls.length))
+      const offToast = await p.waitToast(a.container)
+      check(offToast === p.dict['cfg.dbgSwitchOffNoHost'],
+        '副本拒收时弹的是「已关…副本还开着」那一句（拨成关这一方向）。',
+        JSON.stringify({ toast: offToast, flash: p.flashOf(a.container), want: p.dict['cfg.dbgSwitchOffNoHost'], setCalls: p.setCalls.length, endpoints: p.endpoints.length, logs: p.logSends.slice(-2) }))
+      check(offToast.indexOf('已打开') < 0 && !/Debug log on/i.test(offToast),
+        '拨成关这一趟不许出现「已打开」那种把话说反的字样。', offToast)
+      const pushesBefore = p.logSet.length
+      try { a.root.unmount() } catch (e) {}
+      p.setReply((args) => ({ ok: true, value: { ok: true, enabled: args.enabled === true, sampleRate: 1 } }))
+      const b = await p.mount()
+      await sleep(150)
+      check(p.logSet.length > pushesBefore,
+        '重新打开设置页那一趟（真挂载）自己把副本重推了一次（自愈不靠内部函数）。', String(p.logSet.length - pushesBefore))
+      const repush = p.logSet[p.logSet.length - 1]
+      check(!!repush && repush.enabled === false, '重推的是内存里这一份真值（用户刚拨成的关）。', JSON.stringify(repush))
+      const boxB = p.boxOf(b.container)
+      check(!!boxB && boxB.checked === false, '重新打开这一趟开关停在关（这一份真值在界面上没被翻回去）。', String(!!boxB && boxB.checked))
+      try { b.root.unmount() } catch (e) {}
+    }
+    // 三、副本没跟上、拨成开这一方向（必修 C 的另一半）：文档说关、第一拨拨成开走老路，文档到手后再拨一次
+    //   （走文件这条路、副本拒收）→ 界面必须说「已打开、文件已写、副本没接上」那一句。
+    {
+      const p = await openPage({
+        docEnabled: false,
+        setReply: (args) => ({ ok: true, value: { ok: true, enabled: args.enabled === true, sampleRate: 1 } }),
+      })
+      const a = await p.mount()
+      check(await p.click(a.container), '第一拨（拨成开，走老路）点得动。')
+      await sleep(200)
+      // 拨成开之后要再拨一次开没有意义，所以先拨回关（这一趟走文件这条路，副本收下），再拒收后拨成开。
+      p.setReply((args) => ({ ok: true, value: { ok: true, enabled: args.enabled === true, sampleRate: 1 } }))
+      check(await p.click(a.container), '中间那一拨（拨回关，走文件这条路）点得动。')
+      await sleep(150)
+      p.setReply(() => ({ ok: true, value: { ok: false } }))
+      check(await p.click(a.container), '最后一拨（拨成开，走文件这条路、副本拒收）点得动。')
+      const onToast = await p.waitToast(a.container)
+      check(onToast === p.dict['cfg.dbgSwitchOnNoHost'],
+        '副本拒收时弹的是「已打开…副本没接上」那一句（拨成开这一方向）。',
+        JSON.stringify({ toast: onToast, flash: p.flashOf(a.container), want: p.dict['cfg.dbgSwitchOnNoHost'], setCalls: p.setCalls.length, endpoints: p.endpoints.length, logs: p.logSends.slice(-2) }))
+      try { a.root.unmount() } catch (e) {}
+    }
   }
 
   console.log('')

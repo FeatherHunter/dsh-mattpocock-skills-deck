@@ -1,34 +1,24 @@
 /**
  * src/client/kernel/settings-debug.js — 内核模块（#1012 第 8 条：调试开关的真源搬进本机设置文件的 debug 节）
  *
- * 契约：本文件是模块真源（ESM 导出）；scripts/build.mjs 在构建时去掉每行行首的 export 关键字，把声明体文本拼回
- *   src/client/index.js 里 kernel:settingsDebug 拼接标记处（apply 闭包内原位），一源两物、src 零复制。拼接次序
- *   必须在 kernel:log 与 kernel:settingsTemplates 之后：本片要用运行时那份日志内核的名字（kernel:log 拼进来的是
- *   scripts/generated/logKernel.derived.js，也就是真正在跑的那一份，见 scripts/build.mjs 第 500 行），并与界面
- *   偏好、动作模板那两族共用同一个待写队列与同一份文档（kernel/settings-view-write.js）。
+ * 契约：scripts/build.mjs 去掉行首 export 后把声明体拼进 src/client/index.js 的 kernel:settingsDebug 标记处（apply 闭包
+ *   内原位）；次序必须在 kernel:log 与 kernel:settingsTemplates 之后 —— 运行时那份日志内核在 npm 包 dsh-log 里（log.js
+ *   只是 #564 留而不搬的旧真源，改它既不进产物、还会让 verify-client-no-undef 变红），本片要与界面偏好、动作模板共用
+ *   同一个待写队列与同一份文档（kernel/settings-view-write.js）。包里那几个名字都在同一闭包里，直接拿来用。
  *
- * 为什么真源落在本片而不是 src/client/kernel/log.js：运行时那个日志开关住在 npm 包 dsh-log 里，log.js 只是
- *   #564 留而不搬的旧真源，改它既不进产物、还会让 verify-client-no-undef 变红。包里的 readLocalDebugSwitch /
- *   persistLocalDebugSwitch / logSwitch / setLogSwitch / reconcileLogSwitch 都在同一个闭包里，直接拿来用。
+ * 维护者 2026-10-12 拍板（#1012 评论 6113252694）：真源是本机设置文件 <用户主目录>/.dsh/mattskillsdeck/settings.yaml
+ *   的 debug 节 { enabled, sampleRate }；宿主那份 log-switch.json 只是副本。旧键 dsws.debug 只剩两个用处：开机秒显的
+ *   同步快照，以及「升级前用户选过什么」的线索。一条缺口：宿主副本眼下仍是「日志记不记」的实际闸门（src/host/logStore.js
+ *   的 isEnabled 只认它），副本没接上就记不下调试行；改宿主不在本票范围，本片只能把结果回给界面（文案带限定语）并在下
+ *   一次机会自己重推一次（settingsDebugRetryHost）。
  *
- * 维护者 2026-10-12 拍板（#1012 评论 6113252694）：真源是本机设置文件 <用户主目录>/.dsh/mattskillsdeck/
- *   settings.yaml 的 debug 节（形状 { enabled, sampleRate }）；宿主那份 log-switch.json 只是当初经
- *   wf.logSetSwitch 设出来的副本，不是真源。旧 localStorage 键 dsws.debug 只剩两个用处：开机秒显的同步快照，
- *   以及「升级前用户选过什么」的线索。一条缺口要说清：宿主那份副本眼下仍是「日志到底记不记」的实际闸门
- *   （宿主侧只认副本，见 src/host/logStore.js 的 isEnabled），副本没接上就记不下调试行；改宿主那一侧不在本票
- *   写范围，本片只能把推送结果回给界面（文案带限定语），并在下一次机会自己重推一次。
- *
- * 写这一侧（settingsDebugToggle / settingsDebugSet）：先写设置文件，写进去了就算成功 —— 内存、旧键快照、广播，
- *   顺手把宿主那份推成一样。这条路接不下（文档问不到、更高版本、形状对不上）才退回老路：调包里的 setLogSwitch，
- *   错误码、超时、代际、失败分类一字不改；老路真的成功了才把这一笔记进队列，记早了会留下「界面说失败、文件里
- *   却写着那个值」的假象。
- *
- * 队列里 debug 那两笔与界面偏好、动作模板同形：没有工作区路径，只有格名。记号是 \u0000debug\u0000 + 格名
- *   （工作区路径里不可能出现 \u0000，三族记号不会撞上）；section 记 'debug'，kernel/settings-view.js 的
- *   viewFlagSettle 与 kernel/settings-view-write.js 的三处（写前重读合并、回包取值、写失败兜底）按它分派。
+ * 写这一侧：先写设置文件，写进去了就算成功（内存、旧键快照、广播，顺手把宿主副本推成一样）；这条路接不下（文档问不到、
+ *   更高版本、形状对不上）才退回包里的 setLogSwitch，错误码、超时、代际、失败分类一字不改；老路真成功了才把这一笔记进
+ *   队列（记早了会留下「界面说失败、文件里却写着那个值」的假象）。队列里那两笔同形：section 'debug'，记号 \u0000debug\u0000
+ *   + 格名（见 settingsDebugJournalKeyOf），kernel/settings-view.js 的 viewFlagSettle 与 settings-view-write.js 的三处分派。
  */
-    // 这一节的格名与核（src/shared/config-store/settings.js 第 102–111 行的 debug 两格）同一份：enabled 是布尔
-    //   开关，sampleRate 是 0 到 1 之间的数字（越界会被核整份拒绝）。本片是唯一的写入方，所以名字在这里钉死。
+    // 这一节的格名与核（src/shared/config-store/settings.js 第 102–111 行）同一份：enabled 是布尔开关，sampleRate 是 0 到 1
+    //   之间的数字（越界会被核整份拒绝）；本片是唯一的写入方，所以名字在这里钉死。
     const SETTINGS_DEBUG_NAMES = ['enabled', 'sampleRate']
     // 宿主一直不回话时不许把界面吊在那里（包里的老路也是靠一个五秒守护收口）：等够这么久就按「没接上」回。
     const SETTINGS_DEBUG_PUSH_WAIT_MS = 5000
@@ -38,8 +28,7 @@
     let settingsDebugHostStale = false
     // 最近一次推送的结果（Promise<boolean>）：拨开关那一趟要把它回给界面，界面才知道要不要说限定语。
     let settingsDebugHostPush = null
-    // 旧键在模块加载那一刻的样子：见过没有、当时说的是开还是关、采样率多少。必须在包的 reconcileLogSwitch 之前读：
-    //   那一位会用宿主副本把旧键覆盖掉（见文件头那段「证据」），之后再读就不是升级前用户的选择了。
+    // 旧键在模块加载那一刻的样子：必须在包的 reconcileLogSwitch（它会用宿主副本覆盖旧键）之前读，否则读到的不是升级前的选择。
     const settingsDebugLegacy = (function () {
       try {
         if (typeof localStorage === 'undefined' || !localStorage) return { seen: false, enabled: false, sampleRate: 1 }
@@ -54,8 +43,16 @@
         }
       } catch (e) { return { seen: false, enabled: false, sampleRate: 1 } }
     })()
-    // 队列里 debug 那两笔的记号：固定段名 + \u0000 + 格名（见文件头那一段）。
+    // 队列里 debug 那两笔的记号：固定段名 + \u0000 + 格名（工作区路径里不可能出现 \u0000，三族记号不会撞上）。
     const settingsDebugJournalKeyOf = function (name) { return '\u0000debug\u0000' + name }
+    // 一笔的形状（待写、journal、「还没定论」三处共用一份）：section 记 'debug'，键用上面那个记号，值就是用户拨的那一个。
+    const settingsDebugItem = function (name, value) { return { section: 'debug', name: name, value: value, key: settingsDebugJournalKeyOf(name) } }
+    // idle 档那一笔「还没定论」的簿子：用户拨开关时文档从没问过（这一拨自己把它问起来），老路还没回话 —— 这一刻既不能
+    //   记进待写队列（老路可能被拒，文件里一个字都不许留），又不能不留痕迹：采纳那一步只看待写队列与 journal，看不见这
+    //   一笔就会照文件里的旧值把内存与宿主副本顶回去，而宿主副本才是「日志记不记」的实际闸门（2026-10-12 复核实得：
+    //   用户从开拨到关、文档先到手时，宿主最后停在开）。老路定了论就清空：成了交给 rememberChoice 落进文件，被拒就撤掉。
+    let settingsDebugUndecided = {}
+    const settingsDebugUndecidedClear = function () { settingsDebugUndecided = {} }
     // 文档里的 debug 节：形状对不上（更高版本插件写的文件、或不是一组「名字 → 值」）时回 null。
     const settingsDebugSectionOf = function (doc) {
       try {
@@ -65,12 +62,10 @@
         return dbg
       } catch (e) { return null }
     }
-    // 问回来的那一份到底像不像一份设置文档，两档口径。为什么要判：设置这两条电话是后加的，老宿主、别的插件占位的同号
-    //   电话都可能回一个「ok 但没有文档」的东西，当成文档接着写会把这一笔写进不存在的地方，用户拨的开关从此没了下落。
-    //   默认档：带版本号，或至少带一个已知的节；判不出来按「这条路接不下」退回包里的老路（老路把这一笔写进宿主副本与
-    //   旧键，用户那一下照样有效），下一次采纳再搬进文件。严格档（第二参数 true，要拿它当「整份写回文件的基底」时用）：
-    //   还得五节齐全 —— 只有 {version: 1} 的半份文档过得了默认档，核会按「缺的那几节是空的」归一后落盘，把用户本来的
-    //   ui / workspaces / templates 写成空值。调用点：settings-view.js 收文档那一步、settings-view-write.js 写前重读。
+    // 问回来的那一份到底像不像一份设置文档，两档口径。为什么要判：设置这两条电话是后加的，老宿主、别的插件占位的同号电话
+    //   都可能回一个「ok 但没有文档」的东西，当成文档接着写会把这一笔写进不存在的地方。默认档：带版本号，或至少带一个已知
+    //   的节，判不出来按「这条路接不下」退回老路（用户那一下照样有效），下一次采纳再搬进文件。严格档（第二参数 true，要拿它
+    //   当「整份写回文件的基底」时用）还得五节齐全：只有 {version: 1} 的半份文档过得了默认档，核归一后会把别的节写成空值。
     const settingsDebugDocLooksReal = function (doc, needAllSections) {
       try {
         if (!doc || typeof doc !== 'object' || Array.isArray(doc)) return false
@@ -151,9 +146,8 @@
         log('warn', 'host.call.fail', { method: 'wf.logSetSwitch', kind: 'set-switch-' + kind, errorHash: hashed })
       } catch (eL) {}
     }
-    // 把真源推给宿主那份副本（best-effort，返回值 Promise<boolean>：副本接上了没有）。失败只记一行分类告警并把这一
-    //   份标成「没接上」，等下一次机会自己再推（下一次文档到手时，settingsDebugAdoptFromDoc 开头那一段）—— 副本跟
-    //   不上不是用户的错，真源（设置文件 + 内存）已经定了，这一次拨动不许因此被判成失败。
+    // 把真源推给宿主那份副本（best-effort，回 Promise<boolean>：副本接上了没有）。失败只记一行分类告警并标成「没接上」，
+    //   等下一次机会自己再推（settingsDebugRetryHost 与 adopt 开头那一趟）—— 副本跟不上不是用户的错，真源已经定了。
     const settingsDebugPushToHost = function (on, rate) {
       let p = null
       try {
@@ -196,16 +190,21 @@
       try {
         const on = enabled === true
         const rate = settingsDebugRateOf(sampleRate)
-        // 文档从没问过这一档（新会话第一次打开设置页）：先交给包里的老路，同时把文档问起来；这一笔等老路真的成功了才记
-        //   （见 settingsDebugRememberChoice），记早了会留下「界面说没成、文件说成了」。为什么不能干脆不记：这个拨动自己
-        //   把文档问起来，同一趟采纳紧跟着就跑，队列里没有痕迹的话，那趟采纳会照文件里的旧值把老路刚写好的内存与宿主
-        //   副本顶回去，而这一次选择此后没有机会再进文件 —— 用户在 idle 下拨的那一下会永久丢失。
-        if (viewFlagState.status === 'idle') { settingsViewLoad(); return false }
+        // 文档从没问过这一档（新会话第一次打开设置页）：先把这一笔记进「还没定论」的簿子，再交给包里的老路并把文档问起来。
+        //   为什么必须记：这个拨动自己把文档问起来，同一趟采纳紧跟着就跑；队列里没有痕迹的话，那趟采纳会照文件里的旧值
+        //   把老路刚写好的内存与宿主副本顶回去，而这一次选择此后没有机会再进文件 —— 用户在 idle 下拨的那一下永久丢失。
+        //   为什么不能直接记待写队列：老路可能被拒，那时文件里一个字都不许留（留了就成不了「界面说没成」的假象）。
+        if (viewFlagState.status === 'idle') {
+          settingsDebugUndecided[settingsDebugJournalKeyOf('enabled')] = settingsDebugItem('enabled', on)
+          settingsDebugUndecided[settingsDebugJournalKeyOf('sampleRate')] = settingsDebugItem('sampleRate', rate)
+          settingsViewLoad()
+          return false
+        }
         if (viewFlagState.status === 'loading') {
           // 文档还在路上：先记下这两笔，等它落地再并进文档（此刻若走旧路写文件，文档一到手就会拿文件里的旧值把
           //   「刚拨的这一下」顶掉，用户会看见自己刚拨开的开关又弹回去）。
-          viewFlagState.deferred[settingsDebugJournalKeyOf('enabled')] = { section: 'debug', name: 'enabled', value: on, key: settingsDebugJournalKeyOf('enabled') }
-          viewFlagState.deferred[settingsDebugJournalKeyOf('sampleRate')] = { section: 'debug', name: 'sampleRate', value: rate, key: settingsDebugJournalKeyOf('sampleRate') }
+          viewFlagState.deferred[settingsDebugJournalKeyOf('enabled')] = settingsDebugItem('enabled', on)
+          viewFlagState.deferred[settingsDebugJournalKeyOf('sampleRate')] = settingsDebugItem('sampleRate', rate)
           return true
         }
         if (viewFlagState.status !== 'ready') return false
@@ -228,6 +227,7 @@
     //   这一刻 status 不可能是 idle（拨之前先把文档问了起来），所以不会又走一遍问文档那一支。
     const settingsDebugRememberChoice = function (on, rate) {
       try {
+        settingsDebugUndecidedClear()
         if (settingsDebugSet(on, rate) === true) {
           if (viewFlagState.status === 'ready') settingsDebugApplyTruth(on, rate, true)
           return true
@@ -254,13 +254,17 @@
           const rate = settingsDebugRateOf(sampleRate)
           const pend = setLogSwitch(enabled, sampleRate)
           if (pend && typeof pend.then === 'function') return pend.then(function (res) {
+            // 老路这一笔有了定论：「还没定论」的簿子立刻撤掉 —— 成了由 rememberChoice 落进文件，被拒则一个字都不留。
+            settingsDebugUndecidedClear()
             if (res && res.ok === true) settingsDebugRememberChoice(enabled === true, rate)
             return res
           })
+          settingsDebugUndecidedClear()
           return pend
         }
-      } catch (e2) { settingsDebugHostFailLog(settingsDebugThrowKind(e2), (e2 && e2.message) || e2) }
+      } catch (e2) { settingsDebugUndecidedClear(); settingsDebugHostFailLog(settingsDebugThrowKind(e2), (e2 && e2.message) || e2) }
       // 连包里的老路都不在（不该发生：这一份是同一个产物里的名字）：回一个与老路同类形的失败，不静默。
+      settingsDebugUndecidedClear()
       settingsDebugHostFailLog('host-unavailable', 'set-switch-missing')
       try { return Promise.resolve({ ok: false, enabled: logSwitch.enabled, error: 'host-unavailable' }) } catch (e3) { return Promise.resolve({ ok: false, enabled: false, error: 'host-unavailable' }) }
     }
@@ -269,7 +273,7 @@
     //   落好了，落盘那一趟会把这笔写进文件（同一个队列）。
     const settingsDebugHasPending = function () {
       try {
-        const groups = [viewFlagState.journal, viewFlagState.deferred]
+        const groups = [viewFlagState.journal, viewFlagState.deferred, settingsDebugUndecided]
         for (let g = 0; g < groups.length; g++) {
           const ks = Object.keys(groups[g] || {})
           for (let i = 0; i < ks.length; i++) {
@@ -280,8 +284,18 @@
       } catch (e) {}
       return false
     }
-    // 文档到手（或判定问不到）时定真值，并把它落到内存、旧键快照、界面与宿主副本上，只做一次。开头那一段是宿主
-    //   副本那条缺口的自愈口子：上一次没推上去，这里（文档又一次到手时）把内存这一份再推一次。
+    // 副本没接上时的自愈口子：设置页每次挂载那一趟由界面调它一次（views/SettingsPage.js 里的 React.useEffect），只在
+    //   这一份确实没接上时才推。为什么不能只挂在「文档到手」那一趟上：viewFlagSubscribe 是一次性订阅
+    //   （kernel/settings-view-state.js 的整批清空），一个会话只到手一趟，挂那一趟等于永远不重推（2026-10-12 复核指出）。
+    export const settingsDebugRetryHost = function () {
+      try {
+        if (!settingsDebugHostStale) return false
+        settingsDebugPushToHost(logSwitch.enabled === true, settingsDebugRateOf(logSwitch.sampleRate))
+        return true
+      } catch (e) { return false }
+    }
+    // 文档到手（或判定问不到）时定真值，并把它落到内存、旧键快照、界面与宿主副本上，只做一次。开头那一段也是自愈口子
+    //   之一（另一处是上面那个导出件：文档比拨动晚到时，那一趟就能把上一次没推上去的副本补上）。
     export const settingsDebugAdoptFromDoc = function () {
       try {
         if (settingsDebugHostStale) settingsDebugPushToHost(logSwitch.enabled === true, settingsDebugRateOf(logSwitch.sampleRate))

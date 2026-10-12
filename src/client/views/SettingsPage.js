@@ -24,6 +24,12 @@ export     const SettingsPage = (props) => {
       // #951：开关落定后行内闪光（成功绿跟提示 ok 同色，失败琥珀跟提示 warn 同色，半秒自退）
       const [dbgFlash, setDbgFlash] = React.useState('')
       const [lastExport, setLastExport] = React.useState(null)
+      // 宿主那份副本没跟上时的自愈口子（#1012 第 8 条）：这一页每次挂载跑一次 —— 设置分组每次打开都由宿主重新挂载这一页，
+      //   所以这就是「下一次打开设置页」那一趟；只在这一份确实没接上时才推（判据在 kernel/settings-debug.js 的导出件里）。
+      //   为什么不挂在「设置文档到手」那一趟上：那趟订阅是一次性的（settings-view-state.js 整批清空），一个会话只到手一次。
+      React.useEffect(function () {
+        try { if (typeof settingsDebugRetryHost === 'function') settingsDebugRetryHost() } catch (eRetry) {}
+      }, [])
       const dbgChecked = (function () {
         try { if (typeof logSwitch !== 'undefined' && logSwitch) return logSwitch.enabled === true } catch (eDbg) {}
         try { return !!readLocalDebugSwitch().enabled } catch (eDbg2) { return false }
@@ -54,10 +60,12 @@ export     const SettingsPage = (props) => {
             const okSw = !!(res && res.ok)
             setDbgFlash(okSw ? 'ok' : 'warn')
             try { setTimeout(function () { setDbgFlash('') }, 600) } catch (eT) {}
-            // 宿主那份副本没跟上（hostPushed 为 false）时不许只弹一句「已开启」：文案要说清本机真源已经落地、本机日志
-            //   暂时记不下调试行，并按告警着色（一次失败会自愈：下一次采纳文档或下一次打开设置页会自己重推一次）。
+            // 宿主那份副本没跟上（hostPushed 为 false）时不许只弹一句「已开启」：文案要说清本机真源已经落地、副本还是老样子，
+            //   并按告警着色。两个方向各一句：拨成开时副本还关着（调试行暂时记不下），拨成关时副本还开着（调试行还在记）——
+            //   拿同一句套两个方向，总有一边把话说反。自愈口子就在本页挂载那一趟（见上面那个 React.useEffect）。
             const staleHost = (okSw && res.hostPushed === false)
-            flash(sharedSt, tr(!okSw ? dbgSwitchFailKey(res) : (staleHost ? 'cfg.dbgSwitchOnNoHost' : ((res.enabled === true) ? 'cfg.dbgSwitchOnToast' : 'cfg.dbgSwitchOffToast'))), (okSw && !staleHost) ? 'ok' : 'warn')
+            const staleKey = (res.enabled === true) ? 'cfg.dbgSwitchOnNoHost' : 'cfg.dbgSwitchOffNoHost'
+            flash(sharedSt, tr(!okSw ? dbgSwitchFailKey(res) : (staleHost ? staleKey : ((res.enabled === true) ? 'cfg.dbgSwitchOnToast' : 'cfg.dbgSwitchOffToast'))), (okSw && !staleHost) ? 'ok' : 'warn')
           }).catch(function () { setDbgPending(false); setDbgFlash('warn'); try { setTimeout(function () { setDbgFlash('') }, 600) } catch (eT2) {}; flash(sharedSt, tr('cfg.dbgSwitchFail'), 'warn') })
         } catch (errDbg) { setDbgPending(false); flash(sharedSt, tr('cfg.dbgSwitchFail'), 'warn') }
       }
