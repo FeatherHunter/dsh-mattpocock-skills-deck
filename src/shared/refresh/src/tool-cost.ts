@@ -8,8 +8,9 @@
  * 「单次 ≤600 点且 ≤400 次请求、每小时 ≤2000 点且 ≤1500 次请求、一次最多建 60 张子票」。
  *
  * 为什么本文件一个数字都不写、全部从参数进来：刷新核心的产物（src/shared/refresh/*.js）之间
- * 不许互相 import（tests/verify-no-same-layer-import.js 与 tests/verify-refresh-freshness.js 的
- * 「产物零相对引用」两条门禁一起守这件事）。同一个仓库里 policy.ts 与 backoff.ts 也是这个做法：
+ * 不许互相 import（tests/verify-no-same-layer-import.js 的「同层不许互引」一条门禁守着这件事；
+ * 产物由构建逐份生成，每份产物的路径都由同名源码机械推出，不再需要另一条门禁比对新鲜度）。
+ * 同一个仓库里 policy.ts 与 backoff.ts 也是这个做法：
  * 数字由宿主侧从 budget.js 现取现传（见 src/host/tools/ 里各工具构造 limits 的那一行），
  * 这里只留形状与算式。额度常量因此仍然只有一处物理真源：src/shared/refresh/src/budget.ts。
  *

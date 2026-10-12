@@ -3,7 +3,7 @@
 插件内置的 TypeScript 能力，第一批只做「新刷新机制」里那些**纯逻辑**：闸要用的节拍与额度、
 一份请求属于哪一类、一次裁决的结论长什么样、工具调用前的花费预估长什么样。
 源码与它的转译产物并排放在同一个目录 `src/shared/refresh/` 里：源码在 `src/` 子目录，
-转译出的 `.js` 落在本目录并提交进 git。整个目录**不发 npm 包**、不进 pnpm workspace、
+转译出的 `.js` 落在本目录（构建产出，不入版本库）。整个目录**不发 npm 包**、不进 pnpm workspace、
 不按 `packages/<名字>/` 那种工作区包来建（决策记录见 `docs/adr/20260913-builtin-ts-shape.md`）。
 2026-10-13 按 #1023 的决定，从仓库根平铺的 `refresh-core/` 搬到这里。
 
@@ -24,10 +24,11 @@
   （单次 ≤600 点且 ≤400 次出站请求；每小时 ≤2000 点且 ≤1500 次请求；一次调用最多建 60 张子票，
   超过就分片，每片 ≤60 张）。算式包括每小时可用额度、读的份额、写的保底、用掉多少、档位判定、
   分片建议、两组硬顶判定。**别的票一律 import 这里的名字，不许再写一遍字面量**。
-- `build.mjs`：编译脚本。esbuild 只转译不打包，一对一生成 `src/shared/refresh/` 下的同名 JS；
-  另跑 `tsc --noEmit` 只做类型检查。导出 `transpileUnit`、`runTypeCheck`、`buildAll` 三个函数，
-  `scripts/build.mjs` 在派生步骤之前按顺序各调一次。
 - `tsconfig.json`：类型检查配置（严格模式，不产出）。
+- 本目录里的 `.js` 分两种：一种是 `src/` 下源码转译出来的产物（`.ts` 与 `.js` 同名并排，
+  由仓库根的构建 `node scripts/build.mjs` 生成）；另一种是**手写**的两个——
+  `chain-ride.js` 与 `refusal-text.js`，它们没有同名源码、也不由构建生成。
+  构建每次都会核对这棵目录：产物追溯不到源码、或者源码没有产物，都会当场报错。
 
 本票（`#720`）只建上面两个源码文件，因为这一票的边界就是「把这棵核心建起来、接进构建、配上门禁」。
 票面里写的另外四个文件——`policy.ts`（裁决纯函数）、`delta.ts`（行级差分的合并规则、水印推进、
@@ -59,16 +60,14 @@
 
 ## 常用命令
 
-- `node scripts/build.mjs`：日常只用这一条。它先跑类型检查与转译本目录，再拼客户端、复制宿主。
-- `node src/shared/refresh/build.mjs`：只做本目录的类型检查与转译。单独跑完之后要再跑一次
-  `node scripts/build.mjs`，否则 `tests/verify-kernel.js` 之类看「产物比源码旧」的门禁会红
-  （本票的产物还没有进那份 `SOURCES` 列表，等宿主侧接线那票再接）。
-- `node tests/verify-refresh-freshness.js`：改了 TypeScript 没重新生成就变红。
+- `node scripts/build.mjs`：日常只用这一条。它先给每个域跑类型检查与转译，再拼客户端、复制宿主。
+  单跑这一条就够，不需要再单独跑某个域的脚本——域脚本已经收成构建内部的一步（#1023）。
+- 产物不再提交进 git（`.gitignore` 精确到各域目录），所以克隆下来先跑一次构建，产物才会出现。
 
 ## deck 侧落点
 
 - 产物两个：`src/shared/refresh/ports.js`（空壳，只剩一行模块标识，现在没有运行时代码引用它，
-  门禁读它一次）与 `budget.js`。两个都提交进 git。
+  门禁读它一次）与 `budget.js`。
 - 宿主侧与界面侧将来都用普通相对 import 取用，例如
   `import { PROBE_INTERVAL_MS } from '../shared/refresh/budget.js'`。
 - 本票**没有**把任何产物拼进客户端闭包，所以 `SHARED_SPLICE` 里没有新条目、`src/client/index.js`

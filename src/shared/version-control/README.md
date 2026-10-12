@@ -2,7 +2,7 @@
 
 插件内置的 TypeScript 能力：第一版只读状态视图的全部 git 知识——命令口径、输出解析、
 状态组装、判定规则。源码与它的转译产物并排放在同一个目录 `src/shared/version-control/` 里：
-源码在 `src/` 子目录，转译出的 `.js` 落在本目录并提交进 git。整个目录**不发 npm 包**、
+源码在 `src/` 子目录，转译出的 `.js` 落在本目录（构建产出，不入版本库）。整个目录**不发 npm 包**、
 不进 pnpm workspace、不按 `packages/<名字>/` 那种工作区包来建（决策记录见
 `docs/adr/20260913-builtin-ts-shape.md`）。2026-10-13 按 #1023 的决定，从仓库根平铺的 `version-control-core/` 搬到这里。
 
@@ -15,9 +15,9 @@
   没有任何运行时代码引用它，门禁读它一次。
 - `src/capabilities.ts`：版本能力判定。只用 2.11 与 2.31 两条有官方依据的版本线；
   低于 2.11 直说请升级；2.11–2.30 降级（锁标记未知）；2.31 及以上完整。
-- `src/commands.ts`：固定前缀、六个命令描述子、采集项清单（`COLLECTION_KEYS`，
-  新鲜度门禁从构建清单读，不手抄）、运行中标记五个路径名、第 0 步（确认是不是仓库，
-  不进采集清单）。写命令的参数口径不在这一批，读写同表，将来加行即可。
+- `src/commands.ts`：固定前缀、六个命令描述子、采集项清单（`COLLECTION_KEYS`）、
+  运行中标记五个路径名、第 0 步（确认是不是仓库，不进采集清单）。写命令的参数口径不在这一批，
+  读写同表，将来加行即可。
 - `src/parse-status.ts` / `parse-worktrees.ts` / `parse-refs.ts` / `parse-log.ts` /
   `src/parse-diff-files.ts` / `src/parse-patch.ts`：六组输出解析。记录行严格校验，
   对不上显式失败（返回值，不是抛异常）；只有 `#` 头部行按官方说法忽略；
@@ -72,13 +72,14 @@
 
 ## 常用命令
 
-- `node scripts/build.mjs`：日常只用这一条（先类型检查与转译本目录，再拼客户端、复制宿主）。
-- `node src/shared/version-control/build.mjs`：只做本目录的类型检查与转译。
-- `node tests/verify-version-control-freshness.js` / `-parsers.js` / `-rules.js`：三道门禁。
+- `node scripts/build.mjs`：日常只用这一条。它先给每个域跑类型检查与转译，再拼客户端、复制宿主。
+  单跑这一条就够，不需要再单独跑某个域的脚本——域脚本已经收成构建内部的一步（#1023）。
+- `node tests/verify-version-control-parsers.js` / `-rules.js` / `-host.js`：三道门禁。
+- 产物不再提交进 git（`.gitignore` 精确到各域目录），所以克隆下来先跑一次构建，产物才会出现。
 
 ## deck 侧落点
 
-- 产物十一个：`src/shared/version-control/*.js`，全部提交进 git。
+- 产物十一个：`src/shared/version-control/*.js`（`exec-envelope.js` 是手写的，不由构建生成）。
 - 宿主侧与界面侧用普通相对 import 取用；本票**没有**把任何产物拼进客户端闭包，
   `SHARED_SPLICE` 一条不加，`verify-kernel.js` 的 `SOURCES` 不加，
   后端房间导入白名单不用动（还没人引用它，接线那一票加）。

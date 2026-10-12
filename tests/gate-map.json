@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-12T17:40:28.721Z",
+  "generatedAt": "2026-10-12T18:18:49.610Z",
   "generatedBy": "node scripts/gate-map.mjs",
-  "chainLength": 231,
-  "gateCount": 231,
-  "attributedGates": 205,
+  "chainLength": 227,
+  "gateCount": 227,
+  "attributedGates": 201,
   "unattributedGates": 26,
   "buildOutputOnlyGates": 20,
-  "graphFileCount": 510,
+  "graphFileCount": 506,
   "gates": [
     {
       "step": "node tests/verify-596-rpc-carrier.js",
@@ -142,8 +142,13 @@
         "package/package.json",
         "package/shared",
         "scripts/generated/updateEntryPanel.bundle.js",
+        "scripts/lib/transpile-unit.mjs",
         "src/host",
-        "src/shared"
+        "src/shared",
+        "src/shared/refresh/budget.js",
+        "src/shared/refresh/src/budget.ts",
+        "src/shared/version-control/parse-log.js",
+        "src/shared/version-control/src/parse-log.ts"
       ],
       "dirs": [
         "package",
@@ -152,33 +157,17 @@
         "package/lib/tracker",
         "package/shared",
         "scripts/generated",
+        "scripts/lib",
         "src/host",
-        "src/shared"
+        "src/shared",
+        "src/shared/refresh",
+        "src/shared/refresh/src",
+        "src/shared/version-control",
+        "src/shared/version-control/src"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 9 条；源码里的路径字面量 3 条"
-    },
-    {
-      "step": "node tests/verify-label-color-freshness.js",
-      "file": "tests/verify-label-color-freshness.js",
-      "guards": [
-        "src/shared/label-color/build.mjs",
-        "src/shared/label-color/colors.js",
-        "src/shared/label-color/ports.js",
-        "src/shared/label-color/prompt.js",
-        "src/shared/label-color/src/colors.ts",
-        "src/shared/label-color/src/ports.ts",
-        "src/shared/label-color/src/prompt.ts",
-        "src/shared/label-color/tsconfig.json"
-      ],
-      "dirs": [
-        "src/shared/label-color",
-        "src/shared/label-color/src"
-      ],
-      "unattributed": false,
-      "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；源码里的路径字面量 6 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 10 条；源码里的路径字面量 8 条"
     },
     {
       "step": "node tests/verify-label-color-core.js",
@@ -3218,61 +3207,6 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 7 条"
     },
     {
-      "step": "node tests/verify-refresh-freshness.js",
-      "file": "tests/verify-refresh-freshness.js",
-      "guards": [
-        "src/shared/refresh/attention.js",
-        "src/shared/refresh/backend-quota.js",
-        "src/shared/refresh/backoff.js",
-        "src/shared/refresh/budget.js",
-        "src/shared/refresh/build.mjs",
-        "src/shared/refresh/chain.js",
-        "src/shared/refresh/create-write.js",
-        "src/shared/refresh/delta.js",
-        "src/shared/refresh/idempotency.js",
-        "src/shared/refresh/page-budget.js",
-        "src/shared/refresh/policy.js",
-        "src/shared/refresh/ports.js",
-        "src/shared/refresh/src/attention.ts",
-        "src/shared/refresh/src/backend-quota.ts",
-        "src/shared/refresh/src/backoff.ts",
-        "src/shared/refresh/src/budget.ts",
-        "src/shared/refresh/src/chain.ts",
-        "src/shared/refresh/src/create-write.ts",
-        "src/shared/refresh/src/delta.ts",
-        "src/shared/refresh/src/idempotency.ts",
-        "src/shared/refresh/src/page-budget.ts",
-        "src/shared/refresh/src/policy.ts",
-        "src/shared/refresh/src/ports.ts",
-        "src/shared/refresh/src/tool-cost.ts",
-        "src/shared/refresh/src/write-detect.ts",
-        "src/shared/refresh/tool-cost.js",
-        "src/shared/refresh/tsconfig.json",
-        "src/shared/refresh/write-detect.js"
-      ],
-      "dirs": [
-        "src/shared/refresh",
-        "src/shared/refresh/src"
-      ],
-      "unattributed": false,
-      "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；源码里的路径字面量 26 条"
-    },
-    {
-      "step": "node tests/verify-version-control-freshness.js",
-      "file": "tests/verify-version-control-freshness.js",
-      "guards": [
-        "src/shared/version-control/build.mjs",
-        "src/shared/version-control/tsconfig.json"
-      ],
-      "dirs": [
-        "src/shared/version-control"
-      ],
-      "unattributed": false,
-      "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条"
-    },
-    {
       "step": "node tests/verify-version-control-parsers.js",
       "file": "tests/verify-version-control-parsers.js",
       "guards": [
@@ -4331,23 +4265,6 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条"
     },
     {
-      "step": "node tests/verify-config-store-freshness.js",
-      "file": "tests/verify-config-store-freshness.js",
-      "guards": [
-        "src/shared/config-store/build.mjs",
-        "src/shared/config-store/ports.js",
-        "src/shared/config-store/src/ports.ts",
-        "src/shared/config-store/tsconfig.json"
-      ],
-      "dirs": [
-        "src/shared/config-store",
-        "src/shared/config-store/src"
-      ],
-      "unattributed": false,
-      "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；源码里的路径字面量 1 条"
-    },
-    {
       "step": "node tests/verify-config-store-core.js",
       "file": "tests/verify-config-store-core.js",
       "guards": [
@@ -4937,6 +4854,7 @@
       "node tests/verify-settings-debug.js"
     ],
     "scripts/lib": [
+      "node tests/verify-build-artifacts.js",
       "node tests/verify-gate-map.js"
     ],
     "src": [
@@ -5442,11 +5360,7 @@
       "node tests/verify-settings-debug.js"
     ],
     "src/shared/config-store": [
-      "node tests/verify-config-store-freshness.js",
       "node tests/verify-config-store-package.js"
-    ],
-    "src/shared/config-store/src": [
-      "node tests/verify-config-store-freshness.js"
     ],
     "src/shared/deck-tools": [
       "node tests/verify-deck-tools.js",
@@ -5468,17 +5382,16 @@
       "node tests/verify-1003-unified-decision.js"
     ],
     "src/shared/label-color": [
-      "node tests/verify-label-color-freshness.js",
       "node tests/verify-label-color-core.js",
       "node tests/verify-kernel.js",
       "node tests/verify-markdown-label-colors.js",
       "node tests/verify-generated-no-shadow.js"
     ],
     "src/shared/label-color/src": [
-      "node tests/verify-label-color-freshness.js",
       "node tests/verify-label-color-core.js"
     ],
     "src/shared/refresh": [
+      "node tests/verify-build-artifacts.js",
       "node tests/verify-gitlab-single-write.js",
       "node tests/verify-deck-tools.js",
       "node tests/verify-deck-tools-matrix.js",
@@ -5493,7 +5406,6 @@
       "node tests/verify-deck-thin-reads.js",
       "node tests/verify-992-readonly-labels.js",
       "node tests/verify-929-batch-cycle.js",
-      "node tests/verify-refresh-freshness.js",
       "node tests/verify-delta-patch.js",
       "node tests/verify-delta-wiring.js",
       "node tests/verify-write-detect.js",
@@ -5523,7 +5435,7 @@
       "node tests/verify-gate-map.js"
     ],
     "src/shared/refresh/src": [
-      "node tests/verify-refresh-freshness.js",
+      "node tests/verify-build-artifacts.js",
       "node tests/verify-write-detect.js",
       "node tests/verify-policy.js",
       "node tests/verify-refresh-adr.js"
@@ -5562,7 +5474,7 @@
       "node tests/verify-deck-slots.js"
     ],
     "src/shared/version-control": [
-      "node tests/verify-version-control-freshness.js",
+      "node tests/verify-build-artifacts.js",
       "node tests/verify-version-control-parsers.js",
       "node tests/verify-version-control-rules.js",
       "node tests/verify-818-version-control-view.js",
@@ -5571,6 +5483,7 @@
       "node tests/verify-842-version-control-write-view.js"
     ],
     "src/shared/version-control/src": [
+      "node tests/verify-build-artifacts.js",
       "node tests/verify-version-control-rules.js"
     ],
     "src/tracker": [
@@ -5709,12 +5622,12 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 518,
+    "fileCount": 514,
     "dirCount": 44,
-    "coveredFileCount": 518,
+    "coveredFileCount": 514,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
-    "dedicatedDirCount": 43,
+    "dedicatedDirCount": 42,
     "guardedFiles": [
       "src/client/floating/Pop.js",
       "src/client/floating/SkillFloatList.js",
@@ -6100,7 +6013,6 @@
       "src/seam/style.js",
       "src/seam/timer.js",
       "src/shared/config-store/README.md",
-      "src/shared/config-store/build.mjs",
       "src/shared/config-store/labels.js",
       "src/shared/config-store/ports.js",
       "src/shared/config-store/settings.js",
@@ -6122,7 +6034,6 @@
       "src/shared/deck-tools/workspace-file.js",
       "src/shared/feedback-map.js",
       "src/shared/label-color/README.md",
-      "src/shared/label-color/build.mjs",
       "src/shared/label-color/colors.js",
       "src/shared/label-color/ports.js",
       "src/shared/label-color/prompt.js",
@@ -6142,7 +6053,6 @@
       "src/shared/refresh/backend-quota.js",
       "src/shared/refresh/backoff.js",
       "src/shared/refresh/budget.js",
-      "src/shared/refresh/build.mjs",
       "src/shared/refresh/chain-ride.js",
       "src/shared/refresh/chain.js",
       "src/shared/refresh/create-write.js",
@@ -6193,7 +6103,6 @@
       "src/shared/tracker/workspaceOwnership.js",
       "src/shared/ui/slots.js",
       "src/shared/version-control/README.md",
-      "src/shared/version-control/build.mjs",
       "src/shared/version-control/capabilities.js",
       "src/shared/version-control/commands.js",
       "src/shared/version-control/exec-envelope.js",
@@ -6313,7 +6222,6 @@
       "src/seam",
       "src/shared",
       "src/shared/config-store",
-      "src/shared/config-store/src",
       "src/shared/deck-tools",
       "src/shared/label-color",
       "src/shared/label-color/src",
@@ -6329,6 +6237,10 @@
     "dirsWithoutDedicated": [
       {
         "path": "src/host/logPkg",
+        "fileCount": 4
+      },
+      {
+        "path": "src/shared/config-store/src",
         "fileCount": 4
       }
     ],

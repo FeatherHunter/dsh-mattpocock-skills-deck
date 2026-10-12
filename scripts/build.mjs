@@ -38,51 +38,20 @@ import { deriveHost, deriveClient } from './derive-log-from-package.mjs'
 import { deriveClient as deriveUpdateClient } from './derive-update-from-package.mjs'
 import { bundleEntryPanel } from './bundle-update-entry.mjs'
 
-// #629 配色核心（src/shared/label-color/）：转译与类型检查都写在它自己的 build.mjs 里，
-// 这里只负责在一条命令里把它带上。为什么要写成「先试着加载、加载不到只打印一行提示」，
-// 而不是文件头的静态 import：那棵源码树不进 npm 包（package/package.json 的 files
-// 白名单里没有它），在只有 scripts/ 与 shared/ 的子树里跑构建时，静态 import 会在加载
-// 阶段直接抛错，把整个构建打断，连一行提示都打不出来。这里要的是「这一步跳过、其余照跑」。
-// 2026-10-13 按 #1023 的决定，四个核从仓库根平铺的 <名字>-core/ 搬进 src/shared/<功能名>/，
-// 所以这里的路径多了一段 src/shared。搬迁只改位置、不改行为，这些引入语句是搬迁的一部分。
-let buildLabelColorCore = null
-try {
-  buildLabelColorCore = (await import('../src/shared/label-color/build.mjs')).buildAll
-} catch (e) {
-  console.log('[build] 没能加载 src/shared/label-color/build.mjs（' + ((e && e.message) || e) + '），本次构建跳过内置 TypeScript 核的转译与类型检查。')
+// #1023 内置 TypeScript 域的逐文件转译：原先四个计算核各自带一份 build.mjs，
+// 现在收成 scripts/lib 里的一份共用实现（transpile-domains.mjs），由本条命令统一驱动。
+// 这样「谁写产物」只有一处：构建。做法与为什么这么做写在那个文件里。
+import { buildDomain, findDomains } from './lib/transpile-domains.mjs'
+import { inlineExportDeclarations } from './lib/transpile-unit.mjs'
+
+// 域里允许住**手写**的 .js（没有同名源码，也不是构建产出）。今天只有这三份，
+// 都在 #1023 之前就住在那里、行为与构建无关，所以点名列出，不靠扫描猜——
+// 猜（比如「文件头没有生成标记就当手写」）会把「构建漏写生成标记」这种真故障当成合法情况放过去。
+const HAND_WRITTEN_IN_DOMAINS = {
+  refresh: ['chain-ride.js', 'refusal-text.js'],
+  'version-control': ['exec-envelope.js'],
 }
 
-// #720 刷新核心（src/shared/refresh/）：形态与上面的配色核心一致，转译与类型检查都写在它自己的 build.mjs 里。
-// 差别是这里要拿到两个函数（runTypeCheck 与 buildAll），所以存的是整个模块对象，不是单个函数。
-// 同样写成「先试着加载、加载不到只打印一行提示」而不是文件头静态 import：那棵源码树不进 npm 包
-// （package/package.json 的 files 白名单里没有它），在只有 scripts/ 与 shared/ 的子树里跑构建时，
-// 静态 import 会在加载阶段直接抛错，把整个构建打断，连一行提示都打不出来。这里要的是「这一步跳过、其余照跑」。
-let buildRefreshCore = null
-try {
-  buildRefreshCore = await import('../src/shared/refresh/build.mjs')
-} catch (e) {
-  console.log('[build] 没能加载 src/shared/refresh/build.mjs（' + ((e && e.message) || e) + '），本次构建跳过刷新核心的转译与类型检查。')
-}
-
-// #816 版本控制核心（src/shared/version-control/）：形态与上面的刷新核心一致，转译与类型检查都写在
-// 它自己的 build.mjs 里（UNITS 清单由它导出，新鲜度门禁直接读，不手抄）。同样先试加载、
-// 加载不到只打印提示：那棵源码树不进 npm 包，子树构建时跳过、其余照跑。
-let buildVersionControlCore = null
-try {
-  buildVersionControlCore = await import('../src/shared/version-control/build.mjs')
-} catch (e) {
-  console.log('[build] 没能加载 src/shared/version-control/build.mjs（' + ((e && e.message) || e) + '），本次构建跳过版本控制核心的转译与类型检查。')
-}
-
-// #1012 配置读写核（src/shared/config-store/）：形态与上面的版本控制核心一致，转译与类型检查都写在
-// 它自己的 build.mjs 里（UNITS 清单由它导出，新鲜度门禁直接读，不手抄）。同样先试加载、
-// 加载不到只打印提示：那棵源码树不进 npm 包，子树构建时跳过、其余照跑。
-let buildConfigStoreCore = null
-try {
-  buildConfigStoreCore = await import('../src/shared/config-store/build.mjs')
-} catch (e) {
-  console.log('[build] 没能加载 src/shared/config-store/build.mjs（' + ((e && e.message) || e) + '），本次构建跳过配置读写核的转译与类型检查。')
-}
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -895,6 +864,31 @@ async function buildHost({ version }) {
   } catch (e) {
     throw new Error(`[build] 原样复制校验失败：${e.message}`)
   }
+  // 校验：发布清单里点名的每个文件都得在盘上（#1023 第二刀的构建期断言）。
+  // 为什么放在构建里、不做成一道门禁：入口指错文件这件事，构建当场能看出来，也只有在构建
+  // 刚写完这些东西的那一刻最该问；做成门禁等于让「构建错了」这件事等到测试阶段才暴露。
+  // 为什么只查 exports 不查 files：files 是白名单（列的是目录，允许目录里今天没东西），
+  // exports 是入口（列的是具体文件，指错了消费者 import 就失败）。
+  try {
+    const pkgJson = JSON.parse(readFileSync(resolve(ROOT, 'package/package.json'), 'utf8'))
+    const pkgRoot = resolve(ROOT, 'package')
+    const missing = []
+    const checkTarget = (label, target) => {
+      if (typeof target !== 'string' || !target.startsWith('./')) return
+      if (!existsSync(resolve(pkgRoot, target))) missing.push(`${label} → ${target}`)
+    }
+    for (const [key, val] of Object.entries(pkgJson.exports || {})) {
+      if (typeof val === 'string') checkTarget(`exports["${key}"]`, val)
+      else if (val && typeof val === 'object') for (const [cond, target] of Object.entries(val)) checkTarget(`exports["${key}"].${cond}`, target)
+    }
+    checkTarget('main', pkgJson.main)
+    if (missing.length > 0) {
+      throw new Error('发布清单点名的文件不在盘上：\n  - ' + missing.join('\n  - ') + '\n（检查 package/package.json 的 exports 与构建的复制步骤是否对得上）')
+    }
+    console.log(`[build] 发布清单校验通过：exports 与 main 点名的文件都在 package/ 里（${Object.keys(pkgJson.exports || {}).length} 条 exports）`)
+  } catch (e) {
+    throw new Error(`[build] 发布清单校验失败：${(e && e.message) || e}`)
+  }
   // #875 薄接线：旧派生目录已删，不再随包复制 updatePkg（能力只走已安装的更新包）。
   // 分发 scripts/：消费者工作区调用的两条脚本随包发布（#588 总指挥裁定：只收两条消费者脚本，
   // 构建/调试脚本（build.mjs、ui-*、wizard-*、generate-*、matrix-*、sync-* 等）不许进发布包；
@@ -1024,37 +1018,16 @@ gateBuildArtifacts()
 ensureBundledSkills()
 syncReadme(version, repoUrl)
 
-// #629 内置 TypeScript 核（配色核心）：先转译再跑类型检查，产物落进 src/shared/label-color/。
-// 它自己会判源码目录在不在（发布包与 package/ 子树里没有这棵源码树），不在就跳过并打印提示。
-// 放在两段派生之前：产物是客户端闭包的输入，必须比闭包先就位。
-if (buildLabelColorCore) buildLabelColorCore()
-
-// #720 内置 TypeScript 核（刷新核心）：类型检查与转译各调用一次，产物落进 src/shared/refresh/。
-// 两步分开调是因为 src/shared/refresh/build.mjs 把它们拆成了两个函数（它的 buildAll 只管转译）；
-// 它自己会判源码目录在不在（发布包与 package/ 子树里没有这棵源码树），不在就跳过并打印一行提示。
-// 与配色核心一样放在两段派生之前：产物是宿主与界面要用的纯逻辑，必须比闭包先就位。
-if (buildRefreshCore) {
-  buildRefreshCore.runTypeCheck()
-  buildRefreshCore.buildAll()
-}
-
-// #816 版本控制核心：类型检查与转译各调用一次，产物落进 src/shared/version-control/。
-// 与刷新核心一样放在两段派生之前：产物是宿主与界面要用的纯逻辑，必须比闭包先就位。
-if (buildVersionControlCore) {
-  buildVersionControlCore.runTypeCheck()
-  buildVersionControlCore.buildAll()
-}
-
-// #1012 配置读写核：类型检查与转译各调用一次，产物落进 src/shared/config-store/。
-// 与版本控制核心一样放在两段派生之前：产物是宿主适配器要用的纯逻辑，必须先就位。
-// 注意它不拼进客户端闭包（客户端经宿主电话读写设置），所以这里只转译、不拼接。
-if (buildConfigStoreCore) {
-  buildConfigStoreCore.runTypeCheck()
-  buildConfigStoreCore.buildAll()
+// 内置 TypeScript 域的逐文件转译：src/shared 下每个带 tsconfig.json 的目录算一个域，
+// 每个域先跑类型检查、再把它的 src/*.ts 逐份转译成同目录同名的 .js。
+// 放在两段派生之前：这些产物是客户端闭包与宿主模块的输入，必须先就位。
+// 域里没有源码目录时（发布包与 package/ 子树）这一步自己跳过并打印一行提示，构建继续走。
+for (const domain of findDomains()) {
+  buildDomain(domain, { handWritten: HAND_WRITTEN_IN_DOMAINS[domain] || [] })
 }
 
 // 887 客户端 TS 真源（px 系列）：真源是同名 .ts，esbuild 逐文件转译出 .js（AUTO-GENERATED 头），
-// tsc --noEmit 只做类型检查；拼接拼的是生成的 .js。与三个核心同模式，只是真源与产物同目录并排。
+// tsc --noEmit 只做类型检查；拼接拼的是生成的 .js。与域构建同模式，只是真源与产物同目录并排。
 const PX_TS_DIRS = ['src/client/views', 'src/client/views/pixel', 'src/client/views/skillDetail', 'src/client/views/cards', 'src/client/kernel']
 function pixelTsTruthFiles() {
   const out = []
@@ -1081,25 +1054,15 @@ function buildPixelTs() {
     catch (e) { throw new Error('[pixel-ts] 转译失败 ' + f + '：' + ((e && e.message) || e)) }
     const rel = f.replace(/\\/g, '/').split('src/client/')[1] || f
     // esbuild 把导出收成尾部子句 export { A, B }，拼回闭包时只剥行首 export 会把它变成废块、
-    // 界面叶子因此「没有导出」。照核心库同法还原成行首形式（只认声明能在同文件找到的情形，找不到就抛）。
-    const inlined = (function (code) {
-      const clause = /(^|\n)export \{\n([\s\S]*?)\n\};\n?$/.exec(code)
-      if (!clause) {
-        if (/(^|\n)export \{/.test(code)) throw new Error('[pixel-ts] 转译结果里出现了没有预料到的导出块写法，拒绝改写：' + code.slice(-300))
-        return code
-      }
-      const names = clause[2].split(',').map(function (s) { return s.trim() }).filter(function (s) { return s !== '' })
-      let body = code.slice(0, clause.index) + (clause[1] === '\n' ? '\n' : '')
-      for (const name of names) {
-        if (!/^[A-Za-z_$][\w$]*$/.test(name)) throw new Error('[pixel-ts] 导出块里有改不了名的条目「' + name + '」：本步骤只支持原样导出')
-        const decl = new RegExp('^(?:async )?function ' + name + '\\b|^(?:const|let|var) ' + name + '\\b|^class ' + name + '\\b', 'm')
-        const hit = decl.exec(body)
-        if (!hit) throw new Error('[pixel-ts] 导出块里的名字「' + name + '」在这份文件里找不到声明，拒绝生成少一个导出的产物')
-        body = body.slice(0, hit.index) + 'export ' + body.slice(hit.index)
-      }
-      return body
-    })(code)
-    writeFileSync(f.slice(0, -3) + '.js', '// AUTO-GENERATED by node scripts/build.mjs (pixel-ts) — DO NOT EDIT. Source: ' + rel + '\n' + inlined.replace(/\r\n/g, '\n').replace(/\s+$/, '') + '\n')
+    // 界面叶子因此「没有导出」。改写口径与内置域产物完全一样，所以调用同一份实现
+    // （scripts/lib/transpile-unit.mjs），不在这一段里再抄一遍，免得两处慢慢走岔。
+    const inlined = inlineExportDeclarations(
+      code.replace(/\r\n/g, '\n').replace(/\s+$/, '') + '\n',
+      '[pixel-ts]',
+    )
+    // 头部横幅这一段与域产物不同、且被读：产物里要留下「客户端相对路径」这一句来源
+    // （tests/verify-cards-dir.js 按这一句逐字节比对生成物与真源），所以不改用它。
+    writeFileSync(f.slice(0, -3) + '.js', '// AUTO-GENERATED by node scripts/build.mjs (pixel-ts) — DO NOT EDIT. Source: ' + rel + '\n' + inlined)
   }
   console.log(`[pixel-ts] 转译 ${files.length} 个 TS 真源 → 同名 .js`)
 }

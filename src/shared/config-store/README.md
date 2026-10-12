@@ -2,7 +2,7 @@
 
 插件内置的 TypeScript 能力：三份配置文件只有一份读写实现。源码与它的转译产物并排放在
 同一个目录 `src/shared/config-store/` 里：源码在 `src/` 子目录，转译出的 `.js` 落在本目录
-并提交进 git。整个目录**不发 npm 包**、不进 pnpm workspace、不按 `packages/<名字>/` 那种
+（构建产出，不入版本库）。整个目录**不发 npm 包**、不进 pnpm workspace、不按 `packages/<名字>/` 那种
 工作区包来建（决策记录见 `docs/adr/20260913-builtin-ts-shape.md`）。2026-10-13 按 #1023
 的决定，从仓库根平铺的 `config-store-core/` 搬到这里。
 
@@ -30,10 +30,10 @@
 - 文本出入口 `parseConfig(text, schema)` / `stringifyConfig(value, schema)` 住在宿主适配器
   （`src/host/configStore.js`，冻结名）：超大与别名两道守卫在此做一次、YAML 解析一次，
   再交对应单元校验。上限数字（64K 字 / 50 别名）的唯一出处就是这里。
-- `build.mjs`：编译脚本。esbuild 只转译不打包，一对一生成 `src/shared/config-store/` 下的
-  同名 JS；另跑 `tsc --noEmit` 只做类型检查。导出 `transpileUnit`、`runTypeCheck`、
-  `buildAll` 三个函数与 `UNITS` 清单，`scripts/build.mjs` 会在派生步骤之前调用一次 `buildAll`。
 - `tsconfig.json`：类型检查配置（严格模式，不产出）。
+- 本目录里的 `.js` 全部是 `src/` 下源码转译出来的产物（`.ts` 与 `.js` 同名并排，由仓库根的
+  构建 `node scripts/build.mjs` 生成）。构建每次都会核对这棵目录：产物追溯不到源码、
+  或者源码没有产物，都会当场报错。
 
 ## 给第二家的三条保证（与其它核同一套）
 
@@ -54,20 +54,20 @@
 
 ## 常用命令
 
-- `node scripts/build.mjs`：日常只用这一条。它先转译本目录、跑类型检查，再拼客户端、复制宿主。
-- `node src/shared/config-store/build.mjs`：只做本目录的转译与类型检查。
-- `node tests/verify-config-store-freshness.js`：改了 TypeScript 没重新生成就变红。
-- `node tests/verify-src/shared/config-store.js`：纯函数行为的单元门禁（往返、严格类型、
+- `node scripts/build.mjs`：日常只用这一条。它先给每个域跑类型检查与转译，再拼客户端、复制宿主。
+  单跑这一条就够，不需要再单独跑某个域的脚本——域脚本已经收成构建内部的一步（#1023）。
+- `node tests/verify-config-store-core.js`：纯函数行为的单元门禁（往返、严格类型、
   未知键、超大文件、别名炸弹、版本只读不写、老格式兼容）。
 - `node tests/verify-config-store-comments.js`：写出来的每个字段前面都有定义的注释。
 - `node tests/verify-config-store-migration.js`：新老并存时以新为准、老文件迁移与删除。
 - `node tests/verify-config-store-package.js`：发布包里能真正解析 YAML。
+- 产物不再提交进 git（`.gitignore` 精确到各域目录），所以克隆下来先跑一次构建，产物才会出现。
 
 ## deck 侧落点
 
 - 产物四个：`src/shared/config-store/ports.js`（空壳，只有模块标识）、
   `workspace.js` / `settings.js` / `labels.js`（三份 schema 各自的校验与拼装）。
-  四个都提交进 git。
+  
 - 宿主侧直接相对 import 产物，例如
   `import { parseWorkspace } from '../shared/config-store/workspace.js'`。
   这是宿主调共享的跨层方向，同层互引门禁不管这一方向。

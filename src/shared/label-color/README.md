@@ -2,7 +2,7 @@
 
 插件内置的 TypeScript 能力，第一批只做标签配色这件事的两段纯计算：色值的归一化与比较、
 调色盘提示词的拼装。源码与它的转译产物并排放在同一个目录 `src/shared/label-color/` 里：
-源码在 `src/` 子目录，转译出的 `.js` 落在本目录并提交进 git。整个目录**不发 npm 包**、
+源码在 `src/` 子目录，转译出的 `.js` 落在本目录（构建产出，不入版本库）。整个目录**不发 npm 包**、
 不进 pnpm workspace、不按 `packages/<名字>/` 那种工作区包来建（决策记录见
 `docs/adr/20260913-builtin-ts-shape.md`）。2026-10-13 按 #1023 的决定，从仓库根平铺的 `label-color-core/` 搬到这里。
 
@@ -18,10 +18,10 @@
 - `src/prompt.ts`：调色盘提示词的两段拼装（`buildPaletteTable` 出表格、`buildPalettePrompt`
   出整段）。零相对引用，同样只走 `import type`。这里不含任何用户能看到的文案：
   开头一句、两个表头、结尾一句都由调用方从词表里传进来，中英两份都住在词表里。
-- `build.mjs`：编译脚本。esbuild 只转译不打包，一对一生成 `src/shared/label-color/` 下的
-  同名 JS；另跑 `tsc --noEmit` 只做类型检查。导出 `transpileUnit`、`runTypeCheck`、`buildAll`
-  三个函数，`scripts/build.mjs` 会在派生步骤之前调用一次 `buildAll`。
 - `tsconfig.json`：类型检查配置（严格模式，不产出）。
+- 本目录里的 `.js` 全部是 `src/` 下源码转译出来的产物（`.ts` 与 `.js` 同名并排，由仓库根的
+  构建 `node scripts/build.mjs` 生成）。构建每次都会核对这棵目录：产物追溯不到源码、
+  或者源码没有产物，都会当场报错。
 
 ## 给第二家的三条保证
 
@@ -33,18 +33,16 @@
 
 ## 常用命令
 
-- `node scripts/build.mjs`：日常只用这一条。它先转译本目录、跑类型检查，再拼客户端、复制宿主。
-- `node src/shared/label-color/build.mjs`：只做本目录的转译与类型检查。单独跑完之后要再跑一次
-  `node scripts/build.mjs`，否则 `tests/verify-kernel.js` 会因为「客户端产物比源码旧」变红
-  （这是有意设的，为的是让「只重建核心、忘了重建客户端」更早被发现）。
-- `node tests/verify-label-color-freshness.js`：改了 TypeScript 没重新生成就变红。
-- `node tests/verify-src/shared/label-color.js`：纯函数行为的单元门禁（色值归一、合法性、
+- `node scripts/build.mjs`：日常只用这一条。它先给每个域跑类型检查与转译，再拼客户端、复制宿主。
+  单跑这一条就够，不需要再单独跑某个域的脚本——域脚本已经收成构建内部的一步（#1023）。
+- `node tests/verify-label-color-core.js`：纯函数行为的单元门禁（色值归一、合法性、
   空值语义、挑出真正变了的行、提示词表格口径）。
+- 产物不再提交进 git（`.gitignore` 精确到各域目录），所以克隆下来先跑一次构建，产物才会出现。
 
 ## deck 侧落点
 
 - 产物三个：`src/shared/label-color/ports.js`（空壳，只有一行模块标识，没有运行时代码
-  引用它，门禁读它一次）、`colors.js`、`prompt.js`。三个都提交进 git。
+  引用它，门禁读它一次）、`colors.js`、`prompt.js`。
 - 宿主侧直接相对 import 产物，例如 `import { normalizeColor } from '../shared/label-color/colors.js'`。
 - 客户端侧：`colors.js` 与 `prompt.js` 由 `scripts/build.mjs` 的 `SHARED_SPLICE` 清单拼进
   客户端闭包，标记是 `// ==== shared:labelColors (spliced by build) ====` 与
@@ -53,7 +51,7 @@
   拼进闭包这件事有两条边界条件，改这两个文件时要知道：产物必须是 ESM 且要用的东西都带
   行首 `export`（拼接的做法就是去掉行首那七个字符），产物里不能出现 `__DSW_VERSION__`
   与 `__DSW_REPO_URL__` 两个占位符（拼接发生在版本注入之后，拼进来的文本不会再过一遍注入）。
-  这两条由 `tests/verify-label-color-freshness.js` 与 `tests/verify-generated-no-shadow.js` 看着。
+  这两条由构建里的域核对（产物必须能追溯到源码）与 `tests/verify-generated-no-shadow.js` 看着。
 - 后端适配器（GitHub 房间、本地 Markdown 房间）要按同一套色值口径比较颜色时，
   引这两个产物；房间导入白名单那条允许记在 `docs/adr/20260913-builtin-ts-shape.md` 第 2.9 节。
 - 两处已知的形态细节，改的时候要知道：

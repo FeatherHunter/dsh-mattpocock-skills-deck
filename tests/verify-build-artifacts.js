@@ -193,6 +193,135 @@ function sha256(file) { return crypto.createHash('sha256').update(fs.readFileSyn
   if (missing.length) console.log('    未解析的导入:\n    ' + missing.join('\n    '))
   check(missing.length === 0, `打包产物相对导入全部可解析（${files.length} 文件，缺 ${missing.length} 处）`)
 }
+// 4g) 模块标识的出处判据（#1023）：每个域产物里写着「我来自哪份源码」的那个常量，值必须指向真源码。
+//   谁在做这件事：类型被擦掉之后，产物里唯一还能说清自己出处的就是 `<文件名大写>_SOURCE` 这个常量
+//   （接口空壳 ports.js 这类产物尤其只剩它）。做法不是手抄一份名单，而是扫产物本身——拿文件名把常量名
+//   推导出来（`path.basename` 去后缀、`toUpperCase`、非字母数字换下划线），再去问那个值指向哪份源码；
+//   扫到的名字进 derivedNames，值逐个核对。
+//   这四行里出现的 '_SOURCE' 与 toUpperCase 就是这条推导，tests/verify-contract-vocabulary.js
+//   靠它们认出「有门禁按文件名推导读模块标识」，从而不把这一族常量误判成死词汇。
+//   2026-10-13 之前这件事由四条 <域>-freshness 门禁各做一半（只查各自域里的接口空壳）；
+//   那四条门禁连同四个核的旧构建脚本已按 #1023 退场，这条判据收成一处、覆盖面扩到每个域的每份产物。
+console.log('\n模块标识出处判据：每份域产物的 <文件名大写>_SOURCE 都指向真源码')
+const SOURCE_MARKER_SUFFIX = '_SOURCE'
+const srcShared = path.resolve('src/shared')
+const domains = fs.existsSync(srcShared)
+  ? fs.readdirSync(srcShared, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort()
+  : []
+check(domains.length > 0, `扫到 ${domains.length} 个域（${domains.join('、')}）`)
+{
+  const walkJs = (dir, out) => {
+    for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, ent.name)
+      if (ent.isDirectory()) walkJs(p, out)
+      else if (ent.isFile() && ent.name.endsWith('.js')) out.push(p)
+    }
+    return out
+  }
+  const files = []
+  for (const d of domains) walkJs(path.join(srcShared, d), files)
+
+  // derivedNames：扫出来的模块标识名字；hitDomains：这些名字该指回哪几个源目录。
+  // 两个都留证，是因为「按文件名推导」这件事的判据就是「名字对不对得上、指回来的目录对不对」。
+  const derivedNames = []
+  const hitDomains = []
+  const mismatches = []
+  for (const file of files) {
+    const txt = fs.readFileSync(file, 'utf8')
+    // 只认构建产物：第一行是构建写下的出处标记，说明这份 .js 是转译出来的、由构建负责。
+    if (!txt.startsWith('// AUTO-GENERATED')) continue
+    const base = path.basename(file)
+    const markerName = base.slice(0, -'.js'.length).toUpperCase().replace(/[^A-Z0-9]+/g, '_') + SOURCE_MARKER_SUFFIX
+    const hit = new RegExp("^export const " + markerName + " = (['\"])(.+?)\\1;?\\s*$", 'm').exec(txt)
+    if (!hit) continue // 不是每份产物都有模块标识（只有手写源码里声明了的才有），没声明的不算错
+    derivedNames.push(markerName)
+    // 域目录里的产物该指回同一域的源码目录，也就是下面这一份两截拼起来的字符串：
+    // 前半截 'src/shared/' + 域目录名 + '/src/' 是源码在仓库里的位置规律，写在这里同时也是
+    // tests/verify-contract-vocabulary.js 认出「按文件名推导读模块标识」在做哪些目录上的依据
+    // （那条门禁按目录放行这一族常量，见那个文件里 dynamicSourceReaderText 的说明）。
+    const domain = path.basename(path.dirname(file))
+    const expectedDir = 'src/shared' + '/' + domain + '/src/'
+    if (hitDomains.indexOf(expectedDir) < 0) hitDomains.push(expectedDir)
+    if (!hit[2].startsWith(expectedDir)) {
+      mismatches.push(`${path.relative(process.cwd(), file).replace(/\\/g, '/')} 的 ${markerName} 指向「${hit[2]}」，不是它自己域的源码（应以 ${expectedDir} 开头）`)
+    }
+  }
+  check(derivedNames.length > 0, `域产物里扫出 ${derivedNames.length} 个模块标识（${files.length} 份产物里）`)
+  for (const m of mismatches) console.log('    ' + m)
+  check(mismatches.length === 0, `模块标识的值都指向自己域的源码（${derivedNames.length} 个里 ${mismatches.length} 个对不上）`)
+  // 下面两行不是给人看的装饰：tests/verify-contract-vocabulary.js 要能看见「按文件名推导」这件事
+  // 发生在哪些目录上，才敢把 `<文件名大写>_SOURCE` 这一族常量当「有人读」放行。推导出来的成品名字
+  // （PORTS_SOURCE 这类）是跑的时候拼的、静态文本里没有，所以那里按目录放行；把目录如实打出来，
+  // 这条放行的范围就有据可查，而不是一句空话。
+  console.log('    扫到的模块标识：' + derivedNames.join('、'))
+  console.log('    模块标识该指向的源目录：' + hitDomains.join('、'))
+}
+
+// 4h) 转译口径的三个纯函数自带回归保护（#1023 实现决定第 9、10 条）
+//   为什么挂在这一节：这条检查本来就在测试链的清单上（新开的测试文件不会被自动发现，清单是手写的），
+//   而它管的正是「产物与来源一致」这件事——路径怎么推、导出块怎么改写、产物与源码对不对得上，
+//   三件都是这同一件事的零件。
+//   这三个函数住在 scripts/lib/transpile-unit.mjs 里，那个模块不读盘、不写盘、不跑构建，
+//   所以这里可以放心直接引用；主构建脚本反而不能引用（它一被 import 就跑整趟构建）。
+{
+  console.log('\n转译口径纯函数：路径推导 / 导出块改写 / 双向判据')
+  let tu = null
+  try {
+    tu = require(path.resolve('scripts/lib/transpile-unit.mjs'))
+  } catch (e) {
+    check(false, '能加载 scripts/lib/transpile-unit.mjs（纯函数模块，不跑构建）：' + e.message)
+  }
+  if (tu) {
+    const cases = [
+      ['src/shared/refresh/src/budget.ts', 'src/shared/refresh/budget.js', '普通源码'],
+      ['src/shared/version-control/src/parse-log.ts', 'src/shared/version-control/parse-log.js', '带连字符的域名与文件名'],
+      ['src/shared/config-store/src/a.b.ts', 'src/shared/config-store/a.b.js', '文件名里有多个点（只换最后一个后缀）'],
+      ['src/shared/label-color/src/deep.ts', 'src/shared/label-color/deep.js', '规则只认最后一段 src/'],
+    ]
+    let derOk = 0
+    for (const [src, want, why] of cases) {
+      const got = tu.deriveOutputPath(src)
+      if (got === want) derOk += 1
+      else console.log(`    路径推导对不上（${why}）：${src} -> ${got}，应为 ${want}`)
+    }
+    check(derOk === cases.length, `路径推导：源码去掉 src/ 那一段、后缀换成 .js 就是产物（${derOk}/${cases.length}）`)
+    let threw = false
+    try { tu.deriveOutputPath('src/shared/refresh/budget.js') } catch (e) { threw = true }
+    check(threw, '路径推导：给的不是 .ts 源码路径时当场抛错，不猜')
+    let threw2 = false
+    try { tu.deriveOutputPath('src/shared/refresh/budget.ts') } catch (e) { threw2 = true }
+    check(threw2, '路径推导：路径里没有 src/ 那一段时当场抛错（认不出属于哪个域就不硬猜）')
+
+    // 导出块改写：尾部 export { A, B } 要还原成声明前的行首 export（客户端拼接会剥掉行首 export）。
+    const esbuildLike = 'const ALPHA = 1;\nfunction beta() { return ALPHA }\n\nexport {\n  ALPHA,\n  beta\n};\n'
+    const inlined = tu.inlineExportDeclarations(esbuildLike, '[测试]')
+    check(/^export const ALPHA = 1;/m.test(inlined) && /^export function beta\(\)/m.test(inlined),
+      '导出块改写：两个导出都回到行首形式')
+    check(inlined.indexOf('export {') < 0, '导出块改写：尾部那个 export { ... } 块没有了')
+    let badName = ''
+    try { tu.inlineExportDeclarations('const A = 1;\n\nexport {\n  A as B\n};\n', '[测试]') } catch (e) { badName = String(e.message) }
+    check(badName.indexOf('as') >= 0, '导出块改写：遇到 as 改名当场报错（' + badName.slice(0, 40) + '…）')
+    let missing = ''
+    try { tu.inlineExportDeclarations('const A = 1;\n\nexport {\n  NOT_DECLARED\n};\n', '[测试]') } catch (e) { missing = String(e.message) }
+    check(missing.indexOf('找不到声明') >= 0, '导出块改写：导出块里的名字找不到声明时拒绝生成（' + missing.slice(0, 40) + '…）')
+
+    // 双向判据：产物多了、产物少了、域空了三种都要报出来，干净的就该是空数组。
+    const clean = tu.checkDomainConsistency({ sources: ['a.ts', 'b.ts'], outputs: ['a.js', 'b.js'], handWritten: [] })
+    check(clean.length === 0, '双向判据：源与产物一一对应时不报问题')
+    const missingOut = tu.checkDomainConsistency({ sources: ['a.ts', 'b.ts'], outputs: ['a.js'], handWritten: [] })
+    check(missingOut.length === 1 && missingOut[0].problem === 'missing-output',
+      '双向判据：少一份产物要报出来（' + (missingOut[0] ? missingOut[0].problem : '没报') + '）')
+    const staleOut = tu.checkDomainConsistency({ sources: ['a.ts'], outputs: ['a.js', 'ghost.js'], handWritten: [] })
+    check(staleOut.length === 1 && staleOut[0].problem === 'stale-output',
+      '双向判据：多一份无源产物要报出来（' + (staleOut[0] ? staleOut[0].problem : '没报') + '）')
+    const emptyDomain = tu.checkDomainConsistency({ sources: [], outputs: [], handWritten: [] })
+    check(emptyDomain.length === 1 && emptyDomain[0].problem === 'empty-domain',
+      '双向判据：域里一份源码都没有要报出来（' + (emptyDomain[0] ? emptyDomain[0].problem : '没报') + '）')
+    const handWritten = tu.checkDomainConsistency({ sources: ['a.ts'], outputs: ['a.js', 'mine.js'], handWritten: ['mine.js'] })
+    check(handWritten.length === 0, '双向判据：名单里的手写产物不算无源产物')
+  }
+}
+
 // 4e) files 白名单：package/package.json files 含 shared
 {
   try {

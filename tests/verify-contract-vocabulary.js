@@ -14,7 +14,7 @@
 //      等于让否证本身把死词汇救活。
 //   ② **名字有人读**：这个常量的名字在**生产代码或测试**（src/host、src/client、tests）里被引用过。
 //      为什么这一条把测试也算上：仓库既有先例就不是生产代码在读——PORTS_SOURCE 的读者是
-//      tests/verify-refresh-freshness.js、POLICY_SOURCE 的读者是 tests/verify-policy.js。
+//      tests/verify-refresh-adr.js、POLICY_SOURCE 的读者是 tests/verify-policy.js。
 //      一个常量只被门禁读，和「谁都不读」是两件事，所以测试读它算活着。
 //
 // 为什么要两条一起看：只按①判会把一堆「共享层自己用的枚举/映射值」误判致死（举例：按①单判实测
@@ -94,11 +94,16 @@ function stripComments(src) {
 
 /**
  * 动态读取面（#845）：`<文件名大写>_SOURCE` 这类模块标识不是被「按名字」引用的，而是被门禁**按文件名
- *   推导**出来读的 —— 版本控制新鲜度门禁对每个产物算 `<名字>_SOURCE` 再断言它等于源码路径
- *   （tests/verify-version-control-freshness.js）。文本扫描看不见推导出来的名字，判据② 会把这一族
+ *   推导**出来读的 —— 门禁拿到产物文件名，把名字大写、接上 `_SOURCE` 再去问那个值。文本扫描看不见
+ *   推导出来的名字，判据② 会把这一族
  *   误判成死的（实测一次报 12 条）。这里补一条窄判据：名字以 _SOURCE 结尾、值指向某个 .ts 源码、
  *   且**有门禁在做这种推导**（某道门禁的正文里同时出现 '_SOURCE' 与 toUpperCase）时，算活着。
  *   只放行这一族；别的常量想活，仍然必须有人按名字读或有人产出值。
+ *
+ *   2026-10-13（#1023）：原先做这推导的有四条 `<域>-freshness` 门禁，它们随四个核的旧构建脚本
+ *   一起退场了；推导这件事收进 tests/verify-build-artifacts.js（覆盖面从「各域的接口空壳」扩到
+ *   「每个域的每份产物」）。这份门禁只认「确实有推导在场」，推导交给谁做不在这里写死，
+ *   所以换门禁、加门禁都不用回来改这一条。
  */
 function dynamicSourceReaderText() {
   const parts = []
@@ -152,16 +157,24 @@ function stringConstantsOf(modExport, modName) {
  * 判据本体：一份常量清单 + 两段文本（值那一份只看生产代码，名字那一份含测试），
  * 返回既没人产出、也没人读的那些。名字按「整词」匹配（前后不是标识符字符），
  * 免得 USER 这种短名字撞上别处的词。
+ *
+ * `dynamicText` 是「按文件名推导读模块标识」那族门禁的正文（见上面 dynamicSourceReaderText）。
+ * 这一族要看两件事：
+ *   - 有推导在场（dynamicText 非空，见 main 里那条断言）；
+ *   - 这个常量属于被推导的那一族：名字是 `<文件名大写>_SOURCE`，值是 `src/shared/<域>/src/x.ts`
+ *     这样的仓库相对源码路径。两条一起才是「产物里的模块标识」这件事本身。
+ * 推导出来的**成品名字**（PORTS_SOURCE 这类）是跑的时候拼出来的，静态文本里没有，所以这里没法
+ * 按名字对；至于推导出来的每个名字是不是真有对应产物、值是不是指向真源码，由做推导的那道门禁
+ * 自己逐份断言（tests/verify-build-artifacts.js 的模块标识出处判据）。这里只负责不当死词汇判红。
  */
-function dead(constants, valueText, nameText, dynamicText) {
+function dead(constants, valueText, nameText, dynamicText = '') {
   const tokenSeen = (t) => new RegExp('(^|[^A-Za-z0-9_$])' + t.replace(/[$]/g, '\\$&') + '([^A-Za-z0-9_$]|$)').test(nameText)
   return constants.filter((c) => {
     if (valueText.indexOf(c.value) >= 0) return false
     if ((c.tokens || []).some(tokenSeen)) return false
     // 动态读取面（#845）：模块标识那一族被门禁按文件名推导读，见上面那段说明。
     const key = String(c.name).split('.').pop()
-    const declaredDir = path.dirname(String(c.name).split('.').slice(0, -1).join('.'))
-    if (/^[A-Z0-9_]+_SOURCE$/.test(key) && /\.ts$/.test(c.value) && dynamicText.indexOf(declaredDir) >= 0) return false
+    if (dynamicText !== '' && /^[A-Z0-9_]+_SOURCE$/.test(key) && /^src\/shared\/[^/]+\/src\/[^/]+\.ts$/.test(c.value)) return false
     return true
   })
 }
