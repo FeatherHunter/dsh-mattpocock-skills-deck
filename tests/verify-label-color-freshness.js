@@ -1,7 +1,7 @@
 // verify-label-color-freshness.js — 配色核心新鲜度门禁（#629 落地）
 // 规则：
-//   1) label-color-core/src/ 每个 TS 转译后必须与 src/shared/label-color/ 下同名 JS 逐字一致；
-//      改了 TS 没重新生成产物就变红（转译口径直接复用 label-color-core/build.mjs 导出的同一个
+//   1) src/shared/label-color/src/ 每个 TS 转译后必须与 src/shared/label-color/ 下同名 JS 逐字一致；
+//      改了 TS 没重新生成产物就变红（转译口径直接复用 src/shared/label-color/build.mjs 导出的同一个
 //      函数 transpileUnit，两边永远不会漂移）。
 //   2) tsc --noEmit 必须通过（形态照 update-core：转译之外另做类型检查）。
 // 用法：node tests/verify-label-color-freshness.js（在仓库根目录）
@@ -15,9 +15,9 @@ let failed = false
 const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
 const UNITS = [
-  { ts: 'label-color-core/src/ports.ts', js: 'src/shared/label-color/ports.js' },
-  { ts: 'label-color-core/src/colors.ts', js: 'src/shared/label-color/colors.js' },
-  { ts: 'label-color-core/src/prompt.ts', js: 'src/shared/label-color/prompt.js' },
+  { ts: 'src/shared/label-color/src/ports.ts', js: 'src/shared/label-color/ports.js' },
+  { ts: 'src/shared/label-color/src/colors.ts', js: 'src/shared/label-color/colors.js' },
+  { ts: 'src/shared/label-color/src/prompt.ts', js: 'src/shared/label-color/prompt.js' },
 ]
 
 async function main() {
@@ -26,11 +26,11 @@ async function main() {
   // ---- 1) 新鲜度：逐字一致 ----
   let transpileUnit
   try {
-    const buildMod = await import(pathToFileURL(path.join(ROOT, 'label-color-core', 'build.mjs')).href)
+    const buildMod = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'label-color', 'build.mjs')).href)
     transpileUnit = buildMod.transpileUnit
     check(typeof transpileUnit === 'function', '构建脚本导出同一转译口径 transpileUnit')
   } catch (e) {
-    check(false, '构建脚本可加载（label-color-core/build.mjs）：' + (e && e.message))
+    check(false, '构建脚本可加载（src/shared/label-color/build.mjs）：' + (e && e.message))
     console.log('\n存在失败')
     process.exit(1)
   }
@@ -59,7 +59,7 @@ async function main() {
   //   按维护者要求撤掉；改成读导出值，问的还是同一件事（产物能不能追溯回源码）。
   try {
     const portsMod = await import(pathToFileURL(path.join(ROOT, 'src/shared/label-color/ports.js')).href)
-    check(portsMod.PORTS_SOURCE === 'label-color-core/src/ports.ts',
+    check(portsMod.PORTS_SOURCE === 'src/shared/label-color/src/ports.ts',
       '插口产物导出模块标识 PORTS_SOURCE（实得 ' + String(portsMod.PORTS_SOURCE) + '）')
   } catch (e) {
     check(false, '插口产物可加载（src/shared/label-color/ports.js）：' + (e && e.message))
@@ -70,7 +70,7 @@ async function main() {
   if (!fs.existsSync(tscBin)) {
     check(false, 'typescript 已安装（node_modules/typescript 缺失，请跑 pnpm install）')
   } else {
-    const r = spawnSync(process.execPath, [tscBin, '-p', path.join(ROOT, 'label-color-core', 'tsconfig.json')], { encoding: 'utf8' })
+    const r = spawnSync(process.execPath, [tscBin, '-p', path.join(ROOT, 'src', 'shared', 'label-color', 'tsconfig.json')], { encoding: 'utf8' })
     check(r.status === 0, 'tsc --noEmit 通过' + (r.status === 0 ? '' : '：' + ((r.stdout || '') + (r.stderr || '')).slice(0, 500)))
   }
 

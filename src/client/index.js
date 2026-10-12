@@ -177,15 +177,15 @@ export default {
     // v1.5 T3：面板默认高度固定 1/2（用户拍板彻底移除 panelHeight 配置 —— details 列高度与它无关，配置不生效）
     // ==== shared:workspaceKey (spliced by build) ====
     // #629 配色核心：色值归一、合法性判断、比较颜色有没有变，以及调色盘表格与提示词的拼装。
-    // 这两份是内置 TypeScript 核（label-color-core/）的产物，界面只当普通函数调用；
-    // 界面文案一律从词条传进去，核心不含任何用户能看到的字（详见 label-color-core/README.md）。
+    // 这两份是内置 TypeScript 核（src/shared/label-color/）的产物，界面只当普通函数调用；
+    // 界面文案一律从词条传进去，核心不含任何用户能看到的字（详见 src/shared/label-color/README.md）。
     // ==== shared:labelColors (spliced by build) ====
     // ==== shared:labelColorPrompt (spliced by build) ====
     // #715 诚实显示：新鲜度阈值（5 分钟黄 / 30 分钟红）、写入合并窗口、降档的延迟承诺，
-    // 只有一份真源（refresh-core/src/budget.ts → src/shared/refresh/budget.js），拼进来给界面读；
+    // 只有一份真源（src/shared/refresh/src/budget.ts → src/shared/refresh/budget.js），拼进来给界面读；
     // 判据与渲染见 views/shared/truthLines.js 与 views/ListTab.js。
     // ==== shared:refreshBudget (spliced by build) ====
-    // #842 写操作：能不能暂存/提交/拉取/推送的判定只有一份真源（version-control-core/src/rules.ts →
+    // #842 写操作：能不能暂存/提交/拉取/推送的判定只有一份真源（src/shared/version-control/src/rules.ts →
     // src/shared/version-control/rules.js）。界面按同一份判定画按钮状态，不自己算 —— 自己算就会与
     // 宿主执行前那次判定各说各话。
     // ==== shared:vcRules (spliced by build) ====

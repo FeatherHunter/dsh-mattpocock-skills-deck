@@ -131,7 +131,7 @@ node scripts/lib/select-gates.mjs src/client/views/versionControl/VersionControl
    也不在 import 图里，规则 2 兜不住。这类东西一旦成形，应该给它一个目录（例如
    `src/**/contract/`），让规则 1 的契约层兜底。
 4. **躺在 `src/` 里的自动生成文件。** `src/shared/refresh/budget.js` 是
-   `refresh-core/build.mjs` 从 `refresh-core/src/budget.ts` 生成的（文件头写着 AUTO-GENERATED）。
+   `src/shared/refresh/build.mjs` 从 `src/shared/refresh/src/budget.ts` 生成的（文件头写着 AUTO-GENERATED）。
    改 `.ts` 源文件，不会让「只读 `src/shared/refresh/budget.js`」的门禁被选中——
    两者之间没有 import 边。这类文件要么让它的门禁同时守着源文件，要么在生成器跑完之后补一次全链。
 5. **「有门禁」和「有专属门禁」是两件事，别混。** 归属写成目录的门禁（`tests/verify-reuse.js`、
@@ -162,8 +162,9 @@ node tests/verify-gate-map.js        # 给归属表和挑选规则把关的新�
 
 - `package.json` 的 `verify` 链变了（加了一扇、删了一扇、换了命令）；
 - 新增或删除**挂在链上**的 `tests/verify-*.js`（没挂上链的脚本不进归属表）；
-- `src/`（以及四个工作区包 `refresh-core/`、`label-color-core/`、`version-control-core/`、
-  `config-store-core/`）下新增、删除、移动了文件——表的目录层级会跟着变；
+- `src/`（含四个计算核所在的 `src/shared/<功能名>/`，它们原先平铺在仓库根的
+  `refresh-core/`、`label-color-core/`、`version-control-core/`、`config-store-core/`，
+  2026-10-13 按 #1023 搬进来）下新增、删除、移动了文件——表的目录层级会跟着变；
 - 任何门禁新写了 `// 门禁归属:` 注释，或者改了它读的文件。
 
 **把新门禁挂到链上之后也要重跑一次**：表里存着「链上多少步」，链一变就对不上了。
@@ -189,7 +190,7 @@ node tests/verify-gate-map.js        # 给归属表和挑选规则把关的新�
 - 写在文件**前 4000 个字符以内**（脚本只看开头这一段），一行一条路径；写多条就是多行。
 - `//`、`/* */` 都行，冒号用中文 `：` 或英文 `:` 都行；路径写到文件或目录都行，
   目录末尾带不带斜杠都可以。
-- 路径按**仓库相对路径**写（`src/...`、`refresh-core/...`）。
+- 路径按**仓库相对路径**写（`src/...`、`src/shared/refresh/...`）。
 - **写了它就以它为准，别的线索全不看**（读文件、import、字符串字面量都不再参与）。
   所以写的时候要写全：漏写的那条路径就等于没人守。
 - 一扇门禁如果只是「顺手读了一下」某个文件，不算守它——只写它坏了该拦住谁。

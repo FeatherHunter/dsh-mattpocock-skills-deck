@@ -129,15 +129,19 @@ function sha256(file) { return crypto.createHash('sha256').update(fs.readFileSyn
   check(hasPlatform, 'package/lib 含 platform/ 目录及入口')
   check(hasTracker, 'package/lib 含 tracker/ 目录及入口')
 }
-// 4b) package/shared 15 文件一一对应（shared-0 #443 已核：5 个进 client 拼接 + 8 个只走 host 复制，见 #443 接线图；S1 #451 拆 chain 为 3 文件，总数 13→15）
+// 4b) package/shared 与 src/shared 里的产物一一对应（双向差集 0 + 逐文件 sha256 一致）
+//   2026-10-13 起域目录里住着源码（.ts）、编译脚本、类型配置、说明文档与测试样本，
+//   它们**不进发布包**（构建的整树复制只带 .js），所以这条比对收窄到 .js 产物：
+//   比的是「产物集合两边一致」，不是「整棵源码树镜像一致」。
 {
-  const srcSharedFiles = collect(path.resolve('src/shared'))
-  const pkgSharedFiles = collect(path.resolve('package/shared'))
+  const only = (list) => list.filter((f) => f.endsWith('.js'))
+  const srcSharedFiles = only(collect(path.resolve('src/shared')))
+  const pkgSharedFiles = only(collect(path.resolve('package/shared')))
   const srcSet = new Set(srcSharedFiles)
   const pkgSet = new Set(pkgSharedFiles)
   const onlySrc = srcSharedFiles.filter(f => !pkgSet.has(f))
   const onlyPkg = pkgSharedFiles.filter(f => !srcSet.has(f))
-  check(onlySrc.length === 0 && onlyPkg.length === 0, `package/shared 与 src/shared 双向差集 0（src=${srcSharedFiles.length} pkg=${pkgSharedFiles.length}）`)
+  check(onlySrc.length === 0 && onlyPkg.length === 0, `package/shared 与 src/shared 的 .js 产物双向差集 0（src=${srcSharedFiles.length} pkg=${pkgSharedFiles.length}）`)
   if (onlySrc.length) console.log('    仅 src/shared 有:', onlySrc.join(', '))
   if (onlyPkg.length) console.log('    仅 package/shared 有:', onlyPkg.join(', '))
   let shaOk = true

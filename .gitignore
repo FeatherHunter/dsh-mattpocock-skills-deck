@@ -10,6 +10,8 @@ _research/
 .dsh-mattskillsdeck-cache/
 .tmp/
 .dsh-tmp/
+# 写 issue 正文时用的草稿落点（内容随票走，票上才是权威，本地不留档）
+.compile/
 
 # 根级临时件（debug / 抓取 / 原始导出）
 /dsh-market-registry.csv

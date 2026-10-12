@@ -65,9 +65,9 @@ async function main() {
   check(text.indexOf('20260913-builtin-ts-shape.md') >= 0, 'ADR 引用了 docs/adr/20260913-builtin-ts-shape.md 作为形态依据')
   check(fs.existsSync(path.join(ROOT, TS_ADR_REL)), '形态依据那份 ADR 文件真的在：' + TS_ADR_REL)
 
-  // ③ 那句话必须写全：refresh-core/ 的 .ts 不受 350 行约束，理由是三条。
+  // ③ 那句话必须写全：src/shared/refresh/ 的 .ts 不受 350 行约束，理由是三条。
   check(text.indexOf('不受「单文件 350 行」这条数字约束') >= 0 || text.indexOf('不受「单文件 350 行」这条数字约束') >= 0,
-    'ADR 写明 refresh-core/ 下的 .ts 源文件不受「单文件 350 行」这条数字约束')
+    'ADR 写明 src/shared/refresh/ 下的 .ts 源文件不受「单文件 350 行」这条数字约束')
   check(/只扫 `src\/\*\*\/\*\.js`/.test(text), '理由之一写明了：350 行那条门禁只扫 src/**/*.js')
   check(text.indexOf('产物之间零相对引用是硬约束') >= 0 && /拆\s*`?\.ts`?/.test(text) && text.indexOf('重复代码') >= 0,
     '理由之二写明了：产物之间零相对引用是硬约束，拆 .ts 会逼出重复代码')
@@ -76,12 +76,12 @@ async function main() {
 
   // ③b 上面那句「只扫 src/**/*.js」必须与代码当场对得上——去读那条门禁本身，不许只信文档。
   const granularity = fs.readFileSync(path.join(ROOT, 'tests', 'verify-file-granularity.js'), 'utf8')
-  const scansSrcOnly = /const SRC = path\.join\(ROOT, 'src'\)/.test(granularity) && !/refresh-core/.test(granularity)
-  check(scansSrcOnly, '当场核一遍：tests/verify-file-granularity.js 扫的确实是 src 那棵树，没有把 refresh-core/ 纳进去')
+  const scansSrcOnly = /const SRC = path\.join\(ROOT, 'src'\)/.test(granularity) && !/src\/shared\/refresh/.test(granularity)
+  check(scansSrcOnly, '当场核一遍：tests/verify-file-granularity.js 扫的确实是 src 那棵树，没有把 src/shared/refresh/ 纳进去')
 
   // ④ 额度常量的落点与做法写全了。
-  check(text.indexOf('只有一处物理真源') >= 0 && text.indexOf('refresh-core/src/budget.ts') >= 0,
-    'ADR 写明额度常量只有一处物理真源：refresh-core/src/budget.ts')
+  check(text.indexOf('只有一处物理真源') >= 0 && text.indexOf('src/shared/refresh/src/budget.ts') >= 0,
+    'ADR 写明额度常量只有一处物理真源：src/shared/refresh/src/budget.ts')
   const injections = ['policy.ts', 'backoff.ts', 'tool-cost.ts']
   check(injections.every((n) => text.indexOf(n) >= 0),
     'ADR 写明宿主侧取好再传进纯函数，并点到三处同做法的先例：' + injections.join('、'))

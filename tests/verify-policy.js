@@ -166,7 +166,7 @@ async function main() {
   const policy = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'refresh', 'policy.js')).href)
   const limits = limitsFromBudget(budget)
 
-  check(policy.POLICY_SOURCE === 'refresh-core/src/policy.ts', '产物带模块标识 POLICY_SOURCE（来自 refresh-core/src/policy.ts）')
+  check(policy.POLICY_SOURCE === 'src/shared/refresh/src/policy.ts', '产物带模块标识 POLICY_SOURCE（来自 src/shared/refresh/src/policy.ts）')
   check(Array.isArray(policy.REQUEST_KINDS) && policy.REQUEST_KINDS.length >= 8, '请求种类表在（' + policy.REQUEST_KINDS.length + ' 种）')
   check(typeof policy.decide === 'function' && typeof policy.aiToolAdmission === 'function' && typeof policy.degradePlanFor === 'function',
     '三个裁决函数都在（decide / aiToolAdmission / degradePlanFor）')

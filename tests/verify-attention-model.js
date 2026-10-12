@@ -11,7 +11,7 @@
 //   五、**判定是纯的**：同一份输入连收一百次，结论完全一样（否则「30 秒后归零」就成了一句空话）。
 //
 // 被测对象是宿主薄壳（src/host/refresh/attention.js）—— 判定全部在它调用的那份纯函数产物
-// （src/shared/refresh/attention.js，源码 refresh-core/src/attention.ts）里。两处都真跑，不读文本。
+// （src/shared/refresh/attention.js，源码 src/shared/refresh/src/attention.ts）里。两处都真跑，不读文本。
 // 反证口径：这个脚本自己可以被指向一份「故意做坏」的纯函数副本（环境变量 DSH_ATTENTION_VARIANT），
 // 那种情况下必须出现 FAIL。见下面 loadPure()。
 const fs = require('fs')
@@ -351,7 +351,7 @@ async function main() {
   if (failed) {
     console.log('')
     console.log('票面验收四条：后台零定时器、活跃上限 2、同一工作区根只产生一次探测、90 秒无信号全部收摊。')
-    console.log('判定真源：refresh-core/src/attention.ts（产物 src/shared/refresh/attention.js）；')
+    console.log('判定真源：src/shared/refresh/src/attention.ts（产物 src/shared/refresh/attention.js）；')
     console.log('薄壳：src/host/refresh/attention.js（宿主电话 wf.focus）。')
   }
   process.exit(failed ? 1 : 0)

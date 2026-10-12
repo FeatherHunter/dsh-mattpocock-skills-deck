@@ -1272,7 +1272,7 @@ const wait = (env) => realSleep(300)
 
   // ── 标签点击次数不落盘（#1012 · 维护者 2026-10-12 拍板）──────────────────────────
   //   这一项只是标签 chip 排序用的热度，丢了不影响功能：客户端既不读旧本地键，也不写本地存储；
-  //   核那一侧写本机设置文件时也不再写它（那一半在 tests/verify-config-store-core.js 的 C1 里验）。
+  //   核那一侧写本机设置文件时也不再写它（那一半在 tests/verify-src/shared/config-store.js 的 C1 里验）。
   {
     const seeded = { 'dsws.labelClicks': JSON.stringify({ bug: 9, task: 4 }) }
     const writes = []

@@ -1,26 +1,26 @@
 #!/usr/bin/env node
 /**
- * verify-no-cross-import.js ¡ª ¿ç·¿ÒýÓÃÃÅ½û£¨#326 ³Ð½Ó #313 D1-D3£©
+ * verify-no-cross-import.js ï¿½ï¿½ ï¿½ç·¿ï¿½ï¿½ï¿½ï¿½ï¿½Å½ï¿½ï¿½ï¿½#326 ï¿½Ð½ï¿½ #313 D1-D3ï¿½ï¿½
  *
- * É¨ÃèÓò£ºÈý×ùÄÚÖÃºó¶ËÄ¿Â¼£¨src/host/tracker/backends/github¡¢gitlab¡¢markdown£©£¬
- * µÚÈý·½À©Õ¹£¨examples/demo-mini µÈ£©²»ÔÚÓòÄÚ¡£
+ * É¨ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ãºï¿½ï¿½Ä¿Â¼ï¿½ï¿½src/host/tracker/backends/githubï¿½ï¿½gitlabï¿½ï¿½markdownï¿½ï¿½ï¿½ï¿½
+ * ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Õ¹ï¿½ï¿½examples/demo-mini ï¿½È£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ú¡ï¿½
  *
- * ¼ì²é¶ÔÏó£º¾²Ì¬ import / export-from µÄ×ÖÃæÁ¿ËµÃ÷·û Óë ¶¯Ì¬ import('...') µÄ×ÖÃæÁ¿ËµÃ÷·û£»
- * Ã¿ÌõÎ¥¹æÊä³öÎÄ¼þ¡¢ÐÐºÅ¡¢Ä¿±ê·¿¼ä¡£·Ç×ÖÃæÁ¿µÄ¶¯Ì¬ import Ò²ÊÓÎªÎ¥¹æ£¨¼ÍÂÉÒªÇóºó¶ËÎÄ¼þµÄ
- * ÒýÓÃËµÃ÷·û±ØÐëÊÇ×ÖÃæÁ¿×Ö·û´®£©¡£
+ * ï¿½ï¿½ï¿½ï¿½ï¿½ó£º¾ï¿½Ì¬ import / export-from ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ëµï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½Ì¬ import('...') ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ëµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+ * Ã¿ï¿½ï¿½Î¥ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½ï¿½ÐºÅ¡ï¿½Ä¿ï¿½ê·¿ï¿½ä¡£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¶ï¿½Ì¬ import Ò²ï¿½ï¿½ÎªÎ¥ï¿½æ£¨ï¿½ï¿½ï¿½ï¿½Òªï¿½ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½
+ * ï¿½ï¿½ï¿½ï¿½Ëµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
  *
- * °×Ãûµ¥£¨ÔÊÐíÒýÓÃ£¬ÆäÓàÒ»ÂÉ½ûÖ¹£©£º
- *   - node ÄÚÖÃÄ£¿é£¨º¬ node: Ç°×ºÓëÂãÃû£©
- *   - Í¬·¿¼äÄÚÏà¶ÔÂ·¾¶£¨½âÎöºóÈÔÔÚ src/host/tracker/backends/<self>/ ÄÚ£©
+ * ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ã£ï¿½ï¿½ï¿½ï¿½ï¿½Ò»ï¿½É½ï¿½Ö¹ï¿½ï¿½ï¿½ï¿½
+ *   - node ï¿½ï¿½ï¿½ï¿½Ä£ï¿½é£¨ï¿½ï¿½ node: Ç°×ºï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+ *   - Í¬ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Â·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ src/host/tracker/backends/<self>/ ï¿½Ú£ï¿½
  *   - src/shared/tracker/**
  *   - src/shared/labels.js
  *   - src/shared/label-color/**
  *   - src/host/tracker/preflight.js
  *   - src/host/platform/**
  *
- * host Ö÷³ÌÐò -> ºó¶ËµÄÒýÓÃ²»ÔÚ¼ì²é·¶Î§£¨±¾½Å±¾Ö»É¨Èý×ùºó¶ËÄ¿Â¼£©¡£
+ * host ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ -> ï¿½ï¿½Ëµï¿½ï¿½ï¿½ï¿½Ã²ï¿½ï¿½Ú¼ï¿½é·¶Î§ï¿½ï¿½ï¿½ï¿½ï¿½Å±ï¿½Ö»É¨ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¿Â¼ï¿½ï¿½ï¿½ï¿½
  *
- * ÓÃ·¨£ºnode tests/verify-no-cross-import.js
+ * ï¿½Ã·ï¿½ï¿½ï¿½node tests/verify-no-cross-import.js
  */
 const fs = require('fs')
 const path = require('path')
@@ -38,13 +38,13 @@ function bad(msg) { failed = true; console.log('  FAIL ' + msg) }
 const WHITELIST_RE = [
   /^src\/shared\/tracker\//,
   /^src\/shared\/labels\.js$/,
-// #629£ºÅäÉ«ºËÐÄ£¨label-color-core µÄ²úÎï£©¡£Á½¸öºó¶Ë·¿¼äÒªÓëËÞÖ÷¡¢¿Í»§¶Ë°´Í¬Ò»Ì×É«Öµ¿Ú¾¶±È½ÏÑÕÉ«£¬¹ÊÔÊÐíÒýÓÃ¡£
+// #629ï¿½ï¿½ï¿½ï¿½É«ï¿½ï¿½ï¿½Ä£ï¿½src/shared/label-color ï¿½Ä²ï¿½ï¿½ï£©ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ë·ï¿½ï¿½ï¿½Òªï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í»ï¿½ï¿½Ë°ï¿½Í¬Ò»ï¿½ï¿½É«Öµï¿½Ú¾ï¿½ï¿½È½ï¿½ï¿½ï¿½É«ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ã¡ï¿½
   /^src\/shared\/label-color\//,
   /^src\/host\/tracker\/preflight\.js$/,
   /^src\/host\/platform\//,
-  // #711: the idempotency-anchor product of refresh-core (src/shared/refresh/idempotency.js). The three backend rooms judge "did I already create this ticket" by this one shared module.
+  // #711: the idempotency-anchor product of src/shared/refresh (src/shared/refresh/idempotency.js). The three backend rooms judge "did I already create this ticket" by this one shared module.
   /^src\/shared\/refresh\//,
-  // #1012: the label-colors schema unit of config-store-core (src/shared/config-store/labels.js). The markdown room reads/writes label-colors.yaml through the core instead of its own parser.
+  // #1012: the label-colors schema unit of src/shared/config-store (src/shared/config-store/labels.js). The markdown room reads/writes label-colors.yaml through the core instead of its own parser.
   /^src\/shared\/config-store\//,
 ]
 
@@ -175,7 +175,7 @@ function scanForCrossImport(files) {
           spec: imp.spec,
           resolved: '',
           target: 'non-literal',
-          reason: 'ºó¶ËÎÄ¼þµÄÒýÓÃËµÃ÷·û±ØÐëÊÇ×ÖÃæÁ¿×Ö·û´®£¨·¢ÏÖ·Ç×ÖÃæÁ¿ dynamic import£©',
+          reason: 'ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ëµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ dynamic importï¿½ï¿½',
         })
         continue
       }
@@ -189,7 +189,7 @@ function scanForCrossImport(files) {
         if (spec.startsWith('/')) resolved = s
         if (isSameRoom(posixPath, resolved)) continue
         if (isWhitelisted(resolved)) continue
-        let target = '·Ç°×Ãûµ¥'
+        let target = 'ï¿½Ç°ï¿½ï¿½ï¿½ï¿½ï¿½'
         for (const other of BACKENDS) {
           if (other === backend) continue
           const otherPrefix = BACKEND_ROOT_POSIX + '/' + other + '/'
@@ -199,7 +199,7 @@ function scanForCrossImport(files) {
             break
           }
         }
-        if (target === '·Ç°×Ãûµ¥' && /backends\/(github|gitlab|markdown)\//.test(spec)) {
+        if (target === 'ï¿½Ç°ï¿½ï¿½ï¿½ï¿½ï¿½' && /backends\/(github|gitlab|markdown)\//.test(spec)) {
           const m2 = /backends\/(github|gitlab|markdown)\//.exec(spec)
           if (m2) target = m2[1]
         }
@@ -209,21 +209,21 @@ function scanForCrossImport(files) {
           spec,
           resolved,
           target,
-          reason: '¿ç·¿»ò·Ç°×Ãûµ¥ÒýÓÃ',
+          reason: 'ï¿½ç·¿ï¿½ï¿½Ç°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½',
         })
       } else {
         if (spec.startsWith('src/')) {
           const resolved = spec
           if (isSameRoom(posixPath, resolved)) continue
           if (isWhitelisted(resolved)) continue
-          let target = '·Ç°×Ãûµ¥'
+          let target = 'ï¿½Ç°ï¿½ï¿½ï¿½ï¿½ï¿½'
           for (const other of BACKENDS) {
             const otherPrefix = BACKEND_ROOT_POSIX + '/' + other + '/'
             if (resolved.startsWith(otherPrefix)) { target = other; break }
           }
-          violations.push({ file: posixPath, line: imp.line, spec, resolved, target, reason: '¿ç·¿»ò·Ç°×Ãûµ¥ÒýÓÃ£¨Âã²Ö¿âÂ·¾¶£©' })
+          violations.push({ file: posixPath, line: imp.line, spec, resolved, target, reason: 'ï¿½ç·¿ï¿½ï¿½Ç°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ã£ï¿½ï¿½ï¿½Ö¿ï¿½Â·ï¿½ï¿½ï¿½ï¿½' })
         } else {
-          violations.push({ file: posixPath, line: imp.line, spec, resolved: spec, target: 'bare-spec', reason: 'ÂãËµÃ÷·û·Ç node ÄÚÖÃÇÒ²»ÔÚ°×Ãûµ¥' })
+          violations.push({ file: posixPath, line: imp.line, spec, resolved: spec, target: 'bare-spec', reason: 'ï¿½ï¿½Ëµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ node ï¿½ï¿½ï¿½ï¿½ï¿½Ò²ï¿½ï¿½Ú°ï¿½ï¿½ï¿½ï¿½ï¿½' })
         }
       }
     }
@@ -231,7 +231,7 @@ function scanForCrossImport(files) {
   return violations
 }
 
-console.log('== verify-no-cross-import£º¿ç·¿ÒýÓÃÃÅ½û£¨#326£© ==')
+console.log('== verify-no-cross-importï¿½ï¿½ï¿½ç·¿ï¿½ï¿½ï¿½ï¿½ï¿½Å½ï¿½ï¿½ï¿½#326ï¿½ï¿½ ==')
 let selfFailed = false
 function selfCheck(ok, msg, detail) {
   if (ok) console.log('  PASS ' + msg)
@@ -246,7 +246,7 @@ function selfCheck(ok, msg, detail) {
     { filePath: 'src/host/tracker/backends/github/d.js', content: "const m = await import('./client.js')\nawait import('../../../../shared/tracker/constants.js')\n" },
   ]
   const v1 = scanForCrossImport(compliant)
-  selfCheck(v1.length === 0, '×Ô¼ìºÏ¹æ¼Ð¾ßÁãÎ¥¹æ', v1.length ? JSON.stringify(v1.slice(0,2)) : '')
+  selfCheck(v1.length === 0, 'ï¿½Ô¼ï¿½Ï¹ï¿½Ð¾ï¿½ï¿½ï¿½Î¥ï¿½ï¿½', v1.length ? JSON.stringify(v1.slice(0,2)) : '')
 }
 
 {
@@ -260,15 +260,15 @@ function selfCheck(ok, msg, detail) {
     { filePath: 'src/host/tracker/backends/github/bad7.js', content: "import('./a/' + name + '.js')\n" },
   ]
   const v2 = scanForCrossImport(violating)
-  selfCheck(v2.length >= 6, '×Ô¼ìÎ¥¹æ¼Ð¾ßÓ¦²¶»ñ >=6 ÌõÎ¥¹æ', 'got=' + v2.length)
+  selfCheck(v2.length >= 6, 'ï¿½Ô¼ï¿½Î¥ï¿½ï¿½Ð¾ï¿½Ó¦ï¿½ï¿½ï¿½ï¿½ >=6 ï¿½ï¿½Î¥ï¿½ï¿½', 'got=' + v2.length)
   const hasGitlab = v2.some(v => v.target === 'gitlab' || v.resolved.includes('gitlab'))
-  selfCheck(hasGitlab, 'Î¥¹æ¼Ð¾ßº¬ gitlab ¿ç·¿')
+  selfCheck(hasGitlab, 'Î¥ï¿½ï¿½Ð¾ßºï¿½ gitlab ï¿½ç·¿')
   const hasBare = v2.some(v => v.target === 'bare-spec' || v.spec === 'ws')
-  selfCheck(hasBare, 'Î¥¹æ¼Ð¾ßº¬Âã°ü ws')
+  selfCheck(hasBare, 'Î¥ï¿½ï¿½Ð¾ßºï¿½ï¿½ï¿½ï¿½ ws')
   const hasNonLiteral = v2.some(v => v.target === 'non-literal')
-  selfCheck(hasNonLiteral, 'Î¥¹æ¼Ð¾ßº¬·Ç×ÖÃæÁ¿ dynamic import')
+  selfCheck(hasNonLiteral, 'Î¥ï¿½ï¿½Ð¾ßºï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ dynamic import')
   const hasWhitelistFail = v2.some(v => v.resolved === 'src/shared/other.js')
-  selfCheck(hasWhitelistFail, 'Î¥¹æ¼Ð¾ßº¬·Ç°×Ãûµ¥ src/shared/other.js')
+  selfCheck(hasWhitelistFail, 'Î¥ï¿½ï¿½Ð¾ßºï¿½ï¿½Ç°ï¿½ï¿½ï¿½ï¿½ï¿½ src/shared/other.js')
 }
 
 {
@@ -277,7 +277,7 @@ function selfCheck(ok, msg, detail) {
     { filePath: 'src/host/tracker/backends/github/b.js', content: "import y from './other.js'\n" },
   ]
   const ve = scanForCrossImport(edge)
-  selfCheck(ve.length === 0, '±ß½ç£ºÈÆÂ·¾¶Í¬·¿·ÅÐÐ', JSON.stringify(ve))
+  selfCheck(ve.length === 0, 'ï¿½ß½ç£ºï¿½ï¿½Â·ï¿½ï¿½Í¬ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', JSON.stringify(ve))
 }
 
 {
@@ -285,14 +285,14 @@ function selfCheck(ok, msg, detail) {
     { filePath: 'src/host/tracker/backends/github/a.js', content: "await import('node:path')\nawait import('../../../../shared/tracker/constants.js')\n" },
   ]
   const vd = scanForCrossImport(dynWhite)
-  selfCheck(vd.length === 0, '¶¯Ì¬×ÖÃæÁ¿°×Ãûµ¥·ÅÐÐ')
+  selfCheck(vd.length === 0, 'ï¿½ï¿½Ì¬ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½')
 }
 
 if (selfFailed) {
-  console.log('\n×Ô¼ìÊ§°Ü - ÃÅ½ûÊµÏÖÎ´Í¨¹ýÄÚ´æ¼Ð¾ß')
+  console.log('\nï¿½Ô¼ï¿½Ê§ï¿½ï¿½ - ï¿½Å½ï¿½Êµï¿½ï¿½Î´Í¨ï¿½ï¿½ï¿½Ú´ï¿½Ð¾ï¿½')
   process.exit(1)
 }
-console.log('  PASS ×Ô¼ìÄÚ´æ¼Ð¾ßÈ«²¿Í¨¹ý')
+console.log('  PASS ï¿½Ô¼ï¿½ï¿½Ú´ï¿½Ð¾ï¿½È«ï¿½ï¿½Í¨ï¿½ï¿½')
 
 function collectBackendFiles() {
   const out = []
@@ -319,16 +319,16 @@ const realFiles = collectBackendFiles().map(abs => {
 const realViolations = scanForCrossImport(realFiles)
 
 if (realViolations.length) {
-  console.log('\n-- ÕæÊµ²Ö¿âÉ¨Ãè·¢ÏÖÎ¥¹æ --')
+  console.log('\n-- ï¿½ï¿½Êµï¿½Ö¿ï¿½É¨ï¿½è·¢ï¿½ï¿½Î¥ï¿½ï¿½ --')
   for (const v of realViolations) {
-    bad(v.file + ':' + v.line + " -> '" + v.spec + "' ½âÎöÎª '" + v.resolved + "' Ä¿±ê=" + v.target + ' (' + v.reason + ')')
+    bad(v.file + ':' + v.line + " -> '" + v.spec + "' ï¿½ï¿½ï¿½ï¿½Îª '" + v.resolved + "' Ä¿ï¿½ï¿½=" + v.target + ' (' + v.reason + ')')
   }
 } else {
-  ok('ÕæÊµ²Ö¿âÁã¿ç·¿ÒýÓÃ£¨' + realFiles.length + ' ÎÄ¼þÉ¨Ãè£©')
+  ok('ï¿½ï¿½Êµï¿½Ö¿ï¿½ï¿½ï¿½ç·¿ï¿½ï¿½ï¿½Ã£ï¿½' + realFiles.length + ' ï¿½Ä¼ï¿½É¨ï¿½è£©')
 }
 
 if (realViolations.length) {
-  console.log('\nÌáÊ¾£º°×Ãûµ¥ÓëÏÖ×´²»·û»ò´æÔÚ¿ç·¿ÒýÓÃ£»Çë°´¼ÍÂÉ²ðÆ±»ò¸üÐÂ°×Ãûµ¥²¢ÔÚÆ±¾ÝÁôºÛ£¨#313 D2£©')
+  console.log('\nï¿½ï¿½Ê¾ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½×´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ú¿ç·¿ï¿½ï¿½ï¿½Ã£ï¿½ï¿½ë°´ï¿½ï¿½ï¿½É²ï¿½Æ±ï¿½ï¿½ï¿½ï¿½Â°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ±ï¿½ï¿½ï¿½ï¿½ï¿½Û£ï¿½#313 D2ï¿½ï¿½')
 }
 
 console.log(failed ? '\n[verify-no-cross-import] FAIL' : '\n[verify-no-cross-import] PASS')

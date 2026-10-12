@@ -1,7 +1,7 @@
 // verify-config-store-freshness.js — 配置读写核新鲜度门禁（#1012 落地）
 // 规则（照 tests/verify-label-color-freshness.js 的形态）：
-//   1) config-store-core/src/ 每个 TS 转译后必须与 src/shared/config-store/ 下同名 JS 逐字一致；
-//      改了 TS 没重新生成产物就变红（转译口径直接复用 config-store-core/build.mjs 导出的同一个
+//   1) src/shared/config-store/src/ 每个 TS 转译后必须与 src/shared/config-store/ 下同名 JS 逐字一致；
+//      改了 TS 没重新生成产物就变红（转译口径直接复用 src/shared/config-store/build.mjs 导出的同一个
 //      函数 transpileUnit，两边永远不会漂移；UNITS 清单也是同一份，不手抄；
 //      四个单元是 ports 空壳 + workspace / settings / labels 三份 schema，各自独立）。
 //   2) tsc --noEmit 必须通过。
@@ -22,17 +22,17 @@ async function main() {
   let transpileUnit
   let UNITS
   try {
-    const buildMod = await import(pathToFileURL(path.join(ROOT, 'config-store-core', 'build.mjs')).href)
+    const buildMod = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'config-store', 'build.mjs')).href)
     transpileUnit = buildMod.transpileUnit
     UNITS = buildMod.UNITS
     check(typeof transpileUnit === 'function', '构建脚本导出同一转译口径 transpileUnit')
     check(Array.isArray(UNITS) && UNITS.length === 4, '构建脚本导出 UNITS 清单（四项：ports + 三份 schema，不手抄）')
   } catch (e) {
-    check(false, '构建脚本可加载（config-store-core/build.mjs）：' + (e && e.message))
+    check(false, '构建脚本可加载（src/shared/config-store/build.mjs）：' + (e && e.message))
     console.log('\n存在失败')
     process.exit(1)
   }
-  const units = UNITS.map((u) => ({ ts: 'config-store-core/src/' + u.ts, js: 'src/shared/config-store/' + u.js }))
+  const units = UNITS.map((u) => ({ ts: 'src/shared/config-store/src/' + u.ts, js: 'src/shared/config-store/' + u.js }))
   for (const u of units) {
     const tsName = path.basename(u.ts)
     let expected
@@ -58,7 +58,7 @@ async function main() {
   //   按维护者要求撤掉；改成读导出值，问的还是同一件事（产物能不能追溯回源码）。
   try {
     const portsMod = await import(pathToFileURL(path.join(ROOT, 'src/shared/config-store/ports.js')).href)
-    check(portsMod.PORTS_SOURCE === 'config-store-core/src/ports.ts',
+    check(portsMod.PORTS_SOURCE === 'src/shared/config-store/src/ports.ts',
       '插口产物导出模块标识 PORTS_SOURCE（实得 ' + String(portsMod.PORTS_SOURCE) + '）')
   } catch (e) {
     check(false, '插口产物可加载（src/shared/config-store/ports.js）：' + (e && e.message))
@@ -69,7 +69,7 @@ async function main() {
   if (!fs.existsSync(tscBin)) {
     check(false, 'typescript 已安装（node_modules/typescript 缺失，请跑 pnpm install）')
   } else {
-    const r = spawnSync(process.execPath, [tscBin, '-p', path.join(ROOT, 'config-store-core', 'tsconfig.json')], { encoding: 'utf8' })
+    const r = spawnSync(process.execPath, [tscBin, '-p', path.join(ROOT, 'src', 'shared', 'config-store', 'tsconfig.json')], { encoding: 'utf8' })
     check(r.status === 0, 'tsc --noEmit 通过' + (r.status === 0 ? '' : '：' + ((r.stdout || '') + (r.stderr || '')).slice(0, 500)))
   }
 

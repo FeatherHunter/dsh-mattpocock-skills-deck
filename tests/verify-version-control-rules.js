@@ -131,7 +131,7 @@ async function main() {
   console.log('版本控制判定规则门禁（#816 起四操作底线 + 装置自检，#865 加更新远方记录三条）')
 
   const rules = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'version-control', 'rules.js')).href)
-  check(rules.RULES_SOURCE === 'version-control-core/src/rules.ts', '产物带模块标识 RULES_SOURCE')
+  check(rules.RULES_SOURCE === 'src/shared/version-control/src/rules.ts', '产物带模块标识 RULES_SOURCE')
   check(typeof rules.judge === 'function', '导出单一入口 judge')
 
   const realFailures = failuresOf(rules.judge)

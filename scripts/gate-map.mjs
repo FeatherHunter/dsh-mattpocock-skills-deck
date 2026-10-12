@@ -37,15 +37,13 @@ export const ROOT = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)
 export const MAP_PATH = path.join(ROOT, 'tests', 'gate-map.json')
 
 // 本仓的源码根目录：只有落在这些目录里的路径才算「守着某条源码路径」。
-// 前四个是插件自己的源码与机器人脚本，后面几个是并列的工作区包（各带自己的 src/）。
+// 前四个是插件自己的源码与机器人脚本。
+// 不用再单列几个计算核的目录：它们已按 #1023 搬到 src/shared/<功能名>/，
+// 被上面的 'src' 罩住；单列反而会让人误以为它们是并列的工作区包。
 export const CODE_ROOTS = [
   'src',
   'scripts',
   'tests',
-  'refresh-core',
-  'label-color-core',
-  'version-control-core',
-  'config-store-core',
 ]
 
 // 能被当作「归属路径」的目录前缀，比 CODE_ROOTS 宽：门禁读构建产物（package/）、
@@ -66,10 +64,6 @@ export const PATH_PREFIXES = [
 // 建反向依赖图时扫哪些目录：手写源码所在的地方（派生目录不进去，见上）。
 export const GRAPH_ROOTS = [
   'src',
-  'refresh-core',
-  'label-color-core',
-  'version-control-core',
-  'config-store-core',
 ]
 
 // 真正装插件源码的目录。只有守着这些目录里某条路径的门禁，才算「算得出它守着哪条源码路径」。

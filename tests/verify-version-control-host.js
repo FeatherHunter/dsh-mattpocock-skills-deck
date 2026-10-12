@@ -25,11 +25,11 @@ const readText = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 const readJson = (rel) => JSON.parse(readText(rel))
 
 // 真机字节样本（#817 采集，命令原文见样本头）：门禁拿它当「git 到底吐什么」的正源。
-const LIVE = readJson('version-control-core/fixtures/live-numstat-shapes.json')
+const LIVE = readJson('tests/fixtures/version-control/live-numstat-shapes.json')
 // #821 真机样本：四个提交加一次真合并，命令原文见样本头（show --numstat / show -p / rev-list --parents）。
-const LIVE_REV = readJson('version-control-core/fixtures/live-rev-shapes.json')
+const LIVE_REV = readJson('tests/fixtures/version-control/live-rev-shapes.json')
 // #819 复审样本：方括号路径（带/不带 --literal-pathspecs 两种真机输出）、sql 行首歧义、刚克隆的仓库。
-const LIVE_819 = readJson('version-control-core/fixtures/live-819-review-shapes.json')
+const LIVE_819 = readJson('tests/fixtures/version-control/live-819-review-shapes.json')
 const LIVE_ROOT = /^worktree ([^\u0000\n]+)/.exec(LIVE.worktrees.out)[1]
 const FIXED_PREFIX = ['--no-optional-locks', '--literal-pathspecs', '-c', 'core.quotepath=false', '-c', 'color.ui=false', '-c', 'i18n.logOutputEncoding=UTF-8']
 const LOG_WHITELIST = ['argv0', 'cwdHash', 'latencyMs', 'exitCode', 'via', 'timeoutMs', 'errorHash']

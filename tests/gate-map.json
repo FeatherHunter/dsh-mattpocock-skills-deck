@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-12T04:54:23.621Z",
+  "generatedAt": "2026-10-12T17:40:28.721Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 231,
   "gateCount": 231,
   "attributedGates": 205,
   "unattributedGates": 26,
   "buildOutputOnlyGates": 20,
-  "graphFileCount": 517,
+  "graphFileCount": 510,
   "gates": [
     {
       "step": "node tests/verify-596-rpc-carrier.js",
@@ -163,19 +163,18 @@
       "step": "node tests/verify-label-color-freshness.js",
       "file": "tests/verify-label-color-freshness.js",
       "guards": [
-        "label-color-core/build.mjs",
-        "label-color-core/src/colors.ts",
-        "label-color-core/src/ports.ts",
-        "label-color-core/src/prompt.ts",
-        "label-color-core/tsconfig.json",
+        "src/shared/label-color/build.mjs",
         "src/shared/label-color/colors.js",
         "src/shared/label-color/ports.js",
-        "src/shared/label-color/prompt.js"
+        "src/shared/label-color/prompt.js",
+        "src/shared/label-color/src/colors.ts",
+        "src/shared/label-color/src/ports.ts",
+        "src/shared/label-color/src/prompt.ts",
+        "src/shared/label-color/tsconfig.json"
       ],
       "dirs": [
-        "label-color-core",
-        "label-color-core/src",
-        "src/shared/label-color"
+        "src/shared/label-color",
+        "src/shared/label-color/src"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -185,7 +184,6 @@
       "step": "node tests/verify-label-color-core.js",
       "file": "tests/verify-label-color-core.js",
       "guards": [
-        "label-color-core/src/ports.ts",
         "src/client/kernel/locale-labels.js",
         "src/client/views/labels/LabelColorDialog.js",
         "src/client/views/labels/LabelColorRow.js",
@@ -196,13 +194,14 @@
         "src/shared/label-color/colors.js",
         "src/shared/label-color/ports.js",
         "src/shared/label-color/prompt.js",
+        "src/shared/label-color/src/ports.ts",
         "tests/lib/eval-probe.js"
       ],
       "dirs": [
-        "label-color-core/src",
         "src/client/kernel",
         "src/client/views/labels",
         "src/shared/label-color",
+        "src/shared/label-color/src",
         "tests/lib"
       ],
       "unattributed": false,
@@ -3222,25 +3221,11 @@
       "step": "node tests/verify-refresh-freshness.js",
       "file": "tests/verify-refresh-freshness.js",
       "guards": [
-        "refresh-core/build.mjs",
-        "refresh-core/src/attention.ts",
-        "refresh-core/src/backend-quota.ts",
-        "refresh-core/src/backoff.ts",
-        "refresh-core/src/budget.ts",
-        "refresh-core/src/chain.ts",
-        "refresh-core/src/create-write.ts",
-        "refresh-core/src/delta.ts",
-        "refresh-core/src/idempotency.ts",
-        "refresh-core/src/page-budget.ts",
-        "refresh-core/src/policy.ts",
-        "refresh-core/src/ports.ts",
-        "refresh-core/src/tool-cost.ts",
-        "refresh-core/src/write-detect.ts",
-        "refresh-core/tsconfig.json",
         "src/shared/refresh/attention.js",
         "src/shared/refresh/backend-quota.js",
         "src/shared/refresh/backoff.js",
         "src/shared/refresh/budget.js",
+        "src/shared/refresh/build.mjs",
         "src/shared/refresh/chain.js",
         "src/shared/refresh/create-write.js",
         "src/shared/refresh/delta.js",
@@ -3248,13 +3233,26 @@
         "src/shared/refresh/page-budget.js",
         "src/shared/refresh/policy.js",
         "src/shared/refresh/ports.js",
+        "src/shared/refresh/src/attention.ts",
+        "src/shared/refresh/src/backend-quota.ts",
+        "src/shared/refresh/src/backoff.ts",
+        "src/shared/refresh/src/budget.ts",
+        "src/shared/refresh/src/chain.ts",
+        "src/shared/refresh/src/create-write.ts",
+        "src/shared/refresh/src/delta.ts",
+        "src/shared/refresh/src/idempotency.ts",
+        "src/shared/refresh/src/page-budget.ts",
+        "src/shared/refresh/src/policy.ts",
+        "src/shared/refresh/src/ports.ts",
+        "src/shared/refresh/src/tool-cost.ts",
+        "src/shared/refresh/src/write-detect.ts",
         "src/shared/refresh/tool-cost.js",
+        "src/shared/refresh/tsconfig.json",
         "src/shared/refresh/write-detect.js"
       ],
       "dirs": [
-        "refresh-core",
-        "refresh-core/src",
-        "src/shared/refresh"
+        "src/shared/refresh",
+        "src/shared/refresh/src"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -3264,11 +3262,11 @@
       "step": "node tests/verify-version-control-freshness.js",
       "file": "tests/verify-version-control-freshness.js",
       "guards": [
-        "version-control-core/build.mjs",
-        "version-control-core/tsconfig.json"
+        "src/shared/version-control/build.mjs",
+        "src/shared/version-control/tsconfig.json"
       ],
       "dirs": [
-        "version-control-core"
+        "src/shared/version-control"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -3279,16 +3277,16 @@
       "file": "tests/verify-version-control-parsers.js",
       "guards": [
         "src/shared/version-control",
-        "version-control-core/fixtures/clean-repo.json",
-        "version-control-core/fixtures/dirty-rename-chinese.json",
-        "version-control-core/fixtures/edge-cases.json",
-        "version-control-core/fixtures/live-819-review-shapes.json",
-        "version-control-core/fixtures/live-numstat-shapes.json",
-        "version-control-core/fixtures/live-patch-shapes.json"
+        "tests/fixtures/version-control/clean-repo.json",
+        "tests/fixtures/version-control/dirty-rename-chinese.json",
+        "tests/fixtures/version-control/edge-cases.json",
+        "tests/fixtures/version-control/live-819-review-shapes.json",
+        "tests/fixtures/version-control/live-numstat-shapes.json",
+        "tests/fixtures/version-control/live-patch-shapes.json"
       ],
       "dirs": [
         "src/shared/version-control",
-        "version-control-core/fixtures"
+        "tests/fixtures/version-control"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -3299,11 +3297,11 @@
       "file": "tests/verify-version-control-rules.js",
       "guards": [
         "src/shared/version-control/rules.js",
-        "version-control-core/src/rules.ts"
+        "src/shared/version-control/src/rules.ts"
       ],
       "dirs": [
         "src/shared/version-control",
-        "version-control-core/src"
+        "src/shared/version-control/src"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -3314,13 +3312,13 @@
       "file": "tests/verify-version-control-host.js",
       "guards": [
         "src/host/versionControl.js",
-        "version-control-core/fixtures/live-819-review-shapes.json",
-        "version-control-core/fixtures/live-numstat-shapes.json",
-        "version-control-core/fixtures/live-rev-shapes.json"
+        "tests/fixtures/version-control/live-819-review-shapes.json",
+        "tests/fixtures/version-control/live-numstat-shapes.json",
+        "tests/fixtures/version-control/live-rev-shapes.json"
       ],
       "dirs": [
         "src/host",
-        "version-control-core/fixtures"
+        "tests/fixtures/version-control"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -3355,16 +3353,16 @@
         "src/host/versionControl.js",
         "src/shared/version-control/rules.js",
         "src/shared/version-control/state.js",
-        "tests/lib/eval-probe.js",
-        "version-control-core/fixtures/live-numstat-shapes.json"
+        "tests/fixtures/version-control/live-numstat-shapes.json",
+        "tests/lib/eval-probe.js"
       ],
       "dirs": [
         "src/client/kernel",
         "src/client/views/versionControl",
         "src/host",
         "src/shared/version-control",
-        "tests/lib",
-        "version-control-core/fixtures"
+        "tests/fixtures/version-control",
+        "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -3526,13 +3524,13 @@
       "step": "node tests/verify-write-detect.js",
       "file": "tests/verify-write-detect.js",
       "guards": [
-        "refresh-core/src/write-detect.ts",
         "src/shared/refresh/budget.js",
+        "src/shared/refresh/src/write-detect.ts",
         "src/shared/refresh/write-detect.js"
       ],
       "dirs": [
-        "refresh-core/src",
-        "src/shared/refresh"
+        "src/shared/refresh",
+        "src/shared/refresh/src"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -3599,13 +3597,13 @@
       "step": "node tests/verify-policy.js",
       "file": "tests/verify-policy.js",
       "guards": [
-        "refresh-core/src/policy.ts",
         "src/shared/refresh/budget.js",
-        "src/shared/refresh/policy.js"
+        "src/shared/refresh/policy.js",
+        "src/shared/refresh/src/policy.ts"
       ],
       "dirs": [
-        "refresh-core/src",
-        "src/shared/refresh"
+        "src/shared/refresh",
+        "src/shared/refresh/src"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -3924,9 +3922,9 @@
       "guards": [
         "docs/adr/20260913-builtin-ts-shape.md",
         "docs/adr/20260924-refresh-budget-architecture.md",
-        "refresh-core/src/budget.ts",
         "src/shared/refresh/backend-quota.js",
         "src/shared/refresh/page-budget.js",
+        "src/shared/refresh/src/budget.ts",
         "tests/verify-attention-model.js",
         "tests/verify-event-budget.js",
         "tests/verify-file-granularity.js",
@@ -3935,8 +3933,8 @@
       ],
       "dirs": [
         "docs/adr",
-        "refresh-core/src",
         "src/shared/refresh",
+        "src/shared/refresh/src",
         "tests"
       ],
       "unattributed": false,
@@ -4336,15 +4334,14 @@
       "step": "node tests/verify-config-store-freshness.js",
       "file": "tests/verify-config-store-freshness.js",
       "guards": [
-        "config-store-core/build.mjs",
-        "config-store-core/src/ports.ts",
-        "config-store-core/tsconfig.json",
-        "src/shared/config-store/ports.js"
+        "src/shared/config-store/build.mjs",
+        "src/shared/config-store/ports.js",
+        "src/shared/config-store/src/ports.ts",
+        "src/shared/config-store/tsconfig.json"
       ],
       "dirs": [
-        "config-store-core",
-        "config-store-core/src",
-        "src/shared/config-store"
+        "src/shared/config-store",
+        "src/shared/config-store/src"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
@@ -4761,12 +4758,6 @@
   ],
   "byDir": {
     ".": [],
-    "config-store-core": [
-      "node tests/verify-config-store-freshness.js"
-    ],
-    "config-store-core/src": [
-      "node tests/verify-config-store-freshness.js"
-    ],
     "docs": [
       "node tests/verify-release-contract.js",
       "node tests/verify-992-readonly-labels.js"
@@ -4801,13 +4792,6 @@
     "examples/demo-mini/fixtures": [],
     "examples/demo-mini/fixtures/demo-real": [
       "node tests/verify-tracker-contract.js"
-    ],
-    "label-color-core": [
-      "node tests/verify-label-color-freshness.js"
-    ],
-    "label-color-core/src": [
-      "node tests/verify-label-color-freshness.js",
-      "node tests/verify-label-color-core.js"
     ],
     "package": [
       "node tests/verify-build-artifacts.js",
@@ -4913,15 +4897,6 @@
     "package/shared": [
       "node tests/verify-build-artifacts.js",
       "node tests/verify-labels-sync.js"
-    ],
-    "refresh-core": [
-      "node tests/verify-refresh-freshness.js"
-    ],
-    "refresh-core/src": [
-      "node tests/verify-refresh-freshness.js",
-      "node tests/verify-write-detect.js",
-      "node tests/verify-policy.js",
-      "node tests/verify-refresh-adr.js"
     ],
     "research": [
       "node tests/verify-log-count.js",
@@ -5470,6 +5445,9 @@
       "node tests/verify-config-store-freshness.js",
       "node tests/verify-config-store-package.js"
     ],
+    "src/shared/config-store/src": [
+      "node tests/verify-config-store-freshness.js"
+    ],
     "src/shared/deck-tools": [
       "node tests/verify-deck-tools.js",
       "node tests/verify-934-935-invariants.js",
@@ -5495,6 +5473,10 @@
       "node tests/verify-kernel.js",
       "node tests/verify-markdown-label-colors.js",
       "node tests/verify-generated-no-shadow.js"
+    ],
+    "src/shared/label-color/src": [
+      "node tests/verify-label-color-freshness.js",
+      "node tests/verify-label-color-core.js"
     ],
     "src/shared/refresh": [
       "node tests/verify-gitlab-single-write.js",
@@ -5540,6 +5522,12 @@
       "node tests/verify-1003-unified-decision.js",
       "node tests/verify-gate-map.js"
     ],
+    "src/shared/refresh/src": [
+      "node tests/verify-refresh-freshness.js",
+      "node tests/verify-write-detect.js",
+      "node tests/verify-policy.js",
+      "node tests/verify-refresh-adr.js"
+    ],
     "src/shared/tracker": [
       "node tests/verify-655-setup-layout.js",
       "node tests/verify-dirwritable.js",
@@ -5574,12 +5562,16 @@
       "node tests/verify-deck-slots.js"
     ],
     "src/shared/version-control": [
+      "node tests/verify-version-control-freshness.js",
       "node tests/verify-version-control-parsers.js",
       "node tests/verify-version-control-rules.js",
       "node tests/verify-818-version-control-view.js",
       "node tests/verify-997-vc-sight-browser.js",
       "node tests/verify-841-write-phones.js",
       "node tests/verify-842-version-control-write-view.js"
+    ],
+    "src/shared/version-control/src": [
+      "node tests/verify-version-control-rules.js"
     ],
     "src/tracker": [
       "node tests/verify-delta-patch.js"
@@ -5609,6 +5601,11 @@
     ],
     "tests/fixtures/markdown-sample": [
       "node tests/verify-markdown-backend.js"
+    ],
+    "tests/fixtures/version-control": [
+      "node tests/verify-version-control-parsers.js",
+      "node tests/verify-version-control-host.js",
+      "node tests/verify-818-version-control-view.js"
     ],
     "tests/lib": [
       "node tests/verify-prompts.js",
@@ -5706,29 +5703,18 @@
       "node tests/verify-tracker-contract.js",
       "node tests/verify-github-label-colors.js"
     ],
-    "version-control-core": [
-      "node tests/verify-version-control-freshness.js"
-    ],
-    "version-control-core/fixtures": [
-      "node tests/verify-version-control-parsers.js",
-      "node tests/verify-version-control-host.js",
-      "node tests/verify-818-version-control-view.js"
-    ],
-    "version-control-core/src": [
-      "node tests/verify-version-control-rules.js"
-    ],
     "wizard": [
       "node tests/verify-release-contract.js"
     ]
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 471,
-    "dirCount": 40,
-    "coveredFileCount": 471,
+    "fileCount": 518,
+    "dirCount": 44,
+    "coveredFileCount": 518,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
-    "dedicatedDirCount": 39,
+    "dedicatedDirCount": 43,
     "guardedFiles": [
       "src/client/floating/Pop.js",
       "src/client/floating/SkillFloatList.js",
@@ -6113,9 +6099,16 @@
       "src/seam/runtime.js",
       "src/seam/style.js",
       "src/seam/timer.js",
+      "src/shared/config-store/README.md",
+      "src/shared/config-store/build.mjs",
       "src/shared/config-store/labels.js",
       "src/shared/config-store/ports.js",
       "src/shared/config-store/settings.js",
+      "src/shared/config-store/src/labels.ts",
+      "src/shared/config-store/src/ports.ts",
+      "src/shared/config-store/src/settings.ts",
+      "src/shared/config-store/src/workspace.ts",
+      "src/shared/config-store/tsconfig.json",
       "src/shared/config-store/workspace.js",
       "src/shared/deck-tools/agent-register.js",
       "src/shared/deck-tools/call-scope.js",
@@ -6128,9 +6121,15 @@
       "src/shared/deck-tools/shell.js",
       "src/shared/deck-tools/workspace-file.js",
       "src/shared/feedback-map.js",
+      "src/shared/label-color/README.md",
+      "src/shared/label-color/build.mjs",
       "src/shared/label-color/colors.js",
       "src/shared/label-color/ports.js",
       "src/shared/label-color/prompt.js",
+      "src/shared/label-color/src/colors.ts",
+      "src/shared/label-color/src/ports.ts",
+      "src/shared/label-color/src/prompt.ts",
+      "src/shared/label-color/tsconfig.json",
       "src/shared/labels.js",
       "src/shared/matt-skills.js",
       "src/shared/naming-attribution.js",
@@ -6138,10 +6137,12 @@
       "src/shared/naming-tracking.js",
       "src/shared/parser.js",
       "src/shared/refresh-workspace-key.js",
+      "src/shared/refresh/README.md",
       "src/shared/refresh/attention.js",
       "src/shared/refresh/backend-quota.js",
       "src/shared/refresh/backoff.js",
       "src/shared/refresh/budget.js",
+      "src/shared/refresh/build.mjs",
       "src/shared/refresh/chain-ride.js",
       "src/shared/refresh/chain.js",
       "src/shared/refresh/create-write.js",
@@ -6152,7 +6153,22 @@
       "src/shared/refresh/policy.js",
       "src/shared/refresh/ports.js",
       "src/shared/refresh/refusal-text.js",
+      "src/shared/refresh/src/attention.ts",
+      "src/shared/refresh/src/backend-quota.ts",
+      "src/shared/refresh/src/backoff.ts",
+      "src/shared/refresh/src/budget.ts",
+      "src/shared/refresh/src/chain.ts",
+      "src/shared/refresh/src/create-write.ts",
+      "src/shared/refresh/src/delta.ts",
+      "src/shared/refresh/src/failure-window.ts",
+      "src/shared/refresh/src/idempotency.ts",
+      "src/shared/refresh/src/page-budget.ts",
+      "src/shared/refresh/src/policy.ts",
+      "src/shared/refresh/src/ports.ts",
+      "src/shared/refresh/src/tool-cost.ts",
+      "src/shared/refresh/src/write-detect.ts",
       "src/shared/refresh/tool-cost.js",
+      "src/shared/refresh/tsconfig.json",
       "src/shared/refresh/write-detect.js",
       "src/shared/session-cwd.js",
       "src/shared/skill-probe-channels.js",
@@ -6176,6 +6192,8 @@
       "src/shared/tracker/sync.js",
       "src/shared/tracker/workspaceOwnership.js",
       "src/shared/ui/slots.js",
+      "src/shared/version-control/README.md",
+      "src/shared/version-control/build.mjs",
       "src/shared/version-control/capabilities.js",
       "src/shared/version-control/commands.js",
       "src/shared/version-control/exec-envelope.js",
@@ -6188,7 +6206,22 @@
       "src/shared/version-control/ports.js",
       "src/shared/version-control/push-plan.js",
       "src/shared/version-control/rules.js",
+      "src/shared/version-control/src/capabilities.ts",
+      "src/shared/version-control/src/commands.ts",
+      "src/shared/version-control/src/parse-diff-files.ts",
+      "src/shared/version-control/src/parse-log.ts",
+      "src/shared/version-control/src/parse-patch.ts",
+      "src/shared/version-control/src/parse-refs.ts",
+      "src/shared/version-control/src/parse-status.ts",
+      "src/shared/version-control/src/parse-worktrees.ts",
+      "src/shared/version-control/src/ports.ts",
+      "src/shared/version-control/src/push-plan.ts",
+      "src/shared/version-control/src/rules.ts",
+      "src/shared/version-control/src/state.ts",
+      "src/shared/version-control/src/write-reasons.ts",
+      "src/shared/version-control/src/write-ticket.ts",
       "src/shared/version-control/state.js",
+      "src/shared/version-control/tsconfig.json",
       "src/shared/version-control/write-reasons.js",
       "src/shared/version-control/write-ticket.js",
       "src/shared/workspaceKey.js",
@@ -6235,12 +6268,16 @@
       "src/seam",
       "src/shared",
       "src/shared/config-store",
+      "src/shared/config-store/src",
       "src/shared/deck-tools",
       "src/shared/label-color",
+      "src/shared/label-color/src",
       "src/shared/refresh",
+      "src/shared/refresh/src",
       "src/shared/tracker",
       "src/shared/ui",
       "src/shared/version-control",
+      "src/shared/version-control/src",
       "src/tracker",
       "src/tracker/contract"
     ],
@@ -6276,12 +6313,16 @@
       "src/seam",
       "src/shared",
       "src/shared/config-store",
+      "src/shared/config-store/src",
       "src/shared/deck-tools",
       "src/shared/label-color",
+      "src/shared/label-color/src",
       "src/shared/refresh",
+      "src/shared/refresh/src",
       "src/shared/tracker",
       "src/shared/ui",
       "src/shared/version-control",
+      "src/shared/version-control/src",
       "src/tracker",
       "src/tracker/contract"
     ],

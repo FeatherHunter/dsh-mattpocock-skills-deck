@@ -1,11 +1,11 @@
-// verify-label-color-core.js — 配色核心的纯函数门禁（#629 落地）
+// verify-src/shared/label-color.js — 配色核心的纯函数门禁（#629 落地）
 // 查的是「外面看得见的行为」，不是实现细节：色值怎么归一、什么算合法、两个颜色算不算变了、
 // 哪些行该发给后端、调色盘表格长什么样。断言一律打在产物上（src/shared/label-color/*.js），
 // 因为宿主与客户端拿到的就是这三份产物，门禁跟着它们的实际行为走。
 // 空值语义那几条（空串与空串算没变、空串换成真颜色算变了、大小写不同算没变）是总工裁决，
 // 写在 docs/adr/20260913-builtin-ts-shape.md 第 2.8 节，本门禁负责把它们钉死：
 // 少一条，「每一条还没配色的标签都被算成改过了、一保存就白发一批请求」这种错就会溜过去。
-// 用法：node tests/verify-label-color-core.js（在仓库根目录）
+// 用法：node tests/verify-src/shared/label-color.js（在仓库根目录）
 const path = require('path')
 const fs = require('fs')
 const { pathToFileURL } = require('url')
@@ -30,7 +30,7 @@ async function main() {
   for (const name of ['buildPaletteTable', 'buildPalettePrompt']) {
     check(typeof prompt[name] === 'function', 'prompt.js 导出函数 ' + name)
   }
-  check(ports.PORTS_SOURCE === 'label-color-core/src/ports.ts',
+  check(ports.PORTS_SOURCE === 'src/shared/label-color/src/ports.ts',
     '插口产物带模块标识 PORTS_SOURCE（实得 ' + String(ports.PORTS_SOURCE) + '）')
 
   // ---- 1) 归一化：不带井号的小写六位 ----

@@ -92,7 +92,7 @@ async function main() {
   const mod = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'refresh', 'write-detect.js')).href)
   const budget = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'refresh', 'budget.js')).href)
 
-  check(mod.WRITE_DETECT_SOURCE === 'refresh-core/src/write-detect.ts', '产物带模块标识（能追溯到源码）')
+  check(mod.WRITE_DETECT_SOURCE === 'src/shared/refresh/src/write-detect.ts', '产物带模块标识（能追溯到源码）')
   check(Array.isArray(mod.TIERS) && mod.TIERS.length === 3, '三档正好三条：' + String(mod.TIERS))
   check(mod.TIERS[0] === 'write-confirmed' && mod.TIERS[2] === 'default-tick', '三档次序是「越靠前越重」（取最重那一档靠它）')
 

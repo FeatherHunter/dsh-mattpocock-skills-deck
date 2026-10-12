@@ -1,8 +1,8 @@
 /**
  * scripts/build.mjs — T0 阶段 0 构建管线（先把内置 TypeScript 核逐个转译，再 esbuild 双 entry）
  *
- * 第 0 步（#629）：把仓库根 label-color-core/ 里的内置 TypeScript 逐文件转译进
- *   src/shared/label-color/，并跑一次类型检查。这一步由本文件在派生步骤之前调用，
+ * 第 0 步（#629）：把内置 TypeScript 核（四个，按 #1023 搬进 src/shared/<功能名>/）逐文件转译进
+ *   各自的域目录，并跑一次类型检查。这一步由本文件在派生步骤之前调用，
  *   为的是让「改一行代码到看见效果」仍然只有一条命令 node scripts/build.mjs。
  *
  * 规范方言 = 动态版方言（src/client/index.js / src/host/index.js，host/styles/React/timer 为自由变量）。
@@ -38,48 +38,50 @@ import { deriveHost, deriveClient } from './derive-log-from-package.mjs'
 import { deriveClient as deriveUpdateClient } from './derive-update-from-package.mjs'
 import { bundleEntryPanel } from './bundle-update-entry.mjs'
 
-// #629 配色核心（label-color-core/）：转译与类型检查都写在它自己的 build.mjs 里，
+// #629 配色核心（src/shared/label-color/）：转译与类型检查都写在它自己的 build.mjs 里，
 // 这里只负责在一条命令里把它带上。为什么要写成「先试着加载、加载不到只打印一行提示」，
 // 而不是文件头的静态 import：那棵源码树不进 npm 包（package/package.json 的 files
 // 白名单里没有它），在只有 scripts/ 与 shared/ 的子树里跑构建时，静态 import 会在加载
 // 阶段直接抛错，把整个构建打断，连一行提示都打不出来。这里要的是「这一步跳过、其余照跑」。
+// 2026-10-13 按 #1023 的决定，四个核从仓库根平铺的 <名字>-core/ 搬进 src/shared/<功能名>/，
+// 所以这里的路径多了一段 src/shared。搬迁只改位置、不改行为，这些引入语句是搬迁的一部分。
 let buildLabelColorCore = null
 try {
-  buildLabelColorCore = (await import('../label-color-core/build.mjs')).buildAll
+  buildLabelColorCore = (await import('../src/shared/label-color/build.mjs')).buildAll
 } catch (e) {
-  console.log('[build] 没能加载 label-color-core/build.mjs（' + ((e && e.message) || e) + '），本次构建跳过内置 TypeScript 核的转译与类型检查。')
+  console.log('[build] 没能加载 src/shared/label-color/build.mjs（' + ((e && e.message) || e) + '），本次构建跳过内置 TypeScript 核的转译与类型检查。')
 }
 
-// #720 刷新核心（refresh-core/）：形态与上面的配色核心一致，转译与类型检查都写在它自己的 build.mjs 里。
+// #720 刷新核心（src/shared/refresh/）：形态与上面的配色核心一致，转译与类型检查都写在它自己的 build.mjs 里。
 // 差别是这里要拿到两个函数（runTypeCheck 与 buildAll），所以存的是整个模块对象，不是单个函数。
 // 同样写成「先试着加载、加载不到只打印一行提示」而不是文件头静态 import：那棵源码树不进 npm 包
 // （package/package.json 的 files 白名单里没有它），在只有 scripts/ 与 shared/ 的子树里跑构建时，
 // 静态 import 会在加载阶段直接抛错，把整个构建打断，连一行提示都打不出来。这里要的是「这一步跳过、其余照跑」。
 let buildRefreshCore = null
 try {
-  buildRefreshCore = await import('../refresh-core/build.mjs')
+  buildRefreshCore = await import('../src/shared/refresh/build.mjs')
 } catch (e) {
-  console.log('[build] 没能加载 refresh-core/build.mjs（' + ((e && e.message) || e) + '），本次构建跳过刷新核心的转译与类型检查。')
+  console.log('[build] 没能加载 src/shared/refresh/build.mjs（' + ((e && e.message) || e) + '），本次构建跳过刷新核心的转译与类型检查。')
 }
 
-// #816 版本控制核心（version-control-core/）：形态与上面的刷新核心一致，转译与类型检查都写在
+// #816 版本控制核心（src/shared/version-control/）：形态与上面的刷新核心一致，转译与类型检查都写在
 // 它自己的 build.mjs 里（UNITS 清单由它导出，新鲜度门禁直接读，不手抄）。同样先试加载、
 // 加载不到只打印提示：那棵源码树不进 npm 包，子树构建时跳过、其余照跑。
 let buildVersionControlCore = null
 try {
-  buildVersionControlCore = await import('../version-control-core/build.mjs')
+  buildVersionControlCore = await import('../src/shared/version-control/build.mjs')
 } catch (e) {
-  console.log('[build] 没能加载 version-control-core/build.mjs（' + ((e && e.message) || e) + '），本次构建跳过版本控制核心的转译与类型检查。')
+  console.log('[build] 没能加载 src/shared/version-control/build.mjs（' + ((e && e.message) || e) + '），本次构建跳过版本控制核心的转译与类型检查。')
 }
 
-// #1012 配置读写核（config-store-core/）：形态与上面的版本控制核心一致，转译与类型检查都写在
+// #1012 配置读写核（src/shared/config-store/）：形态与上面的版本控制核心一致，转译与类型检查都写在
 // 它自己的 build.mjs 里（UNITS 清单由它导出，新鲜度门禁直接读，不手抄）。同样先试加载、
 // 加载不到只打印提示：那棵源码树不进 npm 包，子树构建时跳过、其余照跑。
 let buildConfigStoreCore = null
 try {
-  buildConfigStoreCore = await import('../config-store-core/build.mjs')
+  buildConfigStoreCore = await import('../src/shared/config-store/build.mjs')
 } catch (e) {
-  console.log('[build] 没能加载 config-store-core/build.mjs（' + ((e && e.message) || e) + '），本次构建跳过配置读写核的转译与类型检查。')
+  console.log('[build] 没能加载 src/shared/config-store/build.mjs（' + ((e && e.message) || e) + '），本次构建跳过配置读写核的转译与类型检查。')
 }
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -100,7 +102,8 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 // 缓存文件落在 node_modules/.cache/ 下（不进版本库，不会被提交）。
 const CACHE_VERSION = 2
 const CACHE_PATH = join(ROOT, 'node_modules', '.cache', 'dsh-build.json')
-const INPUT_ROOTS = ['src', 'scripts', 'refresh-core', 'label-color-core', 'version-control-core', 'config-store-core']
+// 四个计算核已按 #1023 搬进 src/shared/<功能名>/，被 'src' 一条罩住，不再单列它们的旧目录名。
+const INPUT_ROOTS = ['src', 'scripts']
 const INPUT_EXTRA = ['package.json', 'package/package.json', 'README.md', 'tsconfig.client.json', 'tsconfig.contract.json']
 const ARTIFACT_FILES = ['client.js', 'host.js', 'package/README.md']
 // package/lib 要整目录收进来：它下面除了两份入口，还有 logPkg/* 这类打包镜像，
@@ -586,11 +589,11 @@ const SHARED_SPLICE = [
   { marker: '// ==== shared:labelColors (spliced by build) ====', file: 'src/shared/label-color/colors.js' },
   { marker: '// ==== shared:labelColorPrompt (spliced by build) ====', file: 'src/shared/label-color/prompt.js' },
   // #715 诚实显示：新鲜度阈值（5 分钟黄 / 30 分钟红）、合并窗口（10 秒）、降档的延迟承诺，
-  // 全部只有一份真源 refresh-core/src/budget.ts，产物由本文件上面的 refresh-core 构建步骤生成。
+  // 全部只有一份真源 src/shared/refresh/src/budget.ts，产物由本文件上面的刷新核心构建步骤生成。
   // 界面那一半不能运行时 import（客户端半边今天没有任何对 src/shared 的运行时 import），
   // 所以按同一套拼接做法把这一份拼进界面闭包 —— 界面只许消费这些名字，不许再写一份数字。
   { marker: '// ==== shared:refreshBudget (spliced by build) ====', file: 'src/shared/refresh/budget.js' },
-  // #842 写操作：判定（能不能暂存/提交/拉取/推送）只有一份真源 version-control-core/src/rules.ts，
+  // #842 写操作：判定（能不能暂存/提交/拉取/推送）只有一份真源 src/shared/version-control/src/rules.ts，
   //   产物 src/shared/version-control/rules.js 由本文件上面的版本控制核心构建步骤生成。
   //   界面不许自己算（自己算就会与宿主执行前那次判定各说各话），所以把这一份也拼进界面闭包。
   { marker: '// ==== shared:vcRules (spliced by build) ====', file: 'src/shared/version-control/rules.js' },
@@ -835,6 +838,26 @@ async function buildHost({ version }) {
   const srcHost = resolve(ROOT, 'src/host')
   // Node 16.7+ cpSync 原生支持；fall back 手写
   const copyOpts = { recursive: true, force: true }
+  // 域目录 src/shared/<功能名>/ 里住着两类东西：手写的源码（src/ 子目录）、构建脚本、类型配置、
+  // 说明文档、测试样本，和构建产出的 .js。发布包里只要产物——按 #1023 的第一刀，这里改成
+  // 「只把每个域目录根下的 .js 平铺复制过去」，不再整树镜像，免得源码与配置跟着进发布包。
+  // 判据只有一条「是不是 .js」，因为域目录根下的 .js 恰好就是全部产物（三份手写 .js 也是运行时
+  // 需要的模块，跟着一起过去本来就应该）。tests/verify-build-artifacts.js 的 L2 段按同一条判据比对。
+  function copySharedProducts(dstRoot) {
+    const srcRoot = resolve(ROOT, 'src/shared')
+    for (const ent of readdirSync(srcRoot, { withFileTypes: true })) {
+      const from = join(srcRoot, ent.name)
+      const to = join(dstRoot, ent.name)
+      if (ent.isDirectory()) {
+        mkdirSync(to, { recursive: true })
+        for (const f of readdirSync(from, { withFileTypes: true })) {
+          if (f.isFile() && f.name.endsWith('.js')) cpSync(join(from, f.name), join(to, f.name), copyOpts)
+        }
+      } else if (ent.name.endsWith('.js')) {
+        cpSync(from, to, copyOpts)
+      }
+    }
+  }
   try {
     if (typeof cpSync === 'function') {
       // 复制 src/host/* 到 package/lib/*
@@ -844,7 +867,7 @@ async function buildHost({ version }) {
         const d = join(pkgLib, ent.name)
         cpSync(s, d, copyOpts)
       }
-      cpSync(resolve(ROOT, 'src/shared'), pkgShared, copyOpts)
+      copySharedProducts(pkgShared)
     } else {
       throw new Error('cpSync unavailable')
     }
@@ -862,7 +885,7 @@ async function buildHost({ version }) {
     }
     const entries = readdirSync(srcHost, { withFileTypes: true })
     for (const ent of entries) cpRecur(join(srcHost, ent.name), join(pkgLib, ent.name))
-    cpRecur(resolve(ROOT, 'src/shared'), pkgShared)
+    copySharedProducts(pkgShared)
   }
   // 校验：package/lib/index.js 必须与 src/host/index.js 逐字节一致（零打包不变量）
   try {
@@ -1007,7 +1030,7 @@ syncReadme(version, repoUrl)
 if (buildLabelColorCore) buildLabelColorCore()
 
 // #720 内置 TypeScript 核（刷新核心）：类型检查与转译各调用一次，产物落进 src/shared/refresh/。
-// 两步分开调是因为 refresh-core/build.mjs 把它们拆成了两个函数（它的 buildAll 只管转译）；
+// 两步分开调是因为 src/shared/refresh/build.mjs 把它们拆成了两个函数（它的 buildAll 只管转译）；
 // 它自己会判源码目录在不在（发布包与 package/ 子树里没有这棵源码树），不在就跳过并打印一行提示。
 // 与配色核心一样放在两段派生之前：产物是宿主与界面要用的纯逻辑，必须比闭包先就位。
 if (buildRefreshCore) {

@@ -211,11 +211,8 @@ export function selectGates({ changedPaths, map, chainSteps, root = ROOT } = {})
   }
 
   // 补充规则：只验构建产物的门禁，看不出对应哪个源码文件，这次动到源码就一并跑上。
-  const touchedSource = paths.some((p) =>
-    ['src', 'refresh-core', 'label-color-core', 'version-control-core', 'config-store-core'].some(
-      (r) => isUnder(p, r),
-    ),
-  )
+  // 几个计算核已按 #1023 搬进 src/shared/<功能名>/，'src' 一条就罩得住，不再单列。
+  const touchedSource = paths.some((p) => isUnder(p, 'src'))
   if (touchedSource) {
     for (const gate of map.gates) {
       if (gate.buildOutputOnly) {

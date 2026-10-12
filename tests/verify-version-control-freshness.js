@@ -1,7 +1,7 @@
 // verify-version-control-freshness.js — 版本控制核心新鲜度门禁（#816 落地）
 // 规则：
-//   1) version-control-core/src/ 每个 TS 转译后必须与 src/shared/version-control/ 下同名 JS
-//      逐字一致；改了 TS 没重新生成产物就变红。转译口径直接复用 version-control-core/build.mjs
+//   1) src/shared/version-control/src/ 每个 TS 转译后必须与 src/shared/version-control/ 下同名 JS
+//      逐字一致；改了 TS 没重新生成产物就变红。转译口径直接复用 src/shared/version-control/build.mjs
 //      导出的同一个函数 transpileUnit；清单直接从同一脚本导出的 UNITS 读，不许手抄
 //      （#822 要求：刷新核心的手抄清单漏过两个文件，教训在此）。
 //   2) tsc --noEmit 必须通过。
@@ -29,15 +29,15 @@ async function main() {
 
   let buildMod
   try {
-    buildMod = await import(pathToFileURL(path.join(ROOT, 'version-control-core', 'build.mjs')).href)
+    buildMod = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'version-control', 'build.mjs')).href)
     check(typeof buildMod.transpileUnit === 'function', '构建脚本导出同一转译口径 transpileUnit')
     check(Array.isArray(buildMod.UNITS) && buildMod.UNITS.length === 14, '构建脚本导出 UNITS 清单（14 项＝#816 的 11 项 + #841 的三项写路径纯函数，不手抄）')
   } catch (e) {
-    check(false, '构建脚本可加载（version-control-core/build.mjs）：' + (e && e.message))
+    check(false, '构建脚本可加载（src/shared/version-control/build.mjs）：' + (e && e.message))
     console.log('\n存在失败')
     process.exit(1)
   }
-  const UNITS = buildMod.UNITS.map((u) => ({ ts: 'version-control-core/src/' + u.ts, js: 'src/shared/version-control/' + u.js }))
+  const UNITS = buildMod.UNITS.map((u) => ({ ts: 'src/shared/version-control/src/' + u.ts, js: 'src/shared/version-control/' + u.js }))
 
   for (const u of UNITS) {
     const tsName = path.basename(u.ts)
@@ -83,7 +83,7 @@ async function main() {
   if (!fs.existsSync(tscBin)) {
     check(false, 'typescript 已安装（node_modules/typescript 缺失，请跑 pnpm install）')
   } else {
-    const r = spawnSync(process.execPath, [tscBin, '-p', path.join(ROOT, 'version-control-core', 'tsconfig.json')], { encoding: 'utf8' })
+    const r = spawnSync(process.execPath, [tscBin, '-p', path.join(ROOT, 'src', 'shared', 'version-control', 'tsconfig.json')], { encoding: 'utf8' })
     check(r.status === 0, 'tsc --noEmit 通过' + (r.status === 0 ? '' : '：' + ((r.stdout || '') + (r.stderr || '')).slice(0, 500)))
   }
 

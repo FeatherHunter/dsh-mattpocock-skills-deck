@@ -3,7 +3,7 @@
 //
 // 主缝（规格定的那一条）：喂一份录好的状态模型，断言「该画哪些块、每块写什么字」。断言落在
 //   用户读到的文字与块的顺序上，不落在内部字段名上。模型有三个来源：
-//     A. 用真宿主取数层 + 真机样本（version-control-core/fixtures/live-numstat-shapes.json）跑一次
+//     A. 用真宿主取数层 + 真机样本（tests/fixtures/version-control/live-numstat-shapes.json）跑一次
 //        首屏，把它回的 screen 原样喂给界面侧的块模型 —— 上半段解析与下半段画法的整条链一次跑通；
 //     B. 手写的边界模型（游离头指针、零提交、上游没了、没设上游、工作树被占用/答不出/目录已不存在、
 //        正在变基、同一路径既有冲突又有普通修改、差异短与长、提交续读到底）；
@@ -93,7 +93,7 @@ function buildView(patch, logs, React, DswsCtx, Tip, Ic, seedReads, hostStub) {
 let VIEW = null
 
 // ---------- 假适配器：形状照 DSH subprocess 服务（与 verify-version-control-host.js 同一形状） ----------
-const LIVE = JSON.parse(read('version-control-core/fixtures/live-numstat-shapes.json'))
+const LIVE = JSON.parse(read('tests/fixtures/version-control/live-numstat-shapes.json'))
 const LIVE_ROOT = /^worktree ([^\u0000\n]+)/.exec(LIVE.worktrees.out)[1]
 function makeCollector(text, truncated) {
   return { finalize() { return { text: String(text), truncated: truncated === true } } }

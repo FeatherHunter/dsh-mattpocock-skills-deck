@@ -1,4 +1,4 @@
-// verify-config-store-core.js — 配置读写核行为门禁（#1012 落地）
+// verify-src/shared/config-store.js — 配置读写核行为门禁（#1012 落地）
 // 盯六件事（纯函数，不碰文件系统，行为逐条钉死）：
 //   C1 往返：三份文件的定案骨架写出来再读回去，值不变。
 //   C2 精确类型：YAML 会把 `yes`/`on`/`no` 读成文字、把 `1.10` 读成数字、把前导零读成八进制，
@@ -7,7 +7,7 @@
 //   C4 硬限制：超大文件、超多别名都不崩，按档位回。
 //   C5 版本：高于认识的只读不写（读成功标只读，写明确拒绝）；老 JSON（版本 1）直接可读。
 //   C6 标签形状：直接写颜色与 {color, description} 两种都认，其它形状拒；`__proto__` 拒。
-// 用法：node tests/verify-config-store-core.js（在仓库根目录）
+// 用法：node tests/verify-src/shared/config-store.js（在仓库根目录）
 const path = require('path')
 const { pathToFileURL } = require('url')
 

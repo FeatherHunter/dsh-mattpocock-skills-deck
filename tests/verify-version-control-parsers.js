@@ -77,7 +77,7 @@ async function main() {
   check(caps.tierFor(caps.parseVersion('not git')) === 'unsupported', '解不出版本按不支持处理')
 
   // ---- 2) 实采干净仓库 ----
-  const clean = readJson('version-control-core/fixtures/clean-repo.json')
+  const clean = readJson('tests/fixtures/version-control/clean-repo.json')
   const cs = status.parseStatus(clean.status.out)
   check(cs.ok === true && cs.branch.head === 'main' && cs.entries.every((e) => e.kind === 'untracked'), '实采仓库：分支 main、仅未跟踪新文件（无已跟踪改动）')
   if (cs.ok === true) {
@@ -95,7 +95,7 @@ async function main() {
   check(cz.ok === true && cz.kind === 'worktree', '实采第 0 步判为工作树')
 
   // ---- 3) 手写脏仓库：中文、重命名、冲突 ----
-  const dirty = readJson('version-control-core/fixtures/dirty-rename-chinese.json')
+  const dirty = readJson('tests/fixtures/version-control/dirty-rename-chinese.json')
   const ds = status.parseStatus(dirty.status.out)
   check(ds.ok === true, '脏仓库 status 解出')
   if (ds.ok === true) {
@@ -118,7 +118,7 @@ async function main() {
   // ---- 3.5) #817 修正：numstat 的两种真机形状（真机字节样本，live:true）----
   // 来历：真机上普通文件的 numstat 是「计数与路径同一个 NUL 字段」，重命名才是「计数头独占字段 + 两个路径字段」。
   // #816 的手写样本只写了重命名那一种，于是解析器只认一种形状也一直是绿的；这一段用真机字节把它钉住。
-  const live = readJson('version-control-core/fixtures/live-numstat-shapes.json')
+  const live = readJson('tests/fixtures/version-control/live-numstat-shapes.json')
   check(live.source.live === true && /2\.49/.test(live.source.gitVersion), '真机样本带版本与 live 标记（' + live.source.gitVersion + '）')
   const liveNumstat = live.diffFiles.out
   check(/-\t-\t[^\0]+\0/.test(liveNumstat), '真机样本含「计数与路径同一字段」的二进制条目')
@@ -174,7 +174,7 @@ async function main() {
   check(oldSingleShape('0\t0\t\0old.txt\0new.txt\0').ok === true, '反证对照：旧解析器仍认重命名形状（说明它错的正是普通形状，不是整体坏掉）')
 
   // ---- 3.7) #817 第二轮：补丁的六种真机头行（样本 live:true，按文件逐个采）----
-  const livePatch = readJson('version-control-core/fixtures/live-patch-shapes.json')
+  const livePatch = readJson('tests/fixtures/version-control/live-patch-shapes.json')
   check(livePatch.source.live === true && livePatch.patches.combined.code === 0, '真机补丁样本带 live 标记与退出码')
   for (const k of ['modified', 'added', 'deleted', 'modeChanged', 'renamed', 'binary', 'combined']) {
     const pr = patch.parsePatch(livePatch.patches[k].out)
@@ -252,7 +252,7 @@ async function main() {
   } else {
     check(false, '首屏组装前置解析全过')
   }
-  const edge = readJson('version-control-core/fixtures/edge-cases.json')
+  const edge = readJson('tests/fixtures/version-control/edge-cases.json')
   // ---- 5) 边界：游离、零提交、上游被删、旧版、新版锁、空历史、补丁、截断 ----
   const det = status.parseStatus(edge.detachedStatus)
   check(det.ok === true && det.branch.detached === true, '游离头指针判出（不误报成分支）')
@@ -324,7 +324,7 @@ async function main() {
 
 
   // ---- 6.6) #819 复审批次：路径按字面量解释、补丁行首歧义、答不出的可清理、冲突不重复计数、路径比对归一 ----
-  const review = readJson('version-control-core/fixtures/live-819-review-shapes.json')
+  const review = readJson('tests/fixtures/version-control/live-819-review-shapes.json')
   check(review.source.live === true, '复审真机样本带 live 标记（' + review.source.gitVersion + '）')
   const wtOf = (p, branch) => ({ path: p, head: 'a'.repeat(40), branch: branch, bare: false, detached: false, locked: false, lockReason: null, prunable: false, prunableReason: null })
   const assembleWith = (over) => state.assemble(Object.assign({

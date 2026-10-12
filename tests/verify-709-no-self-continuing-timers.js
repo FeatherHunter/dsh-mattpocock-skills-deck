@@ -4,7 +4,7 @@
 // .js 文本、扫 setInterval 与自名递归排期、钉住旧名字不许回来。那种断言的对象是手写源码的文本，
 // 等价重构（改写法、搬文件、改注释）就会变红，2026-10 按维护者口径整段撤掉。留下来的两段断言的
 // 都是**跑起来的结果**：
-//   ① 把 refresh-core 的退避纯函数真跑一遍（档位、推进、缓存寿命、预检寿命）；
+//   ① 把 src/shared/refresh 的退避纯函数真跑一遍（档位、推进、缓存寿命、预检寿命）；
 //   ② 拼一个最小宿主接一次真的 wf.chain 求值，数这一轮对外问了几条 REST。
 import { join, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'

@@ -25,9 +25,9 @@
 
 ## 三、新机制的实现形态
 
-**纯逻辑走 TypeScript 核心 `refresh-core/`，取数与落盘留 JS。**
+**纯逻辑走 TypeScript 核心 `src/shared/refresh/`，取数与落盘留 JS。**
 
-依据是 `docs/adr/20260913-builtin-ts-shape.md`（2026-09-13 定版）——它定的是插件内置 TypeScript 的形态：源码放仓库根的独立目录，用 esbuild 转译进 `src/shared/` 并提交进 git，不发布 npm 包；仓库里已有的先例是 `update-core/` 与 `label-color-core/`。照这份 ADR 的分工：
+依据是 `docs/adr/20260913-builtin-ts-shape.md`（2026-09-13 定版，2026-10-13 按 #1023 更新了落点）——它定的是插件内置 TypeScript 的形态：源码与转译产物并排放在同一个域目录里（源码在 `src/` 子目录、产物落域目录根下），逐文件转译并提交进 git，不发布 npm 包；仓库里已有的先例是 `update-core/` 与配色核心。照这份 ADR 的分工：
 
 - 进 TypeScript 核心的，是**不碰磁盘、不联网的纯计算**（分类、裁决、记账口径、判定表这一类可以拿数据直接跑、直接测的逻辑）；
 - 留在 JS 的，是**取数层与落盘**（tracker 契约层、三个后端房间、往工作区写文件的原子写与单写者队列、日志埋点）——它们正是要挡在核心外面的 I/O。
