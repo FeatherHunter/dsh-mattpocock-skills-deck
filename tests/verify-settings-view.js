@@ -61,6 +61,10 @@ const { compileFn } = require('./lib/eval-probe.js')
 // 这一门里有几十处 sleep(防抖窗口 + 几百毫秒) 的等待，真实跑要五十秒；接上虚拟时钟把等待压成几毫秒，
 // 断言一条没动（为什么这么压是安全的、两条不能破的语义，见 tests/lib/time-compress.js 文件头）。
 const { installTimeCompression, uninstallTimeCompression } = require('./lib/time-compress.js')
+// 先抓一份原生定时器：下面这一行会把全局 setTimeout 换成虚拟时钟（真实只等几毫秒），而本门有几处等待
+//   要盖住的是**真实的文件读写** —— 虚拟时钟压不动它。2026-10-12 复核实测：那些固定 sleep 在虚拟时钟下
+//   只剩几毫秒真实等待，机器一忙就假红（同一份代码先后跑出 214/0、212/2、210/4 三种结果）。
+const nativeSetTimeout = setTimeout
 installTimeCompression()
 
 const ROOT = path.resolve(__dirname, '..')
@@ -72,6 +76,8 @@ const check = (ok, msg, detail) => {
 const readText = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 const countLines = (rel) => readText(rel).split(/\r?\n/).length
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+// 真实等待：虚拟时钟压不动真实的读盘写盘，凡是要等「一次真落盘」的地方都用这一条。
+const realSleep = (ms) => new Promise((r) => nativeSetTimeout(r, ms))
 const makeHome = (tag) => fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-view-' + tag + '-'))
 const settingsPathIn = (home) => path.join(home, '.dsh', 'mattskillsdeck', 'settings.yaml')
 
@@ -272,7 +278,9 @@ async function main() {
     const r = await store.readLocalSettings(home, realIo)
     return (r && r.ok === true) ? r.value : null
   }
-  const wait = (env) => sleep(env.mod.VIEW_FLAG_WRITE_DEBOUNCE_MS + 260)
+  // 等一次防抖落盘：**用真实时钟**等。虚拟时钟把防抖窗口压成几毫秒，真实的那次文件写却没跟着变快；
+//   300 毫秒真实时间足够盖住「虚拟防抖（几毫秒）+ 一次真文件写」，也留了十几倍余量。
+const wait = (env) => realSleep(300)
   // 轮询等一个条件成立（复核建议 3：门禁里几处固定 sleep 的余量偏薄 —— 700 毫秒要装下 500 毫秒防抖加一次
   //   真文件写，机器忙时会假红；改成等到条件成立再断言，最多等 8 秒，等不到按失败走）。
   async function waitFor(fn, capMs) {
@@ -286,6 +294,10 @@ async function main() {
       await sleep(50)
     }
   }
+
+  // 等一次懒读落地：就绪标志为真，再让出一轮事件循环（就绪之后紧接着还会叫一次登记的回调）。
+  //   虚拟时钟下轮询很快，所以这一条比固定 sleep 稳：等的是「真发生了」，不是「过了多久」。
+  const settle = async (mod) => { await waitFor(() => mod.viewFlagReadyNow() === true); await sleep(0) }
 
   // ── 第一件事：文件缺席时回退旧表读 ──
   console.log('')
@@ -354,7 +366,7 @@ async function main() {
     fs.mkdirSync(path.dirname(settingsPathIn(env.home)), { recursive: true })
     fs.writeFileSync(settingsPathIn(env.home), 'version: 9\nworkspaces:\n  "D:\\ilife":\n    bannerFolded: false\n', 'utf8')
     check(env.mod.viewFlagOf(cwd, 'bannerFolded') === true, '文件是高版本时读回旧表里的值（读不懂的字段不猜）。')
-    await sleep(120) // 让那一次读的答复落地（这一片据此把状态标成只读）
+    await waitFor(() => env.mod.viewFlagReadyNow() === true) // 等那一次读的答复落地（这一片据此把状态标成只读）
     check(env.mod.setViewFlag(cwd, 'bannerFolded', false) === false, '文件是高版本时写这一笔不接（返回 false，调用方按老办法写旧表）。')
     check(env.mod.viewFlagOf(cwd, 'bannerFolded') === true, '不接之后读仍旧回旧表里的值（不拿高版本文件里那格当答案）。')
     await wait(env)
@@ -367,7 +379,7 @@ async function main() {
     fs.mkdirSync(path.dirname(settingsPathIn(env.home)), { recursive: true })
     fs.writeFileSync(settingsPathIn(env.home), 'version: 9\n', 'utf8')
     check(env.mod.setViewFlag(cwd, 'bannerFolded', true) === true, '读还没回来时这一笔先接下（不当场写旧键，免得文档一到手就把它顶掉）。')
-    await sleep(150)
+    await waitFor(() => JSON.parse(env.ls.getItem('dsws.bannerFold') || '{}')[KEY_OF(cwd)] === 1) // 等答复落地：知道是高版本，这一笔被记回旧键兜底
     const oldMap = JSON.parse(env.ls.getItem('dsws.bannerFold') || '{}')
     check(oldMap[KEY_OF(cwd)] === 1, '答复落地后知道文件是高版本，于是把这一笔记回旧键兜底。', JSON.stringify(oldMap))
     check(fs.readFileSync(settingsPathIn(env.home), 'utf8').indexOf('version: 9') === 0, '这一趟同样没有碰高版本文件一个字节。')
@@ -472,7 +484,7 @@ async function main() {
     const doc = await readDoc(env.home)
     check(!!doc && doc.workspaces['D:\\ilife'].bannerFolded === false && doc.workspaces['D:\\ilife'].subwsMarkAutoShown === true,
       '文件里留下的是最后那一下的值（横幅没收起、标志已展开）。', JSON.stringify(doc && doc.workspaces))
-    await sleep(600)
+    await realSleep(300) // 负向断言（「不再补发」没有变化可等）：用真实时钟等过第二个窗口
     check(env.calls.filter((c) => c.method === 'wf.setSettings').length === 1, '等过第二个窗口之后也没有补发第二次（不是自续的定时器）。')
   }
 
@@ -499,11 +511,19 @@ async function main() {
     try {
       for (let i = 0; i < 4; i++) { vals.push(env.mod.viewFlagOf(cwd, 'bannerFolded')); env.mod.setViewFlag(cwd, 'bannerFolded', false) }
     } catch (e) { threw = true }
-    check(threw === false, '读电话失败（手机自己坏了）时读与写都不抛错。')
-    check(vals.every((v) => v === true), '读电话失败之后全程走旧表（四次读都是旧表里的 true）。', JSON.stringify(vals))
-    await sleep(60)
-    check(env.calls.filter((c) => c.method === 'wf.getSettings').length === 1, '读电话只问过一次，失败之后不反复重试。', JSON.stringify(env.calls.map((c) => c.method)))
-    check(env.logs.some((l) => l.event === 'host.call.fail' && l.fields && l.fields.method === 'wf.getSettings'), '读失败也留下一行日志（沿用既有的 host.call.fail）。', JSON.stringify(env.logs))
+    check(threw === false, '写电话坏了（failMode=throw）时读与写都不抛错。')
+    check(vals.every((v) => v === true), '四次读都回旧表里的 true（文件里没有这个工作区，写失败不影响读）。', JSON.stringify(vals))
+    await realSleep(300) // 负向断言（「不变成自续的重试」没有变化可等）：用真实时钟等写这一趟跑完
+    // 这一块量的是「电话坏了时的收场」，所以断言的是不变量，不是某个固定次数：
+    //   写最多两趟（第一趟 + 自动重试一趟，不许自续）；每趟写之前各重读一次文件，所以读电话的次数
+    //   恰好是「惰性那一次 + 写电话的趟数」。
+    //   为什么原来那条「读电话只问过一次」是错的：它把「写前重读」当成了重试。实测序列是
+    //   getSettings（惰性）、getSettings（写前重读）、setSettings、getSettings（重试那趟的写前重读）、setSettings。
+    const getCalls = env.calls.filter((c) => c.method === 'wf.getSettings').length
+    const setCalls = env.calls.filter((c) => c.method === 'wf.setSettings').length
+    check(setCalls >= 1 && setCalls <= 2, '写失败之后最多自动再试一趟，不会变成自续的重试循环（实得 ' + setCalls + ' 趟写电话）。', JSON.stringify(env.calls.map((c) => c.method)))
+    check(getCalls === 1 + setCalls, '读电话只为「惰性那一次 + 每趟写之前重读一次」而问（没有额外的重试读）。', JSON.stringify(env.calls.map((c) => c.method)))
+    check(env.logs.some((l) => l.event === 'host.call.fail' && l.fields && l.fields.method === 'wf.getSettings'), '读电话答「文件还没建」时也留下一行日志（沿用既有的 host.call.fail）。', JSON.stringify(env.logs))
   }
   {
     // 写电话回了 ok:false（宿主明确说这次写不成）时，同样按兜底处理：把值写回旧键，不让这一笔凭空消失。
@@ -545,7 +565,7 @@ async function main() {
     check(env.mod.viewFlagReadyNow() === false, '还没有人开始问宿主时不算就绪（此刻给出的判断没有问过真源）。')
     env.mod.viewFlagOf(cwd, 'subwsMarkAutoShown')
     check(env.mod.viewFlagReadyNow() === false, '读文档这条电话还在路上时也不算就绪（答复没到手就不许拿它下结论）。')
-    await sleep(80)
+    await settle(env.mod)
     check(env.mod.viewFlagReadyNow() === true, '文档到手之后算就绪（这时给出的判断才问过真源）。')
   }
   {
@@ -562,7 +582,7 @@ async function main() {
     const env = makeEnv({ tag: 'ready-fail', cwd: cwd, failMode: 'throw' })
     env.mod.viewFlagOf(cwd, 'subwsMarkAutoShown')
     check(env.mod.viewFlagReadyNow() === false, '读电话还没失败回来时仍不算就绪（和还在路上是同一种状态）。')
-    await sleep(80)
+    await settle(env.mod)
     check(env.mod.viewFlagReadyNow() === true, '读电话失败（手机自己坏了）之后也算就绪（读口这时回退旧表）。')
   }
   {
@@ -575,7 +595,7 @@ async function main() {
     check(hits === 0, '登记时还没问完，回调不当场调（问完那一声才叫它）。')
     env.mod.viewFlagOf(cwd, 'subwsMarkAutoShown') // 起这一次问话
     check(hits === 0, '问话还在路上时回调仍然不调（没到终点就不叫）。')
-    await sleep(80)
+    await settle(env.mod)
     check(hits === 1, '加载结束时回调被调一次（成功或失败都算结束）。', '实得 ' + hits + ' 次')
     let late = 0
     const offLate = env.mod.viewFlagSubscribe(function () { late += 1 })
@@ -589,7 +609,7 @@ async function main() {
     const off2 = env2.mod.viewFlagSubscribe(function () { cancelled += 1 })
     off2()
     env2.mod.viewFlagOf(cwd, 'subwsMarkAutoShown')
-    await sleep(80)
+    await settle(env2.mod)
     check(env2.mod.viewFlagReadyNow() === true, '这一趟照样问完了（取消登记只影响那一个回调，不影响加载本身）。')
     check(cancelled === 0, '取消登记之后加载结束不再叫它（返回的那个函数真的挡得住）。', '实得 ' + cancelled + ' 次')
   }
@@ -603,7 +623,7 @@ async function main() {
     const decide = function () { return decideFn(env.mod.viewFlagReadyNow(), env.mod.viewFlagOf(cwd, 'subwsMarkAutoShown')) }
     const seen = [decide()] // 挂载那一刻：文档还在路上
     env.mod.viewFlagSubscribe(function () { seen.push(decide()) })
-    await sleep(80)
+    await settle(env.mod)
     check(seen[0] === 'wait', '文档还没到时第一判是 wait（先不弹，等问过真源再判）—— 这就是 #650「只弹一次」退化的那一处。', JSON.stringify(seen))
     check(seen[1] === 'open', '文档到手、里面没记过这个工作区时，重跑那一判是 open（该弹这一次）。', JSON.stringify(seen))
     check(decideFn(false, false) === 'wait' && decideFn(false, true) === 'wait',
@@ -619,7 +639,7 @@ async function main() {
     const decide = function () { return decideFn(env.mod.viewFlagReadyNow(), env.mod.viewFlagOf(cwd, 'subwsMarkAutoShown')) }
     const seen = [decide()]
     env.mod.viewFlagSubscribe(function () { seen.push(decide()) })
-    await sleep(80)
+    await settle(env.mod)
     check(seen[0] === 'wait' && seen[1] === 'skip',
       '文档到手但里面没有这一条时，回退读旧键，重跑那一判是 skip（老用户「只弹一次」的记录不因为搬家而丢）。', JSON.stringify(seen))
   }
@@ -640,7 +660,7 @@ async function main() {
     const decide = function () { return decideFn(env.mod.viewFlagReadyNow(), env.mod.viewFlagOf(cwd, 'subwsMarkAutoShown')) }
     const seen = [decide()]
     env.mod.viewFlagSubscribe(function () { seen.push(decide()) })
-    await sleep(80)
+    await settle(env.mod)
     check(seen[0] === 'wait' && seen[1] === 'skip',
       '设置文件里记过时，重跑那一判是 skip（真源说了算，同一个工作区不再自动展开第二次）。', JSON.stringify(seen))
   }
@@ -660,7 +680,7 @@ async function main() {
     const env = makeEnv({ tag: 'decide-unknown-root', cwd: cwd, root: '', localStorage: { 'dsws.subwsAutoShown': JSON.stringify({ [KEY_OF('D:\\ilife')]: 1 }) } })
     const canAnswer = (env.mod.viewFlagWriteKeyOf(cwd) !== '')
     const docAnswer = env.mod.viewFlagOf(cwd, 'subwsMarkAutoShown') === true
-    await sleep(80)
+    await settle(env.mod)
     check(canAnswer === false && docAnswer === false, '认不出根时设置视图这一侧答不出这一格（写键为空、读口回 false）。', JSON.stringify({ canAnswer: canAnswer, docAnswer: docAnswer }))
     // 组件自己认得根（浮层出现的前提就是它认得），旧表里那条记录正记在这个根那把折算键上。
     const shownBefore = shownFn(docAnswer, canAnswer, true)
@@ -926,7 +946,7 @@ async function main() {
     const w0 = await store.writeLocalSettings(preset, env.home, realIo)
     check(w0.ok === true, '预置一份别人写过的设置文件（这个工作区已经有一条记录）。', JSON.stringify(w0))
     check(env.mod.setViewFlag(cwd, 'bannerFolded', true) === true, '本窗在预置文件的基础上写自己那一格（此刻还在防抖窗口里）。')
-    await sleep(80) // 让本窗那一次懒读落地：内存里那一份是别人写的那一版
+    await settle(env.mod) // 让本窗那一次懒读落地：内存里那一份是别人写的那一版
     // 另一扇窗此刻把**别的**那一格写进同一个文件 —— 这一笔本窗没有读到过（客户端只在第一页懒读一次）。
     const other = Object.assign({}, preset, { workspaces: { 'D:\\ilife': { bannerFolded: false, noRepoDismissed: false, subwsMarkAutoShown: true } } })
     const w1 = await store.writeLocalSettings(other, env.home, realIo)

@@ -15,7 +15,9 @@ export     const SettingsPage = (props) => {
       const sharedSt = cx ? cx.storeSvc.useStore(props && props.sessionId) : useStore(props && props.sessionId)
       // T2 悬停提示迁移：设置提示框的定位、翻转、挂顶显示已统一交给 HoverTip（mode='mouse'）负责，显示悬停提示、移动悬停提示、隐藏悬停提示三个旧函数（showCfgTip/moveCfgTip/hideCfgTip）已经下线，移除了全局显示时序，翻转阈值与样式走统一配置表，页面行为没有变化
       const [foldVer, setFoldVer] = React.useState(0)
-      // #492调试分组：开关秒显宿主值，经 wf.logSetSwitch 写宿主，底座广播刷新；四键走宿主电话
+      // #492调试分组：开关秒显读内存这一份（构建产物里的 logSwitch），拨动走 settingsDebugToggle 写进
+      //   本机设置文件的 debug 节（#1012 第 8 条：真源是设置文件，宿主那份只是副本），底座广播刷新；
+      //   导出日志那四键仍走宿主电话。
       const [dbgPending, setDbgPending] = React.useState(false)
       const [dbgBusy, setDbgBusy] = React.useState(null)
       const [clearAsked, setClearAsked] = React.useState(false)
@@ -40,8 +42,12 @@ export     const SettingsPage = (props) => {
         const next = !!(e && e.target && e.target.checked)
         setDbgPending(true)
         try {
-          if (typeof setLogSwitch !== 'function') throw new Error('no-switch')
-          setLogSwitch(next, 1).then(function (res) {
+          // 拨开关走 kernel/settings-debug.js 的 settingsDebugToggle（#1012 第 8 条）：真源是本机设置文件的
+          //   debug 节，它先把这一笔写进文件，文件这条路接不下才原样退回包里的 setLogSwitch（老路）。
+          //   两个名字都认：老产物里没有新名字，新产物里那个才是主路，返回形状两者一致。
+          const dbgSwitch = (typeof settingsDebugToggle === 'function') ? settingsDebugToggle : ((typeof setLogSwitch === 'function') ? setLogSwitch : null)
+          if (typeof dbgSwitch !== 'function') throw new Error('no-switch')
+          dbgSwitch(next, 1).then(function (res) {
             setDbgPending(false)
             const okSw = !!(res && res.ok)
             setDbgFlash(okSw ? 'ok' : 'warn')
@@ -160,7 +166,8 @@ export     const SettingsPage = (props) => {
         // 分组渲染收进 views/SettingsWorkspaces.js 的 renderWsOverview（纯结构搬移，行为零变化）
         renderWsOverview(h, sharedSt, overview.wsOverview, overview.loadRef, foldVer, setFoldVer),
 
-        // #492 沉底调试分组（布局文案沿 #334 原型：主开关默认关，写经 wf.logSetSwitch，对账以宿主为准，保存即广播；四键调宿主三电话加复用目录电话）
+        // #492 沉底调试分组（布局文案沿 #334 原型：主开关默认关，写经 settingsDebugToggle（真源是本机设置文件的
+      //   debug 节，宿主那份只是副本，见 #1012 第 8 条），保存即广播；四键调宿主三电话加复用目录电话）
         h('div', { className: 'dsws-cfg-group' }, [
           h('div', { className: 'dsws-cfg-gtitle' }, [Ic({ n: 'gear', size: 13 }), h('span', null, tr('cfg.dbgTitle'))]),
           h('div', { className: 'dsws-cfg-gdesc' }, tr('cfg.dbgDesc')),

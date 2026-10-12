@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-12T00:46:16.652Z",
+  "generatedAt": "2026-10-12T03:28:44.108Z",
   "generatedBy": "node scripts/gate-map.mjs",
-  "chainLength": 230,
-  "gateCount": 230,
-  "attributedGates": 204,
+  "chainLength": 231,
+  "gateCount": 231,
+  "attributedGates": 205,
   "unattributedGates": 26,
   "buildOutputOnlyGates": 20,
-  "graphFileCount": 516,
+  "graphFileCount": 517,
   "gates": [
     {
       "step": "node tests/verify-596-rpc-carrier.js",
@@ -4521,6 +4521,42 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 11 条"
     },
     {
+      "step": "node tests/verify-settings-debug.js",
+      "file": "tests/verify-settings-debug.js",
+      "guards": [
+        "package/lib/client.js",
+        "research/489-appendix.md",
+        "scripts/build.mjs",
+        "scripts/generated/logKernel.derived.js",
+        "src/client/index.js",
+        "src/client/kernel/log.js",
+        "src/client/kernel/settings-debug.js",
+        "src/client/kernel/settings-view-state.js",
+        "src/client/kernel/settings-view-write.js",
+        "src/client/kernel/settings-view.js",
+        "src/host",
+        "src/host/configStore.js",
+        "src/host/settingsPhones.js",
+        "src/shared/workspaceKey.js",
+        "tests/lib/eval-probe.js",
+        "tests/lib/time-compress.js"
+      ],
+      "dirs": [
+        "package/lib",
+        "research",
+        "scripts",
+        "scripts/generated",
+        "src/client",
+        "src/client/kernel",
+        "src/host",
+        "src/shared",
+        "tests/lib"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 11 条"
+    },
+    {
       "step": "node tests/verify-1003-single-outlet.js",
       "file": "tests/verify-1003-single-outlet.js",
       "guards": [
@@ -4856,6 +4892,7 @@
       "node tests/verify-chain-view-ui.js",
       "node tests/verify-settings-view.js",
       "node tests/verify-settings-templates.js",
+      "node tests/verify-settings-debug.js",
       "node tests/verify-deck-slots.js",
       "node tests/verify-gate-map.js"
     ],
@@ -4887,6 +4924,7 @@
       "node tests/verify-log-count.js",
       "node tests/verify-log-selfmon.js",
       "node tests/verify-733-unknown-endpoint.js",
+      "node tests/verify-settings-debug.js",
       "node tests/verify-gate-map.js"
     ],
     "scripts": [
@@ -4909,6 +4947,7 @@
       "node tests/verify-wizard-exit-609.js",
       "node tests/verify-settings-view.js",
       "node tests/verify-settings-templates.js",
+      "node tests/verify-settings-debug.js",
       "node tests/verify-gate-map.js"
     ],
     "scripts/generated": [
@@ -4916,7 +4955,8 @@
       "node tests/verify-update-panel.js",
       "node tests/verify-update-migration.js",
       "node tests/verify-587-update-live.js",
-      "node tests/verify-generated-no-shadow.js"
+      "node tests/verify-generated-no-shadow.js",
+      "node tests/verify-settings-debug.js"
     ],
     "scripts/lib": [
       "node tests/verify-gate-map.js"
@@ -4947,6 +4987,7 @@
       "node tests/verify-contract-vocabulary.js",
       "node tests/verify-settings-view.js",
       "node tests/verify-settings-templates.js",
+      "node tests/verify-settings-debug.js",
       "node tests/verify-gate-map.js"
     ],
     "src/client/floating": [
@@ -5022,6 +5063,7 @@
       "node tests/verify-workspace-file-note.js",
       "node tests/verify-settings-view.js",
       "node tests/verify-settings-templates.js",
+      "node tests/verify-settings-debug.js",
       "node tests/verify-deck-slots.js"
     ],
     "src/client/panel": [
@@ -5184,6 +5226,7 @@
       "node tests/verify-settings-phones.js",
       "node tests/verify-settings-view.js",
       "node tests/verify-settings-templates.js",
+      "node tests/verify-settings-debug.js",
       "node tests/verify-1003-single-outlet.js",
       "node tests/verify-1003-migration.js",
       "node tests/verify-1003-no-cwd-masquerade.js",
@@ -5416,7 +5459,8 @@
       "node tests/verify-952-short-text.js",
       "node tests/verify-955-alignment.js",
       "node tests/verify-settings-view.js",
-      "node tests/verify-settings-templates.js"
+      "node tests/verify-settings-templates.js",
+      "node tests/verify-settings-debug.js"
     ],
     "src/shared/config-store": [
       "node tests/verify-config-store-freshness.js",
@@ -5640,7 +5684,8 @@
       "node tests/verify-963-log-order.js",
       "node tests/verify-workspace-file-note.js",
       "node tests/verify-settings-view.js",
-      "node tests/verify-settings-templates.js"
+      "node tests/verify-settings-templates.js",
+      "node tests/verify-settings-debug.js"
     ],
     "tests/tracker-contract": [
       "node tests/verify-tracker-contract.js",
@@ -5674,9 +5719,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 470,
+    "fileCount": 471,
     "dirCount": 40,
-    "coveredFileCount": 470,
+    "coveredFileCount": 471,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 39,
@@ -5723,6 +5768,7 @@
       "src/client/kernel/prompts-setup.js",
       "src/client/kernel/prompts.js",
       "src/client/kernel/router.js",
+      "src/client/kernel/settings-debug.js",
       "src/client/kernel/settings-templates.js",
       "src/client/kernel/settings-ui.js",
       "src/client/kernel/settings-view-state.js",

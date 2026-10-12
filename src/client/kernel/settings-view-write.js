@@ -57,6 +57,11 @@
           } catch (eL) {}
           // 只认能整份写回去的那一份：更高版本（readonly）与形状不对的都退回内存那一份，别拿读不懂的内容去覆盖。
           if (!okRes || res.readonly === true || !res.value || typeof res.value !== 'object') return useMemory()
+          // 再拦一道形状：一份「半份文档」（比如占位电话答上来的 {version: 1}，或少了某几节的东西）当基底整份
+          //   写回去，核会按「缺的那几节是空的」归一之后落盘，用户本来的 ui / workspaces / templates 就被写成
+          //   空值 —— 这是纵深防御（真核归一之后五节齐全，正常路径到不了这里），但代价只是一次形状判断。
+          //   判据取自 kernel/settings-debug.js 同一个产物里的名字；老产物里没有这个函数时按改动前的行为走。
+          if (typeof settingsDebugDocLooksReal === 'function' && !settingsDebugDocLooksReal(res.value, true)) return useMemory()
           const fresh = res.value
           for (let i = 0; i < sentKeys.length; i++) {
             const d = viewFlagState.journal[sentKeys[i]]
@@ -65,6 +70,8 @@
             if (d.section === 'ui') { settingsUiSetInDoc(fresh, d.name, d.value); continue }
             // 动作模板那一族（kernel/settings-templates.js）同样只有格名、没有工作区路径，直接改进 templates 节。
             if (d.section === 'templates') { settingsTemplatesSetInDoc(fresh, d.name, d.value); continue }
+            // 调试开关那一族（kernel/settings-debug.js）同 ui 与 templates：只有格名，直接改进 debug 节。
+            if (d.section === 'debug') { settingsDebugSetInDoc(fresh, d.name, d.value); continue }
             // 用队列里这一笔自带的键，不重算（#1012 后续修复的建议 2）：本会话若在排期与落盘之间跟丢了根，
             //   重算出来的键会换成会话目录那一条，文件里就长出同一工作区的第二条记录、根那条还是旧值。
             const key = d.key || viewFlagDocKeyOf(d.cwd)
@@ -108,6 +115,8 @@
           if (d.section === 'ui') { saveListPrefsLegacy(); continue }
           // 动作模板那一族照改动前的老办法兜底：整份写回旧键 dsws.templates（由 config.js 那一份管那把键）。
           if (d.section === 'templates') { tplLegacyWriteAll(); continue }
+          // 调试开关那一族兜底：把内存这一份（＝真值）写回旧键 dsws.debug 当秒显快照，理由见 settings-debug.js。
+          if (d.section === 'debug') { settingsDebugLegacyWrite(); continue }
           viewFlagLegacyWrite(d.cwd, d.name, d.value)
         }
         if (viewFlagState.retryLeft > 0) { viewFlagState.retryLeft -= 1; viewFlagScheduleWrite() }
@@ -135,6 +144,13 @@
         if (d.section === 'templates') {
           const tv = (snap && snap.templates && typeof snap.templates === 'object') ? snap.templates[d.name] : undefined
           return (typeof tv === 'string' && tv !== '') ? tv : d.value
+        }
+        // 调试开关那两格发出去的值就在 debug 节里（同一个格名）：enabled 是布尔、sampleRate 是数字，
+        //   按格各自的类型判「文件里写进去了没有」，判不出来就退回队列里的值（判据与上面两族同一条思路）。
+        if (d.section === 'debug') {
+          const dv = (snap && snap.debug && typeof snap.debug === 'object') ? snap.debug[d.name] : undefined
+          if (d.name === 'enabled') return (typeof dv === 'boolean') ? dv : d.value
+          return (typeof dv === 'number' && isFinite(dv)) ? dv : d.value
         }
         const key = d.key || viewFlagDocKeyOf(d.cwd)
         if (!key || !snap || !snap.workspaces || typeof snap.workspaces !== 'object') return d.value

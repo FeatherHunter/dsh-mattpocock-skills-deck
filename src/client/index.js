@@ -192,7 +192,7 @@ export default {
     // ==== kernel:storePrefs (spliced by build) ====
     // ==== kernel:settingsViewState (spliced by build) ====
     // ==== kernel:settingsView (spliced by build) ====
-    // ==== kernel:settingsViewWrite (spliced by build) ==== // ==== kernel:settingsUi (spliced by build) ==== // ==== kernel:settingsTemplates (spliced by build) ====
+    // ==== kernel:settingsViewWrite (spliced by build) ==== // ==== kernel:settingsUi (spliced by build) ==== // ==== kernel:settingsTemplates (spliced by build) ==== // ==== kernel:settingsDebug (spliced by build) ====
     // ==== kernel:storeSwitch (spliced by build) ====
     // ==== kernel:storeSnapshot (spliced by build) ====
     // ==== kernel:storeDerived (spliced by build) ====

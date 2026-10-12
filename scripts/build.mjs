@@ -519,6 +519,10 @@ const KERNEL_MODULES = [
   //   与上面那两族共用同一个待写队列与同一份文档，所以标记必须排在 settingsViewWrite 之后；
   //   旧键那一条留着当过渡（读先看文件、写成功就不写旧键），读写两头与拼接次序的理由见该文件开头的说明。
   { name: 'settingsTemplates', file: 'src/client/kernel/settings-templates.js' },
+  // #1012 第 8 条：调试开关的真源从宿主那份 log-switch.json（与旧键 dsws.debug）搬进本机设置文件的 debug 节。
+  //   与上面三族共用同一个待写队列与同一份文档，所以标记必须排在 settingsViewWrite 之后；它还要用运行时那份
+  //   日志内核的名字（上面第 500 行的 log），所以必须排在 log 之后。
+  { name: 'settingsDebug', file: 'src/client/kernel/settings-debug.js' },
   { name: 'storeSwitch', file: 'src/client/kernel/store-switch.js' },
   { name: 'storeSnapshot', file: 'src/client/kernel/store-snapshot.js' },
   { name: 'storeDerived', file: 'src/client/kernel/store-derived.js' },
