@@ -37,6 +37,10 @@ const ROOM_WHITELIST = [
   '^src/host/platform/',
 ]
 
+// deck 层深引的白名单：今天为空（src/host/tools/、src/shared/deck-tools/ 与未来的 src/deck/
+// 一处深引都没有）。格式与 ROOM_WHITELIST 同：写在这里的路径前缀放行。
+const DECK_DEEP_IMPORT_WHITELIST = []
+
 module.exports = {
   forbidden: [
     // ── 同层互引（老门禁 verify-no-same-layer-import 的判据，一条不丢）────────────────────
@@ -114,13 +118,34 @@ module.exports = {
       },
     },
 
-    // ── 跨层深引（反向）：今天先不上，理由记在这里，免得后来者以为是漏了 ────────────────────
-    // 想上的那条规则是「src/host/tracker/backends/** 只许 src/host/tracker/ 区域内部引用」。
+    // ── deck 层不许深引房间实现与探测内部（#1014 Q2 的「深引白名单」这一面）────────────────
+    // Q2 的口径：deck 的文件只许连到契约层的公开入口（src/tracker/contract/），
+    // 连到房间实现（今天 src/host/tracker/backends/<名字>/，搬家后 src/tracker/rooms/<名字>/）
+    // 或探测内部（src/host/tracker/detection/）都算违规。
+    // from 里那几处就是 deck 的落点：src/host/tools/ 是九个 deck 工具的宿主侧实现，
+    // src/shared/deck-tools/ 是它们共用的纯逻辑件；src/deck/ 是搬家后的目标树，今天还没有，
+    // 提前写在这里，是为了搬家之后这条规则自己就跟上，不用再改一次配置。
+    // 白名单今天是空的（这三处一条深引都没有）；将来确有正当深引，加进 DECK_DEEP_IMPORT_WHITELIST，
+    // 并同时改 src/host/tracker/backends/README.md 的房间纪律一节。
+    {
+      name: 'deck-deep-import',
+      severity: 'error',
+      comment:
+        'deck 层只许连契约层的公开入口（src/tracker/contract/），不许直接连房间实现或探测内部。'
+        + '需要后端的能力时，先把那件事加到契约层的公开面上，再从 deck 引它。',
+      from: {
+        path: '^(src/deck/|src/host/tools/|src/shared/deck-tools/)',
+        pathNot: DECK_DEEP_IMPORT_WHITELIST,
+      },
+      to: { path: '^(src/host/tracker/(backends|detection)/|src/tracker/rooms/)' },
+    },
+
+    // ── 跨层深引（反方向）：今天先不上，理由记在这里，免得后来者以为是漏了 ──────────────────
+    // 反方向那条是「src/host/tracker/backends/** 只许 src/host/tracker/ 区域内部引用」。
     // 今天上不了：真实的装配就在区域外——src/host/index.js 会按后端名动态加载
-    // ./tracker/backends/<名字>/client.js（6 条这样的边）。硬加这条规则会当场把全链判红，
+    // ./tracker/backends/<名字>/client.js。硬加这条规则会当场把全链判红，
     // 那就不是「只换判据的读取对象」，而是顺手改了架构。等 12 号收口、契约层公开入口立起来之后，
     // 再由那时的工作线连同白名单一起上。
-    // 目前「跨层深引」这一面由上面 cross-room-import 的白名单守着（老门禁的严格度一条没丢）。
 
     // ── 图上的环 ────────────────────────────────────────────────────────────────────────────
     {

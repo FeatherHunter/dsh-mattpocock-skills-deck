@@ -41,11 +41,15 @@ import { scanCode } from '../scripts/gate-map.mjs'
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 // 与两条老门禁的扫描域逐字相同：只看这三棵树。src/client/** 不进图（那里同名 .js 是构建产物，会重复计数）。
 const SCAN_TREES = ['src/host', 'src/shared', 'src/seam']
+// 第四棵树是「有就扫、没有也不算缺」：src/deck/ 是把 deck 业务代码搬过去之后的目标树
+// （CONTEXT.md 的 deck 重构词条里写着它的位置），今天还没有。它一旦出现就应该自动进图，
+// 否则 .dependency-cruiser.cjs 里那条 deck-deep-import 规则永远没有判据可判。
+const OPTIONAL_TREES = ['src/deck']
 const CONFIG_REL = '.dependency-cruiser.cjs'
 const BASELINE_REL = 'tests/same-layer-baseline.json'
 const DEPCRUISE_BIN_REL = 'node_modules/dependency-cruiser/bin/dependency-cruiser.mjs'
 const SOURCE_EXTS = ['.js', '.mjs', '.cjs', '.ts', '.mts', '.cts']
-// 同层互引四条 + 房间纪律两条 + 禁循环一条。出现在这里的作用是「配置被改松就判红」：
+// 同层互引四条 + 房间纪律两条 + deck 深引一条 + 禁循环一条。出现在这里的作用是「配置被改松就判红」：
 // 少一条、名字改了、severity 不是 error，都会在下面对不上。
 const EXPECTED_RULES = [
   'same-layer-import-platform',
@@ -54,6 +58,7 @@ const EXPECTED_RULES = [
   'same-layer-import-seam',
   'cross-room-import',
   'room-imports-third-party-package',
+  'deck-deep-import',
   'circular-dependency',
 ]
 const SAME_LAYER_RULE_PREFIX = 'same-layer-import-'
@@ -224,10 +229,18 @@ export function classifyViolations(
 // 三、扫描域：三棵树里到底有没有文件
 // ---------------------------------------------------------------------------
 
-/** 递归收集三棵树里的源码文件；三棵树都在、且至少扫到一个文件，才算扫描域成立。 */
+/**
+ * 这次实际要进图的树：三棵树必看，src/deck 存在就一起看
+ * （见上面 OPTIONAL_TREES 的注释：那棵树一出现，deck 深引规则就该有判据可判）。
+ */
+function cruiseRoots(): string[] {
+  return SCAN_TREES.concat(OPTIONAL_TREES.filter((tree) => existsSync(join(ROOT, tree))))
+}
+
+/** 递归收集扫描域里的源码文件；三棵树都在、且至少扫到一个文件，才算扫描域成立。 */
 export function collectScopeFiles(): ScopeFile[] {
   const out: ScopeFile[] = []
-  for (const tree of SCAN_TREES) {
+  for (const tree of cruiseRoots()) {
     const abs = join(ROOT, tree)
     if (!existsSync(abs) || !statSync(abs).isDirectory()) continue
     const stack = [abs]
@@ -353,7 +366,7 @@ if (!existsSync(configAbs)) {
 } else {
   const run = spawnSync(
     process.execPath,
-    [binAbs, ...SCAN_TREES, '--config', CONFIG_REL, '--output-type', 'json', '--no-progress'],
+    [binAbs, ...cruiseRoots(), '--config', CONFIG_REL, '--output-type', 'json', '--no-progress'],
     { cwd: ROOT, encoding: 'utf8', maxBuffer: 512 * 1024 * 1024 },
   )
   const stdout = String(run.stdout || '')
