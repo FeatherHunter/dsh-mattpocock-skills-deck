@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-12T00:00:49.154Z",
+  "generatedAt": "2026-10-12T00:17:38.955Z",
   "generatedBy": "node scripts/gate-map.mjs",
-  "chainLength": 228,
-  "gateCount": 228,
-  "attributedGates": 202,
+  "chainLength": 229,
+  "gateCount": 229,
+  "attributedGates": 203,
   "unattributedGates": 26,
   "buildOutputOnlyGates": 20,
-  "graphFileCount": 515,
+  "graphFileCount": 516,
   "gates": [
     {
       "step": "node tests/verify-596-rpc-carrier.js",
@@ -4467,7 +4467,8 @@
         "src/host/settingsPhones.js",
         "src/shared/workspaceKey.js",
         "tests/lib/eval-probe.js",
-        "tests/lib/render-subws-mark.js"
+        "tests/lib/render-subws-mark.js",
+        "tests/lib/time-compress.js"
       ],
       "dirs": [
         "package/lib",
@@ -4481,7 +4482,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 9 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 9 条"
     },
     {
       "step": "node tests/verify-1003-single-outlet.js",
@@ -4629,6 +4630,19 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 16 条"
+    },
+    {
+      "step": "node tests/verify-cards-dir.js",
+      "file": "tests/verify-cards-dir.js",
+      "guards": [
+        "src/client/views/cards"
+      ],
+      "dirs": [
+        "src/client/views/cards"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
     },
     {
       "step": "node tests/verify-gate-map.js",
@@ -5021,6 +5035,9 @@
       "node tests/verify-settings-view.js",
       "node tests/verify-deck-slots.js",
       "node tests/verify-gate-map.js"
+    ],
+    "src/client/views/cards": [
+      "node tests/verify-cards-dir.js"
     ],
     "src/client/views/feedback": [
       "node tests/verify-leaves.js"
@@ -5613,12 +5630,12 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 469,
+    "fileCount": 470,
     "dirCount": 40,
-    "coveredFileCount": 469,
+    "coveredFileCount": 470,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
-    "dedicatedDirCount": 38,
+    "dedicatedDirCount": 39,
     "guardedFiles": [
       "src/client/floating/Pop.js",
       "src/client/floating/SkillFloatList.js",
@@ -5662,6 +5679,7 @@
       "src/client/kernel/prompts-setup.js",
       "src/client/kernel/prompts.js",
       "src/client/kernel/router.js",
+      "src/client/kernel/settings-templates.js",
       "src/client/kernel/settings-ui.js",
       "src/client/kernel/settings-view-state.js",
       "src/client/kernel/settings-view-write.js",
@@ -6140,6 +6158,7 @@
       "src/client/panel",
       "src/client/statusbar",
       "src/client/views",
+      "src/client/views/cards",
       "src/client/views/feedback",
       "src/client/views/labels",
       "src/client/views/pixel",
@@ -6173,10 +6192,6 @@
       "src/tracker/contract"
     ],
     "dirsWithoutDedicated": [
-      {
-        "path": "src/client/views/cards",
-        "fileCount": 34
-      },
       {
         "path": "src/host/logPkg",
         "fileCount": 4
