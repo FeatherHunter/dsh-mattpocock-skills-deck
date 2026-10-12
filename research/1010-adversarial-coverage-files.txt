@@ -1,0 +1,672 @@
+# 本次重构必须覆盖的代码：完整路径清单
+
+由 research/1010-adversarial-coverage.md 的筛选口径生成。生成方式：读 research/1010-migration-map.json（112 个模块 / 110 条旧路径）、
+research/1010-deck-blast-radius.md（34 个测试文件），以及对全部 tracked 文件做的旧路径整串引用扫描（254 个命中文件）。
+
+## A. 要搬家的手写模块（映射表 112 条，按新家目录分组）
+
+### src/deck/registration/（6 条）
+  src/host/platform/deckExec.js  ->  src/deck/registration/host-delegate.ts   [move-rename]
+  src/host/platform/deckQuotaSync.js  ->  src/deck/registration/quota-sync.ts   [move-rename]
+  src/host/platform/deckSandbox.js  ->  src/deck/registration/sandbox-guard.ts   [move-rename]
+  src/host/platform/deckToolsAssembly.js  ->  src/deck/registration/host-assemble.ts   [move-rename]
+  src/host/platform/deckToolsRow.js  ->  src/deck/registration/agent-row.ts   [move-rename]
+  src/shared/deck-tools/agent-register.js  ->  src/deck/registration/register-options.ts   [move-rename]
+
+### src/deck/shell/（10 条）
+  src/shared/deck-tools/call-scope.js  ->  src/deck/shell/call-budget.ts   [move-rename]
+  src/shared/deck-tools/edges.js  ->  src/deck/shell/edge-landing.ts   [move-rename]
+  src/shared/deck-tools/exec-cell.js  ->  src/deck/shell/table-cell.ts   [move-rename]
+  src/shared/deck-tools/key-lock.js  ->  src/deck/shell/write-mutex.ts   [move-rename]
+  src/shared/deck-tools/plan-store.js  ->  src/deck/shell/plan-cursor.ts   [move-rename]
+  src/shared/deck-tools/plan.js  ->  src/deck/shell/minimal-spec.ts   [split]
+  src/shared/deck-tools/plan.js  ->  src/deck/shell/tool-table.ts   [split]
+  src/shared/deck-tools/session-resolve.js  ->  src/deck/shell/session-workdir.ts   [move-rename]
+  src/shared/deck-tools/shell.js  ->  src/deck/shell/call-shell.ts   [move-rename]
+  src/shared/deck-tools/workspace-file.js  ->  src/deck/shell/workspace-anchor.ts   [move-rename]
+
+### src/deck/tools/（10 条）
+  src/host/tools/deckContext.js  ->  src/deck/tools/context.ts   [move-rename]
+  src/host/tools/deckIssueCreate.js  ->  src/deck/tools/issue-create.ts   [move-rename]
+  src/host/tools/deckIssueGet.js  ->  src/deck/tools/issue-get.ts   [move-rename]
+  src/host/tools/deckIssueList.js  ->  src/deck/tools/issue-list.ts   [move-rename]
+  src/host/tools/deckIssuePatch.js  ->  src/deck/tools/issue-patch.ts   [move-rename]
+  src/host/tools/deckIssueReport.js  ->  src/deck/tools/issue-report.ts   [move-rename]
+  src/host/tools/deckMapLink.js  ->  src/deck/tools/map-link.ts   [move-rename]
+  src/host/tools/deckMapPlanCreate.js  ->  src/deck/tools/map-plan-create.ts   [move-rename]
+  src/host/tools/deckMapSnapshot.js  ->  src/deck/tools/map-snapshot.ts   [move-rename]
+  src/shared/deck-tools/plan.js  ->  src/deck/tools/tool-order.ts   [split]
+
+### src/host/（5 条）
+  src/host/index.js  ->  src/host/index.ts   [stay-ext-change]
+  src/host/issueDetail.js  ->  src/host/issueDetail.ts   [stay-ext-change]
+  src/host/platformChannel.js  ->  src/host/platformChannel.ts   [stay-ext-change]
+  src/host/remotePredicates.js  ->  src/host/remotePredicates.ts   [stay-ext-change]
+  src/host/workspaceCwd.js  ->  src/host/workspaceCwd.ts   [stay-ext-change]
+
+### src/host/refresh/（1 条）
+  src/host/refresh/wiring.js  ->  src/host/refresh/wiring.ts   [stay-ext-change]
+
+### src/tracker/（2 条）
+  src/host/tracker/index.js  ->  src/tracker/index.ts   [move-rename]
+  src/host/tracker/preflight.js  ->  src/tracker/preflight.ts   [move-rename]
+
+### src/tracker/contract/（5 条）
+  src/host/tracker/contract-idempotency.js  ->  src/tracker/contract/contract-idempotency.ts   [move-rename]
+  src/host/tracker/contract-label-colors.js  ->  src/tracker/contract/contract-label-colors.ts   [move-rename]
+  src/host/tracker/contract-page.js  ->  src/tracker/contract/contract-page.ts   [move-rename]
+  src/host/tracker/contract.js  ->  src/tracker/contract/index.ts   [move-rename]
+  src/host/tracker/fixContract.js  ->  src/tracker/contract/fixContract.ts   [move-rename]
+
+### src/tracker/detection/（6 条）
+  src/host/tracker/detection/backendDecision.js  ->  src/tracker/detection/backendDecision.ts   [move-rename]
+  src/host/tracker/detection/detectionService.js  ->  src/tracker/detection/detectionService.ts   [move-rename]
+  src/host/tracker/detection/explicitDetector.js  ->  src/tracker/detection/explicitDetector.ts   [move-rename]
+  src/host/tracker/detection/parseIssueTracker.js  ->  src/tracker/detection/parseIssueTracker.ts   [move-rename]
+  src/host/tracker/detection/preflightScope.js  ->  src/tracker/detection/preflightScope.ts   [move-rename]
+  src/host/tracker/detection/workspaceStore.js  ->  src/tracker/detection/workspaceStore.ts   [move-rename]
+
+### src/tracker/registry/（3 条）
+  src/host/tracker/registryCore.js  ->  src/tracker/registry/registryCore.ts   [move-rename]
+  src/host/tracker/registryShape.js  ->  src/tracker/registry/registryShape.ts   [move-rename]
+  src/host/tracker/registryViews.js  ->  src/tracker/registry/registryViews.ts   [move-rename]
+
+### src/tracker/rooms/（1 条）
+  src/host/tracker/backends/README.md  ->  src/tracker/rooms/README.md   [move-rename]
+
+### src/tracker/rooms/github/（26 条）
+  src/host/tracker/backends/github/backend.js  ->  src/tracker/rooms/github/backend.ts   [move-rename]
+  src/host/tracker/backends/github/checks.js  ->  src/tracker/rooms/github/checks.ts   [move-rename]
+  src/host/tracker/backends/github/client.js  ->  src/tracker/rooms/github/client.ts   [move-rename]
+  src/host/tracker/backends/github/comments.js  ->  src/tracker/rooms/github/comments.ts   [move-rename]
+  src/host/tracker/backends/github/counts.js  ->  src/tracker/rooms/github/counts.ts   [move-rename]
+  src/host/tracker/backends/github/cycle-check.js  ->  src/tracker/rooms/github/cycle-check.ts   [move-rename]
+  src/host/tracker/backends/github/errors.js  ->  src/tracker/rooms/github/errors.ts   [move-rename]
+  src/host/tracker/backends/github/fallback-reason.js  ->  src/tracker/rooms/github/fallback-reason.ts   [move-rename]
+  src/host/tracker/backends/github/graph.js  ->  src/tracker/rooms/github/graph.ts   [move-rename]
+  src/host/tracker/backends/github/idempotency.js  ->  src/tracker/rooms/github/idempotency.ts   [move-rename]
+  src/host/tracker/backends/github/index.js  ->  src/tracker/rooms/github/index.ts   [move-rename]
+  src/host/tracker/backends/github/init-project.js  ->  src/tracker/rooms/github/init-project.ts   [move-rename]
+  src/host/tracker/backends/github/issues-write.js  ->  src/tracker/rooms/github/issues-write.ts   [move-rename]
+  src/host/tracker/backends/github/issues.js  ->  src/tracker/rooms/github/issues.ts   [move-rename]
+  src/host/tracker/backends/github/label-colors-ops.js  ->  src/tracker/rooms/github/label-colors-ops.ts   [move-rename]
+  src/host/tracker/backends/github/labels.js  ->  src/tracker/rooms/github/labels.ts   [move-rename]
+  src/host/tracker/backends/github/normalize.js  ->  src/tracker/rooms/github/normalize.ts   [move-rename]
+  src/host/tracker/backends/github/page.js  ->  src/tracker/rooms/github/page.ts   [move-rename]
+  src/host/tracker/backends/github/parent-repair.js  ->  src/tracker/rooms/github/parent-repair.ts   [move-rename]
+  src/host/tracker/backends/github/preflight.js  ->  src/tracker/rooms/github/preflight.ts   [move-rename]
+  src/host/tracker/backends/github/pulls.js  ->  src/tracker/rooms/github/pulls.ts   [move-rename]
+  src/host/tracker/backends/github/queries.js  ->  src/tracker/rooms/github/queries.ts   [move-rename]
+  src/host/tracker/backends/github/repo-permissions.js  ->  src/tracker/rooms/github/repo-permissions.ts   [move-rename]
+  src/host/tracker/backends/github/repo.js  ->  src/tracker/rooms/github/repo.ts   [move-rename]
+  src/host/tracker/backends/github/roster.js  ->  src/tracker/rooms/github/roster.ts   [move-rename]
+  src/host/tracker/backends/github/sub-issues.js  ->  src/tracker/rooms/github/sub-issues.ts   [move-rename]
+
+### src/tracker/rooms/gitlab/（14 条）
+  src/host/tracker/backends/gitlab/client.js  ->  src/tracker/rooms/gitlab/client.js   [path-only]
+  src/host/tracker/backends/gitlab/comments.js  ->  src/tracker/rooms/gitlab/comments.js   [path-only]
+  src/host/tracker/backends/gitlab/create-write.js  ->  src/tracker/rooms/gitlab/create-write.js   [path-only]
+  src/host/tracker/backends/gitlab/errors.js  ->  src/tracker/rooms/gitlab/errors.js   [path-only]
+  src/host/tracker/backends/gitlab/graph-blocking.js  ->  src/tracker/rooms/gitlab/graph-blocking.js   [path-only]
+  src/host/tracker/backends/gitlab/graph-membership.js  ->  src/tracker/rooms/gitlab/graph-membership.js   [path-only]
+  src/host/tracker/backends/gitlab/graph.js  ->  src/tracker/rooms/gitlab/graph.js   [path-only]
+  src/host/tracker/backends/gitlab/idempotency.js  ->  src/tracker/rooms/gitlab/idempotency.js   [path-only]
+  src/host/tracker/backends/gitlab/index.js  ->  src/tracker/rooms/gitlab/index.js   [path-only]
+  src/host/tracker/backends/gitlab/issues.js  ->  src/tracker/rooms/gitlab/issues.js   [path-only]
+  src/host/tracker/backends/gitlab/labels.js  ->  src/tracker/rooms/gitlab/labels.js   [path-only]
+  src/host/tracker/backends/gitlab/normalize.js  ->  src/tracker/rooms/gitlab/normalize.js   [path-only]
+  src/host/tracker/backends/gitlab/preflight.js  ->  src/tracker/rooms/gitlab/preflight.js   [path-only]
+  src/host/tracker/backends/gitlab/queries.js  ->  src/tracker/rooms/gitlab/queries.js   [path-only]
+
+### src/tracker/rooms/markdown/（23 条）
+  src/host/tracker/backends/markdown/comments.js  ->  src/tracker/rooms/markdown/comments.ts   [move-rename]
+  src/host/tracker/backends/markdown/counts.js  ->  src/tracker/rooms/markdown/counts.ts   [move-rename]
+  src/host/tracker/backends/markdown/graph.js  ->  src/tracker/rooms/markdown/graph.ts   [move-rename]
+  src/host/tracker/backends/markdown/index.js  ->  src/tracker/rooms/markdown/index.ts   [move-rename]
+  src/host/tracker/backends/markdown/issues-create.js  ->  src/tracker/rooms/markdown/issues-create.ts   [move-rename]
+  src/host/tracker/backends/markdown/issues-locate.js  ->  src/tracker/rooms/markdown/issues-locate.ts   [move-rename]
+  src/host/tracker/backends/markdown/issues-patch.js  ->  src/tracker/rooms/markdown/issues-patch.ts   [move-rename]
+  src/host/tracker/backends/markdown/issues-read.js  ->  src/tracker/rooms/markdown/issues-read.ts   [move-rename]
+  src/host/tracker/backends/markdown/issues-status.js  ->  src/tracker/rooms/markdown/issues-status.ts   [move-rename]
+  src/host/tracker/backends/markdown/issues.js  ->  src/tracker/rooms/markdown/issues.ts   [move-rename]
+  src/host/tracker/backends/markdown/label-colors-codec.js  ->  src/tracker/rooms/markdown/label-colors-codec.ts   [move-rename]
+  src/host/tracker/backends/markdown/label-colors-errors.js  ->  src/tracker/rooms/markdown/label-colors-errors.ts   [move-rename]
+  src/host/tracker/backends/markdown/label-colors-ops.js  ->  src/tracker/rooms/markdown/label-colors-ops.ts   [move-rename]
+  src/host/tracker/backends/markdown/label-colors-paint.js  ->  src/tracker/rooms/markdown/label-colors-paint.ts   [move-rename]
+  src/host/tracker/backends/markdown/label-colors-palette.js  ->  src/tracker/rooms/markdown/label-colors-palette.ts   [move-rename]
+  src/host/tracker/backends/markdown/label-colors.js  ->  src/tracker/rooms/markdown/label-colors.ts   [move-rename]
+  src/host/tracker/backends/markdown/normalize.js  ->  src/tracker/rooms/markdown/normalize.ts   [move-rename]
+  src/host/tracker/backends/markdown/page.js  ->  src/tracker/rooms/markdown/page.ts   [move-rename]
+  src/host/tracker/backends/markdown/parse.js  ->  src/tracker/rooms/markdown/parse.ts   [move-rename]
+  src/host/tracker/backends/markdown/path.js  ->  src/tracker/rooms/markdown/path.ts   [move-rename]
+  src/host/tracker/backends/markdown/read.js  ->  src/tracker/rooms/markdown/read.ts   [move-rename]
+  src/host/tracker/backends/markdown/write-queue.js  ->  src/tracker/rooms/markdown/write-queue.ts   [move-rename]
+  src/host/tracker/backends/markdown/write.js  ->  src/tracker/rooms/markdown/write.ts   [move-rename]
+
+## B. 映射表声明的现状：不改、只改名、人工待定
+
+### buildGenerated（25 条，派生或构建期生成，本次不手改）
+  "package/shared/deck-tools/agent-register.js（随 src/shared/deck-tools/ 一起退役；新产物路径由新构建布局决定）"
+  "package/shared/deck-tools/call-scope.js（随 src/shared/deck-tools/ 一起退役；新产物路径由新构建布局决定）"
+  "package/shared/deck-tools/edges.js（随 src/shared/deck-tools/ 一起退役；新产物路径由新构建布局决定）"
+  "package/shared/deck-tools/exec-cell.js（随 src/shared/deck-tools/ 一起退役；新产物路径由新构建布局决定）"
+  "package/shared/deck-tools/key-lock.js（随 src/shared/deck-tools/ 一起退役；新产物路径由新构建布局决定）"
+  "package/shared/deck-tools/plan-store.js（随 src/shared/deck-tools/ 一起退役；新产物路径由新构建布局决定）"
+  "package/shared/deck-tools/plan.js（随 src/shared/deck-tools/ 一起退役；新产物路径由新构建布局决定）"
+  "package/shared/deck-tools/session-resolve.js（随 src/shared/deck-tools/ 一起退役；新产物路径由新构建布局决定）"
+  "package/shared/deck-tools/shell.js（随 src/shared/deck-tools/ 一起退役；新产物路径由新构建布局决定）"
+  "package/shared/deck-tools/workspace-file.js（随 src/shared/deck-tools/ 一起退役；新产物路径由新构建布局决定）"
+  "package/lib/platform/deckExec.js"
+  "package/lib/platform/deckQuotaSync.js"
+  "package/lib/platform/deckSandbox.js"
+  "package/lib/platform/deckToolsAssembly.js"
+  "package/lib/platform/deckToolsRow.js"
+  "package/lib/tools/deckContext.js"
+  "package/lib/tools/deckIssueGet.js"
+  "package/lib/tools/deckMapSnapshot.js"
+  "package/lib/tools/deckIssueList.js"
+  "package/lib/tools/deckIssueCreate.js"
+  "package/lib/tools/deckMapPlanCreate.js"
+  "package/lib/tools/deckMapLink.js"
+  "package/lib/tools/deckIssuePatch.js"
+  "package/lib/tools/deckIssueReport.js"
+  "package/shared/ 与 package/lib/ 整树由构建生成，不手改；新布局落地后旧副本随构建清理消失"
+
+### manualOnly（2 条，要人拿主意）
+  {"file":"package/package.json","line":21,"current":"\"./tools\": \"./lib/platform/deckToolsRow.js\"","problem":"行模块搬到 src/deck/registration/agent-row.ts，这一行是手写的发包出口，不跟着构建走","status":"needs-decision","note":"新取值取决于绿色编译模型下 src/deck/registration/agent-row.ts 的产物落点（未核实，待构建布局定案后回填）"}
+  {"file":"scripts/build.mjs","current":"通用复制逻辑（src/host 整树进 package/lib、src/shared 进 package/shared）","problem":"新树 src/deck/** 与 src/tracker/** 需要新增转译与投放步骤；deck 专属清单段落现无（本轮搜索无命中）","status":"needs-decision"}
+
+### outOfScope（7 条，映射表明说不在本次任务内）
+  "src/host/tracker/capability.js：属检查链与谓词那一摊，deck 调用链不经过，本次不动"
+  "src/host/tracker/generic.js：属检查链与谓词那一摊，deck 调用链不经过，本次不动"
+  "src/host/tracker/predicateCore.js：属检查链与谓词那一摊，deck 调用链不经过，本次不动"
+  "src/host/tracker/predicatePrimitives.js：属检查链与谓词那一摊，deck 调用链不经过，本次不动"
+  "src/host/tracker/snapshot.js：属检查链与谓词那一摊，deck 调用链不经过，本次不动"
+  "src/host/tracker/backends/gitlab/**：只随目录改名，代码不转写"
+  "src/client/**、src/shared/** 其余件、refresh-core 等四个计算核：不在本次任务内"
+
+### unchangedSpecifiers（18 条，路径不变的说明符）
+  @{from=src/host/tools/deckContext.js; specifier=../../shared/refresh/budget.js; reason=目标不进本次搬家（src/shared/** 或 src/host 其他层）; evidence=额度常量真源在 refresh-core，产物路径不变}
+  @{from=src/host/tools/deckContext.js; specifier=../../shared/refresh/tool-cost.js; reason=目标不进本次搬家（src/shared/** 或 src/host 其他层）; evidence=算账函数真源在 refresh-core，产物路径不变}
+  @{from=src/host/tools/deckIssueGet.js; specifier=../../shared/refresh/budget.js; reason=目标不进本次搬家（src/shared/** 或 src/host 其他层）; evidence=额度常量真源在 refresh-core，产物路径不变}
+  @{from=src/host/tools/deckIssueGet.js; specifier=../../shared/refresh/tool-cost.js; reason=目标不进本次搬家（src/shared/** 或 src/host 其他层）; evidence=算账函数真源在 refresh-core，产物路径不变}
+  @{from=src/host/tools/deckMapSnapshot.js; specifier=../../shared/refresh/budget.js; reason=目标不进本次搬家（src/shared/** 或 src/host 其他层）; evidence=额度常量真源在 refresh-core，产物路径不变}
+  @{from=src/host/tools/deckMapSnapshot.js; specifier=../../shared/refresh/tool-cost.js; reason=目标不进本次搬家（src/shared/** 或 src/host 其他层）; evidence=算账函数真源在 refresh-core，产物路径不变}
+  @{from=src/host/tools/deckIssueList.js; specifier=../../shared/refresh/budget.js; reason=目标不进本次搬家（src/shared/** 或 src/host 其他层）; evidence=额度常量真源在 refresh-core，产物路径不变}
+  @{from=src/host/tools/deckIssueList.js; specifier=../../shared/refresh/tool-cost.js; reason=目标不进本次搬家（src/shared/** 或 src/host 其他层）; evidence=算账函数真源在 refresh-core，产物路径不变}
+  @{from=src/host/tools/deckIssueCreate.js; specifier=../../shared/refresh/budget.js; reason=目标不进本次搬家（src/shared/** 或 src/host 其他层）; evidence=额度常量真源在 refresh-core，产物路径不变}
+  @{from=src/host/tools/deckIssueCreate.js; specifier=../../shared/refresh/tool-cost.js; reason=目标不进本次搬家（src/shared/** 或 src/host 其他层）; evidence=算账函数真源在 refresh-core，产物路径不变}
+  @{from=src/host/tools/deckMapPlanCreate.js; specifier=../../shared/refresh/budget.js; reason=目标不进本次搬家（src/shared/** 或 src/host 其他层）; evidence=额度常量真源在 refresh-core，产物路径不变}
+  @{from=src/host/tools/deckMapPlanCreate.js; specifier=../../shared/refresh/tool-cost.js; reason=目标不进本次搬家（src/shared/** 或 src/host 其他层）; evidence=算账函数真源在 refresh-core，产物路径不变}
+  @{from=src/host/tools/deckMapLink.js; specifier=../../shared/refresh/budget.js; reason=目标不进本次搬家（src/shared/** 或 src/host 其他层）; evidence=额度常量真源在 refresh-core，产物路径不变}
+  @{from=src/host/tools/deckMapLink.js; specifier=../../shared/refresh/tool-cost.js; reason=目标不进本次搬家（src/shared/** 或 src/host 其他层）; evidence=算账函数真源在 refresh-core，产物路径不变}
+  @{from=src/host/tools/deckIssuePatch.js; specifier=../../shared/refresh/budget.js; reason=目标不进本次搬家（src/shared/** 或 src/host 其他层）; evidence=额度常量真源在 refresh-core，产物路径不变}
+  @{from=src/host/tools/deckIssuePatch.js; specifier=../../shared/refresh/tool-cost.js; reason=目标不进本次搬家（src/shared/** 或 src/host 其他层）; evidence=算账函数真源在 refresh-core，产物路径不变}
+  @{from=src/host/tools/deckIssueReport.js; specifier=../../shared/refresh/budget.js; reason=目标不进本次搬家（src/shared/** 或 src/host 其他层）; evidence=额度常量真源在 refresh-core，产物路径不变}
+  @{from=src/host/tools/deckIssueReport.js; specifier=../../shared/refresh/tool-cost.js; reason=目标不进本次搬家（src/shared/** 或 src/host 其他层）; evidence=算账函数真源在 refresh-core，产物路径不变}
+
+## C. 引用面：会因搬家而失配的 tests/ 文件
+
+口径：文件里存在一行既含旧路径、又不是纯注释行（trim 后不以 // 或 * 开头）。
+
+### C1. 全部 129 个命中文件（tests/ 下，含纯注释引用）
+  tests/.tmp-repo-out/backends/github/index.js
+  tests/.tmp-repo-out/registry.js
+  tests/.tmp-repo-out2/backends/github/index.js
+  tests/.tmp-repo-out2/registry.js
+  tests/deck-tools-matrix-transports.js
+  tests/diag-refresh-414-loop.js
+  tests/file-granularity-baseline.json
+  tests/gate-map.json
+  tests/lib/deck-decide-stub.js
+  tests/lib/time-compress.js
+  tests/repro-issue179-workspace-switch.js
+  tests/same-layer-baseline.json
+  tests/tracker-contract/fixtures/github-real/normalized-173.json
+  tests/tracker-contract/fixtures/github-real/normalized-list.json
+  tests/tracker-contract/fixtures/github-real/raw-issue-173.json
+  tests/tracker-contract/fixtures/github-real/raw-list.json
+  tests/tracker-contract/fixtures/markdown.js
+  tests/tracker-contract/ONBOARDING.md
+  tests/tracker-contract/README.md
+  tests/tracker-contract/runner/index.js
+  tests/tracker-contract/sections/contract.js
+  tests/tracker-contract/sections/counts.js
+  tests/tracker-contract/sections/idempotency-counterproof-markdown.js
+  tests/tracker-contract/sections/idempotency-counterproof.js
+  tests/tracker-contract/sections/idempotency.js
+  tests/tracker-contract/sections/labels.js
+  tests/tracker-contract/sections/listPage.js
+  tests/tracker-contract/sections/preflight.js
+  tests/tracker-contract/sections/registry.js
+  tests/tracker-contract/sections/snapshot.js
+  tests/verify-1003-layout-in-file.js
+  tests/verify-1003-migration.js
+  tests/verify-1003-no-cwd-masquerade.js
+  tests/verify-1003-single-outlet.js
+  tests/verify-1003-unified-decision.js
+  tests/verify-1003-workspace-write-robust.js
+  tests/verify-3-workspace-switch.js
+  tests/verify-504-github-pr.js
+  tests/verify-507-pr-offline.js
+  tests/verify-524-pr-detail.js
+  tests/verify-599-merged-pr.js
+  tests/verify-656-subworkspace-acceptance.js
+  tests/verify-663-gh-install-inject.js
+  tests/verify-665-fresh-workspace-chain.js
+  tests/verify-669-choice-precedence.js
+  tests/verify-683-host-wiring.js
+  tests/verify-691-map-subissues.js
+  tests/verify-691-markdown-counts-page.js
+  tests/verify-696-shared-cache.js
+  tests/verify-709-no-self-continuing-timers.js
+  tests/verify-723-gate-wiring.js
+  tests/verify-723-single-refresh-instance.js
+  tests/verify-729-force-dedup.js
+  tests/verify-730-cwd-consistent.js
+  tests/verify-735-chain-restore.js
+  tests/verify-781-chain-identity.js
+  tests/verify-784-effortId.js
+  tests/verify-790-parent-edge.js
+  tests/verify-829-parent-reread.js
+  tests/verify-895-bulk-deadline.js
+  tests/verify-895-github-memo.js
+  tests/verify-898-block-merge.js
+  tests/verify-908-progress-replace.js
+  tests/verify-922-ticket-file-queue.js
+  tests/verify-927-gate-injection.js
+  tests/verify-928-field-line-rewrite.js
+  tests/verify-929-batch-cycle.js
+  tests/verify-934-935-invariants.js
+  tests/verify-947-workspace-file.js
+  tests/verify-957-workspace-writer.js
+  tests/verify-963-log-order.js
+  tests/verify-968-skill-ondemand.js
+  tests/verify-969-tiered-timeout.js
+  tests/verify-970-whole-document.js
+  tests/verify-971-markdown-parent.js
+  tests/verify-972-title-body.js
+  tests/verify-992-readonly-labels.js
+  tests/verify-bundled-discovery.js
+  tests/verify-chain-env-e2e.js
+  tests/verify-chain-renderer.js
+  tests/verify-contract-types.js
+  tests/verify-contract-vocabulary.js
+  tests/verify-deck-event-gate.mjs
+  tests/verify-deck-exec-phone.js
+  tests/verify-deck-no-hang.js
+  tests/verify-deck-parallel.js
+  tests/verify-deck-quota-sync.js
+  tests/verify-deck-render-detail.js
+  tests/verify-deck-repo-resolve.js
+  tests/verify-deck-slots.js
+  tests/verify-deck-thin-reads.js
+  tests/verify-deck-tools-agent-register.js
+  tests/verify-deck-tools-host-wiring.js
+  tests/verify-deck-tools-matrix.js
+  tests/verify-deck-tools-row-zero-dep.js
+  tests/verify-deck-tools.js
+  tests/verify-delta-wiring.js
+  tests/verify-detection-cascade.js
+  tests/verify-gh-gateway.js
+  tests/verify-github-label-colors.js
+  tests/verify-github-rest-fallback.js
+  tests/verify-gitlab-single-write.js
+  tests/verify-issue195.js
+  tests/verify-issue232-sync.js
+  tests/verify-issue297.js
+  tests/verify-label-color-core.js
+  tests/verify-labels-sync.js
+  tests/verify-map-subissues-352.js
+  tests/verify-markdown-backend.js
+  tests/verify-markdown-label-colors.js
+  tests/verify-matt-skills-sync.js
+  tests/verify-multi-effort-panel.js
+  tests/verify-multi-effort.js
+  tests/verify-naming-isolation-315.js
+  tests/verify-naming-title-fact.js
+  tests/verify-no-cross-import.js
+  tests/verify-no-mixed-session.js
+  tests/verify-no-same-layer-import.js
+  tests/verify-parse-leaf.js
+  tests/verify-prompts.js
+  tests/verify-refresh-workspace-key.js
+  tests/verify-rest-fallback-reason.js
+  tests/verify-settings-phones.js
+  tests/verify-setup-describe.js
+  tests/verify-skill-probe-redcard-and-waiting.js
+  tests/verify-success-failure-contract.js
+  tests/verify-t1-getrepokey.js
+  tests/verify-tracker-contract.js
+  tests/verify-workspace-file-note.js
+
+### C2. 其中 71 个「活引用且 research/1010-deck-blast-radius.md 没点名」的文件（无人认领）
+  tests/diag-refresh-414-loop.js
+  tests/repro-issue179-workspace-switch.js
+  tests/tracker-contract/fixtures/markdown.js
+  tests/tracker-contract/ONBOARDING.md
+  tests/tracker-contract/README.md
+  tests/tracker-contract/sections/contract.js
+  tests/tracker-contract/sections/counts.js
+  tests/tracker-contract/sections/idempotency-counterproof-markdown.js
+  tests/tracker-contract/sections/idempotency-counterproof.js
+  tests/tracker-contract/sections/idempotency.js
+  tests/tracker-contract/sections/labels.js
+  tests/tracker-contract/sections/listPage.js
+  tests/tracker-contract/sections/preflight.js
+  tests/tracker-contract/sections/registry.js
+  tests/verify-1003-layout-in-file.js
+  tests/verify-1003-migration.js
+  tests/verify-1003-no-cwd-masquerade.js
+  tests/verify-1003-workspace-write-robust.js
+  tests/verify-504-github-pr.js
+  tests/verify-507-pr-offline.js
+  tests/verify-524-pr-detail.js
+  tests/verify-599-merged-pr.js
+  tests/verify-656-subworkspace-acceptance.js
+  tests/verify-663-gh-install-inject.js
+  tests/verify-665-fresh-workspace-chain.js
+  tests/verify-669-choice-precedence.js
+  tests/verify-683-host-wiring.js
+  tests/verify-691-map-subissues.js
+  tests/verify-691-markdown-counts-page.js
+  tests/verify-709-no-self-continuing-timers.js
+  tests/verify-723-single-refresh-instance.js
+  tests/verify-735-chain-restore.js
+  tests/verify-781-chain-identity.js
+  tests/verify-922-ticket-file-queue.js
+  tests/verify-928-field-line-rewrite.js
+  tests/verify-963-log-order.js
+  tests/verify-968-skill-ondemand.js
+  tests/verify-969-tiered-timeout.js
+  tests/verify-970-whole-document.js
+  tests/verify-972-title-body.js
+  tests/verify-bundled-discovery.js
+  tests/verify-chain-env-e2e.js
+  tests/verify-chain-renderer.js
+  tests/verify-contract-types.js
+  tests/verify-deck-slots.js
+  tests/verify-delta-wiring.js
+  tests/verify-detection-cascade.js
+  tests/verify-github-label-colors.js
+  tests/verify-github-rest-fallback.js
+  tests/verify-gitlab-single-write.js
+  tests/verify-issue195.js
+  tests/verify-issue232-sync.js
+  tests/verify-issue297.js
+  tests/verify-labels-sync.js
+  tests/verify-map-subissues-352.js
+  tests/verify-markdown-backend.js
+  tests/verify-markdown-label-colors.js
+  tests/verify-matt-skills-sync.js
+  tests/verify-multi-effort-panel.js
+  tests/verify-multi-effort.js
+  tests/verify-naming-title-fact.js
+  tests/verify-no-mixed-session.js
+  tests/verify-parse-leaf.js
+  tests/verify-prompts.js
+  tests/verify-refresh-workspace-key.js
+  tests/verify-rest-fallback-reason.js
+  tests/verify-settings-phones.js
+  tests/verify-setup-describe.js
+  tests/verify-skill-probe-redcard-and-waiting.js
+  tests/verify-success-failure-contract.js
+  tests/verify-tracker-contract.js
+
+### C3. 合并后的最终无人认领清单（79 个：C2 的 71 个 ∪ 严格口径命中的 32 个，去掉 blast-radius 点名的 34 个）
+  tests/diag-refresh-414-loop.js
+  tests/repro-issue179-workspace-switch.js
+  tests/tracker-contract/fixtures/gitlab.js
+  tests/tracker-contract/fixtures/markdown.js
+  tests/tracker-contract/ONBOARDING.md
+  tests/tracker-contract/README.md
+  tests/tracker-contract/runner/index.js
+  tests/tracker-contract/sections/contract.js
+  tests/tracker-contract/sections/counts.js
+  tests/tracker-contract/sections/idempotency-counterproof-markdown.js
+  tests/tracker-contract/sections/idempotency-counterproof.js
+  tests/tracker-contract/sections/idempotency.js
+  tests/tracker-contract/sections/labels.js
+  tests/tracker-contract/sections/listPage.js
+  tests/tracker-contract/sections/preflight.js
+  tests/tracker-contract/sections/registry.js
+  tests/tracker-contract/sections/snapshot.js
+  tests/verify-1003-layout-in-file.js
+  tests/verify-1003-migration.js
+  tests/verify-1003-no-cwd-masquerade.js
+  tests/verify-1003-workspace-write-robust.js
+  tests/verify-3-workspace-switch.js
+  tests/verify-504-github-pr.js
+  tests/verify-507-pr-offline.js
+  tests/verify-524-pr-detail.js
+  tests/verify-599-merged-pr.js
+  tests/verify-656-subworkspace-acceptance.js
+  tests/verify-663-gh-install-inject.js
+  tests/verify-665-fresh-workspace-chain.js
+  tests/verify-669-choice-precedence.js
+  tests/verify-683-host-wiring.js
+  tests/verify-686-accept.js
+  tests/verify-691-map-subissues.js
+  tests/verify-691-markdown-counts-page.js
+  tests/verify-709-no-self-continuing-timers.js
+  tests/verify-723-single-refresh-instance.js
+  tests/verify-730-cwd-consistent.js
+  tests/verify-735-chain-restore.js
+  tests/verify-781-chain-identity.js
+  tests/verify-922-ticket-file-queue.js
+  tests/verify-928-field-line-rewrite.js
+  tests/verify-963-log-order.js
+  tests/verify-968-skill-ondemand.js
+  tests/verify-969-tiered-timeout.js
+  tests/verify-970-whole-document.js
+  tests/verify-972-title-body.js
+  tests/verify-bundled-discovery.js
+  tests/verify-chain-env-e2e.js
+  tests/verify-chain-renderer.js
+  tests/verify-contract-types.js
+  tests/verify-deck-slots.js
+  tests/verify-delta-wiring.js
+  tests/verify-detection-cascade.js
+  tests/verify-github-label-colors.js
+  tests/verify-github-rest-fallback.js
+  tests/verify-gitlab-single-write.js
+  tests/verify-issue195.js
+  tests/verify-issue232-sync.js
+  tests/verify-issue297.js
+  tests/verify-labels-sync.js
+  tests/verify-log-exec-606.js
+  tests/verify-log-store.js
+  tests/verify-map-subissues-352.js
+  tests/verify-markdown-backend.js
+  tests/verify-markdown-label-colors.js
+  tests/verify-matt-skills-sync.js
+  tests/verify-multi-effort-panel.js
+  tests/verify-multi-effort.js
+  tests/verify-naming-title-fact.js
+  tests/verify-no-mixed-session.js
+  tests/verify-parse-leaf.js
+  tests/verify-prompts.js
+  tests/verify-refresh-workspace-key.js
+  tests/verify-rest-fallback-reason.js
+  tests/verify-settings-phones.js
+  tests/verify-setup-describe.js
+  tests/verify-skill-probe-redcard-and-waiting.js
+  tests/verify-success-failure-contract.js
+  tests/verify-tracker-contract.js
+
+### C4. 严格口径命中的 tests/ 文件（33 个：import 说明符按磁盘解析 + path.join 分段拼接）
+  tests/tracker-contract/fixtures/gitlab.js
+  tests/tracker-contract/fixtures/markdown.js
+  tests/tracker-contract/runner/index.js
+  tests/tracker-contract/sections/contract.js
+  tests/tracker-contract/sections/counts.js
+  tests/tracker-contract/sections/idempotency-counterproof-markdown.js
+  tests/tracker-contract/sections/idempotency-counterproof.js
+  tests/tracker-contract/sections/idempotency.js
+  tests/tracker-contract/sections/labels.js
+  tests/tracker-contract/sections/listPage.js
+  tests/tracker-contract/sections/preflight.js
+  tests/tracker-contract/sections/registry.js
+  tests/tracker-contract/sections/snapshot.js
+  tests/verify-3-workspace-switch.js
+  tests/verify-686-accept.js
+  tests/verify-691-map-subissues.js
+  tests/verify-691-markdown-counts-page.js
+  tests/verify-730-cwd-consistent.js
+  tests/verify-922-ticket-file-queue.js
+  tests/verify-927-gate-injection.js
+  tests/verify-928-field-line-rewrite.js
+  tests/verify-970-whole-document.js
+  tests/verify-972-title-body.js
+  tests/verify-bundled-discovery.js
+  tests/verify-detection-cascade.js
+  tests/verify-github-label-colors.js
+  tests/verify-gitlab-single-write.js
+  tests/verify-issue297.js
+  tests/verify-log-exec-606.js
+  tests/verify-log-store.js
+  tests/verify-markdown-backend.js
+  tests/verify-markdown-label-colors.js
+  tests/verify-tracker-contract.js
+
+## D. 引用面：tests/ 以外的命中文件（254 条命中里的非 tests 部分）
+
+  .scratch/cards-demo/data2.ts	src/host/index.js
+  CHANGELOG.md	src/host/refresh/wiring.js
+  docs/adr/20260826-check-item-chain-contract.md	src/host/tracker/contract.js
+  docs/adr/20260827-gate-flake-adversarial.md	src/host/index.js
+  docs/adr/20260828-skill-probe-redcard-and-waiting.md	src/host/index.js
+  docs/adr/20260828-skill-probe-union-channels.md	src/host/index.js
+  docs/adr/20260909-effort-identity-in-repository-ref.md	src/host/tracker/backends/markdown/issues-read.js
+  docs/adr/20260913-builtin-ts-shape.md	src/host/tracker/preflight.js, src/host/index.js, src/host/workspaceCwd.js
+  docs/adr/20260921-tracker-choice-precedence.md	src/host/tracker/detection/detectionService.js
+  docs/adr/20260924-refresh-budget-architecture.md	src/host/tools/deckMapSnapshot.js
+  docs/adr/20261011-deck-ts-rewrite.md	src/host/tracker/contract.js
+  docs/adr/20261012-backend-decision-two-classes.md	src/shared/deck-tools/shell.js, src/host/platform/deckToolsAssembly.js, src/host/tracker/detection/backendDecision.js, src/host/tracker/detection/detectionService.js, src/host/workspaceCwd.js
+  docs/architecture/180-0-4-governance-handoff.md	src/host/tracker/detection/detectionService.js, src/host/index.js
+  docs/architecture/FINAL-ARCHITECTURE-VISUALIZATION.md	src/host/index.js
+  docs/architecture/matrix.md	src/host/index.js
+  docs/architecture/mattskills.architecture.json	src/host/tracker/backends/github/index.js, src/host/tracker/backends/markdown/index.js, src/host/tracker/backends/markdown/read.js, src/host/index.js
+  docs/architecture/split-blueprint.md	src/host/index.js
+  docs/architecture/third-party-tracker.md	src/host/tracker/backends/github/normalize.js, src/host/tracker/contract.js
+  docs/architecture/tracker-backend-charting-snapshot.md	src/host/index.js
+  docs/architecture/tracker-layer-directory-architecture.md	src/host/tracker/backends/README.md
+  docs/design/335-logging-contract.md	src/host/index.js
+  docs/design/677-issue-pool-completeness-spec.md	src/host/tracker/backends/github/issues.js, src/host/tracker/backends/markdown/issues-read.js, src/host/tracker/contract.js, src/host/index.js
+  docs/design/837-host-index-wiring-ledger.md	src/host/index.js
+  docs/research/153-backend-ui-touchpoints.md	src/host/index.js
+  docs/research/236-237-author-protocol.md	src/host/tracker/backends/github/normalize.js, src/host/tracker/backends/github/queries.js, src/host/tracker/backends/markdown/normalize.js, src/host/tracker/contract.js
+  docs/research/236-238-github-author-chain.md	src/host/tracker/backends/github/normalize.js, src/host/tracker/backends/github/queries.js, src/host/index.js
+  docs/research/236-239-list-author-audit.md	src/host/index.js
+  docs/research/359-dsh-alpha-pipeline.md	src/host/index.js
+  docs/research/360-code-ghost-shell-inventory.md	src/host/index.js
+  docs/research/environment-checks-platform-layer-20260829.md	src/host/tracker/backends/github/client.js, src/host/tracker/backends/github/errors.js, src/host/tracker/backends/github/index.js, src/host/tracker/backends/github/preflight.js, src/host/tracker/backends/markdown/index.js, src/host/tracker/backends/markdown/path.js, src/host/tracker/fixContract.js, src/host/index.js
+  docs/research/host-session-governance-capability.md	src/host/index.js
+  docs/research/markdown-init-wayfinder-panel-investigation-2026-08-28.md	src/host/tracker/backends/markdown/index.js, src/host/tracker/backends/markdown/issues.js, src/host/tracker/backends/markdown/parse.js, src/host/tracker/backends/markdown/path.js, src/host/tracker/backends/markdown/read.js, src/host/tracker/backends/markdown/write.js, src/host/tracker/fixContract.js, src/host/tracker/detection/detectionService.js, src/host/index.js
+  docs/research/research-panel-refresh-310.md	src/host/tracker/backends/github/errors.js, src/host/tracker/backends/github/normalize.js, src/host/tracker/backends/github/queries.js, src/host/tracker/backends/markdown/graph.js, src/host/tracker/backends/markdown/issues.js, src/host/tracker/backends/markdown/normalize.js, src/host/tracker/backends/markdown/parse.js, src/host/tracker/contract.js, src/host/tracker/preflight.js, src/host/index.js
+  docs/research/session-rename-failure-paths.md	src/host/index.js
+  docs/reviews/390-bundled-trio-matrix.md	src/host/index.js
+  docs/reviews/604-map-operating-brief.md	src/host/tracker/backends/github/client.js, src/host/index.js, src/host/platformChannel.js
+  docs/reviews/deck-tools-adversarial-review.md	src/host/tracker/backends/github/issues-write.js, src/host/tracker/backends/markdown/issues-create.js, src/host/tracker/backends/markdown/issues-patch.js
+  docs/workflow/DEV-WORKFLOW.md	src/host/index.js
+  examples/demo-mini/index.js	src/host/tracker/contract.js, src/host/tracker/registryCore.js
+  examples/demo-mini/README.md	src/host/tracker/registryCore.js
+  label-color-core/README.md	src/host/tracker/contract.js, src/host/workspaceCwd.js
+  label-color-core/src/ports.ts	src/host/tracker/contract.js
+  research/1010-deck-blast-radius.md	src/shared/deck-tools/shell.js, src/shared/deck-tools/workspace-file.js, src/shared/deck-tools/agent-register.js, src/host/tracker/backends/github/init-project.js, src/host/tracker/backends/markdown/label-colors-ops.js, src/host/tracker/detection/backendDecision.js, src/host/tracker/detection/explicitDetector.js, src/host/tracker/index.js, src/host/index.js, src/host/platformChannel.js, src/host/refresh/wiring.js, src/host/workspaceCwd.js, src/host/issueDetail.js, src/host/remotePredicates.js
+  research/1010-deck-chain-dirs.md	src/host/tools/deckContext.js, src/host/tools/deckIssueGet.js, src/host/tools/deckMapSnapshot.js, src/host/tools/deckIssueList.js, src/host/tools/deckIssueCreate.js, src/host/tools/deckMapPlanCreate.js, src/host/tools/deckMapLink.js, src/host/tools/deckIssuePatch.js, src/host/tools/deckIssueReport.js, src/shared/deck-tools/shell.js, src/shared/deck-tools/plan.js, src/shared/deck-tools/edges.js, src/shared/deck-tools/session-resolve.js, src/shared/deck-tools/key-lock.js, src/shared/deck-tools/agent-register.js, src/host/platform/deckToolsAssembly.js, src/host/platform/deckToolsRow.js, src/host/platform/deckExec.js, src/host/tracker/backends/README.md, src/host/index.js, src/host/refresh/wiring.js
+  research/1010-deck-contract-surface.md	src/host/tools/deckContext.js, src/host/tools/deckIssueGet.js, src/host/tools/deckMapSnapshot.js, src/host/tools/deckIssueList.js, src/host/tools/deckIssueCreate.js, src/host/tools/deckMapPlanCreate.js, src/host/tools/deckMapLink.js, src/host/tools/deckIssuePatch.js, src/host/tools/deckIssueReport.js, src/shared/deck-tools/shell.js, src/shared/deck-tools/plan.js, src/shared/deck-tools/edges.js, src/shared/deck-tools/call-scope.js, src/shared/deck-tools/session-resolve.js, src/shared/deck-tools/key-lock.js, src/shared/deck-tools/plan-store.js, src/host/platform/deckToolsAssembly.js, src/host/tracker/backends/github/backend.js, src/host/tracker/backends/github/index.js, src/host/tracker/backends/markdown/index.js, src/host/tracker/contract.js, src/host/tracker/registryShape.js, src/host/tracker/detection/backendDecision.js, src/host/refresh/wiring.js
+  research/1010-deck-review.md	src/host/tools/deckMapPlanCreate.js, src/host/tools/deckMapLink.js, src/host/tools/deckIssueReport.js, src/shared/deck-tools/shell.js, src/shared/deck-tools/call-scope.js, src/host/platform/deckToolsAssembly.js, src/host/tracker/contract.js, src/host/tracker/detection/backendDecision.js, src/host/tracker/detection/explicitDetector.js, src/host/index.js, src/host/workspaceCwd.js
+  research/1010-migration-map.json	src/host/tools/deckContext.js, src/host/tools/deckIssueGet.js, src/host/tools/deckMapSnapshot.js, src/host/tools/deckIssueList.js, src/host/tools/deckIssueCreate.js, src/host/tools/deckMapPlanCreate.js, src/host/tools/deckMapLink.js, src/host/tools/deckIssuePatch.js, src/host/tools/deckIssueReport.js, src/shared/deck-tools/shell.js, src/shared/deck-tools/plan.js, src/shared/deck-tools/edges.js, src/shared/deck-tools/call-scope.js, src/shared/deck-tools/session-resolve.js, src/shared/deck-tools/key-lock.js, src/shared/deck-tools/plan-store.js, src/shared/deck-tools/exec-cell.js, src/shared/deck-tools/workspace-file.js, src/shared/deck-tools/agent-register.js, src/host/platform/deckToolsAssembly.js, src/host/platform/deckToolsRow.js, src/host/platform/deckExec.js, src/host/platform/deckQuotaSync.js, src/host/platform/deckSandbox.js, src/host/tracker/backends/github/backend.js, src/host/tracker/backends/github/checks.js, src/host/tracker/backends/github/client.js, src/host/tracker/backends/github/comments.js, src/host/tracker/backends/github/counts.js, src/host/tracker/backends/github/cycle-check.js, src/host/tracker/backends/github/errors.js, src/host/tracker/backends/github/fallback-reason.js, src/host/tracker/backends/github/graph.js, src/host/tracker/backends/github/idempotency.js, src/host/tracker/backends/github/index.js, src/host/tracker/backends/github/init-project.js, src/host/tracker/backends/github/issues-write.js, src/host/tracker/backends/github/issues.js, src/host/tracker/backends/github/label-colors-ops.js, src/host/tracker/backends/github/labels.js, src/host/tracker/backends/github/normalize.js, src/host/tracker/backends/github/page.js, src/host/tracker/backends/github/parent-repair.js, src/host/tracker/backends/github/preflight.js, src/host/tracker/backends/github/pulls.js, src/host/tracker/backends/github/queries.js, src/host/tracker/backends/github/repo-permissions.js, src/host/tracker/backends/github/repo.js, src/host/tracker/backends/github/roster.js, src/host/tracker/backends/github/sub-issues.js, src/host/tracker/backends/markdown/comments.js, src/host/tracker/backends/markdown/counts.js, src/host/tracker/backends/markdown/graph.js, src/host/tracker/backends/markdown/index.js, src/host/tracker/backends/markdown/issues-create.js, src/host/tracker/backends/markdown/issues-locate.js, src/host/tracker/backends/markdown/issues-patch.js, src/host/tracker/backends/markdown/issues-read.js, src/host/tracker/backends/markdown/issues-status.js, src/host/tracker/backends/markdown/issues.js, src/host/tracker/backends/markdown/label-colors-codec.js, src/host/tracker/backends/markdown/label-colors-errors.js, src/host/tracker/backends/markdown/label-colors-ops.js, src/host/tracker/backends/markdown/label-colors-paint.js, src/host/tracker/backends/markdown/label-colors-palette.js, src/host/tracker/backends/markdown/label-colors.js, src/host/tracker/backends/markdown/normalize.js, src/host/tracker/backends/markdown/page.js, src/host/tracker/backends/markdown/parse.js, src/host/tracker/backends/markdown/path.js, src/host/tracker/backends/markdown/read.js, src/host/tracker/backends/markdown/write-queue.js, src/host/tracker/backends/markdown/write.js, src/host/tracker/backends/README.md, src/host/tracker/contract.js, src/host/tracker/contract-idempotency.js, src/host/tracker/contract-label-colors.js, src/host/tracker/contract-page.js, src/host/tracker/fixContract.js, src/host/tracker/registryCore.js, src/host/tracker/registryShape.js, src/host/tracker/registryViews.js, src/host/tracker/detection/backendDecision.js, src/host/tracker/detection/detectionService.js, src/host/tracker/detection/explicitDetector.js, src/host/tracker/detection/parseIssueTracker.js, src/host/tracker/detection/preflightScope.js, src/host/tracker/detection/workspaceStore.js, src/host/tracker/preflight.js, src/host/tracker/index.js, src/host/index.js, src/host/platformChannel.js, src/host/refresh/wiring.js, src/host/workspaceCwd.js, src/host/issueDetail.js, src/host/remotePredicates.js
+  research/1010-migration-map.md	src/host/index.js, src/host/platformChannel.js, src/host/issueDetail.js, src/host/remotePredicates.js
+  research/1010-room-conformity-checklist.md	src/host/tools/deckContext.js, src/host/tracker/backends/github/backend.js, src/host/tracker/backends/github/index.js, src/host/tracker/backends/markdown/index.js, src/host/tracker/contract.js, src/host/tracker/registryShape.js
+  research/1010-ticket-scope-1.md	src/host/tools/deckMapPlanCreate.js, src/host/tools/deckMapLink.js, src/shared/deck-tools/shell.js, src/shared/deck-tools/call-scope.js, src/host/tracker/backends/github/graph.js, src/host/tracker/backends/github/issues-write.js, src/host/tracker/backends/markdown/issues-patch.js, src/host/tracker/backends/markdown/parse.js, src/host/platformChannel.js
+  research/1010-ticket-scope-2.md	src/shared/deck-tools/shell.js, src/host/platform/deckToolsAssembly.js, src/host/platform/deckQuotaSync.js, src/host/refresh/wiring.js, src/host/workspaceCwd.js
+  research/1010-ticket-scope-3.md	src/host/tracker/backends/github/client.js, src/host/tracker/preflight.js
+  research/1010-ticket-scope-4.md	src/shared/deck-tools/call-scope.js, src/host/tracker/backends/github/checks.js, src/host/tracker/backends/github/index.js
+  research/1010-ticket-scope-5.md	src/shared/deck-tools/workspace-file.js, src/host/tracker/backends/github/checks.js, src/host/tracker/backends/github/comments.js, src/host/tracker/backends/github/repo.js, src/host/tracker/backends/markdown/index.js, src/host/tracker/backends/markdown/label-colors.js, src/host/tracker/contract-label-colors.js
+  research/1010-ticket-structure.md	src/host/tools/deckIssuePatch.js, src/host/tools/deckIssueReport.js, src/shared/deck-tools/shell.js, src/shared/deck-tools/plan.js, src/host/tracker/backends/markdown/parse.js, src/host/index.js, src/host/refresh/wiring.js
+  research/1010-verify-baseline.md	src/shared/deck-tools/shell.js, src/host/platform/deckToolsAssembly.js
+  research/1012-final-plan.md	src/shared/deck-tools/workspace-file.js, src/host/tracker/backends/markdown/label-colors.js, src/host/index.js, src/host/workspaceCwd.js
+  research/206-session-naming.md	src/host/tracker/backends/github/issues.js
+  research/289-github-pr-data-path.md	src/host/tracker/backends/github/queries.js
+  research/290-tabs-dynamic-feasibility.md	src/host/index.js
+  research/291-contract-snapshot-impact.md	src/host/tracker/backends/github/issues.js, src/host/tracker/backends/github/normalize.js, src/host/tracker/backends/github/queries.js, src/host/tracker/backends/markdown/index.js, src/host/tracker/contract.js
+  research/330-host-persistence.md	src/host/index.js, src/host/platformChannel.js
+  research/331-critical-paths.md	src/host/tracker/detection/detectionService.js, src/host/tracker/detection/workspaceStore.js, src/host/index.js
+  research/346-issuePath-accuracy/README.md	src/host/tracker/backends/github/index.js, src/host/index.js
+  research/347-scenarios/README.md	src/host/index.js
+  research/489-appendix.md	src/shared/deck-tools/shell.js, src/host/platform/deckQuotaSync.js, src/host/tracker/backends/github/label-colors-ops.js, src/host/tracker/backends/github/sub-issues.js, src/host/tracker/backends/markdown/label-colors.js, src/host/tracker/detection/detectionService.js, src/host/tracker/detection/preflightScope.js, src/host/index.js, src/host/workspaceCwd.js
+  research/536-dsh-im-recheck.md	src/host/index.js
+  research/551-navigation-seam.md	src/host/index.js
+  research/568-body-write.md	src/host/tracker/backends/github/client.js, src/host/tracker/backends/github/comments.js, src/host/tracker/backends/github/issues-write.js, src/host/tracker/detection/parseIssueTracker.js, src/host/platformChannel.js, src/host/remotePredicates.js
+  research/569-subissue-wiring.md	src/host/tracker/backends/github/graph.js, src/host/tracker/backends/github/index.js, src/host/tracker/backends/github/issues-write.js, src/host/tracker/backends/markdown/index.js, src/host/tracker/backends/markdown/issues-create.js, src/host/tracker/backends/markdown/issues-patch.js, src/host/tracker/contract.js
+  research/580-update-recheck.md	src/host/index.js
+  research/607-performance-audit.md	src/host/index.js, src/host/platformChannel.js
+  research/612-github-label-write.md	src/host/tracker/backends/github/client.js, src/host/tracker/backends/github/errors.js, src/host/tracker/backends/github/labels.js, src/host/tracker/preflight.js
+  research/613-builtin-ts.md	src/host/index.js
+  research/614-workspace-write.md	src/host/tracker/backends/markdown/issues-patch.js, src/host/tracker/backends/markdown/write.js, src/host/index.js, src/host/workspaceCwd.js
+  research/624-file-channel.md	src/host/tracker/backends/markdown/write.js, src/host/index.js, src/host/workspaceCwd.js
+  research/648-subworkspace-failure-evidence.md	src/host/tracker/backends/github/backend.js, src/host/tracker/backends/github/repo.js, src/host/tracker/backends/markdown/index.js, src/host/tracker/backends/markdown/issues-create.js, src/host/tracker/backends/markdown/label-colors-ops.js, src/host/tracker/backends/markdown/label-colors.js, src/host/tracker/registryCore.js, src/host/tracker/registryShape.js, src/host/tracker/detection/explicitDetector.js, src/host/index.js, src/host/workspaceCwd.js
+  research/660-onboarding-chain-recon.md	src/host/tracker/backends/github/index.js, src/host/tracker/backends/github/repo.js, src/host/tracker/fixContract.js
+  research/662-consumers-map.md	src/host/tracker/backends/github/checks.js, src/host/tracker/backends/github/index.js, src/host/tracker/backends/github/issues.js, src/host/tracker/backends/github/label-colors-ops.js, src/host/tracker/backends/markdown/index.js, src/host/tracker/contract.js, src/host/tracker/fixContract.js, src/host/tracker/registryShape.js, src/host/tracker/preflight.js, src/host/index.js
+  research/662-gates-survey.md	src/host/tracker/backends/github/index.js, src/host/tracker/backends/github/preflight.js, src/host/tracker/backends/markdown/index.js, src/host/tracker/contract.js, src/host/tracker/fixContract.js
+  research/662-logging-survey.md	src/host/tracker/backends/github/errors.js, src/host/tracker/backends/github/index.js, src/host/tracker/registryCore.js, src/host/index.js
+  research/677-field-consumption.md	src/host/tracker/backends/github/normalize.js, src/host/tracker/backends/github/queries.js, src/host/index.js
+  research/680-healthcheck-wiring.md	src/host/tracker/backends/github/checks.js, src/host/tracker/backends/github/issues.js, src/host/tracker/backends/github/normalize.js, src/host/tracker/backends/github/queries.js, src/host/tracker/backends/markdown/index.js, src/host/tracker/backends/markdown/normalize.js, src/host/index.js
+  research/699-gh-auth-automation.md	src/host/tracker/backends/github/client.js, src/host/tracker/backends/github/index.js, src/host/tracker/backends/github/label-colors-ops.js, src/host/tracker/backends/github/preflight.js, src/host/platformChannel.js
+  research/699-gh-self-install.md	src/host/tracker/backends/github/init-project.js, src/host/index.js, src/host/platformChannel.js
+  research/699-old-issues-recheck.md	src/host/tracker/backends/github/checks.js, src/host/tracker/backends/github/client.js, src/host/tracker/backends/github/index.js, src/host/tracker/backends/github/preflight.js, src/host/tracker/backends/github/repo.js, src/host/index.js, src/host/platformChannel.js, src/host/workspaceCwd.js
+  research/746-llm-and-direct-attr-base.md	src/host/tools/deckIssueCreate.js, src/host/tools/deckMapPlanCreate.js, src/host/index.js
+  research/750-host-busy.md	src/host/tracker/detection/detectionService.js, src/host/tracker/detection/preflightScope.js, src/host/tracker/detection/workspaceStore.js, src/host/index.js, src/host/platformChannel.js, src/host/workspaceCwd.js
+  research/757-snapshot-size.md	src/host/tracker/detection/workspaceStore.js, src/host/index.js, src/host/platformChannel.js
+  research/930-md-deck-audit.md	src/shared/deck-tools/shell.js, src/host/tracker/backends/github/backend.js, src/host/tracker/backends/markdown/index.js, src/host/tracker/backends/markdown/write.js, src/host/tracker/contract.js, src/host/tracker/contract-label-colors.js, src/host/tracker/contract-page.js, src/host/tracker/registryShape.js, src/host/tracker/detection/workspaceStore.js, src/host/refresh/wiring.js, src/host/workspaceCwd.js
+  research/960-claim-verification.md	src/host/tracker/backends/github/client.js, src/host/index.js, src/host/platformChannel.js
+  research/992-scene-verification.md	src/host/tools/deckContext.js, src/host/tools/deckIssueCreate.js, src/host/tools/deckIssuePatch.js, src/host/tracker/backends/github/errors.js, src/host/tracker/backends/github/index.js, src/host/tracker/backends/github/issues-write.js, src/host/tracker/backends/github/label-colors-ops.js, src/host/tracker/backends/github/labels.js, src/host/tracker/backends/github/repo-permissions.js, src/host/tracker/fixContract.js, src/host/tracker/preflight.js
+  research/998-q2-quota-cooldown.md	src/shared/deck-tools/shell.js, src/host/platform/deckToolsAssembly.js, src/host/platform/deckQuotaSync.js, src/host/index.js, src/host/refresh/wiring.js
+  research/998-q3-read-timeout.md	src/host/tools/deckContext.js, src/host/tools/deckIssueReport.js, src/shared/deck-tools/shell.js, src/shared/deck-tools/call-scope.js, src/host/platform/deckExec.js, src/host/tracker/backends/github/client.js, src/host/tracker/backends/github/issues.js, src/host/tracker/backends/github/queries.js
+  research/deck-issue-get-detail-loss-report.md	src/host/tools/deckIssueGet.js, src/shared/deck-tools/edges.js, src/shared/deck-tools/agent-register.js, src/host/platform/deckToolsAssembly.js, src/host/platform/deckToolsRow.js, src/host/platform/deckExec.js, src/host/tracker/backends/github/issues.js, src/host/tracker/backends/github/queries.js, src/host/refresh/wiring.js
+  research/deck-tools-language-1010.md	src/host/tools/deckContext.js, src/host/tools/deckIssueGet.js, src/host/tools/deckMapSnapshot.js, src/host/tools/deckIssueList.js, src/host/tools/deckIssueCreate.js, src/host/tools/deckMapPlanCreate.js, src/host/tools/deckMapLink.js, src/host/tools/deckIssuePatch.js, src/host/tools/deckIssueReport.js, src/shared/deck-tools/shell.js, src/shared/deck-tools/plan.js, src/host/platform/deckToolsAssembly.js, src/host/platform/deckToolsRow.js
+  research/scene-layout-card.md	src/host/workspaceCwd.js
+  research/switch-backend-flow.md	src/host/index.js, src/host/workspaceCwd.js
+  scripts/build.mjs	src/host/index.js
+  scripts/generate-github-fixtures.js	src/host/tracker/backends/github/normalize.js
+  scripts/generate-markdown-fixtures.js	src/host/tracker/backends/markdown/normalize.js, src/host/tracker/backends/markdown/parse.js
+  scripts/matrix-full.js	src/host/tracker/backends/github/index.js, src/host/tracker/backends/github/normalize.js, src/host/tracker/backends/markdown/index.js, src/host/tracker/backends/markdown/normalize.js, src/host/tracker/backends/markdown/path.js
+  scripts/matrix-smoke.js	src/host/tracker/backends/github/index.js
+  scripts/measure-967-outbound.js	src/host/tracker/backends/github/client.js, src/host/tracker/detection/preflightScope.js
+  scripts/wire-subissues.mjs	src/host/tracker/backends/github/graph.js, src/host/tracker/detection/parseIssueTracker.js
+  src/client/kernel/locale-labels.js	src/host/tracker/backends/markdown/label-colors-ops.js, src/host/tracker/contract.js
+  src/client/views/labels/LabelColorDialog.js	src/host/workspaceCwd.js
+  src/client/views/labels/labelColorErrors.js	src/host/tracker/contract.js, src/host/workspaceCwd.js
+  src/client/views/labels/useLabelColors.js	src/host/workspaceCwd.js
+  src/host/detectChain.js	src/host/tracker/detection/preflightScope.js
+  src/host/logFromPackage.js	src/host/index.js
+  src/host/logStore.js	src/host/index.js
+  src/host/publishFlow.js	src/host/tracker/backends/github/init-project.js
+  src/host/refresh/attention.js	src/host/index.js, src/host/refresh/wiring.js
+  src/host/refresh/writeEvents.js	src/host/index.js
+  src/host/snapshotBuild.js	src/host/index.js
+  src/host/tracker/backends/gitlab/idempotency.js	src/host/tracker/contract-idempotency.js
+  src/host/workspaceLabelColors.js	src/host/workspaceCwd.js
+  src/shared/refresh-workspace-key.js	src/host/index.js, src/host/refresh/wiring.js
+  src/shared/session-cwd.js	src/host/workspaceCwd.js
+  src/shared/tracker/initProjectErrorKinds.js	src/host/tracker/backends/github/init-project.js
+  src/tracker/contract/identity.ts	src/host/tracker/contract.js
+  src/tracker/contract/operations-catalog.ts	src/host/tracker/contract.js
+  src/tracker/contract/operations.ts	src/shared/deck-tools/shell.js, src/host/tracker/contract.js
+  src/tracker/contract/README.md	src/shared/deck-tools/shell.js, src/host/tracker/contract.js
+
+## E. 筛选口径说明
+
+计入：
+  - research/1010-migration-map.json 里的 112 个模块（110 条旧路径，旧路径全部发生变化）。
+  - 调用链上必须跟着改但不搬家的件：src/host/detectChain.js、tests/gate-map.json、tests/file-granularity-baseline.json、
+    tests/same-layer-baseline.json、scripts/build.mjs 等脚本、package.json、tsconfig*.json。
+  - 引用面清单：tests/ 129 个 + tests/ 以外 24 个。
+
+排除（派生件，不手改）：
+  - src/host/logPkg/*（打包派生）、scripts/generated/*（派生）、package/ 与 lib/ 产物、node_modules。
+  - 带 AUTO-GENERATED 头的文件。
+  - docs/、research/、CHANGELOG.md 里的历史记载（票面 #1072 明写「历史文档除外」）。
+

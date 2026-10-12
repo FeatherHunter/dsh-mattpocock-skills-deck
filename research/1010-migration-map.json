@@ -26,7 +26,8 @@
       "buildGenerated": 25,
       "manualOnly": 2,
       "outOfScope": 7
-    }
+    },
+    "scopeNote": "本次范围 = 本表 modules 全部条目（136 条）。逐份文件清单见 research/1010-adversarial-coverage-files.txt。"
   },
   "modules": [
     {
@@ -766,6 +767,174 @@
       "new": "src/host/remotePredicates.ts",
       "kind": "stay-ext-change",
       "note": "远端谓词：引 Markdown 房 parse（位置不动，只转 TypeScript）"
+    },
+    {
+      "old": "src/shared/tracker/constants.js",
+      "new": "src/tracker/contract/vocabulary.ts",
+      "kind": "move-rename",
+      "map": "地图02",
+      "why": "两房与跟踪器核心约 40 处引用；契约里的 ErrorKind 八值、STATE、ISSUE_TYPE 就是它的形状"
+    },
+    {
+      "old": "src/shared/labels.js",
+      "new": "src/tracker/contract/canonical-labels.ts",
+      "kind": "move-rename",
+      "map": "地图02",
+      "why": "CANONICAL_LABELS 单源标签清单，github/index.js:16 在用"
+    },
+    {
+      "old": "src/shared/tracker/deck-derive.js",
+      "new": "src/tracker/deck-derive.ts",
+      "kind": "move-rename",
+      "map": "地图06",
+      "why": "面板与 deck 共用的投影，src/host/tracker/index.js:17 与 snapshot.js:26 在用"
+    },
+    {
+      "old": "src/shared/parser.js",
+      "new": "src/tracker/body-parse.ts",
+      "kind": "move-rename",
+      "map": "地图06",
+      "why": "parseProgress 是能力图 15 的原料，src/host/tracker/snapshot.js:27 在用"
+    },
+    {
+      "old": "src/shared/tracker/workspaceOwnership.js",
+      "new": "src/tracker/detection/workspace-ownership.ts",
+      "kind": "move-rename",
+      "map": "地图07",
+      "why": "工作区归属判定，github/init-project.js:13 在用"
+    },
+    {
+      "old": "src/shared/tracker/initProjectErrorKinds.js",
+      "new": "src/tracker/rooms/github/init-project-error-kinds.ts",
+      "kind": "move-rename",
+      "map": "地图08",
+      "why": "github/init-project.js:12 在用"
+    },
+    {
+      "old": "src/shared/tracker/outbound-tiers.js",
+      "new": "src/host/outbound/tiers.ts",
+      "kind": "move-rename",
+      "map": "地图11",
+      "why": "gh 分档超时，github/client.js:15 在用"
+    },
+    {
+      "old": "src/shared/tracker/outbound-admission.js",
+      "new": "src/host/outbound/admission.ts",
+      "kind": "move-rename",
+      "map": "地图11",
+      "why": "同时在飞的 gh 进程上限就是那道闸，github/client.js:16 在用"
+    },
+    {
+      "old": "src/shared/refresh/chain-ride.js",
+      "new": "src/host/refresh/chain-ride.ts",
+      "kind": "move-rename",
+      "map": "地图11",
+      "why": "src/host/repoKeys.js:13、github/client.js:17、src/host/detectChain.js:6 在用"
+    },
+    {
+      "old": "src/shared/refresh/refusal-text.js",
+      "new": "src/host/refresh/refusal-text.ts",
+      "kind": "move-rename",
+      "map": "地图11",
+      "why": "被拒时回给 AI 的话，src/host/refresh/gate.js:25 在用"
+    },
+    {
+      "old": "src/host/repoKeys.js",
+      "new": "src/host/git-process.ts",
+      "kind": "move-rename",
+      "map": "地图11",
+      "why": "起 gh 进程，超时 30000 毫秒"
+    },
+    {
+      "old": "src/host/platform/win32/index.js",
+      "new": "src/host/platform/win32/index.ts",
+      "kind": "move-rename",
+      "map": "地图11",
+      "why": "平台底座：Windows"
+    },
+    {
+      "old": "src/host/platform/linux/index.js",
+      "new": "src/host/platform/linux/index.ts",
+      "kind": "move-rename",
+      "map": "地图11",
+      "why": "平台底座：Linux"
+    },
+    {
+      "old": "src/host/platform/darwin/index.js",
+      "new": "src/host/platform/darwin/index.ts",
+      "kind": "move-rename",
+      "map": "地图11",
+      "why": "平台底座：macOS"
+    },
+    {
+      "old": "src/host/refresh/gate.js",
+      "new": "src/host/refresh/gate.ts",
+      "kind": "move-rename",
+      "map": "地图11",
+      "why": "刷新闸"
+    },
+    {
+      "old": "src/host/refresh/ledger.js",
+      "new": "src/host/refresh/ledger.ts",
+      "kind": "move-rename",
+      "map": "地图11",
+      "why": "账本"
+    },
+    {
+      "old": "src/shared/refresh/budget.js",
+      "new": "src/host/refresh/budget.ts",
+      "kind": "move-rename",
+      "map": "地图11",
+      "why": "闸的预算，原 outOfScope 写错判为范围外"
+    },
+    {
+      "old": "src/shared/refresh/tool-cost.js",
+      "new": "src/host/refresh/tool-cost.ts",
+      "kind": "move-rename",
+      "map": "地图11",
+      "why": "工具的代价表，原 outOfScope 写错判为范围外"
+    },
+    {
+      "old": "src/host/sessionSnapshot.js",
+      "new": "src/host/sessionSnapshot.ts",
+      "kind": "move-rename",
+      "map": "地图11",
+      "why": "宿主快照四件之一"
+    },
+    {
+      "old": "src/host/sessionRefresh.js",
+      "new": "src/host/sessionRefresh.ts",
+      "kind": "move-rename",
+      "map": "地图11",
+      "why": "宿主快照四件之一（刷新入口）"
+    },
+    {
+      "old": "src/host/snapshotBuild.js",
+      "new": "src/host/snapshotBuild.ts",
+      "kind": "move-rename",
+      "map": "地图11",
+      "why": "宿主快照四件之一"
+    },
+    {
+      "old": "src/host/snapshotEnvelope.js",
+      "new": "src/host/snapshotEnvelope.ts",
+      "kind": "move-rename",
+      "map": "地图11",
+      "why": "宿主快照四件之一"
+    },
+    {
+      "old": "src/host/snapshotInflight.js",
+      "new": "src/host/snapshotInflight.ts",
+      "kind": "move-rename",
+      "map": "地图11",
+      "why": "宿主快照四件之一"
+    },
+    {
+      "old": "src/host/detectChain.js",
+      "new": "src/host/detectChain.ts",
+      "kind": "move-rename",
+      "map": "地图12",
+      "why": "链上唯一「不搬家、不在任何票里、却 import 两个改名件」的件（:22、:224）"
     }
   ],
   "specifiers": [
@@ -1576,12 +1745,10 @@
     }
   ],
   "outOfScope": [
-    "src/host/tracker/capability.js：属检查链与谓词那一摊，deck 调用链不经过，本次不动",
-    "src/host/tracker/generic.js：属检查链与谓词那一摊，deck 调用链不经过，本次不动",
-    "src/host/tracker/predicateCore.js：属检查链与谓词那一摊，deck 调用链不经过，本次不动",
-    "src/host/tracker/predicatePrimitives.js：属检查链与谓词那一摊，deck 调用链不经过，本次不动",
-    "src/host/tracker/snapshot.js：属检查链与谓词那一摊，deck 调用链不经过，本次不动",
-    "src/host/tracker/backends/gitlab/**：只随目录改名，代码不转写",
-    "src/client/**、src/shared/** 其余件、refresh-core 等四个计算核：不在本次任务内"
+    "src/client/**：客户端只做轻适配（读契约、看新目录），代码本次不动",
+    "refresh-core、label-color-core、version-control-core、config-store-core 四个计算核，以及它们生成的 src/shared/refresh/idempotency.js、src/shared/label-color/colors.js、src/shared/config-store/labels.js：不在本次任务内",
+    "src/host/tracker/{capability,generic,predicateCore,predicatePrimitives,snapshot}.js：属检查链与谓词那一摊，deck 调用链不经过，本次不动（注意 src/host/tracker/index.js:16 re-export 了 snapshot.js，这条跨代接缝由地图 06 的开发票写清）",
+    "src/shared/** 里其余与 deck 链路无关的手写件（version-control、ui、naming-*、config-store、label-color 等）：不在本次任务内",
+    "src/host/tracker/backends/gitlab/**：随三房统一改名搬进 src/tracker/rooms/gitlab/，实现代码不转写"
   ]
 }

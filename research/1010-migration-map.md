@@ -94,3 +94,14 @@
 - 链路依据：`research/1010-deck-chain-dirs.md`（一次调用经过八层的目录表）。
 - 影响面依据：`research/1010-deck-blast-radius.md`（测试与镜像那一批）。
 - 语句依据：真实源码，本轮逐条读过；行号写在 JSON 每条 `specifiers.evidence` 里。
+
+## 补记（2026-10-12，对抗式审查之后）
+
+这份表原先只认 112 条，被对抗审查查出两头都不够：**一头漏了在范围内的**，**一头把在范围内的写成了范围外**。当天改过的地方：
+
+1. **补进 24 条**，`modules` 112 → **136**：
+   - 十份 deck 链路真正引用、却因「`src/shared/**` 其余件」这句话被切掉的共享件：`tracker/constants.js`（145 行，契约里的 ErrorKind 八值就是它的形状）、`tracker/outbound-tiers.js`、`tracker/outbound-admission.js`（就是那道闸）、`refresh/chain-ride.js`、`refresh/refusal-text.js`、`labels.js`、`tracker/initProjectErrorKinds.js`、`tracker/workspaceOwnership.js`、`tracker/deck-derive.js`、`parser.js`（`parseProgress` 是能力图 15 的原料）。
+   - 地图 11「最底层」名单里、原表一个都查不到的 14 份：`repoKeys.js`、`platform/{win32,linux,darwin}/index.js`、`refresh/gate.js`、`refresh/ledger.js`、`shared/refresh/budget.js`、`shared/refresh/tool-cost.js`、快照五件（`sessionSnapshot`、`sessionRefresh`、`snapshotBuild`、`snapshotEnvelope`、`snapshotInflight`）、`src/host/detectChain.js`。
+   - 每条都补了 `map` 字段（归哪张地图）与一句产出的理由。
+2. **范围外那句改写**：从「`src/client/**`、`src/shared/**` 其余件、四个计算核：不在本次任务内」改成五条逐条说明（客户端只做轻适配；四个计算核与它们生成的三个文件；检查链与谓词那一摊五件，并注明 `tracker/index.js:16` re-export `snapshot.js` 这条跨代接缝由地图 06 写清；其余与 deck 无关的 shared 件；GitLab 随房改名但不转写）。
+3. **逐份文件清单**落在 `research/1010-adversarial-coverage-files.txt`，机器读的表与这份人读的说明都以它为准。
