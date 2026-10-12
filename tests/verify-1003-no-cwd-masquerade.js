@@ -8,9 +8,10 @@
  *
  * 钉两件事（都跑起来看结果，不读源码文本）：
  *   ① 凭据 git 出口（真会执行 git 的那一条）在空目录上如实失败，且一次都没有起进程；有目录时照常执行（对照）。
- *   ② 真宿主入口装配出来的那几条电话：从 src/host/index.js 的 apply 起，经它注册的 RPC 路由真调两次——
+ *   ② 真宿主入口装配出来的那几条电话：从 src/host/index.js 的 apply 起，经它注册的 RPC 路由真调——
  *      后端探测（空目录时如实说「工作区还没就绪」、不产出任何后端、一次外部命令都不起）与按页取票
- *      （空目录时如实拒绝，且起过的命令里一条都不许带真实目录）；最后给一个真目录作对照，证明功能没被关掉。
+ *      （空目录时如实拒绝，且起过的命令里一条都不许带真实目录）；最后两条电话各给一个真目录作对照：
+ *      后端探测照常干活、按页取票照常带着那条目录去起命令——证明上面拦的是「缺目录」，不是「功能整个关掉」。
  *
  * 为什么第 ② 条非有不可（2026-10-12 实测）：装配时递给各模块的兜底值，只有从真入口调一次才看得见。
  * 只给模块塞一个空串的话，把 src/host/index.js 里那一行改回进程自己的目录（也就是 #1003 的病根）
@@ -102,7 +103,6 @@ console.log('== ② 真宿主入口：空目录调一次后端探测，看它有
 
   const route = routes[0]
   // 走线格式与客户端一致（src/seam/rpc.js 会把 wf. 前缀摘掉再发，所以这里发的是不带前缀的名字）。
-  // 走线格式与客户端一致（src/seam/rpc.js 会把 wf. 前缀摘掉再发，所以这里发的是不带前缀的名字）。
   const callPhone = async (method, payload) => {
     const req = new Request('http://verify.local/api/dsws', {
       method: 'POST',
@@ -139,6 +139,16 @@ console.log('== ② 真宿主入口：空目录调一次后端探测，看它有
   const withValue = (withDir && withDir.value) || {}
   check(withDir.ok === true && withValue.workspaceNotReady !== true, '对照：给一个真目录时它照常干活（说明上面拦的是「缺目录」，不是把功能整个关掉）')
   check(spawns.length > before3, '对照：给真目录时确实去看了那个目录（起了外部命令）—— 实得起了 ' + (spawns.length - before3) + ' 次')
+
+  // 丁、对照（判别力最强的这根探针自己得活着）：给一个真目录时，按页取票确实带着那条目录去起命令。
+  //     没有这一条的话，「空目录如实拒绝」在「这条电话对谁都说拒绝、整个坏了」时也会绿——那这扇门禁
+  //     就退化成橡皮图章：它会一直绿，却什么也没守住（2026-10-12 对抗式审查发现，补上）。
+  const before4 = spawns.length
+  const pageWithDir = await callPhone('issuesPage', { cwd: ROOT })
+  const pageWithDirCwds = spawns.slice(before4).map((s) => s.cwd)
+  const sameDir = (p) => String(p || '').replace(/[\\/]+$/, '').toLowerCase()
+  check(pageWithDir.ok === true, '对照：给真目录时按页取票这条电话照常走到宿主里（不是对谁都说拒绝）—— 实得 ' + JSON.stringify(pageWithDir).slice(0, 140))
+  check(pageWithDirCwds.some((c) => sameDir(c) === sameDir(ROOT)), '对照：它确实带着我给的那条目录去起命令（上面「不带真实目录」才有意义）—— 实得 ' + JSON.stringify(pageWithDirCwds))
 }
 
 console.log('')
