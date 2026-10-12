@@ -30,6 +30,14 @@ export     const SettingsPage = (props) => {
       //   「下一次机会会自动重推」会变成做不到的承诺。改成每次渲染都跑，页面重画一遍就够。
       //   为什么不会打转：这个口子只在确实没接上时才推，推完不改任何 state（失败只记一行日志），它自己引不出
       //   下一次渲染；渲染次数由用户操作与既有状态更新决定，所以推的次数与渲染次数同阶，不会自续。
+      //   为什么「下一次机会」一定来得到：拨开关那三个分支（成功 then 里、失败 catch 里、同步 catch 里）都无条件
+      //   调 setDbgPending(false)，而进 toggleDbg 时 dbgPending 必为真 —— 所以失败之后必有一次渲染，口子也就必跑一次。
+      //   三条分支门禁各量到哪几条（2026-10-12 复核第四轮逐条实测，别当成三条都有人看着）：
+      //   ① 成功 then 那条量得到（删掉它门禁会红一片）；② 失败 catch 那条这次补上了（第十九件事第七段在成功回调
+      //   取文案那一步逼真抛一次错，把它短路就红）；③ 同步 catch 那条量不到 —— 现行产物里走不到那一行
+      //   （settingsDebugToggle 自己吞掉全部异常，包里 setLogSwitch 也只回 { ok: false } 不 reject，内部每一步
+      //   都包了 catch），门禁没有能把语句抛进那行 catch 的入口，要覆盖得给产品加一个注入口，属另一件事。
+      //   谁删掉或短路了其中某条，自愈会跟着失效，改这一段务必连门禁一起看。
       React.useEffect(function () {
         try { if (typeof settingsDebugRetryHost === 'function') settingsDebugRetryHost() } catch (eRetry) {}
       })

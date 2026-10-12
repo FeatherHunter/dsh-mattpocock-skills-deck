@@ -39,7 +39,11 @@
  *   只有用户视角才量得到的事 —— ① 老路慢、文档先到手那一趟不许把用户刚拨的值顶回去（复核的必修 A，用
  *   D:\Temp\rev-probe\q3-race-both.js 复现过的确定性丢拨动）；② 副本没跟上之后，下一次打开设置页那一趟
  *   （真挂载）自己把副本重推一次（必修 B 的真触发路径）；③ 副本没跟上时拨成开、拨成关各弹各的限定语，
- *   拨成关那一趟绝不许出现「已打开」那种把话说反的字样（必修 C）。
+ *   拨成关那一趟绝不许出现「已打开」那种把话说反的字样（必修 C）。这一节后来又补了三档（2026-10-12 复核
+ *   第三、四轮）：同一趟挂载里（不卸载不重挂）页面重画一遍也要能自愈；慢宿主下同时在途的重推不超过一趟
+ *   （在途去重），而且窗口里排队那一趟要自己发出去、拿到的 hostPushed 是它自己那趟的结果（复核者删掉
+ *   settings-debug.js 的 next 格赋值就整档溜过）；拨动那趟回调里真抛错时 .catch 收场也要把界面放开，
+ *   让人还能再拨、自愈照跑（复核者短路那行 setDbgPending(false) 同样整档溜过）。
  *
  * 怎么保证量的是真件：运行时那几个名字不是替身，而是构建真正拼进去的那一份
  *   （scripts/generated/logKernel.derived.js，即 npm 包 dsh-log 的客户端产物，scripts/build.mjs 第 500 行）
@@ -759,7 +763,7 @@ async function main() {
   //   第四段是 2026-10-12 复核第二轮加的：同一趟挂载里（不卸载、不重挂）页面自己重画一遍也要能自愈 ——
   //   宿主那侧「打开一次是不是一直挂着」不在本仓、核不了，口子不能只赌重新挂载那一趟。
   console.log('')
-  console.log('== 第十九件事：真产物里真跑设置页（jsdom）——老路与文档赛跑、下一次打开自己重推、同挂载也能自愈、两个方向各说各话 ==')
+  console.log('== 第十九件事：真产物里真跑设置页（jsdom）——老路与文档赛跑、下一次打开自己重推、同挂载也能自愈、两个方向各说各话、排队那趟的语义、失败后还能再用 ==')
   {
     const bundleCode = readText('package/lib/client.js')
     // 五节齐全的一份真文档（核归一之后就是这个形状）；enabled 是这一张页面文件里的那个值。
@@ -782,7 +786,13 @@ async function main() {
       window.React = React; window.ReactDOM = ReactDOMClient; global.React = React; global.ReactDOM = ReactDOMClient
       if (opts.legacyOn) { try { window.localStorage.setItem('dsws.debug', JSON.stringify({ enabled: true, sampleRate: 1 })) } catch (e) {} }
       const dict = {}
+      // 让「取词表」这一步抛一次错（2026-10-12 复核第四轮 M5 那一档要用）：设置页收场那条链里唯一能真抛错的地方，
+      //   就是成功回调里取那颗文案那一步 —— 这一抛才是「拨动那一趟真的出了岔子」，界面只能走 .catch 那条分支收场。
+      //   命中一次就自动撤掉：.catch 里还要再取一次词表（失败那句），再抛就成没人接的 Promise，会把门禁自己带崩。
+      let trThrowKeys = null
+      let trThrew = 0
       const trFn = (key, params) => {
+        if (trThrowKeys && trThrowKeys.indexOf(key) >= 0) { trThrowKeys = null; trThrew += 1; throw new Error('locale-throw:' + key) }
         let s = dict[key] !== undefined ? dict[key] : key
         if (params) s = s.replace(/\{(\w+)\}/g, (m, name) => (name in params ? String(params[name]) : m))
         return s
@@ -805,11 +815,21 @@ async function main() {
       }
       // 宿主回话慢的那一档：先把电话记下来（＝宿主收到了），再等一段时间才回（虚拟时钟里这一步是确定的，
       //   与 tests/lib/time-compress.js 的虚拟时钟一起用，「文档在这中间到手」这件事可复现）。
+      // 同时在途几趟要数出来（在途去重那条断言用）：inFlight 在回话之前一直挂着，maxInFlight 记峰值。
+      let inFlight = 0
+      let maxInFlight = 0
+      let sampleAtHostCall = null
       const callHost = async (endpoint, args) => {
         if (endpoint !== 'logSetSwitch') return hostReply(endpoint, args)
         logSet.push(args)
+        // 电话到宿主手里的那一刻给测试一个采样点：第六段用它分辨「这一趟是在这一拨收场之前发出去的、还是收场之后
+        //   由自愈补推的」—— 两者带着同样的值，只有发出时刻不同。
+        if (sampleAtHostCall) { try { sampleAtHostCall(args) } catch (eS) {} }
         const reply = setReply(args)
+        inFlight += 1
+        if (inFlight > maxInFlight) maxInFlight = inFlight
         if (setDelayMs > 0) await sleep(setDelayMs)
+        inFlight -= 1
         return reply
       }
       let settingsComp = null
@@ -910,7 +930,16 @@ async function main() {
         for (let i = 0; i < Math.ceil(cap / 20) && !t; i++) { await sleep(20); t = toastOf(container) }
         return t
       }
-      return { window, dict, logSet, setCalls, endpoints, logSends, mount, click, toastOf, waitToast, flashOf, boxOf, setReply: (f) => { setReply = f } }
+      return {
+        window, dict, logSet, setCalls, endpoints, logSends, mount, click, toastOf, waitToast, flashOf, boxOf,
+        setReply: (f) => { setReply = f },
+        setDelay: (ms) => { setDelayMs = ms },
+        throwTrOn: (keys) => { trThrowKeys = keys },
+        trThrew: () => trThrew,
+        setHostCallSample: (fn) => { sampleAtHostCall = fn },
+        resetInFlight: () => { inFlight = 0; maxInFlight = 0 },
+        maxInFlight: () => maxInFlight,
+      }
     }
     // 一、老路慢、文档先到手那一趟（必修 A 的决定性用例）：页面打开时文档还没问过（status 是 idle），
     //   这一拨先走包里的老路（宿主 300 毫秒才回），文档在这中间到手 —— 采纳那一趟必须因为「簿子上有痕迹」
@@ -1019,10 +1048,188 @@ async function main() {
       const sameMountPush = p.logSet[p.logSet.length - 1]
       check(!!sameMountPush && sameMountPush.enabled === false,
         '同挂载里重推的还是用户拨的那个值（内存里那一份真值）。', JSON.stringify(p.logSet.slice(-2)))
-      check(p.logSet.length - pushesAtToast <= 5,
-        '重推不会自续成打转（每次渲染最多一次，这里给一个上界）。', String(p.logSet.length - pushesAtToast))
+      // 「不会自续」这条要静置一个固定窗口再数（2026-10-12 复核第三轮建议 2）：轮询到第一趟就退出紧接着数，
+      //   会把「慢速自续」整档放过 —— 复核者的 M2b（每 150 毫秒多画一帧、十来趟）当时跑完仍是 171 条全绿。
+      //   所以这里先记下第一趟那一刻的数量，再等满 1 秒，看这 1 秒里又冒了几趟。
+      const pushesAtFirst = p.logSet.length
+      await sleep(1000)
+      const extraPushes = p.logSet.length - pushesAtFirst
+      check(extraPushes <= 2,
+        '静置一秒也不自续：这一秒里最多再推两趟（慢速自续那种十来趟会在这里露出来）。', String(extraPushes))
       const boxC = p.boxOf(a.container)
       check(!!boxC && boxC.checked === false, '同一趟挂载里开关也停在用户拨的那个值上。', String(!!boxC && boxC.checked))
+      try { a.root.unmount() } catch (e) {}
+    }
+    // 五、慢宿主下同时在途的重推不超过一趟（2026-10-12 复核第三轮建议 1 的收口）：宿主回话 400 毫秒，这一页
+    //   每次重画都会让自愈口子再推一次 —— 没有在途去重时，复核实测同时在途堆到 7 趟、还带着新旧不同的值，
+    //   谁先到全看回话顺序。这一档只量「同时在途的趟数」：先让页面进入文件这条路，再连拨几下把渲染逼起来。
+    {
+      const p = await openPage({
+        docEnabled: false,
+        setReply: (args) => ({ ok: true, value: { ok: true, enabled: args.enabled === true, sampleRate: 1 } }),
+      })
+      const a = await p.mount()
+      check(await p.click(a.container), '第一拨（拨成开，走老路）点得动。')
+      await sleep(200)
+      // 从这里开始量：副本拒收 + 回话放慢到 400 毫秒，之后的每一趟推都是文件这条路或自愈口子发出来的。
+      p.setReply(() => ({ ok: true, value: { ok: false } }))
+      p.setDelay(400)
+      p.resetInFlight()
+      check(await p.click(a.container), '第二拨（拨成关，走文件这条路、副本拒收）点得动。')
+      await sleep(700)
+      check(await p.click(a.container), '第三拨点得动（这一下与上一趟的余波叠在一起）。')
+      await sleep(700)
+      check(await p.click(a.container), '第四拨点得动。')
+      await sleep(1600)
+      check(p.maxInFlight() === 1,
+        '慢宿主下同时在途的重推始终只有一趟（在途去重：留最后一趟）。', JSON.stringify({ max: p.maxInFlight(), pushes: p.logSet.length }))
+      check(p.logSet.length >= 3,
+        '这一段确实推了不止一趟（不然上一条是空过的）。', String(p.logSet.length))
+      const lastInFlight = p.logSet[p.logSet.length - 1]
+      check(!!lastInFlight && lastInFlight.enabled === false,
+        '最后推上去的是用户最后拨的那个值（留的是最后一趟）。', JSON.stringify(p.logSet.slice(-3)))
+      try { a.root.unmount() } catch (e) {}
+    }
+    // 六、排队那一趟的语义要量死（2026-10-12 复核第四轮 M1）：在途去重把「窗口里那第二下」记进 next 格，那一趟要
+    //   自己发出去，而且拨动那条路拿到的 hostPushed 必须是它自己那一趟的结果。复核者只把 settings-debug.js:146
+    //   那句 `settingsDebugPushNext = want` 删掉，178 条全绿就放过了 —— 那一格的语义此前没有一条断言看着。
+    //   一张设置页里做不出「窗口里再拨一下」：拨动一开始复选框就被 dbgPending 禁用了，第二下点不动（本轮实测，
+    //   第一版就是这么写的、当场红了三条）。能复现的是「两扇窗口同时开着这一页」：A 页那一趟在飞，B 页自己的
+    //   pending 还是空的，于是 B 这一拨只能排队 —— 用户在两个窗口里连着拨就是这件事。
+    //   两页读的是同一份共享提示，所以第一拨故意让它失败：留在提示里的是失败那句话，不会跟 B 页要读的那句撞车
+    //   （第一版让第一拨成功，提示里留着同一句「已打开」，B 页那条断言就成了空过的）。
+    {
+      // 宿主一律拒收「开」、收下「关」：A 页那两拨（第一拨走老路、第二拨走文件这条路）都轮不到收下，B 页排队的
+      //   那一拨（关）会被收下 —— 「排队那趟拿的是自己那趟的结果」才有对照。
+      const p = await openPage({
+        docEnabled: false,
+        setReply: (args) => (args.enabled === true
+          ? { ok: true, value: { ok: false } }
+          : { ok: true, value: { ok: true, enabled: false, sampleRate: 1 } }),
+      })
+      const a = await p.mount()
+      check(await p.click(a.container), 'A 页第一拨（拨成开，走老路、副本拒收）点得动（这一拨只为把文档问起来）。')
+      await sleep(300)
+      const beforeQueued = p.logSet.length
+      // 宿主回话拖到 800 毫秒：A 页那一趟（开、要被拒）在飞，B 页这一拨才排得进窗口。
+      p.setDelay(800)
+      check(await p.click(a.container), 'A 页第二拨（拨成开，走文件这条路）点得动（这一趟要在飞 800 毫秒）。')
+      // B 页在窗口中间打开：它开局读到的是内存里刚落的开，所以它这一拨是拨成关。
+      const b = await p.mount()
+      const boxB0 = p.boxOf(b.container)
+      check(!!boxB0 && boxB0.checked === true, 'B 页在窗口中间打开，开局是开（读到内存里刚落的开）。', String(!!boxB0 && boxB0.checked))
+      // 电话到的那一刻采一笔「B 页复选框现在禁用不禁用」：收场之前它禁用着；收场之后（自愈补推那一趟）已经放开。
+      //   同值不同时刻，就靠这一笔分开。
+      p.setHostCallSample((rec) => { const bb = p.boxOf(b.container); rec.duringPending = !!(bb && bb.disabled) })
+      check(await p.click(b.container), 'B 页紧跟着拨成关（这一拨只能排队）。')
+      // 虚拟时钟靠这些 sleep 往前走：等 A 页那趟落地、排队那趟发出去，一共两趟。
+      for (let i = 0; i < 90 && p.logSet.length < beforeQueued + 2; i++) await sleep(50)
+      const queuedAdded = p.logSet.slice(beforeQueued)
+      check(queuedAdded.length >= 2 && queuedAdded[0].enabled === true,
+        '窗口里那一趟之前先发了「开」（这一档的起点是对的，不然后面两条是空的）。', JSON.stringify(queuedAdded))
+      const queuedOff = queuedAdded.filter((x) => x.enabled === false)
+      check(queuedOff.length >= 1 && queuedOff[0].duringPending === true,
+        '排队那一趟自己到了宿主，而且是在 B 页这一拨还没收场（复选框还禁用着）的时候发出去的 —— 删掉 next 格赋值之后，'
+        + '这一趟只可能是收场之后由自愈补推的，采样必然落在 false 上。', JSON.stringify(queuedOff))
+      const wantOff = p.dict['cfg.dbgSwitchOffToast']
+      let bToast = ''
+      let bSeen = ''
+      for (let i = 0; i < 100 && bToast !== wantOff; i++) { await sleep(40); bToast = p.toastOf(b.container); if (bToast) bSeen = bToast }
+      // 提示条自己会退场（页面里那颗定时器），所以拿「最后见到的那句非空话」兜底，免得报出来的只是空串。
+      const bShown = bToast || bSeen
+      check(bShown === wantOff,
+        '排队那一趟拿到的 hostPushed 是它自己那趟的结果（副本收下 → B 页弹没有限定语的「已关」；'
+        + '若它拿的是 A 页那趟被拒的结果，这里弹的是「已关…副本还开着」）。',
+        JSON.stringify({ toast: bToast, lastSeen: bSeen, want: wantOff, added: queuedAdded }))
+      const boxB1 = p.boxOf(b.container)
+      check(!!boxB1 && boxB1.checked === false, 'B 页拨成的关停在界面上。', String(!!boxB1 && boxB1.checked))
+      try { a.root.unmount() } catch (e) {}
+      try { b.root.unmount() } catch (e) {}
+    }
+    // 七、拨动那一趟的回调里真抛了错（2026-10-12 复核第四轮 M5 的一半）：失败 catch 分支把 dbgPending 放掉这件事此前
+    //   一条断言都量不到 —— 复核者短路它就 178 条全绿，真出问题时复选框会永远停在 disabled、这一页再也拨不动。
+    //   这一档在成功回调取文案那一步逼真抛一次错（副本刚拒收、界面正要弹「……副本没接上」那一句），收场只能走 .catch。
+    //   要说清它的边界：这抛错发生在成功分支里那句 setDbgPending(false) 之后，所以它量的是「收场之后这一页还能不能
+    //   接着用」（再拨、自愈），量不到「.catch 里那句 setDbgPending(false)」这一行本身 —— 本轮实测，把那一行短路，
+    //   这一档照样全绿。那一行的覆盖在第八条：只有这一趟的 Promise 本身被拒，成功分支才一个字都不跑。
+    {
+      const p = await openPage({
+        docEnabled: false,
+        setReply: (args) => (args.enabled === true
+          ? { ok: true, value: { ok: true, enabled: true, sampleRate: 1 } }
+          : { ok: true, value: { ok: false } }),
+      })
+      const a = await p.mount()
+      check(await p.click(a.container), '第一拨（拨成开，走老路）点得动。')
+      await sleep(200)
+      const beforeFail = p.logSet.length
+      // 副本拒收之后界面要取「已关…副本还开着」那颗文案，就让取词表这一步抛一次。
+      p.throwTrOn(['cfg.dbgSwitchOffNoHost', 'cfg.dbgSwitchOffToast'])
+      check(await p.click(a.container), '第二拨（拨成关，走文件这条路、副本拒收、回调里抛错）点得动。')
+      const failToast = await p.waitToast(a.container, 2000)
+      check(failToast === p.dict['cfg.dbgSwitchFail'],
+        '这一拨的回调里抛了错：界面走失败那一句（既不静默，也不留一句把话说反的成功文案）。',
+        JSON.stringify({ toast: failToast, want: p.dict['cfg.dbgSwitchFail'] }))
+      check(p.trThrew() === 1, '这一档确实是靠「取文案那一步抛了一次错」把收场逼进 catch 的（不是空过）。', String(p.trThrew()))
+      const boxFail = p.boxOf(a.container)
+      check(!!boxFail && boxFail.disabled === false,
+        '失败之后复选框不许卡在禁用上（成功分支里那句 setDbgPending(false) 已经跑过，界面必须放开）。', String(!!boxFail && boxFail.disabled))
+      // 自愈那一趟照跑：副本刚被拒收，页面这次重画就该自己再推一次（与 dbgPending 无关的那条链）。
+      const capHeal = Date.now() + 3000
+      while (p.logSet.length < beforeFail + 2 && Date.now() < capHeal) await sleep(25)
+      check(p.logSet.length >= beforeFail + 2,
+        '失败之后自愈口子照跑（页面重画那一趟把副本又推了一次）。', String(p.logSet.length - beforeFail))
+      // 还能再拨，而且这一下要真的生效：宿主收到新的一趟，开关停在用户拨的那一格。
+      p.setReply((args) => ({ ok: true, value: { ok: true, enabled: args.enabled === true, sampleRate: 1 } }))
+      const beforeThird = p.logSet.length
+      check(await p.click(a.container), '失败之后第三拨点得动（复选框已经放开）。')
+      const capThird = Date.now() + 3000
+      while (p.logSet.length <= beforeThird && Date.now() < capThird) await sleep(25)
+      check(p.logSet.length > beforeThird,
+        '第三拨真的发出了新的一趟（没有被卡住的 pending 挡在门外）。', String(p.logSet.length - beforeThird))
+      const boxThird = p.boxOf(a.container)
+      check(!!boxThird && boxThird.checked === true, '第三拨（拨成开）落到界面上，开关停在开。', String(!!boxThird && boxThird.checked))
+      try { a.root.unmount() } catch (e) {}
+    }
+    // 八、拨动那一趟的 Promise 真的被拒（2026-10-12 复核第四轮 M5 的决定性一档）：上一条那抛错发生在成功分支内部，
+    //   而成功分支开头那句 setDbgPending(false) 已经跑过了，所以短路 .catch 里那句也能全绿（本轮实测：短路后仍
+    //   194 条全绿）。要走到 .catch 那一行，只能是这一趟的 Promise 自己带着拒绝回来。
+    //   造法：拨动那条路在打电话给宿主之后，会用一颗「一直不回话就算没接上」的定时器收口（settings-debug.js 的
+    //   SETTINGS_DEBUG_PUSH_WAIT_MS = 5000），页面里取的是 window.setTimeout —— 门禁只把这一个 5000 毫秒的定时器
+    //   换成抛错，Promise.race 整体被拒，拨动交回一个被拒的 Promise，成功分支一个字都没跑，收场只能走 .catch。
+    //   代价要说清：这一拒之后 settingsDebugPushBusy 停在真上（产品里这条拒够不到，只有门禁这么逼），所以这一档
+    //   不再量宿主电话的趟数（那件事在第七条里量，用的是不伤链子的抛错）。
+    {
+      const p = await openPage({ docEnabled: false })
+      const a = await p.mount()
+      const realWinTimeout = p.window.setTimeout
+      check(await p.click(a.container), '第一拨（拨成开，走老路）点得动（这一拨只为把文档问起来）。')
+      await sleep(300)
+      // 只换「等宿主五秒」那一颗：页面别处那几颗（600 毫秒闪光退场之类）照旧。
+      p.window.setTimeout = function (fn, ms) {
+        if (ms === 5000) throw new Error('门禁：把「等宿主回话」那颗定时器换成抛错')
+        return realWinTimeout.apply(p.window, arguments)
+      }
+      check(await p.click(a.container), '第二拨（拨成关，走文件这条路）点得动（这一趟的 Promise 会被拒）。')
+      p.window.setTimeout = realWinTimeout
+      const rejectToast = await p.waitToast(a.container, 2000)
+      check(rejectToast === p.dict['cfg.dbgSwitchFail'],
+        '这一趟被拒之后界面走失败那一句（成功分支一个字都没跑，只有 .catch 能收场）。',
+        JSON.stringify({ toast: rejectToast, want: p.dict['cfg.dbgSwitchFail'] }))
+      const boxReject = p.boxOf(a.container)
+      check(!!boxReject && boxReject.disabled === false,
+        '被拒之后复选框不许卡在禁用上（短路 .catch 里那句 setDbgPending(false) 就红在这条）。', String(!!boxReject && boxReject.disabled))
+      // 还能再拨：这一下要真被接住（本机设置文件那趟又排一次盘），不是被卡住的 pending 挡在门外。
+      //   基线要等第二拨那趟排盘落地之后再记，不然量的还是前面那一趟（第一版就是这么写的，短路变异体照样绿）。
+      const afterSecond = p.setCalls.length
+      const capBase = Date.now() + 2000
+      while (p.setCalls.length <= afterSecond && Date.now() < capBase) await sleep(25)
+      const writesBefore = p.setCalls.length
+      check(await p.click(a.container), '被拒之后第三拨点得动。')
+      const capW = Date.now() + 3000
+      while (p.setCalls.length <= writesBefore && Date.now() < capW) await sleep(25)
+      check(p.setCalls.length > writesBefore,
+        '被拒之后那一拨真的被接住（本机设置文件这条路又排了一次盘）。', String(p.setCalls.length - writesBefore))
       try { a.root.unmount() } catch (e) {}
     }
   }
