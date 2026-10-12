@@ -72,7 +72,13 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const CACHE_VERSION = 2
 const CACHE_PATH = join(ROOT, 'node_modules', '.cache', 'dsh-build.json')
 // 四个计算核已按 #1023 搬进 src/shared/<功能名>/，被 'src' 一条罩住，不再单列它们的旧目录名。
-const INPUT_ROOTS = ['src', 'scripts']
+//
+// 为什么要收 'tests'：测试树里住着构建与门禁都要读的数据（七个 version-control 真机样本在
+// tests/fixtures/version-control/）。四个核还在仓库根的时候，它们的目录整棵在输入范围内，
+// 改样本能触发重建；核目录一删，样本就落到输入范围之外了，所以把测试树收进来补上这一段。
+// 代价是改任何测试文件都会让指纹变、走一次全量重建——这是正确行为，不是故障：测试改了，
+// 就该重新构建一次再判定。
+const INPUT_ROOTS = ['src', 'scripts', 'tests']
 const INPUT_EXTRA = ['package.json', 'package/package.json', 'README.md', 'tsconfig.client.json', 'tsconfig.contract.json']
 const ARTIFACT_FILES = ['client.js', 'host.js', 'package/README.md']
 // package/lib 要整目录收进来：它下面除了两份入口，还有 logPkg/* 这类打包镜像，
@@ -100,6 +106,11 @@ function walkTree(rootRel, out = []) {
     }
     for (const e of ents) {
       if (e.name === 'node_modules' || e.name === '.git') continue
+      // 以点开头的目录与文件一律不进输入：这类路径按约定是工具自己用的（缓存、临时输出、
+      // 编辑器状态），不是手写源码。测试树里就有两处这样的遗留临时仓库副本（tests/.tmp-repo-out
+      // 与 .tmp-repo-out2），它们曾经被版本库跟踪过；跳过这一条让输入范围天然不含它们，
+      // 不必为具体目录名单列排除名单。
+      if (e.name.startsWith('.')) continue
       const rel = relDir ? relDir + '/' + e.name : e.name
       const abs = join(absDir, e.name)
       if (e.isDirectory()) walk(abs, rel)
@@ -114,7 +125,7 @@ function sha256File(abs) {
   return createHash('sha256').update(readFileSync(abs)).digest('hex')
 }
 
-/** 手写输入清单：src / scripts / 四个核，去掉派生文件，再补上根上的几份配置。 */
+/** 手写输入清单：src / scripts / tests 三棵，去掉派生文件，再补上根上的几份配置。 */
 function listInputs() {
   const out = []
   for (const r of INPUT_ROOTS) {

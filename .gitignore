@@ -93,3 +93,10 @@ _research/
 /.worktrees/
 /logs/
 /.dsh-vision-router/
+
+# 测试树里两处遗留的临时仓库副本（tests/.tmp-repo-out 与 .tmp-repo-out2）：契约测试某次运行留下的
+# 产物，各两份（registry.js 与 backends/github/index.js），全仓没有任何测试在读或写它们。
+# 构建的输入扫描按「以点开头的路径一律不进输入」跳过它们（见 scripts/build.mjs 的 walkTree），
+# 这里同时把它们移出索引，免得每次跑测试都看见两份没人读的改动。
+/tests/.tmp-repo-out/
+/tests/.tmp-repo-out2/
