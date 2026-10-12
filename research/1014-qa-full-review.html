@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>#1014 十二问逐条审查稿：问题、背景、推荐、优缺点、对抗式审查、第一性原理</title>
+<style>
+  :root{
+    --ink:#1c1d1f; --muted:#5b6068; --faint:#8a9098;
+    --line:#e3e6ea; --bg:#fbfbfa; --card:#ffffff;
+    --accent:#0f766e; --accent-soft:#e6f4f1;
+    --warn:#b45309; --warn-soft:#fdf5e6;
+    --bad:#b91c1c; --bad-soft:#fdecec;
+    --good:#15803d; --good-soft:#ecf7ee;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0; padding:40px 20px 80px; background:var(--bg); color:var(--ink);
+    font:16px/1.75 "Segoe UI","Microsoft YaHei",system-ui,-apple-system,sans-serif;
+  }
+  .wrap{max-width:1080px;margin:0 auto}
+  h1{font-size:28px;line-height:1.4;margin:0 0 8px}
+  h2{font-size:21px;margin:44px 0 12px;padding-bottom:8px;border-bottom:2px solid var(--line)}
+  h3{font-size:19px;margin:0 0 4px}
+  h4{font-size:15px;margin:20px 0 6px;color:var(--accent)}
+  p{margin:8px 0}
+  ul,ol{margin:8px 0;padding-left:22px}
+  li{margin:4px 0}
+  code{font-family:"Cascadia Mono",Consolas,monospace;font-size:13.5px;background:#f1f3f5;border:1px solid var(--line);border-radius:4px;padding:0 4px;white-space:nowrap}
+  .sub{color:var(--muted);font-size:15px;margin:0 0 20px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:20px 22px;margin:18px 0;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+  .qhead{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:10px}
+  .badge{display:inline-block;font-size:12.5px;line-height:1.6;padding:1px 9px;border-radius:99px;border:1px solid transparent;font-weight:600;white-space:nowrap}
+  .b-ok{background:var(--good-soft);color:var(--good);border-color:#bfe3c6}
+  .b-rev{background:var(--warn-soft);color:var(--warn);border-color:#f0d9ac}
+  .b-open{background:var(--bad-soft);color:var(--bad);border-color:#f3c6c6}
+  .b-info{background:var(--accent-soft);color:var(--accent);border-color:#bfe0db}
+  table{width:100%;border-collapse:collapse;margin:10px 0;font-size:14.5px}
+  th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+  th{background:#f5f7f8;font-weight:600;white-space:nowrap}
+  td.opt{font-weight:600;white-space:nowrap;width:72px}
+  .lead{background:var(--accent-soft);border-left:4px solid var(--accent);border-radius:0 8px 8px 0;padding:10px 14px;margin:12px 0}
+  .note{background:var(--warn-soft);border-left:4px solid var(--warn);border-radius:0 8px 8px 0;padding:10px 14px;margin:12px 0}
+  .danger{background:var(--bad-soft);border-left:4px solid var(--bad);border-radius:0 8px 8px 0;padding:10px 14px;margin:12px 0}
+  .toc{columns:2;column-gap:28px;font-size:15px}
+  .toc a{color:var(--accent);text-decoration:none}
+  .toc a:hover{text-decoration:underline}
+  .axioms{counter-reset:ax}
+  .axioms li{margin:8px 0}
+  .axioms b{color:var(--accent)}
+  .k{color:var(--muted)}
+  footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);color:var(--faint);font-size:14px}
+  @media print{
+    body{background:#fff;padding:0}
+    .card{break-inside:avoid;box-shadow:none}
+    h2{break-after:avoid}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>#1014 十二问逐条审查稿</h1>
+<p class="sub">
+  每一项都按同一套格式写全：<b>问题</b> → <b>问题的背景</b> → <b>每个候选答案的优点与缺点</b> → <b>我当时给的推荐答案</b> → <b>对抗式审查之后改成什么</b> → <b>从第一性原理出发给出的答案</b> → <b>最终定稿</b>。
+  十二问的最终结论全部由维护者在 <code>#1014</code> 评论区拍定（Q1–Q12），本页只负责把「怎么走到那一步」写清楚，不替任何人改结论。
+</p>
+
+<div class="card">
+  <h2 style="margin-top:0">目录</h2>
+  <div class="toc">
+    <a href="#axioms">写在前面：五条第一性原理</a><br>
+    <a href="#q1">Q1 验收证据算哪一条</a><br>
+    <a href="#q2">Q2 引用方向拿什么管</a><br>
+    <a href="#q3">Q3 混存期 .ts 引用 .js 怎么办</a><br>
+    <a href="#q4">Q4 入库产物要不要清、落点在哪</a><br>
+    <a href="#q5">Q5 新写的 .ts 怎么被看见</a><br>
+    <a href="#q6">Q6 测试怎么跑 .ts、旧 231 条怎么办</a><br>
+    <a href="#q7">Q7 Node 版本下限写在哪、写多少</a><br>
+    <a href="#q8">Q8 类型检查怎么挂进流程</a><br>
+    <a href="#q9">Q9 机器写的 .js 允许落在哪几处</a><br>
+    <a href="#q10">Q10 src/host/logPkg 那份上游副本算什么</a><br>
+    <a href="#q11">Q11「先建保证、再拆保险」要不要绑批</a><br>
+    <a href="#q12">Q12 四个核的源码放哪、引用怎么办</a><br>
+    <a href="#loose">还差你一句话的三处小口子</a><br>
+    <a href="#state">票面状态与收尾四步</a><br>
+    <a href="#sources">数据来源</a>
+  </div>
+</div>
+
+<h2 id="axioms">写在前面：五条第一性原理</h2>
+<p>十二问里凡是「第一性原理」那一段，指的都是这五条。它们不是口号，是每一问都能对上的判据：</p>
+<ol class="axioms">
+  <li><b>一份手写真源。</b>文件清单、产物、依赖方向、测试名册这些「能算出来」的东西，一律不许手写维护——手写的第二份一定会和第一份漂移。</li>
+  <li><b>检查要能被看见。</b>不阻塞发布的检查等于文档；并且扫到的输入集合为空时必须判红——换轨期最大的假绿来源就是「改名之后扫不到文件，于是判绿」。</li>
+  <li><b>过渡期必须有刻度。</b>凡「过渡期先这样」都要配一把只降不升的尺子，否则过渡期没有终点。</li>
+  <li><b>两张网各有分工。</b>终态的质量上限由编译器给，过渡期的下限由门禁给；两张网各有交接点，交接点要写死，否则会长期两套并存。</li>
+  <li><b>三条物理事实。</b>Node 跑不了 <code>.ts</code>（要靠装载钩子）；宿主逐文件加载产物（因为有动态 import，不能打成一个文件）；客户端闭包由 esbuild 从逐文件产物拼出来。</li>
+</ol>
+
+<!-- ================= Q1 ================= -->
+<div class="card" id="q1">
+  <div class="qhead"><h3>Q1 · 验收证据算哪一条</h3><span class="badge b-ok">已定稿：乙</span><span class="badge b-rev">对抗式审查后改过</span></div>
+
+  <h4>问题</h4>
+  <p>地图 01 的「做完的标志」是「随手写一个 <code>.ts</code>，一条命令就能被构建、被测试、被类型检查、被门禁看见」。这句话要用什么证据证明它真的成立了？</p>
+
+  <h4>问题的背景</h4>
+  <ul>
+    <li>今天没有任何东西能证明这条线是通的：全仓 348 个手写 <code>.js</code>、46 个 <code>.ts</code>，<code>.ts</code> 只在客户端像素系列与四个核两条窄路上被转译过。</li>
+    <li>门禁体系是 231 条 <code>tests/verify-*.js</code> 串成的一条链（<code>scripts/verify-chain.js</code> 切链执行、首红即停），单条实测 211 毫秒。</li>
+    <li>冷构建约 30 秒（两遍 esbuild 各约 14.5 秒）；发布门禁 <code>scripts/publish-token.ps1</code> 本来就是「先 build、再 test」。</li>
+    <li>票面规矩里有一句维护者的话：<b>「我排斥门禁」</b>。</li>
+  </ul>
+
+  <h4>每个候选答案的优点与缺点</h4>
+  <table>
+    <tr><th>选项</th><th>做法</th><th>优点</th><th>缺点</th></tr>
+    <tr><td class="opt">甲</td><td>新增一条自检门禁：临时造一个 <code>.ts</code> 走完整条线（快段进默认链，慢段搭发布门禁的车）</td><td>证据最强，连「故意写错会红」都能证明；边界清楚</td><td>它本身就是一条新门禁，与「我排斥门禁」正面冲突；要往源码树写临时文件，清理失败就污染仓库；慢段要把 30 秒冷构建再跑一遍</td></tr>
+    <tr><td class="opt">乙</td><td>真挑一个文件转成 <code>.ts</code> 留在仓库里当活样板，构建、类型检查、测试三关都会经过它</td><td>零新增门禁；真实存在、长期有效；任何人随手改一行就能验证</td><td>只能证明「走得通」，不能证明「故意写错会红」</td></tr>
+    <tr><td class="opt">丙</td><td>只在文档里写一句「已人工验证通过」</td><td>零成本</td><td>没有任何可核对的证据，等于没有验收</td></tr>
+  </table>
+
+  <h4>我当时给的推荐答案</h4>
+  <p>甲加强版：快段（临时 <code>.ts</code> 走同一条转译函数、断言产物落位、<code>tsc</code> 看见、装载钩子能 import）进默认链；慢段（完整构建往返的正反两面）搭发布门禁的车。</p>
+
+  <h4>对抗式审查之后改成什么</h4>
+  <ul>
+    <li>临时文件会污染源码树 → 加「唯一文件名 + try/finally 清理 + 结束断言该路径 <code>git status --porcelain</code> 为空 + 目录进扫描排除表」。</li>
+    <li>慢段重复跑 30 秒冷构建太慢 → 改成两段式，只有发布门禁那次跑完整往返。</li>
+    <li>更根本的一击来自维护者：<b>「我排斥门禁」</b>——甲这个选项整体被否掉，改乙。</li>
+    <li>补一条约束：活样板必须落在<b>第一个新域</b>上（也就是 <code>src/shared/&lt;功能名&gt;/</code> 这类域目录），否则它证明不了 Q5 里「域 <code>tsconfig</code> 用目录通配收集」这条保证。</li>
+  </ul>
+
+  <h4>从第一性原理出发</h4>
+  <ul>
+    <li>公理二（检查要能被看见）：证据必须是一条命令就能跑出来、失败会拦人。<b>乙满足「能被看见」，而且是零维护的看见</b>；甲多付的是一份永久维护税。</li>
+    <li>公理三（过渡期有刻度）：这里需要的刻度就是「这条活样板从今天一直存在到 13 号收口」，它天然只增不减。</li>
+  </ul>
+
+  <div class="lead"><b>最终定稿（维护者表态）：乙。</b>作废「新增自检门禁」，改真挑一个文件转成 <code>.ts</code> 留在仓库当活样板；代价如实写清——不能证明「故意写错会红」。活样板落在第一个新域上。</div>
+</div>
+
+<!-- ================= Q2 ================= -->
+<div class="card" id="q2">
+  <div class="qhead"><h3>Q2 · 引用方向拿什么管</h3><span class="badge b-ok">已定稿：乙</span><span class="badge b-rev">对抗式审查后改过</span></div>
+
+  <h4>问题</h4>
+  <p>「谁也不能引用谁」这条方向规则，过渡期用什么来管？最终又交给谁？</p>
+
+  <h4>问题的背景</h4>
+  <ul>
+    <li><code>docs/adr/20261011-deck-ts-rewrite.md</code> §5 的原话要求：按域拆 TypeScript 工程引用（deck 引用 tracker、tracker 引用内核，<b>引用只能朝下，写反编译不过，方向由编译器保证不用人肉门禁</b>），并且「今天约三十个按路径文本断言的旧门禁换成标准依赖检查工具（禁循环、禁跨层深引用、单文件行数上限），<b>工具换成社区的</b>」。</li>
+    <li>今天撑着同类规则的两条老门禁都只读 <code>.js</code> 文本：<code>tests/verify-no-same-layer-import.js</code>（四层内部禁互引）、<code>tests/verify-no-cross-import.js</code>（三房禁跨房）。<code>.ts</code> 对它们是空窗。</li>
+    <li>实测（TypeScript 7.0.2 与 5.6.3 都一致）：朝上引用报 <code>error TS6059: File ... is not under 'rootDir'</code> 与 <code>TS6307: File ... is not listed within the file list of project</code>；根配置 <code>files: []</code> ＋ 若干 <code>noEmit</code>（不带 <code>composite</code>）的域配置能通过且真在检查，只有<b>域与域之间真有 import 链、被引用那方是 noEmit</b> 时才报 <code>error TS6310: Referenced project '…/b' may not disable emit</code>。</li>
+  </ul>
+
+  <h4>每个候选答案的优点与缺点</h4>
+  <table>
+    <tr><th>选项</th><th>做法</th><th>优点</th><th>缺点</th></tr>
+    <tr><td class="opt">甲</td><td>自写一条依赖图门禁（用仓内已有的 <code>typescript-ast</code> 解析 import，管方向、禁循环、禁跨层深引）</td><td>零新增依赖；规则可以按本仓口径定制；一次性能替掉两条老门禁</td><td>等于再造一条门禁，与「我排斥门禁」和 ADR 的「换成社区的」都冲突；动态 import、别名、<code>.ts</code> 说明符这些细节都要自己维护</td></tr>
+    <tr><td class="opt">乙</td><td>引社区标准工具 <b>dependency-cruiser</b>，方向表、禁循环、禁跨层深引白名单全部写在它的配置里</td><td>社区标准（评论记 npm 当前 18.6.0，自述支持 JS 与 TS）；同时看 <code>.js</code> 与 <code>.ts</code>；一次替掉两条老门禁；规则即配置</td><td>新增一条开发依赖；要学它的规则写法；终态要拆掉「方向」那部分</td></tr>
+    <tr><td class="opt">丙</td><td>直接上 TypeScript 工程引用，方向全交给编译器</td><td>终态最强：编译器保证，不用人肉门禁</td><td>今天走不通（域间真有引用链时报 TS6310，除非每个域真产出）；而且它管不了工程内的深引用</td></tr>
+  </table>
+
+  <h4>我当时给的推荐答案</h4>
+  <p>丙分阶段：过渡期先自写工具管三条规则，终态（12 号收口后）上工程引用，上线即删工具里的方向规则。</p>
+
+  <h4>对抗式审查之后改成什么</h4>
+  <ul>
+    <li>「自写门禁」与「我排斥门禁」、与 ADR §5.4「换成社区的」两处都冲突 → 过渡期改<b>乙</b>。</li>
+    <li>「分阶段」有变成两套长期并存的风险 → 写死触发条件与「上线即删」，做成一张真票挂 13 号收口图（后来按维护者确认，这类事「未来肯定会有 ISSUE」）。</li>
+    <li>划清各自永久管什么：<b>方向</b>终态归编译器；<b>禁循环与禁跨层深引永远归工具</b>——编译器只能保证「不许引用没被 references 的域」，管不了工程内的深引用。</li>
+  </ul>
+
+  <h4>从第一性原理出发</h4>
+  <ul>
+    <li>公理四（两张网分工）：终态的质量上限交给编译器，过渡期的下限交给现成工具，交接点写死；不要把「过渡期工具」和「终态编译器」当成二选一。</li>
+    <li>公理一（一份真源）：方向表写在工具的配置里，不要另写一份文档再靠人对照。</li>
+  </ul>
+
+  <div class="lead"><b>最终定稿：乙。</b>过渡期用 <code>dependency-cruiser</code> 管方向、禁循环、禁跨层深引，一次替掉两条老门禁且同时覆盖 <code>.js</code> 与 <code>.ts</code>；终态上工程引用后删掉工具里的方向规则，禁循环与深引永远归工具。两处前置随 Q1–Q12 一并认可：① 新增开发依赖 <code>dependency-cruiser</code>；② 非字面量动态 import 沿用老门禁口径「一律算违规」。</div>
+</div>
+
+<!-- ================= Q3 ================= -->
+<div class="card" id="q3">
+  <div class="qhead"><h3>Q3 · 混存期 <code>.ts</code> 引用 <code>.js</code> 怎么办</h3><span class="badge b-ok">已定稿：甲</span><span class="badge b-rev">对抗式审查后加过刻度</span></div>
+
+  <h4>问题</h4>
+  <p>源码从 <code>.js</code> 慢慢转成 <code>.ts</code> 的这段时间里，新写的 <code>.ts</code> 一定会引用到还没转的 <code>.js</code>。类型检查该怎么面对这种引用？</p>
+
+  <h4>问题的背景</h4>
+  <ul>
+    <li>存量：<code>src/</code> 下手写合计 348 个 <code>.js</code>、46 个 <code>.ts</code>（含 4 个 <code>.d.ts</code>），另有 73 个生成 <code>.js</code>；四个核 <code>src/</code> 下另有 35 个 <code>.ts</code>。</li>
+    <li>转换顺序是自上而下按改写单元推进的，所以第一个 <code>.ts</code> 出现时，它引用的下层几乎必然还是 <code>.js</code>。</li>
+    <li>实测代价：<code>allowJs</code> 关闭时报 <code>error TS7016: Could not find a declaration file for module './b.js'</code>；<code>allowJs:true</code> ＋ <code>checkJs:false</code> 能通过，但<b>对 <code>.js</code> 的调用是不检查的 any</b>（把字符串传进一个读 <code>x.n</code> 的 <code>.js</code> 函数，<code>tsc</code> 报绿）；<code>checkJs:true</code> 会让 <code>.js</code> 里的老写法当场变红。</li>
+    <li>仓内已有「只降不升」基线的先例：<code>tests/file-granularity-baseline.json</code>（note 原话「零增长基线：只许减不许增；达标文件由各自拆分票移出」）、<code>tests/same-layer-baseline.json</code>（每条带 owner），判定逻辑在 <code>tests/verify-file-granularity.js:97-109</code>。</li>
+  </ul>
+
+  <h4>每个候选答案的优点与缺点</h4>
+  <table>
+    <tr><th>选项</th><th>做法</th><th>优点</th><th>缺点</th></tr>
+    <tr><td class="opt">甲</td><td><code>allowJs:true</code> ＋ <code>checkJs:false</code> 开闸，配两把只降不升的棘轮，重要缝手写 <code>.d.ts</code> 顶到转换完成</td><td>迁移能按已定顺序自上而下推进；代价被量出来、看得见</td><td>开了一个永久后门（这类开关一旦打开就容易忘记关），必须靠棘轮把它关回去</td></tr>
+    <tr><td class="opt">乙</td><td>不开 <code>allowJs</code>，要求 <code>.ts</code> 只引用 <code>.ts</code></td><td>类型最干净，没有过渡期后门</td><td>与已定的自上而下顺序物理冲突：第一张 <code>.ts</code> 就会撞上它引用的 <code>.js</code></td></tr>
+    <tr><td class="opt">丙</td><td>给 348 个 <code>.js</code> 各写一份 <code>.d.ts</code></td><td>类型上最完整</td><td>等于造第二份真源，一定会漂移；而且是 348 份的工作量</td></tr>
+  </table>
+
+  <h4>我当时给的推荐答案</h4>
+  <p>甲 ＋ 棘轮：基线＝「<code>.ts</code> 直接 import 的 <code>.js</code> 边数」与「手写 <code>.js</code> 文件数」，只降不升，基线外新增 <code>.js</code> 判红。</p>
+
+  <h4>对抗式审查之后改成什么</h4>
+  <ul>
+    <li>只说「棘轮」不够：必须<b>同时数两样</b>——文件数与边数。只数文件数，「一个 <code>.ts</code> 引 20 个 <code>.js</code>」这种情形量不出来；只数边数，新加一个没人引的 <code>.js</code> 又看不见。</li>
+    <li>派生 <code>.js</code>（从已装上游包原样拷来的 <code>src/host/logPkg/*</code>）要按目录排除，单独进排除表——这条后来由 Q10 从根上解决（改成常规依赖）。</li>
+  </ul>
+
+  <h4>从第一性原理出发</h4>
+  <ul>
+    <li>公理三（过渡期有刻度）：过渡期允许将就，但必须有一把只降不升的尺子，否则没有终点。</li>
+    <li>公理一（一份真源）：丙被否掉的理由就是它造了第二份真源。</li>
+  </ul>
+
+  <div class="lead"><b>最终定稿：甲</b> ＋ 两把棘轮（<code>.ts</code> 直接 import 的 <code>.js</code> 边数、手写 <code>.js</code> 文件数），只降不升、基线入库，规则与先例同一套做法。<b>终态三样全消失</b>：<code>allowJs</code> 关掉、基线清零、手写 <code>.d.ts</code> 删光。</div>
+</div>
+
+<!-- ================= Q4 ================= -->
+<div class="card" id="q4">
+  <div class="qhead"><h3>Q4 · 入库的产物要不要清、落点定在哪</h3><span class="badge b-ok">已定稿：乙（不单独成票，并入 01）</span><span class="badge b-rev">对抗式审查后补齐</span></div>
+
+  <h4>问题</h4>
+  <p>今天有一批构建产物被提交进了版本库。要不要把它们请出去？请出去之后，机器写的文件允许出现在哪几个地方？</p>
+
+  <h4>问题的背景</h4>
+  <ul>
+    <li>「产物不入库」今天只做了一半：<code>.gitignore</code> 忽略了 <code>/client.js</code>、<code>/host.js</code>、<code>/package/lib/</code>、<code>/package/scripts/</code>、<code>/scripts/generated/updateEntryPanel.bundle.js</code>，<b>但没忽略 <code>/package/shared/</code></b>。</li>
+    <li>实际在库的产物有三处：<code>package/shared</code> 79 个 <code>.js</code>（构建把 <code>src/shared</code> 整树原样拷过来，<code>scripts/build.mjs:847</code>）；像素风同名 <code>.js</code> 34 个（cards 16、pixel 8、skillDetail 7、views 1、kernel 2）；四个核转译出的 35 个 <code>.js</code>（label-color 3、refresh 14、version-control 14、config-store 4，落在 <code>src/shared/&lt;核名&gt;/</code>）。另有 3 个手写 <code>.js</code> 混在同一批目录里，不在此列。</li>
+    <li>为「入库的产物」养着四条新鲜度门禁（<code>tests/verify-{label-color,refresh,version-control,config-store}-freshness.js</code>，做法是重新转译一遍再逐字比对），加上 <code>tests/verify-build-artifacts.js:132-155</code> 的 <code>package/shared</code> ↔ <code>src/shared</code> 逐文件 sha256 双向比对，加上 <code>scripts/build.mjs:867-874</code> 的「<code>package/lib/index.js</code> 与 <code>src/host/index.js</code> 逐字节一致」。</li>
+    <li>维护者原话：「<b>不用单独成票，我们先把这个想法给敲定</b>」。</li>
+  </ul>
+
+  <h4>每个候选答案的优点与缺点</h4>
+  <table>
+    <tr><th>选项</th><th>做法</th><th>优点</th><th>缺点</th></tr>
+    <tr><td class="opt">甲</td><td>只清 <code>package/shared</code> 这一处</td><td>动作最小，风险最低</td><td>像素风与四核产物继续「与真源并排同名」，13 号核「手写 <code>.js</code> 归零」时仍然分不清哪个是产物</td></tr>
+    <tr><td class="opt">乙</td><td>三处一起清 ＋ 落点收敛 ＋ <code>src/</code> 下不再生成 <code>.js</code>（四个核的输出目录跟着改）＋ 守门对象换成守「允许的那几类之外没有产物」</td><td>一次消掉「第二真源」和四条门禁；规则从此可机械核对</td><td>动作大：跨四个核的构建脚本，上百条读双源产物的门禁要跟着改</td></tr>
+    <tr><td class="opt">丙</td><td>保持入库，继续靠门禁守</td><td>零动作</td><td>那份永久税继续交，而且产物与真源越久越容易漂</td></tr>
+  </table>
+
+  <h4>我当时给的推荐答案</h4>
+  <p>乙：三处一起清（<code>git rm --cached</code> 只动索引、文件留在盘上），落点收敛，<code>src/</code> 下不再生成 <code>.js</code>，守门对象改写，四条 freshness 门禁删掉。超 01 原边界，建议单独立票。</p>
+
+  <h4>对抗式审查之后改成什么</h4>
+  <ul>
+    <li>「只落三处」这句话<b>不完备</b>：实测产物散落八处（根 <code>client.js</code>/<code>host.js</code>、<code>package/lib</code>、<code>package/shared</code>、<code>scripts/generated</code>、<code>src/host/logPkg</code>、像素风 34 个、四核 35 个、<code>packages/*/dist</code>）→ 交给 Q9 补成四类并逐类点名。</li>
+    <li>「把 <code>src/host/logPkg</code> 挪出 <code>src/</code>」这个候选被证据推翻（<code>src/host/logFromPackage.js:11</code> 是相对动态 import，而 <code>src/</code> 里的模块又被测试直接 import）→ 交给 Q10，最后改成常规依赖。</li>
+    <li>「删四条 freshness 门禁」有前置条件：删完之后「产物与真源一致」就只剩「构建刚跑过」一个支点 → 交给 Q11。</li>
+    <li>维护者把归属也一并定了：<b>不单独成票</b>，并进 01。</li>
+  </ul>
+
+  <h4>从第一性原理出发</h4>
+  <ul>
+    <li>公理一（一份真源）：入库的产物就是第二份真源，不是「多一份保险」。</li>
+    <li>公理三（过渡期有刻度）：拆保险之前必须先建保证——这就是 Q11 被绑批的原因。</li>
+  </ul>
+
+  <div class="lead"><b>最终定稿：乙</b>，并入 01 号地图、不单独立票；配套三处交给 Q9（四类落点与逐类点名）、Q10（<code>logPkg</code> 改常规依赖）、Q11（先建保证再删四条 freshness）。执行时守单一写者：单独工作线、单独一次提交。</div>
+</div>
+
+<!-- ================= Q5 ================= -->
+<div class="card" id="q5">
+  <div class="qhead"><h3>Q5 · 新写的 <code>.ts</code> 怎么被构建与类型检查「看见」</h3><span class="badge b-ok">已定稿：乙（结构性保证）</span><span class="badge b-rev">对抗式审查后删掉门禁</span></div>
+
+  <h4>问题</h4>
+  <p>新加一个 <code>.ts</code> 文件，构建要收到它、<code>tsc</code> 要检查它。今天靠人手工登记，怎么改成不会漏？</p>
+
+  <h4>问题的背景</h4>
+  <ul>
+    <li>今天有两处手工登记：<code>tsconfig</code> 的 <code>include</code>，和 <code>scripts/build.mjs</code> 里的清单（<code>KERNEL_MODULES</code> 约 60 项 <code>:466</code>、<code>SHARED_SPLICE</code> 13 项 <code>:567</code>、<code>LEAF_MODULES</code> 约 120 项 <code>:604</code>、像素系列的 <code>PX_TS_DIRS</code> 5 个目录 <code>:1035</code>）。</li>
+    <li><code>AGENTS.md</code> 要求「新增 <code>.ts</code> 要同步登记 <code>tsconfig</code> 的 <code>include</code> 与 <code>scripts/build.mjs</code> 清单（不登记会静默不编译）」——<b>两处手写登记，必然漏一处</b>。</li>
+    <li>活证：<code>src/client/kernel/locale-cards.ts</code> 被构建的目录扫描转译成了 <code>.js</code>，但 <code>tsconfig.client.json</code> 的 <code>include</code>（<code>:24</code>）只列了 <code>locale-skilldetail.ts</code>——它从没被 <code>tsc</code> 检查过。</li>
+  </ul>
+
+  <h4>每个候选答案的优点与缺点</h4>
+  <table>
+    <tr><th>选项</th><th>做法</th><th>优点</th><th>缺点</th></tr>
+    <tr><td class="opt">甲</td><td>域 <code>tsconfig</code> 用目录通配收集 ＋ 构建按目录扫描 ＋ 再加一条「不漏不重」门禁</td><td>漏登记有专门的报错</td><td>又多一条门禁；而且「不漏不重」的判断本身要有第二份清单，隐含第二真源</td></tr>
+    <tr><td class="opt">乙</td><td>三层结构性保证：域 <code>tsconfig</code> 的 <code>include</code> 一律目录通配；构建按目录扫描收集 <code>.ts</code>；一个文件只属于一个域目录。兜底写进构建脚本本身（某域扫到 0 个文件就让构建失败）</td><td>零门禁；结构上不可能漏；兜底就在必经之路上</td><td>漏登记没有专门报错（症状是产物缺文件或测试加载失败）；新开一个域目录要在域清单加一行</td></tr>
+    <tr><td class="opt">丙</td><td>维持逐文件登记</td><td>无</td><td>已被 <code>locale-cards.ts</code> 证伪</td></tr>
+  </table>
+
+  <h4>我当时给的推荐答案</h4>
+  <p>甲：目录通配 ＋ 一条「不漏不重」门禁对齐三者。</p>
+
+  <h4>对抗式审查之后改成什么</h4>
+  <ul>
+    <li>维护者「我排斥门禁」→ 改乙，删掉「不漏不重」那条门禁。</li>
+    <li>补两条兜底：① 域目录重叠今天没人管（中间期靠构建启动断言，重复归属等工程引用上线后由编译器兜住）；② 空集合必须判红——这条原则后来落成 Q11 的第 ③ 项。</li>
+    <li>顺手补既有缺口：<code>src/client/kernel/locale-cards.ts</code> 要登记进 <code>tsconfig.client.json</code>。</li>
+  </ul>
+
+  <h4>从第一性原理出发</h4>
+  <ul>
+    <li>公理一（一份真源）：文件清单能数出来，就不许手写维护——目录通配与目录扫描都是「数出来」。</li>
+    <li>公理二（空集合判红）：某域扫到 0 个文件必须让构建失败，否则「改了个名」会静默变成「什么都不检查」。</li>
+  </ul>
+
+  <div class="lead"><b>最终定稿：乙（三层结构性保证 ＋ 构建脚本里的兜底）。</b>代价如实保留在票面：漏登记不会有专门报错，症状是产物缺文件或测试加载失败；新开一个域目录要在域清单里加一行（今天指 <code>scripts/build.mjs:1035</code> 的 <code>PX_TS_DIRS</code>）。另外三种残留漏一并写清：文件放错域目录不会被发现；客户端闭包拼接顺序仍要手写有序清单（由「金标准回执夹具」那条线守）。</div>
+</div>
+
+<!-- ================= Q6 ================= -->
+<div class="card" id="q6">
+  <div class="qhead"><h3>Q6 · 测试怎么跑 <code>.ts</code>、旧的 231 条怎么办</h3><span class="badge b-ok">已定稿：A</span><span class="badge b-rev">对抗式审查后钉死 Node 下限</span></div>
+
+  <h4>问题</h4>
+  <p>测试要能直接跑 <code>.ts</code>，而且要不引新框架、不改生产产物链路。选哪条路？旧的两百多条门禁怎么办？</p>
+
+  <h4>问题的背景</h4>
+  <ul>
+    <li>现状：<code>tests/</code> 里 283 个 <code>verify-*.js</code>，挂进 <code>npm run verify</code> 长串的是 231 条（那一行 8639 字符、超过 cmd.exe 的 8191 上限，所以由 <code>scripts/verify-chain.js</code> 切链执行、首红即停）。</li>
+    <li>底数：全仓 175 处「按路径拼 URL 再动态 import」，171 个文件用了动态 <code>import(</code>、127 个用了 <code>pathToFileURL</code>；CJS 相对 <code>require</code> 只有 7 处，且都不指向产品源码——反例是 <code>tests/verify-subdir-first-frame.js:170</code> 的 <code>require(path.join(root,'src/shared/tracker/guide-steps.js'))</code>。</li>
+    <li>本机 Node v24.19.0 实测：<code>node --test</code> 默认发现并运行 <code>.test.ts</code>；<code>node a.test.ts</code> 能直接跑；但 <b>Node 不做 <code>.js</code>→<code>.ts</code> 映射</b>——<code>import './b.js'</code> 而磁盘只有 <code>b.ts</code> 会 exit 1。</li>
+    <li>原生剥离不支持 <code>enum</code>、带运行时代码的 <code>namespace</code>、参数属性、装饰器（全仓扫描目前一处都没有）。</li>
+    <li>关键一条：本仓两条发布产物都是<b>逐文件被同名加载</b>的（<code>src/host</code> → <code>package/lib</code>，四个核 → <code>package/shared</code>），esbuild 逐文件转译会原样保留说明符。</li>
+  </ul>
+
+  <h4>每个候选答案的优点与缺点</h4>
+  <table>
+    <tr><th>选项</th><th>做法</th><th>优点</th><th>缺点</th></tr>
+    <tr><td class="opt">A</td><td>源码统一写 <code>./x.js</code> 说明符 ＋ 自写约三十行装载钩子（同名 <code>.ts</code> 存在就加载 <code>.ts</code>，否则 <code>.js</code>）</td><td>零新增依赖；生产产物链路零改动；产物里的说明符天然正确</td><td>自造的钩子有 Node 版本风险 → 必须写死下限并让钩子自带测试</td></tr>
+    <tr><td class="opt">B</td><td>源码说明符改写成 <code>./x.ts</code>，靠 Node 原生解析</td><td>一行自造代码都不用写</td><td>把风险搬到发布产物（两条逐文件加载链会去 import 一个不存在的 <code>.ts</code>）；丢掉原生不支持的几样语法</td></tr>
+    <tr><td class="opt">C</td><td>引进 vitest／jest 之类的成熟框架</td><td>生态成熟、断言好写</td><td>要把 231 条重写一遍；与「不引新测试框架」的口径冲突</td></tr>
+  </table>
+
+  <h4>我当时给的推荐答案</h4>
+  <p>A ＋ 棘轮（旧条目按条迁移、未迁移数只降不升）。维护者原话：「<b>A.</b>」，并说「如果 node 能直接跑 ts 会降低我们项目的复杂度。Q6 那个如果有变动需要告诉我，你可以调查」。</p>
+
+  <h4>对抗式审查之后改成什么</h4>
+  <ul>
+    <li>我去查了「Node 能不能自己搞定」：能跑 <code>.ts</code>，但<b>不做 <code>.js</code>→<code>.ts</code> 映射</b>——这一条把 B 否掉了，不是偏好问题。</li>
+    <li>原先打算用异步 <code>module.register()</code> → 实测它对 CJS 的 <code>require('./x.js')</code> 无效，必须用同步 <code>module.registerHooks()</code>（Node 22.15+）→ 由此定下 Q7 的下限，并要求钩子自带测试。</li>
+    <li>明确钩子优先级：<b>同名 <code>.ts</code> 优先于 <code>.js</code></b>（否则产物与真源同名并存时会读到错的）。</li>
+    <li>默认串行：现有门禁里有动夹具、动 git 索引、占端口的，并行会互相踩。</li>
+  </ul>
+
+  <h4>从第一性原理出发</h4>
+  <ul>
+    <li>公理五（三条物理事实）直接决定了形状：Node 跑不了 <code>.ts</code>、产物逐文件加载、闭包由 esbuild 从逐文件产物拼出。</li>
+    <li>最小改动面：能不碰生产链路就不碰——这正是 A 胜过 B 的地方。</li>
+  </ul>
+
+  <div class="lead"><b>最终定稿：A。</b>四条细则一并定下：同名 <code>.ts</code> 优先于 <code>.js</code>；旧 231 条按条迁移、未迁移数只降不升；默认串行；13 号清空那条长串；新测试一律写成 <code>.ts</code>。</div>
+</div>
+
+<!-- ================= Q7 ================= -->
+<div class="card" id="q7">
+  <div class="qhead"><h3>Q7 · Node 版本下限写在哪、写多少</h3><span class="badge b-ok">已定稿：甲</span><span class="badge b-rev">对抗式审查后加拦截</span></div>
+
+  <h4>问题</h4>
+  <p>这条新链路最低支持哪个 Node 版本？这个数字写在哪几个地方、怎么保证它真的拦得住人？</p>
+
+  <h4>问题的背景</h4>
+  <ul>
+    <li>根 <code>package.json</code> 没有 <code>engines</code>；<code>package/package.json:10</code> 的 <code>engines</code> 里只有 <code>{dsh: "&gt;=0.2.0-rc.2"}</code>——那是使用者那一侧对 DSH 的要求，不是 Node。</li>
+    <li>同步钩子 <code>module.registerHooks()</code> 从 Node 22.15 才有（异步形态管不到 CJS 的 <code>require</code>）。Node 20 的维护期在 2026 年 4 月已经结束。</li>
+    <li><code>engines</code> 默认只警告：npm 会打 <code>EBADENGINE</code>，但包照装、脚本照跑。</li>
+  </ul>
+
+  <h4>每个候选答案的优点与缺点</h4>
+  <table>
+    <tr><th>选项</th><th>做法</th><th>优点</th><th>缺点</th></tr>
+    <tr><td class="opt">甲</td><td>只写根 <code>package.json</code> 的 <code>engines.node: "&gt;=22.15"</code> ＋ <code>AGENTS.md</code> 写清理由 ＋ 脚本启动处做一次显式版本断言</td><td>声明与拦截都有；改动面最小；对使用者零影响</td><td>要多一件很小的检查件（约十行）</td></tr>
+    <tr><td class="opt">乙</td><td>什么都不写，只在文档里说明</td><td>零改动</td><td>没有约束；在 Node 20 上跑会撞一个很难懂的报错</td></tr>
+    <tr><td class="opt">丙</td><td>连发布包的 <code>engines</code> 一起写</td><td>表面上最完整</td><td>给使用者发一条毫无意义的警告——装载钩子只在开发与测试时用、不随包发布</td></tr>
+  </table>
+
+  <h4>我当时给的推荐答案</h4>
+  <p>甲：只写根 <code>package.json</code>，建议下限 22（对抗式审查时改成 22.15，理由是实现事实而不是版本偏好）。</p>
+
+  <h4>对抗式审查之后改成什么</h4>
+  <ul>
+    <li><code>engines</code> 是安慰剂（默认只警告）→ 真正拦人的是脚本启动处的显式断言，这一条不能省。</li>
+    <li>断言不要散落 → 单独成件 <code>scripts/check-node.mjs</code>，<code>MIN_NODE = '22.15'</code> 常量只写一处，<code>engines</code> 与 <code>AGENTS.md</code> 跟着它走。这一处是「我替你落了、可随时驳回」。</li>
+    <li><code>package/package.json:10</code> 一个字不改（那里是使用者侧的 DSH 版本要求）。</li>
+  </ul>
+
+  <h4>从第一性原理出发</h4>
+  <ul>
+    <li>公理二（检查要能被看见）：不阻塞的声明等于文档，所以「引擎字段 ＋ 显式断言」要一起上。</li>
+    <li>最小充分值：22.15 是「那条接口在不在」的门槛，不是性能或风格偏好。</li>
+  </ul>
+
+  <div class="lead"><b>最终定稿：甲。</b>根 <code>package.json</code> 写 <code>engines.node: "&gt;=22.15"</code>；<code>AGENTS.md</code> 写清为什么是 22.15；脚本启动处做一次显式断言（落在 <code>scripts/check-node.mjs</code>，常量只写一处）；<code>package/package.json:10</code> 与使用者那一侧不动；不引新依赖、不加新检查脚本。本机 Node v24.19.0 实测 <code>typescript=strip</code>（原生跑 <code>.ts</code> 默认已开）、<code>registerHooks=function</code>、<code>register=function</code>。</div>
+</div>
+
+<!-- ================= Q8 ================= -->
+<div class="card" id="q8">
+  <div class="qhead"><h3>Q8 · 类型检查怎么挂进流程</h3><span class="badge b-ok">已定稿：甲</span><span class="badge b-rev">对抗式审查后更正一处</span></div>
+
+  <h4>问题</h4>
+  <p>类型检查今天分散在四处被顺手拉起、没有一条统一入口。要不要新增一条 <code>npm run typecheck</code>？它挂在哪、怎么防止「绿而没检查」？</p>
+
+  <h4>问题的背景</h4>
+  <ul>
+    <li>今天谁在跑 <code>tsc</code>：客户端 ← <code>scripts/build.mjs:1089</code>；契约 ← <code>tests/verify-contract-types.js:61,275</code>；四个核 ← 各自 <code>build.mjs</code> 与四条 freshness 门禁。</li>
+    <li>根 <code>package.json</code> 的 scripts 里有 <code>build</code>／<code>test</code>／<code>verify*</code>，<b>没有 <code>typecheck</code></b>。</li>
+    <li>活证：<code>locale-cards.ts</code> 的配置在、文件没进——「配置存在」不等于「真在检查」。</li>
+    <li>实测：根配置 <code>files: []</code> ＋ <code>references</code> 若干 <code>noEmit</code>（不带 <code>composite</code>）的域配置能通过且真在检查；只有域与域之间有真 import 链、被引用方是 <code>noEmit</code> 时才报 <code>TS6310</code>；两边都 <code>composite</code> 且真产出则通过（产出 <code>x.d.ts</code>、<code>x.js</code>、<code>tsconfig.tsbuildinfo</code>）。</li>
+  </ul>
+
+  <h4>每个候选答案的优点与缺点</h4>
+  <table>
+    <tr><th>选项</th><th>做法</th><th>优点</th><th>缺点</th></tr>
+    <tr><td class="opt">甲</td><td>新增 <code>npm run typecheck</code> → <code>scripts/typecheck.mjs</code>：按目录发现全部 <code>tsconfig</code>、逐份 <code>tsc -p</code>、断言每份至少编译到 1 个文件且总数不低于只升不降的基线</td><td>一条命令全绿；下限断言挡住「绿而没检查」；不写域清单</td><td>新脚本约 40–60 行 ＋ 一次基线登记</td></tr>
+    <tr><td class="opt">乙</td><td>维持现状，靠各处的顺手调用</td><td>零改动</td><td>漏检继续无声无息；新增域没人会记得把它接进去</td></tr>
+    <tr><td class="opt">丙</td><td>直接上 <code>tsc -b</code> 工程引用</td><td>终态方向，增量快</td><td><code>tsconfig.tsbuildinfo</code> 的落点今天没定；自带「没变就跳过」的增量层；应该与 13 号的工程引用一起做</td></tr>
+  </table>
+
+  <h4>我当时给的推荐答案</h4>
+  <p>甲：新增 <code>npm run typecheck</code>，用 glob 发现全部 <code>tsconfig</code> 并断言份数与编译文件数达到下限。</p>
+
+  <h4>对抗式审查之后改成什么</h4>
+  <ul>
+    <li>更正一处讲过头的话：不是「<code>composite</code> ＋ <code>noEmit</code> 被 <code>tsc -b</code> 引用必报 <code>TS6310</code>」——根 <code>files: []</code> ＋ <code>references</code> 若干 <code>noEmit</code>（不带 <code>composite</code>）的域配置能通过且真检查（往域里塞类型错误会报 <code>TS2322</code>、exit 1）；只有域间真有 import 链且被引用方 <code>noEmit</code> 时才报 <code>TS6310</code>（7.0.2 与 5.6.3 都报）。</li>
+    <li>「每份配置至少编译到 1 个文件」这条断言是必需的，不是锦上添花——<code>locale-cards.ts</code> 就是「配置在、文件没进」的活证。</li>
+    <li>挂载点定清楚：进 <code>npm test</code> 第一段（<code>typecheck</code> → <code>verify-chain</code> → <code>smoke</code>），发布门禁自动覆盖；<b>不进</b>那 231 条 <code>verify</code> 长串。</li>
+    <li>构建里那次 <code>tsc</code>（<code>scripts/build.mjs:1089</code>）保持原样——它不是门禁，只当「早失败」。</li>
+  </ul>
+
+  <h4>从第一性原理出发</h4>
+  <ul>
+    <li>公理二（空集合判红）：「每份配置 ≥ 1 个文件」「总数 ≥ 基线」两条就是这条公理的具体形状。</li>
+    <li>公理一（一份真源）：靠 glob 发现配置，不写域清单。</li>
+  </ul>
+
+  <div class="lead"><b>最终定稿六条：</b>① 新增 <code>npm run typecheck</code> → <code>node scripts/typecheck.mjs</code>；② 脚本做三件事——按目录发现全部 <code>tsconfig</code>（排除 <code>node_modules</code>）、逐份 <code>tsc -p</code>（非 0 即失败、输出原样透出）、断言「每份至少 1 个文件」且「总数 ≥ 只升不降的基线」；③ 今天不用 <code>tsc -b</code>（<code>tsbuildinfo</code> 落点未定，留给 13 号）；④ 挂进 <code>npm test</code> 第一段，发布门禁自动覆盖，不进 231 条长串；⑤ 构建里那次 <code>tsc</code> 保持原样；⑥ 坚持「一个域一份 <code>tsconfig</code>、逐份跑」。它管不到的：方向与禁循环归 <code>dependency-cruiser</code>；<code>.js</code> 的检查深度由 <code>allowJs</code>／<code>checkJs</code> 决定。验收：随手往任一域目录加一个 <code>.ts</code>、不改配置就能被看见；把某份配置的 <code>include</code> 指向空目录立刻红。</div>
+</div>
+
+<!-- ================= Q9 ================= -->
+<div class="card" id="q9">
+  <div class="qhead"><h3>Q9 · 机器写的 <code>.js</code> 允许落在哪几处</h3><span class="badge b-ok">已定稿：甲（四类）</span><span class="badge b-open">有一处空隙待你点名</span></div>
+
+  <h4>问题</h4>
+  <p>清完库里的产物之后，需要一条规则：机器写出来的 <code>.js</code> 到底允许出现在哪几个地方？谁来判定「这个文件是产物还是手写」？</p>
+
+  <h4>问题的背景</h4>
+  <ul>
+    <li>Q4 说的是「只落三处」，但实测产物散落<b>八处</b>：仓库根 <code>client.js</code>／<code>host.js</code>、<code>package/lib</code>、<code>package/shared</code>、<code>scripts/generated</code>、<code>src/host/logPkg</code>、像素风 34 个同名 <code>.js</code>、四核 35 个生成 <code>.js</code>、<code>packages/*/dist</code>。</li>
+    <li><code>tests/</code> 里对 <code>host.js|client.js</code> 的命中 333 处，上百条门禁读根产物与包内产物做双源比对。</li>
+    <li><code>scripts/build.mjs:101-108</code> 把 <code>ARTIFACT_FILES</code> 写成 <code>['client.js','host.js','package/README.md']</code>、<code>ARTIFACT_DIRS</code> 写成 <code>['package/lib','scripts/generated','src/host/logPkg','package/scripts','package/bundled-skills']</code>。</li>
+  </ul>
+
+  <h4>每个候选答案的优点与缺点</h4>
+  <table>
+    <tr><th>选项</th><th>做法</th><th>优点</th><th>缺点</th></tr>
+    <tr><td class="opt">甲</td><td>四类并逐类点名：① <code>package/lib/**</code>、<code>package/shared/**</code>（进包不进 git）；② 仓库根 <code>client.js</code>／<code>host.js</code>（<code>_dev</code> 态，不进包不进 git，本次不动）；③ 构建缓存目录（如 <code>.build/</code>，按需存在）；④ <code>packages/*/dist</code>（不进主包不进 git，本次不动）</td><td>规则可以机械核对；每个执行者都知道自己手里的文件算不算违规</td><td>文字上多两类</td></tr>
+    <tr><td class="opt">乙</td><td>照抄 Q4 的「三处」</td><td>短</td><td>第一个执行者就会误伤：根产物、<code>scripts/generated</code>、<code>packages/*/dist</code> 算不算违规，规则里答不出来</td></tr>
+    <tr><td class="opt">丙</td><td>四类，并把根两份挪进缓存目录</td><td>仓库根最干净</td><td>上百条门禁读根产物做双源比对，会集体变红</td></tr>
+  </table>
+
+  <h4>我当时给的推荐答案</h4>
+  <p>甲：四类并逐类点名，同时写清「<code>src/</code> 下不再出现由本仓源码转译来的 <code>.js</code>」这句总的规则。</p>
+
+  <h4>对抗式审查之后改成什么</h4>
+  <ul>
+    <li>查出规则里的一处空隙：<code>scripts/generated/</code> 没被四类点名。那里 <code>logKernel.derived.js</code> 与 <code>updateClient.derived.js</code> 两个派生物是<b>被 git 跟踪的</b>，<code>updateEntryPanel.bundle.js</code> 被 <code>.gitignore:40</code> 忽略；而整个目录既是 <code>scripts/build.mjs:108</code> 的产物目录，又在 <code>:151</code> 被排除出构建缓存输入。建议按 Q9 自己的「点名」原则补一行（归第三类；已入库的两件单独点名为例外），否则 13 号核「手写 <code>.js</code> 归零」时这两个文件算违规还是排除项答不出来。</li>
+    <li>Q9 记录里「<code>logPkg</code> 是唯一被点名的例外」这句，已被 Q10 改成常规依赖而作废。</li>
+  </ul>
+
+  <h4>从第一性原理出发</h4>
+  <ul>
+    <li>公理二（检查要能被看见）：规则要能被机械核对，就必须是一份「没有人也能判定」的清单——四类正是这份清单。</li>
+    <li>公理一（一份真源）：判定「是不是产物」不能靠人认，要靠位置。</li>
+  </ul>
+
+  <div class="lead"><b>最终定稿：四类 ＋ 随规则一起生效三件。</b>三件是：① 三处出库（<code>git rm --cached</code> 只动索引、文件留盘，写进 <code>.gitignore</code>，改由构建生成）；② <code>tests/verify-build-artifacts.js</code> 的守门对象从「<code>package/shared</code> 与 <code>src/shared</code> 逐字节一致」换成守「四类之外没有产物」；③ 单一写者（单独工作线、单独一次提交）。第三类留了余地：将来若改成内存转译、不再需要按路径读的逐文件产物，它可以缩到最小甚至取消。</div>
+</div>
+
+<!-- ================= Q10 ================= -->
+<div class="card" id="q10">
+  <div class="qhead"><h3>Q10 · <code>src/host/logPkg</code> 那份上游副本算什么</h3><span class="badge b-ok">已定稿：乙（改成常规依赖）</span><span class="badge b-rev">推翻了我自己的推荐</span><span class="badge b-open">三件小事待定</span></div>
+
+  <h4>问题</h4>
+  <p><code>src/host/logPkg/</code> 里那四个 <code>.js</code> 是上游 <code>dsh-log</code> 包的原样拷贝。它在规则里算什么？保留副本，还是改成正经的包依赖？</p>
+
+  <h4>问题的背景</h4>
+  <ul>
+    <li>它不是手工维护的：<code>scripts/derive-log-from-package.mjs</code> 从已安装的 <code>dsh-log</code> 包 <code>dist/</code> 原样拷进 <code>src/host/logPkg/</code>，构建时再原样复制进 <code>package/lib/logPkg</code>；每件只比上游多约 420 字节的说明头，正文逐字节相同。派生由 <code>scripts/build.mjs:37</code> 导入、<code>:1105-1110</code> 每次构建重跑一遍。</li>
+    <li>消费者：<code>src/host/logFromPackage.js:11</code> 用相对动态 import（<code>await import('./logPkg/host.js')</code>）；<code>tests/same-layer-baseline.json:557-574</code> 还记着这条边；<code>scripts/gate-map.mjs:85</code> 的 <code>DERIVED_PREFIXES</code> 也把它当派生前缀。</li>
+    <li>关键事实：<code>package/package.json:25-28</code> 的 <code>dependencies</code> 里只有 <code>dsh-plugin-update</code> 与 <code>yaml</code>，<b>没有 <code>dsh-log</code></b>；装机目录里那份 0.2.2 是别的插件带上来的传递依赖——明天可能就没有。</li>
+    <li>仓内先例：<code>src/host/updateFromPackage.js:18</code> 从裸包名 <code>'dsh-plugin-update'</code> import，装机目录里确实是给插件装了 <code>node_modules/dsh-plugin-update</code>。</li>
+  </ul>
+
+  <h4>每个候选答案的优点与缺点</h4>
+  <table>
+    <tr><th>选项</th><th>做法</th><th>优点</th><th>缺点</th></tr>
+    <tr><td class="opt">甲</td><td>保留副本，定性为「被点名的例外」，例外以 <code>DERIVED_PREFIXES</code> 为唯一出口</td><td>零额外安装；服务端与客户端两半天然同版本；今天什么都不会坏</td><td>发布包里永远多塞一份日志库；<code>src/</code> 里长期留一个生成物例外；上游升级要等重跑构建</td></tr>
+    <tr><td class="opt">乙</td><td>改成常规依赖：<code>package/package.json</code> 声明 <code>dsh-log</code> 并 pin 住版本；<code>src/host/logFromPackage.js</code> 改从裸包名 <code>'dsh-log/host'</code> 引用；删副本与派生脚本的宿主那半；客户端那半保留</td><td>从根上消掉例外，与仓内既有做法同形；不再自己维护第二份上游代码</td><td>装机时多装一个包；必须补一条「两半版本一致」的保证，否则客户端与服务端会错配</td></tr>
+    <tr><td class="opt">丙</td><td>维持现状、不写规则</td><td>零改动</td><td>13 号核「手写 <code>.js</code> 归零」时必然扯皮（正是它把 <code>DIRTY</code> 一点点带进统计的）</td></tr>
+  </table>
+
+  <h4>我当时给的推荐答案</h4>
+  <p>甲：定性为被点名的例外，规则口径改成「<code>src/</code> 下不得出现由本仓源码转译来的 <code>.js</code>」，例外以 <code>DERIVED_PREFIXES</code> 为唯一出口。</p>
+
+  <h4>对抗式审查之后改成什么</h4>
+  <ul>
+    <li>我当时的推荐<b>站不住</b>：「保留副本」意味着 <code>src/</code> 里长期存在一份由构建生成、又被入库的 <code>.js</code>——正是 Q4／Q9 要清掉的东西。维护者选了乙。</li>
+    <li>改乙之后仍然要付两笔新成本，必须写进票面：① 补「客户端打包所用的 <code>dsh-log</code> 版本 == <code>package/package.json</code> 里 pin 的版本」这条断言（今天不需要，改成依赖后必须有）；② 受影响门禁要重跑并核对（<code>tests/verify-build-artifacts.js</code> 的 <code>src/host</code> ↔ <code>package/lib</code> 双向差集、<code>tests/verify-log-artifacts.js</code> 与全部日志门禁）。</li>
+    <li>顺带作废两处旧结论：「被点名的例外」（甲的口径）、以及 Q9 里「<code>logPkg</code> 是唯一例外」那句。</li>
+  </ul>
+
+  <h4>从第一性原理出发</h4>
+  <ul>
+    <li>公理一（一份手写真源）：不许自己维护第二份上游代码——上游发新版本时，那份副本就是一颗定时炸弹。</li>
+    <li>例外越少越好：每一条例外都要人记住，而人会忘。</li>
+  </ul>
+
+  <div class="lead"><b>最终定稿：乙。</b>改定口径七条：<code>package/package.json</code> 增加 <code>dsh-log</code> 依赖并 pin 住版本（与构建时使用的那份一致，不写浮动范围）；<code>src/host/logFromPackage.js</code> 改成从裸包名 <code>'dsh-log/host'</code> 引用；删 <code>src/host/logPkg/</code> 四个文件与派生脚本的宿主那半（<code>deriveHost</code> 与 <code>HOST_UNITS</code>／<code>HOST_OUT_DIR</code>）以及 <code>scripts/build.mjs:1105-1110</code> 的调用；客户端那半（<code>deriveClient</code> → <code>scripts/generated/logKernel.derived.js</code>）保留不动；原「被点名的例外」结论作废，<code>DERIVED_PREFIXES</code> 去留执行时定；必须补版本一致的保证；受影响门禁重跑并核对。</div>
+</div>
+
+<!-- ================= Q11 ================= -->
+<div class="card" id="q11">
+  <div class="qhead"><h3>Q11 · 「先建保证、再拆保险」要不要绑成一批</h3><span class="badge b-ok">已定稿：甲（绑批）</span><span class="badge b-rev">对抗式审查后升级为前置条件</span></div>
+
+  <h4>问题</h4>
+  <p>产物出库之后，今天那批「产物与源码一致」的检查就全没了。是先把新的保证建起来再删旧的，还是分两票、先删后建？</p>
+
+  <h4>问题的背景</h4>
+  <ul>
+    <li>今天这件事由<b>三条互不相干</b>的检查撑着：① 四条新鲜度门禁（重新转译一遍再逐字比对）；② <code>tests/verify-build-artifacts.js:132-155</code> 的 <code>package/shared</code> ↔ <code>src/shared</code> 逐文件 sha256 双向比对；③ <code>scripts/build.mjs:867-874</code> 的「<code>package/lib/index.js</code> 与 <code>src/host/index.js</code> 逐字节一致」。</li>
+    <li>产物出库、源码变 <code>.ts</code> 之后，②③ 物理上做不到，① 按 Q4 要删。删完之后只剩「构建刚跑过，所以产物一定是新的」——而它全押在手写的 <code>INPUT_ROOTS</code>（<code>scripts/build.mjs:103</code>）与 <code>INPUT_EXTRA</code>（<code>:104</code>）上，指纹算法在 <code>:172-177</code>。</li>
+    <li>另有一条旧检查有洞：<code>scripts/build.mjs:748-768</code> 反向扫「有没有没登记进 <code>LEAF_MODULES</code> 的叶子文件」，今天只认 <code>.js</code>、只扫四个写死的目录，外层 <code>try/catch</code>（<code>:766-768</code>）只放行以 <code>[build]</code> 开头的错、其余吞掉——目录不存在就变成空集合，<b>静默判绿</b>。</li>
+  </ul>
+
+  <h4>每个候选答案的优点与缺点</h4>
+  <table>
+    <tr><th>选项</th><th>做法</th><th>优点</th><th>缺点</th></tr>
+    <tr><td class="opt">甲</td><td>四件事同批：输入集合自动发现；构建启动断言；修那条反向检查；以上到位后再删四条 freshness</td><td>保证与删除同步；能用两个反例当场演示「保证真的在」</td><td>01 里多约 10–30 行构建改动</td></tr>
+    <tr><td class="opt">乙</td><td>分两票：先删旧保险，新保证另立一票</td><td>每票都小</td><td>删在前就有一段真空期；反过来说先建后删，新方案会长期挂着没人收尾</td></tr>
+    <tr><td class="opt">丙</td><td>只删门禁、不建保证</td><td>零改动</td><td>等于把保险拆了不装新的</td></tr>
+  </table>
+
+  <h4>我当时给的推荐答案</h4>
+  <p>甲：把输入集合结构化并加断言，然后才删四条 freshness。</p>
+
+  <h4>对抗式审查之后改成什么</h4>
+  <ul>
+    <li>我原先把它当成「一条门禁的取舍」，实际上它是<b>今天唯一的产物新鲜度依据</b>——于是从「可以顺手做」升级为发布安全的前置条件。</li>
+    <li>「空集合判红」从一个原则落成具体一项：今天那条反向检查吞异常（静默绿），必须改成域清单驱动 ＋ 显式报数 ＋ 空集合判红。</li>
+    <li>归属定清：落在 01 号地图内、不新开票、不新增门禁脚本、与 Q4 耦合、执行时守单一写者。</li>
+  </ul>
+
+  <h4>从第一性原理出发</h4>
+  <ul>
+    <li>公理三（过渡期有刻度）：删掉旧的刻度之前，新的刻度必须先立起来。</li>
+    <li>公理二（空集合判红）：一条「扫不到东西就判绿」的检查不是检查。</li>
+  </ul>
+
+  <div class="lead"><b>最终定稿：甲（四件同批）。</b>① 输入集合改成自动发现（<code>src</code>、<code>scripts</code> 两棵固定大树 ＋ 凡含 <code>tsconfig</code> 的顶层目录自动发现 ＋ 所有 <code>tsconfig</code> 文件本身）；② 构建启动加断言（输入集合不许为空；每个域目录至少收到 1 个输入）；③ 修 <code>scripts/build.mjs:748-768</code> 那条反向检查（域清单驱动 ＋ 显式报数 ＋ 空集合判红）；④ 以上到位后删四条新鲜度门禁。<b>两个验收反例</b>：改动某个域目录里的一个文件，构建指纹必变；把一个叶子文件转成 <code>.ts</code> 之后，反向检查仍报数、仍判红。顺带回答「纯 TS 项目会不会遇到手写输入清单」：会遇到「增量构建靠什么判据」的问题，但纯 <code>tsc</code> 项目由 <code>include</code>／<code>.tsbuildinfo</code> 管、打包器从配置与真实依赖图推、monorepo 任务运行器只声明每包的通配；本仓手写是因为自建了内容指纹缓存；「结构化」不等于「零声明」——<code>package.json</code> 这类非 TS 输入永远存在。</div>
+</div>
+
+<!-- ================= Q12 ================= -->
+<div class="card" id="q12">
+  <div class="qhead"><h3>Q12 · 四个核的源码放哪、引用怎么办</h3><span class="badge b-ok">已定稿：甲</span><span class="badge b-open">记录内部有一处矛盾待拍</span></div>
+
+  <h4>问题</h4>
+  <p>四个核的 <code>.ts</code> 源码今天在顶层 <code>&lt;名&gt;-core/src/</code>，产物写到 <code>src/shared/&lt;名&gt;/</code>。要不要把源码搬进 <code>src/shared/&lt;功能名&gt;/</code>？搬了之后那几十处引用怎么办？</p>
+
+  <h4>问题的背景</h4>
+  <ul>
+    <li>四个核各自「<code>src/**.ts</code> ＋ 自己的 <code>tsconfig.json</code> ＋ 自己的 <code>build.mjs</code>」，产物写到 <code>src/shared/&lt;核名&gt;/</code>：<code>label-color-core/build.mjs:30</code> → <code>src/shared/label-color</code>；<code>refresh-core/build.mjs:38</code> → <code>src/shared/refresh</code>；<code>version-control-core/build.mjs:27</code> → <code>src/shared/version-control</code>；<code>config-store-core/build.mjs:28</code> → <code>src/shared/config-store</code>。</li>
+    <li><code>src/host</code> 下几十处 import 直指这些产物：<code>src/host/configStore.js:18-20</code>、<code>src/host/refresh/gate.js:21-24</code>、<code>src/host/versionControl.js:17-24</code>、<code>src/host/tracker/backends/markdown/label-colors-codec.js:14-15</code>；测试里也有直接 import 源码模块的（<code>tests/verify-969-tiered-timeout.js:69</code>）。</li>
+    <li>根构建今天只会把 <code>src/shared</code> 整树 <code>cpSync</code> 到 <code>package/shared</code>（<code>scripts/build.mjs:847</code>），并不会转译；装载钩子只按「同名」映射，跨不了目录。</li>
+    <li>维护者确认：目录名要改成「符合这个核的功能的规范命名」，而且「那句『不用单独成票』只覆盖产物出库与落点」——这类事未来肯定会有 ISSUE。</li>
+  </ul>
+
+  <h4>每个候选答案的优点与缺点</h4>
+  <table>
+    <tr><th>选项</th><th>做法</th><th>优点</th><th>缺点</th></tr>
+    <tr><td class="opt">甲</td><td>源码搬进 <code>src/shared/&lt;功能名&gt;/*.ts</code>（与现在的产物目录同名同位置），顶层核目录退场，产物由根构建统一转译到 <code>package/shared</code>；引用点一个字不改</td><td>「源码只有 <code>.ts</code>」「<code>src/</code> 下没有生成物」「引用不改」三条同时成立；装载钩子按同名规则自然生效</td><td>35 个 <code>.ts</code> 挪位置、顶层四个目录删除、四份 <code>tsconfig</code> 跟着搬</td></tr>
+    <tr><td class="opt">乙</td><td>源码留顶层，产物搬走，装载钩子加四条「核名 → 产物路径」映射</td><td>改动最小</td><td><code>src/</code> 里出现一张手写的映射表（第二真源，迟早漂移）</td></tr>
+    <tr><td class="opt">丙</td><td>源码留顶层，只搬产物，映射另记一笔</td><td>看似折中</td><td>源码树里 import 的路径当场失效，本地跑不动</td></tr>
+    <tr><td class="opt">丁</td><td>移出 01，另立一票</td><td>01 更瘦</td><td>与「Q4 并入 01」的取向冲突；1019「目录归位」会被反复绊住</td></tr>
+  </table>
+
+  <h4>我当时给的推荐答案</h4>
+  <p>甲：源码搬进 <code>src/shared/&lt;功能名&gt;/*.ts</code>，顶层四个 <code>&lt;名&gt;-core/</code> 退场。</p>
+
+  <h4>对抗式审查之后改成什么</h4>
+  <ul>
+    <li>我原以为「产物在 <code>src/shared</code>、源码在顶层核目录」是既有折中、动了风险大；实测 <code>src/host</code> 几十处 import 直指那些产物、而装载钩子只按同名映射 → <b>甲是唯一能让「引用不改 ＋ <code>src/</code> 无生成物」同时成立的形状</b>。</li>
+    <li>我提问的层次错了：真正的问题是「01 的边界要不要多一条核管线」——根构建今天只会整树拷贝，不会转译。</li>
+    <li>有一处是我们反过来向四个核学：<b>域目录自带 <code>tsconfig.json</code></b>，比在根目录集中式登记更自描述，成为本次的默认形状。</li>
+    <li>我发现记录内部一处矛盾：第二节第 5 条说「四份 <code>build.mjs</code> 删、四份 <code>tsconfig.json</code> 移进域目录、四条 <code>verify-*-freshness.js</code> 删」，第四节又说「四个核子构建的存废（未来肯定会有 ISSUE）」——<b>两句必居其一</b>，落盘时写死。</li>
+  </ul>
+
+  <h4>从第一性原理出发</h4>
+  <ul>
+    <li>公理一（一份真源、一棵树）：源码与它的产物不该分住两棵树。</li>
+    <li>公理五（物理事实）：装载钩子只按同名映射 —— 形状由这条事实决定，不由喜好决定。</li>
+  </ul>
+
+  <div class="lead"><b>最终定稿：甲 ＋ 八条。</b>① 顶层四个 <code>&lt;名&gt;-core/</code> 目录退场；② 命名按功能，本次沿用现有四个功能名（<code>label-color</code>、<code>refresh</code>、<code>version-control</code>、<code>config-store</code>），日后换更准确的名字另立一票（代价是同时改几十处引用、产物路径与 <code>scripts/build.mjs:586-596</code> 那 4 条闭包拼接项）；③ <b>引用点一个字不改</b>；④ 产物由根构建统一转译到 <code>package/shared/&lt;功能名&gt;/*.js</code>；⑤ 四件套去向：顶层目录删、四份 <code>build.mjs</code> 删、四份 <code>tsconfig.json</code> 移进域目录（<code>src/shared/&lt;名&gt;/tsconfig.json</code>）、四条 <code>verify-*-freshness.js</code> 删；⑥ 与 Q11 绑定（删 freshness 的前提是构建缓存输入集合结构化）；⑦ <b>验收三条</b>：<code>git diff -M</code> 显示这一提交全是重命名、行为零变化；<code>src/</code> 下没有生成的 <code>.js</code>；发布包里 <code>package/shared/</code> 四份文件数不变（3／14／14／4），且故意改坏一个域里的一个文件，类型检查必须红；⑧ 本次不动那 3 个手写 <code>.js</code>（<code>chain-ride.js</code>、<code>refusal-text.js</code>、<code>exec-envelope.js</code>）。</div>
+</div>
+
+<!-- ================= 小口子 ================= -->
+<h2 id="loose">还差你一句话的三处小口子</h2>
+<p>这三处不是新决策，是已有记录里没写死的地方。落盘时会顺手写清，你若不同意就改那一行。</p>
+
+<div class="card">
+  <h4>① Q12 记录内部自相矛盾（必居其一）</h4>
+  <ul>
+    <li>第二节第 5 条：<b>四份 <code>build.mjs</code> 删、四份 <code>tsconfig.json</code> 移进域目录、四条 <code>verify-*-freshness.js</code> 删</b>（也就是这些都跟搬家一起做）。</li>
+    <li>第四节：<b>「四个核子构建的存废」未来另有 ISSUE</b>（维护者原话已确认）。</li>
+    <li>而顶层 <code>&lt;名&gt;-core/</code> 目录一退场，里面的 <code>build.mjs</code>／<code>tsconfig.json</code> 物理上留不下来。我的读法是：<b>搬家本身带走 <code>build.mjs</code>／<code>tsconfig.json</code>；四条 freshness 的删除与 Q11 绑批</b>。</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h4>② Q10 留的三件未定</h4>
+  <ul>
+    <li>「客户端打包所用 <code>dsh-log</code> 版本 == <code>package/package.json</code> pin 的版本」这条断言，放构建脚本里还是放测试里？</li>
+    <li>这件事归 01 号地图，还是单独立票？</li>
+    <li>「装机时会多装一个包」这个取向，要不要写进 <code>AGENTS.md</code> 或规范文档？</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h4>③ Q9 四类没点名 <code>scripts/generated/</code></h4>
+  <ul>
+    <li>那里 <code>logKernel.derived.js</code>、<code>updateClient.derived.js</code> 两个派生物<b>被 git 跟踪</b>，<code>updateEntryPanel.bundle.js</code> 被 <code>.gitignore:40</code> 忽略。</li>
+    <li>该目录同时是 <code>scripts/build.mjs:108</code> 的产物目录，又在 <code>:151</code> 被排除出构建缓存输入。</li>
+    <li>建议按 Q9 自己的「点名」原则补一行：派生物与构建缓存同归第三类，已入库的两件单独点名为例外。</li>
+  </ul>
+</div>
+
+<!-- ================= 票面状态 ================= -->
+<h2 id="state">票面状态与收尾四步</h2>
+
+<div class="card">
+  <h4>十二问的结论都定在哪了</h4>
+  <p>十二问的定稿记录都在 <code>#1014</code> 的评论区（每条专项记录 ＋ 维护者的表态确认），对应的讲解页 12 份已在 <code>research/</code> 下入库（提交 <code>9aaac48f</code> 九份、<code>e44d1e3c</code> 三份）。</p>
+
+  <h4>票面自己写的「做完」判据是三处，今天只完成一处</h4>
+  <table>
+    <tr><th>票面要求</th><th>现状</th></tr>
+    <tr><td>① 本票评论：讨论过程与最终结论</td><td><b>已齐</b>——Q1–Q12 各有定稿记录（Q10 另有一条更正）</td></tr>
+    <tr><td>② 地图 <code>#1013</code> 的 <code>## Decisions so far</code>：要动手的人先读这里，没写进这里的结论等于没定</td><td><b>一条都没进</b>——那里只有「对抗式审查定案与修正落地」一条</td></tr>
+    <tr><td>③ 受影响的开发票正文或评论</td><td><b>没做</b>——Node 下限该进 1021；产物四类与 <code>logPkg</code> 改依赖该进 1023；<code>dependency-cruiser</code> 该进 1017；「建保证再拆保险」该进 1015／1023</td></tr>
+  </table>
+
+  <div class="danger"><b>还有一条硬伤：</b>票面 <code>## 进度</code> 区至今写着「仍待维护者表态：Q2 两处前置、Q3、Q6 四条细则、Q8、Q9–Q12」——与事实相反。过期的状态比没有状态更坏：下一个读者会以为还得等人。</div>
+
+  <h4>剩下的四步</h4>
+  <ol>
+    <li><b>落盘三处</b>：① <code>#1014</code> 正文加「## 结论（Q1–Q12）」并把 <code>## 进度</code> 改写成真实状态；② 地图 <code>#1013</code> 的 <code>## Decisions so far</code> 补 12 条一句话摘要；③ 受影响的开发票各补一条边界。</li>
+    <li><b>执行一次 <code>/to-spec</code></b>：把结论固化成规格文档（这是这张票讨论完毕、意图对齐之后该做的那一步）。</li>
+    <li><b>规格单挂到地图 <code>#1013</code></b>，成为它的 subissue。</li>
+    <li><b>对抗式审查</b>：<code>/to-spec</code> 落盘后，对当前所有任务做一次对抗式审查，确认无误再 close <code>#1014</code>。</li>
+  </ol>
+</div>
+
+<footer id="sources">
+  <p><b>数据来源与口径。</b>票面与评论区取自 GitHub <code>FeatherHunter/dsh-mattpocock-skills-deck</code> 的 <code>#1014</code>（含维护者在 <code>FeatherHunter</code> 账号下留下的 Q1–Q12 专项记录与表态确认）与地图 <code>#1013</code> 的正文；仓库事实来自对 <code>scripts/build.mjs</code>、<code>scripts/verify-chain.js</code>、<code>tests/</code>、<code>package/package.json</code>、<code>tsconfig*.json</code>、<code>.gitignore</code>、<code>docs/adr/20261011-deck-ts-rewrite.md</code>、<code>specs/1010-ts-rewrite-spec.md</code> 的直接阅读与命令实测；TypeScript 与 Node 的行为结论来自本机实测（TypeScript 7.0.2 与 npm 别名 5.6.3；Node v24.19.0）。</p>
+  <p>本页只做记录与对照，不代表任何人已经批准执行。截至成页时 <code>#1014</code> 仍为 open，票面尚未写入结论。</p>
+</footer>
+
+</div>
+</body>
+</html>
