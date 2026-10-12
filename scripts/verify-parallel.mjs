@@ -134,7 +134,9 @@ async function selectChanged() {
 
 // 装载钩子：链上的测试步骤要能把 "./x.js" 解析到同目录的同名 .ts（迁移中的单元靠它）。
 // 没有同名 .ts 时钩子什么都不做，所以没迁移的步骤行为与今天完全一样。
-// 预构建那一步（scripts/build.mjs）不挂：它不加载测试，挂上去只是多一次没用的加载。
+// 判定只有一条：要跑的是 tests/ 下的文件才挂。与 scripts/verify-chain.js 的 argvOf 是同一条口径，
+// 两处任一处改了，另一处必须跟着改。
+// 预构建那一步（scripts/build.mjs）因此不挂：它不加载测试，挂上去只是多一次没用的加载。
 // 这一层只改「怎么起进程」，不动 package.json 里那条链的文字。
 const TS_HOOK = pathToFileURL(path.join(ROOT, 'scripts', 'ts-hook.mjs')).href
 function argvOf(step) {

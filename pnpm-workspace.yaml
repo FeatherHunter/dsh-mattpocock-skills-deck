@@ -1,3 +1,9 @@
+# 装包守卫：Node 版本不满足根 package.json 的 engines.node 时，pnpm 直接拒绝安装。
+# 为什么必须写在这里：pnpm 不认 .npmrc 里的 engine-strict（实测只打一条警告就继续装，
+# 退出码 0），只有本文件的 engineStrict 是硬拦截（退出码 1）。npm 走 .npmrc，两边都要有。
+# 它同时会查整棵依赖树：某个依赖声明的 engines 与当前 Node 不符，也会拒绝安装。
+engineStrict: true
+
 allowBuilds:
   esbuild: true
 
