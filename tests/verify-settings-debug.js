@@ -160,7 +160,7 @@ const WRITE_REL = 'src/client/kernel/settings-view-write.js'
 const DEBUG_REL = 'src/client/kernel/settings-debug.js'
 const LOG_REL = 'src/client/kernel/log.js'
 const INDEX_REL = 'src/client/index.js'
-const TAIL = '\nreturn { LOG_DEBUG_KEY: LOG_DEBUG_KEY, logSwitch: logSwitch, logQueue: logQueue, readLocalDebugSwitch: readLocalDebugSwitch, persistLocalDebugSwitch: persistLocalDebugSwitch, setLogSwitch: setLogSwitch, reconcileLogSwitch: reconcileLogSwitch, settingsViewLoad: settingsViewLoad, viewFlagReadyNow: viewFlagReadyNow, viewFlagState: viewFlagState, VIEW_FLAG_WRITE_DEBOUNCE_MS: VIEW_FLAG_WRITE_DEBOUNCE_MS, settingsDebugSet: settingsDebugSet, settingsDebugToggle: settingsDebugToggle, settingsDebugAdoptFromDoc: settingsDebugAdoptFromDoc, settingsDebugDrainDeferred: settingsDebugDrainDeferred, settingsDebugSetInDoc: settingsDebugSetInDoc, settingsDebugLegacyWrite: settingsDebugLegacyWrite, setViewFlagRoot: setViewFlagRoot }'
+const TAIL = '\nreturn { LOG_DEBUG_KEY: LOG_DEBUG_KEY, logSwitch: logSwitch, logQueue: logQueue, readLocalDebugSwitch: readLocalDebugSwitch, persistLocalDebugSwitch: persistLocalDebugSwitch, setLogSwitch: setLogSwitch, reconcileLogSwitch: reconcileLogSwitch, settingsViewLoad: settingsViewLoad, viewFlagReadyNow: viewFlagReadyNow, viewFlagState: viewFlagState, VIEW_FLAG_WRITE_DEBOUNCE_MS: VIEW_FLAG_WRITE_DEBOUNCE_MS, settingsDebugSet: settingsDebugSet, settingsDebugToggle: settingsDebugToggle, settingsDebugAdoptFromDoc: settingsDebugAdoptFromDoc, settingsDebugDrainDeferred: settingsDebugDrainDeferred, settingsDebugSetInDoc: settingsDebugSetInDoc, settingsDebugLegacyWrite: settingsDebugLegacyWrite, settingsDebugHasPending: settingsDebugHasPending, setViewFlagRoot: setViewFlagRoot }'
 function makeClient(env) {
   const body = [noExport(readText(DERIVED_REL)), noExport(readText(STATE_REL)), noExport(readText(VIEW_REL)), noExport(readText(WRITE_REL)), noExport(readText(DEBUG_REL))].join('\n')
   const names = ['host', 'timer', 'localStorage', 'broadcastLogSwitch', 'keyOf', 'wsKeyOf', 'shared', 'stores', 'emit', 'currentOs', 'workspaceRootByCwd', 'dswsLogHash']
@@ -276,11 +276,16 @@ async function main() {
   // 「一次都没写」这类断言要先等防抖窗口走完再数：窗口没过就数 0 是结构上不可能失败的断言（2026-10-12 复核指出）。
   const quietAfter = async (env) => { await sleep(env.mod.VIEW_FLAG_WRITE_DEBOUNCE_MS + 200) }
   // 光数「没发写电话」还不够：这一趟还可能在队列里留着一笔、或排期还挂着（排期一到就又发一趟）。所以再钉一句
-  //   「定时器已停、待写队列为空」，把「真的什么都没打算写」量完整（2026-10-12 复核的顺带建议 ①）。
+  //   「定时器已停、三处待写都空」——三处是 journal、deferred 与 idle 档那本「还没定论」的簿子，
+  //   判据用核自己导出的 settingsDebugHasPending()（2026-10-12 复核的顺带建议 ①；加上簿子是因为它也算待写）。
+  // 诚实说明它量得到什么：它只证明「这一刻没留下待写」。要证明「造过一笔又撤干净了」，得由那一节自己先
+  //   断言痕迹真的记下过（例如第十一 / 十二件事先查两笔 deferred 在不在），再回来查它空了 —— 单看这一行
+  //   区分不了「撤掉了」与「压根没造过」（2026-10-12 复核第二轮指出的分辨力问题）。
   const checkNoPending = (env, msg) => {
     const st = env.mod.viewFlagState
     const left = Object.keys(st.journal).length + Object.keys(st.deferred).length
-    check(st.timer === 0 && left === 0, msg, JSON.stringify({ timer: st.timer, journal: Object.keys(st.journal), deferred: Object.keys(st.deferred) }))
+    check(st.timer === 0 && left === 0 && env.mod.settingsDebugHasPending() === false, msg,
+      JSON.stringify({ timer: st.timer, journal: Object.keys(st.journal), deferred: Object.keys(st.deferred), hasPending: env.mod.settingsDebugHasPending() }))
   }
 
   // ── 第二件事：开机秒显仍读旧键（同步、不等文件）──
@@ -477,6 +482,10 @@ async function main() {
     check(!!dOff && dOff.debug.sampleRate === 1, '同一节的采样率也跟着这一下写成了 1（两格一起写，不留半份）。', JSON.stringify(dOff && dOff.debug))
     check(env.mod.logSwitch.enabled === false, '内存还是用户拨的关。', String(env.mod.logSwitch.enabled))
     check(legacyOf(env) && legacyOf(env).enabled === false, '旧键快照也写成了关（开机秒显那一路跟着走）。', JSON.stringify(legacyOf(env)))
+    // 这一档是「先造一笔、再撤干净」的那一种：上面刚查过两笔待写真的记下了，这里再查它们被「文档到手 → 落进
+    //   文件」那一趟吃干净了。两句连起来才量得完整 —— 单看下面这一句区分不了「撤掉了」与「压根没造过」。
+    await quietAfter(env)
+    checkNoPending(env, '两笔待写被文档到手那一趟吃干净了（定时器已停、三处待写都空）。')
 
     // 老路被拒这一档（2026-10-12 复核的必修 3）：还不知道老路结果之前不许留下必写痕迹。旧写法在这里就记了两笔
     //   待写，文档一到手就把「界面刚说失败」的那个值写进文件 —— 界面说没成、文件说成了。
@@ -518,6 +527,9 @@ async function main() {
     check(onInFile, '文件里长出了 debug.enabled: true（这一下没丢）。', JSON.stringify(((await readDoc(env.home)) || {}).debug))
     const dOn = await readDoc(env.home)
     check(!!dOn && dOn.ui && dOn.ui.stateFilter === 'open', '文件里别的节没被写坏（ui.stateFilter 还是 open）。', JSON.stringify(dOn && dOn.ui))
+    // 与第十一件事同一口径：这一档也先查过两笔待写真的记下了，这里再查它们被吃干净了。
+    await quietAfter(env)
+    checkNoPending(env, '这两笔待写也被文档到手那一趟吃干净了（定时器已停、三处待写都空）。')
   }
 
   // ── 第十三件事：idle 档 + 文档始终问不到 → 这一下不许悄悄丢 ──
@@ -744,8 +756,10 @@ async function main() {
   //   jsdom 里跑起来、用真 React 挂载设置页，按用户的样子点复选框，只读页面上真正显示出来的东西。
   //   三件事都在这里量：① 老路慢、文档先到手那一趟不许把用户的关顶回开（必修 A）；② 副本没跟上之后，
   //   下一次打开设置页那一趟（真挂载）要自己把副本重推一次（必修 B）；③ 两个方向的文案各说各话（必修 C）。
+  //   第四段是 2026-10-12 复核第二轮加的：同一趟挂载里（不卸载、不重挂）页面自己重画一遍也要能自愈 ——
+  //   宿主那侧「打开一次是不是一直挂着」不在本仓、核不了，口子不能只赌重新挂载那一趟。
   console.log('')
-  console.log('== 第十九件事：真产物里真跑设置页（jsdom）——老路与文档赛跑、下一次打开自己重推、两个方向各说各话 ==')
+  console.log('== 第十九件事：真产物里真跑设置页（jsdom）——老路与文档赛跑、下一次打开自己重推、同挂载也能自愈、两个方向各说各话 ==')
   {
     const bundleCode = readText('package/lib/client.js')
     // 五节齐全的一份真文档（核归一之后就是这个形状）；enabled 是这一张页面文件里的那个值。
@@ -946,7 +960,9 @@ async function main() {
       try { a.root.unmount() } catch (e) {}
       p.setReply((args) => ({ ok: true, value: { ok: true, enabled: args.enabled === true, sampleRate: 1 } }))
       const b = await p.mount()
-      await sleep(150)
+      // 同一口径：等「重挂那一趟自己重推」这件事发生，不睡固定小段（忙的时候固定小睡会假红）。
+      const capRe = Date.now() + 3000
+      while (p.logSet.length <= pushesBefore && Date.now() < capRe) await sleep(25)
       check(p.logSet.length > pushesBefore,
         '重新打开设置页那一趟（真挂载）自己把副本重推了一次（自愈不靠内部函数）。', String(p.logSet.length - pushesBefore))
       const repush = p.logSet[p.logSet.length - 1]
@@ -975,6 +991,38 @@ async function main() {
       check(onToast === p.dict['cfg.dbgSwitchOnNoHost'],
         '副本拒收时弹的是「已打开…副本没接上」那一句（拨成开这一方向）。',
         JSON.stringify({ toast: onToast, flash: p.flashOf(a.container), want: p.dict['cfg.dbgSwitchOnNoHost'], setCalls: p.setCalls.length, endpoints: p.endpoints.length, logs: p.logSends.slice(-2) }))
+      try { a.root.unmount() } catch (e) {}
+    }
+    // 四、同一趟挂载里也要能自愈（2026-10-12 复核第二轮）：宿主那侧「设置分组打开一次之后是不是一直挂着」不在
+    //   本仓、核不了，所以自愈口子不能只赌「重新挂载」那一趟 —— 口子挂在每次渲染上，页面自己重画一遍就够。
+    //   这一档既不卸载也不重挂：拨动失败之后，提示条更新会把这一页重新画一遍，口子就在那一趟把副本重推一次。
+    {
+      const p = await openPage({
+        docEnabled: false,
+        setReply: (args) => ({ ok: true, value: { ok: true, enabled: args.enabled === true, sampleRate: 1 } }),
+      })
+      const a = await p.mount()
+      check(await p.click(a.container), '第一拨（拨成开，走老路）点得动。')
+      await sleep(200)
+      p.setReply(() => ({ ok: true, value: { ok: false } }))
+      check(await p.click(a.container), '第二拨（拨成关，走文件这条路、副本拒收）点得动。')
+      const offToast2 = await p.waitToast(a.container)
+      check(offToast2 === p.dict['cfg.dbgSwitchOffNoHost'], '副本拒收时照旧弹「已关…副本还开着」那一句。', JSON.stringify({ toast: offToast2 }))
+      const pushesAtToast = p.logSet.length
+      // 这里必须轮询而不是睡固定一小段：重推要等「提示条更新 → 页面重画 → 口子跑」这条链，机器忙的时候
+      //   固定小睡会假红（2026-10-12 实测到过一次 170 通过 1 失败的不可复现红，之后把这一档改成轮询）。
+      //   轮询不放松判据：等的是「不卸载、不重挂也自己重推一次」这件事真的发生，最多等 3 秒。
+      const capPush = Date.now() + 3000
+      while (p.logSet.length <= pushesAtToast && Date.now() < capPush) await sleep(25)
+      check(p.logSet.length > pushesAtToast,
+        '同一趟挂载里（不卸载、不重挂）页面自己重画一遍就把副本重推了一次。', String(p.logSet.length - pushesAtToast))
+      const sameMountPush = p.logSet[p.logSet.length - 1]
+      check(!!sameMountPush && sameMountPush.enabled === false,
+        '同挂载里重推的还是用户拨的那个值（内存里那一份真值）。', JSON.stringify(p.logSet.slice(-2)))
+      check(p.logSet.length - pushesAtToast <= 5,
+        '重推不会自续成打转（每次渲染最多一次，这里给一个上界）。', String(p.logSet.length - pushesAtToast))
+      const boxC = p.boxOf(a.container)
+      check(!!boxC && boxC.checked === false, '同一趟挂载里开关也停在用户拨的那个值上。', String(!!boxC && boxC.checked))
       try { a.root.unmount() } catch (e) {}
     }
   }

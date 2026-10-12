@@ -24,12 +24,15 @@ export     const SettingsPage = (props) => {
       // #951：开关落定后行内闪光（成功绿跟提示 ok 同色，失败琥珀跟提示 warn 同色，半秒自退）
       const [dbgFlash, setDbgFlash] = React.useState('')
       const [lastExport, setLastExport] = React.useState(null)
-      // 宿主那份副本没跟上时的自愈口子（#1012 第 8 条）：这一页每次挂载跑一次 —— 设置分组每次打开都由宿主重新挂载这一页，
-      //   所以这就是「下一次打开设置页」那一趟；只在这一份确实没接上时才推（判据在 kernel/settings-debug.js 的导出件里）。
-      //   为什么不挂在「设置文档到手」那一趟上：那趟订阅是一次性的（settings-view-state.js 整批清空），一个会话只到手一次。
+      // 宿主那份副本没跟上时的自愈口子（#1012 第 8 条）：这一页每次重新画一遍就跑一次 —— 故意不写依赖数组。
+      //   为什么不写：DSH 宿主那侧的设置对话框不在本仓，「设置分组每次打开都会重新挂载这一页」只是本仓的推断、
+      //   核不了；若它其实是一直挂着，只挂载跑一次的口子在同一次挂载里就没有第二次机会，文案里那句
+      //   「下一次机会会自动重推」会变成做不到的承诺。改成每次渲染都跑，页面重画一遍就够。
+      //   为什么不会打转：这个口子只在确实没接上时才推，推完不改任何 state（失败只记一行日志），它自己引不出
+      //   下一次渲染；渲染次数由用户操作与既有状态更新决定，所以推的次数与渲染次数同阶，不会自续。
       React.useEffect(function () {
         try { if (typeof settingsDebugRetryHost === 'function') settingsDebugRetryHost() } catch (eRetry) {}
-      }, [])
+      })
       const dbgChecked = (function () {
         try { if (typeof logSwitch !== 'undefined' && logSwitch) return logSwitch.enabled === true } catch (eDbg) {}
         try { return !!readLocalDebugSwitch().enabled } catch (eDbg2) { return false }
