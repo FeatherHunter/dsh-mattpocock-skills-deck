@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>15 张讨论票的相互影响（#1010）</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #ffffff; color: #1a202c;
+    font-family: "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", sans-serif; }
+  .page { padding: 18px 20px 40px; max-width: 1700px; }
+  h1 { font-size: 24px; margin: 0 0 6px; }
+  .sub { font-size: 13.5px; color: #4a5568; line-height: 1.7; margin: 0 0 10px; }
+  .hint { display: inline-block; background: #ebf8ff; border: 1px solid #bee3f8; color: #2c5282;
+    border-radius: 6px; padding: 4px 10px; font-size: 13px; margin-bottom: 12px; }
+  .wrap { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+  .canvas { flex: 0 0 auto; border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; }
+  .panel { flex: 1 1 400px; min-width: 380px; max-width: 520px; padding: 14px 18px;
+    border: 1px solid #e2e8f0; border-radius: 10px; background: #fbfdff; }
+  .panel h2 { font-size: 15px; margin: 16px 0 6px; color: #1a365d; }
+  .panel h2:first-child { margin-top: 0; }
+  .panel p, .panel li { font-size: 13px; line-height: 1.7; color: #2d3748; margin: 5px 0; }
+  .panel ul { margin: 4px 0 4px 18px; padding: 0; }
+  code { background: #f1f5f9; padding: 1px 4px; border-radius: 3px; font-size: 12.5px; }
+  table { border-collapse: collapse; width: 100%; margin-top: 4px; }
+  td, th { border: 1px solid #e2e8f0; font-size: 12.5px; padding: 4px 6px; text-align: left; vertical-align: top; }
+  th { background: #f1f5f9; font-weight: 600; }
+  .t1 { color: #2b6cb0; font-weight: 600; }
+  .t2 { color: #c05621; font-weight: 600; }
+  .t3 { color: #718096; font-weight: 600; }
+  .rel { border-left: 3px solid #cbd5e0; padding: 6px 10px; margin: 8px 0; background: #fff; border-radius: 0 6px 6px 0; }
+  .rel.pre { border-left-color: #2b6cb0; }
+  .rel.mix { border-left-color: #dd6b20; }
+  .rel.ord { border-left-color: #a0aec0; }
+  .rel b { font-size: 13.5px; }
+  .rel span { display: block; font-size: 12.5px; color: #4a5568; margin-top: 3px; line-height: 1.6; }
+  .node { cursor: pointer; }
+  .node:hover .box { filter: brightness(0.96); }
+  .edge { transition: opacity .15s ease, stroke-width .15s ease; }
+  .edge.dim { opacity: .10; }
+  .edge.hi { stroke-width: 5; opacity: 1; }
+  .nlabel { pointer-events: none; }
+  footer { margin-top: 22px; font-size: 12.5px; color: #718096; line-height: 1.8; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>15 张讨论票的相互影响</h1>
+  <p class="sub">
+    每张地图一张讨论票。<b>箭头表示「谁是谁的前提」</b>，不是开发票的先后——开发票的先后已经由跟踪器里的阻塞边表达，
+    而讨论层没有边可依：跟踪器的 <code>blocked_by</code> 只能看出有没有人占着同一批文件，
+    看不出另一张讨论票的结论会不会改写这张的前提。所以这张图单独画讨论层的关系。
+  </p>
+  <div class="hint">把鼠标移到方框上：与它相关的关系高亮，其余淡出。点一下方框：右栏显示这张票的全部关系。</div>
+
+  <div class="wrap">
+    <div class="canvas">
+      <svg id="g" width="1180" height="800" viewBox="0 0 1180 800" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arrowBlue" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+            <path d="M0,0 L8,3 L0,6 z" fill="#2b6cb0"/>
+          </marker>
+          <marker id="arrowGray" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+            <path d="M0,0 L8,3 L0,6 z" fill="#a0aec0"/>
+          </marker>
+          <marker id="arrowOrange" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+            <path d="M0,0 L8,3 L0,6 z" fill="#dd6b20"/>
+          </marker>
+          <marker id="arrowOrangeStart" markerWidth="10" markerHeight="10" refX="1" refY="3" orient="auto">
+            <path d="M8,0 L0,3 L8,6 z" fill="#dd6b20"/>
+          </marker>
+        </defs>
+
+        <text x="26" y="46" font-size="22" font-weight="700" fill="#1a202c">15 张讨论票的相互影响（2026-10-12）</text>
+        <text x="26" y="70" font-size="13" fill="#718096">每张地图一张讨论票；箭头是「谁是谁的前提」，不是开发票的先后。</text>
+
+        <!-- 图例 -->
+        <g transform="translate(700,26)">
+          <line x1="0" y1="12" x2="34" y2="12" stroke="#2b6cb0" stroke-width="2.5" marker-end="url(#arrowBlue)"/>
+          <text x="42" y="16" font-size="13" fill="#2d3748">决策前提（先定箭头起点那张）</text>
+          <path d="M0,42 Q17,22 34,42" stroke="#dd6b20" stroke-width="3.5" fill="none" marker-end="url(#arrowOrange)" marker-start="url(#arrowOrangeStart)"/>
+          <text x="42" y="46" font-size="13" fill="#2d3748">交叠决策（同一问题，必须一起对口径）</text>
+          <line x1="0" y1="72" x2="34" y2="72" stroke="#a0aec0" stroke-width="2.5" stroke-dasharray="6 5" marker-end="url(#arrowGray)"/>
+          <text x="42" y="76" font-size="13" fill="#2d3748">只有干活排先后，讨论可以并发</text>
+        </g>
+
+        <!-- 01 机制前提带 -->
+        <rect x="8" y="96" width="78" height="620" rx="8" fill="#fffbea" stroke="#f0c36d"/>
+        <text x="34" y="406" font-size="13" fill="#975a16" text-anchor="middle" transform="rotate(-90 34 406)">01 的机制结论已定，对每张图生效</text>
+
+        <!-- 实线：决策前提 -->
+        <g stroke="#2b6cb0" stroke-width="2.2" fill="none" marker-end="url(#arrowBlue)">
+          <line class="edge" data-a="M01" data-b="M02" x1="562" y1="147" x2="562" y2="188"/>
+          <line class="edge" data-a="M02" data-b="M03" x1="562" y1="242" x2="192" y2="293"/>
+          <line class="edge" data-a="M02" data-b="M04" x1="562" y1="242" x2="397" y2="293"/>
+          <line class="edge" data-a="M02" data-b="M05" x1="562" y1="242" x2="602" y2="293"/>
+          <line class="edge" data-a="M02" data-b="M06" x1="562" y1="242" x2="807" y2="293"/>
+          <line class="edge" data-a="M02" data-b="M07" x1="562" y1="242" x2="1012" y2="293"/>
+          <path class="edge" data-a="M07" data-b="M08" d="M1012,347 V380 H397 V408"/>
+          <line class="edge" data-a="M11" data-b="M12" x1="490" y1="551" x2="508" y2="551"/>
+          <path class="edge" data-a="M03" data-b="M14" d="M192,347 V666 H303"/>
+          <path class="edge" data-a="M05" data-b="M15" d="M695,352 H1148 V666 H697"/>
+          <line class="edge" data-a="M12" data-b="M13" x1="695" y1="551" x2="918" y2="551"/>
+          <path class="edge" data-a="M14" data-b="M13" d="M397,692 V725 H1012 V579"/>
+        </g>
+        <!-- 虚线：只有执行顺序 -->
+        <g stroke="#a0aec0" stroke-width="2.2" fill="none" stroke-dasharray="6 5" marker-end="url(#arrowGray)">
+          <line class="edge" data-a="M10" data-b="M11" x1="807" y1="462" x2="807" y2="495"/>
+          <line class="edge" data-a="M10" data-b="M11" x1="807" y1="495" x2="397" y2="495"/>
+          <line class="edge" data-a="M10" data-b="M11" x1="397" y1="495" x2="397" y2="523"/>
+          <line class="edge" data-a="M09" data-b="M10" x1="695" y1="436" x2="713" y2="436"/>
+        </g>
+
+        <!-- 交叠：橙色双箭头 -->
+        <g stroke="#dd6b20" stroke-width="3.5" fill="none" marker-end="url(#arrowOrange)" marker-start="url(#arrowOrangeStart)">
+          <path class="edge" data-a="M03" data-b="M04" d="M287,295 Q296,266 303,295"/>
+          <path class="edge" data-a="M04" data-b="M05" d="M492,295 Q501,266 508,295"/>
+          <path class="edge" data-a="M05" data-b="M06" d="M697,295 Q706,266 713,295"/>
+          <path class="edge" data-a="M06" data-b="M07" d="M902,295 Q911,266 918,295"/>
+          <path class="edge" data-a="M08" data-b="M09" d="M492,410 Q501,381 508,410"/>
+          <path class="edge" data-a="M14" data-b="M15" d="M492,640 Q501,611 508,640"/>
+        </g>
+        <!-- 02 ↔ 08 ↔ 09：三方同一批问题 -->
+        <g stroke="#dd6b20" stroke-width="2.6" fill="none" stroke-dasharray="7 5" marker-end="url(#arrowOrange)">
+          <path class="edge" data-a="M02" data-b="M09" d="M710,216 H1162 V436 H697"/>
+        </g>
+        <text x="1160" y="404" font-size="12.5" fill="#c05621" text-anchor="end">02 ↔ 08 ↔ 09：三方同一批问题</text>
+
+        <!-- 连线标签 -->
+        <g font-size="12.5" fill="#4a5568" class="nlabel">
+          <text x="572" y="172">机制前提</text>
+          <text x="614" y="268">契约词汇</text>
+          <text x="830" y="392">判定 → 真后端</text>
+          <text x="700" y="497">底座接口</text>
+          <text x="700" y="543">引用点清单</text>
+          <text x="198" y="452">上报落点</text>
+          <text x="1128" y="500" text-anchor="end">区块写在壳里</text>
+          <text x="930" y="543">收口判据</text>
+          <text x="238" y="510" fill="#c05621">11 与 01 的 #1094 是同一件事</text>
+        </g>
+
+        <!-- 节点 -->
+        <g id="nodes" font-family="Microsoft YaHei, sans-serif">
+          <g class="node" data-id="M01">
+            <rect class="box" x="470" y="95" width="240" height="52" rx="9" fill="#e6fffa" stroke="#38a169" stroke-width="2"/>
+            <text x="590" y="118" font-size="15" font-weight="700" fill="#22543d" text-anchor="middle">01 构建与测试基建 ✓</text>
+            <text x="590" y="137" font-size="12.5" fill="#2f855a" text-anchor="middle">讨论票 #1014 · 已完成</text>
+          </g>
+          <g class="node" data-id="M02">
+            <rect class="box" x="470" y="190" width="240" height="52" rx="9" fill="#ebf8ff" stroke="#2b6cb0" stroke-width="2"/>
+            <text x="590" y="213" font-size="15" font-weight="700" fill="#1a365d" text-anchor="middle">02 契约</text>
+            <text x="590" y="232" font-size="12.5" fill="#2b6cb0" text-anchor="middle">讨论票 #1025 · 现在可开</text>
+          </g>
+          <g class="node" data-id="M03">
+            <rect class="box" x="100" y="295" width="185" height="52" rx="9" fill="#ffffff" stroke="#4a5568" stroke-width="1.8"/>
+            <text x="192" y="317" font-size="14" font-weight="700" fill="#1a202c" text-anchor="middle">03 注册与装配</text>
+            <text x="192" y="335" font-size="12" fill="#718096" text-anchor="middle">#1030</text>
+          </g>
+          <g class="node" data-id="M04">
+            <rect class="box" x="305" y="295" width="185" height="52" rx="9" fill="#ffffff" stroke="#4a5568" stroke-width="1.8"/>
+            <text x="397" y="317" font-size="14" font-weight="700" fill="#1a202c" text-anchor="middle">04 九个工具入口</text>
+            <text x="397" y="335" font-size="12" fill="#718096" text-anchor="middle">#1034</text>
+          </g>
+          <g class="node" data-id="M05">
+            <rect class="box" x="510" y="295" width="185" height="52" rx="9" fill="#ffffff" stroke="#4a5568" stroke-width="1.8"/>
+            <text x="602" y="317" font-size="14" font-weight="700" fill="#1a202c" text-anchor="middle">05 工具壳</text>
+            <text x="602" y="335" font-size="12" fill="#718096" text-anchor="middle">#1038</text>
+          </g>
+          <g class="node" data-id="M06">
+            <rect class="box" x="715" y="295" width="185" height="52" rx="9" fill="#ffffff" stroke="#4a5568" stroke-width="1.8"/>
+            <text x="807" y="317" font-size="14" font-weight="700" fill="#1a202c" text-anchor="middle">06 注册表与顶层</text>
+            <text x="807" y="335" font-size="12" fill="#718096" text-anchor="middle">#1043</text>
+          </g>
+          <g class="node" data-id="M07">
+            <rect class="box" x="920" y="295" width="185" height="52" rx="9" fill="#ffffff" stroke="#4a5568" stroke-width="1.8"/>
+            <text x="1012" y="317" font-size="14" font-weight="700" fill="#1a202c" text-anchor="middle">07 识别判定</text>
+            <text x="1012" y="335" font-size="12" fill="#718096" text-anchor="middle">#1047</text>
+          </g>
+          <g class="node" data-id="M08">
+            <rect class="box" x="305" y="410" width="185" height="52" rx="9" fill="#fff5f5" stroke="#c53030" stroke-width="1.8"/>
+            <text x="397" y="432" font-size="14" font-weight="700" fill="#742a2a" text-anchor="middle">08 GitHub 房</text>
+            <text x="397" y="450" font-size="12" fill="#c53030" text-anchor="middle">#1051</text>
+          </g>
+          <g class="node" data-id="M09">
+            <rect class="box" x="510" y="410" width="185" height="52" rx="9" fill="#fff5f5" stroke="#c53030" stroke-width="1.8"/>
+            <text x="602" y="432" font-size="14" font-weight="700" fill="#742a2a" text-anchor="middle">09 Markdown 房</text>
+            <text x="602" y="450" font-size="12" fill="#c53030" text-anchor="middle">#1057</text>
+          </g>
+          <g class="node" data-id="M10">
+            <rect class="box" x="715" y="410" width="185" height="52" rx="9" fill="#f7fafc" stroke="#a0aec0" stroke-width="1.8"/>
+            <text x="807" y="432" font-size="14" font-weight="700" fill="#4a5568" text-anchor="middle">10 GitLab 房</text>
+            <text x="807" y="450" font-size="12" fill="#a0aec0" text-anchor="middle">#1063 · 完全独立</text>
+          </g>
+          <g class="node" data-id="M11">
+            <rect class="box" x="305" y="525" width="185" height="52" rx="9" fill="#ffffff" stroke="#4a5568" stroke-width="1.8"/>
+            <text x="397" y="547" font-size="14" font-weight="700" fill="#1a202c" text-anchor="middle">11 最底层</text>
+            <text x="397" y="565" font-size="12" fill="#718096" text-anchor="middle">#1067</text>
+          </g>
+          <g class="node" data-id="M12">
+            <rect class="box" x="510" y="525" width="185" height="52" rx="9" fill="#ffffff" stroke="#4a5568" stroke-width="1.8"/>
+            <text x="602" y="547" font-size="14" font-weight="700" fill="#1a202c" text-anchor="middle">12 宿主接线</text>
+            <text x="602" y="565" font-size="12" fill="#718096" text-anchor="middle">#1073</text>
+          </g>
+          <g class="node" data-id="M13">
+            <rect class="box" x="920" y="525" width="185" height="52" rx="9" fill="#f0fff4" stroke="#38a169" stroke-width="1.8"/>
+            <text x="1012" y="547" font-size="14" font-weight="700" fill="#22543d" text-anchor="middle">13 收口</text>
+            <text x="1012" y="565" font-size="12" fill="#2f855a" text-anchor="middle">#1097 · 汇点</text>
+          </g>
+          <g class="node" data-id="M14">
+            <rect class="box" x="305" y="640" width="185" height="52" rx="9" fill="#faf5ff" stroke="#805ad5" stroke-width="1.8"/>
+            <text x="397" y="662" font-size="14" font-weight="700" fill="#44337a" text-anchor="middle">14 在办票可见性</text>
+            <text x="397" y="680" font-size="12" fill="#805ad5" text-anchor="middle">#1081</text>
+          </g>
+          <g class="node" data-id="M15">
+            <rect class="box" x="510" y="640" width="185" height="52" rx="9" fill="#faf5ff" stroke="#805ad5" stroke-width="1.8"/>
+            <text x="602" y="662" font-size="14" font-weight="700" fill="#44337a" text-anchor="middle">15 进度与用户原话</text>
+            <text x="602" y="680" font-size="12" fill="#805ad5" text-anchor="middle">#1089</text>
+          </g>
+        </g>
+      </svg>
+    </div>
+
+    <div class="panel">
+      <div id="detail">
+        <h2>怎么看这张图</h2>
+        <p><span class="t1">实线</span>：决策前提——B 的结论要用 A 的结论当词汇、判据或机制，先定 A。</p>
+        <p><span class="t2">橙粗线</span>：交叠决策——同一个问题被两张图都碰到，一张单独定不了，必须一起对口径。</p>
+        <p><span class="t3">虚线</span>：只有干活排先后，讨论层互不引用，可以并发。</p>
+        <h2>一句话结论</h2>
+        <p>只有 <b>01 构建与测试基建</b>（#1014）是所有人的机制前提，它已经定完；
+           现在能开的是 <b>02 契约</b>（#1025，前提已齐）与 <b>10 GitLab 房</b>（#1063，完全独立）；其余 12 张按六批推进。</p>
+        <h2>讨论批次</h2>
+        <table>
+          <tr><th>批</th><th>讨论票</th><th>为什么此时</th></tr>
+          <tr><td>1</td><td>01 #1014 ✓</td><td>已完成：Q1–Q12 定稿、规格单 #1098 已挂上</td></tr>
+          <tr><td>2</td><td>02 #1025 ＋ 10 #1063</td><td>02 前提已齐；10 独立，可任意插入</td></tr>
+          <tr><td>3</td><td>03 → 04 → 05</td><td>相邻交叠，滚动开，每次只与邻居对口径</td></tr>
+          <tr><td>4</td><td>06 → 07</td><td>依赖 05 划出的纯度线与裁决位置</td></tr>
+          <tr><td>5</td><td>08 ↔ 09（一对同开）＋ 11 ＋ 12</td><td>两房与 02 是三方同一批问题</td></tr>
+          <tr><td>6</td><td>13、14、15</td><td>15 依赖 05，14 依赖 03 与 12，收口最后</td></tr>
+        </table>
+        <p style="color:#975a16;margin-top:8px">同一时间只开 1–2 张：所有讨论都要人本人回答，人的注意力是这条流水线上唯一的瓶颈。</p>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    完整分析见 <code>research/1010-discussion-graph.md</code>（提交 12601da2）。本页与那份文件是同一份内容，区别只是这里可以点。
+    核对日期 2026-10-12；票面若有变动，以 GitHub 上的票为准。
+  </footer>
+</div>
+
+<script>
+// 关系表：与图上的连线一一对应。t 是关系种类，x 是一句话说明。
+const REL = [
+  {a:'M01', b:'M02', t:'pre', x:'01 定下的机制（Node 下限、装载钩子、门禁改读 .ts、类型检查与棘轮、产物落点、金标准夹具、日志门禁、目录归位）是契约门禁与房间实现的前提。01 已定稿，这条前提已经满足。'},
+  {a:'M02', b:'M03', t:'pre', x:'契约是对外承诺；注册与装配要知道工具调用契约的哪些部分、装配时递入什么。'},
+  {a:'M02', b:'M04', t:'pre', x:'九个工具对外的输入输出形状按契约写，工具入口先定死形状再谈实现。'},
+  {a:'M02', b:'M05', t:'pre', x:'共用壳调用跟踪器的方式由契约定：调哪个操作、拿到什么结果、错误怎么分类。'},
+  {a:'M02', b:'M06', t:'pre', x:'裁决与选后端用到的能力清单来自契约（哪些操作可用、哪些后端支持）。'},
+  {a:'M02', b:'M07', t:'pre', x:'判定结果要能填进契约要求的字段，判定产出的证据形状由契约约束。'},
+  {a:'M02', b:'M09', t:'mix', x:'三方同一批问题：契约要收的 13 处多余属性、8 处语义差异，正是两房按契约实现时暴露出来的。02、08、09 必须一起对口径。'},
+  {a:'M07', b:'M08', t:'pre', x:'判定选中真后端之后，契约第一次被真实后端压：读写主路径按契约实现时暴露的问题要回流到 02。'},
+  {a:'M08', b:'M09', t:'mix', x:'两房语义差异谁让步：Markdown 房六处丢可选项、无写前版本校验、无写后环检（只有自环），该由契约放宽还是由 GitHub 房补齐，一张图单独定不了。'},
+  {a:'M09', b:'M10', t:'ord', x:'只有干活排先后：GitLab 房只改名不转码，排在两房之后，讨论层不引用两房的结论。'},
+  {a:'M10', b:'M11', t:'ord', x:'只有干活排先后：GitLab 改名收尾后才动最底层（进程闸、账本、快照）。'},
+  {a:'M11', b:'M12', t:'pre', x:'底座的接口先定，宿主接线才知道接什么：进程闸、账本与快照四件的形状决定接线方式。'},
+  {a:'M03', b:'M14', t:'pre', x:'上报与认领的落点在注册与工具那一段，工作状态模型要用它给出的事实。'},
+  {a:'M05', b:'M15', t:'pre', x:'票正文区块写在壳里（plan.js 的骨架与 deckIssuePatch 的进度改写），区块怎么定受它约束。'},
+  {a:'M12', b:'M13', t:'pre', x:'收口的旧票结账要动接线的引用点清单，两张要一起看。'},
+  {a:'M14', b:'M13', t:'pre', x:'能力图的结论进收口判据：在办状态的显示方式定下来之后，收口才知道怎么算做完。'},
+  {a:'M03', b:'M04', t:'mix', x:'交叠：争同一份装配文件 src/host/platform/deckToolsAssembly.js，两条线要一起定。'},
+  {a:'M04', b:'M05', t:'mix', x:'交叠：实测九个工具都 import 共用壳（shell 9/9、session-resolve 9/9、call-scope 9/9、edges 6/9、plan 3/9、key-lock 2/9、plan-store 1/9），对外形状与内部实现是同一条缝的两面。'},
+  {a:'M05', b:'M06', t:'mix', x:'交叠：src/shared/deck-tools/shell.js:176-180 硬要求装配方递入 d.decideBackend，缺席就整条工具不可用。这条硬依赖正好压在纯度线（05）与裁决能力（06）的交界上。'},
+  {a:'M06', b:'M07', t:'mix', x:'交叠：裁决要用判定给出的证据；判定要「可解释」到什么程度，由裁决那一侧的需要决定。'},
+  {a:'M14', b:'M15', t:'mix', x:'交叠：两张都往票正文写——15 决定区块叫什么、怎么写，14 要显示的「在办」状态落在上面。'},
+  {a:'M10', b:'M10', t:'free', x:'完全独立：只借 02 的契约词汇，不争文件、不争同一决策，也不等两房的语义结论，随时可以开。'},
+  {a:'M11', b:'M01', t:'mix', x:'交叠：#1067 的题目「怎么判断哪些行被 deck 调到」与地图 01 的 #1094「一次调用全程索引第一版」是同一件事的两面。01 的结论已定，11 直接用，不要另立一套。'}
+];
+
+const NODE = {
+  M01:{n:'#1014', t:'01 构建与测试基建', s:'已完成'}, M02:{n:'#1025', t:'02 契约', s:'现在可开'},
+  M03:{n:'#1030', t:'03 注册与装配', s:''},        M04:{n:'#1034', t:'04 九个工具入口', s:''},
+  M05:{n:'#1038', t:'05 工具壳', s:''},            M06:{n:'#1043', t:'06 注册表与跟踪器顶层', s:''},
+  M07:{n:'#1047', t:'07 识别判定', s:''},          M08:{n:'#1051', t:'08 GitHub 房', s:''},
+  M09:{n:'#1057', t:'09 Markdown 房', s:''},       M10:{n:'#1063', t:'10 GitLab 房', s:'完全独立'},
+  M11:{n:'#1067', t:'11 最底层', s:''},            M12:{n:'#1073', t:'12 宿主接线', s:''},
+  M13:{n:'#1097', t:'13 收口', s:'汇点'},          M14:{n:'#1081', t:'14 会话与在办票可见性', s:''},
+  M15:{n:'#1089', t:'15 正文进度与用户原话', s:''}
+};
+
+const NAME = { pre:'决策前提', mix:'交叠决策', ord:'只有执行顺序', free:'完全独立' };
+const edges = Array.from(document.querySelectorAll('.edge'));
+const nodes = Array.from(document.querySelectorAll('.node'));
+const detail = document.getElementById('detail');
+const intro = detail.innerHTML;
+
+function edgesOf(id) {
+  return REL.filter(r => r.a === id || r.b === id || (r.a === id && r.b === id));
+}
+
+nodes.forEach(node => {
+  const id = node.dataset.id;
+  node.addEventListener('mouseenter', () => {
+    edges.forEach(e => {
+      const hit = e.dataset.a === id || e.dataset.b === id;
+      e.classList.toggle('hi', hit);
+      e.classList.toggle('dim', !hit);
+    });
+  });
+  node.addEventListener('mouseleave', () => {
+    edges.forEach(e => e.classList.remove('hi', 'dim'));
+  });
+  node.addEventListener('click', () => {
+    const me = NODE[id];
+    const rows = edgesOf(id).map(r => {
+      const other = (r.a === id && r.b === id) ? null : (r.a === id ? r.b : r.a);
+      const dir = (r.a === id && r.b === id) ? '本图自身'
+                 : (r.a === id ? '这张影响 → ' + NODE[r.b].t + ' ' + NODE[r.b].n
+                                : NODE[r.a].t + ' ' + NODE[r.a].n + ' → 影响这张');
+      const cls = r.t;
+      const title = NAME[r.t] + '：' + dir;
+      return '<div class="rel ' + cls + '"><b>' + title + '</b><span>' + r.x + '</span></div>';
+    }).join('');
+    detail.innerHTML = '<h2>' + me.t + '（讨论票 ' + me.n + (me.s ? ' · ' + me.s : '') + '）</h2>'
+      + (rows || '<p>（这张票在讨论层没有任何关系。）</p>')
+      + '<p style="margin-top:12px"><a href="#" id="back">← 回到总览</a></p>';
+    document.getElementById('back').addEventListener('click', ev => {
+      ev.preventDefault(); detail.innerHTML = intro;
+    });
+  });
+});
+</script>
+</body>
+</html>
