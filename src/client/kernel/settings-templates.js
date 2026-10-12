@@ -23,11 +23,9 @@
  *   格保留旧键那一份。理由是核的语义（config-store-core/src/settings.ts 第 161 行旁那段注释）：空串表示
  *   「这一格用默认文本」，不是「用户选了空」；拿空串去顶掉用户旧存档里改过的模板，等于把人家改过的白改。
  *
- * 写这一侧只有一条真实路径：config.js 的 migrateStartCfg 把旧存档 dsws.startCfg 的 custom 落到
- *   templates.execute（配置页那个模板编辑入口早在 #519 就删了，没有第二个写入口）。它的时间点很特别：
- *   模块加载时就执行，而那一刻本片还没执行完（拼接次序上本片在它之后，const 还在暂时性死区里），
- *   所以它只把值写进内存并留下待办（config.js 的 tplMigratePending）；本片末尾接上以后立刻补这一趟，
- *   此刻文档多半还在路上，这一笔正好进待写队列，文档一到手就落进文件的 templates 节。
+ * 写这一侧只有一条真实路径：config.js 的 saveTemplates（那个冻结导出名，它把整份交给本片的
+ *   settingsTemplatesSaveAll；配置页那个模板编辑入口早在 #519 就删了，没有第二个写入口）。
+ *   更旧的存档 dsws.startCfg 的迁移已按 #1012 定案第 11 条连同迁移逻辑一起删除，本片不再有待办要补。
  *
  * 队列里 templates 那几笔与界面偏好那一族同形：没有工作区路径，只有格名。记号固定为
  *   \u0000templates\u0000 + 模板 id（工作区路径里不可能出现 \u0000，两族记号不会撞上）；
@@ -151,13 +149,7 @@
         return took
       } catch (e) { return false }
     }
-    // 初始化两件事（与 kernel/settings-ui.js 末尾同例）：
-    //   一、把「文件到手就把文件那一份搬进内存」登记上去（文档早已到手时它会立刻调一次）。
-    //   二、接上 config.js 那两个待办：先装上 saveTemplates 的接手人，再补写那一趟 —— 旧 dsws.startCfg 的
-    //      custom 在 config.js 加载时只写进了内存（templates.execute），写这一趟留在这里（那一刻本片还没
-    //      执行完，它直接调本片会撞上暂时性死区）。此刻 settingsViewLoad 多半刚把文档问出去（status 是
-    //      loading），所以这一笔进的是待写队列，文档一到手就落进文件的 templates 节；文档问不到则会由
-    //      本片上面的兜底整份写回旧键。
+    // 初始化一件事（与 kernel/settings-ui.js 末尾同例）：把「文件到手就把文件那一份搬进内存」登记上去
+    //   （文档早已到手时它会立刻调一次），同时装上 config.js 那个冻结导出名 saveTemplates 的接手人。
     try { viewFlagSubscribe(settingsTemplatesAdoptFromDoc) } catch (e0) {}
     try { tplSaveAllToSettings = settingsTemplatesSaveAll } catch (e1) {}
-    try { if (tplMigratePending) { tplMigratePending = false; saveTemplates() } } catch (e2) {}

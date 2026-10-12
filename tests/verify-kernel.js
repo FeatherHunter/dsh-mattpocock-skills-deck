@@ -24,7 +24,9 @@ const MODULES = [
   //   常驻日志必须落在内核文件里（渲染目录写日志是一张点名白名单），而 store-derived.js 已经贴着 350 行上限。
   { name: 'healthCheck', file: 'health-check', exports: ['healthCheckCountOf', 'healthCheckVisible', 'healthCheckSubjectOf', 'healthCheckLogEvent', 'openHealthCheck'] },
   { name: 'prompts', exports: ['PROMPTS', 'promptLang', 'promptText', 'completePrompt', 'FIXATE_PROMPT'] },
-  { name: 'config', exports: ['CFG_KEY', 'cfg', 'templates', 'migrateStartCfg', 'TPL_DEFAULT', 'renderTemplate', 'validateTemplate'] },
+  // #1012：旧配置存档 dsws.cfg（连同 CFG_KEY/cfg/saveCfg）与更旧的 dsws.startCfg（连同 migrateStartCfg）
+  //   已按维护者定案删除，这里那三个名字随之从清单里去掉；模板那几项照旧。
+  { name: 'config', exports: ['templates', 'saveTemplates', 'tplText', 'TPL_DEFAULT', 'renderTemplate', 'validateTemplate'] },
   // #1012：工作区配置文件那一行（`workspaceFileNoteOf` 把宿主回执翻成状态栏那句人话、
   //   `workspaceFileNoteEl` 生成那一行节点；两个名字一起记进白名单，逐条量它们的门禁在 tests/verify-workspace-file-note.js）。
   { name: 'storePrefs', file: 'store-prefs', exports: ['DEFAULT_PANEL_H', 'listPrefs', 'saveListPrefs', 'labelClicks', 'saveLabelClicks', 'NOREPO_DISMISS_PREFIX', 'cwdHash', 'noRepoDismissKey', 'isNoRepoDismissed', 'setNoRepoDismissed', 'cwdBasename', 'isNoRepoNameValid', 'ensureNoRepoCard', 'setActiveMap', 'clearActiveMap', 'setActiveIssue', 'clearActiveDetail', 'ISSUE_CACHE_TTL', 'selectionByCwd', 'repositoryByCwd', 'SELECTION_BY_CWD_KEY', 'BANNER_FOLD_KEY', 'bannerFoldByCwd', 'isBannerFolded', 'setBannerFolded', 'getCachedSelection', 'setCachedSelection', 'userHintOf', 'keepUserPick', 'userPickSelection', 'adoptBoundRev', 'workspaceFileNoteOf', 'workspaceFileNoteEl', 'getCachedRepository', 'setCachedRepository', 'SETUP_LAYOUT_BY_CWD_KEY', 'setupLayoutByCwd', 'getCachedSetupLayout', 'setCachedSetupLayout', 'migrateCachedChoiceToKey'] },

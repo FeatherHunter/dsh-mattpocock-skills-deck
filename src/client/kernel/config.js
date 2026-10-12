@@ -6,24 +6,11 @@
  * 原位），与 ctx.js/seam 同模式，一源两物，src 零复制。
  * 接口冻结清单见 docs/architecture/kernel-contract.md（G3 · #91 拍板）。
  */
-    export const CFG_KEY = 'dsws.cfg'
-    // 功能配置（用户拍板 2026-08-14：外观图标/动作词由设计定死，不提供配置项）
-    // 2026-09-21：原来这里还有一个「打开位置」（openIn，DSH 右侧边栏 与 BetterSidebar 二选一）配置项，整项已删。
-    //   现在面板只有一条路：本插件自己注册一个类型、直接开进 DSH 原生右侧边栏，不依赖任何第三方插件，
-    //   所以「用哪个入口打开」不再是一个可以选的东西，设置页那一栏也随之去掉。
-    //   本地存档里若还留着 openIn 的旧值，读的时候不再读它；下次写存档时它自然被覆写掉，不需要迁移。
-    export const cfg = (function () {
-      const d = { withWayfinder: true }
-      try {
-        const raw = localStorage.getItem(CFG_KEY)
-        // 存档里已经没有本插件要读的键了。这里仍解析一次：存档被写坏时照旧留一行告警，内容本身不再参与配置。
-        if (raw) JSON.parse(raw)
-        return d
-      } catch (e) { try { log('warn', 'storage.fail', { key: CFG_KEY, op: 'read' }) } catch (eL) {} }
-      return d
-    })()
-    export const saveCfg = function () { try { localStorage.setItem(CFG_KEY, JSON.stringify(cfg)) } catch (e) { try { log('warn', 'storage.fail', { key: CFG_KEY, op: 'write' }) } catch (eL) {} } }
-    // 模板存储（T2b 扩展全部动作；T2a 先承载 execute = 旧 custom）
+    // #1012（维护者 2026-10-11 定案，第 10 条）：旧配置存档 dsws.cfg 整块删除，连读取一起。
+    //   它历史上存过「打开位置（DSH 右侧边栏 / BetterSidebar 二选一）」与「是否带 wayfinder 技能集」这类开关；
+    //   改动前插件已经一个字都不读它，只剩「解析一次、坏档时留一行告警」这层壳。留着壳只会让后来人
+    //   以为它还有用，所以按定案把键名常量、内存值、写回函数一起删掉。
+    // 模板存储（T2b 扩展全部动作；T2a 那个 execute = 旧 custom 的迁移已按 #1012 定案删除）
     export const TPL_KEY = 'dsws.templates'
     // #519 落地 A：配置页模板编辑入口已删，只删人改入口。已存模板值按“忽略旧模板”处理：
     // 读取仍合并旧键（旧自定义值继续对行级快捷按钮生效），设置页不再调用 saveTemplates 覆盖，
@@ -52,8 +39,6 @@
     //   排在本片之后，加载这一刻它还没执行完，const 还在暂时性死区里，本片不能直接调它）。装上之前为 null，
     //   saveTemplates 会照老办法整份写旧键。
     let tplSaveAllToSettings = null
-    // 旧存档 dsws.startCfg 里那一笔 custom 的待办：见下面 migrateStartCfg 与 settings-templates.js 末尾那段。
-    let tplMigratePending = false
     // 把整份模板交给设置文件那条路：与文件不同的每一格交给同一个待写队列（逐格判法与理由见
     //   kernel/settings-templates.js 的 settingsTemplatesSaveAll）。返回值是给调用方看的两种意思：
     //   true ＝ 交给新路了（可能还在防抖窗口里没落盘），调用方不要再写旧键；
@@ -65,28 +50,11 @@
       tplLegacyWriteAll()
       return false
     }
-    // 迁移：旧 dsws.startCfg（{withWayfinder, custom}）→ cfg.withWayfinder + 设置文件 templates 节的 execute，
-    //   成功后清旧 key（失败保留，下次再试）。
-    //   模板那一笔的落点是设置文件，不是旧键：本片在拼接次序上排在设置文件那一族之前，加载这一刻那一片还没
-    //   执行完（直接调它会撞上暂时性死区当场抛错），所以这里只把值写进内存（templates.execute）并留下待办
-    //   （tplMigratePending），由 kernel/settings-templates.js 末尾接上以后立刻补写这一趟 —— 文档那一刻多半
-    //   还在路上，这一笔正好进待写队列。旧 key dsws.startCfg 的删除不依赖这下半趟是否落盘：与改动前一样，
-    //   只要求上面这一次读与解析没有抛错（写旧存档本身当时也是吞错的）。
-    export const migrateStartCfg = function () {
-      try {
-        const raw = localStorage.getItem('dsws.startCfg')
-        if (!raw) return
-        const old = JSON.parse(raw)
-        if (old && typeof old === 'object') {
-          if (typeof old.withWayfinder === 'boolean') cfg.withWayfinder = old.withWayfinder
-          if (typeof old.custom === 'string' && old.custom) { templates.execute = old.custom; tplMigratePending = true }
-          saveCfg()
-        }
-        localStorage.removeItem('dsws.startCfg')
-      } catch (e) { /* 迁移失败保留旧 key，下次再试 */ }
-    }
-    migrateStartCfg()
-
+    // #1012（维护者 2026-10-11 定案，第 11 条）：更旧的存档 dsws.startCfg 连同它的迁移逻辑一起删除。
+    //   它当年只在启动时被读一次（{withWayfinder, custom} → 上面那份存档与 templates.execute），
+    //   而上面那份存档本身也已按定案删除；留一段「往已删除的地方搬」的代码没有意义。
+    //   代价（维护者认可）：谁还在用那个更旧的存档、又自那以后一次都没启动过插件，会失去当年自定义的
+    //   execute 文本，改用默认文本 —— 这类存档的迁移窗口已经过去很多个版本了。
     // ---- v25 · T2b：动作模板引擎（T1 规格 §2-§4）----
     // 占位符全集：{url} {number} {title} {ts} {file} {path}（引导句是普通静态文本，不是占位符）
     export const PH = ['url', 'number', 'title', 'ts', 'file', 'path']

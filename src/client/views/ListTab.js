@@ -301,8 +301,6 @@ export     const ListTab = ({ st, narrow }) => {
               e.stopPropagation()
               if (st.sortKey === k) { st.sortDir = st.sortDir === 'asc' ? 'desc' : 'asc' }
               else { st.sortKey = k; st.sortDir = (k === 'title') ? 'asc' : 'desc' }
-              // 点一下排序同时改两格（排序键与方向），所以两格一起点名交出去；别的格不许跟着提交
-              //   （理由见 kernel/store-prefs.js 的 saveListPrefs：文档还在路上时，没动过的格会把文件里较新的值顶掉）。
               listPrefs.sortKey = st.sortKey; listPrefs.sortDir = st.sortDir; saveListPrefs(['sortKey', 'sortDir']); emit(st)
             }, style: { cursor: 'pointer', marginRight: 4, marginBottom: 3, fontSize: 10, background: on ? 'rgba(88,166,255,.16)' : 'rgba(255,255,255,.06)', color: on ? '#58a6ff' : 'var(--dsw-alias-label-secondary,#a1a1aa)', border: '1px solid ' + (on ? 'rgba(88,166,255,.55)' : 'rgba(255,255,255,.15)') } }), tr('list.sort.' + k) + arrow)
           }),

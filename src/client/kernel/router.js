@@ -128,10 +128,11 @@
     }
 
     // v21：开始 prompt 精简 —— /wayfinder + URL + 统一引导句（技能内部细节自带，不再重复灌输）
-    // v25 · T2b：execute 走模板渲染（templates.execute 或默认），前缀开关 = cfg.withWayfinder
+    // v25 · T2b：execute 走模板渲染（templates.execute 或默认）
     // v1.3.3 #10：前缀去重 —— 模板（含用户自定义旧模板）若已以 /wayfinder 开头则不再重复拼接
+    // #1012 定案第 10 条：这里原来还有一道「前缀开关 = cfg.withWayfinder」，它随旧配置存档 dsws.cfg 一起删除；
+    //   那道开关最后一个真值来源是更旧的 dsws.startCfg（迁移也已删），所以在删之前它就已经恒为「开」。
     export const withWayfinderPrefix = function (body) {
-      if (!cfg.withWayfinder) return body
       if (/^\/wayfinder\b/.test(String(body || '').trim())) return body
       return '/wayfinder\n' + body
     }

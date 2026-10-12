@@ -11,7 +11,8 @@
  * 第五件事是文档还在路上时先记着不写：这一笔排进待写队列，文档一到手就落进文件的 templates 节。
  * 第六件事是写不进文件（手机自己坏了、或文件是更高版本不许写回去）时照老办法整份写回旧键兜底，
  *   而且用户当场看到的值不变（内存这一份不回退成文件里的旧值）。
- * 第七件事是旧存档 dsws.startCfg 里那一笔 custom 仍然落到 execute，而且落点是设置文件不是旧键。
+ * 第七件事是两个旧存档键（dsws.cfg 与 dsws.startCfg）都不再被读、不再被写：按 #1012 定案第 10、11 条，
+ *   它们连同各自的迁移逻辑一起删除，本地存档里残留的旧值对读口没有任何影响。
  * 第八件事是默认文本兜底不回归：两处都没有这一格时读口给的还是 config.js 里那份默认文本。
  *
  * 怎么保证量的是真件：客户端那几片（src/client/kernel/config.js、settings-view-state.js、
@@ -112,7 +113,7 @@ const UI_REL = 'src/client/kernel/settings-ui.js'
 function makeClient(env) {
   const body = [noExport(readText(CONFIG_REL)), listPrefsSlice(), noExport(readText(VIEW_STATE_REL)), noExport(readText(VIEW_REL)), noExport(readText(VIEW_WRITE_REL)), noExport(readText(UI_REL)), noExport(readText(TPL_REL))].join('\n')
   const names = ['keyOf', 'wsKeyOf', 'shared', 'stores', 'emit', 'host', 'localStorage', 'log', 'dswsLogHash', 'timer', 'currentOs', 'workspaceRootByCwd', 'promptText', 'promptTextFor']
-  const tail = '\nreturn { TPL_KEY: TPL_KEY, templates: templates, saveTemplates: saveTemplates, tplText: tplText, TPL_DEFAULT: TPL_DEFAULT, migrateStartCfg: migrateStartCfg, settingsViewLoad: settingsViewLoad, viewFlagReadyNow: viewFlagReadyNow, settingsTemplatesSaveAll: settingsTemplatesSaveAll, settingsTemplatesSetInDoc: settingsTemplatesSetInDoc, VIEW_FLAG_WRITE_DEBOUNCE_MS: VIEW_FLAG_WRITE_DEBOUNCE_MS }'
+  const tail = '\nreturn { TPL_KEY: TPL_KEY, templates: templates, saveTemplates: saveTemplates, tplText: tplText, TPL_DEFAULT: TPL_DEFAULT, settingsViewLoad: settingsViewLoad, viewFlagReadyNow: viewFlagReadyNow, settingsTemplatesSaveAll: settingsTemplatesSaveAll, settingsTemplatesSetInDoc: settingsTemplatesSetInDoc, VIEW_FLAG_WRITE_DEBOUNCE_MS: VIEW_FLAG_WRITE_DEBOUNCE_MS }'
   return compileFn(names, body + tail).apply(null, names.map((n) => env[n]))
 }
 // 一份空文档（形状与核归一之后那一份逐字一致），templates 节按用例预置。
@@ -341,22 +342,22 @@ async function main() {
     check(fs.readFileSync(settingsPathIn(env.home), 'utf8').indexOf('version: 9') === 0, '高版本文件一个字节都没被改。')
   }
 
-  // ── 第七件事：旧存档 dsws.startCfg 的 custom 落到 execute，落点是设置文件 ──
+  // ── 第七件事：两个旧存档键都不再被读、不再被写（#1012 定案第 10、11 条）──
   console.log('')
-  console.log('== 第七件事：旧存档 dsws.startCfg 的 custom 落到 execute，而且进的是设置文件 ==')
+  console.log('== 第七件事：旧配置存档 dsws.cfg 与更旧的 dsws.startCfg 都不再被读、不再被写 ==')
   {
-    const env = makeEnv({ tag: 'startcfg', localStorage: { 'dsws.startCfg': JSON.stringify({ withWayfinder: true, custom: 'CUSTOM_EXEC' }) } })
-    check(env.mod.templates.execute === 'CUSTOM_EXEC', '加载这一刻旧存档那一笔就落到了内存 execute 上。', JSON.stringify(env.mod.templates.execute))
-    check(env.ls.getItem('dsws.startCfg') === null, '旧 key dsws.startCfg 迁移成功后删掉。', env.ls.getItem('dsws.startCfg'))
-    check(JSON.parse(env.ls.getItem('dsws.cfg') || '{}').withWayfinder === true, '旧存档另一格照旧落进 dsws.cfg（withWayfinder 为 true）。', env.ls.getItem('dsws.cfg'))
-    const landed = await waitFor(async () => { const d = await readDoc(env.home); return !!d && d.templates.execute === 'CUSTOM_EXEC' })
-    check(landed, '这一笔真的进了设置文件的 templates 节（走的是「排队等文档」那条路）。', JSON.stringify(await readDoc(env.home)))
-    check(env.ls.getItem('dsws.templates') === null, '走成新路时旧键 dsws.templates 一个字都没写。', env.ls.getItem('dsws.templates'))
-    // 换一个全新会话、同一份盘上文件（旧键都不在了）：这一笔照样读得回来。
-    const env2 = makeEnv({ tag: 'startcfg-reread', home: env.home })
+    const startCfgRaw = JSON.stringify({ withWayfinder: true, custom: 'CUSTOM_EXEC' })
+    const cfgRaw = JSON.stringify({ withWayfinder: false, panelHeight: 'quarter' })
+    const env = makeEnv({ tag: 'legacy-cfg', localStorage: { 'dsws.startCfg': startCfgRaw, 'dsws.cfg': cfgRaw } })
+    check(env.mod.templates.execute === '', '旧存档 dsws.startCfg 里那一笔 custom 不再落到内存 execute 上。', JSON.stringify(env.mod.templates.execute))
+    check(env.mod.tplText('execute', {}) !== 'CUSTOM_EXEC', '读口给的也不是旧存档里那份自定义文本。', env.mod.tplText('execute', {}))
+    check(env.mod.migrateStartCfg === undefined && env.mod.cfg === undefined && env.mod.CFG_KEY === undefined, '编译出来的这一片里已经没有 cfg / CFG_KEY / migrateStartCfg 这三个名字。', Object.keys(env.mod).filter((k) => /^(cfg|CFG_KEY|migrateStartCfg)$/.test(k)).join(','))
+    check(env.ls.getItem('dsws.startCfg') === startCfgRaw, '旧键 dsws.startCfg 原样留在本地存档里（没人再动它：不删也不改）。', env.ls.getItem('dsws.startCfg'))
+    check(env.ls.getItem('dsws.cfg') === cfgRaw, '旧键 dsws.cfg 同样原样留着。', env.ls.getItem('dsws.cfg'))
+    const env2 = makeEnv({ tag: 'legacy-cfg-reread', localStorage: { 'dsws.startCfg': startCfgRaw } })
     env2.mod.settingsViewLoad()
-    check(await ready(env2), '第二个会话读口就绪（读的就是第一个会话写下的那份文件）。')
-    check(env2.mod.tplText('execute', {}) === 'CUSTOM_EXEC', '新会话从设置文件里读回这一笔（搬家之后不再依赖旧键）。', env2.mod.tplText('execute', {}))
+    check(await ready(env2), '第二个会话读口就绪（旧存档在不在都不影响读口起不来）。')
+    check(env2.mod.tplText('execute', {}) === env.mod.tplText('execute', {}), '两个会话给出的文本一致（旧存档对读口没有任何影响）。', env2.mod.tplText('execute', {}))
   }
 
   // ── 第八件事：默认文本兜底不回归 ──
