@@ -1,0 +1,91 @@
+{
+  "backend": {
+    "id": "markdown",
+    "source": "explicit"
+  },
+  "cost": {
+    "actual": {
+      "points": 0,
+      "remaining": 1750,
+      "requests": 0,
+      "tier": "green"
+    },
+    "estimated": {
+      "perShard": 1,
+      "points": 7,
+      "requests": 4,
+      "shards": 1,
+      "text": "这次 deck_issue_create 预计花 7 点、4 条出站请求，在硬顶之内。",
+      "withinCallCap": true
+    }
+  },
+  "data": {
+    "idempotencyKey": "deck-a34e62a3-5666666",
+    "kind": "task",
+    "limits": {
+      "maxChildTicketsPerCall": 60
+    },
+    "ticket": {
+      "assignees": [],
+      "blockedBy": [],
+      "body": "<!-- DSH-IDEMPOTENCY-KEY: deck-a34e62a3-5666666 -->\n# 金标准演示票\n\n正文\n\n## 进度\n\n<!-- 做到哪一步了，在这里一行一行记 -->\n\nStatus: ready-for-agent\nType: task\nBlocked by:\nLabels: wayfinder:task\n\n## Comments\n\n\n## Answer\n\n",
+      "closedAt": null,
+      "comments": [],
+      "createdAt": "<TIME>",
+      "customFields": [
+        {
+          "name": "Type",
+          "options": [
+            "research",
+            "prototype",
+            "grilling",
+            "task"
+          ],
+          "type": "single",
+          "value": "task"
+        }
+      ],
+      "effortId": "demo",
+      "key": "01",
+      "labels": [
+        {
+          "color": "10b981",
+          "description": "",
+          "name": "wayfinder:task"
+        }
+      ],
+      "parentKey": "00",
+      "reason": "",
+      "state": "open",
+      "title": "金标准演示票",
+      "type": "issue",
+      "updatedAt": "<TIME>",
+      "url": ""
+    }
+  },
+  "items": [],
+  "notes": [
+    "我替你补了正文区块：## 进度",
+    "这次用的是自动幂等锚（同会话 + 同标题 + 同标签，5 分钟窗口内重复调用复用同一张票）。",
+    "我替你补了必备标签：wayfinder:task"
+  ],
+  "ok": true,
+  "readBack": null,
+  "reason": "",
+  "repo": {
+    "backend": "markdown",
+    "name": "demo",
+    "refId": ".scratch/demo",
+    "url": ""
+  },
+  "status": "ok",
+  "text": "票 01 建好了：金标准演示票。返回值就是写后的真状态，不必再读一次。",
+  "tool": "deck_issue_create",
+  "touched": [
+    "01"
+  ],
+  "workspace": {
+    "key": "<WSKEY>",
+    "root": "<ROOT>"
+  }
+}

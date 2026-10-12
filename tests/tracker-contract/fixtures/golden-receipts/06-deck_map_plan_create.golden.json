@@ -1,0 +1,90 @@
+{
+  "backend": {
+    "id": "markdown",
+    "source": "explicit"
+  },
+  "cost": {
+    "actual": {
+      "points": 0,
+      "remaining": 1750,
+      "requests": 0,
+      "tier": "green"
+    },
+    "estimated": {
+      "perShard": 3,
+      "points": 19,
+      "requests": 10,
+      "shards": 1,
+      "text": "这次 deck_map_plan_create 预计花 19 点、10 条出站请求，在硬顶之内。",
+      "withinCallCap": true
+    }
+  },
+  "data": {
+    "builtKeys": [
+      "03",
+      "04"
+    ],
+    "counts": {
+      "actual": 3,
+      "compared": true,
+      "ok": true,
+      "planned": 3
+    },
+    "durable": true,
+    "edges": [],
+    "mapKey": "02",
+    "nextCall": null,
+    "planId": "golden-1",
+    "restKeys": [],
+    "shards": {
+      "maxChildTicketsPerCall": 60,
+      "perShard": 3,
+      "suggested": 1
+    },
+    "skippedKeys": []
+  },
+  "items": [
+    {
+      "key": "02",
+      "role": "map",
+      "status": "ok",
+      "title": "金标准地图"
+    },
+    {
+      "key": "03",
+      "planKey": "a1",
+      "role": "child",
+      "status": "ok",
+      "title": "金子票一"
+    },
+    {
+      "key": "04",
+      "planKey": "a2",
+      "role": "child",
+      "status": "ok",
+      "title": "金子票二"
+    }
+  ],
+  "notes": [],
+  "ok": true,
+  "readBack": null,
+  "reason": "",
+  "repo": {
+    "backend": "markdown",
+    "name": "demo",
+    "refId": ".scratch/demo",
+    "url": ""
+  },
+  "status": "ok",
+  "text": "计划 golden-1：这一片建了 2 张子票（共计划 2 张），建成 0 条边。",
+  "tool": "deck_map_plan_create",
+  "touched": [
+    "02",
+    "03",
+    "04"
+  ],
+  "workspace": {
+    "key": "<WSKEY>",
+    "root": "<ROOT>"
+  }
+}

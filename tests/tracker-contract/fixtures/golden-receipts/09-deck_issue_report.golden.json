@@ -1,0 +1,57 @@
+{
+  "backend": {
+    "id": "markdown",
+    "source": "explicit"
+  },
+  "cost": {
+    "actual": {
+      "points": 0,
+      "remaining": 1750,
+      "requests": 0,
+      "tier": "green"
+    },
+    "estimated": {
+      "perShard": 1,
+      "points": 6,
+      "requests": 3,
+      "shards": 1,
+      "text": "这次 deck_issue_report 预计花 6 点、3 条出站请求，在硬顶之内。",
+      "withinCallCap": true
+    }
+  },
+  "data": {
+    "backendId": "markdown",
+    "chain": {
+      "count": 1,
+      "reason": "chain.record",
+      "recorded": true
+    },
+    "effortId": "demo",
+    "key": "1",
+    "note": "金标准上报",
+    "state": "open",
+    "title": "金标准演示票",
+    "url": ""
+  },
+  "items": [],
+  "notes": [
+    "备注只回显，不进链（链上每条只留票键、时间与动作类别）。"
+  ],
+  "ok": true,
+  "readBack": null,
+  "reason": "",
+  "repo": {
+    "backend": "markdown",
+    "name": "demo",
+    "refId": ".scratch/demo",
+    "url": ""
+  },
+  "status": "ok",
+  "text": "票 1 已上报（金标准演示票）：金标准上报。链上能看到（这格现在 1 张）。",
+  "tool": "deck_issue_report",
+  "touched": [],
+  "workspace": {
+    "key": "<WSKEY>",
+    "root": "<ROOT>"
+  }
+}

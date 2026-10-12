@@ -1,0 +1,147 @@
+{
+  "backend": {
+    "id": "markdown",
+    "source": "explicit"
+  },
+  "cost": {
+    "actual": {
+      "points": 0,
+      "remaining": 1750,
+      "requests": 0,
+      "tier": "green"
+    },
+    "estimated": {
+      "perShard": 1,
+      "points": 8,
+      "requests": 4,
+      "shards": 1,
+      "text": "这次 deck_issue_patch 预计花 8 点、4 条出站请求，在硬顶之内。",
+      "withinCallCap": true
+    }
+  },
+  "data": {
+    "requested": [
+      "comment"
+    ],
+    "ticket": {
+      "assignees": [],
+      "blockedBy": [],
+      "body": "<!-- DSH-IDEMPOTENCY-KEY: deck-a34e62a3-5666666 -->\n# 金标准演示票\n\n正文\n\n## 进度\n\n<!-- 做到哪一步了，在这里一行一行记 -->\n\nStatus: ready-for-agent\nType: task\nBlocked by:\nLabels: wayfinder:task\n\n## Comments\n\n\n### local — <TIME>\n金标准评论\n\n\n## Answer\n\n",
+      "closedAt": null,
+      "comments": [
+        {
+          "author": {
+            "login": "local"
+          },
+          "authorAssociation": "",
+          "body": "金标准评论",
+          "createdAt": "<TIME>",
+          "updatedAt": "<TIME>"
+        }
+      ],
+      "createdAt": "<TIME>",
+      "customFields": [
+        {
+          "name": "Type",
+          "options": [
+            "research",
+            "prototype",
+            "grilling",
+            "task"
+          ],
+          "type": "single",
+          "value": "task"
+        }
+      ],
+      "effortId": "demo",
+      "key": "01",
+      "labels": [
+        {
+          "color": "10b981",
+          "description": "",
+          "name": "wayfinder:task"
+        }
+      ],
+      "parentKey": "00",
+      "reason": "",
+      "state": "open",
+      "title": "金标准演示票",
+      "type": "issue",
+      "updatedAt": "<TIME>",
+      "url": ""
+    }
+  },
+  "items": [
+    {
+      "key": "01",
+      "status": "ok",
+      "step": "comment"
+    }
+  ],
+  "notes": [],
+  "ok": true,
+  "readBack": {
+    "assignees": [],
+    "blockedBy": [],
+    "body": "<!-- DSH-IDEMPOTENCY-KEY: deck-a34e62a3-5666666 -->\n# 金标准演示票\n\n正文\n\n## 进度\n\n<!-- 做到哪一步了，在这里一行一行记 -->\n\nStatus: ready-for-agent\nType: task\nBlocked by:\nLabels: wayfinder:task\n\n## Comments\n\n\n### local — <TIME>\n金标准评论\n\n\n## Answer\n\n",
+    "closedAt": null,
+    "comments": [
+      {
+        "author": {
+          "login": "local"
+        },
+        "authorAssociation": "",
+        "body": "金标准评论",
+        "createdAt": "<TIME>",
+        "updatedAt": "<TIME>"
+      }
+    ],
+    "createdAt": "<TIME>",
+    "customFields": [
+      {
+        "name": "Type",
+        "options": [
+          "research",
+          "prototype",
+          "grilling",
+          "task"
+        ],
+        "type": "single",
+        "value": "task"
+      }
+    ],
+    "effortId": "demo",
+    "key": "01",
+    "labels": [
+      {
+        "color": "10b981",
+        "description": "",
+        "name": "wayfinder:task"
+      }
+    ],
+    "parentKey": "00",
+    "reason": "",
+    "state": "open",
+    "title": "金标准演示票",
+    "type": "issue",
+    "updatedAt": "<TIME>",
+    "url": ""
+  },
+  "reason": "",
+  "repo": {
+    "backend": "markdown",
+    "name": "demo",
+    "refId": ".scratch/demo",
+    "url": ""
+  },
+  "status": "ok",
+  "text": "票 01：这次点了 1 步，成了 1 步。",
+  "tool": "deck_issue_patch",
+  "touched": [
+    "01"
+  ],
+  "workspace": {
+    "key": "<WSKEY>",
+    "root": "<ROOT>"
+  }
+}

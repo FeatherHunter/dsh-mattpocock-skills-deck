@@ -1,0 +1,66 @@
+{
+  "backend": {
+    "id": "markdown",
+    "source": "explicit"
+  },
+  "cost": {
+    "actual": {
+      "points": 0,
+      "remaining": 1750,
+      "requests": 0,
+      "tier": "green"
+    },
+    "estimated": {
+      "perShard": 1,
+      "points": 6,
+      "requests": 3,
+      "shards": 1,
+      "text": "这次 deck_map_link 预计花 6 点、3 条出站请求，在硬顶之内。",
+      "withinCallCap": true
+    }
+  },
+  "data": {
+    "done": 1,
+    "jobs": [
+      {
+        "blockedBy": [
+          "03"
+        ],
+        "key": "04"
+      }
+    ],
+    "requested": 1
+  },
+  "items": [
+    {
+      "evidence": "写后读回：结构字段里有这条依赖，正文里也写着指向 #03 的一行（这是把关系写进正文的那种落法）",
+      "key": "04",
+      "landing": "正文行",
+      "ok": true,
+      "op": "block",
+      "role": "edge",
+      "status": "ok",
+      "target": "03"
+    }
+  ],
+  "notes": [],
+  "ok": true,
+  "readBack": null,
+  "reason": "",
+  "repo": {
+    "backend": "markdown",
+    "name": "demo",
+    "refId": ".scratch/demo",
+    "url": ""
+  },
+  "status": "ok",
+  "text": "这次要补 1 条边，建成 1 条。",
+  "tool": "deck_map_link",
+  "touched": [
+    "04"
+  ],
+  "workspace": {
+    "key": "<WSKEY>",
+    "root": "<ROOT>"
+  }
+}

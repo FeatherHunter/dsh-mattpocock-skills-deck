@@ -1,0 +1,74 @@
+{
+  "backend": {
+    "id": "markdown",
+    "source": "explicit"
+  },
+  "cost": {
+    "actual": {
+      "points": 0,
+      "remaining": 1750,
+      "requests": 0,
+      "tier": "green"
+    },
+    "estimated": {
+      "perShard": 1,
+      "points": 6,
+      "requests": 3,
+      "shards": 1,
+      "text": "这次 deck_issue_list 预计花 6 点、3 条出站请求，在硬顶之内。",
+      "withinCallCap": true
+    }
+  },
+  "data": {
+    "issues": [
+      {
+        "assignees": [],
+        "effortId": "demo",
+        "key": "00",
+        "labels": [],
+        "parentKey": null,
+        "state": "open",
+        "title": "金标准底图",
+        "type": "map",
+        "updatedAt": "<TIME>",
+        "url": ""
+      },
+      {
+        "assignees": [],
+        "effortId": "demo",
+        "key": "01",
+        "labels": [
+          "wayfinder:task"
+        ],
+        "parentKey": "00",
+        "state": "open",
+        "title": "金标准演示票",
+        "type": "issue",
+        "updatedAt": "<TIME>",
+        "url": ""
+      }
+    ],
+    "returned": 2,
+    "total": 2,
+    "truncated": false
+  },
+  "items": [],
+  "notes": [],
+  "ok": true,
+  "readBack": null,
+  "reason": "",
+  "repo": {
+    "backend": "markdown",
+    "name": "demo",
+    "refId": ".scratch/demo",
+    "url": ""
+  },
+  "status": "ok",
+  "text": "ISSUE 列表：共 2 行符合（state=open），回 2 行。",
+  "tool": "deck_issue_list",
+  "touched": [],
+  "workspace": {
+    "key": "<WSKEY>",
+    "root": "<ROOT>"
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "backend": {
+    "id": "markdown",
+    "source": "explicit"
+  },
+  "cost": {
+    "actual": {
+      "points": 0,
+      "remaining": 1750,
+      "requests": 0,
+      "tier": "green"
+    },
+    "estimated": {
+      "perShard": 1,
+      "points": 6,
+      "requests": 3,
+      "shards": 1,
+      "text": "这次 deck_issue_get 预计花 6 点、3 条出站请求，在硬顶之内。",
+      "withinCallCap": true
+    }
+  },
+  "data": {
+    "comments": [],
+    "dependenciesRaw": null,
+    "excerpt": "<!-- DSH-IDEMPOTENCY-KEY: deck-a34e62a3-5666666 -->\n# 金标准演示票\n\n正文\n\n## 进度\n\n<!-- 做到哪一步了，在这里一行一行记 -->\n\nStatus: ready-for-agent\nType: task\nBlocked by:\nLabels: wayfinder:task\n\n## Comments\n\n\n## Answer\n\n",
+    "landings": {
+      "blockedBy": "说不好（这次没读回来，别当它已经建好）",
+      "caveat": "这两个落点是从契约返回的字段读出来的；要精确知道这个后端把父子放在原生层级还是平级链接，看返回里本次写操作留下的 evidence（deck_map_link 会写）。",
+      "parent": "契约的父子列（分不出是原生层级还是平级链接，别把它当成原生层级）"
+    },
+    "relations": {
+      "blockedBy": [],
+      "blocking": [],
+      "parentKey": "00"
+    },
+    "section": null,
+    "ticket": {
+      "assignees": [],
+      "body": "<!-- DSH-IDEMPOTENCY-KEY: deck-a34e62a3-5666666 -->\n# 金标准演示票\n\n正文\n\n## 进度\n\n<!-- 做到哪一步了，在这里一行一行记 -->\n\nStatus: ready-for-agent\nType: task\nBlocked by:\nLabels: wayfinder:task\n\n## Comments\n\n\n## Answer\n\n",
+      "closedAt": "",
+      "key": "01",
+      "labels": [
+        "wayfinder:task"
+      ],
+      "state": "open",
+      "title": "金标准演示票",
+      "type": "issue",
+      "updatedAt": "<TIME>",
+      "url": ""
+    }
+  },
+  "items": [],
+  "notes": [
+    "反向阻塞边这次没取（blocking=false，跳过一次全仓扫描）：上面“阻塞别人”记空不是 0 条，要就带 blocking=true 再调一次。"
+  ],
+  "ok": true,
+  "readBack": null,
+  "reason": "",
+  "repo": {
+    "backend": "markdown",
+    "name": "demo",
+    "refId": ".scratch/demo",
+    "url": ""
+  },
+  "status": "ok",
+  "text": "票 01 读回来了：状态 open，父票 00，被阻塞 0 条，阻塞别人未取（blocking=false）。",
+  "tool": "deck_issue_get",
+  "touched": [],
+  "workspace": {
+    "key": "<WSKEY>",
+    "root": "<ROOT>"
+  }
+}

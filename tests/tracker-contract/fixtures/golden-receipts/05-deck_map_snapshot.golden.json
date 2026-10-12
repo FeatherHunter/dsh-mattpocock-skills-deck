@@ -1,0 +1,107 @@
+{
+  "backend": {
+    "id": "markdown",
+    "source": "explicit"
+  },
+  "cost": {
+    "actual": {
+      "points": 0,
+      "remaining": 1750,
+      "requests": 0,
+      "tier": "green"
+    },
+    "estimated": {
+      "perShard": 1,
+      "points": 6,
+      "requests": 3,
+      "shards": 1,
+      "text": "这次 deck_map_snapshot 预计花 6 点、3 条出站请求，在硬顶之内。",
+      "withinCallCap": true
+    }
+  },
+  "data": {
+    "blockedByKeys": {
+      "demo\u000000": [],
+      "demo\u000001": []
+    },
+    "blocks": {
+      "decisions": [],
+      "destination": "金标准演示用底图",
+      "fog": [],
+      "notes": [],
+      "outOfScope": []
+    },
+    "children": [
+      {
+        "assignees": [],
+        "blockedBy": [],
+        "key": "01",
+        "labels": [
+          "wayfinder:task"
+        ],
+        "progress": null,
+        "state": "open",
+        "title": "金标准演示票",
+        "updatedAt": "<TIME>"
+      }
+    ],
+    "labels": [
+      {
+        "color": "10b981",
+        "name": "wayfinder:task"
+      }
+    ],
+    "map": {
+      "key": "00",
+      "labels": [],
+      "state": "open",
+      "title": "金标准底图",
+      "updatedAt": "<TIME>",
+      "url": ""
+    },
+    "progressOf": {
+      "demo\u000000": null,
+      "demo\u000001": null
+    },
+    "stats": {
+      "blocked": 0,
+      "claimed": 0,
+      "closed": 0,
+      "frontier": 1,
+      "indeterminate": 0,
+      "levelOf": {
+        "demo\u000000": 0,
+        "demo\u000001": 0
+      },
+      "levels": [
+        {
+          "closed": 0,
+          "open": 1,
+          "total": 1
+        }
+      ],
+      "open": 1,
+      "total": 1
+    },
+    "truncated": false
+  },
+  "items": [],
+  "notes": [],
+  "ok": true,
+  "readBack": null,
+  "reason": "",
+  "repo": {
+    "backend": "markdown",
+    "name": "demo",
+    "refId": ".scratch/demo",
+    "url": ""
+  },
+  "status": "ok",
+  "text": "地图 00：子票 1 张，未关闭 1 张、已关闭 0 张、可接 1 张、被阻塞 0 张。",
+  "tool": "deck_map_snapshot",
+  "touched": [],
+  "workspace": {
+    "key": "<WSKEY>",
+    "root": "<ROOT>"
+  }
+}
