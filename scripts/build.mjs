@@ -28,6 +28,7 @@
  * 避免一次编译顺手改掉本机已装插件。
  */
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync, rmSync, cpSync, utimesSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { dirname, resolve, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
@@ -82,6 +83,172 @@ try {
 }
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+
+// ---------- 构建缓存：输入与产物都没变就跳过这 30 秒 ----------
+//
+// 为什么要有它：整条门禁链上有 13 扇门禁各自跑一次本构建，每次约 30 秒（两遍 esbuild 打包各约 14.5 秒），
+// 而它们跑的时候源码一个字都没改——同一次链上第 2 到第 13 次构建是纯粹重复劳动。
+//
+// 判定口径（两条都满足才跳过）：
+//   一、手写输入的**内容**指纹与上次成功构建时一致（按内容算，不是按修改时间：只碰一下没改内容不该触发重建）；
+//   二、上次成功构建记下的每个产物**逐字节一致**且都在盘上（产物被人改过、删过、少过，一律重建）。
+// 跳过的含义是「产物与上次成功构建完全相同」，不是「构建没跑过所以结果未知」；任何输入变化都会走完整构建。
+// 命中时会把产物 mtime 提到现在：仓库里有几扇门禁（verify-ctx / verify-kernel / verify-leaves 等）
+// 用「产物比源新」判过期，产物 mtime 停在过去会让它们误报。
+//
+// 强制重建：node scripts/build.mjs --force，或设 DSH_BUILD_NO_CACHE=1。
+// 缓存文件落在 node_modules/.cache/ 下（不进版本库，不会被提交）。
+const CACHE_VERSION = 2
+const CACHE_PATH = join(ROOT, 'node_modules', '.cache', 'dsh-build.json')
+const INPUT_ROOTS = ['src', 'scripts', 'refresh-core', 'label-color-core', 'version-control-core', 'config-store-core']
+const INPUT_EXTRA = ['package.json', 'package/package.json', 'README.md', 'tsconfig.client.json', 'tsconfig.contract.json']
+const ARTIFACT_FILES = ['client.js', 'host.js', 'package/README.md']
+// package/lib 要整目录收进来：它下面除了两份入口，还有 logPkg/* 这类打包镜像，
+// 而 verify-log-artifacts 比的是「package/lib 里的镜像 vs src 里的真源」，两边必须一起提 mtime。
+const ARTIFACT_DIRS = ['package/lib', 'scripts/generated', 'src/host/logPkg', 'package/scripts', 'package/bundled-skills']
+
+/** 派生文件的标记：这些文件是构建写出来的，不算输入（否则构建一跑，指纹就自己变了，缓存永远命中不了）。 */
+function looksDerived(abs) {
+  try {
+    const head = readFileSync(abs, 'utf8').slice(0, 300)
+    return head.includes('AUTO-GENERATED') || head.includes('人手不改') || head.includes('DO NOT EDIT')
+  } catch {
+    return false
+  }
+}
+
+/** 走一棵树，返回仓库相对路径清单（跳过 node_modules 与 .git）。 */
+function walkTree(rootRel, out = []) {
+  const walk = (absDir, relDir) => {
+    let ents
+    try {
+      ents = readdirSync(absDir, { withFileTypes: true })
+    } catch {
+      return
+    }
+    for (const e of ents) {
+      if (e.name === 'node_modules' || e.name === '.git') continue
+      const rel = relDir ? relDir + '/' + e.name : e.name
+      const abs = join(absDir, e.name)
+      if (e.isDirectory()) walk(abs, rel)
+      else if (e.isFile()) out.push(rel)
+    }
+  }
+  walk(join(ROOT, rootRel), rootRel)
+  return out
+}
+
+function sha256File(abs) {
+  return createHash('sha256').update(readFileSync(abs)).digest('hex')
+}
+
+/** 手写输入清单：src / scripts / 四个核，去掉派生文件，再补上根上的几份配置。 */
+function listInputs() {
+  const out = []
+  for (const r of INPUT_ROOTS) {
+    for (const rel of walkTree(r)) {
+      const abs = join(ROOT, rel)
+      if (rel.startsWith('scripts/generated/')) continue
+      if (looksDerived(abs)) continue
+      out.push(rel)
+    }
+  }
+  for (const f of INPUT_EXTRA) if (existsSync(join(ROOT, f))) out.push(f)
+  return Array.from(new Set(out)).sort()
+}
+
+/** 产物清单：根上两份 dev、包内两份 pkg、派生进 src 的那批、几个生成目录。 */
+function listOutputs() {
+  const out = []
+  for (const f of ARTIFACT_FILES) if (existsSync(join(ROOT, f))) out.push(f)
+  for (const d of ARTIFACT_DIRS) {
+    if (!existsSync(join(ROOT, d))) continue
+    for (const rel of walkTree(d)) out.push(rel)
+  }
+  for (const rel of walkTree('src')) if (looksDerived(join(ROOT, rel))) out.push(rel)
+  return Array.from(new Set(out)).sort()
+}
+
+function inputFingerprint() {
+  const h = createHash('sha256')
+  h.update('v' + CACHE_VERSION + '|node' + process.version + '|mode:' + buildModeKey() + '|')
+  for (const rel of listInputs()) h.update(rel + '\0' + sha256File(join(ROOT, rel)) + '\n')
+  return h.digest('hex')
+}
+
+function buildModeKey() {
+  const flags = process.argv.slice(2).filter((a) => a.startsWith('--')).sort()
+  return flags.length ? flags.join(' ') : 'full'
+}
+
+function readCacheFile() {
+  try {
+    const raw = JSON.parse(readFileSync(CACHE_PATH, 'utf8'))
+    return raw && raw.version === CACHE_VERSION && raw.entries ? raw : { version: CACHE_VERSION, entries: {} }
+  } catch {
+    return { version: CACHE_VERSION, entries: {} }
+  }
+}
+
+function printArtifactSizes(devOnly, pkgOnly) {
+  const size = (p) => (existsSync(join(ROOT, p)) ? readFileSync(join(ROOT, p), 'utf8').length + ' bytes' : 'skipped')
+  console.log('[build] OK')
+  console.log('  client.js (dev)      ' + (devOnly ? 'skipped' : size('client.js')))
+  console.log('  host.js (dev)        ' + (devOnly ? 'skipped' : size('host.js')))
+  console.log('  package/lib/client.js (pkg) ' + (pkgOnly ? 'skipped' : size('package/lib/client.js')))
+  console.log('  package/lib/index.js (pkg)  ' + (pkgOnly ? 'skipped' : size('package/lib/index.js')))
+}
+
+/** 缓存命中就返回 true（调用方直接收工）。任何一条对不上都返回 false，走完整构建。 */
+function tryBuildCacheHit(args) {
+  if (args.includes('--force') || process.env.DSH_BUILD_NO_CACHE === '1') {
+    console.log('[build] 按要求强制重建（--force 或 DSH_BUILD_NO_CACHE=1），不使用缓存。')
+    return false
+  }
+  const entry = readCacheFile().entries[buildModeKey()]
+  if (!entry || !entry.fingerprint || !entry.outputs) return false
+  if (entry.fingerprint !== inputFingerprint()) {
+    console.log('[build] 手写输入有变化 → 正常构建。')
+    return false
+  }
+  const bad = []
+  for (const [rel, sha] of Object.entries(entry.outputs)) {
+    const abs = join(ROOT, rel)
+    if (!existsSync(abs) || sha256File(abs) !== sha) bad.push(rel)
+    if (bad.length >= 5) break
+  }
+  if (bad.length) {
+    console.log('[build] 产物与上次成功构建不一致 → 正常构建（' + bad.join(' / ') + '）。')
+    return false
+  }
+  const now = new Date()
+  for (const rel of Object.keys(entry.outputs)) {
+    try {
+      utimesSync(join(ROOT, rel), now, now)
+    } catch {
+      /* 提 mtime 只是为了「产物比源新」那几扇门禁，提不动不算错 */
+    }
+  }
+  console.log('[build] 输入与产物都没变 → 跳过构建（缓存命中，省下约 30 秒；要强制重建加 --force）')
+  printArtifactSizes(args.includes('--dev-only'), args.includes('--pkg-only'))
+  console.log('[build] 构建只写仓库内产物，不碰本机已装配置')
+  return true
+}
+
+/** 构建成功后记下「这次是哪些输入、产出了哪些字节」，供下次比对。 */
+function writeBuildCache() {
+  try {
+    const outputs = {}
+    for (const rel of listOutputs()) outputs[rel] = sha256File(join(ROOT, rel))
+    const cache = readCacheFile()
+    cache.version = CACHE_VERSION
+    cache.entries[buildModeKey()] = { fingerprint: inputFingerprint(), outputs, at: new Date().toISOString() }
+    mkdirSync(dirname(CACHE_PATH), { recursive: true })
+    writeFileSync(CACHE_PATH, JSON.stringify(cache), 'utf8')
+  } catch (e) {
+    console.log('[build] 构建缓存写不进去（不影响本次构建）：' + ((e && e.message) || e))
+  }
+}
 
 // ---------- 工具 ----------
 const read = (p) => readFileSync(resolve(ROOT, p), 'utf8')
@@ -817,6 +984,9 @@ function ensureBundledSkills() {
 const args = process.argv.slice(2)
 const devOnly = args.includes('--dev-only')
 const pkgOnly = args.includes('--pkg-only')
+
+// 先看缓存：手写输入与产物都没变，就没必要再花 30 秒重跑一遍打包（链上 13 扇门禁各跑一次，只有第一次该付这个钱）。
+if (tryBuildCacheHit(args)) process.exit(0)
 const version = dswVersion()
 const repoUrl = dswRepoUrl()
 console.log(`[build] DSW_VERSION=${version} (package/package.json)`)
@@ -965,3 +1135,6 @@ if (args.includes('--sync') || args.includes('--no-sync') || process.env.DSW_SYN
   throw new Error('[build] 本地同步已取消：构建不再支持 --sync（也不再读取 DSW_SYNC），新版本请走市场升级、软件内升级或自己敲安装命令')
 }
 console.log('[build] 构建只写仓库内产物，不碰本机已装配置')
+
+// 走到这里说明这一遍是真构建、而且成功了：记下输入指纹与产物哈希，供下一次比对（下一次若一致就跳过构建）。
+writeBuildCache()

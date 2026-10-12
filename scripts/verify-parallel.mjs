@@ -12,6 +12,7 @@
 //   node scripts/verify-parallel.mjs --changed       # 只跑「本次改动影响到」的步骤（见 scripts/lib/select-gates.mjs）
 //   node scripts/verify-parallel.mjs --only log --only 1003   # 只跑文件名含这些子串的步骤
 //   node scripts/verify-parallel.mjs --list          # 只列出将要跑的步骤，不跑
+//   node scripts/verify-parallel.mjs --tasks         # 只打印排程（车厢与预计耗时），不跑
 //   node scripts/verify-parallel.mjs --json out.json # 额外写一份机器可读的结果
 //
 // 退出码：全部通过 0；有失败 1。链条目仍以 package.json 的 scripts.verify 为唯一来源，本脚本不改它。
@@ -54,6 +55,7 @@ function isBrowserStep(step) {
 // 冲突组：同一组里的步骤不许同时跑，因为它们会抢同一个仓外资源。
 // 实测教训：verify-release-contract.js 与 verify-bundled-skills.js 都会跑 `npm pack --dry-run`，
 // 并发时前者假红（单独跑 58 通过 0 失败）。这类假红会让人误以为代码坏了，所以宁可把它们排成一队。
+// 排法见下面 buildTasks：同一组的步骤合成一节车厢，由同一个工人依次跑完。
 function conflictGroupsOf(step) {
   const groups = []
   let src = ''
@@ -70,21 +72,6 @@ function conflictGroupsOf(step) {
     groups.push('build')
   }
   return groups
-}
-const groupLocks = new Map()
-function acquire(groups) {
-  let chain = Promise.resolve()
-  let release = null
-  const gate = new Promise((r) => (release = r))
-  for (const g of groups) {
-    const prev = groupLocks.get(g) || Promise.resolve()
-    groupLocks.set(
-      g,
-      prev.then(() => gate)
-    )
-    chain = chain.then(() => prev)
-  }
-  return chain.then(() => release)
 }
 
 // 本次改动涉及哪些文件：git 的已改/新增/未跟踪都算（不改动仓库，只读）。
@@ -105,7 +92,11 @@ function changedPathsOfSync() {
       else set.add(p)
     }
   }
-  return [...set].map((p) => p.replace(/\\/g, '/'))
+  // `.scratch/` 与 `.scratch_*` 是排查用的草稿（.scratch/ 已在 .gitignore 里，但有人会把草稿写在根目录的 .scratch_ 前缀文件里）。
+  // 它们不是源码，不该让挑选规则判成「改了根目录横切文件 → 跑全链」。
+  return [...set]
+    .map((p) => p.replace(/\\/g, '/'))
+    .filter((p) => !/(^|\/)\.scratch/.test(p))
 }
 
 async function selectChanged() {
@@ -149,8 +140,8 @@ function runStep(step) {
     let err = ''
     child.stdout.on('data', (d) => (out += d))
     child.stderr.on('data', (d) => (err += d))
-    child.on('exit', (code) => resolve({ ...step, code: code === null ? 1 : code, ms: Date.now() - started, out, err }))
-    child.on('error', (e) => resolve({ ...step, code: 1, ms: Date.now() - started, out, err: String((e && e.message) || e) }))
+    child.on('exit', (code) => resolve({ ...step, code: code === null ? 1 : code, ms: Date.now() - started, at: started, out, err }))
+    child.on('error', (e) => resolve({ ...step, code: 1, ms: Date.now() - started, at: started, out, err: String((e && e.message) || e) }))
   })
 }
 
@@ -184,35 +175,107 @@ if (!steps.length) {
 }
 
 const jobs = Math.max(1, Number(optOf('--jobs', String(Math.min(8, Math.max(2, os.cpus().length - 1))))) || 8)
-console.log('[并行门禁] 跑 ' + steps.length + ' 步，并发 ' + jobs + '（全链 ' + steps0.length + ' 步，档位 ' + tier + '）')
+
+// 排程：同组互斥的步骤合成一节「车厢」，一节车厢占一个工人、车厢里的步骤依次跑；
+// 其余步骤各自成一节。然后按上一轮实测耗时从长到短排（LPT）——最长的先开工，
+// 墙钟才不会被「两个 34 秒的长步一前一后」拖成两倍（实测：按链条目顺序排 70.6 秒，按耗时排约 40 秒）。
+// 耗时来自上一轮实测，存在 node_modules/.cache 里（不进版本库）；第一次跑按链条目顺序，跑完就有了。
+const TIMES_PATH = path.join(ROOT, 'node_modules', '.cache', 'dsh-verify-times.json')
+function loadTimes() {
+  try {
+    const raw = JSON.parse(fs.readFileSync(TIMES_PATH, 'utf8'))
+    return raw && typeof raw === 'object' ? raw : {}
+  } catch (e) {
+    return {}
+  }
+}
+const times = loadTimes()
+const knownMs = Object.values(times).filter((n) => Number.isFinite(n) && n > 0).sort((a, b) => a - b)
+const typicalMs = knownMs.length ? knownMs[Math.floor(knownMs.length / 2)] : 200
+const estimateOf = (s) => (Number.isFinite(times[s.file]) ? times[s.file] : typicalMs)
+
+function buildTasks(list) {
+  const free = []
+  const lanes = []
+  for (const s of list) {
+    const gs = conflictGroupsOf(s)
+    if (!gs.length) {
+      free.push({ key: s.file, steps: [s], estimate: estimateOf(s), groups: [] })
+      continue
+    }
+    // 一个步骤可能同时属于多个组（既跑 npm pack 又真构建）：有共同组就并进同一节车厢，免得两个车厢互相抢。
+    const lane = lanes.find((l) => l.groups.some((g) => gs.includes(g)))
+    if (lane) {
+      for (const g of gs) if (!lane.groups.includes(g)) lane.groups.push(g)
+      lane.steps.push(s)
+      lane.estimate += estimateOf(s)
+    } else {
+      lanes.push({ key: 'lane:' + gs.slice().sort().join('+'), steps: [s], estimate: estimateOf(s), groups: gs.slice() })
+    }
+  }
+  return [...free, ...lanes].sort((a, b) => b.estimate - a.estimate)
+}
+
+const tasks = buildTasks(steps)
+if (has('--tasks')) {
+  console.log('排成 ' + tasks.length + ' 节车厢（按预计耗时从长到短）：')
+  for (const t of tasks) {
+    console.log('  ' + String(Math.round(t.estimate)).padStart(6) + 'ms  ' + (t.groups.length ? '[互斥 ' + t.groups.join('+') + '] ' : '') + t.key + '（' + t.steps.length + ' 步）')
+    if (t.groups.length) for (const s of t.steps) console.log('         · ' + s.file)
+  }
+  process.exit(0)
+}
+console.log(
+  '[并行门禁] 跑 ' +
+    steps.length +
+    ' 步，并发 ' +
+    jobs +
+    '（全链 ' +
+    steps0.length +
+    ' 步，档位 ' +
+    tier +
+    '，排成 ' +
+    tasks.length +
+    ' 节车厢，其中互斥组 ' +
+    tasks.filter((t) => t.groups.length).length +
+    ' 节）'
+)
 
 const started = Date.now()
 const results = []
 let cursor = 0
+let stop = false
 async function worker() {
   for (;;) {
+    if (stop) return
     const i = cursor++
-    if (i >= steps.length) return
-    const step = steps[i]
-    const groups = conflictGroupsOf(step)
-    const release = groups.length ? await acquire(groups) : null
-    let r = null
-    try {
-      r = await runStep(step)
-    } finally {
-      if (release) release()
-    }
-    results.push(r)
-    const tag = r.code === 0 ? 'PASS' : 'FAIL'
-    console.log('  ' + tag + ' ' + String(r.ms).padStart(6) + ' ms  ' + r.file)
-    if (r.code !== 0 && !has('--keep-going')) {
-      // 与串行链一样：遇红就停（已在跑的等它跑完再报）。
-      cursor = steps.length
+    if (i >= tasks.length) return
+    for (const step of tasks[i].steps) {
+      if (stop) return
+      const r = await runStep(step)
+      results.push(r)
+      const tag = r.code === 0 ? 'PASS' : 'FAIL'
+      console.log('  ' + tag + ' ' + String(r.ms).padStart(6) + ' ms  ' + r.file)
+      if (r.code !== 0 && !has('--keep-going')) {
+        // 与串行链一样：遇红就停（已在跑的等它跑完再报）。
+        stop = true
+        return
+      }
     }
   }
 }
-await Promise.all(Array.from({ length: Math.min(jobs, steps.length) }, worker))
+await Promise.all(Array.from({ length: Math.min(jobs, tasks.length) }, worker))
 const wall = Date.now() - started
+
+// 记下这一轮每步花了多久，供下一次排程用（写不进去不算错）。
+try {
+  const merged = loadTimes()
+  for (const r of results) if (r && Number.isFinite(r.ms)) merged[r.file] = r.ms
+  fs.mkdirSync(path.dirname(TIMES_PATH), { recursive: true })
+  fs.writeFileSync(TIMES_PATH, JSON.stringify(merged, null, 2))
+} catch (e) {
+  /* 缓存写不进去不影响判定 */
+}
 
 // 并发跑会碰到「抢同一个外部资源」造成的假红（实测：两扇门禁同时 `npm pack`、有人正在构建时别人读产物）。
 // 所以并发跑完只当第一轮：凡是红的，再**一个一个串行复跑**一遍，以串行的结果为准。
@@ -223,9 +286,11 @@ if (failed.length && !has('--no-retry-failed')) {
   console.log('[并行门禁] 第一轮有 ' + failed.length + ' 步红，串行复跑一遍以排除「抢资源造成的假红」：')
   for (const f of failed) {
     const again = await runStep(f)
-    f.firstRound = { code: f.code, ms: f.ms, out: f.out, err: f.err }
+    // 第一轮的开工时刻与耗时原样留档：复跑会覆盖 ms，不留档就再也看不出「第一轮到底等了多久」。
+    f.firstRound = { code: f.code, ms: f.ms, at: f.at, out: f.out, err: f.err }
     f.code = again.code
     f.ms = again.ms
+    f.at = again.at
     f.out = again.out
     f.err = again.err
     f.flaky = again.code === 0
@@ -255,6 +320,6 @@ for (const f of failed) {
 
 if (has('--json')) {
   const outPath = optOf('--json', '')
-  if (outPath) fs.writeFileSync(path.resolve(ROOT, outPath), JSON.stringify({ wallMs: wall, jobs, tier, results: results.map((r) => ({ file: r.file, code: r.code, ms: r.ms })) }, null, 2))
+  if (outPath) fs.writeFileSync(path.resolve(ROOT, outPath), JSON.stringify({ wallMs: wall, jobs, tier, results: results.map((r) => ({ file: r.file, code: r.code, ms: r.ms, at: r.at })) }, null, 2))
 }
 process.exit(failed.length ? 1 : 0)
