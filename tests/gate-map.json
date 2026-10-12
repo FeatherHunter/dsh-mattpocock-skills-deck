@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-12T22:23:35.968Z",
+  "generatedAt": "2026-10-12T22:39:28.774Z",
   "generatedBy": "node scripts/gate-map.mjs",
-  "chainLength": 226,
-  "gateCount": 226,
+  "chainLength": 227,
+  "gateCount": 227,
   "attributedGates": 200,
-  "unattributedGates": 26,
+  "unattributedGates": 27,
   "buildOutputOnlyGates": 20,
   "graphFileCount": 502,
   "gates": [
@@ -141,6 +141,8 @@
         "package/lib/tracker/index.js",
         "package/package.json",
         "package/shared",
+        "scripts/generated/logKernel.derived.js",
+        "scripts/generated/updateClient.derived.js",
         "scripts/generated/updateEntryPanel.bundle.js",
         "scripts/lib/transpile-unit.mjs",
         "src/host",
@@ -167,7 +169,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 10 条；源码里的路径字面量 8 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 10 条；源码里的路径字面量 10 条"
     },
     {
       "step": "node tests/verify-label-color-core.js",
@@ -523,6 +525,7 @@
         "package/lib/client.js",
         "package/package.json",
         "scripts/build.mjs",
+        "scripts/lib/effective-lines.mts",
         "src/client/floating/Pop.js",
         "src/client/floating/SkillFloatList.js",
         "src/client/hostShim.js",
@@ -591,6 +594,7 @@
         "package",
         "package/lib",
         "scripts",
+        "scripts/lib",
         "src/client",
         "src/client/floating",
         "src/client/panel",
@@ -603,7 +607,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：源码里的路径字面量 66 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 66 条"
     },
     {
       "step": "node tests/verify-ctx.js",
@@ -1885,14 +1889,16 @@
       "step": "node tests/verify-file-granularity.js",
       "file": "tests/verify-file-granularity.js",
       "guards": [
+        "scripts/lib/effective-lines.mts",
         "src"
       ],
       "dirs": [
+        "scripts/lib",
         "src"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条"
     },
     {
       "step": "node tests/verify-dependency-rules.ts",
@@ -3831,6 +3837,8 @@
         "src/shared/refresh/backend-quota.js",
         "src/shared/refresh/page-budget.js",
         "src/shared/refresh/src/budget.ts",
+        "src/shared/refresh/src/chain.ts",
+        "tests/file-granularity-baseline.json",
         "tests/verify-attention-model.js",
         "tests/verify-event-budget.js",
         "tests/verify-file-granularity.js",
@@ -3845,7 +3853,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；源码里的路径字面量 7 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；源码里的路径字面量 8 条"
     },
     {
       "step": "node tests/verify-backend-quota-model.js",
@@ -4414,6 +4422,7 @@
         "research/489-appendix.md",
         "scripts/build.mjs",
         "scripts/generated/logKernel.derived.js",
+        "scripts/lib/effective-lines.mts",
         "src/client/index.js",
         "src/client/kernel/locale-flow.js",
         "src/client/kernel/log.js",
@@ -4434,6 +4443,7 @@
         "research",
         "scripts",
         "scripts/generated",
+        "scripts/lib",
         "src/client",
         "src/client/kernel",
         "src/client/views",
@@ -4443,7 +4453,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 13 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 13 条"
     },
     {
       "step": "node tests/verify-1003-single-outlet.js",
@@ -4604,6 +4614,19 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
+    },
+    {
+      "step": "node tests/verify-unmigrated-tests.ts",
+      "file": "tests/verify-unmigrated-tests.ts",
+      "guards": [
+        "tests"
+      ],
+      "dirs": [
+        "tests"
+      ],
+      "unattributed": true,
+      "buildOutputOnly": false,
+      "reason": "读到的路径都落在 tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
       "step": "node tests/verify-gate-map.js",
@@ -4828,6 +4851,9 @@
     ],
     "scripts/lib": [
       "node tests/verify-build-artifacts.js",
+      "node tests/verify-leaves.js",
+      "node tests/verify-file-granularity.js",
+      "node tests/verify-settings-debug.js",
       "node tests/verify-gate-map.js"
     ],
     "src": [
@@ -5467,6 +5493,7 @@
       "node tests/verify-729-force-dedup.js",
       "node tests/verify-refresh-adr.js",
       "node tests/verify-contract-vocabulary.js",
+      "node tests/verify-unmigrated-tests.ts",
       "node tests/verify-gate-map.js"
     ],
     "tests/fixtures": [
