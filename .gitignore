@@ -41,6 +41,28 @@ _research/
 # 而构建时重新生成的那份不在扫描范围内。改这个文件等于改上游原文，一律不改，只重新生成。
 /scripts/generated/updateEntryPanel.bundle.js
 
+# ===== 逐文件转译出来的 .js 也不入库（#1023 第三刀）=====
+# 两类生成物都在这儿：src/shared/<功能名>/ 下由 scripts/lib/transpile-domains.mjs 从 .ts 转译出来的，
+# 与 src/client/{views,kernel}/ 下由 scripts/build.mjs 的 pixel-ts 那一段转译出来的。
+# 为什么入库改成不入库：真源是同名 .ts，构建是唯一的写者；入库会让「改了源码忘了重建」变成
+# 一次静默的假绿（跑测试时比对的其实是签入的那份旧字节）。
+#
+# 下面这套规则按「真实目录里住着什么」写，不是按「哪一层像生成物」写：同一个目录里可能既有
+# 生成物又有手写的 .js（views 顶层是 1 份生成物配 20 份手写），一刀切会把真源码静默忽略掉，
+# 那比不忽略危险得多。三条手写的 .js 在域目录里同理，逐份开例外（它们没有同名 .ts）。
+/src/shared/*/*.js
+!/src/shared/refresh/chain-ride.js
+!/src/shared/refresh/refusal-text.js
+!/src/shared/version-control/exec-envelope.js
+/src/client/kernel/locale-cards.js
+/src/client/kernel/locale-skilldetail.js
+/src/client/views/SkillsTab.js
+/src/client/views/pixel/
+/src/client/views/skillDetail/
+/src/client/views/cards/
+# 发布包里的共享产物是构建从 src/shared 复制过去的镜像，同样不入库
+/package/shared/
+
 # 日志系统的编译产物不入库（发布前跑 build:dsh-log 本地生成，本地保留文件可跑测试）
 /packages/dsh-log/dist/
 
