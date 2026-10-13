@@ -128,7 +128,6 @@ export const OPERATIONS: readonly string[] = Object.freeze(CATALOG_OPERATIONS)
  * @property {{labelsGuide?: boolean, repoCreateChain?: boolean}} [capabilities]
  * @property {'url'|'folder'} [openRepository] 开仓契约动作（#231）：url=浏览器新窗打开 describe().url；folder=host wf.openFolder；未声明且无 url 即诚实无动作 可选界面能力位（#231 · D8 末段落地）：仅驱动 UI 引导入口显示，G5 红线不变——永不被数据路径读取
  * @property {Object.<string, {zh: string, en: string}>} [prompts] 可选注入文案数据（#231 类别7核销）：键→双语全文（ensureLabels/ghAuthLogin 等），client 仅透传 inject 不持有品牌语义 可选只读 UI 描述数据（#230 D10 键入 locale）：声明 setupRun 占位符对应的 client locale 双语键名；界面检查项通道，永不被数据路径读取。未声明时 UI 用缺省键组兜底
- * @property {RegExp|string} [linkPattern] 老名字别名：与 issueRefPattern 同义，保留一轮；注册表只转发，没提供时回 null，不替任何后端造正则（#1112）
  */
 
 /**

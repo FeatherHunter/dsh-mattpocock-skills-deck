@@ -148,6 +148,8 @@ export function createRegistry(backendCtx = {}, opts = {}) {
       }
       const k = handleKey(handle)
       const selT0 = Date.now()
+      // 日志只是旁证，绝不参与选择：rlog 由调用方注入，可能没有、也可能自己抛错，
+      // 所以下面四处都写成一行 try{…}catch(eL){}——记不上就记不上，绝不改变返回值，也不让选择因此失败。
       const rlog = (backendCtx && typeof backendCtx.logEvent === 'function') ? backendCtx.logEvent : null
       function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
       // ① explicit（bind 记忆）
