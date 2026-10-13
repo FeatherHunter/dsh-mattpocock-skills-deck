@@ -102,6 +102,13 @@ function realSleep(ms: number, signal?: WaitSignal | null): Promise<unknown> {
       resolve(null)
     }
     timer = setTimeout(finish, ms)
+    // 只为「到点提醒」的定时器不许决定进程活多久（#1114 的实测教训）：
+    // 赢的那一方先到时，这里没人清它，于是进程被吊着——unref 之后它照样会到点提醒，
+    // 但不再拦住退出；真还有活干时，干活的那条路自己会留住进程。
+    try {
+      const t = timer as unknown as { unref?: () => void }
+      if (t && typeof t.unref === 'function') t.unref()
+    } catch (e) {}
     if (signal && typeof signal.addEventListener === 'function') signal.addEventListener('abort', onAbort)
   })
 }

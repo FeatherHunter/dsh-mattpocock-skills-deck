@@ -77,9 +77,25 @@ export function peekDeckTable(): { state: CellState; sameProcess: boolean } | nu
   } catch (e) { return null }
 }
 
-/** 缺省等待口：真定时器。只有这里碰全局时钟，注入 sleep 之后就绕开了它。 */
+// 缺省等待口：真定时器。到点或被喊停都清掉定时器；定时器一律 unref（#1114 的实测教训）——
+// 一个只负责「到点提醒」的定时器不该成为进程活下去的理由。
+// 只有这里碰全局时钟，注入 sleep 之后就绕开了它。
 function realSleep(ms: number): Promise<unknown> {
-  return new Promise(function (resolve) { setTimeout(resolve, ms) })
+  return new Promise(function (resolve) {
+    let timer: ReturnType<typeof setTimeout> | null = null
+    let done = false
+    const finish = function (): void {
+      if (done) return
+      done = true
+      if (timer !== null) { try { clearTimeout(timer) } catch (e) {} timer = null }
+      resolve(null)
+    }
+    try {
+      timer = setTimeout(finish, ms)
+      const t = timer as unknown as { unref?: () => void }
+      if (t && typeof t.unref === 'function') { try { t.unref() } catch (e) {} }
+    } catch (e) { finish() }
+  })
 }
 
 /**

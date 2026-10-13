@@ -144,6 +144,8 @@ type OpRecord =
 function num(v: unknown, d: number): number { const n = (typeof v === 'number' && isFinite(v)) ? v : NaN; return isNaN(n) ? d : n }
 
 /** 缺省等待口：可中止的真定时器。到点或收到中止都放行一次；中止时把定时器清掉，不留尾巴。
+ *  定时器一律 unref（#1114 的实测教训）：它只负责「到点提醒」，不该成为进程活下去的理由——
+ *  赢的那一方到了没清它时，进程也能照常退出；真还有活干时，干活的那条路自己会留住进程。
  *  单次远端调用的钳制计时走它，测试注入假时钟就能把「钳到点」那条路走通，不必真等 30 秒。
  *  为什么必须继续用全局 setTimeout：别的会话（#1052 两房）会把它换成假时钟来压缩等待；
  *  一旦把 setTimeout 捕获进模块级常量，压缩就失效了。 */
@@ -152,7 +154,11 @@ function realSleep(ms: number, signal?: AbortLike | null): Promise<void> {
     let done = false
     const finish = function (): void { if (done) return; done = true; resolve() }
     let timer: ReturnType<typeof setTimeout> | null = null
-    try { timer = setTimeout(finish, ms) } catch (e) {}
+    try {
+      timer = setTimeout(finish, ms)
+      const t = timer as unknown as { unref?: () => void }
+      if (t && typeof t.unref === 'function') { try { t.unref() } catch (e) {} }
+    } catch (e) {}
     if (signal && typeof signal.addEventListener === 'function') {
       try {
         signal.addEventListener('abort', function () {

@@ -66,9 +66,25 @@ const NO_SESSION = 'no-session-context'
 // 归一等待上限（毫秒）：对手是挂住的文件服务。
 const CANONICAL_TIMEOUT_MS = 5000
 
-/** 缺省等待口：真定时器。生产就靠它；测试注入 sleep 之后这一行不会被走到。 */
+// 缺省等待口：真定时器。到点或被喊停都清掉定时器；定时器一律 unref（#1114 的实测教训）——
+// 一个只负责「到点提醒」的定时器不该成为进程活下去的理由。
+// 生产就靠它；测试注入 sleep 之后这一行不会被走到。
 function realSleep(ms: number): Promise<unknown> {
-  return new Promise(function (resolve) { setTimeout(resolve, ms) })
+  return new Promise(function (resolve) {
+    let timer: ReturnType<typeof setTimeout> | null = null
+    let done = false
+    const finish = function (): void {
+      if (done) return
+      done = true
+      if (timer !== null) { try { clearTimeout(timer) } catch (e) {} timer = null }
+      resolve(null)
+    }
+    try {
+      timer = setTimeout(finish, ms)
+      const t = timer as unknown as { unref?: () => void }
+      if (t && typeof t.unref === 'function') { try { t.unref() } catch (e) {} }
+    } catch (e) { finish() }
+  })
 }
 
 /** 算不出规范根时的同一句回执：三处调用点（超时、抛错、空结果）逐字同形，收成一个。 */
