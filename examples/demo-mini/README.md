@@ -5,7 +5,7 @@
 ## 你将得到
 - `index.js`：`demoModule`（`id/label/create/matches` 四件套）+ `createDemoBackend`（内存实现 4 ops）
 - `normalize.js`：`shared/tracker/shape.js` 归一化（核心字段恒存在 + 能力字段 EMPTY/MISSING）
-- `matches.js`：`platform.fs` 探 `cwd/.demo/config.json` 或 `.scratch/map.md`，`boolean`（超时 30 秒由 registry 托管，见 `src/tracker/registry/registryCore.ts` 的 `MATCHES_TIMEOUT_MS`）
+- `matches.js`：`platform.fs` 探 `cwd/.demo/config.json` 或 `.scratch/map.md`，`boolean`（超时 30 秒由 registry 托管，见 `src/tracker/registry/core.ts` 的 `MATCHES_TIMEOUT_MS`）
 - `fixtures/demo-real/`：采样固件（已脱敏，可直接 `runPlayback`）
 
 ## 一行接入
