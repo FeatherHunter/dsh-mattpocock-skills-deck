@@ -13,6 +13,7 @@ export type { Timestamp } from './time.js'
 export { toTimestamp } from './time.js'
 
 // —— 幂等锚 ——
+export type { AnchorParts } from './anchor.js'
 export { ANCHOR_WINDOW_MS, anchorBucket, anchorKeyFor, labelNames } from './anchor.js'
 
 // —— 强制最小规范：必备标签、进度区、整份判据 ——

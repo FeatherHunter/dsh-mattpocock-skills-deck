@@ -147,6 +147,45 @@ module.exports = {
     // 那就不是「只换判据的读取对象」，而是顺手改了架构。等 12 号收口、契约层公开入口立起来之后，
     // 再由那时的工作线连同白名单一起上。
 
+    // ── 纯规则侧只许算，不许碰世界（#1039 的 #1108 定版：纯侧不许引宿主能力）──────────────
+    // src/deck/rules/ 是「纯规则侧」：只做计算，不取会话、不起进程、不读写文件、不读钟。
+    // 这条规矩在 #1038 定版时靠约定与代码评审守；这里把它变成机器判据 —— 引用方向这一面由下面两条守，
+    // 全局调用那一面（Date.now()、process.env 这类没有 import 边的写法）由 tests/verify-1039-rules-pure.js
+    // 的文本扫描守。两层都要有：光有文本扫描漏 import 边，光有依赖图漏全局调用。
+    //
+    // 为什么拆成两条：本配置里 to 的各个条件之间是「同时满足」（dependency-cruiser 的匹配是 and），
+    // 一条规则里既写 path 又写 dependencyTypes，就变成「既要落在这几个目录、又要是内置模块」，
+    // 两边都漏。所以「不许去哪些目录」与「不许用内置模块」各写一条。
+    {
+      name: 'deck-rules-stay-pure',
+      severity: 'error',
+      comment:
+        '纯规则侧（src/deck/rules/）只许做计算，不许引宿主侧代码：src/host（宿主层）、src/tracker（追踪器：'
+        + '契约、注册表、房间实现）、src/client（界面）、src/seam（接缝），以及同一棵 deck 树里的'
+        + ' shell / tools / registration —— 这三处正是「碰世界」的那一侧（取会话、起进程、注册工具）。'
+        + '需要外部数据一律由调用方当参数传进来（本层的 workspace-file.ts 就是这么接编解码器的）。',
+      from: { path: '^src/deck/rules/' },
+      to: {
+        path: [
+          '^src/host/',
+          '^src/tracker/',
+          '^src/client/',
+          '^src/seam/',
+          '^src/deck/(shell|tools|registration)/',
+        ],
+      },
+    },
+    {
+      name: 'deck-rules-no-node-builtins',
+      severity: 'error',
+      comment:
+        '纯规则侧（src/deck/rules/）不许引 Node 内置模块（fs、child_process、node:path 之类）。'
+        + '纯侧要拼路径就自己算字符串，要读文件就把内容当参数收进来。'
+        + '要往纯侧加一条会碰世界的能力，先改 #1038 的分层定版，不要在这里加白名单绕过去。',
+      from: { path: '^src/deck/rules/' },
+      to: { dependencyTypes: ['core'] },
+    },
+
     // ── 图上的环 ────────────────────────────────────────────────────────────────────────────
     {
       name: 'circular-dependency',

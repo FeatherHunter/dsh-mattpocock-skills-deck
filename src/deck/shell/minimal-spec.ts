@@ -14,6 +14,7 @@ import {
   anchorBucket as bucketOf,
   anchorKeyFor as keyFor,
 } from '../rules/anchor.js'
+import type { AnchorParts } from '../rules/anchor.js'
 import {
   ensureBody as ensureBodyRules,
   ensureLabels as ensureLabelsRules,
@@ -39,14 +40,25 @@ export function systemNow(): number {
   return Date.now()
 }
 
-/** 幂等锚：给「档位时刻」与稳定键算锚。档位时刻一律由调用方传进来，本函数自己不读钟。 */
-export function anchorKeyFor(bucket: unknown, key: unknown): string {
-  return keyFor(bucket, key)
+/**
+ * 幂等锚：给「工具名 + 会话/工作区 + 标题 + 标签 + 时刻」算锚。
+ *
+ * 形参是一个具名对象，时刻（`now`）必须由调用方读出来传进来 —— 纯侧不读钟，
+ * 与规则层的同一条规矩。工具入口照旧从自己的依赖袋取钟（`d.now`，缺省 Date.now），
+ * 所以「测试里换假时钟」这件事仍然在工具那一层就能做到。
+ *
+ * 这里替调用方兜一次底：`now` 不是有限数字时读一次真钟。为什么兜底留在这一层而不是规则层 ——
+ * 读钟是碰世界，规则层一个字都不许碰（#1038 定版）；宿主侧兜底则沿用拆分前的行为
+ *（拆分前也是「不是数字就 Date.now()」），调用方少传一个字段不会算出 NaN 锚。
+ */
+export function anchorKeyFor(parts: AnchorParts): string {
+  const now = (typeof parts.now === 'number' && isFinite(parts.now)) ? parts.now : Date.now()
+  return keyFor(Object.assign({}, parts, { now: now }))
 }
 
 /** 幂等锚：把时刻压到一个时间档位上（档位宽度由 anchor.ts 的 ANCHOR_WINDOW_MS 定义）。 */
 export function anchorBucket(now: unknown, windowMs?: number): number {
-  return bucketOf(now, windowMs === undefined ? ANCHOR_WINDOW_MS : windowMs)
+  return bucketOf(now as number, windowMs === undefined ? ANCHOR_WINDOW_MS : windowMs)
 }
 
 /**

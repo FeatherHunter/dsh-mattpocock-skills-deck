@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-13T09:53:34.339Z",
+  "generatedAt": "2026-10-13T17:18:55.762Z",
   "generatedBy": "node scripts/gate-map.mjs",
-  "chainLength": 228,
-  "gateCount": 228,
-  "attributedGates": 200,
+  "chainLength": 229,
+  "gateCount": 229,
+  "attributedGates": 201,
   "unattributedGates": 28,
   "buildOutputOnlyGates": 20,
-  "graphFileCount": 507,
+  "graphFileCount": 517,
   "gates": [
     {
       "step": "node tests/verify-596-rpc-carrier.js",
@@ -132,43 +132,54 @@
       "step": "node tests/verify-build-artifacts.js",
       "file": "tests/verify-build-artifacts.js",
       "guards": [
+        "package/deck",
+        "package/deck/registration/agent-row.js",
         "package/lib",
         "package/lib/client.js",
         "package/lib/index.js",
         "package/lib/platform",
         "package/lib/platform/index.js",
-        "package/lib/tracker",
         "package/package.json",
         "package/shared",
+        "package/tracker",
+        "package/tracker/index.js",
         "scripts/generated/logKernel.derived.js",
         "scripts/generated/updateClient.derived.js",
         "scripts/generated/updateEntryPanel.bundle.js",
         "scripts/lib/transpile-unit.mjs",
+        "src/deck",
         "src/host",
         "src/shared",
         "src/shared/refresh/budget.js",
         "src/shared/refresh/src/budget.ts",
         "src/shared/version-control/parse-log.js",
-        "src/shared/version-control/src/parse-log.ts"
+        "src/shared/version-control/src/parse-log.ts",
+        "src/tracker",
+        "src/tracker/contract/vocabulary.js"
       ],
       "dirs": [
         "package",
+        "package/deck",
+        "package/deck/registration",
         "package/lib",
         "package/lib/platform",
-        "package/lib/tracker",
         "package/shared",
+        "package/tracker",
         "scripts/generated",
         "scripts/lib",
+        "src/deck",
         "src/host",
         "src/shared",
         "src/shared/refresh",
         "src/shared/refresh/src",
         "src/shared/version-control",
-        "src/shared/version-control/src"
+        "src/shared/version-control/src",
+        "src/tracker",
+        "src/tracker/contract"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 9 条；源码里的路径字面量 10 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 11 条；源码里的路径字面量 17 条"
     },
     {
       "step": "node tests/verify-label-color-core.js",
@@ -1510,25 +1521,27 @@
       "file": "tests/verify-map-drill.js",
       "guards": [
         "package/lib/client.js",
+        "scripts/lib/transpile-unit.mjs",
         "src/client/kernel/locale-panel.js",
         "src/client/kernel/store-derived.js",
         "src/client/kernel/store-prefs.js",
         "src/client/views/IssueDetail.js",
         "src/client/views/MapDetail.js",
         "src/client/views/SkillsTab.js",
-        "src/tracker/contract/vocabulary.ts",
+        "src/tracker/identity-keys.ts",
         "tests/lib/eval-probe.js"
       ],
       "dirs": [
         "package/lib",
+        "scripts/lib",
         "src/client/kernel",
         "src/client/views",
-        "src/tracker/contract",
+        "src/tracker",
         "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 8 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 9 条"
     },
     {
       "step": "node tests/verify-matt-skills-sync.js",
@@ -1909,23 +1922,33 @@
       "guards": [
         "scripts/gate-map.mjs",
         "src/deck",
+        "src/deck/registration/host-assemble.ts",
+        "src/deck/rules/anchor.ts",
+        "src/deck/shell/call-shell.ts",
+        "src/deck/tools/issue-create.ts",
         "src/host",
         "src/seam",
         "src/seam/gate.js",
         "src/shared",
+        "src/tracker/registry/registryCore.ts",
         "tests/same-layer-baseline.json"
       ],
       "dirs": [
         "scripts",
         "src/deck",
+        "src/deck/registration",
+        "src/deck/rules",
+        "src/deck/shell",
+        "src/deck/tools",
         "src/host",
         "src/seam",
         "src/shared",
+        "src/tracker/registry",
         "tests"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 6 条"
+      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 11 条"
     },
     {
       "step": "node tests/verify-markdown-backend.js",
@@ -2491,26 +2514,26 @@
       "step": "node tests/verify-multi-effort-panel.js",
       "file": "tests/verify-multi-effort-panel.js",
       "guards": [
+        "scripts/lib/transpile-unit.mjs",
         "src/client/kernel/store-derived.js",
         "src/client/views/ListTabRow.js",
         "src/host/tracker/snapshot.js",
-        "src/tracker/contract/vocabulary.ts",
         "src/tracker/identity-keys.ts",
         "src/tracker/rooms/markdown/index.ts",
         "tests/lib/eval-probe.js"
       ],
       "dirs": [
+        "scripts/lib",
         "src/client/kernel",
         "src/client/views",
         "src/host/tracker",
         "src/tracker",
-        "src/tracker/contract",
         "src/tracker/rooms/markdown",
         "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；静态 import 说明符 1 条；源码里的路径字面量 3 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；静态 import 说明符 1 条；源码里的路径字面量 4 条"
     },
     {
       "step": "node tests/verify-646-native-tab.js",
@@ -3680,26 +3703,28 @@
       "step": "node tests/verify-chain-view.js",
       "file": "tests/verify-chain-view.js",
       "guards": [
+        "scripts/lib/transpile-unit.mjs",
         "src/client/kernel/locale-pages.js",
         "src/client/kernel/store-derived.js",
         "src/client/views/shared/sessionChainView.js",
         "src/host/refresh/sessionChainReadout.js",
         "src/host/refresh/sessionTickets.js",
         "src/shared/refresh/chain.js",
-        "src/tracker/contract/vocabulary.ts",
+        "src/tracker/identity-keys.ts",
         "tests/lib/eval-probe.js"
       ],
       "dirs": [
+        "scripts/lib",
         "src/client/kernel",
         "src/client/views/shared",
         "src/host/refresh",
         "src/shared/refresh",
-        "src/tracker/contract",
+        "src/tracker",
         "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 2 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 3 条"
     },
     {
       "step": "node tests/verify-chain-view-ui.js",
@@ -4143,6 +4168,25 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；源码里的路径字面量 8 条"
+    },
+    {
+      "step": "node tests/verify-1039-rules-pure.ts",
+      "file": "tests/verify-1039-rules-pure.ts",
+      "guards": [
+        "src/deck/rules",
+        "src/deck/rules/anchor.ts",
+        "src/deck/rules/dependency-graph.ts",
+        "src/deck/rules/edge-landing.ts",
+        "src/deck/rules/minimal-spec.ts",
+        "src/deck/rules/tool-table.ts",
+        "src/deck/rules/workspace-file.ts"
+      ],
+      "dirs": [
+        "src/deck/rules"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 6 条"
     },
     {
       "step": "node tests/verify-957-workspace-writer.js",
@@ -4757,8 +4801,11 @@
       "node tests/verify-bundled-discovery.js",
       "node tests/verify-bundled-trio-matrix.js"
     ],
-    "package/deck": [],
+    "package/deck": [
+      "node tests/verify-build-artifacts.js"
+    ],
     "package/deck/registration": [
+      "node tests/verify-build-artifacts.js",
       "node tests/verify-deck-tools-row-zero-dep.js"
     ],
     "package/lib": [
@@ -4830,9 +4877,6 @@
     "package/lib/platform": [
       "node tests/verify-build-artifacts.js"
     ],
-    "package/lib/tracker": [
-      "node tests/verify-build-artifacts.js"
-    ],
     "package/scripts": [
       "node tests/verify-prompts.js",
       "node tests/verify-deck-event-gate.mjs"
@@ -4840,7 +4884,9 @@
     "package/shared": [
       "node tests/verify-build-artifacts.js"
     ],
-    "package/tracker": [],
+    "package/tracker": [
+      "node tests/verify-build-artifacts.js"
+    ],
     "package/tracker/contract": [
       "node tests/verify-labels-sync.js"
     ],
@@ -4888,7 +4934,10 @@
       "node tests/verify-build-artifacts.js",
       "node tests/verify-leaves.js",
       "node tests/verify-deck-tools-row-zero-dep.js",
+      "node tests/verify-map-drill.js",
       "node tests/verify-file-granularity.js",
+      "node tests/verify-multi-effort-panel.js",
+      "node tests/verify-chain-view.js",
       "node tests/verify-settings-debug.js",
       "node tests/verify-gate-map.js"
     ],
@@ -5094,6 +5143,7 @@
       "node tests/verify-gate-map.js"
     ],
     "src/deck": [
+      "node tests/verify-build-artifacts.js",
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-log-fields.js",
       "node tests/verify-log-count.js"
@@ -5106,8 +5156,13 @@
       "node tests/verify-deck-quota-sync.js",
       "node tests/verify-deck-no-hang.js",
       "node tests/verify-deck-tools-row-zero-dep.js",
+      "node tests/verify-dependency-rules.ts",
       "node tests/verify-927-gate-injection.js",
       "node tests/verify-957-workspace-writer.js"
+    ],
+    "src/deck/rules": [
+      "node tests/verify-dependency-rules.ts",
+      "node tests/verify-1039-rules-pure.ts"
     ],
     "src/deck/shell": [
       "node tests/verify-deck-tools.js",
@@ -5120,6 +5175,7 @@
       "node tests/verify-deck-quota-sync.js",
       "node tests/verify-deck-parallel.js",
       "node tests/verify-deck-repo-resolve.js",
+      "node tests/verify-dependency-rules.ts",
       "node tests/verify-908-progress-replace.js",
       "node tests/verify-947-workspace-file.js",
       "node tests/verify-957-workspace-writer.js",
@@ -5138,6 +5194,7 @@
       "node tests/verify-deck-no-hang.js",
       "node tests/verify-deck-parallel.js",
       "node tests/verify-deck-thin-reads.js",
+      "node tests/verify-dependency-rules.ts",
       "node tests/verify-992-readonly-labels.js",
       "node tests/verify-929-batch-cycle.js",
       "node tests/verify-723-gate-wiring.js",
@@ -5414,9 +5471,11 @@
     ],
     "src/tracker": [
       "node tests/verify-issue-body-script.js",
+      "node tests/verify-build-artifacts.js",
       "node tests/verify-parse-leaf.js",
       "node tests/verify-labels-sync.js",
       "node tests/verify-no-mixed-session.js",
+      "node tests/verify-map-drill.js",
       "node tests/verify-992-readonly-labels.js",
       "node tests/verify-log-fields.js",
       "node tests/verify-log-count.js",
@@ -5424,19 +5483,18 @@
       "node tests/verify-multi-effort-panel.js",
       "node tests/verify-663-gh-install-inject.js",
       "node tests/verify-delta-patch.js",
+      "node tests/verify-chain-view.js",
       "node tests/verify-deck-slots.js"
     ],
     "src/tracker/contract": [
+      "node tests/verify-build-artifacts.js",
       "node tests/verify-labels-sync.js",
       "node tests/verify-locale-completeness.js",
       "node tests/verify-no-mixed-session.js",
-      "node tests/verify-map-drill.js",
       "node tests/verify-markdown-label-colors.js",
       "node tests/verify-992-readonly-labels.js",
       "node tests/verify-544-standalone-blocked.js",
-      "node tests/verify-multi-effort-panel.js",
       "node tests/verify-issue195.js",
-      "node tests/verify-chain-view.js",
       "node tests/verify-contract-types.js"
     ],
     "src/tracker/detection": [
@@ -5468,6 +5526,7 @@
       "node tests/verify-934-935-invariants.js",
       "node tests/verify-895-github-memo.js",
       "node tests/verify-971-markdown-parent.js",
+      "node tests/verify-dependency-rules.ts",
       "node tests/verify-github-label-colors.js",
       "node tests/verify-992-readonly-labels.js",
       "node tests/verify-929-batch-cycle.js",
@@ -5668,12 +5727,12 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 515,
-    "dirCount": 53,
-    "coveredFileCount": 515,
+    "fileCount": 525,
+    "dirCount": 54,
+    "coveredFileCount": 525,
     "ungatedFileCount": 0,
     "ungatedDirCount": 6,
-    "dedicatedDirCount": 47,
+    "dedicatedDirCount": 48,
     "guardedFiles": [
       "src/client/floating/Pop.js",
       "src/client/floating/SkillFloatList.js",
@@ -5889,6 +5948,15 @@
       "src/deck/registration/quota-sync.ts",
       "src/deck/registration/register-options.ts",
       "src/deck/registration/sandbox-guard.ts",
+      "src/deck/rules/anchor.ts",
+      "src/deck/rules/dependency-graph.ts",
+      "src/deck/rules/edge-landing.ts",
+      "src/deck/rules/index.ts",
+      "src/deck/rules/minimal-spec.ts",
+      "src/deck/rules/time.ts",
+      "src/deck/rules/tool-order.ts",
+      "src/deck/rules/tool-table.ts",
+      "src/deck/rules/workspace-file.ts",
       "src/deck/shell/call-budget.ts",
       "src/deck/shell/call-shell.ts",
       "src/deck/shell/edge-landing.ts",
@@ -5909,6 +5977,7 @@
       "src/deck/tools/map-plan-create.ts",
       "src/deck/tools/map-snapshot.ts",
       "src/deck/tools/tool-order.ts",
+      "src/deck/tsconfig.json",
       "src/host/bootstrap.js",
       "src/host/choiceStore.js",
       "src/host/commentThreads.js",
@@ -6209,6 +6278,7 @@
       "src/client/views/versionControl",
       "src/deck",
       "src/deck/registration",
+      "src/deck/rules",
       "src/deck/shell",
       "src/deck/tools",
       "src/host",
@@ -6258,6 +6328,7 @@
       "src/client/views/versionControl",
       "src/deck",
       "src/deck/registration",
+      "src/deck/rules",
       "src/deck/shell",
       "src/deck/tools",
       "src/host",

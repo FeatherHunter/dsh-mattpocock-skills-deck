@@ -34,6 +34,7 @@
 
 import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { scanCode } from '../scripts/gate-map.mjs'
@@ -49,8 +50,8 @@ const CONFIG_REL = '.dependency-cruiser.cjs'
 const BASELINE_REL = 'tests/same-layer-baseline.json'
 const DEPCRUISE_BIN_REL = 'node_modules/dependency-cruiser/bin/dependency-cruiser.mjs'
 const SOURCE_EXTS = ['.js', '.mjs', '.cjs', '.ts', '.mts', '.cts']
-// 同层互引四条 + 房间纪律两条 + deck 深引一条 + 禁循环一条。出现在这里的作用是「配置被改松就判红」：
-// 少一条、名字改了、severity 不是 error，都会在下面对不上。
+// 同层互引四条 + 房间纪律两条 + deck 深引一条 + 纯规则侧两条 + 禁循环一条。出现在这里的作用是
+// 「配置被改松就判红」：少一条、名字改了、severity 不是 error，都会在下面对不上。
 const EXPECTED_RULES = [
   'same-layer-import-platform',
   'same-layer-import-host',
@@ -59,6 +60,8 @@ const EXPECTED_RULES = [
   'cross-room-import',
   'room-imports-third-party-package',
   'deck-deep-import',
+  'deck-rules-stay-pure',
+  'deck-rules-no-node-builtins',
   'circular-dependency',
 ]
 const SAME_LAYER_RULE_PREFIX = 'same-layer-import-'
@@ -337,6 +340,88 @@ function selfCheck(): void {
   const p2 = scopeProblems([{ rel: 'src/seam/gate.js', abs: join(ROOT, 'src/seam/gate.js') }], 3, () => true)
   if (p2.length === 0) pass('扫描域正常时不误报')
   else fail('扫描域正常时不该报问题：' + JSON.stringify(p2))
+
+  selfCheckPurityRules()
+}
+
+// ---------------------------------------------------------------------------
+// 纯规则侧两条规则的夹具（#1039：判据先自己证明会红，再去判真仓库）
+// ---------------------------------------------------------------------------
+
+type PurityRule = { name?: string, severity?: string, from?: { path?: string }, to?: { path?: string[], dependencyTypes?: string[] } }
+
+/**
+ * 取配置里那条规则；没有就返回 null（调用方判红）。
+ * 用 createRequire 读 .cjs：本文件是 ESM，而配置文件是 CommonJS（理由见它的文件头）。
+ */
+function purityRule(name: string): PurityRule | null {
+  let config: { forbidden?: PurityRule[] } = {}
+  try {
+    const req = createRequire(import.meta.url)
+    config = req('../.dependency-cruiser.cjs') as { forbidden?: PurityRule[] }
+  } catch (e) {
+    return null
+  }
+  return (config.forbidden || []).find((r) => r && r.name === name) || null
+}
+
+/** 把一条规则的 to.path 模式拿去试一个目标路径：命中就说明这个方向会被判红。 */
+function purityRuleCatches(rule: PurityRule | null, target: string): boolean {
+  const patterns = (rule && rule.to && rule.to.path) || []
+  return patterns.some((p) => new RegExp(p).test(target))
+}
+
+/**
+ * 自检内存夹具：证明「纯规则侧不许碰世界」那两条规则真的会红、且不误伤。
+ * 为什么要有它：配置里的规则是文本，改松了（删一条、把 path 写错、把 severity 降成 warn）
+ * 靠读一遍配置看不出来；这里把规则取出来当场对着几条假目标试一遍。
+ * 真仓库那一侧的判据由 dependency-cruiser 自己跑（本文件末尾统一判红绿）。
+ */
+function selfCheckPurityRules(): void {
+  console.log('== 纯规则侧两条规则的夹具（#1039）==')
+  const pure = purityRule('deck-rules-stay-pure')
+  const builtins = purityRule('deck-rules-no-node-builtins')
+
+  if (pure && pure.severity === 'error' && pure.from && pure.from.path === '^src/deck/rules/') {
+    pass('规则在配置里：deck-rules-stay-pure（error 级，from 是纯规则侧）')
+  } else {
+    fail('配置里没有 deck-rules-stay-pure 这条 error 级规则（#1039 的判据被删或改松了）')
+  }
+  if (builtins && builtins.severity === 'error' && (builtins.to?.dependencyTypes || []).includes('core')) {
+    pass('规则在配置里：deck-rules-no-node-builtins（error 级，管的是内置模块）')
+  } else {
+    fail('配置里没有 deck-rules-no-node-builtins 这条 error 级规则（#1039 的判据被删或改松了）')
+  }
+
+  const hostTargets = [
+    'src/host/tracker/detection/backendDecision.ts',
+    'src/tracker/registry/registryCore.ts',
+    'src/deck/shell/call-shell.ts',
+    'src/deck/tools/issue-create.ts',
+    'src/deck/registration/host-assemble.ts',
+    'src/client/views/deck.ts',
+    'src/seam/gate.ts',
+  ]
+  for (const target of hostTargets) {
+    if (purityRuleCatches(pure, target)) pass('会判红：纯规则侧引 ' + target)
+    else fail('漏判：纯规则侧引 ' + target + ' 应当判红')
+  }
+  for (const target of ['src/deck/rules/anchor.ts', 'src/shared/labels.js']) {
+    if (!purityRuleCatches(pure, target)) pass('不误伤：' + target + '（纯侧内部与共享层照旧可引）')
+    else fail('误伤：' + target + ' 不该被 deck-rules-stay-pure 判红')
+  }
+  // 追踪器整棵都在禁列里，契约层也不例外：纯侧要后端能力时，由宿主侧把能力当参数递进来
+  // （#1038 定版：纯侧不连宿主）。所以这里断言的是「连契约层也判红」，不是「放行」。
+  if (purityRuleCatches(pure, 'src/tracker/contract/deck.ts')) {
+    pass('会判红：纯规则侧引 src/tracker/contract/deck.ts（追踪器整棵都在禁列，能力由宿主侧递进来）')
+  } else {
+    fail('漏判：纯规则侧引 src/tracker/contract/deck.ts 应当判红')
+  }
+  if (!purityRuleCatches(pure, 'node:fs') && !purityRuleCatches(pure, 'path')) {
+    pass('内置模块不由「不许引宿主目录」那条管（两条规则各管一面，合起来才是完整判据）')
+  } else {
+    fail('内置模块应当由 deck-rules-no-node-builtins 管，不该混进 deck-rules-stay-pure')
+  }
 }
 
 // ---------------------------------------------------------------------------

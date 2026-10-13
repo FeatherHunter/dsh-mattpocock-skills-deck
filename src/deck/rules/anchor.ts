@@ -43,18 +43,11 @@ export function labelNames(list: unknown): string[] {
 }
 
 /**
- * 幂等锚：同一个会话 + 同一个标题 + 同一批标签，在同一个窗口里得到同一个锚。
- *
- * 锚的构成是 `工具名|会话（没有就说工作区）|标题|标签（逗号相连）|窗口序号` 的 djb2 哈希，
- * 前缀 `deck-`，末尾再缀上窗口序号本身（便于人一眼看出这是哪个窗口的锚）。
- * 标签按调用方给的先后顺序拼（不重排）—— 这里只做「算出一个稳定的串」，去重的权威在契约层；
- * 「同一批标签换个顺序要不要算同一个锚」属于去重语义，不在这次搬家的范围内。
- *
- * 形参是一个「已经收好口」的具名对象而不是一长串位置参数：调用处写错顺序编译器不会报，
- * 写成具名对象之后少一个、错一个都当场看得见；`now` 是必填，缺了编译不过 ——
- * 这就是「纯侧不读钟」这条线在类型上的落点。
+ * 幂等锚的入参（具名对象）。
+ * 单独写成类型而不是写在函数签名里，是为了让宿主侧的门面能原样转发这个形状 ——
+ * 转发处不必再抄一遍字段，纯侧加一个字段时门面自动跟上。
  */
-export function anchorKeyFor(parts: {
+export interface AnchorParts {
   /** 工具名（锚只在同一个工具内部去重）。 */
   tool: unknown
   /** 会话标识；缺席时退到工作区标识。 */
@@ -69,10 +62,25 @@ export function anchorKeyFor(parts: {
   now: Timestamp
   /** 窗口长度，单位毫秒；只有测试会传，生产用默认的 5 分钟。 */
   windowMs?: number
-}): string {
+}
+
+/**
+ * 幂等锚：同一个会话 + 同一个标题 + 同一批标签，在同一个窗口里得到同一个锚。
+ *
+ * 锚的构成是 `工具名|会话（没有就说工作区）|标题|标签（逗号相连）|窗口序号` 的 djb2 哈希，
+ * 前缀 `deck-`，末尾再缀上窗口序号本身（便于人一眼看出这是哪个窗口的锚）。
+ * 标签按调用方给的先后顺序拼，**不重排**：同一个调用点每次传的标签顺序是稳定的，重试自然落在同一个锚上；
+ * 反过来，重排会让「本来同一个锚」变成两个锚、去重失效 —— 排序看着更「整齐」，代价是多建一张票。
+ * 「同一批标签换个顺序要不要算同一个锚」属于去重语义，要改得先改契约层（#711）的口径，不在搬家范围内。
+ *
+ * 形参是一个「已经收好口」的具名对象而不是一长串位置参数：调用处写错顺序编译器不会报，
+ * 写成具名对象之后少一个、错一个都当场看得见；`now` 是必填，缺了编译不过 ——
+ * 这就是「纯侧不读钟」这条线在类型上的落点。
+ */
+export function anchorKeyFor(parts: AnchorParts): string {
   const windowMs = (typeof parts.windowMs === 'number' && parts.windowMs > 0) ? parts.windowMs : ANCHOR_WINDOW_MS
   const bucket = anchorBucket(parts.now, windowMs)
-  const labels = labelNames(parts.labels).slice().sort()
+  const labels = labelNames(parts.labels)
   const raw = [
     str(parts.tool),
     str(parts.sessionId) || str(parts.workspaceKey),
