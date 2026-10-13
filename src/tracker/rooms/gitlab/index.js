@@ -228,6 +228,13 @@ export const gitlabBackend = {
   searchUrl,
   linkPattern,
   links,
+  // 开仓方式（#231 的开仓契约动作）：'url' = 界面用浏览器新窗打开 describe().url。
+  // 2026-10-14 补（#1117）：这个值原来只以文件级导出的形式存在（本文件顶上的 export const openRepository），
+  //   没有挂进注册表真正读的那个模块对象 —— 注册表只在模块对象上有这个字段时才转发它，于是界面按
+  //   「后端自己声明的开仓动作」分套的那处（src/client/views/labels/labelColorErrors.js 的 lcCopyPlanOf）
+  //   把 GitLab 归到「没读到开仓动作」那一套。这跟 #620 给 GitHub 修掉的是同一处形状（那边补完把理由
+  //   记在 src/tracker/rooms/github/index.ts），所以这里补上同一个值；契约里这个成员本来就是可选的。
+  openRepository,
   // #191：品牌色完整色板（B 方案定版 · #177）
   presentation: {
     color: '#c25100',

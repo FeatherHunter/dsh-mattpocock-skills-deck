@@ -121,22 +121,23 @@ const RUNTIME_SNAPSHOTS = {
   },
   /**
    * GitLab 这一份是 2026-10-14 实测补上的（#1110 实现决定第 15 条要求本图把缺的这份补齐）。
-   * 实测发现它和另外两家不一样：`openRepository` 的值只以文件级导出的形式存在
-   * （`src/tracker/rooms/gitlab/index.js:90` 的 `export const openRepository = 'url'`），
-   * 没有挂进模块对象——这与 #620 给 GitHub 修掉的那处是同一个形状
-   * （`src/tracker/rooms/github/index.ts:218-222` 记着那次为什么补）。
-   * 契约里这个成员本来就可选（`src/tracker/contract/backend-module.ts:219` 写的是 `openRepository?`），
-   * 所以「模块对象上没有」不算违约，本快照如实记「没有」，不替它补值（补值是改行为，不归这道门禁）。
-   * 影响面：界面侧 `src/client/kernel/builtin-backends.js:38` 只认 `'folder'`，url 型的开仓走
-   * `repoRef.url` 那条路（`src/client/panel/Dock.js:205-217`），所以网址本身照旧能开；
-   * 会变的是按「后端自己声明的开仓动作」分套的那处（`src/client/views/labels/labelColorErrors.js:205`）
-   * 会把 GitLab 归到「未声明」。谁把声明补进模块对象，就同时把这里改成 'url'。
+   * 当时实测发现它和另外两家不一样：`openRepository` 的值只以文件级导出的形式存在
+   * （`src/tracker/rooms/gitlab/index.js` 顶上的 `export const openRepository = 'url'`），没有挂进模块对象
+   * ——这与 #620 给 GitHub 修掉的那处是同一个形状（`src/tracker/rooms/github/index.ts` 记着那次为什么补）。
+   * 契约里这个成员本来就可选（`src/tracker/contract/backend-module.ts` 的 `openRepository?`），
+   * 所以「模块对象上没有」当时不算违约，快照如实记「没有」，没替它补值。
+   * 该缺口已由 #1117 补齐（2026-10-14）：模块对象上现在挂 `openRepository`（取值与文件级导出同一个 `'url'`），
+   * 本快照随之从「不声明」改成 `'url'`，键集合多一个 `openRepository`。
+   * 这次的行为变化只在界面那一处分类：按「后端自己声明的开仓动作」分套的
+   * `src/client/views/labels/labelColorErrors.js` 的 lcCopyPlanOf 从「没读到开仓动作、这一次不生成方案」
+   * 改判成 url 型那一套（远端仓库版文案）。网址本身照旧能开（走 `repoRef.url`，`src/client/panel/Dock.js`
+   * 那一条）——这次改的是声明，不是开仓这个动作本身。
    * 改名（#1135，2026-10-14）：模块对象迁到三个与后端无关的新名字，老名字按别名窗口留着，
-   * 所以下面这份键快照今天是 16 个。
+   * 所以下面这份键快照今天是 17 个（那 16 个名字，加上这次新挂的 `openRepository`）。
    */
   gitlab: {
-    keys: ['create', 'describe', 'fixes', 'id', 'issueAddress', 'issueRefPattern', 'issueUrl', 'label', 'linkPattern', 'links', 'matches', 'presentation', 'prompts', 'repoSearchAddress', 'searchUrl', 'setupPrompt'],
-    openRepository: undefined,
+    keys: ['create', 'describe', 'fixes', 'id', 'issueAddress', 'issueRefPattern', 'issueUrl', 'label', 'linkPattern', 'links', 'matches', 'openRepository', 'presentation', 'prompts', 'repoSearchAddress', 'searchUrl', 'setupPrompt'],
+    openRepository: 'url',
     checksKind: 'absent',
   },
 }
