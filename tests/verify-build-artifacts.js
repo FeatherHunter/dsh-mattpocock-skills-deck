@@ -275,11 +275,19 @@ console.log('\n三棵新树镜像校验（后缀换算 + 转译结果比对）')
   const IN_GIT_PRODUCT_EXCEPTIONS = ['scripts/generated/logKernel.derived.js', 'scripts/generated/updateClient.derived.js']
   // 2026-10-13 实测 69 件（src/client 34 + src/shared 35）。这是「还没搬家」的存量，不是允许长期存在的额度：
   // 只许降不许升，降到 0 之后这条上限就改成 0。
-  // 另有一件已知影子文件不计在这 69 里：src/tracker/contract/vocabulary.js（上面注释的拼接输入，归 #1026 带走）。
-  // 判据是“去掉已知影子后不超过 69”，而不是把上限改成 70——改成 70 会多出一件空位，
+  // 另有几件已知产物单列在 KNOWN_PRODUCTS_OUT_OF_SCOPE 里、不计进这 69（见那里的出处说明）。
+  // 判据是「去掉已知产物后不超过 69」，而不是把上限抬高一格——抬高会多出一件空位，
   // 任何一件新产物混进来都看不出来；单列已知项则新产物一件都藏不住。
   const TRANSITIONAL_PRODUCTS_MAX = 69
-  const KNOWN_SHADOW_OUT_OF_SCOPE = 'src/tracker/contract/vocabulary.js'
+  // 已知的、单列出来的产物：它们不进「过渡产物」的计数，理由是各自有出处可查，不是混进来的新产物。
+  //   · src/tracker/contract/vocabulary.js —— #1018 拼闭包用的词汇表产物，归 #1026 带走。
+  //   · src/client/kernel/api-io.js —— #1111：客户端内核的 api-io 由手写 .js 转成 .ts，同名 .js 从此是
+  //     构建产物（与 locale-cards.js、locale-skilldetail.js 同类）。它没有把上限抬高一格：这一格留给
+  //     「搬家那条线」继续收，新产物想混进来仍然看得见。
+  const KNOWN_PRODUCTS_OUT_OF_SCOPE = [
+    'src/tracker/contract/vocabulary.js',
+    'src/client/kernel/api-io.js',
+  ]
   const SKIP_DIRS = new Set(['node_modules', '.git'])
 
   const toPosix = (p) => p.split(path.sep).join('/')
@@ -325,14 +333,14 @@ console.log('\n三棵新树镜像校验（后缀换算 + 转译结果比对）')
   walkAll(process.cwd(), '')
   if (outside.length) console.log('    四类之外、又不在源码树里的产物:\n    ' + outside.join('\n    '))
   check(outside.length === 0, '四类落点之外没有产物（四类：package/lib、package/shared、package/deck、package/tracker、根 client.js/host.js、scripts/generated、packages/*/dist）')
-  const transitionalWithoutKnown = transitional.filter((rel) => rel !== KNOWN_SHADOW_OUT_OF_SCOPE)
+  const transitionalWithoutKnown = transitional.filter((rel) => KNOWN_PRODUCTS_OUT_OF_SCOPE.indexOf(rel) < 0)
   const knownPresent = transitional.length - transitionalWithoutKnown.length
   check(transitionalWithoutKnown.length <= TRANSITIONAL_PRODUCTS_MAX,
-    `源码树里的过渡产物没有变多（去掉已知影子 ${KNOWN_SHADOW_OUT_OF_SCOPE} ${knownPresent} 件后现 ${transitionalWithoutKnown.length} 件，上限 ${TRANSITIONAL_PRODUCTS_MAX} 件；搬家那条工作线做完后应降到 0，影子文件由 #1026 带走）`)
+    `源码树里的过渡产物没有变多（去掉已知产物 ${KNOWN_PRODUCTS_OUT_OF_SCOPE.join('、')} ${knownPresent} 件后现 ${transitionalWithoutKnown.length} 件，上限 ${TRANSITIONAL_PRODUCTS_MAX} 件；搬家那条工作线做完后应降到 0）`)
   if (transitional.length) {
     const byDir = {}
     for (const rel of transitional) { const k = rel.slice(0, rel.lastIndexOf('/')); byDir[k] = (byDir[k] || 0) + 1 }
-    console.log('    INFO 源码树里还剩 ' + transitional.length + ' 件待搬家的产物（含已知影子 ' + KNOWN_SHADOW_OUT_OF_SCOPE + '）：'
+    console.log('    INFO 源码树里还剩 ' + transitional.length + ' 件待搬家的产物（含已知产物 ' + KNOWN_PRODUCTS_OUT_OF_SCOPE.join('、') + '）：'
       + Object.entries(byDir).sort().map(([k, v]) => k + ' ' + v + ' 件').join('、'))
   }
 }

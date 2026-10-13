@@ -43,10 +43,19 @@ export const LabelColorRow = (props) => {
   // 勾不占行的宽度，各行输入框右缘因此始终对齐。
   const boxW = narrow ? 92 : 108
   const inputStyle = { width: okMark ? boxW - 15 : boxW, flex: 'none', padding: okMark ? '3px 21px 3px 6px' : '3px 6px', borderRadius: 6, border: '1px solid ' + (incomplete ? 'rgba(248,113,113,.6)' : 'var(--dsw-alias-border-l1,#2a2d35)'), background: 'var(--dsw-alias-bg-layer-1,#10131a)', color: 'var(--dsw-alias-label-primary,#e6edf3)', fontSize: 11.5, fontFamily: 'Consolas,Menlo,monospace', colorScheme: 'light dark' }
+  // #1111：这一行的失败说明分三块——给人看的一句话（后端写的 message）、可选档位小标签、可逐字核对的后端原文。
+  // 原文默认收起（可能很长），点开才看；没有原文就不渲染这一块，不摆空框。原文由 lcSaveOutcome 一路带进行对象，
+  // 旧形状把原文放在 error 里（只认字符串）。就地取、不调跨文件的 lcRawOf：本组件会被测试单独摘出来编译、
+  // 只注入固定几个依赖（见 tests/verify-label-color-core.js 的 compileFn），多一个自由变量就会在渲染这一行时炸。
+  const rawText = String((result && result.raw) || (result && typeof result.error === 'string' ? result.error : '') || '').trim()
   const failText = result && !result.ok ? [
     h('div', { key: 'lead', style: { fontWeight: 600 } }, tr('lc.rowFailed')),
     h('div', { key: 'kind' }, tr(lcKindKey(result.kind))),
-    result.message ? h('div', { key: 'raw', style: { opacity: 0.85, wordBreak: 'break-word' } }, tr('lc.backendSaid', { msg: result.message })) : null,
+    result.message ? h('div', { key: 'said', style: { opacity: 0.85, wordBreak: 'break-word' } }, tr('lc.backendSaid', { msg: result.message })) : null,
+    rawText ? h('details', { key: 'raw', style: { marginTop: 2 } }, [
+      h('summary', { style: { opacity: 0.85, cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, tr('vc.fail.raw', { msg: rawText })),
+      h('div', { style: { marginTop: 3, padding: '4px 6px', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 4, whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 160, overflow: 'auto' } }, rawText),
+    ]) : null,
   ] : null
   return h('div', { 'data-lc-row': row.name, style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '5px 0', borderTop: '1px solid var(--dsw-alias-border-l1,#2a2d35)' } }, [
     h(Tip, { key: 'sw', content: tr('lc.swatchTip') }, h('input', {

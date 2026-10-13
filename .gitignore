@@ -58,6 +58,8 @@ _research/
 /src/tracker/contract/vocabulary.js
 /src/client/kernel/locale-cards.js
 /src/client/kernel/locale-skilldetail.js
+# #1111：客户端内核的 api-io 由手写 .js 转成 .ts，同名 .js 从此是构建产物（真源是 api-io.ts）。
+/src/client/kernel/api-io.js
 /src/client/views/SkillsTab.js
 /src/client/views/pixel/
 /src/client/views/skillDetail/

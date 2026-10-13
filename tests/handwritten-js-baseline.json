@@ -44,7 +44,6 @@
     "src/client/hostShim.js",
     "src/client/index.js",
     "src/client/kernel/actions.js",
-    "src/client/kernel/api-io.js",
     "src/client/kernel/api-naming.js",
     "src/client/kernel/api-new-session.js",
     "src/client/kernel/api-preset-guard.js",

@@ -18,7 +18,7 @@ const fs = require('fs')
 // 本文件选 compileFn 手法：五处沙箱都是把真源码文本当函数体造函数，依赖一律按参数名显式传进去，不靠外层作用域。
 const { compileFn } = require('./lib/eval-probe.js')
 
-const API_SRC_FILES = ['src/client/kernel/api-naming.js', 'src/client/kernel/api-workspace.js', 'src/client/kernel/api-new-session.js', 'src/client/kernel/api-io.js', 'src/client/kernel/api-preset-guard.js'] // #457 K4 + #478 + #636：api 拆分文件 + 预设守卫模块 + 工作区查找模块，src 侧读五文件拼合（守卫块经独立锚点提取）
+const API_SRC_FILES = ['src/client/kernel/api-naming.js', 'src/client/kernel/api-workspace.js', 'src/client/kernel/api-new-session.js', 'src/client/kernel/api-io.ts', 'src/client/kernel/api-preset-guard.js'] // #457 K4 + #478 + #636：api 拆分文件 + 预设守卫模块 + 工作区查找模块，src 侧读五文件拼合（守卫块经独立锚点提取；api-io 于 #1111 转成 .ts，锚点写在源码里）
 const files = process.argv.slice(2).length ? process.argv.slice(2) : ['src/client/kernel/api-naming.js+api-workspace.js+api-new-session.js+api-io.js+api-preset-guard.js（拼合）', 'package/lib/client.js']
 const readTestSrc = (file) => file.indexOf('（拼合）') >= 0 ? API_SRC_FILES.map((f) => fs.readFileSync(f, 'utf8')).join('\n') : fs.readFileSync(file, 'utf8') // #457 K4：拼合含 openText/工厂/回退/工作区查找全量（跨 naming、workspace 与 new-session，单文件含不全）
 const testExists = (file) => file.indexOf('（拼合）') >= 0 ? API_SRC_FILES.every((f) => fs.existsSync(f)) : fs.existsSync(file) // #457 K4：五文件全存在才算存在
@@ -28,7 +28,9 @@ function extractOpenFn(src) {
   const src2 = src.indexOf(marker) >= 0 ? src : src.replace(/export const openTextInNewSession/, 'const openTextInNewSession')
   const i = src2.indexOf(marker)
   if (i < 0) throw new Error('起始锚点缺失: openTextInNewSession')
-  const j = src2.indexOf('// #361 原入口：行级「在新会话打开」保留', i)
+  // 终止锚点写成 `//!`（法律注释）：api-io 转成 TypeScript 之后由 esbuild 出产物，普通注释会被去掉，
+  // 只有 `//!` 这一种能一路留到 package/lib/client.js，源与产物两条腿才能用同一个锚点（#1111）。
+  const j = src2.indexOf('//! #361 原入口：行级「在新会话打开」保留', i)
   if (j < 0) throw new Error('终止锚点缺失: #361 注释')
   return src2.slice(i, j)
 }

@@ -207,7 +207,7 @@ export const LabelColorDialog = (props) => {
       h('div', { key: 'msg', style: { fontSize: 11.5, lineHeight: 1.7, color: 'var(--dsw-alias-label-secondary,#a1a1aa)' } }, tr('lc.err.unsupported')),
     ])
   } else if (lc.phase === 'failed') {
-    const err = lc.loadError || { kind: '', message: '' }
+    const err = lc.loadError || { kind: '', message: '', raw: '' }
     // 「这一步没定下用哪个后端」这一档（#631 三、）：后端返回的说明会让用户先去面板里选定这个工作区的后端，
     //   而用户在这个弹窗里没有任何能去的地方——死胡同。所以这一档补两样：一句写明去哪儿选（面板头部那颗
     //   「切换后端」按钮），和一个一次点击的入口。
@@ -220,10 +220,21 @@ export const LabelColorDialog = (props) => {
     const conflict = err.kind === 'conflict'
     const waitingBackend = conflict && panelPending
     const needPick = conflict && !panelPending
+    // #1111：这一档里能摊给用户逐字核对的后端原文。两个落点都认：跟踪器通道放在 raw（lcErrorOf 会带出来），
+    // 宿主尚未迁移的通道把原文放在 error 里（只认字符串）。没有原文就是空串，下面据此不渲染那一块。
+    // 就地取、不调跨文件的 lcRawOf：本组件会被测试单独摘出来编译、只注入固定几个依赖
+    // （见 tests/verify-label-color-core.js 的 compileFn），多一个自由变量就会在渲染这一档时炸。
+    const errRaw = String((err.raw || (typeof err.error === 'string' ? err.error : '')) || '').trim()
     body = h('div', { key: 'failed', style: { padding: '10px 2px' } }, [
       h('div', { key: 'ttl', style: { fontSize: 12.5, fontWeight: 700, color: '#f87171', marginBottom: 4 } }, tr('lc.loadFailTitle')),
       h('div', { key: 'kind', style: { fontSize: 11.5, lineHeight: 1.7, color: 'var(--dsw-alias-label-secondary,#a1a1aa)' } }, tr(lcKindKey(err.kind))),
-      err.message ? h('div', { key: 'raw', style: { fontSize: 11, lineHeight: 1.6, marginTop: 4, color: '#8b8b95', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 6, padding: '5px 8px', wordBreak: 'break-word' } }, tr('lc.backendSaid', { msg: err.message })) : null,
+      err.message ? h('div', { key: 'said', style: { fontSize: 11, lineHeight: 1.6, marginTop: 4, color: '#8b8b95', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 6, padding: '5px 8px', wordBreak: 'break-word' } }, tr('lc.backendSaid', { msg: err.message })) : null,
+      // #1111：后端原文与上面那句话分两块摆——上面是给人看的一句话，这里是可以逐字核对的原文。
+      // 默认收起（原文可能很长），点开才看；没有原文就不渲染这一块，不摆一个空框。
+      errRaw ? h('details', { key: 'raw', style: { marginTop: 4 } }, [
+        h('summary', { style: { fontSize: 11, lineHeight: 1.6, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, tr('vc.fail.raw', { msg: errRaw })),
+        h('div', { style: { marginTop: 4, padding: '5px 8px', border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderRadius: 6, fontSize: 11, lineHeight: 1.6, color: '#8b8b95', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 200, overflow: 'auto' } }, errRaw),
+      ]) : null,
       needPick ? h('div', { key: 'where', 'data-lc-where': 1, style: { fontSize: 11.5, lineHeight: 1.7, marginTop: 8, color: 'var(--dsw-alias-label-secondary,#a1a1aa)' } }, tr('lc.errWherePick')) : null,
       waitingBackend ? h('div', { key: 'waiting', 'data-lc-wait': 1, style: { fontSize: 11.5, lineHeight: 1.7, marginTop: 8, color: 'var(--dsw-alias-label-secondary,#a1a1aa)' } }, tr('lc.errWaitBackend')) : null,
       h('div', { key: 'acts', style: { marginTop: 10, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } }, [

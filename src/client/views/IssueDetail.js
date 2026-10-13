@@ -48,6 +48,29 @@ export const IssueDetail = function (props) {
       // 栈空才回列表）。直接调弹栈，不经过按种类守卫的旧入口，混合栈也只退一级。
       const goBack = function () { popNav(st) }
       const doRetry = function () { if (typeof fetchIssueDetail === 'function') fetchIssueDetail(st, issueNumber, { force: true, effortId: issueEffort }) }
+      // #1111 · 失败横幅共用的三小块（整页横幅与「有快照可显」的细横幅都用它们）。
+      // 一条失败拆成三样：主行是给人看的一句话（后端或界面自己写的那句 message），
+      // 档位只当可选的小标签（kind，八档取值，可能没有），后端原文收进可展开区（raw，没有就不渲染这一段）。
+      // 这三样都由 api-io 的 dswsNormalizeError 统一给出；这里不再照着原文另猜档位。
+      const errSayOf = function (e) {
+        const said = String((e && e.message) || '').trim()
+        return said || tr('list.loadFail')
+      }
+      const errKindOf = function (e) { return String((e && e.kind) || '').trim() }
+      const errRawOf = function (e) {
+        const direct = String((e && e.raw) || '').trim()
+        if (direct) return direct
+        // 兼容本次修复之前就已经存进状态里的错误对象：那时后端原文放在 error 字段里
+        return (e && typeof e.error === 'string') ? String(e.error).trim() : ''
+      }
+      const errRawBlockOf = function (e) {
+        const rawText = errRawOf(e)
+        if (!rawText) return null
+        return h('details', { style: { width: '100%', marginTop: 2, paddingTop: 4, borderTop: '1px solid rgba(248,113,113,.25)' } }, [
+          h('summary', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, tr('vc.fail.raw', { msg: rawText })),
+          h('div', { style: { marginTop: 4, padding: '6px 8px', background: 'rgba(0,0,0,.18)', border: '1px solid rgba(248,113,113,.25)', borderRadius: 6, fontSize: 11, lineHeight: 1.6, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 200, overflow: 'auto' } }, rawText),
+        ])
+      }
       const copyUrl = function (n) {
         const url = issueUrlFor(st, n, issueEffort)
         copyText(st, url, tr('toast.copiedLink', { n: n }))
@@ -122,20 +145,22 @@ export const IssueDetail = function (props) {
       }
       // err 无 src（且非 snap 降级可显）→ 错误横幅
       if (mode === 'err' && !src) {
-        const kind = err && err.kind || 'network'
-        const msg = err && (err.message || err.error) || tr('list.loadFail')
         return h('div', null, [
           h('div', { ref: topBarRef, style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'nowrap', minWidth: 0, overflow: 'hidden' } }, [
             h('button', { className: 'dsws-btn', onClick: goBack, style: { display: 'inline-flex', alignItems: 'center', gap: 4, flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' } }, [Ic({ n: 'back', size: 12 }), h('span', { 'data-detail-back-text': 1, 'data-full': tr('list.back'), style: { overflow: 'hidden', whiteSpace: 'nowrap', minWidth: 0 } }, tr('list.back'))]),
             h('span', { 'data-detail-crumb': 1, 'data-full': navCrumb, style: { color: 'var(--dsw-alias-label-secondary,#a1a1aa)', fontSize: 11, flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' } }, navCrumb),
             h('span', { style: { flex: 1 } }),
           ]),
-          h('div', { style: { padding: '12px', background: 'rgba(248,113,113,.08)', border: '1px solid rgba(248,113,113,.3)', borderRadius: 8, fontSize: 12, color: '#f87171', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' } }, [
-            Ic({ n: 'alert', size: 13 }),
-            h('span', null, kind + ': ' + String(msg).slice(0, 160)),
-            h('span', { style: { flex: 1 } }),
-            h('button', { className: 'dsws-btn primary', onClick: doRetry, style: { padding: '1px 8px', fontSize: 11, background: '#f87171', borderColor: 'transparent', color: '#fff' } }, '重试'),
-            h('a', { className: 'dsws-btn ghost', href: issueUrlFor(st, issueNumber, issueEffort), target: '_blank', rel: 'noreferrer', style: { padding: '1px 8px', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4 } }, [Ic({ n: 'link', size: 11 }), h('span', null, tr('detail.viewOnTracker'))]),
+          h('div', { style: { padding: '12px', background: 'rgba(248,113,113,.08)', border: '1px solid rgba(248,113,113,.3)', borderRadius: 8, fontSize: 12, color: '#f87171', display: 'flex', flexDirection: 'column', gap: 6 } }, [
+            h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' } }, [
+              Ic({ n: 'alert', size: 13 }),
+              h('span', { style: { wordBreak: 'break-word' } }, errSayOf(err)),
+              errKindOf(err) ? h('span', { style: { fontSize: 10, padding: '0 6px', border: '1px solid rgba(248,113,113,.45)', borderRadius: 10, flex: 'none' } }, errKindOf(err)) : null,
+              h('span', { style: { flex: 1 } }),
+              h('button', { className: 'dsws-btn primary', onClick: doRetry, style: { padding: '1px 8px', fontSize: 11, background: '#f87171', borderColor: 'transparent', color: '#fff' } }, '重试'),
+              h('a', { className: 'dsws-btn ghost', href: issueUrlFor(st, issueNumber, issueEffort), target: '_blank', rel: 'noreferrer', style: { padding: '1px 8px', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4 } }, [Ic({ n: 'link', size: 11 }), h('span', null, tr('detail.viewOnTracker'))]),
+            ]),
+            errRawBlockOf(err),
           ]),
         ])
       }
@@ -262,13 +287,17 @@ export const IssueDetail = function (props) {
             h(Tip, { content: tr('tip.openInTracker', { n: issueNumber }) }, h('a', { className: 'dsws-btn ghost', href: issueUrlFor(st, issueNumber), target: '_blank', rel: 'noreferrer', style: { display: 'inline-flex', alignItems: 'center', padding: '2px 4px', flex: 'none' } }, Ic({ n: 'link', size: 13 }))),
           ]),
         ]),
-        // 顶部 err 横幅（有 src 时可重试，不遮挡主体）
-        mode === 'err' && err ? h('div', { style: { padding: '8px 10px', background: 'rgba(248,113,113,.08)', border: '1px solid rgba(248,113,113,.25)', borderRadius: 6, fontSize: 11, color: '#f87171', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' } }, [
-          Ic({ n: 'alert', size: 11 }),
-          h('span', null, (err.kind || 'err') + ': ' + String(err.message || err.error || '').slice(0,140)),
-          h('span', { style: { flex: 1 } }),
-          h('button', { className: 'dsws-btn', onClick: doRetry, style: { padding: '1px 6px', fontSize: 11 } }, '重试'),
-          !detail && snapIssue ? h('span', { style: { fontSize: 10, color: '#f59e0b' } }, '（显示快照降级）') : null,
+        // 顶部 err 横幅（有 src 时可重试，不遮挡主体）：主行给人看的一句话，档位作可选小标签，原文可展开
+        mode === 'err' && err ? h('div', { style: { padding: '8px 10px', background: 'rgba(248,113,113,.08)', border: '1px solid rgba(248,113,113,.25)', borderRadius: 6, fontSize: 11, color: '#f87171', display: 'flex', flexDirection: 'column', gap: 6 } }, [
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' } }, [
+            Ic({ n: 'alert', size: 11 }),
+            h('span', { style: { wordBreak: 'break-word' } }, errSayOf(err)),
+            errKindOf(err) ? h('span', { style: { fontSize: 10, padding: '0 6px', border: '1px solid rgba(248,113,113,.45)', borderRadius: 10, flex: 'none' } }, errKindOf(err)) : null,
+            h('span', { style: { flex: 1 } }),
+            h('button', { className: 'dsws-btn', onClick: doRetry, style: { padding: '1px 6px', fontSize: 11 } }, '重试'),
+            !detail && snapIssue ? h('span', { style: { fontSize: 10, color: '#f59e0b' } }, '（显示快照降级）') : null,
+          ]),
+          errRawBlockOf(err),
         ]) : null,
         // header
         h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 2 } }, [

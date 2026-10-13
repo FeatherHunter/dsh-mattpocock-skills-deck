@@ -8,7 +8,8 @@
  *     宿主把它改名成 labels 交给客户端；这里两种键都认，免得宿主改口径时界面先崩）；
  *     保存成功时是 { ok:true, applied:[...], failed:[...] }（同样兼容包在 data 里的一种写法——
  *     本地 Markdown 后端自己回的就是 { ok:true, data:{applied,failed} }，宿主那层才把它摊平）。
- *     失败一律是 { ok:false, error:{kind,message} }。
+ *     失败一律是 { ok:false, error:{kind,message} }；#1111 起每一条失败的多段说明里还带 raw
+ *     （后端原文，没有原文时是空串，见 lcRawOf）。
  *
  * 二、契约的八个错误档位到词条键的映射。档位名见 src/host/tracker/contract.js 的 ERROR_KIND；
  *     人话写在中英词条文件 kernel/locale-labels.js 里（#617 交接口径：这八条归 #621 负责）。
@@ -49,12 +50,28 @@ export const lcKindKey = function (kind) {
   return Object.prototype.hasOwnProperty.call(LC_KIND_KEYS, k) ? LC_KIND_KEYS[k] : 'lc.err.unknown'
 }
 
-/** 从电话回包里取出错误的两段：档位与后端写好的那句话；没有错误时给两个空串。 */
+/**
+ * 这条错误里能摊给用户看的后端原文（#1111）。两个落点都认：
+ * 跟踪器通道把它放在 raw（字符串），宿主尚未迁移的通道把它放在 error（约定是字符串，个别处会写成
+ * {message}）；都没有就给空串——调用方据此决定「不渲染原文那一块」，而不是印一个空框。
+ * 只认字符串：别的形状一律当成没有原文，不 String() 出一个 [object Object] 给用户看。
+ */
+export const lcRawOf = function (err) {
+  const e = err || {}
+  const raw = (typeof e.raw === 'string') ? e.raw : ''
+  if (raw) return raw
+  const field = e.error
+  if (typeof field === 'string') return field
+  return (field && typeof field.message === 'string') ? field.message : ''
+}
+
+/** 从电话回包里取出错误的三段：档位、后端写好的那句话、以及后端原文；没有错误时给三个空串。
+ *  档位只在 LC_KIND_KEYS 里挑词条（见 lcKindKey），认不出的落到「原因没说清」那条，不猜。 */
 export const lcErrorOf = function (res) {
   const e = res && res.error
-  if (e && typeof e === 'object') return { kind: String(e.kind || ''), message: String(e.message || '') }
-  if (typeof e === 'string') return { kind: '', message: e }
-  return { kind: '', message: '' }
+  if (e && typeof e === 'object') return { kind: String(e.kind || ''), message: String(e.message || ''), raw: lcRawOf(e) }
+  if (typeof e === 'string') return { kind: '', message: e, raw: e }
+  return { kind: '', message: '', raw: '' }
 }
 
 /** 列表调用成功时给出权威清单（每项 {name,color,description}）；失败或形状不对给 null。 */
@@ -81,7 +98,8 @@ export const lcLabelsOf = function (res) {
  * 为什么要合成：契约把保存定成**逐条记账**（applied 与 failed 各一份名单，入参里每一条
  * 改动必须恰好出现在其中之一），但整体失败时后端只给一个 error，不会给逐条名单——
  * 那时每一条改动的结果都是这同一个错误，界面要照样把「哪几条没成、为什么」说清楚。
- * 返回的 rows 顺序与入参 changes 顺序一致；missing 为真表示后端既没把它算进 applied
+ * 返回的 rows 顺序与入参 changes 顺序一致；每行带 kind / message / raw 三段（#1111 起 raw 跟着行一起走，
+ * 界面据此把后端原文摊在那一行下面）；missing 为真表示后端既没把它算进 applied
  * 也没算进 failed（等于没按契约回话），界面按「原因没说清」显示，不假装成功。
  */
 export const lcSaveOutcome = function (res, changes) {
@@ -103,7 +121,7 @@ export const lcSaveOutcome = function (res, changes) {
         if (f && typeof f.name === 'string') failedByName[f.name] = lcErrorOf({ error: f.reason })
       }
     } else {
-      wholeError = { kind: '', message: '' }
+      wholeError = { kind: '', message: '', raw: '' }
     }
   } else {
     wholeError = lcErrorOf(res)
@@ -111,10 +129,10 @@ export const lcSaveOutcome = function (res, changes) {
   const rows = list.map(function (c) {
     const name = c && c.name ? String(c.name) : ''
     if (Object.prototype.hasOwnProperty.call(appliedByName, name)) {
-      return { name: name, ok: true, kind: '', message: '', color: appliedByName[name], missing: false }
+      return { name: name, ok: true, kind: '', message: '', raw: '', color: appliedByName[name], missing: false }
     }
     const hit = Object.prototype.hasOwnProperty.call(failedByName, name) ? failedByName[name] : wholeError
-    return { name: name, ok: false, kind: hit ? hit.kind : '', message: hit ? hit.message : '', missing: !hit }
+    return { name: name, ok: false, kind: hit ? hit.kind : '', message: hit ? hit.message : '', raw: hit ? hit.raw : '', missing: !hit }
   })
   let appliedCount = 0
   for (let i = 0; i < rows.length; i++) if (rows[i].ok) appliedCount++
