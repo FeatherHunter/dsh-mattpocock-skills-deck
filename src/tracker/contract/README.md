@@ -22,7 +22,7 @@ GitHub 房与本地 Markdown 房用 `implements Tracker` 去实现，少一个�
 
 ## 谁实现、谁消费
 
-- **实现方（房间）**：`src/host/tracker/backends/github/`、`src/host/tracker/backends/markdown/`。
+- **实现方（房间）**：`src/tracker/rooms/github/`、`src/tracker/rooms/markdown/`。
   GitLab 房本轮不在改造范围内（房间目录留着，将来按同一份契约接进来）。
 - **消费方**：deck 九个工具（经共享壳选好后端后直接调）、注册表（`core.ts`）、
   宿主电话与面板。
@@ -51,23 +51,23 @@ GitHub 房与本地 Markdown 房用 `implements Tracker` 去实现，少一个�
 
 - **实例旁路口三个**：`getRepoKey`、`describe`、`issueUrl`，落在 `RoomAuxiliaries`（三个成员全可选），
   由 `BackendModule.create()` 的返回类型交叉进来。它们今天真实挂在 GitHub 实例上
-  （`backends/github/backend.js:119`、`:120`、`:124`），本地 Markdown 实例上没有 ——
+  （`src/tracker/rooms/github/backend.ts:121`、`:122`、`:126`），本地 Markdown 实例上没有 ——
   所以三个都标可选，谁有谁写。有两个真实读者：注册表视图的回退链
-  （`views.ts:32-46` 与 `:59-64`，先问模块对象、再问实例、最后按后端 id 拼骨架）与
-  共享壳取仓库标识那一处（`src/shared/deck-tools/shell.js:216-227`，先看有没有这个方法再调，
+  （`src/tracker/registry/views.ts:27-41` 先问模块对象、`:42-57` 再问实例、`:58-61` 最后按后端 id 拼骨架）与
+  共享壳取仓库标识那一处（`src/deck/shell/call-shell.ts:289-310`，先看有没有这个方法再调，
   外加竞速上限）。**缺席不是故障**：没有方法时前两条路各自回退，壳按「补不出来」如实往下走。
 - **本地 Markdown 房的两个解析口**：`normalize` 与 `parse`，落在 `MarkdownRoomExtension` 的可选成员上。
-  它们只有本地文件后端有（`backends/markdown/index.js:151`、`:152`），返回的是房间自己的完整解析结果，
+  它们只有本地文件后端有（`src/tracker/rooms/markdown/index.ts:160`、`:161`），返回的是房间自己的完整解析结果，
   所以契约层把返回类型写成 `unknown` 而不复制房间私有形状；参数形状记在 `MarkdownParseMeta`。
-  本轮在 `src/host` 与 `tests` 里没有查到房外调用方（房内别的文件直接 import `parse.js` / `normalize.js`，
+  本轮在 `src/host` 与 `tests` 里没有查到房外调用方（房内别的文件直接 import `parse.ts` / `normalize.ts`，
   不经实例），是否有别处动态取用未核实。**注意**：早先这一版 README 写它们「不建模」，
   2026-10-12 补丁时改成建模为可选成员 —— 理由是不建模的话，房间照原样实现时这两个键会因
   多余属性检查当场报错，迁移第一步就卡住。
 
 ## 与今天的运行时真源的关系（迁移完成，必读）
 
-运行时的 JSDoc 真源（`src/host/tracker/contract.js` 与它的三份续篇）已在 #1019 退休，
-值住进了本目录：**本目录就是唯一的真源**，没有第二份手写副本。注册表按本目录的
+运行时那份 JSDoc 真源（`contract.js` 与它的三份续篇）已在 #1019 退休，值搬进了
+`src/tracker/contract/index.ts` 等本目录文件：**本目录就是唯一的真源**，没有第二份手写副本。注册表按本目录的
 `OPERATIONS` 给没实现的后端补「做不到」的桩（`src/tracker/registry/shape.ts` 的 `unsupportedStub`）。
 
 - 改形状或改操作签名 = 改本目录（操作名只改名录一处，类型跟着变）。

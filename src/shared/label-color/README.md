@@ -10,7 +10,7 @@
 
 - `src/ports.ts`：插口形状（标签清单里的一行、一项改动、逐条记账结果、两条方法的签名，
   最后一行是模块标识 `PORTS_SOURCE`）。核心只管做决定，插口由核心定，跑腿的活全在外面。
-  里面没有操作名与错误分档——那两样归 tracker 契约层（`src/host/tracker/contract.js`，
+  里面没有操作名与错误分档——那两样归 tracker 契约层（`src/tracker/contract/index.ts`，
   规格见 #627），两处各管一段，不要在这里再抄一份。
 - `src/colors.ts`：色值的归一化（`normalizeColor`）、合法性判断（`isColor`）、
   比较两个颜色有没有变（`colorsDiffer`）、从清单与草稿里挑出真正变了的行（`pickChangedRows`）。

@@ -51,7 +51,8 @@
 - **样式、图标、主题变量**：留在现有 JS 里。
 - **拼接进闭包的叶子模块与构建胶水**：`scripts/build.mjs`、`scripts/derive-*.mjs`、`src/client/index.js`
   里的拼接标记，留在 JS。
-- **词条与文案**：留在 `src/client/kernel/locale*.js` 的词表里，中英两份都要加。
+- **词条与文案**：留在 `src/client/kernel/` 下那一组 `locale*.js` 词表文件里（`locale.js` 与
+  `locale-cards.js` 等十份），中英两份都要加。
 
 理由：类型真正值钱的地方是「错了不会崩、只会静默算错」的纯逻辑（额度算式、裁决规则、写事件判定表、
 行级差分、世代号比较），而 I/O 那一层要挡的是平台差异，类型管不到跨进程与跨 HTTP 的真实形状。
