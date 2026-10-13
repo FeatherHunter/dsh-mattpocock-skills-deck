@@ -90,7 +90,7 @@ export const CONTRACT_VERSION = 1
 // 票的身份算法（2026-09-09 定版）
 //
 // 为什么住在 constants.js：本文件是 shared 层唯一不引用任何同层文件的叶子，
-// 而「同层互引门禁」（tests/verify-no-same-layer-import.js）禁止 shared 内部新增引用边。
+// 而「同层互引门禁」（tests/verify-dependency-rules.ts）禁止 shared 内部新增引用边。
 // 身份算法必须被 deck-derive（shared）、宿主（host）、后端房间与面板（client）同时使用，
 // 放在这里才能做到**只有一份实现**，又不新增任何同层边。
 //

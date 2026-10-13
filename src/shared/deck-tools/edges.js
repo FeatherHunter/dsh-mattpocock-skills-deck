@@ -8,7 +8,7 @@
 // 「契约返回的结构字段里有没有、票的正文里有没有那一行」推出来，推不出来就说「说不好」。
 //
 // 为什么和 shell.js 分成两个文件：仓库有一个 350 行的单文件上限（tests/verify-file-granularity.js），
-// 而共享层的文件之间不许互相 import（tests/verify-no-same-layer-import.js），所以只能拆成两半、
+// 而共享层的文件之间不许互相 import（tests/verify-dependency-rules.ts），所以只能拆成两半、
 // 各自自足：规矩（落点、逐项、必备标签）在 edges.js 与 plan.js，机制（会话、过闸、三态信封）在 shell.js。
 function str(v) { return (typeof v === 'string') ? v : '' }
 

@@ -12,7 +12,8 @@
 //   而「本地文件后端恒可写」这条后端知识必须有唯一出处，所以收成这里的具名判断，由工具层调用。
 //
 // 本文件零依赖（不 import 任何东西）：它住在 src/shared/tracker/ 下，按仓库门禁
-//   tests/verify-no-cross-import.js 的白名单，三个后端房间与工具层都可以引用它。
+//   tests/verify-dependency-rules.ts 的房间白名单（那份名单写在根目录 .dependency-cruiser.cjs），
+//   三个后端房间与工具层都可以引用它。
 
 /** 票就存在本地文件里的后端 id：这类后端没有远端权限模型。 */
 const LOCAL_FILE_BACKEND_IDS = new Set(['markdown'])

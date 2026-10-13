@@ -7,7 +7,8 @@
 //   磁盘满都被显示成「权限不足，请检查登录账号」。同一份判断放两处，改一处必然漏一处。
 //   收成一份之后，两处只负责调它。
 //
-// 本文件零依赖：住在 src/shared/tracker/ 下，按 tests/verify-no-cross-import.js 的白名单，
+// 本文件零依赖：住在 src/shared/tracker/ 下，按 tests/verify-dependency-rules.ts 的房间白名单
+// （那份名单写在根目录 .dependency-cruiser.cjs），
 //   三个后端房间与宿主都能引用它；它自己不许引用任何房间。
 //
 // 「属主不一致」这一档不在这里判断：那是 git 输出文本的判断，归同目录的 workspaceOwnership.js，

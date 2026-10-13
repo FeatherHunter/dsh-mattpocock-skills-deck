@@ -122,7 +122,7 @@ Markdown 房（issue 441，提交 af20407）：原来最大的是 issues.js（68
 | 后端 GitHub 房 | 全房 15 文件，最大 286 行 | issue 440 | 无 | 已合入 |
 | 后端 Markdown 房 | 全房 15 文件，最大 208 行 | issue 441 | 无 | 已合入 |
 | 尺子（行数门禁） | tests/verify-file-granularity.js 加 11 项基线 | issue 438 | 无 | 已合入 |
-| 墙（同层互引） | tests/verify-no-same-layer-import.js 加 33 条基线 | issue 439 | 无 | 已合入 |
+| 墙（同层互引） | tests/verify-no-same-layer-import.js 加 33 条基线（#1017 起改由 tests/verify-dependency-rules.ts 读依赖图，读数 120 条） | issue 439 | 无 | 已合入 |
 | 盲区核查 | 宿主入口盲区只读核查 | issue 442 | 无 | 已关（结论：盲区属实、1489 行缺一段，已另开修复票，宿主第三刀只搬不修），开工前必读其结论 |
 | 共享对照表 | 构建清单、门禁、标记三处对齐 | issue 443 | 无 | 已合入（提交 8bfdbc7） |
 | 内核对齐 | 冻结表、门禁表、实况对成一张表 | issue 444 | 无 | 已合入（提交 980b3c1） |

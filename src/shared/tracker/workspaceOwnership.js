@@ -8,7 +8,8 @@
 //   这种同一个场景两种说法的情况。所以判断只写在这里，两边都调它。
 //
 // 本文件零依赖（不 import 任何东西）：它住在 src/shared/tracker/ 下，按仓库门禁
-//   tests/verify-no-cross-import.js 的白名单，三个后端房间都可以引用它；反过来它不许引用任何房间。
+//   tests/verify-dependency-rules.ts 的房间白名单（那份名单写在根目录 .dependency-cruiser.cjs），
+//   三个后端房间都可以引用它；反过来它不许引用任何房间。
 //
 // 判断依据（全部来自 git 自己的输出，不猜）：
 //   属主与运行用户不一致时，git 在「找仓库」这一步就拒绝，stderr 原文形如

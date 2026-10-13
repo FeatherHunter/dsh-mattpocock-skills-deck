@@ -1,6 +1,6 @@
 // src/shared/deck-tools/shell.js —— 八个 deck_* 工具共用的薄壳机制（#713 第六批）
 //
-// 为什么住在 src/shared/ 而不是 src/host/tools/：仓库有一条同层互引门禁（tests/verify-no-same-layer-import.js），
+// 为什么住在 src/shared/ 而不是 src/host/tools/：仓库有一条同层互引门禁（tests/verify-dependency-rules.ts），
 // 同一个层里的文件之间不许互相引用。八个工具若各写一份「从会话上下文取工作区、过闸、三态返回、永不抛」，
 // 同一套规则就会有八份；若让它们互相 import，门禁当场红。这个文件放在共享层，八个工具文件各自 import 它
 // 一条边（host → shared 是允许的方向），规则仍然只有一份。
