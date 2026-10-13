@@ -1,9 +1,16 @@
 {
   // 887 客户端 TS 真源的类型检查配置：只检查不产出（真正的 .js 由构建里的 esbuild 转译生成）。
   // 保守目标 ES2020（与核心三套一致：Node 宿主与浏览器闭包两边都跑得动）；DOM 库给剪贴板与定时器。
-  // include 只圈 15 个像素风真源加两份声明；生成的 .js 同胞（allowJs 默认关闭）不进检查，
+  // include 圈客户端下已经转过来的真源（像素风那几组加两份声明），加上 kernel 目录的整片；
+  // 生成的 .js 同胞不进检查（与 .ts 同名的 .js 编译器一律不认，这是机制不是配置），
   // 老的手写 JS 叶子也不进——摸到谁再转谁，不搞大爆炸。
   "compilerOptions": {
+    // 混编开关（#1020 开）：allowJs 只管「进得来」——项目里有 .ts 直接引用旧语言文件时，
+    // 关着开关的配置会当场报「找不到模块」，这是我们要的报警，不是噪音。
+    // checkJs 保持关闭：旧语言文件不做类型检查（它们本来就没标注），转换逐个文件做。
+    // 等这棵树的旧语言文件清零，把这两行摘掉；验收由 scripts/typecheck.mts 的覆盖对账负责。
+    "allowJs": true,
+    "checkJs": false,
     "target": "ES2020",
     "lib": ["ES2020", "DOM"],
     "module": "ESNext",
@@ -21,6 +28,6 @@
     "src/client/views/skillDetail/*.ts",
     "src/client/views/cards/cardProps.d.ts",
     "src/client/views/cards/*.ts",
-    "src/client/kernel/locale-skilldetail.ts"
+    "src/client/kernel/**/*.ts"
   ]
 }
