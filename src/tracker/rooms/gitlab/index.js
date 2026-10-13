@@ -212,6 +212,11 @@ export const gitlabBackend = {
     labelReqs: 'setup.gitlab.labelReqs',
   },
   describe,
+  // #1110 实现决定第 14 条：三个链接能力换成与后端无关的名字（新名字是主、老名字是别名，两者
+  // 指向同一个实现）。老名字保留一轮不断链：客户端与宿主今天还在读，契约门禁也锁着这三个键名。
+  issueAddress: issueUrl,
+  repoSearchAddress: searchUrl,
+  issueRefPattern: linkPattern,
   issueUrl,
   searchUrl,
   linkPattern,

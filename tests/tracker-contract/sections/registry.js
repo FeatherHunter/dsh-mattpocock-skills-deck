@@ -15,7 +15,7 @@
  */
 
 import { createRegistry } from '../../../src/tracker/registry/core.ts' // V1 #461：registry.js 已拆为三块
-import { TrackerRegistryError, MIGRATE_KEY } from '../../../src/tracker/registry/registryShape.ts' // V1 #461：错误类与迁移键随形状文件搬出
+import { TrackerRegistryError, MIGRATE_KEY } from '../../../src/tracker/registry/shape.ts' // V1 #461：错误类与迁移键随形状文件搬出
 
 const mkModule = (id, over = {}) => Object.assign({
   id,
@@ -299,6 +299,43 @@ export async function run() {
     const r = createRegistry()
     return r.issueUrl('github', ref0, '7') === '' && r.searchUrl('github', 'deck') === '' && r.linkPattern('github') === null
   })(), 'unregistered id must not produce a link out of thin air')
+  // ── #1110 实现决定第 14 条：三个链接能力换成与后端无关的新名字，老名字保留一轮别名 ──
+  // 新名字是主、老名字是别名，两组都指到 views.ts 里同一个实现；下面三条一起验，改名不许把老名字打断。
+  await assert('新名字「给票地址 / 认票写法 / 按名找仓库地址」原样转发', (() => {
+    const r = createRegistry()
+    const pattern = /mine\.example\/a\/(\d+)/g
+    r.register(mkModule('newnames', {
+      create: () => ({}),
+      issueAddress: (ref, key) => 'https://mine.example/' + ref.refId + '/a/' + key,
+      repoSearchAddress: (name) => 'https://mine.example/find?q=' + name,
+      issueRefPattern: pattern,
+    }))
+    return r.issueAddress('newnames', ref0, '7') === 'https://mine.example/r0/a/7'
+      && r.repoSearchAddress('newnames', 'deck') === 'https://mine.example/find?q=deck'
+      && r.issueRefPattern('newnames') === pattern
+  })(), 'backend-neutral link names must be forwarded untouched')
+  await assert('只写老名字的后端 → 新名字照旧取到（别名窗口兜底）', (() => {
+    const r = createRegistry()
+    const pattern = /old\.example\/(\d+)/
+    r.register(mkModule('oldonly', {
+      create: () => ({}),
+      issueUrl: (ref, key) => 'https://old.example/' + key,
+      searchUrl: (name) => 'https://old.example/find?q=' + name,
+      linkPattern: pattern,
+    }))
+    return r.issueAddress('oldonly', ref0, '7') === 'https://old.example/7'
+      && r.repoSearchAddress('oldonly', 'deck') === 'https://old.example/find?q=deck'
+      && r.issueRefPattern('oldonly') === pattern
+  })(), 'a backend that only declares the old names must still answer the new ones')
+  await assert('两个名字都写 → 新名字优先，老名字取到同一个实现', (() => {
+    const r = createRegistry()
+    r.register(mkModule('bothnames', {
+      create: () => ({}),
+      issueAddress: (ref, key) => 'new:' + key,
+      issueUrl: (ref, key) => 'old:' + key,
+    }))
+    return r.issueAddress('bothnames', ref0, '7') === 'new:7' && r.issueUrl('bothnames', ref0, '7') === 'new:7'
+  })(), 'the new name must win, and the old name must reach the same implementation')
   await assert('MIGRATE_KEY = {other:null} 先落地', MIGRATE_KEY && MIGRATE_KEY.other === null, JSON.stringify(MIGRATE_KEY))
 
   // ✗ probe：未实现 op 冒充成功必须被逮（Proxy 桩不说谎）

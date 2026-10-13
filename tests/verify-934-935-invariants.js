@@ -40,7 +40,7 @@ async function main() {
 
   const shellMod = await imp('src/deck/shell/call-shell.ts')
   const registryMod = await imp('src/tracker/registry/core.ts')
-  const shapeMod = await imp('src/tracker/registry/registryShape.ts')
+  const shapeMod = await imp('src/tracker/registry/shape.ts')
   const budget = await imp('src/shared/refresh/budget.js')
   const ledgerMod = await imp('src/host/refresh/ledger.ts')
   const gateMod = await imp('src/host/refresh/gate.ts')

@@ -1,7 +1,7 @@
 /**
- * tracker/registryShape.js — 注册形状校验与缺方法包桩（V1 #461 从 registry.js 拆出，纯结构、行为零变化）。
+ * src/tracker/registry/shape.ts — 注册形状校验与缺方法包桩（V1 #461 从 registry.js 拆出，纯结构、行为零变化）。
  * 以后谁改它：改后端模块形状校验（id/label/create/matches）或缺方法 unsupported 包桩语义的人。预估约 90 行，超 350 打回。
- * 接线：只被 registryCore.js 引用；本文件不引用其他新文件。
+ * 接线：只被 core.ts 引用；本文件不引用其他新文件。
  * 第一性原理（#125 定版，承接原 registry.js）：
  *  - 能力 = 运行时调用结果：注册**只验模块形状**，不因「缺某 op」拒绝；
  *    `create()` 产物按 Proxy 包桩——缺的方法自动补 `unsupported` 桩（准入墙消失，诚实桩不误导）。

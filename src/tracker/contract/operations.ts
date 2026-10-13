@@ -14,7 +14,7 @@
  *
  * ── 三条读这份文件必须知道的事 ──────────────────────────────────────────────────
  * 1. **房间可以实现一部分**：注册表会给没实现的操作自动补一个「做不到」的桩
- *    （`registryShape.js` 的 `unsupportedStub`，返回 `unsupported`）。所以房间拿到的类型是
+ *    （`src/tracker/registry/shape.ts` 的 `unsupportedStub`，返回 `unsupported`）。所以房间拿到的类型是
  *    `RoomOperations`（本文件末尾）而不是完整的 `Tracker` —— 少实现一条不算违约，
  *    但**谎报**算（返回 ok 而其实没做成）。
  * 2. **能力是事后的事实**：这里没有一个 `supportedOps` 之类的清单，将来也不许加。

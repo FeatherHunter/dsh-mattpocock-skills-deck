@@ -1,15 +1,15 @@
 /**
  * src/tracker/registry/core.ts — 注册表主体：装配与选择仲裁（V1 #461 从 registry.js 拆出，纯结构、行为零变化）。
  * 以后谁改它：改注册装配（register/unregister/bind/on）或后端选择仲裁（select 三级联）的人。预估约 190 行，超 350 打回。
- * 接线：引用 registryShape.ts（形状校验与包桩）与 views.ts（只读视图）；本文件不引用其他新文件；调用方经本文件装配。
+ * 接线：引用 shape.ts（形状校验与包桩）与 views.ts（只读视图）；本文件不引用其他新文件；调用方经本文件装配。
  * 第一性原理（#125 定版，承接原 registry.js）：
  *  - 身份识别 = `matches`(boolean) + `select`(三级联仲裁) + `describe`(出 RepositoryRef)；没有 detect op。
  *  - `matches` 超时（缺省 30 秒，见下面的 MATCHES_TIMEOUT_MS，可配）视作 **pending（unknown）**：排除出决策集；
  *    「无 explicit、无 match===true、无 pending」才 fallback→null；有 pending 必须 surface，不静默 Other。
  */
 
-import { TrackerRegistryError, handleKey, wrapTracker, validateMod } from './registryShape.js'
-import { describe, issueUrl, linkPattern, searchUrl } from './views.js'
+import { TrackerRegistryError, handleKey, wrapTracker, validateMod } from './shape.js'
+import { describe, issueAddress, issueRefPattern, repoSearchAddress } from './views.js'
 
 /**
  * 选后端时，每一路「你是不是这个仓库的后端」（matches）的兜底等待（毫秒）。
@@ -206,9 +206,15 @@ export function createRegistry(backendCtx = {}, opts = {}) {
 
     /** 出 RepositoryRef：转发 BackendModule.describe，见 views.ts（byId 显式传引用）。 */
     describe: (handle, backendId) => describe(byId, handle, backendId),
-    issueUrl: (backendId, ref, key) => issueUrl(byId, backendId, ref, key),
-    linkPattern: (backendId) => linkPattern(byId, backendId),
-    searchUrl: (backendId, name) => searchUrl(byId, backendId, name),
+    // #1110 实现决定第 14 条：三个链接能力换成与后端无关的名字（issueAddress / repoSearchAddress /
+    // issueRefPattern），老名字 issueUrl / searchUrl / linkPattern 保留一轮别名不断链。
+    // 两组都指到 views.ts 里同一个实现（新名字优先、老名字兜底），所以不存在两份行为。
+    issueAddress: (backendId, ref, key) => issueAddress(byId, backendId, ref, key),
+    repoSearchAddress: (backendId, name) => repoSearchAddress(byId, backendId, name),
+    issueRefPattern: (backendId) => issueRefPattern(byId, backendId),
+    issueUrl: (backendId, ref, key) => issueAddress(byId, backendId, ref, key),
+    linkPattern: (backendId) => issueRefPattern(byId, backendId),
+    searchUrl: (backendId, name) => repoSearchAddress(byId, backendId, name),
 
     /** 事件订阅（register/unregister/bind）；返回取消订阅；监听抛错隔离。 */
     on(event, fn) {

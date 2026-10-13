@@ -223,6 +223,12 @@ export const markdownModule = {
   id: 'markdown',
   label: 'Markdown',
   describe,
+  // #1110 实现决定第 14 条：三个链接能力换成与后端无关的名字（新名字是主、老名字是别名，两者
+  // 指向同一个实现）。本地后端这一家正是改名的理由：它给的「票地址」是票文件的绝对路径，
+  // 不是网址；叫「网址」的名字会让人以为这一家是例外。
+  issueAddress: issueUrl,
+  repoSearchAddress: searchUrl,
+  issueRefPattern: linkPattern,
   issueUrl,
   searchUrl,
   linkPattern,
