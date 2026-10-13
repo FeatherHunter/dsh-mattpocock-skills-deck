@@ -261,7 +261,8 @@ const MASKED = '***（凭据已遮蔽）'
 
 /**
  * 遮蔽已知的凭据样式：GitHub 令牌（`ghp_`/`gho_`/`ghu_`/`ghs_`/`ghr_`/`github_pat_`）、
- * GitLab 令牌（`glpat-`）、`Bearer` 与 `Authorization:` 头、URL 里的 `user:password@`。
+ * GitLab 令牌（`glpat-`）、`Bearer` 与 `Authorization:` / `PRIVATE-TOKEN:` 头、
+ * URL 里的 `user:password@`、查询串里的 `private_token=` / `access_token=` / `token=`。
  * 幂等：已经遮蔽过的文本再进一次不会再变。
  */
 export function maskSecrets(input: string): string {
@@ -271,6 +272,9 @@ export function maskSecrets(input: string): string {
     .replace(/\bglpat-[A-Za-z0-9_\-]{8,}/g, MASKED)
     .replace(/(Bearer\s+)[A-Za-z0-9._\-+/=]{8,}/gi, '$1' + MASKED)
     .replace(/(Authorization\s*:\s*)\S+/gi, '$1' + MASKED)
+    // GitLab 用 PRIVATE-TOKEN 头；`\S+` 会把整行剩下的内容一起吃掉，所以按行取到空白为止。
+    .replace(/(PRIVATE-TOKEN\s*:\s*)[^\s]+/gi, '$1' + MASKED)
+    .replace(/([?&](?:private_token|access_token|token)=)[^&\s]+/gi, '$1' + MASKED)
     .replace(/(\/\/[^/\s:@]+:)([^@\s/]+)(@)/g, '$1' + MASKED + '$3')
 }
 

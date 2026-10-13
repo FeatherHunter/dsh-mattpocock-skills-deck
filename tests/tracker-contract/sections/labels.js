@@ -104,9 +104,12 @@ export function labelBatchCheck(changes, result) {
     if (Object.keys(f).sort().join(',') !== 'name,reason') bad.push(at + ' 只许有 name 与 reason 两个键')
     if (typeof f.name !== 'string' || !f.name) bad.push(at + ' 缺 name')
     if (!f.reason || typeof f.reason !== 'object') { bad.push(at + ' 缺 reason（要说清为什么没改成）'); return }
-    if (Object.keys(f.reason).sort().join(',') !== 'kind,message') bad.push(at + ' 的 reason 只许有 kind 与 message 两个键（复用既有错误形状，不新增字段）')
+    // #1111：失败形状统一成 kind + message + raw 三段（raw 是后端原文，界面能展开看）。
+    // 这里仍然只许这三个键 —— 形状不许再长第四段，也不许退回两段（退回两段界面上的「原始说明」永远是空的）。
+    if (Object.keys(f.reason).sort().join(',') !== 'kind,message,raw') bad.push(at + ' 的 reason 必须是 kind、message、raw 三个键（复用既有错误形状，不新增第四段）')
     if (!KNOWN_KINDS.includes(f.reason.kind)) bad.push(at + ' 的 reason.kind 必须是既有错误分类之一，实得 ' + JSON.stringify(f.reason.kind))
     if (typeof f.reason.message !== 'string' || !f.reason.message.trim()) bad.push(at + ' 的 reason.message 要是能直接给用户看的一句话')
+    if (typeof f.reason.raw !== 'string') bad.push(at + ' 的 reason.raw 必须是字符串（确实没有原文时给空串，不能缺、也不能是别的类型）')
     accounted.push(f.name)
   })
   // 逐条记账：入参里每一条改动必须恰好出现在 applied 或 failed 之一（不许漏，也不许两边都算）。
@@ -226,10 +229,10 @@ export function createGithubFake(seed) {
         const failed = []
         for (const c of changes) {
           const want = norm(c.color)
-          if (!HEX6.test(want)) { failed.push({ name: c.name, reason: { kind: 'parse', message: '这个颜色填错了：要写成不带井号的六位十六进制，例如 9d7cd8' } }); continue }
+          if (!HEX6.test(want)) { failed.push({ name: c.name, reason: { kind: 'parse', message: '这个颜色填错了：要写成不带井号的六位十六进制，例如 9d7cd8', raw: '' } }); continue }
           if (scripted[c.name]) { failed.push({ name: c.name, reason: scripted[c.name] }); continue }
           const cur = repoLabels.find((l) => l.name === c.name)
-          if (!cur) { failed.push({ name: c.name, reason: { kind: 'not-found', message: '这个仓库里没有名为「' + c.name + '」的标签，先确认名字再试' } }); continue }
+          if (!cur) { failed.push({ name: c.name, reason: { kind: 'not-found', message: '这个仓库里没有名为「' + c.name + '」的标签，先确认名字再试', raw: '' } }); continue }
           cur.color = want
           applied.push({ name: c.name, color: want })
         }
@@ -280,8 +283,8 @@ export function createMarkdownFake(seed, id) {
         const pending = {}
         for (const c of changes) {
           const want = norm(c.color)
-          if (!HEX6.test(want)) { failed.push({ name: c.name, reason: { kind: 'parse', message: '这个颜色填错了：要写成不带井号的六位十六进制，例如 9d7cd8' } }); continue }
-          if (!Object.prototype.hasOwnProperty.call(file, c.name)) { failed.push({ name: c.name, reason: { kind: 'not-found', message: '配色文件里没有「' + c.name + '」这一行，插件不会替你新增。想让这个标签能改色，先把 "名字": "颜色" 这一行加进配色文件再保存' } }); continue }
+          if (!HEX6.test(want)) { failed.push({ name: c.name, reason: { kind: 'parse', message: '这个颜色填错了：要写成不带井号的六位十六进制，例如 9d7cd8', raw: '' } }); continue }
+          if (!Object.prototype.hasOwnProperty.call(file, c.name)) { failed.push({ name: c.name, reason: { kind: 'not-found', message: '配色文件里没有「' + c.name + '」这一行，插件不会替你新增。想让这个标签能改色，先把 "名字": "颜色" 这一行加进配色文件再保存', raw: '' } }); continue }
           pending[c.name] = want
           applied.push({ name: c.name, color: want })
         }

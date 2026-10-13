@@ -156,6 +156,18 @@ function matchBrace(text, open) {
   return -1
 }
 
+/** 从 index 处往前找「包含它的那个对象字面量」的左花括号；中间闭合过的嵌套对象跳过。找不到返回 -1。
+ *  用途：`ok: false` 只是对象里的一个键，要顺着它往上找到整个失败对象，才能看它有没有带 raw。 */
+function enclosingBrace(text, index) {
+  let depth = 0
+  for (let i = index; i >= 0; i--) {
+    const c = text[i]
+    if (c === '}') depth += 1
+    else if (c === '{') { if (depth === 0) return i; depth -= 1 }
+  }
+  return -1
+}
+
 /** 按最外层逗号切开参数表；串与注释已经被顶掉，括号深度按字符数即可。 */
 function splitTop(text) {
   if (text.trim() === '') return []
@@ -474,7 +486,84 @@ console.log('── C. 契约里的 raw 仍然必填，而且真的带得出来'
   const failed2 = preflightMod.fail('network', '连不上', { message: 'connect ECONNREFUSED 127.0.0.1:9', stdout: '', stderr: 'dial tcp: connection refused' })
   check(typeof (failed2 && failed2.error && failed2.error.raw) === 'string' && /ECONNREFUSED|connection refused/.test(String(failed2.error.raw)),
     'C4.5 第三段直接给「出错的那个东西」时也能取到原文（真调用）')
+  // C5 遮蔽覆盖面：GitLab 那种 PRIVATE-TOKEN 头与查询串里的令牌也要遮住（只遮 GitHub 令牌不够）。
+  const failed3 = preflightMod.fail('auth', '这次没成', 'PRIVATE-TOKEN: zzzzSECRET9999\nGET https://gitlab.example.com/api/v4/projects?private_token=zzzzSECRET9999')
+  const raw3 = String(failed3 && failed3.error && failed3.error.raw)
+  check(raw3.indexOf('zzzzSECRET9999') < 0, 'C5.1 PRIVATE-TOKEN 头与 private_token 查询串里的令牌都被遮蔽（实得 ' + JSON.stringify(raw3.slice(0, 80)) + '）')
+  check((raw3.match(/\*\*\*（凭据已遮蔽）/g) || []).length >= 2, 'C5.2 两处凭据各留一个遮蔽标记，人知道这里原本有凭据')
   }).catch((e) => {
     check(false, 'C4.0 载入 ' + preflightRel + ' 做真调用失败（要在链路里跑，或手工加 --import ./scripts/ts-hook.mjs）：' + ((e && e.message) || e))
   }).finally(finish)
+}
+
+console.log('── D. 直接写出来的失败对象也要带原文（fail(...) 之外的那些）')
+{
+  // 为什么要这一段：A 段只看 `fail(...)` 调用，C3 只看客户端那一份文件。后端里还有一批
+  // 「直接写 {ok:false, error:{…}} 或 {ok:false, entry:{reason:{…}}} 字面量」的失败站点
+  // （初始化流程、两个后端的逐条改色失败），它们绕过了 fail()，A 段看不见；而本票的要求是
+  // 「每个真实失败都带原文」。所以这里补一条：失败对象里写了 error 或 reason 的**对象字面量**，
+  // 就必须带 raw 键。转发别处的失败对象（`error: r.error`）与另一套形状（`reason: 'bad-shape'`）不在此判
+  // —— 前者原文在上游、后者根本不是 TrackerError。
+  const LITERAL_ROOTS = ['src/tracker', 'src/client/kernel']
+  const files = []
+  for (const root of LITERAL_ROOTS) for (const rel of walk(root)) files.push(rel)
+  const missing = []
+  let seen = 0
+  let forwarded = 0
+  // 界面层自己的失败值（Lead 2026-10-14 定夺）：客户端内核里的动作分发器与历史票页数据装配，
+  // 失败都发生在本地（参数不对、上下文里没有注入能力），没有任何后端原文可带；它们产出的对象是给
+  // 界面自己看的，不是后端通道交回来的 TrackerError。票面把「不重做界面」写进了 Out of Scope，
+  // 这两份文件又都是手写 JS（动它们就要按仓规先修后转），所以本票不动它们：报出来、不判红。
+  // 以后真给它们补 raw 时，把下面的条目删掉即可；D3 会盯着这两份文件还在不在、还写不写失败值，
+  // 防止白名单变成没人管的过期条目。
+  const D_EXEMPT = [
+    { file: 'src/client/kernel/actions.js', why: '动作分发器：本地参数校验失败（action.type missing 等），没有后端原文' },
+    { file: 'src/client/kernel/issue-pages.js', why: '历史票页数据装配：本地拿不到数据时的失败值，没有后端原文' },
+  ]
+  for (const rel of files) {
+    if (D_EXEMPT.some((x) => x.file === rel)) continue
+    const src = readSrc(rel)
+    const { noStrings } = scan(src)
+    const re = /ok\s*:\s*false/g
+    let m
+    while ((m = re.exec(noStrings))) {
+      const open = enclosingBrace(noStrings, m.index)
+      if (open < 0) continue
+      const close = matchBrace(noStrings, open)
+      if (close < 0) continue
+      const outer = noStrings.slice(open + 1, close)
+      for (const key of ['error', 'reason']) {
+        const km = new RegExp('\\b' + key + '\\s*:\\s*\\{').exec(outer)
+        if (!km) continue
+        const nOpen = km.index + km[0].length - 1
+        const nClose = matchBrace(outer, nOpen)
+        if (nClose < 0) continue
+        const inner = outer.slice(nOpen + 1, nClose)
+        if (inner.includes('...')) { forwarded += 1; continue }
+        seen += 1
+        if (!/\braw\s*:/.test(inner)) {
+          missing.push({
+            rel: rel,
+            line: lineOf(src, m.index),
+            text: src.slice(nOpen, Math.min(nClose + 1, nOpen + 120)).replace(/\s+/g, ' '),
+          })
+        }
+      }
+    }
+  }
+  for (const v of missing.slice(0, 30)) {
+    console.log('     · ' + v.rel + ':' + v.line + ' —— 这个失败对象没带 raw\n       ' + v.text)
+  }
+  check(missing.length === 0, 'D1 ' + LITERAL_ROOTS.join(' 与 ') + ' 里每个直接写出来的失败对象都带 raw（实得 ' + missing.length + ' 个没带；另有 ' + forwarded + ' 处是转发别处的对象、未判）')
+  check(seen > 0, 'D2 确实扫到了直接写出来的失败对象（实得 ' + seen + ' 个）')
+  for (const x of D_EXEMPT) {
+    let hits = 0
+    let why = ''
+    try {
+      hits = (readSrc(x.file).match(/ok\s*:\s*false/g) || []).length
+    } catch (e) {
+      why = '（读不到这份文件：' + ((e && e.message) || e) + '）'
+    }
+    check(hits > 0, 'D3 ' + x.file + ' 仍在写失败值（' + hits + ' 处），白名单条目没过期 —— ' + x.why + why)
+  }
 }

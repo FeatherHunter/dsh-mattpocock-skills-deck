@@ -199,15 +199,15 @@ export async function setLabelColors(ctx, repo, changes) {
     for (const c of changes) {
       const want = normalizeColor(c.color)
       if (!want) {
-        failed.push({ name: c.name, reason: { kind: ERROR_KIND.PARSE, message: '「' + c.name + '」的新颜色不正确：请改为不带井号的六位十六进制，例如 9d7cd8。' } })
+        failed.push({ name: c.name, reason: { kind: ERROR_KIND.PARSE, message: '「' + c.name + '」的新颜色不正确：请改为不带井号的六位十六进制，例如 9d7cd8。', raw: rawJson({ name: c.name, color: c.color }) } })
         continue
       }
       if (!fileExists) {
-        failed.push({ name: c.name, reason: { kind: ERROR_KIND.NOTFOUND, message: '工作区中还没有标签配色文件（' + LABEL_COLORS_REL_PATH + '），因此所有标签都没有配置过颜色。请先在面板头部点那颗「标签配色」图标，插件会在打开这个弹窗时生成一份默认的标签配色文件；然后在文件里加入一行 "标签名": "9d7cd8"，把这两处换成实际的标签名与颜色，再回到这个弹窗点「保存」。' } })
+        failed.push({ name: c.name, reason: { kind: ERROR_KIND.NOTFOUND, message: '工作区中还没有标签配色文件（' + LABEL_COLORS_REL_PATH + '），因此所有标签都没有配置过颜色。请先在面板头部点那颗「标签配色」图标，插件会在打开这个弹窗时生成一份默认的标签配色文件；然后在文件里加入一行 "标签名": "9d7cd8"，把这两处换成实际的标签名与颜色，再回到这个弹窗点「保存」。', raw: rawJson({ path: LABEL_COLORS_REL_PATH, present: false }) } })
         continue
       }
       if (!Object.prototype.hasOwnProperty.call(read.colors, c.name)) {
-        failed.push({ name: c.name, reason: { kind: ERROR_KIND.NOTFOUND, message: '标签配色文件里没有「' + c.name + '」这个标签，插件不会自动新增。如需修改这个标签的颜色，请先把 "标签名": "9d7cd8" 这一行加入 ' + LABEL_COLORS_REL_PATH + '（把这两处换成这个标签的名字与要用的颜色），然后点「保存」。' } })
+        failed.push({ name: c.name, reason: { kind: ERROR_KIND.NOTFOUND, message: '标签配色文件里没有「' + c.name + '」这个标签，插件不会自动新增。如需修改这个标签的颜色，请先把 "标签名": "9d7cd8" 这一行加入 ' + LABEL_COLORS_REL_PATH + '（把这两处换成这个标签的名字与要用的颜色），然后点「保存」。', raw: rawJson({ path: LABEL_COLORS_REL_PATH, name: c.name }) } })
         continue
       }
       pending[c.name] = want

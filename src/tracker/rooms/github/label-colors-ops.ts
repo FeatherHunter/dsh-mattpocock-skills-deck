@@ -71,9 +71,14 @@ function noRepoTarget(opCn) {
     + '若 Git 远端与插件登录状态都已就绪仍出现这一句，请把这一句原文报告给插件维护者。'
 }
 
-/** 一条进给用户的错误（契约里 applied/failed 的 reason 只许 kind 与 message 两个键）。 */
-function reason(kind, message) {
-  return { kind: kind, message: message }
+/** 一条进给用户的错误：契约里 applied/failed 的 reason 就是失败形状 TrackerError —— kind + message + raw。
+ *  raw 是原文段，界面能展开看（#1111）；取法走跟踪器层唯一那套（多路合并、遮蔽凭据、头尾截断），
+ *  与 fail() 完全一致 —— 逐条失败这里**不能**只写 kind 与 message，否则界面上的「原始说明」永远是空的。
+ *  确实没有原文时给空串，但参数不能省。 */
+function reason(kind, message, raw) {
+  // 失败形状只有一处构造（#1111）：走跟踪器层的 fail()，原文的合并、遮蔽、头尾截断都归它；
+  // 这里只把契约要的那三段取出来。这样以后改原文的取法不会漏掉逐条失败这一路。
+  return fail(kind, message, raw).error
 }
 
 /** gh 报错原文只当证据用：截一段附在中文说明后面，太长就标已截断。 */
@@ -196,7 +201,9 @@ async function runWithLimit(items, limit, worker) {
 async function applyOne(c, spec, ch, ctx, permCache) {
   const want = normalizeColor(ch.color)
   if (!want) {
-    return { ok: false, entry: { name: ch.name, reason: reason(ERROR_KIND.PARSE, '「' + ch.name + '」的新颜色不正确：请改为不带井号的六位十六进制，例如 9d7cd8。') } }
+    // 这条是本插件自己先拦下来的：颜色还没送到 gh 就被判为不合格，所以没有任何后端原文可交，
+    // 第三段如实给空串（不能把用户自己填的颜色当成「原始说明」回显，那是假的出处）。
+    return { ok: false, entry: { name: ch.name, reason: reason(ERROR_KIND.PARSE, '「' + ch.name + '」的新颜色不正确：请改为不带井号的六位十六进制，例如 9d7cd8。', '') } }
   }
   const r = await c.execGh(['label', 'edit', ch.name, '--repo', spec, '--color', want], { cwd: ctx && ctx.cwd })
   if (r.ok) return { ok: true, entry: { name: ch.name, color: want } }
@@ -228,7 +235,7 @@ export async function setLabelColors(repo, changes, ctx) {
           ok: false,
           entry: {
             name: ch.name,
-            reason: reason(ERROR_KIND.ENV, '修改「' + ch.name + '」的颜色时插件运行出错。这是插件运行环境的问题，不是你的操作有误；同一批中的其它标签仍会继续修改。'),
+            reason: reason(ERROR_KIND.ENV, '修改「' + ch.name + '」的颜色时插件运行出错。这是插件运行环境的问题，不是你的操作有误；同一批中的其它标签仍会继续修改。', e),
           },
         }
       }
@@ -259,42 +266,42 @@ async function explainWriteFailure(c, spec, ch, err, ctx, permCache) {
   // ① 没登录：gh 自己的约定（gh help exit-codes：需要登录 = 退出码 4）。这条事实在本房扩展表里
   //    也写着、指向同一档 auth；这里再看一眼退出码，只是为了挑「未登录」那句更具体的说法。
   if (code === 4) {
-    return reason(ERROR_KIND.AUTH, 'GitHub 未登录，因此无法修改「' + ch.name + '」的颜色：请先运行 gh auth login 登录账号，然后返回保存。本次「' + ch.name + '」的颜色未改动。')
+    return reason(ERROR_KIND.AUTH, 'GitHub 未登录，因此无法修改「' + ch.name + '」的颜色：请先运行 gh auth login 登录账号，然后返回保存。本次「' + ch.name + '」的颜色未改动。', err)
   }
   // ② 限速：403 或 429 带 rate limit 文案（官方文档：次限速也走这两个状态码）
   if (kind === ERROR_KIND.RATELIMIT) {
-    return reason(ERROR_KIND.RATELIMIT, 'GitHub 因请求过于频繁拒绝了这次请求。请稍后重新保存。本次「' + ch.name + '」的颜色未改动。')
+    return reason(ERROR_KIND.RATELIMIT, 'GitHub 因请求过于频繁拒绝了这次请求。请稍后重新保存。本次「' + ch.name + '」的颜色未改动。', err)
   }
   // ③ 凭据被拒 / 权限不足
   if (kind === ERROR_KIND.AUTH) {
-    return reason(ERROR_KIND.AUTH, 'GitHub 返回登录凭据无效（可能已过期或被撤销）：请重新运行 gh auth login 登录后再保存。本次「' + ch.name + '」的颜色未改动。' + hint)
+    return reason(ERROR_KIND.AUTH, 'GitHub 返回登录凭据无效（可能已过期或被撤销）：请重新运行 gh auth login 登录后再保存。本次「' + ch.name + '」的颜色未改动。' + hint, err)
   }
   // ④ 颜色被 API 拒（422）：实测原文是两行「HTTP 422: Validation Failed」加「Label.color is invalid」，
   //    本房扩展表把这种写法归解析档。
   if (kind === ERROR_KIND.PARSE) {
-    return reason(ERROR_KIND.PARSE, 'GitHub 拒绝了「' + ch.name + '」的新颜色：颜色需为不带井号的六位十六进制（例如 9d7cd8）。请改为正确写法后重新保存。' + hint)
+    return reason(ERROR_KIND.PARSE, 'GitHub 拒绝了「' + ch.name + '」的新颜色：颜色需为不带井号的六位十六进制（例如 9d7cd8）。请改为正确写法后重新保存。' + hint, err)
   }
   // ⑤ 404：三种情况（标签不存在 / 仓库不存在 / 没有写权限）长得一模一样，只能再问一次仓库权限。
-  if (kind === ERROR_KIND.NOTFOUND) return await explain404(c, spec, ch, ctx, hint, permCache)
+  if (kind === ERROR_KIND.NOTFOUND) return await explain404(c, spec, ch, ctx, hint, permCache, err)
   // ⑥ 其余各档照实说。
-  if (kind === ERROR_KIND.ENV) return reason(ERROR_KIND.ENV, '修改「' + ch.name + '」的颜色时，本机的 GitHub 助手（gh）没有给出答复，因此无法确认这一条的颜色是否已经改动。这是插件运行环境的问题，不是你的操作有误。请用 gh label list 核对后再重试。' + hint)
-  if (kind === ERROR_KIND.NETWORK) return reason(ERROR_KIND.NETWORK, '修改「' + ch.name + '」的颜色时无法连接 GitHub（网络不可用或请求超时），插件没有拿到 GitHub 的答复，因此无法确认这一条的颜色是否已经改动。请确认网络可用，并用 gh label list 核对后再重试。' + hint)
-  return reason(kind, '修改「' + ch.name + '」的颜色时发生插件未能识别的错误。插件无法确认这一条的颜色是否已经改动，请用 gh label list 核对后再重试；若仍然失败，请把这一句原文报告给插件维护者。' + (err && err.message ? '（gh 返回的说明：' + String(err.message) + '）' : '（gh 没有返回说明）'))
+  if (kind === ERROR_KIND.ENV) return reason(ERROR_KIND.ENV, '修改「' + ch.name + '」的颜色时，本机的 GitHub 助手（gh）没有给出答复，因此无法确认这一条的颜色是否已经改动。这是插件运行环境的问题，不是你的操作有误。请用 gh label list 核对后再重试。' + hint, err)
+  if (kind === ERROR_KIND.NETWORK) return reason(ERROR_KIND.NETWORK, '修改「' + ch.name + '」的颜色时无法连接 GitHub（网络不可用或请求超时），插件没有拿到 GitHub 的答复，因此无法确认这一条的颜色是否已经改动。请确认网络可用，并用 gh label list 核对后再重试。' + hint, err)
+  return reason(kind, '修改「' + ch.name + '」的颜色时发生插件未能识别的错误。插件无法确认这一条的颜色是否已经改动，请用 gh label list 核对后再重试；若仍然失败，请把这一句原文报告给插件维护者。' + (err && err.message ? '（gh 返回的说明：' + String(err.message) + '）' : '（gh 没有返回说明）'), err)
 }
 
 /** 撞到 404 时多问一次仓库权限，把「标签或仓库不存在」与「你没有写权限」分开。
  *  按 #612 实测：有仓库写权限却 404 → 标签或仓库真的不存在；权限只有读 → 就是没有写权限。
  *  #992：判据从 viewerPermission 换成 .permissions（单源 helper，批内只真问一次）。
  *  改标签定义要的是 push，所以这里看 push，不看 triage。 */
-async function explain404(c, spec, ch, ctx, hint, permCache) {
+async function explain404(c, spec, ch, ctx, hint, permCache, err) {
   const perm = await readRepoPermissions(c, spec, ctx, permCache)
   if (perm && perm.push === false) {
-    return reason(ERROR_KIND.AUTH, '当前账号在「' + spec + '」上没有写权限（只能读取），因此无法修改标签。本次「' + ch.name + '」的颜色未改动，请换用有写权限的账号，或请仓库管理员为该账号授予写权限，然后重试。')
+    return reason(ERROR_KIND.AUTH, '当前账号在「' + spec + '」上没有写权限（只能读取），因此无法修改标签。本次「' + ch.name + '」的颜色未改动，请换用有写权限的账号，或请仓库管理员为该账号授予写权限，然后重试。', err)
   }
   if (perm && perm.push === true) {
-    return reason(ERROR_KIND.NOTFOUND, '这个仓库中没有名为「' + ch.name + '」的标签。请先核对标签名，或先在这个仓库中创建这个标签，然后重新保存。注意：GitHub 上标签名不区分大小写，冒号与空格都算在标签名里。')
+    return reason(ERROR_KIND.NOTFOUND, '这个仓库中没有名为「' + ch.name + '」的标签。请先核对标签名，或先在这个仓库中创建这个标签，然后重新保存。注意：GitHub 上标签名不区分大小写，冒号与空格都算在标签名里。', err)
   }
-  return reason(ERROR_KIND.NOTFOUND, '修改「' + ch.name + '」的颜色时 GitHub 报告找不到这个标签，插件也无法确认当前账号在「' + spec + '」上的权限，因此分不出是标签不存在、仓库名不正确，还是没有写权限。本次「' + ch.name + '」的颜色未改动，请先确认仓库名与标签名正确、账号已登录，然后重试。' + hint)
+  return reason(ERROR_KIND.NOTFOUND, '修改「' + ch.name + '」的颜色时 GitHub 报告找不到这个标签，插件也无法确认当前账号在「' + spec + '」上的权限，因此分不出是标签不存在、仓库名不正确，还是没有写权限。本次「' + ch.name + '」的颜色未改动，请先确认仓库名与标签名正确、账号已登录，然后重试。' + hint, err)
 }
 
 export default { listLabels, setLabelColors }

@@ -14,6 +14,9 @@ import { makeCreateErrorClassifier, KIND_UNKNOWN } from './init-project-error-ki
 // 免得「少一个连字符」「换个近义词」这类偏差逃过检查；本文件其余自成一档的结果词不在八档内，保持原样。
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { isOwnershipMismatch, ownershipPathFrom, safeDirectoryCommand } from '../../detection/workspace-ownership.js'
+// #1111：失败结果统一是三段式（kind / message / raw），这里几条直接写出来的失败字面量也要带原文段 ——
+//   原文取法走跟踪器层唯一那套（多路合并、遮蔽凭据、头尾截断），与 fail() 一致。
+import { rawText } from '../../preflight.js'
 
 // ============ initProject 契约 op（git init→commit→gh repo create→push） ============
 /**
@@ -23,15 +26,16 @@ import { isOwnershipMismatch, ownershipPathFrom, safeDirectoryCommand } from '..
  *    （失败快返，避免已改动工作区）
  *  - 步骤：git init(已是 git 则跳过) → git add . → git commit(--allow-empty+user.*兜底) → gh repo create(--source=.--push 或 set-url+push)
  *  - 成功：{ok:true, data:RepositoryRef}
- *  - 失败：{ok:false, error:{kind, message}} kind∈{no-git,no-gh,not-logged-in,already-exists,network,permission,git-ownership,unknown}
+ *  - 失败：{ok:false, error:{kind, message, raw}} kind∈{no-git,no-gh,not-logged-in,already-exists,network,permission,git-ownership,unknown}
+ *    （raw 是原文段：确实没有原文的本地判断给空串，有 git / gh 原话的一律交出来，界面能展开看）
  */
 export async function initProject(handle, input, ctx) {
   const cwd = (handle && handle.cwd) || (ctx && ctx.cwd) || ''
   const name = input && input.name ? String(input.name).trim() : ''
   const visibility = input && input.visibility === 'public' ? 'public' : 'private'
-  if (!name) return { ok: false, error: { kind: 'bad-name', message: '仓库名为空' } }
+  if (!name) return { ok: false, error: { kind: 'bad-name', message: '仓库名为空', raw: '' } }
   if (!/^[A-Za-z0-9._-]+$/.test(name) || name.length > 100) {
-    return { ok: false, error: { kind: 'bad-name', message: '仓库名仅支持字母/数字/._- 且 ≤100：' + name } }
+    return { ok: false, error: { kind: 'bad-name', message: '仓库名仅支持字母/数字/._- 且 ≤100：' + name, raw: String(name) } }
   }
   const visFlag = visibility === 'public' ? '--public' : '--private'
 
@@ -103,12 +107,12 @@ export async function initProject(handle, input, ctx) {
     const raw = String(errText || '')
     if (kind === 'git-ownership') {
       const cmd = safeDirectoryCommand(ownershipPathFrom(raw) || cwd || '')
-      return { ok: false, error: { kind: kind, message: '这个工作区的属主不是当前运行用户，git 拒绝操作（原文：dubious ownership）。' + (cmd ? '修法：' + cmd : '') } }
+      return { ok: false, error: { kind: kind, message: '这个工作区的属主不是当前运行用户，git 拒绝操作（原文：dubious ownership）。' + (cmd ? '修法：' + cmd : ''), raw: raw } }
     }
     if (kind === KIND_UNKNOWN) {
-      return { ok: false, error: { kind: kind, message: '创建失败，未识别的原因。git 原话：' + raw.slice(0, 160) } }
+      return { ok: false, error: { kind: kind, message: '创建失败，未识别的原因。git 原话：' + raw.slice(0, 160), raw: raw } }
     }
-    return { ok: false, error: { kind: kind, message: raw } }
+    return { ok: false, error: { kind: kind, message: raw, raw: raw } }
   }
 
   // 返回 ok 时，工作区要么本来就能用 git，要么刚补好 safe.directory 并已确认能用；
@@ -126,9 +130,9 @@ export async function initProject(handle, input, ctx) {
 
   // 前置探测：git / gh / auth（失败快返，避免已改动工作区）
   const git = await resolveGitLocal()
-  if (!git) return { ok: false, error: { kind: 'no-git', message: '未找到 git（请安装 https://git-scm.com/）' } }
+  if (!git) return { ok: false, error: { kind: 'no-git', message: '未找到 git（请安装 https://git-scm.com/）', raw: '' } }
   const gh = await resolveGhLocal()
-  if (!gh) return { ok: false, error: { kind: 'no-gh', message: '未找到 gh（请安装 https://cli.github.com/）', prompt: '请为 DSH 安装 GitHub CLI（gh）—— 面板所有数据依赖 gh：\n\n1. 先检查：终端执行 gh --version;\n2. 无 gh 则按 OS 安装：Windows → winget install --id GitHub.cli; macOS → brew install gh; Linux → sudo apt install gh;\n3. 安装后验证：gh --version;\n4. 若 gh 已装但 DSH 仍报未安装：点环境检查「重新检查」按钮或重启 DSH Desktop；\n5. 完成后汇报：gh 版本号 + 「gh CLI 可用」项已变绿。' } }
+  if (!gh) return { ok: false, error: { kind: 'no-gh', message: '未找到 gh（请安装 https://cli.github.com/）', raw: '', prompt: '请为 DSH 安装 GitHub CLI（gh）—— 面板所有数据依赖 gh：\n\n1. 先检查：终端执行 gh --version;\n2. 无 gh 则按 OS 安装：Windows → winget install --id GitHub.cli; macOS → brew install gh; Linux → sudo apt install gh;\n3. 安装后验证：gh --version;\n4. 若 gh 已装但 DSH 仍报未安装：点环境检查「重新检查」按钮或重启 DSH Desktop；\n5. 完成后汇报：gh 版本号 + 「gh CLI 可用」项已变绿。' } }
   // auth 探测
   try {
     const c = ghClient(ctx)
@@ -137,14 +141,14 @@ export async function initProject(handle, input, ctx) {
       const t = String((authR.error && authR.error.message) || authR.error || '').toLowerCase()
       const kind = authR.error && authR.error.kind
       if (kind === 'network' || /network|econn|timed out|timeout|enotfound|getaddrinfo|connect/.test(t)) {
-        return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: String(authR.error.message || authR.error).slice(0,400) } }
+        return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: String(authR.error.message || authR.error).slice(0,400), raw: rawText(authR.error) } }
       }
-      return { ok: false, error: { kind: 'not-logged-in', message: String(authR.error.message || authR.error).slice(0,400) } }
+      return { ok: false, error: { kind: 'not-logged-in', message: String(authR.error.message || authR.error).slice(0,400), raw: rawText(authR.error) } }
     }
   } catch (e) {
     const t = String((e && e.message) || e).toLowerCase()
-    if (/network|econn|timed out|timeout|enotfound|getaddrinfo|connect/.test(t)) return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: String((e && e.message)||e).slice(0,400) } }
-    return { ok: false, error: { kind: 'not-logged-in', message: String((e && e.message)||e).slice(0,400) } }
+    if (/network|econn|timed out|timeout|enotfound|getaddrinfo|connect/.test(t)) return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: String((e && e.message)||e).slice(0,400), raw: rawText(e) } }
+    return { ok: false, error: { kind: 'not-logged-in', message: String((e && e.message)||e).slice(0,400), raw: rawText(e) } }
   }
 
   // 取当前登录用户（用于 already-exists 时拼 repoUrl 与成功后 owner 兜底）
