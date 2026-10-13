@@ -1,4 +1,4 @@
-// src/host/tools/deckContext.js —— deck_context（#713 第六批）
+// src/deck/tools/context.ts —— deck_context（#713 第六批；#1019 换到新树、#1035 转 TypeScript）
 //
 // 这个工具回答一句话：我这是站在哪个工作区、哪个后端、哪个仓库上，初始化好了没有，
 // 这个仓库现在有哪些地图。它同时也是「查重起点」——AI 要建票之前先看这里有哪些地图与票。
@@ -12,23 +12,42 @@ import * as budget from '../../shared/refresh/budget.js'
 import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/tool-cost.js'
 import { knownWritePermissions } from '../../shared/tracker/backendWritePermissions.js'
 
-function numOpt(v) { return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : undefined }
-function withCap(promise, ms) {
+/** 数字型参数的统一收口：正的有限数才要（取整），其余一律当「没给」，由调用方退自己的默认。 */
+function numOpt(v: unknown): number | undefined { return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : undefined }
+/** 钳制等待的结果：等到了给值；超时或对方自己失败都算「没等到」，调用方一律退老路。 */
+type CapResult<T> = { ok: true; value: T } | { ok: false; timedOut?: true }
+function withCap<T>(promise: Promise<T> | T, ms: number): Promise<CapResult<T>> {
   return Promise.race([
-    Promise.resolve(promise).then(function (v) { return { ok: true, value: v } }, function () { return { ok: false } }),
-    new Promise(function (resolve) { setTimeout(function () { resolve({ ok: false, timedOut: true }) }, ms) }),
+    Promise.resolve(promise).then(function (v): CapResult<T> { return { ok: true, value: v } }, function (): CapResult<T> { return { ok: false } }),
+    new Promise<CapResult<T>>(function (resolve) { setTimeout(function () { resolve({ ok: false, timedOut: true }) }, ms) }),
   ])
 }
 const SANDBOX_TIMEOUT_MS = 5000
-// 执行层失败与后端诚实失败的分界（见 deckIssueCreate.js 同名注释）：前者抛给壳走
+// 执行层失败与后端诚实失败的分界（见 issue-create.ts 同名注释）：前者抛给壳走
 // backend-threw（可重试），后者走 PARTIAL/notes。钳制只管超时，不改判。
-const TRANSPORT_KINDS = ['backend-threw', 'timeout', 'aborted', 'over-budget']
-function transportMessage(result) {
+const TRANSPORT_KINDS: readonly string[] = ['backend-threw', 'timeout', 'aborted', 'over-budget']
+/** 后端回包在契约层还没建模：这里只按本工具真正会读的那一个字段收口，调用处拿断言喂进来（断言不产码）。 */
+type TransportResult = { error?: { kind?: string; message?: unknown } } | null | undefined
+/** 后端回包里「执行层失败」的原话；不是执行层失败（后端诚实地说做不到）就回 null，一个字不改判。 */
+function transportMessage(result: TransportResult): string | null {
   const e = result && result.error
-  if (e && TRANSPORT_KINDS.indexOf(e.kind) >= 0) return String(e.message || '执行层没回来')
+  if (e && TRANSPORT_KINDS.indexOf(e.kind as string) >= 0) return String(e.message || '执行层没回来')
   return null
 }
 
+/**
+ * 装配层注入的依赖袋。壳要用的键原样透传（没列的键也一律接受：壳自己还没标类型，这一层不替它把关）；
+ * 列出来的是本工具自己会读的那几个，缺席时各自退默认。
+ */
+export interface DeckContextDeps {
+  readonly [key: string]: unknown
+  /** 沙箱许可策略：给工作区与会话，回这一轮的策略快照；等不到就当没有（不拦事）。两个值原样传，可能还没有。 */
+  sandboxPolicyFor?: (arg: { cwd: string | undefined; sessionId: string | undefined }) => Promise<unknown>
+  /** 时钟旁路：测试里换假时钟用，缺省 Date.now。 */
+  now?: () => number
+}
+
+/** 工具定义（唯一事实）：路由、参数名与给 AI 看的那句话都从这里出，别在别处再抄一份。 */
 export const definition = {
   name: 'deck_context',
   description: '这是 dsh-mattpocock-skills-deck 插件提供的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo。你要创建、查看、更新 ISSUE，查看 map 与 progress 时，先调用 deck_context 一次，确认 workspace 与 backend；如果 repo 里的说法和这里写的不一样，以这里写的为准。如果 deck_context 返回这个 workspace 还没有选 backend，或拿不到 workspace，就说明本插件不适用这个 workspace，直接停下，不再调用其余 deck 开头的工具，后续怎么做由用户决定。',
@@ -37,21 +56,31 @@ export const definition = {
 }
 
 /** 一张地图在清单里长什么样（只放人需要的那几格，正文不进清单；票本身没有层级格，不带它——带空值整包会被外层拒收）。 */
-function mapRow(issue) {
+function mapRow(issue: Record<string, unknown>) {
   return { key: issue.key, title: issue.title, state: issue.state, url: issue.url || '' }
 }
 
-export function createDeckContext(deps) {
-  const d = deps || {}
+/**
+ * 装配层调一次，拿到这对 { definition, run }。deps 是宿主注入的依赖袋（见 DeckContextDeps），
+ * 什么都不给也能跑：壳与这里的每一处都各自退默认。
+ */
+export function createDeckContext(deps?: DeckContextDeps) {
+  const d: DeckContextDeps = deps || {}
   const shell = createDeckShell(Object.assign({}, d, {
     estimate: d.estimate || estimateToolCost,
     costInputFrom: d.costInputFrom || toolCostInputFrom,
   }))
 
-  async function run(exec, args) {
+  /**
+   * 跑一次：exec 是 DSH 给的执行上下文（会话与沙箱都从它取），args 是模型填的参数。
+   * 本工具不收参数（见上面的 parameters），args 只原样交给成本估算。
+   */
+  async function run(exec: unknown, args: Record<string, unknown>): Promise<unknown> {
     const s = await sessionContextOfAsync(exec, { canonicalKey: d.canonicalKey, workspaceKeyOf: d.workspaceKeyOf })
     const est = shell.estimateFor('deck_context', args)
-    if (!s.ok) return shell.unsupported('deck_context', s.reason, s.text, { cost: { estimated: est } })
+    // 会话没解析出来时回的是「为什么」那一支。编译器分不出两支（ok 在会话壳里是运行时布尔，
+    // 那一层还没标类型，见 #1040），所以这里按形状取 reason —— 取到的值与老写法逐字相同。
+    if (!s.ok) return shell.unsupported('deck_context', (s as { reason: string }).reason, s.text, { cost: { estimated: est } })
 
     const pick = await shell.pickBackend(exec, s)
     if (!pick.ok) {
@@ -64,7 +93,8 @@ export function createDeckContext(deps) {
       })
     }
     const repo = shell.repoOf(pick, s)
-    let sandbox = null
+    // 沙箱策略的快照：等不到（超时、对方失败、没注入）一律按「没有」往下走，与老口径同形。
+    let sandbox: unknown = null
     try {
       if (typeof d.sandboxPolicyFor === 'function') {
         const raced = await withCap(d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }), SANDBOX_TIMEOUT_MS)
@@ -72,11 +102,13 @@ export function createDeckContext(deps) {
       }
     } catch (eS) { sandbox = null }
 
-    return shell.call({ tool: 'deck_context', kind: 'read', session: s, pick: pick, repo: repo, estimate: est, sandbox: sandbox }, async (c) => {
+    return shell.call({ tool: 'deck_context', kind: 'read', session: s, pick: pick, repo: repo, estimate: est, sandbox: sandbox }, async (c: unknown) => {
       // 进预算壳 + 两路并行：预检与清单互相独立，之前串行要等两份慢调用，
       // 并行后只等较慢的那一份。回包的字段与 notes 顺序与之前一致。
       const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), now: (typeof d.now === 'function') ? d.now : Date.now })
-      const t = sc.tracker
+      // 走到这里 tracker 一定在（预算壳自己的约定：能进这一段就是选好后端了）；
+      // 断言只为让编译器安静，运行时一个字节都不动 —— 真为空时下面那句照样抛 TypeError 走 backend-threw。
+      const t = sc.tracker!
       const opCtx = sc.opCtx
       const preP = (typeof t.preflight === 'function') ? t.preflight({ cwd: s.cwd }, opCtx) : Promise.resolve(null)
       const listP = t.list(repo, { type: 'map' }, opCtx)
@@ -89,11 +121,11 @@ export function createDeckContext(deps) {
       const pre = await preP
       const listed = await listP
       const perm = await permP
-      const preTransport = transportMessage(pre)
+      const preTransport = transportMessage(pre as TransportResult)
       if (preTransport) throw new Error(preTransport)
-      const listedTransport = transportMessage(listed)
+      const listedTransport = transportMessage(listed as TransportResult)
       if (listedTransport) throw new Error(listedTransport)
-      const permTransport = transportMessage(perm)
+      const permTransport = transportMessage(perm as TransportResult)
       if (permTransport) throw new Error(permTransport)
       const maps = (listed.ok && Array.isArray(listed.data)) ? listed.data.map(mapRow) : []
       // 能力位：本地文件后端恒可写（本地文件可写性归 md:scratchWritable 管，这里不重复判）；

@@ -1,4 +1,4 @@
-// src/host/tools/deckMapPlanCreate.js —— deck_map_plan_create（#713 第六批，本批价值最高的一个）
+// src/deck/tools/map-plan-create.ts —— deck_map_plan_create（#713 第六批，本批价值最高的一个；#1019 换到新树、#1035 转 TypeScript）
 //
 // 一次把一整张地图的骨架建出来：地图票 + 一票子票 + 子票之间的依赖边，最后逐项校验计数。
 // 它贵，所以三件事都做在明面上：
@@ -69,32 +69,88 @@ export const definition = {
 /** 同计划标识的并发执行互斥（进程内）：第二跑直接拒绝，不与第一跑交错写。 */
 const ACTIVE_PLANS = new Map()
 
-function numOpt(v) { return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : undefined }
+/** 数字型参数的统一收口：正的有限数才要（取整），其余一律当「没给」，由调用方退自己的默认。 */
+function numOpt(v: unknown): number | undefined { return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : undefined }
+/** 钳制等待的结果：等到了给值；超时或对方自己失败都算「没等到」，调用方一律退老路。 */
+type CapResult<T> = { ok: true; value: T } | { ok: false; timedOut?: true }
 // 等待竞速：沙箱超时按缺席走老路；游标读超时按空游标（锚预检与幂等键仍是去重权威，不多出票），写超时吞掉。
-function withCap(promise, ms) { return Promise.race([Promise.resolve(promise).then(function (v) { return { ok: true, value: v } }, function () { return { ok: false } }), new Promise(function (resolve) { setTimeout(function () { resolve({ ok: false, timedOut: true }) }, ms) })]) }
+function withCap<T>(promise: Promise<T> | T, ms: number): Promise<CapResult<T>> { return Promise.race([Promise.resolve(promise).then(function (v): CapResult<T> { return { ok: true, value: v } }, function (): CapResult<T> { return { ok: false } }), new Promise<CapResult<T>>(function (resolve) { setTimeout(function () { resolve({ ok: false, timedOut: true }) }, ms) })]) }
 const SANDBOX_TIMEOUT_MS = 5000; const STORE_TIMEOUT_MS = 10000
 
-function storeIoFrom(deps, cwd) {
+/** 宿主的文件读写能力：每样都可能缺（缺了就不落盘），下面用它之前都先判过一次类型。 */
+type HostFs = {
+  readText?: (p: string) => unknown
+  writeText?: (p: string, t: string) => unknown
+  mkdir?: (p: string) => unknown
+}
+
+/** 宿主能力袋：backendCtx 回的就是它（平台工具与文件读写）；缺哪样就退哪条老路。 */
+type HostBackendCtx = { platform?: { path?: { join: (a: string, c: string) => string }; fs?: HostFs }; fs?: HostFs } | null | undefined
+
+/**
+ * 按注入的宿主能力组一份「文件读写 + 目录」给计划游标用：宿主给了 backendCtx 就走它，没给就退回注入袋本身。
+ * 路径优先用平台的 path.join（宿主换别的分隔符也跟着走），没有就按 `/` 拼。缺一样能力就回 null，
+ * 调用方退到内存游标，并在回执里如实说「这次没有落盘」。
+ */
+function storeIoFrom(deps: DeckMapPlanCreateDeps, cwd: string | undefined) {
   try {
-    const b = (deps && typeof deps.backendCtx === 'function') ? deps.backendCtx() : deps.backendCtx
+    // backendCtx 回什么只有装配层知道，这里按 HostBackendCtx 收口（纯类型断言，取到的还是那个值）：
+    // 编译器看不穿「可选依赖 + typeof 判过再调」这一段，收一下口才能往下读 platform / fs。
+    const b = ((deps && typeof deps.backendCtx === 'function') ? deps.backendCtx() : deps.backendCtx) as HostBackendCtx
     const platform = (b && b.platform) || null
     const fs = (b && b.fs) || (platform && platform.fs) || null
     if (!platform || !fs || typeof fs.readText !== 'function' || typeof fs.writeText !== 'function') return null
+    // 这几样能力在下面的闭包里还会再读一次：typeof 判过的那道收窄带不进闭包（编译器只对 const 变量保留收窄），
+    // 所以按 `!` 收口 —— 纯类型断言，读的还是同一格、同一个 this，真缺的时候照样抛 TypeError。
     const join = (platform.path && typeof platform.path.join === 'function')
-      ? function (a, c) { return platform.path.join(a, c) }
-      : function (a, c) { return String(a).replace(/\\/g, '/') + '/' + c }
+      ? function (a: string, c: string) { return platform.path!.join(a, c) }
+      : function (a: string, c: string) { return String(a).replace(/\\/g, '/') + '/' + c }
     const dir = join(String(cwd || ''), '.dsh-mattskillsdeck-cache') + '/deck-plans'
     return {
-      readText: function (p) { return fs.readText(p) },
-      writeText: function (p, t) { return fs.writeText(p, t) },
-      mkdir: (typeof fs.mkdir === 'function') ? function (p) { return fs.mkdir(p) } : undefined,
+      readText: function (p: string) { return fs.readText!(p) },
+      writeText: function (p: string, t: string) { return fs.writeText!(p, t) },
+      mkdir: (typeof fs.mkdir === 'function') ? function (p: string) { return fs.mkdir!(p) } : undefined,
       dir: dir,
     }
   } catch (e) { return null }
 }
 
-export function createDeckMapPlanCreate(deps) {
-  const d = deps || {}
+/**
+ * 装配层注入的依赖袋：这里只列本工具会主动去调的键，缺席时各自退默认（那行索引签名兜住其余键——
+ * 装配时是把整袋依赖递进来的，多出来的键一律原样透传给壳）。
+ */
+export interface DeckMapPlanCreateDeps {
+  readonly [key: string]: unknown
+  /** 宿主能力袋：文件读写与平台工具从这儿取（本地后端要把计划游标落盘）；回不来就按工作区目录自己拼一份。 */
+  backendCtx?: () => HostBackendCtx
+  /** 沙箱许可策略：给工作区与会话，回这一轮的策略快照；两个值原样传，可能还没有。 */
+  sandboxPolicyFor?: (arg: { cwd: string | undefined; sessionId: string | undefined }) => Promise<unknown>
+  /** 时钟旁路：测试里换假时钟用，缺省 Date.now。 */
+  now?: () => number
+  /** 建号钩子：地图票建好之后通知调用方一声（#746 地图票直达命名守护），抛错吞掉、不影响返回。 */
+  onTicketCreated?: (arg: { sessionId: string; key: string; title: string }) => unknown
+}
+
+/** 一次计划的中间态：mapKey 是地图票号，keys 是计划内短标识到真票号的映射，其余两格是已办事项与已落的边。 */
+type PlanState = {
+  planId: string
+  mapKey: string
+  keys: Record<string, string>
+  edges: unknown[]
+  done: unknown[]
+}
+
+/** 计划游标存储器（注入的 d.planStore，或本文件现建的文件/内存游标）：load 取上次的中间态，save / remove 各写一次。 */
+type PlanStoreLike = {
+  durable?: unknown
+  load: (planId: string) => PlanState | null | Promise<PlanState | null>
+  save: (planId: string, state: PlanState) => unknown
+  remove?: (planId: string) => unknown
+}
+
+/** 工具定义是唯一事实（参数与给 AI 看的那段话就在上面那份 definition 里，别处不要再抄一份）；装配层调一次拿到 { definition, run }。 */
+export function createDeckMapPlanCreate(deps?: DeckMapPlanCreateDeps) {
+  const d: DeckMapPlanCreateDeps = deps || {}
   const shell = createDeckShell(Object.assign({}, d, {
     estimate: d.estimate || estimateToolCost,
     costInputFrom: d.costInputFrom || toolCostInputFrom,
@@ -102,14 +158,18 @@ export function createDeckMapPlanCreate(deps) {
   const fallbackStore = createMemoryPlanStore()
   const nowFn = (typeof d.now === 'function') ? d.now : Date.now
 
-  async function run(exec, args) {
-    const a = args || {}
+  /** 工具入口：exec 是宿主给的执行上下文（只读它的 signal 取消信号），args 是 AI 传的参数；回执由壳层包成最终回执。 */
+  async function run(exec: unknown, args: Record<string, unknown>): Promise<unknown> {
+    const a: Record<string, unknown> = args || {}
     const title = String(a.title === undefined || a.title === null ? '' : a.title).trim()
-    const children = Array.isArray(a.children) ? a.children.filter((c) => c && c.key && c.title) : []
-    const edges = Array.isArray(a.edges) ? a.edges.filter((e) => e && e.from && e.to) : []
+    // 子票与边都是 AI 传来的对象数组：这里只按「有没有那几格」筛一遍，筛出来的元素仍是运行时原值。
+    const children = Array.isArray(a.children) ? a.children.filter((c: Record<string, unknown>) => c && c.key && c.title) : []
+    const edges = Array.isArray(a.edges) ? a.edges.filter((e: Record<string, unknown>) => e && e.from && e.to) : []
     const est = shell.estimateFor('deck_map_plan_create', a)
     const s = await sessionContextOfAsync(exec, { canonicalKey: d.canonicalKey, workspaceKeyOf: d.workspaceKeyOf })
-    if (!s.ok) return shell.unsupported('deck_map_plan_create', s.reason, s.text, { cost: { estimated: est } })
+    // 会话没解析出来时回的是「为什么」那一支。编译器分不出两支（ok 是会话壳里的运行时布尔，那一层还没标类型，
+    // 见 #1040），所以这里按形状取 reason —— 取到的值与老写法逐字相同。
+    if (!s.ok) return shell.unsupported('deck_map_plan_create', (s as { reason: string }).reason, s.text, { cost: { estimated: est } })
     if (!title || !children.length) {
       return shell.unsupported('deck_map_plan_create', REFUSAL_REASONS.BAD_ARGS, '建整张地图至少要给 title 与一张子票（children 里每项要有 key 与 title）。', { cost: { estimated: est } })
     }
@@ -124,7 +184,9 @@ export function createDeckMapPlanCreate(deps) {
     const effortId = (a.effortId === undefined || a.effortId === null) ? '' : String(a.effortId).trim()
     if (effortId) repo.effortId = effortId
 
-    let store = (d.planStore && typeof d.planStore.load === 'function') ? d.planStore : null
+    // d.planStore 在依赖袋里是 unknown（装配层塞进来的运行时对象，形状由 plan-cursor.ts 定）：两处读取各按
+    // 纯类型断言收口 —— 读的还是同一格 d.planStore，取值表达式一字不动；形状不对就退到下面现建的文件游标。
+    let store: PlanStoreLike | null = (d.planStore && typeof (d.planStore as PlanStoreLike).load === 'function') ? (d.planStore as PlanStoreLike) : null
     if (!store) {
       const built = storeIoFrom(d, s.cwd)
       store = built ? createFilePlanStore({ io: built, dir: built.dir, workspaceKey: s.workspaceKey, now: nowFn }) : fallbackStore
@@ -134,24 +196,30 @@ export function createDeckMapPlanCreate(deps) {
     const rawStore = store
     store = {
       durable: rawStore.durable,
-      load: function (id) {
+      load: function (id: string) {
         return withCap(rawStore.load(id), STORE_TIMEOUT_MS).then(function (r) { return (r && r.ok === true) ? r.value : null })
       },
-      save: function (id, st) {
+      save: function (id: string, st: PlanState) {
         return withCap(rawStore.save(id, st), STORE_TIMEOUT_MS).then(function () {}, function () {})
       },
-      remove: (typeof rawStore.remove === 'function') ? function (id) {
-        return withCap(rawStore.remove(id), STORE_TIMEOUT_MS).then(function () {}, function () {})
+      remove: (typeof rawStore.remove === 'function') ? function (id: string) {
+        // 这一支里 remove 一定在（上面那个 typeof 已经判过）；断言只为让编译器安静（它不把闭包外的收窄带进来），
+        // 运行时一个字节都不动 —— 真为空时这里照样抛 TypeError。
+        return withCap(rawStore.remove!(id), STORE_TIMEOUT_MS).then(function () {}, function () {})
       } : undefined,
     }
 
+    // exec 上那个取消信号。契约层还没给 exec 标形状（见 #1040），三处 exec.signal 各按纯类型断言收口：
+    // 取值表达式一字不动，所以转译出来的 JS 与转换前逐字节一致。
     let out = null
     try {
-      out = await shell.call({ tool: 'deck_map_plan_create', kind: 'write', session: s, pick: pick, repo: repo, estimate: est, sandbox: (await (async function () { try { if (typeof d.sandboxPolicyFor !== 'function') return null; const raced = await withCap(d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }), SANDBOX_TIMEOUT_MS); return (raced && raced.ok === true) ? raced.value : null } catch (eS) { return null } })()), signal: (exec && exec.signal && typeof exec.signal === 'object') ? exec.signal : undefined }, async (c) => {      const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), now: nowFn })
-      const t = sc.tracker
+      out = await shell.call({ tool: 'deck_map_plan_create', kind: 'write', session: s, pick: pick, repo: repo, estimate: est, sandbox: (await (async function () { try { if (typeof d.sandboxPolicyFor !== 'function') return null; const raced = await withCap(d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }), SANDBOX_TIMEOUT_MS); return (raced && raced.ok === true) ? raced.value : null } catch (eS) { return null } })()), signal: (exec && (exec as { signal?: unknown }).signal && typeof (exec as { signal?: unknown }).signal === 'object') ? (exec as { signal?: unknown }).signal : undefined }, async (c: unknown) => {      const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), now: nowFn })
+      // 走到这里 tracker 一定在（预算壳自己的约定：能进这一段就是选好后端了）；
+      // 断言只为让编译器安静，运行时一个字节都不动 —— 真为空时下面那句照样抛 TypeError 走 backend-threw。
+      const t = sc.tracker!
       const opCtx = sc.opCtx
       const prev = (await store.load(planId)) || { planId: planId, mapKey: '', keys: {}, edges: [], done: [] }
-      const state = { planId: planId, mapKey: prev.mapKey || '', keys: Object.assign({}, prev.keys), edges: Array.isArray(prev.edges) ? prev.edges.slice() : [], done: Array.isArray(prev.done) ? prev.done.slice() : [] }
+      const state: PlanState = { planId: planId, mapKey: prev.mapKey || '', keys: Object.assign({}, prev.keys), edges: Array.isArray(prev.edges) ? prev.edges.slice() : [], done: Array.isArray(prev.done) ? prev.done.slice() : [] }
       const items = []
       const notes = []
       if (effortId) notes.push('这次带了 effortId（' + effortId.slice(0, 60) + '）：本地后端只在那一个目录里找，远端后端忽略它。')
@@ -188,15 +256,16 @@ export function createDeckMapPlanCreate(deps) {
         if (untouched.length) {
           const all = await t.list(repo, { state: 'all' }, opCtx)
           const rows = (all && all.ok === true && Array.isArray(all.data)) ? all.data : null
-          const cands = rows ? rows.filter((r) => r && typeof r.body === 'string').map((r) => ({ key: String(r.key), body: r.body, state: r.state })) : []
+          const cands = rows ? rows.filter((r: Record<string, unknown>) => r && typeof r.body === 'string').map((r: Record<string, unknown>) => ({ key: String(r.key), body: r.body, state: r.state })) : []
           if (cands.length) {
             for (const ch of untouched) {
               let m = null
               try { m = matchAnchor(cands, repo.refId, 'deck-plan-' + planId + '-child-' + String(ch.key)) } catch (eM) { m = null }
               if (m && isAnchorHit(m)) {
-                state.keys[String(ch.key)] = String(m.key)
+                // 命中那一支的形状（带 key）与没命中那一支（带 status / reason）编译器合不成一个，按类型断言取 key，取到的值一字不动。
+                state.keys[String(ch.key)] = String((m as { key?: string }).key)
                 state.done.push('child:' + String(ch.key))
-                items.push({ key: String(m.key), role: 'child', planKey: String(ch.key), title: String(ch.title), status: 'ok', skipped: true })
+                items.push({ key: String((m as { key?: string }).key), role: 'child', planKey: String(ch.key), title: String(ch.title), status: 'ok', skipped: true })
               }
             }
             await store.save(planId, state)
@@ -213,7 +282,8 @@ export function createDeckMapPlanCreate(deps) {
       let restKeys = pending.slice(est.perShard).map((ch) => String(ch.key))
       const made = await Promise.all(shard.map(async (ch) => {
         if (sc.outOfBudget()) return { ch: ch, over: true, created: null }
-        const kind = (ch.kind === 'bug' || ch.kind === 'map') ? ch.kind : 'task'
+        // 这两个比较已经把这一支收到 'bug' / 'map' 上，只是 ch.kind 在参数里是 unknown，按类型断言收成 string（值一字不动）。
+        const kind = (ch.kind === 'bug' || ch.kind === 'map') ? (ch.kind as string) : 'task'
         const ensured = ensureLabels(ch.labels, kind)
         const body = ensureBody(ch.body, kind)
         const created = await t.create(repo, {
@@ -239,12 +309,12 @@ export function createDeckMapPlanCreate(deps) {
       }
       restKeys = overKeys.concat(restKeys)
 
-      // ③ 边：端点都在计划里才做；落点由写后读回判（写加判见 edges.js 的共用函数）。
+      // ③ 边：端点都在计划里才做；落点由写后读回判（写加判见 edge-landing.ts 的共用函数）。
       // #898：设置阻塞边是整批替换语义，同一张票的多条阻塞边先合并成完整集合再写一次，
       // 否则后一次写会删掉前一次写上的边；校验按本次该票的全部目标逐个核对。
       // 同一张票的写组内逐条来（同时写同一张票会丢一次改动），不同票的组同时写；
       // 结果按边的传入顺序合回，中间态落盘与原来一样逐条记。
-      const keyOf = (ref) => (String(ref) === '@map' ? state.mapKey : (state.keys[String(ref)] || ''))
+      const keyOf = (ref: unknown) => (String(ref) === '@map' ? state.mapKey : (state.keys[String(ref)] || ''))
       let edgeCount = 0
       const edgeJobs = []
       for (const e of edges) {
@@ -277,9 +347,11 @@ export function createDeckMapPlanCreate(deps) {
         }))
         const blockOut = await Promise.all(blockOrder.map(async (from) => {
           const g = blockByFrom.get(from)
-          if (sc.outOfBudget()) return g.occ.map((j) => ({ idx: j.idx, over: true }))
-          const r = await applyBlockEdges(t, repo, opCtx, from, g.targets, g.occ.map((j) => j.to))
-          return g.occ.map((j, k) => ({ idx: j.idx, over: false, item: r.items[k], rec: r.applied.indexOf(j.to) >= 0 ? { from: from, to: j.to, op: 'block' } : null, save: k === g.occ.length - 1 && !r.failed }))
+          if (sc.outOfBudget()) return g.occ.map((j: { idx: number; to: string }) => ({ idx: j.idx, over: true }))
+          const r = await applyBlockEdges(t, repo, opCtx, from, g.targets, g.occ.map((j: { idx: number; to: string }) => j.to))
+          // r.applied 一支是空数组（推成 never[]）、一支是真正落上的票号，编译器合不出一个收得下字符串的类型，
+          // 这里按 string[] 收口 —— 纯类型断言，值一字不动。
+          return g.occ.map((j: { idx: number; to: string }, k: number) => ({ idx: j.idx, over: false, item: r.items[k], rec: (r.applied as string[]).indexOf(j.to) >= 0 ? { from: from, to: j.to, op: 'block' } : null, save: k === g.occ.length - 1 && !r.failed }))
         }))
         for (const group of parentOut) for (const o of group) edgeRecs.push(o)
         for (const group of blockOut) for (const o of group) edgeRecs.push(o)
@@ -298,7 +370,8 @@ export function createDeckMapPlanCreate(deps) {
       const liveRows = (listed && listed.ok === true && Array.isArray(listed.data)) ? listed.data : null
       const picked = liveRows ? childrenOf(liveRows, state.mapKey) : { children: null, filtered: false, note: '' }
       const plannedLive = Object.keys(state.keys).length
-      let counts = { planned: plannedLive + 1, actual: null, ok: false, compared: picked.filtered }
+      // 逐项校验的计数：actual 先写 null（表示「拿不到」），下面按父票列出来的结果再改写一次，形状固定下来。
+      let counts: { planned: number; actual: number | null; ok: boolean; compared: unknown } = { planned: plannedLive + 1, actual: null, ok: false, compared: picked.filtered }
       if (picked.children) {
         counts = { planned: plannedLive + 1, actual: picked.children.length + 1, ok: picked.children.length === plannedLive, compared: picked.filtered }
       }

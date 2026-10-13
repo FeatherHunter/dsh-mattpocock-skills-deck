@@ -1,6 +1,6 @@
 // src/deck/shell/minimal-spec.ts —— 七个 deck_* 工具共用的「强制最小规范」（必备标签、进度区、幂等锚）
 //
-// 本文件由 src/shared/deck-tools/plan.js 拆出（地图01 #1019 机械搬家），只挪位置不改行为。
+// 本文件由 src/shared/deck-tools/plan.js 拆出（地图01 #1019 机械搬家），#1035 转 TypeScript，行为一字未改。
 
 // 这个文件回答两个问题，都只有一处答案：
 //   一、工具写票时「最少要保证什么」：必备标签、进度区（地图是五个区块）、幂等锚。AI 记不住这些，
@@ -13,10 +13,14 @@
 // 本文件自己不 import 任何东西（同上：共享层不许互相引用），所以下面自带两个最小的字符串工具函数；
 // shell.js 里也有一份，两份都只有一行，是这条门禁下最省的写法。
 
-function str(v) { return (typeof v === 'string') ? v : '' }
+/** 票的种类（deck_issue_create 的 kind 参数与各工具的写路径共用这一套词）。 */
+export type DeckKind = 'map' | 'task' | 'bug'
+
+/** 拿不准是不是字符串时统一收口成字符串：不是字符串就当空串（调用方各自判空）。 */
+function str(v: unknown): string { return (typeof v === 'string') ? v : '' }
 
 /** 强制最小规范里那几枚必备标签：按票的种类给，缺的补上，已经有的不动。 */
-export const MINIMAL_LABELS = Object.freeze({
+export const MINIMAL_LABELS: Readonly<Record<DeckKind, readonly string[]>> = Object.freeze({
   map: Object.freeze(['wayfinder:map']),
   task: Object.freeze(['wayfinder:task']),
   bug: Object.freeze(['bug', 'needs-triage']),
@@ -25,15 +29,17 @@ export const MINIMAL_LABELS = Object.freeze({
 /** 地图那张票必带的五个区块（与共享层 parser.js 的 parseMapBody 认的五个标题逐字一致）。 */
 export const MAP_BLOCK_TITLES = Object.freeze(['Destination', 'Notes', 'Decisions so far', 'Not yet specified', 'Out of scope'])
 
-function labelNames(list) {
+/** 把各种形态的标签清单（字符串、{name} 对象、两种混着来）归一成去空后的名字数组。 */
+function labelNames(list: unknown): string[] {
   return (Array.isArray(list) ? list : []).map((l) => (typeof l === 'string' ? l : (l && l.name) || '')).map((s) => String(s).trim()).filter(Boolean)
 }
 
 /** 补必备标签：返回补完的清单与「我替你补了哪些」（原话写进返回值，让人看得见）。 */
-export function ensureLabels(labels, kind) {
+export function ensureLabels(labels: unknown, kind: string): { labels: string[]; added: string[] } {
   const have = labelNames(labels)
-  const want = MINIMAL_LABELS[kind] || MINIMAL_LABELS.task
-  const added = []
+  // kind 是运行时来的字符串：认得的那三种各有一套必备标签，认不出的一律按 task（老写法同此）。
+  const want = MINIMAL_LABELS[kind as DeckKind] || MINIMAL_LABELS.task
+  const added: string[] = []
   for (const name of want) {
     if (have.map((n) => n.toLowerCase()).indexOf(name.toLowerCase()) < 0) { have.push(name); added.push(name) }
   }
@@ -44,9 +50,9 @@ export function ensureLabels(labels, kind) {
  * 补正文：地图补五个区块，别的票补一个进度区。
  * 判据是「正文里有没有认得出的那一行」，不是「有没有非空正文」——空正文照样要补。
  */
-export function ensureBody(body, kind) {
+export function ensureBody(body: unknown, kind: string): { body: string; added: string[] } {
   const text = typeof body === 'string' ? body : ''
-  const added = []
+  const added: string[] = []
   let out = text
   if (kind === 'map') {
     const missing = MAP_BLOCK_TITLES.filter((t) => !new RegExp('^##\\s*' + t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*$', 'm').test(text))
@@ -75,7 +81,7 @@ export function ensureBody(body, kind) {
  * 房规注：Markdown 房内 parse.js 里有一份逐字相同的写法给建票与改正文同房引用（房规不许后端引用
  * 共享层的 deck-tools 目录，所以两份各自手写，改一处必须改另一处）。
  */
-export function isWholeIssueBody(body) {
+export function isWholeIssueBody(body: unknown): boolean {
   const t = typeof body === 'string' ? body : ''
   if (/^\s*#\s+\S/m.test(t)) return true
   if (/^\s*<!--[ \t]*DSH-IDEMPOTENCY-KEY:/m.test(t)) return true
@@ -89,8 +95,9 @@ export function isWholeIssueBody(body) {
  *（票面「写操作轻量幂等：同标题 + 同标签 5 分钟内复用」）。窗口把「重试」与「故意再建一张」分开：
  * 5 分钟之内是同一次意图的重试，之外是新的一次。锚本身交给契约层（#711）去回查，工具不自己记表。
  */
-export function anchorKeyFor(parts) {
-  const p = parts || {}
+export function anchorKeyFor(parts: unknown): string {
+  // 纯类型断言：取法一个字没变（少了这一句，编译器不让在未知值上读字段）。
+  const p = (parts || {}) as Record<string, unknown>
   const windowMs = (typeof p.windowMs === 'number' && p.windowMs > 0) ? p.windowMs : 300000
   const bucket = Math.floor(((typeof p.now === 'number' && isFinite(p.now)) ? p.now : Date.now()) / windowMs)
   const raw = [str(p.tool), str(p.sessionId) || str(p.workspaceKey), str(p.title), labelNames(p.labels).join(','), String(bucket)].join('|')

@@ -1,4 +1,4 @@
-// src/host/tools/deckIssueGet.js —— deck_issue_get（#713 第六批）
+// src/deck/tools/issue-get.ts —— deck_issue_get（#713 第六批；#1019 换到新树、#1035 转 TypeScript）
 //
 // 一次把一张票的完整关系读回来：正文、评论、标签、认领、父子、阻塞边。
 // 「优先读宿主已有快照」落在实现上是：宿主把快照缓存（snapshot.js 的 get/getDependencies）通过
@@ -9,24 +9,52 @@ import { EDGE_LANDING, relationsOf } from '../shell/edge-landing.js'
 import { withCallScope } from '../shell/call-budget.js'
 import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/tool-cost.js'
 
-function numOpt(v) { return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : undefined }
+/** 数字型参数的统一收口：正的有限数才要（取整），其余一律当「没给」，由调用方退自己的默认。 */
+function numOpt(v: unknown): number | undefined { return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : undefined }
+/** 钳制等待的结果：等到了给值；超时或对方自己失败都算「没等到」，调用方一律退老路。 */
+type CapResult<T> = { ok: true; value: T } | { ok: false; timedOut?: true }
 // 沙箱许可等待上限：对手是挂住的会话服务。超时按缺席走老路（不限权），与既有 catch null 同形。
-function withCap(promise, ms) {
+function withCap<T>(promise: Promise<T> | T, ms: number): Promise<CapResult<T>> {
   return Promise.race([
-    Promise.resolve(promise).then(function (v) { return { ok: true, value: v } }, function () { return { ok: false } }),
-    new Promise(function (resolve) { setTimeout(function () { resolve({ ok: false, timedOut: true }) }, ms) }),
+    Promise.resolve(promise).then(function (v): CapResult<T> { return { ok: true, value: v } }, function (): CapResult<T> { return { ok: false } }),
+    new Promise<CapResult<T>>(function (resolve) { setTimeout(function () { resolve({ ok: false, timedOut: true }) }, ms) }),
   ])
 }
 const SANDBOX_TIMEOUT_MS = 5000
-// 执行层失败与后端诚实失败的分界（见 deckIssueCreate.js 同名注释）：前者抛给壳走
+// 执行层失败与后端诚实失败的分界（见 issue-create.ts 同名注释）：前者抛给壳走
 // backend-threw（可重试），后者走逐项的 BACKEND_UNSUPPORTED。钳制只管超时，不改判。
-const TRANSPORT_KINDS = ['backend-threw', 'timeout', 'aborted', 'over-budget']
-function transportMessage(result) {
+const TRANSPORT_KINDS: readonly string[] = ['backend-threw', 'timeout', 'aborted', 'over-budget']
+/** 后端回包在契约层还没建模：这里只按本工具真正会读的那一个字段收口，调用处拿断言喂进来（断言不产码）。 */
+type TransportResult = { error?: { kind?: string; message?: unknown } } | null | undefined
+/** 后端回包里「执行层失败」的原话；不是执行层失败（后端诚实地说做不到）就回 null，一个字不改判。 */
+function transportMessage(result: TransportResult): string | null {
   const e = result && result.error
-  if (e && TRANSPORT_KINDS.indexOf(e.kind) >= 0) return String(e.message || '执行层没回来')
+  if (e && TRANSPORT_KINDS.indexOf(e.kind as string) >= 0) return String(e.message || '执行层没回来')
   return null
 }
 
+/**
+ * 装配层注入的依赖袋。壳要用的键原样透传（没列的键也一律接受：壳自己还没标类型，这一层不替它把关）；
+ * 列出来的是本工具自己会读的那几个，缺席时各自退默认：没有沙箱策略就跳过那一步等待，没有时钟就用 Date.now。
+ */
+export interface DeckIssueGetDeps {
+  readonly [key: string]: unknown
+  /** 沙箱许可策略：给工作区与会话，回这一轮的策略快照；等不到就当没有（不拦事）。
+   *  两个值都按会话壳给的原样传（工作区没定下来时可能还没有），不许在这里补空串或假目录。 */
+  sandboxPolicyFor?: (arg: { cwd: string | undefined; sessionId: string | undefined }) => Promise<unknown>
+  /** 会话短键归一：宿主把票号缩成工作区内的短键。 */
+  canonicalKey?: (key: string) => string | null
+  /** 工作区短指纹：宿主按工作区目录加会话算出来，用来把同一处的几趟调用串起来。 */
+  workspaceKeyOf?: (cwd: string, sessionId: string) => string | null
+  /** 单次后端调用的超时预算（毫秒）；缺省由预算壳自己定。 */
+  toolTimeoutMs?: number
+  /** 预算壳留给收尾的余量（毫秒）。 */
+  toolMarginMs?: number
+  /** 时钟旁路：测试里换成假时钟用，缺省 Date.now。 */
+  now?: () => number
+}
+
+/** 工具定义（唯一事实）：路由、参数名与给 AI 看的那句话都从这里出，别在别处再抄一份。 */
 export const definition = {
   name: 'deck_issue_get',
   description: '同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。读一个 ISSUE 的完整关系：正文、评论、label、assignee 与 parent 和 blockedBy 边，每条边标出落点。blocking=false 跳过反向边全仓扫描（快，见 blocking 参数）。',
@@ -44,7 +72,11 @@ export const definition = {
   },
 }
 
-function issueBrief(issue) {
+/**
+ * 列表行里挑出要给 AI 看的那几项。读的是后端回来的运行时真值（形状未在契约层建模的房内字段也在），
+ * 所以先当未知收口：不是对象就回 null，字段缺了用空串/null 补，不猜。
+ */
+function issueBrief(issue: Record<string, unknown> | null | undefined) {
   if (!issue || typeof issue !== 'object') return null
   return {
     key: issue.key, title: issue.title, state: issue.state, type: issue.type,
@@ -55,7 +87,7 @@ function issueBrief(issue) {
 }
 
 /** 按 ## 标题子串取正文节：找到就回节内文本，找不到回空（调用方如实注记，不猜）。 */
-function sectionOf(body, want) {
+function sectionOf(body: unknown, want: unknown): { found: boolean; name: string; text: string } {
   const src = typeof body === 'string' ? body : ''
   const q = String(want === undefined || want === null ? '' : want).trim().toLowerCase()
   if (!q) return { found: false, name: '', text: '' }
@@ -74,19 +106,29 @@ function sectionOf(body, want) {
   return { found: true, name: name, text: lines.slice(start + 1, end).join('\n').replace(/^\n+|\s+$/g, '') }
 }
 
-export function createDeckIssueGet(deps) {
-  const d = deps || {}
+/**
+ * 装配层调一次，拿到这对 { definition, run }。deps 是宿主注入的依赖袋（见 DeckIssueGetDeps），
+ * 什么都不给也能跑：壳与这里的每一处都各自退默认。
+ */
+export function createDeckIssueGet(deps?: DeckIssueGetDeps) {
+  const d: DeckIssueGetDeps = deps || {}
   const shell = createDeckShell(Object.assign({}, d, {
     estimate: d.estimate || estimateToolCost,
     costInputFrom: d.costInputFrom || toolCostInputFrom,
   }))
 
-  async function run(exec, args) {
-    const a = args || {}
+  /**
+   * 跑一次：exec 是 DSH 给的执行上下文（会话与沙箱都从它取），args 是模型填的参数。
+   * 参数先当「未知」再逐项收口（key / effortId / comments 下面各收一次），回执形状由壳统一渲染。
+   */
+  async function run(exec: unknown, args: Record<string, unknown>): Promise<unknown> {
+    const a: Record<string, unknown> = args || {}
     const key = String(a.key === undefined || a.key === null ? '' : a.key).trim()
     const est = shell.estimateFor('deck_issue_get', a)
     const s = await sessionContextOfAsync(exec, { canonicalKey: d.canonicalKey, workspaceKeyOf: d.workspaceKeyOf })
-    if (!s.ok) return shell.unsupported('deck_issue_get', s.reason, s.text, { cost: { estimated: est } })
+    // 会话没解析出来时回的是「为什么」那一支。编译器分不出两支（ok 在会话壳里是运行时布尔，
+    // 那一层还没标类型，见 #1040），所以这里按形状取 reason —— 取到的值与老写法逐字相同。
+    if (!s.ok) return shell.unsupported('deck_issue_get', (s as { reason: string }).reason, s.text, { cost: { estimated: est } })
     if (!key) return shell.unsupported('deck_issue_get', REFUSAL_REASONS.BAD_ARGS, '要读哪一张票：把票号写在 key 里（例如 713）。', { cost: { estimated: est } })
 
     const pick = await shell.pickBackend(exec, s)
@@ -97,7 +139,8 @@ export function createDeckIssueGet(deps) {
     const first = Math.max(0, Math.min(200, Number(a.comments) > 0 ? Math.floor(Number(a.comments)) : 50))
     // 反向边缺省要：只有显式传 false 才跳过。缺席、true、其它值一律全量，老调用方形状不动。
     const wantBlocking = a.blocking !== false
-    let sandbox = null
+    // 沙箱策略的快照：等不到（超时、对方失败、没注入）一律按「没有」往下走，与老口径同形。
+    let sandbox: unknown = null
     try {
       if (typeof d.sandboxPolicyFor === 'function') {
         const raced = await withCap(d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }), SANDBOX_TIMEOUT_MS)
@@ -105,14 +148,16 @@ export function createDeckIssueGet(deps) {
       }
     } catch (eS) { sandbox = null }
 
-    return shell.call({ tool: 'deck_issue_get', kind: 'read', session: s, pick: pick, repo: repo, estimate: est, sandbox: sandbox }, async (c) => {
+    return shell.call({ tool: 'deck_issue_get', kind: 'read', session: s, pick: pick, repo: repo, estimate: est, sandbox: sandbox }, async (c: unknown) => {
       // 进预算壳：两次远端各有 30 秒单次钳制、可中止，超时只坏自己那一项；
       // 名册随上下文走，后端内部的定向重读能用上。成功路径的形状一字不动。
       const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), now: (typeof d.now === 'function') ? d.now : Date.now })
-      const t = sc.tracker
+      // 走到这里 tracker 一定在（预算壳自己的约定：能进这一段就是选好后端了）；
+      // 断言只为让编译器安静，运行时一个字节都不动 —— 真为空时下面那句照样抛 TypeError 走 backend-threw。
+      const t = sc.tracker!
       const opCtx = sc.opCtx
       const got = await t.get(repo, key, { comments: { first: first } }, opCtx)
-      const gotTransport = transportMessage(got)
+      const gotTransport = transportMessage(got as TransportResult)
       if (gotTransport) throw new Error(gotTransport)
       if (!got || got.ok !== true) {
         const msg = String((got && got.error && got.error.message) || '后端没给出原因').slice(0, 300)
@@ -130,7 +175,7 @@ export function createDeckIssueGet(deps) {
       // 反向边是整笔调用里最贵的一段（算“谁被阻塞”要扫全仓）：关掉就整段跳过，
       // 只读单票本身；反向边记空并注记，不假装 0 条。
       const dep = (wantBlocking && typeof t.getDependencies === 'function') ? await t.getDependencies(repo, key, {}, opCtx) : null
-      const depTransport = wantBlocking ? transportMessage(dep) : null
+      const depTransport = wantBlocking ? transportMessage(dep as TransportResult) : null
       if (depTransport) throw new Error(depTransport)
       const dependencies = (dep && dep.ok === true) ? dep.data : null
       const rel = relationsOf(issue, dependencies)

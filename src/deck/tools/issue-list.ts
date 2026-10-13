@@ -1,4 +1,4 @@
-// src/host/tools/deckIssueList.js —— deck_issue_list（全局薄列表，补七个工具没有的那一块）
+// src/deck/tools/issue-list.ts —— deck_issue_list（全局薄列表，补七个工具没有的那一块；#1019 换到新树、#1035 转 TypeScript）
 //
 // 为什么需要它：deck_context 只给地图清单，deck_map_snapshot 要逐张地图传 key 才给子票，
 // 全仓开放清单、按 label 与 assignee 筛这两件事原来只能走 gh。这一只走同一只壳、同一道闸、
@@ -12,6 +12,20 @@ import { sessionContextOfAsync } from '../shell/session-workdir.js'
 import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/tool-cost.js'
 import { withCallScope } from '../shell/call-budget.js'
 
+/**
+ * 装配层注入的依赖袋。壳要用的键原样透传（没列的键也一律接受：壳自己还没标类型，这一层不替它把关）；
+ * 列出来的是本工具自己会读的那几个，缺席时各自退默认：没有沙箱策略就跳过那一步等待，没有时钟就用 Date.now。
+ */
+export interface DeckIssueListDeps {
+  readonly [key: string]: unknown
+  /** 沙箱许可策略：给工作区与会话，回这一轮的策略快照；等不到就当没有（不拦事）。
+   *  两个值都按会话壳给的原样传（工作区没定下来时可能还没有），不许在这里补空串或假目录。 */
+  sandboxPolicyFor?: (arg: { cwd: string | undefined; sessionId: string | undefined }) => Promise<unknown>
+  /** 时钟旁路：测试里换成假时钟用，缺省 Date.now。 */
+  now?: () => number
+}
+
+/** 工具定义（唯一事实）：路由、参数名与给 AI 看的那句话都从这里出，别在别处再抄一份。 */
 export const definition = {
   name: 'deck_issue_list',
   description: '同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。按状态、label、assignee 与关键词列出 ISSUE 薄行，不回正文与评论。',
@@ -31,7 +45,11 @@ export const definition = {
   },
 }
 
-function namesOf(list, pick) {
+/**
+ * 从后端回来的清单里挑出名字：字符串直接用，对象按下标取一项（标签取 name、认领取 login），
+ * 两种混着来也认。给的清单不是数组就当空，取不到名字记空串，最后去空。
+ */
+function namesOf(list: unknown, pick: (item: Record<string, unknown>) => unknown): string[] {
   if (!Array.isArray(list)) return []
   return list.map((l) => {
     if (typeof l === 'string') return l
@@ -43,19 +61,24 @@ function namesOf(list, pick) {
   }).map((s) => String(s).trim()).filter(Boolean)
 }
 
-function labelNames(list) { return namesOf(list, (l) => l.name) }
-function assigneeNames(list) { return namesOf(list, (a) => (a && a.login) || '') }
+/** 标签名字：对象形态取 name，字符串形态原样用。 */
+function labelNames(list: unknown): string[] { return namesOf(list, (l) => l.name) }
+/** 认领人名字：对象形态取 login，取不到记空串（namesOf 会把它滤掉）。 */
+function assigneeNames(list: unknown): string[] { return namesOf(list, (a) => (a && a.login) || '') }
 
+/** 钳制等待的结果：等到了给值；超时或对方自己失败都算「没等到」，调用方一律退老路。 */
+type CapResult<T> = { ok: true; value: T } | { ok: false; timedOut?: true }
 // 沙箱许可等待上限：超时按缺席走老路（不限权），与既有 catch null 同形。
-function withCap(promise, ms) {
+function withCap<T>(promise: Promise<T> | T, ms: number): Promise<CapResult<T>> {
   return Promise.race([
-    Promise.resolve(promise).then(function (v) { return { ok: true, value: v } }, function () { return { ok: false } }),
-    new Promise(function (resolve) { setTimeout(function () { resolve({ ok: false, timedOut: true }) }, ms) }),
+    Promise.resolve(promise).then(function (v): CapResult<T> { return { ok: true, value: v } }, function (): CapResult<T> { return { ok: false } }),
+    new Promise<CapResult<T>>(function (resolve) { setTimeout(function () { resolve({ ok: false, timedOut: true }) }, ms) }),
   ])
 }
 const SANDBOX_TIMEOUT_MS = 5000
 
-function isMapRow(issue) {  try {
+/** 这一行是不是地图：后端回的 type 认地图、或带 isMap 标记、或戴着 wayfinder:map 标签都算。 */
+function isMapRow(issue: Record<string, unknown> | null | undefined): boolean {  try {
     if (!issue || typeof issue !== 'object') return false
     if (issue.type === 'map' || issue.isMap === true) return true
     const labs = labelNames(issue.labels).map((s) => s.toLowerCase())
@@ -63,15 +86,24 @@ function isMapRow(issue) {  try {
   } catch (e) { return false }
 }
 
-export function createDeckIssueList(deps) {
-  const d = deps || {}
+/**
+ * 装配层调一次，拿到这对 { definition, run }。deps 是宿主注入的依赖袋（见 DeckIssueListDeps），
+ * 什么都不给也能跑：壳与这里的每一处都各自退默认。
+ */
+export function createDeckIssueList(deps?: DeckIssueListDeps) {
+  const d: DeckIssueListDeps = deps || {}
   const shell = createDeckShell(Object.assign({}, d, {
     estimate: d.estimate || estimateToolCost,
     costInputFrom: d.costInputFrom || toolCostInputFrom,
   }))
 
-  async function run(exec, args) {
-    const a = args || {}
+  /**
+   * 跑一次：exec 是 DSH 给的执行上下文（会话与沙箱都从它取），args 是模型填的参数。
+   * 参数先当「未知」再逐项收口（state / type / labels / assignee / query / limit 下面各收一次），
+   * 回执形状由壳统一渲染。
+   */
+  async function run(exec: unknown, args: Record<string, unknown>): Promise<unknown> {
+    const a: Record<string, unknown> = args || {}
     const rawState = String(a.state === undefined || a.state === null ? 'open' : a.state).trim().toLowerCase()
     const state = (rawState === 'closed' || rawState === 'all') ? rawState : 'open'
     const rawType = String(a.type === undefined || a.type === null ? 'all' : a.type).trim().toLowerCase()
@@ -82,7 +114,9 @@ export function createDeckIssueList(deps) {
     const limit = Math.max(1, Math.min(200, Number(a.limit) > 0 ? Math.floor(Number(a.limit)) : 50))
     const est = shell.estimateFor('deck_issue_list', a)
     const s = await sessionContextOfAsync(exec, { canonicalKey: d.canonicalKey, workspaceKeyOf: d.workspaceKeyOf })
-    if (!s.ok) return shell.unsupported('deck_issue_list', s.reason, s.text, { cost: { estimated: est } })
+    // 会话没解析出来时回的是「为什么」那一支。编译器分不出两支（ok 在会话壳里是运行时布尔，
+    // 那一层还没标类型，见 #1040），所以这里按形状取 reason —— 取到的值与老写法逐字相同。
+    if (!s.ok) return shell.unsupported('deck_issue_list', (s as { reason: string }).reason, s.text, { cost: { estimated: est } })
 
     const pick = await shell.pickBackend(exec, s)
     if (!pick.ok) return shell.unsupported('deck_issue_list', pick.reason, pick.text, { workspace: { root: s.cwd, key: s.workspaceKey }, cost: { estimated: est } })
@@ -90,7 +124,8 @@ export function createDeckIssueList(deps) {
     const effortId = (a.effortId === undefined || a.effortId === null) ? '' : String(a.effortId).trim()
     if (effortId) repo.effortId = effortId
 
-    let sandbox = null
+    // 沙箱策略的快照：等不到（超时、对方失败、没注入）一律按「没有」往下走，与老口径同形。
+    let sandbox: unknown = null
     try {
       if (typeof d.sandboxPolicyFor === 'function') {
         const raced = await withCap(d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }), SANDBOX_TIMEOUT_MS)
@@ -98,11 +133,15 @@ export function createDeckIssueList(deps) {
       }
     } catch (eS) { sandbox = null }
 
-    return shell.call({ tool: 'deck_issue_list', kind: 'read', session: s, pick: pick, repo: repo, estimate: est, sandbox: sandbox }, async (c) => {
+    return shell.call({ tool: 'deck_issue_list', kind: 'read', session: s, pick: pick, repo: repo, estimate: est, sandbox: sandbox }, async (c: unknown) => {
       const sc = withCallScope(c, exec, { timeoutMs: undefined, marginMs: undefined, now: (typeof d.now === 'function') ? d.now : Date.now })
-      const t = sc.tracker
+      // 走到这里 tracker 一定在（预算壳自己的约定：能进这一段就是选好后端了）；
+      // 断言只为让编译器安静，运行时一个字节都不动 —— 真为空时下面那句照样抛 TypeError 走 backend-threw。
+      const t = sc.tracker!
       const opCtx = sc.opCtx
-      const filter = {}
+      // 列表过滤是本文件自己拼的，两个可选条件（state / type）下面按需补：先声明成一张表，
+      // 补字段时编译器才不拦（运行时拼出来的形状一字不变）。
+      const filter: Record<string, unknown> = {}
       if (state !== 'all') filter.state = state
       if (type !== 'all') filter.type = type
       const listed = await t.list(repo, filter, opCtx)

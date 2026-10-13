@@ -1,4 +1,4 @@
-// src/host/tools/deckIssueCreate.js —— deck_issue_create（#713 第六批）
+// src/deck/tools/issue-create.ts —— deck_issue_create（#713 第六批；#1019 换到新树、#1035 转 TypeScript）
 //
 // 建一张票。三件小事由代码保证，不靠 AI 记得：
 //   1. 必备标签（按种类：地图 wayfinder:map、任务 wayfinder:task、缺陷 bug + needs-triage）缺就补，
@@ -16,11 +16,15 @@ import { ensureLabels, ensureBody, anchorKeyFor } from '../shell/minimal-spec.js
 import * as budget from '../../shared/refresh/budget.js'
 import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/tool-cost.js'
 
-function numOpt(v) { return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : undefined }
-function withCap(promise, ms) {
+/** 数字型参数的统一收口：正的有限数才要（取整），其余一律当「没给」，调用方退自己的默认。 */
+function numOpt(v: unknown): number | undefined { return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : undefined }
+/** 钳制等待的结果：等到了给值；超时或对方自己失败都算「没等到」，调用方一律退老路。 */
+type CapResult<T> = { ok: true; value: T } | { ok: false; timedOut?: true }
+// 沙箱许可等待上限：对手是挂住的会话服务。超时按缺席走老路（不限权），与既有 catch null 同形。
+function withCap<T>(promise: Promise<T> | T, ms: number): Promise<CapResult<T>> {
   return Promise.race([
-    Promise.resolve(promise).then(function (v) { return { ok: true, value: v } }, function () { return { ok: false } }),
-    new Promise(function (resolve) { setTimeout(function () { resolve({ ok: false, timedOut: true }) }, ms) }),
+    Promise.resolve(promise).then(function (v): CapResult<T> { return { ok: true, value: v } }, function (): CapResult<T> { return { ok: false } }),
+    new Promise<CapResult<T>>(function (resolve) { setTimeout(function () { resolve({ ok: false, timedOut: true }) }, ms) }),
   ])
 }
 const SANDBOX_TIMEOUT_MS = 5000
@@ -28,13 +32,36 @@ const HOOK_TIMEOUT_MS = 5000
 // 执行层失败（抛错/超时/中止/预算耗尽）与后端诚实失败的分界：前者在进壳之前会直接抛到
 // 壳的统一出口（reason=backend-threw，可重试），后者走逐项的 BACKEND_UNSUPPORTED（能力缺失，
 // 不当成 transient 重试）。壳外新加的钳制不能把前者改判成后者，否则 AI 会放弃重试。
-const TRANSPORT_KINDS = ['backend-threw', 'timeout', 'aborted', 'over-budget']
-function transportMessage(result) {
+const TRANSPORT_KINDS: readonly string[] = ['backend-threw', 'timeout', 'aborted', 'over-budget']
+/** 后端回包在契约层还没建模：这里只按本工具真正会读的那一个字段收口，调用处拿断言喂进来（断言不产码）。 */
+type TransportResult = { error?: { kind?: string; message?: unknown } } | null | undefined
+/** 后端回包里「执行层失败」的原话；不是执行层失败（后端诚实地说做不到）就回 null，一个字不改判。 */
+function transportMessage(result: TransportResult): string | null {
   const e = result && result.error
-  if (e && TRANSPORT_KINDS.indexOf(e.kind) >= 0) return String(e.message || '执行层没回来')
+  if (e && TRANSPORT_KINDS.indexOf(e.kind as string) >= 0) return String(e.message || '执行层没回来')
   return null
 }
 
+/** 落点证据函数的收口形状：第四个形参（额外字段）按可选算，其余与调用处传的三个实参一致。 */
+type EdgeEvidenceFn = (op: unknown, target: unknown, evidence: unknown, extra?: unknown) => Record<string, unknown>
+
+/**
+ * 装配层注入的依赖袋。壳要用的键原样透传（没列的键也一律接受：壳自己还没标类型，这一层不替它把关）；
+ * 列出来的是本工具自己会调到的那几个，缺席时各自退默认：没有沙箱策略就跳过那一步等待，没有时钟就用 Date.now。
+ */
+export interface DeckIssueCreateDeps {
+  readonly [key: string]: unknown
+  /** 沙箱许可策略：给工作区与会话，回这一轮的策略快照；等不到就当没有（不拦事）。
+   *  两个值都按会话壳给的原样传（工作区没定下来时可能还没有），不许在这里补空串或假目录。 */
+  sandboxPolicyFor?: (arg: { cwd: string | undefined; sessionId: string | undefined }) => Promise<unknown>
+  /** 时钟旁路：测试里换成假时钟用，缺省 Date.now。 */
+  now?: () => number
+  /** 建票直达命名守护（#746）：拿会话、票号与标题去落一次「这趟建的是哪张票」；
+   *  钩子缺失、失败或超时都不影响已建成的返回，所以等它只是尽力而为。 */
+  onTicketCreated?: (arg: { sessionId: string | undefined; key: string; title: string }) => Promise<unknown>
+}
+
+/** 工具定义（唯一事实）：路由、参数名与给 AI 看的那句话都从这里出，别在别处再抄一份。 */
 export const definition = {
   name: 'deck_issue_create',
   description: '同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。建一个 ISSUE（map / task / bug），自动补必备 label 与 progress 区，重复调用按锚复用同一张。',
@@ -55,25 +82,36 @@ export const definition = {
   },
 }
 
-function kindOf(a) {
+/** 票的种类收口：只认 map 与 bug，其余（没给、给了别的词）一律当 task，与契约层的三种词一致。 */
+function kindOf(a: Record<string, unknown>): string {
   const k = String((a && a.kind) || 'task').trim()
   return (k === 'map' || k === 'bug') ? k : 'task'
 }
 
-export function createDeckIssueCreate(deps) {
-  const d = deps || {}
+/**
+ * 装配层调一次，拿到这对 { definition, run }。deps 是宿主注入的依赖袋（见 DeckIssueCreateDeps），
+ * 什么都不给也能跑：壳与这里的每一处都各自退默认。
+ */
+export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
+  const d: DeckIssueCreateDeps = deps || {}
   const shell = createDeckShell(Object.assign({}, d, {
     estimate: d.estimate || estimateToolCost,
     costInputFrom: d.costInputFrom || toolCostInputFrom,
   }))
 
-  async function run(exec, args) {
-    const a = args || {}
+  /**
+   * 跑一次：exec 是 DSH 给的执行上下文（会话与沙箱都从它取），args 是模型填的参数。
+   * 参数先当「未知」再逐项收口（title / kind / labels 下面各收一次），回执形状由壳统一渲染。
+   */
+  async function run(exec: unknown, args: Record<string, unknown>): Promise<unknown> {
+    const a: Record<string, unknown> = args || {}
     const title = String(a.title === undefined || a.title === null ? '' : a.title).trim()
     const kind = kindOf(a)
     const est = shell.estimateFor('deck_issue_create', a)
     const s = await sessionContextOfAsync(exec, { canonicalKey: d.canonicalKey, workspaceKeyOf: d.workspaceKeyOf })
-    if (!s.ok) return shell.unsupported('deck_issue_create', s.reason, s.text, { cost: { estimated: est } })
+    // 会话没解析出来时回的是「为什么」那一支。编译器分不出两支（ok 在会话壳里是运行时布尔，
+    // 那一层还没标类型，见 #1040），所以这里按形状取 reason —— 取到的值与老写法逐字相同。
+    if (!s.ok) return shell.unsupported('deck_issue_create', (s as { reason: string }).reason, s.text, { cost: { estimated: est } })
     if (!title) return shell.unsupported('deck_issue_create', REFUSAL_REASONS.BAD_ARGS, '要建哪一张票：title 不能空。', { cost: { estimated: est } })
 
     const pick = await shell.pickBackend(exec, s)
@@ -86,7 +124,8 @@ export function createDeckIssueCreate(deps) {
     const body = ensureBody(a.body, kind)
     const now = (typeof d.now === 'function') ? d.now() : Date.now()
     const anchor = a.idempotencyKey ? String(a.idempotencyKey) : anchorKeyFor({ tool: 'deck_issue_create', sessionId: s.sessionId, workspaceKey: s.workspaceKey, title: title, labels: ensured.labels, now: now })
-    let sandbox = null
+    // 沙箱策略的快照：等不到（超时、对方失败、没注入）一律按「没有」往下走，与老口径同形。
+    let sandbox: unknown = null
     try {
       if (typeof d.sandboxPolicyFor === 'function') {
         const raced = await withCap(d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }), SANDBOX_TIMEOUT_MS)
@@ -94,17 +133,21 @@ export function createDeckIssueCreate(deps) {
       }
     } catch (eS) { sandbox = null }
 
-    return shell.call({ tool: 'deck_issue_create', kind: 'write', session: s, pick: pick, repo: repo, estimate: est, sandbox: sandbox }, async (c) => {
+    return shell.call({ tool: 'deck_issue_create', kind: 'write', session: s, pick: pick, repo: repo, estimate: est, sandbox: sandbox }, async (c: unknown) => {
       const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), now: (typeof d.now === 'function') ? d.now : Date.now })
-      const t = sc.tracker
+      // 走到这里 tracker 一定在（预算壳自己的约定：能进这一段就是选好后端了）；
+      // 断言只为让编译器安静，运行时一个字节都不动 —— 真为空时下面那句照样抛 TypeError 走 backend-threw。
+      const t = sc.tracker!
       const opCtx = sc.opCtx
       const rel = (a.parentKey === undefined || a.parentKey === null || a.parentKey === '') ? null : String(a.parentKey)
-      const input = { title: title, body: body.body, type: kind, labels: ensured.labels, idempotencyKey: anchor }
+      // 建票入参是本文件自己拼的，两个可选字段（parentKey / assignees）下面按条件补：
+      // 先声明成一张表，补字段时编译器才不拦（运行时拼出来的形状一字不变）。
+      const input: Record<string, unknown> = { title: title, body: body.body, type: kind, labels: ensured.labels, idempotencyKey: anchor }
       if (rel) input.parentKey = rel
       if (Array.isArray(a.assignees) && a.assignees.length) input.assignees = a.assignees
       const created = await t.create(repo, input, opCtx)
       // 执行层失败原样抛给壳（走 backend-threw，可重试）；后端诚实失败才走下面的部分成功。
-      const createdTransport = transportMessage(created)
+      const createdTransport = transportMessage(created as TransportResult)
       if (createdTransport) throw new Error(createdTransport)
       const notes = []
       if (effortId) notes.push('这次带了 effortId（' + effortId.slice(0, 60) + '）：本地后端只在那一个目录里找，远端后端忽略它。')
@@ -146,7 +189,9 @@ export function createDeckIssueCreate(deps) {
         const createdKey = (issue && issue.parentKey !== undefined && issue.parentKey !== null) ? String(issue.parentKey) : ''
         parentLanded = (landedKey === String(rel)) || (createdKey === String(rel)) || ((ev && ev.kind) === 'body-line')
         if (ev && ev.kind === 'unsupported') parentLanded = false
-        items.push(Object.assign({ key: issue.key, edge: { op: 'parent', target: rel }, status: parentLanded ? 'ok' : 'failed' }, edgeEvidence('parent', rel, ev)))
+        // 落点证据那一支：壳那层还没标类型（见 #1040），第四个形参（额外字段）本文件本来就没传，
+        // 断言只为把「可选」告诉编译器，编译后这条语句与老写法逐字相同。
+        items.push(Object.assign({ key: issue.key, edge: { op: 'parent', target: rel }, status: parentLanded ? 'ok' : 'failed' }, (edgeEvidence as EdgeEvidenceFn)('parent', rel, ev)))
       }
       if (rel && !parentLanded) {
         // 票建成了、边没挂上：按部分成功回，不再报“建好了（父票 X）”。

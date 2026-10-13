@@ -1,8 +1,8 @@
-// src/host/tools/deckMapLink.js —— deck_map_link（#713 第六批）
+// src/deck/tools/map-link.ts —— deck_map_link（#713 第六批；#1019 换到新树、#1035 转 TypeScript）
 //
 // 给**已经存在**的票补边或改边：父子和阻塞两种，逐条做、逐条校验。
 // 「每条边在返回里标出落点」就落在这里：写完之后读回一次那张票，按它自己的结构字段与正文判，
-// 判不出来就说「说不好」，绝不默认写成「原生层级」（判据与反证方向见 shell.js 的 classifyEdgeLanding）。
+// 判不出来就说「说不好」，绝不默认写成「原生层级」（判据与反证方向见 edge-landing.ts 的 classifyEdgeLanding）。
 // 校验用计数：改完按父票列一遍子票 / 再读一次依赖，把「要几条、实际几条」对一次，对不上就说 partial。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
@@ -11,16 +11,40 @@ import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/tool-c
 import { withCallScope } from '../shell/call-budget.js'
 import { withKeyLock } from '../shell/write-mutex.js'
 
-function numOpt(v) { return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : undefined }
+/** 数字型参数的统一收口：正的有限数才要（取整），其余一律当「没给」，由调用方退自己的默认。 */
+function numOpt(v: unknown): number | undefined { return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : undefined }
+/** 钳制等待的结果：等到了给值；超时或对方自己失败都算「没等到」，调用方一律退老路。 */
+type CapResult<T> = { ok: true; value: T } | { ok: false; timedOut?: true }
 // 沙箱许可等待上限：超时按缺席走老路（不限权），与既有 catch null 同形。
-function withCap(promise, ms) {
+function withCap<T>(promise: Promise<T> | T, ms: number): Promise<CapResult<T>> {
   return Promise.race([
-    Promise.resolve(promise).then(function (v) { return { ok: true, value: v } }, function () { return { ok: false } }),
-    new Promise(function (resolve) { setTimeout(function () { resolve({ ok: false, timedOut: true }) }, ms) }),
+    Promise.resolve(promise).then(function (v): CapResult<T> { return { ok: true, value: v } }, function (): CapResult<T> { return { ok: false } }),
+    new Promise<CapResult<T>>(function (resolve) { setTimeout(function () { resolve({ ok: false, timedOut: true }) }, ms) }),
   ])
 }
 const SANDBOX_TIMEOUT_MS = 5000
 
+/**
+ * 落点证据函数的收口形状：第四个形参（额外字段）按可选算，其余与调用处传的三个实参一致。
+ * 壳层的 edgeEvidence(op, target, evidence, extra) 目前把 extra 写成必填，而本文件的五个调用点一直只传三个，
+ * 函数体自己用 extra || {} 兜；strict 下那五处会被当成漏参报错。这里只给本文件一个更准的签名，
+ * 断言在编译期就被擦掉，运行时一步没多；等 #1040 把壳层那个形参标成可选，这条别名可以删。
+ */
+type EdgeEvidenceFn = (op: unknown, target: unknown, evidence: unknown, extra?: unknown) => Record<string, unknown>
+
+/**
+ * 装配层注入的依赖袋。壳要用的键原样透传（没列的键也一律接受：壳自己还没标类型，这一层不替它把关）；
+ * 列出来的是本工具自己会读的那几个，缺席时各自退默认：没有沙箱策略就跳过那一步等待，没有时钟就用 Date.now。
+ */
+export interface DeckMapLinkDeps {
+  readonly [key: string]: unknown
+  /** 沙箱许可策略：给工作区与会话，回这一轮的策略快照；两个值原样传，可能还没有。 */
+  sandboxPolicyFor?: (arg: { cwd: string | undefined; sessionId: string | undefined }) => Promise<unknown>
+  /** 时钟旁路：测试里换假时钟用，缺省 Date.now。 */
+  now?: () => number
+}
+
+/** 工具定义（唯一事实）：路由、参数名与给 AI 看的那句话都从这里出，别在别处再抄一份。 */
 export const definition = {
   name: 'deck_map_link',
   description: '同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。给已存在的 ISSUE 补 parent 或 blockedBy 边，写完读回并逐条标出落点。',
@@ -46,22 +70,56 @@ export const definition = {
   },
 }
 
-function asList(v) {
+/** 把一处边目标列出来：不是数组就当空表，逐项转成字符串并丢掉空值（读的是运行时真值，形状不细究）。 */
+function asList(v: unknown) {
   return Array.isArray(v) ? v.map((x) => String(x)).filter(Boolean) : []
 }
 
-export function createDeckMapLink(deps) {
-  const d = deps || {}
+/**
+ * 一条阻塞边写完之后读回来的结果：landed 是读回来的全集，after 是读回的原文（给重复项补明细用），
+ * failed 非空表示写这一步就没成。
+ */
+type EdgeReadback = {
+  landed: unknown[]
+  after: { issue: unknown; dependencies: unknown }
+  failed: { kind?: string; ok?: boolean; text?: string } | null
+}
+
+/**
+ * 同一张票那一组边做完之后攒下来的东西。items / notes / touched 里装的都是运行时真值
+ * （每一行的形状由下面各处现拼，这里不细究），readback 是那条阻塞边写完之后读回来的结果，
+ * 没写过就是 null。
+ */
+type EdgeGroupOut = {
+  items: Array<Record<string, unknown>>
+  notes: string[]
+  touched: string[]
+  done: number
+  readback: EdgeReadback | null
+}
+
+/**
+ * 装配层调一次，拿到这对 { definition, run }。deps 是宿主注入的依赖袋（见 DeckMapLinkDeps），
+ * 什么都不给也能跑：壳与这里的每一处都各自退默认。
+ */
+export function createDeckMapLink(deps?: DeckMapLinkDeps) {
+  const d: DeckMapLinkDeps = deps || {}
   const shell = createDeckShell(Object.assign({}, d, {
     estimate: d.estimate || estimateToolCost,
     costInputFrom: d.costInputFrom || toolCostInputFrom,
   }))
 
-  async function run(exec, args) {
-    const a = args || {}
+  /**
+   * 跑一次：exec 是 DSH 给的执行上下文（会话与沙箱都从它取），args 是模型填的参数。
+   * 参数先当「未知」再逐项收口（key / edges / effortId 下面各收一次），回执形状由壳统一渲染。
+   */
+  async function run(exec: unknown, args: Record<string, unknown>): Promise<unknown> {
+    const a: Record<string, unknown> = args || {}
     const est = shell.estimateFor('deck_map_link', a)
     const s = await sessionContextOfAsync(exec, { canonicalKey: d.canonicalKey, workspaceKeyOf: d.workspaceKeyOf })
-    if (!s.ok) return shell.unsupported('deck_map_link', s.reason, s.text, { cost: { estimated: est } })
+    // 会话没解析出来时回的是「为什么」那一支。编译器分不出两支（ok 在会话壳里是运行时布尔，
+    // 那一层还没标类型，见 #1040），所以这里按形状取 reason —— 取到的值与老写法逐字相同。
+    if (!s.ok) return shell.unsupported('deck_map_link', (s as { reason: string }).reason, s.text, { cost: { estimated: est } })
     const jobs = Array.isArray(a.edges) && a.edges.length ? a.edges : (a.key ? [a] : [])
     if (!jobs.length) return shell.unsupported('deck_map_link', REFUSAL_REASONS.BAD_ARGS, '要改哪张票的边：给 key（可带 parentKey / blockedBy），或者给 edges 清单。', { cost: { estimated: est } })
     const pick = await shell.pickBackend(exec, s)
@@ -70,14 +128,19 @@ export function createDeckMapLink(deps) {
     const effortId = (a.effortId === undefined || a.effortId === null) ? '' : String(a.effortId).trim()
     if (effortId) repo.effortId = effortId
 
-    return shell.call({ tool: 'deck_map_link', kind: 'write', session: s, pick: pick, repo: repo, estimate: est, sandbox: (await (async function () { try { if (typeof d.sandboxPolicyFor !== 'function') return null; const raced = await withCap(d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }), SANDBOX_TIMEOUT_MS); return (raced && raced.ok === true) ? raced.value : null } catch (eS) { return null } })()), signal: (exec && exec.signal && typeof exec.signal === 'object') ? exec.signal : undefined }, async (c) => {
+    // exec 上那个取消信号。契约层还没给 exec 标形状（见 #1040），三处 exec.signal 各按纯类型断言收口：
+    // 取值表达式一字不动，所以转译出来的 JS 与转换前逐字节一致。
+    return shell.call({ tool: 'deck_map_link', kind: 'write', session: s, pick: pick, repo: repo, estimate: est, sandbox: (await (async function () { try { if (typeof d.sandboxPolicyFor !== 'function') return null; const raced = await withCap(d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }), SANDBOX_TIMEOUT_MS); return (raced && raced.ok === true) ? raced.value : null } catch (eS) { return null } })()), signal: (exec && (exec as { signal?: unknown }).signal && typeof (exec as { signal?: unknown }).signal === 'object') ? (exec as { signal?: unknown }).signal : undefined }, async (c: unknown) => {
       const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), now: (typeof d.now === 'function') ? d.now : Date.now })
-      const t = sc.tracker
+      // 走到这里 tracker 一定在（预算壳自己的约定：能进这一段就是选好后端了）；
+      // 断言只为让编译器安静，运行时一个字节都不动 —— 真为空时下面那句照样抛 TypeError 走 backend-threw。
+      const t = sc.tracker!
       const opCtx = sc.opCtx
-      const items = []
-      const notes = []
+      // 逐条明细与给 AI 看的注记：装的都是运行时真值（每一行的形状由下面各处现拼，这里不细究）。
+      const items: Array<Record<string, unknown>> = []
+      const notes: string[] = []
       if (effortId) notes.push('这次带了 effortId（' + effortId.slice(0, 60) + '）：本地后端只在那一个目录里找，远端后端忽略它。')
-      const touched = []
+      const touched: string[] = []
       let done = 0
       // #898：设置阻塞边是整批替换语义，同一个票号在一次调用里出现多次时，
       // 先把它的阻塞目标合并成完整集合再写一次，否则后一次写会删掉前一次的边。
@@ -107,7 +170,7 @@ export function createDeckMapLink(deps) {
       const pre = mergedBlocked.size ? await precheckBlockBatch(t, repo, opCtx, keyOrder, mergedBlocked) : { ok: true, refused: new Map() }
       if (!pre.ok) notes.push('这一批的整批成环预检没读到整图（列表没回来），成环检查只有每一组自己那一份：同批里互指的边仍可能都通过。')
       const perKey = await Promise.all(keyOrder.map(async (key) => {
-        const out = { items: [], notes: [], touched: [], done: 0, readback: null }
+        const out: EdgeGroupOut = { items: [], notes: [], touched: [], done: 0, readback: null }
         // 同票分组持锁 serial：同票并发补边不再丢一次改动；不同票分组照旧并行。
         // 锁只保证“同一组内逐条”不被别笔穿插，组间并行一个字不动。
         const lockTimeoutMs = numOpt(d.keyLockTimeoutMs)
@@ -123,7 +186,7 @@ export function createDeckMapLink(deps) {
             if (pre.refused.has(key)) {
               // 整批预检说这一组边会让图成环：这条边不写，逐条如实报失败（别让 AI 当成建好了）。
               for (const target of asList(job.blockedBy)) {
-                out.items.push(Object.assign({ key: key, status: 'failed' }, edgeEvidence('block', target, { kind: 'unknown', ok: false, text: pre.refused.get(key) })))
+                out.items.push(Object.assign({ key: key, status: 'failed' }, (edgeEvidence as EdgeEvidenceFn)('block', target, { kind: 'unknown', ok: false, text: pre.refused.get(key) })))
               }
               continue
             }
@@ -135,14 +198,14 @@ export function createDeckMapLink(deps) {
                 const e2 = out.readback.failed ? out.readback.failed
                   : hit ? classifyEdgeLanding('block', target, out.readback.after)
                   : { kind: 'unknown', ok: false, text: '写后读回：这条依赖没出现在票上（要 ' + target + '，读回来 ' + (out.readback.landed.join('、') || '空') + '）' }
-                out.items.push(Object.assign({ key: key, status: hit ? 'ok' : 'failed' }, edgeEvidence('block', target, e2)))
+                out.items.push(Object.assign({ key: key, status: hit ? 'ok' : 'failed' }, (edgeEvidence as EdgeEvidenceFn)('block', target, e2)))
                 if (e2.ok) { out.done += 1; out.touched.push(key) }
               }
             } else {
               const want = mergedBlocked.get(key) || asList(job.blockedBy)
               const r = await applyBlockEdges(t, repo, opCtx, key, want, asList(job.blockedBy))
               if (r.failed) {
-                out.items.push(Object.assign({ key: key, status: 'failed' }, edgeEvidence('block', want.join('、'), r.failed)))
+                out.items.push(Object.assign({ key: key, status: 'failed' }, (edgeEvidence as EdgeEvidenceFn)('block', want.join('、'), r.failed)))
                 out.readback = { landed: [], after: { issue: null, dependencies: null }, failed: r.failed }
               } else {
                 for (const item of r.items) {
@@ -162,10 +225,10 @@ export function createDeckMapLink(deps) {
             const lockText = '这张票正被另一次调用改着，这次没动：稍后带同样参数再调一次即可。'
             for (const job of jobsByKey.get(key)) {
               if (job.parentKey !== undefined && job.parentKey !== null) {
-                out.items.push(Object.assign({ key: key, status: 'failed' }, edgeEvidence('parent', String(job.parentKey), { kind: 'unknown', ok: false, text: lockText })))
+                out.items.push(Object.assign({ key: key, status: 'failed' }, (edgeEvidence as EdgeEvidenceFn)('parent', String(job.parentKey), { kind: 'unknown', ok: false, text: lockText })))
               }
               for (const target of asList(job.blockedBy)) {
-                out.items.push(Object.assign({ key: key, status: 'failed' }, edgeEvidence('block', target, { kind: 'unknown', ok: false, text: lockText })))
+                out.items.push(Object.assign({ key: key, status: 'failed' }, (edgeEvidence as EdgeEvidenceFn)('block', target, { kind: 'unknown', ok: false, text: lockText })))
               }
             }
           }
