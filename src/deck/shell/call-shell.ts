@@ -36,7 +36,7 @@
 import type {
   AdmitResult, CallCtx, CallMeta, CostEstimate, DeckEnvelope, DeckLimits, DeckLogLike, DeckRepo, DeckRepoRef,
   DeckShell, DeckShellDeps, GateLike, GateSendResult, HourUsageView, PickResult, PickSuccess, RegistryLike,
-  ShellSession, UnknownRecord,
+  ShellSession, UnknownRecord, WaitSignal,
 } from './call-shell-types.js'
 
 /** 这批工具的身份（写日志时进 host.call 的 kind 字段；不是新事件，沿用它原有的字段清单）。 */
@@ -85,8 +85,26 @@ interface PickedDraft {
 
 function num(v: unknown): number { return (typeof v === 'number' && isFinite(v)) ? v : 0 }
 function str(v: unknown): string { return (typeof v === 'string') ? v : '' }
-/** 缺省等待口：真定时器。只有这里碰全局时钟，deps.sleep 一注入就绕开了它。 */
-function realSleep(ms: number): Promise<unknown> { return new Promise(function (resolve) { setTimeout(resolve, ms) }) }
+/**
+ * 缺省等待口：真定时器。只有这里碰全局时钟，deps.sleep 一注入就绕开了它。
+ * 收到中止信号就提前放行——工具侧拿它当单次调用的钳制（call-budget.ts 的 sleepFn），
+ * 调用方一中止，等待不该还硬挺着；没有信号时与原来一模一样。
+ */
+function realSleep(ms: number, signal?: WaitSignal | null): Promise<unknown> {
+  return new Promise(function (resolve) {
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const onAbort = function () { finish() }
+    const finish = function () {
+      if (timer === null) return
+      clearTimeout(timer)
+      timer = null
+      if (signal && typeof signal.removeEventListener === 'function') signal.removeEventListener('abort', onAbort)
+      resolve(null)
+    }
+    timer = setTimeout(finish, ms)
+    if (signal && typeof signal.addEventListener === 'function') signal.addEventListener('abort', onAbort)
+  })
+}
 function hash8(text: unknown): string {
   let h = 5381
   const t = String(text || '')
@@ -121,7 +139,7 @@ export function limitsFromBudget(b: unknown): DeckLimits {
  *   backendCtx 可选，后端 ctx（platform / fs / exec 那一套）；不传时用 opCtx 顶上
  *   log        可选，日志出口 { fire }（写 host.call / host.call.fail 两行，不新增事件名）
  *   now        可选，取时间（测试注入假时钟）
- *   sleep      可选，等待口：(毫秒) => Promise，缺省真定时器（测试注入假时钟，就不必真等 8 秒）
+ *   sleep      可选，等待口：(毫秒, 中止信号?) => Promise，缺省真定时器（测试注入假时钟，就不必真等 8 秒）；
  *   invalidate 可选，写后失效缓存该票条目：invalidate({ repo, backendId, keys, workspace })
  *   ensureReading 可选，动手前保剩余额度读数：ensureReading(cwd, workspaceKey)，缺席时跳过
  *   resolveTimeoutMs 可选，仓库标识补全等待上限毫秒数（缺席 8000，测试可调小）
@@ -139,7 +157,7 @@ export function createDeckShell(deps?: DeckShellDeps): DeckShell {
   const estimate = d.estimate as (input: unknown, withHour: HourUsageView) => unknown
   const log = (d.log || null) as DeckLogLike | null
   const now: () => number = typeof d.now === 'function' ? d.now : Date.now
-  const sleep: (ms: number) => Promise<unknown> = typeof d.sleep === 'function' ? d.sleep : realSleep
+  const sleep: (ms: number, signal?: WaitSignal | null) => Promise<unknown> = typeof d.sleep === 'function' ? d.sleep : realSleep
   const limits = limitsFromBudget(budget)
 
   function fire(method: string, ms: number, ok: boolean, errorHash?: string): void {
@@ -345,6 +363,7 @@ export function createDeckShell(deps?: DeckShellDeps): DeckShell {
       repo: meta.repo,
       gate: gate,
       now: now,
+      sleep: sleep,
       tracker: registry.get(meta.pick.backendId),
       opCtx: Object.assign({}, backendCtxNow(), { cwd: s.cwd, signal: undefined, caller: DECK_TOOL_KIND, sandboxPolicy: sbPolicy, sessionId: sbSessionId }),
       admit: admit,

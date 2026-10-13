@@ -76,7 +76,7 @@ src/host/refresh/wiring.js:310-358（deckToolsForHost）
 
 装好之后放进**同进程共享格**（给工具行直接取用，不经任何调用面）：`wiring.js:359` → `src/shared/deck-tools/exec-cell.js` 的 `publishDeckTable`。这一格的生命周期与原因写在 `exec-cell.js:1-7`：行与宿主同进程时格里有货，跨进程时永远是空的。
 
-**3. 工具行把九个工具注册给工具服务**（`src/host/platform/deckToolsRow.js`）：它声明自己要用工具服务（`name` 与 `inject: ['tools']` 在 `:31-32`），`apply` 里逐条 `ctx.tools.register`（`:319-341`；服务不在就直接抛、行起不来，`:320-322`），每个工具经 `toRawRegistration`（`:141-154`）交出 `{ name, description, parameters, timeoutMs, output, execute }`，其中 `execute = makeDelegatedExecute(工具名, ctx)`（`:276-316`），`timeoutMs` 用 `AGENT_TOOL_TIMEOUT_MS`（值 120000，定义在 `src/shared/deck-tools/agent-register.js:16`）。它同时注册一个自查用的探针工具 `deck_probe`（`:330-340`，定义在 `agent-register.js:241-245`）——这一条**不走** `makeDelegatedExecute`，`execute` 直接回一串 JSON（`:335-339`）。
+**3. 工具行把九个工具注册给工具服务**（`src/host/platform/deckToolsRow.js`）：它声明自己要用工具服务（`name` 与 `inject: ['tools']` 在 `:31-32`），`apply` 里逐条 `ctx.tools.register`（`:319-341`；服务不在就直接抛、行起不来，`:320-322`），每个工具经 `toRawRegistration`（`:141-154`）交出 `{ name, description, parameters, timeoutMs, output, execute }`，其中 `execute = makeDelegatedExecute(工具名, ctx)`（`:276-316`），`timeoutMs` 用 `AGENT_TOOL_TIMEOUT_MS`（值 300000，定义在 `src/deck/registration/register-options.ts:34`）。它同时注册一个自查用的探针工具 `deck_probe`（`:330-340`，定义在 `agent-register.js:241-245`）——这一条**不走** `makeDelegatedExecute`，`execute` 直接回一串 JSON（`:335-339`）。
 
 **4. 宿主插件那侧还留着一条兼容钩子**（`src/host/refresh/wiring.js:309`）：`hookDeckAgentTools(…)` 调向 `src/shared/deck-tools/agent-register.js:393-437`，等两样东西都就绪、各等最多五轮每轮两秒——先要那张表（`table(retries)`，:405-411），再要工具服务（`attempt(left)`，:415-434），就绪后由 `registerDeckAgentTools`（:306-362）逐条注册，每个工具包一层 `makeExecute`（:275-294），注册时同样带 `timeoutMs`（:331）。
 
@@ -255,13 +255,13 @@ gate.admitAiTool({ points, requests, childTickets }, { workspaceKey, kind: 'tool
 
 ### 单次钳制与中止（`withCallScope`）
 
-工具里那些「一次调用可能要发好几笔远端请求」的地方，会再包一层预算壳：`src/shared/deck-tools/call-scope.js`
+工具里那些「一次调用可能要发好几笔远端请求」的地方，会再包一层预算壳：`src/deck/shell/call-budget.ts`
 
 | 常量 | 值 | 行号 |
 | --- | --- | --- |
-| `DEFAULT_TOOL_TIMEOUT_MS` | 120000 | :16 |
-| `DEFAULT_TOOL_MARGIN_MS` | 10000 | :18 |
-| `DEFAULT_PER_OP_TIMEOUT_MS` | 30000 | :20 |
+| `DEFAULT_TOOL_TIMEOUT_MS` | 300000 | :23 |
+| `DEFAULT_TOOL_MARGIN_MS` | 15000 | :26 |
+| `DEFAULT_PER_OP_TIMEOUT_MS` | 30000 | :28 |
 
 - `withCallScope` :148-158，`execOp` :167-198（单笔钳制 + 可中止，中间还会问 `outOfBudget()` 决定要不要停发下一笔）。
 - 超时/被中止/额度不够这三种回执的文案在 :132-140。

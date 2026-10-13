@@ -143,6 +143,16 @@ export interface DeckLogLike {
   fire(level: string, event: string, fields: UnknownRecord): unknown;
 }
 
+/**
+ * 可中止的等待信号：只声明壳真正用到的那两点（看有没有中止、挂一个中止回调）。
+ * 不写成 AbortSignal 是为了不依赖 DOM 或 Node 的类型定义——壳与工具之间只按这个形状对接。
+ */
+export interface WaitSignal {
+  aborted?: boolean;
+  addEventListener?: (type: string, listener: () => void) => unknown;
+  removeEventListener?: (type: string, listener: () => void) => unknown;
+}
+
 /** 建壳要的那些依赖：必填的三个（闸、注册表、算账）由装配方保证，其余缺席就跳过对应那一步。 */
 export interface DeckShellDeps {
   gate?: GateLike;
@@ -161,7 +171,11 @@ export interface DeckShellDeps {
   backendCtx?: unknown;
   log?: DeckLogLike | null;
   now?: () => number;
-  sleep?: (ms: number) => Promise<unknown>;
+  /**
+   * 等待口：(毫秒) => Promise，第二个参数是可选中止信号。
+   * 缺省是真定时器；测试注入假时钟就不必真等（仓库标识补全的 8 秒、单次调用的钳制都走它）。
+   */
+  sleep?: (ms: number, signal?: WaitSignal | null) => Promise<unknown>;
   /** 写后失效缓存：按仓库与票号把宿主那份快照作废（workspace 一并交出去，宿主按目录分桶）。 */
   invalidate?: (arg: { repo: unknown; backendId: unknown; keys: string[]; workspace: unknown }) => unknown;
   /** 动手前保一次剩余额度读数：ensureReading(cwd, workspaceKey)，缺席时跳过。 */
@@ -229,6 +243,11 @@ export interface CallCtx {
   repo: DeckRepo;
   gate: GateLike;
   now: () => number;
+  /**
+   * 等待口也放进这格：工具侧算单次预算钳制时（call-budget.ts 的 sleepFn）先看自己那层 opts，
+   * 再看这里。壳不把它放进来，注入的假时钟就够不到钳制那一处，只能真等。
+   */
+  sleep: (ms: number, signal?: WaitSignal | null) => Promise<unknown>;
   tracker: unknown;
   opCtx: Record<string, unknown>;
   admit: AdmitResult;

@@ -159,7 +159,9 @@ export function rosterDirty(memo: CallMemo, repo: unknown, keys: unknown): void 
 /** 新建成功 → 名册并入新票，并把同一后端的工作区列表缓存整片作废，再把 seq 往前推一格。
  *  为什么不能照用 rosterDirty：它按「成员里有这张票」删列表缓存，而刚建的票不在任何旧列表里，
  *  一条也删不到——于是同一次调用里后面再读列表，拿回的是不含新票的旧快照。
- *  这里与改删同形（seq 前推＝这次调用里后面的读重新走远端），只是删法按整片删。 */
+ *  这里与改删同形（seq 前推＝这次调用里后面的读重新走远端），只是删法按整片删。
+ *  也不必像 rosterDirty 那样删 get|/deps| 条目：读缓存只在读成功时才写，而新票的票号
+ *  在这一次调用里从没读过；seq 前推之后，门面那侧就算还留着旧条目也不会再命中。 */
 export function rosterAddCreated(memo: CallMemo | null | undefined, repo: unknown, issue: unknown): string {
   if (!memo) return ''
   const rec = (issue || null) as UnknownRecord | null

@@ -386,6 +386,34 @@ async function main() {
     check(over.withinCallCap === false && over.overCallCap !== '', '超顶的那一笔被判出来（' + over.overCallCap + '：' + over.text + '）')
   }
 
+  // ── ⑬ 判定出口缺席：壳要回一个规规矩矩的拒绝，不能把 (原因码, 文案, 附带) 错当成 (工具名, 原因码, 文案) 递出去 ──
+  //    这一支以前没有门禁覆盖（十几条夹具都照生产接上了判定出口），#1040 转 TypeScript 时类型检查才把它抓出来。
+  {
+    const bare = shellMod.createDeckShell(Object.assign({}, deps, { decideBackend: undefined }))
+    const pick = await bare.pickBackend(exec, { cwd: ws.rootPosix, workspaceKey: 'ws-bare', sessionId: 's-713' })
+    check(pick && pick.ok === false && pick.reason === 'backend-threw', '判定出口缺席时回原因码 backend-threw（实得 ' + JSON.stringify(pick && pick.reason) + '）')
+    check(typeof (pick && pick.text) === 'string' && String(pick.text).indexOf('判定出口这次没装上') === 0, '拒绝文案是一句话，不是对象（实得 ' + JSON.stringify(pick && pick.text) + '）')
+    check(typeof (pick && pick.errorHash) === 'string' && pick.errorHash.length === 8, '拒绝带八位散列（实得 ' + JSON.stringify(pick && pick.errorHash) + '）')
+    check(pick && !('status' in pick) && !('tool' in pick), '拒绝不是信封：没有 status / tool 那两格')
+  }
+
+  // ── ⑭ 注进壳的等待口要跟着上下文递到工具侧那段活儿手里：单次预算的钳制（call-budget 的 sleepFn）读的就是 ctx.sleep ──
+  {
+    const injected = () => Promise.resolve(null)
+    const withWait = shellMod.createDeckShell(Object.assign({}, deps, { sleep: injected }))
+    let sawCtx = null
+    const env = await withWait.call({
+      tool: 'deck_context', kind: 'op',
+      session: { cwd: ws.rootPosix, workspaceKey: 'ws-bare', sessionId: 's-713' },
+      pick: { backendId: 'markdown', ref: { backend: 'markdown', refId: '.scratch/demo' }, source: 'explicit', canWrite: true },
+      repo: { backend: 'markdown', refId: '.scratch/demo' },
+      estimate: { points: 1, requests: 1, tickets: 0, withinCallCap: true, shards: 1, perShard: 1, text: '' },
+      sandbox: null,
+    }, async (ctx) => { sawCtx = ctx; return { value: { ok: true } } })
+    check(envelopeOk(env) && env.ok === true, '注入等待口的那一趟照样正常收尾（实得 ' + (env && env.status) + '）')
+    check(sawCtx && sawCtx.sleep === injected, '注进壳的等待口跟着上下文递到了工具侧（单次钳制读的就是它）')
+  }
+
   ws.cleanup()
   try { dispose.dispose() } catch (e) {}
   console.log('\n' + (failed ? '存在失败' : '全部通过 — 九个工具：过闸、三态、永不抛、不判后端（' + total + ' 条）'))
