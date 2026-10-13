@@ -33,7 +33,7 @@
   └─────────────┘ └─────────────┘ └─────────────┘
 ```
 
-**API**（来自 `src/client/kernel/store.js` L234-261）：
+**API**（来自 `src/client/kernel/store-snapshot.js` L322-349）：
 - `storeOf(sid) → st` —— 取会话级 store
 - `emit(st)` —— 广播 tick++
 - `sub(st, f) → dispose` —— 手动订阅（返回解订函数）
@@ -114,7 +114,7 @@ function MyComponent({ sid }) {
   新增/变更的行自动高亮闪烁（rowFlash）
 ```
 
-**API**（来自 `src/client/kernel/probe.js`）：
+**API**（来自 `src/client/kernel/probe-auto.js`、`probe-snapshot.js`、`probe-snapshot-helpers.js`）：
 - `probeNow(fromFocus)` —— 立即探测
 - `refreshAll(st)` —— 刷新本会话 + 联动其他会话
 - `loadSnapshot(st, force, silent)` —— 加载快照
@@ -145,7 +145,7 @@ function MyComponent({ sid }) {
   DSH Host → 持久化或开新会话
 ```
 
-**API**（来自 `src/client/kernel/api.js`，G3 表）：
+**API**（来自 `src/client/kernel/api-naming.js`、`api-new-session.js`、`api-io.ts`，G3 表）：
 - `injectFixate` / `inject(text)` —— 注入文本到主输入框
 - `openInNewSession(text)` / `openTextInNewSession(text)` —— 开新 session
 - `copyText(text)` —— 复制到剪贴板

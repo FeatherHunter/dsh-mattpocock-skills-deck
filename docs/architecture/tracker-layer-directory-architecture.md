@@ -32,7 +32,7 @@ MattSkillsDeck 是 DeepSeek Harness（DSH）里的「地图/任务」生态：�
 
 ## 2. 决策
 
-1. `src/seam/ → src/bridge/`（DSH host↔client 绑定桥；「缝」一词还给架构语义）。「已定、**重构时应用**」——改名牵动 build.mjs 与全部 import，属后续 God-file 拆分轮（#113/#114），本骨架未涉及；骨架期间代码仍在 `src/seam/`。
+1. 曾计划把 host↔client 绑定桥目录 `src/seam/` 改名成 `bridge`（「缝」一词还给架构语义）。这项改名当时定的是「已定、**重构时应用**」，但至今没有实施——它牵动 build.mjs 与全部 import，属后续 God-file 拆分轮（#113/#114），本骨架未涉及；代码今天仍在 `src/seam/`。
 2. **契约层分两处**：
    - `shared/tracker/`：**形状 + 常量 + 检查链条契约**（host/client 共用、纯类型/纯函数无 IO；新增 `chain.js` 一等公民 + `check-catalog.js` 目录边界）—— #217 定版。
    - `host/tracker/`：**契约/registry/capability/preflight/backends/predicateRegistry**（host 侧逻辑；新增 `predicateRegistry.js` 宿主谓词注册表，纯函数 `evaluateChain` 的异步前置）。
@@ -133,4 +133,4 @@ src/
 - 范式样板：`examples/demo-mini/`（`demo-mini` 4 ops + `matches` + `normalize`，余下 9 ops 由 `registry.js` Proxy 补 `unsupported`，`describe` 复用骨架，不默认装配，零发包）。
 - 指导文档（主入口）：`docs/architecture/third-party-tracker.md`（注册/探测/能力/测试/打包/更新六章 + Checklist/FAQ，接真实工具步骤）。
 - 检验：`tests/verify-tracker-contract.js` 织入 `runContractTests(demoFixture)` + `runPlayback({fixturesDir:'examples/demo-mini/fixtures/demo-real'})`（现值 `620/4/OK`；总数随票增长，不作为门槛，判据是 `CONTRACT SKELETON OK` 与按名字点名的那 4 条违规桩失败）。
-- 后端实现索引：`src/host/tracker/backends/README.md` 增“第三方章”。
+- 后端实现索引：`src/tracker/rooms/README.md`（#1019 整目录搬迁后的位置）增“第三方章”。

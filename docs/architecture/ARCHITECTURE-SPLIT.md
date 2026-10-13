@@ -82,7 +82,7 @@
 
 **③ 官方范式（实证 `dsh-better-sidebar`）**
 
-- `src/` 大量源文件（host `src/index.ts` 等 + `src/client/*.{ts,tsx}` 几十个 UI 源）；`package.json` scripts：`"build": "rm -rf lib && tsc -p tsconfig.build.json && tsdown"`，devDep = `tsdown + typescript`。
+- 源文件很多，全在 dsh-better-sidebar 自己那个 `src/` 下（host 入口 `index.ts`，加上它自己的 `src/client/*.{ts,tsx}` 几十个 UI 源）；`package.json` scripts：`"build": "rm -rf lib && tsc -p tsconfig.build.json && tsdown"`，devDep = `tsdown + typescript`。
 - 产物 `lib/client.js`（`./client` export）是**单 bundle**，head 即 `window.__ModuleLoader__.load({ id: "dsh-better-sidebar", … })`。官方约定 client = **构建产出物**，非源码。
 - **因此：引入构建 = 向官方范式对齐，不是特立独行；本仓库要拆源必须先引入构建管线并输出单 bundle 到 `package/lib/client.js`。**
 
@@ -123,7 +123,7 @@
 
 **结论**：你要的是「拆」，不是「换语言」。**用 esbuild 做纯 JS 的模块化拆分**——把 `apply(ctx)` 闭包拆成能 import 的 ES 模块文件，构建直出 bundle。TS 完全不需要，也不引入。
 
-- **构建器**：`esbuild`（devDep 引入，`node esbuild src/client/index.entry.js --bundle --outfile=..`）。
+- **构建器**：`esbuild`（devDep 引入）。今天实际跑的是 `node scripts/build.mjs`，入口是 `src/client/index.js` 与 `src/host/index.js`，产物按下面「双 entry」那节出到 `package/lib/` 与仓库根。
 - **源码语言**：保持 **JS**（仓库现 3700 行全是 ES5 风格，原样拆分，不重写）。**文件一律 `.js`（UI 组件也是 `.js`，因为本仓库用 `React.createElement` 手写、无 JSX 标签）——不引入 `.ts`/`.tsx`。**（官方插件用 `.tsx` 是因为他们用了 TS + JSX，与本方案无关。）
 - **目录**：`src/host/`、`src/client/`（见 §4 模块树）。
 - **产物（双 entry）**：
@@ -296,7 +296,7 @@ export function createCtx({ ctx, h, rdom, localeSvc, storeSvc, timer }) {
 > 🛡 阶段 0 不改变任何运行时行为，只是把「人手 Copy-Item」变成「构建产出 Copy-Item」。
 
 ### 阶段 1 · 抽纯函数叶子（零依赖、行为风险≈0）【✅ 已完成 2026-08-18 · commit 见 git log】
-- 从 host 抽 `src/shared/parser.js`（`normalizeBody/parseMapBody/parseProgress/computeLevels/groupTickets` 纯函数，ESM 命名导出）；
+- 从 host 抽解析叶子（`normalizeBody/parseMapBody/parseProgress/computeLevels/groupTickets` 纯函数，ESM 命名导出）——这份叶子今天在 `src/tracker/body-parse.ts`；
 - 从 client 内核抽 `src/client/kernel/tabsfold.js`（`tabsLevelDecide + TABS_FOLD_HYST(=4) + TABS_LEVELS(=3)`，纯函数，**#15 逻辑就地沉淀**）；
 - 新测试 `tests/verify-parse-leaf.js` + `tests/verify-tabsfold-leaf.js`：**差分测试**（叶子 === host.js/package/lib 内联版本，同一批输入逐字节一致）+ 行为真值表 + 双源镜像特征断言——既钉住「搬坏」探测器，又防「双源一起错」；
 - ✅ 验收：两个新测试全 PASS + 既有回归（verify-progress/tabs-narrow/status 23/23/panel 14/14/t3-locale）全绿，生产行为不变。
@@ -306,7 +306,7 @@ export function createCtx({ ctx, h, rdom, localeSvc, storeSvc, timer }) {
 ### 阶段 2 · 领域模块化（中台 + host）
 - `src/host/*`：按 §4.1 拆 `gh/repo/snapshot/checks/handoff/claim/rpc`，RPC 表不动；
 - `src/client/kernel/*`：store/probe/api/router 从闭包抽成带接口的模块；
-- `src/client/panel/Tabs.js + Tooltip.js`：把 **Dock/Overlay 重复的 tabs 行抽成共享组件**（顺带把 #15 修复从两处合成一处，杜绝二次失步）；
+- 面板侧（原计划在 `src/client/panel/` 下新开 `Tabs.js` 与 `Tooltip.js`）：把 **Dock/Overlay 重复的 tabs 行抽成共享组件**（顺带把 #15 修复从两处合成一处，杜绝二次失步）——今天这份共享件是 `src/client/views/shared/Tabs.js` 的 `useTabsRow`，由 `src/client/panel/Dock.js` 渲染（页内浮窗 Overlay 本体已按 #646 删除）；
 - ✅ 验收：现有全部 verify 迁移到对 src 断言（或经构建后对产物断言），全绿。
 > 🛡 阶段 2 是主体工作量；每拆一个模块，就当次 bundle 全绿再动下一个。
 

@@ -24,6 +24,6 @@ register({
 ## 验证
 
 - `npm run verify` 已含 `verify-requirements-prompt`（新增）：扫描 `src/host/tracker/backends/*/index.js` 的 `checkRequirements` 是否全 `prompt:`，`getSetupPrompt` 是否存在
-- 示例：`src/host/tracker/backends/demo-mini/index.js` 为最小可抄模板
+- 示例：`examples/demo-mini/index.js` 为最小可抄模板
 
 不按此实现，PR 的 `verify` 即红，环境检测卡无主按钮，用户无法完成引导。

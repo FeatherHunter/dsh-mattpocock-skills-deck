@@ -1,6 +1,6 @@
 # 第三方 Tracker 扩展指南（Third-Party Tracker Guide）
 
-> 面向：**外部第三方**（不在 `src/host/tracker/backends` 内，类似 Jira/Linear/Gitea/自建工具）与**内部新后端作者**（复用同一 TOC）。契约已全部定版（#125），本指南只教“怎么照抄 demo 扩展”，**不新增契约条款**（改契约归 `tracker-backend-design-contract.md` §1-8 + 契约修订流程，开票挂 #111）。
+> 面向：**外部第三方**（不在 `src/tracker/rooms` 内，类似 Jira/Linear/Gitea/自建工具）与**内部新后端作者**（复用同一 TOC）。契约已全部定版（#125），本指南只教“怎么照抄 demo 扩展”，**不新增契约条款**（改契约归 `tracker-backend-design-contract.md` §1-8 + 契约修订流程，开票挂 #111）。
 
 > 定版锚点：#147 7 行（demo-mini + `examples/demo-mini/` + 4 ops + 强验证 + 本文件）+ #125 V4（BackendModule 四件套 + Proxy 自动桩 + 三级联三态）+ 设计契约 §2（capability-by-fill）§4（cut 线）。
 
@@ -8,9 +8,9 @@
 
 ## 1. 你将得到什么（demo 形态 + 能力诚实上报 + UI 零改动链）
 
-- **demo 后端是“证明接口可被外部实现”的钥匙**：`examples/demo-mini/`（不默认装配、不进 `src/host/tracker/backends/`，零发包） + `fixtures/demo-real/`（离线采样固件，可 `runPlayback`）。
-- **能力诚实上报**：demo 只实现真会的 4 ops（`list/get/create/getDependencies`），余下 9 ops 由 `registry.js:wrapTracker` Proxy 自动补 `unsupported` 桩（准入墙消失，无需手写 capabilities 表）。
-- **UI 零改动链**：`registry.describe(handle, backendId) → Selection.ref → snapshot.composeSnapshot → UI labelOf/backendIcon`（未知 `backendId` 原串展示，不分支），见 `src/host/tracker/registry.js:152-157` / `src/shared/tracker/shape.js:145-149` / `shared/tracker/constants.js:BACKEND_KIND`。
+- **demo 后端是“证明接口可被外部实现”的钥匙**：`examples/demo-mini/`（不默认装配、不进 `src/tracker/rooms/`，零发包） + `fixtures/demo-real/`（离线采样固件，可 `runPlayback`）。
+- **能力诚实上报**：demo 只实现真会的 4 ops（`list/get/create/getDependencies`），余下 9 ops 由 `src/tracker/registry/shape.ts:wrapTracker` Proxy 自动补 `unsupported` 桩（准入墙消失，无需手写 capabilities 表）。
+- **UI 零改动链**：`registry.describe(handle, backendId) → Selection.ref → snapshot.composeSnapshot → UI labelOf/backendIcon`（未知 `backendId` 原串展示，不分支），见 `src/tracker/registry/views.ts:20-62` / `src/shared/tracker/shape.js:165-169` / `src/tracker/contract/vocabulary.ts:BACKEND_KIND`。
 
 以本文为线索，可在仓库内找到每处实现（见各节末“定位”）。
 
@@ -22,7 +22,7 @@
 
 ```js
 import { demoModule } from '../examples/demo-mini/index.js'
-import { createRegistry } from '../src/host/tracker/registry.js'
+import { createRegistry } from '../src/tracker/registry/core.js'
 import { createPlatform } from '../src/host/platform/index.js'
 
 // host 单例（#113 平台抽象层：platform 已注 env/homedir，fs 来自 DSH dsh-fs-sandbox）
@@ -33,7 +33,7 @@ const registry = createRegistry(backendCtx) // 选后端的兜底等待走缺省
 // 注册（同步、无副作用；重复 id 默认抛 duplicate-id；HMR 用 {replace:true}）
 const disp = registry.register(demoModule) // demoModule = { id:'demo-mini', label:'Demo Mini', create, matches }
 
-// 生存期：按代隔离（旧代 dispose 不误杀新代，见 registry.js:172-180）
+// 生存期：按代隔离（旧代 dispose 不误杀新代，见 src/tracker/registry/core.ts:109-117）
 // DSH 插件形态：
 // export async function apply(ctx) {
 //   const registry = ctx.get('trackerRegistry') // God-split 轮补线：host 暴露单例（T-146-01）
@@ -57,7 +57,7 @@ const disp = registry.register(demoModule) // demoModule = { id:'demo-mini', lab
 
 对外占位 `id` 推荐 `publisher.name`（如 `acme.demo`），demo 对外即 `acme.demo`（`examples/demo-mini/index.js:demoModuleAcme`）。
 
-定位：`examples/demo-mini/index.js`（接入样板）/ `src/host/tracker/registry.js:161-181`（register）/ `src/host/platform/index.js`（平台）。
+定位：`examples/demo-mini/index.js`（接入样板）/ `src/tracker/registry/core.ts:98-118`（register）/ `src/host/platform/index.js`（平台）。
 
 ---
 
@@ -74,13 +74,13 @@ interface BackendContext { platform: Platform; fs: SandboxFS; exec; timers; log 
 interface OpContext extends BackendContext { cwd: string; signal: AbortSignal; refId?: string } // matches/detect/op/select 用
 ```
 
-- **注册护栏**：同步校验形状四件，不因缺 op 拒绝；`'other'` 抛 `other-not-registrable`；`duplicate-id` 需 `{replace:true}`（HMR），见 `registry.js:124-133,161-165`。
-- **Proxy**：`Partial<Tracker>` 缺方法→ `unsupportedStub(op, backendId)`（`{ok:false, error:{kind:'unsupported'}}`，返回不抛），Harness 即以此判断“缺能力”（G5 不分支），见 `registry.js:40-71`。
+- **注册护栏**：同步校验形状四件，不因缺 op 拒绝；`'other'` 抛 `other-not-registrable`；`duplicate-id` 需 `{replace:true}`（HMR），见 `src/tracker/registry/shape.ts:99-108` 与 `src/tracker/registry/core.ts:100-103`。
+- **Proxy**：`Partial<Tracker>` 缺方法→ `unsupportedStub(op, backendId)`（`{ok:false, error:{kind:'unsupported'}}`，返回不抛），Harness 即以此判断“缺能力”（G5 不分支），见 `src/tracker/registry/shape.ts:63-96`。
 - **Disposable/on/describe/MIGRATE_KEY**：
-  - `register` 返 `{dispose}`，按代隔离（`byId.get(id) !== entry` 则旧代不删新代），见 `registry.js:172-180` 测试 `sections/registry.js:103-112`。
-  - `on('register'|'unregister'|'bind', fn): () => void`，抛错隔离，`unregister` 的 stale 负载携**真实 handle**（非字符串 key），见 `registry.js:149,259-264`。
-  - `describe(handle, backendId): RepositoryRef`（骨架：`refId = handle.refId || (markdown?cwd:'')`，`name = refId||cwd||backendId`，`url=''`），不覆写即归一，见 `registry.js:152-157`。
-  - `MIGRATE_KEY = {other:null}` 先落地，旧 `'other'` 缓存双读归客户端（#113/#114），见 `registry.js:21`。
+  - `register` 返 `{dispose}`，按代隔离（`byId.get(id) !== entry` 则旧代不删新代），见 `src/tracker/registry/core.ts:109-117` 测试 `sections/registry.js:108-116`。
+  - `on('register'|'unregister'|'bind', fn): () => void`，抛错隔离，`unregister` 的 stale 负载携**真实 handle**（非字符串 key），见 `src/tracker/registry/core.ts:89-93,222-227`。
+  - `describe(handle, backendId): RepositoryRef`（骨架：`refId = handle.refId || (markdown?cwd:'')`，`name = refId||cwd||backendId`，`url=''`），不覆写即归一，见 `src/tracker/registry/views.ts:20-62`。
+  - `MIGRATE_KEY = {other:null}` 先落地，旧 `'other'` 缓存双读归客户端（#113/#114），见 `src/tracker/registry/shape.ts:20`。
 
 校验两级（#125）：①注册时只验模块形状；②`verifyBackend` 异步验归一化纪律（有数据→必映射，无数据→必 `[]/''/null` 或省略），不验 op 支持。
 
@@ -89,12 +89,12 @@ interface OpContext extends BackendContext { cwd: string; signal: AbortSignal; r
 ## 4. 探测规则（`matches:boolean` + `select` 三级联 + `multiHit/pending`）
 
 - **matches 语义**：`matches(handle, ctx): boolean`，只读 `cwd/fs`（经 `platform`），不确定一律 `false` + 记 `diagnostics`（由调用方日志），不伪造身份。demo 实现：`platform.fs` 探 `cwd/.demo/config.json` **或** `.scratch/map.md` 存在性（`lstat/stat/readText` 任一成功即命中），`signal.aborted` 时早退，见 `examples/demo-mini/matches.js`。
-- **select 三级联三态**（`registry.js:200-237`）：
+- **select 三级联三态**（`src/tracker/registry/core.ts:142-191`）：
   1. `explicit(bound)`：`bind(handle, backendId|null)` 记忆（`backendId:null` = 显式无后端，`ref` 省略，不造假身份）。
   2. `matches`：并行 `allSettled` + 超时 `matchesTimeout`（默认 30 秒，可配；这一个数只有一个出处——`src/tracker/registry/core.ts` 的 `MATCHES_TIMEOUT_MS`，生产装配路径不许自带等待值）+ `AbortSignal`（超时同时 `controller.abort()` 传 `signal` 给 `matches`）；`boolean`；平局=`注册序`（Map 迭代序，`replace` 保持键位），暴露 `multiHit: BackendId[]` 供 `bind` 显式纠正。
   3. `fallback(unbound)`：仅当“无 explicit、无 `match===true`、无 `pending`”才 `backendId:null`（`ref` 省略）；**有 `pending:true` 则 surface 等待态，不静默 OtherCard**（UI 必须提示“等待/建议显式 bind”）。
-  - `Selection = { backendId: BackendId|null, source: 'explicit'|'matches'|'fallback', ref?: RepositoryRef, multiHit?: BackendId[], pending?: true }`，`source` 无 `'detect'`（已改 `'matches'`），见 `contract.js:103-117`。
-- **错误码**：`duplicate-id` / `other-not-registrable` / `unknown-backend`（`bind` 未注册 id）/ `bad-handle`（handle 缺 `cwd/refId`），见 `registry.js:TrackerRegistryError`。
+  - `Selection = { backendId: BackendId|null, source: 'explicit'|'matches'|'fallback', ref?: RepositoryRef, multiHit?: BackendId[], pending?: true }`，`source` 无 `'detect'`（已改 `'matches'`），见 `src/tracker/contract/index.ts:141-147`。
+- **错误码**：`duplicate-id` / `other-not-registrable` / `unknown-backend`（`bind` 未注册 id）/ `bad-handle`（handle 缺 `cwd/refId`），见 `src/tracker/registry/shape.ts:TrackerRegistryError`。
 
 边界（与 harness 对齐）：`matches` 抛错→`false`；超时→`{timedOut:true}` 排除出决策集（`pending:true`）；`'other'` 不注册；`Selection.backendId:null` 时 `ref` 省略。
 
@@ -107,8 +107,8 @@ interface OpContext extends BackendContext { cwd: string; signal: AbortSignal; r
 - **demo 的字段分工**（与 `tests/tracker-contract/fixtures/demo.js` 对齐）：
   - `implementedFields: ['labels','assignees','comments','blockedBy','reason']` → `EMPTY`（`[]/''`）。
   - `missingFields: ['author','milestone','customFields']` → `MISSING`（省略）。
-- **诊断二分**：`diagnoseCapabilities(issue)` 只做日志二分（`label: EMPTY/MISSING/值`），不驱动 UI 隐藏（UI 按现有渲染逻辑处理空值），见 `host/tracker/capability.js` 与 `harness.js:98-110`。
-- **诚实上报**：未实现 op→`{ok:false, error:{kind:'unsupported'}}`（`ERROR_KIND.UNSUPPORTED`），`conflict` 仅显式产生（`setBlockedBy` 自环/成环），非 regex 派生，见 `contract.js:ERROR_KIND` / `shared/tracker/constants.js`。
+- **诊断二分**：`diagnoseCapabilities(issue)` 只做日志二分（`label: EMPTY/MISSING/值`），不驱动 UI 隐藏（UI 按现有渲染逻辑处理空值），见 `host/tracker/capability.js` 与 `harness.js:118-130`。
+- **诚实上报**：未实现 op→`{ok:false, error:{kind:'unsupported'}}`（`ERROR_KIND.UNSUPPORTED`），`conflict` 仅显式产生（`setBlockedBy` 自环/成环），非 regex 派生，见 `src/tracker/contract/vocabulary.ts:ERROR_KIND`。
 
 ---
 
@@ -116,11 +116,11 @@ interface OpContext extends BackendContext { cwd: string; signal: AbortSignal; r
 
 公开验收面：**过 harness = 外部实现合规证据**（G4）。离线 playback 可 CI 跑，live 需注入真实 `exec/fs`。
 
-- **纯形状断言** `runContractTests(fixture)`：`fixture = {name, normalize, withData, emptyData, mappings, implementedFields, missingFields, deckCases}` → 9 类断言（映射/骨架/state/EMPTY/MISSING/labels/closedAt/diagnose/EMPTY≠MISSING/frontier），见 `tests/tracker-contract/harness.js:56-126`。
+- **纯形状断言** `runContractTests(fixture)`：`fixture = {name, normalize, withData, emptyData, mappings, implementedFields, missingFields, deckCases}` → 9 类断言（映射/骨架/state/EMPTY/MISSING/labels/closedAt/diagnose/EMPTY≠MISSING/frontier），见 `tests/tracker-contract/harness.js:56-146`。
 - **真实适配器 Runner** `createRunnerContext/runWithAdapter/runPlayback/loadFixtures`：
   - `createRunnerContext({os,cwd,env,homedir,fs,exec})` → `BackendContext{platform,fs,exec,timers,log}`（含已解析 `platform` 实例，满足 #129 三底座可测性），见 `runner/index.js:45-94`。
-  - `BackendModule.create(ctx)` → `Tracker` → `runWithAdapter({tracker,repo,fixturesDir,opCtx})` 做 live 形状门槛（`preflight/list/get/getDependencies` 的“不抛 + OpResult 形状”），见 `runner/index.js:200-280`。
-  - `runPlayback({fixturesDir})` 离线校验采样固件（`metadata.json` + `normalized-*.json` 形状 + `diagnose` 可跑 + 无 token 残留），见 `runner/index.js:285-322`。
+  - `BackendModule.create(ctx)` → `Tracker` → `runWithAdapter({tracker,repo,fixturesDir,opCtx})` 做 live 形状门槛（`preflight/list/get/getDependencies` 的“不抛 + OpResult 形状”），见 `runner/index.js:153-265`。
+  - `runPlayback({fixturesDir})` 离线校验采样固件（`metadata.json` + `normalized-*.json` 形状 + `diagnose` 可跑 + 无 token 残留），见 `runner/index.js:275-322`。
 - **采样固件约定**（每后端一份，且记录来源/脱敏规则）：
   ```
   fixtures/<id>-real/
@@ -130,7 +130,7 @@ interface OpContext extends BackendContext { cwd: string; signal: AbortSignal; r
   ```
   demo 位于 `examples/demo-mini/fixtures/demo-real/`（不在 `files` 白名单，零发包，脚本 `scripts/generate-demo-fixtures.js` 可重采）。
 - **门禁**：`node tests/verify-tracker-contract.js` → `620 passed · 4 failed（全为 violating 桩）· CONTRACT SKELETON OK`（历史数字依次是 `293/4`、`359/4`、`590/4`，每张票都会长；**别把数字当门槛**，回归红线的形状是：`compliant` 全 PASS、`violating` 那 4 条预期失败都在（按名字点名）、`sections/*` 全 PASS 含 `sections/labels.js` 里对真实后端模块的探针），见 `tests/verify-tracker-contract.js` 与 `tests/tracker-contract/README.md`。
-- **接入四件清单（ONBOARDING）**：①`src/host/tracker/backends/<id>/` ②`fixtures/<id>-real/`（`metadata.json+raw+normalized`）③`scripts/generate-<id>-fixtures.js` ④`verify-tracker-contract.js` 集成（保那 4 条 `violating` 预期失败都在），见 `tests/tracker-contract/README.md`。
+- **接入四件清单（ONBOARDING）**：①`src/tracker/rooms/<id>/` ②`fixtures/<id>-real/`（`metadata.json+raw+normalized`）③`scripts/generate-<id>-fixtures.js` ④`verify-tracker-contract.js` 集成（保那 4 条 `violating` 预期失败都在），见 `tests/tracker-contract/README.md`。
 
 ---
 
@@ -138,7 +138,7 @@ interface OpContext extends BackendContext { cwd: string; signal: AbortSignal; r
 
 - **发包边界**：`examples/` **不在** `package.json#files` 白名单（当前 `private:true` 不发包；若发包，白名单为 `["lib","shared"]`，`examples/` 天然排除），`npm pack --dry-run` 验证无 `examples/` 泄漏（`scripts/generate-demo-fixtures.js` 已固化）。
 - **DSH 插件打包**：第三方后端作为独立 npm 包（`publisher.name`），`dsh.contributes.trackers` manifest 预留（当前 DSH loader 只认 `dsh.contributes`，#125 Notes），或插件 `activate` 手动 `registry.register`（见 §2）。
-- **更新/HMR**：`Disposable` 按代隔离 + `{replace:true}`（`sections/registry.js:103-112`），`on('bind') stale` 负载含真实 `handle` 供 UI 回退，不误删新代。
+- **更新/HMR**：`Disposable` 按代隔离 + `{replace:true}`（`sections/registry.js:108-116`），`on('bind') stale` 负载含真实 `handle` 供 UI 回退，不误删新代。
 
 ---
 
@@ -150,15 +150,15 @@ interface OpContext extends BackendContext { cwd: string; signal: AbortSignal; r
 |------|--------|----------|
 | 1. `exec` 注入 | 真实远端需 `ctx.exec`（`subprocess.spawn` 薄封装） | `createRunnerContext({exec: realExec})`，`realExec = (cmd,args,opts)=>subprocess.spawn`，见 `runner/index.js:84-85`（默认抛 `ctx.exec not injected`，playback 绕过） |
 | 2. `platform.fs` 置换 | `matches` 需读 `.jira/config.json` 或 `git remote` | 复用 `demoMatches` 的 `platform.fs` + `platform.path.join` + `signal.aborted` 早退（§4） |
-| 3. `normalize` 对齐 `shape.js` | 把 Jira issue → `Issue`（`key=String(number/iid)`，`type/map` 正交，`blockedBy` 轻量引用，`labels: {name,color}`，`closedAt: string|null`） | 复刻 `examples/demo-mini/normalize.js` + `src/host/tracker/backends/github/normalize.js`（#138 一页纸方案：形状归一不变量） |
+| 3. `normalize` 对齐 `shape.js` | 把 Jira issue → `Issue`（`key=String(number/iid)`，`type/map` 正交，`blockedBy` 轻量引用，`labels: {name,color}`，`closedAt: string|null`） | 复刻 `examples/demo-mini/normalize.js` + `src/tracker/rooms/github/normalize.ts`（#138 一页纸方案：形状归一不变量） |
 | 4. `fields` 清单 | 明确 `implementedFields / missingFields`（如 Jira 有 `author/milestone`，无 `customFields`） | 写入 `fixtures/<id>-real/metadata.json#fields` + `demoFixture.implementedFields/missingFields`，`diagnoseCapabilities` 日志二分验证 |
-| 5. `getDependencies` 投影 | `blockedBy` 唯一真源，`blocking` 反向聚合（非第二真相），见 `contract.js:Dependencies` | 复用 `examples/demo-mini/index.js:getDependencies` 的 scan-store 反向聚合 |
+| 5. `getDependencies` 投影 | `blockedBy` 唯一真源，`blocking` 反向聚合（非第二真相），见 `src/tracker/contract/index.ts:Dependencies` | 复用 `examples/demo-mini/index.js:getDependencies` 的 scan-store 反向聚合 |
 
 ---
 
 ## 9. Checklist（ONBOARDING 四件，CI 全绿）
 
-- [ ] `src/host/tracker/backends/<id>/`（或 `examples/<id>/` 作外部示例，**不默认装配**）
+- [ ] `src/tracker/rooms/<id>/`（或 `examples/<id>/` 作外部示例，**不默认装配**）
 - [ ] `fixtures/<id>-real/{metadata.json,raw-*.json,normalized-*.json}`（`metadata.desensitization` 四规则：`ghp_/github_pat_`→`[REDACTED]`、邮箱→`redacted@example.com`、不记 `Authorization` 头，见 `runner/index.js:315-318`）
 - [ ] `scripts/generate-<id>-fixtures.js`（打真实 API → 脱敏 → 落盘 JSON + metadata）
 - [ ] `tests/verify-tracker-contract.js` 集成：`runContractTests(demoFixture)` + `runPlayback({fixturesDir})`，过关判据是 `CONTRACT SKELETON OK` 加上违规桩里按名字点名的那 4 条失败必须出现（`npm run verify` 全绿）。断言总数每张票都会增长，**不要把这个数字当门槛**
@@ -178,7 +178,7 @@ node scripts/generate-demo-fixtures.js # 重采（可选）
 | `duplicate-id` | `id` 冲突（`publisher.name` 未遵） | 改 `id` 为 `acme.demo` 形态，或 HMR 传 `{replace:true}` |
 | `other-not-registrable` | 误用 `id:'other'` | 改用 `Selection.backendId:null`（无后端 = 逃生舱，不造假后端） |
 | `unknown-backend` | `bind(handle, id)` 指向未注册 id | 先 `register` 再 `bind`，或检查 `registry.has(id)` |
-| `bad-handle` | `handle` 缺 `cwd/refId` | 传入 `RepoHandle{cwd}`，见 `registry.js:33-38` |
+| `bad-handle` | `handle` 缺 `cwd/refId` | 传入 `RepoHandle{cwd}`，见 `src/tracker/registry/shape.ts:55-60` |
 | `pending:true` | `matches` 超时（30 秒）被排除出决策集 | UI 显“等待/建议显式 bind”，不静默 OtherCard（§4） |
 | `multiHit` | 多后端 `matches===true` 平局 | 取注册序首位，`multiHit` 暴露供 `bind` 显式纠正 |
 | `unsupported` | 调未实现 op（9 桩） | 属预期诚实桩（`wrapTracker`），接真实工具时按 §8 补实现 |
@@ -191,9 +191,9 @@ node scripts/generate-demo-fixtures.js # 重采（可选）
 
 | 指南章节 | 代码位置 |
 |---------|----------|
-| BackendModule 四件套 + Proxy | `src/host/tracker/registry.js:124-133,40-71,161-181` / `src/host/tracker/contract.js:94-101` |
-| 三级联 select + pending/multiHit | `src/host/tracker/registry.js:200-237` / `src/host/tracker/contract.js:103-117` |
-| capability-by-fill | `src/host/tracker/capability.js` / `src/shared/tracker/shape.js:107-140` |
+| BackendModule 四件套 + Proxy | `src/tracker/registry/shape.ts:99-108,63-96` / `src/tracker/registry/core.ts:98-118` / `src/tracker/contract/index.ts:113-131` |
+| 三级联 select + pending/multiHit | `src/tracker/registry/core.ts:142-191` / `src/tracker/contract/index.ts:141-147` |
+| capability-by-fill | `src/host/tracker/capability.js` / `src/shared/tracker/shape.js:117-160` |
 | harness + runner | `tests/tracker-contract/harness.js` / `tests/tracker-contract/runner/index.js` |
 | demo 后端 + fixtures | `examples/demo-mini/index.js` / `examples/demo-mini/normalize.js` / `examples/demo-mini/matches.js` / `examples/demo-mini/fixtures/demo-real/` |
 | 门禁 | `tests/verify-tracker-contract.js`（含 demo 织入） |

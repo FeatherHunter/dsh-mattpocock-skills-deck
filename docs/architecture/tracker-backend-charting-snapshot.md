@@ -18,17 +18,17 @@
 
 ### 1.1 PR #106 + issue #110 对抗性审查（第一性原理核验）
 
-- **bug 真实**，且在 main（1.7.0 未发布）与 1.6.19 产品上均存在：
-  - `getHome()` 只认 `cmd.exe`：`src/host/index.js:158-172`（1.6.19 `lib/index.js:176-190`），`resolveExecutable('cmd.exe')` 失败即 `return null`。
-  - `SKILL_PROBE_DIRS` 反斜杠：`src/host/index.js:38`（`lib:56`）。
-  - `fs.lstat(home + '\\' + ...)` 拼接反斜杠：`src/host/index.js:842`（`lib:772`）。
+- **bug 真实**，且在 main（1.7.0 未发布）与 1.6.19 产品上均存在。下面三条引的是 2026-08-22 当天的行号；`src/host/index.js` 此后被拆过，今天只剩 350 行，主目录探测与技能探测分别搬到了 `src/host/git-process.ts`、`src/host/skillProbe.js`，路径拼接归 `src/host/platform/` 的平台层：
+  - `getHome()` 只认 `cmd.exe`：当时在 `src/host/index.js` 第 158-172 行（1.6.19 `lib/index.js:176-190`），`resolveExecutable('cmd.exe')` 失败即 `return null`。
+  - `SKILL_PROBE_DIRS` 反斜杠：当时在 `src/host/index.js` 第 38 行（`lib:56`）。
+  - `fs.lstat(home + '\\' + ...)` 拼接反斜杠：当时在 `src/host/index.js` 第 842 行（`lib:772`）。
 - **issue 引用行号（约 176-190 / 56 / 772）与 1.6.19 产物逐行吻合** → 诊断准确、可复现。
 - **PR 方向正确**（env 读 HOME + 正斜杠）但有三处缺陷：
   1. 「Windows 行为不变」不成立：Tier 1 优先 `process.env.HOME`，Windows 下 Git Bash / MSYS2 / WSL 可能设 HOME 为 `/c/Users/...`（POSIX 风格），Node 在 win32 按盘符相对解析 → 探测回归。
   2. Tier 3（`sh -c 'echo $HOME'`）冗余：子进程 env 派生自同一 `process.env`，宿主无 HOME 则子进程也无 → 恒为空。
   3. 零回归测试：仓库 50+ verify-*.js 无一覆盖 `getHome`/`probeSkill`。
 - **相邻缺陷（双方都没发现）**：
-  - 检查 8 标签错位：`CHECK_NAMES[7]` =「ask-matt 技能」（`src/host/index.js:868-869`）但 `c8 = probeSkill(SKILL_PROBE_NAMES[1], ...)`，而 `SKILL_PROBE_NAMES[1]` = `triage`（`:40`、`:880`）。
+  - 检查 8 标签错位：`CHECK_NAMES[7]` =「ask-matt 技能」（当时在 `src/host/index.js` 第 868-869 行）但 `c8 = probeSkill(SKILL_PROBE_NAMES[1], ...)`，而 `SKILL_PROBE_NAMES[1]` = `triage`（当时是第 40、880 行）。这套九格检查表已按 #284 整体退役，`CHECK_NAMES` 这个名字今天不存在；技能探测今天在 `src/host/skillProbe.js` 与 `src/shared/skill-probe-channels.js`。
   - 检查 9 缺口：`SKILL_PROBE_NAMES` 只查 9 名，而 `installSkills` 契约要求 10 名（漏 `setup-matt-pocock-skills`，`src/client/kernel/prompts.js`）。
 
 ### 1.2 DSH 宿主运行时事实（子代理核验，含文件:行号）

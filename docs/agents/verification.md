@@ -91,7 +91,7 @@
 脚本看不出产物是哪个源码文件编出来的，所以只要这次动到了源码，这 20 扇一律跟着跑。
 
 补充两条边界：改动清单为空（比如你没传参数）按全链处理；传进来的路径既支持
-`src/a/b.js` 这种仓库相对路径，也支持从仓库根写起的 `./src/a/b.js` 和反斜杠写法。
+`src/client/kernel/styles.js` 这种仓库相对路径，也支持从仓库根写起的 `./src/client/kernel/styles.js` 和反斜杠写法。
 
 **一个真实例子**（改 `src/client/views/versionControl/VersionControlTab.js`）：
 选中 60 步 / 全链 228 步。这 60 步是几路来源并起来的结果（取并集，不是相加）——守
@@ -131,14 +131,14 @@ node scripts/lib/select-gates.mjs src/client/views/versionControl/VersionControl
    也不在 import 图里，规则 2 兜不住。这类东西一旦成形，应该给它一个目录（例如
    `src/**/contract/`），让规则 1 的契约层兜底。
 4. **躺在 `src/` 里的自动生成文件。** `src/shared/refresh/budget.js` 是
-   `src/shared/refresh/build.mjs` 从 `src/shared/refresh/src/budget.ts` 生成的（文件头写着 AUTO-GENERATED）。
+   `scripts/build.mjs` 从 `src/shared/refresh/src/budget.ts` 生成的（文件头写着 AUTO-GENERATED）。
    改 `.ts` 源文件，不会让「只读 `src/shared/refresh/budget.js`」的门禁被选中——
    两者之间没有 import 边。这类文件要么让它的门禁同时守着源文件，要么在生成器跑完之后补一次全链。
 5. **「有门禁」和「有专属门禁」是两件事，别混。** 归属写成目录的门禁（`tests/verify-reuse.js`、
    `tests/verify-no-title.js` 点名了 `src/client/views`）是**递归**扫那个目录的，所以它守着的文件算「有门禁」——
    覆盖面这一栏因此是满的（510/510）。但「这一层自己有没有被点名」是另一回事：`coverage.dedicatedDirs`
    记的就是后者，`coverage.dirsWithoutDedicated` 列出没有专属门禁的目录和它们的文件数。
-   2026-10-13 这一版（#1016 删掉 `src/host/logPkg` 之后按磁盘实况数）：43 个目录里 42 个有专属门禁，
+   2026-10-13 这一版（#1016 把原来放在 `src/host/` 下的日志包删掉、改取已安装的 `dsh-log` 包之后，按磁盘实况数）：43 个目录里 42 个有专属门禁，
    唯一没有的是 `src/shared/config-store/src`（4 个文件）。`tests/gate-map.json` 那份表已经跟着重算过
    （`node scripts/gate-map.mjs`，`tests/verify-gate-map.js` 82 条断言全过），表里的数与这里一致。
    想让某个目录有专属门禁，要么给它写一扇门禁，要么在既有的、确实守着它的门禁里加一条

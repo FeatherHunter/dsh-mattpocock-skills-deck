@@ -17,7 +17,7 @@
 
 ### 1.1 后端两个房间：各 15 个文件，全部达标
 
-房间是本仓库对三个内置后端各自目录的叫法，目录在 src/host/tracker/backends/ 下面。首批拆的是其中两个房间，GitHub 房和 Markdown 房。每个房间一票，互相不等待。
+房间是本仓库对三个内置后端各自目录的叫法，目录在 src/tracker/rooms/ 下面。首批拆的是其中两个房间，GitHub 房和 Markdown 房。每个房间一票，互相不等待。
 
 GitHub 房（issue 440，提交 ac9f5b6）：原来最大的两个文件是 index.js（659 行）和 issues.js（485 行）。拆法是把 index.js 里按改动理由独立的四块搬出去（仓库信息、检查项、建仓发布、后端装配），把 issues.js 里的写操作搬出去（issues-write）。拆后全房 15 个文件，最大的是 graph.js（286 行）。完整名单与门禁实测行数：
 
@@ -59,7 +59,7 @@ Markdown 房（issue 441，提交 af20407）：原来最大的是 issues.js（68
 
 ### 1.2 两道墙和尺子已经立好
 
-第一道是行数检查 tests/verify-file-granularity.js（issue 438，提交 cfb168b）。语义是同一道检查，不设两套退出码：超过 350 行就不通过；超过 500 行同样不通过，只是报错多写一句严重并阻断发布。行数口径是抹掉注释后的非空行（2026-10-13 由 #1017 从「总行数」改过来，读的对象也扩到 .ts 真源，见第 5 节）。主分支直接全失败会当场红 12 处，所以忠于防止再次膨胀的意图，用零增长基线锁形态过渡：落地时超标的文件把当时行数记进 tests/file-granularity-baseline.json，只许减不许增；新超标直接失败；某个文件达标后，由拆它的那张票同票重录基线把它移出。基线全部清空后，门禁自动退化为纯 350 行失败。门禁第一跑抓住了人工排查漏掉的第 13、14 个超标文件：src/client/index.js（382 行）和 src/shared/tracker/check-catalog.js（356 行），二批已经给前者单开一票。当前基线是 2026-09-03 记录的 11 个文件，2026-09-05 复核全部冻结未增长，共扫 128 个 src/ 文件，117 个达标。
+第一道是行数检查 tests/verify-file-granularity.js（issue 438，提交 cfb168b）。语义是同一道检查，不设两套退出码：超过 350 行就不通过；超过 500 行同样不通过，只是报错多写一句严重并阻断发布。行数口径是抹掉注释后的非空行（2026-10-13 由 #1017 从「总行数」改过来，读的对象也扩到 .ts 真源，见第 5 节）。主分支直接全失败会当场红 12 处，所以忠于防止再次膨胀的意图，用零增长基线锁形态过渡：落地时超标的文件把当时行数记进 tests/file-granularity-baseline.json，只许减不许增；新超标直接失败；某个文件达标后，由拆它的那张票同票重录基线把它移出。基线全部清空后，门禁自动退化为纯 350 行失败。门禁第一跑抓住了人工排查漏掉的第 13、14 个超标文件：src/client/index.js（382 行）和 check-catalog.js（356 行，今拆成 src/shared/tracker/check-catalog-dirs.js 与 src/shared/tracker/check-catalog-views.js 两份），二批已经给前者单开一票。当前基线是 2026-09-03 记录的 11 个文件，2026-09-05 复核全部冻结未增长，共扫 128 个 src/ 文件，117 个达标。
 
 第二道是同层互引检查 tests/verify-no-same-layer-import.js（issue 439，提交 88d6867；2026-10-13 起 #1017 把它与房间纪律合成 tests/verify-dependency-rules.ts，规则写在根目录 .dependency-cruiser.cjs，见第 5 节）。规则是宿主、平台抽象、共享、接缝四层各自内部文件之间不许互相引用，新增的同层引用边直接失败。存量边记进 tests/same-layer-baseline.json 豁免，只许减不许增（落地时是 33 条：宿主 19、平台抽象 3、共享 4、接缝 7；2026-10-13 改成读依赖图后是 120 条，多出来的 27 条是原先看不见的 .ts 同层边）。后端三个房间不在这道墙里，由同一扇新墙里的房间规则管（同房间放行、跨房间禁），两道墙不打架。已知局限另起 issue 442 核查（宿主入口 1481 到 1511 行扫描盲区与 1489 行疑似错路径），二批宿主票开工前必读它的结论。1489 行的问题已经单开 bug 票 issue 468，宿主第三刀只负责原样搬运，不顺手修。
 
@@ -84,28 +84,28 @@ Markdown 房（issue 441，提交 af20407）：原来最大的是 issues.js（68
 
 前置对照表 issue 443（已合入，提交 8bfdbc7），曾与内核对照表并行。它只改构建清单与门禁，不拆生产代码，输出一张共享拆分接线图：每个待拆文件的新文件落位、拼接标记位置、门禁对应项，每个新文件标预估行数，超 350 打回重画。后三票照图施工。
 
-- issue 451：src/shared/tracker/chain.js（682 行）拆到全员 350 行以内，约 2 到 3 个新文件。等对照表与宿主第 3 刀合入。调用方改路径加原文件消除，不留转发入口（共享层内留转发入口会被墙算成同层边）。新文件之间不许互相引用。同层基线文件本票不碰，由收尾票统一清理。
-- issue 452：src/shared/naming-guardian.js（498 行）拆到全员 350 行以内，约 2 个新文件。等对照表、宿主第 6 刀、内核收尾三张合入。本文件在构建拼接清单里，标记必须随搬，这是本票最需要小心的部分。落位、标记位、门禁项照接线图。
-- issue 453：src/shared/tracker/check-catalog.js（356 行）拆到全员 350 行以内，刚超 6 行，从简但仍按改动理由切，约 2 个新文件。等对照表、宿主第 3 刀、共享第 1 票合入。调用方有一处与第 1 票同改同一个文件，所以第 1 票先行。
+- issue 451：chain.js（682 行，今拆成 src/shared/tracker/chain-evaluate.js、src/shared/tracker/chain-validate.js、src/shared/tracker/chain-types.js 三份）拆到全员 350 行以内，约 2 到 3 个新文件。等对照表与宿主第 3 刀合入。调用方改路径加原文件消除，不留转发入口（共享层内留转发入口会被墙算成同层边）。新文件之间不许互相引用。同层基线文件本票不碰，由收尾票统一清理。
+- issue 452：naming-guardian.js（498 行，今拆成 src/shared/naming-titles.js、src/shared/naming-tracking.js、src/shared/naming-attribution.js 三份）拆到全员 350 行以内，约 2 个新文件。等对照表、宿主第 6 刀、内核收尾三张合入。本文件在构建拼接清单里，标记必须随搬，这是本票最需要小心的部分。落位、标记位、门禁项照接线图。
+- issue 453：check-catalog.js（356 行，今拆成 src/shared/tracker/check-catalog-dirs.js 与 src/shared/tracker/check-catalog-views.js 两份）拆到全员 350 行以内，刚超 6 行，从简但仍按改动理由切，约 2 个新文件。等对照表、宿主第 3 刀、共享第 1 票合入。调用方有一处与第 1 票同改同一个文件，所以第 1 票先行。
 
 ### 2.3 内核目录：先对齐三张表，再单人串行拆 5 个文件（issue 444、454 到 458）
 
 前置对齐 issue 444（已合入，提交 980b3c1），曾与共享对照表并行。它只改表、标记位与门禁，不拆生产代码。背景是冻结表、门禁表、实况三重脱节，不对齐会拆错边。输出一张内核拆分接线图：五件各拆几个新文件、落位、标记位、门禁对应项，每个新文件标预估行数。内核纪律是单人单会话串行，5 张票一张接一张，不并行。拼接手法统一：内核文件声明体去行首导出后拼回客户端入口标记处，新文件逐个进内核模块表与标记位，内核门禁同步。
 
-- issue 454：src/client/kernel/slotRenderer.js（617 行）拆到全员 350 行以内，约 2 到 3 个新文件。内核链第一棒。
-- issue 455：src/client/kernel/store.js（741 行，内核第二大）拆到全员 350 行以内，约 3 个新文件。等第 1 刀合入。
-- issue 456：src/client/kernel/probe.js（634 行）拆到全员 350 行以内，约 2 到 3 个新文件。等第 2 刀合入。
-- issue 457：src/client/kernel/api.js（852 行，内核最大）拆到全员 350 行以内，约 3 个新文件。等第 3 刀合入。它是宿主与内核的电话口，拆时入口签名一个不许变，只搬实现。
+- issue 454：slotRenderer.js（617 行，今拆成 src/client/kernel/slotRenderer-queue.js、src/client/kernel/slotRenderer-repo-sync.js、src/client/kernel/slotRenderer-modal-view.js 三份）拆到全员 350 行以内，约 2 到 3 个新文件。内核链第一棒。
+- issue 455：store.js（741 行，内核第二大；今拆成 src/client/kernel/store-prefs.js、src/client/kernel/store-switch.js、src/client/kernel/store-snapshot.js、src/client/kernel/store-derived.js 四份）拆到全员 350 行以内，约 3 个新文件。等第 1 刀合入。
+- issue 456：probe.js（634 行，今拆成 src/client/kernel/probe-chain.js、src/client/kernel/probe-snapshot.js、src/client/kernel/probe-auto.js 三份）拆到全员 350 行以内，约 2 到 3 个新文件。等第 2 刀合入。
+- issue 457：api.js（852 行，内核最大；今拆成 src/client/kernel/api-naming.js、src/client/kernel/api-new-session.js、src/client/kernel/api-io.js 三份）拆到全员 350 行以内，约 3 个新文件。等第 3 刀合入。它是宿主与内核的电话口，拆时入口签名一个不许变，只搬实现。
 - issue 458：src/client/kernel/locale.js（820 行纯字典）按语义域拆到全员 350 行以内，约 3 个新文件。等第 4 刀合入，本票合入后内核全员达标。零例外，字典也拆：按面板、检查、提示、错误语义域切文件，字典的键一个不改只搬家，双语完整性门禁随改全绿。
 
 ### 2.4 卡在 320 到 350 的压线文件：本次全拆（issue 459 到 464）
 
 口径是定版时最新总行数重盘，三百二十到三百四十九档逐件全拆。压线正好 350 行的按有明确解耦点也拆的规则逐件裁决，结论写票里。
 
-- issue 461：src/host/tracker/registry.js（348 行）在档内必拆；src/host/tracker/predicateRegistry.js（350 行整，压线）评估拆或留，留要写理由。两文件同域，一票做完。等宿主第 1 刀合入，因为调用方在它的范围里，届时在它新文件里改路径。
-- issue 462：src/host/tracker/backends/gitlab/graph.js（345 行）拆到 350 行以内，约 2 个新文件，并确认 GitLab 房其余文件，全房达标。无前置（已合入，提交 433a12b：拆成阻塞与亲缘两个内聚文件，全房达标）。一房一提交纪律由机器保证，入口文件名不动。
+- issue 461：registry.js（348 行，今拆成 src/tracker/registry/core.ts、src/tracker/registry/shape.ts、src/tracker/registry/views.ts 三份）在档内必拆；predicateRegistry.js（350 行整，压线，今在 src/host/tracker/predicatePrimitives.js）评估拆或留，留要写理由。两文件同域，一票做完。等宿主第 1 刀合入，因为调用方在它的范围里，届时在它新文件里改路径。
+- issue 462：src/tracker/rooms/gitlab/graph.js（345 行）拆到 350 行以内，约 2 个新文件，并确认 GitLab 房其余文件，全房达标。无前置（已合入，提交 433a12b：拆成阻塞与亲缘两个内聚文件，全房达标）。一房一提交纪律由机器保证，入口文件名不动。
 - issue 463：src/client/views/ 下三件各拆到 350 行以内：IssueDetail.js（341 行）、ListTab.js（336 行）、SettingsPage.js（321 行）。三件同属视图域，一票做完，都在叶子清单里，拆分同步条目。等共享第 2 票合入（客户端串行链，同改客户端入口标记区）。
-- issue 464：src/client/panel/Overlay.js（335 行）拆到 350 行以内；Dock.js（350 行整，压线）评估拆或留，留要写理由。两件同属面板域，一票做完，都在叶子清单里，同步条目。等视图票合入。
+- issue 464：Overlay.js（335 行，当时的面板浮窗；本体已按 #646 退役，其中后端选择门控今在 src/client/panel/OverlayGate.js）拆到 350 行以内；Dock.js（350 行整，压线）评估拆或留，留要写理由。两件同属面板域，一票做完，都在叶子清单里，同步条目。等视图票合入。
 - issue 459：src/client/index.js（382 行）设计并拆到全员 350 行以内，约 2 个新文件。它是门禁第一跑抓出的第 13 个超标者，此前无拆分画像，本票自带设计：动手先花半小时画出内部改动理由分区，贴票里再搬。敏感点是它是内核与叶子拼接标记的宿主，标记位与注入点一个不许挪。等状态栏票合入后做客户端压轴重组。
 - issue 460：src/client/statusbar/StatusBar.js（380 行）拆到全员 350 行以内，约 2 个新文件，并删掉叶子门禁里它的 450 行例外。等面板票合入。删例外与拆分同票，删完例外后叶子门禁仍全绿，否则说明没有真达标。删完后全库搜 450 无命中。
 

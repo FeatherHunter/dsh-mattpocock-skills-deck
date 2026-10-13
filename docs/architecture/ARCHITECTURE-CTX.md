@@ -51,7 +51,7 @@
 src/client/kernel/ctx.js        ← 新增：createCx(...) 建 cx + DswsCtx = React.createContext(null)
 src/client/index.js             ← 组装：apply(ctx) 里建 cx → 用 <DswsCtx.Provider value={cx}> 包住现有渲染树
 src/client/**/*.js (组件)        ← 迁移后：export function ListTab() { const cx = React.useContext(DswsCtx); ... }
-src/client/kernel/probe.js 等   ← 迁移后：export function makeProbe(cx) { ... }（逻辑模块，构造注入）
+src/client/kernel/probe-chain.js / probe-snapshot.js / probe-auto.js  ← 迁移后：probe 拆成这三个模块文件；计划里的 `makeProbe(cx)` 工厂没有落地，这三个文件的依赖由构建时拼回 `src/client/index.js` 的 apply 闭包取得
 ```
 
 接线顺序（阶段 2 第一步，先接线后搬家）：

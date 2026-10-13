@@ -36,7 +36,7 @@
 
 ## 后续 AI 必读
 - Map：#180；Research：#181/#182/#183（已 closed，产物 `.scratch/research-18*.md`）；Grilling：#184/#185/#186（#184 已 claim）
-- 真源：`src/client/views/shared/BackendSelector.js`、`src/client/panel/Dock.js`、`src/host/tracker/registry.js`、`src/host/tracker/detection/detectionService.js`、`src/host/index.js:wf.status/bind/detect`
+- 真源：`src/client/views/shared/BackendSelector.js`、`src/client/panel/Dock.js`、`src/tracker/registry/core.ts`、`src/tracker/detection/detectionService.ts`、`src/host/index.js:wf.bind/detect`（`wf.status` 已按 #284 随九格目录视图退役）
 
 ## 对未来新增底层的“限制到人机协作”
 

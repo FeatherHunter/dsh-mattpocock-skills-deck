@@ -318,7 +318,7 @@ export const DswsCtx = React.createContext(null)
 |---|---|---|---|
 | `package.json` + `build.sh` + `build.mjs` | ✅ 已就位 | 同 | T0 完成 |
 | `src/seam/` 6 绑定 + 总装 | ✅ 已就位 | 同 | T0 完成 |
-| `src/shared/parser.js` | ✅ 已就位 | 同 | T1 完成 |
+| `src/tracker/body-parse.ts` | ✅ 已就位 | 同 | T1 完成 |
 | `src/client/kernel/tabsfold.js` | ✅ 已就位 | 同 | T1 完成 |
 | `src/client/kernel/ctx.js` + 顶层 Provider | ✅ 已就位 | 同 | T2 完成 |
 | `src/client/kernel/*` 9 模块 | ✅ 已就位 | 同 | T3 完成 |
