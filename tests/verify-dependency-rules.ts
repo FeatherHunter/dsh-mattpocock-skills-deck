@@ -382,15 +382,35 @@ function selfCheckPurityRules(): void {
   const pure = purityRule('deck-rules-stay-pure')
   const builtins = purityRule('deck-rules-no-node-builtins')
 
+  // 两条规则各查四件事：在不在、是不是 error、管的起点对不对（from.path）、管的终点对不对（to）。
+  // 为什么四条都要查：只查「在不在」与「severity」时，把 from.path 写错（写成 ^src/deck/ 这种更宽的）
+  // 或把终点判据写错，夹具照样全绿，而规则实际上已经不管纯侧了 —— 这正是假门禁的典型形状。
   if (pure && pure.severity === 'error' && pure.from && pure.from.path === '^src/deck/rules/') {
     pass('规则在配置里：deck-rules-stay-pure（error 级，from 是纯规则侧）')
   } else {
-    fail('配置里没有 deck-rules-stay-pure 这条 error 级规则（#1039 的判据被删或改松了）')
+    fail('配置里没有 deck-rules-stay-pure 这条 error 级规则，或它的 from.path 不是纯规则侧（#1039 的判据被删或改松了）')
   }
-  if (builtins && builtins.severity === 'error' && (builtins.to?.dependencyTypes || []).includes('core')) {
-    pass('规则在配置里：deck-rules-no-node-builtins（error 级，管的是内置模块）')
+  if (builtins && builtins.severity === 'error' && builtins.from && builtins.from.path === '^src/deck/rules/') {
+    pass('规则在配置里：deck-rules-no-node-builtins（error 级，from 是纯规则侧）')
   } else {
-    fail('配置里没有 deck-rules-no-node-builtins 这条 error 级规则（#1039 的判据被删或改松了）')
+    fail('配置里没有 deck-rules-no-node-builtins 这条 error 级规则，或它的 from.path 不是纯规则侧（#1039 的判据被删或改松了）')
+  }
+  if (builtins && (builtins.to?.dependencyTypes || []).includes('core')) {
+    pass('终点判据在：deck-rules-no-node-builtins 管的是内置模块这一类依赖（dependencyTypes 里有 core）')
+  } else {
+    fail('deck-rules-no-node-builtins 的 to.dependencyTypes 里没有 core（内置模块这一类判据丢了）')
+  }
+  // 「两条各管一面」这件事要双向查：本配置里一条规则的 to 各条件是「同时满足」，
+  // 谁把两件事合进同一条，就会变成「既要落在这些目录、又要是内置模块」，两边一起漏。
+  if (pure && pure.to && !pure.to.dependencyTypes) {
+    pass('deck-rules-stay-pure 只管目录，不掺内置模块判据（掺了会变成同时满足，两边都漏）')
+  } else {
+    fail('deck-rules-stay-pure 的 to 里掺进了 dependencyTypes：两条判据合成一条会互相抵消，拆回两条')
+  }
+  if (builtins && builtins.to && !builtins.to.path) {
+    pass('deck-rules-no-node-builtins 只管内置模块，不掺目录判据（同上，两条各管一面）')
+  } else {
+    fail('deck-rules-no-node-builtins 的 to 里掺进了 path：两条判据合成一条会互相抵消，拆回两条')
   }
 
   const hostTargets = [
@@ -428,6 +448,29 @@ function selfCheckPurityRules(): void {
 // 真仓库：跑图 → 核豁免 → 判红绿
 // ---------------------------------------------------------------------------
 
+/**
+ * 数一数真图上「内置模块」这一类依赖边有几条。
+ *
+ * 为什么要数：deck-rules-no-node-builtins 的终点判据是 `to.dependencyTypes: ['core']`，
+ * 而 `core` 这个类别名是 dependency-cruiser 给的，不是本仓定的。哪天上游改了名，
+ * 这条规则会**静默地永不命中** —— 配置文本没变、内存夹具照过、真仓库一条违规都没有（看着更绿），
+ * 只有「真图上一条 core 都没有」能说明判据已经废了。所以这一条必须拿真图来判，不能只看配置文本。
+ */
+export function countCoreDependencies(modules: unknown): number {
+  const list = Array.isArray(modules) ? modules : []
+  let n = 0
+  for (const m of list) {
+    const deps = (m && typeof m === 'object' && Array.isArray((m as { dependencies?: unknown }).dependencies))
+      ? (m as { dependencies: unknown[] }).dependencies : []
+    for (const d of deps) {
+      const types = (d && typeof d === 'object' && Array.isArray((d as { dependencyTypes?: unknown }).dependencyTypes))
+        ? (d as { dependencyTypes: unknown[] }).dependencyTypes : []
+      if (types.map(String).includes('core')) n++
+    }
+  }
+  return n
+}
+
 selfCheck()
 if (failed) {
   console.log('\n自检失败 —— 门禁实现没通过内存夹具，先修实现再判仓库')
@@ -441,6 +484,7 @@ const binAbs = join(ROOT, DEPCRUISE_BIN_REL)
 
 let moduleCount = 0
 let dependencyCount = 0
+let coreDependencyCount = 0
 const violations: Violation[] = []
 const ruleSetUsed: Violation['rule'][] = []
 
@@ -474,6 +518,7 @@ if (!existsSync(configAbs)) {
       fail('依赖检查工具的输出不是 JSON：' + String((e as Error).message))
     }
     moduleCount = Array.isArray(parsed.modules) ? parsed.modules.length : 0
+    coreDependencyCount = countCoreDependencies(parsed.modules)
     dependencyCount = Number((parsed.summary && parsed.summary.totalDependenciesCruised) || 0)
     for (const v of (parsed.summary && parsed.summary.violations) || []) violations.push(v)
     for (const r of (parsed.summary && parsed.summary.ruleSetUsed && parsed.summary.ruleSetUsed.forbidden) || []) ruleSetUsed.push(r)
@@ -523,6 +568,14 @@ for (const f of files) {
 const problems = scopeProblems(files, moduleCount)
 for (const p of problems) fail(p)
 if (!problems.length) pass('扫描域成立：' + files.length + ' 个源码文件，图上 ' + moduleCount + ' 个模块、' + dependencyCount + ' 条依赖边')
+
+// 判据的「词汇」还在不在：deck-rules-no-node-builtins 靠 core 这个类别名认内置模块。
+// 这一条查的是真图，不是配置文本 —— 上游改类别名时只有它能报出来。
+if (coreDependencyCount > 0) {
+  pass('图上认得出内置模块这一类依赖（' + coreDependencyCount + ' 条）：deck-rules-no-node-builtins 的判据今天真的能命中')
+} else {
+  fail('真图上一条「内置模块」依赖都没有：deck-rules-no-node-builtins 的 dependencyTypes 判据在当前 dependency-cruiser 上已经命不中了（类别名可能改了），先修判据再谈其它')
+}
 
 const { fresh, tolerated } = classifyViolations(violations, allowed)
 const byRule = new Map<string, number>()

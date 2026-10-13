@@ -16,6 +16,8 @@
 //
 // 三条口径上的约定（改本文件前先读这三条）：
 //   1. 只看 src/host、src/shared、src/seam 三棵树 —— 与两条老门禁的扫描域逐字相同。
+//      src/deck/** 是搬家后的目标树（#1019 起存在），由 tests/verify-dependency-rules.ts 的
+//      OPTIONAL_TREES 一起喂给引擎：它一出现，deck 深引与纯规则侧那几条规则才有判据可判。
 //      src/client/** 不进这个图：那里每个 .ts 旁边都有一份构建生成的同名 .js，
 //      同一个逻辑模块会在图里出现两次（真源一次、产物一次），引用边会重复计数。
 //   2. tsPreCompilationDeps 开着：类型级别的 import（import type）也算一条引用边。
@@ -150,8 +152,9 @@ module.exports = {
     // ── 纯规则侧只许算，不许碰世界（#1039 的 #1108 定版：纯侧不许引宿主能力）──────────────
     // src/deck/rules/ 是「纯规则侧」：只做计算，不取会话、不起进程、不读写文件、不读钟。
     // 这条规矩在 #1038 定版时靠约定与代码评审守；这里把它变成机器判据 —— 引用方向这一面由下面两条守，
-    // 全局调用那一面（Date.now()、process.env 这类没有 import 边的写法）由 tests/verify-1039-rules-pure.js
-    // 的文本扫描守。两层都要有：光有文本扫描漏 import 边，光有依赖图漏全局调用。
+    // 全局调用那一面（Date.now()、Math.random()、fetch() 这类没有 import 边的写法）由
+    // tests/verify-1039-rules-pure.ts 的文本扫描守。两层都要有：光有文本扫描漏 import 边，
+    // 光有依赖图漏全局调用。
     //
     // 为什么拆成两条：本配置里 to 的各个条件之间是「同时满足」（dependency-cruiser 的匹配是 and），
     // 一条规则里既写 path 又写 dependencyTypes，就变成「既要落在这几个目录、又要是内置模块」，

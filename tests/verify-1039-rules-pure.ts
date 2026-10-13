@@ -203,10 +203,15 @@ async function workspaceFile() {
 }
 
 /**
- * 静态扫描：纯侧源码里不许出现读钟、读文件、起进程的写法。
+ * 静态扫描：纯侧源码里不许出现读钟、读文件、起进程、等待、联网这类碰世界的写法。
  * 这一条是「编译期门禁为主、这条为辅」里的辅：依赖图门禁管得住 import 边，
- * 管不住 `Date.now()` 这种全局调用，所以补一条文本扫描（与 AGENTS.md 里
- * 「时钟等待都算碰世界」的严档口径对齐）。
+ * 管不住 `Date.now()` 这种**没有 import 边的全局调用**，所以补一条文本扫描
+ *（与 AGENTS.md 里「时钟等待都算碰世界」的严档口径对齐）。
+ *
+ * 它是**黑名单**，不是证明：只能拦住下面列出的这几种写法，拦不住「换个名字做同一件事」。
+ * 真正的证明有两条路，都还没做，记在后续待办里（#1039 收尾评论的「可改」两条）：
+ * 一是反演成白名单（只许用明确列出的纯全局，别的一律判红），二是上语法树检查。
+ * 读这一条断言时别把它当证明：它挡的是最常见的那几种手滑。
  */
 async function staticPurity() {
   console.log('— 纯侧源码不许碰世界（静态扫描）')
@@ -219,16 +224,22 @@ async function staticPurity() {
     // 注释里会出现这些词（讲清楚为什么不许用），所以先把注释剔掉再扫。
     const code = text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1')
     const hits = [
-      [/Date\.now|new Date\(/, '读钟'],
+      [/Date\.now|new Date\(|performance\.now/, '读钟'],
       [/require\(['"]node:/, '起 Node 能力'],
       [/from\s+['"]node:/, '起 Node 能力'],
-      [/process\.(env|argv|cwd)/, '看环境'],
+      [/process\./, '看环境'],
       [/fs\.(readFile|writeFile|readdir)/, '读写文件'],
       [/child_process/, '起进程'],
+      // 下面四条是「严档」补齐的：它们都不产生 import 边，依赖图门禁看不见，
+      // 而按 #1038 的口径「等待」与「随机」同样算碰世界（同样的输入不再给同样的输出）。
+      [/Math\.random/, '随机'],
+      [/setTimeout|setInterval|setImmediate/, '等待'],
+      [/\bfetch\s*\(/, '联网'],
+      [/globalThis/, '全局对象'],
     ].filter(([re]) => re.test(code)).map(([, label]) => label)
     if (hits.length) bad.push(name + '：' + hits.join('、'))
   }
-  check(bad.length === 0, bad.length ? '纯侧有碰世界的写法：' + bad.join('；') : '九份纯文件里没有读钟、读文件、起进程、看环境的写法')
+  check(bad.length === 0, bad.length ? '纯侧有碰世界的写法：' + bad.join('；') : names.length + ' 份纯文件里没有读钟、读写文件、起进程、等待、随机、联网的写法')
 }
 
 async function main() {

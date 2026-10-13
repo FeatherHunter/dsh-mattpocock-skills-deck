@@ -73,9 +73,9 @@ export interface AnchorParts {
  * 反过来，重排会让「本来同一个锚」变成两个锚、去重失效 —— 排序看着更「整齐」，代价是多建一张票。
  * 「同一批标签换个顺序要不要算同一个锚」属于去重语义，要改得先改契约层（#711）的口径，不在搬家范围内。
  *
- * 形参是一个「已经收好口」的具名对象而不是一长串位置参数：调用处写错顺序编译器不会报，
- * 写成具名对象之后少一个、错一个都当场看得见；`now` 是必填，缺了编译不过 ——
- * 这就是「纯侧不读钟」这条线在类型上的落点。
+ * 形参是具名对象。拆分前它也是具名对象，但类型是 `unknown`、字段全靠运行时自己收口、`now` 可选
+ * 且缺席时内部读一次钟；这次收成有名字的类型（`AnchorParts`），少一个字段、字段类型写错都当场编译不过，
+ * `now` 也改成必填 —— 这就是「纯侧不读钟」这条线在类型上的落点（读钟的兜底搬去了宿主侧门面）。
  */
 export function anchorKeyFor(parts: AnchorParts): string {
   const windowMs = (typeof parts.windowMs === 'number' && parts.windowMs > 0) ? parts.windowMs : ANCHOR_WINDOW_MS
