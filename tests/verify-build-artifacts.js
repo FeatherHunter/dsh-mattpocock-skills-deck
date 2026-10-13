@@ -100,34 +100,143 @@ function collect(dir, base = dir) {
 }
 function sha256(file) { return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex') }
 
-// 4a) package/lib 含 platform/ + tracker/ 全量（排除 lib/client.js 工厂壳）
+// 4a) 三棵新树的镜像校验（#1018 新布局 · #1105 转译感知重写）
+//   旧口径（方案 C 整树原样复制）要求包内与源码逐文件一字节不差，#1018 起构建做的是转译不是复制：
+//   TypeScript 逐文件剥掉类型进包（只换后缀、引用原样保留），手写 JavaScript 才直接复制。
+//   所以这里按“后缀换算、内容按转译结果比”：
+//     · 源码侧只收两类——TypeScript 真源（不含纯类型声明 .d.ts）与没有同名 TypeScript 的手写 JavaScript；
+//       同目录有同名 TypeScript 的 JavaScript 是并排的转译产物（今天只有追踪器契约目录那一份拼接输入），
+//       它是产物不是来源，不进这一节的比对（它的计数归下一节 4b 管）。
+//     · 说明文档（.md）构建不进包，这里直接忽略（构建只收 .js 与 .ts，见 scripts/build.mjs 的复制与投放两步）。
+//     · 包侧只收 JavaScript；宿主树那份工厂壳 package/lib/client.js 由拼闭包那一步单独生成，不在这三对镜像里。
+//   内容分两种比：手写 JavaScript 逐字节一致；TypeScript 按构建同一份转译参数重算一遍再比
+//   （转译参数与文件头都取自构建唯一的 scripts/lib/transpile-unit.mjs，行零依赖门禁同手法，不在这里抄第二遍；
+//    引用改写那几行是构建里“追踪器与工具树指回宿主树时换前缀”的原文拷贝，详见下面的说明）。
+console.log('\n三棵新树镜像校验（后缀换算 + 转译结果比对）')
 {
-  const srcHostFiles = collect(path.resolve('src/host'))
-  const pkgLibFilesAll = collect(path.resolve('package/lib'))
-  const pkgLibFiles = pkgLibFilesAll.filter(f => f !== 'client.js') // 排除工厂壳
-  // src/host 含 .md 但 package 复制含 .md 吗？按方案 C 整树复制，原样含 README.md；此处以 .js + .md 双计
-  const srcSet = new Set(srcHostFiles)
-  const pkgSet = new Set(pkgLibFiles)
-  const onlySrc = srcHostFiles.filter(f => !pkgSet.has(f))
-  const onlyPkg = pkgLibFiles.filter(f => !srcSet.has(f))
-  check(onlySrc.length === 0 && onlyPkg.length === 0, `package/lib 与 src/host 双向差集 0（src=${srcHostFiles.length} pkg=${pkgLibFiles.length}，排除 client.js）`)
-  if (onlySrc.length) console.log('    仅 src 有:', onlySrc.slice(0, 20).join(', '))
-  if (onlyPkg.length) console.log('    仅 pkg 有:', onlyPkg.slice(0, 20).join(', '))
-  // sha256 一一对应
-  let shaOk = true
-  for (const rel of srcHostFiles) {
-    const a = path.resolve('src/host', rel)
-    const b = path.resolve('package/lib', rel)
-    if (!fs.existsSync(b)) { shaOk = false; continue }
-    const ha = sha256(a), hb = sha256(b)
-    if (ha !== hb) { shaOk = false; console.log(`    sha256 不一致: ${rel} src=${ha.slice(0,8)} pkg=${hb.slice(0,8)}`) }
+  const MOVED_PAIRS = [
+    { src: 'src/host', pkg: 'package/lib', excludePkg: ['client.js'] },
+    { src: 'src/deck', pkg: 'package/deck', excludePkg: [] },
+    { src: 'src/tracker', pkg: 'package/tracker', excludePkg: [] },
+  ]
+  // 下面三段引用改写是 scripts/build.mjs 里同名函数的原文拷贝（只读比对用，不写盘）。
+  // 为什么拷贝而不是引用构建：构建脚本一被引用就跑整趟构建（它不是纯模块），而判据必须与构建同口径；
+  // 边界只允许改这一扇门禁，不能把构建拆成可引用模块，所以这里留一份只读拷贝，改引用规则时两处一起改。
+  // 拷贝来源：scripts/build.mjs 的 resolveRelPosix、relativePosix、MOVED_SPEC_RE、rewriteMovedSpecifiers。
+  const resolveRelPosix = (baseDir, spec) => {
+    const parts = baseDir.split('/').filter((p) => p.length > 0)
+    for (const seg of spec.split('/')) {
+      if (seg === '' || seg === '.') continue
+      else if (seg === '..') parts.pop()
+      else parts.push(seg)
+    }
+    return parts.join('/')
   }
-  check(shaOk, 'package/lib 与 src/host 逐文件 sha256 一致')
-  // 校验 40 文件（js 40 + md 2? 按实际 src/host 统计为准，此处校验 pkg 含 platform/ + tracker/ 目录）
+  const relativePosix = (fromDir, toFile) => {
+    const a = fromDir.split('/').filter((p) => p.length > 0)
+    const b = toFile.split('/').filter((p) => p.length > 0)
+    let i = 0
+    while (i < a.length && i < b.length && a[i] === b[i]) i++
+    const rel = [...Array(a.length - i).fill('..'), ...b.slice(i)].join('/')
+    return rel.startsWith('.') ? rel : './' + rel
+  }
+  const MOVED_SPEC_RE = /\bfrom\s*(['"])(\.[^'"]*)\1|import\s*\(\s*(['"])(\.[^'"]*)\3\s*\)/g
+  const rewriteMovedSpecifiers = (code, srcRel, outRel) => {
+    const srcDir = srcRel.slice(0, srcRel.lastIndexOf('/'))
+    const outDir = outRel.slice(0, outRel.lastIndexOf('/'))
+    const next = code.replace(MOVED_SPEC_RE, (whole, q1, spec1, q2, spec2) => {
+      const spec = spec1 !== undefined ? spec1 : spec2
+      const resolved = resolveRelPosix(srcDir, spec)
+      if (!resolved.startsWith('src/host/')) return whole
+      const fixed = relativePosix(outDir, 'package/lib/' + resolved.slice('src/host/'.length))
+      if (fixed === spec) return whole
+      return whole.replace(spec, fixed)
+    })
+    return next
+  }
+
+  let tu = null
+  let esbuild = null
+  try {
+    tu = require(path.resolve('scripts/lib/transpile-unit.mjs'))
+  } catch (e) {
+    check(false, '能加载 scripts/lib/transpile-unit.mjs（转译口径唯一来源，不在这里抄第二遍）：' + ((e && e.message) || e))
+  }
+  try {
+    esbuild = require('esbuild')
+  } catch (e) {
+    check(false, '能加载 esbuild（重算转译结果用，先跑 pnpm install）：' + ((e && e.message) || e))
+  }
+
+  // 按“相对各自根目录”的名字比：源码的 .ts 换成 .js 后，应该与包内的 .js 一一对应。
+  const expectedPkgForSrc = (srcBaseRel) => srcBaseRel.replace(/\.ts$/, '.js')
+  let allPairsOk = true
+  if (tu && esbuild) {
+    for (const pair of MOVED_PAIRS) {
+      const srcAll = collect(path.resolve(pair.src))
+      const pkgAll = collect(path.resolve(pair.pkg)).filter((f) => pair.excludePkg.indexOf(f) < 0)
+      const srcTs = srcAll.filter((f) => f.endsWith('.ts') && !f.endsWith('.d.ts'))
+      const srcJs = srcAll.filter((f) => {
+        if (!f.endsWith('.js')) return false
+        return !fs.existsSync(path.join(path.resolve(pair.src), f.slice(0, -'.js'.length) + '.ts'))
+      })
+      const srcExpected = [...srcTs.map(expectedPkgForSrc), ...srcJs].sort()
+      const pkgJs = pkgAll.filter((f) => f.endsWith('.js')).sort()
+      const srcSet = new Set(srcExpected)
+      const pkgSet = new Set(pkgJs)
+      const onlySrc = srcExpected.filter((f) => !pkgSet.has(f))
+      const onlyPkg = pkgJs.filter((f) => !srcSet.has(f))
+      const pairOk = onlySrc.length === 0 && onlyPkg.length === 0
+      if (!pairOk) allPairsOk = false
+      check(pairOk, `${pair.pkg} 与 ${pair.src} 双向差集 0（源码真源 ${srcTs.length} 份 TypeScript + ${srcJs.length} 份手写 JavaScript，包内 ${pkgJs.length} 份）`)
+      if (onlySrc.length) console.log(`    仅 ${pair.src} 有:`, onlySrc.slice(0, 20).join(', '))
+      if (onlyPkg.length) console.log(`    仅 ${pair.pkg} 有:`, onlyPkg.slice(0, 20).join(', '))
+
+      // 内容：手写 JavaScript 逐字节比；TypeScript 按构建口径重算一遍再比（头 + 转译 + 宿主引用改写）。
+      let contentOk = true
+      for (const rel of srcJs) {
+        const a = path.resolve(pair.src, rel)
+        const b = path.resolve(pair.pkg, rel)
+        if (!fs.existsSync(b)) { contentOk = false; continue }
+        const ha = sha256(a), hb = sha256(b)
+        if (ha !== hb) { contentOk = false; console.log(`    手写复制不一致: ${pair.src}/${rel} src=${ha.slice(0, 8)} pkg=${hb.slice(0, 8)}`) }
+      }
+      for (const rel of srcTs) {
+        const srcRel = pair.src + '/' + rel
+        const pkgRel = pair.pkg + '/' + expectedPkgForSrc(rel)
+        const pkgAbs = path.resolve(pkgRel)
+        if (!fs.existsSync(pkgAbs)) { contentOk = false; continue }
+        let expected = ''
+        try {
+          const source = fs.readFileSync(path.resolve(srcRel), 'utf8')
+          const code = esbuild.transformSync(source, tu.TRANSPILE_OPTIONS).code
+          const normalized = code.replace(/\r\n/g, '\n').replace(/\s+$/, '') + '\n'
+          expected = rewriteMovedSpecifiers(tu.generatedHeader(srcRel) + normalized, srcRel, pkgRel)
+        } catch (e) {
+          contentOk = false
+          console.log(`    重算转译失败 ${srcRel}：` + ((e && e.message) || e).slice(0, 120))
+          continue
+        }
+        const actual = fs.readFileSync(pkgAbs, 'utf8')
+        if (actual !== expected) {
+          contentOk = false
+          const ha = crypto.createHash('sha256').update(expected).digest('hex').slice(0, 8)
+          const hb = crypto.createHash('sha256').update(actual).digest('hex').slice(0, 8)
+          console.log(`    转译结果不一致: ${srcRel} 期望=${ha} 实际=${hb}（构建未同步或包内被手改）`)
+        }
+      }
+      if (!contentOk) allPairsOk = false
+      check(contentOk, `${pair.pkg} 与 ${pair.src} 逐文件内容一致（手写逐字节、TypeScript 按转译结果）`)
+    }
+  }
+  // 包内三棵树的存在性：宿主平台目录仍在包内宿主树下；追踪器与工具树已按 #1018 搬到包内顶层，
+  // 不再是包内宿主树下的子目录（旧断言“包内宿主树下含追踪器目录”已作废）。
   const hasPlatform = fs.existsSync(path.resolve('package/lib/platform')) && fs.existsSync(path.resolve('package/lib/platform/index.js'))
-  const hasTracker = fs.existsSync(path.resolve('package/lib/tracker')) && fs.existsSync(path.resolve('package/lib/tracker/index.js'))
+  const hasTracker = fs.existsSync(path.resolve('package/tracker')) && fs.existsSync(path.resolve('package/tracker/index.js'))
+  const hasDeck = fs.existsSync(path.resolve('package/deck/registration/agent-row.js'))
   check(hasPlatform, 'package/lib 含 platform/ 目录及入口')
-  check(hasTracker, 'package/lib 含 tracker/ 目录及入口')
+  check(hasTracker, 'package/tracker 含追踪器目录及入口（#1018 起追踪器住包内顶层，不在 package/lib 下）')
+  check(hasDeck, 'package/deck 含工具目录及行模块入口（发布清单 ./tools 指到它）')
 }
 // 4b) 四类落点之外没有产物（#1017 换守门对象）
 //   换掉的是什么：这一段原先守「package/shared 与 src/shared 逐字节一致 + 双向差集 0」。
@@ -136,12 +245,18 @@ function sha256(file) { return crypto.createHash('sha256').update(fs.readFileSyn
 //   域目录的双向判据（少一份产物、多一份无源产物、域里没源码）由构建现场核对
 //   （scripts/lib/transpile-domains.mjs 调 checkDomainConsistency）。留下逐字节比对的代价是
 //   每次产物换落点都要跟着改，而它守不到「产物有没有跑到不该去的地方」——那才是出库后的真风险。
-//   Q9 定的新守门对象是「四类之外没有产物」，四类逐类点名：
-//     ① 发布包内两棵产物树：package/lib/**、package/shared/**
+//   Q9 定的新守门对象是「四类之外没有产物」，四类逐类点名（#1018 起第一类由两棵扩成四棵）：
+//     ① 发布包内四棵产物树：package/lib/**（宿主）、package/shared/**（共享域产物）、
+//        package/deck/**（工具）、package/tracker/**（追踪器）；
+//        其中工具与追踪器两棵是 #1018 按源码位置镜像新增的（package/deck 对 src/deck、
+//        package/tracker 对 src/tracker，TypeScript 转成 JavaScript 再进包）。
 //     ② 仓库根两份开发态产物：client.js、host.js
 //     ③ 构建缓存目录：scripts/generated/**（按需存在；已入库两件点名为例外：logKernel.derived.js、
 //        updateClient.derived.js，它们必须入库，因为客户端那份闭包要能离线拼出来）
 //     ④ 子包各自产物目录：packages/*/dist/**
+//   追踪器契约目录旁那份旧 JavaScript 影子文件（src/tracker/contract/vocabulary.js）的去向：
+//   它是词汇表五份真源拼段转译的拼接输入（构建每次重写、不入库），#1026 收拾契约目录时顺手带走，
+//   本票不动它、不删它，只在这里如实记一笔；下面的过渡位计数把它单列为已知项，不算放水。
 //   两条断言：
 //     A. 入库（git ls-files）里一件产物都没有：四类里的 ①②④ 不该被跟踪，src/ 下「有同名 .ts 的 .js」
 //        是转译产物、同样不该被跟踪（③ 里的两件例外是唯一允许入库的产物）。
@@ -154,13 +269,17 @@ function sha256(file) { return crypto.createHash('sha256').update(fs.readFileSyn
 //     · 第一行带 AUTO-GENERATED 头（scripts/lib/transpile-unit.mjs 与 build.mjs 的 pixel-ts 段写的）；
 //     · 或者同名 .ts 就住在旁边（逐文件转译的形状，src/client 那 34 件两处痕迹都有）。
 {
-  const CATEGORY_PREFIXES = ['package/lib/', 'package/shared/', 'scripts/generated/']
+  const CATEGORY_PREFIXES = ['package/lib/', 'package/shared/', 'package/deck/', 'package/tracker/', 'scripts/generated/']
   const CATEGORY_FILES = ['client.js', 'host.js']
   const SUBPKG_DIST_RE = /^packages\/[^/]+\/dist\//
   const IN_GIT_PRODUCT_EXCEPTIONS = ['scripts/generated/logKernel.derived.js', 'scripts/generated/updateClient.derived.js']
   // 2026-10-13 实测 69 件（src/client 34 + src/shared 35）。这是「还没搬家」的存量，不是允许长期存在的额度：
   // 只许降不许升，降到 0 之后这条上限就改成 0。
+  // 另有一件已知影子文件不计在这 69 里：src/tracker/contract/vocabulary.js（上面注释的拼接输入，归 #1026 带走）。
+  // 判据是“去掉已知影子后不超过 69”，而不是把上限改成 70——改成 70 会多出一件空位，
+  // 任何一件新产物混进来都看不出来；单列已知项则新产物一件都藏不住。
   const TRANSITIONAL_PRODUCTS_MAX = 69
+  const KNOWN_SHADOW_OUT_OF_SCOPE = 'src/tracker/contract/vocabulary.js'
   const SKIP_DIRS = new Set(['node_modules', '.git'])
 
   const toPosix = (p) => p.split(path.sep).join('/')
@@ -176,7 +295,7 @@ function sha256(file) { return crypto.createHash('sha256').update(fs.readFileSyn
   const tracked = execSync('git ls-files --cached', { encoding: 'utf8' }).split('\n').map((s) => s.trim()).filter(Boolean)
   const trackedProducts = tracked.filter((rel) => {
     if (IN_GIT_PRODUCT_EXCEPTIONS.includes(rel)) return false
-    if (CATEGORY_FILES.includes(rel) || rel.startsWith('package/lib/') || rel.startsWith('package/shared/') || SUBPKG_DIST_RE.test(rel)) return true
+    if (CATEGORY_FILES.includes(rel) || rel.startsWith('package/lib/') || rel.startsWith('package/shared/') || rel.startsWith('package/deck/') || rel.startsWith('package/tracker/') || SUBPKG_DIST_RE.test(rel)) return true
     if (rel.startsWith('src/') && /\.(js|mjs|cjs)$/.test(rel) && fs.existsSync(twinOf(path.resolve(rel)))) return true
     return false
   })
@@ -205,13 +324,15 @@ function sha256(file) { return crypto.createHash('sha256').update(fs.readFileSyn
   }
   walkAll(process.cwd(), '')
   if (outside.length) console.log('    四类之外、又不在源码树里的产物:\n    ' + outside.join('\n    '))
-  check(outside.length === 0, '四类落点之外没有产物（四类：package/lib、package/shared、根 client.js/host.js、scripts/generated、packages/*/dist）')
-  check(transitional.length <= TRANSITIONAL_PRODUCTS_MAX,
-    `源码树里的过渡产物没有变多（现 ${transitional.length} 件，上限 ${TRANSITIONAL_PRODUCTS_MAX} 件；搬家那条工作线做完后应降到 0）`)
+  check(outside.length === 0, '四类落点之外没有产物（四类：package/lib、package/shared、package/deck、package/tracker、根 client.js/host.js、scripts/generated、packages/*/dist）')
+  const transitionalWithoutKnown = transitional.filter((rel) => rel !== KNOWN_SHADOW_OUT_OF_SCOPE)
+  const knownPresent = transitional.length - transitionalWithoutKnown.length
+  check(transitionalWithoutKnown.length <= TRANSITIONAL_PRODUCTS_MAX,
+    `源码树里的过渡产物没有变多（去掉已知影子 ${KNOWN_SHADOW_OUT_OF_SCOPE} ${knownPresent} 件后现 ${transitionalWithoutKnown.length} 件，上限 ${TRANSITIONAL_PRODUCTS_MAX} 件；搬家那条工作线做完后应降到 0，影子文件由 #1026 带走）`)
   if (transitional.length) {
     const byDir = {}
     for (const rel of transitional) { const k = rel.slice(0, rel.lastIndexOf('/')); byDir[k] = (byDir[k] || 0) + 1 }
-    console.log('    INFO 源码树里还剩 ' + transitional.length + ' 件待搬家的产物：'
+    console.log('    INFO 源码树里还剩 ' + transitional.length + ' 件待搬家的产物（含已知影子 ' + KNOWN_SHADOW_OUT_OF_SCOPE + '）：'
       + Object.entries(byDir).sort().map(([k, v]) => k + ' ' + v + ' 件').join('、'))
   }
 }
@@ -222,9 +343,10 @@ function sha256(file) { return crypto.createHash('sha256').update(fs.readFileSyn
 //   （export default { ... }、export function apply、export const name、export const inject）。
 //   断言对象是产物文本里的写法，构建换个输出形状就变红，按维护者「清掉读文件文本钉形状的门禁」的要求整条去掉。
 // 4f) 动态导入可解析（#545：电话注册了但模块文件缺了，调用才失败；
-// 打包产物里每个相对导入在 package/ 内必须有对应文件，缺一个就红）
+// 打包产物里每个相对导入在 package/ 内必须有对应文件，缺一个就红；
+// #1018 起包内有四棵产物树，审计范围跟着扩到 deck 与 tracker，否则新树漏文件看不见）
 {
-  const roots = [path.resolve('package/lib'), path.resolve('package/shared')]
+  const roots = [path.resolve('package/lib'), path.resolve('package/shared'), path.resolve('package/deck'), path.resolve('package/tracker')]
   const files = []
   const walk = (d) => {
     if (!fs.existsSync(d)) return
@@ -400,13 +522,15 @@ check(domains.length > 0, `扫到 ${domains.length} 个域（${domains.join('、
   }
 }
 
-// 4e) files 白名单：package/package.json files 含 shared
+// 4e) files 白名单：package/package.json files 含四棵产物树（#1018 起 deck 与 tracker 也进包）
 {
   try {
     const pkg = JSON.parse(fs.readFileSync(path.resolve('package/package.json'), 'utf8'))
     const files = Array.isArray(pkg.files) ? pkg.files : []
     check(files.includes('shared'), 'package/package.json files 含 shared')
     check(files.includes('lib'), 'package/package.json files 含 lib')
+    check(files.includes('deck'), 'package/package.json files 含 deck（#1018 起工具树进包）')
+    check(files.includes('tracker'), 'package/package.json files 含 tracker（#1018 起追踪器树进包）')
   } catch (e) {
     check(false, 'package/package.json files 读取失败: ' + e.message)
   }
