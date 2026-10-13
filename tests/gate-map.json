@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-13T20:32:36.724Z",
+  "generatedAt": "2026-10-13T20:39:03.037Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 236,
   "gateCount": 236,
@@ -994,7 +994,7 @@
         "src/shared/refresh/tool-cost.js",
         "src/tracker/detection/backendDecision.ts",
         "src/tracker/registry/core.ts",
-        "src/tracker/registry/registryShape.ts",
+        "src/tracker/registry/shape.ts",
         "src/tracker/rooms/markdown/index.ts",
         "src/tracker/rooms/markdown/write.ts",
         "tests/lib/time-compress.js"
@@ -2739,7 +2739,7 @@
         "src/shared/workspaceKey.js",
         "src/tracker/detection/explicitDetector.ts",
         "src/tracker/registry/core.ts",
-        "src/tracker/registry/registryShape.ts",
+        "src/tracker/registry/shape.ts",
         "src/tracker/rooms/markdown/label-colors.ts",
         "src/tracker/rooms/markdown/path.ts",
         "tests/lib/eval-probe.js"
@@ -6399,7 +6399,7 @@
       "src/tracker/label-names.ts",
       "src/tracker/preflight.ts",
       "src/tracker/registry/core.ts",
-      "src/tracker/registry/registryShape.ts",
+      "src/tracker/registry/shape.ts",
       "src/tracker/registry/views.ts",
       "src/tracker/rooms/README.md",
       "src/tracker/rooms/github/backend.ts",

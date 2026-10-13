@@ -68,7 +68,7 @@ GitHub 房与本地 Markdown 房用 `implements Tracker` 去实现，少一个�
 
 运行时的 JSDoc 真源（`src/host/tracker/contract.js` 与它的三份续篇）已在 #1019 退休，
 值住进了本目录：**本目录就是唯一的真源**，没有第二份手写副本。注册表按本目录的
-`OPERATIONS` 给没实现的后端补「做不到」的桩（`registryShape.js` 的 `unsupportedStub`）。
+`OPERATIONS` 给没实现的后端补「做不到」的桩（`src/tracker/registry/shape.ts` 的 `unsupportedStub`）。
 
 - 改形状或改操作签名 = 改本目录（操作名只改名录一处，类型跟着变）。
 - 本目录不产出任何 `.js` 给构建拼（拼接拼的是构建机生成的

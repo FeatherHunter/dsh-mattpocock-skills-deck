@@ -1,5 +1,5 @@
 /**
- * tracker/preflight.ts — preflight 环境门禁共享辅助 + 失败结果的统一构造
+ * src/tracker/preflight.ts — preflight 环境门禁共享辅助 + 失败结果的统一构造
  *
  * 这里是「前置检查」的通用骨架：约定错误分类与统一错误形状，供各后端 preflight 复用。
  * 第一性原理（#124 定版）：错误分类必须把「环境问题（缺工具/缺文件）」与「资源不存在（404）」

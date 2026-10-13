@@ -12,7 +12,7 @@
  * 分两层的原因：模块对象在**没有工作区、没有登录、什么都不确定**的时候就要存在
  * （界面靠它画「有哪些后端可选」），而 Tracker 需要进程级能力（起进程、文件服务）才能造。
  *
- * ── 注册表只校验五件事（`registryShape.js` 的 `validateMod`） ───────────────────
+ * ── 注册表只校验五件事（`src/tracker/registry/shape.ts` 的 `validateMod`） ───────────────────
  * 模块是对象、`id` 非空、`label` 是字符串、`create` 是函数、`matches` 是函数；
  * 外加 `id !== 'other'`（那个保留串已弃用）。
  * **其余字段全部可选** —— 本文件把两房真实用到的键取并集，可选的标 `?`。
@@ -187,16 +187,29 @@ export interface BackendModule {
   describe?(handle: RepoHandle, backendId: BackendId): RepositoryRef
 
   /**
-   * 一张票在这个后端里的链接。
+   * 给一张票的地址：这张票在这个后端里指向哪里。
    * GitHub 是 `https://github.com/{refId}/issues/{key}`，GitLab 是 `.../-/issues/{key}`，
-   * 本地 Markdown 没有远端链接，给 `''`（诚实空值，不是省略）。
+   * 本地 Markdown 没有远端网址，给票文件的绝对路径（本地路径也是「地址」，不是「网址」）；
+   * 后端没有这个概念时给 `''`（诚实空值，不是省略）。
+   * 名字用「地址」不用「网址」（#1110 实现决定第 14 条）：同一个名字要同时说清网址与本地路径
+   * 两种后端，说成「网址」就把本地那家说成了例外，看名字的人会误判成「只有远端后端才有」。
+   */
+  issueAddress?(ref: RepositoryRef, key: string): string
+
+  /** 按仓库名找仓库的地址；本地后端没有全站搜索页，给 `''`。 */
+  repoSearchAddress?(name: string): string
+
+  /** 在这个后端的文本里认出票引用的写法（可以是源码串，也可以是 RegExp 对象）。 */
+  issueRefPattern?: RegExp | string
+
+  /**
+   * 老名字（`issueUrl` / `searchUrl` / `linkPattern`），保留一轮别名，不做推荐。
+   * 为什么留：客户端与宿主今天都还在读老名字，契约门禁也把这三个键名锁住了；
+   * 退役条件是「客户端与宿主都不再读老名字」（#1110 实现决定第 14 条）。
+   * 读的人先看新名字，没有再看老名字；写的人一轮内两个都写，一轮之后只写新名字。
    */
   issueUrl?(ref: RepositoryRef, key: string): string
-
-  /** 「按仓库名搜索」的链接；本地后端给 `''`。 */
   searchUrl?(name: string): string
-
-  /** 在这个后端的文本里认出票链接的正则（可以是源码串，也可以是 RegExp 对象）。 */
   linkPattern?: RegExp | string
 
   /** 品牌色板（见 `RoomPresentation`）。 */
