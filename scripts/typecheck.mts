@@ -434,7 +434,9 @@ function relPath(abs: string): string {
 }
 
 /** 把结论打印成人能读的报告，返回是否全绿。 */
-function report(facts: Facts, findings: Finding[]): void {
+// 导出是给 tests/verify-typecheck.mts 那层壳用的：挂进 verify 长串时复用同一套判定与同一份输出，
+// 不在壳里复制第二处判据。
+export function report(facts: Facts, findings: Finding[]): void {
   const covered = new Set<string>()
   for (const c of facts.configs) for (const f of c.files) covered.add(f)
   const inSrcCovered = facts.repoScriptsInSrc.filter((f) => covered.has(f)).length
