@@ -1,131 +1,81 @@
-// src/shared/deck-tools/edges.js —— 边的落点判定与逐项证据（#713 第六批）
+// src/deck/shell/edge-landing.ts —— 边的落点判定与逐项证据（宿主侧门面）
 //
-// 这个文件只回答一个问题：**这条关系落在哪里？** 它是票面「每条边在返回里标出落点（原生层级 /
-// 平级链接 / 正文行 / 票文件注释）；做不到如实说」那条硬要求的落地处。
+// 本件在 #1039 拆层后剩四件事：
+//   一、把纯规则侧（src/deck/rules/edge-landing.ts 与 dependency-graph.ts）的判定原样转出去；
+//   二、逐条证据的拼装（edgeEvidence）：把判定结果拼成返回里那一行；
+//   三、真正碰后端的三件事：写父子边并读回、写一组阻塞边并读回、写前读整图做整批成环预检；
+//   四、子票清单的挑选（childrenOf）。
 //
-// 一条铁律：只看证据，不看是哪个后端。工具层里不许出现「后端 id 等于 github 就怎样」这种判断
-//（验收脚本会静态扫描 src/host/tools/** 与 src/shared/deck-tools/**），所以这里的每一档都由
-// 「契约返回的结构字段里有没有、票的正文里有没有那一行」推出来，推不出来就说「说不好」。
+// 为什么判定与读写要分开：判定只看「契约返回的结构字段里有没有、正文里有没有那一行」，
+// 与后端是谁、与怎么调都无关；读写则必须拿到一个活的契约对象。切开以后，
+// 「同一条边在三个后端上分别落到哪里」这件事可以拿假返回直接测（tests/verify-deck-tools-matrix.js），
+// 不必真的连后端。
 //
-// 为什么和 shell.js 分成两个文件：仓库有一个 350 行的单文件上限（tests/verify-file-granularity.js），
-// 而共享层的文件之间不许互相 import（tests/verify-dependency-rules.ts），所以只能拆成两半、
-// 各自自足：规矩（落点、逐项、必备标签）在 edges.js 与 plan.js，机制（会话、过闸、三态信封）在 shell.js。
-function str(v) { return (typeof v === 'string') ? v : '' }
+// 一条铁律没变：只看证据，不看是哪个后端。这一层里不许出现「后端 id 等于 github 就怎样」这种判断；
+// 每一档都由结构字段与正文推出来，推不出来就说「说不好」，绝不默认升成「原生层级」。
+import {
+  bodyRefersTo as bodyRefersToRules,
+  classifyEdgeLanding as classifyEdgeLandingRules,
+  landingOf as landingOfRules,
+  relationsOf as relationsOfRules,
+} from '../rules/edge-landing.js'
+import type { EdgeEvidence } from '../rules/edge-landing.js'
+import { hasCycleInAdj as hasCycleInAdjRules, refuseCyclicBlockBatch } from '../rules/dependency-graph.js'
 
-/** 一条边落到哪里（票面要求每条边在返回里标出落点）。后四个是「说不好」与「做不到」，不假装知道。 */
-export const EDGE_LANDING = Object.freeze({
-  NATIVE_PARENT: '原生层级',
-  NATIVE_BLOCK: '原生依赖边',
-  PEER_LINK: '平级链接',
-  BODY_LINE: '正文行',
-  FILE_NOTE: '票文件注释',
-  CONTRACT_PARENT_FIELD: '契约的父子列（分不出是原生层级还是平级链接，别把它当成原生层级）',
-  CONTRACT_BLOCK_FIELD: '契约的依赖列（分不出是原生边还是正文行）',
-  UNSUPPORTED: '做不到',
-  UNKNOWN: '说不好（这次没读回来，别当它已经建好）',
-})
+export { EDGE_LANDING } from '../rules/edge-landing.js'
+// 类型导出与值导出走的是两条不同的通道：这里把纯侧的三个类型原样转出去，
+// 让工具层既能拿到值也能拿到标注用的类型。
+export type { EdgeEvidence, Relations } from '../rules/edge-landing.js'
 
-/**
- * 落点判定：证据分五档，从最硬到最软：
- *   native      后端把这条关系放进了**它自己的原生结构**里（GitHub 的 sub-issues 层级、原生依赖边）。
- *   peer-link   写进去的是**平级链接**（GitLab 的 relates_to 就是这一档）。
- *   body-line   落在票的**正文**里（本地 Markdown 的 Blocked by 那一行、以及远端后端的兜底写法）。
- *   file-note   落在**票文件的注释/清单**里（本地 Markdown 的单根工作区就是这样表达归属的）。
- *   contract    只知道「契约返回的结构字段里有这条关系」，分不出上面哪一档 —— 这时如实说分不出。
- * 反证方向：把 evidence 里那一档去掉，落点就必须从具体档退到 contract 或说不好，绝不许默认升成原生。
- */
-export function landingOf(op, evidence) {
-  const kind = str((evidence || {}).kind)
-  if (kind === 'unsupported') return EDGE_LANDING.UNSUPPORTED
-  if (kind === 'native') return op === 'block' ? EDGE_LANDING.NATIVE_BLOCK : EDGE_LANDING.NATIVE_PARENT
-  if (kind === 'peer-link') return EDGE_LANDING.PEER_LINK
-  if (kind === 'body-line') return EDGE_LANDING.BODY_LINE
-  if (kind === 'file-note') return EDGE_LANDING.FILE_NOTE
-  if (kind === 'contract') return op === 'block' ? EDGE_LANDING.CONTRACT_BLOCK_FIELD : EDGE_LANDING.CONTRACT_PARENT_FIELD
-  return EDGE_LANDING.UNKNOWN
+/** 落点判定：判定本体在纯侧，这里只是转发（调用方按老路径 import 不用改）。 */
+export const landingOf = landingOfRules
+/** 从票的返回里读出关系所在的字段。 */
+export const relationsOf = relationsOfRules
+/** 正文里有没有指向某张票的引用。 */
+export const bodyRefersTo = bodyRefersToRules
+/** 写完之后读回一次，判这一条边落在哪一列。 */
+export const classifyEdgeLanding = classifyEdgeLandingRules
+/** 依赖图里有没有环（邻接表是「票号 → 它的阻塞方集合」）。 */
+export const hasCycleInAdj = hasCycleInAdjRules
+
+/** 返回里那一行证据的最终形状：判定结果 + 键 + 角色 + 这一条成没成。 */
+export interface EdgeItem {
+  /** 这一次做的是哪种边：父子是 parent、阻塞是 block。 */
+  op?: string
+  /** 这条边指向谁（票号字符串）。 */
+  target?: string
+  /** 落点（见 EDGE_LANDING 的那几档文字）。 */
+  landing?: string
+  /** 取证的原话。 */
+  evidence?: string
+  /** 这一条成没成。 */
+  ok?: boolean
+  /** 这条明细记在哪张票上。 */
+  key?: string
+  /** 这一行的角色：edge 表示它是一条边（不是字段、不是评论）。 */
+  role?: string
+  /** 这一行的结论：ok / failed。 */
+  status?: string
+  /** 其余由调用方补的字段（例如「重复出现的次数」）原样带上。 */
+  [extra: string]: unknown
 }
 
 /** 一条边的证据长什么样（逐条列在返回里，AI 与人都能对账）。 */
-export function edgeEvidence(op, target, evidence, extra) {
-  const ev = evidence || {}
+export function edgeEvidence(op: string, target: unknown, evidence: unknown, extra?: unknown): EdgeItem {
+  const ev = (evidence && typeof evidence === 'object') ? evidence as EdgeEvidence : {}
   return Object.assign({
     op: op,
     target: String(target || ''),
-    landing: landingOf(op, ev),
-    evidence: str(ev.text) || (str(ev.kind) === 'unsupported' ? '后端原话：做不到' : '这次没有拿到能判落点的证据'),
+    landing: landingOfRules(op, ev),
+    evidence: (typeof ev.text === 'string' && ev.text) || (ev.kind === 'unsupported' ? '后端原话：做不到' : '这次没有拿到能判落点的证据'),
     ok: ev.ok !== false,
-  }, extra || {})
-}
-
-/** 从票的返回里读出关系所在的字段（读路径用；只看字段有没有，不看后端是谁）。 */
-export function relationsOf(issue, dependencies) {
-  const i = issue || {}
-  const dep = dependencies || {}
-  const keys = (list) => (Array.isArray(list) ? list.map((r) => (r && typeof r.key === 'string') ? r.key : String(r || '')).filter(Boolean) : [])
-  return {
-    parentKey: (i.parentKey === undefined || i.parentKey === null || i.parentKey === '') ? '' : String(i.parentKey),
-    blockedBy: keys(dep.blockedBy || i.blockedBy),
-    blocking: keys(dep.blocking || i.blocking),
-  }
-}
-
-/**
- * 正文里有没有指向某张票的**引用**（本地 Markdown 的 `Blocked by: #03`、远端后端的兜底写法、
- * 以及把父票备注写进正文的那些写法都长这样）。
- *
- * 只认带标记的引用形态（`#3`、`issues/3`），不认「正文里随便出现一个数字 3」：
- * 建票时正文里会带我们自己的幂等锚（一串带数字的随机串），松判会把锚里的数字当成引用，
- * 于是每一条边都会被误判成「落在正文里」——这条线是拿真实返回试出来的，不要放宽。
- */
-export function bodyRefersTo(body, key) {
-  const text = str(body)
-  const k = str(key).trim()
-  if (!text || !k) return false
-  const esc = k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  try {
-    return new RegExp('(?:#|issues/|/issues/|票\\s*|第\\s*)' + esc + '(?![0-9])').test(text)
-  } catch (e) { return false }
-}
-
-/**
- * 写完之后读回一次，判这一条边落在哪一列。判据只有两样：契约返回的结构字段、票的正文。
- *
- * 阻塞边能判得更细，靠的是一条真实的证据：**这条依赖在不在票的正文里**。
- *   结构字段里有、正文里没有 → 后端把它放在自己的原生边上（GitHub 的 dependencies）；
- *   正文里也有那一行        → 后端是把关系写在正文里的（本地 Markdown，以及远端后端的兜底写法）。
- * 父子边就判不到这么细：「原生层级」与「平级链接」在契约返回里长得一模一样（都归一进 parentKey），
- * 所以这一档只报到「契约的父子列」，绝不硬猜成原生层级 —— 精确的落点由验收脚本按真实后端跑出来的
- * 「同一个动作在三种后端上分别落到哪里」那张对照表回答（tests/verify-deck-tools-matrix.js）。
- */
-export function classifyEdgeLanding(op, target, after) {
-  const a = after || {}
-  const want = str(target)
-  const issueObj = (a.issue !== undefined && a.issue !== null) ? a.issue : null
-  const rel = relationsOf(issueObj || a, a.dependencies)
-  // #829：读回失败时 after.issue 为 null，旧写法 (a.issue && a.issue.body) !== undefined
-  // 在 null 上仍进真分支并读 .body 直接抛错，把“读失败”变成工具崩溃（backend-threw）。
-  // 这里先判空：没读到票正文按空串处理，落点判 unknown，真正的读错误由调用方（deckMapLink）在证据里另带原话。
-  let body = ''
-  try {
-    if (issueObj !== null && typeof issueObj === 'object' && typeof issueObj.body === 'string') body = issueObj.body
-    else if (typeof a.body === 'string') body = a.body
-  } catch { body = '' }
-  const bodyHas = bodyRefersTo(body, want)
-  if (op === 'block') {
-    const inField = rel.blockedBy.indexOf(want) >= 0
-    if (inField && !bodyHas) return { kind: 'native', ok: true, text: '写后读回：结构字段里有这条依赖、正文里没有那一行（后端把它放在自己的原生边上）' }
-    if (inField && bodyHas) return { kind: 'body-line', ok: true, text: '写后读回：结构字段里有这条依赖，正文里也写着指向 #' + want + ' 的一行（这是把关系写进正文的那种落法）' }
-    if (!inField && bodyHas) return { kind: 'body-line', ok: true, text: '写后读回：结构字段里没有这条依赖，正文里有指向 #' + want + ' 的一行 —— 它只落在正文里' }
-    return { kind: 'unknown', ok: true, text: '写后读回：结构字段与正文里都没找到指向 #' + want + ' 的这条依赖' }
-  }
-  if (rel.parentKey === want) return { kind: 'contract', ok: true, text: '写后读回：票的 parentKey = ' + want + '（契约把父子放在这一列，分不出原生层级还是平级链接）' }
-  if (bodyHas) return { kind: 'body-line', ok: true, text: '写后读回：结构字段里没有父子，正文里出现了指向 #' + want + ' 的一行' }
-  return { kind: 'unknown', ok: true, text: '写后读回：结构字段与正文里都没找到这条父子关系' }
+  }, (extra && typeof extra === 'object') ? extra as Record<string, unknown> : {})
 }
 
 /** 后端自己说做不到时，落点那一格照它的原话写，不翻译、不改写。 */
-export function unsupportedEvidence(message) {
-  return { kind: 'unsupported', ok: false, text: '后端原话：' + (str(message) || '这个后端做不到这条操作') }
+export function unsupportedEvidence(message: unknown): EdgeEvidence {
+  const text = (typeof message === 'string') ? message : ''
+  return { kind: 'unsupported', ok: false, text: '后端原话：' + (text || '这个后端做不到这条操作') }
 }
 
 /**
@@ -136,13 +86,51 @@ export function unsupportedEvidence(message) {
  * 所以这里按「行上有没有父子信息」判：带了 parentKey 就照它筛，没带就原样用，并把这件事如实说出来。
  * 宁可让调用方知道这份清单不精确，也不要静默地把它当成精确的。
  */
-export function childrenOf(rows, mapKey) {
+export function childrenOf(rows: unknown, mapKey: unknown): { children: unknown[]; filtered: boolean; note: string } {
   const list = Array.isArray(rows) ? rows : []
-  const anyInfo = list.some((r) => r && r.parentKey !== undefined && r.parentKey !== null && r.parentKey !== '')
+  const anyInfo = list.some((r) => {
+    const row = (r && typeof r === 'object') ? r as { parentKey?: unknown } : {}
+    return row.parentKey !== undefined && row.parentKey !== null && row.parentKey !== ''
+  })
   if (!anyInfo) {
     return { children: list, filtered: false, note: '这个后端的清单接口没带父子信息（它回的是一批票、不是按父票筛过的），下面的子票清单是按原文列的：要精确的子票清单，请逐张用 deck_issue_get 看 parentKey。' }
   }
-  return { children: list.filter((r) => r && String(r.parentKey) === String(mapKey)), filtered: true, note: '' }
+  return {
+    children: list.filter((r) => {
+      const row = (r && typeof r === 'object') ? r as { parentKey?: unknown } : {}
+      return String(row.parentKey) === String(mapKey)
+    }),
+    filtered: true,
+    note: '',
+  }
+}
+
+/** 契约的一行返回：成不成、数据、失败原话。 */
+interface ContractReply {
+  ok?: boolean
+  data?: unknown
+  error?: { message?: unknown } | null
+}
+
+/**
+ * 这一层用到的契约能力：只列真正会调的那几个方法，别的能力（列表、评论、改标签）不在这里。
+ * 为什么自己写一份而不是从契约层 import：契约对 deck 层公开的是运行时常量，没有可导出的类型；
+ * 而写成形参形状以后，验收脚本可以拿假的契约对象直接喂进来测这一层。
+ */
+export interface EdgeContract {
+  setParent(repo: unknown, from: string, to: string, opts: unknown, opCtx: unknown): Promise<ContractReply | null | undefined>
+  setBlockedBy(repo: unknown, from: string, targets: string[], opts: unknown, opCtx: unknown): Promise<ContractReply | null | undefined>
+  get?(repo: unknown, key: string, opts: unknown, opCtx: unknown): Promise<ContractReply | null | undefined>
+  getDependencies?(repo: unknown, key: string, opts: unknown, opCtx: unknown): Promise<ContractReply | null | undefined>
+  list?(repo: unknown, opts: unknown, opCtx: unknown): Promise<ContractReply | null | undefined>
+}
+
+/** 从失败返回里取一句能给人看的原话（超长的截到 200 字，免得把返回撑爆）。 */
+function failureText(reply: ContractReply | null | undefined): string {
+  const r = (reply && typeof reply === 'object') ? reply : {}
+  const err = (r.error && typeof r.error === 'object') ? r.error : {}
+  const msg = (typeof err.message === 'string') ? err.message : ''
+  return String(msg || '后端没给出原因').slice(0, 200)
 }
 
 /**
@@ -150,20 +138,23 @@ export function childrenOf(rows, mapKey) {
  * applied 表示读回来的 parentKey 确实等于目标。
  * 同一张票的父子写必须串行（同时写同一张票会丢一次改动），不同票的可以同时调。
  */
-export async function applyParentEdge(t, repo, opCtx, from, to) {
+export async function applyParentEdge(
+  t: EdgeContract, repo: unknown, opCtx: unknown, from: string, to: unknown,
+): Promise<{ item: EdgeItem; applied: boolean }> {
   const want = String(to)
   const written = await t.setParent(repo, from, want, {}, opCtx)
   if (!written || written.ok !== true) {
-    const ev = unsupportedEvidence(String((written && written.error && written.error.message) || '后端没给出原因').slice(0, 200))
+    const ev = unsupportedEvidence(failureText(written))
     return { item: Object.assign({ key: from, role: 'edge', status: 'failed' }, edgeEvidence('parent', want, ev)), applied: false }
   }
   const back = (t && typeof t.get === 'function') ? await t.get(repo, from, {}, opCtx) : null
   const afterIssue = (back && back.ok === true) ? back.data : null
-  const backError = (back && back.ok !== true && back.error && back.error.message) ? String(back.error.message).slice(0, 200) : ''
-  let ev = classifyEdgeLanding('parent', want, { issue: afterIssue, dependencies: null })
-  const landedKey = (afterIssue && afterIssue.parentKey !== undefined && afterIssue.parentKey !== null) ? String(afterIssue.parentKey) : ''
-  const landedOk = (landedKey === want) || ((ev && ev.kind) === 'body-line')
-  if (!landedOk && ev && ev.kind !== 'unsupported') {
+  const backError = (back && back.ok !== true) ? failureText(back) : ''
+  const issueRow = (afterIssue && typeof afterIssue === 'object') ? afterIssue as { parentKey?: unknown } : {}
+  let ev: EdgeEvidence = classifyEdgeLandingRules('parent', want, { issue: afterIssue, dependencies: null })
+  const landedKey = (issueRow.parentKey !== undefined && issueRow.parentKey !== null) ? String(issueRow.parentKey) : ''
+  const landedOk = (landedKey === want) || (ev.kind === 'body-line')
+  if (!landedOk && ev.kind !== 'unsupported') {
     ev = backError
       ? { kind: 'unknown', ok: false, text: '写后读回失败：读票没成功（后端原话：' + backError + '）；写操作已回成功，边可能已建成但没确认。票的 parentKey 读到的是 ' + (landedKey || '空') + '，要的是 ' + want }
       : { kind: 'unknown', ok: false, text: '写后读回：票的 parentKey = ' + (landedKey || '空') + '，要的是 ' + want + '（这条父子没挂上）' }
@@ -177,77 +168,80 @@ export async function applyParentEdge(t, repo, opCtx, from, to) {
  * items 是逐条明细，applied 是真正落上的目标，landed 是读回来的全集，
  * after 是读回的原文（调用方给重复项补明细用），failed 非空表示写这一步就没成。
  */
-export async function applyBlockEdges(t, repo, opCtx, from, targets, occurrences) {
+export async function applyBlockEdges(
+  t: EdgeContract, repo: unknown, opCtx: unknown, from: string, targets: unknown, occurrences: unknown,
+): Promise<{
+  items: EdgeItem[]
+  applied: string[]
+  landed: string[]
+  after: { issue: unknown; dependencies: unknown }
+  failed: EdgeEvidence | null
+}> {
   const want = (Array.isArray(targets) ? targets : []).map(String)
   const list = (Array.isArray(occurrences) ? occurrences : []).map(String)
   const written = await t.setBlockedBy(repo, from, want, {}, opCtx)
   if (!written || written.ok !== true) {
-    const ev = unsupportedEvidence(String((written && written.error && written.error.message) || '后端没给出原因').slice(0, 200))
-    return { items: list.map((to) => Object.assign({ key: from, role: 'edge', status: 'failed' }, edgeEvidence('block', to, ev))), applied: [], landed: [], after: { issue: null, dependencies: null }, failed: ev }
+    const ev = unsupportedEvidence(failureText(written))
+    return {
+      items: list.map((to) => Object.assign({ key: from, role: 'edge', status: 'failed' }, edgeEvidence('block', to, ev))),
+      applied: [], landed: [], after: { issue: null, dependencies: null }, failed: ev,
+    }
   }
   const back = (t && typeof t.get === 'function') ? await t.get(repo, from, {}, opCtx) : null
   const dep = (t && typeof t.getDependencies === 'function') ? await t.getDependencies(repo, from, {}, opCtx) : null
   const after = { issue: (back && back.ok === true) ? back.data : null, dependencies: (dep && dep.ok === true) ? dep.data : null }
-  const landed = relationsOf(after.issue || {}, after.dependencies).blockedBy
+  const landed = relationsOfRules(after.issue || {}, after.dependencies).blockedBy
   const items = list.map((to) => {
     const hit = landed.indexOf(to) >= 0
-    const ev = hit ? classifyEdgeLanding('block', to, after) : { kind: 'unknown', ok: false, text: '写后读回：这条依赖没出现在票上（要 ' + to + '，读回来 ' + (landed.join('、') || '空') + '）' }
+    const ev: EdgeEvidence = hit ? classifyEdgeLandingRules('block', to, after) : { kind: 'unknown', ok: false, text: '写后读回：这条依赖没出现在票上（要 ' + to + '，读回来 ' + (landed.join('、') || '空') + '）' }
     return Object.assign({ key: from, role: 'edge', status: hit ? 'ok' : 'failed' }, edgeEvidence('block', to, ev))
   })
   return { items: items, applied: list.filter((to) => landed.indexOf(to) >= 0), landed: landed, after: after, failed: null }
 }
 
-/** 一批里有的成、有的没成时，这条总结论是 partial；全成是 ok；全没成是 unsupported。 */
-/** 依赖图里有没有环：邻接表是「票号 → 它的阻塞方集合」，顺着阻塞方走一圈回到自己就是环。
- *  与 github 房 cycle-check.js 的 DFS 同形，写在这里是因为它是一条「边的规矩」，三个后端共用同一份判据。 */
-export function hasCycleInAdj(adj) {
-  const state = new Map()   // 1 = 在栈上，2 = 已走完
-  function walk(node) {
-    const s = state.get(node) || 0
-    if (s === 1) return true
-    if (s === 2) return false
-    state.set(node, 1)
-    const next = adj.get(node)
-    if (next) for (const n of next) { if (walk(n)) return true }
-    state.set(node, 2)
-    return false
-  }
-  for (const node of Array.from(adj.keys())) { if (walk(node)) return true }
-  return false
-}
-
-/** 整批成环预检（#929）：写任何一条边之前，先读一次整图，把这一批要写的阻塞边按实际写出顺序逐条试放，
- *  会让依赖图成环的那一条挑出来（返回 refused：票号 → 原因）。
- *  为什么要整批一起算：「某一条边单独看不成环」不代表安全 —— 缺的那一段可能就是同批另一条边
- *  （两条互不相干的边加上盘上已有的边照样能闭合成环），所以只有把「本批全部意图 + 完整现状」
- *  放在同一张图上才算得出来。读不回整图时不猜：回 ok:false，调用方照旧往下写并在 notes 里如实说一句。 */
-export async function precheckBlockBatch(t, repo, opCtx, keyOrder, mergedBlocked) {
-  let res = null
+/**
+ * 整批成环预检（#929）：写任何一条边之前，先读一次整图，把这一批要写的阻塞边按实际写出顺序
+ * 逐条试放，会让依赖图成环的那一条挑出来（返回 refused：票号 → 原因）。
+ *
+ * 这一层负责「读图」，判定本体在纯侧（src/deck/rules/dependency-graph.ts 的 refuseCyclicBlockBatch）：
+ * 为什么要整批一起算、以及「某一条边单独看不成环」为什么不代表安全，都写在那边。
+ * 读不回整图时不猜：回 ok:false，调用方照旧往下写并在 notes 里如实说一句。
+ */
+export async function precheckBlockBatch(
+  t: EdgeContract, repo: unknown, opCtx: unknown, keyOrder: readonly string[], mergedBlocked: ReadonlyMap<string, readonly string[]>,
+): Promise<{ ok: boolean; refused: Map<string, string> }> {
+  if (typeof t.list !== 'function') return { ok: false, refused: new Map() }
+  let res: ContractReply | null | undefined = null
   try { res = await t.list(repo, {}, opCtx) } catch (e) { return { ok: false, refused: new Map() } }
   if (!res || res.ok !== true || !Array.isArray(res.data)) return { ok: false, refused: new Map() }
-  const adj = new Map()
-  for (const row of res.data) {
-    if (!row || row.key === undefined || row.key === null) continue
-    adj.set(String(row.key), new Set(((row.blockedBy) || []).map((b) => String((b && b.key) || b)).filter(Boolean)))
+  // 盘上已有的图：每一行是「这张票被谁挡着」。行的形状不可信，逐格收口。
+  const graph = new Map<string, string[]>()
+  for (const raw of res.data) {
+    if (!raw || typeof raw !== 'object') continue
+    const row = raw as { key?: unknown; blockedBy?: unknown }
+    if (row.key === undefined || row.key === null) continue
+    const blockers = (Array.isArray(row.blockedBy) ? row.blockedBy : []).map((b) => {
+      if (b && typeof b === 'object' && 'key' in b) return String((b as { key?: unknown }).key || '')
+      return String(b || '')
+    }).filter(Boolean)
+    graph.set(String(row.key), blockers)
   }
-  const refused = new Map()
-  for (const key of keyOrder) {
-    const want = (mergedBlocked.get(key) || []).filter((x) => x && String(x) !== String(key))
-    if (!want.length) continue
-    const before = adj.get(key)
-    adj.set(key, new Set(want))
-    if (hasCycleInAdj(adj)) {
-      if (before === undefined) adj.delete(key); else adj.set(key, before)
-      refused.set(key, '写前整批预检：这一组阻塞边和同一批里其它边合起来会让依赖图成环（要 ' + want.join('、') + '），所以这条边没写。')
-    }
-  }
-  return { ok: true, refused: refused }
+  const verdict = refuseCyclicBlockBatch({ graph: graph, keyOrder: keyOrder, blockedBy: mergedBlocked })
+  return { ok: true, refused: verdict.refused }
 }
 
-export function statusOfItems(items) {
+/** 一批里有的成、有的没成时，这条总结论是 partial；全成是 ok；全没成是 unsupported。 */
+export function statusOfItems(items: unknown): string {
   const list = Array.isArray(items) ? items : []
   if (!list.length) return 'ok'
-  const failed = list.filter((i) => i && i.status !== 'ok').length
+  const failed = list.filter((i) => {
+    const row = (i && typeof i === 'object') ? i as { status?: unknown } : {}
+    return row.status !== 'ok'
+  }).length
   if (failed === 0) return 'ok'
   return failed === list.length ? 'unsupported' : 'partial'
 }
+
+// 类型导出与值导出走的是两条不同的通道：上面已经把 EDGE_LANDING 这个值转出去了，
+// 这里再补一次类型的转发，是为了让工具层写标注时两条都能拿到。
+export type { EdgeEvidence as EdgeEvidenceShape } from '../rules/edge-landing.js'

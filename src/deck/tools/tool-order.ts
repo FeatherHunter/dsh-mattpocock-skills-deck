@@ -1,8 +1,6 @@
-// src/deck/tools/tool-order.ts —— 九个 deck_* 工具的装配顺序（详细语义在 deck_context 的返回值里）
+// src/deck/tools/tool-order.ts —— 九个 deck_* 工具的装配顺序（宿主侧门面）
 //
-// 本文件由 src/shared/deck-tools/plan.js 拆出（地图01 #1019 机械搬家），只挪位置不改行为。
-
-/** 九个工具的装配顺序（描述都很短：详细语义在 deck_context 的返回值里，不进系统提示）。 */
-export const DECK_TOOL_ORDER = Object.freeze([
-  'deck_context', 'deck_issue_get', 'deck_map_snapshot', 'deck_issue_list', 'deck_issue_create', 'deck_map_plan_create', 'deck_map_link', 'deck_issue_patch', 'deck_issue_report',
-])
+// 本件在 #1039 拆层后只剩转发：这份顺序是一串固定文字，不碰宿主，本体已经搬到
+// src/deck/rules/tool-order.ts（装表在那一侧，顺序与装表住同一层才不用跨层取常量）。
+// 保留这条路径的理由同 tool-table 那条：现有 import 不必跟着拆层一起改。
+export { DECK_TOOL_ORDER } from '../rules/tool-order.js'
