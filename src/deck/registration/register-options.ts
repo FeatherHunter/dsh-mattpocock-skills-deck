@@ -30,8 +30,11 @@ function hash8(text: unknown): string {
   return ('0000000' + h.toString(16)).slice(-8)
 }
 
-/** 单次执行允许的最长时间（毫秒）：盖住批量建票在正常网络下的最坏情况；超预算的调用壳里已经提前拦下。数值与位置全冻（#1030 Q4）。 */
-export const AGENT_TOOL_TIMEOUT_MS = 120000
+/** 单次执行允许的最长时间（毫秒）：盖住批量建票在正常网络下的最坏情况；超预算的调用壳里已经提前拦下。
+ *  2026-10-14 由 120000 放宽到 300000（票 #1040）：这一个常量同时管着注册侧的外层上限与行模块的三路等待，
+ *  原先两分钟常在批量建图半路被外层掐死、整包进度作废。它与 src/deck/shell/call-budget.ts 的
+ *  DEFAULT_TOOL_TIMEOUT_MS 必须同值（那边是壳自己看钟用的同一份预算），改一边必须同步另一边。 */
+export const AGENT_TOOL_TIMEOUT_MS = 300000
 
 /** 注册表参数写法里允许的键（超出的一律不透出，宁可缺件也不让注册表报错）。 */
 const ANNOTATION_KEYS = ['description', 'title', 'default', 'examples']

@@ -12,10 +12,13 @@
 // 允许），ctx.memo 缺席时一切照旧——面板与旧调用方不受影响。
 // 日志：不新增事件名、不记新字段（复用宿主壳既有的 host.call 两行）。
 
-/** 单次执行允许的最长时间（毫秒）：与 agent 注册那份同值；改那边时同步改这里。 */
-export const DEFAULT_TOOL_TIMEOUT_MS = 120000
-/** 剩余额度到这条线就停发新调用：留给收尾回包与误差（只大不小，方向安全）。 */
-export const DEFAULT_TOOL_MARGIN_MS = 10000
+/** 单次执行允许的最长时间（毫秒）：与 agent 注册那份 AGENT_TOOL_TIMEOUT_MS 同值，改一边必须同步另一边。
+ *  2026-10-14 由 120000 放宽到 300000（票 #1040）：批量活要发几十次远端调用，两分钟常在半路被外层
+ *  掐死、整包进度作废；放宽后最坏情况多等三分钟，换回来的是整批活能跑完。 */
+export const DEFAULT_TOOL_TIMEOUT_MS = 300000
+/** 剩余额度到这条线就停发新调用：留给收尾回包与误差（只大不小，方向安全）。
+ *  预算从两分钟放到五分钟后，余量跟着从 10 秒放到 15 秒：收尾那几笔（写游标、拼回执）在慢后端上要更宽的边。 */
+export const DEFAULT_TOOL_MARGIN_MS = 15000
 /** 单次远端调用默认钳制（毫秒）：与 github 房单条命令默认同值；改那边时同步改这里。 */
 export const DEFAULT_PER_OP_TIMEOUT_MS = 30000
 
@@ -35,6 +38,25 @@ function canon(v) {
   return JSON.stringify(v)
 }
 function isArr(v) { return Array.isArray(v) }
+
+/** 缺省等待口：可中止的真定时器。到点或收到中止都放行一次；中止时把定时器清掉，不留尾巴。
+ *  单次远端调用的钳制计时走它，测试注入假时钟就能把「钳到点」那条路走通，不必真等 30 秒。 */
+function realSleep(ms, signal) {
+  return new Promise(function (resolve) {
+    let done = false
+    const finish = function () { if (done) return; done = true; resolve() }
+    let timer = null
+    try { timer = setTimeout(finish, ms) } catch (e) {}
+    if (signal && typeof signal.addEventListener === 'function') {
+      try {
+        signal.addEventListener('abort', function () {
+          try { if (timer !== null && typeof clearTimeout === 'function') clearTimeout(timer) } catch (e) {}
+          finish()
+        }, { once: true })
+      } catch (e) {}
+    }
+  })
+}
 
 /** 一次调用的记忆：操作结果缓存 + 票关系名册（后端检查者用来做定向刷新）。 */
 export function createCallMemo() {
@@ -129,6 +151,22 @@ export function rosterDirty(memo, repo, keys) {
   memo.seq += 1
 }
 
+/** 新建成功 → 名册并入新票，并把同一后端的工作区列表缓存整片作废，再把 seq 往前推一格。
+ *  为什么不能照用 rosterDirty：它按「成员里有这张票」删列表缓存，而刚建的票不在任何旧列表里，
+ *  一条也删不到——于是同一次调用里后面再读列表，拿回的是不含新票的旧快照。
+ *  这里与改删同形（seq 前推＝这次调用里后面的读重新走远端），只是删法按整片删。 */
+export function rosterAddCreated(memo, repo, issue) {
+  if (!memo) return ''
+  const k = (issue && issue.key !== undefined && issue.key !== null) ? String(issue.key) : ''
+  if (k) rosterUpsert(memo, issue)
+  const pre = repoIdOf(repo) + '|'
+  for (const sk of Array.from(memo.store.keys())) {
+    if (sk.indexOf('list|' + pre) === 0) memo.store.delete(sk)
+  }
+  memo.seq += 1
+  return k
+}
+
 function timeoutResult() {
   return { ok: false, error: { kind: 'timeout', message: '这一次远端调用在限时内没回来，是否生效说不清：先按返回里说的办法核对现状再续，不要直接重放写操作。' } }
 }
@@ -143,13 +181,15 @@ function budgetResult() {
  * 给一次工具调用包一层执行上下文。
  * c：壳给的调用上下文（tracker / opCtx / now，缺 tracker 则 scope.ok 为假）。
  * exec：工具 run 收到的 exec（只为取调用方取消信号，拿不到就当没有）。
- * opts：{ timeoutMs, marginMs, perOpTimeoutMs, now } 全可选，测试注入小预算就靠它。
+ * opts：{ timeoutMs, marginMs, perOpTimeoutMs, now, sleep } 全可选，测试注入小预算与假时钟就靠它。
  */
 export function withCallScope(c, exec, opts) {
   const o = opts || {}
   const cc = c || {}
   const real = cc.tracker || null
   const nowFn = (typeof o.now === 'function') ? o.now : ((typeof cc.now === 'function') ? cc.now : Date.now)
+  // 等待口：opts 优先、其次是壳给的调用上下文、最后才是真定时器，与 now 的三级回退同款。
+  const sleepFn = (typeof o.sleep === 'function') ? o.sleep : ((typeof cc.sleep === 'function') ? cc.sleep : realSleep)
   const budget = {
     timeoutMs: num(o.timeoutMs, DEFAULT_TOOL_TIMEOUT_MS),
     marginMs: num(o.marginMs, DEFAULT_TOOL_MARGIN_MS),
@@ -177,10 +217,19 @@ export function withCallScope(c, exec, opts) {
       try { callerSignal.addEventListener('abort', onCaller, { once: true }) } catch (e) {}
     }
     let timedOut = false
-    let timer = null
+    let stopWait = null
     try {
-      if (typeof setTimeout === 'function' && ctrl) {
-        timer = setTimeout(function () { timedOut = true; try { ctrl.abort() } catch (e) {} }, clamp)
+      if (ctrl) {
+        // 钳制计时走等待口（缺省真定时器）：到点就标超时并中止这次调用。
+        // 这次调用自己先回来时，用 stopWait 把等待叫停——注入等待口之后不再靠 clearTimeout
+        // 清尾巴，改成发中止信号，语义与原来一致（等不到就不等，不留一个跑到最后才醒的定时器）。
+        const waitCtrl = (typeof AbortController === 'function') ? new AbortController() : null
+        stopWait = function () { try { if (waitCtrl) waitCtrl.abort() } catch (e) {} }
+        Promise.resolve(sleepFn(clamp, waitCtrl ? waitCtrl.signal : undefined)).then(function () {
+          if (stopWait === null) return
+          timedOut = true
+          try { ctrl.abort() } catch (e) {}
+        }, function () {})
       }
       const ctx2 = sig ? Object.assign({}, baseOpCtx, { signal: sig }) : baseOpCtx
       const result = await fn(ctx2)
@@ -192,7 +241,9 @@ export function withCallScope(c, exec, opts) {
       if (sig && sig.aborted) return { ok: false, aborted: true, error: e }
       return { ok: false, error: e }
     } finally {
-      try { if (timer !== null && typeof clearTimeout === 'function') clearTimeout(timer) } catch (e) {}
+      const stop = stopWait
+      stopWait = null
+      try { if (stop) stop() } catch (e) {}
       try { if (callerSignal && onCaller && typeof callerSignal.removeEventListener === 'function') callerSignal.removeEventListener('abort', onCaller) } catch (e) {}
     }
   }
@@ -262,7 +313,7 @@ export function withCallScope(c, exec, opts) {
         void ctx
         if (!real.create) return noTracker()
         const out = mapOpOutcome(await execOp('create', function (c2) { return real.create(repo, input, c2) }))
-        if (out && out.ok === true && out.data && out.data.key !== undefined) rosterUpsert(memo, out.data)
+        if (out && out.ok === true) rosterAddCreated(memo, repo, out.data)
         return out
       },
       setParent: async function (repo, key, parent, f, ctx) {
