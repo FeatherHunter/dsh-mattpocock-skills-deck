@@ -7,15 +7,17 @@
 // 给人读的那一份表在 specs/1106-deck-tool-surface-spec.md —— 那边给人读，这边给机器盯，
 // 说的是同一件事：参数改一个键、回执少一格、点数动一条，这里就红。
 //
-// 三层 + 一条静态扫描，对着票面（#1106）的三张表：
-//   一、参数表：九个定义的形状（参数名与书写顺序、必填、枚举、每个对象节点都显式写 additionalProperties:false）。
-//       参数说明的文案不在这里抄第二份：长度由 tests/verify-deck-tools.js 盯着（≤350 字），
-//       两处关键文案由 tests/verify-deck-thin-reads.js 盯着。
+// 五层 + 一条静态扫描，对着票面（#1106）的三张表：
+//   一、参数表：九个定义的形状（参数名与书写顺序、必填、枚举、每个对象节点都显式写 additionalProperties:false），
+//       连同「模型看到的那几句话」逐字冻住（工具本级一句、每个参数各一句：改一个字就红）。
 //   二、信封表：回执只有两种形状 —— 走到选后端之后的 14 格、还没走到之前的 6 格；三态取值；
 //       失败时的原因码只能是七个之一；失败永远是值不是异常（稀奇古怪的参数形状也回值）；
 //       记账数不上信封。
 //   三、点数表：每一支调用在闸上记多少条、多少点。
 //   四、越界：工具层不许出现直连外面的写法（起进程、联网、读环境、读写文件、动态求值）。
+//   五、缺省与钳制：参数不传时是多少、传过头时收到多少。这两件事在代码里只是两个数字，形状比对看不见，
+//       所以单靠表一抓不住（实测把列票的 50 改成 30、上限 200 改成 500，旧版门禁全绿放行）；
+//       这里挂一个「只记录、不真读」的后端，从外面看工具实际把什么交下去、按哪个数截断。
 //
 // 为什么用真闸 + 真账本 + 真注册表 + 本地 Markdown 房间：记账这件事只有真过一遍闸才看得见。
 // 后端说「做不到」那一支按票面点名的缝来 —— 工具表工厂的依赖参数就是唯一的缝（传一个会说做不到的后端）。
@@ -57,6 +59,25 @@ const FROZEN_SHAPE: Record<string, string> = {
   deck_map_link: 'key:string, parentKey:string, blockedBy:数组<string>, edges:数组<对象(key:string, parentKey:string, blockedBy:数组<string> 必填=[key] 多传=false)>, effortId:string 必填=[] 多传=false',
   deck_issue_patch: 'key:string, comment:string, addLabels:数组<string>, removeLabels:数组<string>, assignees:数组<string>, title:string, body:string, progress:string, close:boolean, effortId:string 必填=[key] 多传=false',
   deck_issue_report: 'key:string, note:string, effortId:string 必填=[key] 多传=false',
+}
+
+/**
+ * 表一之二 · 说明：工具本级那句话 + 每个参数各自那句话，逐字冻着。
+ * 为什么不只冻形状：说明也是模型看到的样子 —— 把「缺省 50」改个说法、把某句删掉、给某个参数补一句，
+ * 模型的选择就可能变，而形状一模一样（实测：改一句参数说明，只有形状比对的那版门禁全绿放行）。
+ * 改说明是允许的（比如为了让模型更好懂而润色），但必须连这里一起改：冻结是为了让改动留痕，不是不让改。
+ * 这份文本由运行时打印后粘贴（一次性小脚本，见提交说明），不手抄 —— 手抄错了会把「改坏」记成「正常」。
+ */
+const FROZEN_DESC: Record<string, string> = {
+  deck_context: "工具=这是 dsh-mattpocock-skills-deck 插件提供的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo。你要创建、查看、更新 ISSUE，查看 map 与 progress 时，先调用 deck_context 一次，确认 workspace 与 backend；如果 repo 里的说法和这里写的不一样，以这里写的为准。如果 deck_context 返回这个 workspace 还没有选 backend，或拿不到 workspace，就说明本插件不适用这个 workspace，直接停下，不再调用其余 deck 开头的工具，后续怎么做由用户决定。；",
+  deck_issue_get: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。读一个 ISSUE 的完整关系：正文、评论、label、assignee 与 parent 和 blockedBy 边，每条边标出落点。blocking=false 跳过反向边全仓扫描（快，见 blocking 参数）。；key=票号，例如 713；comments=最多带回几条评论，缺省 50；section=只回正文里这一节（## 标题子串），缺省回全文前 2000 字；blocking=要不要反向阻塞边（谁被这张票阻塞）。缺省要：读全量关系。关掉只读单票本身，跳过一次全仓扫描，快一个数量级；反向边记空并注记，要就再调一次。；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
+  deck_map_snapshot: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。看一个 map 的全部 child ISSUE、进度统计与五个区块，用来判断 map 做到哪一步。detail=thin 只要薄行不断（见 detail 参数）。；key=地图那张票的票号；frontierOnly=只回可接的子票（未关闭、未认领、阻塞已满足），缺省回全部；detail=子票行要多细。缺省 full：每行带正文进度（回包大，票多时被截断）。thin：只要键、标题、状态、标签、认领、阻塞（回包小、清单不断；统计与进度表照算不变；要正文用 deck_issue_get 逐张取）。；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
+  deck_issue_list: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。按状态、label、assignee 与关键词列出 ISSUE 薄行，不回正文与评论。；state=只列哪种状态，缺省 open；type=只列哪种类型，缺省 all；labels=必须同时带上这些 label（AND），缺省不过滤；assignee=只留认领含此人的行，缺省不过滤；query=标题与正文的子串过滤，缺省不过滤；limit=最多回几行，缺省 50，上限 200；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
+  deck_issue_create: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。建一个 ISSUE（map / task / bug），自动补必备 label 与 progress 区，重复调用按锚复用同一张。；title=票的标题；body=正文；缺省时按种类补最小骨架；kind=票的种类，缺省 task；parentKey=父票（一般是地图那张票）的票号；labels=要带的标签，会在必备标签之外追加；assignees=认领人；idempotencyKey=这一批写的幂等锚，重试时带同一个值；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
+  deck_map_plan_create: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。一次建一整张 map 的骨架（map ISSUE + child ISSUE + 依赖边），带逐项校验与可续跑中间态。；title=地图票的标题；body=地图正文；缺省时自动补五个区块；planId=这次计划的标识；重跑时带同一个值就能接着上次没做完的部分继续；children=要建的子票清单；edges=子票之间的边；from 是计划内的短标识（也可以是地图自己，写 @map）；labels=(没有说明)；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
+  deck_map_link: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。给已存在的 ISSUE 补 parent 或 blockedBy 边，写完读回并逐条标出落点。；key=要改的那张票（子票）；parentKey=要挂到的父票；不传就不动父子；blockedBy=这张票被哪些票阻塞（整批替换）；edges=一次改多张票的边；与 key/parentKey/blockedBy 二选一；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
+  deck_issue_patch: "工具=同属 dsh-mattpocock-skills-deck 插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；动 ISSUE 前先调用 deck_context 确认 workspace 与 backend，若它说没 backend 就停下。改一个 ISSUE：评论、label、assignee、开关、标题正文、progress 区，一次只动点名的那些。；key=要改的那张票；comment=要发的评论正文；addLabels=要加的标签；removeLabels=要摘掉的标签；assignees=认领人（整批替换；给空数组就是取掉认领）；title=新的标题；body=新的正文；progress=只改「## 进度」那一段的内容；close=true 关闭这张票，false 重新打开；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
+  deck_issue_report: "工具=同属插件的 ISSUE 与 map 管理能力，只处理当前 workspace 对应的 repo；先调 deck_context 确认 workspace 与 backend。开始处理、切换或完成一个 ISSUE 时都必须调用：开始前报一次，关闭时再报一次，这条是必选。职责划分：deck_issue_patch 负责变更 issue 内容，deck_issue_report 负责上报处理关系；用前者关闭 issue 不等价于已完成上报。key 填你要上报的 ISSUE 编号；只有本地后端需要填 effortId，填票所在目录名，根目录不填。有没有记上、记在哪里，看返回里的结果。；key=你要上报的那个 ISSUE 的编号；note=可选带一句备注（只回显，不进链）；effortId=只有本地后端需要填，填票所在的目录名，根目录的不填",
 }
 
 /** 表二 · 信封表：两种形状的字段清单，一个不多一个不少。 */
@@ -118,6 +139,28 @@ function typeOf(node: any): string {
   if (t === 'object') return '对象(' + shapeOf(node) + ')'
   if (Array.isArray(node && node.enum)) return '枚举(' + node.enum.join('|') + ')'
   return String(t)
+}
+
+/**
+ * 把一个工具给模型看的话压成一行（表一之二就是拿它比的）：工具本级那句话，接每个参数各自那句话，
+ * 按定义里的书写顺序排（顺序也冻着）。参数没有说明就记「(没有说明)」—— 补上一句也算改动，得有人看一眼。
+ */
+function descOf(def: any): string {
+  const props = (def && def.parameters && def.parameters.properties) || {}
+  const parts = Object.keys(props).map((n) => n + '=' + (typeof props[n].description === 'string' ? props[n].description : '(没有说明)'))
+  return '工具=' + String((def && def.description) || '') + '；' + parts.join('；')
+}
+
+/** 两行摘要第一处不一样的地方，给人看是哪一格变了（不是给人读全文）。 */
+function firstDiff(want: string, got: string): string {
+  const a = want.split('；')
+  const b = got.split('；')
+  const out: string[] = []
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    if (a[i] === b[i]) continue
+    out.push('冻着「' + (a[i] === undefined ? '(没有这一项)' : a[i]) + '」现在「' + (b[i] === undefined ? '(没有这一项)' : b[i]) + '」')
+  }
+  return out.join('；')
 }
 
 /** 一个真实本地 Markdown 工作区（与 tests/verify-deck-tools.js 同一套做法：票就是盘上的 .md）。 */
@@ -196,6 +239,18 @@ async function main() {
     const got = shapeOf(tools[name].definition.parameters)
     const want = FROZEN_SHAPE[name]
     check(got === want, name + ' 的参数形状没动' + (got === want ? '' : '\n        冻着的：' + want + '\n        现在的：' + got))
+  }
+  {
+    // 说明文本也是模型看到的样子：把「缺省 50」改个说法、给某个参数补一句、删掉一句，模型的选择就可能变。
+    // 长度由 tests/verify-deck-tools.js 盯着（≤350 字）、两处关键文案由 tests/verify-deck-thin-reads.js 盯着，
+    // 但「谁把哪句话改了」原来没人盯（实测改一句参数说明是全绿），所以这里逐字冻住。
+    const bad: string[] = []
+    for (const [, , name] of TOOL_FILES) {
+      const got = descOf(tools[name].definition)
+      const want = FROZEN_DESC[name]
+      if (got !== want) bad.push(name + '：' + firstDiff(want, got))
+    }
+    check(bad.length === 0, '九个工具给模型看的话没动过（工具本级一句 + 每个参数各一句）' + (bad.length ? '\n        ' + bad.join('\n        ') : ''))
   }
   {
     // 哪些格子有各自的说明、哪些没有，也是模型看到的样子的一部分，所以一并冻住。
@@ -438,6 +493,67 @@ async function main() {
       ? '工具层有直连外面的写法：' + bad.join('；')
       : '十份文件里没有起进程、联网、走 gh、读环境、旧式取模块、取 Node 能力、读写文件、动态求值的写法；时间只用在票面点名的两种形状上')
     check(sawClock > 0 && sawTimer > 0, '允许形状表在真实文件上确实被走到（时钟缺省 ' + sawClock + ' 处、超时钳制 ' + sawTimer + ' 处），这套判据不是空转')
+  }
+
+  // ── 五、缺省与钳制 ──
+  console.log('— 五、缺省与钳制：不传这个参数时是多少、传过头时收到多少')
+  {
+    // 这两件事在代码里只是两个数字，表一（形状）看不见它们 —— 实测把列票的缺省 50 改成 30、上限 200 改成 500，
+    // 只有形状比对的那版门禁全绿放行。办法是从外面撞：挂一个「只记录、不真读」的后端，
+    // 它把收到的条件记下来，再回一批固定 300 行的清单；于是「回给模型几行」只由工具自己那个数决定，
+    // 不用去读源码里的数字（读源码只是把同一份东西抄第二遍）。
+    const ROWS = Array.from({ length: 300 }, (_, i) => ({ key: 'r' + (i + 1), title: '假行 ' + (i + 1), state: 'open', type: 'issue', labels: [], assignees: [], updatedAt: '', url: '', effortId: '', parentKey: null }))
+    const ONE_ISSUE = { key: '01', title: '假票', state: 'open', type: 'issue', labels: [], assignees: [], body: '正文', comments: [], parentKey: null }
+    const seen: Array<{ call: string, filter?: unknown, opts?: unknown }> = []
+    const recorder = {
+      id: 'record-1106', label: '只记录、不真读的后端', matches: async () => false,
+      create: () => ({
+        id: 'record-1106',
+        async list(_repo: unknown, filter: unknown) { seen.push({ call: 'list', filter: filter }); return { ok: true, data: ROWS } },
+        async get(_repo: unknown, _key: unknown, opts: unknown) { seen.push({ call: 'get', opts: opts }); return { ok: true, data: ONE_ISSUE } },
+        async getDependencies() { seen.push({ call: 'getDependencies' }); return { ok: false, error: { kind: 'unsupported', message: '记录用后端：只记录，不真读' } } },
+      }),
+    }
+    const disposeRec = registry.register(recorder)
+    registry.bind(handle, 'record-1106')
+    const take = () => { const x = seen.slice(); seen.length = 0; return x }
+    const returnedOf = (r: any) => (r && r.data && typeof r.data.returned === 'number') ? r.data.returned : -1
+    try {
+      // 列票：后端每次都回 300 行，回给模型几行只由工具自己那个数决定；顺带看它把什么过滤条件交下去。
+      const listCases: Array<[string, Record<string, unknown>, number, string]> = [
+        ['不传条数（缺省 50）', {}, 50, '{"state":"open"}'],
+        ['传 30', { limit: 30 }, 30, '{"state":"open"}'],
+        ['传 500（超过上限 200）', { limit: 500 }, 200, '{"state":"open"}'],
+        ['传 0（不算数，退缺省 50）', { limit: 0 }, 50, '{"state":"open"}'],
+        ['传 state=all（全选就不往后端送这一格）', { state: 'all' }, 50, '{}'],
+        ['传 type=map（在内存里筛，300 行都是 issue）', { type: 'map' }, 0, '{"state":"open","type":"map"}'],
+      ]
+      for (const [label, args, wantRows, wantFilter] of listCases) {
+        const { r, threw } = await run('deck_issue_list', args)
+        const calls = take()
+        const filter = calls.length ? calls[0].filter : '(没调后端)'
+        const gotRows = returnedOf(r)
+        check(!threw && gotRows === wantRows, '列票 ' + label + '：回 ' + wantRows + ' 行（实得 ' + (threw || gotRows) + '）')
+        check(JSON.stringify(filter) === wantFilter, '列票 ' + label + '：交给后端的过滤条件是 ' + wantFilter + '（实得 ' + JSON.stringify(filter) + '）')
+      }
+      // 读票：评论数交下去是多少；blocking 缺省要不要反向边（要就真去取一次，关掉就整段跳过）。
+      const getCases: Array<[string, Record<string, unknown>, number, boolean]> = [
+        ['不传评论数（缺省 50）、不传 blocking（缺省要反向边）', { key: '01' }, 50, true],
+        ['传评论数 30', { key: '01', comments: 30 }, 30, true],
+        ['传评论数 500（超过上限 200）', { key: '01', comments: 500 }, 200, true],
+        ['传评论数 0（不算数，退缺省 50）', { key: '01', comments: 0 }, 50, true],
+        ['传 blocking=false（跳过反向边）', { key: '01', blocking: false }, 50, false],
+      ]
+      for (const [label, args, wantFirst, wantDep] of getCases) {
+        const { r, threw } = await run('deck_issue_get', args)
+        const calls = take()
+        const getter = calls.filter((x) => x.call === 'get')[0]
+        const first = (getter && getter.opts && (getter.opts as any).comments) ? (getter.opts as any).comments.first : '(没调后端)'
+        const sawDep = calls.some((x) => x.call === 'getDependencies')
+        check(!threw && first === wantFirst, '读票 ' + label + '：要后端的评论数是 ' + wantFirst + '（实得 ' + (threw || first) + '）')
+        check(sawDep === wantDep, '读票 ' + label + '：' + (wantDep ? '会去取反向阻塞边' : '跳过反向阻塞边') + '（实得 ' + (sawDep ? '取了' : '没取') + '）')
+      }
+    } finally { disposeRec.dispose(); registry.bind(handle, 'markdown') }
   }
 
   ws.cleanup()
