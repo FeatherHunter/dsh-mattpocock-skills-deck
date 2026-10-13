@@ -1,9 +1,16 @@
 /**
- * backends/gitlab/index.js — GitLab 后端适配器（主缝实现）。
+ * src/tracker/rooms/gitlab/index.ts — GitLab 后端适配器（主缝实现），本文件是这个房间的 TypeScript 真源。
  *
  * 定版：#135（labels/milestone分流）+ #144 一页纸（数据归一8文件表 + blocking双路径 + preflight + parentKey归一 + 三底座）
  * 严格对照 contract.js 13操作集（OPERATIONS）与 shape.js；按 #113 平台抽象（ctx.platform / ctx.exec / ctx.fs）。
  * 能力诚实：未就绪op由registry Proxy补unsupported桩，此处不再自造布尔capabilities表。
+ *
+ * 2026-10-14 从 index.js 改名成 index.ts（地图 06 的单房票 #1135，先修后转两次提交里的后一次）：
+ * 这一次只改文件名与注释，代码一行没动，转完行为与转之前一致（九条工具回执逐字节一致的门禁把关）。
+ * 下面这些函数的形参今天还没有类型标注，也不该被当成「已经查过」：整棵 src/tracker 的归属配置是
+ * 另一张票（#1095），到那时候再补类型；现在补一半，读的人会误以为这一层已经过类型检查。
+ * 包里的 .js 是构建产物（scripts/build.mjs 把 src/tracker 下的 .ts 逐个转译进 package/tracker），
+ * 不要手改；宿主源码引用本文件时照旧写 './index.js'（开发期由 scripts/ts-hook.mjs 指到本文件）。
  */
 
 import { ERROR_KIND } from '../../contract/vocabulary.js'

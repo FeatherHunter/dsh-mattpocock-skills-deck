@@ -30,7 +30,7 @@ import * as nodeOs from 'node:os'
 import { createRegistry } from '../../../src/tracker/registry/core.ts'
 import { ERROR_KIND } from '../../../src/tracker/contract/vocabulary.ts'
 import { githubModule } from '../../../src/tracker/rooms/github/index.ts'
-import { gitlabBackend } from '../../../src/tracker/rooms/gitlab/index.js'
+import { gitlabBackend } from '../../../src/tracker/rooms/gitlab/index.ts'
 import { markdownModule } from '../../../src/tracker/rooms/markdown/index.ts'
 import { normalizeIssue as ghNormalize } from '../../../src/tracker/rooms/github/normalize.ts'
 import {

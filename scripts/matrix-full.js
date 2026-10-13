@@ -109,7 +109,7 @@ async function main() {
   const backendUrls = {
     github: 'file://' + path.resolve('src/tracker/rooms/github/index.ts').replace(/\\/g,'/'),
     markdown: 'file://' + path.resolve('src/tracker/rooms/markdown/index.ts').replace(/\\/g,'/'),
-    gitlab: 'file://' + path.resolve('src/tracker/rooms/gitlab/index.js').replace(/\\/g,'/'),
+    gitlab: 'file://' + path.resolve('src/tracker/rooms/gitlab/index.ts').replace(/\\/g,'/'),
   }
   const backendModules = {}
   for (const k of Object.keys(backendUrls)) {

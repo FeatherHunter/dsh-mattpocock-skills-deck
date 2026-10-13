@@ -72,7 +72,7 @@ const EXITS = [
   { file: 'src/host/platform/index.js', role: 'not-github', reason: '起的是「打开文件 / 打开文件夹」那条路，不是 GitHub 出站' },
   // #875 薄接线：更新安装器已收进更新包（旧登记两行随文件删除；包内出站由包自带测试覆盖）。
   { file: 'src/tracker/rooms/gitlab/client.js', role: 'not-github', reason: '起的是 glab（另一个后端），不是 GitHub 的出口' },
-  { file: 'src/tracker/rooms/gitlab/index.js', role: 'not-github', reason: '起的是 git（读远端地址），不是 GitHub 出站' },
+  { file: 'src/tracker/rooms/gitlab/index.ts', role: 'not-github', reason: '起的是 git（读远端地址），不是 GitHub 出站' },
   { file: 'src/tracker/rooms/gitlab/preflight.js', role: 'not-github', reason: '起的是 glab（另一个后端的预检），不是 GitHub 的出口' },
 ]
 

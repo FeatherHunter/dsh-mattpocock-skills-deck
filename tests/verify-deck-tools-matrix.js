@@ -93,7 +93,7 @@ async function main() {
   const gateMod = await imp('src/host/refresh/gate.ts')
   const registryMod = await imp('src/tracker/registry/core.ts')
   const githubModule = (await imp('src/tracker/rooms/github/index.ts')).githubModule
-  const gitlabBackend = (await imp('src/tracker/rooms/gitlab/index.js')).gitlabBackend
+  const gitlabBackend = (await imp('src/tracker/rooms/gitlab/index.ts')).gitlabBackend
   const markdownModule = (await imp('src/tracker/rooms/markdown/index.ts')).markdownModule
   const toolCost = await imp('src/shared/refresh/tool-cost.js')
   // 选后端的判定出口（#1003 单出口）。生产装配总是把它递给工具（见 src/deck/registration/host-assemble.ts
