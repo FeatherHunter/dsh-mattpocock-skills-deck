@@ -1,7 +1,7 @@
 // src/host/commentThreads.js —— 单票详情与评论读写及增量探针（H5 #449 从 host/index.js 389–670 搬出电话体，纯结构、行为零变化）。
 // 以后谁改它：改单票详情字段、评论分页读写或增量探针的人。预估约300行，超 350 打回。
 // 接线：由 index.js 动态 import 加载；normCwd 与单票分发前奏经 index 转供给复用（H4 同例），不各留一份拷贝；本文件不引用其他新文件。
-import { idOfParts } from '../tracker/contract/vocabulary.js'
+import { idOfParts } from '../tracker/identity-keys.js'
 export function createCommentThreads(deps) {
   const { normCwd, canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, timer, DEFAULT_CWD, errText, isRateLimitError, getRepoKey, runGh, execProc, fetchIssueDetail, fetchIssueIndex, fetchIssueIndexWindowed, commitIssueIndex, deltaRefresh, issueIndexFromSnapshot, issueIndexChanged, rememberIssueIndex, getCache, setCache, lastIssueIndexByRepo, lastProbeAtByRepo, logCtx } = deps
   // T5 #10 · 评论分页（反向分页 cursor，节流由 client 侧 600ms 控制；单页 50，失败重试与 3 次兜底）

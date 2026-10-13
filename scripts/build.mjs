@@ -553,8 +553,9 @@ const KERNEL_MODULES = [
  *  跟踪与归属文件内复刻的标题小函数改了名前缀，拼回同一个界面闭包时不与标题文件重名。 */
 const SHARED_SPLICE = [
   // effort 维度（2026-09-09）：票身份算法（effortOf / idOf / idOfParts）与常量同住，
-  // #1019 搬家后真源是 src/tracker/contract/vocabulary.ts（与旧 constants.js 同名导出），
-  // 构建先把它逐文件转译成同目录的 vocabulary.js（见下面的 buildVocabularySpliceInput，
+  // #1026 之后真源是五份（常量仍住契约目录，行为已搬出）：常量 canonical-labels.ts 与
+  // vocabulary.ts、票身份 identity-keys.ts、名单派生 label-names.ts、修复拼装 fix-contract.ts；
+  // 构建把五份拼成一段再转译，落到同目录的 vocabulary.js（见下面的 buildVocabularySpliceInput，
   // 与四个计算域同模式：真源 .ts，产物 .js 并排、不入库），这里拼的是那份产物。
   // 面板侧要按 (effort, 编号) 定位，故把这份零依赖叶子一并拼进界面闭包（host 半走 import，同源同文本）。
   { marker: '// ==== shared:trackerConstants (spliced by build) ====', file: 'src/tracker/contract/vocabulary.js' },
@@ -802,10 +803,11 @@ ${PKG_CLIENT_SHIMS}
 // SHARED_SPLICE 第一项），宿主复制整树照搬（含 TypeScript 源码），发布清单指着旧文件。
 // 这一段把三件事补上，源码一律不动（#1018 的边界：只动发布脚本与清单）：
 //
-// 一、词汇表拼接输入：src/tracker/contract/vocabulary.ts 是旧 constants.js 的改名後繼，
-//   导出名逐个相同、零依赖。构建把它转译成同目录的 vocabulary.js（机器生成头、不入库，
-//   忽略规则见根 .gitignore），SHARED_SPLICE 拼这一份。转译与四个计算域同口径（同一份
-//   转译参数，行首导出改写也调同一份实现），拼进闭包的形态与别家一致。
+// 一、词汇表拼接输入：常量（canonical-labels.ts、vocabulary.ts，仍住契约目录）与已搬出的
+//   三份行为（identity-keys.ts、label-names.ts、fix-contract.ts）共五份真源，导出名与旧闭包
+//   逐个相同、合起来零依赖。构建把五份拼成一段再转译，产物写到契约目录的 vocabulary.js
+//   （机器生成头、不入库，忽略规则见根 .gitignore），SHARED_SPLICE 拼这一份。转译与四个
+//   计算域同口径（同一份转译参数，行首导出改写也调同一份实现），拼进闭包的形态与别家一致。
 //
 // 二、新树投放：package/ 按 src/ 的相对位置镜像（package/lib 对 src/host、package/deck
 //   对 src/deck、package/tracker 对 src/tracker；package/shared 对 src/shared 早就是这样），
@@ -882,12 +884,41 @@ function transpileMovedTs(srcRel, { forSplice = false } = {}) {
   return generatedHeader(srcRel) + inlineExportDeclarations(normalized, '[moved-trees]')
 }
 
-/** 词汇表拼接输入就位：转译产物写到真源旁边（并排、不入库），拼接拼这一份。 */
+/** 词汇表拼接输入就位：五份真源拼成一段再转译，产物写到真源旁边（并排、不入库），拼接拼这一份。 */
 function buildVocabularySpliceInput() {
-  const srcRel = 'src/tracker/contract/vocabulary.ts'
+  // 五份的次序即依赖次序：名单派生读数组常量，所以数组常量必须在前；其余四份互相零依赖。
+  const parts = [
+    'src/tracker/contract/canonical-labels.ts',
+    'src/tracker/contract/vocabulary.ts',
+    'src/tracker/identity-keys.ts',
+    'src/tracker/label-names.ts',
+    'src/tracker/fix-contract.ts',
+  ]
+  // label-names.ts 在 Node 侧用相对引用读数组常量；拼成一段后同处一个作用域，这句引用
+  // 必须去掉（esbuild 只剥类型、不解引用，留着它闭包里会多一句指到不存在模块的 import）。
+  // 逐字匹配、找不到当场抛错：改了引用写法的人必须同时改这里，不许静默拼错。
+  const labelNamesImport = `import { CANONICAL_LABELS } from './contract/canonical-labels.js'`
+  const combined = parts.map((srcRel) => {
+    let text = readFileSync(resolve(ROOT, srcRel), 'utf8')
+    if (srcRel.endsWith('/label-names.ts')) {
+      if (!text.includes(labelNamesImport)) {
+        throw new Error(`[moved-trees] ${srcRel} 里找不到预期的引用句，拼接输入拒绝生成：${labelNamesImport}`)
+      }
+      text = text.replace(labelNamesImport, '// （拼接输入：CANONICAL_LABELS 与本段同作用域，引用句已去掉）')
+    }
+    return `// ---- splice part: ${srcRel} ----\n` + text
+  }).join('\n')
+  const require = createRequire(resolve(ROOT, 'package.json'))
+  let esbuild
+  try { esbuild = require('esbuild') }
+  catch (e) { throw new Error('[moved-trees] 没装 esbuild（先跑 pnpm install 再构建）：' + ((e && e.message) || e)) }
+  let code
+  try { code = esbuild.transformSync(combined, { ...TRANSPILE_OPTIONS, loader: 'ts' }).code }
+  catch (e) { throw new Error('[moved-trees] 词汇表五份拼段转译失败：' + ((e && e.message) || e)) }
+  const normalized = code.replace(/\r\n/g, '\n').replace(/\s+$/, '') + '\n'
   const outRel = 'src/tracker/contract/vocabulary.js'
-  writeFileSync(resolve(ROOT, outRel), transpileMovedTs(srcRel, { forSplice: true }), 'utf8')
-  console.log(`[moved-trees] ${srcRel} -> ${outRel}（拼接输入就位）`)
+  writeFileSync(resolve(ROOT, outRel), generatedHeader('vocabulary splice: ' + parts.join(' + ')) + inlineExportDeclarations(normalized, '[moved-trees]'), 'utf8')
+  console.log(`[moved-trees] 词汇表五份拼段 -> ${outRel}（拼接输入就位）`)
 }
 
 /** 按段拼相对路径（源码引用串的算术，不读盘）。 */

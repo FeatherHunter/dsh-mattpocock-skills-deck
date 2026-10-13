@@ -221,7 +221,7 @@ export function createDetectChain(deps) {
             //   检查失败即有修复入口（注入指引/重查），UI 零派生只渲染分发；后端未声明 fixes 则保持默认（重查）。
             if (items.length) {
               try {
-                const fixMod = await import('../tracker/contract/fixContract.js')
+                const fixMod = await import('../tracker/fix-contract.js')
                 const regT = await getTrackerRegistry()
                 const tmods = (regT && typeof regT.modules === 'function') ? regT.modules() : []
                 const tmod = (tmods || []).find(function (m) { return m && String(m.id) === String(backendId) && m.fixes }) || null

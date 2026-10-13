@@ -22,7 +22,8 @@
  *    docs/design/677-issue-pool-completeness-spec.md 第 6 节）。
  */
 
-import { ERROR_KIND, effortOf, idOfParts } from '../../tracker/contract/vocabulary.js'
+import { ERROR_KIND } from '../../tracker/contract/vocabulary.js'
+import { effortOf, idOfParts } from '../../tracker/identity-keys.js'
 import { deriveDeck } from '../../tracker/deck-derive.js'
 import { parseMapBody } from '../../tracker/body-parse.js'
 

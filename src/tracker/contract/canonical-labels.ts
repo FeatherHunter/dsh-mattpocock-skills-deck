@@ -16,10 +16,9 @@ export const CANONICAL_LABELS = [
   { name: 'wayfinder:research', color: '0ea5e9', description: 'Research ticket (wayfinder)' },
   { name: 'wayfinder:task', color: '10b981', description: 'Task ticket (wayfinder)' },
 ]
-export const CANONICAL_LABEL_NAMES = CANONICAL_LABELS.map(function (l) { return l.name })
-export const CANONICAL_LABEL_SET = new Set(CANONICAL_LABEL_NAMES)
-export function isCanonicalLabel(name) { return CANONICAL_LABEL_SET.has(String(name || '').trim()) }
-export function missingCanonicalLabels(existingNames) {
-  const have = new Set((Array.isArray(existingNames) ? existingNames : []).map(function (n) { return String(n || '').trim().toLowerCase() }))
-  return CANONICAL_LABEL_NAMES.filter(function (n) { return !have.has(n.toLowerCase()) })
-}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 由清单现算的东西不住在这里：名单（CANONICAL_LABEL_NAMES）、集合（CANONICAL_LABEL_SET）、
+// `isCanonicalLabel` / `missingCanonicalLabels` 四样是行为，按地图02开发票（#1026）的裁决
+// 已搬到 `src/tracker/label-names.ts`。本文件只留上面的数组（契约自己的数据）。
+// ─────────────────────────────────────────────────────────────────────────────

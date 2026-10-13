@@ -25,6 +25,15 @@
     "types": [],
     "skipLibCheck": true
   },
-  // 只圈契约目录：别的目录还没转过来，圈进来会当场红一片（那是迁移批次的事）。
-  "include": ["src/tracker/contract/**/*.ts"]
+  // 只圈契约目录与三份契约相邻的纯模块：别的目录还没转过来，圈进来会当场红一片（那是迁移批次的事）。
+  // 三份是 #1026 从契约目录搬出来的行为（票身份 identity-keys.ts、名单派生 label-names.ts、
+  // 修复拼装 fix-contract.ts）：它们全标注、严格干净，暂住这份严格配置里，直到迁移批次带来
+  // 整棵 src/tracker 的归属配置；契约门禁的第四项只扫契约目录本身，所以行为文件住在这里
+  // 不会触发「只许类型与数据」那条（那条不管目录外）。
+  "include": [
+    "src/tracker/contract/**/*.ts",
+    "src/tracker/identity-keys.ts",
+    "src/tracker/label-names.ts",
+    "src/tracker/fix-contract.ts"
+  ]
 }

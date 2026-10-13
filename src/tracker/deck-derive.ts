@@ -14,7 +14,8 @@
  * 输入：整个 Snapshot 的 {maps, issues}；deck 以整个 Snapshot 为单位（**按 (effortId, key) 唯一化**；labels 全量并集）。
  */
 
-import { STATE, effortOf, idOfParts } from './contract/vocabulary.js'
+import { STATE } from './contract/vocabulary.js'
+import { effortOf, idOfParts } from './identity-keys.js'
 
 const OPEN = STATE.OPEN
 const CLOSED = STATE.CLOSED
