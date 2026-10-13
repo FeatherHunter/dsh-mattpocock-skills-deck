@@ -213,6 +213,17 @@ export const gitlabBackend = {
     labelReqs: 'setup.gitlab.labelReqs',
   },
   describe,
+  // #1110 实现决定第 14 条：三个链接能力改用与后端无关的名字 —— 票的地址 issueAddress、
+  // 认票的写法 issueRefPattern、按名搜仓库 repoSearchAddress。老名字是网址口吻，而本地 Markdown
+  // 后端给的是票文件的绝对路径，读名字的人会误以为这几个能力只有远端后端才有。
+  // 新名字是主；下面三行老名字是别名，与新名字指到同一个实现（本文件顶上那三个导出函数）。
+  // 注册表取的时候也是新名字优先、老名字兜底（见 src/tracker/registry/views.ts 的 pickFn / pickValue）。
+  // 退役条件是「客户端与宿主都不再读老名字」：到那天连同下面三行别名、契约里的同名成员
+  // （src/tracker/contract/backend-module.ts 的 BackendModule）与三份运行时快照一起删。
+  issueAddress: issueUrl,
+  issueRefPattern: linkPattern,
+  repoSearchAddress: searchUrl,
+  /** 老名字（别名，保留一轮，不做推荐）：issueUrl / searchUrl / linkPattern。 */
   issueUrl,
   searchUrl,
   linkPattern,
