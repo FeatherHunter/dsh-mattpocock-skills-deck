@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-13T17:18:55.762Z",
+  "generatedAt": "2026-10-13T17:33:20.246Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 229,
   "gateCount": 229,
   "attributedGates": 201,
   "unattributedGates": 28,
   "buildOutputOnlyGates": 20,
-  "graphFileCount": 517,
+  "graphFileCount": 519,
   "gates": [
     {
       "step": "node tests/verify-596-rpc-carrier.js",
@@ -1024,7 +1024,7 @@
       "step": "node tests/verify-895-github-memo.js",
       "file": "tests/verify-895-github-memo.js",
       "guards": [
-        "src/deck/shell/call-budget.ts",
+        "src/deck/shell/call-memo.ts",
         "src/tracker/registry/registryCore.ts",
         "src/tracker/rooms/github/index.ts",
         "tests/deck-tools-matrix-transports.js"
@@ -5727,9 +5727,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 525,
+    "fileCount": 527,
     "dirCount": 54,
-    "coveredFileCount": 525,
+    "coveredFileCount": 527,
     "ungatedFileCount": 0,
     "ungatedDirCount": 6,
     "dedicatedDirCount": 48,
@@ -5958,6 +5958,8 @@
       "src/deck/rules/tool-table.ts",
       "src/deck/rules/workspace-file.ts",
       "src/deck/shell/call-budget.ts",
+      "src/deck/shell/call-memo.ts",
+      "src/deck/shell/call-shell-types.ts",
       "src/deck/shell/call-shell.ts",
       "src/deck/shell/edge-landing.ts",
       "src/deck/shell/minimal-spec.ts",

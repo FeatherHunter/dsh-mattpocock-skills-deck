@@ -86,7 +86,7 @@ export function unsupportedEvidence(message: unknown): EdgeEvidence {
  * 所以这里按「行上有没有父子信息」判：带了 parentKey 就照它筛，没带就原样用，并把这件事如实说出来。
  * 宁可让调用方知道这份清单不精确，也不要静默地把它当成精确的。
  */
-export function childrenOf(rows: unknown, mapKey: unknown): { children: unknown[]; filtered: boolean; note: string } {
+export function childrenOf(rows: unknown, mapKey: unknown): { children: Record<string, unknown>[]; filtered: boolean; note: string } {
   const list = Array.isArray(rows) ? rows : []
   const anyInfo = list.some((r) => {
     const row = (r && typeof r === 'object') ? r as { parentKey?: unknown } : {}

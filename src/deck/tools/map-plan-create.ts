@@ -155,7 +155,9 @@ export function createDeckMapPlanCreate(deps?: DeckMapPlanCreateDeps) {
     estimate: d.estimate || estimateToolCost,
     costInputFrom: d.costInputFrom || toolCostInputFrom,
   }))
-  const fallbackStore = createMemoryPlanStore()
+  // 两处游标存储器都写明状态类型：plan-cursor.ts 把「游标里装什么」做成类型参数，
+  // 这里装的就是本文件那份 PlanState（纯类型实参，产物一个字节都不变）。
+  const fallbackStore = createMemoryPlanStore<PlanState>()
   const nowFn = (typeof d.now === 'function') ? d.now : Date.now
 
   /** 工具入口：exec 是宿主给的执行上下文（只读它的 signal 取消信号），args 是 AI 传的参数；回执由壳层包成最终回执。 */
@@ -189,7 +191,7 @@ export function createDeckMapPlanCreate(deps?: DeckMapPlanCreateDeps) {
     let store: PlanStoreLike | null = (d.planStore && typeof (d.planStore as PlanStoreLike).load === 'function') ? (d.planStore as PlanStoreLike) : null
     if (!store) {
       const built = storeIoFrom(d, s.cwd)
-      store = built ? createFilePlanStore({ io: built, dir: built.dir, workspaceKey: s.workspaceKey, now: nowFn }) : fallbackStore
+      store = built ? createFilePlanStore<PlanState>({ io: built, dir: built.dir, workspaceKey: s.workspaceKey, now: nowFn }) : fallbackStore
     }
     // 游标读写加竞速：挂住的文件服务不能卡住整笔建图。读超时按空游标继续——去重权威
     // 从来不是游标，而是幂等锚预检与建票幂等键，只多花几次列表读数，不多出票；写超时吞掉。

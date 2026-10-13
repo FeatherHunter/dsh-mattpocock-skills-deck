@@ -1,4 +1,4 @@
-// src/shared/deck-tools/call-scope.js —— 批量调用的执行上下文（#895）
+// src/deck/shell/call-budget.ts —— 批量调用的执行上下文（#895；#1040 转 TypeScript）
 //
 // 为什么有这个文件：单次工具调用有墙钟上限（agent 注册那份 AGENT_TOOL_TIMEOUT_MS），
 // 而批量活要发几十次远端调用。超限被外层掐死会丢掉全部进度，所以调用自己要会看钟：
@@ -8,9 +8,13 @@
 //   4. 超时与中止的回执永远诚实（生效与否说不清 + 核对指引），不假装成功。
 //
 // 住共享层：宿主工具文件各自 import 它（host → shared 是允许的方向）。
-// 本文件零导入（共享层文件之间不许互引）。后端房间可按需读 ctx.memo（房间 → shared
-// 允许），ctx.memo 缺席时一切照旧——面板与旧调用方不受影响。
+// 记忆那半（读缓存、票关系名册、缓存键）住在同目录的 call-memo.ts，本文件从那里取。
+// 拆开的唯一原因是「单文件 350 行」那条上限（tests/verify-file-granularity.js）：补完类型标注
+// 之后这个文件的有效行数到了 428，越线了。为什么这么拆、键的形状为什么不能改，写在 call-memo.ts 的文件头。
+// 后端房间可按需读 ctx.memo（房间 → 壳是允许的方向），ctx.memo 缺席时一切照旧——面板与旧调用方不受影响。
 // 日志：不新增事件名、不记新字段（复用宿主壳既有的 host.call 两行）。
+
+import { canon, createCallMemo, isArr, repoIdOf, rosterAddCreated, rosterAdoptList, rosterDirty, rosterUpsert, type CallMemo } from './call-memo.js'
 
 /** 单次执行允许的最长时间（毫秒）：与 agent 注册那份 AGENT_TOOL_TIMEOUT_MS 同值，改一边必须同步另一边。
  *  2026-10-14 由 120000 放宽到 300000（票 #1040）：批量活要发几十次远端调用，两分钟常在半路被外层
@@ -23,30 +27,131 @@ export const DEFAULT_TOOL_MARGIN_MS = 15000
 /** 单次远端调用默认钳制（毫秒）：与 github 房单条命令默认同值；改那边时同步改这里。 */
 export const DEFAULT_PER_OP_TIMEOUT_MS = 30000
 
-function num(v, d) { const n = (typeof v === 'number' && isFinite(v)) ? v : NaN; return isNaN(n) ? d : n }
-function repoIdOf(repo) {
-  const r = repo || {}
-  const id = (typeof r.refId === 'string' && r.refId) ? r.refId : ((typeof r.backend === 'string') ? r.backend : '')
-  const ef = (typeof r.effortId === 'string') ? r.effortId : ''
-  return id + (ef ? '#' + ef : '')
+/** 未知形状的入参统一按这张表逐格验，不猜。 */
+type UnknownRecord = Record<string, unknown>;
+
+/**
+ * 取消信号的最小形状：本文件只用它三件事——看 aborted、挂 abort 监听、摘监听。
+ * 为什么不用 DOM 的 AbortSignal 类型：本层是宿主侧代码，将来圈进 tsconfig 时不一定带 DOM 库；
+ * 按形状声明，DOM 环境与测试里的假信号都能满足，行为一字不变。
+ */
+export interface AbortLike {
+  aborted?: boolean;
+  addEventListener?(type: string, listener: () => void, opts?: unknown): unknown;
+  removeEventListener?(type: string, listener: () => void, opts?: unknown): unknown;
 }
-function canon(v) {
-  if (v === null || v === undefined) return 'null'
-  if (Array.isArray(v)) return '[' + v.map(canon).join(',') + ']'
-  if (typeof v === 'object') {
-    return '{' + Object.keys(v).sort().map((k) => JSON.stringify(k) + ':' + canon(v[k])).join(',') + '}'
-  }
-  return JSON.stringify(v)
+
+/** 取消控制器的最小形状（与 AbortLike 配套，同样不依赖 DOM 类型定义）。 */
+export interface AbortControllerLike {
+  signal: AbortLike;
+  abort(): void;
 }
-function isArr(v) { return Array.isArray(v) }
+
+/** 等待口：等到多少毫秒，或收到中止信号就提前放行。缺省是真定时器（realSleep）。 */
+export type SleepFn = (ms: number, signal?: AbortLike | null) => Promise<unknown>;
+
+/** 后端调用回执：成功那支带 data，失败那支带 kind 与给人看的 message；四支（成功/超时/中止/被拒）同形。 */
+export interface OpOutcome {
+  ok: boolean;
+  /**
+   * 后端回执那一格：故意留 any。九个工具按后端原样读它（先 `r.data || {}` 再取字段，共 46 处），
+   * 而契约层还没给这些回执建模（#1108 记着这笔账）。收紧成 unknown 会让那 46 处当场红，
+   * 那些改动属九个工具那一批（#1035 已收口），不属本票边界。
+   */
+  data?: any;
+  error?: { kind?: string; message?: string };
+  timeout?: boolean;
+  aborted?: boolean;
+  refused?: string;
+  [key: string]: unknown;
+}
+
+
+/**
+ * 注入的后端实现：方法可缺（缺哪个就诚实回「没拿到后端实现」或 unsupported），
+ * 参数与返回值形状由后端房间自己保证，本层只负责看钟、钳制、缓存与名册，不看内容。
+ */
+export interface BackendLike {
+  get?(repo: unknown, key: unknown, filter: unknown, ctx: unknown): Promise<unknown>;
+  list?(repo: unknown, filter: unknown, ctx: unknown): Promise<unknown>;
+  getDependencies?(repo: unknown, key: unknown, filter: unknown, ctx: unknown): Promise<unknown>;
+  create?(repo: unknown, input: unknown, ctx: unknown): Promise<unknown>;
+  setParent?(repo: unknown, key: unknown, parent: unknown, filter: unknown, ctx: unknown): Promise<unknown>;
+  setBlockedBy?(repo: unknown, key: unknown, blockers: unknown, filter: unknown, ctx: unknown): Promise<unknown>;
+  preflight?(handle: unknown, ctx: unknown): Promise<unknown>;
+  getRepoPermissions?(repo: unknown, ctx: unknown): Promise<unknown>;
+  close?(repo: unknown, key: unknown, filter: unknown, ctx: unknown): Promise<unknown>;
+  reopen?(repo: unknown, key: unknown, ctx: unknown): Promise<unknown>;
+  comment?(repo: unknown, key: unknown, body: unknown, ctx: unknown): Promise<unknown>;
+  update?(repo: unknown, key: unknown, patch: unknown, ctx: unknown): Promise<unknown>;
+  setLabels?(repo: unknown, key: unknown, labels: unknown, filter: unknown, ctx: unknown): Promise<unknown>;
+  setAssignees?(repo: unknown, key: unknown, assignees: unknown, filter: unknown, ctx: unknown): Promise<unknown>;
+  [method: string]: unknown;
+}
+
+/** 本层包给工具用的后端门面：与注入的后端同名方法，但每次调用都过预算与钳制，回执形状统一。 */
+export interface DeckTrackerLike {
+  get(repo: unknown, key: unknown, f?: unknown, ctx?: unknown): Promise<OpOutcome>;
+  list(repo: unknown, filter?: unknown, ctx?: unknown): Promise<OpOutcome>;
+  getDependencies(repo: unknown, key: unknown, f?: unknown, ctx?: unknown): Promise<OpOutcome>;
+  create(repo: unknown, input?: unknown, ctx?: unknown): Promise<OpOutcome>;
+  setParent(repo: unknown, key: unknown, parent: unknown, f?: unknown, ctx?: unknown): Promise<OpOutcome>;
+  setBlockedBy(repo: unknown, key: unknown, blockers: unknown, f?: unknown, ctx?: unknown): Promise<OpOutcome>;
+  preflight(handle: unknown, ctx?: unknown): Promise<OpOutcome>;
+  getRepoPermissions(repo: unknown, ctx?: unknown): Promise<OpOutcome>;
+  close(repo: unknown, key: unknown, f?: unknown, ctx?: unknown): Promise<OpOutcome>;
+  reopen(repo: unknown, key: unknown, ctx?: unknown): Promise<OpOutcome>;
+  comment(repo: unknown, key: unknown, body: unknown, ctx?: unknown): Promise<OpOutcome>;
+  update(repo: unknown, key: unknown, patch: unknown, ctx?: unknown): Promise<OpOutcome>;
+  setLabels(repo: unknown, key: unknown, labels: unknown, f?: unknown, ctx?: unknown): Promise<OpOutcome>;
+  setAssignees(repo: unknown, key: unknown, assignees: unknown, f?: unknown, ctx?: unknown): Promise<OpOutcome>;
+}
+
+/** 这次调用的预算：总上限、收尾余量、单次钳制与起算时刻。 */
+export interface BudgetInfo {
+  timeoutMs: number;
+  marginMs: number;
+  perOpTimeoutMs: number;
+  startedAt: number;
+}
+
+/** 本层对外交出的执行上下文：工具拿 tracker 调后端，拿 memo 给房间读，拿预算口判断该不该继续。 */
+export interface CallScope {
+  tracker: DeckTrackerLike | null;
+  opCtx: Record<string, unknown>;
+  memo: CallMemo;
+  budget: BudgetInfo;
+  remainingMs(): number;
+  outOfBudget(): boolean;
+  execOp(label: string, fn: (ctx: Record<string, unknown>) => unknown): Promise<OpRecord>;
+  ok: boolean;
+}
+
+/** 本层的入参选项：测试注入小预算与假时钟就靠它，生产一律走缺省。 */
+export interface CallScopeOpts {
+  timeoutMs?: unknown;
+  marginMs?: unknown;
+  perOpTimeoutMs?: unknown;
+  now?: () => number;
+  sleep?: SleepFn;
+}
+
+/** 单次调用的内部记录：成功带回执，失败带是哪一支失败（超时/中止/被拒/抛错）。 */
+type OpRecord =
+  | { ok: true; result: unknown }
+  | { ok: false; timeout?: true; aborted?: true; refused?: string; error?: unknown; result?: unknown };
+
+function num(v: unknown, d: number): number { const n = (typeof v === 'number' && isFinite(v)) ? v : NaN; return isNaN(n) ? d : n }
 
 /** 缺省等待口：可中止的真定时器。到点或收到中止都放行一次；中止时把定时器清掉，不留尾巴。
- *  单次远端调用的钳制计时走它，测试注入假时钟就能把「钳到点」那条路走通，不必真等 30 秒。 */
-function realSleep(ms, signal) {
-  return new Promise(function (resolve) {
+ *  单次远端调用的钳制计时走它，测试注入假时钟就能把「钳到点」那条路走通，不必真等 30 秒。
+ *  为什么必须继续用全局 setTimeout：别的会话（#1052 两房）会把它换成假时钟来压缩等待；
+ *  一旦把 setTimeout 捕获进模块级常量，压缩就失效了。 */
+function realSleep(ms: number, signal?: AbortLike | null): Promise<void> {
+  return new Promise<void>(function (resolve) {
     let done = false
-    const finish = function () { if (done) return; done = true; resolve() }
-    let timer = null
+    const finish = function (): void { if (done) return; done = true; resolve() }
+    let timer: ReturnType<typeof setTimeout> | null = null
     try { timer = setTimeout(finish, ms) } catch (e) {}
     if (signal && typeof signal.addEventListener === 'function') {
       try {
@@ -59,122 +164,20 @@ function realSleep(ms, signal) {
   })
 }
 
-/** 一次调用的记忆：操作结果缓存 + 票关系名册（后端检查者用来做定向刷新）。 */
-export function createCallMemo() {
-  return { seq: 0, store: new Map(), roster: { complete: false, byKey: new Map() }, dirty: new Set() }
-}
-function rowKeysOf(rows) {
-  const out = []
-  const list = isArr(rows) ? rows : []
-  for (const r of list) {
-    if (r && (typeof r.key === 'string' || typeof r.key === 'number')) out.push(String(r.key))
-  }
-  return out
-}
-function blockedKeysOf(issue) {
-  const bb = issue && issue.blockedBy
-  if (!isArr(bb)) return []
-  const out = []
-  for (const b of bb) {
-    const k = String((b && b.key) || b || '')
-    if (k) out.push(k)
-  }
-  return out
-}
-function parentOf(issue) {
-  const p = issue && issue.parentKey
-  return (p === undefined || p === null) ? '' : String(p)
-}
-/** 列表过滤器是否等价于整仓（只有整仓结果才能重建名册；带筛的只做合并）。 */
-export function isFullListFilter(filter) {
-  const f = filter || {}
-  if (f.parentKey !== undefined && f.parentKey !== null && f.parentKey !== '') return false
-  if (Array.isArray(f.keys) && f.keys.length) return false
-  if (typeof f.type === 'string' && f.type && f.type !== 'all') return false
-  if (typeof f.state === 'string' && f.state && f.state !== 'all') return false
-  return true
-}
-/** 列表成功 → 整仓重建名册，带筛只合并（名册完整性位不动，不拿子集当全集）。 */
-export function rosterAdoptList(memo, rows, filter) {
-  if (!memo) return []
-  if (isFullListFilter(filter)) return rosterFromRows(memo, rows)
-  const list = Array.isArray(rows) ? rows : []
-  for (const r of list) { if (r) rosterUpsert(memo, r) }
-  return rowKeysOf(rows)
-}
-/** 整仓列表成功 → 重建名册（dirty 清空：这次读是新鲜的，之前写的都含在里面了）。 */
-export function rosterFromRows(memo, rows) {
-  const byKey = new Map()
-  const list = isArr(rows) ? rows : []
-  for (const r of list) {
-    if (!r) continue
-    byKey.set(String(r.key), { blockedBy: blockedKeysOf(r), parentKey: parentOf(r) })
-  }
-  memo.roster = { complete: true, byKey: byKey }
-  memo.dirty = new Set()
-  return rowKeysOf(rows)
-}
-/** 单票读成功 → 合并进名册并洗掉它的脏标记。 */
-export function rosterUpsert(memo, issue) {
-  if (!issue) return
-  const k = String(issue.key)
-  memo.roster.byKey.set(k, { blockedBy: blockedKeysOf(issue), parentKey: parentOf(issue) })
-  memo.dirty.delete(k)
-}
-/** 后端内部写操作的可选标记：删名册条目并记脏（操作缓存的裁剪由外层 facade 做，这里只动名册）。 */
-export function markDirty(memo, key) {
-  if (!memo) return
-  const k = String(key || '')
-  if (!k) return
-  try { if (memo.roster && memo.roster.byKey instanceof Map) memo.roster.byKey.delete(k) } catch (e) {}
-  try { if (memo.dirty instanceof Set) memo.dirty.add(k) } catch (e) {}
-}
-/** 写操作波及某票 → 删它的读缓存、含它的列表缓存、名册条目，并记脏。
- *  key 必须带仓库前缀（与缓存键同形）：调用方传 repo，由这里拼，避免裸票号对不上。 */
-export function rosterDirty(memo, repo, keys) {
-  const pre = repoIdOf(repo) + '|'
-  const list = isArr(keys) ? keys : []
-  for (const raw of list) {
-    const k = String(raw || '')
-    if (!k) continue
-    memo.dirty.add(k)
-    const drop = []
-    for (const entry of memo.store) {
-      const sk = entry[0]
-      const val = entry[1]
-      if (sk === 'get|' + pre + k || sk === 'deps|' + pre + k) { drop.push(sk); continue }
-      if (sk.indexOf('list|' + pre) === 0 && val && isArr(val.members) && val.members.indexOf(k) >= 0) drop.push(sk)
-    }
-    for (const sk of drop) memo.store.delete(sk)
-    memo.roster.byKey.delete(k)
-    continue
-  }
-  memo.seq += 1
+/** 取一个取消控制器：环境里没有 AbortController 时回 null（此时单次调用没有硬中止，只剩预算拦发）。 */
+function newAbort(): AbortControllerLike | null {
+  const g = globalThis as unknown as { AbortController?: new () => AbortControllerLike }
+  return (typeof g.AbortController === 'function') ? new g.AbortController() : null
 }
 
-/** 新建成功 → 名册并入新票，并把同一后端的工作区列表缓存整片作废，再把 seq 往前推一格。
- *  为什么不能照用 rosterDirty：它按「成员里有这张票」删列表缓存，而刚建的票不在任何旧列表里，
- *  一条也删不到——于是同一次调用里后面再读列表，拿回的是不含新票的旧快照。
- *  这里与改删同形（seq 前推＝这次调用里后面的读重新走远端），只是删法按整片删。 */
-export function rosterAddCreated(memo, repo, issue) {
-  if (!memo) return ''
-  const k = (issue && issue.key !== undefined && issue.key !== null) ? String(issue.key) : ''
-  if (k) rosterUpsert(memo, issue)
-  const pre = repoIdOf(repo) + '|'
-  for (const sk of Array.from(memo.store.keys())) {
-    if (sk.indexOf('list|' + pre) === 0) memo.store.delete(sk)
-  }
-  memo.seq += 1
-  return k
-}
 
-function timeoutResult() {
+function timeoutResult(): OpOutcome {
   return { ok: false, error: { kind: 'timeout', message: '这一次远端调用在限时内没回来，是否生效说不清：先按返回里说的办法核对现状再续，不要直接重放写操作。' } }
 }
-function abortedResult() {
+function abortedResult(): OpOutcome {
   return { ok: false, error: { kind: 'aborted', message: '这次调用被中止了，没做完就是没做：按需重调一次即可。' } }
 }
-function budgetResult() {
+function budgetResult(): OpOutcome {
   return { ok: false, error: { kind: 'over-budget', message: '剩余额度不够再发一次远端调用了，这次没动手：带同样参数重调一次即可接着做。' } }
 }
 
@@ -184,52 +187,57 @@ function budgetResult() {
  * exec：工具 run 收到的 exec（只为取调用方取消信号，拿不到就当没有）。
  * opts：{ timeoutMs, marginMs, perOpTimeoutMs, now, sleep } 全可选，测试注入小预算与假时钟就靠它。
  */
-export function withCallScope(c, exec, opts) {
+export function withCallScope(c: unknown, exec?: unknown, opts?: CallScopeOpts): CallScope {
   const o = opts || {}
-  const cc = c || {}
-  const real = cc.tracker || null
-  const nowFn = (typeof o.now === 'function') ? o.now : ((typeof cc.now === 'function') ? cc.now : Date.now)
+  const cc = (c || {}) as UnknownRecord
+  const real = (cc.tracker || null) as BackendLike | null
+  const nowFn: () => number = (typeof o.now === 'function') ? o.now : ((typeof cc.now === 'function') ? cc.now as () => number : Date.now)
   // 等待口：opts 优先、其次是壳给的调用上下文、最后才是真定时器，与 now 的三级回退同款。
-  const sleepFn = (typeof o.sleep === 'function') ? o.sleep : ((typeof cc.sleep === 'function') ? cc.sleep : realSleep)
-  const budget = {
+  const sleepFn: SleepFn = (typeof o.sleep === 'function') ? o.sleep : ((typeof cc.sleep === 'function') ? cc.sleep as SleepFn : realSleep)
+  const budget: BudgetInfo = {
     timeoutMs: num(o.timeoutMs, DEFAULT_TOOL_TIMEOUT_MS),
     marginMs: num(o.marginMs, DEFAULT_TOOL_MARGIN_MS),
     perOpTimeoutMs: num(o.perOpTimeoutMs, DEFAULT_PER_OP_TIMEOUT_MS),
     startedAt: nowFn(),
   }
-  const callerSignal = (exec && exec.signal && typeof exec.signal === 'object') ? exec.signal : null
+  const execRec = (exec || {}) as UnknownRecord
+  const rawSignal = execRec.signal
+  const callerSignal: AbortLike | null = (rawSignal && typeof rawSignal === 'object') ? rawSignal as AbortLike : null
   const memo = createCallMemo()
-  const baseOpCtx = Object.assign({}, cc.opCtx, { memo: memo })
+  const baseOpCtx: Record<string, unknown> = Object.assign({}, (cc.opCtx || {}) as UnknownRecord)
+  baseOpCtx.memo = memo
   if (callerSignal) baseOpCtx.signal = callerSignal
 
-  function remainingMs() { return Math.max(0, budget.startedAt + budget.timeoutMs - nowFn()) }
-  function outOfBudget() { return remainingMs() <= budget.marginMs }
+  function remainingMs(): number { return Math.max(0, budget.startedAt + budget.timeoutMs - nowFn()) }
+  function outOfBudget(): boolean { return remainingMs() <= budget.marginMs }
 
-  async function execOp(label, fn) {
+  async function execOp(label: string, fn: (ctx: Record<string, unknown>) => unknown): Promise<OpRecord> {
     void label
     if (outOfBudget()) return { ok: false, refused: 'budget' }
     if (callerSignal && callerSignal.aborted === true) return { ok: false, refused: 'aborted' }
     const clamp = Math.min(budget.perOpTimeoutMs, Math.max(1, remainingMs() - budget.marginMs))
-    const ctrl = (typeof AbortController === 'function') ? new AbortController() : null
+    const ctrl = newAbort()
     const sig = ctrl ? ctrl.signal : null
-    let onCaller = null
+    let onCaller: (() => void) | null = null
     if (callerSignal && typeof callerSignal.addEventListener === 'function' && ctrl) {
-      onCaller = function () { try { ctrl.abort() } catch (e) {} }
+      const handle = ctrl
+      onCaller = function () { try { handle.abort() } catch (e) {} }
       try { callerSignal.addEventListener('abort', onCaller, { once: true }) } catch (e) {}
     }
     let timedOut = false
-    let stopWait = null
+    let stopWait: (() => void) | null = null
     try {
       if (ctrl) {
         // 钳制计时走等待口（缺省真定时器）：到点就标超时并中止这次调用。
         // 这次调用自己先回来时，用 stopWait 把等待叫停——注入等待口之后不再靠 clearTimeout
         // 清尾巴，改成发中止信号，语义与原来一致（等不到就不等，不留一个跑到最后才醒的定时器）。
-        const waitCtrl = (typeof AbortController === 'function') ? new AbortController() : null
+        const handle = ctrl
+        const waitCtrl = newAbort()
         stopWait = function () { try { if (waitCtrl) waitCtrl.abort() } catch (e) {} }
         Promise.resolve(sleepFn(clamp, waitCtrl ? waitCtrl.signal : undefined)).then(function () {
           if (stopWait === null) return
           timedOut = true
-          try { ctrl.abort() } catch (e) {}
+          try { handle.abort() } catch (e) {}
         }, function () {})
       }
       const ctx2 = sig ? Object.assign({}, baseOpCtx, { signal: sig }) : baseOpCtx
@@ -249,126 +257,127 @@ export function withCallScope(c, exec, opts) {
     }
   }
 
-  function mapOpOutcome(r) {
-    if (r.ok) return r.result
+  function mapOpOutcome(r: OpRecord): OpOutcome {
+    if (r.ok) return r.result as OpOutcome
     if (r.timeout) return timeoutResult()
     if (r.aborted || r.refused === 'aborted') return abortedResult()
     if (r.refused === 'budget') return budgetResult()
-    return { ok: false, error: { kind: 'backend-threw', message: '这一次远端调用抛错了（已拦下）：' + String((r.error && r.error.message) || r.error || '未知').slice(0, 200) } }
+    const err = (r.error || null) as UnknownRecord | null
+    return { ok: false, error: { kind: 'backend-threw', message: '这一次远端调用抛错了（已拦下）：' + String((err && err.message) || r.error || '未知').slice(0, 200) } }
   }
 
-  function memoGet(kind, key) {
+  function memoGet(kind: string, key: string): OpOutcome | null {
     const e = memo.store.get(kind + '|' + key)
-    return (e && e.seq === memo.seq) ? e.result : null
+    return (e && e.seq === memo.seq) ? (e.result as OpOutcome) : null
   }
-  function memoPut(kind, key, result, members) {
-    memo.store.set(kind + '|' + key, { seq: memo.seq, result: result, members: isArr(members) ? members : null })
+  function memoPut(kind: string, key: string, result: OpOutcome, members?: unknown): void {
+    memo.store.set(kind + '|' + key, { seq: memo.seq, result: result, members: isArr(members) ? members.map(String) : null })
   }
-  function noTracker() {
+  function noTracker(): OpOutcome {
     return { ok: false, error: { kind: 'backend-threw', message: '这次没拿到后端实现，我没往下做。' } }
   }
 
   // 写穿透共用（新增七个操作中的六个写操作）：无记忆缓存，成功只脏该票
   // （与 setParent/setBlockedBy 同形）；超时与中止的回执与现有六个一字同形。
-  async function writeThru(op, repo, key, invoke) {
-    if (!real[op]) return noTracker()
+  async function writeThru(op: string, repo: unknown, key: unknown, invoke: (ctx: Record<string, unknown>) => unknown): Promise<OpOutcome> {
+    if (!real || !real[op]) return noTracker()
     const out = mapOpOutcome(await execOp(op, function (c2) { return invoke(c2) }))
     if (out && out.ok === true) rosterDirty(memo, repo, [String(key)])
     return out
   }
 
-  let tracker = null
+  let tracker: DeckTrackerLike | null = null
   if (real) {
     tracker = {
-      get: async function (repo, key, f, ctx) {
+      get: async function (repo: unknown, key: unknown, f?: unknown, ctx?: unknown): Promise<OpOutcome> {
         void ctx
         const k = repoIdOf(repo) + '|' + String(key)
         const hit = memoGet('get', k)
         if (hit) return hit
-        const out = mapOpOutcome(await execOp('get', function (c2) { return real.get(repo, key, f || {}, c2) }))
+        const out = mapOpOutcome(await execOp('get', function (c2) { return real.get!(repo, key, f || {}, c2) }))
         if (out && out.ok === true && out.data) { memoPut('get', k, out); rosterUpsert(memo, out.data) }
         return out
       },
-      list: async function (repo, filter, ctx) {
+      list: async function (repo: unknown, filter?: unknown, ctx?: unknown): Promise<OpOutcome> {
         void ctx
         const k = repoIdOf(repo) + '|' + canon(filter || {})
         const hit = memoGet('list', k)
         if (hit) return hit
-        const out = mapOpOutcome(await execOp('list', function (c2) { return real.list(repo, filter || {}, c2) }))
+        const out = mapOpOutcome(await execOp('list', function (c2) { return real.list!(repo, filter || {}, c2) }))
         if (out && out.ok === true && isArr(out.data)) memoPut('list', k, out, rosterAdoptList(memo, out.data, filter))
         return out
       },
-      getDependencies: async function (repo, key, f, ctx) {
+      getDependencies: async function (repo: unknown, key: unknown, f?: unknown, ctx?: unknown): Promise<OpOutcome> {
         void ctx
         const k = repoIdOf(repo) + '|' + String(key)
         const hit = memoGet('deps', k)
         if (hit) return hit
-        const out = mapOpOutcome(await execOp('deps', function (c2) { return real.getDependencies(repo, key, f || {}, c2) }))
+        const out = mapOpOutcome(await execOp('deps', function (c2) { return real.getDependencies!(repo, key, f || {}, c2) }))
         if (out && out.ok === true && out.data) {
           memoPut('deps', k, out)
-          rosterUpsert(memo, { key: String(key), blockedBy: out.data.blockedBy })
+          rosterUpsert(memo, { key: String(key), blockedBy: (out.data as UnknownRecord).blockedBy })
         }
         return out
       },
-      create: async function (repo, input, ctx) {
+      create: async function (repo: unknown, input?: unknown, ctx?: unknown): Promise<OpOutcome> {
         void ctx
         if (!real.create) return noTracker()
-        const out = mapOpOutcome(await execOp('create', function (c2) { return real.create(repo, input, c2) }))
+        const out = mapOpOutcome(await execOp('create', function (c2) { return real.create!(repo, input, c2) }))
         if (out && out.ok === true) rosterAddCreated(memo, repo, out.data)
         return out
       },
-      setParent: async function (repo, key, parent, f, ctx) {
+      setParent: async function (repo: unknown, key: unknown, parent: unknown, f?: unknown, ctx?: unknown): Promise<OpOutcome> {
         void ctx
         if (!real.setParent) return noTracker()
-        const out = mapOpOutcome(await execOp('setParent', function (c2) { return real.setParent(repo, key, parent, f || {}, c2) }))
+        const out = mapOpOutcome(await execOp('setParent', function (c2) { return real.setParent!(repo, key, parent, f || {}, c2) }))
         if (out && out.ok === true) rosterDirty(memo, repo, [String(key)])
         return out
       },
-      setBlockedBy: async function (repo, key, blockers, f, ctx) {
+      setBlockedBy: async function (repo: unknown, key: unknown, blockers: unknown, f?: unknown, ctx?: unknown): Promise<OpOutcome> {
         void ctx
         if (!real.setBlockedBy) return noTracker()
-        const out = mapOpOutcome(await execOp('setBlockedBy', function (c2) { return real.setBlockedBy(repo, key, blockers, f || {}, c2) }))
+        const out = mapOpOutcome(await execOp('setBlockedBy', function (c2) { return real.setBlockedBy!(repo, key, blockers, f || {}, c2) }))
         if (out && out.ok === true) rosterDirty(memo, repo, [String(key)])
         return out
       },
       // 以下七个是本次补的钳制与预算口（deck_context/patch/create/report 在此之前直调后端，
-      // 无单次钳制、无剩余额度检查，串行几个慢调用就撞上外层 120 秒被掐）。形状与契约同形：
+      // 无单次钳制、无剩余额度检查，串行几个慢调用就撞上外层两分钟被掐）。形状与契约同形：
       // preflight 不记名册（环境探活次次真问）；六个写操作成功只脏该票，与上面两写同形。
-      preflight: async function (handle, ctx) {
+      preflight: async function (handle: unknown, ctx?: unknown): Promise<OpOutcome> {
         void ctx
         if (!real.preflight) return noTracker()
-        return mapOpOutcome(await execOp('preflight', function (c2) { return real.preflight(handle, c2) }))
+        return mapOpOutcome(await execOp('preflight', function (c2) { return real.preflight!(handle, c2) }))
       },
       // #992：仓库写权限旁路（只读探活一次，次次真问；没有这个方法的后端诚实回未知，
       //   不走 backend-threw —— 缺方法不是执行层失败，调用方按未知处理）。
-      getRepoPermissions: async function (repo, ctx) {
+      getRepoPermissions: async function (repo: unknown, ctx?: unknown): Promise<OpOutcome> {
         void ctx
         if (!real.getRepoPermissions) return { ok: false, error: { kind: 'unsupported', message: '这个后端没有仓库写权限旁路，按未知处理' } }
-        return mapOpOutcome(await execOp('repoPermissions', function (c2) { return real.getRepoPermissions(repo, c2) }))
+        return mapOpOutcome(await execOp('repoPermissions', function (c2) { return real.getRepoPermissions!(repo, c2) }))
       },
-      close: async function (repo, key, f, ctx) {
+      close: async function (repo: unknown, key: unknown, f?: unknown, ctx?: unknown): Promise<OpOutcome> {
         void ctx
-        return writeThru('close', repo, key, function (c2) { return real.close(repo, key, f || {}, c2) })
+        return writeThru('close', repo, key, function (c2) { return real.close!(repo, key, f || {}, c2) })
       },
-      reopen: async function (repo, key, ctx) {
+      reopen: async function (repo: unknown, key: unknown, ctx?: unknown): Promise<OpOutcome> {
         void ctx
-        return writeThru('reopen', repo, key, function (c2) { return real.reopen(repo, key, c2) })
+        return writeThru('reopen', repo, key, function (c2) { return real.reopen!(repo, key, c2) })
       },
-      comment: async function (repo, key, body, ctx) {
+      comment: async function (repo: unknown, key: unknown, body: unknown, ctx?: unknown): Promise<OpOutcome> {
         void ctx
-        return writeThru('comment', repo, key, function (c2) { return real.comment(repo, key, body, c2) })
+        return writeThru('comment', repo, key, function (c2) { return real.comment!(repo, key, body, c2) })
       },
-      update: async function (repo, key, patch, ctx) {
+      update: async function (repo: unknown, key: unknown, patch: unknown, ctx?: unknown): Promise<OpOutcome> {
         void ctx
-        return writeThru('update', repo, key, function (c2) { return real.update(repo, key, patch, c2) })
+        return writeThru('update', repo, key, function (c2) { return real.update!(repo, key, patch, c2) })
       },
-      setLabels: async function (repo, key, labels, f, ctx) {
+      setLabels: async function (repo: unknown, key: unknown, labels: unknown, f?: unknown, ctx?: unknown): Promise<OpOutcome> {
         void ctx
-        return writeThru('setLabels', repo, key, function (c2) { return real.setLabels(repo, key, labels, f || {}, c2) })
+        return writeThru('setLabels', repo, key, function (c2) { return real.setLabels!(repo, key, labels, f || {}, c2) })
       },
-      setAssignees: async function (repo, key, assignees, f, ctx) {
+      setAssignees: async function (repo: unknown, key: unknown, assignees: unknown, f?: unknown, ctx?: unknown): Promise<OpOutcome> {
         void ctx
-        return writeThru('setAssignees', repo, key, function (c2) { return real.setAssignees(repo, key, assignees, f || {}, c2) })
+        return writeThru('setAssignees', repo, key, function (c2) { return real.setAssignees!(repo, key, assignees, f || {}, c2) })
       },
     }
   }

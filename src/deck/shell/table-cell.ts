@@ -1,4 +1,4 @@
-// src/shared/deck-tools/exec-cell.js —— 宿主那张表在同一进程里的共享格（#758）
+// src/deck/shell/table-cell.ts —— 宿主那张表在同一进程里的共享格（#758；#1040 转 TypeScript）
 //
 // 只讲一件事：行与宿主跑在同一个进程里（同一份组合、同一份工具注册表，
 // 预设行经作用域读全局层，见上游 web-app 组合注释），所以宿主装好的那张表
@@ -12,28 +12,57 @@
 // 另附一小段闸口径迹：壳把每次裁决的机器码（阶段、结论、原因枚举）记在这里，
 // 探针读走，线上卡在哪一段一眼可见。正文与路径一律不记。
 
-const cell = {
+/** 格子的三种状态：宿主还没放、放了还没装好、装好了。 */
+type CellState = 'empty' | 'pending' | 'ready';
+
+/** 别人递进来的「装表承诺」只按形状验：有 then 函数即可，不要求真是 Promise 实例。 */
+interface Thenable {
+  then(onOk: () => void, onErr: () => void): unknown;
+}
+
+/** 一格裁决口径迹：三段都是机器码，白名单外的词一律归一成空串。 */
+interface GateNote {
+  phase: string;
+  verdict: string;
+  reason: string;
+}
+
+/** 等表装好时可注入的等待口（测试换假时钟用）。 */
+export interface DeckTableWaitOpts {
+  sleep?: (ms: number) => Promise<unknown>;
+}
+
+const cell: { state: CellState; promise: unknown; hostPid: number } = {
   state: 'empty',
   promise: null,
   hostPid: 0,
 }
 
-function pidNow() {
+/**
+ * 取当前进程号：Node 有 process.pid，其它环境（浏览器壳、测试沙箱）没有——一律回 0。
+ * 为什么不直接写 process.pid：#1040 把本层圈进严格类型检查，而本层不装 @types/node，
+ * 直接写 process 会被判「找不到名字」；从 globalThis 上按形状取，两种环境都不报错，
+ * 判定条件与原来的 typeof process !== 'undefined' && typeof process.pid === 'number' 一致。
+ */
+function pidNow(): number {
   try {
-    if (typeof process !== 'undefined' && process !== null && typeof process.pid === 'number') return process.pid
+    const g = globalThis as unknown as { process?: { pid?: unknown } }
+    const p = g.process
+    if (p && typeof p.pid === 'number') return p.pid
   } catch (e) {}
   return 0
 }
 
 /** 宿主接线装表时调一次：把装表那份承诺放进来（重复调只留第一次）。 */
-export function publishDeckTable(tableP) {
+export function publishDeckTable(tableP: unknown): void {
   try {
     if (cell.state !== 'empty') return
-    if (!tableP || typeof tableP.then !== 'function') return
+    const p = (tableP || null) as Thenable | null
+    if (!p || typeof p.then !== 'function') return
     cell.state = 'pending'
     cell.promise = tableP
     cell.hostPid = pidNow()
-    tableP.then(
+    p.then(
       function () { try { if (cell.state === 'pending') cell.state = 'ready' } catch (e) {} },
       function () { try { if (cell.state === 'pending') cell.state = 'ready' } catch (e2) {} },
     )
@@ -41,21 +70,25 @@ export function publishDeckTable(tableP) {
 }
 
 /** 同步看一眼：空就别等（对方进程根本没放），有才值得等。 */
-export function peekDeckTable() {
+export function peekDeckTable(): { state: CellState; sameProcess: boolean } | null {
   try {
     if (cell.state === 'empty' || !cell.promise) return null
     return { state: cell.state, sameProcess: cell.hostPid !== 0 && cell.hostPid === pidNow() }
   } catch (e) { return null }
 }
 
-// 缺省等待口：真定时器。只有这里碰全局时钟，注入 sleep 之后就绕开了它。
-function realSleep(ms) { return new Promise(function (resolve) { setTimeout(resolve, ms) }) }
+/** 缺省等待口：真定时器。只有这里碰全局时钟，注入 sleep 之后就绕开了它。 */
+function realSleep(ms: number): Promise<unknown> {
+  return new Promise(function (resolve) { setTimeout(resolve, ms) })
+}
 
 /**
  * 等表装好：超时就回空，调用方按原路退回，不抛。
  * opts.sleep 是等待口（缺省真定时器）：测试拿假时钟就能把「等不到」那条路走通。
+ * 类型参数 T 给调用方点名「等到的表长什么样」用；不点名时按未知形状交回，
+ * 因为这一格只负责把宿主放的东西原样递过去，不替调用方决定表的结构。
  */
-export function awaitDeckTable(timeoutMs, opts) {
+export function awaitDeckTable<T = unknown>(timeoutMs?: number, opts?: DeckTableWaitOpts): Promise<T | null> {
   try {
     const peek = peekDeckTable()
     if (!peek) return Promise.resolve(null)
@@ -63,15 +96,16 @@ export function awaitDeckTable(timeoutMs, opts) {
     const sleep = (typeof o.sleep === 'function') ? o.sleep : realSleep
     const cap = (typeof timeoutMs === 'number' && timeoutMs > 0) ? Math.floor(timeoutMs) : 25000
     return Promise.race([
-      Promise.resolve(cell.promise).then(function (t) { return t || null }, function () { return null }),
+      Promise.resolve(cell.promise).then(function (t: unknown) { return (t as T) || null }, function () { return null }),
       sleep(cap).then(function () { return null }, function () { return null }),
     ])
   } catch (e) { return Promise.resolve(null) }
 }
 
-const gateNotes = []
+const gateNotes: GateNote[] = []
 
-function cleanGateWord(v) {
+/** 机器码白名单：小写字母开头，只含小写字母、数字与连字符，最长 64 个字符；其余回空串。 */
+function cleanGateWord(v: unknown): string {
   try {
     const t = String(v || '')
     if (/^[a-z][a-z0-9-]{0,63}$/.test(t)) return t
@@ -80,9 +114,9 @@ function cleanGateWord(v) {
 }
 
 /** 壳记一笔裁决口径：只收机器码（阶段、结论、原因枚举），正文路径一律不收。 */
-export function noteDeckGate(info) {
+export function noteDeckGate(info: unknown): void {
   try {
-    const at = info || {}
+    const at = (info || {}) as Record<string, unknown>
     gateNotes.push({
       phase: cleanGateWord(at.phase),
       verdict: cleanGateWord(at.verdict),
@@ -93,14 +127,14 @@ export function noteDeckGate(info) {
 }
 
 /** 读走口径迹（探针用）：只含机器码的数组副本。 */
-export function readDeckGate() {
+export function readDeckGate(): GateNote[] {
   try { return gateNotes.map(function (n) { return { phase: n.phase, verdict: n.verdict, reason: n.reason } }) } catch (e) { return [] }
 }
 
-const lastPath = { tool: '', via: '' }
+const lastPath: { tool: string; via: string } = { tool: '', via: '' }
 
 /** 行记一笔这次走的哪条路（探针用）：工具名是自家的，路是四选一枚举。 */
-export function noteDeckPath(tool, via) {
+export function noteDeckPath(tool: unknown, via: unknown): void {
   try {
     const t = (typeof tool === 'string' && tool) ? tool : ''
     const v = (via === 'cell' || via === 'connection' || via === 'fetch' || via === 'fallback') ? via : ''
@@ -109,6 +143,6 @@ export function noteDeckPath(tool, via) {
 }
 
 /** 读走上次走的路（探针用）。 */
-export function readDeckPath() {
+export function readDeckPath(): { tool: string; via: string } {
   try { return { tool: lastPath.tool, via: lastPath.via } } catch (e) { return { tool: '', via: '' } }
 }

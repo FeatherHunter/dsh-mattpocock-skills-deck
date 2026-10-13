@@ -18,7 +18,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 async function main() {
   console.log('#895 回归门禁：github 房名册定向刷新（脚本化 gh 计数）')
   const transports = require('./deck-tools-matrix-transports.js')
-  const scopeMod = await imp('src/deck/shell/call-budget.ts')
+  // 记忆数据结构（读缓存与票关系名册）住在 call-memo.ts：call-budget.ts 只管预算与钳制
+  // （#1040 按单文件 350 行的上限把它拆成两份，为什么这么拆见那份文件头）。
+  const memoMod = await imp('src/deck/shell/call-memo.ts')
   const registryMod = await imp('src/tracker/registry/registryCore.ts')
   const githubModule = (await imp('src/tracker/rooms/github/index.ts')).githubModule
 
@@ -43,7 +45,7 @@ async function main() {
     ids.push(String(r.data.key))
   }
   check(ids.length === 8, '种子 8 票建成')
-  const memoCtx = () => Object.assign({}, ghCtxBase, { memo: scopeMod.createCallMemo() })
+  const memoCtx = () => Object.assign({}, ghCtxBase, { memo: memoMod.createCallMemo() })
 
   // ── ① 两次补边：第二次不再整仓拉取 ──
   {
