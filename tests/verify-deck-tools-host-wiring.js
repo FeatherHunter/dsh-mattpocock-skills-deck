@@ -76,8 +76,10 @@ async function main() {
   console.log('九个 deck_* 工具的宿主装配门禁（#723 T19c：宿主形状、真跑一次、过宿主那一个闸）')
 
   // ── ① 层判据自检 ──
-  // 内存夹具：宿主层里的文件读宿主层的工具文件 → 层判据 layerOf 必须把两头都判成 host。
-  const fixture = { file: 'src/host/refresh/wiring.js', import: './tools/deckContext.js', resolved: 'src/deck/tools/context.ts' }
+  // 内存夹具：宿主层里的文件读宿主层的同层文件 → 层判据 layerOf 必须把两头都判成 host。
+  // 这一对镜像 wiring.js:16 的真实写法（import './ledger.js'）：历史上这里用的是「读宿主工具文件」
+  // 那一对，但工具文件已随 #1019 搬进 src/deck（新树的层归属还没定，判据不猜），改用今天仍在宿主层内的真边。
+  const fixture = { file: 'src/host/refresh/wiring.js', import: './ledger.js', resolved: 'src/host/refresh/ledger.js' }
   check(layerOf(fixture.file) === 'host' && layerOf(fixture.resolved) === 'host', '✗ probe：宿主层文件引用宿主层工具文件，会被同一条层判据判成同层边（' + fixture.file + ' -> ' + fixture.resolved + '）')
 
   // ── ② 真在宿主装配形状下装起来 ──

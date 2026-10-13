@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-13T09:22:27.068Z",
+  "generatedAt": "2026-10-13T09:38:32.114Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 228,
   "gateCount": 228,
   "attributedGates": 200,
   "unattributedGates": 28,
   "buildOutputOnlyGates": 20,
-  "graphFileCount": 505,
+  "graphFileCount": 507,
   "gates": [
     {
       "step": "node tests/verify-596-rpc-carrier.js",
@@ -930,7 +930,6 @@
       "step": "node tests/verify-deck-tools-host-wiring.js",
       "file": "tests/verify-deck-tools-host-wiring.js",
       "guards": [
-        "src/deck/tools/context.ts",
         "src/host",
         "src/host/platform",
         "src/host/refresh/wiring.js",
@@ -941,7 +940,6 @@
         "src/tracker/rooms/markdown/index.ts"
       ],
       "dirs": [
-        "src/deck/tools",
         "src/host",
         "src/host/platform",
         "src/host/refresh",
@@ -953,7 +951,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：源码里的路径字面量 9 条"
+      "reason": "归属来自：源码里的路径字面量 8 条"
     },
     {
       "step": "node tests/verify-934-935-invariants.js",
@@ -1271,17 +1269,19 @@
         "package/lib/client.js",
         "package/tracker/contract/canonical-labels.js",
         "src/tracker/contract/canonical-labels.ts",
+        "src/tracker/label-names.ts",
         "src/tracker/rooms/github/index.ts"
       ],
       "dirs": [
         "package/lib",
         "package/tracker/contract",
+        "src/tracker",
         "src/tracker/contract",
         "src/tracker/rooms/github"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条"
     },
     {
       "step": "node tests/verify-setup-describe.js",
@@ -2234,15 +2234,19 @@
       "file": "tests/verify-log-fields.js",
       "guards": [
         "src/client",
-        "src/host"
+        "src/deck",
+        "src/host",
+        "src/tracker"
       ],
       "dirs": [
         "src/client",
-        "src/host"
+        "src/deck",
+        "src/host",
+        "src/tracker"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条"
     },
     {
       "step": "node tests/verify-log-count.js",
@@ -2250,16 +2254,20 @@
       "guards": [
         "research/489-appendix.md",
         "src/client",
-        "src/host"
+        "src/deck",
+        "src/host",
+        "src/tracker"
       ],
       "dirs": [
         "research",
         "src/client",
-        "src/host"
+        "src/deck",
+        "src/host",
+        "src/tracker"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条"
     },
     {
       "step": "node tests/verify-log-selfmon.js",
@@ -2463,7 +2471,7 @@
       "guards": [
         "src/host/commentThreads.js",
         "src/host/tracker/snapshot.js",
-        "src/tracker/contract/vocabulary.ts",
+        "src/tracker/identity-keys.ts",
         "src/tracker/rooms/markdown/comments.ts",
         "src/tracker/rooms/markdown/index.ts",
         "src/tracker/rooms/markdown/issues-read.ts",
@@ -2472,7 +2480,7 @@
       "dirs": [
         "src/host",
         "src/host/tracker",
-        "src/tracker/contract",
+        "src/tracker",
         "src/tracker/rooms/markdown"
       ],
       "unattributed": false,
@@ -2487,6 +2495,7 @@
         "src/client/views/ListTabRow.js",
         "src/host/tracker/snapshot.js",
         "src/tracker/contract/vocabulary.ts",
+        "src/tracker/identity-keys.ts",
         "src/tracker/rooms/markdown/index.ts",
         "tests/lib/eval-probe.js"
       ],
@@ -2494,6 +2503,7 @@
         "src/client/kernel",
         "src/client/views",
         "src/host/tracker",
+        "src/tracker",
         "src/tracker/contract",
         "src/tracker/rooms/markdown",
         "tests/lib"
@@ -2781,7 +2791,7 @@
         "src/client/kernel/actions.js",
         "src/client/statusbar/bannerChain.js",
         "src/shared/tracker/guide-steps.js",
-        "src/tracker/contract/fixContract.ts",
+        "src/tracker/fix-contract.ts",
         "src/tracker/rooms/github/index.ts",
         "tests/lib/eval-probe.js"
       ],
@@ -2789,7 +2799,7 @@
         "src/client/kernel",
         "src/client/statusbar",
         "src/shared/tracker",
-        "src/tracker/contract",
+        "src/tracker",
         "src/tracker/rooms/github",
         "tests/lib"
       ],
@@ -4589,7 +4599,7 @@
         "src/shared/tracker/chain-types.js",
         "src/shared/tracker/chain-validate.js",
         "src/shared/ui/slots.js",
-        "src/tracker/contract/fixContract.ts",
+        "src/tracker/fix-contract.ts",
         "src/tracker/rooms/github/index.ts"
       ],
       "dirs": [
@@ -4600,7 +4610,7 @@
         "src/client/views/shared",
         "src/shared/tracker",
         "src/shared/ui",
-        "src/tracker/contract",
+        "src/tracker",
         "src/tracker/rooms/github"
       ],
       "unattributed": false,
@@ -5084,7 +5094,9 @@
       "node tests/verify-gate-map.js"
     ],
     "src/deck": [
-      "node tests/verify-dependency-rules.ts"
+      "node tests/verify-dependency-rules.ts",
+      "node tests/verify-log-fields.js",
+      "node tests/verify-log-count.js"
     ],
     "src/deck/registration": [
       "node tests/verify-deck-tools.js",
@@ -5119,7 +5131,6 @@
       "node tests/verify-deck-tools-matrix.js",
       "node tests/verify-790-parent-edge.js",
       "node tests/verify-829-parent-reread.js",
-      "node tests/verify-deck-tools-host-wiring.js",
       "node tests/verify-895-bulk-deadline.js",
       "node tests/verify-898-block-merge.js",
       "node tests/verify-971-markdown-parent.js",
@@ -5404,9 +5415,16 @@
     "src/tracker": [
       "node tests/verify-issue-body-script.js",
       "node tests/verify-parse-leaf.js",
+      "node tests/verify-labels-sync.js",
       "node tests/verify-no-mixed-session.js",
       "node tests/verify-992-readonly-labels.js",
-      "node tests/verify-delta-patch.js"
+      "node tests/verify-log-fields.js",
+      "node tests/verify-log-count.js",
+      "node tests/verify-multi-effort.js",
+      "node tests/verify-multi-effort-panel.js",
+      "node tests/verify-663-gh-install-inject.js",
+      "node tests/verify-delta-patch.js",
+      "node tests/verify-deck-slots.js"
     ],
     "src/tracker/contract": [
       "node tests/verify-labels-sync.js",
@@ -5416,13 +5434,10 @@
       "node tests/verify-markdown-label-colors.js",
       "node tests/verify-992-readonly-labels.js",
       "node tests/verify-544-standalone-blocked.js",
-      "node tests/verify-multi-effort.js",
       "node tests/verify-multi-effort-panel.js",
-      "node tests/verify-663-gh-install-inject.js",
       "node tests/verify-issue195.js",
       "node tests/verify-chain-view.js",
-      "node tests/verify-contract-types.js",
-      "node tests/verify-deck-slots.js"
+      "node tests/verify-contract-types.js"
     ],
     "src/tracker/detection": [
       "node tests/verify-deck-tools.js",
@@ -5653,9 +5668,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 513,
+    "fileCount": 515,
     "dirCount": 53,
-    "coveredFileCount": 513,
+    "coveredFileCount": 515,
     "ungatedFileCount": 0,
     "ungatedDirCount": 6,
     "dedicatedDirCount": 47,
@@ -6086,7 +6101,6 @@
       "src/tracker/contract/contract-label-colors.ts",
       "src/tracker/contract/contract-page.ts",
       "src/tracker/contract/entities.ts",
-      "src/tracker/contract/fixContract.ts",
       "src/tracker/contract/identity.ts",
       "src/tracker/contract/index.ts",
       "src/tracker/contract/inputs.ts",
@@ -6103,7 +6117,10 @@
       "src/tracker/detection/preflightScope.ts",
       "src/tracker/detection/workspace-ownership.ts",
       "src/tracker/detection/workspaceStore.ts",
+      "src/tracker/fix-contract.ts",
+      "src/tracker/identity-keys.ts",
       "src/tracker/index.ts",
+      "src/tracker/label-names.ts",
       "src/tracker/preflight.ts",
       "src/tracker/registry/registryCore.ts",
       "src/tracker/registry/registryShape.ts",

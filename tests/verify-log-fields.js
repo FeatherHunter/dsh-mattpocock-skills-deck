@@ -199,7 +199,8 @@ function listJsFiles(dir) {
     for (const e of fs.readdirSync(d, { withFileTypes: true })) {
       const p = path.join(d, e.name)
       if (e.isDirectory()) walk(p)
-      else if (e.isFile() && e.name.endsWith('.js')) out.push(p)
+      // #1095：搬家后埋点文件有 .ts（只扫 .js 会漏掉整棵新树，见出站闸同一教训）。
+      else if (e.isFile() && (e.name.endsWith('.js') || e.name.endsWith('.ts'))) out.push(p)
     }
   }
   walk(dir)
@@ -256,8 +257,12 @@ function fieldsObjectStart(rest) {
 
 function collectCalls() {
   const found = {}
-  const rooms = ['github' + path.sep + 'client.js', 'github' + path.sep + 'issues.js', 'github' + path.sep + 'errors.js']
+  const rooms = ['github' + path.sep + 'client.js', 'github' + path.sep + 'issues.js', 'github' + path.sep + 'errors.js',
+    // #1095：房间已搬进 src/tracker/rooms（.ts），旧地址的匹配留着（老文件若回来仍认），新地址逐项补上。
+    'rooms' + path.sep + 'github' + path.sep + 'client.ts', 'rooms' + path.sep + 'github' + path.sep + 'issues.ts', 'rooms' + path.sep + 'github' + path.sep + 'errors.ts']
   const files = listJsFiles(path.join(ROOT, 'src', 'host')).concat(listJsFiles(path.join(ROOT, 'src', 'client')))
+    // #1095：埋点跟着搬家走了（src/deck、src/tracker 新树），扫描根一起跟上；只读不断言，旧根不动。
+    .concat(listJsFiles(path.join(ROOT, 'src', 'deck'))).concat(listJsFiles(path.join(ROOT, 'src', 'tracker')))
   const mainRe = /(?:^|[^A-Za-z0-9_$])(?:log|fire|rlog|logEvent|backendLogEvent|roomLogEvent)\s*\(\s*(?:[A-Za-z_$][A-Za-z0-9_$]*\s*,\s*)?['"](error|warn|info|debug)['"]\s*,\s*['"]([a-z][a-zA-Z0-9.]*?)['"]\s*,/g
   for (const f of files) {
     const text = fs.readFileSync(f, 'utf8')

@@ -58,16 +58,8 @@ const SELF = path.relative(ROOT, __filename).replace(/\\/g, '/')
  * 真没人读的一律删掉，不进这份清单（#719 删掉的六个 *_SOURCE 与 CLOSED_REASON 里那两个值就是这一类）。
  */
 const KNOWN_UNPRODUCED = {
-  'src/deck/shell/edge-landing.ts.EDGE_LANDING.FILE_NOTE':
-    '为什么留着：本地 Markdown 单根工作区那种「归属写在票文件注释里」的落点名字，工具返回必须把它如实标出来，删了这条边就没法说清落在哪；谁在读：edges.js:43 的 landingOf → :54 的 edgeEvidence 把它写进返回项，再由四个宿主工具文件把它交回调用方（src/deck/tools/issue-create.ts:90、deckMapLink.js:76 与 :91 与 :97、deckMapPlanCreate.js:173）—— **读取面是返回信封**（拿到这次返回的人与 AI）。',
-  // （#845 删掉 NO_SESSION 这一条：它的值现在能在生产代码里找到（shell.js 写进返回信封那条路被别的票补齐了），
-  //   按本文件「过期条目要当场删」的规矩销账；要查它今天谁在读，跑一遍门禁就知道它已经不在「死了」的名单里。）
-  'src/deck/shell/call-shell.ts.REFUSAL_REASONS.OVER_CAP':
-    '为什么留着：额度超顶那一次拒绝的机器可读原因（拒绝必须说清超的是哪一项，这正是它存在的理由）；谁在读：shell.js:178 把它写进返回信封的 reason 字段 —— **读取面是返回信封，今天没有任何测试按值断言**（裁定 A：返回信封是真正的读取面，不为它补一条无意义的测试）。',
-  'src/deck/shell/call-shell.ts.REFUSAL_REASONS.GATE_DEFER':
-    '为什么留着：被闸推迟那一档的机器可读原因；谁在读：shell.js:203 与 :272 把它写进返回信封的 reason 字段 —— **读取面是返回信封，今天没有任何测试按值断言**（同裁定 A）。',
-  // （#845 删掉 BACKEND_THREW 这一条：#741 恢复它的原因是「值字面量搬出扫描面」，现在它的值又能在生产代码里找到，
-  //   按规矩销账。）
+  // （#1095 删掉 FILE_NOTE / OVER_CAP / GATE_DEFER 三条：搬家后门禁按新地址复查，发现它们的值都在生产代码里
+  //  （src/deck/shell/edge-landing.ts 与 call-shell.ts），按本文件「过期条目要当场删」的规矩与 #845 的先例销账。）
 }
 
 /**

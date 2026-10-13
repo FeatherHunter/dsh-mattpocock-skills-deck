@@ -58,7 +58,8 @@ function collectQuotedNames() {
     for (const e of fs.readdirSync(d, { withFileTypes: true })) {
       const p = path.join(d, e.name)
       if (e.isDirectory()) walk(p)
-      else if (e.isFile() && e.name.endsWith('.js')) {
+      // #1095：搬家后埋点文件有 .ts（只扫 .js 会漏掉整棵新树）。存在性点名不怕同名双生（.ts 与产物 .js 各算一次命中，不影响「有没有」）。
+      else if (e.isFile() && (e.name.endsWith('.js') || e.name.endsWith('.ts'))) {
         const text = stripComments(fs.readFileSync(p, 'utf8'))
         for (const m of text.matchAll(/['"]([A-Za-z]+(?:\.[A-Za-z][A-Za-z0-9]*)+)['"]/g)) {
           const n = m[1]
@@ -70,6 +71,9 @@ function collectQuotedNames() {
   }
   walk(path.join(ROOT, 'src', 'host'))
   walk(path.join(ROOT, 'src', 'client'))
+  // #1095：埋点跟着搬家走了（src/deck、src/tracker 新树），扫描根一起跟上；旧根不动。
+  walk(path.join(ROOT, 'src', 'deck'))
+  walk(path.join(ROOT, 'src', 'tracker'))
   return found
 }
 const quoted = collectQuotedNames()
