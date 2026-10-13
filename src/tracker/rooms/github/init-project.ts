@@ -10,6 +10,9 @@ import { getRepoKey } from './repo.js'
 // #993 / #994：分类器与「属主不一致」判断都收进 src/shared/tracker/（cross-import 门禁的白名单目录），
 //   与面板那条路（src/host/publishFlow.js）共用同一份实现，避免两处各判一套而漂移。
 import { makeCreateErrorClassifier, KIND_UNKNOWN } from './init-project-error-kinds.js'
+// 结果词表里凡是要说 TrackerError 八档中某一档的地方，取值都引用真源常量，不写裸字符串，
+// 免得「少一个连字符」「换个近义词」这类偏差逃过检查；本文件其余自成一档的结果词不在八档内，保持原样。
+import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { isOwnershipMismatch, ownershipPathFrom, safeDirectoryCommand } from '../../detection/workspace-ownership.js'
 
 // ============ initProject 契约 op（git init→commit→gh repo create→push） ============
@@ -134,13 +137,13 @@ export async function initProject(handle, input, ctx) {
       const t = String((authR.error && authR.error.message) || authR.error || '').toLowerCase()
       const kind = authR.error && authR.error.kind
       if (kind === 'network' || /network|econn|timed out|timeout|enotfound|getaddrinfo|connect/.test(t)) {
-        return { ok: false, error: { kind: 'network', message: String(authR.error.message || authR.error).slice(0,400) } }
+        return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: String(authR.error.message || authR.error).slice(0,400) } }
       }
       return { ok: false, error: { kind: 'not-logged-in', message: String(authR.error.message || authR.error).slice(0,400) } }
     }
   } catch (e) {
     const t = String((e && e.message) || e).toLowerCase()
-    if (/network|econn|timed out|timeout|enotfound|getaddrinfo|connect/.test(t)) return { ok: false, error: { kind: 'network', message: String((e && e.message)||e).slice(0,400) } }
+    if (/network|econn|timed out|timeout|enotfound|getaddrinfo|connect/.test(t)) return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: String((e && e.message)||e).slice(0,400) } }
     return { ok: false, error: { kind: 'not-logged-in', message: String((e && e.message)||e).slice(0,400) } }
   }
 

@@ -9,7 +9,7 @@ import { parseMd, slugify, stripLabelDecoration, isWholeIssueBody } from './pars
 import { readDir, readTextFile, statFile, exists } from './read.js'
 import { writeTextFile, ensureDir } from './write.js'
 import { issuesDir } from './path.js'
-import { classifyError } from '../../preflight.js'
+import { failAs, failFromError } from './error-fail.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { getPlat, listEfforts, findIssueFileInEffort } from './issues-locate.js'
 import { loadPaintColorMap, applyLabelColors } from './label-colors-paint.js'
@@ -33,12 +33,12 @@ async function resolveCreateTarget(ctx, repo){
     target=efforts.find(function(e){ return e.effortId===scope })||null
     if(!target){
       const have=efforts.map(function(e){ return e.effortId||'(根)' }).join('、')||'（本仓库还没有 effort）'
-      return{ok:false,error:{kind:ERROR_KIND.NOTFOUND,message:'找不到 effort「'+scope+'」；本仓库现有：'+have}}
+      return failAs(ERROR_KIND.NOTFOUND,'找不到 effort「'+scope+'」；本仓库现有：'+have,JSON.stringify({effortId:scope,have:have}))
     }
   }else if(efforts.length===1){
     target=efforts[0]
   }else if(efforts.length>1){
-    return{ok:false,error:{kind:ERROR_KIND.CONFLICT,message:'本仓库有 '+efforts.length+' 个 effort（'+efforts.map(function(e){return e.effortId||'(根)'}).join('、')+'），新建票据必须指定 effortId'}}
+    return failAs(ERROR_KIND.CONFLICT,'本仓库有 '+efforts.length+' 个 effort（'+efforts.map(function(e){return e.effortId||'(根)'}).join('、')+'），新建票据必须指定 effortId',JSON.stringify(efforts.map(function(e){return e.effortId||'(根)'})))
   }
   return{ok:true,effortId:target?target.effortId:'',idir:target?getPlat(ctx).join(target.dir,'issues'):issuesDir(repo,ctx)}
 }
@@ -139,11 +139,12 @@ async function findAnchoredTicket(ctx,idir,key){
 export async function createIssue(ctx,repo,input){
   const plat=getPlat(ctx)
   const colorMap=await loadPaintColorMap(ctx)
-  if(!input||typeof input.title!=='string'||!input.title.trim()){return{ok:false,error:{kind:ERROR_KIND.PARSE,message:'title required'}}}
+  if(!input||typeof input.title!=='string'||!input.title.trim()){return failAs(ERROR_KIND.PARSE,'title required','')}
   // #711：带锚的创建。检查放在最前面、而且是当场失败：键不合规（空、超长、带换行或注释收尾符）
   // 绝不能落到票面上 —— 落下去会把正文写坏，而且第二次提交的键与第一次不是同一个串，「幂等」就成了运气。
   const keyCheck=input.idempotencyKey===undefined||input.idempotencyKey===null?null:checkIdempotencyKey(input.idempotencyKey)
-  if(keyCheck&&!keyCheck.ok)return{ok:false,error:{kind:ERROR_KIND.PARSE,message:'idempotencyKey 不能用：'+keyCheck.reason}}
+  // 原文 = 这次用不了的那个键本身（判据不成立的原因在 message 里，原文让人看见实际给的是什么）。
+  if(keyCheck&&!keyCheck.ok)return failAs(ERROR_KIND.PARSE,'idempotencyKey 不能用：'+keyCheck.reason,String(input.idempotencyKey))
   const idemKey=keyCheck?keyCheck.key:''
   try{
     // 取号 → 探测 → 落盘这三段必须在**同一个按工作区串行的写者队列**里跑完（#712）。
@@ -197,13 +198,13 @@ export async function createIssue(ctx,repo,input){
         if(ex){next++;attempt++;continue}
         finalPath=full;finalKey=keyStr;break
       }
-      if(!finalPath)return{ok:false,error:{kind:ERROR_KIND.CONFLICT,message:'create NN conflict'}}
+      if(!finalPath)return failAs(ERROR_KIND.CONFLICT,'create NN conflict','')
       // 内容拼装与落盘同样留在队列里：落盘这一步必须发生在**还握着队列**的时候，
       // 否则下一路会在「这一路已经取到号、但还没写下去」的缝里读目录，又读不到这张票、又取到同一个号。
       const builtText=buildIssueText(input)
       // #1002：落盘前核对单例，拼坏了就如实失败不落盘（静默写坏比失败更贵）。
       const builtBad=checkSingletonsForCreate(builtText, !!idemKey)
-      if(builtBad)return{ok:false,error:{kind:ERROR_KIND.UNSUPPORTED,message:'建票内容拼装后核对没过（'+builtBad+'），这次没落盘：请换一种正文形态再试。'}}
+      if(builtBad)return failAs(ERROR_KIND.UNSUPPORTED,'建票内容拼装后核对没过（'+builtBad+'），这次没落盘：请换一种正文形态再试。',String(builtBad))
       await writeTextFile(ctx,finalPath,builtText, ctx && ctx.sandboxPolicy)
       // ② 落盘之后当场回读核对（#711）：确认锚真的写进了这个文件。只写不核对的话，
       //    写入被拒、写了一半、被别的进程覆盖回去这类情况会以「建票成功」的样子交回去，
@@ -211,7 +212,7 @@ export async function createIssue(ctx,repo,input){
       if(idemKey){
         const back=await readTextFile(ctx,finalPath)
         if(idempotencyKeyOf(back)!==idemKey){
-          return{ok:false,error:{kind:ERROR_KIND.UNSUPPORTED,message:'票已经写到 '+finalPath+'，但回读时没读到刚写进去的锚，所以这次不能算幂等创建成功。请检查这个工作区里的票文件是不是被别的东西改写了。'}}
+          return failAs(ERROR_KIND.UNSUPPORTED,'票已经写到 '+finalPath+'，但回读时没读到刚写进去的锚，所以这次不能算幂等创建成功。请检查这个工作区里的票文件是不是被别的东西改写了。',JSON.stringify({path:finalPath,wantAnchor:idemKey,gotAnchor:String(idempotencyKeyOf(back))}))
         }
       }
       return{ok:true,effortId,finalPath,finalKey,reused:false}
@@ -234,5 +235,5 @@ export async function createIssue(ctx,repo,input){
     const iss=parseMd(content,{key:finalKey,parentKey:_fallbackParent,isMap:false,effortId,createdAt:mtime,updatedAt:mtime})
     applyLabelColors(iss, colorMap)
     return{ok:true,data:iss}
-  }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
+  }catch(e){return failFromError(e,ctx,'建这张票时出错')}
 }

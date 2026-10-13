@@ -81,11 +81,15 @@ const CATALOG_REL = 'operations-catalog.ts'
 const PROBE_GITHUB_REL = 'tests/contract-probe-github.ts'
 const PROBE_MARKDOWN_REL = 'tests/contract-probe-markdown.ts'
 /**
- * 探针直编时，后端文件内部自己的报错数（#1026 实测 200 条：旧语言时代的联合收窄、
- * 参数个数这类，实现面的债，不归本门禁审）。必须逐字相等：多了是新增债务，
- * 少了是有人动了实现面——先把这个数改过来，并考虑把探针收紧（弱化面见探针文件头）。
+ * 探针直编时，后端文件内部自己的报错数（旧语言时代的联合收窄、参数个数这类，
+ * 实现面的债，不归本门禁审）。必须逐字相等：多了是新增债务，少了是有人动了实现面。
+ *
+ * 2026-10-14 由 200 改到 156（#1111「报错判据收成一源，失败结果带原文」）：那一票把各后端的失败构造
+ * 从「手写 message 字面量」换成跟踪器层统一的 fail(kind, message, raw) 与各房带类型的辅助函数，
+ * 旧语言时代那种「对象字面量对不上联合类型」的内部报错随之减少——这是实现面真的动了，不是门禁放松。
+ * 探针要不要跟着收紧（把弱化面收掉、让这个数继续降）归 #1095 那条测试跟随线，本票不动它。
  */
-const PROBE_NONPROBE_ERROR_BASELINE = 200
+const PROBE_NONPROBE_ERROR_BASELINE = 156
 /** 探针直编的开关（与探针文件头写的口径一致，改一处两处一起改）。 */
 const PROBE_TSC_ARGS = [
   '--noEmit', '--target', 'es2020', '--lib', 'es2020,dom', '--module', 'esnext',

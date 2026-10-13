@@ -6,12 +6,13 @@
  *   handle: {cwd?, refId?}；ctx: BackendContext（含 platform/exec/timers/fs/log）+ cwd/signal/refId
  * - 三项检查顺序：1) gh 可执行 → env；2) 登录态 → auth；3) 仓库可达 → not-found/auth/network/rate-limit
  * - 不检查：labels/subIssue/depGraph 等能力；不返回 capabilities 布尔表（旧 BackendStatus 已删）
- * - 错误归一全经 classifyGhError
+ * - 错误归一全经 ghVerdictOf（判档表在 src/tracker/error-rules.ts）
  */
 
 import { ERROR_KIND } from '../../contract/vocabulary.js'
+import { rawText } from '../../preflight.js'
 import { ghClient } from './client.js'
-import { classifyGhError } from './errors.js'
+import { ghFailureMessage, ghVerdictOf } from './errors.js'
 
 // #195 曾经在这里挂着一整段「怎么装 gh」的长文（按系统分平台列命令），交给界面直接注入。
 // #664（首开引导链定版 #661 第③条）：缺 gh 时注入的文案收成一句原话（「/wizard 帮用户安装gh cli 官方地址：
@@ -45,14 +46,19 @@ export async function ghPreflight(handle, ctx) {
   try {
     const platform = opCtx.platform
     if (!platform || typeof platform.resolveExecutable !== 'function') {
-      return { ok: false, error: { kind: ERROR_KIND.ENV, message: 'gh not found: platform.resolveExecutable unavailable' } }
+      // 这一条没有「上游原文」可言：宿主根本没交上来解析可执行文件的能力，是房内自己发现的事实。
+      // 原文段留空串是如实表示「手里没有原文」，比编一句话强（要查就照 message 与这行日志查）。
+      return { ok: false, error: { kind: ERROR_KIND.ENV, message: 'gh not found: platform.resolveExecutable unavailable', raw: '' } }
     }
     const ghPath = await platform.resolveExecutable('gh')
     if (!ghPath) {
-      return { ok: false, error: { kind: ERROR_KIND.ENV, message: 'gh not found: platform.resolveExecutable returned null (install https://cli.github.com/)' } }
+      // 同上：解析结果是 null，手里没有能当原文的文字。
+      return { ok: false, error: { kind: ERROR_KIND.ENV, message: 'gh not found: platform.resolveExecutable returned null (install https://cli.github.com/)', raw: '' } }
     }
   } catch (e) {
-    return { ok: false, error: { kind: ERROR_KIND.ENV, message: String((e && e.message) || e).slice(0, 400) } }
+    // 抛出来这一路手里有原文：错误值原样交出去；档位与话术走本房唯一的出口。
+    const verdict = ghVerdictOf(e, opCtx)
+    return { ok: false, error: { kind: verdict.kind, message: ghFailureMessage(verdict, String((e && e.message) || e).slice(0, 400)), raw: rawText(e) } }
   }
 
   // 2) 登录态：gh auth status
@@ -60,18 +66,13 @@ export async function ghPreflight(handle, ctx) {
     const c = ghClient(opCtx)
     const r = await c.execGh(['auth', 'status'], { cwd })
     if (!r.ok) {
-      const kind = r.error && r.error.kind ? r.error.kind : classifyGhError(r.error)
-      // auth status 非 0 → auth（若 classify 为 env 则仍按 env，不强行 auth）
-      if (kind === ERROR_KIND.ENV) return { ok: false, error: r.error }
-      // gh auth status 的 stderr 含 not logged in 文案时 classifyGhError 已归 auth
-      if (kind === ERROR_KIND.AUTH) return { ok: false, error: r.error }
-      // 其他错误按分类返回
+      // 非 0 就把 client 层归一好的那一份失败原样交出去：档位、话术与原文都在里面，
+      // 这里不再自己判第二遍（原来那三个分支最后返回的都是同一份 r.error）。
       return { ok: false, error: r.error }
     }
   } catch (e) {
-    const kind = classifyGhError(e)
-    if (kind === ERROR_KIND.AUTH) return { ok: false, error: { kind, message: String((e && e.message) || e).slice(0, 400) } }
-    return { ok: false, error: { kind, message: String((e && e.message) || e).slice(0, 400) } }
+    const verdict = ghVerdictOf(e, opCtx)
+    return { ok: false, error: { kind: verdict.kind, message: ghFailureMessage(verdict, String((e && e.message) || e).slice(0, 400)), raw: rawText(e) } }
   }
 
   // 3) 仓库可达（含权限）：gh api repos/{owner}/{name}
@@ -87,11 +88,13 @@ export async function ghPreflight(handle, ctx) {
       }
     }
     if (!refId) {
-      // 无仓库上下文→ 视为 not-found（无法判定仓库可达）
-      return { ok: false, error: { kind: ERROR_KIND.NOTFOUND, message: 'repo not found: cannot resolve owner/name (no refId and gh repo view failed)' } }
+      // 无仓库上下文 → 视为 not-found（无法判定仓库可达）。这条是房内自己推出来的结论：
+      // 上面那条 `gh repo view` 真失败时，它的原文在它自己的失败结果里，这里手里没有原文，留空串。
+      return { ok: false, error: { kind: ERROR_KIND.NOTFOUND, message: 'repo not found: cannot resolve owner/name (no refId and gh repo view failed)', raw: '' } }
     }
     const repo = repoFromRefId(refId)
-    if (!repo) return { ok: false, error: { kind: ERROR_KIND.NOTFOUND, message: `repo refId malformed: ${refId}` } }
+    // 说「refId 形状不对」的原文就是这个 refId 本身：人一眼能看出错在哪。
+    if (!repo) return { ok: false, error: { kind: ERROR_KIND.NOTFOUND, message: `repo refId malformed: ${refId}`, raw: String(refId) } }
     const c = ghClient(opCtx)
     const r = await c.execGh(['api', `repos/${repo.owner}/${repo.name}`], { cwd })
     if (!r.ok) {
@@ -100,8 +103,8 @@ export async function ghPreflight(handle, ctx) {
     }
     return { ok: true }
   } catch (e) {
-    const kind = classifyGhError(e)
-    return { ok: false, error: { kind, message: String((e && e.message) || e).slice(0, 400) } }
+    const verdict = ghVerdictOf(e, opCtx)
+    return { ok: false, error: { kind: verdict.kind, message: ghFailureMessage(verdict, String((e && e.message) || e).slice(0, 400)), raw: rawText(e) } }
   }
 }
 

@@ -7,7 +7,7 @@
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { fail } from '../../preflight.js'
 import { glabClient } from './client.js'
-import { classifyGlabError } from './errors.js'
+import { failGlab } from './errors.js'
 import { notesPath } from './queries.js'
 
 function repoId(repo) {
@@ -20,16 +20,16 @@ function repoId(repo) {
 export async function addComment(ctx, repo, key, body, opCtx) {
   const effective = opCtx || ctx
   const id = repoId(repo)
-  if (!id) return fail(ERROR_KIND.NOTFOUND, 'comment: repo.refId missing')
+  if (!id) return fail(ERROR_KIND.NOTFOUND, 'comment: repo.refId missing', '')
   const k = String(key)
-  if (!k) return fail(ERROR_KIND.PARSE, 'comment: key required')
-  if (typeof body !== 'string' || !body.trim()) return fail(ERROR_KIND.PARSE, 'comment: body required')
+  if (!k) return fail(ERROR_KIND.PARSE, 'comment: key required', '')
+  if (typeof body !== 'string' || !body.trim()) return fail(ERROR_KIND.PARSE, 'comment: body required', '')
   try {
     const c = glabClient(effective)
     const res = await c.run(['api', notesPath(id, k), '--method', 'POST', '-f', `body=${body}`], { timeout: 8000 })
     if (res.code !== 0) {
-      const kind = classifyGlabError({ message: res.stderr || res.stdout })
-      return fail(kind, res.stderr || res.stdout || 'comment failed')
+      // 原文 = glab 这一趟的进程结果（stderr/stdout/退出码都在里面），判档与给人看的原文用同一份。
+      return failGlab(res, res.stderr || res.stdout || 'comment failed', res, effective)
     }
     let raw = null
     try { raw = JSON.parse(res.stdout) } catch {}
@@ -43,22 +43,22 @@ export async function addComment(ctx, repo, key, body, opCtx) {
     }
     return { ok: true, data: comment }
   } catch (err) {
-    const kind = classifyGlabError(err)
-    return fail(kind, err && err.message ? String(err.message) : String(err))
+    // 原文 = 抛上来的那个 Error 对象本身（message / cause 都在里面）。
+    return failGlab(err, err && err.message ? String(err.message) : String(err), err, effective)
   }
 }
 
 export async function listComments(ctx, repo, key, opCtx) {
   const effective = opCtx || ctx
   const id = repoId(repo)
-  if (!id) return fail(ERROR_KIND.NOTFOUND, 'listComments: repo.refId missing')
+  if (!id) return fail(ERROR_KIND.NOTFOUND, 'listComments: repo.refId missing', '')
   const k = String(key)
   try {
     const c = glabClient(effective)
     const res = await c.run(['api', notesPath(id, k)], { timeout: 8000 })
     if (res.code !== 0) {
-      const kind = classifyGlabError({ message: res.stderr || res.stdout })
-      return fail(kind, res.stderr || res.stdout || 'listComments failed')
+      // 原文 = glab 这一趟的进程结果（stderr/stdout/退出码都在里面）。
+      return failGlab(res, res.stderr || res.stdout || 'listComments failed', res, effective)
     }
     let arr = []
     try { arr = JSON.parse(res.stdout) } catch {}
@@ -73,8 +73,8 @@ export async function listComments(ctx, repo, key, opCtx) {
     }))
     return { ok: true, data: comments }
   } catch (err) {
-    const kind = classifyGlabError(err)
-    return fail(kind, err && err.message ? String(err.message) : String(err))
+    // 原文 = 抛上来的那个 Error 对象本身（message / cause 都在里面）。
+    return failGlab(err, err && err.message ? String(err.message) : String(err), err, effective)
   }
 }
 

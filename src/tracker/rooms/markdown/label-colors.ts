@@ -89,15 +89,20 @@ function logRead(ctx, build) {
  *  按契约归解析档（parse），文案要说清是读不出来、以及插件不会覆盖用户自己写的内容。
  *  句子骨架（四档共用）：先说读不出来（+原因），再说这个文件不会被覆盖，最后说用户要做什么；
  *  detail 是「这次到底读到了什么」的一句大白话，并进正文末尾的括号里，不单独成句。 */
-function readFailure(why, action, detail) {
-  return {
-    ok: false,
-    error: {
-      kind: ERROR_KIND.PARSE,
-      message: '工作区里的标签配色文件（' + LABEL_COLORS_REL_PATH + '）没有读出标签颜色。原因：' + why +
-        '。这个文件不会被覆盖，你写的内容还在。' + action + (detail ? '（' + detail + '）' : ''),
-    },
-  }
+function readFailure(why, action, detail, raw) {
+  // 第四段是原文：读这个文件时抛上来的那个错误本身（或译码失败时的那份文件内容）。
+  // 提示语里只放一句「错误原文 …」的摘要，完整原文放在 raw 里，人展开就能看到全貌。
+  return failAs(ERROR_KIND.PARSE,
+    '工作区里的标签配色文件（' + LABEL_COLORS_REL_PATH + '）没有读出标签颜色。原因：' + why +
+      '。这个文件不会被覆盖，你写的内容还在。' + action + (detail ? '（' + detail + '）' : ''),
+    raw === undefined ? '' : raw)
+}
+
+/** 写失败的统一出口：档位与话术来自 describeWriteFailure，原文是写过程抛上来的那个错误。
+ *  提示语里照旧不许出现临时文件名（用户会照着去找一个并不存在的文件），原文只放在 raw 里。 */
+function writeFailure(e) {
+  const d = describeWriteFailure(e, LABEL_COLORS_REL_PATH)
+  return failAs(d.kind, d.message, e)
 }
 
 /** 「文件确实不在」的判据：只有它才允许按「还没有这份文件」处理。
@@ -149,7 +154,7 @@ export async function readLabelColors(ctx, repo) {
     return readFailure(
       '插件按这个位置去读，读这个文件这一步出错了（不是文件里的内容不合法）。可能是当前账号读不到它，也可能是它正被别的程序占用；插件分不出是哪一种',
       '请检查这个文件当前账号能不能读取、有没有别的程序正打开着它，然后重新保存。',
-      '错误原文 ' + String((yamlError && yamlError.message) || yamlError).slice(0, 120))
+      '错误原文 ' + String((yamlError && yamlError.message) || yamlError).slice(0, 120), yamlError)
   }
   if (typeof yamlText === 'string') return finishLabelsRead(ctx, where, yamlText, 'yaml')
   // 新文件确实不在：读老文件（兼容；读到就由放置与保存迁走）。
@@ -163,7 +168,7 @@ export async function readLabelColors(ctx, repo) {
     return readFailure(
       '插件按这个位置去读，读这个文件这一步出错了（不是文件里的内容不合法）。可能是当前账号读不到它，也可能是它正被别的程序占用；插件分不出是哪一种',
       '请检查这个文件当前账号能不能读取、有没有别的程序正打开着它，然后重新保存。',
-      '错误原文 ' + String((e && e.message) || e).slice(0, 120))
+      '错误原文 ' + String((e && e.message) || e).slice(0, 120), e)
   }
   return finishLabelsRead(ctx, where, jsonText, 'json')
 }
@@ -173,7 +178,8 @@ function finishLabelsRead(ctx, where, text, from) {
   const decoded = decodeLabelsText(text)
   if (!decoded.ok) {
     logRead(ctx, () => ({ cwdHash: where(), present: true, count: 0, ok: false, reason: decoded.reason }))
-    return readFailure(decoded.why, decoded.action, decoded.detail)
+    // 原文 = 这次读到的文件内容本身（译码判据是拿它判的，人复核也只能看它）。
+    return readFailure(decoded.why, decoded.action, decoded.detail, rawJson({ reason: decoded.reason, text: text }))
   }
   logRead(ctx, () => ({ cwdHash: where(), present: true, count: Object.keys(decoded.colors).length, ok: true }))
   return { ok: true, colors: decoded.colors, raw: decoded.raw, present: true, from, readonly: decoded.readonly }
@@ -224,6 +230,7 @@ async function publishAtomically(ctx, targetPath, text) {
 /** 写失败分档住 label-colors-errors.js（调用时把文件位置递进去，房间内部不转圈引用）。
  *  下面是原子发布、放置与写入口。 */
 import { describeWriteFailure } from './label-colors-errors.js'
+import { failAs, rawJson } from './error-fail.js'
 
 /** 放置配色文件（幂等）。两条路都走它：① 用户为工作区选定后端时；② 首次打开改色弹窗时。
  *  硬要求：文件已经存在时一个字都不改——先读一次，能读到就原样返回，绝不覆盖用户改过的内容。
@@ -245,7 +252,8 @@ export async function ensureLabelColors(ctx, repo) {
         try {
           await publishLabelColors(ctx, repo, read.raw, 'migrated')
         } catch (e) {
-          return { ok: false, error: describeWriteFailure(e, LABEL_COLORS_REL_PATH) }
+          // 原文 = 迁移这次写失败抛上来的错误；提示语里不许出现临时文件名。
+          return writeFailure(e)
         }
         if (!(await removeLegacyLabelsFile(ctx, repo))) {
           logWrite(ctx, { cwdHash: hash8(workspaceWriteKey(ctx, repo)), count: Object.keys(read.colors).length, ok: true, reason: 'migrate-legacy-kept' })
@@ -257,7 +265,8 @@ export async function ensureLabelColors(ctx, repo) {
     try {
       await publishLabelColors(ctx, repo, defaultLabelColors(), 'placed')
     } catch (e) {
-      return { ok: false, error: describeWriteFailure(e, LABEL_COLORS_REL_PATH) }
+      // 原文 = 放置这份默认文件时写失败抛上来的错误；提示语里不许出现临时文件名。
+      return writeFailure(e)
     }
     return { ok: true, placed: true, reason: 'created', from: 'yaml' }
   })

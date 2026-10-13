@@ -28,7 +28,7 @@ import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { normalizeColor } from '../../../shared/label-color/colors.js'
 import { fail } from '../../preflight.js'
 import { ghClient } from './client.js'
-import { classifyGhError } from './errors.js'
+import { ghFailureMessage, ghVerdictOf } from './errors.js'
 import { parseRepo } from './labels.js'
 import { readRepoPermissions } from './repo-permissions.js'
 import { getRepoKey } from './repo.js'
@@ -48,7 +48,7 @@ function repoSpec(repo) {
 /** 这次要动的仓库是哪个（`owner/name`）。
  *
  *  为什么不能只看宿主递过来的 repo.refId：#620 整改实测（D1）——**真实工作区里它常常是空的**。
- *  注册表出 RepositoryRef 时只认显式给的 refId（registryViews.js 的骨架回退对非本地后端回空串），
+ *  注册表出 RepositoryRef 时只认显式给的 refId（views.ts 的骨架回退对非本地后端回空串），
  *  「用户选定后端」那一步也没人给过 owner/name；于是这里一路空下去，两条操作在真仓库上
  *  **一律报「仓库不存在」、一条 gh 命令都发不出去**（fail-closed，不会改错仓库，但功能等于没接上）。
  *  所以拿不到时照本房间既有的三层兜底自己解析一次：git remote → .git/config → gh repo view
@@ -91,26 +91,30 @@ export async function listLabels(repo, ctx) {
   try {
     const c = ghClient(ctx)
     const target = await resolveRepoTarget(repo, ctx)
-    if (!target) return fail(ERROR_KIND.NOTFOUND, noRepoTarget('列标签', repo))
+    // 原文段交的是调用方给进来的那个仓库标识：这是当场能证明「没有可用目标」的那个值。
+    if (!target) return fail(ERROR_KIND.NOTFOUND, noRepoTarget('列标签', repo), String((repo && repo.refId) || repo || ''))
     const r = await c.execGh(
       ['label', 'list', '--repo', target.spec, '--json', 'name,color,description', '--limit', String(LABEL_LIST_LIMIT)],
       { cwd: ctx && ctx.cwd }
     )
-    if (!r.ok) return listFailure(r.error)
+    if (!r.ok) return listFailure(r.error, ctx)
     const text = (r.data && r.data.stdout) || ''
     let arr = null
     try { arr = JSON.parse(text) } catch (e) {
-      return fail(ERROR_KIND.ENV, '未能获取全部标签：插件没有读懂 GitHub 助手（gh）返回的内容。这是插件运行环境的问题，不是你的操作有误。请稍后重试。')
+      // 原文交的是这次 gh 的完整产出（不是解析失败那句话）：人自己就能看出回包里到底是什么。
+      return fail(ERROR_KIND.ENV, '未能获取全部标签：插件没有读懂 GitHub 助手（gh）返回的内容。这是插件运行环境的问题，不是你的操作有误。请稍后重试。', r.data)
     }
     if (!Array.isArray(arr)) {
-      return fail(ERROR_KIND.ENV, '未能获取全部标签：插件没有读懂 GitHub 助手（gh）返回的内容。这是插件运行环境的问题，不是你的操作有误。请稍后重试。')
+      return fail(ERROR_KIND.ENV, '未能获取全部标签：插件没有读懂 GitHub 助手（gh）返回的内容。这是插件运行环境的问题，不是你的操作有误。请稍后重试。', r.data)
     }
     if (arr.length >= LABEL_LIST_LIMIT) {
-      return fail(ERROR_KIND.ENV, '未能获取全部标签：这个仓库的标签总数超过了插件一次能读取的上限（' + LABEL_LIST_LIMIT + ' 条），无法确认是否读全。请先在 GitHub 的仓库页面里改名或删除不再需要的标签，然后重试。')
+      // 说「超过了上限」时的原文就是这份回包：人可以直接数出到底有多少条、都是些什么名字。
+      return fail(ERROR_KIND.ENV, '未能获取全部标签：这个仓库的标签总数超过了插件一次能读取的上限（' + LABEL_LIST_LIMIT + ' 条），无法确认是否读全。请先在 GitHub 的仓库页面里改名或删除不再需要的标签，然后重试。', r.data)
     }
     return { ok: true, data: arr.map(toLabelColor).filter(Boolean) }
   } catch (err) {
-    return fail(classifyGhError(err, ctx), String((err && err.message) || err))
+    const verdict = ghVerdictOf(err, ctx)
+    return fail(verdict.kind, ghFailureMessage(verdict, String((err && err.message) || err)), err)
   }
 }
 
@@ -122,15 +126,20 @@ function toLabelColor(raw) {
   return item
 }
 
-/** 列标签失败时的说法：环境类与连不通这两档要带上「未能获取全部标签」这句话（契约要求），其余照实说。 */
-function listFailure(err) {
-  const kind = (err && err.kind) || ERROR_KIND.NETWORK
+/** 列标签失败时的说法：环境类与连不通这两档要带上「未能获取全部标签」这句话（契约要求），其余照实说。
+ *  这里每一档的说法都是契约要求逐档写清的整句，所以它自己就是「挑给人看的那句话」，
+ *  不再套 `ghFailureMessage`（套上会把同一句「未能识别」的提示说两遍）。 */
+function listFailure(err, ctx) {
+  // 档位一律走本房唯一的判档出口：`err` 已经是 `gh exec` 归一过的失败，`ghVerdictOf` 会原样透传它那一档。
+  const kind = ghVerdictOf(err, ctx).kind
   const hint = rawHint(err)
-  if (kind === ERROR_KIND.ENV) return fail(kind, '未能获取全部标签：本机的 GitHub 助手（gh）未能运行。这是插件运行环境的问题，不是你的操作有误。' + hint)
-  if (kind === ERROR_KIND.NETWORK) return fail(kind, '未能获取全部标签：无法连接 GitHub（网络不可用或请求超时）。仓库未被修改，请确认网络可用后重试。' + hint)
-  if (kind === ERROR_KIND.AUTH) return fail(kind, '未能获取全部标签：GitHub 未通过登录校验（没有登录，或登录已失效）。请先运行 gh auth login 完成登录，然后重试。' + hint)
-  if (kind === ERROR_KIND.RATELIMIT) return fail(kind, '未能获取全部标签：GitHub 因请求过于频繁拒绝了这次请求。请稍后重试。' + hint)
-  return fail(kind, '未能获取全部标签：读取标签时发生插件未能识别的错误。这是插件运行环境的问题，不是你的操作有误。仓库未被修改，请稍后重试。' + (err && err.message ? '（gh 返回的说明：' + String(err.message) + '）' : '（gh 没有返回说明）'))
+  // 原文段优先交上游已经带着的原文（`err.raw`）；它没带时退回手里那个值。
+  const raw = err && typeof err === 'object' && typeof err.raw === 'string' && err.raw ? err.raw : String((err && err.message) || err || '')
+  if (kind === ERROR_KIND.ENV) return fail(kind, '未能获取全部标签：本机的 GitHub 助手（gh）未能运行。这是插件运行环境的问题，不是你的操作有误。' + hint, raw)
+  if (kind === ERROR_KIND.NETWORK) return fail(kind, '未能获取全部标签：无法连接 GitHub（网络不可用或请求超时）。仓库未被修改，请确认网络可用后重试。' + hint, raw)
+  if (kind === ERROR_KIND.AUTH) return fail(kind, '未能获取全部标签：GitHub 未通过登录校验（没有登录，或登录已失效）。请先运行 gh auth login 完成登录，然后重试。' + hint, raw)
+  if (kind === ERROR_KIND.RATELIMIT) return fail(kind, '未能获取全部标签：GitHub 因请求过于频繁拒绝了这次请求。请稍后重试。' + hint, raw)
+  return fail(kind, '未能获取全部标签：读取标签时发生插件未能识别的错误。这是插件运行环境的问题，不是你的操作有误。仓库未被修改，请稍后重试。' + (err && err.message ? '（gh 返回的说明：' + String(err.message) + '）' : '（gh 没有返回说明）'), raw)
 }
 
 // ── 批量改色 ─────────────────────────────────────────────────────────────────
@@ -199,9 +208,10 @@ async function applyOne(c, spec, ch, ctx, permCache) {
 export async function setLabelColors(repo, changes, ctx) {
   try {
     const bad = changesProblem(changes)
-    if (bad) return fail(ERROR_KIND.PARSE, bad)
+    // 入参不合格时手里还没有任何外部原文，原文就交那份不合格的改动清单本身。
+    if (bad) return fail(ERROR_KIND.PARSE, bad, changes)
     const target = await resolveRepoTarget(repo, ctx)
-    if (!target) return fail(ERROR_KIND.NOTFOUND, noRepoTarget('修改标签颜色', repo))
+    if (!target) return fail(ERROR_KIND.NOTFOUND, noRepoTarget('修改标签颜色', repo), repo)
     if (changes.length === 0) return { ok: true, data: { applied: [], failed: [] } }
     const c = ghClient(ctx)
     // #992：本批共用的权限复用位 —— 撞到 404 才问仓库权限，且一批里只真问一次
@@ -232,7 +242,9 @@ export async function setLabelColors(repo, changes, ctx) {
     }
     return { ok: true, data: { applied: applied, failed: failed } }
   } catch (err) {
-    return fail(classifyGhError(err, ctx), String((err && err.message) || err))
+    // 判档只走本房唯一的出口（`ghVerdictOf`）：档位由规则表判、话术按票面实现决定第 11 条挑。
+    const verdict = ghVerdictOf(err, ctx)
+    return fail(verdict.kind, ghFailureMessage(verdict, String((err && err.message) || err)), err)
   }
 }
 
@@ -240,35 +252,33 @@ export async function setLabelColors(repo, changes, ctx) {
  *  顺序按「能确定程度」排：先看退出码（没登录只靠退出码 4 认），再看 gh 的报错原文。 */
 async function explainWriteFailure(c, spec, ch, err, ctx, permCache) {
   const code = err && typeof err.code === 'number' ? err.code : null
-  const text = String((err && (err.message || err.stderr)) || '')
   const hint = rawHint(err)
-  // ① 没登录：gh 自己的约定（gh help exit-codes：需要登录 = 退出码 4）。只认退出码，不靠文案巧合。
+  // 档位一律由本房唯一的判档出口给（上游已经归好的档，它会原样透传）；下面每一条只是把同一档
+  // 换成一句能给用户看的说法，不再自己拿正则判第二遍 —— 判档只有一张表。
+  const kind = ghVerdictOf(err, ctx).kind
+  // ① 没登录：gh 自己的约定（gh help exit-codes：需要登录 = 退出码 4）。这条事实在本房扩展表里
+  //    也写着、指向同一档 auth；这里再看一眼退出码，只是为了挑「未登录」那句更具体的说法。
   if (code === 4) {
     return reason(ERROR_KIND.AUTH, 'GitHub 未登录，因此无法修改「' + ch.name + '」的颜色：请先运行 gh auth login 登录账号，然后返回保存。本次「' + ch.name + '」的颜色未改动。')
   }
   // ② 限速：403 或 429 带 rate limit 文案（官方文档：次限速也走这两个状态码）
-  if (/rate limit|api rate limit exceeded|\b429\b/i.test(text)) {
+  if (kind === ERROR_KIND.RATELIMIT) {
     return reason(ERROR_KIND.RATELIMIT, 'GitHub 因请求过于频繁拒绝了这次请求。请稍后重新保存。本次「' + ch.name + '」的颜色未改动。')
   }
-  // ③ 凭据被拒
-  if (/HTTP 401|bad credentials|unauthorized/i.test(text)) {
+  // ③ 凭据被拒 / 权限不足
+  if (kind === ERROR_KIND.AUTH) {
     return reason(ERROR_KIND.AUTH, 'GitHub 返回登录凭据无效（可能已过期或被撤销）：请重新运行 gh auth login 登录后再保存。本次「' + ch.name + '」的颜色未改动。' + hint)
   }
-  // ④ 颜色被 API 拒（422）：实测原文是两行「HTTP 422: Validation Failed」加「Label.color is invalid」
-  if (/HTTP 422|validation failed/i.test(text)) {
+  // ④ 颜色被 API 拒（422）：实测原文是两行「HTTP 422: Validation Failed」加「Label.color is invalid」，
+  //    本房扩展表把这种写法归解析档。
+  if (kind === ERROR_KIND.PARSE) {
     return reason(ERROR_KIND.PARSE, 'GitHub 拒绝了「' + ch.name + '」的新颜色：颜色需为不带井号的六位十六进制（例如 9d7cd8）。请改为正确写法后重新保存。' + hint)
   }
   // ⑤ 404：三种情况（标签不存在 / 仓库不存在 / 没有写权限）长得一模一样，只能再问一次仓库权限。
-  //    这里只认状态码 404，不认「not found」这句英文——gh 可执行文件缺失时的那句
-  //    「gh not found: …」里也有 not found，认文案会把「本机缺工具」误判成「标签不存在」。
-  if (/HTTP 404|\b404\b/i.test(text)) return await explain404(c, spec, ch, ctx, hint, permCache)
-  // ⑥ 其余按 client 已经归好的档，只是把说法换成能给用户看的一句
-  const kind = (err && err.kind) || classifyGhError(err, ctx)
+  if (kind === ERROR_KIND.NOTFOUND) return await explain404(c, spec, ch, ctx, hint, permCache)
+  // ⑥ 其余各档照实说。
   if (kind === ERROR_KIND.ENV) return reason(ERROR_KIND.ENV, '修改「' + ch.name + '」的颜色时，本机的 GitHub 助手（gh）没有给出答复，因此无法确认这一条的颜色是否已经改动。这是插件运行环境的问题，不是你的操作有误。请用 gh label list 核对后再重试。' + hint)
   if (kind === ERROR_KIND.NETWORK) return reason(ERROR_KIND.NETWORK, '修改「' + ch.name + '」的颜色时无法连接 GitHub（网络不可用或请求超时），插件没有拿到 GitHub 的答复，因此无法确认这一条的颜色是否已经改动。请确认网络可用，并用 gh label list 核对后再重试。' + hint)
-  if (kind === ERROR_KIND.AUTH) return reason(ERROR_KIND.AUTH, '修改「' + ch.name + '」的颜色时未能通过 GitHub 的登录校验：请先确认账号已登录并在这个仓库上有写权限，然后用 gh label list 核对这一条的颜色是否已经改动，再重试。' + hint)
-  if (kind === ERROR_KIND.RATELIMIT) return reason(ERROR_KIND.RATELIMIT, '修改「' + ch.name + '」的颜色时 GitHub 因请求过于频繁拒绝了这次请求。插件没有拿到答复，因此无法确认这一条的颜色是否已经改动。请稍后用 gh label list 核对后再重试。' + hint)
-  if (kind === ERROR_KIND.NOTFOUND) return reason(ERROR_KIND.NOTFOUND, '修改「' + ch.name + '」的颜色时 GitHub 报告找不到这个标签。本次「' + ch.name + '」的颜色未改动，请先核对仓库名与标签名，然后重试' + hint)
   return reason(kind, '修改「' + ch.name + '」的颜色时发生插件未能识别的错误。插件无法确认这一条的颜色是否已经改动，请用 gh label list 核对后再重试；若仍然失败，请把这一句原文报告给插件维护者。' + (err && err.message ? '（gh 返回的说明：' + String(err.message) + '）' : '（gh 没有返回说明）'))
 }
 

@@ -6,7 +6,7 @@
 import { parseMd } from './parse.js'
 import { readTextFile, readDir, statFile } from './read.js'
 import { mdPath, issuesDir } from './path.js'
-import { classifyError } from '../../preflight.js'
+import { failAs, failFromError, kindFromError, rawFromError, rawTextOf } from './error-fail.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { idOfParts } from '../../identity-keys.js'
 import { getPlat, listEfforts, resolveIssueFile, resolveMapFile, loadIssueFromFile, scopeOf } from './issues-locate.js'
@@ -36,11 +36,12 @@ export async function enumerateIssueRows(ctx, repo, filter = {}, opts = {}) {
   const collectErrors = !!(opts && opts.collectErrors === true)
   const rows = []
   const errors = []
-  /** 记下一个读不动的票文件：调用方据此如实报失败（编号、文件、错误档位都带上）。 */
+  /** 记下一个读不动的票文件：调用方据此如实报失败（编号、文件、错误档位、原文都带上）。 */
   const noteReadError = function (key, fullPath, err) {
     if (!collectErrors) return
-    const kind = err && err.kind ? err.kind : classifyError(err)
-    errors.push({ key: String(key), path: String(fullPath || ''), kind, message: err && err.message ? String(err.message) : String(err) })
+    const got = kindFromError(err, ctx)
+    // 原文 = 抛上来的那个错误本身（`cause` 里才是文件服务真正吐出的那一句，取法统一在 error-fail.ts）。
+    errors.push({ key: String(key), path: String(fullPath || ''), kind: got.kind, message: err && err.message ? String(err.message) : String(err), raw: rawTextOf(rawFromError(err)) })
   }
   /** `filter.keys` 给的是「这几个编号才要」：枚举阶段就跳过别的编号（列举的既有行为，照旧）。 */
   const keyWanted = function (key) {
@@ -141,10 +142,11 @@ export async function listIssues(ctx,repo,filter={}){
     }
     filtered.sort((a,b)=>String(a.effortId||'').localeCompare(String(b.effortId||''))||a.key.localeCompare(b.key))
     return{ok:true,data:filtered}
-  }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
+  }catch(e){return failFromError(e,ctx,'列举这个工作区的票时出错')}
 }
 export async function getIssue(ctx,repo,key,opts={}){
-  if(!key)return{ok:false,error:{kind:ERROR_KIND.NOTFOUND,message:'missing key'}}
+  // 原文给空串：这条支路一个文件都没碰过，没有外部来源的原文可取。
+  if(!key)return failAs(ERROR_KIND.NOTFOUND,'missing key','')
   const norm=String(key).padStart(2,'0')
   const colorMap=await loadPaintColorMap(ctx)
   const scope=scopeOf(repo, opts)
@@ -159,13 +161,13 @@ export async function getIssue(ctx,repo,key,opts={}){
         const iss=parseMd(txt,{key:norm,parentKey:null,isMap:true,effortId:r.effortId,createdAt:mtime,updatedAt:mtime})
         applyLabelColors(iss, colorMap)
         return{ok:true,data:iss}
-      }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
+      }catch(e){return failFromError(e,ctx,'读这个工作单元的地图文件时出错')}
     }
     return{ok:false,error:r.error}
   }
   const r=await resolveIssueFile(ctx,repo,norm,{effortId: scope, mode:'read'})
   if(r.ok){
-    try{const iss=await loadIssueFromFile(ctx,repo,r.path,{parentKey:'00',isMap:false,effortId:r.effortId});applyLabelColors(iss, colorMap);return{ok:true,data:iss}}catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
+    try{const iss=await loadIssueFromFile(ctx,repo,r.path,{parentKey:'00',isMap:false,effortId:r.effortId});applyLabelColors(iss, colorMap);return{ok:true,data:iss}}catch(e){return failFromError(e,ctx,'读这张票的文件时出错')}
   }
   return{ok:false,error:r.error}
 }

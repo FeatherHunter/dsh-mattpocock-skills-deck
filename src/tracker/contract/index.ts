@@ -67,9 +67,14 @@ export const OPERATIONS: readonly string[] = Object.freeze(CATALOG_OPERATIONS)
 
 /**
  * 统一错误形状（所有操作失败都归一化成这个，**返回**不 throw）。
+ * 真源是 `contract/results.ts` 里的 `TrackerError`（TypeScript 侧那份带必填校验）；
+ * 这里这份是给还用注释当类型的手写旧语言文件看的同一份形状说明，两处必须同形。
  * @typedef {Object} TrackerError
  * @property {import('./vocabulary.js').ERROR_KIND} kind 分类：env/auth/rate-limit/conflict/unsupported/not-found/network/parse
- * @property {string} message
+ * @property {string} message 给人看的一句话（允许直接展示；不要把原文塞进来）
+ * @property {string} raw 后端或命令吐出的原文（**必填**，确实没有原文时给空串）。分类是启发式的、
+ *   可能猜错，原文是让人自己判断的兜底；取原文只有一处实现：`preflight.ts` 的 `fail(kind, message, raw)`，
+ *   由它统一做多路合并（stderr → message → stdout → text）、凭据遮蔽与头尾截断。
  */
 
 /**

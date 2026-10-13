@@ -3,13 +3,13 @@
  *
  * 定版依据：#138 §1.4（comment 归一）+ contract.js OpResult 形状。
  * - 签名：comment(repo, key, body, ctx) -> OpResult<Comment>
- * - 通过 `gh issue comment` / REST POST 实现；错误分类经 classifyGhError
+ * - 通过 `gh issue comment` / REST POST 实现；错误分类经 ghVerdictOf（判档表在 src/tracker/error-rules.ts）
  */
 
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { fail } from '../../preflight.js'
 import { ghClient } from './client.js'
-import { classifyGhError } from './errors.js'
+import { ghFailureMessage, ghVerdictOf } from './errors.js'
 
 function parseRepo(repo) {
   if (!repo || typeof repo.refId !== 'string' || !repo.refId) return null
@@ -29,10 +29,11 @@ function repoId(repo) {
 export async function addComment(repo, key, body, ctx) {
   try {
     const parsed = parseRepo(repo)
-    if (!parsed) return fail(ERROR_KIND.NOTFOUND, `comment: repo.refId missing: ${repoId(repo)}`)
+    // 形状不对的入参本身就是这一处的原文（这之前还没跑过任何外部命令）；它取出来可能是空串，那是如实交代。
+    if (!parsed) return fail(ERROR_KIND.NOTFOUND, `comment: repo.refId missing: ${repoId(repo)}`, repo)
     const k = String(key || '').trim()
-    if (!k) return fail(ERROR_KIND.PARSE, 'comment: key required')
-    if (typeof body !== 'string' || !body.trim()) return fail(ERROR_KIND.PARSE, 'comment: body required')
+    if (!k) return fail(ERROR_KIND.PARSE, 'comment: key required', key)
+    if (typeof body !== 'string' || !body.trim()) return fail(ERROR_KIND.PARSE, 'comment: body required', body)
     const c = ghClient(ctx)
     // 优先 REST：gh api POST repos/.../issues/<n>/comments -f body
     const args = ['api', `repos/${parsed.owner}/${parsed.name}/issues/${k}/comments`, '--method', 'POST', '-f', `body=${body}`, '--jq', '.']
@@ -65,14 +66,17 @@ export async function addComment(repo, key, body, ctx) {
     if (raw && (raw.editedAt || raw.lastEditedAt || raw.edited_at || raw.last_edited_at)) comment.editedAt = raw.editedAt || raw.lastEditedAt || raw.edited_at || raw.last_edited_at
     return { ok: true, data: comment }
   } catch (e) {
-    const kind = classifyGhError(e)
-    return fail(kind, String((e && e.message) || e).slice(0, 800))
+    // 判档只走本房唯一的出口（`ghVerdictOf`）：档位由规则表判、话术按票面实现决定第 11 条挑；
+    // 第三段把出错的那个值原样交出去当原文（合并、遮蔽、截断由 `fail` 统一做）。
+    const verdict = ghVerdictOf(e, ctx)
+    return fail(verdict.kind, ghFailureMessage(verdict, String((e && e.message) || e).slice(0, 800)), e)
   }
 }
 
 // 便捷：listComments 非 op（仅 get 的 comments 分页用，宿主不直接调用）
 export async function listComments(repo, key, ctx) {
-  return fail(ERROR_KIND.UNSUPPORTED, 'listComments: use get(repo,key,{comments})')
+  // 这是一条「请换用 get」的桩，还没有跑过外部命令，手里可当原文的只有调用时给的票号。
+  return fail(ERROR_KIND.UNSUPPORTED, 'listComments: use get(repo,key,{comments})', key)
 }
 
 export default { addComment, listComments }

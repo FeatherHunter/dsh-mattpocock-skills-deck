@@ -16,13 +16,13 @@
  *    拉取请求），兜过去只会拿一个看着像数、其实不对的数字骗人。
  *  - **不缓存判定**（G5 红线）：失败（含 unsupported 桩）不进任何缓存，缓存层在编排层，这里只如实返回。
  *
- * 错误分类复用本房间既有的 classifyGhError（与 list / get 同一套档位），不另造词。
+ * 错误分类走本房间唯一的出口 ghVerdictOf（判档表在 src/tracker/error-rules.ts），不另造词。
  */
 
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { fail } from '../../preflight.js'
 import { ghClient } from './client.js'
-import { classifyGhError } from './errors.js'
+import { ghFailureMessage, ghVerdictOf } from './errors.js'
 import { parseRepo, repoId } from './issues.js'
 import { COUNTS_QUERY, COUNTS_QUERY_WITH_LABELS } from './queries.js'
 
@@ -63,7 +63,8 @@ function countOf(node) {
 export async function countIssues(repo, filter, ctx) {
   try {
     const parsed = parseRepo(repo)
-    if (!parsed) return fail(ERROR_KIND.NOTFOUND, `counts: repo.refId missing or malformed: ${repoId(repo)}`)
+    // 形状不对的入参本身就是这一处的原文（这之前还没跑过任何外部命令）；它取出来可能是空串，那是如实交代。
+    if (!parsed) return fail(ERROR_KIND.NOTFOUND, `counts: repo.refId missing or malformed: ${repoId(repo)}`, repo)
     const narrow = narrowStateOf(filter)
     const labels = labelsOf(filter)
     const c = ghClient(ctx)
@@ -78,24 +79,30 @@ export async function countIssues(repo, filter, ctx) {
     if (!r.ok) return { ok: false, error: r.error }
     let j
     try { j = JSON.parse(r.data.stdout || '') } catch (e) {
-      return fail(ERROR_KIND.PARSE, `counts: invalid json ${String(e.message).slice(0, 200)}`)
+      // 没能解析成 JSON 的那份回包就是这里的原文（交的是这次 gh 的完整产出，不只 stdout 一截）。
+      return fail(ERROR_KIND.PARSE, `counts: invalid json ${String(e.message).slice(0, 200)}`, r.data)
     }
     if (j.errors) {
       const msg = `counts: ${JSON.stringify(j.errors).slice(0, 800)}`
-      return { ok: false, error: { kind: classifyGhError({ message: msg, stderr: msg }, ctx), message: msg } }
+      // 原文交的是 GitHub 回的那份 errors 负载本身（msg 只是给它加了个操作名前缀，不算原文）。
+      // 判档与话术都走本房唯一的出口：档位由规则表判、message 按票面实现决定第 11 条挑。
+      const verdict = ghVerdictOf({ message: msg, stderr: msg }, ctx)
+      return fail(verdict.kind, ghFailureMessage(verdict, msg), JSON.stringify(j.errors))
     }
     const repoData = j.data && j.data.repository
-    if (!repoData) return fail(ERROR_KIND.PARSE, 'counts: graphql: missing repository')
+    // 说「回包里缺东西」时，原文就是这份回包本身 —— 人自己能看出它到底缺了什么。
+    if (!repoData) return fail(ERROR_KIND.PARSE, 'counts: graphql: missing repository', r.data)
     const openAll = countOf(repoData.openIssues)
     const closedAll = countOf(repoData.closedIssues)
     if (openAll === null || closedAll === null) {
-      return fail(ERROR_KIND.PARSE, 'counts: totalCount missing or not a non-negative integer (refusing to guess a number)')
+      return fail(ERROR_KIND.PARSE, 'counts: totalCount missing or not a non-negative integer (refusing to guess a number)', r.data)
     }
     const open = narrow === 'closed' ? 0 : openAll
     const closed = narrow === 'open' ? 0 : closedAll
     return { ok: true, data: { open, closed, total: open + closed } }
   } catch (e) {
-    return fail(classifyGhError(e, ctx), String((e && e.message) || e).slice(0, 800))
+    const verdict = ghVerdictOf(e, ctx)
+    return fail(verdict.kind, ghFailureMessage(verdict, String((e && e.message) || e).slice(0, 800)), e)
   }
 }
 

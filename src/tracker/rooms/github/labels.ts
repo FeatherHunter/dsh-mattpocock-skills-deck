@@ -12,11 +12,11 @@
  * 本文件只保留了它们要用的仓库名拆解（parseRepo / repoId），不再自己列标签。
  */
 
-import { fail } from '../../preflight.js'
+import { fail, rawText } from '../../preflight.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { normalizeIssue } from './normalize.js'
 import { ghClient } from './client.js'
-import { classifyGhError } from './errors.js'
+import { ghFailureMessage, ghVerdictOf } from './errors.js'
 import { readRepoPermissions, readonlyMessage } from './repo-permissions.js'
 import { getIssue } from './issues.js'
 
@@ -78,7 +78,8 @@ async function attributeLabelFailure(c, spec, wantNames, err, ctx) {
   if (!suspicious) return err
   const perms = await readRepoPermissions(c, spec, ctx)
   if (perms && perms.triage === false) {
-    return { kind: ERROR_KIND.AUTH, message: readonlyMessage(spec, wantNames) }
+    // 这一段是「改判」：gh 的原文本来就在手里（err），只是先前判成了别的原因，改判不能把原文丢掉。
+    return { kind: ERROR_KIND.AUTH, message: readonlyMessage(spec, wantNames), raw: rawText(err) }
   }
   return err
 }
@@ -90,18 +91,20 @@ async function attributeLabelFailure(c, spec, wantNames, err, ctx) {
 export async function setLabels(repo, key, labels, opts, ctx) {
   const wanted = normalizeLabelInputs(labels)
   const k = String(key || '').trim()
-  if (!k) return fail(ERROR_KIND.PARSE, 'setLabels: key required (string)')
+  if (!k) return fail(ERROR_KIND.PARSE, 'setLabels: key required (string)', key)
 
   try {
     const parsed = parseRepo(repo)
-    if (!parsed) return fail(ERROR_KIND.NOTFOUND, `setLabels: repo.refId missing: ${repoId(repo)}`)
+    // 形状不对的入参本身就是这一处的原文（这之前还没跑过任何外部命令）；它取出来可能是空串，那是如实交代。
+    if (!parsed) return fail(ERROR_KIND.NOTFOUND, `setLabels: repo.refId missing: ${repoId(repo)}`, repo)
 
     // If-Match 前置：expectedUpdatedAt 强一致
     if (opts && typeof opts.expectedUpdatedAt === 'string' && opts.expectedUpdatedAt !== '') {
       const cur = await getIssue(repo, k, {}, ctx)
       if (!cur.ok) return cur
       if (cur.data.updatedAt !== opts.expectedUpdatedAt) {
-        return fail(ERROR_KIND.CONFLICT, `conflict: expectedUpdatedAt mismatch (want ${opts.expectedUpdatedAt} got ${cur.data.updatedAt})`)
+        // 原文交的是 GitHub 这一刻给出的 updatedAt（期望值那一半已经在 message 里说清了）。
+        return fail(ERROR_KIND.CONFLICT, `conflict: expectedUpdatedAt mismatch (want ${opts.expectedUpdatedAt} got ${cur.data.updatedAt})`, cur.data.updatedAt)
       }
     }
 
@@ -136,9 +139,11 @@ export async function setLabels(repo, key, labels, opts, ctx) {
     finalRes.data.labels = wanted
     return finalRes
   } catch (err) {
-    const kind = classifyGhError(err)
-    if (kind === ERROR_KIND.CONFLICT) return fail(ERROR_KIND.CONFLICT, err && err.message ? String(err.message) : 'conflict')
-    return fail(kind, err && err.message ? String(err.message) : String(err))
+    const verdict = ghVerdictOf(err, ctx)
+    const own = err && err.message ? String(err.message) : String(err)
+    // conflict 由后端显式产生、不是从文本猜出来的：这里原样透传那一档，话术照旧走统一那一份。
+    if (verdict.kind === ERROR_KIND.CONFLICT) return fail(ERROR_KIND.CONFLICT, ghFailureMessage(verdict, own), err)
+    return fail(verdict.kind, ghFailureMessage(verdict, own), err)
   }
 }
 

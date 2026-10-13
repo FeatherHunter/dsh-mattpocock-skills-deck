@@ -4,7 +4,7 @@ import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { fail } from '../../preflight.js'
 import { glabClient } from './client.js'
 import { normalizeIssue } from './normalize.js'
-import { classifyGlabError } from './errors.js'
+import { failGlab } from './errors.js'
 import { issuePath, linksPath } from './queries.js'
 
 export function repoId(repo) {
@@ -52,7 +52,15 @@ function rewriteDescriptionWithBlockedBy(oldBody, keys) {
 export async function fetchRawIssue(opCtx, refId, key) {
   const c = glabClient(opCtx)
   const res = await c.run(['api', `${issuePath(refId, key)}?with_labels_details=true`], { timeout: 8000 })
-  if (res.code !== 0) throw Object.assign(new Error(res.stderr || res.stdout), { stderr: res.stderr, stdout: res.stdout, code: res.code })
+  if (res.code !== 0) {
+    // 抛出去的那个错带上这一趟的原始回包（stderr/stdout/退出码）：上层只 catch 到一个 Error 时，
+    // 原始回包仍然躺在这个错上，`fail()` 取原文时才拿得到「glab 到底说了什么」。
+    const err = new Error(res.stderr || res.stdout)
+    err.stderr = res.stderr
+    err.stdout = res.stdout
+    err.code = res.code
+    throw err
+  }
   let raw = null
   try { raw = JSON.parse(res.stdout) } catch {}
   return raw
@@ -109,14 +117,14 @@ function hasCycle(allBlockedByMap, startKey, newBlockers) {
 export async function getDependencies(ctx, repo, key, opts, opCtx) {
   const effective = opCtx || ctx
   const id = repoId(repo)
-  if (!id) return fail(ERROR_KIND.NOTFOUND, 'getDependencies: repo.refId missing')
+  if (!id) return fail(ERROR_KIND.NOTFOUND, 'getDependencies: repo.refId missing', '')
   const k = String(key)
   try {
     // 读当前 issue 的 blockedBy（走原生优先→回退）
     let raw = null
     try { raw = await fetchRawIssue(effective, id, k) } catch (e) {
-      const kind = classifyGlabError(e)
-      return fail(kind, e.message)
+      // 原文 = 读票面失败的那个 Error（它身上带着 glab 的 stderr/stdout）。
+      return failGlab(e, e.message, e, effective)
     }
     // 尝试原生
     let blockedKeys = []
@@ -146,27 +154,31 @@ export async function getDependencies(ctx, repo, key, opts, opCtx) {
     // blocking反向聚合由宿主投影，此处仅返回便利投影：blocking=[]（后端不维护第二真相）
     return { ok: true, data: { blockedBy, blocking: [] } }
   } catch (err) {
-    const kind = classifyGlabError(err)
-    return fail(kind, err && err.message ? String(err.message) : String(err))
+    // 原文 = 抛上来的那个 Error 对象本身。
+    return failGlab(err, err && err.message ? String(err.message) : String(err), err, effective)
   }
 }
 
 export async function setBlockedBy(ctx, repo, key, blockers, opts, opCtx) {
   const effective = opCtx || ctx
   const id = repoId(repo)
-  if (!id) return fail(ERROR_KIND.NOTFOUND, 'setBlockedBy: repo.refId missing')
+  if (!id) return fail(ERROR_KIND.NOTFOUND, 'setBlockedBy: repo.refId missing', '')
   const k = String(key)
-  if (!k) return fail(ERROR_KIND.PARSE, 'setBlockedBy: key required')
+  if (!k) return fail(ERROR_KIND.PARSE, 'setBlockedBy: key required', '')
   const wanted = Array.isArray(blockers) ? [...new Set(blockers.map(String).filter(Boolean))] : []
   // 自环先判
-  if (wanted.includes(k)) return fail(ERROR_KIND.CONFLICT, `conflict: self-loop ${k}`)
+  // 这一处没有外部来源的原文：结论是「入参自己和自己打架」。原文给这次请求的入参快照，
+  // 让人一眼看见是哪张票被指成了自己的阻塞者。
+  if (wanted.includes(k)) return fail(ERROR_KIND.CONFLICT, `conflict: self-loop ${k}`, JSON.stringify({ key: k, blockers: wanted }))
   try {
     const raw = await fetchRawIssue(effective, id, k)
-    if (!raw) return fail(ERROR_KIND.NOTFOUND, `issue ${k} not found`)
+    // 回包不是一个带 iid 的票面（空对象/空值）：没有外部错误文本，原文给空串。
+    if (!raw) return fail(ERROR_KIND.NOTFOUND, `issue ${k} not found`, '')
     // If-Match
     if (opts && typeof opts.expectedUpdatedAt === 'string' && opts.expectedUpdatedAt !== '') {
       const cur = raw.updated_at || raw.updatedAt || ''
-      if (cur !== opts.expectedUpdatedAt) return fail(ERROR_KIND.CONFLICT, `conflict: expectedUpdatedAt mismatch (want ${opts.expectedUpdatedAt} got ${cur})`)
+      // 原文 = 回读到的票面（人据此自己核对远端现在是什么版本）。
+      if (cur !== opts.expectedUpdatedAt) return fail(ERROR_KIND.CONFLICT, `conflict: expectedUpdatedAt mismatch (want ${opts.expectedUpdatedAt} got ${cur})`, JSON.stringify(raw))
     }
     // 探针：原生是否可用
     let useNative = false
@@ -180,7 +192,8 @@ export async function setBlockedBy(ctx, repo, key, blockers, opts, opCtx) {
     if (useNative) {
       // 原生路径：需 diff links (is_blocked_by)
       // 简化：调用 set via glab api links（此处桩为回退，真实 premium 仍走回退可通过）
-      return fail(ERROR_KIND.UNSUPPORTED, 'native blocking write pending premium path (use fallback)')
+      // 原文给空串：这条支路今天一个请求都没发出去，没有远端回包可交（那句话说给人听的别当原文）。
+      return fail(ERROR_KIND.UNSUPPORTED, 'native blocking write pending premium path (use fallback)', '')
     }
 
     // 回退路径：重写 description 的 Blocked by: 行
@@ -204,7 +217,8 @@ export async function setBlockedBy(ctx, repo, key, blockers, opts, opCtx) {
             else if (Array.isArray(it.blocked_by) && it.blocked_by.length) map.set(kk, it.blocked_by.map((b)=>String(b.iid)))
           }
           if (hasCycle(map, k, wanted)) {
-            return fail(ERROR_KIND.CONFLICT, 'conflict: cycle detected')
+            // 原文 = 这次看到的阻塞关系快照（人据此自己复算那条环），不是给人看的那句结论。
+            return fail(ERROR_KIND.CONFLICT, 'conflict: cycle detected', JSON.stringify({ key: k, wanted, observed: Array.from(map.entries()) }))
           }
         }
       }
@@ -220,8 +234,8 @@ export async function setBlockedBy(ctx, repo, key, blockers, opts, opCtx) {
       void raw2
       // 直接 PUT description via glab api with -f (handle multiline via stdin file)
       // 简化：返回 conflict 报文
-      const kind = classifyGlabError({ message: putRes.stderr || putRes.stdout })
-      return fail(kind, putRes.stderr || putRes.stdout || 'setBlockedBy failed')
+      // 原文 = 写阻塞那一次 PUT 的进程结果（stderr/stdout/退出码都在里面）。
+      return failGlab(putRes, putRes.stderr || putRes.stdout || 'setBlockedBy failed', putRes, effective)
     }
     let updatedRaw = null
     try { updatedRaw = JSON.parse(res.stdout) } catch { updatedRaw = { iid: k, description: newBody } }
@@ -238,8 +252,8 @@ export async function setBlockedBy(ctx, repo, key, blockers, opts, opCtx) {
     const issue = normalizeIssue(updatedRaw)
     return { ok: true, data: issue }
   } catch (err) {
-    const kind = classifyGlabError(err)
-    if (kind === ERROR_KIND.CONFLICT) return fail(ERROR_KIND.CONFLICT, err.message)
-    return fail(kind, err && err.message ? String(err.message) : String(err))
+    // 原文 = 抛上来的那个 Error 对象本身。kind 为 conflict 时这里走的是透传那一路，
+    // 本家那句话（rr.message）原样留着，不会被换成通用提示。
+    return failGlab(err, err && err.message ? String(err.message) : String(err), err, effective)
   }
 }

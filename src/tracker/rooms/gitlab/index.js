@@ -103,7 +103,8 @@ export const links = {
  * @returns {import('../../contract/index.js').Tracker}
  */
 export function createGitlabBackend(ctx) {
-  const unsupported = (op) => fail(ERROR_KIND.UNSUPPORTED, `gitlab ${op} pending #145 stub`)
+  // 原文给这次被拒的操作名（这条支路一个请求都没发，没有远端回包可取）。
+  const unsupported = (op) => fail(ERROR_KIND.UNSUPPORTED, `gitlab ${op} pending #145 stub`, String(op))
 
   return {
     id: 'gitlab',

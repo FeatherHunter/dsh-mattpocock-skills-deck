@@ -26,7 +26,7 @@
  */
 
 import { ERROR_KIND, ISSUE_TYPE, STATE } from '../../contract/vocabulary.js'
-import { classifyError } from '../../preflight.js'
+import { failAs, failFromError } from './error-fail.js'
 import { enumerateIssueRows } from './issues-read.js'
 
 /** filter.state 归一：只有 'open' 与 'closed' 两种收窄，其余（含没给）都是「两种状态一起数」。
@@ -82,7 +82,11 @@ export async function countIssues(ctx, repo, filter = {}) {
     const { rows, errors } = await enumerateIssueRows(ctx, repo, scopeFilter, { collectErrors: true })
     if (errors.length) {
       const kind = errors[0].kind || ERROR_KIND.ENV
-      return { ok: false, error: { kind, message: readFailureMessage(errors) } }
+      // 原文 = 每张读不动的票「编号（文件）+ 判出来的档位 + 那句错误」，一行一张。
+      // 光看汇总出来的人话看不出是哪几个文件、各是什么错，这一段才是能照着查的东西。
+      return failAs(kind, readFailureMessage(errors), errors.map(function (e) {
+        return String(e.key) + ' ' + String(e.path) + ' [' + String(e.kind || '') + '] ' + String(e.message || '')
+      }).join('\n'))
     }
     const wanted = labelsOf(filter)
     let open = 0
@@ -98,8 +102,7 @@ export async function countIssues(ctx, repo, filter = {}) {
     const closedOut = narrow === STATE.OPEN ? 0 : closed
     return { ok: true, data: { open: openOut, closed: closedOut, total: openOut + closedOut } }
   } catch (e) {
-    const kind = e && e.kind ? e.kind : classifyError(e)
-    return { ok: false, error: { kind, message: e && e.message ? e.message : String(e) } }
+    return failFromError(e, ctx, '数这个工作区的票数时出错')
   }
 }
 

@@ -34,6 +34,13 @@
     "src/tracker/contract/**/*.ts",
     "src/tracker/identity-keys.ts",
     "src/tracker/label-names.ts",
-    "src/tracker/fix-contract.ts"
+    "src/tracker/fix-contract.ts",
+    // #1111：判档规则表是这一票的核心模块，全标注、严格干净，与上面三份同样暂住这里。
+    // 它只 import 契约层的 vocabulary.ts，不会把没标注的旧语言文件拉进这次检查。
+    "src/tracker/error-rules.ts",
+    // #1111：markdown 房的失败构造辅助（failFromError / failAs / …）。它只 import 跟踪器层的
+    // preflight.ts 与 error-rules.ts，两份都已全标注；同批的 GitHub / GitLab 房仍按「先修后转」
+    // 在原地是旧语言文件，所以这一批只圈这一份，等整棵 src/tracker 的归属配置（#1095）来了再收口。
+    "src/tracker/rooms/markdown/error-fail.ts"
   ]
 }

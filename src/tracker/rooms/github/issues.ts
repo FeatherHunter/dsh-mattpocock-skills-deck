@@ -5,14 +5,14 @@
  * #504：拉取请求主路（GraphQL 双查询同池）+ REST 帮手见 pulls.js（单文件 350 行纪律）。
  *
  * 定版依据：#138 一页纸方案，contract.js 操作签名归一。
- * 所有 op 返回 OpResult，不 throw；错误经 classifyGhError 归一。
+ * 所有 op 返回 OpResult，不 throw；错误经 ghVerdictOf 归一（判档表在 src/tracker/error-rules.ts）。
  */
 
 import { STATE, ERROR_KIND } from '../../contract/vocabulary.js'
 import { fail } from '../../preflight.js'
 import { ghClient } from './client.js'
 import { normalizeIssue } from './normalize.js'
-import { classifyGhError } from './errors.js'
+import { ghFailureMessage, ghVerdictOf } from './errors.js'
 import { repairParentLinksREST } from './parent-repair.js'
 import { rosterAdoptList, rosterUpsert } from './roster.js'
 import { LIST_QUERY, GET_QUERY, LIST_PR_QUERY, GET_PR_QUERY } from './queries.js'
@@ -38,7 +38,7 @@ function emitRestFallback(ctx, scope, latencyMs, reason) {
 function emitBadNodes(ctx, scope, dropped, total) {
   try {
     if (!dropped) return
-    if (ctx && typeof ctx.isEnabled === 'function' && ctx.isEnabled('debug') && typeof ctx.logEvent === 'function') ctx.logEvent('debug', 'error.normalize', { rawKind: 'bad-node:' + scope + ':' + dropped + '/' + total, mappedKind: 'parse' })
+    if (ctx && typeof ctx.isEnabled === 'function' && ctx.isEnabled('debug') && typeof ctx.logEvent === 'function') ctx.logEvent('debug', 'error.normalize', { rawKind: 'bad-node:' + scope + ':' + dropped + '/' + total, mappedKind: ERROR_KIND.PARSE })
   } catch {}
 }
 
@@ -78,11 +78,12 @@ async function fetchAllIssuesREST(parsed, ctx) {
     }
     let j
     try { j = JSON.parse(r.data.stdout || '') } catch (e) {
-      if (!out.length) return { ok: false, error: { kind: ERROR_KIND.PARSE, message: `rest fallback: invalid json ${String(e.message).slice(0, 200)}` } }
+      // 原文交这次 gh 的完整产出：人自己就能看出回包里到底是什么。
+      if (!out.length) return fail(ERROR_KIND.PARSE, `rest fallback: invalid json ${String(e.message).slice(0, 200)}`, r.data)
       return { ok: true, data: out }
     }
     if (!Array.isArray(j)) {
-      if (!out.length) return { ok: false, error: { kind: ERROR_KIND.PARSE, message: 'rest fallback: non-array response' } }
+      if (!out.length) return fail(ERROR_KIND.PARSE, 'rest fallback: non-array response', r.data)
       return { ok: true, data: out }
     }
     for (const n of j) out.push(n)
@@ -128,7 +129,7 @@ function applyIssueFilter(all, filter) {
 export async function listIssues(repo, filter, ctx) {
   try {
     const parsed = parseRepo(repo)
-    if (!parsed) return fail(ERROR_KIND.NOTFOUND, `list: repo.refId missing or malformed: ${repoId(repo)}`)
+    if (!parsed) return fail(ERROR_KIND.NOTFOUND, `list: repo.refId missing or malformed: ${repoId(repo)}`, repo)
     const c = ghClient(ctx)
     const t0 = Date.now()
     const all = []
@@ -230,8 +231,10 @@ export async function listIssues(repo, filter, ctx) {
     try { if (ctx && ctx.memo) rosterAdoptList(ctx.memo, all, filter) } catch (eU) {}
     return { ok: true, data: applyIssueFilter(all, filter) }
   } catch (e) {
-    const kind = classifyGhError(e, ctx)
-    return fail(kind, String((e && e.message) || e).slice(0, 800))
+    // 判档只走本房唯一的出口（`ghVerdictOf`）：档位由规则表判、话术按票面实现决定第 11 条挑。
+    // 第三段把出错的那个值原样交出去当原文（合并、遮蔽、截断由 `fail` 统一做）。
+    const verdict = ghVerdictOf(e, ctx)
+    return fail(verdict.kind, ghFailureMessage(verdict, String((e && e.message) || e).slice(0, 800)), e)
   }
 }
 
@@ -241,11 +244,12 @@ export async function listIssues(repo, filter, ctx) {
 export async function getIssue(repo, key, opts, ctx) {
   try {
     const parsed = parseRepo(repo)
-    if (!parsed) return fail(ERROR_KIND.NOTFOUND, `get: repo.refId missing: ${repoId(repo)}`)
+    if (!parsed) return fail(ERROR_KIND.NOTFOUND, `get: repo.refId missing: ${repoId(repo)}`, repo)
     const k = String(key || '').trim()
-    if (!k) return fail(ERROR_KIND.PARSE, 'get: key required (string)')
+    if (!k) return fail(ERROR_KIND.PARSE, 'get: key required (string)', key)
     const num = Number(k)
-    if (!Number.isFinite(num)) return fail(ERROR_KIND.PARSE, `get: key must be numeric for github: ${k}`)
+    // 说「这个编号不是数字」的原文就是调用方传进来的那个值本身（原样交出去，别只放进话里）。
+    if (!Number.isFinite(num)) return fail(ERROR_KIND.PARSE, `get: key must be numeric for github: ${k}`, String(k))
     const c = ghClient(ctx)
     const t0 = Date.now()
     const query = GET_QUERY
@@ -256,11 +260,14 @@ export async function getIssue(repo, key, opts, ctx) {
     if (r.ok) {
       const text = r.data.stdout || ''
       let j
-      try { j = JSON.parse(text) } catch (e) { return fail(ERROR_KIND.PARSE, `get: invalid json ${String(e.message).slice(0, 200)}`) }
+      try { j = JSON.parse(text) } catch (e) { return fail(ERROR_KIND.PARSE, `get: invalid json ${String(e.message).slice(0, 200)}`, text) }
       if (j.errors) {
         const msg = JSON.stringify(j.errors).slice(0, 800)
-        const kind = classifyGhError({ message: msg, stderr: msg }, ctx)
-        if (!/rate limit|forbidden|unexpected|network|eof/i.test(msg)) return fail(kind, msg)
+        const verdict = ghVerdictOf({ message: msg, stderr: msg }, ctx)
+        // 不是配额/网络类的那一类直接如实失败：原文用 GraphQL 回给的那份错误清单，人自己看得见。
+        if (!/rate limit|forbidden|unexpected|network|eof/i.test(msg)) {
+          return fail(verdict.kind, ghFailureMessage(verdict, msg), { message: msg, stderr: msg })
+        }
         // 配额/网络类 GraphQL 错误 → 走 REST 降级（下方单条 REST 通道）
         getCause = { message: msg, stderr: msg }
       } else {
@@ -293,7 +300,7 @@ export async function getIssue(repo, key, opts, ctx) {
       const rr = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/issues/${num}`], { cwd: ctx && ctx.cwd })
       if (rr.ok) {
         let jr = null
-        try { jr = JSON.parse(rr.data.stdout || '') } catch (e) { return fail(ERROR_KIND.PARSE, `get(rest): invalid json ${String(e.message).slice(0, 200)}`) }
+        try { jr = JSON.parse(rr.data.stdout || '') } catch (e) { return fail(ERROR_KIND.PARSE, `get(rest): invalid json ${String(e.message).slice(0, 200)}`, rr.data.stdout) }
         if (jr && typeof jr === 'object' && jr.number != null) {
           if (jr.pull_request != null) await enrichSinglePR(jr, parsed, ctx)
           try { if (ctx && ctx.memo) rosterUpsert(ctx.memo, jr) } catch (eU) {}
@@ -304,13 +311,14 @@ export async function getIssue(repo, key, opts, ctx) {
       const prr = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/pulls/${num}`], { cwd: ctx && ctx.cwd })
       if (prr.ok) {
         let prj = null
-        try { prj = JSON.parse(prr.data.stdout || '') } catch (e) { return fail(ERROR_KIND.PARSE, `get(rest): invalid json ${String(e.message).slice(0, 200)}`) }
+        try { prj = JSON.parse(prr.data.stdout || '') } catch (e) { return fail(ERROR_KIND.PARSE, `get(rest): invalid json ${String(e.message).slice(0, 200)}`, prr.data.stdout) }
         if (prj && typeof prj === 'object' && prj.number != null) {
           await enrichSinglePR(prj, parsed, ctx)
           try { if (ctx && ctx.memo) rosterUpsert(ctx.memo, prj) } catch (eU) {}
           return { ok: true, data: normalizeIssue(prj) }
         }
-        return fail(ERROR_KIND.NOTFOUND, `get: issue ${k} not found`)
+        // 原文交这次 /pulls 回包本身：形状里既没有 number，也就没有能当票看的东西。
+        return fail(ERROR_KIND.NOTFOUND, `get: issue ${k} not found`, prr.data.stdout)
       }
       if (!r.ok) return { ok: false, error: r.error }
       return { ok: false, error: (!rr.ok ? rr.error : prr.error) }
@@ -325,8 +333,10 @@ export async function getIssue(repo, key, opts, ctx) {
     try { if (ctx && ctx.memo) rosterUpsert(ctx.memo, normalized) } catch (eU) {}
     return { ok: true, data: normalized }
   } catch (e) {
-    const kind = classifyGhError(e, ctx)
-    return fail(kind, String((e && e.message) || e).slice(0, 800))
+    // 判档只走本房唯一的出口（`ghVerdictOf`）：档位由规则表判、话术按票面实现决定第 11 条挑。
+    // 第三段把出错的那个值原样交出去当原文（合并、遮蔽、截断由 `fail` 统一做）。
+    const verdict = ghVerdictOf(e, ctx)
+    return fail(verdict.kind, ghFailureMessage(verdict, String((e && e.message) || e).slice(0, 800)), e)
   }
 }
 

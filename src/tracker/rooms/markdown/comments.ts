@@ -6,7 +6,7 @@
 import { parseMd } from './parse.js'
 import { readTextFile } from './read.js'
 import { writeTextFile } from './write.js'
-import { classifyError } from '../../preflight.js'
+import { failFromError } from './error-fail.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { resolveIssueFile } from './issues-locate.js'
 // #922：写评论同样是「读整份 → 在内存里改 → 整份写回」，要排在该票文件的单写者队列里，见 write-queue.js。
@@ -16,7 +16,7 @@ export async function listComments(ctx,repo,key){
   const norm=String(key).padStart(2,'0')
   const r=await resolveIssueFile(ctx,repo,norm,{mode:'read'})
   if(!r.ok)return{ok:false,error:r.error}
-  try{const txt=await readTextFile(ctx,r.path);const iss=parseMd(txt,{key:norm,parentKey:'00',isMap:false,effortId:r.effortId});return{ok:true,data:iss.comments||[]}}catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
+  try{const txt=await readTextFile(ctx,r.path);const iss=parseMd(txt,{key:norm,parentKey:'00',isMap:false,effortId:r.effortId});return{ok:true,data:iss.comments||[]}}catch(e){return failFromError(e,ctx,'读这张票的评论时出错')}
 }
 export async function addComment(ctx,repo,key,body){
   const norm=String(key).padStart(2,'0')
@@ -50,7 +50,7 @@ export async function addComment(ctx,repo,key,body){
       await writeTextFile(ctx,r.path,txt, ctx && ctx.sandboxPolicy)
       const comment={author:{login:actor},authorAssociation:'',body:String(body||''),createdAt:nowIso,updatedAt:nowIso}
       return{ok:true,data:comment}
-    }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
+    }catch(e){return failFromError(e,ctx,'把评论写进这张票的文件时出错')}
   })
 }
 export default{listComments,addComment}

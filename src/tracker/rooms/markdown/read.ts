@@ -1,11 +1,12 @@
-import { classifyError, fail } from '../../preflight.js'
+import { classifyError } from '../../preflight.js'
+import { failFromError } from './error-fail.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 function getFs(ctx){if(ctx&&ctx.platform&&ctx.platform.fs)return ctx.platform.fs;if(ctx&&ctx.fs)return ctx.fs;if(ctx&&typeof ctx.get==='function'){try{const f=ctx.get('fs');if(f)return f}catch{}}return null}
 export async function readTextFile(ctx, fullPath){
   const fs=getFs(ctx);if(!fs)throw Object.assign(new Error('fs unavailable'),{kind:ERROR_KIND.ENV})
-  if(typeof fs.resolve==='function'&&typeof fs.readText==='function'){try{const t=await fs.resolve(fullPath);const txt=await fs.readText(t);return String(txt??'')}catch(e){const kind=classifyError(e);const err=new Error(e&&e.message?e.message:String(e));err.kind=kind;err.cause=e;throw err}}
-  if(typeof fs.readFile==='function'){try{const txt=await fs.readFile(fullPath,'utf8');return String(txt??'')}catch(e){const kind=classifyError(e);const err=new Error(e&&e.message?e.message:String(e));err.kind=kind;err.cause=e;throw err}}
-  if(typeof fs.readText==='function'){try{const txt=await fs.readText(fullPath);return String(txt??'')}catch(e){const kind=classifyError(e);const err=new Error(e&&e.message?e.message:String(e));err.kind=kind;err.cause=e;throw err}}
+  if(typeof fs.resolve==='function'&&typeof fs.readText==='function'){try{const t=await fs.resolve(fullPath);const txt=await fs.readText(t);return String(txt??'')}catch(e){const kind=classifyError(e, ctx);const err=new Error(e&&e.message?e.message:String(e));err.kind=kind;try{err.cause=e}catch{}throw err}}
+  if(typeof fs.readFile==='function'){try{const txt=await fs.readFile(fullPath,'utf8');return String(txt??'')}catch(e){const kind=classifyError(e, ctx);const err=new Error(e&&e.message?e.message:String(e));err.kind=kind;try{err.cause=e}catch{}throw err}}
+  if(typeof fs.readText==='function'){try{const txt=await fs.readText(fullPath);return String(txt??'')}catch(e){const kind=classifyError(e, ctx);const err=new Error(e&&e.message?e.message:String(e));err.kind=kind;try{err.cause=e}catch{}throw err}}
   throw Object.assign(new Error('fs.read not supported'),{kind:ERROR_KIND.ENV})
 }
 export async function readDir(ctx, dirPath){
@@ -45,6 +46,8 @@ export async function statFile(ctx, fullPath){
   return null
 }
 export async function readFile(ctx, path){
-  try{const txt=await readTextFile(ctx,path);return txt}catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return fail(kind,e&&e.message?e.message:String(e))}
+  // 原文 = 抛上来的那个错误本身。读取这一层已经把原始错误挂在 `cause` 上（见上面三个分支），
+  // 所以这里给 `e.cause || e`：`fail()` 按统一口径取 message/stderr/stdout，人据此看实际情况。
+  try{const txt=await readTextFile(ctx,path);return txt}catch(e){return failFromError(e, ctx, e&&e.message?e.message:String(e))}
 }
 export default readFile

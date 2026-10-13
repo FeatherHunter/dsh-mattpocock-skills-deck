@@ -4,21 +4,25 @@ import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { fail } from '../../preflight.js'
 import { glabClient } from './client.js'
 import { normalizeIssue } from './normalize.js'
-import { classifyGlabError } from './errors.js'
+import { failGlab } from './errors.js'
 import { issuePath, linksPath } from './queries.js'
 import { repoId, fetchRawIssue } from './graph-blocking.js'
 
 export async function setParent(ctx, repo, key, parentKey, opts, opCtx) {
   const effective = opCtx || ctx
   const id = repoId(repo)
-  if (!id) return fail(ERROR_KIND.NOTFOUND, 'setParent: repo.refId missing')
+  // 原文给空串：这一条是本地入参不全（远端一个请求都没发），没有外部原文可取。
+  if (!id) return fail(ERROR_KIND.NOTFOUND, 'setParent: repo.refId missing', '')
   const k = String(key)
   try {
     // If-Match
     if (opts && typeof opts.expectedUpdatedAt === 'string' && opts.expectedUpdatedAt !== '') {
       const curRaw = await fetchRawIssue(effective, id, k)
       const cur = curRaw && (curRaw.updated_at || curRaw.updatedAt) || ''
-      if (cur !== opts.expectedUpdatedAt) return fail(ERROR_KIND.CONFLICT, `conflict: expectedUpdatedAt mismatch (want ${opts.expectedUpdatedAt} got ${cur})`)
+      if (cur !== opts.expectedUpdatedAt) {
+        // 原文 = 回读到的票面（人据此自己核对远端现在是什么版本），不是给人看的那句冲突话。
+        return fail(ERROR_KIND.CONFLICT, `conflict: expectedUpdatedAt mismatch (want ${opts.expectedUpdatedAt} got ${cur})`, JSON.stringify(curRaw))
+      }
     }
     const c = glabClient(effective)
     if (parentKey === null) {
@@ -36,12 +40,13 @@ export async function setParent(ctx, repo, key, parentKey, opts, opCtx) {
     } else {
       const pk = String(parentKey)
       // 环检：parentKey成环 → conflict（若 pk == k 自环）
-      if (pk === k) return fail(ERROR_KIND.CONFLICT, 'conflict: self-parent')
+      // 自环先判：结论是「入参自己和自己打架」，不是外部来源说了什么，所以原文给这次入参快照。
+      if (pk === k) return fail(ERROR_KIND.CONFLICT, 'conflict: self-parent', JSON.stringify({ key: k, parentKey: pk }))
       // POST relates_to
       const res = await c.run(['api', linksPath(id, k), '--method', 'POST', '-f', `target_project_id=${id}`, '-f', `target_issue_iid=${pk}`, '-f', 'link_type=relates_to'], { timeout: 8000 })
       if (res.code !== 0) {
-        const kind = classifyGlabError({ message: res.stderr || res.stdout })
-        return fail(kind, res.stderr || res.stdout || 'setParent failed')
+        // 原文 = 挂亲缘那一次 POST 的进程结果。
+        return failGlab(res, res.stderr || res.stdout || 'setParent failed', res, effective)
       }
     }
     const raw = await fetchRawIssue(effective, id, k)
@@ -55,22 +60,25 @@ export async function setParent(ctx, repo, key, parentKey, opts, opCtx) {
     const issue = normalizeIssue(raw)
     return { ok: true, data: issue }
   } catch (err) {
-    const kind = classifyGlabError(err)
-    return fail(kind, err && err.message ? String(err.message) : String(err))
+    // 原文 = 抛上来的那个 Error 对象本身。
+    return failGlab(err, err && err.message ? String(err.message) : String(err), err, effective)
   }
 }
 
 export async function setAssignees(ctx, repo, key, assignees, opts, opCtx) {
   const effective = opCtx || ctx
   const id = repoId(repo)
-  if (!id) return fail(ERROR_KIND.NOTFOUND, 'setAssignees: repo.refId missing')
+  if (!id) return fail(ERROR_KIND.NOTFOUND, 'setAssignees: repo.refId missing', '')
   const k = String(key)
   const wanted = Array.isArray(assignees) ? assignees.map((a) => typeof a === 'string' ? a : a.login).filter(Boolean) : []
   try {
     if (opts && typeof opts.expectedUpdatedAt === 'string' && opts.expectedUpdatedAt !== '') {
       const curRaw = await fetchRawIssue(effective, id, k)
       const cur = curRaw && (curRaw.updated_at || curRaw.updatedAt) || ''
-      if (cur !== opts.expectedUpdatedAt) return fail(ERROR_KIND.CONFLICT, `conflict: expectedUpdatedAt mismatch`)
+      if (cur !== opts.expectedUpdatedAt) {
+        // 原文 = 回读到的票面（人据此自己核对远端现在是什么版本）。
+        return fail(ERROR_KIND.CONFLICT, `conflict: expectedUpdatedAt mismatch`, JSON.stringify(curRaw))
+      }
     }
     // GitLab single/multi assignee: PUT assignee_ids
     // 需解析 username→id（via GET /users?username=）
@@ -87,15 +95,15 @@ export async function setAssignees(ctx, repo, key, assignees, opts, opCtx) {
     }
     const res = await c.run(['api', issuePath(id, k), '--method', 'PUT', '-f', `assignee_ids=${assigneeIds.join(',')}`], { timeout: 8000 })
     if (res.code !== 0) {
-      const kind = classifyGlabError({ message: res.stderr || res.stdout })
-      return fail(kind, res.stderr || res.stdout || 'setAssignees failed')
+      // 原文 = 写指派那一次 PUT 的进程结果。
+      return failGlab(res, res.stderr || res.stdout || 'setAssignees failed', res, effective)
     }
     let raw = null
     try { raw = JSON.parse(res.stdout) } catch { raw = { iid: k } }
     const issue = normalizeIssue(raw)
     return { ok: true, data: issue }
   } catch (err) {
-    const kind = classifyGlabError(err)
-    return fail(kind, err && err.message ? String(err.message) : String(err))
+    // 原文 = 抛上来的那个 Error 对象本身。
+    return failGlab(err, err && err.message ? String(err.message) : String(err), err, effective)
   }
 }

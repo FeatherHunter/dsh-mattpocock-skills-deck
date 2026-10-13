@@ -10,7 +10,7 @@ import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { fail } from '../../preflight.js'
 import { ghClient } from './client.js'
 import { normalizeIssue } from './normalize.js'
-import { classifyGhError } from './errors.js'
+import { ghFailureMessage, ghVerdictOf } from './errors.js'
 import { rosterUpsert } from './roster.js'
 import { getIssue, parseRepo, repoId } from './issues.js'
 // #711：创建幂等锚。锚那一行怎么拼、命中判据是什么，在刷新核心的产物里（唯一一处判据）；
@@ -25,16 +25,22 @@ import { withAnchor, lookupByAnchor } from './idempotency.js'
  * #711：`idempotencyKey` 是可选输入。带上它时，票面正文的第一行是锚（渲染后看不见的 HTML 注释），
  * 建票之前先按锚回查一次：命中就把那张票交回去（返回同一个 key、不再建），没命中才照常建。
  * 回查拿不准时如实失败、绝不建票。不带这个字段时行为与加字段之前完全一样。
+ *
+ * 失败时的第三段原文（`fail` 的 `raw`）按三种情况交：
+ * 一是入参形状不合格——这时还没跑过任何外部命令，手里确实没有更早的原文，就交那个不合格的入参本身；
+ * 二是上游交回过结果（`gh` 的执行结果、别处 op 的返回）——交那份结果，原话就在它里面；
+ * 三是回包解析失败——交那份没能解析的回包文本本身。
  */
 export async function createIssue(repo, input, ctx) {
   try {
     const parsed = parseRepo(repo)
-    if (!parsed) return fail(ERROR_KIND.NOTFOUND, `create: repo.refId missing: ${repoId(repo)}`)
-    if (!input || typeof input.title !== 'string' || !input.title.trim()) return fail(ERROR_KIND.PARSE, 'create: title required')
+    if (!parsed) return fail(ERROR_KIND.NOTFOUND, `create: repo.refId missing: ${repoId(repo)}`, repo)
+    if (!input || typeof input.title !== 'string' || !input.title.trim()) return fail(ERROR_KIND.PARSE, 'create: title required', input)
     // 幂等键当场检查：不合规（空、超长、带换行或注释收尾符）绝不落到正文上，
     // 而且必须比「回查」更早失败 —— 键不合法时连回查都无从做起。
     const wantKey = input.idempotencyKey === undefined || input.idempotencyKey === null ? null : checkIdempotencyKey(input.idempotencyKey)
-    if (wantKey && !wantKey.ok) return fail(ERROR_KIND.PARSE, `create: idempotencyKey 不能用：${wantKey.reason}`)
+    // 键本身不合规时，原文就交那个不合规的键值（为什么不合规已经写在给人看的那句话里）。
+    if (wantKey && !wantKey.ok) return fail(ERROR_KIND.PARSE, `create: idempotencyKey 不能用：${wantKey.reason}`, input.idempotencyKey)
     const idemKey = wantKey ? wantKey.key : ''
     if (idemKey) {
       const found = await lookupByAnchor(repo, idemKey, ctx, normalizeIssue)
@@ -54,9 +60,10 @@ export async function createIssue(repo, input, ctx) {
       const j = JSON.parse(text)
       createdRaw = Array.isArray(j) ? j[0] : j
     } catch (e) {
-      return fail(ERROR_KIND.PARSE, `create: invalid json ${String(e.message).slice(0, 200)}`)
+      // 原文交那份没能解析成 JSON 的回包文本。
+      return fail(ERROR_KIND.PARSE, `create: invalid json ${String(e.message).slice(0, 200)}`, text)
     }
-    if (!createdRaw) return fail(ERROR_KIND.PARSE, 'create: empty response')
+    if (!createdRaw) return fail(ERROR_KIND.PARSE, 'create: empty response', r.data)
     // REST 返回 number → 需补充 parentKey 等字段，再 normalize
     const rawForNormalize = Object.assign({}, createdRaw, {
       number: createdRaw.number ?? createdRaw.id,
@@ -139,17 +146,19 @@ export async function createIssue(repo, input, ctx) {
     try { if (ctx && ctx.memo) rosterUpsert(ctx.memo, issue) } catch (eU) {}
     return { ok: true, data: issue }
   } catch (e) {
-    const kind = classifyGhError(e)
-    return fail(kind, String((e && e.message) || e).slice(0, 800))
+    // 判档只走本房唯一的出口（`ghVerdictOf`）：档位由规则表判、话术按票面实现决定第 11 条挑；
+    // 第三段把出错的那个值原样交出去当原文。`ctx` 一定要传下去，`error.normalize` 那条轨迹才不断。
+    const verdict = ghVerdictOf(e, ctx)
+    return fail(verdict.kind, ghFailureMessage(verdict, String((e && e.message) || e).slice(0, 800)), e)
   }
 }
 
 export async function closeIssue(repo, key, opts, ctx) {
   try {
     const parsed = parseRepo(repo)
-    if (!parsed) return fail(ERROR_KIND.NOTFOUND, `close: repo.refId missing: ${repoId(repo)}`)
+    if (!parsed) return fail(ERROR_KIND.NOTFOUND, `close: repo.refId missing: ${repoId(repo)}`, repo)
     const k = String(key || '').trim()
-    if (!k) return fail(ERROR_KIND.PARSE, 'close: key required')
+    if (!k) return fail(ERROR_KIND.PARSE, 'close: key required', key)
     const c = ghClient(ctx)
     // gh issue close 不认 --json：先关，再用 view 取回
     const args = ['issue', 'close', k, '--repo', `${parsed.owner}/${parsed.name}`]
@@ -166,7 +175,7 @@ export async function closeIssue(repo, key, opts, ctx) {
     }
     const text = vr.data.stdout || ''
     let raw
-    try { raw = JSON.parse(text); if (Array.isArray(raw)) raw = raw[0] } catch (e) { return fail(ERROR_KIND.PARSE, `close: invalid json ${String(e.message).slice(0, 200)}`) }
+    try { raw = JSON.parse(text); if (Array.isArray(raw)) raw = raw[0] } catch (e) { return fail(ERROR_KIND.PARSE, `close: invalid json ${String(e.message).slice(0, 200)}`, text) }
     const normalized = normalizeIssue(Object.assign({}, raw, {
       number: raw.number ?? Number(k),
       url: raw.url || raw.html_url || '',
@@ -176,17 +185,19 @@ export async function closeIssue(repo, key, opts, ctx) {
     if (opts && typeof opts.reason === 'string') normalized.reason = opts.reason
     return { ok: true, data: normalized }
   } catch (e) {
-    const kind = classifyGhError(e)
-    return fail(kind, String((e && e.message) || e).slice(0, 800))
+    // 判档只走本房唯一的出口（`ghVerdictOf`）：档位由规则表判、话术按票面实现决定第 11 条挑；
+    // 第三段把出错的那个值原样交出去当原文。`ctx` 一定要传下去，`error.normalize` 那条轨迹才不断。
+    const verdict = ghVerdictOf(e, ctx)
+    return fail(verdict.kind, ghFailureMessage(verdict, String((e && e.message) || e).slice(0, 800)), e)
   }
 }
 
 export async function reopenIssue(repo, key, ctx) {
   try {
     const parsed = parseRepo(repo)
-    if (!parsed) return fail(ERROR_KIND.NOTFOUND, `reopen: repo.refId missing: ${repoId(repo)}`)
+    if (!parsed) return fail(ERROR_KIND.NOTFOUND, `reopen: repo.refId missing: ${repoId(repo)}`, repo)
     const k = String(key || '').trim()
-    if (!k) return fail(ERROR_KIND.PARSE, 'reopen: key required')
+    if (!k) return fail(ERROR_KIND.PARSE, 'reopen: key required', key)
     const c = ghClient(ctx)
     const args = ['issue', 'reopen', k, '--repo', `${parsed.owner}/${parsed.name}`]
     const r = await c.execGh(args, { cwd: ctx && ctx.cwd })
@@ -197,7 +208,7 @@ export async function reopenIssue(repo, key, ctx) {
     }
     const text = vr.data.stdout || ''
     let raw
-    try { raw = JSON.parse(text); if (Array.isArray(raw)) raw = raw[0] } catch (e) { return fail(ERROR_KIND.PARSE, `reopen: invalid json ${String(e.message).slice(0, 200)}`) }
+    try { raw = JSON.parse(text); if (Array.isArray(raw)) raw = raw[0] } catch (e) { return fail(ERROR_KIND.PARSE, `reopen: invalid json ${String(e.message).slice(0, 200)}`, text) }
     const normalized = normalizeIssue(Object.assign({}, raw, {
       number: raw.number ?? Number(k),
       state: 'open',
@@ -206,49 +217,54 @@ export async function reopenIssue(repo, key, ctx) {
     }))
     return { ok: true, data: normalized }
   } catch (e) {
-    const kind = classifyGhError(e)
-    return fail(kind, String((e && e.message) || e).slice(0, 800))
+    // 判档只走本房唯一的出口（`ghVerdictOf`）：档位由规则表判、话术按票面实现决定第 11 条挑；
+    // 第三段把出错的那个值原样交出去当原文。`ctx` 一定要传下去，`error.normalize` 那条轨迹才不断。
+    const verdict = ghVerdictOf(e, ctx)
+    return fail(verdict.kind, ghFailureMessage(verdict, String((e && e.message) || e).slice(0, 800)), e)
   }
 }
 
 export async function updateIssue(repo, key, patch, ctx) {
   try {
     const parsed = parseRepo(repo)
-    if (!parsed) return fail(ERROR_KIND.NOTFOUND, `update: repo.refId missing: ${repoId(repo)}`)
+    if (!parsed) return fail(ERROR_KIND.NOTFOUND, `update: repo.refId missing: ${repoId(repo)}`, repo)
     const k = String(key || '').trim()
-    if (!k) return fail(ERROR_KIND.PARSE, 'update: key required')
-    if (!patch || typeof patch !== 'object') return fail(ERROR_KIND.PARSE, 'update: patch required')
+    if (!k) return fail(ERROR_KIND.PARSE, 'update: key required', key)
+    if (!patch || typeof patch !== 'object') return fail(ERROR_KIND.PARSE, 'update: patch required', patch)
     // 能力分支：milestone/customFields 不支持 → unsupported（不假装）
     if (patch.milestone !== undefined || patch.customFields !== undefined) {
       // milestone 若需支持可走 REST，但当前按 GH API 简化：milestone 需 number，此处诚实返回 unsupported
       // 为保持最小可用，若调用方传 milestone 但 GitHub 实际支持，可在此透传；现按 unsupported
       const hasMilestone = patch.milestone !== undefined
       const hasCustom = patch.customFields !== undefined
-      if (hasCustom) return fail(ERROR_KIND.UNSUPPORTED, 'update: customFields unsupported for github')
+      // 不支持的字段值原样交出去当原文：调用方自己传了什么，一眼能对上。
+      if (hasCustom) return fail(ERROR_KIND.UNSUPPORTED, 'update: customFields unsupported for github', patch.customFields)
       // milestone 若为 null（清除）或对象，尝试支持：若有标题则尝试查找 milestone number（需额外 API），暂 unsupported
-      if (hasMilestone) return fail(ERROR_KIND.UNSUPPORTED, 'update: milestone unsupported (requires milestone number lookup)')
+      if (hasMilestone) return fail(ERROR_KIND.UNSUPPORTED, 'update: milestone unsupported (requires milestone number lookup)', patch.milestone)
     }
     const c = ghClient(ctx)
     // gh issue edit 不认 --json：先改，再用 view 取回
     const args = ['issue', 'edit', k, '--repo', `${parsed.owner}/${parsed.name}`]
     if (typeof patch.title === 'string') args.push('--title', patch.title)
     if (typeof patch.body === 'string') args.push('--body', patch.body)
-    if (args.length <= 4) return fail(ERROR_KIND.PARSE, 'update: empty patch (no title/body)')
+    if (args.length <= 4) return fail(ERROR_KIND.PARSE, 'update: empty patch (no title/body)', patch)
     const r = await c.execGh(args, { cwd: ctx && ctx.cwd })
     if (!r.ok) return { ok: false, error: r.error }
     const vr = await c.execGh(['issue', 'view', k, '--repo', `${parsed.owner}/${parsed.name}`, '--json', 'number,title,state,body,url,updatedAt,createdAt,closedAt,labels,assignees'], { cwd: ctx && ctx.cwd })
     if (!vr.ok) return { ok: true, data: normalizeIssue({ number: Number(k) || k, title: typeof patch.title === 'string' ? patch.title : '', state: 'open', body: typeof patch.body === 'string' ? patch.body : '', url: '' }) }
     const text = vr.data.stdout || ''
     let raw
-    try { raw = JSON.parse(text); if (Array.isArray(raw)) raw = raw[0] } catch (e) { return fail(ERROR_KIND.PARSE, `update: invalid json ${String(e.message).slice(0, 200)}`) }
+    try { raw = JSON.parse(text); if (Array.isArray(raw)) raw = raw[0] } catch (e) { return fail(ERROR_KIND.PARSE, `update: invalid json ${String(e.message).slice(0, 200)}`, text) }
     const normalized = normalizeIssue(Object.assign({}, raw, {
       number: raw.number ?? Number(k),
       url: raw.url || raw.html_url || '',
     }))
     return { ok: true, data: normalized }
   } catch (e) {
-    const kind = classifyGhError(e)
-    return fail(kind, String((e && e.message) || e).slice(0, 800))
+    // 判档只走本房唯一的出口（`ghVerdictOf`）：档位由规则表判、话术按票面实现决定第 11 条挑；
+    // 第三段把出错的那个值原样交出去当原文。`ctx` 一定要传下去，`error.normalize` 那条轨迹才不断。
+    const verdict = ghVerdictOf(e, ctx)
+    return fail(verdict.kind, ghFailureMessage(verdict, String((e && e.message) || e).slice(0, 800)), e)
   }
 }
 
@@ -271,9 +287,9 @@ function normalizeAssigneeInput(ai) {
 export async function setAssignees(repo, key, assignees, opts, ctx) {
   try {
     const parsed = parseRepo(repo)
-    if (!parsed) return fail(ERROR_KIND.NOTFOUND, `setAssignees: repo.refId missing: ${repoId(repo)}`)
+    if (!parsed) return fail(ERROR_KIND.NOTFOUND, `setAssignees: repo.refId missing: ${repoId(repo)}`, repo)
     const k = String(key || '').trim()
-    if (!k) return fail(ERROR_KIND.PARSE, 'setAssignees: key required')
+    if (!k) return fail(ERROR_KIND.PARSE, 'setAssignees: key required', key)
     const wanted = []
     const seen = new Set()
     if (Array.isArray(assignees)) {
@@ -289,7 +305,7 @@ export async function setAssignees(repo, key, assignees, opts, ctx) {
     if (opts && typeof opts.expectedUpdatedAt === 'string' && opts.expectedUpdatedAt !== '') {
       const cur = await getIssue(repo, k, {}, ctx)
       if (!cur.ok) return cur
-      if (cur.data.updatedAt !== opts.expectedUpdatedAt) return fail(ERROR_KIND.CONFLICT, `conflict: expectedUpdatedAt mismatch (want ${opts.expectedUpdatedAt} got ${cur.data.updatedAt})`)
+      if (cur.data.updatedAt !== opts.expectedUpdatedAt) return fail(ERROR_KIND.CONFLICT, `conflict: expectedUpdatedAt mismatch (want ${opts.expectedUpdatedAt} got ${cur.data.updatedAt})`, cur.data.updatedAt)
     }
     const c = ghClient(ctx)
     // REST 整集替换：gh api PATCH repos/.../issues/<n> {assignees: [login...]}
@@ -322,7 +338,9 @@ export async function setAssignees(repo, key, assignees, opts, ctx) {
     finalRes.data.assignees = wanted
     return finalRes
   } catch (e) {
-    const kind = classifyGhError(e)
-    return fail(kind, String((e && e.message) || e).slice(0, 800))
+    // 判档只走本房唯一的出口（`ghVerdictOf`）：档位由规则表判、话术按票面实现决定第 11 条挑；
+    // 第三段把出错的那个值原样交出去当原文。`ctx` 一定要传下去，`error.normalize` 那条轨迹才不断。
+    const verdict = ghVerdictOf(e, ctx)
+    return fail(verdict.kind, ghFailureMessage(verdict, String((e && e.message) || e).slice(0, 800)), e)
   }
 }

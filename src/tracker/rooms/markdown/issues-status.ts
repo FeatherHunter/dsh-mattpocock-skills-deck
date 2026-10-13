@@ -4,7 +4,7 @@
 import { parseMd } from './parse.js'
 import { readTextFile } from './read.js'
 import { writeTextFile } from './write.js'
-import { classifyError } from '../../preflight.js'
+import { failFromError } from './error-fail.js'
 import { resolveIssueFile, resolveMapFile } from './issues-locate.js'
 import { loadPaintColorMap, applyLabelColors } from './label-colors-paint.js'
 // #922：票文件的读—改—写按文件排队（关门/重开也是「读整份、改一行、整份写回」），见 write-queue.js。
@@ -44,7 +44,7 @@ async function setStatus(ctx,repo,key,statusLine){
       const iss=parseMd(txt,{key:norm,parentKey:isMap?null:'00',isMap,effortId:r.effortId})
       applyLabelColors(iss, colorMap)
       return{ok:true,data:iss}
-    }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
+    }catch(e){return failFromError(e,ctx,'改这张票的状态时出错')}
   })
 }
 export async function closeIssue(ctx,repo,key){

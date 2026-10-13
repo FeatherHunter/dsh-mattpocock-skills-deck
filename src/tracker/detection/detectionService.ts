@@ -14,6 +14,8 @@
 
 import { detectExplicit } from './explicitDetector.js'
 import { canonicalWorkspaceKey } from '../../host/workspaceKey.js'
+import { ERROR_KIND } from '../contract/vocabulary.js'
+import { fail } from '../preflight.js'
 
 // 工作区短指纹（只记散列、不记路径原文）。与 repoKeys.js / logStore.js 同一种取法，各文件自带一份是仓里既有写法。
 function hash8(text) {
@@ -23,8 +25,10 @@ function hash8(text) {
   return ('0000000' + h.toString(16)).slice(-8)
 }
 
-function buildOpContextBase(cwd, platform, fs, timers, exec, via) {
-  return {
+function buildOpContextBase(cwd, platform, fs, timers, exec, via, logCtx) {
+  // 注意：本文件整份是可求值的纯 JavaScript 文本（tests/verify-669-choice-precedence.js 等门禁会切出
+  // 函数体当场求值），所以这里不写类型标注——写了会让那些门禁在 vm 里报「缺少初始化式」。
+  const ctx = {
     cwd,
     platform,
     fs: fs || (platform && platform.fs) || null,
@@ -36,6 +40,14 @@ function buildOpContextBase(cwd, platform, fs, timers, exec, via) {
     timers: timers || { setTimeout: (fn, ms) => setTimeout(fn, ms), clearTimeout: (id) => clearTimeout(id) },
     signal: undefined,
   }
+  // #1111 决策 9：探测这条路上也要留得下判档轨迹（每次失败判成哪一档、依据哪一档事实）。
+  //   logCtx 是平台层递进来的日志出口（有 isEnabled 与 fire 两个方法，见 host/platformChannel.js）。
+  //   没递就一个键都不加：判定照常做、只是留不下轨迹——与各房「有 ctx.logEvent 才记」的既有口径一致。
+  if (logCtx && typeof logCtx.fire === 'function' && typeof logCtx.isEnabled === 'function') {
+    ctx.logEvent = function (level, event, fields) { try { logCtx.fire(level, event, fields) } catch (e) {} }
+    ctx.isEnabled = function (level) { try { return logCtx.isEnabled(level) === true } catch (e) { return false } }
+  }
+  return ctx
 }
 
 /**
@@ -197,7 +209,7 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
     let choiceSource = ''
     if (useOutlet) {
       const autoHook = async function (h, c) {
-        const opCtx = buildOpContextBase(cwd, platform, fs, timers, execForThisRound, 'detect-select')
+        const opCtx = buildOpContextBase(cwd, platform, fs, timers, execForThisRound, 'detect-select', logCtx)
         if (opts.signal) opCtx.signal = opts.signal
         opCtx.caller = 'detection-service'
         return registry.select(h, Object.assign({}, opCtx, { caller: (c && c.caller) || 'detection-service' }))
@@ -232,14 +244,18 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
       try {
         const tracker = registry.get(selection.backendId)
         if (tracker && typeof tracker.preflight === 'function') {
-          const opCtx2 = buildOpContextBase(cwd, platform, fs, timers, execForThisRound, 'detect-preflight')
+          const opCtx2 = buildOpContextBase(cwd, platform, fs, timers, execForThisRound, 'detect-preflight', logCtx)
           if (opts.signal) opCtx2.signal = opts.signal
           // preflight 可能经 ghClient 走 subprocess，需传 platform
           opCtx2.platform = platform
           preflight = await tracker.preflight(repoHandle, opCtx2)
         }
       } catch (e) {
-        preflight = { ok: false, error: { kind: 'network', message: String((e && e.message) || e).slice(0, 300) } }
+        // 正常路径是「预检失败也返回不抛」，走到这里说明它意外抛了。
+        // message 只留一句能让人看懂发生了什么的摘要（头一行、截到 120 字），完整原文交给 fail
+        // 放进 error.raw：分类是启发式的、可能猜错，原文是让人自己判断的兜底，混进 message 就再也拿不全了。
+        const oneLine = String((e && e.message) || e).split('\n')[0].slice(0, 120)
+        preflight = fail(ERROR_KIND.NETWORK, '预检意外中断：' + oneLine, e)
       }
     }
 

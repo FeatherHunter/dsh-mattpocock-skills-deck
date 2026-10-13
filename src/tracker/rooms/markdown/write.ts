@@ -1,4 +1,5 @@
-import { classifyError, fail } from '../../preflight.js'
+import { classifyError } from '../../preflight.js'
+import { failFromError } from './error-fail.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 function getFs(ctx){if(ctx&&ctx.platform&&ctx.platform.fs)return ctx.platform.fs;if(ctx&&ctx.fs)return ctx.fs;if(ctx&&typeof ctx.get==='function'){try{const f=ctx.get('fs');if(f)return f}catch{}}return null}
 function getPlatformPath(ctx){if(ctx&&ctx.platform&&ctx.platform.path)return ctx.platform.path;if(ctx&&ctx.path)return ctx.path;return null}
@@ -23,19 +24,20 @@ export async function writeTextFile(ctx, fullPath, content, sandboxPolicy){
   if(plat){try{await ensureDir(ctx,plat.dirname(fullPath))}catch{}}
   const hasPolicy = !!(sandboxPolicy || (ctx && ctx.sandboxPolicy))
   const policy = (sandboxPolicy !== undefined) ? sandboxPolicy : (ctx && ctx.sandboxPolicy)
-  if(typeof fs.resolve==='function'&&typeof fs.writeText==='function'){try{const t=await fs.resolve(fullPath);await fs.writeText(t,String(content),undefined,undefined,policy);return}catch(e){ if(isSandboxDeny(e)) throw sandboxDenyError(e, hasPolicy); const kind=e&&e.kind?e.kind:classifyError(e);const err=new Error(e&&e.message?e.message:String(e));err.kind=kind;throw err}}
-  if(typeof fs.writeFile==='function'){try{await fs.writeFile(fullPath,String(content),'utf8');return}catch(e){ if(isSandboxDeny(e)) throw sandboxDenyError(e, hasPolicy); const kind=e&&e.kind?e.kind:classifyError(e);const err=new Error(e&&e.message?e.message:String(e));err.kind=kind;throw err}}
-  if(typeof fs.writeText==='function'){try{await fs.writeText(fullPath,String(content));return}catch(e){ if(isSandboxDeny(e)) throw sandboxDenyError(e, hasPolicy); const kind=e&&e.kind?e.kind:classifyError(e);const err=new Error(e&&e.message?e.message:String(e));err.kind=kind;throw err}}
+  if(typeof fs.resolve==='function'&&typeof fs.writeText==='function'){try{const t=await fs.resolve(fullPath);await fs.writeText(t,String(content),undefined,undefined,policy);return}catch(e){ if(isSandboxDeny(e)) throw sandboxDenyError(e, hasPolicy); const kind=e&&e.kind?e.kind:classifyError(e, ctx);const err=new Error(e&&e.message?e.message:String(e));err.kind=kind;try{err.cause=e}catch{}throw err}}
+  if(typeof fs.writeFile==='function'){try{await fs.writeFile(fullPath,String(content),'utf8');return}catch(e){ if(isSandboxDeny(e)) throw sandboxDenyError(e, hasPolicy); const kind=e&&e.kind?e.kind:classifyError(e, ctx);const err=new Error(e&&e.message?e.message:String(e));err.kind=kind;try{err.cause=e}catch{}throw err}}
+  if(typeof fs.writeText==='function'){try{await fs.writeText(fullPath,String(content));return}catch(e){ if(isSandboxDeny(e)) throw sandboxDenyError(e, hasPolicy); const kind=e&&e.kind?e.kind:classifyError(e, ctx);const err=new Error(e&&e.message?e.message:String(e));err.kind=kind;try{err.cause=e}catch{}throw err}}
   throw Object.assign(new Error('fs.write not supported'),{kind:ERROR_KIND.ENV})
 }
 export async function renameFile(ctx, fromPath, toPath){
   const fs=getFs(ctx);const plat=getPlatformPath(ctx);if(!fs)throw Object.assign(new Error('fs unavailable'),{kind:ERROR_KIND.ENV})
   if(plat){try{await ensureDir(ctx,plat.dirname(toPath))}catch{}}
-  if(typeof fs.rename==='function'){try{await fs.rename(fromPath,toPath);return}catch(e){const kind=classifyError(e);const err=new Error(e&&e.message?e.message:String(e));err.kind=kind;throw err}}
-  if(typeof fs.resolve==='function'&&typeof fs.writeText==='function'&&typeof fs.readText==='function'){try{const srcT=await fs.resolve(fromPath);const txt=await fs.readText(srcT);const dstT=await fs.resolve(toPath);await fs.writeText(dstT,String(txt));if(typeof fs.unlink==='function'){try{await fs.unlink(srcT)}catch{}}else if(typeof fs.rm==='function'){try{await fs.rm(fromPath)}catch{}}return}catch(e){const kind=classifyError(e);const err=new Error(e&&e.message?e.message:String(e));err.kind=kind;throw err}}
+  if(typeof fs.rename==='function'){try{await fs.rename(fromPath,toPath);return}catch(e){const kind=classifyError(e, ctx);const err=new Error(e&&e.message?e.message:String(e));err.kind=kind;try{err.cause=e}catch{}throw err}}
+  if(typeof fs.resolve==='function'&&typeof fs.writeText==='function'&&typeof fs.readText==='function'){try{const srcT=await fs.resolve(fromPath);const txt=await fs.readText(srcT);const dstT=await fs.resolve(toPath);await fs.writeText(dstT,String(txt));if(typeof fs.unlink==='function'){try{await fs.unlink(srcT)}catch{}}else if(typeof fs.rm==='function'){try{await fs.rm(fromPath)}catch{}}return}catch(e){const kind=classifyError(e, ctx);const err=new Error(e&&e.message?e.message:String(e));err.kind=kind;try{err.cause=e}catch{}throw err}}
   throw Object.assign(new Error('fs.rename not supported'),{kind:ERROR_KIND.ENV})
 }
 export async function writeFile(ctx, path, content){
-  try{await writeTextFile(ctx,path,content);return{ok:true}}catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return fail(kind,e&&e.message?e.message:String(e))}
+  // 原文 = 抛上来的那个错误本身（写不进去时文件服务到底说了什么，全在这一份里）。
+  try{await writeTextFile(ctx,path,content);return{ok:true}}catch(e){return failFromError(e, ctx, e&&e.message?e.message:String(e))}
 }
 export default writeFile

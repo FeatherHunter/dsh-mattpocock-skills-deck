@@ -6,6 +6,7 @@
  */
 
 import { ERROR_KIND } from '../../contract/vocabulary.js'
+import { fail } from '../../preflight.js'
 import { ghClient } from './client.js'
 import { ghPreflight } from './preflight.js'
 import { listIssues, getIssue } from './issues.js'
@@ -96,15 +97,16 @@ export function createGithubBackend(ctx) {
       const c = ghClient(opCtx || ctx)
       const r = await c.execGh(['api', 'user', '--jq', '{login: .login, name: .name, avatarUrl: .avatar_url}'], { cwd: (opCtx && opCtx.cwd) || (ctx && ctx.cwd) })
       if (!r.ok) {
-        const kind = (r.error && r.error.kind) || 'unsupported'
-        // 未登录或无权限 → 返回 unsupported，UI 将不做“本人不显”过滤（全显）
-        if (kind === 'auth' || kind === 'unsupported') return { ok: false, error: { kind: ERROR_KIND.UNSUPPORTED, message: r.error && r.error.message || 'viewer unsupported' } }
+        const kind = (r.error && r.error.kind) || ERROR_KIND.UNSUPPORTED
+        // 未登录或无权限 → 返回 unsupported，UI 将不做“本人不显”过滤（全显）；原文交 gh 那一份失败。
+        if (kind === ERROR_KIND.AUTH || kind === ERROR_KIND.UNSUPPORTED) return fail(ERROR_KIND.UNSUPPORTED, (r.error && r.error.message) || 'viewer unsupported', r.error)
         return { ok: false, error: r.error }
       }
       try {
         const j = JSON.parse(r.data.stdout || r.data.text || '{}')
         const login = String(j.login || '').trim()
-        if (!login) return { ok: false, error: { kind: ERROR_KIND.UNSUPPORTED, message: 'viewer login empty' } }
+        // 说「viewer 的登录名是空的」时，原文就是这次 gh 回来的那份数据（人自己看得出缺了什么）。
+        if (!login) return fail(ERROR_KIND.UNSUPPORTED, 'viewer login empty', r.data)
         const actor = { login }
         if (j.name) actor.name = String(j.name)
         if (j.avatarUrl) actor.avatarUrl = String(j.avatarUrl)
@@ -112,7 +114,7 @@ export function createGithubBackend(ctx) {
         actor.kind = 'user'
         return { ok: true, data: actor }
       } catch (e) {
-        return { ok: false, error: { kind: ERROR_KIND.PARSE, message: String(e.message || e) } }
+        return fail(ERROR_KIND.PARSE, String(e.message || e), r.data)
       }
     },
     initProject: (handle, input, opCtx) => initProject(handle, input, opCtx || ctx),
@@ -130,9 +132,11 @@ export function createGithubBackend(ctx) {
       const c = ghClient(opCtx || ctx)
       const refId = repo && typeof repo.refId === 'string' ? repo.refId.trim() : ''
       const idx = refId.indexOf('/')
-      if (idx <= 0) return { ok: false, error: { kind: ERROR_KIND.NOTFOUND, message: 'getRepoPermissions: repo.refId missing' } }
+      // 说「refId 缺了」时，手里那个 refId（空串）就是原文；下面是权限问不出来，
+      // 这一条没有上游原文可交（readRepoPermissions 只回 null，原因在它自己的日志里），留空串表示如实没有。
+      if (idx <= 0) return fail(ERROR_KIND.NOTFOUND, 'getRepoPermissions: repo.refId missing', refId)
       const perms = await readRepoPermissions(c, refId, opCtx || ctx)
-      if (!perms) return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: 'getRepoPermissions: 仓库权限问不出来（网络或仓库不可达），按未知处理' } }
+      if (!perms) return fail(ERROR_KIND.NETWORK, 'getRepoPermissions: 仓库权限问不出来（网络或仓库不可达），按未知处理', '')
       return { ok: true, data: perms }
     },
   }

@@ -21,7 +21,7 @@
  */
 
 import { ERROR_KIND, ISSUE_TYPE, STATE } from '../../contract/vocabulary.js'
-import { classifyError } from '../../preflight.js'
+import { failAs, failFromError } from './error-fail.js'
 import { enumerateIssueRows } from './issues-read.js'
 // 这三件与 counts 共用同一份实现：分页与计数说的必须是**同一批票**，两处各写一份判定迟早走样。
 import { labelsOf, hasAllLabels, narrowStateOf, readFailureMessage } from './counts.js'
@@ -59,11 +59,13 @@ function thinRow(row) {
 function startIndexOf(cursor, total) {
   if (!cursor) return { ok: true, start: 0 }
   if (!/^\d+$/.test(cursor)) {
-    return { ok: false, error: { kind: ERROR_KIND.PARSE, message: '游标已失效，请重新加载（这个后端的游标是排好序的票行列表里的下标，收到的不是数字：' + cursor.slice(0, 32) + '）' } }
+    // 原文 = 收到的那段游标本身（本地就能定论：它不是一个下标数字）。
+    return failAs(ERROR_KIND.PARSE, '游标已失效，请重新加载（这个后端的游标是排好序的票行列表里的下标，收到的不是数字：' + cursor.slice(0, 32) + '）', cursor.slice(0, 120))
   }
   const start = parseInt(cursor, 10)
   if (start >= total) {
-    return { ok: false, error: { kind: ERROR_KIND.NOTFOUND, message: '游标已失效，请重新加载（下标 ' + start + ' 越过了现在这 ' + total + ' 行）' } }
+    // 原文给这次的下标与总行数（本地就能定论：游标越过了现有数据）。
+    return failAs(ERROR_KIND.NOTFOUND, '游标已失效，请重新加载（下标 ' + start + ' 越过了现在这 ' + total + ' 行）', JSON.stringify({ start: start, total: total }))
   }
   return { ok: true, start: start }
 }
@@ -78,7 +80,10 @@ export async function listIssuesPage(ctx, repo, filter = {}, opts = {}) {
     const { rows, errors } = await enumerateIssueRows(ctx, repo, scopeFilter, { collectErrors: true })
     if (errors.length) {
       const kind = errors[0].kind || ERROR_KIND.ENV
-      return { ok: false, error: { kind, message: readFailureMessage(errors) } }
+      // 原文与 counts 同一口径：每张读不动的票「编号 + 文件 + 档位 + 那句错误」，一行一张。
+      return failAs(kind, readFailureMessage(errors), errors.map(function (e) {
+        return String(e.key) + ' ' + String(e.path) + ' [' + String(e.kind || '') + '] ' + String(e.message || '')
+      }).join('\n'))
     }
     const wanted = labelsOf(filter)
     const narrow = narrowStateOf(filter)
@@ -95,8 +100,7 @@ export async function listIssuesPage(ctx, repo, filter = {}, opts = {}) {
     const nextCursor = (start + items.length) < total ? String(start + items.length) : null
     return { ok: true, data: { items: items, nextCursor: nextCursor, total: total } }
   } catch (e) {
-    const kind = e && e.kind ? e.kind : classifyError(e)
-    return { ok: false, error: { kind, message: e && e.message ? e.message : String(e) } }
+    return failFromError(e, ctx, '给这个工作区的票分页时出错')
   }
 }
 

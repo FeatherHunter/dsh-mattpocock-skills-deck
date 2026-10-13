@@ -18,14 +18,14 @@
  *    界面那一份要的 number / 大写 state 由宿主电话层补（见 src/host/issuePage.js），与快照那条链同一处口径。
  *  - **不缓存判定**（G5 红线）：失败（含「做不到」的桩）不进任何缓存，缓存层在编排层。
  *
- * 错误分类复用本房间既有的 classifyGhError（与 list / get / counts 同一套档位），不另造词。
+ * 错误分类走本房间唯一的出口 ghVerdictOf（判档表在 src/tracker/error-rules.ts），不另造词。
  */
 
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { fail } from '../../preflight.js'
 import { ghClient } from './client.js'
 import { normalizeIssue } from './normalize.js'
-import { classifyGhError } from './errors.js'
+import { ghFailureMessage, ghVerdictOf } from './errors.js'
 import { parseRepo, repoId } from './issues.js'
 import { LIST_PAGE_QUERY, LIST_PAGE_QUERY_WITH_LABELS } from './queries.js'
 
@@ -79,7 +79,7 @@ function countOf(v) {
 function emitBadNodes(ctx, dropped, total) {
   try {
     if (!dropped) return
-    if (ctx && typeof ctx.isEnabled === 'function' && ctx.isEnabled('debug') && typeof ctx.logEvent === 'function') ctx.logEvent('debug', 'error.normalize', { rawKind: 'bad-node:page:' + dropped + '/' + total, mappedKind: 'parse' })
+    if (ctx && typeof ctx.isEnabled === 'function' && ctx.isEnabled('debug') && typeof ctx.logEvent === 'function') ctx.logEvent('debug', 'error.normalize', { rawKind: 'bad-node:page:' + dropped + '/' + total, mappedKind: ERROR_KIND.PARSE })
   } catch {}
 }
 
@@ -99,7 +99,8 @@ function emitBadNodes(ctx, dropped, total) {
 export async function listIssuesPage(repo, filter, opts, ctx) {
   try {
     const parsed = parseRepo(repo)
-    if (!parsed) return fail(ERROR_KIND.NOTFOUND, `listPage: repo.refId missing or malformed: ${repoId(repo)}`)
+    // 形状不对的入参本身就是这一处的原文（这之前还没跑过任何外部命令）；它取出来可能是空串，那是如实交代。
+    if (!parsed) return fail(ERROR_KIND.NOTFOUND, `listPage: repo.refId missing or malformed: ${repoId(repo)}`, repo)
     const lim = limitOf(opts)
     const cursor = cursorOf(opts)
     const states = statesOf(filter)
@@ -119,22 +120,28 @@ export async function listIssuesPage(repo, filter, opts, ctx) {
     if (!r.ok) return { ok: false, error: r.error }
     let j
     try { j = JSON.parse(r.data.stdout || '') } catch (e) {
-      return fail(ERROR_KIND.PARSE, `listPage: invalid json ${String(e.message).slice(0, 200)}`)
+      // 没能解析成 JSON 的那份回包就是这里的原文（交的是这次 gh 的完整产出，不只 stdout 一截）。
+      return fail(ERROR_KIND.PARSE, `listPage: invalid json ${String(e.message).slice(0, 200)}`, r.data)
     }
     if (j.errors) {
       const msg = `listPage: ${JSON.stringify(j.errors).slice(0, 800)}`
       // 游标失效是单独一类，要认得出：界面据此丢游标重取第一页，而不是把这一页当成历史翻到了头。
       if (cursor && /cursor/i.test(msg)) {
-        return fail(ERROR_KIND.NOTFOUND, `listPage: 游标已失效，请重新加载（${msg.slice(0, 400)}）`)
+        // raw 交的是 GitHub 回的那份 errors 负载本身（上面那句提示只是给它加了前缀）。
+        return fail(ERROR_KIND.NOTFOUND, `listPage: 游标已失效，请重新加载（${msg.slice(0, 400)}）`, JSON.stringify(j.errors))
       }
-      return { ok: false, error: { kind: classifyGhError({ message: msg, stderr: msg }, ctx), message: msg } }
+      // 原文交的是 GitHub 回的那份 errors 负载本身（msg 只是给它加了个操作名前缀，不算原文）。
+      // 判档与话术都走本房唯一的出口：档位由规则表判、message 按票面实现决定第 11 条挑。
+      const verdict = ghVerdictOf({ message: msg, stderr: msg }, ctx)
+      return fail(verdict.kind, ghFailureMessage(verdict, msg), JSON.stringify(j.errors))
     }
     const repoData = j.data && j.data.repository
-    if (!repoData) return fail(ERROR_KIND.PARSE, 'listPage: graphql: missing repository')
+    // 说「回包里缺东西」时，原文就是这份回包本身 —— 人自己能看出它到底缺了什么。
+    if (!repoData) return fail(ERROR_KIND.PARSE, 'listPage: graphql: missing repository', r.data)
     const conn = repoData.issues
-    if (!conn || !Array.isArray(conn.nodes)) return fail(ERROR_KIND.PARSE, 'listPage: graphql: missing issues.nodes')
+    if (!conn || !Array.isArray(conn.nodes)) return fail(ERROR_KIND.PARSE, 'listPage: graphql: missing issues.nodes', r.data)
     const total = countOf(conn.totalCount)
-    if (total === null) return fail(ERROR_KIND.PARSE, 'listPage: totalCount missing or not a non-negative integer (refusing to guess a number)')
+    if (total === null) return fail(ERROR_KIND.PARSE, 'listPage: totalCount missing or not a non-negative integer (refusing to guess a number)', r.data)
     const items = []
     let dropped = 0
     for (const n of conn.nodes) {
@@ -146,13 +153,15 @@ export async function listIssuesPage(repo, filter, opts, ctx) {
     if (pageInfo.hasNextPage === true) {
       // 说「还有下一页」却给不出游标 = 拿不全。宁可如实失败，也不假装历史就到这里了。
       if (typeof pageInfo.endCursor !== 'string' || !pageInfo.endCursor) {
-        return fail(ERROR_KIND.PARSE, 'listPage: hasNextPage 为真但 endCursor 缺失（拒绝假装已经翻到底）')
+        // 说出「没有 endCursor」这句话的证据就是这段 pageInfo 本身，原文交它（比整份回包短得多、也看得准）。
+        return fail(ERROR_KIND.PARSE, 'listPage: hasNextPage 为真但 endCursor 缺失（拒绝假装已经翻到底）', JSON.stringify(pageInfo))
       }
       nextCursor = pageInfo.endCursor
     }
     return { ok: true, data: { items, nextCursor, total } }
   } catch (e) {
-    return fail(classifyGhError(e, ctx), String((e && e.message) || e).slice(0, 800))
+    const verdict = ghVerdictOf(e, ctx)
+    return fail(verdict.kind, ghFailureMessage(verdict, String((e && e.message) || e).slice(0, 800)), e)
   }
 }
 

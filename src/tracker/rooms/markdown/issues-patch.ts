@@ -4,7 +4,7 @@
 import { parseMd, stripLabelDecoration, parentKeyFromFile, isWholeIssueBody } from './parse.js'
 import { readTextFile } from './read.js'
 import { writeTextFile } from './write.js'
-import { classifyError } from '../../preflight.js'
+import { failAs, failFromError } from './error-fail.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { resolveIssueFile, resolveMapFile } from './issues-locate.js'
 import { loadPaintColorMap, applyLabelColors } from './label-colors-paint.js'
@@ -29,7 +29,7 @@ async function readParseWrite(ctx,repo,r,norm,fn){
       const next=typeof out==='string'?out:txt
       if(next!==txt)await writeTextFile(ctx,r.path,next, ctx && ctx.sandboxPolicy)
       return{ok:true,txt:next}
-    }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
+    }catch(e){return failFromError(e,ctx,'读—改—写这张票的文件时出错')}
   })
 }
 /** 递进来的正文是不是「一整份票文件」：自带 H1 标题（或幂等锚）。
@@ -178,12 +178,13 @@ export async function updateIssue(ctx,repo,key,patch){
     const iss=parseMd(res.txt,{key:norm,parentKey: norm==='00'?null:'00',isMap: norm==='00',effortId:r.effortId})
     applyLabelColors(iss, colorMap)
     return{ok:true,data:iss}
-  }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
+  }catch(e){return failFromError(e,ctx,'改这张票的字段时出错')}
 }
 export async function setBlockedByIssue(ctx,repo,key,blockers){
   const norm=String(key).padStart(2,'0')
   const colorMap=await loadPaintColorMap(ctx)
-  if(Array.isArray(blockers)&&blockers.map(k=>String(k).padStart(2,'0')).includes(norm)){return{ok:false,error:{kind:ERROR_KIND.CONFLICT,message:'self-block '+norm}}}
+  // 原文 = 这张票自己的编号（结论是「入参自己和自己打架」，没有外部来源的原文）。
+  if(Array.isArray(blockers)&&blockers.map(k=>String(k).padStart(2,'0')).includes(norm)){return failAs(ERROR_KIND.CONFLICT,'self-block '+norm,norm)}
   const r=await resolveTarget(ctx,repo,norm,'write')
   if(!r.ok)return{ok:false,error:r.error}
   const arr=Array.isArray(blockers)?blockers:[]
@@ -194,7 +195,7 @@ export async function setBlockedByIssue(ctx,repo,key,blockers){
     const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:r.effortId})
     applyLabelColors(iss, colorMap)
     return{ok:true,data:iss}
-  }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
+  }catch(e){return failFromError(e,ctx,'改这张票的阻塞关系时出错')}
 }
 export async function setAssigneesIssue(ctx,repo,key,assignees){
   const norm=String(key).padStart(2,'0')
@@ -209,7 +210,7 @@ export async function setAssigneesIssue(ctx,repo,key,assignees){
     const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:r.effortId})
     applyLabelColors(iss, colorMap)
     return{ok:true,data:iss}
-  }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
+  }catch(e){return failFromError(e,ctx,'改这张票的认领人时出错')}
 }
 /** 把文件顶的父票注释换成新的值，没有这一行就插一行（#971）。
  *
@@ -255,9 +256,10 @@ export async function setParentIssue(ctx,repo,key,parentKey){
         const iss=parseMd(txt,{key:'00',parentKey:null,isMap:true,effortId:r.effortId})
         applyLabelColors(iss, colorMap)
         return{ok:true,data:iss}
-      }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
+      }catch(e){return failFromError(e,ctx,'改这张票的父子关系时出错')}
     }
-    return{ok:false,error:{kind:ERROR_KIND.UNSUPPORTED,message:'markdown setParent unsupported (map has no parent)'}}
+    // 原文给空串：这一支一个文件都没写出去（地图票的父是结构上没有的东西）。
+    return failAs(ERROR_KIND.UNSUPPORTED,'markdown setParent unsupported (map has no parent)','')
   }
   const r=await resolveTarget(ctx,repo,norm,'write')
   if(!r.ok)return{ok:false,error:r.error}
@@ -279,12 +281,13 @@ export async function setParentIssue(ctx,repo,key,parentKey){
       const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort})
       applyLabelColors(iss, colorMap)
       return{ok:true,data:iss}
-    }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
+    }catch(e){return failFromError(e,ctx,'改这张票的父子关系时出错')}
   }
   // 新父必须在同一个工作单元里（同一个目录树下）：目录即父子，跨目录搬文件不支持，如实失败。
   if(want==='00'){
     const mr=await resolveMapFile(ctx,repo,{effortId:childEffort,mode:'read'})
-    if(!mr.ok)return{ok:false,error:{kind:ERROR_KIND.NOTFOUND,message:'parent 00 not-found in effort「'+childEffort+'」'}}
+    // 原文 = 这次请求的入参与目标工作单元（本地就能定论：这个单元里没有地图文件，父票无从查起）。
+    if(!mr.ok)return failAs(ERROR_KIND.NOTFOUND,'parent 00 not-found in effort「'+childEffort+'」',JSON.stringify({key:norm,parentKey:String(parentKey),effortId:childEffort}))
     const res=await readParseWrite(ctx,repo,r,norm,function(txt){
       try{
         const cur0=parseMd(txt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort}).parentKey
@@ -298,7 +301,7 @@ export async function setParentIssue(ctx,repo,key,parentKey){
       const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort})
       applyLabelColors(iss, colorMap)
       return{ok:true,data:iss}
-    }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
+    }catch(e){return failFromError(e,ctx,'改这张票的父子关系时出错')}
   }
   const pr=await resolveIssueFile(ctx,repo,want,{effortId:childEffort,mode:'read'})
   if(pr.ok&&(pr.effortId||'')===childEffort){
@@ -315,14 +318,16 @@ export async function setParentIssue(ctx,repo,key,parentKey){
       const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort})
       applyLabelColors(iss, colorMap)
       return{ok:true,data:iss}
-    }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
+    }catch(e){return failFromError(e,ctx,'改这张票的父子关系时出错')}
   }
   // 同目录里找不到这个父：看它是不是在别的工作单元里，是就是跨目录（不支持），不是就是不存在。
   try{
     const anywhere=await resolveIssueFile(ctx,repo,want,{effortId:null,mode:'read'})
-    if(anywhere&&anywhere.ok)return{ok:false,error:{kind:ERROR_KIND.UNSUPPORTED,message:'markdown setParent unsupported (cross-effort '+childEffort+' -> '+(anywhere.effortId||'')+')'}}
+    // 原文 = 这次请求的入参与实际找到的那个工作单元（人据此自己核对为什么判成跨工作单元）。
+    if(anywhere&&anywhere.ok)return failAs(ERROR_KIND.UNSUPPORTED,'markdown setParent unsupported (cross-effort '+childEffort+' -> '+(anywhere.effortId||'')+')',JSON.stringify({key:norm,parentKey:String(parentKey),childEffort:childEffort,parentEffort:anywhere.effortId||''}))
   }catch{}
-  return{ok:false,error:{kind:ERROR_KIND.NOTFOUND,message:'parent '+want+' not-found'}}
+  // 原文 = 那个找不到的父编号（本地就能定论：把它拿去找过、没找到）。
+  return failAs(ERROR_KIND.NOTFOUND,'parent '+want+' not-found',String(want))
 }
 export async function setLabelsIssue(ctx,repo,key,labels){
   const norm=String(key).padStart(2,'0')
@@ -338,5 +343,5 @@ export async function setLabelsIssue(ctx,repo,key,labels){
     const iss=parseMd(res.txt,{key:norm,parentKey: norm==='00'?null:'00',isMap: norm==='00',effortId:r.effortId})
     applyLabelColors(iss, colorMap)
     return{ok:true,data:iss}
-  }catch(e){const kind=e&&e.kind?e.kind:classifyError(e);return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
+  }catch(e){return failFromError(e,ctx,'改这张票的标签时出错')}
 }

@@ -6,6 +6,7 @@
 import { parseMd } from './parse.js'
 import { readTextFile, readDir } from './read.js'
 import { getPlat, listEfforts, resolveIssueFile, resolveMapFile } from './issues-locate.js'
+import { failAs, failFromError } from './error-fail.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 
 export async function readBlockedBy(ctx, repo, key){
@@ -16,7 +17,7 @@ export async function readBlockedBy(ctx, repo, key){
     const txt=await readTextFile(ctx,r.path)
     const issue=parseMd(txt,{key:norm,parentKey:'00',isMap:false,effortId:r.effortId})
     return{ok:true,data:issue.blockedBy||[],effortId:r.effortId}
-  }catch(e){const kind=e&&e.kind?e.kind:ERROR_KIND.NOTFOUND;return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
+  }catch(e){return failFromError(e,ctx,'读这张票的阻塞关系时出错')}
 }
 export async function getDependenciesForKey(ctx, repo, key){
   const plat=getPlat(ctx)
@@ -25,7 +26,8 @@ export async function getDependenciesForKey(ctx, repo, key){
   if(!r.ok)return r
   const effortId=r.effortId||''
   const blockedBy=r.data||[]
-  if(blockedBy.some(ref=>ref&&ref.key===normalizedKey)){return{ok:false,error:{kind:ERROR_KIND.CONFLICT,message:'self-block '+normalizedKey}}}
+  // 原文 = 这张票自己的编号（没有外部来源的原文：结论是「票面自己把自己列成了阻塞者」）。
+  if(blockedBy.some(ref=>ref&&ref.key===normalizedKey)){return failAs(ERROR_KIND.CONFLICT,'self-block '+normalizedKey,normalizedKey)}
   // 本 effort 的目录（找不到就退回仓库根 issues 夹具形态）
   const efforts=await listEfforts(ctx)
   const mine=efforts.find(function(e){ return e.effortId===effortId })

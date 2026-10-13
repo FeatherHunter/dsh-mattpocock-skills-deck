@@ -8,6 +8,7 @@
  */
 
 import { ERROR_KIND } from '../../contract/vocabulary.js'
+import { fail } from '../../preflight.js'
 import { ghClient } from './client.js'
 
 // 拉取请求 REST 列表（与 issues 同构；/issues 已含拉取请求条目，此处只为补合并时间做富化）。
@@ -24,11 +25,12 @@ export async function fetchAllPullsREST(parsed, ctx) {
     }
     let j
     try { j = JSON.parse(r.data.stdout || '') } catch (e) {
-      if (!out.length) return { ok: false, error: { kind: ERROR_KIND.PARSE, message: 'rest pulls: invalid json ' + String(e.message).slice(0, 200) } }
+      // 原文交这次 gh 的完整产出：人自己就能看出回包里到底是什么。
+      if (!out.length) return fail(ERROR_KIND.PARSE, 'rest pulls: invalid json ' + String(e.message).slice(0, 200), r.data)
       return { ok: true, data: out }
     }
     if (!Array.isArray(j)) {
-      if (!out.length) return { ok: false, error: { kind: ERROR_KIND.PARSE, message: 'rest pulls: non-array response' } }
+      if (!out.length) return fail(ERROR_KIND.PARSE, 'rest pulls: non-array response', r.data)
       return { ok: true, data: out }
     }
     for (const n of j) out.push(n)

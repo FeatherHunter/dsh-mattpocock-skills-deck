@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-13T19:45:21.934Z",
+  "generatedAt": "2026-10-13T20:16:26.299Z",
   "generatedBy": "node scripts/gate-map.mjs",
-  "chainLength": 231,
-  "gateCount": 231,
-  "attributedGates": 203,
+  "chainLength": 235,
+  "gateCount": 235,
+  "attributedGates": 207,
   "unattributedGates": 28,
   "buildOutputOnlyGates": 20,
-  "graphFileCount": 519,
+  "graphFileCount": 522,
   "gates": [
     {
       "step": "node tests/verify-596-rpc-carrier.js",
@@ -147,6 +147,7 @@
         "scripts/generated/updateClient.derived.js",
         "scripts/generated/updateEntryPanel.bundle.js",
         "scripts/lib/transpile-unit.mjs",
+        "src/client/kernel/api-io.js",
         "src/deck",
         "src/host",
         "src/shared",
@@ -167,6 +168,7 @@
         "package/tracker",
         "scripts/generated",
         "scripts/lib",
+        "src/client/kernel",
         "src/deck",
         "src/host",
         "src/shared",
@@ -179,7 +181,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 11 条；源码里的路径字面量 17 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 11 条；源码里的路径字面量 18 条"
     },
     {
       "step": "node tests/verify-label-color-core.js",
@@ -360,7 +362,7 @@
       "file": "tests/verify-newsession-blank-seed-315.js",
       "guards": [
         "package/lib/client.js",
-        "src/client/kernel/api-io.js",
+        "src/client/kernel/api-io.ts",
         "src/client/kernel/api-naming.js",
         "src/client/kernel/api-new-session.js",
         "src/client/kernel/api-workspace.js",
@@ -380,7 +382,7 @@
       "file": "tests/verify-newsession-preset-guard.js",
       "guards": [
         "package/lib/client.js",
-        "src/client/kernel/api-io.js",
+        "src/client/kernel/api-io.ts",
         "src/client/kernel/api-naming.js",
         "src/client/kernel/api-new-session.js",
         "src/client/kernel/api-preset-guard.js",
@@ -401,7 +403,7 @@
       "file": "tests/verify-newsession-workspace-fallback.js",
       "guards": [
         "package/lib/client.js",
-        "src/client/kernel/api-io.js",
+        "src/client/kernel/api-io.ts",
         "src/client/kernel/api-naming.js",
         "src/client/kernel/api-new-session.js",
         "src/client/kernel/api-workspace.js",
@@ -944,6 +946,7 @@
         "src/host",
         "src/host/platform",
         "src/host/refresh/wiring.js",
+        "src/host/tracker/backends",
         "src/seam",
         "src/shared",
         "src/tracker/registry/core.ts",
@@ -953,6 +956,7 @@
         "src/host",
         "src/host/platform",
         "src/host/refresh",
+        "src/host/tracker/backends",
         "src/seam",
         "src/shared",
         "src/tracker/registry",
@@ -960,7 +964,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：源码里的路径字面量 7 条"
+      "reason": "归属来自：源码里的路径字面量 8 条"
     },
     {
       "step": "node tests/verify-1109-matches-timeout.ts",
@@ -4718,6 +4722,103 @@
       "reason": "读到的路径都落在 tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
+      "step": "node tests/verify-error-single-source.ts",
+      "file": "tests/verify-error-single-source.ts",
+      "guards": [
+        "src/client",
+        "src/client/kernel",
+        "src/client/kernel/actions.js",
+        "src/client/kernel/api-io.js",
+        "src/client/kernel/api-io.ts",
+        "src/client/kernel/api-preset-guard.js",
+        "src/client/kernel/issue-pages.js",
+        "src/client/kernel/slotRenderer-repo-sync.js",
+        "src/tracker",
+        "src/tracker/contract/results.ts",
+        "src/tracker/contract/vocabulary.ts",
+        "src/tracker/error-rules.ts",
+        "src/tracker/preflight.ts",
+        "src/tracker/rooms/github/fallback-reason.ts",
+        "src/tracker/rooms/github/init-project-error-kinds.ts",
+        "src/tracker/rooms/github/init-project.ts",
+        "src/tracker/rooms/github/issues-write.ts"
+      ],
+      "dirs": [
+        "src/client",
+        "src/client/kernel",
+        "src/tracker",
+        "src/tracker/contract",
+        "src/tracker/rooms/github"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "reason": "归属来自：源码里的路径字面量 17 条"
+    },
+    {
+      "step": "node tests/verify-error-raw-samples.ts",
+      "file": "tests/verify-error-raw-samples.ts",
+      "guards": [
+        "src/tracker/rooms/github/counts.ts",
+        "src/tracker/rooms/gitlab/index.js",
+        "src/tracker/rooms/markdown/issues.ts"
+      ],
+      "dirs": [
+        "src/tracker/rooms/github",
+        "src/tracker/rooms/gitlab",
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "reason": "归属来自：静态 import 说明符 3 条"
+    },
+    {
+      "step": "node tests/verify-error-rule-samples.ts",
+      "file": "tests/verify-error-rule-samples.ts",
+      "guards": [
+        "docs/adr/20261014-error-classification-single-source.md",
+        "src/tracker/contract/vocabulary.js",
+        "src/tracker/error-rules.ts",
+        "src/tracker/rooms",
+        "src/tracker/rooms/github/errors.ts",
+        "src/tracker/rooms/gitlab/errors.js"
+      ],
+      "dirs": [
+        "docs/adr",
+        "src/tracker",
+        "src/tracker/contract",
+        "src/tracker/rooms",
+        "src/tracker/rooms/github",
+        "src/tracker/rooms/gitlab"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 5 条"
+    },
+    {
+      "step": "node tests/verify-error-normalize-log.ts",
+      "file": "tests/verify-error-normalize-log.ts",
+      "guards": [
+        "research/489-appendix.md",
+        "src/tracker/detection/detectionService.ts",
+        "src/tracker/error-rules.ts",
+        "src/tracker/preflight.ts",
+        "src/tracker/rooms/github/errors.ts",
+        "src/tracker/rooms/gitlab/errors.js",
+        "src/tracker/rooms/markdown"
+      ],
+      "dirs": [
+        "research",
+        "src/tracker",
+        "src/tracker/detection",
+        "src/tracker/rooms/github",
+        "src/tracker/rooms/gitlab",
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "reason": "归属来自：源码里的路径字面量 7 条"
+    },
+    {
       "step": "node tests/verify-gate-map.js",
       "file": "tests/verify-gate-map.js",
       "guards": [
@@ -4777,7 +4878,8 @@
       "node tests/verify-992-readonly-labels.js"
     ],
     "docs/adr": [
-      "node tests/verify-refresh-adr.js"
+      "node tests/verify-refresh-adr.js",
+      "node tests/verify-error-rule-samples.ts"
     ],
     "docs/agents": [
       "node tests/verify-issue-body-script.js",
@@ -4925,6 +5027,7 @@
       "node tests/verify-log-selfmon.js",
       "node tests/verify-733-unknown-endpoint.js",
       "node tests/verify-settings-debug.js",
+      "node tests/verify-error-normalize-log.ts",
       "node tests/verify-gate-map.js"
     ],
     "scripts": [
@@ -4998,6 +5101,7 @@
       "node tests/verify-settings-view.js",
       "node tests/verify-settings-templates.js",
       "node tests/verify-settings-debug.js",
+      "node tests/verify-error-single-source.ts",
       "node tests/verify-gate-map.js"
     ],
     "src/client/floating": [
@@ -5009,6 +5113,7 @@
     "src/client/kernel": [
       "node tests/verify-prompt-newlines.js",
       "node tests/verify-prompts.js",
+      "node tests/verify-build-artifacts.js",
       "node tests/verify-label-color-core.js",
       "node tests/verify-update-mirror-hint.js",
       "node tests/verify-587-update-restart.js",
@@ -5074,7 +5179,8 @@
       "node tests/verify-settings-view.js",
       "node tests/verify-settings-templates.js",
       "node tests/verify-settings-debug.js",
-      "node tests/verify-deck-slots.js"
+      "node tests/verify-deck-slots.js",
+      "node tests/verify-error-single-source.ts"
     ],
     "src/client/panel": [
       "node tests/verify-655-setup-layout.js",
@@ -5376,6 +5482,9 @@
       "node tests/verify-multi-effort-panel.js",
       "node tests/verify-907-chain-titles.js"
     ],
+    "src/host/tracker/backends": [
+      "node tests/verify-deck-tools-host-wiring.js"
+    ],
     "src/seam": [
       "node tests/verify-deck-tools-host-wiring.js",
       "node tests/verify-dependency-rules.ts",
@@ -5516,7 +5625,10 @@
       "node tests/verify-663-gh-install-inject.js",
       "node tests/verify-delta-patch.js",
       "node tests/verify-chain-view.js",
-      "node tests/verify-deck-slots.js"
+      "node tests/verify-deck-slots.js",
+      "node tests/verify-error-single-source.ts",
+      "node tests/verify-error-rule-samples.ts",
+      "node tests/verify-error-normalize-log.ts"
     ],
     "src/tracker/contract": [
       "node tests/verify-build-artifacts.js",
@@ -5527,7 +5639,9 @@
       "node tests/verify-992-readonly-labels.js",
       "node tests/verify-544-standalone-blocked.js",
       "node tests/verify-issue195.js",
-      "node tests/verify-contract-types.js"
+      "node tests/verify-contract-types.js",
+      "node tests/verify-error-single-source.ts",
+      "node tests/verify-error-rule-samples.ts"
     ],
     "src/tracker/detection": [
       "node tests/verify-deck-tools.js",
@@ -5545,7 +5659,8 @@
       "node tests/verify-947-workspace-file.js",
       "node tests/verify-957-workspace-writer.js",
       "node tests/verify-1003-single-outlet.js",
-      "node tests/verify-1003-unified-decision.js"
+      "node tests/verify-1003-unified-decision.js",
+      "node tests/verify-error-normalize-log.ts"
     ],
     "src/tracker/registry": [
       "node tests/verify-tracker-contract.js",
@@ -5573,7 +5688,8 @@
     "src/tracker/rooms": [
       "node tests/verify-prompt-newlines.js",
       "node tests/verify-prompts.js",
-      "node tests/verify-no-mixed-session.js"
+      "node tests/verify-no-mixed-session.js",
+      "node tests/verify-error-rule-samples.ts"
     ],
     "src/tracker/rooms/github": [
       "node tests/verify-prompts.js",
@@ -5597,7 +5713,11 @@
       "node tests/verify-686-accept.js",
       "node tests/verify-gh-gateway.js",
       "node tests/verify-709-no-self-continuing-timers.js",
-      "node tests/verify-deck-slots.js"
+      "node tests/verify-deck-slots.js",
+      "node tests/verify-error-single-source.ts",
+      "node tests/verify-error-raw-samples.ts",
+      "node tests/verify-error-rule-samples.ts",
+      "node tests/verify-error-normalize-log.ts"
     ],
     "src/tracker/rooms/gitlab": [
       "node tests/verify-tracker-contract.js",
@@ -5605,7 +5725,10 @@
       "node tests/verify-deck-tools-matrix.js",
       "node tests/verify-no-mixed-session.js",
       "node tests/verify-686-accept.js",
-      "node tests/verify-gh-gateway.js"
+      "node tests/verify-gh-gateway.js",
+      "node tests/verify-error-raw-samples.ts",
+      "node tests/verify-error-rule-samples.ts",
+      "node tests/verify-error-normalize-log.ts"
     ],
     "src/tracker/rooms/markdown": [
       "node tests/verify-deck-tools.js",
@@ -5626,7 +5749,9 @@
       "node tests/verify-refresh-workspace-key.js",
       "node tests/verify-723-gate-wiring.js",
       "node tests/verify-970-whole-document.js",
-      "node tests/verify-972-title-body.js"
+      "node tests/verify-972-title-body.js",
+      "node tests/verify-error-raw-samples.ts",
+      "node tests/verify-error-normalize-log.ts"
     ],
     "tests": [
       "node tests/verify-prompts.js",
@@ -5759,12 +5884,12 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 527,
-    "dirCount": 48,
-    "coveredFileCount": 527,
+    "fileCount": 530,
+    "dirCount": 54,
+    "coveredFileCount": 530,
     "ungatedFileCount": 0,
-    "ungatedDirCount": 0,
-    "dedicatedDirCount": 47,
+    "ungatedDirCount": 6,
+    "dedicatedDirCount": 48,
     "guardedFiles": [
       "src/client/floating/Pop.js",
       "src/client/floating/SkillFloatList.js",
@@ -5772,6 +5897,7 @@
       "src/client/index.js",
       "src/client/kernel/actions.js",
       "src/client/kernel/api-io.js",
+      "src/client/kernel/api-io.ts",
       "src/client/kernel/api-naming.js",
       "src/client/kernel/api-new-session.js",
       "src/client/kernel/api-preset-guard.js",
@@ -6220,6 +6346,7 @@
       "src/tracker/detection/preflightScope.ts",
       "src/tracker/detection/workspace-ownership.ts",
       "src/tracker/detection/workspaceStore.ts",
+      "src/tracker/error-rules.ts",
       "src/tracker/fix-contract.ts",
       "src/tracker/identity-keys.ts",
       "src/tracker/index.ts",
@@ -6272,6 +6399,7 @@
       "src/tracker/rooms/gitlab/queries.js",
       "src/tracker/rooms/markdown/comments.ts",
       "src/tracker/rooms/markdown/counts.ts",
+      "src/tracker/rooms/markdown/error-fail.ts",
       "src/tracker/rooms/markdown/graph.ts",
       "src/tracker/rooms/markdown/index.ts",
       "src/tracker/rooms/markdown/issues-create.ts",
@@ -6373,6 +6501,7 @@
       "src/host/platform/win32",
       "src/host/refresh",
       "src/host/tracker",
+      "src/host/tracker/backends",
       "src/seam",
       "src/shared",
       "src/shared/config-store",
@@ -6400,6 +6529,31 @@
       }
     ],
     "ungated": [],
-    "ungatedDirs": []
+    "ungatedDirs": [
+      {
+        "path": "src/host/tools",
+        "reason": "这个目录（含子目录）下 0 个文件没有任何门禁覆盖：门禁没有直接读它们，门禁守着的模块也没有 import 它们"
+      },
+      {
+        "path": "src/host/tracker/backends",
+        "reason": "这个目录（含子目录）下 0 个文件没有任何门禁覆盖：门禁没有直接读它们，门禁守着的模块也没有 import 它们"
+      },
+      {
+        "path": "src/host/tracker/backends/github",
+        "reason": "这个目录（含子目录）下 0 个文件没有任何门禁覆盖：门禁没有直接读它们，门禁守着的模块也没有 import 它们"
+      },
+      {
+        "path": "src/host/tracker/backends/gitlab",
+        "reason": "这个目录（含子目录）下 0 个文件没有任何门禁覆盖：门禁没有直接读它们，门禁守着的模块也没有 import 它们"
+      },
+      {
+        "path": "src/host/tracker/backends/markdown",
+        "reason": "这个目录（含子目录）下 0 个文件没有任何门禁覆盖：门禁没有直接读它们，门禁守着的模块也没有 import 它们"
+      },
+      {
+        "path": "src/host/tracker/detection",
+        "reason": "这个目录（含子目录）下 0 个文件没有任何门禁覆盖：门禁没有直接读它们，门禁守着的模块也没有 import 它们"
+      }
+    ]
   }
 }

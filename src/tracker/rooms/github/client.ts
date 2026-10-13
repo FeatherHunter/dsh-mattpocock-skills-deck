@@ -6,12 +6,12 @@
  * - 命令执行经 `ctx.exec('gh', args, {cwd, timeout, signal})`（timeout 30s，signal abort）
  * - 超时/signal 与 timers 竞速由 ctx.exec 内部托管（此处只透传 opts）
  * - stdout 解析在调用方（issues/comments 等）；此处只做 exec+错误归一化，不产 parse kind（parse 由 JSON 层）
- * - 返回 OpResult，不 throw；错误经 classifyGhError 归一（env/auth/rate-limit/not-found/network）
+ * - 返回 OpResult，不 throw；错误经 ghVerdictOf 归一（档位表在 src/tracker/error-rules.ts）
  */
 
 import { ERROR_KIND } from '../../contract/vocabulary.js'
-import { fail } from '../../preflight.js'
-import { classifyGhError } from './errors.js'
+import { fail, rawText } from '../../preflight.js'
+import { ghFailureMessage, ghVerdictOf } from './errors.js'
 import { timeoutForGhArgs, isWriteGhArgs } from '../../../host/outbound/tiers.js'
 import { getGhLane, isAdmissionCancelled } from '../../../host/outbound/admission.js'
 import { getChainRide } from '../../../host/refresh/chain-ride.js'
@@ -97,7 +97,7 @@ export function ghClient(ctx) {
     if (!platform) {
       // platform 缺失 → env（按 contract §2，capability-by-fill 不可静默成功）
       emitResolveFail('gh not found: platform.resolveExecutable unavailable')
-      return { ok: false, error: fail(ERROR_KIND.ENV, 'gh not found: platform.resolveExecutable unavailable').error }
+      return fail(ERROR_KIND.ENV, 'gh not found: platform.resolveExecutable unavailable', '')
     }
     try {
       const p = await platform.resolveExecutable('gh')
@@ -115,10 +115,10 @@ export function ghClient(ctx) {
         } catch {}
       }
       emitResolveFail('gh not found: platform.resolveExecutable returned null and gh --version probe failed')
-      return { ok: false, error: { kind: ERROR_KIND.ENV, message: 'gh not found: platform.resolveExecutable returned null and gh --version probe failed' } }
+      return fail(ERROR_KIND.ENV, 'gh not found: platform.resolveExecutable returned null and gh --version probe failed', '')
     } catch (e) {
       emitResolveFail(String((e && e.message) || e || 'gh not found'))
-      return { ok: false, error: { kind: ERROR_KIND.ENV, message: String((e && e.message) || e || 'gh not found') } }
+      return fail(ERROR_KIND.ENV, String((e && e.message) || e || 'gh not found'), e)
     }
   }
 
@@ -196,7 +196,8 @@ export function ghClient(ctx) {
     function selfTimeoutOutcome() {
       emitGhExec('network', -1, t0, cwd, slotWaitedMs)
       emitGhTimeout(timeout)
-      return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: 'gh 在 ' + timeout + ' 毫秒内没有回话（房内分档超时：读 12 秒 / 写 30 秒 / 探活 3 秒），这一笔已经中止', code: -1, timedOut: true } }
+      // 房内到点时执行器还没有交回任何输出，这一处没有原文可交（空串是如实交代，不是漏填）。
+      return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: 'gh 在 ' + timeout + ' 毫秒内没有回话（房内分档超时：读 12 秒 / 写 30 秒 / 探活 3 秒），这一笔已经中止', code: -1, timedOut: true, raw: '' } }
     }
     // #965：先拿名额再起进程，满了就排队等（等不是失败）；排队中被调用方取消则按取消返回，不算失败。
     let release = null
@@ -210,20 +211,21 @@ export function ghClient(ctx) {
       if (selfTimedOut) { clearDeadline(); return selfTimeoutOutcome() }
       clearDeadline()
       emitGhExec('cancelled', -1, t0, cwd, slotWaitedMs)
-      return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: '已取消排队（出站准入等待中被取消），没有发出请求，可重试', code: -1, cancelled: true } }
+      return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: '已取消排队（出站准入等待中被取消），没有发出请求，可重试', code: -1, cancelled: true, raw: rawText(eAcquire) } }
     }
     try {
     const resolved = await raceDeadline(resolveGh(cwd))
     if (resolved && resolved.__deadlineHit === true) return selfTimeoutOutcome()
     if (!resolved.ok) {
-      emitGhExec(resolved.error && resolved.error.kind ? resolved.error.kind : 'env', -1, t0, cwd)
+      emitGhExec(resolved.error && resolved.error.kind ? resolved.error.kind : ERROR_KIND.ENV, -1, t0, cwd)
       // 补上 code: -1，让「失败时 error 里一定有 code」这条形状对所有失败成立（命令根本没跑起来）
       return { ok: false, error: Object.assign({ code: -1 }, resolved.error) }
     }
 
     if (!exec) {
       emitGhExec('env', -1, t0, cwd)
-      return { ok: false, error: { kind: ERROR_KIND.ENV, message: 'ctx.exec unavailable', code: -1 } }
+      // 这一处是「执行器根本没接上」，没有跑过任何外部命令，没有原文可交。
+      return { ok: false, error: { kind: ERROR_KIND.ENV, message: 'ctx.exec unavailable', code: -1, raw: '' } }
     }
 
     try {
@@ -245,18 +247,25 @@ export function ghClient(ctx) {
       const stderr = result && typeof result.stderr === 'string' ? result.stderr : ''
       if (code !== 0) {
         const note = code === -1 ? 'gh 这一次没拿到退出码（命令可能被中断，或者根本没起来）' : `gh exit ${code}`
-        const err = { message: stderr || stdout || note, stderr: stderr || stdout, code, stdout }
-        // #969：超时（等满分档才放弃、且没有输出）归网络档，不归环境档，更不归登录档 ——
-        // 慢网下用户看到的是“未知、稍后”，不会被误导去重登。判据两条满足一条即超时：
-        // 文案含超时特征，或耗时已经达到本档超时（执行器杀掉时未必留文案）。
+        // 事实对象在执行处就整理好再交给判档：退出码是执行器原样交回的机器事实（#620：gh 的
+        // 「需要登录 = 4」就靠它判），原文两路（stderr 与 stdout）都在手里、都要带上。
+        // 这里不再自己写「看起来像哪一档」的分支 —— 档位只由 `error-rules.ts` 那张表判：
+        // 哪条命中就用哪条；一条都没命中就走兜底，这时 message 会挂上「未能识别」的提示。
+        // 事实分两半：原文照旧是 gh 的 stderr/stdout；「等到本地超时」这件事本身也要写成一条事实，
+        // 否则「没拿到退出码又没有任何输出」会被判成「命令根本没起来」（环境档），
+        // 而 #969 要的是网络档 —— 判据不是这里的分支，是交给表的那份事实。
         const elapsedMs = Date.now() - t0
         const looksTimeout = isTimeoutText(stderr) || isTimeoutText(stdout) || (code === -1 && elapsedMs >= timeout - 50)
-        const kind = looksTimeout ? ERROR_KIND.NETWORK : ((code === -1 && !stderr && !stdout) ? ERROR_KIND.ENV : classifyGhError(err, ctx))
-        emitGhExec(kind, code, t0, cwd, slotWaitedMs)
+        let factsText = rawText({ stderr: stderr, stdout: stdout })
+        if (!factsText && looksTimeout) factsText = 'gh timeout: 房内等到本地超时（' + timeout + ' 毫秒）也没有收到任何回话'
+        // 交给表的这份事实按「执行结果」的形状写：退出码在那个形状里叫 `code`（`factsFromError` 只认这个键，
+        // 写 `exitCode` 会被丢掉，规则就看不着了）。
+        const verdict = ghVerdictOf({ code: code, text: factsText }, ctx)
+        emitGhExec(verdict.kind, code, t0, cwd, slotWaitedMs)
         if (looksTimeout) emitGhTimeout(timeout)
-        // #620：退出码要一起交回调用方。gh 自己的约定是「需要登录 = 退出码 4」（gh help exit-codes），
-        // 只靠错误文案里的词去猜「是不是没登录」是巧合匹配；这里把 code 带上，分类才站得住。
-        return { ok: false, error: { kind, message: String(stderr || stdout || err.message).slice(0, 800), code } }
+        // #620：退出码要一起交回调用方（调用方与界面都能看出「不是命令自己报的错」）。
+        const own = String(stderr || stdout || note).slice(0, 800)
+        return { ok: false, error: { kind: verdict.kind, message: ghFailureMessage(verdict, own), code, raw: rawText(result) } }
       }
       emitGhExec('ok', 0, t0, cwd, slotWaitedMs)
       // #966 收口：写成功记一笔搭车账，写过东西之后来的探测不搭旧车。
@@ -270,15 +279,17 @@ export function ghClient(ctx) {
       // #969：调用方取消（排队/在飞中被杀）按取消返回，不算失败；其余照旧归一。
       if (isAdmissionCancelled(e) || (signal && signal.aborted === true)) {
         emitGhExec('cancelled', -1, t0, cwd, slotWaitedMs)
-        return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: '已取消（没有发出有效请求，可重试）', code: -1, cancelled: true } }
+        return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: '已取消（没有发出有效请求，可重试）', code: -1, cancelled: true, raw: rawText(e) } }
       }
-      const kind = classifyGhError(e, ctx)
-      emitGhExec(kind, -1, t0, cwd, slotWaitedMs)
+      // 抛出来的错误同样只交给规则表判：ctx.exec 抛的 Error 里可能带着 `code`（例如 ENOTFOUND），
+      // 那是错误码层认得出的事实，房里不再自己写第二份「像不像网络问题」的说法。
+      const verdict = ghVerdictOf(e, ctx)
+      emitGhExec(verdict.kind, -1, t0, cwd, slotWaitedMs)
       const looksTimeout = isTimeoutText((e && (e.message || e.stderr)) || e) || elapsedMs >= timeout - 50
       if (looksTimeout) emitGhTimeout(timeout)
-      const message = String((e && (e.message || e.stderr)) || e || 'gh exec failed').slice(0, 800)
+      const own = String((e && (e.message || e.stderr)) || e || 'gh exec failed').slice(0, 800)
       // code: -1 = 这次调用连退出码都没有（超时、spawn 失败之类），调用方据此知道「不是命令自己报的错」
-      return { ok: false, error: { kind: looksTimeout ? ERROR_KIND.NETWORK : kind, message, code: -1 } }
+      return { ok: false, error: { kind: verdict.kind, message: ghFailureMessage(verdict, own), code: -1, raw: rawText(e) } }
     } finally {
       try { if (release) release() } catch {}
     }
@@ -303,7 +314,8 @@ export function ghClient(ctx) {
       const parsed = JSON.parse(text)
       return { ok: true, data: parsed }
     } catch (e) {
-      return { ok: false, error: { kind: ERROR_KIND.PARSE, message: `invalid json from gh: ${String(e.message).slice(0, 200)}` } }
+      // 这一份回包原文就是没能解析成 JSON 的那个东西，交出去让人自己看它到底是什么。
+      return { ok: false, error: { kind: ERROR_KIND.PARSE, message: `invalid json from gh: ${String(e.message).slice(0, 200)}`, raw: text } }
     }
   }
 

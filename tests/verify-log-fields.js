@@ -70,7 +70,11 @@ const ALLOWED = {
   'storage.fail': ['key', 'op'],
   'chain.derive.error': ['stepId', 'errorHash'],
   'fallback.chain': ['in', 'out', 'latencyMs'],
-  'error.normalize': ['rawKind', 'mappedKind', 'httpCode'],
+  // 2026-10-14（#1111）：判档改成按证据分层之后，归一埋点由 src/tracker/error-rules.ts 的 emitNormalize
+  //   统一发射，字段就是下面这八个键：五个必带（rawKind 原始类别、mappedKind 归一后的档位、layer 这条档位
+  //   由哪一层证据给出、via 这条规则来自通用表还是各家扩展项、latencyMs 判这一趟花了多少毫秒），
+  //   三个只在真有对应事实时带（httpCode 状态码、exitCode 退出码、errCode 错误码名）。
+  'error.normalize': ['rawKind', 'mappedKind', 'layer', 'via', 'latencyMs', 'httpCode', 'exitCode', 'errCode'],
   'timer.schedule': ['name', 'intervalMs'],
   'chain.cache.miss': ['keyHash', 'lang', 'reason'],
   'workspaceStore.miss': ['keyHash', 'reason'],
@@ -181,9 +185,13 @@ const ALLOWED = {
   'log.switch.watchdog': ['op', 'timeoutMs', 'stage'],
   'log.export.fail': ['op', 'reason', 'errorHash'],
 }
-// 房内三点六个事件的精确字段形状（#494 房内落点，附录 1.4 原文）：
+// 房内三点六个事件的精确字段形状（#494 房内落点，附录 1.4 原文；#1111 按新判档实现订正 error.normalize）：
 // gh.exec 五键、gh.timeout 两键、gh.resolve.fail 两键，
-// graphql.fallback 与 issues.fallback 各自两键与三键，error.normalize 两键加可选状态码。
+// graphql.fallback 与 issues.fallback 各自两键与三键；error.normalize 必有 rawKind 与 mappedKind 两键，
+// 另外三个码值键（httpCode 状态码、exitCode 退出码、errCode 错误码名）只在真有对应事实时带。
+// 注意本门禁的字段收集器只看得见「调用点上写死的对象字面量」，而 error.normalize 现在由
+// src/tracker/error-rules.ts 的 emitNormalize 统一发射（字段装在传进去的参数对象里），所以 layer、via、
+// latencyMs 三个键在这里收不到，它们由上面 ALLOWED 的 error.normalize 那一行覆盖。
 const ROOM_SHAPES = {
   'gh.exec': ['argv0', 'cwdHash', 'latencyMs', 'waitedMs', 'kind', 'exitCode'],
   'gh.timeout': ['argv0', 'timeoutMs'],
@@ -352,8 +360,11 @@ for (const name of Object.keys(ROOM_SHAPES).sort()) {
   const want = ROOM_SHAPES[name].slice().sort()
   if (name === 'error.normalize') {
     const actual = Object.keys(found[name].keys).sort()
-    const ok = ROOM_SHAPES[name].every((k) => actual.includes(k)) && actual.every((k) => k === 'httpCode' || ROOM_SHAPES[name].includes(k))
-    check(ok, '房内事件字段形状 ' + name + '（实得 ' + actual.join('、') + '，httpCode 仅归一出状态码时带）')
+    // 两键必带；三个码值键按事实带上（这次判档手里有什么码就记什么码）。这三个键之外多出来的才是漂移。
+    const optional = ['httpCode', 'exitCode', 'errCode']
+    const ok = ROOM_SHAPES[name].every((k) => actual.includes(k))
+      && actual.every((k) => optional.includes(k) || ROOM_SHAPES[name].includes(k))
+    check(ok, '房内事件字段形状 ' + name + '（实得 ' + actual.join('、') + '，' + optional.join('、') + ' 只在真有对应事实时带）')
     continue
   }
   const actual = Object.keys(found[name].keys).sort()

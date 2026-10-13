@@ -11,6 +11,7 @@ import { addComment } from './comments.js'
 import { listLabels, setLabelColors } from './label-colors-ops.js'
 import { ensureLabelColors } from './label-colors.js'
 import { useBuiltinLabelColors } from './label-colors-palette.js'
+import { failAs } from './error-fail.js'
 import nodePath from 'node:path'
 function getPlat(ctx){if(ctx&&ctx.platform&&ctx.platform.path)return ctx.platform.path;if(ctx&&ctx.path)return ctx.path;if(typeof process!=='undefined'&&process.platform==='win32')return nodePath.win32;return nodePath.posix}
 function isAbsolute(p,plat){try{return plat.isAbsolute(p)}catch{return nodePath.isAbsolute(p)}}
@@ -118,8 +119,15 @@ export function createMarkdownBackend(ctx){
           const root=plat2.join(cwd2,'.scratch')
           if(await exists(c,plat2.join(root,'map.md')))return{ok:true}
         }
-        return{ok:false,error:{kind:ERROR_KIND.NOTFOUND,message:'markdown map.md not-found'}}
-      }catch(e){const kind=e&&e.kind?e.kind:ERROR_KIND.ENV;return{ok:false,error:{kind,message:e&&e.message?e.message:String(e)}}}
+        // 原文给空串：预检只是没找到地图文件，没有任何命令或文件读过它（这条结论本地就能定）。
+        return failAs(ERROR_KIND.NOTFOUND,'markdown map.md not-found','')
+      }catch(e){
+        // 档位按本步语义定：预检问的是「这个工作区能不能用本地 Markdown 当票仓」，
+        // 中途任何意外都归环境档（这不是一次真的读写调用，判成网络档会让人去查错方向）。
+        // 原文 = 抛上来的那个错误本身（人据此看它到底为什么读不动这个目录）。
+        const kind=e&&e.kind?e.kind:ERROR_KIND.ENV
+        return failAs(kind,e&&e.message?e.message:String(e),e)
+      }
     },
     list:(repo,filter,opCtx)=>listIssues(opCtx||ctx,repo,filter),
     // #691：本地 Markdown 补上契约的 counts（数「列举会返回的那些票行」，地图容器行分开算）。
@@ -146,8 +154,9 @@ export function createMarkdownBackend(ctx){
     // 放置配色文件的入口，给「用户为工作区选定后端」那一步用（host 不问后端 id，只问它愿不愿意放）。
     // 只有本后端实现它，所以只有 Markdown 系后端会往工作区放这个文件。
     ensureLabelColorsFile:(repo,opCtx)=>ensureLabelColors(opCtx||ctx,repo),
-    getCurrentUser: async ()=>({ok:false,error:{kind:ERROR_KIND.UNSUPPORTED,message:'markdown getCurrentUser unsupported'}}),
-    initProject: async ()=>({ok:false,error:{kind:ERROR_KIND.UNSUPPORTED,message:'markdown initProject unsupported'}}),
+    // 这两条「本后端不提供这项能力」：原文给空串（一次调用都没发出去，没有外部来源的原文）。
+    getCurrentUser: async ()=>(failAs(ERROR_KIND.UNSUPPORTED,'markdown getCurrentUser unsupported','')),
+    initProject: async ()=>(failAs(ERROR_KIND.UNSUPPORTED,'markdown initProject unsupported','')),
     normalize:normalizeIssue,
     parse:parseMd,
   }

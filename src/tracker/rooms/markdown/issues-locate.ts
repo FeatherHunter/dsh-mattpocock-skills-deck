@@ -15,6 +15,7 @@ import { parseMd } from './parse.js'
 import { readTextFile, readDir, statFile, exists } from './read.js'
 import { issuesDir } from './path.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
+import { failAs, rawJson } from './error-fail.js'
 import nodePath from 'node:path'
 
 export function getPlat(ctx){if(ctx&&ctx.platform&&ctx.platform.path)return ctx.platform.path;if(ctx&&ctx.path)return ctx.path;if(typeof process!=='undefined'&&process.platform==='win32')return nodePath.win32;return nodePath.posix}
@@ -55,7 +56,9 @@ export function scopeOf(repo, opts){
   return undefined
 }
 function conflict(key, hits){
-  return { ok:false, error:{ kind:ERROR_KIND.CONFLICT, message:'issue '+key+' 在 '+hits.length+' 个 effort 里都存在，但没指定 effortId（拒绝猜目标文件）' } }
+  // 原文 = 命中的那几个文件与它们各自属于哪个 effort（本地就能定论：同名编号出现在多处）。
+  // 这段原文正是人判断「该给哪个 effort 加范围」的依据，所以不许省。
+  return failAs(ERROR_KIND.CONFLICT, 'issue '+key+' 在 '+hits.length+' 个 effort 里都存在，但没指定 effortId（拒绝猜目标文件）', rawJson(hits))
 }
 /** 按 (effort 范围, 编号) 找票文件。o.mode='write' 时多命中即 conflict；返回 {ok,path,effortId} 或 {ok:false,error}。 */
 export async function resolveIssueFile(ctx, repo, key, o={}){
@@ -76,9 +79,10 @@ export async function resolveIssueFile(ctx, repo, key, o={}){
       hits.push({ path: plat.join(idir,f), effortId: e.effortId })
     }
   }
+  // 兜底要试的那两个目录先声明在函数作用域里：失败时它们要进原文，人才能看出「都找过哪儿」。
+  const cands=[]
   if(hits.length===0){
     // 夹具形态兜底：repo.refId / repo.path 直接当仓库根（单 effort、无 .scratch）
-    const cands=[]
     try{ cands.push(issuesDir(repo,ctx)) }catch{}
     if(repo && repo.path){ try{ cands.push(plat.join(repo.path,'issues')) }catch{} }
     for(const idir of cands){
@@ -93,7 +97,9 @@ export async function resolveIssueFile(ctx, repo, key, o={}){
       if(hits.length) break
     }
   }
-  if(hits.length===0) return { ok:false, error:{ kind:ERROR_KIND.NOTFOUND, message:'issue '+norm+' not-found' } }
+  // 原文 = 这次找的范围、见过哪些 effort、两个兜底目录各是什么。
+  // 本地就能定论（这些地方都没有这个编号的文件），但「找过哪儿」是原文，缺了人只能重猜一遍。
+  if(hits.length===0) return failAs(ERROR_KIND.NOTFOUND, 'issue '+norm+' not-found', rawJson({ key:norm, effortId: scope===undefined?null:scope, efforts: efforts.map(function(e){return e.effortId}), fallbackDirs: cands }))
   if(hits.length>1 && o.mode==='write') return conflict(norm, hits)
   return { ok:true, path:hits[0].path, effortId:hits[0].effortId }
 }
@@ -116,7 +122,8 @@ export async function resolveMapFile(ctx, repo, o={}){
       try{ const mapP=plat.join(repo.path,'map.md'); if(await exists(ctx,mapP)) hits.push({ path:mapP, effortId: scope!==undefined?scope:'' }) }catch{}
     }
   }
-  if(hits.length===0) return { ok:false, error:{ kind:ERROR_KIND.NOTFOUND, message:'map.md not-found' } }
+  // 原文 = 这次找的范围与仓库里现有的 effort（本地就能定论：这个范围里没有地图文件）。
+  if(hits.length===0) return failAs(ERROR_KIND.NOTFOUND, 'map.md not-found', rawJson({ effortId: scope===undefined?null:scope, efforts: efforts.map(function(e){return e.effortId}) }))
   if(hits.length>1 && o.mode==='write') return conflict('00', hits)
   return { ok:true, path:hits[0].path, effortId:hits[0].effortId }
 }

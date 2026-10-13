@@ -11,6 +11,7 @@
 
 import { ERROR_KIND } from '../contract/vocabulary.js'
 import { OPERATIONS } from '../contract/index.js'
+import { fail } from '../preflight.js'
 
 /**
  * 迁移键（migration 说明，非运行时分支）：旧 `'other'` 保留串 → `null`（无后端 = Selection.backendId:null）。
@@ -62,7 +63,9 @@ export function handleKey(handle) {
 export function unsupportedStub(opName, backendId, hooks) {
   const stub = async function unsupportedOp() {
     try { if (hooks && hooks.isEnabled && hooks.isEnabled('debug') && hooks.logEvent) hooks.logEvent('debug', 'registry.stub', { op: String(opName || ''), backendId: String(backendId || '') }) } catch (eL) {}
-    return { ok: false, error: { kind: ERROR_KIND.UNSUPPORTED, message: `backend ${backendId} does not implement op ${opName}` } }
+    // 第三段原文给空串：这里是「本后端没有这个能力」的能力缺口，不是谁出了错，
+    // 上游没有任何原文可取。空串也必须显式传 —— 形状到位了，门禁才断言得了「每个失败都带原文字段」。
+    return fail(ERROR_KIND.UNSUPPORTED, `backend ${backendId} does not implement op ${opName}`, '')
   }
   Object.defineProperty(stub, 'name', { value: `${opName}:unsupported`, configurable: true })
   return stub

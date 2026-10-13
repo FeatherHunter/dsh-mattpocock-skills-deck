@@ -12,7 +12,7 @@ import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { fail } from '../../preflight.js'
 import { glabClient } from './client.js'
 import { normalizeIssue } from './normalize.js'
-import { classifyGlabError } from './errors.js'
+import { failGlab } from './errors.js'
 import { issuePath } from './queries.js'
 
 function repoId(repo) {
@@ -54,9 +54,9 @@ function normalizeLabelInputs(labels) {
 export async function setLabels(ctx, repo, key, labels, opts, opCtx) {
   const effective = opCtx || ctx
   const id = repoId(repo)
-  if (!id) return fail(ERROR_KIND.NOTFOUND, 'setLabels: repo.refId missing')
+  if (!id) return fail(ERROR_KIND.NOTFOUND, 'setLabels: repo.refId missing', '')
   const k = String(key)
-  if (!k) return fail(ERROR_KIND.PARSE, 'setLabels: key required')
+  if (!k) return fail(ERROR_KIND.PARSE, 'setLabels: key required', '')
   const wanted = normalizeLabelInputs(labels)
 
   try {
@@ -65,14 +65,15 @@ export async function setLabels(ctx, repo, key, labels, opts, opCtx) {
       const c = glabClient(effective)
       const res = await c.run(['api', `${issuePath(id, k)}?with_labels_details=true`], { timeout: 8000 })
       if (res.code !== 0) {
-        const kind = classifyGlabError({ message: res.stderr || res.stdout })
-        return fail(kind, res.stderr || res.stdout || 'setLabels preflight get failed')
+        // 原文 = 改色前置那一次 GET 的进程结果；判档走同一趟归一（带上下文，日志里留得下轨迹）。
+        return failGlab(res, res.stderr || res.stdout || 'setLabels preflight get failed', res, effective)
       }
       let cur = null
       try { cur = JSON.parse(res.stdout) } catch {}
       const curUpdated = cur && (cur.updated_at || cur.updatedAt) || ''
       if (curUpdated !== opts.expectedUpdatedAt) {
-        return fail(ERROR_KIND.CONFLICT, `conflict: expectedUpdatedAt mismatch (want ${opts.expectedUpdatedAt} got ${curUpdated})`)
+        // 原文 = 回读到的票面（人据此自己核对「远端现在是什么版本」），不是给人看的那句冲突话。
+        return fail(ERROR_KIND.CONFLICT, `conflict: expectedUpdatedAt mismatch (want ${opts.expectedUpdatedAt} got ${curUpdated})`, res.stdout)
       }
     }
 
@@ -81,8 +82,8 @@ export async function setLabels(ctx, repo, key, labels, opts, opCtx) {
     // PUT labels（空串→清空）
     const res = await c.run(['api', issuePath(id, k), '--method', 'PUT', '-f', `labels=${labelNames}`], { timeout: 8000 })
     if (res.code !== 0) {
-      const kind = classifyGlabError({ message: res.stderr || res.stdout })
-      return fail(kind, res.stderr || res.stdout || 'setLabels failed')
+      // 原文 = 写标签那一次 PUT 的进程结果。
+      return failGlab(res, res.stderr || res.stdout || 'setLabels failed', res, effective)
     }
     let raw = null
     try { raw = JSON.parse(res.stdout) } catch {}
@@ -92,9 +93,9 @@ export async function setLabels(ctx, repo, key, labels, opts, opCtx) {
     issue.labels = wanted
     return { ok: true, data: issue }
   } catch (err) {
-    const kind = classifyGlabError(err)
-    if (kind === ERROR_KIND.CONFLICT) return fail(ERROR_KIND.CONFLICT, err && err.message ? String(err.message) : 'conflict')
-    return fail(kind, err && err.message ? String(err.message) : String(err))
+    // 原文 = 抛上来的那个 Error 对象本身。kind 为 conflict 时 classifyGlabError 走透传，
+    // 本家那句话原样留着（不换成通用提示）。
+    return failGlab(err, err && err.message ? String(err.message) : String(err), err, effective)
   }
 }
 
@@ -105,13 +106,13 @@ export const addLabel = (...args) => setLabels(...args)
 export async function listLabels(ctx, repo, opCtx) {
   const effective = opCtx || ctx
   const id = repoId(repo)
-  if (!id) return fail(ERROR_KIND.NOTFOUND, 'listLabels: repo.refId missing')
+  if (!id) return fail(ERROR_KIND.NOTFOUND, 'listLabels: repo.refId missing', '')
   try {
     const c = glabClient(effective)
     const res = await c.run(['api', `projects/${encodeURIComponent(id)}/labels`], { timeout: 8000 })
     if (res.code !== 0) {
-      const kind = classifyGlabError({ message: res.stderr || res.stdout })
-      return fail(kind, res.stderr || res.stdout || 'listLabels failed')
+      // 原文 = 列色板那一次 glab 调用的进程结果。
+      return failGlab(res, res.stderr || res.stdout || 'listLabels failed', res, effective)
     }
     let arr = []
     try { arr = JSON.parse(res.stdout) } catch {}
@@ -119,8 +120,8 @@ export async function listLabels(ctx, repo, opCtx) {
     const labels = arr.map((l) => ({ name: l.name, color: l.color || '' }))
     return { ok: true, data: labels }
   } catch (err) {
-    const kind = classifyGlabError(err)
-    return fail(kind, err && err.message ? String(err.message) : String(err))
+    // 原文 = 抛上来的那个 Error 对象本身。
+    return failGlab(err, err && err.message ? String(err.message) : String(err), err, effective)
   }
 }
 

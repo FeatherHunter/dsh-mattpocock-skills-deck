@@ -21,9 +21,10 @@
 
 import { anchorLineFor, matchAnchor, isAnchorHit, describeAnchorFailure, anchorUnsupported } from '../../../shared/refresh/idempotency.js'
 import { glabClient } from './client.js'
-import { classifyGlabError } from './errors.js'
+import { classifyGlabError, hintFor } from './errors.js'
 import { normalizeIssue } from './normalize.js'
 import { projectPath, issuesPath } from './queries.js'
+import { ERROR_KIND } from '../../contract/vocabulary.js'
 
 /** 慢路最多看几张候选（按创建时间倒序的第一页）。到了这个数还没找到就如实说「拿不准」。 */
 const SCAN_LIMIT = 100
@@ -67,9 +68,21 @@ function toCandidate(raw) {
   return out
 }
 
-/** 回查失败时的一句话（原因沿用既有分类，说得清是哪条路出的问题）。 */
-function lookupFailure(kind, message) {
-  return { ok: false, error: { kind: kind || 'unsupported', message: '带锚创建的回查没能做成：' + String(message || '原因不明').slice(0, 500) + '。这一次没有建票 —— 请先修好回查，或者换用不带锚的创建。' } }
+/**
+ * 回查没做成时的失败结果（原因沿用既有分类，说得清是哪条路出的问题）。
+ *
+ * 三段式一样要齐：`raw` 存两条回查路各自的原文（哪条路说了什么，人自己看）。
+ * 档位与话术由调用方给的判档结果决定：兜底判出来的（`fallback` 为真）与「不支持」两档
+ * 换成通用提示，其余用这里拼的这句有上下文的话。
+ *
+ * @param {{kind:string, fallback?:boolean}} verdict `classifyGlabError` 的结果
+ * @param {string} message 本家那句话
+ * @param {string} [raw] 两条路各自的原文
+ */
+function lookupFailure(verdict, message, raw) {
+  const native = '带锚创建的回查没能做成：' + String(message || '原因不明').slice(0, 500) + '。这一次没有建票 —— 请先修好回查，或者换用不带锚的创建。'
+  // 档位兜底也走 ERROR_KIND 常量：这条兜底只在判档结果缺失时才用得上，含义是「本家不敢断定」。
+  return { ok: false, error: { kind: (verdict && verdict.kind) || ERROR_KIND.UNSUPPORTED, message: hintFor(verdict, native), raw: String(raw || '') } }
 }
 
 /**
@@ -84,7 +97,7 @@ function lookupFailure(kind, message) {
  */
 export async function lookupByAnchor(repo, key, opCtx) {
   const id = repoId(repo)
-  if (!id) return lookupFailure('not-found', '这个仓库的 refId 是空的，回查无从做起')
+  if (!id) return lookupFailure({ kind: ERROR_KIND.UNSUPPORTED, fallback: false }, '这个仓库的 refId 是空的，回查无从做起', '')
   const c = glabClient(opCtx)
 
   // ① 快路：服务端搜索（只搜 description）。
@@ -118,7 +131,8 @@ export async function lookupByAnchor(repo, key, opCtx) {
         if (isAnchorHit(m)) return { ok: true, hit: true, issue: normalizeIssue(raw) }
       }
       if (rows.length >= SCAN_LIMIT) {
-        return lookupFailure('unsupported', '按创建时间倒序看完了前 ' + SCAN_LIMIT + ' 张还没找到这个锚，这个仓库比这更大，这次不敢断定「还没建过」')
+        // 这一档是「本家承认自己这次不敢断定」，不是判档判出来的；原文给扫描上限本身。
+        return lookupFailure({ kind: ERROR_KIND.UNSUPPORTED, fallback: false }, '按创建时间倒序看完了前 ' + SCAN_LIMIT + ' 张还没找到这个锚，这个仓库比这更大，这次不敢断定「还没建过」', 'per_page=' + SCAN_LIMIT)
       }
     }
   } catch (e) {
@@ -127,10 +141,11 @@ export async function lookupByAnchor(repo, key, opCtx) {
 
   // 两条路都没找到：只有在**两条路都真跑通了、都确认没有**时才算「确实还没建过」。
   if (searchError && listError) {
-    return lookupFailure(classifyGlabError({ message: listError }), '搜索接口与列表接口都没跑通（搜索：' + searchError + '；列表：' + listError + '）')
+    const bothRaw = '搜索：' + searchError + '\n列表：' + listError
+    return lookupFailure(classifyGlabError({ message: listError }, opCtx), '搜索接口与列表接口都没跑通（搜索：' + searchError + '；列表：' + listError + '）', bothRaw)
   }
   if (listError) {
-    return lookupFailure(classifyGlabError({ message: listError }), '列表这条回查路没跑通（' + listError + '），而搜索接口没搜到不能算数（服务端搜索对刚建好的票可能有延迟）')
+    return lookupFailure(classifyGlabError({ message: listError }, opCtx), '列表这条回查路没跑通（' + listError + '），而搜索接口没搜到不能算数（服务端搜索对刚建好的票可能有延迟）', listError)
   }
   const miss = matchAnchor([], repo && repo.refId, key)
   return { ok: true, hit: false, reason: miss.reason }

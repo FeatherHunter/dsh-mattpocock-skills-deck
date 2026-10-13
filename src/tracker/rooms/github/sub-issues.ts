@@ -24,7 +24,7 @@ import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { fail } from '../../preflight.js'
 import { ghClient } from './client.js'
 import { normalizeIssue } from './normalize.js'
-import { classifyGhError } from './errors.js'
+import { ghFailureMessage, ghVerdictOf } from './errors.js'
 import { SUB_ISSUES_QUERY } from './queries.js'
 import { parseRepo, repoId } from './issues.js'
 
@@ -44,9 +44,10 @@ const MAX_SUB_ISSUES = 1000
 export async function listSubIssues(repo, mapKey, opts, ctx) {
   try {
     const parsed = parseRepo(repo)
-    if (!parsed) return fail(ERROR_KIND.NOTFOUND, `子票取数：repo.refId 缺失或形状不对：${repoId(repo)}`)
+    // 形状不对的入参本身就是这一处的原文（这之前还没跑过任何外部命令）；它取出来可能是空串，那是如实交代。
+    if (!parsed) return fail(ERROR_KIND.NOTFOUND, `子票取数：repo.refId 缺失或形状不对：${repoId(repo)}`, repo)
     const num = Number(String(mapKey == null ? '' : mapKey).trim())
-    if (!Number.isFinite(num)) return fail(ERROR_KIND.PARSE, `子票取数：GitHub 的地图编号必须是数字：${mapKey}`)
+    if (!Number.isFinite(num)) return fail(ERROR_KIND.PARSE, `子票取数：GitHub 的地图编号必须是数字：${mapKey}`, mapKey)
     const c = ghClient(ctx)
     const items = []
     let total = null
@@ -63,19 +64,24 @@ export async function listSubIssues(repo, mapKey, opts, ctx) {
       // 所以对**同一页**多试一次：第一次失败先按原样重试，第二次还失败才如实报错（界面那里有「重试」）。
       let r = await c.execGh(args, { cwd: ctx && ctx.cwd })
       if (!r.ok) r = await c.execGh(args, { cwd: ctx && ctx.cwd })
-      if (!r.ok) return { ok: false, error: (r && r.error) || { kind: ERROR_KIND.NETWORK, message: '子票取数：这一页没取回来' } }
+      // 这一支是「执行器连失败形状都没交回」的兜底，没有原文可交（空串是如实交代，不是漏填）。
+      if (!r.ok) return { ok: false, error: (r && r.error) || { kind: ERROR_KIND.NETWORK, message: '子票取数：这一页没取回来', raw: '' } }
       let j
       try { j = JSON.parse(r.data.stdout || '') } catch (e) {
-        return fail(ERROR_KIND.PARSE, `子票取数：回包不是合法 JSON：${String((e && e.message) || e).slice(0, 200)}`)
+        // 没能解析成 JSON 的那份回包就是这里的原文（交的是这次 gh 的完整产出，不只 stdout 一截）。
+        return fail(ERROR_KIND.PARSE, `子票取数：回包不是合法 JSON：${String((e && e.message) || e).slice(0, 200)}`, r.data)
       }
       if (j.errors) {
         const msg = `子票取数：${JSON.stringify(j.errors).slice(0, 800)}`
-        return fail(classifyGhError({ message: msg, stderr: msg }, ctx), msg)
+        // 原文交的是 GitHub 回的那份 errors 负载本身（msg 只是给它加了个操作名前缀，不算原文）。
+        // 判档与话术都走本房唯一的出口：档位由规则表判、message 按票面实现决定第 11 条挑。
+        const verdict = ghVerdictOf({ message: msg, stderr: msg }, ctx)
+        return fail(verdict.kind, ghFailureMessage(verdict, msg), JSON.stringify(j.errors))
       }
       const issue = j.data && j.data.repository && j.data.repository.issue
-      if (!issue) return fail(ERROR_KIND.NOTFOUND, `子票取数：地图 #${num} 没找到（或没有权限看它）`)
+      if (!issue) return fail(ERROR_KIND.NOTFOUND, `子票取数：地图 #${num} 没找到（或没有权限看它）`, r.data)
       const conn = issue.subIssues
-      if (!conn || !Array.isArray(conn.nodes)) return fail(ERROR_KIND.PARSE, '子票取数：回包里没有 subIssues.nodes（形状不对，不猜）')
+      if (!conn || !Array.isArray(conn.nodes)) return fail(ERROR_KIND.PARSE, '子票取数：回包里没有 subIssues.nodes（形状不对，不猜）', r.data)
       if (total === null) {
         const tc = Number(conn.totalCount)
         total = Number.isFinite(tc) && tc >= 0 ? tc : null
@@ -95,7 +101,8 @@ export async function listSubIssues(repo, mapKey, opts, ctx) {
     const missing = (total !== null && !capped && fetched + dropped < total) ? (total - fetched - dropped) : 0
     return { ok: true, data: { items, total: total === null ? fetched : total, fetched, capped, missing, dropped } }
   } catch (e) {
-    return fail(classifyGhError(e, ctx), String((e && e.message) || e).slice(0, 800))
+    const verdict = ghVerdictOf(e, ctx)
+    return fail(verdict.kind, ghFailureMessage(verdict, String((e && e.message) || e).slice(0, 800)), e)
   }
 }
 

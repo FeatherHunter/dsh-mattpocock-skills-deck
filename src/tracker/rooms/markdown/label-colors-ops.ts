@@ -11,6 +11,7 @@ import { parseMd } from './parse.js'
 import { LABEL_COLORS_REL_PATH, readLabelColors, ensureLabelColors, publishLabelColors, withLabelColorsWriter, isMissingFile } from './label-colors.js'
 import { describeWriteFailure } from './label-colors-errors.js'
 import { builtinLabelColors } from './label-colors-palette.js'
+import { failAs, rawJson } from './error-fail.js'
 
 /** 本文件要用到的文件服务（与 label-colors.js 同一套取法）。 */
 function getFs(ctx) {
@@ -20,7 +21,9 @@ function getFs(ctx) {
   return null
 }
 
-function fail(kind, message) { return { ok: false, error: { kind: kind, message: message } } }
+// 这里原来自己定义了一份两参数的 fail(kind, message)，交出去的失败没有 raw 字段，
+// 与本票「每处失败都带原文」冲突。已改调 error-fail.ts 里那唯一一份 failAs：它落的是
+// 契约要求的三段式 {kind, message, raw}，原文取法与全房其余地方完全一致。
 
 /** 改色入参的形状把关（契约：不是一批改动就整条失败，落解析档）。
  *  颜色写错不算入参坏掉：那一条落解析档，其余照改。 */
@@ -53,7 +56,8 @@ async function collectTicketLabelNames(ctx, repo) {
     const idir = plat.join(dir, 'issues')
     let entries = []
     try { entries = await readDirOrThrow(ctx, idir) } catch (e) {
-      return fail(ERROR_KIND.ENV, '未能获取全部标签：工作区中有文件无法读取。这是插件运行环境的问题，不是你的操作有误。请关闭可能占用这些文件的程序后重试。')
+      // 原文 = 文件服务抛上来的那个错误（人据此看是权限、被占用还是别的）。
+      return failAs(ERROR_KIND.ENV, '未能获取全部标签：工作区中有文件无法读取。这是插件运行环境的问题，不是你的操作有误。请关闭可能占用这些文件的程序后重试。', e)
     }
     for (const f of entries) {
       if (f && f.endsWith('.md') && /^(\d+)-/.test(f)) files.push(plat.join(idir, f))
@@ -67,7 +71,8 @@ async function collectTicketLabelNames(ctx, repo) {
       try { text = await readTextFile(ctx, file) } catch (e) {
         if (isMissingFile(e)) continue
         // 有一张票读不出来 = 拿不全标签：整条操作失败，不许把残缺清单当全量发出去。
-        return fail(ERROR_KIND.ENV, '未能获取全部标签：工作区中有一张票的文件无法读取。这是插件运行环境的问题，不是你的操作有误。请关闭可能占用这个文件的程序后重试。')
+        // 原文 = 读这个文件抛上来的错误，另附文件路径（提示语里不出现路径，原文里必须有，否则没法定位）。
+        return failAs(ERROR_KIND.ENV, '未能获取全部标签：工作区中有一张票的文件无法读取。这是插件运行环境的问题，不是你的操作有误。请关闭可能占用这个文件的程序后重试。', String(file) + '：' + String((e && e.message) || e))
       }
       let labels = []
       try { labels = parseMd(text, { key: '00', parentKey: null, isMap: true }).labels || [] } catch (e) { labels = [] }
@@ -119,7 +124,8 @@ async function collectAllLabels(ctx, repo) {
   const read = await readLabelColors(ctx, repo)
   if (!read.ok) {
     // 「读不出来」按契约落解析档，同时说清未能获取全部标签（界面上这两件事都要能看懂）。
-    return fail(read.error.kind, '未能获取全部标签：' + read.error.message)
+    // 原文照抄读配色文件那一步已经取好的原文，不在这里重取一份。
+    return failAs(read.error.kind, '未能获取全部标签：' + read.error.message, read.error.raw)
   }
   const tickets = await collectTicketLabelNames(ctx, repo)
   if (!tickets.ok) return tickets
@@ -161,7 +167,11 @@ export async function listLabels(ctx, repo) {
 async function ensureForDialog(ctx, repo) {
   try {
     return await ensureLabelColors(ctx, repo)
-  } catch (e) { return { ok: false, error: describeWriteFailure(e, LABEL_COLORS_REL_PATH) } }
+  } catch (e) {
+    // 原文 = 写过程抛上来的那个错误（describeWriteFailure 只给档位与话术，原文得单独带上）。
+    const reason = describeWriteFailure(e, LABEL_COLORS_REL_PATH)
+    return failAs(reason.kind, reason.message, e)
+  }
 }
 
 /** 批量改标签颜色（契约操作 setLabelColors）。
@@ -169,14 +179,16 @@ async function ensureForDialog(ctx, repo) {
  *  文件读不出来时整条操作失败、一个字节都不写（这是硬要求，见 contract.js 的那三条）。 */
 export async function setLabelColors(ctx, repo, changes) {
   const bad = shapeProblem(changes)
-  if (bad) return fail(ERROR_KIND.PARSE, bad)
+  // 原文 = 这次收到的整批改动（本地就能定论：形状不合契约，所以整条拒绝）。
+  if (bad) return failAs(ERROR_KIND.PARSE, bad, rawJson(changes))
   return await withLabelColorsWriter(ctx, repo, async () => {
     const read = await readLabelColors(ctx, repo)
     if (!read.ok) return { ok: false, error: read.error }              // 读不出来 → 一律不许写
     // 只读文件不许写：版本号比核认识的新，旧版本写回去会把新字段抹掉，等用户升级插件。
     // 展示（列标签）不受影响，照读；这一档只拦写入。
     if (read.readonly === true) {
-      return fail(ERROR_KIND.PARSE, '工作区里的标签配色文件（' + LABEL_COLORS_REL_PATH + '）是新版本，当前插件只认识旧版本，改色前请先升级插件，否则会把新内容抹掉。这次什么都没改。')
+      // 原文 = 这次判定所依据的那几个事实（本地就能定论：文件声明的版本比本插件认识的新）。
+      return failAs(ERROR_KIND.PARSE, '工作区里的标签配色文件（' + LABEL_COLORS_REL_PATH + '）是新版本，当前插件只认识旧版本，改色前请先升级插件，否则会把新内容抹掉。这次什么都没改。', rawJson({ path: LABEL_COLORS_REL_PATH, readonly: true, present: read.present === true }))
     }
     // 文件不存在不算「读不出来」：这时一份颜色都没有，每一要改的标签都落「标签不存在」这一条，
     // 一个字节都不写（契约：两边一律报不存在、都不许新增一行），提示里说清怎么才能成功。
@@ -216,8 +228,9 @@ export async function setLabelColors(ctx, repo, changes) {
       await publishLabelColors(ctx, repo, next, 'saved')
     } catch (e) {
       // 写失败：整条操作失败、不留半截账（原本说会改的那几条一起报失败），理由按失败语义分档。
+      // 原文 = 写过程抛上来的那个错误；提示语里照旧不许出现临时文件名（那会让人去找不存在的文件）。
       const reason = describeWriteFailure(e, LABEL_COLORS_REL_PATH)
-      return { ok: false, error: { kind: reason.kind, message: reason.message + ' 本次 ' + applied.length + ' 个标签的颜色均未改动。' } }
+      return failAs(reason.kind, reason.message + ' 本次 ' + applied.length + ' 个标签的颜色均未改动。', e)
     }
     return { ok: true, data: { applied: applied, failed: failed } }
   })

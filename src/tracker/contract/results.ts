@@ -20,10 +20,22 @@ import type { Issue, IssueRef, RepositoryRef } from './entities.js'
 // 四、返回值：失败是值不是异常
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** 统一的失败形状。`message` 是给人看的一句话，允许直接展示。 */
+/**
+ * 统一的失败形状，三段式（地图 #1042 落地票 #1111 定版）：
+ * - `kind`：机器分支用，八档之一（类目真源在 `contract/vocabulary.ts`）。
+ * - `message`：给人看的一句话，允许直接展示。**不要把原文塞进来** ——
+ *   一处契约测试为此下过禁令（`contract-label-colors.ts`：原子写失败的提示里带临时文件名，
+ *   用户会照着去找一个不存在的文件）。
+ * - `raw`：后端或命令吐出的原文，人自己判断的兜底。**必填**（确实没有原文时给空串）：
+ *   可选字段等于早晚被省略，门禁也就断言不了「每个失败都带原文」。
+ *   取法只有一处 —— `fail(kind, message, raw)`（`src/tracker/preflight.ts`），
+ *   由它统一做多路合并、凭据遮蔽与头尾截断；决策见
+ *   `docs/adr/20261014-error-classification-single-source.md`。
+ */
 export interface TrackerError {
   kind: ErrorKind
   message: string
+  raw: string
 }
 
 /**

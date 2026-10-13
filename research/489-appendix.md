@@ -250,7 +250,7 @@ exec.run 的 via 取值表（枚举写死在这里）：snapshot 面板快照组
 | 29 | snapshot.fanout | 调试 | sessionIdHash 会话散列、stale 是否旧数据、force 是否强制、count 复用组大小（只在接收方带，发起方不带） | 散列会话 | — | 按事件（发起方记一次不带组大小，接收方记组大小加 count） | kernel/probe.js:59 在途复用、kernel/store.js 广播 |
 | 30 | dedup.hit | 调试 | scope 链或快照、keyHash 键散列 | 散列键 | — | 只记计数，窗口到才记一次 | kernel/probe.js:13 在途链、59 在途快照 |
 | 37 | statusbar.hydrate | 调试 | cwdSource 工作区来源枚举 | 不记路径原文 | — | 采样 | statusbar/StatusBar.js:38 跟随水合 |
-| 43 | error.normalize | 调试 | rawKind 原始类别、mappedKind 归一后类别、httpCode 状态码 | H_ERR | R_TOKEN_BEARER、R_GH_TOKEN | 按事件（只记归一后） | index.js:340 类别归一、tracker/errors.js |
+| 43 | error.normalize | 调试（#1111 按新的判档实现订正字段） | rawKind 归一前的原始类别（http:403 是 HTTP 状态码 / exit:1 是退出码 / errno:ENOENT 是错误码名 / passthrough 是本来就已经是规范档位、不用判 / unknown 是三样都没有）、mappedKind 归一后的档位（八档之一）、layer 这条档位由哪一层证据给出（fact 机器给的码 / errcode 错误码名 / phrase 整句句式 / vague 含糊短语 / fallback 一条都没认出来的兜底 / passthrough 透传）、via 这条规则来自通用表还是各家扩展项（common / extension）、latencyMs 判这一趟花了多少毫秒、httpCode 状态码、exitCode 退出码、errCode 错误码名（最后三个只在真有对应事实时才带） | H_ERR 只记档位与码值，不记原文 | R_TOKEN_BEARER、R_GH_TOKEN | 按事件（同一组 rawKind、mappedKind、layer 连着记第二次会去重；只记归一后的档位） | src/tracker/error-rules.ts 的 emitNormalize（classifyError 与 verdictOf 两条判档路都经它；已经是规范档位的透传那一路由 emitPassthrough 发同一个事件名） |
 | 44 | timer.schedule | 调试 | name 定时器名枚举、intervalMs 间隔、jitterMs 抖动 | — | — | 只记调度与跳过，不记每次心跳 | index.js:47 缓存 60 秒、api.js:46 改名轮询 5 秒 |
 | 45 | privacy.scrub | 调试（纠偏移出常驻） | field 字段枚举、rule 规则名、hit 是否命中 | 自身不记原文 | 自身即计数，不记命中文本 | 按事件 | 全链路工作区路径、标题、令牌 |
 | 52 | chain.cache.miss | 调试（#498 新增） | keyHash 键散列、lang 语言、reason 未命中原因（枚举 force、empty、key-changed、expired） | 散列键 | — | 按事件 | host/detectChain.js 链缓存穿透 |
