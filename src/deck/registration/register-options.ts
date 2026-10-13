@@ -3,33 +3,50 @@
 // 九个工具的实现与宿主装配都在，agent 列表却看不见，因为从没人调过注册。
 // 住共享层因为两边都要用（宿主接线与 agent 行模块），四层各自内部禁互引，零导入是唯一的住法。
 // defineTool 由调用方传（生产是工具包，门禁用仓库开发依赖里的真实现）；传不进来走退路。
-// 日志沿用既有事件不新增（调用走 host.call，注册结果见 makeDeckRegisterReport）。
+// 日志沿用既有事件不新增（调用走 host.call，注册结果见 makeDeckRegisterReport，#1030 Q6）。
+// 招牌（本文件交出去的名字）与后厨（装配拼出的实现表）必须同源：
+// 名字顺序的真源在装配清单与行数组（实际九个），注释里的“七个”是旧话，已按 #1030 Q1 改齐。
+
+/** 未知形状的对象（参数模式、定义、表都先按这形接住，守卫函数再逐格验，不猜）。 */
+type UnknownRecord = Record<string, unknown>;
+/** 工具定义：名字、描述、参数模式三格齐才算可交，缺一格即缺件（调用方记缺件，不硬上）。 */
+type DeckToolDefinition = { name: unknown; description: unknown; parameters: unknown };
+/** 宿主装好的工具表：名字、定义、实现三份同源，缺实现即缺件。 */
+type DeckAgentTable = { names?: unknown; tools?: unknown; definitions?: unknown };
+/** 批量注册的回执：reason 空串表示全交出去了，非空说明哪一步没走通（缺件只记名字与原因码）。 */
+type RegisterResult = { registered: string[]; missing: { name: string; reason: string }[]; reason: string };
+/** 工具服务：调它的 register 交工具；不在或无 register 即服务不在，宿主不因此起不来。 */
+type ToolsService = { register: (tool: unknown) => unknown };
+/** 定义函数：工具包里的官方写法入口；拿不到就走退路原生形状（退路即线上实际走的路，#1030 Q5）。 */
+type DefineToolFn = (options: UnknownRecord) => unknown;
+/** 输出形状：官方写法与退路原生写法是同一内容两种适配，渲染走同一份。 */
+type AgentOutputSpec = { schema: UnknownRecord; render: (args: unknown, value: unknown) => unknown[] };
 
 /** 短散列（错误原因只记指纹，不记原文；与共享壳里那把同算法，零导入所以自带一份）。 */
-function hash8(text) {
+function hash8(text: unknown): string {
   let h = 5381
   const t = String(text || '')
   for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0)
   return ('0000000' + h.toString(16)).slice(-8)
 }
 
-/** 单次执行允许的最长时间（毫秒）：盖住批量建票在正常网络下的最坏情况；超预算的调用壳里已经提前拦下。 */
+/** 单次执行允许的最长时间（毫秒）：盖住批量建票在正常网络下的最坏情况；超预算的调用壳里已经提前拦下。数值与位置全冻（#1030 Q4）。 */
 export const AGENT_TOOL_TIMEOUT_MS = 120000
 
 /** 注册表参数写法里允许的键（超出的一律不透出，宁可缺件也不让注册表报错）。 */
 const ANNOTATION_KEYS = ['description', 'title', 'default', 'examples']
 const SCALAR_TYPES = ['string', 'number', 'integer', 'boolean']
 
-function isRecord(v) { return v !== null && typeof v === 'object' && !Array.isArray(v) }
+function isRecord(v: unknown): v is Record<string, unknown> { return v !== null && typeof v === 'object' && !Array.isArray(v) }
 
 /**
  * 把一段参数模式译成注册表认的写法。译不出来回 null（调用方记缺件，不硬上）。
  * 规则只有三条：必填数组转成按属性的必填标记；对象节点必带显式的 additionalProperties
  * （原文没写就按“开”处理，和今天不校验时的行为一致）；注册表不认的键直接丢掉。
  */
-function toAgentProperty(node) {
+function toAgentProperty(node: unknown): UnknownRecord | null {
   if (!isRecord(node)) return null
-  const out = {}
+  const out: UnknownRecord = {}
   for (const k of ANNOTATION_KEYS) if (node[k] !== undefined) out[k] = node[k]
   const t = node.type
   if (t === 'array') {
@@ -42,7 +59,7 @@ function toAgentProperty(node) {
   if (t === 'object') {
     const props = isRecord(node.properties) ? node.properties : {}
     const required = Array.isArray(node.required) ? node.required : []
-    const converted = {}
+    const converted: UnknownRecord = {}
     for (const key of Object.keys(props)) {
       const child = toAgentProperty(props[key])
       if (!child) return null
@@ -54,7 +71,7 @@ function toAgentProperty(node) {
     out.additionalProperties = (typeof node.additionalProperties === 'boolean') ? node.additionalProperties : true
     return out
   }
-  if (SCALAR_TYPES.indexOf(t) >= 0) {
+  if (typeof t === 'string' && SCALAR_TYPES.indexOf(t) >= 0) {
     out.type = t
     if (node.enum !== undefined) out.enum = node.enum
     if (node.const !== undefined) out.const = node.const
@@ -67,10 +84,10 @@ function toAgentProperty(node) {
  * 把整个参数表译成注册表要的那种“属性清单”写法。顶层是 {type:'object', properties}
  * 的形状；空属性就是不要参数的工具（如看工作区的那个）。
  */
-export function toAgentParameterSpec(parameters) {
+export function toAgentParameterSpec(parameters: unknown): UnknownRecord | null {
   if (!isRecord(parameters) || !isRecord(parameters.properties)) return null
   const required = Array.isArray(parameters.required) ? parameters.required : []
-  const spec = {}
+  const spec: UnknownRecord = {}
   for (const key of Object.keys(parameters.properties)) {
     const child = toAgentProperty(parameters.properties[key])
     if (!child) return null
@@ -96,7 +113,7 @@ const DETAIL_TOTAL_CAP = 60000
 // 一张带五十条评论的票就会只得到一句「comments 未带回」。
 // 括号、逗号、引号、键名这些结构开销是估算着扣的，不是精确值；单个字符串还有 8000 的上限
 // 兜着，误差有界。
-function projectDetail(v, budget, depth) {
+function projectDetail(v: unknown, budget: { left: number }, depth: number): unknown {
   if (depth > 12) return '（这里嵌套太深，没有展开）'
   if (typeof v === 'string') {
     const cap = Math.min(budget.left, DETAIL_STRING_CAP)
@@ -106,7 +123,7 @@ function projectDetail(v, budget, depth) {
   }
   if (Array.isArray(v)) {
     budget.left -= 2
-    const out = []
+    const out: unknown[] = []
     let cut = 0
     for (let i = 0; i < v.length; i++) {
       if (out.length) budget.left -= 1
@@ -118,13 +135,13 @@ function projectDetail(v, budget, depth) {
   }
   if (v !== null && typeof v === 'object') {
     budget.left -= 2
-    const out = {}
-    const cut = []
+    const out: UnknownRecord = {}
+    const cut: string[] = []
     for (const k of Object.keys(v)) {
       if (Object.keys(out).length) budget.left -= 1
       budget.left -= k.length + 3
       if (budget.left <= 0) { cut.push(k); continue }
-      out[k] = projectDetail(v[k], budget, depth + 1)
+      out[k] = projectDetail((v as UnknownRecord)[k], budget, depth + 1)
     }
     if (cut.length) out.__未带回 = '未带回的字段：' + cut.join('、') + '（超出总量上限）'
     return out
@@ -138,14 +155,15 @@ function projectDetail(v, budget, depth) {
 // 同一份内容进历史两遍、白吃预算，所以认得出同一份就只送一次。顶层的 cost / touched 是运行
 // 元数据（touched 恒为空数组）不送；deck_context 的 data 里那几格 workspace / backend / repo /
 // quota / howto 本来就是它要给 AI 看的内容，照送不误。
-function detailBlock(v) {
-  const pick = {}
-  if (v.data !== undefined && v.data !== null) pick.data = v.data
-  if (Array.isArray(v.items) && v.items.length) pick.items = v.items
-  const d = pick.data
-  const sameTicket = d !== null && typeof d === 'object' && !Array.isArray(d) && d.ticket === v.readBack
-  if (v.readBack !== undefined && v.readBack !== null && !sameTicket) pick.readBack = v.readBack
-  if (typeof v.reason === 'string' && v.reason) pick.reason = v.reason
+function detailBlock(v: unknown): string {
+  const source = v as UnknownRecord;
+  const pick: UnknownRecord = {}
+  if (source.data !== undefined && source.data !== null) pick.data = source.data
+  if (Array.isArray(source.items) && source.items.length) pick.items = source.items
+  const d = pick.data as UnknownRecord | null | undefined;
+  const sameTicket = d !== null && typeof d === 'object' && !Array.isArray(d) && d !== undefined && d.ticket === source.readBack
+  if (source.readBack !== undefined && source.readBack !== null && !sameTicket) pick.readBack = source.readBack
+  if (typeof source.reason === 'string' && source.reason) pick.reason = source.reason
   if (!Object.keys(pick).length) return ''
   let s = ''
   try { s = JSON.stringify(projectDetail(pick, { left: DETAIL_TOTAL_CAP }, 0)) || '' } catch (e) {
@@ -157,14 +175,14 @@ function detailBlock(v) {
 // 交给模型的全部内容：一句摘要 + 工具的如实提示 + 明细。#809 之前只回那一句摘要，正文、评论、
 // 标签、子票清单、地图五区块、逐条边的落点证据，连同 notes 里的降级警告全被丢掉——工具说明
 // 与代理文档都承诺这些明细，模型却一样拿不到，还会把残缺结果当完整结果用。
-function deckAgentRender(args, value) {
-  const v = (value && typeof value === 'object') ? value : {}
-  const out = []
+function deckAgentRender(args: unknown, value: unknown): { type: string; text: string }[] {
+  const v = (value && typeof value === 'object' ? value : {}) as UnknownRecord;
+  const out: { type: string; text: string }[] = []
   const text = typeof v.text === 'string' ? v.text : ''
   if (text) out.push({ type: 'text', text: text })
   // 提示排在明细前面：它是工具对「这次拿到的不一定全」的如实警告，丢了才最危险。
   if (Array.isArray(v.notes) && v.notes.length) {
-    out.push({ type: 'text', text: '本次调用的提示：\n' + v.notes.map(function (n) { return '- ' + String(n) }).join('\n') })
+    out.push({ type: 'text', text: '本次调用的提示：\n' + (v.notes as unknown[]).map(function (n: unknown) { return '- ' + String(n) }).join('\n') })
   }
   const detail = detailBlock(v)
   if (detail) out.push({ type: 'text', text: detail })
@@ -176,7 +194,7 @@ function deckAgentRender(args, value) {
  * 其余原样透出；渲染把摘要、提示与明细一起交给模型（见上面 deckAgentRender 与 #809）。
  * 注意这是定义函数的写法（必填按属性标）；退路另有一份原生写法，见下。
  */
-export function deckAgentOutputSpec() {
+export function deckAgentOutputSpec(): AgentOutputSpec {
   return {
     schema: {
       type: 'object',
@@ -196,7 +214,7 @@ export function deckAgentOutputSpec() {
  * 上面那种按属性标必填的写法交过去会被注册表当场拒绝（九个一个都交不出去），
  * 2026-09-26 真机验证时就是栽在这里。
  */
-export function deckAgentOutputSchemaRaw() {
+export function deckAgentOutputSchemaRaw(): AgentOutputSpec {
   return {
     schema: {
       type: 'object',
@@ -215,8 +233,8 @@ export function deckAgentOutputSchemaRaw() {
  * 由一张工具定义拼出注册选项（名字、描述、参数、输出都在这里定死）。
  * 拼不出来回 null，调用方记缺件。
  */
-export function buildAgentToolOptions(definition) {
-  const d = definition || {}
+export function buildAgentToolOptions(definition: unknown): UnknownRecord | null {
+  const d = ((definition || {}) as UnknownRecord) || {}
   if (typeof d.name !== 'string' || !d.name) return null
   if (typeof d.description !== 'string' || !d.description) return null
   const parameters = toAgentParameterSpec(d.parameters)
@@ -228,15 +246,17 @@ export function buildAgentToolOptions(definition) {
  * 通道未通时的诚实执行（行模块在代执行通道接通前用它）：不碰后端，
  * 直接回“没做成”的信封并指去面板，绝不谎报成功。通道接通即退役。
  */
-export function makePendingExecute(toolName) {
+export function makePendingExecute(toolName: unknown): () => Promise<UnknownRecord> {
   const name = String(toolName || '这个工具')
-  return async function () {
+  return async function (): Promise<UnknownRecord> {
     return { status: 'unsupported', reason: 'not-wired', text: name + ' 的执行通道还没接通（列表可见是第一步）：请先用面板操作，进展见仓库的 BUG 单。' }
   }
 }
 
 /** 探针要看的服务清单（只记有无，不记值；通道设计就靠这份清单定）。 */
-export const PROBE_SERVICES = ['tools', 'connection', 'subprocess', 'timer', 'fs', 'sessions', 'agents', 'llm', 'systemPrompt', 'sandboxPolicy', 'jobs', 'approval', 'shell', 'profileContext']
+export const PROBE_SERVICES = ['tools', 'connection', 'subprocess', 'timer', 'fs', 'sessions', 'agents', 'llm', 'systemPrompt', 'sandboxPolicy', 'jobs', 'approval', 'shell', 'profileContext'] as const
+/** 编译期锁死 14 个：探针清单增减会改变通道设计的输入，改它另立票。 */
+const _assertProbeFourteen: 14 = PROBE_SERVICES.length;
 
 /** 探针定义：不要参数，回服务清单的 JSON 文本（诊断口，通道接通即退役）。 */
 export const probeDefinition = {
@@ -246,26 +266,27 @@ export const probeDefinition = {
 }
 
 /** 对上下文做一次服务点名，有就记有、没有就记没有（值一律不碰）。 */
-export function probeServices(ctx) {
-  const out = {}
+export function probeServices(ctx: unknown): UnknownRecord {
+  const carrier = ctx as UnknownRecord & { get?: (key: string) => unknown } | null | undefined;
+  const out: UnknownRecord = {}
   for (const name of PROBE_SERVICES) {
     let has = false
-    try { const svc = ctx ? (ctx[name] !== undefined ? ctx[name] : (typeof ctx.get === 'function' ? ctx.get(name) : undefined)) : undefined; has = svc !== undefined && svc !== null } catch (e) { has = false }
+    try { const svc = carrier ? (carrier[name] !== undefined ? carrier[name] : (typeof carrier.get === 'function' ? carrier.get(name) : undefined)) : undefined; has = svc !== undefined && svc !== null } catch (e) { has = false }
     out[name] = has
   }
   return out
 }
 
-function tableNames(table) {
-  const t = table || {}
-  if (Array.isArray(t.names) && t.names.length) return t.names.slice()
+function tableNames(table: unknown): string[] {
+  const t = (table || {}) as DeckAgentTable;
+  if (Array.isArray(t.names) && t.names.length) return (t.names as string[]).slice()
   if (t.tools && isRecord(t.tools)) return Object.keys(t.tools)
   return []
 }
 
-function tableDefinitions(table) {
-  const t = table || {}
-  if (Array.isArray(t.definitions) && t.definitions.length) return t.definitions
+function tableDefinitions(table: unknown): UnknownRecord[] {
+  const t = (table || {}) as DeckAgentTable;
+  if (Array.isArray(t.definitions) && t.definitions.length) return t.definitions as UnknownRecord[]
   return []
 }
 
@@ -273,23 +294,26 @@ function tableDefinitions(table) {
  * 执行入口共用：中止与坏参直接回“没做成”，再调表里同名 run，只回其 value；
  * run 认包一层 {value} 与裸信封两种形状，抛错或形状不对包成“没做成”。永不抛。
  */
-function makeExecute(run) {
-  return async function (args, exec) {
-    const signal = exec && exec.signal
+function makeExecute(run: unknown): (args: unknown, exec: unknown) => Promise<UnknownRecord> {
+  return async function (args: unknown, exec: unknown): Promise<UnknownRecord> {
+    const execObj = exec as { signal?: { aborted?: unknown } } | null | undefined;
+    const signal = execObj && execObj.signal
     if (signal && typeof signal.aborted === 'boolean' && signal.aborted) {
       return { status: 'unsupported', reason: 'aborted', text: '这次被中止了，没做完：请按需重调一次。' }
     }
     if (args === null || typeof args !== 'object' || Array.isArray(args)) {
       return { status: 'unsupported', reason: 'bad-args', text: '参数不是一个对象，我没法做：请按这个工具的参数说明重调一次。' }
     }
-    let back = null
+    let back: unknown = null
     try {
-      back = await run(exec, args)
+      back = await (run as (exec: unknown, args: unknown) => Promise<unknown>)(exec, args)
     } catch (e) {
-      return { status: 'unsupported', reason: 'backend-threw', text: '这次没做成（内部执行抛错，已拦下）：' + String((e && e.message) || e).slice(0, 200) }
+      return { status: 'unsupported', reason: 'backend-threw', text: '这次没做成（内部执行抛错，已拦下）：' + String(((e as { message?: unknown } | null)?.message) || e).slice(0, 200) }
     }
-    const value = (back && back.value !== undefined) ? back.value : back
-    if (value && typeof value.status === 'string' && typeof value.text === 'string') return value
+    const backObj = back as { value?: unknown } | null | undefined;
+    const value = (backObj && backObj.value !== undefined) ? backObj.value : back
+    const valueRec = value as UnknownRecord | null;
+    if (valueRec && typeof valueRec.status === 'string' && typeof valueRec.text === 'string') return valueRec
     return { status: 'unsupported', reason: 'backend-threw', text: '这次没做成（工具内部没按约定回包，已拦下），请重试或走面板操作。' }
   }
 }
@@ -304,24 +328,30 @@ function makeExecute(run) {
  * reason 空串表示全交出去了，非空说明哪一步没走通（服务不在、表不在、
  * 注册表拒绝），调用方只记录不抛，宿主绝不因此起不来。重复调安全。
  */
-export async function registerDeckAgentTools(toolsSvc, table, defineTool) {
+export async function registerDeckAgentTools(toolsSvc: unknown, table: unknown, defineTool: unknown): Promise<RegisterResult> {
+  const svcObj = toolsSvc as ToolsService | null;
   const names = tableNames(table)
   const defs = tableDefinitions(table)
-  const defsByName = {}
-  for (const d of defs) if (d && typeof d.name === 'string') defsByName[d.name] = d
-  const missing = []
+  const defsByName: UnknownRecord = {}
+  for (const d of defs) {
+    const rec = d as DeckToolDefinition | null;
+    if (rec && typeof rec.name === 'string') defsByName[rec.name] = d
+  }
+  const missing: { name: string; reason: string }[] = []
   if (!names.length) return { registered: [], missing: [], reason: 'empty-table' }
-  if (!toolsSvc || typeof toolsSvc.register !== 'function') {
+  if (!svcObj || typeof svcObj.register !== 'function') {
     return { registered: [], missing: names.map((n) => ({ name: n, reason: 'no-tools-service' })), reason: 'no-tools-service' }
   }
-  const viaDefineTool = (typeof defineTool === 'function')
-  const registered = []
+  const defineToolFn = defineTool as DefineToolFn | undefined;
+  const viaDefineTool = (typeof defineToolFn === 'function')
+  const registered: string[] = []
+  const tableObj = table as { tools?: UnknownRecord } | null;
   for (const name of names) {
-    const def = defsByName[name]
-    const run = table && table.tools && table.tools[name] && table.tools[name].run
+    const def = defsByName[name] as DeckToolDefinition | undefined;
+    const run = (tableObj && tableObj.tools ? (tableObj.tools[name] as { run?: unknown } | undefined) : undefined)?.run
     if (typeof run !== 'function') { missing.push({ name: name, reason: 'no-table-run' }); continue }
     const execute = makeExecute(run)
-    let toRegister = null
+    let toRegister: UnknownRecord | null = null
     if (viaDefineTool) {
       const options = buildAgentToolOptions(def)
       if (!options) { missing.push({ name: name, reason: 'unsupported-definition' }); continue }
@@ -349,9 +379,9 @@ export async function registerDeckAgentTools(toolsSvc, table, defineTool) {
       }
     }
     try {
-      toolsSvc.register(viaDefineTool ? defineTool(toRegister) : toRegister)
+      svcObj.register(viaDefineTool ? (defineToolFn as DefineToolFn)(toRegister) : toRegister)
     } catch (e) {
-      missing.push({ name: name, reason: String((e && e.message) || e).slice(0, 200) })
+      missing.push({ name: name, reason: String(((e as { message?: unknown } | null)?.message) || e).slice(0, 200) })
       continue
     }
     registered.push(name)
@@ -368,17 +398,18 @@ export async function registerDeckAgentTools(toolsSvc, table, defineTool) {
  * 原因只记散列不记原文，缺哪种依赖（服务不在、表不在）与跑起来失败分开标。
  * logCtx 没有或报告抛错都只吞掉——报告绝不能把宿主带崩。
  */
-export function makeDeckRegisterReport(logCtx) {
-  return function report(info) {
+export function makeDeckRegisterReport(logCtx: unknown): (info: unknown) => void {
+  return function report(info: unknown): void {
     try {
-      if (!logCtx || typeof logCtx.fire !== 'function') return
-      const at = info || {}
+      const log = logCtx as { fire(level: string, event: string, fields: UnknownRecord): void } | null;
+      if (!log || typeof log.fire !== 'function') return
+      const at = ((info || {}) as UnknownRecord) || {}
       if (at.ok === true) {
-        logCtx.fire('info', 'host.call', { method: 'deck.agentRegister', latencyMs: typeof at.ms === 'number' ? at.ms : 0, ok: true, kind: 'deck-tool' })
+        log.fire('info', 'host.call', { method: 'deck.agentRegister', latencyMs: typeof at.ms === 'number' ? at.ms : 0, ok: true, kind: 'deck-tool' })
         return
       }
       const reason = String(at.reason || 'unknown')
-      logCtx.fire('warn', 'host.call.fail', { method: 'deck.agentRegister', kind: 'deck-tool', errorHash: hash8(reason), errorKind: (/no-tools-service|no-table|empty-table/.test(reason) ? 'missing-dep' : 'throw') })
+      log.fire('warn', 'host.call.fail', { method: 'deck.agentRegister', kind: 'deck-tool', errorHash: hash8(reason), errorKind: (/no-tools-service|no-table|empty-table/.test(reason) ? 'missing-dep' : 'throw') })
     } catch (e) {}
   }
 }
@@ -391,40 +422,43 @@ export function makeDeckRegisterReport(logCtx) {
  * 工具服务可能比我们晚就绪（行顺序不保证），取不到就等几轮再取；
  * 轮数与间隔可配，缺省五轮、每轮两秒，都用完就认了。
  */
-export function hookDeckAgentTools(ctx, getTable, loadDefineTool, report, opts) {
-  const o = opts || {}
+export function hookDeckAgentTools(ctx: unknown, getTable: unknown, loadDefineTool: unknown, report: unknown, opts: unknown): void {
+  const o = ((opts || {}) as { retries?: unknown; waitMs?: unknown }) || {}
   const retries = (typeof o.retries === 'number' && o.retries >= 0) ? Math.floor(o.retries) : 5
   const waitMs = (typeof o.waitMs === 'number' && o.waitMs >= 0) ? Math.floor(o.waitMs) : 2000
   const t0 = Date.now()
-  function tell(info) { try { if (typeof report === 'function') report(info) } catch (eR) {} }
-  function toolsSvcOf() {
-    try { return (ctx && (ctx.tools || (typeof ctx.get === 'function' && ctx.get('tools')))) || null } catch (eS) { return null }
+  function tell(info: UnknownRecord): void { try { if (typeof report === 'function') (report as (info: UnknownRecord) => void)(info) } catch (eR) {} }
+  function toolsSvcOf(): unknown {
+    try { const carrier = ctx as UnknownRecord & { get?: (key: string) => unknown } | null; return (carrier && (carrier.tools || (typeof carrier.get === 'function' && carrier.get('tools')))) || null } catch (eS) { return null }
   }
-  function later(ms) { return new Promise(function (resolve) { setTimeout(resolve, ms) }) }
+  function later(ms: number): Promise<void> { return new Promise(function (resolve) { setTimeout(resolve, ms) }) }
   // 取表也重试（2026-09-26）：启动时后端注册表/平台可能还没就绪，旧代码取一次失败就认了，
   // deck 工具永不注册。表就绪后再进服务等待。
-  function table(left) {
-    return Promise.resolve().then(function () { return getTable() }).then(function (built) {
-      if (built && built.tools) return built
+  function table(left: number): Promise<unknown> {
+    return Promise.resolve().then(function () { return typeof getTable === 'function' ? (getTable as () => Promise<unknown>)() : null }).then(function (built: unknown) {
+      const builtObj = built as { tools?: unknown } | null;
+      if (builtObj && builtObj.tools) return built
       if (left > 0) return later(waitMs).then(function () { return table(left - 1) })
       return null
     }).catch(function () { return null })
   }
   try {
-    table(retries).then(function (built) {
-      if (!built || !built.tools) { tell({ ok: false, reason: 'no-table' }); return null }
-      function attempt(left) {
-        const svc = toolsSvcOf()
+    table(retries).then(function (built: unknown) {
+      const builtObj = built as { tools?: unknown } | null;
+      if (!builtObj || !builtObj.tools) { tell({ ok: false, reason: 'no-table' }); return null }
+      function attempt(left: number): Promise<unknown> | null {
+        const svc = toolsSvcOf() as ToolsService | null;
         if (!svc || typeof svc.register !== 'function') {
           if (left > 0) return later(waitMs).then(function () { return attempt(left - 1) })
           tell({ ok: false, reason: 'no-tools-service' })
           return null
         }
-        return Promise.resolve(typeof loadDefineTool === 'function' ? loadDefineTool() : null).then(function (m) {
-          const defineTool = m && typeof m.defineTool === 'function' ? m.defineTool : null
-          let res = null
-          try { res = registerDeckAgentTools(svc, built, defineTool) } catch (eR) { res = null }
-          return Promise.resolve(res).then(function (r) {
+        return Promise.resolve(typeof loadDefineTool === 'function' ? (loadDefineTool as () => Promise<unknown>)() : null).then(function (m: unknown) {
+          const loaded = m as UnknownRecord | null;
+          const defineTool = loaded && typeof loaded.defineTool === 'function' ? (loaded.defineTool as DefineToolFn) : null
+          let res: RegisterResult | null = null
+          try { res = registerDeckAgentTools(svc, built, defineTool) as unknown as RegisterResult | null } catch (eR) { res = null }
+          return Promise.resolve(res).then(function (r: RegisterResult | null) {
             if (!r) { tell({ ok: false, reason: 'register-threw' }); return null }
             if (r.missing && r.missing.length) { tell({ ok: false, reason: String(r.reason || 'register-failed') }); return r }
             if (r.registered && r.registered.length) { tell({ ok: true, ms: Date.now() - t0 }); return r }

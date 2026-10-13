@@ -17,6 +17,7 @@
 // 所以这里只交纯数据对象（名字、描述、参数、输出、执行函数），
 // 注册表本来就认这种形状，不需要经过创建函数；
 // 参数用定义里写好的那份原样交，输出用共享层的原生形状。
+// 测试重心在退路（#1030 Q5）：接线固定给 defineTool 传空，退路即线上实际走的路。
 import { definition as deckContextDef } from '../tools/context.js'
 import { definition as deckIssueGetDef } from '../tools/issue-get.js'
 import { definition as deckMapSnapshotDef } from '../tools/map-snapshot.js'
@@ -29,12 +30,32 @@ import { definition as deckIssueReportDef } from '../tools/issue-report.js'
 import { AGENT_TOOL_TIMEOUT_MS, deckAgentOutputSchemaRaw, makePendingExecute, probeDefinition, probeServices } from './register-options.js'
 import { awaitDeckTable, peekDeckTable, readDeckGate, noteDeckPath, readDeckPath } from '../shell/table-cell.js'
 
+/** 运行环境里的进程对象（类型-only 声明，不影响运行时；行模块只读环境变量名，不读值）。 */
+declare const process: { env: Record<string, string | undefined> } | undefined;
+/** 未知形状的对象（调用方上下文、会话、回包都先按这形接住，守卫逐格验，不猜）。 */
+type UnknownRecord = Record<string, unknown>;
+/** 工具定义：名字、描述、参数三格齐才算可交，缺一格即跳过（行不整体掀翻）。 */
+interface DeckToolDefinition { name: unknown; description: unknown; parameters: unknown }
+/** 交给注册表的纯数据形状：只交数据对象，不经过创建函数（零框架引用，见文件头）。 */
+type RawRegistration = { name: string; description: string; parameters: UnknownRecord; timeoutMs: number; output: UnknownRecord; execute: (args: unknown, exec: unknown) => Promise<unknown> };
+/** 会话线索：工作区目录与会话号，只从调用方上下文里取，不从模型参数里取（模型伪造不了别人的目录）。 */
+export interface SessionHint { cwd: string; sessionId: string }
+/** 三路路由的调用载荷：工具名、参数、会话线索，都不通才回诚实占位。 */
+interface DeckRpcPayload { tool: unknown; args: unknown; session: SessionHint }
+/** 调用方传进来的中止信号（只读 aborted 与订阅/退订，原生方法必须挂在原对象上调，不许摘下来单调）。 */
+type AbortLike = { aborted?: unknown; addEventListener?: (type: string, listener: () => void, opts: { once: boolean }) => void; removeEventListener?: (type: string, listener: () => void) => void };
+/** 宿主回来的三态值：成功、部分成功、做不到都在值里表达，不抛。 */
+interface HostValue { status: string; text: string; reason?: unknown }
+
 export const name = 'dsh-mattpocock-skills-deck-tools'
 export const inject = ['tools']
 
-const NINE = [deckContextDef, deckIssueGetDef, deckMapSnapshotDef, deckIssueListDef, deckIssueCreateDef, deckMapPlanCreateDef, deckMapLinkDef, deckIssuePatchDef, deckIssueReportDef]
+/** 九个工具定义（顺序与 tool-order.ts 的 DECK_TOOL_ORDER 一致；这里只负责传全，顺序的真源在那一处）。 */
+const NINE = [deckContextDef, deckIssueGetDef, deckMapSnapshotDef, deckIssueListDef, deckIssueCreateDef, deckMapPlanCreateDef, deckMapLinkDef, deckIssuePatchDef, deckIssueReportDef] as const
+/** 编译期锁死九个：多数少一个这里就报错，不等跑起来才发现（#1030 Q1 按九个验收）。 */
+const _assertNineTools: 9 = NINE.length;
 
-function isRecord(v) { return v !== null && typeof v === 'object' && !Array.isArray(v) }
+function isRecord(v: unknown): v is Record<string, unknown> { return v !== null && typeof v === 'object' && !Array.isArray(v) }
 
 // 探针扩展（只加在行里，不进共享层）：旧的 14 个有无原样保留，
 // 新加的只报键名与有无，不报任何值。值里可能有令牌和路径，一律不碰。
@@ -48,12 +69,12 @@ const PROBE_KEY_LIMIT = 100
 const BRIDGE_DRY_TABLE_WAIT_MS = 8000
 const DELEGATED_CELL_WAIT_MS = 25000
 
-function safeKeyList(obj, limit) {
+function safeKeyList(obj: unknown, limit: unknown): string[] {
   const cap = (typeof limit === 'number' && limit > 0) ? Math.floor(limit) : PROBE_KEY_LIMIT
   try {
     if (obj === null || typeof obj !== 'object') return []
     const keys = Object.keys(obj)
-    const out = []
+    const out: string[] = []
     for (let i = 0; i < keys.length && out.length < cap; i++) {
       if (typeof keys[i] === 'string' && keys[i]) out.push(keys[i])
     }
@@ -62,20 +83,22 @@ function safeKeyList(obj, limit) {
   } catch (e) { return [] }
 }
 
-async function probeDetails(ctx, exec) {
-  const out = probeServices(ctx)
+async function probeDetails(ctx: unknown, exec: unknown): Promise<UnknownRecord> {
+  const out: UnknownRecord = probeServices(ctx)
+  const ctxObj = ctx as UnknownRecord | null;
   try {
-    out.ctxKeys = (ctx && typeof ctx === 'object') ? safeKeyList(ctx, PROBE_KEY_LIMIT) : []
+    out.ctxKeys = (ctxObj && typeof ctxObj === 'object') ? safeKeyList(ctxObj, PROBE_KEY_LIMIT) : []
   } catch (e) { out.ctxKeys = [] }
   try {
-    let holder = null
-    if (ctx && typeof ctx === 'object' && ctx.profileContext !== undefined && ctx.profileContext !== null) holder = ctx.profileContext
-    else if (ctx && typeof ctx.get === 'function') { try { holder = ctx.get('profileContext') } catch (e2) { holder = null } }
+    let holder: unknown = null
+    if (ctxObj && typeof ctxObj === 'object' && ctxObj.profileContext !== undefined && ctxObj.profileContext !== null) holder = ctxObj.profileContext
+    else if (ctxObj && typeof (ctxObj as { get?: unknown }).get === 'function') { try { holder = ((ctxObj as { get: (key: string) => unknown }).get)('profileContext') } catch (e2) { holder = null } }
     out.profileContextKeys = (holder && typeof holder === 'object') ? safeKeyList(holder, PROBE_KEY_LIMIT) : []
   } catch (e3) { out.profileContextKeys = [] }
   try {
-    const e = exec || {}
-    const session = (e.agent && e.agent.session) || e.session || null
+    const e = (exec || {}) as UnknownRecord;
+    const agent = e.agent as UnknownRecord | undefined;
+    const session = (agent && agent.session) || e.session || null
     out.sessionKeys = (session && typeof session === 'object') ? safeKeyList(session, PROBE_KEY_LIMIT) : []
   } catch (e4) { out.sessionKeys = [] }
   try {
@@ -85,7 +108,7 @@ async function probeDetails(ctx, exec) {
     let windowHas = false
     try { fetchHas = typeof fetch === 'function' } catch (e5) { fetchHas = false }
     try { webSocketHas = typeof WebSocket === 'function' } catch (e6) { webSocketHas = false }
-    try { processHas = typeof process !== 'undefined' && process !== null && typeof process.execPath === 'string' } catch (e7) { processHas = false }
+    try { processHas = typeof process !== 'undefined' && process !== null && typeof (process as { execPath?: unknown }).execPath === 'string' } catch (e7) { processHas = false }
     try { windowHas = typeof window !== 'undefined' && window !== null } catch (e8) { windowHas = false }
     out.globalCaps = { fetch: fetchHas, webSocket: webSocketHas, process: processHas, window: windowHas }
   } catch (e9) { out.globalCaps = { fetch: false, webSocket: false, process: false, window: false } }
@@ -93,7 +116,7 @@ async function probeDetails(ctx, exec) {
     if (typeof process === 'undefined' || !process || !process.env || typeof process.env !== 'object') out.envKeys = []
     else {
       const keys = Object.keys(process.env)
-      const kept = []
+      const kept: string[] = []
       for (let i = 0; i < keys.length; i++) {
         if (typeof keys[i] === 'string' && /DSH|PORT|HOST|ADDRESS|URL/i.test(keys[i])) kept.push(keys[i])
         if (kept.length >= PROBE_KEY_LIMIT) break
@@ -104,7 +127,7 @@ async function probeDetails(ctx, exec) {
   } catch (e10) { out.envKeys = [] }
   // 同进程共享格一眼：表在不在、是不是同一进程（pid 只在进程内比对，永不外发）。
   try {
-    const peek = peekDeckTable()
+    const peek = peekDeckTable() as { sameProcess?: unknown } | null;
     out.bridgeTableReady = !!peek
     out.bridgeSameProcess = peek ? !!peek.sameProcess : false
   } catch (e11) { out.bridgeTableReady = false; out.bridgeSameProcess = false }
@@ -118,22 +141,24 @@ async function probeDetails(ctx, exec) {
   out.bridgeGateNotes = []
   out.bridgeLastPath = { tool: '', via: '' }
   try {
-    try { out.bridgeGateNotes = readDeckGate() } catch (eNotes) { out.bridgeGateNotes = [] }
-    try { out.bridgeLastPath = readDeckPath() } catch (ePath) { out.bridgeLastPath = { tool: '', via: '' } }
+    try { out.bridgeGateNotes = readDeckGate() as unknown[] } catch (eNotes) { out.bridgeGateNotes = [] }
+    try { out.bridgeLastPath = readDeckPath() as { tool: unknown; via: unknown } } catch (ePath) { out.bridgeLastPath = { tool: '', via: '' } }
   } catch (eNotesOuter) { out.bridgeGateNotes = []; out.bridgeLastPath = { tool: '', via: '' } }
   try {
     const hint = sessionHintOf(exec)
     out.bridgeDryHint = !!hint
-    const table = hint ? await awaitDeckTable(BRIDGE_DRY_TABLE_WAIT_MS) : null
+    const table = hint ? await (awaitDeckTable(BRIDGE_DRY_TABLE_WAIT_MS) as Promise<{ names?: unknown; tools?: UnknownRecord } | null>) : null
     if (!table) { out.bridgeDryRun = hint ? 'no-table' : 'no-hint' }
     else {
-      try { out.bridgeTools = Array.isArray(table.names) ? table.names.slice(0, 16) : [] } catch (eNames) { out.bridgeTools = [] }
-      const run = table.tools && table.tools.deck_context && table.tools.deck_context.run
+      try { out.bridgeTools = Array.isArray(table.names) ? (table.names as unknown[]).slice(0, 16) : [] } catch (eNames) { out.bridgeTools = [] }
+      const deckContext = table.tools ? table.tools.deck_context as { run?: unknown } | undefined : undefined;
+      const run = deckContext && deckContext.run
       if (typeof run !== 'function') { out.bridgeDryRun = 'no-run' }
       else {
-        let back = null
-        try { back = await run({ agent: { session: { cwd: hint.cwd, id: hint.sessionId } } }, {}) } catch (eRun) { back = null }
-        const value = back && back.value !== undefined ? back.value : back
+        let back: unknown = null
+        try { back = await (run as (exec: unknown, args: unknown) => Promise<unknown>)({ agent: { session: { cwd: (hint as SessionHint).cwd, id: (hint as SessionHint).sessionId } } }, {}) } catch (eRun) { back = null }
+        const backObj = back as { value?: unknown } | null;
+        const value = (backObj && backObj.value !== undefined ? backObj.value : back) as HostValue | null;
         if (value && typeof value.status === 'string' && typeof value.text === 'string') {
           out.bridgeDryRun = 'ok'
           out.bridgeDryStatus = value.status
@@ -145,8 +170,8 @@ async function probeDetails(ctx, exec) {
   return out
 }
 
-function toRawRegistration(def, ctx) {
-  const d = def || {}
+function toRawRegistration(def: unknown, ctx: unknown): RawRegistration | null {
+  const d = (def || {}) as DeckToolDefinition;
   if (typeof d.name !== 'string' || !d.name) return null
   if (typeof d.description !== 'string' || !d.description) return null
   if (!isRecord(d.parameters)) return null
@@ -155,7 +180,7 @@ function toRawRegistration(def, ctx) {
     description: d.description,
     parameters: d.parameters,
     timeoutMs: AGENT_TOOL_TIMEOUT_MS,
-    output: deckAgentOutputSchemaRaw(),
+    output: deckAgentOutputSchemaRaw() as unknown as UnknownRecord,
     execute: makeDelegatedExecute(d.name, ctx),
   }
 }
@@ -166,30 +191,30 @@ function toRawRegistration(def, ctx) {
 // 预设行经作用域读全局层）：宿主装好的那张表经共享格直达行，不经任何调用面。
 // 会话目录只从调用方上下文里取（平台给的元数据），不从模型参数里取，模型伪造不了别人的目录。
 // 超时与中止一律收成做不到的三态，不抛。
-function sessionHintOf(exec) {
+function sessionHintOf(exec: unknown): SessionHint | null {
   // 取值口径与壳的 sessionContextOf 同源（会话六个位置），另加 header 位：
   // 真机探针证明工具执行上下文里的会话顶层没有目录，目录住在 header 里。
   // 读的永远是平台给的调用方上下文，不是模型参数，模型伪造不了别人的目录。
   try {
-    const e = exec || {}
-    const agent = e.agent || {}
-    const session = agent.session || e.session || null
-    const cands = []
+    const e = (exec || {}) as UnknownRecord;
+    const agent = (e.agent || {}) as UnknownRecord;
+    const session = (agent.session || e.session || null) as UnknownRecord | null;
+    const cands: unknown[] = []
     try {
       if (session && typeof session === 'object') {
         cands.push(session.cwd)
         cands.push(session.workspaceRoot)
-        if (session.workspace && typeof session.workspace === 'object') cands.push(session.workspace.cwd)
-        const header = session.header
+        if (session.workspace && typeof session.workspace === 'object') cands.push((session.workspace as UnknownRecord).cwd)
+        const header = session.header as UnknownRecord | null | undefined;
         if (header && typeof header === 'object') { cands.push(header.cwd); cands.push(header.workspaceRoot) }
       }
       cands.push(agent.cwd)
-      if (e.session && typeof e.session === 'object') cands.push(e.session.cwd)
+      if (e.session && typeof e.session === 'object') cands.push((e.session as UnknownRecord).cwd)
       cands.push(e.cwd)
     } catch (ePick) {}
     let cwd = ''
     for (let i = 0; i < cands.length; i++) {
-      if (typeof cands[i] === 'string' && cands[i].trim()) { cwd = cands[i].trim(); break }
+      if (typeof cands[i] === 'string' && (cands[i] as string).trim()) { cwd = (cands[i] as string).trim(); break }
     }
     if (!cwd) return null
     let id = ''
@@ -198,8 +223,9 @@ function sessionHintOf(exec) {
         if (typeof session.id === 'string' && session.id) id = session.id
         else if (typeof session.sessionId === 'string' && session.sessionId) id = session.sessionId
         else if (session.header && typeof session.header === 'object') {
-          if (typeof session.header.id === 'string' && session.header.id) id = session.header.id
-          else if (typeof session.header.sessionId === 'string' && session.header.sessionId) id = session.header.sessionId
+          const header = session.header as UnknownRecord;
+          if (typeof header.id === 'string' && header.id) id = header.id
+          else if (typeof header.sessionId === 'string' && header.sessionId) id = header.sessionId
         }
       }
       if (!id && typeof agent.sessionId === 'string') id = agent.sessionId
@@ -208,7 +234,7 @@ function sessionHintOf(exec) {
   } catch (e2) { return null }
 }
 
-function nextRpcId() {
+function nextRpcId(): string {
   try {
     const abc = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-'
     let out = 'deck-'
@@ -217,30 +243,33 @@ function nextRpcId() {
   } catch (e) { return 'deck-fallback-id' }
 }
 
-function pickHostValue(raw) {
+function pickHostValue(raw: unknown): HostValue | null {
   try {
     if (raw === null || typeof raw !== 'object') return null
-    const result = raw.result !== undefined ? raw.result : raw
+    const rawObj = raw as UnknownRecord;
+    const result = (rawObj.result !== undefined ? rawObj.result : raw) as UnknownRecord | null;
     if (!result || typeof result !== 'object') return null
-    if (result.ok === true && result.value && typeof result.value.status === 'string' && typeof result.value.text === 'string') return result.value
-    if (typeof result.status === 'string' && typeof result.text === 'string' && result.ok === undefined) return result
+    if (result.ok === true && result.value && typeof (result.value as HostValue).status === 'string' && typeof (result.value as HostValue).text === 'string') return result.value as HostValue
+    if (typeof result.status === 'string' && typeof result.text === 'string' && result.ok === undefined) return result as unknown as HostValue
     return null
   } catch (e) { return null }
 }
 
-async function callViaConnection(ctx, payload) {
-  const cands = []
-  try { if (ctx && ctx.connection && ctx.connection.rpc && typeof ctx.connection.rpc.call === 'function') cands.push(ctx.connection) } catch (e) {}
+async function callViaConnection(ctx: unknown, payload: DeckRpcPayload): Promise<HostValue | null> {
+  const ctxObj = ctx as UnknownRecord & { get?: (key: string) => unknown } | null;
+  const cands: { rpc: { call: (path: string, method: string, params: unknown) => Promise<unknown> } }[] = []
+  try { const conn = ctxObj && (ctxObj.connection as { rpc?: { call?: unknown } } | undefined); if (conn && conn.rpc && typeof conn.rpc.call === 'function') cands.push(ctxObj.connection as { rpc: { call: (path: string, method: string, params: unknown) => Promise<unknown> } }) } catch (e) {}
   try {
-    if (ctx && typeof ctx.get === 'function') {
-      const got = ctx.get('connection')
-      if (got && got.rpc && typeof got.rpc.call === 'function' && cands.indexOf(got) < 0) cands.push(got)
+    if (ctxObj && typeof ctxObj.get === 'function') {
+      const got = (ctxObj.get('connection')) as { rpc?: { call?: unknown } } | null;
+      if (got && got.rpc && typeof got.rpc.call === 'function' && cands.indexOf(got as { rpc: { call: (path: string, method: string, params: unknown) => Promise<unknown> } }) < 0) cands.push(got as { rpc: { call: (path: string, method: string, params: unknown) => Promise<unknown> } })
     }
   } catch (e2) {}
   for (let i = 0; i < cands.length; i++) {
     try {
       const res = await cands[i].rpc.call('/api', 'dsws', { method: 'deckExec', payload: payload })
-      const value = pickHostValue(res && res.ok === true ? { ok: true, value: res.value } : res)
+      const okWrap = res as { ok?: unknown; value?: unknown } | null;
+      const value = pickHostValue(okWrap && okWrap.ok === true ? { ok: true, value: okWrap.value } : res)
       if (value) return value
       const direct = pickHostValue(res)
       if (direct) return direct
@@ -249,18 +278,19 @@ async function callViaConnection(ctx, payload) {
   return null
 }
 
-async function callViaFetch(payload, signal) {
-  let fetchFn = null
-  try { fetchFn = typeof fetch === 'function' ? fetch : null } catch (e) { fetchFn = null }
+async function callViaFetch(payload: DeckRpcPayload, signal: unknown): Promise<HostValue | null> {
+  let fetchFn: ((input: string, init: UnknownRecord) => Promise<{ json: () => Promise<unknown> }>) | null = null
+  try { fetchFn = typeof fetch === 'function' ? fetch as unknown as (input: string, init: UnknownRecord) => Promise<{ json: () => Promise<unknown> }> : null } catch (e) { fetchFn = null }
   if (!fetchFn) return null
   const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null
   const timer = setTimeout(function () { try { if (ctrl) ctrl.abort() } catch (e2) {} }, AGENT_TOOL_TIMEOUT_MS)
-  try { if (signal && typeof signal.aborted === 'boolean' && signal.aborted) return null } catch (e3) { return null }
-  let onAbort = null
+  const sigRec = signal as AbortLike | null | undefined;
+  try { if (sigRec && typeof sigRec.aborted === 'boolean' && sigRec.aborted) return null } catch (e3) { return null }
+  let onAbort: (() => void) | null = null
   try {
-    if (signal && typeof signal.addEventListener === 'function' && ctrl) {
-      onAbort = function () { try { ctrl.abort() } catch (e4) {} }
-      signal.addEventListener('abort', onAbort, { once: true })
+    if (sigRec && typeof sigRec.addEventListener === 'function' && ctrl) {
+      onAbort = function (): void { try { if (ctrl) ctrl.abort() } catch (e4) {} }
+      sigRec.addEventListener('abort', onAbort, { once: true })
     }
   } catch (e5) {}
   try {
@@ -276,17 +306,19 @@ async function callViaFetch(payload, signal) {
     return pickHostValue(raw)
   } catch (e6) { return null } finally {
     try { clearTimeout(timer) } catch (e7) {}
-    try { if (signal && typeof signal.removeEventListener === 'function' && onAbort) signal.removeEventListener('abort', onAbort) } catch (e8) {}
+    try { if (sigRec && typeof sigRec.removeEventListener === 'function' && onAbort) sigRec.removeEventListener('abort', onAbort) } catch (e8) {}
   }
 }
 
-function makeDelegatedExecute(toolName, ctx) {
-  const fallback = makePendingExecute(toolName)
-  function notePath(via) { try { noteDeckPath(toolName, via) } catch (eN) {} }
-  function fallthrough() { notePath('fallback'); return fallback() }
-  return async function (args, exec) {
+function makeDelegatedExecute(toolName: unknown, ctx: unknown): (args: unknown, exec: unknown) => Promise<unknown> {
+  const pending = makePendingExecute(toolName) as () => Promise<unknown>;
+  const name = String(toolName || 'deck');
+  function notePath(via: string): void { try { noteDeckPath(name, via) } catch (eN) {} }
+  function fallthrough(): Promise<unknown> { notePath('fallback'); return pending() }
+  return async function (args: unknown, exec: unknown): Promise<unknown> {
     try {
-      const signal = exec && exec.signal
+      const execObj = exec as { signal?: { aborted?: unknown } } | null | undefined;
+      const signal = execObj && execObj.signal
       if (signal && typeof signal.aborted === 'boolean' && signal.aborted) {
         return { status: 'unsupported', reason: 'aborted', text: '这次被中止了，没做完：请按需重调一次。' }
       }
@@ -296,17 +328,19 @@ function makeDelegatedExecute(toolName, ctx) {
     }
     const hint = sessionHintOf(exec)
     if (!hint) return fallthrough()
-    const payload = { tool: toolName, args: args, session: hint }
+    const payload: DeckRpcPayload = { tool: toolName, args: args, session: hint }
     // 第一路：同进程共享格（宿主装表时放进来；跨进程时格子是空的，直接跳过）。
     try {
       if (peekDeckTable()) {
-        const table = await awaitDeckTable(DELEGATED_CELL_WAIT_MS)
-        const run = table && table.tools && table.tools[toolName] && table.tools[toolName].run
+        const table = await (awaitDeckTable(DELEGATED_CELL_WAIT_MS) as Promise<{ tools?: UnknownRecord } | null>)
+        const entry = (table && table.tools ? table.tools[toolName as string] : undefined) as { run?: unknown } | undefined;
+        const run = entry && entry.run
         if (typeof run === 'function') {
           const execLike = { agent: { session: { cwd: hint.cwd, id: hint.sessionId } } }
-          let back = null
-          try { back = await run(execLike, args) } catch (eRun) { back = null }
-          const value = back && back.value !== undefined ? back.value : back
+          let back: unknown = null
+          try { back = await (run as (exec: unknown, args: unknown) => Promise<unknown>)(execLike, args) } catch (eRun) { back = null }
+          const backObj = back as { value?: unknown } | null;
+          const value = (backObj && backObj.value !== undefined ? backObj.value : back) as HostValue | null;
           if (value && typeof value.status === 'string' && typeof value.text === 'string') { notePath('cell'); return value }
         }
       }
@@ -316,33 +350,36 @@ function makeDelegatedExecute(toolName, ctx) {
       if (viaConn) { notePath('connection'); return viaConn }
     } catch (e2) {}
     try {
-      const viaFetch = await callViaFetch(payload, exec && exec.signal)
+      const execObj = exec as { signal?: unknown } | null | undefined;
+      const viaFetch = await callViaFetch(payload, execObj && execObj.signal)
       if (viaFetch) { notePath('fetch'); return viaFetch }
     } catch (e3) {}
     return fallthrough()
   }
 }
 
-export function apply(ctx) {
-  if (!ctx || !ctx.tools || typeof ctx.tools.register !== 'function') {
+export function apply(ctx: unknown): void {
+  const toolsSvc = (ctx as { tools?: { register?: (tool: UnknownRecord) => unknown } } | null)?.tools;
+  if (!toolsSvc || typeof toolsSvc.register !== 'function') {
     throw new Error('[deckToolsRow] 工具服务不在，行起不来（注入声明了 tools，框架本应保证就绪）。')
   }
   for (const d of NINE) {
     const raw = toRawRegistration(d, ctx)
     if (!raw) continue
     try {
-      ctx.tools.register(raw)
+      toolsSvc.register(raw)
     } catch (e) { continue }
   }
-  ctx.tools.register({
+  const probeOutput = {
+    schema: { type: 'string' },
+    render: function (args: unknown, value: unknown): { type: string; text: string }[] { return [{ type: 'text', text: value as string }] },
+  };
+  toolsSvc.register({
     name: probeDefinition.name,
     description: probeDefinition.description,
-    parameters: probeDefinition.parameters,
+    parameters: probeDefinition.parameters as UnknownRecord,
     timeoutMs: AGENT_TOOL_TIMEOUT_MS,
-    output: {
-      schema: { type: 'string' },
-      render: function (args, value) { return [{ type: 'text', text: value }] },
-    },
-    execute: async function (args, exec) { return JSON.stringify(await probeDetails(ctx, exec)) },
-  })
+    output: probeOutput as unknown as UnknownRecord,
+    execute: async function (args: unknown, exec: unknown): Promise<unknown> { return JSON.stringify(await probeDetails(ctx, exec)) },
+  } as UnknownRecord)
 }
