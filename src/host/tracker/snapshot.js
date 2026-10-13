@@ -22,9 +22,9 @@
  *    docs/design/677-issue-pool-completeness-spec.md 第 6 节）。
  */
 
-import { ERROR_KIND, effortOf, idOfParts } from '../../shared/tracker/constants.js'
-import { deriveDeck } from '../../shared/tracker/deck-derive.js'
-import { parseMapBody } from '../../shared/parser.js'
+import { ERROR_KIND, effortOf, idOfParts } from '../../tracker/contract/vocabulary.js'
+import { deriveDeck } from '../../tracker/deck-derive.js'
+import { parseMapBody } from '../../tracker/body-parse.js'
 
 /**
  * 池内身份：先按 effort 圈定范围（effort 维度：同号票在不同 effort 里是两张票），再看是否为拉取请求。

@@ -23,7 +23,7 @@ import { parseLog } from '../shared/version-control/parse-log.js'
 import { parseDiffFiles } from '../shared/version-control/parse-diff-files.js'
 import { assemble, classifyStepZero } from '../shared/version-control/state.js'
 import { makeStallWatch } from './stallWatch.js' // #847：字节增长看门狗（自包含叶子，照 #500/#821 先例）
-import { withGhLane } from '../shared/tracker/outbound-admission.js'
+import { withGhLane } from './outbound/admission.js'
 import { failPhone, firstLine, failureFromExec } from '../shared/version-control/exec-envelope.js'
 
 const VIA = 'version-control'          // 日志的 via：这一族 git 命令都由版本管理页签发起

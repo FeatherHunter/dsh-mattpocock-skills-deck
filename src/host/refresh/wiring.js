@@ -22,17 +22,17 @@ import { createAttention, createFocusHandler } from './attention.js'
 // #723（T19c）第 D 件：七个 deck_* 工具。装配口在共享层（createDeckTools 只收参数、不 import 工具文件），七个
 // 工厂由 ../platform/deckToolsAssembly.js 一处读进来 —— 收在那一层是因为宿主层文件之间不许互引（同层引用门禁），
 // 宿主层里再读一次那七个文件就要新增 7 条同层边，本票不许。见那个文件的文件头与交付报告第 6 节。
-import { createDeckToolsForHost, DECK_TOOL_FILES, withCap } from '../platform/deckToolsAssembly.js'
+import { createDeckToolsForHost, DECK_TOOL_FILES, withCap } from '../../deck/registration/host-assemble.js'
 // deck 工具前置三处的等待上限：保读数含一次远端读数（读档 12 秒加排队），给 15 秒；
 // 本机记忆与工作区文件是本地读，给 5 秒。超时都走既有的失败继续路径（保不住照旧往下走、
 // 读不到按缺席跳过），成功路径一字不动——挂住的文件服务或排满的出站队列不能卡住整笔调用。
 const DECK_ENSURE_TIMEOUT_MS = 15000
 const DECK_EXPLICIT_TIMEOUT_MS = 5000
 import { createNamingSummary, readFirstUserText } from '../platform/namingSummary.js'   // #746：命名摘要编排（单例，见下）；#746 首句直读（随单下发供免锁比对）
-import { hookDeckAgentTools, makeDeckRegisterReport } from '../../shared/deck-tools/agent-register.js' // #741 注册那一步（向 agent 交七个工具）：形状、循环与报告住共享层（两边都要用），这里只递表
-import { publishDeckTable, noteDeckGate } from '../../shared/deck-tools/exec-cell.js' // #758 同进程共享格：行与宿主同一进程，表放进格子里行直接取，不经调用面
-import { createSandboxPolicyFor } from '../platform/deckSandbox.js'
-import { createDeckQuotaSync } from '../platform/deckQuotaSync.js' // #758 剩余额度读数接线：差读数先免费读一次，裁决数字不动（平台区，不新增宿主层边）
+import { hookDeckAgentTools, makeDeckRegisterReport } from '../../deck/registration/register-options.js' // #741 注册那一步（向 agent 交七个工具）：形状、循环与报告住共享层（两边都要用），这里只递表
+import { publishDeckTable, noteDeckGate } from '../../deck/shell/table-cell.js' // #758 同进程共享格：行与宿主同一进程，表放进格子里行直接取，不经调用面
+import { createSandboxPolicyFor } from '../../deck/registration/sandbox-guard.js'
+import { createDeckQuotaSync } from '../../deck/registration/quota-sync.js' // #758 剩余额度读数接线：差读数先免费读一次，裁决数字不动（平台区，不新增宿主层边）
 // #723（T19c）第 E 件：行级增量那半边（refresh/patch.js）同理收在 src/host/platform/refreshAssembly.js 一处。
 import { createPatchForHost } from '../platform/refreshAssembly.js'
 import * as budget from '../../shared/refresh/budget.js'
@@ -40,7 +40,7 @@ import * as toolCost from '../../shared/refresh/tool-cost.js'
 // #724：闸那一侧的工作区钥匙（短散列）只有一份实现，住在共享层（宿主层文件之间不许互引，而链求值那侧也要用
 // 同一把钥匙）。本文件把它转出来，「活跃集合、写事件白名单、七个 deck_* 工具、行级增量、检查链记账」五处同源。
 import { hash8, workspaceKeyOf } from '../../shared/refresh-workspace-key.js'
-import { parseWorkspaceFile, WORKSPACE_FILE_REL } from '../../shared/deck-tools/workspace-file.js'
+import { parseWorkspaceFile, WORKSPACE_FILE_REL } from '../../deck/shell/workspace-anchor.js'
 export { workspaceKeyOf } from '../../shared/refresh-workspace-key.js'
 
 /** 把一堆依赖包装成「取一次、以后复用」的惰性实例（模块加载失败不许把整个插件带崩）。 */

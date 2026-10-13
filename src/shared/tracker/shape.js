@@ -13,7 +13,7 @@
  * 由 `docs/architecture/tracker-layer-directory-architecture.md` + `tracker-backend-normalized-model.md` 派生。
  */
 
-import { STATE, ISSUE_TYPE } from './constants.js'
+import { STATE, ISSUE_TYPE } from '../../tracker/contract/vocabulary.js'
 
 /**
  * 后端 id（开放 string；仓库内唯一）。
@@ -135,7 +135,7 @@ import { STATE, ISSUE_TYPE } from './constants.js'
  * @property {string} effortId 这张票属于哪个 effort（核心字段，永远存在）。本地 Markdown = `.scratch/<effort>/` 的目录名；
  *    一个仓库只有一个隐含 effort 的后端（GitHub/GitLab）填 `''`（EMPTY，不是 MISSING）。
  *    同一 effort 内的父子关系、阻塞引用都按本字段圈定范围，不跨 effort 解析。
- * @property {import('./constants.js').ISSUE_TYPE} type issue | map（显式标记；map 可空）
+ * @property {import('../../tracker/contract/vocabulary.js').ISSUE_TYPE} type issue | map（显式标记；map 可空）
  * @property {string} title
  * @property {State} state open | closed
  * @property {string} body 宿主端从 markdown 渲染，不重复 bodyHTML

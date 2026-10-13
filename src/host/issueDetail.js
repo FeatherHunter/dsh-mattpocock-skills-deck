@@ -1,7 +1,7 @@
 // src/host/issueDetail.js —— 单详情与快照拼装（H2 #446 从 host/index.js 546–840 搬出，纯结构、行为零变化）。
 // 以后谁改它：改详情查询字段（GraphQL/REST 双通道）或快照拼装结构的人。预估约 330 行，超 350 打回。
 // 接线：由 index.js 动态 import 加载；执行器/注册表/解析函数等 18 项依赖全显式注入；本文件不引用其他新文件。
-import { pullStateOf } from './tracker/backends/github/normalize.js'
+import { pullStateOf } from '../tracker/rooms/github/normalize.js'
 
 export function createIssueDetail(deps) {
   const { getRepoKey, runGh, execProc, getTrackerRegistry, getPlatform, getDetectionService } = deps

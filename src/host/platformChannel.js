@@ -2,8 +2,8 @@
 // 以后谁改它：改平台抽象、后端注册表或探测级联的人。预估约 280 行，超 350 打回。
 // 接线：由 index.js 动态 import 动态加载；STATUS_CACHE_MS 随本文件搬入（无外部引用）；getMattSkillProbeNames/probeSkill 显式注入；共享层只引用 src/shared（出站分档/准入/测量，#963）。本文件不引用其他宿主新文件。
 // #968 技能按需多一个显式注入 getChainSkillNames（链条目录里要的三项技能名，查链时只问这三项）。
-import { timeoutForGhArgs, isWriteGhArgs } from '../shared/tracker/outbound-tiers.js'
-import { getGhLane } from '../shared/tracker/outbound-admission.js'
+import { timeoutForGhArgs, isWriteGhArgs } from './outbound/tiers.js'
+import { getGhLane } from './outbound/admission.js'
 // #968 平时问三项、重查问全量的分流判据（纯函数，门禁直测它）：
 //   范围是“链”就只问链条要的三项，其余（全量、未知）都问全量——未知时宁可多问，不漏判。
 export function selectSkillProbeNames(allNames, chainNames, scope) {
@@ -45,17 +45,17 @@ export function createPlatformChannel(deps) {
           if (injected && typeof injected.select === 'function') { _trackerRegistry = injected; return _trackerRegistry }
         } catch {}
         try {
-          const regMod = await import('./tracker/registryCore.js') // V1 #461：registry.js 已拆为三块，装配入口为 registryCore.js
+          const regMod = await import('../tracker/registry/registryCore.js') // V1 #461：registry.js 已拆为三块，装配入口为 registryCore.js
           const createRegistry = regMod.createRegistry || regMod.default
           const reg = createRegistry(backendCtxForRooms, { matchesTimeout: 3000 })
           // 注册内置后端（github/markdown/gitlab），失败忽略（保持可用）
           try {
-            const ghMod = await import('./tracker/backends/github/index.js')
+            const ghMod = await import('../tracker/rooms/github/index.js')
             const m = ghMod.githubModule || ghMod.defaultModule || ghMod.default
             if (m && m.id) try { reg.register(m) } catch {}
           } catch {}
           try {
-            const mdMod = await import('./tracker/backends/markdown/index.js')
+            const mdMod = await import('../tracker/rooms/markdown/index.js')
             // #230（D10）修复 2026-08-28：必须注册【完整模块】——markdownModule 携带 setupPrompt 键表（locale 键名），
             //   wf.registry 原样转发到 st.backendModules，setupRunPrompt 按它取 markdown 模板文案（"本地 Markdown 模板…"）。
             //   此前 host 重新拼装只保留 id/label/presentation/create/matches，setupPrompt 丢失 → 弹窗选 markdown 后
@@ -71,7 +71,7 @@ export function createPlatformChannel(deps) {
             if (mdModule) try { reg.register(mdModule) } catch {}
           } catch {}
           try {
-            const glMod = await import('./tracker/backends/gitlab/index.js')
+            const glMod = await import('../tracker/rooms/gitlab/index.js')
             const m2 = glMod.gitlabBackend || glMod.default
             if (m2 && m2.id) try { reg.register(m2) } catch {}
           } catch {}
@@ -81,7 +81,7 @@ export function createPlatformChannel(deps) {
         } catch (e) {
           // 回落：空 registry（仅 explicit 能力）
           try {
-            const regMod2 = await import('./tracker/registryCore.js') // V1 #461：同上（回落分支）
+            const regMod2 = await import('../tracker/registry/registryCore.js') // V1 #461：同上（回落分支）
             const cr = regMod2.createRegistry || regMod2.default
             _trackerRegistry = cr(backendCtxForRooms, { matchesTimeout: 3000 })
             return _trackerRegistry
@@ -181,7 +181,7 @@ export function createPlatformChannel(deps) {
     async function getWorkspaceStore() {
       if (_workspaceStore) return _workspaceStore
       try {
-        const mod = await import('./tracker/detection/workspaceStore.js')
+        const mod = await import('../tracker/detection/workspaceStore.js')
         const create = mod.createWorkspaceStore || mod.default
         _workspaceStore = create({ ttl: STATUS_CACHE_MS, logCtx: logCtx })
         // registry stale 清理（#150 Q3 unregister stale → emit bind）
@@ -280,7 +280,7 @@ export function createPlatformChannel(deps) {
       const ws = await getWorkspaceStore()
       const fsSvc = ctx.get('fs')
       try {
-        const mod = await import('./tracker/detection/detectionService.js')
+        const mod = await import('../tracker/detection/detectionService.js')
         const create = mod.createDetectionService || mod.default
         const decideBackend = (((await getDecisionFn().catch(function () { return {} })) || {}).decideBackend) || null
         // skillProbe 内联（复用 probeSkill 双源逻辑；全量名单 = shared/matt-skills.js 单源，二十多项）
@@ -315,7 +315,7 @@ export function createPlatformChannel(deps) {
         _detectionService = {
           detect: async (handle, opts) => {
             const plat = await getPlatform()
-            const expMod = await import('./tracker/detection/explicitDetector.js')
+            const expMod = await import('../tracker/detection/explicitDetector.js')
             const expFn = expMod.detectExplicit || expMod.default
             const exp = await expFn(handle, { platform: plat, cwd: handle.cwd, fs: fsSvc }, registry)
             let sel = exp.selection
@@ -338,7 +338,7 @@ export function createPlatformChannel(deps) {
     return _choiceStoreP
   }
   let _decideBackendP = null // #1003 单出口装配点（跨层引用基线记名；映射挂函数上整包递，下游零新增边）
-  const getDecisionFn = () => (_decideBackendP || (_decideBackendP = import('./tracker/detection/backendDecision.js').then(
+  const getDecisionFn = () => (_decideBackendP || (_decideBackendP = import('../tracker/detection/backendDecision.js').then(
     function (m) { const fn = m.decideBackend || (m.default && m.default.decideBackend) || null; if (fn) { try { fn.selectionFromOutlet = m.selectionFromOutlet || (m.default && m.default.selectionFromOutlet) || null } catch (eAttach) {} } return { decideBackend: fn } },
     function () { return { decideBackend: null } })))
   return { getTrackerRegistry, getPlatform, getWorkspaceStore, detectionExec, getDetectionService, getChoiceStore, clearWorkspaceStore, getDecisionFn }

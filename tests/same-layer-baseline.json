@@ -1,7 +1,7 @@
 {
   "version": 1,
   "recordedAt": "2026-10-13",
-  "note": "存量豁免清单：只许减不许增；拆分票消掉一条边就同票删一条。backends 三房间不在此清单（房间纪律由 .dependency-cruiser.cjs 的 cross-room-import 一条守着，没有豁免）。 2026-10-09：888 技能详情落地新增一条（index 动态加载 ./skillDoc.js）。 2026-10-13（#1017 换轨）：判据从「扫 .js 文本」换成「读依赖图（.js 与 .ts 一起看）」，键仍是 file|resolved；换轨后 .ts 源码里的同层边第一次可见，共 27 条，已按条记名（owner 标 #1017）。以后只许减。",
+  "note": "存量豁免清单：只许减不许增；拆分票消掉一条边就同票删一条。backends 三房间不在此清单（房间纪律由 .dependency-cruiser.cjs 的 cross-room-import 一条守着，没有豁免）。 2026-10-09：888 技能详情落地新增一条（index 动态加载 ./skillDoc.js）。 2026-10-13（#1017 换轨）：判据从「扫 .js 文本」换成「读依赖图（.js 与 .ts 一起看）」，键仍是 file|resolved；换轨后 .ts 源码里的同层边第一次可见，共 27 条，已按条记名（owner 标 #1017）。以后只许减。 2026-10-13（#1019 目录归位）：键跟着搬家表换到新路径（src/deck/**、src/tracker/**），条目数只减不增；六个「只换扩展名」的件本票退回 .js，键同票跟回。",
   "entries": [
     {
       "file": "src/host/index.js",
@@ -24,7 +24,7 @@
     {
       "file": "src/host/index.js",
       "spec": "./detectChain.js",
-      "resolved": "src/host/detectChain.js",
+      "resolved": "src/host/detectChain.ts",
       "layer": "host",
       "count": 1,
       "owner": "二批·host-3/6 #447",
@@ -51,7 +51,7 @@
     {
       "file": "src/host/index.js",
       "spec": "./sessionSnapshot.js",
-      "resolved": "src/host/sessionSnapshot.js",
+      "resolved": "src/host/sessionSnapshot.ts",
       "layer": "host",
       "count": 1,
       "owner": "二批·host-4/6 #448",
@@ -60,14 +60,14 @@
     {
       "file": "src/host/index.js",
       "spec": "./sessionRefresh.js",
-      "resolved": "src/host/sessionRefresh.js",
+      "resolved": "src/host/sessionRefresh.ts",
       "layer": "host",
       "count": 1,
       "owner": "二批·host-4/6 #448",
       "note": "H4 接线：index 动态加载会话刷新模块（装配扇入）"
     },
     {
-      "file": "src/host/detectChain.js",
+      "file": "src/host/detectChain.ts",
       "spec": "./tracker/generic.js",
       "resolved": "src/host/tracker/generic.js",
       "layer": "host",
@@ -76,16 +76,7 @@
       "note": "H3 搬迁：通用检查链装配随函数搬入本文件"
     },
     {
-      "file": "src/host/detectChain.js",
-      "spec": "./tracker/fixContract.js",
-      "resolved": "src/host/tracker/fixContract.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "二批·host-3/6 #447",
-      "note": "H3 搬迁：修复契约装配随函数搬入本文件"
-    },
-    {
-      "file": "src/host/sessionSnapshot.js",
+      "file": "src/host/sessionSnapshot.ts",
       "spec": "./tracker/snapshot.js",
       "resolved": "src/host/tracker/snapshot.js",
       "layer": "host",
@@ -94,7 +85,7 @@
       "note": "H4 搬迁：快照编排器装配随函数搬入本文件"
     },
     {
-      "file": "src/host/sessionRefresh.js",
+      "file": "src/host/sessionRefresh.ts",
       "spec": "./tracker/snapshot.js",
       "resolved": "src/host/tracker/snapshot.js",
       "layer": "host",
@@ -103,90 +94,27 @@
       "note": "H4 搬迁：快照编排器装配随函数搬入本文件"
     },
     {
-      "file": "src/host/sessionSnapshot.js",
+      "file": "src/host/sessionSnapshot.ts",
       "spec": "./snapshotInflight.js",
-      "resolved": "src/host/snapshotInflight.js",
+      "resolved": "src/host/snapshotInflight.ts",
       "layer": "host",
       "count": 1,
       "owner": "#729（手动刷新另起一趟：两条电话路共用一张在途表）",
       "note": "#729 一次性方案：本地在途表撤掉，快照路动态引入共用协调器（与刷新路同一张表）；门禁原文允许确认后记入，理由与归属见本条。"
     },
     {
-      "file": "src/host/sessionRefresh.js",
+      "file": "src/host/sessionRefresh.ts",
       "spec": "./snapshotInflight.js",
-      "resolved": "src/host/snapshotInflight.js",
+      "resolved": "src/host/snapshotInflight.ts",
       "layer": "host",
       "count": 1,
       "owner": "#729（手动刷新另起一趟：两条电话路共用一张在途表）",
       "note": "#729 一次性方案：刷新路（客户端手动刷新的真路径）此前整篇无在途表，动态引入共用协调器；门禁原文允许确认后记入，理由与归属见本条。"
     },
     {
-      "file": "src/host/tracker/index.js",
-      "spec": "./contract.js",
-      "resolved": "src/host/tracker/contract.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "二批·host域拆分票（tracker 装配链，随 host 拆分消边）",
-      "note": "tracker 聚合出口重出契约定义"
-    },
-    {
-      "file": "src/host/tracker/index.js",
-      "spec": "./capability.js",
-      "resolved": "src/host/tracker/capability.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "二批·host域拆分票（tracker 装配链，随 host 拆分消边）",
-      "note": "tracker 聚合出口重出能力诊断"
-    },
-    {
-      "file": "src/host/tracker/index.js",
-      "spec": "./preflight.js",
-      "resolved": "src/host/tracker/preflight.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "二批·host域拆分票（tracker 装配链，随 host 拆分消边）",
-      "note": "tracker 聚合出口重出预检"
-    },
-    {
-      "file": "src/host/tracker/index.js",
-      "spec": "./snapshot.js",
-      "resolved": "src/host/tracker/snapshot.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "二批·host域拆分票（tracker 装配链，随 host 拆分消边）",
-      "note": "tracker 聚合出口重出快照编排器"
-    },
-    {
-      "file": "src/host/tracker/detection/detectionService.js",
-      "spec": "./explicitDetector.js",
-      "resolved": "src/host/tracker/detection/explicitDetector.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "二批·host域拆分票（tracker 装配链，随 host 拆分消边）",
-      "note": "探测服务调用显式探测器"
-    },
-    {
-      "file": "src/host/tracker/detection/detectionService.js",
-      "spec": "../../workspaceKey.js",
-      "resolved": "src/host/workspaceKey.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "二批·host域拆分票（tracker 装配链，随 host 拆分消边）",
-      "note": "探测服务读取宿主工作区键"
-    },
-    {
-      "file": "src/host/tracker/detection/explicitDetector.js",
-      "spec": "./parseIssueTracker.js",
-      "resolved": "src/host/tracker/detection/parseIssueTracker.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "二批·host域拆分票（tracker 装配链，随 host 拆分消边）",
-      "note": "显式探测器调用解析器"
-    },
-    {
       "file": "src/host/platform/index.js",
       "spec": "./darwin/index.js",
-      "resolved": "src/host/platform/darwin/index.js",
+      "resolved": "src/host/platform/darwin/index.ts",
       "layer": "platform",
       "count": 1,
       "owner": "二批·host域拆分票（platform 装配扇出）",
@@ -195,7 +123,7 @@
     {
       "file": "src/host/platform/index.js",
       "spec": "./win32/index.js",
-      "resolved": "src/host/platform/win32/index.js",
+      "resolved": "src/host/platform/win32/index.ts",
       "layer": "platform",
       "count": 1,
       "owner": "二批·host域拆分票（platform 装配扇出）",
@@ -204,29 +132,11 @@
     {
       "file": "src/host/platform/index.js",
       "spec": "./linux/index.js",
-      "resolved": "src/host/platform/linux/index.js",
+      "resolved": "src/host/platform/linux/index.ts",
       "layer": "platform",
       "count": 1,
       "owner": "二批·host域拆分票（platform 装配扇出）",
       "note": "平台入口按系统分发 Linux 实现"
-    },
-    {
-      "file": "src/shared/tracker/deck-derive.js",
-      "spec": "./constants.js",
-      "resolved": "src/shared/tracker/constants.js",
-      "layer": "shared",
-      "count": 1,
-      "owner": "二批·shared拆分票（待开，须先修门禁对照表）",
-      "note": "看板派生引用状态常量"
-    },
-    {
-      "file": "src/shared/tracker/shape.js",
-      "spec": "./constants.js",
-      "resolved": "src/shared/tracker/constants.js",
-      "layer": "shared",
-      "count": 1,
-      "owner": "二批·shared拆分票（待开，须先修门禁对照表）",
-      "note": "数据形状引用状态与类型常量"
     },
     {
       "file": "src/seam/index.js",
@@ -302,42 +212,15 @@
     },
     {
       "file": "src/host/index.js",
-      "spec": "./repoKeys.js",
-      "resolved": "src/host/repoKeys.js",
+      "spec": "./git-process.js",
+      "resolved": "src/host/git-process.ts",
       "layer": "host",
       "count": 1,
       "owner": "二批·host-1/6 #445",
       "note": "H1 接线：index 动态加载仓库钥匙模块（装配扇入）"
     },
     {
-      "file": "src/host/platformChannel.js",
-      "spec": "./tracker/detection/workspaceStore.js",
-      "resolved": "src/host/tracker/detection/workspaceStore.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "二批·host-1/6 #445",
-      "note": "H1 搬迁：工作区存储装配随函数搬入本文件"
-    },
-    {
-      "file": "src/host/platformChannel.js",
-      "spec": "./tracker/detection/detectionService.js",
-      "resolved": "src/host/tracker/detection/detectionService.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "二批·host-1/6 #445",
-      "note": "H1 搬迁：探测服务装配随函数搬入本文件"
-    },
-    {
-      "file": "src/host/platformChannel.js",
-      "spec": "./tracker/detection/explicitDetector.js",
-      "resolved": "src/host/tracker/detection/explicitDetector.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "二批·host-1/6 #445",
-      "note": "H1 搬迁：兜底探测器装配随函数搬入本文件"
-    },
-    {
-      "file": "src/host/repoKeys.js",
+      "file": "src/host/git-process.ts",
       "spec": "./workspaceKey.js",
       "resolved": "src/host/workspaceKey.js",
       "layer": "host",
@@ -391,61 +274,7 @@
       "note": "H5 接线：index 动态加载评论线程模块（装配扇入）"
     },
     {
-      "file": "src/host/platformChannel.js",
-      "spec": "./tracker/registryCore.js",
-      "resolved": "src/host/tracker/registryCore.js",
-      "layer": "host",
-      "count": 2,
-      "owner": "二批·320-host #461",
-      "note": "V1 调用方改路径：平台通道装配改指注册表新装配入口"
-    },
-    {
-      "file": "src/host/tracker/index.js",
-      "spec": "./registryCore.js",
-      "resolved": "src/host/tracker/registryCore.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "二批·320-host #461",
-      "note": "V1 聚合出口改指注册表主体"
-    },
-    {
-      "file": "src/host/tracker/index.js",
-      "spec": "./registryShape.js",
-      "resolved": "src/host/tracker/registryShape.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "二批·320-host #461",
-      "note": "V1 聚合出口改指形状文件（错误类与迁移键）"
-    },
-    {
-      "file": "src/host/tracker/registryCore.js",
-      "spec": "./registryShape.js",
-      "resolved": "src/host/tracker/registryShape.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "二批·320-host #461",
-      "note": "V1 拆分：主体引用形状校验与包桩"
-    },
-    {
-      "file": "src/host/tracker/registryCore.js",
-      "spec": "./registryViews.js",
-      "resolved": "src/host/tracker/registryViews.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "二批·320-host #461",
-      "note": "V1 拆分：主体引用只读视图"
-    },
-    {
-      "file": "src/host/tracker/registryShape.js",
-      "spec": "./contract.js",
-      "resolved": "src/host/tracker/contract.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "二批·320-host #461",
-      "note": "V1 拆分：形状文件引用契约操作表（包桩用）"
-    },
-    {
-      "file": "src/host/detectChain.js",
+      "file": "src/host/detectChain.ts",
       "spec": "./tracker/predicateCore.js",
       "resolved": "src/host/tracker/predicateCore.js",
       "layer": "host",
@@ -564,7 +393,7 @@
     {
       "file": "src/host/index.js",
       "spec": "./snapshotBuild.js",
-      "resolved": "src/host/snapshotBuild.js",
+      "resolved": "src/host/snapshotBuild.ts",
       "layer": "host",
       "count": 1,
       "owner": "#599",
@@ -580,16 +409,7 @@
       "note": "F1 装配：用户选的后端那份状态文件（H）的实例在此建 —— 读它的是两处（绑定写入、判定读取），而它内部那条读-改-写队列必须全进程只有一条，所以两处共用这一个实例（与同文件里探测服务的装配同一类）"
     },
     {
-      "file": "src/host/detectChain.js",
-      "spec": "./tracker/detection/preflightScope.js",
-      "resolved": "src/host/tracker/detection/preflightScope.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "#723 T19（宿主层接线与拆文件时收口）",
-      "note": "#709 新增功能：一次评估里环境预检（登录态、仓库可达）只许真问一次，链求值这一步要在求值开始时按目的动态加载那个复用位（一次一个、用完即弃），没法在上层预先注入（它活着的时间比任何装配实例都短）。要消掉这条边，得先把复用位挪进另一个层或改成不需要动态加载的形态 —— 那是一次单独的重构，记在这张票里会顺手改到别票的地盘"
-    },
-    {
-      "file": "src/host/detectChain.js",
+      "file": "src/host/detectChain.ts",
       "spec": "./refresh/refreshSource.js",
       "resolved": "src/host/refresh/refreshSource.js",
       "layer": "host",
@@ -609,7 +429,7 @@
     {
       "file": "src/host/refresh/wiring.js",
       "spec": "./ledger.js",
-      "resolved": "src/host/refresh/ledger.js",
+      "resolved": "src/host/refresh/ledger.ts",
       "layer": "host",
       "count": 1,
       "owner": "#723 T19（宿主层接线与拆文件时收口）",
@@ -618,7 +438,7 @@
     {
       "file": "src/host/refresh/wiring.js",
       "spec": "./gate.js",
-      "resolved": "src/host/refresh/gate.js",
+      "resolved": "src/host/refresh/gate.ts",
       "layer": "host",
       "count": 1,
       "owner": "#723 T19（宿主层接线与拆文件时收口）",
@@ -663,16 +483,16 @@
     {
       "file": "src/host/index.js",
       "spec": "./snapshotEnvelope.js",
-      "resolved": "src/host/snapshotEnvelope.js",
+      "resolved": "src/host/snapshotEnvelope.ts",
       "layer": "host",
       "count": 1,
       "owner": "#723 T19（宿主层接线与拆文件时收口）",
       "note": "#723 拆文件：会话快照信封（字段清单 + 落盘那一步的 snapshot.built 日志）从 sessionSnapshot.js 搬到 snapshotEnvelope.js，好给「每个会话在处理哪些票」的读数腾出位置（票面 3e）。搬运只搬不改、行为逐字等价（校验：tests/verify-723-gate-wiring.js 与复核探针都逐字段比对过，snapshot.built 那行日志还在）。入口那一行的加载器里注入了它。"
     },
     {
-      "file": "src/host/sessionSnapshot.js",
+      "file": "src/host/sessionSnapshot.ts",
       "spec": "./snapshotEnvelope.js",
-      "resolved": "src/host/snapshotEnvelope.js",
+      "resolved": "src/host/snapshotEnvelope.ts",
       "layer": "host",
       "count": 1,
       "owner": "#723 T19（宿主层接线与拆文件时收口）",
@@ -803,24 +623,6 @@
       "count": 1,
       "owner": "888 技能详情页落地",
       "note": "index 动态加载技能原文直读模块（装配扇入，与 detectChain.js、skillProbe.js 同一条做法）"
-    },
-    {
-      "file": "src/host/platformChannel.js",
-      "spec": "./tracker/detection/backendDecision.js",
-      "resolved": "src/host/tracker/detection/backendDecision.js",
-      "layer": "host",
-      "count": 1,
-      "owner": "#1003",
-      "note": "单出口接线：平台层把统一判定函数递给探测服务（动态引入，失败回退老路）；三路改调同一出口，老短清单删除时复评本条"
-    },
-    {
-      "file": "src/shared/deck-tools/workspace-file.js",
-      "spec": "../config-store/workspace.js",
-      "resolved": "src/shared/config-store/workspace.js",
-      "layer": "shared",
-      "count": 1,
-      "owner": "#1012 配置存储统一改造（三轮切核）",
-      "note": "兼容垫片调核：唯一读写实现住核里，老调用方经此垫片切YAML而不用改；垫片不调核就得另写一份解析。待维护者review确认此例外。"
     },
     {
       "file": "src/host/index.js",
@@ -1082,6 +884,78 @@
       "count": 1,
       "owner": "#1017（读依赖图后 .ts 边首次可见）",
       "note": "同层互引的存量边：write-ticket 引同目录的 ports.ts（老门禁只读 .js 文本，这条一直没进过清单）"
+    },
+    {
+      "file": "src/host/detectChain.ts",
+      "spec": "./refresh/chain-ride.js",
+      "resolved": "src/host/refresh/chain-ride.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1019 搬家跟随",
+      "note": "搬家后新键：same-layer-import-host"
+    },
+    {
+      "file": "src/host/git-process.ts",
+      "spec": "./outbound/admission.js",
+      "resolved": "src/host/outbound/admission.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1019 搬家跟随",
+      "note": "搬家后新键：same-layer-import-host"
+    },
+    {
+      "file": "src/host/git-process.ts",
+      "spec": "./outbound/tiers.js",
+      "resolved": "src/host/outbound/tiers.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1019 搬家跟随",
+      "note": "搬家后新键：same-layer-import-host"
+    },
+    {
+      "file": "src/host/git-process.ts",
+      "spec": "./refresh/chain-ride.js",
+      "resolved": "src/host/refresh/chain-ride.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1019 搬家跟随",
+      "note": "搬家后新键：same-layer-import-host"
+    },
+    {
+      "file": "src/host/platformChannel.js",
+      "spec": "./outbound/admission.js",
+      "resolved": "src/host/outbound/admission.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1019 搬家跟随",
+      "note": "搬家后新键：same-layer-import-host"
+    },
+    {
+      "file": "src/host/platformChannel.js",
+      "spec": "./outbound/tiers.js",
+      "resolved": "src/host/outbound/tiers.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1019 搬家跟随",
+      "note": "搬家后新键：same-layer-import-host"
+    },
+    {
+      "file": "src/host/refresh/gate.ts",
+      "spec": "./refusal-text.js",
+      "resolved": "src/host/refresh/refusal-text.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1019 搬家跟随",
+      "note": "搬家后新键：same-layer-import-host"
+    },
+    {
+      "file": "src/host/versionControl.js",
+      "spec": "./outbound/admission.js",
+      "resolved": "src/host/outbound/admission.ts",
+      "layer": "host",
+      "count": 1,
+      "owner": "#1019 搬家跟随",
+      "note": "搬家后新键：same-layer-import-host"
     }
   ]
 }

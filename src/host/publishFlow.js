@@ -9,8 +9,8 @@
 //     · workspaceOwnership.js    —— 「属主不一致」这一档的唯一判断，两票共用。
 //   另外 #994 在流程最前面加了「工作区 git 可用性」探测：属主不一致时补一条 safe.directory
 //   再重试一次，仍然不行才报错 —— 不再让问题推迟到 git add 才炸。
-import { makeCreateErrorClassifier, KIND_UNKNOWN } from '../shared/tracker/initProjectErrorKinds.js'
-import { isOwnershipMismatch, ownershipPathFrom, safeDirectoryCommand } from '../shared/tracker/workspaceOwnership.js'
+import { makeCreateErrorClassifier, KIND_UNKNOWN } from '../tracker/rooms/github/init-project-error-kinds.js'
+import { isOwnershipMismatch, ownershipPathFrom, safeDirectoryCommand } from '../tracker/detection/workspace-ownership.js'
 
 export function createPublishFlow(deps) {
   const { DEFAULT_CWD, resolveGit, resolveGh, getGhLastError, runGh, execProc, canonicalKey, getRepoKey, repoKeys, repoRoots, setCache, logCtx } = deps

@@ -179,7 +179,7 @@ export function isKnownActionType(type) {
  * @typedef {Object} StepSnapshot
  * @property {string} id 对应 CheckItem.id（或回退 check 串）
  * @property {string|Check} check 原检查描述（透传）
- * @property {import('./constants.js').CHECK_STATE} status CHECK_STATE 之一
+ * @property {import('../../tracker/contract/vocabulary.js').CHECK_STATE} status CHECK_STATE 之一
  * @property {Show|null} show 当前应展示的 show（按 status 选 onPass/onFail）
  * @property {Action[]} actions 当前应展示的 actions（同上）
  * @property {boolean} isApplicable 是否适用（2026-08-27 起恒 true，删 na）
