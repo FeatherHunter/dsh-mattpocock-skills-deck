@@ -203,18 +203,59 @@ async function workspaceFile() {
 }
 
 /**
- * 静态扫描：纯侧源码里不许出现读钟、读文件、起进程、等待、联网这类碰世界的写法。
- * 这一条是「编译期门禁为主、这条为辅」里的辅：依赖图门禁管得住 import 边，
+ * 纯侧禁用的写法表：每一条都配一个「必须命中」的最小例子与一个「不许命中」的反例。
+ *
+ * 为什么要配例子：表里任何一条写错（正则转义漏了、词边界写宽了），它就成了一条永不命中的死条目，
+ * 而外面那条断言只会更绿 —— 这正是「假门禁」的典型形状，所以每条都要当场证明自己是活的
+ * （selfCheckPatterns 跑的就是这件事）。
+ */
+const PURITY_PATTERNS: Array<{ re: RegExp, label: string, hit: string, miss: string }> = [
+  { re: /Date\.now|new Date\(|performance\.now/, label: '读钟', hit: 'const t = Date.now()', miss: 'const dateLabel = 1' },
+  { re: /require\(['"]node:/, label: '起 Node 能力', hit: "require('node:fs')", miss: "require('./x')" },
+  { re: /from\s+['"]node:/, label: '起 Node 能力', hit: "import fs from 'node:fs'", miss: "import x from './x.js'" },
+  { re: /process\./, label: '看环境', hit: 'process.env', miss: 'const processed = 1' },
+  { re: /fs\.(readFile|writeFile|readdir)/, label: '读写文件', hit: 'fs.readFile(p)', miss: 'const fsLike = 1' },
+  { re: /child_process/, label: '起进程', hit: "require('child_process')", miss: 'const childProcessName = 1' },
+  // 下面四条是「严档」补齐的：它们都不产生 import 边，依赖图门禁看不见，
+  // 而按 #1038 的口径「等待」与「随机」同样算碰世界（同样的输入不再给同样的输出）。
+  { re: /Math\.random/, label: '随机', hit: 'Math.random()', miss: 'const randomish = 1' },
+  { re: /setTimeout|setInterval|setImmediate/, label: '等待', hit: 'setTimeout(f, 1)', miss: 'const timeoutLabel = 1' },
+  { re: /\bfetch\s*\(/, label: '联网', hit: "fetch('u')", miss: 'const fetchLabel = 1' },
+  { re: /globalThis/, label: '全局对象', hit: 'globalThis.x', miss: 'const globalObject = 1' },
+  // 最后两条是「编译期溜得过去」那五样里剩下的两样：eval 与 new Function 能凭一个字符串
+  // 拿到任何全局（包括 process 与 fs），是纯侧唯一能绕过上面所有入口的写法。
+  { re: /\beval\s*\(/, label: '动态求值', hit: "eval('1')", miss: 'const evaluate = 1' },
+  { re: /\bnew\s+Function\s*\(/, label: '动态构造函数', hit: "new Function('return 1')", miss: 'const funcFactory = 1' },
+]
+
+/**
+ * 静态扫描：纯侧源码里不许出现读钟、读随机、看环境、起进程、读写文件、等待、联网、动态求值
+ * 这类碰世界的写法。这一条是「编译期门禁为主、这条为辅」里的辅：依赖图门禁管得住 import 边，
  * 管不住 `Date.now()` 这种**没有 import 边的全局调用**，所以补一条文本扫描
  *（与 AGENTS.md 里「时钟等待都算碰世界」的严档口径对齐）。
  *
- * 它是**黑名单**，不是证明：只能拦住下面列出的这几种写法，拦不住「换个名字做同一件事」。
- * 真正的证明有两条路，都还没做，记在后续待办里（#1039 收尾评论的「可改」两条）：
- * 一是反演成白名单（只许用明确列出的纯全局，别的一律判红），二是上语法树检查。
- * 读这一条断言时别把它当证明：它挡的是最常见的那几种手滑。
+ * 这张表要盖的范围是有界的，可以数清楚（2026-10-14 用 11 个探针文件实测）：纯侧那份 tsconfig
+ * 是 lib ES2020 且 types 为空，于是 console、fetch、process、setTimeout、performance、node:fs
+ * 这些**有名字的世界入口在编译期就报「找不到这个名字」**，压根写不进纯侧；能在编译期溜过去的
+ * 只有 ES2020 语言与标准库里那五样：Date.now()、Math.random()、eval()、new Function()、
+ * 以及裸的 globalThis。上面那张表就是照着这五样列的 —— 它今天不是「一张尽量全的黑名单」，
+ * 而是「编译期剩下那个缺口的封条」。谁改了纯侧那份 tsconfig（例如加了 @types/node 或 DOM 库），
+ * 就是把这五样之外的入口重新打开，那时这张表要跟着重数一遍。
+ *
+ * 它仍然是写法匹配、不是形式化证明。要更进一步，是反演成白名单（只许用明确列出的纯全局）
+ * 或上语法树检查 —— 这两条记在 #1039 收尾评论的「可改」里。
  */
+function selfCheckPatterns() {
+  console.log('— 禁用写法表自己是不是活的')
+  for (const p of PURITY_PATTERNS) {
+    check(p.re.test(p.hit), '禁用写法表里这条真的会命中：' + p.label + '（' + p.hit + '）')
+    check(!p.re.test(p.miss), '禁用写法表里这条不误伤正常写法：' + p.label + '（' + p.miss + '）')
+  }
+}
+
 async function staticPurity() {
   console.log('— 纯侧源码不许碰世界（静态扫描）')
+  selfCheckPatterns()
   const dir = path.join(ROOT, 'src', 'deck', 'rules')
   const names = fs.readdirSync(dir).filter((n) => n.endsWith('.ts'))
   check(names.length >= 9, '纯侧至少九份文件（实际 ' + names.length + '）')
@@ -223,23 +264,10 @@ async function staticPurity() {
     const text = fs.readFileSync(path.join(dir, name), 'utf8')
     // 注释里会出现这些词（讲清楚为什么不许用），所以先把注释剔掉再扫。
     const code = text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1')
-    const hits = [
-      [/Date\.now|new Date\(|performance\.now/, '读钟'],
-      [/require\(['"]node:/, '起 Node 能力'],
-      [/from\s+['"]node:/, '起 Node 能力'],
-      [/process\./, '看环境'],
-      [/fs\.(readFile|writeFile|readdir)/, '读写文件'],
-      [/child_process/, '起进程'],
-      // 下面四条是「严档」补齐的：它们都不产生 import 边，依赖图门禁看不见，
-      // 而按 #1038 的口径「等待」与「随机」同样算碰世界（同样的输入不再给同样的输出）。
-      [/Math\.random/, '随机'],
-      [/setTimeout|setInterval|setImmediate/, '等待'],
-      [/\bfetch\s*\(/, '联网'],
-      [/globalThis/, '全局对象'],
-    ].filter(([re]) => re.test(code)).map(([, label]) => label)
+    const hits = PURITY_PATTERNS.filter((p) => p.re.test(code)).map((p) => p.label)
     if (hits.length) bad.push(name + '：' + hits.join('、'))
   }
-  check(bad.length === 0, bad.length ? '纯侧有碰世界的写法：' + bad.join('；') : names.length + ' 份纯文件里没有读钟、读写文件、起进程、等待、随机、联网的写法')
+  check(bad.length === 0, bad.length ? '纯侧有碰世界的写法：' + bad.join('；') : names.length + ' 份纯文件里没有读钟、读随机、看环境、起进程、读写文件、等待、联网、动态求值的写法')
 }
 
 async function main() {

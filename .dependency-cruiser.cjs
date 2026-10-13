@@ -17,7 +17,9 @@
 // 三条口径上的约定（改本文件前先读这三条）：
 //   1. 只看 src/host、src/shared、src/seam 三棵树 —— 与两条老门禁的扫描域逐字相同。
 //      src/deck/** 是搬家后的目标树（#1019 起存在），由 tests/verify-dependency-rules.ts 的
-//      OPTIONAL_TREES 一起喂给引擎：它一出现，deck 深引与纯规则侧那几条规则才有判据可判。
+//      OPTIONAL_TREES 一起喂给引擎。它多数文件本来就被 src/host/tools/** 的 import 边带进图里，
+//      写进根清单是为了让「图是完整的」不靠 import 边碰巧够长：实测有两个文件
+//      （src/deck/rules/index.ts 与 src/deck/registration/agent-row.ts）只有写进根清单才会进图。
 //      src/client/** 不进这个图：那里每个 .ts 旁边都有一份构建生成的同名 .js，
 //      同一个逻辑模块会在图里出现两次（真源一次、产物一次），引用边会重复计数。
 //   2. tsPreCompilationDeps 开着：类型级别的 import（import type）也算一条引用边。
@@ -151,6 +153,8 @@ module.exports = {
 
     // ── 纯规则侧只许算，不许碰世界（#1039 的 #1108 定版：纯侧不许引宿主能力）──────────────
     // src/deck/rules/ 是「纯规则侧」：只做计算，不取会话、不起进程、不读写文件、不读钟。
+    // 往外只许引一样东西：契约层 src/tracker/contract/（纯类型与数据，没有运行时实现）——
+    // 「纯规则只引用契约接口，不深引用房间与宿主能力」是 #1038 第 4 条与 #1108 架构条的原话。
     // 这条规矩在 #1038 定版时靠约定与代码评审守；这里把它变成机器判据 —— 引用方向这一面由下面两条守，
     // 全局调用那一面（Date.now()、Math.random()、fetch() 这类没有 import 边的写法）由
     // tests/verify-1039-rules-pure.ts 的文本扫描守。两层都要有：光有文本扫描漏 import 边，
@@ -163,9 +167,11 @@ module.exports = {
       name: 'deck-rules-stay-pure',
       severity: 'error',
       comment:
-        '纯规则侧（src/deck/rules/）只许做计算，不许引宿主侧代码：src/host（宿主层）、src/tracker（追踪器：'
-        + '契约、注册表、房间实现）、src/client（界面）、src/seam（接缝），以及同一棵 deck 树里的'
-        + ' shell / tools / registration —— 这三处正是「碰世界」的那一侧（取会话、起进程、注册工具）。'
+        '纯规则侧（src/deck/rules/）只许做计算，不许引宿主能力：src/host（宿主层）、src/tracker 里除'
+        + '契约层以外的部分（注册表、房间实现）、src/client（界面）、src/seam（接缝），以及同一棵 deck'
+        + '树里的 shell / tools / registration —— 这几处正是「碰世界」的那一侧（取会话、起进程、注册工具）。'
+        + '契约层 src/tracker/contract/ 是唯一放行的往外引用：它是纯类型与数据、没有运行时实现，'
+        + '纯侧引它不算碰世界（#1038 第 4 条与 #1108 架构条：纯规则只引用契约接口）。'
         + '需要外部数据一律由调用方当参数传进来（本层的 workspace-file.ts 就是这么接编解码器的）。',
       from: { path: '^src/deck/rules/' },
       to: {
@@ -176,6 +182,10 @@ module.exports = {
           '^src/seam/',
           '^src/deck/(shell|tools|registration)/',
         ],
+        // 契约层放行（#1038 第 4 条与 #1108 架构条：「纯规则只引用契约接口，不深引用房间与宿主能力」）。
+        // 写法选 pathNot 而不是把 ^src/tracker/ 拆成一串具体子目录：禁的是「追踪器里除契约以外的部分」
+        // 这件事本身，将来 tracker 下新增目录会自动落进禁列，不会因为漏写一个新目录而悄悄放行。
+        pathNot: '^src/tracker/contract/',
       },
     },
     {

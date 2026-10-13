@@ -43,8 +43,11 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url))
 // 与两条老门禁的扫描域逐字相同：只看这三棵树。src/client/** 不进图（那里同名 .js 是构建产物，会重复计数）。
 const SCAN_TREES = ['src/host', 'src/shared', 'src/seam']
 // 第四棵树是「有就扫、没有也不算缺」：src/deck/ 是把 deck 业务代码搬过去之后的目标树
-// （CONTEXT.md 的 deck 重构词条里写着它的位置），今天还没有。它一旦出现就应该自动进图，
-// 否则 .dependency-cruiser.cjs 里那条 deck-deep-import 规则永远没有判据可判。
+// （CONTEXT.md 的 deck 重构词条里写着它的位置）。实测它多数文件本来就会被 src/host/tools/**
+// 的 import 边带进图里（37 个里 35 个），只有 src/deck/rules/index.ts 与
+// src/deck/registration/agent-row.ts 两个叶子文件必须写进根清单才进得来。
+// 所以这里的作用不是「让规则第一次有判据可判」，而是让「图是完整的」不依赖「import 边碰巧够长」：
+// 以后往 deck 里加一个没人引用的新文件，它也会自动进图、自动受 deck 深引与纯规则侧两条管。
 const OPTIONAL_TREES = ['src/deck']
 const CONFIG_REL = '.dependency-cruiser.cjs'
 const BASELINE_REL = 'tests/same-layer-baseline.json'
@@ -348,7 +351,7 @@ function selfCheck(): void {
 // 纯规则侧两条规则的夹具（#1039：判据先自己证明会红，再去判真仓库）
 // ---------------------------------------------------------------------------
 
-type PurityRule = { name?: string, severity?: string, from?: { path?: string }, to?: { path?: string[], dependencyTypes?: string[] } }
+type PurityRule = { name?: string, severity?: string, from?: { path?: string }, to?: { path?: string[], pathNot?: string, dependencyTypes?: string[] } }
 
 /**
  * 取配置里那条规则；没有就返回 null（调用方判红）。
@@ -365,9 +368,16 @@ function purityRule(name: string): PurityRule | null {
   return (config.forbidden || []).find((r) => r && r.name === name) || null
 }
 
-/** 把一条规则的 to.path 模式拿去试一个目标路径：命中就说明这个方向会被判红。 */
+/**
+ * 把一条规则的 to 判据拿去试一个目标路径：命中就说明这个方向会被判红。
+ * path 命中、pathNot 不命中 —— 两个条件都要模拟（契约层就是靠 pathNot 放行的）。
+ * 为什么必须模拟 pathNot：少了这一步，夹具会把「规则已经放行契约层」读成「还禁着」，
+ * 夹具的结论就与真仓库里引擎的结论相反 —— 那种绿比红更危险，因为它会掩盖一次误伤。
+ */
 function purityRuleCatches(rule: PurityRule | null, target: string): boolean {
   const patterns = (rule && rule.to && rule.to.path) || []
+  const notPattern = (rule && rule.to && rule.to.pathNot) || ''
+  if (notPattern && new RegExp(notPattern).test(target)) return false
   return patterns.some((p) => new RegExp(p).test(target))
 }
 
@@ -430,12 +440,19 @@ function selfCheckPurityRules(): void {
     if (!purityRuleCatches(pure, target)) pass('不误伤：' + target + '（纯侧内部与共享层照旧可引）')
     else fail('误伤：' + target + ' 不该被 deck-rules-stay-pure 判红')
   }
-  // 追踪器整棵都在禁列里，契约层也不例外：纯侧要后端能力时，由宿主侧把能力当参数递进来
-  // （#1038 定版：纯侧不连宿主）。所以这里断言的是「连契约层也判红」，不是「放行」。
-  if (purityRuleCatches(pure, 'src/tracker/contract/deck.ts')) {
-    pass('会判红：纯规则侧引 src/tracker/contract/deck.ts（追踪器整棵都在禁列，能力由宿主侧递进来）')
+  // 契约层是唯一放行的往外引用（#1038 第 4 条与 #1108 架构条：「纯规则只引用契约接口，
+  // 不深引用房间与宿主能力」）。这条断言曾经写反过：当时按「追踪器整棵都禁」来断言，
+  // 结果是门禁会拦住规范明确要求放行的那一种引用，纯侧想按契约写类型只能自己手抄一份 ——
+  // 而本图的目的是「规则只有一份」，手抄正是要消灭的东西。现在两面都断言。
+  if (!purityRuleCatches(pure, 'src/tracker/contract/deck.ts')) {
+    pass('放行：纯规则侧引 src/tracker/contract/deck.ts（契约层是纯类型与数据，规范明确允许）')
   } else {
-    fail('漏判：纯规则侧引 src/tracker/contract/deck.ts 应当判红')
+    fail('误伤：纯规则侧引 src/tracker/contract/deck.ts 不该判红（#1038 第 4 条与 #1108 架构条要求放行契约接口）')
+  }
+  if (pure && pure.to && pure.to.pathNot === '^src/tracker/contract/') {
+    pass('契约层放行写在 to.pathNot 上：tracker 下将来新增的目录自动落进禁列，不会漏放')
+  } else {
+    fail('deck-rules-stay-pure 的 to.pathNot 不是契约层：放行契约这条判据被删或改宽了')
   }
   if (!purityRuleCatches(pure, 'node:fs') && !purityRuleCatches(pure, 'path')) {
     pass('内置模块不由「不许引宿主目录」那条管（两条规则各管一面，合起来才是完整判据）')
