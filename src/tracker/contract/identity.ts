@@ -13,15 +13,16 @@
  * 本地 Markdown」。它们敢这么写，唯一的原因是有一份承诺摆在这里：不管哪个房间接手，
  * 都回答同样的方法、收同样的参数、回同样的形状。这份承诺就是本目录。
  *
- * 今天运行时的真源仍是 `src/host/tracker/contract.js` 与它的三份续篇（JSDoc 版）；
- * 本目录是它的 TypeScript 版本，两者暂时并存：**改一处必须改另一处**，直到 contract.js 退休。
+ * 旧的 JSDoc 真源（`src/host/tracker/contract.js` 与它的三份续篇）已在 #1019 退休，
+ * 值住进了本目录：本目录就是唯一的真源，没有第二份手写副本。
  */
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 一、身份与枚举：一律写成开放 string 或字面量联合，不写 enum
 //
 // 为什么不用 TypeScript 的 enum：enum 会产出运行时代码（多一个对象、多一层查找），
-// 而本目录要守住「零运行时实现」——真源仍是 constants.js 里的 Object.freeze 常量。
+// 而本目录要守住「零运行时实现」——同目录 `vocabulary.ts` 里的 `Object.freeze` 常量
+// 就是这些联合在运行时的那一份值（同一份取值，两处写法，改一处必须改另一处）。
 // 用字面量联合的好处是编译期能查错，运行时一个字节都不多。
 // 为什么 BackendId 是开放 string 而不是 'github'|'markdown'|'gitlab'：第三方后端要能注册，
 // 写死三个就把门焊死了（'other' 这个保留串已弃用，不注册）。
@@ -52,7 +53,8 @@ export type ClosedReason = string
 export type ActorKind = string
 
 /**
- * 操作失败的分类，取值与 `src/shared/tracker/constants.js` 的 `ERROR_KIND` 逐字一致：
+ * 操作失败的分类（本目录与 `vocabulary.ts` 的 `ERROR_KIND` 同一份取值，两种写法：
+ * 这里是字面量联合（类型），那里是冻住的对象（值）。改一处必须改另一处）。
  * - `env` 本机环境缺东西（工具没装、路径不存在）
  * - `auth` 没登录、凭据失效、没有权限
  * - `rate-limit` 被限流（注意是小写短横线，旧写法 `rateLimit` 已废弃）
@@ -63,7 +65,7 @@ export type ActorKind = string
  * - `parse` 拿回来的东西解析不了
  *
  * 分类决定界面怎么说话（引导登录 / 提示稍后 / 说明做不到），所以**不许新增取值**；
- * 真要加，先改 constants.js 与这份联合类型，两处一起。
+ * 真要加，本文件这份联合与 `vocabulary.ts` 的 `ERROR_KIND` 两处一起改。
  */
 export type ErrorKind =
   | 'env'

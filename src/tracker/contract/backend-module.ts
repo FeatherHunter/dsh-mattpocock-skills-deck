@@ -220,12 +220,15 @@ export interface BackendModule {
 
   /**
    * 注入给会话的文案数据：词条键 → 该键的内容。
-   * 两种真实形状并存，所以值写成联合而不是只认一种：
+   * 三种真实形状并存，所以值写成联合而不是只认一种：
    * - 双语全文 `{ zh, en }`（多数词条是这种）；
    * - 命令词表 `{ cli, cliBrand }`（GitHub 房给 `cli: 'gh'`、本地 Markdown 房给 `cliBrand: '本地 Markdown'`，
    *   两个键都不是双语文案）。按只认 `{zh,en}` 写，两房照原样实现会因多余属性当场编译不过。
+   * - 错误类目词表（GitHub 房的 `errorKinds`）：键是错误类目（`no-git` / `network` 等），
+   *   值是双语文案。面板按类目取文案（见 `slotRenderer-repo-sync.js` 与 `NoRepoCard.js`），
+   *   契约不认它，探针会把真实现当场打红——2026-10-13 探针真打红过一次，补上这一种。
    */
-  prompts?: Record<string, { zh: string; en: string } | { cli?: string; cliBrand?: string }>
+  prompts?: Record<string, { zh: string; en: string } | { cli?: string; cliBrand?: string } | Record<string, { zh: string; en: string }>>
 
   /** 这个后端自己的检查目录（见 `RoomCheckEntry`）。 */
   checks?: RoomCheckEntry[]

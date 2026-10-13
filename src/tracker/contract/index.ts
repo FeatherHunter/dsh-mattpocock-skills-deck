@@ -15,6 +15,7 @@
  */
 
 import { STATE, ISSUE_TYPE, ERROR_KIND, CONTRACT_VERSION } from './vocabulary.js'
+import { OPERATIONS as CATALOG_OPERATIONS } from './operations-catalog.js'
 
 /**
  * Tracker 接口。实现方（后端适配器）应提供需要的操作；不能实现的按规则返回 unsupported
@@ -53,25 +54,16 @@ import { STATE, ISSUE_TYPE, ERROR_KIND, CONTRACT_VERSION } from './vocabulary.js
 /**
  * 操作名清单（= OpName；能力零声明，只有动词）。
  * 无 detect（身份=matches+select+describe）；无 snapshot/children（宿主编排便利，非契约）。
- * @typedef {'preflight'|'list'|'counts'|'listPage'|'get'|'getDependencies'|'create'|'close'|'reopen'|'comment'|'update'|'setLabels'|'setAssignees'|'setParent'|'setBlockedBy'|'getCurrentUser'|'initProject'|'listLabels'|'setLabelColors'} OpName
+ *
+ * 单源说明：数组字面量只在 `operations-catalog.ts` 写一次（它是名录的唯一真源，
+ * `operations.ts` 的 `OpName` 也从它生成）。这里只转出口径——注册表与 `TRACKER_CONTRACT`
+ * 过去读的一直是 `readonly string[]` 这一口径（原来那份 `Object.freeze` 的结果），直接把窄元组
+ * 转出去会让 `OPERATIONS.includes(某个字符串)` 这类调用在类型上变窄而编译不过，
+ * 所以这里标宽到 `readonly string[]` 再转出。值与原来那份逐字相同（下面有门禁断言守着 19 个名字）。
+ * `Object.freeze` 留着：原来那份就是冻住的，金标准夹具断言它冻住（改了口径不改行为）。
+ * 冻的是同一份数组（名录那份），不产生第二份拷贝。
  */
-export const OPERATIONS = Object.freeze([
-  'preflight', 'list', 'get', 'getDependencies',
-  'create', 'close', 'reopen', 'comment',
-  'update', 'setLabels', 'setAssignees', 'setParent', 'setBlockedBy',
-  'getCurrentUser',
-  'initProject',
-  // #627 新增两条（标签配色）。加进本清单的作用：注册表会自动给没实现它们的后端补一个
-  // 「做不到」的桩（registryShape.js 的 unsupportedStub），所以不需要兼容层，也不会碰坏现有后端。
-  'listLabels', 'setLabelColors',
-  // #689 新增一条（后端计数）。加进本清单的作用与上面两条相同：注册表自动给没实现它的后端补桩，
-  // 界面按「做不到」退化（G5：不做能力表）。语义见下方「计数契约」。
-  'counts',
-  // #690 新增一条（按页取票）。同上：没实现它的后端由注册表补桩，界面按「做不到」退化 ——
-  // 那正是「这个后端只能在它自己的网页上看全部」这句提示的来路，不做能力表。
-  // 语义见同目录的 contract-page.js（「分页契约」）。
-  'listPage',
-])
+export const OPERATIONS: readonly string[] = Object.freeze(CATALOG_OPERATIONS)
 
 /**
  * 统一错误形状（所有操作失败都归一化成这个，**返回**不 throw）。

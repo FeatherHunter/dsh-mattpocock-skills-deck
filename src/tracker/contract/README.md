@@ -64,15 +64,16 @@ GitHub 房与本地 Markdown 房用 `implements Tracker` 去实现，少一个�
   2026-10-12 补丁时改成建模为可选成员 —— 理由是不建模的话，房间照原样实现时这两个键会因
   多余属性检查当场报错，迁移第一步就卡住。
 
-## 与今天的运行时真源的关系（迁移期必读）
+## 与今天的运行时真源的关系（迁移完成，必读）
 
-今天运行时的真源仍然是 `src/host/tracker/contract.js` 与它的三份续篇
-（`contract-label-colors.js`、`contract-page.js`、`contract-idempotency.js`），用的是 JSDoc。
-本目录是它的 TypeScript 版本，**语义一个字都没改，只换了写法**。两个版本暂时并存：
+运行时的 JSDoc 真源（`src/host/tracker/contract.js` 与它的三份续篇）已在 #1019 退休，
+值住进了本目录：**本目录就是唯一的真源**，没有第二份手写副本。注册表按本目录的
+`OPERATIONS` 给没实现的后端补「做不到」的桩（`registryShape.js` 的 `unsupportedStub`）。
 
-- 改形状或改操作签名 = **两处一起改**（这一条是迁移期的硬要求，漏一处就是两套承诺）。
-- 运行时那份什么时候退休，由迁移批次定；本目录不产出任何 `.js`，所以现在没有任何东西会
-  自动引用它 —— 这也意味着**它出错不会当场炸，只会让将来迁移时对不上**，所以更要靠审查。
+- 改形状或改操作签名 = 改本目录（操作名只改名录一处，类型跟着变）。
+- 本目录不产出任何 `.js` 给构建拼（拼接拼的是构建机生成的
+  `src/tracker/contract/vocabulary.js`，那是产物、不入库），但宿主在开发态经装载钩子
+  直接读本目录的 `.ts` 真源——它出错，开发态当场就能看见。
 
 ## 怎么自检
 
@@ -108,7 +109,7 @@ npx tsc -p tsconfig.contract.json
   共 20 个成员）、房间能拿出来的那份（`RoomOperations`）、两个房内扩展（`GitHubRoomExtension`、
   `MarkdownRoomExtension`）、实例旁路口（`RoomAuxiliaries`）、房间私有解析口的参数（`MarkdownParseMeta`）。
 - `operations-catalog.ts` —— **操作名录单源**：19 个操作名的 `as const` 数组；`operations.ts` 的
-  `OpName` 由它生成（`typeof OPERATIONS[number]`），不再手抄一份联合类型。
-  迁移期它与运行时 `src/host/tracker/contract.js` 的 `OPERATIONS` 暂时并存，两边同集由门禁第四项守着。
+  `OpName` 由它生成（`typeof OPERATIONS[number]`），`index.ts` 的 `OPERATIONS` 从它转出
+  （同一份数组、同一个引用，注册表读的那一份）。加一条操作只改这里一处。
 - `backend-module.ts` —— 模块对象形状：`id` / `label` / `create` / `matches` 四件套，
   加品牌色板、设置页文案键、链接模板、界面能力位、检查目录、修复知识、默认调色盘。
