@@ -29,7 +29,7 @@
  */
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync, rmSync, cpSync, utimesSync } from 'node:fs'
 import { createHash } from 'node:crypto'
-import { dirname, resolve, join } from 'node:path'
+import { dirname, resolve, join, relative } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
 import vm from 'node:vm'
@@ -42,7 +42,7 @@ import { bundleEntryPanel } from './bundle-update-entry.mjs'
 // 现在收成 scripts/lib 里的一份共用实现（transpile-domains.mjs），由本条命令统一驱动。
 // 这样「谁写产物」只有一处：构建。做法与为什么这么做写在那个文件里。
 import { buildDomain, findDomains } from './lib/transpile-domains.mjs'
-import { TRANSPILE_OPTIONS, inlineExportDeclarations } from './lib/transpile-unit.mjs'
+import { TRANSPILE_OPTIONS, inlineExportDeclarations, generatedHeader } from './lib/transpile-unit.mjs'
 
 // 域里允许住**手写**的 .js（没有同名源码，也不是构建产出）。今天只有这三份，
 // 都在 #1023 之前就住在那里、行为与构建无关，所以点名列出，不靠扫描猜——
@@ -83,9 +83,11 @@ const INPUT_EXTRA = ['package.json', 'package/package.json', 'README.md', 'tscon
 const ARTIFACT_FILES = ['client.js', 'host.js', 'package/README.md']
 // package/lib 要整目录收进来：它下面除了两份入口，还有构建写出来的其他镜像，
 // 而 verify-log-artifacts 比的是「package/lib 里的镜像 vs src 里的真源」，两边必须一起提 mtime。
+// #1018 起 package/deck 与 package/tracker 也是构建写出来的镜像（新树转译投放），
+// 同理收进来，否则缓存会把「新树产物缺了」误判成命中而跳过构建。
 // 从前这里还列着 src/host/logPkg（上游日志包在本仓源码树里的副本）；#1016 把宿主日志改成直接取用
 // 已安装的 dsh-log 包之后，src/ 下不再有那份副本，这一项跟着删掉。
-const ARTIFACT_DIRS = ['package/lib', 'scripts/generated', 'package/scripts', 'package/bundled-skills']
+const ARTIFACT_DIRS = ['package/lib', 'package/deck', 'package/tracker', 'scripts/generated', 'package/scripts', 'package/bundled-skills']
 
 /** 派生文件的标记：这些文件是构建写出来的，不算输入（否则构建一跑，指纹就自己变了，缓存永远命中不了）。 */
 function looksDerived(abs) {
@@ -550,9 +552,12 @@ const KERNEL_MODULES = [
  *  S2（#452）已拆成标题、跟踪、归属 3 个文件，此处记 3 个拼接项与 3 个标记位（做法见 #443 票内接线图）。
  *  跟踪与归属文件内复刻的标题小函数改了名前缀，拼回同一个界面闭包时不与标题文件重名。 */
 const SHARED_SPLICE = [
-  // effort 维度（2026-09-09）：票身份算法（effortOf / idOf / idOfParts）与常量同住 constants.js，
+  // effort 维度（2026-09-09）：票身份算法（effortOf / idOf / idOfParts）与常量同住，
+  // #1019 搬家后真源是 src/tracker/contract/vocabulary.ts（与旧 constants.js 同名导出），
+  // 构建先把它逐文件转译成同目录的 vocabulary.js（见下面的 buildVocabularySpliceInput，
+  // 与四个计算域同模式：真源 .ts，产物 .js 并排、不入库），这里拼的是那份产物。
   // 面板侧要按 (effort, 编号) 定位，故把这份零依赖叶子一并拼进界面闭包（host 半走 import，同源同文本）。
-  { marker: '// ==== shared:trackerConstants (spliced by build) ====', file: 'src/shared/tracker/constants.js' },
+  { marker: '// ==== shared:trackerConstants (spliced by build) ====', file: 'src/tracker/contract/vocabulary.js' },
   // #668：首开引导链的步骤清单是「一份顺序、三处读它」里的那一份真源（规格见 #662「定版一」）。
   // 宿主按它给链快照排序（src/host/detectChain.js）；状态栏横幅与注入决策（#663 / #664）也要读它，
   // 所以这份零依赖清单必须拼进界面闭包 —— 客户端半边今天没有任何对 src/shared 的运行时 import。
@@ -790,6 +795,235 @@ ${PKG_CLIENT_SHIMS}
   return { devCode, pkgCode }
 }
 
+// ---------- 搬家跟随（#1018）：新树的转译与投放 ----------
+//
+// 为什么需要这一段：#1019 把一百多份模块搬进了新树（src/deck、src/tracker 全是 TypeScript，
+// src/host 里也多了 16 份 TypeScript），而构建还停在搬家之前——拼接登记指着旧路径（上面
+// SHARED_SPLICE 第一项），宿主复制整树照搬（含 TypeScript 源码），发布清单指着旧文件。
+// 这一段把三件事补上，源码一律不动（#1018 的边界：只动发布脚本与清单）：
+//
+// 一、词汇表拼接输入：src/tracker/contract/vocabulary.ts 是旧 constants.js 的改名後繼，
+//   导出名逐个相同、零依赖。构建把它转译成同目录的 vocabulary.js（机器生成头、不入库，
+//   忽略规则见根 .gitignore），SHARED_SPLICE 拼这一份。转译与四个计算域同口径（同一份
+//   转译参数，行首导出改写也调同一份实现），拼进闭包的形态与别家一致。
+//
+// 二、新树投放：package/ 按 src/ 的相对位置镜像（package/lib 对 src/host、package/deck
+//   对 src/deck、package/tracker 对 src/tracker；package/shared 对 src/shared 早就是这样），
+//   这样源码里以 .js 结尾的相对引用在包里原样成立，不用改源码。TypeScript 逐文件转译成
+//   JavaScript（只剥类型、不打包，引用原样保留），手写 JavaScript 直接复制。
+//   发布包的目录与入口登记见 package/package.json（files 加 deck、tracker 两项，
+//   exports 里 "./tools" 指到新位置）。
+//
+// 三、宿主引用改写：新树里有 6 处引用指回宿主树（src/tracker/index.ts 两处、
+//   src/tracker/rooms/github/client.ts 三处、src/tracker/detection/detectionService.ts 一处），
+//   在源码里它们写作 ../host/...，在包里宿主住在 package/lib，必须改写成 ../lib/...。
+//   改写只动转译产物的引用串，不动源码；改写逐条记日志，审计步骤逐条核对去向文件在不在盘上。
+//
+// 产物字节形态与四个计算域有一处不同：这里不做行首导出改写。原因是新树里有再导出
+// （export { 名字 } from），转译器把它们收成“文件头 import＋文件尾导出块”，
+// 改写函数只认“块里每个名字都能在同一份文件找到声明”这种情形，再导出的名字声明在别的文件，
+// 强行改写会抛错。而包内模块由 Node 直接加载，文件尾导出块是合法写法，不需要改。
+// 词汇表那一份要拼进闭包，所以它仍做改写（它没有再导出，形态与计算域产物一样）。
+//
+// 类型检查不在这里做：新树还没有自己的 tsconfig（ impairments 归 #1095 那条测试跟随线），
+// 这里只保证“转得过去、投得下去、引用落得到”。转译失败当场抛错，不静默跳过。
+const MOVED_TREE_MAP = [
+  { src: 'src/host', pkg: 'package/lib' },
+  { src: 'src/deck', pkg: 'package/deck' },
+  { src: 'src/tracker', pkg: 'package/tracker' },
+]
+
+/** 源码相对路径推包内相对路径：换树前缀、后缀 .ts 换 .js，别的都不动。 */
+function pkgPathForSrc(srcRel) {
+  const rel = srcRel.replace(/\\/g, '/')
+  for (const m of MOVED_TREE_MAP) {
+    if (rel === m.src || rel.startsWith(m.src + '/')) {
+      return m.pkg + rel.slice(m.src.length).replace(/\.ts$/, '.js')
+    }
+  }
+  throw new Error(`[moved-trees] 认不出这份文件属于哪棵新树：「${srcRel}」（只收 src/host、src/deck、src/tracker 三棵）`)
+}
+
+/** 扫出三棵新树里的 TypeScript 真源（不含纯类型声明），次序固定，日志可比对。 */
+function collectMovedTs() {
+  const out = []
+  for (const m of MOVED_TREE_MAP) {
+    const abs = resolve(ROOT, m.src)
+    if (!existsSync(abs)) continue
+    const walk = (d) => {
+      for (const ent of readdirSync(d, { withFileTypes: true })) {
+        const p = join(d, ent.name)
+        if (ent.isDirectory()) { walk(p); continue }
+        if (!ent.name.endsWith('.ts') || ent.name.endsWith('.d.ts')) continue
+        out.push(relative(ROOT, p).replace(/\\/g, '/'))
+      }
+    }
+    walk(abs)
+  }
+  return out.sort()
+}
+
+/**
+ * 把一份 TypeScript 转成包内 JavaScript 文本。转译参数与计算域、客户端像素段是同一份，
+ * 改一处三条流水线一起变。forSplice 给拼闭包的那一份用（行首导出改写），
+ * 包内运行的那一份不用（再导出的名字声明在别的文件，改写会抛错，理由见上面那段注释）。
+ */
+function transpileMovedTs(srcRel, { forSplice = false } = {}) {
+  const require = createRequire(resolve(ROOT, 'package.json'))
+  let esbuild
+  try { esbuild = require('esbuild') }
+  catch (e) { throw new Error('[moved-trees] 没装 esbuild（先跑 pnpm install 再构建）：' + ((e && e.message) || e)) }
+  const source = readFileSync(resolve(ROOT, srcRel), 'utf8')
+  let code
+  try { code = esbuild.transformSync(source, TRANSPILE_OPTIONS).code }
+  catch (e) { throw new Error(`[moved-trees] 转译失败 ${srcRel}：` + ((e && e.message) || e)) }
+  const normalized = code.replace(/\r\n/g, '\n').replace(/\s+$/, '') + '\n'
+  if (!forSplice) return generatedHeader(srcRel) + normalized
+  return generatedHeader(srcRel) + inlineExportDeclarations(normalized, '[moved-trees]')
+}
+
+/** 词汇表拼接输入就位：转译产物写到真源旁边（并排、不入库），拼接拼这一份。 */
+function buildVocabularySpliceInput() {
+  const srcRel = 'src/tracker/contract/vocabulary.ts'
+  const outRel = 'src/tracker/contract/vocabulary.js'
+  writeFileSync(resolve(ROOT, outRel), transpileMovedTs(srcRel, { forSplice: true }), 'utf8')
+  console.log(`[moved-trees] ${srcRel} -> ${outRel}（拼接输入就位）`)
+}
+
+/** 按段拼相对路径（源码引用串的算术，不读盘）。 */
+function resolveRelPosix(baseDir, spec) {
+  const parts = baseDir.split('/').filter((p) => p.length > 0)
+  for (const seg of spec.split('/')) {
+    if (seg === '' || seg === '.') continue
+    else if (seg === '..') parts.pop()
+    else parts.push(seg)
+  }
+  return parts.join('/')
+}
+
+/** 从包内目录看目标文件的相对路径（改写后的引用串）。 */
+function relativePosix(fromDir, toFile) {
+  const a = fromDir.split('/').filter((p) => p.length > 0)
+  const b = toFile.split('/').filter((p) => p.length > 0)
+  let i = 0
+  while (i < a.length && i < b.length && a[i] === b[i]) i++
+  const rel = [...Array(a.length - i).fill('..'), ...b.slice(i)].join('/')
+  return rel.startsWith('.') ? rel : './' + rel
+}
+
+const MOVED_SPEC_RE = /\bfrom\s*(['"])(\.[^'"]*)\1|import\s*\(\s*(['"])(\.[^'"]*)\3\s*\)/g
+
+/**
+ * 把转译产物里指向宿主树的引用串改到包内位置。只认“解出来落在 src/host/ 下”
+ * 的相对引用，别的原样保留。返回改写后的文本与改写清单（清单记日志备查）。
+ */
+function rewriteMovedSpecifiers(code, srcRel, outRel) {
+  const srcDir = srcRel.slice(0, srcRel.lastIndexOf('/'))
+  const outDir = outRel.slice(0, outRel.lastIndexOf('/'))
+  const rewrites = []
+  const next = code.replace(MOVED_SPEC_RE, (whole, q1, spec1, q2, spec2) => {
+    const spec = spec1 !== undefined ? spec1 : spec2
+    const resolved = resolveRelPosix(srcDir, spec)
+    if (!resolved.startsWith('src/host/')) return whole
+    const fixed = relativePosix(outDir, 'package/lib/' + resolved.slice('src/host/'.length))
+    // 宿主树内部的引用在镜像后串不变（例如 package/lib 内 ./refresh/x.js 仍是 ./refresh/x.js），
+    // 不记、不换，只改写真正换了位置的那几条（tracker、deck 里指回宿主的）。
+    if (fixed === spec) return whole
+    rewrites.push(`${spec} -> ${fixed}`)
+    return whole.replace(spec, fixed)
+  })
+  return { code: next, rewrites }
+}
+
+/**
+ * 递归复制手写 JavaScript。同目录有同名 TypeScript 的那份跳过——它是并排的转译产物，
+ * 归转译步骤写目标，这里再抄会把“谁写产物”变成两处（今天只有词汇表那一份）。
+ */
+function copyJsTree(srcAbs, dstAbs) {
+  let copied = 0
+  const copyOpts = { recursive: true, force: true }
+  const walk = (s, d) => {
+    mkdirSync(d, { recursive: true })
+    for (const ent of readdirSync(s, { withFileTypes: true })) {
+      const ps = join(s, ent.name)
+      const pd = join(d, ent.name)
+      if (ent.isDirectory()) { walk(ps, pd); continue }
+      if (!ent.name.endsWith('.js')) continue
+      if (existsSync(join(s, ent.name.slice(0, -'.js'.length) + '.ts'))) continue
+      cpSync(ps, pd, copyOpts)
+      copied++
+    }
+  }
+  if (existsSync(srcAbs)) walk(srcAbs, dstAbs)
+  return copied
+}
+
+/**
+ * 包内引用审计：lib、deck、tracker 三处产物里的相对引用，条条都要在包内落到实文件。
+ * 转译漏写、复制漏抄、源码引用了不存在的文件，都会在这里当场红，而不是等用户装机后失败。
+ *
+ * 只看真正的引用语句：先去掉块注释（JSDoc 里的 import() 类型注解不是引用，
+ * 例如客户端闭包里写给人看的 import('../../shared/...')），再跳过整行注释。
+ * 尾随在语句后面的行尾注释不影响（引用串在注释前面，照常扫到）。
+ */
+function auditPackageSpecifiers(dirs) {
+  const missing = []
+  for (const dir of dirs) {
+    const abs = resolve(ROOT, dir)
+    if (!existsSync(abs)) continue
+    const files = []
+    const walk = (d) => {
+      for (const ent of readdirSync(d, { withFileTypes: true })) {
+        const p = join(d, ent.name)
+        if (ent.isDirectory()) walk(p)
+        else if (p.endsWith('.js')) files.push(p)
+      }
+    }
+    walk(abs)
+    for (const f of files) {
+      const rel = relative(ROOT, f).replace(/\\/g, '/')
+      const relDir = rel.slice(0, rel.lastIndexOf('/'))
+      const text = readFileSync(f, 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .split('\n')
+        .filter((line) => !/^\s*\/\//.test(line))
+        .join('\n')
+      for (const m of text.matchAll(MOVED_SPEC_RE)) {
+        const spec = m[2] !== undefined ? m[2] : m[4]
+        const target = resolveRelPosix(relDir, spec)
+        const candidates = target.endsWith('.js') ? [target] : [target, target + '.js']
+        const hit = candidates.some((c) => {
+          try { return statSync(resolve(ROOT, c)).isFile() } catch { return false }
+        })
+        if (!hit) missing.push(`${rel} -> ${spec}`)
+      }
+    }
+  }
+  const uniq = [...new Set(missing)]
+  if (uniq.length > 0) {
+    throw new Error('[moved-trees] 包内相对引用有落空（转译或复制漏了文件）：\n  - ' + uniq.slice(0, 20).join('\n  - ') + (uniq.length > 20 ? `\n  - ……共 ${uniq.length} 条` : ''))
+  }
+  console.log(`[moved-trees] 包内引用审计通过（${dirs.join('、')}）`)
+}
+
+/** 新树投放：三棵树的 .ts 转译进包、手写 .js 复制进包，最后审计引用。幂等，可重跑。 */
+function deployMovedTrees() {
+  const sources = collectMovedTs()
+  let rewrote = 0
+  for (const srcRel of sources) {
+    const outRel = pkgPathForSrc(srcRel)
+    const { code, rewrites } = rewriteMovedSpecifiers(transpileMovedTs(srcRel), srcRel, outRel)
+    mkdirSync(dirname(resolve(ROOT, outRel)), { recursive: true })
+    writeFileSync(resolve(ROOT, outRel), code, 'utf8')
+    for (const r of rewrites) console.log(`[moved-trees] 改写 ${srcRel}：${r}`)
+    rewrote += rewrites.length
+  }
+  // gitlab 房的手写 .js（14 份）原样复制，保持相对位置；词汇表并排产物不归这里抄（见 copyJsTree）。
+  const copiedJs = copyJsTree(resolve(ROOT, 'src/tracker'), resolve(ROOT, 'package/tracker'))
+  console.log(`[moved-trees] 转译 ${sources.length} 份 TypeScript 进包（改写宿主引用 ${rewrote} 处），复制手写 JavaScript ${copiedJs} 份`)
+  auditPackageSpecifiers(['package/lib', 'package/deck', 'package/tracker'])
+}
+
 // ---------- 构建 host（方案 C 原样复制 · #136/#172） ----------
 async function buildHost({ version }) {
   const { header, body } = extractPluginBody('src/host/index.js')
@@ -800,27 +1034,35 @@ async function buildHost({ version }) {
   gatePrecheck(devCode, 'host-dev')
   write('host.js', devCode)
 
-  // ---- _pkg：原样复制（零打包）—— src/host 整树 → package/lib, src/shared → package/shared ----
-  // 幂等清理：先清旧产物再复制，确保双向差集 0；lib/client.js 工厂壳由 buildClient 负责，不在此删
+  // ---- _pkg：.js 原样复制＋.ts 转译投放 —— src/host 的手写 .js → package/lib，
+  //   三棵新树的 .ts 转译成 .js 进包（deployMovedTrees），src/shared → package/shared ----
+  // 幂等清理：先清旧产物再复制；lib/client.js 工厂壳由 buildClient 负责，不在此删
   const pkgLib = resolve(ROOT, 'package/lib')
   const pkgShared = resolve(ROOT, 'package/shared')
-  // 清理 package/lib 下的 host 树（保留 lib/client.js）
-  const toRemove = [
-    join(pkgLib, 'index.js'),
-    join(pkgLib, 'platform'),
-    join(pkgLib, 'tracker'),
-    // #1016：src/host/logPkg 已删（宿主日志改成直接取用已安装的 dsh-log 包），
-    // 这里要跟着清掉旧构建留下的 package/lib/logPkg。不清的话，它会作为「src 里没有、
-    // 包里还留着」的多余产物一直躺在发布包里，tests/verify-build-artifacts.js 的双向差集也会因此变红。
-    join(pkgLib, 'logPkg'),
-  ]
-  for (const p of toRemove) {
+  const pkgDeck = resolve(ROOT, 'package/deck')
+  const pkgTracker = resolve(ROOT, 'package/tracker')
+  // 清理 package/lib 下的 host 树（保留 lib/client.js）：从前只点名删 index.js、platform、
+  // tracker、logPkg 四处，搬家后 host 树里多了 refresh、outbound 与根上 7 份 .ts 的产物，
+  // 点名删会漏。改成“除 client.js 外全清”，再由复制与投放两步重写——产物要么是复制来的，
+  // 要么是转译来的，没有第三种来源，全清重写不会误删东西。
+  // #1016：src/host/logPkg 已删（宿主日志改成直接取用已安装的 dsh-log 包），
+  // 这里全清之后，旧构建留下的 package/lib/logPkg 也一并消失，不会再作为多余产物躺在包里。
+  if (existsSync(pkgLib)) {
+    for (const ent of readdirSync(pkgLib)) {
+      if (ent === 'client.js') continue
+      try { rmSync(join(pkgLib, ent), { recursive: true, force: true }) } catch {}
+    }
+  }
+  for (const p of [pkgShared, pkgDeck, pkgTracker]) {
     try { rmSync(p, { recursive: true, force: true }) } catch {}
   }
-  try { rmSync(pkgShared, { recursive: true, force: true }) } catch {}
   mkdirSync(pkgLib, { recursive: true })
   mkdirSync(pkgShared, { recursive: true })
-  // 复制 src/host → package/lib（逐文件 sha256 一致）
+  mkdirSync(pkgDeck, { recursive: true })
+  mkdirSync(pkgTracker, { recursive: true })
+  // 复制 src/host → package/lib：只收 .js。搬家后 src/host 里住进了 16 份 .ts 真源，
+  // 整树照搬会把源码带进发布包；.ts 的包内产物由下面的 deployMovedTrees 转译写入。
+  // 同目录有同名 .ts 的 .js 是并排转译产物（今天没有，防御性跳过），归转译步骤写。
   const srcHost = resolve(ROOT, 'src/host')
   // Node 16.7+ cpSync 原生支持；fall back 手写
   const copyOpts = { recursive: true, force: true }
@@ -846,33 +1088,44 @@ async function buildHost({ version }) {
   }
   try {
     if (typeof cpSync === 'function') {
-      // 复制 src/host/* 到 package/lib/*
-      const entries = readdirSync(srcHost, { withFileTypes: true })
-      for (const ent of entries) {
-        const s = join(srcHost, ent.name)
-        const d = join(pkgLib, ent.name)
-        cpSync(s, d, copyOpts)
+      // 复制 src/host → package/lib（只收 .js，逐文件内容一致；.ts 由投放步骤转译写入）
+      const copyHostJs = (s, d) => {
+        for (const ent of readdirSync(s, { withFileTypes: true })) {
+          const ps = join(s, ent.name)
+          const pd = join(d, ent.name)
+          if (ent.isDirectory()) { copyHostJs(ps, pd); continue }
+          if (!ent.name.endsWith('.js')) continue
+          if (existsSync(join(s, ent.name.slice(0, -'.js'.length) + '.ts'))) continue
+          mkdirSync(dirname(pd), { recursive: true })
+          cpSync(ps, pd, copyOpts)
+        }
       }
+      copyHostJs(srcHost, pkgLib)
       copySharedProducts(pkgShared)
     } else {
       throw new Error('cpSync unavailable')
     }
   } catch (e) {
-    // fallback 手写递归
+    // fallback 手写递归（同样只收 .js，.ts 由投放步骤转译写入）
     function cpRecur(src, dst) {
       const st = statSync(src)
       if (st.isDirectory()) {
         mkdirSync(dst, { recursive: true })
         for (const ent of readdirSync(src)) cpRecur(join(src, ent), join(dst, ent))
       } else {
+        if (!src.endsWith('.js')) return
+        if (existsSync(src.slice(0, -'.js'.length) + '.ts')) return
         mkdirSync(dirname(dst), { recursive: true })
         writeFileSync(dst, readFileSync(src))
       }
     }
-    const entries = readdirSync(srcHost, { withFileTypes: true })
-    for (const ent of entries) cpRecur(join(srcHost, ent.name), join(pkgLib, ent.name))
+    cpRecur(srcHost, pkgLib)
     copySharedProducts(pkgShared)
   }
+  // 新树投放：三棵树的 .ts 转译进包、tracker 手写 .js 复制进包、包内引用逐条审计。
+  // 放在复制之后、校验之前：投放失败（转译不过、引用落空）当场抛错，不进 fallback
+  // （fallback 只管“复制工具不可用”这一种故障，内容问题重跑复制也一样）。
+  deployMovedTrees()
   // 校验：package/lib/index.js 必须与 src/host/index.js 逐字节一致（零打包不变量）
   try {
     const a = readFileSync(resolve(ROOT, 'src/host/index.js'), 'utf8')
@@ -930,6 +1183,8 @@ async function buildHost({ version }) {
     }
     touch(pkgLib)
     touch(pkgShared)
+    touch(pkgDeck)
+    touch(pkgTracker)
     touch(pkgScripts)
   } catch {}
 
@@ -947,7 +1202,7 @@ async function buildHost({ version }) {
     if (existsSync(dir)) walk(dir)
     return out
   }
-  const allHostJs = collectJs(pkgLib).concat(collectJs(pkgShared))
+  const allHostJs = collectJs(pkgLib).concat(collectJs(pkgShared), collectJs(pkgDeck), collectJs(pkgTracker))
   for (const f of allHostJs) {
     const r = spawnSync(process.execPath, ['--check', f], { encoding: 'utf8' })
     if (r.status !== 0) throw new Error(`[L1] node --check 失败 ${f}: ${r.stderr || r.stdout}`)
@@ -1099,6 +1354,11 @@ function checkPixelTs() {
 // 与三个核心一致放在两段派生之前：产物是闭包的输入，必须比闭包先就位。
 buildPixelTs()
 checkPixelTs()
+
+// #1018 词汇表拼接输入：产物是客户端闭包的输入，必须比 buildClient 先就位。
+// 包内投放（package/deck、package/tracker、package/lib 里的转译产物）由 buildHost 内的
+// deployMovedTrees 负责，那里包目录已经清好；这里只管拼闭包要用的并排那一份。
+buildVocabularySpliceInput()
 
 // #1016 两半版本一致断言：宿主那一半与客户端那一半必须来自同一个 dsh-log 版本。
 // 为什么必须有这一条：宿主侧从裸包名 'dsh-log/host' 取用（装机时按 package/package.json 里声明的版本解析），

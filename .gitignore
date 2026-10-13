@@ -42,8 +42,9 @@ _research/
 /scripts/generated/updateEntryPanel.bundle.js
 
 # ===== 逐文件转译出来的 .js 也不入库（#1023 第三刀）=====
-# 两类生成物都在这儿：src/shared/<功能名>/ 下由 scripts/lib/transpile-domains.mjs 从 .ts 转译出来的，
-# 与 src/client/{views,kernel}/ 下由 scripts/build.mjs 的 pixel-ts 那一段转译出来的。
+# 三类生成物都在这儿：src/shared/<功能名>/ 下由 scripts/lib/transpile-domains.mjs 从 .ts 转译出来的，
+# src/client/{views,kernel}/ 下由 scripts/build.mjs 的 pixel-ts 那一段转译出来的，
+# 与 src/tracker/contract/vocabulary.js（#1018：拼闭包用的词汇表产物，真源是同名 .ts）。
 # 为什么入库改成不入库：真源是同名 .ts，构建是唯一的写者；入库会让「改了源码忘了重建」变成
 # 一次静默的假绿（跑测试时比对的其实是签入的那份旧字节）。
 #
@@ -54,6 +55,7 @@ _research/
 !/src/shared/refresh/chain-ride.js
 !/src/shared/refresh/refusal-text.js
 !/src/shared/version-control/exec-envelope.js
+/src/tracker/contract/vocabulary.js
 /src/client/kernel/locale-cards.js
 /src/client/kernel/locale-skilldetail.js
 /src/client/views/SkillsTab.js
@@ -62,6 +64,9 @@ _research/
 /src/client/views/cards/
 # 发布包里的共享产物是构建从 src/shared 复制过去的镜像，同样不入库
 /package/shared/
+# #1018：新树投放的包内产物（构建从 src/deck、src/tracker 转译复制过去的镜像），同样不入库
+/package/deck/
+/package/tracker/
 
 # 日志系统的编译产物不入库（发布前跑 build:dsh-log 本地生成，本地保留文件可跑测试）
 /packages/dsh-log/dist/

@@ -18,7 +18,7 @@
   "exports": {
     ".": "./lib/index.js",
     "./client": "./lib/client.js",
-    "./tools": "./lib/platform/deckToolsRow.js",
+    "./tools": "./deck/registration/agent-row.js",
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json"
   },
@@ -30,6 +30,8 @@
   "files": [
     "lib",
     "shared",
+    "deck",
+    "tracker",
     "cordis.patch.yml",
     "bundled-skills",
     "scripts/",
