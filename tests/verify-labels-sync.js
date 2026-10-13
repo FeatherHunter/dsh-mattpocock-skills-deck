@@ -15,7 +15,11 @@ check(fs.existsSync(sharedPath), 'src/tracker/contract/canonical-labels.ts 存�
 let srcTxt=''
 try{ srcTxt=fs.readFileSync(sharedPath,'utf8') }catch(e){ srcTxt='' }
 check(srcTxt.includes('CANONICAL_LABELS'), 'src/tracker/contract/canonical-labels.ts 含 CANONICAL_LABELS')
-check(srcTxt.includes('CANONICAL_LABEL_NAMES'), 'src/tracker/contract/canonical-labels.ts 含 CANONICAL_LABEL_NAMES')
+// 派生查询（名单/集合/子集函数）已按 #1026 搬出契约目录：名单断言改读新落点，数组本身仍在原文件。
+const namesPath = path.join(ROOT, 'src/tracker/label-names.ts')
+let namesTxt=''
+try{ namesTxt=fs.readFileSync(namesPath,'utf8') }catch(e){ namesTxt='' }
+check(namesTxt.includes('CANONICAL_LABEL_NAMES'), 'src/tracker/label-names.ts 含 CANONICAL_LABEL_NAMES（派生查询的新家）')
 
 // 2) 解析 CANONICAL_LABEL_NAMES（正则提取单引号/双引号包围的 name）
 const nameRe = /name:\s*['"]([^'"]+)['"]/g

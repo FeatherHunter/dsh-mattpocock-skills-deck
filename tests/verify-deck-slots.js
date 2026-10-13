@@ -150,7 +150,7 @@ try{
   const bothHaveSingle = remoteBlock.includes("single") && repoAccessBlock.includes("single")
   check(bothHaveSingle, 'gh:remote 与 gh:repoAccess 的 visibility 均为 single')
   // fixContract 存在且处理 form
-  const fc = file('src/tracker/contract/fixContract.ts')
+  const fc = file('src/tracker/fix-contract.ts')
   check(fc.includes('attachFixContract'), 'fixContract.js 含 attachFixContract')
   check(fc.includes("type === 'form'"), 'fixContract 处理 form 动作')
 }catch(e){ check(false, '后端 form 校验异常: '+e.message)}

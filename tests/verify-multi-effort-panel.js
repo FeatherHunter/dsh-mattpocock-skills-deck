@@ -19,6 +19,9 @@ import { pathToFileURL, fileURLToPath } from 'node:url'
 import { resolve } from 'node:path'
 // 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头（本文件是 ESM，用 import 取具名导出）。
 import { compileFn } from './lib/eval-probe.js'
+// 身份函数是全标注 TypeScript，沙箱跑裸 JS：转译口径取仓库唯一那一份
+// （scripts/lib/transpile-unit.mjs，手法照 tests/verify-deck-tools-row-zero-dep.js）。
+import esbuild from 'esbuild'
 
 const ROOT = resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 let failed = false
@@ -46,7 +49,7 @@ for (const [eff, mapTitle, ticket] of [['alpha', 'Alpha Map', 'Alpha First'], ['
 const ctx = { platform: plat, fs: plat.fs, cwd: tmp, get(name) { if (name === 'fs') return plat.fs; return undefined } }
 const { createMarkdownBackend } = await import(pathToFileURL(resolve(ROOT, 'src/tracker/rooms/markdown/index.ts')).href)
 const { createSnapshotComposer } = await import(pathToFileURL(resolve(ROOT, 'src/host/tracker/snapshot.js')).href)
-const { effortOf } = await import(pathToFileURL(resolve(ROOT, 'src/tracker/contract/vocabulary.ts')).href)
+const { effortOf } = await import(pathToFileURL(resolve(ROOT, 'src/tracker/identity-keys.ts')).href)
 const backend = createMarkdownBackend(ctx)
 const composer = createSnapshotComposer({ get: (id) => (id === 'markdown' ? backend : undefined) })
 const composed = await composer.composeSnapshot('markdown', { backend: 'markdown', refId: tmp, name: path.basename(tmp), url: '' }, ctx, { force: true })
@@ -61,7 +64,7 @@ const snapshot = { ok: true, maps: inner.maps, issues: [], labels: inner.labels 
 // ---------- 从面板源码里原文截出函数 ----------
 const rowSrc = fs.readFileSync(path.join(ROOT, 'src/client/views/ListTabRow.js'), 'utf8')
 const derivedSrc = fs.readFileSync(path.join(ROOT, 'src/client/kernel/store-derived.js'), 'utf8')
-const constantsSrc = fs.readFileSync(path.join(ROOT, 'src/tracker/contract/vocabulary.ts'), 'utf8')
+const constantsSrc = fs.readFileSync(path.join(ROOT, 'src/tracker/identity-keys.ts'), 'utf8')
 
 function extractConst(src, name) {
   const key = 'const ' + name + ' ='
@@ -79,10 +82,11 @@ function extractConst(src, name) {
   }
   throw new Error('截取失败 ' + name)
 }
+const tu = await import(pathToFileURL(resolve(ROOT, 'scripts/lib/transpile-unit.mjs')).href)
 const identitySrc = ['effortOf', 'idOfParts', 'idOf', 'refKeyOf'].map((n) => {
   const m = new RegExp('export function ' + n + '\\([\\s\\S]*?\\n\\}').exec(constantsSrc)
-  if (!m) throw new Error('constants.js 缺 ' + n)
-  return m[0].replace(/^export /, '')
+  if (!m) throw new Error('identity-keys.ts 缺 ' + n)
+  return esbuild.transformSync(m[0].replace(/^export /, ''), tu.TRANSPILE_OPTIONS).code
 }).join('\n')
 
 // ---------- ① 共享的按身份找地图（面板各处都调它，只此一份实现） ----------

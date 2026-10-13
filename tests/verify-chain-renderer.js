@@ -116,7 +116,7 @@ check(statusBar.includes("promptText('ghAuthLogin')") || statusBar.includes('ghA
 check(!statusBar.includes("openUrl('https://cli.github.com/manual/gh_auth_login')"), 'StatusBar 已删除 openUrl 硬编码')
 const ghBackend = file('src/tracker/rooms/github/index.ts')
 check(ghBackend.includes('ghAuthLogin'), 'github 后端 fixes 含 ghAuthLogin（bc72e16 迁移真源）')
-const fixContract = file('src/tracker/contract/fixContract.ts')
+const fixContract = file('src/tracker/fix-contract.ts')
 check(fixContract.includes('attachFixContract'), 'fixContract 存在并处理 prompt 解析')
 const host = file('src/host/index.js')
 check(host.includes('attachFixContract') || host.includes('fixContract') || host.includes("wf.chain"), 'host 已接入 fixContract / wf.chain（hint 不再硬编码在 host）')

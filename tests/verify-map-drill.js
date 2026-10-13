@@ -12,14 +12,20 @@
 // 用法: node tests/verify-map-drill.js（在插件根目录）
 const fs = require('fs')
 const { compileFn } = require('./lib/eval-probe.js')
+// 沙箱跑裸 JS，身份函数是全标注 TS：转译口径取仓库唯一那一份
+// （scripts/lib/transpile-unit.mjs，手法照 tests/verify-build-artifacts.js）。
+const esbuildForProbe = require('esbuild')
+const tuForProbe = require(require('path').resolve('scripts/lib/transpile-unit.mjs'))
 
 // effort 维度（2026-09-09）：面板里身份函数来自拼接进闭包的 shared/tracker/constants.js。
 // 本门禁把同一份原文取出来，拼进每个求值沙箱，保证「跑的是真函数」这条纪律不破。
-const constantsSrc = fs.readFileSync('src/tracker/contract/vocabulary.ts', 'utf8')
+// #1026：四个身份函数（effortOf / idOfParts / idOf，refKeyOf 另见 multi-effort-panel）
+// 已从契约目录搬到 src/tracker/identity-keys.ts（契约目录只留类型与数据），真源跟过去。
+const constantsSrc = fs.readFileSync('src/tracker/identity-keys.ts', 'utf8')
 const identitySrc = ['effortOf', 'idOfParts', 'idOf'].map((n) => {
   const m = new RegExp('export function ' + n + '\\([\\s\\S]*?\\n\\}').exec(constantsSrc)
-  if (!m) throw new Error('constants.js 缺 ' + n)
-  return m[0].replace(/^export /, '')
+  if (!m) throw new Error('identity-keys.ts 缺 ' + n)
+  return esbuildForProbe.transformSync(m[0].replace(/^export /, ''), tuForProbe.TRANSPILE_OPTIONS).code
 }).join('\n')
 // 面板里的「按身份找地图」已收进 store-derived.js 的共享函数，沙箱同样带真源码
 const derivedSrc = fs.readFileSync('src/client/kernel/store-derived.js', 'utf8')
