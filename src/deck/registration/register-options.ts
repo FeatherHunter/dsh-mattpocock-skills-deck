@@ -1,5 +1,6 @@
-// src/shared/deck-tools/agent-register.js —— 七个 deck_* 工具向 agent 注册的那一步（#741）
-// 七个工具的实现与宿主装配都在，agent 列表却看不见，因为从没人调过注册。
+// src/deck/registration/register-options.ts —— 九个 deck_* 工具向 agent 注册的那一步（#741）
+// （旧 src/shared/deck-tools/agent-register.js，#1019 机械搬家只挪位置不改行为。）
+// 九个工具的实现与宿主装配都在，agent 列表却看不见，因为从没人调过注册。
 // 住共享层因为两边都要用（宿主接线与 agent 行模块），四层各自内部禁互引，零导入是唯一的住法。
 // defineTool 由调用方传（生产是工具包，门禁用仓库开发依赖里的真实现）；传不进来走退路。
 // 日志沿用既有事件不新增（调用走 host.call，注册结果见 makeDeckRegisterReport）。
@@ -192,7 +193,7 @@ export function deckAgentOutputSpec() {
 /**
  * 输出的固定形状（退路用，直接交注册表）：内容与上面同一份，但写成原生模式——
  * 必填写成字符串数组挂在对象节点上。退路不经过定义函数的编译，
- * 上面那种按属性标必填的写法交过去会被注册表当场拒绝（七个一个都交不出去），
+ * 上面那种按属性标必填的写法交过去会被注册表当场拒绝（九个一个都交不出去），
  * 2026-09-26 真机验证时就是栽在这里。
  */
 export function deckAgentOutputSchemaRaw() {
@@ -382,7 +383,7 @@ export function makeDeckRegisterReport(logCtx) {
   }
 }
 /**
- * 自举钩子：接线装好表之后调一次，把七个工具交到 agent 手上（#741 缺的就是这一步）。
+ * 自举钩子：接线装好表之后调一次，把九个工具交到 agent 手上（#741 缺的就是这一步）。
  * ctx 是宿主上下文（工具服务从它身上取，取不到会等几轮）；
  * getTable 取已装好的那张表；loadDefineTool 拿工具包的定义函数（拿不到就走退路）。
  * report 可选：每到一个终点调一次（交出去/没交出去），接线拿它落日志。

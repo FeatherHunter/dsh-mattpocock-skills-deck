@@ -1,11 +1,12 @@
-// src/host/platform/deckToolsRow.js —— agent 层的行模块（#741）
+// src/deck/registration/agent-row.ts —— agent 层的行模块（#741）
+// （旧 src/host/platform/deckToolsRow.js，#1019 机械搬家只挪位置不改行为。）
 //
 // 这一行跑在 agent 层（官方教程的正规路：名字、注入工具服务、应用函数），
 // 与宿主插件那一行互不干扰。宿主插件里的兼容钩子留着（别的产品可能是同一容器）。
-// 住在平台区的原因与装配点一样：行模块要读七个工具文件里的定义，
+// 住在平台区的原因与装配点一样：行模块要读九个工具文件里的定义，
 // 宿主层的文件之间不许互相引用，平台区是被排除的位置。
 //
-// 七个工具的执行在代执行通道接通前用诚实占位（只回“还没接好”并指去面板），
+// 九个工具的执行在代执行通道接通前用诚实占位（只回“还没接好”并指去面板），
 // 另加一个探针工具回服务清单——通道设计就靠这份清单定，两个都是通道接通即退役。
 //
 // 为什么这里不引用工具包（零框架引用）：
@@ -31,7 +32,7 @@ import { awaitDeckTable, peekDeckTable, readDeckGate, noteDeckPath, readDeckPath
 export const name = 'dsh-mattpocock-skills-deck-tools'
 export const inject = ['tools']
 
-const SEVEN = [deckContextDef, deckIssueGetDef, deckMapSnapshotDef, deckIssueListDef, deckIssueCreateDef, deckMapPlanCreateDef, deckMapLinkDef, deckIssuePatchDef, deckIssueReportDef]
+const NINE = [deckContextDef, deckIssueGetDef, deckMapSnapshotDef, deckIssueListDef, deckIssueCreateDef, deckMapPlanCreateDef, deckMapLinkDef, deckIssuePatchDef, deckIssueReportDef]
 
 function isRecord(v) { return v !== null && typeof v === 'object' && !Array.isArray(v) }
 
@@ -40,6 +41,12 @@ function isRecord(v) { return v !== null && typeof v === 'object' && !Array.isAr
 // 共享层文件有单文件行数上限，探针细节住在行里，行仍在上限内。
 // 通道设计就靠这份清单定，通道接通即退役。
 const PROBE_KEY_LIMIT = 100
+
+// 探针干跑等表与代执行等格的两处上限（毫秒）：超时都按无表或无格跳过、走下一路，永不抛。
+// 干跑只看一眼不能久等，给 8000；同进程格是宿主装表直达的行内快路，给 25000，超时走直连与同源请求。
+// 两处数值与位置全冻（讨论 #1030 Q4）：改数字等于改失败路径证据，另立票才动。
+const BRIDGE_DRY_TABLE_WAIT_MS = 8000
+const DELEGATED_CELL_WAIT_MS = 25000
 
 function safeKeyList(obj, limit) {
   const cap = (typeof limit === 'number' && limit > 0) ? Math.floor(limit) : PROBE_KEY_LIMIT
@@ -117,7 +124,7 @@ async function probeDetails(ctx, exec) {
   try {
     const hint = sessionHintOf(exec)
     out.bridgeDryHint = !!hint
-    const table = hint ? await awaitDeckTable(8000) : null
+    const table = hint ? await awaitDeckTable(BRIDGE_DRY_TABLE_WAIT_MS) : null
     if (!table) { out.bridgeDryRun = hint ? 'no-table' : 'no-hint' }
     else {
       try { out.bridgeTools = Array.isArray(table.names) ? table.names.slice(0, 16) : [] } catch (eNames) { out.bridgeTools = [] }
@@ -293,7 +300,7 @@ function makeDelegatedExecute(toolName, ctx) {
     // 第一路：同进程共享格（宿主装表时放进来；跨进程时格子是空的，直接跳过）。
     try {
       if (peekDeckTable()) {
-        const table = await awaitDeckTable(25000)
+        const table = await awaitDeckTable(DELEGATED_CELL_WAIT_MS)
         const run = table && table.tools && table.tools[toolName] && table.tools[toolName].run
         if (typeof run === 'function') {
           const execLike = { agent: { session: { cwd: hint.cwd, id: hint.sessionId } } }
@@ -320,7 +327,7 @@ export function apply(ctx) {
   if (!ctx || !ctx.tools || typeof ctx.tools.register !== 'function') {
     throw new Error('[deckToolsRow] 工具服务不在，行起不来（注入声明了 tools，框架本应保证就绪）。')
   }
-  for (const d of SEVEN) {
+  for (const d of NINE) {
     const raw = toRawRegistration(d, ctx)
     if (!raw) continue
     try {

@@ -1,8 +1,9 @@
-// src/host/platform/deckExec.js —— 宿主代执行电话 wf.deckExec（#758）
+// src/deck/registration/host-delegate.ts —— 宿主代执行电话 wf.deckExec（#758）
+// （旧 src/host/platform/deckExec.js，#1019 机械搬家只挪位置不改行为。）
 //
-// 这一条电话只做一件事：替 agent 层把七个 deck 工具真正跑一次，
+// 这一条电话只做一件事：替 agent 层把九个 deck 工具真正跑一次，
 // 跑的还是宿主里那同一张表、同一份闸、同一个账本，不另起一本账。
-// 行模块能直发这条电话之前，七个工具在对话里只能回诚实占位；
+// 行模块能直发这条电话之前，九个工具在对话里只能回诚实占位；
 // 有了它，行模块把参数递过来，拿回去的是真结果。
 //
 // 住在平台区的原因与装配点一样：宿主层的文件之间不许互相引用，
@@ -56,7 +57,7 @@ export function createDeckExec(deps) {
 
     if (DECK_TOOL_ORDER.indexOf(tool) < 0) {
       fireFail('bad-tool:' + tool)
-      return unsupported(tool || 'deck', 'bad-args', '工具名不对，我没法做：请按七个 deck 工具的名字重调一次。')
+      return unsupported(tool || 'deck', 'bad-args', '工具名不对，我没法做：请按九个 deck 工具的名字重调一次。')
     }
     if (toolArgs === null || typeof toolArgs !== 'object' || Array.isArray(toolArgs)) {
       fireFail('bad-args')

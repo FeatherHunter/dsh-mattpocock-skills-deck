@@ -1,4 +1,5 @@
-// src/host/platform/deckToolsAssembly.js —— 九个 deck_* 工具在宿主里的装配点（#723 T19c · 第 D 件）
+// src/deck/registration/host-assemble.ts —— 九个 deck_* 工具在宿主里的装配点（#723 T19c · 第 D 件）
+// （旧 src/host/platform/deckToolsAssembly.js，#1019 机械搬家只挪位置不改行为。）
 //
 // 这个文件只做一件事：把 src/host/tools/ 下九个工具文件里的工厂函数读进来，交给共享层的装配口
 // createDeckTools（src/shared/deck-tools/plan.js）装成一张表 { 名字 → { definition, run } }。
@@ -7,7 +8,7 @@
 //
 // 为什么这个文件住在 src/host/platform/，而不是 src/host/tools/ 或 src/host/refresh/：
 //   同层互引门禁（tests/verify-dependency-rules.ts）把 src/host/ 整棵树算作「宿主层」，
-//   宿主层里的文件之间不许互相引用。七个工具文件都在宿主层里，所以「谁把这七个文件读进来」这件事
+//   宿主层里的文件之间不许互相引用。九个工具文件都在宿主层里，所以「谁把这九个文件读进来」这件事
 //   只要落在宿主层的文件上，就要新增 7 条同层引用边（本票的纪律是不许新增这 7 条）。
 //   同一份门禁把 src/host/platform/ 从宿主层里排除，并在文件头把它称作「平台装配扇出」——
 //   也就是说，需要一个「宿主内部的装配扇入点」时，它是 src/host 下唯一空着的位置

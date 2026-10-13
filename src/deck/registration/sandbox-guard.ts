@@ -1,4 +1,5 @@
-// src/host/platform/deckSandbox.js —— deck 工具与检查链共用的按调用现算许可（935）
+// src/deck/registration/sandbox-guard.ts —— deck 工具与检查链共用的按调用现算许可（935）
+// （旧 src/host/platform/deckSandbox.js，#1019 机械搬家只挪位置不改行为。）
 // 住在平台装配扇出层，供宿主层两处复用（refresh/wiring.js 的工具接线、index.js 的检查链接线），
 // 同层互引门禁把本目录排除在宿主层之外，所以两处引用本文件不新增宿主层内部边。
 // 口径与电话侧 resolveSandboxPolicy 同源：显式会话号优先，否则按工作区根找唯一归属会话；

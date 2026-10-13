@@ -1,9 +1,10 @@
-// src/host/platform/deckQuotaSync.js —— 剩余额度读数的那截接线（#758）
+// src/deck/registration/quota-sync.ts —— 剩余额度读数的那截接线（#758）
+// （旧 src/host/platform/deckQuotaSync.js，#1019 机械搬家只挪位置不改行为。）
 //
 // 只讲一件事：闸的裁决要看剩余额度，可剩余额度读数从没有任何一路写入
 // （账本的 syncDue / syncServer 都在，调它的生产代码一处都没有）。
 // 重启后剩余额度恒为零，读请求撞上保底线、工具调用撞上红档，
-// 七个工具在闸口就被诚实推迟——干跑码钓到的 gate-defer 就是它。
+// 九个工具在闸口就被诚实推迟——干跑码钓到的 gate-defer 就是它。
 //
 // 修法不是改裁决数字（那是定版政策，另立票才动），而是把设计好的同步接上：
 // 工具动手前先看账本差不差这一次读数，差就经闸打一次免费的 `gh api rate_limit`
