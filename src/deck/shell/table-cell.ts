@@ -48,15 +48,23 @@ export function peekDeckTable() {
   } catch (e) { return null }
 }
 
-/** 等表装好：超时就回空，调用方按原路退回，不抛。 */
-export function awaitDeckTable(timeoutMs) {
+// 缺省等待口：真定时器。只有这里碰全局时钟，注入 sleep 之后就绕开了它。
+function realSleep(ms) { return new Promise(function (resolve) { setTimeout(resolve, ms) }) }
+
+/**
+ * 等表装好：超时就回空，调用方按原路退回，不抛。
+ * opts.sleep 是等待口（缺省真定时器）：测试拿假时钟就能把「等不到」那条路走通。
+ */
+export function awaitDeckTable(timeoutMs, opts) {
   try {
     const peek = peekDeckTable()
     if (!peek) return Promise.resolve(null)
+    const o = opts || {}
+    const sleep = (typeof o.sleep === 'function') ? o.sleep : realSleep
     const cap = (typeof timeoutMs === 'number' && timeoutMs > 0) ? Math.floor(timeoutMs) : 25000
     return Promise.race([
       Promise.resolve(cell.promise).then(function (t) { return t || null }, function () { return null }),
-      new Promise(function (resolve) { setTimeout(function () { resolve(null) }, cap) }),
+      sleep(cap).then(function () { return null }, function () { return null }),
     ])
   } catch (e) { return Promise.resolve(null) }
 }

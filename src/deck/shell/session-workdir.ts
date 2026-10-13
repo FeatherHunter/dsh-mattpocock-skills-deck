@@ -3,16 +3,20 @@
 // 本文件零导入（共享层互引门禁），自带最小字符串与散列工具，与 shell.js 同款一行实现。
 // 归一出口 canonicalKey 由宿主注入（归一加锚根唯一实现）；缺席时沿用原始目录（旧门禁兼容）。
 // 归一在场却算不出规范根时如实失败，不凑钥匙。
+// 等待上限走注入的等待口 sleep（缺省真定时器）：测试能拿假时钟把 5 秒那条超时路走通，
+// 不必真等 5 秒；与「now 缺省 Date.now」同款，生产行为一字不变。
 function str(v) { return (typeof v === 'string') ? v : '' }
 function hash8(t) { let h = 5381; const s = String(t || ''); for (let i = 0; i < s.length; i++) h = (((h << 5) + h + s.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) }
 const NO_SESSION = 'no-session-context'
 // 归一等待上限（毫秒）：对手是挂住的文件服务。超时与抛错、空结果走同一条老路
 // （如实失败，不凑钥匙），与文件头“算不出规范根时如实失败”同形，不新增语义。
 const CANONICAL_TIMEOUT_MS = 5000
-function withCap(promise, ms) {
+// 缺省等待口：真定时器。只有这里碰全局时钟，注入 sleep 之后就绕开了它。
+function realSleep(ms) { return new Promise(function (resolve) { setTimeout(resolve, ms) }) }
+function withCap(promise, ms, sleep) {
   return Promise.race([
     Promise.resolve(promise).then(function (v) { return { ok: true, value: v } }, function () { return { ok: false } }),
-    new Promise(function (resolve) { setTimeout(function () { resolve({ ok: false, timedOut: true }) }, ms) }),
+    sleep(ms).then(function () { return { ok: false, timedOut: true } }),
   ])
 }
 export function sessionContextOf(exec, deps) {
@@ -30,11 +34,13 @@ export async function sessionContextOfAsync(exec, deps) {
   if (!base.ok) return base
   const d = deps || {}; const raw = base.cwd
   if (typeof d.canonicalKey !== 'function') return base
+  // 等待口：deps.sleep 缺席就用真定时器（生产默认），与 now 的缺席回退同款。
+  const sleep = (typeof d.sleep === 'function') ? d.sleep : realSleep
   let canon = ''
   try {
     // 调用递延进 promise 链：同步抛错也变成拒绝，走下面同一条如实失败路，
     // 与原来 try/await 同形（原来同步抛错也被 catch 接住）。
-    const raced = await withCap(Promise.resolve().then(function () { return d.canonicalKey(raw) }), CANONICAL_TIMEOUT_MS)
+    const raced = await withCap(Promise.resolve().then(function () { return d.canonicalKey(raw) }), CANONICAL_TIMEOUT_MS, sleep)
     // 超时、抛错都按算不出规范根走老路：如实失败，不凑钥匙、不沿用原文。
     if (!raced || raced.ok !== true) return { ok: false, reason: NO_SESSION, sessionId: base.sessionId, text: '这次没能把工作区目录归一到工作区根，所以我不动任何票。' }
     canon = raced.value

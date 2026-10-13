@@ -43,6 +43,8 @@ export const REFUSAL_REASONS = Object.freeze({
 
 function num(v) { return (typeof v === 'number' && isFinite(v)) ? v : 0 }
 function str(v) { return (typeof v === 'string') ? v : '' }
+// 缺省等待口：真定时器。只有这里碰全局时钟，deps.sleep 一注入就绕开了它。
+function realSleep(ms) { return new Promise(function (resolve) { setTimeout(resolve, ms) }) }
 function hash8(text) {
   let h = 5381
   const t = String(text || '')
@@ -76,6 +78,7 @@ export function limitsFromBudget(b) {
  *   backendCtx 可选，后端 ctx（platform / fs / exec 那一套）；不传时用 opCtx 顶上
  *   log        可选，日志出口 { fire }（写 host.call / host.call.fail 两行，不新增事件名）
  *   now        可选，取时间（测试注入假时钟）
+ *   sleep      可选，等待口：(毫秒) => Promise，缺省真定时器（测试注入假时钟，就不必真等 8 秒）
  *   invalidate 可选，写后失效缓存该票条目：invalidate({ repo, keys, backendId })
  *   ensureReading 可选，动手前保剩余额度读数：ensureReading(cwd, workspaceKey)，缺席时跳过
  *   resolveTimeoutMs 可选，仓库标识补全等待上限毫秒数（缺席 8000，测试可调小）
@@ -92,6 +95,7 @@ export function createDeckShell(deps) {
   const estimate = d.estimate
   const log = d.log || null
   const now = typeof d.now === 'function' ? d.now : Date.now
+  const sleep = typeof d.sleep === 'function' ? d.sleep : realSleep
   const limits = limitsFromBudget(budget)
 
   function fire(method, ms, ok, errorHash) {
@@ -223,7 +227,7 @@ export function createDeckShell(deps) {
               try {
                 key = await Promise.race([
                   Promise.resolve(tracker.getRepoKey(s.cwd, Object.assign({}, backendCtxNow(), { cwd: s.cwd, caller: DECK_TOOL_KIND }))),
-                  new Promise(function (resolve) { setTimeout(function () { resolve(null) }, capMs) }),
+                  sleep(capMs).then(function () { return null }, function () { return null }),
                 ])
               } catch (eResolve) { key = null }
               return { requests: 1, points: 0 }
