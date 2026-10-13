@@ -1,11 +1,12 @@
-// tests/verify-contract-types.js — 契约层类型门禁（deck 重构第二批 B 落地；拆分工加第四项，补判别力加第五、六项）
+// tests/verify-contract-types.js — 契约层类型门禁（deck 重构第二批 B 落地；#1026 收尾重定口径）
 //
 // 门禁归属: src/tracker/contract
 // 门禁归属: src/tracker/contract/index.ts
 // 为什么显式写这两条：契约目录的路径是 resolveInRoot(process.env.DSH_CONTRACT_DIR || 'src/tracker/contract')
-// 拼出来的，归属表按字面量路径认不出它，会把这 9 个契约文件算成「没人守」。这两条把归属钉死。
+// 拼出来的，归属表按字面量路径认不出它，会把这些契约文件算成「没人守」。这两条把归属钉死。
 //
-// 这个门禁替契约层守六件事，六件都过才算绿：
+// 这个门禁替契约层守八件事，八件都过才算绿：
+//   零、缺件即红：契约目录、tsconfig、operations.ts、两份贴合探针，少任何一样都判红。
 //   一、类型检查：用仓库 devDependencies 里的 typescript 跑一遍 `tsc -p tsconfig.contract.json`，
 //       零错误才算过；tsc 的输出原样透出，看错在哪一行不用再自己跑一遍。
 //   二、契约目录的文件一个都没漏编：自己列出契约目录下全部 .ts（`listTsFiles`），再拿
@@ -17,18 +18,28 @@
 //       全部出现，缺哪个报哪个（名字清单与 research/1010-deck-contract-surface.md 表 E2 的 19 项逐字一致）。
 //       为什么要读两份：拆分工把操作名改成「名录单源」——名字住在 operations-catalog.ts，
 //       operations.ts 只从它生类型；只扫一份会漏掉真正的住处。
-//   四、没有运行时实现：契约层只许有类型与数据，不许出现函数体实现、也不许引运行时模块
-//       （只许 `import type` 与逐项 `type` 前缀的内联写法）。发现就判红，并指出文件与行号。
-//   五、名录与运行时真源同集（迁移期临时项）：契约层的 OPERATIONS 名录与运行时
-//       src/tracker/contract/index.ts 的 OPERATIONS 数组必须同集 —— 注册表按后者给没实现的后端补桩，
-//       两边不一致就会出现「类型说有、注册表不补桩」，那种错只在运行时才炸。
-//       等 contract.js 退休（退休时点由迁移批次定）时，这一项与它一起撤掉。
-//   六、`OpName` 声明的成员与运行时真源同集（迁移期临时项，与第五项同生共死）：第五项比的是两份
-//       **数组文本**，它盯不住「operations.ts 里那份操作名集合自己跑偏」——例如有人把
-//       `export type OpName = (typeof OPERATIONS)[number]` 改回手抄的字面量联合，抄的时候漏一个名字，
-//       此时名录数组与运行时仍然同集（第五项绿），而类型层少了一条操作。这一项直接解析 `OpName`
-//       自己声明的成员（手写联合就逐个读名字，从名录生成的就照着名录取），与 contract.js 的
-//       OPERATIONS 双向求差，差集不为空即判红并列出差异。读不出 `OpName` 的形状也判红，不静默放过。
+//   四、没有运行时实现：契约目录只许有类型与数据。禁六种：`function` 关键字、
+//       `class` 关键字、箭头函数赋值（`const f = (…) => …`）、顶层 `new`（只有
+//       `Object.freeze` 与字面量是合法的数据写法）、`require(`、动态 `import(`；
+//       值引用只许目录内互引（数据引数据，目标文件自己也过这一条，所以不形成行为入口），
+//       指到目录外的、包名的、裸副作用引用的，一律判红。发现就判红，并指出文件与行号。
+//   五、贴合探针能编译：两份探针（GitHub / Markdown 后端）用宽松开关直编，探针文件自己
+//       一条报错都不能有（成员缺了、形状写歪了，第一落点就是这里）；后端文件内部自己的
+//       报错（旧语言时代的联合收窄、参数个数这类）另行计数，必须与本文件记的基线逐字相等——
+//       多了是新增债务，少了是有人修了实现面（那要先把基线数改过来，并考虑把探针收紧）。
+//   六、反面证明：现拼一个缺 `matches` 的假后端，拿同一套严格开关编它，必须编不过、
+//       且报错里点名 `matches`。这条验的是「探针不是摆设」——它断得了缺少成员，真后端
+//       哪天丢了一个必填，探针一定红。
+//   七、运行时腿：把两个后端模块对象真加载起来，断三件事——`openRepository` 只能是
+//       `'url'` / `'folder'` / 不声明（静态探针断不了被加宽的字面量，这里断真值）；
+//       `checks` 的种类如实记录（数组 / 函数 / 不声明）；模块对象的键集合必须与本文件
+//       记的快照逐字相等（加一个成员、删一个成员，都先回答「契约里有没有它」再登记）。
+//
+// 撤掉的两项（#1026 Q1， three recommendations 全经人类认可）：
+//   旧五、旧六（名录与运行时真源同集、OpName 与运行时同集）是迁移期的临时脚手架——
+//   当时契约名录与运行时各有一份操作清单，要人眼对齐。#1026 把运行时的值收进契约目录
+//   （`index.ts` 的 `OPERATIONS` 改成从名录转出，同一份数组、同一个引用），没有第二份
+//   手写副本之后，这两项就没有东西可比了，留着只会永远红。决定人与理由见 #1026 正文。
 //
 // 缺件即红（2026-10-12 改口径，旧口径见下）：契约目录、tsconfig、operations.ts 三样输入少任何一样，
 //   都当场 `check(false, …)` 并走到非零退出。旧口径是打印一行「等 A 落地后再跑」然后 `exit(0)`，
@@ -42,12 +53,16 @@
 //   DSH_CONTRACT_TSCONFIG 覆盖 tsconfig 路径，缺省仓库根的 tsconfig.contract.json
 //   相对路径按仓库根解析，绝对路径原样用。
 //
-// 已知边界（如实写在文件头，免得以后有人以为它什么都管得住）：第四件事只扫 `function` 关键字、
-//   运行时 import、`require(` 与动态 `import(` 四种写法；箭头函数赋值（`const f = () => {}`）与
-//   模块顶层表达式（如 `[...].map(...)`）不在扫描范围内——它们在类型文件里正常不该出现，真要管住
-//   得靠类型检查与代码审查，写在这里免得门禁给人「全都管住了」的错觉。
+// 已知边界（如实写在文件头，免得以后有人以为它什么都管得住）：
+//   第四件事是行级扫描：`function` / `class` 关键字、`const f = (…) => …` 形的箭头赋值、
+//   `= new …` 形的顶层构造、`require(`、动态 `import(`、指到目录外的值引用。
+//   跨行写的箭头（`=` 与 `=>` 不在同一行）扫不到——真要管住得靠类型检查与代码审查。
+//   `new` 只认 `=` 之后的（值初始化形状），构造器类型（`new (x: …): T`，冒号形状）不在此列。
 //   第二件事只保证「契约目录里的 .ts 都进了这次编译」，管不住「tsconfig 里圈了目录外的文件」——
-//   那不是本门禁的辖区。
+//   那不是本门禁的辖区（但本门禁跑的那次 tsc 会把圈到的目录外文件一起检查，错了一样红）。
+//   第五件事不审后端实现内部：旧语言文件的内部报错只计数（基线在下面），审它们是迁移批次的事；
+//   探针弱化的三处（`create` 返回深层、`openRepository` 字面量、`checks` 种类）各有去处——
+//   前两处一个留后续专票、一个由第七项断真值，`checks` 数组还是工厂也由第七项如实记录。
 //
 // 用法：node tests/verify-contract-types.js（在仓库根目录）
 const fs = require('fs')
@@ -62,8 +77,38 @@ const TSCONFIG = resolveInRoot(process.env.DSH_CONTRACT_TSCONFIG || 'tsconfig.co
 const OPERATIONS_REL = 'operations.ts'
 /** 操作名录的住处（拆分工起的单源文件）：操作名真正写在这里，operations.ts 只从它生类型。 */
 const CATALOG_REL = 'operations-catalog.ts'
-/** 运行时真源的路径：它的 OPERATIONS 数组是注册表补桩的依据，第五、六项都要拿它比同集。 */
-const RUNTIME_CONTRACT_REL = 'src/tracker/contract/index.ts'
+/** 两份贴合探针：静态腿的输入。缺了它们，第五项没法编，缺件即红。 */
+const PROBE_GITHUB_REL = 'tests/contract-probe-github.ts'
+const PROBE_MARKDOWN_REL = 'tests/contract-probe-markdown.ts'
+/**
+ * 探针直编时，后端文件内部自己的报错数（#1026 实测 200 条：旧语言时代的联合收窄、
+ * 参数个数这类，实现面的债，不归本门禁审）。必须逐字相等：多了是新增债务，
+ * 少了是有人动了实现面——先把这个数改过来，并考虑把探针收紧（弱化面见探针文件头）。
+ */
+const PROBE_NONPROBE_ERROR_BASELINE = 200
+/** 探针直编的开关（与探针文件头写的口径一致，改一处两处一起改）。 */
+const PROBE_TSC_ARGS = [
+  '--noEmit', '--target', 'es2020', '--lib', 'es2020,dom', '--module', 'esnext',
+  '--moduleResolution', 'bundler', '--allowJs', '--checkJs', 'false',
+  '--skipLibCheck', '--strict', 'false',
+]
+/**
+ * 运行时腿的快照（#1026 实测）：两个模块对象的键集合与两个断不了字面量的真值。
+ * 键加了、减了、真值变了，都先回答「契约里有没有它」（`BackendModule`），确认后把新快照记进来；
+ * 若契约要跟着改，改完再记。快照比较不看顺序（键按字母排过再比）。
+ */
+const RUNTIME_SNAPSHOTS = {
+  github: {
+    keys: ['capabilities', 'checks', 'create', 'describe', 'fixes', 'id', 'issueUrl', 'label', 'linkPattern', 'links', 'matches', 'openRepository', 'presentation', 'prompts', 'searchUrl', 'setupPrompt'],
+    openRepository: 'url',
+    checksKind: 'function',
+  },
+  markdown: {
+    keys: ['create', 'describe', 'fixes', 'id', 'issueUrl', 'label', 'labelPalette', 'linkPattern', 'links', 'matches', 'openRepository', 'presentation', 'prompts', 'searchUrl', 'setupPrompt'],
+    openRepository: 'folder',
+    checksKind: 'absent',
+  },
+}
 
 /** 19 个契约操作名（逐字照 research/1010-deck-contract-surface.md 表 E2 与 contract.js 的 OPERATIONS）。 */
 const OPERATION_NAMES = [
@@ -75,8 +120,13 @@ const OPERATION_NAMES = [
 let failed = false
 const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
-/** 去掉块注释与整行注释，避免把注释里写的示例当成真的实现（写法沿用 tests/verify-build-artifacts.js）。 */
-const stripComments = (text) => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^A-Za-z0-9_$:])\/\/.*$/gm, '$1')
+/** 去掉块注释与整行注释，避免把注释里写的示例当成真的实现（写法沿用 tests/verify-build-artifacts.js）。
+ * 块注释按换行数原样垫回空行（#1103）：不垫的话，下面的行号全是错的，人只能对着错行号跳代码。
+ * 行号错了不只是难看——指出「第几行有问题」本身就是这道门禁的交付物，行号必须是文件里的真行号。 */
+const stripComments = (text) =>
+  text
+    .replace(/\/\*([\s\S]*?)\*\//g, (m, inner) => String(inner).split('\n').map(() => '').join('\n'))
+    .replace(/(^|[^A-Za-z0-9_$:])\/\/.*$/gm, '$1')
 
 /** 递归收 .ts 文件（含子目录）；跳过 node_modules 与 .d.ts（声明文件本来就只放类型）。 */
 function listTsFiles(dir) {
@@ -103,57 +153,64 @@ function hasName(text, name) {
   return new RegExp('(^|[^A-Za-z0-9_$])' + name + '([^A-Za-z0-9_$]|$)').test(text)
 }
 
-/**
- * 从一段源码里抽出「某个字符串数组里写了哪些名字」。
- * 起止标记由调用方给，因为两份 OPERATIONS 的写法不同：契约层名录用 `as const` 收尾，
- * 运行时那份是 `Object.freeze([...])`。读不出来（标记不见了）回 null，由调用方判红 ——
- * 形状变了要让人看见，不许静默按空集处理（那会把「读不到」说成「两边都空、同集」）。
- */
-function namesInArray(text, startMarker, endMarker) {
-  const start = text.indexOf(startMarker)
-  if (start < 0) return null
-  const from = start + startMarker.length
-  const end = text.indexOf(endMarker, from)
-  if (end < 0) return null
-  const body = text.slice(from, end)
-  const out = []
-  const re = /'([A-Za-z][A-Za-z0-9]*)'/g
-  let m
-  while ((m = re.exec(body))) out.push(m[1])
-  return out
+/** 把引用串解成仓库相对路径（只解相对引用；包名引用回 null，由调用方按目录外处理）。 */
+function resolveImportSpec(fromAbs, spec) {
+  if (!spec.startsWith('.')) return null
+  const abs = path.resolve(path.dirname(fromAbs), spec)
+  return path.relative(ROOT, abs).replace(/\\/g, '/')
 }
 
 /**
- * 找出「引了运行时模块」的 import 行，回 [{line, text}]。
+ * 找出「指到目录外的值引用」，回 [{line, text}]。
  * 允许两种：`import type ...` 整句类型引；以及命名清单里每一项都带内联 `type ` 前缀的写法
  * （`import { type A, type B } from '...'`）——它转译后不留运行时引用，是契约层合法的写法。
- * 其余一律算运行时引用：带默认绑定、命名空间绑定、裸副作用引、动态 import()。
+ * 值引用（默认绑定、命名绑定、命名空间绑定、`export … from`）只许指到契约目录里面
+ * （数据引数据：目标文件自己也过第四项，不形成行为入口）；指到外面、包名、裸副作用引用的，
+ * 一律算运行时引用。动态 `import(` 另由 findRuntimeImpl 盯，这里不管。
  */
-function findRuntimeImports(code) {
+function findRuntimeImports(abs, code) {
   const hits = []
   const lines = code.split('\n')
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i]
-    const m = /^\s*import\b([\s\S]*)$/.exec(raw)
+    const im = /^\s*import\b([\s\S]*)$/.exec(raw)
+    const ex = /^\s*export\b([\s\S]*)$/.exec(raw)
+    const m = im || ex
     if (!m) continue
     const clause = m[1].trim()
-    if (/^type\b/.test(clause)) continue                                   // import type ...：允许
-    const named = /^\{([\s\S]*?)\}\s*from\s*['"][^'"]*['"]/.exec(clause)   // import { ... } from '...'
-    if (named) {
-      const parts = named[1].split(',').map((s) => s.trim()).filter(Boolean)
-      const allType = parts.length > 0 && parts.every((p) => /^type\s+[A-Za-z_$][\w$]*$/.test(p))
-      if (allType) continue
+    if (/^type\b/.test(clause)) continue                                   // import/export type …：允许
+    if (im && !/\bfrom\s*['"]/.test(clause)) {
+      hits.push({ line: i + 1, text: raw.trim() })                          // 裸副作用引用：不允许
+      continue
     }
-    hits.push({ line: i + 1, text: raw.trim() })
+    const named = /^(?:\{([\s\S]*?)\}|(\*)\s+as\s+[A-Za-z_$][\w$]*|[A-Za-z_$][\w$]*(?:\s*,\s*\{([\s\S]*?)\})?)\s*from\s*['"]([^'"]*)['"]/.exec(clause)
+    if (!named) {
+      if (/\bfrom\s*['"]/.test(clause)) hits.push({ line: i + 1, text: raw.trim() })
+      continue
+    }
+    const listText = named[1] !== undefined ? named[1] : named[3]
+    if (listText !== undefined) {
+      const parts = listText.split(',').map((s) => s.trim()).filter(Boolean)
+      const allType = parts.length > 0 && parts.every((p) => /^type\s+[A-Za-z_$][\w$]*$/.test(p))
+      if (allType) continue                                                 // 全内联 type：允许
+    }
+    const spec = named[4]
+    const rel = resolveImportSpec(abs, spec)
+    if (rel === null || !(rel === path.relative(ROOT, CONTRACT_DIR).replace(/\\/g, '/') || rel.startsWith(path.relative(ROOT, CONTRACT_DIR).replace(/\\/g, '/') + '/'))) {
+      hits.push({ line: i + 1, text: raw.trim() })
+    }
   }
   return hits
 }
 
 /**
  * 找出「像运行时实现」的写法，回 [{line, text, why}]。
- * 四种：function 关键字（`declare function` 是声明，放过）、运行时 import、require(、动态 import(。
+ * 七种：function 关键字（`declare function` 是声明，放过）、class 关键字（`declare class` 放过）、
+ * 箭头函数赋值（`const f = (…) => …`，接口里的函数类型是冒号形状，不在这里）、
+ * 顶层 `new`（只有 `Object.freeze` 与字面量是合法的数据写法）、运行时 import、
+ * require(、动态 import(。
  */
-function findRuntimeImpl(code) {
+function findRuntimeImpl(abs, code) {
   const hits = []
   const lines = code.split('\n')
   for (let i = 0; i < lines.length; i++) {
@@ -162,12 +219,26 @@ function findRuntimeImpl(code) {
     const fn = /\bfunction\b/.exec(raw)
     if (fn) {
       const before = raw.slice(0, fn.index).trim()
-      if (!/\bdeclare$/.test(before)) hits.push({ line: i + 1, text, why: '出现 function 关键字（契约层只许有类型与数据）' })
+      if (!/\bdeclare$/.test(before)) hits.push({ line: i + 1, text, why: '出现 function 关键字（契约目录只许有类型与数据）' })
+    }
+    const cl = /\bclass\b/.exec(raw)
+    if (cl) {
+      const before = raw.slice(0, cl.index).trim()
+      if (!/\bdeclare$/.test(before)) hits.push({ line: i + 1, text, why: '出现 class 关键字（契约目录只许有类型与数据）' })
+    }
+    if (/(?:const|let|var)\s+[A-Za-z_$][\w$]*\s*(?::[^=]*)?=\s*(?:async\s*)?(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>/.test(raw)) {
+      hits.push({ line: i + 1, text, why: '出现箭头函数赋值（行为要搬出契约目录）' })
+    }
+    // 顶层 new：只有 `Object.freeze(…)` 是合法的数据定型写法（数组/对象字面量不含 new）。
+    // 构造器类型（`new (…): T`）后面跟的是左括号不是名字，到不了这里；`type F = new…` 这种行里，
+    // 只要还出现了 `Object.freeze(` 就当数据放过——两样同时出现本身就是怪味道，靠代码审查盯。
+    if (/\bnew\s+[A-Za-z_$][\w$]*/.test(raw) && !/Object\s*\.\s*freeze\s*\(/.test(raw)) {
+      hits.push({ line: i + 1, text, why: '出现顶层 new（数据只许字面量与 Object.freeze）' })
     }
     if (/\brequire\s*\(/.test(raw)) hits.push({ line: i + 1, text, why: '出现 require(（运行时取值）' })
     if (/\bimport\s*\(/.test(raw)) hits.push({ line: i + 1, text, why: '出现动态 import(（运行时取值）' })
   }
-  for (const h of findRuntimeImports(code)) hits.push({ line: h.line, text: h.text, why: '引了运行时模块（只许 import type）' })
+  for (const h of findRuntimeImports(abs, code)) hits.push({ line: h.line, text: h.text, why: '值引用指到契约目录外（目录内数据互引除外）' })
   return hits.sort((a, b) => a.line - b.line)
 }
 
@@ -203,50 +274,27 @@ function inDir(file, dir) {
   return f === d || f.startsWith(d + '/')
 }
 
-/**
- * 从 operations.ts 的文本里解析 `OpName` **自己声明**的成员，回 `{ok:true, names, how}` 或 `{ok:false, why}`。
- * 两种真实写法都要认：
- *  - `(typeof OPERATIONS)[number]`：成员就是名录数组那一份（名录读不出来就判红，不拿它当空集）；
- *  - 手写的字面量联合：逐个把带引号的名字读出来。
- * 别的表达式一律回 ok:false 让调用方判红 —— 形状变了要让人看见，静默按空集处理会把
- * 「读不到」说成「两边都空、同集」，那正是这道门禁最不该犯的错。
- */
-function opNameMembers(opsText, catalogNames) {
-  const at = opsText.indexOf('export type OpName')
-  if (at < 0) return { ok: false, why: '在 ' + OPERATIONS_REL + ' 里找不到 `export type OpName`' }
-  const eq = opsText.indexOf('=', at)
-  if (eq < 0) return { ok: false, why: '`export type OpName` 后面没有等号，读不出它是什么' }
-  const rest = opsText.slice(eq + 1)
-  const stop = rest.search(/\n\s*\n/)                    // 声明写到空行为止
-  const body = (stop < 0 ? rest : rest.slice(0, stop)).trim()
-  if (/^\(\s*typeof\s+OPERATIONS\s*\)\s*\[\s*number\s*\]$/.test(body)) {
-    if (!catalogNames) return { ok: false, why: 'OpName 由名录数组生成，但名录件 ' + CATALOG_REL + ' 里的 OPERATIONS 读不出来' }
-    return { ok: true, names: catalogNames, how: '按名录数组生成（(typeof OPERATIONS)[number]，成员即名录 ' + catalogNames.length + ' 条）' }
-  }
-  const quoted = body.match(/'[A-Za-z][A-Za-z0-9]*'/g)
-  if (quoted && quoted.length && /^[|'"\sA-Za-z0-9]+$/.test(body)) {
-    return { ok: true, names: quoted.map((s) => s.slice(1, -1)), how: '手写的字面量联合（' + quoted.length + ' 条）' }
-  }
-  return { ok: false, why: 'OpName 既不是 (typeof OPERATIONS)[number]，也不是一串带引号的名字，读不出来：' + body.slice(0, 160) }
-}
-
 function main() {
-  console.log('契约层类型门禁（tsc 零错误 + 契约目录没漏编 + 19 个操作名齐 + 无运行时实现 + 名录与运行时同集 + OpName 与运行时同集）')
+  console.log('契约层类型门禁（缺件即红 + tsc 零错误 + 没漏编 + 19 操作名齐 + 无运行时实现 + 探针编译 + 反面证明 + 运行时腿）')
 
-  // ---- 0) 缺件即红：契约目录、tsconfig、operations.ts 三样少任何一样都判红 ----
+  // ---- 0) 缺件即红：契约目录、tsconfig、operations.ts、两份探针，少任何一样都判红 ----
   // 旧写法是打印「等 A 落地后再跑」并 exit(0)：那在验证链里就是一条绿，与「真源写完且都对」看不出区别。
   // 现在缺件当场记一条 FAIL，退出码由文件末尾统一按 failed 收口；下面各步再按「手上有什么」决定做不做。
   const dirExists = fs.existsSync(CONTRACT_DIR) && fs.statSync(CONTRACT_DIR).isDirectory()
   const tsconfigExists = fs.existsSync(TSCONFIG)
   const opsExists = fs.existsSync(path.join(CONTRACT_DIR, OPERATIONS_REL))
+  const probeGithubExists = fs.existsSync(path.join(ROOT, PROBE_GITHUB_REL))
+  const probeMarkdownExists = fs.existsSync(path.join(ROOT, PROBE_MARKDOWN_REL))
   const missing = []
   if (!dirExists) missing.push(path.relative(ROOT, CONTRACT_DIR) + '（目录）')
   if (!tsconfigExists) missing.push(path.relative(ROOT, TSCONFIG))
   if (dirExists && !opsExists) missing.push(path.relative(ROOT, path.join(CONTRACT_DIR, OPERATIONS_REL)))
+  if (!probeGithubExists) missing.push(PROBE_GITHUB_REL)
+  if (!probeMarkdownExists) missing.push(PROBE_MARKDOWN_REL)
   check(
     missing.length === 0,
-    '三样输入齐（契约目录 ' + path.relative(ROOT, CONTRACT_DIR) + '、' + path.relative(ROOT, TSCONFIG) + '、' + OPERATIONS_REL + '）' +
-      (missing.length ? '，缺：' + missing.join('、') + '——缺件不是「等它落地」，是这里判红' : '，三样都在'),
+    '五样输入齐（契约目录 ' + path.relative(ROOT, CONTRACT_DIR) + '、' + path.relative(ROOT, TSCONFIG) + '、' + OPERATIONS_REL + '、两份探针）' +
+      (missing.length ? '，缺：' + missing.join('、') + '——缺件不是「等它落地」，是这里判红' : '，五样都在'),
   )
 
   // ---- 1) 类型检查：tsc 零错误 ----
@@ -319,87 +367,140 @@ function main() {
   const missingOps = OPERATION_NAMES.filter((n) => !hasName(opsCode, n))
   check(missingOps.length === 0, '19 个契约操作名全部出现' + (missingOps.length ? '，缺：' + missingOps.join('、') : '（' + OPERATION_NAMES.length + ' 个逐个查过，含名录件 ' + CATALOG_REL + '）'))
 
-  // ---- 4) 没有运行时实现：只许类型与数据 ----
+  // ---- 4) 没有运行时实现：契约目录只许类型与数据，目录内数据互引除外 ----
   if (!tsFiles.length) {
     // 第 2 步已经为「一个 .ts 都没有」判过红，这里不再重复同一条。
   } else {
     let bad = 0
     for (const abs of tsFiles) {
       const code = stripComments(fs.readFileSync(abs, 'utf8'))
-      const hits = findRuntimeImpl(code)
+      const hits = findRuntimeImpl(abs, code)
       const rel = path.relative(ROOT, abs)
       if (!hits.length) continue
       bad += 1
       for (const h of hits) console.log('  FAIL ' + rel + ':' + h.line + ' ' + h.why + ' → ' + h.text.slice(0, 160))
       failed = true
     }
-    check(bad === 0, '契约目录下 ' + tsFiles.length + ' 个 .ts 文件都没有运行时实现（只许类型与数据）')
+    check(bad === 0, '契约目录下 ' + tsFiles.length + ' 个 .ts 文件都没有运行时实现（只许类型与数据，目录内数据互引除外）')
   }
 
-  // ---- 5) 名录与运行时真源同集（迁移期临时项，contract.js 退休时撤） ----
-  const runtimePath = path.join(ROOT, RUNTIME_CONTRACT_REL)
-  if (!fs.existsSync(catalogPath)) {
-    check(false, '名录件在（缺 ' + path.relative(ROOT, catalogPath) + '：操作名没地方写，第五项比不了）')
-  } else if (!fs.existsSync(runtimePath)) {
-    check(false, '运行时真源在（缺 ' + RUNTIME_CONTRACT_REL + '：第五项没法比同集；若它已退休，本项与该分支一起删）')
+  // ---- 5) 贴合探针能编译：探针文件自己零报错，后端内部报错数与基线相等 ----
+  // 探针直编不经任何 tsconfig（命令行开关）：后端入口会把半个房间拖进编译程序，
+  // 经配置编会触发覆盖对账的重复归属；开关与探针文件头写的口径一致，改一处两处一起改。
+  if (!probeGithubExists || !probeMarkdownExists) {
+    // 第 0 步已经为缺探针判过红，这里不再重复同一条。
+  } else if (!tscBin) {
+    check(false, '两份探针能直编（tsc 起不来，这一项没做：见第一项的 FAIL）')
   } else {
-    const catNames = namesInArray(catalogCode, 'export const OPERATIONS = [', '] as const')
-    const rtNames = namesInArray(
-      stripComments(fs.readFileSync(runtimePath, 'utf8')),
-      'export const OPERATIONS = Object.freeze([',
-      '])',
+    const pr = spawnSync(
+      process.execPath,
+      [tscBin, ...PROBE_TSC_ARGS, path.join(ROOT, PROBE_GITHUB_REL), path.join(ROOT, PROBE_MARKDOWN_REL)],
+      { encoding: 'utf8' },
     )
-    if (!catNames || !rtNames) {
-      check(false, '两份 OPERATIONS 都读得出来（有一份的写法变了、起止标记没命中：' +
-        (catNames ? '' : '名录件 ') + (rtNames ? '' : '运行时真源 ') + '读不出来，请先核对写法再改本门禁）')
+    if (pr.error) {
+      check(false, '探针直编能跑起来（起进程失败）：' + (pr.error.message || String(pr.error)))
     } else {
-      const rtSet = new Set(rtNames)
-      const catSet = new Set(catNames)
-      const onlyCat = catNames.filter((n) => !rtSet.has(n))
-      const onlyRt = rtNames.filter((n) => !catSet.has(n))
+      const out = (pr.stdout || '') + (pr.stderr || '')
+      const errLines = out.split(/\r?\n/).filter((l) => /\(\d+,\d+\)\s*:\s*error\s+TS\d+/.test(l))
+      const fileOf = (l) => l.slice(0, l.indexOf('(')).replace(/\\/g, '/')
+      const probeErrs = errLines.filter((l) => {
+        const f = fileOf(l)
+        return f.endsWith('/' + PROBE_GITHUB_REL) || f.endsWith('/' + PROBE_MARKDOWN_REL)
+      })
+      for (const l of probeErrs) console.log('  FAIL 探针自己报错（成员缺了或形状歪了，第一落点）：' + l.trim().slice(0, 300))
+      if (probeErrs.length) failed = true
+      const nonProbeCount = errLines.length - probeErrs.length
       check(
-        onlyCat.length === 0 && onlyRt.length === 0,
-        '名录与运行时 contract.js 的 OPERATIONS 同集（名录 ' + catNames.length + ' 条、运行时 ' + rtNames.length + ' 条' +
-          (onlyCat.length || onlyRt.length
-            ? '；只在名录里：' + (onlyCat.join('、') || '无') + '；只在运行时里：' + (onlyRt.join('、') || '无')
-            : '，逐条比过') + '）',
+        probeErrs.length === 0,
+        '两份探针文件自己零报错（' + probeErrs.length + ' 条；有报错先看探针指出的成员，再看后端是不是改了形状）',
       )
+      check(
+        nonProbeCount === PROBE_NONPROBE_ERROR_BASELINE,
+        '后端文件内部报错 ' + nonProbeCount + ' 条，与基线 ' + PROBE_NONPROBE_ERROR_BASELINE + ' 条相等' +
+          (nonProbeCount === PROBE_NONPROBE_ERROR_BASELINE
+            ? '（实现面的债，审它们是迁移批次的事）'
+            : '——多了是新增债务，少了是有人动了实现面：先把基线数改过来，并考虑把探针收紧'),
+      )
+      if (nonProbeCount !== PROBE_NONPROBE_ERROR_BASELINE) failed = true
     }
   }
 
-  // ---- 6) `OpName` 声明的成员与运行时真源同集（迁移期临时项，contract.js 退休时与第五项一起撤） ----
-  // 第五项比的是两份**数组文本**；它盯不住「operations.ts 里那份操作名集合自己跑偏」：
-  // 把 `export type OpName = (typeof OPERATIONS)[number]` 改回手抄的字面量联合、抄漏一个名字，
-  // 名录数组与运行时仍然同集（第五项绿），而类型层少了一条操作。这一项直接读 `OpName` 自己声明的成员。
-  if (!fs.existsSync(runtimePath)) {
-    // 第五项已经为「运行时真源不在」判过红，这里不重复同一条。
-  } else if (!opsText) {
-    // operations.ts 缺席（第 0 步已判红）：没有 OpName 可读，如实记一条，不静默跳过。
-    check(false, 'OpName 声明的成员能读出来（' + OPERATIONS_REL + ' 不在，这一项没做：见第 0 步的 FAIL）')
+  // ---- 6) 反面证明：现拼一个缺 matches 的假后端，必须编不过且点名 matches ----
+  // 验的是「探针不是摆设」。假文件写进系统临时目录（不进仓库，不污染覆盖对账），编完就删。
+  if (!tscBin) {
+    check(false, '反面证明能跑（tsc 起不来，这一项没做：见第一项的 FAIL）')
   } else {
-    const catalogNames = namesInArray(catalogCode, 'export const OPERATIONS = [', '] as const')
-    const parsed = opNameMembers(opsText, catalogNames)
-    const rtNames6 = namesInArray(
-      stripComments(fs.readFileSync(runtimePath, 'utf8')),
-      'export const OPERATIONS = Object.freeze([',
-      '])',
-    )
-    if (!parsed.ok) {
-      check(false, 'OpName 声明的成员读得出来（' + parsed.why + '）')
-    } else if (!rtNames6) {
-      check(false, '运行时 contract.js 的 OPERATIONS 读得出来（起止标记没命中：读不出来就没法比同集，请先核对写法再改本门禁）')
-    } else {
-      const rtSet6 = new Set(rtNames6)
-      const opSet6 = new Set(parsed.names)
-      const onlyOp = parsed.names.filter((n) => !rtSet6.has(n))
-      const onlyRt6 = rtNames6.filter((n) => !opSet6.has(n))
-      check(
-        onlyOp.length === 0 && onlyRt6.length === 0,
-        'OpName 声明的成员与运行时 contract.js 的 OPERATIONS 同集（' + parsed.how + '；运行时 ' + rtNames6.length + ' 条' +
-          (onlyOp.length || onlyRt6.length
-            ? '；只在 OpName 里：' + (onlyOp.join('、') || '无') + '；只在运行时里：' + (onlyRt6.join('、') || '无')
-            : '，双向逐条比过，两个差集都空') + '）',
+    const os = require('os')
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-contract-neg-'))
+    try {
+      const relToContract = path.relative(tmpDir, path.join(CONTRACT_DIR, 'backend-module.ts')).replace(/\\/g, '/')
+      const negFile = path.join(tmpDir, 'negative.ts')
+      fs.writeFileSync(
+        negFile,
+        `import type { BackendModule } from '${relToContract}'\n` +
+          `export const bad: BackendModule = { id: 'neg', label: 'neg', ` +
+          `create: (() => { throw new Error('neg') }) as unknown as BackendModule['create'] }\n`,
+        'utf8',
       )
+      const nr = spawnSync(
+        process.execPath,
+        [tscBin, '--noEmit', '--strict', '--target', 'es2020', '--lib', 'es2020,dom',
+          '--module', 'esnext', '--moduleResolution', 'bundler', '--skipLibCheck', negFile],
+        { encoding: 'utf8' },
+      )
+      const nout = (nr.stdout || '') + (nr.stderr || '')
+      const mentionsMatches = /matches/.test(nout)
+      check(
+        nr.status !== 0 && mentionsMatches,
+        '缺 matches 的假后端编不过、且报错点名 matches' +
+          (nr.status !== 0 && mentionsMatches ? '' : '（退出码 ' + nr.status + '，' + (mentionsMatches ? '没点名' : '输出里没见到 matches') + '：探针可能断不了缺少成员，速查）'),
+      )
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true })
+    }
+  }
+
+  // ---- 7) 运行时腿：模块对象真加载，断真值与键快照 ----
+  // 静态探针断不了被加宽的字面量（openRepository）与数组/工厂之争（checks），这里断真值；
+  // 键集合与快照逐字比：加减成员都先回答「契约里有没有它」再登记。
+  {
+    const hookAbs = path.join(ROOT, 'scripts', 'ts-hook.mjs')
+    // --import 吃的是模块说明符，Windows 绝对路径要先转成 file://，裸盘符路径会被 ESM 加载器拒收。
+    const hookUrl = require('url').pathToFileURL(hookAbs).href
+    const evalScript = `Promise.all([import('./src/tracker/rooms/github/index.ts'), import('./src/tracker/rooms/markdown/index.ts')]).then(([g, m]) => {` +
+      ` const kind = (v) => v === undefined ? 'absent' : (Array.isArray(v) ? 'array' : (typeof v === 'function' ? 'function' : typeof v));` +
+      ` console.log(JSON.stringify({` +
+      ` github: { keys: Object.keys(g.githubModule).sort(), openRepository: g.githubModule.openRepository, checksKind: kind(g.githubModule.checks) },` +
+      ` markdown: { keys: Object.keys(m.markdownModule).sort(), openRepository: m.markdownModule.openRepository, checksKind: kind(m.markdownModule.checks) }}))` +
+      ` })`
+    const rr = spawnSync(process.execPath, ['--import', hookUrl, '--eval', evalScript], { encoding: 'utf8', timeout: 120000 })
+    if (rr.error) {
+      check(false, '运行时腿能跑起来（起进程失败）：' + (rr.error.message || String(rr.error)))
+    } else if (rr.status !== 0) {
+      check(false, '两个后端模块对象能真加载（退出码 ' + rr.status + '）：' + String(rr.stderr || '').slice(-300))
+    } else {
+      let snap = null
+      try { snap = JSON.parse(String(rr.stdout || '').trim().split(/\r?\n/).pop()) } catch (e) { snap = null }
+      if (!snap || !snap.github || !snap.markdown) {
+        check(false, '运行时快照读得出来（输出解析失败）：' + String(rr.stdout || '').slice(-200))
+      } else {
+        for (const name of ['github', 'markdown']) {
+          const want = RUNTIME_SNAPSHOTS[name]
+          const got = snap[name]
+          const keysOk = JSON.stringify(got.keys) === JSON.stringify(want.keys)
+          const repoOk = got.openRepository === undefined || got.openRepository === 'url' || got.openRepository === 'folder'
+          const repoSame = got.openRepository === want.openRepository
+          const kindSame = got.checksKind === want.checksKind
+          check(
+            keysOk && repoOk && repoSame && kindSame,
+            name + ' 模块对象与快照一致（键 ' + got.keys.length + ' 个、openRepository=' + JSON.stringify(got.openRepository) + '、checks=' + got.checksKind + ')' +
+              (!keysOk ? '；键集合变了：先确认增减的成员有没有契约覆盖，确认后把新快照记进本门禁' : '') +
+              (!repoOk ? '；openRepository 不是 url/folder/不声明：判红' : '') +
+              (repoOk && !repoSame ? '；openRepository 真值变了（' + JSON.stringify(want.openRepository) + '→' + JSON.stringify(got.openRepository) + '）：确认后登记' : '') +
+              (!kindSame ? '；checks 种类变了（' + want.checksKind + '→' + got.checksKind + '）：数组还是工厂的专票有结论了就按结论办，没结论先登记' : ''),
+          )
+        }
+      }
     }
   }
 
