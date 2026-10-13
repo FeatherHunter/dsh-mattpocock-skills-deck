@@ -19,7 +19,16 @@ import { CANONICAL_LABELS } from '../../contract/canonical-labels.js'
 import { describe, issueUrl, searchUrl, linkPattern, links, capabilities, openRepository } from './repo.js'
 import { checks } from './checks.js'
 import { githubMatches, createGithubBackend } from './backend.js'
-export { describe, issueUrl, searchUrl, linkPattern, links, capabilities, checks, githubMatches, createGithubBackend }
+// 三个链接能力改成与后端无关的名字（#1110 实现决定第 14 条，GitHub 这一半见 #1133）。
+// 新名字是主、老名字是别名，两组名字指向同一份实现（repo.ts 里那几个导出），不是空壳。
+// 为什么在这里起名而不是改 repo.ts：repo.ts 与 backend.ts 内部自己的引用照旧用老名字，
+//   这样这一次改动只落在本文件的模块对象上，房间内部一个引用都不用跟着抖。
+// 退役条件是「客户端与宿主都不再读老名字」：那时把这里的三个别名连同契约里的同名成员、
+//   三份运行时键快照里的老名字一起删掉（注册表那半边已经在 #1044 改完了）。
+const issueAddress = issueUrl
+const repoSearchAddress = searchUrl
+const issueRefPattern = linkPattern
+export { describe, issueUrl, searchUrl, linkPattern, issueAddress, repoSearchAddress, issueRefPattern, links, capabilities, checks, githubMatches, createGithubBackend }
 export { parseGithubRepo, getRepoKey, openRepository } from './repo.js'
 export { GITHUB_CHECKS } from './checks.js'
 export { initProject } from './init-project.js'
@@ -187,7 +196,7 @@ export const prompts = (function () {
 /**
  * BackendModule（供 registry.register 用）。
  * - id/label/create/matches 四件套；select/describe 由 registry 托管，不属 OpName
- * - 额外只读 view：describe / issueUrl / searchUrl / linkPattern（供 registry 转发）
+ * - 额外只读 view：describe / 三个链接能力（供 registry 转发）
  */
 export const githubModule = {
   id: 'github',
@@ -209,6 +218,13 @@ export const githubModule = {
   create: createGithubBackend,
   matches: githubMatches,
   describe,
+  // 链接三件：新名字是主（讲的是「地址」，因为本地那家给的是路径不是网址），
+  // 老名字是同义别名，指向同一份实现，保留一轮不断链（#1110 实现决定第 14 条 / #1133）。
+  issueAddress,
+  repoSearchAddress,
+  issueRefPattern,
+  // 老名字，一轮之后删：客户端与宿主今天是去注册表要链接的（注册表新名字优先、老名字兜底），
+  // 模块对象上这三个名字如今没有房外读者，留着只为别名窗口内形状一致、回退有路。
   issueUrl,
   searchUrl,
   linkPattern,
