@@ -229,8 +229,11 @@ function measureConfig(config: string, tsc: string): ConfigFacts {
     if (!/\(\d+,\d+\)\s*:\s*error\s+TS\d+/.test(line)) continue
     // 诊断行的形状是「路径(行,列): ...」，路径里通常不含左圆括号，所以第一个左圆括号之前就是路径。
     const cut = line.indexOf('(')
-    const file = cut >= 0 ? line.slice(0, cut) : ''
+    const file = (cut >= 0 ? line.slice(0, cut) : '').split(path.sep).join('/')
     if (file.includes('node_modules')) continue
+    // 配置自己的语法错（TS1012 之类）不是「某个源码文件里的错」：枚举那一步已经把它整条报出来了，
+    // 这里再报一遍只会让人以为是源码的问题。
+    if (file.endsWith(config)) continue
     diagnosed.push(line.replace(/^\.[\\/]/, '').split(path.sep).join('/'))
   }
   const errors = Array.from(new Set(diagnosed)).sort()
@@ -308,7 +311,8 @@ export function collectFacts(): Facts {
   const tsc = findTsc()
   if (!tsc) {
     throw new Error(
-      '找不到 node_modules/typescript/bin/tsc。类型检查要编译器才能判，先把依赖装上（pnpm install 或 npm install）。',
+      '找不到编译器入口（先找过 node_modules/typescript/bin/tsc，再找 node_modules/typescript/lib/tsc.js）。' +
+        '类型检查要编译器才能判，先把依赖装上（pnpm install 或 npm install）再重跑。',
     )
   }
 
