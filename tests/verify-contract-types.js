@@ -30,7 +30,7 @@
 //   六、反面证明：现拼一个缺 `matches` 的假后端，拿同一套严格开关编它，必须编不过、
 //       且报错里点名 `matches`。这条验的是「探针不是摆设」——它断得了缺少成员，真后端
 //       哪天丢了一个必填，探针一定红。
-//   七、运行时腿：把两个后端模块对象真加载起来，断三件事——`openRepository` 只能是
+//   七、运行时腿：把三个后端模块对象真加载起来，断三件事——`openRepository` 只能是
 //       `'url'` / `'folder'` / 不声明（静态探针断不了被加宽的字面量，这里断真值）；
 //       `checks` 的种类如实记录（数组 / 函数 / 不声明）；模块对象的键集合必须与本文件
 //       记的快照逐字相等（加一个成员、删一个成员，都先回答「契约里有没有它」再登记）。
@@ -93,9 +93,9 @@ const PROBE_TSC_ARGS = [
   '--skipLibCheck', '--strict', 'false',
 ]
 /**
- * 运行时腿的快照（#1026 实测）：两个模块对象的键集合与两个断不了字面量的真值。
- * 键加了、减了、真值变了，都先回答「契约里有没有它」（`BackendModule`），确认后把新快照记进来；
- * 若契约要跟着改，改完再记。快照比较不看顺序（键按字母排过再比）。
+ * 运行时腿的快照（#1026 实测；GitLab 一份按 #1110 实现决定第 15 条补上）：三个模块对象的键集合
+ * 与两个断不了字面量的真值。键加了、减了、真值变了，都先回答「契约里有没有它」（`BackendModule`），
+ * 确认后把新快照记进来；若契约要跟着改，改完再记。快照比较不看顺序（键按字母排过再比）。
  */
 const RUNTIME_SNAPSHOTS = {
   github: {
@@ -106,6 +106,24 @@ const RUNTIME_SNAPSHOTS = {
   markdown: {
     keys: ['create', 'describe', 'fixes', 'id', 'issueUrl', 'label', 'labelPalette', 'linkPattern', 'links', 'matches', 'openRepository', 'presentation', 'prompts', 'searchUrl', 'setupPrompt'],
     openRepository: 'folder',
+    checksKind: 'absent',
+  },
+  /**
+   * GitLab 这一份是 2026-10-14 实测补上的（#1110 实现决定第 15 条要求本图把缺的这份补齐）。
+   * 实测发现它和另外两家不一样：`openRepository` 的值只以文件级导出的形式存在
+   * （`src/tracker/rooms/gitlab/index.js:90` 的 `export const openRepository = 'url'`），
+   * 没有挂进模块对象——这与 #620 给 GitHub 修掉的那处是同一个形状
+   * （`src/tracker/rooms/github/index.ts:218-222` 记着那次为什么补）。
+   * 契约里这个成员本来就可选（`src/tracker/contract/backend-module.ts:219` 写的是 `openRepository?`），
+   * 所以「模块对象上没有」不算违约，本快照如实记「没有」，不替它补值（补值是改行为，不归这道门禁）。
+   * 影响面：界面侧 `src/client/kernel/builtin-backends.js:38` 只认 `'folder'`，url 型的开仓走
+   * `repoRef.url` 那条路（`src/client/panel/Dock.js:205-217`），所以网址本身照旧能开；
+   * 会变的是按「后端自己声明的开仓动作」分套的那处（`src/client/views/labels/labelColorErrors.js:205`）
+   * 会把 GitLab 归到「未声明」。谁把声明补进模块对象，就同时把这里改成 'url'。
+   */
+  gitlab: {
+    keys: ['create', 'describe', 'fixes', 'id', 'issueUrl', 'label', 'linkPattern', 'links', 'matches', 'presentation', 'prompts', 'searchUrl', 'setupPrompt'],
+    openRepository: undefined,
     checksKind: 'absent',
   },
 }
@@ -467,24 +485,29 @@ function main() {
     const hookAbs = path.join(ROOT, 'scripts', 'ts-hook.mjs')
     // --import 吃的是模块说明符，Windows 绝对路径要先转成 file://，裸盘符路径会被 ESM 加载器拒收。
     const hookUrl = require('url').pathToFileURL(hookAbs).href
-    const evalScript = `Promise.all([import('./src/tracker/rooms/github/index.ts'), import('./src/tracker/rooms/markdown/index.ts')]).then(([g, m]) => {` +
+    // 三家的说明符写法不一样是如实的：GitHub 与 Markdown 已经转成 .ts，GitLab 还是 .js（迁移批次未轮到它）。
+    // 加载钩子对已是 .js 的说明符原样交给 Node，所以这里写 .js 就是加载真身，不是笔误。
+    const evalScript = `Promise.all([import('./src/tracker/rooms/github/index.ts'), import('./src/tracker/rooms/markdown/index.ts'), import('./src/tracker/rooms/gitlab/index.js')]).then(([g, m, l]) => {` +
       ` const kind = (v) => v === undefined ? 'absent' : (Array.isArray(v) ? 'array' : (typeof v === 'function' ? 'function' : typeof v));` +
       ` console.log(JSON.stringify({` +
       ` github: { keys: Object.keys(g.githubModule).sort(), openRepository: g.githubModule.openRepository, checksKind: kind(g.githubModule.checks) },` +
-      ` markdown: { keys: Object.keys(m.markdownModule).sort(), openRepository: m.markdownModule.openRepository, checksKind: kind(m.markdownModule.checks) }}))` +
+      ` markdown: { keys: Object.keys(m.markdownModule).sort(), openRepository: m.markdownModule.openRepository, checksKind: kind(m.markdownModule.checks) },` +
+      ` gitlab: { keys: Object.keys(l.gitlabBackend).sort(), openRepository: l.gitlabBackend.openRepository, checksKind: kind(l.gitlabBackend.checks) }}))` +
       ` })`
     const rr = spawnSync(process.execPath, ['--import', hookUrl, '--eval', evalScript], { encoding: 'utf8', timeout: 120000 })
     if (rr.error) {
       check(false, '运行时腿能跑起来（起进程失败）：' + (rr.error.message || String(rr.error)))
     } else if (rr.status !== 0) {
-      check(false, '两个后端模块对象能真加载（退出码 ' + rr.status + '）：' + String(rr.stderr || '').slice(-300))
+      check(false, '三个后端模块对象能真加载（退出码 ' + rr.status + '）：' + String(rr.stderr || '').slice(-300))
     } else {
       let snap = null
       try { snap = JSON.parse(String(rr.stdout || '').trim().split(/\r?\n/).pop()) } catch (e) { snap = null }
-      if (!snap || !snap.github || !snap.markdown) {
+      if (!snap || !snap.github || !snap.markdown || !snap.gitlab) {
         check(false, '运行时快照读得出来（输出解析失败）：' + String(rr.stdout || '').slice(-200))
       } else {
-        for (const name of ['github', 'markdown']) {
+        // 快照里「不声明」写成 undefined，打印时要能一眼看出来是「不声明」而不是漏填，所以这里换个写法。
+        const showRepo = (v) => (v === undefined ? '不声明' : JSON.stringify(v))
+        for (const name of ['github', 'markdown', 'gitlab']) {
           const want = RUNTIME_SNAPSHOTS[name]
           const got = snap[name]
           const keysOk = JSON.stringify(got.keys) === JSON.stringify(want.keys)
@@ -493,10 +516,10 @@ function main() {
           const kindSame = got.checksKind === want.checksKind
           check(
             keysOk && repoOk && repoSame && kindSame,
-            name + ' 模块对象与快照一致（键 ' + got.keys.length + ' 个、openRepository=' + JSON.stringify(got.openRepository) + '、checks=' + got.checksKind + ')' +
+            name + ' 模块对象与快照一致（键 ' + got.keys.length + ' 个、openRepository=' + showRepo(got.openRepository) + '、checks=' + got.checksKind + ')' +
               (!keysOk ? '；键集合变了：先确认增减的成员有没有契约覆盖，确认后把新快照记进本门禁' : '') +
               (!repoOk ? '；openRepository 不是 url/folder/不声明：判红' : '') +
-              (repoOk && !repoSame ? '；openRepository 真值变了（' + JSON.stringify(want.openRepository) + '→' + JSON.stringify(got.openRepository) + '）：确认后登记' : '') +
+              (repoOk && !repoSame ? '；openRepository 真值变了（' + showRepo(want.openRepository) + '→' + showRepo(got.openRepository) + '）：确认后登记' : '') +
               (!kindSame ? '；checks 种类变了（' + want.checksKind + '→' + got.checksKind + '）：数组还是工厂的专票有结论了就按结论办，没结论先登记' : ''),
           )
         }
