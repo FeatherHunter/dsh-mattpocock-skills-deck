@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-13T17:33:20.246Z",
+  "generatedAt": "2026-10-13T18:57:50.606Z",
   "generatedBy": "node scripts/gate-map.mjs",
-  "chainLength": 229,
-  "gateCount": 229,
-  "attributedGates": 201,
+  "chainLength": 230,
+  "gateCount": 230,
+  "attributedGates": 202,
   "unattributedGates": 28,
   "buildOutputOnlyGates": 20,
   "graphFileCount": 519,
@@ -1272,6 +1272,23 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 4 条"
+    },
+    {
+      "step": "node tests/verify-1106-deck-surface.ts",
+      "file": "tests/verify-1106-deck-surface.ts",
+      "guards": [
+        "src/deck/shell/call-shell.ts",
+        "src/deck/tools",
+        "src/shared/refresh/src/tool-cost.ts"
+      ],
+      "dirs": [
+        "src/deck/shell",
+        "src/deck/tools",
+        "src/shared/refresh/src"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
     },
     {
       "step": "node tests/verify-labels-sync.js",
@@ -5175,6 +5192,7 @@
       "node tests/verify-deck-quota-sync.js",
       "node tests/verify-deck-parallel.js",
       "node tests/verify-deck-repo-resolve.js",
+      "node tests/verify-1106-deck-surface.ts",
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-908-progress-replace.js",
       "node tests/verify-947-workspace-file.js",
@@ -5194,6 +5212,7 @@
       "node tests/verify-deck-no-hang.js",
       "node tests/verify-deck-parallel.js",
       "node tests/verify-deck-thin-reads.js",
+      "node tests/verify-1106-deck-surface.ts",
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-992-readonly-labels.js",
       "node tests/verify-929-batch-cycle.js",
@@ -5429,6 +5448,7 @@
     ],
     "src/shared/refresh/src": [
       "node tests/verify-build-artifacts.js",
+      "node tests/verify-1106-deck-surface.ts",
       "node tests/verify-write-detect.js",
       "node tests/verify-policy.js",
       "node tests/verify-refresh-adr.js"
