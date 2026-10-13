@@ -283,7 +283,7 @@ function extractModuleBlock(file) {
 
 - `src/shared/parser.js`（118 行）——宿主纯函数叶子：`normalizeBody` / `parseMapBody` / `parseProgress` / `computeLevels` / `groupTickets`。
 - `src/shared/labels.js`（26 行）——核心标签清单单源（10 个标签，`CANONICAL_LABELS`），宿主与客户端都要用同一份名集合。
-- `src/shared/tracker/link.js`（49 行）——契约层 URL 供给纯函数。**今天全仓没有任何 import 点**（只有它自己的头注释还写着「host + client 共用」）；客户端侧用链接函数是另一份 `src/client/kernel/link.js`。这是既有共享文件里的一处历史遗留，写规格时不要把它当成「两半共用」的先例。
+- `src/shared/tracker/link.js`（49 行）——契约层 URL 供给纯函数。**今天全仓没有任何 import 点**（只有它自己的头注释还写着「host + client 共用」）；客户端侧用链接函数是另一份 `src/client/kernel/link.js`。这是既有共享文件里的一处历史遗留，写规格时不要把它当成「两半共用」的先例。**2026-10-14 更新：#1113 已把这份文件删掉**（动手前又实测了一遍：全仓没有任何 import 点，客户端产物与宿主产物里也搜不到它的内容）；这份清单里的这一条从此不再成立，不要再按「今天存在的文件」引用它。
 - `src/shared/matt-skills.js`（78 行）——Matt Pocock 技能套件单源：技能名清单与 25 项探测名。
 - `src/shared/workspaceKey.js`（110 行）——客户端侧工作区键归一（`keyOf`）；宿主另有自己的一份 `src/host/workspaceKey.js`（247 行，含「锚到工作区根」第二步），两者今天不是互相 import 的关系。
 - `src/shared/ui/slots.js`（97 行）——内部 UI 槽位声明（五座位与向导判据），拼进客户端闭包。

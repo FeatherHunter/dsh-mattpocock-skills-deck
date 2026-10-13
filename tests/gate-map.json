@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-13T20:39:03.037Z",
+  "generatedAt": "2026-10-13T20:48:20.096Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 236,
   "gateCount": 236,
   "attributedGates": 208,
   "unattributedGates": 28,
   "buildOutputOnlyGates": 20,
-  "graphFileCount": 522,
+  "graphFileCount": 521,
   "gates": [
     {
       "step": "node tests/verify-596-rpc-carrier.js",
@@ -5930,9 +5930,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 530,
+    "fileCount": 529,
     "dirCount": 54,
-    "coveredFileCount": 530,
+    "coveredFileCount": 529,
     "ungatedFileCount": 0,
     "ungatedDirCount": 6,
     "dedicatedDirCount": 48,
@@ -6330,7 +6330,6 @@
       "src/shared/tracker/check-catalog-views.js",
       "src/shared/tracker/guide-steps.js",
       "src/shared/tracker/indexWindow.js",
-      "src/shared/tracker/link.js",
       "src/shared/tracker/list-dedupe.js",
       "src/shared/tracker/shape.js",
       "src/shared/tracker/sync.js",
