@@ -34,7 +34,7 @@ export     const NoRepoCard = function (props) {
             h('span', { className:'dsws-spinner', style:{ width:13, height:13, borderWidth:2, display:'inline-block' } }),
             h('div', { style:{ flex:1, minWidth:0 } }, [
               h('div', { className:'ttl', style:{ color:'#f59e0b' } }, '正在探测后端'),
-              h('div', { className:'desc', style:{ color:'#f59e0b' } }, '3s 超时未决 — 若长时间停留请手动选择'),
+              h('div', { className:'desc', style:{ color:'#f59e0b' } }, '探测未决 — 若长时间停留请手动选择'),
             ]),
           ]),
           h('div', { className:'acts' }, [

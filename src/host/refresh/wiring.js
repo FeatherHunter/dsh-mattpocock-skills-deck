@@ -329,8 +329,11 @@ export function createRefreshWiring(deps) {
               if (!t || typeof t.timeout !== 'function') return undefined
               return {
                 setTimeout: function (fn, ms) { return t.timeout(fn, ms) },
-                // 真实撤销：宿主 timer 服务交回的是可 dispose 的句柄（撤销掉，那一份 matches 早答完的等待不再悬着）。
-                clearTimeout: function (id) { try { if (id && typeof id.dispose === 'function') id.dispose(); else clearTimeout(id) } catch (e) {} },
+                // 真实撤销：宿主 timer 服务交回的是**一支可调用的句柄**（cordis 的 effect 撤销器），调它本身才取消。
+                //   它没有 .dispose 方法：写成 id.dispose() 会抛 TypeError，写成全局 clearTimeout(id) 是静默无效，
+                //   两种都撤不掉，那一笔等待只好一直悬到 30 秒（2026-10-14 实测，见 #1109 的审查记录）。
+                //   假计时器交回的是数字，那种口子仍旧走全局 clearTimeout。
+                clearTimeout: function (id) { try { if (typeof id === 'function') id(); else clearTimeout(id) } catch (e) {} },
               }
             } catch (e) { return undefined }
           })(),

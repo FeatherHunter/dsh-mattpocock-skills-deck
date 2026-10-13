@@ -264,7 +264,7 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
           const bg = 'rgba(245,158,11,.12)', bd='rgba(245,158,11,.45)', col='#f59e0b'
           if (isPending) return h('div', { style:{ margin:'0 12px 6px', padding:'4px 8px', background:bg, border:'1px solid '+bd, color:col, fontSize:11, borderRadius:6, display:'flex', alignItems:'center', gap:6 } }, [
             h('span', { className:'dsws-spinner', style:{ width:11, height:11, borderWidth:2, display:'inline-block' } }),
-            h('span', { style:{ flex:1 } }, '正在探测后端（3s 超时）— 若长时间停留请手动选择'),
+            h('span', { style:{ flex:1 } }, '正在探测后端 — 若长时间停留请手动选择'),
             h('button', { className:'dsws-btn', onClick:function(){ if(typeof host!=='undefined'&&host.call) host.call('wf.registry',{cwd:s.cwd||''}).then(function(){ loadSnapshot(s,true,true)}) }, style:{ fontSize:10, padding:'1px 6px', flex:'none' } }, '重试'),
           ])
           if (isMulti) return h('div', { style:{ margin:'0 12px 6px', padding:'4px 8px', background:bg, border:'1px solid '+bd, color:col, fontSize:11, borderRadius:6, display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' } }, [
@@ -285,7 +285,7 @@ loadSnapshot(s,true,true)}else{s.selection=prev;try{if(s.cwd)setCachedSelection(
               h('span', { className:'dsws-spinner', style:{ width:16, height:16, borderWidth:2, display:'inline-block' } }),
               h('div', { style:{ flex:1 } }, [
                 h('div', { style:{ fontSize:13, fontWeight:700, color:'#f59e0b' } }, '正在探测后端'),
-                h('div', { style:{ fontSize:11, color:'#f59e0b', marginTop:2 } }, '3s 超时未决 — 若长时间停留请手动选择'),
+                h('div', { style:{ fontSize:11, color:'#f59e0b', marginTop:2 } }, '探测未决 — 若长时间停留请手动选择'),
               ]),
             ]),
             h('div', { style:{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:4 } }, [
