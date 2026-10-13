@@ -27,11 +27,11 @@
 import * as nodeFs from 'node:fs'
 import * as nodePath from 'node:path'
 import * as nodeOs from 'node:os'
-import { createRegistry } from '../../../src/host/tracker/registryCore.js'
-import { ERROR_KIND } from '../../../src/shared/tracker/constants.js'
-import { gitlabBackend } from '../../../src/host/tracker/backends/gitlab/index.js'
-import { githubModule } from '../../../src/host/tracker/backends/github/index.js'
-import { markdownModule } from '../../../src/host/tracker/backends/markdown/index.js'
+import { createRegistry } from '../../../src/tracker/registry/registryCore.ts'
+import { ERROR_KIND } from '../../../src/tracker/contract/vocabulary.ts'
+import { gitlabBackend } from '../../../src/tracker/rooms/gitlab/index.js'
+import { githubModule } from '../../../src/tracker/rooms/github/index.ts'
+import { markdownModule } from '../../../src/tracker/rooms/markdown/index.ts'
 import { unsupportedAnswerCheck } from './labels.js'
 
 const KNOWN_KINDS = Object.values(ERROR_KIND)

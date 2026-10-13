@@ -11,7 +11,7 @@
  * 运行：node tests/verify-691-map-subissues.js
  */
 
-import { listSubIssues } from '../src/host/tracker/backends/github/sub-issues.js'
+import { listSubIssues } from '../src/tracker/rooms/github/sub-issues.ts'
 import { createSnapshotComposer } from '../src/host/tracker/snapshot.js'
 import { createMapTickets } from '../src/host/mapTickets.js'
 import { createMapBody } from '../src/host/mapBody.js'

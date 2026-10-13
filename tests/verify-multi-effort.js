@@ -39,11 +39,11 @@ const plat = {
 }
 const mkCtx = (cwd) => ({ platform: plat, fs: plat.fs, cwd, get(name) { if (name === 'fs') return plat.fs; return undefined } })
 
-const { listIssues, getIssue, createIssue, closeIssue, reopenIssue, updateIssue } = await import(pathToFileURL(resolve(ROOT, 'src/host/tracker/backends/markdown/issues.js')).href)
-const { addComment } = await import(pathToFileURL(resolve(ROOT, 'src/host/tracker/backends/markdown/comments.js')).href)
+const { listIssues, getIssue, createIssue, closeIssue, reopenIssue, updateIssue } = await import(pathToFileURL(resolve(ROOT, 'src/tracker/rooms/markdown/issues.ts')).href)
+const { addComment } = await import(pathToFileURL(resolve(ROOT, 'src/tracker/rooms/markdown/comments.ts')).href)
 const { createSnapshotComposer } = await import(pathToFileURL(resolve(ROOT, 'src/host/tracker/snapshot.js')).href)
-const { createMarkdownBackend } = await import(pathToFileURL(resolve(ROOT, 'src/host/tracker/backends/markdown/index.js')).href)
-const { idOf, idOfParts, effortOf } = await import(pathToFileURL(resolve(ROOT, 'src/shared/tracker/constants.js')).href)
+const { createMarkdownBackend } = await import(pathToFileURL(resolve(ROOT, 'src/tracker/rooms/markdown/index.ts')).href)
+const { idOf, idOfParts, effortOf } = await import(pathToFileURL(resolve(ROOT, 'src/tracker/contract/vocabulary.ts')).href)
 
 function writeEffort(root, name, mapTitle, tickets) {
   const dir = name ? path.join(root, '.scratch', name) : path.join(root, '.scratch')
@@ -163,9 +163,9 @@ console.log('== ⑦ 宿主电话接线：三个按票寻址的电话都把 effor
   const ct = fs.readFileSync(resolve(ROOT, 'src/host/commentThreads.js'), 'utf8')
   const hits = ct.split('repoRef.effortId = String(args.effortId)').length - 1
   check(hits === 3, `wf.issueDetail / wf.issueComments / wf.commentIssue 三处都透传 effortId（实际 ${hits} 处）`)
-  const read = fs.readFileSync(resolve(ROOT, 'src/host/tracker/backends/markdown/issues-read.js'), 'utf8')
+  const read = fs.readFileSync(resolve(ROOT, 'src/tracker/rooms/markdown/issues-read.ts'), 'utf8')
   check(read.includes('resolveIssueFile') && read.includes('resolveMapFile'), '读路径经统一解析器（带 effort 范围）')
-  const write = fs.readFileSync(resolve(ROOT, 'src/host/tracker/backends/markdown/comments.js'), 'utf8')
+  const write = fs.readFileSync(resolve(ROOT, 'src/tracker/rooms/markdown/comments.ts'), 'utf8')
   check(write.includes("mode:'write'"), '写路径用 write 模式（多命中即 conflict，不猜文件）')
 }
 

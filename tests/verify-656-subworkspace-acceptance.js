@@ -329,7 +329,7 @@ async function main() {
 
   // —— B3 后端绑定（宿主侧真注册表 + 真 wf.bind 处理体）——
   {
-    const registry = (await import(url('src/host/tracker/registryCore.js'))).createRegistry()
+    const registry = (await import(url('src/tracker/registry/registryCore.ts'))).createRegistry()
     registry.register({ id: 'github', label: 'GitHub', create: () => ({}), matches: async () => false })
     registry.register({ id: 'markdown', label: '本地 Markdown', create: () => ({}), matches: async () => false })
     const wsCwd = (await import(url('src/host/workspaceCwd.js'))).createWorkspaceCwd({
@@ -348,7 +348,7 @@ async function main() {
     const bindOut = await wsCwd.handleBind({ cwd: RAW.subDeep, backendId: 'github' })
     const rows = registry.allBindings()
     // 934 起注册表键只做系统无关洗（斜杠归一）：同一桶的键是洗后形态，cwd 仍是规范根原文；bound() 两写法互查见下条。
-    const washedRepo = (await import(url('src/host/tracker/registryShape.js'))).washHandleKey(K.repo)
+    const washedRepo = (await import(url('src/tracker/registry/registryShape.ts'))).washHandleKey(K.repo)
     must(bindOut.ok === true && rows.length === 1 && rows[0].handleKey === washedRepo && rows[0].cwd === K.repo,
       '后端绑定：子目录会话选了后端，这次绑定落在工作区根这一桶上（同一个仓库一处绑定，不各存一份）',
       '回包=' + JSON.stringify(bindOut) + ' 绑定行=' + JSON.stringify(rows))
@@ -390,7 +390,7 @@ async function main() {
 
   // —— C1 本地 Markdown 的票仓与建票目录 ——
   {
-    const mdPathMod = await import(url('src/host/tracker/backends/markdown/path.js'))
+    const mdPathMod = await import(url('src/tracker/rooms/markdown/path.ts'))
     const ctxAtRoot = { cwd: K.sub, platform: PLATFORM }              // 子目录会话：宿主交给后端的是工作区根
     const ctxAtSelected = { cwd: normPath(RAW.sub), platform: PLATFORM } // 对照：假如没锚根会是什么样
     const ref = { backend: 'markdown', refId: '.scratch/demo', name: 'demo', url: '' }
@@ -418,7 +418,7 @@ async function main() {
 
   // —— C2 标签配色文件 ——
   {
-    const lc = await import(url('src/host/tracker/backends/markdown/label-colors.js'))
+    const lc = await import(url('src/tracker/rooms/markdown/label-colors.ts'))
     const atRoot = lc.labelColorsPath({ cwd: K.sub, platform: PLATFORM }, {})
     const atSelected = lc.labelColorsPath({ cwd: normPath(RAW.sub), platform: PLATFORM }, {})
     const want = nodePath.join(K.repo, 'docs', 'agents', 'label-colors.yaml')
@@ -442,8 +442,8 @@ async function main() {
       '子目录会话的「工作区已初始化」看的是工作区根上那份主锚文件（根上有就绿）；子目录自己那一层查不到，也不该有',
       '按根问=' + atRootOfSubSession + ' 按子目录问=' + atSubItself)
     // 后端声明那一半：真判定函数去读，读的必须正好是根上那一条路径
-    const detectExplicit = (await import(url('src/host/tracker/detection/explicitDetector.js'))).detectExplicit
-    const reg = (await import(url('src/host/tracker/registryCore.js'))).createRegistry()
+    const detectExplicit = (await import(url('src/tracker/detection/explicitDetector.ts'))).detectExplicit
+    const reg = (await import(url('src/tracker/registry/registryCore.ts'))).createRegistry()
     reg.register({ id: 'github', label: 'GitHub', create: () => ({}), matches: async () => false })
     const readPaths = []
     const spyFs = Object.assign({}, fixtureFs, {

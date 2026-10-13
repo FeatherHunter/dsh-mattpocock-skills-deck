@@ -32,10 +32,10 @@ function check(ok, msg) {
 // 双闸门禁复用（与 matrix-smoke 同）
 const PRODUCTS = ['client.js', 'host.js', 'package/lib/client.js', 'package/lib/index.js']
 const SOURCES = [
-  'src/host/platform/win32/index.js',
+  'src/host/platform/win32/index.ts',
   'src/host/platform/index.js',
-  'src/host/platform/darwin/index.js',
-  'src/host/platform/linux/index.js',
+  'src/host/platform/darwin/index.ts',
+  'src/host/platform/linux/index.ts',
   'scripts/build.mjs',
   'package/package.json',
 ]
@@ -83,7 +83,7 @@ async function main() {
     check(!/import\s*\(/.test(idxSrc), 'platform/index.js 无变量动态 import')
     check(idxSrc.includes("import win32 from './win32/index.js'"), '静态 import win32')
   }
-  for (const rel of ['src/host/platform/win32/index.js','src/host/platform/darwin/index.js','src/host/platform/linux/index.js']) {
+  for (const rel of ['src/host/platform/win32/index.ts','src/host/platform/darwin/index.ts','src/host/platform/linux/index.ts']) {
     const raw = fs.readFileSync(path.resolve(rel), 'utf8')
     const s = strip(raw)
     const hasPlusBackslash = /\+\s*['"]\\\\/.test(s) || /\\\\['"]\s*\+/.test(s)
@@ -91,7 +91,7 @@ async function main() {
   }
   // markdown 后端 path 零手拼：全经 platform 委托（plat.join 经 getPlatformPath）
   {
-    const mdPathSrc = fs.readFileSync(path.resolve('src/host/tracker/backends/markdown/path.js'), 'utf8')
+    const mdPathSrc = fs.readFileSync(path.resolve('src/tracker/rooms/markdown/path.ts'), 'utf8')
     const mdStrip = strip(mdPathSrc)
     check(!/\+ *['"]\/\.scratch/.test(mdStrip) && !/\+ *['"]\.scratch/.test(mdStrip), 'markdown path.js 零硬编码 "/.scratch" 字符串拼接')
     check(mdPathSrc.includes('getPlatformPath') && mdPathSrc.includes('plat.join'), 'markdown path.js 经 getPlatformPath→plat.join（platform 委托）')
@@ -107,9 +107,9 @@ async function main() {
 
   // 后端模块 urls
   const backendUrls = {
-    github: 'file://' + path.resolve('src/host/tracker/backends/github/index.js').replace(/\\/g,'/'),
-    markdown: 'file://' + path.resolve('src/host/tracker/backends/markdown/index.js').replace(/\\/g,'/'),
-    gitlab: 'file://' + path.resolve('src/host/tracker/backends/gitlab/index.js').replace(/\\/g,'/'),
+    github: 'file://' + path.resolve('src/tracker/rooms/github/index.ts').replace(/\\/g,'/'),
+    markdown: 'file://' + path.resolve('src/tracker/rooms/markdown/index.ts').replace(/\\/g,'/'),
+    gitlab: 'file://' + path.resolve('src/tracker/rooms/gitlab/index.js').replace(/\\/g,'/'),
   }
   const backendModules = {}
   for (const k of Object.keys(backendUrls)) {
@@ -182,7 +182,7 @@ async function main() {
         check(pb.ok, `${os} × github playback PASS（真实采样形状，无旧字段）`)
         // 额外：labels 恒 EMPTY 校验（via normalized）
         try {
-          const { normalizeIssue } = await import('file://' + path.resolve('src/host/tracker/backends/github/normalize.js').replace(/\\/g,'/'))
+          const { normalizeIssue } = await import('file://' + path.resolve('src/tracker/rooms/github/normalize.ts').replace(/\\/g,'/'))
           const empty = normalizeIssue({ number: 1, title: '', state: 'open', body: '', url: '', createdAt: '', updatedAt: '', closedAt: null })
           check(Array.isArray(empty.labels) && empty.labels.length===0, `${os} × github labels 恒 EMPTY []`)
         } catch {}
@@ -196,10 +196,10 @@ async function main() {
         check(pb.ok, `${os} × markdown playback PASS（镜像 .scratch，MISSING/EMPTY 分流）`)
         // 显式：labels MISSING （markdown 适配器空数据下无 labels 字段，diagnose 为 MISSING）
         try {
-          const mdMod = await import('file://' + path.resolve('src/host/tracker/backends/markdown/normalize.js').replace(/\\/g,'/'))
+          const mdMod = await import('file://' + path.resolve('src/tracker/rooms/markdown/normalize.ts').replace(/\\/g,'/'))
           const norm = mdMod.normalizeIssue || mdMod.parseMd || mdMod.default
           // 使用 parse 路径验证：走 markdown 的 normalize 对空数据
-          const { normalizeIssue: norm2 } = await import('file://' + path.resolve('src/host/tracker/backends/markdown/normalize.js').replace(/\\/g,'/')).catch(()=>({}))
+          const { normalizeIssue: norm2 } = await import('file://' + path.resolve('src/tracker/rooms/markdown/normalize.ts').replace(/\\/g,'/')).catch(()=>({}))
           if (norm2) {
             const fake = { number: 0, title: '', state: 'open', body: '' }
             check(true, `${os} × markdown normalize 可用`)
@@ -225,7 +225,7 @@ async function main() {
           check(results.every(r=>r.ok), `${os} × gitlab 双路径夹具 harness PASS`)
           // 额外显式：free 2条 / premium 1条优先 + milestone 分流
           try {
-            const { normalizeIssue } = await import('file://' + path.resolve('src/host/tracker/backends/gitlab/normalize.js').replace(/\\/g,'/'))
+            const { normalizeIssue } = await import('file://' + path.resolve('src/tracker/rooms/gitlab/normalize.js').replace(/\\/g,'/'))
             const freeIssue = normalizeIssue(gitlabFreeFixture.withData)
             const premIssue = normalizeIssue(gitlabPremiumFixture.withData)
             check(Array.isArray(freeIssue.blockedBy) && freeIssue.blockedBy.length===2 && freeIssue.blockedBy[0].key==='1', `${os} × gitlab free 回退 2条（#1,#2）`)

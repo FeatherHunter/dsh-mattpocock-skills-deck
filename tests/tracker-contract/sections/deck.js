@@ -7,7 +7,7 @@
  * 本段必须有 **NFD + 环** 两条用例（Q4 裁决）。
  */
 
-import { deriveDeck, parseProgress } from '../../../src/shared/tracker/deck-derive.js'
+import { deriveDeck, parseProgress } from '../../../src/tracker/deck-derive.ts'
 
 /** 造一张票（默认挂在 m1 下、空 assignees=EMPTY、无阻塞）。 */
 const t = (key, over = {}) => Object.assign({

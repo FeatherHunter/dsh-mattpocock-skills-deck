@@ -152,13 +152,13 @@ function execOf(cwd) { return { agent: { session: { cwd: cwd || 'C:/fake-ws', id
 
 async function main() {
   console.log('#895 回归门禁：批量限时自停与续跑（缩放假预算）')
-  const scopeMod = await imp('src/shared/deck-tools/call-scope.js')
-  const storeMod = await imp('src/shared/deck-tools/plan-store.js')
+  const scopeMod = await imp('src/deck/shell/call-budget.ts')
+  const storeMod = await imp('src/deck/shell/plan-cursor.ts')
   const budget = await imp('src/shared/refresh/budget.js')
   const toolCost = await imp('src/shared/refresh/tool-cost.js')
-  const planMod = await imp('src/host/tools/deckMapPlanCreate.js')
-  const linkMod = await imp('src/host/tools/deckMapLink.js')
-  const snapMod = await imp('src/host/tools/deckMapSnapshot.js')
+  const planMod = await imp('src/deck/tools/map-plan-create.ts')
+  const linkMod = await imp('src/deck/tools/map-link.ts')
+  const snapMod = await imp('src/deck/tools/map-snapshot.ts')
   check(typeof scopeMod.withCallScope === 'function', '调用上下文装配口存在')
   check(typeof storeMod.createFilePlanStore === 'function' && typeof storeMod.createMemoryPlanStore === 'function', '落盘与内存游标工厂存在')
 

@@ -77,12 +77,12 @@ async function main() {
 
   // ── ① 层判据自检 ──
   // 内存夹具：宿主层里的文件读宿主层的工具文件 → 层判据 layerOf 必须把两头都判成 host。
-  const fixture = { file: 'src/host/refresh/wiring.js', import: './tools/deckContext.js', resolved: 'src/host/tools/deckContext.js' }
+  const fixture = { file: 'src/host/refresh/wiring.js', import: './tools/deckContext.js', resolved: 'src/deck/tools/context.ts' }
   check(layerOf(fixture.file) === 'host' && layerOf(fixture.resolved) === 'host', '✗ probe：宿主层文件引用宿主层工具文件，会被同一条层判据判成同层边（' + fixture.file + ' -> ' + fixture.resolved + '）')
 
   // ── ② 真在宿主装配形状下装起来 ──
-  const registryMod = await imp('src/host/tracker/registryCore.js')
-  const markdownModule = (await imp('src/host/tracker/backends/markdown/index.js')).markdownModule
+  const registryMod = await imp('src/tracker/registry/registryCore.ts')
+  const markdownModule = (await imp('src/tracker/rooms/markdown/index.ts')).markdownModule
   const { createRefreshWiring } = await imp('src/host/refresh/wiring.js')
 
   const ws = markdownWorkspace()

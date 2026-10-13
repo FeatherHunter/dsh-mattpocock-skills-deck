@@ -123,7 +123,7 @@ async function main() {
   assert.strictEqual(raw.map((s) => s.id).join(','), before, '排序不改动入参数组')
   ok('orderStepsByGuide：三个后端都排成定版那条链（行数不变、缺项跳过、清单里没有的项原样保留在尾部、空输入不崩、不改入参）')
 
-  // 【已删除】原先这里读 src/host/detectChain.js 的源码文本，断言它 import 了清单模块、调了 orderStepsByGuide /
+  // 【已删除】原先这里读 src/host/detectChain.ts 的源码文本，断言它 import 了清单模块、调了 orderStepsByGuide /
   //   guideStepsFor、排序发生在算 currentIndex 之前、以及没有旧的直拼写法。断言对象是手写源码里的写法与先后，
   //   等价重构（换个写法、搬个位置、改注释）就会红，所以整段拆掉。宿主有没有真按清单排，由场景 4 守：
   //   那一段用真函数、真检查目录把三个后端的行序排出来逐项比对。

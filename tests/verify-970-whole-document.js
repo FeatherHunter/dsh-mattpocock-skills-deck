@@ -10,7 +10,7 @@
 // （行为不变）；③ 普通片段（仍走插入）；④ 本门禁已挂进验证链。
 import nodePath from 'node:path'
 import fs from 'node:fs'
-import { markdownModule } from '../src/host/tracker/backends/markdown/index.js'
+import { markdownModule } from '../src/tracker/rooms/markdown/index.ts'
 import { anchorLineFor } from '../src/shared/refresh/idempotency.js'
 
 let failed = false

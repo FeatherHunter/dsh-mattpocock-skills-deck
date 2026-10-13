@@ -39,7 +39,7 @@ function makeGateLedger(gateMod, ledgerMod) {
 
 async function main() {
   console.log('工作区配置文件门禁（947：格式与读链四层）')
-  const wfMod = await imp('src/shared/deck-tools/workspace-file.js')
+  const wfMod = await imp('src/deck/shell/workspace-anchor.ts')
   const { parseWorkspaceFile, stringifyWorkspaceFile, WORKSPACE_FILE_REL, WORKSPACE_FILE_VERSION } = wfMod
 
   // —— W1：只认人选（v1 老 JSON 照读，v2 新 YAML 照读，高版本按 null 回） ——
@@ -60,7 +60,7 @@ async function main() {
   }
 
   // —— W2：探测顺序（内存 > 文件 > 锚） ——
-  const detMod = await imp('src/host/tracker/detection/explicitDetector.js')
+  const detMod = await imp('src/tracker/detection/explicitDetector.ts')
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'wf947-'))
   const anchorOf = (title) => '# Issue tracker: ' + title + '\n\nBody mentions gh issue.\n'
   const regStub = (boundId) => ({
@@ -83,12 +83,12 @@ async function main() {
   }
 
   // —— W3：工具顺序（内存 > H > 文件 > 自动识别；缺席口子兼容旧接线） ——
-  const shellMod = await imp('src/shared/deck-tools/shell.js')
+  const shellMod = await imp('src/deck/shell/call-shell.ts')
   const budget = await imp('src/shared/refresh/budget.js')
-  const ledgerMod = await imp('src/host/refresh/ledger.js')
-  const gateMod = await imp('src/host/refresh/gate.js')
+  const ledgerMod = await imp('src/host/refresh/ledger.ts')
+  const gateMod = await imp('src/host/refresh/gate.ts')
   const toolCost = await imp('src/shared/refresh/tool-cost.js')
-  const decMod947 = await imp('src/host/tracker/detection/backendDecision.js')
+  const decMod947 = await imp('src/tracker/detection/backendDecision.ts')
   const sOf = (cwd) => ({ cwd: cwd, workspaceKey: 'k947', sessionId: 's947', source: 't', text: '' })
   const shellOf = (reg, extra) => shellMod.createDeckShell(Object.assign({ gate: makeGateLedger(gateMod, ledgerMod), registry: reg, budget: budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, backendCtx: {}, decideBackend: decMod947.decideBackend }, extra || {}))
   const regOf = (boundId, matchedId) => ({
@@ -103,7 +103,7 @@ async function main() {
     check(p1.ok && p1.backendId === 'markdown' && p1.source === 'explicit', 'W3 内存胜一切', JSON.stringify(p1).slice(0, 200))
     const p2 = await shellOf(regOf(undefined, 'github'), { readChoice: async () => ({ backendId: 'markdown', rev: 3 }), parseWorkspaceFile }).pickBackend(exec, sOf('D:\\ws'))
     // 这条原本断言「本机记忆这一层胜文件与自动识别」。按 2026-10-12 维护者拍板的 #1003 契约，
-    //   本机记忆已退出判定（出处见 src/host/tracker/detection/backendDecision.js 那段中文说明：记忆只用来
+    //   本机记忆已退出判定（出处见 src/tracker/detection/backendDecision.ts 那段中文说明：记忆只用来
     //   把工作区配置文件生成出来一次，此后不再拿它回答判定），所以这里给了 readChoice 也不再作数：
     //   结论落到自动识别的 github，而写用途不认自动识别这个来源，按 #1003 契约第 4 条如实拒绝。
     //   这条是可判别的：记忆层一旦回来，这里就会变回 ok + markdown，断言当场红。

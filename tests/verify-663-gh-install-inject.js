@@ -73,7 +73,7 @@ const ghMissing = (extra) => ({
 
 async function main() {
   const { mod, seen, guide } = await loadBannerChain()
-  const ghMod = await import(pathToFileURL(path.join(root, 'src/host/tracker/backends/github/index.js')).href)
+  const ghMod = await import(pathToFileURL(path.join(root, 'src/tracker/rooms/github/index.ts')).href)
   const ghPrompts = ghMod.prompts
   const ghStep = guide.GUIDE_STEPS.find((s) => s.id === 'gh:installed')
   ok(!!ghStep, '清单里有「gh cli 已安装」这一步')
@@ -129,7 +129,7 @@ async function main() {
 
   console.log('== 7. 检查页那一行的按钮也注入同一句原话（#664 补：同一个缺失状态只有一份说明）==')
   // 状态栏那条横幅与检查页那一行的按钮是两个落点，注入的必须是同一句话；先说那一行给的是什么。
-  const fixMod = await import(pathToFileURL(path.join(root, 'src/host/tracker/fixContract.js')).href)
+  const fixMod = await import(pathToFileURL(path.join(root, 'src/tracker/contract/fixContract.ts')).href)
   const rowItems = fixMod.attachFixContract(ghMod.GITHUB_CHECKS, ghMod.githubModule, 'zh', { cwd: '/w/demo' })
   const ghInstallRow = rowItems.find((x) => x && x.id === 'gh:installed')
   const installAction = (ghInstallRow && ghInstallRow.onFail && Array.isArray(ghInstallRow.onFail.actions))

@@ -161,23 +161,23 @@ async function buildReceipts(): Promise<{ raw: Record<string, unknown>, rootPosi
   await import('../scripts/ts-hook.mjs')
 
   const budget = await loadModule('../src/shared/refresh/budget.js') as Record<string, (...a: never[]) => unknown>
-  const ledgerMod = await loadModule('../src/host/refresh/ledger.js') as Record<string, (...a: never[]) => unknown>
-  const gateMod = await loadModule('../src/host/refresh/gate.js') as Record<string, (...a: never[]) => unknown>
-  const registryMod = await loadModule('../src/host/tracker/registryCore.js') as Record<string, (...a: never[]) => unknown>
-  const markdownModule = ((await loadModule('../src/host/tracker/backends/markdown/index.js')) as { markdownModule: unknown }).markdownModule
+  const ledgerMod = await loadModule('../src/host/refresh/ledger.ts') as Record<string, (...a: never[]) => unknown>
+  const gateMod = await loadModule('../src/host/refresh/gate.ts') as Record<string, (...a: never[]) => unknown>
+  const registryMod = await loadModule('../src/tracker/registry/registryCore.ts') as Record<string, (...a: never[]) => unknown>
+  const markdownModule = ((await loadModule('../src/tracker/rooms/markdown/index.ts')) as { markdownModule: unknown }).markdownModule
   const toolCost = await loadModule('../src/shared/refresh/tool-cost.js') as Record<string, (...a: never[]) => unknown>
-  const decMod = await loadModule('../src/host/tracker/detection/backendDecision.js') as Record<string, (...a: never[]) => unknown>
+  const decMod = await loadModule('../src/tracker/detection/backendDecision.ts') as Record<string, (...a: never[]) => unknown>
 
   const TOOL_FILES: Record<string, [string, string]> = {
-    deck_context: ['../src/host/tools/deckContext.js', 'createDeckContext'],
-    deck_issue_get: ['../src/host/tools/deckIssueGet.js', 'createDeckIssueGet'],
-    deck_map_snapshot: ['../src/host/tools/deckMapSnapshot.js', 'createDeckMapSnapshot'],
-    deck_issue_list: ['../src/host/tools/deckIssueList.js', 'createDeckIssueList'],
-    deck_issue_create: ['../src/host/tools/deckIssueCreate.js', 'createDeckIssueCreate'],
-    deck_map_plan_create: ['../src/host/tools/deckMapPlanCreate.js', 'createDeckMapPlanCreate'],
-    deck_map_link: ['../src/host/tools/deckMapLink.js', 'createDeckMapLink'],
-    deck_issue_patch: ['../src/host/tools/deckIssuePatch.js', 'createDeckIssuePatch'],
-    deck_issue_report: ['../src/host/tools/deckIssueReport.js', 'createDeckIssueReport'],
+    deck_context: ['../src/deck/tools/context.ts', 'createDeckContext'],
+    deck_issue_get: ['../src/deck/tools/issue-get.ts', 'createDeckIssueGet'],
+    deck_map_snapshot: ['../src/deck/tools/map-snapshot.ts', 'createDeckMapSnapshot'],
+    deck_issue_list: ['../src/deck/tools/issue-list.ts', 'createDeckIssueList'],
+    deck_issue_create: ['../src/deck/tools/issue-create.ts', 'createDeckIssueCreate'],
+    deck_map_plan_create: ['../src/deck/tools/map-plan-create.ts', 'createDeckMapPlanCreate'],
+    deck_map_link: ['../src/deck/tools/map-link.ts', 'createDeckMapLink'],
+    deck_issue_patch: ['../src/deck/tools/issue-patch.ts', 'createDeckIssuePatch'],
+    deck_issue_report: ['../src/deck/tools/issue-report.ts', 'createDeckIssueReport'],
   }
 
   const posixSep = (p: string): string => String(p).replace(/\\/g, '/')
@@ -243,8 +243,8 @@ async function buildReceipts(): Promise<{ raw: Record<string, unknown>, rootPosi
 async function buildTwoRoomShape(): Promise<Record<string, unknown>> {
   // 离线形状对照：同一张最小票在两房 normalize 之后的字段清单。
   // 不比值，只比「有哪些字段」与「已知差异」——联网的 GitHub 真值由 playback 固件守。
-  const mdNorm = ((await loadModule('../src/host/tracker/backends/markdown/normalize.js')) as { normalizeIssue: (body: string, meta: unknown) => Record<string, unknown> }).normalizeIssue
-  const ghNorm = ((await loadModule('../src/host/tracker/backends/github/normalize.js')) as { normalizeIssue: (raw: unknown) => Record<string, unknown> }).normalizeIssue
+  const mdNorm = ((await loadModule('../src/tracker/rooms/markdown/normalize.ts')) as { normalizeIssue: (body: string, meta: unknown) => Record<string, unknown> }).normalizeIssue
+  const ghNorm = ((await loadModule('../src/tracker/rooms/github/normalize.ts')) as { normalizeIssue: (raw: unknown) => Record<string, unknown> }).normalizeIssue
   const md = mdNorm('# 对照票\n\nStatus: ready-for-agent\nType: task\nBlocked by:\n\n## Comments\n', { key: '01', parentKey: '00', isMap: false, createdAt: '', updatedAt: '' })
   const gh = ghNorm({
     number: 1, title: '对照票', state: 'open', body: '', url: '',

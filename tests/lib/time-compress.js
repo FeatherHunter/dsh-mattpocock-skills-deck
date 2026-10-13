@@ -4,8 +4,8 @@
 //
 // 为什么需要它：#895 与 #898 这两扇门禁跑完全部断言只用几百毫秒，进程却要再空等 60 秒才退出。
 // 原因不在断言，而在产品代码里两处**没人清掉**的定时器：
-//   · src/shared/deck-tools/key-lock.js 的 DEFAULT_KEY_LOCK_TIMEOUT_MS（60000 毫秒，等锁上限）；
-//   · src/host/tools/deckMapPlanCreate.js 的 STORE_TIMEOUT_MS（10000 毫秒，游标读写竞速）。
+//   · src/deck/shell/write-mutex.ts 的 DEFAULT_KEY_LOCK_TIMEOUT_MS（60000 毫秒，等锁上限）；
+//   · src/deck/tools/map-plan-create.ts 的 STORE_TIMEOUT_MS（10000 毫秒，游标读写竞速）。
 // 它们都是 Promise.race 里的「超时就先走」，竞速赢了以后那个定时器仍然挂在事件循环上，
 // 于是 node 必须等它烧完才肯退出。这类等待全是空等，CPU 占用只有几十毫秒。
 //

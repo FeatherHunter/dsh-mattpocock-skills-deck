@@ -14,7 +14,7 @@ let failed = false
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
-/** 从 budget.js 取一套裁决要用的数字（一处取值，两处使用：本门禁与 src/host/refresh/gate.js 同一形状）。 */
+/** 从 budget.js 取一套裁决要用的数字（一处取值，两处使用：本门禁与 src/host/refresh/gate.ts 同一形状）。 */
 function limitsFromBudget(budget) {
   return {
     probeIntervalMs: budget.PROBE_INTERVAL_MS,

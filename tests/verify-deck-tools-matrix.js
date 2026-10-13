@@ -89,18 +89,18 @@ function remoteLane(id, scripted, module, sink) {
 async function main() {
   console.log('三后端矩阵门禁（#713 T9：同一个动作在 github / gitlab / markdown 上分别落到哪里）')
   const budget = await imp('src/shared/refresh/budget.js')
-  const ledgerMod = await imp('src/host/refresh/ledger.js')
-  const gateMod = await imp('src/host/refresh/gate.js')
-  const registryMod = await imp('src/host/tracker/registryCore.js')
-  const githubModule = (await imp('src/host/tracker/backends/github/index.js')).githubModule
-  const gitlabBackend = (await imp('src/host/tracker/backends/gitlab/index.js')).gitlabBackend
-  const markdownModule = (await imp('src/host/tracker/backends/markdown/index.js')).markdownModule
+  const ledgerMod = await imp('src/host/refresh/ledger.ts')
+  const gateMod = await imp('src/host/refresh/gate.ts')
+  const registryMod = await imp('src/tracker/registry/registryCore.ts')
+  const githubModule = (await imp('src/tracker/rooms/github/index.ts')).githubModule
+  const gitlabBackend = (await imp('src/tracker/rooms/gitlab/index.js')).gitlabBackend
+  const markdownModule = (await imp('src/tracker/rooms/markdown/index.ts')).markdownModule
   const toolCost = await imp('src/shared/refresh/tool-cost.js')
-  // 选后端的判定出口（#1003 单出口）。生产装配总是把它递给工具（见 src/host/platform/deckToolsAssembly.js
+  // 选后端的判定出口（#1003 单出口）。生产装配总是把它递给工具（见 src/deck/registration/host-assemble.ts
   //   的 `decideBackend: decideBackend || null`），壳拿不到它时会一律回「判定出口这次没装上」，
   //   所以夹具也必须照生产的接法给上。接上它之后，下面每个车道那次 registry.bind(lane.handle, lane.id)
   //   才会被读成「用户亲手选过这个工作区」，三个车道的写用途才会被放行（#1003 契约期望行为第 4 条）。
-  const decMod = await imp('src/host/tracker/detection/backendDecision.js')
+  const decMod = await imp('src/tracker/detection/backendDecision.ts')
 
   let clock = 1700000000000
   const ledger = ledgerMod.createLedger({ now: () => clock })
@@ -157,12 +157,12 @@ async function main() {
   }
   const tools = {}
   for (const [file, factory, name] of [
-    ['src/host/tools/deckIssueCreate.js', 'createDeckIssueCreate', 'deck_issue_create'],
-    ['src/host/tools/deckMapPlanCreate.js', 'createDeckMapPlanCreate', 'deck_map_plan_create'],
-    ['src/host/tools/deckMapLink.js', 'createDeckMapLink', 'deck_map_link'],
-    ['src/host/tools/deckIssuePatch.js', 'createDeckIssuePatch', 'deck_issue_patch'],
-    ['src/host/tools/deckIssueGet.js', 'createDeckIssueGet', 'deck_issue_get'],
-    ['src/host/tools/deckMapSnapshot.js', 'createDeckMapSnapshot', 'deck_map_snapshot'],
+    ['src/deck/tools/issue-create.ts', 'createDeckIssueCreate', 'deck_issue_create'],
+    ['src/deck/tools/map-plan-create.ts', 'createDeckMapPlanCreate', 'deck_map_plan_create'],
+    ['src/deck/tools/map-link.ts', 'createDeckMapLink', 'deck_map_link'],
+    ['src/deck/tools/issue-patch.ts', 'createDeckIssuePatch', 'deck_issue_patch'],
+    ['src/deck/tools/issue-get.ts', 'createDeckIssueGet', 'deck_issue_get'],
+    ['src/deck/tools/map-snapshot.ts', 'createDeckMapSnapshot', 'deck_map_snapshot'],
   ]) {
     const mod = await imp(file)
     tools[name] = mod[factory](deps)

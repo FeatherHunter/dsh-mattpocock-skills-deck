@@ -71,7 +71,7 @@ async function main() {
 
   // ─────────── 二、件数与列表一致 ───────────
   // 宿主交给界面的 issues 是扁平的（地图容器 + 地图下所有子票 + 未挂图的票拼在一起，见
-  // src/host/sessionSnapshot.js），所以「独立票」必须靠「在不在 maps[].tickets 里」判，
+  // src/host/sessionSnapshot.ts），所以「独立票」必须靠「在不在 maps[].tickets 里」判，
   // 不能假设 issues 里只有未挂图的票（#686 真机验收发现的那处）。
   const realish = {
     snapshot: {
@@ -96,7 +96,7 @@ async function main() {
     '件数与列表里「独立票」的行数一致（件数 ' + hc.healthCheckCountOf(realish) + ' vs 行数 ' + standaloneRows.length + '）')
   check(hc.healthCheckCountOf(realish) === 4, '地图节点与已挂图的子票都不计进件数（那两张即便出现在扁平行集里也不数）')
 
-  // #686 真机验收发现的偏差：宿主交给界面的 issues 是**扁平的** —— src/host/sessionSnapshot.js 把
+  // #686 真机验收发现的偏差：宿主交给界面的 issues 是**扁平的** —— src/host/sessionSnapshot.ts 把
   //   「地图容器 + 地图下所有子票 + 未挂图的票」拼成一个数组再交给界面，所以挂在地图下的票也在 issues 里。
   //   这些行只能靠「在不在 maps[].tickets 里」排除；只数 issues 会把它们当游离算进去（真机 17 vs 应得 11）。
   const flattened = {

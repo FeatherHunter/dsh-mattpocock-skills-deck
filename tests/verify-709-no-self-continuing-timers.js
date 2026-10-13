@@ -182,12 +182,12 @@ console.log('\n— 一次评估里环境预检只花一次（断言取数路径�
   }
   const countOf = (spawns, cmd0, cmd1) => spawns.filter((s) => s.rest && String(s.argv[1]) === cmd0 && String(s.argv[2]) === cmd1).length
 
-  const repoKeysMod = await imp(join(ROOTDIR, 'src/host/repoKeys.js'))
-  const detMod = await imp(join(ROOTDIR, 'src/host/tracker/detection/detectionService.js'))
-  const githubMod = await imp(join(ROOTDIR, 'src/host/tracker/backends/github/index.js'))
-  const detectChainMod = await imp(join(ROOTDIR, 'src/host/detectChain.js'))
-  const gateMod = await imp(join(ROOTDIR, 'src/host/refresh/gate.js'))
-  const ledgerMod = await imp(join(ROOTDIR, 'src/host/refresh/ledger.js'))
+  const repoKeysMod = await imp(join(ROOTDIR, 'src/host/git-process.ts'))
+  const detMod = await imp(join(ROOTDIR, 'src/tracker/detection/detectionService.ts'))
+  const githubMod = await imp(join(ROOTDIR, 'src/tracker/rooms/github/index.ts'))
+  const detectChainMod = await imp(join(ROOTDIR, 'src/host/detectChain.ts'))
+  const gateMod = await imp(join(ROOTDIR, 'src/host/refresh/gate.ts'))
+  const ledgerMod = await imp(join(ROOTDIR, 'src/host/refresh/ledger.ts'))
 
   // 第 1 次评估：挂载时那一种调用（force=true，客户端不带 trigger）
   const host1 = makeHost()

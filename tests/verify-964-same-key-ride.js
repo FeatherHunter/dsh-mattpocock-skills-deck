@@ -54,7 +54,7 @@ async function makeChain(opts) {
   let detects = 0
   let backoffNotes = 0
   const fires = []
-  const { createDetectChain } = await import(url('src/host/detectChain.js'))
+  const { createDetectChain } = await import(url('src/host/detectChain.ts'))
   const failFirst = !!o.failFirst
   let evals = 0
   const dh = createDetectChain({
@@ -183,7 +183,7 @@ async function main() {
 
   title('七）日志纪律：只复用已有事件名，不新增')
   {
-    const src = require('fs').readFileSync(nodePath.join(ROOT, 'src/host/detectChain.js'), 'utf8')
+    const src = require('fs').readFileSync(nodePath.join(ROOT, 'src/host/detectChain.ts'), 'utf8')
     must(src.indexOf('dedup.hit') >= 0, '在途命中复用已有事件 dedup.hit', 'dedup.hit missing')
     const hits = Array.from(src.matchAll(/fire\s*\(\s*['"](?:info|debug|warn|error)['"]\s*,\s*['"]([^'"]+)['"]/g)).map((m) => m[1])
     const fresh = hits.filter((e) => /ride|merge|coalesc/i.test(e))

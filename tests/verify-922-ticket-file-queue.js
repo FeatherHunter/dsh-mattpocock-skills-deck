@@ -20,7 +20,7 @@
 // 自证记录：把 write-queue.js 的 withFileWriter 临时改成「不排队、直接跑」（return work()），
 // ①②③ 立刻变红（例如只留下后写那一份字段），④ 仍然是绿的；改回去即全绿。
 import nodePath from 'node:path'
-import { markdownModule } from '../src/host/tracker/backends/markdown/index.js'
+import { markdownModule } from '../src/tracker/rooms/markdown/index.ts'
 
 let failed = 0
 let total = 0

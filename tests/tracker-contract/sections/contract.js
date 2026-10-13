@@ -6,9 +6,9 @@
  * 每段含「✗ probe」：planted 违规必须被检查器逮住（自证测试会逮，否则本段形同虚设）。
  */
 
-import * as contractMod from '../../../src/host/tracker/contract.js'
-import { OPERATIONS, TRACKER_CONTRACT } from '../../../src/host/tracker/contract.js'
-import { ERROR_KIND } from '../../../src/shared/tracker/constants.js'
+import * as contractMod from '../../../src/tracker/contract/index.ts'
+import { OPERATIONS, TRACKER_CONTRACT } from '../../../src/tracker/contract/index.ts'
+import { ERROR_KIND } from '../../../src/tracker/contract/vocabulary.ts'
 
 const EXPECTED_OPNAMES = [
   'preflight', 'list', 'get', 'getDependencies',

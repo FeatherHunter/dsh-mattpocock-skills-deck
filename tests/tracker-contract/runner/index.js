@@ -40,7 +40,7 @@ import { diagnoseCapabilities, hasField, isEmpty } from '../../../src/host/track
  * @param {() => string} [opts.homedir] - homedir 注入（供 platform getHome）
  * @param {object} [opts.fs] - fs 覆盖（默认 DSH 沙箱 fs 的最小可用子集：此处用 node:fs 的薄封装以便单机判真）
  * @param {Function} [opts.exec] - exec 覆盖（默认抛 unsupported——live 真调需要调用方注入真实 exec）
- * @returns {Promise<import('../../../src/host/tracker/contract.js').BackendContext & { platform: import('../../../src/host/platform/index.js').Platform }>}
+ * @returns {Promise<import('../../../src/tracker/contract/index.ts').BackendContext & { platform: import('../../../src/host/platform/index.js').Platform }>}
  */
 export async function createRunnerContext(opts = {}) {
   // 最小 hostCtx：需提供 get('fs') / get('subprocess') 等供 platform 消费；此处做薄适配
@@ -143,10 +143,10 @@ function assertResult(name, cond, detail, out) {
  * 若 fixturesDir 有采样，能额外做“归一化形状与采样一致”的比对。
  *
  * @param {object} params
- * @param {import('../../../src/host/tracker/contract.js').Tracker} params.tracker - 真实 Tracker 实例（经 BackendModule.create(ctx) 产出）
+ * @param {import('../../../src/tracker/contract/index.ts').Tracker} params.tracker - 真实 Tracker 实例（经 BackendModule.create(ctx) 产出）
  * @param {import('../../../src/shared/tracker/shape.js').RepositoryRef} params.repo - 目标仓库
  * @param {string} [params.fixturesDir] - 采样夹具目录（可选）
- * @param {import('../../../src/host/tracker/contract.js').OpContext} [params.opCtx] - 每 op 上下文（cwd/signal/refId）
+ * @param {import('../../../src/tracker/contract/index.ts').OpContext} [params.opCtx] - 每 op 上下文（cwd/signal/refId）
  * @param {string} [params.label] - 报告前缀
  * @returns {Promise<{ ok: boolean, results: Array<{name:string,ok:boolean,detail:string}> }>}
  */

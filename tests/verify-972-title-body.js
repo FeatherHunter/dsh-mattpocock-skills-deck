@@ -9,7 +9,7 @@
 // ③ 只传正文（行为不变：标题跟正文走）；④ 同传标题加片段（两边都生效）；⑤ 本门禁已挂进验证链。
 import nodePath from 'node:path'
 import fs from 'node:fs'
-import { markdownModule } from '../src/host/tracker/backends/markdown/index.js'
+import { markdownModule } from '../src/tracker/rooms/markdown/index.ts'
 
 let failed = false
 let total = 0

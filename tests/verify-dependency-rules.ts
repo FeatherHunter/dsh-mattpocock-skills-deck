@@ -310,8 +310,8 @@ function selfCheck(): void {
     rule: { name: 'same-layer-import-shared', severity: 'error' },
   }
   const room: Violation = {
-    from: 'src/host/tracker/backends/github/x.js',
-    to: 'src/host/tracker/backends/gitlab/y.js',
+    from: 'src/tracker/rooms/github/x.ts',
+    to: 'src/tracker/rooms/gitlab/y.js',
     rule: { name: 'cross-room-import', severity: 'error' },
   }
   const r1 = classifyViolations([sameLayer], new Set(['src/shared/a.js|src/shared/b.js']))
@@ -320,7 +320,7 @@ function selfCheck(): void {
   const r2 = classifyViolations([sameLayer], new Set())
   if (r2.fresh.length === 1) pass('不在册的同层边判红')
   else fail('不在册的同层边应判红，实际 fresh=' + r2.fresh.length)
-  const r3 = classifyViolations([room], new Set(['src/host/tracker/backends/github/x.js|src/host/tracker/backends/gitlab/y.js']))
+  const r3 = classifyViolations([room], new Set(['src/tracker/rooms/github/x.ts|src/tracker/rooms/gitlab/y.js']))
   if (r3.fresh.length === 1) pass('房间纪律违规不进豁免（哪怕键在清单里也判红）')
   else fail('房间纪律违规应判红，实际 fresh=' + r3.fresh.length)
   const r4 = classifyViolations([], new Set())

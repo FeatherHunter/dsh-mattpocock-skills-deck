@@ -189,7 +189,7 @@ const stWith = function (refresh) { return { snapshot: snapAt(T1204, refresh ? {
 ;(function checkSnapshotEnvelope() {
   // 快照回包要把降级事实带上（否则宿主写了、界面读不到）：把组装函数真加载起来、喂两组输入，看回包上带没带。
   //   上游真降级 → 回包上必须是 'rest'；上游没降级 → 必须是 null（不许把没降级的也写成降级）。
-  const envRel = 'src/host/snapshotEnvelope.js'
+  const envRel = 'src/host/snapshotEnvelope.ts'
   let snapFromRest = null
   let snapFromNone = null
   try {

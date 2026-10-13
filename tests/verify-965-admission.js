@@ -132,7 +132,7 @@ async function main() {
 
 function pathToFileURL() {
   const { pathToFileURL: f } = require('url')
-  return f(path.join(ROOT, 'src', 'shared', 'tracker', 'outbound-admission.js'))
+  return f(path.join(ROOT, 'src', 'host', 'outbound', 'admission.ts'))
 }
 
 function finish() {

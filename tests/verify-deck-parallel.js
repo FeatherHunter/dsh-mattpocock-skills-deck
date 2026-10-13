@@ -5,7 +5,7 @@
 // 同一会话内多笔并行也互不影响。对抗结论：
 //   读与单次原子写天然独立（每笔自己的预算壳与记忆，共享的只是出站队列与账本，
 //   耽误的只是快慢，不错结果）；同票并发写里的读改写序列（改标签、改进度、补边）
-//   会丢一次改动，所以同票写序列走单键锁（src/shared/deck-tools/key-lock.js），
+//   会丢一次改动，所以同票写序列走单键锁（src/deck/shell/write-mutex.ts），
 //   不同票、不同仓照旧全并行，读从不拿锁。
 // 本文件不联网：后端全是桩，只验“丢不丢、堵不堵、诚实不诚实”。
 const path = require('path')
@@ -78,10 +78,10 @@ const execFor = (cwd) => ({ agent: { session: { id: 's-p', cwd: cwd || 'D:/demo'
 
 async function main() {
   console.log('deck 并发隔离门禁（同票不丢、异票并行、锁超时诚实）')
-  const gateMod = await imp('src/host/refresh/gate.js')
-  const ledgerMod = await imp('src/host/refresh/ledger.js')
-  const keyLock = await imp('src/shared/deck-tools/key-lock.js')
-  const patchMod = await imp('src/host/tools/deckIssuePatch.js')
+  const gateMod = await imp('src/host/refresh/gate.ts')
+  const ledgerMod = await imp('src/host/refresh/ledger.ts')
+  const keyLock = await imp('src/deck/shell/write-mutex.ts')
+  const patchMod = await imp('src/deck/tools/issue-patch.ts')
 
   // ① 同票并发改标签不丢改动（锁把读改写 serial 化）
   {

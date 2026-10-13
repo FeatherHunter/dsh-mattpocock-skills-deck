@@ -110,7 +110,7 @@ async function main() {
   }
 
   // 4) 归一化期望（用本仓库 normalizeIssue 生成，便于 harness 比对）
-  const { normalizeIssue } = await import('../src/host/tracker/backends/github/normalize.js')
+  const { normalizeIssue } = await import('../src/tracker/rooms/github/normalize.ts')
   // raw-issue -> normalized
   // normalizeIssue 期望 REST 形状：number -> key, body/state 等
   const normalized = normalizeIssue(rawIssue)

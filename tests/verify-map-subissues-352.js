@@ -36,9 +36,9 @@ async function checkPrompts() {
 }
 
 async function checkBackendPrompts() {
-  const gh = await fs.readFile('src/host/tracker/backends/github/index.js', 'utf8');
-  const gl = await fs.readFile('src/host/tracker/backends/gitlab/index.js', 'utf8');
-  const md = await fs.readFile('src/host/tracker/backends/markdown/index.js', 'utf8');
+  const gh = await fs.readFile('src/tracker/rooms/github/index.ts', 'utf8');
+  const gl = await fs.readFile('src/tracker/rooms/gitlab/index.js', 'utf8');
+  const md = await fs.readFile('src/tracker/rooms/markdown/index.ts', 'utf8');
   const ghHas = gh.includes('subIssue: {');
   const glHas = gl.includes('subIssue: {');
   const mdHas = md.includes('subIssue: {');

@@ -7,8 +7,8 @@
  *   ③ auth 先于 rate-limit；④ **兜底 network**（未知不归 env，不混资源问题）。
  */
 
-import { classifyError, fail } from '../../../src/host/tracker/preflight.js'
-import { ERROR_KIND } from '../../../src/shared/tracker/constants.js'
+import { classifyError, fail } from '../../../src/tracker/preflight.ts'
+import { ERROR_KIND } from '../../../src/tracker/contract/vocabulary.ts'
 
 export async function run() {
   const out = []

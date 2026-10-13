@@ -77,13 +77,13 @@ else bad('B. setup.markdown.paletteNote 又回来了：#619 已删掉这条注�
 
 // ---------- E. 类型徽章能收到的每个类型值都必须有词条（#626 防复发）----------
 // TypeChip（views/shared/chips.js）渲染的是 tr('type.' + 类型值)。类型值有两个来源：
-//   ① 后端归一的票类型：src/shared/tracker/constants.js 的 ISSUE_TYPE（issue / map）
-//   ② 五个 wayfinder 类型标签：src/shared/labels.js 的 wayfinder:xxx
+//   ① 后端归一的票类型：src/tracker/contract/vocabulary.ts 的 ISSUE_TYPE（issue / map）
+//   ② 五个 wayfinder 类型标签：src/tracker/contract/canonical-labels.ts 的 wayfinder:xxx
 // 任何一路冒出新值而词条没跟上，界面上就会印出键名本身 —— 那正是 #626 的毛病。
-const constantsSrc = fs.readFileSync(path.join(root, 'src/shared/tracker/constants.js'), 'utf8')
+const constantsSrc = fs.readFileSync(path.join(root, 'src/tracker/contract/vocabulary.ts'), 'utf8')
 const issueTypeBlock = (constantsSrc.match(/ISSUE_TYPE\s*=\s*Object\.freeze\(\{([\s\S]*?)\}\)/) || [])[1] || ''
 const fromBackend = (issueTypeBlock.match(/:\s*'([a-z]+)'/g) || []).map(function (s) { return s.replace(/[^a-z]/g, '') })
-const labelsSrc = fs.readFileSync(path.join(root, 'src/shared/labels.js'), 'utf8')
+const labelsSrc = fs.readFileSync(path.join(root, 'src/tracker/contract/canonical-labels.ts'), 'utf8')
 const fromLabels = []
 ;(labelsSrc.match(/wayfinder:[a-z]+/g) || []).forEach(function (n) {
   const v = n.slice('wayfinder:'.length)
@@ -92,7 +92,7 @@ const fromLabels = []
 const typeValues = []
 fromBackend.concat(fromLabels).forEach(function (v) { if (v && typeValues.indexOf(v) < 0) typeValues.push(v) })
 // 这里原来还有一条「至少收集到 6 个类型值」的自检，盯的是上面两个正则能不能从
-// src/shared/tracker/constants.js 与 src/shared/labels.js 的写法里抠出字面量（改写法就变红），
+// src/tracker/contract/vocabulary.ts 与 src/tracker/contract/canonical-labels.ts 的写法里抠出字面量（改写法就变红），
 // 已按维护者要求删除；抠取本身保留，只作为下面按 key 核词条的输入。
 for (const v of typeValues) {
   if (('type.' + v) in allKeys) ok('E. 有词条 type.' + v)

@@ -4,7 +4,7 @@
 const fs = require('fs');
 const cli = fs.readFileSync('client.js', 'utf8');
 const pcli = fs.readFileSync('package/lib/client.js', 'utf8');
-const ghSrc = fs.readFileSync('src/host/tracker/backends/github/index.js', 'utf8');
+const ghSrc = fs.readFileSync('src/tracker/rooms/github/index.ts', 'utf8');
 let failed = false;
 const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true; };
 

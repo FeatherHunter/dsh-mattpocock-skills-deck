@@ -39,10 +39,10 @@ function makePlat() {
 async function main() {
   console.log('#971 防回归：本地后端父边与快照（读注释、改父同目录成功、快照计数）')
   const budget = await imp('src/shared/refresh/budget.js')
-  const ledgerMod = await imp('src/host/refresh/ledger.js')
-  const gateMod = await imp('src/host/refresh/gate.js')
-  const registryMod = await imp('src/host/tracker/registryCore.js')
-  const markdownModule = (await imp('src/host/tracker/backends/markdown/index.js')).markdownModule
+  const ledgerMod = await imp('src/host/refresh/ledger.ts')
+  const gateMod = await imp('src/host/refresh/gate.ts')
+  const registryMod = await imp('src/tracker/registry/registryCore.ts')
+  const markdownModule = (await imp('src/tracker/rooms/markdown/index.ts')).markdownModule
   const toolCost = await imp('src/shared/refresh/tool-cost.js')
 
   // —— 扁平工作区：建图前 0 张地图（有目录但没有 map.md），与工单里的现场一致 ——
@@ -73,10 +73,10 @@ async function main() {
     decideBackend: makeDecideStub(registry),
     planStore: (() => { const t = new Map(); return { durable: true, load(id) { return t.get(id) || null }, save(id, s) { t.set(id, s) } } })(),
   }
-  const planMod = await imp('src/host/tools/deckMapPlanCreate.js')
-  const snapMod = await imp('src/host/tools/deckMapSnapshot.js')
-  const getMod = await imp('src/host/tools/deckIssueGet.js')
-  const linkMod = await imp('src/host/tools/deckMapLink.js')
+  const planMod = await imp('src/deck/tools/map-plan-create.ts')
+  const snapMod = await imp('src/deck/tools/map-snapshot.ts')
+  const getMod = await imp('src/deck/tools/issue-get.ts')
+  const linkMod = await imp('src/deck/tools/map-link.ts')
   const planTool = planMod.createDeckMapPlanCreate(deps)
   const snapTool = snapMod.createDeckMapSnapshot(deps)
   const getTool = getMod.createDeckIssueGet(deps)
@@ -106,7 +106,7 @@ async function main() {
     check(String(rel) === String(mapKey), '子票 ' + k + ' 的父是地图 ' + mapKey + '（实得 ' + (rel || '空') + '）')
   }
   // 直接读盘确认注释写了（边接口拒了但文件层级写了，正是工单的连带证据 1）。
-  const { listIssues } = await imp('src/host/tracker/backends/markdown/issues-read.js')
+  const { listIssues } = await imp('src/tracker/rooms/markdown/issues-read.ts')
   void listIssues
   void repoA
   void tracker
@@ -132,21 +132,21 @@ async function main() {
   void disposeB
   void registryB
   // 直接用后端建两张 00 的子票并列出（走同一份解析，不经过工具壳）。
-  const { createIssue } = await imp('src/host/tracker/backends/markdown/issues-create.js')
+  const { createIssue } = await imp('src/tracker/rooms/markdown/issues-create.ts')
   const repoB = { backend: 'markdown', refId: '.scratch/demo', name: 'demo', url: '', effortId: 'demo' }
   const b1 = await createIssue(ctxB, repoB, { title: '单根子票一', type: 'task', parentKey: '00' })
   const b2 = await createIssue(ctxB, repoB, { title: '单根子票二', type: 'task' })
   void b1
   void b2
-  const { listIssues: listB } = await imp('src/host/tracker/backends/markdown/issues-read.js')
+  const { listIssues: listB } = await imp('src/tracker/rooms/markdown/issues-read.ts')
   const listed00 = await listB(ctxB, repoB, { parentKey: '00' })
   // b2 没有显式父，回落到 00，所以 00 下应有 2 张。
   check(listed00.ok === true && listed00.data && listed00.data.filter((r) => String(r.parentKey) === '00').length === 2, '单根布局按 00 列出 2 张子票（回归通过）')
 
   // —— 不存在的父仍如实失败（跨目录与缺失都算做不到，不假装成功） ——
-  const { setParentIssue } = await imp('src/host/tracker/backends/markdown/issues-patch.js')
-  const { getIssue: getB } = await imp('src/host/tracker/backends/markdown/issues-read.js')
-  const { updateIssue } = await imp('src/host/tracker/backends/markdown/issues-patch.js')
+  const { setParentIssue } = await imp('src/tracker/rooms/markdown/issues-patch.ts')
+  const { getIssue: getB } = await imp('src/tracker/rooms/markdown/issues-read.ts')
+  const { updateIssue } = await imp('src/tracker/rooms/markdown/issues-patch.ts')
   const miss = await setParentIssue(ctxB, repoB, String((b1.data && b1.data.key) || '01'), '99')
   check(miss.ok === false, '不存在的父如实失败（实得 ok=' + miss.ok + '）')
   const same = await setParentIssue(ctxB, repoB, String((b1.data && b1.data.key) || '01'), '00')

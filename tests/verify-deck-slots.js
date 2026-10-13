@@ -133,7 +133,7 @@ try{
 console.log('')
 console.log('-- 4) 后端修复契约：gh:remote 与 gh:repoAccess 同形 form --')
 try{
-  const gh = file('src/host/tracker/backends/github/index.js')
+  const gh = file('src/tracker/rooms/github/index.ts')
   check(gh.includes("gh:remote"), 'github/index.js 含 gh:remote')
   check(gh.includes("gh:repoAccess"), 'github/index.js 含 gh:repoAccess')
   // gh:remote 的 form
@@ -150,7 +150,7 @@ try{
   const bothHaveSingle = remoteBlock.includes("single") && repoAccessBlock.includes("single")
   check(bothHaveSingle, 'gh:remote 与 gh:repoAccess 的 visibility 均为 single')
   // fixContract 存在且处理 form
-  const fc = file('src/host/tracker/fixContract.js')
+  const fc = file('src/tracker/contract/fixContract.ts')
   check(fc.includes('attachFixContract'), 'fixContract.js 含 attachFixContract')
   check(fc.includes("type === 'form'"), 'fixContract 处理 form 动作')
 }catch(e){ check(false, '后端 form 校验异常: '+e.message)}

@@ -40,9 +40,9 @@ async function main () {
   console.log('验收门禁（#686：真文本串味 · 兜底 · 三态）')
 
   // ─────────── 一、三个后端真实科目互不串味 ───────────
-  const ghSrc = read(path.join('src', 'host', 'tracker', 'backends', 'github', 'index.js'))
-  const glSrc = read(path.join('src', 'host', 'tracker', 'backends', 'gitlab', 'index.js'))
-  const mdSrc = read(path.join('src', 'host', 'tracker', 'backends', 'markdown', 'index.js'))
+  const ghSrc = read(path.join('src', 'tracker', 'rooms', 'github', 'index.ts'))
+  const glSrc = read(path.join('src', 'tracker', 'rooms', 'gitlab', 'index.js'))
+  const mdSrc = read(path.join('src', 'tracker', 'rooms', 'markdown', 'index.ts'))
   // #725：三后端各自的 prompts.bodyFormat 整节删除，这里不再从后端抠那一条。
   const ghM = { id: 'github', prompts: { healthCheck: promptsOf(ghSrc, 'healthCheck'), subIssue: promptsOf(ghSrc, 'subIssue') } }
   const glM = { id: 'gitlab', prompts: { healthCheck: promptsOf(glSrc, 'healthCheck'), subIssue: promptsOf(glSrc, 'subIssue') } }

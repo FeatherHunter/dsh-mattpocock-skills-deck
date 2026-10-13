@@ -69,18 +69,18 @@ const permCalls = (calls) => calls.filter((l) => l.startsWith('api repos/') && l
 
 async function main() {
   console.log('#992 只读仓库标签能力降级专属门禁（不联网）')
-  const { ERROR_KIND } = await imp('src/shared/tracker/constants.js')
+  const { ERROR_KIND } = await imp('src/tracker/contract/vocabulary.ts')
   // 选后端的判定出口（#1003 单出口）。下面 E）与 G）两段都是经工具壳调后端的，生产装配总是把它递给工具
-  //   （见 src/host/platform/deckToolsAssembly.js 的 `decideBackend: decideBackend || null`），壳拿不到它时
+  //   （见 src/deck/registration/host-assemble.ts 的 `decideBackend: decideBackend || null`），壳拿不到它时
   //   会一律回「判定出口这次没装上」，两段都跑不到真实路径。接上它之后，两段夹具里那句
   //   registry.bind(handle, ...) 才会被读成「用户亲手选过这个工作区」，写用途才会被放行
   //   （#1003 契约期望行为第 4 条）。
-  const decMod = await imp('src/host/tracker/detection/backendDecision.js')
+  const decMod = await imp('src/tracker/detection/backendDecision.ts')
 
   // ── A) 分类 ──
   {
-    const { classifyGhError } = await imp('src/host/tracker/backends/github/errors.js')
-    const { classifyError } = await imp('src/host/tracker/preflight.js')
+    const { classifyGhError } = await imp('src/tracker/rooms/github/errors.ts')
+    const { classifyError } = await imp('src/tracker/preflight.ts')
     check(classifyGhError({ message: PERM_SENTENCE }) === ERROR_KIND.AUTH, 'A1 errors.js：GraphQL 复数权限句归 auth（实得 ' + classifyGhError({ message: PERM_SENTENCE }) + '）')
     check(classifyError({ message: PERM_SENTENCE }) === ERROR_KIND.AUTH, 'A2 preflight.js：同一句同样归 auth（两处同改，实得 ' + classifyError({ message: PERM_SENTENCE }) + '）')
     const keep404 = classifyGhError({ message: 'HTTP 404: Not Found (https://api.github.com/repos/a/b/labels)' })
@@ -91,7 +91,7 @@ async function main() {
 
   // ── B) 单源 helper ──
   {
-    const { readRepoPermissions, readonlyMessage } = await imp('src/host/tracker/backends/github/repo-permissions.js')
+    const { readRepoPermissions, readonlyMessage } = await imp('src/tracker/rooms/github/repo-permissions.ts')
     const f = makeCtx()
     const cache = new Map()
     const p1 = await readRepoPermissions({ execGh: async (a, o) => { const r = await f.ctx.exec('gh', a, o); return r.code === 0 ? { ok: true, data: { stdout: r.stdout } } : { ok: false, error: { kind: 'network', message: r.stderr } } } }, 'acme/demo', f.ctx, cache)
@@ -108,7 +108,7 @@ async function main() {
 
   // ── C) setLabels 归因 ──
   {
-    const { setLabels } = await imp('src/host/tracker/backends/github/labels.js')
+    const { setLabels } = await imp('src/tracker/rooms/github/labels.ts')
     const repo = { backend: 'github', refId: 'acme/demo', name: 'demo', url: '' }
     const f = makeCtx()
     const r = await setLabels(repo, '7', [{ name: 'bug' }, { name: 'needs-triage' }], {}, f.ctx)
@@ -130,7 +130,7 @@ async function main() {
 
   // ── D) 建票 labelError + 正文区 ──
   {
-    const { createIssue } = await imp('src/host/tracker/backends/github/issues-write.js')
+    const { createIssue } = await imp('src/tracker/rooms/github/issues-write.ts')
     const repo = { backend: 'github', refId: 'acme/demo', name: 'demo', url: '' }
     const f = makeCtx()
     const r = await createIssue(repo, { title: '只读库建票', body: 'hello', type: 'issue', labels: ['bug'] }, f.ctx)
@@ -149,9 +149,9 @@ async function main() {
   // ── E) 工具层按结果说话 ──
   {
     const budget = await imp('src/shared/refresh/budget.js')
-    const ledgerMod = await imp('src/host/refresh/ledger.js')
-    const gateMod = await imp('src/host/refresh/gate.js')
-    const registryMod = await imp('src/host/tracker/registryCore.js')
+    const ledgerMod = await imp('src/host/refresh/ledger.ts')
+    const gateMod = await imp('src/host/refresh/gate.ts')
+    const registryMod = await imp('src/tracker/registry/registryCore.ts')
     const toolCost = await imp('src/shared/refresh/tool-cost.js')
     let clock = 1700000000000
     const ledger = ledgerMod.createLedger({ now: () => clock })
@@ -178,7 +178,7 @@ async function main() {
     const handle = { cwd: '/ws/992', refId: 'o/r' }
     registry.bind(handle, 'stub-992-err')
     const deps = { gate, registry, budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, handleFor: () => handle, backendCtx: {}, now: () => clock, log: { fire: () => {} }, invalidate: () => {}, decideBackend: decMod.decideBackend }
-    const createMod = await imp('src/host/tools/deckIssueCreate.js')
+    const createMod = await imp('src/deck/tools/issue-create.ts')
     const tool = createMod.createDeckIssueCreate(deps)
     const exec = { agent: { session: { id: 's-992', cwd: '/ws/992' } } }
     const cr = await tool.run(exec, { title: '只读库建 bug 票', kind: 'bug' })
@@ -200,7 +200,7 @@ async function main() {
 
   // ── F) 改色批内只问一次 ──
   {
-    const { githubModule } = await imp('src/host/tracker/backends/github/index.js')
+    const { githubModule } = await imp('src/tracker/rooms/github/index.ts')
     const tracker = githubModule.create({})
     const calls = []
     const ctx = {
@@ -237,7 +237,7 @@ async function main() {
     check(zh.includes('push') && zh.includes('triage') && /只读|读权限/.test(zh), 'G1 README 有 push/triage 前置条件（只读时标签链不可用）')
     const en = fs.readFileSync(path.join(ROOT, 'docs', 'README.en.md'), 'utf8')
     check(en.includes('push access') && en.includes('triage'), 'G2 英文 README 同步了权限前置')
-    const gh = await imp('src/host/tracker/backends/github/index.js')
+    const gh = await imp('src/tracker/rooms/github/index.ts')
     const zhP = gh.prompts.ensureLabels.zh
     const enP = gh.prompts.ensureLabels.en
     check(String(zhP).includes('fork') && String(zhP).includes('origin'), 'G3 补标签弹窗指路 fork（只建议，不代劳改配置）')
@@ -246,11 +246,11 @@ async function main() {
     check(!/[\u4e00-\u9fff]/.test(String(gh.fixes['gh:repoAccess'].hint.en)), 'G6 检查页英文详情无中文')
     // deck_context：GitHub 只读 → 能力位 + 提示；可写 → 无提示；无方法 → 未知不抛
     const budget = await imp('src/shared/refresh/budget.js')
-    const ledgerMod = await imp('src/host/refresh/ledger.js')
-    const gateMod = await imp('src/host/refresh/gate.js')
-    const registryMod = await imp('src/host/tracker/registryCore.js')
+    const ledgerMod = await imp('src/host/refresh/ledger.ts')
+    const gateMod = await imp('src/host/refresh/gate.ts')
+    const registryMod = await imp('src/tracker/registry/registryCore.ts')
     const toolCost = await imp('src/shared/refresh/tool-cost.js')
-    const ctxMod = await imp('src/host/tools/deckContext.js')
+    const ctxMod = await imp('src/deck/tools/context.ts')
     async function runCtx(stubId, trackerImpl) {
       let clock = 1700000000000
       const ledger = ledgerMod.createLedger({ now: () => clock })

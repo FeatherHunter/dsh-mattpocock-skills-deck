@@ -129,7 +129,7 @@ function makeScriptedGh(sink) {
       a.forEach((x, i) => { if (a[i - 1] === '--remove-assignee') t.assignees = t.assignees.filter((n) => n !== x) })
       return { code: 0, stdout: JSON.stringify(row(t)), stderr: '' }
     }
-    // REST 集合建票：生产代码今天走的就是这一条（src/host/tracker/backends/github/issues-write.js:45-47
+    // REST 集合建票：生产代码今天走的就是这一条（src/tracker/rooms/github/issues-write.ts:45-47
     // 用 `-f` 逐字段传，因为 gh api 经 stdin 传整包在执行层没有口子），失败时**没有**退回
     // `gh issue create` 的退路（那一行是 `if (!r.ok) return { ok: false }`）。所以这里照真实行为建成。
     // 旧版夹具曾无条件回失败来「逼后端走 gh issue create」，那是 stdin 时代的形状；后端去掉退路之后

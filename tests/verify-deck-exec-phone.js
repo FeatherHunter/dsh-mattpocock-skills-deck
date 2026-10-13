@@ -27,8 +27,8 @@ async function main() {
   console.log('宿主代执行电话 wf.deckExec 门禁（#758：只加新路、不碰老路）')
 
   let mod = null
-  try { mod = await imp('src/host/platform/deckExec.js') } catch (e) {
-    check(false, '代执行模块可加载（src/host/platform/deckExec.js）：' + String((e && e.message) || e))
+  try { mod = await imp('src/deck/registration/host-delegate.ts') } catch (e) {
+    check(false, '代执行模块可加载（src/deck/registration/host-delegate.ts）：' + String((e && e.message) || e))
     console.log('\n' + total + ' 条断言，失败')
     process.exit(1)
   }
@@ -109,7 +109,7 @@ async function main() {
   //   按维护者「清掉读源码文本钉形状的门禁」的要求整段去掉，连带只用在这里的 readText 与 fs 引用。
 
   // ── 8. 探针扩展（只加键名诊断，不报值；旧 14 个有无不动）──
-  const row = await imp('src/host/platform/deckToolsRow.js')
+  const row = await imp('src/deck/registration/agent-row.ts')
   const rowSvc = { registered: [], register: function (t) { this.registered.push(t); return function () {} } }
   row.apply({ tools: rowSvc })
   const probe = rowSvc.registered.filter((t) => t.name === 'deck_probe')[0]
@@ -155,8 +155,8 @@ async function main() {
   const liveTool = liveCtx.tools.registered.filter((t) => t.name === 'deck_context')[0]
   const liveOut = await liveTool.execute({}, { agent: { session: { cwd: '/ws', id: 's1' } } })
   check(liveOut && liveOut.status === 'ok' && liveOut.text === '宿主真结果', '直连调用面通就拿真结果（不回占位）')
-  check((await imp('src/shared/deck-tools/exec-cell.js')).readDeckPath(), '读路上次走哪条的口子在')
-  check(JSON.stringify((await imp('src/shared/deck-tools/exec-cell.js')).readDeckPath()) === JSON.stringify({ tool: 'deck_context', via: 'connection' }), '直连通记直连（给探针读）')
+  check((await imp('src/deck/shell/table-cell.ts')).readDeckPath(), '读路上次走哪条的口子在')
+  check(JSON.stringify((await imp('src/deck/shell/table-cell.ts')).readDeckPath()) === JSON.stringify({ tool: 'deck_context', via: 'connection' }), '直连通记直连（给探针读）')
   check(seenPayload && seenPayload.payload && seenPayload.payload.tool === 'deck_context', '递过去的工具名对得上')
   check(seenPayload && seenPayload.payload && seenPayload.payload.session && seenPayload.payload.session.cwd === '/ws', '会话目录只从上下文取（模型参数里塞目录也到不了宿主）')
   // 模型参数里伪造会话：递过去的仍是上下文那一份。
@@ -169,7 +169,7 @@ async function main() {
   const quietTool = quietCtx.tools.registered.filter((t) => t.name === 'deck_context')[0]
   const quietOut = await quietTool.execute({}, { agent: { session: { cwd: '/ws' } } })
   check(quietOut && quietOut.status === 'unsupported' && String(quietOut.text).indexOf('面板') >= 0, '没路就回诚实占位（不谎报成功）')
-  check(JSON.stringify((await imp('src/shared/deck-tools/exec-cell.js')).readDeckPath()) === JSON.stringify({ tool: 'deck_context', via: 'fallback' }), '没路记退回（给探针读）')
+  check(JSON.stringify((await imp('src/deck/shell/table-cell.ts')).readDeckPath()) === JSON.stringify({ tool: 'deck_context', via: 'fallback' }), '没路记退回（给探针读）')
   // 参数不是对象、中止、会话缺失：三档各回各的，不碰网络。
   const badOut = await quietTool.execute('不是对象', { agent: { session: { cwd: '/ws' } } })
   check(badOut && badOut.status === 'unsupported', '参数不是对象直接回做不到')
@@ -194,13 +194,13 @@ async function main() {
   } finally {
     try { if (realFetch === undefined) delete globalThis.fetch; else globalThis.fetch = realFetch } catch (e) {}
   }
-  check(JSON.stringify((await imp('src/shared/deck-tools/exec-cell.js')).readDeckPath()) === JSON.stringify({ tool: 'deck_issue_get', via: 'fetch' }), '同源通记同源（给探针读）')
+  check(JSON.stringify((await imp('src/deck/shell/table-cell.ts')).readDeckPath()) === JSON.stringify({ tool: 'deck_issue_get', via: 'fetch' }), '同源通记同源（给探针读）')
 
   // ── 10. 同进程共享格（定案第一路）：宿主放表，行直接取，不经调用面 ──
-  const cell = await imp('src/shared/deck-tools/exec-cell.js')
+  const cell = await imp('src/deck/shell/table-cell.ts')
   check(cell && typeof cell.publishDeckTable === 'function' && typeof cell.awaitDeckTable === 'function' && typeof cell.peekDeckTable === 'function',
     '共享格交出发布、等表、看一眼三个口')
-  const agentHelp = await imp('src/shared/deck-tools/agent-register.js')
+  const agentHelp = await imp('src/deck/registration/register-options.ts')
   // 宿主钩子那条执行入口认裸信封（工具壳原文）与包一层两种形状。
   const bothSvc = { registered: [], register: function (t) { this.registered.push(t); return function () {} } }
   const bothTable = {

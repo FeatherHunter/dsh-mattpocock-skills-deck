@@ -27,8 +27,8 @@ async function main() {
   const delta = await imp(path.join('src', 'shared', 'refresh', 'delta.js'))
   const win = await imp(path.join('src', 'tracker', 'indexWindow.js').replace('src\\tracker', path.join('src', 'shared', 'tracker')))
   const budget = await imp(path.join('src', 'shared', 'refresh', 'budget.js'))
-  const ledgerMod = await imp(path.join('src', 'host', 'refresh', 'ledger.js'))
-  const gateMod = await imp(path.join('src', 'host', 'refresh', 'gate.js'))
+  const ledgerMod = await imp(path.join('src', 'host', 'refresh', 'ledger.ts'))
+  const gateMod = await imp(path.join('src', 'host', 'refresh', 'gate.ts'))
   const patchMod = await imp(path.join('src', 'host', 'refresh', 'patch.js'))
 
   // ---- 假世界：一份内存快照、一个记账的传输层、一份可摆布的窗口索引 ----

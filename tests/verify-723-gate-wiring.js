@@ -47,15 +47,15 @@ async function main() {
   const win = await imp('src/shared/tracker/indexWindow.js')
   const budget = await imp('src/shared/refresh/budget.js')
   const chain = await imp('src/shared/refresh/chain.js')
-  const ledgerMod = await imp('src/host/refresh/ledger.js')
-  const gateMod = await imp('src/host/refresh/gate.js')
+  const ledgerMod = await imp('src/host/refresh/ledger.ts')
+  const gateMod = await imp('src/host/refresh/gate.ts')
   const patchMod = await imp('src/host/refresh/patch.js')
   const wiringMod = await imp('src/host/refresh/wiring.js')
   const attentionMod = await imp('src/host/refresh/attention.js')
-  // 工具名字数对照**装配顺序常量本身**（src/shared/deck-tools/plan.js 的 DECK_TOOL_ORDER），
+  // 工具名字数对照**装配顺序常量本身**（src/deck/tools/tool-order.ts 的 DECK_TOOL_ORDER），
   // 不写死「七条」那种字面：工具从七个长到九个时，写死的断言会平白变红一次，
   // 而那条红与产品行为毫无关系（2026-10-02 就是这么查出来的）。
-  const DECK_TOOL_NAMES = (await imp('src/shared/deck-tools/plan.js')).DECK_TOOL_ORDER
+  const DECK_TOOL_NAMES = (await imp('src/deck/tools/tool-order.ts')).DECK_TOOL_ORDER
 
   /** 一个只活在这一次里的闸 + 账本（真件），配一层假传输层（每真发一条就报给闸一次，与生产同一口径）。 */
   function world(opts) {
@@ -209,8 +209,8 @@ async function main() {
   // 与 ③ 段的区别：③ 是拿闸自己的 admitAiTool 直调（证明裁决函数会拒），这一段是把额度压到只剩一点点，
   // 然后走 wiring.deckToolsForHost() 装出来的表、调真工具，看它是不是照契约回拒绝态。
   {
-    const registryMod = await imp('src/host/tracker/registryCore.js')
-    const markdownModule = (await imp('src/host/tracker/backends/markdown/index.js')).markdownModule
+    const registryMod = await imp('src/tracker/registry/registryCore.ts')
+    const markdownModule = (await imp('src/tracker/rooms/markdown/index.ts')).markdownModule
     const wsRoot = fs.mkdtempSync(path.join(os.tmpdir(), 't19e-deck-'))
     const mkPlat = () => ({
       path: path.posix,

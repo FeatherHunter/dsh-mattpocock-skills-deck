@@ -29,7 +29,7 @@ const check = function (cond, msg) {
 }
 
 // ── 一、原因分类：限流与非配额 403 分得开 ──
-const reasonSrc = fs.readFileSync(path.join(ROOT, 'src/host/tracker/backends/github/fallback-reason.js'), 'utf8')
+const reasonSrc = fs.readFileSync(path.join(ROOT, 'src/tracker/rooms/github/fallback-reason.ts'), 'utf8')
 let reasonMod = null
 try {
   const body = reasonSrc.replace(/^[ \t]*export[ \t]+default[^\n]*$/gm, '').replace(/^[ \t]*export[ \t]+/gm, '')

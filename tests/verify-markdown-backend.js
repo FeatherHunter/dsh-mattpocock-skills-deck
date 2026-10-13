@@ -11,9 +11,9 @@
 
 import runContractTests from './tracker-contract/harness.js'
 import { markdownFixture, markdownExtraAssertions } from './tracker-contract/fixtures/markdown.js'
-import { parseMd } from '../src/host/tracker/backends/markdown/parse.js'
-import { normalizeIssue } from '../src/host/tracker/backends/markdown/normalize.js'
-import { createMarkdownBackend, matches, describe } from '../src/host/tracker/backends/markdown/index.js'
+import { parseMd } from '../src/tracker/rooms/markdown/parse.ts'
+import { normalizeIssue } from '../src/tracker/rooms/markdown/normalize.ts'
+import { createMarkdownBackend, matches, describe } from '../src/tracker/rooms/markdown/index.ts'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import * as os from 'node:os'
@@ -66,8 +66,8 @@ console.log('\n== ② 回环测试（同一文件集镜像） ==')
     get(name) { if (name === 'fs') return plat.fs; return undefined },
   })
 
-  const { listIssues, createIssue } = await import('../src/host/tracker/backends/markdown/issues.js')
-  const { readTextFile } = await import('../src/host/tracker/backends/markdown/read.js')
+  const { listIssues, createIssue } = await import('../src/tracker/rooms/markdown/issues.ts')
+  const { readTextFile } = await import('../src/tracker/rooms/markdown/read.ts')
   const repo = { backend: 'markdown', refId: '.scratch/demo', name: 'demo', url: '' }
   const ctx = mkCtx(tmp)
   // 确保 .scratch/demo 存在
@@ -144,7 +144,7 @@ console.log('\n== ⑥ 标签名外层写法要剥净（#634：读这一层与写
   const repo6 = { backend: 'markdown', refId: '.scratch/demo', name: 'demo', url: '' }
   fs.mkdirSync(path.join(tmp6, '.scratch', 'demo'), { recursive: true })
   fs.writeFileSync(path.join(tmp6, '.scratch', 'demo', 'map.md'), '# Demo Map\n\nStatus: ready-for-agent\nLabels: `wayfinder:map`\n\n## Destination\n\nDemo\n', 'utf8')
-  const { setLabelsIssue } = await import('../src/host/tracker/backends/markdown/issues-patch.js')
+  const { setLabelsIssue } = await import('../src/tracker/rooms/markdown/issues-patch.ts')
   const written = await setLabelsIssue(ctx6, repo6, '00', ['`wayfinder:map`', { name: '"needs-triage"' }])
   const mapTxt = fs.readFileSync(path.join(tmp6, '.scratch', 'demo', 'map.md'), 'utf8')
   check(/^Labels: wayfinder:map, needs-triage$/m.test(mapTxt), '写这一层：落盘的是干净标签名（实得 ' + (mapTxt.match(/^Labels:.*$/m) || ['(没找到 Labels 行)'])[0] + '）')
@@ -182,7 +182,7 @@ console.log('\n== ⑦ 并发建票不许丢票、同一标题不许两路都成�
   const concIssues = path.join(concTmp, '.scratch', 'demo', 'issues')
   fs.mkdirSync(concIssues, { recursive: true })
   fs.writeFileSync(path.join(concTmp, '.scratch', 'demo', 'map.md'), '# Demo Map\n\nStatus: ready-for-agent\n\n## Destination\n\nDemo\n', 'utf8')
-  const concApi = await import('../src/host/tracker/backends/markdown/issues.js')
+  const concApi = await import('../src/tracker/rooms/markdown/issues.ts')
   // 盘上真正落下来的票文件（编号加短横开头的 .md 才算票；map.md 与 notes.md 这类不算）
   const ticketsOnDisk = () => fs.readdirSync(concIssues).filter((n) => /^\d+-/.test(n) && n.endsWith('.md')).sort()
   const okKeysOf = (results) => results.map((r) => (r && r.ok ? String(r.data.key) : 'ERR:' + (r && r.error ? r.error.kind : '?')))

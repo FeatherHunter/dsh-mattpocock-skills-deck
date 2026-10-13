@@ -23,8 +23,8 @@ function countProgressHeaders(s) {
 
 async function main() {
   console.log('#908 写进度替换回归')
-  const patchMod = await imp('src/host/tools/deckIssuePatch.js')
-  const planMod = await imp('src/shared/deck-tools/plan.js')
+  const patchMod = await imp('src/deck/tools/issue-patch.ts')
+  const planMod = await imp('src/deck/shell/minimal-spec.ts')
   const replaceProgressSection = patchMod.replaceProgressSection
   const ensureBody = planMod.ensureBody
   check(typeof replaceProgressSection === 'function', '读到替换函数 replaceProgressSection')

@@ -9,7 +9,7 @@
 // 为什么单独一条而不是塞进门禁：门禁每次都要跑，这里要**故意**让一片红出来给人看，
 // 它自己的成功判据恰恰是「那几条断言失败了」。
 
-import { createRegistry } from '../../../src/host/tracker/registryCore.js'
+import { createRegistry } from '../../../src/tracker/registry/registryCore.ts'
 import { anchorLineFor, idempotencyKeyOf } from '../../../src/shared/refresh/idempotency.js'
 
 // ── 坏实现：锚照样写进票面，但「回查」查的是自己实例里的一张临时表（不看票面）──

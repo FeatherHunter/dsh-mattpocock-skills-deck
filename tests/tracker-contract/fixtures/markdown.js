@@ -12,8 +12,8 @@
  * 由 #142 落地：真实适配器过 G4 契约测试（合规桩全 PASS）。
  */
 
-import { parseMd } from '../../../src/host/tracker/backends/markdown/parse.js'
-import { normalizeIssue } from '../../../src/host/tracker/backends/markdown/normalize.js'
+import { parseMd } from '../../../src/tracker/rooms/markdown/parse.ts'
+import { normalizeIssue } from '../../../src/tracker/rooms/markdown/normalize.ts'
 
 // helper：把 markdown 文本 + meta 组装成 Issue
 function normFromSource(source) {

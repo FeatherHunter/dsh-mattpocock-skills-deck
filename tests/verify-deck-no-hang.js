@@ -109,14 +109,14 @@ function execFor(cwd) {
 async function main() {
   console.log('deck 工具挂起对抗门禁（竞速兜底 + 分类不变 + 中止即停）')
   const budget = await imp('src/shared/refresh/budget.js')
-  const ledgerMod = await imp('src/host/refresh/ledger.js')
-  const gateMod = await imp('src/host/refresh/gate.js')
+  const ledgerMod = await imp('src/host/refresh/ledger.ts')
+  const gateMod = await imp('src/host/refresh/gate.ts')
   const t0 = Date.now()
 
   // ① 挂住的归一 → 如实失败，不凑钥匙（5 秒竞速内回来）
   {
     const g = stubGateLedger(budget, gateMod, ledgerMod)
-    const mod = await imp('src/host/tools/deckContext.js')
+    const mod = await imp('src/deck/tools/context.ts')
     const tool = mod.createDeckContext(baseDeps({ gate: g.gate, registry: stubRegistry('o/n', okTracker()), budget: budget, canonicalKey: hanging }))
     const t1 = Date.now()
     const r = await tool.run(execFor(), {})
@@ -128,7 +128,7 @@ async function main() {
   // ② 挂住的沙箱许可 → 按缺席走老路，读照样回来
   {
     const g = stubGateLedger(budget, gateMod, ledgerMod)
-    const mod = await imp('src/host/tools/deckIssueGet.js')
+    const mod = await imp('src/deck/tools/issue-get.ts')
     const tool = mod.createDeckIssueGet(baseDeps({ gate: g.gate, registry: stubRegistry('o/n', okTracker()), budget: budget, sandboxPolicyFor: hanging }))
     const t1 = Date.now()
     const r = await tool.run(execFor(), { key: '7' })
@@ -140,7 +140,7 @@ async function main() {
   // ③ 挂住（但守约响应信号）的后端 get → 钳制内诚实回超时，不改判成“做不到”
   {
     const g = stubGateLedger(budget, gateMod, ledgerMod)
-    const mod = await imp('src/host/tools/deckIssueGet.js')
+    const mod = await imp('src/deck/tools/issue-get.ts')
     const tool = mod.createDeckIssueGet(baseDeps({ gate: g.gate, registry: stubRegistry('o/n', okTracker({ get: (repo, key, f, ctx) => hangingHonest(ctx), getDependencies: (repo, key, f, ctx) => hangingHonest(ctx) })), budget: budget }))
     const t1 = Date.now()
     const r = await tool.run(execFor(), { key: '7' })
@@ -153,7 +153,7 @@ async function main() {
   // ④ 已中止的调用 → 立刻诚实回，不抛（守约的后端，信号即停）
   {
     const g = stubGateLedger(budget, gateMod, ledgerMod)
-    const mod = await imp('src/host/tools/deckIssueGet.js')
+    const mod = await imp('src/deck/tools/issue-get.ts')
     const tool = mod.createDeckIssueGet(baseDeps({ gate: g.gate, registry: stubRegistry('o/n', okTracker({ get: (repo, key, f, ctx) => hangingHonest(ctx) })), budget: budget }))
     const ctrl = new AbortController()
     ctrl.abort()
@@ -172,7 +172,7 @@ async function main() {
   {
     const g = stubGateLedger(budget, gateMod, ledgerMod)
     const boom = () => { throw new Error('探针故意做坏') }
-    const mod = await imp('src/host/tools/deckIssueCreate.js')
+    const mod = await imp('src/deck/tools/issue-create.ts')
     const tool = mod.createDeckIssueCreate(baseDeps({ gate: g.gate, registry: stubRegistry('o/n', okTracker({ create: boom })), budget: budget }))
     const r = await tool.run(execFor(), { title: '会抛的那一张' })
     check(r && r.ok === false && r.reason === 'backend-threw', '抛错判成可重试（实得 ' + (r && r.reason) + '）')
@@ -182,7 +182,7 @@ async function main() {
   // ⑥ 挂住的记链钩子 → 上报照样 OK，只如实说没记进链
   {
     const g = stubGateLedger(budget, gateMod, ledgerMod)
-    const mod = await imp('src/host/tools/deckIssueReport.js')
+    const mod = await imp('src/deck/tools/issue-report.ts')
     const tool = mod.createDeckIssueReport(baseDeps({ gate: g.gate, registry: stubRegistry('o/n', okTracker()), budget: budget, chainNote: hanging }))
     const t1 = Date.now()
     const r = await tool.run(execFor(), { key: '7' })
@@ -194,7 +194,7 @@ async function main() {
   // ⑦ 挂住的建票钩子 → 建票照样 OK
   {
     const g = stubGateLedger(budget, gateMod, ledgerMod)
-    const mod = await imp('src/host/tools/deckIssueCreate.js')
+    const mod = await imp('src/deck/tools/issue-create.ts')
     const tool = mod.createDeckIssueCreate(baseDeps({ gate: g.gate, registry: stubRegistry('o/n', okTracker()), budget: budget, onTicketCreated: hanging }))
     const t1 = Date.now()
     const r = await tool.run(execFor(), { title: '钩子挂住的那一张' })
@@ -206,7 +206,7 @@ async function main() {
   // ⑧ 游标读挂住 → 建图照样推进（锚与幂等键仍是去重权威；生产预算 120 秒，游标竞速 10 秒）
   {
     const g = stubGateLedger(budget, gateMod, ledgerMod)
-    const mod = await imp('src/host/tools/deckMapPlanCreate.js')
+    const mod = await imp('src/deck/tools/map-plan-create.ts')
     const store = { durable: true, load: hanging, save: async () => {}, remove: async () => {} }
     const tool = mod.createDeckMapPlanCreate(baseDeps({ gate: g.gate, registry: stubRegistry('o/n', okTracker()), budget: budget, planStore: store, toolTimeoutMs: 60000, toolMarginMs: 5000 }))
     const t1 = Date.now()
@@ -219,7 +219,7 @@ async function main() {
 
   // ⑨ 装配层竞速 helper：超时按失败回，成功原样透出
   {
-    const asm = await imp('src/host/platform/deckToolsAssembly.js')
+    const asm = await imp('src/deck/registration/host-assemble.ts')
     check(typeof asm.withCap === 'function', '装配层交出竞速 helper')
     const fast = await asm.withCap(Promise.resolve(42), 1000)
     check(fast && fast.ok === true && fast.value === 42, '成功原样透出')

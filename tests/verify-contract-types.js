@@ -1,7 +1,7 @@
 // tests/verify-contract-types.js — 契约层类型门禁（deck 重构第二批 B 落地；拆分工加第四项，补判别力加第五、六项）
 //
 // 门禁归属: src/tracker/contract
-// 门禁归属: src/host/tracker/contract.js
+// 门禁归属: src/tracker/contract/index.ts
 // 为什么显式写这两条：契约目录的路径是 resolveInRoot(process.env.DSH_CONTRACT_DIR || 'src/tracker/contract')
 // 拼出来的，归属表按字面量路径认不出它，会把这 9 个契约文件算成「没人守」。这两条把归属钉死。
 //
@@ -20,7 +20,7 @@
 //   四、没有运行时实现：契约层只许有类型与数据，不许出现函数体实现、也不许引运行时模块
 //       （只许 `import type` 与逐项 `type` 前缀的内联写法）。发现就判红，并指出文件与行号。
 //   五、名录与运行时真源同集（迁移期临时项）：契约层的 OPERATIONS 名录与运行时
-//       src/host/tracker/contract.js 的 OPERATIONS 数组必须同集 —— 注册表按后者给没实现的后端补桩，
+//       src/tracker/contract/index.ts 的 OPERATIONS 数组必须同集 —— 注册表按后者给没实现的后端补桩，
 //       两边不一致就会出现「类型说有、注册表不补桩」，那种错只在运行时才炸。
 //       等 contract.js 退休（退休时点由迁移批次定）时，这一项与它一起撤掉。
 //   六、`OpName` 声明的成员与运行时真源同集（迁移期临时项，与第五项同生共死）：第五项比的是两份
@@ -63,7 +63,7 @@ const OPERATIONS_REL = 'operations.ts'
 /** 操作名录的住处（拆分工起的单源文件）：操作名真正写在这里，operations.ts 只从它生类型。 */
 const CATALOG_REL = 'operations-catalog.ts'
 /** 运行时真源的路径：它的 OPERATIONS 数组是注册表补桩的依据，第五、六项都要拿它比同集。 */
-const RUNTIME_CONTRACT_REL = 'src/host/tracker/contract.js'
+const RUNTIME_CONTRACT_REL = 'src/tracker/contract/index.ts'
 
 /** 19 个契约操作名（逐字照 research/1010-deck-contract-surface.md 表 E2 与 contract.js 的 OPERATIONS）。 */
 const OPERATION_NAMES = [

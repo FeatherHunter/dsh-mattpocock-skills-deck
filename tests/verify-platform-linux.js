@@ -8,7 +8,7 @@
  *   #168 L1-L6 定版：L1 os.homedir()||null 不读 HOME 第二真相；L2 空串/异常→null；L3 sh 直透无别名；
  *         L4 gh 先 PATH 后 DSH_GH_PATH+lstat 兜底≠覆盖（2026-08-29 修订：兜底下沉至 composePlatform 通用层单点拥有，
  *         本适配器仅直透；G10-G12 经 createPlatform 验证的正是通用层行为）；L5 全量委托 node:path.posix sep='/'; L6 ~/$VAR 不展开属 shell 语义。
- *   #169 落地：src/host/platform/linux/index.js 按上述实现（pathImpl=nodePath.posix + getHome try/catch→null + sh直透 + gh兜底+lstat + ~不展开）
+ *   #169 落地：src/host/platform/linux/index.ts 按上述实现（pathImpl=nodePath.posix + getHome try/catch→null + sh直透 + gh兜底+lstat + ~不展开）
  *
  * 推导不变量（容器可判真 13 项 = 本文件断言）：
  *   G1 getHome 正常有值不返 null               L1
@@ -38,7 +38,7 @@ const path = require('node:path')
 
 async function main() {
   const { createPlatform } = await import('../src/host/platform/index.js')
-  const { default: linuxAdapter } = await import('../src/host/platform/linux/index.js')
+  const { default: linuxAdapter } = await import('../src/host/platform/linux/index.ts')
 
   let failed = false
   let total = 0
@@ -103,7 +103,7 @@ async function main() {
 
   // G4: 不读 HOME 第二真相
   {
-    const srcRaw = fs.readFileSync(path.resolve(__dirname, '../src/host/platform/linux/index.js'), 'utf8')
+    const srcRaw = fs.readFileSync(path.resolve(__dirname, '../src/host/platform/linux/index.ts'), 'utf8')
     const src = srcRaw.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '')
     const readsHomeDirectly = /process\.env\.HOME/.test(src) || /\benv\.HOME\b/.test(src)
     const readsWinProfile = /USERPROFILE|HOMEDRIVE|HOMEPATH/.test(src)
@@ -166,7 +166,7 @@ async function main() {
     const pB = await createPlatform(ctxB, 'linux')
     const rB = await pB.resolveExecutable('sh')
     checkEq(rB, null, 'G9 sh 直透：PATH 未命中时→null（无别名映射）')
-    const srcRaw9 = fs.readFileSync(path.resolve(__dirname, '../src/host/platform/linux/index.js'), 'utf8')
+    const srcRaw9 = fs.readFileSync(path.resolve(__dirname, '../src/host/platform/linux/index.ts'), 'utf8')
     const src9 = srcRaw9.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '')
     check(!src9.includes('sh.exe'), 'G9 linux 适配器无 sh→sh.exe 别名（仅 win32 有）')
   }

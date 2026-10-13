@@ -142,7 +142,7 @@ try {
   // ---- #266：索引差值底座跨重启（面板关闭期间建号 → 重启后 attributed）----
   // 实例一内：注册 io-s4（repoKey acme/demo）+ 基线建档（GH_BASE，无归属，索引落盘）
   // 目录必须是真实存在的一处（这里用本文件开头造出来的临时目录）。2026-10-12 的 #1003 之后，
-  // 空目录会被宿主如实拒绝（src/host/repoKeys.js:75-78 在起 gh 之前就返回失败），
+  // 空目录会被宿主如实拒绝（src/host/git-process.ts:75-78 在起 gh 之前就返回失败），
   // 命名守护拉不到议题索引，索引底座就落不了盘，后面的跨重启差值也无从算起。
   const reg4 = await callHandler('registerNewSessionWatcher', { sessionId: 'io-s4', baselineTitle: '[New] New Bug', cwd: tmp, repoKey: 'acme/demo', hint: '关闭期间建的需求' })
   check(reg4.ok === true, 'registerNewSessionWatcher 受理（#266 实例一）')

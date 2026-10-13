@@ -55,7 +55,7 @@ function ghCtxFor(factory) {
 
 async function main() {
   console.log('#829 父边重读与读回报错专属门禁（不联网）')
-  const graph = await imp('src/host/tracker/backends/github/graph.js')
+  const graph = await imp('src/tracker/rooms/github/graph.ts')
   const repo = { backend: 'github', refId: 'o/r', name: 'r', url: '' }
 
   // G1) 重复 + 重读已是目标父 → 成功
@@ -77,9 +77,9 @@ async function main() {
   // G3/G4) 工具层：写成功但读票失败 → 证据带读失败原话；正常仍 ok
   {
     const budget = await imp('src/shared/refresh/budget.js')
-    const ledgerMod = await imp('src/host/refresh/ledger.js')
-    const gateMod = await imp('src/host/refresh/gate.js')
-    const registryMod = await imp('src/host/tracker/registryCore.js')
+    const ledgerMod = await imp('src/host/refresh/ledger.ts')
+    const gateMod = await imp('src/host/refresh/gate.ts')
+    const registryMod = await imp('src/tracker/registry/registryCore.ts')
     const toolCost = await imp('src/shared/refresh/tool-cost.js')
     let clock = 1700000000000
     const ledger = ledgerMod.createLedger({ now: () => clock })
@@ -112,7 +112,7 @@ async function main() {
       handleFor: () => handle, backendCtx: {}, now: () => clock, log: { fire: () => {} }, invalidate: () => {},
       decideBackend: makeDecideStub(registry),
     }
-    const linkMod = await imp('src/host/tools/deckMapLink.js')
+    const linkMod = await imp('src/deck/tools/map-link.ts')
     const link = linkMod.createDeckMapLink(deps)
     const exec = { agent: { session: { id: 's-829', cwd: '/ws/829' } } }
     const lr = await link.run(exec, { key: '90', parentKey: '78' })

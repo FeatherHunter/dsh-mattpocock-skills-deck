@@ -20,8 +20,8 @@
 //
 // 用法（仓库根目录）：node tests/verify-gitlab-single-write.js
 
-import { createRegistry } from '../src/host/tracker/registryCore.js'
-import { gitlabBackend } from '../src/host/tracker/backends/gitlab/index.js'
+import { createRegistry } from '../src/tracker/registry/registryCore.ts'
+import { gitlabBackend } from '../src/tracker/rooms/gitlab/index.js'
 import { anchorLineFor } from '../src/shared/refresh/idempotency.js'
 
 const GL_REPO = { backend: 'gitlab', refId: 'acme/demo', name: 'demo', url: '' }

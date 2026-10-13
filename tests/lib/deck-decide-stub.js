@@ -3,16 +3,16 @@
  *
  * 为什么门禁必须给这个依赖
  *   2026-10-11 起（提交 24a4bf33，#1003 单出口），工具壳把「这个工作区用哪个后端」整段交给装配方
- *   递进来的判定出口（`src/shared/deck-tools/shell.js:176-180`）：拿不到它就直接回三态 unsupported
+ *   递进来的判定出口（`src/deck/shell/call-shell.ts:176-180`）：拿不到它就直接回三态 unsupported
  *   （原因码 backend-threw、散列 missing-decideBackend），一句话都不往后做。
- *   生产装配总是给（`src/host/platform/deckToolsAssembly.js:116` 的 `decideBackend`），
+ *   生产装配总是给（`src/deck/registration/host-assemble.ts:116` 的 `decideBackend`），
  *   而门禁夹具各有各的依赖对象、当初没给，于是十几条夹具里工具全回「判定出口这次没装上」——
  *   夹具红着，红的却不是它要守的那件事。这个文件把桩收在一处，供各夹具共用。
  *
  * 为什么桩要读「当下的绑定」而不是写死一个后端 id
  *   壳传进来的只有工作区目录；而门禁里「这个工作区选了谁」的唯一真源是注册表的绑定。
  *   有的夹具中途会把同一个工作区改绑到另一个桩（正向对照那一段），写死 id 会让那一段取到错的桩。
- *   所以这里照生产判定的第一层取 id（`src/host/tracker/detection/backendDecision.js:170-178` 的
+ *   所以这里照生产判定的第一层取 id（`src/tracker/detection/backendDecision.ts:170-178` 的
  *   `registry.bound`）；取不到再退一步问 `select`（与生产判定的自动识别那一层同路）。
  *
  * 为什么回 canWrite: true

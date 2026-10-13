@@ -2,8 +2,8 @@
 //
 // 为什么要有这一条（2026-09-24 维护者真机反馈引出）：面板上那条「读不到处理记录」从来没消失过。
 // 查到根因是**两条回包路径各拼一份信封**：
-//   · wf.snapshot（src/host/sessionSnapshot.js）在回包外面挂上了「每个会话在处理哪些票」的读数；
-//   · wf.refresh （src/host/sessionRefresh.js）自己手写了四份信封字面量，从来没挂过这个字段。
+//   · wf.snapshot（src/host/sessionSnapshot.ts）在回包外面挂上了「每个会话在处理哪些票」的读数；
+//   · wf.refresh （src/host/sessionRefresh.ts）自己手写了四份信封字面量，从来没挂过这个字段。
 // 而界面（src/client/kernel/probe-snapshot.js）是 `force ? wf.refresh : wf.snapshot`，
 // 回来一律 `st.snapshot = snap` —— 于是任何一次强制刷新都把「不带字段」的那份装进面板，
 // 界面上那一块就只能判「读不到」。两条路的字段集合当时确实不等（快照 22 项 / 刷新 19 项）。
@@ -67,9 +67,9 @@ function makeDeps(envelope, chainReadout) {
 
 async function main() {
   console.log('会话快照两条回包路径的字段集合对等门禁（wf.snapshot 与 wf.refresh）')
-  const envMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'snapshotEnvelope.js')).href)
-  const snapMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'sessionSnapshot.js')).href)
-  const refMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'sessionRefresh.js')).href)
+  const envMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'snapshotEnvelope.ts')).href)
+  const snapMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'sessionSnapshot.ts')).href)
+  const refMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'sessionRefresh.ts')).href)
 
   // 那份「每个会话在处理哪些票」的读数：这里用一个最简的假件（ok:true + 空列表），
   // 门禁只关心它有没有被挂上、挂的名字对不对。

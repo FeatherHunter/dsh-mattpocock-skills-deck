@@ -124,7 +124,7 @@ const buildEnv = function (src, lang) {
     if (/^\/wayfinder\b/.test(String(body || '').trim())) return body
     return '/wayfinder\n' + body
   }
-  // 沙箱补登记：startText 现在会调 effortOf / idOf（multi-effort 维度引入的票身份键；实现在 src/shared/tracker/constants.js，
+  // 沙箱补登记：startText 现在会调 effortOf / idOf（multi-effort 维度引入的票身份键；实现在 src/tracker/contract/vocabulary.ts，
   //   构建时拼进界面闭包）、空态分支会调 inspectPrompt（prompts.js 的渲染入口）。
   //   先前本沙箱的参数表漏了它们 → 提取出来的 startText 一执行就 ReferenceError，整个用例假红（与本次改动无关）。
   const effortOf = function (issue) { return (issue && issue.effortId !== undefined && issue.effortId !== null) ? String(issue.effortId) : '' }

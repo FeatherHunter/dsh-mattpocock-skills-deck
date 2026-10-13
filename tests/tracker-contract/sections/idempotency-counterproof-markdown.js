@@ -10,8 +10,8 @@
 import * as nodeFs from 'node:fs'
 import * as nodePath from 'node:path'
 import * as nodeOs from 'node:os'
-import { createRegistry } from '../../../src/host/tracker/registryCore.js'
-import { markdownModule } from '../../../src/host/tracker/backends/markdown/index.js'
+import { createRegistry } from '../../../src/tracker/registry/registryCore.ts'
+import { markdownModule } from '../../../src/tracker/rooms/markdown/index.ts'
 import { anchorLineFor, idempotencyKeyOf } from '../../../src/shared/refresh/idempotency.js'
 
 function makeWorkspace() {

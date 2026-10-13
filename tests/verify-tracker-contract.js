@@ -56,7 +56,7 @@ const results = [
 
 // #139：以真实 github 适配器执行 G4（来源有→映射；来源无→空值；违规桩被逮已由 violating 覆盖）
 try {
-  const { normalizeIssue } = await import('../src/host/tracker/backends/github/normalize.js')
+  const { normalizeIssue } = await import('../src/tracker/rooms/github/normalize.ts')
   const githubFixture = {
     name: 'github-adapter',
     normalize: normalizeIssue,
@@ -96,7 +96,7 @@ try {
   results.push(...runContractTests(gitlabFreeFixture))
   results.push(...runContractTests(gitlabPremiumFixture))
   // 额外校验：free回退应解析 Blocked by 行；premium应优先原生
-  const { normalizeIssue: norm } = await import('../src/host/tracker/backends/gitlab/normalize.js')
+  const { normalizeIssue: norm } = await import('../src/tracker/rooms/gitlab/normalize.js')
   const freeIssue = norm(gitlabFreeFixture.withData)
   const premIssue = norm(gitlabPremiumFixture.withData)
   const freeOk = Array.isArray(freeIssue.blockedBy) && freeIssue.blockedBy.length === 2 && freeIssue.blockedBy[0].key === '1' && freeIssue.blockedBy[1].key === '2'
@@ -148,7 +148,7 @@ try {
     const proxyHint = hasClose ? `has close (unexpected) — ${JSON.stringify(closeRes)?.slice(0,200)}` : 'no close (proxy will handle — expected for 4-op demo)'
     results.push({ name: 'demo-mini · proxy hint: unimplemented ops via registry', ok: true, detail: proxyHint })
     // registry 包装验证：demoModule 经 registry 后，缺的 9 ops 应为 unsupported 桩
-    const { createRegistry } = await import('../src/host/tracker/registryCore.js') // V1 #461：registry.js 已拆为三块
+    const { createRegistry } = await import('../src/tracker/registry/registryCore.ts') // V1 #461：registry.js 已拆为三块
     const { demoModule } = await import('../examples/demo-mini/index.js')
     const reg = createRegistry(demoCtx)
     const disp = reg.register(demoModule)

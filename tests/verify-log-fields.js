@@ -37,7 +37,7 @@ const ALLOWED = {
   'workspaceStore.hit': ['keyHash', 'fresh', 'ttlMs'],
   // 2026-09-25 登记订正（#709 · T5）：这一条的落点已经变成「被退避挡下，直接把上一份快照回给界面」，
   //   实现记的是 keyHash、lang、deferred、reason、waitMs 五个键；从前的 ageMs 早已不再发射，
-  //   按「允许字段就是能记的全部字段」的口径把它从白名单里去掉（落点：src/host/detectChain.js）。
+  //   按「允许字段就是能记的全部字段」的口径把它从白名单里去掉（落点：src/host/detectChain.ts）。
   'chain.cache.hit': ['keyHash', 'lang', 'deferred', 'reason', 'waitMs'],
   'chain.predicate': ['id', 'status', 'latencyMs'],
   'skill.probe': ['name', 'level', 'via'],

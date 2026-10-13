@@ -38,10 +38,10 @@ function makeWS() {
 async function main() {
   console.log('#784 七工具验收')
   const budget = await imp('src/shared/refresh/budget.js')
-  const ledgerMod = await imp('src/host/refresh/ledger.js')
-  const gateMod = await imp('src/host/refresh/gate.js')
-  const registryMod = await imp('src/host/tracker/registryCore.js')
-  const markdownModule = (await imp('src/host/tracker/backends/markdown/index.js')).markdownModule
+  const ledgerMod = await imp('src/host/refresh/ledger.ts')
+  const gateMod = await imp('src/host/refresh/gate.ts')
+  const registryMod = await imp('src/tracker/registry/registryCore.ts')
+  const markdownModule = (await imp('src/tracker/rooms/markdown/index.ts')).markdownModule
   const toolCost = await imp('src/shared/refresh/tool-cost.js')
   const ws = makeWS()
   let clock = 1700000000000
@@ -57,13 +57,13 @@ async function main() {
   const exec = { agent: { session: { id: 's-784-7', cwd: ws.rootPosix } } }
 
   const files = [
-    ['src/host/tools/deckIssueGet.js', 'createDeckIssueGet', 'deck_issue_get'],
-    ['src/host/tools/deckMapSnapshot.js', 'createDeckMapSnapshot', 'deck_map_snapshot'],
-    ['src/host/tools/deckIssueList.js', 'createDeckIssueList', 'deck_issue_list'],
-    ['src/host/tools/deckIssueCreate.js', 'createDeckIssueCreate', 'deck_issue_create'],
-    ['src/host/tools/deckMapPlanCreate.js', 'createDeckMapPlanCreate', 'deck_map_plan_create'],
-    ['src/host/tools/deckMapLink.js', 'createDeckMapLink', 'deck_map_link'],
-    ['src/host/tools/deckIssuePatch.js', 'createDeckIssuePatch', 'deck_issue_patch'],
+    ['src/deck/tools/issue-get.ts', 'createDeckIssueGet', 'deck_issue_get'],
+    ['src/deck/tools/map-snapshot.ts', 'createDeckMapSnapshot', 'deck_map_snapshot'],
+    ['src/deck/tools/issue-list.ts', 'createDeckIssueList', 'deck_issue_list'],
+    ['src/deck/tools/issue-create.ts', 'createDeckIssueCreate', 'deck_issue_create'],
+    ['src/deck/tools/map-plan-create.ts', 'createDeckMapPlanCreate', 'deck_map_plan_create'],
+    ['src/deck/tools/map-link.ts', 'createDeckMapLink', 'deck_map_link'],
+    ['src/deck/tools/issue-patch.ts', 'createDeckIssuePatch', 'deck_issue_patch'],
   ]
   const tools = {}
   let firstDesc = ''
@@ -78,7 +78,7 @@ async function main() {
     check(p.description === firstDesc, name + ' 参数说明与第一份逐字一致')
   }
   // 与 report 逐字一致
-  const repMod = await imp('src/host/tools/deckIssueReport.js')
+  const repMod = await imp('src/deck/tools/issue-report.ts')
   const repDesc = repMod.definition.parameters.properties.effortId.description
   check(firstDesc === repDesc, '七个的参数说明与 deck_issue_report 逐字一致（' + firstDesc + '）')
 

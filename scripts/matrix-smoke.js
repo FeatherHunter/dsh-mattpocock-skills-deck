@@ -29,10 +29,10 @@ function check(ok, msg) {
 
 const PRODUCTS = ['client.js', 'host.js', 'package/lib/client.js', 'package/lib/index.js']
 const SOURCES = [
-  'src/host/platform/win32/index.js',
+  'src/host/platform/win32/index.ts',
   'src/host/platform/index.js',
-  'src/host/platform/darwin/index.js',
-  'src/host/platform/linux/index.js',
+  'src/host/platform/darwin/index.ts',
+  'src/host/platform/linux/index.ts',
   'scripts/build.mjs',
   'package/package.json',
 ]
@@ -77,7 +77,7 @@ async function main() {
   console.log('\n== I2 零手拼 / 静态 import（与 verify-platform-contract 同门禁） ==')
   const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
   {
-    const srcRaw = fs.readFileSync('src/host/platform/win32/index.js', 'utf8')
+    const srcRaw = fs.readFileSync('src/host/platform/win32/index.ts', 'utf8')
     const src = strip(srcRaw)
     const hasPlusBackslash = /\+\s*['"]\\\\/.test(src) || /\\\\['"]\s*\+/.test(src)
     check(!hasPlusBackslash, 'win32 适配器零手拼：无 "+ \'\\\\\' +"')
@@ -93,13 +93,13 @@ async function main() {
     check(!/import\s*\(/.test(idxSrc), 'platform/index.js 无变量动态 import（打包可断）')
   }
   {
-    const darwinRaw = fs.readFileSync('src/host/platform/darwin/index.js', 'utf8')
+    const darwinRaw = fs.readFileSync('src/host/platform/darwin/index.ts', 'utf8')
     const darwinSrc = strip(darwinRaw)
     check(!/\+\s*['"]\\\\/.test(darwinSrc), 'darwin 适配器零手拼：无 "+ \'\\\\\' +"')
     check(darwinRaw.includes('node:path') && darwinRaw.includes('.posix'), 'darwin 委托 node:path.posix')
   }
   {
-    const linuxRaw = fs.readFileSync('src/host/platform/linux/index.js', 'utf8')
+    const linuxRaw = fs.readFileSync('src/host/platform/linux/index.ts', 'utf8')
     const linuxSrc = strip(linuxRaw)
     check(!/\+\s*['"]\\\\/.test(linuxSrc), 'linux 适配器零手拼：无 "+ \'\\\\\' +"')
     check(linuxRaw.includes('node:path') && linuxRaw.includes('.posix'), 'linux 委托 node:path.posix')
@@ -107,7 +107,7 @@ async function main() {
 
   // ---------- 动态导入 runner + github 适配器 ----------
   const runnerUrl = 'file://' + path.resolve('tests/tracker-contract/runner/index.js').replace(/\\/g, '/')
-  const githubUrl = 'file://' + path.resolve('src/host/tracker/backends/github/index.js').replace(/\\/g, '/')
+  const githubUrl = 'file://' + path.resolve('src/tracker/rooms/github/index.ts').replace(/\\/g, '/')
   const runner = await import(runnerUrl)
   const githubMod = await import(githubUrl)
   const { createRunnerContext, runPlayback, runWithAdapter } = runner

@@ -117,7 +117,7 @@ async function main() {
   check(!!snap.deck && !!snap.deck.counts && snap.deck.counts.total === 6, 'deck 计数照旧来自后端（实得 ' + JSON.stringify(snap.deck && snap.deck.counts) + '）')
 
   // ---------- 二、信封：字段清单只有一处，两条电话都不漏 ----------
-  const envMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'snapshotEnvelope.js')).href)
+  const envMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'snapshotEnvelope.ts')).href)
   const env = envMod.createSnapshotEnvelope({ getGhPath: function () { return '' }, getGhLastError: function () { return null }, adoptSnapshot: function (s) { return s }, logCtx: null })
   const viaEnv = env.buildSnap({ maps: [], issues: [], thinTickets: [{ key: '101' }], labels: [] })
   check(Array.isArray(viaEnv.thinTickets) && viaEnv.thinTickets.length === 1, '信封把瘦身行挂进快照（实得 ' + JSON.stringify(viaEnv.thinTickets) + '）')

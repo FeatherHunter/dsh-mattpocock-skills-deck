@@ -3,7 +3,7 @@
 //   scripts/build.mjs 生成（一源出两物，gitignore 可变产物），本测试验证「叶子 === 构建产物」：
 //   T0 接管后构建未改变叶子行为，叶子仍为唯一真源 + 测试基准。
 // 用法: node tests/verify-parse-leaf.js（在插件根目录；先运行 node scripts/build.mjs 生成产物）
-// 验证：1) src/shared/parser.js 叶子可用、行为真值表
+// 验证：1) src/tracker/body-parse.ts 叶子可用、行为真值表
 //       2) 产物新鲜度门禁（缺失/过期 → FAIL，提示先构建；防止陈旧产物假绿）
 //       3) 叶子 === _dev 产物（根 host.js）——「构建未改变叶子行为」探测器
 //       4) 叶子 === _pkg 产物（package/lib/index.js）
@@ -78,9 +78,9 @@ async function main() {
   const pkgSide = pkgMap + '\n' + pkgGroup + '\n' + pkg
 
   // ---- 加载叶子（ESM import，Windows 需 file:// URL）----
-  const leaf = await import('file://' + path.resolve('src/shared/parser.js').replace(/\\/g, '/'))
+  const leaf = await import('file://' + path.resolve('src/tracker/body-parse.ts').replace(/\\/g, '/'))
   const names = ['normalizeBody', 'parseMapBody', 'parseProgress', 'computeLevels', 'groupTickets']
-  names.forEach((n) => check(typeof leaf[n] === 'function', 'src/shared/parser.js 导出 ' + n))
+  names.forEach((n) => check(typeof leaf[n] === 'function', 'src/tracker/body-parse.ts 导出 ' + n))
 
   // ---- Part A：_dev 产物差分（叶子 === 宿主侧实现，H2 后为 mapBody.js + host.js 拼回同一作用域）----
   const hostFns = extractFns(hostSide)

@@ -67,10 +67,10 @@ const demoIssue = { key: '7', title: '演练票', state: 'open', type: 'issue', 
 async function main() {
   console.log('按需取数诚实门禁（缺省全量、跳过注记、统计不变）')
   const budget = await imp('src/shared/refresh/budget.js')
-  const ledgerMod = await imp('src/host/refresh/ledger.js')
-  const gateMod = await imp('src/host/refresh/gate.js')
-  const getMod = await imp('src/host/tools/deckIssueGet.js')
-  const snapMod = await imp('src/host/tools/deckMapSnapshot.js')
+  const ledgerMod = await imp('src/host/refresh/ledger.ts')
+  const gateMod = await imp('src/host/refresh/gate.ts')
+  const getMod = await imp('src/deck/tools/issue-get.ts')
+  const snapMod = await imp('src/deck/tools/map-snapshot.ts')
 
   // ① 缺省全量：反向边照取
   {

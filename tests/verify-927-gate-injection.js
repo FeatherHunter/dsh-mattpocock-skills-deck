@@ -9,7 +9,7 @@
 import nodePath from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { createPlatformChannel } from '../src/host/platformChannel.js'
-import { createRepoKeys } from '../src/host/repoKeys.js'
+import { createRepoKeys } from '../src/host/git-process.ts'
 
 const ROOT = nodePath.resolve(nodePath.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..')
 let failed = 0
@@ -82,8 +82,8 @@ function mkGate() {
 // ── ⑥ 活件：过闸的调用把结果带回来；没报数不算「对不上」；报假数仍被抓 ──
 {
   const CLOCK = 1700000000000
-  const ledgerMod = await import(pathToFileURL(nodePath.join(ROOT, 'src/host/refresh/ledger.js')).href)
-  const gateMod = await import(pathToFileURL(nodePath.join(ROOT, 'src/host/refresh/gate.js')).href)
+  const ledgerMod = await import(pathToFileURL(nodePath.join(ROOT, 'src/host/refresh/ledger.ts')).href)
+  const gateMod = await import(pathToFileURL(nodePath.join(ROOT, 'src/host/refresh/gate.ts')).href)
   const ledger = ledgerMod.createLedger({ now: () => CLOCK })
   ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: CLOCK + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: CLOCK + 3600000 } }, CLOCK)
   const gate = gateMod.createGate({ ledger: ledger, now: () => CLOCK })
@@ -103,7 +103,7 @@ function mkGate() {
 
 // ── ⑦ 活件：读数里剩 0 时，真的按服务端给的重置时刻降了档（#927 ①） ──
 {
-  const mod = await import(pathToFileURL(nodePath.join(ROOT, 'src/host/platform/deckQuotaSync.js')).href)
+  const mod = await import(pathToFileURL(nodePath.join(ROOT, 'src/deck/registration/quota-sync.ts')).href)
   const notes = []
   const resetSec = Math.floor((Date.now() + 600000) / 1000)
   const body = JSON.stringify({ resources: { core: { limit: 5000, remaining: 0, reset: resetSec }, graphql: { limit: 5000, remaining: 5000, reset: resetSec } } })
@@ -123,8 +123,8 @@ function mkGate() {
 // ── ⑧ 活件：面板那一路真走一遍（真 platformChannel + 真闸）：账与真发数一致、绕闸为 0 ──
 {
   const CLOCK = 1700000000000
-  const ledgerMod = await import(pathToFileURL(nodePath.join(ROOT, 'src/host/refresh/ledger.js')).href)
-  const gateMod = await import(pathToFileURL(nodePath.join(ROOT, 'src/host/refresh/gate.js')).href)
+  const ledgerMod = await import(pathToFileURL(nodePath.join(ROOT, 'src/host/refresh/ledger.ts')).href)
+  const gateMod = await import(pathToFileURL(nodePath.join(ROOT, 'src/host/refresh/gate.ts')).href)
   const ledger = ledgerMod.createLedger({ now: () => CLOCK })
   ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: CLOCK + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: CLOCK + 3600000 } }, CLOCK)
   const gate = gateMod.createGate({ ledger: ledger, now: () => CLOCK })

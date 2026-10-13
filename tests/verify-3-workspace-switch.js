@@ -110,8 +110,8 @@ async function main() {
   const hasTok = function (arr, tok) { return arr.some(function (l) { return l.indexOf(tok) >= 0 }) }
 
   const idx = linesOf(path.join('src', 'host', 'index.js'))
-  // H1 #445：getRepoRoot/getRepoKey/canonicalKey 已原样搬到 src/host/repoKeys.js，守卫跟随代码位置（意图不变：在场即查）。
-  const rkf = linesOf(path.join('src', 'host', 'repoKeys.js'))
+  // H1 #445：getRepoRoot/getRepoKey/canonicalKey 已原样搬到 src/host/git-process.ts，守卫跟随代码位置（意图不变：在场即查）。
+  const rkf = linesOf(path.join('src', 'host', 'git-process.ts'))
   const idxAt = function (tok) { for (let i = 0; i < idx.length; i++) { if (idx[i].indexOf(tok) >= 0) return i } return -1 }
   const rkfAt = function (tok) { for (let i = 0; i < rkf.length; i++) { if (rkf[i].indexOf(tok) >= 0) return i } return -1 }
   const guardSite = function (name, anchor, before, after) {
@@ -126,11 +126,11 @@ async function main() {
   const g2 = idxAt('async function getRepoKey(')
   const g2r = rkfAt('async function getRepoKey(')
   ;((g2 >= 0 && hasTok(idx.slice(g2, g2 + 5), 'canonical')) || (g2r >= 0 && hasTok(rkf.slice(g2r, g2r + 5), 'canonical'))) ? ok('getRepoKey 首行规整') : bad('getRepoKey 首行未见规整钥匙')
-  // H3 #447：wf.chain/wf.detect 处理器体已搬到 src/host/detectChain.js，守卫跟随代码位置。
-  // H4 #448：wf.snapshot 处理器体已搬到 src/host/sessionSnapshot.js，守卫跟随代码位置（H3 同例）。
+  // H3 #447：wf.chain/wf.detect 处理器体已搬到 src/host/detectChain.ts，守卫跟随代码位置。
+  // H4 #448：wf.snapshot 处理器体已搬到 src/host/sessionSnapshot.ts，守卫跟随代码位置（H3 同例）。
   // H5 #449：wf.bind 处理器体已搬到 src/host/workspaceCwd.js，守卫跟随代码位置（H3 同例）。
-  const dcf = linesOf(path.join('src', 'host', 'detectChain.js'))
-  const ssf = linesOf(path.join('src', 'host', 'sessionSnapshot.js'))
+  const dcf = linesOf(path.join('src', 'host', 'detectChain.ts'))
+  const ssf = linesOf(path.join('src', 'host', 'sessionSnapshot.ts'))
   const wcf = linesOf(path.join('src', 'host', 'workspaceCwd.js'))
   const guardSiteMovedIn = function (name, anchor, before, after, fileLines, movedFn, mBefore, mAfter) {
     const at = idxAt(anchor);
@@ -158,7 +158,7 @@ async function main() {
   ;((d2 >= 0 && hasTok(idx.slice(Math.max(0, d2 - 6), d2 + 1), 'canonical')) || (d2m >= 0 && hasTok(pbf.slice(Math.max(0, d2m - 6), d2m + 1), 'canonical'))) ? ok('建仓失效点 repoRoots 删除前规整') : bad('repoRoots 删除前未见规整钥匙（删不中即缓存僵尸）')
   ;(hasTok(idx, 'workspaceKey.js') || hasTok(rkf, 'workspaceKey.js')) ? ok('index.js 引入 workspaceKey 模块') : bad('index.js 未引入 workspaceKey 模块')
 
-  const ds = linesOf(path.join('src', 'host', 'tracker', 'detection', 'detectionService.js'))
+  const ds = linesOf(path.join('src', 'tracker', 'detection', 'detectionService.ts'))
   // #845：这条断言原来只看 detect 声明前后各 8 行。detect 的规整那一步（canonicalWorkspaceKey(handle.cwd)）
   //   后来落到了声明下面第 10 行，出了旧窗口 → 恒红。判据改成「函数体里有规整调用」，不再靠行数窗口；
   //   不变式没变：detect 的入口按工作区键规整。

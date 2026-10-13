@@ -24,9 +24,9 @@ console.log('== #969 分档超时（读12秒／写30秒／探活3秒） ==')
 // —— 一、纯函数分档：读的短、写的长、探活的最短 ——
 let tiers = null
 try {
-  tiers = await import(pathToFileURL(nodePath.join(ROOT, 'src/shared/tracker/outbound-tiers.js')).href)
+  tiers = await import(pathToFileURL(nodePath.join(ROOT, 'src/host/outbound/tiers.ts')).href)
 } catch (e) {
-  check(false, '一、能读到分档超时纯函数（src/shared/tracker/outbound-tiers.js）', String((e && e.message) || e).slice(0, 200))
+  check(false, '一、能读到分档超时纯函数（src/host/outbound/tiers.ts）', String((e && e.message) || e).slice(0, 200))
 }
 if (tiers) {
   const { READ_TIMEOUT_MS, WRITE_TIMEOUT_MS, PROBE_TIMEOUT_MS, tierForGhArgs, timeoutForGhArgs, timeoutForTier } = tiers
@@ -53,8 +53,8 @@ if (tiers) {
 
 // —— 二、慢网超时归网络档，不报没登录 ——
 {
-  const { classifyGhError } = await import(pathToFileURL(nodePath.join(ROOT, 'src/host/tracker/backends/github/errors.js')).href)
-  const { ERROR_KIND } = await import(pathToFileURL(nodePath.join(ROOT, 'src/shared/tracker/constants.js')).href)
+  const { classifyGhError } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/rooms/github/errors.ts')).href)
+  const { ERROR_KIND } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/contract/vocabulary.ts')).href)
   // 超时原文（含 timeout / timed out / 超时杀掉）一律归网络档
   check(classifyGhError({ message: 'timeout of 12000ms exceeded' }) === ERROR_KIND.NETWORK, '二、读超时原文归网络档（未知、稍后）')
   check(classifyGhError({ message: 'gh api timed out' }) === ERROR_KIND.NETWORK, '二、接口超时原文归网络档')
@@ -66,7 +66,7 @@ if (tiers) {
 
 // —— 三、执行层按档取超时：读 12 秒、写 30 秒、探活 3 秒 ——
 {
-  const { ghClient } = await import(pathToFileURL(nodePath.join(ROOT, 'src/host/tracker/backends/github/client.js')).href)
+  const { ghClient } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/rooms/github/client.ts')).href)
   // 假执行器：只记调用方要它等多久，不真起进程
   const seen = []
   const fakeExec = async (cmd, args, opts) => {
@@ -98,8 +98,8 @@ if (tiers) {
 
 // —— 四、写超时只试一次就停，不自动再发一次 ——
 {
-  const { ghClient } = await import(pathToFileURL(nodePath.join(ROOT, 'src/host/tracker/backends/github/client.js')).href)
-  const { ERROR_KIND } = await import(pathToFileURL(nodePath.join(ROOT, 'src/shared/tracker/constants.js')).href)
+  const { ghClient } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/rooms/github/client.ts')).href)
+  const { ERROR_KIND } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/contract/vocabulary.ts')).href)
   let calls = 0
   const timeoutExec = async () => {
     calls += 1
@@ -123,7 +123,7 @@ if (tiers) {
 
 // —— 五、取数层超时也记超时行，且超时那一次归网络档 ——
 {
-  const src = readFileSync(nodePath.join(ROOT, 'src/host/repoKeys.js'), 'utf8')
+  const src = readFileSync(nodePath.join(ROOT, 'src/host/git-process.ts'), 'utf8')
   // 超时杀掉后记超时行（gh.timeout），且超时那一次按网络档返回（不是没登录也不是找不到）
   check(/gh\.timeout/.test(src), '五、取数层超时记超时行（gh.timeout）')
   check(/signal\s*===\s*['"]timeout['"]/.test(src) && /network/.test(src), '五、超时信号归网络档（慢网显示未知）')
@@ -133,9 +133,9 @@ if (tiers) {
 
 // —— 六、房内自己掐表（#1007）：排队段也算进这只表，且与「调用方取消」分得开 ——
 {
-  const { ghClient } = await import(pathToFileURL(nodePath.join(ROOT, 'src/host/tracker/backends/github/client.js')).href)
-  const { getGhLane } = await import(pathToFileURL(nodePath.join(ROOT, 'src/shared/tracker/outbound-admission.js')).href)
-  const { ERROR_KIND } = await import(pathToFileURL(nodePath.join(ROOT, 'src/shared/tracker/constants.js')).href)
+  const { ghClient } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/rooms/github/client.ts')).href)
+  const { getGhLane } = await import(pathToFileURL(nodePath.join(ROOT, 'src/host/outbound/admission.ts')).href)
+  const { ERROR_KIND } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/contract/vocabulary.ts')).href)
 
   // 执行器卡住、连取消都不理：promise 永不落地。房内不能因此被无限拖住。
   const hangExec = () => new Promise(() => {})

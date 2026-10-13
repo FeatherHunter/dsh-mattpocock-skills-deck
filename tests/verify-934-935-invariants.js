@@ -38,15 +38,15 @@ function makeFs() {
 async function main() {
   console.log('两条不变式回归门禁（934 钥匙单源与显式优先 / 935 许可透传）')
 
-  const shellMod = await imp('src/shared/deck-tools/shell.js')
-  const registryMod = await imp('src/host/tracker/registryCore.js')
-  const shapeMod = await imp('src/host/tracker/registryShape.js')
+  const shellMod = await imp('src/deck/shell/call-shell.ts')
+  const registryMod = await imp('src/tracker/registry/registryCore.ts')
+  const shapeMod = await imp('src/tracker/registry/registryShape.ts')
   const budget = await imp('src/shared/refresh/budget.js')
-  const ledgerMod = await imp('src/host/refresh/ledger.js')
-  const gateMod = await imp('src/host/refresh/gate.js')
+  const ledgerMod = await imp('src/host/refresh/ledger.ts')
+  const gateMod = await imp('src/host/refresh/gate.ts')
   const toolCost = await imp('src/shared/refresh/tool-cost.js')
-  const decMod934 = await imp('src/host/tracker/detection/backendDecision.js')
-  const markdownModule = (await imp('src/host/tracker/backends/markdown/index.js')).markdownModule
+  const decMod934 = await imp('src/tracker/detection/backendDecision.ts')
+  const markdownModule = (await imp('src/tracker/rooms/markdown/index.ts')).markdownModule
 
   // —— I2 先行：注册表只做系统无关洗（斜杠与尾斜杠归一，大小写不动） ——
   {
@@ -82,7 +82,7 @@ async function main() {
     const rawB = 'd:/temp/demo-ws/'
     const execA = { agent: { session: { id: 's-i1', cwd: rawA } } }
     const execB = { agent: { session: { id: 's-i1', cwd: rawB } } }
-    const sessMod = await imp('src/shared/deck-tools/session-resolve.js')
+    const sessMod = await imp('src/deck/shell/session-workdir.ts')
     const sA = await sessMod.sessionContextOfAsync(execA, { canonicalKey, workspaceKeyOf })
     const sB = await sessMod.sessionContextOfAsync(execB, { canonicalKey, workspaceKeyOf })
     check(sA.ok && sB.ok, 'I1 两种写法都归一成功', JSON.stringify({ sA, sB }).slice(0, 300))
@@ -126,7 +126,7 @@ async function main() {
   {
     const badCanonical = async () => ''
     const exec = { agent: { session: { id: 's-i3', cwd: 'D:\\Temp\\demo-ws' } } }
-    const sessMod2 = await imp('src/shared/deck-tools/session-resolve.js')
+    const sessMod2 = await imp('src/deck/shell/session-workdir.ts')
     const s = await sessMod2.sessionContextOfAsync(exec, { canonicalKey: badCanonical, workspaceKeyOf })
     check(!s.ok, 'I3 归一出口算不出规范根时如实失败（不凑钥匙）', JSON.stringify(s).slice(0, 300))
     const throwing = async () => { throw new Error('no-fs') }
@@ -136,7 +136,7 @@ async function main() {
 
   // —— I4：无许可写工作区必拒且文案诚实（两档） ——
   {
-    const writeMod = await imp('src/host/tracker/backends/markdown/write.js')
+    const writeMod = await imp('src/tracker/rooms/markdown/write.ts')
     const denyFs = {
       async resolve(p) { return String(p) },
       async writeText() { throw new Error('cannot write \"/ws/x\": file access denied under workspace-write mode') },

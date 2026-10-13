@@ -34,7 +34,7 @@ function platformFor(dir, opts) {
 
 async function main() {
   console.log('工作区文件写器门禁（957：首绑落盘与双命中保护）')
-  const wfMod = await imp('src/shared/deck-tools/workspace-file.js')
+  const wfMod = await imp('src/deck/shell/workspace-anchor.ts')
   const { parseWorkspaceFile } = wfMod
 
   // —— B：首绑落盘（经宿主 wf.bind） ——
@@ -88,7 +88,7 @@ async function main() {
   }
 
   // —— P：双命中保护（经装配口的写口直验逻辑） ——
-  const { createDoubleHitProtector } = await imp('src/host/platform/deckToolsAssembly.js')
+  const { createDoubleHitProtector } = await imp('src/deck/registration/host-assemble.ts')
   const mkProt = (dir, extra) => {
     const plat = platformFor(dir, extra)
     return createDoubleHitProtector({
@@ -145,12 +145,12 @@ async function main() {
 
   // —— S：工具壳接上保护写口（缺席跳过，有就照此走） ——
   {
-    const shellMod = await imp('src/shared/deck-tools/shell.js')
+    const shellMod = await imp('src/deck/shell/call-shell.ts')
     const budget = await imp('src/shared/refresh/budget.js')
-    const ledgerMod = await imp('src/host/refresh/ledger.js')
-    const gateMod = await imp('src/host/refresh/gate.js')
+    const ledgerMod = await imp('src/host/refresh/ledger.ts')
+    const gateMod = await imp('src/host/refresh/gate.ts')
     const toolCost = await imp('src/shared/refresh/tool-cost.js')
-    const decMod957 = await imp('src/host/tracker/detection/backendDecision.js')
+    const decMod957 = await imp('src/tracker/detection/backendDecision.ts')
     const ledger = ledgerMod.createLedger({ now: () => 1700000000000 })
     const gate = gateMod.createGate({ ledger: ledger, logCtx: null, now: () => 1700000000000 })
     ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: 1700003600000 }, graphql: { limit: 5000, remaining: 5000, reset: 1700003600000 } }, 1700000000000)

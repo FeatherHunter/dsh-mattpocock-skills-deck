@@ -117,16 +117,16 @@ async function main() {
 
   // ── 0. 注册帮助模块存在且只用纯函数 ──
   let agent = null
-  try { agent = await imp('src/shared/deck-tools/agent-register.js') } catch (e) {
-    check(false, '注册帮助模块可加载（src/shared/deck-tools/agent-register.js）')
+  try { agent = await imp('src/deck/registration/register-options.ts') } catch (e) {
+    check(false, '注册帮助模块可加载（src/deck/registration/register-options.ts）')
     console.log('\n' + total + ' 条断言，' + (failed ? '失败' : '通过'))
     process.exit(1)
   }
   check(agent && typeof agent.buildAgentToolOptions === 'function', '交出 buildAgentToolOptions（定义 → 注册选项）')
   check(agent && typeof agent.registerDeckAgentTools === 'function', '交出 registerDeckAgentTools（批量注册）')
   let row = null
-  try { row = await imp('src/host/platform/deckToolsRow.js') } catch (e) {
-    check(false, '行模块可加载（src/host/platform/deckToolsRow.js）')
+  try { row = await imp('src/deck/registration/agent-row.ts') } catch (e) {
+    check(false, '行模块可加载（src/deck/registration/agent-row.ts）')
     console.log('\n' + total + ' 条断言，失败')
     process.exit(1)
   }
@@ -136,15 +136,15 @@ async function main() {
 
   // ── 1. 用八个真定义跑转换：名字齐、形状合法、必填对上 ──
   const toolFiles = [
-    'src/host/tools/deckContext.js',
-    'src/host/tools/deckIssueGet.js',
-    'src/host/tools/deckMapSnapshot.js',
-    'src/host/tools/deckIssueList.js',
-    'src/host/tools/deckIssueCreate.js',
-    'src/host/tools/deckMapPlanCreate.js',
-    'src/host/tools/deckMapLink.js',
-    'src/host/tools/deckIssuePatch.js',
-    'src/host/tools/deckIssueReport.js',
+    'src/deck/tools/context.ts',
+    'src/deck/tools/issue-get.ts',
+    'src/deck/tools/map-snapshot.ts',
+    'src/deck/tools/issue-list.ts',
+    'src/deck/tools/issue-create.ts',
+    'src/deck/tools/map-plan-create.ts',
+    'src/deck/tools/map-link.ts',
+    'src/deck/tools/issue-patch.ts',
+    'src/deck/tools/issue-report.ts',
   ]
   const seven = []
   for (const f of toolFiles) seven.push((await imp(f)).definition)
@@ -245,7 +245,7 @@ async function main() {
   check(rawAbort && rawAbort.status === 'unsupported' && String(rawAbort.text).indexOf('中止') >= 0,
     '调用已被中止直接回没做成，不等后端（也不抛）')
   // 信封取值与共享壳同一份常量（改了壳，这里的字面量会先红）。
-  const shell = await imp('src/shared/deck-tools/shell.js')
+  const shell = await imp('src/deck/shell/call-shell.ts')
   check(rawBad.status === shell.DECK_STATUS.UNSUPPORTED, '没做成的状态取值与壳一致')
   check(out.status === 'ok' && out.status !== shell.DECK_STATUS.UNSUPPORTED, '做成的状态取值与壳一致')
 

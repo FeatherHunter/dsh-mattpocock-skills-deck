@@ -16,7 +16,7 @@
 //
 // 用法：node tests/verify-snapshot-cache-first.js
 
-import { createSessionSnapshot } from '../src/host/sessionSnapshot.js'
+import { createSessionSnapshot } from '../src/host/sessionSnapshot.ts'
 
 let failed = 0
 let total = 0

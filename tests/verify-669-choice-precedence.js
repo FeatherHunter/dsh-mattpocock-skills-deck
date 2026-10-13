@@ -37,7 +37,7 @@ const check = (ok, msg) => { if (ok) { console.log('  PASS ' + msg); passed++ } 
 const stripExports = (s) => s.replace(/^[ \t]*export[ \t]+/gm, '')
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-const detectionSrc = read('src/host/tracker/detection/detectionService.js')
+const detectionSrc = read('src/tracker/detection/detectionService.ts')
 const prefsSrc = read('src/client/kernel/store-prefs.js')
 const snapSrc = read('src/client/kernel/store-snapshot.js')
 const switchSrc = read('src/client/kernel/store-switch.js')
@@ -58,9 +58,9 @@ const makeWorkspace = function (anchorText) {
   return dir
 }
 const makeDetection = async function (srcText) {
-  const { createRegistry } = await import(url('src/host/tracker/registryCore.js'))
-  const real = await import(url('src/host/tracker/detection/detectionService.js'))
-  const { detectExplicit } = await import(url('src/host/tracker/detection/explicitDetector.js'))
+  const { createRegistry } = await import(url('src/tracker/registry/registryCore.ts'))
+  const real = await import(url('src/tracker/detection/detectionService.ts'))
+  const { detectExplicit } = await import(url('src/tracker/detection/explicitDetector.ts'))
   const { canonicalWorkspaceKey } = await import(url('src/host/workspaceKey.js'))
   const registry = createRegistry(undefined, { matchesTimeout: 500 })
   const mk = (id, matches) => ({ id, label: id, create: () => ({ ok: true }), matches: matches || (async () => false), describe: () => ({ backend: id, refId: id + '-ref', name: id + '-ref', url: '' }) })
@@ -408,8 +408,8 @@ console.log('== E 反证：把实现做坏，上面该红的必须当场红 ==')
   check(brC3.decision.length === 1 && brC3.inject.length === 0, '反证 C3 成立：那道闸摘掉之后，链还没到就落进「还没初始化」那一支（去开卡 / 注入初始化全文）—— 实得 decision=' + brC3.decision.length + ' inject=' + brC3.inject.length)
   // A 的反证（#1003 老路径已删）：若有人把上报优先级加回来，带上报就会压过锚文件，本组第一条变红。
   const wsA = makeWorkspace('# Issue tracker: GitHub\n')
-  const { createDetectionService } = await import(url('src/host/tracker/detection/detectionService.js'))
-  const { createRegistry } = await import(url('src/host/tracker/registryCore.js'))
+  const { createDetectionService } = await import(url('src/tracker/detection/detectionService.ts'))
+  const { createRegistry } = await import(url('src/tracker/registry/registryCore.ts'))
   const regA = createRegistry(undefined, { matchesTimeout: 500 })
   const mkA = (id, matches) => ({ id, label: id, create: () => ({ ok: true }), matches: matches || (async () => false), describe: () => ({ backend: id, refId: id, name: id, url: '' }) })
   regA.register(mkA('github'))

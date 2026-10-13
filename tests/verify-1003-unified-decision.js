@@ -71,12 +71,12 @@ function makeGateLedger(gateMod, ledgerMod) {
 
 async function main() {
   console.log('#1003 一期门禁：统一判定四条');
-  const shellMod = await imp('src/shared/deck-tools/shell.js');
+  const shellMod = await imp('src/deck/shell/call-shell.ts');
   const budget = await imp('src/shared/refresh/budget.js');
-  const ledgerMod = await imp('src/host/refresh/ledger.js');
-  const gateMod = await imp('src/host/refresh/gate.js');
+  const ledgerMod = await imp('src/host/refresh/ledger.ts');
+  const gateMod = await imp('src/host/refresh/gate.ts');
   const toolCost = await imp('src/shared/refresh/tool-cost.js');
-  const decMod = await imp('src/host/tracker/detection/backendDecision.js');
+  const decMod = await imp('src/tracker/detection/backendDecision.ts');
   const { decideBackend, decidePure } = decMod;
 
   const regOf = (selectFn) => ({
@@ -157,7 +157,7 @@ async function main() {
     check(selected === false, 'D3 空目录没问自动识别（不起外部命令）');
     const p = await shellOf(reg).pickBackend({ agent: { session: { id: 's', cwd: '' } } }, sOf(''));
     check(p.ok === false && /还没就绪/.test(p.text || ''), 'D3 空目录工具壳说还没就绪（不说没有后端）', (p.text || '').slice(0, 120));
-    const regCore = await imp('src/host/tracker/registryCore.js');
+    const regCore = await imp('src/tracker/registry/registryCore.ts');
     let matched = false;
     const reg2 = regCore.createRegistry();
     reg2.register({ id: 'github', label: 'G', create: () => ({}), matches: async () => { matched = true; return true; } });

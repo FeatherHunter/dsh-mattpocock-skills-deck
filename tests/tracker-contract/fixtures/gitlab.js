@@ -5,7 +5,7 @@
  * 提供两套：free回退（Blocked by:行） vs premium原生（blocked_by）
  */
 
-import { normalizeIssue } from '../../../src/host/tracker/backends/gitlab/normalize.js'
+import { normalizeIssue } from '../../../src/tracker/rooms/gitlab/normalize.js'
 
 function baseWith(labels, extra = {}) {
   return {

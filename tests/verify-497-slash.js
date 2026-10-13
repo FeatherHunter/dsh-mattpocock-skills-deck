@@ -35,9 +35,9 @@ function makeCtx(captured, resolveImpl) {
 
 async function main() {
   const platUrl = pathToFileURL(path.join(ROOT, 'src', 'host', 'platform', 'index.js')).href
-  const win32Url = pathToFileURL(path.join(ROOT, 'src', 'host', 'platform', 'win32', 'index.js')).href
-  const darwinUrl = pathToFileURL(path.join(ROOT, 'src', 'host', 'platform', 'darwin', 'index.js')).href
-  const linuxUrl = pathToFileURL(path.join(ROOT, 'src', 'host', 'platform', 'linux', 'index.js')).href
+  const win32Url = pathToFileURL(path.join(ROOT, 'src', 'host', 'platform', 'win32', 'index.ts')).href
+  const darwinUrl = pathToFileURL(path.join(ROOT, 'src', 'host', 'platform', 'darwin', 'index.ts')).href
+  const linuxUrl = pathToFileURL(path.join(ROOT, 'src', 'host', 'platform', 'linux', 'index.ts')).href
   let platMod, win32Adapter, darwinAdapter, linuxAdapter
   try {
     platMod = await import(platUrl)

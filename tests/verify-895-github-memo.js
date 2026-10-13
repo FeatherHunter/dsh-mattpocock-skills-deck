@@ -18,9 +18,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 async function main() {
   console.log('#895 回归门禁：github 房名册定向刷新（脚本化 gh 计数）')
   const transports = require('./deck-tools-matrix-transports.js')
-  const scopeMod = await imp('src/shared/deck-tools/call-scope.js')
-  const registryMod = await imp('src/host/tracker/registryCore.js')
-  const githubModule = (await imp('src/host/tracker/backends/github/index.js')).githubModule
+  const scopeMod = await imp('src/deck/shell/call-budget.ts')
+  const registryMod = await imp('src/tracker/registry/registryCore.ts')
+  const githubModule = (await imp('src/tracker/rooms/github/index.ts')).githubModule
 
   const sink = []
   const gh = transports.makeScriptedGh(sink)

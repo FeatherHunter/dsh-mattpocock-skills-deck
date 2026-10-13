@@ -19,9 +19,9 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import * as os from 'node:os'
-import { countIssues } from '../src/host/tracker/backends/markdown/counts.js'
-import { listIssues } from '../src/host/tracker/backends/markdown/issues-read.js'
-import { listIssuesPage } from '../src/host/tracker/backends/markdown/page.js'
+import { countIssues } from '../src/tracker/rooms/markdown/counts.ts'
+import { listIssues } from '../src/tracker/rooms/markdown/issues-read.ts'
+import { listIssuesPage } from '../src/tracker/rooms/markdown/page.ts'
 
 let failed = false
 const check = (ok, msg) => {

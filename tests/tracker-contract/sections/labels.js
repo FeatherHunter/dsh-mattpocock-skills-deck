@@ -29,13 +29,13 @@
  * 每段自带反例（✗ probe）：检查器是纯函数，把故意写错的样本喂给它，必须逮住；逮不住这一段就形同虚设。
  */
 
-import { createRegistry } from '../../../src/host/tracker/registryCore.js'
-import { ERROR_KIND } from '../../../src/shared/tracker/constants.js'
-import { gitlabBackend } from '../../../src/host/tracker/backends/gitlab/index.js'
-import { githubModule } from '../../../src/host/tracker/backends/github/index.js'
-import { markdownModule } from '../../../src/host/tracker/backends/markdown/index.js'
+import { createRegistry } from '../../../src/tracker/registry/registryCore.ts'
+import { ERROR_KIND } from '../../../src/tracker/contract/vocabulary.ts'
+import { gitlabBackend } from '../../../src/tracker/rooms/gitlab/index.js'
+import { githubModule } from '../../../src/tracker/rooms/github/index.ts'
+import { markdownModule } from '../../../src/tracker/rooms/markdown/index.ts'
 import { createWorkspaceCwd } from '../../../src/host/workspaceCwd.js'
-import { decideBackend as decDecideBackend, selectionFromOutlet as decSelectionFromOutlet } from '../../../src/host/tracker/detection/backendDecision.js'
+import { decideBackend as decDecideBackend, selectionFromOutlet as decSelectionFromOutlet } from '../../../src/tracker/detection/backendDecision.ts'
 try { decDecideBackend.selectionFromOutlet = decSelectionFromOutlet } catch (eAttachDec) {}
 import nodePath from 'node:path'
 

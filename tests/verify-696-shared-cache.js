@@ -106,7 +106,7 @@ async function main() {
     const table = makeSnapshotTable()
     let builds = 0
     const snapFires = []
-    const { createSessionSnapshot } = await import(url('src/host/sessionSnapshot.js'))
+    const { createSessionSnapshot } = await import(url('src/host/sessionSnapshot.ts'))
     const h = createSessionSnapshot({
       canonicalKey: async (raw) => { if (raw === RAW.sub || raw === RAW.subDeep || raw === RAW.repo) return K.repo; if (raw === RAW.sibling) return K.sibling; return String(raw) },
       selectEarly: async ({ cwd, backendId }) => ({ backendId: backendId || 'github', source: 'auto', rev: 0 }),
@@ -187,7 +187,7 @@ async function main() {
     // 并发共用同一份：真跑 handleChain，计数探测次数
     let detects = 0
     const chainFires = []
-    const { createDetectChain } = await import(url('src/host/detectChain.js'))
+    const { createDetectChain } = await import(url('src/host/detectChain.ts'))
     const chainTable = makeChainTable()
     const dh = createDetectChain({
       canonicalKey: async (raw) => { if (raw === RAW.sub || raw === RAW.repo) return K.repo; return String(raw) },

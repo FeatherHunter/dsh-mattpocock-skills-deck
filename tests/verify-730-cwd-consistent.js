@@ -159,7 +159,7 @@ async function main() {
   // D 组行为：标签电话在无归属会话时如实失败，不拿默认政策写（走真实 handleListLabels，全套夹具）。
   {
     const mod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'workspaceCwd.js')).href)
-    const decMod730 = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'tracker', 'detection', 'backendDecision.js')).href)
+    const decMod730 = await import(pathToFileURL(path.join(ROOT, 'src', 'tracker', 'detection', 'backendDecision.ts')).href)
     try { decMod730.decideBackend.selectionFromOutlet = decMod730.selectionFromOutlet } catch (eAttach730) {}
     const resolveCalls = []
     let seenPolicy = 'untouched'

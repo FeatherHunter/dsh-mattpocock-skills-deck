@@ -9,8 +9,8 @@
 //
 // 四条断言：①②③ 直接调那个函数（三个输入输出钉死），④ 端到端走真后端（建票 → 补阻塞边 → 标签行还在）。
 import nodePath from 'node:path'
-import { markdownModule } from '../src/host/tracker/backends/markdown/index.js'
-import { replaceOrInsertField } from '../src/host/tracker/backends/markdown/issues-status.js'
+import { markdownModule } from '../src/tracker/rooms/markdown/index.ts'
+import { replaceOrInsertField } from '../src/tracker/rooms/markdown/issues-status.ts'
 
 let failed = 0
 let total = 0

@@ -84,8 +84,8 @@ Answer body.
   sampleText = desensitizeText(sampleText)
 
   // 2) 生成归一化期望
-  const { parseMd } = await import('../src/host/tracker/backends/markdown/parse.js')
-  const { normalizeIssue } = await import('../src/host/tracker/backends/markdown/normalize.js')
+  const { parseMd } = await import('../src/tracker/rooms/markdown/parse.ts')
+  const { normalizeIssue } = await import('../src/tracker/rooms/markdown/normalize.ts')
   const parsed = parseMd(sampleText, { key: '01', parentKey: '00', isMap: false })
   const normalized = normalizeIssue(sampleText, { key: '01', parentKey: '00', isMap: false })
 

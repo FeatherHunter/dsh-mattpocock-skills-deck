@@ -6,11 +6,11 @@
 //   ② 缓存里那条选择：工作区已空 → 这份缓存不作数，重算。
 // 2026-09-21 的收窄（#669 第 1 件：空目录里当场报上来的 hint 要算数）已随 #1003 老路径删除而退役 ——
 //   上报一律忽略，空目录 + hint 如实未知；下面 A/C/D 三组按退役后改准，B 组（记忆过期）原样保留。
-import { createRegistry } from '../src/host/tracker/registryCore.js'; // V1 #461：registry.js 已拆为三块
-import { createDetectionService } from '../src/host/tracker/detection/detectionService.js';
-import { decideBackend as outletDecideBackend, selectionFromOutlet as outletSelectionFromOutlet } from '../src/host/tracker/detection/backendDecision.js';
+import { createRegistry } from '../src/tracker/registry/registryCore.ts'; // V1 #461：registry.js 已拆为三块
+import { createDetectionService } from '../src/tracker/detection/detectionService.ts';
+import { decideBackend as outletDecideBackend, selectionFromOutlet as outletSelectionFromOutlet } from '../src/tracker/detection/backendDecision.ts';
 try { outletDecideBackend.selectionFromOutlet = outletSelectionFromOutlet } catch (eAttachOutlet297) {}
-import { createWorkspaceStore } from '../src/host/tracker/detection/workspaceStore.js';
+import { createWorkspaceStore } from '../src/tracker/detection/workspaceStore.ts';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { compileFn } from './lib/eval-probe.js';
@@ -59,10 +59,10 @@ async function run() {
     const ne = await mkSvc(nonEmptyPlat).detect({ cwd: '/tmp/nonempty' }, { hintBackendId: 'markdown' });
     ok(!ne.selection || ne.selection.backendId === null, '非空目录 + hint（无锚无文件无记忆）-> 上报仍不参与，如实未知（实得 ' + JSON.stringify(ne.selection && ne.selection.backendId) + '）');
     // 反证：把上报优先级加回来，上面第一条必须当场变红（做法同 669 门禁）。
-    const srcText = fs.readFileSync(fileURLToPath(new URL('../src/host/tracker/detection/detectionService.js', import.meta.url)), 'utf8')
+    const srcText = fs.readFileSync(fileURLToPath(new URL('../src/tracker/detection/detectionService.ts', import.meta.url)), 'utf8')
     const readdedText = srcText.replace('let selection = explicitRes.selection', "let selection = (opts && opts.hintBackendId && registry && typeof registry.has === 'function' && registry.has(opts.hintBackendId)) ? { backendId: opts.hintBackendId, source: 'explicit', ref: null } : explicitRes.selection")
     ok(readdedText !== srcText, '反证 A 的改法能在真源里落地（上报优先级加回来）');
-    const { detectExplicit } = await import(new URL('../src/host/tracker/detection/explicitDetector.js', import.meta.url).href);
+    const { detectExplicit } = await import(new URL('../src/tracker/detection/explicitDetector.ts', import.meta.url).href);
     const { canonicalWorkspaceKey } = await import(new URL('../src/host/workspaceKey.js', import.meta.url).href);
     const brokenBody = readdedText
       .replace(/^import[^\n]*\n/gm, '')

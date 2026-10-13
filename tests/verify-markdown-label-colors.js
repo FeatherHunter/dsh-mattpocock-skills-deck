@@ -14,9 +14,9 @@
 // 这一条会立刻亮红（自证记录见 .scratch/map610/reports/issue-618.md）。
 import nodePath from 'node:path'
 import { parse as parseYaml } from 'yaml'
-import { markdownModule } from '../src/host/tracker/backends/markdown/index.js'
-import { describeWriteFailure } from '../src/host/tracker/backends/markdown/label-colors-errors.js'
-import { CANONICAL_LABELS } from '../src/shared/labels.js'
+import { markdownModule } from '../src/tracker/rooms/markdown/index.ts'
+import { describeWriteFailure } from '../src/tracker/rooms/markdown/label-colors-errors.ts'
+import { CANONICAL_LABELS } from '../src/tracker/contract/canonical-labels.ts'
 import { colorsDiffer } from '../src/shared/label-color/colors.js'
 
 let failed = 0
@@ -124,7 +124,7 @@ function mkCtx(fakeFs) {
 
 const tracker = markdownModule.create({})
 
-// ── 一、默认文件内容：内置调色盘那 11 个标签，颜色小写，且与 src/shared/labels.js 不打架 ──
+// ── 一、默认文件内容：内置调色盘那 11 个标签，颜色小写，且与 src/tracker/contract/canonical-labels.ts 不打架 ──
 {
   const fake = makeFakeFs({})
   const ctx = mkCtx(fake)
@@ -138,9 +138,9 @@ const tracker = markdownModule.create({})
   const names = parsed ? Object.keys(parsed).filter((n) => n !== 'version') : []
   check(names.length === 11, '新文件预填 11 个内置标签（实得 ' + names.length + '）')
   check(names.every((n) => typeof parsed[n] === 'string' && /^[0-9a-f]{6}$/.test(parsed[n])), '新文件里的颜色都是不带井号的小写六位十六进制')
-  // 与 src/shared/labels.js 单源对齐：两边都收录的标签，颜色（忽略大小写）必须一致。
+  // 与 src/tracker/contract/canonical-labels.ts 单源对齐：两边都收录的标签，颜色（忽略大小写）必须一致。
   const drift = CANONICAL_LABELS.filter((l) => parsed && parsed[l.name] && String(parsed[l.name]).toLowerCase() !== String(l.color).toLowerCase())
-  check(drift.length === 0, '新文件里与 src/shared/labels.js 同名的标签颜色一致（不一致的：' + drift.map((l) => l.name).join('、') + '）')
+  check(drift.length === 0, '新文件里与 src/tracker/contract/canonical-labels.ts 同名的标签颜色一致（不一致的：' + drift.map((l) => l.name).join('、') + '）')
   const written = fake.calls.writeText
   check(written.length === 1 && written[0].path !== COLOR_PATH && written[0].path.startsWith(COLOR_PATH), '放置配色文件：只写了一次，写的是临时文件（实得 ' + JSON.stringify(written.map((w) => w.path)) + '）')
   check(fake.calls.rename.some((x) => x.to === COLOR_PATH), '放置配色文件：再改名发布成目标文件')

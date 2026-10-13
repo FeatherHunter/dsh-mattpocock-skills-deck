@@ -31,10 +31,10 @@ const check = (ok, msg) => { if (ok) { console.log('  PASS ' + msg); passed++ } 
 const tmpDirs = []
 const makeDir = function (tag) { const d = fs.mkdtempSync(path.join(os.tmpdir(), tag)); tmpDirs.push(d); return d }
 
-const { createDetectionService } = await import(url('src/host/tracker/detection/detectionService.js'))
-const { createRegistry } = await import(url('src/host/tracker/registryCore.js'))
+const { createDetectionService } = await import(url('src/tracker/detection/detectionService.ts'))
+const { createRegistry } = await import(url('src/tracker/registry/registryCore.ts'))
 const { createChoiceStore } = await import(url('src/host/choiceStore.js'))
-const { decideBackend: outletDecideBackend, selectionFromOutlet: outletSelectionFromOutlet } = await import(url('src/host/tracker/detection/backendDecision.js'))
+const { decideBackend: outletDecideBackend, selectionFromOutlet: outletSelectionFromOutlet } = await import(url('src/tracker/detection/backendDecision.ts'))
 try { outletDecideBackend.selectionFromOutlet = outletSelectionFromOutlet } catch (eAttachOutlet683) {}
 
 // 现场：一个工作区目录（可选放一份锚文件，写着 GitHub），一份真 choiceStore（落在临时主目录上）。
@@ -183,7 +183,7 @@ console.log('== C R2c：缓存里的选择随那份记忆变旧就必须重算 =
 console.log('')
 console.log('== D R4：快照的短路路与 304 都要带权威 {selection, rev} ==')
 {
-  const { createSessionSnapshot } = await import(url('src/host/sessionSnapshot.js'))
+  const { createSessionSnapshot } = await import(url('src/host/sessionSnapshot.ts'))
   const cached = { ok: true, generatedMs: 1, maps: [{ number: 1, tickets: [] }], issues: [], labels: [], selection: { backendId: 'github', source: 'auto' } }
   const makeHost = function (sel) {
     const cache = { ts: Date.now(), snapshot: cached, error: null, cwd: 'D:\\ws' }
@@ -272,8 +272,8 @@ console.log('== G R6：wf.setupLayout 写进 H、读得出来；卡片确认与�
 // ── F 反证 ───────────────────────────────────────────────────────────────────────
 console.log('')
 console.log('== F 反证：把实现做坏，上面该红的必须当场红 ==')
-const detectionSrc = read('src/host/tracker/detection/detectionService.js')
-const snapSrc = read('src/host/sessionSnapshot.js')
+const detectionSrc = read('src/tracker/detection/detectionService.ts')
+const snapSrc = read('src/host/sessionSnapshot.ts')
 {
   // F1 上报优先级加回来（老路径复活）→ A 组第一条变红
   const from = 'let selection = explicitRes.selection'
@@ -282,7 +282,7 @@ const snapSrc = read('src/host/sessionSnapshot.js')
   if (detectionSrc.includes(from)) {
     // 改坏的那一份**真的求值出来跑**：剥掉那两行 import，改由参数注入（两件都取真身）——
     //   与 tests/verify-669-choice-precedence.js 同一种写法（只比字符串不等却仍跑真源，等于这道反证是假的）。
-    const { detectExplicit } = await import(url('src/host/tracker/detection/explicitDetector.js'))
+    const { detectExplicit } = await import(url('src/tracker/detection/explicitDetector.ts'))
     const { canonicalWorkspaceKey } = await import(url('src/host/workspaceKey.js'))
     const body = detectionSrc.replace(from, to)
       .replace(/^import[^\n]*\n/gm, '')

@@ -1,7 +1,7 @@
 // verify-t1-initpublish.js — 验证 T1 #34 host 链路：git init + gh repo create
 // #993/#994 追加：git 侧的失败档（属主不符 git-ownership、认不出来的错误 unknown），见文末场景 K / L / M。
 // 加载方式：经发货产物 package/lib/index.js 的标准分发通道（connection.rpc.handle('/dsws')），与冒烟测试同法。
-// 注意：本文件跑的 publishFlow 那条路，git 命令经 execProc，返回契约是 { ok, text, error, code }（见 src/host/repoKeys.js:196-198）。
+// 注意：本文件跑的 publishFlow 那条路，git 命令经 execProc，返回契约是 { ok, text, error, code }（见 src/host/git-process.ts:196-198）。
 //   initProject 里 execFn 的契约是 { code, stdout, stderr }，形状不同，不能拿来喂这条流程。
 const fsx = require('fs')
 const fsp = fsx.promises

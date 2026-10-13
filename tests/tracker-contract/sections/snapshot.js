@@ -8,9 +8,9 @@
  *  - 写后自动逐出 = 宿主编排层显式 invalidate（本模块不感知写操作）。
  */
 
-import { createRegistry } from '../../../src/host/tracker/registryCore.js' // V1 #461：registry.js 已拆为三块
+import { createRegistry } from '../../../src/tracker/registry/registryCore.ts' // V1 #461：registry.js 已拆为三块
 import { createSnapshotComposer } from '../../../src/host/tracker/snapshot.js'
-import { OPERATIONS } from '../../../src/host/tracker/contract.js'
+import { OPERATIONS } from '../../../src/tracker/contract/index.ts'
 
 const ref = { backend: 'fake', refId: 'r1', name: 'R1', url: '' }
 const refU = { backend: 'unsup', refId: 'r2', name: 'R2', url: '' }

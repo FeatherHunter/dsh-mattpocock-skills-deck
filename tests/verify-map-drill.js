@@ -15,7 +15,7 @@ const { compileFn } = require('./lib/eval-probe.js')
 
 // effort 维度（2026-09-09）：面板里身份函数来自拼接进闭包的 shared/tracker/constants.js。
 // 本门禁把同一份原文取出来，拼进每个求值沙箱，保证「跑的是真函数」这条纪律不破。
-const constantsSrc = fs.readFileSync('src/shared/tracker/constants.js', 'utf8')
+const constantsSrc = fs.readFileSync('src/tracker/contract/vocabulary.ts', 'utf8')
 const identitySrc = ['effortOf', 'idOfParts', 'idOf'].map((n) => {
   const m = new RegExp('export function ' + n + '\\([\\s\\S]*?\\n\\}').exec(constantsSrc)
   if (!m) throw new Error('constants.js 缺 ' + n)

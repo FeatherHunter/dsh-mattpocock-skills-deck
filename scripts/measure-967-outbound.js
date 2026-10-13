@@ -14,7 +14,7 @@ const fs = require('fs');
 const path = require('path');
 
 // 耗时分桶的边界（毫秒）。桶名写给人看的大白话，与测试里的字面量一致。
-// 30 秒是宿主起外部小命令的默认超时（src/host/tracker/backends/github/client.js 的 TIMEOUT_MS），
+// 30 秒是宿主起外部小命令的默认超时（src/tracker/rooms/github/client.ts 的 TIMEOUT_MS），
 // 超过它即撞墙，单独一桶；12 秒是读操作建议上限的参考线，单独分界。
 function bucketOf(latencyMs) {
   const v = Number(latencyMs);
@@ -137,7 +137,7 @@ async function runOnce() {
   // 第四步：环境预检复用数（用真实复用位，只复用成功的，不跨评估串味）。
   let reuse = { asked: 5, reused: 2, savedRatio: 0.4 };
   try {
-    const mod = await import('../src/host/tracker/detection/preflightScope.js');
+    const mod = await import('../src/tracker/detection/preflightScope.ts');
     if (mod && typeof mod.createPreflightScope === 'function') {
       let realCalls = 0;
       const fakeExec = async () => { realCalls += 1; return { ok: true }; };

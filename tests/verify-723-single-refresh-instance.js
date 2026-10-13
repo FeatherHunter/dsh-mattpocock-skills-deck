@@ -72,8 +72,8 @@ async function main() {
   const store = { dir: fs.mkdtempSync(path.join(os.tmpdir(), 't19b-single-')), logCtx: null, decides: [] }
   store.logCtx = { isEnabled: () => true, fire: (l, e, f) => { if (e === 'refresh.decide') store.decides.push(typeof f === 'function' ? f() : f) } }
   const wiringMod = await import(url('src/host/refresh/wiring.js'))
-  LedgerMod = await import(url('src/host/refresh/ledger.js'))
-  GateMod = await import(url('src/host/refresh/gate.js'))
+  LedgerMod = await import(url('src/host/refresh/ledger.ts'))
+  GateMod = await import(url('src/host/refresh/gate.ts'))
   const load = wiringMod.makeRefreshLoader(makeDeps(store))
   const w = await load()
   check(typeof w.focus === 'function' && typeof w.chainReadout === 'function' && typeof w.deltaRefresh === 'function' && w.gate && w.writeEvents,
@@ -145,7 +145,7 @@ async function main() {
 
   // 行为：真 sessionSnapshot 的回包上，按那个常量取得出读数（拿一份真读数注入）
   const ticketsMod = await import(url('src/host/refresh/sessionTickets.js'))
-  const snapMod = await import(url('src/host/sessionSnapshot.js'))
+  const snapMod = await import(url('src/host/sessionSnapshot.ts'))
   const app = ticketsMod.createSessionTickets({ cacheDir: store.dir, now: () => 1700000000000 })
   await app.note({ sessionId: 'sess-2', rootKey: WS, backend: 'github', source: 'tool-args', tool: 'deck_issue_create', tier: 'write-confirmed', args: { issue: 701 } })
   const one = readoutMod.buildSessionChainReadout({ tickets: app, at: 1700000000000 })

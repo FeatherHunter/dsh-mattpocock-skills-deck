@@ -23,8 +23,8 @@
  */
 
 import nodePath from 'node:path'
-import { githubModule } from '../src/host/tracker/backends/github/index.js'
-import { ghClient } from '../src/host/tracker/backends/github/client.js'
+import { githubModule } from '../src/tracker/rooms/github/index.ts'
+import { ghClient } from '../src/tracker/rooms/github/client.ts'
 import { labelListCheck, labelBatchCheck, labelCompletenessCheck } from './tracker-contract/sections/labels.js'
 
 let pass = 0
@@ -412,8 +412,8 @@ const SEED = [
 // 「宿主交给后端的仓库标识恒为空」这件事（真实工作区里就是这个样子：注册表只认显式 refId）。
 {
   const { createWorkspaceCwd } = await import('../src/host/workspaceCwd.js')
-  const { createRegistry } = await import('../src/host/tracker/registryCore.js')
-  const decModGh = await import('../src/host/tracker/detection/backendDecision.js')
+  const { createRegistry } = await import('../src/tracker/registry/registryCore.ts')
+  const decModGh = await import('../src/tracker/detection/backendDecision.ts')
   try { decModGh.decideBackend.selectionFromOutlet = decModGh.selectionFromOutlet } catch (eAttachGh) {}
   const getDecisionFnGh = async () => ({ decideBackend: decModGh.decideBackend })
   const HOST_CWD = '/ws/gh-project'
@@ -473,8 +473,8 @@ const SEED = [
 // 之后直接把电话交给它——不再让用户先去面板里选定后端才能继续（而宿主自己也绝不替用户挑一个）。
 {
   const { createWorkspaceCwd } = await import('../src/host/workspaceCwd.js')
-  const { createRegistry } = await import('../src/host/tracker/registryCore.js')
-  const decModGh2 = await import('../src/host/tracker/detection/backendDecision.js')
+  const { createRegistry } = await import('../src/tracker/registry/registryCore.ts')
+  const decModGh2 = await import('../src/tracker/detection/backendDecision.ts')
   try { decModGh2.decideBackend.selectionFromOutlet = decModGh2.selectionFromOutlet } catch (eAttachGh2) {}
   const getDecisionFnGh = async () => ({ decideBackend: decModGh2.decideBackend })
   const HOST_CWD = '/ws/gh-and-markdown'

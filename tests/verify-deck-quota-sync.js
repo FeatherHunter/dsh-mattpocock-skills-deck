@@ -29,8 +29,8 @@ async function main() {
   console.log('剩余额度读数接线门禁（#758：只接断开的线，不改裁决数字）')
 
   let mod = null
-  try { mod = await imp('src/host/platform/deckQuotaSync.js') } catch (e) {
-    check(false, '接线模块可加载（src/host/platform/deckQuotaSync.js）：' + String((e && e.message) || e))
+  try { mod = await imp('src/deck/registration/quota-sync.ts') } catch (e) {
+    check(false, '接线模块可加载（src/deck/registration/quota-sync.ts）：' + String((e && e.message) || e))
     console.log('\n' + total + ' 条断言，失败')
     process.exit(1)
   }
@@ -156,8 +156,8 @@ async function main() {
   check(failCalls === 3, '过期后连着失败仍按节流：滑动锚只打一次（#998 Q2）')
 
   // ── 6. 壳动手前保一次：调了、传了目录与键；缺席时跳过老桩照过 ──
-  const shell = await imp('src/shared/deck-tools/shell.js')
-  const decModQuota = await imp('src/host/tracker/detection/backendDecision.js')
+  const shell = await imp('src/deck/shell/call-shell.ts')
+  const decModQuota = await imp('src/tracker/detection/backendDecision.ts')
   let ensured = null
   const stubGate = {
     send: async function (req, perform) {
@@ -192,7 +192,7 @@ async function main() {
   check(pickedOld && pickedOld.ok === true, '没给保读数的老桩照样过（缺席跳过）')
 
   // ── 7. 闸口径迹：只记机器码，探针读走；口子缺席不影响干活 ──
-  const cell = await imp('src/shared/deck-tools/exec-cell.js')
+  const cell = await imp('src/deck/shell/table-cell.ts')
   check(cell && typeof cell.noteDeckGate === 'function' && typeof cell.readDeckGate === 'function', '共享格交出口径迹读写口')
   cell.noteDeckGate({ phase: 'select', verdict: 'defer', reason: 'reserve-kept-for-writes' })
   cell.noteDeckGate({ phase: 'Has Space!', verdict: null, reason: 42 })

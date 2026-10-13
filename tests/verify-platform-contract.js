@@ -32,10 +32,10 @@ function check(ok, msg) {
 
 const PRODUCTS = ['client.js', 'host.js', 'package/lib/client.js', 'package/lib/index.js']
 const SOURCES = [
-  'src/host/platform/win32/index.js',
+  'src/host/platform/win32/index.ts',
   'src/host/platform/index.js',
-  'src/host/platform/darwin/index.js',
-  'src/host/platform/linux/index.js',
+  'src/host/platform/darwin/index.ts',
+  'src/host/platform/linux/index.ts',
   'scripts/build.mjs',
   'package/package.json',
 ]
@@ -86,7 +86,7 @@ function makeCtx(subprocessImpl, fsImpl, extra) {
 }
 
 async function runWin32() {
-  const win32Url = 'file://' + path.resolve('src/host/platform/win32/index.js').replace(/\\/g, '/')
+  const win32Url = 'file://' + path.resolve('src/host/platform/win32/index.ts').replace(/\\/g, '/')
   const platformUrl = 'file://' + path.resolve('src/host/platform/index.js').replace(/\\/g, '/')
   const win32Mod = await import(win32Url)
   const platMod = await import(platformUrl)
@@ -220,7 +220,7 @@ async function runWin32() {
 
 async function runDarwin() {
   console.log('\n== 运行时：darwin 10项（#164 3a-D1~D10 · #165极薄） ==')
-  const darwinUrl = 'file://' + path.resolve('src/host/platform/darwin/index.js').replace(/\\/g, '/')
+  const darwinUrl = 'file://' + path.resolve('src/host/platform/darwin/index.ts').replace(/\\/g, '/')
   const platformUrl = 'file://' + path.resolve('src/host/platform/index.js').replace(/\\/g, '/')
   const darwinMod = await import(darwinUrl)
   const platMod = await import(platformUrl)
@@ -331,7 +331,7 @@ async function runDarwin() {
 
 async function runLinux() {
   console.log('\n== 运行时：linux 分组（L1-L6 · G1-G13 容器可判真） ==')
-  const linuxUrl = 'file://' + path.resolve('src/host/platform/linux/index.js').replace(/\\/g, '/')
+  const linuxUrl = 'file://' + path.resolve('src/host/platform/linux/index.ts').replace(/\\/g, '/')
   const platformUrl = 'file://' + path.resolve('src/host/platform/index.js').replace(/\\/g, '/')
   const linuxMod = await import(linuxUrl)
   const platMod = await import(platformUrl)

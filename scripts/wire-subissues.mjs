@@ -115,7 +115,7 @@ function findWorkspaceRoot(startDir) {
 }
 
 /**
- * 判定「平台明确不支持原生边」用的错误文本特征，口径与宿主 src/host/tracker/backends/github/graph.js:98-99、:259 一致。
+ * 判定「平台明确不支持原生边」用的错误文本特征，口径与宿主 src/tracker/rooms/github/graph.ts:98-99、:259 一致。
  * 刻意不含 ghes：错误文本里出现 GHES 字样（例如「GHES 实例限流」）不代表这条接口不存在，
  * 把它当「不支持」会误降级、往子票正文里写文字行。
  */
@@ -241,7 +241,7 @@ function parseArgs(argv) {
 /**
  * 认后端：先找到工作区根（从当前目录逐层向上），再读根上的主锚文件 docs/agents/issue-tracker.md，
  * 只认首批支持的 GitHub。判定口径与姊妹脚本 scripts/fix-issue-body.mjs 的同名函数完全一致
- * （也一致于宿主 src/host/tracker/detection/parseIssueTracker.js）。在子目录里跑得出的结论与在根上跑一样。
+ * （也一致于宿主 src/tracker/detection/parseIssueTracker.ts）。在子目录里跑得出的结论与在根上跑一样。
  */
 function detectBackend(startDir) {
   const found = findWorkspaceRoot(startDir);
@@ -289,7 +289,7 @@ function requireGithub(startDir) {
 
 /**
  * 校正正文写法。返回 { text, changes }。
- * 阈值与 src/shared/parser.js 的 normalizeBody 一致，与姊妹脚本 scripts/fix-issue-body.mjs:158-172 同一套：
+ * 阈值与 src/tracker/body-parse.ts 的 normalizeBody 一致，与姊妹脚本 scripts/fix-issue-body.mjs:158-172 同一套：
  * 剥掉开头的第一个不可见字符；真实换行少于 2 处且字面 \n 转义至少 1 处时，把转义还原成真实换行；否则原样保留。
  */
 function normalizeForWrite(raw) {
@@ -343,7 +343,7 @@ const MAP_SECTION_RE = /^##\s*(Notes|Decisions so far|Not yet specified|Out of s
  *   1. 第一处有内容的行恰是 `## Destination`；
  *   2. 正文里至少出现一个 wayfinder 规范章节（## Notes / ## Decisions so far / ## Not yet specified / ## Out of scope）。
  * 为什么要这么严：本脚本会把这份正文整篇写回 --map 那张票，一旦放行子票正文，地图正文就被覆盖，
- *   而地图正文是 Decisions 索引与计划的唯一载体（src/shared/parser.js 的 parseMapBody 直接解析它）。
+ *   而地图正文是 Decisions 索引与计划的唯一载体（src/tracker/body-parse.ts 的 parseMapBody 直接解析它）。
  *   只判「第一行是 ## Destination」还不够：子票正文首行恰好也写 `## Destination` 时会被放行
  *   （对抗式审查实测过），而子票正文几乎不可能同时具备规范章节。
  *   实测口径：仓库现存 52 张地图里，通过第 1 条的 34 张全部也通过第 2 条，所以这道闸对真地图零误拒。

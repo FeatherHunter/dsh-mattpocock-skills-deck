@@ -6,7 +6,7 @@
  * 从前强制刷新永远不查在途表（sessionSnapshot 里被 if (!isForce) 排除在外），
  * 而刷新路（sessionRefresh）整篇没有任何在途表 —— 在途时再点一次强制必另起一整趟，
  * 工作区越大越明显（52 张地图 / 950 张票 / 9.7MB 快照本机连着 30 秒超时）。
- * 本票把两条路接到同一张在途表（src/host/snapshotInflight.js），强制语义收敛为
+ * 本票把两条路接到同一张在途表（src/host/snapshotInflight.ts），强制语义收敛为
  * “跳过缓存、要新数据”，不再是“再起一趟”。
  *
  * 复用规则（非对称，只拦该拦的）：
@@ -23,7 +23,7 @@
  *   F. 本门禁已挂进 npm run verify 链；两处电话路的新增同层边已记基线。
  *   H. 同 tick 并发（零延迟）：Take 到 Park 之间无等待点，确定性仍为 1（延迟 10ms 只是常量，不是遮羞布）。
  *
- *   原先的 E2（读 src/host/sessionSnapshot.js 与 src/host/sessionRefresh.js 的源码文本、
+ *   原先的 E2（读 src/host/sessionSnapshot.ts 与 src/host/sessionRefresh.ts 的源码文本、
  *   断言 Take/Park/Leave 的调用都在）、F 里的「三处 src 文件都在 350 行内」、以及 G 组
  *   （读客户端与宿主源码文本钉 30 秒死线、扫节流防抖字样）都是源码文本门禁，2026-10 按
  *   维护者口径撤掉：断言的对象是手写源码的文本，等价重构就会变红。
@@ -90,7 +90,7 @@ function snapDeps(table, counter, fires, backendOf) {
   }
 }
 async function refreshDeps(table, counter, fires) {
-  const envMod = await import(url('src/host/snapshotEnvelope.js'))
+  const envMod = await import(url('src/host/snapshotEnvelope.ts'))
   const adopt = (s, c) => { table.setCache({ ts: Date.now(), snapshot: s, error: null, cwd: c }); return s }
   const d = snapDeps(table, counter, fires)
   d.resetGhCache = () => {}
@@ -106,8 +106,8 @@ async function twoTrips(first, second) {
 }
 
 async function main() {
-  const snapMod = await import(url('src/host/sessionSnapshot.js'))
-  const refMod = await import(url('src/host/sessionRefresh.js'))
+  const snapMod = await import(url('src/host/sessionSnapshot.ts'))
+  const refMod = await import(url('src/host/sessionRefresh.ts'))
 
   title('A) 快照路：强制撞强制只重建 1 次，且后来者记 dedup.hit')
   {
@@ -187,13 +187,13 @@ async function main() {
     // E1：协调器规则被拆（补丁副本）→ 永不搭车。模块零依赖，可独立加载副本验证。
     const tmp = fsx.mkdtempSync(nodePath.join(nodeOs.tmpdir(), 'anti729-'))
     try {
-      const src = read('src/host/snapshotInflight.js')
+      const src = read('src/host/snapshotInflight.ts')
       must(src.indexOf('ongoing.isForce === true || !isForce') >= 0, '真源里找得到非对称规则那一行（反证靶点存在）')
       const patched = src.split('ongoing.isForce === true || !isForce').join('false')
       const copyPath = nodePath.join(tmp, 'snapshotInflight-broken.mjs')
       fsx.writeFileSync(copyPath, patched)
       const brokenMod = await import(pathToFileURL(copyPath).href)
-      const goodMod = await import(url('src/host/snapshotInflight.js'))
+      const goodMod = await import(url('src/host/snapshotInflight.ts'))
       const k = goodMod.snapshotDedupKeyOf({ cwd: 'K', backendId: 'github', lang: '', baseRev: 0, version: '' })
       const parked = goodMod.snapshotInflightPark(k, true, Promise.resolve({ ok: true, marker: 'x' }))
       try {
@@ -209,12 +209,12 @@ async function main() {
     const tmpTree = fsx.mkdtempSync(nodePath.join(nodeOs.tmpdir(), 'rollback729-'))
     try {
       fsx.cpSync(nodePath.join(ROOT, 'src'), nodePath.join(tmpTree, 'src'), { recursive: true })
-      const brokenTreePath = nodePath.join(tmpTree, 'src', 'host', 'snapshotInflight.js')
+      const brokenTreePath = nodePath.join(tmpTree, 'src', 'host', 'snapshotInflight.ts')
       const brokenTreeSrc = fsx.readFileSync(brokenTreePath, 'utf8')
       fsx.writeFileSync(brokenTreePath, brokenTreeSrc.split('ongoing.isForce === true || !isForce').join('false'))
       const treeUrl = (rel) => pathToFileURL(nodePath.join(tmpTree, rel)).href
-      const snapRolled = await import(treeUrl('src/host/sessionSnapshot.js'))
-      const refRolled = await import(treeUrl('src/host/sessionRefresh.js'))
+      const snapRolled = await import(treeUrl('src/host/sessionSnapshot.ts'))
+      const refRolled = await import(treeUrl('src/host/sessionRefresh.ts'))
       {
         const counter = { n: 0 }
         const table = makeTable()
@@ -250,8 +250,8 @@ async function main() {
     must(chain.indexOf('verify-696-shared-cache.js') >= 0, '既有 #696 门禁仍在链上（与本门禁一起守）', '696 missing')
     const baseline = JSON.parse(read('tests/same-layer-baseline.json'))
     const keys = new Set((baseline.entries || []).map((e) => e.file + '|' + e.resolved))
-    must(keys.has('src/host/sessionSnapshot.js|src/host/snapshotInflight.js'), '同层基线记了快照路 → 协调器这条边（owner #729）')
-    must(keys.has('src/host/sessionRefresh.js|src/host/snapshotInflight.js'), '同层基线记了刷新路 → 协调器这条边（owner #729）')
+    must(keys.has('src/host/sessionSnapshot.ts|src/host/snapshotInflight.ts'), '同层基线记了快照路 → 协调器这条边（owner #729）')
+    must(keys.has('src/host/sessionRefresh.ts|src/host/snapshotInflight.ts'), '同层基线记了刷新路 → 协调器这条边（owner #729）')
     const art = read('tests/verify-log-artifacts.js')
     must(art.indexOf("'dedup.hit'") >= 0, '复用的事件名在日志白名单里（无新增事件，附录对照表不动）')
   }

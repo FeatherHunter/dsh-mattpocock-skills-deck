@@ -8,7 +8,7 @@
 // 本门禁盯住：空才补、有就不碰、能力缺席跳过、失败超时都诚实、补全走闸。
 //
 // 为什么判定出口换成共用的桩（2026-10-12 补）
-//   写用途拦截开启后（提交 50bbf472），工具壳在 `src/shared/deck-tools/shell.js:246` 要求
+//   写用途拦截开启后（提交 50bbf472），工具壳在 `src/deck/shell/call-shell.ts:246` 要求
 //   「这个工作区是你亲手选过的」才肯往下做：判定出口回 canWrite:false 时，选后端这一步整体被拒。
 //   本门禁盯的是仓库标识补全，不是写用途拦截——夹具的注册表本来就代表「这个工作区已经选好了」，
 //   所以照另外九条 deck 门禁的办法，用 `tests/lib/deck-decide-stub.js` 的桩顶上，并在各夹具的
@@ -45,7 +45,7 @@ function sess(cwd) {
 async function main() {
   console.log('仓库标识补全门禁（#758：空才补，不逐后端写分支）')
 
-  const shell = await imp('src/shared/deck-tools/shell.js')
+  const shell = await imp('src/deck/shell/call-shell.ts')
 
   // ── 1. 空标识补上，有标识不动 ──
   let resolveCalls = 0
@@ -144,7 +144,7 @@ async function main() {
   check(kinds.join(',') === 'probe,probe', '选后端与补全各走一次读探针（两笔都记账）')
 
   // ── 5. 真房间把口子开出来（github created 后端带 getRepoKey）──
-  const backendMod = await imp('src/host/tracker/backends/github/backend.js')
+  const backendMod = await imp('src/tracker/rooms/github/backend.ts')
   check(backendMod && typeof backendMod.createGithubBackend === 'function', '房间交出装配函数')
   const fakeCtx = {
     platform: { resolveExecutable: async function (name) { return String(name) === 'git' ? 'git' : null } },

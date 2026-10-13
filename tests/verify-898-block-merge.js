@@ -121,9 +121,9 @@ async function main() {
   console.log('#898 回归门禁：一票多阻塞边合并写（不联网）')
   const budget = await imp('src/shared/refresh/budget.js')
   const toolCost = await imp('src/shared/refresh/tool-cost.js')
-  const storeMod = await imp('src/shared/deck-tools/plan-store.js')
-  const planMod = await imp('src/host/tools/deckMapPlanCreate.js')
-  const linkMod = await imp('src/host/tools/deckMapLink.js')
+  const storeMod = await imp('src/deck/shell/plan-cursor.ts')
+  const planMod = await imp('src/deck/tools/map-plan-create.ts')
+  const linkMod = await imp('src/deck/tools/map-link.ts')
   function shellDeps(tracker, extra) {
     // bound 与 select 一起给：真注册表两个都有，判定出口桩靠 bound 认出「这个工作区已选定后端」。
     const registry = { select: async () => ({ backendId: 'stub', source: 'test' }), get: () => tracker, bound: () => 'stub' }

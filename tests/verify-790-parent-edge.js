@@ -88,7 +88,7 @@ function ghCtxFor(factory) {
 
 async function main() {
   console.log('#790 父子边静默失败专属门禁（不联网，严格仿真真 GitHub）')
-  const graph = await imp('src/host/tracker/backends/github/graph.js')
+  const graph = await imp('src/tracker/rooms/github/graph.ts')
   const repo = { backend: 'github', refId: 'o/r', name: 'r', url: '' }
 
   // A) 主路走原生旗
@@ -124,9 +124,9 @@ async function main() {
   // D/E) 工具层：写成功但读回没挂上 → failed/partial，且顶层带原因
   {
     const budget = await imp('src/shared/refresh/budget.js')
-    const ledgerMod = await imp('src/host/refresh/ledger.js')
-    const gateMod = await imp('src/host/refresh/gate.js')
-    const registryMod = await imp('src/host/tracker/registryCore.js')
+    const ledgerMod = await imp('src/host/refresh/ledger.ts')
+    const gateMod = await imp('src/host/refresh/gate.ts')
+    const registryMod = await imp('src/tracker/registry/registryCore.ts')
     const toolCost = await imp('src/shared/refresh/tool-cost.js')
     let clock = 1700000000000
     const ledger = ledgerMod.createLedger({ now: () => clock })
@@ -164,8 +164,8 @@ async function main() {
       handleFor: () => handle, backendCtx: {}, now: () => clock, log: { fire: () => {} }, invalidate: () => {},
       decideBackend: makeDecideStub(registry),
     }
-    const linkMod = await imp('src/host/tools/deckMapLink.js')
-    const createMod = await imp('src/host/tools/deckIssueCreate.js')
+    const linkMod = await imp('src/deck/tools/map-link.ts')
+    const createMod = await imp('src/deck/tools/issue-create.ts')
     const link = linkMod.createDeckMapLink(deps)
     const createTool = createMod.createDeckIssueCreate(deps)
     const exec = { agent: { session: { id: 's-790', cwd: '/ws/790' } } }

@@ -6,13 +6,13 @@
  *  ③ 三步链路 Step1→2→3 冒烟 + installSkills 复验 + 无静默安装断言 + #59 登录引导经 AI 注入口（不测 UI，仅断言契约面）
  * 用法：node tests/verify-detection-cascade.js
  */
-import { parseIssueTracker } from '../src/host/tracker/detection/parseIssueTracker.js'
-import { detectExplicit } from '../src/host/tracker/detection/explicitDetector.js'
-import { createWorkspaceStore } from '../src/host/tracker/detection/workspaceStore.js'
-import { createDetectionService } from '../src/host/tracker/detection/detectionService.js'
-import { decideBackend as outletDecideBackend, selectionFromOutlet as outletSelectionFromOutlet } from '../src/host/tracker/detection/backendDecision.js'
+import { parseIssueTracker } from '../src/tracker/detection/parseIssueTracker.ts'
+import { detectExplicit } from '../src/tracker/detection/explicitDetector.ts'
+import { createWorkspaceStore } from '../src/tracker/detection/workspaceStore.ts'
+import { createDetectionService } from '../src/tracker/detection/detectionService.ts'
+import { decideBackend as outletDecideBackend, selectionFromOutlet as outletSelectionFromOutlet } from '../src/tracker/detection/backendDecision.ts'
 try { outletDecideBackend.selectionFromOutlet = outletSelectionFromOutlet } catch (eAttachOutlet) {}
-import { createRegistry } from '../src/host/tracker/registryCore.js' // V1 #461：registry.js 已拆为三块
+import { createRegistry } from '../src/tracker/registry/registryCore.ts' // V1 #461：registry.js 已拆为三块
 
 let passed=0, failed=0
 function ok(cond, msg){ if(cond){console.log('  PASS '+msg); passed++} else {console.log('  FAIL '+msg); failed++} }
