@@ -4,12 +4,25 @@
  * 接线：引用 registryShape.js（形状校验与包桩）与 registryViews.js（只读视图）；本文件不引用其他新文件；调用方经本文件装配。
  * 第一性原理（#125 定版，承接原 registry.js）：
  *  - 身份识别 = `matches`(boolean) + `select`(三级联仲裁) + `describe`(出 RepositoryRef)；没有 detect op。
- *  - `matches` 超时（默认 3000ms 可配）视作 **pending（unknown）**：排除出决策集；
+ *  - `matches` 超时（缺省 30 秒，见下面的 MATCHES_TIMEOUT_MS，可配）视作 **pending（unknown）**：排除出决策集；
  *    「无 explicit、无 match===true、无 pending」才 fallback→null；有 pending 必须 surface，不静默 Other。
  */
 
 import { TrackerRegistryError, handleKey, wrapTracker, validateMod } from './registryShape.js'
 import { describe, issueUrl, linkPattern, searchUrl } from './registryViews.js'
+
+/**
+ * 选后端时，每一路「你是不是这个仓库的后端」（matches）的兜底等待（毫秒）。
+ *
+ * 为什么是 30 秒（讨论见 #1043，落地见 #1109）：这个数是「等不到」的上限，不是给慢查询留的预算 ——
+ * 正常情况下各家应该很快就答得上来，而 3 秒在冷启动、刚装完依赖、要过一次网络的时候太极限，
+ * 会把本来答得完的那一路误判成「等不到」。折中到 30 秒：够各家答完，又不至于让一家卡住的后端
+ * 把整次选择拖死 —— 超时只把它排除出决策集，并不静默当作「没有后端」（那是 pending 而非 Other）。
+ *
+ * 改这个数只改这里：生产装配路径（src/host/platformChannel.js）不许自带等待值，两边各写各的
+ * 会变成「改了一处、另一处照旧」。这条有门禁盯着：tests/verify-1109-matches-timeout.ts。
+ */
+export const MATCHES_TIMEOUT_MS = 30000
 
 /** matches 超时包装：返回 {value} / {timedOut:true}；超时同时 abort（传给模块的 signal）。 */
 function withTimeout(promise, ms, timers, controller) {
@@ -49,7 +62,7 @@ function withTimeout(promise, ms, timers, controller) {
  * }}
  */
 export function createRegistry(backendCtx = {}, opts = {}) {
-  const matchesTimeout = (opts && opts.matchesTimeout != null) ? opts.matchesTimeout : 3000
+  const matchesTimeout = (opts && opts.matchesTimeout != null) ? opts.matchesTimeout : MATCHES_TIMEOUT_MS
   const byId = new Map() // id -> {mod, tracker}；Map 迭代序 = 注册序（replace 保持键位 → 平局=注册序）
   const byHandle = new Map() // handleKey -> {backendId: string|null, handle}（null = 显式无后端；handle 供 stale 通知携带真实句柄）
   const listeners = new Map([['register', new Set()], ['unregister', new Set()], ['bind', new Set()]])

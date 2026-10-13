@@ -47,7 +47,10 @@ export function createPlatformChannel(deps) {
         try {
           const regMod = await import('../tracker/registry/registryCore.js') // V1 #461：registry.js 已拆为三块，装配入口为 registryCore.js
           const createRegistry = regMod.createRegistry || regMod.default
-          const reg = createRegistry(backendCtxForRooms, { matchesTimeout: 3000 })
+          // #1109：这里**不许**自带等待值（从前写死 3000）。选后端的兜底等待只有一个出处：
+          //   registryCore 的缺省值（缺省 30 秒，见那份文件里的 MATCHES_TIMEOUT_MS）。
+          //   两处各写各的，就会出现「改了一处、另一处照旧」。门禁见 tests/verify-1109-matches-timeout.ts。
+          const reg = createRegistry(backendCtxForRooms)
           // 注册内置后端（github/markdown/gitlab），失败忽略（保持可用）
           try {
             const ghMod = await import('../tracker/rooms/github/index.js')
@@ -83,7 +86,8 @@ export function createPlatformChannel(deps) {
           try {
             const regMod2 = await import('../tracker/registry/registryCore.js') // V1 #461：同上（回落分支）
             const cr = regMod2.createRegistry || regMod2.default
-            _trackerRegistry = cr(backendCtxForRooms, { matchesTimeout: 3000 })
+            // #1109：回落分支同样不许自带等待值，理由与上面那一处逐字相同（唯一出处 = registryCore 的缺省值）。
+            _trackerRegistry = cr(backendCtxForRooms)
             return _trackerRegistry
           } catch { return null }
         }

@@ -319,6 +319,21 @@ export function createRefreshWiring(deps) {
         const backendObj = {
           platform: platform,
           fs: (function () { try { return (d.ctx && typeof d.ctx.get === 'function') ? d.ctx.get('fs') : undefined } catch (e) { return undefined } })(),
+          // #1109：选后端那条兜底等待（缺省 30 秒）要用宿主这一支 timer 服务，不能用全局时钟。
+          //   不给的话这里就落到全局 setTimeout 上：门禁没法用假计时器看住它（30 秒真等不起），
+          //   一挂住就只能干等，也数不清「显式绑定命中时一次计时器都没起」。形状与 OpContext.timers
+          //   一致，与平台通道那一处（platformChannel.js 的 getTimers）同源，都是宿主 ctx 的 timer 服务。
+          timers: (function () {
+            try {
+              const t = (d.ctx && typeof d.ctx.get === 'function') ? d.ctx.get('timer') : undefined
+              if (!t || typeof t.timeout !== 'function') return undefined
+              return {
+                setTimeout: function (fn, ms) { return t.timeout(fn, ms) },
+                // 真实撤销：宿主 timer 服务交回的是可 dispose 的句柄（撤销掉，那一份 matches 早答完的等待不再悬着）。
+                clearTimeout: function (id) { try { if (id && typeof id.dispose === 'function') id.dispose(); else clearTimeout(id) } catch (e) {} },
+              }
+            } catch (e) { return undefined }
+          })(),
           exec: function () {
             if (typeof d.detectionExec === 'function') { try { return d.detectionExec.apply(null, arguments) } catch (e) { return Promise.reject(e) } }
             return Promise.resolve({ ok: false, kind: 'env', error: '这个宿主实例没有把起进程的出口（detectionExec）传进来，远端后端的读写做不了' })
