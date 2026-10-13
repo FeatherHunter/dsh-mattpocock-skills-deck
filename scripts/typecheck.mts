@@ -20,6 +20,12 @@
 // 没改，症状是「本机全绿、另一条门禁红」。TypeScript 本身也没有任何选项能禁止从上层目录 import，
 // 试过把「禁止向上引用」写进 tsconfig，编译器照过——所以不是不肯写，是写不出来。
 //
+// 这里也**不数**「新语言直接 import 旧语言的边」。那张票的开工令列了两把棘轮，落地的是第一把
+// （手写旧语言文件数，tests/handwritten-js-baseline.json）。第二把（谁 import 了谁）今天只在
+// 依赖图那份门禁里有一份实现，数出来是同一个数：本仓 42 条 `.js` 结尾的说明符全部是假后缀
+// （磁盘上只有同名 .ts），指向真实 .js 的边是 0 条。再写一份扫描就是第二处判据，所以这一步
+// 有意留给依赖图那条线，等它的白名单先把方向判出来，本文件顺手读同一份图即可。
+//
 // 用法（在插件根目录）：
 //   node scripts/typecheck.mts             # 四步全跑 + 棘轮对账
 //   node --import ./scripts/ts-hook.mjs scripts/typecheck.mts   # 等价（本文件不 import 同名 .js，钩子非必需）
@@ -29,8 +35,8 @@
 //   1 —— 有断言红（缺口／重复／越界／类型错误／棘轮涨了），要改的是仓库
 //   2 —— 脚本自身跑不动（git 或 tsc 起不来、配置读不通、输出认不出来），要改的是环境或本文件
 //
-// 对外接口：本文件既是入口也是模块。tests/verify-typecheck-coverage.ts 直接 import 下面的
-// collectFacts() 与 judge()，用同一份实现判仓库现状，不再另写一套口径。
+// 对外接口：本文件既是入口也是模块。tests/verify-typecheck.mts 直接 import 下面的
+// collectFacts() / judge() / report()，用同一份实现判仓库现状，不再另写一套口径。
 
 import { execFileSync } from 'node:child_process'
 import * as fs from 'node:fs'
