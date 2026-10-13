@@ -13,7 +13,7 @@
  *   8) 工作区后端不是 GitHub（Markdown / GitLab / 没有主锚）：直接拒绝并指明正确做法；
  *   8b) 子目录里跑（#654）：一路向上找到工作区根并跑通、每条 gh 命令都在根那一层起、自带 .git 的子目录
  *      自成一套、一个标记都没有时话里给出「请到工作区根目录去跑」这条出路（且不泄本地绝对路径）；
- *   9) 差分钉住：脚本的校正结果逐字等于 src/shared/parser.js 的 normalizeBody（真源）。
+ *   9) 差分钉住：脚本的校正结果逐字等于 src/tracker/body-parse.ts 的 normalizeBody（真源）。
  */
 const fs = require('fs')
 const path = require('path')
@@ -24,7 +24,7 @@ const { pathToFileURL } = require('url')
 const ROOT = path.join(__dirname, '..')
 const SCRIPT = path.join(ROOT, 'scripts', 'fix-issue-body.mjs')
 const SCRIPT_NAME = 'scripts/fix-issue-body.mjs'
-const TRUTH = path.join(ROOT, 'src', 'shared', 'parser.js')
+const TRUTH = path.join(ROOT, 'src', 'tracker', 'body-parse.ts')
 
 let failed = false
 const check = function (ok, msg) {
@@ -84,7 +84,7 @@ function dryRun(text, issue) {
   return runScript(['--issue', String(issue || 571), '--body-file', writeFixture(text), '--dry-run'])
 }
 
-// ——— 真源：src/shared/parser.js 的 normalizeBody（用 --no-warnings 子进程读，避免模块类型提示刷屏） ———
+// ——— 真源：src/tracker/body-parse.ts 的 normalizeBody（用 --no-warnings 子进程读，避免模块类型提示刷屏） ———
 function truthNormalize(text) {
   const code = 'import { normalizeBody } from ' + JSON.stringify(pathToFileURL(TRUTH).href) +
     ';process.stdout.write(normalizeBody(Buffer.from(process.argv[1], "base64").toString("utf8")))'

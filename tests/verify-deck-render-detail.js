@@ -9,7 +9,7 @@
 // 这份门禁盯住「接缝」：宿主侧的测试只看 run() 的 data（在），代理侧的测试只看有没有一句话，
 // 两边各自都绿，丢明细这个事实正好落在缝里没人看见。本文件按各工具真实回包的形状手写夹具
 // （deck_issue_get / deck_issue_list / deck_map_snapshot / deck_map_link / deck_issue_patch
-// 的 data、items、readBack、notes 四格形状取自 src/host/tools/*.js），过一遍渲染，断言 AI 看得见。
+// 的 data、items、readBack、notes 四格形状取自 src/deck/tools/*.ts），过一遍渲染，断言 AI 看得见。
 // 手写夹具不等于活体调用，形状对不齐的风险由 tests/verify-deck-tools.js 那侧兜。
 //
 // 用法：node tests/verify-deck-render-detail.js（在插件根目录）
@@ -25,7 +25,7 @@ const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href)
 
 // 两个上限直接从源文件里读，不在这里抄一份：抄一份的话，源文件改了上限而门禁还在按旧数造
 // 数据，门禁会一直绿，人却以为它守着上限，其实早就守的不是那个数了。
-const SRC = fs.readFileSync(path.join(ROOT, 'src/shared/deck-tools/agent-register.js'), 'utf8')
+const SRC = fs.readFileSync(path.join(ROOT, 'src/deck/registration/register-options.ts'), 'utf8')
 const limitOf = (name) => {
   const m = SRC.match(new RegExp('const ' + name + ' = (\\d+)'))
   if (!m) { console.log('  FAIL 源文件里读不到 ' + name + '，这条门禁得跟着改'); failed = true; return 1 }
@@ -35,7 +35,7 @@ const DETAIL_STRING_CAP = limitOf('DETAIL_STRING_CAP')
 const DETAIL_TOTAL_CAP = limitOf('DETAIL_TOTAL_CAP')
 
 async function main() {
-  const agent = await imp('src/shared/deck-tools/agent-register.js')
+  const agent = await imp('src/deck/registration/register-options.ts')
   // 走注册时真正挂上去的那一份：deckToolsRow.js:151 与 agent-register.js:260 用的都是它。
   const render = agent.deckAgentOutputSchemaRaw().render
   const specRender = agent.deckAgentOutputSpec().render

@@ -100,7 +100,7 @@ const walk = function (dir, acc) {
   fs.readdirSync(dir, { withFileTypes: true }).forEach(function (d) {
     const p = path.join(dir, d.name)
     if (d.isDirectory()) walk(p, acc)
-    else if (d.name.endsWith('.js')) acc.push(p)
+    else if (d.name.endsWith('.js') || d.name.endsWith('.ts')) acc.push(p)
   })
   return acc
 }
@@ -113,9 +113,9 @@ walk(path.join(ROOT, 'src/host'), []).forEach(function (file) {
   }
 })
 
-// 3) host 后端模块 prompts 字典的 zh/en 字面量（backends/*/index.js 的 module.prompts 等）
-walk(path.join(ROOT, 'src/host/tracker/backends'), []).forEach(function (file) {
-  if (!file.endsWith('index.js')) return
+// 3) host 后端模块 prompts 字典的 zh/en 字面量（rooms/*/index.{ts,js} 的 module.prompts 等）
+walk(path.join(ROOT, 'src/tracker/rooms'), []).forEach(function (file) {
+  if (!file.endsWith('index.js') && !file.endsWith('index.ts')) return
   const src = fs.readFileSync(file, 'utf8')
   const re = /(?:zh|en): '((?:[^'\\]|\\.)*)'/g
   let m

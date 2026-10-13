@@ -6,16 +6,16 @@ let failed=false
 const check=(ok,msg)=>{ console.log((ok?'  PASS ':'  FAIL ')+msg); if(!ok) failed=true }
 
 const ROOT = path.resolve(__dirname, '..')
-const sharedPath = path.join(ROOT, 'src/shared/labels.js')
+const sharedPath = path.join(ROOT, 'src/tracker/contract/canonical-labels.ts')
 const clientPath = path.join(ROOT, 'client.js')
 const pkgClientPath = path.join(ROOT, 'package/lib/client.js')
 
 // 1) 单源文件存在
-check(fs.existsSync(sharedPath), 'src/shared/labels.js 存在')
+check(fs.existsSync(sharedPath), 'src/tracker/contract/canonical-labels.ts 存在')
 let srcTxt=''
 try{ srcTxt=fs.readFileSync(sharedPath,'utf8') }catch(e){ srcTxt='' }
-check(srcTxt.includes('CANONICAL_LABELS'), 'src/shared/labels.js 含 CANONICAL_LABELS')
-check(srcTxt.includes('CANONICAL_LABEL_NAMES'), 'src/shared/labels.js 含 CANONICAL_LABEL_NAMES')
+check(srcTxt.includes('CANONICAL_LABELS'), 'src/tracker/contract/canonical-labels.ts 含 CANONICAL_LABELS')
+check(srcTxt.includes('CANONICAL_LABEL_NAMES'), 'src/tracker/contract/canonical-labels.ts 含 CANONICAL_LABEL_NAMES')
 
 // 2) 解析 CANONICAL_LABEL_NAMES（正则提取单引号/双引号包围的 name）
 const nameRe = /name:\s*['"]([^'"]+)['"]/g
@@ -43,7 +43,7 @@ const cli = readClient(clientPath)
 const pcli = readClient(pkgClientPath)
 check(cli.includes('ensureLabels'), 'client.js 含 ensureLabels（#231 起真源为 github 后端模块 prompts 声明）')
 check(pcli.includes('ensureLabels'), 'package/lib/client.js 含 ensureLabels（同上）')
-const ghModPath = path.join(ROOT, 'src/host/tracker/backends/github/index.js')
+const ghModPath = path.join(ROOT, 'src/tracker/rooms/github/index.ts')
 let ghTxt=''; try{ ghTxt=fs.readFileSync(ghModPath,'utf8') }catch(e){}
 check(ghTxt.includes('CANONICAL_LABELS.map'), 'github 后端模块从 shared 单源动态拼装名单')
 check(ghTxt.includes('ensureLabels'), 'github 后端模块声明 ensureLabels 双语数据')
@@ -62,12 +62,12 @@ check(!cli.includes('wf.status') || cli.includes('dsws-labels-modal'), 'client �
 check(cli.includes('dsws-labels-modal') && cli.includes('dsws-labels-overlay'), 'client 含 labels Modal 样式（dsws-labels-modal/overlay）')
 check(pcli.includes('dsws-labels-modal'), 'package 含 labels Modal 镜像')
 
-// 6) package/shared 同步（build.mjs 原样复制）
-const pkgSharedPath = path.join(ROOT, 'package/shared/labels.js')
-check(fs.existsSync(pkgSharedPath), 'package/shared/labels.js 存在（build 原样复制）')
+// 6) package 同步（build.mjs 按新树投放）
+const pkgSharedPath = path.join(ROOT, 'package/tracker/contract/canonical-labels.js')
+check(fs.existsSync(pkgSharedPath), 'package/tracker/contract/canonical-labels.js 存在（build 按新树投放）')
 if(fs.existsSync(pkgSharedPath)){
   const pkgTxt = fs.readFileSync(pkgSharedPath,'utf8')
-  check(pkgTxt.includes('CANONICAL_LABELS'), 'package/shared 含 CANONICAL_LABELS')
+  check(pkgTxt.includes('CANONICAL_LABELS'), 'package 投放含 CANONICAL_LABELS')
 }
 
 if(failed){ console.log('\n存在失败'); process.exit(1)}

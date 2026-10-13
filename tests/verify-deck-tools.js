@@ -9,7 +9,7 @@
 //      而「AI 工具那一档」的账必须有数 —— 谁绕开闸发请求，这个数就不是 0。
 //   ④ 一条负向：让后端实现抛错 → 工具必须回 ok:false / partial，而不是把异常抛给 AI。
 //
-// 另外两条静态扫描（票面「加固补充」要求）：src/host/tools/** 与 src/shared/deck-tools/** 里
+// 另外两条静态扫描（票面「加固补充」要求）：src/deck/tools/**、src/deck/shell/** 与 src/deck/registration/** 里
 // 不许出现后端 id 的等值比较（`=== 'github'` 这种），否则工具就在自己判后端了。
 const path = require('path')
 const fs = require('fs')
@@ -23,15 +23,15 @@ const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL '
 const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href)
 
 const TOOL_FILES = [
-  ['src/host/tools/deckContext.js', 'createDeckContext', 'deck_context'],
-  ['src/host/tools/deckIssueGet.js', 'createDeckIssueGet', 'deck_issue_get'],
-  ['src/host/tools/deckMapSnapshot.js', 'createDeckMapSnapshot', 'deck_map_snapshot'],
-  ['src/host/tools/deckIssueList.js', 'createDeckIssueList', 'deck_issue_list'],
-  ['src/host/tools/deckIssueCreate.js', 'createDeckIssueCreate', 'deck_issue_create'],
-  ['src/host/tools/deckMapPlanCreate.js', 'createDeckMapPlanCreate', 'deck_map_plan_create'],
-  ['src/host/tools/deckMapLink.js', 'createDeckMapLink', 'deck_map_link'],
-  ['src/host/tools/deckIssuePatch.js', 'createDeckIssuePatch', 'deck_issue_patch'],
-  ['src/host/tools/deckIssueReport.js', 'createDeckIssueReport', 'deck_issue_report'],
+  ['src/deck/tools/context.ts', 'createDeckContext', 'deck_context'],
+  ['src/deck/tools/issue-get.ts', 'createDeckIssueGet', 'deck_issue_get'],
+  ['src/deck/tools/map-snapshot.ts', 'createDeckMapSnapshot', 'deck_map_snapshot'],
+  ['src/deck/tools/issue-list.ts', 'createDeckIssueList', 'deck_issue_list'],
+  ['src/deck/tools/issue-create.ts', 'createDeckIssueCreate', 'deck_issue_create'],
+  ['src/deck/tools/map-plan-create.ts', 'createDeckMapPlanCreate', 'deck_map_plan_create'],
+  ['src/deck/tools/map-link.ts', 'createDeckMapLink', 'deck_map_link'],
+  ['src/deck/tools/issue-patch.ts', 'createDeckIssuePatch', 'deck_issue_patch'],
+  ['src/deck/tools/issue-report.ts', 'createDeckIssueReport', 'deck_issue_report'],
 ]
 
 /** 一个真实本地 Markdown 工作区：票就是 .scratch/demo/issues/*.md 这些文件（与 sections/idempotency.js 同一套做法）。 */
@@ -66,19 +66,19 @@ function makeWorkspace() {
 async function main() {
   console.log('九个后端无关工具的门禁（#713 T9：过闸、三态、永不抛、不判后端）')
   const budget = await imp('src/shared/refresh/budget.js')
-  const ledgerMod = await imp('src/host/refresh/ledger.js')
-  const gateMod = await imp('src/host/refresh/gate.js')
-  const registryMod = await imp('src/host/tracker/registryCore.js')
-  const markdownModule = (await imp('src/host/tracker/backends/markdown/index.js')).markdownModule
+  const ledgerMod = await imp('src/host/refresh/ledger.ts')
+  const gateMod = await imp('src/host/refresh/gate.ts')
+  const registryMod = await imp('src/tracker/registry/registryCore.ts')
+  const markdownModule = (await imp('src/tracker/rooms/markdown/index.ts')).markdownModule
   const toolCost = await imp('src/shared/refresh/tool-cost.js')
-  const planMod = await imp('src/shared/deck-tools/plan.js')
-  const shellMod = await imp('src/shared/deck-tools/shell.js')
-  // 选后端的判定出口（#1003 单出口）。生产装配总是把它递给工具（见 src/host/platform/deckToolsAssembly.js
+  const planMod = await imp('src/deck/shell/minimal-spec.ts')
+  const shellMod = await imp('src/deck/shell/call-shell.ts')
+  // 选后端的判定出口（#1003 单出口）。生产装配总是把它递给工具（见 src/deck/registration/host-assemble.ts
   //   的 `decideBackend: decideBackend || null`），壳拿不到它时会一律回「判定出口这次没装上」，
   //   所以夹具也必须照生产的接法给上，否则下面这些正例一条都跑不到真实路径。
   //   接上它之后，下面那次 registry.bind(handle, 'markdown') 才会被读成「用户亲手选过这个工作区」，
   //   写用途才会被放行（#1003 契约期望行为第 4 条：写用途只认文件里的记录或本次进程内亲手绑定）。
-  const decMod = await imp('src/host/tracker/detection/backendDecision.js')
+  const decMod = await imp('src/tracker/detection/backendDecision.ts')
 
   // ── 组装：真闸 + 真账本 + 真注册表 + 真实本地 Markdown 后端 ──
   const ws = makeWorkspace()
@@ -357,10 +357,10 @@ async function main() {
       for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
         const p = path.join(dir, e.name)
         if (e.isDirectory()) walk(p)
-        else if (e.name.endsWith('.js')) files.push(p)
+        else if (e.name.endsWith('.js') || e.name.endsWith('.ts')) files.push(p)
       }
     }
-    for (const d of ['src/host/tools', 'src/shared/deck-tools']) walk(path.join(ROOT, d))
+    for (const d of ['src/deck/tools', 'src/deck/shell', 'src/deck/registration']) walk(path.join(ROOT, d))
     check(files.length >= 8, '扫描到的工具层文件数（' + files.length + '：九个工具 + 两个共享壳）')
     const RE_ID = /(===|!==|==|!=)\s*['"](github|gitlab|markdown)['"]|['"](github|gitlab|markdown)['"]\s*(===|!==|==|!=)/
     const hits = []

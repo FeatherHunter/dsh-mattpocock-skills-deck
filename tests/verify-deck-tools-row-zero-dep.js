@@ -37,7 +37,7 @@ async function main() {
   // 1. 发布清单：有工具行导出、无运行时工具包依赖
   const pkg = JSON.parse(readText('package/package.json'))
   const exports = (pkg && pkg.exports) || {}
-  check(exports['./tools'] === './lib/platform/deckToolsRow.js', '发布清单导出工具行（./tools 指向行模块）')
+  check(exports['./tools'] === './deck/registration/agent-row.js', '发布清单导出工具行（./tools 指向行模块）')
   const deps = (pkg && pkg.dependencies) || {}
   check(!Object.hasOwn(deps, '@deepseek-ai/dsh-tools'), '发布清单运行时依赖无工具包（不再多装一份）')
   const patch = readText('package/cordis.patch.yml')
@@ -45,7 +45,7 @@ async function main() {
 
   // 2. 行模块交出七个加探针，且形状过真原生判定
   let row = null
-  try { row = await imp('src/host/platform/deckToolsRow.js') } catch (e) {
+  try { row = await imp('src/deck/registration/agent-row.ts') } catch (e) {
     check(false, '行模块可加载（' + String((e && e.message) || e).slice(0, 120) + '）')
     console.log('\n' + total + ' 条断言，失败')
     process.exit(1)
@@ -79,11 +79,19 @@ async function main() {
     }
   }
 
-  // 3. 发包镜像与源一致（构建会整树复制，手改发包即红）
+  // 3. 发包镜像与源一致（构建转译同步，手改发包即红）。
+  //   TypeScript 时代构建做的是转译不是原样复制，所以比的是「构建转译输出」而不是源字节：
+  //   转译口径取自构建唯一的 scripts/lib/transpile-unit.mjs（TRANSPILE_OPTIONS + generatedHeader），
+  //   这里不抄第二遍，口径变了只改构建那一处。
   try {
-    const crypto = require('crypto')
-    const sha = (rel) => crypto.createHash('sha256').update(fs.readFileSync(path.join(ROOT, rel))).digest('hex')
-    check(sha('src/host/platform/deckToolsRow.js') === sha('package/lib/platform/deckToolsRow.js'), '发包行模块与源同字节（构建已同步）')
+    const esbuild = require('esbuild')
+    const tu = await import(pathToFileURL(path.join(ROOT, 'scripts/lib/transpile-unit.mjs')).href)
+    const srcRel = 'src/deck/registration/agent-row.ts'
+    const pkgRel = 'package/deck/registration/agent-row.js'
+    const src = fs.readFileSync(path.join(ROOT, srcRel), 'utf8')
+    const expected = tu.generatedHeader(srcRel) + esbuild.transformSync(src, tu.TRANSPILE_OPTIONS).code
+    const actual = fs.readFileSync(path.join(ROOT, pkgRel), 'utf8')
+    check(actual === expected, '发包行模块与构建转译输出同字节（构建已同步）')
   } catch (e) {
     check(false, '发包镜像比对失败（' + String((e && e.message) || e).slice(0, 100) + '）')
   }

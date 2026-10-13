@@ -8,7 +8,7 @@
  * - 单 key、无 number/subIssues/blocking（blocking 仅 getDependencies 投影）
  */
 
-import { STATE, ISSUE_TYPE } from '../../src/shared/tracker/constants.js'
+import { STATE, ISSUE_TYPE } from '../../src/tracker/contract/vocabulary.ts'
 
 function normalizeLabel(raw) {
   if (typeof raw === 'string') {

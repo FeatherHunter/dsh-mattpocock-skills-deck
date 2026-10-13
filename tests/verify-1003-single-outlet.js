@@ -62,13 +62,13 @@ const fakeTracker = () => ({ listLabels: async () => ({ ok: true, data: [] }), s
 
 async function main() {
   console.log('#1003 单出口门禁：四路同答案');
-  const shellMod = await imp('src/shared/deck-tools/shell.js');
+  const shellMod = await imp('src/deck/shell/call-shell.ts');
   const budget = await imp('src/shared/refresh/budget.js');
-  const ledgerMod = await imp('src/host/refresh/ledger.js');
-  const gateMod = await imp('src/host/refresh/gate.js');
+  const ledgerMod = await imp('src/host/refresh/ledger.ts');
+  const gateMod = await imp('src/host/refresh/gate.ts');
   const toolCost = await imp('src/shared/refresh/tool-cost.js');
-  const decMod = await imp('src/host/tracker/detection/backendDecision.js');
-  const detMod = await imp('src/host/tracker/detection/detectionService.js');
+  const decMod = await imp('src/tracker/detection/backendDecision.ts');
+  const detMod = await imp('src/tracker/detection/detectionService.ts');
   const lcMod = await imp('src/host/workspaceLabelColors.js');
   const { decideBackend } = decMod;
   // 映射函数挂判定函数上整包递（与生产装配点同形，见 platformChannel.getDecisionFn）

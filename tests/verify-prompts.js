@@ -25,7 +25,7 @@
 // 五面（缺一处即漏，见 .scratch/573-gate-design-v2.md §1.1）：
 //   S1 src/client/kernel/prompts.js（求值解析，语法错误直接判红，不静默少扫）
 //   S2 client.js / package/lib/client.js（正则解析 + id 集合与逐字段等于 S1）
-//   S3 src/host/tracker/backends/{github,gitlab,markdown}/index.js 的 prompts 块（逐字符词法扫描，含拼接续段）
+//   S3 src/tracker/rooms/{github,gitlab,markdown}/index.{ts,js} 的 prompts 块（逐字符词法扫描，含拼接续段）
 //   S4 src/host/**/*.js 的 *_PROMPT 常量
 //   S5 S1 里含 {占位符} 的条目：占位符先求值（真实值 / 空串 / 哨兵三种展开）再判，另加「值形态」与「拆占位符拼装」两道
 //
@@ -687,10 +687,10 @@ const surfaceReport = { S1: 0, S2: [0, 0], S3: [], S4: 0, S5: 0, S6: 0, S7: 0, S
 const BACKENDS = ['github', 'gitlab', 'markdown']
 const backendPath = function (id, probe) {
   if (id === 'github' && probe) return probe
-  return path.join(ROOT, 'src/host/tracker/backends', id, 'index.js')
+  return path.join(ROOT, 'src/tracker/rooms', id, 'index.' + (id === 'gitlab' ? 'js' : 'ts'))
 }
 const backendLabel = function (id, probe) {
-  return (id === 'github' && probe) ? probe : 'src/host/tracker/backends/' + id + '/index.js'
+  return (id === 'github' && probe) ? probe : 'src/tracker/rooms/' + id + '/index.' + (id === 'gitlab' ? 'js' : 'ts')
 }
 const failLine = function (where, rule, snippet, raw) {
   return 'FAIL ' + where + ' [' + rule + '] 命中「' + snippet + '」' +
@@ -1425,7 +1425,7 @@ const runL2Injection = function () {
   try {
     tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-verify-prompts-'))
     const regSrc = fs.readFileSync(path.join(ROOT, 'src/client/kernel/prompts.js'), 'utf8')
-    const backendSrc = fs.readFileSync(path.join(ROOT, 'src/host/tracker/backends/github/index.js'), 'utf8')
+    const backendSrc = fs.readFileSync(path.join(ROOT, 'src/tracker/rooms/github/index.ts'), 'utf8')
     L2_PAYLOADS.forEach(function (p) {
       let mutated = null
       let extraArgs = []
@@ -1532,10 +1532,11 @@ const selfDigest = function () {
 // #879：逐面归零门禁退役（上游技能文档一字不动，人定案），本文件两处注释同步改说法，自摘要跟着重算。
 // #900：tpl.fix 阶段闸门整节删除，只在读现状留一句兜底，版本底线 7 → 11 并补内容断言，自摘要跟着重算。
 // #989：mapExecute 恢复纯寻路版 v12 文字（五节单票推进），断言同步回到五节版，自摘要跟着重算。
+// #1095：搬家跟随（后端路径改到 src/tracker/rooms，后缀 github/ts·gitlab/js·markdown/ts），自摘要一并重算。
 const LOCK = {
   'tests/prompt-gate-exempt.json': 'c661ccd0fbfd46aa99790c073d0ccea89ebf5787a9113462c092b17c72a2a2d9',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.js': 'cfcf6f07ec1850698baea7e4e64deea6fe10d515bffb667927c654cf0b5dc765',
+  'tests/verify-prompts.js': 'cd4839a53d3a969a0ec4ad7cdda5117e65aab25a4a1a1bc1740daad5f5f5162a',
 }
 // ---- LOCK-END ----
 
@@ -1910,7 +1911,7 @@ if (reg) {
 
 // —— L1 / L2 / L3 / 自注册 ——
 if (!IS_CHILD) {
-  const backendSrc = fs.readFileSync(path.join(ROOT, 'src/host/tracker/backends/github/index.js'), 'utf8')
+  const backendSrc = fs.readFileSync(path.join(ROOT, 'src/tracker/rooms/github/index.ts'), 'utf8')
   const l1 = reg ? runFixtureSelfCheck(reg, backendSrc) : { ok: false }
   if (l1.ok) console.log('  PASS L1 夹具自证（绕过 ' + FIXTURE_BYPASS.length + ' 条全红 / 误报 ' + FIXTURE_FALSE_POS.length + ' 条全绿 / 范围·解析·渲染·反隐藏四类各 1 条）')
   const l2 = runL2Injection()

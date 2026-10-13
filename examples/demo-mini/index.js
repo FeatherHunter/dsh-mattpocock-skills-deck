@@ -2,7 +2,7 @@
  * examples/demo-mini/index.js — demo-mini 后端（第三方扩展范式的可复制样板）
  *
  * 定版 7 行（#147）：
- * - 身份：示例性 demo-mini（对外 acme.demo 占位）不默认装配、不进 src/host/tracker/backends/
+ * - 身份：示例性 demo-mini（对外 acme.demo 占位）不默认装配、不进 src/tracker/rooms/
  * - 目录：examples/demo-mini/ + fixtures/demo-real/（不在 files 白名单，零发包）
  * - ops：list/get/create/getDependencies 4 项，余下 9 项 Proxy 补 unsupported
  * - matches：platform.fs 探 cwd/.demo/config.json 或 .scratch/map.md 存在性，boolean，超时 3000ms
@@ -11,7 +11,7 @@
  *
  * 接入（照抄）：
  *   import { demoModule } from '../../examples/demo-mini/index.js'
- *   import { createRegistry } from '../../src/host/tracker/registryCore.js' // V1 #461：registry.js 已拆为三块
+ *   import { createRegistry } from '../../src/tracker/registry/registryCore.ts' // V1 #461：registry.js 已拆为三块
  *   const registry = createRegistry(backendCtx)
  *   const disp = registry.register(demoModule) // + ctx.effect(() => disp.dispose())
  *
@@ -23,7 +23,7 @@
  *   }
  */
 
-import { ERROR_KIND } from '../../src/shared/tracker/constants.js'
+import { ERROR_KIND } from '../../src/tracker/contract/vocabulary.ts'
 import { normalizeIssue } from './normalize.js'
 import { demoMatches } from './matches.js'
 
@@ -38,8 +38,8 @@ function toOpResult(ok, data, error) {
 
 /**
  * 创建 demo-mini Tracker（4 ops + 内存 Map 存储）
- * @param {import('../../src/host/tracker/contract.js').BackendContext} ctx
- * @returns {import('../../src/host/tracker/contract.js').Tracker}
+ * @param {import('../../src/tracker/contract/index.ts').BackendContext} ctx
+ * @returns {import('../../src/tracker/contract/index.ts').Tracker}
  */
 export function createDemoBackend(ctx) {
   // 内存存储：key -> raw（normalize 前的中间态）

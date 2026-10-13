@@ -1,6 +1,6 @@
 # demo-mini — 第三方扩展范式样板
 
-> 定版：#147 7 行 + #148 落地。身份 `demo-mini`（对外 `acme.demo` 占位），不默认装配，不进 `src/host/tracker/backends/`。
+> 定版：#147 7 行 + #148 落地。身份 `demo-mini`（对外 `acme.demo` 占位），不默认装配，不进 `src/tracker/rooms/`。
 
 ## 你将得到
 - `index.js`：`demoModule`（`id/label/create/matches` 四件套）+ `createDemoBackend`（内存实现 4 ops）
@@ -11,7 +11,7 @@
 ## 一行接入
 ```js
 import { demoModule } from '../../examples/demo-mini/index.js'
-import { createRegistry } from '../../src/host/tracker/registryCore.js' // V1 #461：registry.js 已拆为三块
+import { createRegistry } from '../../src/tracker/registry/registryCore.ts' // V1 #461：registry.js 已拆为三块
 const registry = createRegistry(backendCtx)
 const disp = registry.register(demoModule)
 // DSH 插件：ctx.effect(() => disp.dispose())

@@ -97,7 +97,7 @@ async function main() {
   const BACKENDS = ['github', 'markdown', 'gitlab']
   const stubs = []
   for (const b of BACKENDS) {
-    const src = fs.readFileSync(path.join(root, 'src/host/tracker/backends/' + b + '/index.js'), 'utf8')
+    const src = fs.readFileSync(path.join(root, 'src/tracker/rooms/' + b + '/index.' + (b === 'gitlab' ? 'js' : 'ts')), 'utf8')
     const i = src.indexOf('setupPrompt:')
     check(i >= 0, 'backend ' + b + ' 声明 setupPrompt')
     if (i < 0) continue

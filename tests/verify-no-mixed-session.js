@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 /**
- * verify-no-mixed-session.js ¡ª »á»°Ô½½çÃÅ½û£¨#326 ³Ð½Ó #313 D4£©
+ * verify-no-mixed-session.js ï¿½ï¿½ ï¿½á»°Ô½ï¿½ï¿½ï¿½Å½ï¿½ï¿½ï¿½#326 ï¿½Ð½ï¿½ #313 D4ï¿½ï¿½
  *
- * ÅÐ¶¨¶ÔÏó£ºPR µÄÈ«Á¿¸Ä¶¯Çåµ¥£¨base...head£©£¬·Çµ¥´ÎÌá½»¡£
- * ·¿¼ä¿Ú¾¶£º½ö src/host/tracker/backends/<name>/** ÊôÓÚ·¿¼äÎÄ¼þ£»
- *           tests/ ÓëÆõÔ¼²âÊÔ¼Ð¾ß²»¹éÊôÈÎºÎ·¿¼ä¡£
- * ÎÞ¶Ô±È»ù×¼£¨Èç push µ½Ö÷·ÖÖ§£©Ê±Ìø¹ý£¬²»±¨Ê§°Ü¡£
- * Ê§°ÜÊ±Êä³ö»ìÈëµÄ·¿ÄÚÎÄ¼þÇåµ¥¡£
+ * ï¿½Ð¶ï¿½ï¿½ï¿½ï¿½ï¿½PR ï¿½ï¿½È«ï¿½ï¿½ï¿½Ä¶ï¿½ï¿½åµ¥ï¿½ï¿½base...headï¿½ï¿½ï¿½ï¿½ï¿½Çµï¿½ï¿½ï¿½ï¿½á½»ï¿½ï¿½
+ * ï¿½ï¿½ï¿½ï¿½Ú¾ï¿½ï¿½ï¿½ï¿½ï¿½ src/tracker/rooms/<name>/** ï¿½ï¿½ï¿½Ú·ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½
+ *           tests/ ï¿½ï¿½ï¿½ï¿½Ô¼ï¿½ï¿½ï¿½Ô¼Ð¾ß²ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ÎºÎ·ï¿½ï¿½ä¡£
+ * ï¿½Þ¶Ô±È»ï¿½×¼ï¿½ï¿½ï¿½ï¿½ push ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö§ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê§ï¿½Ü¡ï¿½
+ * Ê§ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä·ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½åµ¥ï¿½ï¿½
  *
- * ÓÃ·¨£ºnode tests/verify-no-mixed-session.js
- * CI Ðè±£Ö¤ checkout µÄ fetch-depth: 0 »òÄÜ¶ÁÈ¡ GITHUB_EVENT_PATH ÖÐµÄ base sha¡£
+ * ï¿½Ã·ï¿½ï¿½ï¿½node tests/verify-no-mixed-session.js
+ * CI ï¿½è±£Ö¤ checkout ï¿½ï¿½ fetch-depth: 0 ï¿½ï¿½ï¿½Ü¶ï¿½È¡ GITHUB_EVENT_PATH ï¿½Ðµï¿½ base shaï¿½ï¿½
  */
 const fs = require("fs");
 const path = require("path");
@@ -19,7 +19,7 @@ const execSync = child_process.execSync;
 
 const root = path.resolve(__dirname, "..");
 const BACKENDS = ["github", "gitlab", "markdown"];
-const BACKEND_ROOT_POSIX = "src/host/tracker/backends";
+const BACKEND_ROOT_POSIX = "src/tracker/rooms";
 
 let failed = false;
 function ok(msg) { console.log("  PASS " + msg); }
@@ -52,9 +52,9 @@ function detectMixedSession(changedFiles) {
   return { ok: roomList.length <= 1, rooms: roomList, filesByRoom: filesByRoom };
 }
 
-console.log("== verify-no-mixed-session£º»á»°Ô½½çÃÅ½û£¨#326£© ==");
+console.log("== verify-no-mixed-sessionï¿½ï¿½ï¿½á»°Ô½ï¿½ï¿½ï¿½Å½ï¿½ï¿½ï¿½#326ï¿½ï¿½ ==");
 
-// ---- ×Ô¼ì£º´¿º¯Êý + ÁÙÊ± git ²Ö¿â ----
+// ---- ï¿½Ô¼ì£ºï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ + ï¿½ï¿½Ê± git ï¿½Ö¿ï¿½ ----
 let selfFailed = false;
 function selfCheck(cond, msg, detail) {
   if (cond) console.log("  PASS " + msg);
@@ -62,85 +62,85 @@ function selfCheck(cond, msg, detail) {
 }
 
 {
-  // ´¿º¯Êý£ºµ¥·¿
-  const r1 = detectMixedSession(["src/host/tracker/backends/github/a.js"]);
-  selfCheck(r1.ok && r1.rooms.length === 1 && r1.rooms[0] === "github", "´¿º¯Êýµ¥·¿Í¨¹ý");
+  // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+  const r1 = detectMixedSession(["src/tracker/rooms/github/a.ts"]);
+  selfCheck(r1.ok && r1.rooms.length === 1 && r1.rooms[0] === "github", "ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í¨ï¿½ï¿½");
 }
 {
-  // ´¿º¯Êý£ºË«·¿
-  const r2 = detectMixedSession(["src/host/tracker/backends/github/a.js", "src/host/tracker/backends/gitlab/b.js"]);
-  selfCheck(!r2.ok && r2.rooms.length === 2, "´¿º¯ÊýË«·¿Ó¦Ê§°Ü");
+  // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ë«ï¿½ï¿½
+  const r2 = detectMixedSession(["src/tracker/rooms/github/a.ts", "src/tracker/rooms/gitlab/b.js"]);
+  selfCheck(!r2.ok && r2.rooms.length === 2, "ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ë«ï¿½ï¿½Ó¦Ê§ï¿½ï¿½");
 }
 {
-  // ´¿º¯Êý£º½ö¹«¹²ÎÄ¼þ
-  const r3 = detectMixedSession(["src/shared/tracker/constants.js", "src/host/tracker/preflight.js"]);
-  selfCheck(r3.ok && r3.rooms.length === 0, "´¿º¯Êý½ö¹«¹²ÎÄ¼þ²»´¥·¢");
+  // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½
+  const r3 = detectMixedSession(["src/tracker/contract/vocabulary.ts", "src/tracker/preflight.ts"]);
+  selfCheck(r3.ok && r3.rooms.length === 0, "ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½");
 }
 {
-  // ´¿º¯Êý£ºtests ²»¹éÊô
-  const r4 = detectMixedSession(["tests/verify-no-cross-import.js", "src/host/tracker/backends/markdown/a.js"]);
-  selfCheck(r4.ok && r4.rooms.length === 1, "´¿º¯Êý tests ²»¼ÆÈë·¿¼ä");
+  // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½tests ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+  const r4 = detectMixedSession(["tests/verify-no-cross-import.js", "src/tracker/rooms/markdown/a.ts"]);
+  selfCheck(r4.ok && r4.rooms.length === 1, "ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ tests ï¿½ï¿½ï¿½ï¿½ï¿½ë·¿ï¿½ï¿½");
 }
 {
-  // ´¿º¯Êý£ºÈý·¿
+  // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
   const r5 = detectMixedSession([
-    "src/host/tracker/backends/github/a.js",
-    "src/host/tracker/backends/gitlab/b.js",
-    "src/host/tracker/backends/markdown/c.js"
+    "src/tracker/rooms/github/a.ts",
+    "src/tracker/rooms/gitlab/b.js",
+    "src/tracker/rooms/markdown/c.ts"
   ]);
-  selfCheck(!r5.ok && r5.rooms.length === 3, "´¿º¯ÊýÈý·¿Ó¦Ê§°Ü");
+  selfCheck(!r5.ok && r5.rooms.length === 3, "ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ó¦Ê§ï¿½ï¿½");
 }
 
-// ÁÙÊ± git ²Ö¿â×Ô¼ì
+// ï¿½ï¿½Ê± git ï¿½Ö¿ï¿½ï¿½Ô¼ï¿½
 {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "verify-mixed-"));
   try {
     execSync("git init -q", { cwd: tmp });
     execSync("git config user.email \"test@test\"", { cwd: tmp });
     execSync("git config user.name \"test\"", { cwd: tmp });
-    fs.mkdirSync(path.join(tmp, "src/host/tracker/backends/github"), { recursive: true });
-    fs.mkdirSync(path.join(tmp, "src/host/tracker/backends/gitlab"), { recursive: true });
+    fs.mkdirSync(path.join(tmp, "src/tracker/rooms/github"), { recursive: true });
+    fs.mkdirSync(path.join(tmp, "src/tracker/rooms/gitlab"), { recursive: true });
     fs.writeFileSync(path.join(tmp, "README.md"), "# test\n");
     execSync("git add .", { cwd: tmp });
     execSync("git commit -q -m init", { cwd: tmp });
     const base = execSync("git rev-parse HEAD", { cwd: tmp, encoding: "utf8" }).trim();
 
-    // µ¥·¿Ìá½»£ºÖ»¸Ä github
-    fs.writeFileSync(path.join(tmp, "src/host/tracker/backends/github/a.js"), "console.log(1)\n");
+    // ï¿½ï¿½ï¿½ï¿½ï¿½á½»ï¿½ï¿½Ö»ï¿½ï¿½ github
+    fs.writeFileSync(path.join(tmp, "src/tracker/rooms/github/a.ts"), "console.log(1)\n");
     execSync("git add .", { cwd: tmp });
     execSync("git commit -q -m \"github only\"", { cwd: tmp });
     const head1 = execSync("git rev-parse HEAD", { cwd: tmp, encoding: "utf8" }).trim();
     const diff1 = execSync("git diff --name-only " + base + ".." + head1, { cwd: tmp, encoding: "utf8" }).split("\n").map(s=>s.trim()).filter(Boolean);
     const res1 = detectMixedSession(diff1);
-    selfCheck(res1.ok, "ÁÙÊ±²Ö¿âµ¥·¿Ìá½»Í¨¹ý", JSON.stringify(diff1));
+    selfCheck(res1.ok, "ï¿½ï¿½Ê±ï¿½Ö¿âµ¥ï¿½ï¿½ï¿½á½»Í¨ï¿½ï¿½", JSON.stringify(diff1));
 
-    // Ë«·¿Ìá½»£ºÔÙ¸Ä gitlab
-    fs.writeFileSync(path.join(tmp, "src/host/tracker/backends/gitlab/b.js"), "console.log(2)\n");
+    // Ë«ï¿½ï¿½ï¿½á½»ï¿½ï¿½ï¿½Ù¸ï¿½ gitlab
+    fs.writeFileSync(path.join(tmp, "src/tracker/rooms/gitlab/b.js"), "console.log(2)\n");
     execSync("git add .", { cwd: tmp });
     execSync("git commit -q -m \"gitlab\"", { cwd: tmp });
     const head2 = execSync("git rev-parse HEAD", { cwd: tmp, encoding: "utf8" }).trim();
     const diff2 = execSync("git diff --name-only " + base + ".." + head2, { cwd: tmp, encoding: "utf8" }).split("\n").map(s=>s.trim()).filter(Boolean);
     const res2 = detectMixedSession(diff2);
-    selfCheck(!res2.ok && res2.rooms.length === 2, "ÁÙÊ±²Ö¿âË«·¿Ìá½»Ó¦Ê§°Ü", JSON.stringify(diff2));
+    selfCheck(!res2.ok && res2.rooms.length === 2, "ï¿½ï¿½Ê±ï¿½Ö¿ï¿½Ë«ï¿½ï¿½ï¿½á½»Ó¦Ê§ï¿½ï¿½", JSON.stringify(diff2));
 
-    // ÎÞ»ù×¼£ºÄ£ÄâÎÞ base Ê±Ó¦Ìø¹ý£¨´Ë´¦Ö±½Ó²âÊÔ detectMixedSession ¶Ô¿ÕÊý×é£©
+    // ï¿½Þ»ï¿½×¼ï¿½ï¿½Ä£ï¿½ï¿½ï¿½ï¿½ base Ê±Ó¦ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ë´ï¿½Ö±ï¿½Ó²ï¿½ï¿½ï¿½ detectMixedSession ï¿½Ô¿ï¿½ï¿½ï¿½ï¿½é£©
     const res3 = detectMixedSession([]);
-    selfCheck(res3.ok, "ÁÙÊ±²Ö¿â¿Õ¸Ä¶¯Ó¦Í¨¹ý");
+    selfCheck(res3.ok, "ï¿½ï¿½Ê±ï¿½Ö¿ï¿½Õ¸Ä¶ï¿½Ó¦Í¨ï¿½ï¿½");
 
   } catch (e) {
-    selfCheck(false, "ÁÙÊ±²Ö¿â×Ô¼ìÒì³£", String(e && e.message || e));
+    selfCheck(false, "ï¿½ï¿½Ê±ï¿½Ö¿ï¿½ï¿½Ô¼ï¿½ï¿½ì³£", String(e && e.message || e));
   } finally {
     try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {}
   }
 }
 
 if (selfFailed) {
-  console.log("\n×Ô¼ìÊ§°Ü - ÃÅ½ûÊµÏÖÎ´Í¨¹ý");
+  console.log("\nï¿½Ô¼ï¿½Ê§ï¿½ï¿½ - ï¿½Å½ï¿½Êµï¿½ï¿½Î´Í¨ï¿½ï¿½");
   process.exit(1);
 }
-console.log("  PASS ×Ô¼ìÈ«²¿Í¨¹ý");
+console.log("  PASS ï¿½Ô¼ï¿½È«ï¿½ï¿½Í¨ï¿½ï¿½");
 
-// ---- ÕæÊµ²Ö¿âÅÐ¶¨ ----
+// ---- ï¿½ï¿½Êµï¿½Ö¿ï¿½ï¿½Ð¶ï¿½ ----
 function getBaseSha() {
   if (process.env.GITHUB_BASE_SHA) {
     const s = process.env.GITHUB_BASE_SHA.trim();
@@ -154,7 +154,7 @@ function getBaseSha() {
         if (ev.pull_request && ev.pull_request.base && ev.pull_request.base.sha) {
           const sha = String(ev.pull_request.base.sha).trim();
           if (sha) {
-            // ÈôÊÇ push µ½Ö÷·ÖÖ§£¬ÔòÎÞ»ù×¼
+            // ï¿½ï¿½ï¿½ï¿½ push ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö§ï¿½ï¿½ï¿½ï¿½ï¿½Þ»ï¿½×¼
             if (ev.pull_request.base.ref === "main" && process.env.GITHUB_EVENT_NAME === "push") {
               return null;
             }
@@ -162,14 +162,14 @@ function getBaseSha() {
           }
         }
         if (ev.before && ev.before !== "0000000000000000000000000000000000000000") {
-          // push ÊÂ¼þµÄ before ¿ÉÄÜÊÇÖ÷·ÖÖ§ÍÆËÍ£¬Èô ref ÊÇ main ÔòÊÓÎªÎÞ»ù×¼
+          // push ï¿½Â¼ï¿½ï¿½ï¿½ before ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö§ï¿½ï¿½ï¿½Í£ï¿½ï¿½ï¿½ ref ï¿½ï¿½ main ï¿½ï¿½ï¿½ï¿½Îªï¿½Þ»ï¿½×¼
           if (ev.ref === "refs/heads/main") return null;
           return String(ev.before).trim();
         }
       }
     } catch {}
   }
-  // ¼ì²é GITHUB_REF ÊÇ·ñÎª push µ½ main
+  // ï¿½ï¿½ï¿½ GITHUB_REF ï¿½Ç·ï¿½Îª push ï¿½ï¿½ main
   if (process.env.GITHUB_EVENT_NAME === "push" && process.env.GITHUB_REF === "refs/heads/main") {
     return null;
   }
@@ -190,7 +190,7 @@ function getBaseSha() {
 
 function getChangedFiles(baseSha) {
   if (!baseSha) return null;
-  // ¼ì²é base ÊÇ·ñ´æÔÚ
+  // ï¿½ï¿½ï¿½ base ï¿½Ç·ï¿½ï¿½ï¿½ï¿½
   try { execSync("git cat-file -e " + baseSha, { stdio: "ignore" }); } catch { return null; }
   const head = (() => {
     try { return execSync("git rev-parse HEAD", { encoding: "utf8" }).trim(); } catch { return "HEAD"; }
@@ -205,7 +205,7 @@ function getChangedFiles(baseSha) {
     try {
       const out = execSync(cmd, { encoding: "utf8" });
       const files = out.split("\n").map(s=>s.trim()).filter(Boolean);
-      // ÈôÃüÁî³É¹¦£¬¼´Ê¹Îª¿ÕÒ²·µ»Ø£¨¿Õ±íÊ¾ÎÞ¸Ä¶¯»ò base ÏàÍ¬£©
+      // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½É¹ï¿½ï¿½ï¿½ï¿½ï¿½Ê¹Îªï¿½ï¿½Ò²ï¿½ï¿½ï¿½Ø£ï¿½ï¿½Õ±ï¿½Ê¾ï¿½Þ¸Ä¶ï¿½ï¿½ï¿½ base ï¿½ï¿½Í¬ï¿½ï¿½
       return files;
     } catch {}
   }
@@ -214,34 +214,34 @@ function getChangedFiles(baseSha) {
 
 const baseSha = getBaseSha();
 if (!baseSha) {
-  skip("ÎÞ¶Ô±È»ù×¼£¨Èç push µ½Ö÷·ÖÖ§»ò shallow£©£¬Ìø¹ý»á»°ÃÅ½û");
+  skip("ï¿½Þ¶Ô±È»ï¿½×¼ï¿½ï¿½ï¿½ï¿½ push ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö§ï¿½ï¿½ shallowï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½á»°ï¿½Å½ï¿½");
   console.log("\n[verify-no-mixed-session] PASS (SKIP)");
   process.exit(0);
 }
 
 const changedFiles = getChangedFiles(baseSha);
 if (changedFiles === null) {
-  skip("ÎÞ·¨»ñÈ¡¸Ä¶¯Çåµ¥£¨Èç shallow clone£©£¬Ìø¹ý»á»°ÃÅ½û");
+  skip("ï¿½Þ·ï¿½ï¿½ï¿½È¡ï¿½Ä¶ï¿½ï¿½åµ¥ï¿½ï¿½ï¿½ï¿½ shallow cloneï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½á»°ï¿½Å½ï¿½");
   console.log("\n[verify-no-mixed-session] PASS (SKIP)");
   process.exit(0);
 }
 
-console.log("  INFO »ù×¼: " + baseSha.slice(0,8) + " ¸Ä¶¯ÎÄ¼þ: " + changedFiles.length);
+console.log("  INFO ï¿½ï¿½×¼: " + baseSha.slice(0,8) + " ï¿½Ä¶ï¿½ï¿½Ä¼ï¿½: " + changedFiles.length);
 
 const result = detectMixedSession(changedFiles);
 if (result.ok) {
-  ok("»á»°Î´¿ç·¿£¨·¿¼ä: " + (result.rooms.join(",") || "ÎÞ") + "£©");
+  ok("ï¿½á»°Î´ï¿½ç·¿ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½: " + (result.rooms.join(",") || "ï¿½ï¿½") + "ï¿½ï¿½");
   if (changedFiles.length) {
     const roomFiles = changedFiles.filter(f=>getRoom(f));
-    if (roomFiles.length) console.log("    ·¿ÄÚÎÄ¼þ: " + roomFiles.join(", "));
+    if (roomFiles.length) console.log("    ï¿½ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½: " + roomFiles.join(", "));
   }
 } else {
-  bad("»á»°¿ç·¿£¨·¿¼ä: " + result.rooms.join(", ") + "£©");
+  bad("ï¿½á»°ï¿½ç·¿ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½: " + result.rooms.join(", ") + "ï¿½ï¿½");
   for (const room of result.rooms) {
     const list = result.filesByRoom[room] || [];
     console.log("    [" + room + "] " + list.join(", "));
   }
-  console.log("\nÌáÊ¾£ºÒ»´Î»á»°Ö»¸ÄÒ»×ùºó¶Ë£¬°´¼ÍÂÉ²ðÆ±·Ö´ÎÊµÊ©£¨#326£©");
+  console.log("\nï¿½ï¿½Ê¾ï¿½ï¿½Ò»ï¿½Î»á»°Ö»ï¿½ï¿½Ò»ï¿½ï¿½ï¿½ï¿½Ë£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½É²ï¿½Æ±ï¿½Ö´ï¿½ÊµÊ©ï¿½ï¿½#326ï¿½ï¿½");
 }
 
 console.log(failed ? "\n[verify-no-mixed-session] FAIL" : "\n[verify-no-mixed-session] PASS");

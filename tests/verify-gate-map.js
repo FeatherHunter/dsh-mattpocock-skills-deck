@@ -197,6 +197,10 @@ const MIN_ATTRIBUTED_GATES = 200
     }
   }
   walk(path.join(ROOT, 'src'), 'src')
+  // 空目录（搬家后旧位置留下的空壳，里面一个文件都没有）不需要门禁覆盖：
+  // 下面三处目录算式都只看「装着文件的目录」，空目录不计。
+  const dirHasFile = (d) => srcFiles.some((f) => f === d || f.startsWith(d + '/'));
+  const nonEmptyDirs = srcDirs.filter(dirHasFile);
   const allFiles = new Set(srcFiles)
   const allDirs = new Set(srcDirs)
 
@@ -243,10 +247,10 @@ const MIN_ATTRIBUTED_GATES = 200
   for (const g of map.gates) {
     for (const guard of g.guards || []) if (allDirs.has(guard)) dirGuards.add(guard)
   }
-  const dirGuardLost = Array.from(dirGuards).filter((d) => !guardedDirsInCoverage.has(d))
+  const dirGuardLost = Array.from(dirGuards).filter((d) => !guardedDirsInCoverage.has(d) && dirHasFile(d))
   check(
     dirGuardLost.length === 0,
-    '归属写成目录的门禁，那些目录都在 guardedDirs 里（漏掉的 ' + dirGuardLost.length + ' 个）',
+    '归属写成目录的门禁，那些目录都在 guardedDirs 里（漏掉的 ' + dirGuardLost.length + ' 个；空目录不计）',
   )
   const dirGuardFilesLost = []
   for (const d of dirGuards) {
@@ -265,24 +269,26 @@ const MIN_ATTRIBUTED_GATES = 200
     map.coverage.dedicatedDirCount === dedicatedDirs.length,
     '专属门禁目录数 ' + map.coverage.dedicatedDirCount + ' 等于 dedicatedDirs 的长度 ' + dedicatedDirs.length,
   )
-  const dedicatedNotGuarded = dedicatedDirs.filter((d) => !allDirs.has(d) || !guardedDirsInCoverage.has(d))
+  const dedicatedNotGuarded = dedicatedDirs.filter((d) => !allDirs.has(d) || (!guardedDirsInCoverage.has(d) && dirHasFile(d)))
   check(
     dedicatedNotGuarded.length === 0,
-    '有专属门禁的目录都是 src/ 下真实存在、且算作有门禁覆盖的目录（对不上的 ' + dedicatedNotGuarded.length + ' 个）',
+    '有专属门禁的目录都是 src/ 下真实存在、且算作有门禁覆盖的目录（对不上的 ' + dedicatedNotGuarded.length + ' 个；空目录不计）',
   )
   const badNoDedicated = dirsWithoutDedicated.filter((d) => !allDirs.has(d.path) || !(d.fileCount > 0))
   check(
     badNoDedicated.length === 0,
     '没有专属门禁的目录都在磁盘上存在、且文件数大于 0（对不上的 ' + badNoDedicated.length + ' 个）',
   )
+  const nonEmptyDedicated = dedicatedDirs.filter((d) => allDirs.has(d) && dirHasFile(d))
   check(
-    dedicatedDirs.length + dirsWithoutDedicated.length === map.coverage.dirCount,
+    nonEmptyDedicated.length + dirsWithoutDedicated.length === nonEmptyDirs.length,
     '有专属门禁的目录 ' +
-      dedicatedDirs.length +
+      nonEmptyDedicated.length +
       ' 加没有的 ' +
       dirsWithoutDedicated.length +
-      ' 等于 src/ 的目录数 ' +
-      map.coverage.dirCount,
+      ' 等于装着文件的 src/ 目录数 ' +
+      nonEmptyDirs.length +
+      '（空目录不计）',
   )
 
   // 交叉核对：专属门禁目录这份名单必须能从 gates[].guards 自己算出来。
