@@ -209,7 +209,7 @@ async function main() {
   // 与 ③ 段的区别：③ 是拿闸自己的 admitAiTool 直调（证明裁决函数会拒），这一段是把额度压到只剩一点点，
   // 然后走 wiring.deckToolsForHost() 装出来的表、调真工具，看它是不是照契约回拒绝态。
   {
-    const registryMod = await imp('src/tracker/registry/registryCore.ts')
+    const registryMod = await imp('src/tracker/registry/core.ts')
     const markdownModule = (await imp('src/tracker/rooms/markdown/index.ts')).markdownModule
     const wsRoot = fs.mkdtempSync(path.join(os.tmpdir(), 't19e-deck-'))
     const mkPlat = () => ({

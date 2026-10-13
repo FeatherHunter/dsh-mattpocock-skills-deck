@@ -151,7 +151,7 @@ async function main() {
     const budget = await imp('src/shared/refresh/budget.js')
     const ledgerMod = await imp('src/host/refresh/ledger.ts')
     const gateMod = await imp('src/host/refresh/gate.ts')
-    const registryMod = await imp('src/tracker/registry/registryCore.ts')
+    const registryMod = await imp('src/tracker/registry/core.ts')
     const toolCost = await imp('src/shared/refresh/tool-cost.js')
     let clock = 1700000000000
     const ledger = ledgerMod.createLedger({ now: () => clock })
@@ -248,7 +248,7 @@ async function main() {
     const budget = await imp('src/shared/refresh/budget.js')
     const ledgerMod = await imp('src/host/refresh/ledger.ts')
     const gateMod = await imp('src/host/refresh/gate.ts')
-    const registryMod = await imp('src/tracker/registry/registryCore.ts')
+    const registryMod = await imp('src/tracker/registry/core.ts')
     const toolCost = await imp('src/shared/refresh/tool-cost.js')
     const ctxMod = await imp('src/deck/tools/context.ts')
     async function runCtx(stubId, trackerImpl) {

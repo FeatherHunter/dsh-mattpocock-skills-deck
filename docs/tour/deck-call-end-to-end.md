@@ -38,7 +38,7 @@ makeDelegatedExecute              src/host/platform/deckToolsRow.js:276-316
   │ ⑤ 判参数够不够 + 选后端 shell.pickBackend src/shared/deck-tools/shell.js:164
   │ ⑥ 取沙箱策略 → 过闸 + 真干活 shell.call  src/shared/deck-tools/shell.js:266
   ▼
-后端注册表选出的 Tracker          src/host/tracker/registryCore.js:129
+后端注册表选出的 Tracker          src/tracker/registry/core.ts:142
   │ ⑦ registry.get(backendId) → 某座房间的门面对象
   ▼
 房间门面（契约的那一组操作）        src/host/tracker/backends/github/backend.js:66
@@ -293,10 +293,10 @@ gate.admitAiTool({ points, requests, childTickets }, { workspaceKey, kind: 'tool
 
 少实现的那几条由注册表的代理补一个「做不到」的桩（`contract.js:119`）。
 
-**注册表**（`src/host/tracker/registryCore.js`）：
+**注册表**（`src/tracker/registry/core.ts`）：
 
-- `select` :129-176：三级联——显式绑定 > `matches` 认出 > 兜底；顺带算出 `pending` / `multiHit`。
-- `bind` :179-186、`describe` :194-198。
+- `select` :142-189：三级联——显式绑定 > `matches` 认出 > 兜底；顺带算出 `pending` / `multiHit`。
+- `bind` :192-199、`describe` :208。
 - `shell.js:287` 拿到的 `tracker` 就是 `registry.get(backendId)`。
 
 **三座房间的门面**（契约操作 → 房间内部函数）：

@@ -12,7 +12,7 @@ import { createWorkspaceStore } from '../src/tracker/detection/workspaceStore.ts
 import { createDetectionService } from '../src/tracker/detection/detectionService.ts'
 import { decideBackend as outletDecideBackend, selectionFromOutlet as outletSelectionFromOutlet } from '../src/tracker/detection/backendDecision.ts'
 try { outletDecideBackend.selectionFromOutlet = outletSelectionFromOutlet } catch (eAttachOutlet) {}
-import { createRegistry } from '../src/tracker/registry/registryCore.ts' // V1 #461：registry.js 已拆为三块
+import { createRegistry } from '../src/tracker/registry/core.ts' // V1 #461：registry.js 已拆为三块
 
 let passed=0, failed=0
 function ok(cond, msg){ if(cond){console.log('  PASS '+msg); passed++} else {console.log('  FAIL '+msg); failed++} }

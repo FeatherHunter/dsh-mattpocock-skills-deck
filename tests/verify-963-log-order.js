@@ -166,7 +166,7 @@ async function main() {
     must(w2.calls() === n0 + 1, '记住的不再真问（两次只问一次）', 'calls=' + w2.calls());
     for (const r of spy.rows) allEvents.add(r.event); }
   title('事件白名单：全程无新增事件名');
-  { // 后四个是既有事件（registryCore/workspaceKey/workspaceRoot/choiceStore 里的原有埋点，本图没碰这些文件），不是本图新增。
+  { // 后四个是既有事件（core.ts/workspaceKey/workspaceRoot/choiceStore 里的原有埋点，本图没碰这些文件），不是本图新增。
   const known = ['detection.detect', 'host.call.fail', 'chain.cache.hit', 'chain.cache.miss', 'dedup.hit', 'chain.preflight.reuse', 'chain.predicate', 'gh.exec', 'gh.timeout', 'error.normalize', 'skill.probe', 'skill.pending.cap', 'workspaceStore.miss', 'workspaceStore.hit', 'platform.resolve', 'registry.select', 'workspaceKey.canonical', 'workspaceRoot.resolve', 'choiceStore.read'];
     const unknown = [...allEvents].filter((e) => !known.includes(e));
     console.log('  事件集合：' + [...allEvents].sort().join(', '));

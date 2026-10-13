@@ -425,7 +425,7 @@ function selfCheckPurityRules(): void {
 
   const hostTargets = [
     'src/host/tracker/detection/backendDecision.ts',
-    'src/tracker/registry/registryCore.ts',
+    'src/tracker/registry/core.ts',
     'src/deck/shell/call-shell.ts',
     'src/deck/tools/issue-create.ts',
     'src/deck/registration/host-assemble.ts',

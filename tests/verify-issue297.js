@@ -6,7 +6,7 @@
 //   ② 缓存里那条选择：工作区已空 → 这份缓存不作数，重算。
 // 2026-09-21 的收窄（#669 第 1 件：空目录里当场报上来的 hint 要算数）已随 #1003 老路径删除而退役 ——
 //   上报一律忽略，空目录 + hint 如实未知；下面 A/C/D 三组按退役后改准，B 组（记忆过期）原样保留。
-import { createRegistry } from '../src/tracker/registry/registryCore.ts'; // V1 #461：registry.js 已拆为三块
+import { createRegistry } from '../src/tracker/registry/core.ts'; // V1 #461：registry.js 已拆为三块
 import { createDetectionService } from '../src/tracker/detection/detectionService.ts';
 import { decideBackend as outletDecideBackend, selectionFromOutlet as outletSelectionFromOutlet } from '../src/tracker/detection/backendDecision.ts';
 try { outletDecideBackend.selectionFromOutlet = outletSelectionFromOutlet } catch (eAttachOutlet297) {}

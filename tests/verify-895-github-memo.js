@@ -21,7 +21,7 @@ async function main() {
   // 记忆数据结构（读缓存与票关系名册）住在 call-memo.ts：call-budget.ts 只管预算与钳制
   // （#1040 按单文件 350 行的上限把它拆成两份，为什么这么拆见那份文件头）。
   const memoMod = await imp('src/deck/shell/call-memo.ts')
-  const registryMod = await imp('src/tracker/registry/registryCore.ts')
+  const registryMod = await imp('src/tracker/registry/core.ts')
   const githubModule = (await imp('src/tracker/rooms/github/index.ts')).githubModule
 
   const sink = []

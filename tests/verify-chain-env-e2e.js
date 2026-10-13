@@ -9,7 +9,7 @@
 // 这条门禁跑的就是生产那一套，一处都不换成桩：
 //   · 宿主入口 `src/host/index.js` 的 `apply(ctx)`（wf.chain 那条电话由它按真实依赖清单装起来）；
 //   · 真接线 `src/host/refresh/wiring.js`（它供的是闸与界面读数）；
-//   · 真注册表 `src/tracker/registry/registryCore.ts`（经 `src/host/platformChannel.js` 装起来，不另造一个）；
+//   · 真注册表 `src/tracker/registry/core.ts`（经 `src/host/platformChannel.js` 装起来，不另造一个）；
 //   · 真检查链 `src/host/detectChain.ts` 与真退避 `src/host/refresh/chainBackoff.js`（**不给替身**）；
 //   · 真客户端 `src/client/kernel/probe-chain.js` 的 `loadChain`（按 tests/verify-669-chain-after-pick.js
 //     同一套沙箱取真身）与真通道解包 `src/seam/rpc.js` 的 `createPkgHost`。

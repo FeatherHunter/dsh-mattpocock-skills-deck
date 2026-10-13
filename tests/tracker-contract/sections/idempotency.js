@@ -27,7 +27,7 @@
 import * as nodeFs from 'node:fs'
 import * as nodePath from 'node:path'
 import * as nodeOs from 'node:os'
-import { createRegistry } from '../../../src/tracker/registry/registryCore.ts'
+import { createRegistry } from '../../../src/tracker/registry/core.ts'
 import { ERROR_KIND } from '../../../src/tracker/contract/vocabulary.ts'
 import { githubModule } from '../../../src/tracker/rooms/github/index.ts'
 import { gitlabBackend } from '../../../src/tracker/rooms/gitlab/index.js'

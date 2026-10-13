@@ -20,7 +20,7 @@
 //
 // 用法（仓库根目录）：node tests/verify-gitlab-single-write.js
 
-import { createRegistry } from '../src/tracker/registry/registryCore.ts'
+import { createRegistry } from '../src/tracker/registry/core.ts'
 import { gitlabBackend } from '../src/tracker/rooms/gitlab/index.js'
 import { anchorLineFor } from '../src/shared/refresh/idempotency.js'
 

@@ -79,7 +79,7 @@ check(chainOk, 'B2 合成链指纹含耗时毫秒（fallback.chain 记 in/out/la
 }
 
 // ---------- C 快照三态（真、假、省略分键，坏值隔离）----------
-const { createRegistry } = await import(pathToFileURL(resolve(ROOT, 'src/tracker/registry/registryCore.ts')).href)
+const { createRegistry } = await import(pathToFileURL(resolve(ROOT, 'src/tracker/registry/core.ts')).href)
 const { createSnapshotComposer } = await import(pathToFileURL(resolve(ROOT, 'src/host/tracker/snapshot.js')).href)
 const base = (o) => Object.assign({ type: 'issue', title: 'T', state: 'open', body: '', url: '', createdAt: '', updatedAt: '', closedAt: null, parentKey: null, labels: [], assignees: [], blockedBy: [], comments: [], reason: '' }, o)
 const prData = [

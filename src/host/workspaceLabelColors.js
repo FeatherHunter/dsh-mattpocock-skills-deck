@@ -29,7 +29,7 @@ export function createWorkspaceLabelColors(deps) {
   // 两条电话的日志 kind 与交给后端执行器用的 via 统一写成 'label-colors'（同一件事只有一个叫法）。
   // 两条电话共用的第一步：把工作区解析成「当前后端 + 它的仓库引用 + 它的适配器」。
   //   失败一律返回 {ok:false, error:{kind, message}}（失败返回而非抛，与契约同款）。
-  //   选择结果里除了 backendId，还有三样必须看的东西（注册表算好的，出处见 registryCore.js 的 select）：
+  //   选择结果里除了 backendId，还有三样必须看的东西（注册表算好的，出处见 core.ts 的 select）：
   //     ref      注册表算好的仓库引用（后端 describe 的产物）—— 能拿到就用它，不自己重算；
   //     multiHit 多个后端同时对应这个工作区（仲裁还没定下来）；
   //     pending  有后端的身份识别超时未决。
@@ -54,7 +54,7 @@ export function createWorkspaceLabelColors(deps) {
     return { ok: false, error: { kind: 'env', message: '列出标签与修改标签颜色时插件运行出错：已选定的后端「' + id + '」不在当前可用的后端清单里。这是插件运行环境的问题，不是你的操作有误。' } }
   }
   /**
-   * 这次注册表算出来的「认得这个工作区的后端」名单（注册表算好的，出处见 registryCore.js 的 select）：
+   * 这次注册表算出来的「认得这个工作区的后端」名单（注册表算好的，出处见 core.ts 的 select）：
    *   多个同时命中时有 multiHit 那份名单；只命中一个（或用户显式绑定了一个）时就是 backendId 那一个；
    *   一个都没有（显式选了「无后端」，或者没有任何后端说自己认得）时是空名单。
    * 这份名单只从注册表的回包里读，本函数不自己另做判定。

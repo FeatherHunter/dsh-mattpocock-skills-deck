@@ -32,7 +32,7 @@ const tmpDirs = []
 const makeDir = function (tag) { const d = fs.mkdtempSync(path.join(os.tmpdir(), tag)); tmpDirs.push(d); return d }
 
 const { createDetectionService } = await import(url('src/tracker/detection/detectionService.ts'))
-const { createRegistry } = await import(url('src/tracker/registry/registryCore.ts'))
+const { createRegistry } = await import(url('src/tracker/registry/core.ts'))
 const { createChoiceStore } = await import(url('src/host/choiceStore.js'))
 const { decideBackend: outletDecideBackend, selectionFromOutlet: outletSelectionFromOutlet } = await import(url('src/tracker/detection/backendDecision.ts'))
 try { outletDecideBackend.selectionFromOutlet = outletSelectionFromOutlet } catch (eAttachOutlet683) {}

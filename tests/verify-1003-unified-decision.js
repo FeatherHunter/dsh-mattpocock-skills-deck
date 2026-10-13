@@ -157,7 +157,7 @@ async function main() {
     check(selected === false, 'D3 空目录没问自动识别（不起外部命令）');
     const p = await shellOf(reg).pickBackend({ agent: { session: { id: 's', cwd: '' } } }, sOf(''));
     check(p.ok === false && /还没就绪/.test(p.text || ''), 'D3 空目录工具壳说还没就绪（不说没有后端）', (p.text || '').slice(0, 120));
-    const regCore = await imp('src/tracker/registry/registryCore.ts');
+    const regCore = await imp('src/tracker/registry/core.ts');
     let matched = false;
     const reg2 = regCore.createRegistry();
     reg2.register({ id: 'github', label: 'G', create: () => ({}), matches: async () => { matched = true; return true; } });

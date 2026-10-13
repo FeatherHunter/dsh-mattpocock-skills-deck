@@ -31,7 +31,7 @@ let failed = 0
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
-const registryMod = await imp('src/tracker/registry/registryCore.ts')
+const registryMod = await imp('src/tracker/registry/core.ts')
 const githubModule = (await imp('src/tracker/rooms/github/index.ts')).githubModule
 const linkMod = await imp('src/deck/tools/map-link.ts')
 const budget = await imp('src/shared/refresh/budget.js')

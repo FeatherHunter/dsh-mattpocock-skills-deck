@@ -11,7 +11,7 @@
 ## 一行接入
 ```js
 import { demoModule } from '../../examples/demo-mini/index.js'
-import { createRegistry } from '../../src/tracker/registry/registryCore.ts' // V1 #461：registry.js 已拆为三块
+import { createRegistry } from '../../src/tracker/registry/core.ts' // V1 #461：registry.js 已拆为三块
 const registry = createRegistry(backendCtx)
 const disp = registry.register(demoModule)
 // DSH 插件：ctx.effect(() => disp.dispose())

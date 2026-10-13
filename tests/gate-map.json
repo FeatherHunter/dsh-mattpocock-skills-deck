@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-13T18:57:50.606Z",
+  "generatedAt": "2026-10-13T19:30:06.736Z",
   "generatedBy": "node scripts/gate-map.mjs",
-  "chainLength": 230,
-  "gateCount": 230,
-  "attributedGates": 202,
+  "chainLength": 231,
+  "gateCount": 231,
+  "attributedGates": 203,
   "unattributedGates": 28,
   "buildOutputOnlyGates": 20,
-  "graphFileCount": 519,
+  "graphFileCount": 520,
   "gates": [
     {
       "step": "node tests/verify-596-rpc-carrier.js",
@@ -758,7 +758,7 @@
         "examples/demo-mini/fixtures/demo-real",
         "examples/demo-mini/index.js",
         "examples/demo-mini/matches.js",
-        "src/tracker/registry/registryCore.ts",
+        "src/tracker/registry/core.ts",
         "src/tracker/rooms/github/normalize.ts",
         "src/tracker/rooms/gitlab/normalize.js",
         "tests/tracker-contract/fixtures/compliant.js",
@@ -798,7 +798,7 @@
       "file": "tests/verify-gitlab-single-write.js",
       "guards": [
         "src/shared/refresh/idempotency.js",
-        "src/tracker/registry/registryCore.ts",
+        "src/tracker/registry/core.ts",
         "src/tracker/rooms/gitlab/index.js"
       ],
       "dirs": [
@@ -833,7 +833,7 @@
         "src/shared/refresh/budget.js",
         "src/shared/refresh/tool-cost.js",
         "src/tracker/detection/backendDecision.ts",
-        "src/tracker/registry/registryCore.ts",
+        "src/tracker/registry/core.ts",
         "src/tracker/rooms/markdown/index.ts"
       ],
       "dirs": [
@@ -865,7 +865,7 @@
         "src/shared/refresh/budget.js",
         "src/shared/refresh/tool-cost.js",
         "src/tracker/detection/backendDecision.ts",
-        "src/tracker/registry/registryCore.ts",
+        "src/tracker/registry/core.ts",
         "src/tracker/rooms/github/index.ts",
         "src/tracker/rooms/gitlab/index.js",
         "src/tracker/rooms/markdown/index.ts",
@@ -896,7 +896,7 @@
         "src/host/refresh/ledger.ts",
         "src/shared/refresh/budget.js",
         "src/shared/refresh/tool-cost.js",
-        "src/tracker/registry/registryCore.ts",
+        "src/tracker/registry/core.ts",
         "src/tracker/rooms/github/graph.ts",
         "tests/lib/deck-decide-stub.js"
       ],
@@ -921,7 +921,7 @@
         "src/host/refresh/ledger.ts",
         "src/shared/refresh/budget.js",
         "src/shared/refresh/tool-cost.js",
-        "src/tracker/registry/registryCore.ts",
+        "src/tracker/registry/core.ts",
         "src/tracker/rooms/github/graph.ts",
         "tests/lib/deck-decide-stub.js"
       ],
@@ -947,7 +947,7 @@
         "src/host/tracker/backends",
         "src/seam",
         "src/shared",
-        "src/tracker/registry/registryCore.ts",
+        "src/tracker/registry/core.ts",
         "src/tracker/rooms/markdown/index.ts"
       ],
       "dirs": [
@@ -965,6 +965,21 @@
       "reason": "归属来自：源码里的路径字面量 8 条"
     },
     {
+      "step": "node tests/verify-1109-matches-timeout.ts",
+      "file": "tests/verify-1109-matches-timeout.ts",
+      "guards": [
+        "src/host/platformChannel.js",
+        "src/host/refresh/wiring.js"
+      ],
+      "dirs": [
+        "src/host",
+        "src/host/refresh"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "reason": "归属来自：源码里的路径字面量 2 条"
+    },
+    {
       "step": "node tests/verify-934-935-invariants.js",
       "file": "tests/verify-934-935-invariants.js",
       "guards": [
@@ -976,7 +991,7 @@
         "src/shared/refresh/budget.js",
         "src/shared/refresh/tool-cost.js",
         "src/tracker/detection/backendDecision.ts",
-        "src/tracker/registry/registryCore.ts",
+        "src/tracker/registry/core.ts",
         "src/tracker/registry/registryShape.ts",
         "src/tracker/rooms/markdown/index.ts",
         "src/tracker/rooms/markdown/write.ts",
@@ -1025,7 +1040,7 @@
       "file": "tests/verify-895-github-memo.js",
       "guards": [
         "src/deck/shell/call-memo.ts",
-        "src/tracker/registry/registryCore.ts",
+        "src/tracker/registry/core.ts",
         "src/tracker/rooms/github/index.ts",
         "tests/deck-tools-matrix-transports.js"
       ],
@@ -1073,7 +1088,7 @@
         "src/host/refresh/ledger.ts",
         "src/shared/refresh/budget.js",
         "src/shared/refresh/tool-cost.js",
-        "src/tracker/registry/registryCore.ts",
+        "src/tracker/registry/core.ts",
         "src/tracker/rooms/markdown/index.ts",
         "src/tracker/rooms/markdown/issues-create.ts",
         "src/tracker/rooms/markdown/issues-patch.ts",
@@ -1947,7 +1962,7 @@
         "src/seam",
         "src/seam/gate.js",
         "src/shared",
-        "src/tracker/registry/registryCore.ts",
+        "src/tracker/registry/core.ts",
         "tests/same-layer-baseline.json"
       ],
       "dirs": [
@@ -2051,7 +2066,7 @@
       "guards": [
         "src/host/workspaceCwd.js",
         "src/tracker/detection/backendDecision.ts",
-        "src/tracker/registry/registryCore.ts",
+        "src/tracker/registry/core.ts",
         "src/tracker/rooms/github/client.ts",
         "src/tracker/rooms/github/index.ts",
         "tests/tracker-contract/sections/labels.js"
@@ -2081,7 +2096,7 @@
         "src/tracker/contract/vocabulary.ts",
         "src/tracker/detection/backendDecision.ts",
         "src/tracker/preflight.ts",
-        "src/tracker/registry/registryCore.ts",
+        "src/tracker/registry/core.ts",
         "src/tracker/rooms/github/errors.ts",
         "src/tracker/rooms/github/index.ts",
         "src/tracker/rooms/github/issues-write.ts",
@@ -2156,7 +2171,7 @@
         "src/deck/tools/map-link.ts",
         "src/shared/refresh/budget.js",
         "src/shared/refresh/tool-cost.js",
-        "src/tracker/registry/registryCore.ts",
+        "src/tracker/registry/core.ts",
         "src/tracker/rooms/github/index.ts",
         "tests/deck-tools-matrix-transports.js",
         "tests/lib/deck-decide-stub.js"
@@ -2683,7 +2698,7 @@
         "src/host/workspaceKey.js",
         "src/shared/workspaceKey.js",
         "src/tracker/detection/explicitDetector.ts",
-        "src/tracker/registry/registryCore.ts",
+        "src/tracker/registry/core.ts",
         "src/tracker/registry/registryShape.ts",
         "src/tracker/rooms/markdown/label-colors.ts",
         "src/tracker/rooms/markdown/path.ts",
@@ -2953,7 +2968,7 @@
         "src/shared/tracker/guide-steps.js",
         "src/tracker/detection/detectionService.ts",
         "src/tracker/detection/explicitDetector.ts",
-        "src/tracker/registry/registryCore.ts",
+        "src/tracker/registry/core.ts",
         "tests/lib/eval-probe.js"
       ],
       "dirs": [
@@ -2979,7 +2994,7 @@
         "src/tracker/detection/detectionService.ts",
         "src/tracker/detection/explicitDetector.ts",
         "src/tracker/detection/workspaceStore.ts",
-        "src/tracker/registry/registryCore.ts",
+        "src/tracker/registry/core.ts",
         "tests/lib/eval-probe.js"
       ],
       "dirs": [
@@ -3123,7 +3138,7 @@
         "src/tracker/detection/backendDecision.ts",
         "src/tracker/detection/detectionService.ts",
         "src/tracker/detection/explicitDetector.ts",
-        "src/tracker/registry/registryCore.ts",
+        "src/tracker/registry/core.ts",
         "tests/lib/eval-probe.js"
       ],
       "dirs": [
@@ -3824,7 +3839,7 @@
         "src/host/refresh/ledger.ts",
         "src/host/refresh/wiring.js",
         "src/shared/refresh-workspace-key.js",
-        "src/tracker/registry/registryCore.ts",
+        "src/tracker/registry/core.ts",
         "src/tracker/rooms/markdown/index.ts"
       ],
       "dirs": [
@@ -3871,7 +3886,7 @@
         "src/shared/refresh/chain.js",
         "src/shared/refresh/delta.js",
         "src/shared/tracker/indexWindow.js",
-        "src/tracker/registry/registryCore.ts",
+        "src/tracker/registry/core.ts",
         "src/tracker/rooms/markdown/index.ts"
       ],
       "dirs": [
@@ -4570,7 +4585,7 @@
         "src/shared/refresh/budget.js",
         "src/shared/refresh/tool-cost.js",
         "src/tracker/detection/backendDecision.ts",
-        "src/tracker/registry/registryCore.ts"
+        "src/tracker/registry/core.ts"
       ],
       "dirs": [
         "docs/agents",
@@ -5228,6 +5243,7 @@
       "node tests/verify-update-panel.js",
       "node tests/verify-parse-leaf.js",
       "node tests/verify-deck-tools-host-wiring.js",
+      "node tests/verify-1109-matches-timeout.ts",
       "node tests/verify-setup-describe.js",
       "node tests/verify-issue232-sync.js",
       "node tests/verify-3-workspace-switch.js",
@@ -5324,6 +5340,7 @@
       "node tests/verify-790-parent-edge.js",
       "node tests/verify-829-parent-reread.js",
       "node tests/verify-deck-tools-host-wiring.js",
+      "node tests/verify-1109-matches-timeout.ts",
       "node tests/verify-934-935-invariants.js",
       "node tests/verify-971-markdown-parent.js",
       "node tests/verify-deck-no-hang.js",
@@ -5747,9 +5764,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 527,
+    "fileCount": 528,
     "dirCount": 54,
-    "coveredFileCount": 527,
+    "coveredFileCount": 528,
     "ungatedFileCount": 0,
     "ungatedDirCount": 6,
     "dedicatedDirCount": 48,
@@ -6208,14 +6225,15 @@
       "src/tracker/detection/preflightScope.ts",
       "src/tracker/detection/workspace-ownership.ts",
       "src/tracker/detection/workspaceStore.ts",
+      "src/tracker/error-rules.ts",
       "src/tracker/fix-contract.ts",
       "src/tracker/identity-keys.ts",
       "src/tracker/index.ts",
       "src/tracker/label-names.ts",
       "src/tracker/preflight.ts",
-      "src/tracker/registry/registryCore.ts",
+      "src/tracker/registry/core.ts",
       "src/tracker/registry/registryShape.ts",
-      "src/tracker/registry/registryViews.ts",
+      "src/tracker/registry/views.ts",
       "src/tracker/rooms/README.md",
       "src/tracker/rooms/github/backend.ts",
       "src/tracker/rooms/github/checks.ts",

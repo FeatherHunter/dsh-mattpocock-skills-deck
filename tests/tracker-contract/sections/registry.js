@@ -14,7 +14,7 @@
  *    反例（必须被逮）：任何按 backendId 写死的 github / gitlab 网址与正则，一旦回到注册表，这一组立刻变红。
  */
 
-import { createRegistry } from '../../../src/tracker/registry/registryCore.ts' // V1 #461：registry.js 已拆为三块
+import { createRegistry } from '../../../src/tracker/registry/core.ts' // V1 #461：registry.js 已拆为三块
 import { TrackerRegistryError, MIGRATE_KEY } from '../../../src/tracker/registry/registryShape.ts' // V1 #461：错误类与迁移键随形状文件搬出
 
 const mkModule = (id, over = {}) => Object.assign({

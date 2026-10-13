@@ -24,7 +24,7 @@ GitHub 房与本地 Markdown 房用 `implements Tracker` 去实现，少一个�
 
 - **实现方（房间）**：`src/host/tracker/backends/github/`、`src/host/tracker/backends/markdown/`。
   GitLab 房本轮不在改造范围内（房间目录留着，将来按同一份契约接进来）。
-- **消费方**：deck 九个工具（经共享壳选好后端后直接调）、注册表（`registryCore.js`）、
+- **消费方**：deck 九个工具（经共享壳选好后端后直接调）、注册表（`core.ts`）、
   宿主电话与面板。
 
 ## 三条不变量（改了就是破坏承诺）
@@ -53,7 +53,7 @@ GitHub 房与本地 Markdown 房用 `implements Tracker` 去实现，少一个�
   由 `BackendModule.create()` 的返回类型交叉进来。它们今天真实挂在 GitHub 实例上
   （`backends/github/backend.js:119`、`:120`、`:124`），本地 Markdown 实例上没有 ——
   所以三个都标可选，谁有谁写。有两个真实读者：注册表视图的回退链
-  （`registryViews.js:32-46` 与 `:59-64`，先问模块对象、再问实例、最后按后端 id 拼骨架）与
+  （`views.ts:32-46` 与 `:59-64`，先问模块对象、再问实例、最后按后端 id 拼骨架）与
   共享壳取仓库标识那一处（`src/shared/deck-tools/shell.js:216-227`，先看有没有这个方法再调，
   外加竞速上限）。**缺席不是故障**：没有方法时前两条路各自回退，壳按「补不出来」如实往下走。
 - **本地 Markdown 房的两个解析口**：`normalize` 与 `parse`，落在 `MarkdownRoomExtension` 的可选成员上。

@@ -83,7 +83,7 @@ async function main() {
   check(layerOf(fixture.file) === 'host' && layerOf(fixture.resolved) === 'host', '✗ probe：宿主层文件引用宿主层工具文件，会被同一条层判据判成同层边（' + fixture.file + ' -> ' + fixture.resolved + '）')
 
   // ── ② 真在宿主装配形状下装起来 ──
-  const registryMod = await imp('src/tracker/registry/registryCore.ts')
+  const registryMod = await imp('src/tracker/registry/core.ts')
   const markdownModule = (await imp('src/tracker/rooms/markdown/index.ts')).markdownModule
   const { createRefreshWiring } = await imp('src/host/refresh/wiring.js')
 

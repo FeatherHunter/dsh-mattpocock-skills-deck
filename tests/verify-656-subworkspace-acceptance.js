@@ -18,7 +18,7 @@
  *   A / C —— 真夹具目录 + 真判定函数（src/host/workspaceKey.js）与真后端路径函数
  *            （tracker/backends/markdown/path.js、label-colors.js、remotePredicates.js、explicitDetector.js）。
  *   B —— 真夹具算出来的这把钥匙，喂给真客户端缓存表（store-snapshot.js / store-prefs.js 的切片）与
- *        真注册表（tracker/registryCore.js），并真的走一遍宿主的 wf.bind 处理体（workspaceCwd.js）。
+ *        真注册表（src/tracker/registry/core.ts），并真的走一遍宿主的 wf.bind 处理体（workspaceCwd.js）。
  *   D —— 在同一把钥匙上数真探测次数（第二次必须为零）。
  *   E —— 本门禁与票面点名的两条既有用例都在 npm run verify 链里。
  *
@@ -329,7 +329,7 @@ async function main() {
 
   // —— B3 后端绑定（宿主侧真注册表 + 真 wf.bind 处理体）——
   {
-    const registry = (await import(url('src/tracker/registry/registryCore.ts'))).createRegistry()
+    const registry = (await import(url('src/tracker/registry/core.ts'))).createRegistry()
     registry.register({ id: 'github', label: 'GitHub', create: () => ({}), matches: async () => false })
     registry.register({ id: 'markdown', label: '本地 Markdown', create: () => ({}), matches: async () => false })
     const wsCwd = (await import(url('src/host/workspaceCwd.js'))).createWorkspaceCwd({
@@ -443,7 +443,7 @@ async function main() {
       '按根问=' + atRootOfSubSession + ' 按子目录问=' + atSubItself)
     // 后端声明那一半：真判定函数去读，读的必须正好是根上那一条路径
     const detectExplicit = (await import(url('src/tracker/detection/explicitDetector.ts'))).detectExplicit
-    const reg = (await import(url('src/tracker/registry/registryCore.ts'))).createRegistry()
+    const reg = (await import(url('src/tracker/registry/core.ts'))).createRegistry()
     reg.register({ id: 'github', label: 'GitHub', create: () => ({}), matches: async () => false })
     const readPaths = []
     const spyFs = Object.assign({}, fixtureFs, {

@@ -130,7 +130,7 @@ export interface GateLike {
   [key: string]: unknown;
 }
 
-/** 后端注册表（src/host/tracker/registryCore.js 的产物）：按既有优先级选后端、取实现、描述 ref。 */
+/** 后端注册表（src/tracker/registry/core.ts 的产物）：按既有优先级选后端、取实现、描述 ref。 */
 export interface RegistryLike {
   select(handle: unknown, ctx: UnknownRecord): unknown;
   get(backendId: unknown): unknown;

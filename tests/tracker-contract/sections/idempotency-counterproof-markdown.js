@@ -10,7 +10,7 @@
 import * as nodeFs from 'node:fs'
 import * as nodePath from 'node:path'
 import * as nodeOs from 'node:os'
-import { createRegistry } from '../../../src/tracker/registry/registryCore.ts'
+import { createRegistry } from '../../../src/tracker/registry/core.ts'
 import { markdownModule } from '../../../src/tracker/rooms/markdown/index.ts'
 import { anchorLineFor, idempotencyKeyOf } from '../../../src/shared/refresh/idempotency.js'
 

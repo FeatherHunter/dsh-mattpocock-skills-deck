@@ -39,7 +39,7 @@ async function main() {
   console.log('两条不变式回归门禁（934 钥匙单源与显式优先 / 935 许可透传）')
 
   const shellMod = await imp('src/deck/shell/call-shell.ts')
-  const registryMod = await imp('src/tracker/registry/registryCore.ts')
+  const registryMod = await imp('src/tracker/registry/core.ts')
   const shapeMod = await imp('src/tracker/registry/registryShape.ts')
   const budget = await imp('src/shared/refresh/budget.js')
   const ledgerMod = await imp('src/host/refresh/ledger.ts')

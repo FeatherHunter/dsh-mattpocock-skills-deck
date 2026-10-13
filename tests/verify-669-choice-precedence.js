@@ -58,7 +58,7 @@ const makeWorkspace = function (anchorText) {
   return dir
 }
 const makeDetection = async function (srcText) {
-  const { createRegistry } = await import(url('src/tracker/registry/registryCore.ts'))
+  const { createRegistry } = await import(url('src/tracker/registry/core.ts'))
   const real = await import(url('src/tracker/detection/detectionService.ts'))
   const { detectExplicit } = await import(url('src/tracker/detection/explicitDetector.ts'))
   const { canonicalWorkspaceKey } = await import(url('src/host/workspaceKey.js'))
@@ -409,7 +409,7 @@ console.log('== E 反证：把实现做坏，上面该红的必须当场红 ==')
   // A 的反证（#1003 老路径已删）：若有人把上报优先级加回来，带上报就会压过锚文件，本组第一条变红。
   const wsA = makeWorkspace('# Issue tracker: GitHub\n')
   const { createDetectionService } = await import(url('src/tracker/detection/detectionService.ts'))
-  const { createRegistry } = await import(url('src/tracker/registry/registryCore.ts'))
+  const { createRegistry } = await import(url('src/tracker/registry/core.ts'))
   const regA = createRegistry(undefined, { matchesTimeout: 500 })
   const mkA = (id, matches) => ({ id, label: id, create: () => ({ ok: true }), matches: matches || (async () => false), describe: () => ({ backend: id, refId: id, name: id, url: '' }) })
   regA.register(mkA('github'))

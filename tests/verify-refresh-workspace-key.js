@@ -97,7 +97,7 @@ async function makeHost() {
   const gateMod = await imp('src/host/refresh/gate.ts')
   const ledgerMod = await imp('src/host/refresh/ledger.ts')
   const detectChainMod = await imp('src/host/detectChain.ts')
-  const registryMod = await imp('src/tracker/registry/registryCore.ts')
+  const registryMod = await imp('src/tracker/registry/core.ts')
   const markdownModule = (await imp('src/tracker/rooms/markdown/index.ts')).markdownModule
 
   const ws = markdownWorkspace()

@@ -133,7 +133,7 @@ export function limitsFromBudget(b: unknown): DeckLimits {
 /**
  * 建一个壳。deps：
  *   gate       必填，宿主闸（src/host/refresh/gate.js 的产物）：admitAiTool / send / stats
- *   registry   必填，后端注册表（src/host/tracker/registryCore.js 的产物）：select / get
+ *   registry   必填，后端注册表（src/tracker/registry/core.ts 的产物）：select / get
  *   budget     必填，额度常量（src/shared/refresh/budget.js 的产物），只为拼出 limits 用
  *   estimate   必填，算账函数（src/shared/refresh/tool-cost.js 的产物）
  *   backendCtx 可选，后端 ctx（platform / fs / exec 那一套）；不传时用 opCtx 顶上

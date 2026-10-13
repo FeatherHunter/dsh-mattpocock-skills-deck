@@ -163,7 +163,7 @@ async function main() {
   check(typeof storeMod.createFilePlanStore === 'function' && typeof storeMod.createMemoryPlanStore === 'function', '落盘与内存游标工厂存在')
 
   function shellDeps(tracker, extra) {
-    // bound 与 select 一起给：真注册表两个都有（registryCore 的 bound 读的是显式绑定），
+    // bound 与 select 一起给：真注册表两个都有（core.ts 的 bound 读的是显式绑定），
     // 判定出口桩靠它认出「这个工作区已经选定这个后端」，否则壳会按「没选过后端」拒绝动手。
     const registry = { select: async () => ({ backendId: 'stub', source: 'test' }), get: () => tracker, bound: () => 'stub' }
     return Object.assign({

@@ -28,7 +28,7 @@ import { createPlatform } from '../src/host/platform/index.js'
 // host 单例（#113 平台抽象层：platform 已注 env/homedir，fs 来自 DSH dsh-fs-sandbox）
 const platform = await createPlatform(hostCtx)
 const backendCtx = { platform, fs: platform.fs, exec, timers: { setTimeout, clearTimeout }, log }
-const registry = createRegistry(backendCtx) // 选后端的兜底等待走缺省值：30 秒（registryCore 的 MATCHES_TIMEOUT_MS，#1109）
+const registry = createRegistry(backendCtx) // 选后端的兜底等待走缺省值：30 秒（src/tracker/registry/core.ts 的 MATCHES_TIMEOUT_MS，#1109）
 
 // 注册（同步、无副作用；重复 id 默认抛 duplicate-id；HMR 用 {replace:true}）
 const disp = registry.register(demoModule) // demoModule = { id:'demo-mini', label:'Demo Mini', create, matches }
@@ -91,7 +91,7 @@ interface OpContext extends BackendContext { cwd: string; signal: AbortSignal; r
 - **matches 语义**：`matches(handle, ctx): boolean`，只读 `cwd/fs`（经 `platform`），不确定一律 `false` + 记 `diagnostics`（由调用方日志），不伪造身份。demo 实现：`platform.fs` 探 `cwd/.demo/config.json` **或** `.scratch/map.md` 存在性（`lstat/stat/readText` 任一成功即命中），`signal.aborted` 时早退，见 `examples/demo-mini/matches.js`。
 - **select 三级联三态**（`registry.js:200-237`）：
   1. `explicit(bound)`：`bind(handle, backendId|null)` 记忆（`backendId:null` = 显式无后端，`ref` 省略，不造假身份）。
-  2. `matches`：并行 `allSettled` + 超时 `matchesTimeout`（默认 30 秒，可配；这一个数只有一个出处——`registryCore` 的 `MATCHES_TIMEOUT_MS`，生产装配路径不许自带等待值）+ `AbortSignal`（超时同时 `controller.abort()` 传 `signal` 给 `matches`）；`boolean`；平局=`注册序`（Map 迭代序，`replace` 保持键位），暴露 `multiHit: BackendId[]` 供 `bind` 显式纠正。
+  2. `matches`：并行 `allSettled` + 超时 `matchesTimeout`（默认 30 秒，可配；这一个数只有一个出处——`src/tracker/registry/core.ts` 的 `MATCHES_TIMEOUT_MS`，生产装配路径不许自带等待值）+ `AbortSignal`（超时同时 `controller.abort()` 传 `signal` 给 `matches`）；`boolean`；平局=`注册序`（Map 迭代序，`replace` 保持键位），暴露 `multiHit: BackendId[]` 供 `bind` 显式纠正。
   3. `fallback(unbound)`：仅当“无 explicit、无 `match===true`、无 `pending`”才 `backendId:null`（`ref` 省略）；**有 `pending:true` 则 surface 等待态，不静默 OtherCard**（UI 必须提示“等待/建议显式 bind”）。
   - `Selection = { backendId: BackendId|null, source: 'explicit'|'matches'|'fallback', ref?: RepositoryRef, multiHit?: BackendId[], pending?: true }`，`source` 无 `'detect'`（已改 `'matches'`），见 `contract.js:103-117`。
 - **错误码**：`duplicate-id` / `other-not-registrable` / `unknown-backend`（`bind` 未注册 id）/ `bad-handle`（handle 缺 `cwd/refId`），见 `registry.js:TrackerRegistryError`。

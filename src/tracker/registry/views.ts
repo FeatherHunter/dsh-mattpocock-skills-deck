@@ -1,7 +1,7 @@
 /**
- * tracker/registryViews.js — 身份识别与链接只读视图（V1 #461 从 registry.js 拆出，纯结构、行为零变化）。
+ * src/tracker/registry/views.ts — 身份识别与链接只读视图（V1 #461 从 registry.js 拆出，纯结构、行为零变化）。
  * 以后谁改它：改出 RepositoryRef（describe）或链接查询转发（issueUrl/linkPattern/searchUrl）的人。预估约 110 行，超 350 打回。
- * 接线：只被 registryCore.js 引用；本文件不引用其他新文件。
+ * 接线：只被 core.ts 引用；本文件不引用其他新文件。
  * 机制：原闭包直读的注册表 byId 改为首参显式传引用（H1 #445 显式传参先例），只读不写。
  * 边界（#1112 定版）：链接这三件事的语义由各家后端自己给，注册表只转发、不替它拼地址或造正则——
  *   后端没实现、抛错或回的不是字符串时，诚实回空（issueUrl/searchUrl 回 ''，linkPattern 回 null）。
