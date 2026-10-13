@@ -187,8 +187,7 @@ export const prompts = (function () {
 /**
  * BackendModule（供 registry.register 用）。
  * - id/label/create/matches 四件套；select/describe 由 registry 托管，不属 OpName
- * - 额外只读 view：describe / issueAddress / repoSearchAddress / issueRefPattern（供 registry 转发；
- *   老名字 issueUrl / searchUrl / linkPattern 保留一轮别名，见 #1110 实现决定第 14 条）
+ * - 额外只读 view：describe / issueUrl / searchUrl / linkPattern（供 registry 转发）
  */
 export const githubModule = {
   id: 'github',
@@ -210,11 +209,6 @@ export const githubModule = {
   create: createGithubBackend,
   matches: githubMatches,
   describe,
-  // #1110 实现决定第 14 条：三个链接能力换成与后端无关的名字（新名字是主、老名字是别名，两者
-  // 指向同一个实现）。老名字保留一轮不断链：客户端与宿主今天还在读，契约门禁也锁着这三个键名。
-  issueAddress: issueUrl,
-  repoSearchAddress: searchUrl,
-  issueRefPattern: linkPattern,
   issueUrl,
   searchUrl,
   linkPattern,

@@ -96,18 +96,19 @@ const PROBE_TSC_ARGS = [
  * 运行时腿的快照（#1026 实测；GitLab 一份按 #1110 实现决定第 15 条补上）：三个模块对象的键集合
  * 与两个断不了字面量的真值。键加了、减了、真值变了，都先回答「契约里有没有它」（`BackendModule`），
  * 确认后把新快照记进来；若契约要跟着改，改完再记。快照比较不看顺序（键按字母排过再比）。
- * 别名窗口（#1110 实现决定第 14 条）：三个链接能力换了新名字，老名字保留一轮，所以
- * 三家的键集合里新旧两组同时在（`issueAddress`/`issueRefPattern`/`repoSearchAddress` 与
- * `issueUrl`/`linkPattern`/`searchUrl`）。退役老名字时，契约成员与这三份快照要同批改。
+ * 别名窗口（#1110 实现决定第 14 条）：契约层与注册表今天已经同时认新名字
+ * （`issueAddress`/`issueRefPattern`/`repoSearchAddress`）与老名字，而三个模块对象还只声明老名字
+ * ——注册表取的时候新名字优先、老名字兜底，所以这不影响可用性。三家各自迁到新名字是分房进行的小票
+ * （房间纪律：一次会话只改一房），谁迁完谁把自己这一份快照加上新键。
  */
 const RUNTIME_SNAPSHOTS = {
   github: {
-    keys: ['capabilities', 'checks', 'create', 'describe', 'fixes', 'id', 'issueAddress', 'issueRefPattern', 'issueUrl', 'label', 'linkPattern', 'links', 'matches', 'openRepository', 'presentation', 'prompts', 'repoSearchAddress', 'searchUrl', 'setupPrompt'],
+    keys: ['capabilities', 'checks', 'create', 'describe', 'fixes', 'id', 'issueUrl', 'label', 'linkPattern', 'links', 'matches', 'openRepository', 'presentation', 'prompts', 'searchUrl', 'setupPrompt'],
     openRepository: 'url',
     checksKind: 'function',
   },
   markdown: {
-    keys: ['create', 'describe', 'fixes', 'id', 'issueAddress', 'issueRefPattern', 'issueUrl', 'label', 'labelPalette', 'linkPattern', 'links', 'matches', 'openRepository', 'presentation', 'prompts', 'repoSearchAddress', 'searchUrl', 'setupPrompt'],
+    keys: ['create', 'describe', 'fixes', 'id', 'issueUrl', 'label', 'labelPalette', 'linkPattern', 'links', 'matches', 'openRepository', 'presentation', 'prompts', 'searchUrl', 'setupPrompt'],
     openRepository: 'folder',
     checksKind: 'absent',
   },
@@ -125,7 +126,7 @@ const RUNTIME_SNAPSHOTS = {
    * 会把 GitLab 归到「未声明」。谁把声明补进模块对象，就同时把这里改成 'url'。
    */
   gitlab: {
-    keys: ['create', 'describe', 'fixes', 'id', 'issueAddress', 'issueRefPattern', 'issueUrl', 'label', 'linkPattern', 'links', 'matches', 'presentation', 'prompts', 'repoSearchAddress', 'searchUrl', 'setupPrompt'],
+    keys: ['create', 'describe', 'fixes', 'id', 'issueUrl', 'label', 'linkPattern', 'links', 'matches', 'presentation', 'prompts', 'searchUrl', 'setupPrompt'],
     openRepository: undefined,
     checksKind: 'absent',
   },
