@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-13T21:10:00.845Z",
+  "generatedAt": "2026-10-13T21:16:27.577Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 237,
   "gateCount": 237,
@@ -151,6 +151,7 @@
         "src/deck",
         "src/host",
         "src/shared",
+        "src/shared/host-timer/host-timers.js",
         "src/shared/refresh/budget.js",
         "src/shared/refresh/src/budget.ts",
         "src/shared/version-control/parse-log.js",
@@ -172,6 +173,7 @@
         "src/deck",
         "src/host",
         "src/shared",
+        "src/shared/host-timer",
         "src/shared/refresh",
         "src/shared/refresh/src",
         "src/shared/version-control",
@@ -181,7 +183,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 11 条；源码里的路径字面量 18 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 11 条；源码里的路径字面量 19 条"
     },
     {
       "step": "node tests/verify-label-color-core.js",
@@ -5581,6 +5583,7 @@
       "node tests/verify-config-store-package.js"
     ],
     "src/shared/host-timer": [
+      "node tests/verify-build-artifacts.js",
       "node tests/verify-1115-timer-handle.ts"
     ],
     "src/shared/host-timer/src": [
