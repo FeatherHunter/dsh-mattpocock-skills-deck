@@ -87,9 +87,11 @@ const PROBE_MARKDOWN_REL = 'tests/contract-probe-markdown.ts'
  * 2026-10-14 由 200 改到 156（#1111「报错判据收成一源，失败结果带原文」）：那一票把各后端的失败构造
  * 从「手写 message 字面量」换成跟踪器层统一的 fail(kind, message, raw) 与各房带类型的辅助函数，
  * 旧语言时代那种「对象字面量对不上联合类型」的内部报错随之减少——这是实现面真的动了，不是门禁放松。
+ * 同日又由 156 改到 155：关闭后那轮对抗式审查发现两个后端的逐条改色失败没带原文，把 GitHub 房那条
+ * 逐条失败改成走 fail()、其余各条补上第三段，实现面再动一处，内部报错又少一条。
  * 探针要不要跟着收紧（把弱化面收掉、让这个数继续降）归 #1095 那条测试跟随线，本票不动它。
  */
-const PROBE_NONPROBE_ERROR_BASELINE = 156
+const PROBE_NONPROBE_ERROR_BASELINE = 155
 /** 探针直编的开关（与探针文件头写的口径一致，改一处两处一起改）。 */
 const PROBE_TSC_ARGS = [
   '--noEmit', '--target', 'es2020', '--lib', 'es2020,dom', '--module', 'esnext',
@@ -101,18 +103,19 @@ const PROBE_TSC_ARGS = [
  * 与两个断不了字面量的真值。键加了、减了、真值变了，都先回答「契约里有没有它」（`BackendModule`），
  * 确认后把新快照记进来；若契约要跟着改，改完再记。快照比较不看顺序（键按字母排过再比）。
  * 别名窗口（#1110 实现决定第 14 条）：契约层与注册表今天已经同时认新名字
- * （`issueAddress`/`issueRefPattern`/`repoSearchAddress`）与老名字，而三个模块对象还只声明老名字
- * ——注册表取的时候新名字优先、老名字兜底，所以这不影响可用性。三家各自迁到新名字是分房进行的小票
+ * （`issueAddress`/`issueRefPattern`/`repoSearchAddress`）与老名字。三家各自迁到新名字是分房进行的小票
  * （房间纪律：一次会话只改一房），谁迁完谁把自己这一份快照加上新键。
+ * 现况：三家都已迁完（#1133 GitHub、#1134 本地 Markdown、#1135 GitLab，2026-10-14），
+ * 三份快照因此六个名字都在——三个新名字是主，三个老名字是同一份实现的别名。
  */
 const RUNTIME_SNAPSHOTS = {
   github: {
-    keys: ['capabilities', 'checks', 'create', 'describe', 'fixes', 'id', 'issueUrl', 'label', 'linkPattern', 'links', 'matches', 'openRepository', 'presentation', 'prompts', 'searchUrl', 'setupPrompt'],
+    keys: ['capabilities', 'checks', 'create', 'describe', 'fixes', 'id', 'issueAddress', 'issueRefPattern', 'issueUrl', 'label', 'linkPattern', 'links', 'matches', 'openRepository', 'presentation', 'prompts', 'repoSearchAddress', 'searchUrl', 'setupPrompt'],
     openRepository: 'url',
     checksKind: 'function',
   },
   markdown: {
-    keys: ['create', 'describe', 'fixes', 'id', 'issueUrl', 'label', 'labelPalette', 'linkPattern', 'links', 'matches', 'openRepository', 'presentation', 'prompts', 'searchUrl', 'setupPrompt'],
+    keys: ['create', 'describe', 'fixes', 'id', 'issueAddress', 'issueRefPattern', 'issueUrl', 'label', 'labelPalette', 'linkPattern', 'links', 'matches', 'openRepository', 'presentation', 'prompts', 'repoSearchAddress', 'searchUrl', 'setupPrompt'],
     openRepository: 'folder',
     checksKind: 'absent',
   },
@@ -128,9 +131,11 @@ const RUNTIME_SNAPSHOTS = {
    * `repoRef.url` 那条路（`src/client/panel/Dock.js:205-217`），所以网址本身照旧能开；
    * 会变的是按「后端自己声明的开仓动作」分套的那处（`src/client/views/labels/labelColorErrors.js:205`）
    * 会把 GitLab 归到「未声明」。谁把声明补进模块对象，就同时把这里改成 'url'。
+   * 改名（#1135，2026-10-14）：模块对象迁到三个与后端无关的新名字，老名字按别名窗口留着，
+   * 所以下面这份键快照今天是 16 个。
    */
   gitlab: {
-    keys: ['create', 'describe', 'fixes', 'id', 'issueUrl', 'label', 'linkPattern', 'links', 'matches', 'presentation', 'prompts', 'searchUrl', 'setupPrompt'],
+    keys: ['create', 'describe', 'fixes', 'id', 'issueAddress', 'issueRefPattern', 'issueUrl', 'label', 'linkPattern', 'links', 'matches', 'presentation', 'prompts', 'repoSearchAddress', 'searchUrl', 'setupPrompt'],
     openRepository: undefined,
     checksKind: 'absent',
   },

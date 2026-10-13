@@ -206,7 +206,11 @@ const SEED = [
   check(r.ok === true && r.data.applied.length === 2 && r.data.failed.length === 2, '部分成功如实回报（实得 applied=' + (r.ok === true ? r.data.applied.length : '?') + '、failed=' + (r.ok === true ? r.data.failed.length : '?') + '）')
   check(r.ok === true && reasonOf(r, '新配色写错了').kind === 'parse', '颜色写错落解析档（实得 ' + JSON.stringify(r.ok === true ? reasonOf(r, '新配色写错了').kind : '') + '）')
   check(r.ok === true && reasonOf(r, '不存在的标签').kind === 'not-found', '标签不存在落找不到档（实得 ' + JSON.stringify(r.ok === true ? reasonOf(r, '不存在的标签').kind : '') + '）')
-  check(r.ok === true && r.data.failed.every((f) => Object.keys(f.reason).sort().join(',') === 'kind,message'), '每条失败的 reason 只有 kind 与 message 两个键（复用既有错误形状，不新增字段）')
+  // #1111：失败形状统一成 kind + message + raw 三段（raw 是后端原文，界面能展开看）。
+  // 这里只许这三个键，不许长第四段，也不许退回两段 —— 退回两段界面上的「原始说明」永远是空的。
+  check(r.ok === true && r.data.failed.every((f) => Object.keys(f.reason).sort().join(',') === 'kind,message,raw'), '每条失败的 reason 是 kind、message、raw 三个键（复用既有错误形状，不新增第四段）')
+  check(r.ok === true && r.data.failed.every((f) => typeof f.reason.raw === 'string'), '每条失败的 reason.raw 都是字符串（确实没有原文时给空串，不能缺）')
+  check(r.ok === true && r.data.failed.every((f) => String(f.reason.raw).indexOf('新配色写错了') < 0 || f.reason.kind !== 'parse'), '颜色写错那条没有把用户填的颜色冒充「原始说明」（插件自己先拦下的，原文给空串）')
   check(edits(gh).length === 3 && edits(gh).every((e) => e.args[2] !== '新配色写错了'), '颜色写错的那条根本没发命令（四条改动只发了三条，实得 ' + edits(gh).length + ' 条）')
 
   // 中途失败不回滚：第二条失败，后面的照改
