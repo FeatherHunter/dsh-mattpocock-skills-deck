@@ -9,6 +9,9 @@
  *    pending:true = 仲裁未决（UI 显示等待/bind，不静默 OtherCard））。
  *  - on(unsubscribe) / Disposable（按代隔离：replace 后旧代 dispose 不误杀新代）/ 监听抛错隔离 /
  *    describe / MIGRATE_KEY；unregister stale 通知携带真实 handle。
+ *  - 链接三件事只转发、不代造（#1112）：后端自己给了就原样转出（模块静态属性与实例旁路两条来源都算），
+ *    没给、抛错、或没注册这个 id 就诚实回空——拼票地址与按名搜仓库回 ''，认票写法回 null。
+ *    反例（必须被逮）：任何按 backendId 写死的 github / gitlab 网址与正则，一旦回到注册表，这一组立刻变红。
  */
 
 import { createRegistry } from '../../../src/tracker/registry/registryCore.ts' // V1 #461：registry.js 已拆为三块
@@ -218,11 +221,84 @@ export async function run() {
     r.bind(handle, 'bnd')
     return r.bound(handle) === 'bnd'
   })(), 'bound must distinguish never/explicit-null/id')
+  // ── describe / 链接转发（#1112：注册表不替后端拼地址、不造正则） ──
   await assert('describe 出 RepositoryRef（markdown refId=cwd）', (() => {
     const r = createRegistry()
     const ref = r.describe({ cwd: '/a/b' }, 'markdown')
     return ref.backend === 'markdown' && ref.refId === '/a/b' && typeof ref.name === 'string' && ref.url === ''
   })(), 'describe must yield backend/refId/name/url')
+  // 这一组用 github / gitlab / 中立三个 id：写死的按名字兜底一旦回来，头两个立刻变红。
+  // 探针自证：测试里现注册不带任何静态属性的模块，注册表没有别的来源可抄。
+  await assert('后端没给链接能力 → 拼票地址回空（github 房也不许替它拼）', (() => {
+    const r = createRegistry()
+    r.register(mkModule('github', { create: () => ({}) }))
+    return r.issueUrl('github', ref0, '7') === ''
+  })(), 'must not assemble https://github.com/<refId>/issues/<key>')
+  await assert('后端没给链接能力 → 拼票地址回空（gitlab 房也不许替它拼）', (() => {
+    const r = createRegistry()
+    r.register(mkModule('gitlab', { create: () => ({}) }))
+    return r.issueUrl('gitlab', ref0, '7') === ''
+  })(), 'must not assemble the gitlab issue url')
+  await assert('后端没给链接能力 → 拼票地址回空（中立 id 一位）', (() => {
+    const r = createRegistry()
+    r.register(mkModule('nolink', { create: () => ({}) }))
+    return r.issueUrl('nolink', ref0, '7') === ''
+  })(), 'empty means empty')
+  await assert('后端没给链接能力 → 认票写法回 null（github 房也不许造正则）', (() => {
+    const r = createRegistry()
+    r.register(mkModule('github', { create: () => ({}) }))
+    return r.linkPattern('github') === null
+  })(), 'must not mint a github link pattern')
+  await assert('后端没给链接能力 → 认票写法回 null（gitlab 房也不许造正则）', (() => {
+    const r = createRegistry()
+    r.register(mkModule('gitlab', { create: () => ({}) }))
+    return r.linkPattern('gitlab') === null
+  })(), 'must not mint a gitlab link pattern')
+  await assert('后端没给链接能力 → 按名搜仓库回空（github 房也不许拼搜索页）', (() => {
+    const r = createRegistry()
+    r.register(mkModule('github', { create: () => ({}) }))
+    return r.searchUrl('github', 'deck') === ''
+  })(), 'must not assemble the github search page')
+  await assert('后端自己给了链接能力 → 原样转发（模块静态属性）', (() => {
+    const r = createRegistry()
+    const pattern = /mine\.example\/issues\/(\d+)/g
+    r.register(mkModule('ownlinks', {
+      create: () => ({}),
+      issueUrl: (ref, key) => 'https://mine.example/' + ref.refId + '/i/' + key,
+      searchUrl: (name) => 'https://mine.example/find?q=' + name,
+      linkPattern: pattern,
+    }))
+    return r.issueUrl('ownlinks', ref0, '7') === 'https://mine.example/r0/i/7'
+      && r.searchUrl('ownlinks', 'deck') === 'https://mine.example/find?q=deck'
+      && r.linkPattern('ownlinks') === pattern
+  })(), 'backend-provided links must be forwarded untouched')
+  await assert('后端把三个链接口实现成「实例旁路」 → 也原样转发', (() => {
+    const r = createRegistry()
+    const pattern = '#(\\d+)'
+    r.register(mkModule('instlinks', {
+      create: () => ({
+        issueUrl: (ref, key) => '/tmp/' + key + '.md',
+        searchUrl: (name) => 'https://mine.example/find?q=' + name,
+        linkPattern: pattern,
+      }),
+    }))
+    return r.issueUrl('instlinks', ref0, '7') === '/tmp/7.md'
+      && r.searchUrl('instlinks', 'deck') === 'https://mine.example/find?q=deck'
+      && r.linkPattern('instlinks') === pattern
+  })(), 'tracker-instance link methods must be forwarded too')
+  await assert('后端自己抛错 → 回空、不炸调用方（不退回按名字拼地址）', (() => {
+    const r = createRegistry()
+    r.register(mkModule('boomlinks', {
+      create: () => ({}),
+      issueUrl: () => { throw new Error('boom') },
+      searchUrl: () => { throw new Error('boom') },
+    }))
+    return r.issueUrl('boomlinks', ref0, '7') === '' && r.searchUrl('boomlinks', 'deck') === ''
+  })(), 'a throwing backend must degrade to empty, never to a guessed url')
+  await assert('未注册的后端 id → 同样回空（不按名字猜）', (() => {
+    const r = createRegistry()
+    return r.issueUrl('github', ref0, '7') === '' && r.searchUrl('github', 'deck') === '' && r.linkPattern('github') === null
+  })(), 'unregistered id must not produce a link out of thin air')
   await assert('MIGRATE_KEY = {other:null} 先落地', MIGRATE_KEY && MIGRATE_KEY.other === null, JSON.stringify(MIGRATE_KEY))
 
   // ✗ probe：未实现 op 冒充成功必须被逮（Proxy 桩不说谎）

@@ -5,7 +5,9 @@
  *   1. normalize harness（合规桩全 PASS / 违规桩被逮 + 真实 github 适配器合规过 G4）
  *   2. contract 段：OpName 形状（无 detect、含 getDependencies、snapshot 非 op）+ ERROR_KIND 新枚举
  *   3. registry 段：Proxy 桩 / duplicate-id / replace / 'other' 禁注册 / select 三级联三态 /
- *      multiHit / AbortSignal / Disposable / on / describe / MIGRATE_KEY
+ *      multiHit / AbortSignal / Disposable / on / describe / MIGRATE_KEY；
+ *      链接三件事只转发不代造（#1112：后端没给、抛错、或没注册这个 id 时，拼票地址与按名搜仓库回空、
+ *      认票写法回 null；后端自己给了就原样转出，模块静态属性与实例旁路两条来源都验）。
  *   4. preflight 段：classifyError 顺序（auth>rate-limit>env>not-found>unsupported>parse>network，
  *      兜底 NETWORK；conflict 透传非 regex）
  *   5. deck 段：progressOf / levelOf（环 visited 守卫 + NFD 按 0 计）/ stats / blockedByKeys / labels 并集

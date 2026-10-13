@@ -1,8 +1,11 @@
 /**
  * tracker/registryViews.js — 身份识别与链接只读视图（V1 #461 从 registry.js 拆出，纯结构、行为零变化）。
- * 以后谁改它：改出 RepositoryRef（describe）或链接拼装（issueUrl/linkPattern/searchUrl）的人。预估约 110 行，超 350 打回。
+ * 以后谁改它：改出 RepositoryRef（describe）或链接查询转发（issueUrl/linkPattern/searchUrl）的人。预估约 110 行，超 350 打回。
  * 接线：只被 registryCore.js 引用；本文件不引用其他新文件。
  * 机制：原闭包直读的注册表 byId 改为首参显式传引用（H1 #445 显式传参先例），只读不写。
+ * 边界（#1112 定版）：链接这三件事的语义由各家后端自己给，注册表只转发、不替它拼地址或造正则——
+ *   后端没实现、抛错或回的不是字符串时，诚实回空（issueUrl/searchUrl 回 ''，linkPattern 回 null）。
+ *   所以「我这家的地址长什么样」只有一个真源，新增后端也不会被注册表安上一个它没承诺过的网址形状。
  */
 
 /** 出 RepositoryRef：转发 BackendModule.describe（可选），回退骨架（#220 · registry 只转发）。 */
@@ -50,7 +53,10 @@ export function describe(byId, handle, backendId) {
   return withEffort({ backend: backendId, refId, name, url: '' })
 }
 
-/** issueUrl 只读 view：转发 BackendModule.issueUrl / tracker.issueUrl，回退按 backendId 拼装（#220）。 */
+/**
+ * issueUrl 只读 view：转发 BackendModule.issueUrl / tracker.issueUrl。
+ * 都没有就回空串，不按 backendId 拼地址（#1112：后端没承诺过的地址，注册表不许替它造）。
+ */
 export function issueUrl(byId, backendId, ref, key) {
   const entry = byId.get(backendId)
   if (entry && entry.mod && typeof entry.mod.issueUrl === 'function') {
@@ -62,22 +68,24 @@ export function issueUrl(byId, backendId, ref, key) {
       const u2 = tr.issueUrl(ref, String(key)); if (typeof u2 === 'string') return u2
     }
   } catch (e) {}
-  if (backendId === 'github' && ref && ref.refId) return 'https://github.com/' + ref.refId + '/issues/' + String(key)
-  if (backendId === 'gitlab' && ref && ref.refId) return 'https://gitlab.com/' + ref.refId + '/-/issues/' + String(key)
   return ''
 }
 
-/** linkPattern 只读 view：转发 BackendModule.linkPattern。 */
+/**
+ * linkPattern 只读 view：转发 BackendModule.linkPattern / tracker.linkPattern。
+ * 都没有就回 null，不按 backendId 造正则（#1112）。
+ */
 export function linkPattern(byId, backendId) {
   const entry = byId.get(backendId)
   if (entry && entry.mod && entry.mod.linkPattern) return entry.mod.linkPattern
   try { const tr = entry && entry.tracker; if (tr && tr.linkPattern) return tr.linkPattern } catch (e) {}
-  if (backendId === 'github') return /github\.com\/[^\/\s]+\/[^\/\s]+\/issues\/(\d+)/g
-  if (backendId === 'gitlab') return /gitlab\.com\/[^\/\s]+\/[^\/\s]+\/-\/issues\/(\d+)/g
   return null
 }
 
-/** searchUrl 只读 view：转发 BackendModule.searchUrl。 */
+/**
+ * searchUrl 只读 view：转发 BackendModule.searchUrl / tracker.searchUrl。
+ * 都没有就回空串，不按 backendId 拼搜索页（#1112）。
+ */
 export function searchUrl(byId, backendId, name) {
   const entry = byId.get(backendId)
   if (entry && entry.mod && typeof entry.mod.searchUrl === 'function') {
@@ -87,6 +95,5 @@ export function searchUrl(byId, backendId, name) {
     const tr = entry && entry.tracker
     if (tr && typeof tr.searchUrl === 'function') { const u2 = tr.searchUrl(String(name)); if (typeof u2 === 'string') return u2 }
   } catch (e) {}
-  if (backendId === 'github') return 'https://github.com/search?q=' + encodeURIComponent(String(name))
   return ''
 }
