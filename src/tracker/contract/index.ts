@@ -110,7 +110,7 @@ export const OPERATIONS: readonly string[] = Object.freeze(CATALOG_OPERATIONS)
  * @property {string} label 显示名（UI：已知→徽标；未知→原串不分支）
  * @property {(ctx: BackendContext) => Partial<Tracker>} create 只实现真会的；缺的方法由 registry Proxy 补 unsupported 桩
  * @property {(handle: RepoHandle, ctx: OpContext) => boolean} matches 启发式 boolean（读 .scratch/map.md / git remote / issue-tracker.md）；不确定一律 false + 记 diagnostics
- * @property {(handle: RepoHandle, backendId: string) => import('../../shared/tracker/shape.js').RepositoryRef} [describe] 可选：出 RepositoryRef（refId/name/url）；未提供时注册表给骨架（refId 取本地文件后端的 cwd，其余空）、不另猜地址
+ * @property {(handle: RepoHandle, backendId: string) => import('../../shared/tracker/shape.js').RepositoryRef} [describe] 可选：出 RepositoryRef（refId/name/url）；未提供时注册表给一个不带地址的骨架（refId 取 handle 自带的，没有就拿本地文件后端的 cwd；url 一律空），不另猜地址
  * @property {(ref: import('../../shared/tracker/shape.js').RepositoryRef, key: string) => string} [issueUrl] 可选：票链接（如 GitHub 的 https://github.com/{refId}/issues/{key}、GitLab 的 https://gitlab.com/{refId}/-/issues/{key}、本地 Markdown 的票文件路径）。地址形状由本后端自己说了算；注册表只转发，没提供时回空串，不替任何后端拼地址（#1112）
  * @property {(name: string) => string} [searchUrl] 可选：仓库名搜索链接（如 GitHub 的 https://github.com/search?q=...）；注册表只转发，没提供时回空串（#1112）
  * @property {{trackerLine: string, trackerChoice: string, backendNote: string, labelReqs: string}} [setupPrompt]
