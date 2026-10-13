@@ -5,7 +5,12 @@
  * 机制：原闭包直读的注册表 byId 改为首参显式传引用（H1 #445 显式传参先例），只读不写。
  * 边界（#1112 定版）：链接这三件事的语义由各家后端自己给，注册表只转发、不替它拼地址或造正则——
  *   后端没实现、抛错或回的不是字符串时，诚实回空（issueUrl/searchUrl 回 ''，linkPattern 回 null）。
- *   所以「我这家的地址长什么样」只有一个真源，新增后端也不会被注册表安上一个它没承诺过的网址形状。
+ *   准确说法是「注册表这一层不再持有网址形状」，不是全仓只有一个真源：各家后端自己怎么表示
+ *   （拼字符串还是写模板）仍可能有第二份，那是各家自己的事。这样新增后端也不会被注册表安上
+ *   一个它没承诺过的网址形状。
+ *   已知取舍：上面三种成因都回同一个空值，调用方分不出「这家后端没有票地址这个概念」和
+ *   「这家后端坏了」。今天这三个方法在 src/ 里没有生产调用方（客户端走各后端 links 模板那条路），
+ *   所以先不为它加区分；将来真要有调用方需要分辨，再单独立票改接口。
  */
 
 /** 出 RepositoryRef：转发 BackendModule.describe（可选），回退骨架（#220 · registry 只转发）。 */
@@ -56,6 +61,7 @@ export function describe(byId, handle, backendId) {
 /**
  * issueUrl 只读 view：转发 BackendModule.issueUrl / tracker.issueUrl。
  * 都没有就回空串，不按 backendId 拼地址（#1112：后端没承诺过的地址，注册表不许替它造）。
+ * 空串有三种成因且不区分：后端没实现、调用抛错、回的不是字符串。
  */
 export function issueUrl(byId, backendId, ref, key) {
   const entry = byId.get(backendId)
