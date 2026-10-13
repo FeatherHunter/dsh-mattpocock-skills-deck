@@ -4,6 +4,9 @@
 // #968 技能按需多一个显式注入 getChainSkillNames（链条目录里要的三项技能名，查链时只问这三项）。
 import { timeoutForGhArgs, isWriteGhArgs } from './outbound/tiers.js'
 import { getGhLane } from './outbound/admission.js'
+// #1115：宿主计时器服务交回的是可调用的撤销器（不是数字句柄、也没有 dispose 方法），
+//   撤销的三档判据收在共享层一处；本文件两处 timers 口都只用它，不再各写一遍。
+import { hostTimers } from '../shared/host-timer/host-timers.js'
 // #968 平时问三项、重查问全量的分流判据（纯函数，门禁直测它）：
 //   范围是“链”就只问链条要的三项，其余（全量、未知）都问全量——未知时宁可多问，不漏判。
 export function selectSkillProbeNames(allNames, chainNames, scope) {
@@ -313,7 +316,7 @@ export function createPlatformChannel(deps) {
         }
         // #683（F1）：判定链要读宿主侧那份记忆（用户选的后端按工作区记着），实例由 index.js 单点持有 ——
         //   那条读-改-写队列必须全进程只有一条，不能在这里另建一份。
-        _detectionService = create({ registry, getPlatform, getFs: () => fsSvc, getTimers: () => ({ setTimeout: (fn, ms) => timer.timeout(fn, ms), clearTimeout: (id) => { try { clearTimeout(id) } catch {} } }), workspaceStore: ws, skillProbe, resolveRepoHandle: async (h) => ({ cwd: h.cwd || '', refId: h.refId || '' }), exec: detectionExec, getChoiceStore: getChoiceStore, logCtx: logCtx, decideBackend: decideBackend })
+        _detectionService = create({ registry, getPlatform, getFs: () => fsSvc, getTimers: () => hostTimers(timer), workspaceStore: ws, skillProbe, resolveRepoHandle: async (h) => ({ cwd: h.cwd || '', refId: h.refId || '' }), exec: detectionExec, getChoiceStore: getChoiceStore, logCtx: logCtx, decideBackend: decideBackend })
       } catch (e) {
         // 兜底：最小二联（explicit → matches）不含 preflight/skill
         _detectionService = {
@@ -323,7 +326,7 @@ export function createPlatformChannel(deps) {
             const expFn = expMod.detectExplicit || expMod.default
             const exp = await expFn(handle, { platform: plat, cwd: handle.cwd, fs: fsSvc }, registry)
             let sel = exp.selection
-            if (!sel) { const ctx2 = { cwd: handle.cwd, platform: plat, fs: fsSvc, caller: 'detect', timers: { setTimeout: (fn, ms) => timer.timeout(fn, ms), clearTimeout: (id) => { try { clearTimeout(id) } catch {} } } }; sel = await registry.select(handle, ctx2) }
+            if (!sel) { const ctx2 = { cwd: handle.cwd, platform: plat, fs: fsSvc, caller: 'detect', timers: hostTimers(timer) }; sel = await registry.select(handle, ctx2) }
             return { handle, selection: sel, repoHandle: { cwd: handle.cwd || '', refId: (sel && sel.ref && sel.ref.refId) || '' }, explicit: { raw: exp.raw, parsed: exp.parsed }, preflight: null, skillProbes: null, at: Date.now() }
           }
         }

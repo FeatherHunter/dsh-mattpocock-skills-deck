@@ -10,6 +10,10 @@
 // 接线：同层互引门禁（tests/verify-dependency-rules.ts）不许两个「干活的」文件互相引用 ——
 // 组合点放在宿主入口 src/host/index.js：地图详情拉取与 buildSnapshot 都产自本文件，
 // issueDetail.js 要的那份也由入口转交。
+//
+// #1115：本文件两处 opCtx（viewer 预取与 select 三级联）的计时器口改用共享层那一份实现；
+//   原先各写一遍的全局 clearTimeout 在真句柄上是空操作，撤销不掉那笔等待（详见该文件头注释）。
+import { hostTimers } from '../shared/host-timer/host-timers.js'
 export function createSnapshotBuilder(deps) {
   const { getRepoKey, runGh, fetchIssues, getTrackerRegistry, getPlatform, execProc } = deps
   const { fetchMapsDetailREST, mapTicket, parseMapBody, computeLevels, groupTickets, isRateLimitError } = deps
@@ -107,7 +111,7 @@ export function createSnapshotBuilder(deps) {
         try {
           const tmpReg = reg
           const tmpHandle = { cwd: cwd }
-          const tmpCtx = { cwd: cwd, platform: await getPlatform(), fs: ctx.get('fs'), caller: 'issue-detail-viewer', timers: { setTimeout: (fn,ms)=>timer.timeout(fn,ms), clearTimeout: (id)=>{try{clearTimeout(id)}catch{}} }, exec: async function(cmd, args, opts){ const argv=[String(cmd)].concat(args||[]); const c=(opts&&opts.cwd)||cwd; const r=await execProc(argv, c, 'viewer-lookup'); if(!r.ok) throw new Error(r.error||String(r.code||'exec failed')); return { stdout:r.text, text:r.text, ok:true, code:(Number.isInteger(r.code) ? r.code : 0) } } }
+          const tmpCtx = { cwd: cwd, platform: await getPlatform(), fs: ctx.get('fs'), caller: 'issue-detail-viewer', timers: hostTimers(timer), exec: async function(cmd, args, opts){ const argv=[String(cmd)].concat(args||[]); const c=(opts&&opts.cwd)||cwd; const r=await execProc(argv, c, 'viewer-lookup'); if(!r.ok) throw new Error(r.error||String(r.code||'exec failed')); return { stdout:r.text, text:r.text, ok:true, code:(Number.isInteger(r.code) ? r.code : 0) } } }
           const selForViewer = await tmpReg.select(tmpHandle, tmpCtx)
           const vid = selForViewer && selForViewer.backendId
           if (vid) {
@@ -120,7 +124,7 @@ export function createSnapshotBuilder(deps) {
         } catch (e) {}
         if (reg && typeof reg.select === 'function') {
           const handle = { cwd: cwd }
-          const ctxSel = { cwd: cwd, platform: await getPlatform(), fs: ctx.get('fs'), caller: 'issue-detail-select', timers: { setTimeout: (fn,ms)=>timer.timeout(fn,ms), clearTimeout: (id)=>{try{clearTimeout(id)}catch{}} }, exec: async function(cmd, args, opts){ const argv=[String(cmd)].concat(args||[]); const c=(opts&&opts.cwd)||cwd; const r=await execProc(argv, c, 'snapshot-select'); if(!r.ok) throw new Error(r.error||String(r.code||'exec failed')); return { stdout:r.text, text:r.text, ok:true, code:(Number.isInteger(r.code) ? r.code : 0) } } }
+          const ctxSel = { cwd: cwd, platform: await getPlatform(), fs: ctx.get('fs'), caller: 'issue-detail-select', timers: hostTimers(timer), exec: async function(cmd, args, opts){ const argv=[String(cmd)].concat(args||[]); const c=(opts&&opts.cwd)||cwd; const r=await execProc(argv, c, 'snapshot-select'); if(!r.ok) throw new Error(r.error||String(r.code||'exec failed')); return { stdout:r.text, text:r.text, ok:true, code:(Number.isInteger(r.code) ? r.code : 0) } } }
           // 能力诊断计数（G5 仅诊断，不驱动隐藏）——按 host 视角 fill 统计
           const capCount = (function(iss){
             let present=0, emptyCnt=0, missing=0

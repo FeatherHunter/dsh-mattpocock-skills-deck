@@ -2,6 +2,8 @@
 // 以后谁改它：改工作区路径归一、后端绑定选择、工作区配置文件落盘（#957 首绑人选与保护自动两写）的人。标签配色两条电话（#627）已搬到 ./workspaceLabelColors.js，改那两条去那边。预估约 200 行，超 350 打回。
 // 接线：由 index.js 动态 import 加载；normCwd 由本文件单一持有，评论线程经 index 转供给复用；改色叶子经本文件动态加载（单向，基线有记录），工作区文件纯函数经静态引用（跨层允许）；目录取法调 shared 共用函数（#730）。
 import { resolveSessionCwd } from '../shared/session-cwd.js'
+// #1115：opCtxFor 那个计时器口的唯一实现（撤销真句柄的三档判据见该文件头）。
+import { hostTimers } from '../shared/host-timer/host-timers.js'
 import { parseWorkspaceFile, stringifyWorkspaceFile, WORKSPACE_FILE_REL } from '../deck/shell/workspace-anchor.js'
 /**
  * 写工作区文件失败时把原因分成四档（#1003 契约期望行为第 2 条：失败必须带原因，四档各说各的）：
@@ -273,7 +275,7 @@ export function createWorkspaceCwd(deps) {
       sandboxPolicy: sandboxPolicy,
       // 这份政策是按哪个会话算的（给日志与排查用；拿不到会话时是空串）。
       sessionId: sessionId || '',
-      timers: { setTimeout: function (fn, ms) { return timer.timeout(fn, ms) }, clearTimeout: function (id) { try { clearTimeout(id) } catch (e) {} } },
+      timers: hostTimers(timer),
       exec: function (cmd, args, opts) { return detectionExec(cmd, args, opts, 'label-colors') },
       logEvent: function (level, event, fields) { try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire(level, event, fields) } catch (e) {} },
       isEnabled: function (level) { try { return (logCtx && typeof logCtx.isEnabled === 'function') ? logCtx.isEnabled(level) === true : (level === 'error' || level === 'warn') } catch (e) { return level === 'error' || level === 'warn' } },

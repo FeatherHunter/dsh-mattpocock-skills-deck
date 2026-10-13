@@ -1,0 +1,24 @@
+{
+  // 宿主计时器域的 TypeScript 配置（#1115）。
+  // 这个域只住一份共用代码：把宿主计时器服务（ctx.get('timer')）包成 OpContext.timers，
+  // 以及撤销一支句柄的那三档判据。域的骨架与另外几个域一致：手写真源在 src/ 子目录，
+  // 构建把 src/*.ts 逐份转译成同目录同名的 .js（scripts/build.mjs 的 findDomains 按
+  // 「这个目录里有 tsconfig.json」认域，新增域不需要另外登记清单）。
+  "compilerOptions": {
+    // 输出目标定死保守版本：Node 宿主与浏览器闭包两边都跑得动（与 refresh、label-color 同一套保证）。
+    "target": "ES2020",
+    // 这一份要判「句柄是不是可调用」「句柄有没有 dispose」，还要在数字句柄那一档交回全局 clearTimeout，
+    // 那两个全局名字由 DOM 库提供。这与 tsconfig.contract.json 里取 setTimeout/AbortSignal 同一个原因：
+    // 那只是类型声明，Node 侧同名能力的形状与这里声明的一致，不需要再引 @types/node。
+    "lib": ["ES2020", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    // 只做类型检查不产出：真正的 .js 由 build.mjs 经 esbuild 转译生成。
+    "noEmit": true,
+    "strict": true,
+    // 类型只用语言自带的标准写法，不依赖特殊编译选项。
+    "types": [],
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*.ts"]
+}

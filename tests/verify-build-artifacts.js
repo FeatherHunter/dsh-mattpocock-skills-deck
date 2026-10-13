@@ -284,9 +284,13 @@ console.log('\n三棵新树镜像校验（后缀换算 + 转译结果比对）')
   //   · src/client/kernel/api-io.js —— #1111：客户端内核的 api-io 由手写 .js 转成 .ts，同名 .js 从此是
   //     构建产物（与 locale-cards.js、locale-skilldetail.js 同类）。它没有把上限抬高一格：这一格留给
   //     「搬家那条线」继续收，新产物想混进来仍然看得见。
+  //   · src/shared/host-timer/host-timers.js —— #1115：宿主计时器句柄的撤销收成共享层的新域
+  //     （src/shared/<域>/src/*.ts → 域根同名 .js，与另外几个域同一套形状）。它是本票故意新增的产物，
+  //     出处就是这一行；同样不抬高上限——上限那条数按「搬家那条线的存量」算，新混进来的产物照旧看得见。
   const KNOWN_PRODUCTS_OUT_OF_SCOPE = [
     'src/tracker/contract/vocabulary.js',
     'src/client/kernel/api-io.js',
+    'src/shared/host-timer/host-timers.js',
   ]
   const SKIP_DIRS = new Set(['node_modules', '.git'])
 

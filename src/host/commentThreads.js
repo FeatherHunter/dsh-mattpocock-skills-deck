@@ -2,6 +2,8 @@
 // 以后谁改它：改单票详情字段、评论分页读写或增量探针的人。预估约300行，超 350 打回。
 // 接线：由 index.js 动态 import 加载；normCwd 与单票分发前奏经 index 转供给复用（H4 同例），不各留一份拷贝；本文件不引用其他新文件。
 import { idOfParts } from '../tracker/identity-keys.js'
+// #1115：opCtx 上那个计时器口的唯一实现（撤销真句柄的三档判据见该文件头）。
+import { hostTimers } from '../shared/host-timer/host-timers.js'
 export function createCommentThreads(deps) {
   const { normCwd, canonicalKey, selectEarly, isComposerSelection, getTrackerRegistry, getPlatform, ctx, timer, DEFAULT_CWD, errText, isRateLimitError, getRepoKey, runGh, execProc, fetchIssueDetail, fetchIssueIndex, fetchIssueIndexWindowed, commitIssueIndex, deltaRefresh, issueIndexFromSnapshot, issueIndexChanged, rememberIssueIndex, getCache, setCache, lastIssueIndexByRepo, lastProbeAtByRepo, logCtx } = deps
   // T5 #10 · 评论分页（反向分页 cursor，节流由 client 侧 600ms 控制；单页 50，失败重试与 3 次兜底）
@@ -180,7 +182,7 @@ export function createCommentThreads(deps) {
       const reg = await getTrackerRegistry()
       if (!reg) return { ok: false, error: { kind: 'env', message: 'registry unavailable' } }
       const handle = { cwd: cwd }
-      const opCtx = { cwd: cwd, platform: await getPlatform(), fs: ctx.get('fs'), caller: 'comment-threads', timers: { setTimeout: (fn,ms)=>timer.timeout(fn,ms), clearTimeout: (id)=>{try{clearTimeout(id)}catch{}} }, exec: async function(cmd, cargs, opts){ const argv=[String(cmd)].concat(cargs||[]); const c=(opts&&opts.cwd)||cwd; const r=await execProc(argv, c, 'comment-write'); if(!r.ok) throw new Error(r.error||String(r.code||'exec failed')); return { stdout:r.text, text:r.text, ok:true, code:(Number.isInteger(r.code) ? r.code : 0) } } }
+      const opCtx = { cwd: cwd, platform: await getPlatform(), fs: ctx.get('fs'), caller: 'comment-threads', timers: hostTimers(timer), exec: async function(cmd, cargs, opts){ const argv=[String(cmd)].concat(cargs||[]); const c=(opts&&opts.cwd)||cwd; const r=await execProc(argv, c, 'comment-write'); if(!r.ok) throw new Error(r.error||String(r.code||'exec failed')); return { stdout:r.text, text:r.text, ok:true, code:(Number.isInteger(r.code) ? r.code : 0) } } }
       let sel = null
       try { sel = await reg.select(handle, opCtx) } catch (eSel) {}
       if (!sel || !sel.backendId) return { ok: false, error: { kind: 'unsupported', message: '未选择可用 tracker 后端，无法评论' } }

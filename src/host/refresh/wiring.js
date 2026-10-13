@@ -23,6 +23,8 @@ import { createAttention, createFocusHandler } from './attention.js'
 // 工厂由 ../platform/deckToolsAssembly.js 一处读进来 —— 收在那一层是因为宿主层文件之间不许互引（同层引用门禁），
 // 宿主层里再读一次那七个文件就要新增 7 条同层边，本票不许。见那个文件的文件头与交付报告第 6 节。
 import { createDeckToolsForHost, DECK_TOOL_FILES, withCap } from '../../deck/registration/host-assemble.js'
+// #1115：计时器口的唯一实现放在共享层（本文件原先自己写了一份，写法对但仍是第二份；六处调用点收成一份）。
+import { hostTimers } from '../../shared/host-timer/host-timers.js'
 // deck 工具前置三处的等待上限：保读数含一次远端读数（读档 12 秒加排队），给 15 秒；
 // 本机记忆与工作区文件是本地读，给 5 秒。超时都走既有的失败继续路径（保不住照旧往下走、
 // 读不到按缺席跳过），成功路径一字不动——挂住的文件服务或排满的出站队列不能卡住整笔调用。
@@ -327,14 +329,9 @@ export function createRefreshWiring(deps) {
             try {
               const t = (d.ctx && typeof d.ctx.get === 'function') ? d.ctx.get('timer') : undefined
               if (!t || typeof t.timeout !== 'function') return undefined
-              return {
-                setTimeout: function (fn, ms) { return t.timeout(fn, ms) },
-                // 真实撤销：宿主 timer 服务交回的是**一支可调用的句柄**（cordis 的 effect 撤销器），调它本身才取消。
-                //   它没有 .dispose 方法：写成 id.dispose() 会抛 TypeError，写成全局 clearTimeout(id) 是静默无效，
-                //   两种都撤不掉，那一笔等待只好一直悬到 30 秒（2026-10-14 实测，见 #1109 的审查记录）。
-                //   假计时器交回的是数字，那种口子仍旧走全局 clearTimeout。
-                clearTimeout: function (id) { try { if (typeof id === 'function') id(); else clearTimeout(id) } catch (e) {} },
-              }
+              // 撤销那一档的判据在共享层一处（#1115）：真句柄是可调用的撤销器，全局 clearTimeout 与
+              // 先判 .dispose 两种写法在它上面都是空操作，详见 src/shared/host-timer/src/host-timers.ts 文件头。
+              return hostTimers(t)
             } catch (e) { return undefined }
           })(),
           exec: function () {

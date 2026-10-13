@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-13T20:48:20.096Z",
+  "generatedAt": "2026-10-13T21:10:00.845Z",
   "generatedBy": "node scripts/gate-map.mjs",
-  "chainLength": 236,
-  "gateCount": 236,
-  "attributedGates": 208,
+  "chainLength": 237,
+  "gateCount": 237,
+  "attributedGates": 209,
   "unattributedGates": 28,
   "buildOutputOnlyGates": 20,
-  "graphFileCount": 521,
+  "graphFileCount": 524,
   "gates": [
     {
       "step": "node tests/verify-596-rpc-carrier.js",
@@ -801,7 +801,7 @@
       "guards": [
         "src/shared/refresh/idempotency.js",
         "src/tracker/registry/core.ts",
-        "src/tracker/rooms/gitlab/index.js"
+        "src/tracker/rooms/gitlab/index.ts"
       ],
       "dirs": [
         "src/shared/refresh",
@@ -869,7 +869,7 @@
         "src/tracker/detection/backendDecision.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/github/index.ts",
-        "src/tracker/rooms/gitlab/index.js",
+        "src/tracker/rooms/gitlab/index.ts",
         "src/tracker/rooms/markdown/index.ts",
         "tests/deck-tools-matrix-transports.js"
       ],
@@ -980,6 +980,30 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "reason": "归属来自：源码里的路径字面量 2 条"
+    },
+    {
+      "step": "node tests/verify-1115-timer-handle.ts",
+      "file": "tests/verify-1115-timer-handle.ts",
+      "guards": [
+        "scripts/build.mjs",
+        "src/host/commentThreads.js",
+        "src/host/platformChannel.js",
+        "src/host/refresh/wiring.js",
+        "src/host/snapshotBuild.ts",
+        "src/host/workspaceCwd.js",
+        "src/shared/host-timer/host-timers.js",
+        "src/shared/host-timer/src/host-timers.ts"
+      ],
+      "dirs": [
+        "scripts",
+        "src/host",
+        "src/host/refresh",
+        "src/shared/host-timer",
+        "src/shared/host-timer/src"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；源码里的路径字面量 6 条"
     },
     {
       "step": "node tests/verify-934-935-invariants.js",
@@ -3282,18 +3306,16 @@
         "src/client/kernel/locale-panel.js",
         "src/client/kernel/prompts.js",
         "src/tracker/rooms/github/index.ts",
-        "src/tracker/rooms/gitlab/index.js",
         "src/tracker/rooms/markdown/index.ts"
       ],
       "dirs": [
         "src/client/kernel",
         "src/tracker/rooms/github",
-        "src/tracker/rooms/gitlab",
         "src/tracker/rooms/markdown"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 7 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条"
     },
     {
       "step": "node tests/verify-version-control-parsers.js",
@@ -3645,7 +3667,7 @@
         "src/host/versionControl.js",
         "src/tracker/rooms/github/client.ts",
         "src/tracker/rooms/gitlab/client.js",
-        "src/tracker/rooms/gitlab/index.js",
+        "src/tracker/rooms/gitlab/index.ts",
         "src/tracker/rooms/gitlab/preflight.js",
         "tests/fixtures/gh-gateway",
         "tests/fixtures/gh-gateway/compliant.registry.json",
@@ -4797,7 +4819,7 @@
       "file": "tests/verify-error-raw-samples.ts",
       "guards": [
         "src/tracker/rooms/github/counts.ts",
-        "src/tracker/rooms/gitlab/index.js",
+        "src/tracker/rooms/gitlab/index.ts",
         "src/tracker/rooms/markdown/issues.ts"
       ],
       "dirs": [
@@ -5078,6 +5100,7 @@
       "node tests/verify-parse-leaf.js",
       "node tests/verify-tabsfold-leaf.js",
       "node tests/verify-platform-contract.js",
+      "node tests/verify-1115-timer-handle.ts",
       "node tests/verify-golden-receipts.ts",
       "node tests/verify-panel-workspace-shared.js",
       "node tests/verify-matt-skills-sync.js",
@@ -5388,6 +5411,7 @@
       "node tests/verify-parse-leaf.js",
       "node tests/verify-deck-tools-host-wiring.js",
       "node tests/verify-1109-matches-timeout.ts",
+      "node tests/verify-1115-timer-handle.ts",
       "node tests/verify-setup-describe.js",
       "node tests/verify-issue232-sync.js",
       "node tests/verify-3-workspace-switch.js",
@@ -5485,6 +5509,7 @@
       "node tests/verify-829-parent-reread.js",
       "node tests/verify-deck-tools-host-wiring.js",
       "node tests/verify-1109-matches-timeout.ts",
+      "node tests/verify-1115-timer-handle.ts",
       "node tests/verify-934-935-invariants.js",
       "node tests/verify-971-markdown-parent.js",
       "node tests/verify-deck-no-hang.js",
@@ -5554,6 +5579,12 @@
     ],
     "src/shared/config-store": [
       "node tests/verify-config-store-package.js"
+    ],
+    "src/shared/host-timer": [
+      "node tests/verify-1115-timer-handle.ts"
+    ],
+    "src/shared/host-timer/src": [
+      "node tests/verify-1115-timer-handle.ts"
     ],
     "src/shared/label-color": [
       "node tests/verify-label-color-core.js",
@@ -5769,7 +5800,6 @@
       "node tests/verify-gitlab-single-write.js",
       "node tests/verify-deck-tools-matrix.js",
       "node tests/verify-no-mixed-session.js",
-      "node tests/verify-686-accept.js",
       "node tests/verify-gh-gateway.js",
       "node tests/verify-error-raw-samples.ts",
       "node tests/verify-error-rule-samples.ts",
@@ -5930,12 +5960,12 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 529,
-    "dirCount": 54,
-    "coveredFileCount": 529,
+    "fileCount": 533,
+    "dirCount": 56,
+    "coveredFileCount": 533,
     "ungatedFileCount": 0,
     "ungatedDirCount": 6,
-    "dedicatedDirCount": 48,
+    "dedicatedDirCount": 50,
     "guardedFiles": [
       "src/client/floating/Pop.js",
       "src/client/floating/SkillFloatList.js",
@@ -6276,6 +6306,10 @@
       "src/shared/config-store/tsconfig.json",
       "src/shared/config-store/workspace.js",
       "src/shared/feedback-map.js",
+      "src/shared/host-timer/README.md",
+      "src/shared/host-timer/host-timers.js",
+      "src/shared/host-timer/src/host-timers.ts",
+      "src/shared/host-timer/tsconfig.json",
       "src/shared/label-color/README.md",
       "src/shared/label-color/colors.js",
       "src/shared/label-color/ports.js",
@@ -6436,7 +6470,7 @@
       "src/tracker/rooms/gitlab/graph-membership.js",
       "src/tracker/rooms/gitlab/graph.js",
       "src/tracker/rooms/gitlab/idempotency.js",
-      "src/tracker/rooms/gitlab/index.js",
+      "src/tracker/rooms/gitlab/index.ts",
       "src/tracker/rooms/gitlab/issues.js",
       "src/tracker/rooms/gitlab/labels.js",
       "src/tracker/rooms/gitlab/normalize.js",
@@ -6500,6 +6534,8 @@
       "src/shared",
       "src/shared/config-store",
       "src/shared/config-store/src",
+      "src/shared/host-timer",
+      "src/shared/host-timer/src",
       "src/shared/label-color",
       "src/shared/label-color/src",
       "src/shared/refresh",
@@ -6550,6 +6586,8 @@
       "src/seam",
       "src/shared",
       "src/shared/config-store",
+      "src/shared/host-timer",
+      "src/shared/host-timer/src",
       "src/shared/label-color",
       "src/shared/label-color/src",
       "src/shared/refresh",
