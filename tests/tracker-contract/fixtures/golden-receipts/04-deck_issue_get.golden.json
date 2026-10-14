@@ -22,7 +22,7 @@
   "data": {
     "comments": [],
     "dependenciesRaw": null,
-    "excerpt": "<!-- DSH-IDEMPOTENCY-KEY: deck-a34e62a3-5666666 -->\n# 金标准演示票\n\n正文\n\n## 进度\n\n<!-- 做到哪一步了，在这里一行一行记 -->\n\nStatus: ready-for-agent\nType: task\nBlocked by:\nLabels: wayfinder:task\n\n## Comments\n\n\n## Answer\n\n",
+    "excerpt": "<!-- DSH-IDEMPOTENCY-KEY: deck-a34e62a3-5666666 -->\n<!-- created: <TIME> -->\n# 金标准演示票\n\n正文\n\n## 进度\n\n<!-- 做到哪一步了，在这里一行一行记 -->\n\nStatus: ready-for-agent\nType: task\nBlocked by:\nLabels: wayfinder:task\n\n## Comments\n\n\n## Answer\n\n",
     "landings": {
       "blockedBy": "说不好（这次没读回来，别当它已经建好）",
       "caveat": "这两个落点是从契约返回的字段读出来的；要精确知道这个后端把父子放在原生层级还是平级链接，看返回里本次写操作留下的 evidence（deck_map_link 会写）。",
@@ -36,7 +36,7 @@
     "section": null,
     "ticket": {
       "assignees": [],
-      "body": "<!-- DSH-IDEMPOTENCY-KEY: deck-a34e62a3-5666666 -->\n# 金标准演示票\n\n正文\n\n## 进度\n\n<!-- 做到哪一步了，在这里一行一行记 -->\n\nStatus: ready-for-agent\nType: task\nBlocked by:\nLabels: wayfinder:task\n\n## Comments\n\n\n## Answer\n\n",
+      "body": "<!-- DSH-IDEMPOTENCY-KEY: deck-a34e62a3-5666666 -->\n<!-- created: <TIME> -->\n# 金标准演示票\n\n正文\n\n## 进度\n\n<!-- 做到哪一步了，在这里一行一行记 -->\n\nStatus: ready-for-agent\nType: task\nBlocked by:\nLabels: wayfinder:task\n\n## Comments\n\n\n## Answer\n\n",
       "closedAt": "",
       "key": "01",
       "labels": [
