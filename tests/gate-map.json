@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-14T05:50:12.225Z",
+  "generatedAt": "2026-10-14T06:34:32.641Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 238,
   "gateCount": 238,
@@ -948,7 +948,6 @@
         "src/host",
         "src/host/platform",
         "src/host/refresh/wiring.js",
-        "src/host/tracker/backends",
         "src/seam",
         "src/shared",
         "src/tracker/registry/core.ts",
@@ -959,7 +958,6 @@
         "src/host",
         "src/host/platform",
         "src/host/refresh",
-        "src/host/tracker/backends",
         "src/seam",
         "src/shared",
         "src/tracker/registry",
@@ -968,7 +966,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 8 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 7 条"
     },
     {
       "step": "node tests/verify-1109-matches-timeout.ts",
@@ -5596,9 +5594,6 @@
       "node tests/verify-multi-effort-panel.js",
       "node tests/verify-907-chain-titles.js"
     ],
-    "src/host/tracker/backends": [
-      "node tests/verify-deck-tools-host-wiring.js"
-    ],
     "src/seam": [
       "node tests/verify-deck-tools-host-wiring.js",
       "node tests/verify-dependency-rules.ts",
@@ -6017,11 +6012,11 @@
   "coverage": {
     "sourceRoot": "src",
     "fileCount": 534,
-    "dirCount": 56,
+    "dirCount": 50,
     "coveredFileCount": 534,
     "ungatedFileCount": 0,
-    "ungatedDirCount": 6,
-    "dedicatedDirCount": 50,
+    "ungatedDirCount": 0,
+    "dedicatedDirCount": 49,
     "guardedFiles": [
       "src/client/floating/Pop.js",
       "src/client/floating/SkillFloatList.js",
@@ -6639,7 +6634,6 @@
       "src/host/platform/win32",
       "src/host/refresh",
       "src/host/tracker",
-      "src/host/tracker/backends",
       "src/seam",
       "src/shared",
       "src/shared/config-store",
@@ -6669,31 +6663,6 @@
       }
     ],
     "ungated": [],
-    "ungatedDirs": [
-      {
-        "path": "src/host/tools",
-        "reason": "这个目录（含子目录）下 0 个文件没有任何门禁覆盖：门禁没有直接读它们，门禁守着的模块也没有 import 它们"
-      },
-      {
-        "path": "src/host/tracker/backends",
-        "reason": "这个目录（含子目录）下 0 个文件没有任何门禁覆盖：门禁没有直接读它们，门禁守着的模块也没有 import 它们"
-      },
-      {
-        "path": "src/host/tracker/backends/github",
-        "reason": "这个目录（含子目录）下 0 个文件没有任何门禁覆盖：门禁没有直接读它们，门禁守着的模块也没有 import 它们"
-      },
-      {
-        "path": "src/host/tracker/backends/gitlab",
-        "reason": "这个目录（含子目录）下 0 个文件没有任何门禁覆盖：门禁没有直接读它们，门禁守着的模块也没有 import 它们"
-      },
-      {
-        "path": "src/host/tracker/backends/markdown",
-        "reason": "这个目录（含子目录）下 0 个文件没有任何门禁覆盖：门禁没有直接读它们，门禁守着的模块也没有 import 它们"
-      },
-      {
-        "path": "src/host/tracker/detection",
-        "reason": "这个目录（含子目录）下 0 个文件没有任何门禁覆盖：门禁没有直接读它们，门禁守着的模块也没有 import 它们"
-      }
-    ]
+    "ungatedDirs": []
   }
 }
