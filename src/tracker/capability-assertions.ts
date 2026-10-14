@@ -12,6 +12,11 @@
  * 所以三个工厂的返回标注已摘掉（见各工厂文件），形状的判定只收在这一个文件里：
  * 全仓唯一判定「能力齐不齐」的地方就是这里（规格 #1147 测试决策章）。
  *
+ * 各房自己交哪些成员、字面量形状长什么样，定义在三个房间文件里（形状跟着工厂走）。
+ * 为什么不把这些定义放在本文件：本文件的判定必须 import 三个工厂的类型，工厂又要用形状，
+ * 两边同住一处就成了 type-only 的环 —— #1136 把 src/tracker 收进门禁扫描域时当场抓到，
+ * 所以形状跟着工厂走、判定留在这里，方向单向：判定文件 → 房间。
+ *
  * 三条断言各管一个方向：
  * 1. 完整：工厂交出来的成员，一个不少地等于登记表里给它记的那一套（少写→红）。
  * 2. 同集：操作名录 + 定位口名录合起来，恰好等于 `Tracker` 的全部键（两边对不上→红）。
@@ -24,9 +29,9 @@
 
 import type { RoomOperations, Tracker } from './contract/operations.js'
 import type { OPERATIONS, LOCATORS } from './contract/operations-catalog.js'
-import type { createGithubBackend } from './rooms/github/backend.js'
-import type { createGitlabBackend } from './rooms/gitlab/index.js'
-import type { createMarkdownBackend } from './rooms/markdown/index.js'
+import type { GithubBackendMembers, createGithubBackend } from './rooms/github/backend.js'
+import type { GitlabBackendMembers, createGitlabBackend } from './rooms/gitlab/index.js'
+import type { MarkdownBackendMembers, createMarkdownBackend } from './rooms/markdown/index.js'
 
 /** 名录两段合起来的全部名字（25 个）。 */
 type _CapabilityName = (typeof OPERATIONS)[number] | (typeof LOCATORS)[number]
@@ -41,49 +46,10 @@ type _TrackerKeyMissingFromCatalog = _RequireNever<Exclude<Exclude<keyof Tracker
 /** 名录里有、Tracker 里没有的键：必须没有。 */
 type _CatalogNameMissingFromTracker = _RequireNever<Exclude<_CapabilityName, keyof Tracker>>
 
-// —— 各后端登记的成员集合：与 docs/tracker/capability-*.md 逐条对过 ——
-// 改成员先改表，再改这里，两处同一次提交。集合里带 `id`：它是身份不是能力
-// （名录里没有它），但实例上三个后端人人都有，形状里必须给它留位置。
-
-/** GitHub：24 条能力 + id（缺的只有 ensureLabelColorsFile，由注册表补桩）。 */
-export type GithubBackendMembers =
-  | 'id'
-  | 'preflight' | 'list' | 'counts' | 'listPage' | 'listSubIssues'
-  | 'get' | 'getDependencies' | 'create' | 'close' | 'reopen'
-  | 'comment' | 'update' | 'setLabels' | 'listLabels' | 'setLabelColors'
-  | 'setAssignees' | 'setParent' | 'setBlockedBy'
-  | 'getCurrentUser' | 'initProject'
-  | 'describe' | 'issueAddress' | 'getRepoKey' | 'getRepoPermissions'
-
-/** Markdown：22 条能力 + id（4 条显式“不支持”桩也在实例上；describe 等 3 条定位口住在模块对象，不在实例上）。 */
-export type MarkdownBackendMembers =
-  | 'id'
-  | 'preflight' | 'list' | 'counts' | 'listPage'
-  | 'get' | 'getDependencies' | 'create' | 'close' | 'reopen'
-  | 'comment' | 'update' | 'setLabels'
-  | 'setAssignees' | 'setParent' | 'setBlockedBy'
-  | 'listLabels' | 'setLabelColors' | 'ensureLabelColorsFile'
-  | 'getCurrentUser' | 'initProject' | 'getRepoPermissions' | 'listSubIssues'
-
-/** GitLab：15 条能力 + id（13 条操作 + describe/issueAddress；其余缺的都还没做）。 */
-export type GitlabBackendMembers =
-  | 'id'
-  | 'preflight' | 'list'
-  | 'get' | 'getDependencies' | 'create' | 'close' | 'reopen'
-  | 'comment' | 'update' | 'setLabels'
-  | 'setAssignees' | 'setParent' | 'setBlockedBy'
-  | 'describe' | 'issueAddress'
-
-/**
- * 三个后端交出来的字面量形状：工厂用 `satisfies` 挂它。
- *
- * 一挂三用：缺一条编译红（完整），多一条编译也红（`satisfies` 自带多余检查），
- * 字面量里的回调参数还能从契约签名里拿到上下文类型，不用逐个手写。
- * `satisfies` 编译完什么都不剩，运行时零影响。
- */
-export type GithubBackendShape = { [K in GithubBackendMembers]: Tracker[K] }
-export type GitlabBackendShape = { [K in GitlabBackendMembers]: Tracker[K] }
-export type MarkdownBackendShape = { [K in MarkdownBackendMembers]: Tracker[K] }
+// —— 各后端登记的成员集合与字面量形状住在各自的房间文件里（形状跟着工厂走，理由见文件头） ——
+// 改成员的规矩不变：先改对应后端的登记表（docs/tracker/capability-*.md），再改房间文件里的集合，
+// 两处同一次提交。集合里带 `id`：它是身份不是能力（名录里没有它），但实例上三个后端人人都有，
+// 形状里必须给它留位置。
 
 // —— 断言 1（完整）：工厂交出来的成员，一个不少地含登记的那一套 ——
 // 写法是约束：缺任何一个成员，`Record<登记集合, unknown>` 约束就不满足，编译红，且点名缺谁。

@@ -1,0 +1,19 @@
+{
+  "note": "房间（src/tracker/rooms/<名字>/）可以引用的房外目录：这份 JSON 是唯一真源（#1136 定的形态，决策见 docs/adr/20261014-tracker-room-boundary.md）。为什么不直接写在 .dependency-cruiser.cjs 里：dependency-cruiser 对配置的顶层键做白名单校验，多一个自定义键就直接拒绝启动（报 data must NOT have additional properties），所以登记表放在这份数据文件里，由规则文件与 tests/verify-dependency-rules.ts 共同读取 —— 一份数据、两个读者。房间说明 src/tracker/rooms/README.md 只指路，不抄第二份：抄两份正是这次漂移（#1136）的机制。每条必须写清「为什么在」与「归哪张票」，门禁的五条判据会逐条核对（活着 / 有名有据 / 不吃自己 / 不被吸收 / 报分母），写不出理由、或者匹配不到任何源码文件的条目过不了门禁。",
+  "protected": "^src/tracker/rooms/",
+  "entries": [
+    { "pattern": "^src/tracker/contract/", "why": "契约层：三房唯一公共面（纯类型与数据）", "ticket": 1014 },
+    { "pattern": "^src/tracker/preflight\\.(ts|js)$", "why": "判档与失败的统一入口（归位前是 src/host/tracker/preflight.js）", "ticket": 326 },
+    { "pattern": "^src/tracker/error-rules\\.(ts|js)$", "why": "判档规则表的唯一真源", "ticket": 326 },
+    { "pattern": "^src/tracker/identity-keys\\.(ts|js)$", "why": "身份键", "ticket": 326 },
+    { "pattern": "^src/tracker/detection/workspace-ownership\\.(ts|js)$", "why": "归属判定", "ticket": 1019 },
+    { "pattern": "^src/shared/tracker/", "why": "共享形状层：契约标准形状与老门禁时代就在给房间用的共享面", "ticket": 326 },
+    { "pattern": "^src/shared/label-color/", "why": "标签配色（自包含模块）", "ticket": 629 },
+    { "pattern": "^src/shared/refresh/", "why": "刷新（自包含模块）", "ticket": 711 },
+    { "pattern": "^src/shared/config-store/", "why": "配置存储（自包含模块）", "ticket": 1012 },
+    { "pattern": "^src/host/platform/", "why": "房间访问 OS 只经 platform", "ticket": 113 },
+    { "pattern": "^src/host/outbound/", "why": "宿主的出站执行控制面（超时档、准入闸）", "ticket": 1159 },
+    { "pattern": "^src/host/refresh/", "why": "宿主侧的搭车账本", "ticket": 1159 }
+  ],
+  "maxEntries": 12
+}

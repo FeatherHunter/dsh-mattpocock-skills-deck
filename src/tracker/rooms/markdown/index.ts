@@ -1,4 +1,4 @@
-import type { MarkdownBackendShape } from '../../capability-assertions.js'
+import type { Tracker } from '../../contract/operations.js'
 import type { RepositoryRef, Issue, Comment, LabelColor } from '../../contract/entities.js'
 import type { OpContext, RepoHandle } from '../../contract/contexts.js'
 import type { Actor } from '../../contract/identity.js'
@@ -20,6 +20,24 @@ import { failAs } from './error-fail.js'
 import nodePath from 'node:path'
 // 运行本文件时没有文件服务：声明一个最小的 process 视图（只读 platform 选换行那套路径实现）。
 declare const process: { platform?: string } | undefined
+
+// —— Markdown 交出来的成员：22 条能力 + id（4 条显式“不支持”桩也在实例上；describe 等 3 条定位口
+// 住在模块对象，不在实例上）——
+// 为什么集合与形状住在房间文件里：判定收在 src/tracker/capability-assertions.ts，而判定必须 import
+// 三个工厂的类型；形状若跟判定同住一处，两边就成了 type-only 的环（#1136 把 src/tracker 收进门禁
+// 扫描域时当场抓到）。方向单向：判定文件 → 房间。
+// 改成员先改对应后端的登记表（docs/tracker/capability-*.md），再改这里，两处同一次提交。
+export type MarkdownBackendMembers =
+  | 'id'
+  | 'preflight' | 'list' | 'counts' | 'listPage'
+  | 'get' | 'getDependencies' | 'create' | 'close' | 'reopen'
+  | 'comment' | 'update' | 'setLabels'
+  | 'setAssignees' | 'setParent' | 'setBlockedBy'
+  | 'listLabels' | 'setLabelColors' | 'ensureLabelColorsFile'
+  | 'getCurrentUser' | 'initProject' | 'getRepoPermissions' | 'listSubIssues'
+
+/** 交出来的字面量形状：工厂用 `satisfies` 挂它（缺一条、多一条都在编译期红）。 */
+export type MarkdownBackendShape = { [K in MarkdownBackendMembers]: Tracker[K] }
 function getPlat(ctx: OpContext | undefined){if(ctx&&ctx.platform&&ctx.platform.path)return ctx.platform.path;if(ctx&&ctx.path)return ctx.path;if(typeof process!=='undefined'&&process.platform==='win32')return nodePath.win32;return nodePath.posix}
 function isAbsolute(p: string,plat: { isAbsolute: (p: string) => boolean }){try{return plat.isAbsolute(p)}catch{return nodePath.isAbsolute(p)}}
 export async function matches(handle: RepoHandle, ctx: OpContext): Promise<boolean>{

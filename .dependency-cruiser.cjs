@@ -10,12 +10,15 @@
 // 而 dependency-cruiser 本身是纯 ESM 包。配置文件用 .cjs 后两种装包方式（npm / pnpm）下都不会有歧义。
 //
 // 怎么跑（在仓库根目录，手工复核用）：
-//   pnpm exec depcruise src\host src\shared src\seam --config .dependency-cruiser.cjs --output-type err-long --no-progress
+//   pnpm exec depcruise src\host src\shared src\seam src\tracker --config .dependency-cruiser.cjs --output-type err-long --no-progress
 // 正式门禁是 tests/verify-dependency-rules.ts，它把本配置跑一遍、再核对存量豁免清单，最后判红或判绿。
 // 退出码就是「error 级违规的条数」，所以命令行直接跑也能当门禁用。
 //
 // 三条口径上的约定（改本文件前先读这三条）：
-//   1. 只看 src/host、src/shared、src/seam 三棵树 —— 与两条老门禁的扫描域逐字相同。
+//   1. 只看 src/host、src/shared、src/seam、src/tracker 四棵树 —— 前三棵与两条老门禁的扫描域逐字相同；
+//      第四棵 src/tracker 是 #1136 补上的：房间（src/tracker/rooms/**）在那棵树里，而房间只靠 import 边
+//      入图，没人引的房间文件根本不进图（实测盘上 65 个房间源码只有 56 个进得来）。写进根清单之后，
+//      「图是完整的」就不再依赖「import 边碰巧够长」，房间纪律也才真的落在房间上。
 //      src/deck/** 是搬家后的目标树（#1019 起存在），由 tests/verify-dependency-rules.ts 的
 //      OPTIONAL_TREES 一起喂给引擎。它多数文件本来就被 src/host/tools/** 的 import 边带进图里，
 //      写进根清单是为了让「图是完整的」不靠 import 边碰巧够长：实测有两个文件
@@ -26,30 +29,33 @@
 //      老门禁是扫文本的，import type 那行同样带 from '...'，所以那时候也算；这里必须对齐，不能悄悄放松。
 //   3. 非字面量动态 import（例如 await import('./' + name + '.js')）是 dependency-cruiser 的盲区——
 //      解析器只在参数是字符串字面量时才产生依赖。老门禁的口径是「一律算违规」，这条严格度不能丢，
-//      所以由 tests/verify-dependency-rules.ts 用文本扫描补上（今天这三棵树里一条都没有）。
+//      所以由 tests/verify-dependency-rules.ts 用文本扫描补上（今天这四棵树里一条都没有）。
 
-// 房间（src/host/tracker/backends/<名字>/）可以引用的房外目录。
-// 这份白名单不是新写的：逐条照抄 tests/verify-no-cross-import.js 的 WHITELIST_RE，
-// 每条的来由见老门禁文件头与 docs/architecture/split-blueprint.md。
-const ROOM_WHITELIST = [
-  '^src/shared/tracker/',
-  '^src/shared/labels\\.js$',
-  '^src/shared/label-color/',
-  '^src/shared/refresh/',
-  '^src/shared/config-store/',
-  '^src/host/tracker/preflight\\.js$',
-  '^src/host/platform/',
-]
+// 房间（src/tracker/rooms/<名字>/）可以引用的房外目录，来自 tests/tracker-room-imports.json。
+//
+// **那份 JSON 是这份清单的唯一真源**（#1136 定的形态，决策见 docs/adr/20261014-tracker-room-boundary.md）：
+// 引擎经下面这行读它，门禁 tests/verify-dependency-rules.ts 直接读同一份文件 —— 一份数据、两个读者。
+// 为什么不把登记表直接写在配置里：dependency-cruiser 对配置的顶层键做白名单校验，多一个自定义键它就
+// 拒绝启动（报 data must NOT have additional properties），所以数据只能放在旁边的文件里。
+// 房间说明 src/tracker/rooms/README.md 只指路、不再抄第二份 —— 抄两份正是这次漂移（#1136）的机制。
+//
+// 每条必须写清「为什么在」与「归哪张票」：门禁的五条判据会逐条核对（活着 / 有名有据 / 不吃自己 /
+// 不被吸收 / 报分母），写不出理由、或者匹配不到任何源码文件的条目过不了门禁。
+const ROOM_IMPORTS = require('./tests/tracker-room-imports.json')
+const ROOM_IMPORT_PATTERNS = ROOM_IMPORTS.entries.map((entry) => entry.pattern)
 
 // deck 层深引的白名单：今天为空（src/host/tools/、src/shared/deck-tools/ 与未来的 src/deck/
-// 一处深引都没有）。格式与 ROOM_WHITELIST 同：写在这里的路径前缀放行。
+// 一处深引都没有）。格式与 ROOM_IMPORTS.entries 同：写在这里的路径前缀放行。
 const DECK_DEEP_IMPORT_WHITELIST = []
 
 module.exports = {
+  // 注意：登记表不在这里导出。dependency-cruiser 只认 forbidden / allowed / allowedSeverity /
+  // required / options / extends 这几个顶层键，多一个就拒绝启动；登记表在
+  // tests/tracker-room-imports.json，规则文件与门禁各自读它（一份数据、两个读者）。
   forbidden: [
     // ── 同层互引（老门禁 verify-no-same-layer-import 的判据，一条不丢）────────────────────
     // 层的划分与老门禁逐字相同：platform / host / shared / seam 四层；
-    // backends 三房间不算层（它们的同房间放行、跨房间禁止由下面的房间规则管）。
+    // src/tracker/rooms 三房间不算层（它们的同房间放行、跨房间禁止由下面的房间规则管）。
     {
       name: 'same-layer-import-platform',
       severity: 'error',
@@ -63,10 +69,10 @@ module.exports = {
       name: 'same-layer-import-host',
       severity: 'error',
       comment:
-        '同一层内部禁止互相 import（宿主层，即 src/host 去掉 platform 与 tracker/backends）。'
+        '同一层内部禁止互相 import（宿主层，即 src/host 去掉 platform）。'
         + '接线由装配文件负责，干活的文件之间不许互相引用。',
-      from: { path: '^src/host/', pathNot: ['^src/host/platform/', '^src/host/tracker/backends/'] },
-      to: { path: '^src/host/', pathNot: ['^src/host/platform/', '^src/host/tracker/backends/'] },
+      from: { path: '^src/host/', pathNot: ['^src/host/platform/'] },
+      to: { path: '^src/host/', pathNot: ['^src/host/platform/'] },
     },
     {
       name: 'same-layer-import-shared',
@@ -90,14 +96,15 @@ module.exports = {
       name: 'cross-room-import',
       severity: 'error',
       comment:
-        'github / gitlab / markdown 三个后端房间之间禁止互相 import，也不许引用房外白名单之外的目录。'
-        + '允许的方向只有三条：同房间内部、下面 ROOM_WHITELIST 列出的共享/宿主目录、Node 内置模块。'
-        + '白名单加一条要同时改本文件与 src/host/tracker/backends/README.md 的房间纪律一节。',
-      from: { path: '^src/host/tracker/backends/(github|gitlab|markdown)/' },
+        'github / gitlab / markdown 三个后端房间之间禁止互相 import，也不许引用房外登记表之外的目录。'
+        + '允许的方向只有三条：同房间内部、下面 ROOM_IMPORTS.entries 列出的共享/宿主目录、Node 内置模块。'
+        + '加一条例外只改本文件的 ROOM_IMPORTS（唯一真源）；src/tracker/rooms/README.md 只指路，不抄第二份。'
+        + '起点不写房名：房间名从 from.path 的捕获组里取（见下面 $1 的用法），将来加第四间房不用改这里。',
+      from: { path: '^src/tracker/rooms/([^/]+)/' },
       to: {
         path: '^src/',
         // $1 是 from.path 里捕获到的房间名：同房间放行靠它一句顶三条规则。
-        pathNot: ['^src/host/tracker/backends/$1/'].concat(ROOM_WHITELIST),
+        pathNot: ['^src/tracker/rooms/$1/'].concat(ROOM_IMPORT_PATTERNS),
       },
     },
     {
@@ -106,7 +113,7 @@ module.exports = {
       comment:
         '后端房间只许引 Node 内置模块，不许引任何第三方包（例如 ws）。'
         + '房间要发网络请求就走宿主注入的端口，不许自己挑实现。',
-      from: { path: '^src/host/tracker/backends/' },
+      from: { path: '^src/tracker/rooms/' },
       to: {
         dependencyTypes: [
           'npm',
@@ -124,32 +131,35 @@ module.exports = {
 
     // ── deck 层不许深引房间实现与探测内部（#1014 Q2 的「深引白名单」这一面）────────────────
     // Q2 的口径：deck 的文件只许连到契约层的公开入口（src/tracker/contract/），
-    // 连到房间实现（今天 src/host/tracker/backends/<名字>/，搬家后 src/tracker/rooms/<名字>/）
-    // 或探测内部（src/host/tracker/detection/）都算违规。
+    // 连到房间实现（src/tracker/rooms/<名字>/）、共享内核（src/tracker/kernel/，#1159 归口后的新目录）
+    // 或探测内部（src/tracker/detection/）都算违规。
     // from 里那几处就是 deck 的落点：src/host/tools/ 是九个 deck 工具的宿主侧实现，
     // src/shared/deck-tools/ 是它们共用的纯逻辑件；src/deck/ 是搬家后的目标树，今天还没有，
     // 提前写在这里，是为了搬家之后这条规则自己就跟上，不用再改一次配置。
-    // 白名单今天是空的（这三处一条深引都没有）；将来确有正当深引，加进 DECK_DEEP_IMPORT_WHITELIST，
-    // 并同时改 src/host/tracker/backends/README.md 的房间纪律一节。
+    // to 里的 src/tracker/kernel/ 同理：那个目录一建起来，deck 就必须照旧只连契约层，
+    // 不许借新目录绕开（#1159 的验收里有一条专门盯它）。
+    // 白名单今天是空的（这三处一条深引都没有）；将来确有正当深引，加进 DECK_DEEP_IMPORT_WHITELIST
+    // 这一处就够 —— 房间说明只指路，不抄第二份。
     {
       name: 'deck-deep-import',
       severity: 'error',
       comment:
-        'deck 层只许连契约层的公开入口（src/tracker/contract/），不许直接连房间实现或探测内部。'
+        'deck 层只许连契约层的公开入口（src/tracker/contract/），不许直接连房间实现、共享内核或探测内部。'
         + '需要后端的能力时，先把那件事加到契约层的公开面上，再从 deck 引它。',
       from: {
         path: '^(src/deck/|src/host/tools/|src/shared/deck-tools/)',
         pathNot: DECK_DEEP_IMPORT_WHITELIST,
       },
-      to: { path: '^(src/host/tracker/(backends|detection)/|src/tracker/rooms/)' },
+      to: { path: '^(src/tracker/rooms/|src/tracker/kernel/|src/host/tracker/detection/)' },
     },
 
     // ── 跨层深引（反方向）：今天先不上，理由记在这里，免得后来者以为是漏了 ──────────────────
-    // 反方向那条是「src/host/tracker/backends/** 只许 src/host/tracker/ 区域内部引用」。
-    // 今天上不了：真实的装配就在区域外——src/host/index.js 会按后端名动态加载
-    // ./tracker/backends/<名字>/client.js。硬加这条规则会当场把全链判红，
-    // 那就不是「只换判据的读取对象」，而是顺手改了架构。等 12 号收口、契约层公开入口立起来之后，
-    // 再由那时的工作线连同白名单一起上。
+    // 反方向那条是「src/tracker/rooms/** 只许被装配点与房间自身引用」（#1014 Q2 的另一面）。
+    // 今天上不了：真实的装配就在区域外——src/host/platformChannel.js 会按后端名动态加载房间的
+    // index.js，另有 src/host/index.js、issueDetail.js、publishFlow.js、remotePredicates.js 四处
+    // 直接连房间实现（5 个宿主文件、7 处 import）。硬加这条规则会当场把全链判红，
+    // 那就不是「只换判据的读取对象」，而是顺手改了架构。
+    // 归 #1161：先立装配点 src/tracker/registry/builtins.ts 把这几处收进去，再上线这条规则。
 
     // ── 纯规则侧只许算，不许碰世界（#1039 的 #1108 定版：纯侧不许引宿主能力）──────────────
     // src/deck/rules/ 是「纯规则侧」：只做计算，不取会话、不起进程、不读写文件、不读钟。

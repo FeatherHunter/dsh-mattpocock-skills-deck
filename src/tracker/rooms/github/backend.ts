@@ -5,7 +5,7 @@
  * 以后改后端装配的人改它。预估约 115 行。
  */
 
-import type { GithubBackendShape } from '../../capability-assertions.js'
+import type { Tracker } from '../../contract/operations.js'
 import type { OpContext, RepoHandle } from '../../contract/contexts.js';
 import type { Actor } from '../../contract/identity.js';
 import type { OpResult } from '../../contract/results.js';
@@ -26,6 +26,24 @@ import { listLabels, setLabelColors } from './label-colors-ops.js'
 import { setParent, getDependencies, setBlockedBy } from './graph.js'
 import { initProject } from './init-project.js'
 import { describe, issueAddress, getRepoKey } from './repo.js'
+
+// —— GitHub 交出来的成员：24 条能力 + id（缺的只有 ensureLabelColorsFile，由注册表补桩）——
+// 为什么集合与形状住在房间文件里：判定收在 src/tracker/capability-assertions.ts，而判定必须 import
+// 三个工厂的类型；形状若跟判定同住一处，两边就成了 type-only 的环（#1136 把 src/tracker 收进门禁
+// 扫描域时当场抓到）。方向单向：判定文件 → 房间。
+// 改成员先改对应后端的登记表（docs/tracker/capability-*.md），再改这里，两处同一次提交。
+// 集合里带 `id`：它是身份不是能力（名录里没有它），但实例上三个后端人人都有，形状里必须给它留位置。
+export type GithubBackendMembers =
+  | 'id'
+  | 'preflight' | 'list' | 'counts' | 'listPage' | 'listSubIssues'
+  | 'get' | 'getDependencies' | 'create' | 'close' | 'reopen'
+  | 'comment' | 'update' | 'setLabels' | 'listLabels' | 'setLabelColors'
+  | 'setAssignees' | 'setParent' | 'setBlockedBy'
+  | 'getCurrentUser' | 'initProject'
+  | 'describe' | 'issueAddress' | 'getRepoKey' | 'getRepoPermissions'
+
+/** 交出来的字面量形状：工厂用 `satisfies` 挂它（缺一条、多一条都在编译期红）。 */
+export type GithubBackendShape = { [K in GithubBackendMembers]: Tracker[K] }
 
 /**
  * Registry 身份：matches(handle, ctx) → boolean

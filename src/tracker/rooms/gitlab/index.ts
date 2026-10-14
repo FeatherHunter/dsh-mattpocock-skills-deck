@@ -14,7 +14,7 @@
  * 不要手改；宿主源码引用本文件时照旧写 './index.js'（开发期由 scripts/ts-hook.mjs 指到本文件）。
  */
 
-import type { GitlabBackendShape } from '../../capability-assertions.js'
+import type { Tracker } from '../../contract/operations.js'
 import type { BackendId } from '../../contract/identity.js'
 import type { RepositoryRef } from '../../contract/entities.js'
 import type { BackendContext, OpContext, RepoHandle } from '../../contract/contexts.js'
@@ -26,6 +26,22 @@ import { listIssues, getIssue, createIssue, closeIssue, reopenIssue, updateIssue
 import { addComment } from './comments.js'
 import { setLabels } from './labels.js'
 import { getDependencies, setBlockedBy, setParent, setAssignees } from './graph.js'
+
+// —— GitLab 交出来的成员：15 条能力 + id（13 条操作 + describe/issueAddress；其余缺的都还没做）——
+// 为什么集合与形状住在房间文件里：判定收在 src/tracker/capability-assertions.ts，而判定必须 import
+// 三个工厂的类型；形状若跟判定同住一处，两边就成了 type-only 的环（#1136 把 src/tracker 收进门禁
+// 扫描域时当场抓到）。方向单向：判定文件 → 房间。
+// 改成员先改对应后端的登记表（docs/tracker/capability-*.md），再改这里，两处同一次提交。
+export type GitlabBackendMembers =
+  | 'id'
+  | 'preflight' | 'list'
+  | 'get' | 'getDependencies' | 'create' | 'close' | 'reopen'
+  | 'comment' | 'update' | 'setLabels'
+  | 'setAssignees' | 'setParent' | 'setBlockedBy'
+  | 'describe' | 'issueAddress'
+
+/** 交出来的字面量形状：工厂用 `satisfies` 挂它（缺一条、多一条都在编译期红）。 */
+export type GitlabBackendShape = { [K in GitlabBackendMembers]: Tracker[K] }
 
 // 入参只取识别要用的两格，是因为 matches 只读工作区目录与仓库标识，拿全量会把无关字段搅进来。
 function repoId(handle: RepoHandle | Partial<RepositoryRef> | null | undefined): string {

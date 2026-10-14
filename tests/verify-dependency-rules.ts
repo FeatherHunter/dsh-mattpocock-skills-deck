@@ -15,6 +15,11 @@
 //       老门禁的口径是「一律算违规」（#1014 Q2 明确要求沿用这条严格度），所以由本文件用文本扫描补上。
 //   三、空间不许是空的：三棵树必须真实扫到源码文件、图上必须有模块。扫到 0 个一律判红——
 //      老门禁在「一个文件都没扫到」时照样打印 PASS，这正是本票要修的假绿。
+//   四、规则不许空转（#1136 补的四条结构判据 + 一条分母）：每条规则的起点、登记表每条条目都必须在
+//      磁盘上匹配到真实源码文件；登记表每条要写 why 与 ticket、条数不许超过只许减的上限；登记表不许
+//      匹配它所在规则要守的那类路径（「放宽白名单换假绿」的解药）；一条登记项不许覆盖另一条的全部
+//      见证文件。四条都是纯结构判据，不需要注入样本就能判 —— 正控与负控是验收手段，放样本门禁那侧。
+//      第五条是分母：绿灯行必须报出「命中几个房间模块 / 盘上几个」。
 //
 // 存量豁免：tests/same-layer-baseline.json 的 entries（键 file|resolved），只许减不许增。
 //   在册的边放行；不在册的新边判红；在册但图上已经没有的条目打 INFO，提示可以清理。
@@ -40,8 +45,11 @@ import { fileURLToPath } from 'node:url'
 import { scanCode } from '../scripts/gate-map.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
-// 与两条老门禁的扫描域逐字相同：只看这三棵树。src/client/** 不进图（那里同名 .js 是构建产物，会重复计数）。
-const SCAN_TREES = ['src/host', 'src/shared', 'src/seam']
+// 前三棵与两条老门禁的扫描域逐字相同。src/client/** 不进图（那里同名 .js 是构建产物，会重复计数）。
+// 第四棵 src/tracker 是 #1136 补上的：房间（src/tracker/rooms/**）在那棵树里，而房间只靠 import 边入图，
+// 没人引的房间文件根本不进图 —— 实测盘上 65 个房间源码只有 56 个进得来（缺的 9 个是 gitlab 房的
+// 8 个 .js 与 markdown/normalize.ts）。写进根清单，「图是完整的」和「房间纪律真有判域」才不靠边碰巧够长。
+const SCAN_TREES = ['src/host', 'src/shared', 'src/seam', 'src/tracker']
 // 第四棵树是「有就扫、没有也不算缺」：src/deck/ 是把 deck 业务代码搬过去之后的目标树
 // （CONTEXT.md 的 deck 重构词条里写着它的位置）。实测它多数文件本来就会被 src/host/tools/**
 // 的 import 边带进图里（37 个里 35 个），只有 src/deck/rules/index.ts 与
@@ -68,6 +76,11 @@ const EXPECTED_RULES = [
   'circular-dependency',
 ]
 const SAME_LAYER_RULE_PREFIX = 'same-layer-import-'
+// 起点为空对象（from: {}）的规则：只约束未来文件的规则必须在这里显式登记、写明理由，不许静默留空 ——
+// 「起点是空的」与「起点指错地方」在门禁上长得一模一样，而后者正是 #1136 的假绿成因。
+const EMPTY_SCOPE_RULES = ['circular-dependency'] // 环不是某一段路径的事，判据是整张图上的环，起点只能是空
+// 房间源码的口径（磁盘与图上都用它）：判据五「报分母」用。
+const ROOM_PATH_PREFIX = 'src/tracker/rooms/'
 
 type Violation = {
   from?: string
@@ -232,6 +245,218 @@ export function classifyViolations(
 }
 
 // ---------------------------------------------------------------------------
+// 二之二、五条判据：让「规则空转」与「白名单抄宽」在门禁上当场红（#1136）
+// ---------------------------------------------------------------------------
+//
+// 为什么要有这五条：这次的假绿不是「某条规则写错了」这么简单 —— 规则指着一个已经搬走的目录，
+// 图上一条边都咬不到，而门禁只核对「规则名在不在、severity 是不是 error」，于是照样判绿。
+// 前四条是纯结构判据，不需要注入样本就能判；第五条是分母，让绿灯行也算出一个具体的数：
+//   一、活着：规则起点与登记表条目都要落在磁盘上真实存在的源码文件上；
+//   二、有名有据：登记表每条要写 why 与 ticket，pattern 不重复，条数不许超过只许减的上限；   三、不吃自己：登记表条目不许匹配它所在规则要守的那类路径（放宽白名单换假绿的解药）；
+//   四、不被吸收：一条登记项不许覆盖另一条的全部见证文件（两条说的是同一件事就该删一条）。
+// 正控（注入一条确定违规的边，断言判红并点名）与负控（注入合法边，断言不红）是验收手段，
+// 放样本门禁那一侧，不当常驻判据用。
+
+type RoomImportEntry = { pattern?: string, why?: string, ticket?: number }
+type RoomImports = { protected?: string, entries?: RoomImportEntry[], maxEntries?: number }
+type ForbiddenRule = {
+  name?: string
+  severity?: string
+  from?: { path?: string | string[] }
+}
+
+/** 房间依赖登记表的位置。为什么不放在规则文件里：dependency-cruiser 只认它自己那几个顶层键
+ * （forbidden / allowed / allowedSeverity / required / options / extends），多一个自定义键就拒绝启动，
+ * 所以登记表是旁边的这份 JSON：规则文件 require 它、门禁直接读它 —— 一份数据、两个读者。 */
+const ROOM_IMPORTS_REL = 'tests/tracker-room-imports.json'
+
+/** 读规则文件里的 forbid 规则，以及房间依赖登记表（登记表见上面 ROOM_IMPORTS_REL）。 */
+function readGateConfig(): { forbidden: ForbiddenRule[], roomImports: RoomImports | null } | null {
+  let forbidden: ForbiddenRule[]
+  try {
+    const req = createRequire(import.meta.url)
+    const config = req('../.dependency-cruiser.cjs') as { forbidden?: ForbiddenRule[] }
+    forbidden = config.forbidden || []
+  } catch (e) {
+    return null
+  }
+  let roomImports: RoomImports | null = null
+  try {
+    roomImports = JSON.parse(readFileSync(join(ROOT, ROOM_IMPORTS_REL), 'utf8')) as RoomImports
+  } catch (e) {
+    roomImports = null
+  }
+  return { forbidden, roomImports }
+}
+
+/** 把依赖图给的文件路径统一成仓库相对路径（正斜杠）。图上给绝对路径还是相对路径，两种都认。 */
+export function toRepoRel(source: unknown): string {
+  const raw = String(source || '')
+  const slashed = raw.split('\\').join('/')
+  if (raw.includes(':') || slashed.startsWith('/')) return relative(ROOT, slashed).split('\\').join('/')
+  return slashed.replace(/^\.\//, '')
+}
+
+/** 一串正则里任意一条能匹配到磁盘上的源码文件，就算「有落点」。 */
+export function matchesAnyFile(patterns: string[], fileRels: string[]): boolean {
+  for (const p of patterns) {
+    if (!p) continue
+    let re: RegExp
+    try {
+      re = new RegExp(p)
+    } catch (e) {
+      continue
+    }
+    if (fileRels.some((f) => re.test(f))) return true
+  }
+  return false
+}
+
+/**
+ * 判据一（活着）：每条规则必须有起点判据，且起点、登记表条目都要在磁盘上匹配到真实源码文件。
+ * 只约束未来文件的规则要显式登记进 EMPTY_SCOPE_RULES 并写明理由 —— 不许静默留空，
+ * 因为「起点空着」和「起点指去了搬家前的旧目录」在门禁上长得一模一样，而后者正是这次的假绿。
+ */
+export function deadScopeProblems(
+  rules: ForbiddenRule[],
+  entries: RoomImportEntry[],
+  fileRels: string[],
+  emptyScopeAllowed: string[] = EMPTY_SCOPE_RULES,
+): string[] {
+  const problems: string[] = []
+  for (const rule of rules) {
+    if (!rule || rule.severity !== 'error') continue
+    const name = String(rule.name || '(未命名规则)')
+    const fromPath = rule.from ? rule.from.path : undefined
+    if (fromPath === undefined) {
+      if (!emptyScopeAllowed.includes(name)) {
+        problems.push('规则 ' + name + ' 的 from 里没有起点判据：只约束未来文件的规则要显式登记进 EMPTY_SCOPE_RULES 并写明理由，不许静默留空')
+      }
+      continue
+    }
+    const patterns = (Array.isArray(fromPath) ? fromPath : [fromPath]).map(String)
+    if (!matchesAnyFile(patterns, fileRels)) {
+      problems.push('规则 ' + name + ' 的起点 [' + patterns.join('、') + '] 在磁盘上一个源码文件都没匹配到 —— 起点可能仍指向搬家前的旧目录，这条规则今天一条边都咬不到')
+    }
+  }
+  for (const entry of entries) {
+    const pattern = String((entry && entry.pattern) || '')
+    if (!pattern) continue
+    if (!matchesAnyFile([pattern], fileRels)) {
+      problems.push('登记表条目 ' + pattern + ' 在磁盘上一个源码文件都没匹配到 —— 死条目，删掉或改对（放行清单里的死条目和死规则一样会骗人）')
+    }
+  }
+  return problems
+}
+
+/** 判据二（有名有据）：登记表每条要写 why 与正整数 ticket，pattern 不重复，条数不超上限。 */
+export function registryShapeProblems(registry: RoomImports | null): string[] {
+  const problems: string[] = []
+  if (!registry) {
+    problems.push('读不到房间依赖登记表 ' + ROOM_IMPORTS_REL + '：房间白名单必须是这份文件里的唯一真源，别处只许指路（#1136）')
+    return problems
+  }
+  if (!registry.protected || typeof registry.protected !== 'string') {
+    problems.push('ROOM_IMPORTS 缺 protected：要写清两条房间规则守的是哪类路径，「不吃自己」那条判据靠它')
+  }
+  const entries = Array.isArray(registry.entries) ? registry.entries : []
+  if (!entries.length) problems.push('ROOM_IMPORTS.entries 是空的：空集合不许当成「没有例外」')
+  const max = registry.maxEntries
+  if (!Number.isInteger(max) || (max as number) <= 0) {
+    problems.push('ROOM_IMPORTS 缺 maxEntries（只许减的条数上限），或它不是正整数')
+  } else if (entries.length > (max as number)) {
+    problems.push('登记表 ' + entries.length + ' 条，超过 maxEntries ' + max + '：这份清单只许减不许增')
+  }
+  const seen = new Set<string>()
+  entries.forEach((entry, i) => {
+    const pattern = String((entry && entry.pattern) || '')
+    const label = pattern || ('第 ' + (i + 1) + ' 条')
+    if (!pattern) problems.push('登记表第 ' + (i + 1) + ' 条没有 pattern')
+    else if (seen.has(pattern)) problems.push('登记表 pattern 重复：' + pattern)
+    else {
+      seen.add(pattern)
+      try {
+        new RegExp(pattern)
+      } catch (e) {
+        problems.push('登记表 pattern 不是合法正则：' + pattern)
+      }
+    }
+    if (!String((entry && entry.why) || '').trim()) problems.push('登记表 ' + label + ' 没有写 why（为什么可以放行）')
+    const ticket = entry ? entry.ticket : undefined
+    if (!Number.isInteger(ticket) || (ticket as number) <= 0) problems.push('登记表 ' + label + ' 的 ticket 不是正整数（要能追到是哪张票定的）')
+  })
+  return problems
+}
+
+/** 判据三（不吃自己）：登记表条目不许匹配规则自己要守的那类路径。 */
+export function selfEatingProblems(registry: RoomImports | null, fileRels: string[]): string[] {
+  const problems: string[] = []
+  if (!registry || !registry.protected || !Array.isArray(registry.entries)) return problems
+  let guard: RegExp
+  try {
+    guard = new RegExp(registry.protected)
+  } catch (e) {
+    return problems
+  }
+  for (const entry of registry.entries) {
+    const pattern = String((entry && entry.pattern) || '')
+    if (!pattern) continue
+    let re: RegExp
+    try {
+      re = new RegExp(pattern)
+    } catch (e) {
+      continue
+    }
+    const hits = fileRels.filter((f) => re.test(f) && guard.test(f))
+    if (hits.length) {
+      const sample = hits.slice(0, 3).join('、') + (hits.length > 3 ? ' 等 ' + hits.length + ' 个' : '')
+      problems.push('登记表条目 ' + pattern + ' 匹配到了规则自己要守的路径（' + sample + '）：白名单不许把它所在规则要守的东西吃掉，这正是「放宽白名单换假绿」那次绕过')
+    }
+  }
+  return problems
+}
+
+/** 判据四（不被吸收）：一条登记项不许覆盖另一条的全部见证文件（见证文件按磁盘源码近似）。 */
+export function absorbedEntryProblems(registry: RoomImports | null, fileRels: string[]): string[] {
+  const problems: string[] = []
+  if (!registry || !Array.isArray(registry.entries)) return problems
+  const sets = registry.entries.map((entry) => {
+    const pattern = String((entry && entry.pattern) || '')
+    let re: RegExp | null = null
+    try {
+      re = pattern ? new RegExp(pattern) : null
+    } catch (e) {
+      re = null
+    }
+    return { pattern, files: re ? fileRels.filter((f) => (re as RegExp).test(f)) : [] }
+  })
+  for (const a of sets) {
+    if (!a.files.length) continue
+    for (const b of sets) {
+      if (b === a || !b.files.length) continue
+      const bFiles = new Set(b.files)
+      if (a.files.every((f) => bFiles.has(f))) {
+        problems.push('登记表条目 ' + a.pattern + ' 的全部见证文件都落在 ' + b.pattern + ' 里：两条说的是同一件事，删掉被吸收的那条')
+      }
+    }
+  }
+  return problems
+}
+
+/** 判据五（报分母）用：图上有几个模块落在房间目录里（按 source 去重，同一文件可能出现两条）。 */
+export function countRoomModules(modules: unknown): number {
+  const list = Array.isArray(modules) ? modules : []
+  const sources = new Set<string>()
+  for (const m of list) {
+    const source = m && typeof m === 'object' ? (m as { source?: unknown }).source : undefined
+    if (!source) continue
+    const rel = toRepoRel(source)
+    if (rel.startsWith(ROOM_PATH_PREFIX)) sources.add(rel)
+  }
+  return sources.size
+}
+
+// ---------------------------------------------------------------------------
 // 三、扫描域：三棵树里到底有没有文件
 // ---------------------------------------------------------------------------
 
@@ -345,6 +570,93 @@ function selfCheck(): void {
   else fail('扫描域正常时不该报问题：' + JSON.stringify(p2))
 
   selfCheckPurityRules()
+  selfCheckRoomStructure()
+}
+
+/**
+ * 五条判据自己的夹具（#1136）：每条先证明「会红」，再证明「不误伤」，最后才拿去判真仓库。
+ * 为什么非要这一层：这五条读的是规则文件与磁盘清单，写松了（少一条循环、protected 写错、
+ * 把显式登记的空起点也当红）用肉眼看配置看不出来 —— 而它们正是这次假绿的解药。
+ */
+function selfCheckRoomStructure(): void {
+  const rels = [
+    'src/tracker/rooms/github/index.ts',
+    'src/tracker/rooms/gitlab/index.ts',
+    'src/tracker/contract/vocabulary.ts',
+    'src/tracker/contract/operations.ts',
+    'src/host/outbound/tiers.ts',
+  ]
+  const liveEntry: RoomImportEntry = { pattern: '^src/tracker/contract/', why: '契约层是房间的共用词汇表', ticket: 1014 }
+  const rules: ForbiddenRule[] = [
+    { name: 'cross-room-import', severity: 'error', from: { path: '^src/tracker/rooms/([^/]+)/' } },
+    { name: 'dead-rule', severity: 'error', from: { path: '^src/host/tracker/backends/' } },
+    { name: 'circular-dependency', severity: 'error', from: {} },
+  ]
+
+  // 判据一（活着）：起点指空目录的规则、匹配不到东西的登记条目，两个都要判红。
+  const dead = deadScopeProblems(rules, [liveEntry, { pattern: '^src/host/tracker/backends/', why: '旧路径', ticket: 1019 }], rels)
+  if (dead.length === 2 && dead.some((p) => p.includes('dead-rule')) && dead.some((p) => p.includes('backends'))) {
+    pass('判据一（活着）：起点指空目录的规则与死条目都被点名判红')
+  } else {
+    fail('判据一（活着）应同时报出死规则与死条目，实际 ' + dead.length + ' 条：' + JSON.stringify(dead))
+  }
+  const deadOk = deadScopeProblems([rules[0]], [liveEntry], rels)
+  if (deadOk.length === 0) pass('判据一（活着）不误伤：起点与条目都落在磁盘上时不报')
+  else fail('判据一（活着）误伤了正常起点或条目：' + JSON.stringify(deadOk))
+  const deadEmpty = deadScopeProblems([rules[2]], [], rels)
+  if (deadEmpty.length === 0) pass('判据一（活着）：显式登记的空起点（circular-dependency）跳过')
+  else fail('判据一（活着）把显式登记的空起点也判红了：' + JSON.stringify(deadEmpty))
+  const deadUnregistered = deadScopeProblems([{ name: 'some-future-rule', severity: 'error', from: {} }], [], rels)
+  if (deadUnregistered.length === 1) pass('判据一（活着）：没登记的空起点判红（不许静默留空）')
+  else fail('判据一（活着）漏了没登记的空起点：' + JSON.stringify(deadUnregistered))
+
+  // 判据二（有名有据）：缺 why、ticket 非法、pattern 重复、超上限、没有 pattern，五种坏形状都判红。
+  const okRegistry: RoomImports = { protected: '^src/tracker/rooms/', entries: [liveEntry], maxEntries: 12 }
+  const shapeOk = registryShapeProblems(okRegistry)
+  if (shapeOk.length === 0) pass('判据二（有名有据）不误伤：why 与 ticket 齐、条数没超上限')
+  else fail('判据二（有名有据）误伤了正常登记表：' + JSON.stringify(shapeOk))
+  const shapeBad = registryShapeProblems({
+    protected: '^src/tracker/rooms/',
+    entries: [{ pattern: '^src/tracker/contract/', why: '   ', ticket: 0 }, liveEntry, { why: '没有 pattern', ticket: 1 }],
+    maxEntries: 1,
+  })
+  const wants = ['why', 'ticket', 'maxEntries', '重复', '没有 pattern']
+  if (wants.every((w) => shapeBad.some((p) => p.includes(w)))) {
+    pass('判据二（有名有据）：缺 why、ticket 非法、pattern 重复、超上限、没有 pattern 都判红')
+  } else {
+    fail('判据二（有名有据）漏了某种坏形状：' + JSON.stringify(shapeBad))
+  }
+  if (registryShapeProblems(null).length === 1) pass('判据二（有名有据）：登记表整个不存在时判红')
+  else fail('判据二（有名有据）：登记表不存在时应当判红')
+
+  // 判据三（不吃自己）：把登记表放宽到覆盖房间目录，当场判红 —— 这次绕过的解药。
+  const eating = selfEatingProblems({ protected: '^src/tracker/rooms/', entries: [{ pattern: '^src/tracker/', why: '抄宽了', ticket: 1 }], maxEntries: 12 }, rels)
+  if (eating.length === 1 && eating[0].includes('^src/tracker/')) pass('判据三（不吃自己）：覆盖房间目录的宽条目判红')
+  else fail('判据三（不吃自己）没抓住覆盖房间目录的宽条目：' + JSON.stringify(eating))
+  const eatingOk = selfEatingProblems(okRegistry, rels)
+  if (eatingOk.length === 0) pass('判据三（不吃自己）不误伤：契约层那条不碰房间路径')
+  else fail('判据三（不吃自己）误伤：' + JSON.stringify(eatingOk))
+
+  // 判据四（不被吸收）：被更宽条目整个盖住的登记项判红，各管一块时都留。
+  const absorbed = absorbedEntryProblems({
+    protected: '^src/tracker/rooms/',
+    entries: [liveEntry, { pattern: '^src/tracker/contract/vocabulary\\.ts$', why: '被上面那条整个盖住', ticket: 1 }],
+    maxEntries: 12,
+  }, rels)
+  if (absorbed.length === 1 && absorbed[0].includes('全部见证文件')) pass('判据四（不被吸收）：被更宽条目整个盖住的登记项判红')
+  else fail('判据四（不被吸收）没抓住被吸收的条目：' + JSON.stringify(absorbed))
+  const absorbedOk = absorbedEntryProblems(okRegistry, rels)
+  if (absorbedOk.length === 0) pass('判据四（不被吸收）不误伤：只留一条时不报')
+  else fail('判据四（不被吸收）误伤：' + JSON.stringify(absorbedOk))
+
+  // 判据五（报分母）：图上的房间模块数按仓库相对路径数出来。
+  const counted = countRoomModules([
+    { source: join(ROOT, 'src/tracker/rooms/github/index.ts') },
+    { source: 'src/tracker/rooms/github/index.ts' },
+    { source: join(ROOT, 'src/host/index.js') },
+  ])
+  if (counted === 1) pass('判据五（报分母）：绝对路径与相对路径都认，且同一文件只数一次')
+  else fail('判据五（报分母）数错了房间模块，实际 ' + counted)
 }
 
 // ---------------------------------------------------------------------------
@@ -500,6 +812,8 @@ const configAbs = join(ROOT, CONFIG_REL)
 const binAbs = join(ROOT, DEPCRUISE_BIN_REL)
 
 let moduleCount = 0
+// 判据五（报分母）用：图上落在房间目录里的模块数（按 source 去重）。
+let roomModuleCount = 0
 let dependencyCount = 0
 let coreDependencyCount = 0
 const violations: Violation[] = []
@@ -535,6 +849,7 @@ if (!existsSync(configAbs)) {
       fail('依赖检查工具的输出不是 JSON：' + String((e as Error).message))
     }
     moduleCount = Array.isArray(parsed.modules) ? parsed.modules.length : 0
+    roomModuleCount = countRoomModules(parsed.modules)
     coreDependencyCount = countCoreDependencies(parsed.modules)
     dependencyCount = Number((parsed.summary && parsed.summary.totalDependenciesCruised) || 0)
     for (const v of (parsed.summary && parsed.summary.violations) || []) violations.push(v)
@@ -551,6 +866,29 @@ if (ruleSetUsed.length) {
   else pass('规则清单齐全（' + EXPECTED_RULES.length + ' 条）')
   if (downgraded.length) fail('这些规则的 severity 不是 error：' + downgraded.map((r) => String((r && r.name) || '')).join('、'))
   else pass('所有规则的 severity 都是 error')
+}
+
+// 四条结构判据（#1136）：规则不许空转、登记表不许抄宽。跑在真仓库的磁盘清单与规则文件上。
+// 为什么放在规则清单核对之后：先把「规则在不在、是不是 error」这层查完，再查「在的这条还咬不咬得到东西」。
+{
+  const gateConfig = readGateConfig()
+  if (!gateConfig) {
+    fail('读不出规则文件 ' + CONFIG_REL + '：起点是否活着、登记表是否抄宽都无从核对')
+  } else {
+    const rels = files.map((f) => f.rel)
+    const entries = gateConfig.roomImports && Array.isArray(gateConfig.roomImports.entries) ? gateConfig.roomImports.entries : []
+    const judgeProblems = [
+      ...registryShapeProblems(gateConfig.roomImports),
+      ...selfEatingProblems(gateConfig.roomImports, rels),
+      ...absorbedEntryProblems(gateConfig.roomImports, rels),
+      ...deadScopeProblems(gateConfig.forbidden, entries, rels),
+    ]
+    if (judgeProblems.length) {
+      for (const p of judgeProblems) fail(p)
+    } else {
+      pass('四条结构判据全过：起点都活着、登记表有名有据（' + entries.length + ' 条）、没吃掉自己、没有互相吸收')
+    }
+  }
 }
 
 // 存量豁免
@@ -585,6 +923,17 @@ for (const f of files) {
 const problems = scopeProblems(files, moduleCount)
 for (const p of problems) fail(p)
 if (!problems.length) pass('扫描域成立：' + files.length + ' 个源码文件，图上 ' + moduleCount + ' 个模块、' + dependencyCount + ' 条依赖边')
+
+// 判据五（报分母）：房间纪律今天到底在判几个文件 —— 绿灯行必须报得出这个数。
+// 没有分母时，「零违规」既可能是真的干净，也可能是规则一个人都没咬到（这次的假绿就是这样）。
+const roomFilesOnDisk = files.filter((f) => f.rel.startsWith(ROOM_PATH_PREFIX)).length
+if (!roomFilesOnDisk) {
+  fail('盘上一个房间源码都没有：房间纪律的判域是空的（房间目录可能又搬家了）')
+} else if (roomModuleCount < roomFilesOnDisk) {
+  fail('房间源码只进了 ' + roomModuleCount + '/' + roomFilesOnDisk + ' 个图：没进图的房间文件不受任何规则管（#1136 把 src/tracker 写进根清单就是为这件事）')
+} else {
+  pass('判据五（报分母）：房间源码 ' + roomModuleCount + ' 个全部进图（盘上 ' + roomFilesOnDisk + ' 个）')
+}
 
 // 判据的「词汇」还在不在：deck-rules-no-node-builtins 靠 core 这个类别名认内置模块。
 // 这一条查的是真图，不是配置文本 —— 上游改类别名时只有它能报出来。
@@ -637,4 +986,5 @@ if (failed) {
 console.log('\n引用方向门禁通过（同层 ' + (byRule.get('same-layer-import-platform') || 0) +
   ' + ' + (byRule.get('same-layer-import-host') || 0) +
   ' + ' + (byRule.get('same-layer-import-shared') || 0) +
-  ' + ' + (byRule.get('same-layer-import-seam') || 0) + ' 条存量已记名，房间纪律与禁循环零违规）')
+  ' + ' + (byRule.get('same-layer-import-seam') || 0) + ' 条存量已记名，房间纪律与禁循环零违规；' +
+  '房间模块 ' + roomModuleCount + '/' + roomFilesOnDisk + ' 个进图）')
