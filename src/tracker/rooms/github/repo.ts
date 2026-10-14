@@ -82,8 +82,13 @@ export const links = {
  * 第三键的唯一消费者是 #506 前端房（页签门控），一次一房纪律下本房只注释不改界面，契约类型声明不动。
  * R3 要求的前端门控五字段空态属于 #506 工作，已明确拒绝并留给 #506，本房不碰。 */
 export const capabilities = { labelsGuide: true, repoCreateChain: true, pullRequests: true }
-/** #231：开仓契约动作——url 型由 UI 以浏览器新窗打开 describe().url。 */
-export const openRepository = 'url'
+/** #231：开仓契约动作——url 型由 UI 以浏览器新窗打开 describe().url。
+ *
+ * 类型必须写成契约那个二选一（#1053）：只写 `= 'url'` 时，这个常量的类型虽然是字面量
+ * `'url'`，但 index.ts 的模块对象是「可变位置的属性引用」，TypeScript 会把字面量放宽成
+ * `string`——于是契约里的 `'url' | 'folder'` 对不上，注册表读到的是一句宽字符串。
+ * 写成显式联合类型（联合本身不是「新鲜字面量」）才不会被放宽。 */
+export const openRepository: 'url' | 'folder' = 'url'
 
 // ============ 仓库定位（async）：getRepoKey 迁移（原 host/index.js 三级 Tier 语义不变） ============
 /**
