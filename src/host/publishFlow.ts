@@ -102,15 +102,15 @@ export function createPublishFlow(deps: Deps) {
   // git 侧失败的统一信封（分类器认档 + 这一档对用户说什么）。
   //   #993 的两条要求就落在这里：属主那一档给「能照做的一句话」，unknown 那一档把 git 的原始
   //   报错原样交给用户 —— 认不出来却翻译成「权限不足」，正是这次要修掉的毛病。
-  function gitFail(errText: unknown) {
+  //
+  //   第二参数是调用方的工作区目录：修属主那一档要拼一句「照着跑就能修」的命令，而命令里的目录
+  //   必须是被 git 拒掉的那个工作区。原 .js 里这一支写的是 `|| cwd`，可 `cwd` 只是两个处理函数的
+  //   局部量、在 gitFail 里并不存在 —— 真走到这一档会抛 ReferenceError（错误分支反而崩掉）。
+  //   现在由调用方把 `cwd` 传进来，这一档才真的能给出修法。
+  function gitFail(errText: unknown, cwd: string) {
     const kind = classifyCreateError(errText, null)
     const raw = String(errText || '')
     if (kind === 'git-ownership') {
-      // 原文这里写的是 `|| cwd`，而 `cwd` 在 gitFail 的作用域里根本不存在——它只是 handleInitPublish /
-      //   handleRetryPush 的局部量。这一支真跑到会抛 ReferenceError「cwd is not defined」（原 .js 也如此）。
-      //   转换只求行为零变化，故原样保留、让编译器放行；真要修，应把工作区目录当参数传进来（不属 #1161
-      //   的接线范围，已记进票里等维护者拍板）。
-      // @ts-expect-error 见上：`cwd` 是原写法留下的悬空引用（TS2304）
       const cmd = safeDirectoryCommand(ownershipPathFrom(raw) || cwd)
       return {
         ok: false,
@@ -178,27 +178,27 @@ export function createPublishFlow(deps: Deps) {
     // 0. #994：动手改工作区之前的可用性关卡（属主不一致在这一步就被拦下并试着自愈，
     //    不会等到 git add 才炸；失败时这一步没有改动过这个目录）。
     const usable = await preflightWorkspaceGit(git, cwd)
-    if (!usable.ok) return gitFail(usable.text)
+    if (!usable.ok) return gitFail(usable.text, cwd)
     // 1. git init（若已是 git 仓库则跳过；含 getRepoRoot 探测 + 清缓存）
     try {
       if (!usable.notRepoYet) {
         // 探针已经证明这个目录在工作树里，git init 这一步不必再跑。
       } else {
         const initR = await gitExec([git, 'init'], cwd)
-        if (!initR.ok) return gitFail(initR.error)
+        if (!initR.ok) return gitFail(initR.error, cwd)
         // 失效 repoRoots 缓存（规整钥匙与写入侧同形，删除才删得中）
         const rk1 = await canonicalKey(cwd || DEFAULT_CWD)
         if (rk1 && repoRoots[rk1] !== undefined) delete repoRoots[rk1]
       }
     } catch (e) {
       const initR = await gitExec([git, 'init'], cwd)
-      if (!initR.ok) return gitFail(initR.error)
+      if (!initR.ok) return gitFail(initR.error, cwd)
       const rk2 = await canonicalKey(cwd || DEFAULT_CWD)
       if (rk2 && repoRoots[rk2] !== undefined) delete repoRoots[rk2]
     }
     // 2. git add .
     const addR = await gitExec([git, 'add', '.'], cwd)
-    if (!addR.ok) return gitFail(addR.error)
+    if (!addR.ok) return gitFail(addR.error, cwd)
     // 3. git commit --allow-empty（含 identity 缺失兜底）
     let commitR = await gitExec([git, 'commit', '-m', 'initial commit', '--allow-empty'], cwd)
     if (!commitR.ok) {
@@ -208,7 +208,7 @@ export function createPublishFlow(deps: Deps) {
         await gitExec([git, 'config', 'user.name', 'DSH User'], cwd)
         commitR = await gitExec([git, 'commit', '-m', 'initial commit', '--allow-empty'], cwd)
       }
-      if (!commitR.ok) return gitFail(commitR.error)
+      if (!commitR.ok) return gitFail(commitR.error, cwd)
     }
     // 4. 探测 remote origin 是否已存在（决定 gh 调用分支）
     let hasOrigin = false
@@ -249,7 +249,7 @@ export function createPublishFlow(deps: Deps) {
       }
       const pushR = await gitExec([git, 'push', '-u', 'origin', 'HEAD'], cwd)
       if (!pushR.ok) {
-        const gf = gitFail(pushR.error)
+        const gf = gitFail(pushR.error, cwd)
         // #420/#426 半成功：远端仓库已创建、仅本地推送失败 → 回带 repoUrl/repo/halfCreated，前端展示链接与重试入口
         const repoUrl = remoteUrl ? remoteUrl.replace(/\.git$/, '') : (currentUser ? ('https://github.com/' + currentUser + '/' + name) : undefined)
         const owner = currentUser || (repoUrl ? (repoUrl.split('/')[3] || '') : '')
@@ -297,7 +297,7 @@ export function createPublishFlow(deps: Deps) {
       try { const rkRetry = await canonicalKey(cwd || DEFAULT_CWD); setCache({ ts: 0, snapshot: null, error: null, cwd: rkRetry }) } catch (eCache) { try { setCache({ ts: 0, snapshot: null, error: null, cwd: null }) } catch {} /* #696 锚根失败兜底清全部（拿不出目录，仅此一条） */ }
       return { ok: true, repo: { owner: owner, name: name }, repoUrl: owner ? ('https://github.com/' + owner + '/' + name) : '' }
     }
-    const gf = gitFail(pushR.error)
+    const gf = gitFail(pushR.error, cwd)
     return { ok: false, errorKind: gf.errorKind, error: gf.error, repoUrl: repoUrl || undefined, repo: { owner: owner, name: name }, halfCreated: true }
   }
   function hash8(s: unknown) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
