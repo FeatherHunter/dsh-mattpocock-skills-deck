@@ -174,7 +174,7 @@ async function countsFromBackend(tracker, ref, ctx) {
  * @param {{get: (id: string) => Object|undefined}} registry trackerRegistry 实例（或等价 {get}）
  * @param {{snapshotTtl?: number, depsTtl?: number, logCtx?: {fire: Function, isEnabled: Function}}} [opts] 缓存 TTL（ms；默认 5000）；logCtx 可选，不传则静默（老调用方行为不变）
  * @returns {{
- *   composeSnapshot: (backendId: string, ref: import('../../shared/tracker/shape.js').RepositoryRef, ctx?: Object, o?: {force?: boolean}) => Promise<{ok: true, snapshot: import('../../shared/tracker/shape.js').Snapshot, cached?: boolean} | {ok: false, error: Object}>,
+ *   composeSnapshot: (backendId: string, ref: import('../../shared/tracker/shape.js').RepositoryRef, ctx?: Object, o?: {force?: boolean, ifNoneMatch?: string}) => Promise<{ok: true, snapshot: import('../../shared/tracker/shape.js').Snapshot, cached?: boolean} | {ok: false, error: Object}>,
  *   getDependencies: (backendId: string, ref: import('../../shared/tracker/shape.js').RepositoryRef, key: string, ctx?: Object) => Promise<{ok: true, data: Object, cached?: boolean} | {ok: false, error: Object}>,
  *   invalidateSnapshot: (backendId: string, ref: import('../../shared/tracker/shape.js').RepositoryRef) => void,
  *   invalidateDependencies: (backendId: string, ref: import('../../shared/tracker/shape.js').RepositoryRef, key?: string) => void,

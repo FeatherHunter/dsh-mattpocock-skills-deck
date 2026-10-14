@@ -253,13 +253,17 @@ export function createSessionRefresh(deps: RefreshDeps) {
                 backendModulesNoRepo = regMNo.modules().map(projectUiDescription)
               }
             } catch {}
-            // #1155 修正（本票唯一一处产物里有差异的行，取值不变）：
-            // 原式是 `typeof _sel !== 'undefined' ? _sel : (typeof _selEarly !== 'undefined' ? _selEarly : null)`。
-            // `_sel` 是本函数的第三个参数（调用方第 99 行把早选结果原样递进来），永远是「已定义」，
-            // 所以第一个分支恒成立、实际取到的就是 `_sel`；真正被报错的是后面那截永远走不到的死分支——
-            // `_selEarly` 这个名字在本文件里从来没有声明过（是从快照那条路抄过来的，快照那边它真声明过）。
-            // 把死分支去掉、只留 `_sel`，对这条路的任何输入取值都与改前相同，类型检查也不再报「找不到名字」。
-            const _selNoRepo = _sel
+            // #1155：这一行保留原文，只加一条 @ts-expect-error —— 两个原因都写在下面。
+            // 原式是 `typeof _sel !== 'undefined' ? _sel : typeof _selEarly !== 'undefined' ? _selEarly : null`。
+            // 为什么取值与只写 `_sel` 完全相同：走到这里时，上面那道 `if (!_sel || !_sel.backendId) { … return … }`
+            // 的闸已经把「没有后端」的输入返回掉了，`_sel` 一定是对象，所以第一个分支恒成立；后面那截
+            // `_selEarly` 在本文件里从来没有声明过（是从快照那条路抄过来的，那边它真声明过），而 `typeof`
+            // 读一个未声明的名字不抛错、求值为 'undefined'，所以那一截永远取不到。
+            // 保留原文而不是删掉死分支，有两个原因：一是它是「疑似缺陷」的现场，按票面该单独验证、不该在
+            // 补标注的票里顺手改掉（真缺陷另开票）；二是原文保留下来，转译产物才与标注前逐字节一致
+            // （#1155 验收第 3 条）。
+            // @ts-expect-error `_selEarly` 这个名字在本文件不存在（TS2304）；运行期那条 typeof 守卫不会抛。
+            const _selNoRepo = typeof _sel !== 'undefined' ? _sel : typeof _selEarly !== 'undefined' ? _selEarly : null
             // 共用信封：仓库都认不出来时那份空快照与 wf.snapshot 同形。
             const snapNoRepo = env!.buildSnap({
               repo: null, repoRoot: repoRootNoRepo, workspaceRoot: cwd,

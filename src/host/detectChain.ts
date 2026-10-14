@@ -13,7 +13,12 @@ import { getChainRide } from './refresh/chain-ride.js'   // #964 小账本住共
 type Check = import('../shared/tracker/chain-types.js').Check
 type CheckItem = import('../shared/tracker/chain-types.js').CheckItem
 type Platform = import('./platform/index.js').Platform
-type PredicateContext = import('./tracker/predicatePrimitives.js').PredicateContext
+// 谓词上下文这一格不在上面那排「按类型引用取」里：predicatePrimitives.js 与本文件同属 host 层，
+//   同层互引门禁只放行在册的存量边（tests/same-layer-baseline.json 只许减不许增），所以就地声明。
+//   真源是 src/host/tracker/predicatePrimitives.js 的 JSDoc 契约（platform / backendId / cwd / signal /
+//   extras）：那边加了字段、改了名字，这里要跟着改。按本文件的老规矩只列真正读到的格子——
+//   正文里只读 pctx.cwd 与 pctx.lang 两格（lang 是宿主在契约之上额外喂的那一格）。
+type PredicateContext = { cwd?: string; lang?: string }
 type PreflightExec = import('../tracker/detection/preflightScope.js').PreflightExec
 type FixDecl = import('../tracker/fix-contract.js').FixDecl
 

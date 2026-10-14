@@ -350,7 +350,12 @@ const snapSrc = read('src/host/sessionSnapshot.ts')
     }
     mirrorOne('host/sessionSnapshot.ts')
     const broken2 = path.join(mirror, 'host', 'sessionSnapshot.mjs')
-    fs.writeFileSync(broken2, snapSrc.replace(from2, 'return s'), 'utf8')
+    // 快照源文件是 .ts（#1155 起带类型标注）：写进 .mjs 之前先按仓库自己的转译口径剥掉类型，否则这一份
+    //   改坏了的源码会在解析阶段就 SyntaxError，反证根本跑不到比较那一步。转译参数只写在
+    //   scripts/lib/transpile-unit.mjs 那一份，这里取现成的，与生产侧同一套口径。
+    const { TRANSPILE_OPTIONS } = await import('../scripts/lib/transpile-unit.mjs')
+    const broken2Src = (await import('esbuild')).transformSync(snapSrc, TRANSPILE_OPTIONS).code
+    fs.writeFileSync(broken2, broken2Src.replace(from2, 'return s'), 'utf8')
     const mod2 = await import(pathToFileURL(broken2).href)
     const cached = { ok: true, generatedMs: 1, maps: [], issues: [], labels: [], selection: { backendId: 'github', source: 'auto' } }
     const cache = { ts: Date.now(), snapshot: cached, error: null, cwd: 'D:\\ws' }

@@ -190,7 +190,9 @@ async function main() {
       const src = read('src/host/snapshotInflight.ts')
       must(src.indexOf('ongoing.isForce === true || !isForce') >= 0, '真源里找得到非对称规则那一行（反证靶点存在）')
       const patched = src.split('ongoing.isForce === true || !isForce').join('false')
-      const copyPath = nodePath.join(tmp, 'snapshotInflight-broken.mjs')
+      // 夹具内容是 .ts 源码，写成 .mjs 的话 Node 不会剥类型，import 时会在解析阶段就 SyntaxError；
+      //   写成 .ts 交给 Node 自己的类型剥离（与生产侧同一套源码），改坏的那三行判据一字未动。
+      const copyPath = nodePath.join(tmp, 'snapshotInflight-broken.ts')
       fsx.writeFileSync(copyPath, patched)
       const brokenMod = await import(pathToFileURL(copyPath).href)
       const goodMod = await import(url('src/host/snapshotInflight.ts'))

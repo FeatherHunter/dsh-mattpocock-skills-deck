@@ -89,14 +89,15 @@ export function createSnapshotEnvelope(deps: EnvelopeDeps) {
   // 类型说明（#1155）：落盘那一步是接线处给的回调，它的返回形状在这一层表达不出来，
   // 所以按调用方传进来的类型原样还回去（运行时不碰，只是把类型跟过去）。
   // 这里必须保持 async（原样就是 async）：调用方按承诺等它，产物里也必须是 async 函数。
+  // 读字段时用的是「就地断言」写法（`(snap as SnapLike).x`）而不是先赋一个别名变量：断言只给编译器看，
+  // 转译时整段消失，所以产物与标注前逐字节相同（#1155 验收第 3 条）。
   async function adoptSnapLog<T>(snap: T, c: unknown): Promise<T> {
     try {
       const logCtx = d.logCtx
-      const s = snap as SnapLike
-      if (logCtx && snap && s.fromCache !== true) {
-        const _d: DeckLike = (s.deck && typeof s.deck === 'object') ? s.deck : {}
+      if (logCtx && snap && (snap as SnapLike).fromCache !== true) {
+        const _d: DeckLike = ((snap as SnapLike).deck && typeof (snap as SnapLike).deck === 'object') ? ((snap as SnapLike).deck as DeckLike) : {}
         const _ct = (_d.counts && typeof _d.counts === 'object') ? _d.counts : null
-        logCtx.fire('info', 'snapshot.built', { maps: (s.maps || []).length, issues: (s.issues || []).length, labels: (s.labels || []).length, open: _ct ? _ct.open : -1, closed: _ct ? _ct.closed : -1, partial: _d.partial === true, latencyMs: Date.now() - (s.generatedMs || Date.now()) })
+        logCtx.fire('info', 'snapshot.built', { maps: ((snap as SnapLike).maps || []).length, issues: ((snap as SnapLike).issues || []).length, labels: ((snap as SnapLike).labels || []).length, open: _ct ? _ct.open : -1, closed: _ct ? _ct.closed : -1, partial: _d.partial === true, latencyMs: Date.now() - ((snap as SnapLike).generatedMs || Date.now()) })
       }
     } catch (e) {}
     return d.adoptSnapshot(snap, c) as T
@@ -116,14 +117,13 @@ export function createSnapshotEnvelope(deps: EnvelopeDeps) {
    * 回包不是 ok:true（失败那种）、或接线处没给读数函数，都原样返回：不挂字段，
    * 也不能把一份失败的快照伪装成成功的。
    *
-   * 类型说明（#1155）：回包形状由各条电话自己定，这里按调用方传进来的类型原样还回去。
+   * 类型说明（#1155）：回包形状由各条电话自己定，这里按调用方传进来的类型原样还回去；
+   * 读 `ok` 与挂字段处都用「就地断言」（`(reply as …).ok`），断言转译时消失，产物与标注前逐字节相同。
    */
   function withChainReadout<T>(reply: T): T {
-    if (!reply || typeof reply !== 'object') return reply
-    const r = reply as { ok?: unknown; [key: string]: unknown }
-    if (r.ok !== true) return reply
+    if (!reply || typeof reply !== 'object' || (reply as { ok?: unknown }).ok !== true) return reply
     if (typeof d.chainReadout !== 'function') return reply
-    try { r[d.chainField || 'sessionTickets'] = d.chainReadout() } catch (eR) { /* 读数取不到不影响这份快照本身 */ }
+    try { (reply as { [key: string]: unknown })[d.chainField || 'sessionTickets'] = d.chainReadout() } catch (eR) { /* 读数取不到不影响这份快照本身 */ }
     return reply
   }
 

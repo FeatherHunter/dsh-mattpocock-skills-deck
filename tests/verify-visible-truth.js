@@ -19,6 +19,9 @@
 //（与 scripts/build.mjs 拼接时同一套做法：剥掉行首 export，丢进同一个作用域里跑）。
 const fs = require('fs')
 const path = require('path')
+// 转译参数从仓库唯一那一份取（scripts/lib/transpile-unit.mjs 写明这组参数只在那处写、别处各抄一份会静默分叉）；
+// 从 CJS require 一个 .mjs，与 tests/verify-file-granularity.js 里 require('../scripts/lib/effective-lines.mts') 是同一种用法。
+const { TRANSPILE_OPTIONS } = require('../scripts/lib/transpile-unit.mjs')
 const { compileFn } = require('./lib/eval-probe.js')
 
 const ROOT = path.resolve(__dirname, '..')
@@ -28,11 +31,31 @@ const fail = function (msg) { problems.push(msg); failed = true }
 
 /** 把一份「一源两物」的源文件当模块跑起来：剥行首 export，作用域里塞进它在拼接闭包里的邻居。 */
 function loadModule(relPath, deps) {
-  const src = fs.readFileSync(path.join(ROOT, relPath), 'utf8')
+  let src = fs.readFileSync(path.join(ROOT, relPath), 'utf8')
+  if (relPath.endsWith('.ts')) {
+    // 源码是 .ts：先按仓库自己的转译口径剥掉类型（转译参数只写在 scripts/lib/transpile-unit.mjs 那一份，
+    //   这里取现成的，不另抄一套），再照下面同一套「剥行首 export、当函数体编译」的读法加载。
+    //   少了这一步，`type X = …` 会在编译函数时当场 SyntaxError —— 类型标注只给编译器看，运行期行为
+    //   一个字没变，剥掉之后跑的就是真正跑的那段代码。
+    src = require('esbuild').transformSync(src, TRANSPILE_OPTIONS).code
+  }
   const names = []
   const re = /^[ \t]*export[ \t]+(?:const|let|var|function|class)[ \t]+([A-Za-z_$][\w$]*)/gm
   let m
   while ((m = re.exec(src)) !== null) names.push(m[1])
+  // esbuild 把导出收成文件末尾一条 `export { … };`（本仓 scripts/lib/transpile-unit.mjs 里同名的处理叫
+  //   inlineExportDeclarations，scripts/build.mjs 只是 import 它）：这里把它翻成同一份返回对象的键，
+  //   并把这行从函数体里切掉。
+  const trailing = /\nexport \{([^}]*)\};?\s*$/.exec(src)
+  if (trailing) {
+    for (const piece of trailing[1].split(',')) {
+      const entry = piece.trim()
+      if (!entry) continue
+      const asMatch = /^([A-Za-z_$][\w$]*)\s+as\s+([A-Za-z_$][\w$]*)$/.exec(entry)
+      names.push(asMatch ? asMatch[2] + ': ' + asMatch[1] : entry)
+    }
+    src = src.slice(0, trailing.index)
+  }
   if (!names.length) throw new Error(relPath + ' 里没有找到 export 声明')
   const body = src.replace(/^[ \t]*export[ \t]+/gm, '')
   const deps_ = Object.keys(deps)
