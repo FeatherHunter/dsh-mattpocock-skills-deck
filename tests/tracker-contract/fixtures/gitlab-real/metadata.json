@@ -1,8 +1,8 @@
 {
-  "source": "glab api 逐条采 19 条（表见 tests/tracker-contract/gitlab-endpoints.ts）：project-get、project-permissions、current-user、user-by-username、issue-create、issues-list、issues-list-capped、issue-patch、issue-get-with-labels、notes-list、note-create、links-list、link-get、link-delete、issue-statistics、labels-list、labels-list-paged、label-patch、milestones-list",
+  "source": "glab api 逐条采 20 条（表见 tests/tracker-contract/gitlab-endpoints.ts）：project-get、project-permissions、current-user、user-by-username、issue-create、issues-list、issues-list-capped、issue-patch、issue-get-with-labels、notes-list、note-create、links-list、link-create、link-get、link-delete、issue-statistics、labels-list、labels-list-paged、label-patch、milestones-list",
   "repo": "FeatherHunter/dsh-gitlab-sandbox",
   "refId": "FeatherHunter/dsh-gitlab-sandbox",
-  "sampledAt": "2026-10-14T21:21:34.379Z",
+  "sampledAt": "2026-10-14T21:31:45.305Z",
   "sampledBy": "scripts/generate-gitlab-fixtures.ts",
   "host": "gitlab.com",
   "sampleIssues": {
@@ -17,31 +17,7 @@
     ],
     "applied": true
   },
-  "failures": [
-    {
-      "id": "link-create",
-      "request": "POST projects/FeatherHunter%2Fdsh-gitlab-sandbox/issues/2/links",
-      "error": "glab api projects/FeatherHunter%2Fdsh-gitlab-sandbox/issues/2/links --method POST -f target_project_id=FeatherHunter%2Fdsh-gitlab-sandbox -f target_issue_iid=1 -f link_type=relates_to 失败：glab: 404 Project Not Found (HTTP 404)"
-    }
-  ],
-  "fallbacks": [
-    {
-      "id": "link-create",
-      "reason": "采样前置：用远端认的写法把样本链接建起来，好让链接明细与删除两条采得到",
-      "argv": [
-        "api",
-        "projects/FeatherHunter%2Fdsh-gitlab-sandbox/issues/2/links",
-        "--method",
-        "POST",
-        "-f",
-        "target_project_id=87643301",
-        "-f",
-        "target_issue_iid=1",
-        "-f",
-        "link_type=relates_to"
-      ]
-    }
-  ],
+  "failures": [],
   "skipped": [],
   "fields": {
     "raw": [

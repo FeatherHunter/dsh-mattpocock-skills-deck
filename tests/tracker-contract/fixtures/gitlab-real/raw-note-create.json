@@ -1,5 +1,5 @@
 {
-  "id": 4015721604,
+  "id": 4015775036,
   "type": null,
   "body": "dsh-1179-sample 采样写的一条评论（#1179），可以删。",
   "author": {
@@ -12,8 +12,8 @@
     "avatar_url": "https://secure.gravatar.com/avatar/a8d72f23d9594e26310476e0d420f097e6a3cc08b2c5ec0d7b3c17c42181d455?s=80&d=identicon",
     "web_url": "https://gitlab.com/FeatherHunter"
   },
-  "created_at": "2026-10-14T21:21:20.771Z",
-  "updated_at": "2026-10-14T21:21:20.771Z",
+  "created_at": "2026-10-14T21:31:30.453Z",
+  "updated_at": "2026-10-14T21:31:30.453Z",
   "system": false,
   "noteable_id": 206624665,
   "noteable_type": "Issue",

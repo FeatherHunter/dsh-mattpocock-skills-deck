@@ -103,7 +103,7 @@
   "import_type": null,
   "import_status": "none",
   "import_error": null,
-  "open_issues_count": 4,
+  "open_issues_count": 6,
   "description_html": "<p data-sourcepos=\"1:1-1:156\" dir=\"auto\">DSH 插件跟踪器（tracker）GitLab 房间的联调沙箱：只用来采集真实的接口回包做契约测试样本，不放任何真实工作内容。</p>",
   "updated_at": "2026-10-14T21:10:02.700Z",
   "ci_default_git_depth": 20,

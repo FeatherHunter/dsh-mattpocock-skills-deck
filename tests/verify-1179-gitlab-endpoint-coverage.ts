@@ -602,6 +602,24 @@ check(
   writeWithoutFields.length === 0,
   '写请求都写清了要带什么参数' + (writeWithoutFields.length ? '：' + writeWithoutFields.map((e) => e.id).join('、') : ''),
 )
+/**
+ * 项目引用的两种写法不许换用（#1181 那次误判留下的教训）：
+ * 拼进地址那一格要用编码过的 `{id}`，当表单参数的值要用原样的 `{ref}`。
+ * 换用了，采回来的就是一条房里根本不会发的请求 —— 2026-10-15 那次就采回一份 404，
+ * 还照着它给本房开了一张「挂父子关系写不上去」的错票。这条断言让人不再靠记忆守这件事。
+ */
+const swappedProjectRef = GITLAB_ENDPOINTS.filter((e) => {
+  const request = e.request || ''
+  // `{ref}` 是表单参数专用的原样写法，拼进地址那一格会被远端当成另一个仓库。
+  if (/\{ref\}/.test(request)) return true
+  // 表单参数的值不许直接写成 `{id}`（地址那一份编码值）：编码值不经过 URL 解码，远端认不出来。
+  return (e.fields || []).some((f) => f.slice(f.indexOf('=') + 1) === '{id}')
+})
+check(
+  swappedProjectRef.length === 0,
+  '项目引用的两种写法没换用（地址那一格写 {id}、表单参数那一格写 {ref}）' +
+    (swappedProjectRef.length ? '：' + swappedProjectRef.map((e) => e.id).join('、') : ''),
+)
 
 console.log('\n—— 四、登记表里的请求，形状与写法自洽 ——')
 /** 两段查询串是不是同一组参数：键要逐位相同，值可以不同 —— 形状里写成 `{}` 的那一位本来就是变量。 */

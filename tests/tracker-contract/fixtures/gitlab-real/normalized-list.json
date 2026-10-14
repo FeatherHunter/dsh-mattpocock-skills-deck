@@ -1,5 +1,51 @@
 [
   {
+    "key": "7",
+    "effortId": "",
+    "type": "issue",
+    "title": "dsh-1179-sample-created",
+    "state": "open",
+    "body": "采样时新建的一张票（#1179），可以删。",
+    "url": "https://gitlab.com/FeatherHunter/dsh-gitlab-sandbox/-/work_items/7",
+    "createdAt": "2026-10-14T21:31:21.651Z",
+    "updatedAt": "2026-10-14T21:31:21.651Z",
+    "closedAt": null,
+    "parentKey": null,
+    "labels": [],
+    "assignees": [],
+    "comments": [],
+    "blockedBy": [],
+    "reason": "",
+    "author": {
+      "login": "FeatherHunter",
+      "name": "王辰浩",
+      "avatarUrl": "https://secure.gravatar.com/avatar/a8d72f23d9594e26310476e0d420f097e6a3cc08b2c5ec0d7b3c17c42181d455?s=80&d=identicon"
+    }
+  },
+  {
+    "key": "6",
+    "effortId": "",
+    "type": "issue",
+    "title": "dsh-1179-sample-created",
+    "state": "open",
+    "body": "采样时新建的一张票（#1179），可以删。",
+    "url": "https://gitlab.com/FeatherHunter/dsh-gitlab-sandbox/-/work_items/6",
+    "createdAt": "2026-10-14T21:29:58.281Z",
+    "updatedAt": "2026-10-14T21:29:58.281Z",
+    "closedAt": null,
+    "parentKey": null,
+    "labels": [],
+    "assignees": [],
+    "comments": [],
+    "blockedBy": [],
+    "reason": "",
+    "author": {
+      "login": "FeatherHunter",
+      "name": "王辰浩",
+      "avatarUrl": "https://secure.gravatar.com/avatar/a8d72f23d9594e26310476e0d420f097e6a3cc08b2c5ec0d7b3c17c42181d455?s=80&d=identicon"
+    }
+  },
+  {
     "key": "5",
     "effortId": "",
     "type": "issue",
@@ -77,7 +123,7 @@
     "body": "采样用的子工单（#1179）。可以删。",
     "url": "https://gitlab.com/FeatherHunter/dsh-gitlab-sandbox/-/work_items/2",
     "createdAt": "2026-10-14T21:10:05.536Z",
-    "updatedAt": "2026-10-14T21:21:02.650Z",
+    "updatedAt": "2026-10-14T21:30:12.545Z",
     "closedAt": null,
     "parentKey": null,
     "labels": [
@@ -105,7 +151,7 @@
     "body": "采样用的地图工单（#1179）。可以删。",
     "url": "https://gitlab.com/FeatherHunter/dsh-gitlab-sandbox/-/work_items/1",
     "createdAt": "2026-10-14T21:10:02.508Z",
-    "updatedAt": "2026-10-14T21:21:02.744Z",
+    "updatedAt": "2026-10-14T21:30:07.357Z",
     "closedAt": null,
     "parentKey": null,
     "labels": [],

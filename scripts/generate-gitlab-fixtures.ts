@@ -47,6 +47,12 @@ function arg(name: string, fallback: string): string {
 
 const repo = arg('--repo', repoDefault)
 const outDir = path.resolve(arg('--out', outDefault))
+/**
+ * 同一份项目引用，位置不同写法就不同，别混用（#1181 就是这么踩的）：
+ *   - 拼进地址那一格（`projects/<这里>/issues/...`）要做百分号编码，斜杠是仓库名的一部分；
+ *   - 当表单参数的值（`-f target_project_id=<这里>`）要用原样路径 `repo`。
+ * 编码过的那一份当表单值发出去，远端会当成另一个仓库，回 `404 Project Not Found`。
+ */
 const projectId = encodeURIComponent(repo)
 
 /** 跑一次 glab，把 stdout 原样带回来。参数走数组：集中扫描器把拼串的命令行判成注入形状，别那么写。 */
@@ -192,24 +198,20 @@ async function main(): Promise<void> {
   const childIssue = ensureIssue(SAMPLE_PREFIX + '-child', '采样用的子工单（#1179）。可以删。')
   const label = ensureLabel(SAMPLE_PREFIX)
 
-  // 关系那一组的前置：先把「子票 → 地图票」那条链接建起来，好让链接明细与链接删除两条能采到真回话。
-  // 本房今天那一种写法（target_project_id 传已编码的项目路径）在真远端上是什么结果，由下面
-  // link-create 那一条自己采回来 —— 不在这里替它下结论，也不用它当采样前置（它会被拒）。
-  // 这里用的是远端认的写法：target_project_id 传数字项目编号。
-  const fallbacks: { id: string; reason: string; argv: string[] }[] = []
-  const projectNumeric = String((glabApi('projects/' + projectId, 'GET', []) as { [k: string]: unknown })['id'] ?? '')
-  let linkId: string | null = findLinkId(childIssue.iid, mapIssue.iid)
-  if (!linkId) {
-    const setupArgv = apiArgv('projects/' + projectId + '/issues/' + childIssue.iid + '/links', 'POST', [
-      'target_project_id=' + projectNumeric,
-      'target_issue_iid=' + String(mapIssue.iid),
-      'link_type=relates_to',
-    ])
-    glabApiArgv(setupArgv)
-    linkId = findLinkId(childIssue.iid, mapIssue.iid)
-    fallbacks.push({ id: 'link-create', reason: '采样前置：用远端认的写法把样本链接建起来，好让链接明细与删除两条采得到', argv: setupArgv })
+  // 关系那一组的前置：链接不在这里建 —— 它就该由下面 link-create 那一条自己建起来，那正是本房挂关系时
+  // 发出去的请求（src/tracker/rooms/gitlab/graph-membership.ts 的 setParent：地址那一格用编码过的项目
+  // 路径，表单参数 target_project_id 用项目引用原样）。两种写法写反了远端会回 404 Project Not Found ——
+  // 那是采样脚本自己的错，不是本房的错（#1181）。
+  // 这里只做一件打扫：上一次采样若留下了同一条链接，先删掉，好让 link-create 采到的是一次真的新建，
+  // 而不是「这条关系已经有了」的 409 —— 409 也是真回话，但它答的不是「新建一条关系」这个问题。
+  let staleLinkId: string | null = findLinkId(childIssue.iid, mapIssue.iid)
+  if (staleLinkId) {
+    glabApi('projects/' + projectId + '/issues/' + childIssue.iid + '/links/' + staleLinkId, 'DELETE', [])
+    staleLinkId = findLinkId(childIssue.iid, mapIssue.iid)
+    if (staleLinkId) {
+      throw new Error('上一次采样留下的样本链接删不掉（编号 ' + staleLinkId + '），link-create 采不到新建那一下。')
+    }
   }
-  if (!linkId) throw new Error('样本链接建不起来、也回读不到它的编号，关系那一组没法采。')
 
   const notes = glabApi('projects/' + projectId + '/issues/' + mapIssue.iid + '/notes', 'GET', []) as unknown
   const hasNote = Array.isArray(notes) && (notes as { [k: string]: unknown }[]).some((n) => String(n['body'] || '').includes(SAMPLE_PREFIX))
@@ -220,10 +222,12 @@ async function main(): Promise<void> {
   }
 
   const ctx: { [key: string]: string } = {
+    // 地址那一格用编码过的 id，表单参数那一格用原样的 ref —— 两个都在，别互相顶替（#1181）。
     id: projectId,
+    ref: repo,
     iid: String(mapIssue.iid),
     child: String(childIssue.iid),
-    link_id: String(linkId),
+    // link_id 此刻还不存在：它由下面 link-create 那一条真建出来之后回读得到，采到那一步再补进来。
     label_id: String(label.id),
     username: String(me['username']),
     page: '1',
@@ -266,6 +270,13 @@ async function main(): Promise<void> {
       raw[ep.id] = { 采样失败: { 请求: ep.method + ' ' + request, 实参: argv, 报错: message } }
       failures.push({ id: ep.id, request: ep.method + ' ' + request, error: message })
       console.log('  采不到 ' + ep.id + '：' + message)
+    }
+    // link-create 真建起来之后，链接自己的编号才存在：从列表回读它，补进上下文，
+    // 好让后面「读一条关系明细」与「删一条关系」两条采得到真回话。列表行里的 id 是对面那张票的编号，
+    // 链接自己的编号在 issue_link_id 那一格 —— 别拿错（findLinkId 就是干这件事的）。
+    if (ep.id === 'link-create' && sampled.includes(ep.id)) {
+      const created = findLinkId(childIssue.iid, mapIssue.iid)
+      if (created) ctx['link_id'] = created
     }
   }
 
@@ -317,8 +328,6 @@ async function main(): Promise<void> {
     desensitization: { rules: DESENSITIZATION_RULES, applied: true },
     /** 这次真发出去但被远端拒掉的端点：raw-<id>.json 里存的就是那份失败原文。 */
     failures,
-    /** 为了把链接编号拿到手而换写法重发的那一次（不是本房的采样，见 reason）。 */
-    fallbacks,
     /** 这次一条请求都没发的端点与原因（表里 request 为空，或上下文里缺占位符）。 */
     skipped,
     fields: {

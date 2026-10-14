@@ -27,12 +27,20 @@ export interface GitlabEndpointSpec {
   readonly shape: string
   /**
    * 采一次真样本时要发的那条请求，占位符由生成脚本替换：
-   * `{id}` 项目路径（已做百分号编码）、`{iid}` 地图那张样本工单、`{child}` 子样本工单、
+   * `{id}` 项目路径（已做百分号编码，拼地址用）、`{ref}` 项目引用原样（没编码，表单参数用）、
+   * `{iid}` 地图那张样本工单、`{child}` 子样本工单、
    * `{link_id}` 关系编号、`{label_id}` 标签编号、`{username}` 登录名、`{page}` 页码。
    * 这一条这次不采就写 null，并在 skipReason 里说清为什么。
+   *
+   * 同一份项目引用，位置不同写法就不同，两个占位符不许换用（#1181 踩过）：
+   * 拼进地址那一格要做百分号编码，斜杠是仓库名的一部分；当表单参数的值要用原样路径。
+   * 编码过的那一份当表单值发出去，远端会把它当成另一个仓库，回 `404 Project Not Found`。
    */
   readonly request: string | null
-  /** 要带上去的 `-f 键=值` 参数（POST/PUT 才有）；GET 一律不写。值里也可以用上面那些占位符。 */
+  /**
+   * 要带上去的 `-f 键=值` 参数（POST/PUT 才有）；GET 一律不写。值里也可以用上面那些占位符，
+   * 但项目引用只能写 `{ref}` —— 表单值不经过 URL 解码，写 `{id}` 就是上面那个 404。
+   */
   readonly fields?: readonly string[]
   /** request 为 null 时必须写：为什么这一条这次不采。 */
   readonly skipReason?: string
@@ -137,7 +145,7 @@ export const GITLAB_ENDPOINTS: readonly GitlabEndpointSpec[] = [
     method: 'POST',
     shape: 'projects/{}/issues/{}/links',
     request: 'projects/{id}/issues/{child}/links',
-    fields: ['target_project_id={id}', 'target_issue_iid={iid}', 'link_type=relates_to'],
+    fields: ['target_project_id={ref}', 'target_issue_iid={iid}', 'link_type=relates_to'],
     note: '挂关系：setParent（relates_to）与 setBlockedBy（blocks）都从子票这一头发起',
   },
   {
