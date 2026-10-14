@@ -1,6 +1,6 @@
 // verify-log-fields.js —— #494 第三件事：日志门禁之字段白名单（#489 附录第 4 节断言一）。
 // 用法：在插件根目录执行 node tests/verify-log-fields.js，可独立运行。
-// 断言文字：扫描全部埋点调用，每个事件只含第 1 节允许字段（#746 增补常驻 #90 naming.summary，#782 增补常驻 #92 cwd.persisted，#817 增补常驻 #94 git.exec 与 #95 git.exec.fail，#864 增补按需 #96 vc.cache.screen，#958 增补按需 #97 labelColors.listed，#1048 增补按需 #98 detection.step 并给常驻 #16 detection.detect 补四键，#1131 增补按需 #99 detection.cache.hit（缓存命中那一行：这一次没重算、直接把上一次的判定回给了调用方））；
+// 断言文字：扫描全部埋点调用，每个事件只含第 1 节允许字段（#746 增补常驻 #90 naming.summary，#782 增补常驻 #92 cwd.persisted，#817 增补常驻 #94 git.exec 与 #95 git.exec.fail，#864 增补按需 #96 vc.cache.screen，#958 增补按需 #97 labelColors.listed，#1048 增补按需 #98 detection.step 并给常驻 #16 detection.detect 补六键，#1131 增补按需 #99 detection.cache.hit（缓存命中那一行：这一次没重算、直接把上一次的判定回给了调用方），#1054 增补常驻 #100 edge.write（关系边写没写下去、走的哪条路、为什么）与按需 #101 edge.cycle、#102 edge.roster、#103 edge.repair（成环检查、邻接关系来源、REST 树边修复三条调试线））；
 // 出现工作区原始路径、仓库地址原文、令牌原文、模板正文、快照全文即红。
 // 做法：从宿主与客户端源码里找出全部日志调用，逐个事件收拢实际字段键，
 // 与下面这张允许表逐项比对；未知事件名、未知字段键都算失败并打印清单。
@@ -12,7 +12,7 @@ let failed = false
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
-console.log('日志字段白名单门禁（#494/#498/#548/#618/#652/#655/#690/#709/#724/#782/#817/#864/#958/#1048/#1131：95 事件逐个只记已知安全字段，未知字段默认不记）')
+console.log('日志字段白名单门禁（#494/#498/#548/#618/#652/#655/#690/#709/#724/#782/#817/#864/#958/#1048/#1131/#1054：99 事件逐个只记已知安全字段，未知字段默认不记）')
 
 // 允许表：事件名对应它能记的全部字段键，之外的键一律不许出现。
 // 键名取自实现原文，语义与 #489 附录 1.4、1.5 节对照表一致。
@@ -34,12 +34,17 @@ const ALLOWED = {
   'registry.select': ['cwdHash', 'backendId', 'source', 'latencyMs', 'caller'],
   'registry.stub': ['op', 'backendId'],
   // 2026-10-14（#1048）：常驻 #16 `detection.detect` 从「判定链条上的一处埋点」改成「统一判定出口
-  //   每个工作区一条结论」，字段随之增补四键：origin 这条结论来自哪一层（workspace-file 工作区文件 /
+  //   每个工作区一条结论」，字段随之增补六键：origin 这条结论来自哪一层（workspace-file 工作区文件 /
   //   declaration 声明文件 / autodetect 各房认领）、state 三态（decided 判到了 / no-backend 确实没有 /
-  //   undetermined 判不出来）、latencyMs 这一趟判了多久、conflict 有没有互相矛盾的两处认领（空串表示没有）。
-  //   原有五键一个不改：cwdHash 工作区散列、explicit 是不是文件里明写的、matches 命中数、pending 待定、
-  //   selection 选中结果。落点由 src/host/detectChain.ts 挪到 src/tracker/detection/backendDecision.ts（出口一处）。
-  'detection.detect': ['cwdHash', 'explicit', 'matches', 'pending', 'selection', 'origin', 'state', 'latencyMs', 'conflict'],
+  //   undetermined 判不出来）、latencyMs 这一趟判了多久、conflict 有没有互相矛盾的两处认领（空串表示没有）、
+  //   gap 判不出来时那一档的名字（空串表示没有这一档，取值见结果里的 gap.id）、coverage 这一趟真看了哪几层
+  //   （形如 checked=workspace-file,declaration;skipped=autodetect:skipped-stronger-evidence）。
+  //   后两键的意义：三态与档位必须与返回给调用方的那一份**同源**（从前结论线按赢家现推，四类「判不出来」
+  //   的场景日志写 no-backend、结果写 undetermined —— 日志在骗人），覆盖度则回答「没发现矛盾是真没有，
+  //   还是这一层根本没看」。原有五键一个不改：cwdHash 工作区散列、explicit 是不是文件里明写的、
+  //   matches 命中数、pending 待定、selection 选中结果。落点由 src/host/detectChain.ts 挪到
+  //   src/tracker/detection/backendDecision.ts（出口一处）。
+  'detection.detect': ['cwdHash', 'explicit', 'matches', 'pending', 'selection', 'origin', 'state', 'latencyMs', 'conflict', 'gap', 'coverage'],
   // 2026-10-14（#1048）新增按需 #98 `detection.step`：判定链每一步一行（看了哪一层、这一层什么结论、
   //   花了多久、为什么），只在调试开关打开时记；结论线（常驻 #16）不开开关也有。字段五个，全是短枚举、
   //   数字与后端标识，不记路径原文：step 哪一步（workspace-file / declaration / autodetect / claim-order）、
@@ -54,6 +59,32 @@ const ALLOWED = {
   //   （例如 wf.listLabels、detection-service）、ageMs 这一格缓存存了多久（毫秒）。落点：
   //   src/tracker/detection/detectionService.ts 的 detect 命中工作区缓存、直接返回上一次结果的那一支。
   'detection.cache.hit': ['cwdHash', 'caller', 'ageMs'],
+  // 2026-10-14（#1054）新增四条：关系（父子边与阻塞边）写入这一族的轨迹。为什么要有它们：
+  //   写一条边要跨出进程问远端（原生旗或裸接口），而落点从前只有 gh.exec 那一层「命令跑了、退出码几」，
+  //   回答不了「这条边到底挂上没挂上、走的哪条路、为什么没写成」—— #1100 报的「补边整批中止、
+  //   一条都没落」正是从这个盲区里来的。
+  //   ① 常驻 #100 `edge.write`（信息级）：setParent / setBlockedBy 各一趟一行，成功与失败都记。
+  //      为什么定常驻：边是人和 AI 的显式动作（一次建图十几步），查「这条边怎么没挂上」的人不会先打开调试开关。
+  //      允许字段八个，全是枚举、布尔与计数，**票号、命令原文、上游报错原文一个字都不记**：
+  //      kind 这一次写的是父子边还是阻塞边（parent / block）、route 走的哪条路（none 没走到外部调用 /
+  //      flag 原生旗 / rest 裸接口）、ok 成没成、added 真落了几条、removed 真撤了几条、
+  //      kept 对账之后发现「本来就在位」几条（含上游回 already been taken 的那几条）、
+  //      reason 为什么是这个结论（noop / added / removed / diff / fail:<档位>）、latencyMs 这一趟花了多久。
+  //   ② 按需 #101 `edge.cycle`（调试级）：成环检查一趟的结论。为什么定按需：写一条阻塞边就可能查一次。
+  //      字段四个：verdict 结论（ok 没成环 / conflict 成环 / unknown 邻接关系没取到、这一趟按不成环放行）、
+  //      nodes 邻接表里几张票、blockers 这一次拟写入几条边、latencyMs。
+  //   ③ 按需 #102 `edge.roster`（调试级）：邻接关系从哪儿来。字段四个：source 来源
+  //      （roster 名册 / full-scan 整仓拉取 / none 一条都没走通）、complete 名册拿全没有、dirty 待定向重读几张、latencyMs。
+  //      这个键叫 source 而不叫 path：#1054 初稿用了 path，而第四段的「原文类键名」名单里就有 path，当场红。
+  //   ④ 按需 #103 `edge.repair`（调试级）：REST 降级回包里那次树边修复。字段四个：
+  //      maps 这一趟问了几张地图、linked 认下几条子票边、failed 哪几张地图没补成、latencyMs。
+  //   三条调试线都在调用处先判一次 `isEnabled('debug')`，关闭时连字段对象都不组装。
+  //   落点：src/tracker/rooms/github/graph.ts（edge.write、edge.cycle）、cycle-check.ts（edge.roster）、
+  //   parent-repair.ts（edge.repair）。
+  'edge.write': ['kind', 'route', 'ok', 'added', 'removed', 'kept', 'reason', 'latencyMs'],
+  'edge.cycle': ['verdict', 'nodes', 'blockers', 'latencyMs'],
+  'edge.roster': ['source', 'complete', 'dirty', 'latencyMs'],
+  'edge.repair': ['maps', 'linked', 'failed', 'latencyMs'],
   'workspaceStore.hit': ['keyHash', 'fresh', 'ttlMs'],
   // 2026-09-25 登记订正（#709 · T5）：这一条的落点已经变成「被退避挡下，直接把上一份快照回给界面」，
   //   实现记的是 keyHash、lang、deferred、reason、waitMs 五个键；从前的 ageMs 早已不再发射，

@@ -1,5 +1,5 @@
 /**
- * tracker/detection/detectionService.js — 探测级联编排（~80 行二联骨架 + 增量预留）
+ * tracker/detection/detectionService.ts — 探测级联编排（~80 行二联骨架 + 增量预留）
  *
  * 第一性原理（#150 7项 + #151 聚合向导式 + #149 9项映射 + #113 + 契约 §2）：
  *  - 四层严格：前端只调 wf.detect/wf.chain（#284：九格目录视图与 wf.status 已退役）；探测零 OS 直碰（仅 platform.fs/exec/path/env）；
@@ -32,7 +32,7 @@ function buildOpContextBase(cwd, platform, fs, timers, exec, via, logCtx) {
     cwd,
     platform,
     fs: fs || (platform && platform.fs) || null,
-    // OpContext 契约 = BackendContext & {cwd, signal}；BackendContext 必含 exec（contract.js）。
+    // OpContext 契约 = BackendContext & {cwd, signal}；BackendContext 必含 exec（src/tracker/contract/contexts.ts）。
     // #幽灵修复：preflight 的 ghClient/glab 依赖 ctx.exec 执行 gh/glab——缺失时假报 env 失败
     // （"ctx.exec unavailable"→被 wf.chain 谓词呈为「gh 未找到」链步）。
     // #606:exec 外面包一层，把「这条链叫什么」传给起进程的接缝，日志才答得出「由谁触发」。

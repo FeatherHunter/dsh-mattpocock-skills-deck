@@ -1,5 +1,5 @@
 /**
- * tracker/detection/parseIssueTracker.js — 主锚结构化解析（~60 行骨架）
+ * tracker/detection/parseIssueTracker.ts — 主锚结构化解析（~60 行骨架）
  *
  * 第一性原理（#149 R + #150 Q1/Q6 + 契约 §2 + #113 D1/D6）：
  *  - 主锚 = `docs/agents/issue-tracker.md`（技能集唯一后端指针；人读模板非机器配置，Q4 不回写）

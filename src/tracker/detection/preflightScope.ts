@@ -1,5 +1,5 @@
 /**
- * tracker/detection/preflightScope.js — 一次评估里的环境预检复用（#709 · T5 补）
+ * tracker/detection/preflightScope.ts — 一次评估里的环境预检复用（#709 · T5 补）
  *
  * 要解决的问题（票面硬要求）：环境预检（登录态「gh auth status」、仓库可达「gh api repos/…」）
  * 不是实时数据，一次检查链求值里却被问了两遍 —— 探测级联的 preflight 问一遍，后端链的两个谓词
@@ -26,7 +26,7 @@
  *
  * 日志：新增内存复用位这一类东西要留日志点（AGENTS.md 的埋点纪律）。按 docs/design/335-logging-contract.md
  * 第 3 章判定，它属于「调用次数少、但要看得见命中/未命中」的那一类，所以记成**按需**（debug 级，
- * 只在调试开关打开时落盘），由调用方（src/host/detectChain.js）在这一次求值结束时记一行
+ * 只在调试开关打开时落盘），由调用方（src/host/detectChain.ts）在这一次求值结束时记一行
  * chain.preflight.reuse：只记工作区短指纹、两个枚举（检查名、这次是复用还是真问）与条数，
  * 不记命令原文、不记路径原文。
  * 本文件自己不记 —— 它不持有宿主那套日志出口，也不该为了记一行去要一个。

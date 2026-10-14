@@ -1,4 +1,5 @@
-// src/shared/tracker/workspaceOwnership.js —— 「这个工作区的属主是不是当前运行用户」的单一判断。
+// src/tracker/detection/workspace-ownership.ts —— 「这个工作区的属主是不是当前运行用户」的单一判断。
+// （#1019 目录归位时从 src/shared/tracker/workspaceOwnership.js 搬到这里并改成 TypeScript。）
 //
 // 为什么要有这个文件（票 #993 与 #994 共用，别说成其中一张票的私货）：
 //   · #994 要的是预防：动手之前先问一次「git 能不能在这个工作区里干活」；

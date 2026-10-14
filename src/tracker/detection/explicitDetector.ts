@@ -1,5 +1,5 @@
 /**
- * tracker/detection/explicitDetector.js — 显式分支（~40 行）
+ * tracker/detection/explicitDetector.ts — 显式分支（~40 行）
  *
  * 第一性原理（#150 Q4 + #149 9→契约映射 + #113 平台层）：
  *  - 显式这一层只有一份记录：工作区配置文件 `docs/agents/workspace.yaml`（#1138 起；

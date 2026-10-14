@@ -1,5 +1,5 @@
 /**
- * tracker/detection/workspaceStore.js — per-workspace 状态隔离（~80 行）
+ * tracker/detection/workspaceStore.ts — per-workspace 状态隔离（~80 行）
  *
  * 第一性原理（#150 Q3 + #118 D1 + 契约 §2 + #113 可测性 + snapshot 双缓存正交）：
  *  - 键 = handleKey = cwd|refId（复用 registry handleKey 语义，Registry 268 行 handleKey 逻辑镜像）
