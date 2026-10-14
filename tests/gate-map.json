@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-14T20:05:19.094Z",
+  "generatedAt": "2026-10-14T21:07:04.139Z",
   "generatedBy": "node scripts/gate-map.mjs",
-  "chainLength": 254,
-  "gateCount": 254,
-  "attributedGates": 225,
+  "chainLength": 255,
+  "gateCount": 255,
+  "attributedGates": 226,
   "unattributedGates": 29,
   "buildOutputOnlyGates": 19,
   "completionRecordedGates": 6,
@@ -5767,6 +5767,23 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 8 条"
     },
     {
+      "step": "node tests/verify-1179-gitlab-endpoint-coverage.ts",
+      "file": "tests/verify-1179-gitlab-endpoint-coverage.ts",
+      "guards": [
+        "src/tracker/rooms/gitlab",
+        "tests/tracker-contract/gitlab-endpoints.ts"
+      ],
+      "dirs": [
+        "src/tracker/rooms/gitlab",
+        "tests/tracker-contract"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
+    },
+    {
       "step": "node tests/verify-gate-map.js",
       "file": "tests/verify-gate-map.js",
       "guards": [
@@ -6793,7 +6810,8 @@
       "node tests/verify-ui-description-single-source.ts",
       "node tests/verify-error-raw-samples.ts",
       "node tests/verify-error-rule-samples.ts",
-      "node tests/verify-error-normalize-log.ts"
+      "node tests/verify-error-normalize-log.ts",
+      "node tests/verify-1179-gitlab-endpoint-coverage.ts"
     ],
     "src/tracker/rooms/markdown": [
       "node tests/verify-capability-register.ts",
@@ -6953,7 +6971,8 @@
     ],
     "tests/tracker-contract": [
       "node tests/verify-tracker-contract.js",
-      "node tests/verify-markdown-backend.js"
+      "node tests/verify-markdown-backend.js",
+      "node tests/verify-1179-gitlab-endpoint-coverage.ts"
     ],
     "tests/tracker-contract/fixtures": [
       "node tests/verify-tracker-contract.js",
