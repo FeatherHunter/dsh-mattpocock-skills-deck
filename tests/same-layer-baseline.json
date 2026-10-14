@@ -1,7 +1,7 @@
 {
   "version": 1,
   "recordedAt": "2026-10-13",
-  "note": "存量豁免清单：只许减不许增；拆分票消掉一条边就同票删一条。三个房间（src/tracker/rooms/github、gitlab、markdown）不在此清单：房间纪律由 .dependency-cruiser.cjs 的 cross-room-import 一条守着，没有豁免。 2026-10-09：888 技能详情落地新增一条（index 动态加载 ./skillDoc.js）。 2026-10-13（#1017 换轨）：判据从「扫 .js 文本」换成「读依赖图（.js 与 .ts 一起看）」，键仍是 file|resolved；换轨后 .ts 源码里的同层边第一次可见，共 27 条，已按条记名（owner 标 #1017）。以后只许减。 2026-10-13（#1019 目录归位）：键跟着搬家表换到新路径（src/deck/**、src/tracker/**），条目数只减不增；六个「只换扩展名」的件本票退回 .js，键同票跟回。 2026-10-14（#1136）：房间纪律的起点改成按 `src/tracker/rooms/([^/]+)/` 抓房名（原来写死旧目录，起点命中 0 个模块、跨房判绿），房外放行清单搬进 tests/tracker-room-imports.json；本清单的键与条数不受影响（换轨前后都是 106 条）。 2026-10-14（#1161）：四份宿主文件（platformChannel / issueDetail / publishFlow / remotePredicates）按「先修后转」从 .js 转成 .ts，键（file|resolved）同票跟到新扩展名，条数不变。",
+  "note": "存量豁免清单：只许减不许增；拆分票消掉一条边就同票删一条。三个房间（src/tracker/rooms/github、gitlab、markdown）不在此清单：房间纪律由 .dependency-cruiser.cjs 的 cross-room-import 一条守着，没有豁免。 2026-10-09：888 技能详情落地新增一条（index 动态加载 ./skillDoc.js）。 2026-10-13（#1017 换轨）：判据从「扫 .js 文本」换成「读依赖图（.js 与 .ts 一起看）」，键仍是 file|resolved；换轨后 .ts 源码里的同层边第一次可见，共 27 条，已按条记名（owner 标 #1017）。以后只许减。 2026-10-13（#1019 目录归位）：键跟着搬家表换到新路径（src/deck/**、src/tracker/**），条目数只减不增；六个「只换扩展名」的件本票退回 .js，键同票跟回。 2026-10-14（#1136）：房间纪律的起点改成按 `src/tracker/rooms/([^/]+)/` 抓房名（原来写死旧目录，起点命中 0 个模块、跨房判绿），房外放行清单搬进 tests/tracker-room-imports.json；本清单的键与条数不受影响（换轨前后都是 106 条）。 2026-10-14（#1161）：四份宿主文件（platformChannel / issueDetail / publishFlow / remotePredicates）按「先修后转」从 .js 转成 .ts，键（file|resolved）同票跟到新扩展名，条数不变。 2026-10-15（#1152）：给 src/tracker 补上同层判据 same-layer-import-tracker（判域去掉三个房间与契约层）。这棵树搬出 src/host/tracker/ 之后掉出了所有同层规则，树内互引第一次被记名：今天 15 条，只许减不许增。判域为什么去掉契约层与三个房间，见 .dependency-cruiser.cjs 那条规则的注释。",
   "entries": [
     {
       "file": "src/host/index.js",
@@ -956,6 +956,141 @@
       "count": 1,
       "owner": "#1019 搬家跟随",
       "note": "搬家后新键：same-layer-import-host"
+    },
+    {
+      "file": "src/tracker/index.ts",
+      "spec": "./registry/core.js",
+      "resolved": "src/tracker/registry/core.ts",
+      "layer": "tracker",
+      "count": 1,
+      "owner": "#1152 立同层判据时登记",
+      "note": "装配扇入：追踪器入口把注册表重新导出（V1 #461 起 registry 拆成三块）"
+    },
+    {
+      "file": "src/tracker/index.ts",
+      "spec": "./registry/shape.js",
+      "resolved": "src/tracker/registry/shape.ts",
+      "layer": "tracker",
+      "count": 1,
+      "owner": "#1152 立同层判据时登记",
+      "note": "装配扇入：入口重新导出注册表的错误类型与迁移键"
+    },
+    {
+      "file": "src/tracker/index.ts",
+      "spec": "./preflight.js",
+      "resolved": "src/tracker/preflight.ts",
+      "layer": "tracker",
+      "count": 1,
+      "owner": "#1152 立同层判据时登记",
+      "note": "装配扇入：入口重新导出 classifyError / fail / PREFLIGHT"
+    },
+    {
+      "file": "src/tracker/index.ts",
+      "spec": "./deck-derive.js",
+      "resolved": "src/tracker/deck-derive.ts",
+      "layer": "tracker",
+      "count": 1,
+      "owner": "#1152 立同层判据时登记",
+      "note": "装配扇入：入口重新导出 deck 派生的三件（deriveDeck / parseProgress / DECK_DERIVE）"
+    },
+    {
+      "file": "src/tracker/capability-assertions.ts",
+      "spec": "./registry/builtins.js",
+      "resolved": "src/tracker/registry/builtins.ts",
+      "layer": "tracker",
+      "count": 1,
+      "owner": "#1152 立同层判据时登记",
+      "note": "只借类型：断言件用装配点导出的三房成员类型（import type，运行时没有这条边）"
+    },
+    {
+      "file": "src/tracker/deck-derive.ts",
+      "spec": "./identity-keys.js",
+      "resolved": "src/tracker/identity-keys.ts",
+      "layer": "tracker",
+      "count": 1,
+      "owner": "#1152 立同层判据时登记",
+      "note": "干活的文件互引：派生要用 identity-keys 的 effortOf / idOfParts"
+    },
+    {
+      "file": "src/tracker/preflight.ts",
+      "spec": "./error-rules.js",
+      "resolved": "src/tracker/error-rules.ts",
+      "layer": "tracker",
+      "count": 1,
+      "owner": "#1152 立同层判据时登记",
+      "note": "只借类型：preflight 用错误规则的判据类型（import type，运行时没有这条边）"
+    },
+    {
+      "file": "src/tracker/registry/core.ts",
+      "spec": "./shape.js",
+      "resolved": "src/tracker/registry/shape.ts",
+      "layer": "tracker",
+      "count": 1,
+      "owner": "#1152 立同层判据时登记",
+      "note": "干活的文件互引：注册表核心用 shape 的校验与包装（TrackerRegistryError / wrapTracker / validateMod）"
+    },
+    {
+      "file": "src/tracker/registry/core.ts",
+      "spec": "./views.js",
+      "resolved": "src/tracker/registry/views.ts",
+      "layer": "tracker",
+      "count": 1,
+      "owner": "#1152 立同层判据时登记",
+      "note": "干活的文件互引：注册表核心用 views 的地址与引用格式"
+    },
+    {
+      "file": "src/tracker/registry/shape.ts",
+      "spec": "../preflight.js",
+      "resolved": "src/tracker/preflight.ts",
+      "layer": "tracker",
+      "count": 1,
+      "owner": "#1152 立同层判据时登记",
+      "note": "干活的文件互引：shape 用 preflight 的 fail 抛错"
+    },
+    {
+      "file": "src/tracker/detection/backendDecision.ts",
+      "spec": "./parseIssueTracker.js",
+      "resolved": "src/tracker/detection/parseIssueTracker.ts",
+      "layer": "tracker",
+      "count": 1,
+      "owner": "#1152 立同层判据时登记",
+      "note": "干活的文件互引：后端决策件要用解析器解出的 tracker"
+    },
+    {
+      "file": "src/tracker/detection/explicitDetector.ts",
+      "spec": "./parseIssueTracker.js",
+      "resolved": "src/tracker/detection/parseIssueTracker.ts",
+      "layer": "tracker",
+      "count": 1,
+      "owner": "#1152 立同层判据时登记",
+      "note": "干活的文件互引：显式探测读解析器的结果（值 + 类型各一次，图上算一条边）"
+    },
+    {
+      "file": "src/tracker/detection/detectionService.ts",
+      "spec": "./explicitDetector.js",
+      "resolved": "src/tracker/detection/explicitDetector.ts",
+      "layer": "tracker",
+      "count": 1,
+      "owner": "#1152 立同层判据时登记",
+      "note": "干活的文件互引：探测服务调显式探测（值 + 类型各一次，图上算一条边）"
+    },
+    {
+      "file": "src/tracker/detection/detectionService.ts",
+      "spec": "./selection-precedence.js",
+      "resolved": "src/tracker/detection/selection-precedence.ts",
+      "layer": "tracker",
+      "count": 1,
+      "owner": "#1152 立同层判据时登记",
+      "note": "干活的文件互引：探测服务用选择优先级"
+    },
+    {
+      "file": "src/tracker/detection/detectionService.ts",
+      "spec": "../preflight.js",
+      "resolved": "src/tracker/preflight.ts",
+      "layer": "tracker",
+      "count": 1,
+      "owner": "#1152 立同层判据时登记",
+      "note": "干活的文件互引：探测服务用 preflight 的 fail 抛错"
     }
   ]
 }

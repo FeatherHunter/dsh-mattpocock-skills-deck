@@ -90,6 +90,22 @@ module.exports = {
       from: { path: '^src/seam/' },
       to: { path: '^src/seam/' },
     },
+    {
+      name: 'same-layer-import-tracker',
+      severity: 'error',
+      comment:
+        '同一层内部禁止互相 import（追踪器层，即 src/tracker 去掉三个房间与契约层）。'
+        + '这棵树原来长在 src/host/tracker/ 下、受 same-layer-import-host 管；#1019 把 99 个文件搬进 '
+        + 'src/tracker/ 之后，它们掉出了所有同层规则，纪律静默减半而门禁照旧判绿 —— 这条规则是 #1152 补回来的。'
+        + '判域去掉契约层：契约层是纯类型与数据，是房间与 deck 唯一可以深引的公共面，'
+        + '它内部只许引自己（值引用只许目录内互引、指到目录外就判红，由 tests/verify-contract-types.js 第二项守），'
+        + '所以「干活的文件互相接线」那一半才归本规则。'
+        + '判域去掉三个房间：房间有自己的两条规则（跨房引用与第三方包各一条），同房间内部引用本来就是允许的。'
+        + '存量 15 条按既有约定记在 tests/same-layer-baseline.json，只许减不许增；'
+        + '再冒出一条这样的边时，先想清楚该由谁装配、或者把共享件往上提，想不清再写清理由与归属票登记。',
+      from: { path: '^src/tracker/', pathNot: ['^src/tracker/rooms/', '^src/tracker/contract/'] },
+      to: { path: '^src/tracker/', pathNot: ['^src/tracker/rooms/', '^src/tracker/contract/'] },
+    },
 
     // ── 后端房间纪律（老门禁 verify-no-cross-import 的判据，一条不丢）──────────────────────
     {

@@ -8,7 +8,8 @@
 // 「文件在不在」由解析器说了算。
 //
 // 判据分三层，缺一层都不算换完：
-//   一、图上的边：规则写在仓库根目录 .dependency-cruiser.cjs（同层互引四条、房间纪律两条、禁循环一条）。
+//   一、图上的边：规则写在仓库根目录 .dependency-cruiser.cjs（同层互引五条、房间纪律三条、
+//       房间只许装配点引用一条、deck 深引一条、纯规则侧两条、禁循环一条，合计十三条）。
 //       本文件只负责跑它、核对存量豁免、判红判绿，不重复写规则；规则被删或降级时本文件会判红。
 //   二、工具看不见的引用：非字面量动态 import。解析器只在参数是字符串字面量时才产生依赖，所以
 //       await import(name)、import(`./x/${n}.js`)、import('./' + name) 这类写法在图上完全不存在。
@@ -68,13 +69,17 @@ const CONFIG_REL = '.dependency-cruiser.cjs'
 const BASELINE_REL = 'tests/same-layer-baseline.json'
 const DEPCRUISE_BIN_REL = 'node_modules/dependency-cruiser/bin/dependency-cruiser.mjs'
 const SOURCE_EXTS = ['.js', '.mjs', '.cjs', '.ts', '.mts', '.cts']
-// 同层互引四条 + 房间纪律三条 + 房间只许装配点引用一条 + deck 深引一条 + 纯规则侧两条 + 禁循环一条。
+// 同层互引五条 + 房间纪律三条 + 房间只许装配点引用一条 + deck 深引一条 + 纯规则侧两条 + 禁循环一条。
 // 出现在这里的作用是「配置被改松就判红」：少一条、名字改了、severity 不是 error，都会在下面对不上。
 const EXPECTED_RULES = [
   'same-layer-import-platform',
   'same-layer-import-host',
   'same-layer-import-shared',
   'same-layer-import-seam',
+  // #1152 补的第五条：src/tracker 原来长在 src/host/tracker/ 下、受 same-layer-import-host 管，
+  // 搬进 src/tracker/ 之后掉出了所有同层规则，树内互引没人判。判域去掉三个房间（有自己的纪律）与
+  // 契约层（纯类型与数据的公共面，内部值引用只许引自己，由 tests/verify-contract-types.js 守）。
+  'same-layer-import-tracker',
   'cross-room-import',
   'room-imports-third-party-package',
   // #1153 拆出来的第二条：#1153 之前「解析不到的包名」与「确凿的第三方包」在同一张类型表里，
@@ -1291,5 +1296,6 @@ if (failed) {
 console.log('\n引用方向门禁通过（同层 ' + (byRule.get('same-layer-import-platform') || 0) +
   ' + ' + (byRule.get('same-layer-import-host') || 0) +
   ' + ' + (byRule.get('same-layer-import-shared') || 0) +
-  ' + ' + (byRule.get('same-layer-import-seam') || 0) + ' 条存量已记名，房间纪律与禁循环零违规；' +
+  ' + ' + (byRule.get('same-layer-import-seam') || 0) +
+  ' + ' + (byRule.get('same-layer-import-tracker') || 0) + ' 条存量已记名，房间纪律与禁循环零违规；' +
   '房间模块 ' + roomModuleCount + '/' + roomFilesOnDisk + ' 个进图）')
