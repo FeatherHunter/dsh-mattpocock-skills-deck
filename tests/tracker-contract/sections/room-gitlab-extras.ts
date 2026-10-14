@@ -1,5 +1,5 @@
 /**
- * tests/tracker-contract/sections/room-gitlab-extras.js — GitLab 房九条新能力里「全仓没有一条断言验过」的那五条。
+ * tests/tracker-contract/sections/room-gitlab-extras.ts — GitLab 房九条新能力里「全仓没有一条断言验过」的那五条。
  *
  * ── 这一段为什么存在 ──────────────────────────────────────────────────────────
  * 对抗式审查（`research/1063-adversarial-review.md`）的攻击面表第 10 行（`:37`）说：九条新能力里，
