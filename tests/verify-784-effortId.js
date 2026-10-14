@@ -6,6 +6,9 @@ const os = require('os')
 const { pathToFileURL } = require('url')
 const ROOT = path.resolve(__dirname, '..')
 const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href)
+// 夹具说「这个工作区选过了」的唯一办法（#1138 起）：给这个工作区一份工作区文件。
+// 两种造法与判定出口桩的来历见 tests/lib/deck-decide-stub.js 文件头。
+const { makeDecideStub, chooseWorkspace } = require('./lib/deck-decide-stub.js')
 let failed = false
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
@@ -50,10 +53,16 @@ async function main() {
   const registry = registryMod.createRegistry(Object.assign({ logEvent: () => {}, isEnabled: () => false }, ws.ctx), { matchesTimeout: 200 })
   const dispose = registry.register(markdownModule)
   const handle = { cwd: ws.rootPosix, refId: '.scratch' }
-  registry.bind(handle, 'markdown')
+  // #1138 起「这个工作区选过了」只有一种造法：给这个工作区一份工作区文件，文件里写着选了谁。
+  // 这里原来写的是 registry.bind(handle, 'markdown')，注册表的绑定口子已整段删掉（见
+  // src/tracker/registry/core.ts 文件头），夹具跟着改用工作区文件表达同一件事。
+  chooseWorkspace(ws.rootPosix, 'markdown')
   ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: clock + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock + 3600000 } }, clock)
   const planStore = (() => { const t = new Map(); return { durable: true, load(id) { return t.get(String(id)) || null }, save(id, s) { t.set(String(id), s) } } })()
-  const deps = { gate, registry, budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, backendCtx: ws.ctx, handleFor: () => handle, log: { fire: () => {} }, now: () => clock, planStore }
+  // decideBackend：生产装配总是给（见 src/deck/registration/host-assemble.ts 的 decideBackend: decideBackendFn），
+  //   壳拿不到它时一律回「判定出口这次没装上」。夹具照生产的接法给上判定出口桩，桩直接调生产判定出口
+  //   读上面那份工作区文件（写用途只认文件里的记录，这正是 #1003 契约期望行为第 4 条）。
+  const deps = { gate, registry, budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, backendCtx: ws.ctx, handleFor: () => handle, log: { fire: () => {} }, now: () => clock, planStore, decideBackend: makeDecideStub(registry) }
   const exec = { agent: { session: { id: 's-784-7', cwd: ws.rootPosix } } }
 
   const files = [
@@ -128,12 +137,12 @@ async function main() {
   // 远端忽略：用探针远端验证带不带 effortId 行为一致（后端忽略它）
   const probe = { id: 'probe-remote', label: '探针远端', matches: async () => false, create: () => ({ id: 'probe-remote', async create(repo, input) { return { ok: true, data: { key: 'P1', title: input.title, state: 'open', body: '', labels: [], assignees: [], effortId: '' } } }, async get(repo, key) { return { ok: true, data: { key: String(key), title: 'P1', state: 'open', body: '', labels: [], assignees: [], parentKey: null, effortId: '' } } }, async list(repo) { return { ok: true, data: [] } } }) }
   const dp = registry.register(probe)
-  registry.bind(handle, 'probe-remote')
+  chooseWorkspace(ws.rootPosix, 'probe-remote')   // 把工作区文件改写成选了探针远端（等同旧写法 registry.bind(handle, 'probe-remote')）
   const r1 = await tools.deck_issue_get.run(exec, { key: 'P1' })
   const r2 = await tools.deck_issue_get.run(exec, { key: 'P1', effortId: 'alpha' })
   check(r1.status === 'ok' && r2.status === 'ok' && r1.text === r2.text, '远端后端带不带 effortId 行为一致（忽略它）')
   dp.dispose()
-  registry.bind(handle, 'markdown')
+  chooseWorkspace(ws.rootPosix, 'markdown')   // 改回本地 Markdown（旧写法 registry.bind(handle, 'markdown')）
 
   ws.cleanup()
   try { dispose.dispose() } catch (e) {}

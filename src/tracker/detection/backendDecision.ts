@@ -7,12 +7,16 @@
  * 一期只做读收敛（不写文件、不迁移、不碰缓存）：
  *  - 空目录（还不知道工作区是哪条）如实按未知处理：不读文件、不起外部命令，
  *    不产出“没有后端”的结论，只说工作区还没就绪。
- *  - 顺序统一为：内存绑定 → 工作区文件 → 声明文件 → 本机记忆 → 自动识别。
+ *  - 顺序统一为：工作区文件 → 声明文件 → 自动识别。
  *    这一顺序把三条旧链（探测级联、工具壳、改色电话）里“看不看声明文件”的分叉收掉：
  *    只放声明文件的工作区，三处从此给出同一个答案。
  *  - 来源保持旧枚举（explicit / matches / fallback / unknown），另加 origin 一格
- *    区分“人选的 / 记忆搬来的 / 声明文件来的 / 自动识别来的”，旧界面按 source 照读，
+ *    区分“人选的 / 搬来的 / 声明文件来的 / 自动识别来的”，旧界面按 source 照读，
  *    新界面按 origin 区分。下一期（#1012 核落地后）再把 source 也换成新枚举。
+ *
+ * #1138（2026-10-14 落地）：这里原来还有第一层「注册表里的进程内绑定」，它与工作区文件记的是同一件事，
+ *   却是两份记录（宿主重启即消失），人选的记录因此有两个家。整层删掉了：人选只从工作区文件读，
+ *   注册表那边负责写这份副本的 bind/bound/allBindings 也一起删了（见 src/tracker/registry/core.ts）。
  */
 
 import * as workspaceFileNS from '../../deck/shell/workspace-anchor.js';
@@ -75,12 +79,11 @@ function isKnown(registry, id) {
  * 统一判定的纯核：输入已经读到的各层候选，输出唯一答案。
  * 不碰文件系统与注册表，只做排序，方便单测与三处共用。
  * #1003 契约（2026-10-12 维护者拍板）：本机记忆只用来把工作区配置文件生成出来一次，
- *   此后不再参与任何判定，所以纯核里没有记忆这一层——判定顺序是「内存绑定 → 工作区文件 → 声明文件 → 自动识别」。
+ *   此后不再参与任何判定，所以纯核里没有记忆这一层。
+ * #1138（2026-10-14）：注册表里那份进程内绑定同样不再参与判定，纯核里也没有它那一层——
+ *   判定顺序是「工作区文件 → 声明文件 → 自动识别」。
  */
-export function decidePure({ boundId, fileParsed, declarationId, autodetect, registry }) {
-  if (boundId !== undefined && boundId !== null && boundId !== '') {
-    if (isKnown(registry, boundId)) return { backendId: boundId, source: 'explicit', origin: 'user-memory-bind' };
-  }
+export function decidePure({ fileParsed, declarationId, autodetect, registry }) {
   if (fileParsed && fileParsed.backendId && isKnown(registry, fileParsed.backendId)) {
     const origin = fileOriginOf(fileParsed.source);
     return { backendId: fileParsed.backendId, source: 'explicit', origin };
@@ -160,23 +163,22 @@ async function readDeclarationLayer(cwd, deps) {
  * 唯一判定出口：输入工作区根，输出 { backendId, source, origin, canWrite, reason }。
  * 空根直接按未知返回，不读文件、不问注册表、不起外部命令。
  *
- * 下面这四层只有两类（2026-10-12 维护者拍板，全文见 docs/adr/20261012-backend-decision-two-classes.md）：
+ * 下面这三层只有两类（2026-10-12 维护者拍板，全文见 docs/adr/20261012-backend-decision-two-classes.md；
+ * #1138 之后「人选」那一类只剩一份记录）：
  *
- * 一、**人选**（第 1、2 层）——它们是同一件事的两份记录，不是两个来源：
- *   第 1 层是本次进程内那份副本（origin 记成 user-memory-bind；这个名字是历史遗留，它今天指的是
- *   「人在界面上点确认」那一下写下的进程内绑定，不是本机记忆）；
- *   第 2 层是工作区配置文件 docs/agents/workspace.yaml，它是人选的唯一真源（跨重启、跨机器都靠它）。
- *   两份都由同一个动作写下，见 src/host/workspaceCwd.js 的 handleBind（一次动作同时写内存绑定、
- *   本机记忆与工作区文件），写文件那处的注释写明「唯一真源意味着用户明确选择时必须能覆盖它」。
+ * 一、**人选**（第 1 层）——只有一份记录：工作区配置文件 docs/agents/workspace.yaml。
+ *   它是人选的唯一真源：跨宿主重启、跨机器、以及从别人那儿克隆过来的仓库，都靠它。
+ *   #1138 之前这里还有一层「注册表里的进程内绑定」，与这份文件记的是同一件事的两份记录（宿主重启即消失）。
+ *   整层删掉了：一次动作只写一份，写成功才算这次选择生效（写入口见 src/host/workspaceCwd.js 的 handleBind）。
  *
- * 二、**程序自己认**（第 3、4 层）——都不是人选：
- *   第 3 层读工作区里的声明文件 docs/agents/issue-tracker.md（仓库里写明用哪个后端，由初始化那一步的
+ * 二、**程序自己认**（第 2、3 层）——都不是人选：
+ *   第 2 层读工作区里的声明文件 docs/agents/issue-tracker.md（仓库里写明用哪个后端，由初始化那一步的
  *   AI 写下，插件自己不写）；
- *   第 4 层是后端自己的 matches 命中（看 .git/config、看目录里有没有 .scratch/map.md 之类）。
- *   声明文件同时也是第 4 层里 matches 的输入（见 src/host/tracker/backends/gitlab/index.js 的 matches
+ *   第 3 层是后端自己的 matches 命中（看 .git/config、看目录里有没有 .scratch/map.md 之类）。
+ *   声明文件同时也是第 3 层里 matches 的输入（见 src/host/tracker/backends/gitlab/index.js 的 matches
  *   注释），所以它是「程序自己认」的一条规则，不是人选。
  *
- * 写权限今天只给人选：第 1、2 层 canWrite: true；第 3、4 层 canWrite: false（reason: 'needs-generate'）。
+ * 写权限今天只给人选：第 1 层 canWrite: true；第 2、3 层 canWrite: false（reason: 'needs-generate'）。
  * 读用途不受这条限制；写用途的拦截在 src/shared/deck-tools/shell.js 与 src/host/workspaceLabelColors.js。
  */
 export async function decideBackend(root, deps = {}) {
@@ -186,15 +188,6 @@ export async function decideBackend(root, deps = {}) {
   }
   const registry = deps.registry || null;
   const handle = { cwd };
-  let boundId;
-  try {
-    boundId = registry && typeof registry.bound === 'function' ? registry.bound(handle) : undefined;
-  } catch {
-    boundId = undefined;
-  }
-  if (boundId !== undefined && boundId !== null && boundId !== '' && isKnown(registry, boundId)) {
-    return { backendId: boundId, source: 'explicit', origin: 'user-memory-bind', canWrite: true, reason: '' };
-  }
   const fileParsed = await readFileLayer(cwd, deps);
   if (fileParsed && isKnown(registry, fileParsed.backendId)) {
     const origin = fileOriginOf(fileParsed.source);

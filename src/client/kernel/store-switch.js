@@ -178,10 +178,11 @@
         // #683（F1 · ADR 20260921 的 R2）：宿主这一通接受了用户的选择之后会回一个新修订号，
         //   把它落到本地这条上 —— 此后这个壳上报的都带着它，宿主才判得出这份是不是最新那一版。
         try { if (typeof adoptBoundRev === 'function') adoptBoundRev(st, res) } catch (eRev) {}
-        // #683 R7c：绑定成了、但宿主侧那份记忆没写进去（persisted:false）—— 按现成的 bindFail 那条路如实说一句。
-        //   理由那条文本走词条 switch.bindNotPersisted（中英各一份）：原先四个绑定确认点各写一份硬编码中文，
-        //   英文界面上会直接印出中文，中文那边又与「切换失败：」这个模板拼成一句自相矛盾的话。
-        try { var _np=res&&(res.persisted===false||(res.value&&res.value.persisted===false)); if(_np) flash(st,tr('switch.bindFail',{err:tr('switch.bindNotPersisted')}),'warn') } catch (eP) {}
+        // #683 R7c：选择已经写进工作区文件了，只有宿主侧那份「本机备份」没写成（persisted:false）。
+        //   #1138 改口径：正式记录是工作区文件，本机备份只用来「工作区文件万一没了还能重建一份」，
+        //   所以这条不再是失败，只是信息级提醒 —— 以前套 switch.bindFail 的红字模板，拼出来是
+        //   「切换失败：已切换，但宿主侧这次没能记住：…」，自相矛盾，还让人以为要再选一次。
+        try { var _np=res&&(res.persisted===false||(res.value&&res.value.persisted===false)); if(_np) flash(st,tr('switch.bindNotPersisted'),'info') } catch (eP) {}
         // —— 切换成功之后按「这个工作区初始化过没有」分两条路（#669 第 6 件 / ADR 20260921）——
         //   判据是链上那一步 `tracker:initialized`（它的检查项就是「工作区根有没有 docs/agents/issue-tracker.md」），
         //   与状态栏横幅读的是同一份清单、同一条链快照。**链里根本没有这一步时不许猜**：那一档既不能当

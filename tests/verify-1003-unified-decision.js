@@ -172,12 +172,13 @@ async function main() {
     check(p.ok === false && p.reason === 'no-backend' && /同时被 2 个后端认出/.test(p.text || ''), 'D4 多命中诚实拒绝并引导去面板选定', (p.text || '').slice(0, 120));
   }
 
-  // —— 纯核单测：顺序内存 > 文件 > 声明 > 记忆 > 自动识别 ——
+  // —— 纯核单测：顺序 文件 > 声明 > 自动识别 ——
+  //   #1138 拿掉了原先排在最前面的那一级「注册表里的进程内绑定」（boundId）：人选今天只有一份记录，
+  //   就是工作区文件，判定里不再有第二份。所以下面只留「文件胜声明」这一条 —— 它守的是
+  //   「人亲手选的赢过仓库里那份声明」这件事，这件事今天仍然成立，也正是这一级存在的理由。
   {
     const reg = { has: (id) => id === 'github' || id === 'markdown' };
-    const rMem = decidePure({ boundId: 'markdown', fileParsed: { backendId: 'github', source: 'user' }, declarationId: 'github', choiceRecord: { backendId: 'github' }, autodetect: { backendId: 'github', source: 'matches' }, registry: reg });
-    check(rMem.backendId === 'markdown', '纯核内存优先', JSON.stringify(rMem));
-    const rFile = decidePure({ boundId: undefined, fileParsed: { backendId: 'markdown', source: 'user' }, declarationId: 'github', choiceRecord: { backendId: 'github' }, autodetect: { backendId: 'github', source: 'matches' }, registry: reg });
+    const rFile = decidePure({ fileParsed: { backendId: 'markdown', source: 'user' }, declarationId: 'github', autodetect: { backendId: 'github', source: 'matches' }, registry: reg });
     check(rFile.backendId === 'markdown', '纯核文件胜声明', JSON.stringify(rFile));
   }
 

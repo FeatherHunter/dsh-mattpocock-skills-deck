@@ -15,7 +15,7 @@ const os = require('os')
 const { pathToFileURL } = require('url')
 // 判定出口桩（#1003 单出口）：壳拿不到它时一律回「判定出口这次没装上」，
 // 生产装配总会给，夹具照生产接上；桩的来历见 tests/lib/deck-decide-stub.js 文件头。
-const { makeDecideStub } = require('./lib/deck-decide-stub.js')
+const { makeDecideStub, chooseWorkspace } = require('./lib/deck-decide-stub.js')
 // 时间压缩：本门前半段的「预算打满就自停」「单次调用超支被钳制」要真的等到时间过去才算得出来，
 // 而收尾时那两个没人清掉的定时器（等锁 60000 毫秒、游标读写竞速 10000 毫秒）又让进程空等一分钟。
 // 装上这个助手以后进程里走虚拟时间：判定看到的等待一秒不少，真实只等几毫秒。
@@ -163,9 +163,11 @@ async function main() {
   check(typeof storeMod.createFilePlanStore === 'function' && typeof storeMod.createMemoryPlanStore === 'function', '落盘与内存游标工厂存在')
 
   function shellDeps(tracker, extra) {
-    // bound 与 select 一起给：真注册表两个都有（core.ts 的 bound 读的是显式绑定），
-    // 判定出口桩靠它认出「这个工作区已经选定这个后端」，否则壳会按「没选过后端」拒绝动手。
-    const registry = { select: async () => ({ backendId: 'stub', source: 'test' }), get: () => tracker, bound: () => 'stub' }
+    // select 这一格是兜底识别（工作区文件缺席时才会问它）；#1138 起「这个工作区选过了」只剩
+    // 工作区文件一份记录（注册表上的 bound 已整段删掉），所以下面用 chooseWorkspace 给本夹具
+    // 那个固定工作区（execOf 的缺省 cwd）记一笔：判定出口第一层读到它才放行写用途。
+    const registry = { select: async () => ({ backendId: 'stub', source: 'test' }), get: () => tracker }
+    chooseWorkspace('C:/fake-ws', 'stub')
     return Object.assign({
       gate: stubGate(), registry: registry, budget: budget,
       estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom,

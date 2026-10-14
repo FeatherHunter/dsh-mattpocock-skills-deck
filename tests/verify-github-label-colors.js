@@ -421,13 +421,28 @@ const SEED = [
   try { decModGh.decideBackend.selectionFromOutlet = decModGh.selectionFromOutlet } catch (eAttachGh) {}
   const getDecisionFnGh = async () => ({ decideBackend: decModGh.decideBackend })
   const HOST_CWD = '/ws/gh-project'
+  // #1138：判定出口只认工作区文件里那份记录（注册表里那份进程内绑定已整段删除），所以这里给它一份
+  //   内存里的 docs/agents/workspace.yaml —— 等于「用户在这个工作区里选过 github」，而且不碰盘。
+  //   下面那句 reg.bind(...) 的位置原来就写着「和真实工作区里用户选定后端那一步完全一样」。
+  const wsFileOf = (cwd) => nodePath.posix.join(cwd, 'docs/agents/workspace.yaml')
+  const wsText = (id) => 'version: 2\nbackendId: ' + id + '\npickedAt: 1\nsource: user\n'
+  const wsTextByPath = { [wsFileOf(HOST_CWD)]: wsText('github'), [wsFileOf('/ws/no-repo')]: wsText('github') }
+  const wsFs = {
+    async resolve(p, o) { return nodePath.posix.join((o && o.cwd) || '', String(p || '')) },
+    async readText(t) {
+      const txt = wsTextByPath[t]
+      if (txt) return txt
+      throw new Error('ENOENT: no such file or directory, open ' + t)
+    },
+  }
   const gh = makeGh({ labels: SEED })
   const vias = []
   const ctxHost = {
     ctx: { get: () => undefined },
     DEFAULT_CWD: HOST_CWD,
-    // 假平台：真实平台有 resolveExecutable（后端解析 gh / git 都靠它），这里照它的形状给一份
-    getPlatform: async () => ({ path: nodePath.posix, resolveExecutable: async (n) => (n === 'gh' || n === 'git' ? n : null), env: { get: () => '' }, getHome: async () => '/home/u' }),
+    // 假平台：真实平台有 resolveExecutable（后端解析 gh / git 都靠它），这里照它的形状给一份；
+    //   fs 是内存那一份（只为工作区文件作答，其余路径按不存在抛错）。
+    getPlatform: async () => ({ path: nodePath.posix, fs: wsFs, resolveExecutable: async (n) => (n === 'gh' || n === 'git' ? n : null), env: { get: () => '' }, getHome: async () => '/home/u' }),
     getTrackerRegistry: async () => reg,
     getWorkspaceStore: async () => ({ invalidate: () => {} }),
     canonicalKey: async (c) => c,
@@ -439,8 +454,8 @@ const SEED = [
   }
   const reg = createRegistry({ logEvent: () => {}, isEnabled: () => false }, { matchesTimeout: 200 })
   const d = reg.register(githubModule)
-  // 绑定后端，但**谁也不给 owner/name** —— 和真实工作区里「用户选定后端」那一步完全一样
-  reg.bind({ cwd: HOST_CWD }, 'github')
+  // 用户选过 github，但**谁也不给 owner/name** —— 和真实工作区里「用户选定后端」那一步完全一样。
+  //   #1138 起这一步的落点是工作区文件（上面 wsFs 里那一份），注册表的进程内绑定口子已整段删除。
   const host = createWorkspaceCwd(ctxHost)
 
   const rl = await host.handleListLabels({ cwd: HOST_CWD })
@@ -460,7 +475,8 @@ const SEED = [
   const noRemoteGh = makeGh({ labels: SEED, noRemote: true })
   const reg2 = createRegistry({ logEvent: () => {}, isEnabled: () => false }, { matchesTimeout: 200 })
   const d2 = reg2.register(githubModule)
-  reg2.bind({ cwd: '/ws/no-repo' }, 'github')
+  // 这个工作区「用户选过 github」那条记录由上面 wsFs 里的内存工作区文件提供
+  //   （#1138 起人选的唯一载体；原来这里是一句 reg2.bind({cwd:'/ws/no-repo'},'github')，注册表那个口子已删）。
   const host2 = createWorkspaceCwd(Object.assign({}, ctxHost, {
     getTrackerRegistry: async () => reg2,
     detectionExec: async (cmd, args) => (cmd === 'git' ? noRemoteGh.ctx.exec(cmd, args) : { code: 1, stdout: '', stderr: 'HTTP 404: Not Found (https://api.github.com/repos/acme/demo)' }),
@@ -482,6 +498,11 @@ const SEED = [
   try { decModGh2.decideBackend.selectionFromOutlet = decModGh2.selectionFromOutlet } catch (eAttachGh2) {}
   const getDecisionFnGh = async () => ({ decideBackend: decModGh2.decideBackend })
   const HOST_CWD = '/ws/gh-and-markdown'
+  // #1138：这一段里「用户在面板上选定 github」以前是 regBoth.bind(...)，今天那一步就是 wf.bind 把选择
+  //   写进工作区文件 —— 唯一的一份记录。夹具用这张表当这个工作区的盘：一开始没有那份文件
+  //   （所以下面「还没选定就改色」必须被拒），选定之后往表里放一份，判定出口立刻读得到。
+  const wsTextByPath631 = {}
+  const wsPath631 = HOST_CWD + '/docs/agents/workspace.yaml'
   const gh = makeGh({ labels: SEED })
   const vias = []
   const ctxHost = {
@@ -496,7 +517,11 @@ const SEED = [
       getHome: async () => '/home/u',
       fs: {
         resolve: async (rel, opts) => String((opts && opts.cwd) || '') + '/' + String(rel),
-        readText: async (p) => (String(p).indexOf('.git/config') >= 0 ? '[remote "origin"]\n\turl = https://github.com/acme/demo.git\n' : ''),
+        readText: async (p) => {
+          const s = String(p)
+          if (s.indexOf('.git/config') >= 0) return '[remote "origin"]\n\turl = https://github.com/acme/demo.git\n'
+          return wsTextByPath631[s] || ''
+        },
       },
     }),
     getTrackerRegistry: async () => regBoth,
@@ -540,9 +565,9 @@ const SEED = [
   check(gh.labels.find((x) => x.name === 'bug').color === bugColorBefore,
     '#631 拒绝那一次确实没动仓库（bug 的颜色还是 ' + bugColorBefore + '）')
 
-  // 用户在面板上选定 github：生产里这一步落在「进程内绑定一次」（见 src/host/workspaceCwd.js 的 reg.bind）
-  //   外加一份工作区配置文件上。夹具照这一步补一次绑定，代表用户亲手选过。
-  regBoth.bind({ cwd: HOST_CWD }, 'github')
+  // 用户在面板上选定 github：生产里这一步就是 wf.bind 把选择写进工作区文件（#1138 起唯一的一份记录）。
+  //   夹具照这一步往这个工作区的盘上放一份，代表用户亲手选过。
+  wsTextByPath631[wsPath631] = 'version: 2\nbackendId: github\npickedAt: 1\nsource: user\n'
 
   const rsDeclared = await host.handleSetLabelColors({ cwd: HOST_CWD, backendId: 'github', changes: [{ name: 'bug', color: '0b7285' }] })
   check(rsDeclared.ok === true && rsDeclared.backendId === 'github' && labelBatchCheck([{ name: 'bug', color: '0b7285' }], { applied: rsDeclared.applied, failed: rsDeclared.failed }).length === 0,

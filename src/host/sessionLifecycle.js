@@ -152,7 +152,7 @@ export function createSessionLifecycle(deps) {
     try {
       const svc = await getDetectionService()
       if (svc && typeof svc.detect === 'function') {
-        // 上报已退役不传：刚选的经写入口直达文件（内存绑定 + 落盘 + 清缓存），本轮即读到。
+        // 上报已退役不传：刚选的经写入口直达文件（落盘 + 清缓存），本轮即读到。
         const det = await svc.detect({ cwd }, { skipSkillProbes: true })
         if (det && det.selection) sel = det.selection
       }

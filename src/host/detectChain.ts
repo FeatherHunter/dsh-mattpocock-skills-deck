@@ -92,7 +92,7 @@ export function createDetectChain(deps) {
         const ghTunnel = preflightScope ? scopedDetectionExec(preflightScope) : null
         /** 这条链上要问 gh 的时候走这里：有复用位就用它（同一轮里成名的预检只真问一次），没有就原样问。 */
         const ghAsk = ghTunnel || function (cmd, args, opts, via) { return runGh(args, (opts && opts.cwd) || undefined, via) }
-        // 用户显式选择经写入口直达文件（内存绑定 + 落盘 + 清缓存），本轮即读到，不再经上报参数。
+        // 用户显式选择经写入口直达文件（落盘 + 清缓存），本轮即读到，不再经上报参数。
         // #709（T5 补）：这次探测的预检（登录态、仓库可达）走 ghTunnel —— 与下面后端链那两个谓词共用同一份
         // 复用位，所以一次求值里这两条命令各只真问一次（从前各问两遍，一次求值 5 条 REST）。
         const selMod = await getDetectionService().then(function(svc){ return svc.detect({ cwd }, { force, skipSkillProbes: true, exec: ghTunnel || undefined }) }).catch(function(){ return null })

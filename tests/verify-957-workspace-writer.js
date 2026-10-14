@@ -43,7 +43,7 @@ async function main() {
     ctx: { get: (k) => undefined },
     DEFAULT_CWD: dir,
     getPlatform: async () => platformFor(dir, extra),
-    getTrackerRegistry: async () => ({ has: (id) => id === 'github' || id === 'markdown', bind: () => {}, get: () => null, describe: (h, id) => ({ backend: id, refId: '', name: id, url: '' }) }),
+    getTrackerRegistry: async () => ({ has: (id) => id === 'github' || id === 'markdown', get: () => null, describe: (h, id) => ({ backend: id, refId: '', name: id, url: '' }) }),
     getWorkspaceStore: async () => ({ invalidate: () => {} }),
     getChoiceStore: async () => ({ rememberWorkspace: async () => ({ ok: true, rev: 1 }) }),
     canonicalKey: async (c) => c, setCache: () => {}, timer: { timeout: () => null }, detectionExec: async () => ({}), logCtx: null,
@@ -72,19 +72,29 @@ async function main() {
     check(r.ok === true && r.backendId === 'github' && r.workspaceFile && r.workspaceFile.placed === true && r.workspaceFile.reason === 'overwritten', 'B2 回包说明已覆盖（placed:true, overwritten），绑定是这次选的 github', JSON.stringify(r.workspaceFile))
   }
   {
+    // #1138：工作区文件里只能写一个后端名（backendId 强制非空，见 src/shared/config-store/src/workspace.ts），
+    //   所以「明确不要后端」这条状态今天没有地方可以记下来 —— 那就如实回失败，不许回一句 ok 却什么都没写
+    //   （那会变成「界面说选好了、其实哪份记录里都没有」）。这条状态今天也没有活着的界面入口：
+    //   那颗「清除后端选择」在 #669 第 6 件已退役（见 src/client/kernel/store-switch.js）。
     const dir = makeTemp()
     const api = mkBind(dir)
     const r = await api.handleBind({ cwd: dir, backendId: null })
-    check(r.ok === true && r.backendId === null, 'B3 显式无后端绑定照旧成功')
-    check(!fs.existsSync(path.join(dir, 'docs', 'agents', 'workspace.yaml')), 'B3 显式无后端不持久化（不写文件）')
-    check(r.workspaceFile && r.workspaceFile.skipped === 'explicit-none', 'B3 回包说明跳过原因', JSON.stringify(r.workspaceFile))
+    check(r.ok === false && r.kind === 'no-record-for-none', 'B3 明确不要后端：没有地方记这条选择，如实回失败', JSON.stringify(r).slice(0, 200))
+    check(!fs.existsSync(path.join(dir, 'docs', 'agents', 'workspace.yaml')), 'B3 明确不要后端不写文件')
+    check(typeof r.error === 'string' && /没有地方可以记下来/.test(r.error), 'B3 失败回包用一句人话讲清为什么，并给出下一步', String(r.error))
   }
   {
+    // #1138 的核心改口径：**写成功才算这次选择生效**。以前这里同时写进程内绑定、本机记忆与工作区文件三处，
+    //   顶层 ok 却恒为真 —— 文件写失败照样回 ok，界面显示「已切换」，重启后又变回原来的后端。
     const dir = makeTemp()
-    const api = mkBind(dir, { failWrite: true })
+    let hCalls = 0
+    const api = mkBind(dir, { failWrite: true, deps: { getChoiceStore: async () => ({ rememberWorkspace: async () => { hCalls += 1; return { ok: true, rev: 1 } } }) } })
     const r = await api.handleBind({ cwd: dir, backendId: 'github' })
-    check(r.ok === true && r.backendId === 'github' && r.persisted === true, 'B4 写失败不回滚绑定与本机记忆（照旧成功）', JSON.stringify({ ok: r.ok, persisted: r.persisted }))
-    check(r.workspaceFile && r.workspaceFile.ok === false, 'B4 回包如实带上写失败（不无声）', JSON.stringify(r.workspaceFile))
+    check(r.ok === false && r.kind === 'workspace-file-failed', 'B4 写不进文件就是没生效：顶层如实回失败（不再回 ok）', JSON.stringify({ ok: r.ok, kind: r.kind }))
+    check(!fs.existsSync(path.join(dir, 'docs', 'agents', 'workspace.yaml')), 'B4 确实没写下文件')
+    check(hCalls === 0, 'B4 写失败时不落本机记忆：那份备份只跟着已经生效的选择走', String(hCalls))
+    check(typeof r.error === 'string' && /没能把选择写进这个工作区里的配置文件/.test(r.error) && !/绑定/.test(r.error), 'B4 失败文案说清「没写进去、这次选择没有生效」，不再说「绑定与本机记忆不受影响」', String(r.error))
+    check(typeof r.errorKind === 'string' && r.errorKind.length > 0, 'B4 回包带上失败原因分类（供排查与日志）', String(r.errorKind))
   }
 
   // —— P：双命中保护（经装配口的写口直验逻辑） ——

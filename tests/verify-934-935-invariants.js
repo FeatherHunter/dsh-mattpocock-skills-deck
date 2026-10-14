@@ -2,7 +2,7 @@
 // 用法：在插件根目录执行 node tests/verify-934-935-invariants.js，可独立运行。
 //
 // 这一条盯四件事，都是 930 缺陷 A/B 的不变式形态：
-//   I1 两写法同键同绑定：同一条目录用大小写与斜杠不同的两种写法，各查一次，归一后同根、同闸钥匙、命中同一份显式绑定，显式选 markdown 即回 markdown。
+//   I1 两写法同键、同一份人选记录：同一条目录用大小写与斜杠不同的两种写法，各查一次，归一后同根、同闸钥匙、命中同一份人选记录（工作区文件里写着 markdown），显式选 markdown 即回 markdown。
 //   I2 双斜杠同仓：连续斜杠与尾斜杠不同的写法归一后同仓（注册表只做系统无关洗，宿主出口做全量归一）。
 //   I3 缺席归一即失败：归一出口在场却算不出规范根时，工具如实失败，不拿原始目录凑一把钥匙。
 //   I4 无许可写工作区必拒且文案诚实：缺许可与真不可写分两档，前者说清没有拿到写许可，后者说清带上了许可仍被拒；探针无许可时判灰说量不出。
@@ -23,6 +23,9 @@ let failed = false
 let total = 0
 const check = (ok, msg, detail) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg + (ok ? '' : (detail ? ' — ' + String(detail).slice(0, 500) : ''))); if (!ok) failed = true }
 const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href)
+// 夹具说「这个工作区选过了」的唯一办法（#1138 起）：给这个工作区一份工作区文件。
+// 两种造法与判定出口桩的来历见 tests/lib/deck-decide-stub.js 文件头。
+const { makeDecideStub, chooseWorkspace } = require('./lib/deck-decide-stub.js')
 
 function makeFs() {
   return {
@@ -45,7 +48,6 @@ async function main() {
   const ledgerMod = await imp('src/host/refresh/ledger.ts')
   const gateMod = await imp('src/host/refresh/gate.ts')
   const toolCost = await imp('src/shared/refresh/tool-cost.js')
-  const decMod934 = await imp('src/tracker/detection/backendDecision.ts')
   const markdownModule = (await imp('src/tracker/rooms/markdown/index.ts')).markdownModule
 
   // —— I2 先行：注册表只做系统无关洗（斜杠与尾斜杠归一，大小写不动） ——
@@ -76,7 +78,7 @@ async function main() {
     return ('0000000' + h.toString(16)).slice(-8)
   }
 
-  // —— I1：两写法同键同绑定，显式选 markdown 即回 markdown ——
+  // —— I1：两写法同键、同一份人选记录，显式选 markdown 即回 markdown ——
   {
     const rawA = 'D:\\Temp\\demo-ws'
     const rawB = 'd:/temp/demo-ws/'
@@ -94,12 +96,14 @@ async function main() {
     const fakeCtx = { platform: plat, fs: fss, get(name) { return name === 'fs' ? fss : undefined } }
     const registry = registryMod.createRegistry(Object.assign({ logEvent: () => {}, isEnabled: () => false }, fakeCtx), { matchesTimeout: 200 })
     registry.register(markdownModule)
-    registry.bind({ cwd: sA.cwd }, 'markdown')
+    // #1138 起人选只记在工作区文件里：这里原来写的是 registry.bind({ cwd: sA.cwd }, 'markdown')，
+    // 注册表的绑定口子已整段删掉（见 src/tracker/registry/core.ts 文件头），夹具改用工作区文件表达。
+    chooseWorkspace(sA.cwd, 'markdown')
     const ledger = ledgerMod.createLedger({ now: () => 1700000000000 })
     const gate = gateMod.createGate({ ledger, now: () => 1700000000000 })
     ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: 1700003600000 }, graphql: { limit: 5000, remaining: 5000, reset: 1700003600000 } }, 1700000000000)
-    const shellA = shellMod.createDeckShell({ gate, registry, budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, backendCtx: fakeCtx, decideBackend: decMod934.decideBackend, canonicalKey, workspaceKeyOf })
-    const shellB = shellMod.createDeckShell({ gate, registry, budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, backendCtx: fakeCtx, decideBackend: decMod934.decideBackend, canonicalKey, workspaceKeyOf })
+    const shellA = shellMod.createDeckShell({ gate, registry, budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, backendCtx: fakeCtx, decideBackend: makeDecideStub(registry), canonicalKey, workspaceKeyOf })
+    const shellB = shellMod.createDeckShell({ gate, registry, budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, backendCtx: fakeCtx, decideBackend: makeDecideStub(registry), canonicalKey, workspaceKeyOf })
     const pickA = await shellA.pickBackend(execA, sA)
     // 第二路用原始写法进，但上下文已归一，显式必须命中
     const pickB = await shellB.pickBackend(execB, sB)
@@ -116,7 +120,7 @@ async function main() {
     const ledger = ledgerMod.createLedger({ now: () => 1700000000000 })
     const gate = gateMod.createGate({ ledger, now: () => 1700000000000 })
     ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: 1700003600000 }, graphql: { limit: 5000, remaining: 5000, reset: 1700003600000 } }, 1700000000000)
-    const shell = shellMod.createDeckShell({ gate, registry, budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, backendCtx: fakeCtx, decideBackend: decMod934.decideBackend, canonicalKey: async (x) => String(x), workspaceKeyOf })
+    const shell = shellMod.createDeckShell({ gate, registry, budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, backendCtx: fakeCtx, decideBackend: makeDecideStub(registry), canonicalKey: async (x) => String(x), workspaceKeyOf })
     const s = { cwd: '/ws-multi', workspaceKey: 'deadbeef', sessionId: 's-m' }
     const pick = await shell.pickBackend({}, s)
     check(!pick.ok, 'I1b 多命中无显式即冲突（不回注册序第一个）', JSON.stringify(pick).slice(0, 300))

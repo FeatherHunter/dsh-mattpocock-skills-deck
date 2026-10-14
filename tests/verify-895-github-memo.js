@@ -35,7 +35,9 @@ async function main() {
   }
   const registry = registryMod.createRegistry({ logEvent: () => {}, isEnabled: () => false }, { matchesTimeout: 200 })
   registry.register(githubModule)
-  registry.bind({ cwd: '/ws/github', refId: 'acme/demo' }, 'github')
+  // #1138：这里原来还有一句 registry.bind({cwd:'/ws/github',...}, 'github')。本门禁直接用后端对象
+  //   （registry.get('github') 的 tracker）读写，从不问「这个工作区选了谁」，所以那句只是历史遗留；
+  //   注册表的绑定口子已经整段删掉（见 src/tracker/registry/core.ts 文件头），这里跟着去掉。
   const tracker = registry.get('github')
   const repo = { backend: 'github', refId: 'acme/demo', name: 'demo', url: '' }
   const ids = []

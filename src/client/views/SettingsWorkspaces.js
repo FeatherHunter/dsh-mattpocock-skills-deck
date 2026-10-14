@@ -21,7 +21,6 @@ export const useWsOverview = function (cx, sharedSt) {
           setWsOverview(function(p){ return Object.assign({},p,{loading:true,err:''}) })
           let bindings=[], modules=[], selections={}, wsList=[]
           if(typeof host!=='undefined'&&typeof host.call==='function'){
-            try{ const r=await host.call('wf.bindings',{}); const v=(r&&r.bindings)?r:(r&&r.value&&r.value.bindings?r.value:null); if(v&&Array.isArray(v.bindings)) bindings=v.bindings; else if(r&&Array.isArray(r.bindings)) bindings=r.bindings }catch(e){}
             try{ const r2=await host.call('wf.registry',{cwd:''}); const mods=(r2&&r2.modules)||(r2&&r2.value&&r2.value.modules)||[]; if(Array.isArray(mods)&&mods.length){ modules=mods; try{ setPresentationMap(mods)}catch{}} }catch(e2){}
           }
           try{
@@ -33,7 +32,14 @@ export const useWsOverview = function (cx, sharedSt) {
               if(!wsList.length&&typeof wsSvc.getAll==='function') try{ const a2=await wsSvc.getAll(); if(Array.isArray(a2)) wsList=a2 }catch{}
             }
           }catch{}
-          const allSet={}, all=[]; const add=function(c){ const k=String(c); if(!allSet[k]){ allSet[k]=1; all.push(k)}}; wsList.forEach(function(w){ const raw=w.path||w.cwd||w.dir||w.workspacePath||w.root||w.fullPath||''; const k=normCwdClient(raw); if(k) add(k) }); bindings.forEach(function(b){ const k=normCwdClient(b.cwd||(b.handle&&b.handle.cwd)||''); if(k) add(k)}); if(!all.length&&sharedSt.cwd) add(sharedSt.cwd)
+          const allSet={}, all=[]; const add=function(c){ const k=String(c); if(!allSet[k]){ allSet[k]=1; all.push(k)}}; wsList.forEach(function(w){ const raw=w.path||w.cwd||w.dir||w.workspacePath||w.root||w.fullPath||''; const k=normCwdClient(raw); if(k) add(k) });
+          // #1138：这一条电话不再回宿主进程里的绑定表（那份副本已删），改成按调用方给的候选目录去读
+          //   各工作区里的工作区文件——「哪些工作区选过了、选的是谁」都以文件为准，与判定出口读同一份。
+          //   插件这边没有「这台机器上有哪些工作区」的名单（那是工作区服务的知识），所以先拿到名单再问它。
+          if(typeof host!=='undefined'&&typeof host.call==='function'){
+            try{ const r=await host.call('wf.bindings',{cwds:all.slice()}); const v=(r&&r.bindings)?r:(r&&r.value&&r.value.bindings?r.value:null); if(v&&Array.isArray(v.bindings)) bindings=v.bindings; else if(r&&Array.isArray(r.bindings)) bindings=r.bindings }catch(e){}
+          }
+          bindings.forEach(function(b){ const k=normCwdClient(b.cwd||(b.handle&&b.handle.cwd)||''); if(k) add(k)}); if(!all.length&&sharedSt.cwd) add(sharedSt.cwd)
           try{ console.log('[wsOverview] all=',JSON.parse(JSON.stringify(all)),'wsSample=',wsList.slice(0,2)) }catch{}
           for(let i=0;i<all.length;i++){ const cwd=all[i]; try{ const r=await host.call('wf.selection',{cwd}); const sel=(r&&r.selection)||(r&&r.value&&r.value.selection)||(r&&r.value&&r.value.value&&r.value.value.selection)||null; if(sel) selections[cwd]=sel; try{ console.log('[wsOverview] cwd',cwd,'sel',sel)}catch{} }catch(e){ try{ console.log('[wsOverview] err cwd',cwd,String(e).slice(0,80))}catch{} }; if(cancelled) return }
           if(cancelled) return

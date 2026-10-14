@@ -9,7 +9,10 @@
  *      「自带主锚文件 docs/agents/issue-tracker.md」的目录就是工作区根；两种标记同等优先、谁近听谁；
  *      一路到盘符根 / 文件系统根 / UNC 根都没有，就用所选目录本身；同一目录的几种写法洗成同一把钥匙。
  *   B. 四个抽屉的分桶：面板快照、检查链快照、后端绑定、仓库引用，在「仓库根 / 子目录 / 兄弟目录」
- *      三种形态下——同一个工作区根里的会话必须同桶，不同工作区根必须不同桶。
+ *      三种形态下——同一个工作区根里的会话必须同桶，不同工作区根必须不同桶。其中「后端绑定」这一格
+ *      #1138 起记录只落在工作区文件 docs/agents/workspace.yaml 里（注册表里那份进程内副本连同
+ *      bind/bound/allBindings 三个口子已经删掉），所以 B 组自己带一条内存文件服务来落这份文件，
+ *      再让统一判定出口 decideBackend 从它读回来。
  *   C. 写路径：子目录会话里不许出现第二套 .scratch（票仓与建票目录）、不许出现第二份
  *      docs/agents/label-colors.json；初始化产出的主锚文件只认工作区根那一份。
  *   D. 性能与体验：同一把钥匙 30 秒内只判定一次（数真探测次数，第二次必须为零）。
@@ -18,7 +21,9 @@
  *   A / C —— 真夹具目录 + 真判定函数（src/host/workspaceKey.js）与真后端路径函数
  *            （tracker/backends/markdown/path.js、label-colors.js、remotePredicates.js、explicitDetector.js）。
  *   B —— 真夹具算出来的这把钥匙，喂给真客户端缓存表（store-snapshot.js / store-prefs.js 的切片）与
- *        真注册表（src/tracker/registry/core.ts），并真的走一遍宿主的 wf.bind 处理体（workspaceCwd.js）。
+ *        真注册表（src/tracker/registry/core.ts），并真的走一遍宿主的 wf.bind / wf.selection 处理体
+ *        （workspaceCwd.js）与统一判定出口（tracker/detection/backendDecision.ts）；「后端绑定」这一格
+ *        的落点由本门禁自己那条内存文件服务（makeAuthorityFs）供着——它只替换磁盘，判定仍是生产那一份。
  *   D —— 在同一把钥匙上数真探测次数（第二次必须为零）。
  *   E —— 本门禁与票面点名的两条既有用例都在 npm run verify 链里。
  *
@@ -80,6 +85,38 @@ function makeFsSvc(counter) {
 
 let BASE = null
 function cleanup() { try { if (BASE) fsx.rmSync(BASE, { recursive: true, force: true }) } catch (e) {} }
+
+/**
+ * #1138：B 组「后端绑定」这一格要真落一份文件，所以给这一组一条**门禁自己管着的文件通道**。
+ *
+ * 为什么不能拿真盘上的夹具目录当落点：夹具目录是只读用意的（只放 A/C 两组要读的那些标记文件），
+ * 往它里面写一份 docs/agents/workspace.yaml 会改掉夹具树本身，后面几组读到的世界就不是同一棵了。
+ * 这里落在一张内存表里，键是文件路径的规范写法；它只做文件服务该做的三件事（resolve / readText /
+ * writeText / mkdir），不做任何判定——判定仍由生产那一个出口做。
+ */
+function makeAuthorityFs() {
+  const files = new Map()
+  const key = (p) => String(p).replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+  const abs = (rel, cwd) => (nodePath.isAbsolute(String(rel)) ? String(rel) : nodePath.resolve(String(cwd || BASE), String(rel)))
+  return {
+    /** 这一格里真写下来的内容（按读的原样回）：写没写成，靠它取证。 */
+    read(rel, cwd) {
+      const k = key(abs(rel, cwd))
+      return files.has(k) ? files.get(k) : null
+    },
+    fs: {
+      async resolve(rel, opts) { return { path: abs(rel, opts && opts.cwd), rel: String(rel), cwd: String((opts && opts.cwd) || '') } },
+      async readText(t) {
+        const p = String((t && t.path) || t)
+        const v = files.get(key(p))
+        if (v == null) throw Object.assign(new Error('ENOENT: no such file or directory, open \'' + p + '\''), { code: 'ENOENT' })
+        return v
+      },
+      async writeText(t, content) { files.set(key(String((t && t.path) || t)), String(content)) },
+      async mkdir() { return undefined },
+    },
+  }
+}
 
 async function main() {
   const wm = await import(url('src/host/workspaceKey.js'))
@@ -327,46 +364,82 @@ async function main() {
       C.getChainCacheKey(RAW.sub, 'markdown', 'zh') + ' / ' + C.getChainCacheKey(RAW.sub, 'github', 'en'))
   }
 
-  // —— B3 后端绑定（宿主侧真注册表 + 真 wf.bind 处理体）——
+  // —— B3 后端绑定（宿主侧真注册表 + 真 wf.bind 处理体 + 真判定出口）——
   {
+    const anchor = await import(url('src/deck/shell/workspace-anchor.ts'))
+    const WORKSPACE_FILE_REL = anchor.WORKSPACE_FILE_REL
+    const parseWorkspaceFile = anchor.parseWorkspaceFile
     const registry = (await import(url('src/tracker/registry/core.ts'))).createRegistry()
     registry.register({ id: 'github', label: 'GitHub', create: () => ({}), matches: async () => false })
     registry.register({ id: 'markdown', label: '本地 Markdown', create: () => ({}), matches: async () => false })
+    // #1138：绑定（用户为这个工作区选定后端）不再写注册表里那份进程内副本，唯一去处是工作区文件
+    //   docs/agents/workspace.yaml。所以这一组换了两件事同时验：写——真 wf.bind 处理体把文件写到工作区根这一层；
+    //   读——统一判定出口 decideBackend 从那份文件读回同一个人选。
+    const authority = makeAuthorityFs()
+    const outlet = await import(url('src/tracker/detection/backendDecision.ts'))
     const wsCwd = (await import(url('src/host/workspaceCwd.js'))).createWorkspaceCwd({
-      ctx: { get: () => undefined },
+      ctx: { get: (name) => (name === 'fs' ? authority.fs : undefined) },
       DEFAULT_CWD: '',
-      getPlatform: async () => PLATFORM,
+      getPlatform: async () => Object.assign({}, PLATFORM, { fs: authority.fs }),
       getTrackerRegistry: async () => registry,
       getWorkspaceStore: async () => ({ invalidate() {} }),
+      // 判定出口整份交进去（与生产装配给的形状一致），读文件那一路由上面那份文件服务供着。
+      getDecisionFn: async () => ({ decideBackend: outlet.decideBackend, selectionFromOutlet: outlet.selectionFromOutlet }),
       canonicalKey: canon,
       setCache: () => {},
       logCtx: { fire: () => {}, isEnabled: () => false },
       timer: { timeout: () => 0 },
       detectionExec: async () => ({ ok: false }),
     })
-    // 子目录会话在界面上选了后端 → 走的就是这条电话
+    // 子目录会话在界面上选了后端 → 走的就是这条电话。生产里写不进去就等于这次选择没生效（#1138），
+    // 所以这里必须真给一条文件通道：本组用的是 Gate656 自己的文件服务（不碰真实盘）。
     const bindOut = await wsCwd.handleBind({ cwd: RAW.subDeep, backendId: 'github' })
-    const rows = registry.allBindings()
-    // 934 起注册表键只做系统无关洗（斜杠归一）：同一桶的键是洗后形态，cwd 仍是规范根原文；bound() 两写法互查见下条。
-    const washedRepo = (await import(url('src/tracker/registry/shape.ts'))).washHandleKey(K.repo)
-    must(bindOut.ok === true && rows.length === 1 && rows[0].handleKey === washedRepo && rows[0].cwd === K.repo,
-      '后端绑定：子目录会话选了后端，这次绑定落在工作区根这一桶上（同一个仓库一处绑定，不各存一份）',
-      '回包=' + JSON.stringify(bindOut) + ' 绑定行=' + JSON.stringify(rows))
-    must(registry.bound({ cwd: K.repo }) === 'github' && registry.bound({ cwd: K.sub }) === 'github' && registry.bound({ cwd: K.subDeep }) === 'github',
-      '后端绑定：根会话与它下面任意一层子目录会话问「绑了哪个后端」，答案都是那一份绑定',
-      'root=' + registry.bound({ cwd: K.repo }) + ' sub=' + registry.bound({ cwd: K.sub }) + ' deep=' + registry.bound({ cwd: K.subDeep }))
-    must(registry.bound({ cwd: K.sibling }) === undefined,
-      '后端绑定：另一个工作区（兄弟目录）没有这份绑定，不会被顺带共用',
-      'sibling=' + String(registry.bound({ cwd: K.sibling })))
+    must(bindOut.ok === true && bindOut.workspaceFile && bindOut.workspaceFile.ok === true,
+      '后端绑定：子目录会话选定后端这一步，把选择写进了工作区文件（写不进去就等于这次选择没生效，所以回包必须写着写成了）',
+      '回包=' + JSON.stringify(bindOut).slice(0, 240) + ' 真写盘=' + JSON.stringify(authority.read(WORKSPACE_FILE_REL, K.repo)))
+    // 写下来的这份文件按工作区根这一层归一：子目录会话（RAW.subDeep）、它上面的子目录（RAW.sub）与根会话
+    //   （RAW.repo）读到的是同一份；兄弟目录（RAW.sibling）没有这一份，读不着。
+    const readAt = (cwd) => authority.read(WORKSPACE_FILE_REL, cwd)
+    const atRoot = readAt(K.repo)
+    must(atRoot !== null && atRoot === readAt(K.sub) && atRoot === readAt(K.subDeep) && readAt(K.sibling) === null,
+      '后端绑定：这份文件按工作区根归一——同一仓库的子目录会话与根会话读到同一份，兄弟目录读不着',
+      'root=' + JSON.stringify(atRoot) + ' sub=' + JSON.stringify(readAt(K.sub)) + ' deep=' + JSON.stringify(readAt(K.subDeep)) + ' sibling=' + JSON.stringify(readAt(K.sibling)))
+    const parsedAtRoot = parseWorkspaceFile(atRoot)
+    must(parsedAtRoot && parsedAtRoot.backendId === 'github',
+      '后端绑定：文件里写的后端名就是会话选的那一个（人选只有这一份记录）',
+      JSON.stringify(parsedAtRoot))
     // 读这条路（#652 修的就是它：以前把原样入参交给注册表，绑定写进去、这里读不着）
     const regOut = await wsCwd.handleRegistry({ cwd: RAW.subDeep })
-    const bindingsOut = await wsCwd.handleBindings()
-    must(regOut.ok === true && regOut.bound === 'github',
-      '后端绑定：子目录会话问「这个工作区绑了哪个后端」，读得到根上那份绑定（不再要求重新选一次）',
-      JSON.stringify(regOut).slice(0, 200))
-    must(bindingsOut.ok === true && bindingsOut.bindings.length === 1 && bindingsOut.bindings[0].cwd === K.repo,
-      '后端绑定总览：工作区总览里这条绑定挂在工作区根那一行上，只有一行（不出现「子目录一条、根一条」两份）',
-      JSON.stringify(bindingsOut).slice(0, 240))
+    must(regOut.ok === true && !('bound' in regOut),
+      '后端绑定：注册表那条电话不再答「这个工作区绑了谁」——绑定表随 #1138 删掉了，那一格整格去掉，不拿别的来源凑一个值',
+      JSON.stringify(regOut).slice(0, 240))
+    const bindingsOut = await wsCwd.handleBindings({ cwds: [RAW.repo, RAW.sub, RAW.subDeep] })
+    must(bindingsOut.ok === true && bindingsOut.bindings.length === 1 && bindingsOut.bindings[0].backendId === 'github' && bindingsOut.bindings[0].cwd === K.repo,
+      '后端绑定总览：调用方把候选目录递进来，总览按工作区文件如实答；同一个仓库只列一行，挂在工作区根那一条上（不出现「子目录一条、根一条」两份）',
+      JSON.stringify(bindingsOut).slice(0, 300))
+    const bindingsSibling = await wsCwd.handleBindings({ cwds: [RAW.sibling] })
+    must(bindingsSibling.ok === true && bindingsSibling.bindings.length === 0,
+      '后端绑定总览：兄弟目录里没有这份文件 → 它的总览是空的（不同工作区永不合并）',
+      JSON.stringify(bindingsSibling).slice(0, 200))
+    // 读的这条正路（#1138 起唯一判定出口）：问「子目录会话用哪个后端」→ 出口读那份文件答 github，
+    //   来源写明是人选的（source:explicit / origin:user-file），写用途也凭这份文件放行（canWrite:true）。
+    const selRoot = await wsCwd.handleSelection({ cwd: RAW.repo })
+    const selSub = await wsCwd.handleSelection({ cwd: RAW.sub })
+    const selSubDeep = await wsCwd.handleSelection({ cwd: RAW.subDeep })
+    // 判定出口收的是**归一后的**工作区目录（生产里所有调用方都先过 canonicalKey/wf.selection 同一道归一），
+    //   所以这里传 K.repo —— 传未归一的 RAW.subDeep 等于绕过那道闸，读文件会按未归一的路径去找，找不到是应该的。
+    const picked = await outlet.decideBackend(K.repo, { registry: registry, fs: authority.fs, caller: 'verify-656' })
+    must(selRoot.ok === true && selSub.ok === true && selSubDeep.ok === true &&
+      selSubDeep.selection.backendId === 'github' && selSub.selection.backendId === 'github' && selRoot.selection.backendId === 'github',
+      '后端绑定：根会话与它下面任意一层子目录会话问「这个工作区用哪个后端」，答案都是那一份记录里的那个后端',
+      'root=' + JSON.stringify(selRoot.selection) + ' sub=' + JSON.stringify(selSub.selection) + ' deep=' + JSON.stringify(selSubDeep.selection))
+    must(picked.backendId === 'github' && picked.source === 'explicit' && picked.origin === 'user-file' && picked.canWrite === true,
+      '后端绑定：这个结论出自生产那一个判定出口，且来源写明是「工作区文件里人选的」（source:explicit / origin:user-file），写用途凭它放行（canWrite:true）',
+      JSON.stringify(picked))
+    const pickedSibling = await outlet.decideBackend(K.sibling, { registry: registry, fs: authority.fs, caller: 'verify-656' })
+    must(pickedSibling.backendId === null && pickedSibling.canWrite === false,
+      '后端绑定：兄弟目录没有这份记录 → 判定出口不拿别的目录的记录凑答案（backendId 为空、不放行写）',
+      JSON.stringify(pickedSibling))
     // 界面这一侧的选择镜像已随 #1003 退役（真相在宿主文件里，不在本地表里）
     P.setCachedSelection(RAW.subDeep, { backendId: 'github', source: 'explicit' })
     must(P.getCachedSelection(RAW.repo) === null && P.getCachedSelection(RAW.sub) === null && P.getCachedSelection(RAW.sibling) === null,

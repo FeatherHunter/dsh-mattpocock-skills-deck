@@ -150,7 +150,6 @@ export function limitsFromBudget(b: unknown): DeckLimits {
  *   invalidate 可选，写后失效缓存该票条目：invalidate({ repo, backendId, keys, workspace })
  *   ensureReading 可选，动手前保剩余额度读数：ensureReading(cwd, workspaceKey)，缺席时跳过
  *   resolveTimeoutMs 可选，仓库标识补全等待上限毫秒数（缺席 8000，测试可调小）
- *   readChoice 可选，读本机记忆H：(规范根) => {backendId, rev} | null（缺席跳过H层）
  *   readWorkspaceFileText 可选，读工作区文件原文：(规范根) => string | null（缺席跳过文件层）
  *   parseWorkspaceFile 可选，解析文件文本（与 readWorkspaceFileText 同给同缺）
  *   readDeclarationId 可选，读声明文件写明的后端（#1003，缺席跳过声明层）
@@ -244,7 +243,7 @@ export function createDeckShell(deps?: DeckShellDeps): DeckShell {
     let sent: GateSendResult | null = null
     const t0 = now()
     try { if (typeof d.ensureReading === 'function') await d.ensureReading(ss.cwd, ss.workspaceKey) } catch (eR) {}
-    // #1003 单出口：显式四层（内存 > H > 文件 > 声明，缺席跳过，未注册忽略）整段交统一判定；
+    // #1003 单出口：显式那几层（工作区文件 > 声明文件，缺席跳过，未注册忽略）整段交统一判定；
     //   自动识别包着配额闸走（probe 一格，成功记 1 请求；里面直调，不 double 记账）。
     //   本文件不引用判定服务（它归宿主侧，壳只收装配层递进来的函数），函数只经依赖值由装配层递进来。
     const useOutlet = (typeof d.decideBackend === 'function') ? d.decideBackend : null

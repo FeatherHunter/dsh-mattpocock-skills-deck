@@ -75,10 +75,14 @@ export interface Selection {
    */
   source: 'explicit' | 'matches' | 'fallback' | 'unknown'
   /**
-   * 结论的具体出处（比 source 更细一档）：`user-memory-bind`（本次进程内人亲手绑定）、
-   * `user-file` / `migrated` / `detected`（工作区配置文件里的三种来源）、`declaration`（仓库里的说明文件）、
+   * 结论的具体出处（比 source 更细一档）：`user-file` / `file-migrated` / `file-detected` / `file-auto`
+   * （工作区配置文件里的四种来源，前两种是人选、后两种是读侧兼容分支）、`declaration`（仓库里的说明文件）、
    * `autodetect`（自动识别）、`unknown-workspace`（还没认出目录）、`pending` / `none`（没有结论）。
    * 界面与排查读它说清「这个答案凭什么」，不要拿 source 反推。
+   *
+   * #1138（2026-10-14）起不再有 `user-memory-bind` 这个取值：人选的唯一记录是工作区文件，
+   * 判定出口原来那层「本次进程内的绑定副本」已整段删除（见 docs/adr/20261012-backend-decision-two-classes.md 第 8 节）。
+   * 本字段今天仍是平铺的字符串（不是机器可判的两类表），把「出处 → 两类」做成表并加门禁另起一笔。
    */
   origin?: string
   /** `backendId` 不为 null 时给出的仓库身份。 */

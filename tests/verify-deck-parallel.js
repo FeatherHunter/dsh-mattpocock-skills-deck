@@ -12,7 +12,7 @@ const path = require('path')
 const { pathToFileURL } = require('url')
 // 判定出口桩（#1003 单出口）：壳拿不到它时一律回「判定出口这次没装上」，
 // 生产装配总会给，夹具照生产接上；桩的来历见 tests/lib/deck-decide-stub.js 文件头。
-const { makeDecideStub } = require('./lib/deck-decide-stub.js')
+const { makeDecideStub, chooseWorkspace } = require('./lib/deck-decide-stub.js')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -50,7 +50,6 @@ function stubRegistry(tracker) {
     select: async () => ({ backendId: 'stub', source: 'explicit', ref: ref, pending: false }),
     get: () => tracker,
     has: () => true,
-    bound: () => 'stub',
     describe: () => ref,
   }
 }
@@ -69,8 +68,12 @@ function baseDeps(over) {
     toolMarginMs: 5000,
   }, over || {})
   // 判定出口（#1003 单出口）：壳拿不到它时一律回「判定出口这次没装上」，生产装配总会给。
-  // 这里按夹具自己那张桩注册表的绑定补上（桩的来历见 tests/lib/deck-decide-stub.js 文件头）。
+  // 这里按夹具自己那张桩注册表补上（桩的来历见 tests/lib/deck-decide-stub.js 文件头）。
+  // #1138 起「这个工作区选过了」只剩工作区文件一份记录（注册表上的 bound 已整段删掉）：
+  // 本夹具所有会话用的都是 execFor 的缺省 cwd（D:/demo），所以给它记一笔账就等于
+  // 「这个工作区里有一份写着 stub 的工作区文件」，判定出口第一层读到它才放行写用途。
   if (!base.decideBackend && base.registry) base.decideBackend = makeDecideStub(base.registry)
+  chooseWorkspace('D:/demo', 'stub')
   return base
 }
 

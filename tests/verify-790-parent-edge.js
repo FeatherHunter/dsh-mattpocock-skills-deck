@@ -8,9 +8,10 @@
 const path = require('path')
 const { pathToFileURL } = require('url')
 // 判定出口桩（#1003 单出口）：壳拿不到它时一律回「判定出口这次没装上」，
-// 生产装配总会给（deckToolsAssembly.js 的 decideBackend），夹具照生产接上。
-// 桩按注册表当下的绑定回后端 id，理由见 tests/lib/deck-decide-stub.js 文件头。
-const { makeDecideStub } = require('./lib/deck-decide-stub.js')
+// 生产装配总会给（deckToolsAssembly 的 decideBackend），夹具照生产接上。
+// #1138 起人选只记在工作区文件里，夹具用 chooseWorkspace 给这个工作区写一份写着选了谁的文件，
+// 桩直接调生产判定出口读它；理由与两种造法见 tests/lib/deck-decide-stub.js 文件头。
+const { makeDecideStub, chooseWorkspace } = require('./lib/deck-decide-stub.js')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -158,7 +159,7 @@ async function main() {
     }
     const disp = registry.register(stub)
     const handle = { cwd: '/ws/790', refId: 'o/r' }
-    registry.bind(handle, 'stub-790')
+    chooseWorkspace('/ws/790', 'stub-790')   // 这个工作区选过了：文件里写着 stub-790（旧写法 registry.bind(handle, 'stub-790')）
     const deps = {
       gate, registry, budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom,
       handleFor: () => handle, backendCtx: {}, now: () => clock, log: { fire: () => {} }, invalidate: () => {},
@@ -206,7 +207,7 @@ async function main() {
       }),
     }
     const disp2 = registry.register(stubOk)
-    registry.bind(handle, 'stub-790-ok')
+    chooseWorkspace('/ws/790', 'stub-790-ok')   // 把工作区文件改写成选了读写一致的那个桩（正向对照）
     const link2 = linkMod.createDeckMapLink(deps)
     const lr2 = await link2.run(exec, { key: '91', parentKey: '78' })
     check(lr2.status === 'ok' && (lr2.items || [])[0].status === 'ok', 'F1 读写一致时仍 ok（回归对照，实得 ' + lr2.status + '）')

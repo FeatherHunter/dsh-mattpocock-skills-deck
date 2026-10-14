@@ -4,8 +4,8 @@
  * 第一性原理（#150 Q3 + #118 D1 + 契约 §2 + #113 可测性 + snapshot 双缓存正交）：
  *  - 键 = handleKey = cwd|refId（复用 registry handleKey 语义，Registry 268 行 handleKey 逻辑镜像）
  *  - 存储 = 内存 Map<handleKey → { selection, at }> 单例不落盘（不复用 snapshot owner__name.json）
- *  - 失效 = TTL 30s + cwd 切换新 key 重算 + registry unregister stale（emit bind stale:true）→ 自然过期；
- *    statusCache 与 snapshot 双缓存正交不合并（Q3/Q6）
+ *  - 失效 = TTL 30s + cwd 切换新 key 重算 + 后端被卸载（registry 发 unregister，按「缓存里答的是不是它」清）
+ *    → 自然过期；statusCache 与 snapshot 双缓存正交不合并（Q3/Q6）
  *  - 轻量化：本模块只管 Selection 缓存，不含 preflight/skill 聚合；pending 场景由 detectionService 决定不缓存
  */
 
@@ -63,10 +63,18 @@ export function createWorkspaceStore(opts = {}) {
     },
     // 供检测：列出 keys（隔离测试用）
     keys() { return Array.from(map.keys()) },
-    // Stale 清理：registry unregister 时回调
-    onRegistryBindStale(handle) {
-      // bound stale → 清对应 key（由 detectionService 订阅 registry on('bind', stale) 驱动）
-      try { map.delete(handleKey(handle)) } catch {}
+    // 某个后端被卸载时清缓存：只清「这一格的答案正是那个后端」的格子。
+    // #1138 之前这里叫 onRegistryBindStale(handle)，由「绑定表把工作区标 stale」驱动；绑定表删掉以后
+    // 注册表不知道哪些工作区用过它，改成按缓存内容认——判定结果没有别的记法，按它认就是最准的认法。
+    invalidateByBackend(backendId) {
+      const want = String(backendId || '')
+      if (!want) return 0
+      let n = 0
+      for (const [k, e] of Array.from(map.entries())) {
+        const got = e && e.selection && e.selection.backendId
+        if (got && String(got) === want) { map.delete(k); n++ }
+      }
+      return n
     },
   }
 }

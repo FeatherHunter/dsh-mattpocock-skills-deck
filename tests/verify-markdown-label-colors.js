@@ -478,24 +478,39 @@ const tracker = markdownModule.create({})
 
 // ── 十、D5：「用户为工作区选定后端」这一步的放置结果要如实回给调用方 ──
 // 放置失败不能在 bind 里无声丢掉：回包里带 labelColorsFile 一项说明放没放、为什么没放。
+// #1138 起这一条还多了一个前提：绑定这一步**真的会写一份工作区文件**（写不进去就等于这次选择没生效，
+// 回包直接是失败的），所以门禁必须给一条文件通道，否则这条断言测的就不是「放置结果有没有如实回」了。
 {
   const { createWorkspaceCwd } = await import('../src/host/workspaceCwd.js')
   const events = []
   const registry = {
     modules: () => [{ id: 'markdown', label: 'Markdown' }],
-    bind: () => {},
+    // 绑定这一步先要问注册表「认不认得这个后端」（handleBind 的第一道闸），谎报不认得它就直接失败了。
+    has: (id) => id === 'markdown',
     get: () => ({
       ensureLabelColorsFile: async () => ({ ok: false, error: { kind: 'env', message: '写不进去（门禁里演的失败）' } }),
     }),
     describe: () => ({ backend: 'markdown', refId: '/ws', name: 'ws', url: '' }),
-    allBindings: () => [],
-    bound: () => 'markdown',
     select: async () => ({ backendId: 'markdown' }),
+  }
+  // 只替磁盘：工作区文件那条路要一条能读能写的文件通道（resolve 出句柄、readText/writeText 吃句柄，
+  // 与 DSH 文件服务同形）。内容记在内存里，方便下面回头看一眼这一步到底写没写。
+  const written = new Map()
+  const keyOf = (p) => String(p).replace(/\\/g, '/').toLowerCase()
+  const edgeFs = {
+    resolve: async (rel, opts) => ({ rel: String(rel), cwd: (opts && opts.cwd) || '' }),
+    readText: async (t) => {
+      const p = keyOf(nodePath.posix.join(String((t && t.cwd) || ''), String((t && t.rel) || '')))
+      if (!written.has(p)) throw Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' })
+      return written.get(p)
+    },
+    writeText: async (t, content) => { written.set(keyOf(nodePath.posix.join(String((t && t.cwd) || ''), String((t && t.rel) || ''))), String(content)) },
+    mkdir: async () => {},
   }
   const host = createWorkspaceCwd({
     ctx: { get: () => undefined },
     DEFAULT_CWD: '/ws',
-    getPlatform: async () => ({ path: nodePath.posix, getHome: async () => '/home/u' }),
+    getPlatform: async () => ({ path: nodePath.posix, getHome: async () => '/home/u', fs: edgeFs }),
     getTrackerRegistry: async () => registry,
     getWorkspaceStore: async () => ({ invalidate: () => {} }),
     canonicalKey: async (c) => c,
@@ -505,7 +520,8 @@ const tracker = markdownModule.create({})
     detectionExec: async () => ({ ok: true }),
   })
   const r = await host.handleBind({ cwd: '/ws', backendId: 'markdown' })
-  check(r.ok === true, '绑定本身照样成功（放置失败不回滚绑定）')
+  check(r.ok === true && r.workspaceFile && r.workspaceFile.ok === true, '绑定本身成功，而且选择真的写进了工作区文件（写不进去这次选择就不算生效）')
+  check(String(written.get(keyOf('/ws/docs/agents/workspace.yaml')) || '').includes('backendId: markdown'), '绑定写下来的工作区文件里写着选定的那个后端（实得 ' + JSON.stringify(written.get(keyOf('/ws/docs/agents/workspace.yaml'))) + '）')
   check(r.labelColorsFile && r.labelColorsFile.ok === false, 'D5：bind 回包如实带上放置结果（实得 ' + JSON.stringify(r.labelColorsFile) + '）')
   check(events.some((e) => e.event === 'labelColors.write' && e.fields && e.fields.ok === false), 'D5：放置失败在宿主侧也留下一条 ok:false 的日志（实得 ' + JSON.stringify(events.filter((e) => e.event === 'labelColors.write')) + '）')
 }

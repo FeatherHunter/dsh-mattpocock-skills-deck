@@ -22,6 +22,9 @@ let failed = false
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href)
+// 夹具说「这个工作区选过了」的唯一办法（#1138 起）：给这个工作区一份工作区文件。
+// 两种造法与判定出口桩的来历见 tests/lib/deck-decide-stub.js 文件头。
+const { makeDecideStub, chooseWorkspace } = require('./lib/deck-decide-stub.js')
 const PERM_SENTENCE = 'GraphQL: u does not have the correct permissions to execute `AddLabelsToLabelable` (addLabelsToLabelable)'
 
 function plat(exec) {
@@ -71,11 +74,13 @@ async function main() {
   console.log('#992 只读仓库标签能力降级专属门禁（不联网）')
   const { ERROR_KIND } = await imp('src/tracker/contract/vocabulary.ts')
   // 选后端的判定出口（#1003 单出口）。下面 E）与 G）两段都是经工具壳调后端的，生产装配总是把它递给工具
-  //   （见 src/deck/registration/host-assemble.ts 的 `decideBackend: decideBackend || null`），壳拿不到它时
-  //   会一律回「判定出口这次没装上」，两段都跑不到真实路径。接上它之后，两段夹具里那句
-  //   registry.bind(handle, ...) 才会被读成「用户亲手选过这个工作区」，写用途才会被放行
+  //   （见 src/deck/registration/host-assemble.ts 的 `decideBackend: decideBackendFn`），壳拿不到它时
+  //   会一律回「判定出口这次没装上」，两段都跑不到真实路径。夹具照生产的接法给上判定出口桩
+  //   （makeDecideStub），桩直接调生产那一个判定出口。
+  //   #1138 起「这个工作区选过了」只有一种造法：给这个工作区一份工作区文件。两段夹具里原来写的是
+  //   registry.bind(handle, ...)，注册表的绑定口子已整段删掉（见 src/tracker/registry/core.ts 文件头），
+  //   现在改用 chooseWorkspace('/ws/992', ...) 表达同一件事；写用途只有「文件里有人选」才放行
   //   （#1003 契约期望行为第 4 条）。
-  const decMod = await imp('src/tracker/detection/backendDecision.ts')
 
   // ── A) 分类 ──
   {
@@ -176,8 +181,8 @@ async function main() {
     })
     const disp = registry.register(mkStub(true))
     const handle = { cwd: '/ws/992', refId: 'o/r' }
-    registry.bind(handle, 'stub-992-err')
-    const deps = { gate, registry, budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, handleFor: () => handle, backendCtx: {}, now: () => clock, log: { fire: () => {} }, invalidate: () => {}, decideBackend: decMod.decideBackend }
+    chooseWorkspace('/ws/992', 'stub-992-err')   // 这个工作区选过了：文件里写着 stub-992-err（旧写法 registry.bind(handle, 'stub-992-err')）
+    const deps = { gate, registry, budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, handleFor: () => handle, backendCtx: {}, now: () => clock, log: { fire: () => {} }, invalidate: () => {}, decideBackend: makeDecideStub(registry) }
     const createMod = await imp('src/deck/tools/issue-create.ts')
     const tool = createMod.createDeckIssueCreate(deps)
     const exec = { agent: { session: { id: 's-992', cwd: '/ws/992' } } }
@@ -190,7 +195,7 @@ async function main() {
     disp.dispose()
     // 回归对照：挂上了仍 ok 并照说补了
     const disp2 = registry.register(mkStub(false))
-    registry.bind(handle, 'stub-992-ok')
+    chooseWorkspace('/ws/992', 'stub-992-ok')   // 改写成选了挂得上标签的那个桩（回归对照）
     const tool2 = createMod.createDeckIssueCreate(deps)
     const ok2 = await tool2.run(exec, { title: '正常建 bug 票', kind: 'bug' })
     check(ok2.status === 'ok', 'E5 标签挂上时仍 ok（回归对照；实得 ' + ok2.status + '）')
@@ -260,8 +265,8 @@ async function main() {
       const stub = { id: stubId, label: '桩', matches: async () => false, create: () => trackerImpl }
       const disp = registry.register(stub)
       const handle = { cwd: '/ws/992', refId: 'o/r' }
-      registry.bind(handle, stubId)
-      const deps = { gate, registry, budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, handleFor: () => handle, backendCtx: {}, now: () => clock, log: { fire: () => {} }, invalidate: () => {}, decideBackend: decMod.decideBackend }
+      chooseWorkspace('/ws/992', stubId)   // 这个工作区选过了：文件里写着这一次要用的桩 id（旧写法 registry.bind(handle, stubId)）
+      const deps = { gate, registry, budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, handleFor: () => handle, backendCtx: {}, now: () => clock, log: { fire: () => {} }, invalidate: () => {}, decideBackend: makeDecideStub(registry) }
       const tool = ctxMod.createDeckContext(deps)
       const out = await tool.run({ agent: { session: { id: 's-992', cwd: '/ws/992' } } }, {})
       disp.dispose()

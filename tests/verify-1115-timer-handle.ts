@@ -252,7 +252,6 @@ async function main() {
       describe: () => ({ refId: '', name: '' }),
       get: () => null,
       has: () => false,
-      allBindings: () => [],
       modules: () => [],
     }
     const { createPlatformChannel } = await imp('src/host/platformChannel.js')

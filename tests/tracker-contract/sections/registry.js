@@ -4,11 +4,15 @@
  * 第一性原理（#125 定版）：
  *  - 注册只验模块形状（id/label/create/matches），不因缺 op 拒绝；缺方法由 Proxy 补 unsupported 桩。
  *  - id 冲突默认抛 duplicate-id（replace 供 HMR）；'other' 弃用不注册；create 说谎（id 不一致/非对象）拒绝。
- *  - select 三级联三态（explicit > matches > fallback；matches 超时→pending:true 排除决策集；
- *    平局=注册序 + multiHit 暴露；无 explicit/match/pending 才 fallback→null 且 ref 省略；
- *    pending:true = 仲裁未决（UI 显示等待/bind，不静默 OtherCard））。
+ *  - select 两级联三态（matches > fallback；matches 超时→pending:true 排除决策集；
+ *    平局=注册序 + multiHit 暴露；无 match/pending 才 fallback→null 且 ref 省略；
+ *    pending:true = 仲裁未决（UI 显示等待/请人自己选，不静默 OtherCard））。
  *  - on(unsubscribe) / Disposable（按代隔离：replace 后旧代 dispose 不误杀新代）/ 监听抛错隔离 /
- *    describe / MIGRATE_KEY；unregister stale 通知携带真实 handle。
+ *    describe / MIGRATE_KEY；unregister 发一条带 id 的 unregister 事件（缓存失效由订阅方按它判）。
+ *  - #1138 起注册表只有这些口子：register / unregister / get / has / modules / select / describe /
+ *    issueAddress / repoSearchAddress / issueRefPattern / issueUrl / searchUrl / linkPattern / on。
+ *    原来那张「这个工作区绑了谁」的进程内副本连同 bind / bound / allBindings 三个口子整段删掉了，
+ *    本节最后三条断言就是「它们确实不在」——人选住在工作区文件 docs/agents/workspace.yaml 里。
  *  - 链接三件事只转发、不代造（#1112）：后端自己给了就原样转出（模块静态属性与实例旁路两条来源都算），
  *    没给、抛错、或没注册这个 id 就诚实回空——拼票地址与按名搜仓库回 ''，认票写法回 null。
  *    反例（必须被逮）：任何按 backendId 写死的 github / gitlab 网址与正则，一旦回到注册表，这一组立刻变红。
@@ -114,16 +118,14 @@ export async function run() {
     d1.dispose()
     return t2 !== t1 && r.get('gen') === t2 && r.modules().length === 1
   })(), 'dispose of a replaced generation must not kill the new tracker')
-  await assert('unregister stale bind 负载含真实 handle（F6）', (() => {
+  await assert('unregister 发一条带 id 的 unregister 事件（#1138 新口径）', (() => {
     const r = createRegistry()
     r.register(mkModule('st'))
-    const h = { cwd: '/ws-stale' }
-    r.bind(h, 'st')
     let got = null
-    r.on('bind', (p) => { if (p && p.stale) got = p })
+    r.on('unregister', (p) => { got = p })
     r.unregister('st')
-    return got !== null && got.backendId === null && got.handle === h && got.stale === true
-  })(), 'stale bind notification must carry the real handle, not a string key')
+    return got !== null && got.id === 'st'
+  })(), 'unregister must notify subscribers with the removed id (缓存失效的判据)')
   await assert('on(register) 触发 + 取消订阅', (() => {
     const r = createRegistry()
     let n = 0
@@ -146,20 +148,9 @@ export async function run() {
     return threw1(() => r.on('unknown', () => {}), 'bad-event') === 'ok'
   })(), 'unknown event must throw')
 
-  // ── select 三级联三态 ──
-  await assert('explicit: bind → select 命中且出 ref', (async () => {
-    const r = createRegistry()
-    r.register(mkModule('hitA'))
-    r.bind(handle, 'hitA')
-    const sel = await r.select(handle, { cwd: handle.cwd })
-    return sel.backendId === 'hitA' && sel.source === 'explicit' && sel.ref && sel.ref.backend === 'hitA' && sel.multiHit === undefined
-  })(), 'bound handle must short-circuit to explicit')
-  await assert('explicit null: 无后端（ref 省略）', (async () => {
-    const r = createRegistry()
-    r.bind(handle, null)
-    const sel = await r.select(handle, { cwd: handle.cwd })
-    return sel.backendId === null && sel.source === 'explicit' && !('ref' in sel)
-  })(), 'Selection.backendId:null must omit ref')
+  // ── select 两级联三态 ──
+  // 「explicit」这一档今天不归注册表管：人选住在工作区文件里，由统一判定出口
+  // （src/tracker/detection/backendDecision.ts 的 decideBackend）读文件后给出，注册表只答「谁认得这个仓库」。
   await assert('matches 单命中 → source matches + ref', (async () => {
     const r = createRegistry()
     r.register(mkModule('m1', { matches: async () => true }))
@@ -207,20 +198,21 @@ export async function run() {
     return seen !== null && typeof seen === 'object' && typeof seen.aborted === 'boolean'
   })(), 'signal must be injected into matches ctx')
 
-  // ── bind / bound / describe / migrateKey ──
-  await assert('bind 未注册后端抛 unknown-backend', (() => {
+  // ── #1138：bind / bound / allBindings 三个口子确实不在（不是漏了，是有意删的）──
+  // 注册表原来存着一份「这个工作区绑了谁」的进程内副本，与工作区文件
+  // docs/agents/workspace.yaml 记的是同一件事的两份记录（宿主重启即消失）。整段删掉之后，
+  // 问「这个工作区用哪个后端」只有一条路：统一判定出口 decideBackend 读那份工作区文件。
+  await assert('#1138：注册表不再答「这个工作区绑了谁」（bind/bound/allBindings 三个口子都没有）', (() => {
     const r = createRegistry()
-    return threw1(() => r.bind(handle, 'ghost'), 'unknown-backend') === 'ok'
-  })(), 'bind to unregistered must throw')
-  await assert('bound() 三态（undefined/null/id）', (() => {
+    return typeof r.bind === 'undefined' && typeof r.bound === 'undefined' && typeof r.allBindings === 'undefined'
+  })(), 'bind/bound/allBindings must be gone (人选住在工作区文件里)')
+  await assert('#1138：三个口子不在，注册表本身照常成立（注册、拿后端、列名单、仲裁都还在）', (() => {
     const r = createRegistry()
-    r.register(mkModule('bnd'))
-    if (r.bound(handle) !== undefined) return false
-    r.bind(handle, null)
-    if (r.bound(handle) !== null) return false
-    r.bind(handle, 'bnd')
-    return r.bound(handle) === 'bnd'
-  })(), 'bound must distinguish never/explicit-null/id')
+    r.register(mkModule('still-works'))
+    const hasAll = ['register', 'unregister', 'get', 'has', 'modules', 'select', 'describe', 'on']
+      .every((k) => typeof r[k] === 'function')
+    return hasAll && r.has('still-works') && r.get('still-works').id === 'still-works' && r.modules().length === 1
+  })(), 'the registry must keep answering what it still owns')
   // ── describe / 链接转发（#1112：注册表不替后端拼地址、不造正则） ──
   await assert('describe 出 RepositoryRef（markdown refId=cwd）', (() => {
     const r = createRegistry()

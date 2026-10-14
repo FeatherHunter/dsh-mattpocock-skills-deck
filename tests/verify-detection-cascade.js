@@ -1,8 +1,9 @@
 /**
  * verify-detection-cascade.js — #152 acceptance ①②③ 轻量冒烟（本机可判真，无需真机三端）
  * 覆盖：
- *  ① 三级联 explicit>matches>fallback + pending/multiHit 按 #125
- *  ② per-workspace 隔离（cwd A/B 各选后端，切换不串台）+ 覆盖层「用户说了算」
+ *  ① 两级联 matches>fallback + pending/multiHit 按 #125（「人选」那一层不在注册表里：
+ *     人选住在工作区文件 docs/agents/workspace.yaml，由判定出口 backendDecision.ts 唯一作答，#1138）
+ *  ② per-workspace 隔离（cwd A/B 各选后端，切换不串台）+ 覆盖层「用户说了算」（工作区文件里有人选）
  *  ③ 三步链路 Step1→2→3 冒烟 + installSkills 复验 + 无静默安装断言 + #59 登录引导经 AI 注入口（不测 UI，仅断言契约面）
  * 用法：node tests/verify-detection-cascade.js
  */
@@ -13,11 +14,34 @@ import { createDetectionService } from '../src/tracker/detection/detectionServic
 import { decideBackend as outletDecideBackend, selectionFromOutlet as outletSelectionFromOutlet } from '../src/tracker/detection/backendDecision.ts'
 try { outletDecideBackend.selectionFromOutlet = outletSelectionFromOutlet } catch (eAttachOutlet) {}
 import { createRegistry } from '../src/tracker/registry/core.ts' // V1 #461：registry.js 已拆为三块
+// #1138：夹具手里的「工作区文件」账本（虚拟目录，不碰盘）。两块都要：chooseWorkspace 记下「这个工作区选了谁」，
+// workspaceFileOf 把记下的内容交给判定出口读（读的口子是 deps.fs，与真平台上的文件服务同一形状）。
+import decideStub from './lib/deck-decide-stub.js'
+const chooseWorkspace = decideStub.chooseWorkspace
+const workspaceFileOf = decideStub.workspaceFileOf
+
+/**
+ * 判定出口读工作区文件那一路用的最小文件服务：只有工作区文件这两张脸有内容，别的路径一律说没有。
+ * 为什么要给这一份：人选的唯一真源是工作区文件 docs/agents/workspace.yaml，而读它的是判定出口自己的
+ * deps.fs 分支（src/tracker/detection/backendDecision.ts 的 readFileLayer）；账本只记了「这份文件写了什么」，
+ * 没有「谁去读它」，这一份把两者接起来。判定仍由生产那一个出口做，这里不另写一套规则。
+ */
+const workspaceFs = {
+  async resolve(rel, opts) { return { rel: String(rel), cwd: (opts && opts.cwd) || '' } },
+  async readText(target) {
+    const rel = String((target && target.rel) || '')
+    const text = (rel === 'docs/agents/workspace.yaml' || rel === 'docs/agents/workspace.json')
+      ? workspaceFileOf((target && target.cwd) || '')
+      : null
+    if (text == null) throw Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' })
+    return text
+  },
+}
 
 let passed=0, failed=0
 function ok(cond, msg){ if(cond){console.log('  PASS '+msg); passed++} else {console.log('  FAIL '+msg); failed++} }
 
-console.log('== ① 三级联探测正确性（explicit>matches>fallback + pending/multiHit） ==')
+console.log('== ① 探测正确性（注册表两级联 matches>fallback + pending/multiHit；人选那一层归判定出口） ==')
 // parse
 {
   const p1 = parseIssueTracker('# Issue tracker: GitHub\nsome')
@@ -115,13 +139,17 @@ console.log('\n== ② per-workspace 隔离 + 覆盖层「用户说了算」 ==')
   ok(ws.get({cwd:'/tmp/a'}).selection.backendId==='github', 'per-workspace A=github')
   ok(ws.get({cwd:'/tmp/b'}).selection.backendId==='markdown', 'per-workspace B=markdown')
   ok(ws.get({cwd:'/tmp/a'}).selection.backendId!==ws.get({cwd:'/tmp/b'}).selection.backendId, '切换不串台')
-  // 覆盖层：bind 后下次 select 首判 explicit
-  const h = { cwd:'/tmp/c' }
-  reg.bind(h, 'github')
-  const sel = await reg.select(h, {})
-  ok(sel.backendId==='github' && sel.source==='explicit', '覆盖层 bind→explicit 优先（用户说了算）')
-  // bind 不回写文件：检查 explicitDetector 仍走文件路径不写 byHandle
-  ok(reg.bound({cwd:'/tmp/a'})=== 'github' ? false : true || true, '覆盖层唯一写路径 registry.bind（不回写 issue-tracker.md 断言占位）')
+  // 覆盖层：用户在面板上为这个工作区选定后端 → 生产里这一步落在工作区文件 docs/agents/workspace.yaml
+  //   （#1138：注册表里那份进程内绑定表连同 bind 口子已经删掉，写入口只剩工作区入口 handleBind 一处）。
+  //   这里就照那条路造一份文件，再问生产那一个判定出口该用谁。
+  chooseWorkspace('/tmp/selected', 'github')
+  const sel = await outletDecideBackend('/tmp/selected', { registry: reg, fs: workspaceFs, caller: 'verify-detection-cascade' })
+  ok(sel.backendId==='github' && sel.source==='explicit' && sel.origin==='user-file' && sel.canWrite===true,
+    '覆盖层：工作区文件里人选 → 判定出口答 explicit（用户说了算，且写用途凭它放行）')
+  // 注册表不再答「这个工作区绑了谁」：判定出口的这一层已经整段删掉（#1138 的有意结果，
+  //   三个口子 bind/bound/allBindings 的具体形状由 tests/tracker-contract/sections/registry.js 守着）。
+  ok(typeof reg.bind==='undefined' && typeof reg.bound==='undefined' && typeof reg.allBindings==='undefined',
+    '覆盖层：注册表不再存「这个工作区绑了谁」（bind/bound/allBindings 三个口子都没有）')
   // per-workspace TTL + pending 不缓存
   const ws2 = createWorkspaceStore({ttl:10})
   ws2.set({cwd:'/tmp/p'}, { selection:{backendId:'github', source:'matches', pending:true}})
@@ -130,14 +158,22 @@ console.log('\n== ② per-workspace 隔离 + 覆盖层「用户说了算」 ==')
   ws2.set({cwd:'/tmp/ttl'}, {selection:{backendId:'github', source:'matches'}})
   await new Promise(r=>setTimeout(r, 20))
   ok(ws2.get({cwd:'/tmp/ttl'})===null, 'TTL 过期不命中')
-  // stale 清理
+  // 后端被卸载后的缓存清理：口径已从「注册表把绑定标 stale 再发 bind」改成「注册表发一条 unregister（带 id），
+  //   缓存按『这一格答的是不是这个被卸掉的后端』清」（见 src/tracker/detection/workspaceStore.ts 的 invalidateByBackend）。
   const regStale = createRegistry({}, {})
   regStale.register({ id:'github', label:'G', create:()=>({}), matches: async()=>false })
-  regStale.bind({cwd:'/tmp/s'}, 'github')
+  regStale.register({ id:'markdown', label:'M', create:()=>({}), matches: async()=>false })
   const wsStale = createWorkspaceStore({ttl:30000})
-  wsStale.set({cwd:'/tmp/s'}, {selection:{backendId:'github',source:'explicit'}})
-  wsStale.onRegistryBindStale({cwd:'/tmp/s'})
-  ok(wsStale.get({cwd:'/tmp/s'})===null, 'unregister stale → 清 byHandle 缓存')
+  wsStale.set({cwd:'/tmp/s'},   {selection:{backendId:'github',   source:'explicit'}})
+  wsStale.set({cwd:'/tmp/s2'},  {selection:{backendId:'markdown', source:'matches'}})
+  regStale.on('unregister', (p) => {
+    const n = wsStale.invalidateByBackend(p && p.id)
+    ok(n===1, 'unregister 后只清「这一格答的正是被卸掉的那个后端」的缓存（清掉 ' + n + ' 格）')
+  })
+  regStale.unregister('github')
+  ok(wsStale.get({cwd:'/tmp/s'})===null, 'unregister → 答 github 的那一格被清掉')
+  ok(wsStale.get({cwd:'/tmp/s2'})!==null && wsStale.get({cwd:'/tmp/s2'}).selection.backendId==='markdown',
+    'unregister → 答别的后端的那一格原样留着（不误伤）')
 }
 
 console.log('\n== ③ 三步引导链路冒烟（Step1→2→3 + installSkills 复验 + 无静默安装） ==')

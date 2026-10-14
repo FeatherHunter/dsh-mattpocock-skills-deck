@@ -8,7 +8,7 @@ const path = require('path')
 const { pathToFileURL } = require('url')
 // 判定出口桩（#1003 单出口）：壳拿不到它时一律回「判定出口这次没装上」，
 // 生产装配总会给，夹具照生产接上；桩的来历见 tests/lib/deck-decide-stub.js 文件头。
-const { makeDecideStub } = require('./lib/deck-decide-stub.js')
+const { makeDecideStub, chooseWorkspace } = require('./lib/deck-decide-stub.js')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -106,7 +106,9 @@ async function main() {
     }
     const disp = registry.register(stubReadFail)
     const handle = { cwd: '/ws/829', refId: 'o/r' }
-    registry.bind(handle, 'stub-829-readfail')
+    // #1138 起「这个工作区选过了」只有一种造法：给这个工作区一份工作区文件。这里原来写的是
+    // registry.bind(handle, 'stub-829-readfail')，注册表的绑定口子已整段删掉（见 src/tracker/registry/core.ts 文件头）。
+    chooseWorkspace('/ws/829', 'stub-829-readfail')
     const deps = {
       gate, registry, budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom,
       handleFor: () => handle, backendCtx: {}, now: () => clock, log: { fire: () => {} }, invalidate: () => {},

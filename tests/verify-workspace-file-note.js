@@ -2,36 +2,38 @@
 /**
  * verify-workspace-file-note.js —— #1012 客户端那一行「工作区配置文件写成什么样」的门禁。
  *
- * 这一行是干什么的：用户在门控窗（或切换弹窗）点确认之后，宿主除了绑定后端，还会把「这次选择写进
- *   工作区配置文件」的结果一起回给客户端；客户端把它记进会话状态，并在状态栏里如实显示一句话。
- *   宿主那一侧只算三种结果（见 src/host/workspaceCwd.js 的 writeWorkspaceFileOnFirstBind）：
+ * 这一行是干什么的：用户在门控窗（或切换弹窗）点确认之后，宿主会先把这次选择写进工作区配置文件
+ *   （写成功才算这次选择生效），再把写入结果回给客户端；客户端把它记进会话状态，并在状态栏里
+ *   如实显示一句话。宿主那一侧只算两种结果（见 src/host/workspaceCwd.js 的 writeWorkspaceRecord）：
  *     写成  { ok:true, placed:true, reason:'created' | 'overwritten' }
- *     跳过  { ok:true, skipped:'explicit-none' | 'unregistered' | 'registry-unavailable' }（正常不做）
- *     失败  { ok:false, error:{ kind:'env', message } }（没写进工作区，但绑定照旧有效）
+ *     没写成 { ok:false, error:{ kind:'env', reason, message } }（这次选择没有生效，主线提示会说清）
+ *   #1138 改口径：以前「跳过」（没有后端、后端没注册、注册表问不到）也是一档 ok:true + skipped，
+ *   今天这三种情况都不再静默跳过 —— 前一种根本记不下来，后两种当场如实报失败，所以宿主不再回
+ *   带 skipped 的回执，本门禁也不再为那一档生成判据。
  *   客户端那一侧只负责把这份回执翻成人话，不重算判断（见 src/client/kernel/store-prefs.js 的
  *   workspaceFileNoteOf / workspaceFileNoteEl / adoptBoundRev）。
  *
  * 本门禁量四件事（组号沿用下面各节的标题）：
- *   B 五种回执翻出来的人话：已创建、已覆盖（要写明覆盖了原来那一条）、三种跳过（回空串，不打扰人）、
- *     环境失败（如实说没写进工作区，并明说绑定照旧有效）、没有结果（回空串）；
+ *   B 回执翻出来的人话：已创建、已覆盖（要写明覆盖了原来那一条）、
+ *     没写成（回空串 —— 那次失败由主线提示一条说清，这一行不再另说一遍，免得同一件事说两遍
+ *     还让人以为「虽然报错但其实成了」）、没有结果（回空串）；
  *   C adoptBoundRev 把回执记进会话状态（回执在顶层 / 回执在 res.value 里 / 两个字段同时在时取哪一份 /
  *     没有回执 / 回包整个缺席）且仍然返回 null；
  *   D workspaceFileNoteEl 没有结果回 null；有结果但纯 node 里没有 h 时也回 null（不抛）；
  *     给它一个 h（假节点工厂）就回一个 div 节点，节点里写的正是翻译出来那句话；
  *   F 反证（本轮重做）：把 B 组那批语义判据收成一个可复用函数（runNoteCases），拿真模块里那个真身
- *     翻译函数包一层、在运行时按回执的字段改坏一处（跳过也给人话 / 覆盖那句不再说覆盖 / 失败那句不再
- *     提绑定照旧有效 / 已创建谎称覆盖），对每个变异体跑同一批判据，断言「至少有一条红」——
+ *     翻译函数包一层、在运行时按回执的字段改坏一处（没写成也说成写成了 / 覆盖那句不再说覆盖 /
+ *     没写成还硬说一句 / 已创建谎称覆盖），对每个变异体跑同一批判据，断言「至少有一条红」——
  *     证明 B 组量的就是这几行，不是走过场。四个变异体都不碰真源文本、不依赖任何整句原文锚，
  *     所以真源换措辞（比如把「配置文件」说成「设置文件」）既不会让这一组丢锚，也不会让它假过。
  *
  * 判据钉到什么程度（写清楚，免得以后有人以为改个措辞就得动这里）：
  *   只量「同一句话里必须出现的几组词」，不钉整句：句式、语序、标点、多加的客套话都能改。
  *   钉住的几组词（括号里是判据同样认的同义表达）：
- *     工作区 / 配置文件（或设置文件）/ 原来（或原有、原本）/ 覆盖（或换掉、换成）/ 绑定 /
- *     有效（或不受影响、照旧）；失败那一档还要有一处「没能 / 没有 / 没写 / 未写 / 没存 / 失败」。
- *   另钉两条相对判据：已创建与已覆盖不许说成同一句、失败那句与「已经写进去」那两句不许说成同一句。
- *   跳过与没有结果两档必须回空串（状态栏那一行不占位）。
- *   这六组词是「用户第一次读就能看懂」的底线；要换说法，就连这里的判据一起改，别让门禁对着旧措辞发光。
+ *     工作区 / 配置文件（或设置文件）/ 原来（或原有、原本）/ 覆盖（或换掉、换成）。
+ *   另钉两条相对判据：已创建与已覆盖不许说成同一句、没写成那一档（回空串）与「已经写进去」那两句
+ *   不许说成同一句。
+ *   没有结果与「没写成」两档必须回空串（状态栏那一行不占位：那次失败由主线提示一条说清）。
  *   上面这些只约束「意思」，不约束原文：F 组那四个变异体就是照这个口径写的 —— 它们只认回执的字段名，
  *   不认真源里的整句话，所以真源改措辞不用跟着动 F 组。
  *
@@ -56,6 +58,10 @@
  *      定义/调用、有没有去掉行首 export）两组纯文本判据，另删掉「翻译函数的函数体里不出现 placed」
  *      那一条。跳过那三个取值仍列在下面的 DOCUMENTED_SKIPS 里，只是不再去源文件核对了。抠真源文本
  *      求值那条路（D 组「有 h 的那一支」）与 B/C/F 三组的行为判据一条没动。
+ *   5) #1138（2026-10-14）改口径：宿主不再回「跳过」那一档（今天没有后端名就根本记不下来 —— 如实报失败；
+ *      后端没注册也是如实报失败；注册表拿不到同理），写不成也不再回 ok。所以本门禁把「跳过三种」那三档
+ *      判据换成「没写成」那一档：翻译函数必须回空串（那次失败由主线提示说清，这一行再说一遍反而像是
+ *      「虽然报错但其实成了」），并把 F 组第一个变异体从「跳过也给人话」改成「没写成也说成写成了」。
  *
  * 两种取值路线，哪一条走哪种方式（实测结论写在这里，照做即可）：
  *   1) 行为断言（B/C/D 里凡是量真模块行为的那几条）走**真模块直接 import**：本文件是 ESM，用 import()
@@ -96,25 +102,23 @@ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 
 const prefsSrc = read(PREFS_REL)
 
-// 宿主那一侧今天只算这三个跳过取值（B 组逐个喂给翻译函数，看每一档都翻得出人话）。
-const DOCUMENTED_SKIPS = ['explicit-none', 'unregistered', 'registry-unavailable']
+// #1138：宿主今天不再回「跳过」那一档（那三种情况都不再静默跳过：没有后端名根本记不下来，如实报失败；
+//   后端没注册、注册表拿不到同理，也是如实报失败）。所以这里不再有「跳过取值」这份名单，
+//   B 组也不再为那一档生成判据 —— 改成「没写成」那一档：翻译函数回空串，那一行不占位。
 
 // 判据认的同义表达：写成数组，命中任意一个就算有这层意思（理由见文件头「判据钉到什么程度」）。
 const W_WORKSPACE = ['工作区']
 const W_CONFIG_FILE = ['配置文件', '设置文件']
 const W_COVER = ['覆盖', '换掉', '换成']
 const W_ORIGINAL = ['原来', '原有', '原本']
-const W_BIND = ['绑定']
-const W_STILL_OK = ['有效', '不受影响', '照旧']
-const RE_NOT_WRITTEN = /(没能|没有|没写|未写|没存|失败)/
 const anyOf = (t, words) => words.some((w) => t.includes(w))
 const isSentence = (t) => typeof t === 'string' && t !== ''
 //   已创建：说得清是写进了工作区里的配置文件，且不许谎称覆盖。
 const looksCreated = (t) => isSentence(t) && anyOf(t, W_WORKSPACE) && anyOf(t, W_CONFIG_FILE) && !anyOf(t, W_COVER)
 //   已覆盖：必须写明覆盖了原来那一条（与「已创建」区分开）。
 const looksOverwritten = (t) => isSentence(t) && anyOf(t, W_WORKSPACE) && anyOf(t, W_COVER) && anyOf(t, W_ORIGINAL)
-//   环境失败：如实说没写进工作区，并明说绑定照旧有效（用户别以为绑定也跟着废了）。
-const looksEnvFail = (t) => isSentence(t) && anyOf(t, W_WORKSPACE) && RE_NOT_WRITTEN.test(t) && anyOf(t, W_BIND) && anyOf(t, W_STILL_OK)
+//   没写成：期望空串。为什么不再由这一行说「没写进去、绑定照旧有效」——见函数头注释（#1138）：
+//   那次失败由主线那条提示一条说清；再说一遍既重复，又容易让人以为「虽然报错但其实成了」。
 
 // 从真源里整段取出一个函数表达式（`export const 名字 = function (...) { ... }` 的 `function ...` 那一段）。
 //   写法与 tests/verify-683-choice-rev.js 取 currentBackendId 时同例：非贪婪取到行首四个空格那个闭括号。
@@ -178,19 +182,16 @@ const noteCreated = noteOf({ ok: true, placed: true, reason: 'created' })
 //   t 是这个回执翻出来的话；say(另一个回执) 是同批里另一条翻出来的话（用来量「两句不许合并成一句」）。
 //   「跳过」那几条按 skipValues 现场生成：宿主今天只算那三个取值，万一多出一种，
 //   这里跟着多测一条翻译，不用等人想起来改门禁。
-const buildNoteCases = function (skipValues) {
+const buildNoteCases = function () {
   const cases = [
     { name: '已创建：回一句人话，说清了是写进工作区里的配置文件，且不谎称覆盖', wf: { ok: true, placed: true, reason: 'created' }, ok: (t) => looksCreated(t) },
     { name: '已覆盖：写明覆盖了原来那一条', wf: { ok: true, placed: true, reason: 'overwritten' }, ok: (t) => looksOverwritten(t) },
     { name: '已覆盖与已创建不是同一句（覆盖那条多说了「原来那条被换掉」）', wf: { ok: true, placed: true, reason: 'overwritten' }, ok: (t, say) => t !== say({ ok: true, placed: true, reason: 'created' }) },
   ]
-  for (const v of skipValues) {
-    cases.push({ name: '跳过（' + v + '）回空串 —— 正常不做，不打扰人', wf: { ok: true, skipped: v }, ok: (t) => t === '' })
-  }
   cases.push(
-    { name: '环境失败：如实说没写进工作区，并明说绑定照旧有效', wf: { ok: false, error: { kind: 'env', message: '磁盘只读，写不进去' } }, ok: (t) => looksEnvFail(t) },
-    { name: '环境失败那句与「已经写进去」那两句不是同一句（不许把没写成说成写成了）', wf: { ok: false, error: { kind: 'env', message: '磁盘只读，写不进去' } }, ok: (t, say) => t !== say({ ok: true, placed: true, reason: 'created' }) && t !== say({ ok: true, placed: true, reason: 'overwritten' }) },
-    { name: '回包只给了 ok:false、没带 error 细节时，说的还是同一句失败话（失败就是失败，不因为没有细节就闭嘴）', wf: { ok: false }, ok: (t, say) => t === say({ ok: false, error: { kind: 'env', message: '磁盘只读，写不进去' } }) },
+    { name: '没写成（带原因）：回空串 —— 那次失败由主线提示一条说清，这一行不再另说一遍', wf: { ok: false, error: { kind: 'env', reason: 'readonly', message: '磁盘只读，写不进去' } }, ok: (t) => t === '' },
+    { name: '没写成（回包只给 ok:false、没带原因细节）：同样回空串（不因为没有细节就在这一行另说一句）', wf: { ok: false }, ok: (t) => t === '' },
+    { name: '没写成那一档与「已经写进去」那两句都不是同一句（不许把没写成说成写成了）', wf: { ok: false, error: { kind: 'env', message: '磁盘只读，写不进去' } }, ok: (t, say) => t !== say({ ok: true, placed: true, reason: 'created' }) && t !== say({ ok: true, placed: true, reason: 'overwritten' }) },
   )
   for (const c of [['null', null], ['undefined', undefined], ['空串', ''], ['不是对象的东西', 'x']]) {
     cases.push({ name: '没有结果（' + c[0] + '）回空串 —— 状态栏那一行不占位', wf: c[1], ok: (t) => t === '' })
@@ -214,14 +215,13 @@ const runNoteCases = function (noteFn) {
   })
 }
 console.log('')
-console.log('== B 五种回执翻出来的人话 ==')
-const skipValues = DOCUMENTED_SKIPS.slice().sort()
-const NOTE_CASES = buildNoteCases(skipValues)
-// 固定 10 条：已创建 1 + 已覆盖 2（像不像、句不同）+ 环境失败 2（像不像、句不同）+ 只给 ok:false 1 + 没有结果 4。
+console.log('== B 回执翻出来的人话 ==')
+const NOTE_CASES = buildNoteCases()
+// 固定 10 条：已创建 1 + 已覆盖 2（像不像、句不同）+ 没写成 3（回空串 2 条、与成功那两句不同 1 条）+ 没有结果 4。
 const FIXED_CASE_COUNT = 10
 check(
-  NOTE_CASES.length === FIXED_CASE_COUNT + skipValues.length,
-  'B 组判据条数与回执档位对得上（固定 ' + FIXED_CASE_COUNT + ' 条 + 跳过 ' + skipValues.length + ' 档 = 实得 ' + NOTE_CASES.length + ' 条；少一条就说明这批判据被人删过，F 组拿的是同一批，也会跟着变弱）',
+  NOTE_CASES.length === FIXED_CASE_COUNT,
+  'B 组判据条数与回执档位对得上（固定 ' + FIXED_CASE_COUNT + ' 条 = 实得 ' + NOTE_CASES.length + ' 条；少一条就说明这批判据被人删过，F 组拿的是同一批，也会跟着变弱）',
 )
 const casesB = runNoteCases(noteOf)
 for (const c of casesB) check(c.ok, c.name + '（实得「' + c.t + '」）')
@@ -276,7 +276,7 @@ console.log('== D workspaceFileNoteEl 什么时候回 null、什么时候回节�
 check(noteEl({}) === null, '没有结果时回 null（不占位，现有布局一个像素都不动）')
 check(noteEl({ workspaceFileResult: null }) === null, '结果记成 null 时回 null')
 check(noteEl(null) === null && noteEl(undefined) === null, '会话状态本身缺席时也回 null（调用方不必先判空）')
-check(noteEl({ workspaceFileResult: { ok: true, skipped: 'unregistered' } }) === null, '跳过那一档翻出来是空串，所以同样回 null（正常不做就不占位）')
+check(noteEl({ workspaceFileResult: { ok: false, error: { kind: 'env', message: '写不进去' } } }) === null, '没写成那一档翻出来是空串，所以同样回 null（那次失败由主线提示说，这一行不占位）')
 let elThrew = null
 let elInNode = 'unset'
 try { elInNode = noteEl({ workspaceFileResult: { ok: true, placed: true, reason: 'created' } }) } catch (e) { elThrew = e }
@@ -324,7 +324,7 @@ const nodeWithH = callWithH({ workspaceFileResult: { ok: true, placed: true, rea
 check(!!nodeWithH && nodeWithH.tag === 'div', '给它一个 h 就回一个 div 节点（状态栏那一行小灰字）—— 实得 ' + JSON.stringify(nodeWithH && nodeWithH.tag))
 check(!!nodeWithH && nodeWithH.children === noteCreated, '节点里写的正是翻译出来那句话（实得「' + (nodeWithH && nodeWithH.children) + '」）')
 check(!!nodeWithH && !!nodeWithH.props && !!nodeWithH.props.style, '回的那个节点自带 style（这一行怎么显示它自己说清，不靠调用方补样式）')
-check(callWithH({ workspaceFileResult: { ok: true, skipped: 'explicit-none' } }) === null, '有 h 时跳过那一档照旧回 null（跳过就是不占位）')
+check(callWithH({ workspaceFileResult: { ok: false } }) === null, '有 h 时没写成那一档照旧回 null（没写成就没什么可占位的）')
 check(callWithH({}) === null, '有 h 时没有结果照旧回 null')
 
 // ── F 反证：改坏翻译函数，B 组那批判据必须当场红（本轮重做）────────────────────────
@@ -341,9 +341,9 @@ console.log('== F 反证：把翻译函数改坏，B 组同一批判据必须当
 //   确实不一样、确实非空；真身自己坏了是 B 组先红的事，这一组不替它兜底。
 const MUTANTS = [
   {
-    name: 'F1 跳过也给人话（跳过那一档不再回空串，改说成已经写进去那一句）',
-    // 回执是跳过（ok:true 且带 skipped）时，回「已写入那一句」而不是空串。
-    wrap: (real) => (wf) => (wf && typeof wf === 'object' && wf.ok === true && wf.skipped)
+    name: 'F1 没写成也说成写成了（没写成那一档不再回空串，改说成已经写进去那一句）',
+    // 回执是没写成（ok 不是 true，或带着 error）时，回「已写入那一句」而不是空串。
+    wrap: (real) => (wf) => (wf && typeof wf === 'object' && (wf.ok === false || wf.error))
       ? real({ ok: true, placed: true, reason: 'created' })
       : real(wf),
   },
@@ -355,18 +355,18 @@ const MUTANTS = [
       : real(wf),
   },
   {
-    name: 'F3 失败那句丢掉（失败那一档不再提绑定照旧有效）',
-    // 回执失败时，回一句去掉「绑定照旧有效」这层意思的失败话。这一句必须自己写：
-    //   真身没有第二个「失败但不提绑定」的分支可借，所以它是本文件里唯一一句自带原文的变异体 ——
-    //   它只要求「不出现绑定、不出现有效/不受影响/照旧」，真源怎么改措辞都不会让它失去意义。
+    name: 'F3 没写成还硬说一句（没写成那一档不再回空串，改说一句自定义的失败话）',
+    // 回执没写成时，回一句自说自话的失败话。这一句必须自己写：真身那一档今天回的就是空串，
+    //   没有第二个「非空但说错了」的分支可借 —— 所以它是本文件里唯一一句自带原文的变异体。
+    //   它只要求「这是一句非空的、与成功那两句不同的话」，真源怎么改措辞都不会让它失去意义。
     wrap: (real) => (wf) => (wf && typeof wf === 'object' && (wf.ok === false || wf.error))
       ? '这次没能把选择写进工作区里的配置文件（下次再选一次可以重试）。'
       : real(wf),
   },
   {
     name: 'F4 已创建谎称覆盖（已创建那一档改说成覆盖了原来那一条）',
-    // 回执是已创建（ok:true 且没带 skipped、reason 不是 overwritten）时，回「覆盖那一句」。
-    wrap: (real) => (wf) => (wf && typeof wf === 'object' && wf.ok === true && !wf.skipped && wf.reason !== 'overwritten')
+    // 回执是已创建（ok:true 且 reason 不是 overwritten）时，回「覆盖那一句」。
+    wrap: (real) => (wf) => (wf && typeof wf === 'object' && wf.ok === true && wf.reason !== 'overwritten')
       ? real({ ok: true, placed: true, reason: 'overwritten' })
       : real(wf),
   },
@@ -394,7 +394,9 @@ check(
 console.log('')
 check(skipped === 0, '本次没有一条判据因为「找不到锚 / 取不出真身」被跳过（实测跳过 ' + skipped + ' 条 —— 跳过一律在这里算红）')
 // 上面所有 check 的条数 + 这一条自身 = 预期总数（下面这条自己也算一条，所以用 +1）。
-const TOTAL_ASSERTIONS = 51
+//   #1138 从 51 降到 48：B 组原来有 3 条「跳过三种取值各回空串」，今天宿主不再回那一档（不再静默跳过），
+//   这 3 条换成 3 条「没写成回空串/不与成功同句」，条数因此少了 3（10+3 → 10）。
+const TOTAL_ASSERTIONS = 48
 check(
   passed + failed + 1 === TOTAL_ASSERTIONS,
   '断言条数恰为预期总数（预期 ' + TOTAL_ASSERTIONS + ' 条，实得 ' + (passed + failed + 1) + ' 条）。两个方向都算：'

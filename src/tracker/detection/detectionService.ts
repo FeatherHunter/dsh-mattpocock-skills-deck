@@ -199,7 +199,8 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
     let selection = explicitRes.selection
     const explicit = { raw: explicitRes.raw, parsed: explicitRes.parsed }
 
-    // ② 唯一真源是工作区里的配置文件，判定顺序由统一判定出口定（内存绑定 → 工作区文件 → 声明文件 → 本机记忆 → 自动识别）。
+    // ② 唯一真源是工作区里的配置文件，判定顺序由统一判定出口定（工作区文件 → 声明文件 → 自动识别，见
+    //   src/tracker/detection/backendDecision.ts）。#1138 之前这里还写着「内存绑定」「本机记忆」两层，两层都已不在判定里。
     //   调用方上报的选择与修订号一律忽略：用户点确认走写入口落文件，不经上报参数；这里再判一次就是第二套答案（#1003 老路径已删）。
     // #1003 单出口：调用方经平台层把统一判定函数递进来时，选择整段交出去；没递时按锚文件结论诚实返回，不另起第二套判定。
     const useOutlet = (typeof decideBackend === 'function') ? decideBackend : null

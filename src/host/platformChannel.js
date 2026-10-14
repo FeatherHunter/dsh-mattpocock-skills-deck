@@ -182,7 +182,8 @@ export function createPlatformChannel(deps) {
       return _platform
     }
     // ============ 探测级联 · workspaceStore + detectionService（#152 · #150 Q1-Q7）============
-    // 四层严格 + 轻量化二联骨架 + per-workspace 内存 Map<handleKey→Selection> 不落盘 + pending 不缓存 + wf.bind 薄兼容
+    // 判定出口严格分层 + 轻量化二联骨架 + per-workspace 内存 Map<handleKey→Selection> 不落盘 + pending 不缓存 + wf.bind 写文件
+    //   （#1138：内存 Map 这一层是**选择结果的缓存**，不是人选的记录；人选的记录只有工作区文件一份。）
     let _workspaceStore = null
     let _detectionService = null
     async function getWorkspaceStore() {
@@ -191,12 +192,15 @@ export function createPlatformChannel(deps) {
         const mod = await import('../tracker/detection/workspaceStore.js')
         const create = mod.createWorkspaceStore || mod.default
         _workspaceStore = create({ ttl: STATUS_CACHE_MS, logCtx: logCtx })
-        // registry stale 清理（#150 Q3 unregister stale → emit bind）
+        // 后端被卸载后的缓存清理（#150 Q3；#1138 改了触发口径）：
+        //   以前靠「注册表把绑到这个后端的工作区标 stale、再发一条 bind 事件」，而绑定表已经删了。
+        //   现在注册表只发 unregister（带上被卸掉的 id），这里按「缓存里答的是不是这个后端」来清——
+        //   同样准（清掉的正是会答出这个不存在后端的那些格子），且不依赖任何绑定记录。
         try {
           const reg = await getTrackerRegistry()
-          if (reg && typeof reg.on === 'function') reg.on('bind', (evt) => { if (evt && evt.stale) { try { _workspaceStore.onRegistryBindStale(evt.handle) } catch {} } })
+          if (reg && typeof reg.on === 'function') reg.on('unregister', (evt) => { if (evt && evt.id) { try { _workspaceStore.invalidateByBackend(evt.id) } catch {} } })
         } catch {}
-      } catch { _workspaceStore = { get: () => null, set: () => {}, has: () => false, clear: () => {}, invalidate: () => {}, keys: () => [], onRegistryBindStale: () => {} } }
+      } catch { _workspaceStore = { get: () => null, set: () => {}, has: () => false, clear: () => {}, invalidate: () => {}, invalidateByBackend: () => {}, keys: () => [], onRegistryBindStale: () => {} } }
       return _workspaceStore
     }
     // #幽灵修复：BackendContext.exec（contract.js §BackendContext）——preflight 经 ghClient/glab 执行 gh/glab。

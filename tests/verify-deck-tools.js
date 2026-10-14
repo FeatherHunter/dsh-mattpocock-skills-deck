@@ -17,6 +17,8 @@ const os = require('os')
 const { pathToFileURL } = require('url')
 
 const ROOT = path.resolve(__dirname, '..')
+// 夹具说「这个工作区选过了」的唯一办法（#1138 起）：给这个工作区一份工作区文件。来历见该文件头。
+const { makeDecideStub, chooseWorkspace } = require('./lib/deck-decide-stub.js')
 let failed = false
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
@@ -76,9 +78,9 @@ async function main() {
   // 选后端的判定出口（#1003 单出口）。生产装配总是把它递给工具（见 src/deck/registration/host-assemble.ts
   //   的 `decideBackend: decideBackend || null`），壳拿不到它时会一律回「判定出口这次没装上」，
   //   所以夹具也必须照生产的接法给上，否则下面这些正例一条都跑不到真实路径。
-  //   接上它之后，下面那次 registry.bind(handle, 'markdown') 才会被读成「用户亲手选过这个工作区」，
-  //   写用途才会被放行（#1003 契约期望行为第 4 条：写用途只认文件里的记录或本次进程内亲手绑定）。
-  const decMod = await imp('src/tracker/detection/backendDecision.ts')
+  //   #1138 起「这个工作区选过了」只有一种造法：给这个工作区一份工作区文件。下面那次
+  //   chooseWorkspace(ws.rootPosix, 'markdown') 就是这件事（桩内部走生产那一个判定出口，
+  //   读的正是这份文件），写用途才会被放行（#1003 契约期望行为第 4 条：写用途只认文件里的记录）。
 
   // ── 组装：真闸 + 真账本 + 真注册表 + 真实本地 Markdown 后端 ──
   const ws = makeWorkspace()
@@ -89,7 +91,7 @@ async function main() {
   const registry = registryMod.createRegistry(Object.assign({ logEvent: () => {}, isEnabled: () => false }, ws.ctx), { matchesTimeout: 200 })
   const dispose = registry.register(markdownModule)
   const handle = { cwd: ws.rootPosix, refId: '.scratch/demo' }
-  registry.bind(handle, 'markdown')   // 走「用户手动选择」那一档，测试不依赖锚文件识别
+  chooseWorkspace(ws.rootPosix, 'markdown')   // 等于「这个工作区里有一份写着 markdown 的工作区文件」，测试不依赖锚文件识别
   ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: clock + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock + 3600000 } }, clock)
 
   // 假传输层：每真发一条就报给闸（生产里这一层是起 gh / glab 进程的那一层；本地 Markdown 不发请求）。
@@ -110,7 +112,7 @@ async function main() {
     gate: gate, registry: registry, budget: budget,
     estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom,
     backendCtx: ws.ctx, handleFor: () => handle,
-    decideBackend: decMod.decideBackend,
+    decideBackend: makeDecideStub(registry),
     log: { fire: (level, event, fields) => logs.push({ level: level, event: event, fields: fields }) },
     now: () => clock,
     invalidate: (info) => invalidated.push(info),
@@ -298,7 +300,7 @@ async function main() {
       }),
     }
     const dp = registry.register(probe)
-    registry.bind(handle, 'probe-remote')
+    chooseWorkspace(ws.rootPosix, 'probe-remote')   // 把工作区文件改写成选了探针远端（等同旧写法 registry.bind(handle, 'probe-remote')）
     const before = { hour: ledger.hourOf('ai-tool'), accounted: gate.stats().accounted }
     const r = await tools.deck_issue_create.run(exec, { title: '远端那一张' })
     const after = { hour: ledger.hourOf('ai-tool'), accounted: gate.stats().accounted }
@@ -307,7 +309,7 @@ async function main() {
     check(after.hour.requests - before.hour.requests === 2 && after.hour.points - before.hour.points === 4, '账本「AI 工具」那一档记下同样多（' + (after.hour.requests - before.hour.requests) + ' 条、' + (after.hour.points - before.hour.points) + ' 点）')
     check(gate.escaped().requests === 0, '绕开闸的请求数仍然是 0')
     dp.dispose()
-    registry.bind(handle, 'markdown')
+    chooseWorkspace(ws.rootPosix, 'markdown')
 
     // ✗ probe：把「过闸」这件事做坏 —— 绕开闸直接发一条，escaped 必须立刻不是 0。
     // 没有这一条，「绕开闸的请求数为 0」这句话就可能是因为根本没人发请求而白过。
@@ -334,14 +336,14 @@ async function main() {
       }),
     }
     const d2 = registry.register(mod)
-    registry.bind(handle, 'boom')
+    chooseWorkspace(ws.rootPosix, 'boom')
     try {
       const r = await tools.deck_issue_create.run(exec, { title: '会抛的那一张' })
       check(envelopeOk(r) && r.ok === false && r.status === 'unsupported' && r.reason === 'backend-threw', '✗ 负向：后端抛错 → ok:false / unsupported + reason=backend-threw（实得 ' + (r && r.status) + '/' + (r && r.reason) + '）')
       check(typeof r.text === 'string' && r.text.indexOf('后端实现抛错') >= 0, '抛错这件事如实写在 text 里：' + String(r && r.text).slice(0, 80))
       const r2 = await tools.deck_context.run(exec, {})
       check(envelopeOk(r2) && r2.ok === false, '✗ 负向：读路径上后端抛错也一样收成三态（' + (r2 && r2.status) + '）')
-    } finally { d2.dispose(); registry.bind(handle, 'markdown') }
+    } finally { d2.dispose(); chooseWorkspace(ws.rootPosix, 'markdown') }
   }
 
   // ── ⑩ 负向：会话取不到工作区 → 如实说做不到，不猜一个进程目录 ──

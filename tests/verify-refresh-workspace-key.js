@@ -21,6 +21,10 @@ const path = require('path')
 const fs = require('fs')
 const os = require('os')
 const { pathToFileURL } = require('url')
+// 夹具口（写法见 tests/lib/deck-decide-stub.js 开头）：#1138 起「用户选过哪个后端」只剩工作区文件里
+// 那一条记录（docs/agents/workspace.yaml），注册表上那层 bind 已经整段删掉。这一条门禁走真生产接线
+// （createRefreshWiring 读的就是真工作区文件），所以也给真文件：writeWorkspaceFile 往工作区根写一份。
+const { writeWorkspaceFile } = require('./lib/deck-decide-stub.js')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -44,7 +48,14 @@ function markdownWorkspace() {
   const plat = {
     path: path.posix,
     fs: {
-      async resolve(p) { return String(p).replace(/\\/g, '/') },
+      // 生产那一份文件服务吃 opts.cwd：相对路径按工作区根展开。后端识别读 docs/agents/workspace.yaml、
+      // github 那一路读 .git/config 都靠它定位；不认 cwd 就会读到本仓自己的文件。
+      async resolve(p, opts) {
+        const base = String((opts && opts.cwd) || '').replace(/\\/g, '/').replace(/\/+$/, '')
+        const raw = String(p).replace(/\\/g, '/')
+        if (!base || raw.startsWith('/') || /^[A-Za-z]:\//.test(raw)) return raw
+        return base + '/' + raw.replace(/^\.\//, '')
+      },
       async readText(t) { return fs.readFileSync(t, 'utf8') },
       async writeText(t, c) { fs.mkdirSync(path.dirname(t), { recursive: true }); fs.writeFileSync(t, c, 'utf8') },
       async lstat(t) { try { return fs.statSync(t) } catch (e) { return null } },
@@ -103,8 +114,10 @@ async function makeHost() {
   const ws = markdownWorkspace()
   const registry = registryMod.createRegistry(Object.assign({ logEvent: () => {}, isEnabled: () => false }, ws.ctx), { matchesTimeout: 200 })
   const dispose = registry.register(markdownModule)
-  const handle = { cwd: ws.canon }
-  registry.bind(handle, 'markdown')
+  // #1138：把「用户选过 markdown」写成工作区文件（面板选定写的就是这一份）。原来那一步是
+  // registry.bind(handle, 'markdown')，绑定层已删；本文件用的下标（ws.canon、s.canon）都是小写根，
+  // 落到盘上仍是同一个工作区（Windows 路径大小写不敏感），接线读文件时按 cwd 展开也能读到。
+  writeWorkspaceFile(ws.root, 'markdown')
 
   const clock = 1700000000000
 

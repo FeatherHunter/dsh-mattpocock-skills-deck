@@ -4,7 +4,7 @@
 import { resolveSessionCwd } from '../shared/session-cwd.js'
 // #1115：opCtxFor 那个计时器口的唯一实现（撤销真句柄的三档判据见该文件头）。
 import { hostTimers } from '../shared/host-timer/host-timers.js'
-import { parseWorkspaceFile, stringifyWorkspaceFile, WORKSPACE_FILE_REL } from '../deck/shell/workspace-anchor.js'
+import { parseWorkspaceFile, stringifyWorkspaceFile, WORKSPACE_FILE_REL, WORKSPACE_FILE_LEGACY_REL } from '../deck/shell/workspace-anchor.js'
 // #1139：界面描述（发给界面的那份后端数据）的投影只有一处实现，本文件不再自己挑字段。
 import { projectUiDescription } from '../tracker/ui-description.js'
 /**
@@ -12,6 +12,16 @@ import { projectUiDescription } from '../tracker/ui-description.js'
  * 拿不到文件通道、沙箱不给本次写许可、文件系统只读、目录不存在；判不出来归 other，绝不编一个具体原因。
  */
 function fileWriteReasonOf(e) { const s = String((e && (e.code || e.message)) || e || ''); return /EACCES|EPERM|permission|denied|permit|沙箱/i.test(s) ? 'no-permit' : (/EROFS|read-only|readonly/i.test(s) ? 'readonly' : (/ENOENT|not found|不存在/i.test(s) ? 'no-dir' : 'other')) }
+/**
+ * 写文件失败的四档原因 → 一句人话（#1138：写不进去就等于这次选择没生效，所以这句话会直接出现在界面提示里）。
+ * 分档口径与 fileWriteReasonOf 同一份，不另判一次；认不出来的那档照实说「写入这一步报了错」，不编具体原因。
+ */
+function bindFailAdviceOf(reason) {
+  if (reason === 'no-permit') return '这个工作区不在本次会话允许写入的范围内'
+  if (reason === 'readonly') return '这个工作区所在的磁盘是只读的'
+  if (reason === 'no-dir') return '工作区里的 docs/agents 这个目录建不出来'
+  return '写入这一步报了错'
+}
 export function createWorkspaceCwd(deps) {
   const { ctx, DEFAULT_CWD, getPlatform, getTrackerRegistry, getWorkspaceStore, getChoiceStore, getDecisionFn, canonicalKey, setCache, logCtx, timer, detectionExec } = deps
   // #176 + #190 修复：cwd 归一（绝对直通 + 相对尝试 fs.resolve + home 试探）
@@ -53,31 +63,46 @@ export function createWorkspaceCwd(deps) {
     const cwd = await canonicalKey(args.cwd)
     const backendId = args && ('backendId' in args ? args.backendId : args.backend)
     try {
+      // 「明确不要后端」这条状态今天没有存法（工作区配置文件里只能写一个后端名，见
+      // src/shared/config-store/src/workspace.ts 的校验）。它今天也没有活着的界面入口
+      // （那颗「清除后端选择」在 #669 第 6 件已退役，见 src/client/kernel/store-switch.js）。
+      // 所以如实回失败：不许回一句 ok 却在文件里什么都没写 —— 那就成了「以为选了、其实没选」。
+      if (backendId === undefined || backendId === null || backendId === '') {
+        return { ok: false, kind: 'no-record-for-none', cwd: cwd, error: '「这个工作区不选任何后端」这个选择今天还没有地方可以记下来（工作区里的配置文件只能写一个后端名），所以这次没有生效。想换后端请直接选一个。' }
+      }
       const reg = await getTrackerRegistry()
-      if (!reg) return { ok: false, error: 'registry unavailable' }
+      if (!reg) return { ok: false, error: '插件尚未就绪：还没有可用的后端清单，这次选择没有生效。请稍后重试。' }
+      if (typeof reg.has !== 'function' || !reg.has(backendId)) {
+        return { ok: false, kind: 'unknown-backend', cwd: cwd, error: '插件不认识这个后端（' + String(backendId).slice(0, 60) + '），这次选择没有生效。请重新打开选择窗口再选一次。' }
+      }
+      // #1138 唯一写入口，一次动作只写一份：先写工作区文件，**写成功才算这次选择生效**。
+      //   以前这里同时写进程内绑定、本机记忆与工作区文件三处，顶层 ok 却恒为真 —— 文件写失败照样回 ok，
+      //   界面于是显示「已切换」，而重启之后又变回原来的后端。今天写不进去就当场说没生效。
+      let workspaceFile = null
+      try { workspaceFile = await writeWorkspaceRecord(cwd, backendId, args) } catch (eW) { workspaceFile = { ok: false, error: { kind: 'env', reason: fileWriteReasonOf(eW), message: msgOf(eW) } } }
+      if (!workspaceFile || workspaceFile.ok !== true) {
+        const why = (workspaceFile && workspaceFile.error) || null
+        try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('warn', 'host.call.fail', { method: 'wf.bind.workspaceFile', kind: 'bind', errorHash: hash8('bind-file-not-written') }) } catch (eL) {}
+        return {
+          ok: false, kind: 'workspace-file-failed', cwd: cwd, backendId: backendId, workspaceFile: workspaceFile,
+          errorKind: (why && why.reason) || 'other',
+          error: '这次没能把选择写进这个工作区里的配置文件（' + bindFailAdviceOf(why && why.reason) + '），所以这次选择没有生效。请确认这个目录可以写，然后重新选一次。',
+        }
+      }
+      // 落到这里才算生效：清三处缓存，顺手放配色文件，再补一份本机记忆（H）——H 只是「文件万一被删还能再生成一次」的备份，不参与判定。
       const handle = { cwd: cwd }
-      // null = 显式无后端（Other 逃生舱）；'other' 已弃用按 registry 拒绝
-      reg.bind(handle, backendId === undefined ? null : backendId)
-      // #696 只清自己根那条（手上有目录）；失效快照+状态+探测三缓存，切换不串台
       setCache({ ts: 0, snapshot: null, error: null, cwd: cwd })
       try { const ws = await getWorkspaceStore(); ws.invalidate(handle) } catch {}
-      // #618：选好之后顺手放一份默认配色文件（幂等）。失败不回滚绑定，但如实放进回包并在日志里留痕。
       let labelColorsFile = null
-      try { labelColorsFile = await placeLabelColorsFile(cwd, backendId === undefined ? null : backendId) } catch (e) { labelColorsFile = { ok: false, error: { kind: 'env', message: msgOf(e) } } }
+      try { labelColorsFile = await placeLabelColorsFile(cwd, backendId) } catch (e) { labelColorsFile = { ok: false, error: { kind: 'env', message: msgOf(e) } } }
       if (labelColorsFile && labelColorsFile.ok !== true && labelColorsFile.skipped === undefined) {
         try {
           if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('warn', 'labelColors.write', { cwdHash: hash8(String(cwd)), count: 0, ok: false, reason: 'place-fail' })
         } catch (eL) {}
       }
-      // H1 #445 恒空留守省略：原 _detectionService 空检查为无动作分支，有无值行为一致，搬出时省略。
-      // #683（F1 · ADR 20260921 的 R1/R2/R7c）：用户亲手选的这一下多存一份在宿主侧（跨 DSH 重启、跨访问地址、跨桌面端/浏览器都不失忆）；修订号由宿主发号，写不成功要如实回（persisted:false），不许无声失败。
-      const persistedBackendId = backendId === undefined ? null : backendId
       const cw = (typeof getChoiceStore === 'function') ? await getChoiceStore().catch(function () { return null }) : null
-      const wr = (cw && typeof cw.rememberWorkspace === 'function') ? await cw.rememberWorkspace(cwd, persistedBackendId).catch(function () { return null }) : null
-      let workspaceFile = null
-      try { workspaceFile = await writeWorkspaceFileOnFirstBind(cwd, persistedBackendId, args) } catch (eW) { workspaceFile = { ok: false, error: { kind: 'env', reason: fileWriteReasonOf(eW), message: msgOf(eW) } } } // 失败原因分档：#1003 契约要求四档各说各的（拿不到文件通道 / 沙箱不给写许可 / 只读 / 目录不存在）
-      const out = { ok: true, cwd: cwd, backendId: persistedBackendId, labelColorsFile: labelColorsFile, workspaceFile: workspaceFile, rev: (wr && wr.ok === true) ? (wr.rev || 0) : 0, persisted: !!(wr && wr.ok === true) }
-      return out
+      const wr = (cw && typeof cw.rememberWorkspace === 'function') ? await cw.rememberWorkspace(cwd, backendId).catch(function () { return null }) : null
+      return { ok: true, cwd: cwd, backendId: backendId, labelColorsFile: labelColorsFile, workspaceFile: workspaceFile, rev: (wr && wr.ok === true) ? (wr.rev || 0) : 0, persisted: !!(wr && wr.ok === true) }
     } catch (e) {
       const msg = String((e && e.message) || e)
       if (/unknown-backend/.test(msg)) return { ok: false, error: msg, kind: 'unknown-backend' }
@@ -108,18 +133,46 @@ export function createWorkspaceCwd(deps) {
     if (why === 'written') return { ok: true, cwd: cwd, layout: want, pickedAt: (w && w.pickedAt) || 0, workspaceFile: 'written' }
     return (w && w.ok === true) ? { ok: true, cwd: cwd, layout: want, pickedAt: w.pickedAt, workspaceFile: why } : { ok: false, cwd: cwd, error: 'not-stored' }
   }
-  async function handleBindings() {
+  // #1138：这一条答的是「哪些工作区已经选过后端，各选的是谁」。
+  //   以前它读的是注册表里那份进程内副本（`reg.allBindings()`），重启就没、别的窗口也看不见；
+  //   那份副本已经删了，所以改成按调用方给的候选目录去读**工作区文件**——谁有记录、记录写的是谁，
+  //   都以文件为准，与判定出口读的是同一份东西。
+  //   为什么要候选目录：插件这边没有「这台机器上有哪些工作区」的名单，那是 DSH 工作区服务的知识；
+  //   调用方（设置页）手上有这份名单，直接把它递进来即可，谁也不替谁猜。
+  async function readWorkspaceRecord(cwd) {
+    let fsSvc = null
+    try { const platform = await getPlatform(); fsSvc = (platform && platform.fs) || null } catch (eP) { fsSvc = null }
+    if (!fsSvc && ctx && typeof ctx.get === 'function') { try { fsSvc = ctx.get('fs') } catch (eG) { fsSvc = null } }
+    if (!fsSvc || typeof fsSvc.resolve !== 'function' || typeof fsSvc.readText !== 'function') return null
+    // 新路径优先、老文件兼容读，与判定出口（src/tracker/detection/backendDecision.ts 的 readFileLayer）同一顺序。
+    for (const rel of [WORKSPACE_FILE_REL, WORKSPACE_FILE_LEGACY_REL]) {
+      if (!rel) continue
+      try {
+        const target = await fsSvc.resolve(rel, { cwd: cwd })
+        const parsed = parseWorkspaceFile(await fsSvc.readText(target))
+        if (parsed && parsed.backendId) return parsed
+      } catch (eOne) { /* 这条路径没有或读坏就试下一条 */ }
+    }
+    return null
+  }
+  async function handleBindings(args) {
     try {
       const reg = await getTrackerRegistry()
       if (!reg) return { ok: false, error: 'registry unavailable' }
-      const list = typeof reg.allBindings === 'function' ? reg.allBindings() : []
-      const bindings = await Promise.all(list.map(async function (b) {
-        const rawCwd = b.cwd || (b.handle && b.handle.cwd) || ''
-        const cwd = await normCwd(rawCwd)
+      const raw = (args && Array.isArray(args.cwds)) ? args.cwds : []
+      const seen = Object.create(null)
+      const bindings = []
+      for (const one of raw) {
+        if (typeof one !== 'string' || !one.trim()) continue
+        const cwd = await normCwd(one)
+        if (seen[cwd]) continue
+        seen[cwd] = true
+        const rec = await readWorkspaceRecord(cwd)
+        if (!rec || !rec.backendId) continue
         let ref = null
-        if (b.backendId) { try { ref = reg.describe({ cwd: cwd }, b.backendId) } catch {} }
-        return { cwd: cwd, backendId: b.backendId, source: 'explicit', ref: ref }
-      }))
+        try { ref = reg.describe({ cwd: cwd }, rec.backendId) } catch (eD) {}
+        bindings.push({ cwd: cwd, backendId: rec.backendId, source: 'explicit', ref: ref })
+      }
       return { ok: true, bindings: bindings }
     } catch (e) { return { ok: false, error: String((e && e.message) || e) } }
   }
@@ -128,15 +181,10 @@ export function createWorkspaceCwd(deps) {
       const reg = await getTrackerRegistry()
       if (!reg) return { ok: false, error: 'registry unavailable' }
       const mods = reg.modules().map(projectUiDescription)
-      // #652：这一条问的是「这个工作区绑了哪个后端」，所以入参要先洗成与绑定同一把钥匙。 旧写法把 args.cwd 原样交给 reg.bound()，而 wf.bind 用的是规整后的钥匙——同一条目录两把钥匙，
-      //   绑定写进一个桶、这里读另一个桶，回包一直看不到那份绑定（研究 #648 第四节的实测在案）。
-      // #1003 空目录闸：没目录时只回模块名单，不问绑定（没工作区就没有绑定可问，不拿进程目录冒充）。
-      const _rawRegCwd = (args && typeof args.cwd === 'string' && args.cwd.trim()) ? args.cwd : ''
-      if (!_rawRegCwd) return { ok: true, modules: mods, bound: undefined }
-      const cwd = await normCwd(_rawRegCwd)
-      let bound = undefined
-      try { bound = reg.bound({ cwd: cwd }) } catch {}
-      return { ok: true, modules: mods, bound: bound }
+      // #1138：这一条以前还回一格 `bound`（这个工作区绑了谁）。它答的正是注册表里那份进程内副本，
+      //   副本删掉之后没有东西可答，而全仓没有任何调用方读它 —— 整格去掉，不拿别的来源凑一个值。
+      //   要问「这个工作区用哪个后端」请走 wf.selection，那条路是唯一判定出口。
+      return { ok: true, modules: mods }
     } catch (e) { return { ok: false, error: String((e && e.message) || e) } }
   }
   async function handleSelection(args) {
@@ -149,10 +197,18 @@ export function createWorkspaceCwd(deps) {
     try {
       const reg = await getTrackerRegistry()
       if (!reg) return { ok: false, error: 'registry unavailable' }
-      const sel = await reg.select({ cwd: cwd }, { cwd: cwd, platform: await getPlatform(), fs: ctx.get('fs'), caller: 'wf.selection' })
+      // #1138：这里原来直调 `reg.select`，于是「注册表三级联」和「统一判定出口」各答一套。
+      //   现在整段交给唯一判定出口（人选的唯一真源是工作区文件，出口内部再接声明文件与自动识别）。
+      const outlet = (typeof getDecisionFn === 'function') ? await getDecisionFn().catch(function () { return null }) : null
+      if (!outlet || typeof outlet.decideBackend !== 'function') {
+        return { ok: false, error: '插件尚未就绪：判定出口这次没装上，所以没有选出后端。请稍后重试；如果仍然失败，请把这条提示原文报告给插件维护者。' }
+      }
+      const o = await outlet.decideBackend(cwd, { registry: reg, platform: await getPlatform(), fs: ctx.get('fs'), caller: 'wf.selection' }).catch(function () { return null })
+      const describeOf = function (id) { try { return reg.describe({ cwd: cwd }, id) } catch (eD) { return null } }
+      const sel = (typeof outlet.selectionFromOutlet === 'function' && o) ? outlet.selectionFromOutlet(o, describeOf) : null
       let repoRef = null
-      if (sel && sel.backendId) { try { repoRef = reg.describe({ cwd: cwd }, sel.backendId) } catch {} }
-      return { ok: true, selection: sel, repository: repoRef }
+      if (sel && sel.backendId) { try { repoRef = reg.describe({ cwd: cwd }, sel.backendId) } catch (eD) {} }
+      return { ok: true, selection: sel || { backendId: null, source: 'fallback' }, repository: repoRef }
     } catch (e) { return { ok: false, error: String((e && e.message) || e) } }
   }
   // #957 拆分：改色两条电话住自包含叶子（./workspaceLabelColors.js），本文件只做装配与日志包装（动态加载、单向，同一出口、同一信封、同一 loggedPhone）。
@@ -161,22 +217,22 @@ export function createWorkspaceCwd(deps) {
   async function handleListLabels(args) { const p = await labelColorsPhones(); return p.handleListLabels(args) }
   async function handleSetLabelColors(args) { const p = await labelColorsPhones(); return p.handleSetLabelColors(args) }
   function msgOf(e) { return String((e && e.message) || e) }
-  // #1003 唯一写入口：用户在任何能选后端的地方点确认，都走这一处写工作区文件（后端、时间、来源）。
+  // #1003 唯一写入口（#1138 起是真正唯一的一份）：用户在任何能选后端的地方点确认，都走这一处写工作区文件。
   //   旧规则“文件已在就不覆盖”已废：唯一真源意味着用户明确选择时必须能覆盖它，否则换后端永远换不动。
-  //   只记人选：入参是空（显式无后端逃生舱）不写；写走正规文件通道加本次写许可；失败不回滚绑定与 H，但如实放进回包。
-  //   日志沿用既有事件（不新增事件、不新增字段）：成功记常驻 host.call，失败记常驻 host.call.fail，
-  //   附录与计数由后完成方统一收口，这里只落点。
-  async function writeWorkspaceFileOnFirstBind(cwd, backendId, args, via, layout) {
+  //   这里只做一件事：把「谁选的、什么时候、来源」写进文件；**写成或写不成如实回**，没有第三条路。
+  //   #1138 之前这里有三个 `ok:true + skipped` 的早退（后端名为空、后端没注册、注册表问不到）：
+  //   调用方（handleBind）现在先自己判这两件事并当场回失败，所以早退整段删掉 ——
+  //   留着的话，写不进去会被上层当成「跳过」而不是「失败」，又回到「以为选了其实没选」。
+  //   日志沿用既有事件（不新增事件、不新增字段）：成功记常驻 host.call，失败记常驻 host.call.fail。
+  async function writeWorkspaceRecord(cwd, backendId, args, via, layout) {
     const _via = (via === 'migrate') ? 'migrate' : 'bind';
     const _method = (_via === 'migrate') ? 'wf.bind.migrate' : 'wf.bind.workspaceFile';
     const _t0 = Date.now();
     // 来源如实记：人当场点的是 user，从老记忆搬来的是 migrated（切核后核认，新老都认）。
     const _source = (_via === 'migrate') ? 'migrated' : 'user';
-    if (!backendId || typeof backendId !== 'string' || backendId.trim() === '') return { ok: true, skipped: 'explicit-none' }
-    try {
-      const reg = await getTrackerRegistry()
-      if (!reg || typeof reg.has !== 'function' || !reg.has(backendId)) return { ok: true, skipped: 'unregistered' }
-    } catch (e) { return { ok: true, skipped: 'registry-unavailable' } }
+    if (!backendId || typeof backendId !== 'string' || backendId.trim() === '') {
+      return { ok: false, error: { kind: 'env', reason: 'other', message: '内部调用没给后端名，这次没有写工作区文件。' } }
+    }
     let fsSvc = null
     try {
       const platform = await getPlatform()
@@ -184,7 +240,7 @@ export function createWorkspaceCwd(deps) {
       if (!fsSvc && ctx && typeof ctx.get === 'function') { try { fsSvc = ctx.get('fs') } catch (eG) { fsSvc = null } }
       if (!fsSvc || typeof fsSvc.resolve !== 'function' || typeof fsSvc.readText !== 'function' || typeof fsSvc.writeText !== 'function') {
         try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('warn', 'host.call.fail', { method: _method, kind: 'bind', errorHash: hash8('no-fs') }) } catch (eL) {}
-        return { ok: false, error: { kind: 'env', message: '首选后端已记下，但工作区配置文件没能存进工作区（这次没拿到可用的文件通道）。绑定与本机记忆不受影响，仍按这次选定的后端走。' } }
+        return { ok: false, error: { kind: 'env', reason: 'no-channel', message: '这次没拿到可用的文件通道（写工作区文件要用它）。' } }
       }
       let existed = false;
       let existedLayout = null;
@@ -214,7 +270,7 @@ export function createWorkspaceCwd(deps) {
       return { ok: true, placed: true, reason: existed ? 'overwritten' : 'created' }
     } catch (eW) {
       try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('warn', 'host.call.fail', { method: _method, kind: 'bind', errorHash: hash8(msgOf(eW)) }) } catch (eL) {}
-      return { ok: false, error: { kind: 'env', reason: fileWriteReasonOf(eW), message: '首选后端已记下，但工作区配置文件没能存进工作区（' + msgOf(eW).slice(0, 120) + '）。绑定与本机记忆不受影响，仍按这次选定的后端走。' } } }
+      return { ok: false, error: { kind: 'env', reason: fileWriteReasonOf(eW), message: '写工作区配置文件这一步出错（' + msgOf(eW).slice(0, 120) + '）。' } } }
   }
   // #1003 老用户迁移：文件缺席 + 本机记忆有 → 把记忆写进工作区文件，写成功才算迁移成。
   //   人话：老工作区从没建过那份文件（本机记忆替它答了上万次），先把选择落到文件，
@@ -256,7 +312,7 @@ export function createWorkspaceCwd(deps) {
         const reg = await getTrackerRegistry().catch(function () { return null })
         if (!reg || typeof reg.has !== 'function' || !reg.has(backendId)) return { ok: true, skipped: 'unregistered' }
       } catch (eG2) { return { ok: true, skipped: 'registry-unavailable' } }
-      const out = await writeWorkspaceFileOnFirstBind(key, backendId, args, 'migrate', memLayout)
+      const out = await writeWorkspaceRecord(key, backendId, args, 'migrate', memLayout)
       return out && out.ok === true ? { ok: true, migrated: true, reason: out.reason || 'created' } : { ok: false, error: (out && out.error) || { kind: 'env', message: '迁移写文件失败' } }
     } catch (eM) {
       try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('warn', 'host.call.fail', { method: 'wf.bind.migrate', kind: 'bind', errorHash: hash8(msgOf(eM)) }) } catch (eL) {}

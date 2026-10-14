@@ -53,7 +53,6 @@ function makeGateLedger(gateMod, ledgerMod) {
   return gate;
 }
 const regOf = (selectFn) => ({
-  bound: () => undefined,
   has: (id) => id === 'github' || id === 'markdown',
   describe: (h, id) => ({ backend: id, refId: 'o/n', name: id, url: '' }),
   select: selectFn,
@@ -68,6 +67,7 @@ async function main() {
   const gateMod = await imp('src/host/refresh/gate.ts');
   const toolCost = await imp('src/shared/refresh/tool-cost.js');
   const decMod = await imp('src/tracker/detection/backendDecision.ts');
+  const anchorMod = await imp('src/deck/shell/workspace-anchor.ts');
   const detMod = await imp('src/tracker/detection/detectionService.ts');
   const lcMod = await imp('src/host/workspaceLabelColors.js');
   const { decideBackend } = decMod;
@@ -81,6 +81,17 @@ async function main() {
     // 测的就是出口这条路（生产由装配层递进来，这里直递同一函数；过闸钩子壳内自建）
     decideBackend: decMod.decideBackend,
   }, extra || {}));
+  // 工具壳自己不带文件通道：生产由装配层把这两件事递进壳（见 src/host/refresh/wiring.js 给 deck 工具壳
+  //   递的 readWorkspaceFileText/parseWorkspaceFile），壳再转手递给判定出口。夹具照生产的接法给上，
+  //   壳才读得到工作区文件里人的选择 —— 这一步是 #1138 之后唯一能表达「这个工作区选过了」的通道。
+  const wfDepsOf = (fss) => ({
+    readWorkspaceFileText: async (cwd) => {
+      try { return await fss.readText(await fss.resolve('docs/agents/workspace.yaml', { cwd })) } catch (e) { return null }
+    },
+    parseWorkspaceFile: (txt) => {
+      try { return anchorMod.parseWorkspaceFile(txt) } catch (e) { return null }
+    },
+  });
   const lcOf = (reg, fss, mem) => lcMod.createWorkspaceLabelColors({
     normCwd: async (r) => r,
     getTrackerRegistry: async () => reg,
@@ -123,12 +134,15 @@ async function main() {
     check(w1.ok === false && /先在面板上选定/.test(String(w1.error && w1.error.message)), 'S1 写用途（改色）拒绝：只有声明文件不算人亲手选过', JSON.stringify(w1).slice(0, 200));
     const d = await detOf(noAuto, fss).detect({ cwd: dir }, { skipSkillProbes: true });
     check(d.selection && d.selection.backendId === 'github', 'S1 探测服务同样读到声明文件', JSON.stringify(d.selection));
-    // 对照：同一条工作区补上「人亲手绑定过」的状态之后，写用途放行 —— 证明上面两条拒绝的原因就是缺人的记录，不是别的。
-    const boundReg = Object.assign({}, noAuto, { bound: () => 'github' });
-    const p2 = await shellOf(boundReg, { readDeclarationId: async () => 'github' }).pickBackend({ agent: { session: { id: 's', cwd: dir } } }, sOf(dir));
-    check(p2.ok === true && p2.backendId === 'github', 'S1 对照：有人的绑定后工具壳放行', JSON.stringify({ ok: p2.ok, backendId: p2.backendId }));
-    const w2 = await lcOf(Object.assign({}, boundReg, { get: () => fakeTracker() }), fss).handleSetLabelColors({ cwd: dir, changes: [{ name: 'bug', color: '0b7285' }] });
-    check(w2.ok === true && Array.isArray(w2.applied), 'S1 对照：有人的绑定后改色写放行（夹具的桩返回空清单，这里只看它被放行且确实交给了后端）', JSON.stringify(w2).slice(0, 160));
+    // 对照：给这个工作区补上一份「人亲手选过」的记录之后，写用途放行 —— 证明上面两条拒绝的原因就是缺人的记录，不是别的。
+    //   #1138 起这份记录只有一种载体：工作区文件 docs/agents/workspace.yaml（这里真写一份到临时目录）。
+    //   以前这里是在桩注册表上加一句 bound: () => 'github' 假装「本进程里有绑定」，那个口子已经整段删掉了。
+    fs.writeFileSync(path.join(dir, 'docs', 'agents', 'workspace.yaml'),
+      'version: 2\nbackendId: github\npickedAt: 1\nsource: user\n');
+    const p2 = await shellOf(noAuto, Object.assign({ readDeclarationId: async () => 'github' }, wfDepsOf(fss))).pickBackend({ agent: { session: { id: 's', cwd: dir } } }, sOf(dir));
+    check(p2.ok === true && p2.backendId === 'github', 'S1 对照：工作区文件里有人的选择后工具壳放行', JSON.stringify({ ok: p2.ok, backendId: p2.backendId }));
+    const w2 = await lcOf(Object.assign({}, noAuto, { get: () => fakeTracker() }), fss).handleSetLabelColors({ cwd: dir, changes: [{ name: 'bug', color: '0b7285' }] });
+    check(w2.ok === true && Array.isArray(w2.applied), 'S1 对照：工作区文件里有人的选择后改色写放行（夹具的桩返回空清单，这里只看它被放行且确实交给了后端）', JSON.stringify(w2).slice(0, 160));
   }
 
   // —— S2：文件在就听文件的 ——

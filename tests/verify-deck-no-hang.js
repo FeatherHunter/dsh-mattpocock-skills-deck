@@ -17,13 +17,21 @@ const path = require('path')
 const { pathToFileURL } = require('url')
 // 判定出口桩（#1003 单出口）：壳拿不到它时一律回「判定出口这次没装上」，
 // 生产装配总会给，夹具照生产接上；桩的来历见 tests/lib/deck-decide-stub.js 文件头。
-const { makeDecideStub } = require('./lib/deck-decide-stub.js')
+const { makeDecideStub, chooseWorkspace } = require('./lib/deck-decide-stub.js')
 // 时间压缩：本门的墙钟时间几乎全花在「等超时」上 —— ① ② ⑥ ⑦ 那四处挂住的等待各等满 5 秒竞速、
 // ⑧ 等满游标读写那 10 秒竞速、③ 等满工具的单次钳制。桩后端本来就永不回话，这些竞速必然走到超时那一支，
 // 等的时间全是空等。压缩成虚拟时间以后真实只等几毫秒，而 Date.now() 报出来的仍是 5 秒 / 10 秒，
 // 下面「不许等太久」（dt < 12000 这类）与「诚实回超时」的判据照旧成立。断言一条没动；
 // 理由、两条不能破的语义与边界见 tests/lib/time-compress.js 文件头。
 const { installTimeCompression, uninstallTimeCompression } = require('./lib/time-compress.js')
+// 原生的定时器口，必须在 installTimeCompression 之前抓下来：下面 main 里要用它留一个「被引用」的把手。
+// 原因是产品侧有几处等待口自己就是 unref 过的（src/deck/shell/call-shell.ts 里的 realSleep，见 #1114），
+// 而本门禁从头到尾只靠虚拟时钟推进：虚拟队列的泵在「一个被引用的等待都没有」的时候会把自己也 unref，
+// 于是事件循环会在产品还等在一个挂住的钩子上时先一步收摊 —— §⑥ 起后面的断言一条都不跑，
+// 退出码仍然是 0，看上去像全绿（实测：21 条断言只跑到第 12 条）。
+// 这个把手走原生定时器，不进虚拟队列，因此不会推开虚拟时钟，只负责让进程活到断言跑完。
+const nativeSetInterval = setInterval
+const nativeClearInterval = clearInterval
 installTimeCompression()
 
 const ROOT = path.resolve(__dirname, '..')
@@ -57,7 +65,6 @@ function stubRegistry(pickRefId, tracker) {
     select: async () => ({ backendId: 'stub', source: 'explicit', ref: { backend: 'stub', refId: pickRefId, name: pickRefId, url: '' }, pending: false }),
     get: () => tracker,
     has: () => true,
-    bound: () => 'stub',
     describe: () => ({ backend: 'stub', refId: pickRefId, name: pickRefId, url: '' }),
   }
 }
@@ -77,8 +84,11 @@ function baseDeps(over) {
     toolMarginMs: 500,
   }, o)
   // 判定出口（#1003 单出口）：壳拿不到它时一律回「判定出口这次没装上」，生产装配总会给。
-  // 这里按夹具自己那张桩注册表的绑定补上（桩的来历见 tests/lib/deck-decide-stub.js 文件头）。
+  // 这里按夹具自己那张桩注册表补上（桩的来历见 tests/lib/deck-decide-stub.js 文件头）。
+  // #1138 起「这个工作区选过了」只剩工作区文件一份记录（注册表上的 bound 已整段删掉）：
+  // 本夹具的会话 cwd 一律是 execFor 的缺省值 D:/demo，给它记一笔就等于这个工作区里有那份文件。
   if (!base.decideBackend && base.registry) base.decideBackend = makeDecideStub(base.registry)
+  chooseWorkspace('D:/demo', 'stub')
   return base
 }
 
@@ -113,6 +123,9 @@ async function main() {
   const ledgerMod = await imp('src/host/refresh/ledger.ts')
   const gateMod = await imp('src/host/refresh/gate.ts')
   const t0 = Date.now()
+  // 断言跑完之前一直拖住事件循环，理由与两个原生口的来历见本文件上面 installTimeCompression 前的注释。
+  // 1 秒只是随手挑的间隔：它不回话、不推进虚拟时钟，唯一作用是被事件循环算作一个还活着的句柄。
+  const keepAlive = nativeSetInterval(function () {}, 1000)
 
   // ① 挂住的归一 → 如实失败，不凑钥匙（5 秒竞速内回来）
   {
@@ -228,6 +241,8 @@ async function main() {
     check(slow && slow.ok === false && slow.timedOut === true, '超时按失败回')
   }
 
+  // 断言跑完了，把把手撤掉，别让它把进程吊在收尾之后。
+  nativeClearInterval(keepAlive)
   console.log('\n' + total + ' 条断言，' + (failed ? '失败' : '通过') + '（总耗时 ' + (Date.now() - t0) + 'ms）')
   // 收工先把全局时钟还原：本仓打算把多扇门禁放进同一个进程跑，别把虚拟时钟留给后面那几扇。
   uninstallTimeCompression()

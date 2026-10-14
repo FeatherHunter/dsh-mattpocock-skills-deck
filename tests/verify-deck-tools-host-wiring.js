@@ -22,6 +22,11 @@ const path = require('path')
 const fs = require('fs')
 const os = require('os')
 const { pathToFileURL } = require('url')
+// 夹具口（写法见 tests/lib/deck-decide-stub.js 开头）：#1138 起「用户选过哪个后端」只剩工作区文件里
+// 那一条记录（docs/agents/workspace.yaml），注册表上原来那层 bind 已经整段删掉。这一条门禁走的是
+// 真生产装配（src/host/refresh/wiring.js 的 createRefreshWiring），它读的就是真工作区文件，
+// 所以这里也给真文件：writeWorkspaceFile 往临时工作区根写一份和面板选定同形的记录。
+const { writeWorkspaceFile } = require('./lib/deck-decide-stub.js')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -54,7 +59,15 @@ function markdownWorkspace() {
   const plat = {
     path: path.posix,
     fs: {
-      async resolve(p) { return String(p).replace(/\\/g, '/') },
+      // 生产那一份文件服务吃 opts.cwd：相对路径按工作区根展开。后端识别读 docs/agents/workspace.yaml、
+      // github 那一路读 .git/config 都靠它定位；不认 cwd 就会读到本仓自己的文件（本仓根有
+      // docs/agents/issue-tracker.md），空工作区会被误判成别的后端。
+      async resolve(p, opts) {
+        const base = String((opts && opts.cwd) || '').replace(/\\/g, '/').replace(/\/+$/, '')
+        const raw = String(p).replace(/\\/g, '/')
+        if (!base || raw.startsWith('/') || /^[A-Za-z]:\//.test(raw)) return raw
+        return base + '/' + raw.replace(/^\.\//, '')
+      },
       async readText(t) { return fs.readFileSync(t, 'utf8') },
       async writeText(t, c) { fs.mkdirSync(path.dirname(t), { recursive: true }); fs.writeFileSync(t, c, 'utf8') },
       async lstat(t) { try { return fs.statSync(t) } catch (e) { return null } },
@@ -90,8 +103,9 @@ async function main() {
   const ws = markdownWorkspace()
   const registry = registryMod.createRegistry(Object.assign({ logEvent: () => {}, isEnabled: () => false }, ws.ctx), { matchesTimeout: 200 })
   const dispose = registry.register(markdownModule)
-  const handle = { cwd: ws.rootPosix }   // 宿主自己绑的就是这个形状（wf.bind 那一侧：{ cwd: canonicalKey(cwd) }）
-  registry.bind(handle, 'markdown')
+  // #1138：把「用户选过 markdown」写成工作区文件（面板选定写的就是这一份）。原来那一步是
+  // registry.bind({ cwd: ws.rootPosix }, 'markdown')，绑定层已删，壳现在是靠读这份文件认出「用户亲手选过」的。
+  writeWorkspaceFile(ws.root, 'markdown')
 
   const logs = []
   const cacheWrites = []
@@ -122,7 +136,7 @@ async function main() {
   const ctxRun = await table.tools.deck_context.run(exec, {})
   check(ctxRun && ctxRun.status === 'ok' && ctxRun.ok === true, 'deck_context 在宿主装配形状下回 ok（实得 ' + (ctxRun && ctxRun.status) + '）')
   check(ctxRun && ctxRun.workspace && ctxRun.workspace.root === ws.rootPosix, '回显解析到的工作区根（' + (ctxRun && ctxRun.workspace && ctxRun.workspace.root) + '）')
-  check(ctxRun && ctxRun.backend && ctxRun.backend.id === 'markdown' && ctxRun.backend.source === 'explicit', '走的是注册表里绑过的那一个后端（' + JSON.stringify(ctxRun && ctxRun.backend) + '）')
+  check(ctxRun && ctxRun.backend && ctxRun.backend.id === 'markdown' && ctxRun.backend.source === 'explicit', '走的是工作区文件里选定的那一个后端（' + JSON.stringify(ctxRun && ctxRun.backend) + '）')
 
   const filesBefore = ws.ticketFiles().length
   const created = await table.tools.deck_issue_create.run(exec, { title: '宿主装配演示票', kind: 'task', body: '正文' })

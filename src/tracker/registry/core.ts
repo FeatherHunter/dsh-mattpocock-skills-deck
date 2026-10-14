@@ -1,14 +1,22 @@
 /**
  * src/tracker/registry/core.ts — 注册表主体：装配与选择仲裁（V1 #461 从 registry.js 拆出，纯结构、行为零变化）。
- * 以后谁改它：改注册装配（register/unregister/bind/on）或后端选择仲裁（select 三级联）的人。预估约 190 行，超 350 打回。
+ * 以后谁改它：改注册装配（register/unregister/on）或后端选择仲裁（select 两级联）的人。预估约 170 行，超 350 打回。
  * 接线：引用 shape.ts（形状校验与包桩）与 views.ts（只读视图）；本文件不引用其他新文件；调用方经本文件装配。
  * 第一性原理（#125 定版，承接原 registry.js）：
- *  - 身份识别 = `matches`(boolean) + `select`(三级联仲裁) + `describe`(出 RepositoryRef)；没有 detect op。
+ *  - 身份识别 = `matches`(boolean) + `select`(两级联仲裁) + `describe`(出 RepositoryRef)；没有 detect op。
  *  - `matches` 超时（缺省 30 秒，见下面的 MATCHES_TIMEOUT_MS，可配）视作 **pending（unknown）**：排除出决策集；
- *    「无 explicit、无 match===true、无 pending」才 fallback→null；有 pending 必须 surface，不静默 Other。
+ *    「无 match===true、无 pending」才 fallback→null；有 pending 必须 surface，不静默 Other。
+ *
+ * #1138（2026-10-14 落地）：本文件原来还存着一份「这个工作区绑了谁」的进程内副本 —— 一张 byHandle 表，
+ *   加 bind/bound/allBindings 三个口子，`select` 的第一级联「先看显式绑定」读的也是它。那份副本与工作区文件
+ *   `docs/agents/workspace.yaml` 记的是同一件事，却是两份记录（宿主重启即消失），用户的选择因此有两个家。
+ *   整段删掉了：人选的唯一真源是工作区文件，判定统一走 `src/tracker/detection/backendDecision.ts`。
+ *   注册表从此只答两件事 —— 我这儿有哪些后端（`modules`/`has`/`get`），以及这个仓库是谁（`select` 仲裁）。
+ *   连带的一处口径变化：以前「后端被卸载」会把这些绑定标 stale 再通知订阅方清缓存；绑定表没了以后，
+ *   改由 `unregister` 事件通知，订阅方按「缓存里答的是不是这个被卸掉的后端」来清（见 platformChannel.js）。
  */
 
-import { TrackerRegistryError, handleKey, wrapTracker, validateMod } from './shape.js'
+import { TrackerRegistryError, wrapTracker, validateMod } from './shape.js'
 import { describe, issueAddress, issueRefPattern, repoSearchAddress } from './views.js'
 
 /**
@@ -54,18 +62,17 @@ function withTimeout(promise, ms, timers, controller) {
  *   has: (id: string) => boolean,
  *   modules: () => import('../contract/index.js').BackendModule[],
  *   select: (handle: import('../contract/index.js').RepoHandle, ctx: import('../contract/index.js').OpContext) => Promise<import('../contract/index.js').Selection>,
- *   bind: (handle: import('../contract/index.js').RepoHandle, backendId: string|null) => void,
- *   bound: (handle: import('../contract/index.js').RepoHandle) => string|null|undefined,
  *   describe: (handle: import('../contract/index.js').RepoHandle, backendId: string) => import('../../shared/tracker/shape.js').RepositoryRef,
- *   allBindings: () => Array<{handleKey: string, cwd: string, backendId: string|null, handle: import('../contract/index.js').RepoHandle}>,
- *   on: (event: 'register'|'unregister'|'bind', fn: Function) => () => void,
+ *   on: (event: 'register'|'unregister', fn: Function) => () => void,
  * }}
+ *
+ * 没有 bind / bound / allBindings 是 #1138 的有意结果，不是漏了：人选不归注册表管，它住在工作区文件里。
+ * 需要「这个工作区用哪个后端」请问 tracker/detection/backendDecision.ts 的统一判定出口。
  */
 export function createRegistry(backendCtx = {}, opts = {}) {
   const matchesTimeout = (opts && opts.matchesTimeout != null) ? opts.matchesTimeout : MATCHES_TIMEOUT_MS
   const byId = new Map() // id -> {mod, tracker}；Map 迭代序 = 注册序（replace 保持键位 → 平局=注册序）
-  const byHandle = new Map() // handleKey -> {backendId: string|null, handle}（null = 显式无后端；handle 供 stale 通知携带真实句柄）
-  const listeners = new Map([['register', new Set()], ['unregister', new Set()], ['bind', new Set()]])
+  const listeners = new Map([['register', new Set()], ['unregister', new Set()]])
 
   /** 监听抛错隔离：单个 listener 抛错不影响其他 listener。 */
   function emit(event, payload) {
@@ -76,21 +83,17 @@ export function createRegistry(backendCtx = {}, opts = {}) {
     }
   }
 
-  /** 卸载（幂等）；被绑定的 handle 标 stale（清除绑定，触发 on('bind') 监听回退）。 */
+  /**
+   * 卸载（幂等）：只从名单里拿掉这个后端，并通知订阅方。
+   *
+   * #1138：这里原来还会把「绑到这个后端的工作区」标 stale、再发一次 bind 事件，让订阅方清掉按工作区缓存的判定结果。
+   *   绑定表删掉以后注册表不知道哪些工作区用过它，改成只发一条 unregister（带上被卸掉的 id），
+   *   由订阅方按「缓存里答的是不是这个后端」判断要不要清 —— 与旧口径同样准，且不依赖任何绑定记录。
+   */
   function unregister(id) {
     if (!byId.has(id)) return
     byId.delete(id)
-    const keys = []
-    const staleHandles = []
-    for (const [k, v] of byHandle) {
-      if (v.backendId === id) {
-        byHandle.delete(k)
-        keys.push(k)
-        staleHandles.push(v.handle) // 携带真实 handle，不得只给字符串 key 丢 handle
-      }
-    }
-    emit('unregister', { id, handles: keys })
-    for (const handle of staleHandles) emit('bind', { handle, backendId: null, stale: true })
+    emit('unregister', { id })
   }
 
   return {
@@ -117,7 +120,7 @@ export function createRegistry(backendCtx = {}, opts = {}) {
       }
     },
 
-    /** 卸载（幂等）；被绑定的 handle 标 stale（清除绑定，触发 on('bind') 监听回退）。 */
+    /** 卸载（幂等）：从名单里拿掉，并给订阅方发一条 unregister（见上面那个函数的注释）。 */
     unregister,
 
     get(id) {
@@ -127,10 +130,6 @@ export function createRegistry(backendCtx = {}, opts = {}) {
 
     has(id) {
       return byId.has(id)
-    },
-
-    allBindings() {
-      return Array.from(byHandle.entries(), ([handleKey, v]) => ({ handleKey, cwd: (v.handle && v.handle.cwd) || '', backendId: v.backendId, handle: v.handle }))
     },
 
     /** 已注册模块（注册序；供 discover/UI 展示）。 */
@@ -146,20 +145,14 @@ export function createRegistry(backendCtx = {}, opts = {}) {
       if (_cwdEmpty) {
         return { backendId: null, source: 'unknown', origin: 'unknown-workspace', pending: undefined };
       }
-      const k = handleKey(handle)
       const selT0 = Date.now()
       // 日志只是旁证，绝不参与选择：rlog 由调用方注入，可能没有、也可能自己抛错，
-      // 所以下面四处都写成一行 try{…}catch(eL){}——记不上就记不上，绝不改变返回值，也不让选择因此失败。
+      // 所以下面三处都写成一行 try{…}catch(eL){}——记不上就记不上，绝不改变返回值，也不让选择因此失败。
       const rlog = (backendCtx && typeof backendCtx.logEvent === 'function') ? backendCtx.logEvent : null
       function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
-      // ① explicit（bind 记忆）
-      if (byHandle.has(k)) {
-        const id = byHandle.get(k).backendId
-        if (id === null) { try { if (rlog) rlog('info', 'registry.select', { cwdHash: hash8(handle.cwd), backendId: '', source: 'explicit', latencyMs: Date.now() - selT0, caller: String((ctx && ctx.caller) || '') }) } catch (eL) {}; return { backendId: null, source: 'explicit' } } // ref 省略（无后端，不造假）
-        if (byId.has(id)) { try { if (rlog) rlog('info', 'registry.select', { cwdHash: hash8(handle.cwd), backendId: String(id || ''), source: 'explicit', latencyMs: Date.now() - selT0, caller: String((ctx && ctx.caller) || '') }) } catch (eL) {}; return { backendId: id, source: 'explicit', ref: describe(byId, handle, id) } }
-        // bound stale 兜底 → 落到 matches
-      }
-      // ② matches（并行；boolean；超时→pending 排除决策集；平局=注册序；AbortSignal 经 ctx.signal 传给模块）
+      // ① matches（并行；boolean；超时→pending 排除决策集；平局=注册序；AbortSignal 经 ctx.signal 传给模块）
+      //   #1138 之前这里先有一段「显式绑定」级联，读的是注册表里那份进程内副本，现已删；
+      //   人选那一层由调用方在问注册表之前自己处理（唯一判定出口读工作区文件），本函数只答「谁认得这个仓库」。
       const controller = (typeof AbortController !== 'undefined') ? new AbortController() : null
       const signal = (ctx && ctx.signal) ? ctx.signal : (controller ? controller.signal : undefined)
       const matchCtx = Object.assign({}, ctx, signal ? { signal } : {})
@@ -181,29 +174,13 @@ export function createRegistry(backendCtx = {}, opts = {}) {
           pending: pendingIds.length ? true : undefined,
         }
       }
-      // ③ fallback：仅当无 explicit、无 match===true、无 pending；有 pending 必须 surface（不静默 OtherCard）。
+      // ② fallback：仅当无 match===true、无 pending；有 pending 必须 surface（不静默 OtherCard）。
       //    注：此时 source 仍为 'fallback'（source 三态枚举），但 pending 非空 = 仲裁未完成——
-      //    调用方/UI 应表面化为「等待/建议显式 bind」，不得当作干净的「无后端」静默 Other。
-      //    pending:true = 仲裁有超时未决，UI/调用方必须显示等待/建议 bind，不得静默 OtherCard；
+      //    调用方/UI 应表面化为「等待/建议人自己选一个」，不得当作干净的「无后端」静默 Other。
+      //    pending:true = 仲裁有超时未决，UI/调用方必须显示等待/建议人自己选一个，不得静默 OtherCard；
       //    无 pending 且 backendId===null = 已决无后端（OtherCard 唯一身份分支）。
       try { if (rlog) rlog('info', 'registry.select', { cwdHash: hash8(handle.cwd), backendId: '', source: 'fallback', latencyMs: Date.now() - selT0, caller: String((ctx && ctx.caller) || '') }) } catch (eL) {}
       return { backendId: null, source: 'fallback', pending: pendingIds.length ? true : undefined }
-    },
-
-    /** 显式绑定（backendId=null = 显式无后端，逃生舱）；'other' 等未注册 id 拒绝。 */
-    bind(handle, backendId) {
-      const k = handleKey(handle)
-      if (backendId !== null && !byId.has(backendId)) {
-        throw new TrackerRegistryError('unknown-backend', `backend '${backendId}' not registered`)
-      }
-      byHandle.set(k, { backendId, handle }) // 存真实 handle：unregister 的 stale 通知（on('bind') 回退）须携带句柄
-      emit('bind', { handle, backendId })
-    },
-
-    /** undefined = 从未 bound；null = 显式无后端；string = 已绑定。 */
-    bound(handle) {
-      const k = handleKey(handle)
-      return byHandle.has(k) ? byHandle.get(k).backendId : undefined
     },
 
     /** 出 RepositoryRef：转发 BackendModule.describe，见 views.ts（byId 显式传引用）。 */
@@ -218,7 +195,7 @@ export function createRegistry(backendCtx = {}, opts = {}) {
     linkPattern: (backendId) => issueRefPattern(byId, backendId),
     searchUrl: (backendId, name) => repoSearchAddress(byId, backendId, name),
 
-    /** 事件订阅（register/unregister/bind）；返回取消订阅；监听抛错隔离。 */
+    /** 事件订阅（register/unregister）；返回取消订阅；监听抛错隔离。 */
     on(event, fn) {
       const set = listeners.get(event)
       if (!set || typeof fn !== 'function') throw new TrackerRegistryError('bad-event', `unknown event '${event}'`)

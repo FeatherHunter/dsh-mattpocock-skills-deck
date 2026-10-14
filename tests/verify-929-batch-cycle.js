@@ -17,7 +17,7 @@ import { pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
 // 判定出口桩（#1003 单出口）：壳拿不到它时一律回「判定出口这次没装上」，
 // 生产装配总会给，夹具照生产接上；桩的来历见 tests/lib/deck-decide-stub.js 文件头。
-import { makeDecideStub } from './lib/deck-decide-stub.js'
+import { makeDecideStub, chooseWorkspace } from './lib/deck-decide-stub.js'
 
 const require = createRequire(import.meta.url)
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..')
@@ -57,7 +57,10 @@ function makeEnv(opts) {
   }
   const registry = registryMod.createRegistry({ logEvent: () => {}, isEnabled: () => false }, { matchesTimeout: 200 })
   registry.register(githubModule)
-  registry.bind({ cwd: '/ws/github', refId: 'acme/demo' }, 'github')
+  // #1138 起「这个工作区选过了」只有一种造法：给这个工作区一份工作区文件。这里原来写的是
+  // registry.bind({ cwd: '/ws/github', refId: 'acme/demo' }, 'github')，注册表的绑定口子已整段删掉
+  // （见 src/tracker/registry/core.ts 文件头），夹具改用工作区文件表达同一件事。
+  chooseWorkspace('/ws/github', 'github')
   const tracker = registry.get('github')
   const backendCtx = {
     cwd: '/ws/github',
@@ -65,8 +68,10 @@ function makeEnv(opts) {
     exec, isEnabled: () => false, logEvent: () => {},
   }
   function toolDeps() {
-    // bound 与 select 一起给：真注册表两个都有，判定出口桩靠 bound 认出「这个工作区已选定后端」。
-    const registryStub = { select: async () => ({ backendId: 'github', source: 'test', ref: { backend: 'github', refId: 'acme/demo', name: 'demo', url: '' } }), get: () => tracker, bound: () => 'github' }
+    // 这个工作区选了谁由上面 chooseWorkspace 那份工作区文件回答（桩直接调生产判定出口读它）。
+    // 这份桩注册表没有 has，判定出口要靠它判「认不认得这个名字」，缺了就按「认得」算 —— 桩已替它补上，
+    // 见 tests/lib/deck-decide-stub.js 文件头。select 是「没有工作区文件时」的兜底那一层，照旧留着。
+    const registryStub = { select: async () => ({ backendId: 'github', source: 'test', ref: { backend: 'github', refId: 'acme/demo', name: 'demo', url: '' } }), get: () => tracker }
     return {
       gate: { admitAiTool: () => ({ admitted: true }), send: async (req, fn) => { await fn(); return { sent: true, requests: 1, points: 0, remaining: 100, tier: 'ai' } } },
       registry: registryStub,

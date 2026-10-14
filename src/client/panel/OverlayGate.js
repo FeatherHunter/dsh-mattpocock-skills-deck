@@ -51,7 +51,8 @@ export const confirmOverlayGate = function(s, gateModules){
             const ok = res && (res.ok===true || (res.value && res.value.ok===true) || res.ok)
             if(ok){
               try{ if(typeof adoptBoundRev === 'function') adoptBoundRev(s, res) }catch(eRev){}
-              try{ var _np=res&&(res.persisted===false||(res.value&&res.value.persisted===false)); if(_np) flash(s, tr('switch.bindFail',{err:tr('switch.bindNotPersisted')}), 'warn') }catch(eP){}
+              // #1138：选择写进工作区文件才算数；本机备份没写成只是信息级提醒（词条见 locale-word.js）。
+              try{ var _np=res&&(res.persisted===false||(res.value&&res.value.persisted===false)); if(_np) flash(s, tr('switch.bindNotPersisted'), 'info') }catch(eP){}
               s.tab='list'
               emit(s)
               try{ flash(s, tr('switch.bindOk', { label: (typeof labelOf==='function'?labelOf(id):String(id)) }), 'ok') }catch(e){}

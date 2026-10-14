@@ -184,7 +184,6 @@ export interface DeckShellDeps {
   resolveTimeoutMs?: number;
   handleFor?: (s: ShellSession) => UnknownRecord;
   decideBackend?: (cwd: string, opts: UnknownRecord) => unknown;
-  readChoice?: unknown;
   readWorkspaceFileText?: unknown;
   parseWorkspaceFile?: unknown;
   readDeclarationId?: unknown;

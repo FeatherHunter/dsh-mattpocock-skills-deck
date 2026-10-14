@@ -14,7 +14,7 @@ const os = require('os')
 const { pathToFileURL } = require('url')
 // 判定出口桩（#1003 单出口）：壳拿不到它时一律回「判定出口这次没装上」，
 // 生产装配总会给，夹具照生产接上；桩的来历见 tests/lib/deck-decide-stub.js 文件头。
-const { makeDecideStub } = require('./lib/deck-decide-stub.js')
+const { makeDecideStub, chooseWorkspace } = require('./lib/deck-decide-stub.js')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -58,10 +58,11 @@ async function main() {
   const gate = gateMod.createGate({ ledger: ledger, now: () => clock })
   const registry = registryMod.createRegistry(Object.assign({ logEvent: () => {}, isEnabled: () => false }, ctxA), { matchesTimeout: 200 })
   const dispose = registry.register(markdownModule)
-  // 手动绑定，绕过 map.md 识别（现场建图前 0 张地图，识别本就找不到它）。
+  // 给这个工作区一份写着 markdown 的工作区文件，绕过 map.md 识别（现场建图前 0 张地图，识别本就找不到它）。
+  // #1138 起人选只记在工作区文件里，这里原来写的是 registry.bind(handleA, 'markdown')，绑定口子已整段删掉。
   // refId 用相对路径（与 verify-deck-tools.js 同口径），绝对路径会让 issuesDir 拼出双前缀。
   const handleA = { cwd: rootAPosix, refId: '.scratch/demo' }
-  registry.bind(handleA, 'markdown')
+  chooseWorkspace(rootAPosix, 'markdown')
   ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: clock + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock + 3600000 } }, clock)
 
   const deps = {

@@ -11,7 +11,7 @@ const path = require('path')
 const { pathToFileURL } = require('url')
 // 判定出口桩（#1003 单出口）：壳拿不到它时一律回「判定出口这次没装上」，
 // 生产装配总会给，夹具照生产接上；桩的来历见 tests/lib/deck-decide-stub.js 文件头。
-const { makeDecideStub } = require('./lib/deck-decide-stub.js')
+const { makeDecideStub, chooseWorkspace } = require('./lib/deck-decide-stub.js')
 // 时间压缩：本门每条断言都跟时间无关，但收尾时那两个没人清掉的定时器（等锁 60000 毫秒、
 // 游标读写竞速 10000 毫秒）让进程空等一分钟才退出。装上这个助手以后进程里走虚拟时间，
 // 真实只等几毫秒。断言一条没动；理由、两条不能破的语义与边界见 tests/lib/time-compress.js 文件头。
@@ -125,8 +125,11 @@ async function main() {
   const planMod = await imp('src/deck/tools/map-plan-create.ts')
   const linkMod = await imp('src/deck/tools/map-link.ts')
   function shellDeps(tracker, extra) {
-    // bound 与 select 一起给：真注册表两个都有，判定出口桩靠 bound 认出「这个工作区已选定后端」。
-    const registry = { select: async () => ({ backendId: 'stub', source: 'test' }), get: () => tracker, bound: () => 'stub' }
+    // select 这一格是兜底识别（工作区文件缺席时才会问它）；#1138 起「这个工作区选过了」只剩
+    // 工作区文件一份记录，所以下面用 chooseWorkspace 给本夹具那个固定工作区（execOf 的缺省 cwd）
+    // 记一笔 —— 就是给这个工作区一份写着 backendId 的文件，判定出口第一层读到它才会放行写用途。
+    const registry = { select: async () => ({ backendId: 'stub', source: 'test' }), get: () => tracker }
+    chooseWorkspace('C:/fake-ws', 'stub')
     return Object.assign({
       gate: stubGate(), registry: registry, budget: budget,
       estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom,

@@ -29,6 +29,11 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+// 夹具口（写法见 tests/lib/deck-decide-stub.js 开头）：#1138 起「用户选过哪个后端」只剩工作区文件里
+// 那一条记录（docs/agents/workspace.yaml），注册表上那层 bind 已经整段删掉。下面用内存账本
+// chooseWorkspace 顶替工作区文件、用真人选出口的夹具 makeDecideStub 顶替生产出口：工具读到的
+// 就还是「这个工作区用户亲手选过 markdown」，写用途才会放行；中途换后端也照旧换一笔账。
+import { chooseWorkspace, makeDecideStub } from './lib/deck-decide-stub.js'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const imp = (rel: string) => import(pathToFileURL(path.join(ROOT, rel)).href)
@@ -197,7 +202,6 @@ async function main() {
   const registryMod = await imp('src/tracker/registry/core.ts')
   const markdownModule = (await imp('src/tracker/rooms/markdown/index.ts')).markdownModule
   const toolCost = await imp('src/shared/refresh/tool-cost.js')
-  const decMod = await imp('src/tracker/detection/backendDecision.ts')
 
   // ── 组装：真闸 + 真账本 + 真注册表 + 真实本地 Markdown 后端 ──
   const ws = makeWorkspace()
@@ -207,14 +211,16 @@ async function main() {
   const registry = registryMod.createRegistry(Object.assign({ logEvent: () => {}, isEnabled: () => false }, ws.ctx), { matchesTimeout: 200 })
   registry.register(markdownModule)
   const handle = { cwd: ws.rootPosix, refId: '.scratch/demo' }
-  registry.bind(handle, 'markdown')
+  // #1138：把「用户选过 markdown」写进夹具账本（等价于工作区文件里那一行）。原来这里是
+  // registry.bind(handle, 'markdown')，绑定层已随 #1138 整段删掉。
+  chooseWorkspace(ws.rootPosix, 'markdown')
   ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: clock + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock + 3600000 } }, clock)
   const planStore = (() => { const t = new Map(); return { durable: true, load(id: string) { return t.get(String(id)) || null }, save(id: string, s: unknown) { t.set(String(id), s) } } })()
   const deps = {
     gate, registry, budget,
     estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom,
     backendCtx: ws.ctx, handleFor: () => handle,
-    decideBackend: decMod.decideBackend,
+    decideBackend: makeDecideStub(registry),
     log: { fire: () => {} },
     now: () => clock,
     invalidate: () => {},
@@ -390,7 +396,8 @@ async function main() {
       }),
     }
     const dispose = registry.register(refusing)
-    registry.bind(handle, 'refuse-1106')
+    // #1138：换成「这个工作区选了这个后端」的唯一写法 —— 往夹具账本里改一笔（原来这里是 registry.bind）。
+    chooseWorkspace(ws.rootPosix, 'refuse-1106')
     try {
       const before = claimedNow()
       const listed = await run('deck_issue_list', { state: 'open' })
@@ -406,7 +413,7 @@ async function main() {
         '后端说做不到：建票这一支回 unsupported + backend-unsupported（实得 ' + (created.r && created.r.status) + '/' + (created.r && created.r.reason) + '）')
       check(afterCreate.requests - beforeCreate.requests === 2 && afterCreate.points - beforeCreate.points === 4,
         '后端说做不到：建票这一笔记 2 条 / 4 点（实得 ' + (afterCreate.requests - beforeCreate.requests) + ' / ' + (afterCreate.points - beforeCreate.points) + '）')
-    } finally { dispose.dispose(); registry.bind(handle, 'markdown') }
+    } finally { dispose.dispose(); chooseWorkspace(ws.rootPosix, 'markdown') }
   }
 
   {
@@ -515,7 +522,8 @@ async function main() {
       }),
     }
     const disposeRec = registry.register(recorder)
-    registry.bind(handle, 'record-1106')
+    // #1138：同上，换成往夹具账本里改一笔（原来这里是 registry.bind）。
+    chooseWorkspace(ws.rootPosix, 'record-1106')
     const take = () => { const x = seen.slice(); seen.length = 0; return x }
     const returnedOf = (r: any) => (r && r.data && typeof r.data.returned === 'number') ? r.data.returned : -1
     try {
@@ -553,7 +561,7 @@ async function main() {
         check(!threw && first === wantFirst, '读票 ' + label + '：要后端的评论数是 ' + wantFirst + '（实得 ' + (threw || first) + '）')
         check(sawDep === wantDep, '读票 ' + label + '：' + (wantDep ? '会去取反向阻塞边' : '跳过反向阻塞边') + '（实得 ' + (sawDep ? '取了' : '没取') + '）')
       }
-    } finally { disposeRec.dispose(); registry.bind(handle, 'markdown') }
+    } finally { disposeRec.dispose(); chooseWorkspace(ws.rootPosix, 'markdown') }
   }
 
   ws.cleanup()

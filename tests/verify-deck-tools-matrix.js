@@ -21,6 +21,10 @@ const fs = require('fs')
 const os = require('os')
 const { pathToFileURL } = require('url')
 const { makeScriptedGh, makeScriptedGlab } = require('./deck-tools-matrix-transports.js')
+// 夹具口（写法见 tests/lib/deck-decide-stub.js 开头）：#1138 之后「用户选过哪个后端」只剩工作区文件一份记录，
+// 注册表上那层绑定已经删了。下面用内存账本 chooseWorkspace 顶替工作区文件，用人选判定出口的夹具
+// makeDecideStub 顶替生产出口，壳读到的就还是「这个工作区用户亲手选过哪个后端」。
+const { makeDecideStub, chooseWorkspace } = require('./lib/deck-decide-stub.js')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -98,9 +102,10 @@ async function main() {
   const toolCost = await imp('src/shared/refresh/tool-cost.js')
   // 选后端的判定出口（#1003 单出口）。生产装配总是把它递给工具（见 src/deck/registration/host-assemble.ts
   //   的 `decideBackend: decideBackend || null`），壳拿不到它时会一律回「判定出口这次没装上」，
-  //   所以夹具也必须照生产的接法给上。接上它之后，下面每个车道那次 registry.bind(lane.handle, lane.id)
-  //   才会被读成「用户亲手选过这个工作区」，三个车道的写用途才会被放行（#1003 契约期望行为第 4 条）。
-  const decMod = await imp('src/tracker/detection/backendDecision.ts')
+  //   所以夹具也必须照生产的接法给上。这里给的是**真人选出口的夹具**（makeDecideStub，见
+  //   tests/lib/deck-decide-stub.js）：它把夹具的内存账本当工作区文件读，所以下面每个车道
+  //   那次 chooseWorkspace(lane.handle.cwd, lane.id) 才会被读成「用户亲手选过这个工作区」，
+  //   三个车道的写用途才会被放行（#1138 之后这份记录只剩工作区文件一份，注册表上那层绑定已删）。
 
   let clock = 1700000000000
   const ledger = ledgerMod.createLedger({ now: () => clock })
@@ -137,7 +142,8 @@ async function main() {
   const disposals = []
   for (const lane of lanes) {
     disposals.push(registry.register(lane.module))
-    registry.bind(lane.handle, lane.id)
+    // 这个车道的「用户亲手选过谁」写进夹具账本（等价于往工作区文件里写一行）。
+    chooseWorkspace(lane.handle.cwd, lane.id)
   }
   const byCwd = new Map(lanes.map((l) => [l.handle.cwd, l]))
   const laneOf = (id) => lanes.find((l) => l.id === id)
@@ -151,7 +157,7 @@ async function main() {
     backendCtx: () => (currentLane ? currentLane.backendCtx : {}),
     now: () => clock,
     log: { fire: () => {} },
-    decideBackend: decMod.decideBackend,
+    decideBackend: makeDecideStub(registry),
     planStore: (() => { const t = new Map(); return { durable: true, load(id) { return t.get(id) || null }, save(id, s) { t.set(id, s) } } })(),
     invalidate: () => {},
   }

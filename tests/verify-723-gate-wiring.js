@@ -22,6 +22,11 @@ const path = require('path')
 const os = require('os')
 const fs = require('fs')
 const { pathToFileURL } = require('url')
+// 夹具说「这个工作区选过了」的唯一办法（#1138 起）：给这个工作区一份工作区文件
+// （docs/agents/workspace.yaml）。这一段走的生产装配（wiring.deckToolsForHost），判定出口是生产那一个，
+// 它按文件服务读这份文件，所以这里要真写一份到临时工作区目录里，不能用内存账本；
+// 来历与另一种造法见 tests/lib/deck-decide-stub.js 文件头。
+const { writeWorkspaceFile } = require('./lib/deck-decide-stub.js')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -215,7 +220,15 @@ async function main() {
     const mkPlat = () => ({
       path: path.posix,
       fs: {
-        async resolve(p) { return String(p).replace(/\\/g, '/') },
+        // 相对目标按 {cwd} 拼成绝对路径，绝对目标原样返回 —— 真文件服务就是这样：
+        // 判定出口那一条读口（wiring 的 readWorkspaceFileText）传的是相对路径 + 工作区根，
+        // 这里如实还原那件事，下面写进临时工作区的 workspace.yaml 才读得回来。
+        async resolve(p, o) {
+          const s = String(p).replace(/\\/g, '/')
+          const cwd = (o && o.cwd) ? String(o.cwd).replace(/\\/g, '/').replace(/\/+$/, '') : ''
+          if (cwd && !/^([A-Za-z]:)?\//.test(s)) return cwd + '/' + s
+          return s
+        },
         async readText(t) { return fs.readFileSync(t, 'utf8') },
         async writeText(t, c) { fs.mkdirSync(path.dirname(t), { recursive: true }); fs.writeFileSync(t, c, 'utf8') },
         async lstat(t) { try { return fs.statSync(t) } catch (e) { return null } },
@@ -231,7 +244,11 @@ async function main() {
     const wsPosix = wsRoot.replace(/\\/g, '/')
     const registry = registryMod.createRegistry(Object.assign({ logEvent: () => {}, isEnabled: () => false }, { platform: plat, fs: plat.fs, get: (n) => (n === 'fs' ? plat.fs : undefined) }), { matchesTimeout: 200 })
     registry.register(markdownModule)
-    registry.bind({ cwd: wsPosix, refId: '.scratch/demo' }, 'markdown')
+    // #1138 起「这个工作区选过了」只记在工作区文件里：这里原来写的是
+    // registry.bind({ cwd: wsPosix, refId: '.scratch/demo' }, 'markdown')，注册表的绑定口子已整段删掉
+    // （见 src/tracker/registry/core.ts 文件头）。下面这一行真把那份文件写进临时工作区目录，
+    // 生产判定出口读它得出的结论与旧绑定那一条同源（写用途因此才被放行）。
+    writeWorkspaceFile(wsRoot, 'markdown')
 
     /** 额度剩多少由 remaining 定；七个工具与闸都从这一个 wiring 上取（与生产同形）。 */
     async function buildHost(remaining) {

@@ -71,7 +71,7 @@ export function createWorkspaceLabelColors(deps) {
     const reg = await getTrackerRegistry()
     if (!reg) return { ok: false, error: { kind: 'env', message: '插件尚未就绪：还没有可用的后端清单，请稍后重试。这是插件运行环境的问题，不是你的操作有误。' } }
     const platform = await getPlatform()
-    // #1003 单出口：显式三层（内存绑定→文件→声明→记忆）整段交统一判定，自动识别仍由出口内同一注册表跑；
+    // #1003 单出口：显式那几层（工作区文件→声明文件）整段交统一判定，自动识别仍由出口内同一注册表跑；
     //   下面只做核验与分档，不再自己判一次。本文件不引用判定服务（同层门禁），函数只经依赖值由工作区入口递进来。
     const useOutlet = (typeof getDecisionFn === 'function') ? await getDecisionFn().catch(function () { return null }) : null
     if (!useOutlet || typeof useOutlet.decideBackend !== 'function') {

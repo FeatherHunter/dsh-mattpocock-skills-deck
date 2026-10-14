@@ -166,14 +166,18 @@ async function main() {
     },
     admitAiTool: function () { return { admitted: true, reason: 'ai-tool-within-caps', points: 1, requests: 1 } },
   }
-  // bound() 代表「用户在这个工作区里亲手选定过 github」。写用途拦截（#1003 契约期望行为第 4 条）要求写操作
-  //   必须有一个凭据——工作区里那份记录，或者本次进程内绑定一次；只有自动识别算不出这个凭据。生产装配的
-  //   注册表一直有这个口，夹具原先没给，于是壳拿到的判定是 canWrite:false，选后端会被如实拒绝。
-  //   这一段要验的是「保读数不挡路」与「口子缺席不影响干活」，所以夹具照生产补上绑定，让它真的走到选后端那一步。
+  // 注册表在 #1138 之后只剩「我这儿有哪些后端」与「这个仓库是谁」两件事，原来那个「进程内绑定一次」的口子
+  //   （bound）已整段删除；这里要走到「壳真的选出后端」那一步（写用途要求 canWrite:true），凭据只有一个来源：
+  //   工作区里那份工作区文件。生产里由宿主读出来递给壳（src/host/refresh/wiring.js 的 readWorkspaceFileText），
+  //   夹具照这条口径直接给原文。
   const stubRegistry = {
     has: function () { return true },
-    bound: function () { return 'github' },
     select: async function () { return { backendId: 'github', source: 'test', ref: {} } },
+  }
+  const anchorQuota = await imp('src/deck/shell/workspace-anchor.ts')
+  const wsFileDeps = {
+    readWorkspaceFileText: async function () { return 'version: 2\nbackendId: github\npickedAt: 1\nsource: user\n' },
+    parseWorkspaceFile: anchorQuota.parseWorkspaceFile,
   }
   const sh = shell.createDeckShell({
     gate: stubGate,
@@ -183,11 +187,13 @@ async function main() {
     costInputFrom: function () { return {} },
     ensureReading: async function (cwd, key) { ensured = { cwd: cwd, key: key }; return { ok: true, fresh: true } },
     decideBackend: decModQuota.decideBackend,
+    readWorkspaceFileText: wsFileDeps.readWorkspaceFileText,
+    parseWorkspaceFile: wsFileDeps.parseWorkspaceFile,
   })
   const picked = await sh.pickBackend({ agent: { session: { cwd: '/ws-shell' } } }, { cwd: '/ws-shell', workspaceKey: 'ws-shell-1', sessionId: 's1', source: 't', text: '' })
   check(picked && picked.ok === true, '壳照常选出后端（保读数不挡路）')
   check(ensured && ensured.cwd === '/ws-shell' && ensured.key === 'ws-shell-1', '壳动手前保一次读数，目录与键都递过去')
-  const shOld = shell.createDeckShell({ gate: stubGate, registry: stubRegistry, budget: {}, estimate: function () { return { points: 1, requests: 1, tickets: 0, withinCallCap: true, shards: 1, perShard: 1, text: '' } }, costInputFrom: function () { return {} }, decideBackend: decModQuota.decideBackend })
+  const shOld = shell.createDeckShell({ gate: stubGate, registry: stubRegistry, budget: {}, estimate: function () { return { points: 1, requests: 1, tickets: 0, withinCallCap: true, shards: 1, perShard: 1, text: '' } }, costInputFrom: function () { return {} }, decideBackend: decModQuota.decideBackend, readWorkspaceFileText: wsFileDeps.readWorkspaceFileText, parseWorkspaceFile: wsFileDeps.parseWorkspaceFile })
   const pickedOld = await shOld.pickBackend({ agent: { session: { cwd: '/ws' } } }, { cwd: '/ws', workspaceKey: 'k', sessionId: '', source: '', text: '' })
   check(pickedOld && pickedOld.ok === true, '没给保读数的老桩照样过（缺席跳过）')
 

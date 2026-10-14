@@ -218,26 +218,39 @@ console.log('== D R4：快照的短路路与 304 都要带权威 {selection, rev
 console.log('')
 console.log('== E R7c：写失败如实回 ==')
 {
-  // R7c：记忆写失败要如实回 persisted:false
+  // R7c：记忆（H）写失败要如实回 persisted:false。
+  //   #1138：写工作区文件这一步必须先成功 —— 那才是「这次选择生效」的标志；H 只是备份，
+  //   它写不成照旧回 persisted:false 如实说（界面据此出一句信息级提示）。所以夹具要给一条
+  //   真能写的文件通道（临时目录 + 真文件），否则 bind 会先因为文件写不成而如实失败。
   const { createWorkspaceCwd } = await import(url('src/host/workspaceCwd.js'))
-  const mkBind = function (storeLike) {
-    return createWorkspaceCwd({
-      ctx: { get: () => undefined }, DEFAULT_CWD: 'D:\\ws',
-      getPlatform: async () => ({ fs: {}, path: path, getHome: async () => '' }),
-      getTrackerRegistry: async () => ({ has: () => true, bind: () => {}, get: () => null, describe: () => null }),
+  const fsSvcOf = function (dir) {
+    return {
+      async resolve(p, o) { const cwd = (o && o.cwd) || ''; const rel = String(p || '').replace(/\\/g, '/'); return cwd ? String(cwd).replace(/\\/g, '/') + '/' + rel : rel },
+      async readText(t) { return fs.readFileSync(t, 'utf8') },
+      async writeText(t, c) { fs.mkdirSync(path.dirname(t), { recursive: true }); fs.writeFileSync(t, String(c), 'utf8') },
+      async mkdir(d) { fs.mkdirSync(d, { recursive: true }) },
+    }
+  }
+  const bindIn = async function (storeLike, backendId) {
+    const dir = makeDir('v683e-')
+    const api = createWorkspaceCwd({
+      ctx: { get: () => undefined }, DEFAULT_CWD: dir,
+      getPlatform: async () => ({ fs: fsSvcOf(dir), path: path, getHome: async () => '' }),
+      getTrackerRegistry: async () => ({ has: () => true, get: () => null, describe: () => null }),
       getWorkspaceStore: async () => ({ invalidate: () => {} }),
       getChoiceStore: async () => storeLike,
       canonicalKey: async (c) => c, setCache: () => {}, timer: { timeout: () => null }, detectionExec: async () => ({}), logCtx: null,
     })
+    return await api.handleBind({ cwd: dir, backendId: backendId })
   }
   const okStore = { rememberWorkspace: async () => ({ ok: true, rev: 3 }) }
   const failStore = { rememberWorkspace: async () => ({ ok: false, reason: 'write-fail' }) }
-  const e1 = await mkBind(okStore).handleBind({ cwd: 'D:\\ws', backendId: 'github' })
+  const e1 = await bindIn(okStore, 'github')
   check(e1.ok === true && e1.rev === 3 && e1.persisted === true, '绑定成功时回包带上了宿主发的修订号与 persisted:true（加字段不改形状）—— 实得 rev=' + e1.rev + ' persisted=' + e1.persisted)
-  const e2 = await mkBind(failStore).handleBind({ cwd: 'D:\\ws', backendId: 'github' })
-  check(e2.ok === true && e2.persisted === false, '记忆写失败时绑定照旧成功，但如实回 persisted:false（界面据此说一句，不许无声失败）—— 实得 ' + JSON.stringify({ ok: e2.ok, persisted: e2.persisted, rev: e2.rev }))
-  const e3 = await mkBind(null).handleBind({ cwd: 'D:\\ws', backendId: 'github' })
-  check(e3.ok === true && e3.persisted === false && e3.rev === 0, '没有可用的记忆库时也照旧绑定成功、如实回 persisted:false —— 实得 ' + JSON.stringify({ ok: e3.ok, persisted: e3.persisted }))
+  const e2 = await bindIn(failStore, 'github')
+  check(e2.ok === true && e2.persisted === false, '记忆写失败时这次选择照旧生效（工作区文件写成了），但如实回 persisted:false（界面据此说一句，不许无声失败）—— 实得 ' + JSON.stringify({ ok: e2.ok, persisted: e2.persisted, rev: e2.rev }))
+  const e3 = await bindIn(null, 'github')
+  check(e3.ok === true && e3.persisted === false && e3.rev === 0, '没有可用的记忆库时也照旧生效、如实回 persisted:false —— 实得 ' + JSON.stringify({ ok: e3.ok, persisted: e3.persisted }))
 }
 
 // ── G R6：布局答案那条电话（写进 H、读出来）────────────────────────────────────────────────

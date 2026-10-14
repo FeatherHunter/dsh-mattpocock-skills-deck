@@ -38,6 +38,11 @@ import { createWorkspaceCwd } from '../../../src/host/workspaceCwd.js'
 import { decideBackend as decDecideBackend, selectionFromOutlet as decSelectionFromOutlet } from '../../../src/tracker/detection/backendDecision.ts'
 try { decDecideBackend.selectionFromOutlet = decSelectionFromOutlet } catch (eAttachDec) {}
 import nodePath from 'node:path'
+// #1138：夹具手里的「工作区文件」账本（虚拟目录，不碰盘）。这两件都在 tests/lib/deck-decide-stub.js，
+// 与 verify-deck-tools.js 用的是同一份；以前夹具想说「这个工作区选过了」只能调 reg.bind，那个口子已经删了。
+import decideStub from '../../lib/deck-decide-stub.js'
+const chooseWorkspace = decideStub.chooseWorkspace
+const workspaceFileOf = decideStub.workspaceFileOf
 
 const HEX6 = /^[0-9a-f]{6}$/
 const KNOWN_KINDS = Object.values(ERROR_KIND)
@@ -604,6 +609,32 @@ export async function run() {
     //   两句话必须都在），别让用户去翻自己的操作找原因
     const blameOk = (m) => { const s = String(m == null ? '' : m); return s.includes('插件运行环境的问题') && s.includes('不是你的操作有误') }
     const mkReg = () => createRegistry({ logEvent: () => {}, isEnabled: () => false }, { matchesTimeout: 200 })
+    /**
+     * #1138：判定出口读「这个工作区选了谁」那一路要用的最小文件服务。
+     *
+     * 为什么夹具必须给这一份：人选的唯一真源是工作区文件 docs/agents/workspace.yaml，而生产里读它的是
+     * 判定出口自己的 deps.fs 分支（src/tracker/detection/backendDecision.ts 的 readFileLayer：resolve 出
+     * 路径、readText 读文本、再交给 parseWorkspaceFile）。桩上的账本（chooseWorkspace）只记了「这份文件
+     * 写了什么」，没有「谁去读它」；所以这一份把两者接起来——这就是生产那条路的最小形态，
+     * 不是另写一套判定规则（判定仍由生产那一个出口做）。
+     *
+     * 为什么以前不用给：以前「这个工作区选过了」记在注册表的进程内绑定表里，宿主直接问注册表就能拿到；
+     * 那份表已经删了（见 src/tracker/registry/core.ts 文件头），所以夹具也要改成给文件。
+     */
+    const workspaceFs = {
+      resolve: async (rel, opts) => ({ cwd: (opts && opts.cwd) || '', rel: String(rel) }),
+      readText: async (target) => {
+        const rel = String((target && target.rel) || '')
+        // 账本的钥匙是「工作区目录」，不是「某一条文件路径」（chooseWorkspace(cwd, id) 记的就是这个工作区）。
+        // 判定出口按顺序来问新旧两条路径（新 docs/agents/workspace.yaml 优先、老 json 兼容读），
+        // 所以这里按「问的是不是工作区文件那两张脸」作答，别的路径一律说没有。
+        const text = (rel === 'docs/agents/workspace.yaml' || rel === 'docs/agents/workspace.json')
+          ? workspaceFileOf((target && target.cwd) || '')
+          : null
+        if (text == null) throw Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' })
+        return text
+      },
+    }
     // 造一个宿主实例：deps 全部现场给，不碰真实平台与真实注册表
     const mkHost = (reg) => {
       const events = []
@@ -611,7 +642,7 @@ export async function run() {
       const host = createWorkspaceCwd({
         ctx: { get: () => undefined },
         DEFAULT_CWD: HOST_CWD,
-        getPlatform: async () => ({ path: nodePath.posix, getHome: async () => '/home/u' }),
+        getPlatform: async () => ({ path: nodePath.posix, getHome: async () => '/home/u', fs: workspaceFs }),
         getTrackerRegistry: async () => reg,
         getWorkspaceStore: async () => ({ invalidate: () => {} }),
         getDecisionFn: async () => ({ decideBackend: decDecideBackend }),
@@ -636,7 +667,7 @@ export async function run() {
           return { ok: true, data: { applied: [{ name: 'bug', color: '0b7285' }], failed: [], 后端多给的字段: '不许漏给客户端' } }
         },
       }))
-      regOK.bind({ cwd: HOST_CWD }, 'labels-host-fake')
+      chooseWorkspace(HOST_CWD, 'labels-host-fake')
       const h = mkHost(regOK)
       const rl = await h.host.handleListLabels({ cwd: HOST_CWD })
       await assert('宿主 wf.listLabels：回包只有 ok / backendId / labels 三个键，且清单过形状检查器', rl.ok === true && keysOf(rl) === 'backendId,labels,ok' && labelListCheck(rl.labels).length === 0, '实得键：' + keysOf(rl) + '；' + (rl.ok === true ? labelListCheck(rl.labels).join('；') : JSON.stringify(rl)))
@@ -655,7 +686,7 @@ export async function run() {
       const d = regNet.register(mod('labels-net-fake', {
         listLabels: async () => ({ ok: false, error: { kind: 'network', message: '连不上 GitHub：检查网络或代理后再试；你的仓库没有被改动' } }),
       }))
-      regNet.bind({ cwd: HOST_CWD }, 'labels-net-fake')
+      chooseWorkspace(HOST_CWD, 'labels-net-fake')
       const h = mkHost(regNet)
       const rl = await h.host.handleListLabels({ cwd: HOST_CWD })
       await assert('network 档正面样本：真连不通 → 宿主原样透传 network（连不通才是网络不通）', rl.ok === false && rl.error.kind === 'network' && String(rl.error.message).includes('连不上'), JSON.stringify(rl))
@@ -669,7 +700,7 @@ export async function run() {
         listLabels: async () => ({ ok: true, data: { labels: [] } }),
         setLabelColors: async () => ({ ok: true, data: { applied: [] } }),
       }))
-      regBad.bind({ cwd: HOST_CWD }, 'labels-shape-fake')
+      chooseWorkspace(HOST_CWD, 'labels-shape-fake')
       const hBad = mkHost(regBad)
       const rlShape = await hBad.host.handleListLabels({ cwd: HOST_CWD })
       await assert('后端回的标签清单不是数组 → 环境档，且说清是插件运行环境的问题、不是用户操作有误', rlShape.ok === false && rlShape.error.kind === 'env' && blameOk(rlShape.error.message), JSON.stringify(rlShape))
@@ -680,7 +711,7 @@ export async function run() {
 
       const regThrow = mkReg()
       const d2 = regThrow.register(mod('labels-throw-fake', { listLabels: async () => { throw new Error('房间内部炸了') } }))
-      regThrow.bind({ cwd: HOST_CWD }, 'labels-throw-fake')
+      chooseWorkspace(HOST_CWD, 'labels-throw-fake')
       const hThrow = mkHost(regThrow)
       const rlThrow = await hThrow.host.handleListLabels({ cwd: HOST_CWD })
       await assert('后端抛异常 → 环境档（不是网络不通），并说清是插件运行环境的问题、不是用户操作有误', rlThrow.ok === false && rlThrow.error.kind === 'env' && blameOk(rlThrow.error.message), JSON.stringify(rlThrow))
@@ -688,7 +719,7 @@ export async function run() {
 
       const regSilent = mkReg()
       const d3 = regSilent.register(mod('labels-silent-fake', { listLabels: async () => ({ ok: true }) }))
-      regSilent.bind({ cwd: HOST_CWD }, 'labels-silent-fake')
+      chooseWorkspace(HOST_CWD, 'labels-silent-fake')
       const rlSilent = await mkHost(regSilent).host.handleListLabels({ cwd: HOST_CWD })
       await assert('后端既不说成功也不说为什么没成 → 环境档（形状不符合契约）', rlSilent.ok === false && rlSilent.error.kind === 'env', JSON.stringify(rlSilent))
       d3.dispose()
@@ -698,7 +729,10 @@ export async function run() {
     {
       const regNone = mkReg()
       regNone.register(mod('labels-none-fake', {}))
-      regNone.bind({ cwd: HOST_CWD }, null) // 显式无后端（用户自己选的「其它」是这条）
+      // #1138：这个工作区没有工作区文件，也没有任何后端说自己认得它 → 就是「还没选定后端」这一档。
+      //   以前这一档靠 regNone.bind(handle, null)（显式选了「无后端」）造出来；那个口子删掉之后，
+      //   「显式无后端」这条状态今天没有存法（工作区文件里只能写一个后端名，见 src/host/workspaceCwd.js 的
+      //   handleBind：收到 null 会如实回失败），所以这里造的是「文件缺席 + 无人认领」这同一条用户可见的路。
       const rlNone = await mkHost(regNone).host.handleListLabels({ cwd: HOST_CWD })
       await assert('conflict 档正面样本：这个工作区没选定后端 → conflict，并说清先选定后端再试', rlNone.ok === false && rlNone.error.kind === 'conflict' && String(rlNone.error.message).includes('选定'), JSON.stringify(rlNone))
 
@@ -751,12 +785,14 @@ export async function run() {
       await assert('#631 什么都没声明 → 仍然 conflict（老行为一个字没松）',
         rlSilent2.ok === false && rlSilent2.error.kind === 'conflict' && String(rlSilent2.error.message).includes('同时对应'), JSON.stringify(rlSilent2))
 
-      // 用户在面板上选定 d：生产里这一步落在「进程内绑定一次」（工作区入口按人的选择调 reg.bind）外加一份
-      //   写进工作区的配置文件上。夹具照这一步补一次绑定，代表用户亲手选过。
-      //   为什么这一段必须放在最后：绑定之后宿主手里就有人的记录，不再回头看面板声明的那个名字，
-      //   上面那五条「按声明核验」的断言一旦排到它后面，就都测不到东西了。
-      regMulti.bind({ cwd: '/ws/multi' }, 'labels-multi-d')
-      const rsBound = await hMulti.host.handleSetLabelColors({ cwd: '/ws/multi', backendId: 'labels-multi-d', changes: changes })
+      // 用户在面板上选定 d：生产里这一步落在工作区文件 docs/agents/workspace.yaml（用户在工作区入口点确认，
+      //   handleBind 把选择写进那份文件；#1138 起这是唯一一份记录，注册表里那份进程内副本已经删了）。
+      //   为什么用另一条目录：上面五条断言测的是「只有自动识别与面板声明、还没选定后端」的 /ws/multi，
+      //   而要造「用户亲手选定过」就必须写工作区文件；写在同一把钥匙上会把上面那五条的前提改掉，
+      //   所以换成同一批后端下的另一条工作区目录。
+      //   为什么这一段必须放在最后：选定之后宿主手里就有人的记录，不再回头看面板声明的那个名字。
+      chooseWorkspace('/ws/multi-picked', 'labels-multi-d')
+      const rsBound = await hMulti.host.handleSetLabelColors({ cwd: '/ws/multi-picked', backendId: 'labels-multi-d', changes: changes })
       await assert('#1003 用户亲手选定之后，改色这条电话照样落到选定的那个后端上，逐条记账也过检查器',
         rsBound.ok === true && rsBound.backendId === 'labels-multi-d'
           && writeCalls.length === writeCallsBeforePick + 1 && writeCalls[writeCalls.length - 1] === 'labels-multi-d'
@@ -764,9 +800,10 @@ export async function run() {
         JSON.stringify(rsBound) + '；这一趟之前收到过 ' + writeCallsBeforePick + ' 次写调用，之后是 ' + JSON.stringify(writeCalls))
       dm1.dispose(); dm2.dispose()
 
-      // 显式选了「无后端」（逃生舱）时，客户端声明别的后端也不认：那是用户自己选的
+      // 这个工作区没有工作区文件（没人选过）、后端也不认它时，客户端声明别的后端同样不认：
+      //   声明的那个不在候选名单里，宿主不将就（与上面 /ws/multi 那条同一口径）。
       const rlNoneDeclared = await mkHost(regNone).host.handleListLabels({ cwd: HOST_CWD, backendId: 'labels-none-fake' })
-      await assert('#631 用户显式选了「无后端」时，客户端声明一个后端也不认（不许绕开他自己选的那一档）',
+      await assert('#631 这个工作区没有选定后端时，客户端声明一个后端也不认（不许绕开「还没选定」那一档）',
         rlNoneDeclared.ok === false && rlNoneDeclared.error.kind === 'conflict', JSON.stringify(rlNoneDeclared))
 
       // 待定：身份识别超时未决（注册表的 pending），也不许当作「干净的没选定」悄悄开工

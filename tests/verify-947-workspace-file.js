@@ -59,12 +59,13 @@ async function main() {
     check(WORKSPACE_FILE_REL === 'docs/agents/workspace.yaml' && WORKSPACE_FILE_VERSION === 2, 'W1 路径与版本钉住（新路径 YAML，版本 2）')
   }
 
-  // —— W2：探测顺序（内存 > 文件 > 锚） ——
+  // —— W2：探测顺序（文件 > 锚） ——
+  //   #1138 拿掉了原先排在最前面的那一级「注册表里的进程内绑定」：人选今天只有一份记录，就是工作区文件，
+  //   所以探测从文件读起（见 src/tracker/detection/explicitDetector.ts 文件头那段说明）。
   const detMod = await imp('src/tracker/detection/explicitDetector.ts')
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'wf947-'))
   const anchorOf = (title) => '# Issue tracker: ' + title + '\n\nBody mentions gh issue.\n'
-  const regStub = (boundId) => ({
-    bound: () => boundId,
+  const regStub = () => ({
     has: (id) => id === 'github' || id === 'markdown',
     describe: (h, id) => ({ backend: id, refId: (h && h.cwd) || '', name: id, url: '' }),
   })
@@ -74,15 +75,15 @@ async function main() {
     fs.writeFileSync(path.join(dir, 'docs', 'agents', 'issue-tracker.md'), anchorOf('GitHub'))
     fs.writeFileSync(path.join(dir, 'docs', 'agents', 'workspace.yaml'), JSON.stringify({ version: 1, backendId: 'markdown', pickedAt: 9, source: 'user' }))
     const fss = makeFs(); const ctx = { platform: platOf(fss), cwd: dir }
-    const r1 = await detMod.detectExplicit({ cwd: dir }, ctx, regStub('github'))
-    check(r1.selection && r1.selection.backendId === 'github', 'W2 内存绑定胜文件', JSON.stringify(r1.selection).slice(0, 200))
-    const r2 = await detMod.detectExplicit({ cwd: dir }, ctx, regStub(undefined))
+    const r2 = await detMod.detectExplicit({ cwd: dir }, ctx, regStub())
     check(r2.selection && r2.selection.backendId === 'markdown', 'W2 文件胜主锚', JSON.stringify(r2.selection).slice(0, 200))
-    const r3 = await detMod.detectExplicit({ cwd: dir }, ctx, { bound: () => undefined, has: () => false, describe: () => null })
+    const r3 = await detMod.detectExplicit({ cwd: dir }, ctx, { has: () => false, describe: () => null })
     check(r3.selection === null, 'W2 未注册 id 的文件层跳过（锚也未注册）', JSON.stringify(r3.selection))
   }
 
-  // —— W3：工具顺序（内存 > H > 文件 > 自动识别；缺席口子兼容旧接线） ——
+  // —— W3：工具顺序（文件 > 自动识别；口子缺席照旧走自动识别） ——
+  //   #1138 起「人亲手选过」只有一种凭据：工作区文件里的那条记录（见 src/host/workspaceCwd.js 的 wf.bind）。
+  //   原先排在最前面的「注册表里的进程内绑定」已经整段删除，所以这里不再有「内存胜一切」那一条。
   const shellMod = await imp('src/deck/shell/call-shell.ts')
   const budget = await imp('src/shared/refresh/budget.js')
   const ledgerMod = await imp('src/host/refresh/ledger.ts')
@@ -91,17 +92,14 @@ async function main() {
   const decMod947 = await imp('src/tracker/detection/backendDecision.ts')
   const sOf = (cwd) => ({ cwd: cwd, workspaceKey: 'k947', sessionId: 's947', source: 't', text: '' })
   const shellOf = (reg, extra) => shellMod.createDeckShell(Object.assign({ gate: makeGateLedger(gateMod, ledgerMod), registry: reg, budget: budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, backendCtx: {}, decideBackend: decMod947.decideBackend }, extra || {}))
-  const regOf = (boundId, matchedId) => ({
-    bound: () => boundId,
+  const regOf = (matchedId) => ({
     has: (id) => id === 'github' || id === 'markdown',
     describe: (h, id) => ({ backend: id, refId: 'o/n', name: id, url: '' }),
     select: async () => ({ backendId: matchedId, source: 'matches', ref: null }),
   })
   {
     const exec = { agent: { session: { id: 's', cwd: 'D:\\ws' } } }
-    const p1 = await shellOf(regOf('markdown', 'github')).pickBackend(exec, sOf('D:\\ws'))
-    check(p1.ok && p1.backendId === 'markdown' && p1.source === 'explicit', 'W3 内存胜一切', JSON.stringify(p1).slice(0, 200))
-    const p2 = await shellOf(regOf(undefined, 'github'), { readChoice: async () => ({ backendId: 'markdown', rev: 3 }), parseWorkspaceFile }).pickBackend(exec, sOf('D:\\ws'))
+    const p2 = await shellOf(regOf('github'), { readChoice: async () => ({ backendId: 'markdown', rev: 3 }), parseWorkspaceFile }).pickBackend(exec, sOf('D:\\ws'))
     // 这条原本断言「本机记忆这一层胜文件与自动识别」。按 2026-10-12 维护者拍板的 #1003 契约，
     //   本机记忆已退出判定（出处见 src/tracker/detection/backendDecision.ts 那段中文说明：记忆只用来
     //   把工作区配置文件生成出来一次，此后不再拿它回答判定），所以这里给了 readChoice 也不再作数：
@@ -109,9 +107,9 @@ async function main() {
     //   这条是可判别的：记忆层一旦回来，这里就会变回 ok + markdown，断言当场红。
     check(p2.ok === false && p2.reason === 'no-backend' && String(p2.text).includes('不算你亲手选过') && String(p2.text).includes('先在面板上选定'),
       'W3 本机记忆已退出判定（给了 readChoice 也不作数，结论落到自动识别的 github）——按 #1003 契约第 4 条：写用途只认文件里的记录，自动识别来的结论不许写，如实拒绝', JSON.stringify(p2).slice(0, 200))
-    const p3 = await shellOf(regOf(undefined, 'github'), { readChoice: async () => null, readWorkspaceFileText: async () => JSON.stringify({ version: 1, backendId: 'markdown', pickedAt: 9, source: 'user' }), parseWorkspaceFile }).pickBackend(exec, sOf('D:\\ws'))
+    const p3 = await shellOf(regOf('github'), { readChoice: async () => null, readWorkspaceFileText: async () => JSON.stringify({ version: 1, backendId: 'markdown', pickedAt: 9, source: 'user' }), parseWorkspaceFile }).pickBackend(exec, sOf('D:\\ws'))
     check(p3.ok && p3.backendId === 'markdown', 'W3 文件胜自动识别', JSON.stringify(p3).slice(0, 200))
-    const p4 = await shellOf(regOf(undefined, 'github'), { readChoice: async () => ({ backendId: 'nope', rev: 1 }), readWorkspaceFileText: async () => JSON.stringify({ version: 1, backendId: 'alsono', pickedAt: 9, source: 'user' }), parseWorkspaceFile }).pickBackend(exec, sOf('D:\\ws'))
+    const p4 = await shellOf(regOf('github'), { readChoice: async () => ({ backendId: 'nope', rev: 1 }), readWorkspaceFileText: async () => JSON.stringify({ version: 1, backendId: 'alsono', pickedAt: 9, source: 'user' }), parseWorkspaceFile }).pickBackend(exec, sOf('D:\\ws'))
     // 这条原本断言「回 ok，后端是自动识别来的 github」。按 #1003 契约期望行为第 4 条：写用途只认文件里的记录，
     //   或者用户这次亲手绑定过；自动识别来的结论不算人选过，所以工具壳必须如实拒绝。
     //   这条拒绝文案里那句「不算你亲手选过」只有先选中了一个已注册的后端才可能出现（壳是先选中后端、
@@ -119,10 +117,10 @@ async function main() {
     //   结论确实落到自动识别上（注册表里只有 github 认得这个工作区）。
     check(p4.ok === false && p4.reason === 'no-backend' && String(p4.text).includes('不算你亲手选过') && String(p4.text).includes('先在面板上选定'),
       'W3 未知 id 的层跳过（结论落到自动识别的 github）——按 #1003 契约第 4 条：写用途只认文件里的记录，自动识别来的结论不许写，如实拒绝', JSON.stringify(p4).slice(0, 200))
-    const p5 = await shellOf(regOf(undefined, 'github')).pickBackend(exec, sOf('D:\\ws'))
-    // 同一条口径：记忆口子与文件口子都缺席时，自动识别照样被问到并答了 github（拒绝文案里那句
-    //   「不算你亲手选过」就是它答上了的证据），只是写用途不认这个来源，所以回绝；对照见上面 p1：
-    //   同一个夹具补上进程内绑定之后，写用途照旧放行。
+    const p5 = await shellOf(regOf('github')).pickBackend(exec, sOf('D:\\ws'))
+    // 同一条口径：文件口子缺席时，自动识别照样被问到并答了 github（拒绝文案里那句
+    //   「不算你亲手选过」就是它答上了的证据），只是写用途不认这个来源，所以回绝；
+    //   对照见上面 p3：同一个夹具补上一份写着 markdown 的工作区文件之后，写用途照旧放行。
     check(p5.ok === false && p5.reason === 'no-backend' && String(p5.text).includes('不算你亲手选过') && String(p5.text).includes('先在面板上选定'),
       'W3 口子缺席照旧走自动识别（自动识别被问到并答了 github）——按 #1003 契约第 4 条：写用途只认文件里的记录，自动识别来的结论不许写，如实拒绝', JSON.stringify(p5).slice(0, 200))
   }

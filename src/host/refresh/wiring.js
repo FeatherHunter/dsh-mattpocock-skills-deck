@@ -347,11 +347,14 @@ export function createRefreshWiring(deps) {
           budget: budget,
           estimate: toolCost.estimateToolCost,
           costInputFrom: toolCost.toolCostInputFrom,
-          handleFor: function (s) { try { const list = (typeof registry.allBindings === 'function') ? registry.allBindings() : []; const want = String((s && s.cwd) || ''); const wash = (p) => String(p || '').replace(/\\/g, '/').replace(/\/+$/, ''); const wantW = wash(want); for (let i = 0; i < list.length; i++) { const c = (list[i] && (list[i].cwd || (list[i].handle && list[i].handle.cwd))) || ''; if (String(c) === want || wash(c) === wantW) return list[i].handle || { cwd: want } } } catch (e) {} return { cwd: (s && s.cwd) || '' } },
+          // 句柄就是「哪个工作区」这一件事。以前这里还要去注册表的绑定表里找这个目录有没有被绑过、
+          // 好把当时那个句柄原样交回去；绑定表在 #1138 删掉之后，句柄只由这份状态自己给出，与别处同构。
+          handleFor: function (s) { return { cwd: (s && s.cwd) || '' } },
           // 934：会话目录洗加锚根的宿主唯一异步出口（与绑定侧同一把钥匙）；缺席时壳沿用原始目录。
           canonicalKey: (typeof d.canonicalKey === 'function') ? function (raw) { return d.canonicalKey(raw) } : undefined,
           // 947 显式后两层读口：查不到一律 null（缺席即跳过，不猜）。挂住时同样按缺席跳过。
-          readChoice: function (rootCwd) { try { const p = (typeof d.getChoiceStore === 'function') ? d.getChoiceStore().then(function (cs) { return (cs && typeof cs.getWorkspace === 'function') ? cs.getWorkspace(rootCwd) : null }, function () { return null }).then(function (got) { return (got && got.found === true && got.backendId) ? { backendId: got.backendId, rev: got.rev || 0 } : null }) : Promise.resolve(null); return withCap(p, DECK_EXPLICIT_TIMEOUT_MS).then(function (r) { return (r && r.ok === true) ? r.value : null }, function () { return null }) } catch (e) { return Promise.resolve(null) } },
+          // #1138：这里原来还递一个 readChoice（读本机记忆 H）——H 自 2026-10-12 起就不参与判定了，
+          //   壳里也没有任何调用点，留着只会让后来的人以为 H 还有话语权，所以整行删掉。
           readWorkspaceFileText: function (rootCwd) { try { const fsSvc = backendObj && backendObj.fs; if (!fsSvc || typeof fsSvc.resolve !== 'function' || typeof fsSvc.readText !== 'function') return Promise.resolve(null); const p = Promise.resolve(fsSvc.resolve(WORKSPACE_FILE_REL, { cwd: rootCwd })).then(function (t) { return fsSvc.readText(t) }, function () { return null }).then(function (txt) { return (typeof txt === 'string' && txt) ? txt : null }, function () { return null }); return withCap(p, DECK_EXPLICIT_TIMEOUT_MS).then(function (r) { return (r && r.ok === true) ? r.value : null }, function () { return null }) } catch (e) { return Promise.resolve(null) } },
           parseWorkspaceFile: parseWorkspaceFile,
           sandboxPolicyFor: createSandboxPolicyFor(d.ctx),

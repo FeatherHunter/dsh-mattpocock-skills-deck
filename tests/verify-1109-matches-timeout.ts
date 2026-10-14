@@ -2,7 +2,8 @@
 //
 // 这一条盯票面「判据（做完）」的三条，外加票面「怎么证」里点名的那条缝：
 //   ① 生产装配路径（src/host/platformChannel.js 里建的那个后端注册表）实际申请的等待是 30000ms；
-//   ② 显式绑定命中时一次计时器都不起（快路径不等兜底）；
+//   ② 工作区文件命中（用户选过谁）时一次计时器都不起（快路径不问后端，也就不等兜底）；
+//       #1138 起这条快路径住在统一判定出口的第一层（读 docs/agents/workspace.yaml），不在注册表里。
 //   ③ 等待超时之后仍然是「还没答完」（pending=true），不是「没有后端」（不是 other、不是干净回落）；
 //   ④ 经 deck 工具进来的那条路（宿主接线 src/host/refresh/wiring.js 造的后端上下文）也要走注入的
 //      等待口，而不是全局时钟——否则它一挂住，门禁就只能真等 30 秒，看不住。
@@ -17,6 +18,12 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+// 夹具口（写法见 tests/lib/deck-decide-stub.js 开头）：#1138 起「用户选过哪个后端」只剩工作区文件里
+// 那一条记录（docs/agents/workspace.yaml），注册表上那层显式绑定整段删了。这里两处用到：
+//   chooseWorkspace   虚拟目录（wsB）—— 说「这个工作区选过了」；
+//   writeWorkspaceFile 真临时目录（wsD）—— deck 工具那条路读的是真文件，得往盘上真写一份；
+//   makeDecideStub     顶替生产判定出口，把账本当工作区文件读（它内部调的就是生产那一个出口函数）。
+import { chooseWorkspace, makeDecideStub, writeWorkspaceFile } from './lib/deck-decide-stub.js'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const imp = (rel: string) => import(pathToFileURL(path.join(ROOT, rel)).href)
@@ -177,14 +184,22 @@ async function main() {
   check(selPending.backendId !== 'other' && selPending.source !== 'other', '不许把它说成 other（无后端）')
   reg.dispose()
 
-  // ── ② 显式绑定命中：一次计时器都不该起 ──
+  // ── ② 工作区文件命中：判定出口在第一层直接作答，一次计时器都不该起 ──
+  //   #1138 起「用户选过谁」只剩工作区文件一份记录，注册表上那层显式绑定整段删了（core.ts 文件头），
+  //   于是快路径也搬进了统一判定出口（src/tracker/detection/backendDecision.ts）的第一层：
+  //   读到文件就直接回 explicit，一个 matches 都不问，自然一笔等待都不申请。
+  //   下面照夹具口的写法造那份文件，并把兜底那一步接到假计时器上 —— 真要是漏到兜底（matches 那一层），
+  //   下面的「一笔都没起」当场变红，所以这条断言对着的是「快路径真的短」这件事本身。
   const wsB = makeWorkspace('b')
-  const handleBound = { cwd: wsB.posix }
-  registry.bind(handleBound, 'markdown')
+  chooseWorkspace(wsB.posix, 'markdown')
   const fakeC = makeFakeTimers()
-  const selBound = await registry.select(handleBound, makeOpCtx(wsB.posix, fsSvc, fakeC))
-  check(fakeC.calls.length === 0, '显式绑定命中时一次计时器都没起（实得 ' + JSON.stringify(fakeC.calls) + '）')
-  check(selBound.backendId === 'markdown' && selBound.source === 'explicit', '走的是显式那一路（实得 ' + JSON.stringify(selBound) + '）')
+  const outlet = makeDecideStub(registry)
+  const selBound = await outlet(wsB.posix, {
+    registry,
+    autodetect: async (h: unknown, ctx: unknown) => registry.select(h, Object.assign({}, ctx, { timers: fakeC.api })),
+  })
+  check(fakeC.calls.length === 0, '工作区文件命中时一次计时器都没起（实得 ' + JSON.stringify(fakeC.calls) + '）')
+  check(selBound.backendId === 'markdown' && selBound.source === 'explicit', '走的是文件里选定的那一路（实得 ' + JSON.stringify(selBound) + '）')
 
   // ── ④ 经 deck 工具进来的那条路：走宿主接线注入的等待口，不是全局时钟 ──
   const wsC = makeWorkspace('c', true)
@@ -216,12 +231,15 @@ async function main() {
     'deck 工具那条路选后端时，起的是宿主接线注入的等待口，申请的还是 ' + WANT_MS + 'ms（实得 ' + JSON.stringify(fakeDeck.calls) + '）')
 
   const wsD = makeWorkspace('d', true)
-  registry.bind({ cwd: wsD.posix }, 'markdown')
+  // #1138：deck 工具那条路读的是真工作区文件，所以这里往盘上真写一份「选了 markdown」
+  // （原来这一步是 registry.bind({ cwd: wsD.posix }, 'markdown')，绑定层已删）。
+  writeWorkspaceFile(wsD.root, 'markdown')
   const fakeDeck2 = makeFakeTimers()
   const deckTimer2 = {
     timeout: (fn: TimerFn, ms: number) => { const id = fakeDeck2.api.setTimeout(fn, ms); return { dispose() { fakeDeck2.api.clearTimeout(id) } } },
   }
-  // 第二套接线换成第二个假计时器：只看「绑过的那一条快路径」起了几个。
+  // 第二套接线换成第二个假计时器：只看「工作区文件选好的那一条快路径」起了几个。
+  // （#1138 起这条路读的是真工作区文件，上面已经往 wsD.root 里写了一份「选了 markdown」。）
   const wiring2 = createRefreshWiring({
     ctx: { on: () => () => {}, get: (name: string) => (name === 'fs' ? fsSvc : (name === 'timer' ? deckTimer2 : undefined)) },
     logCtx: { fire: () => {}, isEnabled: () => false },
@@ -235,8 +253,8 @@ async function main() {
   const table2 = await wiring2.deckToolsForHost()
   wiring2.ledger.syncServer(quota(), Date.now())
   const runBound = await table2.tools.deck_context.run({ agent: { session: { id: 's-1109-bound', cwd: wsD.posix } } }, {})
-  check(fakeDeck2.calls.length === 0, 'deck 工具那条路遇到显式绑定命中时一次计时器都没起（实得 ' + JSON.stringify(fakeDeck2.calls) + '）')
-  check(!!runBound && !!runBound.backend && runBound.backend.source === 'explicit', '回包说走的是绑过的那一个后端（实得 ' + JSON.stringify(runBound && runBound.backend) + '）')
+  check(fakeDeck2.calls.length === 0, 'deck 工具那条路遇到工作区文件命中时一次计时器都没起（实得 ' + JSON.stringify(fakeDeck2.calls) + '）')
+  check(!!runBound && !!runBound.backend && runBound.backend.source === 'explicit', '回包说走的是工作区文件里选定的那一个后端（实得 ' + JSON.stringify(runBound && runBound.backend) + '）')
 
   // ── 本文件必须在 verify 链里（不挂进链就等于没跑）──
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))

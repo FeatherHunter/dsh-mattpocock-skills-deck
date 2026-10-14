@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-14T04:44:42.629Z",
+  "generatedAt": "2026-10-14T05:44:00.759Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 239,
   "gateCount": 239,
@@ -836,9 +836,9 @@
         "src/host/refresh/ledger.ts",
         "src/shared/refresh/budget.js",
         "src/shared/refresh/tool-cost.js",
-        "src/tracker/detection/backendDecision.ts",
         "src/tracker/registry/core.ts",
-        "src/tracker/rooms/markdown/index.ts"
+        "src/tracker/rooms/markdown/index.ts",
+        "tests/lib/deck-decide-stub.js"
       ],
       "dirs": [
         "src/deck/registration",
@@ -846,13 +846,13 @@
         "src/deck/tools",
         "src/host/refresh",
         "src/shared/refresh",
-        "src/tracker/detection",
         "src/tracker/registry",
-        "src/tracker/rooms/markdown"
+        "src/tracker/rooms/markdown",
+        "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：源码里的路径字面量 21 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 20 条"
     },
     {
       "step": "node tests/verify-deck-tools-matrix.js",
@@ -868,27 +868,27 @@
         "src/host/refresh/ledger.ts",
         "src/shared/refresh/budget.js",
         "src/shared/refresh/tool-cost.js",
-        "src/tracker/detection/backendDecision.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/github/index.ts",
         "src/tracker/rooms/gitlab/index.ts",
         "src/tracker/rooms/markdown/index.ts",
-        "tests/deck-tools-matrix-transports.js"
+        "tests/deck-tools-matrix-transports.js",
+        "tests/lib/deck-decide-stub.js"
       ],
       "dirs": [
         "src/deck/tools",
         "src/host/refresh",
         "src/shared/refresh",
-        "src/tracker/detection",
         "src/tracker/registry",
         "src/tracker/rooms/github",
         "src/tracker/rooms/gitlab",
         "src/tracker/rooms/markdown",
-        "tests"
+        "tests",
+        "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 15 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 14 条"
     },
     {
       "step": "node tests/verify-790-parent-edge.js",
@@ -952,7 +952,8 @@
         "src/seam",
         "src/shared",
         "src/tracker/registry/core.ts",
-        "src/tracker/rooms/markdown/index.ts"
+        "src/tracker/rooms/markdown/index.ts",
+        "tests/lib/deck-decide-stub.js"
       ],
       "dirs": [
         "src/host",
@@ -962,26 +963,29 @@
         "src/seam",
         "src/shared",
         "src/tracker/registry",
-        "src/tracker/rooms/markdown"
+        "src/tracker/rooms/markdown",
+        "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：源码里的路径字面量 8 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 8 条"
     },
     {
       "step": "node tests/verify-1109-matches-timeout.ts",
       "file": "tests/verify-1109-matches-timeout.ts",
       "guards": [
         "src/host/platformChannel.js",
-        "src/host/refresh/wiring.js"
+        "src/host/refresh/wiring.js",
+        "tests/lib/deck-decide-stub.js"
       ],
       "dirs": [
         "src/host",
-        "src/host/refresh"
+        "src/host/refresh",
+        "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：源码里的路径字面量 2 条"
+      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 2 条"
     },
     {
       "step": "node tests/verify-1115-timer-handle.ts",
@@ -1022,11 +1026,11 @@
         "src/host/tracker/predicateCore.js",
         "src/shared/refresh/budget.js",
         "src/shared/refresh/tool-cost.js",
-        "src/tracker/detection/backendDecision.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/registry/shape.ts",
         "src/tracker/rooms/markdown/index.ts",
         "src/tracker/rooms/markdown/write.ts",
+        "tests/lib/deck-decide-stub.js",
         "tests/lib/time-compress.js"
       ],
       "dirs": [
@@ -1034,14 +1038,13 @@
         "src/host/refresh",
         "src/host/tracker",
         "src/shared/refresh",
-        "src/tracker/detection",
         "src/tracker/registry",
         "src/tracker/rooms/markdown",
         "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 12 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 11 条"
     },
     {
       "step": "node tests/verify-895-bulk-deadline.js",
@@ -1202,6 +1205,7 @@
         "src/deck/registration/quota-sync.ts",
         "src/deck/shell/call-shell.ts",
         "src/deck/shell/table-cell.ts",
+        "src/deck/shell/workspace-anchor.ts",
         "src/tracker/detection/backendDecision.ts"
       ],
       "dirs": [
@@ -1211,7 +1215,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：源码里的路径字面量 4 条"
+      "reason": "归属来自：源码里的路径字面量 5 条"
     },
     {
       "step": "node tests/verify-deck-no-hang.js",
@@ -1355,25 +1359,25 @@
         "src/host/refresh/ledger.ts",
         "src/shared/refresh/budget.js",
         "src/shared/refresh/tool-cost.js",
-        "src/tracker/detection/backendDecision.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/github/normalize.ts",
         "src/tracker/rooms/markdown/index.ts",
-        "src/tracker/rooms/markdown/normalize.ts"
+        "src/tracker/rooms/markdown/normalize.ts",
+        "tests/lib/deck-decide-stub.js"
       ],
       "dirs": [
         "scripts",
         "src/deck/tools",
         "src/host/refresh",
         "src/shared/refresh",
-        "src/tracker/detection",
         "src/tracker/registry",
         "src/tracker/rooms/github",
-        "src/tracker/rooms/markdown"
+        "src/tracker/rooms/markdown",
+        "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 18 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 1 条；源码里的路径字面量 17 条"
     },
     {
       "step": "node tests/verify-labels-sync.js",
@@ -2166,14 +2170,14 @@
         "src/shared/refresh/budget.js",
         "src/shared/refresh/tool-cost.js",
         "src/tracker/contract/vocabulary.ts",
-        "src/tracker/detection/backendDecision.ts",
         "src/tracker/preflight.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/github/errors.ts",
         "src/tracker/rooms/github/index.ts",
         "src/tracker/rooms/github/issues-write.ts",
         "src/tracker/rooms/github/labels.ts",
-        "src/tracker/rooms/github/repo-permissions.ts"
+        "src/tracker/rooms/github/repo-permissions.ts",
+        "tests/lib/deck-decide-stub.js"
       ],
       "dirs": [
         "docs",
@@ -2182,13 +2186,13 @@
         "src/shared/refresh",
         "src/tracker",
         "src/tracker/contract",
-        "src/tracker/detection",
         "src/tracker/registry",
-        "src/tracker/rooms/github"
+        "src/tracker/rooms/github",
+        "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 15 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 14 条"
     },
     {
       "step": "node tests/verify-922-ticket-file-queue.js",
@@ -2765,13 +2769,14 @@
         "docs/agents/issue-tracker.md",
         "src/client/kernel/store-prefs.js",
         "src/client/kernel/store-snapshot.js",
+        "src/deck/shell/workspace-anchor.ts",
         "src/host/remotePredicates.js",
         "src/host/workspaceCwd.js",
         "src/host/workspaceKey.js",
         "src/shared/workspaceKey.js",
+        "src/tracker/detection/backendDecision.ts",
         "src/tracker/detection/explicitDetector.ts",
         "src/tracker/registry/core.ts",
-        "src/tracker/registry/shape.ts",
         "src/tracker/rooms/markdown/label-colors.ts",
         "src/tracker/rooms/markdown/path.ts",
         "tests/lib/eval-probe.js"
@@ -2779,6 +2784,7 @@
       "dirs": [
         "docs/agents",
         "src/client/kernel",
+        "src/deck/shell",
         "src/host",
         "src/shared",
         "src/tracker/detection",
@@ -2788,7 +2794,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 12 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 13 条"
     },
     {
       "step": "node tests/verify-696-shared-cache.js",
@@ -3914,18 +3920,20 @@
         "src/host/refresh/wiring.js",
         "src/shared/refresh-workspace-key.js",
         "src/tracker/registry/core.ts",
-        "src/tracker/rooms/markdown/index.ts"
+        "src/tracker/rooms/markdown/index.ts",
+        "tests/lib/deck-decide-stub.js"
       ],
       "dirs": [
         "src/host",
         "src/host/refresh",
         "src/shared",
         "src/tracker/registry",
-        "src/tracker/rooms/markdown"
+        "src/tracker/rooms/markdown",
+        "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：源码里的路径字面量 7 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 7 条"
     },
     {
       "step": "node tests/verify-chain-env-e2e.js",
@@ -3961,7 +3969,8 @@
         "src/shared/refresh/delta.js",
         "src/shared/tracker/indexWindow.js",
         "src/tracker/registry/core.ts",
-        "src/tracker/rooms/markdown/index.ts"
+        "src/tracker/rooms/markdown/index.ts",
+        "tests/lib/deck-decide-stub.js"
       ],
       "dirs": [
         "src/deck/tools",
@@ -3969,11 +3978,12 @@
         "src/shared/refresh",
         "src/shared/tracker",
         "src/tracker/registry",
-        "src/tracker/rooms/markdown"
+        "src/tracker/rooms/markdown",
+        "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：源码里的路径字面量 12 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 12 条"
     },
     {
       "step": "node tests/verify-refresh-adr.js",
@@ -4666,6 +4676,7 @@
         "docs/agents",
         "docs/agents/issue-tracker.md",
         "src/deck/shell/call-shell.ts",
+        "src/deck/shell/workspace-anchor.ts",
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
         "src/host/workspaceLabelColors.js",
@@ -4684,7 +4695,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；源码里的路径字面量 8 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；源码里的路径字面量 9 条"
     },
     {
       "step": "node tests/verify-1003-unified-decision.js",
@@ -5429,6 +5440,7 @@
       "node tests/verify-deck-repo-resolve.js",
       "node tests/verify-1106-deck-surface.ts",
       "node tests/verify-dependency-rules.ts",
+      "node tests/verify-656-subworkspace-acceptance.js",
       "node tests/verify-908-progress-replace.js",
       "node tests/verify-947-workspace-file.js",
       "node tests/verify-957-workspace-writer.js",
@@ -5775,14 +5787,9 @@
       "node tests/verify-error-rule-samples.ts"
     ],
     "src/tracker/detection": [
-      "node tests/verify-deck-tools.js",
-      "node tests/verify-deck-tools-matrix.js",
-      "node tests/verify-934-935-invariants.js",
       "node tests/verify-deck-quota-sync.js",
-      "node tests/verify-golden-receipts.ts",
       "node tests/verify-3-workspace-switch.js",
       "node tests/verify-github-label-colors.js",
-      "node tests/verify-992-readonly-labels.js",
       "node tests/verify-656-subworkspace-acceptance.js",
       "node tests/verify-669-choice-precedence.js",
       "node tests/verify-issue297.js",
@@ -5935,8 +5942,12 @@
       "node tests/verify-655-setup-layout.js",
       "node tests/verify-parse-leaf.js",
       "node tests/verify-tabsfold-leaf.js",
+      "node tests/verify-deck-tools.js",
+      "node tests/verify-deck-tools-matrix.js",
       "node tests/verify-790-parent-edge.js",
       "node tests/verify-829-parent-reread.js",
+      "node tests/verify-deck-tools-host-wiring.js",
+      "node tests/verify-1109-matches-timeout.ts",
       "node tests/verify-934-935-invariants.js",
       "node tests/verify-895-bulk-deadline.js",
       "node tests/verify-898-block-merge.js",
@@ -5945,6 +5956,7 @@
       "node tests/verify-deck-parallel.js",
       "node tests/verify-deck-thin-reads.js",
       "node tests/verify-deck-repo-resolve.js",
+      "node tests/verify-golden-receipts.ts",
       "node tests/verify-626-type-chip.js",
       "node tests/verify-nav-stack.js",
       "node tests/verify-map-drill.js",
@@ -5955,6 +5967,7 @@
       "node tests/verify-cap-fold-browser.js",
       "node tests/verify-capsule-layout.js",
       "node tests/verify-640-dock-width-browser.js",
+      "node tests/verify-992-readonly-labels.js",
       "node tests/verify-929-batch-cycle.js",
       "node tests/verify-log-client.js",
       "node tests/verify-log-switch-526.js",
@@ -5993,7 +6006,9 @@
       "node tests/verify-709-no-self-continuing-timers.js",
       "node tests/verify-chain-view.js",
       "node tests/verify-chain-view-ui.js",
+      "node tests/verify-refresh-workspace-key.js",
       "node tests/verify-chain-env-e2e.js",
+      "node tests/verify-723-gate-wiring.js",
       "node tests/verify-chain-capsule.js",
       "node tests/verify-842-version-control-write-view.js",
       "node tests/verify-907-chain-titles.js",

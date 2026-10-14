@@ -58,6 +58,11 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, 
 import { tmpdir } from 'node:os'
 import { dirname, join, posix as posixPath, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
+// 夹具口（写法见 tests/lib/deck-decide-stub.js 开头）：#1138 起「用户选过哪个后端」只剩工作区文件里
+// 那一条记录（docs/agents/workspace.yaml），注册表上那层 bind 已经整段删掉。下面用内存账本
+// chooseWorkspace 顶替工作区文件、用真人选出口的夹具 makeDecideStub 顶替生产出口，
+// 工具读到的就还是「这个工作区用户亲手选过 markdown」，基准收据里的 explicit 才立得住。
+import { chooseWorkspace, makeDecideStub } from './lib/deck-decide-stub.js'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const GOLDEN_DIR = join(ROOT, 'tests', 'tracker-contract', 'fixtures', 'golden-receipts')
@@ -166,7 +171,6 @@ async function buildReceipts(): Promise<{ raw: Record<string, unknown>, rootPosi
   const registryMod = await loadModule('../src/tracker/registry/core.ts') as Record<string, (...a: never[]) => unknown>
   const markdownModule = ((await loadModule('../src/tracker/rooms/markdown/index.ts')) as { markdownModule: unknown }).markdownModule
   const toolCost = await loadModule('../src/shared/refresh/tool-cost.js') as Record<string, (...a: never[]) => unknown>
-  const decMod = await loadModule('../src/tracker/detection/backendDecision.ts') as Record<string, (...a: never[]) => unknown>
 
   const TOOL_FILES: Record<string, [string, string]> = {
     deck_context: ['../src/deck/tools/context.ts', 'createDeckContext'],
@@ -204,17 +208,18 @@ async function buildReceipts(): Promise<{ raw: Record<string, unknown>, rootPosi
   const gate = (gateMod.createGate as unknown as (o: { ledger: unknown, now: () => number }) => unknown)({ ledger, now: () => clock })
   const registry = (registryMod.createRegistry as unknown as (ctx: unknown, o: { matchesTimeout: number }) => {
     register: (m: unknown) => { dispose: () => void },
-    bind: (h: unknown, b: string) => void,
   })(Object.assign({ logEvent: () => {}, isEnabled: () => false }, wsCtx), { matchesTimeout: 200 })
   const dispose = registry.register(markdownModule)
   const handle = { cwd: rootPosix, refId: '.scratch/demo' }
-  registry.bind(handle, 'markdown')
+  // #1138：把「用户选过 markdown」写进夹具账本（等价于工作区文件里那一行）。原来这里是
+  // registry.bind(handle, 'markdown')，绑定层已随 #1138 整段删掉。
+  chooseWorkspace(rootPosix, 'markdown')
   ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: clock + 3600000 }, graphql: { limit: 5000, remaining: 5000, reset: clock + 3600000 } }, clock)
   const deps = {
     gate, registry, budget,
     estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom,
     backendCtx: wsCtx, handleFor: () => handle,
-    decideBackend: decMod.decideBackend,
+    decideBackend: makeDecideStub(registry),
     log: { fire: () => {} },
     now: () => clock,
     invalidate: () => {},
