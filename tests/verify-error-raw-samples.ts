@@ -27,6 +27,7 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 
 import { countIssues } from '../src/tracker/rooms/github/counts.ts'
+import { createOutboundControl } from '../src/host/platform/outbound-control.ts'
 import { createGitlabBackend } from '../src/tracker/rooms/gitlab/index.ts'
 import { getIssue as markdownGetIssue } from '../src/tracker/rooms/markdown/issues.ts'
 
@@ -150,6 +151,8 @@ for (const variant of VARIANT_ORDER) {
       }
       const ctx = {
         cwd: 'C:/ws/fake',
+        // #1159：房间的出站能力由宿主注入（名额闸 / 取消判定 / 搭车账本），夹具照生产那份给上。
+        outbound: createOutboundControl(),
         platform: { resolveExecutable: async (n) => (n === 'gh' ? 'gh' : null), env: { get: () => '' } },
         exec: exec,
         isEnabled: () => false,

@@ -4,6 +4,9 @@
 import { parseMd, stripLabelDecoration, parentKeyFromFile, isWholeIssueBody, loginOfAssignee, stripFencedCode } from './parse.js'
 import { readTextFile } from './read.js'
 import { writeTextFile } from './write.js'
+// #1059：这一趟写没写下去的结论线（事件 `issue.write`，与另两房同一个名字、同一套字段）。
+import { beginWriteTrail, emitIssueWrite, noteFileWritten } from './write-log.js'
+import type { WriteTrail } from './write-log.js'
 import { failAs, failFromError } from './error-fail.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { resolveIssueFile, resolveMapFile } from './issues-locate.js'
@@ -42,7 +45,7 @@ async function resolveTarget(ctx: OpContext,repo: RepoWithPath | null,norm: stri
  *  两路并发改同一张票时会一起读到同一份旧内容，各自改各自的，后写的那一路把先写的那一路的改动整份抹掉
  *  —— 两路都回成功，盘上却少了一半改动。队按文件分：批量补边一次要改很多张票，
  *  它们是不同的文件、彼此不冲突，仍然可以同时做（#919 的并发改造就是照这个口径放宽的）。 */
-async function readParseWrite(ctx: OpContext,repo: RepoWithPath | null,r: ResolvedTarget,norm: string,fn: (txt: string) => string | undefined | Promise<string | undefined>, opts?: SetOpts): Promise<{ ok: true; txt: string } | PatchFailure>{
+async function readParseWrite(ctx: OpContext,repo: RepoWithPath | null,r: ResolvedTarget,norm: string,fn: (txt: string) => string | undefined | Promise<string | undefined>, opts?: SetOpts, trail?: WriteTrail): Promise<{ ok: true; txt: string } | PatchFailure>{
   return withFileWriter(ctx,repo,r.path,async function(){
     try{
       // 写前版本校验必须在队里、在读到这份文件之前（#1174 决策 9）：队外先比一次再进队，
@@ -52,7 +55,11 @@ async function readParseWrite(ctx: OpContext,repo: RepoWithPath | null,r: Resolv
       let txt=await readTextFile(ctx,r.path)
       const out=await fn(txt)
       const next=typeof out==='string'?out:txt
-      if(next!==txt)await writeTextFile(ctx,r.path,next, ctx&&(ctx as {sandboxPolicy?: unknown}).sandboxPolicy)
+      if(next!==txt){
+        await writeTextFile(ctx,r.path,next, ctx&&(ctx as {sandboxPolicy?: unknown}).sandboxPolicy)
+        // 只有真写了才记（#1059）：内容没变那一路一份文件都没写，结论是 noop 而不是 edited。
+        noteFileWritten(trail)
+      }
       return{ok:true,txt:next}
     }catch(e){return failFromError(e,ctx,'读—改—写这张票的文件时出错')}
   })
@@ -153,7 +160,15 @@ function mergeWholeBodyForPatch(incomingRaw: unknown, diskText: unknown): string
   return incoming
 }
 
+/** 改票的入口：先起一个事实桶，这一趟写完后按实况落一行结论（#1059）。 */
 export async function updateIssue(ctx: OpContext,repo: RepoWithPath | null,key: string,patch: UpdatePatch,opts?: SetOpts): Promise<{ ok: true; data: Issue } | PatchFailure>{
+  const t0=Date.now()
+  const trail=beginWriteTrail()
+  const r=await updateIssueInner(ctx,repo,key,patch,opts,trail)
+  emitIssueWrite(ctx,'update',trail,r,t0)
+  return r
+}
+async function updateIssueInner(ctx: OpContext,repo: RepoWithPath | null,key: string,patch: UpdatePatch,opts?: SetOpts,trail?: WriteTrail): Promise<{ ok: true; data: Issue } | PatchFailure>{
   const norm=String(key).padStart(2,'0')
   const colorMap=await loadPaintColorMap(ctx)
   const r=await resolveTarget(ctx,repo,norm,'write')
@@ -234,7 +249,7 @@ export async function updateIssue(ctx: OpContext,repo: RepoWithPath | null,key: 
       if(worse) throw {kind:ERROR_KIND.UNSUPPORTED,message:'改正文核对没过（'+worse+'），这次没写：请换一种正文形态再试。'}
     }
     return changed?txt:undefined
-  },opts)
+  },opts,trail)
   if(!res.ok)return{ok:false,error:res.error}
   try{
     const iss=parseMd(res.txt,{key:norm,parentKey: norm==='00'?null:'00',isMap: norm==='00',effortId:r.effortId,url:r.path})
@@ -278,7 +293,15 @@ function insertFieldAfter(txt: string,afterName: string,newLine: string): string
   for(let i=0;i<lines.length;i++){ if(re.test(lines[i])){ lines.splice(i+1,0,newLine); return lines.join('\n') } }
   return replaceOrInsertField(txt,afterName,newLine)
 }
+/** 改认领的入口：先起一个事实桶，这一趟写完后按实况落一行结论（#1059）。 */
 export async function setAssigneesIssue(ctx: OpContext,repo: RepoWithPath | null,key: string,assignees: AssigneeInput[],opts?: SetOpts): Promise<{ ok: true; data: Issue } | PatchFailure>{
+  const t0=Date.now()
+  const trail=beginWriteTrail()
+  const r=await setAssigneesInner(ctx,repo,key,assignees,opts,trail)
+  emitIssueWrite(ctx,'setAssignees',trail,r,t0)
+  return r
+}
+async function setAssigneesInner(ctx: OpContext,repo: RepoWithPath | null,key: string,assignees: AssigneeInput[],opts?: SetOpts,trail?: WriteTrail): Promise<{ ok: true; data: Issue } | PatchFailure>{
   const norm=String(key).padStart(2,'0')
   const colorMap=await loadPaintColorMap(ctx)
   const r=await resolveTarget(ctx,repo,norm,'write')
@@ -293,7 +316,7 @@ export async function setAssigneesIssue(ctx: OpContext,repo: RepoWithPath | null
   const assigneeLine=names.length?'Assignees: '+names.join(', '):'Assignees:'
   const res=await readParseWrite(ctx,repo,r,norm,function(txt){
     return insertFieldAfter(replaceOrInsertField(txt,'Status',statusLine),'Status',assigneeLine)
-  },opts)
+  },opts,trail)
   if(!res.ok)return{ok:false,error:res.error}
   try{
     const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:r.effortId,url:r.path})
@@ -418,7 +441,15 @@ export async function setParentIssue(ctx: OpContext,repo: RepoWithPath | null,ke
   // 原文 = 那个找不到的父编号（本地就能定论：把它拿去找过、没找到）。
   return failAs(ERROR_KIND.NOTFOUND,'parent '+want+' not-found',String(want))
 }
+/** 贴标签的入口：先起一个事实桶，这一趟写完后按实况落一行结论（#1059）。 */
 export async function setLabelsIssue(ctx: OpContext,repo: RepoWithPath | null,key: string,labels: LabelInput[],opts?: SetOpts): Promise<{ ok: true; data: Issue } | PatchFailure>{
+  const t0=Date.now()
+  const trail=beginWriteTrail()
+  const r=await setLabelsInner(ctx,repo,key,labels,opts,trail)
+  emitIssueWrite(ctx,'setLabels',trail,r,t0)
+  return r
+}
+async function setLabelsInner(ctx: OpContext,repo: RepoWithPath | null,key: string,labels: LabelInput[],opts?: SetOpts,trail?: WriteTrail): Promise<{ ok: true; data: Issue } | PatchFailure>{
   const norm=String(key).padStart(2,'0')
   const colorMap=await loadPaintColorMap(ctx)
   // #634：与 patch.labels 同口径——落盘的标签名先剥掉外层成对引号/反引号
@@ -426,7 +457,7 @@ export async function setLabelsIssue(ctx: OpContext,repo: RepoWithPath | null,ke
   const r=await resolveTarget(ctx,repo,norm,'write')
   if(!r.ok)return{ok:false,error:r.error}
   const line=names.length? 'Labels: '+names.join(', ') : 'Labels:'
-  const res=await readParseWrite(ctx,repo,r,norm,function(txt){return replaceOrInsertField(txt,'Labels',line)},opts)
+  const res=await readParseWrite(ctx,repo,r,norm,function(txt){return replaceOrInsertField(txt,'Labels',line)},opts,trail)
   if(!res.ok)return{ok:false,error:res.error}
   try{
     const iss=parseMd(res.txt,{key:norm,parentKey: norm==='00'?null:'00',isMap: norm==='00',effortId:r.effortId,url:r.path})

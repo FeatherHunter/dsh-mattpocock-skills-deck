@@ -4,6 +4,9 @@
 import { parseMd } from './parse.js'
 import { readTextFile } from './read.js'
 import { writeTextFile } from './write.js'
+// #1059：这一趟写没写下去的结论线（事件 `issue.write`，与另两房同一个名字、同一套字段）。
+import { beginWriteTrail, emitIssueWrite, noteFileWritten } from './write-log.js'
+import type { WriteTrail } from './write-log.js'
 import { failFromError } from './error-fail.js'
 import { resolveIssueFile, resolveMapFile } from './issues-locate.js'
 import { loadPaintColorMap, applyLabelColors } from './label-colors-paint.js'
@@ -55,7 +58,7 @@ export function replaceOrInsertField(txt: string,fieldName: string,newLine: stri
  *  `extraLine` 为什么单独开一行、而不是拼进状态那一行：状态那一行的取值是「这张票现在是什么状态」，
  *  全房都按它判开还是关（`parse.ts` 认 `resolved` 就记成已关闭），把原因拼进去，
  *  每一个读它的人都得先拆一遍字符串才能判断状态。 */
-async function setStatus(ctx: OpContext,repo: RepoWithPath | null,key: string,statusLine: string,extraLine?: string): Promise<{ok:true;data:Issue}|StatusFailure>{
+async function setStatus(ctx: OpContext,repo: RepoWithPath | null,key: string,statusLine: string,extraLine?: string,trail?: WriteTrail): Promise<{ok:true;data:Issue}|StatusFailure>{
   const norm=String(key).padStart(2,'0')
   const colorMap=await loadPaintColorMap(ctx)
   const isMap=norm==='00'
@@ -67,10 +70,16 @@ async function setStatus(ctx: OpContext,repo: RepoWithPath | null,key: string,st
   // 不排队的话，同一张票上一次改状态与一次改标签并发时，后写的那次会把前一次的改动整份抹掉。
   return withFileWriter(ctx,repo,r.path,async function(){
     try{
-      let txt=await readTextFile(ctx,r.path)
-      txt=replaceOrInsertField(txt,'Status',statusLine)
+      const before=await readTextFile(ctx,r.path)
+      let txt=replaceOrInsertField(before,'Status',statusLine)
       if(extraLine)txt=replaceOrInsertField(txt,'Close\\s+reason',extraLine)
-      await writeTextFile(ctx,r.path,txt, ctx&&(ctx as {sandboxPolicy?: unknown}).sandboxPolicy)
+      // 一处没改就不写盘（#1059）：关一张已经关着的票、重开一张本来就开着的票，改出来的整份文本与盘上
+      // 一字不差 —— 照旧写回去只会换掉文件的修改时间（本地房的创建时间对老票就回落在这上面，翻页顺序会跟着动），
+      // 而这一趟在结论线上必须是 noop 而不是 edited。与 issues-patch.js 的读—改—写是同一条口径。
+      if(txt!==before){
+        await writeTextFile(ctx,r.path,txt, ctx&&(ctx as {sandboxPolicy?: unknown}).sandboxPolicy)
+        noteFileWritten(trail)
+      }
       const iss=parseMd(txt,{key:norm,parentKey:isMap?null:'00',isMap,effortId:r.effortId,url:r.path})
       applyLabelColors(iss, colorMap)
       return{ok:true,data:iss}
@@ -82,8 +91,16 @@ export async function closeIssue(ctx: OpContext,repo: RepoWithPath | null,key: s
   // GitHub 那边还会有 not_planned，照原样展示即可）；没给就一个字节都不写这一行，
   // 读回来按后端默认 `completed` —— 也就是这次改动之前的老行为，一字不变。
   const reason=opts&&typeof opts.reason==='string'?opts.reason.trim():''
-  return setStatus(ctx,repo,key,'Status: resolved',reason?'Close reason: '+reason:undefined)
+  const t0=Date.now()
+  const trail=beginWriteTrail()
+  const r=await setStatus(ctx,repo,key,'Status: resolved',reason?'Close reason: '+reason:undefined,trail)
+  emitIssueWrite(ctx,'close',trail,r,t0)
+  return r
 }
 export async function reopenIssue(ctx: OpContext,repo: RepoWithPath | null,key: string): Promise<{ok:true;data:Issue}|StatusFailure>{
-  return setStatus(ctx,repo,key,'Status: ready-for-agent')
+  const t0=Date.now()
+  const trail=beginWriteTrail()
+  const r=await setStatus(ctx,repo,key,'Status: ready-for-agent',undefined,trail)
+  emitIssueWrite(ctx,'reopen',trail,r,t0)
+  return r
 }

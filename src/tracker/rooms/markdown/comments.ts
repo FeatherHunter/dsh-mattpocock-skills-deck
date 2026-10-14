@@ -6,6 +6,9 @@
 import { parseMd } from './parse.js'
 import { readTextFile } from './read.js'
 import { writeTextFile } from './write.js'
+// #1059：这一趟写没写下去的结论线（事件 `issue.write`，与另两房同一个名字、同一套字段）。
+import { beginWriteTrail, emitIssueWrite, noteFileWritten } from './write-log.js'
+import type { WriteTrail } from './write-log.js'
 import { failFromError } from './error-fail.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { resolveIssueFile } from './issues-locate.js'
@@ -29,7 +32,16 @@ export async function listComments(ctx: OpContext,repo: RepoWithPath | null,key:
   if(!r.ok)return{ok:false,error:r.error}
   try{const txt=await readTextFile(ctx,r.path);const iss=parseMd(txt,{key:norm,parentKey:'00',isMap:false,effortId:r.effortId});return{ok:true,data:iss.comments||[]}}catch(e){return failFromError(e,ctx,'读这张票的评论时出错')}
 }
-export async function addComment(ctx: OpContext,repo: RepoWithPath | null,key: string,body: string): Promise<{ok:true,data:Comment}|CommentsFailure>{
+/** 发评论的入口：先起一个事实桶，这一趟写完后按实况落一行结论（#1059）。
+ *  事实（真写了几份文件）由内层填，结论由 write-log.js 的纯函数推导。 */
+export async function addComment(ctx: OpContext,repo: RepoWithPath | null,key: string,body: string): Promise<{ok:true;data:Comment}|CommentsFailure>{
+  const t0=Date.now()
+  const trail=beginWriteTrail()
+  const r=await addCommentInner(ctx,repo,key,body,trail)
+  emitIssueWrite(ctx,'comment',trail,r,t0)
+  return r
+}
+async function addCommentInner(ctx: OpContext,repo: RepoWithPath | null,key: string,body: string,trail: WriteTrail): Promise<{ok:true,data:Comment}|CommentsFailure>{
   const norm=String(key).padStart(2,'0')
   const r=await resolveIssueFile(ctx,repo,norm,{mode:'write'})
   if(!r.ok)return{ok:false,error:r.error}
@@ -60,6 +72,8 @@ export async function addComment(ctx: OpContext,repo: RepoWithPath | null,key: s
         txt+='\n## Comments\n\n'+block+'\n'
       }
       await writeTextFile(ctx,r.path,txt, ctx&&(ctx as {sandboxPolicy?: unknown}).sandboxPolicy)
+      // 这一份真写到盘上了，记进事实桶（#1059）。
+      noteFileWritten(trail)
       const comment: Comment={author:{login:actor},authorAssociation:'',body:String(body||''),createdAt:nowIso,updatedAt:nowIso}
       return{ok:true,data:comment}
     }catch(e){return failFromError(e,ctx,'把评论写进这张票的文件时出错')}

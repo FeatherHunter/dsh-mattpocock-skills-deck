@@ -8,6 +8,9 @@
 import { parseMd, slugify, stripLabelDecoration, isWholeIssueBody, loginOfAssignee } from './parse.js'
 import { listDir, readTextFile, statFile, exists } from './read.js'
 import { writeTextFile, ensureDir } from './write.js'
+// #1059：这一趟写没写下去的结论线（事件 `issue.write`，与另两房同一个名字、同一套字段）。
+import { beginWriteTrail, emitIssueWrite, noteFileWritten } from './write-log.js'
+import type { WriteTrail } from './write-log.js'
 import { issuesDir } from './path.js'
 import { failAs, failFromError } from './error-fail.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
@@ -215,7 +218,16 @@ async function findAnchoredTicket(ctx: OpContext,idir: string,key: string): Prom
   return{status:'miss'}
 }
 
+/** 建票的入口：先起一个事实桶，这一趟建完（或失败）后按实况落一行结论（#1059）。
+ *  事实（真写了几份文件）由内层填，结论由 write-log.js 的纯函数推导 —— 内层没有 reason 可写。 */
 export async function createIssue(ctx: OpContext,repo: RepoWithPath | null,input: CreateInput): Promise<{ ok: true; data: Issue } | CreateFailure>{
+  const t0=Date.now()
+  const trail=beginWriteTrail()
+  const r=await createIssueInner(ctx,repo,input,trail)
+  emitIssueWrite(ctx,'create',trail,r,t0)
+  return r
+}
+async function createIssueInner(ctx: OpContext,repo: RepoWithPath | null,input: CreateInput,trail: WriteTrail): Promise<{ ok: true; data: Issue } | CreateFailure>{
   const plat=getPlat(ctx)
   const colorMap=await loadPaintColorMap(ctx)
   if(!input||typeof input.title!=='string'||!input.title.trim()){return failAs(ERROR_KIND.PARSE,'title required','')}
@@ -303,6 +315,8 @@ export async function createIssue(ctx: OpContext,repo: RepoWithPath | null,input
       const builtBad=checkSingletonsForCreate(builtText, !!idemKey)
       if(builtBad)return failAs(ERROR_KIND.UNSUPPORTED,'建票内容拼装后核对没过（'+builtBad+'），这次没落盘：请换一种正文形态再试。',String(builtBad))
       await writeTextFile(ctx,finalPath,builtText, ctx&&(ctx as {sandboxPolicy?: unknown}).sandboxPolicy)
+      // 这一份真写到盘上了，记进事实桶（#1059）：幂等命中复用那一路走不到这里，于是结论是 reuse 而不是 fresh。
+      noteFileWritten(trail)
       // ② 落盘之后当场回读核对（#711）：确认锚真的写进了这个文件。只写不核对的话，
       //    写入被拒、写了一半、被别的进程覆盖回去这类情况会以「建票成功」的样子交回去，
       //    而锚没落上去意味着下一次重试再也找不到这张票（重复建票的根就没被切断）。
