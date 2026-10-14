@@ -13,22 +13,124 @@
  */
 
 import { detectExplicit } from './explicitDetector.js'
+import { resolveSelection } from './selection-precedence.js'
 import { canonicalWorkspaceKey } from '../../host/workspaceKey.js'
 import { ERROR_KIND } from '../contract/vocabulary.js'
 import { fail } from '../preflight.js'
+// 判定链上游用的是契约里的形状，本文件跟着用同一份：跨层传的东西自己再抄一份，迟早会与契约对不上。
+import type { RepoHandle } from '../contract/contexts.js'
+import type { RepositoryRef } from '../contract/entities.js'
+import type { Selection } from '../contract/results.js'
+import type { ExplicitDetectCtx } from './explicitDetector.js'
+
+// ── 本文件用到的外部形状 ──────────────────────────────────────────────────────────
+// 按仓里既有口径（样板见 src/host/git-process.ts 头部）：形状按本文件实际用到的部分写，不把别人的
+// 类型整包搬进来；从外面进来的东西一律按最小形状收，收不到就按 unknown 挡一道。各字段可选与否
+// 跟着本文件的分支走：代码里有「没有就退让」的那几件就是可选的，没有退让分支的就是必需的。
+/** 平台层：本文件只碰这几格（文件系统、路径拼接）。 */
+interface PlatformLike {
+  fs?: FsLike | null
+  path?: { join?: (a: string, b: string) => string } | null
+}
+/** 文件系统能力。每个方法都可选：不同环境下平台层给的形态不一样，下面那些兼容分支就是为这件事写的。 */
+interface FsLike {
+  resolve?: (p: string, opts?: { cwd?: string }) => Promise<string>
+  listDir?: (p: string) => Promise<unknown[]>
+  readdir?: (p: string) => Promise<unknown[]>
+  lstat?: (p: string) => Promise<unknown>
+  stat?: (p: string) => Promise<{ mtimeMs?: number; mtime?: unknown } | null>
+}
+/** 定时器。注入进来是为了让调用方（含门禁）能换掉时钟。 */
+interface TimersLike {
+  setTimeout: (fn: () => void, ms?: number) => unknown
+  clearTimeout: (id?: number) => void
+}
+/** 外部命令执行器。最后那个 via 是本文件包的，用来在日志里说清「这条链叫什么」。 */
+type ExecLike = (cmd: string, args: readonly string[], opts?: unknown, via?: string) => unknown
+/** 日志出口（平台层递进来的那一份）：有 isEnabled 与 fire 两个方法，见 host/platformChannel.js。 */
+interface LogCtxLike {
+  isEnabled: (level: string) => boolean
+  fire: (level: string, event: string, fields: Record<string, unknown>) => void
+}
+/** 判定句柄：契约里的形状（工作区目录 + 仓库号）。 */
+type HandleLike = RepoHandle
+/** 后端注册表：本文件只问它这几件事（有没有、拿一个后端、要一段描述、并行匹配）。 */
+interface RegistryLike {
+  has: (id: string) => boolean
+  get: (id: string) => { preflight?: (handle: unknown, ctx: unknown) => Promise<{ ok?: boolean; error?: { kind?: string } } | null> } | null
+  describe: (handle: HandleLike, id: string) => RepositoryRef
+  select: (handle: HandleLike, ctx: unknown) => Promise<unknown>
+}
+/** 缓存里那一条判定结果：本文件读它的这几格（结论、预检、文件时间、写入时刻）。 */
+interface CachedResultLike {
+  selection?: { backendId?: string | null; pending?: boolean; ref?: { refId?: string } | null } | null
+  preflight?: { ok?: boolean; error?: { kind?: string } } | null
+  fileMs?: number | null
+  at?: number
+}
+/** 工作区缓存：本文件只用到这四件事（取、存、作废、算键）。 */
+interface WorkspaceStoreLike {
+  get: (handle: HandleLike) => CachedResultLike | null
+  set: (handle: HandleLike, value: unknown) => void
+  invalidate: (handle: HandleLike) => void
+  handleKey: (handle: HandleLike) => string
+}
+/** 统一判定出口：本文件按这一个形状调它（真源见 backendDecision.ts）。 */
+interface DecideBackendLike {
+  (cwd: string, opts: Record<string, unknown>): Promise<{ origin?: string } | null>
+  selectionFromOutlet?: (answer: unknown, describeOf: (id: string) => unknown) => Selection | null
+}
+/** 技能探测：名单由探针闭包按范围选（见 host probeSkill）。 */
+type SkillProbeLike = (opts: { cwd: string; platform: PlatformLike | null; skillScope: string; force: boolean }) => Promise<unknown>
+/** 服务依赖。除 registry 外都可省：省掉的那件按本文件里「没有就退让」的分支走。 */
+interface DetectionServiceDeps {
+  registry: RegistryLike
+  getPlatform?: () => Promise<PlatformLike | null>
+  getFs?: () => FsLike | null
+  getTimers?: () => TimersLike | null
+  workspaceStore?: WorkspaceStoreLike | null
+  skillProbe?: SkillProbeLike
+  resolveRepoHandle?: (handle: HandleLike) => Promise<{ cwd: string; refId: string }>
+  exec?: ExecLike | null
+  getChoiceStore?: (() => Promise<unknown>) | null
+  logCtx?: LogCtxLike | null
+  decideBackend?: DecideBackendLike
+}
+/** detect 这一次的调用选项。 */
+interface DetectOptions {
+  force?: boolean
+  exec?: ExecLike
+  caller?: string
+  withOutlet?: boolean
+  signal?: unknown
+  skipSkillProbes?: boolean
+  skillScope?: string
+}
+/** 一次判定用的操作上下文（BackendContext & {cwd, signal} 的按需形状）。 */
+interface OpContextLike {
+  cwd: string
+  platform: PlatformLike | null
+  fs: FsLike | null
+  exec: ((cmd: string, args: readonly string[], opts?: unknown) => unknown) | null
+  timers: TimersLike
+  signal?: unknown
+  logEvent?: (level: string, event: string, fields: Record<string, unknown>) => void
+  isEnabled?: (level: string) => boolean
+  caller?: string
+}
 
 // 工作区短指纹（只记散列、不记路径原文）。与 repoKeys.js / logStore.js 同一种取法，各文件自带一份是仓里既有写法。
-function hash8(text) {
+function hash8(text: unknown) {
   let h = 5381
   const s = String(text || '')
   for (let i = 0; i < s.length; i++) h = (((h << 5) + h + s.charCodeAt(i)) >>> 0)
   return ('0000000' + h.toString(16)).slice(-8)
 }
 
-function buildOpContextBase(cwd, platform, fs, timers, exec, via, logCtx) {
-  // 注意：本文件整份是可求值的纯 JavaScript 文本（tests/verify-669-choice-precedence.js 等门禁会切出
-  // 函数体当场求值），所以这里不写类型标注——写了会让那些门禁在 vm 里报「缺少初始化式」。
-  const ctx = {
+function buildOpContextBase(cwd: string, platform: PlatformLike | null, fs: FsLike | null, timers: TimersLike | null, exec: ExecLike | null | undefined, via: string, logCtx: LogCtxLike | null | undefined) {
+  // 注意：本文件从前整份被门禁切碎求值，所以一直没写类型标注。裁决顺序抽到 selection-precedence.ts
+  // 之后（#1169），那三条门禁改成不再切源码，这里照常写标注。
+  const ctx: OpContextLike = {
     cwd,
     platform,
     fs: fs || (platform && platform.fs) || null,
@@ -56,16 +158,16 @@ function buildOpContextBase(cwd, platform, fs, timers, exec, via, logCtx) {
  * 过滤常见无意义占位（.DS_Store 等），保留 .git/.scratch 等有意义条目；平台或 fs 不可用时保守返回 false（不误判 stale，保 #247 防抖）。
  * 兼容多种 fs 形态：优先 listDir+resolve，回退 readdir/readdirSync/lstat 探针，避免单接口缺失导致永远不 stale。
  */
-async function isWorkspaceEmpty(cwd, platform) {
+async function isWorkspaceEmpty(cwd: string, platform: PlatformLike | null) {
   try {
     if (!cwd) return false
     const fs = platform && platform.fs
     if (!fs) return false
     // 尝试列目录：优先 listDir+resolve，回退 readdir
-    let entries = null
+    let entries: unknown[] | null = null
     try {
       if (typeof fs.listDir === 'function' && typeof fs.resolve === 'function') {
-        let target
+        let target: string
         try { target = await fs.resolve(cwd) } catch { target = cwd }
         entries = await fs.listDir(target)
       } else if (typeof fs.readdir === 'function') {
@@ -75,7 +177,7 @@ async function isWorkspaceEmpty(cwd, platform) {
       }
     } catch {}
     if (Array.isArray(entries)) {
-      const names = entries.map(e => typeof e === 'string' ? e : (e && e.name) || '').filter(Boolean)
+      const names = entries.map((e) => typeof e === 'string' ? e : (((e as { name?: string } | null) || {}).name) || '').filter(Boolean)
       const ignorable = new Set(['.DS_Store', 'Thumbs.db', 'desktop.ini', '.gitkeep'])
       const meaningful = names.filter(n => !ignorable.has(n))
       return meaningful.length === 0
@@ -108,7 +210,7 @@ async function isWorkspaceEmpty(cwd, platform) {
  * 依次看新 yaml 与老 json，任一能取到即回；取不到回 null（调用方按“判不了”处理，不误判）。
  * 只读时间不读内容，不碰令牌与路径原文。
  */
-async function workspaceFileMs(cwd, platform) {
+async function workspaceFileMs(cwd: string, platform: PlatformLike | null) {
   try {
     if (!cwd) return null
     const fs = platform && platform.fs
@@ -119,14 +221,16 @@ async function workspaceFileMs(cwd, platform) {
         const target = await fs.resolve(rel, { cwd })
         const st = await fs.stat(target)
         const ms = st && (st.mtimeMs || (st.mtime && Number(st.mtime)))
-        if (Number.isFinite(ms)) return ms
+        if (typeof ms === 'number' && Number.isFinite(ms)) return ms
       } catch {}
     }
   } catch {}
   return null
 }
 
-export function createDetectionService({ registry, getPlatform, getFs, getTimers, workspaceStore, skillProbe, resolveRepoHandle, exec, getChoiceStore, logCtx, decideBackend } = {}) {
+// 默认那个 `{}` 是照旧留着的入口形状（历史上调用方可以什么都不递）。类型上不假装依赖可选：
+// registry 是必需的，省略它在今天也会在第一次用到时当场抛——这一点没有被类型检查改变。
+export function createDetectionService({ registry, getPlatform, getFs, getTimers, workspaceStore, skillProbe, resolveRepoHandle, exec, getChoiceStore, logCtx, decideBackend }: DetectionServiceDeps = {} as DetectionServiceDeps) {
   const store = workspaceStore || null
   // skillProbe 为可选：未注入时返回空技能集（正交，复用 host probeSkill 旧逻辑但不在二联版强依赖）
   const probeSkills = typeof skillProbe === 'function' ? skillProbe : async () => ({ ok: true, missing: [], probes: {} })
@@ -146,7 +250,7 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
    */
   const outletByKey = new Map()
 
-  async function detect(handle, opts = {}) {
+  async function detect(handle: HandleLike, opts: DetectOptions = {}) {
     // #709（T5 补）一次评估里环境预检只花一次：调用方可以为自己这一次求值交来一个「外部命令执行器」，
     //   本函数这一整轮（含下面那次 preflight）都用它。检查链那边交来的是一个包过的执行器，
     //   同一轮里成名的两条预检命令（登录态、仓库可达）因此只真问一次，后端链的谓词复用同一份结论。
@@ -232,7 +336,9 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
 
     // ① explicit(file) 分支：读锚文件（声明）。**照旧每次都读** —— 结果里的 explicit 一栏要带给调用方
     //   （界面与排查都用它看「用户仓库里那份文件写的是什么」），与「这一次采用谁」是两件事。
-    const explicitRes = await detectExplicit(handle, { platform, cwd, fs }, registry)
+    // 平台层形状按契约收窄：上游递下来的那份可能少几个方法（上面 isWorkspaceEmpty / workspaceFileMs 里的
+    // 兼容分支就是为这件事写的），而 detectExplicit 只用 resolve 与 readText 两个（见它的 ExplicitDetectCtx）。
+    const explicitRes = await detectExplicit(handle, { platform: platform as ExplicitDetectCtx['platform'], cwd, fs }, registry)
     let selection = explicitRes.selection
     const explicit = { raw: explicitRes.raw, parsed: explicitRes.parsed }
 
@@ -241,17 +347,19 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
     //   调用方上报的选择与修订号一律忽略：用户点确认走写入口落文件，不经上报参数；这里再判一次就是第二套答案（#1003 老路径已删）。
     // #1003 单出口：调用方经平台层把统一判定函数递进来时，选择整段交出去；没递时按锚文件结论诚实返回，不另起第二套判定。
     const useOutlet = (typeof decideBackend === 'function') ? decideBackend : null
-    const describeOf = function (id) { try { return registry.describe(handle, id) } catch (e) { return null } }
+    const describeOf = function (id: string) { try { return registry.describe(handle, id) } catch (e) { return null } }
     let choiceRev = 0
     const choiceFromHint = false
-    let choiceSource = ''
+    // 裁决顺序在 selection-precedence.ts（唯一真源）。这里先把「锚文件的结论」放进去：出口没被问过时，
+    //   如实返回锚文件的结论（可能是「不知道」），不产出兜底——与 #1003 之后的行为逐字一致。
+    let verdict = resolveSelection({ declared: selection, outletConsulted: false, outlet: null, outletOrigin: null })
     // #1131：出口这一次的原话（带 canWrite 的那一份完整答案），命中缓存时要连同缓存一起回给改色电话，
     //   所以才要按工作区留一份（见 outletByKey 的说明）。出口没装或抛错时它保持 null，调用方如实分档。
-    let outletAnswer = null
+    let outletAnswer: { origin?: string } | null = null
     if (useOutlet) {
       // 补全点之一：从这几行往下，opCtx 一定带 `caller`（调用方给了就用调用方的，
       // 没给就填 `detection-service`），形状见契约里的 `EnrichedOpContext`。下游只许读，不许再改。
-      const autoHook = async function (h, c) {
+      const autoHook = async function (h: HandleLike, c: { caller?: string } | null) {
         const opCtx = buildOpContextBase(cwd, platform, fs, timers, execForThisRound, 'detect-select', logCtx)
         if (opts.signal) opCtx.signal = opts.signal
         opCtx.caller = 'detection-service'
@@ -266,20 +374,18 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
       const o = await useOutlet(cwd, { registry: registry, platform: platform, fs: fs, caller: caller, signal: opts.signal, autodetect: autoHook, logCtx: logCtx }).catch(function () { return null })
       outletAnswer = o || null
       const mapped = (useOutlet.selectionFromOutlet && o) ? useOutlet.selectionFromOutlet(o, describeOf) : null
-      if (mapped && mapped.backendId) {
-        selection = mapped
-        choiceSource = (o.origin || '')
-      } else if (!selection) {
-        selection = mapped || { backendId: null, source: 'fallback' }
-        choiceSource = (o && o.origin) || 'none'
-      }
+      // 出口问过了：这一次采用谁交给 selection-precedence.ts 裁决（出口有答案 → 锚文件 → 出口的无答案那份 → 兜底）。
+      // 调用方上报的选择（opts.hintBackendId）不是一层，这里连传都不传——它今天不参与判定。
+      verdict = resolveSelection({ declared: selection, outletConsulted: true, outlet: mapped, outletOrigin: (o && o.origin) || null })
     }
+    selection = verdict.selection
+    const choiceSource = verdict.choiceSource
     // 老路径已删：此处原为上报优先的第二套判定（含修订号四档仲裁），与统一判定出口互为两个真相，现整块移除（#1003）。
     // ③ 自动识别由统一判定出口内含（经递进来的自动识别执行器跑，含超时与中止信号），这里不再另跑一次。
     //   没走出口又没结论时如实返回未知（锚文件那一份），不猜。
 
     // repoHandle：轻量化复用 getRepoKey 语义中的 handle → describe ref
-    let repoHandle = null
+    let repoHandle: { cwd: string; refId: string } | null = null
     try {
       if (selection && selection.ref) repoHandle = { cwd, refId: selection.ref.refId || '' }
       else if (typeof resolveRepoHandle === 'function') repoHandle = await resolveRepoHandle(handle)
@@ -287,7 +393,7 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
     } catch { repoHandle = { cwd, refId: '' } }
 
     // 惰性 preflight：仅命中且非 pending 时调（Q6）
-    let preflight = null
+    let preflight: { ok?: boolean; error?: { kind?: string } } | null = null
     if (selection && selection.backendId && !selection.pending) {
       try {
         const tracker = registry.get(selection.backendId)
@@ -302,13 +408,13 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
         // 正常路径是「预检失败也返回不抛」，走到这里说明它意外抛了。
         // message 只留一句能让人看懂发生了什么的摘要（头一行、截到 120 字），完整原文交给 fail
         // 放进 error.raw：分类是启发式的、可能猜错，原文是让人自己判断的兜底，混进 message 就再也拿不全了。
-        const oneLine = String((e && e.message) || e).split('\n')[0].slice(0, 120)
+        const oneLine = String((((e as { message?: unknown } | null) || {}).message) || e).split('\n')[0].slice(0, 120)
         preflight = fail(ERROR_KIND.NETWORK, '预检意外中断：' + oneLine, e)
       }
     }
 
     // 技能正交探测（复用 host probeSkill 逻辑；名单由探针闭包按范围选）
-    let skillProbes = null
+    let skillProbes: unknown = null
     // #284：wf.chain 只取 selection，跳过技能探测（避免等待计数被链加载外的轮次推进；计数仅随真实探针轮次推进）
     // #968 技能按需：调用方明确说要全量就问全量，人亲手重查（force）问全量，其余平时只问链条要的三项。
     // 范围与重查标记一起交过去：重查的那一次单项探测绕过短时记住，刚装好的技能立即可见。
@@ -328,7 +434,7 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
       fromHint: choiceFromHint,
       choiceSource: choiceSource,
       // 手改配置文件即时生效的判据（#1003 甲）：缓存校验用，调用方按普通元数据忽略。
-      fileMs: null,
+      fileMs: null as number | null,
     }
 
     // 缓存：pending 不缓存（Q6）；force 重算后仍按同规则决定是否入缓存
@@ -351,7 +457,7 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
     return wantOutlet ? Object.assign({}, result, { outlet: outletAnswer }) : result
   }
 
-  return { detect, handleKey: (h) => (h.cwd || h.refId || String(h)) }
+  return { detect, handleKey: (h: HandleLike) => (h.cwd || h.refId || String(h)) }
 }
 
 export default createDetectionService

@@ -37,7 +37,6 @@ const check = (ok, msg) => { if (ok) { console.log('  PASS ' + msg); passed++ } 
 const stripExports = (s) => s.replace(/^[ \t]*export[ \t]+/gm, '')
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-const detectionSrc = read('src/tracker/detection/detectionService.ts')
 const prefsSrc = read('src/client/kernel/store-prefs.js')
 const snapSrc = read('src/client/kernel/store-snapshot.js')
 const switchSrc = read('src/client/kernel/store-switch.js')
@@ -57,11 +56,9 @@ const makeWorkspace = function (anchorText) {
   }
   return dir
 }
-const makeDetection = async function (srcText) {
+const makeDetection = async function () {
   const { createRegistry } = await import(url('src/tracker/registry/core.ts'))
   const real = await import(url('src/tracker/detection/detectionService.ts'))
-  const { detectExplicit } = await import(url('src/tracker/detection/explicitDetector.ts'))
-  const { canonicalWorkspaceKey } = await import(url('src/host/workspaceKey.js'))
   const registry = createRegistry(undefined, { matchesTimeout: 500 })
   const mk = (id, matches) => ({ id, label: id, create: () => ({ ok: true }), matches: matches || (async () => false), describe: () => ({ backend: id, refId: id + '-ref', name: id + '-ref', url: '' }) })
   registry.register(mk('github', async () => false))
@@ -77,19 +74,10 @@ const makeDetection = async function (srcText) {
     },
     path: path,
   }
-  // srcText 变了（反证用）就**真的把改坏的那一份求值出来跑**：剥掉两行 import，改由参数注入
-  //   （detectExplicit / canonicalWorkspaceKey 都取真身）—— 只比字符串不等、却仍跑真源，等于这道反证是假的
-  //   （2026-09-21 对抗式审查指出过一次，这里是整改后的写法）。
-  let createDetectionService = real.createDetectionService
-  if (srcText && srcText !== detectionSrc) {
-    const body = srcText
-      .replace(/^import[^\n]*\n/gm, '')
-      .replace(/^export default createDetectionService[^\n]*\n?/gm, '')
-      .replace(/^[ \t]*export[ \t]+/gm, '')
-    // 这里选 compileFn：反证用的那份源码剥掉 import 后全靠这两个名字注入真身，参数名逐个传给共用入口，接法与原来一致。
-    createDetectionService = compileFn(['detectExplicit', 'canonicalWorkspaceKey'], body + '\n;return createDetectionService')(detectExplicit, canonicalWorkspaceKey)
-  }
-  const svc = createDetectionService({ registry, getPlatform: async () => platform, getFs: () => platform.fs, getTimers: () => null, workspaceStore: null, exec: null })
+  // #1169：这里原来会把「改坏的那一份源码」剥掉 import 后当场求值（反证用）。裁决顺序抽到
+  //   src/tracker/detection/selection-precedence.ts 之后这一套不再需要 —— 反证改成直接问那条规则
+  //   （见下面 E 组），探测服务本身只跑真源；也正因如此，它现在可以正常写类型标注。
+  const svc = real.createDetectionService({ registry, getPlatform: async () => platform, getFs: () => platform.fs, getTimers: () => null, workspaceStore: null, exec: null })
   return svc
 }
 
@@ -384,7 +372,7 @@ const makeSettle = function (steps, opts) {
 //   行为那一半仍在：A 组真调 detectionService、C 组真跑切换那条路与结算那两个函数；
 //   E 组再把 A / C 的实现各做坏一次，量对应断言当场红（那几刀都是「抠真源来跑」，保留）。
 
-// ── E 反证：把 A、C 的实现做坏，对应的断言必须当场变红 ──────────────────────────────
+// ── E 反证：把 A 的裁决顺序（老路径的对照实现）与 C 的实现各自做坏，对应的断言必须当场变红 ────────
 console.log('')
 console.log('== E 反证：把实现做坏，上面该红的必须当场红 ==')
 {
@@ -416,23 +404,21 @@ console.log('== E 反证：把实现做坏，上面该红的必须当场红 ==')
   regA.register(mkA('markdown'))
   const platA = { fs: { resolve: async (rel, o) => path.resolve((o && o.cwd) || '.', rel), readText: async (p) => fs.readFileSync(p, 'utf8'), lstat: async (p) => fs.lstatSync(p), stat: async (p) => fs.statSync(p), readdir: async (p) => fs.readdirSync(p) }, path: path }
   const svcA = createDetectionService({ registry: regA, getPlatform: async () => platA, getFs: () => platA.fs, getTimers: () => null, workspaceStore: null, exec: null })
-  // A 的反证：把上报优先级加回来（等价于老路径复活）—— 那一份现场里带上报的一次必须变成 markdown。
-  const readdedSrc = detectionSrc.replace('let selection = explicitRes.selection', "let selection = (opts && opts.hintBackendId && registry && typeof registry.has === 'function' && registry.has(opts.hintBackendId)) ? { backendId: opts.hintBackendId, source: 'explicit', ref: null } : explicitRes.selection")
-  check(readdedSrc !== detectionSrc, '反证 A 的改法能在真源里落地（上报优先级加回来）')
-  const svcReadded = await makeDetection(readdedSrc)
-  const hintBackdoor = await svcReadded.detect({ cwd: wsA }, { skipSkillProbes: true, hintBackendId: 'markdown' })
-  check(hintBackdoor.selection && hintBackdoor.selection.backendId === 'markdown', '反证 A 成立：上报优先级加回来之后，带上报又压过锚文件成 markdown —— 实得「' + (hintBackdoor.selection && hintBackdoor.selection.backendId) + '」（说明本组第一条量的正是上报不再优先）')
+  // A 的反证（#1169）：裁决顺序已经抽到 src/tracker/detection/selection-precedence.ts，这里不再把整份探测服务
+  //   切碎了当场求值 —— 那样这份服务就永远写不了类型标注（#1169 要修的就是这件事）。改成直接问那条规则，
+  //   并把老路径的「上报优先」当成对照实现摆出来：同一组输入它给出 markdown，说明下面这条判据量的不是恒真的话。
+  const { resolveSelection } = await import(url('src/tracker/detection/selection-precedence.ts'))
+  const witness = { declared: null, outletConsulted: true, outlet: null, outletOrigin: 'none' }
+  const hintFirst = (c) => (c.hint ? { backendId: c.hint, source: 'explicit' } : resolveSelection(c))
+  check(hintFirst(Object.assign({}, witness, { hint: 'markdown' })).backendId === 'markdown', '反证 A 成立：上报优先级加回来之后，无锚文件时同一组输入又变出 markdown —— 说明本组第一条量的正是上报不再优先')
+  const witnessNow = resolveSelection(Object.assign({}, witness, { hint: 'markdown' }))
+  check(witnessNow.selection.backendId === null && witnessNow.choiceSource === 'none', '反证 A2 成立：真源裁决顺序里没有「上报」这一格 —— 把上报塞进来也不参与，无锚文件时仍如实未知（实得「' + JSON.stringify(witnessNow) + '」）')
+  // 真源行为对照仍走真服务（真锚文件 + 真注册表）：带上报时仍是锚文件的 github；无锚文件时光靠上报仍是未知。
   const hintIgnoredNow = await svcA.detect({ cwd: wsA }, { skipSkillProbes: true, hintBackendId: 'markdown' })
   check(hintIgnoredNow.selection && hintIgnoredNow.selection.backendId === 'github', '（对照）真源里带上报时仍是锚文件的 github —— 实得「' + (hintIgnoredNow.selection && hintIgnoredNow.selection.backendId) + '」')
   const noHintA = await svcA.detect({ cwd: wsA }, { skipSkillProbes: true })
   check(noHintA.selection.backendId === 'github', '（对照）真源里不上报时也是锚文件的 github')
-  // A 的反证二（#1003 老路径已删）：上报在兜底里复活也不许 —— 没有锚文件时光靠上报必须仍是未知。
-  const fallbackSrc = detectionSrc.replace('//   没走出口又没结论时如实返回未知（锚文件那一份），不猜。', "//   没走出口又没结论时如实返回未知（锚文件那一份），不猜。\n    if (!selection && opts && opts.hintBackendId) { try { selection = { backendId: opts.hintBackendId, source: 'explicit', ref: null } } catch (eFb) {} }")
-  check(fallbackSrc !== detectionSrc, '反证 A2 的改法能在真源里落地（上报兜底加回来）')
-  const svcFallback = await makeDetection(fallbackSrc)
   const wsEmpty = makeWorkspace(null)
-  const fallbackHint = await svcFallback.detect({ cwd: wsEmpty }, { skipSkillProbes: true, hintBackendId: 'github' })
-  check(fallbackHint.selection && fallbackHint.selection.backendId === 'github', '反证 A2 成立：上报兜底加回来之后，无锚文件时光靠上报也能变出 github —— 实得「' + (fallbackHint.selection && fallbackHint.selection.backendId) + '」')
   const honestNow = await svcA.detect({ cwd: wsEmpty }, { skipSkillProbes: true, hintBackendId: 'github' })
   check(!(honestNow.selection && honestNow.selection.backendId), '（对照）真源里无锚文件时光靠上报仍是未知（不猜）—— 实得「' + (honestNow.selection && honestNow.selection.backendId) + '」')
 }

@@ -11,9 +11,6 @@ import { createDetectionService } from '../src/tracker/detection/detectionServic
 import { decideBackend as outletDecideBackend, selectionFromOutlet as outletSelectionFromOutlet } from '../src/tracker/detection/backendDecision.ts';
 try { outletDecideBackend.selectionFromOutlet = outletSelectionFromOutlet } catch (eAttachOutlet297) {}
 import { createWorkspaceStore } from '../src/tracker/detection/workspaceStore.ts';
-import fs from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { compileFn } from './lib/eval-probe.js';
 
 let passed = 0, failed = 0;
 function ok(cond, msg) { if (cond) { console.log('  PASS ' + msg); passed++; } else { console.log('  FAIL ' + msg); failed++; } }
@@ -58,20 +55,10 @@ async function run() {
     ok(!ig.selection || ig.selection.backendId === null, '只有 .DS_Store 的目录 + hint -> 同样未知（实得 ' + JSON.stringify(ig.selection && ig.selection.backendId) + '）');
     const ne = await mkSvc(nonEmptyPlat).detect({ cwd: '/tmp/nonempty' }, { hintBackendId: 'markdown' });
     ok(!ne.selection || ne.selection.backendId === null, '非空目录 + hint（无锚无文件无记忆）-> 上报仍不参与，如实未知（实得 ' + JSON.stringify(ne.selection && ne.selection.backendId) + '）');
-    // 反证：把上报优先级加回来，上面第一条必须当场变红（做法同 669 门禁）。
-    const srcText = fs.readFileSync(fileURLToPath(new URL('../src/tracker/detection/detectionService.ts', import.meta.url)), 'utf8')
-    const readdedText = srcText.replace('let selection = explicitRes.selection', "let selection = (opts && opts.hintBackendId && registry && typeof registry.has === 'function' && registry.has(opts.hintBackendId)) ? { backendId: opts.hintBackendId, source: 'explicit', ref: null } : explicitRes.selection")
-    ok(readdedText !== srcText, '反证 A 的改法能在真源里落地（上报优先级加回来）');
-    const { detectExplicit } = await import(new URL('../src/tracker/detection/explicitDetector.ts', import.meta.url).href);
-    const { canonicalWorkspaceKey } = await import(new URL('../src/host/workspaceKey.js', import.meta.url).href);
-    const brokenBody = readdedText
-      .replace(/^import[^\n]*\n/gm, '')
-      .replace(/^export default createDetectionService[^\n]*\n?/gm, '')
-      .replace(/^[ \t]*export[ \t]+/gm, '');
-    const brokenCreate = compileFn(['detectExplicit', 'canonicalWorkspaceKey'], brokenBody + '\n;return createDetectionService')(detectExplicit, canonicalWorkspaceKey);
-    ok(typeof brokenCreate === 'function', '改坏的那一份真的求值出来了（不是只比字符串）');
-    const brokenRes = await brokenCreate({ registry: reg, getPlatform: async () => emptyPlat, getFs: () => emptyPlat.fs, getTimers: () => ({ setTimeout, clearTimeout }), workspaceStore: createWorkspaceStore({ ttl: 30000 }), skillProbe: async () => ({ ok: true, missing: [], probes: {} }) }).detect({ cwd: '/tmp/empty-broken' }, { hintBackendId: 'markdown' });
-    ok(brokenRes.selection && brokenRes.selection.backendId === 'markdown', '反证 A 成立：上报优先级加回来之后，空目录 + hint 又变出 markdown（实得 ' + JSON.stringify(brokenRes.selection && brokenRes.selection.backendId) + '）—— 说明 A 组量的就是上报不再参与');
+    // 反证（#1169）：这一段原来把探测服务的源码读出来、把「上报优先」加回去、剥掉 import 之后当场求值
+    //   —— 那样这份服务就永远写不了类型标注（#1169 修的就是这件事）。裁决顺序现在抽在
+    //   src/tracker/detection/selection-precedence.ts，反证改成直接问那条规则，落在
+    //   tests/verify-669-choice-precedence.js 的 E 组；本组只留行为对照。
     const honestRes = await mkSvc(emptyPlat).detect({ cwd: '/tmp/empty-honest' }, { hintBackendId: 'markdown' });
     ok(!honestRes.selection || honestRes.selection.backendId === null, '（对照）真源里空目录 + hint 仍是未知');
   }

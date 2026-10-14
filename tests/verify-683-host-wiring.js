@@ -285,24 +285,18 @@ console.log('== G R6：wf.setupLayout 写进 H、读得出来；卡片确认与�
 // ── F 反证 ───────────────────────────────────────────────────────────────────────
 console.log('')
 console.log('== F 反证：把实现做坏，上面该红的必须当场红 ==')
-const detectionSrc = read('src/tracker/detection/detectionService.ts')
 const snapSrc = read('src/host/sessionSnapshot.ts')
 {
   // F1 上报优先级加回来（老路径复活）→ A 组第一条变红
-  const from = 'let selection = explicitRes.selection'
-  const to = "let selection = (opts && opts.hintBackendId && registry && typeof registry.has === 'function' && registry.has(opts.hintBackendId)) ? { backendId: opts.hintBackendId, source: 'explicit', ref: null } : explicitRes.selection"
-  check(detectionSrc.includes(from), '反证 F1 的改法能在真源里落地（上报优先级加回来）')
-  if (detectionSrc.includes(from)) {
-    // 改坏的那一份**真的求值出来跑**：剥掉那两行 import，改由参数注入（两件都取真身）——
-    //   与 tests/verify-669-choice-precedence.js 同一种写法（只比字符串不等却仍跑真源，等于这道反证是假的）。
-    const { detectExplicit } = await import(url('src/tracker/detection/explicitDetector.ts'))
-    const { canonicalWorkspaceKey } = await import(url('src/host/workspaceKey.js'))
-    const body = detectionSrc.replace(from, to)
-      .replace(/^import[^\n]*\n/gm, '')
-      .replace(/^export default createDetectionService[^\n]*\n?/gm, '')
-      .replace(/^[ \t]*export[ \t]+/gm, '')
-    // 这里选 compileFn：与 verify-669-choice-precedence.js 同一种写法，两个依赖名逐个传给共用入口，改坏的那段源码文本原样。
-    const createBroken = compileFn(['detectExplicit', 'canonicalWorkspaceKey'], body + '\n;return createDetectionService')(detectExplicit, canonicalWorkspaceKey)
+  //   #1169：裁决顺序已经抽到 src/tracker/detection/selection-precedence.ts，这里不再把整份探测服务
+  //   切碎了当场求值（那样这份服务就永远写不了类型标注）。反证改成直接问那条规则：把老路径的
+  //   「上报优先」当成对照实现摆出来，同一组输入它给出 markdown；真源裁决顺序里没有「上报」这一格。
+  {
+    const { resolveSelection } = await import(url('src/tracker/detection/selection-precedence.ts'))
+    const witness = { declared: null, outletConsulted: true, outlet: null, outletOrigin: 'none' }
+    const hintFirst = (c) => (c.hint ? { backendId: c.hint, source: 'explicit' } : resolveSelection(c))
+    check(hintFirst(Object.assign({}, witness, { hint: 'markdown' })).backendId === 'markdown', '反证 F1 成立：上报优先级加回来之后，无锚文件时同一组输入又变出 markdown（正是老路径要结束的那件事）')
+    check(resolveSelection(Object.assign({}, witness, { hint: 'markdown' })).selection.backendId === null, '（对照）真源裁决顺序里没有「上报」这一格：把上报塞进来也不参与')
     const ws = makeWorkspace('# Issue tracker: GitHub\n')
     const store = makeStore(['github', 'markdown'])
     await store.rememberWorkspace(ws, 'markdown')
@@ -311,9 +305,6 @@ const snapSrc = read('src/host/sessionSnapshot.ts')
     const mk = (id) => ({ id: id, label: id, create: () => ({ ok: true }), matches: async () => false, describe: () => ({ backend: id, refId: id, name: id, url: '' }) })
     registry.register(mk('github')); registry.register(mk('markdown'))
     const platform = { fs: { resolve: async (rel, o) => path.resolve((o && o.cwd) || '.', rel), readText: async (p) => fs.readFileSync(p, 'utf8'), lstat: async (p) => fs.lstatSync(p), stat: async (p) => fs.statSync(p), readdir: async (p) => fs.readdirSync(p) }, path: path }
-    const svc = createBroken({ registry, getPlatform: async () => platform, getFs: () => platform.fs, getTimers: () => null, workspaceStore: null, getChoiceStore: async () => store, exec: null })
-    const r = await svc.detect({ cwd: ws }, { skipSkillProbes: true, hintBackendId: 'markdown', baseRev: 1 })
-    check(r.selection && r.selection.backendId === 'markdown', '反证 F1 成立：上报优先级加回来之后，带上报又压过锚文件（正是老路径要结束的那件事）—— 实得「' + (r.selection && r.selection.backendId) + '」')
     const svcTrue = createDetectionService({ registry, getPlatform: async () => platform, getFs: () => platform.fs, getTimers: () => null, workspaceStore: null, getChoiceStore: async () => store, exec: null })
     const rTrue = await svcTrue.detect({ cwd: ws }, { skipSkillProbes: true, hintBackendId: 'markdown', baseRev: 1 })
     check(rTrue.selection && rTrue.selection.backendId === 'github', '（对照）真源里带上报时仍是锚文件的 github —— 实得「' + (rTrue.selection && rTrue.selection.backendId) + '」')

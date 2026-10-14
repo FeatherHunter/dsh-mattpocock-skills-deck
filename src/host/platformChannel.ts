@@ -384,7 +384,9 @@ export function createPlatformChannel(deps: Deps) {
       const fsSvc = ctx.get('fs')
       try {
         const mod = await import('../tracker/detection/detectionService.js')
-        const create = (mod.createDetectionService || (mod as { default?: unknown }).default) as (deps: Record<string, unknown>) => DetectionService
+        // 动态 import 的那份模块，工厂签名在编译期拿不到；这里按「收一个依赖对象」收着用，
+        // 依赖逐项的检查在探测服务那一侧（它自己的 DetectionServiceDeps 就是真源）。
+        const create = (mod.createDetectionService || (mod as { default?: unknown }).default) as unknown as (deps: Record<string, unknown>) => DetectionService
         // 取不到决策函数时按「没有」处理（原写法是 `.catch(function () { return {} })` 再取字段，语义相同）。
         const decided = await getDecisionFn().catch(function (): DecisionFnModule { return { decideBackend: null } })
         const decideBackend = (decided || { decideBackend: null }).decideBackend || null
