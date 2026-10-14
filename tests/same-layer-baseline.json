@@ -905,15 +905,6 @@
     },
     {
       "file": "src/host/git-process.ts",
-      "spec": "./outbound/tiers.js",
-      "resolved": "src/host/outbound/tiers.ts",
-      "layer": "host",
-      "count": 1,
-      "owner": "#1019 搬家跟随",
-      "note": "搬家后新键：same-layer-import-host"
-    },
-    {
-      "file": "src/host/git-process.ts",
       "spec": "./refresh/chain-ride.js",
       "resolved": "src/host/refresh/chain-ride.ts",
       "layer": "host",
@@ -925,15 +916,6 @@
       "file": "src/host/platformChannel.ts",
       "spec": "./outbound/admission.js",
       "resolved": "src/host/outbound/admission.ts",
-      "layer": "host",
-      "count": 1,
-      "owner": "#1019 搬家跟随",
-      "note": "搬家后新键：same-layer-import-host"
-    },
-    {
-      "file": "src/host/platformChannel.ts",
-      "spec": "./outbound/tiers.js",
-      "resolved": "src/host/outbound/tiers.ts",
       "layer": "host",
       "count": 1,
       "owner": "#1019 搬家跟随",

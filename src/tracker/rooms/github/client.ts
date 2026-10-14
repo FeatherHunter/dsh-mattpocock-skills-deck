@@ -23,7 +23,7 @@ import type { BackendPlatform, ExecResult, OpContext } from '../../contract/cont
 import type { TrackerError } from '../../contract/results.js';
 import { fail, rawText } from '../../kernel/preflight.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'
-import { timeoutForGhArgs, isWriteGhArgs } from '../../../host/outbound/tiers.js'
+import { timeoutForGhArgs, isWriteGhArgs } from '../../kernel/outbound-tiers.js'
 // #1159：名额闸与搭车账本不再从宿主 import —— 它们是有状态的运行时能力，形状由契约层声明
 // （`OutboundControl`），实现由宿主在接线处挂进 `ctx.outbound`。这与本房已有的 `ctx.gate`
 // 是同一条路：闸由接线处注入，本房不 import 它。读不到就按环境失败大声报出来，不许静默直通。

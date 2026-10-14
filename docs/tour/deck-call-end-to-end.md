@@ -316,7 +316,7 @@ gate.admitAiTool({ points, requests, childTickets }, { workspaceKey, kind: 'tool
 | 环节 | 行号 | 做什么 |
 | --- | --- | --- |
 | 分桶 | :153 | `isWriteGhArgs(args) ? 'write' : 'read'` |
-| 定档超时 | :155 | `timeoutForGhArgs(args)`：读 12 秒 / 写 30 秒 / 探活 3 秒（`src/host/outbound/tiers.ts:15-17`） |
+| 定档超时 | :155 | `timeoutForGhArgs(args)`：读 12 秒 / 写 30 秒 / 探活 3 秒（`src/tracker/kernel/outbound-tiers.ts:15-17`） |
 | 房内自己掐表 | :161-177 | 定时器在**拿名额之前**就起（拿名额在 :204），所以排队段也被盖住；到点算超时、被调用方取消算取消（原因见 :156-160） |
 | 拿名额 | :204 | `getGhLane().acquire({bucket, signal})`：满了就排队，「等」不算失败 |
 | 报出站 | :232 | `reportOutbound(ctx, args)`——真要起进程了才报，排队中被取消的不进账 |

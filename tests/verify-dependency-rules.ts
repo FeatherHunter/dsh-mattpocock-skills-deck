@@ -766,7 +766,7 @@ function selfCheckRoomStructure(): void {
     'src/tracker/rooms/gitlab/index.ts',
     'src/tracker/contract/vocabulary.ts',
     'src/tracker/contract/operations.ts',
-    'src/host/outbound/tiers.ts',
+    'src/host/outbound/admission.ts',
   ]
   const liveEntry: RoomImportEntry = { pattern: '^src/tracker/contract/', why: '契约层是房间的共用词汇表', ticket: 1014 }
   const rules: ForbiddenRule[] = [

@@ -270,7 +270,83 @@ glab api "projects/&lt;命名空间&gt;%2Fdsh-gitlab-sandbox?simple=true"</code>
 
 <p>但「文档说有」和「你的账号真的有」是两件事。这正是要真跑一遍的原因：<b>跑完就知道哪些是真能用的，哪些只是文档上说能用。</b></p>
 
-<h2>六、出处（都是一手来源）</h2>
+<h2>六、gitlab.com 和「自部署」有什么不一样</h2>
+
+<p>你会听到有人说「我们是自部署的 GitLab」。这句话的意思不是「另一个产品」，而是<b>同一个软件装在别人自己的服务器上</b>。</p>
+
+<h3>先把两边的名字对齐</h3>
+
+<table>
+  <tr><th></th><th>官网（SaaS）</th><th>自部署（self-managed）</th></tr>
+  <tr>
+    <td>GitLab</td>
+    <td><code>gitlab.com</code>：GitLab 公司自己运营的那一台</td>
+    <td>任何人下载 GitLab 装在自己的机器或内网上。有<b>免费的开源版本</b>（Community Edition），所以个人和小团队也搭得起；付费功能照样能买</td>
+  </tr>
+  <tr>
+    <td>GitHub</td>
+    <td><code>github.com</code></td>
+    <td><b>GitHub Enterprise Server（GHES）</b>：确实有，但只有企业版、要花钱，没有免费的自部署版本。所以「自己搭一个 GitHub」在个人圈子里几乎不存在——不是没有，是门槛高</td>
+  </tr>
+</table>
+
+<p>还有一层容易混：GitHub 的 <code>ghe.com</code> 是「云上的企业版」，和自托管的 GHES 是两回事。我们仓库里就记着这个区别（自托管的 GHES 默认根本不限流，由管理员自己设）。</p>
+
+<h3>对我们这套代码，差异其实很小</h3>
+
+<p>因为<b>「访问哪一台」不是我们决定的，是 glab 决定的</b>。我们所有取数都走 <code>glab api &lt;路径&gt;</code>，而 glab 自己按 git remote 和你登录过的主机来选主机。</p>
+
+<ul>
+  <li>认仓库坐标那条能力，连自建实例的地址都收——它的注释里就写着 <code>http://gitlab.internal:8080/group/project.git</code>「自建实例也认」。</li>
+  <li>而且它<b>认完把主机丢掉</b>，只留「分组 + 项目名」两格。所以自建和官网在结果上长得一样。</li>
+  <li>预检只问两件事：「glab 登录了吗」和「这个项目的接口够得着吗」，同样不提主机。</li>
+</ul>
+
+<div class="card warn">
+  <h3>顺手纠一处我们自己的过时注释</h3>
+  <p>预检那个文件的第 5 行写着「JH/self-hosted 复用 <code>GL_HOST</code>」，但<b>实现里根本没读 <code>GL_HOST</code></b>——全仓只有这一处提到它。真正的主机选择权在 glab 手里。这句话是过时的，不要照着它去配环境变量。</p>
+</div>
+
+<h3>真正会咬人的四处差异</h3>
+
+<table>
+  <tr><th>差异</th><th>具体会怎样</th></tr>
+  <tr>
+    <td><b>版本</b></td>
+    <td>自建实例常常比官网旧。glab 官方只保证 GitLab <b>16.0 及以上</b>；而这次新加的九条能力依赖具体接口，老实例可能压根没有这个接口</td>
+  </tr>
+  <tr>
+    <td><b>档位与开关</b></td>
+    <td>管理员能关掉功能；自建的企业版还能<b>整个关掉个人访问令牌</b>。同一句「GitLab 支持」，在两台上可能一真一假</td>
+  </tr>
+  <tr>
+    <td><b>网络</b></td>
+    <td>内网主机名、自签证书、VPN、代理。glab 有 <code>--api-host</code>、<code>--api-protocol</code> 这类参数应付</td>
+  </tr>
+  <tr>
+    <td><b>登录</b></td>
+    <td>每台主机单独登一次：<code>glab auth login --hostname gitlab.internal</code>。glab 可以同时记住好几台，按 git remote 自动挑</td>
+  </tr>
+</table>
+
+<p>还有一个国内特有的：GitLab 在国内有合资版本（极狐，主机是 <code>jihulab.com</code>），是另一台机器、另一套文档。我们代码注释里那个「JH」指的就是它。</p>
+
+<h3>这对你这次要做的第 0 步意味着什么</h3>
+
+<ol>
+  <li><b>就用 gitlab.com</b>。理由三条：你已经有账号、零搭建；官方文档描述的就是它；我们代码里的形状也是照它写的。自建要先有一台服务器，成本与收益不成比例。</li>
+  <li><b>但要认一个诚实的边界</b>：采 gitlab.com 的真实回话，<b>证明不了自建实例也这样</b>。版本旧、开关被关，都可能不一样。</li>
+  <li><b>正解不是「再搭一台」</b>，而是把「这份形状采自哪一台」记进固件——仓库既有的接入规约里，那份 <code>metadata.json</code> 本来就有 <code>source</code> 一栏。以后的人一眼能看出采样的对象是谁，也就知道这份证据的适用范围到哪。</li>
+</ol>
+
+<p>仓库里对自建的口径其实已经写死了：<b>「自建 GitLab / GHES：接口形状相同，沿用现有通道，失败如实报」</b>。也就是说我们的政策是不为自建另写一套代码，遇到了就如实报出来。</p>
+
+<div class="card">
+  <h3>一句话总结</h3>
+  <p>自部署和官网是<b>同一个软件、同一套接口</b>，差别集中在版本、档位、网络、登录这四件事上。我们的代码刻意不关心主机是谁（交给 glab），所以对你这次要做的第 0 步没有影响——<b>用 gitlab.com 就行，但要把「采的是哪一台」记进固件。</b></p>
+</div>
+
+<h2>七、出处（都是一手来源）</h2>
 
 <ul>
   <li>glab 的登录参数与凭据存放位置：<a href="https://gitlab.com/gitlab-org/cli/-/raw/main/docs/source/auth/login.md">glab 官方文档 · auth login</a></li>

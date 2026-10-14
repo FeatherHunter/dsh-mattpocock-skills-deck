@@ -30,9 +30,9 @@ const outbound = createOutboundControl()
 // —— 一、纯函数分档：读的短、写的长、探活的最短 ——
 let tiers = null
 try {
-  tiers = await import(pathToFileURL(nodePath.join(ROOT, 'src/host/outbound/tiers.ts')).href)
+  tiers = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/kernel/outbound-tiers.ts')).href)
 } catch (e) {
-  check(false, '一、能读到分档超时纯函数（src/host/outbound/tiers.ts）', String((e && e.message) || e).slice(0, 200))
+  check(false, '一、能读到分档超时纯函数（src/tracker/kernel/outbound-tiers.ts）', String((e && e.message) || e).slice(0, 200))
 }
 if (tiers) {
   const { READ_TIMEOUT_MS, WRITE_TIMEOUT_MS, PROBE_TIMEOUT_MS, tierForGhArgs, timeoutForGhArgs, timeoutForTier } = tiers
