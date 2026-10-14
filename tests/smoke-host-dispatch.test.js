@@ -35,7 +35,10 @@ const timer = {
 }
 const fsSvc = { readFileSync: () => '', writeFileSync: () => {}, existsSync: () => false, mkdirSync: () => {}, readdirSync: () => [], statSync: () => ({ isDirectory: () => false }) }
 const sleep = (ms) => new Promise(function (res) { setTimeout(res, ms) })
-const platformSvc = { getHome: async () => '', path: { join: (...a) => a.join('/') }, fs: { mkdir: async () => {}, resolve: async (k) => String(k) }, resolveExecutable: async () => 'gh', env: { get: () => undefined } }
+const platformSvc = { getHome: async () => '', path: { join: (...a) => a.join('/') }, // #1138 之后：绑定工作区要真的把选择写进工作区文件，所以文件通道得是完整形状
+// （`src/host/workspaceCwd.js` 要求 resolve / readText / writeText 三件齐全，缺一件就如实回 no-channel）。
+// 这里给的是内存桩：读回空串（本来就没有那份文件）、写入什么都不做，够这条冒烟演完「绑定→读标签→改配色」。
+fs: { mkdir: async () => {}, resolve: async (k) => String(k), readText: async () => '', writeText: async () => {} }, resolveExecutable: async () => 'gh', env: { get: () => undefined } }
 const services = {
   subprocess, timer, fs: fsSvc, platform: platformSvc,
   connection: { fetch: { register: (r) => { route = r; return () => {} } } },
