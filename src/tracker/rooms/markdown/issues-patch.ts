@@ -1,7 +1,7 @@
 // issues-patch.js —— 以后改打补丁类字段更新时改它（预估约 190 行）。
 //
 // effort 维度（2026-09-09）：所有写路径按 (effort 范围, 编号) 定位文件，多命中即 conflict。
-import { parseMd, stripLabelDecoration, parentKeyFromFile, isWholeIssueBody, loginOfAssignee } from './parse.js'
+import { parseMd, stripLabelDecoration, parentKeyFromFile, isWholeIssueBody, loginOfAssignee, stripFencedCode } from './parse.js'
 import { readTextFile } from './read.js'
 import { writeTextFile } from './write.js'
 import { failAs, failFromError } from './error-fail.js'
@@ -64,12 +64,13 @@ function looksLikeWholeDocument(body: unknown): boolean{
   const t=String(body||'')
   return /^\s*#\s+\S/m.test(t)||/^\s*<!--\s*DSH-IDEMPOTENCY-KEY:/m.test(t)
 }
-/** 盘上那份文本里的字段行（Status/Type/Blocked by/Labels）：整份替换时用来补齐递进来的正文里缺的字段。 */
+/** 盘上那份文本里的字段行（Status/Assignees/Type/Blocked by/Labels/Close reason）：整份替换时用来补齐递进来的正文里缺的字段。 */
 /** Assignees 也必须算进来（#1174 决策 12）：不算的话，一次「改正文」的整份替换会把认领人那一行整行抹掉。 */
+/** Close reason 同理（#1174 复核 P1-1）：关票原因是事后写上去的一行，不进白名单就会被下一次改正文吃掉。 */
 function fieldLinesOf(text: unknown): string[]{
   const out: string[]=[]
   const lines=String(text||'').split('\n')
-  for(const l of lines){ if(/^\s*(Status|Assignees|Type|Blocked\s+by|Labels)\s*[:\uFF1A]/i.test(l)) out.push(l.replace(/\s+$/,'')) }
+  for(const l of lines){ if(/^\s*(Status|Assignees|Type|Blocked\s+by|Labels|Close\s+reason)\s*[:\uFF1A]/i.test(l)) out.push(l.replace(/\s+$/,'')) }
   return out
 }
 function fieldNameOf(line: string): string{ return String(line).split(/[:\uFF1A]/)[0].trim().toLowerCase() }
@@ -84,20 +85,27 @@ function countRe(text: unknown, re: RegExp): number{ return (String(text||'').ma
  *  缺字段补上（0 到 1）不算坏，那是在治旧数据的缺；翻倍（超过旧数且超过 1 个）才算坏。 */
 function checkNoWorseForPatch(oldText: string, newText: string): string{
   const o=String(oldText||''), n=String(newText||'')
+  // 字段行按「票面」计数（围栏代码块里的举例不算）：与 parse.ts 读字段行是同一把尺子。
+  // 不这么分的话，正文里写一段包含 `Close reason: …` 的示例就会被当成「多出来一个字段」而拒绝写入 ——
+  // 一条给读者看的样例把人挡住，那是尺子不对，不是人写错了（#1174 复核 P1-3）。
+  // 标题、幂等锚、骨架区仍按整份原文计数：那几处读的就是原文，与围栏无关。
+  const of=stripFencedCode(o), nf=stripFencedCode(n)
   const worse=function(oldC: number, newC: number): boolean{ return newC>1&&newC>oldC }
   if(worse(countRe(o, /^#[ \t]+\S.*/gm), countRe(n, /^#[ \t]+\S.*/gm))) return '一级标题变多了'
   if(worse(countRe(o, /DSH-IDEMPOTENCY-KEY/g), countRe(n, /DSH-IDEMPOTENCY-KEY/g))) return '幂等锚变多了'
   if(countRe(o, /DSH-IDEMPOTENCY-KEY/g)>=1&&countRe(n, /DSH-IDEMPOTENCY-KEY/g)===0) return '幂等锚丢了'
-  if(worse(countRe(o, /^\s*Status\s*[:\uFF1A]/gim), countRe(n, /^\s*Status\s*[:\uFF1A]/gim))) return 'Status 行变多了'
-  if(worse(countRe(o, /^\s*Type\s*[:\uFF1A]/gim), countRe(n, /^\s*Type\s*[:\uFF1A]/gim))) return 'Type 行变多了'
-  if(worse(countRe(o, /^\s*Blocked\s+by\s*[:\uFF1A]/gim), countRe(n, /^\s*Blocked\s+by\s*[:\uFF1A]/gim))) return 'Blocked by 行变多了'
-  if(worse(countRe(o, /^\s*Labels\s*[:\uFF1A]/gim), countRe(n, /^\s*Labels\s*[:\uFF1A]/gim))) return 'Labels 行变多了'
+  if(worse(countRe(of, /^\s*Status\s*[:\uFF1A]/gim), countRe(nf, /^\s*Status\s*[:\uFF1A]/gim))) return 'Status 行变多了'
+  if(worse(countRe(of, /^\s*Type\s*[:\uFF1A]/gim), countRe(nf, /^\s*Type\s*[:\uFF1A]/gim))) return 'Type 行变多了'
+  if(worse(countRe(of, /^\s*Blocked\s+by\s*[:\uFF1A]/gim), countRe(nf, /^\s*Blocked\s+by\s*[:\uFF1A]/gim))) return 'Blocked by 行变多了'
+  if(worse(countRe(of, /^\s*Labels\s*[:\uFF1A]/gim), countRe(nf, /^\s*Labels\s*[:\uFF1A]/gim))) return 'Labels 行变多了'
   if(worse(countRe(o, /^##\s*Comments\s*$/gim), countRe(n, /^##\s*Comments\s*$/gim))) return 'Comments 骨架变多了'
   if(worse(countRe(o, /^##\s*Answer\s*$/gim), countRe(n, /^##\s*Answer\s*$/gim))) return 'Answer 骨架变多了'
   if(countRe(o, /^##\s*Comments\s*$/gim)>=1&&countRe(n, /^##\s*Comments\s*$/gim)===0) return 'Comments 骨架丢了'
   if(countRe(o, /^##\s*Answer\s*$/gim)>=1&&countRe(n, /^##\s*Answer\s*$/gim)===0) return 'Answer 骨架丢了'
   // 认领人那一行（#1174 决策 12）：与 Status 同样按行数核对，翻倍才算坏。
-  if(worse(countRe(o, /^\s*Assignees\s*[:\uFF1A]/gim), countRe(n, /^\s*Assignees\s*[:\uFF1A]/gim))) return 'Assignees 行变多了'
+  if(worse(countRe(of, /^\s*Assignees\s*[:\uFF1A]/gim), countRe(nf, /^\s*Assignees\s*[:\uFF1A]/gim))) return 'Assignees 行变多了'
+  // 关票原因那一行（#1174 复核 P1-1）：同上。它是 close 之后才出现的一行，改正文时必须按字段保住。
+  if(worse(countRe(of, /^\s*Close\s+reason\s*[:\uFF1A]/gim), countRe(nf, /^\s*Close\s+reason\s*[:\uFF1A]/gim))) return 'Close reason 行变多了'
   return ''
 }
 /** 整份正文合并：锚一律用盘上旧的，缺一级标题用盘上旧标题补回，缺字段行与骨架区从盘上旧文件搬回（字段插在骨架之前）。 */
@@ -165,7 +173,9 @@ export async function updateIssue(ctx: OpContext,repo: RepoWithPath | null,key: 
         const titleIdx=lines.findIndex(l=>/^#+\s+/.test(l))
         let insertAt=titleIdx>=0?titleIdx+1:0
         while(insertAt<lines.length&&lines[insertAt].trim()==='')insertAt++
-        let fieldIdx=lines.findIndex((l,i)=>i>=insertAt&&/^\s*(Status|Type|Blocked\s+by|Labels)\s*[:\uFF1A]/i.test(l))
+        // 正文区的范围是「标题之后」到「第一条字段行之前」。字段名要认全（含 Assignees 与 Close reason）：
+        // 漏一个，那一条就会被划进正文区、被这次改写整行丢掉（#1174 复核 P1-1）。
+        let fieldIdx=lines.findIndex((l,i)=>i>=insertAt&&/^\s*(Status|Assignees|Type|Blocked\s+by|Labels|Close\s+reason)\s*[:\uFF1A]/i.test(l))
         if(fieldIdx<0)fieldIdx=lines.length
         const before=lines.slice(0,insertAt).join('\n')
         const after=lines.slice(fieldIdx).join('\n')
@@ -183,9 +193,12 @@ export async function updateIssue(ctx: OpContext,repo: RepoWithPath | null,key: 
     // 本地票文件里没有放里程碑的地方，所以如实回「不支持」，而不是假装成功。
     // 传 null 是「清掉里程碑」，本地本来就没有，等同于要的结果，算成功。
     if(patch&&(patch as { milestone?: unknown }).milestone!==undefined&&(patch as { milestone?: unknown }).milestone!==null){
+      // 只认「有没有给里程碑」，不认它长什么样：契约里它的形状是 `{name}`（别的后端也可能只给编号或一串名字），
+      // 而本地票文件里根本没有放里程碑的地方 —— 给了就一律如实回不支持。
+      // （#1174 复核 P1-2：这里早先只读 `title`，于是契约自己的形状 `{name:'v1'}` 反而被静默丢掉还回一句成功。）
       const ms=(patch as { milestone?: unknown }).milestone
-      const msTitle=typeof ms==='string'?ms:String((ms as { title?: unknown })?.title||'')
-      if(msTitle.trim()) throw {kind:ERROR_KIND.UNSUPPORTED,message:'markdown update unsupported (milestone)：本地票文件里没有放里程碑的地方'}
+      const msLabel=typeof ms==='string'?ms:String((ms as { name?: unknown })?.name||(ms as { title?: unknown })?.title||(ms as { number?: unknown })?.number||'')
+      throw {kind:ERROR_KIND.UNSUPPORTED,message:'markdown update unsupported (milestone'+(msLabel.trim()?' '+msLabel.trim():'')+')：本地票文件里没有放里程碑的地方'}
     }
     if(patch&&Array.isArray(patch.customFields)){
       // #1174：契约里的自定义字段是开放形状（一个名字加一个值），本地票只有 `Type:` 这一行能放。

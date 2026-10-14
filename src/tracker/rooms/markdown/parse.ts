@@ -113,13 +113,31 @@ export function createdStampFromFile(text: unknown): { found: boolean; value: st
   return v ? { found: true, value: v } : { found: false, value: '' }
 }
 
+/** 把正文里的围栏代码块整段抹掉，只留下「票面」本身。
+ *
+ *  为什么要这一步（#1174 复核 P1-3）：字段行是按文本正则找的，而正文里很容易出现**举例**写下的同一行 ——
+ *  比如文档里写「在票文件里加一行 `Assignees: 张三`」，那句话就躺在围栏里。照全文找，那行会被当成真字段，
+ *  于是认领人变成正文里抄来的那个名字、关票原因变成举例里的那句话。围栏里的内容是给人看的例子，不是字段。
+ *
+ *  拿空格行替换、不删行：行号与行数保持原样，按位置切分的调用方（例如只认文件头的读法）不会错位。 */
+export function stripFencedCode(text: unknown): string {
+  const raw = String(text || '')
+  const out: string[] = []
+  let fenced = false
+  for (const line of raw.split('\n')) {
+    if (/^[ \t]*(```|~~~)/.test(line)) { fenced = !fenced; out.push(''); continue }
+    out.push(fenced ? '' : line)
+  }
+  return out.join('\n')
+}
+
 /** 关票原因：票面上 `Close reason:` 那一行的值（#1174 决策 8）。
  *
  *  为什么要存：契约的 `close` 签名收 `CloseOpts.reason`，本地房以前把它丢了，回读时不管调用方给的是什么
  *  都写 `completed`。现在调用方给了就原样存、原样读回；没这一行的老票仍然按后端默认 `completed`。
  *  取值是开放字符串（契约 `contract/identity.ts` 对 `ClosedReason` 的说法），这里不判合法与否。 */
 export function closeReasonFromFile(text: unknown): string {
-  const m = /^[ \t]*Close[ \t]+reason[ \t]*[:\uFF1A][ \t]*(.*)$/im.exec(String(text || ''))
+  const m = /^[ \t]*Close[ \t]+reason[ \t]*[:\uFF1A][ \t]*(.*)$/im.exec(stripFencedCode(text))
   return m ? String(m[1] || '').trim() : ''
 }
 
@@ -146,7 +164,7 @@ export function loginOfAssignee(a: unknown): string {
  *  「明确没人认领」（值为 `[]`）；根本没有这一行，才是「这份文件没记下是谁」。这两种在契约里是
  *  不同的意思（`contract/entities.ts` 对 `assignees: []` 与字段省略的区别有专门说明），不能混成一个值。 */
 export function assigneesFromFile(text: unknown): { found: boolean; value: Array<{ login: string; kind: 'user' }> } {
-  const raw = String(text || '')
+  const raw = stripFencedCode(text)
   const m = /^[ \t]*Assignees[ \t]*[:\uFF1A][ \t]*(.*)$/im.exec(raw)
   if (!m) return { found: false, value: [] }
   const names = String(m[1] || '').split(/[,\uFF0C]+/).map((s) => s.trim()).filter(Boolean)
@@ -160,7 +178,10 @@ export function parseMd(text: unknown, meta: ParseMeta): Issue {
   //   实测证据：同一份票文件上，带某个标签时读出「阻塞」有一条、去掉该标签立刻变空，而盘上那行本来就是空的。
   //   改成 [ \t]*：只吃同一行里的空格与制表符，值不许跨行。空值这一档由「匹配不上」处理（回到默认），
   //   与「空行就是空值」的语义一致。Type / Blocked by 两条同一个毛病，一并改。
-  const statusRaw = (/^\s*Status\s*[:\uFF1A][ \t]*([^\n]+)/im.exec(raw)?.[1]?.trim() || '')
+  // 字段行只在「票面」上找，围栏代码块里的举例不算（#1174 复核 P1-3，见 stripFencedCode）。
+  // 标题、正文、评论骨架仍然按整份原文读 —— 那几处要的就是原文。
+  const field = stripFencedCode(raw)
+  const statusRaw = (/^\s*Status\s*[:\uFF1A][ \t]*([^\n]+)/im.exec(field)?.[1]?.trim() || '')
   const statusNorm = statusRaw.toLowerCase().replace(/\s+/g, '-')
   const closedSet = new Set(['resolved', 'completed', 'closed', 'done'])
   const state = (closedSet.has(statusNorm) ? STATE.CLOSED : STATE.OPEN) as State
@@ -172,12 +193,12 @@ export function parseMd(text: unknown, meta: ParseMeta): Issue {
     const first = raw.split('\n').find((l) => l.trim().length > 0) || ''
     return first.replace(/^#+\s*/, '').trim()
   })()
-  const typeRaw = (/^\s*Type\s*[:\uFF1A][ \t]*([^\n]+)/im.exec(raw)?.[1]?.trim().toLowerCase() || '')
+  const typeRaw = (/^\s*Type\s*[:\uFF1A][ \t]*([^\n]+)/im.exec(field)?.[1]?.trim().toLowerCase() || '')
   let customFields
   if (typeRaw) {
     customFields = [{ name: 'Type', value: typeRaw, type: 'single', options: ['research', 'prototype', 'grilling', 'task'] }]
   }
-  const blockedRaw = (/^\s*Blocked\s+by\s*[:\uFF1A][ \t]*(.+)$/im.exec(raw)?.[1]?.trim() || '')
+  const blockedRaw = (/^\s*Blocked\s+by\s*[:\uFF1A][ \t]*(.+)$/im.exec(field)?.[1]?.trim() || '')
   let blockedBy = []
   if (blockedRaw) {
     const parts = blockedRaw.split(/[,,\s]+/).map((s) => s.trim()).filter(Boolean)
@@ -196,7 +217,7 @@ export function parseMd(text: unknown, meta: ParseMeta): Issue {
   // #634：每段先经 stripLabelDecoration 剥掉外层成对引号/反引号（照抄文档代码写法写进来的那层），
   //   剥完全空的段一样按「非法段丢弃」处理，与原来的空段口径一致。
   let labels = []
-  const labelsMatch = /^\s*Labels?\s*[:\uFF1A][ \t]*([^\n]*)/im.exec(raw)
+  const labelsMatch = /^\s*Labels?\s*[:\uFF1A][ \t]*([^\n]*)/im.exec(field)
   if (labelsMatch) {
     const rawNames = labelsMatch[1] || ''
     // 逗号（含全角）分隔，仅名字

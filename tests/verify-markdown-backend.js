@@ -362,6 +362,92 @@ console.log('\n== #1174 根因闸：票目录读不出来时不许当空目录 =
   fs.rmSync(rcTmp, { recursive: true, force: true })
 }
 
+// ── #1174 复核订正闸：五处「说改了、其实没改全」的回归网 ──
+// 这一节钉的是对抗式复核当场跑出来的五个反例（完整诊断见 #1057 的「对抗式审查与订正」评论，
+// 以及复核笔记 research/1174-independent-review.md）。它们有一个共同形状：**票面写着「不再静默丢掉」，
+// 代码里却还留着一条静默路径**。判据一律取「读回来的值对不对」，不取「有没有报错」。
+console.log('\n== #1174 复核订正闸：五处对不上的输入 ==')
+{
+  const rgTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'md-regress-'))
+  const rgDir = path.join(rgTmp, '.scratch', 'demo', 'issues')
+  fs.mkdirSync(rgDir, { recursive: true })
+  fs.writeFileSync(path.join(rgTmp, '.scratch', 'demo', 'map.md'), '# Demo Map\n\nStatus: ready-for-agent\n\n## Destination\n\nDemo\n', 'utf8')
+  const rgFs = {
+    async resolve(p) { return p },
+    async readText(t) { return fs.readFileSync(t, 'utf8') },
+    async writeText(t, c) { fs.mkdirSync(path.dirname(t), { recursive: true }); fs.writeFileSync(t, c, 'utf8') },
+    async lstat(t) { try { return fs.statSync(t) } catch { return null } },
+    async listDir(t) { return fs.readdirSync(t) },
+    async stat(t) { try { return fs.statSync(t) } catch { return null } },
+  }
+  const rgCtxOf = (f) => ({ platform: { path: path.posix, fs: f }, fs: f, cwd: rgTmp, get(n) { return n === 'fs' ? f : undefined } })
+  const { createIssue: rgCreate } = await import('../src/tracker/rooms/markdown/issues-create.ts')
+  const { closeIssue: rgClose } = await import('../src/tracker/rooms/markdown/issues-status.ts')
+  const { updateIssue: rgUpdate } = await import('../src/tracker/rooms/markdown/issues-patch.ts')
+  const { getIssue: rgGet, listIssues: rgList } = await import('../src/tracker/rooms/markdown/issues-read.ts')
+  const { addComment: rgComment } = await import('../src/tracker/rooms/markdown/comments.ts')
+  const rgCtx = rgCtxOf(rgFs)
+  const rgRepo = { backend: 'markdown', refId: '.scratch/demo', name: 'demo', url: '' }
+
+  const rgMade = await rgCreate(rgCtx, rgRepo, { title: 'Regress Probe', body: '第一段正文', status: 'ready-for-agent', type: 'task' })
+  check(rgMade.ok, '前提：能建出一张票（实得 ' + JSON.stringify(rgMade.ok ? rgMade.data.key : rgMade.error) + '）')
+  const rgKey = rgMade.ok ? String(rgMade.data.key) : '01'
+
+  // P1-1：关票原因是后写上去的一行，不许被下一次「改正文」吃掉。
+  const rgClosed = await rgClose(rgCtx, rgRepo, rgKey, { reason: 'duplicate' })
+  check(rgClosed.ok && rgClosed.data && rgClosed.data.reason === 'duplicate',
+    '前提：关票时给的原因原样读回（实得 ' + JSON.stringify(rgClosed.ok ? rgClosed.data.reason : rgClosed.error) + '）')
+  const rgPatched = await rgUpdate(rgCtx, rgRepo, rgKey, { body: '换一段正文' })
+  check(rgPatched.ok, '前提：改正文这一步本身成功（实得 ' + JSON.stringify(rgPatched.ok ? 'ok' : rgPatched.error) + '）')
+  const rgAfterPatch = await rgGet(rgCtx, rgRepo, rgKey)
+  check(rgAfterPatch.ok && rgAfterPatch.data.reason === 'duplicate',
+    'P1-1 改正文之后关票原因还在（旧写法会被整行吃掉、退回 completed；实得 ' + JSON.stringify(rgAfterPatch.ok ? rgAfterPatch.data.reason : rgAfterPatch.error) + '）')
+
+  // P1-2：契约里里程碑的形状是 {name}，校验只读 title 就会把契约自己的形状放过去。
+  const rgMsName = await rgUpdate(rgCtx, rgRepo, rgKey, { milestone: { name: 'v1' } })
+  check(!rgMsName.ok && rgMsName.error.kind === 'unsupported',
+    'P1-2 里程碑按契约形状 {name} 传进来时如实回不支持（旧写法只认 title，会静默丢掉还回成功；实得 ' + JSON.stringify(rgMsName.ok ? 'ok' : rgMsName.error.kind) + '）')
+  const rgMsNum = await rgUpdate(rgCtx, rgRepo, rgKey, { milestone: { number: 3 } })
+  check(!rgMsNum.ok && rgMsNum.error.kind === 'unsupported',
+    'P1-2 只给编号的里程碑同样如实回不支持（实得 ' + JSON.stringify(rgMsNum.ok ? 'ok' : rgMsNum.error.kind) + '）')
+  const rgMsNull = await rgUpdate(rgCtx, rgRepo, rgKey, { milestone: null })
+  check(rgMsNull.ok, 'P1-2 传 null 是「清掉里程碑」，本地本来就没有，算成功（实得 ' + JSON.stringify(rgMsNull.ok ? 'ok' : rgMsNull.error) + '）')
+
+  // P1-3：正文围栏里的举例行是给人看的模板，不是票面字段。
+  const rgProse = await rgUpdate(rgCtx, rgRepo, rgKey, { body: '照这个写法加：\n\n```\nAssignees: zhang\nClose reason: 手滑了\n```\n\n抄进票文件即可。' })
+  check(rgProse.ok, '前提：把带围栏的正文写进去这一步成功（实得 ' + JSON.stringify(rgProse.ok ? 'ok' : rgProse.error) + '）')
+  const rgAfterProse = await rgGet(rgCtx, rgRepo, rgKey)
+  const rgNames = rgAfterProse.ok ? (rgAfterProse.data.assignees || []).map((a) => a.login) : []
+  check(rgAfterProse.ok && rgNames.indexOf('zhang') < 0,
+    'P1-3 正文代码块里抄的那行 Assignees 不算认领人（实得 ' + JSON.stringify(rgNames) + '）')
+  check(rgAfterProse.ok && rgAfterProse.data.reason !== '手滑了',
+    'P1-3 正文代码块里抄的那行 Close reason 不算关票原因（实得 ' + JSON.stringify(rgAfterProse.ok ? rgAfterProse.data.reason : rgAfterProse.error) + '）')
+
+  // P2：get 的评论分页（契约 GetOpts.comments）—— 以前整条选项被丢掉，三种传法回的东西一模一样。
+  await rgComment(rgCtx, rgRepo, rgKey, '第一条评论')
+  await rgComment(rgCtx, rgRepo, rgKey, '第二条评论')
+  await rgComment(rgCtx, rgRepo, rgKey, '第三条评论')
+  const rgAll = await rgGet(rgCtx, rgRepo, rgKey)
+  const rgAllN = rgAll.ok ? (rgAll.data.comments || []).length : -1
+  check(rgAllN === 3, '前提：不给选项时评论一条不少（实得 ' + rgAllN + '）')
+  const rgFirst = await rgGet(rgCtx, rgRepo, rgKey, { comments: { first: 1 } })
+  const rgFirstN = rgFirst.ok ? (rgFirst.data.comments || []).length : -1
+  check(rgFirstN === 1, 'P2 说只要前 1 条就给 1 条（旧写法照给 3 条；实得 ' + rgFirstN + '）')
+  const rgAfterOne = await rgGet(rgCtx, rgRepo, rgKey, { comments: { first: 1, after: '1' } })
+  const rgSecondBody = rgAfterOne.ok ? String((rgAfterOne.data.comments || [])[0] && rgAfterOne.data.comments[0].body || '') : ''
+  check(rgAfterOne.ok && (rgAfterOne.data.comments || []).length === 1 && rgSecondBody.indexOf('第二条') >= 0,
+    'P2 游标 1 表示从第 2 条接着给（旧写法从第 1 条重来；实得 ' + JSON.stringify(rgSecondBody) + '）')
+
+  // P2：列票读不出来时不许回一个偏少的清单（与上面根因闸的计数、翻页同一件事的第三个出口）。
+  const rgBlind = new Error('EACCES: 这个票目录列不出来'); rgBlind.code = 'EACCES'
+  const rgBlindFs = Object.assign({}, rgFs, { async listDir() { throw rgBlind }, async readdir() { throw rgBlind } })
+  const rgListed = await rgList(rgCtxOf(rgBlindFs), rgRepo, {})
+  const rgListedN = rgListed.ok ? ((rgListed.data && rgListed.data.items) || rgListed.data || []).length : -1
+  check(!rgListed.ok, 'P2 读不出来时列票如实失败，不回一个偏少的清单（实得 ' + JSON.stringify(rgListed.ok ? rgListedN + ' 行' : rgListed.error && rgListed.error.kind) + '）')
+
+  fs.rmSync(rgTmp, { recursive: true, force: true })
+}
+
 if (failed || hFailed > 0) {
   console.log('\n存在失败 — verify-markdown-backend 未通过')
   process.exit(1)

@@ -6,13 +6,13 @@
 
 实现真源：`src/tracker/rooms/markdown/index.ts`（工厂 18 个真实现 + 4 个显式“不支持”桩）。注意本后端的一个特殊形状：**两条定位口（`describe`、`issueAddress`）不在工厂实例上，住在模块对象上**（`markdownModule`），注册表走模块路径取用；`getRepoKey` 相反，它在工厂实例上。
 
-## 操作（22 条中：17 条明确提供功能、4 条做了但没做到位、4 条明确不支持）
+## 操作（22 条中：18 条明确提供功能、3 条做了但没做到位、4 条明确不支持）
 
 | 能力 | 登记 | 依据 |
 |---|---|---|
 | preflight | 明确提供功能 | 工厂内联实现（查 `.scratch/map.md` 或文档声明），识别链在用 |
 | list | 明确提供功能 | `issues-read.ts`，读票文件列票；按标签筛与拉取请求筛都真按它收窄 |
-| get | 做了但没做到位 | `issues-read.ts`。差在评论分页：只认「要前几条」（`opts.comments.first`），「从某一条之后接着读」（`opts.comments.after`）不认——本后端不往外发评论游标，调用方拿不到可回传的值，此时如实回「不支持」 |
+| get | 明确提供功能 | `issues-read.ts`。评论分页两项都认：`opts.comments.first` 截前几条、`after` 从第几条之后接着给（本地游标就是「已经给过几条」这个序号，因为本地评论没有稳定标识可当游标） |
 | getDependencies | 做了但没做到位 | `graph.ts`，读票文件里的阻塞行 + 反向聚合。差在批量键：`opts.keys` 想一次问多个编号，而契约的返回形状只装得下一个，此时如实回「不支持」，请逐个编号调用 |
 | create | 明确提供功能 | `issues-create.ts`，写票文件；幂等锚命中前先确认那张票还开着，指派人原样写入 |
 | close | 明确提供功能 | `issues-status.ts`；`CloseOpts.reason` 原样存进票面，读回就是它 |

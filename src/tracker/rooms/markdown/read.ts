@@ -55,19 +55,26 @@ function nameOfEntry(x: unknown): string {
 /**
  * 列目录失败时，这一次究竟算「这个目录本来就不存在」还是「没读成」。
  *
- * 两条里任一条成立就按「本来就不存在」处理：文件系统给出的错误码是 `ENOENT` / `ENOTDIR`，
- * 或者错误按跟踪器层那张规则表判出来是 `NOTFOUND`（沙箱可能把错误包装过一层，所以两条都要看）。
+ * 判断顺序是固定的，**先问盘、再问错误码**：
+ *   1. 错误码明说「不给看」（`EACCES` / `EPERM`）→ 一律算「没读成」。权限问题最容易伪装成「没有」。
+ *   2. `exists()` 说这个路径在 → 一律算「没读成」。目录明明在、却列不出来，那是权限或故障，绝不能当空。
+ *   3. 错误码是 `ENOENT` / `ENOTDIR`，或者盘上确实问得出「不在」→ 算「本来就不存在」。
+ *   4. 再不行才退回跟踪器层那张规则表（沙箱可能把错误包装过一层），判出来是 `NOTFOUND` 才算不存在。
  *
- * 但有一条更硬的规矩压在上面：**只要 exists() 说这个路径在，就一律算「没读成」**。
- * 目录明明在、却列不出来，那是权限或故障，绝不能当空——这一条就是不敢把「读不成」交给
- * 「错误码长什么样」单独决定的原因（换个沙箱实现、错误码换个说法，判据就悄悄失效了）。
+ * 为什么先问盘：错误码换个沙箱实现就可能换一种说法，单靠它判会悄悄失效 —— 仓库里有过先例
+ * （`src/host/tracker/predicatePrimitives.js` 记着 #284：「.scratch 明明是目录却报 not found」）。
+ * #1174 复核 P1-4 抓到过这里代码与注释相反：注释写着「exists() 优先」，代码却先按错误码返回了，
+ * 于是真实存在、但读不出来的目录会被贴上「本来就不存在」的标签。
  */
 async function treatListingFailureAsMissing(ctx: OpContext, dirPath: string, e: unknown): Promise<boolean> {
-  for(const c of [e, e&&(e as {cause?: unknown}).cause]){
-    const code=c&&typeof c==='object'?String((c as Record<string, unknown>).code||''):''
-    if(code==='ENOENT'||code==='ENOTDIR') return true
-  }
-  try{ if(await exists(ctx,dirPath)) return false }catch{}
+  const codeOf=function(x: unknown): string{ return x&&typeof x==='object'?String((x as Record<string, unknown>).code||''):'' }
+  const codes=[codeOf(e), codeOf(e&&(e as {cause?: unknown}).cause)]
+  if(codes.indexOf('EACCES')>=0||codes.indexOf('EPERM')>=0) return false
+  let present: boolean|null=null
+  try{ present=(await exists(ctx,dirPath))?true:false }catch{ present=null }
+  if(present===true) return false
+  if(codes.indexOf('ENOENT')>=0||codes.indexOf('ENOTDIR')>=0) return true
+  if(present===false) return true
   try{ return classifyError(e, ctx)===ERROR_KIND.NOTFOUND }catch{ return false }
 }
 

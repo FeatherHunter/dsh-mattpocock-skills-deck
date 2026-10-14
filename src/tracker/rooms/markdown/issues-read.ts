@@ -233,6 +233,30 @@ export async function listIssues(ctx: OpContext, repo: RepoWithPath, filter: Row
 }
 // 读单票的选项：契约 GetOpts 加上本房的 effort 寻址（经 scopeOf 透给定位口；不给就看 repo 上的范围）。
 type GetIssueOpts = GetOpts & { effortId?: string | null }
+/** 按 `opts.comments` 取一段评论（#1174 决策 8）。
+ *
+ *  以前这个选项被**整条丢掉**：调用方说「只要前三条」，拿回去的还是全部评论，而且回的是 ok
+ *  （#1174 复核 P2 实跑：`{}` / `{first:1}` / `{first:1,after:'x'}` 三种都回三条，一模一样）。
+ *
+ *  本地房的游标就是**「已经给过几条」**这一个十进制数：`after:'3'` 表示从第 4 条开始。
+ *  为什么不用评论自己的标识当游标：本地票文件里的评论没有稳定标识（契约里 `Comment.id` 是可选的，
+ *  本房不产出它），只有先后顺序；拿序号当游标是这里唯一说得清、也不依赖额外状态的做法。
+ *  没给 `comments` 就一条不截，与改动之前的行为一样。 */
+function sliceComments(iss: Issue, opts: GetIssueOpts): Issue {
+  const want=opts&&opts.comments
+  if(!want)return iss
+  const all=Array.isArray(iss.comments)?iss.comments:[]
+  const rawFirst=(want as {first?: unknown}).first
+  const first=typeof rawFirst==='number'&&isFinite(rawFirst)&&rawFirst>=0?Math.floor(rawFirst):all.length
+  const rawAfter=(want as {after?: unknown}).after
+  let start=0
+  if(typeof rawAfter==='string'&&rawAfter.trim()){
+    const n=Number(rawAfter.trim())
+    start=isFinite(n)&&n>0?Math.floor(n):0
+  }
+  return {...iss,comments:all.slice(start,start+first)}
+}
+
 export async function getIssue(ctx: OpContext, repo: RepoWithPath, key: string, opts: GetIssueOpts = {}): Promise<{ ok: true; data: Issue } | { ok: false; error: { kind: string; message: string; raw: string } }> {
   // 原文给空串：这条支路一个文件都没碰过，没有外部来源的原文可取。
   if(!key)return failAs(ERROR_KIND.NOTFOUND,'missing key','')
@@ -251,14 +275,14 @@ export async function getIssue(ctx: OpContext, repo: RepoWithPath, key: string, 
         if(s&&s.mtime){try{mtime=new Date(s.mtime as string | number | Date).toISOString()}catch{}}
         const iss=parseMd(txt,{key:norm,parentKey:null,isMap:true,effortId:r.effortId,createdAt:mtime,updatedAt:mtime,url:r.path})
         applyLabelColors(iss, colorMap)
-        return{ok:true,data:iss}
+        return{ok:true,data:sliceComments(iss,opts)}
       }catch(e){return failFromError(e,ctx,'读这个工作单元的地图文件时出错')}
     }
     return{ok:false,error:r.error}
   }
   const r=await resolveIssueFile(ctx,repo,norm,{effortId: scope, mode:'read'})
   if(r.ok){
-    try{const iss=await loadIssueFromFile(ctx,repo,r.path,{parentKey:'00',isMap:false,effortId:r.effortId});applyLabelColors(iss, colorMap);return{ok:true,data:iss}}catch(e){return failFromError(e,ctx,'读这张票的文件时出错')}
+    try{const iss=await loadIssueFromFile(ctx,repo,r.path,{parentKey:'00',isMap:false,effortId:r.effortId});applyLabelColors(iss, colorMap);return{ok:true,data:sliceComments(iss,opts)}}catch(e){return failFromError(e,ctx,'读这张票的文件时出错')}
   }
   return{ok:false,error:r.error}
 }

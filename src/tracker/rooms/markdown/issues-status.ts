@@ -23,19 +23,31 @@ interface StatusFailure {
 }
 
 /** 字段行改写：补一行，或把已有的那一行换成新的一行。
- *  两条纪律：① 只动同一行内的空白，绝不跨行；② 找不到这一行才新插一行（插在标题下面）。
+ *  三条纪律：① 只动同一行内的空白，绝不跨行；② 找不到这一行才新插一行；
+ *  ③ **新行插在「标题下面那一段字段行」的末尾**，不紧贴标题。
  *  为什么要写死第 ① 条（#928）：旧写法是 ^\s*字段\s*[:：]\s*.*$，字段值为空时（文件里写成「Blocked by:」
  *  后面直接跟下一行）\s* 会跨过换行、.*$ 再吃掉下一行 —— 补阻塞边会把紧跟其后的 Labels 行整行删掉，
  *  给票打标签会把 ## Comments 标题整行删掉。这与并发无关，单写者、单次调用就会发生。
- *  所以调用方给的 \s+ / \s* 在这里一律收成同一行内的空白，字段名与值都不许跨行。 */
+ *  所以调用方给的 \s+ / \s* 在这里一律收成同一行内的空白，字段名与值都不许跨行。
+ *  为什么要写死第 ③ 条（#1174 复核 P1-1 实测）：字段行后面才是正文，改写正文时是按「标题到第一个字段行
+ *  之间都算正文」重建的 —— 新行插在标题正下面，就等于插进了正文区，下一次改正文会把它整行丢掉。
+ *  这条是关票原因踩出来的（关完票再改一次正文，原因就退回默认的 completed），但凡是后补的字段行都有这个毛病。 */
 export function replaceOrInsertField(txt: string,fieldName: string,newLine: string): string{
   const inline=String(fieldName).replace(/\\s\+/g,'[ \t]+').replace(/\\s\*/g,'[ \t]*')
   const re=new RegExp('^[ \t]*'+inline+'[ \t]*[:：][ \t]*[^\\r\\n]*$','im')
   if(re.test(txt))return txt.replace(re,newLine)
   const lines=txt.split('\n')
-  let insertIdx=1
-  for(let i=0;i<lines.length;i++){if(/^#+\s+/.test(lines[i])){insertIdx=i+1;break}}
-  lines.splice(insertIdx,0,newLine)
+  let h1Idx=-1
+  for(let i=0;i<lines.length;i++){if(/^#+\s+/.test(lines[i])){h1Idx=i;break}}
+  const insertIdx=h1Idx<0?0:h1Idx+1
+  // 字段块在哪：本房的票文件布局是「标题 → 正文 → 字段行 → 骨架区」，字段行并不紧挨着标题。
+  // 新行要接在**最后一条字段行**后面，才算长在字段块里；插在标题下面等于插进了正文区，
+  // 下一次改写正文时会按「标题到第一条字段行之间都算正文」重建，把它整行丢掉
+  // （#1174 复核 P1-1 实测：关票原因就是这么没的）。认哪些名字与 issues-patch.ts 的字段白名单同一套。
+  const isFieldLine=function(l: string): boolean{ return /^[ \t]*(Status|Assignees|Type|Blocked\s+by|Labels|Close\s+reason)[ \t]*[:：]/i.test(l) }
+  let lastField=-1
+  for(let i=0;i<lines.length;i++){ if(isFieldLine(lines[i])) lastField=i }
+  lines.splice(lastField>=0?lastField+1:insertIdx,0,newLine)
   return lines.join('\n')
 }
 /** 改状态，可选再补一行（关票原因走这条）。
