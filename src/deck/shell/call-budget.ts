@@ -54,9 +54,12 @@ export type SleepFn = (ms: number, signal?: AbortLike | null) => Promise<unknown
 export interface OpOutcome {
   ok: boolean;
   /**
-   * 后端回执那一格：故意留 any。九个工具按后端原样读它（先 `r.data || {}` 再取字段，共 46 处），
-   * 而契约层还没给这些回执建模（#1108 记着这笔账）。收紧成 unknown 会让那 46 处当场红，
-   * 那些改动属九个工具那一批（#1035 已收口），不属本票边界。
+   * 后端回执那一格：故意留 any，但这是一笔记着账的欠账，不是刻意的边界。九个工具按后端原样读它
+   * （先 `r.data || {}` 再取字段；按 `.data` 字面量数，九个工具里 35 处，连壳与工具登记一起 57 处）。
+   * 契约层其实早就给每个操作的结果建了模（`OpResult<Issue>` 等，见 `src/tracker/contract/operations.ts`），
+   * 三个后端也各自把原始回执归一化成契约的 `Issue`，所以这一格装的是归一化之后的结果。
+   * 之所以不改成 unknown：那只是把红点从这一处挪到上面那些读法上；真要收窄，正解是把本接口的结果
+   * 参数化到契约已有的 `OpResult<T>`。这笔账的更正记录见 #1108 末尾的评论。
    */
   data?: any;
   error?: { kind?: string; message?: string };
