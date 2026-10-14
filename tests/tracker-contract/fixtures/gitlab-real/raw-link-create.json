@@ -1,0 +1,18 @@
+{
+  "采样失败": {
+    "请求": "POST projects/FeatherHunter%2Fdsh-gitlab-sandbox/issues/2/links",
+    "实参": [
+      "api",
+      "projects/FeatherHunter%2Fdsh-gitlab-sandbox/issues/2/links",
+      "--method",
+      "POST",
+      "-f",
+      "target_project_id=FeatherHunter%2Fdsh-gitlab-sandbox",
+      "-f",
+      "target_issue_iid=1",
+      "-f",
+      "link_type=relates_to"
+    ],
+    "报错": "glab api projects/FeatherHunter%2Fdsh-gitlab-sandbox/issues/2/links --method POST -f target_project_id=FeatherHunter%2Fdsh-gitlab-sandbox -f target_issue_iid=1 -f link_type=relates_to 失败：glab: 404 Project Not Found (HTTP 404)"
+  }
+}

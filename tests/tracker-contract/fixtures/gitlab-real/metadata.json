@@ -1,0 +1,76 @@
+{
+  "source": "glab api 逐条采 19 条（表见 tests/tracker-contract/gitlab-endpoints.ts）：project-get、project-permissions、current-user、user-by-username、issue-create、issues-list、issues-list-capped、issue-patch、issue-get-with-labels、notes-list、note-create、links-list、link-get、link-delete、issue-statistics、labels-list、labels-list-paged、label-patch、milestones-list",
+  "repo": "FeatherHunter/dsh-gitlab-sandbox",
+  "refId": "FeatherHunter/dsh-gitlab-sandbox",
+  "sampledAt": "2026-10-14T21:21:34.379Z",
+  "sampledBy": "scripts/generate-gitlab-fixtures.ts",
+  "host": "gitlab.com",
+  "sampleIssues": {
+    "map": 1,
+    "child": 2
+  },
+  "desensitization": {
+    "rules": [
+      "回包里任何键名叫 email / public_email / commit_email 的字段，值一律换成 \"<已隐去>\"",
+      "回包里任何键名以 _token 结尾（或整个键名就是 token：token / private_token / access_token / refresh_token / runners_token / job_token）的字段，值一律换成 \"<已隐去>\"",
+      "回包里的项目路径与用户名原样保留（与 github-real 的做法一致：固件要能看出它采自哪个项目）"
+    ],
+    "applied": true
+  },
+  "failures": [
+    {
+      "id": "link-create",
+      "request": "POST projects/FeatherHunter%2Fdsh-gitlab-sandbox/issues/2/links",
+      "error": "glab api projects/FeatherHunter%2Fdsh-gitlab-sandbox/issues/2/links --method POST -f target_project_id=FeatherHunter%2Fdsh-gitlab-sandbox -f target_issue_iid=1 -f link_type=relates_to 失败：glab: 404 Project Not Found (HTTP 404)"
+    }
+  ],
+  "fallbacks": [
+    {
+      "id": "link-create",
+      "reason": "采样前置：用远端认的写法把样本链接建起来，好让链接明细与删除两条采得到",
+      "argv": [
+        "api",
+        "projects/FeatherHunter%2Fdsh-gitlab-sandbox/issues/2/links",
+        "--method",
+        "POST",
+        "-f",
+        "target_project_id=87643301",
+        "-f",
+        "target_issue_iid=1",
+        "-f",
+        "link_type=relates_to"
+      ]
+    }
+  ],
+  "skipped": [],
+  "fields": {
+    "raw": [
+      "raw-project-get.json",
+      "raw-project-permissions.json",
+      "raw-current-user.json",
+      "raw-user-by-username.json",
+      "raw-issue-create.json",
+      "raw-issues-list.json",
+      "raw-issues-list-capped.json",
+      "raw-issue-patch.json",
+      "raw-issue-get-with-labels.json",
+      "raw-notes-list.json",
+      "raw-note-create.json",
+      "raw-links-list.json",
+      "raw-link-create.json",
+      "raw-link-get.json",
+      "raw-link-delete.json",
+      "raw-issue-statistics.json",
+      "raw-labels-list.json",
+      "raw-labels-list-paged.json",
+      "raw-label-patch.json",
+      "raw-milestones-list.json"
+    ],
+    "normalized": [
+      "normalized-1.json",
+      "normalized-list.json"
+    ],
+    "notes": "每个端点一份原样回包；normalized-* 是用本房自己的 normalizeIssue 转出来的，与契约测试播放器认的格式一致。"
+  },
+  "notes": "这份固件由 FeatherHunter/dsh-gitlab-sandbox 上真实采样得来。重跑会认领同名样本工单，不重复建；链接那一条采完会把它删掉，下次重跑会再建。被远端拒掉的端点不会让整趟采样中断：那一份 raw-<端点名>.json 里存的是失败原文（请求、实参、报错），同样的内容也列在 metadata.failures 里 —— 它是「这条请求今天在真远端上是什么结果」的证据，不是缺件。"
+}

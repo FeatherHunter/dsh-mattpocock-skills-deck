@@ -1,0 +1,102 @@
+{
+  "id": 9907169,
+  "source_issue": {
+    "id": 206624675,
+    "iid": 2,
+    "project_id": 87643301,
+    "title": "dsh-1179-sample-child",
+    "description": "采样用的子工单（#1179）。可以删。",
+    "state": "opened",
+    "created_at": "2026-10-14T21:10:05.536Z",
+    "updated_at": "2026-10-14T21:21:02.650Z",
+    "closed_at": null,
+    "closed_by": null,
+    "labels": [
+      "dsh-1179-sample"
+    ],
+    "milestone": null,
+    "assignees": [],
+    "author": {
+      "id": 42748659,
+      "username": "FeatherHunter",
+      "public_email": "<已隐去>",
+      "name": "王辰浩",
+      "state": "active",
+      "locked": false,
+      "avatar_url": "https://secure.gravatar.com/avatar/a8d72f23d9594e26310476e0d420f097e6a3cc08b2c5ec0d7b3c17c42181d455?s=80&d=identicon",
+      "web_url": "https://gitlab.com/FeatherHunter"
+    },
+    "type": "ISSUE",
+    "assignee": null,
+    "user_notes_count": 0,
+    "merge_requests_count": 0,
+    "upvotes": 0,
+    "downvotes": 0,
+    "start_date": null,
+    "due_date": null,
+    "confidential": false,
+    "discussion_locked": null,
+    "issue_type": "issue",
+    "web_url": "https://gitlab.com/FeatherHunter/dsh-gitlab-sandbox/-/work_items/2",
+    "time_stats": {
+      "time_estimate": 0,
+      "total_time_spent": 0,
+      "human_time_estimate": null,
+      "human_total_time_spent": null
+    },
+    "task_completion_status": {
+      "count": 0,
+      "completed_count": 0
+    },
+    "blocking_issues_count": 0
+  },
+  "target_issue": {
+    "id": 206624665,
+    "iid": 1,
+    "project_id": 87643301,
+    "title": "dsh-1179-sample-map",
+    "description": "采样用的地图工单（#1179）。可以删。",
+    "state": "opened",
+    "created_at": "2026-10-14T21:10:02.508Z",
+    "updated_at": "2026-10-14T21:21:02.744Z",
+    "closed_at": null,
+    "closed_by": null,
+    "labels": [],
+    "milestone": null,
+    "assignees": [],
+    "author": {
+      "id": 42748659,
+      "username": "FeatherHunter",
+      "public_email": "<已隐去>",
+      "name": "王辰浩",
+      "state": "active",
+      "locked": false,
+      "avatar_url": "https://secure.gravatar.com/avatar/a8d72f23d9594e26310476e0d420f097e6a3cc08b2c5ec0d7b3c17c42181d455?s=80&d=identicon",
+      "web_url": "https://gitlab.com/FeatherHunter"
+    },
+    "type": "ISSUE",
+    "assignee": null,
+    "user_notes_count": 4,
+    "merge_requests_count": 0,
+    "upvotes": 0,
+    "downvotes": 0,
+    "start_date": null,
+    "due_date": null,
+    "confidential": false,
+    "discussion_locked": null,
+    "issue_type": "issue",
+    "web_url": "https://gitlab.com/FeatherHunter/dsh-gitlab-sandbox/-/work_items/1",
+    "time_stats": {
+      "time_estimate": 0,
+      "total_time_spent": 0,
+      "human_time_estimate": null,
+      "human_total_time_spent": null
+    },
+    "task_completion_status": {
+      "count": 0,
+      "completed_count": 0
+    },
+    "blocking_issues_count": 0
+  },
+  "link_type": "relates_to"
+}
