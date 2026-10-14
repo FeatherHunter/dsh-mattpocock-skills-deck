@@ -18,7 +18,9 @@
  */
 const fs = require('fs')
 const path = require('path')
-// 本文件选 compileFn 手法：两处都是把真源文本当函数体造函数，依赖一律按参数名显式传进去，不靠外层作用域。
+// 引真源的规矩：能直接引模块就别把文件文本当函数体求值 —— 整份文本里只要出现 import、interface
+// 或类型标注，vm.compileFunction 就当场抛错（#1167 从 #1147 起一直红着，就是这个原因）。
+// 文本求值只留给「必须注入替身」的那种文件：下面 truthLines.js 那一段靠参数名拿五个替身，继续走 compileFn。
 const { compileFn } = require('./lib/eval-probe.js')
 const ROOT = path.join(__dirname, '..')
 let failed = false
@@ -29,20 +31,19 @@ const check = function (cond, msg) {
 }
 
 // ── 一、原因分类：限流与非配额 403 分得开 ──
-const reasonSrc = fs.readFileSync(path.join(ROOT, 'src/tracker/rooms/github/fallback-reason.ts'), 'utf8')
-let reasonMod = null
+// 直接引真源模块，不再读文本求值。说明符写显式 .ts：这份真源今天只有 import type（加载时会被剥掉），
+// 所以人手裸跑也能跑；哪天它长出运行时 import，就改成 .js 说明符并把它挂上链
+// ——链上的步骤会自动挂 scripts/ts-hook.mjs（docs/agents/verification.md 第三节）。
+let pick = null
 try {
-  const body = reasonSrc.replace(/^[ \t]*export[ \t]+default[^\n]*$/gm, '').replace(/^[ \t]*export[ \t]+/gm, '')
-  // 本处走 compileFn：这段真源不引用外层变量，参数名给空数组。
-  reasonMod = compileFn([], body + '\n;return { pickFallbackReason: (typeof pickFallbackReason !== "undefined" ? pickFallbackReason : null) };')()
+  pick = require('../src/tracker/rooms/github/fallback-reason.ts').pickFallbackReason
 } catch (e) {
-  console.log('FAIL 求值 fallback-reason.js 拿不到 pickFallbackReason：' + String(e && e.message))
+  console.log('FAIL 引真源 fallback-reason.ts 拿不到 pickFallbackReason：' + String(e && e.message))
 }
-if (!reasonMod || typeof reasonMod.pickFallbackReason !== 'function') {
+if (typeof pick !== 'function') {
   console.log('FAIL 没有 pickFallbackReason 这个分类函数')
   process.exit(1)
 }
-const pick = reasonMod.pickFallbackReason
 check(pick({ message: 'API rate limit exceeded for user' }) === 'rate-limit', '限流文案 → rate-limit（实测 ' + pick({ message: 'API rate limit exceeded for user' }) + '）')
 // 反证的核心现场：非配额的 403（权限类，不带限流文案）必须不算限流，否则界面就会误报配额耗尽。
 check(pick({ message: '403 Forbidden: Resource protected by organization SAML enforcement' }) !== 'rate-limit',
