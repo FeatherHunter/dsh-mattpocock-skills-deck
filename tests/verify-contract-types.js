@@ -137,7 +137,7 @@ const RUNTIME_SNAPSHOTS = {
    * 所以下面这份键快照今天是 17 个（那 16 个名字，加上这次新挂的 `openRepository`）。
    */
   gitlab: {
-    keys: ['create', 'describe', 'fixes', 'id', 'issueAddress', 'issueRefPattern', 'issueUrl', 'label', 'linkPattern', 'links', 'matches', 'openRepository', 'presentation', 'prompts', 'repoSearchAddress', 'searchUrl', 'setupPrompt'],
+    keys: ['create', 'describe', 'fixes', 'id', 'issueAddress', 'issueRefPattern', 'label', 'links', 'matches', 'openRepository', 'presentation', 'prompts', 'repoSearchAddress', 'setupPrompt'],
     openRepository: 'url',
     checksKind: 'absent',
   },

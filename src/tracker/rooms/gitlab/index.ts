@@ -81,17 +81,19 @@ export function describe(handle, backendId) {
   return { backend: backendId, refId: refId || '', name, url }
 }
 
-export function issueUrl(ref, key) {
+// 链接三件（#1110 实现决定第 14 条 / #1135 改名 / #1141 删旧名）：名字讲的是「地址」而不是「网址」，
+// 因为本地 Markdown 后端给的是票文件的绝对路径；网址口吻的旧名字已按 #1141 删净。
+export function issueAddress(ref, key) {
   const refId = ref && typeof ref.refId === 'string' ? ref.refId : ''
   if (!refId) return ''
   return 'https://gitlab.com/' + refId + '/-/issues/' + String(key)
 }
 
-export function searchUrl(name) {
+export function repoSearchAddress(name) {
   return 'https://gitlab.com/search?search=' + encodeURIComponent(String(name || ''))
 }
 
-export const linkPattern = /gitlab\.com\/[^\/\s]+\/[^\/\s]+\/-\/issues\/(\d+)/g
+export const issueRefPattern = /gitlab\.com\/[^\/\s]+\/[^\/\s]+\/-\/issues\/(\d+)/g
 
 /**
  * #231：开仓契约动作——url 型由 UI 以浏览器新窗打开 describe().url。
@@ -124,7 +126,7 @@ export function createGitlabBackend(ctx) {
   return {
     id: 'gitlab',
     describe: (handle) => describe(handle, 'gitlab'),
-    issueUrl: (ref, key) => issueUrl(ref, key),
+    issueAddress: (ref, key) => issueAddress(ref, key),
     preflight: (handle, opCtx) => glabPreflight(handle, opCtx || ctx),
     list: (repo, filter, opCtx) => listIssues(ctx, repo, filter, opCtx || ctx),
     get: (repo, key, opts, opCtx) => getIssue(ctx, repo, key, opts, opCtx || ctx),
@@ -228,20 +230,13 @@ export const gitlabBackend = {
     labelReqs: 'setup.gitlab.labelReqs',
   },
   describe,
-  // #1110 实现决定第 14 条：三个链接能力改用与后端无关的名字 —— 票的地址 issueAddress、
-  // 认票的写法 issueRefPattern、按名搜仓库 repoSearchAddress。老名字是网址口吻，而本地 Markdown
-  // 后端给的是票文件的绝对路径，读名字的人会误以为这几个能力只有远端后端才有。
-  // 新名字是主；下面三行老名字是别名，与新名字指到同一个实现（本文件顶上那三个导出函数）。
-  // 注册表取的时候也是新名字优先、老名字兜底（见 src/tracker/registry/views.ts 的 pickFn / pickValue）。
-  // 退役条件是「客户端与宿主都不再读老名字」：到那天连同下面三行别名、契约里的同名成员
-  // （src/tracker/contract/backend-module.ts 的 BackendModule）与三份运行时快照一起删。
-  issueAddress: issueUrl,
-  issueRefPattern: linkPattern,
-  repoSearchAddress: searchUrl,
-  /** 老名字（别名，保留一轮，不做推荐）：issueUrl / searchUrl / linkPattern。 */
-  issueUrl,
-  searchUrl,
-  linkPattern,
+  // 链接三件（#1110 实现决定第 14 条 / #1135 改名 / #1141 删旧名）：票的地址 issueAddress、
+  // 认票的写法 issueRefPattern、按名搜仓库 repoSearchAddress。名字与后端无关，因为本地 Markdown
+  // 后端给的是票文件的绝对路径，网址口吻的名字会让人以为这几个能力只有远端后端才有。
+  // 旧名字（网址口吻的那三个）作为同义别名留过一轮，客户端与宿主都不再读之后已删净。
+  issueAddress,
+  issueRefPattern,
+  repoSearchAddress,
   links,
   // 开仓方式（#231 的开仓契约动作）：'url' = 界面用浏览器新窗打开 describe().url。
   // 2026-10-14 补（#1117）：这个值原来只以文件级导出（本文件上面的 const openRepository）的形式
