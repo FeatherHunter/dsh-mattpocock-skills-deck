@@ -84,6 +84,12 @@ const TSCONFIG = resolveInRoot(process.env.DSH_CONTRACT_TSCONFIG || 'tsconfig.co
 const PROBE_GITHUB_REL = 'tests/contract-probe-github.ts'
 const PROBE_MARKDOWN_REL = 'tests/contract-probe-markdown.ts'
 /**
+ * 静态腿的观察面：只有这两房进探针编译，第三项数的「后端文件内部报错」也只数它们。
+ * GitLab 房不在里面，原因与替代的那条腿写在文件头「第二段，少掉的那 1 条不是还债」那一段；
+ * 将来要给 GitLab 房补一份探针，改这里与那一段两处（#1172）。
+ */
+const PROBE_ROOMS = ['github', 'markdown']
+/**
  * 探针直编时，后端文件内部自己的报错数（旧语言时代的联合收窄、参数个数这类，
  * 实现面的债，不归本门禁审）。必须逐字相等：多了是新增债务，少了是有人动了实现面。
  *
@@ -128,7 +134,11 @@ const PROBE_MARKDOWN_REL = 'tests/contract-probe-markdown.ts'
  * 第二段，少掉的那 1 条不是还债：0bd83612（#1136）摘掉各房对 capability-assertions 的 import type 之后，
  * `src/tracker/capability-assertions.ts` 退出本探针的编译程序，而它是全仓唯一静态 import 了
  * `./rooms/gitlab/index.js` 的文件 —— 整个 GitLab 房随之离开静态腿（少的那条是 gitlab 房 issues.ts 的 TS2322）。
- * 也就是说静态腿今天只看 GitHub 与 Markdown 两房，而运行时腿仍在看三个房的模块对象；这处不一致已立 #1172 追。
+ * 也就是说静态腿今天只看 GitHub 与 Markdown 两房，而运行时腿仍在看三个房的模块对象。
+ * #1172 把这条边界写成了代码里的 `PROBE_ROOMS`（两房），并指定替代的那条腿：GitLab 房的形态由
+ * src/tracker/tsconfig.json（include 写的是目录通配，新增文件自动进检查）与覆盖对账
+ * scripts/typecheck.mts（门禁 tests/verify-typecheck.mts 跑它）守着。将来要给 GitLab 房补探针，
+ * 改 `PROBE_ROOMS` 与这一段两处。
  * 读这段数的时候请把两件事分开：152 是「还清之后剩下的存量」，不是「债务变少了」的证据。
  */
 const PROBE_NONPROBE_ERROR_BASELINE = 152
@@ -356,6 +366,19 @@ function main() {
   // ---- 3) 贴合探针能编译：探针文件自己零报错，后端内部报错数与基线相等 ----
   // 探针直编不经任何 tsconfig（命令行开关）：后端入口会把半个房间拖进编译程序，
   // 经配置编会触发覆盖对账的重复归属；开关与探针文件头写的口径一致，改一处两处一起改。
+  {
+    // 观察面如实写出来（#1172）：这条腿只看两房这件事，光写在文件头里别人还得自己读一遍；
+    // 同时把「不看的那个房由谁守」钉在盘上——替代的那条腿被撤掉时这里要红，那句话才有落点。
+    const altGate = path.join(ROOT, 'scripts', 'typecheck.mts')
+    const altConfig = path.join(ROOT, 'src', 'tracker', 'tsconfig.json')
+    const altOk = fs.existsSync(altGate) && fs.existsSync(altConfig)
+    check(
+      altOk,
+      '静态腿观察面只有两房（' + PROBE_ROOMS.join('、') + '）：GitLab 房的形态由 src/tracker/tsconfig.json 与覆盖对账 scripts/typecheck.mts 守，两处都在盘上' +
+        (!fs.existsSync(altGate) ? '；scripts/typecheck.mts 不在：替代的那条腿没了' : '') +
+        (!fs.existsSync(altConfig) ? '；src/tracker/tsconfig.json 不在：GitLab 房没有类型检查' : ''),
+    )
+  }
   if (!probeGithubExists || !probeMarkdownExists) {
     // 第零项已撤：探针缺席在这里自己判，不静默跳过。
     check(false, '两份贴合探针存在（缺：' + (!probeGithubExists ? PROBE_GITHUB_REL + ' ' : '') + (!probeMarkdownExists ? PROBE_MARKDOWN_REL : '') + '）：探针直编这一步没做')
@@ -479,6 +502,31 @@ function main() {
     } finally {
       fs.rmSync(tmpDir2, { recursive: true, force: true })
     }
+  }
+
+  // ---- 4c) 基线来历：数字变了，就必须在同一次提交里把来历写上（#1172）----
+  // 规矩：这个常量上面那段注释里，最后一条「由 X 改到 Y」的 Y 必须正好是今天的基线，且相邻两条首尾相接
+  // （200→156→155→183→162→161→152 这条链）。只改数字不写来历，这里当场红——那正是 2026-10-14
+  // 门禁红了七个多小时没人当次拉回绿的成因：数动了，却没人留下「哪次改动、多了几条、为什么」。
+  {
+    const self = fs.readFileSync(__filename, 'utf8')
+    const pairs = [...self.matchAll(/由\s*(\d+)\s*改到\s*(\d+)/g)].map((m) => ({ from: Number(m[1]), to: Number(m[2]) }))
+    const last = pairs[pairs.length - 1]
+    const broken = pairs.filter((p, i) => i > 0 && pairs[i - 1].to !== p.from)
+    const ok = pairs.length > 0 && broken.length === 0 && !!last && last.to === PROBE_NONPROBE_ERROR_BASELINE
+    check(
+      ok,
+      '基线数的来历齐全（注释里最后一条「由 X 改到 Y」的 Y＝今天的基线 ' + PROBE_NONPROBE_ERROR_BASELINE +
+        ' 条；链上 ' + pairs.length + ' 条首尾相接）' +
+        (ok
+          ? ''
+          : '：' +
+            (pairs.length === 0
+              ? '注释里一条来历都没找到'
+              : last && last.to !== PROBE_NONPROBE_ERROR_BASELINE
+                ? '最后一条记的是 ' + last.to + '，与常量 ' + PROBE_NONPROBE_ERROR_BASELINE + ' 不一致——改了数字就把来历补上'
+                : '链断了：' + broken.map((p) => p.from + '→' + p.to).join('、'))),
+    )
   }
 
   // ---- 5) 运行时腿：模块对象真加载，断两档真值 ----
