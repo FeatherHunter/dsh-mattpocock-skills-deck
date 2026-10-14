@@ -23,11 +23,94 @@
 import { HOUR_MS, QUOTA_SYNC_INTERVAL_MS, hourlyAllowance, writeReserve, usedRatio, tierFor, MAX_PAGES, PAGE_COST_POINTS, PR_PAGE_COST_POINTS, COUNT_COST_POINTS, LIST_PAGE_COST_REQUESTS, PR_PAGE_COST_REQUESTS, COUNT_COST_REQUESTS, REBUILD_PR_PAGE_COUNT } from '../../shared/refresh/budget.js'
 import { pageCountReport, rebuildCost, worstCaseRebuildCost } from '../../shared/refresh/page-budget.js'
 
-/** 三个档位（分开记账的名字）。 */
-export const LEDGER_ACCOUNTS = ['plugin', 'user-action', 'ai-tool']
+// ---------------------------------------------------------------------------
+// 类型（#1155 类型标注，只写类型不写实现）：下面这些是账本自己的形状。
+//
+// 一句话说清「为什么标」：这个文件里的账都按名字（三个档位 × 两个桶）分开放，名字是动态的，
+// 不标类型时编译器只能把它们看成空对象（`{}`），于是每一次 `accounts[name][bucket]` 都会
+// 被当成「用字符串索引一个没有索引签名的对象」而报错；标上「键是名字、值是这个形状」之后，
+// 每个名字查出来的东西就有了确定类型，后面所有读法自然成立。
+//
+// 两条不能改的约定：
+//   1. 档位与桶的合法取值就是下面两个联合类型里的那几个，**不给别的名字开门**：
+//      给错名字时运行时的行为是「当场抛错」（见 bucketOf / accountOf / hour），
+//      类型只是把「合法名字」写下来，绝不把非法名字放行成安静的空账。
+//   2. 从外面（服务端读数、调用方报的花费）进来的数字一律先经 num() 归一，
+//      所以这些入参按 unknown 收：收窄发生在 num() 里，不在这里替调用方假设。
+// ---------------------------------------------------------------------------
+
+/** 三个记账档位：插件自己（plugin）、人在界面上的动作（user-action）、AI 工具（ai-tool）。 */
+type LedgerAccountName = 'plugin' | 'user-action' | 'ai-tool'
+
+/** 两个桶：REST 记请求条数、GraphQL 记点数，各自一份额度，互不折算。 */
+type LedgerBucketName = 'rest' | 'graphql'
+
+/** 一份计数：条数与点数都记着，好让「REST 按条、GraphQL 按点」和总览对账各有各的数。 */
+interface Counters { requests: number; points: number }
+
+/** 服务端读数里一个桶的原始三个数：任一字段都可能缺或不是数，取用时一律经 num() 归一。 */
+interface BucketReading { limit?: unknown; remaining?: unknown; reset?: unknown }
+
+/** 每分钟一次的服务端读数：两个桶各一份，缺哪个桶就跳过哪个桶（skip 不是报错）。 */
+interface ServerReadings { rest?: BucketReading; graphql?: BucketReading }
+
+/** 一个桶的账。name 收窄成两个桶名，是为了让 `按桶名取账`（如 a[b.name]）有确定的键。 */
+interface BucketState {
+  name: LedgerBucketName
+  allowance: number          // 这一份额度：上一次读数换算出来的这一小时上限
+  used: number               // 本小时这一桶已经花掉多少（按桶自己的单位）
+  spentSinceSync: number     // 上一次同步读数之后，本地又花掉多少
+  reading: { limit: number; remaining: number } | null   // 上一次服务端读数
+  syncedAt: number
+  resetAt: number
+  rateLimitedUntil: number   // 撞过二级限流（Retry-After）之后的降档截止时刻
+}
+
+/** 一个档位的账：两个桶各一份计数，外加「这是不是插件自己那一档」的标记。 */
+interface AccountState {
+  pluginShare: boolean
+  rest: Counters
+  graphql: Counters
+}
+
+/** 单个仓库的重建页数实测。 */
+interface RepoPageRecord {
+  issuePages: number
+  maxIssuePages: number
+  prPages: number
+  rebuilds: number
+  at: number
+}
+
+/** 记实测页数时的观测值：三个字段都可缺（缺了按 0 算、at 缺了取当下时刻），所以按 unknown 收。 */
+interface ObservedPages { issuePages?: unknown; prPages?: unknown; at?: unknown }
+
+/** 记一笔花费的入参：档位与桶必给（给错当场抛，见 accountOf / bucketOf），条数与点数缺了算 0。 */
+interface SpendEntry { account: string; bucket: string; kind?: string; requests?: unknown; points?: unknown }
+
+/** 总览里每一档的账：本小时合计 + 每个桶各一份；桶名是动态的，所以这里要索引签名。 */
+interface AccountView {
+  hour: Counters
+  [bucket: string]: Counters
+}
+
+/** 宿主日志出口（与 src/host 其余文件同一形状）：先判开关、再组装字段对象。 */
+interface LogCtx {
+  isEnabled(level: string): boolean
+  fire(level: string, event: string, fields: unknown): void
+}
+
+/** 建一本账的依赖：两个都可缺——缺了用系统时钟、一条日志都不记（原来就是这个行为）。 */
+interface LedgerDeps {
+  now?: () => number
+  logCtx?: LogCtx | null
+}
+
+/** 三个档位（分开记账的名字）。标成只读数组：循环变量因此就是上面那个联合类型，不再是宽泛的 string。 */
+export const LEDGER_ACCOUNTS: readonly LedgerAccountName[] = ['plugin', 'user-action', 'ai-tool']
 
 /** 两个桶（各自独立的计量单位：rest 记请求条数、graphql 记点数）。 */
-export const LEDGER_BUCKETS = ['rest', 'graphql']
+export const LEDGER_BUCKETS: readonly LedgerBucketName[] = ['rest', 'graphql']
 
 /** 同步服务端剩余读数的节拍（毫秒），值来自 budget.js —— 这里不另写一个数字。 */
 export const SYNC_INTERVAL_MS = QUOTA_SYNC_INTERVAL_MS
@@ -49,7 +132,8 @@ export const PAGE_PRICES = Object.freeze({
 /** 最坏用量那条线用的页数上界（budget.MAX_PAGES）。 */
 export const PAGE_UPPER_BOUND = MAX_PAGES
 
-function num(v) {
+/** 收未知输入、归一成数：非数字与 NaN 都算 0（账上不记「没报数」这种状态）。 */
+function num(v: unknown): number {
   return (typeof v === 'number' && isFinite(v)) ? v : 0
 }
 
@@ -61,12 +145,12 @@ function emptyCounters() {
  * 建一本账。deps: { now?, logCtx? }。
  * logCtx 是宿主那套日志出口（有 isEnabled 与 fire 两个方法）；没给就一条都不记。
  */
-export function createLedger(deps) {
+export function createLedger(deps?: LedgerDeps) {
   const opts = deps || {}
   const now = typeof opts.now === 'function' ? opts.now : Date.now
   const logCtx = opts.logCtx || null
 
-  const buckets = {}
+  const buckets: Record<string, BucketState> = {}
   for (const name of LEDGER_BUCKETS) {
     buckets[name] = {
       name: name,
@@ -79,9 +163,13 @@ export function createLedger(deps) {
       rateLimitedUntil: 0,   // 撞过二级限流（Retry-After）之后的降档截止时刻
     }
   }
-  const accounts = {}
+  // 按名字分开放的账。类型上写「任何字符串键都有这个形状」，是为了让按名字取值这一条读法成立；
+  // 名字合不合法由 bucketOf / accountOf 当场判定（不合法的抛错），那两条判断仍在。
+  const accounts: Record<string, AccountState> = {}
   for (const name of LEDGER_ACCOUNTS) {
-    accounts[name] = { pluginShare: name === 'plugin' }
+    // 两个桶的计数在下一行补齐（原来的写法没变）。这一步建不完整是运行时写法使然，
+    // 所以在这里断言一次：断言只为过类型，键与值一个字没动。
+    accounts[name] = { pluginShare: name === 'plugin' } as AccountState
     for (const b of LEDGER_BUCKETS) accounts[name][b] = emptyCounters()
   }
   const free = emptyCounters()   // 读剩余额度那些请求（不扣配额，但仍是真实出站，单独记一笔）
@@ -99,20 +187,22 @@ export function createLedger(deps) {
     free.points = 0
   }
 
-  function bucketOf(name) {
+  /** 按桶名取一个桶；名字不认识就当场抛（下面那条判断仍在，类型不替它放行）。 */
+  function bucketOf(name: string) {
     const b = buckets[name]
     if (!b) throw new Error('账本没有这个桶：' + String(name) + '（只认 REST 与 GraphQL 两个桶）')
     return b
   }
 
-  function accountOf(name) {
+  /** 按档位名取一份账；名字不认识就当场抛，理由同上。 */
+  function accountOf(name: string) {
     const a = accounts[name]
     if (!a) throw new Error('账本没有这一档：' + String(name) + '（只认插件后台、人的动作、AI 工具三档）')
     return a
   }
 
   /** 保守下界：服务端读数减去同步之后的本地已花，与「这一份额度自己还剩多少」取小者。 */
-  function lowerBound(b) {
+  function lowerBound(b: BucketState) {
     const share = Math.max(0, b.allowance - b.used)
     if (!b.reading) return 0
     const serverSide = Math.max(0, num(b.reading.remaining) - b.spentSinceSync)
@@ -127,10 +217,10 @@ export function createLedger(deps) {
    * 只记最近一次的话，某次翻到 12 页、下一次回到 3 页，最坏上界就又变回 10 页了——
    * 那等于把已经发生过的事忘掉。算式在 shared/refresh/page-budget.js 里，只此一处。
    */
-  const pagesByRepo = {}
+  const pagesByRepo: Record<string, RepoPageRecord> = {}
 
   /** 记下这一次整池重建在一个仓库里实际翻了几页。observed: { issuePages, prPages?, at? }。 */
-  function notePages(repoKey, observed) {
+  function notePages(repoKey: string, observed?: ObservedPages) {
     const k = String(repoKey || '')
     if (!k) throw new Error('记实测页数要带仓库标识：页数是按仓库分别记的，没有标识就分不出是谁的')
     const o = observed || {}
@@ -150,7 +240,7 @@ export function createLedger(deps) {
   }
 
   /** 这个仓库的页数实测；没记过时给 null（调用方按 1 页估，不编一个典型值出来）。 */
-  function pagesFor(repoKey) {
+  function pagesFor(repoKey: string) {
     const k = String(repoKey || '')
     const p = pagesByRepo[k]
     return p ? Object.assign({ repoKey: k }, p) : null
@@ -160,7 +250,7 @@ export function createLedger(deps) {
    * 这个仓库下一次重建该按几页估：按它自己的实测页数（没记过时 1 页）。
    * 这是「估」，与最坏上界是两件事——小仓库不必替大仓库付那份钱。
    */
-  function estimateRebuild(repoKey) {
+  function estimateRebuild(repoKey: string) {
     const p = pagesFor(repoKey)
     return rebuildCost(p ? p.issuePages : 1, PAGE_PRICES)
   }
@@ -169,19 +259,19 @@ export function createLedger(deps) {
    * 这个仓库最坏一次重建要花多少：实测页数与页数上界（MAX_PAGES）取大的那个。
    * 门禁核对最坏用量走的是同一个算式（shared/refresh/page-budget.js），两处不会各算一份。
    */
-  function worstRebuild(repoKey) {
+  function worstRebuild(repoKey: string) {
     const p = pagesFor(repoKey)
     return worstCaseRebuildCost(p ? p.maxIssuePages : 0, PAGE_UPPER_BOUND, PAGE_PRICES)
   }
 
   /** 页数报告：实测多少、上界多少、这次按哪个算、实测有没有突破上界。 */
-  function pageReport(repoKey) {
+  function pageReport(repoKey: string) {
     const p = pagesFor(repoKey)
     return pageCountReport(p ? p.maxIssuePages : 0, PAGE_UPPER_BOUND)
   }
 
   /** 闸要的那份账：额度、已用、剩余（保守下界）、写保底、档位。桶名给错直接抛，不静默返回一份假的。 */
-  function view(bucketName) {
+  function view(bucketName: string) {
     rollHour()
     const b = bucketOf(bucketName)
     const rateLimited = b.rateLimitedUntil > now()
@@ -200,8 +290,11 @@ export function createLedger(deps) {
     }
   }
 
-  /** 记一笔真实出站。entry: { account, bucket, kind, requests, points, via? }。 */
-  function spend(entry) {
+  /**
+   * 记一笔真实出站。entry: { account, bucket, kind, requests, points, via? }。
+   * 档位与桶按「必给」收：给错或没给时 accountOf / bucketOf 当场抛错，那条判断一字未动。
+   */
+  function spend(entry: SpendEntry) {
     rollHour()
     const e = entry || {}
     const a = accountOf(e.account)
@@ -226,7 +319,7 @@ export function createLedger(deps) {
   }
 
   /** 服务端读数落账（每分钟一次）。readings: { rest: {limit, remaining, reset}, graphql: {...} }。 */
-  function syncServer(readings, at) {
+  function syncServer(readings?: ServerReadings, at?: unknown) {
     rollHour()
     const t = (typeof at === 'number') ? at : now()
     const applied = []
@@ -246,7 +339,7 @@ export function createLedger(deps) {
   }
 
   /** 该不该去同步了（节拍归调用方，节拍值归 budget.js）。还没有读过读数时返回真。 */
-  function syncDue(at) {
+  function syncDue(at?: unknown) {
     const t = (typeof at === 'number') ? at : now()
     for (const name of LEDGER_BUCKETS) {
       const b = buckets[name]
@@ -259,7 +352,7 @@ export function createLedger(deps) {
    * 撞上限流的降档信号。二级限流的 Retry-After 也算：拿到的秒数是多少就降多久，
    * 拿不到秒数就别调它——不许自己编一个时长（票面：允许「主桶没用完也降档」）。
    */
-  function noteRateLimited(bucketName, seconds, at) {
+  function noteRateLimited(bucketName: string, seconds: unknown, at?: unknown) {
     const s = num(seconds)
     if (!(s > 0)) throw new Error('降档信号要带服务端给的秒数（Retry-After），账本不替它编一个时长')
     const b = bucketOf(bucketName)
@@ -268,17 +361,19 @@ export function createLedger(deps) {
     return { bucket: b.name, until: b.rateLimitedUntil }
   }
 
-  /** 这一档这一桶本小时已花。 */
-  function hour(accountName, bucketName) {
+  /** 这一档这一桶本小时已花。桶名给错照样当场抛（下面那条判断就是它）。 */
+  function hour(accountName: string, bucketName: string) {
     rollHour()
     const a = accountOf(accountName)
-    const c = a[bucketName]
+    // 桶名来自调用方，查不到的那条下面当场抛；这里断言成两个法定桶名，只是为了让它能当索引用，
+    // 运行时读法一字未改。
+    const c = a[bucketName as LedgerBucketName]
     if (!c) throw new Error('账本没有这一桶：' + String(bucketName))
     return { requests: c.requests, points: c.points }
   }
 
   /** 这一档本小时两个桶加起来花了多少（AI 工具那两组硬顶不分桶，要的就是这个数）。 */
-  function hourOf(accountName) {
+  function hourOf(accountName: string) {
     rollHour()
     const a = accountOf(accountName)
     let requests = 0
@@ -290,15 +385,16 @@ export function createLedger(deps) {
   /** 给界面与对账用的一份总览（都是保守下界，不含任何乐观推算）。 */
   function snapshot() {
     rollHour()
-    const views = {}
+    // 三张按名字（桶名 / 档位名 / 仓库标识）动态建的表：都是「键 → 一份账」，所以标成带索引签名的 Record。
+    const views: Record<string, ReturnType<typeof view>> = {}
     for (const name of LEDGER_BUCKETS) views[name] = view(name)
-    const byAccount = {}
+    const byAccount: Record<string, AccountView> = {}
     for (const name of LEDGER_ACCOUNTS) {
       byAccount[name] = { hour: hourOf(name) }
       for (const b of LEDGER_BUCKETS) byAccount[name][b] = { requests: accounts[name][b].requests, points: accounts[name][b].points }
     }
     // 页数实测也进总览：界面与对账要看「这个仓库上一次翻了几页、最坏按几页算」时有现成的数。
-    const pages = {}
+    const pages: Record<string, unknown> = {}
     for (const k of Object.keys(pagesByRepo)) pages[k] = Object.assign({}, pagesByRepo[k], { worst: worstRebuild(k), report: pageReport(k) })
     return { buckets: views, byAccount: byAccount, free: { requests: free.requests, points: free.points }, total: { requests: total.requests, points: total.points }, pages: pages, hourKey: hourKey }
   }

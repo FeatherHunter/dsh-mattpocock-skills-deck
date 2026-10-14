@@ -4,19 +4,162 @@
 import { refreshSourceOf } from './refresh/refreshSource.js'
 import { workspaceKeyOf } from '../shared/refresh-workspace-key.js'   // #724：链记账给闸的钥匙，与活跃集合同一把（从前传 cwd 原文 → 同一个工作区在闸里有两格）
 import { getChainRide } from './refresh/chain-ride.js'   // #964 小账本住共享层；#966 用进程单例，出站写路能记写
-export function createDetectChain(deps) {
+
+// ── 依赖与回包形状（票 #1155 补类型标注）────────────────────────────────────────
+// 为什么逐条写在这里：本文件的依赖对象是 src/host/index.js 里现拼的接线（旧语言文件，编译器看不见），
+// 所以这一组类型就是「本文件按什么形状读它们」的书面约定，只列本文件真正读到的格子。
+// 标注只给编译器看，运行期形状一个字没改——产物逐字节比对是这条约定的验收办法。
+// 共享层的形状按「类型引用」取：那些文件是 JS + JSDoc，这种写法与他们自己的 JSDoc 一致。
+type Check = import('../shared/tracker/chain-types.js').Check
+type CheckItem = import('../shared/tracker/chain-types.js').CheckItem
+type Platform = import('./platform/index.js').Platform
+type PredicateContext = import('./tracker/predicatePrimitives.js').PredicateContext
+type PreflightExec = import('../tracker/detection/preflightScope.js').PreflightExec
+type FixDecl = import('../tracker/fix-contract.js').FixDecl
+
+/** 链入口的入参（客户端带上来的那几格；都可能缺，正文里读前都判过）。 */
+type ChainArgs = {
+  /** 工作区目录原文（空目录闸判的就是它）。 */
+  cwd?: string
+  force?: unknown
+  lang?: unknown
+  trigger?: unknown
+  /** 客户端选定的后端 id（缺、空都按「没有」处理）。 */
+  backendId?: string | null
+  sessionId?: unknown
+  /** 链的口径：只开门那几步 / 只走环境那几步 / 全链；不传按 all。 */
+  kind?: 'gate' | 'env' | 'all'
+}
+
+/** catch 里接到的异常：只按「可能带 message」读——把 unknown 收口成这张脸，运行期一个字不动。 */
+type CaughtError = { message?: unknown }
+
+/** 出站命令回包（runGh 那一支）：成功那支一定带 text，失败那支带 kind/error。 */
+type GhReply =
+  | { ok: true; text: string; code?: number }
+  | { ok: false; kind?: string; error?: string; text?: string; code?: number }
+
+/** 链上问 gh 的那一下的回包（预检复用位与直问两路同一张脸）：只列本文件真正读的四格。 */
+type AskReply = { ok?: unknown; kind?: unknown; error?: string; text?: string }
+
+/**
+ * 链上问 gh 的那一下：有预检复用位就走它（同一轮里成名的问题只真问一次），没有就直问 runGh。
+ * 选项只认 cwd：预检契约里那一格是 unknown，本文件只把它当目录原文往下递。
+ */
+type AskFn = (cmd: string, args: string[], opts: { cwd?: string } | undefined, via: string | undefined) => Promise<AskReply>
+
+/** 预检复用位（src/tracker/detection/preflightScope.ts 的产物）：本文件只调这三格。 */
+type PreflightScope = { exec: PreflightExec; asked(): number; reused(): number }
+
+/** 一轮求值按检查项 id 汇总的判定：resolveAll 给判定对象，toPredicateResults 给状态串，两路都收。 */
+type PredicateResultView = { status: 'pass' | 'fail' | 'pending'; detail?: string; hint?: string }
+type EvalMap = Record<string, PredicateResultView | 'pass' | 'fail' | null | undefined>
+/** 判定对象那一份（富化步骤用的 detail/hint 只在这一路里）。 */
+type ResolvedMap = Record<string, PredicateResultView | undefined>
+
+/** 展示数据（共享层 Show 的几格；本文件只读 fallback/title/i18nKey/desc/hint）。 */
+type ShowView = { i18nKey?: unknown; title?: unknown; desc?: unknown; fallback?: unknown; hint?: unknown; level?: unknown; params?: unknown }
+
+/**
+ * 求值后单步（与共享层 StepSnapshot 同形）。id 写成可缺是照实收：契约里它本来就可选
+ *（「未提供时回退用 check 串」）。正文里按 id 查表的两处写着 `as string`——那是给编译器看的，
+ * 运行期原样按键查，查不到就当没有。
+ */
+type StepView = { id?: string; check?: unknown; status?: string; show?: ShowView | null; actions?: unknown[]; isApplicable?: boolean; blockedBy?: string | null; isCurrent?: boolean; isBlocking?: boolean }
+
+/**
+ * 富化（把谓词结果的 detail/hint 并进步骤 show）与拼接视图都按最小形状读快照：只要求「有一串步骤」，
+ * 步骤按三格读——id（拿来查判定表）、status（算 done/current）、show（合 detail/hint），其余格子原样带回去。
+ * 为什么不直接用整份 ChainSnapView：拼接出来的那一份没有 failedIndex（拼接层不判「第几个失败」），
+ * 而富化对它碰不到的格子本来就不该提要求。
+ */
+type SnapStepView = { id?: string; status?: string; show?: ShowView | null }
+type SnapStepsView = { steps: SnapStepView[] }
+
+/** 拼接视图：两段链的步骤按清单排序后合成的一份视图，除步骤外还带计数与版本（消费侧只读）。 */
+type FullSnapView = SnapStepsView & { currentIndex: number | null; doneCount: number; applicableCount: number; totalCount: number; chainState: string; version: string }
+
+/** 后端段这一包：链、判定、快照与校验错（快照会过一遍富化，所以按富化认的最小形状装；errors 原样转给界面）。 */
+type BackendChainPack = { chain: CheckItem[]; resolved: ResolvedMap; snapshot: SnapStepsView | null; errors: unknown }
+
+/** 本文件自己拼的链快照：比共享层 ChainSnapshot 多出「算完再补挂」的那三格（补挂前是缺的）。 */
+type ChainSnapView = {
+  steps: StepView[]
+  currentIndex: number | null
+  failedIndex: number
+  doneCount: number
+  applicableCount: number
+  totalCount: number
+  chainState: 'allDone' | 'hasCurrent' | 'pending'
+  version: string
+  isComplete?: boolean
+  hasBlockingFailure?: boolean
+  blockingCheck?: string | null
+}
+
+/** 选择结论：本文件只读 backendId 与 source 两格（显式空是权威结论，见正文注释）。 */
+type Selection = { backendId?: string | null; source?: string }
+
+/** 一次探测的回包：本文件只读 selection 与 explicit 两格，其余原样透传给界面。 */
+type DetectResult = { selection?: Selection | null; explicit?: { parsed?: { explicitBackendId?: unknown } } | null }
+
+/** 探测服务：本文件只调 detect（前后两次调用各带各的选项）。 */
+type DetectionService = { detect(input: unknown, opts: unknown): Promise<DetectResult> }
+
+/** 后端模块：本文件只读 id 与 fixes 两格，后者整格转交给修复契约（不在这里读里面）。 */
+type BackendModuleView = { id?: unknown; fixes?: { readonly [checkId: string]: FixDecl } }
+
+/** 注册表：本文件只读 modules 一格（要后端声明的修复知识，见正文里的 attachFixContract）。 */
+type RegistryView = { modules(): BackendModuleView[] }
+
+/** 谓词注册回调拿到的运行期上下文：宿主在契约 PredicateContext 之上多喂了一格 lang（正文按它选文案）。 */
+type PredicateCtx = PredicateContext & { lang?: string }
+
+/** 退避与全绿缓存（纯函数那一份，薄壳住 src/host/refresh/chainBackoff.js）：本文件只调 verdict 与 note。 */
+type ChainBackoff = {
+  verdict(key: string, nowMs: number, opts: unknown): Promise<{ needed?: boolean; reason?: unknown; waitMs?: unknown; cached?: unknown }>
+  note(key: string, snap: unknown, at: number, result: unknown): Promise<unknown>
+}
+
+/** 依赖：接线对象在 src/host/index.js 里现拼，这里只列本文件用到的那些。 */
+type DetectChainDeps = {
+  canonicalKey(cwdIn: string): Promise<string>
+  resetGhCache(): void
+  getDetectionService(): Promise<DetectionService>
+  getPlatform(): Promise<Platform>
+  getTrackerRegistry(): Promise<RegistryView>
+  getRepoKey(cwd: string): Promise<{ owner: string; name: string } | null>
+  /** 出站命令：第二、三格按未知值收（预检契约那一格本身就是 unknown），runGh 自己会归一。 */
+  runGh(args: string[], cwd?: unknown, via?: string): Promise<GhReply>
+  timer: { timeout(ms: number): Promise<unknown> }
+  probeSkill(skillName: string, lang: string, cwd: string): Promise<unknown>
+  mdParseOkPredicate(platform: unknown, cwd: string, lang: string): Promise<PredicateResultView>
+  /** 解构出来但本文件没用到（接线给全了，这两格留给别处读）：只声明它们存在。 */
+  DEFAULT_CWD: unknown; getChainCache: unknown
+  setChainCache(entry: unknown): void
+  getChainBackoff(): Promise<ChainBackoff | null>
+  logCtx: { isEnabled(level: string): boolean; fire(level: string, event: string, fields: unknown): void } | null
+  gate: { send(req: unknown, perform: () => Promise<unknown>): Promise<unknown> } | null
+  ghTimeoutMs: unknown
+  sandboxPolicyFor(info: { cwd: string; sessionId: string }): Promise<{ policy?: unknown; sessionId?: unknown } | null>
+  /** 注钟（只有测试给）：填空时不注，按 Date.now 走。 */
+  now?: (() => number) | undefined
+}
+
+export function createDetectChain(deps: DetectChainDeps) {
   const { canonicalKey, DEFAULT_CWD, resetGhCache, getDetectionService, getPlatform, getTrackerRegistry, getRepoKey, runGh, timer, probeSkill, mdParseOkPredicate, getChainCache, setChainCache, getChainBackoff, logCtx, gate, ghTimeoutMs, sandboxPolicyFor } = deps
   // #491 房外埋点 helpers：hash8 只记散列；P1 外层先判开关（采样/节流/按事件），字段函数只在守卫内求值。
-  function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
+  function hash8(s: unknown) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
   const chainInflight = getChainRide({ now: (deps && deps.now) || undefined }) // #696搭车表用进程单例（写信号由出站路记进来）；测试注钟时建隔离新账
   let lastPredAt = 0
-  let lastPredStatus = {}
+  // 记的是「上一次落过的状态串」，按检查项 id 索引：这里写死键值都是字符串。
+  let lastPredStatus: Record<string, string> = {}
   /**
    * #709（T5 补）一次评估的环境预检只花一次：开一个只活在这一次里的复用位，谁先问出来谁写进去，
    * 后面再问的人直接拿那份（一次求值因此从 5 条 REST 降到 3 条）。三条边界（不是缓存、不跨评估串味、
    * 只有成功的才留下）写在 src/host/tracker/detection/preflightScope.js 的文件头。
    */
-  async function openPreflightScope() {
+  async function openPreflightScope(): Promise<PreflightScope | null> {
     try {
       // 给它的执行器 = 宿主那条真出口（第 4 位是日志用的链名，runGh 只认前两位、多传不坏）。
       const mod = await import('../tracker/detection/preflightScope.js')
@@ -25,22 +168,22 @@ export function createDetectChain(deps) {
     } catch (e) { return null }
   }
   /** 探测级联那一侧用的执行器（签名 = platformChannel 的 detectionExec）。 */
-  function scopedDetectionExec(scope) { return function (cmd, args, opts, via) { return scope.exec(cmd, args, opts, via) } }
+  function scopedDetectionExec(scope: PreflightScope): PreflightExec { return function (cmd, args, opts, via) { return scope.exec(cmd, args, opts, via) } }
   // #723（T19）：这一次求值的裁决与记账经闸落一笔（身份 = refreshSourceOf 算出来的那两个名字之一，所以
   // 「谁按的、哪一档、什么时候」留在账上）。报给闸的条数写 0：这条链真正花出去的每一条出站请求都由传输层
   // 各自报过一笔（repoKeys.runGh 与 detectionExec 的 noteOutbound），再报一遍会把同一笔数成两笔。
-  async function noteChainEval(source, workspaceKey) {
+  async function noteChainEval(source: string, workspaceKey: string) {
     try {
       if (!gate || typeof gate.send !== 'function') return
       await gate.send({ source: source, kind: 'chain', workspaceKey: workspaceKey }, async function () { return { requests: 0, points: 0 } })
     } catch (e) { /* 记账不许把链求值带崩 */ }
   }
   // #969：链上不再自带超时数字（分档由出站两路按命令认：读 12 秒、探活 3 秒；自带 30 秒会盖掉分档）。
-  function ghOptsFor(cwdIn) { return { cwd: cwdIn } }
+  function ghOptsFor(cwdIn: string): { cwd: string } { return { cwd: cwdIn } }
   // #709（T5）：退避与全绿缓存整段交给 refresh-core 的纯函数裁定（薄壳 src/host/refresh/chainBackoff.js，
   // 数字真源是 budget.ts）：8 秒 → 30 秒 → 2 分钟 → 5 分钟逐档后退，有进展立刻回第一档，全绿后 30 分钟。
   // 触发只有四种事件，宿主侧一个自续定时器都没有；人亲手点「重新检查」带 trigger='user-recheck' 上来，永不降档。
-  async function handleDetect(args) {
+  async function handleDetect(args: ChainArgs) {
       const _rawDetectCwd = (args && args.cwd) || ''; if (!String(_rawDetectCwd).trim()) return { ok: true, handle: { cwd: '' }, selection: null, repoHandle: { cwd: '', refId: '' }, explicit: { raw: null, parsed: { explicitBackendId: null } }, preflight: null, skillProbes: null, at: Date.now(), workspaceNotReady: true }; const cwd = await canonicalKey(_rawDetectCwd) // #1003 空目录闸：没目录不冒充
       const force = !!(args && args.force)
       // #195 修复：force 探测清空 gh 解析缓存（旧实现首次失败永久缓存，force 也救不回来）
@@ -54,11 +197,11 @@ export function createDetectChain(deps) {
         // 对抗式：ensure DetectionResult 形态（含 selection/pending/multiHit，按 #125）
         return { ok: true, ...res }
       } catch (e) {
-        try { if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: 'wf.detect', kind: 'detect', errorHash: hash8(String((e && e.message) || e)) }) } catch (eL) {}; return { ok: false, error: String((e && e.message) || e) }
+        try { if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: 'wf.detect', kind: 'detect', errorHash: hash8(String((e && (e as CaughtError).message) || e)) }) } catch (eL) {}; return { ok: false, error: String((e && (e as CaughtError).message) || e) }
       }
   }
   /** 主机侧的链求值入口：通用链 + 当前后端的链，两段各自求值、最后拼成一份快照。 */
-  async function handleChain(args) {
+  async function handleChain(args: ChainArgs) {
       const _rawChainCwd = (args && args.cwd) || ''; if (!String(_rawChainCwd).trim()) return { ok: false, error: '这个工作区还没就绪（还没认出是哪个目录），等面板认出工作区后再试。' }; const cwd = await canonicalKey(_rawChainCwd) // #1003 空目录闸
       const force = !!(args && args.force)
       const chainLang = (args && args.lang === 'en') ? 'en' : 'zh'
@@ -93,7 +236,7 @@ export function createDetectChain(deps) {
         const preflightScope = await openPreflightScope()
         const ghTunnel = preflightScope ? scopedDetectionExec(preflightScope) : null
         /** 这条链上要问 gh 的时候走这里：有复用位就用它（同一轮里成名的预检只真问一次），没有就原样问。 */
-        const ghAsk = ghTunnel || function (cmd, args, opts, via) { return runGh(args, (opts && opts.cwd) || undefined, via) }
+        const ghAsk: AskFn = ghTunnel || function (cmd, args, opts, via) { return runGh(args, (opts && opts.cwd) || undefined, via) }
         // 用户显式选择经写入口直达文件（落盘 + 清缓存），本轮即读到，不再经上报参数。
         // #709（T5 补）：这次探测的预检（登录态、仓库可达）走 ghTunnel —— 与下面后端链那两个谓词共用同一份
         // 复用位，所以一次求值里这两条命令各只真问一次（从前各问两遍，一次求值 5 条 REST）。
@@ -103,7 +246,8 @@ export function createDetectChain(deps) {
         //   客户端绑定仅在 detect 无结论（无锚 fallback null / 探测中）时兜底，旧绑定记忆不得篡改已落盘的真相。
         const selDetected = selMod && selMod.selection
         // #297 失效维度：显式空（backendId null + source explicit）是权威“无后端”结论（如空目录 stale），不得再用旧 hint 兜底，否则蓝条永不重现
-        let backendId
+        // 三态：还没认出来（undefined）/ 认出来是「无后端」（null）/ 有后端（id）。
+        let backendId: string | null | undefined
         if (selDetected && selDetected.backendId) {
           backendId = selDetected.backendId
         } else if (selDetected && selDetected.source === 'explicit' && selDetected.backendId === null) {
@@ -128,18 +272,18 @@ export function createDetectChain(deps) {
           ? selConsistent.backendId
           : ((selMod && selMod.explicit && selMod.explicit.parsed && selMod.explicit.parsed.explicitBackendId) || null)
         let chainPolicy = undefined; let chainSessionId = String((args && args.sessionId) || ''); try { if (typeof sandboxPolicyFor === 'function') { const sb = await sandboxPolicyFor({ cwd: cwd, sessionId: chainSessionId }); if (sb && typeof sb === 'object') { chainPolicy = sb.policy; if (sb.sessionId) chainSessionId = String(sb.sessionId) } } } catch (eSb) {}
-        const ctx = { platform: platform, backendId: backendId || null, cwd: cwd, lang: chainLang, selection: selConsistent, explicitBackendId: expConsistent, sandboxPolicy: chainPolicy, sessionId: chainSessionId, skillProbe: async function (skillName) { try { return await probeSkill(skillName, chainLang, cwd) } catch (e) { return { ok: false, level: 'pending', detail: String((e && e.message) || e), hint: 'pending:skills-unavailable' } } } }
+        const ctx = { platform: platform, backendId: backendId || null, cwd: cwd, lang: chainLang, selection: selConsistent, explicitBackendId: expConsistent, sandboxPolicy: chainPolicy, sessionId: chainSessionId, skillProbe: async function (skillName: string) { try { return await probeSkill(skillName, chainLang, cwd) } catch (e) { return { ok: false, level: 'pending', detail: String((e && (e as CaughtError).message) || e), hint: 'pending:skills-unavailable' } } } }
         // #284：后端谓词注册（host 既有探测包装；未注册者由 registry 诚实 pending，不猜不误报）
-        try { registry.register('backend:github:repoRemote', async function (check, pctx) {
+        try { registry.register('backend:github:repoRemote', async function (check, pctx: PredicateCtx) {
           try {
             // 2026-08-29（审查 S1）：detail 双语——中文界面不出现英文黑话行
             const zh = (pctx && pctx.lang) !== 'en'
             const rk = await getRepoKey(pctx && pctx.cwd || cwd)
             if (rk && rk.owner && rk.name) return { status: 'pass', detail: rk.owner + '/' + rk.name }
             return { status: 'fail', detail: zh ? '未找到 GitHub 仓库关联（git remote 未指向 GitHub）' : 'repo not located' }
-          } catch (e) { return { status: 'pending', detail: String((e && e.message) || e) } }
+          } catch (e) { return { status: 'pending', detail: String((e && (e as CaughtError).message) || e) } }
         }) } catch (e) {}
-        try { registry.register('backend:github:repoAccess', async function (check, pctx) {
+        try { registry.register('backend:github:repoAccess', async function (check, pctx: PredicateCtx) {
           try {
             // 2026-08-29（审查 S1/S2）：detail 双语；pending 文案如实说明「网络/登录态未知」，不与 fail 混淆
             const zh = (pctx && pctx.lang) !== 'en'
@@ -152,9 +296,9 @@ export function createDetectChain(deps) {
             //   仓库已定位（gh:remote 通过）而 gh 未登录时，链条唯一引导是 gh:authed 行的「登录指引」，绝不该误导用户去创建仓库。
             if (r.kind === 'notfound') return { status: 'fail', detail: zh ? 'GitHub 上访问不到该仓库（可能还没创建，或你没有权限）' : 'API 404: repo not found (may not exist or no access)' }
             return { status: 'pending', detail: zh ? '暂无法确认仓库可访问（网络或登录态未知）：' + String(r.error || '').slice(0, 160) : 'API not accessible (' + String(r.kind || 'exit') + '): ' + String(r.error || '').slice(0, 240) }
-          } catch (e) { return { status: 'pending', detail: String((e && e.message) || e) } }
+          } catch (e) { return { status: 'pending', detail: String((e && (e as CaughtError).message) || e) } }
         }) } catch (e) {}
-        try { registry.register('preflight:ghAuth', async function (check, pctx) {
+        try { registry.register('preflight:ghAuth', async function (check, pctx: PredicateCtx) {
           try {
             // 2026-08-29（审查 S1）：detail 双语——fail 说清「登录失效」，pending 如实区分网络与未知
             const zh = (pctx && pctx.lang) !== 'en'
@@ -167,10 +311,10 @@ export function createDetectChain(deps) {
             if (kind === 'auth') return { status: 'fail', detail: zh ? 'GitHub 登录状态已失效（重新登录 gh auth login / refresh）' : 'gh credential invalid or not logged in: re-authenticate (gh auth refresh / gh auth login)' }
             if (kind === 'network') return { status: 'pending', detail: zh ? '网络异常，暂时无法确认登录状态' : 'gh auth status network failure: ' + errMsg }
             return { status: 'pending', detail: zh ? '暂时无法确认登录状态（' + kind + '）' : 'gh auth status failed (' + kind + '): ' + errMsg }
-          } catch (e) { return { status: 'pending', detail: String((e && e.message) || e) } }
+          } catch (e) { return { status: 'pending', detail: String((e && (e as CaughtError).message) || e) } }
         }) } catch (e) {}
         try { registry.register('backend:markdown:parseOk', async function (check, pctx) {
-          try { return await mdParseOkPredicate(platform, pctx && pctx.cwd || cwd, chainLang) } catch (e) { return { status: 'pending', detail: String((e && e.message) || e) } }
+          try { return await mdParseOkPredicate(platform, pctx && pctx.cwd || cwd, chainLang) } catch (e) { return { status: 'pending', detail: String((e && (e as CaughtError).message) || e) } }
         }) } catch (e) {}
         const kind = (args && args.kind) || 'all'
         const chainAndSnap = await genMod.resolveGenericChain(registry, ctx, kind)
@@ -178,25 +322,25 @@ export function createDetectChain(deps) {
         //   evaluateChain 的串行被阻塞语义会把「已算出但前置未过」的判定（技能缺失红牌、gh 未装提示）吞成 pending；
         //   此为 #281 红牌契约与 #229「pending=诚实未知」的不诚实表达。改为：所有步骤保留自身判定（全貌诊断），
         //   链只表达「首个未通过步 = 当前引导步」（currentIndex），引导与诊断合二为一。
-        const stepEvalParallel = function (items, resolved) {
+        const stepEvalParallel = function (items: CheckItem[], resolved: EvalMap) {
           try {
             const rMap = resolved || {}
             const steps = (items || []).map(function (it) {
-              const rd = rMap[it.id]
+              const rd = rMap[it.id as string]
               const isPass = rd === 'pass'
               const isFail = rd === 'fail'
               const status = isPass ? 'done' : (isFail ? (((it.onFail && Array.isArray(it.onFail.actions) && it.onFail.actions.length)) ? 'current' : 'fail') : 'pending')
               // 2026-08-28 实机复核修正（用户反馈：pending 行仍显示修复指引与「未登录」提示——误导）：
               //   pending（诚实未知）只保留检查项名称，不带 onFail 修复文案（hint）与修复动作（actions 已按 isFail 过滤）；
               //   fail/current 才展示修复指引。修复文案只随真实失败出现。
-              const _pendingShow = (function () { const bb = (it.onFail && it.onFail.show) || {}; const oo = {}; if (bb.fallback != null) oo.fallback = bb.fallback; if (bb.title != null) oo.title = bb.title; if (bb.i18nKey != null) oo.i18nKey = bb.i18nKey; return oo })()
+              const _pendingShow = (function () { const bb: ShowView = (it.onFail && it.onFail.show) || {}; const oo: ShowView = {}; if (bb.fallback != null) oo.fallback = bb.fallback; if (bb.title != null) oo.title = bb.title; if (bb.i18nKey != null) oo.i18nKey = bb.i18nKey; return oo })()
               const show = isPass ? ((it.onPass && it.onPass.show) || null) : (isFail ? ((it.onFail && it.onFail.show) || null) : _pendingShow)
               const actions = isFail && it.onFail && Array.isArray(it.onFail.actions) ? it.onFail.actions : []
               return { id: it.id, check: it.check, status: status, show: show, actions: actions, isApplicable: true, blockedBy: null, isCurrent: false, isBlocking: status !== 'done' }
             })
             const firstNotDone = steps.findIndex(function (s) { return s.status !== 'done' })
             const allDone = firstNotDone < 0
-            const snapshot = {
+            const snapshot: ChainSnapView = {
               steps: steps,
               currentIndex: allDone ? null : firstNotDone,
               failedIndex: firstNotDone,
@@ -212,13 +356,18 @@ export function createDetectChain(deps) {
         }
         const genPredResults = predMod.toPredicateResults ? predMod.toPredicateResults(chainAndSnap.resolved || {}) : (chainAndSnap.resolved || {})
         const genericSnapRaw = stepEvalParallel(genMod.getGenericChain ? genMod.getGenericChain(kind) : (chainAndSnap.chain || []), genPredResults)
-        let backendChain = null
+        let backendChain: BackendChainPack | null = null
         try{
           if (backendId) {
             const catDirs = await import('../shared/tracker/check-catalog-dirs.js')
             const catViews = await import('../shared/tracker/check-catalog-views.js')
             const chainMod = await import('../shared/tracker/chain-validate.js')
-            let items = (catDirs.catalogFor ? catDirs.catalogFor(backendId) : []).filter(function(c){ return c.scope==='backend' && c.id !== 'gh:labels' }).map(function(ci){ return catViews.catalogItemToCheckItem ? catViews.catalogItemToCheckItem(ci) : null }).filter(Boolean)
+            // 这里把目录项按 unknown 转一手：check-catalog-views.js 的 catalogItemToCheckItem 把入参
+            // JSDoc 写成了 Check，可实现读的是目录项的 id/check/label 这些格子——两份形状没有交集，
+            // 编译器因此报「CatalogItem 与 Check 无共同属性」。转的是类型、不是值（运行期原样递进去）。
+            // 目录只认这三个后端的表（check-catalog-dirs.js 的 JSDoc 就是这么写的），别的 id 在表里没有格子；
+            // 这里只是把「已经认出来是某个后端」收成表认的那几个，转的是类型、值原样递进去。
+            let items = (catDirs.catalogFor ? catDirs.catalogFor(backendId as 'github' | 'markdown' | 'gitlab') : []).filter(function(c){ return c.scope==='backend' && c.id !== 'gh:labels' }).map(function(ci){ return catViews.catalogItemToCheckItem ? catViews.catalogItemToCheckItem(ci as unknown as Check) : null }).filter(Boolean) as CheckItem[]
             // 修复契约（2026-08-28）：后端声明 fixes（hint + 修复动作）→ 按语言解析附到检查项 onFail——
             //   检查失败即有修复入口（注入指引/重查），UI 零派生只渲染分发；后端未声明 fixes 则保持默认（重查）。
             if (items.length) {
@@ -240,7 +389,7 @@ export function createDetectChain(deps) {
                     if (_u && _u.ok) _fixOwner = String(_u.text || '').trim()
                   }
                 } catch (e) { }
-                if (tmod && fixMod.attachFixContract) items = fixMod.attachFixContract(items, tmod, chainLang, { cwd: cwd, owner: _fixOwner })
+                if (tmod && fixMod.attachFixContract) items = fixMod.attachFixContract(items, tmod, chainLang, { cwd: cwd, owner: _fixOwner }) as CheckItem[]   // 返回按 unknown 收（契约说「不是数组就原样返回」，这里只知道它给回同一份数组）
               } catch (e) {}
               const resolved = await registry.resolveAll(items, ctx)
               const predResults = predMod.toPredicateResults ? predMod.toPredicateResults(resolved) : resolved
@@ -256,7 +405,7 @@ export function createDetectChain(deps) {
         // #668：拼接后的行序按首开引导链的步骤清单排（清单上的步骤按清单顺序在前，清单没覆盖的检查项
         //   按各段原有先后接在后面）。顺序只有清单那一份真源，界面照快照渲染、自己不排序。
         //   旧语义「通用段 → 后端段」到此结束：新语义下「未初始化」排在「已关联仓库」之后。
-        let fullSnapshot = null
+        let fullSnapshot: SnapStepsView | null = null
         let fullChain = null
         try {
           const chainMod3 = await import('../shared/tracker/chain-validate.js')
@@ -270,7 +419,7 @@ export function createDetectChain(deps) {
           try {
             const guideMod = await import('../shared/tracker/guide-steps.js')
             if (guideMod && typeof guideMod.orderStepsByGuide === 'function') {
-              allSteps = guideMod.orderStepsByGuide(guideMod.guideStepsFor(backendId || null), allStepsRaw)
+              allSteps = guideMod.orderStepsByGuide(guideMod.guideStepsFor(backendId || null), allStepsRaw) as StepView[]   // 清单那一份把入参与产物都写成宽松的 Object（JSDoc 只记形状不记字段），这里按步骤形状收回来——运行期原样用
             }
           } catch (eG) {}
           const firstNotDone = allSteps.findIndex(function (s) { return s.status !== 'done' })
@@ -283,17 +432,17 @@ export function createDetectChain(deps) {
             totalCount: allSteps.length,
             chainState: allDone ? 'allDone' : (allSteps[firstNotDone].status === 'pending' ? 'pending' : 'hasCurrent'),
             version: '1',
-          }
+          } as FullSnapView   // 计数那几格与链快照同形；这一份是拼接视图，按 FullSnapView 收（转的是类型，值一个字没动）
         } catch (e) { fullSnapshot = chainAndSnap.snapshot; fullChain = chainAndSnap.chain }
         // #284：富化链快照——谓词结果的 detail/hint 合并进步骤 show（红牌分拣文案经链到达 UI）
-        const enrichSnap = function (snap, resolvedMap) {
+        const enrichSnap = function (snap: SnapStepsView | null, resolvedMap: ResolvedMap | null) {
           try {
             if (!snap || !Array.isArray(snap.steps) || !resolvedMap) return snap
             const rMap = resolvedMap || {}
             const steps = snap.steps.map(function (s) {
-              const rd = rMap[s.id] || null
+              const rd = rMap[s.id as string] || null
               if (!rd || (!rd.detail && !rd.hint)) return s
-              const base = s.show || {}
+              const base: ShowView = s.show || {}
               return Object.assign({}, s, { show: Object.assign({}, base, rd.detail ? { desc: base.desc || rd.detail } : {}, rd.hint ? { hint: base.hint || rd.hint } : {}) })
             })
             return Object.assign({}, snap, { steps: steps })
@@ -342,8 +491,8 @@ export function createDetectChain(deps) {
         if (!force) { const rideEntry = chainInflight.park(chainDedupKey, chainPending); try { return await chainPending } finally { chainInflight.leave(chainDedupKey, rideEntry) } }
         return await chainPending
       }catch(e){
-        try { const m = String((e && e.message) || e); if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: 'wf.chain', kind: 'chain', errorHash: hash8(m), errorKind: (/is not a function|is not defined|of undefined|of null/i.test(m) ? 'missing-dep' : (/timeout|timed out/i.test(m) ? 'timeout' : 'throw')) }) } catch (eL) {}   // #724：异常也留一行（从前静默吞掉，真机查了两天没有原文）；errorKind 把「接线没给全」（missing-dep）与「跑起来真失败」（throw）分开
-        return { ok: false, error: String((e && e.message)||e) }
+        try { const m = String((e && (e as CaughtError).message) || e); if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: 'wf.chain', kind: 'chain', errorHash: hash8(m), errorKind: (/is not a function|is not defined|of undefined|of null/i.test(m) ? 'missing-dep' : (/timeout|timed out/i.test(m) ? 'timeout' : 'throw')) }) } catch (eL) {}   // #724：异常也留一行（从前静默吞掉，真机查了两天没有原文）；errorKind 把「接线没给全」（missing-dep）与「跑起来真失败」（throw）分开
+        return { ok: false, error: String((e && (e as CaughtError).message)||e) }
       }
   }
   return { handleDetect, handleChain, markChainWrite: function () { chainInflight.markWrite() }, rideStats: function () { return chainInflight.stats() } }

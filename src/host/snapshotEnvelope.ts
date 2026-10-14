@@ -57,7 +57,11 @@ type SnapLike = {
 export function createSnapshotEnvelope(deps: EnvelopeDeps) {
   const d = deps || ({} as EnvelopeDeps)
 
-  /** 五条分支的快照同形，收在一处组装（#653：加字段改一处，免漏；repo 与 repoRoot 由调用方传入）。 */
+  /**
+   * 五条分支的快照同形，收在一处组装（#653：加字段改一处，免漏；repo 与 repoRoot 由调用方传入）。
+   * deck 那一格由调用方按它的数据结构现拼，这一层只知道本文件真读到的那两个字段（见 DeckLike），
+   * 所以在返回对象里按 DeckLike 收一下：运行时原样透传，转译产物与标注前逐字节相同。
+   */
   function buildSnap(o: SnapInput): SnapLike {
     const snap = {
       ok: true,
@@ -75,7 +79,7 @@ export function createSnapshotEnvelope(deps: EnvelopeDeps) {
       capabilities: null,
       viewer: (o.viewer !== undefined ? o.viewer : null),
       viewerLogin: (o.viewerLogin !== undefined ? o.viewerLogin : null),
-      deck: o.deck, fallback: (o.fallback === 'rest' ? 'rest' : null), fallbackAt: (o.fallback === 'rest' ? (o.fallbackAt || null) : null), fallbackReason: (o.fallback === 'rest' ? (o.fallbackReason || null) : null), refresh: (o.refresh || null),
+      deck: o.deck as DeckLike, fallback: (o.fallback === 'rest' ? 'rest' : null), fallbackAt: (o.fallback === 'rest' ? (o.fallbackAt || null) : null), fallbackReason: (o.fallback === 'rest' ? (o.fallbackReason || null) : null), refresh: (o.refresh || null),
     }
     return snap
   }

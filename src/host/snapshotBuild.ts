@@ -16,11 +16,163 @@
 import { hostTimers } from '../shared/host-timer/host-timers.js'
 // #1139：界面描述（发给界面的那份后端数据）的投影只有一处实现，本文件不再自己挑字段。
 import { projectUiDescription } from '../tracker/ui-description.js'
-export function createSnapshotBuilder(deps) {
+// 界面描述的投影要求后端模块是契约里那一份（interface BackendModule）：这里引用同一个类型，
+// 而不是另抄一份形状——抄一份的话，契约加字段时这里不会跟着变，投影就会静默少键。
+import type { BackendModule } from '../tracker/contract/backend-module.js'
+
+// ── 依赖与回包形状（票 #1155 补类型标注）─────────────────────────────────────────
+// 为什么在这里逐条写：本文件的依赖对象是 src/host/index.js 里现拼出来的那份接线（旧语言文件，
+// 编译器看不见），所以这一组类型就是「本文件按什么形状读它们」的书面约定。只列本文件真正读到的格子：
+// 接线对不上时，报错点应当落在这一组类型上，而不是等到运行时才发现某一格是空的。
+// 标注只是给编译器看的，运行期形状一个字都没改——产物逐字节比对是这条约定的验收办法。
+
+/** 出站命令回包（runGh 那一支）：成功那支一定带 text，失败那支带 kind/error；code 只有部分路给。 */
+type GhReply =
+  | { ok: true; text: string; code?: number }
+  | { ok: false; kind?: string; error?: string; text?: string; code?: number }
+
+/** 出站命令回包（execProc 那一支）：语义与 runGh 同一套，区别是成功那支也带 code（宿主按退出码给）。 */
+type ExecReplyResult =
+  | { ok: true; text: string; code: number }
+  | { ok: false; error?: string; code?: number; text?: string }
+
+/** 列表路的票（REST 那一路）：labels 是数组；除票号外都按未知值收，谁读谁判。 */
+type ListIssue = {
+  number: number
+  state?: string
+  labels?: Array<{ name?: string }> | null
+  /** 能力计数按字段名逐格查（见 buildSnapshot 里的 capCount），所以这里留一条索引签名。 */
+  [extra: string]: unknown
+}
+
+/** 详情路的票（GraphQL 那一路）：labels 是 {nodes}；子票也来自这一路，形状同源。 */
+type DetailIssue = {
+  number: number
+  title?: unknown
+  state?: string
+  url?: unknown
+  body?: unknown
+  labels?: { nodes?: Array<{ name?: string }> } | null
+  subIssues?: { nodes?: DetailIssue[] } | null
+}
+
+/** 面板票（mapTicket 的产物）：分层与分组只读其中几格；level 是本文件组装快照时现挂上去的，不是后端字段。 */
+type PanelTicket = {
+  number: number
+  state?: string
+  claimedBy?: unknown
+  blockedBy: ReadonlyArray<number | string>
+  level?: number
+  [extra: string]: unknown
+}
+
+/** 分层结果：本文件只用 byNumber（票号 → 深度）这一格，levels 原样透传给界面。 */
+type TicketLevels = { byNumber: Record<string, number>; levels: unknown[] }
+
+/** 地图正文解析出来的五段：本文件一格都不读，原样装进快照交给界面。 */
+type MapBodySections = { destination: unknown; notes: unknown; decisions: unknown; fog: unknown; outOfScope: unknown }
+
+/**
+ * 地图详情回包（GraphQL 一次查全部与 REST 降级路同一形状）：issues 按 aliases 拼出来的 mN 键放票。
+ * 写成「成功/失败」两支的联合，理由与 fetchIssues 那格相同：读它的地方是 `detailOk ? d.issues[…] : null`
+ * 与 `!detailOk ? d.error : …` 两种，只有联合能让 `d.ok` 为真那一支认定 issues 存在。
+ * fallback／fallbackAt（REST 降级标记与降级时刻）两支都留着：成功那支正是降级路写进去的。
+ */
+type MapsDetail =
+  | { ok: true; issues: Record<string, DetailIssue | null>; fallback?: string | null; fallbackAt?: number | null }
+  | { ok: false; error?: unknown; fallback?: string | null; fallbackAt?: number | null }
+
+/** 选择结论：本文件只读 backendId 与 source 两格（显式空是权威结论，见 buildSnapshot 里的注释）。 */
+type Selection = { backendId?: string | null; source?: string }
+
+/** 仓库身份（describe 的产物）：四格都可缺——兜底形态下只剩 backend 与 refId。 */
+type RepositoryRef = { backend?: string; refId?: string; name?: string; url?: string }
+
+/** 后端实例（注册表 get 的产物）：本文件只用 getCurrentUser 一格，取不到就当没有。 */
+type TrackerView = {
+  getCurrentUser?(repo: unknown, ctx: unknown): Promise<{ ok?: boolean; data?: { login?: unknown } } | null>
+}
+
+/**
+ * 注册表里的后端模块（本文件只读 id 与 links 两格）。links 在这里写成「必有」：读它的那句守卫
+ * 长在 `modsHere[mi]` 这种下标访问上，而下标 mi 是 var（值可变），编译器不把上一次下标访问的判空
+ * 结果带到下一次，于是 `.links.repoUrlTemplate` 会被判成可能为空。运行期某个模块真没声明 links，
+ * 那句 `&&` 也照旧短路掉，行为一个字不变——这里是把「模块都带意愿位」这条约定写进类型，
+ * 而不是为了迁就编译器去改运行表达式。
+ */
+type SnapshotBackendModule = BackendModule & { links: NonNullable<BackendModule['links']> }
+
+/** 注册表：本文件读的四格——select 定后端、describe 出仓库身份、get 取后端实例、modules 出界面描述。 */
+type RegistrySlice = {
+  select(handle: unknown, ctx: unknown): Promise<Selection | null>
+  describe(handle: unknown, backendId: string): RepositoryRef | null
+  get(backendId: string): TrackerView | null | undefined
+  modules(): SnapshotBackendModule[]
+}
+
+/** 探测句柄：注册表认 cwd 与 refId 两格；这里只填得上 cwd，refId 由注册表自己按目录推。 */
+type HostHandle = { cwd?: string; refId?: string }
+
+/** exec 的回包（本文件自己往这一格填）：stdout 与 text 是同一段文本，code 归一到整数。 */
+type ExecReply = { stdout: string; text: string; ok: true; code: number }
+
+/** 一次注册表调用的上下文：本文件只填这几格；exec 是后端读仓库用的出站口（与宿主那条同签名）。 */
+type RegistryOpCtx = {
+  cwd: string
+  platform: unknown
+  fs: unknown
+  caller: string
+  timers: unknown
+  exec(cmd: unknown, args: string[] | null | undefined, opts: { cwd?: string } | null | undefined): Promise<ExecReply>
+}
+
+/** 探测服务：本文件只调 detect，读回包里的 selection 一格（选择三级联的权威那一路）。 */
+type DetectionService = {
+  detect(input: unknown, opts: unknown): Promise<{ selection?: Selection | null } | null>
+}
+
+/** 组装快照要的依赖：接线对象在 src/host/index.js 里现拼，这里只列本文件用到的那些。 */
+type SnapshotDeps = {
+  getRepoKey(cwd: string): Promise<{ owner: string; name: string } | null>
+  runGh(args: string[], cwd?: string, via?: string): Promise<GhReply>
+  execProc(argv: string[], cwd: string, via: string): Promise<ExecReplyResult>
+  /**
+   * 全量票列表。成功那支一定有 issues、失败那支没有：调用处两种写法都在 `fi.ok` 为真的分支里读它
+   * （`fi.ok ? fi.issues : []` 与 `fi.ok ? fi.issues.filter(…) : []`），所以这里的回包必须写成
+   * 「成功/失败」两支的联合，编译器才会在 `fi.ok` 为真时认定 issues 存在；写成 `issues?:` 一个可选字段，
+   * 后一种写法会被判成「可能为 undefined」。
+   */
+  fetchIssues(cwd: string): Promise<{ ok: true; issues: ListIssue[] } | { ok: false; error?: unknown }>
+  fetchMapsDetailREST(numbers: number[], cwd: string): Promise<MapsDetail>
+  mapTicket(raw: DetailIssue): PanelTicket
+  parseMapBody(body: unknown): MapBodySections
+  computeLevels(tickets: readonly PanelTicket[]): TicketLevels
+  /** 分组统计整包透传给界面，本文件不读其中任何一格（渲染侧按 stats 渲染漏斗）。 */
+  groupTickets(tickets: readonly PanelTicket[]): unknown
+  isRateLimitError(reply: unknown): boolean
+  /**
+   * 取注册表。写「一定给出注册表」而不是「可能为 null」：这条路取不到时是抛（见 host/platformChannel.js
+   * 里那份按注入→自建两步走、失败即 reject 的实现），调用处也用整段 try 兜着；
+   * 正文里那两处 `reg &&` 是原有防御写法，跟这里的标注不冲突，保留不动。
+   */
+  getTrackerRegistry(): Promise<RegistrySlice>
+  getPlatform(): Promise<unknown>
+  getRepoRoot(cwd: string): Promise<string>
+  getGhPath(): unknown
+  getGhLastError(): unknown
+  getDetectionService(): Promise<DetectionService>
+  ctx: { get(name: string): unknown }
+  /** 宿主计时器服务：原样转交给共享层的 hostTimers（那边按「可能缺席」收口）。 */
+  timer: unknown
+}
+
+export function createSnapshotBuilder(deps: SnapshotDeps) {
   const { getRepoKey, runGh, fetchIssues, getTrackerRegistry, getPlatform, execProc } = deps
   const { fetchMapsDetailREST, mapTicket, parseMapBody, computeLevels, groupTickets, isRateLimitError } = deps
   const { getRepoRoot, ctx, timer, getGhPath, getGhLastError } = deps
-    async function fetchMapsDetail(numbers, cwd) {
+    // 返回值按「成功那支 issues 存在、失败那支带 error」的联合标注（MapsDetail 的几格都可缺）：
+    // 不标的话，编译器会把几个 return 拼成一个松散联合，下面 `d.error`／`d.issues` 的读法就各报各的。
+    async function fetchMapsDetail(numbers: number[], cwd: string): Promise<MapsDetail> {
       const repo = await getRepoKey(cwd)
       if (!repo) return { ok: false, error: { kind: 'env', error: '无法解析 owner/repo（git remote 或 gh repo view 失败）' } }
       if (!numbers || !numbers.length) return { ok: true, issues: {} }
@@ -52,7 +204,7 @@ export function createSnapshotBuilder(deps) {
     }
 
 
-    async function buildSnapshot(cwd, hintBackendId) {
+    async function buildSnapshot(cwd: string, hintBackendId: unknown) {
       let viewerLogin = null // 由 Tracker.getCurrentUser 填充（后端接口返回当前用户，UI 仅对比，不直调 gh）
       let viewer = null
       const repo = await getRepoKey(cwd)
@@ -63,7 +215,8 @@ export function createSnapshotBuilder(deps) {
         return x.state === 'OPEN' && (x.labels || []).some(function (l) { return l.name === 'wayfinder:map' })
       }) : []
       // #375：全量 label 列表（含空 label；获取失败容错置空，不阻塞快照构建，client 降级）
-      let labels = []
+      // name 收成未知值：它直接来自 gh 的 JSON，颜色那一格有兜底、名字没有。
+      let labels: Array<{ name: unknown; color: string }> = []
       const fl = await runGh(['label', 'list', '--json', 'name,color'], cwd)
       if (fl.ok) {
         try {
@@ -112,8 +265,8 @@ export function createSnapshotBuilder(deps) {
         // 预取 viewer（供 UI “本人不显”对比），失败则保持 null（全显）
         try {
           const tmpReg = reg
-          const tmpHandle = { cwd: cwd }
-          const tmpCtx = { cwd: cwd, platform: await getPlatform(), fs: ctx.get('fs'), caller: 'issue-detail-viewer', timers: hostTimers(timer), exec: async function(cmd, args, opts){ const argv=[String(cmd)].concat(args||[]); const c=(opts&&opts.cwd)||cwd; const r=await execProc(argv, c, 'viewer-lookup'); if(!r.ok) throw new Error(r.error||String(r.code||'exec failed')); return { stdout:r.text, text:r.text, ok:true, code:(Number.isInteger(r.code) ? r.code : 0) } } }
+          const tmpHandle: HostHandle = { cwd: cwd }
+          const tmpCtx: RegistryOpCtx = { cwd: cwd, platform: await getPlatform(), fs: ctx.get('fs'), caller: 'issue-detail-viewer', timers: hostTimers(timer), exec: async function(cmd, args, opts){ const argv=[String(cmd)].concat(args||[]); const c=(opts&&opts.cwd)||cwd; const r=await execProc(argv, c, 'viewer-lookup'); if(!r.ok) throw new Error(r.error||String(r.code||'exec failed')); return { stdout:r.text, text:r.text, ok:true, code:(Number.isInteger(r.code) ? r.code : 0) } } }
           const selForViewer = await tmpReg.select(tmpHandle, tmpCtx)
           const vid = selForViewer && selForViewer.backendId
           if (vid) {
@@ -126,9 +279,9 @@ export function createSnapshotBuilder(deps) {
         } catch (e) {}
         if (reg && typeof reg.select === 'function') {
           const handle = { cwd: cwd }
-          const ctxSel = { cwd: cwd, platform: await getPlatform(), fs: ctx.get('fs'), caller: 'issue-detail-select', timers: hostTimers(timer), exec: async function(cmd, args, opts){ const argv=[String(cmd)].concat(args||[]); const c=(opts&&opts.cwd)||cwd; const r=await execProc(argv, c, 'snapshot-select'); if(!r.ok) throw new Error(r.error||String(r.code||'exec failed')); return { stdout:r.text, text:r.text, ok:true, code:(Number.isInteger(r.code) ? r.code : 0) } } }
+          const ctxSel: RegistryOpCtx = { cwd: cwd, platform: await getPlatform(), fs: ctx.get('fs'), caller: 'issue-detail-select', timers: hostTimers(timer), exec: async function(cmd, args, opts){ const argv=[String(cmd)].concat(args||[]); const c=(opts&&opts.cwd)||cwd; const r=await execProc(argv, c, 'snapshot-select'); if(!r.ok) throw new Error(r.error||String(r.code||'exec failed')); return { stdout:r.text, text:r.text, ok:true, code:(Number.isInteger(r.code) ? r.code : 0) } } }
           // 能力诊断计数（G5 仅诊断，不驱动隐藏）——按 host 视角 fill 统计
-          const capCount = (function(iss){
+          const capCount = (function(iss: ListIssue[]){
             let present=0, emptyCnt=0, missing=0
             // 简易：以 labels 为例，其余字段按 shape 能力字段集计数
             const fields=['author','assignees','labels','milestone','customFields','reason','blockedBy','comments','closedAt']
@@ -193,8 +346,11 @@ export function createSnapshotBuilder(deps) {
             if (repo) repository = { backend: '', refId: repo.owner + '/' + repo.name, name: repo.owner + '/' + repo.name, url: '' }
             else repository = null
           }
-          // 能力计数挂到 snapshot 供 ChecksTab 诊断卡
-          var _capDiag = capCount
+          // 能力计数挂到 snapshot 供 ChecksTab 诊断卡。
+          // `var` 声明在 if 里、取值在 if 外的 return 里（var 提升到函数作用域），选不出后端时这一格本就没算过——
+          // 下面取值处那句 `typeof _capDiag !== 'undefined'` 就是为这个写的。类型照实标成「可能是 undefined」，
+          // 让编译器认下这句守卫；这不是新缺陷，是原来就按「可能缺席」写好的语义。
+          var _capDiag: typeof capCount | undefined = capCount
         }
       } catch (e) { /* 保持 null，不阻塞快照 */ }
       // #191: backendModules 透传（presentation 色板）—— 修复 ReferenceError: backendModules is not defined (#195 遗漏)

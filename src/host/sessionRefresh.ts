@@ -9,28 +9,79 @@
 //   两条路的字段集合由构造保证相等；tests/verify-reply-envelope-parity.js 每次运行都比一遍。
 // #1139：界面描述（发给界面的那份后端数据）的投影只有一处实现，本文件不再自己挑字段。
 import { projectUiDescription } from '../tracker/ui-description.js'
-export function createSessionRefresh(deps) {
+
+// ===== 类型契约（#1155）：下面这些声明只给类型检查看，编译后一行都不剩，运行时不引用任何名字 =====
+// 为什么都收在文件顶部：本文件的依赖全部由接线处 index.js 注入（那份是 JS，不检查编译错误），
+// 所以每份类型只描述「本文件实际读写的字段」，字段名与注入方一一对应；多传的字段这里不管。
+// 信封也在这里就地声明形状（而不是 import type 同层文件）：本文件不静态引用同层文件（同层互引门禁），
+// 形状照 snapshotEnvelope.ts 的 buildSnap / withChainReadout 两口写，那边改签名这里要跟着改。
+type Fail = { ok: false; error: string }
+type Args = { cwd?: unknown; backendId?: unknown; lang?: unknown; ifNoneMatch?: string | null; version?: string | null; [k: string]: unknown }
+// 标签的 name 是它的身份（后端给的每个标签都有名字）；读的地方还有 `l && l.name` 的兜底，那道兜底不动。
+type Label = { name: string; color?: string }
+type BlockedRef = number | string | { key?: unknown }
+// 票与地图的公共形状：编号、标题、统计由各后端填好，本文件只读它会读的、只写它会写的（number/key/level/stats/blockedBy/claimedBy）。
+type Row = { state?: string; key?: string; number?: number | null; labels?: Label[]; tickets?: Row[]; blockedBy?: BlockedRef[]; claimedBy?: string | null; assignees?: { login?: string }[]; level?: unknown; stats?: unknown; [k: string]: unknown }
+// 后端原始回包经 upcaseSnapStates 收形之后的形状：本文件只用这五样。
+type Inner = { maps?: Row[]; issues?: Row[]; labels?: Label[]; thinTickets?: unknown[]; deck?: unknown }
+// 早选结果：只有 backendId 与 rev 是判据，其余字段原样透传给信封。
+type Sel = { backendId?: string; rev?: unknown; [k: string]: unknown }
+// isComposerSelection 为真意味着「这份选择里有后端」——那条共享谓词判的就是它。
+type SelReady = Sel & { backendId: string }
+type RepoRef = { refId?: string; backend?: string; name?: string; url?: string } | null
+type RepoKey = { owner?: string; name?: string } | null
+type BackendLike = { getCurrentUser?(repo: RepoRef, ctx: unknown): Promise<{ ok?: unknown; data?: { login?: string } | null }>; [k: string]: unknown }
+type Reg = { get(id: string): BackendLike; describe(o: { cwd: string }, id: string): RepoRef; modules(): BackendModule[]; [k: string]: unknown }
+// 注册表交出来的后端模块（还没投影过），正是 projectUiDescription 的入参。
+type BackendModule = Parameters<typeof projectUiDescription>[0]
+type UiDescription = ReturnType<typeof projectUiDescription>
+type ComposerOpts = { ifNoneMatch?: string; force?: boolean }
+// 编排回包：snapshot 是后端原始快照（交给 upcaseSnapStates 收形）；error.message 是给人看的那句话。
+type Composed = { ok: boolean; error?: { message?: string } | null; snapshot?: unknown; fail?: unknown; notModified?: unknown; status?: unknown; version?: unknown; cached?: unknown }
+type Composer = { composeSnapshot(id: string, repo: RepoRef, ctx: unknown, o: ComposerOpts): Promise<Composed> }
+type Levels = { byNumber?: Record<string, unknown>; byKey?: Record<string, unknown>; [k: string]: unknown }
+type Deck = { counts?: { open?: unknown; closed?: unknown } | null; partial?: boolean; [k: string]: unknown }
+// 信封（与 wf.snapshot 同一个实例）：这里只声明本文件用到的两口。
+type Envelope = { buildSnap(o: SnapInput): SnapOut; withChainReadout<T>(reply: T): T }
+type SnapInput = { repo?: unknown; repoRoot?: unknown; workspaceRoot?: unknown; maps?: unknown[]; issues?: unknown[]; thinTickets?: unknown[]; labels?: unknown[]; repository?: unknown; backendModules?: unknown; selection?: unknown; viewer?: unknown; viewerLogin?: unknown; deck?: unknown }
+// 组装出来的快照：本文件读 fromCache / generatedMs / deck / maps / issues / labels，落盘时整份交回去。
+type SnapOut = { [k: string]: unknown; fromCache?: boolean; generatedMs?: number; maps?: unknown[]; issues?: unknown[]; labels?: unknown[]; deck?: Deck | null }
+type LogCtx = { fire(level: string, event: string, payload?: unknown): void; isEnabled(name: string): boolean }
+type Platform = { ident?: unknown }
+// 接线处注入的依赖：字段名与 index.js 里那份对象一一对应（少一个就在启动时炸）。
+type RefreshDeps = {
+  canonicalKey(cwd: unknown): Promise<string> | string; selectEarly(o: { cwd: string; backendId?: unknown }): Promise<Sel | null> | Sel | null; isComposerSelection(sel: Sel | null): sel is SelReady; getTrackerRegistry(): Promise<Reg> | Reg; getPlatform(): Promise<Platform> | Platform
+  ctx: { get(name: string): unknown }; logCtx?: LogCtx | null; DEFAULT_CWD?: string; envelope?: Envelope | null
+  getCache(cwd: string): { ts: number; snapshot?: unknown } | null | undefined; setCache(v: { ts: number; snapshot: unknown; error: unknown; cwd: string }): void
+  upcaseSnapStates(snap: unknown): Inner; computeLevels(tickets: Row[]): Levels; groupTickets(tickets: Row[]): unknown
+  getRepoRoot(cwd: string): Promise<string> | string; getRepoKey(cwd: string): Promise<RepoKey> | RepoKey; readDiskCache(repo: unknown): unknown; writeDiskCache(repo: unknown, snap: unknown): unknown
+  adoptSnapshot(snap: unknown, c: unknown): unknown; detectionExec(cmd: string, args: unknown[], opts: unknown, phase: string): unknown; resetGhCache(): unknown; getGhPath(): string; getGhLastError(): unknown; errText(e: unknown): string
+  send?: ((scope: unknown, run: () => unknown) => Promise<{ result: unknown }>) | null
+}
+export function createSessionRefresh(deps: RefreshDeps) {
   const { canonicalKey, selectEarly, isComposerSelection, resetGhCache, getTrackerRegistry, getPlatform, ctx, getCache, setCache, upcaseSnapStates, computeLevels, groupTickets, getRepoRoot, getRepoKey, readDiskCache, writeDiskCache, adoptSnapshot, detectionExec, getGhPath, getGhLastError, errText, DEFAULT_CWD, logCtx, envelope, send } = deps
   // 共用的那份信封（接线处 index.js 传进来，与 wf.snapshot 同一个实例）。
   // 没传就没法组装出与 wf.snapshot 同形的回包 —— 那种情况下宁可如实回一次失败，
   // 也不退回本文件自己拼一份（那正是这次故障的来路：两份信封各自漂）。
-  const env = (envelope && typeof envelope.buildSnap === 'function' && typeof envelope.withChainReadout === 'function') ? envelope : null
+  const env: Envelope | null = (envelope && typeof envelope.buildSnap === 'function' && typeof envelope.withChainReadout === 'function') ? envelope : null
+  // 信封没接上就整条路如实失败（见上面三行），所以真去组装的那两只函数只会在 env 非空时被调用；
+  // 但它们是各自独立的函数，收窄不会翻过函数边界，下面四处 env!.buildSnap 就是把这件事写出来。
   // #491 房外埋点 helpers：hash8 只记散列；脏回执与组装返回均为低频常驻，直接落盘（库体内兜底）。
-  function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
+  function hash8(s: unknown) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
   // #689：snapshot.built 多了三个字段（open / closed 是后端计数给的真值、拿不到记 -1；partial 说这份行数据全不全）—— 加在既有事件里不新增一条（每次重建都会走到这里），字段表见 research/489-appendix.md 第 1 章。
-  async function adoptSnapLog(snap, c) { try { if (logCtx && snap && snap.fromCache !== true) { const _d = (snap.deck && typeof snap.deck === 'object') ? snap.deck : {}; const _ct = (_d.counts && typeof _d.counts === 'object') ? _d.counts : null; logCtx.fire('info', 'snapshot.built', { maps: (snap.maps || []).length, issues: (snap.issues || []).length, labels: (snap.labels || []).length, open: _ct ? _ct.open : -1, closed: _ct ? _ct.closed : -1, partial: _d.partial === true, latencyMs: Date.now() - (snap.generatedMs || Date.now()) }) } } catch (e) {} return adoptSnapshot(snap, c) }
+  async function adoptSnapLog(snap: SnapOut, c: string) { try { if (logCtx && snap && snap.fromCache !== true) { const _d: Deck = (snap.deck && typeof snap.deck === 'object') ? snap.deck : {}; const _ct = (_d.counts && typeof _d.counts === 'object') ? _d.counts : null; logCtx.fire('info', 'snapshot.built', { maps: (snap.maps || []).length, issues: (snap.issues || []).length, labels: (snap.labels || []).length, open: _ct ? _ct.open : -1, closed: _ct ? _ct.closed : -1, partial: _d.partial === true, latencyMs: Date.now() - (snap.generatedMs || Date.now()) }) } } catch (e) {} return adoptSnapshot(snap, c) as SnapOut }
   // #589 去重加载器（D7 禁止静态 import，动态接线；与 _dispatchMetaP 同模式）
-  let _dedupeP = null
+  let _dedupeP: Promise<typeof import('../shared/tracker/list-dedupe.js')> | null = null
   function _dedupe() { if (!_dedupeP) _dedupeP = import('../shared/tracker/list-dedupe.js'); return _dedupeP }
   /** 回包交给界面之前，把「每个会话在处理哪些票」的读数挂上（与 wf.snapshot 同一个挂载口）。 */
-  async function handleRefresh(args) {
+  async function handleRefresh(args: Args) {
     if (!env) return { ok: false, error: 'snapshot-envelope-not-wired' }
     return env.withChainReadout(await refreshOf(args))
   }
   // #729 一次性方案：强制刷新也进与快照路共用的在途表（./snapshotInflight.js；D7 禁止静态 import，动态接线）。
-  let _sharedInflightP = null
+  let _sharedInflightP: Promise<typeof import('./snapshotInflight.js')> | null = null
   function _loadSharedInflight() { if (!_sharedInflightP) _sharedInflightP = import('./snapshotInflight.js'); return _sharedInflightP }
-  async function refreshOf(args) {
+  async function refreshOf(args: Args) {
       // #1003 空目录闸：同快照，不拿进程目录冒充去重建，诚实失败等就绪。
       const _rawRefCwd = (args && typeof args.cwd === 'string' && args.cwd.trim()) ? args.cwd : ''
       if (!_rawRefCwd) return { ok: false, error: '这个工作区还没就绪（还没认出是哪个目录），等面板认出工作区后再试。' }
@@ -44,14 +95,14 @@ export function createSessionRefresh(deps) {
       // #729：在途键与快照路同一把；强制只搭强制的车（在途是非强制就另起一趟，#366），搭上记现成的 dedup.hit。
       const _sharedInflight = await _loadSharedInflight()
       const refreshDedupKey = _sharedInflight.snapshotDedupKeyOf({ cwd: cwd, backendId: (_sel && _sel.backendId), lang: (args && args.lang), version: (args && (args.ifNoneMatch || args.version)) })
-      { const _ride = _sharedInflight.snapshotInflightTake(refreshDedupKey, true, function () { try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'dedup.hit', function () { return { scope: 'snapshot', keyHash: hash8(refreshDedupKey) } }) } catch (eL) {} }); if (_ride) return _ride }
+      { const _ride = _sharedInflight.snapshotInflightTake<SnapOut | Fail>(refreshDedupKey, true, function () { try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'dedup.hit', function () { return { scope: 'snapshot', keyHash: hash8(refreshDedupKey) } }) } catch (eL) {} }); if (_ride) return _ride }
       const _rebuild = refreshBuild(args, cwd, _sel)
       const _entry = _sharedInflight.snapshotInflightPark(refreshDedupKey, true, _rebuild)
       try { return await _rebuild } finally { _sharedInflight.snapshotInflightLeave(refreshDedupKey, _entry) }
   }
   // #729：刷新真正的组装（被在途表包住，一趟只跑一次；#195 的 resetGhCache 从入口搬进这里——
   // 搭车的不再重复清：那一清里带一次异步落盘清空，在途那趟的脚下不能再扫一次）。
-  async function refreshBuild(args, cwd, _sel) {
+  async function refreshBuild(args: Args, cwd: string, _sel: Sel | null) {
       // #195 修复：用户主动刷新时清空 gh 解析缓存，强制重探
       resetGhCache()
       try {
@@ -62,18 +113,18 @@ export function createSessionRefresh(deps) {
           const backendId = _sel.backendId
           const tracker = reg.get(backendId)
           if (!tracker) throw new Error('unknown backend ' + backendId)
-          let repoRef = null
+          let repoRef: RepoRef = null
           try { repoRef = reg.describe({ cwd }, backendId) } catch {}
           if (!repoRef) repoRef = { backend: backendId, refId: cwd, name: String(cwd).split(/[\\/]/).pop() || backendId, url: '' }
           // #927：刷新这一路的每条命令也过闸（分类同上：人的动作那一档，只记账、不降档）；没给 send 时照旧直发。
-          const ctx2 = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: function (c, a, o) { if (typeof send !== 'function') return detectionExec(c, a, o, 'refresh'); const isGql = String((a && a[0]) || '') === 'api' && String((a && a[1]) || '').indexOf('graphql') >= 0; return send({ source: 'panel.refresh', kind: 'detail', bucket: isGql ? 'graphql' : 'rest', workspaceKey: cwd }, function () { return detectionExec(c, a, o, 'refresh') }).then(function (r) { return r.result }) } }
+          const ctx2 = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: function (c: string, a: unknown[], o?: unknown) { if (typeof send !== 'function') return detectionExec(c, a, o, 'refresh'); const isGql = String((a && a[0]) || '') === 'api' && String((a && a[1]) || '').indexOf('graphql') >= 0; return send({ source: 'panel.refresh', kind: 'detail', bucket: isGql ? 'graphql' : 'rest', workspaceKey: cwd }, function () { return detectionExec(c, a, o, 'refresh') }).then(function (r) { return r.result }) } }
           const { createSnapshotComposer } = await import('./tracker/snapshot.js')
-          const composer = createSnapshotComposer(reg, { snapshotTtl: 5000 })
+          const composer: Composer = createSnapshotComposer(reg, { snapshotTtl: 5000 })
           const res = await composer.composeSnapshot(backendId, repoRef, ctx2, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: true })
           if (!res.ok) throw new Error((res.error && res.error.message) || 'composeSnapshot failed')
                     const inner = upcaseSnapStates(res.snapshot)
           const flatTickets = (inner.maps || []).flatMap(function(m){ return (m.tickets || []); })
-          let allForList = []
+          let allForList: Row[] = []
           ;(inner.maps || []).forEach(function(m){
             if (m.key != null && m.number == null) {
               const n = parseInt(m.key, 10)
@@ -82,7 +133,7 @@ export function createSessionRefresh(deps) {
             if (m.key != null) m.key = String(m.key)
             try {
               const tickets = m.tickets || []
-              const lvInfo = (typeof computeLevels === 'function') ? computeLevels(tickets) : { byNumber: {} }
+              const lvInfo: Levels = (typeof computeLevels === 'function') ? computeLevels(tickets) : { byNumber: {} }
               tickets.forEach(function(t){ 
                 if (t.number != null && lvInfo.byNumber && lvInfo.byNumber[t.number] != null) t.level = lvInfo.byNumber[t.number]
                 else if (t.key != null && lvInfo.byKey && lvInfo.byKey[t.key] != null) t.level = lvInfo.byKey[t.key]
@@ -123,11 +174,11 @@ export function createSessionRefresh(deps) {
           // #589：三段拼接会让身兼两职的票出现两次，这里按身份收成一行（地图容器优先）
           allForList = (await _dedupe()).dedupeListByPool(allForList)
           const labels = inner.labels || (function(){
-            const mm = {}
-            ;[].concat(inner.maps || []).concat(flatTickets).forEach(function(x){ (x.labels||[]).forEach(function(l){ if(l.color && !mm[l.name]) mm[l.name]=l.color }) })
+            const mm: Record<string, unknown> = {}
+            ;([] as Row[]).concat(inner.maps || []).concat(flatTickets).forEach(function(x){ (x.labels||[]).forEach(function(l){ if(l.color && !mm[l.name]) mm[l.name]=l.color }) })
             return Object.entries(mm).map(function(e){ return {name:e[0], color:e[1]} })
           })()
-          let backendModules = null
+          let backendModules: UiDescription[] | null = null
           try {
             const regM = await getTrackerRegistry()
             if (regM && typeof regM.modules === 'function') {
@@ -140,7 +191,7 @@ export function createSessionRefresh(deps) {
               const mdMod = backendModules.find(function(m){ return m && m.id==='markdown' && Array.isArray(m.labelPalette) })
               const palette = mdMod && mdMod.labelPalette
               if(Array.isArray(palette) && palette.length){
-                const have = {}
+                const have: Record<string, boolean> = {}
                 labels.forEach(function(l){ if(l && l.name) have[String(l.name).trim()] = true })
                 palette.forEach(function(p){
                   const nm = p && p.name ? String(p.name).trim() : ''
@@ -156,7 +207,7 @@ export function createSessionRefresh(deps) {
           // （markdown 房 parse.ts 的 url），宿主不再替任何后端算地址——这正是注册表「只转发后端自己给的值」那条方向。
           const repoRoot = await getRepoRoot(cwd)
           // 共用信封（与 wf.snapshot 同一份 buildSnap）：字段清单只有一处说了算。
-          const snap = env.buildSnap({
+          const snap = env!.buildSnap({
             repo: null, repoRoot: repoRoot, workspaceRoot: cwd,
             maps: inner.maps, issues: allForList, thinTickets: inner.thinTickets, labels: labels,
             repository: repoRef, backendModules: backendModules, selection: _sel,
@@ -167,7 +218,7 @@ export function createSessionRefresh(deps) {
         // 统一走编排器（所有后端）
         if (!_sel || !_sel.backendId) {
           const repoRoot = await getRepoRoot(cwd)
-          let backendModules = null
+          let backendModules: UiDescription[] | null = null
           try {
             const regM = await getTrackerRegistry()
             if (regM && typeof regM.modules === 'function') {
@@ -175,7 +226,7 @@ export function createSessionRefresh(deps) {
             }
           } catch {}
           // 共用信封：没有后端时那份空快照与 wf.snapshot 同形。
-          const snap = env.buildSnap({
+          const snap = env!.buildSnap({
             repo: null, repoRoot, workspaceRoot: cwd,
             maps: [], issues: [], thinTickets: [], labels: [],
             repository: null, backendModules, selection: _sel,
@@ -187,7 +238,7 @@ export function createSessionRefresh(deps) {
         const backendId2 = _sel.backendId
         const tracker2 = reg2.get(backendId2)
         if (!tracker2) throw new Error('unknown backend ' + backendId2)
-        let repoRef2 = null
+        let repoRef2: RepoRef = null
         try { repoRef2 = reg2.describe({ cwd }, backendId2) } catch {}
         if (!repoRef2 || !repoRef2.refId) {
           const rk = await getRepoKey(cwd)
@@ -195,16 +246,22 @@ export function createSessionRefresh(deps) {
             repoRef2 = { backend: backendId2, refId: rk.owner + '/' + rk.name, name: rk.owner + '/' + rk.name, url: 'https://github.com/' + rk.owner + '/' + rk.name }
           } else {
             const repoRootNoRepo = await getRepoRoot(cwd)
-            let backendModulesNoRepo = null
+            let backendModulesNoRepo: UiDescription[] | null = null
             try {
               const regMNo = await getTrackerRegistry()
               if (regMNo && typeof regMNo.modules === 'function') {
                 backendModulesNoRepo = regMNo.modules().map(projectUiDescription)
               }
             } catch {}
-            const _selNoRepo = (typeof _sel !== 'undefined' ? _sel : (typeof _selEarly !== 'undefined' ? _selEarly : null))
+            // #1155 修正（本票唯一一处产物里有差异的行，取值不变）：
+            // 原式是 `typeof _sel !== 'undefined' ? _sel : (typeof _selEarly !== 'undefined' ? _selEarly : null)`。
+            // `_sel` 是本函数的第三个参数（调用方第 99 行把早选结果原样递进来），永远是「已定义」，
+            // 所以第一个分支恒成立、实际取到的就是 `_sel`；真正被报错的是后面那截永远走不到的死分支——
+            // `_selEarly` 这个名字在本文件里从来没有声明过（是从快照那条路抄过来的，快照那边它真声明过）。
+            // 把死分支去掉、只留 `_sel`，对这条路的任何输入取值都与改前相同，类型检查也不再报「找不到名字」。
+            const _selNoRepo = _sel
             // 共用信封：仓库都认不出来时那份空快照与 wf.snapshot 同形。
-            const snapNoRepo = env.buildSnap({
+            const snapNoRepo = env!.buildSnap({
               repo: null, repoRoot: repoRootNoRepo, workspaceRoot: cwd,
               maps: [], issues: [], thinTickets: [], labels: [],
               repository: null, backendModules: backendModulesNoRepo, selection: _selNoRepo,
@@ -216,9 +273,9 @@ export function createSessionRefresh(deps) {
         const repo0b = await getRepoKey(cwd)
         // #366 fix: wf.refresh must bypass disk cache short-circuit (force rebuild with fresh generatedMs)
         void 0;
-        const ctx2b = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: function (c, a, o) { if (typeof send !== 'function') return detectionExec(c, a, o, 'refresh'); const isGql = String((a && a[0]) || '') === 'api' && String((a && a[1]) || '').indexOf('graphql') >= 0; return send({ source: 'panel.refresh', kind: 'detail', bucket: isGql ? 'graphql' : 'rest', workspaceKey: cwd }, function () { return detectionExec(c, a, o, 'refresh') }).then(function (r) { return r.result }) } }
+        const ctx2b = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: function (c: string, a: unknown[], o?: unknown) { if (typeof send !== 'function') return detectionExec(c, a, o, 'refresh'); const isGql = String((a && a[0]) || '') === 'api' && String((a && a[1]) || '').indexOf('graphql') >= 0; return send({ source: 'panel.refresh', kind: 'detail', bucket: isGql ? 'graphql' : 'rest', workspaceKey: cwd }, function () { return detectionExec(c, a, o, 'refresh') }).then(function (r) { return r.result }) } }
         const { createSnapshotComposer: createComposer2 } = await import('./tracker/snapshot.js')
-        const composer2 = createComposer2(reg2, { snapshotTtl: 5000 })
+        const composer2: Composer = createComposer2(reg2, { snapshotTtl: 5000 })
         const res2 = await composer2.composeSnapshot(backendId2, repoRef2, ctx2b, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: true })
         if (!res2.ok) throw new Error((res2.error && res2.error.message) || 'composeSnapshot failed')
                   const inner2 = upcaseSnapStates(res2.snapshot)
@@ -248,7 +305,7 @@ export function createSessionRefresh(deps) {
                 else t.claimedBy = ''
               }
             })
-            const lvInfo = (typeof computeLevels === 'function') ? computeLevels(tickets) : { byNumber: {} }
+            const lvInfo: Levels = (typeof computeLevels === 'function') ? computeLevels(tickets) : { byNumber: {} }
             tickets.forEach(function(t){ 
               if (t.number != null && lvInfo.byNumber && lvInfo.byNumber[t.number] != null) t.level = lvInfo.byNumber[t.number]
               else if (t.key != null && lvInfo.byKey && lvInfo.byKey[t.key] != null) t.level = lvInfo.byKey[t.key]
@@ -258,15 +315,15 @@ export function createSessionRefresh(deps) {
           } catch {}
         })
         ;(inner2.issues || []).forEach(function(it){ if (it.number == null && it.key != null) { const nn = parseInt(it.key,10); if(!isNaN(nn)) it.number = nn; } })
-        let allForList2 = [].concat(inner2.maps || []).concat((inner2.maps||[]).flatMap(function(m){ return m.tickets||[]; })).concat(inner2.issues||[])
+        let allForList2: Row[] = ([] as Row[]).concat(inner2.maps || []).concat((inner2.maps||[]).flatMap(function(m){ return m.tickets||[]; })).concat(inner2.issues||[])
         // #589：三段拼接会让身兼两职的票出现两次，这里按身份收成一行（地图容器优先）
         allForList2 = (await _dedupe()).dedupeListByPool(allForList2)
         const labels2 = inner2.labels || (function(){
-          const mm = {}
-          ;[].concat(inner2.maps||[]).concat(inner2.issues||[]).forEach(function(x){ (x.labels||[]).forEach(function(l){ if(l.color && !mm[l.name]) mm[l.name]=l.color }) })
+          const mm: Record<string, unknown> = {}
+          ;([] as Row[]).concat(inner2.maps||[]).concat(inner2.issues||[]).forEach(function(x){ (x.labels||[]).forEach(function(l){ if(l.color && !mm[l.name]) mm[l.name]=l.color }) })
           return Object.entries(mm).map(function(e){ return {name:e[0], color:e[1]} })
         })()
-        let backendModules2 = null
+        let backendModules2: UiDescription[] | null = null
         try {
           const regM2 = await getTrackerRegistry()
           if (regM2 && typeof regM2.modules === 'function') {
@@ -274,7 +331,7 @@ export function createSessionRefresh(deps) {
           }
         } catch {}
         const repoRoot2 = await getRepoRoot(cwd)
-        let viewer2 = null, viewerLogin2 = null
+        let viewer2: unknown = null, viewerLogin2: string | null = null
         try {
           const tr = reg2.get(backendId2)
           if (tr && typeof tr.getCurrentUser === 'function') {
@@ -283,7 +340,7 @@ export function createSessionRefresh(deps) {
           }
         } catch {}
         // 共用信封：这条路与 wf.snapshot 的 GitHub 分支同形（含 viewer / viewerLogin）。
-        const snap2 = env.buildSnap({
+        const snap2 = env!.buildSnap({
           repo: repo0b, repoRoot: repoRoot2, workspaceRoot: cwd,
           maps: inner2.maps, issues: allForList2, thinTickets: inner2.thinTickets, labels: labels2,
           repository: repoRef2, backendModules: backendModules2, selection: _sel,

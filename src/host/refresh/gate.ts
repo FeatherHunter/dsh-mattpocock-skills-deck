@@ -24,17 +24,136 @@ import * as failureWindow from '../../shared/refresh/failure-window.js'
 import { measureStep, noteStepOutbound } from '../../shared/step-cost.js'
 import { refusalTextRef } from './refusal-text.js'
 
+// ---------------------------------------------------------------------------
+// 类型（#1155 类型标注，只写类型不写实现）。
+//
+// 为什么这么标：
+//   1. 下面四张对照表（类别、调用点 → 类别、请求种类 → 桶、类别 → 档位）都是「查表」：
+//      键是调用点与请求种类的名字，运行时的口径是「查得到就用、查不到走兜底」。所以标成带索引签名的
+//      Record<string, string> —— 查表这条读法成立，兜底那条分支一字未动（名字合不合法由运行时兜底，
+//      类型不替调用方拒绝，也不假装它一定对）。
+//   2. 从外面进来的东西（请求、报数、读数、调用方给的数字）一律按 unknown 收：收窄发生在
+//      num()、readReport() 与那些 typeof 判断里；类型不假装它们已经是某个形状。
+//   3. 闸与账本不互相 import（宿主接线时拼起来，闸只按形状用账本），所以账本那一侧
+//      按「闸实际用到的五条」写成 LedgerShape，而不是去引账本的类型。
+// ---------------------------------------------------------------------------
+
+/** 调用方给的那一份请求：字段都可缺（函数体里的 `|| {}` 就是这道兜底）；kind 缺了按 probe 算。 */
+interface GateRequest {
+  source?: string
+  category?: string
+  kind?: string
+  bucket?: string
+  workspaceKey?: unknown
+  plan?: unknown[]
+}
+
+/** 归一之后的请求：下面每一处都按这个形状读，所以类别、种类、桶、工作区键都已经是字符串。 */
+interface NormalizedReq {
+  source?: string
+  category: string
+  kind: string
+  bucket: string
+  workspaceKey: string
+  plan: unknown[]
+}
+
+/** 一个工作区被闸记住的状态（与账本无关，纯粹是本闸自己的记忆）。 */
+interface WorkspaceState {
+  active: boolean
+  failuresSinceSuccess: number
+  rateLimitedUntil: number
+  backoffWindowStartedAt: number
+}
+
+/** 推迟队列里的一条：同一工作区只留最后一次（后来的覆盖先来的，覆盖次数计入 coalesced）。 */
+interface DeferredEntry {
+  req: NormalizedReq
+  category: string
+  kind: string
+  bucket: string
+  at: number
+}
+
+/** 条数与点数这一对（记账单位是真实出站 HTTP 请求数，这两个数在闸里到处对账）。 */
+interface Counters { requests: number; points: number }
+
+/** 传输层报上来的一笔花费：条数与点数缺了或不是数都按 0 算（条数缺了就当 1 条，见 noteOutbound）。 */
+interface OutboundReport { requests?: unknown; points?: unknown }
+
+/** 裁决的结论（形状来自 policy.js 的 decide）：放行、降档还是推迟，外加一句原因。 */
+interface GateDecision { verdict: string; reason: string }
+
+/** 真去做事的那一步：返回它自己报的花费（会被拿来实现对账）。 */
+type StepPerform = (step: unknown, ctx: { category: string; kind: string; bucket: string }) => unknown
+
+/** 走完一步的结论：这一步真发了几条、调用方报了几条、这一桶还剩多少、现在哪一档、这步做出的东西。 */
+interface StepOutcome {
+  requests: number
+  points: number
+  claimed: Counters
+  remaining: number
+  tier: string
+  result: unknown
+}
+
+/** 撞限流时报上来的那一笔：桶由请求决定，秒数由调用方给（被测系统给的数，按 unknown 收）。 */
+interface RetryAfterSignal extends GateRequest { seconds?: unknown }
+
+/** AI 工具那一档的准入输入：这一笔要花多少、要拆几片；缺了或不是数都按 0 算。 */
+interface AiToolCall { points?: unknown; requests?: unknown; childTickets?: unknown }
+
+/** 账本现在长什么样（闸只按形状用它，不 import 账本：两个文件由宿主接线拼起来）。 */
+interface LedgerView {
+  bucket: string
+  allowance: number
+  used: number
+  remaining: number
+  reserve: number
+  tier: string
+}
+
+/** 记一笔真实花费时交给账本的东西：桶必给，条数与点数是 num() 归一过的数字。 */
+interface LedgerSpendEntry { account: string; bucket: string; kind?: string; requests?: number; points?: number }
+
+/** 闸实际用到账本的五条：多一条也不用，少一条接线时就当场抛。 */
+interface LedgerShape {
+  view(bucketName: string): LedgerView
+  spend(entry: LedgerSpendEntry): { remaining: number; tier: string }
+  noteRateLimited(bucketName: string, seconds: unknown, at: number): { bucket: string; until: number }
+  hourOf(accountName: string): Counters
+  syncDue(at?: unknown): boolean
+}
+
+/** 宿主日志出口（与 src/host 其余文件同一形状）：先问开关，关着连字段对象都不组装。 */
+interface LogCtx {
+  isEnabled(level: string): boolean
+  fire(level: string, event: string, fields: unknown): void
+}
+
+/** 建一道闸的依赖：只有账本必给（缺了下面那条判断当场抛），时钟缺了用系统时钟，日志缺了不记。 */
+interface GateDeps {
+  ledger?: LedgerShape
+  logCtx?: LogCtx | null
+  now?: () => number
+  hash8?: (value: unknown) => string
+  budget?: unknown
+}
+
+/** 工作区状态能从外面改的那一格（现在只有「在不在用」）。 */
+interface WorkspacePatch { active?: unknown }
+
 /** 四个类别（谁在做事）。与 policy.js 的 RequestCategory 同一套取值。 */
-export const GATE_CATEGORIES = ['user-action', 'lifecycle', 'background', 'ai-tool']
+export const GATE_CATEGORIES: readonly string[] = ['user-action', 'lifecycle', 'background', 'ai-tool']
 
 /** 类别 → 记哪一档账。插件自己的刷新（后台与生命周期）记一档，人的动作与 AI 工具各记一档。 */
-export const ACCOUNT_OF_CATEGORY = { 'user-action': 'user-action', 'lifecycle': 'plugin', 'background': 'plugin', 'ai-tool': 'ai-tool' }
+export const ACCOUNT_OF_CATEGORY: Readonly<Record<string, string>> = { 'user-action': 'user-action', 'lifecycle': 'plugin', 'background': 'plugin', 'ai-tool': 'ai-tool' }
 
 /**
  * 调用点 → 类别。分类是本闸的第一件事：以后新加一个取数功能，先在这里给它一个身份，
  * 拿不到身份的按「后台」算（最先被牺牲的那一档，是最保守的兜底），并计入 stats().unclassified 让人看见。
  */
-export const CALL_SITE_CATEGORIES = {
+export const CALL_SITE_CATEGORIES: Readonly<Record<string, string>> = {
   'panel.refresh': 'user-action',      // 面板上的刷新按钮
   'panel.detail': 'user-action',       // 点开一张票、翻一页评论
   'panel.write': 'user-action',        // 发评论、认领、改标签、关闭、建票
@@ -51,14 +170,18 @@ export const CALL_SITE_CATEGORIES = {
 }
 
 /** 请求种类 → 记哪一个桶。REST 数请求条数、GraphQL 数点数，两桶各自一份额度与档位。 */
-export const BUCKET_OF_KIND = {
+export const BUCKET_OF_KIND: Readonly<Record<string, string>> = {
   'quota-read': 'rest', probe: 'rest', detail: 'rest', preflight: 'rest', chain: 'rest',
   naming: 'rest', write: 'rest', patch: 'graphql', rebuild: 'graphql', reconcile: 'graphql', 'tool-batch': 'graphql',
 }
 
-/** 从 budget.js 取一套裁决要用的数字（形状与 tests/verify-policy.js 里那份一致，两处同源）。 */
-export function policyLimits(src) {
-  const b = src || budget
+/**
+ * 从 budget.js 取一套裁决要用的数字（形状与 tests/verify-policy.js 里那份一致，两处同源）。
+ * src 给了一整份就用给的那份（测试就这么注入），没给就用 budget.js 自己。
+ * 断言成 budget.js 的整套形状只为让下面这些读法成立：键一个没加、一个没减，值原样读出来。
+ */
+export function policyLimits(src: unknown) {
+  const b = (src || budget) as typeof budget
   return {
     probeIntervalMs: b.PROBE_INTERVAL_MS,
     probeIntervalYellowMs: b.PROBE_INTERVAL_YELLOW_MS,
@@ -73,7 +196,7 @@ export function policyLimits(src) {
 }
 
 /** 调用点 → 类别；给了类别就直接用它（校验取值）。两者都没有的按「后台」算，并计入漏分类计数。 */
-export function classify(source, explicitCategory) {
+export function classify(source: unknown, explicitCategory?: string) {
   if (explicitCategory) {
     if (GATE_CATEGORIES.indexOf(explicitCategory) < 0) throw new Error('没有这个类别：' + String(explicitCategory))
     return { category: explicitCategory, known: true }
@@ -83,10 +206,11 @@ export function classify(source, explicitCategory) {
   return { category: 'background', known: false }
 }
 
-function num(v) { return (typeof v === 'number' && isFinite(v)) ? v : 0 }
+/** 调用方报的任何数（条数、点数、秒数、片数）都从这里过：不是有限数就当 0。 */
+function num(v: unknown): number { return (typeof v === 'number' && isFinite(v)) ? v : 0 }
 
 /** 报数归一：数字 = 请求条数；对象取 requests/points；两者都没有算「没报数」（只按实测记账，不计对不上）。 */
-function readReport(report) {
+function readReport(report?: number | OutboundReport | null): Counters | null {
   if (typeof report === 'number') return { requests: report, points: 0 }
   const r = report || {}
   const hasReq = typeof r.requests === 'number' && isFinite(r.requests)
@@ -96,7 +220,7 @@ function readReport(report) {
 }
 
 /** 8 位十六进制短散列：只在日志里代替原文（路径、错误正文），不参与判定。 */
-function shortHash(s) {
+function shortHash(s: unknown): string {
   try {
     const t = String(s || '')
     let h = 5381
@@ -110,9 +234,11 @@ function shortHash(s) {
  * ledger 是本目录的账本（ledger.js）—— 两个文件不互相 import：宿主接线的时候把它们拼起来，
  * 闸只按形状用它（view / spend / noteRateLimited / hourOf / syncDue）。
  */
-export function createGate(deps) {
+export function createGate(deps?: GateDeps) {
   const opts = deps || {}
-  const ledger = opts.ledger
+  // 账本在这里断言成整本形状：紧接着那条判断仍原样在运行时把不合格的账本当掉（接线出错就当场抛），
+  // 断言只为让下面那些内层函数里的读法成立 —— TS 不把这里 const 的收窄带进内层函数，运行时不多不少一行。
+  const ledger = opts.ledger as LedgerShape
   if (!ledger || typeof ledger.view !== 'function' || typeof ledger.spend !== 'function') {
     throw new Error('闸要一本账：deps.ledger 缺 view / spend 这两条')
   }
@@ -121,8 +247,8 @@ export function createGate(deps) {
   const hash8 = typeof opts.hash8 === 'function' ? opts.hash8 : shortHash
   const limits = policyLimits(opts.budget)
 
-  const workspaces = new Map()   // 工作区键 → { active, failuresSinceSuccess, rateLimitedUntil, backoffWindowStartedAt }
-  const deferred = new Map()     // 工作区键 → { req, category, kind, bucket, at }
+  const workspaces = new Map<string, WorkspaceState>()   // 工作区键 → { active, failuresSinceSuccess, rateLimitedUntil, backoffWindowStartedAt }
+  const deferred = new Map<string, DeferredEntry>()     // 工作区键 → { req, category, kind, bucket, at }
   const stats = {
     accounted: { requests: 0, points: 0 },   // 闸记下来的（= 传输层真发的）
     transport: { requests: 0, points: 0 },   // 传输层报上来的（真发出去几条）
@@ -130,22 +256,22 @@ export function createGate(deps) {
     mismatch: 0,                             // 报数与真发数对不上的次数
     sent: 0, deferred: 0, coalesced: 0, droppedExpired: 0, retryAfter: 0, unclassified: 0,
   }
-  const byCategory = {}
+  const byCategory: Record<string, number> = {}
   for (const c of GATE_CATEGORIES) byCategory[c] = 0
 
-  function wsState(key) {
+  function wsState(key: string): WorkspaceState {
     let s = workspaces.get(key)
     if (!s) { s = { active: false, failuresSinceSuccess: 0, rateLimitedUntil: 0, backoffWindowStartedAt: 0 }; workspaces.set(key, s) }
     return s
   }
 
-  function workspaceView(key) {
+  function workspaceView(key: string) {
     const s = wsState(key)
     return { active: !!s.active, failuresSinceSuccess: s.failuresSinceSuccess, rateLimited: s.rateLimitedUntil > now(), backoffWindowStartedAt: s.backoffWindowStartedAt }
   }
 
   /** 裁决的输入：类别 + 种类 + 桶的档位与账 + 工作区状态。 */
-  function inputFor(req) {
+  function inputFor(req: NormalizedReq) {
     const bucket = req.bucket
     const q = ledger.view(bucket)
     const s = wsState(req.workspaceKey)
@@ -162,26 +288,28 @@ export function createGate(deps) {
   }
 
   // 账本三个事件之一（按需级 P1）：这一笔的结论与原因。外层先判调试开关，关着连字段对象都不组装。
-  function fireDecide(req, verdict, reason, tier) {
+  function fireDecide(req: NormalizedReq, verdict: string, reason: string, tier: string) {
     try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'refresh.decide', { category: req.category, kind: req.kind, verdict: verdict, reason: reason, tier: tier }) } catch (eL) {}
   }
 
   // 账本三个事件之一（按需级 P1）：被跳过的那些（后台档被推迟、额度不足、过期丢弃）。
-  function fireSkipped(key, kind, reason, pending) {
+  function fireSkipped(key: string, kind: string, reason: string, pending: number) {
     try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'refresh.skipped', { keyHash: hash8(key), kind: kind, reason: reason, pending: pending }) } catch (eL) {}
   }
 
   /** 只看结论不发送（界面与门禁都要能用同一套裁决问一句）。 */
-  function decideFor(req) {
+  function decideFor(req?: GateRequest) {
     const r = normalize(req)
     return decide(inputFor(r), limits)
   }
 
-  function normalize(req) {
+  function normalize(req?: GateRequest): NormalizedReq {
     const r = req || {}
     const cls = classify(r.source, r.category)
     if (!cls.known) stats.unclassified += 1
-    const kind = REQUEST_KINDS.indexOf(r.kind) >= 0 ? r.kind : 'probe'
+    // REQUEST_KINDS 那份清单只收字符串；kind 缺了（撞限流那一笔就没有）与空串同结论（−1），
+    // 所以这里断言成字符串只为过签名，判断本身一字未改。
+    const kind = REQUEST_KINDS.indexOf(r.kind as string) >= 0 ? (r.kind as string) : 'probe'
     const bucket = (r.bucket === 'graphql' || r.bucket === 'rest') ? r.bucket : (BUCKET_OF_KIND[kind] || 'rest')
     return { source: r.source, category: cls.category, kind: kind, bucket: bucket, workspaceKey: String(r.workspaceKey || 'unknown'), plan: Array.isArray(r.plan) && r.plan.length ? r.plan : [{}] }
   }
@@ -190,7 +318,7 @@ export function createGate(deps) {
    * 真发一步：这一步实际发出去的条数由这一步的计数器归属（并发的另一步记在它自己的计数器上）。
    * 失败也照样记账 —— 发出去的那几条就是已经花掉的额度，账不许因为失败就不记（I6）。
    */
-  async function runStep(req, step, perform) {
+  async function runStep(req: NormalizedReq, step: unknown, perform: StepPerform): Promise<StepOutcome> {
     let actual = { requests: 0, points: 0 }
     let reported = null
     let failure = null
@@ -223,9 +351,9 @@ export function createGate(deps) {
    * 闸的唯一出口。req: { source|category, kind, bucket?, workspaceKey?, plan? }；perform(step) 真去发请求
    * 并**每条真实出站都先报一次 noteOutbound**，返回值是它自己报的花费（会被拿来实现对账）。
    */
-  async function send(req, perform) {
+  async function send(req: GateRequest, perform?: StepPerform) {
     const r = normalize(req)
-    const v = decide(inputFor(r), limits)
+    const v: GateDecision = decide(inputFor(r), limits)
     // 放了探针进来试的那一笔：窗口起点改成此刻（见 refresh-core/src/failure-window.ts）。
     // ① 这一笔要是失败，下一次等待从此刻重新算，不会连环重试；② 这一笔要是成功，下面的归零当场开锁。
     if (v.verdict === 'allow' && v.reason === 'failure-half-open') {
@@ -239,7 +367,9 @@ export function createGate(deps) {
       deferred.set(r.workspaceKey, { req: r, category: r.category, kind: r.kind, bucket: r.bucket, at: now() })
       stats.deferred += 1
       fireSkipped(r.workspaceKey, r.kind, v.reason, deferred.size)
-      return { sent: false, verdict: 'defer', reason: v.reason, detail: REASONS[v.reason] || '', requests: 0, points: 0 }
+      // REASONS 是 policy.js 里那张「原因 → 给人看的一句话」，键是那几个固定原因；v.reason 是裁决给回来的字符串，
+      // 查不到就是空串（下面 `|| ''` 就是这道兜底）。断言成字符串键的表只为过签名，兜底一字未改。
+      return { sent: false, verdict: 'defer', reason: v.reason, detail: (REASONS as Readonly<Record<string, string>>)[v.reason] || '', requests: 0, points: 0 }
     }
     if (typeof perform !== 'function') throw new Error('闸放行了却没有发送函数：' + r.kind)
     let requests = 0
@@ -256,11 +386,11 @@ export function createGate(deps) {
       result = out.result
     }
     stats.sent += 1
-    return { sent: true, verdict: v.verdict, reason: v.reason, detail: REASONS[v.reason] || '', requests: requests, points: points, remaining: remaining, tier: tier, steps: r.plan.length, result: result }
+    return { sent: true, verdict: v.verdict, reason: v.reason, detail: (REASONS as Readonly<Record<string, string>>)[v.reason] || '', requests: requests, points: points, remaining: remaining, tier: tier, steps: r.plan.length, result: result }
   }
 
   /** 传输层每真发一条就报一次（生产里挂在起 gh 进程那一层）。绕开闸发的那几条就靠它露出来。 */
-  function noteOutbound(entry) {
+  function noteOutbound(entry?: OutboundReport) {
     const e = entry || {}
     stats.transport.requests += num(e.requests) || 1
     stats.transport.points += num(e.points)
@@ -269,7 +399,7 @@ export function createGate(deps) {
   }
 
   /** 撞上限流（含二级限流的 Retry-After）：桶降档 + 工作区标记 + 计数。 */
-  function noteRetryAfter(signal) {
+  function noteRetryAfter(signal?: RetryAfterSignal) {
     const s = signal || {}
     const r = normalize(s)
     const at = ledger.noteRateLimited(r.bucket, s.seconds, now())
@@ -279,7 +409,7 @@ export function createGate(deps) {
   }
 
   /** 推迟队列：到期的交回调用方重发，过期（5 分钟）的直接丢 —— 丢不是失败，也不重试。 */
-  function drain(at) {
+  function drain(at?: unknown) {
     const t = (typeof at === 'number') ? at : now()
     const ready = []
     let dropped = 0
@@ -292,7 +422,7 @@ export function createGate(deps) {
   }
 
   /** AI 工具那一档的准入：超顶是「拒绝」，不是推迟；两种拒绝的文案必须分得开。 */
-  function admitAiTool(call, req) {
+  function admitAiTool(call: AiToolCall, req?: GateRequest) {
     const r = normalize(Object.assign({ source: 'tool.call' }, req, { category: 'ai-tool' }))
     const q = ledger.view(r.bucket)
     const hour = ledger.hourOf('ai-tool')
@@ -307,7 +437,7 @@ export function createGate(deps) {
   }
 
   /** 某个桶现在的降档安排（探测节拍、对账节拍、最短重建间隔），数值全部来自 budget.js。 */
-  function planOf(bucketName) {
+  function planOf(bucketName?: string) {
     return degradePlanFor(ledger.view(bucketName || 'rest').tier, limits)
   }
 
@@ -339,7 +469,7 @@ export function createGate(deps) {
       }
     },
     workspaceView: workspaceView,
-    setWorkspace: function (key, patch) {
+    setWorkspace: function (key: string, patch?: WorkspacePatch) {
       const s = wsState(String(key))
       if (patch && typeof patch.active === 'boolean') s.active = patch.active
       return workspaceView(String(key))

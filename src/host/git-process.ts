@@ -11,14 +11,133 @@
 import { timeoutForGhArgs, isWriteGhArgs } from './outbound/tiers.js'
 import { getGhLane } from './outbound/admission.js'
 import { getChainRide } from './refresh/chain-ride.js'
-export function createRepoKeys(deps) {
+
+// ---------------------------------------------------------------------------
+// 类型（#1155 类型标注，只写类型不写实现）。
+//
+// 为什么这么标：
+//   1. 本文件是「拿宿主给的东西干活」的一层：subprocess / timer / fs / platform 这些能力全部由接线处注入
+//      （见文件头「接线」那段）。形状就按本文件实际用到的部分写下来 —— 多写一条就多一条约束，写少一条
+//      下面那几处就读不了。注入的东西缺了、坏了，由运行时的 typeof 判断当掉，类型不替代那些判断。
+//   2. 从外面进来的东西（命令参数、报数字段、缓存里读出来的 JSON）按 unknown 或最小形状收，
+//      收窄发生在 Array.isArray、typeof 与 JSON.parse 之后的判断里。
+// ---------------------------------------------------------------------------
+
+// 运行时的 process 兜底声明：本 tsconfig 有意不加载任何类型包（types 为空），Node 运行时保证 process 存在；
+// 只声明本文件实际用到的 cwd（先例见 src/tracker/rooms/markdown/write-queue.ts），不产生运行时代码。
+declare const process: { cwd(): string } | undefined
+
+/** 仓库身份：owner 与 name 两个字段，parseGithubRepo 与缓存文件名都只认这两个。 */
+interface RepoKey { owner: string; name: string }
+
+/** 文件服务（宿主注入）：resolve 把路径换成服务认的目标对象，读写只认那个目标对象。 */
+interface FsLike {
+  resolve(path: string, opts?: { cwd?: string }): Promise<unknown>
+  readText(target: unknown): Promise<string>
+  writeText(target: unknown, text: string): Promise<void>
+}
+
+/** 平台层（宿主注入）：找可执行文件、用户主目录、路径拼接；env 有没有由调用点自己判断。 */
+interface PlatformLike {
+  resolveExecutable(name: string): Promise<string | null>
+  getHome(): string | Promise<string>
+  path: { join(...parts: string[]): string }
+  fs: { mkdir?(path: string): Promise<unknown>; resolve(path: string): Promise<unknown> }
+  env?: { get(name: string): string | undefined | null }
+}
+
+/** 工作区抽屉（宿主注入）：这里只用到 clear。 */
+interface WorkspaceStoreLike { clear(): unknown }
+
+/** 检查链退避器（宿主注入）：写成功之后叫它把退避拉回第一档。 */
+interface ChainBackoffLike { noteWriteActivity(): unknown }
+
+/** 子进程的一条输出流：readFrom 从字节偏移读起，没内容时给空文本。 */
+interface CollectedStream { readFrom(offset: number): { text?: string } }
+
+/** 一条子进程收尾时的事实：退出码，外加「等超时被杀」这类信号。 */
+interface SpawnOutcome { exitCode: number; signal?: string }
+
+/** 子进程句柄（宿主注入）：done 收尾时落定，terminate 立刻杀，collected 是两条输出流的读取口。 */
+interface SpawnHandle {
+  done: Promise<SpawnOutcome>
+  terminate(): void
+  collected?: { stdout?: CollectedStream; stderr?: CollectedStream }
+}
+
+/** 起一条子进程要填的东西：参数数组、工作目录（可缺）、两条流的截断上限、宽限毫秒数。 */
+interface SpawnRequest {
+  argv: string[]
+  cwd?: string
+  stdio: { stdin: string; stdout: { maxBytes: number }; stderr: { maxBytes: number } }
+  graceMs: number
+}
+
+/** 进程执行（宿主注入）：本文件唯一的起进程出口。 */
+interface SubprocessLike { spawn(req: SpawnRequest): SpawnHandle }
+
+/** 定时器（宿主注入）：只要一个「等 ms 毫秒再回调」的口子，形状便于与子进程 done 一起 race。 */
+interface TimerLike { timeout(ms: number): { then<T>(cb: () => T): Promise<T> } }
+
+/** 闸（不变量 I1）：每一笔真实出站在起进程之前报一次；没有闸就什么都不报（门禁会判红，不许静默）。 */
+interface OutboundGateLike { noteOutbound(entry: { requests: number; points: number }): unknown }
+
+/** 宿主日志出口：先问开关再组装字段（字段可以是函数，关着就不求值）。 */
+interface LogCtx {
+  isEnabled(level: string): boolean
+  fire(level: string, event: string, fields: unknown): void
+}
+
+/** gh 调用的结果：成的那支一定带文本；败的那支带归一化类别与错误正文（code/text 不是每条都有）。 */
+interface GhCallOk { ok: true; text: string }
+interface GhCallFail { ok: false; kind: string; error: string | null; code?: number; text?: string }
+type GhCallResult = GhCallOk | GhCallFail
+
+/** 通用进程执行的结果：成的那支必须带整数退出码 0（#857），败的那支只保证有错误正文。 */
+interface ProcOk { ok: true; text: string; code: number }
+interface ProcFail { ok: false; error: string; code?: number }
+type ProcResult = ProcOk | ProcFail
+
+/**
+ * 接线处注入的整套依赖（src/host/index.js 一处构造）。可选的三项都是「没有就跳过」的能力：闸可能晚一步
+ * 就位（getGate/gate）、清工作区抽屉与检查链退避器都是可选勾子。logCtx 按必给标：第 197/203 行
+ * `_execT0 && logCtx.isEnabled(...)` 里 _execT0 非 0 本身就说明第 159 行已确认过它存在（这条由运行时保证）。
+ */
+interface RepoKeysDeps {
+  subprocess: SubprocessLike
+  timer: TimerLike
+  fs?: FsLike
+  DEFAULT_CWD: string
+  TIMEOUT_MS: number
+  repoKeys: Record<string, RepoKey>
+  repoRoots: Record<string, string | undefined>
+  getGhPath: () => string | null
+  setGhPath: (value: string | null) => unknown
+  getGhLastError: () => string | null
+  setGhLastError: (value: string | null) => unknown
+  getPlatform: () => Promise<PlatformLike>
+  getWorkspaceStore: () => Promise<WorkspaceStoreLike>
+  setCache: (value: { ts: number; snapshot: unknown; error: unknown; cwd: string }) => unknown
+  clearWorkspaceStore?: () => unknown
+  namingSweepSoon: (ms: number) => unknown
+  getChainBackoff?: () => Promise<ChainBackoffLike | null | undefined>
+  parseGithubRepo: (text: string) => RepoKey | null
+  logCtx: LogCtx
+  gate?: OutboundGateLike | null
+  getGate?: () => OutboundGateLike | null | undefined
+}
+
+/** 工作区钥匙模块（动态 import 进来的 .js）：本文件只按这两条读法用它，别的导出不管。 */
+type WorkspaceKeyModule = typeof import('./workspaceKey.js')
+
+export function createRepoKeys(deps: RepoKeysDeps) {
   const { subprocess, timer, fs, DEFAULT_CWD, TIMEOUT_MS, repoKeys, repoRoots, getGhPath, setGhPath, getGhLastError, setGhLastError, getPlatform, getWorkspaceStore, setCache, clearWorkspaceStore, namingSweepSoon, getChainBackoff, parseGithubRepo, logCtx, gate, getGate } = deps
   // 共享状态归 index.js 单一持有：ghPath/ghLastError 经存取器（基本类型重赋值不能按引用共享）；repoKeys/repoRoots 按引用共享（只做属性读写与删除，从不整体重赋值）。
   // #491 房外埋点 helpers：hash8 只记散列不记原文；P1 事件外层先判开关再组装字段（字段函数只在守卫通过后求值）。
-  function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
+  function hash8(s: unknown) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
   // #606 命令名只留程序名：调用方通常给的是 'git' 这种裸名字，但若给了带目录的完整路径，
   //   这里也把目录部分去掉，保证日志里永远不会出现一条文件系统路径。
-  function progName(cmd) { try { return String(cmd || '').split(/[\\/]/).pop() || '' } catch (e) { return '' } }
+  function progName(cmd: unknown) { try { return String(cmd || '').split(/[\\/]/).pop() || '' } catch (e) { return '' } }
   let lastNormKind = ''
   let lastCanonOut = ''
 
@@ -30,7 +149,7 @@ export function createRepoKeys(deps) {
     try { g = (typeof getGate === 'function') ? getGate() : gate } catch (e) { g = null }
     return (g && typeof g.noteOutbound === 'function') ? g : null
   }
-  function reportOutbound(args) {
+  function reportOutbound(args?: string[]) {
     try {
       const g = gateOf()
       if (!g) return
@@ -42,7 +161,7 @@ export function createRepoKeys(deps) {
 
     // ============ gh 封装 ============
     // #195 修复：resolveGh 不再缓存失败（ghLastError 仅最近一次失败，环境修复后下次探测即恢复）
-    async function resolveGh() {
+    async function resolveGh(): Promise<string | null> {
       if (getGhPath()) return getGhPath()
       const platform = await getPlatform()
       // 2026-08-29 去重（research 实锤「DSH_GH_PATH 三端不一致」）：DSH_GH_PATH 兜底已下沉至 composePlatform
@@ -67,7 +186,7 @@ export function createRepoKeys(deps) {
     // #195 修复：force 探测路径调 resetGhCache 清空成功缓存，强制下次 resolveGh 重探
     function resetGhCache() { setGhPath(null); setGhLastError(null); try { if (typeof clearWorkspaceStore === 'function') clearWorkspaceStore(); } catch {} try { getWorkspaceStore().then(function(ws){ try{ ws.clear(); }catch(e){} }).catch(function(){}); } catch {} }
 
-    async function runGh(args, cwd) {
+    async function runGh(args: string[], cwd: string): Promise<GhCallResult> {
       const ghT0 = Date.now()
       // #1003 契约（2026-10-12 维护者拍板）：拿不到工作区目录时如实失败，不许拿进程目录顶上——
       //   gh 命令会按工作区解析仓库身份（`gh repo view`、`gh api` 等），落到别人的目录就是在错的仓库上读或写。
@@ -96,7 +215,7 @@ export function createRepoKeys(deps) {
       } catch (e) {
         try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, kind: 'spawn', exitCode: -1 }) } catch (eL) {}
         try { if (rkRelease) rkRelease() } catch {}
-        return { ok: false, kind: 'spawn', error: String((e && e.message) || e) }
+        return { ok: false, kind: 'spawn', error: String((e && (e as { message?: unknown }).message) || e) }
       }
       // #969：等待上限按本条命令的分档暂定值（读短、写长、探活最短），不再一律 30 秒。
       const to = timer.timeout(rkTimeout)
@@ -109,7 +228,7 @@ export function createRepoKeys(deps) {
       } catch (e) {
         try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, kind: 'spawn', exitCode: -1 }) } catch (eL) {}
         try { if (rkRelease) rkRelease() } catch {}
-        return { ok: false, kind: 'spawn', error: String((e && e.message) || e) }
+        return { ok: false, kind: 'spawn', error: String((e && (e as { message?: unknown }).message) || e) }
       }
       const out = (handle.collected && handle.collected.stdout) ? handle.collected.stdout.readFrom(0) : { text: '' }
       const err = (handle.collected && handle.collected.stderr) ? handle.collected.stderr.readFrom(0) : { text: '' }
@@ -154,7 +273,7 @@ export function createRepoKeys(deps) {
     //   不走 platformChannel 的 detectionExec。同一个事件 exec.run、同一套字段，两条路互斥，
     //   所以每条外部命令只落一行，两次相加就是「经 ctx.exec 起过多少次」。调试开关关着时只读一次开关就返回。
     // 第三个参数 via 是「这条命令由哪条链起的」：调用方把链名传进来，日志只记这个固定名字。
-    async function execProc(argv, cwd, via) {
+    async function execProc(argv: string[], cwd?: string, via?: string): Promise<ProcResult> {
       // 起始时刻只在开关打开时才取：关着时这一行读一个布尔就结束，连时钟都不读，后面两行自然也不落。
       const _execT0 = (logCtx && logCtx.isEnabled('debug')) ? Date.now() : 0
       // #963 出站同一口径：gh / glab 进准入（git 是本地命令不进）；gh 默认超时按读写探活分档。
@@ -183,7 +302,7 @@ export function createRepoKeys(deps) {
         })
       } catch (e) {
         if (xpIsOutbound) { try { if (xpRelease) xpRelease() } catch {} }
-        return { ok: false, error: String((e && e.message) || e) }
+        return { ok: false, error: String((e && (e as { message?: unknown }).message) || e) }
       }
       // #969：gh 等待上限按分档暂定值；git / glab 沿用旧默认。
       const to = timer.timeout(xpIsGh ? timeoutForGhArgs(xpArgs) : TIMEOUT_MS)
@@ -196,7 +315,7 @@ export function createRepoKeys(deps) {
       } catch (e) {
         try { if (_execT0 && logCtx.isEnabled('debug')) logCtx.fire('debug', 'exec.run', { argv0: progName(argv && argv[0]), cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - _execT0, exitCode: -1, via: String(via || 'unspecified') }) } catch (eL) {}
         if (xpIsOutbound) { try { if (xpRelease) xpRelease() } catch {} }
-        return { ok: false, error: String((e && e.message) || e) }
+        return { ok: false, error: String((e && (e as { message?: unknown }).message) || e) }
       }
       const out = (handle.collected && handle.collected.stdout) ? handle.collected.stdout.readFrom(0) : { text: '' }
       const err = (handle.collected && handle.collected.stderr) ? handle.collected.stderr.readFrom(0) : { text: '' }
@@ -223,8 +342,8 @@ export function createRepoKeys(deps) {
     // 按工作区分桶的抽屉（repoKeys/repoRoots/chainCache/workspaceStore/快照单槽）统一在
     // 读写删三侧使用 canonicalWorkspaceKey 洗出的规整钥匙——读写删同形，失效删除才删得中。
     // 绝对路径（主流形态）在洗衣机内部短路，零 fs 调用；异常时回退原串（读写删仍同形）。
-    let _workspaceKeyMod = null
-    async function canonicalKey(raw) {
+    let _workspaceKeyMod: WorkspaceKeyModule | null = null
+    async function canonicalKey(raw?: string) {
       try {
         if (!_workspaceKeyMod) _workspaceKeyMod = await import('./workspaceKey.js')
         const m = _workspaceKeyMod
@@ -241,8 +360,8 @@ export function createRepoKeys(deps) {
     // #652 补一句：工作区根（哪条目录算这个会话的工作区）不在这里算，在 workspaceKey.js 的 resolveWorkspaceRoot
     //   里按「自带 .git 或自带主锚文件」两个标记判定；这里只答「这个 git 仓库的根在哪」，仅供展示与取远端用。
     // repoRoots 由 index.js 按引用共享（建仓失效删裸变量）；cacheDirResolved 本文件自有。
-    let cacheDirResolved = null  // 缓存目录（惰性解析）
-    async function getRepoRoot(cwd) {
+    let cacheDirResolved: string | null = null  // 缓存目录（惰性解析）
+    async function getRepoRoot(cwd?: string) {
       const key = await canonicalKey(cwd || DEFAULT_CWD)
       if (repoRoots[key] !== undefined) return repoRoots[key]
       // #652 顺手修掉的老毛病：旧写法先把 null 写进缓存再读它，等于把「一次临时失败」（git 没起来、
@@ -268,10 +387,10 @@ export function createRepoKeys(deps) {
       try { const pfs = platform.fs; if (pfs !== undefined && typeof pfs.mkdir === 'function') await pfs.mkdir(cacheDirResolved) } catch (e) { /* 已存在或不可建，writeText 会自建 */ }
       return cacheDirResolved
     }
-    function cacheFileName(repo) {
+    function cacheFileName(repo?: RepoKey | null) {
       return (repo && repo.owner && repo.name) ? repo.owner + '__' + repo.name + '.json' : null
     }
-    async function readDiskCache(repo) {
+    async function readDiskCache(repo?: RepoKey | null) {
       try {
         if (fs === undefined || typeof fs.readText !== 'function' || typeof fs.resolve !== 'function') return null
         const dir = await getCacheDir(); if (!dir) return null
@@ -286,7 +405,7 @@ export function createRepoKeys(deps) {
         return null
       } catch (e) { return null }
     }
-    async function writeDiskCache(repo, snap) {
+    async function writeDiskCache(repo: RepoKey | null | undefined, snap: unknown) {
       try {
         if (fs === undefined || typeof fs.writeText !== 'function' || typeof fs.resolve !== 'function') return
         const dir = await getCacheDir(); if (!dir) return
@@ -299,7 +418,7 @@ export function createRepoKeys(deps) {
       } catch (e) { /* 写失败不影响主流程 */ }
     }
 
-    async function getRepoKey(cwd) {
+    async function getRepoKey(cwd?: string) {
       const rkT0 = Date.now()
       const key = await canonicalKey(cwd || DEFAULT_CWD)
       if (repoKeys[key]) return repoKeys[key]
