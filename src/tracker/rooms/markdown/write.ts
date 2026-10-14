@@ -3,6 +3,10 @@ import { failFromError } from './error-fail.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import type { BackendPlatform, OpContext, SandboxFs } from '../../contract/contexts.js'
 
+// 本房严格模式下没有 node 类型，直写 process 会报「找不到这个名字」（本仓既有做法：本房 label-colors.ts、
+// index.ts 都这样声明过一次）。这里只用它取进程号，给原子发布的临时文件名加个区分，取不到就当 0。
+declare const process: { pid?: number } | undefined
+
 // 写许可透传上下文：调用方把本次调用的写许可放在 ctx.sandboxPolicy（沙箱政策服务按当前会话算出），
 // writeTextFile 原样转交文件服务；契约 OpContext 没有这一格（它是本房写路径的透传约定）。
 type WriteOpContext = OpContext & { sandboxPolicy?: unknown }
@@ -53,7 +57,7 @@ export async function publishTextFile(ctx: WriteOpContext, targetPath: string, c
   const fs=getFs(ctx); if(!fs)throw Object.assign(new Error('fs unavailable'),{kind:ERROR_KIND.ENV})
   const policy = (sandboxPolicy !== undefined) ? sandboxPolicy : (ctx && ctx.sandboxPolicy)
   if(typeof fs.rename!=='function'){ await writeTextFile(ctx,targetPath,content,policy); return 'write-text' }
-  const tmpPath = targetPath + '.' + String((typeof process !== 'undefined' && process.pid) || 0) + '.tmp'
+  const tmpPath = targetPath + '.' + String((process && process.pid) || 0) + '.tmp'
   await writeTextFile(ctx,tmpPath,content,policy)
   try{
     await renameFile(ctx,tmpPath,targetPath)
