@@ -1,8 +1,9 @@
 // verify-deck-tools-agent-register.js —— 门禁：七个 deck_* 工具真的交到 agent 手上（#741）
 // 用法：在插件根目录执行 node tests/verify-deck-tools-agent-register.js，可独立运行。
 //
-// 为什么要这一段：七个工具的实现与宿主装配都在（verify-deck-tools.js 与
-// verify-deck-tools-host-wiring.js 盯着那两半），但 agent 的工具列表里一个都看不见 ——
+// 为什么要这一段：七个工具的实现与宿主装配都在（实现由 verify-deck-tools.js 盯着，装配由
+// verify-1109-matches-timeout.ts、verify-1150-plan-store-durable.ts、verify-723-gate-wiring.js
+// 盯着），但 agent 的工具列表里一个都看不见 ——
 // 从来没有一处调用过工具注册。这一段盯最后那一步：
 //   ① 注册入口只有一处（刷新接线装好表就调钩子，宿主入口零增长）——这条原来靠读
 //      src/host/refresh/wiring.js 与 src/host/index.js 的源码文本断言，属于「读源码文本钉写法」，

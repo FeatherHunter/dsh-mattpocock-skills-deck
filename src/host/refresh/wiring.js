@@ -408,8 +408,10 @@ export function createRefreshWiring(deps) {
           log: logCtx || null,
           // #723（T19c）：工作区键用与活跃集合同一把短散列（workspaceKeyOf）——**不许**在这里用别的归一
           // （散列层级不同、长度不同、空串，都会让闸里那一格从来不是活跃，于是每一笔都被判推迟；
-          // 这一条有门禁盯着：tests/verify-deck-tools-host-wiring.js 与 verify-delta-wiring.js，
+          // 这一条有门禁盯着：tests/verify-delta-wiring.js，
           // 另加 #724 的「同一个工作区根在闸里只许有一格」tests/verify-refresh-workspace-key.js）。
+          //（原先还点着 tests/verify-deck-tools-host-wiring.js，那条门禁 2026-10-14 整份删掉了：
+          //  它的判据没有一条是独占的，见 #1173。）
           workspaceKeyOf: workspaceKeyOf,
           now: Date.now,
         })
