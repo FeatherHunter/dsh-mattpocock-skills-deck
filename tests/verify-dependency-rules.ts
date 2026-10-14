@@ -15,11 +15,13 @@
 //       老门禁的口径是「一律算违规」（#1014 Q2 明确要求沿用这条严格度），所以由本文件用文本扫描补上。
 //   三、空间不许是空的：三棵树必须真实扫到源码文件、图上必须有模块。扫到 0 个一律判红——
 //      老门禁在「一个文件都没扫到」时照样打印 PASS，这正是本票要修的假绿。
-//   四、规则不许空转（#1136 补的四条结构判据 + 一条分母）：每条规则的起点、登记表每条条目都必须在
+//   四、规则不许空转（#1136 补的五条结构判据 + 一条分母）：每条规则的起点、登记表每条条目都必须在
 //      磁盘上匹配到真实源码文件；登记表每条要写 why 与 ticket、条数不许超过只许减的上限；登记表不许
 //      匹配它所在规则要守的那类路径（「放宽白名单换假绿」的解药）；一条登记项不许覆盖另一条的全部
-//      见证文件。四条都是纯结构判据，不需要注入样本就能判 —— 正控与负控是验收手段，放样本门禁那侧。
-//      第五条是分母：绿灯行必须报出「命中几个房间模块 / 盘上几个」。
+//      见证文件；起点在扫描域里有文件可判时，还必须在引擎报出来的图上命中至少一个模块（配置把它挡在
+//      图外、扩展名引擎不跟、路径形状对不上，三种都会让规则静默空转）。五条都是纯结构判据，不需要
+//      往工作树里写探针文件就能判 —— 正控与负控是验收手段，放样本门禁那侧。
+//      第六条是分母：绿灯行必须报出「命中几个房间模块 / 盘上几个」。
 //
 // 存量豁免：tests/same-layer-baseline.json 的 entries（键 file|resolved），只许减不许增。
 //   在册的边放行；不在册的新边判红；在册但图上已经没有的条目打 INFO，提示可以清理。
@@ -245,12 +247,12 @@ export function classifyViolations(
 }
 
 // ---------------------------------------------------------------------------
-// 二之二、五条判据：让「规则空转」与「白名单抄宽」在门禁上当场红（#1136）
+// 二之二、六条判据：让「规则空转」与「白名单抄宽」在门禁上当场红（#1136）
 // ---------------------------------------------------------------------------
 //
 // 为什么要有这五条：这次的假绿不是「某条规则写错了」这么简单 —— 规则指着一个已经搬走的目录，
 // 图上一条边都咬不到，而门禁只核对「规则名在不在、severity 是不是 error」，于是照样判绿。
-// 前四条是纯结构判据，不需要注入样本就能判；第五条是分母，让绿灯行也算出一个具体的数：
+// 前五条是纯结构判据，不需要注入样本就能判；第六条是分母，让绿灯行也算出一个具体的数：
 //   一、活着：规则起点与登记表条目都要落在磁盘上真实存在的源码文件上；
 //   二、有名有据：登记表每条要写 why 与 ticket，pattern 不重复，条数不许超过只许减的上限；   三、不吃自己：登记表条目不许匹配它所在规则要守的那类路径（放宽白名单换假绿的解药）；
 //   四、不被吸收：一条登记项不许覆盖另一条的全部见证文件（两条说的是同一件事就该删一条）。
@@ -350,6 +352,56 @@ export function deadScopeProblems(
 }
 
 /** 判据二（有名有据）：登记表每条要写 why 与正整数 ticket，pattern 不重复，条数不超上限。 */
+/**
+ * 判据六（图上活着）：起点在扫描域里有文件可判，却在引擎报出来的图上一个模块都没命中。
+ *
+ * 与判据一、判据五的分工：判据一看扫描域里有没有文件可判（它比的是扫描域实况，所以规则指到
+ * 没人扫的目录时，判据一先红）；判据五看房间那一整棵树进没进图（数的是分母）；这条看**每一条规则
+ * 自己**在图上咬不咬得到东西 —— 三种漏法各管一段。
+ *
+ * 它的触发面窄，但都是真事：文件在扫描域里、扫描时却没进图。已知的三种成因是配置里 exclude 把
+ * 某些文件挡在门外、扩展名引擎不跟（#1136 里那 9 个 gitlab 房的 .js 就是这么没进图的）、
+ * 以及引擎报出来的路径形状变了。触发面窄不代表可以省：判断「规则还咬不咬得到东西」是每条规则
+ * 自己的事，拿房间那一棵树的分母代替不了其它规则（#1136 正是栽在「没人问这句话」上）。
+ *
+ * 域外规则不归它管：扫描域里都没有文件可判的起点（例如只管未来文件的规则）由判据一取舍，
+ * 这条遇到扫描域命中为 0 就跳过，免得同一个坏形状被报两遍。
+ */
+export function graphScopeProblems(
+  rules: ForbiddenRule[],
+  modules: unknown[],
+  fileRels: string[],
+): string[] {
+  const problems: string[] = []
+  const sources = new Set<string>()
+  for (const m of Array.isArray(modules) ? modules : []) {
+    const source = m && typeof m === 'object' ? (m as { source?: unknown }).source : undefined
+    if (source) sources.add(toRepoRel(String(source)))
+  }
+  for (const rule of rules || []) {
+    if (!rule || rule.severity !== 'error') continue
+    if (!rule.name || EMPTY_SCOPE_RULES.includes(rule.name)) continue
+    const scope = rule.from && typeof rule.from.path === 'string' ? rule.from.path : ''
+    if (!scope) continue
+    let re: RegExp
+    try {
+      re = new RegExp(scope)
+    } catch {
+      continue // 起点正则本身写坏了是引擎与判据一那边的活，这里不重复报
+    }
+    const diskHits = fileRels.filter((rel) => re.test(rel)).length
+    if (!diskHits) continue
+    const graphHits = [...sources].filter((src) => re.test(src)).length
+    if (!graphHits) {
+      problems.push(
+        '规则 ' + rule.name + ' 的起点 [' + scope + '] 在扫描域里匹配 ' + diskHits + ' 个源码文件，却在图上一个模块都没命中 —— ' +
+          '要么配置文件把这些文件挡在图外，要么这些扩展名引擎不跟，要么引擎报出来的路径形状和这条正则对不上；三种都会让这条规则静默空转',
+      )
+    }
+  }
+  return problems
+}
+
 export function registryShapeProblems(registry: RoomImports | null): string[] {
   const problems: string[] = []
   if (!registry) {
@@ -574,9 +626,9 @@ function selfCheck(): void {
 }
 
 /**
- * 五条判据自己的夹具（#1136）：每条先证明「会红」，再证明「不误伤」，最后才拿去判真仓库。
- * 为什么非要这一层：这五条读的是规则文件与磁盘清单，写松了（少一条循环、protected 写错、
- * 把显式登记的空起点也当红）用肉眼看配置看不出来 —— 而它们正是这次假绿的解药。
+ * 六条判据自己的夹具（#1136）：每条先证明「会红」，再证明「不误伤」，最后才拿去判真仓库。
+ * 为什么非要这一层：这六条读的是规则文件、磁盘清单与真图，写松了（少一条循环、protected 写错、
+ * 把显式登记的空起点也当红、把域外规则也拉进来）用肉眼看配置看不出来 —— 而它们正是这次假绿的解药。
  */
 function selfCheckRoomStructure(): void {
   const rels = [
@@ -657,6 +709,29 @@ function selfCheckRoomStructure(): void {
   ])
   if (counted === 1) pass('判据五（报分母）：绝对路径与相对路径都认，且同一文件只数一次')
   else fail('判据五（报分母）数错了房间模块，实际 ' + counted)
+
+  // 判据六（图上活着）：磁盘上有文件、图上却一个模块都没命中的规则判红 —— 这次假绿的另一种形状。
+  // 三种情形都要试：会红、不误伤、不越界管域外规则（磁盘上也没文件的那种）。
+  const graphModules = [
+    { source: 'src/tracker/rooms/github/index.ts' },
+    { source: join(ROOT, 'src/tracker/rooms/gitlab/index.ts') },
+    { source: 'src/host/index.js' },
+  ]
+  const silent = graphScopeProblems([{ name: 'silent-rule', severity: 'error', from: { path: '^src/host/outbound/' } }], graphModules, rels)
+  if (silent.length === 1 && silent[0].includes('silent-rule')) {
+    pass('判据六（图上活着）：扫描域里有文件、图上一个模块都没命中的规则判红')
+  } else {
+    fail('判据六（图上活着）漏了图上零命中的规则：' + JSON.stringify(silent))
+  }
+  const silentOk = graphScopeProblems(rules, graphModules, rels)
+  if (silentOk.length === 0) pass('判据六（图上活着）不误伤：起点在图上命中时不报')
+  else fail('判据六（图上活着）误伤了在图上能命中的规则：' + JSON.stringify(silentOk))
+  const silentOutside = graphScopeProblems([{ name: 'future-rule', severity: 'error', from: { path: '^src/client/' } }], graphModules, rels)
+  if (silentOutside.length === 0) pass('判据六（图上活着）：扫描域里也没文件的域外起点不归它管（那是判据一的活）')
+  else fail('判据六（图上活着）越界管了域外起点：' + JSON.stringify(silentOutside))
+  const silentDowngraded = graphScopeProblems([{ name: 'warn-rule', severity: 'warn', from: { path: '^src/tracker/rooms/' } }], [], rels)
+  if (silentDowngraded.length === 0) pass('判据六（图上活着）：非 error 的规则不归它管（severity 由规则清单那条判）')
+  else fail('判据六（图上活着）管了非 error 的规则：' + JSON.stringify(silentDowngraded))
 }
 
 // ---------------------------------------------------------------------------
@@ -816,6 +891,8 @@ let moduleCount = 0
 let roomModuleCount = 0
 let dependencyCount = 0
 let coreDependencyCount = 0
+// 判据六（图上活着）用：引擎报出来的模块清单（判据自己按 source 去重后拿去和规则的起点对）。
+let graphModules: unknown[] = []
 const violations: Violation[] = []
 const ruleSetUsed: Violation['rule'][] = []
 
@@ -850,6 +927,7 @@ if (!existsSync(configAbs)) {
     }
     moduleCount = Array.isArray(parsed.modules) ? parsed.modules.length : 0
     roomModuleCount = countRoomModules(parsed.modules)
+    graphModules = Array.isArray(parsed.modules) ? parsed.modules : []
     coreDependencyCount = countCoreDependencies(parsed.modules)
     dependencyCount = Number((parsed.summary && parsed.summary.totalDependenciesCruised) || 0)
     for (const v of (parsed.summary && parsed.summary.violations) || []) violations.push(v)
@@ -868,8 +946,8 @@ if (ruleSetUsed.length) {
   else pass('所有规则的 severity 都是 error')
 }
 
-// 四条结构判据（#1136）：规则不许空转、登记表不许抄宽。跑在真仓库的磁盘清单与规则文件上。
-// 为什么放在规则清单核对之后：先把「规则在不在、是不是 error」这层查完，再查「在的这条还咬不咬得到东西」。
+// 五条结构判据（#1136）：规则不许空转、登记表不许抄宽。跑在真仓库的磁盘清单、规则文件与真图上。
+// 为什么放在规则清单核对与引擎跑完之后：先把「规则在不在、是不是 error」这层查完，再查「在的这条还咬不咬得到东西」。
 {
   const gateConfig = readGateConfig()
   if (!gateConfig) {
@@ -882,11 +960,12 @@ if (ruleSetUsed.length) {
       ...selfEatingProblems(gateConfig.roomImports, rels),
       ...absorbedEntryProblems(gateConfig.roomImports, rels),
       ...deadScopeProblems(gateConfig.forbidden, entries, rels),
+      ...graphScopeProblems(gateConfig.forbidden, graphModules, rels),
     ]
     if (judgeProblems.length) {
       for (const p of judgeProblems) fail(p)
     } else {
-      pass('四条结构判据全过：起点都活着、登记表有名有据（' + entries.length + ' 条）、没吃掉自己、没有互相吸收')
+      pass('五条结构判据全过：起点在扫描域里活着、在图上也咬得到东西、登记表有名有据（' + entries.length + ' 条）、没吃掉自己、没有互相吸收')
     }
   }
 }
