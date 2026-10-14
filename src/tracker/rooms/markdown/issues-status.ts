@@ -41,7 +41,7 @@ async function setStatus(ctx,repo,key,statusLine){
       let txt=await readTextFile(ctx,r.path)
       txt=replaceOrInsertField(txt,'Status',statusLine)
       await writeTextFile(ctx,r.path,txt, ctx && ctx.sandboxPolicy)
-      const iss=parseMd(txt,{key:norm,parentKey:isMap?null:'00',isMap,effortId:r.effortId})
+      const iss=parseMd(txt,{key:norm,parentKey:isMap?null:'00',isMap,effortId:r.effortId,url:r.path})
       applyLabelColors(iss, colorMap)
       return{ok:true,data:iss}
     }catch(e){return failFromError(e,ctx,'改这张票的状态时出错')}

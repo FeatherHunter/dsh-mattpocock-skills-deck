@@ -232,7 +232,7 @@ export async function createIssue(ctx,repo,input){
     const _fallbackParent = (input && input.parentKey !== undefined && input.parentKey !== null && String(input.parentKey).trim() !== '')
       ? String(input.parentKey).trim()
       : (_isMapType || (input && input.parentKey === null) ? null : '00')
-    const iss=parseMd(content,{key:finalKey,parentKey:_fallbackParent,isMap:false,effortId,createdAt:mtime,updatedAt:mtime})
+    const iss=parseMd(content,{key:finalKey,parentKey:_fallbackParent,isMap:false,effortId,createdAt:mtime,updatedAt:mtime,url:finalPath})
     applyLabelColors(iss, colorMap)
     return{ok:true,data:iss}
   }catch(e){return failFromError(e,ctx,'建这张票时出错')}

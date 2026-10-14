@@ -68,7 +68,7 @@
       "title": "金标准演示票",
       "type": "issue",
       "updatedAt": "<TIME>",
-      "url": ""
+      "url": "<ROOT>/.scratch/demo/issues/01-untitled.md"
     }
   },
   "items": [
@@ -125,7 +125,7 @@
     "title": "金标准演示票",
     "type": "issue",
     "updatedAt": "<TIME>",
-    "url": ""
+    "url": "<ROOT>/.scratch/demo/issues/01-untitled.md"
   },
   "reason": "",
   "repo": {

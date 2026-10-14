@@ -253,6 +253,60 @@ console.log('\n== ⑧ 空字段行不许吃掉下一行（#991 实测带回来�
     '非空的 Type 行照旧读出（实得 ' + JSON.stringify(realType.customFields || []) + '）')
 }
 
+console.log('\n== ⑨ 每张票都带地址，而且地址指向盘上那个真实文件（#1142） ==')
+{
+  // 现象（#1142）：本地 Markdown 房里票的 url 一直是空串 —— 界面上的「链接」按钮点了没反应，
+  //   工具回执里也拿不到票的地址。根因是房间算得出路径却没人把它写进票里：宿主那段「url 为空就现算」
+  //   的兜底读的是投影之后的模块对象，而投影只带数据字段、把函数挡在门外，所以那段永远进不去。
+  // 这一节钉住修好之后的样子：房间交给外面的每一张票、每一张地图，url 都是它自己那个文件在盘上的路径，
+  //   而且那个文件真的在（不是「01-untitled.md」这类按编号猜出来的规范名）。
+  const addrTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'md-address-'))
+  const addrPlat = {
+    path: path.posix,
+    fs: {
+      async resolve(p) { return p },
+      async readText(t) { return fs.readFileSync(t, 'utf8') },
+      async writeText(t, c) { fs.mkdirSync(path.dirname(t), { recursive: true }); fs.writeFileSync(t, c, 'utf8') },
+      async lstat(t) { try { return fs.statSync(t) } catch { return null } },
+      async listDir(t) { try { return fs.readdirSync(t) } catch { return [] } },
+      async stat(t) { try { return fs.statSync(t) } catch { return null } },
+    },
+  }
+  const addrCtx = { platform: addrPlat, fs: addrPlat.fs, cwd: addrTmp, get(name) { if (name === 'fs') return addrPlat.fs; return undefined } }
+  const addrRepo = { backend: 'markdown', refId: '.scratch/demo', name: 'demo', url: '' }
+  // 期望值与房间拼路径的方式对齐（平台路径实现用的是 posix，见上面 addrPlat）
+  const wantRelative = (rel) => path.posix.join(addrTmp, rel)
+  const addrMapFile = wantRelative('.scratch/demo/map.md')
+  const addrTicketFile = wantRelative('.scratch/demo/issues/01-hello-world.md')
+  fs.mkdirSync(path.dirname(addrTicketFile), { recursive: true })
+  fs.writeFileSync(addrMapFile, '# Demo Map\n\nStatus: ready-for-agent\n\n## Destination\n\nDemo\n', 'utf8')
+  fs.writeFileSync(addrTicketFile, '# Hello World\n\nStatus: ready-for-agent\nType: task\n\n## Comments\n', 'utf8')
+  const addrApi = await import('../src/tracker/rooms/markdown/issues.ts')
+
+  const listed = await addrApi.listIssues(addrCtx, addrRepo, {}, {})
+  const rows = listed.ok ? listed.data : []
+  check(listed.ok, '⑨ 列举跑通（实得 ' + (listed.ok ? rows.length + ' 行' : JSON.stringify(listed.error)) + '）')
+  // 逐行都要有地址，而且地址指的必须是盘上真实存在的文件（这一条同时管住地图行与票行）
+  const noAddress = rows.filter((r) => !r || !r.url || !fs.existsSync(r.url)).map((r) => (r && r.key) + '→' + JSON.stringify(r && r.url))
+  check(noAddress.length === 0, '⑨ 列举回来的每一行都有地址且文件真的在（没有地址的行：' + JSON.stringify(noAddress) + '）')
+  const mapRow = rows.find((r) => String(r.key) === '00')
+  const ticketRow = rows.find((r) => String(r.key) === '01')
+  check(!!mapRow && mapRow.url === addrMapFile, '⑨ 地图行的地址就是 map.md 的路径（实得 ' + JSON.stringify(mapRow && mapRow.url) + '）')
+  check(!!ticketRow && ticketRow.url === addrTicketFile,
+    '⑨ 票行的地址是它自己那个文件名（01-hello-world.md，不是按编号猜的 01-untitled.md；实得 ' + JSON.stringify(ticketRow && ticketRow.url) + '）')
+
+  const got = await addrApi.getIssue(addrCtx, addrRepo, '01', {})
+  check(got.ok && got.data.url === addrTicketFile, '⑨ 读单张票也带同一个地址（实得 ' + JSON.stringify(got.ok ? got.data.url : got.error) + '）')
+
+  const created = await addrApi.createIssue(addrCtx, addrRepo, { title: 'Address Probe', body: 'body', status: 'ready-for-agent', type: 'task' })
+  const createdUrl = created.ok ? String(created.data.url || '') : ''
+  const onDisk = fs.readdirSync(path.dirname(addrTicketFile))
+  check(!!createdUrl && fs.existsSync(createdUrl) && onDisk.includes(path.basename(createdUrl)),
+    '⑨ 新建票回包的地址就是刚落在 issues/ 下的那个文件（实得 ' + JSON.stringify(createdUrl) + '，目录里现有 ' + JSON.stringify(onDisk) + '）')
+
+  fs.rmSync(addrTmp, { recursive: true, force: true })
+}
+
 if (failed || hFailed > 0) {
   console.log('\n存在失败 — verify-markdown-backend 未通过')
   process.exit(1)

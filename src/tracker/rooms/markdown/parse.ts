@@ -199,6 +199,10 @@ export function parseMd(text, meta) {
   const effortId = String((meta && meta.effortId) || '')
   const createdAt = (meta && typeof meta.createdAt === 'string' ? meta.createdAt : '') || ''
   const updatedAt = (meta && typeof meta.updatedAt === 'string' ? meta.updatedAt : '') || ''
+  // 地址（#1142）：本地后端的票就是工作区里的文件，所以一张票的地址就是它所在的那个文件的路径。
+  // 只有真正读/写这个文件的那一层知道路径 —— 文件名里还带标题转出来的后缀（01-hello-world.md），
+  // 光有编号是拼不出来的，所以由调用方经 meta.url 传进来；没传就是空串（例如只借 parseMd 做纯文本解析）。
+  const url = (meta && typeof meta.url === 'string') ? meta.url : ''
   const closedAt = state === STATE.CLOSED ? (updatedAt || createdAt || '') : null
   const issue = {
     key,
@@ -207,7 +211,7 @@ export function parseMd(text, meta) {
     title,
     state,
     body: raw,
-    url: '',
+    url,
     createdAt,
     updatedAt,
     closedAt,

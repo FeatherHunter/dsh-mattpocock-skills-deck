@@ -60,7 +60,7 @@ export async function enumerateIssueRows(ctx, repo, filter = {}, opts = {}) {
         extra.createdAt = mtime
         extra.updatedAt = mtime
       }
-      rows.push(parseMd(txt, Object.assign({ key: '00', parentKey: null, isMap: true, effortId }, extra)))
+      rows.push(parseMd(txt, Object.assign({ key: '00', parentKey: null, isMap: true, effortId, url: mapPath }, extra)))
     } catch {}
   }
   /** 一个票文件读成一行：读不动时按上面的开关决定「静默跳过」还是「记下错误」。 */
@@ -98,7 +98,7 @@ export async function enumerateIssueRows(ctx, repo, filter = {}, opts = {}) {
       try {
         const mapP = plat.join(repo.path, 'map.md')
         const txt = await readTextFile(ctx, mapP)
-        rows.push(parseMd(txt, { key: '00', parentKey: null, isMap: true, effortId: scope || '' }))
+        rows.push(parseMd(txt, { key: '00', parentKey: null, isMap: true, effortId: scope || '', url: mapP }))
         await collectTicketsIn(plat.join(repo.path, 'issues'), scope || '', false)
       } catch {}
     }
@@ -158,7 +158,7 @@ export async function getIssue(ctx,repo,key,opts={}){
         const st=await statFile(ctx,r.path)
         let mtime=''
         if(st&&st.mtime){try{mtime=new Date(st.mtime).toISOString()}catch{}}
-        const iss=parseMd(txt,{key:norm,parentKey:null,isMap:true,effortId:r.effortId,createdAt:mtime,updatedAt:mtime})
+        const iss=parseMd(txt,{key:norm,parentKey:null,isMap:true,effortId:r.effortId,createdAt:mtime,updatedAt:mtime,url:r.path})
         applyLabelColors(iss, colorMap)
         return{ok:true,data:iss}
       }catch(e){return failFromError(e,ctx,'读这个工作单元的地图文件时出错')}

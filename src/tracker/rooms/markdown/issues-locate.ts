@@ -153,5 +153,7 @@ export async function loadIssueFromFile(ctx,repo,fullPath,metaExtra={}){
   const parentKey=metaExtra.parentKey!==undefined?metaExtra.parentKey:null
   const isMap=!!metaExtra.isMap
   const effortId=metaExtra.effortId!==undefined?metaExtra.effortId:''
-  return parseMd(txt,{key,parentKey,isMap,effortId,createdAt:mtime,updatedAt:mtime})
+  // 地址（#1142）：这张票的地址就是刚读的这个文件的路径。读文件这一层是唯一同时知道「是哪张票」与
+  // 「它在盘上叫什么名字」的地方，所以在这里把它交给 parseMd；上层（列举、读单张、分页）不必各自再算一遍。
+  return parseMd(txt,{key,parentKey,isMap,effortId,createdAt:mtime,updatedAt:mtime,url:fullPath})
 }

@@ -175,7 +175,7 @@ export async function updateIssue(ctx,repo,key,patch){
   })
   if(!res.ok)return{ok:false,error:res.error}
   try{
-    const iss=parseMd(res.txt,{key:norm,parentKey: norm==='00'?null:'00',isMap: norm==='00',effortId:r.effortId})
+    const iss=parseMd(res.txt,{key:norm,parentKey: norm==='00'?null:'00',isMap: norm==='00',effortId:r.effortId,url:r.path})
     applyLabelColors(iss, colorMap)
     return{ok:true,data:iss}
   }catch(e){return failFromError(e,ctx,'改这张票的字段时出错')}
@@ -192,7 +192,7 @@ export async function setBlockedByIssue(ctx,repo,key,blockers){
   const res=await readParseWrite(ctx,repo,r,norm,function(txt){return replaceOrInsertField(txt,'Blocked\\s+by',line)})
   if(!res.ok)return{ok:false,error:res.error}
   try{
-    const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:r.effortId})
+    const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:r.effortId,url:r.path})
     applyLabelColors(iss, colorMap)
     return{ok:true,data:iss}
   }catch(e){return failFromError(e,ctx,'改这张票的阻塞关系时出错')}
@@ -207,7 +207,7 @@ export async function setAssigneesIssue(ctx,repo,key,assignees){
   const res=await readParseWrite(ctx,repo,r,norm,function(txt){return replaceOrInsertField(txt,'Status',statusLine)})
   if(!res.ok)return{ok:false,error:res.error}
   try{
-    const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:r.effortId})
+    const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:r.effortId,url:r.path})
     applyLabelColors(iss, colorMap)
     return{ok:true,data:iss}
   }catch(e){return failFromError(e,ctx,'改这张票的认领人时出错')}
@@ -253,7 +253,7 @@ export async function setParentIssue(ctx,repo,key,parentKey){
       if(!r.ok)return{ok:false,error:r.error}
       try{
         const txt=await readTextFile(ctx,r.path)
-        const iss=parseMd(txt,{key:'00',parentKey:null,isMap:true,effortId:r.effortId})
+        const iss=parseMd(txt,{key:'00',parentKey:null,isMap:true,effortId:r.effortId,url:r.path})
         applyLabelColors(iss, colorMap)
         return{ok:true,data:iss}
       }catch(e){return failFromError(e,ctx,'改这张票的父子关系时出错')}
@@ -278,7 +278,7 @@ export async function setParentIssue(ctx,repo,key,parentKey){
     })
     if(!res.ok)return{ok:false,error:res.error}
     try{
-      const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort})
+      const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort,url:r.path})
       applyLabelColors(iss, colorMap)
       return{ok:true,data:iss}
     }catch(e){return failFromError(e,ctx,'改这张票的父子关系时出错')}
@@ -298,7 +298,7 @@ export async function setParentIssue(ctx,repo,key,parentKey){
     })
     if(!res.ok)return{ok:false,error:res.error}
     try{
-      const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort})
+      const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort,url:r.path})
       applyLabelColors(iss, colorMap)
       return{ok:true,data:iss}
     }catch(e){return failFromError(e,ctx,'改这张票的父子关系时出错')}
@@ -315,7 +315,7 @@ export async function setParentIssue(ctx,repo,key,parentKey){
     })
     if(!res.ok)return{ok:false,error:res.error}
     try{
-      const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort})
+      const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort,url:r.path})
       applyLabelColors(iss, colorMap)
       return{ok:true,data:iss}
     }catch(e){return failFromError(e,ctx,'改这张票的父子关系时出错')}
@@ -340,7 +340,7 @@ export async function setLabelsIssue(ctx,repo,key,labels){
   const res=await readParseWrite(ctx,repo,r,norm,function(txt){return replaceOrInsertField(txt,'Labels',line)})
   if(!res.ok)return{ok:false,error:res.error}
   try{
-    const iss=parseMd(res.txt,{key:norm,parentKey: norm==='00'?null:'00',isMap: norm==='00',effortId:r.effortId})
+    const iss=parseMd(res.txt,{key:norm,parentKey: norm==='00'?null:'00',isMap: norm==='00',effortId:r.effortId,url:r.path})
     applyLabelColors(iss, colorMap)
     return{ok:true,data:iss}
   }catch(e){return failFromError(e,ctx,'改这张票的标签时出错')}
