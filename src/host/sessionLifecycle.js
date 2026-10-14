@@ -149,24 +149,44 @@ export function createSessionLifecycle(deps) {
   async function selectEarly(selCtx) {
     const cwd = selCtx.cwd
     let sel = null
+    let svcSaid = false // 探测服务给没给出结论（「它说没有后端」也算给了结论）
+    let why = ''        // 兜底的原因码，落在下面那条日志里
+    let errHash = ''
     try {
       const svc = await getDetectionService()
       if (svc && typeof svc.detect === 'function') {
         // 上报已退役不传：刚选的经写入口直达文件（落盘 + 清缓存），本轮即读到。
         const det = await svc.detect({ cwd }, { skipSkillProbes: true })
-        if (det && det.selection) sel = det.selection
-      }
-    } catch {}
-    if (!sel || (sel.backendId == null && (!sel.source || sel.source !== 'explicit'))) {
+        if (det && det.selection) { sel = det.selection; svcSaid = true } else why = 'service-no-selection'
+      } else why = 'service-missing'
+    } catch (eSvc) { why = 'service-threw'; try { errHash = hash8(String((eSvc && eSvc.message) || eSvc)) } catch (eH) {} }
+    // 兜底只留给「探测服务根本没给出结论」这一种。服务内部走的就是统一判定出口，出口已经把三层
+    //   （工作区文件、声明文件、各房认领）都问过了；它回「没有后端」是一个结论，不是失败。
+    //   收窄的两条理由：
+    //   ① 旧写法会在出口已经答过之后再直问一次注册表，把同一批 matches 重扫一遍（Markdown 房还要再列
+    //      一次 .scratch 目录），白花钱；
+    //   ② 更要紧的是它可能给出与出口不同的答案，于是早快照用了一个统一判定没认可的结局——那正是 #1138
+    //      要收掉的「两条路两个答案」。它原先还兼着捞「注册表里那份进程内绑定」，那份绑定在 #1138 已经
+    //      删掉（人选的真源只剩工作区文件），所以兜底只剩「服务缺席 / 抛错」这一种用途。
+    if (!svcSaid) {
+      const t1 = Date.now()
       try {
         const regTmp = await getTrackerRegistry()
         const tmpHandle = { cwd }
         const tmpCtx = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), caller: 'snapshot-early' }
         const sel2 = await regTmp.select(tmpHandle, tmpCtx)
         if (sel2) sel = sel2
-      } catch {}
+      } catch (eReg) { why = (why || 'service-threw') + '+registry-threw'; try { errHash = hash8(String((eReg && eReg.message) || eReg)) } catch (eH2) {} }
+      // 这一趟不在统一判定出口里，所以它自己留一条记录：按需事件，只有排查装配与时序问题时才需要。
+      //   为什么不借用出口那条常驻结论线（detection.detect）：那不是同一件事，硬塞进去会让读日志的
+      //   人以为出口答了两遍；而出口那条线在自己的路径上照发（探测服务把日志出口一路递到了出口）。
+      //   开关在调用处先判一次（高频守卫的口径）：关着就连字段对象都不组装。
+      try {
+        if (logCtx && typeof logCtx.fire === 'function' && typeof logCtx.isEnabled === 'function' && logCtx.isEnabled('debug')) {
+          logCtx.fire('debug', 'detection.fallback', { cwdHash: hash8(cwd), backendId: String((sel && sel.backendId) || ''), source: String((sel && sel.source) || ''), pending: !!(sel && sel.pending), why: why || 'service-no-selection', errorHash: errHash, latencyMs: Date.now() - t1 })
+        }
+      } catch (eL) {}
     }
-    try { if (logCtx) logCtx.fire('info', 'detection.detect', { cwdHash: hash8(cwd), explicit: !!((sel && sel.source === 'explicit')), matches: (sel && Array.isArray(sel.multiHit)) ? sel.multiHit.length : ((sel && sel.source === 'matches') ? 1 : 0), pending: !!(sel && sel.pending), selection: String((sel && sel.backendId) || '') }) } catch (eL) {}
     return sel
   }
   function isComposerSelection(sel) {

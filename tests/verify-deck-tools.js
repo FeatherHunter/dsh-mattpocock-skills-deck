@@ -285,7 +285,15 @@ async function main() {
     check(stats.byCategory['ai-tool'] >= 10, '这些调用都记在「AI 工具」那一档（' + stats.byCategory['ai-tool'] + ' 笔）')
     check(selectCount.count > 0 && stats.byCategory['ai-tool'] >= selectCount.count * 2, '每笔工具调用至少过两次闸（选后端一次 + 真正读写一次）：' + stats.byCategory['ai-tool'] + ' 笔闸 ≥ ' + selectCount.count + ' 次调用 × 2')
     check(Object.keys(stats.byCategory).every((c) => c === 'ai-tool' || stats.byCategory[c] === 0), '没有一笔走到别的档去（' + JSON.stringify(stats.byCategory) + '）')
-    check(logs.length > 0 && logs.every((l) => l.event === 'host.call' || l.event === 'host.call.fail'), '每个工具调用都落了既有事件 host.call / host.call.fail（' + logs.length + ' 行），没有新造事件名')
+    // 工具层自己只许发 host.call / host.call.fail 这两个既有事件名。
+    // detection.detect 是统一判定出口的常驻结论线：2026-10-14（#1048 收口补做）给 deck 工具这条直调点
+    // 也递上了日志出口，于是每趟判定会多一条结论线 —— 它不是工具层新造的名字，所以这一条放行，
+    // 但另外单独钉一次「它确实出现了」，免得哪天日志出口被摘掉却没人发现。
+    const ownRows = logs.filter((l) => l.event === 'host.call' || l.event === 'host.call.fail')
+    const decisionRows = logs.filter((l) => l.event === 'detection.detect')
+    check(ownRows.length > 0 && logs.every((l) => l.event === 'host.call' || l.event === 'host.call.fail' || l.event === 'detection.detect'),
+      '工具层没新造事件名：自有行只有 host.call / host.call.fail（' + ownRows.length + ' 行），另有判定出口的常驻结论线 detection.detect（' + decisionRows.length + ' 行）')
+    check(decisionRows.length > 0, 'deck 工具这条直调点也把判定结论写进日志了（每趟判定一条，' + decisionRows.length + ' 条）')
     check(invalidated.length > 0, '写之后失效了缓存（' + invalidated.length + ' 次）')
 
     // 上面那一段跑的是本地 Markdown 后端：它一个出站请求都不发，所以「账为 0」是对的。

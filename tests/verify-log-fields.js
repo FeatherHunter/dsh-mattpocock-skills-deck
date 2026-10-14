@@ -1,6 +1,6 @@
 // verify-log-fields.js —— #494 第三件事：日志门禁之字段白名单（#489 附录第 4 节断言一）。
 // 用法：在插件根目录执行 node tests/verify-log-fields.js，可独立运行。
-// 断言文字：扫描全部埋点调用，每个事件只含第 1 节允许字段（#746 增补常驻 #90 naming.summary，#782 增补常驻 #92 cwd.persisted，#817 增补常驻 #94 git.exec 与 #95 git.exec.fail，#864 增补按需 #96 vc.cache.screen，#958 增补按需 #97 labelColors.listed，#1048 增补按需 #98 detection.step 并给常驻 #16 detection.detect 补六键，#1131 增补按需 #99 detection.cache.hit（缓存命中那一行：这一次没重算、直接把上一次的判定回给了调用方），#1054 增补常驻 #100 edge.write（关系边写没写下去、走的哪条路、为什么）与按需 #101 edge.cycle、#102 edge.roster、#103 edge.repair（成环检查、邻接关系来源、REST 树边修复三条调试线），#1053 增补常驻 #104 issue.write（票的增删改评论贴标签：写没写下去、走的哪条路、为什么））；
+// 断言文字：扫描全部埋点调用，每个事件只含第 1 节允许字段（#746 增补常驻 #90 naming.summary，#782 增补常驻 #92 cwd.persisted，#817 增补常驻 #94 git.exec 与 #95 git.exec.fail，#864 增补按需 #96 vc.cache.screen，#958 增补按需 #97 labelColors.listed，#1048 增补按需 #98 detection.step 并给常驻 #16 detection.detect 补六键，#1131 增补按需 #99 detection.cache.hit（缓存命中那一行：这一次没重算、直接把上一次的判定回给了调用方），#1054 增补常驻 #100 edge.write（关系边写没写下去、走的哪条路、为什么）与按需 #101 edge.cycle、#102 edge.roster、#103 edge.repair（成环检查、邻接关系来源、REST 树边修复三条调试线），#1053 增补常驻 #104 issue.write（票的增删改评论贴标签：写没写下去、走的哪条路、为什么），#1048 收口补做增补按需 #105 detection.fallback（早快照兜底那一趟：探测服务没给出结论时才走，不与常驻 #16 同名不同形））；
 // 出现工作区原始路径、仓库地址原文、令牌原文、模板正文、快照全文即红。
 // 做法：从宿主与客户端源码里找出全部日志调用，逐个事件收拢实际字段键，
 // 与下面这张允许表逐项比对；未知事件名、未知字段键都算失败并打印清单。
@@ -64,6 +64,14 @@ const ALLOWED = {
   //   （例如 wf.listLabels、detection-service）、ageMs 这一格缓存存了多久（毫秒）。落点：
   //   src/tracker/detection/detectionService.ts 的 detect 命中工作区缓存、直接返回上一次结果的那一支。
   'detection.cache.hit': ['cwdHash', 'caller', 'ageMs'],
+  // 2026-10-14（#1048 收口补做）新增按需 #105 `detection.fallback`：早快照的兜底这一趟 —— 只有探测服务
+  //   根本没给出结论（缺席或抛错）时，才直问注册表那条路的记录。为什么不借用常驻 #16 `detection.detect`：
+  //   那不是同一件事，硬塞进去会让读日志的人以为出口答了两遍；出口那条结论线在自己的路径上照发。
+  //   字段：cwdHash 工作区键的短散列、backendId 兜底这一趟拿到哪个后端、source 这个结论从哪来、
+  //   pending 是不是还有房没答完、why 为什么要走兜底（service-missing / service-no-selection /
+  //   service-threw，注册表也抛错时写成 `服务那一档+registry-threw`）、errorHash 抛错时的错误散列、
+  //   latencyMs 这一次兜底问了多久。全是枚举、布尔、散列与数字，不记路径原文、不记上游报错原文。
+  'detection.fallback': ['cwdHash', 'backendId', 'source', 'pending', 'why', 'errorHash', 'latencyMs'],
   // 2026-10-14（#1054）新增四条：关系（父子边与阻塞边）写入这一族的轨迹。为什么要有它们：
   //   写一条边要跨出进程问远端（原生旗或裸接口），而落点从前只有 gh.exec 那一层「命令跑了、退出码几」，
   //   回答不了「这条边到底挂上没挂上、走的哪条路、为什么没写成」—— #1100 报的「补边整批中止、

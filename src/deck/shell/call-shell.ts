@@ -144,7 +144,8 @@ export function limitsFromBudget(b: unknown): DeckLimits {
  *   budget     必填，额度常量（src/shared/refresh/budget.js 的产物），只为拼出 limits 用
  *   estimate   必填，算账函数（src/shared/refresh/tool-cost.js 的产物）
  *   backendCtx 可选，后端 ctx（platform / fs / exec 那一套）；不传时用 opCtx 顶上
- *   log        可选，日志出口 { fire }（写 host.call / host.call.fail 两行，不新增事件名）
+ *   log        可选，日志出口 { fire }（写 host.call / host.call.fail 两行；#1048 起同一个出口也递给
+ *              判定出口，叫这一趟判定留下自己的结论线，事件名仍是判定那两件，壳本身不新增事件名）
  *   now        可选，取时间（测试注入假时钟）
  *   sleep      可选，等待口：(毫秒, 中止信号?) => Promise，缺省真定时器（测试注入假时钟，就不必真等 8 秒）；
  *   invalidate 可选，写后失效缓存该票条目：invalidate({ repo, backendId, keys, workspace })
@@ -266,6 +267,10 @@ export function createDeckShell(deps?: DeckShellDeps): DeckShell {
             registry: registry, backendCtx: backendCtxNow(),
             readWorkspaceFileText: d.readWorkspaceFileText, parseWorkspaceFile: d.parseWorkspaceFile,
             readDeclarationId: d.readDeclarationId, caller: DECK_TOOL_KIND, autodetect: directSelect,
+            // #1048 收口补做：把宿主日志出口一并递进判定出口，这条路上的判定才留下结论线
+            //   （平时一条常驻结论，调试开关打开时逐层记步骤）。递进去的是同一个 logCtx，
+            //   所以「开关打开即三层全问」这条在这条路上也一样成立。
+            logCtx: log,
           })) as OutletResult | null
           if (o && o.backendId) {
             picked = { backendId: o.backendId, source: str(o.source), ref: (o.ref || null) as DeckRepoRef | null, multiHit: o.multiHit, pending: !!o.pending, canWrite: o.canWrite }

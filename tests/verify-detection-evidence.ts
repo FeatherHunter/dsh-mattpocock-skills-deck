@@ -476,6 +476,35 @@ async function main(): Promise<void> {
       '连「开关开没开」都问不出来时退回平时模式，不抛')
   }
 
+  title('H 证据范围是判定的入参，不是日志的私产（#1048 收口补做）')
+  {
+    // 纯函数那一层：调用方点名要哪一档就听它的；没点名才去看调试开关。
+    ok(resolveEvidenceScope({ scope: 'exhaustive' }) === 'exhaustive',
+      '没有日志出口、调用方点名要诊断 → 照样三层全问（这个能力不挂在日志开关上）')
+    ok(resolveEvidenceScope({ logCtx: { fire: () => true, isEnabled: () => true }, scope: 'decisive' }) === 'decisive',
+      '开关开着、调用方点名只要结论 → 就只要结论（点名的入参压过默认入口）')
+
+    // 行为那一层：范围只改「问哪几层」，裁决与对外那几样一格不差。
+    const wsOnly: Record<string, string | null> = { [WS_FILE]: wsFile('markdown') }
+    let asks = 0
+    const regOf = (): DecideRegistry => fakeRegistry(['markdown', 'github'], async () => { asks++; return { backendId: 'github', source: 'matches' } })
+
+    const fD = fakeFs(wsOnly); const loud = fakeLog(true)
+    const sDecisive = await decideBackend(CWD, { fs: fD.fs, registry: regOf(), logCtx: loud.ctx, scope: 'decisive' })
+    ok(asks === 0, '点名只要结论：前两层已经给出人选，就不问各房（一次 matches 都不起）', '起过 ' + asks + ' 次')
+    const fE = fakeFs(wsOnly); const quiet = fakeLog(false)
+    const sExhaustive = await decideBackend(CWD, { fs: fE.fs, registry: regOf(), logCtx: quiet.ctx, scope: 'exhaustive' })
+    ok(asks === 1, '点名要诊断：前两层已经有结论，也照样问各房（跨层矛盾只有问过才看得见）', '起过 ' + asks + ' 次')
+    ok(sDecisive.backendId === sExhaustive.backendId && sDecisive.source === sExhaustive.source && sDecisive.canWrite === sExhaustive.canWrite
+      && sDecisive.reason === sExhaustive.reason && sDecisive.state === sExhaustive.state,
+      '同一份输入、两档范围：对外那几样与状态、原因逐格不差（放宽范围只多诊断信息）',
+      JSON.stringify({ 平时: [sDecisive.backendId, sDecisive.source, sDecisive.canWrite, sDecisive.reason, sDecisive.state], 排查: [sExhaustive.backendId, sExhaustive.source, sExhaustive.canWrite, sExhaustive.reason, sExhaustive.state] }))
+    ok(sExhaustive.coverage.scope === 'exhaustive' && sExhaustive.coverage.checked.indexOf('autodetect') >= 0,
+      '覆盖度如实写「这次真看了三层」', JSON.stringify(sExhaustive.coverage))
+    ok(sDecisive.coverage.scope === 'decisive' && sDecisive.coverage.skipped.length === 1 && sDecisive.coverage.skipped[0].tier === 'autodetect',
+      '覆盖度也如实写「这次有意没看哪一层、为什么」', JSON.stringify(sDecisive.coverage))
+  }
+
   console.log('\n共 ' + (passed + failed) + ' 项，' + (failed ? ('破 ' + failed + ' 项') : '全部通过'))
   process.exitCode = failed ? 1 : 0
 }

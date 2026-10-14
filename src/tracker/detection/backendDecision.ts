@@ -318,6 +318,17 @@ export interface DecideBackendDeps extends FileLayerDeps, DeclarationLayerDeps {
   autodetect?: (handle: RepoHandle, ctx: unknown) => Promise<Selection | null>
   skipAutodetect?: boolean
   logCtx?: DecisionLogCtx | null
+  /**
+   * 证据范围（#1048 收口补做）：`decisive` 只要一个结论（默认，与今天逐格一致）；
+   * `exhaustive` 三层全收，要的是诊断（跨层矛盾只有三层都问过才看得见）。
+   *
+   * 为什么做成入参而不是继续读日志开关：**范围属于判定，不属于日志**。范围决定的是
+   * 「问哪几层」，这件事与「记不记日志」是两件事；把能力挂在日志开关上，等于说
+   * 「想审计就得先开日志」，将来界面要给一个「诊断」动作时无处可挂。调试开关今天
+   * 仍然是触发 exhaustive 的入口之一（见 resolveEvidenceScope），但它是入口，不是主人。
+   * 放宽范围只多问低层，翻不了已经作出的裁决（优先级是全序），这条被门禁逐格钉住。
+   */
+  scope?: EvidenceScope
 }
 
 /**
@@ -732,7 +743,9 @@ export function synthesize(report: EvidenceReport): DecisionSynthesis {
  * 不代表将来不能有别的入口（例如界面上一个「诊断」动作），所以收在一个函数里，好换。
  * 调用方明确把各房认领关掉（skipAutodetect）时范围不变，关这一层是另一个旋钮。
  */
-export function resolveEvidenceScope(opts: { logCtx?: DecisionLogCtx | null } = {}): EvidenceScope {
+export function resolveEvidenceScope(opts: { logCtx?: DecisionLogCtx | null; scope?: EvidenceScope } = {}): EvidenceScope {
+  // 调用方点名要哪一档就听它的：范围是判定的入参，日志开关只是下面那一条默认入口。
+  if (opts.scope === 'decisive' || opts.scope === 'exhaustive') return opts.scope;
   const logCtx = opts.logCtx || null;
   try {
     return (logCtx && typeof logCtx.isEnabled === 'function' && logCtx.isEnabled('debug')) ? 'exhaustive' : 'decisive';
@@ -1077,7 +1090,7 @@ export async function decideBackend(root: unknown, deps: DecideBackendDeps = {})
   const cwd = String(root || '');
   const logCtx = (deps.logCtx || null) as DecisionLogCtx | null;
   // 证据范围与调试开关只在外层判一次：不开就不建步骤对象、不发步骤线；结论线照发（常驻）。
-  const scope = resolveEvidenceScope({ logCtx: logCtx });
+  const scope = resolveEvidenceScope({ logCtx: logCtx, scope: deps.scope });
   const run = makeRun(logCtx, scope === 'exhaustive');
   const cwdHash = hash8(cwd);
   if (!cwd) {

@@ -207,7 +207,9 @@ export function createWorkspaceCwd(deps) {
       if (!outlet || typeof outlet.decideBackend !== 'function') {
         return { ok: false, error: '插件尚未就绪：判定出口这次没装上，所以没有选出后端。请稍后重试；如果仍然失败，请把这条提示原文报告给插件维护者。' }
       }
-      const o = await outlet.decideBackend(cwd, { registry: reg, platform: await getPlatform(), fs: ctx.get('fs'), caller: 'wf.selection' }).catch(function () { return null })
+      // #1048 收口补做：把日志出口一并递进去，这条电话的判定才留下结论线（与面板、deck 工具同源同形）。
+      //   不递的后果是「用户在设置页选了后端、事后想查为什么是这个」，日志里查不到这一趟判定。
+      const o = await outlet.decideBackend(cwd, { registry: reg, platform: await getPlatform(), fs: ctx.get('fs'), caller: 'wf.selection', logCtx: logCtx }).catch(function () { return null })
       const describeOf = function (id) { try { return reg.describe({ cwd: cwd }, id) } catch (eD) { return null } }
       const sel = (typeof outlet.selectionFromOutlet === 'function' && o) ? outlet.selectionFromOutlet(o, describeOf) : null
       let repoRef = null
