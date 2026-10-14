@@ -29,9 +29,9 @@ if (!chain) {
 const gates = chain.split('&&').map(function (s) { return s.trim() }).filter(Boolean)
 
 // 装载钩子：链上的测试要能把 "./x.js" 解析到同目录的同名 .ts（迁移中的单元靠它）。
-// 判定只有一条：要跑的是 tests/ 下的文件才挂。同一个判定分散在四个入口，改一处必须全改：
-//   1. scripts/verify-chain.js 的 argvOf   2. scripts/verify-parallel.mjs 的 argvOf
-//   3. 本文件的 withTsHook                4. package.json 的 test:smoke
+// 判定只有一条：要跑的是 tests/ 下的文件才挂。同一个判定分散在三处，改一处必须全改：
+//   1. scripts/verify-chain.js 的 argvOf（#1178 起 npm run test:smoke 也走它）
+//   2. scripts/verify-parallel.mjs 的 argvOf   3. 本文件的 withTsHook
 // 本脚本尤其不能漏：CI（.github/workflows/verify.yml）跑的就是它，漏挂的后果是
 // 「本机 npm test 全绿、CI 红」——迁移成 .ts 的门禁在本地由钩子解析到源码，在 CI 那边解析不到。
 const TS_HOOK = pathToFileURL(path.join(ROOT, 'scripts', 'ts-hook.mjs')).href

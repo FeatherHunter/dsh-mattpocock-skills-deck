@@ -17,9 +17,9 @@ import fs from 'node:fs'
 import path from 'node:path'
 import url from 'node:url'
 
-import { buildGateMap, normalizeForCompare, readChainSteps, ROOT, isUnder, gateNameOf, COMPLETION_RECORDED_GATES } from '../scripts/gate-map.mjs'
+import { buildGateMap, normalizeForCompare, readChainSteps, readSmokeSteps, ROOT, isUnder, gateNameOf, COMPLETION_RECORDED_GATES, SMOKE_COMPLETION_RECORDED_GATES } from '../scripts/gate-map.mjs'
 import { selectGates, isCrossCutting } from '../scripts/lib/select-gates.mjs'
-// 完成证据的判据（#1158）：这一份门禁要替它把关——表里那两格说谎，判据就会静默失效。
+// 完成证据的判据（#1158）：这一份门禁要替它把关——表里那几格说谎，判据就会静默失效。
 import { judgeGateCompletion, formatGateResult, GATE_RESULT_PREFIX } from './lib/gate-result.ts'
 
 const MAP_PATH = path.join(ROOT, 'tests', 'gate-map.json')
@@ -180,12 +180,12 @@ const MIN_ATTRIBUTED_GATES = 200
 }
 
 // ---------------------------------------------------------------------------
-// 2c) 完成证据（#1158）：表里那两格必须与源码、与判据都对得上
+// 2c) 完成证据（#1158）：表里那几格必须与源码、与判据都对得上
 // ---------------------------------------------------------------------------
-// 为什么要有这一段：三条执行器判「这扇门禁跑完了没有」，全靠 gates[].completionRecord 与
-// expectedAssertions 这两格。它们一旦说谎（源码里根本没交记录、或源码在交记录却没登记期望），
-// 判据就静默失效——「跑到一半就收摊、退出码仍是 0」的假绿照旧。所以这里做三件事：
-// 形状与自洽、源码与表互证、判据自己先红一次（反例自证）。
+// 为什么要有这一段：执行器判「这扇门禁跑完了没有」，全靠 gates[].completionRecord 与
+// expectedAssertions 这两格（冒烟链上的同一件事记在 smokeGates[]，#1178）。它们一旦说谎
+// （源码里根本没交记录、或源码在交记录却没登记期望），判据就静默失效——「跑到一半就收摊、
+// 退出码仍是 0」的假绿照旧。所以这里做三件事：形状与自洽、源码与表互证、判据自己先红一次（反例自证）。
 {
   let shapeBad = 0
   let inconsistent = 0
@@ -248,6 +248,77 @@ const MIN_ATTRIBUTED_GATES = 200
   }
   check(missingCall === 0, '已开闸的门禁，源码里真的在交完成记录（表说有、源码里没有的 ' + missingCall + ' 扇）')
   check(unregisteredCall === 0, '源码里在交完成记录的门禁，表里都登记了期望（没登记的 ' + unregisteredCall + ' 扇）')
+
+  // 冒烟链那几条（#1178）：test:smoke 走同一个执行器之后，冒烟门禁的期望住在 smokeGates 里。
+  // 同一个把关口径：形状与自洽、登记表一致、与 scripts.smoke 清单对得上、源码与表互证。
+  const smokeRows = Array.isArray(map.smokeGates) ? map.smokeGates : []
+  const smokeSteps = readSmokeSteps(ROOT)
+  check(
+    smokeRows.length === smokeSteps.length,
+    '冒烟链上每一步在表里都有一条（链上 ' + smokeSteps.length + ' 步、表里 ' + smokeRows.length + ' 条）',
+  )
+  let smokeShapeBad = 0
+  let smokeInconsistent = 0
+  let smokeNameBad = 0
+  for (const g of smokeRows) {
+    if (
+      typeof g.gate !== 'string' ||
+      !g.gate ||
+      typeof g.completionRecord !== 'boolean' ||
+      !Number.isInteger(g.expectedAssertions) ||
+      g.expectedAssertions < 0
+    ) {
+      smokeShapeBad++
+      continue
+    }
+    if (g.gate !== gateNameOf(g.file)) smokeNameBad++
+    if (g.completionRecord !== (g.expectedAssertions > 0)) smokeInconsistent++
+  }
+  check(smokeShapeBad === 0, '冒烟那几条都写齐了 gate / completionRecord / expectedAssertions 三格（缺格或类型不对 ' + smokeShapeBad + ' 条）')
+  check(smokeNameBad === 0, '冒烟那几条的 gate 与 gateNameOf(file) 一致（对不上 ' + smokeNameBad + ' 条）')
+  check(smokeInconsistent === 0, '冒烟那几条两格自洽：completionRecord 为 true 的都有正数期望（不自洽 ' + smokeInconsistent + ' 条）')
+  const smokeOpened = smokeRows.filter((g) => g.completionRecord)
+  const smokeRegistered = Object.keys(SMOKE_COMPLETION_RECORDED_GATES)
+  check(
+    map.smokeCompletionRecordedGates === smokeOpened.length,
+    '表头记的冒烟已开闸扇数 ' + map.smokeCompletionRecordedGates + ' 等于 smokeGates 里 completionRecord 为 true 的条数 ' + smokeOpened.length,
+  )
+  check(
+    smokeRegistered.length === smokeOpened.length,
+    '生成器里登记的冒烟已开闸门禁 ' + smokeRegistered.length + ' 扇，与表里的 ' + smokeOpened.length + ' 扇一致',
+  )
+  const smokeUnknown = smokeRegistered.filter((n) => !smokeOpened.some((g) => g.gate === n))
+  check(
+    smokeUnknown.length === 0,
+    '冒烟登记表里的门禁名都能在冒烟清单上找到对应的一扇（找不到 ' + smokeUnknown.length + ' 个' + (smokeUnknown.length ? '：' + smokeUnknown.join('、') : '') + '）',
+  )
+  const smokeStepSet = new Set(smokeSteps)
+  const smokeNotOnList = smokeRows.filter((g) => !smokeStepSet.has(g.step))
+  check(
+    smokeNotOnList.length === 0,
+    '表里每条冒烟记录都能在 scripts.smoke 里找到那一步（找不到 ' + smokeNotOnList.length + ' 条' + (smokeNotOnList.length ? '：' + smokeNotOnList.map((g) => g.step).join('、') : '') + '）',
+  )
+  let smokeMissingCall = 0
+  let smokeUnregisteredCall = 0
+  for (const gate of smokeRows) {
+    let src = ''
+    try {
+      src = fs.readFileSync(path.join(ROOT, gate.file), 'utf8')
+    } catch (e) {
+      continue
+    }
+    const prints = src.includes(PRINT_NEEDLE)
+    if (gate.completionRecord && !prints) {
+      smokeMissingCall++
+      offenders.push(gate.file + '（表说它已开闸，源码里却找不到 printGateResult 调用）')
+    }
+    if (!gate.completionRecord && prints) {
+      smokeUnregisteredCall++
+      offenders.push(gate.file + '（源码里在交完成记录，表里却没登记期望）')
+    }
+  }
+  check(smokeMissingCall === 0, '冒烟里已开闸的门禁，源码里真的在交完成记录（表说有、源码里没有的 ' + smokeMissingCall + ' 扇）')
+  check(smokeUnregisteredCall === 0, '冒烟里在交完成记录的门禁，表里都登记了期望（没登记的 ' + smokeUnregisteredCall + ' 扇）')
   if (offenders.length) for (const o of offenders.slice(0, 5)) info(o)
 
   // 判据自己先红一次：正例必须绿，坏样本必须各自红出对应的那句话。

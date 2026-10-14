@@ -6,7 +6,13 @@
 // 在我之前就已经跑不起来（我加的那一项只是最后一根稻草）。bash 系（CI）不受影响。
 // 修法：不断链（不断言链内容的门禁用 includes() 钉着它，只能读不能搬），
 // 执行改走本脚本：读出链、按 && 切开、逐条直调 node，首红即停并透传退出码。
-// 用法：node scripts/verify-chain.js（全链）或 node scripts/verify-chain.js --only <子串>（抽查）。
+// 用法：node scripts/verify-chain.js（跑 scripts.verify，主门禁链）
+//       node scripts/verify-chain.js --only <子串>（抽查：只跑名字含这个子串的条目）
+//       node scripts/verify-chain.js --script smoke（跑 scripts.smoke，六条冒烟；#1178 起 npm run test:smoke 走这条）
+//
+// 为什么冒烟也走这一份（#1178）：从前 test:smoke 是一条裸的 && 串，谁给冒烟上的门禁开闸，
+// 那条路都会静默漏掉下面的完成证据判据。现在两条链共用这一个执行器与同一份判据，
+// 只有「跑哪一串」不同（scripts.verify / scripts.smoke），切法、挂装载钩子、首红即停全都一样。
 //
 // #1158 起多一条判据：只看退出码会被「跑到一半就收摊、退出码仍是 0」骗过去
 // （#1146 实测：verify-deck-no-hang 的 21 条断言只跑到第 12 条就退出，整条链判绿）。
@@ -29,9 +35,15 @@ const TS_HOOK = pathToFileURL(path.join(ROOT, 'scripts', 'ts-hook.mjs')).href
 function argvOf(parts) {
   return parts[1] && parts[1].startsWith('tests/') ? ['--import', TS_HOOK, ...parts.slice(1)] : parts.slice(1)
 }
+// 命令行参数：--script 选跑哪一串（缺省 verify），--only 抽查（子串过滤）。
+function argValue(name) {
+  const i = process.argv.indexOf(name)
+  return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : ''
+}
+const scriptName = argValue('--script') || 'verify'
 const raw = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
-const chain = (raw.scripts && raw.scripts.verify) || ''
-if (!chain) { console.error('FAIL verify 链为空'); process.exit(1) }
+const chain = (raw.scripts && raw.scripts[scriptName]) || ''
+if (!chain) { console.error('FAIL package.json 里没有 scripts.' + scriptName + '，没有可跑的链'); process.exit(1) }
 
 // 按 && 切，照顾双引号里的 &&（链里现在没有，引号分支是防御）。
 function splitChain(s) {
@@ -69,25 +81,38 @@ function splitArgs(cmd) {
   return args
 }
 
-// 链上那一步跑的是哪个门禁文件。归属表里的 file 就是这个写法（仓库相对路径、斜杠统一）。
+// 链上那一步跑的是哪个测试文件。归属表里的 file 就是这个写法（仓库相对路径、斜杠统一）。
+// 主链上一步长这样：`node tests/verify-x.js`，第二个参数就是它；
+// 冒烟链上多一层装载钩子：`node --import ./scripts/ts-hook.mjs tests/smoke-x.test.js`，
+// 所以取「第一个落在 tests/ 下的参数」，找不到再退回第二个 —— 两种写法都能认出文件。
 function gateFileOf(parts) {
-  return parts[1] ? String(parts[1]).replace(/\\/g, '/').replace(/^\.\//, '') : ''
+  const norm = (p) => String(p || '').replace(/\\/g, '/').replace(/^\.\//, '')
+  const testArg = parts.slice(1).find((p) => norm(p).startsWith('tests/'))
+  const chosen = testArg || parts[1]
+  return chosen ? norm(chosen) : ''
 }
 
-const only = (process.argv[2] === '--only' && process.argv[3]) ? process.argv[3] : ''
+const only = argValue('--only')
 const entries = splitChain(chain).filter((e) => !only || e.includes(only))
 if (!entries.length) { console.error('FAIL 没有可跑的条目'); process.exit(1) }
 
 // 完成证据（#1158）：归属表里记着「哪一扇已开闸、该有多少条断言」，这里按文件把期望挂到链上。
-// 一条都没挂上（而表里明明有已开闸的）说明两边写法对不上了，判据形同虚设 —— 当场判红，不许静默放行。
+// 守卫（#1178 起逐条对）：表里记着开闸、而且它的步骤原文就在这条链上的，必须按文件挂得上；
+// 挂不上说明「表里的 file 写法」与「链上的步骤写法」对不上，判据形同虚设 —— 当场判红，不许静默放行。
+// 为什么不写成「至少挂上一扇」：冒烟链与主链各自开闸的门禁不是同一批，一刀切会误伤另一条链
+// （冒烟链上今天就有两扇开闸，主链那六扇都不在它上面）。两条链都开闸时这个守卫照样逐条生效。
 // 带 --only 抽查时不查这条：抽查本来就可能一条开闸的都没选中。
 const expectations = loadCompletionExpectations()
-const opened = entries.filter((e) => expectations.byFile.has(gateFileOf(splitArgs(e))))
-if (!only && expectations.byFile.size && !opened.length) {
-  console.error('FAIL 归属表里有 ' + expectations.byFile.size + ' 扇门禁已开闸（completionRecord: true），链上一条都没挂上：')
+const unmatched = entries.filter(
+  (e) => expectations.byStep.has(e) && !expectations.byFile.has(gateFileOf(splitArgs(e))),
+)
+if (!only && unmatched.length) {
+  console.error('FAIL 归属表里记着开闸、步骤原文也在这条链上，但按文件对不上（' + unmatched.length + ' 条）：')
+  for (const e of unmatched.slice(0, 3)) console.error('  ' + e.slice(0, 120))
   console.error('  判据形同虚设，先核对 tests/gate-map.json 的 file 字段与链上的写法是否一致。')
   process.exit(1)
 }
+const opened = entries.filter((e) => expectations.byFile.has(gateFileOf(splitArgs(e))))
 
 console.log('verify-chain: 共 ' + entries.length + ' 条' + (only ? '（过滤 ' + only + '）' : '') + '，其中 ' + opened.length + ' 条带完成证据判据')
 let done = 0

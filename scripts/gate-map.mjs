@@ -22,11 +22,16 @@
 //   上面五条都推不出指向源码的路径时，这扇门禁记成 unattributed，并在 reason 里写明原因。
 //
 // 产物 tests/gate-map.json 的字段：
-//   gates      每扇门禁一条：{ step, file, guards, dirs, unattributed, reason,
+//   gates      主链（scripts.verify）每步一条：{ step, file, guards, dirs, unattributed, reason,
 //                              completionRecord, expectedAssertions }
 //              completionRecord 为 true 表示这扇门禁已开闸：它收尾时会交一行 GATE-RESULT，
 //              expectedAssertions 是它该有多少条断言（0 表示还没开闸，执行器只看退出码）。
-//              这两格是给三条执行器判「完成证据」用的（#1158），名单见 COMPLETION_RECORDED_GATES。
+//              这两格是给执行器判「完成证据」用的（#1158），名单见 COMPLETION_RECORDED_GATES。
+//   smokeGates 冒烟链（scripts.smoke，六条）每步一条：{ step, file, gate, completionRecord, expectedAssertions }。
+//              冒烟链不在主链上，所以它不参与归属与覆盖面（那两样只看 gates）；这几条只是把
+//              「冒烟里哪几扇开闸了、该有多少条断言」也写进同一张表，好让 test:smoke 那条路
+//              （#1178 起走 scripts/verify-chain.js --script smoke）拿同一份判据对数。
+//              名单见 SMOKE_COMPLETION_RECORDED_GATES。
 //   byDir      目录 → 守着这一层的门禁清单。「这一层」指门禁守的路径正好在这个目录里，不含子目录。
 //              每个被守着的目录，它的祖先目录也会建键（可能是空数组），
 //              所以「改了 E 要跑 E、B、A 三层」可以顺着 E 的目录一路往上查表，不会查空。
@@ -57,18 +62,40 @@ export const COMPLETION_RECORDED_GATES = {
   'verify-log-selfmon': 27,
   'verify-settings-templates': 65,
   'verify-settings-view': 215,
-  'verify-1158-completion-evidence': 42,
+  'verify-1158-completion-evidence': 50,
 }
 
-/** 门禁名：文件名去扩展名。执行器判完成证据时按这个名字对，别在别处另起一套写法。 */
+// 冒烟链（scripts.smoke）上已经开闸的门禁，写法与上面那张表一样：写在这里 = 已开闸，值 = 期望条数。
+// 为什么单独一张：#1178 之前 test:smoke 是一条裸的 && 串，判据在那条路上无事可做；
+// 现在它走 scripts/verify-chain.js --script smoke，判据能生效了，但冒烟的门禁不在主链上，
+// 不能混进 COMPLETION_RECORDED_GATES —— 那张表按名字与 gates（主链）逐条对账，混进来会对不上。
+export const SMOKE_COMPLETION_RECORDED_GATES = {
+  'smoke-host-dispatch': 40,
+  'smoke-naming-persistence': 37,
+}
+
+/**
+ * 门禁名：文件名去扩展名。执行器判完成证据时按这个名字对，别在别处另起一套写法。
+ * 冒烟那几条长这样：`smoke-host-dispatch.test.js` —— `.test` 是这类文件的命名习惯，不是门禁名的一部分，
+ * 所以也去掉，名字才与 verify-* 那些一致（`smoke-host-dispatch`，而不是 `smoke-host-dispatch.test`）。
+ */
 export function gateNameOf(file) {
-  return path.basename(String(file || '')).replace(/\.(js|mjs|cjs|ts|mts|cts)$/, '')
+  return path
+    .basename(String(file || ''))
+    .replace(/\.(test|spec)\.(js|mjs|cjs|ts|mts|cts)$/, '')
+    .replace(/\.(js|mjs|cjs|ts|mts|cts)$/, '')
 }
 
 /** 这一扇该有多少条断言：0 表示还没开闸（没交完成记录，执行器只看退出码）。 */
 export function completionExpectationOf(file) {
   const name = gateNameOf(file)
   return Object.prototype.hasOwnProperty.call(COMPLETION_RECORDED_GATES, name) ? COMPLETION_RECORDED_GATES[name] : 0
+}
+
+/** 冒烟链上的那一扇该有多少条断言：0 表示还没开闸。口径与 completionExpectationOf 一样。 */
+export function smokeExpectationOf(file) {
+  const name = gateNameOf(file)
+  return Object.prototype.hasOwnProperty.call(SMOKE_COMPLETION_RECORDED_GATES, name) ? SMOKE_COMPLETION_RECORDED_GATES[name] : 0
 }
 
 // 本仓的源码根目录：只有落在这些目录里的路径才算「守着某条源码路径」。
@@ -208,16 +235,13 @@ export function scanRepo(root = ROOT) {
   return { files, dirs }
 }
 
-/** 读 package.json 的 scripts.verify，按 && 切成一条条命令。切法与 scripts/verify-chain.js 一致。 */
-export function readChainSteps(root = ROOT) {
-  const raw = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
-  const chain = (raw.scripts && raw.scripts.verify) || ''
-  if (!chain) throw new Error('package.json 里没有 scripts.verify，无法生成归属表')
+/** 把一条 `&&` 串切成一条条命令。切法与 scripts/verify-chain.js 一致（照顾引号里的 &&）。 */
+function splitSteps(text) {
   const out = []
   let cur = ''
   let quote = null
-  for (let i = 0; i < chain.length; i++) {
-    const ch = chain[i]
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
     if (quote) {
       cur += ch
       if (ch === quote) quote = null
@@ -228,7 +252,7 @@ export function readChainSteps(root = ROOT) {
       cur += ch
       continue
     }
-    if (ch === '&' && chain[i + 1] === '&') {
+    if (ch === '&' && text[i + 1] === '&') {
       out.push(cur.trim())
       cur = ''
       i += 1
@@ -240,11 +264,39 @@ export function readChainSteps(root = ROOT) {
   return out.filter(Boolean)
 }
 
-/** 链上一条命令 → 它跑的门禁文件（仓库相对路径）。不是 `node <文件>` 形状就返回空串。 */
+/** 读 package.json 的 scripts.verify，按 && 切成一条条命令。 */
+export function readChainSteps(root = ROOT) {
+  const raw = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
+  const chain = (raw.scripts && raw.scripts.verify) || ''
+  if (!chain) throw new Error('package.json 里没有 scripts.verify，无法生成归属表')
+  return splitSteps(chain)
+}
+
+/**
+ * 读 package.json 的 scripts.smoke（冒烟链，六条），按 && 切开。
+ * 这一串从 #1178 起单独住在 scripts.smoke 里：scripts['test:smoke'] 改成走
+ * `scripts/verify-chain.js --script smoke`，所以清单不能再放在 test:smoke 那一格（会自己套自己）。
+ * 缺这一格时返回空数组而不是抛错：冒烟链不是归属表的必需输入，缺了只是 smokeGates 为空。
+ */
+export function readSmokeSteps(root = ROOT) {
+  const raw = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
+  const smoke = (raw.scripts && raw.scripts.smoke) || ''
+  return smoke ? splitSteps(smoke) : []
+}
+
+/**
+ * 链上一条命令 → 它跑的测试文件（仓库相对路径）。不是 `node <文件>` 形状就返回空串。
+ * 主链一步长这样：`node tests/verify-x.js`（第二个参数就是文件）；
+ * 冒烟链一步长这样：`node --import ./scripts/ts-hook.mjs tests/smoke-x.test.js`（前面多一层钩子），
+ * 所以取「第一个落在 tests/ 下的参数」，找不到再退回第二个。
+ */
 export function stepToGateFile(step) {
-  const m = /^node\s+(\S+)/.exec(String(step || '').trim())
-  if (!m) return ''
-  return m[1].replace(/\\/g, '/').replace(/^\.\//, '')
+  const parts = String(step || '').trim().split(/\s+/)
+  if (parts[0] !== 'node') return ''
+  const norm = (p) => p.replace(/\\/g, '/').replace(/^\.\//, '')
+  const testArg = parts.slice(1).find((p) => norm(p).startsWith('tests/'))
+  const chosen = testArg || parts[1]
+  return chosen ? norm(chosen) : ''
 }
 
 // ---------------------------------------------------------------------------
@@ -765,6 +817,21 @@ export function buildGateMap(root = ROOT) {
     })
   }
 
+  // 冒烟链的完成证据（#1178）：冒烟不在主链上，所以不进 gates —— 那一批是归属与覆盖面的输入。
+  // 这里只把六条冒烟各记一行，好让 test:smoke 那条路（#1178 起走同一个执行器）拿同一份判据对数。
+  const smokeSteps = readSmokeSteps(root)
+  const smokeGates = smokeSteps.map((step) => {
+    const file = stepToGateFile(step)
+    const expectedAssertions = smokeExpectationOf(file)
+    return {
+      step,
+      file,
+      gate: gateNameOf(file),
+      completionRecord: expectedAssertions > 0,
+      expectedAssertions,
+    }
+  })
+
   // byDir：目录 → 守着这一层的门禁清单。
   // 「这一层」的口径是「门禁守的路径正好在这个目录里」，不含子目录；子目录算它自己那一层。
   // 这么分是为了对上维护者要的规则：A 目录下有 B，B 下面有 E 和 F，改了 E 就只跑
@@ -802,8 +869,11 @@ export function buildGateMap(root = ROOT) {
     unattributedGates,
     buildOutputOnlyGates: gates.filter((g) => g.buildOutputOnly).length,
     completionRecordedGates: gates.filter((g) => g.completionRecord).length,
+    smokeLength: smokeSteps.length,
+    smokeCompletionRecordedGates: smokeGates.filter((g) => g.completionRecord).length,
     graphFileCount: graph.imports.size,
     gates,
+    smokeGates,
     byDir: byDirObj,
     coverage,
   }
@@ -938,6 +1008,7 @@ function main() {
   const map = buildGateMap(ROOT)
   const text = serializeMap(map)
   console.log('门禁归属表：链上 ' + map.chainLength + ' 步，能推出源码归属 ' + map.attributedGates + ' 步，推不出 ' + map.unattributedGates + ' 步，已开闸（交完成记录）' + map.completionRecordedGates + ' 扇')
+  console.log('冒烟链：' + map.smokeLength + ' 步，已开闸（交完成记录）' + map.smokeCompletionRecordedGates + ' 扇')
   console.log(
     'src/ 覆盖：' +
       map.coverage.coveredFileCount +

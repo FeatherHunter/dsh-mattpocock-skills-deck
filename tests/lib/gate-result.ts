@@ -82,10 +82,13 @@ export function printGateResult(gate: string, assertions: number, failed: number
 /**
  * 从文件路径取门禁名：`tests/verify-deck-no-hang.js` → `verify-deck-no-hang`。
  * 只看文件名，不看目录 —— 门禁名在全仓是唯一的，执行器与归属表都按这个名字对。
+ * 冒烟那几条长这样：`smoke-host-dispatch.test.js` —— `.test` 是这类文件的命名习惯，不是门禁名的一部分，
+ * 所以也去掉，名字才与 verify-* 那些一致（`smoke-host-dispatch`，而不是 `smoke-host-dispatch.test`）。
+ * 这一份与 scripts/gate-map.mjs 的同名函数必须字字一致：两边各算一次，差一个字判据就对不上。
  */
 export function gateNameOf(file: string): string {
   const base = path.basename(String(file || ''))
-  return base.replace(/\.(js|mjs|cjs|ts|mts|cts)$/, '')
+  return base.replace(/\.(test|spec)\.(js|mjs|cjs|ts|mts|cts)$/, '').replace(/\.(js|mjs|cjs|ts|mts|cts)$/, '')
 }
 
 /** 读一行记录；不是记录行、或字段不合法，都回 null（读不懂的另算，见 scanGateResult）。 */
@@ -124,6 +127,8 @@ export function scanGateResult(text: string): GateResultScan {
 
 /**
  * 读归属表，把「已开闸」的步骤抽成期望表。
+ * 表里有两处记着开闸：gates（主链 scripts.verify 每步）与 smokeGates（冒烟链 scripts.smoke 每步，#1178）。
+ * 两条链共用这一份期望表：执行器按文件找自己链上那一步的期望，找不到就是「没开闸，只看退出码」。
  * 默认读仓库里的 tests/gate-map.json（本文件在 tests/lib 下，往上一级就是它）；
  * 传 mapPath 是为了让测试能拿内存里的表来验，不必改盘上的那一份。
  */
@@ -132,11 +137,14 @@ export function loadCompletionExpectations(mapPath?: string): {
   byFile: Map<string, CompletionExpectation>
 } {
   const file = mapPath || path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'gate-map.json')
-  const map = JSON.parse(fs.readFileSync(file, 'utf8')) as { gates?: unknown }
+  const map = JSON.parse(fs.readFileSync(file, 'utf8')) as { gates?: unknown; smokeGates?: unknown }
   const byStep = new Map<string, CompletionExpectation>()
   const byFile = new Map<string, CompletionExpectation>()
-  const gates = Array.isArray(map.gates) ? (map.gates as Array<Record<string, unknown>>) : []
-  for (const g of gates) {
+  const rows = [
+    ...(Array.isArray(map.gates) ? map.gates : []),
+    ...(Array.isArray(map.smokeGates) ? map.smokeGates : []),
+  ] as Array<Record<string, unknown>>
+  for (const g of rows) {
     if (g.completionRecord !== true) continue
     const expected = g.expectedAssertions
     if (!Number.isInteger(expected) || (expected as number) <= 0) continue

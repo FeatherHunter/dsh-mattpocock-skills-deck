@@ -145,11 +145,11 @@ async function selectChanged() {
 
 // 装载钩子：链上的测试步骤要能把 "./x.js" 解析到同目录的同名 .ts（迁移中的单元靠它）。
 // 没有同名 .ts 时钩子什么都不做，所以没迁移的步骤行为与今天完全一样。
-// 判定只有一条：要跑的是 tests/ 下的文件才挂。同一个判定分散在四个入口，改一处必须全改：
-//   1. scripts/verify-chain.js 的 argvOf（本地 npm test / npm run verify 的串行执行器）
+// 判定只有一条：要跑的是 tests/ 下的文件才挂。同一个判定分散在三处，改一处必须全改：
+//   1. scripts/verify-chain.js 的 argvOf（本地 npm test 的串行执行器；#1178 起 npm run test:smoke
+//      也走它 —— 冒烟清单那六条各自显式写了 --import，走的仍是这同一处判定）
 //   2. 本文件的 argvOf（并行执行器）
 //   3. scripts/verify-all.mjs 的 withTsHook（CI 的 .github/workflows/verify.yml 跑的就是它）
-//   4. package.json 的 test:smoke（六条冒烟，逐条挂 --import）
 // 漏掉哪一个，那个入口里的 .ts 迁移就会跟别处表现不一样（本地绿、CI 红就是这么来的）。
 // 预构建那一步（scripts/build.mjs）因此不挂：它不加载测试，挂上去只是多一次没用的加载。
 // 这一层只改「怎么起进程」，不动 package.json 里那条链的文字。

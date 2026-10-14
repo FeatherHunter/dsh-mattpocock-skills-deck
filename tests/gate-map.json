@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-14T16:31:27.022Z",
+  "generatedAt": "2026-10-14T16:52:29.877Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 250,
   "gateCount": 250,
@@ -8,6 +8,8 @@
   "unattributedGates": 30,
   "buildOutputOnlyGates": 20,
   "completionRecordedGates": 6,
+  "smokeLength": 6,
+  "smokeCompletionRecordedGates": 2,
   "graphFileCount": 545,
   "gates": [
     {
@@ -1153,7 +1155,7 @@
       "unattributed": true,
       "buildOutputOnly": false,
       "completionRecord": true,
-      "expectedAssertions": 42,
+      "expectedAssertions": 50,
       "reason": "读到的路径都落在 scripts、tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
@@ -5715,6 +5717,50 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "读到的路径都落在 scripts/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
+    }
+  ],
+  "smokeGates": [
+    {
+      "step": "node --import ./scripts/ts-hook.mjs tests/smoke-client.test.js",
+      "file": "tests/smoke-client.test.js",
+      "gate": "smoke-client",
+      "completionRecord": false,
+      "expectedAssertions": 0
+    },
+    {
+      "step": "node --import ./scripts/ts-hook.mjs tests/smoke-host.test.js",
+      "file": "tests/smoke-host.test.js",
+      "gate": "smoke-host",
+      "completionRecord": false,
+      "expectedAssertions": 0
+    },
+    {
+      "step": "node --import ./scripts/ts-hook.mjs tests/smoke-host-dispatch.test.js",
+      "file": "tests/smoke-host-dispatch.test.js",
+      "gate": "smoke-host-dispatch",
+      "completionRecord": true,
+      "expectedAssertions": 40
+    },
+    {
+      "step": "node --import ./scripts/ts-hook.mjs tests/smoke-render.test.js",
+      "file": "tests/smoke-render.test.js",
+      "gate": "smoke-render",
+      "completionRecord": false,
+      "expectedAssertions": 0
+    },
+    {
+      "step": "node --import ./scripts/ts-hook.mjs tests/smoke-naming-persistence.test.js",
+      "file": "tests/smoke-naming-persistence.test.js",
+      "gate": "smoke-naming-persistence",
+      "completionRecord": true,
+      "expectedAssertions": 37
+    },
+    {
+      "step": "node --import ./scripts/ts-hook.mjs tests/smoke-comment-passthrough.test.js",
+      "file": "tests/smoke-comment-passthrough.test.js",
+      "gate": "smoke-comment-passthrough",
+      "completionRecord": false,
+      "expectedAssertions": 0
     }
   ],
   "byDir": {

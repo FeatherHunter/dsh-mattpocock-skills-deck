@@ -6,13 +6,18 @@
 import { mkdtempSync, mkdirSync, existsSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import pathMod from 'node:path'
+// 完成记录（#1178）：本冒烟已在归属表里开闸，收尾要交一行 GATE-RESULT，
+// 好让 npm run test:smoke 那条路（走 scripts/verify-chain.js --script smoke）判「跑完了没有」。
+// 显式写 .ts：说明符指到真源，不依赖装载钩子那一步（仓里既有写法，见 tests/verify-markdown-backend.js）。
+import { printGateResult } from './lib/gate-result.ts'
 
 const origCwd = process.cwd()
 const tmp = mkdtempSync(pathMod.join(tmpdir(), 'dsws-naming-io-'))
 process.chdir(tmp)
 
+let total = 0
 let failures = 0
-const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failures++ }
+const check = (ok, msg) => { total++; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failures++ }
 const sleep = (ms) => new Promise(function (res) { setTimeout(res, ms) })
 // 「模拟 DSH 重启」在本冒烟里是**连续加载多个模块实例**：旧实例的定时器若还在跑，它和新实例会各自
 // 持一份内存账目、互相覆盖同一个状态文件——真实重启里前一个进程已经死了，不会发生这种事。所以每换
@@ -228,4 +233,5 @@ try {
 }
 
 console.log(failures ? '\nnaming 持久化冒烟失败 ' + failures + ' 项' : '\nnaming 持久化冒烟全部通过')
+printGateResult('smoke-naming-persistence', total, failures ? 1 : 0)
 process.exit(failures ? 1 : 0)
