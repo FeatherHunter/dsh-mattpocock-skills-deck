@@ -21,8 +21,8 @@ import type { Issue, Label, RepositoryRef } from '../../contract/entities.js';
 import type { LabelInput, SetOpts } from '../../contract/inputs.js';
 import type { OpResult, TrackerError } from '../../contract/results.js';
 // #104 `issue.write`：票写入的常驻结论线（轨迹形状与发射口在 ./write-log.js）。
-import { newIssueWriteTrail, emitIssueWrite } from './write-log.js'
-import type { IssueWriteTrail } from './write-log.js';
+import { beginWriteTrail, emitIssueWrite } from './write-log.js'
+import type { WriteTrail } from './write-log.js';
 import { normalizeIssue } from './normalize.js'
 import { ghClient } from './client.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'
@@ -114,13 +114,13 @@ async function attributeLabelFailure(c: ReturnType<typeof ghClient>, spec: strin
  */
 export async function setLabels(repo: RepositoryRef, key: string, labels: LabelInput[] | undefined, opts: SetOpts | undefined, ctx: MemoContext): Promise<OpResult<Issue>> {
   const t0 = Date.now()
-  const trail = newIssueWriteTrail()
+  const trail = beginWriteTrail()
   const r = await setLabelsInner(repo, key, labels, opts, ctx, trail)
   emitIssueWrite(ctx, 'setLabels', trail, r, t0)
   return r
 }
 
-async function setLabelsInner(repo: RepositoryRef, key: string, labels: LabelInput[] | undefined, opts: SetOpts | undefined, ctx: MemoContext, trail: IssueWriteTrail): Promise<OpResult<Issue>> {
+async function setLabelsInner(repo: RepositoryRef, key: string, labels: LabelInput[] | undefined, opts: SetOpts | undefined, ctx: MemoContext, trail: WriteTrail): Promise<OpResult<Issue>> {
   const wanted = normalizeLabelInputs(labels)
   const k = String(key || '').trim()
   if (!k) return fail(ERROR_KIND.PARSE, 'setLabels: key required (string)', key)
@@ -165,9 +165,6 @@ async function setLabelsInner(repo: RepositoryRef, key: string, labels: LabelInp
       const r = await c.execGh(['issue', 'edit', k, '--repo', spec, '--add-label', n], { cwd: ctx && ctx.cwd })
       if (!r.ok) return { ok: false, error: await attributeLabelFailure(c, spec, wantNames, r.error, ctx) }
     }
-    // 一条写命令都没发（差集为空）就是「一处没改」；发了至少一条就是改过。
-    trail.reason = trail.written > 0 ? 'edited' : 'noop'
-
     // 读回最新
     const finalRes = await getIssue(repo, k, {}, ctx)
     if (!finalRes.ok) {

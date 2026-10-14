@@ -1,16 +1,20 @@
 // tests/verify-1053-issue-write.ts —— #1053 写路径专属门禁（不联网）
 //
-// 测什么：写票这一族的常驻结论线 `issue.write`（附录 1.4 节 #104）真发得出来，字段就是登记的那七个，
+// 测什么：GitHub 房间三条写路径的常驻结论线真发得出来、字段就是各自登记的那几个，
 //   而且「走了哪条路、为什么是这个结论」都如实：
-//     · 真新建记 `fresh`，且 route 是 rest（建票走 gh api）、written 是 1；
-//     · 幂等锚命中复用记 `reuse`，一条写命令都不发（written 0、route none）；
-//     · 差集为空、一处没改的贴标签与改认领记 `noop`，route 还是 none；
-//     · 票建成了但补挂标签没挂上记 `partial`，followFailed 记 1；
-//     · 写命令被上游挡下记 `fail:<档位>`，ok 是 false；
-//     · 评论主路走 rest、回落走 cli，两条路都算「改过已有票」（edited）。
-//   还守一条隐私：票面标题、命令原文一个字都不许出现在结论行里。
+//     · 票写 `issue.write`（附录 1.4 节 #104）：
+//       - 真新建记 `fresh`，且 route 是 rest（建票走 gh api）、written 是 1；
+//       - 幂等锚命中复用记 `reuse`，一条写命令都不发（written 0、route none）；
+//       - 差集为空、一处没改的贴标签与改认领记 `noop`，route 还是 none；
+//       - 票建成了但补挂标签没挂上记 `partial`，failed 记 1；
+//       - 写命令被上游挡下记 `fail:<档位>`，ok 是 false；
+//       - 评论主路走 rest、回落走 cli，两条路都算「改过已有票」（edited）。
+//     · 标签定义改写 `labelDefs.write`（#105）：打算动几个、真发几条、几条没改上，
+//       结论落在 edited / partial / noop，一条写命令都没发时 route 是 none。
+//     · 开仓发布 `repo.init`（#106）：走的是新建仓库还是推到已有远程、这一趟一共起了几条命令、卡住了没有。
+//   还守一条隐私：票面标题、评论正文、仓库名、命令原文一个字都不许出现在结论行里。
 //
-// 桩是一台「只认命令行的假 gh」：读类（搜索、列票、GraphQL 单票、`gh issue view`）按场景给答案，
+// 桩是一台「只认命令行的假 gh / 假 git」：读类（搜索、列票、GraphQL 单票、`gh issue view`）按场景给答案，
 //   写类按开关成或败；每条命令都记下来 —— 断言既能看「发了几条写命令」，也能看「走的哪条路」。
 //
 // 用法：node --import ./scripts/ts-hook.mjs tests/verify-1053-issue-write.ts
@@ -73,6 +77,8 @@ interface StubOpts {
   failCreate?: boolean
   failCommentApi?: boolean
   failLabel?: boolean
+  /** 批量改标签颜色时，名字在这张表里的那几条改色命令按失败回（用来造 partial）。 */
+  failLabelEditFor?: string[]
 }
 
 /** 写命令的判据：真往远端送出一次写的那几条命令行。 */
@@ -80,6 +86,7 @@ const isWrite = (line: string): boolean =>
   /^api repos\/o\/r\/issues --method POST/.test(line) ||
   /^api repos\/o\/r\/issues\/\d+\/comments --method POST/.test(line) ||
   /^api repos\/o\/r\/issues\/\d+\/sub_issues --method POST/.test(line) ||
+  /^label edit /.test(line) ||
   /^issue (comment|close|reopen|edit) /.test(line)
 
 function makeStub(o: StubOpts) {
@@ -117,6 +124,12 @@ function makeStub(o: StubOpts) {
     }
     // 写类⑤：挂父边（原生子票接口）—— 本门禁不测边，照成功回
     if (/^api repos\/o\/r\/issues\/\d+\/sub_issues --method POST/.test(line)) return { code: 0, stdout: '{}', stderr: '' }
+    // 写类⑥：批量改标签颜色（gh label edit <名字> --repo <仓库> --color <颜色>）
+    if (line.startsWith('label edit ')) {
+      const name = line.split(' ')[2]
+      if (o.failLabelEditFor && o.failLabelEditFor.includes(name)) return { code: 1, stdout: '', stderr: 'HTTP 422: Validation Failed' }
+      return { code: 0, stdout: '', stderr: '' }
+    }
     return { code: 0, stdout: '{}', stderr: '' }
   }
   return { exec, calls, rawCalls, writes: (): string[] => calls.filter(isWrite) }
@@ -140,7 +153,58 @@ const byKind = (log: any[], kind: string): any => {
   return a[a.length - 1]
 }
 const keysOf = (f: any): string => Object.keys(f || {}).sort().join(',')
-const THE_SEVEN = 'followFailed,kind,latencyMs,ok,reason,route,written'
+const THE_SEVEN = 'failed,kind,latencyMs,ok,reason,route,written'
+
+/** 三条结论线各取最后一行：断言只看这一趟的账。 */
+const labelDefsOf = (log: any[]): any => {
+  const a = linesOf(log, 'labelDefs.write')
+  return a[a.length - 1]
+}
+const repoInitOf = (log: any[]): any => {
+  const a = linesOf(log, 'repo.init')
+  return a[a.length - 1]
+}
+
+/** 开仓那趟的桩：git 与 gh 两条命令行都按命令行回答；「origin 已存在」与两条失败路按开关给。 */
+function makeInitStub(o: { origin?: string; failAuth?: boolean } = {}) {
+  const calls: string[] = []
+  const exec = async (cmd: string, args: string[]) => {
+    const line = cmd + ' ' + args.join(' ')
+    calls.push(line)
+    if (/(^|[\\/])git(\.exe)?$/.test(cmd)) {
+      const a = args.join(' ')
+      if (a.includes('rev-parse --is-inside-work-tree')) return { code: 0, stdout: 'true\n', stderr: '' }
+      if (a === 'remote get-url origin') {
+        if (o.origin) return { code: 0, stdout: o.origin + '\n', stderr: '' }
+        return { code: 1, stdout: '', stderr: "error: No such remote 'origin'" }
+      }
+      return { code: 0, stdout: '', stderr: '' }
+    }
+    if (args[0] === 'auth' && args[1] === 'status') {
+      if (o.failAuth) return { code: 1, stdout: '', stderr: 'You are not logged into any GitHub hosts' }
+      return { code: 0, stdout: 'Logged in to github.com as alice\n', stderr: '' }
+    }
+    if (args[0] === 'api' && args[1] === 'user') return { code: 0, stdout: 'alice\n', stderr: '' }
+    if (args[0] === 'repo' && args[1] === 'create') return { code: 0, stdout: 'https://github.com/alice/demo\n', stderr: '' }
+    return { code: 0, stdout: '{}', stderr: '' }
+  }
+  return { exec, calls }
+}
+
+function makeInitCtx(stub: { exec: (cmd: string, args: string[], opts?: unknown) => Promise<unknown> }, log: any[]) {
+  return {
+    cwd: '/ws/demo',
+    platform: {
+      resolveExecutable: async (n: string) => (n === 'gh' ? '/usr/bin/gh' : n === 'git' ? '/usr/bin/git' : null),
+      path: path.posix,
+      env: { get: () => undefined },
+    },
+    exec: async (cmd: string, args: string[], opts: unknown) => stub.exec(cmd, args, opts),
+    isEnabled: (_level: string) => true,
+    logEvent: (level: string, event: string, fields: Record<string, unknown>) => { log.push({ level, event, fields }) },
+    memo: { roster: { complete: true, byKey: new Map() }, dirty: new Set<string>() },
+  }
+}
 
 /** 一趟写：状态与上下文都按这一趟新造，断言只看这一趟的账。 */
 function fresh(o: StubOpts) {
@@ -155,6 +219,8 @@ async function main() {
   const issuesWrite = await imp('src/tracker/rooms/github/issues-write.ts')
   const comments = await imp('src/tracker/rooms/github/comments.ts')
   const labels = await imp('src/tracker/rooms/github/labels.ts')
+  const labelColorsOps = await imp('src/tracker/rooms/github/label-colors-ops.ts')
+  const initProjectMod = await imp('src/tracker/rooms/github/init-project.ts')
 
   // ── S1 不带锚建票：真新建 ──
   {
@@ -164,7 +230,7 @@ async function main() {
     const w = byKind(log, 'create')
     check(!!w, 'S1-2 发出了一条 issue.write（kind=create）')
     check(
-      !!w && w.fields.route === 'rest' && w.fields.ok === true && w.fields.written === 1 && w.fields.followFailed === 0 && w.fields.reason === 'fresh',
+      !!w && w.fields.route === 'rest' && w.fields.ok === true && w.fields.written === 1 && w.fields.failed === 0 && w.fields.reason === 'fresh',
       'S1-3 结论是「真新建、走 gh api、发出一条写命令、没有补挂失败」（' + JSON.stringify(w && w.fields) + '）',
     )
     check(keysOf(w && w.fields) === THE_SEVEN, 'S1-4 字段就是登记的那七个（实得 ' + keysOf(w && w.fields) + '）')
@@ -215,14 +281,14 @@ async function main() {
     check(JSON.stringify(w && w.fields.reason).includes('HTTP') === false, 'S4-3 上游报错原文不进结论行')
   }
 
-  // ── S5 标签补挂失败：票照样建成，结论记 partial、followFailed 记 1 ──
+  // ── S5 标签补挂失败：票照样建成，结论记 partial、failed 记 1 ──
   {
     const gql = baseIssue({ labels: { nodes: [] } })
     const { ctx, log } = fresh({ gqlIssue: gql, failLabel: true })
     const r = await issuesWrite.createIssue(REPO, { title: '第五张', labels: ['bug'] }, ctx)
     check(r.ok === true, 'S5-1 补挂标签没挂上，票照样建成（实得 ok=' + r.ok + '）')
     const w = byKind(log, 'create')
-    check(!!w && w.fields.reason === 'partial' && w.fields.followFailed === 1, 'S5-2 结论记 partial、补挂失败 1 步（' + JSON.stringify(w && w.fields) + '）')
+    check(!!w && w.fields.reason === 'partial' && w.fields.failed === 1, 'S5-2 结论记 partial、补挂失败 1 步（' + JSON.stringify(w && w.fields) + '）')
     check(!!w && w.fields.ok === true && w.fields.written >= 1, 'S5-3 建票那一步本身是成的')
     const lw = byKind(log, 'setLabels')
     check(!!lw && lw.fields.ok === false, 'S5-4 补挂那一趟自己也有结论行，且如实记失败（' + JSON.stringify(lw && lw.fields) + '）')
@@ -283,6 +349,75 @@ async function main() {
     const w = byKind(log, 'comment')
     check(!!w && w.fields.route === 'cli' && w.fields.written === 2 && w.fields.reason === 'edited' && w.fields.ok === true, 'S9-6 回落那趟记 cli、两条写命令、仍算改过（' + JSON.stringify(w && w.fields) + '）')
     check(stub.writes().length === 2, 'S9-7 桩上两条都发了（实发 ' + stub.writes().length + '：' + stub.writes().join(' | ') + '）')
+  }
+
+  // ── S10 批量改标签颜色：结论线 labelDefs.write（#105）——
+  //    「打算动几个、真发几条、几条没改上」是这一族唯一的结论线，三档都要走一遍。
+  {
+    const { ctx, log } = fresh({})
+    const r = await labelColorsOps.setLabelColors(REPO, [], ctx)
+    check(r.ok === true, 'S10-1 一条都不改时照样回成功（实得 ok=' + r.ok + '）')
+    const w = labelDefsOf(log)
+    check(!!w && w.fields.planned === 0 && w.fields.written === 0 && w.fields.reason === 'noop', 'S10-2 打算动 0 个、一条没发就是 noop（' + JSON.stringify(w && w.fields) + '）')
+    check(keysOf(w && w.fields) === 'failed,latencyMs,ok,planned,reason,written', 'S10-3 字段就是登记的那六个（实得 ' + keysOf(w && w.fields) + '）')
+  }
+  {
+    const { stub, ctx, log } = fresh({})
+    const r = await labelColorsOps.setLabelColors(REPO, [{ name: 'a', color: '9d7cd8' }, { name: 'b', color: '111111' }], ctx)
+    check(r.ok === true && !!r.data && r.data.applied.length === 2 && r.data.failed.length === 0, 'S10-4 两个都改上了（实得 ok=' + r.ok + '）')
+    const w = labelDefsOf(log)
+    check(!!w && w.fields.planned === 2 && w.fields.written === 2 && w.fields.failed === 0 && w.fields.reason === 'edited', 'S10-5 打算 2 个、发了 2 条、没失败就是 edited（' + JSON.stringify(w && w.fields) + '）')
+    check(stub.writes().length === 2, 'S10-6 桩上真发出两条改色命令（实发 ' + stub.writes().length + '）')
+    check(JSON.stringify(w && w.fields).includes('9d7cd8') === false, 'S10-7 颜色值与标签名都不进结论行')
+  }
+  {
+    const { ctx, log } = fresh({ failLabelEditFor: ['b'] })
+    const r = await labelColorsOps.setLabelColors(REPO, [{ name: 'a', color: '9d7cd8' }, { name: 'b', color: '111111' }], ctx)
+    check(r.ok === true && !!r.data && r.data.applied.length === 1 && r.data.failed.length === 1, 'S10-8 一条成一条败、两边都记账')
+    const w = labelDefsOf(log)
+    check(!!w && w.fields.written === 2 && w.fields.failed === 1 && w.fields.reason === 'partial', 'S10-9 有改上也有没改上的记 partial（' + JSON.stringify(w && w.fields) + '）')
+  }
+
+  // ── S11 开仓发布：结论线 repo.init（#106），走「新建仓库并推上去」那条路 ──
+  {
+    const log: any[] = []
+    const stub = makeInitStub({})
+    const ctx = makeInitCtx(stub, log)
+    const r = await initProjectMod.initProject({ cwd: '/ws/demo' }, { name: 'demo', visibility: 'private' }, ctx)
+    check(r.ok === true && !!r.data && r.data.refId === 'alice/demo', 'S11-1 开仓成功、仓库身份是 alice/demo（实得 ' + JSON.stringify(r.ok ? r.data.refId : r.error) + '）')
+    const w = repoInitOf(log)
+    check(!!w && w.fields.route === 'created' && w.fields.ok === true && w.fields.reason === 'done', 'S11-2 结论记「走新建仓库那条路、成了」（' + JSON.stringify(w && w.fields) + '）')
+    check(keysOf(w && w.fields) === 'latencyMs,ok,reason,route,steps', 'S11-3 字段就是登记的那五个（实得 ' + keysOf(w && w.fields) + '）')
+    check(!!w && typeof w.fields.steps === 'number' && w.fields.steps >= 4, 'S11-4 这一趟起了几条命令如实记（实得 steps=' + (w && w.fields.steps) + '）')
+    check(stub.calls.some((l) => l.includes('repo create demo --private --source=. --push')), 'S11-5 桩上真发出了「建仓并推上去」那条命令')
+    check(JSON.stringify(w && w.fields).includes('demo') === false, 'S11-6 仓库名不进结论行')
+  }
+
+  // ── S12 开仓发布：origin 已存在 → 走「推到已有远程」那条路 ──
+  {
+    const log: any[] = []
+    const stub = makeInitStub({ origin: 'https://github.com/alice/demo.git' })
+    const ctx = makeInitCtx(stub, log)
+    const r = await initProjectMod.initProject({ cwd: '/ws/demo' }, { name: 'demo', visibility: 'private' }, ctx)
+    check(r.ok === true, 'S12-1 开仓成功（实得 ok=' + r.ok + '）')
+    const w = repoInitOf(log)
+    check(!!w && w.fields.route === 'existing', 'S12-2 结论记「推到已有远程」（' + JSON.stringify(w && w.fields) + '）')
+    check(
+      stub.calls.some((l) => l.includes(' remote set-url origin ')) && stub.calls.some((l) => l.includes(' push -u origin HEAD')),
+      'S12-3 桩上真走了 set-url 与 push 两步（' + stub.calls.filter((l) => l.includes('push') || l.includes('set-url')).join(' | ') + '）',
+    )
+  }
+
+  // ── S13 开仓发布：前置没过（没登录）→ 早停也留一行结论 ──
+  {
+    const log: any[] = []
+    const stub = makeInitStub({ failAuth: true })
+    const ctx = makeInitCtx(stub, log)
+    const r = await initProjectMod.initProject({ cwd: '/ws/demo' }, { name: 'demo', visibility: 'private' }, ctx)
+    check(r.ok === false, 'S13-1 没登录就该失败（实得 ok=' + r.ok + '）')
+    const w = repoInitOf(log)
+    check(!!w && w.fields.ok === false && String(w.fields.reason).startsWith('fail:') && w.fields.route === 'none', 'S13-2 早停照样留一行结论、走到哪一步都记着（' + JSON.stringify(w && w.fields) + '）')
+    check(!!w && w.fields.steps >= 1, 'S13-3 停在 auth 那一条上也如实记了步数（实得 steps=' + (w && w.fields.steps) + '）')
   }
 
   console.log(failed ? '\n存在失败 — verify-1053-issue-write 未通过' : '\n全部通过 — 写路径结论线门禁生效（' + total + ' 项断言）')

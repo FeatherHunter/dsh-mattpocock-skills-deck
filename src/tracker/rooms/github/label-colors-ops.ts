@@ -28,6 +28,9 @@ import { ERROR_KIND } from '../../contract/vocabulary.js'
 import type { OpContext } from '../../contract/contexts.js';
 import type { LabelColor, LabelColorChange, RepositoryRef } from '../../contract/entities.js';
 import type { ErrorKind } from '../../contract/identity.js';
+// #105 `labelDefs.write`：仓库标签定义改写的常驻结论线（轨迹形状与发射口在 ./write-log.js）。
+import { beginWriteTrail, emitLabelDefsWrite } from './write-log.js'
+import type { WriteTrail } from './write-log.js';
 import type { OpResult, RepoPermissions, TrackerError, LabelColorBatchResult } from '../../contract/results.js';
 import { normalizeColor } from '../../../shared/label-color/colors.js'
 import { fail } from '../../preflight.js'
@@ -223,21 +226,37 @@ async function runWithLimit<T, R>(items: T[], limit: number, worker: (item: T, i
 
 /** 改一个标签的颜色：成功给 {ok:true, entry:{name,color}}，失败给 {ok:false, entry:{name,reason}}。
  *  permCache 是本批共用的权限复用位（#992：10 个标签同时撞 404 也只真问一次仓库权限）。 */
-async function applyOne(c: GhClient, spec: string, ch: LabelColorChange, ctx: OpContext, permCache: Map<string, Promise<RepoPermissions | null>>): Promise<{ ok: boolean; entry: { name: string; color?: string; reason?: TrackerError } }> {
+async function applyOne(c: GhClient, spec: string, ch: LabelColorChange, ctx: OpContext, permCache: Map<string, Promise<RepoPermissions | null>>, trail: WriteTrail): Promise<{ ok: boolean; entry: { name: string; color?: string; reason?: TrackerError } }> {
   const want = normalizeColor(ch.color)
   if (!want) {
     // 这条是本插件自己先拦下来的：颜色还没送到 gh 就被判为不合格，所以没有任何后端原文可交，
     // 第三段如实给空串（不能把用户自己填的颜色当成「原始说明」回显，那是假的出处）。
     return { ok: false, entry: { name: ch.name, reason: reason(ERROR_KIND.PARSE, '「' + ch.name + '」的新颜色不正确：请改为不带井号的六位十六进制，例如 9d7cd8。', '') } }
   }
+  // 真发出去了才算一条写命令（route 在这里改口，一条都没发时它保持 none）；成没成由这一条的结果说。
+  trail.route = 'rest'
+  trail.written += 1
   const r = await c.execGh(['label', 'edit', ch.name, '--repo', spec, '--color', want], { cwd: ctx && ctx.cwd })
   if (r.ok) return { ok: true, entry: { name: ch.name, color: want } }
+  trail.failed += 1
   return { ok: false, entry: { name: ch.name, reason: await explainWriteFailure(c, spec, ch, r.error, ctx, permCache) } }
 }
 
-/** 批量改标签颜色（契约操作 setLabelColors）。
+/** 批量改标签颜色（契约操作 setLabelColors）：对外入口。
+ *  建一趟轨迹、交给内层干、出口按 #105 `labelDefs.write` 记一行结论 —— 事后能回答「这次要动几个、真改上几个」。
  *  逐条记账、中途失败不回滚（GitHub 没有一次改 N 个标签颜色的接口，改到一半失败必然留半成品）。 */
 export async function setLabelColors(repo: RepositoryRef, changes: LabelColorChange[], ctx: OpContext): Promise<OpResult<LabelColorBatchResult>> {
+  const t0 = Date.now()
+  const trail = beginWriteTrail()
+  // 打算动几个：入参里有几条就记几条（格式不合格也照记，结论那一格会说清是为什么一条都没动手）。
+  trail.planned = Array.isArray(changes) ? changes.length : 0
+  const r = await setLabelColorsInner(repo, changes, ctx, trail)
+  emitLabelDefsWrite(ctx, trail, r, t0)
+  return r
+}
+
+/** 批量改标签颜色的本体（对外名字与行为都在上面那个入口上）。 */
+async function setLabelColorsInner(repo: RepositoryRef, changes: LabelColorChange[], ctx: OpContext, trail: WriteTrail): Promise<OpResult<LabelColorBatchResult>> {
   try {
     const bad = changesProblem(changes)
     // 入参不合格时手里还没有任何外部原文，原文就交那份不合格的改动清单本身。
@@ -256,7 +275,7 @@ export async function setLabelColors(repo: RepositoryRef, changes: LabelColorCha
     //   违反契约的「入参里每一条改动必须恰好出现在 applied 或 failed 之一」。
     const results = await runWithLimit(changes, writeConcurrency(ctx), async (ch) => {
       try {
-        return await applyOne(c, target.spec, ch, ctx, permCache)
+        return await applyOne(c, target.spec, ch, ctx, permCache, trail)
       } catch (e) {
         return {
           ok: false,

@@ -20,6 +20,9 @@ import { rawText } from '../../preflight.js'
 import type { OpContext, RepoHandle } from '../../contract/contexts.js';
 import type { RepositoryRef } from '../../contract/entities.js';
 import type { InitProjectInput } from '../../contract/inputs.js';
+// #106 `repo.init`：开仓发布这一趟的常驻结论线（轨迹形状与发射口在 ./write-log.js）。
+import { beginWriteTrail, emitRepoInitWrite } from './write-log.js'
+import type { WriteTrail } from './write-log.js';
 
 /**
  * 开仓失败的错误：三段式，但 kind 是开仓自己的结果词（bad-name/no-git/no-gh/not-logged-in/
@@ -67,7 +70,18 @@ function caughtMessage(e: unknown, len: number): string {
  *  - 失败：{ok:false, error:{kind, message, raw}} kind∈{no-git,no-gh,not-logged-in,already-exists,network,permission,git-ownership,unknown}
  *    （raw 是原文段：确实没有原文的本地判断给空串，有 git / gh 原话的一律交出来，界面能展开看）
  */
+/** 开仓发布的对外入口：建一趟轨迹、交给内层干、出口按 #106 `repo.init` 记一行结论 ——
+ *  事后能回答「仓库到底建没建起来、走到第几条命令、卡在推之前还是推之后」。 */
 export async function initProject(handle: RepoHandle, input: InitProjectInput, ctx: OpContext): Promise<InitProjectOutcome> {
+  const t0 = Date.now()
+  const trail = beginWriteTrail()
+  const r = await initProjectInner(handle, input, ctx, trail)
+  emitRepoInitWrite(ctx, trail, r, t0)
+  return r
+}
+
+/** 开仓发布的本体（对外名字与行为都在上面那个入口上）。 */
+async function initProjectInner(handle: RepoHandle, input: InitProjectInput, ctx: OpContext, trail: WriteTrail): Promise<InitProjectOutcome> {
   const cwd = (handle && handle.cwd) || (ctx && ctx.cwd) || ''
   const name = input && input.name ? String(input.name).trim() : ''
   const visibility = input && input.visibility === 'public' ? 'public' : 'private'
@@ -80,8 +94,16 @@ export async function initProject(handle: RepoHandle, input: InitProjectInput, c
   const platform = ctx && ctx.platform ? ctx.platform : null
   const execFn = ctx && typeof ctx.exec === 'function' ? ctx.exec.bind(ctx) : (platform && typeof platform.exec === 'function' ? platform.exec.bind(platform) : null)
 
+  // gh 也记一步：gh 走房间唯一的出口（ghClient），不经过上面的 execProcLocal。
+  async function ghStep(args: string[], opts: { cwd: string }) {
+    trail.steps += 1
+    return ghClient(ctx).execGh(args, opts)
+  }
+
   // helper: execProc 兼容层（ctx.exec 契约 {stdout,stderr,code}；host 旧 execProc 返回 {ok,text,error}）
   async function execProcLocal(argv: string[], execCwd: string): Promise<ProcResult> {
+    // 起一条命令算一步：#106 `repo.init` 的 steps 就这么数出来的（「走到第几步」由它回答）。
+    trail.steps += 1
     const cmd = argv[0]
     const args = argv.slice(1)
     if (execFn) {
@@ -173,8 +195,7 @@ export async function initProject(handle: RepoHandle, input: InitProjectInput, c
   if (!gh) return { ok: false, error: { kind: 'no-gh', message: '未找到 gh（请安装 https://cli.github.com/）', raw: '', prompt: '请为 DSH 安装 GitHub CLI（gh）—— 面板所有数据依赖 gh：\n\n1. 先检查：终端执行 gh --version;\n2. 无 gh 则按 OS 安装：Windows → winget install --id GitHub.cli; macOS → brew install gh; Linux → sudo apt install gh;\n3. 安装后验证：gh --version;\n4. 若 gh 已装但 DSH 仍报未安装：点环境检查「重新检查」按钮或重启 DSH Desktop；\n5. 完成后汇报：gh 版本号 + 「gh CLI 可用」项已变绿。' } }
   // auth 探测
   try {
-    const c = ghClient(ctx)
-    const authR = await c.execGh(['auth', 'status'], { cwd })
+    const authR = await ghStep(['auth', 'status'], { cwd })
     if (!authR.ok) {
       const t = String((authR.error && authR.error.message) || authR.error || '').toLowerCase()
       const kind = authR.error && authR.error.kind
@@ -196,8 +217,7 @@ export async function initProject(handle: RepoHandle, input: InitProjectInput, c
   // 取当前登录用户（用于 already-exists 时拼 repoUrl 与成功后 owner 兜底）
   let currentUser = ''
   try {
-    const c2 = ghClient(ctx)
-    const u = await c2.execGh(['api', 'user', '-q', '.login'], { cwd })
+    const u = await ghStep(['api', 'user', '-q', '.login'], { cwd })
     if (u && u.ok) currentUser = (u.data.stdout || '').trim()
   } catch (e) { /* 忽略 */ }
 
@@ -241,9 +261,10 @@ export async function initProject(handle: RepoHandle, input: InitProjectInput, c
   } catch (e) { hasOrigin = false }
 
   // 5. gh repo create
-  const cGH = ghClient(ctx)
   if (!hasOrigin) {
-    const cr = await cGH.execGh(['repo', 'create', name, visFlag, '--source=.', '--push'], { cwd })
+    // 走的是「新建远程仓库并推上去」那条路。
+    trail.route = 'created'
+    const cr = await ghStep(['repo', 'create', name, visFlag, '--source=.', '--push'], { cwd })
     if (!cr.ok) {
       // 为什么断言一下：失败的 message 恒有字（空串才退回整个错误值），分类器只要字符串；断言只为过编译，交的还是原来那个值，运行时不变。
       const kind = classifyCreateError((cr.error.message || cr.error) as string, cr.error && cr.error.kind)
@@ -259,7 +280,9 @@ export async function initProject(handle: RepoHandle, input: InitProjectInput, c
     }
   } else {
     // origin 已存在：先创建远程仓库（不带 --source），再 set-url + push
-    const cr2 = await cGH.execGh(['repo', 'create', name, visFlag], { cwd })
+    // 走的是「推到一个已经存在的远程」那条路。
+    trail.route = 'existing'
+    const cr2 = await ghStep(['repo', 'create', name, visFlag], { cwd })
     if (!cr2.ok) {
       // 为什么断言一下：同上，分类器只要字符串，交的还是原来那个值，运行时不变。
       const kind = classifyCreateError((cr2.error.message || cr2.error) as string, cr2.error && cr2.error.kind)
@@ -290,8 +313,7 @@ export async function initProject(handle: RepoHandle, input: InitProjectInput, c
   } catch (e) {}
   if (!owner) {
     try {
-      const c3 = ghClient(ctx)
-      const u2 = await c3.execGh(['api', 'user', '-q', '.login'], { cwd })
+      const u2 = await ghStep(['api', 'user', '-q', '.login'], { cwd })
       if (u2 && u2.ok) owner = (u2.data.stdout || '').trim()
     } catch (e2) {}
   }

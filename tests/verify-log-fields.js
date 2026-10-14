@@ -1,6 +1,6 @@
 // verify-log-fields.js —— #494 第三件事：日志门禁之字段白名单（#489 附录第 4 节断言一）。
 // 用法：在插件根目录执行 node tests/verify-log-fields.js，可独立运行。
-// 断言文字：扫描全部埋点调用，每个事件只含第 1 节允许字段（#746 增补常驻 #90 naming.summary，#782 增补常驻 #92 cwd.persisted，#817 增补常驻 #94 git.exec 与 #95 git.exec.fail，#864 增补按需 #96 vc.cache.screen，#958 增补按需 #97 labelColors.listed，#1048 增补按需 #98 detection.step 并给常驻 #16 detection.detect 补六键，#1131 增补按需 #99 detection.cache.hit（缓存命中那一行：这一次没重算、直接把上一次的判定回给了调用方），#1054 增补常驻 #100 edge.write（关系边写没写下去、走的哪条路、为什么）与按需 #101 edge.cycle、#102 edge.roster、#103 edge.repair（成环检查、邻接关系来源、REST 树边修复三条调试线），#1053 增补常驻 #104 issue.write（票的增删改评论贴标签：写没写下去、走的哪条路、为什么），#1048 收口补做增补按需 #105 detection.fallback（早快照兜底那一趟：探测服务没给出结论时才走，不与常驻 #16 同名不同形））；
+// 断言文字：扫描全部埋点调用，每个事件只含第 1 节允许字段（#746 增补常驻 #90 naming.summary，#782 增补常驻 #92 cwd.persisted，#817 增补常驻 #94 git.exec 与 #95 git.exec.fail，#864 增补按需 #96 vc.cache.screen，#958 增补按需 #97 labelColors.listed，#1048 增补按需 #98 detection.step 并给常驻 #16 detection.detect 补六键，#1131 增补按需 #99 detection.cache.hit（缓存命中那一行：这一次没重算、直接把上一次的判定回给了调用方），#1054 增补常驻 #100 edge.write（关系边写没写下去、走的哪条路、为什么）与按需 #101 edge.cycle、#102 edge.roster、#103 edge.repair（成环检查、邻接关系来源、REST 树边修复三条调试线），#1053 增补常驻 #104 issue.write（票的增删改评论贴标签：写没写下去、走的哪条路、为什么），#1048 收口补做增补按需 #105 detection.fallback（早快照兜底那一趟：探测服务没给出结论时才走，不与常驻 #16 同名不同形），#1053 同日增补常驻 #106 labelDefs.write（标签定义改写这一趟：打算动几个、真发几条、几条没改上）与 #107 repo.init（开仓发布这一趟：走新建还是推到已有远程、起了几条命令））；
 // 出现工作区原始路径、仓库地址原文、令牌原文、模板正文、快照全文即红。
 // 做法：从宿主与客户端源码里找出全部日志调用，逐个事件收拢实际字段键，
 // 与下面这张允许表逐项比对；未知事件名、未知字段键都算失败并打印清单。
@@ -12,7 +12,7 @@ let failed = false
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
-console.log('日志字段白名单门禁（#494/#498/#548/#618/#652/#655/#690/#709/#724/#782/#817/#864/#958/#1048/#1131/#1054/#1053：100 事件逐个只记已知安全字段，未知字段默认不记）')
+console.log('日志字段白名单门禁（#494/#498/#548/#618/#652/#655/#690/#709/#724/#782/#817/#864/#958/#1048/#1131/#1054/#1053：103 事件逐个只记已知安全字段，未知字段默认不记）')
 
 // 允许表：事件名对应它能记的全部字段键，之外的键一律不许出现。
 // 键名取自实现原文，语义与 #489 附录 1.4、1.5 节对照表一致。
@@ -111,15 +111,37 @@ const ALLOWED = {
   //   kind 这一次写的是哪一件事（create 建票 / close 关闭 / reopen 重开 / update 改票 /
   //   setAssignees 改认领 / comment 评论 / setLabels 贴标签）、route 走到哪一层（none 没走到外部调用 /
   //   rest 走 gh api / cli 走 gh issue 子命令）、ok 成没成、written 真发出去几条写命令、
-  //   followFailed 建完票之后补挂标签、认领、父边没挂上的步数、reason 为什么是这个结论
+  //   failed 建完票之后补挂标签、认领、父边没挂上的步数、reason 为什么是这个结论
   //   （fresh 真新建 / reuse 幂等锚命中复用 / edited 改了已有票 / noop 一处没改 /
   //   partial 写成了但有补挂没挂上 / fail:<档位>）、latencyMs 这一趟花了多久。
   //   落点三处：src/tracker/rooms/github/write-log.ts 的 emitIssueWrite（一趟一行），由同目录的
   //   issues-write.ts（建票、关闭、重开、改票、改认领五件事）、comments.ts（评论）、labels.ts（贴标签）
-  //   各调一次。本票未覆盖的两处如实记账：init-project.ts 建仓那趟的 git 命令仍没有落点（另立一票）、
-  //   label-colors-ops.ts 只到 gh.exec 那一层（既有常驻 #60 labelColors.write 记的是「写本地配色文件」，
-  //   GitHub 房这一处只调 gh 接口，套不上）。
-  'issue.write': ['kind', 'route', 'ok', 'written', 'followFailed', 'reason', 'latencyMs'],
+  //   各调一次。同一天同一票增补的 #106 labelDefs.write 与 #107 repo.init 与它共用同一份机制，
+  //   把同一片写路径剩下的两族（标签配色、开仓发布）也接上了结论线。
+  'issue.write': ['kind', 'route', 'ok', 'written', 'failed', 'reason', 'latencyMs'],
+  // 2026-10-14（#1053 增补）新增常驻 #106 `labelDefs.write`：仓库里的标签定义（名字、颜色、说明）改一趟的
+  //   结论 —— 打算动几个、真发出去几条、几条没改上、成没成、为什么，一趟一行。为什么要有它：这一族从前只
+  //   留下常驻 #60 labelColors.write（那一条记的是「本地配色文件写没写下去」，与「远端标签颜色改没改上」是
+  //   两回事）与 gh.exec 那一层「命令跑了、退出码几」，回答不了「这次要动几个、真改上几个」。
+  //   为什么定常驻：批量改色是用户点一次才发生一次的显式动作，查它的人不会先打开调试开关；无外层判断。
+  //   允许字段六个，全是枚举、布尔与计数，**标签名、颜色值、命令原文、上游报错原文一个字都不记**：
+  //   planned 打算动几个、written 真发出去几条、failed 几条没改上、ok 成没成、
+  //   reason 为什么（edited 都改上了 / partial 有的改上有的没改上 / allfailed 一条都没改上 /
+  //   noop 一条都不用改 / fail:<档位>）、latencyMs 这一趟花了多久。
+  //   落点一处：src/tracker/rooms/github/label-colors-ops.ts 的 emitLabelDefsWrite（setLabelColors 这个
+  //   对外入口调一次，一趟一行）。
+  'labelDefs.write': ['planned', 'written', 'failed', 'ok', 'reason', 'latencyMs'],
+  // 2026-10-14（#1053 增补）新增常驻 #107 `repo.init`：把工作区初始化并发布成 GitHub 仓库这一趟的结论 ——
+  //   走的是新建仓库还是推到已有远程、这一趟一共起了几条外部命令、成没成、为什么，一趟一行。
+  //   为什么要有它：这一族从前只留下按需 #58 exec.run 与宿主电话 wf.initPublish 的一行 host.call，
+  //   出「仓库到底建没建起来、卡在推之前还是推之后」这类问题时读不出一条结论线。为什么定常驻：
+  //   开仓是用户点一次才发生一次的显式动作，查它的人不会先打开调试开关；无外层判断。
+  //   允许字段五个，全是枚举、布尔与计数，**仓库名、远端地址、命令原文、上游报错原文一个字都不记**：
+  //   route 走的是新建远程仓库（created）还是推到已有远程（existing）、steps 这一趟一共起了几条外部命令
+  //   （走到第几条）、ok 成没成、reason 为什么（done 走完了 / fail:<档位> 停在哪一档）、latencyMs 花了多久。
+  //   落点一处：src/tracker/rooms/github/init-project.ts 的 emitRepoInitWrite（initProject 这个对外入口
+  //   调一次，一趟一行；execProcLocal 与 ghStep 各计一步 steps，两条分支各写 route）。
+  'repo.init': ['route', 'steps', 'ok', 'reason', 'latencyMs'],
   'workspaceStore.hit': ['keyHash', 'fresh', 'ttlMs'],
   // 2026-09-25 登记订正（#709 · T5）：这一条的落点已经变成「被退避挡下，直接把上一份快照回给界面」，
   //   实现记的是 keyHash、lang、deferred、reason、waitMs 五个键；从前的 ageMs 早已不再发射，

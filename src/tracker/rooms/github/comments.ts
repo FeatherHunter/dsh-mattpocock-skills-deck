@@ -14,8 +14,8 @@ import { fail } from '../../preflight.js'
 import { ghClient } from './client.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'
 // #104 `issue.write`：票写入的常驻结论线（轨迹形状与发射口在 ./write-log.js）。
-import { newIssueWriteTrail, emitIssueWrite } from './write-log.js'
-import type { IssueWriteTrail } from './write-log.js';
+import { beginWriteTrail, emitIssueWrite } from './write-log.js'
+import type { WriteTrail } from './write-log.js';
 
 /** 仓库坐标：拥有者与仓库名，refId 形不对就回 null 而不是抛。 */
 interface ParsedRepo {
@@ -44,13 +44,13 @@ function repoId(repo: RepositoryRef | null | undefined): string {
  */
 export async function addComment(repo: RepositoryRef, key: string, body: string, ctx: OpContext): Promise<OpResult<Comment>> {
   const t0 = Date.now()
-  const trail = newIssueWriteTrail()
+  const trail = beginWriteTrail()
   const r = await addCommentInner(repo, key, body, ctx, trail)
   emitIssueWrite(ctx, 'comment', trail, r, t0)
   return r
 }
 
-async function addCommentInner(repo: RepositoryRef, key: string, body: string, ctx: OpContext, trail: IssueWriteTrail): Promise<OpResult<Comment>> {
+async function addCommentInner(repo: RepositoryRef, key: string, body: string, ctx: OpContext, trail: WriteTrail): Promise<OpResult<Comment>> {
   try {
     const parsed = parseRepo(repo)
     // 形状不对的入参本身就是这一处的原文（这之前还没跑过任何外部命令）；它取出来可能是空串，那是如实交代。
@@ -73,12 +73,8 @@ async function addCommentInner(repo: RepositoryRef, key: string, body: string, c
       trail.written += 1
       r = await c.execGh(alt, { cwd: ctx && ctx.cwd })
       if (!r.ok) return { ok: false, error: r.error }
-      // 回落这条成了：这一趟改的是已有一张票。
-      trail.reason = 'edited'
       return { ok: true, data: { author: { login: '' }, authorAssociation: '', body: body, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() } }
     }
-    // 主路成了：同样算改过已有一张票。
-    trail.reason = 'edited'
     const text = r.data.stdout || r.data.stderr || ''
     let raw = null
     try {

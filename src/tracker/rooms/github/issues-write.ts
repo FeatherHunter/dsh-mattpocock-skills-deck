@@ -25,8 +25,8 @@ import { checkIdempotencyKey } from '../../../shared/refresh/idempotency.js'
 import { withAnchor, lookupByAnchor } from './idempotency.js'
 // #104 `issue.write`：票写入的常驻结论线。轨迹形状与发射口在 ./write-log.js ——
 // 建票、改票、评论、改标签这几处要说的是同一件事，放一处免得各写各的。
-import { newIssueWriteTrail, emitIssueWrite } from './write-log.js'
-import type { IssueWriteTrail } from './write-log.js';
+import { beginWriteTrail, emitIssueWrite } from './write-log.js'
+import type { WriteTrail } from './write-log.js';
 
 /**
  * 建票过程中组装的那张票：归一后的票 + 没挂上的标签/父边记账（工具层读回时据此说清部分成功）。
@@ -62,13 +62,13 @@ function caughtMessage(e: unknown, len: number): string {
  */
 export async function createIssue(repo: RepositoryRef, input: CreateInput, ctx: MemoContext): Promise<OpResult<Issue>> {
   const t0 = Date.now()
-  const trail = newIssueWriteTrail()
+  const trail = beginWriteTrail()
   const r = await createIssueInner(repo, input, ctx, trail)
   emitIssueWrite(ctx, 'create', trail, r, t0)
   return r
 }
 
-async function createIssueInner(repo: RepositoryRef, input: CreateInput, ctx: MemoContext, trail: IssueWriteTrail): Promise<OpResult<Issue>> {
+async function createIssueInner(repo: RepositoryRef, input: CreateInput, ctx: MemoContext, trail: WriteTrail): Promise<OpResult<Issue>> {
   try {
     const parsed = parseRepo(repo)
     if (!parsed) return fail(ERROR_KIND.NOTFOUND, `create: repo.refId missing: ${repoId(repo)}`, repo)
@@ -82,8 +82,8 @@ async function createIssueInner(repo: RepositoryRef, input: CreateInput, ctx: Me
     if (idemKey) {
       const found = await lookupByAnchor(repo, idemKey, ctx, normalizeIssue)
       if (!found.ok) return { ok: false, error: found.error }
-      // 幂等命中：这一趟一张票都没建，把已有一张交回去 —— 结论线记成「复用」，写的条数是 0。
-      if (found.hit) { trail.reason = 'reuse'; return { ok: true, data: found.issue } }
+      // 幂等命中：这一趟一张票都没建，把已有一张交回去 —— 结论线由出口按「一条写命令都没发」算成「复用」。
+      if (found.hit) return { ok: true, data: found.issue }
     }
     const c = ghClient(ctx)
     const body = withAnchor(typeof input.body === 'string' ? input.body : '', idemKey)
@@ -99,8 +99,6 @@ async function createIssueInner(repo: RepositoryRef, input: CreateInput, ctx: Me
     // 有值时袋与原值是同一份引用，读法与原来一致。
     let createdRaw: Record<string, unknown> | null = null
     if (!r.ok) return { ok: false, error: r.error }
-    // 建票这条真成了：这一趟是「新建」，不是幂等路上复用已有一张。
-    trail.reason = 'fresh'
     const text = r.data.stdout || ''
     try {
       const j: unknown = JSON.parse(text)
@@ -143,7 +141,7 @@ async function createIssueInner(repo: RepositoryRef, input: CreateInput, ctx: Me
         if (lr && lr.ok === true && lr.data) issue = lr.data;
         else {
           // 补挂没成：票照样建成（#992，如实记在票上让工具层读回时说清），但结论线要如实说成 partial。
-          trail.followFailed += 1
+          trail.failed += 1
           // #992：标签没挂上不再吞错，记在票上让工具层读回时能说清（照 parentError 先例，票照样建成 ok:true）。
           // 为什么先收窄：setLabels 的返回是可辨识联合，失败分支才有 error；直接读 error 编译器不认，收窄后读的还是原来那一格。
           const lrError = (lr && !lr.ok) ? lr.error : null;
@@ -182,7 +180,7 @@ async function createIssueInner(repo: RepositoryRef, input: CreateInput, ctx: Me
           const ar = await setAssignees(repo, issue.key, want, {}, ctx);
           if (ar && ar.ok === true && ar.data) issue = ar.data;
           // 认领没挂上：这一处照旧不吞错改返回（票照样建成 ok:true），但补挂这一步没成要记进结论线。
-          else trail.followFailed += 1;
+          else trail.failed += 1;
         }
       }
     } catch {}
@@ -195,11 +193,11 @@ async function createIssueInner(repo: RepositoryRef, input: CreateInput, ctx: Me
         if (pr.ok) issue = pr.data as Issue
         else {
           issue.parentError = { kind: String((pr.error && pr.error.kind) || ''), message: String((pr.error && pr.error.message) || '后端没给出原因').slice(0, 300) }
-          trail.followFailed += 1
+          trail.failed += 1
         }
       } catch (e) {
         issue.parentError = { kind: 'unknown', message: caughtMessage(e, 300) }
-        trail.followFailed += 1
+        trail.failed += 1
       }
     }
     try { if (ctx && ctx.memo) rosterUpsert(ctx.memo, issue) } catch (eU) {}
@@ -214,13 +212,13 @@ async function createIssueInner(repo: RepositoryRef, input: CreateInput, ctx: Me
 
 export async function closeIssue(repo: RepositoryRef, key: string, opts: CloseOpts | undefined, ctx: OpContext): Promise<OpResult<Issue>> {
   const t0 = Date.now()
-  const trail = newIssueWriteTrail()
+  const trail = beginWriteTrail()
   const r = await closeIssueInner(repo, key, opts, ctx, trail)
   emitIssueWrite(ctx, 'close', trail, r, t0)
   return r
 }
 
-async function closeIssueInner(repo: RepositoryRef, key: string, opts: CloseOpts | undefined, ctx: OpContext, trail: IssueWriteTrail): Promise<OpResult<Issue>> {
+async function closeIssueInner(repo: RepositoryRef, key: string, opts: CloseOpts | undefined, ctx: OpContext, trail: WriteTrail): Promise<OpResult<Issue>> {
   try {
     const parsed = parseRepo(repo)
     if (!parsed) return fail(ERROR_KIND.NOTFOUND, `close: repo.refId missing: ${repoId(repo)}`, repo)
@@ -237,8 +235,6 @@ async function closeIssueInner(repo: RepositoryRef, key: string, opts: CloseOpts
     trail.written += 1
     const r = await c.execGh(args, { cwd: ctx && ctx.cwd })
     if (!r.ok) return { ok: false, error: r.error }
-    // 关票这条真成了：这一趟改的是已有一张票。
-    trail.reason = 'edited'
     const vr = await c.execGh(['issue', 'view', k, '--repo', `${parsed.owner}/${parsed.name}`, '--json', 'number,title,state,body,url,updatedAt,createdAt,closedAt,labels,assignees'], { cwd: ctx && ctx.cwd })
     if (!vr.ok) {
       const optimistic = normalizeIssue({ number: Number(k) || k, title: '', state: 'closed', body: '', url: '', closedAt: new Date().toISOString() })
@@ -268,13 +264,13 @@ async function closeIssueInner(repo: RepositoryRef, key: string, opts: CloseOpts
 
 export async function reopenIssue(repo: RepositoryRef, key: string, ctx: OpContext): Promise<OpResult<Issue>> {
   const t0 = Date.now()
-  const trail = newIssueWriteTrail()
+  const trail = beginWriteTrail()
   const r = await reopenIssueInner(repo, key, ctx, trail)
   emitIssueWrite(ctx, 'reopen', trail, r, t0)
   return r
 }
 
-async function reopenIssueInner(repo: RepositoryRef, key: string, ctx: OpContext, trail: IssueWriteTrail): Promise<OpResult<Issue>> {
+async function reopenIssueInner(repo: RepositoryRef, key: string, ctx: OpContext, trail: WriteTrail): Promise<OpResult<Issue>> {
   try {
     const parsed = parseRepo(repo)
     if (!parsed) return fail(ERROR_KIND.NOTFOUND, `reopen: repo.refId missing: ${repoId(repo)}`, repo)
@@ -287,8 +283,7 @@ async function reopenIssueInner(repo: RepositoryRef, key: string, ctx: OpContext
     trail.written += 1
     const r = await c.execGh(args, { cwd: ctx && ctx.cwd })
     if (!r.ok) return { ok: false, error: r.error }
-    // 重开这条真成了：这一趟改的是已有一张票。
-    trail.reason = 'edited'
+    // 重开这条真成了：这一趟改的是已有一张票（结论由出口按事实算，这里不再自己写一遍）。
     const vr = await c.execGh(['issue', 'view', k, '--repo', `${parsed.owner}/${parsed.name}`, '--json', 'number,title,state,body,url,updatedAt,createdAt,closedAt,labels,assignees'], { cwd: ctx && ctx.cwd })
     if (!vr.ok) {
       return { ok: true, data: normalizeIssue({ number: Number(k) || k, title: '', state: 'open', body: '', url: '', closedAt: null }) }
@@ -315,13 +310,13 @@ async function reopenIssueInner(repo: RepositoryRef, key: string, ctx: OpContext
 
 export async function updateIssue(repo: RepositoryRef, key: string, patch: UpdatePatch, ctx: OpContext): Promise<OpResult<Issue>> {
   const t0 = Date.now()
-  const trail = newIssueWriteTrail()
+  const trail = beginWriteTrail()
   const r = await updateIssueInner(repo, key, patch, ctx, trail)
   emitIssueWrite(ctx, 'update', trail, r, t0)
   return r
 }
 
-async function updateIssueInner(repo: RepositoryRef, key: string, patch: UpdatePatch, ctx: OpContext, trail: IssueWriteTrail): Promise<OpResult<Issue>> {
+async function updateIssueInner(repo: RepositoryRef, key: string, patch: UpdatePatch, ctx: OpContext, trail: WriteTrail): Promise<OpResult<Issue>> {
   try {
     const parsed = parseRepo(repo)
     if (!parsed) return fail(ERROR_KIND.NOTFOUND, `update: repo.refId missing: ${repoId(repo)}`, repo)
@@ -350,8 +345,7 @@ async function updateIssueInner(repo: RepositoryRef, key: string, patch: UpdateP
     trail.written += 1
     const r = await c.execGh(args, { cwd: ctx && ctx.cwd })
     if (!r.ok) return { ok: false, error: r.error }
-    // 改票这条真成了：这一趟改的是已有一张票。
-    trail.reason = 'edited'
+    // 改票这条真成了：这一趟改的是已有一张票（结论由出口按事实算，这里不再自己写一遍）。
     const vr = await c.execGh(['issue', 'view', k, '--repo', `${parsed.owner}/${parsed.name}`, '--json', 'number,title,state,body,url,updatedAt,createdAt,closedAt,labels,assignees'], { cwd: ctx && ctx.cwd })
     if (!vr.ok) return { ok: true, data: normalizeIssue({ number: Number(k) || k, title: typeof patch.title === 'string' ? patch.title : '', state: 'open', body: typeof patch.body === 'string' ? patch.body : '', url: '' }) }
     const text = vr.data.stdout || ''
@@ -393,13 +387,13 @@ function normalizeAssigneeInput(ai: unknown): Actor | null {
 
 export async function setAssignees(repo: RepositoryRef, key: string, assignees: AssigneeInput[] | undefined, opts: SetOpts | undefined, ctx: MemoContext): Promise<OpResult<Issue>> {
   const t0 = Date.now()
-  const trail = newIssueWriteTrail()
+  const trail = beginWriteTrail()
   const r = await setAssigneesInner(repo, key, assignees, opts, ctx, trail)
   emitIssueWrite(ctx, 'setAssignees', trail, r, t0)
   return r
 }
 
-async function setAssigneesInner(repo: RepositoryRef, key: string, assignees: AssigneeInput[] | undefined, opts: SetOpts | undefined, ctx: MemoContext, trail: IssueWriteTrail): Promise<OpResult<Issue>> {
+async function setAssigneesInner(repo: RepositoryRef, key: string, assignees: AssigneeInput[] | undefined, opts: SetOpts | undefined, ctx: MemoContext, trail: WriteTrail): Promise<OpResult<Issue>> {
   try {
     const parsed = parseRepo(repo)
     if (!parsed) return fail(ERROR_KIND.NOTFOUND, `setAssignees: repo.refId missing: ${repoId(repo)}`, repo)
@@ -448,8 +442,6 @@ async function setAssigneesInner(repo: RepositoryRef, key: string, assignees: As
       const r = await c.execGh(['issue', 'edit', k, '--repo', `${parsed.owner}/${parsed.name}`, '--add-assignee', l], { cwd: ctx && ctx.cwd })
       if (!r.ok) return { ok: false, error: r.error }
     }
-    // 一条写命令都没发（差集为空）就是「一处没改」；发了至少一条就是改过。
-    trail.reason = trail.written > 0 ? 'edited' : 'noop'
     // 读回最新
     const finalRes = await getIssue(repo, k, {}, ctx)
     if (!finalRes.ok) {
