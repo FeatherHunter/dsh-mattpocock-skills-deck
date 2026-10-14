@@ -165,8 +165,16 @@ export interface ConfigFacts {
   config: string
   /** 配置所在目录，仓库相对；根上的配置是空串。 */
   dir: string
-  /** 枚举到的仓库内文件（仓库相对路径，去重后排序）。 */
+  /** 枚举到的仓库内文件（仓库相对路径，去重后排序）。含顺着 import 带进来的文件。 */
   files: string[]
+  /**
+   * 这份配置**自己声明**的文件（include 展开后的清单，仓库相对路径，去重后排序）。
+   *
+   * 与 files 的差别是本文件最要紧的一条口径：files 是「编译器真看过的」（程序闭包，含 import 带进来的），
+   * claimed 是「这份配置打算管的」（只有 include 写下的）。归属类判据（C 重复归属、D 越界）只认 claimed，
+   * 覆盖类判据（B 缺口）认 files——两个问题不一样，混用会得出两条都不对的结论，详见 measureConfig。
+   */
+  claimed: string[]
   /** 枚举这一步的原始退出码。非 0 表示枚举本身失败，不是「有缺口」。 */
   enumCode: number
   /** 枚举失败时编译器留下的文字。 */
@@ -222,6 +230,18 @@ function measureConfig(config: string, tsc: string): ConfigFacts {
   }
   const unique = Array.from(new Set(files)).sort()
 
+  // 第 3 步半：这份配置**自己声明**了哪些文件（--showConfig 的 files 是 include 展开后的清单）。
+  // 为什么要多问一遍、而不是拿上面的闭包当「这份配置管了谁」：
+  //   · 「有没有人检查」问的是**编译器真看过谁**——上层工具 import 一份下层纯函数时，那份纯函数确实被
+  //     检查了，所以缺口判据（B）必须用程序闭包（上面的 unique），否则会假报「没人检查」。
+  //   · 「这份配置管了谁」问的是**include 写下了谁**——import 是运行时的真依赖，不只是配置的事：
+  //     把 src/deck/tsconfig.json 的 include 收窄到 src/deck，它照样会顺着 import 走进 src/tracker，
+  //     那几份文件不会因此就不再被检查。归属判据（C 重复归属、D 越界）拿闭包去判，等于把「运行时依赖」
+  //     读成了「配置越界吸收」，谁都没法把这两条改绿（本仓 2026-10-14 实测：deck 那条报了 10 条越界，
+  //     全是它 import 进来的 tracker 文件）。所以归属只认 include 声明，见 claimFiles()。
+  // 拿不到 --showConfig（配置读不通、输出认不出来）时退回闭包：宁可多报几条，不可漏报。
+  const claimed = claimFiles(config, tsc) ?? unique
+
   // 第 4 步：真编译一遍。与枚举分开跑是有意的——两者支撑的是不同的事实，合并会让「枚举成功」
   // 被误读成「类型没问题」（实测：纯类型错误时枚举退 0、真编译退 1）。
   //
@@ -248,11 +268,49 @@ function measureConfig(config: string, tsc: string): ConfigFacts {
     config,
     dir,
     files: unique,
+    claimed,
     enumCode: listed.code,
     enumOutput: listed.out.trim(),
     checkCode: checked.code,
     errors,
   }
+}
+
+/**
+ * 读一份配置**自己声明**的文件清单（`tsc -p <配置> --showConfig` 的 files 字段，include 展开后的结果）。
+ *
+ * 返回 null 表示这一步没拿到可信答案（配置读不通、输出里没有 JSON、字段不是数组），
+ * 由调用方退回程序闭包——归属判据宁可多报，也不能因为读不到就静默漏判。
+ *
+ * 路径按**配置文件所在目录**解析：showConfig 给出的是相对该配置的写法（如 './registration/agent-row.ts'）。
+ * 认不回仓库相对路径的（跑到仓库外、或磁盘上不存在）直接丢掉，与枚举那一步同一条过滤口径。
+ */
+function claimFiles(config: string, tsc: string): string[] | null {
+  const dirAbs = path.dirname(path.join(ROOT, config))
+  const shown = run(process.execPath, [tsc, '-p', config, '--showConfig'])
+  if (!shown.ok) return null
+  // showConfig 会把 JSON 打到 stdout；前面可能夹着别的行，从第一个左花括号起截。
+  const start = shown.out.indexOf('{')
+  if (start < 0) return null
+  let parsed: { files?: unknown }
+  try {
+    parsed = JSON.parse(shown.out.slice(start)) as { files?: unknown }
+  } catch {
+    return null
+  }
+  if (!Array.isArray(parsed.files)) return null
+
+  const rootNorm = path.resolve(ROOT).split(path.sep).join('/')
+  const claimed: string[] = []
+  for (const item of parsed.files) {
+    if (typeof item !== 'string') continue
+    const abs = path.resolve(dirAbs, item)
+    if (!fs.existsSync(abs)) continue
+    const norm = abs.split(path.sep).join('/')
+    if (!isUnderRoot(norm, rootNorm)) continue
+    claimed.push(norm.slice(rootNorm.length + 1))
+  }
+  return Array.from(new Set(claimed)).sort()
 }
 
 /**
@@ -376,24 +434,33 @@ export function judge(facts: Facts): Finding[] {
     )
   }
 
-  // —— 断言 C（硬失败）：同一份源码不许落在两份配置里。
+  // —— 断言 C（硬失败）：同一份源码不许被两份配置同时**声明**。
   // 实测依据：TypeScript 不会拦这件事（两份 composite 配置都圈住同一个文件时，两边退出 0、零诊断，
   // 还往同一个产物路径写），所以这条只能自己断言。真出现了，改法是让每份配置只圈自己的目录树。
-  for (const [f, configs] of seenBy) if (configs.length > 1) {
+  // 判据用 claimed（include 声明）而不是 files（程序闭包）：两份配置顺 import 看到同一份下层文件是正常的
+  // 依赖关系，不是重复归属；重复归属说的是「两份配置都把这份文件写进了自己的编译输入集合」。
+  const claimedBy = new Map<string, string[]>()
+  for (const c of facts.configs) for (const f of c.claimed) {
+    const list = claimedBy.get(f)
+    if (list) list.push(c.config)
+    else claimedBy.set(f, [c.config])
+  }
+  for (const [f, configs] of claimedBy) if (configs.length > 1) {
     add('fail', '重复归属', f + ' 同时落在这些配置里：' + configs.join('、') + '。同一个文件被检查两遍，两边还会各按自己的编译设置解释它；请让每份配置只圈自己的目录树。')
   }
 
-  // —— 断言 D（硬失败）：一份配置看到的文件必须落在它自己所在目录之下。
-  // 这条与上面两条合起来才是「一个文件只属于一个域」：B 管有没有人管，C 管有没有重复，D 管有没有越界吸收。
+  // —— 断言 D（硬失败）：一份配置**声明**的文件必须落在它自己所在目录之下。
+  // 这条与上面两条合起来才是「一个文件只属于一个域」：B 管有没有人管（用闭包，顺 import 看过就算看过），
+  // C 管有没有重复声明，D 管有没有跨界声明（用 claimed，只认 include 写下的，见 measureConfig 第 3 步半）。
   for (const c of facts.configs) {
-    for (const f of c.files) {
+    for (const f of c.claimed) {
       // 仓库根上的配置（tsconfig.client.json、tsconfig.contract.json）用 include 圈了别的目录树，
       // 它们的「自己所在目录」是根，所以这一条对它们恒真——越界对这两份没有意义，跳过。
       if (c.dir === '') continue
       if (f === c.dir || f.startsWith(c.dir + '/')) continue
       // 只看 src/ 与 tests/ 下的源码：声明文件（.d.ts）与配置自身不属于任何域，跨目录出现是正常的。
       if (!facts.repoScripts.includes(f)) continue
-      add('fail', '越界', c.config + ' 看到了自己目录之外的 ' + f + '。要么把这个文件圈回它所属的那份配置，要么把这份配置的 include 收窄到自己目录。')
+      add('fail', '越界', c.config + ' 声明了自己目录之外的 ' + f + '。要么把这个文件圈回它所属的那份配置，要么把这份配置的 include 收窄到自己目录。')
     }
   }
 
@@ -449,9 +516,11 @@ export function report(facts: Facts, findings: Finding[]): void {
 
   console.log('类型检查：' + facts.configs.length + ' 份配置')
   for (const c of facts.configs) {
-    console.log('  ' + c.config + ' —— 圈到 ' + c.files.length + ' 个源码文件' + (c.checkCode === 0 && c.enumCode === 0 ? '' : '（未通过）'))
+    // 两个数分开报：files 是「编译器真看过多少」（含顺 import 带进来的），claimed 是「配置自己声明了多少」。
+    // 只报一个数的话，「某份配置声明得很少、全靠 import 蹭检查」这件事在输出里看不出来。
+    console.log('  ' + c.config + ' —— 声明 ' + c.claimed.length + ' 个源码文件，顺 import 共看到 ' + c.files.length + ' 个' + (c.checkCode === 0 && c.enumCode === 0 ? '' : '（未通过）'))
   }
-  console.log('src/ 下源码 ' + facts.repoScriptsInSrc.length + ' 份，被配置圈住 ' + inSrcCovered + ' 份')
+  console.log('src/ 下源码 ' + facts.repoScriptsInSrc.length + ' 份，被配置看到 ' + inSrcCovered + ' 份')
   console.log('手写 JavaScript 名单 ' + facts.ratchet.current.length + ' 份，基线 ' + facts.ratchet.baseline.length + ' 份')
   console.log('')
 
