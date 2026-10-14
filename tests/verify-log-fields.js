@@ -22,7 +22,12 @@ const ALLOWED = {
   'snapshot.cache.hit': ['kind', 'ageMs'],
   'snapshot.cache.miss': ['reason'],
   'repo.resolve.tier': ['tier', 'ok', 'latencyMs'],
-  'gh.exec': ['argv0', 'cwdHash', 'latencyMs', 'waitedMs', 'kind', 'exitCode'],
+  // 2026-10-14（#1052）常驻 #5 `gh.exec` 增补一格 `via`：这一次 gh 调用是谁发的、走到哪一支
+  //   （调用点写死的短标签，例如 list.gql / list.rest / get.rest / counts.gql；没给标签的调用点写空串）。
+  //   为什么要有：一趟读操作会落好几行字段完全一样的 gh.exec，事后分不出哪行属于哪条操作、走的哪条路。
+  //   只写短枚举，票号、仓库地址原文、路径原文一个字都不记。登记册与「读路径调用点必须带标签」那条
+  //   断言在 tests/verify-github-gh-via.ts。
+  'gh.exec': ['argv0', 'via', 'cwdHash', 'latencyMs', 'waitedMs', 'kind', 'exitCode'],
   'gh.timeout': ['argv0', 'timeoutMs'],
   'gh.resolve.fail': ['hasDSH_GH_PATH', 'errorHash'],
   'graphql.fallback': ['scope', 'reason'],
@@ -259,14 +264,19 @@ const ALLOWED = {
   'log.export.fail': ['op', 'reason', 'errorHash'],
 }
 // 房内三点六个事件的精确字段形状（#494 房内落点，附录 1.4 原文；#1111 按新判档实现订正 error.normalize）：
-// gh.exec 五键、gh.timeout 两键、gh.resolve.fail 两键，
+// gh.exec 七键（六键照旧，`via` 是 #1052 增补的那一格）、gh.timeout 两键、gh.resolve.fail 两键，
 // graphql.fallback 与 issues.fallback 各自两键与三键；error.normalize 必有 rawKind 与 mappedKind 两键，
 // 另外三个码值键（httpCode 状态码、exitCode 退出码、errCode 错误码名）只在真有对应事实时带。
 // 注意本门禁的字段收集器只看得见「调用点上写死的对象字面量」，而 error.normalize 现在由
 // src/tracker/error-rules.ts 的 emitNormalize 统一发射（字段装在传进去的参数对象里），所以 layer、via、
 // latencyMs 三个键在这里收不到，它们由上面 ALLOWED 的 error.normalize 那一行覆盖。
 const ROOM_SHAPES = {
-  'gh.exec': ['argv0', 'cwdHash', 'latencyMs', 'waitedMs', 'kind', 'exitCode'],
+  // 2026-10-14（#1052）常驻 #5 `gh.exec` 增补一格 `via`：这一次 gh 调用是谁发的、走到哪一支
+  //   （调用点写死的短标签，例如 list.gql / list.rest / get.rest / counts.gql；没给标签的调用点写空串）。
+  //   为什么要有：一趟读操作会落好几行字段完全一样的 gh.exec，事后分不出哪行属于哪条操作、走的哪条路。
+  //   只写短枚举，票号、仓库地址原文、路径原文一个字都不记。登记册与「读路径调用点必须带标签」那条
+  //   断言在 tests/verify-github-gh-via.ts。
+  'gh.exec': ['argv0', 'via', 'cwdHash', 'latencyMs', 'waitedMs', 'kind', 'exitCode'],
   'gh.timeout': ['argv0', 'timeoutMs'],
   'gh.resolve.fail': ['hasDSH_GH_PATH', 'errorHash'],
   'graphql.fallback': ['scope', 'reason'],

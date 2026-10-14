@@ -1,6 +1,9 @@
 /**
  * src/tracker/rooms/github/counts.ts — 后端计数（counts op；契约见 `src/tracker/contract/operations.ts` 的「计数契约」，#689 新加）。
  *
+ * 文件头原写 `backends/github/counts.js`，是 #1019 目录归位前的旧路径；#1052 把读路径这一片的
+ * 文件头逐个改成今天的真名（本文件也在这一片里）。
+ *
  * 文件头原写 `backends/github/counts.js`，契约也写作 `tracker/contract.js`——两份都是 #1019 目录归位前的旧路径；
  * #1052 按读路径这一片改成今天的真名。
  *
@@ -86,7 +89,8 @@ export async function countIssues(repo: RepositoryRef, filter: ListFilter | unde
       '-F', `name=${parsed.name}`,
     ]
     for (const name of labels) args.push('-F', `labels[]=${name}`)
-    const r = await c.execGh(args, { cwd: ctx && ctx.cwd })
+    // 计数这条路只有这一笔：标签写 counts.gql，跟那一串长得一样的 gh.exec 分得开。
+    const r = await c.execGh(args, { cwd: ctx && ctx.cwd, via: 'counts.gql' })
     if (!r.ok) return { ok: false, error: r.error }
     let j: { errors?: unknown; data?: { repository?: { openIssues?: unknown; closedIssues?: unknown } | null } | null }
     try { j = JSON.parse(r.data.stdout || '') } catch (e) {

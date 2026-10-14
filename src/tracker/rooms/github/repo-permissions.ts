@@ -1,5 +1,8 @@
 /**
- * backends/github/repo-permissions.js — 「这个仓库我能不能写」的单一出口（#992）。
+ * src/tracker/rooms/github/repo-permissions.ts — 「这个仓库我能不能写」的单一出口（#992）。
+ *
+ * 文件头原写 `backends/github/repo-permissions.js`，是 #1019 目录归位前的旧路径；#1052 把读路径
+ * 这一片的文件头逐个改成今天的真名（本文件也在这一片里）。
  *
  * 为什么要有它：只读仓库上「建标签」「给票打标签」「批量改色」撞到的都是同一句 HTTP 404，
  * 光看错误文本分不出「标签不存在」还是「你没有写权限」。准确判据是
@@ -14,8 +17,10 @@
  * 作用域只活一批（调用方现场建、现场丢），不跨批、不落盘。读不到（网络、仓库不存在、
  * 字段缺失）返回 null，调用方走已有的「分不清」诚实分支，不瞎猜。
  *
- * 日志：不新增事件名。这一路走 ghClient.execGh，调用成功与否由房内既有的
- * 常驻 gh.exec 记一行（只记命令名与耗时，不记仓库原文），这里不再另记。
+ * 日志：本文件不新增事件名。这一路走 ghClient.execGh，那一行由房内既有的常驻 gh.exec 落盘
+ * （只记命令名、耗时与 via 标签，不记仓库原文）；via 写 `permissions.api`，于是它跟读路径上
+ * 另外几笔长得一样的 gh.exec 在日志里分得开。至于「命令成功了、可权限仍然问不出来」那几条
+ * （回包缺 push/triage、空回包、JSON 坏掉），gh.exec 只会显示成功，由 #1052 另补的降级行交代。
  */
 
 import type { OpContext } from '../../contract/contexts.js';
@@ -78,7 +83,7 @@ export async function readRepoPermissions(c: GhClient, spec: string, ctx: OpCont
 
 async function queryPermissions(c: GhClient, spec: string, ctx: OpContext): Promise<RepoPermissions | null> {
   const cwd = ctx && typeof ctx.cwd === 'string' ? ctx.cwd : undefined
-  const r = await c.execGh(['api', 'repos/' + spec, '--jq', '.permissions'], { cwd: cwd })
+  const r = await c.execGh(['api', 'repos/' + spec, '--jq', '.permissions'], { cwd: cwd, via: 'permissions.api' })
   if (!r || !r.ok) return null
   // text 兜底保留（理由同 backend.ts：上游仍有 text 这一格，stdout 为空时老代码走它）。
   const text = String((r.data && (r.data.stdout || (r.data as { text?: unknown }).text)) || '').trim()

@@ -1,5 +1,8 @@
 /**
- * backends/github/repo.js — 仓库身份与链接供给。
+ * src/tracker/rooms/github/repo.ts — 仓库身份与链接供给。
+ *
+ * 文件头原写 `backends/github/repo.js`，是 #1019 目录归位前的旧路径；#1052 把读路径这一片
+ * 的文件头逐个改成今天的真名（本文件也在这一片里，仓库身份的四个定位口都在这里）。
  *
  * 由 #440 从 index.js 纯结构移出（parseGithubRepo / describe / links / capabilities /
  * openRepository / getRepoKey），行为零变化。链接三件（issueAddress / repoSearchAddress /
@@ -161,7 +164,7 @@ export async function getRepoKey(cwd: string, ctx: OpContext): Promise<RepoKey |
   // Tier 3：gh repo view 兜底
   try {
     const c = ghClient(ctx)
-    const rr = await c.execGh(['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner'], { cwd: execCwd })
+    const rr = await c.execGh(['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner'], { cwd: execCwd, via: 'repo.tier3' })
     if (rr && rr.ok) {
       const s = (rr.data.stdout || '').trim()
       const idx = s.indexOf('/')

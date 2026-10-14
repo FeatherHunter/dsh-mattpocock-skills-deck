@@ -96,7 +96,8 @@ async function fetchAllIssuesREST(parsed: ParsedRepo, ctx: OpContext): Promise<O
   const MAX_PAGES = 10
   const PAGE = 100
   for (let p = 1; p <= MAX_PAGES; p++) {
-    const r = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/issues?state=all&per_page=${PAGE}&page=${p}`], { cwd: ctx && ctx.cwd })
+    // 这是 GraphQL 主路失败之后的 REST 降级翻页：标签与主路分开，事后一眼看出走的是哪条路。
+    const r = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/issues?state=all&per_page=${PAGE}&page=${p}`], { cwd: ctx && ctx.cwd, via: 'list.rest' })
     if (!r.ok) {
       if (!out.length) return { ok: false, error: r.error }
       return { ok: true, data: out }
@@ -173,7 +174,7 @@ export async function listIssues(repo: RepositoryRef, filter: ListFilter | undef
       const args = ['api', 'graphql', '-f', `query=${query}`, '-F', `owner=${parsed.owner}`, '-F', `name=${parsed.name}`, '-F', `first=100`]
       if (after) args.push('-F', `after=${after}`)
       else args.push('-F', 'after=')
-      const r = await c.execGh(args, { cwd: ctx && ctx.cwd })
+      const r = await c.execGh(args, { cwd: ctx && ctx.cwd, via: 'list.gql' })
       if (!r.ok) { needRest = true; if (!firstRestCause) firstRestCause = (r && r.error) || r; break }
       const text = r.data.stdout || ''
       let j
@@ -201,7 +202,7 @@ export async function listIssues(repo: RepositoryRef, filter: ListFilter | undef
         const args = ['api', 'graphql', '-f', `query=${LIST_PR_QUERY}`, '-F', `owner=${parsed.owner}`, '-F', `name=${parsed.name}`, '-F', `first=100`]
         if (prAfter) args.push('-F', `after=${prAfter}`)
         else args.push('-F', 'after=')
-        const r = await c.execGh(args, { cwd: ctx && ctx.cwd })
+        const r = await c.execGh(args, { cwd: ctx && ctx.cwd, via: 'list.pr' })
         if (!r.ok) { needRest = true; if (!firstRestCause) firstRestCause = (r && r.error) || r; break }
         let j
         try { j = JSON.parse(r.data.stdout || '') } catch (e) { needRest = true; if (!firstRestCause) firstRestCause = e; break }
@@ -281,7 +282,7 @@ export async function getIssue(repo: RepositoryRef, key: string, opts: GetOpts |
     const t0 = Date.now()
     const query = GET_QUERY
     const args = ['api', 'graphql', '-f', `query=${query}`, '-F', `owner=${parsed.owner}`, '-F', `name=${parsed.name}`, '-F', `number=${num}`]
-    const r = await c.execGh(args, { cwd: ctx && ctx.cwd })
+    const r = await c.execGh(args, { cwd: ctx && ctx.cwd, via: 'get.gql' })
     let issueFromGraphQL = null
     // 为什么标成未知：这里装的是「第一现场的失败样子」（gh 的失败或抛出的值），形状不固定，只负责往下传、不解读。
     let getCause: unknown = (!r.ok ? ((r && r.error) || r) : null)
@@ -307,7 +308,8 @@ export async function getIssue(repo: RepositoryRef, key: string, opts: GetOpts |
       // 单票按号先查工单、再查拉取请求（同号只有一类，查到即停；传输失败则直走 REST）
       try {
         const prArgs = ['api', 'graphql', '-f', `query=${GET_PR_QUERY}`, '-F', `owner=${parsed.owner}`, '-F', `name=${parsed.name}`, '-F', `number=${num}`]
-        const pr = await c.execGh(prArgs, { cwd: ctx && ctx.cwd })
+        // 同一号先查工单、再查拉取请求：这一支就是「工单没查着、改查拉取请求」的那一步。
+        const pr = await c.execGh(prArgs, { cwd: ctx && ctx.cwd, via: 'get.pr' })
         if (pr.ok) {
           const pj = JSON.parse(pr.data.stdout || 'null')
           if (pj && !pj.errors && pj.data && pj.data.repository) prFromGraphQL = pj.data.repository.pullRequest
@@ -326,7 +328,7 @@ export async function getIssue(repo: RepositoryRef, key: string, opts: GetOpts |
       // REST 降级（与 list 同一背景：GraphQL POST 偶发 unexpected EOF，REST 稳定；原因分类与列表同口径，不恒写 graphql-error）
       // 为什么用收窄式：r 在这里可能是成功也可能是失败，直接读 error 编译器不认；失败分支读 error、成功分支用 r 本身，与原来短路式的取值一字不差。
       emitRestFallback(ctx, '单票', Date.now() - t0, pickFallbackReason(getCause || (!r.ok ? r.error : r), ctx))
-      const rr = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/issues/${num}`], { cwd: ctx && ctx.cwd })
+      const rr = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/issues/${num}`], { cwd: ctx && ctx.cwd, via: 'get.rest' })
       if (rr.ok) {
         let jr = null
         try { jr = JSON.parse(rr.data.stdout || '') } catch (e) { return fail(ERROR_KIND.PARSE, `get(rest): invalid json ${caughtMessage(e, 200)}`, rr.data.stdout) }
@@ -337,7 +339,7 @@ export async function getIssue(repo: RepositoryRef, key: string, opts: GetOpts |
         }
       }
       // /issues 不中（404 或坏形状）→ 试 /pulls 直取拉取请求单票
-      const prr = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/pulls/${num}`], { cwd: ctx && ctx.cwd })
+      const prr = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/pulls/${num}`], { cwd: ctx && ctx.cwd, via: 'get.rest-pr' })
       if (prr.ok) {
         let prj = null
         try { prj = JSON.parse(prr.data.stdout || '') } catch (e) { return fail(ERROR_KIND.PARSE, `get(rest): invalid json ${caughtMessage(e, 200)}`, prr.data.stdout) }

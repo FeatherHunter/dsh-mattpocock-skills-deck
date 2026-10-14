@@ -76,7 +76,7 @@ export async function ghPreflight(handle: RepoHandle, ctx: OpContext): Promise<P
   // 2) 登录态：gh auth status
   try {
     const c = ghClient(opCtx)
-    const r = await c.execGh(['auth', 'status'], { cwd })
+    const r = await c.execGh(['auth', 'status'], { cwd, via: 'preflight.auth' })
     if (!r.ok) {
       // 非 0 就把 client 层归一好的那一份失败原样交出去：档位、话术与原文都在里面，
       // 这里不再自己判第二遍（原来那三个分支最后返回的都是同一份 r.error）。
@@ -93,7 +93,7 @@ export async function ghPreflight(handle: RepoHandle, ctx: OpContext): Promise<P
     // 若无 refId，尝试 gh repo view 取当前仓库（与 host/index.js getRepoKey 同源）
     if (!refId) {
       const c = ghClient(opCtx)
-      const rr = await c.execGh(['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner'], { cwd })
+      const rr = await c.execGh(['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner'], { cwd, via: 'preflight.repo-view' })
       if (rr.ok) {
         const s = (rr.data.stdout || '').trim()
         if (s && s.includes('/')) refId = s
@@ -108,7 +108,8 @@ export async function ghPreflight(handle: RepoHandle, ctx: OpContext): Promise<P
     // 说「refId 形状不对」的原文就是这个 refId 本身：人一眼能看出错在哪。
     if (!repo) return { ok: false, error: { kind: ERROR_KIND.NOTFOUND, message: `repo refId malformed: ${refId}`, raw: String(refId) } }
     const c = ghClient(opCtx)
-    const r = await c.execGh(['api', `repos/${repo.owner}/${repo.name}`], { cwd })
+    // 这是三项门禁里的第三项（能连上接口）：这一笔的成败在日志里由 via 认领。
+    const r = await c.execGh(['api', `repos/${repo.owner}/${repo.name}`], { cwd, via: 'preflight.api' })
     if (!r.ok) {
       // 分类已在 client 层归一，此处直接返回
       return { ok: false, error: r.error }

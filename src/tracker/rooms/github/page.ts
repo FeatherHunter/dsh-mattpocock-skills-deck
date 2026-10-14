@@ -128,7 +128,7 @@ export async function listIssuesPage(repo: RepositoryRef, filter: ListFilter | u
     ]
     for (const s of states) args.push('-F', `states[]=${s}`)
     for (const name of labels) args.push('-F', `labels[]=${name}`)
-    const r = await c.execGh(args, { cwd: ctx && ctx.cwd })
+    const r = await c.execGh(args, { cwd: ctx && ctx.cwd, via: 'listPage.gql' })
     if (!r.ok) return { ok: false, error: r.error }
     // 为什么把回包定成这个形状：只读到本函数实际用的三层（errors/data.repository.issues），更深的节点按 unknown 读；
     // 定宽了以后加字段要改两处，定窄了读不到，当前三层正好够用。

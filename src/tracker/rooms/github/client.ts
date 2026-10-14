@@ -1,5 +1,8 @@
 /**
- * backends/github/client.js — gh CLI 封装（契约对齐版）。
+ * src/tracker/rooms/github/client.ts — gh CLI 封装（契约对齐版）。
+ *
+ * 文件头原写 `backends/github/client.js`，是 #1019 目录归位前的旧路径；#1052 把读路径这一片
+ * 的文件头逐个改成今天的真名，并给 gh.exec 补上 via 这一格（本文件也在这一片里）。
  *
  * 定版依据：#138 §1.3 + #129 平台三底座（BackendContext.platform 已解析实例注入）。
  * - gh 可执行经 `platform.resolveExecutable('gh')`（null → env fail，不抛）
@@ -7,6 +10,8 @@
  * - 超时/signal 与 timers 竞速由 ctx.exec 内部托管（此处只透传 opts）
  * - stdout 解析在调用方（issues/comments 等）；此处只做 exec+错误归一化，不产 parse kind（parse 由 JSON 层）
  * - 返回 OpResult，不 throw；错误经 ghVerdictOf 归一（档位表在 src/tracker/error-rules.ts）
+ * - 调用点可以在 opts.via 里给一个短标签（「哪条操作、走到哪一支」），它随常驻 gh.exec 落盘；
+ *   标签只在调用点上写死，本层不猜也不推断。没给标签的调用点照常不记，行为与从前一字不差。
  */
 
 import { ERROR_KIND } from '../../contract/vocabulary.js'
@@ -38,11 +43,24 @@ export type GhExecResult = { ok: true; data: GhExecData } | { ok: false; error: 
 /** gh JSON 调用的返回：成功带解析结果（空输出给 null），失败带契约错误（无退出码可带）。 */
 export type GhJsonResult = { ok: true; data: unknown } | { ok: false; error: TrackerError };
 
-/** 起 gh 命令时的选项：工作目录、取消信号、超时毫秒，全可选，缺了按上下文与分档来。 */
+/** 起 gh 命令时的选项：工作目录、取消信号、超时毫秒、这一次调用的短标签，全可选，缺了按上下文与分档来。 */
 export interface GhExecOpts {
   cwd?: string;
   signal?: AbortSignal;
   timeout?: number;
+  /**
+   * 这一次调用是谁发的、走到哪一支的短标签，例如 `list.gql`、`get.rest`、`counts.gql`。
+   *
+   * 为什么要有它：gh.exec 一行只记命令名与耗时，而一次读操作（比如拉全列表）会落好几行
+   * 长得一模一样的 gh.exec，事后对着导出包分不出哪一行属于哪条操作、走的是主路还是降级路。
+   * 有了标签，「谁发的、走的哪一支」在那一行上直接读得出来，不用再数行数去猜。
+   *
+   * 命名约定（改标签含义就当改事件，照 #489 附录 1.4 的规矩走）：
+   *  - 小写字母开头、点分两段：前一段是操作名（list / get / counts / listPage / subIssues /
+   *    preflight / permissions / repo / describe / issueAddress），后一段是这一支的名字；
+   *  - 只写短枚举，不记票号、不记仓库原文、不记路径原文（那三样都不许落盘）。
+   */
+  via?: string;
 }
 
 /** 到点哨兵：与真正在等的东西赛跑，落地的是它就说明房内表先到点了，真结果里不会有这一格。 */
@@ -182,10 +200,10 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
   // #5 gh.exec（信息，常驻）：高频路径，外层先判开关，关闭时不组装字段。
   // #1007 起多记一格 waitedMs：这一笔在名额队列里等了多久（没等就是 0）。
   // 有了这一格，「名额到底有没有挡过路、挡了多久」以后由日志回答，不用再靠猜着调数字。
-  function emitGhExec(kind: string, exitCode: number, t0: number, cwd: string | undefined, waitedMs?: number): void {
+  function emitGhExec(kind: string, exitCode: number, t0: number, cwd: string | undefined, waitedMs?: number, via?: string): void {
     try {
       if (!roomInfoEnabled(ctx)) return
-      roomLogEvent(ctx, 'info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || ''), latencyMs: Date.now() - t0, waitedMs: (typeof waitedMs === 'number' && isFinite(waitedMs) && waitedMs > 0) ? Math.floor(waitedMs) : 0, kind: String(kind || 'unknown'), exitCode: typeof exitCode === 'number' ? exitCode : -1 })
+      roomLogEvent(ctx, 'info', 'gh.exec', { argv0: 'gh', via: String(via || ''), cwdHash: hash8(cwd || ''), latencyMs: Date.now() - t0, waitedMs: (typeof waitedMs === 'number' && isFinite(waitedMs) && waitedMs > 0) ? Math.floor(waitedMs) : 0, kind: String(kind || 'unknown'), exitCode: typeof exitCode === 'number' ? exitCode : -1 })
     } catch {}
   }
 
@@ -200,7 +218,7 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
 
   /**
    * 执行 gh 命令，返回 OpResult<{ stdout: string, stderr: string, code: number }>
-   * 不做 JSON 解析；调用方自行 runJson / 解析 .out
+   * 不做 JSON 解析；调用方自行 runJson / 解析 .out。opts.via 只影响 gh.exec 那一行的标签，不影响执行。
    * 失败时 error 的形状是 {kind, message, code}：code 是 gh 的退出码（拿不到时为 -1，例如命令根本没起来）。
    */
   async function execGh(args: string[], opts: GhExecOpts = {}): Promise<GhExecResult> {
@@ -253,7 +271,7 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
     }
     /** 房内到点的统一回执：横幅按超时记，内容说清等了多久、是哪一档。 */
     function selfTimeoutOutcome(): GhExecResult {
-      emitGhExec('network', -1, t0, cwd, slotWaitedMs)
+      emitGhExec('network', -1, t0, cwd, slotWaitedMs, opts.via)
       emitGhTimeout(timeout)
       // 房内到点时执行器还没有交回任何输出，这一处没有原文可交（空串是如实交代，不是漏填）。
       return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: 'gh 在 ' + timeout + ' 毫秒内没有回话（房内分档超时：读 12 秒 / 写 30 秒 / 探活 3 秒），这一笔已经中止', code: -1, timedOut: true, raw: '' } }
@@ -269,20 +287,20 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
     } catch (eAcquire) {
       if (selfTimedOut) { clearDeadline(); return selfTimeoutOutcome() }
       clearDeadline()
-      emitGhExec('cancelled', -1, t0, cwd, slotWaitedMs)
+      emitGhExec('cancelled', -1, t0, cwd, slotWaitedMs, opts.via)
       return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: '已取消排队（出站准入等待中被取消），没有发出请求，可重试', code: -1, cancelled: true, raw: rawText(eAcquire) } }
     }
     try {
     const resolved = await raceDeadline(resolveGh(cwd))
     if (isDeadlineHit(resolved)) return selfTimeoutOutcome()
     if (!resolved.ok) {
-      emitGhExec(resolved.error && resolved.error.kind ? resolved.error.kind : ERROR_KIND.ENV, -1, t0, cwd)
+      emitGhExec(resolved.error && resolved.error.kind ? resolved.error.kind : ERROR_KIND.ENV, -1, t0, cwd, undefined, opts.via)
       // 补上 code: -1，让「失败时 error 里一定有 code」这条形状对所有失败成立（命令根本没跑起来）
       return { ok: false, error: Object.assign({ code: -1 }, resolved.error) }
     }
 
     if (!exec) {
-      emitGhExec('env', -1, t0, cwd)
+      emitGhExec('env', -1, t0, cwd, undefined, opts.via)
       // 这一处是「执行器根本没接上」，没有跑过任何外部命令，没有原文可交。
       return { ok: false, error: { kind: ERROR_KIND.ENV, message: 'ctx.exec unavailable', code: -1, raw: '' } }
     }
@@ -320,13 +338,13 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
         // 交给表的这份事实按「执行结果」的形状写：退出码在那个形状里叫 `code`（`factsFromError` 只认这个键，
         // 写 `exitCode` 会被丢掉，规则就看不着了）。
         const verdict = ghVerdictOf({ code: code, text: factsText }, ctx)
-        emitGhExec(verdict.kind, code, t0, cwd, slotWaitedMs)
+        emitGhExec(verdict.kind, code, t0, cwd, slotWaitedMs, opts.via)
         if (looksTimeout) emitGhTimeout(timeout)
         // #620：退出码要一起交回调用方（调用方与界面都能看出「不是命令自己报的错」）。
         const own = String(stderr || stdout || note).slice(0, 800)
         return { ok: false, error: { kind: verdict.kind, message: ghFailureMessage(verdict, own), code, raw: rawText(result) } }
       }
-      emitGhExec('ok', 0, t0, cwd, slotWaitedMs)
+      emitGhExec('ok', 0, t0, cwd, slotWaitedMs, opts.via)
       // #966 收口：写成功记一笔搭车账，写过东西之后来的探测不搭旧车。
       try { if (bucket === 'write') getChainRide({}).markWrite() } catch {}
       return { ok: true, data: { stdout, stderr, code } }
@@ -337,13 +355,13 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
       if (selfTimedOut) return selfTimeoutOutcome()
       // #969：调用方取消（排队/在飞中被杀）按取消返回，不算失败；其余照旧归一。
       if (isAdmissionCancelled(e) || (signal && signal.aborted === true)) {
-        emitGhExec('cancelled', -1, t0, cwd, slotWaitedMs)
+        emitGhExec('cancelled', -1, t0, cwd, slotWaitedMs, opts.via)
         return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: '已取消（没有发出有效请求，可重试）', code: -1, cancelled: true, raw: rawText(e) } }
       }
       // 抛出来的错误同样只交给规则表判：ctx.exec 抛的 Error 里可能带着 `code`（例如 ENOTFOUND），
       // 那是错误码层认得出的事实，房里不再自己写第二份「像不像网络问题」的说法。
       const verdict = ghVerdictOf(e, ctx)
-      emitGhExec(verdict.kind, -1, t0, cwd, slotWaitedMs)
+      emitGhExec(verdict.kind, -1, t0, cwd, slotWaitedMs, opts.via)
       // 为什么转一下再读：catch 出来是 unknown，直接读 message 会报缺成员；转成最小形状后表达式与原来一字不差，运行时不变。
       const eb = e as { message?: unknown; stderr?: unknown } | null;
       const looksTimeout = isTimeoutText((eb && (eb.message || eb.stderr)) || e) || elapsedMs >= timeout - 50
