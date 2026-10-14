@@ -115,20 +115,28 @@ function fakeRegistry(ids: string[], select?: (handle: unknown, ctx: unknown) =>
 }
 
 /**
- * 读装配处那一段源码：文件今天是 .js，将来转成 .ts 也照样读得到。
+ * 读装配处那一段源码：#1161 把「有哪几个内置房间、按什么顺序注册」收进了唯一装配点
+ * src/tracker/registry/builtins.ts（宿主侧只剩 `loadBuiltinBackendModules()` 一句消费）。
+ * 旧位置（src/host/platformChannel.js/.ts）留着做兜底：装配点将来再搬，这里会读到空、
+ * 下面两条断言当场判红，提醒改门禁的人跟着搬。
  */
 function readAssembly(): string {
-  for (const rel of ['src/host/platformChannel.js', 'src/host/platformChannel.ts']) {
+  for (const rel of ['src/tracker/registry/builtins.ts', 'src/host/platformChannel.js', 'src/host/platformChannel.ts']) {
     try { return readFileSync(join(repoRoot, rel), 'utf8') } catch (e) { /* 换下一个后缀试 */ }
   }
   return ''
 }
 
 /**
- * 从装配源码里读出三个后端**注册调用的先后**：每个 `reg.register(` 之前最近提到的那个房间名，
- * 就是这一次注册的是谁。看注册调用而不是 import 文本，是因为两者可以各自改动。
+ * 从装配源码里读出三个后端**注册的先后**。
+ *
+ * 今天装配点是 src/tracker/registry/builtins.ts：名单写在 `BUILTIN_ROOM_IDS` 里，注册循环按它逐间走，
+ * 所以直接读那份名单。旧写法（platformChannel 里三处 `reg.register(` 各 import 一间房）留作兜底，
+ * 读法不变：每个 `reg.register(` 之前最近提到的那个房间名，就是这一次注册的是谁。
  */
 function registerOrderOf(src: string): string[] {
+  const ids = /BUILTIN_ROOM_IDS[^=]*=\s*\[([^\]]*)\]/.exec(src)
+  if (ids) return [...ids[1].matchAll(/'([a-z]+)'/g)].map((m) => m[1])
   const order: string[] = []
   let at = src.indexOf('reg.register(')
   while (at >= 0) {

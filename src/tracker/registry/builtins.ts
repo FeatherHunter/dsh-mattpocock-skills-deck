@@ -29,10 +29,14 @@ export type BuiltinRoomNamespace = {
 }
 
 /**
- * 内置房间的名单与注册顺序：github → gitlab → markdown。
- * 顺序有意义（注册表按注册序仲裁平局），与搬家前 `platformChannel.js` 里三段 try 块的先后一致。
+ * 内置房间的名单与注册顺序：github → markdown → gitlab。
+ *
+ * 顺序有意义：注册表按注册序仲裁平局，而这个顺序必须与判定层那份明文裁剪顺序
+ * （src/tracker/detection/backendDecision.ts 的 MULTI_CLAIM_ORDER，同样是 github → markdown → gitlab）
+ * 逐位一致 —— 两处不一致时，同一组多命中会得出两种结论。门禁 tests/verify-detection-evidence.ts
+ * 的 D 节读的就是这里，改名单就得同时看那两处。
  */
-export const BUILTIN_ROOM_IDS: readonly BuiltinRoomId[] = ['github', 'gitlab', 'markdown']
+export const BUILTIN_ROOM_IDS: readonly BuiltinRoomId[] = ['github', 'markdown', 'gitlab']
 
 /**
  * 加载一间内置房间的公开面。同一个房间第二次调用命中模块缓存，不会重复求值。

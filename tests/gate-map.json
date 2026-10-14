@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-14T10:38:35.529Z",
+  "generatedAt": "2026-10-14T11:01:00.206Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 245,
   "gateCount": 245,
@@ -969,18 +969,16 @@
       "step": "node tests/verify-1109-matches-timeout.ts",
       "file": "tests/verify-1109-matches-timeout.ts",
       "guards": [
-        "src/host/platformChannel.js",
         "src/host/refresh/wiring.js",
         "tests/lib/deck-decide-stub.js"
       ],
       "dirs": [
-        "src/host",
         "src/host/refresh",
         "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 2 条"
+      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-1115-timer-handle.ts",
@@ -990,7 +988,6 @@
         "src/client/hostShim.js",
         "src/client/kernel/settings-view-write.js",
         "src/host/commentThreads.js",
-        "src/host/platformChannel.js",
         "src/host/refresh/wiring.js",
         "src/host/snapshotBuild.ts",
         "src/host/workspaceCwd.js",
@@ -1008,7 +1005,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；源码里的路径字面量 8 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；源码里的路径字面量 7 条"
     },
     {
       "step": "node tests/verify-1146-virtual-clock-liveness.ts",
@@ -2261,7 +2258,6 @@
       "guards": [
         "src/deck/registration/quota-sync.ts",
         "src/host/git-process.ts",
-        "src/host/platformChannel.js",
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts"
       ],
@@ -2272,7 +2268,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 3 条"
+      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 3 条"
     },
     {
       "step": "node tests/verify-929-batch-cycle.js",
@@ -2746,7 +2742,6 @@
         "src/client/kernel/router.js",
         "src/host/git-process.ts",
         "src/host/logStore.js",
-        "src/host/platformChannel.js",
         "tests/lib/eval-probe.js"
       ],
       "dirs": [
@@ -2756,7 +2751,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 1 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 1 条"
     },
     {
       "step": "node tests/verify-wizard-exit-609.js",
@@ -2847,7 +2842,6 @@
       "file": "tests/verify-968-skill-ondemand.js",
       "guards": [
         "src/host/bootstrap.js",
-        "src/host/platformChannel.js",
         "src/host/skillProbe.js",
         "src/shared/matt-skills.js",
         "src/shared/tracker/check-catalog-views.js"
@@ -2859,7 +2853,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：源码里的路径字面量 5 条"
+      "reason": "归属来自：源码里的路径字面量 4 条"
     },
     {
       "step": "node tests/verify-729-force-dedup.js",
@@ -3713,7 +3707,6 @@
         "src",
         "src/host/git-process.ts",
         "src/host/platform/index.js",
-        "src/host/platformChannel.js",
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
         "src/host/versionControl.js",
@@ -3734,7 +3727,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；源码里的路径字面量 9 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；源码里的路径字面量 8 条"
     },
     {
       "step": "node tests/verify-723-single-refresh-instance.js",
@@ -4396,7 +4389,6 @@
         "src/host/detectChain.ts",
         "src/host/git-process.ts",
         "src/host/outbound/admission.ts",
-        "src/host/platformChannel.js",
         "src/host/skillProbe.js"
       ],
       "dirs": [
@@ -4405,7 +4397,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：源码里的路径字面量 6 条"
+      "reason": "归属来自：源码里的路径字面量 5 条"
     },
     {
       "step": "node tests/verify-948-feedback-map.js",
@@ -4733,20 +4725,22 @@
       "file": "tests/verify-detection-evidence.ts",
       "guards": [
         "docs/agents/issue-tracker.md",
-        "src/host/platformChannel.js",
+        "src/host/platformChannel.ts",
         "src/tracker/contract/contexts.ts",
         "src/tracker/detection/backendDecision.ts",
-        "src/tracker/detection/parseIssueTracker.ts"
+        "src/tracker/detection/parseIssueTracker.ts",
+        "src/tracker/registry/builtins.ts"
       ],
       "dirs": [
         "docs/agents",
         "src/host",
         "src/tracker/contract",
-        "src/tracker/detection"
+        "src/tracker/detection",
+        "src/tracker/registry"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：静态 import 说明符 3 条；源码里的路径字面量 2 条"
+      "reason": "归属来自：静态 import 说明符 3 条；源码里的路径字面量 3 条"
     },
     {
       "step": "node tests/verify-detection-log-reach.ts",
@@ -5573,7 +5567,6 @@
       "node tests/verify-update-panel.js",
       "node tests/verify-parse-leaf.js",
       "node tests/verify-deck-tools-host-wiring.js",
-      "node tests/verify-1109-matches-timeout.ts",
       "node tests/verify-1115-timer-handle.ts",
       "node tests/verify-setup-describe.js",
       "node tests/verify-issue232-sync.js",
@@ -5925,7 +5918,8 @@
       "node tests/verify-683-host-wiring.js",
       "node tests/verify-refresh-workspace-key.js",
       "node tests/verify-723-gate-wiring.js",
-      "node tests/verify-1003-unified-decision.js"
+      "node tests/verify-1003-unified-decision.js",
+      "node tests/verify-detection-evidence.ts"
     ],
     "src/tracker/rooms": [
       "node tests/verify-prompt-newlines.js",
@@ -6426,7 +6420,7 @@
       "src/host/platform/namingSummary.js",
       "src/host/platform/refreshAssembly.js",
       "src/host/platform/win32/index.ts",
-      "src/host/platformChannel.js",
+      "src/host/platformChannel.ts",
       "src/host/publishFlow.ts",
       "src/host/refresh/attention.js",
       "src/host/refresh/chain-ride.ts",
