@@ -147,8 +147,9 @@ async function main() {
   guardSiteMoved('wf.detect 入口规整', "harness.handle('wf.detect'", 1, 6, 'async function handleDetect(', 0, 3);
   guardSiteMovedIn('wf.snapshot 入口规整', "harness.handle('wf.snapshot'", 1, 6, ssf, 'async function handleSnapshot(', 0, 3);
   guardSiteMovedIn('wf.bind 入口规整', "harness.handle('wf.bind'", 1, 8, wcf, 'async function handleBind(', 0, 3)
-  // H6 #450：建仓失效点体已搬到 src/host/publishFlow.js，守卫跟随代码位置（H3 同例）。
-  const pbf = linesOf(path.join('src', 'host', 'publishFlow.js'))
+  // H6 #450：建仓失效点体已搬到 src/host/publishFlow.ts，守卫跟随代码位置（H3 同例）。
+  // #1161 把这份文件从 JavaScript 转成 TypeScript 之后，这里的路径跟着改成新扩展名，否则读不到内容、整条判据会静默失效（读文件抛异常会直接判红）。
+  const pbf = linesOf(path.join('src', 'host', 'publishFlow.ts'))
   const pbfAt = function (tok) { for (let i = 0; i < pbf.length; i++) { if (pbf[i].indexOf(tok) >= 0) return i } return -1 }
   const d1 = idxAt('delete repoKeys[')
   const d1m = pbfAt('delete repoKeys[')

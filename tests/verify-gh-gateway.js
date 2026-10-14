@@ -63,17 +63,19 @@ const REPORT_RE = /noteOutbound\s*\(|ghGate\b|refresh\/gate\.js/
  *   gateway          —— 这个调用点已经在闸后面（正文里把每一笔报给了闸）；
  *   transport-pending —— 真的能起 gh 进程的存量出口，还没接线，必须写 ticket（哪张票接）；
  *   not-github       —— 起的是别的程序（更新安装器、打开文件、另一个平台后端），不是 GitHub 的出口。
+ * 本表是按文件路径登记的：文件改名（含 .js 转成 .ts）之后，这里那一行必须跟着改，否则扫描侧会
+ * 同时报出「未登记的出站调用点 <新名字>」与「过时登记 <旧名字>」成对的两条（#1095、#1147、#1161 都留下过这种对）。
  */
 const EXITS = [
   { file: 'src/host/git-process.ts', role: 'gateway', reason: '宿主侧取数层的执行出口：runGh 起 gh、execProc 起任意命令（含 gh 与 git），全仓绝大多数 GitHub 出站都从这里出去。#723（T19）接线：每一笔真实出站在起进程之前报给闸（reportOutbound）。' },
-  { file: 'src/host/platformChannel.js', role: 'gateway', reason: '操作上下文交给后端的那种 exec 出口（tracker 三个房间与快照那几路都走它）。#723（T19）接线：detectionExec 起进程之前把这一笔报给闸（注入的 gate.noteOutbound）。' },
+  { file: 'src/host/platformChannel.ts', role: 'gateway', reason: '操作上下文交给后端的那种 exec 出口（tracker 三个房间与快照那几路都走它）。#723（T19）接线：detectionExec 起进程之前把这一笔报给闸（注入的 gate.noteOutbound）。' },
   { file: 'src/tracker/rooms/github/client.ts', role: 'gateway', reason: 'GitHub 房间执行 gh 的地方（exec(\'gh\', args) 与 gh --version 探测），最终落到上面两个出口。#723（T19）接线：execGh 与 gh --version 探测都先报给闸（ctx.gate 注进来）。' },
   { file: 'src/host/versionControl.js', role: 'gateway', reason: '版本管理页签三条只读电话起 git 的地方（第一版零网络、不碰 GitHub）。按 repoKeys.js 的先例与 #817 票面要求，每条命令起进程之前都报一笔给闸（reportOutbound），保证「起过几条命令」与账上条数一一对应。' },
   { file: 'src/host/platform/index.js', role: 'not-github', reason: '起的是「打开文件 / 打开文件夹」那条路，不是 GitHub 出站' },
   // #875 薄接线：更新安装器已收进更新包（旧登记两行随文件删除；包内出站由包自带测试覆盖）。
-  { file: 'src/tracker/rooms/gitlab/client.js', role: 'not-github', reason: '起的是 glab（另一个后端），不是 GitHub 的出口' },
+  { file: 'src/tracker/rooms/gitlab/client.ts', role: 'not-github', reason: '起的是 glab（另一个后端），不是 GitHub 的出口' },
   { file: 'src/tracker/rooms/gitlab/index.ts', role: 'not-github', reason: '起的是 git（读远端地址），不是 GitHub 出站' },
-  { file: 'src/tracker/rooms/gitlab/preflight.js', role: 'not-github', reason: '起的是 glab（另一个后端的预检），不是 GitHub 的出口' },
+  { file: 'src/tracker/rooms/gitlab/preflight.ts', role: 'not-github', reason: '起的是 glab（另一个后端的预检），不是 GitHub 的出口' },
 ]
 
 /**
