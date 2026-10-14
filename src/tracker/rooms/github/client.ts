@@ -3,6 +3,8 @@
  *
  * 文件头原写 `backends/github/client.js`，是 #1019 目录归位前的旧路径；#1052 把读路径这一片
  * 的文件头逐个改成今天的真名，并给 gh.exec 补上 via 这一格（本文件也在这一片里）。
+ * 同票续做时又给 gh.exec 补了一格 opId（宿主起这一趟操作的编号，原样取 `ctx.opId`），
+ * 让房间这一层的行能与宿主那层的 host.call 靠同一个键对上；没给编号的调用方记空串，行为不变。
  *
  * 定版依据：#138 §1.3 + #129 平台三底座（BackendContext.platform 已解析实例注入）。
  * - gh 可执行经 `platform.resolveExecutable('gh')`（null → env fail，不抛）
@@ -12,6 +14,8 @@
  * - 返回 OpResult，不 throw；错误经 ghVerdictOf 归一（档位表在 src/tracker/error-rules.ts）
  * - 调用点可以在 opts.via 里给一个短标签（「哪条操作、走到哪一支」），它随常驻 gh.exec 落盘；
  *   标签只在调用点上写死，本层不猜也不推断。没给标签的调用点照常不记，行为与从前一字不差。
+ * - gh.exec 还会记一格 opId，取自 `ctx.opId`（宿主起这一趟操作时生成的编号）。这一格不由调用点给：
+ *   调用点拿不到「这一趟操作」的编号，只有上下文里有；不给编号时记空串，与从前一字不差。
  */
 
 import { ERROR_KIND } from '../../contract/vocabulary.js'
@@ -200,10 +204,14 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
   // #5 gh.exec（信息，常驻）：高频路径，外层先判开关，关闭时不组装字段。
   // #1007 起多记一格 waitedMs：这一笔在名额队列里等了多久（没等就是 0）。
   // 有了这一格，「名额到底有没有挡过路、挡了多久」以后由日志回答，不用再靠猜着调数字。
+  // #1052 起多记一格 opId：宿主起这一趟操作时生成的编号，原样取 ctx.opId。为什么要这一格——
+  // 一趟读会落十几行长得一模一样的 gh.exec，只看这一层分不出哪几行属于同一趟操作；宿主那层的
+  // host.call 也记同一个编号，两层因此能靠一个键对上，不用再按时间戳猜。没给编号就记空串，
+  // 行为与从前一字不差（不给编号的调用方照样正常干活）。
   function emitGhExec(kind: string, exitCode: number, t0: number, cwd: string | undefined, waitedMs?: number, via?: string): void {
     try {
       if (!roomInfoEnabled(ctx)) return
-      roomLogEvent(ctx, 'info', 'gh.exec', { argv0: 'gh', via: String(via || ''), cwdHash: hash8(cwd || ''), latencyMs: Date.now() - t0, waitedMs: (typeof waitedMs === 'number' && isFinite(waitedMs) && waitedMs > 0) ? Math.floor(waitedMs) : 0, kind: String(kind || 'unknown'), exitCode: typeof exitCode === 'number' ? exitCode : -1 })
+      roomLogEvent(ctx, 'info', 'gh.exec', { argv0: 'gh', via: String(via || ''), opId: String((ctx && ctx.opId) || ''), cwdHash: hash8(cwd || ''), latencyMs: Date.now() - t0, waitedMs: (typeof waitedMs === 'number' && isFinite(waitedMs) && waitedMs > 0) ? Math.floor(waitedMs) : 0, kind: String(kind || 'unknown'), exitCode: typeof exitCode === 'number' ? exitCode : -1 })
     } catch {}
   }
 

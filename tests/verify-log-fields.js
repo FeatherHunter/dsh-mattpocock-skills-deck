@@ -27,18 +27,25 @@ const ALLOWED = {
   //   为什么要有：一趟读操作会落好几行字段完全一样的 gh.exec，事后分不出哪行属于哪条操作、走的哪条路。
   //   只写短枚举，票号、仓库地址原文、路径原文一个字都不记。登记册与「读路径调用点必须带标签」那条
   //   断言在 tests/verify-github-gh-via.ts。
-  'gh.exec': ['argv0', 'via', 'cwdHash', 'latencyMs', 'waitedMs', 'kind', 'exitCode'],
+  // 2026-10-14（#1052 续）常驻 #5 `gh.exec` 再增补一格 `opId`：宿主起这一趟操作时生成的编号
+  //   （形状 `<base36 毫秒时间戳>-<base36 计数器>`，例如 mg8xk1p-3），房间原样取 `ctx.opId` 记下来。
+  //   为什么要有：`via` 只回答了「这一行是谁发的」，回答不了「这一行属于哪一趟操作」——同一时间有几趟
+  //   读并行时，光看房间这一层仍然分不清哪几行是一伙的。宿主那层的 host.call / host.call.fail 记同一个
+  //   编号，两层于是能靠一个键对上，不必再按时间戳猜。没给编号的调用方记空串，行为与从前一字不差。
+  'gh.exec': ['argv0', 'via', 'opId', 'cwdHash', 'latencyMs', 'waitedMs', 'kind', 'exitCode'],
   // 2026-10-14（#1052 补做）常驻 #108 `read.degraded`：一条读操作「本来能成、这一趟没成，或者成得不完整」
   //   的结论线，一趟一行（命令成功了、可回包不是合法 JSON / 缺东西 / 游标失效 / 只拿到前几页 / 被上限截断
-  //   这类路，从前一个字都不留）。三个键全是短枚举与数字：op 哪条读操作、reason 为什么、latencyMs 这一趟
-  //   从入口到这里花了多久（毫秒）；票号、命令原文、上游报错原文一个字都不记。发射口在
+  //   这类路，从前一个字都不留）。四个键全是短枚举与数字：op 哪条读操作、reason 为什么、latencyMs 这一趟
+  //   从入口到这里花了多久（毫秒）、opId 这一行属于宿主哪一趟操作（#1052 续补，含义见上面 gh.exec 那一段）；
+  //   票号、命令原文、上游报错原文一个字都不记。发射口在
   //   src/tracker/rooms/github/read-log.ts 的 emitReadDegraded。
-  'read.degraded': ['op', 'reason', 'latencyMs'],
+  'read.degraded': ['op', 'reason', 'latencyMs', 'opId'],
   // 2026-10-14（#1052 补做）常驻 #109 `preflight.gate`：探测那三项门禁每过一项各落一行，第三项过了也落一行。
   //   为什么过了也记：三项门禁落三行长得一样的 gh.exec，没有这一行就读不出「探测走到底了」还是「第一关就没过」。
-  //   三个键：gate 第几项（1 起 gh / 2 登录态 / 3 认得出仓库且连得上接口）、reason 为什么（过了一律写 ok）、
-  //   latencyMs 这一项花了多久。发射口在 src/tracker/rooms/github/read-log.ts 的 emitPreflightGatePass。
-  'preflight.gate': ['gate', 'reason', 'latencyMs'],
+  //   四个键：gate 第几项（1 起 gh / 2 登录态 / 3 认得出仓库且连得上接口）、reason 为什么（过了一律写 ok）、
+  //   latencyMs 这一项花了多久、opId 这一行属于宿主哪一趟操作（#1052 续补）。发射口在
+  //   src/tracker/rooms/github/read-log.ts 的 emitPreflightGatePass。
+  'preflight.gate': ['gate', 'reason', 'latencyMs', 'opId'],
   'gh.timeout': ['argv0', 'timeoutMs'],
   'gh.resolve.fail': ['hasDSH_GH_PATH', 'errorHash'],
   'graphql.fallback': ['scope', 'reason'],
@@ -164,8 +171,18 @@ const ALLOWED = {
   'workspaceKey.canonical': ['rawHash', 'normalizedHash', 'fallback'],
   'platform.resolve': ['name', 'ok', 'latencyMs'],
   'naming.sweep': ['trigger', 'count'],
-  'host.call': ['method', 'latencyMs', 'ok', 'kind', 'pluginId'],
-  'host.call.fail': ['method', 'kind', 'errorHash', 'pluginId', 'errorKind'],
+  'host.call': ['method', 'latencyMs', 'ok', 'kind', 'pluginId', 'opId', 'cwdHash'],
+  // 2026-10-14（#1052 续）`host.call` 与 `host.call.fail` 各增补两格：`opId` 与 `cwdHash`。
+  //   为什么要有：一趟操作在日志里落成两层——宿主这一层说「调了哪条电话、成没成、花了多久」，
+  //   房间那一层（gh.exec / read.degraded）说「里面起了哪几条外部命令、走到哪一支」。两层从前没有
+  //   共同的键，排查时只能按时间戳排；同一时间有几趟读并行就分不清哪几行是一伙的。
+  //   `opId` 是宿主起这一趟时生成的编号（形状 `<base36 毫秒时间戳>-<base36 计数器>`，例如 mg8xk1p-3），
+  //   房间那一层靠 `ctx.opId` 取到同一个值，于是两层能对上；`cwdHash` 与房间那一层同一个算法，
+  //   用来认「这一趟是给哪个目录干的」（两边都只记散列，路径原文一个字都不记）。
+  //   谁在发：本仓每份宿主文件各有一份自己的 phoneLog，各自决定记不记。到 2026-10-14 为止，
+  //   `src/host/mapTickets.js` 这一份已经带上这两格（票面点名的读路径就是它），其余几份按
+  //   「谁动到谁补」的口径走——两格都是可选的，没带的那些照旧只记原来那几个键，行为与从前一字不差。
+  'host.call.fail': ['method', 'kind', 'errorHash', 'pluginId', 'errorKind', 'opId', 'cwdHash'],
   'snapshot.hydrate': ['cwdHash', 'fresh', 'latencyMs', 'source', 'winnerVersion', 'loserVersion', 'outcome'],
   'snapshot.fanout': ['sessionIdHash', 'stale', 'force', 'count'],
   'dedup.hit': ['scope', 'keyHash'],
@@ -305,7 +322,7 @@ const ALLOWED = {
   'log.export.fail': ['op', 'reason', 'errorHash'],
 }
 // 房内三点六个事件的精确字段形状（#494 房内落点，附录 1.4 原文；#1111 按新判档实现订正 error.normalize）：
-// gh.exec 七键（六键照旧，`via` 是 #1052 增补的那一格）、gh.timeout 两键、gh.resolve.fail 两键，
+// gh.exec 八键（六键照旧，`via` 与 `opId` 是 #1052 增补的两格）、gh.timeout 两键、gh.resolve.fail 两键，
 // graphql.fallback 与 issues.fallback 各自两键与三键；error.normalize 必有 rawKind 与 mappedKind 两键，
 // 另外三个码值键（httpCode 状态码、exitCode 退出码、errCode 错误码名）只在真有对应事实时带。
 // 注意本门禁的字段收集器只看得见「调用点上写死的对象字面量」，而 error.normalize 现在由
@@ -317,10 +334,12 @@ const ROOM_SHAPES = {
   //   为什么要有：一趟读操作会落好几行字段完全一样的 gh.exec，事后分不出哪行属于哪条操作、走的哪条路。
   //   只写短枚举，票号、仓库地址原文、路径原文一个字都不记。登记册与「读路径调用点必须带标签」那条
   //   断言在 tests/verify-github-gh-via.ts。
-  'gh.exec': ['argv0', 'via', 'cwdHash', 'latencyMs', 'waitedMs', 'kind', 'exitCode'],
+  // 2026-10-14（#1052 续）再增补一格 `opId`（含义见上面 ALLOWED 里同名的注释段）：
+  //   宿主起这一趟操作时生成的编号，房间原样取 `ctx.opId`；不给编号的调用方记空串。
+  'gh.exec': ['argv0', 'via', 'opId', 'cwdHash', 'latencyMs', 'waitedMs', 'kind', 'exitCode'],
   // 2026-10-14（#1052 补做）房内两条新结论线的形状（字段含义见上面 ALLOWED 里同名的两段注释）。
-  'read.degraded': ['op', 'reason', 'latencyMs'],
-  'preflight.gate': ['gate', 'reason', 'latencyMs'],
+  'read.degraded': ['op', 'reason', 'latencyMs', 'opId'],
+  'preflight.gate': ['gate', 'reason', 'latencyMs', 'opId'],
   'gh.timeout': ['argv0', 'timeoutMs'],
   'gh.resolve.fail': ['hasDSH_GH_PATH', 'errorHash'],
   'graphql.fallback': ['scope', 'reason'],

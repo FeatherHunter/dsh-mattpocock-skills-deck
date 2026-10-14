@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-14T11:40:15.878Z",
+  "generatedAt": "2026-10-14T12:13:33.724Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 246,
   "gateCount": 246,
   "attributedGates": 217,
   "unattributedGates": 29,
   "buildOutputOnlyGates": 20,
-  "graphFileCount": 531,
+  "graphFileCount": 532,
   "gates": [
     {
       "step": "node tests/verify-596-rpc-carrier.js",
@@ -92,7 +92,7 @@
         "src/host",
         "src/tracker/rooms",
         "src/tracker/rooms/github/index.ts",
-        "tests/lib/eval-probe.js",
+        "tests/lib/eval-probe.ts",
         "tests/prompt-gate-exempt.json",
         "tests/prompt-gate-payloads.json",
         "tests/verify-prompts.js"
@@ -118,7 +118,7 @@
       "file": "tests/verify-progress.js",
       "guards": [
         "src/host/mapBody.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "src/host",
@@ -200,7 +200,7 @@
         "src/shared/label-color/ports.js",
         "src/shared/label-color/prompt.js",
         "src/shared/label-color/src/ports.ts",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "src/client/kernel",
@@ -298,7 +298,7 @@
       "guards": [
         "package/lib/client.js",
         "scripts/generated/updateEntryPanel.bundle.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "package/lib",
@@ -349,7 +349,7 @@
       "file": "tests/verify-naming-title-fact.js",
       "guards": [
         "src/host/refresh/wiring.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "src/host/refresh",
@@ -368,7 +368,7 @@
         "src/client/kernel/api-naming.js",
         "src/client/kernel/api-new-session.js",
         "src/client/kernel/api-workspace.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "package/lib",
@@ -389,7 +389,7 @@
         "src/client/kernel/api-new-session.js",
         "src/client/kernel/api-preset-guard.js",
         "src/client/kernel/api-workspace.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "package/lib",
@@ -409,7 +409,7 @@
         "src/client/kernel/api-naming.js",
         "src/client/kernel/api-new-session.js",
         "src/client/kernel/api-workspace.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "package/lib",
@@ -455,7 +455,7 @@
         "src/client/views/NoRepoCard.js",
         "src/client/views/SetupCard.js",
         "src/shared/tracker/guide-steps.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "docs/agents",
@@ -654,11 +654,12 @@
         "package/package.json",
         "scripts/build.mjs",
         "src/host/index.js",
+        "src/host/issueDetail.ts",
         "src/host/issueList.js",
         "src/host/mapBody.js",
         "src/host/ticketGrouping.js",
         "src/tracker/body-parse.ts",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "package",
@@ -670,7 +671,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 9 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 10 条"
     },
     {
       "step": "node tests/verify-tabsfold-leaf.js",
@@ -682,7 +683,7 @@
         "src/client/index.js",
         "src/client/kernel/ctx.js",
         "src/client/kernel/tabsfold.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "package",
@@ -763,6 +764,7 @@
         "examples/demo-mini/matches.js",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/github/normalize.ts",
+        "src/tracker/rooms/gitlab/normalize.ts",
         "tests/tracker-contract/fixtures/compliant.js",
         "tests/tracker-contract/fixtures/demo.js",
         "tests/tracker-contract/fixtures/gitlab.js",
@@ -785,6 +787,7 @@
         "examples/demo-mini/fixtures/demo-real",
         "src/tracker/registry",
         "src/tracker/rooms/github",
+        "src/tracker/rooms/gitlab",
         "tests/tracker-contract",
         "tests/tracker-contract/fixtures",
         "tests/tracker-contract/runner",
@@ -792,7 +795,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 5 条；静态 import 说明符 16 条；源码里的路径字面量 1 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 6 条；静态 import 说明符 16 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-gitlab-single-write.js",
@@ -944,6 +947,7 @@
       "guards": [
         "src/host",
         "src/host/platform",
+        "src/host/refresh/ledger.ts",
         "src/host/refresh/wiring.js",
         "src/seam",
         "src/shared",
@@ -963,22 +967,24 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 7 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 8 条"
     },
     {
       "step": "node tests/verify-1109-matches-timeout.ts",
       "file": "tests/verify-1109-matches-timeout.ts",
       "guards": [
+        "src/host/platformChannel.ts",
         "src/host/refresh/wiring.js",
         "tests/lib/deck-decide-stub.js"
       ],
       "dirs": [
+        "src/host",
         "src/host/refresh",
         "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 1 条"
+      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 2 条"
     },
     {
       "step": "node tests/verify-1115-timer-handle.ts",
@@ -988,6 +994,7 @@
         "src/client/hostShim.js",
         "src/client/kernel/settings-view-write.js",
         "src/host/commentThreads.js",
+        "src/host/platformChannel.ts",
         "src/host/refresh/wiring.js",
         "src/host/snapshotBuild.ts",
         "src/host/workspaceCwd.js",
@@ -1005,18 +1012,20 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；源码里的路径字面量 7 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；源码里的路径字面量 8 条"
     },
     {
       "step": "node tests/verify-1146-virtual-clock-liveness.ts",
       "file": "tests/verify-1146-virtual-clock-liveness.ts",
       "guards": [
         "scripts/ts-hook.mjs",
+        "tests/lib/time-compress.ts",
         "tests/verify-1146-virtual-clock-liveness.ts"
       ],
       "dirs": [
         "scripts",
-        "tests"
+        "tests",
+        "tests/lib"
       ],
       "unattributed": true,
       "buildOutputOnly": false,
@@ -1037,7 +1046,8 @@
         "src/tracker/registry/shape.ts",
         "src/tracker/rooms/markdown/index.ts",
         "src/tracker/rooms/markdown/write.ts",
-        "tests/lib/deck-decide-stub.js"
+        "tests/lib/deck-decide-stub.js",
+        "tests/lib/time-compress.ts"
       ],
       "dirs": [
         "src/deck/shell",
@@ -1050,7 +1060,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 11 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 11 条"
     },
     {
       "step": "node tests/verify-895-bulk-deadline.js",
@@ -1063,7 +1073,8 @@
         "src/deck/tools/map-snapshot.ts",
         "src/shared/refresh/budget.js",
         "src/shared/refresh/tool-cost.js",
-        "tests/lib/deck-decide-stub.js"
+        "tests/lib/deck-decide-stub.js",
+        "tests/lib/time-compress.ts"
       ],
       "dirs": [
         "src/deck/shell",
@@ -1073,7 +1084,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 7 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 7 条"
     },
     {
       "step": "node tests/verify-895-github-memo.js",
@@ -1103,7 +1114,8 @@
         "src/deck/tools/map-plan-create.ts",
         "src/shared/refresh/budget.js",
         "src/shared/refresh/tool-cost.js",
-        "tests/lib/deck-decide-stub.js"
+        "tests/lib/deck-decide-stub.js",
+        "tests/lib/time-compress.ts"
       ],
       "dirs": [
         "src/deck/shell",
@@ -1113,7 +1125,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 5 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 5 条"
     },
     {
       "step": "node tests/verify-971-markdown-parent.js",
@@ -1234,7 +1246,8 @@
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
         "src/shared/refresh/budget.js",
-        "tests/lib/deck-decide-stub.js"
+        "tests/lib/deck-decide-stub.js",
+        "tests/lib/time-compress.ts"
       ],
       "dirs": [
         "src/deck/registration",
@@ -1245,7 +1258,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 9 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 9 条"
     },
     {
       "step": "node tests/verify-deck-parallel.js",
@@ -1495,7 +1508,7 @@
         "src/client/kernel/locale-flow.js",
         "src/client/views/MapDetail.js",
         "src/client/views/shared/chips.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "package/lib",
@@ -1516,6 +1529,7 @@
         "src/host/detectChain.ts",
         "src/host/git-process.ts",
         "src/host/index.js",
+        "src/host/publishFlow.ts",
         "src/host/sessionSnapshot.ts",
         "src/host/workspaceCwd.js",
         "src/host/workspaceKey.js",
@@ -1527,7 +1541,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 7 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 8 条"
     },
     {
       "step": "node tests/verify-panel-workspace-shared.js",
@@ -1616,7 +1630,7 @@
       "file": "tests/verify-nav-stack.js",
       "guards": [
         "src/client/kernel/store-prefs.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "src/client/kernel",
@@ -1639,7 +1653,7 @@
         "src/client/views/MapDetail.js",
         "src/client/views/SkillsTab.js",
         "src/tracker/identity-keys.ts",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "package/lib",
@@ -1902,7 +1916,7 @@
       "file": "tests/verify-capsule-narrow.js",
       "guards": [
         "package/lib/client.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "package/lib",
@@ -1922,7 +1936,7 @@
         "src/client/statusbar/capFold.js",
         "src/client/statusbar/capFoldMachine.js",
         "tests/lib/browser-pool.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "package/lib",
@@ -1941,7 +1955,7 @@
         "src/client/statusbar/StatusBar.js",
         "src/client/statusbar/capFold.js",
         "src/client/statusbar/capFoldMachine.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "src/client/statusbar",
@@ -2258,6 +2272,7 @@
       "guards": [
         "src/deck/registration/quota-sync.ts",
         "src/host/git-process.ts",
+        "src/host/platformChannel.ts",
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts"
       ],
@@ -2268,7 +2283,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 3 条"
+      "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 3 条"
     },
     {
       "step": "node tests/verify-929-batch-cycle.js",
@@ -2349,7 +2364,7 @@
         "src/client/kernel/log.js",
         "src/client/kernel/probe-snapshot.js",
         "src/client/panelAssembly.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "package/lib",
@@ -2367,7 +2382,7 @@
       "file": "tests/verify-log-switch-526.js",
       "guards": [
         "src/client/kernel/log.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "src/client/kernel",
@@ -2381,7 +2396,7 @@
       "step": "node tests/verify-log-switch-597.js",
       "file": "tests/verify-log-switch-597.js",
       "guards": [
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "tests/lib"
@@ -2437,7 +2452,8 @@
         "research/489-appendix.md",
         "src/client/kernel/log.js",
         "src/host/logStore.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts",
+        "tests/lib/time-compress.ts"
       ],
       "dirs": [
         "research",
@@ -2447,7 +2463,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 1 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 2 条"
     },
     {
       "step": "node tests/verify-log-artifacts.js",
@@ -2481,7 +2497,7 @@
         "scripts/generated/updateClient.derived.js",
         "src/shared/label-color/colors.js",
         "src/shared/label-color/prompt.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "package/lib",
@@ -2532,7 +2548,7 @@
       "file": "tests/verify-issue529-checks-i18n.js",
       "guards": [
         "src/client/views/ChecksTab.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "src/client/views",
@@ -2585,7 +2601,8 @@
         "src/client/statusbar/bannerChain.js",
         "src/shared/tracker/guide-steps.js",
         "src/shared/workspaceKey.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts",
+        "tests/lib/time-compress.ts"
       ],
       "dirs": [
         "src/client/kernel",
@@ -2596,7 +2613,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 7 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 7 条"
     },
     {
       "step": "node tests/verify-index-window.js",
@@ -2656,7 +2673,7 @@
         "src/host/tracker/snapshot.js",
         "src/tracker/identity-keys.ts",
         "src/tracker/rooms/markdown/index.ts",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "scripts/lib",
@@ -2681,7 +2698,7 @@
         "src/client/kernel/router.js",
         "src/client/panelAssembly.js",
         "src/client/views/SettingsPage.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "package/lib",
@@ -2742,7 +2759,8 @@
         "src/client/kernel/router.js",
         "src/host/git-process.ts",
         "src/host/logStore.js",
-        "tests/lib/eval-probe.js"
+        "src/host/platformChannel.ts",
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "src/client/kernel",
@@ -2751,7 +2769,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 1 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 1 条"
     },
     {
       "step": "node tests/verify-wizard-exit-609.js",
@@ -2775,7 +2793,7 @@
         "src/client/panel/DockSync.js",
         "src/client/views/SubworkspaceMark.js",
         "src/shared/workspaceKey.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "package/lib",
@@ -2797,6 +2815,7 @@
         "src/client/kernel/store-prefs.js",
         "src/client/kernel/store-snapshot.js",
         "src/deck/shell/workspace-anchor.ts",
+        "src/host/remotePredicates.ts",
         "src/host/workspaceCwd.js",
         "src/host/workspaceKey.js",
         "src/shared/workspaceKey.js",
@@ -2805,7 +2824,7 @@
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/markdown/label-colors.ts",
         "src/tracker/rooms/markdown/path.ts",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "docs/agents",
@@ -2820,7 +2839,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 12 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 13 条"
     },
     {
       "step": "node tests/verify-696-shared-cache.js",
@@ -2842,6 +2861,7 @@
       "file": "tests/verify-968-skill-ondemand.js",
       "guards": [
         "src/host/bootstrap.js",
+        "src/host/platformChannel.ts",
         "src/host/skillProbe.js",
         "src/shared/matt-skills.js",
         "src/shared/tracker/check-catalog-views.js"
@@ -2853,7 +2873,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：源码里的路径字面量 4 条"
+      "reason": "归属来自：源码里的路径字面量 5 条"
     },
     {
       "step": "node tests/verify-729-force-dedup.js",
@@ -2894,7 +2914,7 @@
         "src/client/views/SubworkspaceMark.js",
         "src/host/sessionLifecycle.js",
         "src/host/workspaceKey.js",
-        "tests/lib/eval-probe.js",
+        "tests/lib/eval-probe.ts",
         "tests/lib/render-subws-mark.js"
       ],
       "dirs": [
@@ -2929,7 +2949,7 @@
         "src/client/statusbar/StatusBackend.js",
         "src/client/statusbar/bannerChain.js",
         "src/shared/tracker/guide-steps.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "package/lib",
@@ -2951,7 +2971,7 @@
         "src/shared/tracker/guide-steps.js",
         "src/tracker/fix-contract.ts",
         "src/tracker/rooms/github/index.ts",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "src/client/kernel",
@@ -2972,7 +2992,7 @@
         "package/lib/client.js",
         "src/client/statusbar/StatusBar.js",
         "src/client/views/ChecksTab.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "package/lib",
@@ -3006,7 +3026,7 @@
         "src/client/kernel/store-prefs.js",
         "src/client/statusbar/StatusBackend.js",
         "src/client/views/ChecksTab.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "src/client/kernel",
@@ -3024,7 +3044,8 @@
       "guards": [
         "package/lib/client.js",
         "tests/lib/browser-pool.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts",
+        "tests/lib/time-compress.ts"
       ],
       "dirs": [
         "package/lib",
@@ -3044,7 +3065,7 @@
         "src/client/kernel/probe-stale.js",
         "src/client/kernel/store-prefs.js",
         "tests/lib/browser-pool.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "package/lib",
@@ -3066,18 +3087,16 @@
         "src/client/kernel/store-snapshot.js",
         "src/client/kernel/store-switch.js",
         "src/client/statusbar/StatusBackend.js",
-        "src/host/workspaceKey.js",
         "src/shared/tracker/guide-steps.js",
         "src/tracker/detection/detectionService.ts",
-        "src/tracker/detection/explicitDetector.ts",
+        "src/tracker/detection/selection-precedence.ts",
         "src/tracker/registry/core.ts",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "docs/agents",
         "src/client/kernel",
         "src/client/statusbar",
-        "src/host",
         "src/shared/tracker",
         "src/tracker/detection",
         "src/tracker/registry",
@@ -3085,29 +3104,24 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；静态 import 说明符 1 条；源码里的路径字面量 10 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；静态 import 说明符 1 条；源码里的路径字面量 9 条"
     },
     {
       "step": "node tests/verify-issue297.js",
       "file": "tests/verify-issue297.js",
       "guards": [
-        "src/host/workspaceKey.js",
         "src/tracker/detection/backendDecision.ts",
         "src/tracker/detection/detectionService.ts",
-        "src/tracker/detection/explicitDetector.ts",
         "src/tracker/detection/workspaceStore.ts",
-        "src/tracker/registry/core.ts",
-        "tests/lib/eval-probe.js"
+        "src/tracker/registry/core.ts"
       ],
       "dirs": [
-        "src/host",
         "src/tracker/detection",
-        "src/tracker/registry",
-        "tests/lib"
+        "src/tracker/registry"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：静态 import 说明符 5 条；源码里的路径字面量 3 条"
+      "reason": "归属来自：静态 import 说明符 4 条"
     },
     {
       "step": "node tests/verify-665-fresh-workspace-chain.js",
@@ -3127,7 +3141,7 @@
         "src/shared/tracker/guide-steps.js",
         "src/tracker/rooms/github/index.ts",
         "src/tracker/rooms/markdown/index.ts",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "package/lib",
@@ -3169,7 +3183,7 @@
         "src/client/kernel/icons.js",
         "src/client/panel/headFold.js",
         "tests/lib/browser-pool.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "package/lib",
@@ -3199,7 +3213,7 @@
       "file": "tests/verify-683-mirror-write.js",
       "guards": [
         "src/client/kernel/store-prefs.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "src/client/kernel",
@@ -3216,7 +3230,7 @@
         "src",
         "src/client/kernel/prompts.js",
         "src/client/kernel/store-prefs.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "src",
@@ -3238,12 +3252,11 @@
         "src/host/choiceStore.js",
         "src/host/sessionSnapshot.ts",
         "src/host/workspaceCwd.js",
-        "src/host/workspaceKey.js",
         "src/tracker/detection/backendDecision.ts",
         "src/tracker/detection/detectionService.ts",
-        "src/tracker/detection/explicitDetector.ts",
+        "src/tracker/detection/selection-precedence.ts",
         "src/tracker/registry/core.ts",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "docs/agents",
@@ -3256,7 +3269,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 1 条；源码里的路径字面量 8 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 1 条；源码里的路径字面量 7 条"
     },
     {
       "step": "node tests/verify-685-healthcheck-button.js",
@@ -3297,7 +3310,7 @@
         "src/client/kernel/store-switch.js",
         "src/client/statusbar/StatusBackend.js",
         "src/shared/tracker/guide-steps.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "src/client/kernel",
@@ -3328,7 +3341,7 @@
       "guards": [
         "src/client/kernel/issue-pages.js",
         "src/host/issuePage.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "src/client/kernel",
@@ -3443,7 +3456,7 @@
         "src/shared/version-control/rules.js",
         "src/shared/version-control/state.js",
         "tests/fixtures/version-control/live-numstat-shapes.json",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "src/client/kernel",
@@ -3465,7 +3478,7 @@
         "src/client/kernel/locale-panel.js",
         "src/client/views/versionControl/vcBlocks.js",
         "src/client/views/versionControl/vcInView.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "src/client/kernel",
@@ -3634,7 +3647,7 @@
         "src/client/views/shared/truthLines.js",
         "src/host/snapshotEnvelope.ts",
         "src/shared/refresh/budget.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "scripts/lib",
@@ -3656,7 +3669,7 @@
         "src/client/kernel/locale-flow.js",
         "src/client/kernel/locale-word.js",
         "src/client/views/shared/truthLines.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "package/lib",
@@ -3676,7 +3689,7 @@
         "src/client/kernel",
         "src/client/views/shared/truthLines.js",
         "src/tracker/rooms/github/fallback-reason.ts",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "package/lib",
@@ -3728,11 +3741,14 @@
         "src",
         "src/host/git-process.ts",
         "src/host/platform/index.js",
+        "src/host/platformChannel.ts",
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
         "src/host/versionControl.js",
         "src/tracker/rooms/github/client.ts",
+        "src/tracker/rooms/gitlab/client.ts",
         "src/tracker/rooms/gitlab/index.ts",
+        "src/tracker/rooms/gitlab/preflight.ts",
         "tests/fixtures/gh-gateway",
         "tests/fixtures/gh-gateway/compliant.registry.json",
         "tests/fixtures/gh-gateway/violating.registry.json"
@@ -3748,7 +3764,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；源码里的路径字面量 8 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；源码里的路径字面量 11 条"
     },
     {
       "step": "node tests/verify-723-single-refresh-instance.js",
@@ -3842,18 +3858,20 @@
         "src/shared/refresh/backoff.js",
         "src/shared/refresh/budget.js",
         "src/tracker/detection/detectionService.ts",
-        "src/tracker/rooms/github/index.ts"
+        "src/tracker/rooms/github/index.ts",
+        "tests/lib/time-compress.ts"
       ],
       "dirs": [
         "src/host",
         "src/host/refresh",
         "src/shared/refresh",
         "src/tracker/detection",
-        "src/tracker/rooms/github"
+        "src/tracker/rooms/github",
+        "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 6 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；静态 import 说明符 1 条；源码里的路径字面量 6 条"
     },
     {
       "step": "node tests/verify-chain-view.js",
@@ -3867,7 +3885,7 @@
         "src/host/refresh/sessionTickets.js",
         "src/shared/refresh/chain.js",
         "src/tracker/identity-keys.ts",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "scripts/lib",
@@ -3894,7 +3912,7 @@
         "src/client/views/shared/sessionChainView.js",
         "tests/fixtures/chain-view-ui-probe.js",
         "tests/lib/browser-pool.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "package/lib",
@@ -3986,7 +4004,7 @@
         "src/client/kernel/probe-chain.js",
         "src/host/index.js",
         "src/seam/rpc.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "src/client/kernel",
@@ -4131,7 +4149,7 @@
         "src/client/statusbar/SessionChainCapsule.js",
         "src/client/statusbar/capFold.js",
         "src/shared/refresh/chain.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "src/client/kernel",
@@ -4238,7 +4256,7 @@
         "src/shared/version-control/push-plan.js",
         "src/shared/version-control/rules.js",
         "src/shared/version-control/write-reasons.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "src/client/kernel",
@@ -4273,7 +4291,7 @@
         "src/host/refresh/sessionChainReadout.js",
         "src/host/snapshotEnvelope.ts",
         "src/host/tracker/snapshot.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "src/client/kernel",
@@ -4410,15 +4428,18 @@
         "src/host/detectChain.ts",
         "src/host/git-process.ts",
         "src/host/outbound/admission.ts",
-        "src/host/skillProbe.js"
+        "src/host/platformChannel.ts",
+        "src/host/skillProbe.js",
+        "tests/lib/time-compress.ts"
       ],
       "dirs": [
         "src/host",
-        "src/host/outbound"
+        "src/host/outbound",
+        "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：源码里的路径字面量 5 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 6 条"
     },
     {
       "step": "node tests/verify-948-feedback-map.js",
@@ -4569,7 +4590,7 @@
       "file": "tests/verify-workspace-file-note.js",
       "guards": [
         "src/client/kernel/store-prefs.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts"
       ],
       "dirs": [
         "src/client/kernel",
@@ -4596,8 +4617,9 @@
         "src/host/configStore.js",
         "src/host/settingsPhones.js",
         "src/shared/workspaceKey.js",
-        "tests/lib/eval-probe.js",
-        "tests/lib/render-subws-mark.js"
+        "tests/lib/eval-probe.ts",
+        "tests/lib/render-subws-mark.js",
+        "tests/lib/time-compress.ts"
       ],
       "dirs": [
         "package/lib",
@@ -4611,7 +4633,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 9 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 9 条"
     },
     {
       "step": "node tests/verify-settings-templates.js",
@@ -4631,7 +4653,8 @@
         "src/host/configStore.js",
         "src/host/settingsPhones.js",
         "src/shared/workspaceKey.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts",
+        "tests/lib/time-compress.ts"
       ],
       "dirs": [
         "package/lib",
@@ -4644,7 +4667,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 11 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 11 条"
     },
     {
       "step": "node tests/verify-settings-debug.js",
@@ -4667,7 +4690,8 @@
         "src/host/configStore.js",
         "src/host/settingsPhones.js",
         "src/shared/workspaceKey.js",
-        "tests/lib/eval-probe.js"
+        "tests/lib/eval-probe.ts",
+        "tests/lib/time-compress.ts"
       ],
       "dirs": [
         "package/lib",
@@ -4684,7 +4708,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 13 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 13 条"
     },
     {
       "step": "node tests/verify-1003-single-outlet.js",
@@ -4958,7 +4982,8 @@
         "src/tracker/error-rules.ts",
         "src/tracker/rooms",
         "src/tracker/rooms/github/errors.ts",
-        "src/tracker/rooms/gitlab/errors.ts"
+        "src/tracker/rooms/gitlab/errors.ts",
+        "tests/fixtures/error-samples.ts"
       ],
       "dirs": [
         "docs/adr",
@@ -4966,11 +4991,12 @@
         "src/tracker/contract",
         "src/tracker/rooms",
         "src/tracker/rooms/github",
-        "src/tracker/rooms/gitlab"
+        "src/tracker/rooms/gitlab",
+        "tests/fixtures"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 5 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 5 条"
     },
     {
       "step": "node tests/verify-error-normalize-log.ts",
@@ -4981,6 +5007,7 @@
         "src/tracker/error-rules.ts",
         "src/tracker/preflight.ts",
         "src/tracker/rooms/github/errors.ts",
+        "src/tracker/rooms/gitlab/errors.ts",
         "src/tracker/rooms/markdown"
       ],
       "dirs": [
@@ -4988,11 +5015,12 @@
         "src/tracker",
         "src/tracker/detection",
         "src/tracker/rooms/github",
+        "src/tracker/rooms/gitlab",
         "src/tracker/rooms/markdown"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：源码里的路径字面量 6 条"
+      "reason": "归属来自：源码里的路径字面量 7 条"
     },
     {
       "step": "node tests/verify-1053-issue-write.ts",
@@ -5591,6 +5619,7 @@
       "node tests/verify-update-panel.js",
       "node tests/verify-parse-leaf.js",
       "node tests/verify-deck-tools-host-wiring.js",
+      "node tests/verify-1109-matches-timeout.ts",
       "node tests/verify-1115-timer-handle.ts",
       "node tests/verify-setup-describe.js",
       "node tests/verify-issue232-sync.js",
@@ -5616,8 +5645,6 @@
       "node tests/verify-968-skill-ondemand.js",
       "node tests/verify-729-force-dedup.js",
       "node tests/verify-666-subws-mark-root.js",
-      "node tests/verify-669-choice-precedence.js",
-      "node tests/verify-issue297.js",
       "node tests/verify-683-choice-store.js",
       "node tests/verify-683-host-wiring.js",
       "node tests/verify-690-closed-pages.js",
@@ -5986,6 +6013,7 @@
       "node tests/verify-github-gh-via.ts"
     ],
     "src/tracker/rooms/gitlab": [
+      "node tests/verify-tracker-contract.js",
       "node tests/verify-gitlab-single-write.js",
       "node tests/verify-deck-tools-matrix.js",
       "node tests/verify-no-mixed-session.js",
@@ -5994,7 +6022,8 @@
       "node tests/verify-gh-gateway.js",
       "node tests/verify-ui-description-single-source.ts",
       "node tests/verify-error-raw-samples.ts",
-      "node tests/verify-error-rule-samples.ts"
+      "node tests/verify-error-rule-samples.ts",
+      "node tests/verify-error-normalize-log.ts"
     ],
     "src/tracker/rooms/markdown": [
       "node tests/verify-deck-tools.js",
@@ -6036,7 +6065,8 @@
       "node tests/verify-gate-map.js"
     ],
     "tests/fixtures": [
-      "node tests/verify-chain-view-ui.js"
+      "node tests/verify-chain-view-ui.js",
+      "node tests/verify-error-rule-samples.ts"
     ],
     "tests/fixtures/deck-event-gate": [
       "node tests/verify-deck-event-gate.mjs"
@@ -6071,6 +6101,7 @@
       "node tests/verify-829-parent-reread.js",
       "node tests/verify-deck-tools-host-wiring.js",
       "node tests/verify-1109-matches-timeout.ts",
+      "node tests/verify-1146-virtual-clock-liveness.ts",
       "node tests/verify-934-935-invariants.js",
       "node tests/verify-895-bulk-deadline.js",
       "node tests/verify-898-block-merge.js",
@@ -6113,7 +6144,6 @@
       "node tests/verify-669-collapsed-recoverable.js",
       "node tests/verify-669-switch-visible.js",
       "node tests/verify-669-choice-precedence.js",
-      "node tests/verify-issue297.js",
       "node tests/verify-665-fresh-workspace-chain.js",
       "node tests/verify-667-dock-header-no-brand.js",
       "node tests/verify-683-mirror-write.js",
@@ -6127,6 +6157,7 @@
       "node tests/verify-visible-truth.js",
       "node tests/verify-rest-fallback-banner.js",
       "node tests/verify-rest-fallback-reason.ts",
+      "node tests/verify-709-no-self-continuing-timers.js",
       "node tests/verify-chain-view.js",
       "node tests/verify-chain-view-ui.js",
       "node tests/verify-refresh-workspace-key.js",
@@ -6135,6 +6166,7 @@
       "node tests/verify-chain-capsule.js",
       "node tests/verify-842-version-control-write-view.js",
       "node tests/verify-907-chain-titles.js",
+      "node tests/verify-963-log-order.js",
       "node tests/verify-workspace-file-note.js",
       "node tests/verify-settings-view.js",
       "node tests/verify-settings-templates.js",
@@ -6161,9 +6193,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 540,
+    "fileCount": 541,
     "dirCount": 50,
-    "coveredFileCount": 540,
+    "coveredFileCount": 541,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 49,
@@ -6626,6 +6658,7 @@
       "src/tracker/detection/explicitDetector.ts",
       "src/tracker/detection/parseIssueTracker.ts",
       "src/tracker/detection/preflightScope.ts",
+      "src/tracker/detection/selection-precedence.ts",
       "src/tracker/detection/workspace-ownership.ts",
       "src/tracker/detection/workspaceStore.ts",
       "src/tracker/error-rules.ts",

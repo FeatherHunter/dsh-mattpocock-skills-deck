@@ -268,6 +268,8 @@ console.log('== 六、真跑一段：标签确实落进了 gh.exec 那一行（�
 const EVENT_LOG: Array<{ level: string; event: string; fields: Record<string, unknown> }> = []
 const FAKE_CTX = {
   cwd: 'D:\\fake-workspace',
+  // #1052 续：宿主起这一趟操作时生成的编号，房间原样记进 gh.exec；这一段断的就是它有没有真落进去。
+  opId: 'testop-7',
   signal: new AbortController().signal,
   platform: {
     resolveExecutable: () => 'gh',
@@ -291,9 +293,11 @@ for (const r of runs) {
   if (!res.ok || ghEvents.length !== 1) { runOk = false; check(false, '用 via=' + r.tag + ' 跑一笔：应当成功且只落一行 gh.exec（实得 ok=' + res.ok + '、行数 ' + ghEvents.length + '）'); continue }
   const f = ghEvents[0].fields
   check(f.via === r.tag, '真跑一笔：gh.exec 的 via 就是 ' + r.tag + '（实得 ' + JSON.stringify(f.via) + '）')
-  check(JSON.stringify(Object.keys(f).sort()) === JSON.stringify(['argv0', 'cwdHash', 'exitCode', 'kind', 'latencyMs', 'via', 'waitedMs']),
-    '真跑一笔：gh.exec 的字段恰好是登记的那七格（实得 ' + Object.keys(f).sort().join('、') + '）')
+  check(JSON.stringify(Object.keys(f).sort()) === JSON.stringify(['argv0', 'cwdHash', 'exitCode', 'kind', 'latencyMs', 'opId', 'via', 'waitedMs']),
+    '真跑一笔：gh.exec 的字段恰好是登记的那八格（实得 ' + Object.keys(f).sort().join('、') + '）')
   check(f.exitCode === 0 && f.kind === 'ok', '真跑一笔：成功这一笔记的是退出码 0 与 kind=ok')
+  // #1052 续：编号取自上下文（调用点给不了它），落进 gh.exec 之后才能与宿主那层 host.call 对上。
+  check(f.opId === 'testop-7', '真跑一笔：gh.exec 记下了上下文里的操作编号（实得 ' + JSON.stringify(f.opId) + '）')
 }
 // 不给标签的调用点：照旧落一行，via 记空串（不是「这一格没写」，而是如实说没给）。
 EVENT_LOG.length = 0

@@ -148,7 +148,7 @@ function ms(latencyMs: unknown): number {
 export function emitReadDegraded(ctx: OpContext | null | undefined, op: string, reason: string, latencyMs: unknown): void {
   try {
     if (!ctx || typeof ctx.logEvent !== 'function') return
-    ctx.logEvent('warn', 'read.degraded', { op: String(op || ''), reason: String(reason || ''), latencyMs: ms(latencyMs) })
+    ctx.logEvent('warn', 'read.degraded', { op: String(op || ''), reason: String(reason || ''), latencyMs: ms(latencyMs), opId: String(ctx.opId || '') })
   } catch {}
 }
 
@@ -166,7 +166,7 @@ export function emitPreflightGatePass(ctx: OpContext | null | undefined, gate: n
   try {
     if (!ctx || typeof ctx.logEvent !== 'function') return
     if (!isPreflightGate(gate)) return
-    ctx.logEvent('warn', 'preflight.gate', { gate: gate, reason: 'ok', latencyMs: ms(latencyMs) })
+    ctx.logEvent('warn', 'preflight.gate', { gate: gate, reason: 'ok', latencyMs: ms(latencyMs), opId: String(ctx.opId || '') })
   } catch {}
 }
 
