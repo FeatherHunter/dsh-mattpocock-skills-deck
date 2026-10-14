@@ -322,20 +322,26 @@ export async function run() {
     await assert('真实 gitlab 后端：总数来自同房的 counts（每条读多问一次 issues_statistics，这是本房的设计代价）', s1.calls.length === 2 && s1.calls[1].indexOf('/issues_statistics?') >= 0, JSON.stringify(s1.calls))
 
     // ② 游标原样回传 → 下一页；取不满 → 翻到底
-    const p2 = await gl.listPage(ref('gitlab'), { state: 'closed' }, { cursor: p1.data.nextCursor, limit: 2 }, glProbeCtx(s1))
+    //   先钉一句「上一页真的成功了」：下面几处都要读 p1.data.nextCursor。少了这句守卫，换成一个
+    //   一律返回失败的空壳时整段会抛 TypeError（读 undefined 的 nextCursor），这一段 59 条断言一条都
+    //   不跑——那样门禁虽然照红，红的是崩溃而不是判据，等于空壳被「摔死」而不是被「逮住」。
+    await assert('真实 gitlab 后端：第一页确实成功了（后面几处都要读它的游标，这里先把它钉住）', p1.ok === true, JSON.stringify(p1).slice(0, 240))
+    const p2 = p1.ok === true ? await gl.listPage(ref('gitlab'), { state: 'closed' }, { cursor: p1.data.nextCursor, limit: 2 }, glProbeCtx(s1)) : p1
     await assert('真实 gitlab 后端：游标原样回传就翻到下一页（页码编在游标里，调用方不解析它）', pageAnswerCheck(p2, { items: 2, nextCursor: '3', total: 5 }).length === 0 && s1.issuesCalls()[1].indexOf('page=2') >= 0, pageAnswerCheck(p2, { items: 2, nextCursor: '3', total: 5 }).join('；') || s1.issuesCalls()[1])
-    const p3 = await gl.listPage(ref('gitlab'), { state: 'closed' }, { cursor: p2.data.nextCursor, limit: 2 }, glProbeCtx(s1))
+    const p3 = p2.ok === true ? await gl.listPage(ref('gitlab'), { state: 'closed' }, { cursor: p2.data.nextCursor, limit: 2 }, glProbeCtx(s1)) : p2
     await assert('真实 gitlab 后端：这一页取不满 → nextCursor 给 null（翻到底了）', pageAnswerCheck(p3, { items: 1, nextCursor: null, total: 5 }).length === 0, pageAnswerCheck(p3, { items: 1, nextCursor: null, total: 5 }).join('；') || JSON.stringify(p3).slice(0, 200))
 
     // ③ 特别钉住「总数正好是每页条数的整数倍」这一格 —— 写的是**实际行为**，不是做不到的期望：
     //   本房在 glab 这条缝上拿不到响应头（见 ./counts.ts 文件头），「还有下一页」只能靠「这一页的行数
     //   够不够 per_page」判；于是总数正好是整数倍时，最后一页仍会给一个游标，调用方要多取一次才拿回
-    //   空表。这是设计代价，不是错误：少取一次的办法（读响应头的 rel="next"）在结果超过 10000 条时
-    //   远端根本不返回那一格，反而会变成静默截断。
+    //   空表。这是设计代价，不是错误：想少取一次就得读响应头，而响应头本身不可靠 —— 官方
+    //   「Pagination response headers」一节写明，结果超过 10000 条时远端不再返回 x-total、
+    //   x-total-pages 与 rel="last" 这几个格子（那份清单里没有 rel="next"；本机没有真机可核它在
+    //   那种情况下的行为，所以不把它当依据）。
     const s2 = mkScriptedGlab({ total: 4 })
     const e1 = await gl.listPage(ref('gitlab'), { state: 'closed' }, { cursor: '', limit: 2 }, glProbeCtx(s2))
-    const e2 = await gl.listPage(ref('gitlab'), { state: 'closed' }, { cursor: e1.data.nextCursor, limit: 2 }, glProbeCtx(s2))
-    const e3 = await gl.listPage(ref('gitlab'), { state: 'closed' }, { cursor: e2.data.nextCursor, limit: 2 }, glProbeCtx(s2))
+    const e2 = e1.ok === true ? await gl.listPage(ref('gitlab'), { state: 'closed' }, { cursor: e1.data.nextCursor, limit: 2 }, glProbeCtx(s2)) : e1
+    const e3 = e2.ok === true ? await gl.listPage(ref('gitlab'), { state: 'closed' }, { cursor: e2.data.nextCursor, limit: 2 }, glProbeCtx(s2)) : e2
     await assert('真实 gitlab 后端：总数是每页条数的整数倍时，取满的第二页仍给游标「3」（拿不到响应头总数，这是设计代价）', pageAnswerCheck(e2, { items: 2, nextCursor: '3', total: 4 }).length === 0, pageAnswerCheck(e2, { items: 2, nextCursor: '3', total: 4 }).join('；') || JSON.stringify(e2).slice(0, 200))
     await assert('真实 gitlab 后端：多取一次才拿到空表与 null 游标（整数倍这一格的收尾方式，不是漏行）', pageAnswerCheck(e3, { items: 0, nextCursor: null, total: 4 }).length === 0 && s2.issuesCalls().length === 3, pageAnswerCheck(e3, { items: 0, nextCursor: null, total: 4 }).join('；') || JSON.stringify(e3).slice(0, 200))
 

@@ -296,10 +296,11 @@ export async function listLabels(repo: RepositoryRef, ctx: OpContext): Promise<O
     // 所以只有最后一页会短）。这是任务单点名的口径，也是这家的常规读法。
     //   为什么不用「某页回空表」当唯一哨兵：那样标签总数正好是 per_page 的整数倍时会白翻一页
     //   （多一次出站请求）。两个判据在真实数据上等价，取少花一次请求的那个。
-    //   为什么不判响应头里的 rel="next"：GitLab 在结果超过 10000 条时不返回这一格
-    //   （官方文档「Pagination response headers」一节明写），拿它当唯一依据会把「头部缺失」
-    //   当成「没有下一页」，正好落进静默截断那个坑；而契约的 `ExecResult`
-    //   （`contract/contexts.ts:58-71`）里也没有 headers 这一格，本房读不到它就无从判起。
+    //   为什么不判响应头里的 rel="next"：官方「Pagination response headers」一节写明，结果超过
+    //   10000 条时远端不再返回 x-total、x-total-pages 与 rel="last" 这几个格子；那份清单里并没有
+    //   rel="next"，本机也没有真机可核它在那种情况下的行为，所以不拿它当依据。真正决定性的理由是
+    //   契约的 `ExecResult`（`contract/contexts.ts:58-71`）里根本没有 headers 这一格，
+    //   本房读不到它，也就无从判起。
     if (rows.length < LABEL_LIST_PER_PAGE) break
     // 每多翻一页都要有上限兜底，见 LABEL_LIST_MAX_PAGES 的说明。
     if (page >= LABEL_LIST_MAX_PAGES) {

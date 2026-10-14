@@ -2,9 +2,11 @@
  * tests/tracker-contract/sections/room-gitlab-extras.js — GitLab 房九条新能力里「全仓没有一条断言验过」的那五条。
  *
  * ── 这一段为什么存在 ──────────────────────────────────────────────────────────
- * 对抗式审查（`research/1063-adversarial-review.md`）发现 10 说：九条新能力里，`getCurrentUser`、
- * `getRepoPermissions`、`listSubIssues`、`initProject`、`getRepoKey` 五条**在整个仓库里没有任何一条断言
- * 真去要过一次数据** —— 有可能是函数在、逻辑对，也有可能明天被人改坏而门禁不响。这一段补的就是这件事。
+ * 对抗式审查（`research/1063-adversarial-review.md`）的攻击面表第 10 行（`:37`）说：九条新能力里，
+ * 只有 `counts` 有一条针对 GitLab 的探针（而它当时刚被放宽），**其余八条在整个仓库里没有任何一条断言
+ * 真去要过一次数据** —— 有可能是函数在、逻辑对，也有可能明天被人改坏而门禁不响。这一段补的是其中五条：
+ * `getCurrentUser`、`getRepoPermissions`、`listSubIssues`、`initProject`、`getRepoKey`。
+ * 另外三条（`listPage`、`listLabels`、`setLabelColors`）与 `counts` 一起补在各自那一段里。
  *
  * ── 走哪条缝（不新建脚手架、不新建 runner）─────────────────────────────────────
  * 与 `sections/idempotency.js` 的第六、七段同一套：经**注册表**拿统一的跟踪器接口
