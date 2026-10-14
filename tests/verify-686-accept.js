@@ -1,7 +1,7 @@
 // verify-686-accept.js —— #686 真机验收在开发层能封顶的部分
 //
 // 只读真源、不改产品代码。断言分两组：
-//   一、三个后端真实科目互不串味（读各自 index.js 真文本，用真渲染函数跑，中英各一次）；
+//   一、三个后端真实科目互不串味（读各自 index.ts 真文本，用真渲染函数跑，中英各一次）；
 //   二、三态不显示（无后端 / 未初始化 / 无科目，外加空值不崩）。
 // 用法: node tests/verify-686-accept.js
 const fs = require('fs')
@@ -41,7 +41,7 @@ async function main () {
 
   // ─────────── 一、三个后端真实科目互不串味 ───────────
   const ghSrc = read(path.join('src', 'tracker', 'rooms', 'github', 'index.ts'))
-  const glSrc = read(path.join('src', 'tracker', 'rooms', 'gitlab', 'index.js'))
+  const glSrc = read(path.join('src', 'tracker', 'rooms', 'gitlab', 'index.ts'))
   const mdSrc = read(path.join('src', 'tracker', 'rooms', 'markdown', 'index.ts'))
   // #725：三后端各自的 prompts.bodyFormat 整节删除，这里不再从后端抠那一条。
   const ghM = { id: 'github', prompts: { healthCheck: promptsOf(ghSrc, 'healthCheck'), subIssue: promptsOf(ghSrc, 'subIssue') } }

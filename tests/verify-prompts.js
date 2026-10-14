@@ -687,10 +687,10 @@ const surfaceReport = { S1: 0, S2: [0, 0], S3: [], S4: 0, S5: 0, S6: 0, S7: 0, S
 const BACKENDS = ['github', 'gitlab', 'markdown']
 const backendPath = function (id, probe) {
   if (id === 'github' && probe) return probe
-  return path.join(ROOT, 'src/tracker/rooms', id, 'index.' + (id === 'gitlab' ? 'js' : 'ts'))
+  return path.join(ROOT, 'src/tracker/rooms', id, 'index.ts')
 }
 const backendLabel = function (id, probe) {
-  return (id === 'github' && probe) ? probe : 'src/tracker/rooms/' + id + '/index.' + (id === 'gitlab' ? 'js' : 'ts')
+  return (id === 'github' && probe) ? probe : 'src/tracker/rooms/' + id + '/index.ts'
 }
 const failLine = function (where, rule, snippet, raw) {
   return 'FAIL ' + where + ' [' + rule + '] 命中「' + snippet + '」' +
@@ -1532,11 +1532,12 @@ const selfDigest = function () {
 // #879：逐面归零门禁退役（上游技能文档一字不动，人定案），本文件两处注释同步改说法，自摘要跟着重算。
 // #900：tpl.fix 阶段闸门整节删除，只在读现状留一句兜底，版本底线 7 → 11 并补内容断言，自摘要跟着重算。
 // #989：mapExecute 恢复纯寻路版 v12 文字（五节单票推进），断言同步回到五节版，自摘要跟着重算。
-// #1095：搬家跟随（后端路径改到 src/tracker/rooms，后缀 github/ts·gitlab/js·markdown/ts），自摘要一并重算。
+// #1095：搬家跟随（后端路径改到 src/tracker/rooms），自摘要一并重算。
+// #1110：GitLab 房入口转成 TypeScript 后，本文件三份后端源码的路径统一读 index.ts，自摘要一并重算。
 const LOCK = {
   'tests/prompt-gate-exempt.json': 'c661ccd0fbfd46aa99790c073d0ccea89ebf5787a9113462c092b17c72a2a2d9',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.js': 'cd4839a53d3a969a0ec4ad7cdda5117e65aab25a4a1a1bc1740daad5f5f5162a',
+  'tests/verify-prompts.js': '79c1fd991faf09da93dae4fc5db623a87398a1e8119445079a2b3fd5777566f1',
 }
 // ---- LOCK-END ----
 

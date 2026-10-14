@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-13T21:16:27.577Z",
+  "generatedAt": "2026-10-14T04:12:53.659Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 237,
   "gateCount": 237,
@@ -3308,16 +3308,18 @@
         "src/client/kernel/locale-panel.js",
         "src/client/kernel/prompts.js",
         "src/tracker/rooms/github/index.ts",
+        "src/tracker/rooms/gitlab/index.ts",
         "src/tracker/rooms/markdown/index.ts"
       ],
       "dirs": [
         "src/client/kernel",
         "src/tracker/rooms/github",
+        "src/tracker/rooms/gitlab",
         "src/tracker/rooms/markdown"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 7 条"
     },
     {
       "step": "node tests/verify-version-control-parsers.js",
@@ -5803,6 +5805,7 @@
       "node tests/verify-gitlab-single-write.js",
       "node tests/verify-deck-tools-matrix.js",
       "node tests/verify-no-mixed-session.js",
+      "node tests/verify-686-accept.js",
       "node tests/verify-gh-gateway.js",
       "node tests/verify-error-raw-samples.ts",
       "node tests/verify-error-rule-samples.ts",
