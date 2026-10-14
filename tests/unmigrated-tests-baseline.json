@@ -64,7 +64,6 @@
     "tests/verify-1003-single-outlet.js",
     "tests/verify-1003-unified-decision.js",
     "tests/verify-1003-workspace-write-robust.js",
-    "tests/verify-1150-plan-store-durable.js",
     "tests/verify-3-workspace-switch.js",
     "tests/verify-344-chain-auto-refresh.js",
     "tests/verify-423-title-clamp-browser.js",

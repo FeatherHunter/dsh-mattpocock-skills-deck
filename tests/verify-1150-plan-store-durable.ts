@@ -1,5 +1,5 @@
-// verify-1150-plan-store-durable.js —— 门禁：#1150 宿主接线给批量建图工具注入落盘的计划存储器
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-1150-plan-store-durable.js
+// verify-1150-plan-store-durable.ts —— 门禁：#1150 宿主接线给批量建图工具注入落盘的计划存储器
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-1150-plan-store-durable.ts
 //
 // 这一条盯三件事：
 //   ① 真宿主装配（src/host/refresh/wiring.js 的 createRefreshWiring）真的把落盘的存储器注入了批量建图工具。
