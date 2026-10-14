@@ -12,7 +12,8 @@ import type { OpResult } from '../../contract/results.js';
 import type { RepositoryRef } from '../../contract/entities.js';
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { fail } from '../../kernel/preflight.js'
-import { ghClient } from './client.js'
+import { ghClient, rememberOutbound } from './client.js'
+import type { OutboundControl } from '../../contract/outbound.js'
 import { ghPreflight } from './preflight.js'
 import { listIssues, getIssue } from './issues.js'
 import { countIssues } from './counts.js'
@@ -96,6 +97,11 @@ export async function githubMatches(handle: RepoHandle, ctx: OpContext): Promise
  * 本后端没实现的那几条由注册表补「我不支持」的桩，这是合规的常态。
  */
 export function createGithubBackend(ctx: OpContext) {
+  // #1159：装配那一刻把宿主交来的出站能力（名额闸 / 取消判定 / 搭车账本）记进本房。
+  // 为什么在装配点记一次而不是每次操作都传：宿主给「这一次操作」造上下文的地方有十几处，
+  // 逐处挂一遍既啰嗦又容易漏；这三样本事本身就是进程级单例，装配时交一次、全房共用即可。
+  // 当次操作的上下文里若也带着一份（门禁夹具常这么给），房内以当次那一份为准。
+  rememberOutbound((ctx as unknown as { outbound?: OutboundControl } | null)?.outbound)
   // 可选：预解析 ghPath 无副作用，此处不做
   void ghClient(ctx)
   return {
