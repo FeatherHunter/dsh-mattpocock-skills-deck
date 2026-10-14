@@ -41,8 +41,11 @@ import { markdownModule } from '../src/tracker/rooms/markdown/index.js'
 /** 探针断言用的形状：与 `BackendModule` 有三处诚实弱化（理由都见文件头）。
  * - `create` 只断存在与可调用：返回深层的 `OpResult` 字面量一致性要动后端实现面，留给后续专票。
  * - `openRepository` 只断存在：字面量被加宽成 `string`，静态不断字面量；真值由门禁的运行时腿断。
- * - `checks` 只断存在：数组还是工厂要另起专票定；真种类由门禁的运行时腿如实记录。 */
-type ProbeShape = Omit<BackendModule, 'create' | 'openRepository' | 'checks'> & {
+ * - `checks` 只断存在：数组还是工厂要另起专票定；真种类由门禁的运行时腿如实记录。
+ *
+ * **导出它的理由**（#1051 讨论结论第 3 条）：门禁的第二条反面证明要拿探针同款开关 + 这份真形状，
+ * 现拼一个缺 `matches` 的假后端，断「弱化之后仍然抓得住缺成员」。理由与 GitHub 那份同一条。 */
+export type ProbeShape = Omit<BackendModule, 'create' | 'openRepository' | 'checks'> & {
   create: (...args: any[]) => unknown
   openRepository?: unknown
   checks?: unknown

@@ -7,7 +7,7 @@
  *    品牌色板）、怎么认出我（matches）、怎么把我造出来（create），外加一堆**只读的界面描述数据**
  *    （设置页文案键、检查项目录、修复指引、默认调色盘、链接模板）。
  * 2. **Tracker 实例**（`operations.ts`）：`create(ctx)` 造出来的那一份能干活的，
- *    有 19 条操作加本轮新升的 `getRepoPermissions`。
+ *    有 25 条能力（22 条操作 + 3 条定位口）；具体哪几条真会做由后端自己决定。
  *
  * 分两层的原因：模块对象在**没有工作区、没有登录、什么都不确定**的时候就要存在
  * （界面靠它画「有哪些后端可选」），而 Tracker 需要进程级能力（起进程、文件服务）才能造。
@@ -29,9 +29,6 @@ import type { BackendId } from './identity.js'
 import type { RepositoryRef } from './entities.js'
 import type { BackendContext, OpContext, RepoHandle } from './contexts.js'
 import type {
-  GitHubRoomExtension,
-  MarkdownRoomExtension,
-  RoomAuxiliaries,
   RoomOperations,
 } from './operations.js'
 
@@ -155,16 +152,16 @@ export interface BackendModule {
 
   /**
    * 造一个能干活的后端实例。
-   * 只实现真会的那几条；缺的方法由注册表包一层代理自动补「做不到」的桩。
-   * 返回类型里带上三样东西，各有各的理由：
-   * - 两个房内扩展（`listSubIssues`、`ensureLabelColorsFile` 等）：它们确实会被房外的宿主电话调用，
-   *   不是契约操作，但也不是私有的。
-   * - `RoomAuxiliaries`：实例上的只读辅助口（`getRepoKey` / `describe` / `issueAddress`），
-   *   注册表视图的回退链与共享壳会取用；不给类型位置的话，两房照原样实现会因多余属性当场报错。
+   * 只实现真会的那几条，其余交给注册表：它按 `OPERATIONS` 名录给缺的操作包一层代理，
+   * 自动补「我不支持」的桩。所以返回类型是 `RoomOperations`（`Tracker` 的子集），
+   * 少实现一条不算违约 —— 但**谎报**算（返回 ok 而其实没做成）。
+   *
+   * 为什么这里不再列一串扩展类型：上一版把「房内扩展」与「实例旁路」写在这个返回类型里
+   * （`GitHubRoomExtension` / `MarkdownRoomExtension` / `RoomAuxiliaries`），结果是
+   * 一个后端能有契约里没有的对外方法，上层为了用它就必须先问「你是哪个后端」。
+   * 那三个类型已删，成员全部并进 `Tracker`（见 `operations.ts`）。
    */
-  create(
-    ctx: BackendContext,
-  ): RoomOperations & Partial<GitHubRoomExtension> & Partial<MarkdownRoomExtension> & RoomAuxiliaries
+  create(ctx: BackendContext): RoomOperations
 
   /**
    * 启发式识别：这个工作区是不是我的地盘？
@@ -248,6 +245,5 @@ export interface BackendModule {
   labelPalette?: { name: string; color: string }[]
 }
 
-// 类型再导出：`create` 的返回形状直接引用了这三个房内/旁路形状，调用方从本文件取用更顺手，
-// 免得每次都去 operations.ts 再 import 一次。
-export type { GitHubRoomExtension, MarkdownRoomExtension, RoomAuxiliaries }
+// 这里曾经再导出 `GitHubRoomExtension` / `MarkdownRoomExtension` / `RoomAuxiliaries` 三个形状，
+// 方便调用方少写一次 import。三个形状已随「能力全进契约」删掉，成员都在 `operations.ts` 的 `Tracker` 里。

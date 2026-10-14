@@ -13,6 +13,7 @@
  * 不要手改；宿主源码引用本文件时照旧写 './index.js'（开发期由 scripts/ts-hook.mjs 指到本文件）。
  */
 
+import type { RoomOperations } from '../../contract/operations.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { fail } from '../../preflight.js'
 import { glabPreflight } from './preflight.js'
@@ -115,11 +116,13 @@ export const links = {
 }
 
 /**
- * 创建 GitLab 后端适配器（13 ops 完整形状）。
- * @param {Object} ctx BackendContext（platform/fs/exec/timers/log）
- * @returns {import('../../contract/index.js').Tracker}
+ * 创建 GitLab 后端适配器（今天实现了 13 条操作 + 2 条定位口，其余交给注册表补桩）。
+ *
+ * 返回类型标 `RoomOperations`（`Tracker` 的子集）：没实现的那些操作由注册表补「我不支持」的桩。
+ * 本后端今天的边界是「13 条操作 + describe/issueAddress 两条定位口」——
+ * 计数、分页、标签配色、当前登录人、初始化发布、仓库写权限、子票、配色文件这几条都还没做。
  */
-export function createGitlabBackend(ctx) {
+export function createGitlabBackend(ctx): RoomOperations {
   // 原文给这次被拒的操作名（这条支路一个请求都没发，没有远端回包可取）。
   const unsupported = (op) => fail(ERROR_KIND.UNSUPPORTED, `gitlab ${op} pending #145 stub`, String(op))
 

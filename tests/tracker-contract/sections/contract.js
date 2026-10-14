@@ -19,6 +19,11 @@ const EXPECTED_OPNAMES = [
   'listLabels', 'setLabelColors',   // #627 标签配色两条（精确清单：多一个名字或漏一个名字都判红）
   'counts',                          // #689 后端计数（只回数字不回行；语义见 contract.js 的「计数契约」）
   'listPage',                        // #690 按页取票（创建时间倒序的薄片段；语义见 contract-page.js 的「分页契约」）
+  // #1051（2026-10-14）：三条原先挂在单个后端「私有扩展」名下的操作收进契约。
+  // 收进来的理由都是同一条：它们的读者在后端之外，后端之外有读者就不是某一家的细节。
+  'getRepoPermissions',              // #992 问仓库写权限（push/triage 两个布尔）；原先只是 GitHub 的只读旁路
+  'listSubIssues',                   // #691 取一张地图的全部子票；原先挂在 GitHub 的房内扩展上，读者是宿主电话
+  'ensureLabelColorsFile',           // #618 往工作区放一份用户可手改的标签配色文件；原先挂在本地 Markdown 的房内扩展上
 ]
 const LEGACY_OPS = ['detect', 'label', 'subIssue', 'blockedBy', 'syncSnapshot']
 

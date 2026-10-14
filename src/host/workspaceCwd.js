@@ -35,12 +35,14 @@ export function createWorkspaceCwd(deps) {
   }
   // #155 + #152：后端绑定（per-workspace 覆盖，唯一写路径不回写 issue-tracker.md）+ 注册表查询 + detection 缓存失效
   // #618：用户为工作区选定后端这一步，顺手在工作区里放一份默认配色文件（幂等：文件在就一个字都不改）。
-  // 只有 Markdown 系后端放：GitHub 的颜色是仓库标签的实体数据，没有这份文件；GitLab 这一轮不动。
-  // 怎么认出「Markdown 系」：后端自己实现 ensureLabelColorsFile 这个方法，host 只问它愿不愿意放， 不在这里写死文件路径与后端 id（路径与内容是这个后端自己的事）。GitHub / GitLab 按 id 明确跳过。
+  // 怎么认出「该放的后端」：问后端自己 —— 它实现了 `ensureLabelColorsFile` 就放，没实现就是不愿意放。
+  //   这里**不再按后端 id 写死名单**（原先写着 `github` / `gitlab` 直接跳过）。写死名单的毛病是：
+  //   以后新来一个后端，得有人记得回来改这一行；按能力问则不用。GitHub 的标签颜色存在仓库标签上，
+  //   它回的那句「不支持」就是「我不放这份文件」的意思，按跳过处理，不当失败。
   // 放失败不影响绑定本身（用户这次是来选后端的），但**不能无声**：失败要记一条日志，并且把结果如实 放进 bind 的回包里（labelColorsFile 一项），让界面与排查的人都能看见「这次没放上、为什么」。
   //   真正要用这份文件的时候（打开改色弹窗）会再试一次，那时按写失败分档如实报「写不进去」。
   async function placeLabelColorsFile(cwd, backendId) {
-    if (!backendId || backendId === 'github' || backendId === 'gitlab') return { ok: true, skipped: 'not-markdown' }
+    if (!backendId) return { ok: true, skipped: 'not-markdown' }
     try {
       const reg = await getTrackerRegistry()
       if (!reg) return { ok: false, error: { kind: 'env', message: '插件尚未就绪：还没有可用的后端清单，这次没能看清要不要放配色文件。请重试一次；如果仍然失败，请把这条提示原文报告给插件维护者。' } }
@@ -52,6 +54,8 @@ export function createWorkspaceCwd(deps) {
       const sb = resolveSandboxPolicy(null, cwd)
       const placed = await tracker.ensureLabelColorsFile(ref, opCtxFor(cwd, platform, ref, 'wf.bind', new AbortController().signal, sb.policy, sb.sessionId))
       if (placed && placed.ok === true) return { ok: true, placed: placed.placed === true, reason: placed.reason || '' }
+      // 后端如实回了「这件事我不做」：它的颜色存在别处，没有本地文件可放 —— 这是跳过，不是失败。
+      if (placed && placed.error && placed.error.kind === 'unsupported') return { ok: true, skipped: 'backend-wants-no-file' }
       return { ok: false, error: (placed && placed.error) || { kind: 'env', message: '后端既没有说这次要不要放配色文件，也没有说明原因。请重试一次；如果仍然失败，请把这条提示原文报告给插件维护者。' } }
     } catch (e) {
       return { ok: false, error: { kind: 'env', message: '插件没能把标签配色文件放进这个工作区（放入这一步出错），所以这个工作区里现在可能还没有这份文件。请重试一次；如果仍然失败，请把这条提示原文报告给插件维护者。' } }

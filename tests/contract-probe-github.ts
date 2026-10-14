@@ -37,11 +37,18 @@
 import type { BackendModule } from '../src/tracker/contract/backend-module.js'
 import { githubModule } from '../src/tracker/rooms/github/index.js'
 
-/** 探针断言用的形状：与 `BackendModule` 有三处诚实弱化（理由都见文件头）。
+/**
+ * 探针断言用的形状：与 `BackendModule` 有三处诚实弱化（理由都见文件头）。
  * - `create` 只断存在与可调用：返回深层的 `OpResult` 字面量一致性要动后端实现面，留给后续专票。
  * - `openRepository` 只断存在：字面量被加宽成 `string`，静态不断字面量；真值由门禁的运行时腿断。
- * - `checks` 只断存在：数组还是工厂要另起专票定；真种类由门禁的运行时腿如实记录。 */
-type ProbeShape = Omit<BackendModule, 'create' | 'openRepository' | 'checks'> & {
+ * - `checks` 只断存在：数组还是工厂要另起专票定；真种类由门禁的运行时腿如实记录。
+ *
+ * **导出它的理由**（#1051 讨论结论第 3 条）：门禁里那条「缺 `matches` 的假后端必须编不过」原先
+ * 走的是严格开关、断的是完整的 `BackendModule` —— 那证明的不是探针这条路。探针自己走的是宽松开关
+ * 加这份弱化形状，所以「弱化之后还抓不抓得住缺成员」当时没有任何自动化证明。
+ * 把它导出之后，门禁的第二条反面证明就能拿**探针同款开关 + 这份真形状**现拼一个假后端来断。
+ */
+export type ProbeShape = Omit<BackendModule, 'create' | 'openRepository' | 'checks'> & {
   create: (...args: any[]) => unknown
   openRepository?: unknown
   checks?: unknown

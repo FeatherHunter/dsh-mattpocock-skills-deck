@@ -157,3 +157,44 @@ export interface LabelColorBatchResult {
   applied: { name: string; color: string }[]
   failed: { name: string; reason: TrackerError }[]
 }
+
+/**
+ * 一张地图的全部子票（`listSubIssues` 的返回）。
+ *
+ * 六个字段各自有读者，其中后四个是「有没有拿全」的诚实交代，缺一不可：
+ * 一个地图子票成千上百时，界面必须能说清「还有更多、这次没全取回」，而不是悄悄少画几行。
+ *
+ * 为什么 `dropped` 与 `missing` 分开记：`missing` 是「总数与拿回来的一批对不上」，
+ * `dropped` 是「拿回来的行里有几条当场被丢掉（形状不认识、编号解析不出来）」。
+ * 后者是**已经拿到手却没算进去**的量，把它混进 `missing` 会让人以为是网络没给全，
+ * 排查方向会整个跑偏到连接与分页上去。
+ */
+export interface SubIssueList {
+  /** 子票行（契约 `Issue` 形状）。 */
+  items: Issue[]
+  /** 后端连接上说的总数。 */
+  total: number
+  /** 这一次真的拉回来的张数。 */
+  fetched: number
+  /** 是否撞到硬上限（撞到时界面要说清「还有更多，没全取回」）。 */
+  capped: boolean
+  /** 与总数对不上的差额（0 表示对上了）。 */
+  missing: number
+  /** 拿回来却被丢掉的行数（形状不认识、编号解析不出来）。 */
+  dropped: number
+}
+
+/**
+ * 放置标签配色文件的结果（`ensureLabelColorsFile` 的返回）。
+ *
+ * `placed: true` 表示这次真的新建或迁移了一份；`false` 表示文件已经在那儿、一个字没改
+ * （这是最常见的一种成功，不是「没做成」）。
+ * `reason` 是这次为什么是 `placed` 或为什么没动它（`created` / `migrated` /
+ * `exists` / `migrate-legacy-kept` 等，词表在各后端的实现里）；`from` 记它原先是什么格式，
+ * 只在「文件本来就在」时有值。这两项都是给人看与排查用的，调用方拿 `placed` 做判断即可。
+ */
+export interface LabelColorsFilePlacement {
+  placed: boolean
+  reason: string
+  from?: string
+}

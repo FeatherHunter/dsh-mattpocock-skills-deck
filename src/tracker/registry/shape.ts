@@ -4,7 +4,9 @@
  * 接线：只被 core.ts 引用；本文件不引用其他新文件。
  * 第一性原理（#125 定版，承接原 registry.js）：
  *  - 能力 = 运行时调用结果：注册**只验模块形状**，不因「缺某 op」拒绝；
- *    `create()` 产物按 Proxy 包桩——缺的方法自动补 `unsupported` 桩（准入墙消失，诚实桩不误导）。
+ *    `create()` 产物按 Proxy 包桩——缺的**操作**自动补 `unsupported` 桩（准入墙消失，诚实桩不误导）。
+ *    三条定位口（`getRepoKey` / `describe` / `issueAddress`）不在此列：它们没有「我不支持」这种答案，
+ *    缺席就是缺席，取到 `undefined`，调用方按空值往下走（见 contract/operations.ts 的说明）。
  *  - 无能力表、无能力缓存、无能力分支、无运行期内省（G5 红线）。
  *  - `'other'` **弃用、不注册**。
  */
@@ -74,7 +76,9 @@ export function unsupportedStub(opName, backendId, hooks) {
 /**
  * 把 BackendModule.create 产物包成 Tracker：
  *  - id 固定为模块 id（自报不一致 = 说谎 → 拒绝）；
- *  - OP_NAMES 里缺的方法 → unsupported 桩；其余未知属性透传（容器可能有旁路如 snapshotFast，见 snapshot.js）。
+ *  - `OPERATIONS`（22 条操作）里缺的方法 → unsupported 桩；
+ *  - 其余未知属性原样透传（今天已不允许后端有独有对外方法，透传只为不改变既有行为；
+ *    真出现独有方法应在契约评审里被拦下，不靠这一层拦）。
  */
 export function wrapTracker(mod, impl, hooks) {
   if (!impl || typeof impl !== 'object') {

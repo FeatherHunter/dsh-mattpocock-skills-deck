@@ -36,33 +36,45 @@ GitHub 房与本地 Markdown 房用 `implements Tracker` 去实现，少一个�
    「空数组」与「没有这个能力」是两件事，界面靠这个区别说话。
 3. **没有能力清单**：没有一个 `supportedOps` 之类的表。能力是**运行时调用结果** ——
    能做的返回数据，不能做的当场返回 `unsupported`。这条叫 G5，是红线不是偏好。
+   三个后端「哪几条我实现、哪几条我明确不支持」的逐条登记，是**审计用的文字**
+   （写在各自实现里与票面上），不是运行时读的表。
 
-## 三个房内扩展的定位（这一轮定的）
+## 能力的上限：25 条，全部写在这一层（2026-10-14 定的规矩）
 
-有三个方法不在 19 条契约操作里，但确实有房外的读者，所以要写清楚它们各自是什么身份：
+这份契约管的是**能力上限**：一个后端最多能被要求做哪些事，名字都在这里。后端面对每一条只有两种回法——
+**我实现**，或者**我不支持**。**后端不许有自己独有的对外方法**：凡是实例上叫得到名字的东西，
+都必须先在这份契约里出现。
 
-| 名字 | 身份 | 为什么这么定 |
-| --- | --- | --- |
-| `getRepoPermissions` | **本轮升为契约操作**（进 `Tracker`） | 「这个仓库能不能写」deck 与面板两边都要用；只挂在 GitHub 房上会让本地 Markdown 那一侧没有答案 |
-| `listSubIssues` | GitHub 房扩展（`GitHubRoomExtension`，**不进契约**） | 它是读路径的实现细节，唯一调用者是宿主电话；没实现它的后端由那条电话按「做不到」退化 |
-| `ensureLabelColorsFile` | 本地 Markdown 房扩展（`MarkdownRoomExtension`，**不进契约**） | 宿主在「用户选定后端」那一步要放一份默认配色文件，但**不许问后端是谁**；做成「实现了就放、没实现就跳过」的口子，只有本地 Markdown 房实现它 |
+这条规矩买到的是一件很贵的东西：上层永远不必写「如果这个后端就……」的分支，
+也就永远不会因为漏掉某个后端而在某一天炸掉。谁要加一个能力，先把名字加进 `operations-catalog.ts`
+与 `Tracker`，再让后端去实现；实现不了就如实回 `unsupported`，不许换个名字偷偷提供。
 
-另外两类名字也住在两个房间的**实例**上（`create()` 造出来的那一份），不在这 19 条里，本轮都给它们定了类型位置，写法与理由如下：
+25 条分两段，因为「没有答案」的含义不一样：
 
-- **实例旁路口三个**：`getRepoKey`、`describe`、`issueAddress`，落在 `RoomAuxiliaries`（三个成员全可选），
-  由 `BackendModule.create()` 的返回类型交叉进来。它们今天真实挂在 GitHub 实例上
-  （`src/tracker/rooms/github/backend.ts:121`、`:122`、`:126`），本地 Markdown 实例上没有 ——
-  所以三个都标可选，谁有谁写。有两个真实读者：注册表视图的回退链
-  （`src/tracker/registry/views.ts:27-41` 先问模块对象、`:42-57` 再问实例、`:58-61` 最后按后端 id 拼骨架）与
-  共享壳取仓库标识那一处（`src/deck/shell/call-shell.ts:289-310`，先看有没有这个方法再调，
-  外加竞速上限）。**缺席不是故障**：没有方法时前两条路各自回退，壳按「补不出来」如实往下走。
-- **本地 Markdown 房的两个解析口**：`normalize` 与 `parse`，落在 `MarkdownRoomExtension` 的可选成员上。
-  它们只有本地文件后端有（`src/tracker/rooms/markdown/index.ts:175`、`:176`），返回的是房间自己的完整解析结果，
-  所以契约层把返回类型写成 `unknown` 而不复制房间私有形状；参数形状记在 `MarkdownParseMeta`。
-  本轮在 `src/host` 与 `tests` 里没有查到房外调用方（房内别的文件直接 import `parse.ts` / `normalize.ts`，
-  不经实例），是否有别处动态取用未核实。**注意**：早先这一版 README 写它们「不建模」，
-  2026-10-12 补丁时改成建模为可选成员 —— 理由是不建模的话，房间照原样实现时这两个键会因
-  多余属性检查当场报错，迁移第一步就卡住。
+| 段 | 条数 | 名字 | 注册表怎么兜底 |
+| --- | --- | --- | --- |
+| **操作** | 22 | `preflight`、`list`、`get`、`getDependencies`、`create`、`close`、`reopen`、`comment`、`update`、`setLabels`、`setAssignees`、`setParent`、`setBlockedBy`、`getCurrentUser`、`initProject`、`listLabels`、`setLabelColors`、`counts`、`listPage`、`getRepoPermissions`、`listSubIssues`、`ensureLabelColorsFile` | 缺的方法自动补一个「我不支持」的桩（`src/tracker/registry/shape.ts` 的 `unsupportedStub`）。调用方直接调，拿到 `error.kind === 'unsupported'` 这句回答 |
+| **定位口** | 3 | `getRepoKey`、`describe`、`issueAddress` | 不补桩。它们没有「我不支持」这种答案：问「这个仓库叫什么」，答案是名字或者空，空也是答案。缺席就是缺席，调用方拿空值继续往下走 |
+
+三条操作是 2026-10-14 从「某一个后端的私有扩展」收进来的，理由都是同一条——**它们的读者在后端之外**：
+
+- `getRepoPermissions`：deck_context 的能力位与失败归因两边都要用「这个仓库能不能写」。
+- `listSubIssues`：调用者是宿主电话 `src/host/mapTickets.js`。
+- `ensureLabelColorsFile`：调用者是宿主「用户为工作区选定后端」那一步；它当时就做成「实现了就放、没实现就跳过」，
+  但那句话得写进契约才算数。
+
+收进来之前，这三个名字分别挂在 `GitHubRoomExtension`、`MarkdownRoomExtension` 上，
+另有三个实例旁路口（`getRepoKey` / `describe` / `issueAddress`）挂在 `RoomAuxiliaries` 上。
+**这三个类型已经删掉**，成员全部并进 `Tracker`；`BackendModule.create()` 的返回类型随之简化成
+`RoomOperations`（`Tracker` 的子集）。同时删掉的还有本地 Markdown 房的两个解析口
+`normalize` 与 `parse` 及它们的参数形状 `MarkdownParseMeta`：它们是房内模块的私有实现
+（`parse.ts` / `normalize.ts`），别的文件直接 import，不经实例；挂在实例上只会让「后端有独有方法」这件事
+继续存在，所以摘掉，不是收敛进契约。
+
+**这条规矩怎么保证落地**：三个后端的工厂（`createGithubBackend` / `createMarkdownBackend` /
+`createGitlabBackend`）都写了返回类型 `: RoomOperations`。写错参数、写错返回类型，编译器当场报错，
+不需要另加一份手写的名字清单去数。今天这三份文件还没有被任何一份类型检查配置圈住
+（整棵 `src/tracker/rooms/` 仍在「先修后转」的路上），标注先放在那里，配置一落地编译器就开始核对。
 
 ## 与今天的运行时真源的关系（迁移完成，必读）
 
@@ -93,7 +105,7 @@ npx tsc -p tsconfig.contract.json
 | `identity.ts` | 身份与枚举：`BackendId`、`State`、`IssueType`、`ClosedReason`、`ActorKind`、`ErrorKind`、`Actor` | 其余四件、房间、注册表、工具、面板（谁都要用，所以它谁也不引） |
 | `entities.ts` | 实体：`Issue`、`IssueRef`、`Label`、`Comment`、`Milestone`、`CustomField`、`Review`、`RepositoryRef`、`LabelColor`、`LabelColorChange` | 房间（造出它们）、工具与面板（消费它们） |
 | `contexts.ts` | 调用上下文：`BackendContext`（这台机器能干什么）、`OpContext`（这一次调用是谁）、`RepoHandle` | 房间实现与装配那一层 |
-| `results.ts` | **回给调用方**的形状：`TrackerError`、`OpResult`、`PreflightResult`、`Selection`、`RepoPermissions`、`Dependencies`、`Counts`、`PageResult`、`LabelColorBatchResult` | 工具、面板、注册表 |
+| `results.ts` | **回给调用方**的形状：`TrackerError`、`OpResult`、`PreflightResult`、`Selection`、`RepoPermissions`、`SubIssueList`、`LabelColorsFilePlacement`、`Dependencies`、`Counts`、`PageResult`、`LabelColorBatchResult` | 工具、面板、注册表 |
 | `inputs.ts` | **调用方交进来**的形状：`ListFilter`、`GetOpts`、`DepsOpts`、`CreateInput`、`InitProjectInput`、`UpdatePatch`、`CloseOpts`、`SetOpts`、`LabelInput`、`AssigneeInput`、`PageOpts` | 房间实现（当参数）、工具（当实参） |
 
 两条容易问到的归位（都是有意的，不是搬错）：
@@ -105,11 +117,12 @@ npx tsc -p tsconfig.contract.json
 
 其余文件：
 
-- `operations.ts` —— 操作层：`Tracker` 接口（19 条契约操作 + 本轮新升的 `getRepoPermissions`，
-  共 20 个成员）、房间能拿出来的那份（`RoomOperations`）、两个房内扩展（`GitHubRoomExtension`、
-  `MarkdownRoomExtension`）、实例旁路口（`RoomAuxiliaries`）、房间私有解析口的参数（`MarkdownParseMeta`）。
-- `operations-catalog.ts` —— **操作名录单源**：19 个操作名的 `as const` 数组；`operations.ts` 的
-  `OpName` 由它生成（`typeof OPERATIONS[number]`），`index.ts` 的 `OPERATIONS` 从它转出
-  （同一份数组、同一个引用，注册表读的那一份）。加一条操作只改这里一处。
+- `operations.ts` —— 能力层：`Tracker` 接口（25 条能力 = 22 条操作 + 3 条定位口），
+  以及后端能拿出来的那一份 `RoomOperations`（`Partial<Tracker>`：少实现几条是合规的常态，
+  缺的操作由注册表补「我不支持」的桩）。三个后端工厂都标了这个返回类型，签名核对交给编译器。
+- `operations-catalog.ts` —— **名录单源**：`OPERATIONS`（22 条操作名）、`LOCATORS`（3 条定位口名）
+  两个 `as const` 数组，合起来是 `CAPABILITIES`（25 条）；`operations.ts` 的 `OpName` 由它生成
+  （`typeof OPERATIONS[number]`），`index.ts` 的 `OPERATIONS` 从它转出
+  （同一份数组、同一个引用，注册表读的那一份）。加一条能力只改这里一处。
 - `backend-module.ts` —— 模块对象形状：`id` / `label` / `create` / `matches` 四件套，
   加品牌色板、设置页文案键、链接模板、界面能力位、检查目录、修复知识、默认调色盘。

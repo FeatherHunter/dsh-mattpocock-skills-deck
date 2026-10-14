@@ -21,9 +21,11 @@ import { OPERATIONS as CATALOG_OPERATIONS } from './operations-catalog.js'
  * Tracker 接口。实现方（后端适配器）应提供需要的操作；不能实现的按规则返回 unsupported
  * 或省略字段，不硬装（诚实 = 不捏造类别、不假装身份）。
  *
- * ⚠️ 非 op 旁路豁免（极窄，勿扩散）：实现方可附加**不进 OPERATIONS** 的旁路方法（如
- * `snapshotFast`——见 snapshot.js），仅作「读路径实现细节」豁免，不参与能力验证、不构成能力表；
- * G5 红线仍然成立：不得以任何旁路形态驱动写路径/渲染分支、不得扩散为 supportedOps 式能力分支。
+ * ⚠️ 后端不许有独有对外方法（2026-10-14 定，原「非 op 旁路豁免」那条规矩已作废）：
+ * 上一版允许实现方附加**不进 OPERATIONS** 的旁路方法（如 `snapshotFast`），只当「读路径实现细节」豁免。
+ * 那条口子已经关掉：一个后端能有契约里没有的对外方法，上层要用它就必须先问「你是哪个后端」，
+ * 而「上层敢对后端一无所知」正是这一层要买的东西。要加能力，先改 `operations-catalog.ts` 与
+ * `operations.ts`（进 `Tracker`），再实现；不能实现就如实回 `unsupported`，不许换个名字偷偷提供。
  *
  * ⚡ op 实现者义务：返回合规 OpResult；registry 不做运行时结果校验（能力零推断，G5）。
  *
@@ -48,7 +50,16 @@ import { OPERATIONS as CATALOG_OPERATIONS } from './operations-catalog.js'
  * @property {(repo: RepositoryRef, ctx: OpContext) => Promise<OpResult<LabelColor[]>>} listLabels 标签配色：列出「这个后端能改色的全部标签」及其颜色（#627，见下方「标签配色契约」）
  * @property {(repo: RepositoryRef, changes: LabelColorChange[], ctx: OpContext) => Promise<OpResult<LabelColorBatchResult>>} setLabelColors 标签配色：批量改色，逐条记账（#627，见下方「标签配色契约」）
  * @property {(repo: RepositoryRef, ctx: OpContext) => Promise<OpResult<import('../../shared/tracker/shape.js').Actor>>} getCurrentUser 当前登录人（viewer），GitHub 返回 Actor，Markdown/GitLab 返回 unsupported（MISSING）
- * @property {(handle: RepoHandle, input: InitProjectInput, ctx: OpContext) => Promise<OpResult<RepositoryRef>>} initProject 工作区初始化并发布（git init→commit→gh repo create→push；错误分类 no-git/no-gh/not-logged-in/already-exists/network/permission；仅 github 完整实现，markdown 幂等骨架，gitlab unsupported）
+ * @property {(handle: RepoHandle, input: InitProjectInput, ctx: OpContext) => Promise<OpResult<RepositoryRef>>} initProject 工作区初始化并发布（git init→commit→gh repo create→push；错误分类 no-git/no-gh/not-logged-in/already-exists/network/permission；GitHub 完整实现，本地 Markdown 与 GitLab 回 unsupported）
+ *
+ * @property {(repo: RepositoryRef, ctx: OpContext) => Promise<OpResult<import('./results.js').RepoPermissions>>} getRepoPermissions 问仓库写权限（push/triage 两个布尔）；GitHub 真去问，本地 Markdown 与 GitLab 回 unsupported。调用方拿不到就按「未知」处理，不许当成「能写」
+ * @property {(repo: RepositoryRef, mapKey: string, opts: Record<string, never>|undefined, ctx: OpContext) => Promise<OpResult<import('./results.js').SubIssueList>>} listSubIssues 取一张地图的全部子票（翻页拉到底，1000 张硬上限）；返回里 capped/missing/dropped 三项是「有没有拿全」的诚实交代。GitHub 实现，本地 Markdown 与 GitLab 回 unsupported
+ * @property {(repo: RepositoryRef, ctx: OpContext) => Promise<OpResult<import('./results.js').LabelColorsFilePlacement>>} ensureLabelColorsFile 往工作区放一份用户可手改的默认标签配色文件（文件已存在时一个字都不改）；本地 Markdown 实现，GitHub 与 GitLab 回 unsupported
+ *
+ * 定位口三条（没有「我不支持」这种答案，缺席就是缺席，调用方拿空值往下走）：
+ * @property {(cwd: string, ctx: OpContext) => Promise<{owner: string, name: string}|null>} getRepoKey 从工作区目录解析出 owner/name；解析不出来回 null（不是异常）。只有需要连远端的后端才有
+ * @property {(handle: RepoHandle, backendId?: string) => import('../../shared/tracker/shape.js').RepositoryRef} describe 产出仓库身份（实例版；与模块对象上同名方法同义，供注册表视图的回退链取用）
+ * @property {(ref: import('../../shared/tracker/shape.js').RepositoryRef, key: string) => string} issueAddress 一张票在这个后端里的地址（实例版；本地后端回票文件路径）
  */
 
 /**
@@ -59,9 +70,13 @@ import { OPERATIONS as CATALOG_OPERATIONS } from './operations-catalog.js'
  * `operations.ts` 的 `OpName` 也从它生成）。这里只转出口径——注册表与 `TRACKER_CONTRACT`
  * 过去读的一直是 `readonly string[]` 这一口径（原来那份 `Object.freeze` 的结果），直接把窄元组
  * 转出去会让 `OPERATIONS.includes(某个字符串)` 这类调用在类型上变窄而编译不过，
- * 所以这里标宽到 `readonly string[]` 再转出。值与原来那份逐字相同（下面有门禁断言守着 19 个名字）。
+ * 所以这里标宽到 `readonly string[]` 再转出。
  * `Object.freeze` 留着：原来那份就是冻住的，金标准夹具断言它冻住（改了口径不改行为）。
  * 冻的是同一份数组（名录那份），不产生第二份拷贝。
+ *
+ * 这里只是**操作**那一半（22 条）。另有三条定位口（`getRepoKey` / `describe` / `issueAddress`）
+ * 不进这份数组：它们没有「我不支持」这种答案，注册表不替它们补桩，`includes` 判据也不适用。
+ * 两半合起来是 `CAPABILITIES`（25 条，见 `operations-catalog.ts`）。
  */
 export const OPERATIONS: readonly string[] = Object.freeze(CATALOG_OPERATIONS)
 

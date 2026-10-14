@@ -76,6 +76,9 @@ export function createMapTickets(deps) {
     const res = await tracker.listSubIssues(repoRef, key, {}, ctx2)
     if (!res || res.ok !== true) {
       const err = (res && res.error) || { kind: 'network', message: '子票没取回来' }
+      // 「这个后端不做这件事」要给人一句能读的话：注册表补的桩与后端自己回的那条都是内部英文
+      // （`backend X does not implement op Y`），直接端到界面上没人看得懂在说什么。
+      if (err.kind === 'unsupported') return unsupported('这个后端不支持按需取一张地图的子票')
       return { ok: false, error: err }
     }
     const d = res.data || {}

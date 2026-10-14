@@ -14,10 +14,13 @@
 //       为什么要有这一条：第一件只说「编过的文件里没有错」，它管不住「某个文件根本没进编译」——
 //       tsconfig 的 include 被改窄、文件放进没被圈到的子目录、名字打成 `*.tsx`，都会让一个偷偷
 //       写错的类型文件全程隐身而门禁照样绿。这一条把「在不在编译范围里」变成可判定的。
-//   三、接口清单齐：读 operations.ts 与 operations-catalog.ts 两份文本，断言 19 个契约操作名
-//       全部出现，缺哪个报哪个（名字清单与 research/1010-deck-contract-surface.md 表 E2 的 19 项逐字一致）。
+//   三、接口清单齐：读 operations.ts 与 operations-catalog.ts 两份文本，断言 25 条能力全部有名字
+//       ——22 个操作名（`OPERATION_NAMES`）加 3 条定位口（`LOCATOR_NAMES`），缺哪个报哪个。
 //       为什么要读两份：拆分工把操作名改成「名录单源」——名字住在 operations-catalog.ts，
 //       operations.ts 只从它生类型；只扫一份会漏掉真正的住处。
+//       （2026-10-14 #1051 由 19 条操作改成 22 条操作 + 3 条定位口：三条新收的操作原先分别挂在
+//       某一个后端的「后端私有扩展」名下，读者却都在后端之外；定位口三条也一并点名核对，
+//       免得它们只写在名录里、方法声明却漏了。）
 //   四、没有运行时实现：契约目录只许有类型与数据。禁六种：`function` 关键字、
 //       `class` 关键字、箭头函数赋值（`const f = (…) => …`）、顶层 `new`（只有
 //       `Object.freeze` 与字面量是合法的数据写法）、`require(`、动态 `import(`；
@@ -91,9 +94,20 @@ const PROBE_MARKDOWN_REL = 'tests/contract-probe-markdown.ts'
  * 旧语言时代那种「对象字面量对不上联合类型」的内部报错随之减少——这是实现面真的动了，不是门禁放松。
  * 同日又由 156 改到 155：关闭后那轮对抗式审查发现两个后端的逐条改色失败没带原文，把 GitHub 房那条
  * 逐条失败改成走 fail()、其余各条补上第三段，实现面再动一处，内部报错又少一条。
+ *
+ * 2026-10-14 由 155 改到 183（#1051「契约层补齐能力上限」，同一个 10-14 的第二笔）：
+ * 这一次**不是新债，是把原先看不见的债照出来了**。那三个后端工厂的 `create` 返回对象
+ * （`createGithubBackend` / `createMarkdownBackend` / `createGitlabBackend`）原先没有写返回类型，
+ * 对象字面量按自己的形状推断，对不上契约也看不出来；#1051 给三家都标上了 `: RoomOperations`
+ * （`src/tracker/contract/operations.ts` 的 `Tracker` 子集），于是「这个对象到底合不合契约」
+ * 第一次有了编译期判据，原先隐身的 28 条当场现形。
+ * 这 28 条的归类与去处：绝大多数是**辅助函数把 `ok` 收窄成 `boolean`**（`OpResult` 要求可辨识联合），
+ * 修它要给后端内部几十个函数补返回标注——那是后端实现面的改动，归地图 08 / 09 的三张转写票
+ * （#1052 读路径、#1053 写路径、#1054 关系与边）。本门禁只如实计数，不拦住这三张票之外的东西。
+ * 把这个数往回降的办法只有一条：把那三张票做完，再回来改这个数。
  * 探针要不要跟着收紧（把弱化面收掉、让这个数继续降）归 #1095 那条测试跟随线，本票不动它。
  */
-const PROBE_NONPROBE_ERROR_BASELINE = 155
+const PROBE_NONPROBE_ERROR_BASELINE = 183
 /** 探针直编的开关（与探针文件头写的口径一致，改一处两处一起改）。 */
 const PROBE_TSC_ARGS = [
   '--noEmit', '--target', 'es2020', '--lib', 'es2020,dom', '--module', 'esnext',
@@ -143,12 +157,23 @@ const RUNTIME_SNAPSHOTS = {
   },
 }
 
-/** 19 个契约操作名（逐字照 research/1010-deck-contract-surface.md 表 E2 与 contract.js 的 OPERATIONS）。 */
+/** 22 个契约操作名（真源：`src/tracker/contract/operations-catalog.ts` 的 `OPERATIONS`）。
+ *  2026-10-14 由 19 条扩到 22 条（#1051 讨论结论）：新收进来的三条原先分别挂在某一个后端的
+ *  「后端私有扩展」名下 —— `getRepoPermissions`（GitHub 的仓库写权限）、`listSubIssues`（GitHub 取一张地图的全部子票）、
+ *  `ensureLabelColorsFile`（本地 Markdown 往工作区放配色文件）。收进来的理由是同一个：**它们的读者都在后端之外**，
+ *  后端之外有读者就不是「某一家的细节」。三个私有扩展类型（`GitHubRoomExtension` / `MarkdownRoomExtension` /
+ *  `RoomAuxiliaries`）随之删除，成员全部并进 `Tracker`。 */
 const OPERATION_NAMES = [
   'preflight', 'list', 'get', 'getDependencies', 'create', 'close', 'reopen', 'comment', 'update',
   'setLabels', 'setAssignees', 'setParent', 'setBlockedBy', 'getCurrentUser', 'initProject',
   'listLabels', 'setLabelColors', 'counts', 'listPage',
+  'getRepoPermissions', 'listSubIssues', 'ensureLabelColorsFile',
 ]
+
+/** 3 条定位口的名字（真源：同一份名录的 `LOCATORS`）。
+ *  它们与操作的区别：没有「我不支持」这种答案，注册表不替它们补桩，缺席就是缺席。
+ *  分开列是为了让「名录一共 25 条」这件事在门禁里看得见：22 + 3 = 25。 */
+const LOCATOR_NAMES = ['getRepoKey', 'describe', 'issueAddress']
 
 let failed = false
 const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
@@ -308,7 +333,7 @@ function inDir(file, dir) {
 }
 
 function main() {
-  console.log('契约层类型门禁（缺件即红 + tsc 零错误 + 没漏编 + 19 操作名齐 + 无运行时实现 + 探针编译 + 反面证明 + 运行时腿）')
+  console.log('契约层类型门禁（缺件即红 + tsc 零错误 + 没漏编 + 25 条能力齐 + 无运行时实现 + 探针编译 + 两条反面证明 + 运行时腿）')
 
   // ---- 0) 缺件即红：契约目录、tsconfig、operations.ts、两份探针，少任何一样都判红 ----
   // 旧写法是打印「等 A 落地后再跑」并 exit(0)：那在验证链里就是一条绿，与「真源写完且都对」看不出区别。
@@ -388,17 +413,20 @@ function main() {
     }
   }
 
-  // ---- 3) 接口清单齐：19 个操作名一个不少 ----
+  // ---- 3) 接口清单齐：22 个操作名 + 3 条定位口，一个不少 ----
   // 名字的**住处**是名录件 operations-catalog.ts，operations.ts 只从它生类型，
   // 所以两份合起来查：只扫 operations.ts 会在「名录单源」之后漏掉真正写名字的地方。
   // operations.ts 缺席时（第 0 步已判红）这里不读文件、只走名录件那一半，免得抛异常打断整趟检查。
+  // 定位口那三条也查 operations.ts：它们的方法声明写在那里（名录件里只有名字，声明在操作层）。
   const catalogPath = path.join(CONTRACT_DIR, CATALOG_REL)
   const catalogCode = fs.existsSync(catalogPath) ? stripComments(fs.readFileSync(catalogPath, 'utf8')) : ''
   const opsPath = path.join(CONTRACT_DIR, OPERATIONS_REL)
   const opsText = fs.existsSync(opsPath) ? stripComments(fs.readFileSync(opsPath, 'utf8')) : ''
   const opsCode = opsText + '\n' + catalogCode
   const missingOps = OPERATION_NAMES.filter((n) => !hasName(opsCode, n))
-  check(missingOps.length === 0, '19 个契约操作名全部出现' + (missingOps.length ? '，缺：' + missingOps.join('、') : '（' + OPERATION_NAMES.length + ' 个逐个查过，含名录件 ' + CATALOG_REL + '）'))
+  check(missingOps.length === 0, '22 个契约操作名全部出现' + (missingOps.length ? '，缺：' + missingOps.join('、') : '（' + OPERATION_NAMES.length + ' 个逐个查过，含名录件 ' + CATALOG_REL + '）'))
+  const missingLocators = LOCATOR_NAMES.filter((n) => !hasName(opsCode, n))
+  check(missingLocators.length === 0, '3 条定位口名全部出现' + (missingLocators.length ? '，缺：' + missingLocators.join('、') : '（共 ' + (OPERATION_NAMES.length + LOCATOR_NAMES.length) + ' 条能力）'))
 
   // ---- 4) 没有运行时实现：契约目录只许类型与数据，目录内数据互引除外 ----
   if (!tsFiles.length) {
@@ -490,6 +518,53 @@ function main() {
       )
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true })
+    }
+  }
+
+  // ---- 6b) 反面证明第二条：走探针那条路，缺 matches 的假后端也必须编不过 ----
+  // 第一条反面证明走的是**严格开关 + 完整 `BackendModule`**，那证明的不是探针这条路：探针自己
+  // 跑在宽松开关（`--strict false`）下，断的是弱化过的 `ProbeShape`。弱化之后还抓不抓得住缺成员，
+  // 在 #1051 讨论之前没有任何自动化证明（这正是那张票要补的两条之一）。
+  // 这一条就是补上的证明：用**探针同款开关**、断**探针真用的那份 ProbeShape**，现拼一个缺 matches 的假后端。
+  // 只认「报错落在假文件自己身上」，不认别的文件里冒出来的 matches —— 后端内部本来就有报错，
+  // 不筛文件的话这条证明谁都能过（那就成了摆设）。
+  if (!tscBin) {
+    check(false, '第二条反面证明能跑（tsc 起不来，这一项没做：见第一项的 FAIL）')
+  } else if (!probeGithubExists) {
+    // 第 0 步已经为缺探针判过红，这里不再重复同一条。
+  } else {
+    const os2 = require('os')
+    const tmpDir2 = fs.mkdtempSync(path.join(os2.tmpdir(), 'dsh-contract-neg2-'))
+    try {
+      const relToProbe = path.relative(tmpDir2, path.join(ROOT, PROBE_GITHUB_REL)).replace(/\\/g, '/')
+      const neg2 = path.join(tmpDir2, 'negative-probe-shape.ts')
+      fs.writeFileSync(
+        neg2,
+        `import type { ProbeShape } from '${relToProbe}'\n` +
+          `export const bad: ProbeShape = { id: 'neg', label: 'neg', create: () => ({}) }\n`,
+        'utf8',
+      )
+      const nr2 = spawnSync(process.execPath, [tscBin, ...PROBE_TSC_ARGS, neg2], { encoding: 'utf8' })
+      const nout2 = (nr2.stdout || '') + (nr2.stderr || '')
+      // 按文件名认「假文件自己身上」的报错：tsc 打印的路径是相对当前目录的，拿绝对路径前缀对不上。
+      // 文件名带随机目录名，不会与仓库里的任何文件重名。
+      // 还要往后读几行：`Property 'matches' is missing …` 这一句落在报错块的续行上，
+      // 只看首行会得出「没点名 matches」的错误结论（这条断言刚上线时就是这么误判过一次）。
+      const neg2Name = path.basename(neg2)
+      const all2 = nout2.split(/\r?\n/)
+      const selfIdx = all2.findIndex((l) => /\(\d+,\d+\)\s*:\s*error\s+TS\d+/.test(l) && l.replace(/\\/g, '/').includes('/' + neg2Name + '('))
+      const selfBlock = selfIdx >= 0 ? all2.slice(selfIdx, selfIdx + 4).join('\n') : ''
+      const selfLines = selfIdx >= 0 ? [all2[selfIdx]] : []
+      const mentions = /matches/.test(selfBlock)
+      check(
+        selfLines.length > 0 && mentions,
+        '探针那条路也断得住缺成员：缺 matches 的假后端在 ProbeShape 上编不过、且报错点名 matches' +
+          (selfLines.length > 0 && mentions
+            ? '（宽松开关 + 弱化形状，证明' + PROBE_GITHUB_REL + ' 的 ProbeShape 不是摆设）'
+            : '（假文件自己身上 ' + selfLines.length + ' 条报错' + (mentions ? '' : '，没点名 matches') + '：探针的弱化形状可能断不了缺少成员，速查）'),
+      )
+    } finally {
+      fs.rmSync(tmpDir2, { recursive: true, force: true })
     }
   }
 

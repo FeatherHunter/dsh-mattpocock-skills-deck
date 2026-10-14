@@ -1,10 +1,11 @@
 /**
- * backends/github/backend.js — 后端装配（githubMatches / createGithubBackend）。
+ * src/tracker/rooms/github/backend.ts — GitHub 后端装配（githubMatches / createGithubBackend）。
  *
  * 由 #440 从 index.js 纯结构移出，行为零变化。
  * 以后改后端装配的人改它。预估约 115 行。
  */
 
+import type { RoomOperations } from '../../contract/operations.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { fail } from '../../preflight.js'
 import { ghClient } from './client.js'
@@ -62,9 +63,12 @@ export async function githubMatches(handle, ctx) {
 /**
  * 创建 GitHub 后端适配器（Tracker）。
  * @param {import('../../contract/index.js').BackendContext} ctx DSH host ctx（platform 已解析实例注入，#113）
- * @returns {import('../../contract/index.js').Tracker}
+ *
+ * 返回类型标 `RoomOperations`（`Tracker` 的子集）：本后端没实现的那几条由注册表补「我不支持」的桩，
+ * 这是合规的常态。标注的用处是把签名核对交给编译器 —— 参数写错、返回类型写错当场编译不过，
+ * 不再需要一份手写的名字清单门禁去数。
  */
-export function createGithubBackend(ctx) {
+export function createGithubBackend(ctx): RoomOperations {
   // 可选：预解析 ghPath 无副作用，此处不做
   void ghClient(ctx)
   return {
@@ -76,8 +80,8 @@ export function createGithubBackend(ctx) {
     // #690：按页取票（创建时间倒序 + 薄片段 + 游标 + 总数）。语义见 tracker/contract-page.js 的「分页契约」。
     listPage: (repo, filter, opts, opCtx) => listIssuesPage(repo, filter, opts, opCtx || ctx),
     // #691：一张地图的全部子票（翻页拉到底 + totalCount 核对 + 1000 张硬上限）。
-    //   它是读路径的实现细节、不进契约的 OPERATIONS（与 snapshotFast 同一条豁免，见 contract.js 的「非 op 旁路豁免」）；
-    //   唯一调用者是宿主电话 wf.mapTickets，没实现它的后端由那条电话按 unsupported 退化。
+    //   2026-10-14 起它是契约操作（`Tracker.listSubIssues`）：原先按「读路径的实现细节」豁免在外，
+    //   但它的调用者是宿主电话 wf.mapTickets —— 房外有读者，它就不是某家的细节。
     listSubIssues: (repo, mapKey, opts, opCtx) => listSubIssues(repo, mapKey, opts, opCtx || ctx),
     get: (repo, key, opts, opCtx) => getIssue(repo, key, opts, opCtx || ctx),
     getDependencies: (repo, key, opts, opCtx) => getDependencies(repo, key, opts, opCtx || ctx),
@@ -124,9 +128,9 @@ export function createGithubBackend(ctx) {
     // 有该能力的后端把三层兜底（git remote → 配置 → gh 视图）开给调用方自己补；
     // 没有该能力的后端没有这一格，调用方跳过，原样诚实失败。只读，无副作用。
     getRepoKey: (cwd, opCtx) => getRepoKey(cwd, opCtx || ctx),
-    // #992：仓库写权限旁路（只读，不进 OPERATIONS、不驱动渲染分支、不参与能力验证）。
-    //   这是 contract.js「非 op 旁路豁免」那一条的用法（与 listSubIssues 同例）：只回答
-    //   「当前账号在这个仓库上有没有 push / triage」，给 deck_context 的能力位与失败归因共用。
+    // #992：仓库写权限（只回答「当前账号在这个仓库上有没有 push / triage」）。
+    //   2026-10-14 起它是契约操作（`Tracker.getRepoPermissions`）：deck_context 的能力位与失败归因
+    //   两边都要用它，所以它不再是「GitHub 独有的旁路」。
     //   问不出来（网络、仓库不存在）如实回 ok:false，调用方按「未知」处理，不捏造。
     getRepoPermissions: async (repo, opCtx) => {
       const c = ghClient(opCtx || ctx)

@@ -1,7 +1,6 @@
+import type { RoomOperations } from '../../contract/operations.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { mdPath, effortMapPath, effortIssuePath } from './path.js'
-import { parseMd } from './parse.js'
-import { normalizeIssue } from './normalize.js'
 import { readTextFile, exists } from './read.js'
 import { listIssues, getIssue, createIssue, closeIssue, reopenIssue, updateIssue, setBlockedByIssue, setAssigneesIssue, setParentIssue, setLabelsIssue } from './issues.js'
 import { countIssues } from './counts.js'
@@ -91,7 +90,14 @@ export function issueAddress(ref, key) {
 export function repoSearchAddress(name) { return '' }
 /** 在这个后端的文本里认出票引用的写法（#1110 实现决定第 14 条）。 */
 export const issueRefPattern = "#(\\d+)"
-export function createMarkdownBackend(ctx){
+/**
+ * 创建本地 Markdown 后端适配器（Tracker）。
+ *
+ * 返回类型标 `RoomOperations`（`Tracker` 的子集）：本后端没实现的那些操作由注册表补「我不支持」的桩。
+ * 下面逐条写明的「本后端不提供」是**有意为之的诚实回法**，不是漏做：
+ * 能做的事与不能做的事都在这一份里看得见，读的人不用去别的文件里对账。
+ */
+export function createMarkdownBackend(ctx): RoomOperations {
   return{
     id:'markdown',
     preflight: async (handle,opCtx)=>{
@@ -160,11 +166,14 @@ export function createMarkdownBackend(ctx){
     // 放置配色文件的入口，给「用户为工作区选定后端」那一步用（host 不问后端 id，只问它愿不愿意放）。
     // 只有本后端实现它，所以只有 Markdown 系后端会往工作区放这个文件。
     ensureLabelColorsFile:(repo,opCtx)=>ensureLabelColors(opCtx||ctx,repo),
-    // 这两条「本后端不提供这项能力」：原文给空串（一次调用都没发出去，没有外部来源的原文）。
+    // 下面这几条是「本后端明确不提供这项能力」：原文给空串（一次调用都没发出去，没有外部来源的原文）。
+    // 2026-10-14 起它们都是契约里的正式成员，回 unsupported 是合规答案，不是缺陷。
     getCurrentUser: async ()=>(failAs(ERROR_KIND.UNSUPPORTED,'markdown getCurrentUser unsupported','')),
     initProject: async ()=>(failAs(ERROR_KIND.UNSUPPORTED,'markdown initProject unsupported','')),
-    normalize:normalizeIssue,
-    parse:parseMd,
+    // 本地票仓的写入能力由目录权限与沙箱决定，没有「仓库权限」这回事，所以没有可问的对象。
+    getRepoPermissions: async ()=>(failAs(ERROR_KIND.UNSUPPORTED,'markdown getRepoPermissions unsupported','')),
+    // 子票就在工作区的票文件里，宿主要「这张地图的全部子票」直接读文件即可，不经这里。
+    listSubIssues: async ()=>(failAs(ERROR_KIND.UNSUPPORTED,'markdown listSubIssues unsupported','')),
   }
 }
 /** #323（2026-08-29 定版复核）：本地 Markdown 后端自己的默认调色盘（不依赖 GitHub）——
