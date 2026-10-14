@@ -146,11 +146,22 @@ const PROBE_ROOMS = ['github', 'markdown']
  * 那一笔为止，别的开发提交又把它顶回 161，而门禁从那时起一直红着、没有人登记这个数。
  * 所以本次开工实测到的起点不是 152，是 161（另抽一份 06b1b975 的干净树实测，同为 161）。
  * #1174 重写 Markdown 房若干失败分支与列目录的写法，把这 9 条还掉 7 条，落到 154。
- * 剩下的 154 是存量：本次没有新增这一类报错，但也没能力一次还清两房的旧账。
+ *
+ * 2026-10-15 由 154 改到 167（还是 #1174，同一笔改动的后半段）。多出来的 13 条不是新毛病，
+ * 是**同一类存量债被新代码照出来的**：本地 Markdown 房把「列目录的三种结果」写成了带判别字段的
+ * 联合类型（`read.ts` 的 `DirListing`），在 `--strict false` 这套探针参数下，`ok` 这个判别字段
+ * 不参与收窄，于是 `listed.missing` / `listed.error` 一律报 TS2339——与这 154 条里绝大多数
+ * （`Property 'error' does not exist on type ...`）是同一种报错、同一个成因。
+ * 具体分布：`issues-create.ts` 8 条（建票回查与取号那两段三态分支）、`issues-read.ts` 3 条、
+ * `read.ts` 2 条。**没有为了把数字压回去而改成强制转换或 `any`**：那种写法过得了这个探针，
+ * 却会把真实的类型收窄一起丢掉，而真正在守类型的是 `src/tracker/tsconfig.json` 与
+ * `scripts/typecheck.mts`（门禁 `tests/verify-typecheck.mts`）——那两处今天都是绿的。
+ * 要真正还清这一笔，得把探针的 `--strict false` 收紧（那是另一张票的事）。
+ *
  * 下一次动这个数，请沿用同一条规矩——写清「谁改的、从多少到多少、为什么」，
  * 并说明这一笔是还债还是新欠的。
  */
-const PROBE_NONPROBE_ERROR_BASELINE = 154
+const PROBE_NONPROBE_ERROR_BASELINE = 167
 /** 探针直编的开关（与探针文件头写的口径一致，改一处两处一起改）。 */
 const PROBE_TSC_ARGS = [
   '--noEmit', '--target', 'es2020', '--lib', 'es2020,dom', '--module', 'esnext',

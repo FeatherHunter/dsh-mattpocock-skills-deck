@@ -114,6 +114,33 @@ export async function listDirOrMissingIsEmpty(ctx: OpContext, dirPath: string): 
   const r=await listDir(ctx,dirPath)
   return r.ok ? r.names : []
 }
+/**
+ * 列一个目录，**只有「这个目录本来就不存在」才当空表，其余没读成的一律抛出**。
+ *
+ * 这是「我必须数清楚」的那些调用方要用的口：建票回查找锚、取下一个编号、票目录汇总（计数与翻页）、
+ * 反向聚合看谁在等这张票、配色文件读不出来时判「取不全」……它们共同的处境是——**少看见一张票
+ * 就会给出一个错的答案**（重复建票、撞号、少算、少列、假装没有配色），而错的答案长得和正确答案一样。
+ *
+ * 与隔壁 `listDirOrMissingIsEmpty` 的分工要记牢：那一条是读路径上的宽松口，用在「这里没有确实是
+ * 正常状态、而且调用方不为『没读成』单独交代」的地方；两条 API 各管一种意图，别互相顶替。
+ * 抛出的是 `listDir` 挂在 `{ok:false,missing:false}` 上的那个错误（带 kind 与原始 cause），
+ * 调用方用 try/catch 转成自己那一层的失败形状即可。
+ */
+export async function listDirOrThrow(ctx: OpContext, dirPath: string): Promise<string[]> {
+  const r=await listDir(ctx,dirPath)
+  if(r.ok) return r.names
+  if(r.missing) return []
+  throw r.error
+}
+/** 这次调用有没有文件服务（platform.fs → ctx.fs → ctx.get('fs') 那三处任一）。
+ *
+ *  给那些「没有文件服务时另有答案」的调用方用：本地 Markdown 房在#618 定过一条约定——
+ *  没有文件服务时照内置调色盘回答（界面刚起来、沙箱还没接上的那一瞬间就靠它）。
+ *  所以「压根没有文件服务」与「有文件服务、但读不出来」是两回事：前者按内置答案走，
+ *  后者才是取不全、必须整体失败。这个判断放在 `read.ts` 一处，免得各调用方各写一份。 */
+export function hasFs(ctx: OpContext): boolean {
+  return !!getFs(ctx)
+}
 export async function exists(ctx: OpContext, fullPath: string): Promise<boolean> {
   const fs=getFs(ctx);if(!fs)return false
   // DSH 文件沙箱区分两种形状：lstat 是“路径形”（直接吃字符串路径），stat / listDir / readText 是“目标形”（需先 resolve 成 handle）。

@@ -4,7 +4,7 @@
 // 本文件的职责是「按 effort 范围列出/读取」，每张票与每张地图都带上 effortId；
 // 父子关系只在同一 effort 内成立（子票 parentKey='00' 指的是**本 effort 的地图**）。
 import { parseMd } from './parse.js'
-import { readTextFile, listDirOrMissingIsEmpty, statFile } from './read.js'
+import { readTextFile, listDir, statFile } from './read.js'
 import { mdPath, issuesDir } from './path.js'
 import { failAs, failFromError, kindFromError, rawFromError, rawTextOf } from './error-fail.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
@@ -103,12 +103,18 @@ export async function enumerateIssueRows(ctx: OpContext, repo: RepoWithPath, fil
     errors.push({ key: '', path: String(idir || ''), kind: got.kind, message: '这个工作单元的票目录读不出来：' + String(idir || '') + '（' + detail + '）', raw: rawTextOf(rawFromError(err)) })
   }
   const collectTicketsIn = async function (idir: string, effortId: string, useKeyFilter: boolean): Promise<void> {
+    // 这里用严格的 `listDir`：宽松口把「读不出来」压成空数组，上面那两条承诺就都落空了
+    // （开了收集就把错误记下来、没开就当场抛）—— 而且是在「看起来正常」的样子下落空的。
     let files: string[]
-    try { files = await listDirOrMissingIsEmpty(ctx, idir) }
-    catch (err) {
-      if (!collectErrors) throw err
-      noteDirReadError(idir, err)
-      return
+    {
+      const listed = await listDir(ctx, idir)
+      if (listed.ok) files = listed.names
+      else if (listed.missing) files = []
+      else {
+        if (!collectErrors) throw listed.error
+        noteDirReadError(idir, listed.error)
+        return
+      }
     }
     for (const f of files) {
       const m = /^(\d+)-/.exec(f)

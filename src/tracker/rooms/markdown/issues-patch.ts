@@ -2,7 +2,7 @@
 //
 // effort 维度（2026-09-09）：所有写路径按 (effort 范围, 编号) 定位文件，多命中即 conflict。
 import { parseMd, stripLabelDecoration, parentKeyFromFile, isWholeIssueBody, loginOfAssignee } from './parse.js'
-import { readTextFile, statFile } from './read.js'
+import { readTextFile } from './read.js'
 import { writeTextFile } from './write.js'
 import { failAs, failFromError } from './error-fail.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
@@ -10,8 +10,8 @@ import { resolveIssueFile, resolveMapFile } from './issues-locate.js'
 import { loadPaintColorMap, applyLabelColors } from './label-colors-paint.js'
 import { replaceOrInsertField } from './issues-status.js'
 // #1174：写阻塞边之前的全图环检（契约明写「环检是写路径的一部分，不许省」）。
-import { readBlockedByGraph, cycleThrough } from './graph.js'
 // #922：票文件的读—改—写按文件排队，见 write-queue.js。
+import { checkExpectedUpdatedAt, cycleVerdictFor } from './write-guards.js'
 import { withFileWriter } from './write-queue.js'
 import type { OpContext } from '../../contract/contexts.js'
 import type { RepositoryRef, Issue } from '../../contract/entities.js'
@@ -56,43 +56,6 @@ async function readParseWrite(ctx: OpContext,repo: RepoWithPath | null,r: Resolv
       return{ok:true,txt:next}
     }catch(e){return failFromError(e,ctx,'读—改—写这张票的文件时出错')}
   })
-}
-/** 这张票文件当前的「更新时间」：与票的 `updatedAt` 同源——`loadIssueFromFile` 取的就是文件 mtime。
- *  取不到就回 `null`：「拿不到版本」与「版本对得上」是两件事，混成一个值就会把「校验没做成」说成「校验通过」。 */
-async function currentUpdatedAt(ctx: OpContext, fullPath: string): Promise<string | null> {
-  try{
-    const st=await statFile(ctx,fullPath) as Record<string, unknown> | null
-    if(!st||typeof st!=='object')return null
-    const t=st.mtime||st.mtimeMs||st.ctime
-    if(t===undefined||t===null||t==='')return null
-    if(t instanceof Date)return isNaN(t.getTime())?null:t.toISOString()
-    if(typeof t==='number')return isNaN(t)?null:new Date(t).toISOString()
-    const s=String(t)
-    const d=new Date(s)
-    return isNaN(d.getTime())?s:d.toISOString()
-  }catch{return null}
-}
-/** 写前版本校验（#1174 决策 9；契约 `SetOpts.expectedUpdatedAt` 的乐观并发控制）。
- *
- *  四种情形各自诚实，绝不混：
- *   - 调用方**没给**期望值 → 不校验（今天全仓没有调用方传它，这是常态；见本票使用者故事 23）；
- *   - 给了、与盘上文件的更新时间**对得上** → 放行；
- *   - 给了、**对不上** → `conflict`，一个字都不写（这正是「不做后写覆盖先写」那句话的落点）；
- *   - 给了、但**文件时间取不到** → `unsupported`，也一个字都不写 —— 校验没做成就不许放行，
- *     放行等于把「不知道」说成「没被改过」。
- *
- *  原文一律给这次比的两个值（本地就能定论：是这两个串不一样），人据此自己核对。 */
-async function checkExpectedUpdatedAt(ctx: OpContext, fullPath: string, opts: SetOpts | undefined): Promise<{ ok: true } | PatchFailure> {
-  const want=opts&&typeof opts.expectedUpdatedAt==='string'?opts.expectedUpdatedAt.trim():''
-  if(!want)return{ok:true}
-  const cur=await currentUpdatedAt(ctx,fullPath)
-  if(cur===null){
-    return failAs(ERROR_KIND.UNSUPPORTED,'这个后端取不到这张票的更新时间，写前版本校验做不成，所以这次一个字都没写',fullPath)
-  }
-  if(cur!==want){
-    return failAs(ERROR_KIND.CONFLICT,'expectedUpdatedAt mismatch（这张票在你读到它之后已经被改过，所以这次一个字都没写）',JSON.stringify({expected:want,actual:cur}))
-  }
-  return{ok:true}
 }
 /** 递进来的正文是不是「一整份票文件」：自带 H1 标题（或幂等锚）。
  *  为什么要分开判：下面的插入分支把正文插在现有 H1 之后，认错了盘上就会留下两个 H1、两份正文。
@@ -291,20 +254,6 @@ export async function setBlockedByIssue(ctx: OpContext,repo: RepoWithPath | null
     applyLabelColors(iss, colorMap)
     return{ok:true,data:iss}
   }catch(e){return failFromError(e,ctx,'改这张票的阻塞关系时出错')}
-}
-/** 把「这张票改成由这批票阻塞」代进整张图，判一次有没有成环。
- *
- *  两种结论：没有环 → 放行；有环 → `conflict`，并把环上经过的点按顺序写进原文给人看
- *  （只说「成环了」而不说哪几张票，人还得自己再去图上找一遍）。
- *  图读不全（列目录读不出来、某份票读不出来）时同样不放行：这时候「没看到环」不等于「没有环」。 */
-async function cycleVerdictFor(ctx: OpContext, repo: RepoWithPath | null, effortId: string, key: string, blockers: unknown[]): Promise<{ ok: true } | PatchFailure>{
-  const g=await readBlockedByGraph(ctx,repo,effortId)
-  if(!g.ok)return{ok:false,error:g.error}
-  const graph=new Map<string,string[]>(g.graph)
-  graph.set(key,blockers.map(function(k){ return String(k).padStart(2,'0') }).filter(Boolean))
-  const cycle=cycleThrough(graph,key)
-  if(!cycle)return{ok:true}
-  return failAs(ERROR_KIND.CONFLICT,'这条依赖写下去会成环（'+cycle.join(' → ')+'），所以这次一个字都没写',JSON.stringify({key:key,blockers:blockers,cycle:cycle}))
 }
 /** 在某个字段行的下一行插入一行；找不到那个字段就退回「插在标题下面」的通用写法。
  *

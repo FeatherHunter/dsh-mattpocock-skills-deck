@@ -10,7 +10,7 @@ import type { ErrorKind } from '../../contract/identity.js'
 import type { LabelColorBatchResult, TrackerError } from '../../contract/results.js'
 import type { SandboxFs } from '../../contract/contexts.js'
 import { normalizeColor } from '../../../shared/label-color/colors.js'
-import { readTextFile, listDirOrMissingIsEmpty } from './read.js'
+import { readTextFile, listDirOrThrow, hasFs } from './read.js'
 import { getPlat, listEfforts } from './issues-locate.js'
 import { parseMd } from './parse.js'
 import { LABEL_COLORS_REL_PATH, readLabelColors, ensureLabelColors, publishLabelColors, withLabelColorsWriter, isMissingFile } from './label-colors.js'
@@ -66,7 +66,14 @@ async function collectTicketLabelNames(ctx: OpContext, repo: RepositoryRef | nul
   const dirs: string[] = []
   const rp = repo as (RepositoryRef & { path?: unknown }) | null
   if (rp && typeof rp.path === 'string' && rp.path) dirs.push(rp.path)
-  for (const e of await listEfforts(ctx)) dirs.push(e.dir)
+  // #618 的约定：**没有文件服务时照内置调色盘回答**（界面刚起来、沙箱还没接上就靠它），
+  // 所以「压根没有文件服务」不算取不全，直接跳过扫盘这一整段。
+  // 但「有文件服务、却读不出来」是另一回事——那才是取不全，必须整体失败：
+  // 少扫一个目录，标签清单就会悄悄少一截，而它长得和完整清单一模一样（#1174 决策 6）。
+  if (!hasFs(ctx)) return { ok: true, names: Array.from(names) }
+  try { for (const e of await listEfforts(ctx)) dirs.push(e.dir) } catch (e) {
+    return failAs(ERROR_KIND.ENV, '未能获取全部标签：工作区中有目录无法读取。这是插件运行环境的问题，不是你的操作有误。请关闭可能占用这些文件的程序后重试。', String((e && (e as Record<string, unknown>).message) || e))
+  }
   for (const dir of dirs) {
     const files = [plat.join(dir, 'map.md')]
     const idir = plat.join(dir, 'issues')
@@ -104,12 +111,13 @@ async function collectTicketLabelNames(ctx: OpContext, repo: RepositoryRef | nul
  *  而「首次打开改色弹窗」正是那条路——把「目录不存在」当错误，用户一开弹窗就会看到一句报错，
  *  而他什么都没做错（审查实测过这个场景）。
  *
- *  #1174 起判据不再由本文件自备一份，改用房间唯一的列目录口径（`read.ts` 的 `listDirOrMissingIsEmpty`）：
- *  两处各判一次「什么算不存在」，换个沙箱实现就会走样；而且旧写法只罩得住这一条调用路径，
- *  工作区根目录读不出来时 `listEfforts` 那一层仍会静默返回「没有票」（旧注释自己把这条记成已知缺口）——
- *  那个缺口现在由 `read.ts` 一并堵上，这里跟着收掉重复的那份判据。 */
+ *  #1174 起判据不再由本文件自备一份，改用房间唯一的列目录口径（`read.ts` 的 `listDir`）：
+ *  两处各判一次「什么算不存在」，换个沙箱实现就会走样。这里保留本调用路径的口径：
+ *  **目录不存在 → 空表；目录在、却列不出来 → 抛出去**，由上层判「取不全、整体失败」。
+ *  （不能改用宽松的 `listDirOrMissingIsEmpty`：那个口把「没读成」也压成空表，
+ *  于是「配色文件读不出来」会装成「一个标签都没有」，正是 #1174 要根除的那种谎话。） */
 async function readDirOrThrow(ctx: OpContext, dir: string): Promise<string[]> {
-  return await listDirOrMissingIsEmpty(ctx, dir)
+  return await listDirOrThrow(ctx, dir)
 }
 
 /** 文件里某一行的含义说明（值写成对象时才有）。 */

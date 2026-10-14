@@ -6,7 +6,7 @@
 //   - 仓库有多个 effort 又没指定 → 返回 conflict 诚实失败，绝不猜（旧实现在所有 effort 之间取全局 max+1，
 //     与契约冲突，而且因为少了 getScratchRoot 的 import 从未生效）。
 import { parseMd, slugify, stripLabelDecoration, isWholeIssueBody, loginOfAssignee } from './parse.js'
-import { listDirOrMissingIsEmpty, readTextFile, statFile, exists } from './read.js'
+import { listDir, readTextFile, statFile, exists } from './read.js'
 import { writeTextFile, ensureDir } from './write.js'
 import { issuesDir } from './path.js'
 import { failAs, failFromError } from './error-fail.js'
@@ -174,10 +174,17 @@ type AnchorLookup =
 async function findAnchoredTicket(ctx: OpContext,idir: string,key: string): Promise<AnchorLookup>{
   if(!idir)return{status:'miss'}
   const plat=getPlat(ctx)
-  // 列目录失败**不许**当空表（旧实现正是这么做的，于是一路静默建出第二张票）。
+  // 列目录：**这里必须用严格的 `listDir`，不能用宽松的 `listDirOrMissingIsEmpty`**。
+  // 宽松口把「读不出来」压成空数组，回查于是把「没读成」读成「一张都没建过」，照常再建一张 ——
+  // 重复建票就是这么来的。严格口把三种结果分开：目录本来就不存在（全新工作单元，算空表）、
+  // 列出来了（可能是空数组）、以及**没读成**（这一种必须如实失败，进上面的 `unsupported` 档）。
   let files: string[]
-  try{ files=await listDirOrMissingIsEmpty(ctx,idir) }
-  catch(e){ return{status:'unsupported',reason:'回查要列这个工作单元的票目录，但列不出来：'+idir+'（'+String((e as Error)?.message||e)+'）'} }
+  {
+    const listed=await listDir(ctx,idir)
+    if(listed.ok) files=listed.names
+    else if(listed.missing) files=[]
+    else return{status:'unsupported',reason:'回查要列这个工作单元的票目录，但列不出来：'+idir+'（'+String((listed.error as Error)?.message||listed.error)+'）'}
+  }
   const candidates: Array<{ path: string; key: string; text: string; candidate: AnchorCandidate }>=[]
   for(const f of files){
     if(!f||!f.endsWith('.md'))continue
@@ -260,9 +267,17 @@ export async function createIssue(ctx: OpContext,repo: RepoWithPath | null,input
         }
       }
       // 编号：只在目标 effort 内取 max+1（契约：每个 effort 从 01 起）。
-      // 列目录读不出来时抛错（不吞成空表）：吞掉就等于「这里一个号都没占」，会覆盖别人的票。
+      // 列目录读不出来时如实失败（不吞成空表）：吞掉就等于「这里一个号都没占」，
+      // 取出来的号会与盘上已有的票撞车（#1174 决策 6）。这里同样用严格的 `listDir`：
+      // 目录本来就不存在才当空表（全新工作单元），「没读成」必须当场失败。
+      let filesSelf: string[]
+      {
+        const listed=await listDir(ctx,idir)
+        if(listed.ok) filesSelf=listed.names
+        else if(listed.missing) filesSelf=[]
+        else return failAs(ERROR_KIND.ENV,'建这张票要列票目录来取号，但目录读不出来：'+idir+'（'+String((listed.error as Error)?.message||listed.error)+'）',String((listed.error as Error)?.message||listed.error))
+      }
       let max=0
-      const filesSelf=await listDirOrMissingIsEmpty(ctx,idir)
       for(const f of filesSelf){ const m=/^(\d+)-/.exec(f); if(m){ const n=parseInt(m[1],10); if(!isNaN(n)&&n>max) max=n } }
       let next=max+1
       let attempt=0

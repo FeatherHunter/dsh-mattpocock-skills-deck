@@ -307,6 +307,61 @@ console.log('\n== ⑨ 每张票都带地址，而且地址指向盘上那个真�
   fs.rmSync(addrTmp, { recursive: true, force: true })
 }
 
+// ── #1174 根因闸：列目录「读不出来」不许被当成「这里没有票」 ──
+// 这一节只做一件事：把票目录换成「明明在、但列不出来」的底盘，看三处最重的后果还在不在。
+// 旧写法三路 catch 全回空数组，于是「读不成」与「目录是空的」在下游是同一个值，长出来的是
+// 重复建票、假零、假空页。判据不是「有没有报错」，而是「有没有编出一个看起来正常的答案」。
+console.log('\n== #1174 根因闸：票目录读不出来时不许当空目录 ==')
+{
+  const rcTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'md-rootcause-'))
+  const rcIssues = path.join(rcTmp, '.scratch', 'demo', 'issues')
+  fs.mkdirSync(rcIssues, { recursive: true })
+  fs.writeFileSync(path.join(rcTmp, '.scratch', 'demo', 'map.md'), '# Demo Map\n\nStatus: ready-for-agent\n\n## Destination\n\nDemo\n', 'utf8')
+  fs.writeFileSync(path.join(rcIssues, '01-first-ticket.md'), '# 第一张票\n\n正文\n\nStatus: claimed\nAssignees: local\nType: task\n\n## Comments\n', 'utf8')
+
+  // 正常底盘：真读真写。先拿它把「前提」立住——正常时这三处本来就该给出答案，
+  // 否则下面那几个「失败」可能只是因为底盘整个跑不起来，而不是闸在起作用。
+  const goodFs = {
+    async resolve(p) { return p },
+    async readText(t) { return fs.readFileSync(t, 'utf8') },
+    async writeText(t, c) { fs.mkdirSync(path.dirname(t), { recursive: true }); fs.writeFileSync(t, c, 'utf8') },
+    async lstat(t) { try { return fs.statSync(t) } catch { return null } },
+    async listDir(t) { return fs.readdirSync(t) },
+    async stat(t) { try { return fs.statSync(t) } catch { return null } },
+  }
+  // 故障底盘：目录确实在（lstat/stat 照样答得出来），但列不出来，且错误码不是 ENOENT——
+  // 所以既不能当「不存在」，也不能当「空」。
+  const blind = new Error('EACCES: 这个票目录列不出来')
+  blind.code = 'EACCES'
+  const blindFs = Object.assign({}, goodFs, {
+    async listDir() { throw blind },
+    async readdir() { throw blind },
+  })
+  const rcCtx = (f) => ({ platform: { path: path.posix, fs: f }, fs: f, cwd: rcTmp, get(n) { return n === 'fs' ? f : undefined } })
+  const { countIssues } = await import('../src/tracker/rooms/markdown/counts.ts')
+  const { listIssuesPage } = await import('../src/tracker/rooms/markdown/page.ts')
+  const { createIssue } = await import('../src/tracker/rooms/markdown/issues-create.ts')
+  const rcRepo = { backend: 'markdown', refId: '.scratch/demo', name: 'demo', url: '' }
+
+  const goodCount = await countIssues(rcCtx(goodFs), rcRepo, {})
+  check(goodCount.ok && goodCount.data && goodCount.data.open === 1, '前提：底盘正常时数得出 1 张（实得 ' + JSON.stringify(goodCount.ok ? goodCount.data : goodCount.error) + '）')
+  const blindCount = await countIssues(rcCtx(blindFs), rcRepo, {})
+  check(!blindCount.ok, '读不出来时计数如实失败，不回一个偏小的数（实得 ' + JSON.stringify(blindCount.ok ? blindCount.data : blindCount.error && blindCount.error.kind) + '）')
+
+  const goodPage = await listIssuesPage(rcCtx(goodFs), rcRepo, {}, {})
+  check(goodPage.ok && (goodPage.data.items || []).length === 1, '前提：底盘正常时翻得出 1 行（实得 ' + JSON.stringify(goodPage.ok ? (goodPage.data.items || []).length : goodPage.error) + '）')
+  const blindPage = await listIssuesPage(rcCtx(blindFs), rcRepo, {}, {})
+  check(!blindPage.ok, '读不出来时翻页如实失败，不回一页空白（实得 ' + JSON.stringify(blindPage.ok ? (blindPage.data.items || []).length + ' 行' : blindPage.error && blindPage.error.kind) + '）')
+
+  const before = fs.readdirSync(rcIssues).length
+  const blindCreate = await createIssue(rcCtx(blindFs), rcRepo, { title: '不该被建出来的票', body: '正文', status: 'ready-for-agent', type: 'task', idempotencyKey: 'root-cause-probe' })
+  const after = fs.readdirSync(rcIssues).length
+  check(!blindCreate.ok, '建票前的回查读不出来时如实失败，不当成「还没建过」（实得 ' + JSON.stringify(blindCreate.ok ? blindCreate.data && blindCreate.data.key : blindCreate.error && blindCreate.error.kind) + '）')
+  check(after === before, '这一次没有悄悄多落一张票（' + before + ' → ' + after + '）')
+
+  fs.rmSync(rcTmp, { recursive: true, force: true })
+}
+
 if (failed || hFailed > 0) {
   console.log('\n存在失败 — verify-markdown-backend 未通过')
   process.exit(1)

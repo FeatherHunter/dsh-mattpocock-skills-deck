@@ -4,7 +4,7 @@
 //   - blockedBy 里的编号在本票所属 effort 内解析（含 '00' = 本 effort 的地图）；
 //   - blocking（反向聚合）只扫同一个 effort 的 issues 目录，不跨 effort 互相干扰。
 import { parseMd } from './parse.js'
-import { readTextFile, listDirOrMissingIsEmpty } from './read.js'
+import { readTextFile, listDirOrThrow } from './read.js'
 import { getPlat, listEfforts, resolveIssueFile, resolveMapFile } from './issues-locate.js'
 import { failAs, failFromError } from './error-fail.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
@@ -81,7 +81,7 @@ export async function getDependenciesForKey(ctx: OpContext, repo: RepoWithPath |
     let files: string[]=[]
     // 列不出这个工作单元的票目录时如实失败，不当成「这里没有票」：反向聚合少扫一部分，
     // 「谁在等这张票」这个答案会悄悄变少，而它正是判断一张票能不能开工的依据（#1174 根因一）。
-    try{ files=await listDirOrMissingIsEmpty(ctx,idir) }
+    try{ files=await listDirOrThrow(ctx,idir) }
     catch(e){ return failFromError(e,ctx,'读这个工作单元的票目录时出错') }
     for(const f of files){
       if(!f||!f.endsWith('.md')) continue
@@ -125,7 +125,7 @@ export async function readBlockedByGraph(ctx: OpContext, repo: RepoWithPath | nu
   const idirs=[plat.join(mine.dir,'issues')]
   for(const idir of idirs){
     let files: string[]
-    try{ files=await listDirOrMissingIsEmpty(ctx,idir) }
+    try{ files=await listDirOrThrow(ctx,idir) }
     catch(e){ return failFromError(e,ctx,'读这个工作单元的票目录时出错') }
     for(const f of files){
       if(!f||!f.endsWith('.md'))continue
