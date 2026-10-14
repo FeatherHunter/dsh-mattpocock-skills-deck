@@ -17,8 +17,10 @@ import fs from 'node:fs'
 import path from 'node:path'
 import url from 'node:url'
 
-import { buildGateMap, normalizeForCompare, readChainSteps, ROOT, isUnder } from '../scripts/gate-map.mjs'
+import { buildGateMap, normalizeForCompare, readChainSteps, ROOT, isUnder, gateNameOf, COMPLETION_RECORDED_GATES } from '../scripts/gate-map.mjs'
 import { selectGates, isCrossCutting } from '../scripts/lib/select-gates.mjs'
+// 完成证据的判据（#1158）：这一份门禁要替它把关——表里那两格说谎，判据就会静默失效。
+import { judgeGateCompletion, formatGateResult, GATE_RESULT_PREFIX } from './lib/gate-result.ts'
 
 const MAP_PATH = path.join(ROOT, 'tests', 'gate-map.json')
 
@@ -175,6 +177,118 @@ const MIN_ATTRIBUTED_GATES = 200
   if (map.attributedGates > MIN_ATTRIBUTED_GATES) {
     info('归属步数比下限高 ' + (map.attributedGates - MIN_ATTRIBUTED_GATES) + ' 步，可以把下限抬到 ' + map.attributedGates)
   }
+}
+
+// ---------------------------------------------------------------------------
+// 2c) 完成证据（#1158）：表里那两格必须与源码、与判据都对得上
+// ---------------------------------------------------------------------------
+// 为什么要有这一段：三条执行器判「这扇门禁跑完了没有」，全靠 gates[].completionRecord 与
+// expectedAssertions 这两格。它们一旦说谎（源码里根本没交记录、或源码在交记录却没登记期望），
+// 判据就静默失效——「跑到一半就收摊、退出码仍是 0」的假绿照旧。所以这里做三件事：
+// 形状与自洽、源码与表互证、判据自己先红一次（反例自证）。
+{
+  let shapeBad = 0
+  let inconsistent = 0
+  for (const gate of map.gates) {
+    if (
+      typeof gate.completionRecord !== 'boolean' ||
+      !Number.isInteger(gate.expectedAssertions) ||
+      gate.expectedAssertions < 0
+    ) {
+      shapeBad++
+      continue
+    }
+    if (gate.completionRecord !== (gate.expectedAssertions > 0)) inconsistent++
+  }
+  check(shapeBad === 0, '每扇门禁都写齐了 completionRecord（布尔）与 expectedAssertions（非负整数）两格（缺格或类型不对 ' + shapeBad + ' 条）')
+  check(inconsistent === 0, '两格自洽：completionRecord 为 true 的都有正数期望，为 false 的期望都是 0（不自洽 ' + inconsistent + ' 条）')
+
+  const opened = map.gates.filter((g) => g.completionRecord)
+  const registered = Object.keys(COMPLETION_RECORDED_GATES)
+  check(
+    map.completionRecordedGates === opened.length,
+    '表头记的已开闸扇数 ' + map.completionRecordedGates + ' 等于 gates 里 completionRecord 为 true 的条数 ' + opened.length,
+  )
+  check(
+    registered.length === opened.length,
+    '生成器里登记的已开闸门禁 ' + registered.length + ' 扇，与表里的 ' + opened.length + ' 扇一致',
+  )
+
+  // 登记表里的名字必须真在链上：拼错一个字，判据就静默不生效（名字对不上就没人检查它）。
+  const openedNames = new Set(opened.map((g) => gateNameOf(g.file)))
+  const unknownRegistered = registered.filter((n) => !openedNames.has(n))
+  check(
+    unknownRegistered.length === 0,
+    '登记表里的门禁名都能在链上找到对应的一扇（找不到 ' + unknownRegistered.length + ' 个' + (unknownRegistered.length ? '：' + unknownRegistered.join('、') : '') + '）',
+  )
+
+  // 源码与表互证：表说它交记录，源码里就得真有那一行调用；源码里有那一行，表里就得登记期望。
+  // 注意：这一段的针脚要拼出来（'printGateResult' + '('），不能让本文件自己扫到自己 ——
+  // 否则本门禁会被自己判成「在交记录却没登记期望」。
+  const PRINT_NEEDLE = 'printGateResult' + '('
+  let missingCall = 0
+  let unregisteredCall = 0
+  const offenders = []
+  for (const gate of map.gates) {
+    let src = ''
+    try {
+      src = fs.readFileSync(path.join(ROOT, gate.file), 'utf8')
+    } catch (e) {
+      continue
+    }
+    const prints = src.includes(PRINT_NEEDLE)
+    if (gate.completionRecord && !prints) {
+      missingCall++
+      offenders.push(gate.file + '（表说它已开闸，源码里却找不到 printGateResult 调用）')
+    }
+    if (!gate.completionRecord && prints) {
+      unregisteredCall++
+      offenders.push(gate.file + '（源码里在交完成记录，表里却没登记期望）')
+    }
+  }
+  check(missingCall === 0, '已开闸的门禁，源码里真的在交完成记录（表说有、源码里没有的 ' + missingCall + ' 扇）')
+  check(unregisteredCall === 0, '源码里在交完成记录的门禁，表里都登记了期望（没登记的 ' + unregisteredCall + ' 扇）')
+  if (offenders.length) for (const o of offenders.slice(0, 5)) info(o)
+
+  // 判据自己先红一次：正例必须绿，坏样本必须各自红出对应的那句话。
+  // 这一段是「反例自证」——判据如果永远返回绿，下面的坏样本就会把它当场戳穿。
+  const good = judgeGateCompletion({
+    gate: 'verify-demo',
+    expectedAssertions: 3,
+    exitCode: 0,
+    output: '……收尾汇总行……\n' + formatGateResult('verify-demo', 3, 0),
+  })
+  check(good.ok === true, '反例自证的正例：记录齐全时判绿（' + good.reason + '）')
+  const noRecord = judgeGateCompletion({ gate: 'verify-demo', expectedAssertions: 3, exitCode: 0, output: '只有汇总行，没有记录行' })
+  check(noRecord.ok === false && noRecord.reason.includes('缺完成记录'), '反例一（缺记录行）：判红并说明缺完成记录')
+  const wrongCount = judgeGateCompletion({
+    gate: 'verify-demo',
+    expectedAssertions: 21,
+    exitCode: 0,
+    output: formatGateResult('verify-demo', 12, 0),
+  })
+  check(
+    wrongCount.ok === false && wrongCount.reason.includes('12') && wrongCount.reason.includes('21'),
+    '反例二（数字对不上）：断言数 12 与期望 21 不符时判红（' + wrongCount.reason + '）',
+  )
+  const brokenLine = judgeGateCompletion({ gate: 'verify-demo', expectedAssertions: 3, exitCode: 0, output: GATE_RESULT_PREFIX + '不是 JSON' })
+  check(brokenLine.ok === false && brokenLine.reason.includes('读不懂'), '反例三（记录行读不懂）：判红并说明这一行读不懂')
+  const badName = judgeGateCompletion({
+    gate: 'verify-demo',
+    expectedAssertions: 3,
+    exitCode: 0,
+    output: formatGateResult('verify-other', 3, 0),
+  })
+  check(badName.ok === false && badName.reason.includes('对不上'), '反例四（门禁名对不上）：判红')
+  const selfFailed = judgeGateCompletion({
+    gate: 'verify-demo',
+    expectedAssertions: 3,
+    exitCode: 0,
+    output: formatGateResult('verify-demo', 3, 1),
+  })
+  check(selfFailed.ok === false && selfFailed.reason.includes('失败'), '反例五（记录自报有失败）：判红')
+  const nonZero = judgeGateCompletion({ gate: 'verify-demo', expectedAssertions: 3, exitCode: 7, output: '' })
+  check(nonZero.ok === false && nonZero.reason.includes('7'), '反例六（退出码非零）：判红并报出退出码')
 }
 
 // ---------------------------------------------------------------------------

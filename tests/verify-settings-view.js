@@ -58,6 +58,8 @@ const { pathToFileURL } = require('url')
 const { spawnSync } = require('child_process')
 const realFs = require('node:fs/promises')
 const { compileFn } = require('./lib/eval-probe.js')
+// 完成证据（#1158）：收尾交一行 GATE-RESULT，执行器据此判「跑完了没有」。
+const { printGateResult } = require('./lib/gate-result.ts')
 // 这一门里有几十处 sleep(防抖窗口 + 几百毫秒) 的等待，真实跑要五十秒；接上虚拟时钟把等待压成几毫秒，
 // 断言一条没动（为什么这么压是安全的、两条不能破的语义，见 tests/lib/time-compress.js 文件头）。
 const { installTimeCompression, uninstallTimeCompression } = require('./lib/time-compress.js')
@@ -1290,6 +1292,8 @@ const wait = (env) => realSleep(300)
   }
 
   console.log(failed ? ('\n存在失败 — verify-settings-view 未通过（' + passed + ' 项通过、' + failed + ' 项失败）') : ('\n全部通过 — 客户端观看状态门禁生效（' + passed + ' 项断言）'))
+  // 完成记录：断言数 = 通过 + 失败（#1158）。
+  printGateResult('verify-settings-view', passed + failed, failed)
   process.exit(failed ? 1 : 0)
 }
 

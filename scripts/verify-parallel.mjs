@@ -21,6 +21,9 @@ import os from 'node:os'
 import path from 'node:path'
 import { spawn, execFileSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
+// 完成证据（#1158）：判定一扇门禁过没过，光看退出码会被「跑到一半就收摊」骗过去。
+// 判据的写法、解析与那句人话理由都在 tests/lib/gate-result.ts 一处，这里只负责调用它。
+import { judgeStepCompletion, loadCompletionExpectations } from '../tests/lib/gate-result.ts'
 
 const ROOT = process.cwd()
 const args = process.argv.slice(2)
@@ -168,6 +171,19 @@ function runStep(step) {
   })
 }
 
+// 跑一步并判它的完成证据。证据对不上时：真退出码留在 exitCode 里，code 改成 1 按红走，
+// 理由留在 evidence 里供收尾报出来 —— 这样并发、串行复跑、汇总、退出码四条路都不用各改一遍。
+async function runStepJudged(step) {
+  const r = await runStep(step)
+  const verdict = judgeStepCompletion(expectations.byFile.get(step.file), r.code, r.out)
+  if (!verdict.ok) {
+    r.exitCode = r.code
+    r.code = 1
+    r.evidence = verdict.reason
+  }
+  return r
+}
+
 const { steps: steps0, unknown } = chainSteps()
 if (unknown.length) {
   console.error('[并行门禁] 链上这 ' + unknown.length + ' 条命令本执行器读不懂，拒绝静默跳过（少跑一条就是少一道门禁）：')
@@ -177,6 +193,16 @@ if (unknown.length) {
 }
 if (!steps0.length) {
   console.error('[并行门禁] 读不出 package.json 的 scripts.verify')
+  process.exit(1)
+}
+
+// 完成证据（#1158）：归属表里记着「哪一扇已开闸、该有多少条断言」，按文件把期望挂到步骤上。
+// 一扇都没挂上（而表里明明有已开闸的）说明两边写法对不上了，判据形同虚设 —— 当场判红，不许静默放行。
+const expectations = loadCompletionExpectations()
+const evidenceSteps = steps0.filter((s) => expectations.byFile.has(s.file))
+if (expectations.byFile.size && !evidenceSteps.length) {
+  console.error('[并行门禁] 归属表里有 ' + expectations.byFile.size + ' 扇门禁已开闸（completionRecord: true），链上一条都没挂上：')
+  console.error('  判据形同虚设，先核对 tests/gate-map.json 的 file 字段与链上的写法是否一致。')
   process.exit(1)
 }
 
@@ -287,6 +313,7 @@ console.log(
     tasks.filter((t) => t.groups.length).length +
     ' 节）'
 )
+console.log('[并行门禁] 完成证据判据：链上 ' + evidenceSteps.length + ' 步带期望（tests/gate-map.json 里 completionRecord 为 true 的那几扇）')
 
 const started = Date.now()
 const results = []
@@ -299,11 +326,12 @@ async function worker() {
     if (i >= tasks.length) return
     for (const step of tasks[i].steps) {
       if (stop) return
-      const r = await runStep(step)
+      const r = await runStepJudged(step)
       r.optional = !!step.optional
       results.push(r)
       const tag = r.code === 0 ? 'PASS' : step.optional ? 'WARN' : 'FAIL'
       console.log('  ' + tag + ' ' + String(r.ms).padStart(6) + ' ms  ' + (step.label || r.file))
+      if (r.evidence) console.log('        完成证据对不上：' + r.evidence)
       if (r.code !== 0 && !step.optional && !has('--keep-going')) {
         // 与串行链一样：遇红就停（已在跑的等它跑完再报）。
         stop = true
@@ -333,7 +361,7 @@ if (failed.length && !has('--no-retry-failed')) {
   console.log('')
   console.log('[并行门禁] 第一轮有 ' + failed.length + ' 步红，串行复跑一遍以排除「抢资源造成的假红」：')
   for (const f of failed) {
-    const again = await runStep(f)
+    const again = await runStepJudged(f)
     // 第一轮的开工时刻与耗时原样留档：复跑会覆盖 ms，不留档就再也看不出「第一轮到底等了多久」。
     f.firstRound = { code: f.code, ms: f.ms, at: f.at, out: f.out, err: f.err }
     f.code = again.code
@@ -360,7 +388,8 @@ if (slow.length) {
 }
 for (const f of failed) {
   console.log('')
-  console.log('=== FAIL ' + f.file + '（退出码 ' + f.code + '）===')
+  console.log('=== FAIL ' + f.file + '（退出码 ' + (f.exitCode != null ? f.exitCode : f.code) + '）===')
+  if (f.evidence) console.log('  完成证据对不上：' + f.evidence)
   const text = (f.out + (f.err ? '\n[stderr]\n' + f.err : '')).trimEnd()
   const lines = text.split(/\r?\n/)
   const tail = lines.length > 40 ? lines.slice(-40) : lines
@@ -370,6 +399,6 @@ for (const f of failed) {
 
 if (has('--json')) {
   const outPath = optOf('--json', '')
-  if (outPath) fs.writeFileSync(path.resolve(ROOT, outPath), JSON.stringify({ wallMs: wall, jobs, tier, results: results.map((r) => ({ file: r.file, code: r.code, ms: r.ms, at: r.at })) }, null, 2))
+  if (outPath) fs.writeFileSync(path.resolve(ROOT, outPath), JSON.stringify({ wallMs: wall, jobs, tier, results: results.map((r) => ({ file: r.file, code: r.code, ms: r.ms, at: r.at, exitCode: r.exitCode != null ? r.exitCode : r.code, evidence: r.evidence || '' })) }, null, 2))
 }
 process.exit(failed.length ? 1 : 0)

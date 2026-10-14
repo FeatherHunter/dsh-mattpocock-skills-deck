@@ -15,6 +15,9 @@
 // 本文件不联网：后端全是桩，只量“回不回、快不快、判得对不对”。
 const path = require('path')
 const { pathToFileURL } = require('url')
+// 完成证据（#1158）：收尾交一行 GATE-RESULT。这一扇正是 #1146 的现场——21 条断言只跑到第 12 条
+// 就收摊、退出码 0，整条链判绿；有了这行记录，执行器才会发现计数与期望对不上。
+const { printGateResult } = require('./lib/gate-result.ts')
 // 判定出口桩（#1003 单出口）：壳拿不到它时一律回「判定出口这次没装上」，
 // 生产装配总会给，夹具照生产接上；桩的来历见 tests/lib/deck-decide-stub.js 文件头。
 const { makeDecideStub, chooseWorkspace } = require('./lib/deck-decide-stub.js')
@@ -244,6 +247,8 @@ async function main() {
   // 断言跑完了，把把手撤掉，别让它把进程吊在收尾之后。
   nativeClearInterval(keepAlive)
   console.log('\n' + total + ' 条断言，' + (failed ? '失败' : '通过') + '（总耗时 ' + (Date.now() - t0) + 'ms）')
+  // 完成记录：total 是实际跑过的断言数（#1146 那次只跑到 12 就收摊，这里报出来的就会是 12）。
+  printGateResult('verify-deck-no-hang', total, failed ? 1 : 0)
   // 收工先把全局时钟还原：本仓打算把多扇门禁放进同一个进程跑，别把虚拟时钟留给后面那几扇。
   uninstallTimeCompression()
   process.exit(failed ? 1 : 0)

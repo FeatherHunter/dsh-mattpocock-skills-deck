@@ -8,6 +8,8 @@
 // 已按维护者要求整段删除；附录与实现的字面锁死一并取消，只留附录自身的登记核对。
 const fs = require('fs')
 const path = require('path')
+// 完成证据（#1158）：收尾交一行 GATE-RESULT，执行器据此判「跑完了没有」。
+const { printGateResult } = require('./lib/gate-result.ts')
 const { pathToFileURL } = require('url')
 // 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
 const { compileFn } = require('./lib/eval-probe.js')
@@ -155,6 +157,8 @@ async function main() {
   }
 
   console.log(failed ? '\n存在失败 — verify-log-selfmon 未通过' : '\n全部通过 — 自监控门禁生效（' + total + ' 项断言）')
+  // 完成记录：total 是实际跑过的断言数（#1158）。
+  printGateResult('verify-log-selfmon', total, failed ? 1 : 0)
   // 收工先把全局时钟还原：本仓打算把多扇门禁放进同一个进程跑，别把虚拟时钟留给后面那几扇。
   uninstallTimeCompression()
   process.exit(failed ? 1 : 0)

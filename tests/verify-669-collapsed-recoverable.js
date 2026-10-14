@@ -23,6 +23,9 @@
 // 用法：node tests/verify-669-collapsed-recoverable.js
 const fs = require('fs')
 const path = require('path')
+// 完成证据（#1158）：收尾交一行 GATE-RESULT，三条执行器据此判「这一趟真的跑完了没有」。
+// 只看退出码会被「跑到一半就收摊、退出码仍是 0」骗过去（#1146 就是这么被发现的）。
+const { printGateResult } = require('./lib/gate-result.ts')
 const { getBrowser, closeBrowser } = require('./lib/browser-pool.js')
 const { JSDOM } = require('jsdom')
 const React = require('react')
@@ -412,6 +415,8 @@ console.log('== D 反证：把量到的东西做坏，C 里对应的那几条必
 
 console.log('')
 console.log('共 ' + total + ' 项检查')
+// 完成记录：total 就是实际跑过的断言数，执行器拿它跟归属表里记着的期望对数（#1158）。
+printGateResult('verify-669-collapsed-recoverable', total, failed ? 1 : 0)
 // 收工先把全局时钟还原：本仓打算把多扇门禁放进同一个进程跑，别把虚拟时钟留给后面那几扇。
 uninstallTimeCompression()
 if (failed) { console.log('存在失败'); process.exit(1) }

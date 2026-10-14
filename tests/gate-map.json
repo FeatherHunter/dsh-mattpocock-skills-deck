@@ -1,13 +1,14 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-14T14:36:45.006Z",
+  "generatedAt": "2026-10-14T16:19:06.236Z",
   "generatedBy": "node scripts/gate-map.mjs",
-  "chainLength": 249,
-  "gateCount": 249,
+  "chainLength": 250,
+  "gateCount": 250,
   "attributedGates": 220,
-  "unattributedGates": 29,
+  "unattributedGates": 30,
   "buildOutputOnlyGates": 20,
-  "graphFileCount": 542,
+  "completionRecordedGates": 6,
+  "graphFileCount": 545,
   "gates": [
     {
       "step": "node tests/verify-capability-register.ts",
@@ -28,6 +29,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 5 条）"
     },
     {
@@ -41,6 +44,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条"
     },
     {
@@ -60,6 +65,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；源码里的路径字面量 2 条"
     },
     {
@@ -78,6 +85,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；源码里的路径字面量 1 条"
     },
     {
@@ -95,6 +104,8 @@
       ],
       "unattributed": true,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "读到的路径都落在 docs、scripts/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
@@ -133,6 +144,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 8 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 10 条"
     },
     {
@@ -148,6 +161,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 1 条"
     },
     {
@@ -205,6 +220,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 11 条；源码里的路径字面量 19 条"
     },
     {
@@ -233,6 +250,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 7 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 8 条"
     },
     {
@@ -248,6 +267,8 @@
       ],
       "unattributed": true,
       "buildOutputOnly": true,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "读到的路径都落在 package、tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
@@ -268,6 +289,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 4 条"
     },
     {
@@ -281,6 +304,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 1 条"
     },
     {
@@ -296,6 +321,8 @@
       ],
       "unattributed": true,
       "buildOutputOnly": true,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "读到的路径都落在 package、scripts/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
@@ -312,6 +339,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 3 条"
     },
     {
@@ -329,6 +358,8 @@
       ],
       "unattributed": true,
       "buildOutputOnly": true,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "读到的路径都落在 package、scripts、tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
@@ -348,6 +379,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 1 条"
     },
     {
@@ -364,6 +397,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 2 条"
     },
     {
@@ -379,6 +414,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 1 条"
     },
     {
@@ -399,6 +436,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 5 条"
     },
     {
@@ -420,6 +459,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 6 条"
     },
     {
@@ -440,6 +481,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 5 条"
     },
     {
@@ -453,6 +496,8 @@
       ],
       "unattributed": true,
       "buildOutputOnly": true,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "它读的是构建产物（package/ 下的打包结果）。产物由整份源码打出来，脚本里看不出产物跟哪个源码文件对应，所以算不出它守着哪条源码路径；挑选门禁时按「只要动到源码就先跑它」保守处理"
     },
     {
@@ -491,6 +536,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 7 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 12 条"
     },
     {
@@ -504,6 +551,8 @@
       ],
       "unattributed": true,
       "buildOutputOnly": true,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "它读的是构建产物（package/ 下的打包结果）。产物由整份源码打出来，脚本里看不出产物跟哪个源码文件对应，所以算不出它守着哪条源码路径；挑选门禁时按「只要动到源码就先跑它」保守处理"
     },
     {
@@ -517,6 +566,8 @@
       ],
       "unattributed": true,
       "buildOutputOnly": true,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "它读的是构建产物（package/ 下的打包结果）。产物由整份源码打出来，脚本里看不出产物跟哪个源码文件对应，所以算不出它守着哪条源码路径；挑选门禁时按「只要动到源码就先跑它」保守处理"
     },
     {
@@ -530,6 +581,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 1 条"
     },
     {
@@ -552,6 +605,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 6 条"
     },
     {
@@ -643,6 +698,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 66 条"
     },
     {
@@ -664,6 +721,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 5 条"
     },
     {
@@ -693,6 +752,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 10 条"
     },
     {
@@ -717,6 +778,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 5 条"
     },
     {
@@ -743,6 +806,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；源码里的路径字面量 8 条"
     },
     {
@@ -758,6 +823,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 2 条"
     },
     {
@@ -775,6 +842,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 4 条"
     },
     {
@@ -817,6 +886,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 6 条；静态 import 说明符 16 条；源码里的路径字面量 1 条"
     },
     {
@@ -834,6 +905,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：静态 import 说明符 3 条"
     },
     {
@@ -874,6 +947,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 20 条"
     },
     {
@@ -910,6 +985,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 14 条"
     },
     {
@@ -936,6 +1013,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 8 条"
     },
     {
@@ -961,6 +1040,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 7 条"
     },
     {
@@ -978,6 +1059,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 2 条"
     },
     {
@@ -1006,6 +1089,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；源码里的路径字面量 8 条"
     },
     {
@@ -1023,6 +1108,8 @@
       ],
       "unattributed": true,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "读到的路径都落在 scripts、tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
@@ -1040,7 +1127,33 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 2 条"
+    },
+    {
+      "step": "node tests/verify-1158-completion-evidence.ts",
+      "file": "tests/verify-1158-completion-evidence.ts",
+      "guards": [
+        "scripts/ts-hook.mjs",
+        "scripts/verify-all.mjs",
+        "scripts/verify-chain.js",
+        "scripts/verify-parallel.mjs",
+        "tests",
+        "tests/gate-map.json",
+        "tests/lib/gate-result.ts",
+        "tests/verify-1158-completion-evidence.ts"
+      ],
+      "dirs": [
+        "scripts",
+        "tests",
+        "tests/lib"
+      ],
+      "unattributed": true,
+      "buildOutputOnly": false,
+      "completionRecord": true,
+      "expectedAssertions": 41,
+      "reason": "读到的路径都落在 scripts、tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
       "step": "node tests/verify-934-935-invariants.js",
@@ -1071,6 +1184,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 11 条"
     },
     {
@@ -1095,6 +1210,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 7 条"
     },
     {
@@ -1114,6 +1231,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 3 条"
     },
     {
@@ -1136,6 +1255,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 5 条"
     },
     {
@@ -1167,6 +1288,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 13 条"
     },
     {
@@ -1193,6 +1316,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 12 条"
     },
     {
@@ -1206,6 +1331,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 1 条"
     },
     {
@@ -1223,6 +1350,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 4 条"
     },
     {
@@ -1242,6 +1371,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 5 条"
     },
     {
@@ -1258,6 +1389,7 @@
         "src/host/refresh/ledger.ts",
         "src/shared/refresh/budget.js",
         "tests/lib/deck-decide-stub.js",
+        "tests/lib/gate-result.ts",
         "tests/lib/time-compress.ts"
       ],
       "dirs": [
@@ -1269,7 +1401,9 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 9 条"
+      "completionRecord": true,
+      "expectedAssertions": 21,
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 9 条"
     },
     {
       "step": "node tests/verify-deck-parallel.js",
@@ -1291,6 +1425,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 5 条"
     },
     {
@@ -1312,6 +1448,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 5 条"
     },
     {
@@ -1329,6 +1467,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 2 条"
     },
     {
@@ -1349,6 +1489,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 4 条"
     },
     {
@@ -1366,6 +1508,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 3 条）"
     },
     {
@@ -1404,6 +1548,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 1 条；源码里的路径字面量 17 条"
     },
     {
@@ -1425,6 +1571,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条"
     },
     {
@@ -1451,6 +1599,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 9 条；源码里的路径字面量 5 条"
     },
     {
@@ -1466,6 +1616,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条"
     },
     {
@@ -1483,6 +1635,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 1 条"
     },
     {
@@ -1508,6 +1662,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；源码里的路径字面量 8 条"
     },
     {
@@ -1531,6 +1687,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 5 条"
     },
     {
@@ -1552,6 +1710,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 8 条"
     },
     {
@@ -1587,6 +1747,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 18 条"
     },
     {
@@ -1600,6 +1762,8 @@
       ],
       "unattributed": true,
       "buildOutputOnly": true,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "它读的是构建产物（package/ 下的打包结果）。产物由整份源码打出来，脚本里看不出产物跟哪个源码文件对应，所以算不出它守着哪条源码路径；挑选门禁时按「只要动到源码就先跑它」保守处理"
     },
     {
@@ -1621,6 +1785,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；源码里的路径字面量 3 条"
     },
     {
@@ -1634,6 +1800,8 @@
       ],
       "unattributed": true,
       "buildOutputOnly": true,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "它读的是构建产物（package/ 下的打包结果）。产物由整份源码打出来，脚本里看不出产物跟哪个源码文件对应，所以算不出它守着哪条源码路径；挑选门禁时按「只要动到源码就先跑它」保守处理"
     },
     {
@@ -1649,6 +1817,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 1 条"
     },
     {
@@ -1676,6 +1846,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 9 条"
     },
     {
@@ -1701,6 +1873,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 8 条"
     },
     {
@@ -1717,6 +1891,8 @@
       ],
       "unattributed": true,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "读到的路径都落在 docs、scripts/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
@@ -1742,6 +1918,8 @@
       ],
       "unattributed": true,
       "buildOutputOnly": true,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "读到的路径都落在 docs、package、scripts、wizard/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
@@ -1757,6 +1935,8 @@
       ],
       "unattributed": true,
       "buildOutputOnly": true,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "读到的路径都落在 docs、package/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
@@ -1772,6 +1952,8 @@
       ],
       "unattributed": true,
       "buildOutputOnly": true,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "它读的是构建产物（package/ 下的打包结果）。产物由整份源码打出来，脚本里看不出产物跟哪个源码文件对应，所以算不出它守着哪条源码路径；挑选门禁时按「只要动到源码就先跑它」保守处理"
     },
     {
@@ -1792,6 +1974,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 2 条"
     },
     {
@@ -1807,6 +1991,8 @@
       ],
       "unattributed": true,
       "buildOutputOnly": true,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "它读的是构建产物（package/ 下的打包结果）。产物由整份源码打出来，脚本里看不出产物跟哪个源码文件对应，所以算不出它守着哪条源码路径；挑选门禁时按「只要动到源码就先跑它」保守处理"
     },
     {
@@ -1820,6 +2006,8 @@
       ],
       "unattributed": true,
       "buildOutputOnly": true,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "它读的是构建产物（package/ 下的打包结果）。产物由整份源码打出来，脚本里看不出产物跟哪个源码文件对应，所以算不出它守着哪条源码路径；挑选门禁时按「只要动到源码就先跑它」保守处理"
     },
     {
@@ -1854,6 +2042,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 15 条"
     },
     {
@@ -1873,6 +2063,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 4 条"
     },
     {
@@ -1894,6 +2086,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 5 条"
     },
     {
@@ -1907,6 +2101,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 1 条"
     },
     {
@@ -1920,6 +2116,8 @@
       ],
       "unattributed": true,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "读到的路径都落在 tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
@@ -1935,6 +2133,8 @@
       ],
       "unattributed": true,
       "buildOutputOnly": true,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "读到的路径都落在 package、tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
@@ -1957,6 +2157,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 1 条；源码里的路径字面量 5 条"
     },
     {
@@ -1974,6 +2176,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 3 条"
     },
     {
@@ -1989,6 +2193,8 @@
       ],
       "unattributed": true,
       "buildOutputOnly": true,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "读到的路径都落在 package、tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
@@ -2004,6 +2210,8 @@
       ],
       "unattributed": true,
       "buildOutputOnly": true,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "读到的路径都落在 package、tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
@@ -2019,6 +2227,8 @@
       ],
       "unattributed": true,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "读到的路径都落在 scripts、tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
@@ -2034,6 +2244,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 2 条"
     },
     {
@@ -2049,6 +2261,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条"
     },
     {
@@ -2101,6 +2315,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 22 条"
     },
     {
@@ -2125,6 +2341,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；静态 import 说明符 5 条；源码里的路径字面量 1 条"
     },
     {
@@ -2140,6 +2358,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 1 条"
     },
     {
@@ -2155,6 +2375,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：静态 import 说明符 2 条"
     },
     {
@@ -2170,6 +2392,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：静态 import 说明符 3 条"
     },
     {
@@ -2189,6 +2413,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：静态 import 说明符 5 条"
     },
     {
@@ -2209,6 +2435,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 4 条"
     },
     {
@@ -2232,6 +2460,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 4 条；静态 import 说明符 3 条"
     },
     {
@@ -2268,6 +2498,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 14 条"
     },
     {
@@ -2281,6 +2513,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：静态 import 说明符 1 条"
     },
     {
@@ -2295,6 +2529,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：静态 import 说明符 2 条"
     },
     {
@@ -2314,6 +2550,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 3 条"
     },
     {
@@ -2338,6 +2576,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 1 条；源码里的路径字面量 5 条"
     },
     {
@@ -2351,6 +2591,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条"
     },
     {
@@ -2364,6 +2606,8 @@
       ],
       "unattributed": true,
       "buildOutputOnly": true,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "它读的是构建产物（package/ 下的打包结果）。产物由整份源码打出来，脚本里看不出产物跟哪个源码文件对应，所以算不出它守着哪条源码路径；挑选门禁时按「只要动到源码就先跑它」保守处理"
     },
     {
@@ -2383,6 +2627,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条"
     },
     {
@@ -2406,6 +2652,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 5 条"
     },
     {
@@ -2421,6 +2669,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条"
     },
     {
@@ -2434,6 +2684,8 @@
       ],
       "unattributed": true,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "读到的路径都落在 tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
@@ -2453,6 +2705,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条"
     },
     {
@@ -2474,6 +2728,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条"
     },
     {
@@ -2484,6 +2740,7 @@
         "src/client/kernel/log.js",
         "src/host/logStore.js",
         "tests/lib/eval-probe.ts",
+        "tests/lib/gate-result.ts",
         "tests/lib/time-compress.ts"
       ],
       "dirs": [
@@ -2494,7 +2751,9 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 2 条"
+      "completionRecord": true,
+      "expectedAssertions": 27,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 3 条"
     },
     {
       "step": "node tests/verify-log-artifacts.js",
@@ -2517,6 +2776,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；源码里的路径字面量 3 条"
     },
     {
@@ -2538,6 +2799,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 1 条"
     },
     {
@@ -2551,6 +2814,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 1 条"
     },
     {
@@ -2572,6 +2837,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条"
     },
     {
@@ -2587,6 +2854,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 1 条"
     },
     {
@@ -2605,6 +2874,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条"
     },
     {
@@ -2618,6 +2889,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：静态 import 说明符 1 条"
     },
     {
@@ -2644,6 +2917,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 7 条"
     },
     {
@@ -2657,6 +2932,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：静态 import 说明符 1 条"
     },
     {
@@ -2670,6 +2947,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条"
     },
     {
@@ -2692,6 +2971,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 7 条"
     },
     {
@@ -2717,6 +2998,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；静态 import 说明符 1 条；源码里的路径字面量 4 条"
     },
     {
@@ -2740,6 +3023,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 6 条"
     },
     {
@@ -2760,6 +3045,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 4 条"
     },
     {
@@ -2781,6 +3068,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 6 条"
     },
     {
@@ -2800,6 +3089,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 1 条"
     },
     {
@@ -2813,6 +3104,8 @@
       ],
       "unattributed": true,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "读到的路径都落在 scripts/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
@@ -2836,6 +3129,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 5 条"
     },
     {
@@ -2870,6 +3165,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 13 条"
     },
     {
@@ -2885,6 +3182,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 3 条"
     },
     {
@@ -2904,6 +3203,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 5 条"
     },
     {
@@ -2923,6 +3224,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 6 条"
     },
     {
@@ -2936,6 +3239,8 @@
       ],
       "unattributed": true,
       "buildOutputOnly": true,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "它读的是构建产物（package/ 下的打包结果）。产物由整份源码打出来，脚本里看不出产物跟哪个源码文件对应，所以算不出它守着哪条源码路径；挑选门禁时按「只要动到源码就先跑它」保守处理"
     },
     {
@@ -2955,6 +3260,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 3 条"
     },
     {
@@ -2969,6 +3276,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条"
     },
     {
@@ -2991,6 +3300,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 3 条"
     },
     {
@@ -3014,6 +3325,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 1 条"
     },
     {
@@ -3033,6 +3346,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 3 条"
     },
     {
@@ -3047,6 +3362,8 @@
       ],
       "unattributed": true,
       "buildOutputOnly": true,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "它读的是构建产物（package/ 下的打包结果）。产物由整份源码打出来，脚本里看不出产物跟哪个源码文件对应，所以算不出它守着哪条源码路径；挑选门禁时按「只要动到源码就先跑它」保守处理"
     },
     {
@@ -3067,6 +3384,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 4 条"
     },
     {
@@ -3076,6 +3395,7 @@
         "package/lib/client.js",
         "tests/lib/browser-pool.js",
         "tests/lib/eval-probe.ts",
+        "tests/lib/gate-result.ts",
         "tests/lib/time-compress.ts"
       ],
       "dirs": [
@@ -3084,6 +3404,8 @@
       ],
       "unattributed": true,
       "buildOutputOnly": true,
+      "completionRecord": true,
+      "expectedAssertions": 30,
       "reason": "读到的路径都落在 package、tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
@@ -3105,6 +3427,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 5 条"
     },
     {
@@ -3135,6 +3459,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；静态 import 说明符 1 条；源码里的路径字面量 9 条"
     },
     {
@@ -3152,6 +3478,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：静态 import 说明符 4 条"
     },
     {
@@ -3185,6 +3513,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 14 条"
     },
     {
@@ -3204,6 +3534,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 5 条"
     },
     {
@@ -3224,6 +3556,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 1 条；源码里的路径字面量 3 条"
     },
     {
@@ -3237,6 +3571,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 1 条"
     },
     {
@@ -3252,6 +3588,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 1 条"
     },
     {
@@ -3270,6 +3608,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；静态 import 说明符 1 条；源码里的路径字面量 2 条"
     },
     {
@@ -3300,6 +3640,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 1 条；源码里的路径字面量 7 条"
     },
     {
@@ -3316,6 +3658,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条"
     },
     {
@@ -3331,6 +3675,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 2 条"
     },
     {
@@ -3351,6 +3697,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 4 条"
     },
     {
@@ -3364,6 +3712,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 1 条"
     },
     {
@@ -3381,6 +3731,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；静态 import 说明符 1 条；源码里的路径字面量 1 条"
     },
     {
@@ -3403,6 +3755,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 7 条"
     },
     {
@@ -3423,6 +3777,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 6 条"
     },
     {
@@ -3438,6 +3794,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 1 条"
     },
     {
@@ -3455,6 +3813,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 3 条"
     },
     {
@@ -3499,6 +3859,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 21 条"
     },
     {
@@ -3518,6 +3880,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 4 条"
     },
     {
@@ -3541,6 +3905,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 10 条"
     },
     {
@@ -3582,6 +3948,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 20 条"
     },
     {
@@ -3604,6 +3972,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；源码里的路径字面量 1 条"
     },
     {
@@ -3629,6 +3999,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；源码里的路径字面量 6 条"
     },
     {
@@ -3651,6 +4023,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；源码里的路径字面量 5 条"
     },
     {
@@ -3667,6 +4041,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；源码里的路径字面量 1 条"
     },
     {
@@ -3690,6 +4066,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 4 条"
     },
     {
@@ -3710,6 +4088,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 1 条"
     },
     {
@@ -3731,6 +4111,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 1 条"
     },
     {
@@ -3747,6 +4129,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条"
     },
     {
@@ -3763,6 +4147,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；源码里的路径字面量 1 条"
     },
     {
@@ -3795,6 +4181,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；源码里的路径字面量 11 条"
     },
     {
@@ -3814,6 +4202,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 6 条"
     },
     {
@@ -3828,6 +4218,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条"
     },
     {
@@ -3842,6 +4234,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条"
     },
     {
@@ -3858,6 +4252,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条"
     },
     {
@@ -3876,6 +4272,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条"
     },
     {
@@ -3902,6 +4300,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；静态 import 说明符 1 条；源码里的路径字面量 6 条"
     },
     {
@@ -3929,6 +4329,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 3 条"
     },
     {
@@ -3954,6 +4356,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 1 条；源码里的路径字面量 7 条"
     },
     {
@@ -3969,6 +4373,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条"
     },
     {
@@ -3984,6 +4390,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条"
     },
     {
@@ -4001,6 +4409,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 4 条"
     },
     {
@@ -4026,6 +4436,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 7 条"
     },
     {
@@ -4045,6 +4457,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 3 条"
     },
     {
@@ -4076,6 +4490,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 12 条"
     },
     {
@@ -4103,6 +4519,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；源码里的路径字面量 8 条"
     },
     {
@@ -4116,6 +4534,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条"
     },
     {
@@ -4132,6 +4552,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条"
     },
     {
@@ -4155,6 +4577,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；源码里的路径字面量 3 条"
     },
     {
@@ -4170,6 +4594,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 1 条"
     },
     {
@@ -4190,6 +4616,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 4 条"
     },
     {
@@ -4207,6 +4635,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 4 条"
     },
     {
@@ -4221,6 +4651,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条"
     },
     {
@@ -4235,6 +4667,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条"
     },
     {
@@ -4254,6 +4688,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条"
     },
     {
@@ -4297,6 +4733,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 21 条"
     },
     {
@@ -4310,6 +4748,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条"
     },
     {
@@ -4335,6 +4775,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 3 条"
     },
     {
@@ -4350,6 +4792,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 2 条"
     },
     {
@@ -4376,6 +4820,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；源码里的路径字面量 8 条"
     },
     {
@@ -4395,6 +4841,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 6 条"
     },
     {
@@ -4421,6 +4869,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 8 条"
     },
     {
@@ -4436,6 +4886,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：静态 import 说明符 2 条"
     },
     {
@@ -4449,6 +4901,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：静态 import 说明符 1 条"
     },
     {
@@ -4470,6 +4924,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 6 条"
     },
     {
@@ -4483,6 +4939,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条"
     },
     {
@@ -4496,6 +4954,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条"
     },
     {
@@ -4509,6 +4969,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条"
     },
     {
@@ -4522,6 +4984,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条"
     },
     {
@@ -4535,6 +4999,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条"
     },
     {
@@ -4548,6 +5014,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条"
     },
     {
@@ -4565,6 +5033,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条"
     },
     {
@@ -4579,6 +5049,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
     },
     {
@@ -4599,6 +5071,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 6 条）"
     },
     {
@@ -4614,6 +5088,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；源码里的路径字面量 2 条"
     },
     {
@@ -4629,6 +5105,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 1 条"
     },
     {
@@ -4649,6 +5127,7 @@
         "src/host/settingsPhones.js",
         "src/shared/workspaceKey.js",
         "tests/lib/eval-probe.ts",
+        "tests/lib/gate-result.ts",
         "tests/lib/render-subws-mark.js",
         "tests/lib/time-compress.ts"
       ],
@@ -4664,7 +5143,9 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 9 条"
+      "completionRecord": true,
+      "expectedAssertions": 215,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 9 条"
     },
     {
       "step": "node tests/verify-settings-templates.js",
@@ -4685,6 +5166,7 @@
         "src/host/settingsPhones.js",
         "src/shared/workspaceKey.js",
         "tests/lib/eval-probe.ts",
+        "tests/lib/gate-result.ts",
         "tests/lib/time-compress.ts"
       ],
       "dirs": [
@@ -4698,7 +5180,9 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 11 条"
+      "completionRecord": true,
+      "expectedAssertions": 65,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 11 条"
     },
     {
       "step": "node tests/verify-settings-debug.js",
@@ -4739,6 +5223,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 13 条"
     },
     {
@@ -4768,6 +5254,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；源码里的路径字面量 10 条"
     },
     {
@@ -4794,6 +5282,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；源码里的路径字面量 7 条"
     },
     {
@@ -4816,6 +5306,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：静态 import 说明符 3 条；源码里的路径字面量 3 条"
     },
     {
@@ -4832,6 +5324,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；源码里的路径字面量 1 条"
     },
     {
@@ -4847,6 +5341,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 1 条"
     },
     {
@@ -4861,6 +5357,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 2 条"
     },
     {
@@ -4877,6 +5375,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 2 条"
     },
     {
@@ -4890,6 +5390,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 1 条"
     },
     {
@@ -4926,6 +5428,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 16 条"
     },
     {
@@ -4939,6 +5443,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
     },
     {
@@ -4952,6 +5458,8 @@
       ],
       "unattributed": true,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "读到的路径都落在 tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
@@ -4985,6 +5493,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 17 条"
     },
     {
@@ -5002,6 +5512,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：静态 import 说明符 3 条"
     },
     {
@@ -5027,6 +5539,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 5 条"
     },
     {
@@ -5051,6 +5565,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 7 条"
     },
     {
@@ -5068,6 +5584,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 5 条"
     },
     {
@@ -5082,6 +5600,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：源码里的路径字面量 2 条"
     },
     {
@@ -5105,6 +5625,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 10 条"
     },
     {
@@ -5131,6 +5653,8 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 8 条"
     },
     {
@@ -5152,6 +5676,7 @@
         "src/host/mapBody.js",
         "src/shared/refresh/budget.js",
         "tests/gate-map.json",
+        "tests/lib/gate-result.ts",
         "tests/verify-progress.js"
       ],
       "dirs": [
@@ -5166,11 +5691,14 @@
         "src/client/views/versionControl",
         "src/host",
         "src/shared/refresh",
-        "tests"
+        "tests",
+        "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；静态 import 说明符 2 条；源码里的路径字面量 12 条"
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；静态 import 说明符 3 条；源码里的路径字面量 12 条"
     },
     {
       "step": "node tests/verify-typecheck.mts",
@@ -5183,6 +5711,8 @@
       ],
       "unattributed": true,
       "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
       "reason": "读到的路径都落在 scripts/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     }
   ],
@@ -5364,6 +5894,7 @@
       "node tests/verify-1115-timer-handle.ts",
       "node tests/verify-1146-virtual-clock-liveness.ts",
       "node tests/verify-1157-in-flight-lease.ts",
+      "node tests/verify-1158-completion-evidence.ts",
       "node tests/verify-golden-receipts.ts",
       "node tests/verify-panel-workspace-shared.js",
       "node tests/verify-matt-skills-sync.js",
@@ -6123,6 +6654,7 @@
       "node tests/verify-deck-tools-matrix.js",
       "node tests/verify-1146-virtual-clock-liveness.ts",
       "node tests/verify-1157-in-flight-lease.ts",
+      "node tests/verify-1158-completion-evidence.ts",
       "node tests/verify-895-github-memo.js",
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-929-batch-cycle.js",
@@ -6170,6 +6702,7 @@
       "node tests/verify-829-parent-reread.js",
       "node tests/verify-1109-matches-timeout.ts",
       "node tests/verify-1146-virtual-clock-liveness.ts",
+      "node tests/verify-1158-completion-evidence.ts",
       "node tests/verify-934-935-invariants.js",
       "node tests/verify-895-bulk-deadline.js",
       "node tests/verify-898-block-merge.js",
@@ -6239,7 +6772,8 @@
       "node tests/verify-settings-view.js",
       "node tests/verify-settings-templates.js",
       "node tests/verify-settings-debug.js",
-      "node tests/verify-1150-plan-store-durable.ts"
+      "node tests/verify-1150-plan-store-durable.ts",
+      "node tests/verify-gate-map.js"
     ],
     "tests/tracker-contract": [
       "node tests/verify-tracker-contract.js",
@@ -6262,9 +6796,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 551,
+    "fileCount": 555,
     "dirCount": 50,
-    "coveredFileCount": 551,
+    "coveredFileCount": 555,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 49,
@@ -6773,9 +7307,11 @@
       "src/tracker/rooms/github/roster.ts",
       "src/tracker/rooms/github/sub-issues.ts",
       "src/tracker/rooms/github/write-log.ts",
+      "src/tracker/rooms/gitlab/README.md",
       "src/tracker/rooms/gitlab/capability-register.ts",
       "src/tracker/rooms/gitlab/client.ts",
       "src/tracker/rooms/gitlab/comments.ts",
+      "src/tracker/rooms/gitlab/counts.ts",
       "src/tracker/rooms/gitlab/create-write.ts",
       "src/tracker/rooms/gitlab/errors.ts",
       "src/tracker/rooms/gitlab/graph-blocking.ts",
@@ -6789,10 +7325,12 @@
       "src/tracker/rooms/gitlab/labels-ops.ts",
       "src/tracker/rooms/gitlab/labels.ts",
       "src/tracker/rooms/gitlab/normalize.ts",
+      "src/tracker/rooms/gitlab/pages.ts",
       "src/tracker/rooms/gitlab/preflight.ts",
       "src/tracker/rooms/gitlab/queries.ts",
       "src/tracker/rooms/gitlab/read-log.ts",
       "src/tracker/rooms/gitlab/repo.ts",
+      "src/tracker/rooms/gitlab/sub-issues.ts",
       "src/tracker/rooms/markdown/capability-register.ts",
       "src/tracker/rooms/markdown/comments.ts",
       "src/tracker/rooms/markdown/counts.ts",

@@ -22,7 +22,11 @@
 //   上面五条都推不出指向源码的路径时，这扇门禁记成 unattributed，并在 reason 里写明原因。
 //
 // 产物 tests/gate-map.json 的字段：
-//   gates      每扇门禁一条：{ step, file, guards, dirs, unattributed, reason }
+//   gates      每扇门禁一条：{ step, file, guards, dirs, unattributed, reason,
+//                              completionRecord, expectedAssertions }
+//              completionRecord 为 true 表示这扇门禁已开闸：它收尾时会交一行 GATE-RESULT，
+//              expectedAssertions 是它该有多少条断言（0 表示还没开闸，执行器只看退出码）。
+//              这两格是给三条执行器判「完成证据」用的（#1158），名单见 COMPLETION_RECORDED_GATES。
 //   byDir      目录 → 守着这一层的门禁清单。「这一层」指门禁守的路径正好在这个目录里，不含子目录。
 //              每个被守着的目录，它的祖先目录也会建键（可能是空数组），
 //              所以「改了 E 要跑 E、B、A 三层」可以顺着 E 的目录一路往上查表，不会查空。
@@ -35,6 +39,37 @@ import url from 'node:url'
 
 export const ROOT = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '..')
 export const MAP_PATH = path.join(ROOT, 'tests', 'gate-map.json')
+
+// ---------------------------------------------------------------------------
+// 完成证据（#1158）：已经开闸的门禁，以及它该有多少条断言
+// ---------------------------------------------------------------------------
+// 开闸 = 这扇门禁收尾时会交一行 GATE-RESULT（写法见 tests/lib/gate-result.ts），
+// 三条执行器据此判它「跑完了没有」——只看退出码会被「跑到一半就收摊、退出码仍是 0」骗过去。
+//
+// 这一格就是进度表本身，不另建基线文件：写在这里 = 已开闸，值 = 期望条数。
+// 值必须是实测出来的（把门禁单跑一遍，读它收尾那一行的计数），不是估的：
+//   期望比实际大 = 门禁提前收摊，判红（这正是这条判据要抓的那类故障）；
+//   期望比实际小 = 有人加了断言却忘了改这里，也判红，顺手把数字改准。
+// 还没开闸的门禁一律不许写在这里 —— 编一个数字出来，真红就会变假绿。
+export const COMPLETION_RECORDED_GATES = {
+  'verify-669-collapsed-recoverable': 30,
+  'verify-deck-no-hang': 21,
+  'verify-log-selfmon': 27,
+  'verify-settings-templates': 65,
+  'verify-settings-view': 215,
+  'verify-1158-completion-evidence': 41,
+}
+
+/** 门禁名：文件名去扩展名。执行器判完成证据时按这个名字对，别在别处另起一套写法。 */
+export function gateNameOf(file) {
+  return path.basename(String(file || '')).replace(/\.(js|mjs|cjs|ts|mts|cts)$/, '')
+}
+
+/** 这一扇该有多少条断言：0 表示还没开闸（没交完成记录，执行器只看退出码）。 */
+export function completionExpectationOf(file) {
+  const name = gateNameOf(file)
+  return Object.prototype.hasOwnProperty.call(COMPLETION_RECORDED_GATES, name) ? COMPLETION_RECORDED_GATES[name] : 0
+}
 
 // 本仓的源码根目录：只有落在这些目录里的路径才算「守着某条源码路径」。
 // 前四个是插件自己的源码与机器人脚本。
@@ -676,6 +711,9 @@ export function buildGateMap(root = ROOT) {
   const gates = []
   for (const step of chainSteps) {
     const file = stepToGateFile(step)
+    // 完成证据的两格：这一扇开闸了没有、该有多少条断言（没开闸就是 0，执行器只看退出码）。
+    const expectedAssertions = completionExpectationOf(file)
+    const completionRecord = expectedAssertions > 0
     let code = ''
     let missing = false
     if (!file) missing = true
@@ -694,6 +732,8 @@ export function buildGateMap(root = ROOT) {
         dirs: [],
         unattributed: true,
         buildOutputOnly: false,
+        completionRecord: false,
+        expectedAssertions: 0,
         reason: file
           ? '链上的 ' + file + ' 读不到（文件不存在或路径不对），无法推导归属'
           : '链上这一步不是 `node <文件>` 的形状，无法推导归属：' + step,
@@ -717,6 +757,8 @@ export function buildGateMap(root = ROOT) {
       dirs,
       unattributed: derived.unattributed,
       buildOutputOnly,
+      completionRecord,
+      expectedAssertions,
       reason: derived.unattributed
         ? unattributedReason(file, code, derived.guards)
         : derived.reason,
@@ -759,6 +801,7 @@ export function buildGateMap(root = ROOT) {
     attributedGates: gates.length - unattributedGates,
     unattributedGates,
     buildOutputOnlyGates: gates.filter((g) => g.buildOutputOnly).length,
+    completionRecordedGates: gates.filter((g) => g.completionRecord).length,
     graphFileCount: graph.imports.size,
     gates,
     byDir: byDirObj,
@@ -894,7 +937,7 @@ function main() {
   const printOnly = process.argv.includes('--print')
   const map = buildGateMap(ROOT)
   const text = serializeMap(map)
-  console.log('门禁归属表：链上 ' + map.chainLength + ' 步，能推出源码归属 ' + map.attributedGates + ' 步，推不出 ' + map.unattributedGates + ' 步')
+  console.log('门禁归属表：链上 ' + map.chainLength + ' 步，能推出源码归属 ' + map.attributedGates + ' 步，推不出 ' + map.unattributedGates + ' 步，已开闸（交完成记录）' + map.completionRecordedGates + ' 扇')
   console.log(
     'src/ 覆盖：' +
       map.coverage.coveredFileCount +
