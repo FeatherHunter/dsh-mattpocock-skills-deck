@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-14T12:13:33.724Z",
+  "generatedAt": "2026-10-14T12:20:13.408Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 246,
   "gateCount": 246,
@@ -84,6 +84,7 @@
         "package/scripts",
         "scripts",
         "scripts/build.mjs",
+        "scripts/ts-hook.mjs",
         "src/client/kernel/config.js",
         "src/client/kernel/prompts.js",
         "src/client/kernel/router.js",
@@ -111,7 +112,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 8 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 9 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 8 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 10 条"
     },
     {
       "step": "node tests/verify-progress.js",

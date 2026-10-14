@@ -1,0 +1,20 @@
+{
+  // scripts/ 下新写脚本的类型检查配置（#1052 加）：只圈这一份日志阅读器。
+  //
+  // 为什么只圈一份、不写 "scripts/**/*.ts"：目录里另有 scripts/typecheck.mts 与 scripts/effective-lines.mts
+  // 两份更早的脚本，它们今天不在任何配置里。把它们一并圈进来会当场冒出与本次改动无关的错误，
+  // 那是另一件事（谁动到谁再转、再登记），按仓规「摸到谁再转谁，不搞大爆炸」处理。
+  //
+  // 与其它几份配置同口径：保守目标 ES2020、strict、只检查不产出（这个脚本由 Node 自带的类型剥离直接跑）。
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["ES2020"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "strict": true,
+    "types": [],
+    "skipLibCheck": true
+  },
+  "include": ["log-trace.ts", "node-ambient.d.ts"]
+}
