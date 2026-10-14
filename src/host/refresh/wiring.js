@@ -359,6 +359,9 @@ export function createRefreshWiring(deps) {
           parseWorkspaceFile: parseWorkspaceFile,
           sandboxPolicyFor: createSandboxPolicyFor(d.ctx),
           backendCtx: function () { return backendObj },
+          // #1147 决策 10a：仓库标识补全（resolve 步）的等待上限毫秒数。壳缺席时取 8000，
+          //   这里显式传入同一数值 —— 这个上限的值由装配层拥有，不再是壳里无人认领的缺省（行为零变化）。
+          resolveTimeoutMs: 8000,
           invalidate: function (info) { try { const root = (info && info.workspace && info.workspace.root) || (info && info.cwd); if (typeof d.setCache === 'function' && root) d.setCache({ ts: 0, snapshot: null, error: null, cwd: String(root) }) } catch (e) {} },
           onTicketCreated: onDeckWrite, chainNote: function (input) { try { return sessionTickets.note(input) } catch (e) { return null } }, // #746 建票直达命名守护；#775 主动上报写同一份链（report）
           hourUsage: function () { try { return ledger.hourOf('ai-tool') || {} } catch (e) { return {} } },

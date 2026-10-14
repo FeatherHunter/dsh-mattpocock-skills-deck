@@ -1,9 +1,8 @@
 // tests/verify-957-workspace-writer.js —— 工作区文件写器门禁（957 规格验收）
 // 用法：在插件根目录执行 node tests/verify-957-workspace-writer.js，可独立运行。
 //
-// 盯两块（写器，不含读链；读链见 verify-947-workspace-file.js）：
+// 盯一块（写器，不含读链；读链见 verify-947-workspace-file.js）：
 //   B 首绑落盘：人选 backendId 落盘（来源 user），显式无后端不写，文件已在不覆盖，写失败不回滚绑定但如实回。
-//   P 双命中保护：无文件且双命中含 GitHub 时自动存一份（来源 auto）并照此走；单命中不写，无 GitHub 照旧报错，有待定不写，文件已在不覆盖，写失败诚实返回空。
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
@@ -33,7 +32,7 @@ function platformFor(dir, opts) {
 }
 
 async function main() {
-  console.log('工作区文件写器门禁（957：首绑落盘与双命中保护）')
+  console.log('工作区文件写器门禁（957：首绑落盘）')
   const wfMod = await imp('src/deck/shell/workspace-anchor.ts')
   const { parseWorkspaceFile } = wfMod
 
@@ -97,63 +96,12 @@ async function main() {
     check(typeof r.errorKind === 'string' && r.errorKind.length > 0, 'B4 回包带上失败原因分类（供排查与日志）', String(r.errorKind))
   }
 
-  // —— P：双命中保护（经装配口的写口直验逻辑） ——
-  const { createDoubleHitProtector } = await imp('src/deck/registration/host-assemble.ts')
-  const mkProt = (dir, extra) => {
-    const plat = platformFor(dir, extra)
-    return createDoubleHitProtector({
-      readWorkspaceFileText: async (rootCwd) => { try { return fs.readFileSync(path.join(String(rootCwd), 'docs', 'agents', 'workspace.json'), 'utf8') } catch (e) { return null } },
-      parseWorkspaceFile: parseWorkspaceFile,
-      backendCtx: () => ({ platform: plat, fs: plat.fs }),
-      sandboxPolicyFor: async () => ({ POLICY: 1 }),
-    })
-  }
-  {
-    const dir = makeTemp()
-    const prot = mkProt(dir)
-    const out = await prot(posix(dir), 's1', { backendId: 'github', source: 'matches', multiHit: ['github', 'markdown'] })
-    // #1003 退役自动写：多命中不再自动存文件，直接返回空，由调用方如实拒绝并引导去面板选一次。
-    check(out === null, 'P1 多命中不再自动写文件（退役 auto，直接返回空）')
-    check(!fs.existsSync(path.join(dir, 'docs', 'agents', 'workspace.json')), 'P1 确实没写文件')
-  }
-  {
-    const dir = makeTemp()
-    const prot = mkProt(dir)
-    const out = await prot(posix(dir), 's1', { backendId: 'markdown', source: 'matches', multiHit: undefined })
-    check(out === null, 'P2 单命中不写（免得每个仓库都脏一次）')
-    check(!fs.existsSync(path.join(dir, 'docs', 'agents', 'workspace.json')), 'P2 单命中确实没写文件')
-  }
-  {
-    const dir = makeTemp()
-    const prot = mkProt(dir)
-    const out = await prot(posix(dir), 's1', { backendId: 'markdown', source: 'matches', multiHit: ['markdown', 'gitlab'] })
-    check(out === null, 'P3 双命中里没有 GitHub 时仍返回空（调用方诚实报错）')
-    check(!fs.existsSync(path.join(dir, 'docs', 'agents', 'workspace.json')), 'P3 没写文件')
-  }
-  {
-    const dir = makeTemp()
-    const prot = mkProt(dir)
-    const out = await prot(posix(dir), 's1', { backendId: 'github', source: 'matches', multiHit: ['github', 'markdown'], pending: true })
-    check(out === null, 'P4 有待定时不写（仲裁未完成，诚实等待）')
-  }
-  {
-    const dir = makeTemp()
-    fs.mkdirSync(path.join(dir, 'docs', 'agents'), { recursive: true })
-    fs.writeFileSync(path.join(dir, 'docs', 'agents', 'workspace.json'), JSON.stringify({ version: 1, backendId: 'markdown', pickedAt: 7, source: 'user' }))
-    const prot = mkProt(dir)
-    const out = await prot(posix(dir), 's1', { backendId: 'github', source: 'matches', multiHit: ['github', 'markdown'] })
-    check(out === null, 'P5 文件已在不覆盖（保护不顶掉已有默认值）')
-    const obj = JSON.parse(fs.readFileSync(path.join(dir, 'docs', 'agents', 'workspace.json'), 'utf8'))
-    check(obj.backendId === 'markdown', 'P5 文件内容不动', JSON.stringify(obj))
-  }
-  {
-    const dir = makeTemp()
-    const prot = mkProt(dir, { failWrite: true })
-    const out = await prot(posix(dir), 's1', { backendId: 'github', source: 'matches', multiHit: ['github', 'markdown'] })
-    check(out === null, 'P6 写失败返回空（调用方诚实报错，不静默放行）')
-  }
+  // —— P：双命中保护写口已退役（#1147 决策 10b） ——
+  //   装配层不再提供 protectDoubleHit（`createDoubleHitProtector` 已删），壳也不再读它：
+  //   多命中一律由调用方诚实拒绝并引导去面板选一次。下面 S1 守的就是这一条。
+  //   （这里原来有 P1–P6 直验那个空函数，空函数删掉后这些断言无物可验，一并退役。）
 
-  // —— S：工具壳接上保护写口（缺席跳过，有就照此走） ——
+  // —— S：工具壳多命中诚实拒绝（不依赖任何保护写口） ——
   {
     const shellMod = await imp('src/deck/shell/call-shell.ts')
     const budget = await imp('src/shared/refresh/budget.js')
@@ -169,10 +117,11 @@ async function main() {
     const doubleReg = { bound: () => undefined, has: (id) => id === 'github' || id === 'markdown', describe: (h, id) => ({ backend: id, refId: 'o/n', name: id, url: '' }), select: async () => ({ backendId: 'github', source: 'matches', ref: null, multiHit: ['github', 'markdown'] }) }
     const exec = { agent: { session: { id: 's', cwd: 'D:\\ws' } } }
     const pNoProt = await mkShell(doubleReg).pickBackend(exec, sOf('D:\\ws'))
-    check(pNoProt.ok === false, 'S1 保护缺席时双命中照旧诚实报错（旧接线兼容）', JSON.stringify(pNoProt).slice(0, 160))
-    // #1003 退役自动写：壳不再调用保护写口（即使传了也忽略），多命中一律诚实拒绝。
+    check(pNoProt.ok === false, 'S1 多命中无保护写口可接：照旧诚实报错', JSON.stringify(pNoProt).slice(0, 160))
+    // #1147 决策 10b：装配层不再提供 protectDoubleHit，壳也不读它。即使有人误传这一格，
+    //   也必须当作未知键忽略，多命中照旧诚实拒绝（不能复活任何自动写）。
     const pProt = await mkShell(doubleReg, { protectDoubleHit: async () => ({ backendId: 'github', source: 'auto', ref: null, pending: false }) }).pickBackend(exec, sOf('D:\\ws'))
-    check(pProt.ok === false, 'S2 保护写口已退役（传了也忽略，多命中照旧诚实报错）', JSON.stringify(pProt).slice(0, 160))
+    check(pProt.ok === false, 'S2 误传的保护写口被忽略，多命中照旧诚实报错', JSON.stringify(pProt).slice(0, 160))
   }
 
   console.log(failed ? ('\nFAIL（' + total + ' 条）') : ('\n全部通过（' + total + ' 条）'))

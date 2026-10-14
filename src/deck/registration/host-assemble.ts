@@ -76,9 +76,8 @@ const _assertNineFiles: 9 = DECK_TOOL_FILES.length;
  * invalidate）—— 与 tests/verify-deck-tools.js 里直接喂给工厂的那一份同形，
  * 所以「门禁里跑得通」与「宿主里跑得通」是同一件事，而不是两份各自能跑的实现。
  */
-/** #957 双命中保护写口的工厂（导出只为门禁直验逻辑，生产经 createDeckToolsForHost 装进九个工具共用的那一份）。 */
-// 等待竞速共用（装配层自带：挂住的文件服务不能卡住选后端；超时按缺席跳过，调用方诚实报错）。
-// 接线层（wiring.js 的保读数/记忆/文件三处）与下面的保护写口共用同一份；单测直验它。
+/** 等待竞速共用（装配层自带：挂住的文件服务不能卡住选后端；超时按缺席跳过，调用方诚实报错）。 */
+// 接线层（wiring.js 的保读数/记忆/文件三处）与下面的声明文件读取共用同一份；单测直验它。
 export function withCap(promise: unknown, ms: number): Promise<{ ok: boolean; value?: unknown; timedOut?: boolean }> {
   return Promise.race([
     Promise.resolve(promise).then(function (v: unknown) { return { ok: true, value: v } }, function () { return { ok: false } }),
@@ -87,14 +86,6 @@ export function withCap(promise: unknown, ms: number): Promise<{ ok: boolean; va
 }
 /** 声明文件读取的等待上限（毫秒）：挂住的文件服务不能卡住选后端，超时按缺席跳过。数值与位置全冻（#1030 Q4）。 */
 export const DECK_ASSEMBLY_TIMEOUT_MS = 8000
-export function createDoubleHitProtector(baseDeps: unknown): (cwd: unknown, sessionId: unknown, picked: unknown) => Promise<null> {
-  // #1003 退役自动写：多命中或身份待定时不许猜，直接返回空，由调用方如实拒绝并引导去面板选一次。
-  //   旧的“自动存一份 GitHub 默认值”会把机器的猜测写进人可手改的配置文件，与唯一真源冲突，已删。
-  const protectDoubleHit = async function (cwd: unknown, sessionId: unknown, picked: unknown): Promise<null> {
-    return null;
-  }
-  return protectDoubleHit
-}
 
 export function createDeckToolsForHost(toolDeps: unknown): unknown {
   const base = ((toolDeps as UnknownRecord | null | undefined) || {}) as UnknownRecord;
@@ -131,5 +122,5 @@ export function createDeckToolsForHost(toolDeps: unknown): unknown {
   }
   const createTools = createDeckTools as (factories: unknown, deps: unknown) => unknown;
   const decideBackendFn = (decideBackend as unknown) || null;
-  return createTools(DECK_TOOL_FACTORIES, { toolDeps: Object.assign({}, base, { readDeclarationId, protectDoubleHit: createDoubleHitProtector(base), decideBackend: decideBackendFn }) })
+  return createTools(DECK_TOOL_FACTORIES, { toolDeps: Object.assign({}, base, { readDeclarationId, decideBackend: decideBackendFn }) })
 }
