@@ -8,13 +8,13 @@
  *   handle: {cwd?, refId?}；ctx: BackendContext（含 platform/exec/timers/fs/log）+ cwd/signal/refId
  * - 三项检查顺序：1) gh 可执行 → env；2) 登录态 → auth；3) 仓库可达 → not-found/auth/network/rate-limit
  * - 不检查：labels/subIssue/depGraph 等能力；不返回 capabilities 布尔表（旧 BackendStatus 已删）
- * - 错误归一全经 ghVerdictOf（判档表在 src/tracker/error-rules.ts）
+ * - 错误归一全经 ghVerdictOf（判档表在 src/tracker/kernel/error-rules.ts）
  */
 
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import type { OpContext, RepoHandle } from '../../contract/contexts.js';
 import type { PreflightResult } from '../../contract/results.js';
-import { rawText } from '../../preflight.js'
+import { rawText } from '../../kernel/preflight.js'
 import { ghClient } from './client.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'
 import { emitPreflightGatePass, emitReadDegraded } from './read-log.js'

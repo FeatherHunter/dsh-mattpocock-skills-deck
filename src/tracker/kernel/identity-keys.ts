@@ -1,5 +1,5 @@
-﻿/**
- * src/tracker/identity-keys.ts —— 票的身份算法：由 (effortId, key) 现算稳定身份。
+/**
+ * src/tracker/kernel/identity-keys.ts —— 票的身份算法：由 (effortId, key) 现算稳定身份。
  *
  * ── 为什么这份文件住在这里 ──────────────────────────────────────────────────
  * 它原来住在契约目录（`src/tracker/contract/vocabulary.ts` 末尾那一段“票的身份算法”）。

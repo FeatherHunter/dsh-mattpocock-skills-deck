@@ -49,9 +49,9 @@ const fail = function (msg) { problems.push(msg); failed = true }
 // #780：界面这一侧要按身份去快照的地图清单里认地图（认出来了才压「地图」栈）。
 // 门禁用的是**真实现**，不是桩：身份小件取自共享常量层，查找函数从 store-derived.js 里原样截出来
 // （手法与 verify-multi-effort-panel.js 同一套），免得门禁自己另写一份判据、与真代码分叉。
-// #1026：四个身份函数已从契约目录搬到 src/tracker/identity-keys.ts，真源跟过去；
+// #1026：四个身份函数已从契约目录搬到 src/tracker/kernel/identity-keys.ts，真源跟过去；
 // 全标注 TS 先走同一套转译剥掉类型（行为与构建产物一致）。
-const constantsSrc = fs.readFileSync(path.join(ROOT, 'src/tracker/identity-keys.ts'), 'utf8')
+const constantsSrc = fs.readFileSync(path.join(ROOT, 'src/tracker/kernel/identity-keys.ts'), 'utf8')
 const identitySrc = ['effortOf', 'idOfParts', 'idOf', 'refKeyOf'].map(function (n) {
   const m = new RegExp('export function ' + n + '\\([\\s\\S]*?\\n\\}').exec(constantsSrc)
   if (!m) throw new Error('identity-keys.ts 缺 ' + n)

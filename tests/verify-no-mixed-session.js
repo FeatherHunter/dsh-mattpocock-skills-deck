@@ -73,7 +73,7 @@ function selfCheck(cond, msg, detail) {
 }
 {
   // ���������������ļ�
-  const r3 = detectMixedSession(["src/tracker/contract/vocabulary.ts", "src/tracker/preflight.ts"]);
+  const r3 = detectMixedSession(["src/tracker/contract/vocabulary.ts", "src/tracker/kernel/preflight.ts"]);
   selfCheck(r3.ok && r3.rooms.length === 0, "�������������ļ�������");
 }
 {

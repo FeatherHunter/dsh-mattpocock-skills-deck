@@ -14,7 +14,7 @@
  * 本文件只保留了它们要用的仓库名拆解（parseRepo / repoId），不再自己列标签。
  */
 
-import { fail, rawText } from '../../preflight.js'
+import { fail, rawText } from '../../kernel/preflight.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import type { OpContext } from '../../contract/contexts.js';
 import type { Issue, Label, RepositoryRef } from '../../contract/entities.js';

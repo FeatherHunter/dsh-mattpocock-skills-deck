@@ -43,7 +43,7 @@ const { listIssues, getIssue, createIssue, closeIssue, reopenIssue, updateIssue 
 const { addComment } = await import(pathToFileURL(resolve(ROOT, 'src/tracker/rooms/markdown/comments.ts')).href)
 const { createSnapshotComposer } = await import(pathToFileURL(resolve(ROOT, 'src/host/tracker/snapshot.js')).href)
 const { createMarkdownBackend } = await import(pathToFileURL(resolve(ROOT, 'src/tracker/rooms/markdown/index.ts')).href)
-const { idOf, idOfParts, effortOf } = await import(pathToFileURL(resolve(ROOT, 'src/tracker/identity-keys.ts')).href)
+const { idOf, idOfParts, effortOf } = await import(pathToFileURL(resolve(ROOT, 'src/tracker/kernel/identity-keys.ts')).href)
 
 function writeEffort(root, name, mapTitle, tickets) {
   const dir = name ? path.join(root, '.scratch', name) : path.join(root, '.scratch')

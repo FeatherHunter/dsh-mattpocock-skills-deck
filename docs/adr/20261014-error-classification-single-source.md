@@ -2,7 +2,7 @@
 
 > 日期：2026-10-14 定版（维护者在 #1043 讨论中拍板：改行为严格上也属于零变化——功能本意是 100%，实测只有 80%，完善到 100% 就是零变化；并明确要求「后端操作失败时，除了返回预置的档位，错误信息原句也要交出去，作为兜底——分类可能错，但人能读原文判断」）。方案经两轮对抗式审查，记录见 `research/1042-error-judgement-proposal.md`。
 > 地位：本文是「失败怎么归类、交给调用方什么」的唯一依据。凡与本文冲突的旧说法，以本文为准；未来任何讨论若改动本决策，以未来版本为准（与 `CONTEXT.md` 开头两条版本与效力规则同款）。八档类目本身由 `src/tracker/contract/vocabulary.ts:75-84` 定义，本文不重定义它——本文只定「谁判、按什么顺序判、判错时人靠什么兜底」。
-> 关联：#1043（讨论票，结论写在该票正文）· #1042（地图 06）· #1110（规格单，本决策的行为版）· #1111（落地票）· #1112（同批：注册表去掉按后端名硬编码的链接兜底）· `CONTEXT.md` 的「判据口径词条」· 代码落点（#1111 落地后的现状）：判据表在 `src/tracker/error-rules.ts`，判档入口与 `fail()` 在 `src/tracker/preflight.ts`，失败形状在 `src/tracker/contract/results.ts`，客户端的兼容映射在 `src/client/kernel/api-io.ts`；第 1 节表格里的行号是**改动前**的样子，留着当这次整理的依据。
+> 关联：#1043（讨论票，结论写在该票正文）· #1042（地图 06）· #1110（规格单，本决策的行为版）· #1111（落地票）· #1112（同批：注册表去掉按后端名硬编码的链接兜底）· `CONTEXT.md` 的「判据口径词条」· 代码落点（#1111 落地后的现状）：判据表在 `src/tracker/kernel/error-rules.ts`，判档入口与 `fail()` 在 `src/tracker/kernel/preflight.ts`，失败形状在 `src/tracker/contract/results.ts`，客户端的兼容映射在 `src/client/kernel/api-io.ts`；第 1 节表格里的行号是**改动前**的样子，留着当这次整理的依据。
 
 ---
 
@@ -12,7 +12,7 @@
 
 | 判据在哪 | 覆盖什么 | 顺序上的问题 |
 | --- | --- | --- |
-| `src/tracker/preflight.ts:30-59` 跟踪器层通用判据 | 所有后端的兜底 | 「没登录」那组的词表里含 `\b403\b`（`:44`），限流回的 403 会先被判成没登录；`not ?found`（`:50`）会把 `ENOTFOUND` 吞成「找不到」，而网络判断排在它后面（`:56`） |
+| `src/tracker/kernel/preflight.ts:30-59` 跟踪器层通用判据 | 所有后端的兜底 | 「没登录」那组的词表里含 `\b403\b`（`:44`），限流回的 403 会先被判成没登录；`not ?found`（`:50`）会把 `ENOTFOUND` 吞成「找不到」，而网络判断排在它后面（`:56`） |
 | `src/tracker/rooms/github/errors.ts:64-106` GitHub 房间 | GitHub 的报错 | 这两处修过：403 且带限流文案归限流（`:92`），网络特征排在找不到之前（`:95-99`，`:42-44` 的注释记着 #620 的实测复现） |
 | `src/tracker/rooms/gitlab/errors.js:12-33` GitLab 房间 | GitLab 的报错 | 又抄了一份通用词表：`not ?found` 在 `:27`、网络在 `:30`，与通用判据同款的隐患仍在 |
 | `src/client/kernel/api-io.js:202-206` 客户端 | 面板显示 | 拿到结果后再从 `message` 文本里找 `404` / `not found` / `rate limit` 并改写 `err.kind`，用的还是另一套取值（`'404'`、`'notFound'`、`'rateLimit'`） |
@@ -24,11 +24,11 @@
 
 原文今天也不是「拿不到」，而是各写各的：`src/tracker/rooms/github/client.ts:248` 的失败对象里带着退出码 `code`，`:259` 却只留一段 `message`（`String(stderr || stdout || …).slice(0, 800)`）；`errors.ts:110` 同样只留 800 字。契约对 `TrackerError` 的注释写着「`message` 是给人看的一句话，允许直接展示」（`results.ts:23`），于是原文要么挤进 `message`，要么无处可去。
 
-仓库自己也知道这是隐患：`src/tracker/preflight.ts:42-43` 的注释写着「两处各写了一份判据，要同改」。
+仓库自己也知道这是隐患：`src/tracker/kernel/preflight.ts:42-43` 的注释写着「两处各写了一份判据，要同改」。
 
 ## 2. 裁决
 
-1. **判据只有一个真源。** 一张有序规则表住在跟踪器层的 `src/tracker/error-rules.ts`，判档入口是 `src/tracker/preflight.ts` 的 `classifyError(err, ctx?)`；所有后端与客户端都走它。各家只许写**前置扩展**——本后端专有的错误码名与句式（例如 `glab: command not found`），且不许复制通用项。
+1. **判据只有一个真源。** 一张有序规则表住在跟踪器层的 `src/tracker/kernel/error-rules.ts`，判档入口是 `src/tracker/kernel/preflight.ts` 的 `classifyError(err, ctx?)`；所有后端与客户端都走它。各家只许写**前置扩展**——本后端专有的错误码名与句式（例如 `glab: command not found`），且不许复制通用项。
 2. **判据的输入是事实对象，不是字符串。** 形状是 `{status: HTTP 状态码, exitCode: 进程退出码, errCode: errno 或错误码名, text: 原文}`。这些证据今天已经拿得到（403、退出码、`ENOTFOUND`），却在判据入口被拍扁成一段字符串再猜。
 3. **顺序按证据的硬度排**（第一性原理：越硬的事实越先判）：结构化事实（状态码／退出码／errno）→ 该后端专有的错误码名 → 专有句式 → 通用的含糊短语（这一层收到词边界，例如把 `not ?found` 收紧）→ 兜底归网络。并且「本机缺工具」必须排在「资源找不到」之前。
 4. **失败结果改成三段式，原文必填**：`{kind, message, raw}`——`kind` 是八档之一，`message` 是给人看的一句话，`raw` 是后端或命令吐出的原文。原文多路合并（stderr 优先，其次 message、stdout），过长时保留头尾、裁掉中间（合并细节与字数见 #1111）。

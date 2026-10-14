@@ -3,7 +3,7 @@
  * tests/verify-error-rule-samples.js —— #1111：规则表逐条自证 + 真实原文夹具回归
  *
  * 守着的源码路径（按改动挑门禁时照这份清单）：
- *   src/tracker/error-rules.ts            COMMON_RULES / RULE_LAYERS / matchRule / judgeFactsDetailed
+ *   src/tracker/kernel/error-rules.ts            COMMON_RULES / RULE_LAYERS / matchRule / judgeFactsDetailed
  *   src/tracker/rooms/github/errors.ts    本家前置扩展表 + classifyGhError
  *   src/tracker/rooms/gitlab/errors.ts    本家前置扩展表 + classifyGlabError
  *   src/tracker/rooms/markdown/**         本后端有无可比的扩展表（今天没有，门禁会说明）
@@ -213,7 +213,7 @@ function discoverExtensionTables(dirRel) {
 }
 
 async function main() {
-  const rulesMod = await imp('src/tracker/error-rules.ts')
+  const rulesMod = await imp('src/tracker/kernel/error-rules.ts')
   const { COMMON_RULES, RULE_LAYERS, matchRule, judgeFactsDetailed } = rulesMod
   const samples = require('./fixtures/error-samples.js')
 

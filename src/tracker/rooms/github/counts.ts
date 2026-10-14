@@ -19,7 +19,7 @@
  *    拉取请求），兜过去只会拿一个看着像数、其实不对的数字骗人。
  *  - **不缓存判定**（G5 红线）：失败（含 unsupported 桩）不进任何缓存，缓存层在编排层，这里只如实返回。
  *
- * 错误分类走本房间唯一的出口 ghVerdictOf（判档表在 src/tracker/error-rules.ts），不另造词。
+ * 错误分类走本房间唯一的出口 ghVerdictOf（判档表在 src/tracker/kernel/error-rules.ts），不另造词。
  *
  * 日志（#1052）：命令本身成没成由房内常驻的 `gh.exec` 落盘（`via` 写 `counts.gql`）；而「命令成功了、
  * 这个数仍然拿不到」的四条路（回包不是合法 JSON、远端回 errors、回包里没有 repository、totalCount 形状不对）
@@ -31,7 +31,7 @@ import type { OpContext } from '../../contract/contexts.js';
 import type { Counts, OpResult } from '../../contract/results.js';
 import type { ListFilter } from '../../contract/inputs.js';
 import type { RepositoryRef } from '../../contract/entities.js';
-import { fail } from '../../preflight.js'
+import { fail } from '../../kernel/preflight.js'
 import { ghClient } from './client.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'
 import { parseRepo, repoId } from './issues.js'

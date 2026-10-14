@@ -28,7 +28,7 @@ import type { Issue, IssueRef, RepositoryRef } from './entities.js'
  *   用户会照着去找一个不存在的文件）。
  * - `raw`：后端或命令吐出的原文，人自己判断的兜底。**必填**（确实没有原文时给空串）：
  *   可选字段等于早晚被省略，门禁也就断言不了「每个失败都带原文」。
- *   取法只有一处 —— `fail(kind, message, raw)`（`src/tracker/preflight.ts`），
+ *   取法只有一处 —— `fail(kind, message, raw)`（`src/tracker/kernel/preflight.ts`），
  *   由它统一做多路合并、凭据遮蔽与头尾截断；决策见
  *   `docs/adr/20261014-error-classification-single-source.md`。
  */

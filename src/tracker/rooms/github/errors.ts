@@ -1,8 +1,8 @@
 /**
  * backends/github/errors.ts — gh/API 错误 → 契约 ERROR_KIND。
  *
- * 判档本身不在这里：唯一一份有序规则表住在 `src/tracker/error-rules.ts`，判档入口是
- * `src/tracker/preflight.ts` 的 `classifyError` / `verdictOf` / `judgeFactsDetailed`
+ * 判档本身不在这里：唯一一份有序规则表住在 `src/tracker/kernel/error-rules.ts`，判档入口是
+ * `src/tracker/kernel/preflight.ts` 的 `classifyError` / `verdictOf` / `judgeFactsDetailed`
  * （同一份表的几种用法）。本文件原来自己抄了一份通用词表（env / auth / rate-limit /
  * not-found / network 一路 if 下来），那份词表已经删掉 —— 两处各判一次实测漂移出两条给出
  * **相反建议**的错判，决策见 `docs/adr/20261014-error-classification-single-source.md`。
@@ -33,8 +33,8 @@ import {
   factsFromError,
   judgeFactsDetailed,
   verdictOf,
-} from '../../preflight.js'
-import type { ErrorRule, Judged, PreflightCtx } from '../../preflight.js'
+} from '../../kernel/preflight.js'
+import type { ErrorRule, Judged, PreflightCtx } from '../../kernel/preflight.js'
 
 /** ERROR_KIND 的取值集合（注意：常量键是枚举名 ENV/AUTH/…，值才是 'env'/'auth'/…，必须按值判断）。 */
 const KIND_VALUES = new Set(Object.values(ERROR_KIND))
@@ -73,7 +73,7 @@ export const GH_ERROR_RULES: readonly ErrorRule[] = [
     // 样本按「执行结果」的形状写：退出码在那一份结果里叫 `code`（`factsFromError` 只认这个键），
     // 另外把 `exitCode` 也写上，是为了让直接拿样本判档的门禁两种读法都能判出同一条规则。
     // 为什么这里断言成事实形状：运行时两种键都认（见 error-rules.ts 的退出码双读），契约类型只收 exitCode，多写的 code 键只为覆盖另一种读法，删掉会丢一条门禁覆盖。
-    example: { code: 4, exitCode: 4, text: 'gh: To get started with GitHub CLI, please run: gh auth login' } as unknown as import('../../error-rules.js').ErrorFacts,
+    example: { code: 4, exitCode: 4, text: 'gh: To get started with GitHub CLI, please run: gh auth login' } as unknown as import('../../kernel/error-rules.js').ErrorFacts,
     note: '#620：gh 的「还没登录」用退出码 4 表达，退出码比文案可靠，归鉴权档',
   },
   {
@@ -85,7 +85,7 @@ export const GH_ERROR_RULES: readonly ErrorRule[] = [
     // 「等到本地超时」那一路由 client 层写成一句带 timeout 的事实，先落通用表的网络档，不会走到这里。
     when: (f) => f.exitCode === -1 && !f.text,
     // 为什么这里断言：同上，code 键覆盖执行结果的另一种读法，删掉会丢门禁覆盖，运行时无影响。
-    example: { code: -1, exitCode: -1, text: '' } as unknown as import('../../error-rules.js').ErrorFacts,
+    example: { code: -1, exitCode: -1, text: '' } as unknown as import('../../kernel/error-rules.js').ErrorFacts,
     note: '#620：拿不到退出码（-1）且没有任何输出 → 环境档，责任在插件这边',
   },
   {

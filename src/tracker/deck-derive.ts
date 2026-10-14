@@ -19,7 +19,7 @@
  */
 
 import { STATE } from './contract/vocabulary.js'
-import { effortOf, idOfParts } from './identity-keys.js'
+import { effortOf, idOfParts } from './kernel/identity-keys.js'
 
 const OPEN = STATE.OPEN
 const CLOSED = STATE.CLOSED

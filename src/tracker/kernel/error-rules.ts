@@ -1,5 +1,5 @@
 /**
- * src/tracker/error-rules.ts —— 失败该归哪一档：全仓唯一的一张有序规则表
+ * src/tracker/kernel/error-rules.ts —— 失败该归哪一档：全仓唯一的一张有序规则表
  *
  * ── 为什么只有这一处 ──────────────────────────────────────────────────────────
  * 决策与理由见 `docs/adr/20261014-error-classification-single-source.md`（2026-10-14 定版）。
@@ -33,8 +33,8 @@
  * 写着 `not found` 的正文也不一定是 404。原文只当最后几层（句式与短语）的语料。
  */
 
-import { ERROR_KIND } from './contract/vocabulary.js'
-import type { ErrorKind } from './contract/identity.js'
+import { ERROR_KIND } from '../contract/vocabulary.js'
+import type { ErrorKind } from '../contract/identity.js'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 一、判档的输入与规则形状

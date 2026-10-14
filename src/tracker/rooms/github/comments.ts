@@ -3,14 +3,14 @@
  *
  * 定版依据：#138 §1.4（comment 归一）+ contract.js OpResult 形状。
  * - 签名：comment(repo, key, body, ctx) -> OpResult<Comment>
- * - 通过 `gh issue comment` / REST POST 实现；错误分类经 ghVerdictOf（判档表在 src/tracker/error-rules.ts）
+ * - 通过 `gh issue comment` / REST POST 实现；错误分类经 ghVerdictOf（判档表在 src/tracker/kernel/error-rules.ts）
  */
 
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import type { OpContext } from '../../contract/contexts.js';
 import type { Comment, RepositoryRef } from '../../contract/entities.js';
 import type { OpResult, TrackerError } from '../../contract/results.js';
-import { fail } from '../../preflight.js'
+import { fail } from '../../kernel/preflight.js'
 import { ghClient } from './client.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'
 // #104 `issue.write`：票写入的常驻结论线（轨迹形状与发射口在 ./write-log.js）。

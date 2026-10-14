@@ -13,10 +13,10 @@ import { makeCreateErrorClassifier, KIND_UNKNOWN } from './init-project-error-ki
 // 结果词表里凡是要说 TrackerError 八档中某一档的地方，取值都引用真源常量，不写裸字符串，
 // 免得「少一个连字符」「换个近义词」这类偏差逃过检查；本文件其余自成一档的结果词不在八档内，保持原样。
 import { ERROR_KIND } from '../../contract/vocabulary.js'
-import { isOwnershipMismatch, ownershipPathFrom, safeDirectoryCommand } from '../../detection/workspace-ownership.js'
+import { isOwnershipMismatch, ownershipPathFrom, safeDirectoryCommand } from '../../kernel/workspace-ownership.js'
 // #1111：失败结果统一是三段式（kind / message / raw），这里几条直接写出来的失败字面量也要带原文段 ——
 //   原文取法走跟踪器层唯一那套（多路合并、遮蔽凭据、头尾截断），与 fail() 一致。
-import { rawText } from '../../preflight.js'
+import { rawText } from '../../kernel/preflight.js'
 import type { OpContext, RepoHandle } from '../../contract/contexts.js';
 import type { RepositoryRef } from '../../contract/entities.js';
 import type { InitProjectInput } from '../../contract/inputs.js';

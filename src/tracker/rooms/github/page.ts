@@ -21,7 +21,7 @@
  *    界面那一份要的 number / 大写 state 由宿主电话层补（见 src/host/issuePage.js），与快照那条链同一处口径。
  *  - **不缓存判定**（G5 红线）：失败（含「做不到」的桩）不进任何缓存，缓存层在编排层。
  *
- * 错误分类走本房间唯一的出口 ghVerdictOf（判档表在 src/tracker/error-rules.ts），不另造词。
+ * 错误分类走本房间唯一的出口 ghVerdictOf（判档表在 src/tracker/kernel/error-rules.ts），不另造词。
  *
  * 日志（#1052）：命令本身成没成由房内常驻的 `gh.exec` 落盘（`via` 写 `listPage.gql`）；而「命令成功了、
  * 这一页仍然拿不回来」的几条路（回包不是合法 JSON、游标已失效、远端回 errors、回包里缺 repository/issues.nodes、
@@ -34,7 +34,7 @@ import type { OpContext } from '../../contract/contexts.js';
 import type { Issue, RepositoryRef } from '../../contract/entities.js';
 import type { ListFilter, PageOpts } from '../../contract/inputs.js';
 import type { OpResult, PageResult } from '../../contract/results.js';
-import { fail } from '../../preflight.js'
+import { fail } from '../../kernel/preflight.js'
 import { ghClient } from './client.js'
 import { normalizeIssue } from './normalize.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'

@@ -12,7 +12,7 @@
 // 2026-10-14（票 #1161）：这两件从前是本文件直接 import 房间实现拿的。宿主侧不许再深引房间
 //   （规则 rooms-imported-only-by-assembly），改由调用方（index.js）经装配点 src/tracker/registry/builtins.ts
 //   取到后注入：deps.makeCreateErrorClassifier 与 deps.KIND_UNKNOWN。
-import { isOwnershipMismatch, ownershipPathFrom, safeDirectoryCommand } from '../tracker/detection/workspace-ownership.js'
+import { isOwnershipMismatch, ownershipPathFrom, safeDirectoryCommand } from '../tracker/kernel/workspace-ownership.js'
 
 interface RepoKey { owner: string; name: string }
 

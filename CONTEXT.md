@@ -34,6 +34,7 @@
 - **后端物理隔离**: 不同后端的检测链按后端独立，Markdown 卷子上不出现 GitHub 行，跨后端误导靠行不存在根治，无需 NA 标记。
 - **房间（room）**: 内置后端各自的目录（今天三座：`src/tracker/rooms/github/`、`gitlab/`、`markdown/`），是后端物理隔离的物理落点；正文沿用 #313 的「房间」比喻，规范术语以「后端物理隔离」为准。
 - **房间纪律（room discipline）**: 两条纪律——禁止跨房引用与一次会话只改一房，分别由 verify-dependency-rules.ts（判据是依赖图，规则写在根目录 .dependency-cruiser.cjs）与 verify-no-mixed-session 门禁在 CI 硬卡。房间能引哪些房外目录，唯一真源是 `tests/tracker-room-imports.json`（每条带理由与票号），房间说明 `src/tracker/rooms/README.md` 只指路；来龙去脉见 `docs/adr/20261014-tracker-room-boundary.md`。
+- **共享内核（kernel）**: `src/tracker/kernel/` 里的那几份判定件——房间与宿主都要用、又不属于「类型与数据」的那一类（判档入口 `preflight.ts`、判档规则表 `error-rules.ts`、票身份 `identity-keys.ts`、工作区属主 `workspace-ownership.ts`）。房间可以引它（登记表里一条目录级放行），宿主也可以引；deck 不许直接引它，要后端能力先加到契约层的公开面上。与契约层的分界是仓里原有的那条：契约层只有类型与数据、没有运行时实现。见 `src/tracker/kernel/README.md` 与 `docs/adr/20261014-tracker-room-boundary.md`。 _Avoid_: 把它叫成「公共层」「工具目录」「共享代码随便放」
 - **N 动态**: 检查总数不再固定，`N = 通用链题数 + 当前后端链题数` 动态求和，分开计数、分开渲染。
 - **五方职责**: UI 层（只消费契约产物渲染）/ 契约层（定义接口与求值）/ 后端层（声明检查目录与动作、实现操作）/ 平台抽象层（封装 OS 能力原语）/ OS 底座层（各 OS 具体实现）。
 ## 内部 UI 端口词条（2026-08-27 定版 · #221）

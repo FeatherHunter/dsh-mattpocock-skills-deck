@@ -41,6 +41,7 @@
   - node 内置模块（含 node: 前缀与裸名如 path / fs）
   - 同房间内的相对路径（规则用 `$1` 按起点抓到的房名放行，解析后仍在同一间房内）
 - 其余房外目标一律要在登记表里逐条放行，登记表只有一份：`tests/tracker-room-imports.json`（每条 `pattern` / `why` / `ticket` 三样齐全，条数上限只许减）。少理由、匹配不到任何源码文件、把受保护的房间目录整个吃掉，门禁都会当场判红。为什么放在那份 JSON 里而不是配置里：dependency-cruiser 对配置的顶层键做白名单校验，多一个自定义键就拒绝启动。来龙去脉见 `docs/adr/20261014-tracker-room-boundary.md`。
+- 放行的房外目标分四类（具体 pattern 以那份 JSON 为准，本文件不抄）：**契约层** `src/tracker/contract/`（纯类型与数据的公共面）、**共享内核** `src/tracker/kernel/`（房间与宿主都要用的判定件，见 `src/tracker/kernel/README.md`）、**共享模块** `src/shared/`、**已登记的宿主目录** `src/host/**`（今天只剩 github 房引宿主出站控制面与搭车账本两处，收口口径见 #1159）。
 - 纪律：后端文件的引用说明符必须是字面量字符串（import(someVar) 视为违规）；host 主程序引用后端（如 #284 复用 markdown 解析）不在检查范围。
 
 纪律二：会话门禁 —— 一次会话只改一房（verify-no-mixed-session）

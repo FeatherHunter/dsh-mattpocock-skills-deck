@@ -179,7 +179,7 @@
     // 为什么要收在一处：宿主尚未迁移的那三个电话（wf.issueDetail / wf.issueComments / wf.commentIssue）
     // 报上来的可能还是老写法。从前客户端拿着错误原文自己又猜一遍档位（正文里有 404 就判 404、
     // 有 not found 就判 notFound），同一件事写在两处必然漂移，而且猜错的方向正是让用户白跑一趟的那种
-    // （跟踪器那边的判据表已把这段教训写死在 src/tracker/error-rules.ts 开头）。现在改成：
+    // （跟踪器那边的判据表已把这段教训写死在 src/tracker/kernel/error-rules.ts 开头）。现在改成：
     // 只认传上来的档位，认不出才按机器给的事实轻量兜底。
     //
     // 本文件返回的每一个错误对象都带齐三样：kind（八档之一）、message（给人看的一句话）、

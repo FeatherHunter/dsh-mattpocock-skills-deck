@@ -85,7 +85,7 @@ async function main() {
   // ── A) 分类 ──
   {
     const { classifyGhError } = await imp('src/tracker/rooms/github/errors.ts')
-    const { classifyError } = await imp('src/tracker/preflight.ts')
+    const { classifyError } = await imp('src/tracker/kernel/preflight.ts')
     check(classifyGhError({ message: PERM_SENTENCE }) === ERROR_KIND.AUTH, 'A1 errors.js：GraphQL 复数权限句归 auth（实得 ' + classifyGhError({ message: PERM_SENTENCE }) + '）')
     check(classifyError({ message: PERM_SENTENCE }) === ERROR_KIND.AUTH, 'A2 preflight.js：同一句同样归 auth（两处同改，实得 ' + classifyError({ message: PERM_SENTENCE }) + '）')
     const keep404 = classifyGhError({ message: 'HTTP 404: Not Found (https://api.github.com/repos/a/b/labels)' })

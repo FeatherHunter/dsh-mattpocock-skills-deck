@@ -12,7 +12,7 @@ import type { Issue, RepositoryRef } from '../../contract/entities.js';
 import type { Actor } from '../../contract/identity.js';
 import type { AssigneeInput, CloseOpts, CreateInput, SetOpts, UpdatePatch } from '../../contract/inputs.js';
 import type { OpResult } from '../../contract/results.js';
-import { fail } from '../../preflight.js'
+import { fail } from '../../kernel/preflight.js'
 import { ghClient } from './client.js'
 import { normalizeIssue } from './normalize.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'

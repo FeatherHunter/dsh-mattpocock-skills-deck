@@ -1,12 +1,12 @@
 /**
- * src/tracker/preflight.ts — preflight 环境门禁共享辅助 + 失败结果的统一构造
+ * src/tracker/kernel/preflight.ts — preflight 环境门禁共享辅助 + 失败结果的统一构造
  *
  * 这里是「前置检查」的通用骨架：约定错误分类与统一错误形状，供各后端 preflight 复用。
  * 第一性原理（#124 定版）：错误分类必须把「环境问题（缺工具/缺文件）」与「资源不存在（404）」
  * 分开 —— 缺工具是环境问题（ENV），不是资源不存在（NOTFOUND），二者不可混。
  *
  * ⚠️ 判据不在这里（地图 #1042 落地票 #1111 收口）：失败归哪一档只有一处真源，
- * 就是 `src/tracker/error-rules.ts` 里那张有序规则表（决策见
+ * 就是 `src/tracker/kernel/error-rules.ts` 里那张有序规则表（决策见
  * `docs/adr/20261014-error-classification-single-source.md`）。本文件只做两件事：
  *   1）`classifyError`：把「已经是规范档位的失败」原样透传，其余交给规则表判；
  *   2）`fail`：统一构造失败结果 `{ok:false, error:{kind, message, raw}}`，原文必填。
@@ -18,9 +18,9 @@
  * `kind:'conflict'` 由后端显式产生（If-Match 不匹配 / setBlockedBy 自环成环），经下方透传分支放行，不做 regex 派生。
  */
 
-import { ERROR_KIND } from './contract/vocabulary.js'
-import type { ErrorKind } from './contract/identity.js'
-import type { TrackerError } from './contract/results.js'
+import { ERROR_KIND } from '../contract/vocabulary.js'
+import type { ErrorKind } from '../contract/identity.js'
+import type { TrackerError } from '../contract/results.js'
 import {
   HINT_UNRECOGNIZED,
   HINT_UNSUPPORTED,

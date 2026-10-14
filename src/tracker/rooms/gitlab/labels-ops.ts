@@ -77,7 +77,7 @@ import type { LabelColor, LabelColorChange, RepositoryRef } from '../../contract
 import type { ErrorKind } from '../../contract/identity.js'
 import type { OpResult, TrackerError, LabelColorBatchResult } from '../../contract/results.js'
 import { normalizeColor } from '../../../shared/label-color/colors.js'
-import { fail } from '../../preflight.js'
+import { fail } from '../../kernel/preflight.js'
 import { execGlab } from './client.js'
 import { classifyGlabError, failGlab } from './errors.js'
 import { emitReadDegraded } from './read-log.js'

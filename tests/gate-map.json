@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-14T18:14:31.845Z",
+  "generatedAt": "2026-10-14T18:37:22.319Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 252,
   "gateCount": 252,
@@ -1792,14 +1792,14 @@
       "file": "tests/verify-no-mixed-session.js",
       "guards": [
         "src/tracker/contract/vocabulary.ts",
-        "src/tracker/preflight.ts",
+        "src/tracker/kernel/preflight.ts",
         "src/tracker/rooms",
         "src/tracker/rooms/github",
         "src/tracker/rooms/gitlab"
       ],
       "dirs": [
-        "src/tracker",
         "src/tracker/contract",
+        "src/tracker/kernel",
         "src/tracker/rooms",
         "src/tracker/rooms/github",
         "src/tracker/rooms/gitlab"
@@ -1854,7 +1854,7 @@
         "src/client/views/IssueDetail.js",
         "src/client/views/MapDetail.js",
         "src/client/views/SkillsTab.js",
-        "src/tracker/identity-keys.ts",
+        "src/tracker/kernel/identity-keys.ts",
         "tests/lib/eval-probe.ts"
       ],
       "dirs": [
@@ -1862,7 +1862,7 @@
         "scripts/lib",
         "src/client/kernel",
         "src/client/views",
-        "src/tracker",
+        "src/tracker/kernel",
         "tests/lib"
       ],
       "unattributed": false,
@@ -2503,7 +2503,7 @@
         "src/shared/refresh/budget.js",
         "src/shared/refresh/tool-cost.js",
         "src/tracker/contract/vocabulary.ts",
-        "src/tracker/preflight.ts",
+        "src/tracker/kernel/preflight.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/github/errors.ts",
         "src/tracker/rooms/github/index.ts",
@@ -2517,8 +2517,8 @@
         "src/deck/tools",
         "src/host/refresh",
         "src/shared/refresh",
-        "src/tracker",
         "src/tracker/contract",
+        "src/tracker/kernel",
         "src/tracker/registry",
         "src/tracker/rooms/github",
         "tests/lib"
@@ -2984,7 +2984,7 @@
       "guards": [
         "src/host/commentThreads.js",
         "src/host/tracker/snapshot.js",
-        "src/tracker/identity-keys.ts",
+        "src/tracker/kernel/identity-keys.ts",
         "src/tracker/rooms/markdown/comments.ts",
         "src/tracker/rooms/markdown/index.ts",
         "src/tracker/rooms/markdown/issues-read.ts",
@@ -2993,7 +2993,7 @@
       "dirs": [
         "src/host",
         "src/host/tracker",
-        "src/tracker",
+        "src/tracker/kernel",
         "src/tracker/rooms/markdown"
       ],
       "unattributed": false,
@@ -3010,7 +3010,7 @@
         "src/client/kernel/store-derived.js",
         "src/client/views/ListTabRow.js",
         "src/host/tracker/snapshot.js",
-        "src/tracker/identity-keys.ts",
+        "src/tracker/kernel/identity-keys.ts",
         "src/tracker/rooms/markdown/index.ts",
         "tests/lib/eval-probe.ts"
       ],
@@ -3019,7 +3019,7 @@
         "src/client/kernel",
         "src/client/views",
         "src/host/tracker",
-        "src/tracker",
+        "src/tracker/kernel",
         "src/tracker/rooms/markdown",
         "tests/lib"
       ],
@@ -4342,7 +4342,7 @@
         "src/host/refresh/sessionChainReadout.js",
         "src/host/refresh/sessionTickets.js",
         "src/shared/refresh/chain.js",
-        "src/tracker/identity-keys.ts",
+        "src/tracker/kernel/identity-keys.ts",
         "tests/lib/eval-probe.ts"
       ],
       "dirs": [
@@ -4351,7 +4351,7 @@
         "src/client/views/shared",
         "src/host/refresh",
         "src/shared/refresh",
-        "src/tracker",
+        "src/tracker/kernel",
         "tests/lib"
       ],
       "unattributed": false,
@@ -5504,8 +5504,8 @@
         "src/tracker",
         "src/tracker/contract/results.ts",
         "src/tracker/contract/vocabulary.ts",
-        "src/tracker/error-rules.ts",
-        "src/tracker/preflight.ts",
+        "src/tracker/kernel/error-rules.ts",
+        "src/tracker/kernel/preflight.ts",
         "src/tracker/rooms/github/fallback-reason.ts",
         "src/tracker/rooms/github/init-project-error-kinds.ts",
         "src/tracker/rooms/github/init-project.ts",
@@ -5516,6 +5516,7 @@
         "src/client/kernel",
         "src/tracker",
         "src/tracker/contract",
+        "src/tracker/kernel",
         "src/tracker/rooms/github"
       ],
       "unattributed": false,
@@ -5549,7 +5550,7 @@
       "guards": [
         "docs/adr/20261014-error-classification-single-source.md",
         "src/tracker/contract/vocabulary.js",
-        "src/tracker/error-rules.ts",
+        "src/tracker/kernel/error-rules.ts",
         "src/tracker/rooms",
         "src/tracker/rooms/github/errors.ts",
         "src/tracker/rooms/gitlab/errors.ts",
@@ -5557,8 +5558,8 @@
       ],
       "dirs": [
         "docs/adr",
-        "src/tracker",
         "src/tracker/contract",
+        "src/tracker/kernel",
         "src/tracker/rooms",
         "src/tracker/rooms/github",
         "src/tracker/rooms/gitlab",
@@ -5576,16 +5577,16 @@
       "guards": [
         "research/489-appendix.md",
         "src/tracker/detection/detectionService.ts",
-        "src/tracker/error-rules.ts",
-        "src/tracker/preflight.ts",
+        "src/tracker/kernel/error-rules.ts",
+        "src/tracker/kernel/preflight.ts",
         "src/tracker/rooms/github/errors.ts",
         "src/tracker/rooms/gitlab/errors.ts",
         "src/tracker/rooms/markdown"
       ],
       "dirs": [
         "research",
-        "src/tracker",
         "src/tracker/detection",
+        "src/tracker/kernel",
         "src/tracker/rooms/github",
         "src/tracker/rooms/gitlab",
         "src/tracker/rooms/markdown"
@@ -6583,22 +6584,14 @@
       "node tests/verify-parse-leaf.js",
       "node tests/verify-labels-sync.js",
       "node tests/verify-setup-describe.js",
-      "node tests/verify-no-mixed-session.js",
-      "node tests/verify-map-drill.js",
       "node tests/verify-dependency-rules.ts",
-      "node tests/verify-992-readonly-labels.js",
       "node tests/verify-log-fields.js",
       "node tests/verify-log-count.js",
-      "node tests/verify-multi-effort.js",
-      "node tests/verify-multi-effort-panel.js",
       "node tests/verify-663-gh-install-inject.js",
       "node tests/verify-delta-patch.js",
-      "node tests/verify-chain-view.js",
       "node tests/verify-ui-description-single-source.ts",
       "node tests/verify-deck-slots.js",
-      "node tests/verify-error-single-source.ts",
-      "node tests/verify-error-rule-samples.ts",
-      "node tests/verify-error-normalize-log.ts"
+      "node tests/verify-error-single-source.ts"
     ],
     "src/tracker/contract": [
       "node tests/verify-capability-register.ts",
@@ -6630,6 +6623,17 @@
       "node tests/verify-1003-single-outlet.js",
       "node tests/verify-1003-unified-decision.js",
       "node tests/verify-detection-evidence.ts",
+      "node tests/verify-error-normalize-log.ts"
+    ],
+    "src/tracker/kernel": [
+      "node tests/verify-no-mixed-session.js",
+      "node tests/verify-map-drill.js",
+      "node tests/verify-992-readonly-labels.js",
+      "node tests/verify-multi-effort.js",
+      "node tests/verify-multi-effort-panel.js",
+      "node tests/verify-chain-view.js",
+      "node tests/verify-error-single-source.ts",
+      "node tests/verify-error-rule-samples.ts",
       "node tests/verify-error-normalize-log.ts"
     ],
     "src/tracker/registry": [
@@ -6889,12 +6893,12 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 557,
-    "dirCount": 50,
-    "coveredFileCount": 557,
+    "fileCount": 558,
+    "dirCount": 51,
+    "coveredFileCount": 558,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
-    "dedicatedDirCount": 49,
+    "dedicatedDirCount": 50,
     "guardedFiles": [
       "src/client/floating/Pop.js",
       "src/client/floating/SkillFloatList.js",
@@ -7357,14 +7361,15 @@
       "src/tracker/detection/parseIssueTracker.ts",
       "src/tracker/detection/preflightScope.ts",
       "src/tracker/detection/selection-precedence.ts",
-      "src/tracker/detection/workspace-ownership.ts",
       "src/tracker/detection/workspaceStore.ts",
-      "src/tracker/error-rules.ts",
       "src/tracker/fix-contract.ts",
-      "src/tracker/identity-keys.ts",
       "src/tracker/index.ts",
+      "src/tracker/kernel/README.md",
+      "src/tracker/kernel/error-rules.ts",
+      "src/tracker/kernel/identity-keys.ts",
+      "src/tracker/kernel/preflight.ts",
+      "src/tracker/kernel/workspace-ownership.ts",
       "src/tracker/label-names.ts",
-      "src/tracker/preflight.ts",
       "src/tracker/registry/builtins.ts",
       "src/tracker/registry/core.ts",
       "src/tracker/registry/shape.ts",
@@ -7500,6 +7505,7 @@
       "src/tracker",
       "src/tracker/contract",
       "src/tracker/detection",
+      "src/tracker/kernel",
       "src/tracker/registry",
       "src/tracker/rooms",
       "src/tracker/rooms/github",
@@ -7551,6 +7557,7 @@
       "src/tracker",
       "src/tracker/contract",
       "src/tracker/detection",
+      "src/tracker/kernel",
       "src/tracker/registry",
       "src/tracker/rooms",
       "src/tracker/rooms/github",

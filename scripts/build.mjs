@@ -894,7 +894,8 @@ function buildVocabularySpliceInput() {
   const parts = [
     'src/tracker/contract/canonical-labels.ts',
     'src/tracker/contract/vocabulary.ts',
-    'src/tracker/identity-keys.ts',
+    // #1159：票身份那份搬进了 kernel/，拼接清单跟着改；拼接的次序与内容不变。
+    'src/tracker/kernel/identity-keys.ts',
     'src/tracker/label-names.ts',
     'src/tracker/fix-contract.ts',
   ]

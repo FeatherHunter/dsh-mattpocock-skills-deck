@@ -12,7 +12,7 @@ import type { OpContext } from '../../contract/contexts.js';
 import type { Issue, IssueRef, RepositoryRef } from '../../contract/entities.js';
 import type { DepsOpts, SetOpts } from '../../contract/inputs.js';
 import type { Dependencies, OpResult } from '../../contract/results.js';
-import { fail } from '../../preflight.js'
+import { fail } from '../../kernel/preflight.js'
 import { ghClient } from './client.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'
 import { getIssue, listIssues } from './issues.js'

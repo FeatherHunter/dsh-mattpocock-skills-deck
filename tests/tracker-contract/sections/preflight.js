@@ -1,7 +1,7 @@
 /**
  * tests/tracker-contract/sections/preflight.js — preflight 判档段（票 #1111 按新规则表同步）。
  *
- * 判档现在的顺序是「按证据分层来」：src/tracker/error-rules.ts 里的 RULE_LAYERS 就是
+ * 判档现在的顺序是「按证据分层来」：src/tracker/kernel/error-rules.ts 里的 RULE_LAYERS 就是
  *   fact → errcode → phrase → vague → fallback
  *   fact     机器给的结构化事实（HTTP 状态码）：401→auth、403+限流文案→rate-limit、403→auth、404→not-found、429→rate-limit；
  *   errcode  错误码名：ENOENT→env、ENOTFOUND 等连接类码→network、EACCES/EPERM→auth；
@@ -16,7 +16,7 @@
  *   二、失败结果里的 raw（后端原文，已遮蔽凭据、已头尾截断）是必填字段，这一节要真的断言它带得出来。
  */
 
-import { classifyError, verdictOf, fail, HINT_UNRECOGNIZED, HINT_UNSUPPORTED } from '../../../src/tracker/preflight.ts'
+import { classifyError, verdictOf, fail, HINT_UNRECOGNIZED, HINT_UNSUPPORTED } from '../../../src/tracker/kernel/preflight.ts'
 import { ERROR_KIND } from '../../../src/tracker/contract/vocabulary.ts'
 
 export async function run() {

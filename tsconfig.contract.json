@@ -25,24 +25,23 @@
     "types": [],
     "skipLibCheck": true
   },
-  // 只圈契约目录与三份契约相邻的纯模块：别的目录还没转过来，圈进来会当场红一片（那是迁移批次的事）。
-  // 三份是 #1026 从契约目录搬出来的行为（票身份 identity-keys.ts、名单派生 label-names.ts、
-  // 修复拼装 fix-contract.ts）：它们全标注、严格干净，暂住这份严格配置里，直到迁移批次带来
-  // 整棵 src/tracker 的归属配置；契约门禁的第四项只扫契约目录本身，所以行为文件住在这里
-  // 不会触发「只许类型与数据」那条（那条不管目录外）。
+  // 只圈契约目录与几份契约相邻的纯模块：别的目录还没转过来，圈进来会当场红一片（那是迁移批次的事）。
+  // 其中两份是 #1026 从契约目录搬出来的行为（名单派生 label-names.ts、修复拼装 fix-contract.ts）：
+  // 它们全标注、严格干净，暂住这份严格配置里，直到迁移批次带来整棵 src/tracker 的归属配置；
+  // 契约门禁的第四项只扫契约目录本身，所以行为文件住在这里不会触发「只许类型与数据」那条（那条不管目录外）。
+  //
+  // #1159 把原先也住在这里的 identity-keys.ts 与 error-rules.ts 收回了 src/tracker 域：它们搬进
+  // `src/tracker/kernel/`，归属由 src/tracker/tsconfig.json 声明（那边 include 是目录通配，不用点名）。
+  // 本文件因此少圈两份，覆盖对账里两边都不重叠。
   "include": [
     "src/tracker/contract/**/*.ts",
-    "src/tracker/identity-keys.ts",
     "src/tracker/label-names.ts",
     "src/tracker/fix-contract.ts",
-    // #1139：界面描述投影（字段表 + projectUiDescription）。与上面三份同一类——带运行时行为，
+    // #1139：界面描述投影（字段表 + projectUiDescription）。与上面两份同一类——带运行时行为，
     // 所以不住契约目录；它只从契约的 backend-module.ts 取类型，不会把没标注的旧语言文件拉进来。
     "src/tracker/ui-description.ts",
-    // #1111：判档规则表是这一票的核心模块，全标注、严格干净，与上面三份同样暂住这里。
-    // 它只 import 契约层的 vocabulary.ts，不会把没标注的旧语言文件拉进这次检查。
-    "src/tracker/error-rules.ts",
     // #1111：markdown 房的失败构造辅助（failFromError / failAs / …）。它只 import 跟踪器层的
-    // preflight.ts 与 error-rules.ts，两份都已全标注；同批的 GitHub / GitLab 房仍按「先修后转」
+    // kernel/preflight.ts 与 kernel/error-rules.ts，两份都已全标注；同批的 GitHub / GitLab 房仍按「先修后转」
     // 在原地是旧语言文件，所以这一批只圈这一份，等整棵 src/tracker 的归属配置（#1095）来了再收口。
     "src/tracker/rooms/markdown/error-fail.ts"
   ]

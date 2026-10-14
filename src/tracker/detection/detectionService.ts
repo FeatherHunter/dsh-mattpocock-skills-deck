@@ -16,7 +16,7 @@ import { detectExplicit } from './explicitDetector.js'
 import { resolveSelection } from './selection-precedence.js'
 import { canonicalWorkspaceKey } from '../../host/workspaceKey.js'
 import { ERROR_KIND } from '../contract/vocabulary.js'
-import { fail } from '../preflight.js'
+import { fail } from '../kernel/preflight.js'
 // 判定链上游用的是契约里的形状，本文件跟着用同一份：跨层传的东西自己再抄一份，迟早会与契约对不上。
 import type { RepoHandle } from '../contract/contexts.js'
 import type { RepositoryRef } from '../contract/entities.js'

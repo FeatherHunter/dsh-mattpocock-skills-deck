@@ -20,8 +20,8 @@ const tuForProbe = require(require('path').resolve('scripts/lib/transpile-unit.m
 // effort 维度（2026-09-09）：面板里身份函数来自拼接进闭包的 shared/tracker/constants.js。
 // 本门禁把同一份原文取出来，拼进每个求值沙箱，保证「跑的是真函数」这条纪律不破。
 // #1026：四个身份函数（effortOf / idOfParts / idOf，refKeyOf 另见 multi-effort-panel）
-// 已从契约目录搬到 src/tracker/identity-keys.ts（契约目录只留类型与数据），真源跟过去。
-const constantsSrc = fs.readFileSync('src/tracker/identity-keys.ts', 'utf8')
+// 已从契约目录搬到 src/tracker/kernel/identity-keys.ts（契约目录只留类型与数据），真源跟过去。
+const constantsSrc = fs.readFileSync('src/tracker/kernel/identity-keys.ts', 'utf8')
 const identitySrc = ['effortOf', 'idOfParts', 'idOf'].map((n) => {
   const m = new RegExp('export function ' + n + '\\([\\s\\S]*?\\n\\}').exec(constantsSrc)
   if (!m) throw new Error('identity-keys.ts 缺 ' + n)

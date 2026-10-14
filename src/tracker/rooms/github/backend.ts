@@ -11,7 +11,7 @@ import type { Actor } from '../../contract/identity.js';
 import type { OpResult } from '../../contract/results.js';
 import type { RepositoryRef } from '../../contract/entities.js';
 import { ERROR_KIND } from '../../contract/vocabulary.js'
-import { fail } from '../../preflight.js'
+import { fail } from '../../kernel/preflight.js'
 import { ghClient } from './client.js'
 import { ghPreflight } from './preflight.js'
 import { listIssues, getIssue } from './issues.js'

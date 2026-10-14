@@ -13,7 +13,7 @@
 
 import { ERROR_KIND } from '../contract/vocabulary.js'
 import { OPERATIONS } from '../contract/index.js'
-import { fail } from '../preflight.js'
+import { fail } from '../kernel/preflight.js'
 import type { BackendId } from '../contract/identity.js'
 import type { BackendContext, RepoHandle } from '../contract/contexts.js'
 import type { BackendModule } from '../contract/backend-module.js'

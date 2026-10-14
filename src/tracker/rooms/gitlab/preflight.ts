@@ -20,7 +20,7 @@ import type { ErrorKind } from '../../contract/identity.js'
 import type { BackendContext, OpContext } from '../../contract/contexts.js'
 import type { RepositoryRef } from '../../contract/entities.js'
 import type { PreflightResult } from '../../contract/results.js'
-import { fail } from '../../preflight.js'
+import { fail } from '../../kernel/preflight.js'
 
 // 预检入参两形都收，是因为调用方有时拿仓库身份、有时拿句柄，直接收窄会把另一路挡在门外。
 type PreflightHandle = Partial<OpContext> & Partial<BackendContext> & {

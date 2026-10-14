@@ -16,8 +16,8 @@
 // 与 GitLab 房的关系：GitLab 房有专有词表（`rooms/gitlab/errors.js` 的 GLAB_ERROR_RULES），
 // 本地 Markdown 房没有（它的失败几乎都是环境与文件系统问题），所以直接走跟踪器层的通用表 ——
 // 这正合「例外只在房内合法、通用词表不许抄」的口径。这个房间里**不许**再出现第二份判据。
-import { HINT_UNRECOGNIZED, HINT_UNSUPPORTED, fail, rawText, verdictOf } from '../../preflight.js'
-import type { Judged, PreflightCtx } from '../../preflight.js'
+import { HINT_UNRECOGNIZED, HINT_UNSUPPORTED, fail, rawText, verdictOf } from '../../kernel/preflight.js'
+import type { Judged, PreflightCtx } from '../../kernel/preflight.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 
 /**

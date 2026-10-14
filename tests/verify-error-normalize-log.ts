@@ -3,8 +3,8 @@
  * tests/verify-error-normalize-log.js —— #1111 决策 9：所有后端都留同一趟 `error.normalize`
  *
  * 守着的源码路径（按改动挑门禁时照这份清单）：
- *   src/tracker/error-rules.ts            emitNormalize / judgeFactsDetailed / emitPassthrough（字段由这里组装）
- *   src/tracker/preflight.ts              classifyError / verdictOf（透传那一路）
+ *   src/tracker/kernel/error-rules.ts            emitNormalize / judgeFactsDetailed / emitPassthrough（字段由这里组装）
+ *   src/tracker/kernel/preflight.ts              classifyError / verdictOf（透传那一路）
  *   src/tracker/rooms/github/errors.ts    classifyGhError（本家判档入口）
  *   src/tracker/rooms/gitlab/errors.js    classifyGlabError（本家判档入口）
  *   src/tracker/rooms/markdown/**         本后端有没有判档入口、有没有把判档上下文传下去
@@ -141,7 +141,7 @@ function scanMarkdownClassifyCalls(dirRel) {
 }
 
 async function main() {
-  const rulesMod = await imp('src/tracker/error-rules.ts')
+  const rulesMod = await imp('src/tracker/kernel/error-rules.ts')
   const { rawText } = rulesMod
 
   // ── A GitHub 判档入口 ────────────────────────────────────────────────────
@@ -176,7 +176,7 @@ async function main() {
 
   // ── B 跟踪器层判档入口（markdown 这类后端走的就是它）──────────────────────
   console.log('\nB 跟踪器层判档入口 classifyError（本后端不判档的后端走这条）')
-  const { classifyError, fail } = await imp('src/tracker/preflight.ts')
+  const { classifyError, fail } = await imp('src/tracker/kernel/preflight.ts')
 
   const d = recorder()
   // 原始错误值里的错误码名走 `code` / `errno` 两个字段（Node 的约定，见 factsFromError）

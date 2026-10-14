@@ -29,7 +29,7 @@
  *  · 不拿别的数顶上：三个数里任何一个缺失或不是非负整数，就整体失败（理由 `counts:stat`），
  *    绝不用 0 或「另一个数」凑一个看着像数的东西出来。
  *
- * 判档与选话走本房唯一的出口 `./errors.ts` 的 `failGlab`（判档表在 `src/tracker/error-rules.ts`）；
+ * 判档与选话走本房唯一的出口 `./errors.ts` 的 `failGlab`（判档表在 `src/tracker/kernel/error-rules.ts`）；
  * 「命令成功了、这个数仍然拿不到」的几条路各自在返回前落一行 `read.degraded`，reason 只取本房
  * 已登记的取值（`./read-log.ts` 的 READ_DEGRADED_REASONS）：`counts:repo-ref` / `counts:transport` /
  * `counts:json` / `counts:shape` / `counts:stat`。最外层那个 catch（调用抛上来的那一族）同属
@@ -42,7 +42,7 @@ import type { OpContext } from '../../contract/contexts.js'
 import type { RepositoryRef } from '../../contract/entities.js'
 import type { ListFilter } from '../../contract/inputs.js'
 import type { Counts, OpResult } from '../../contract/results.js'
-import { fail } from '../../preflight.js'
+import { fail } from '../../kernel/preflight.js'
 import { glabClient } from './client.js'
 import { failGlab } from './errors.js'
 import { projectPath } from './queries.js'

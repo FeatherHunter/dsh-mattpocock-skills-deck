@@ -57,7 +57,7 @@ const ERROR_SAMPLES = [
     expectLayer: 'fact',
     via: 'github',
     regression: true,
-    traceFile: 'src/tracker/error-rules.ts',
+    traceFile: 'src/tracker/kernel/error-rules.ts',
     trace: 'gh: API rate limit exceeded for user ID 1. (HTTP 403)',
   },
   {
@@ -91,7 +91,7 @@ const ERROR_SAMPLES = [
     expectKind: 'network',
     expectLayer: 'errcode',
     via: 'github',
-    traceFile: 'src/tracker/error-rules.ts',
+    traceFile: 'src/tracker/kernel/error-rules.ts',
     trace: 'getaddrinfo ENOTFOUND api.github.com',
   },
   {
@@ -113,7 +113,7 @@ const ERROR_SAMPLES = [
     expectKind: 'env',
     expectLayer: 'phrase',
     via: 'gitlab',
-    traceFile: 'src/tracker/error-rules.ts',
+    traceFile: 'src/tracker/kernel/error-rules.ts',
     trace: 'sh: 1: glab: command not found',
   },
   {
@@ -123,7 +123,7 @@ const ERROR_SAMPLES = [
     text: "EACCES: permission denied, open '/etc/hosts'",
     expectKind: 'auth',
     expectLayer: 'errcode',
-    traceFile: 'src/tracker/error-rules.ts',
+    traceFile: 'src/tracker/kernel/error-rules.ts',
     trace: "EACCES: permission denied, open '/etc/hosts'",
   },
   {
@@ -133,7 +133,7 @@ const ERROR_SAMPLES = [
     text: 'EACCES: permission denied',
     expectKind: 'auth',
     expectLayer: 'errcode',
-    traceFile: 'src/tracker/error-rules.ts',
+    traceFile: 'src/tracker/kernel/error-rules.ts',
     trace: 'EACCES: permission denied',
   },
   {
@@ -143,7 +143,7 @@ const ERROR_SAMPLES = [
     text: 'Unexpected token < in JSON at position 0',
     expectKind: 'parse',
     expectLayer: 'vague',
-    traceFile: 'src/tracker/error-rules.ts',
+    traceFile: 'src/tracker/kernel/error-rules.ts',
     trace: 'Unexpected token < in JSON at position 0',
   },
   {
@@ -154,7 +154,7 @@ const ERROR_SAMPLES = [
     expectKind: 'network',
     expectLayer: 'phrase',
     via: 'github',
-    traceFile: 'src/tracker/error-rules.ts',
+    traceFile: 'src/tracker/kernel/error-rules.ts',
     trace: 'Failed to connect to api.github.com port 443: Connection timed out',
   },
   {
@@ -164,7 +164,7 @@ const ERROR_SAMPLES = [
     text: 'gh: To get started with GitHub CLI, please run: gh auth login',
     expectKind: 'auth',
     expectLayer: 'phrase',
-    traceFile: 'src/tracker/error-rules.ts',
+    traceFile: 'src/tracker/kernel/error-rules.ts',
     trace: 'gh: To get started with GitHub CLI, please run: gh auth login',
   },
   {
@@ -175,7 +175,7 @@ const ERROR_SAMPLES = [
     expectKind: 'env',
     expectLayer: 'errcode',
     via: 'gitlab',
-    traceFile: 'src/tracker/error-rules.ts',
+    traceFile: 'src/tracker/kernel/error-rules.ts',
     trace: "ENOENT: no such file or directory, open '/tmp/x'",
   },
   {
@@ -185,7 +185,7 @@ const ERROR_SAMPLES = [
     text: 'Issue not found',
     expectKind: 'not-found',
     expectLayer: 'vague',
-    traceFile: 'src/tracker/error-rules.ts',
+    traceFile: 'src/tracker/kernel/error-rules.ts',
     trace: 'Issue not found',
   },
   {
@@ -231,7 +231,7 @@ const ERROR_SAMPLES = [
     text: 'zsh: segmentation fault (core dumped)',
     expectKind: 'network',
     expectLayer: 'fallback',
-    traceFile: 'src/tracker/error-rules.ts',
+    traceFile: 'src/tracker/kernel/error-rules.ts',
     trace: 'zsh: segmentation fault (core dumped)',
   },
 ]

@@ -7,7 +7,7 @@
  * #504：拉取请求主路（GraphQL 双查询同池）+ REST 帮手见 `pulls.ts`（单文件 350 行纪律）。
  *
  * 定版依据：#138 一页纸方案，契约操作签名归一。
- * 所有 op 返回 OpResult，不 throw；错误经 ghVerdictOf 归一（判档表在 src/tracker/error-rules.ts）。
+ * 所有 op 返回 OpResult，不 throw；错误经 ghVerdictOf 归一（判档表在 src/tracker/kernel/error-rules.ts）。
  *
  * 日志（#1052）：每一笔 gh 命令由房内常驻的 `gh.exec` 落盘（`via` 写 `list.gql` / `list.pr` / `list.rest` /
  * `get.gql` / `get.pr` / `get.rest` / `get.rest-pr`，于是同一趟里哪一行属于哪条路一目了然）；而「命令成功了、
@@ -21,7 +21,7 @@ import type { OpContext } from '../../contract/contexts.js';
 import type { Issue, RepositoryRef } from '../../contract/entities.js';
 import type { GetOpts, ListFilter } from '../../contract/inputs.js';
 import type { OpResult } from '../../contract/results.js';
-import { fail } from '../../preflight.js'
+import { fail } from '../../kernel/preflight.js'
 import { emitReadDegraded } from './read-log.js'
 import { ghClient } from './client.js'
 import { normalizeIssue } from './normalize.js'

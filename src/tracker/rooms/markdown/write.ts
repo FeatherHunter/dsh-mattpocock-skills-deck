@@ -1,4 +1,4 @@
-import { classifyError } from '../../preflight.js'
+import { classifyError } from '../../kernel/preflight.js'
 import { failFromError } from './error-fail.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import type { BackendPlatform, OpContext, SandboxFs } from '../../contract/contexts.js'

@@ -5,7 +5,7 @@
  * 这个门禁回答三个问题：
  *
  * A. 共享的失败构造函数只能有一种调用形状：`fail(kind, message, raw)` 恰好三个参数。
- *    定义在 src/tracker/preflight.ts（第三段 raw 是必填的：确实没有原文时给空串，参数不能省）。
+ *    定义在 src/tracker/kernel/preflight.ts（第三段 raw 是必填的：确实没有原文时给空串，参数不能省）。
  *    扫描范围是 src/tracker/** 与 src/client/**：`fail(...)` 只在这两棵树下用。
  *    括号按配平扫描，注释与字符串字面量都先顶掉，所以 `fail(` 出现在注释、模板串或文档里不算。
  *    文件里自己定义了一份本地 `fail`（例如 src/tracker/rooms/markdown/label-colors-ops.ts 里那个
@@ -13,7 +13,7 @@
  *    没有 raw 字段，本身就是问题；每加一条豁免都要在本文件的 LOCAL_FAIL_WHITELIST 里写明为什么。
  *
  * B. 档位字面量只许出现在真源文件里。真源是：
- *      · src/tracker/error-rules.ts —— 判档规则本身（哪句话归哪一档就写在这里）；
+ *      · src/tracker/kernel/error-rules.ts —— 判档规则本身（哪句话归哪一档就写在这里）；
  *      · src/tracker/contract/vocabulary.ts —— 档位词的唯一真源 ERROR_KIND；
  *      · src/client/kernel/api-io.js（或迁移中的 api-io.ts）—— 客户端把新版档位词翻成旧版界面
  *        档位词的唯一一张对照表，散落的猜测都收进它那一个函数里。
@@ -26,7 +26,7 @@
  *
  * C. 契约里的 raw 仍然必填，且真的带得出来：
  *      · src/tracker/contract/results.ts 的 TrackerError 必须写 `raw: string`（不是可选字段）；
- *      · src/tracker/preflight.ts 的 fail 第三参 raw 不能写成可选或带默认值；
+ *      · src/tracker/kernel/preflight.ts 的 fail 第三参 raw 不能写成可选或带默认值；
  *      · 客户端 api-io 交出去的每个 `error: { ... }` 失败对象都带 raw 字段；
  *      · 真调用一次 `fail(...)`：原文里的令牌必须被遮蔽、原文要能取到（不是光看文本）。
  *
@@ -187,7 +187,7 @@ function splitTop(text) {
 console.log('── A. fail(...) 一律三个参数（kind, message, raw）')
 {
   const FAIL_ROOTS = ['src/tracker', 'src/client']
-  const SHARED_FAIL_FILE = 'src/tracker/preflight.ts'
+  const SHARED_FAIL_FILE = 'src/tracker/kernel/preflight.ts'
   // 文件自己定义了一份 fail 的放行名单：放行的意思是「它交的不是 TrackerError、没有后端原文可带」，
   // 只报出来给人看，不判红。本票范围内其余自造 fail 的文件都要判红。
   const LOCAL_FAIL_WHITELIST = [
@@ -290,7 +290,7 @@ console.log('── B. 档位字面量只许出现在真源文件里')
       why: '历史通道，尚未迁移，本票范围外（票面明确把宿主迁移留在后续票）。工具层沿用宿主通道的档位写法，本票不动它',
     },
     {
-      file: 'src/tracker/error-rules.ts',
+      file: 'src/tracker/kernel/error-rules.ts',
       source: true,
       why: '判档规则的真源：哪句话归哪一档就写在这里，白名单本身就是它的产物',
     },
@@ -437,7 +437,7 @@ console.log('── C. 契约里的 raw 仍然必填，而且真的带得出来'
   check(/\braw\s*:\s*string\b/.test(body), 'C1.4 TrackerError 的 raw 仍是必填字符串（不是 raw?）')
 
   // C2 构造函数形状：fail 的第三段没有可选化、也没有默认值。
-  const preflightRel = 'src/tracker/preflight.ts'
+  const preflightRel = 'src/tracker/kernel/preflight.ts'
   const preflight = readSrc(preflightRel)
   const sig = /function\s+fail\s*\(([^)]*)\)/.exec(preflight)
   check(!!sig, 'C2.1 ' + preflightRel + ' 里有 fail 的定义')

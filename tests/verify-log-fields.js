@@ -206,7 +206,7 @@ const ALLOWED = {
   'storage.fail': ['key', 'op'],
   'chain.derive.error': ['stepId', 'errorHash'],
   'fallback.chain': ['in', 'out', 'latencyMs'],
-  // 2026-10-14（#1111）：判档改成按证据分层之后，归一埋点由 src/tracker/error-rules.ts 的 emitNormalize
+  // 2026-10-14（#1111）：判档改成按证据分层之后，归一埋点由 src/tracker/kernel/error-rules.ts 的 emitNormalize
   //   统一发射，字段就是下面这八个键：五个必带（rawKind 原始类别、mappedKind 归一后的档位、layer 这条档位
   //   由哪一层证据给出、via 这条规则来自通用表还是各家扩展项、latencyMs 判这一趟花了多少毫秒），
   //   三个只在真有对应事实时带（httpCode 状态码、exitCode 退出码、errCode 错误码名）。
@@ -326,7 +326,7 @@ const ALLOWED = {
 // graphql.fallback 与 issues.fallback 各自两键与三键；error.normalize 必有 rawKind 与 mappedKind 两键，
 // 另外三个码值键（httpCode 状态码、exitCode 退出码、errCode 错误码名）只在真有对应事实时带。
 // 注意本门禁的字段收集器只看得见「调用点上写死的对象字面量」，而 error.normalize 现在由
-// src/tracker/error-rules.ts 的 emitNormalize 统一发射（字段装在传进去的参数对象里），所以 layer、via、
+// src/tracker/kernel/error-rules.ts 的 emitNormalize 统一发射（字段装在传进去的参数对象里），所以 layer、via、
 // latencyMs 三个键在这里收不到，它们由上面 ALLOWED 的 error.normalize 那一行覆盖。
 const ROOM_SHAPES = {
   // 2026-10-14（#1052）常驻 #5 `gh.exec` 增补一格 `via`：这一次 gh 调用是谁发的、走到哪一支

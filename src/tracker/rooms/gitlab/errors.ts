@@ -2,7 +2,7 @@
  * backends/gitlab/errors.ts — glab/API 错误 → 契约 ERROR_KIND（本房间的判档出口）。
  *
  * ── 判据不在这里，这里只有「glab 这一家专有的条目」─────────────────────────────
- * 判「失败该归哪一档」的真源是全仓唯一那张有序规则表：`src/tracker/error-rules.ts`
+ * 判「失败该归哪一档」的真源是全仓唯一那张有序规则表：`src/tracker/kernel/error-rules.ts`
  * （决策见 `docs/adr/20261014-error-classification-single-source.md`）。本文件**不再自带词表** ——
  * 那正是实测漂移过一次的来路：同一个判断写在两处，改一处没改另一处，同一条原文在两间房里
  * 会给出相反的建议（403 加限流文案被说成「没登录」、DNS 的 `ENOTFOUND` 被说成「找不到」）。
@@ -20,10 +20,10 @@
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import type { ErrorKind } from '../../contract/identity.js'
 import type { TrackerError } from '../../contract/results.js'
-import { HINT_UNRECOGNIZED, HINT_UNSUPPORTED, fail } from '../../preflight.js'
-import type { ClassifyCtx } from '../../preflight.js'
-import { emitPassthrough, factsFromError, judgeFactsDetailed } from '../../error-rules.js'
-import type { ErrorRule } from '../../error-rules.js'
+import { HINT_UNRECOGNIZED, HINT_UNSUPPORTED, fail } from '../../kernel/preflight.js'
+import type { ClassifyCtx } from '../../kernel/preflight.js'
+import { emitPassthrough, factsFromError, judgeFactsDetailed } from '../../kernel/error-rules.js'
+import type { ErrorRule } from '../../kernel/error-rules.js'
 
 const KIND_VALUES: ReadonlySet<string> = new Set(Object.values(ERROR_KIND))
 
@@ -39,7 +39,7 @@ export interface GlabVerdict {
  * 三条要守的规矩（与 GitHub 房同一套）：
  *   · 只放通用表认不出的东西。已收进通用表的**不许再抄一份** —— `glab: command not found` 这类
  *     「命令没装」句式、`ENOTFOUND` 这类网络错误码名、`not found` 的词边界写法、403 加限流文案，
- *     通用表都已经认了（`src/tracker/error-rules.ts` 的①事实/②错误码名/③句式三层）；
+ *     通用表都已经认了（`src/tracker/kernel/error-rules.ts` 的①事实/②错误码名/③句式三层）；
  *   · 每条自带 `example`：把这条样本单独喂进判档，结果必须正好是它声明的档位（门禁逐条自证）；
  *   · 不许与通用项同层同模式（那会长出第二份判据，门禁拦着）。
  *

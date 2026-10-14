@@ -49,7 +49,7 @@ for (const [eff, mapTitle, ticket] of [['alpha', 'Alpha Map', 'Alpha First'], ['
 const ctx = { platform: plat, fs: plat.fs, cwd: tmp, get(name) { if (name === 'fs') return plat.fs; return undefined } }
 const { createMarkdownBackend } = await import(pathToFileURL(resolve(ROOT, 'src/tracker/rooms/markdown/index.ts')).href)
 const { createSnapshotComposer } = await import(pathToFileURL(resolve(ROOT, 'src/host/tracker/snapshot.js')).href)
-const { effortOf } = await import(pathToFileURL(resolve(ROOT, 'src/tracker/identity-keys.ts')).href)
+const { effortOf } = await import(pathToFileURL(resolve(ROOT, 'src/tracker/kernel/identity-keys.ts')).href)
 const backend = createMarkdownBackend(ctx)
 const composer = createSnapshotComposer({ get: (id) => (id === 'markdown' ? backend : undefined) })
 const composed = await composer.composeSnapshot('markdown', { backend: 'markdown', refId: tmp, name: path.basename(tmp), url: '' }, ctx, { force: true })
@@ -64,7 +64,7 @@ const snapshot = { ok: true, maps: inner.maps, issues: [], labels: inner.labels 
 // ---------- 从面板源码里原文截出函数 ----------
 const rowSrc = fs.readFileSync(path.join(ROOT, 'src/client/views/ListTabRow.js'), 'utf8')
 const derivedSrc = fs.readFileSync(path.join(ROOT, 'src/client/kernel/store-derived.js'), 'utf8')
-const constantsSrc = fs.readFileSync(path.join(ROOT, 'src/tracker/identity-keys.ts'), 'utf8')
+const constantsSrc = fs.readFileSync(path.join(ROOT, 'src/tracker/kernel/identity-keys.ts'), 'utf8')
 
 function extractConst(src, name) {
   const key = 'const ' + name + ' ='

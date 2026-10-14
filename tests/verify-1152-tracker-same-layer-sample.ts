@@ -10,6 +10,8 @@
 //   负控二：房间里的探针引同房间模块 → 不许被误伤（房间有自己的两条纪律，同房间引用本来就允许）；
 //   负控三：契约层内部两个文件互引 → 不许被误伤（契约层内部值引用只许引自己，归 tests/verify-contract-types.js 管）。
 // 跑完四个探针都删掉（finally 里删），开跑前先确认它们不在，绝不覆盖别人的文件。
+// #1159 之后判域又去掉了一层：src/tracker/kernel/（房间与宿主都要用的判定件，两边都可以引），
+// 所以正控改成引 registry/shape.ts，存量也从 15 条降到 10 条（涉及搬走那四份的 5 条不再是违规）。
 //
 // 为什么不挂进 package.json 的 scripts.verify：两条独立的理由，与 tests/verify-1136-room-cross-sample.ts 同款。
 // 一是它是会往工作树里写文件的门禁：挂进链里之后，npm run verify:parallel 并发跑到它时，
@@ -29,8 +31,9 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const GATE_REL = 'tests/verify-dependency-rules.ts'
 
 // 正控：追踪器树内两个干活文件之间真出一条边。
+// #1159 之后内核（src/tracker/kernel/）不在本规则判域里，所以正控不能再引 kernel —— 引注册表里的一份。
 const CROSS_REL = 'src/tracker/zz-1152-probe-cross.ts'
-const CROSS_TARGET = 'src/tracker/preflight.ts'
+const CROSS_TARGET = 'src/tracker/registry/shape.ts'
 // 负控一：干活文件引契约层。
 const CONTRACT_REL = 'src/tracker/zz-1152-probe-contract.ts'
 // 负控二：房间文件引同房间模块。
@@ -43,8 +46,8 @@ const PROBES: Array<{ rel: string, body: string }> = [
     rel: CROSS_REL,
     body:
       '// 临时探针（#1152 正控，跑完即删）：追踪器树内一个干活文件引另一个干活文件\n' +
-      "import { fail } from './preflight.js'\n" +
-      'export const zzProbeCross = fail\n',
+      "import { handleKey } from './registry/shape.js'\n" +
+      'export const zzProbeCross = handleKey\n',
   },
   {
     rel: CONTRACT_REL,
@@ -107,13 +110,13 @@ if (preexisting.length) {
 
     // 负控成立的前提是「这些文件确实进了图」——正控已经证明了这一点（新文件被抓到），
     // 所以负控探针没出现在 FAIL 行里，才算真的没被误伤，而不是没被看见。
-    // 再加一条计数判据把这件事钉死：探针在场时本规则的违规数必须正好是存量 15 条 + 正控这 1 条。
+    // 再加一条计数判据把这件事钉死：探针在场时本规则的违规数必须正好是存量 10 条 + 正控这 1 条。
     // 多了说明某个负控探针也被算进来了（判域写宽了）；少了说明正控没进图（这条门禁在空转）。
     const countLine = lines.find((l) => l.includes('图上违规合计'))
     const trackerCount = countLine ? Number((countLine.match(/same-layer-import-tracker (\d+) 条/) || [])[1] || -1) : -1
     check(
-      trackerCount === 16,
-      '计数判据：探针在场时 same-layer-import-tracker 必须正好报 16 条（存量 15 + 正控 1），实际 ' + trackerCount +
+      trackerCount === 11,
+      '计数判据：探针在场时 same-layer-import-tracker 必须正好报 11 条（存量 10 + 正控 1），实际 ' + trackerCount +
         (countLine ? '；实际那行：' + countLine.trim() : '；实际没有「图上违规合计」这一行'),
     )
 

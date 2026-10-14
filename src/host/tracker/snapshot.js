@@ -23,7 +23,7 @@
  */
 
 import { ERROR_KIND } from '../../tracker/contract/vocabulary.js'
-import { effortOf, idOfParts } from '../../tracker/identity-keys.js'
+import { effortOf, idOfParts } from '../../tracker/kernel/identity-keys.js'
 import { deriveDeck } from '../../tracker/deck-derive.js'
 import { parseMapBody } from '../../tracker/body-parse.js'
 

@@ -11,7 +11,7 @@
  * - 命令执行经 `ctx.exec('gh', args, {cwd, timeout, signal})`（timeout 30s，signal abort）
  * - 超时/signal 与 timers 竞速由 ctx.exec 内部托管（此处只透传 opts）
  * - stdout 解析在调用方（issues/comments 等）；此处只做 exec+错误归一化，不产 parse kind（parse 由 JSON 层）
- * - 返回 OpResult，不 throw；错误经 ghVerdictOf 归一（档位表在 src/tracker/error-rules.ts）
+ * - 返回 OpResult，不 throw；错误经 ghVerdictOf 归一（档位表在 src/tracker/kernel/error-rules.ts）
  * - 调用点可以在 opts.via 里给一个短标签（「哪条操作、走到哪一支」），它随常驻 gh.exec 落盘；
  *   标签只在调用点上写死，本层不猜也不推断。没给标签的调用点照常不记，行为与从前一字不差。
  * - gh.exec 还会记一格 opId，取自 `ctx.opId`（宿主起这一趟操作时生成的编号）。这一格不由调用点给：
@@ -21,7 +21,7 @@
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import type { BackendPlatform, ExecResult, OpContext } from '../../contract/contexts.js';
 import type { TrackerError } from '../../contract/results.js';
-import { fail, rawText } from '../../preflight.js'
+import { fail, rawText } from '../../kernel/preflight.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'
 import { timeoutForGhArgs, isWriteGhArgs } from '../../../host/outbound/tiers.js'
 import { getGhLane, isAdmissionCancelled } from '../../../host/outbound/admission.js'

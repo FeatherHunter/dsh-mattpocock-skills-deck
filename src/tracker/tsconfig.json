@@ -42,17 +42,21 @@
   "include": ["**/*.ts"],
   // 下面这一段让出契约域，是 #1148 定下的收口方向：让配置说清归属，而不是放宽对账判据去容忍重叠。
   //
-  // 契约子树与那 6 份散件归仓库根的 tsconfig.contract.json 声明，并受 tests/verify-contract-types.js
-  // 那条契约门禁管（零错误、能力齐全、目录内不许有运行时实现）。不排除的话，这 20 份会被两份配置
-  // 同时当根输入，覆盖对账报 20 条【重复归属】——同一份文件被检查两遍，谁负责也说不清。
+  // 契约子树与那几份散件归仓库根的 tsconfig.contract.json 声明，并受 tests/verify-contract-types.js
+  // 那条契约门禁管（零错误、能力齐全、目录内不许有运行时实现）。不排除的话，这些文件会被两份配置
+  // 同时当根输入，覆盖对账报【重复归属】——同一份文件被检查两遍，谁负责也说不清。
   //
   // 注意 exclude 只改 include 找到什么，不挡 import：被 tracker 文件 import 的契约文件照样进本配置的
   // 程序、照样被类型检查（#1148 实测：20 份里仍看到 14 份，另外 6 份由契约配置声明且仍在它的程序里），
   // 所以这里的检查面没有变小，只是归属不再重叠。
   //
-  // 那 6 份散件是按「动到哪里就转到哪里」暂住在契约配置里的（那边给每份都写了理由与将来收口的票号）；
+  // 那几份散件是按「动到哪里就转到哪里」暂住在契约配置里的（那边给每份都写了理由与将来收口的票号）；
   // 它们回到本域时，这几条 exclude 要一起删掉。将来契约配置多圈一份域内文件，这里也要跟着补一条——
   // 不补就当场报【重复归属】，那正是我们想要的报警方向。
+  //
+  // #1159 把 identity-keys.ts 与 error-rules.ts 两份收了回来：它们搬进 kernel/ 之后归属跟着回本域，
+  // 所以这两条 exclude 删掉，契约配置那边的两条 include 也删掉。剩下四份（label-names / fix-contract /
+  // ui-description / rooms/markdown/error-fail）仍暂住契约配置，等它们各自的迁移批次收口。
   //
   // 前三条是 TypeScript 的默认排除项：写死 exclude 会把默认值顶掉，所以照抄在这里，不能省。
   "exclude": [
@@ -60,11 +64,9 @@
     "bower_components",
     "jspm_packages",
     "contract/**",
-    "identity-keys.ts",
     "label-names.ts",
     "fix-contract.ts",
     "ui-description.ts",
-    "error-rules.ts",
     "rooms/markdown/error-fail.ts"
   ]
 }

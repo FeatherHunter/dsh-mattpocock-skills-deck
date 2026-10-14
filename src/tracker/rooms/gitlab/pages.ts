@@ -46,7 +46,7 @@ import type { OpContext } from '../../contract/contexts.js'
 import type { Issue, RepositoryRef } from '../../contract/entities.js'
 import type { ListFilter, PageOpts } from '../../contract/inputs.js'
 import type { OpResult, PageResult } from '../../contract/results.js'
-import { fail } from '../../preflight.js'
+import { fail } from '../../kernel/preflight.js'
 // 总数不自己拼：直接调同房 counts 那一条读（同一份口径、同一处归一）。
 import { counts } from './counts.js'
 import { glabClient } from './client.js'
