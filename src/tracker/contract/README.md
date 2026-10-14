@@ -57,7 +57,7 @@ GitHub 房与本地 Markdown 房用 `implements Tracker` 去实现，少一个�
   共享壳取仓库标识那一处（`src/deck/shell/call-shell.ts:289-310`，先看有没有这个方法再调，
   外加竞速上限）。**缺席不是故障**：没有方法时前两条路各自回退，壳按「补不出来」如实往下走。
 - **本地 Markdown 房的两个解析口**：`normalize` 与 `parse`，落在 `MarkdownRoomExtension` 的可选成员上。
-  它们只有本地文件后端有（`src/tracker/rooms/markdown/index.ts:160`、`:161`），返回的是房间自己的完整解析结果，
+  它们只有本地文件后端有（`src/tracker/rooms/markdown/index.ts:175`、`:176`），返回的是房间自己的完整解析结果，
   所以契约层把返回类型写成 `unknown` 而不复制房间私有形状；参数形状记在 `MarkdownParseMeta`。
   本轮在 `src/host` 与 `tests` 里没有查到房外调用方（房内别的文件直接 import `parse.ts` / `normalize.ts`，
   不经实例），是否有别处动态取用未核实。**注意**：早先这一版 README 写它们「不建模」，

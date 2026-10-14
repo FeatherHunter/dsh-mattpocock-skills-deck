@@ -193,7 +193,7 @@ node scripts/generate-demo-fixtures.js # 重采（可选）
 |---------|----------|
 | BackendModule 四件套 + Proxy | `src/tracker/registry/shape.ts:99-108,63-96` / `src/tracker/registry/core.ts:98-118` / `src/tracker/contract/index.ts:113-131` |
 | 三级联 select + pending/multiHit | `src/tracker/registry/core.ts:142-191` / `src/tracker/contract/index.ts:141-147` |
-| capability-by-fill | `src/host/tracker/capability.js` / `src/shared/tracker/shape.js:117-160` |
+| capability-by-fill | `src/host/tracker/capability.js` / `src/shared/tracker/shape.js:133-160` |
 | harness + runner | `tests/tracker-contract/harness.js` / `tests/tracker-contract/runner/index.js` |
 | demo 后端 + fixtures | `examples/demo-mini/index.js` / `examples/demo-mini/normalize.js` / `examples/demo-mini/matches.js` / `examples/demo-mini/fixtures/demo-real/` |
 | 门禁 | `tests/verify-tracker-contract.js`（含 demo 织入） |

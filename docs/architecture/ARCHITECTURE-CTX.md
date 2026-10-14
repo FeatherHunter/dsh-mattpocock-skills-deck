@@ -86,7 +86,7 @@ src/client/kernel/probe-chain.js / probe-snapshot.js / probe-auto.js  ← 迁移
 
 | 项 | 状态 |
 |---|---|
-| 仓库现有 hooks 风格（useStore/useEffect） | ✅ 实测（client.js L1160 / L3173） |
+| 仓库现有 hooks 风格（useStore/useEffect） | ✅ 实测（package/lib/client.js L8543 / L8546） |
 | React.createContext 在无 JSX 下的可用性 | ✅ 事实（React 公开 API，与 JSX 无关） |
 | 本方案采用 A 插座式 | ✅ 用户拍板（2026-08-18） |
 | 阶段 2 迁移顺序（接线→逐模块） | 🧠 设计决策（可调整） |
