@@ -32,6 +32,9 @@ const READ_CALL_FILES = [
   'src/tracker/rooms/github/sub-issues.ts',
   'src/tracker/rooms/github/repo-permissions.ts',
   'src/tracker/rooms/github/repo.ts',
+  // pulls.ts 是 #1052 合成回包实跑时抓出来的漏网：拉列表走 REST 降级那一支会顺带起两笔
+  // /pulls 富化（列表翻页 + 单票补合并时间/评审），当时它们不带标签，日志里落的是空 via。
+  'src/tracker/rooms/github/pulls.ts',
 ]
 
 /**
@@ -50,6 +53,8 @@ const TAG_SPEC: Record<string, { branches: string[]; opsWithNoNeed?: number; why
   subIssues: { branches: ['gql', 'retry'] },
   permissions: { branches: ['api'] },
   repo: { branches: ['tier3'] },
+  // 拉取请求富化那三笔（#1052 合成回包实跑时补上）：列表 REST 翻页、单票补合并时间、单票拉评审明细。
+  pulls: { branches: ['rest', 'detail', 'reviews'] },
   describe: { branches: [] },
   issueAddress: { branches: [] },
   // 定位口 getRepoKey 走的是别的帮手，不在这一页的解析范围里（它不调 execGh）。
