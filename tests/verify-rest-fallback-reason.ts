@@ -1,6 +1,10 @@
 /*
- * verify-rest-fallback-reason.js — 降级横幅「按原因选句」的门禁（#734）
- * 用法: node tests/verify-rest-fallback-reason.js
+ * verify-rest-fallback-reason.ts — 降级横幅「按原因选句」的门禁（#734）
+ * 用法: 在插件根目录执行 node tests/verify-rest-fallback-reason.ts
+ *
+ * 写法说明：本文件是 CommonJS 写法的 TypeScript（用 require 与 __dirname，不写 import 语句），
+ * Node 自己剥离类型就能执行，不需要装载钩子。这正是全仓最终只留 TypeScript 的路径：
+ * 测试按单元改名成 .ts，行为一行不变，旧语言棘轮跟着缩一条（见 AGENTS.md「TypeScript 优先」）。
  *
  * 这一条盯的是 #734 的硬规矩：不真耗尽，不许说「耗尽」。
  * 面板新链路里任何 GraphQL 失败都会掉到 REST 并回 `fallback:'rest'`，而横幅的判据
@@ -32,8 +36,9 @@ const check = function (cond, msg) {
 
 // ── 一、原因分类：限流与非配额 403 分得开 ──
 // 直接引真源模块，不再读文本求值。说明符写显式 .ts：这份真源今天只有 import type（加载时会被剥掉），
-// 所以人手裸跑也能跑；哪天它长出运行时 import，就改成 .js 说明符并把它挂上链
-// ——链上的步骤会自动挂 scripts/ts-hook.mjs（docs/agents/verification.md 第三节）。
+// 所以人手裸跑、链上挂钩子跑，两种跑法都能跑。哪天它长出运行时 import 或值导出以外的语法，
+// 就把说明符改回 .js —— 本门禁已在 package.json 的 verify 链上，链会自动挂 scripts/ts-hook.mjs
+// （docs/agents/verification.md 第三节）；那时人手裸跑要自己加 --import ./scripts/ts-hook.mjs。
 let pick = null
 try {
   pick = require('../src/tracker/rooms/github/fallback-reason.ts').pickFallbackReason
