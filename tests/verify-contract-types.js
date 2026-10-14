@@ -111,8 +111,27 @@ const PROBE_MARKDOWN_REL = 'tests/contract-probe-markdown.ts'
  *
  * 2026-10-14 由 162 改到 161（#1147 收尾补上 graph.ts:242 缺的 listIssues 导入）：
  * 整仓回退分支从 ReferenceError 变成真实现，探针口径下少了一条报错。同样是还债。
+ *
+ * 2026-10-14 由 161 改到 152（收口地图 08 时还掉的那笔：这个写法先被照出来，再被还清）。
+ * 先说这一天里数怎么动的：161（79b069ba 17:21 定下的基线，当时实测就是 161）
+ * → 160（0bd83612，见下面第二段，观察面少了一个房）
+ * → 172（16885485 18:40 给读路径补结论线：往下游那个类型已经烂掉的局部变量上又挂了 12 个调用点）
+ * → 152（同日收口地图 08 时改掉那一行写法，见第一段）。
+ * 第一段，还债 20 条：`src/tracker/rooms/github/preflight.ts` 的 opCtx 原先写
+ * `Object.assign({}, ctx || {}, cwd ? { cwd } : {})`，推出来的类型只有 `{ cwd: string } | { cwd?: undefined }`，
+ * OpContext 的成员一个不剩；凡把它当 OpContext / ClassifyCtx 传下去的地方（读路径的日志钩子、ghClient、
+ * ghVerdictOf）全报 TS2345。改成带标注的对象展开 `const opCtx: OpContext = { ...ctx, ...(cwd ? { cwd } : {}) }`
+ * 之后，该文件从 22 条降到 2 条（剩下那两条是读 GhExecResult 的旧账，属存量），全池 172 → 152。
+ * 这 20 条里 16 条是同一个毛病的不同调用点：其中 4 条在基线里已有，12 条是 16885485 新挂的。
+ * 注意这个数不是「新增债务」，是**旧写法被新调用点照出来**（与上面 183 那次同一性质），
+ * 只是一行就能还清，所以当场还了。
+ * 第二段，少掉的那 1 条不是还债：0bd83612（#1136）摘掉各房对 capability-assertions 的 import type 之后，
+ * `src/tracker/capability-assertions.ts` 退出本探针的编译程序，而它是全仓唯一静态 import 了
+ * `./rooms/gitlab/index.js` 的文件 —— 整个 GitLab 房随之离开静态腿（少的那条是 gitlab 房 issues.ts 的 TS2322）。
+ * 也就是说静态腿今天只看 GitHub 与 Markdown 两房，而运行时腿仍在看三个房的模块对象；这处不一致已立 #1172 追。
+ * 读这段数的时候请把两件事分开：152 是「还清之后剩下的存量」，不是「债务变少了」的证据。
  */
-const PROBE_NONPROBE_ERROR_BASELINE = 161
+const PROBE_NONPROBE_ERROR_BASELINE = 152
 /** 探针直编的开关（与探针文件头写的口径一致，改一处两处一起改）。 */
 const PROBE_TSC_ARGS = [
   '--noEmit', '--target', 'es2020', '--lib', 'es2020,dom', '--module', 'esnext',

@@ -53,7 +53,12 @@ function repoFromRefId(refId: string | null): { owner: string; name: string } | 
  */
 export async function ghPreflight(handle: RepoHandle, ctx: OpContext): Promise<PreflightResult> {
   const cwd = (handle && handle.cwd) || (ctx && ctx.cwd) || undefined
-  const opCtx = Object.assign({}, ctx || {}, cwd ? { cwd } : {})
+  // 2026-10-14 收口改法（#1052 的收尾）：这里原先写 Object.assign({}, ctx || {}, cwd ? { cwd } : {})，
+  // 推出来的类型只有 { cwd: string } | { cwd?: undefined } —— OpContext 的成员一个不剩，
+  // 于是每一处把它当 OpContext / ClassifyCtx 传下去的地方都报 TS2345（探针门禁里从 4 条涨到 16 条）。
+  // 写成带类型标注的对象展开后形状由标注钉住；运行时仍是同一份浅拷贝（自有的可枚举属性逐个搬过去），
+  // ctx 若是 null/undefined，展开与原来的 ctx || {} 等价（都得到没有自有属性的空对象）。
+  const opCtx: OpContext = { ...ctx, ...(cwd ? { cwd } : {}) }
 
   // 这一笔的起点：三项门禁的每一行日志都要带「从探测入口到这里花了多久」。
   const t0 = Date.now()
