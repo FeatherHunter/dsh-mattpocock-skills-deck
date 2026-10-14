@@ -1,6 +1,6 @@
 // verify-log-fields.js —— #494 第三件事：日志门禁之字段白名单（#489 附录第 4 节断言一）。
 // 用法：在插件根目录执行 node tests/verify-log-fields.js，可独立运行。
-// 断言文字：扫描全部埋点调用，每个事件只含第 1 节允许字段（#746 增补常驻 #90 naming.summary，#782 增补常驻 #92 cwd.persisted，#817 增补常驻 #94 git.exec 与 #95 git.exec.fail，#864 增补按需 #96 vc.cache.screen，#958 增补按需 #97 labelColors.listed，#1048 增补按需 #98 detection.step 并给常驻 #16 detection.detect 补六键，#1131 增补按需 #99 detection.cache.hit（缓存命中那一行：这一次没重算、直接把上一次的判定回给了调用方），#1054 增补常驻 #100 edge.write（关系边写没写下去、走的哪条路、为什么）与按需 #101 edge.cycle、#102 edge.roster、#103 edge.repair（成环检查、邻接关系来源、REST 树边修复三条调试线））；
+// 断言文字：扫描全部埋点调用，每个事件只含第 1 节允许字段（#746 增补常驻 #90 naming.summary，#782 增补常驻 #92 cwd.persisted，#817 增补常驻 #94 git.exec 与 #95 git.exec.fail，#864 增补按需 #96 vc.cache.screen，#958 增补按需 #97 labelColors.listed，#1048 增补按需 #98 detection.step 并给常驻 #16 detection.detect 补六键，#1131 增补按需 #99 detection.cache.hit（缓存命中那一行：这一次没重算、直接把上一次的判定回给了调用方），#1054 增补常驻 #100 edge.write（关系边写没写下去、走的哪条路、为什么）与按需 #101 edge.cycle、#102 edge.roster、#103 edge.repair（成环检查、邻接关系来源、REST 树边修复三条调试线），#1053 增补常驻 #104 issue.write（票的增删改评论贴标签：写没写下去、走的哪条路、为什么））；
 // 出现工作区原始路径、仓库地址原文、令牌原文、模板正文、快照全文即红。
 // 做法：从宿主与客户端源码里找出全部日志调用，逐个事件收拢实际字段键，
 // 与下面这张允许表逐项比对；未知事件名、未知字段键都算失败并打印清单。
@@ -12,7 +12,7 @@ let failed = false
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
-console.log('日志字段白名单门禁（#494/#498/#548/#618/#652/#655/#690/#709/#724/#782/#817/#864/#958/#1048/#1131/#1054：99 事件逐个只记已知安全字段，未知字段默认不记）')
+console.log('日志字段白名单门禁（#494/#498/#548/#618/#652/#655/#690/#709/#724/#782/#817/#864/#958/#1048/#1131/#1054/#1053：100 事件逐个只记已知安全字段，未知字段默认不记）')
 
 // 允许表：事件名对应它能记的全部字段键，之外的键一律不许出现。
 // 键名取自实现原文，语义与 #489 附录 1.4、1.5 节对照表一致。
@@ -85,6 +85,28 @@ const ALLOWED = {
   'edge.cycle': ['verdict', 'nodes', 'blockers', 'latencyMs'],
   'edge.roster': ['source', 'complete', 'dirty', 'latencyMs'],
   'edge.repair': ['maps', 'linked', 'failed', 'latencyMs'],
+  // 2026-10-14（#1053）新增常驻 #104 `issue.write`：写一张票这一趟的结论 —— 写没写下去、走的哪条路、
+  //   为什么，一趟一行，成功与失败都记。为什么要有它：这一族从前只留下 gh.exec 那一层「命令跑了、
+  //   退出码几」，而 gh.exec 的 argv0 是写死的字符串 `gh`、kind 记的是结果档位（network / cancelled /
+  //   env / ok 或归一后的错误档位），于是建票的 `gh api --method POST` 与查票的 `gh api` 落下来长得
+  //   一模一样，回答不了「这张票怎么没建上」「是不是建重了一张」「幂等锚命中复用了吗」「标签、认领、
+  //   父边补挂了没有」；工具层的 host.call 记的是电话名（`deck.issueCreate` 这类），说的是「哪一类操作」，
+  //   也说不出走了哪条路、停在哪一步。
+  //   为什么定常驻：写票是人和 AI 的显式动作（一次会话几条到几十条），查这类问题的人不会先打开调试开关，
+  //   而它是这一族里唯一一条「写没写下去」的结论线。无外层判断，成功与失败都记一行。
+  //   允许字段七个，全是枚举、布尔与计数，**票号、票面标题正文、命令原文、上游报错原文一个字都不记**：
+  //   kind 这一次写的是哪一件事（create 建票 / close 关闭 / reopen 重开 / update 改票 /
+  //   setAssignees 改认领 / comment 评论 / setLabels 贴标签）、route 走到哪一层（none 没走到外部调用 /
+  //   rest 走 gh api / cli 走 gh issue 子命令）、ok 成没成、written 真发出去几条写命令、
+  //   followFailed 建完票之后补挂标签、认领、父边没挂上的步数、reason 为什么是这个结论
+  //   （fresh 真新建 / reuse 幂等锚命中复用 / edited 改了已有票 / noop 一处没改 /
+  //   partial 写成了但有补挂没挂上 / fail:<档位>）、latencyMs 这一趟花了多久。
+  //   落点三处：src/tracker/rooms/github/write-log.ts 的 emitIssueWrite（一趟一行），由同目录的
+  //   issues-write.ts（建票、关闭、重开、改票、改认领五件事）、comments.ts（评论）、labels.ts（贴标签）
+  //   各调一次。本票未覆盖的两处如实记账：init-project.ts 建仓那趟的 git 命令仍没有落点（另立一票）、
+  //   label-colors-ops.ts 只到 gh.exec 那一层（既有常驻 #60 labelColors.write 记的是「写本地配色文件」，
+  //   GitHub 房这一处只调 gh 接口，套不上）。
+  'issue.write': ['kind', 'route', 'ok', 'written', 'followFailed', 'reason', 'latencyMs'],
   'workspaceStore.hit': ['keyHash', 'fresh', 'ttlMs'],
   // 2026-09-25 登记订正（#709 · T5）：这一条的落点已经变成「被退避挡下，直接把上一份快照回给界面」，
   //   实现记的是 keyHash、lang、deferred、reason、waitMs 五个键；从前的 ageMs 早已不再发射，

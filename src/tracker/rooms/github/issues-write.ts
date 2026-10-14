@@ -23,6 +23,10 @@ import { getIssue, parseRepo, repoId } from './issues.js'
 // 本间房专属的「建后按锚回查」在 ./idempotency.js（两条路：搜索接口 + 最近更新列表逐张读正文）。
 import { checkIdempotencyKey } from '../../../shared/refresh/idempotency.js'
 import { withAnchor, lookupByAnchor } from './idempotency.js'
+// #104 `issue.write`：票写入的常驻结论线。轨迹形状与发射口在 ./write-log.js ——
+// 建票、改票、评论、改标签这几处要说的是同一件事，放一处免得各写各的。
+import { newIssueWriteTrail, emitIssueWrite } from './write-log.js'
+import type { IssueWriteTrail } from './write-log.js';
 
 /**
  * 建票过程中组装的那张票：归一后的票 + 没挂上的标签/父边记账（工具层读回时据此说清部分成功）。
@@ -51,7 +55,20 @@ function caughtMessage(e: unknown, len: number): string {
  * 二是上游交回过结果（`gh` 的执行结果、别处 op 的返回）——交那份结果，原话就在它里面；
  * 三是回包解析失败——交那份没能解析的回包文本本身。
  */
+/**
+ * create 的对外入口：建一趟轨迹、交给内层干、出口处按 #104 `issue.write` 记一行结论（成功与失败都记）。
+ * 为什么套一层而不是在内层每个 return 前各记一行：内层出口有七八个（校验、回查、建票、解析各一处），
+ * 套一层只有一个出口，失败那一路（抛异常）也不会漏。
+ */
 export async function createIssue(repo: RepositoryRef, input: CreateInput, ctx: MemoContext): Promise<OpResult<Issue>> {
+  const t0 = Date.now()
+  const trail = newIssueWriteTrail()
+  const r = await createIssueInner(repo, input, ctx, trail)
+  emitIssueWrite(ctx, 'create', trail, r, t0)
+  return r
+}
+
+async function createIssueInner(repo: RepositoryRef, input: CreateInput, ctx: MemoContext, trail: IssueWriteTrail): Promise<OpResult<Issue>> {
   try {
     const parsed = parseRepo(repo)
     if (!parsed) return fail(ERROR_KIND.NOTFOUND, `create: repo.refId missing: ${repoId(repo)}`, repo)
@@ -65,18 +82,25 @@ export async function createIssue(repo: RepositoryRef, input: CreateInput, ctx: 
     if (idemKey) {
       const found = await lookupByAnchor(repo, idemKey, ctx, normalizeIssue)
       if (!found.ok) return { ok: false, error: found.error }
-      if (found.hit) return { ok: true, data: found.issue }
+      // 幂等命中：这一趟一张票都没建，把已有一张交回去 —— 结论线记成「复用」，写的条数是 0。
+      if (found.hit) { trail.reason = 'reuse'; return { ok: true, data: found.issue } }
     }
     const c = ghClient(ctx)
     const body = withAnchor(typeof input.body === 'string' ? input.body : '', idemKey)
     // 主路用 REST 建票：gh api 不支持经 stdin 传整包（执行层没有 stdin 口），改用 -f 逐字段传；
     // gh issue create 不认 --json，所以不走它。标签与认领建后另补（已有现成函数）。
     const createArgs = ['api', `repos/${parsed.owner}/${parsed.name}/issues`, '--method', 'POST', '-f', `title=${input.title.trim()}`, '-f', `body=${body}`, '--jq', '.']
+    // 到这一步才真会发出写命令：route 记下走的是 gh api（REST），written 记下真发出去一条 ——
+    // 发出去了就算一条，成没成由结论线的 ok 那一格说。
+    trail.route = 'rest'
+    trail.written += 1
     const r = await c.execGh(createArgs, { cwd: ctx && ctx.cwd })
     // 为什么标成键值袋：建票回包是 gh 回的任意形状，只读 number/state/url/时间/labels/assignees 几格；
     // 有值时袋与原值是同一份引用，读法与原来一致。
     let createdRaw: Record<string, unknown> | null = null
     if (!r.ok) return { ok: false, error: r.error }
+    // 建票这条真成了：这一趟是「新建」，不是幂等路上复用已有一张。
+    trail.reason = 'fresh'
     const text = r.data.stdout || ''
     try {
       const j: unknown = JSON.parse(text)
@@ -118,6 +142,8 @@ export async function createIssue(repo: RepositoryRef, input: CreateInput, ctx: 
         const lr = await setLabels(repo, issue.key, merged.map((n) => ({ name: n })), {}, ctx);
         if (lr && lr.ok === true && lr.data) issue = lr.data;
         else {
+          // 补挂没成：票照样建成（#992，如实记在票上让工具层读回时说清），但结论线要如实说成 partial。
+          trail.followFailed += 1
           // #992：标签没挂上不再吞错，记在票上让工具层读回时能说清（照 parentError 先例，票照样建成 ok:true）。
           // 为什么先收窄：setLabels 的返回是可辨识联合，失败分支才有 error；直接读 error 编译器不认，收窄后读的还是原来那一格。
           const lrError = (lr && !lr.ok) ? lr.error : null;
@@ -155,6 +181,8 @@ export async function createIssue(repo: RepositoryRef, input: CreateInput, ctx: 
         if (want.length) {
           const ar = await setAssignees(repo, issue.key, want, {}, ctx);
           if (ar && ar.ok === true && ar.data) issue = ar.data;
+          // 认领没挂上：这一处照旧不吞错改返回（票照样建成 ok:true），但补挂这一步没成要记进结论线。
+          else trail.followFailed += 1;
         }
       }
     } catch {}
@@ -165,9 +193,13 @@ export async function createIssue(repo: RepositoryRef, input: CreateInput, ctx: 
         const pr = await setParent(repo, issue.key, String(input.parentKey), {}, ctx)
         // 为什么断言：setParent 成功时一定带回那张票（失败走 else 记账）；graph.ts 定型后这里再复核，断言只为过编译、交的还是原来那个值。
         if (pr.ok) issue = pr.data as Issue
-        else issue.parentError = { kind: String((pr.error && pr.error.kind) || ''), message: String((pr.error && pr.error.message) || '后端没给出原因').slice(0, 300) }
+        else {
+          issue.parentError = { kind: String((pr.error && pr.error.kind) || ''), message: String((pr.error && pr.error.message) || '后端没给出原因').slice(0, 300) }
+          trail.followFailed += 1
+        }
       } catch (e) {
         issue.parentError = { kind: 'unknown', message: caughtMessage(e, 300) }
+        trail.followFailed += 1
       }
     }
     try { if (ctx && ctx.memo) rosterUpsert(ctx.memo, issue) } catch (eU) {}
@@ -181,6 +213,14 @@ export async function createIssue(repo: RepositoryRef, input: CreateInput, ctx: 
 }
 
 export async function closeIssue(repo: RepositoryRef, key: string, opts: CloseOpts | undefined, ctx: OpContext): Promise<OpResult<Issue>> {
+  const t0 = Date.now()
+  const trail = newIssueWriteTrail()
+  const r = await closeIssueInner(repo, key, opts, ctx, trail)
+  emitIssueWrite(ctx, 'close', trail, r, t0)
+  return r
+}
+
+async function closeIssueInner(repo: RepositoryRef, key: string, opts: CloseOpts | undefined, ctx: OpContext, trail: IssueWriteTrail): Promise<OpResult<Issue>> {
   try {
     const parsed = parseRepo(repo)
     if (!parsed) return fail(ERROR_KIND.NOTFOUND, `close: repo.refId missing: ${repoId(repo)}`, repo)
@@ -192,8 +232,13 @@ export async function closeIssue(repo: RepositoryRef, key: string, opts: CloseOp
     if (opts && typeof opts.reason === 'string' && opts.reason) {
       args.push('--reason', opts.reason)
     }
+    // 从这一步起真会发出写命令：走的是 gh issue 子命令（cli）。
+    trail.route = 'cli'
+    trail.written += 1
     const r = await c.execGh(args, { cwd: ctx && ctx.cwd })
     if (!r.ok) return { ok: false, error: r.error }
+    // 关票这条真成了：这一趟改的是已有一张票。
+    trail.reason = 'edited'
     const vr = await c.execGh(['issue', 'view', k, '--repo', `${parsed.owner}/${parsed.name}`, '--json', 'number,title,state,body,url,updatedAt,createdAt,closedAt,labels,assignees'], { cwd: ctx && ctx.cwd })
     if (!vr.ok) {
       const optimistic = normalizeIssue({ number: Number(k) || k, title: '', state: 'closed', body: '', url: '', closedAt: new Date().toISOString() })
@@ -222,6 +267,14 @@ export async function closeIssue(repo: RepositoryRef, key: string, opts: CloseOp
 }
 
 export async function reopenIssue(repo: RepositoryRef, key: string, ctx: OpContext): Promise<OpResult<Issue>> {
+  const t0 = Date.now()
+  const trail = newIssueWriteTrail()
+  const r = await reopenIssueInner(repo, key, ctx, trail)
+  emitIssueWrite(ctx, 'reopen', trail, r, t0)
+  return r
+}
+
+async function reopenIssueInner(repo: RepositoryRef, key: string, ctx: OpContext, trail: IssueWriteTrail): Promise<OpResult<Issue>> {
   try {
     const parsed = parseRepo(repo)
     if (!parsed) return fail(ERROR_KIND.NOTFOUND, `reopen: repo.refId missing: ${repoId(repo)}`, repo)
@@ -229,8 +282,13 @@ export async function reopenIssue(repo: RepositoryRef, key: string, ctx: OpConte
     if (!k) return fail(ERROR_KIND.PARSE, 'reopen: key required', key)
     const c = ghClient(ctx)
     const args = ['issue', 'reopen', k, '--repo', `${parsed.owner}/${parsed.name}`]
+    // 从这一步起真会发出写命令：走的是 gh issue 子命令（cli）。
+    trail.route = 'cli'
+    trail.written += 1
     const r = await c.execGh(args, { cwd: ctx && ctx.cwd })
     if (!r.ok) return { ok: false, error: r.error }
+    // 重开这条真成了：这一趟改的是已有一张票。
+    trail.reason = 'edited'
     const vr = await c.execGh(['issue', 'view', k, '--repo', `${parsed.owner}/${parsed.name}`, '--json', 'number,title,state,body,url,updatedAt,createdAt,closedAt,labels,assignees'], { cwd: ctx && ctx.cwd })
     if (!vr.ok) {
       return { ok: true, data: normalizeIssue({ number: Number(k) || k, title: '', state: 'open', body: '', url: '', closedAt: null }) }
@@ -256,6 +314,14 @@ export async function reopenIssue(repo: RepositoryRef, key: string, ctx: OpConte
 }
 
 export async function updateIssue(repo: RepositoryRef, key: string, patch: UpdatePatch, ctx: OpContext): Promise<OpResult<Issue>> {
+  const t0 = Date.now()
+  const trail = newIssueWriteTrail()
+  const r = await updateIssueInner(repo, key, patch, ctx, trail)
+  emitIssueWrite(ctx, 'update', trail, r, t0)
+  return r
+}
+
+async function updateIssueInner(repo: RepositoryRef, key: string, patch: UpdatePatch, ctx: OpContext, trail: IssueWriteTrail): Promise<OpResult<Issue>> {
   try {
     const parsed = parseRepo(repo)
     if (!parsed) return fail(ERROR_KIND.NOTFOUND, `update: repo.refId missing: ${repoId(repo)}`, repo)
@@ -279,8 +345,13 @@ export async function updateIssue(repo: RepositoryRef, key: string, patch: Updat
     if (typeof patch.title === 'string') args.push('--title', patch.title)
     if (typeof patch.body === 'string') args.push('--body', patch.body)
     if (args.length <= 4) return fail(ERROR_KIND.PARSE, 'update: empty patch (no title/body)', patch)
+    // 从这一步起真会发出写命令：走的是 gh issue 子命令（cli）。
+    trail.route = 'cli'
+    trail.written += 1
     const r = await c.execGh(args, { cwd: ctx && ctx.cwd })
     if (!r.ok) return { ok: false, error: r.error }
+    // 改票这条真成了：这一趟改的是已有一张票。
+    trail.reason = 'edited'
     const vr = await c.execGh(['issue', 'view', k, '--repo', `${parsed.owner}/${parsed.name}`, '--json', 'number,title,state,body,url,updatedAt,createdAt,closedAt,labels,assignees'], { cwd: ctx && ctx.cwd })
     if (!vr.ok) return { ok: true, data: normalizeIssue({ number: Number(k) || k, title: typeof patch.title === 'string' ? patch.title : '', state: 'open', body: typeof patch.body === 'string' ? patch.body : '', url: '' }) }
     const text = vr.data.stdout || ''
@@ -321,6 +392,14 @@ function normalizeAssigneeInput(ai: unknown): Actor | null {
 }
 
 export async function setAssignees(repo: RepositoryRef, key: string, assignees: AssigneeInput[] | undefined, opts: SetOpts | undefined, ctx: MemoContext): Promise<OpResult<Issue>> {
+  const t0 = Date.now()
+  const trail = newIssueWriteTrail()
+  const r = await setAssigneesInner(repo, key, assignees, opts, ctx, trail)
+  emitIssueWrite(ctx, 'setAssignees', trail, r, t0)
+  return r
+}
+
+async function setAssigneesInner(repo: RepositoryRef, key: string, assignees: AssigneeInput[] | undefined, opts: SetOpts | undefined, ctx: MemoContext, trail: IssueWriteTrail): Promise<OpResult<Issue>> {
   try {
     const parsed = parseRepo(repo)
     if (!parsed) return fail(ERROR_KIND.NOTFOUND, `setAssignees: repo.refId missing: ${repoId(repo)}`, repo)
@@ -354,14 +433,20 @@ export async function setAssignees(repo: RepositoryRef, key: string, assignees: 
     const curLogins = curRes.ok ? curRes.data.assignees!.map((a) => a.login) : []
     const toAdd = logins.filter((l) => !curLogins.includes(l))
     const toRemove = curLogins.filter((l) => !logins.includes(l))
+    // 差集算出来了：从这一步起每一次加或撤都是一条写命令，走的是 gh issue 子命令（cli）。
+    trail.route = 'cli'
     for (const l of toRemove) {
+      trail.written += 1
       const r = await c.execGh(['issue', 'edit', k, '--repo', `${parsed.owner}/${parsed.name}`, '--remove-assignee', l], { cwd: ctx && ctx.cwd })
       if (!r.ok) return { ok: false, error: r.error }
     }
     for (const l of toAdd) {
+      trail.written += 1
       const r = await c.execGh(['issue', 'edit', k, '--repo', `${parsed.owner}/${parsed.name}`, '--add-assignee', l], { cwd: ctx && ctx.cwd })
       if (!r.ok) return { ok: false, error: r.error }
     }
+    // 一条写命令都没发（差集为空）就是「一处没改」；发了至少一条就是改过。
+    trail.reason = trail.written > 0 ? 'edited' : 'noop'
     // 读回最新
     const finalRes = await getIssue(repo, k, {}, ctx)
     if (!finalRes.ok) {
