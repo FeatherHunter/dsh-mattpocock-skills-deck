@@ -206,7 +206,8 @@ export function createRegistry(backendCtx: BackendContext = {} as BackendContext
     /** 出 RepositoryRef：转发 BackendModule.describe，见 views.ts（byId 显式传引用）。 */
     describe: (handle: RepoHandle, backendId: BackendId): RepositoryRef => describe(byId, handle, backendId),
     // 链接三件（#1110 实现决定第 14 条 → #1133 改名 → #1141 删旧名）：名字用与后端无关的「地址」
-    // 说法，因为本地 Markdown 后端给的是票文件路径，不是只有远端后端才有这概念。
+    // 说法——远端两家给网址，本地这家算不出票地址时诚实回空串（#1144），票的地址随票走；
+    // 「地址」三家都装得下，不像「网址」把本地那家说成例外。
     // 老名字的别名随窗口到期一起删了，这里只剩新名字这一套，房外的读者也只认这一套。
     issueAddress: (backendId: BackendId, ref: RepositoryRef, key: string): string => issueAddress(byId, backendId, ref, key),
     repoSearchAddress: (backendId: BackendId, name: string): string => repoSearchAddress(byId, backendId, name),
