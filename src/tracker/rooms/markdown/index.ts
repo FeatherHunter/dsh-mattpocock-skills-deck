@@ -309,9 +309,8 @@ export const fixes = Object.freeze({
   },
 })
 
-// 装配点转出的宿主侧遗留件（#1161）：远程判定（remotePredicates）今天还需要本地图谱解析这一件，
-// 宿主不许再直接深引房间实现，只能经装配点 src/tracker/registry/builtins.ts 从这里取。
-export { parseMd } from './parse.js'
+// 宿主今天还要用的本地图谱解析（parseMd）已不在本文件转出：#1170 把「宿主取件」收回装配点
+// src/tracker/registry/builtins.ts 自己取（见那里的 loadMarkdownHostExtras），本文件只留房间自己的对外契约。
 
 export const markdownModule = {
   id: 'markdown',

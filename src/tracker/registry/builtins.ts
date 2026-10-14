@@ -12,21 +12,14 @@
  *  2. 这里只登记「有哪几个内置房间」和「怎么把房间的模块交给注册表」。能力清单不在这里
  *     （那是契约层 `CAPABILITIES` 那条线）；房间内部共用的判定件也不在这里（那是共享内核 #1159 的事）。
  *  3. 宿主侧不许再直接 import `src/tracker/rooms/**`（规则 `rooms-imported-only-by-assembly` 盯着）。
- *     宿主今天还需要房间里的少数几个件（GitHub 的超时值、单票状态归一、建仓错误分档、本地图谱解析），
- *     一律经 `loadBuiltinRoom()` 从房间的公开面取；房间里对应的那几行 re-export 就是为这件事写的，
- *     等宿主那几条路改走注册表之后，它们连同这里的取件口一起收回。
+ *     宿主今天还需要房间里少数几件实现（单票状态归一、建仓错误分档、本地图谱解析），
+ *     一律经本文件的 `loadGithubHostExtras()` / `loadMarkdownHostExtras()` 取 —— 房间的 `index.ts`
+ *     只管房间自己的对外契约，不再为宿主转出实现件（#1170 收回了 #1161 时期的那几行临时转出）。
  */
 import type { BackendModule } from '../contract/backend-module.js'
 
 /** 内置房间的编号。房间名是数据：依赖规则的起点判据不写房名，房间清单只有这里一处。 */
 export type BuiltinRoomId = 'github' | 'gitlab' | 'markdown'
-
-/** 三间内置房间的公开面（房间 `index.ts` 导出什么，这里就是什么）。宿主取件时用它的字段类型。 */
-export type BuiltinRoomNamespace = {
-  github: typeof import('../rooms/github/index.js')
-  gitlab: typeof import('../rooms/gitlab/index.js')
-  markdown: typeof import('../rooms/markdown/index.js')
-}
 
 /**
  * 内置房间的名单与注册顺序：github → markdown → gitlab。
@@ -37,21 +30,6 @@ export type BuiltinRoomNamespace = {
  * 的 D 节读的就是这里，改名单就得同时看那两处。
  */
 export const BUILTIN_ROOM_IDS: readonly BuiltinRoomId[] = ['github', 'markdown', 'gitlab']
-
-/**
- * 加载一间内置房间的公开面。同一个房间第二次调用命中模块缓存，不会重复求值。
- *
- * 房间编号写成字面量时返回对应的精确类型（宿主拿到的件因此有类型）；写成变量时返回三者的联合。
- */
-export function loadBuiltinRoom(id: 'github'): Promise<BuiltinRoomNamespace['github']>
-export function loadBuiltinRoom(id: 'gitlab'): Promise<BuiltinRoomNamespace['gitlab']>
-export function loadBuiltinRoom(id: 'markdown'): Promise<BuiltinRoomNamespace['markdown']>
-export function loadBuiltinRoom(id: BuiltinRoomId): Promise<BuiltinRoomNamespace[BuiltinRoomId]>
-export function loadBuiltinRoom(id: BuiltinRoomId): Promise<BuiltinRoomNamespace[BuiltinRoomId]> {
-  if (id === 'github') return import('../rooms/github/index.js')
-  if (id === 'gitlab') return import('../rooms/gitlab/index.js')
-  return import('../rooms/markdown/index.js')
-}
 
 /**
  * 挑出注册表要的那一份模块对象。
@@ -90,6 +68,48 @@ export async function loadBuiltinBackendModules(): Promise<BackendModule[]> {
     }
   }
   return out
+}
+
+// ── 宿主还要用的那几件房间实现（#1170）────────────────────────────────────────────────
+// 这几件是房间的实现细节：GitHub 的单票状态归一与建仓错误分档、Markdown 的本地图谱解析。
+// 它们既不是「与后端无关的判定」（那归共享内核 src/tracker/kernel/，见 #1159），
+// 也不是契约层的东西（契约层只有类型与数据、没有运行时实现），而宿主又要用，
+// 所以由本文件直接取出来交给宿主 —— 全仓允许 import 房间内部的地方只有本文件一处。
+//
+// 为什么不放回房间的 `index.ts` 转出（那是 #1161 时期的临时写法，已在 #1170 收回）：
+// `index.ts` 是房间对外的契约面，每多一行转出，房间边界上就多一扇没人守的门。
+// 加件之前先问：这一件真是某个房间独有的吗？不是就该去内核或契约层，而不是挂在这里。
+export type GithubHostExtras = {
+  /** 单票与拉取请求的状态归一：把 GitHub 的 OPEN/CLOSED/MERGED 收成契约里的状态。 */
+  pullStateOf: typeof import('../rooms/github/normalize.js').pullStateOf
+  /** 建仓发布失败的分档器：认 gh 的原话，分成可展示的几档。 */
+  makeCreateErrorClassifier: typeof import('../rooms/github/init-project-error-kinds.js').makeCreateErrorClassifier
+  /** 分档器认不出来的那一档的名字（调用方要拿它比对，所以跟分档器一起交）。 */
+  KIND_UNKNOWN: typeof import('../rooms/github/init-project-error-kinds.js').KIND_UNKNOWN
+}
+
+/** 取出 GitHub 房那几件宿主实现。同一个房间第二次调用命中模块缓存，不会重复求值。 */
+export async function loadGithubHostExtras(): Promise<GithubHostExtras> {
+  const [normalize, kinds] = await Promise.all([
+    import('../rooms/github/normalize.js'),
+    import('../rooms/github/init-project-error-kinds.js'),
+  ])
+  return {
+    pullStateOf: normalize.pullStateOf,
+    makeCreateErrorClassifier: kinds.makeCreateErrorClassifier,
+    KIND_UNKNOWN: kinds.KIND_UNKNOWN,
+  }
+}
+
+export type MarkdownHostExtras = {
+  /** 本地图谱解析：一张票在盘上长什么样、字段怎么读，只有 Markdown 房这一层知道。 */
+  parseMd: typeof import('../rooms/markdown/parse.js').parseMd
+}
+
+/** 取出 Markdown 房那一件宿主实现。 */
+export async function loadMarkdownHostExtras(): Promise<MarkdownHostExtras> {
+  const mod = await import('../rooms/markdown/parse.js')
+  return { parseMd: mod.parseMd }
 }
 
 // ── 房间形状的类型出口（#1161）────────────────────────────────────────────────────────

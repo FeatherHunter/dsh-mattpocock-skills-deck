@@ -189,12 +189,9 @@ export const prompts = (function () {
   }
 })()
 
-// 装配点转出的宿主侧遗留件（#1161）：宿主不许再直接深引房间实现（规则 rooms-imported-only-by-assembly），
-// 它今天还需要这三个件，只能经装配点 src/tracker/registry/builtins.ts 从这里取。
-// 等宿主那几条路（单票详情、建仓发布、检测链超时）改走注册表之后，这几行跟着一起收回。
-export { TIMEOUT_MS } from './client.js'
-export { pullStateOf } from './normalize.js'
-export { makeCreateErrorClassifier, KIND_UNKNOWN } from './init-project-error-kinds.js'
+// 宿主今天还要用的三件（检测链超时、单票状态归一、建仓错误分档）已不在本文件转出：
+// #1170 把「宿主取件」收回装配点 src/tracker/registry/builtins.ts 自己取（见那里的 loadGithubHostExtras），
+// 本文件只留房间自己的对外契约。往这里加导出之前先问一句：这是房间的能力，还是宿主的方便？
 
 /**
  * BackendModule（供 registry.register 用）。

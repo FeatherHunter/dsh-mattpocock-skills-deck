@@ -37,14 +37,14 @@ export function createRemotePredicates() {
         if (cands.length === 0) {
           return { status: 'fail', detail: zh ? '尚未生成关卡地图（先执行本地 Markdown 初始化）' : 'No map file yet — run Local Markdown setup first' }
         }
-        // #1161：宿主不再直接深引房间实现（规则 rooms-imported-only-by-assembly），本地图谱解析
-        //   经装配点 src/tracker/registry/builtins.ts 从 markdown 房的公开面取。
-        const { loadBuiltinRoom } = await import('../tracker/registry/builtins.js')
-        const mdRoom = await loadBuiltinRoom('markdown')
+        // #1161：宿主不再直接深引房间实现（规则 rooms-imported-only-by-assembly）。
+        // #1170：装配点不再从房间公开面转出，改由装配点自己取出这一件交给宿主（loadMarkdownHostExtras）。
+        const { loadMarkdownHostExtras } = await import('../tracker/registry/builtins.js')
+        const mdExtras = await loadMarkdownHostExtras()
         // 只当「文本进、结果出」的函数用：这一层不关心解析结果的形状（meta 由房间自己解释）。
         //   注：这里不再给 parseMd 另写一套宽签名——房间的签名就是契约，自己写一份宽签名等于把
         //   房间的接口在宿主侧又抄一遍（#1161 要消灭的正是这种第二份口径）。
-        const parseMd = mdRoom.parseMd
+        const parseMd = mdExtras.parseMd
         if (typeof parseMd !== 'function') return { status: 'pending', detail: 'parseMd not exported' }
         let lastErr = ''
         for (const rel of cands) {

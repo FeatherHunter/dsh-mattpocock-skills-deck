@@ -4,8 +4,9 @@
 // 接线：由 index.js 动态 import 加载；执行器/注册表/解析函数等 18 项依赖全显式注入；本文件除装配点
 //   （src/tracker/registry/builtins.ts，见下方 githubRoom）外不引用其他新文件。
 // #1161：从前这里是 `import { pullStateOf } from '../tracker/rooms/github/normalize.js'` —— 宿主直接深引
-//   房间实现。宿主侧不许再这样引（规则 rooms-imported-only-by-assembly），改经装配点从 github 房公开面取。
-//   懒加载一次、之后复用同一个 Promise：房间在插件启动时已由装配点加载过，这里不会多花一次加载。
+//   房间实现。宿主侧不许再这样引（规则 rooms-imported-only-by-assembly），改经装配点取。
+// #1170：装配点不再从房间公开面转出（那是临时脚手架），改成装配点自己取出这几件交给宿主
+//   （src/tracker/registry/builtins.ts 的 loadGithubHostExtras）。懒加载一次、之后复用同一个 Promise。
 //
 // 类型怎么标的（与 src/host/git-process.ts 的 #1155 口径一致）：注入进来的能力按本文件实际用到的部分写成
 // 最小接口；后端回来的 JSON 走 JSON.parse（它的返回类型天然是 any），所以 any 只出现在「后端 JSON → 内部
@@ -31,13 +32,13 @@ interface Deps {
   getGhLastError?: unknown
 }
 
-/** github 房的公开面（经装配点取，见下方 githubRoom）。 */
-type GithubRoom = import('../tracker/registry/builtins.js').BuiltinRoomNamespace['github']
+/** 装配点交出来的 github 房那几件实现（#1170）。 */
+type GithubExtras = import('../tracker/registry/builtins.js').GithubHostExtras
 
-let _ghRoomP: Promise<GithubRoom> | null = null
-function githubRoom(): Promise<GithubRoom> {
-  if (!_ghRoomP) _ghRoomP = import('../tracker/registry/builtins.js').then(function (m) { return m.loadBuiltinRoom('github') })
-  return _ghRoomP
+let _ghExtrasP: Promise<GithubExtras> | null = null
+function githubExtras(): Promise<GithubExtras> {
+  if (!_ghExtrasP) _ghExtrasP = import('../tracker/registry/builtins.js').then(function (m) { return m.loadGithubHostExtras() })
+  return _ghExtrasP
 }
 
 export function createIssueDetail(deps: Deps) {
@@ -110,9 +111,9 @@ export function createIssueDetail(deps: Deps) {
             blockedBy.nodes = arr.map(function (b: any) { return { number: b.number != null ? b.number : b.id, title: b.title || '', state: (String(b.state).toLowerCase()==='closed' ? 'CLOSED' : 'OPEN') } })
           }
         } catch (e) {}
-        const ghRoom = await githubRoom()
+        const ghExtras = await githubExtras()
         const mapped = {
-          number: issue.number, title: issue.title, state: ghRoom.pullStateOf(issue),
+          number: issue.number, title: issue.title, state: ghExtras.pullStateOf(issue),
           body: issue.body || '', url: issue.html_url || ('https://github.com/' + repo.owner + '/' + repo.name + (isPR ? '/pull/' : '/issues/') + n),
           updatedAt: issue.updated_at, createdAt: issue.created_at, closedAt: issue.closed_at,
           author: (issue.user && issue.user.login) ? { login: issue.user.login, name: (issue.user.name || ''), avatarUrl: (issue.user.avatar_url || '') } : undefined,
@@ -149,8 +150,8 @@ export function createIssueDetail(deps: Deps) {
           if (!pr) return { miss: true }
           pr.isPullRequest = true; pr.subIssues = { totalCount: 0, nodes: [] }; pr.blockedBy = { nodes: [] }; pr.blocking = { nodes: [] }
           // #599：已合并的拉取请求在 GitHub 那边 state=MERGED，这里收成契约的已关闭（与列表同一条规则）
-          const ghRoom = await githubRoom()
-          pr.state = ghRoom.pullStateOf(pr)
+          const ghExtras = await githubExtras()
+          pr.state = ghExtras.pullStateOf(pr)
           return { found: true, issue: pr }
         } catch (e) { return { miss: true } }
       }
