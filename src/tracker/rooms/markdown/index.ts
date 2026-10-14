@@ -59,19 +59,16 @@ export async function matches(handle: RepoHandle, ctx: OpContext): Promise<boole
     }
     const root=plat.join(cwd,'.scratch')
     candidatePaths.push(plat.join(root,'map.md'))
-    try{
-      const fs=ctx&&ctx.platform?ctx.platform.fs:(ctx&&ctx.fs)||(ctx&&typeof ctx.get==='function'?ctx.get('fs'):null)
-      let entries: unknown[]=[]
-      if(fs&&typeof fs.resolve==='function'&&typeof fs.listDir==='function'){try{const t=await fs.resolve(root);entries=await fs.listDir(t)}catch{}}
-      else if(fs&&typeof fs.readdir==='function'){try{entries=await fs.readdir(root)}catch{}}
-      for(const e of entries){
-        // 目录项可能是字符串或 {name}：取出来按字符串用；`as string` 只收类型视野，
-        // 运行时还是原值（name 真不是字符串时原来怎么崩现在还怎么崩，不在这里改判）。
-        const name=(typeof e==='string'?e:(e&&(e as Record<string, unknown>).name)||'') as string
-        if(!name||name.startsWith('.'))continue
-        candidatePaths.push(plat.join(root,name,'map.md'))
-      }
-    }catch{}
+    // 这里原来还会列举 `.scratch` 下的每个条目、逐个拼一个 `<名字>/map.md` 去试（#1129 删掉）。
+    // 为什么删：那是在猜 map.md 在哪，而不是读调用方说出来的事实。真机上 wayfinder 的地图写在
+    // `.scratch/<effort>/map.md`，根级 `.scratch/map.md` 并不存在——本机四个 Local Markdown 工作区
+    // （matt-demo-markdown、matt-demo-markdown-test1、demo-md-1、dsh-matt-md-09323）都是这个形态，
+    // 它们能被认出来靠的是下面声明文件的兜底，遍历对它们没有用处；而只要一个工作区在 `.scratch` 下
+    // 留过一张本地地图（本仓的 `.scratch/572-debug/map.md` 就是），旧实现就会把它误认成 Markdown 后端，
+    // 只是恰好被「多房同时命中时按注册序取第一个」的顺序兜住（src/tracker/registry/core.ts:185-188）。
+    // 成本也是实的：候选数等于 `.scratch` 里的条目数，每个候选至少访问两次文件系统。
+    // 反例：不要把「扫 `.scratch` 找 map.md」加回来，包括「只看子目录」「只看唯一那个子目录」这类变体——
+    // 它们同样是猜。要认下一个工作区，就让它把话说明白：`.scratch/map.md` 在，或者声明文件指向 markdown。
     for(const p of candidatePaths){if(await exists(ctx,p))return true}
     // bug 修复：setup 已选 Local Markdown 但尚未落 map.md 时，仍应算 Markdown 身份（底层 Markdown 格式以 docs/agents/issue-tracker.md 声明为准，非仅 map.md 数据）
     try{
