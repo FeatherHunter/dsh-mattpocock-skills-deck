@@ -1,5 +1,5 @@
 /**
- * tests/lib/eval-probe.js —— 验证脚本要按文本求值时走这里，不要各写各的。
+ * tests/lib/eval-probe.ts —— 验证脚本要按文本求值时走这里，不要各写各的。
  *
  * 为什么需要这个文件
  *   tests/ 下有八十来个门禁脚本，做法都是同一个：从被测源码里切出一段函数文本，当场求值成函数，
@@ -28,6 +28,12 @@
  *   “Cannot use import statement outside a module” 或 “Unexpected token”，看到的人得自己推。
  *   诊断集中在 describeFailure 里，按文本形状指名说清，并给出两条可行改法（见该函数注释）。
  *
+ * 调用方怎么写说明符
+ *   仓里绝大多数调用方写的是 './lib/eval-probe.js'（迁移期的常规写法），靠 scripts/ts-hook.mjs
+ *   把 .js 说明符改指到本文件，所以那些调用方必须挂着钩子跑（验证链会自动挂）。
+ *   写显式 './lib/eval-probe.ts' 的调用方则可以直接跑、不用钩子 —— 本文件只引 node:vm，
+ *   没有任何仓库内的依赖。
+ *
  * 真 Chromium 里跑的那三处探针不在这里：页面里引不进 Node 模块，它们按同一做法（插一段经典脚本）
  * 各写了一份页面内小函数，位置见各自文件里的注释。
  * 换行符注意：本仓库已声明文本文件一律 LF 检出（见根目录 .gitattributes），
@@ -38,13 +44,19 @@
 const vm = require('node:vm')
 
 /**
+ * 造出来的函数长什么样：参数与返回值都由被求值的那段文本决定，编译期无从得知，只能给宽形状。
+ * 写成 any 而不是 unknown，是因为调用方普遍直接拿结果做比较与运算（这是测试脚本，不是产品代码）。
+ */
+type CompiledFn = (...args: any[]) => any
+
+/**
  * 把参数拆成一个个独立名字。
  * 两种写法都要支持：参数名一个个分开传的，和把参数名拼成一个带逗号的字符串传的。
  * 而 vm.compileFunction 的 params 数组里不允许出现带逗号的元素，
  * Node v24 遇到会直接断言崩溃（不是抛异常，是整个进程挂掉），所以这里必须先拆开再交给它。
  */
-function splitParamNames(params) {
-  const out = []
+function splitParamNames(params: readonly unknown[] | null | undefined): string[] {
+  const out: string[] = []
   for (const raw of params || []) {
     for (const piece of String(raw).split(',')) {
       const name = piece.trim()
@@ -64,8 +76,9 @@ function splitParamNames(params) {
  *   ② 只把要测的那一段函数文本切出来，不要用整份文件。
  * 只在求值已经失败之后才调用，所以就算猜错了也不会影响跑得通的门禁。
  */
-function describeFailure(err, code) {
-  const lines = [String((err && err.message) || err)]
+function describeFailure(err: unknown, code: string): Error {
+  const reason = (err as { message?: unknown } | null | undefined)?.message
+  const lines: string[] = [String(reason || err)]
   if (/(^|\n)[ \t]*(?:import|export)\s/.test(code)) {
     lines.push('这段文本里有模块级的 import/export —— 看着是整份源码文件，不是一段函数文本。')
     lines.push('vm.compileFunction 造的是函数体，函数体里不能出现 import/export。两种改法：')
@@ -81,9 +94,9 @@ function describeFailure(err, code) {
     lines.push('这段文本里可能有 TypeScript 的类型标注（写成「名字: 类型」或「值 as 类型」）—— vm.compileFunction 只吃纯 JavaScript，不做类型剥离。')
     lines.push('这是按文本形状给的线索，不是结论：如果确实不是类型标注，可以忽略这一条。')
   }
-  if (lines.length === 1) return err
-  const out = new Error(lines.join('\n'))
-  out.name = (err && err.name) || 'Error'
+  if (lines.length === 1) return err as Error
+  const out = new Error(lines.join('\n')) as Error & { cause?: unknown }
+  out.name = (err as { name?: string } | null | undefined)?.name || 'Error'
   out.cause = err
   return out
 }
@@ -94,10 +107,10 @@ function describeFailure(err, code) {
  * 造出来的对象属于当前环境（Array.isArray 与 instanceof 的结论都一致）。
  * 造不出来时抛出的错误里会带上原因（见 describeFailure）。
  */
-function compileFn(params, body) {
+function compileFn(params: readonly unknown[] | null | undefined, body: unknown): CompiledFn {
   const code = String(body)
   try {
-    return vm.compileFunction(code, splitParamNames(params), { filename: 'eval-probe.js' })
+    return vm.compileFunction(code, splitParamNames(params), { filename: 'eval-probe.ts' }) as CompiledFn
   } catch (err) {
     throw describeFailure(err, code)
   }
@@ -108,17 +121,17 @@ function compileFn(params, body) {
  * 原来那种写法能看见调用处所在作用域的变量；这里改成显式传 scope，看得到哪些变量一目了然。
  * 例：evalWithScope('function (b) { return b + OUTER }', { OUTER: 3 })(5) === 8
  */
-function evalWithScope(expr, scope) {
+function evalWithScope(expr: unknown, scope?: Record<string, unknown> | null): any {
   const names = Object.keys(scope || {})
   const factory = compileFn(names, 'return (' + String(expr) + ')')
-  return factory.apply(null, names.map((name) => scope[name]))
+  return factory.apply(null, names.map((name) => (scope as Record<string, unknown>)[name]))
 }
 
 /**
  * 在 jsdom 窗口里执行一段代码，等价于 dom.window 上的求值。
  * 要求 jsdom 建的时候开了 runScripts（'outside-only' 或 'dangerously'），否则拿不到内部环境。
  */
-function evalInWindow(dom, code) {
+function evalInWindow(dom: { getInternalVMContext(): any }, code: unknown): any {
   return vm.runInContext(String(code), dom.getInternalVMContext())
 }
 

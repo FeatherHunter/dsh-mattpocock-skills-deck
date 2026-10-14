@@ -25,7 +25,9 @@ const path = require('path')
 // 引真源的规矩：能直接引模块就别把文件文本当函数体求值 —— 整份文本里只要出现 import、interface
 // 或类型标注，vm.compileFunction 就当场抛错（#1167 从 #1147 起一直红着，就是这个原因）。
 // 文本求值只留给「必须注入替身」的那种文件：下面 truthLines.js 那一段靠参数名拿五个替身，继续走 compileFn。
-const { compileFn } = require('./lib/eval-probe.js')
+// 后半段（truthLines）仍然走共用求值入口；说明符写成显式 .ts，所以这份门禁挂着钩子跑、裸着跑都行
+// （共用入口只引 node:vm，没有仓库内的依赖；写 .js 的调用方则必须挂 scripts/ts-hook.mjs）。
+const { compileFn } = require('./lib/eval-probe.ts')
 const ROOT = path.join(__dirname, '..')
 let failed = false
 const check = function (cond, msg) {

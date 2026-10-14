@@ -86,6 +86,17 @@ const SKIP_DIR_PREFIXES = ['.tmp', '.git', '.worktrees', '.dsh-tmp', '.scratch']
 
 const SOURCE_EXTENSIONS = ['.js', '.mjs', '.cjs', '.jsx', '.ts', '.mts', '.cts', '.tsx', '.json']
 
+// 手写 JavaScript 转 TypeScript 时文件名会换后缀，而引用它的地方往往还写着旧后缀
+// （迁移期的常规写法，靠 scripts/ts-hook.mjs 把说明符改指到新文件）。归属推导要认得出这种情况，
+// 否则每转一个文件，引用它的那几扇门禁就会静默地从归属表里掉出去。
+// 只认「同一家族」的四个替换，不做任意后缀互换：不然 './x.js' 会被错认成 x.json。
+const MIGRATED_EXTENSION_ALIASES = {
+  '.js': ['.ts'],
+  '.mjs': ['.mts'],
+  '.cjs': ['.cts'],
+  '.jsx': ['.tsx'],
+}
+
 // ---------------------------------------------------------------------------
 // 基础工具
 // ---------------------------------------------------------------------------
@@ -386,14 +397,19 @@ export function resolveRepoPath(raw, fromDirRel, exists) {
   return null
 }
 
-/** 原样找；找不到就补常见后缀、补 /index.*，都找不到返回 null。 */
+/** 原样找；找不到就把迁移期换过后缀的名字找来（foo.js → foo.ts）；再找不到就补 /index.*，都找不到返回 null。 */
 function lookupWithExtensions(cand, exists) {
   if (exists.files.has(cand) || exists.dirs.has(cand)) return cand
-  for (const ext of SOURCE_EXTENSIONS) {
-    if (exists.files.has(cand + ext)) return cand + ext
+  const ext = path.posix.extname(cand)
+  for (const alias of MIGRATED_EXTENSION_ALIASES[ext] || []) {
+    const swapped = cand.slice(0, cand.length - ext.length) + alias
+    if (exists.files.has(swapped)) return swapped
   }
-  for (const ext of SOURCE_EXTENSIONS) {
-    if (exists.files.has(cand + '/index' + ext)) return cand + '/index' + ext
+  for (const e of SOURCE_EXTENSIONS) {
+    if (exists.files.has(cand + e)) return cand + e
+  }
+  for (const e of SOURCE_EXTENSIONS) {
+    if (exists.files.has(cand + '/index' + e)) return cand + '/index' + e
   }
   return null
 }

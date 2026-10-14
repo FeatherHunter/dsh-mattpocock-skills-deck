@@ -402,7 +402,6 @@
     "tests/fixtures/gh-gateway/violating/src/host/badRegistered.js",
     "tests/lib/browser-pool.js",
     "tests/lib/deck-decide-stub.js",
-    "tests/lib/eval-probe.js",
     "tests/lib/render-subws-mark.js",
     "tests/playwright-e2e-probe.js",
     "tests/repro-666-mark-never-rendered.js",

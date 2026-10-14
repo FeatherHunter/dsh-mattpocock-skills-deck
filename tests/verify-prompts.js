@@ -1457,7 +1457,10 @@ const runL2Injection = function () {
       let out = ''
       let code = 0
       try {
-        out = childProcess.execFileSync(process.execPath, [SELF].concat(args), {
+        // 子进程不会继承父进程的装载钩子（见 AGENTS.md「链上脚本 spawn 出去的子进程不带钩子」）。
+        // 本文件顶部按 .js 说明符加载的共用求值入口已经改名为 .ts，所以这里必须显式带上钩子；
+        // 不带的话子进程一启动就报 MODULE_NOT_FOUND，下面按 FAIL 行做的断言会全部失真。
+        out = childProcess.execFileSync(process.execPath, ['--import', './scripts/ts-hook.mjs', SELF].concat(args), {
           cwd: ROOT, encoding: 'utf8', env: Object.assign({}, process.env, { DSH_VERIFY_PROMPTS_CHILD: '1' }), stdio: ['ignore', 'pipe', 'pipe'],
         })
         code = 0
@@ -1534,10 +1537,12 @@ const selfDigest = function () {
 // #989：mapExecute 恢复纯寻路版 v12 文字（五节单票推进），断言同步回到五节版，自摘要跟着重算。
 // #1095：搬家跟随（后端路径改到 src/tracker/rooms），自摘要一并重算。
 // #1110：GitLab 房入口转成 TypeScript 后，本文件三份后端源码的路径统一读 index.ts，自摘要一并重算。
+// #1167：共用求值入口 tests/lib/eval-probe.js 转成 TypeScript 后，L2 注入那节的子进程要显式带上装载钩子
+//   （子进程不继承父进程的钩子），否则子进程一启动就找不到那个按 .js 说明符写的模块，自摘要一并重算。
 const LOCK = {
   'tests/prompt-gate-exempt.json': 'c661ccd0fbfd46aa99790c073d0ccea89ebf5787a9113462c092b17c72a2a2d9',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.js': '79c1fd991faf09da93dae4fc5db623a87398a1e8119445079a2b3fd5777566f1',
+  'tests/verify-prompts.js': '749700710c28fec5353eb6c3ccee7b574bb587f57d7d208d222541e98d02f63e',
 }
 // ---- LOCK-END ----
 
