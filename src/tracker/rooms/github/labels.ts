@@ -1,5 +1,7 @@
 /**
- * backends/github/labels.js — 「票身上带哪些标签」的实现（#133 定版 + #138 落地）。
+ * src/tracker/rooms/github/labels.ts — 「票身上带哪些标签」的实现（#133 定版 + #138 落地）。
+ *
+ * 文件头原写 `backends/github/labels.js`，是 #1019 目录归位前的旧路径；#1052 按读路径这一片改成今天的真名。
  *
  * 契约：`setLabels(repo, key, labels: LabelInput[], opts?: SetOpts, ctx: OpContext): Promise<OpResult<Issue>>`
  *  - `LabelInput = string | {name: string, color?: string, description?: string}`

@@ -1,5 +1,7 @@
 /**
- * backends/github/normalize.js — GitHub 原始形状 → 契约标准形状。
+ * src/tracker/rooms/github/normalize.ts — GitHub 原始形状 → 契约标准形状。
+ *
+ * 文件头原写 `backends/github/normalize.js`，是 #1019 目录归位前的旧路径；#1052 按读路径这一片改成今天的真名。
  *
  * 定版依据：#126（Label 形状与 EMPTY/MISSING）+#127（单 key/无 number/无 subIssues/树边=parentKey+tickets）
  * +#124（setLabels/create labels 富输入）+#138 一页纸方案（形状归一不变量）

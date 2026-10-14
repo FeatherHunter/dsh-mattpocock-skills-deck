@@ -1,10 +1,12 @@
 /**
- * backends/github/issues.js — issue 读路径（list / get + REST 降级 + 内存过滤）。
+ * src/tracker/rooms/github/issues.ts — issue 读路径（list / get + REST 降级 + 内存过滤）。
  *
- * #440 拆分后：写路径见 issues-write.js。parseRepo / repoId 导出供写路径共享。
- * #504：拉取请求主路（GraphQL 双查询同池）+ REST 帮手见 pulls.js（单文件 350 行纪律）。
+ * 文件头原写 `backends/github/issues.js`，是 #1019 目录归位前的旧路径；#1052 按读路径这一片改成今天的真名。
  *
- * 定版依据：#138 一页纸方案，contract.js 操作签名归一。
+ * #440 拆分后：写路径见 `issues-write.ts`。parseRepo / repoId 导出供写路径共享。
+ * #504：拉取请求主路（GraphQL 双查询同池）+ REST 帮手见 `pulls.ts`（单文件 350 行纪律）。
+ *
+ * 定版依据：#138 一页纸方案，契约操作签名归一。
  * 所有 op 返回 OpResult，不 throw；错误经 ghVerdictOf 归一（判档表在 src/tracker/error-rules.ts）。
  */
 

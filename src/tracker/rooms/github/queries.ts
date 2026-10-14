@@ -1,7 +1,10 @@
 /**
- * backends/github/queries.js — GraphQL 查询/片段。
+ * src/tracker/rooms/github/queries.ts — GraphQL 查询/片段。
  *
  * 定版依据：#127（单 key/无 subIssues）+#126（Label {name,color,description?}）+#137（queries 差距清单）+#138 一页纸方案
+ *
+ * 文件头原写 `backends/github/queries.js`，是 #1019 目录归位前的旧路径；#1052 把读路径这一片的文件头
+ * 逐个改成今天的真名（本文件也在这一片里）。改名不动一行查询文本：这里只有一个字符串常量与一个默认对象。
  *
  * 不变量：
  *  - `number` 仅作 `key=String(number)` 的来源，不作为契约字段产出（harness 断言 no number）。

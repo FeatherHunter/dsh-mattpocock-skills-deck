@@ -1,7 +1,8 @@
 /**
- * backends/github/fallback-reason.js — 降级原因分类（#504 雾证据补强）。
+ * src/tracker/rooms/github/fallback-reason.ts — 降级原因分类（#504 雾证据补强）。
  *
- * 由 issues.js 拆出（单文件 350 行纪律：房内拆文件不拆房）。
+ * 由 `issues.ts` 拆出（单文件 350 行纪律：房内拆文件不拆房）。文件头原写 `backends/github/fallback-reason.js`，
+ * 是 #1019 目录归位前的旧路径；#1052 按读路径这一片改成今天的真名。
  * 不再恒写 graphql-error，按失败现场给细分原因，只复用现有事件名与字段，附录不动。
  * 超时文案 → timeout；限流文案或 429 → rate-limit；企业版主机 → ghe-host；其余 → graphql-error。
  * 企业版只看主机名是否非 github.com（GH_HOST 环境变量或报错里的主机名），不记地址原文。

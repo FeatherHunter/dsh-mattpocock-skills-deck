@@ -1,17 +1,22 @@
 /**
- * backends/github/sub-issues.js —— 取一张地图的**全部**子票（#691 阶段 3：「地图子票拉全」）。
+ * src/tracker/rooms/github/sub-issues.ts —— 取一张地图的**全部**子票（#691 阶段 3：「地图子票拉全」）。
+ *
+ * 文件头原写 `backends/github/sub-issues.js`，是 #1019 目录归位前的旧路径；#1052 按读路径这一片改成今天的真名。
  *
  * 为什么要单独一条路，而不是从列表里捞：
- *   列表（issues.js 的 list）取的是整个仓库的票，带 500 条安全上限 —— 一张子票超过 100 张的地图
+ *   列表（`issues.ts` 的 list）取的是整个仓库的票，带 500 条安全上限 —— 一张子票超过 100 张的地图
  *   会被这条上限截断，「打开地图看不到全部子票」就是这么来的。这条查询从「父票 → 子票」的原生关系
  *   往下取，按页翻到底，不受那个上限影响；连接上的 totalCount 用来核对「拉到的张数 == 总数」。
  *
  * 代价与时机：每 100 张一页。只有用户真的打开一张地图时才跑 —— 唯一调用者是宿主电话
- *   wf.mapTickets（src/host/mapTickets.js），它不参与快照首屏的组装。
+ *   wf.mapTickets（`src/host/mapTickets.js`），它不参与快照首屏的组装。
  *
- * 名字为什么不进契约的 OPERATIONS：它是读路径的实现细节，与 `snapshotFast` 同一条豁免
- *   （见 tracker/contract.js 的「非 op 旁路豁免」）。没实现它的后端由电话按 unsupported 退化，
- *   界面退回快照里那份行数据，不做能力表（G5 红线）。
+ * 名字为什么进契约的 OPERATIONS（#1052 改：这句原先写的是反话，今天已经不成立）：
+ *   它**已经**是契约操作 `Tracker.listSubIssues`（名录第 21 条，见
+ *   `src/tracker/contract/operations-catalog.ts`）。收进来的理由是同一条：它的调用者
+ *   wf.mapTickets 在房外 —— 房外有读者，它就不是某一家后端的实现细节。
+ *   没实现它的后端由注册表按名录自动补一句「不支持」（`src/tracker/registry/shape.ts` 的
+ *   unsupportedStub），界面退回快照里那份行数据，不做能力表（G5 红线）。
  *
  * 失败与「不许静默少几条」：
  *  - 任何一页请求失败都回 {ok:false}，绝不返回半份数据装作拉全了；

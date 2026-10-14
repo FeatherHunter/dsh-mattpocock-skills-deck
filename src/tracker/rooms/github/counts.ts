@@ -1,5 +1,8 @@
 /**
- * backends/github/counts.js — 后端计数（counts op；契约见 tracker/contract.js 的「计数契约」，#689 新加）。
+ * src/tracker/rooms/github/counts.ts — 后端计数（counts op；契约见 `src/tracker/contract/operations.ts` 的「计数契约」，#689 新加）。
+ *
+ * 文件头原写 `backends/github/counts.js`，契约也写作 `tracker/contract.js`——两份都是 #1019 目录归位前的旧路径；
+ * #1052 按读路径这一片改成今天的真名。
  *
  * 这一条只回答「库里符合条件的工单有多少张」，一个行都不返回。面板顶部那几个数字原先由客户端数手上
  * 那份票池得到，而票池被本后端的 500 条安全上限截断过，于是数字跟着偏（缺陷票 #677）；数字改问后端要，

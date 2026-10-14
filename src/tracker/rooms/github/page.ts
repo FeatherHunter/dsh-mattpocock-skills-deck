@@ -1,5 +1,8 @@
 /**
- * backends/github/page.js — 按页取票（listPage 那条操作；契约见 tracker/contract-page.js 的「分页契约」，#690 新加）。
+ * src/tracker/rooms/github/page.ts — 按页取票（listPage 那条操作；契约见 `src/tracker/contract/contract-page.ts` 的「分页契约」，#690 新加）。
+ *
+ * 文件头原写 `backends/github/page.js`、契约也写作 `tracker/contract-page.js`——两份都是 #1019 目录归位前的旧路径；
+ * #1052 按读路径这一片改成今天的真名。文件内另有几处旧路径注释，随本票一并改到真名。
  *
  * 这一条只干一件事：按「创建时间倒序」取一页票的行数据，外加「同一口径下一共多少张」。谁要它 ——
  * 界面上的三个触发点（展开「已关闭 N」那条折叠行、状态筛选切到「已关闭」、已加载区滚到底）都要翻历史；

@@ -1,8 +1,13 @@
 /**
- * backends/github/checks.js — 检查目录定义（GITHUB_CHECKS / checks）。
+ * src/tracker/rooms/github/checks.ts — 检查目录定义（GITHUB_CHECKS / checks）。
  *
- * 由 #440 从 index.js 纯结构移出，行为零变化。
+ * 由 #440 从 index.js 纯结构移出，行为零变化。文件头原写 `backends/github/checks.js`，
+ * 是 #1019 目录归位前的旧路径；#1052 按读路径这一片改到今天的真名。
  * 以后改检查项定义的人改它。预估约 60 行。
+ *
+ * 为什么这份文件一条日志也不记（#1052 逐份判过）：它只交出一份写死的常量表，
+ * 没有外部调用、没有时间边界、也没有状态变化——在这里加日志属于「只记结果不记原因」，
+ * 读了也指不出下一步该查哪里。真正会失败的判断在 `preflight.ts` 那三项门禁里。
  */
 
 // ============ checks() 目录：GitHub 后端 4 项（c1/c4/c5/c6 语义不变） ============

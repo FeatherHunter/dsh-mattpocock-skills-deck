@@ -1,7 +1,9 @@
 /**
- * backends/github/preflight.js — 探测/登录/API 可达（三项门禁，只判环境，不预判能力）。
+ * src/tracker/rooms/github/preflight.ts — 探测/登录/API 可达（三项门禁，只判环境，不预判能力）。
  *
- * 定版依据：#138 §1.5 + contract.js preflight 签名 + #129 平台三底座
+ * 文件头原写 `backends/github/preflight.js`，是 #1019 目录归位前的旧路径；#1052 按读路径这一片改成今天的真名。
+ *
+ * 定版依据：#138 §1.5 + 契约 preflight 签名 + #129 平台三底座
  * - 签名：(handle: RepoHandle, ctx: OpContext) => Promise<PreflightResult>
  *   handle: {cwd?, refId?}；ctx: BackendContext（含 platform/exec/timers/fs/log）+ cwd/signal/refId
  * - 三项检查顺序：1) gh 可执行 → env；2) 登录态 → auth；3) 仓库可达 → not-found/auth/network/rate-limit
