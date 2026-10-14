@@ -5,6 +5,13 @@
  * 旧文件一个字节都不动（src/host/logStore.js、src/host/logPhones.js、src/client/kernel/log.js 原地只读留存，
  * 门禁仍读它们）；运行时走这里生成的新文件。真删除旧文件另开票，本票只做共存。
  *
+ * 早失败哨兵（为日志包升到 0.3.0 那一趟准备）：写文件之前，本脚本会把「自己与客户端 tail 依赖包的那些名字」
+ * 逐个核一遍（工厂名、返回对象上要用到的名字、五个电话字段名、注释归一的两个字面、客户端那三条自监控事件名），
+ * 缺谁就把谁列出来当场失败。为什么必须这样：包改名不会让打包失败——工厂名换了要等运行时报错，
+ * 返回对象少一个名字会静默变成 undefined，归一字面没了则 replace 不生效、派生文件悄悄变样。
+ * 边界说清楚：这是文本级的存在性检查，不是类型检查（名字在产物里出现过≠运行时一定有值）；
+ * 行为上的最终证明仍在双产物门禁与冒烟里，这里只求把「升级后静默错位」提前到构建时暴露。
+ *
  * 派生内容（只剩客户端那一处；宿主那半按 #1016 退场，理由见下）：
  *   客户端侧：把已安装包 dist/client.js 打包成单文件（依赖的配置面内联，无外部引用；来源注释归一到与旧输出一致），
  *      末尾用闭包里现成的四个名字（host、timer、localStorage、broadcastLogSwitch）建日志器，
@@ -57,6 +64,53 @@ function requireEsbuild() {
   }
 }
 
+// ---- 早失败哨兵：本脚本与客户端 tail 依赖包的那些名字（理由与边界见文件头）----
+// 长名字才有信号：改一个就当场列出来。短名字（log、flush、isEnabled、hash8、logSwitch、logQueue）在产物里
+// 必然出现，检查它们抓不到改名，列在这里只作「我们用到哪些名字」的清单留痕。
+const REQUIRED_FACTORY = 'createClientLog'
+const REQUIRED_MEMBERS = [
+  'readLocalDebugSwitch', 'persistLocalDebugSwitch', 'logSwitch', 'logQueue', 'logDroppedState',
+  'logForwardState', 'logFlushTimer', 'isEnabled', 'log', 'scheduleLogFlush', 'estimateBatchBytes',
+  'maybeForwardSummary', 'hash8', 'logExportFail', 'watchSwitchOp', 'sendLogBatch', 'flush',
+  'getDroppedCount', 'reconcileLogSwitch', 'setLogSwitch', 'phoneNames',
+]
+const REQUIRED_PHONE_FIELDS = ['logBatch', 'logExport', 'logClear', 'logGetSwitch', 'logSetSwitch']
+const REQUIRED_SOURCE_COMMENTS = ['// packages/dsh-log/src/config.ts', '// packages/dsh-log/src/client.ts']
+// 引号归一的名单照旧是自监控那一族五条，但只有三条出现在客户端产物里（实测 2026-10-14，dsh-log 0.2.2）：
+//   log.forward.summary / log.switch.watchdog / log.export.fail 在 dist/client.js；
+//   host.dispatch.error 由本仓宿主侧发射（src/host/rpcChannel.js:96、:119，src/host/index.js:337），
+//   log.persist.fail 在包的宿主那一半（node_modules/dsh-log/dist/store.js）。
+// 所以只对客户端这三条设断言；另外两条仍走同一次归一循环（它们各归各自的那一半，这里只是照旧带上）。
+const SELF_MONITOR_EVENTS = [
+  'host.dispatch.error', 'log.persist.fail', 'log.forward.summary', 'log.switch.watchdog', 'log.export.fail',
+]
+const REQUIRED_CLIENT_EVENTS = ['log.forward.summary', 'log.switch.watchdog', 'log.export.fail']
+
+function assertPackageSurface(body) {
+  const missing = []
+  if (!body.includes(REQUIRED_FACTORY)) missing.push('工厂名 ' + REQUIRED_FACTORY + '（客户端 tail 要用它建日志器）')
+  for (const name of REQUIRED_MEMBERS) {
+    if (!body.includes(name)) missing.push('返回对象上的名字 ' + name + '（tail 的 export 行要读它）')
+  }
+  for (const name of REQUIRED_PHONE_FIELDS) {
+    if (!body.includes(name)) missing.push('电话字段名 ' + name + '（tail 末尾那行零变化断言要读它）')
+  }
+  for (const literal of REQUIRED_SOURCE_COMMENTS) {
+    if (!body.includes(literal)) missing.push('注释归一的字面 ' + literal + '（改了这个 replace 静默不生效）')
+  }
+  for (const name of REQUIRED_CLIENT_EVENTS) {
+    if (!body.includes('"' + name + '"') && !body.includes("'" + name + "'")) {
+      missing.push('客户端自监控事件名 ' + name + '（改了这个引号归一静默不生效）')
+    }
+  }
+  if (missing.length) {
+    throw new Error(
+      '[derive-log] 已安装的日志包里找不到本脚本依赖的名字。升级或改名时请把本脚本与客户端 tail 一起改，' +
+        '不要放过这条：\n  - ' + missing.join('\n  - ')
+    )
+  }
+}
+
 export function deriveClient() {
   const esbuild = requireEsbuild()
   const entry = resolve(PKG_DIST, 'client.js')
@@ -87,9 +141,11 @@ export function deriveClient() {
   body = body.replace(/\s+$/, '') + '\n'
   // 引号归一（行为不变）：打包器输出双引号，旧模块用单引号；双产物门禁要求客户端事件以单引号形态出现，
   // 这里只换自监控 5 个事件名字面（内容无单引号，纯换引号不改行为）。
-  for (const name of ['host.dispatch.error', 'log.persist.fail', 'log.forward.summary', 'log.switch.watchdog', 'log.export.fail']) {
+  for (const name of SELF_MONITOR_EVENTS) {
     body = body.split('"' + name + '"').join("'" + name + "'")
   }
+  // 归一做完了再核名字：报出来的缺失就是「这批归一与 tail 对不上」，不会被先后顺序误导。
+  assertPackageSurface(body)
   const tail =
     '\n' +
     '// ---- 实例化（#564）：用闭包里现成的四个名字建日志器，插件标识 wf，默认配置与旧行为一致 ----\n' +
