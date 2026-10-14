@@ -11,9 +11,10 @@
  *   已知取舍：上面三种成因都回同一个空值，调用方分不出「这家后端没有票地址这个概念」和
  *   「这家后端坏了」。今天这三个方法在 src/ 里没有生产调用方（客户端走各后端 links 模板那条路），
  *   所以先不为它加区分；将来真要有调用方需要分辨，再单独立票改接口。
- * 改名（#1110 实现决定第 14 条）：三个名字改成与后端无关的说法（本地后端给的是路径不是网址，
- *   所以叫「地址」）；老名字 issueUrl / linkPattern / searchUrl 保留一轮别名（本文件末尾的常量导出），
- *   新名字是主。取的时候新名字优先、老名字兜底，所以「后端只写了老名字」在窗口内照旧可用。
+ * 改名与旧名退役（#1110 实现决定第 14 条 → #1133 改名 → #1141 删旧名）：这三个能力讲的是「地址」
+ *   不是「网址」，因为本地 Markdown 后端给的是票文件路径。改名时网址口吻的老名字作为同义别名留过
+ *   一轮，取值也是新名优先、老名兜底；客户端与宿主都不再读它们之后，兜底与别名一并删净，
+ *   所以本文件今天只剩这三个新名字这一套，末尾也没有老名字的常量导出。
  */
 
 /** 出 RepositoryRef：转发 BackendModule.describe（可选），回退骨架（#220 · registry 只转发）。 */
@@ -62,35 +63,32 @@ export function describe(byId, handle, backendId) {
 }
 
 /**
- * 取一个函数口：新名字优先、老名字兜底（别名窗口，#1110 实现决定第 14 条）。
- * 返回 null 表示两个名字都没有可调用的实现。
+ * 取一个函数口：没有可调用的实现就回 null。
+ * #1141 之后只有新名字一种写法——老名字的兜底随别名窗口一起删了，这里不再需要第二个名字参数。
  */
-function pickFn(holder, newName, oldName) {
+function pickFn(holder, name) {
   if (!holder) return null
-  if (typeof holder[newName] === 'function') return holder[newName]
-  if (typeof holder[oldName] === 'function') return holder[oldName]
-  return null
+  return typeof holder[name] === 'function' ? holder[name] : null
 }
 
-/** 取一个真值口（正则或源码串）：新名字优先、老名字兜底；都没有回 null。 */
-function pickValue(holder, newName, oldName) {
+/** 取一个真值口（正则或源码串）：没有就回 null。同 pickFn，只认新名字。 */
+function pickValue(holder, name) {
   if (!holder) return null
-  return holder[newName] || holder[oldName] || null
+  return holder[name] || null
 }
 
 /**
  * issueAddress 只读 view：转发 BackendModule.issueAddress / tracker.issueAddress。
- * 老名字 issueUrl 在别名窗口内仍认（新名字优先、老名字兜底）。
  * 都没有就回空串，不按 backendId 拼地址（#1112：后端没承诺过的地址，注册表不许替它造）。
  * 空串有三种成因且不区分：后端没实现、调用抛错、回的不是字符串。
  */
 export function issueAddress(byId, backendId, ref, key) {
   const entry = byId.get(backendId)
-  const f = pickFn(entry && entry.mod, 'issueAddress', 'issueUrl')
+  const f = pickFn(entry && entry.mod, 'issueAddress')
   if (f) {
     try { const u = f(ref, String(key)); if (typeof u === 'string') return u } catch (e) {}
   }
-  const f2 = pickFn(entry && entry.tracker, 'issueAddress', 'issueUrl')
+  const f2 = pickFn(entry && entry.tracker, 'issueAddress')
   if (f2) {
     try { const u2 = f2(ref, String(key)); if (typeof u2 === 'string') return u2 } catch (e) {}
   }
@@ -99,39 +97,29 @@ export function issueAddress(byId, backendId, ref, key) {
 
 /**
  * issueRefPattern 只读 view：转发 BackendModule.issueRefPattern / tracker.issueRefPattern。
- * 老名字 linkPattern 在别名窗口内仍认（新名字优先、老名字兜底）。
  * 都没有就回 null，不按 backendId 造正则（#1112）。
  */
 export function issueRefPattern(byId, backendId) {
   const entry = byId.get(backendId)
-  const p = pickValue(entry && entry.mod, 'issueRefPattern', 'linkPattern')
+  const p = pickValue(entry && entry.mod, 'issueRefPattern')
   if (p) return p
-  try { const p2 = pickValue(entry && entry.tracker, 'issueRefPattern', 'linkPattern'); if (p2) return p2 } catch (e) {}
+  try { const p2 = pickValue(entry && entry.tracker, 'issueRefPattern'); if (p2) return p2 } catch (e) {}
   return null
 }
 
 /**
  * repoSearchAddress 只读 view：转发 BackendModule.repoSearchAddress / tracker.repoSearchAddress。
- * 老名字 searchUrl 在别名窗口内仍认（新名字优先、老名字兜底）。
  * 都没有就回空串，不按 backendId 拼搜索页（#1112）。
  */
 export function repoSearchAddress(byId, backendId, name) {
   const entry = byId.get(backendId)
-  const f = pickFn(entry && entry.mod, 'repoSearchAddress', 'searchUrl')
+  const f = pickFn(entry && entry.mod, 'repoSearchAddress')
   if (f) {
     try { const u = f(String(name)); if (typeof u === 'string') return u } catch (e) {}
   }
-  const f2 = pickFn(entry && entry.tracker, 'repoSearchAddress', 'searchUrl')
+  const f2 = pickFn(entry && entry.tracker, 'repoSearchAddress')
   if (f2) {
     try { const u2 = f2(String(name)); if (typeof u2 === 'string') return u2 } catch (e) {}
   }
   return ''
 }
-
-/**
- * 老名字别名（#1110 实现决定第 14 条）：保留一轮，客户端与宿主今天还在读。
- * 退役条件是「客户端与宿主都不再读老名字」；退役时连同契约里的同名成员与三份运行时快照一起删。
- */
-export const issueUrl = issueAddress
-export const linkPattern = issueRefPattern
-export const searchUrl = repoSearchAddress

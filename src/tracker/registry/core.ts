@@ -185,15 +185,12 @@ export function createRegistry(backendCtx = {}, opts = {}) {
 
     /** 出 RepositoryRef：转发 BackendModule.describe，见 views.ts（byId 显式传引用）。 */
     describe: (handle, backendId) => describe(byId, handle, backendId),
-    // #1110 实现决定第 14 条：三个链接能力换成与后端无关的名字（issueAddress / repoSearchAddress /
-    // issueRefPattern），老名字 issueUrl / searchUrl / linkPattern 保留一轮别名不断链。
-    // 两组都指到 views.ts 里同一个实现（新名字优先、老名字兜底），所以不存在两份行为。
+    // 链接三件（#1110 实现决定第 14 条 → #1133 改名 → #1141 删旧名）：名字用与后端无关的「地址」
+    // 说法，因为本地 Markdown 后端给的是票文件路径，不是只有远端后端才有这概念。
+    // 老名字的别名随窗口到期一起删了，这里只剩新名字这一套，房外的读者也只认这一套。
     issueAddress: (backendId, ref, key) => issueAddress(byId, backendId, ref, key),
     repoSearchAddress: (backendId, name) => repoSearchAddress(byId, backendId, name),
     issueRefPattern: (backendId) => issueRefPattern(byId, backendId),
-    issueUrl: (backendId, ref, key) => issueAddress(byId, backendId, ref, key),
-    linkPattern: (backendId) => issueRefPattern(byId, backendId),
-    searchUrl: (backendId, name) => repoSearchAddress(byId, backendId, name),
 
     /** 事件订阅（register/unregister）；返回取消订阅；监听抛错隔离。 */
     on(event, fn) {

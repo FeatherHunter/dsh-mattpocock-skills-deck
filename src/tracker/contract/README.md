@@ -49,7 +49,7 @@ GitHub 房与本地 Markdown 房用 `implements Tracker` 去实现，少一个�
 
 另外两类名字也住在两个房间的**实例**上（`create()` 造出来的那一份），不在这 19 条里，本轮都给它们定了类型位置，写法与理由如下：
 
-- **实例旁路口三个**：`getRepoKey`、`describe`、`issueUrl`，落在 `RoomAuxiliaries`（三个成员全可选），
+- **实例旁路口三个**：`getRepoKey`、`describe`、`issueAddress`，落在 `RoomAuxiliaries`（三个成员全可选），
   由 `BackendModule.create()` 的返回类型交叉进来。它们今天真实挂在 GitHub 实例上
   （`src/tracker/rooms/github/backend.ts:121`、`:122`、`:126`），本地 Markdown 实例上没有 ——
   所以三个都标可选，谁有谁写。有两个真实读者：注册表视图的回退链

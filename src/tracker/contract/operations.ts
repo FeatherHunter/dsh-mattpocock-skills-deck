@@ -354,7 +354,7 @@ export interface MarkdownParseMeta {
  * 三个成员全部可选，因为两房并不都有（下面是本轮核过的实情）：
  * - `getRepoKey`：只有 GitHub 实例有（`backends/github/backend.js:124`）。本地 Markdown 房
  *   的身份就是工作区目录本身，没有什么可解析的，所以没有这个方法才是对的。
- * - `describe` / `issueUrl`：GitHub 实例有（`backend.js:119` / `:120`）；本地 Markdown 实例
+ * - `describe` / `issueAddress`：GitHub 实例有（`backend.js:119` / `:120`）；本地 Markdown 实例
  *   **没有**（`backends/markdown/index.js:87-153` 的返回对象里逐键核过，这两个名字不在其中）。
  *
  * 调用方怎么对待缺席（**别把缺席当故障**）：
@@ -377,6 +377,6 @@ export interface RoomAuxiliaries {
    */
   describe?(handle: RepoHandle, backendId?: BackendId): RepositoryRef
 
-  /** 一张票在这个后端里的链接（与模块对象上同名方法同义，实例版供回退链用）。 */
-  issueUrl?(ref: RepositoryRef, key: string): string
+  /** 一张票在这个后端里的地址（与模块对象上同名方法同义，实例版供回退链用）。 */
+  issueAddress?(ref: RepositoryRef, key: string): string
 }

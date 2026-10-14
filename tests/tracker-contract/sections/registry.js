@@ -10,9 +10,10 @@
  *  - on(unsubscribe) / Disposable（按代隔离：replace 后旧代 dispose 不误杀新代）/ 监听抛错隔离 /
  *    describe / MIGRATE_KEY；unregister 发一条带 id 的 unregister 事件（缓存失效由订阅方按它判）。
  *  - #1138 起注册表只有这些口子：register / unregister / get / has / modules / select / describe /
- *    issueAddress / repoSearchAddress / issueRefPattern / issueUrl / searchUrl / linkPattern / on。
+ *    issueAddress / repoSearchAddress / issueRefPattern / on。
  *    原来那张「这个工作区绑了谁」的进程内副本连同 bind / bound / allBindings 三个口子整段删掉了，
  *    本节最后三条断言就是「它们确实不在」——人选住在工作区文件 docs/agents/workspace.yaml 里。
+ *    #1141 又把链接三件的网页口吻老名字连同别名兜底删净，本节也留了一条「确实不在」的断言。
  *  - 链接三件事只转发、不代造（#1112）：后端自己给了就原样转出（模块静态属性与实例旁路两条来源都算），
  *    没给、抛错、或没注册这个 id 就诚实回空——拼票地址与按名搜仓库回 ''，认票写法回 null。
  *    反例（必须被逮）：任何按 backendId 写死的 github / gitlab 网址与正则，一旦回到注册表，这一组立刻变红。
@@ -224,75 +225,80 @@ export async function run() {
   await assert('后端没给链接能力 → 拼票地址回空（github 房也不许替它拼）', (() => {
     const r = createRegistry()
     r.register(mkModule('github', { create: () => ({}) }))
-    return r.issueUrl('github', ref0, '7') === ''
+    return r.issueAddress('github', ref0, '7') === ''
   })(), 'must not assemble https://github.com/<refId>/issues/<key>')
   await assert('后端没给链接能力 → 拼票地址回空（gitlab 房也不许替它拼）', (() => {
     const r = createRegistry()
     r.register(mkModule('gitlab', { create: () => ({}) }))
-    return r.issueUrl('gitlab', ref0, '7') === ''
+    return r.issueAddress('gitlab', ref0, '7') === ''
   })(), 'must not assemble the gitlab issue url')
   await assert('后端没给链接能力 → 拼票地址回空（中立 id 一位）', (() => {
     const r = createRegistry()
     r.register(mkModule('nolink', { create: () => ({}) }))
-    return r.issueUrl('nolink', ref0, '7') === ''
+    return r.issueAddress('nolink', ref0, '7') === ''
   })(), 'empty means empty')
   await assert('后端没给链接能力 → 认票写法回 null（github 房也不许造正则）', (() => {
     const r = createRegistry()
     r.register(mkModule('github', { create: () => ({}) }))
-    return r.linkPattern('github') === null
+    return r.issueRefPattern('github') === null
   })(), 'must not mint a github link pattern')
   await assert('后端没给链接能力 → 认票写法回 null（gitlab 房也不许造正则）', (() => {
     const r = createRegistry()
     r.register(mkModule('gitlab', { create: () => ({}) }))
-    return r.linkPattern('gitlab') === null
+    return r.issueRefPattern('gitlab') === null
   })(), 'must not mint a gitlab link pattern')
   await assert('后端没给链接能力 → 按名搜仓库回空（github 房也不许拼搜索页）', (() => {
     const r = createRegistry()
     r.register(mkModule('github', { create: () => ({}) }))
-    return r.searchUrl('github', 'deck') === ''
+    return r.repoSearchAddress('github', 'deck') === ''
   })(), 'must not assemble the github search page')
   await assert('后端自己给了链接能力 → 原样转发（模块静态属性）', (() => {
     const r = createRegistry()
     const pattern = /mine\.example\/issues\/(\d+)/g
     r.register(mkModule('ownlinks', {
       create: () => ({}),
-      issueUrl: (ref, key) => 'https://mine.example/' + ref.refId + '/i/' + key,
-      searchUrl: (name) => 'https://mine.example/find?q=' + name,
-      linkPattern: pattern,
+      issueAddress: (ref, key) => 'https://mine.example/' + ref.refId + '/i/' + key,
+      repoSearchAddress: (name) => 'https://mine.example/find?q=' + name,
+      issueRefPattern: pattern,
     }))
-    return r.issueUrl('ownlinks', ref0, '7') === 'https://mine.example/r0/i/7'
-      && r.searchUrl('ownlinks', 'deck') === 'https://mine.example/find?q=deck'
-      && r.linkPattern('ownlinks') === pattern
+    return r.issueAddress('ownlinks', ref0, '7') === 'https://mine.example/r0/i/7'
+      && r.repoSearchAddress('ownlinks', 'deck') === 'https://mine.example/find?q=deck'
+      && r.issueRefPattern('ownlinks') === pattern
   })(), 'backend-provided links must be forwarded untouched')
   await assert('后端把三个链接口实现成「实例旁路」 → 也原样转发', (() => {
     const r = createRegistry()
     const pattern = '#(\\d+)'
     r.register(mkModule('instlinks', {
       create: () => ({
-        issueUrl: (ref, key) => '/tmp/' + key + '.md',
-        searchUrl: (name) => 'https://mine.example/find?q=' + name,
-        linkPattern: pattern,
+        issueAddress: (ref, key) => '/tmp/' + key + '.md',
+        repoSearchAddress: (name) => 'https://mine.example/find?q=' + name,
+        issueRefPattern: pattern,
       }),
     }))
-    return r.issueUrl('instlinks', ref0, '7') === '/tmp/7.md'
-      && r.searchUrl('instlinks', 'deck') === 'https://mine.example/find?q=deck'
-      && r.linkPattern('instlinks') === pattern
+    return r.issueAddress('instlinks', ref0, '7') === '/tmp/7.md'
+      && r.repoSearchAddress('instlinks', 'deck') === 'https://mine.example/find?q=deck'
+      && r.issueRefPattern('instlinks') === pattern
   })(), 'tracker-instance link methods must be forwarded too')
   await assert('后端自己抛错 → 回空、不炸调用方（不退回按名字拼地址）', (() => {
     const r = createRegistry()
     r.register(mkModule('boomlinks', {
       create: () => ({}),
-      issueUrl: () => { throw new Error('boom') },
-      searchUrl: () => { throw new Error('boom') },
+      issueAddress: () => { throw new Error('boom') },
+      repoSearchAddress: () => { throw new Error('boom') },
     }))
-    return r.issueUrl('boomlinks', ref0, '7') === '' && r.searchUrl('boomlinks', 'deck') === ''
+    return r.issueAddress('boomlinks', ref0, '7') === '' && r.repoSearchAddress('boomlinks', 'deck') === ''
   })(), 'a throwing backend must degrade to empty, never to a guessed url')
   await assert('未注册的后端 id → 同样回空（不按名字猜）', (() => {
     const r = createRegistry()
-    return r.issueUrl('github', ref0, '7') === '' && r.searchUrl('github', 'deck') === '' && r.linkPattern('github') === null
+    return r.issueAddress('github', ref0, '7') === '' && r.repoSearchAddress('github', 'deck') === '' && r.issueRefPattern('github') === null
   })(), 'unregistered id must not produce a link out of thin air')
-  // ── #1110 实现决定第 14 条：三个链接能力换成与后端无关的新名字，老名字保留一轮别名 ──
-  // 新名字是主、老名字是别名，两组都指到 views.ts 里同一个实现；下面三条一起验，改名不许把老名字打断。
+  // ── #1141：链接三件只剩新名字这一套（老名字连别名兜底一起删净） ──
+  // 下面第一条是「确实不在」的证据：老名字的口子从注册表上消失了（是有意删的，不是漏了）。
+  // 第二条验新名字照旧原样转发——改名与删旧名都不许影响这一条主路。
+  await assert('#1141：链接三件的老名字口子确实不在（是有意删的，不是漏了）', (() => {
+    const r = createRegistry()
+    return typeof r.issueUrl === 'undefined' && typeof r.searchUrl === 'undefined' && typeof r.linkPattern === 'undefined'
+  })(), 'legacy link method names must be gone from the registry facade')
   await assert('新名字「给票地址 / 认票写法 / 按名找仓库地址」原样转发', (() => {
     const r = createRegistry()
     const pattern = /mine\.example\/a\/(\d+)/g
@@ -306,28 +312,6 @@ export async function run() {
       && r.repoSearchAddress('newnames', 'deck') === 'https://mine.example/find?q=deck'
       && r.issueRefPattern('newnames') === pattern
   })(), 'backend-neutral link names must be forwarded untouched')
-  await assert('只写老名字的后端 → 新名字照旧取到（别名窗口兜底）', (() => {
-    const r = createRegistry()
-    const pattern = /old\.example\/(\d+)/
-    r.register(mkModule('oldonly', {
-      create: () => ({}),
-      issueUrl: (ref, key) => 'https://old.example/' + key,
-      searchUrl: (name) => 'https://old.example/find?q=' + name,
-      linkPattern: pattern,
-    }))
-    return r.issueAddress('oldonly', ref0, '7') === 'https://old.example/7'
-      && r.repoSearchAddress('oldonly', 'deck') === 'https://old.example/find?q=deck'
-      && r.issueRefPattern('oldonly') === pattern
-  })(), 'a backend that only declares the old names must still answer the new ones')
-  await assert('两个名字都写 → 新名字优先，老名字取到同一个实现', (() => {
-    const r = createRegistry()
-    r.register(mkModule('bothnames', {
-      create: () => ({}),
-      issueAddress: (ref, key) => 'new:' + key,
-      issueUrl: (ref, key) => 'old:' + key,
-    }))
-    return r.issueAddress('bothnames', ref0, '7') === 'new:7' && r.issueUrl('bothnames', ref0, '7') === 'new:7'
-  })(), 'the new name must win, and the old name must reach the same implementation')
   await assert('MIGRATE_KEY = {other:null} 先落地', MIGRATE_KEY && MIGRATE_KEY.other === null, JSON.stringify(MIGRATE_KEY))
 
   // ✗ probe：未实现 op 冒充成功必须被逮（Proxy 桩不说谎）

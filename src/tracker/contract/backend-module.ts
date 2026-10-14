@@ -159,7 +159,7 @@ export interface BackendModule {
    * 返回类型里带上三样东西，各有各的理由：
    * - 两个房内扩展（`listSubIssues`、`ensureLabelColorsFile` 等）：它们确实会被房外的宿主电话调用，
    *   不是契约操作，但也不是私有的。
-   * - `RoomAuxiliaries`：实例上的只读辅助口（`getRepoKey` / `describe` / `issueUrl`），
+   * - `RoomAuxiliaries`：实例上的只读辅助口（`getRepoKey` / `describe` / `issueAddress`），
    *   注册表视图的回退链与共享壳会取用；不给类型位置的话，两房照原样实现会因多余属性当场报错。
    */
   create(
@@ -201,16 +201,6 @@ export interface BackendModule {
 
   /** 在这个后端的文本里认出票引用的写法（可以是源码串，也可以是 RegExp 对象）。 */
   issueRefPattern?: RegExp | string
-
-  /**
-   * 老名字（`issueUrl` / `searchUrl` / `linkPattern`），保留一轮别名，不做推荐。
-   * 为什么留：客户端与宿主今天都还在读老名字，契约门禁也把这三个键名锁住了；
-   * 退役条件是「客户端与宿主都不再读老名字」（#1110 实现决定第 14 条）。
-   * 读的人先看新名字，没有再看老名字；写的人一轮内两个都写，一轮之后只写新名字。
-   */
-  issueUrl?(ref: RepositoryRef, key: string): string
-  searchUrl?(name: string): string
-  linkPattern?: RegExp | string
 
   /** 品牌色板（见 `RoomPresentation`）。 */
   presentation?: RoomPresentation

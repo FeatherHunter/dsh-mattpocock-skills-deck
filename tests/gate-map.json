@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-14T05:44:00.759Z",
+  "generatedAt": "2026-10-14T05:50:12.225Z",
   "generatedBy": "node scripts/gate-map.mjs",
-  "chainLength": 239,
-  "gateCount": 239,
-  "attributedGates": 211,
+  "chainLength": 238,
+  "gateCount": 238,
+  "attributedGates": 210,
   "unattributedGates": 28,
   "buildOutputOnlyGates": 20,
   "graphFileCount": 525,
@@ -4511,25 +4511,6 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 6 条）"
     },
     {
-      "step": "node tests/verify-link-capabilities.ts",
-      "file": "tests/verify-link-capabilities.ts",
-      "guards": [
-        "src/tracker/registry/views.ts",
-        "src/tracker/rooms/github/index.ts",
-        "src/tracker/rooms/gitlab/index.ts",
-        "src/tracker/rooms/markdown/index.ts"
-      ],
-      "dirs": [
-        "src/tracker/registry",
-        "src/tracker/rooms/github",
-        "src/tracker/rooms/gitlab",
-        "src/tracker/rooms/markdown"
-      ],
-      "unattributed": false,
-      "buildOutputOnly": false,
-      "reason": "归属来自 文件头 // 门禁归属: 注释（共 4 条）"
-    },
-    {
       "step": "node tests/verify-settings-phones.js",
       "file": "tests/verify-settings-phones.js",
       "guards": [
@@ -5823,7 +5804,6 @@
       "node tests/verify-683-host-wiring.js",
       "node tests/verify-refresh-workspace-key.js",
       "node tests/verify-723-gate-wiring.js",
-      "node tests/verify-link-capabilities.ts",
       "node tests/verify-1003-unified-decision.js"
     ],
     "src/tracker/rooms": [
@@ -5855,7 +5835,6 @@
       "node tests/verify-686-accept.js",
       "node tests/verify-gh-gateway.js",
       "node tests/verify-709-no-self-continuing-timers.js",
-      "node tests/verify-link-capabilities.ts",
       "node tests/verify-deck-slots.js",
       "node tests/verify-error-single-source.ts",
       "node tests/verify-error-raw-samples.ts",
@@ -5870,7 +5849,6 @@
       "node tests/verify-686-accept.js",
       "node tests/verify-gh-gateway.js",
       "node tests/verify-ui-description-single-source.ts",
-      "node tests/verify-link-capabilities.ts",
       "node tests/verify-error-raw-samples.ts",
       "node tests/verify-error-rule-samples.ts",
       "node tests/verify-error-normalize-log.ts"
@@ -5896,7 +5874,6 @@
       "node tests/verify-723-gate-wiring.js",
       "node tests/verify-970-whole-document.js",
       "node tests/verify-972-title-body.js",
-      "node tests/verify-link-capabilities.ts",
       "node tests/verify-error-raw-samples.ts",
       "node tests/verify-error-normalize-log.ts"
     ],

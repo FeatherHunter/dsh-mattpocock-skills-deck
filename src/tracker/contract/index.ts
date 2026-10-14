@@ -119,9 +119,6 @@ export const OPERATIONS: readonly string[] = Object.freeze(CATALOG_OPERATIONS)
  * @property {(ref: import('../../shared/tracker/shape.js').RepositoryRef, key: string) => string} [issueAddress] 可选：票的地址（如 GitHub 的 https://github.com/{refId}/issues/{key}、GitLab 的 https://gitlab.com/{refId}/-/issues/{key}、本地 Markdown 的票文件绝对路径）。地址形状由本后端自己说了算；注册表只转发，没提供时回空串，不替任何后端拼地址（#1112）。名字与后端无关（#1110 实现决定第 14 条）：本地后端给的是路径不是网址，所以叫「地址」
  * @property {(name: string) => string} [repoSearchAddress] 可选：按仓库名找仓库的地址（如 GitHub 的 https://github.com/search?q=...）；本地后端没有全站搜索页，回空串（#1112）
  * @property {RegExp|string} [issueRefPattern] 可选：在这个后端的文本里认出票引用的写法；注册表只转发，没提供时回 null，不替任何后端造正则（#1112）
- * @property {(ref: import('../../shared/tracker/shape.js').RepositoryRef, key: string) => string} [issueUrl] 老名字别名（#1110 实现决定第 14 条）：与 issueAddress 同义，保留一轮；客户端与宿主今天还在读，退役条件是「都不再读老名字」
- * @property {(name: string) => string} [searchUrl] 老名字别名：与 repoSearchAddress 同义，保留一轮
- * @property {RegExp|string} [linkPattern] 老名字别名：与 issueRefPattern 同义，保留一轮；注册表只转发，没提供时回 null，不替任何后端造正则（#1112）
  * @property {{trackerLine: string, trackerChoice: string, backendNote: string, labelReqs: string}} [setupPrompt]
  * @property {{name: string, color: string}[]} [labelPalette] 可选：后端自己的默认标签调色盘（#323 定版复核——本地 Markdown 提供，结构/label/颜色真源；GitHub/GitLab 不声明；面板按 模块默认 + 工作区表覆盖 查色）
  * @property {{issueUrlTemplate?: string, repoUrlTemplate?: string, searchUrlTemplate?: string, linkPatternSource?: string}} [links] 可选只读描述数据（#231）：client URL 构造/链接识别的单源模板；空对象=诚实「无链接」形状
