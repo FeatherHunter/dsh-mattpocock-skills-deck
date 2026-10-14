@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-14T16:52:29.877Z",
+  "generatedAt": "2026-10-14T17:53:12.010Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 250,
   "gateCount": 250,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 6,
   "smokeLength": 6,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 545,
+  "graphFileCount": 546,
   "gates": [
     {
       "step": "node tests/verify-capability-register.ts",
@@ -2326,10 +2326,16 @@
       "step": "node tests/verify-markdown-backend.js",
       "file": "tests/verify-markdown-backend.js",
       "guards": [
+        "src/tracker/rooms/markdown/comments.ts",
+        "src/tracker/rooms/markdown/counts.ts",
         "src/tracker/rooms/markdown/index.ts",
+        "src/tracker/rooms/markdown/issues-create.ts",
         "src/tracker/rooms/markdown/issues-patch.ts",
+        "src/tracker/rooms/markdown/issues-read.ts",
+        "src/tracker/rooms/markdown/issues-status.ts",
         "src/tracker/rooms/markdown/issues.ts",
         "src/tracker/rooms/markdown/normalize.ts",
+        "src/tracker/rooms/markdown/page.ts",
         "src/tracker/rooms/markdown/parse.ts",
         "src/tracker/rooms/markdown/read.ts",
         "tests/fixtures/markdown-sample/01-hello-world.md",
@@ -2346,7 +2352,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；静态 import 说明符 5 条；源码里的路径字面量 1 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 9 条；静态 import 说明符 5 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-1129-markdown-claim.ts",
@@ -6843,9 +6849,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 555,
+    "fileCount": 556,
     "dirCount": 50,
-    "coveredFileCount": 555,
+    "coveredFileCount": 556,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 49,
@@ -7401,6 +7407,7 @@
       "src/tracker/rooms/markdown/parse.ts",
       "src/tracker/rooms/markdown/path.ts",
       "src/tracker/rooms/markdown/read.ts",
+      "src/tracker/rooms/markdown/write-guards.ts",
       "src/tracker/rooms/markdown/write-queue.ts",
       "src/tracker/rooms/markdown/write.ts",
       "src/tracker/tsconfig.json",
