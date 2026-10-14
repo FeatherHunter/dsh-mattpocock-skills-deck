@@ -240,7 +240,11 @@ function measureConfig(config: string, tsc: string): ConfigFacts {
   //     读成了「配置越界吸收」，谁都没法把这两条改绿（本仓 2026-10-14 实测：deck 那条报了 10 条越界，
   //     全是它 import 进来的 tracker 文件）。所以归属只认 include 声明，见 claimFiles()。
   // 拿不到 --showConfig（配置读不通、输出认不出来）时退回闭包：宁可多报几条，不可漏报。
-  const claimed = claimFiles(config, tsc) ?? unique
+  // 「拿到了、但过滤完一个都不剩」同样按拿不到处理：那种情况多半是 include 写的路径在磁盘上不存在
+  // 或跑到仓库外去了，此时若认下这份空清单，归属判据（C 重复归属、D 越界）会对这份配置一言不发——
+  // 静默漏判比多报几条坏得多。
+  const claimedRaw = claimFiles(config, tsc)
+  const claimed = claimedRaw && claimedRaw.length > 0 ? claimedRaw : unique
 
   // 第 4 步：真编译一遍。与枚举分开跑是有意的——两者支撑的是不同的事实，合并会让「枚举成功」
   // 被误读成「类型没问题」（实测：纯类型错误时枚举退 0、真编译退 1）。
@@ -281,6 +285,7 @@ function measureConfig(config: string, tsc: string): ConfigFacts {
  *
  * 返回 null 表示这一步没拿到可信答案（配置读不通、输出里没有 JSON、字段不是数组），
  * 由调用方退回程序闭包——归属判据宁可多报，也不能因为读不到就静默漏判。
+ * 返回空数组时调用方也一样退回闭包：过滤完一个都不剩的清单说明 include 有问题，不是「这份配置谁都不管」。
  *
  * 路径按**配置文件所在目录**解析：showConfig 给出的是相对该配置的写法（如 './registration/agent-row.ts'）。
  * 认不回仓库相对路径的（跑到仓库外、或磁盘上不存在）直接丢掉，与枚举那一步同一条过滤口径。
