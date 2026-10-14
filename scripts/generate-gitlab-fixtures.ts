@@ -23,6 +23,9 @@
  *
  * 脱敏：回包里的邮箱、令牌一类字段一律替换成占位符（规则写在 metadata.desensitization 里），
  * 写完还会再自查一遍有没有 `glpat-` 之类的令牌形状，命中就删掉整份产出并以非零退出码收场。
+ *
+ * 失败怎么算：某一条请求被远端拒了（4xx），不当中断，也不当成功 —— 那份失败原文（请求、实参、报错）
+ * 照记进 raw-<端点名>.json 与 metadata.failures。只有「这台机器发不出请求」才一条都不写。
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -58,15 +61,25 @@ function glabRun(args: string[]): string {
   return r.stdout
 }
 
-/** 跑一次 `glab api` 并把回包解析成 JSON；空回包回 null（DELETE 成功就是 204 没有正文）。 */
-function glabApi(request: string, method: string, fields: readonly string[]): unknown {
+/** 把一条 `glab api` 请求拼成实参数组。参数一律走数组，不拼命令行字符串（集中扫描器把拼串判成注入形状）。 */
+function apiArgv(request: string, method: string, fields: readonly string[]): string[] {
   const args = ['api', request]
   if (method !== 'GET') args.push('--method', method)
   for (const f of fields) args.push('-f', f)
+  return args
+}
+
+/** 跑一条已经拼好的 `glab api` 实参并把回包解析成 JSON；空回包回 null（DELETE 成功就是 204 没有正文）。 */
+function glabApiArgv(args: string[]): unknown {
   const out = glabRun(args)
   const text = out.trim()
   if (!text) return null
   return JSON.parse(text)
+}
+
+/** 跑一次 `glab api` 并把回包解析成 JSON；空回包回 null。 */
+function glabApi(request: string, method: string, fields: readonly string[]): unknown {
+  return glabApiArgv(apiArgv(request, method, fields))
 }
 
 /** 把表里的占位符换成这次采样认出来的真实值。 */
@@ -80,17 +93,21 @@ function fill(request: string, ctx: { [key: string]: string }): string {
 
 const DESENSITIZATION_RULES = [
   '回包里任何键名叫 email / public_email / commit_email 的字段，值一律换成 "<已隐去>"',
-  '回包里任何键名叫 token / private_token / access_token / refresh_token 的字段，值一律换成 "<已隐去>"',
+  '回包里任何键名以 _token 结尾（或整个键名就是 token：token / private_token / access_token / refresh_token / runners_token / job_token）的字段，值一律换成 "<已隐去>"',
   '回包里的项目路径与用户名原样保留（与 github-real 的做法一致：固件要能看出它采自哪个项目）',
 ]
 
-/** 按上面那三条规则复制一份回包。 */
+/** 按上面那三条规则复制一份回包。
+ *
+ *  凭证那一格的边界：只认「键名整个就是 token」与「以 _token 结尾」两种，不认「键名里带 token」。
+ *  项目回包里还有 ci_job_token_scope_enabled、runner_token_expiration_interval 这类字段 ——
+ *  它们的名字里有 token，值却是开关与时长，是按契约要读的正常信息，抹掉就把真样本改残了。 */
 function redact(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(redact)
   if (value && typeof value === 'object') {
     const out: { [key: string]: unknown } = {}
     for (const [k, v] of Object.entries(value as { [key: string]: unknown })) {
-      if (/^(email|public_email|commit_email|token|private_token|access_token|refresh_token)$/.test(k)) {
+      if (/^(email|public_email|commit_email)$/.test(k) || /(^|_)token$/.test(k)) {
         out[k] = '<已隐去>'
         continue
       }
@@ -175,18 +192,24 @@ async function main(): Promise<void> {
   const childIssue = ensureIssue(SAMPLE_PREFIX + '-child', '采样用的子工单（#1179）。可以删。')
   const label = ensureLabel(SAMPLE_PREFIX)
 
-  const linksBefore = glabApi('projects/' + projectId + '/issues/' + childIssue.iid + '/links', 'GET', []) as unknown
-  const alreadyLinked = Array.isArray(linksBefore)
-    ? (linksBefore as { [k: string]: unknown }[]).some((r) => Number(r['iid']) === mapIssue.iid)
-    : false
-  if (!alreadyLinked) {
-    // 照本房写路径的约定发起：POST 到**子票**的 links 资源，link_type 用 relates_to。
-    glabApi('projects/' + projectId + '/issues/' + childIssue.iid + '/links', 'POST', [
-      'target_project_id=' + projectId,
+  // 关系那一组的前置：先把「子票 → 地图票」那条链接建起来，好让链接明细与链接删除两条能采到真回话。
+  // 本房今天那一种写法（target_project_id 传已编码的项目路径）在真远端上是什么结果，由下面
+  // link-create 那一条自己采回来 —— 不在这里替它下结论，也不用它当采样前置（它会被拒）。
+  // 这里用的是远端认的写法：target_project_id 传数字项目编号。
+  const fallbacks: { id: string; reason: string; argv: string[] }[] = []
+  const projectNumeric = String((glabApi('projects/' + projectId, 'GET', []) as { [k: string]: unknown })['id'] ?? '')
+  let linkId: string | null = findLinkId(childIssue.iid, mapIssue.iid)
+  if (!linkId) {
+    const setupArgv = apiArgv('projects/' + projectId + '/issues/' + childIssue.iid + '/links', 'POST', [
+      'target_project_id=' + projectNumeric,
       'target_issue_iid=' + String(mapIssue.iid),
       'link_type=relates_to',
     ])
+    glabApiArgv(setupArgv)
+    linkId = findLinkId(childIssue.iid, mapIssue.iid)
+    fallbacks.push({ id: 'link-create', reason: '采样前置：用远端认的写法把样本链接建起来，好让链接明细与删除两条采得到', argv: setupArgv })
   }
+  if (!linkId) throw new Error('样本链接建不起来、也回读不到它的编号，关系那一组没法采。')
 
   const notes = glabApi('projects/' + projectId + '/issues/' + mapIssue.iid + '/notes', 'GET', []) as unknown
   const hasNote = Array.isArray(notes) && (notes as { [k: string]: unknown }[]).some((n) => String(n['body'] || '').includes(SAMPLE_PREFIX))
@@ -200,30 +223,49 @@ async function main(): Promise<void> {
     id: projectId,
     iid: String(mapIssue.iid),
     child: String(childIssue.iid),
+    link_id: String(linkId),
     label_id: String(label.id),
     username: String(me['username']),
     page: '1',
   }
 
   // —— 三、照表逐条采 ——
+  // 某一条在真远端上失败，不让整趟采样半途死掉：失败也是「远端真的这么回」，原文照记进固件，
+  // 同时进 metadata.failures，人一眼看得出哪一条没采成、报的是什么。只有「这台机器压根发不出请求」
+  // （上面那两道 preflight）才一个字都不写。
   const raw: { [id: string]: unknown } = {}
   const sampled: string[] = []
+  const failures: { id: string; request: string; error: string }[] = []
+  const skipped: { id: string; reason: string }[] = []
   for (const ep of GITLAB_ENDPOINTS) {
     if (!ep.request) {
-      console.log('  跳过 ' + ep.id + '：' + (ep.skipReason || '（没写理由）'))
+      const reason = ep.skipReason || '（没写理由）'
+      skipped.push({ id: ep.id, reason })
+      console.log('  跳过 ' + ep.id + '：' + reason)
       continue
     }
-    const request = fill(ep.request, ctx)
-    const fields = (ep.fields || []).map((f) => fill(f, ctx))
-    const body = glabApi(request, ep.method, fields)
-    raw[ep.id] = redact(body)
-    sampled.push(ep.id)
-    console.log('  采到 ' + ep.method + ' ' + request + '  →  ' + ep.id)
-    // 关系那一组要按顺序来：先建、再回读明细、最后删。明细的编号只有建完才知道。
-    if (ep.id === 'link-create') {
-      const linkId = findLinkId(childIssue.iid, mapIssue.iid)
-      if (!linkId) throw new Error('刚建完链接却回读不到它的编号，后面两条链接请求没法采。')
-      ctx['link_id'] = linkId
+    let request = ''
+    let fields: string[] = []
+    try {
+      request = fill(ep.request, ctx)
+      fields = (ep.fields || []).map((f) => fill(f, ctx))
+    } catch (e) {
+      // 上下文里缺占位符（典型：前面那一条没采成），这一条如实记「没采」，不编一份回包顶上。
+      const reason = String(e instanceof Error ? e.message : e)
+      skipped.push({ id: ep.id, reason })
+      console.log('  跳过 ' + ep.id + '：' + reason)
+      continue
+    }
+    const argv = apiArgv(request, ep.method, fields)
+    try {
+      raw[ep.id] = redact(glabApiArgv(argv))
+      sampled.push(ep.id)
+      console.log('  采到 ' + ep.method + ' ' + request + '  →  ' + ep.id)
+    } catch (e) {
+      const message = String(e instanceof Error ? e.message : e)
+      raw[ep.id] = { 采样失败: { 请求: ep.method + ' ' + request, 实参: argv, 报错: message } }
+      failures.push({ id: ep.id, request: ep.method + ' ' + request, error: message })
+      console.log('  采不到 ' + ep.id + '：' + message)
     }
   }
 
@@ -238,12 +280,18 @@ async function main(): Promise<void> {
 
   // —— 五、落盘（先全部凑齐再写，避免半份产出） ——
   const files: { file: string; value: unknown }[] = []
-  for (const id of sampled) files.push({ file: 'raw-' + id + '.json', value: raw[id] })
+  // 采到的与采不到的各写一份：采不到那一份里就是失败原文（请求、实参、报错），与 metadata.failures 讲的是同一件事。
+  // 这里只按 sampled 写会漏掉失败的那一份，metadata 里却写着它就在那儿 —— 两处必须一起动。
+  const rawIds = Object.keys(raw)
+  for (const id of rawIds) files.push({ file: 'raw-' + id + '.json', value: raw[id] })
   files.push({ file: 'normalized-' + mapIssue.iid + '.json', value: normalizedOne })
   files.push({ file: 'normalized-list.json', value: normalizedList })
 
   const allText = JSON.stringify(files.map((f) => f.value))
-  if (/glpat-|ghp_[A-Za-z0-9_]+|github_pat_/.test(allText)) {
+  // GR1348941 是 GitLab 老的 runner 注册令牌形状（新的是 glrt-）—— 2026-10-15 第一次真推固件时，
+  // GitHub 的推送保护就是照这个形状在 project 回包的 runners_token 上把推送挡下来的：
+  // 上面那三条脱敏规则漏掉了它。自查这一关要跟脱敏规则一样严，别等下一个人再撞一次。
+  if (/glpat-|glrt-|GR1348941[A-Za-z0-9_-]+|ghp_[A-Za-z0-9_]+|github_pat_/.test(allText)) {
     throw new Error('脱敏自查没过：产出里出现了令牌形状的字符串，已中止，一个字都没写。')
   }
 
@@ -267,15 +315,23 @@ async function main(): Promise<void> {
     })(),
     sampleIssues: { map: mapIssue.iid, child: childIssue.iid },
     desensitization: { rules: DESENSITIZATION_RULES, applied: true },
+    /** 这次真发出去但被远端拒掉的端点：raw-<id>.json 里存的就是那份失败原文。 */
+    failures,
+    /** 为了把链接编号拿到手而换写法重发的那一次（不是本房的采样，见 reason）。 */
+    fallbacks,
+    /** 这次一条请求都没发的端点与原因（表里 request 为空，或上下文里缺占位符）。 */
+    skipped,
     fields: {
-      raw: sampled.map((id) => 'raw-' + id + '.json'),
+      raw: rawIds.map((id) => 'raw-' + id + '.json'),
       normalized: ['normalized-' + mapIssue.iid + '.json', 'normalized-list.json'],
       notes: '每个端点一份原样回包；normalized-* 是用本房自己的 normalizeIssue 转出来的，与契约测试播放器认的格式一致。',
     },
     notes:
       '这份固件由 ' +
       repo +
-      ' 上真实采样得来。重跑会认领同名样本工单，不重复建；链接那一条采完会把它删掉，下次重跑会再建。',
+      ' 上真实采样得来。重跑会认领同名样本工单，不重复建；链接那一条采完会把它删掉，下次重跑会再建。' +
+      '被远端拒掉的端点不会让整趟采样中断：那一份 raw-<端点名>.json 里存的是失败原文（请求、实参、报错），' +
+      '同样的内容也列在 metadata.failures 里 —— 它是「这条请求今天在真远端上是什么结果」的证据，不是缺件。',
   }
   files.push({ file: 'metadata.json', value: metadata })
 
