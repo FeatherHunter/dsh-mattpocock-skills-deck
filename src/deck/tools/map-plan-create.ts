@@ -104,7 +104,7 @@ function storeIoFrom(deps: DeckMapPlanCreateDeps, cwd: string | undefined) {
     const b = ((deps && typeof deps.backendCtx === 'function') ? deps.backendCtx() : deps.backendCtx) as HostBackendCtx
     const platform = (b && b.platform) || null
     const fs = (b && b.fs) || (platform && platform.fs) || null
-    if (!platform || !fs || typeof fs.readText !== 'function' || typeof fs.writeText !== 'function') return null
+    if (!platform || !fs || typeof fs.resolve !== 'function' || typeof fs.readText !== 'function' || typeof fs.writeText !== 'function') return null
     // 这几样能力在下面的闭包里还会再读一次：typeof 判过的那道收窄带不进闭包（编译器只对 const 变量保留收窄），
     // 所以按 `!` 收口 —— 纯类型断言，读的还是同一格、同一个 this，真缺的时候照样抛 TypeError。
     const join = (platform.path && typeof platform.path.join === 'function')
@@ -114,11 +114,11 @@ function storeIoFrom(deps: DeckMapPlanCreateDeps, cwd: string | undefined) {
     // 读写前一律先 resolve：宿主那份文件服务是目标形状 —— readText / writeText 收的是 resolve() 的产物
     // （{ targetKey, displayPath }），给裸路径串会被拒（docs/cache-and-diagnostics.md 第 7.1 节）。
     // 这条老路（没有注入存储器、由本文件自建 IO）以前直接把路径串递过去，于是写盘每次都被拒、而拒掉是静默的
-    // ——回执照样说 durable:true（#1150 抓到的就是这一格）。没有 resolve 的老形状就原样传，行为不变。
-    const target = function (p: string) {
-      const rs = (fs as HostFs).resolve
-      return (typeof rs === 'function') ? Promise.resolve(rs(p)) : Promise.resolve(p)
-    }
+    // ——回执照样说 durable:true（#1150 抓到的就是这一格）。
+    // 没有 resolve 就整条不建（2026-10-14 深挖补的一刀）：造不出目标对象，硬写就只能递裸路径串，
+    // 那等于把这个坑原样带回来；退回内存并在回执里如实说 durable:false，才是诚实的。
+    const rs = (fs as HostFs).resolve as (p: string, o?: unknown) => unknown
+    const target = function (p: string) { return Promise.resolve(rs(p)) }
     return {
       readText: function (p: string) { return target(p).then(function (t) { return fs.readText!(t) }) },
       writeText: function (p: string, t: string) { return target(p).then(function (x) { return fs.writeText!(x, t) }) },

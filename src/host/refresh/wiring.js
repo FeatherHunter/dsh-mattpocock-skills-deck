@@ -354,18 +354,18 @@ export function createRefreshWiring(deps) {
          *   产物（{ targetKey, displayPath }），给裸路径串会被拒（docs/cache-and-diagnostics.md 第 7.1 节）。
          *   目录不用谁来建：父目录由 writeText 递归创建，宿主那份文件服务没有 mkdir。
          * 缺文件能力就回 null：工具那边退到按工作区自建的那条路或进程内存，并在回执里如实说 durable。
+         * 缺 resolve 也回 null（2026-10-14 深挖补的一刀）：没有它就造不出文件服务要的目标对象，只能把裸路径
+         *   串递过去 —— 那正是 #1150 修掉的那种「说落盘、其实没落」。宁可退回内存并如实说 durable:false。
          */
         function planStoreFor(info) {
           try {
             const fsSvc = backendObj.fs
-            if (!fsSvc || typeof fsSvc.readText !== 'function' || typeof fsSvc.writeText !== 'function') return null
+            if (!fsSvc || typeof fsSvc.resolve !== 'function' || typeof fsSvc.readText !== 'function' || typeof fsSvc.writeText !== 'function') return null
             const cwd = String((info && info.cwd) || '')
             if (!cwd) return null
             const plat = backendObj.platform
             const join = (plat && plat.path && typeof plat.path.join === 'function') ? plat.path.join : null
-            const target = function (p) {
-              return (typeof fsSvc.resolve === 'function') ? Promise.resolve(fsSvc.resolve(p)) : Promise.resolve(p)
-            }
+            const target = function (p) { return Promise.resolve(fsSvc.resolve(p)) }
             return createFilePlanStore({
               io: {
                 readText: function (p) { return target(p).then(function (t) { return fsSvc.readText(t) }) },
