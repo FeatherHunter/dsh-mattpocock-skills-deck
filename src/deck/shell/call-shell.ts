@@ -286,7 +286,7 @@ export function createDeckShell(deps?: DeckShellDeps): DeckShell {
       return { ok: false, reason: REFUSAL_REASONS.GATE_DEFER, text: '这一次选后端被闸推迟了（' + str(sent && sent.detail) + '），先不做。' }
     }
     // 仓库标识补全（#758）：匹配源常带空标识（注册表只认显式 refId），而房间读写真要它。
-    // 有该能力的后端（房内 getRepoKey，三层兜底）调用方按通用形状自己补，不逐后端写分支；
+    // 有该能力的后端（契约定位口 getRepoKey）调用方按通用形状自己补，不逐后端写分支；
     // 没有该能力的后端没有这一格，跳过，下游照旧诚实失败。补全本身也过一次闸（读探针一格）。
     // 上面那段在闸的回调里赋值，控制流分析看不到它，会把 picked 当成一直是 null；
     // 这里显式读一次并声明类型（draft 与 picked 是同一个对象，后面补 ref 也补在它身上）。

@@ -183,31 +183,10 @@ export function createSessionSnapshot(deps) {
               }
             }
           } catch {}
-          // Q7: 兜底 url（Issue.url 为空时按后端现算；github 走 https，markdown 走盘符路径）
-          try {
-            if(backendId==='markdown' && Array.isArray(allForList) && allForList.length){
-              const mdModForUrl = backendModules && backendModules.find(function(m){ return m && m.id==='markdown' })
-              const urlFn = mdModForUrl && typeof mdModForUrl.issueUrl === 'function' ? mdModForUrl.issueUrl : null
-              const tmpRef = repoRef
-              if(urlFn){
-                allForList.forEach(function(it){
-                  if(!it || it.url) return
-                  const k = it.key != null ? String(it.key).trim() : (it.number != null ? String(it.number).trim() : '')
-                  if(!k) return
-                  try { const u = urlFn(tmpRef, k); if(u) it.url = u } catch {}
-                })
-                ;(inner.maps||[]).forEach(function(m){
-                  if(m && !m.url){
-                    try {
-                      const mk = m.key != null ? String(m.key).trim() : '00'
-                      const mu = urlFn(tmpRef, mk)
-                      if(mu) m.url = mu
-                    } catch {}
-                  }
-                })
-              }
-            }
-          } catch {}
+          // 这里原来有一段「markdown 的票 url 为空就按后端现算」的兜底（Q7），已按 #1142 删掉：
+          // 它读的是投影之后的模块对象，而投影只带数据字段、把函数挡在门外（见 tracker/ui-description.ts），
+          // 所以 typeof …==='function' 恒为假、整段永远进不去。票的地址现在由房间在读写这个文件时自己填好
+          // （markdown 房 parse.ts 的 url），宿主不再替任何后端算地址——这正是注册表「只转发后端自己给的值」那条方向。
           const repoRoot = await getRepoRoot(cwd)
           const snap = buildSnap({
             repoRoot, workspaceRoot: cwd,

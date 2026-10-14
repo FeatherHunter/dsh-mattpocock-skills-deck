@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>#1142 本地 Markdown 房的票现在带上自己的文件地址 — 改动说明</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2128; --line:#30363d; --fg:#e6edf3; --dim:#9aa4b2;
+    --add:#3fb950; --addbg:rgba(63,185,80,.12); --del:#f85149; --delbg:rgba(248,81,73,.12);
+    --accent:#58a6ff; --warn:#d29922;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.7 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
+  .wrap{max-width:1080px;margin:0 auto;padding:40px 24px 80px}
+  header{border-bottom:1px solid var(--line);padding-bottom:24px;margin-bottom:32px}
+  .kicker{color:var(--dim);font-size:13px;letter-spacing:.04em}
+  h1{font-size:27px;line-height:1.35;margin:10px 0 12px}
+  .lede{color:#c9d1d9;font-size:16px;margin:0 0 18px}
+  .stats{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:4px 12px;font-size:12.5px;color:var(--dim)}
+  h2{font-size:19px;margin:44px 0 16px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  h3{font-size:15px;margin:0 0 8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  code{font-family:"Cascadia Mono",Consolas,"Courier New",monospace;font-size:13px;background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:1px 5px}
+  h3 code{background:transparent;border:0;padding:0;color:#d2a8ff}
+  .pill{font-size:11.5px;border-radius:999px;padding:1px 8px;border:1px solid var(--line);color:var(--dim)}
+  .pill.add{color:var(--add);border-color:rgba(63,185,80,.4)}
+  .pill.del{color:var(--del);border-color:rgba(248,81,73,.4)}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:760px){.two{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+  .card h3{margin:0 0 10px;font-size:14px}
+  .card.bad{border-color:rgba(248,81,73,.35)}
+  .card.good{border-color:rgba(63,185,80,.35)}
+  .card ol{margin:0;padding-left:22px;color:#c9d1d9;font-size:14px}
+  .card li{margin:6px 0}
+  .file{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin:16px 0}
+  .why{color:#c9d1d9;font-size:14px;margin:6px 0 14px}
+  pre.diff{margin:0;background:#0b0f14;border:1px solid var(--line);border-radius:8px;padding:12px 0;overflow-x:auto;font-family:"Cascadia Mono",Consolas,"Courier New",monospace;font-size:12.5px;line-height:1.6}
+  pre.diff span{display:block;padding:0 14px;white-space:pre-wrap;overflow-wrap:anywhere}
+  .add{background:var(--addbg);color:#7ee787}
+  .del{background:var(--delbg);color:#ffa198}
+  .ctx{color:#8b949e}
+  .hunk{color:var(--accent);background:rgba(88,166,255,.08);margin:6px 0}
+  table{width:100%;border-collapse:collapse;font-size:14px;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  th,td{text-align:left;padding:9px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:var(--panel2);color:var(--dim);font-weight:600;font-size:13px}
+  tr:last-child td{border-bottom:0}
+  .ok{color:var(--add)}.blocked{color:var(--warn)}
+  .note{background:rgba(210,153,34,.08);border:1px solid rgba(210,153,34,.35);border-radius:10px;padding:14px 18px;color:#e3d5b0;font-size:14px}
+  footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);color:var(--dim);font-size:13px}
+  a{color:var(--accent)}
+  .kv{display:grid;grid-template-columns:180px 1fr;gap:4px 16px;font-size:14px}
+  .kv div:nth-child(odd){color:var(--dim)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="kicker">提交 <code>0c29f322</code> · 2026-10-14 · 票 #1142（已关闭）</div>
+  <h1>本地 Markdown 房的票，现在带上自己的文件地址</h1>
+  <p class="lede">票的地址改成由<strong>真正读写那个文件的那一层</strong>填进票里：界面「打开票」有东西可开，工具回执里也有地址了。文件名里带标题转出来的后缀，所以地址只能是盘上那个真实文件的路径，不能按编号猜。</p>
+  <div class="stats">
+    <span class="chip">14 个文件</span>
+    <span class="chip">+84 −24</span>
+    <span class="chip">房间代码 6 个</span>
+    <span class="chip">回归测试 1 个</span>
+    <span class="chip">金标准回执 7 份 / 9 行 url</span>
+  </div>
+</header>
+
+<h2>改动的形状</h2>
+<div class="two">
+  <div class="card bad">
+    <h3>改前：地址在门口丢了</h3>
+    <ol>
+      <li>读／写票文件的那一层<strong>知道</strong>路径（<code>01-hello-world.md</code>）</li>
+      <li><code>parseMd</code> 写死 <code>url: ''</code>，路径没进门</li>
+      <li>票没有地址 → 界面渲染出 <code>href=""</code>，回执里 <code>"url": ""</code></li>
+      <li>宿主那段「票的 url 为空就按后端现算」读的是<strong>投影之后</strong>的模块对象，投影按设计只带数据字段、函数被挡在门外 → <code>typeof … === 'function'</code> 恒为假，永远进不去</li>
+    </ol>
+  </div>
+  <div class="card good">
+    <h3>改后：谁读文件谁填地址</h3>
+    <ol>
+      <li>同一层读／写文件，顺手把路径交给 <code>parseMd</code></li>
+      <li><code>parseMd</code> 收 <code>url</code> 入参（不传就是空串，纯文本解析不受影响）</li>
+      <li>票自带地址 → 界面 <code>issueUrlFor</code> 取到路径，<code>openIssueUrl</code> 走 <code>wf.openPath</code> 打开票文件</li>
+      <li>地址是<strong>盘上真实文件名</strong>，不是按编号猜出来的规范名</li>
+    </ol>
+  </div>
+</div>
+
+<h2>房间代码（6 个文件）</h2>
+<article class="file">
+  <h3><code title="src/tracker/rooms/markdown/issues-create.ts">src/tracker/rooms/markdown/issues-create.ts</code>
+    <span class="pill add">+1</span><span class="pill del">−1</span></h3>
+  <p class="why">建票：<code>finalPath</code> 就是刚写下去的那个文件，所以回包里的票立刻带地址（标题转出来的文件名也一并带上）。</p>
+  <pre class="diff"><span class="hunk">@@ -232,7 +232,7 @@ export async function createIssue(ctx,repo,input){</span>
+<span class="ctx">     const _fallbackParent = (input &amp;&amp; input.parentKey !== undefined &amp;&amp; input.parentKey !== null &amp;&amp; String(input.parentKey).trim() !== '')</span>
+<span class="ctx">       ? String(input.parentKey).trim()</span>
+<span class="ctx">       : (_isMapType || (input &amp;&amp; input.parentKey === null) ? null : '00')</span>
+<span class="del">-    const iss=parseMd(content,{key:finalKey,parentKey:_fallbackParent,isMap:false,effortId,createdAt:mtime,updatedAt:mtime})</span>
+<span class="add">+    const iss=parseMd(content,{key:finalKey,parentKey:_fallbackParent,isMap:false,effortId,createdAt:mtime,updatedAt:mtime,url:finalPath})</span>
+<span class="ctx">     applyLabelColors(iss, colorMap)</span>
+<span class="ctx">     return{ok:true,data:iss}</span>
+<span class="ctx">   }catch(e){return failFromError(e,ctx,'建这张票时出错')}</span></pre>
+</article>
+<article class="file">
+  <h3><code title="src/tracker/rooms/markdown/issues-locate.ts">src/tracker/rooms/markdown/issues-locate.ts</code>
+    <span class="pill add">+3</span><span class="pill del">−1</span></h3>
+  <p class="why">定位这一层是唯一同时知道「是哪张票」和「它在盘上叫什么名字」的地方：文件名里带着标题转出来的后缀，光有编号拼不出来。由它把 <code>fullPath</code> 交给 <code>parseMd</code>，上层不必各自再算一遍。</p>
+  <pre class="diff"><span class="hunk">@@ -153,5 +153,7 @@ export async function loadIssueFromFile(ctx,repo,fullPath,metaExtra={}){</span>
+<span class="ctx">   const parentKey=metaExtra.parentKey!==undefined?metaExtra.parentKey:null</span>
+<span class="ctx">   const isMap=!!metaExtra.isMap</span>
+<span class="ctx">   const effortId=metaExtra.effortId!==undefined?metaExtra.effortId:''</span>
+<span class="del">-  return parseMd(txt,{key,parentKey,isMap,effortId,createdAt:mtime,updatedAt:mtime})</span>
+<span class="add">+  // 地址（#1142）：这张票的地址就是刚读的这个文件的路径。读文件这一层是唯一同时知道「是哪张票」与</span>
+<span class="add">+  // 「它在盘上叫什么名字」的地方，所以在这里把它交给 parseMd；上层（列举、读单张、分页）不必各自再算一遍。</span>
+<span class="add">+  return parseMd(txt,{key,parentKey,isMap,effortId,createdAt:mtime,updatedAt:mtime,url:fullPath})</span>
+<span class="ctx"> }</span></pre>
+</article>
+<article class="file">
+  <h3><code title="src/tracker/rooms/markdown/issues-patch.ts">src/tracker/rooms/markdown/issues-patch.ts</code>
+    <span class="pill add">+8</span><span class="pill del">−8</span></h3>
+  <p class="why">改字段、改父子关系、改标签、改阻塞关系：8 处回包都补上 <code>r.path</code>——改完拿到的票，与重新读一次得到的地址是同一个。</p>
+  <pre class="diff"><span class="hunk">@@ -175,7 +175,7 @@ export async function updateIssue(ctx,repo,key,patch){</span>
+<span class="ctx">   })</span>
+<span class="ctx">   if(!res.ok)return{ok:false,error:res.error}</span>
+<span class="ctx">   try{</span>
+<span class="del">-    const iss=parseMd(res.txt,{key:norm,parentKey: norm==='00'?null:'00',isMap: norm==='00',effortId:r.effortId})</span>
+<span class="add">+    const iss=parseMd(res.txt,{key:norm,parentKey: norm==='00'?null:'00',isMap: norm==='00',effortId:r.effortId,url:r.path})</span>
+<span class="ctx">     applyLabelColors(iss, colorMap)</span>
+<span class="ctx">     return{ok:true,data:iss}</span>
+<span class="ctx">   }catch(e){return failFromError(e,ctx,'改这张票的字段时出错')}</span>
+<span class="hunk">@@ -192,7 +192,7 @@ export async function setBlockedByIssue(ctx,repo,key,blockers){</span>
+<span class="ctx">   const res=await readParseWrite(ctx,repo,r,norm,function(txt){return replaceOrInsertField(txt,'Blocked\\s+by',line)})</span>
+<span class="ctx">   if(!res.ok)return{ok:false,error:res.error}</span>
+<span class="ctx">   try{</span>
+<span class="del">-    const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:r.effortId})</span>
+<span class="add">+    const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:r.effortId,url:r.path})</span>
+<span class="ctx">     applyLabelColors(iss, colorMap)</span>
+<span class="ctx">     return{ok:true,data:iss}</span>
+<span class="ctx">   }catch(e){return failFromError(e,ctx,'改这张票的阻塞关系时出错')}</span>
+<span class="hunk">@@ -207,7 +207,7 @@ export async function setAssigneesIssue(ctx,repo,key,assignees){</span>
+<span class="ctx">   const res=await readParseWrite(ctx,repo,r,norm,function(txt){return replaceOrInsertField(txt,'Status',statusLine)})</span>
+<span class="ctx">   if(!res.ok)return{ok:false,error:res.error}</span>
+<span class="ctx">   try{</span>
+<span class="del">-    const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:r.effortId})</span>
+<span class="add">+    const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:r.effortId,url:r.path})</span>
+<span class="ctx">     applyLabelColors(iss, colorMap)</span>
+<span class="ctx">     return{ok:true,data:iss}</span>
+<span class="ctx">   }catch(e){return failFromError(e,ctx,'改这张票的认领人时出错')}</span>
+<span class="hunk">@@ -253,7 +253,7 @@ export async function setParentIssue(ctx,repo,key,parentKey){</span>
+<span class="ctx">       if(!r.ok)return{ok:false,error:r.error}</span>
+<span class="ctx">       try{</span>
+<span class="ctx">         const txt=await readTextFile(ctx,r.path)</span>
+<span class="del">-        const iss=parseMd(txt,{key:'00',parentKey:null,isMap:true,effortId:r.effortId})</span>
+<span class="add">+        const iss=parseMd(txt,{key:'00',parentKey:null,isMap:true,effortId:r.effortId,url:r.path})</span>
+<span class="ctx">         applyLabelColors(iss, colorMap)</span>
+<span class="ctx">         return{ok:true,data:iss}</span>
+<span class="ctx">       }catch(e){return failFromError(e,ctx,'改这张票的父子关系时出错')}</span>
+<span class="hunk">@@ -278,7 +278,7 @@ export async function setParentIssue(ctx,repo,key,parentKey){</span>
+<span class="ctx">     })</span>
+<span class="ctx">     if(!res.ok)return{ok:false,error:res.error}</span>
+<span class="ctx">     try{</span>
+<span class="del">-      const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort})</span>
+<span class="add">+      const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort,url:r.path})</span>
+<span class="ctx">       applyLabelColors(iss, colorMap)</span>
+<span class="ctx">       return{ok:true,data:iss}</span>
+<span class="ctx">     }catch(e){return failFromError(e,ctx,'改这张票的父子关系时出错')}</span>
+<span class="hunk">@@ -298,7 +298,7 @@ export async function setParentIssue(ctx,repo,key,parentKey){</span>
+<span class="ctx">     })</span>
+<span class="ctx">     if(!res.ok)return{ok:false,error:res.error}</span>
+<span class="ctx">     try{</span>
+<span class="del">-      const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort})</span>
+<span class="add">+      const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort,url:r.path})</span>
+<span class="ctx">       applyLabelColors(iss, colorMap)</span>
+<span class="ctx">       return{ok:true,data:iss}</span>
+<span class="ctx">     }catch(e){return failFromError(e,ctx,'改这张票的父子关系时出错')}</span>
+<span class="hunk">@@ -315,7 +315,7 @@ export async function setParentIssue(ctx,repo,key,parentKey){</span>
+<span class="ctx">     })</span>
+<span class="ctx">     if(!res.ok)return{ok:false,error:res.error}</span>
+<span class="ctx">     try{</span>
+<span class="del">-      const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort})</span>
+<span class="add">+      const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort,url:r.path})</span>
+<span class="ctx">       applyLabelColors(iss, colorMap)</span>
+<span class="ctx">       return{ok:true,data:iss}</span>
+<span class="ctx">     }catch(e){return failFromError(e,ctx,'改这张票的父子关系时出错')}</span>
+<span class="hunk">@@ -340,7 +340,7 @@ export async function setLabelsIssue(ctx,repo,key,labels){</span>
+<span class="ctx">   const res=await readParseWrite(ctx,repo,r,norm,function(txt){return replaceOrInsertField(txt,'Labels',line)})</span>
+<span class="ctx">   if(!res.ok)return{ok:false,error:res.error}</span>
+<span class="ctx">   try{</span>
+<span class="del">-    const iss=parseMd(res.txt,{key:norm,parentKey: norm==='00'?null:'00',isMap: norm==='00',effortId:r.effortId})</span>
+<span class="add">+    const iss=parseMd(res.txt,{key:norm,parentKey: norm==='00'?null:'00',isMap: norm==='00',effortId:r.effortId,url:r.path})</span>
+<span class="ctx">     applyLabelColors(iss, colorMap)</span>
+<span class="ctx">     return{ok:true,data:iss}</span>
+<span class="ctx">   }catch(e){return failFromError(e,ctx,'改这张票的标签时出错')}</span></pre>
+</article>
+<article class="file">
+  <h3><code title="src/tracker/rooms/markdown/issues-read.ts">src/tracker/rooms/markdown/issues-read.ts</code>
+    <span class="pill add">+3</span><span class="pill del">−3</span></h3>
+  <p class="why">列举与读单张：地图行用 <code>map.md</code> 的路径，票行用它自己的路径（<code>r.path</code> 来自定位结果，不是按编号拼出来的规范名）。</p>
+  <pre class="diff"><span class="hunk">@@ -60,7 +60,7 @@ export async function enumerateIssueRows(ctx, repo, filter = {}, opts = {}) {</span>
+<span class="ctx">         extra.createdAt = mtime</span>
+<span class="ctx">         extra.updatedAt = mtime</span>
+<span class="ctx">       }</span>
+<span class="del">-      rows.push(parseMd(txt, Object.assign({ key: '00', parentKey: null, isMap: true, effortId }, extra)))</span>
+<span class="add">+      rows.push(parseMd(txt, Object.assign({ key: '00', parentKey: null, isMap: true, effortId, url: mapPath }, extra)))</span>
+<span class="ctx">     } catch {}</span>
+<span class="ctx">   }</span>
+<span class="ctx">   /** 一个票文件读成一行：读不动时按上面的开关决定「静默跳过」还是「记下错误」。 */</span>
+<span class="hunk">@@ -98,7 +98,7 @@ export async function enumerateIssueRows(ctx, repo, filter = {}, opts = {}) {</span>
+<span class="ctx">       try {</span>
+<span class="ctx">         const mapP = plat.join(repo.path, 'map.md')</span>
+<span class="ctx">         const txt = await readTextFile(ctx, mapP)</span>
+<span class="del">-        rows.push(parseMd(txt, { key: '00', parentKey: null, isMap: true, effortId: scope || '' }))</span>
+<span class="add">+        rows.push(parseMd(txt, { key: '00', parentKey: null, isMap: true, effortId: scope || '', url: mapP }))</span>
+<span class="ctx">         await collectTicketsIn(plat.join(repo.path, 'issues'), scope || '', false)</span>
+<span class="ctx">       } catch {}</span>
+<span class="ctx">     }</span>
+<span class="hunk">@@ -158,7 +158,7 @@ export async function getIssue(ctx,repo,key,opts={}){</span>
+<span class="ctx">         const st=await statFile(ctx,r.path)</span>
+<span class="ctx">         let mtime=''</span>
+<span class="ctx">         if(st&amp;&amp;st.mtime){try{mtime=new Date(st.mtime).toISOString()}catch{}}</span>
+<span class="del">-        const iss=parseMd(txt,{key:norm,parentKey:null,isMap:true,effortId:r.effortId,createdAt:mtime,updatedAt:mtime})</span>
+<span class="add">+        const iss=parseMd(txt,{key:norm,parentKey:null,isMap:true,effortId:r.effortId,createdAt:mtime,updatedAt:mtime,url:r.path})</span>
+<span class="ctx">         applyLabelColors(iss, colorMap)</span>
+<span class="ctx">         return{ok:true,data:iss}</span>
+<span class="ctx">       }catch(e){return failFromError(e,ctx,'读这个工作单元的地图文件时出错')}</span></pre>
+</article>
+<article class="file">
+  <h3><code title="src/tracker/rooms/markdown/issues-status.ts">src/tracker/rooms/markdown/issues-status.ts</code>
+    <span class="pill add">+1</span><span class="pill del">−1</span></h3>
+  <p class="why">改状态同理：回包的票带同一个地址。</p>
+  <pre class="diff"><span class="hunk">@@ -41,7 +41,7 @@ async function setStatus(ctx,repo,key,statusLine){</span>
+<span class="ctx">       let txt=await readTextFile(ctx,r.path)</span>
+<span class="ctx">       txt=replaceOrInsertField(txt,'Status',statusLine)</span>
+<span class="ctx">       await writeTextFile(ctx,r.path,txt, ctx &amp;&amp; ctx.sandboxPolicy)</span>
+<span class="del">-      const iss=parseMd(txt,{key:norm,parentKey:isMap?null:'00',isMap,effortId:r.effortId})</span>
+<span class="add">+      const iss=parseMd(txt,{key:norm,parentKey:isMap?null:'00',isMap,effortId:r.effortId,url:r.path})</span>
+<span class="ctx">       applyLabelColors(iss, colorMap)</span>
+<span class="ctx">       return{ok:true,data:iss}</span>
+<span class="ctx">     }catch(e){return failFromError(e,ctx,'改这张票的状态时出错')}</span></pre>
+</article>
+<article class="file">
+  <h3><code title="src/tracker/rooms/markdown/parse.ts">src/tracker/rooms/markdown/parse.ts</code>
+    <span class="pill add">+5</span><span class="pill del">−1</span></h3>
+  <p class="why">票的地址在这里进门。<code>parseMd</code> 多收一个 <code>url</code> 入参（默认空串），调用方知道盘上路径就传进来，它原样写进票里；不传（例如只借它做纯文本解析、或宿主直接注入一段文本）行为与以前一模一样。</p>
+  <pre class="diff"><span class="hunk">@@ -199,6 +199,10 @@ export function parseMd(text, meta) {</span>
+<span class="ctx">   const effortId = String((meta &amp;&amp; meta.effortId) || '')</span>
+<span class="ctx">   const createdAt = (meta &amp;&amp; typeof meta.createdAt === 'string' ? meta.createdAt : '') || ''</span>
+<span class="ctx">   const updatedAt = (meta &amp;&amp; typeof meta.updatedAt === 'string' ? meta.updatedAt : '') || ''</span>
+<span class="add">+  // 地址（#1142）：本地后端的票就是工作区里的文件，所以一张票的地址就是它所在的那个文件的路径。</span>
+<span class="add">+  // 只有真正读/写这个文件的那一层知道路径 —— 文件名里还带标题转出来的后缀（01-hello-world.md），</span>
+<span class="add">+  // 光有编号是拼不出来的，所以由调用方经 meta.url 传进来；没传就是空串（例如只借 parseMd 做纯文本解析）。</span>
+<span class="add">+  const url = (meta &amp;&amp; typeof meta.url === 'string') ? meta.url : ''</span>
+<span class="ctx">   const closedAt = state === STATE.CLOSED ? (updatedAt || createdAt || '') : null</span>
+<span class="ctx">   const issue = {</span>
+<span class="ctx">     key,</span>
+<span class="hunk">@@ -207,7 +211,7 @@ export function parseMd(text, meta) {</span>
+<span class="ctx">     title,</span>
+<span class="ctx">     state,</span>
+<span class="ctx">     body: raw,</span>
+<span class="del">-    url: '',</span>
+<span class="add">+    url,</span>
+<span class="ctx">     createdAt,</span>
+<span class="ctx">     updatedAt,</span>
+<span class="ctx">     closedAt,</span></pre>
+</article>
+
+<h2>回归测试（1 个文件）</h2>
+<article class="file">
+  <h3><code title="tests/verify-markdown-backend.js">tests/verify-markdown-backend.js</code>
+    <span class="pill add">+54</span><span class="pill del">−0</span></h3>
+  <p class="why">新增第 ⑨ 节回归（6 条判据）：列举回来的每一行都有地址且文件真的在、地图行的地址就是 <code>map.md</code>、票行的地址就是它自己那个文件名（<code>01-hello-world.md</code>，不是按编号猜的 <code>01-untitled.md</code>）、读单张票带同一个地址、新建票回包里的地址就是刚落在 <code>issues/</code> 下的那个文件。</p>
+  <pre class="diff"><span class="hunk">@@ -253,6 +253,60 @@ console.log('\n== ⑧ 空字段行不许吃掉下一行（#991 实测带回来</span>
+<span class="ctx">     '非空的 Type 行照旧读出（实得 ' + JSON.stringify(realType.customFields || []) + '）')</span>
+<span class="ctx"> }</span>
+<span class="ctx"> </span>
+<span class="add">+console.log('\n== ⑨ 每张票都带地址，而且地址指向盘上那个真实文件（#1142） ==')</span>
+<span class="add">+{</span>
+<span class="add">+  // 现象（#1142）：本地 Markdown 房里票的 url 一直是空串 —— 界面上的「链接」按钮点了没反应，</span>
+<span class="add">+  //   工具回执里也拿不到票的地址。根因是房间算得出路径却没人把它写进票里：宿主那段「url 为空就现算」</span>
+<span class="add">+  //   的兜底读的是投影之后的模块对象，而投影只带数据字段、把函数挡在门外，所以那段永远进不去。</span>
+<span class="add">+  // 这一节钉住修好之后的样子：房间交给外面的每一张票、每一张地图，url 都是它自己那个文件在盘上的路径，</span>
+<span class="add">+  //   而且那个文件真的在（不是「01-untitled.md」这类按编号猜出来的规范名）。</span>
+<span class="add">+  const addrTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'md-address-'))</span>
+<span class="add">+  const addrPlat = {</span>
+<span class="add">+    path: path.posix,</span>
+<span class="add">+    fs: {</span>
+<span class="add">+      async resolve(p) { return p },</span>
+<span class="add">+      async readText(t) { return fs.readFileSync(t, 'utf8') },</span>
+<span class="add">+      async writeText(t, c) { fs.mkdirSync(path.dirname(t), { recursive: true }); fs.writeFileSync(t, c, 'utf8') },</span>
+<span class="add">+      async lstat(t) { try { return fs.statSync(t) } catch { return null } },</span>
+<span class="add">+      async listDir(t) { try { return fs.readdirSync(t) } catch { return [] } },</span>
+<span class="add">+      async stat(t) { try { return fs.statSync(t) } catch { return null } },</span>
+<span class="add">+    },</span>
+<span class="add">+  }</span>
+<span class="add">+  const addrCtx = { platform: addrPlat, fs: addrPlat.fs, cwd: addrTmp, get(name) { if (name === 'fs') return addrPlat.fs; return undefined } }</span>
+<span class="add">+  const addrRepo = { backend: 'markdown', refId: '.scratch/demo', name: 'demo', url: '' }</span>
+<span class="add">+  // 期望值与房间拼路径的方式对齐（平台路径实现用的是 posix，见上面 addrPlat）</span>
+<span class="add">+  const wantRelative = (rel) =&gt; path.posix.join(addrTmp, rel)</span>
+<span class="add">+  const addrMapFile = wantRelative('.scratch/demo/map.md')</span>
+<span class="add">+  const addrTicketFile = wantRelative('.scratch/demo/issues/01-hello-world.md')</span>
+<span class="add">+  fs.mkdirSync(path.dirname(addrTicketFile), { recursive: true })</span>
+<span class="add">+  fs.writeFileSync(addrMapFile, '# Demo Map\n\nStatus: ready-for-agent\n\n## Destination\n\nDemo\n', 'utf8')</span>
+<span class="add">+  fs.writeFileSync(addrTicketFile, '# Hello World\n\nStatus: ready-for-agent\nType: task\n\n## Comments\n', 'utf8')</span>
+<span class="add">+  const addrApi = await import('../src/tracker/rooms/markdown/issues.ts')</span>
+<span class="add">+</span>
+<span class="add">+  const listed = await addrApi.listIssues(addrCtx, addrRepo, {}, {})</span>
+<span class="add">+  const rows = listed.ok ? listed.data : []</span>
+<span class="add">+  check(listed.ok, '⑨ 列举跑通（实得 ' + (listed.ok ? rows.length + ' 行' : JSON.stringify(listed.error)) + '）')</span>
+<span class="add">+  // 逐行都要有地址，而且地址指的必须是盘上真实存在的文件（这一条同时管住地图行与票行）</span>
+<span class="add">+  const noAddress = rows.filter((r) =&gt; !r || !r.url || !fs.existsSync(r.url)).map((r) =&gt; (r &amp;&amp; r.key) + '→' + JSON.stringify(r &amp;&amp; r.url))</span>
+<span class="add">+  check(noAddress.length === 0, '⑨ 列举回来的每一行都有地址且文件真的在（没有地址的行：' + JSON.stringify(noAddress) + '）')</span>
+<span class="add">+  const mapRow = rows.find((r) =&gt; String(r.key) === '00')</span>
+<span class="add">+  const ticketRow = rows.find((r) =&gt; String(r.key) === '01')</span>
+<span class="add">+  check(!!mapRow &amp;&amp; mapRow.url === addrMapFile, '⑨ 地图行的地址就是 map.md 的路径（实得 ' + JSON.stringify(mapRow &amp;&amp; mapRow.url) + '）')</span>
+<span class="add">+  check(!!ticketRow &amp;&amp; ticketRow.url === addrTicketFile,</span>
+<span class="add">+    '⑨ 票行的地址是它自己那个文件名（01-hello-world.md，不是按编号猜的 01-untitled.md；实得 ' + JSON.stringify(ticketRow &amp;&amp; ticketRow.url) + '）')</span>
+<span class="add">+</span>
+<span class="add">+  const got = await addrApi.getIssue(addrCtx, addrRepo, '01', {})</span>
+<span class="add">+  check(got.ok &amp;&amp; got.data.url === addrTicketFile, '⑨ 读单张票也带同一个地址（实得 ' + JSON.stringify(got.ok ? got.data.url : got.error) + '）')</span>
+<span class="add">+</span>
+<span class="add">+  const created = await addrApi.createIssue(addrCtx, addrRepo, { title: 'Address Probe', body: 'body', status: 'ready-for-agent', type: 'task' })</span>
+<span class="add">+  const createdUrl = created.ok ? String(created.data.url || '') : ''</span>
+<span class="add">+  const onDisk = fs.readdirSync(path.dirname(addrTicketFile))</span>
+<span class="add">+  check(!!createdUrl &amp;&amp; fs.existsSync(createdUrl) &amp;&amp; onDisk.includes(path.basename(createdUrl)),</span>
+<span class="add">+    '⑨ 新建票回包的地址就是刚落在 issues/ 下的那个文件（实得 ' + JSON.stringify(createdUrl) + '，目录里现有 ' + JSON.stringify(onDisk) + '）')</span>
+<span class="add">+</span>
+<span class="add">+  fs.rmSync(addrTmp, { recursive: true, force: true })</span>
+<span class="add">+}</span>
+<span class="add">+</span>
+<span class="ctx"> if (failed || hFailed &gt; 0) {</span>
+<span class="ctx">   console.log('\n存在失败 — verify-markdown-backend 未通过')</span>
+<span class="ctx">   process.exit(1)</span></pre>
+</article>
+
+<h2>金标准回执：只动了 9 行 url</h2>
+<p class="why">九个工具回执里有 7 份的基准跟着改了，逐行核对过：<strong>差异只有 <code>url</code> 这一行</strong>，没有别的字段被带动。下面列出每一份改的是哪张票的地址。</p>
+<table>
+  <tr><th>回执基准</th><th>哪一行地址</th><th>改前 → 改后</th></tr>
+  <tr><td><code>01-deck_context</code></td><td>快照里的地图</td><td><code>""</code> → <code>&lt;ROOT&gt;/.scratch/demo/map.md</code></td></tr>
+  <tr><td><code>02-deck_issue_create</code></td><td>新建票的回包</td><td><code>""</code> → <code>&lt;ROOT&gt;/.scratch/demo/issues/01-untitled.md</code></td></tr>
+  <tr><td><code>03-deck_issue_list</code></td><td>地图行与票行（两处）</td><td><code>""</code> → <code>…/map.md</code>、<code>…/issues/01-untitled.md</code></td></tr>
+  <tr><td><code>04-deck_issue_get</code></td><td>读单张票</td><td><code>""</code> → <code>…/issues/01-untitled.md</code></td></tr>
+  <tr><td><code>05-deck_map_snapshot</code></td><td>快照里的地图</td><td><code>""</code> → <code>…/map.md</code></td></tr>
+  <tr><td><code>08-deck_issue_patch</code></td><td>改票回包与清单（两处）</td><td><code>""</code> → <code>…/issues/01-untitled.md</code></td></tr>
+  <tr><td><code>09-deck_issue_report</code></td><td>上报回包里的票</td><td><code>""</code> → <code>…/issues/01-untitled.md</code></td></tr>
+</table>
+<p class="why" style="margin-top:12px">回执里那张演示票叫「金标准演示票」，文件名却是 <code>01-untitled.md</code>——因为标题转文件名只留 a–z、0–9 和横线，中文标题转出来是空的，落到 <code>untitled</code>。这正好说明为什么地址必须来自「刚读到的那个文件」，而不能靠编号现算（按编号现算就是这个坑，已另立 #1144）。</p>
+<article class="file">
+  <h3><code title="tests/tracker-contract/fixtures/golden-receipts/01-deck_context.golden.json">…/golden-receipts/01-deck_context.golden.json</code>
+    <span class="pill add">+1</span><span class="pill del">−1</span></h3>
+  <p class="why">金标准回执：这一份里的 <code>url</code> 由空串变成工作区内的真实路径（<code>&lt;ROOT&gt;</code> 占位符规则原本就有，所以基准里不出现机器相关的盘符）。这是「有意改行为」，按 <code>--update</code> 重录。</p>
+  <pre class="diff"><span class="hunk">@@ -32,7 +32,7 @@</span>
+<span class="ctx">         "key": "00",</span>
+<span class="ctx">         "state": "open",</span>
+<span class="ctx">         "title": "金标准底图",</span>
+<span class="del">-        "url": ""</span>
+<span class="add">+        "url": "&lt;ROOT&gt;/.scratch/demo/map.md"</span>
+<span class="ctx">       }</span>
+<span class="ctx">     ],</span>
+<span class="ctx">     "preflight": {</span></pre>
+</article>
+<article class="file">
+  <h3><code title="tests/tracker-contract/fixtures/golden-receipts/02-deck_issue_create.golden.json">…/golden-receipts/02-deck_issue_create.golden.json</code>
+    <span class="pill add">+1</span><span class="pill del">−1</span></h3>
+  <p class="why">金标准回执：这一份里的 <code>url</code> 由空串变成工作区内的真实路径（<code>&lt;ROOT&gt;</code> 占位符规则原本就有，所以基准里不出现机器相关的盘符）。这是「有意改行为」，按 <code>--update</code> 重录。</p>
+  <pre class="diff"><span class="hunk">@@ -60,7 +60,7 @@</span>
+<span class="ctx">       "title": "金标准演示票",</span>
+<span class="ctx">       "type": "issue",</span>
+<span class="ctx">       "updatedAt": "&lt;TIME&gt;",</span>
+<span class="del">-      "url": ""</span>
+<span class="add">+      "url": "&lt;ROOT&gt;/.scratch/demo/issues/01-untitled.md"</span>
+<span class="ctx">     }</span>
+<span class="ctx">   },</span>
+<span class="ctx">   "items": [],</span></pre>
+</article>
+<article class="file">
+  <h3><code title="tests/tracker-contract/fixtures/golden-receipts/03-deck_issue_list.golden.json">…/golden-receipts/03-deck_issue_list.golden.json</code>
+    <span class="pill add">+2</span><span class="pill del">−2</span></h3>
+  <p class="why">金标准回执：这一份里的 <code>url</code> 由空串变成工作区内的真实路径（<code>&lt;ROOT&gt;</code> 占位符规则原本就有，所以基准里不出现机器相关的盘符）。这是「有意改行为」，按 <code>--update</code> 重录。</p>
+  <pre class="diff"><span class="hunk">@@ -31,7 +31,7 @@</span>
+<span class="ctx">         "title": "金标准底图",</span>
+<span class="ctx">         "type": "map",</span>
+<span class="ctx">         "updatedAt": "&lt;TIME&gt;",</span>
+<span class="del">-        "url": ""</span>
+<span class="add">+        "url": "&lt;ROOT&gt;/.scratch/demo/map.md"</span>
+<span class="ctx">       },</span>
+<span class="ctx">       {</span>
+<span class="ctx">         "assignees": [],</span>
+<span class="hunk">@@ -45,7 +45,7 @@</span>
+<span class="ctx">         "title": "金标准演示票",</span>
+<span class="ctx">         "type": "issue",</span>
+<span class="ctx">         "updatedAt": "&lt;TIME&gt;",</span>
+<span class="del">-        "url": ""</span>
+<span class="add">+        "url": "&lt;ROOT&gt;/.scratch/demo/issues/01-untitled.md"</span>
+<span class="ctx">       }</span>
+<span class="ctx">     ],</span>
+<span class="ctx">     "returned": 2,</span></pre>
+</article>
+<article class="file">
+  <h3><code title="tests/tracker-contract/fixtures/golden-receipts/04-deck_issue_get.golden.json">…/golden-receipts/04-deck_issue_get.golden.json</code>
+    <span class="pill add">+1</span><span class="pill del">−1</span></h3>
+  <p class="why">金标准回执：这一份里的 <code>url</code> 由空串变成工作区内的真实路径（<code>&lt;ROOT&gt;</code> 占位符规则原本就有，所以基准里不出现机器相关的盘符）。这是「有意改行为」，按 <code>--update</code> 重录。</p>
+  <pre class="diff"><span class="hunk">@@ -46,7 +46,7 @@</span>
+<span class="ctx">       "title": "金标准演示票",</span>
+<span class="ctx">       "type": "issue",</span>
+<span class="ctx">       "updatedAt": "&lt;TIME&gt;",</span>
+<span class="del">-      "url": ""</span>
+<span class="add">+      "url": "&lt;ROOT&gt;/.scratch/demo/issues/01-untitled.md"</span>
+<span class="ctx">     }</span>
+<span class="ctx">   },</span>
+<span class="ctx">   "items": [],</span></pre>
+</article>
+<article class="file">
+  <h3><code title="tests/tracker-contract/fixtures/golden-receipts/05-deck_map_snapshot.golden.json">…/golden-receipts/05-deck_map_snapshot.golden.json</code>
+    <span class="pill add">+1</span><span class="pill del">−1</span></h3>
+  <p class="why">金标准回执：这一份里的 <code>url</code> 由空串变成工作区内的真实路径（<code>&lt;ROOT&gt;</code> 占位符规则原本就有，所以基准里不出现机器相关的盘符）。这是「有意改行为」，按 <code>--update</code> 重录。</p>
+  <pre class="diff"><span class="hunk">@@ -57,7 +57,7 @@</span>
+<span class="ctx">       "state": "open",</span>
+<span class="ctx">       "title": "金标准底图",</span>
+<span class="ctx">       "updatedAt": "&lt;TIME&gt;",</span>
+<span class="del">-      "url": ""</span>
+<span class="add">+      "url": "&lt;ROOT&gt;/.scratch/demo/map.md"</span>
+<span class="ctx">     },</span>
+<span class="ctx">     "progressOf": {</span>
+<span class="ctx">       "demo\u000000": null,</span></pre>
+</article>
+<article class="file">
+  <h3><code title="tests/tracker-contract/fixtures/golden-receipts/08-deck_issue_patch.golden.json">…/golden-receipts/08-deck_issue_patch.golden.json</code>
+    <span class="pill add">+2</span><span class="pill del">−2</span></h3>
+  <p class="why">金标准回执：这一份里的 <code>url</code> 由空串变成工作区内的真实路径（<code>&lt;ROOT&gt;</code> 占位符规则原本就有，所以基准里不出现机器相关的盘符）。这是「有意改行为」，按 <code>--update</code> 重录。</p>
+  <pre class="diff"><span class="hunk">@@ -68,7 +68,7 @@</span>
+<span class="ctx">       "title": "金标准演示票",</span>
+<span class="ctx">       "type": "issue",</span>
+<span class="ctx">       "updatedAt": "&lt;TIME&gt;",</span>
+<span class="del">-      "url": ""</span>
+<span class="add">+      "url": "&lt;ROOT&gt;/.scratch/demo/issues/01-untitled.md"</span>
+<span class="ctx">     }</span>
+<span class="ctx">   },</span>
+<span class="ctx">   "items": [</span>
+<span class="hunk">@@ -125,7 +125,7 @@</span>
+<span class="ctx">     "title": "金标准演示票",</span>
+<span class="ctx">     "type": "issue",</span>
+<span class="ctx">     "updatedAt": "&lt;TIME&gt;",</span>
+<span class="del">-    "url": ""</span>
+<span class="add">+    "url": "&lt;ROOT&gt;/.scratch/demo/issues/01-untitled.md"</span>
+<span class="ctx">   },</span>
+<span class="ctx">   "reason": "",</span>
+<span class="ctx">   "repo": {</span></pre>
+</article>
+<article class="file">
+  <h3><code title="tests/tracker-contract/fixtures/golden-receipts/09-deck_issue_report.golden.json">…/golden-receipts/09-deck_issue_report.golden.json</code>
+    <span class="pill add">+1</span><span class="pill del">−1</span></h3>
+  <p class="why">金标准回执：这一份里的 <code>url</code> 由空串变成工作区内的真实路径（<code>&lt;ROOT&gt;</code> 占位符规则原本就有，所以基准里不出现机器相关的盘符）。这是「有意改行为」，按 <code>--update</code> 重录。</p>
+  <pre class="diff"><span class="hunk">@@ -31,7 +31,7 @@</span>
+<span class="ctx">     "note": "金标准上报",</span>
+<span class="ctx">     "state": "open",</span>
+<span class="ctx">     "title": "金标准演示票",</span>
+<span class="del">-    "url": ""</span>
+<span class="add">+    "url": "&lt;ROOT&gt;/.scratch/demo/issues/01-untitled.md"</span>
+<span class="ctx">   },</span>
+<span class="ctx">   "items": [],</span>
+<span class="ctx">   "notes": [</span></pre>
+</article>
+
+
+
+<h2>验证结果</h2>
+<table>
+  <tr><th>门禁</th><th>结果</th><th>说明</th></tr>
+  <tr><td><code>tests/verify-markdown-backend.js</code></td><td class="ok">通过</td><td>含新增的第 ⑨ 节 6 条判据</td></tr>
+  <tr><td><code>tests/verify-contract-types.js</code></td><td class="ok">通过</td><td>模块对象键快照未受影响（本票不动能力名）</td></tr>
+  <tr><td><code>tests/verify-no-mixed-session.js</code></td><td class="ok">通过</td><td>本次提交只动 markdown 一房</td></tr>
+  <tr><td><code>node scripts/build.mjs</code></td><td class="ok">OK</td><td>构建只写仓库内产物</td></tr>
+  <tr><td><code>node scripts/typecheck.mts</code></td><td class="ok">与改前一致</td><td>121 条既有红（108 缺口 + 13 棘轮涨了），归 #1095 与搬房时的棘轮基线</td></tr>
+  <tr><td><code>tests/verify-golden-receipts.ts</code></td><td class="ok">九项逐字节一致</td><td>在基于 HEAD 的临时 worktree 里复核（见下方说明）</td></tr>
+</table>
+
+<h2>一处如实交代</h2>
+<div class="note">
+本机工作树里有<strong>另一个会话正在改注册表</strong>（<code>src/tracker/registry/core.ts</code> 不再有 <code>bind</code>，属别的票）：主工作树里因此 <code>verify-golden-receipts.ts</code> 报 <code>registry.bind is not a function</code>，<code>npm run test:smoke</code> 的前置绑定同理失败——都与本票的改动无关。为了不拿别人的半成品当自己的证据，九回执的复核是在一个基于 HEAD <code>48911871</code> 的临时 worktree 里做的（只多本票这一处改动），那里九项逐字节一致；等那批改动落地后在主工作树复跑一次即可。
+</div>
+
+<h2>本票没做的事（各立一票）</h2>
+<table>
+  <tr><th>票</th><th>是什么</th></tr>
+  <tr><td><a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1144">#1144</a></td><td>Markdown 房的 <code>issueAddress(ref, key)</code> 会拼出一个不存在的文件名（实测给 <code>01-untitled.md</code>，真文件是 <code>01-hello-world.md</code>）——今天没有生产调用方，但契约上还声明着</td></tr>
+  <tr><td><a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1145">#1145</a></td><td>详情页与评论区的「在跟踪器打开」是裸 <code>&lt;a href&gt;</code>：本地票点了没反应（列表行早有 <code>wf.openPath</code> 分流）</td></tr>
+</table>
+
+<footer>
+  本页由提交 <code>0c29f322</code> 的真实 diff 直接生成（<code>git show 0c29f322</code> → HTML），代码片段即提交内容，未经改写。<br>
+  票面与进度见 <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1142">#1142</a>；地图结论见 <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1042">#1042</a> 的 Decisions so far。
+</footer>
+
+</div>
+</body>
+</html>

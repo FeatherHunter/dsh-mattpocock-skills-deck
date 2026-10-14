@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>钩子与金标准：从头讲到你能复述</title>
+<style>
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:#fafaf8;color:#22252a;font:17px/1.9 -apple-system,"Segoe UI","Microsoft YaHei","PingFang SC",sans-serif;padding:20px 14px 60px}
+main{max-width:640px;margin:0 auto}
+header{border-bottom:2px solid #22252a;padding-bottom:12px;margin-bottom:18px}
+.kicker{margin:0 0 6px;color:#7a7e87;font-size:13px}
+h1{margin:0;font-size:23px;line-height:1.4}
+.sub{margin:8px 0 0;color:#7a7e87;font-size:14px;line-height:1.7}
+.card{background:#fff;border:1px solid #e8e9ec;border-radius:12px;padding:16px;margin:0 0 12px}
+h2{font-size:19px;margin:0 0 10px}
+.badge{display:inline-block;background:#22252a;color:#fff;font-size:13px;border-radius:20px;padding:2px 10px;margin-right:8px}
+p{margin:0 0 10px}p:last-child{margin:0}
+ul{margin:8px 0;padding-left:20px}li{margin-bottom:8px}
+code{font-family:ui-monospace,Consolas,monospace;font-size:14px;background:#f3f4f6;padding:1px 6px;border-radius:4px;word-break:break-all}
+pre{margin:10px 0;background:#f5f6f7;border:1px solid #e8e9ec;border-radius:10px;padding:12px;font-size:13px;line-height:1.8;white-space:pre-wrap;word-break:break-all}
+.case{border:1px solid #e8e9ec;border-radius:10px;padding:10px 12px;margin:8px 0;font-size:15px}
+.case b{display:block;font-size:15px;margin-bottom:4px}
+.ok{background:#eefaf7;border-left:3px solid #0f766e;border-radius:8px;padding:10px 12px;font-size:15px;margin:10px 0}
+.bad{background:#fef7ec;border-left:3px solid #d97706;border-radius:8px;padding:10px 12px;font-size:15px;margin:10px 0}
+footer{margin-top:20px;padding-top:12px;border-top:1px solid #e8e9ec;color:#7a7e87;font-size:13px;line-height:1.7}
+</style>
+</head>
+<body>
+<main>
+<header>
+<p class="kicker">地图01 · 只讲本图 · 手机版</p>
+<h1>钩子与金标准：从头讲到你能复述</h1>
+<p class="sub">对抗式自查：每节末尾有一句“你能说出来吗”，说不出来就是我没讲透，不是你的问题。</p>
+</header>
+
+<div class="card">
+<h2><span class="badge">起</span>先从 Node 的死规矩说起</h2>
+<p>Node 只认识 <code>.js</code>。代码里写 <code>import './x.js'</code>，Node 就去磁盘找 <code>x.js</code>，找不到就报错，它不会自作主张去找 <code>x.ts</code>。</p>
+<p>仓库正在把 <code>.js</code> 一个个改名成 <code>.ts</code>。改名后引用处还写 <code>./x.js</code>（发布产物本来就要这个写法，不能改）。于是中间缺了一步：谁把旧名字领到新文件。</p>
+<p>钩子就是补这一步的人。它站在 Node 找文件之前，先看一眼：你要的 <code>.js</code> 旁边有没有同名 <code>.ts</code>，有就给你新的，没有就让你按原来的路走。</p>
+<div class="ok">你能说出来吗：钩子不改代码，只在找文件那一步多看一眼。</div>
+</div>
+
+<div class="card">
+<h2><span class="badge">钩</span>四种情况，一个例子走完</h2>
+<p>例子：<code>src/deck/tools/issue-get.ts</code> 里写着 <code>import '../shell/call-shell.js'</code>。</p>
+<div class="case"><b>情况1：旁边有同名 .ts（最常见）</b>磁盘上有 <code>call-shell.ts</code> → 钩子直接给你 <code>call-shell.ts</code>。引用处一个字不用改。</div>
+<div class="case"><b>情况2：旁边没有 .ts（还没转完）</b>磁盘上只有 <code>call-shell.js</code> → 钩子说“我不管”，交给 Node 原样找 <code>.js</code>。这就是“没有就交给 Node”。</div>
+<div class="case"><b>情况3：裸包名（你问的那句）</b>比如 <code>import 'dsh-log/host'</code>、<code>import 'node:fs'</code>。它不以 <code>./</code>、<code>../</code>、<code>file:</code> 开头，也不是绝对路径，就是一个包名字。钩子碰都不碰，因为它不是我们仓库里的文件，是外面装进来的包，一改就坏。这就是“裸包名不碰”。</div>
+<div class="case"><b>情况4：在 node_modules 里（你问的另一句）</b>比如目标算出来落在 <code>.../node_modules/某某包/x.js</code>。就算它长得像相对引用，钩子也不碰，因为那是别人包内部的事，我们的“同名优先”只管自己仓库。你可以记成：只给自己家指路，不进别人家改门牌。</div>
+<div class="ok">你能说出来吗：1 有就给新的，2 没有就放行，3 包名不看，4 别人家不进。</div>
+<div class="bad">还有一种绝对路径：测试里写 <code>require(拼出来的 D:\...\src\...\x.js)</code>。它看着不像相对引用，但说的还是同一件事，钩子同样先看有没有同名 .ts。没有这一条，转完当天那条测试就炸。</div>
+</div>
+
+<div class="card">
+<h2><span class="badge">错</span>旧电脑会看到什么</h2>
+<p>同步钩子要 Node 22.15 才有。旧 Node 上钩子根本不存在，直接调会是一句看不懂的报错。钩子第一件事就是把这句换成人话：本仓要 22.22.2 以上，见根 <code>package.json</code>。这是报错信息，不是门禁。</p>
+<p>金标准里还有一道自证：如果磁盘明明有 <code>.ts</code> 兄弟，解析却给了 <code>.js</code>，说明钩子没挂上，宁可当场红也不假装绿。</p>
+</div>
+
+<div class="card">
+<h2><span class="badge">秤</span>金标准为什么能当秤</h2>
+<p>从头说：口头说“没改坏”不算数，要机器判。做法是把九个工具各调一次，顺序固定（先建票再查票再建地图，因为写操作有先后），输入固定（工作区新建临时目录、会话固定叫 s-golden、时钟固定、配额固定），回执归一化后逐字节存档。差一个字就红。</p>
+<p>归一化只抹三样：本次的工作区根换成 <code>&lt;ROOT&gt;</code>、由根算出的钥匙换成 <code>&lt;WSKEY&gt;</code>、Z 结尾的时刻换成 <code>&lt;TIME&gt;</code>。别的时刻形状若出现，让它红，不悄悄抹。票标题正文里不许出现像日期的字，不然会被当时间戳抹掉。</p>
+<p>对象键先排序再比（键顺序不算语义），数组顺序不动（列表本来就按 key 排过）。重建基准只有一条路：有意改行为且已评审，用 <code>--update</code>，顺手跑的不算。</p>
+<div class="ok">你能说出来吗：固定输入调九次，只抹三样，差一字即红。</div>
+<div class="bad">边界要记牢：每个工具只守一次最小调用的快乐路径回执。错误分支、契约层各有别的门禁守。秤绿不等于全对，秤红则一定是有东西变了，按分拣指南看（先看配额常量，再看归一化漏没漏，再看键多少与值变没变）。GitHub 房要联网，不进逐字节比，只对照形状。</div>
+</div>
+
+<footer>来源：scripts/ts-hook.mjs 79 行、tests/verify-golden-receipts.ts 与 golden-receipts/README.md。只含地图01，未写票。</footer>
+</main>
+</body>
+</html>

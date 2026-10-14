@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>#1022 讲课稿：一次真实调用的全程走查</title>
+<style>
+:root{--ink:#22252a;--muted:#7a7e87;--line:#e8e9ec;--bg:#fafaf8;--card:#fff;--accent:#0f766e;--accent-soft:#eefaf7}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:18px/2 -apple-system,"Segoe UI","Microsoft YaHei","PingFang SC",sans-serif;padding:48px 22px 80px}
+main{max-width:760px;margin:0 auto}
+header{border-bottom:2px solid var(--ink);padding-bottom:16px;margin-bottom:28px}
+.kicker{margin:0 0 8px;color:var(--muted);font-size:14px;letter-spacing:.05em}
+h1{margin:0;font-size:28px;line-height:1.4}
+.sub{margin:8px 0 0;color:var(--muted);font-size:15px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:22px 24px;margin:0 0 16px}
+h2{font-size:20px;margin:0 0 12px}
+h2 .n{display:inline-block;min-width:28px;height:28px;line-height:28px;text-align:center;background:var(--ink);color:#fff;border-radius:50%;font-size:15px;margin-right:10px;vertical-align:2px}
+p{margin:0 0 12px}p:last-child{margin:0}
+ul{margin:8px 0 12px;padding-left:22px}li{margin-bottom:8px}
+code{font-family:ui-monospace,Consolas,monospace;font-size:15px;background:#f3f4f6;padding:1px 6px;border-radius:4px;word-break:break-all}
+.tip{background:var(--accent-soft);border-left:3px solid var(--accent);border-radius:6px;padding:12px 16px;font-size:16px}
+.q{border-left:3px solid var(--ink);padding:10px 16px;background:#f5f6f7;border-radius:6px;margin:12px 0}
+.q b{font-size:17px}
+.rec{color:var(--accent)}
+footer{margin-top:36px;padding-top:14px;border-top:1px solid var(--line);color:var(--muted);font-size:14px}
+</style>
+</head>
+<body>
+<main>
+<header>
+<p class="kicker">#1022 · 地图01讲解 · 讲课稿（先讲透，再拍板）</p>
+<h1>一次真实调用的全程走查</h1>
+<p class="sub">目标：你从人类角度理解到 90%，再做决策。结论不定、不落盘。</p>
+</header>
+
+<div class="card">
+<h2><span class="n">1</span>我们站在哪</h2>
+<p>地图 #1013 是所有改写单元的前置：先把“手写的 <code>.ts</code> 怎么变成能跑的东西”立起来，后面才敢动手。</p>
+<p>#1022 是这张地图的最后一棒“讲解票”。讨论票 #1014 定做法（已关闭），开发票干活（金标准、日志、门禁换轨、类型检查、让测试跑 <code>.ts</code> 等，都已关闭），讲解票负责带人走一遍。</p>
+<p>下游是 #1077 收口核对票：它现在只做核对，等着拿 #1022 讲清楚的东西去对代码。</p>
+</div>
+
+<div class="card">
+<h2><span class="n">2</span>为什么开发完了还要讲</h2>
+<p>开发票证明“链通了”，讲解票证明“人懂了”。</p>
+<p>做完的标志：你能用自己的话复述这条链，并对三件事逐条表态。复述不出来，文档再细也是自嗨。复述出来了，后面每张地图都有可复制的模板。</p>
+<div class="tip">所以这张票有两个产出：带人的结果（你复述 + 表态），落盘的结果（一份走查文档）。哪个为主，就是 Q1 要定的。</div>
+</div>
+
+<div class="card">
+<h2><span class="n">3</span>第一件事：测试怎么跑起 <code>.ts</code></h2>
+<p>Node 本来只认识 <code>.js</code>。仓库正从 <code>.js</code> 一批批转成 <code>.ts</code>，引用处还写着 <code>./x.js</code>（发布产物本来就要这个写法，不能改）。</p>
+<p>测试侧加了一个约三十行的装载钩子 <code>scripts/ts-hook.mjs</code>：看到 <code>./x.js</code>，先看磁盘上有没有同名 <code>x.ts</code>，有就加载它，没有就原样交给 Node。可以理解成翻译路牌。</p>
+<ul>
+<li>必须用同步的 <code>module.registerHooks()</code>，不用异步的。因为仓库还有 7 处旧 <code>require('./x.js')</code>，异步钩子管不到它。</li>
+<li>Node 下限已改成 <code>^22.22.2 || ^24.15.0 || >=26.0.0</code>（票面旧数 22.15 已过期）。装包时挡一次，跑起来钩子再做一次能力检测。</li>
+<li>钩子挂在四个入口：<code>npm test</code>、并行链、CI 的 verify-all、六条冒烟。引用点一个字不用改。</li>
+</ul>
+</div>
+
+<div class="card">
+<h2><span class="n">4</span>第二件事：归属条数怎么数</h2>
+<p>门禁就是 <code>tests/verify-*.js</code> 里判不变式的脚本，红了就阻塞发布。今天链上 228 步。</p>
+<p>归属回答“每条门禁在守哪块源码”。<code>tests/gate-map.json</code> 就是对照表：228 步里能推出归属 200 步，28 步算不出（只指向文档脚本目录），另有 20 步只跟构建产物有关。</p>
+<p>漏登的症状：临时文件目录没进排除表会被误报；某域扫到 0 个文件构建直接失败；扫不到还判绿的三处已改成判红，并加了下限 200 的断言。</p>
+</div>
+
+<div class="card">
+<h2><span class="n">5</span>第三件事：金标准怎么兜零变化</h2>
+<p>搬家或转语言时行为不能变，怎么证明？靠金标准回执夹具（#1015）。</p>
+<p>做法：九个 deck 工具各跑一次代表性调用，去掉时间戳和路径后逐字节存档（<code>tests/tracker-contract/fixtures/golden-receipts/</code>）。之后每转完一个单元重跑比对，差一个键即红。它是“行为没变”的唯一机器判据。</p>
+<p>活样板是另一样东西：真挑一个文件转成 <code>.ts</code> 留在仓库，改一行三关都看见。它证明链存在，但不能证明故意写错会红。</p>
+</div>
+
+<div class="card">
+<h2><span class="n">6</span>一次调用全程长什么样</h2>
+<p>#1094 已交付 <code>docs/tour/deck-call-end-to-end.md</code>（721 行）。主干共用：AI → 工具服务（装机补丁装上的工具行注册的九个工具）→ 三条路由找人真跑（同进程共享格、宿主电话、 同源请求）→ 每个工具的 <code>run</code>（取会话、判参数、选后端、取沙箱策略、过闸）→ 注册表选房间门面 → 房间内部函数 → 最底层（三座：gh 进程、本地票文件、宿主缓存快照，第三座不在工具路上）。</p>
+<p>九个工具只在进房间后分叉。先读主干，再看九张索引卡。</p>
+</div>
+
+<div class="card">
+<h2><span class="n">7</span>两个冲突为什么要你定</h2>
+<p>一是文件落点：票面说新开 <code>00-一次调用全程.md</code>，#1094 说改同一份，不另开。另开会出两份真实链，核对时不知道以谁为准。</p>
+<p>二是数字过期：票面三件事写于动手前，现在钩子、归属表、金标准全落地，旧数必须换成真实现状讲。</p>
+<p>三看的含义：封装指谁调谁各管什么，参数指每层交出去什么，边界失败指哪环会失败、AI 看到哪句话。</p>
+</div>
+
+<div class="card">
+<h2><span class="n">8</span>待你拍板 Q1–Q5</h2>
+<div class="q"><b>Q1 目标权重：</b>带人的结果为主，还是落盘为主？<br><span class="rec">➡️ 推荐：带人为主。索引已有了，缺的是你确认看懂。</span></div>
+<div class="q"><b>Q2 产出落点：</b>改同一份，还是另开一份？<br><span class="rec">➡️ 推荐：改同一份，避免两份真实链打架。</span></div>
+<div class="q"><b>Q3 边界：</b>三件事全讲（换新数），还是只讲钩子一件？<br><span class="rec">➡️ 推荐：三件全讲，#1077 核对要看这三段。</span></div>
+<div class="q"><b>Q4 风险：</b>这轮先复述一次，还是改完文档再复述？<br><span class="rec">➡️ 推荐：这轮先复述，早暴露误解。</span></div>
+<div class="q"><b>Q5 分工：</b>#1022 只给 #1077 留线索，还是顺手做核对？<br><span class="rec">➡️ 推荐：只留线索，核对是 #1077 的边界。</span></div>
+<p>看完直接在对话里回 Q1–Q5，哪里没到 90% 你点出来，我把那段再展开。</p>
+</div>
+
+<footer>基线：#1014 结论、#1098 规格单、#1094 索引第一版、四个落地票真数。结论未定，未写票。</footer>
+</main>
+</body>
+</html>

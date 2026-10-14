@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>地图10讨论 · 迁移说明要写什么（票 #1063）</title>
+<style>
+  :root{
+    --ink:#15171c;
+    --ink2:#3f4550;
+    --ink3:#727a87;
+    --line:#e7e9ee;
+    --bg:#ffffff;
+    --soft:#f7f8fa;
+    --accent:#2f5bd4;
+    --accent-soft:#eef2fd;
+    --ok:#0f7b5f;
+    --ok-soft:#e9f6f1;
+    --warn:#a8620a;
+    --warn-soft:#fdf5e8;
+    --danger:#b3261e;
+    --danger-soft:#fdeeed;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    font-size:16px;
+    line-height:1.9;
+    letter-spacing:.01em;
+  }
+  .wrap{max-width:880px;margin:0 auto;padding:72px 28px 96px}
+
+  /* 页头 */
+  header{border-bottom:2px solid var(--ink);padding-bottom:28px;margin-bottom:8px}
+  .eyebrow{
+    font-size:13px;letter-spacing:.16em;color:var(--accent);
+    font-weight:600;margin-bottom:14px;
+  }
+  h1{font-size:31px;line-height:1.45;margin:0 0 14px;font-weight:700;letter-spacing:-.01em}
+  .sub{font-size:17px;color:var(--ink2);margin:0 0 20px}
+  .meta{
+    font-size:13px;color:var(--ink3);line-height:1.8;
+    display:flex;flex-wrap:wrap;gap:6px 18px;
+  }
+  .meta b{color:var(--ink2);font-weight:600}
+
+  /* 章节 */
+  section{margin-top:56px}
+  h2{
+    font-size:21px;font-weight:700;margin:0 0 6px;
+    display:flex;align-items:baseline;gap:12px;line-height:1.5;
+  }
+  h2 .num{
+    font-size:13px;font-weight:700;color:var(--accent);
+    letter-spacing:.08em;flex:none;padding-top:2px;
+  }
+  h3{font-size:17px;font-weight:700;margin:34px 0 8px}
+  p{margin:14px 0}
+  .lead{font-size:17px;color:var(--ink2)}
+  ul,ol{margin:14px 0;padding-left:22px}
+  li{margin:9px 0}
+  strong{font-weight:700}
+  em{font-style:normal;background:linear-gradient(transparent 62%, #ffe9a8 62%);padding:0 1px}
+  code{
+    font-family:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+    font-size:13.5px;background:var(--soft);border:1px solid var(--line);
+    border-radius:4px;padding:1px 5px;word-break:break-all;
+  }
+  a{color:var(--accent);text-decoration:none;border-bottom:1px solid #c3d0f5}
+  a:hover{border-bottom-color:var(--accent)}
+
+  /* 提示块 */
+  .callout{
+    border-left:3px solid var(--accent);background:var(--accent-soft);
+    padding:16px 20px;margin:22px 0;border-radius:0 6px 6px 0;
+  }
+  .callout .t{font-weight:700;color:var(--accent);margin-bottom:4px;font-size:14px;letter-spacing:.04em}
+  .callout p{margin:6px 0}
+  .callout.plain{border-left-color:var(--ink3);background:var(--soft)}
+  .callout.plain .t{color:var(--ink2)}
+
+  /* 状态卡 */
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:26px 0}
+  .card{border:1px solid var(--line);border-radius:8px;padding:18px 18px 20px;background:#fff}
+  .card .tag{
+    display:inline-block;font-size:12px;font-weight:700;letter-spacing:.06em;
+    padding:2px 9px;border-radius:999px;margin-bottom:12px;
+  }
+  .tag.done{background:var(--ok-soft);color:var(--ok)}
+  .tag.todo{background:var(--warn-soft);color:var(--warn)}
+  .tag.risk{background:var(--danger-soft);color:var(--danger)}
+  .card h4{margin:0 0 8px;font-size:15.5px;font-weight:700}
+  .card p{margin:0;font-size:14px;color:var(--ink2);line-height:1.8}
+
+  /* 表格 */
+  table{width:100%;border-collapse:collapse;margin:22px 0;font-size:14.5px}
+  th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-weight:700;font-size:13px;letter-spacing:.06em;color:var(--ink3);border-bottom:1.5px solid var(--ink);white-space:nowrap}
+  td.f{white-space:nowrap;font-family:"SFMono-Regular",Consolas,monospace;font-size:13px;color:var(--ink)}
+  tbody tr:hover{background:var(--soft)}
+
+  /* 步骤 */
+  ol.steps{list-style:none;padding:0;counter-reset:s;margin:26px 0}
+  ol.steps>li{
+    counter-increment:s;position:relative;padding:0 0 0 52px;margin:0 0 26px;
+  }
+  ol.steps>li::before{
+    content:counter(s);position:absolute;left:0;top:2px;
+    width:32px;height:32px;border-radius:50%;
+    background:var(--ink);color:#fff;font-size:14px;font-weight:700;
+    display:flex;align-items:center;justify-content:center;
+  }
+  ol.steps>li .st{font-weight:700;font-size:16px;display:block;margin-bottom:2px}
+  ol.steps>li p{margin:4px 0;font-size:15px;color:var(--ink2)}
+
+  /* 提问卡 */
+  .q{
+    border:1px solid var(--line);border-radius:10px;padding:24px 26px;margin:24px 0;
+    background:#fff;box-shadow:0 1px 3px rgba(20,25,40,.04);
+  }
+  .q .qh{font-size:13px;font-weight:700;color:var(--accent);letter-spacing:.1em;margin-bottom:8px}
+  .q h4{margin:0 0 12px;font-size:18px;font-weight:700;line-height:1.6}
+  .q p{margin:10px 0;font-size:15px}
+  .q .rec{
+    background:var(--ok-soft);border-left:3px solid var(--ok);
+    padding:12px 16px;border-radius:0 6px 6px 0;margin-top:16px;font-size:15px;
+  }
+  .q .rec b{color:var(--ok)}
+  .opts{list-style:none;padding:0;margin:14px 0}
+  .opts li{padding-left:26px;position:relative;font-size:15px}
+  .opts li::before{
+    content:"";position:absolute;left:8px;top:14px;width:6px;height:6px;
+    border-radius:50%;background:var(--line);
+  }
+
+  /* 误解 */
+  .mis{border-top:1px solid var(--line);padding-top:22px;margin-top:22px}
+  .mis .no{font-size:13px;font-weight:700;color:var(--danger);letter-spacing:.08em}
+  .mis h4{margin:4px 0 8px;font-size:16.5px}
+
+  footer{margin-top:80px;padding-top:26px;border-top:1px solid var(--line);font-size:13.5px;color:var(--ink3)}
+  footer p{margin:8px 0}
+
+  @media (max-width:720px){
+    .wrap{padding:44px 18px 72px}
+    h1{font-size:25px}
+    .grid{grid-template-columns:1fr}
+    .meta{display:block}
+  }
+  @media print{
+    .wrap{max-width:none;padding:0}
+    section{break-inside:avoid}
+    .q{break-inside:avoid}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">地图 10 · 讨论票 · #1063</div>
+  <h1>迁移说明要写什么</h1>
+  <p class="sub">第三座房间（GitLab 房）为什么只搬家、不转码，以后补它的人照什么开工。</p>
+  <div class="meta">
+    <span><b>所在地上图：</b>#1062「地图10 GitLab房：占位与迁移说明」</span>
+    <span><b>下游开发票：</b>#1064</span>
+    <span><b>讲解票：</b>#1065</span>
+    <span><b>本票边界：</b>只讨论，不写代码</span>
+  </div>
+</header>
+
+<section>
+  <h2><span class="num">导读</span>这张票只定一件事</h2>
+  <p class="lead">
+    那份留给后人的说明，要写多厚、写哪几节。
+  </p>
+  <p>
+    它不定代码怎么写，也不改目录——目录已经搬好了。定完这一件，开发票 #1064 才知道写完什么样算合格，
+    以后接手的人才知道从哪一页读起。
+  </p>
+  <div class="callout plain">
+    <div class="t">怎么读这一页</div>
+    <p>前半页是讲课：这件事的来龙去脉、现状、以后要走的步骤，读完你就有判断依据。</p>
+    <p>后半页是四个问题：每题都给了我的推荐答案，你只需说同意、不同意，或改成什么。决定权在你。</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">第一部分 · 讲课</span>这件事的来龙去脉</h2>
+
+  <h3>1. 第三座房间是什么</h3>
+  <p>
+    这个插件要跟三种代码仓库打交道：云端托管的那种（GitHub）、本地文件夹当成仓库的那种（Markdown）、
+    以及公司内部自建的那种（GitLab）。代码里给每一种各留了一个独立目录，管这种目录叫<strong>房间</strong>；
+    房间之间不许互相引用，这条纪律由自动检查在持续集成里硬卡。
+  </p>
+  <p>
+    前两座房间是这次改写的主力：代码要换语言、要整理干净。第三座房间这次<em>一个字都不换语言</em>，
+    只做两件事——搬进新目录树里占好位置，再留一份说明，告诉以后的人怎么把它补齐。
+  </p>
+
+  <h3>2. 契约：为什么今天敢先不动它</h3>
+  <p>
+    契约是一份书面承诺：不管哪座房间接手，都要回答同样的 <strong>19 个操作</strong>，
+    收同样的参数，回同样的形状。上层工具只认这份承诺，从不问「底下是哪座房间」。
+  </p>
+  <p>
+    正因为有这份承诺，第三座房间今天可以空着——以后补它的人不需要重新设计，
+    只要照着这 19 个操作一个一个实现；写错签名，编译器会当场报错，不用人拿清单一条条对。
+  </p>
+
+  <h3>3. 现状：三样东西，两样已就位，一样还没有</h3>
+  <div class="grid">
+    <div class="card">
+      <span class="tag done">已就位</span>
+      <h4>目录搬完了</h4>
+      <p>14 个文件已经在 <code>src/tracker/rooms/gitlab/</code> 里，旧的 <code>backends/gitlab/</code> 底下已经空了。</p>
+    </div>
+    <div class="card">
+      <span class="tag done">有意保留</span>
+      <h4>代码还是旧语言</h4>
+      <p>14 个文件扩展名一个没变。这是决定里写明的「本次不转码」，不是漏做。</p>
+    </div>
+    <div class="card">
+      <span class="tag todo">还没有</span>
+      <h4>说明文件没写</h4>
+      <p><code>MIGRATION-SLOT.md</code> 全仓搜不到实体文件，只有三十来处文字在提「应该写一份」。</p>
+    </div>
+  </div>
+  <p>
+    另外有一处需要顺手处理：讲房间纪律的那份文件里，扫描范围还写着旧目录地址；
+    根目录的依赖检查配置也还有旧路径。以后补齐时要把它们同步到新家，否则门禁扫的位置是错的。
+  </p>
+
+  <h3>4. 十四份文件各管什么</h3>
+  <p>看一遍这个清单，你就能判断「说明该写到多细」——每一行都是一句能被后人复用的话。</p>
+  <table>
+    <thead><tr><th>文件</th><th>它负责什么</th></tr></thead>
+    <tbody>
+      <tr><td class="f">index.js</td><td>房间入口：把下面各文件装成一个完整的后端，对外只交这一个口；没做的操作由注册表自动补一个「做不到」的诚实回执。</td></tr>
+      <tr><td class="f">client.js</td><td>命令行的封装：找到可执行文件并执行，拿回标准输出、错误输出与退出码，不抛异常。</td></tr>
+      <tr><td class="f">queries.js</td><td>拼请求地址：把仓库与查询条件拼成项目、工单、评论、关联、里程碑等路径。</td></tr>
+      <tr><td class="f">normalize.js</td><td>把远端返回的原始工单转成契约要求的标准形状；编号固定成字符串。</td></tr>
+      <tr><td class="f">errors.js</td><td>把命令行与接口的错误文字翻成契约里统一的错误种类，认不出时兜底为网络错误。</td></tr>
+      <tr><td class="f">preflight.js</td><td>环境探测：工具在不在、登录没有、接口通不通；不预判具体操作能不能做。</td></tr>
+      <tr><td class="f">issues.js</td><td>工单的列出、读取、创建、关闭、重开与更新；列表与读取会先聚合评论和关联再归一。</td></tr>
+      <tr><td class="f">comments.js</td><td>评论的单条写入；读取侧的聚合由工单文件做。</td></tr>
+      <tr><td class="f">labels.js</td><td>标签整集替换；颜色由项目色板决定，不由调用方保存。</td></tr>
+      <tr><td class="f">graph.js</td><td>关系入口：只转发阻塞与亲缘两个文件，自己不写逻辑。</td></tr>
+      <tr><td class="f">graph-blocking.js</td><td>阻塞关系的语义：格式、原生关联探测、读取合并、写入回退、环检查。</td></tr>
+      <tr><td class="f">graph-membership.js</td><td>亲缘挂载与指派：父子关联的链接挂载、负责人的解析。</td></tr>
+      <tr><td class="f">idempotency.js</td><td>建票幂等锚：写进描述、建后按锚回查，两条路都没找到才算没建过；拿不准时如实失败。</td></tr>
+      <tr><td class="f">create-write.js</td><td>把建一张票收敛成一条写路径：一次调用里最多只让远端收到一次写请求。</td></tr>
+    </tbody>
+  </table>
+
+  <h3>5. 以后补齐要走的五步</h3>
+  <ol class="steps">
+    <li>
+      <span class="st">读契约真源</span>
+      <p>契约目录已经是唯一真源，操作名与形状都在那里；先读它，不要照着旧注释写。</p>
+    </li>
+    <li>
+      <span class="st">用「实现接口」的方式对上契约</span>
+      <p>房间声明自己实现了那份契约，少一个参数、错一个返回类型，编译器当场报错。</p>
+    </li>
+    <li>
+      <span class="st">给契约之外的小能力留明确位置</span>
+      <p>房间自己还额外提供一些能力（比如探读写权限、读子票）。不留位置，编译器会当场拦下 13 处多余属性。</p>
+    </li>
+    <li>
+      <span class="st">过门禁，并把旧路径改到新家</span>
+      <p>三条硬纪律：房间之间不许互相引用、一次会话只改一座房间、上层工具只许连契约的公开入口。同时更新还写着旧地址的那两处配置。</p>
+    </li>
+    <li>
+      <span class="st">跑金标准回执留下证据</span>
+      <p>把代表性调用的回执去掉时间与路径后存成基准，改完重跑比对，逐字相等才算过。「行为零变化」是靠这条机器判据证明的，不是靠口头承诺。</p>
+    </li>
+  </ol>
+
+  <h3>6. 前人已经踩过的坑</h3>
+  <p>
+    前两座房间对契约做过一次逐条对照，查出 8 处语义差和 1 处文档与实现的矛盾。
+    这件事对第三座房间的意义是：<em>编译通过不等于语义对齐</em>。类型系统允许「声明了参数却不用」，它一声不响。
+  </p>
+  <ul>
+    <li><strong>6 处「收了参数却不往下传」</strong>：查依赖、关闭、设标签、设认领、设父子、设阻塞——契约给了可选项，实现收下就丢了。</li>
+    <li><strong>1 处整类没实现</strong>：写入前的版本校验（防止两个人同时改同一张票），有一整座房间完全没做。</li>
+    <li><strong>1 处只有一座房间有</strong>：写完之后检查关系有没有成环；另一座只挡自己指向自己。</li>
+    <li><strong>另有 1 处文档与实现打架</strong>：契约注释说某操作在本地房间有幂等骨架，实现里其实是「不支持」的桩。</li>
+  </ul>
+  <div class="callout">
+    <div class="t">所以</div>
+    <p>第三座房间以后补齐时，这些差异要逐条面对，并在接口注释里写明「本房间不实现什么、为什么」。不要用可选参数把它们藏起来——藏起来的表现就是今天这样：类型全绿，语义不齐。</p>
+  </div>
+
+  <h3>7. 三个最容易误解的地方</h3>
+
+  <div class="mis">
+    <div class="no">误解一</div>
+    <h4>把「占位」当成会话标题里那个占位</h4>
+    <p>仓库词典里的「占位」指的是新建会话的临时标题。这张票里的「占位」是另一件事：目录先就位、代码暂不动，外加一份待写的说明。判断它完成没有，要看目录、代码扩展名、说明文件三样。</p>
+  </div>
+
+  <div class="mis">
+    <div class="no">误解二</div>
+    <h4>以为「搬」和「不搬」两种说法都有效</h4>
+    <p>早期确实有两处自相矛盾的记载：一处说房间目录不动，另一处说要搬进新目录。审查时已经定案为<strong>搬进新目录、但代码不转写</strong>，而且目录事实上已经搬完。以现状为准。</p>
+  </div>
+
+  <div class="mis">
+    <div class="no">误解三</div>
+    <h4>以为编译通过就等于可以用了</h4>
+    <p>上面那 8 处差异编译器一条都不会报。所以说明里必须有一段「已知差异」，让后来的人知道哪里要额外花心思。</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">第二部分 · 请你拍板</span>四个问题</h2>
+  <p class="lead">
+    每题都有我的推荐答案。你只说同意、不同意，或改成什么即可。
+  </p>
+
+  <div class="q">
+    <div class="qh">问题一 · 目标</div>
+    <h4>这份说明写到什么分量算合格？</h4>
+    <p>三个档位可选：</p>
+    <ul class="opts">
+      <li><strong>薄</strong>：只写新旧路径对照，加一句「按契约补齐」。后人自己去读契约和前两座房间的代码。</li>
+      <li><strong>中等（推荐）</strong>：路径对照 + 契约操作对照（只给操作名和指针，不抄全文）+ 已知差异清单 + 补齐顺序 + 门禁与验证方法。</li>
+      <li><strong>厚</strong>：中等再加手把手教程和代码骨架。</li>
+    </ul>
+    <p>薄会让后人重复踩那 8 处坑；厚会很快腐烂——契约一改，教程就错了，维护成本全落在你身上。</p>
+    <div class="rec"><b>我的推荐：</b>中等。具体分七节——现状与位置、转入条件、契约对照、已知差异清单、补齐顺序、门禁更新责任、验证方法。教程和代码骨架不写。</div>
+  </div>
+
+  <div class="q">
+    <div class="qh">问题二 · 边界</div>
+    <h4>说明要不要管那两处还写着旧路径的门禁配置？</h4>
+    <p>现状是房间纪律说明和根目录检查配置里都还写着旧目录地址。可选：说明里写一节指明责任，或者只字不提，让动手的人自己发现。</p>
+    <p>本票边界是「只讨论」，所以无论怎么定，都不在本票动手改。</p>
+    <div class="rec"><b>我的推荐：</b>说明里单独留一节「门禁更新责任」，写明补齐时必须把这两处同步到新家，并指明由补齐那张票负责。理由：地图 10 的完成判据里有「门禁不因它变红」，后人不看这一节一定会踩。</div>
+  </div>
+
+  <div class="q">
+    <div class="qh">问题三 · 风险</div>
+    <h4>你最怕哪一种烂掉？</h4>
+    <p>三个真实风险，按我的排序：</p>
+    <ul class="opts">
+      <li><strong>第一</strong>：说明与契约漂移——契约改了，说明没跟上，后人照着写错。</li>
+      <li><strong>第二</strong>：门禁旧路径没人改——目录搬了，检查还扫旧位置，等于没有守。</li>
+      <li><strong>第三</strong>：说明太细反而错——抄了实现细节，别人一改就过期。</li>
+    </ul>
+    <p>这个排序直接决定写法：怕漂移就只给指针不抄全文；怕门禁漏就写明责任；怕太细就明确不写教程。</p>
+    <div class="rec"><b>我的推荐：</b>按上面这个排序。如果你的排序不同，告诉我你更怕哪个，我按你的重排写法。</div>
+  </div>
+
+  <div class="q">
+    <div class="qh">问题四 · 决策落法</div>
+    <h4>结论写进哪几处？</h4>
+    <p>这张票票面自己定的规矩是落三处：本票评论写讨论过程与最终结论；地图 #1062 的「已定决策」区写结论；受影响的开发票 #1064 正文或评论写明「以本结论为准」。三处都写完才算讨论完毕。</p>
+    <p>另一个选择是再另立一份长期决策记录。</p>
+    <div class="rec"><b>我的推荐：</b>按票面三处落，不另立决策记录。理由：这次只是定一份说明的分量，不是改架构，够不上「难逆转、外人会疑惑、真实权衡过」这三条标准。</div>
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">附录</span>依据出处</h2>
+  <p>上面每一条都可以复核，主要依据这些文件：</p>
+  <ul>
+    <li><code>docs/adr/20261011-deck-ts-rewrite.md</code> —— 本次改写的总决议：三座房间、归属原则、契约的位置与作用、开工顺序。</li>
+    <li><code>specs/1010-ts-rewrite-spec.md</code> —— 施工规格：谁做什么、怎么算做完、测试缝与完成判据。</li>
+    <li><code>research/1010-room-conformity-checklist.md</code> —— 前两座房间对契约的逐条对照：19 个操作、8 处语义差、13 处编译器会拦下的多余属性。</li>
+    <li><code>research/1010-migration-map.md</code> —— 老路径到新路径的迁移映射，第三座房间 14 条登记为「只跟路径、不转写」。</li>
+    <li><code>research/1063-teaching-background.md</code> —— 这一页讲课部分的完整底稿，逐句带行号。</li>
+  </ul>
+</section>
+
+<footer>
+  <p><strong>本页状态：</strong>讨论中，等维护者看完表态。四个问题回完，结论写进票 #1063 评论、地图 #1062 的已定决策区、开发票 #1064。</p>
+  <p>本页只讲已经核过的事实与待你决定的方案，不写代码、不改目录。</p>
+</footer>
+
+</div>
+</body>
+</html>

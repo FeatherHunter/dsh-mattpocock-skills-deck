@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>查票的后半程：从 run 走到最底层</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#fafaf8;color:#22252a;font:17px/1.9 -apple-system,"Segoe UI","Microsoft YaHei","PingFang SC",sans-serif;padding:20px 14px 64px}
+main{max-width:660px;margin:0 auto}
+header{border-bottom:2px solid #22252a;padding-bottom:14px;margin-bottom:18px}
+.kicker{margin:0 0 6px;color:#7a7e87;font-size:13px}
+h1{margin:0;font-size:23px;line-height:1.4}
+.sub{margin:9px 0 0;color:#7a7e87;font-size:14px;line-height:1.7}
+.card{background:#fff;border:1px solid #e8e9ec;border-radius:12px;padding:16px;margin:0 0 12px}
+h2{font-size:19px;margin:0 0 10px;line-height:1.5}
+h3{font-size:16px;margin:16px 0 6px;color:#0f766e}
+.badge{display:inline-block;background:#22252a;color:#fff;font-size:13px;border-radius:20px;padding:2px 10px;margin-right:8px}
+p{margin:0 0 10px}p:last-child{margin:0}
+ul,ol{margin:8px 0;padding-left:22px}li{margin-bottom:7px}
+code{font-family:ui-monospace,Consolas,monospace;font-size:13.5px;background:#f3f4f6;padding:1px 6px;border-radius:4px;word-break:break-all}
+pre{margin:10px 0;background:#f5f6f7;border:1px solid #e8e9ec;border-radius:10px;padding:12px;font-size:12.5px;line-height:1.85;white-space:pre-wrap;word-break:break-all;overflow-x:auto}
+.ok{background:#eefaf7;border-left:3px solid #0f766e;border-radius:8px;padding:10px 12px;font-size:15px;margin:10px 0}
+.warn{background:#fef7ec;border-left:3px solid #d97706;border-radius:8px;padding:10px 12px;font-size:15px;margin:10px 0}
+.own{background:#f4f6fb;border-left:3px solid #4b5b8f;border-radius:8px;padding:10px 12px;font-size:15px;margin:10px 0}
+table{width:100%;border-collapse:collapse;margin:10px 0;font-size:13.5px}
+th,td{border:1px solid #e8e9ec;padding:7px 8px;text-align:left;vertical-align:top}
+th{background:#f7f8f8;font-weight:600}
+footer{margin-top:22px;padding-top:12px;border-top:1px solid #e8e9ec;color:#7a7e87;font-size:13px;line-height:1.75}
+</style>
+</head>
+<body>
+<main>
+<header>
+<p class="kicker">地图01 · 走查第 2 讲 · 手机版</p>
+<h1>查票的后半程：从 <code>run</code> 走到最底层</h1>
+<p class="sub">上一讲讲到你懂了 <code>run</code>。这一讲跟着查票这笔调用，从 <code>run</code> 一路走到真正读票的那一层，再走回来。</p>
+</header>
+
+<div class="card">
+<h2><span class="badge">先划界</span>哪部分是地图01的</h2>
+<p>把话说在前面，免得你以为这些代码是我们图改的：</p>
+<div class="own"><b>地图01 负责的</b>：<code>scripts/ts-hook.mjs</code>（装载钩子）、<code>tests/gate-map.json</code>（归属表）、金标准回执夹具、搬家（133 个文件按新树落位）、构建与类型检查入口。<b>这就是「你这张图讲什么」的边界</b>。</div>
+<p>下面这条链上的每一站代码，属于别的图（工具壳、注册表、房间各图）。地图01 做的是<b>把这条链记录准确</b>（#1094 那份 721 行走查文档），并让它<b>跑得起来、改得动、坏了看得见</b>。所以我讲它，但每站都标清楚它归谁。</p>
+</div>
+
+<div class="card">
+<h2><span class="badge">第1站</span><code>run</code> 进门那几步</h2>
+<p>查票的 <code>run</code> 在 <code>src/deck/tools/issue-get.ts:84</code>（<code>createDeckIssueGet</code>，它返回 <code>{ definition, run }</code>；<code>definition</code> 在 <code>:30-45</code>，就是给 AI 看的那份说明书）。它做完九步就交给预算壳：</p>
+<table>
+<tr><th>行</th><th>干什么</th><th>失败长什么样</th></tr>
+<tr><td><code>:86</code></td><td>把 <code>key</code> 去空白</td><td>—</td></tr>
+<tr><td><code>:87</code></td><td>先估算这笔花多少</td><td>—</td></tr>
+<tr><td><code>:88</code></td><td>取会话的工作区目录</td><td><code>:89</code> 回 <code>no-session-context</code></td></tr>
+<tr><td><code>:90</code></td><td>判 <code>key</code> 有没有</td><td>回 <code>bad-args</code>：「要读哪一张票」</td></tr>
+<tr><td><code>:92</code></td><td>选后端（哪个仓库、哪种跟踪器）</td><td><code>:93</code> 回 <code>no-backend</code> 等</td></tr>
+<tr><td><code>:94</code></td><td>拼出仓库身份</td><td>—</td></tr>
+<tr><td><code>:97</code></td><td><code>comments</code> 夹进 0..200，缺省 50</td><td>—</td></tr>
+<tr><td><code>:99</code></td><td><code>blocking</code> 缺省要；只有显式 <code>false</code> 才跳过</td><td>—</td></tr>
+<tr><td><code>:100-106</code></td><td>取沙箱策略，5 秒上限，拿不到按空走</td><td>不算失败，只是不限权</td></tr>
+<tr><td><code>:108</code></td><td>进预算壳 <code>shell.call</code></td><td>后面几档</td></tr>
+</table>
+<div class="ok">记一句：<b>会话判不过就不往下走，而且这一步排在参数校验之前</b>。取会话是「能不能干活」的前置，票号写没写是「活干什么」。</div>
+<p class="warn"><b>有一处例外</b>：<code>deck_context</code> 是反过来（先取会话再估算），因为它要回答的正是「这个工作区该在面板上选哪个后端」，会话拿不到也得如实告诉 AI。</p>
+</div>
+
+<div class="card">
+<h2><span class="badge">第2站</span>预算壳里的四件事</h2>
+<p><code>shell.call</code>（<code>src/deck/shell/call-shell.ts</code>）是每笔调用真正动手的地方，顺序固定四件：</p>
+<ol>
+<li><b>硬顶</b>：先问闸「这笔允许吗」。五个数写死在预算表里——单笔 600 点 / 400 请求，每小时 2000 点 / 1500 请求，单笔最多 60 张子票。顶住了回 <code>ai-tool-refused</code>，而且文案是<b>闸自己的原话</b>（会告诉你预计花多少、本小时已用多少、建议分几次），工具不许自己编一个数。</li>
+<li><b>记账</b>：过闸时把这一笔记上。</li>
+<li><b>干活</b>：调工具自己那段 <code>work</code>。它拿到的上下文里带着会话、选出的后端与仓库、闸、注册表选出的跟踪器。</li>
+<li><b>收口</b>：把结果并进统一信封；<b>写过的票要让宿主那侧的快照缓存作废</b>，否则面板显示旧数据。</li>
+</ol>
+<h3>为什么还有第二层壳</h3>
+<p>一笔调用内部可能发好几笔远端请求，所以 <code>work</code> 里再包一层：单笔最长 120 秒、留 10 秒余量、单次操作 30 秒。它们管的是超时与中止；额度不够会停止发下一笔。</p>
+<p>这层壳顺手给读操作<b>带记忆</b>：同一笔调用里，同一个操作 + 同一把钥匙第二次要，就直接拿表里那份，不再问后端。<b>只记成功的</b>——失败结果不记，下一笔老实再问。这里的取舍很直白：同一笔里重复读是浪费，跨笔缓存是骗人。</p>
+</div>
+
+<div class="card">
+<h2><span class="badge">第3站</span>真正读票那一层</h2>
+<p>壳里最终调的是 <code>t.get(repo, key, …)</code>。这个 <code>t</code> 是<b>按后端 id 从注册表里选出的那座「房间」</b>：GitHub 房、GitLab 房、本地 Markdown 房，各在 <code>src/tracker/rooms/</code> 下。</p>
+<pre>run  →  shell.call（预算壳）  →  withCallScope  →  tracker.get
+                                                     ↓
+                                    注册表按后端 id 选房
+                                                     ↓
+                     GitHub 房 → gh 子进程 ／ Markdown 房 → 磁盘文件</pre>
+<p>再往下就是地图01 边界之外的事了：那一步真的去敲 <code>gh</code> 命令或读文件。<b>一句话记牢：上三层只决定「准不准做、算谁的账」，最后一层才决定「去哪拿」。</b></p>
+<p>房间拿回来之后，工具做三件收尾：把票的关系算出来（父子、阻塞边）；如实注记读不到的东西（例如 <code>blocking=false</code> 时明说「上面记空不是 0 条」）；按实际读数报账（一次读就是 1 请求 3 点，跳过反向边那一大段全仓扫描也是这个数）。</p>
+<div class="warn"><b>读路径有个诚实的降级</b>：读回来的字段只能说明「契约里有这条关系」，分不出后端把父子放在原生层级还是平级链接，所以返回里如实标「降一档，看写操作的记录」。宁可说不知道，不假装知道。</div>
+</div>
+
+<div class="card">
+<h2><span class="badge">第4站</span>回来后去哪</h2>
+<p>结果并进统一信封，回到 AI 眼前就是你可能见过的那一行：</p>
+<pre>票 1022 读回来了：状态 open，父票 1013，被阻塞 9 条，阻塞别人未取（blocking=false）。</pre>
+<p>这句不是模板拼的，是刚才那一路的读数拼的：状态来自票、父票和阻塞边来自关系计算结果、括号里那句来自你传的参数。你看到的每句话，都能倒推回某一层的某个判断——这正是走查要练的本事。</p>
+</div>
+
+<div class="card">
+<h2><span class="badge">看三看</span>封装 / 参数 / 边界失败</h2>
+<p>票面要求你对这三看逐条表态，这一讲刚好三样都摸到了：</p>
+<ul>
+<li><b>封装</b>：九个工具都长同一个形状——进门九步、进预算壳、调房间。差异只在各自那段 <code>work</code>。这种「外壳一份、内芯九份」是好是坏，你怎么看？</li>
+<li><b>参数</b>：<code>key</code> 必填、<code>comments</code> 夹范围、<code>blocking</code> 缺省要——参数校验排在取会话之后。这个顺序你认不认？</li>
+<li><b>边界失败</b>：失败不是一句「出错了」，而是分档的（没会话、参数不够、后端没选定、闸顶住、后端自己抛错），每档配一句人话文案。分这么细值不值？</li>
+</ul>
+</div>
+
+<div class="card">
+<h2><span class="badge">这一讲的过关线</span>你回答两个问题</h2>
+<p>不用背书，用你自己的话说就行：</p>
+<ol>
+<li>查票的 <code>run</code> 在哪个文件？它后面依次经过哪三站（预算壳 → ？→ ？），每站各管什么？</li>
+<li>为什么「取会话」要排在「判票号」前面？</li>
+</ol>
+<p>答完这两问，下一讲就接「三座房间各自怎么落地」——那一讲会讲到地图01 是怎么把搬家后的文件位置记录下来、又怎么用金标准保证搬家没改行为的。</p>
+</div>
+
+<footer>
+来源：<code>docs/tour/deck-call-end-to-end.md</code> 第 3–5 层（那条基线是提交 <code>f1dc6376</code>）＋ <code>src/deck/tools/issue-get.ts</code> 与 <code>src/deck/shell/</code> 现读。<br>
+行号以该基线为准，搬家与门禁改动可能让少量行号漂移，以文件为准。<br>
+本讲只讲地图01 边界内的事，链上代码的归属已在第 1 节标明。
+</footer>
+</main>
+</body>
+</html>

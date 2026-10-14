@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>地图01全局感：根目录、相关目录、动了哪</title>
+<style>
+:root{--ink:#22252a;--muted:#7a7e87;--line:#e8e9ec;--bg:#fafaf8;--card:#fff;--accent:#0f766e;--accent-soft:#eefaf7;--warn-soft:#fef7ec}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:18px/2 -apple-system,"Segoe UI","Microsoft YaHei","PingFang SC",sans-serif;padding:48px 22px 80px}
+main{max-width:820px;margin:0 auto}
+header{border-bottom:2px solid var(--ink);padding-bottom:16px;margin-bottom:28px}
+.kicker{margin:0 0 8px;color:var(--muted);font-size:14px;letter-spacing:.05em}
+h1{margin:0;font-size:28px;line-height:1.4}
+.sub{margin:8px 0 0;color:var(--muted);font-size:15px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:22px 24px;margin:0 0 16px}
+h2{font-size:20px;margin:0 0 12px}
+h2 .n{display:inline-block;min-width:28px;height:28px;line-height:28px;text-align:center;background:var(--ink);color:#fff;border-radius:50%;font-size:15px;margin-right:10px;vertical-align:2px}
+p{margin:0 0 12px}p:last-child{margin:0}
+ul{margin:8px 0 12px;padding-left:22px}li{margin-bottom:8px}
+code{font-family:ui-monospace,Consolas,monospace;font-size:15px;background:#f3f4f6;padding:1px 6px;border-radius:4px;word-break:break-all}
+pre{margin:10px 0;background:#f5f6f7;border:1px solid var(--line);border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:14px;line-height:1.8}
+table{width:100%;border-collapse:collapse;margin:10px 0;font-size:15px}
+th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+th{background:#f5f6f7}
+.tip{background:var(--accent-soft);border-left:3px solid var(--accent);border-radius:6px;padding:12px 16px;font-size:16px}
+.warn{background:var(--warn-soft);border-left:3px solid #d97706;border-radius:6px;padding:12px 16px;font-size:16px}
+.hl{background:#fff7d6;padding:1px 6px;border-radius:4px}
+footer{margin-top:36px;padding-top:14px;border-top:1px solid var(--line);color:var(--muted);font-size:14px}
+</style>
+</head>
+<body>
+<main>
+<header>
+<p class="kicker">#1022 讲课 · 地图01全局感（代码层面，先有感觉再有细节）</p>
+<h1>地图01：根目录长什么样，动了哪</h1>
+<p class="sub">已记住你的要求：以后每次教，都带代码落点、目录、改前改后的 diff 感，不只讲概念。</p>
+</header>
+
+<div class="card">
+<h2><span class="n">0</span>复述你的话（我记下的重点）</h2>
+<p>你说：别只讲概念，要能把控全局。根目录什么样、有哪些子目录、哪个目录跟地图01相关、地图01从全局改了哪些目录下的哪些东西，要像看 diff 一样有感觉：之前代码在哪个文件夹，现在变哪了。</p>
+<p>补充三句你没说出口但我补上的：① 只看文件数会晕，要看“搬家”和“新建”两种动作分开；② 每个改动要能指到票号，否则全局感落不到结账；③ 调用链的每一层都要能指到目录，否则走查就是空话。下面就按这个来。</p>
+</div>
+
+<div class="card">
+<h2><span class="n">1</span>根目录是什么样</h2>
+<pre>仓库根
+├─ src/            插件源码（地图01的主战场）
+│  ├─ deck/        deck 工具自己的家（本次新建，3 组：tools / shell / registration）
+│  ├─ tracker/     跟踪器（contract 契约 / registry 注册表 / detection 识别 / rooms 三座房）
+│  ├─ host/        宿主侧（platform 工具行 / tools 九个 run / refresh 装配 / tracker 房间旧址已搬空）
+│  ├─ shared/      四个计算核 + 通用件（label-color / refresh / version-control / config-store）
+│  ├─ client/      界面像素风（本次只动一处漏登记，不搬）
+│  └─ seam/        缝（本次不动）
+├─ scripts/        构建与工具脚本（build.mjs / ts-hook.mjs / gate-map.mjs / verify-* 执行器）
+├─ tests/          门禁与夹具（verify-* 277 个 .js + 3 个 .ts / gate-map.json / golden-receipts 9 份）
+├─ package/        发布出去的包（lib 宿主 / deck 工具 / tracker 追踪器，构建生成，不入库）
+├─ docs/tour/      走查文档（deck-call-end-to-end.md，721 行）
+├─ research/       讨论纸（1014 的 Q 问、1010 的票结构）
+└─ 根配置         package.json（engines.node）/ pnpm-workspace.yaml / .npmrc / tsconfig.*（6 份）</pre>
+<div class="tip">一句话：<code>src/deck</code> + <code>src/tracker</code> 是新家，<code>src/host/tracker</code> 是搬空的旧址，<code>package/</code> 是构建印出来的影子。</div>
+</div>
+
+<div class="card">
+<h2><span class="n">2</span>哪个目录跟地图01相关</h2>
+<table>
+<tr><th>目录</th><th>跟地图01的关系</th><th>动法</th></tr>
+<tr><td><code>src/deck/**</code></td><td>deck 工具的新家（tools 9 个 run、shell 外壳、registration 注册装配）</td><td><span class="hl">搬家 133 文件的主落点</span>（#1019）</td></tr>
+<tr><td><code>src/tracker/**</code></td><td>契约、注册表、识别、三座房的新家</td><td>同上，另一半落点</td></tr>
+<tr><td><code>scripts/</code></td><td>转译线：<code>build.mjs</code>、<code>ts-hook.mjs</code>（79 行钩子）、<code>gate-map.mjs</code>、<code>typecheck.mjs</code></td><td>新建钩子 + 构建改 320 行（#1021/#1018）</td></tr>
+<tr><td><code>tests/</code></td><td>尺子：归属表、棘轮基线、金标准 9 份、门禁换轨</td><td>改判据不改产品（#1015/#1016/#1017/#1020/#1095/#1105）</td></tr>
+<tr><td><code>package/</code></td><td>发布影子：lib / deck / tracker 三棵镜像</td><td>只由构建生成，不入库（#1018）</td></tr>
+<tr><td><code>docs/tour/</code></td><td>走查文档第一版</td><td>新建 721 行 + 两轮复核（#1094）</td></tr>
+</table>
+</div>
+
+<div class="card">
+<h2><span class="n">3</span>地图01从全局改了哪些（按票，不是按文件堆）</h2>
+<ul>
+<li><b>#1021 让测试跑 .ts</b>：新建 <code>scripts/ts-hook.mjs</code>，挂进 4 个入口；engines 写下限。源码引用一个字不动。</li>
+<li><b>#1015 金标准</b>：新建 <code>tests/tracker-contract/fixtures/golden-receipts/</code> 9 份 + <code>tests/verify-golden-receipts.ts</code>。行为零变化的尺子。</li>
+<li><b>#1016 日志</b>：删 <code>src/host/logPkg/</code> 4 文件，宿主改从包名引用；新增《日志导读》；归属表重算（510 文件 / 502 图文件 / 227 通过）。</li>
+<li><b>#1017 门禁换轨</b>：方向交 <code>dependency-cruiser</code>，粒度改有效行，产物守“四类之外没有产物”；立“未迁移旧测试数”棘轮（333 起步）；归属 200 步 + 下限 200。</li>
+<li><b>#1020 类型检查</b>：新增 <code>npm run typecheck</code>，6 份 tsconfig 开混编，补漏网的 <code>locale-cards.ts</code>；立 <code>handwritten-js-baseline.json</code>（716 条，只许缩短）。</li>
+<li><b>#1019 目录归位（最大的一次 diff 感）</b>：<span class="hl">133 文件一次搬完，引用改 138 处</span>，提交 <code>d0fdb277</code>。只搬位置不改行为。</li>
+<li><b>#1018 发布跟随</b>：<code>scripts/build.mjs</code> 改 300 行，三棵新树转译进包、包内按源码镜像；<code>package.json</code> 登记 tools 入口与 files。提交 <code>4785e573</code>。</li>
+<li><b>#1095 跟随</b>：约 120 测 + 6 脚本只换地址；门禁扫描跟上新树新后缀；归属重回 200 步。</li>
+<li><b>#1094 索引第一版</b>：<code>docs/tour/deck-call-end-to-end.md</code> 三次提交（初版 + 两轮复核改错）。产品代码一行未改。</li>
+<li><b>#1105 尾巴（open）</b>：只改 <code>tests/verify-build-artifacts.js</code> 一扇，改成转译感知。全链第 7 步红等它变绿。</li>
+</ul>
+</div>
+
+<div class="card">
+<h2><span class="n">4</span>diff 感：搬家前后对照（抽 6 条，真实例子）</h2>
+<pre>改前（旧址，分散）                          → 改后（新家，按目标树）
+src/shared/deck-tools/plan.js               → src/deck/shell/minimal-spec.ts + tool-table.ts + tools/tool-order.ts（1 拆 3）
+src/shared/deck-tools/deckIssueGet.js       → src/deck/tools/issue-get.ts
+src/shared/deck-tools/shell.js              → src/deck/shell/call-shell.ts
+src/host/tracker/backends/github/*.js       → src/tracker/rooms/github/*.ts
+src/host/tracker/contract/*.js              → src/tracker/contract/*.ts
+src/host/tracker/detection/*.js             → src/tracker/detection/*.ts</pre>
+<p>验收三条（#1019/#1018 共用）：<code>git diff -M</code> 全是改名、<code>src/</code> 下没有生成物、包内份数不变且改坏必红。</p>
+<div class="warn"> motel提醒：6 件“只换扩展名”（含宿主入口）退回不动，动了包入口就没了，归 #1018；<code>tests/ scripts/</code> 旧引用归 #1095。别在这一步找它们。</div>
+</div>
+
+<div class="card">
+<h2><span class="n">5</span>三个关键文件指哪（下次讲调用链直接用）</h2>
+<ul>
+<li><b>钩子 <code>scripts/ts-hook.mjs</code>（79 行）</b>：<code>./x.js</code> 有同名 <code>.ts</code> 就领过去，没有就放行；裸包名与 <code>node_modules</code> 一律不碰。</li>
+<li><b>归属表 <code>tests/gate-map.json</code></b>：今天 228 步、可归属 200、下限 200。每步写了理由（载入模块几条、读文件几条）。</li>
+<li><b>金标准 <code>golden-receipts/01~09</code></b>：九个工具各一份，时间戳路径已归一，差一个键即红。</li>
+</ul>
+<div class="tip">调用链 overlay：工具从哪来（<code>package/cordis.patch.yml</code> + <code>src/host/platform/deckToolsRow.js</code>）→ 怎么进 run（三条路由）→ 九个 run（<code>src/deck/tools/*.ts</code>）→ 取会话选后端过闸（<code>src/deck/shell/*.ts</code>）→ 注册表选房（<code>src/tracker/registry</code>）→ 三座底层（gh 进程 / Markdown 文件 / 快照）。下次开讲就按这条走，每层都指目录。</div>
+</div>
+
+<footer>基线提交：d0fdb277（搬家）· 4785e573（发布）· 44f3eddc/e2846077/0deea0e8（走查三版）。结论未定，未写票。下次教：按你定的 Q1–Q5 + 这份全局图开讲调用主干。</footer>
+</main>
+</body>
+</html>

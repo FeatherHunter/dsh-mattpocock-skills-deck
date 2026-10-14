@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>地图01第一课：本图写的三样东西</title>
+<style>
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:#fafaf8;color:#22252a;font:17px/1.9 -apple-system,"Segoe UI","Microsoft YaHei","PingFang SC",sans-serif;padding:20px 14px 60px}
+main{max-width:640px;margin:0 auto}
+header{border-bottom:2px solid #22252a;padding-bottom:12px;margin-bottom:18px}
+.kicker{margin:0 0 6px;color:#7a7e87;font-size:13px}
+h1{margin:0;font-size:23px;line-height:1.4}
+.sub{margin:8px 0 0;color:#7a7e87;font-size:14px;line-height:1.7}
+.card{background:#fff;border:1px solid #e8e9ec;border-radius:12px;padding:16px;margin:0 0 12px}
+h2{font-size:19px;margin:0 0 10px;line-height:1.5}
+.badge{display:inline-block;background:#22252a;color:#fff;font-size:13px;border-radius:20px;padding:2px 10px;margin-right:8px;vertical-align:2px}
+p{margin:0 0 10px}p:last-child{margin:0}
+ul{margin:8px 0;padding-left:20px}li{margin-bottom:8px}
+code{font-family:ui-monospace,Consolas,monospace;font-size:14px;background:#f3f4f6;padding:1px 6px;border-radius:4px;word-break:break-all}
+pre{margin:10px 0;background:#f5f6f7;border:1px solid #e8e9ec;border-radius:10px;padding:12px;overflow-x:auto;font-size:13px;line-height:1.8;white-space:pre-wrap;word-break:break-all}
+.kv{background:#eefaf7;border-left:3px solid #0f766e;border-radius:8px;padding:10px 12px;font-size:15px;margin:10px 0}
+.out{border:1px dashed #c9ccd1;border-radius:10px;padding:10px 12px;font-size:14px;color:#555;margin:10px 0}
+footer{margin-top:20px;padding-top:12px;border-top:1px solid #e8e9ec;color:#7a7e87;font-size:13px;line-height:1.7}
+</style>
+</head>
+<body>
+<main>
+<header>
+<p class="kicker">地图01 · 只讲本图写的 · 手机版</p>
+<h1>第一课：本图交出的三样东西</h1>
+<p class="sub">地图01只碰构建、测试、类型检查、门禁与发布探测，不碰业务规则。下面三样都是本图写的。别图的只借名定位，不展开。</p>
+</header>
+
+<div class="card">
+<h2><span class="badge">范围</span>本图写了哪，别图是什么</h2>
+<p><b>本图写的：</b>钩子 <code>scripts/ts-hook.mjs</code>、归属表 <code>tests/gate-map.json</code>、金标准 9 份、类型检查入口、依赖检查配置、搬家 133 文件、发布跟随、走查文档。</p>
+<div class="out">借名不讲：地图02契约长什么样、地图03注册怎么装、地图04九个入口的参数形状、地图08/09房间里怎么读写 gh 与票文件。后面讲调用链经过它们时，我只说“经过这里”，不讲里面。</div>
+</div>
+
+<div class="card">
+<h2><span class="badge">1</span>钩子：让测试跑起真源</h2>
+<p>Node 本来只认识 <code>.js</code>。转成 <code>.ts</code> 后，引用处还写 <code>./x.js</code>，钩子负责领到同名 <code>.ts</code>。没有同名文件就放行，行为和今天一样。</p>
+<pre>看到 ./x.js
+ → 同目录有 x.ts？有就加载它
+ → 没有就交给 Node 原样走
+ → 裸包名与 node_modules 一律不碰</pre>
+<p>为什么用同步的不用异步的：仓库还有旧 <code>require('./x.js')</code>，异步钩子管不到它，同步的才同时管 <code>import</code> 和 <code>require</code>。</p>
+<div class="kv">记住一句：文件 <code>scripts/ts-hook.mjs</code> 共 79 行，挂在 4 个入口（测试、并行链、CI、全链冒烟）。Node 下限以根 <code>package.json</code> 为准。</div>
+</div>
+
+<div class="card">
+<h2><span class="badge">2</span>归属表：每条门禁在守哪</h2>
+<p>门禁就是 <code>tests/verify-*.js</code> 里判不变式的脚本，红了就挡发布。今天链上 228 步。</p>
+<p>归属表 <code>tests/gate-map.json</code> 回答每一步在守哪块源码：能推出归属 200 步，28 步算不出（只指向文档脚本），20 步只跟构建产物有关。每步都写了理由，比如“载入模块 1 条”“读文件 2 条”。</p>
+<div class="kv">漏了什么症状：临时目录没进排除表会被误报；某域扫到 0 文件构建直接失败；扫不到还判绿的三处已改成判红，下限 200 守着。</div>
+</div>
+
+<div class="card">
+<h2><span class="badge">3</span>金标准：证明没改坏的尺子</h2>
+<p>九个工具各跑一次代表性调用，去掉时间戳路径后逐字节存档，落在 <code>tests/tracker-contract/fixtures/golden-receipts/01~09</code>。之后每转完一个单元重跑，差一个键即红。</p>
+<p>另一样叫活样板：真挑一个文件转成 <code>.ts</code> 留仓库，改一行三关都看见。它证明链存在，不能证明故意写错会红。</p>
+</div>
+
+<div class="card">
+<h2><span class="badge">4</span>搬家：最大的 diff 感</h2>
+<p>133 个文件一次搬完，引用改 138 处，只搬位置不改行为。记住 3 条例子就有感觉：</p>
+<pre>旧 → 新
+deckIssueGet.js → src/deck/tools/issue-get.ts
+shell.js → src/deck/shell/call-shell.ts
+backends/github/*.js → src/tracker/rooms/github/*.ts</pre>
+<p>验收三条：改名提交、源码树下无生成物、包内份数不变且改坏必红。发布跟随是另一票：构建改 300 行，三棵新树转译进包，包内按源码镜像。</p>
+</div>
+
+<div class="card">
+<h2><span class="badge">交</span>本图交出什么</h2>
+<p>一条可复制的流水线（手写 <code>.ts</code> 一条命令就被构建、测试、类型、门禁看见），加一把量尺（金标准）。下一课我就带你走一次真实调用的主干，每层都指到上面这些目录。</p>
+</div>
+
+<footer>只含地图01。数据来源：ts-hook.mjs 79 行、gate-map.json 228/200、金标准 9 份、搬家提交 d0fdb277、发布提交 4785e573。未写票。</footer>
+</main>
+</body>
+</html>

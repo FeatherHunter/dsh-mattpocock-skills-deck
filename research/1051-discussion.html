@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>地图08讨论 · 契约与真实后端对不上的地方</title>
+<style>
+  :root{
+    --ink:#191a1c;
+    --ink-soft:#4a4d55;
+    --ink-faint:#7c8089;
+    --line:#e6e3dd;
+    --line-soft:#f0ede7;
+    --paper:#fbfaf8;
+    --card:#ffffff;
+    --accent:#5f4bd8;
+    --accent-soft:#f2efff;
+    --warn:#b4541f;
+    --warn-soft:#fdf3ec;
+    --ok:#2f6b4f;
+    --ok-soft:#eef6f1;
+    --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Source Han Sans SC",system-ui,-apple-system,sans-serif;
+    font-size:16px;
+    line-height:1.9;
+    letter-spacing:.01em;
+  }
+  .wrap{max-width:820px;margin:0 auto;padding:72px 28px 120px}
+
+  /* ---------- 页头 ---------- */
+  header.doc{padding-bottom:36px;border-bottom:1px solid var(--line);margin-bottom:56px}
+  .kicker{
+    font-size:12.5px;letter-spacing:.22em;color:var(--accent);
+    font-weight:600;margin-bottom:18px;
+  }
+  h1{
+    font-size:34px;line-height:1.42;margin:0 0 18px;font-weight:650;
+    letter-spacing:-.01em;
+  }
+  .lede{font-size:17px;color:var(--ink-soft);margin:0 0 26px;max-width:62ch}
+  .meta{display:flex;flex-wrap:wrap;gap:10px 22px;font-size:13.5px;color:var(--ink-faint)}
+  .meta b{color:var(--ink-soft);font-weight:600}
+  .meta a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(95,75,216,.28)}
+
+  /* ---------- 章节 ---------- */
+  section{margin-bottom:64px}
+  .sec-no{
+    font-family:var(--mono);font-size:12px;color:var(--accent);
+    letter-spacing:.14em;display:block;margin-bottom:10px;
+  }
+  h2{
+    font-size:23px;font-weight:650;margin:0 0 22px;line-height:1.5;
+    letter-spacing:-.005em;
+  }
+  h3{font-size:17.5px;font-weight:650;margin:34px 0 12px;line-height:1.6}
+  p{margin:0 0 16px}
+  .muted{color:var(--ink-soft)}
+  .tight{margin-bottom:8px}
+
+  /* ---------- 卡片 ---------- */
+  .panel{
+    background:var(--card);border:1px solid var(--line);
+    border-radius:14px;padding:26px 28px;margin:0 0 20px;
+  }
+  .panel.quiet{background:transparent;border-style:dashed}
+  .panel.accent{background:var(--accent-soft);border-color:#ddd6ff}
+
+  /* ---------- 三十秒看懂 ---------- */
+  .tldr{display:grid;gap:14px}
+  .tldr-row{display:grid;grid-template-columns:96px 1fr;gap:18px;align-items:baseline}
+  .tldr-row dt{font-size:13.5px;font-weight:650;color:var(--accent);letter-spacing:.04em}
+  .tldr-row dd{margin:0}
+  @media(max-width:640px){
+    .tldr-row{grid-template-columns:1fr;gap:4px}
+  }
+
+  /* ---------- 流程 ---------- */
+  .flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:12px;margin:6px 0 22px}
+  .node{
+    flex:1 1 150px;background:var(--card);border:1px solid var(--line);
+    border-radius:12px;padding:16px 18px;
+  }
+  .node .n-t{font-weight:650;font-size:15px;margin-bottom:4px}
+  .node .n-d{font-size:13.5px;color:var(--ink-faint);line-height:1.7}
+  .node.here{border-color:var(--accent);box-shadow:0 0 0 3px rgba(95,75,216,.09)}
+  .node.here .n-t{color:var(--accent)}
+
+  /* ---------- 八件事 ---------- */
+  .fact{
+    background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:24px 26px;margin-bottom:16px;
+  }
+  .fact-head{display:flex;gap:14px;align-items:baseline;margin-bottom:12px}
+  .fact-no{
+    font-family:var(--mono);font-size:12px;color:var(--accent);
+    background:var(--accent-soft);border-radius:6px;padding:3px 8px;
+    flex:none;letter-spacing:.06em;
+  }
+  .fact-head h3{margin:0;font-size:17px;font-weight:650}
+  .fact p{margin:0 0 12px;font-size:15.5px}
+  .fact p:last-child{margin-bottom:0}
+  .ev{
+    font-size:13px;color:var(--ink-faint);line-height:2;
+    border-top:1px dashed var(--line);padding-top:12px;margin-top:14px;
+  }
+  .ev b{color:var(--ink-soft);font-weight:600}
+  code{
+    font-family:var(--mono);font-size:12.5px;color:var(--ink-soft);
+    background:#f5f3ef;border:1px solid var(--line-soft);border-radius:5px;
+    padding:1px 6px;white-space:nowrap;
+  }
+  .ev code{background:transparent;border:none;padding:0;white-space:normal}
+
+  /* ---------- 问题卡 ---------- */
+  .q{
+    background:var(--card);border:1px solid var(--line);border-radius:16px;
+    padding:28px 30px;margin-bottom:22px;
+  }
+  .q-head{display:flex;gap:14px;align-items:baseline;margin-bottom:14px}
+  .q-no{
+    font-family:var(--mono);font-size:13px;font-weight:600;color:#fff;
+    background:var(--accent);border-radius:7px;padding:4px 10px;flex:none;
+  }
+  .q-head h3{margin:0;font-size:18px;font-weight:650;line-height:1.55}
+  .q .ask{font-size:15.5px;margin-bottom:16px}
+  .opts{display:grid;gap:9px;margin:0 0 18px}
+  .opt{
+    display:grid;grid-template-columns:26px 1fr;gap:12px;
+    font-size:15px;line-height:1.75;color:var(--ink-soft);
+    padding:10px 14px;border:1px solid var(--line-soft);border-radius:10px;
+    background:#fdfdfc;
+  }
+  .opt .tag{
+    font-family:var(--mono);font-size:12.5px;font-weight:600;
+    color:var(--ink-faint);line-height:1.9;
+  }
+  .rec{
+    background:var(--ok-soft);border:1px solid #d8e9e0;border-left:3px solid var(--ok);
+    border-radius:10px;padding:16px 20px;
+  }
+  .rec .r-t{
+    font-size:13px;font-weight:650;color:var(--ok);letter-spacing:.06em;
+    display:block;margin-bottom:6px;
+  }
+  .rec p{margin:0;font-size:15px}
+  .cost{
+    font-size:13.5px;color:var(--warn);background:var(--warn-soft);
+    border-radius:8px;padding:10px 14px;margin-top:12px;line-height:1.8;
+  }
+
+  /* ---------- 术语表 ---------- */
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  th,td{text-align:left;padding:13px 14px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+  th{font-size:12.5px;letter-spacing:.1em;color:var(--ink-faint);font-weight:600;border-bottom:1px solid var(--line)}
+  td:first-child{font-weight:650;white-space:nowrap;width:190px}
+  td span{color:var(--ink-soft)}
+  tr:last-child td{border-bottom:none}
+
+  /* ---------- 结尾 ---------- */
+  .steps{counter-reset:s;list-style:none;padding:0;margin:0}
+  .steps li{
+    counter-increment:s;position:relative;padding-left:46px;margin-bottom:18px;
+    font-size:15.5px;line-height:1.8;
+  }
+  .steps li::before{
+    content:counter(s);position:absolute;left:0;top:2px;
+    width:28px;height:28px;border-radius:50%;
+    background:var(--accent-soft);color:var(--accent);
+    font-family:var(--mono);font-size:13px;font-weight:600;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .steps li b{font-weight:650}
+  .note{
+    font-size:14px;color:var(--ink-faint);border-top:1px solid var(--line);
+    margin-top:56px;padding-top:24px;line-height:1.9;
+  }
+  a{color:var(--accent)}
+  @media print{
+    body{background:#fff;font-size:12pt}
+    .wrap{padding:0;max-width:none}
+    .fact,.q,.panel{break-inside:avoid;box-shadow:none}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="doc">
+  <div class="kicker">地图08 讨论票 · #1051</div>
+  <h1>契约第一次被真实后端压：<br>哪里对不上，每一处怎么改</h1>
+  <p class="lede">这张票不写代码。它只做一件事——把「契约说的」和「两个真实后端做的」逐条对照，把对不上的地方查清、把每一处的改法定下来，让后面三张动手的票有据可依。</p>
+  <div class="meta">
+    <span><b>地图：</b><a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1050">#1050 地图08 GitHub房</a></span>
+    <span><b>本票：</b><a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1051">#1051 讨论</a></span>
+    <span><b>边界：</b>只讨论，不改代码</span>
+    <span><b>整理日期：</b>2026-10-14</span>
+  </div>
+</header>
+
+<!-- ===================== 三十秒看懂 ===================== -->
+<section>
+  <span class="sec-no">01</span>
+  <h2>三十秒看懂</h2>
+  <dl class="tldr panel">
+    <div class="tldr-row">
+      <dt>我们在做什么</dt>
+      <dd>把 GitHub 后端和本地 Markdown 后端从旧语言转成 TypeScript，并补上日志。这是地图08。</dd>
+    </div>
+    <div class="tldr-row">
+      <dt>为什么有这张票</dt>
+      <dd>契约是「后端必须实现哪些操作」的那份清单。它以前只被两样东西检查过——只做类型检查的探针、检查形状的脚本门禁——从来没被真实的读写完整跑过。地图08 是第一次。</dd>
+    </div>
+    <div class="tldr-row">
+      <dt>这张票要定什么</dt>
+      <dd>转写过程中暴露出来的每一处形状不一致，逐条定：是收进契约、留在房里，还是写明「故意不一致」。</dd>
+    </div>
+    <div class="tldr-row">
+      <dt>定完之后</dt>
+      <dd>三张动手的票（读 #1052、写 #1053、边 #1054）照结论执行，不用再猜。</dd>
+    </div>
+    <div class="tldr-row">
+      <dt>现在需要你</dt>
+      <dd>拍七个板。每个板我都写了选项、我的推荐和理由，你改了才是结论。</dd>
+    </div>
+  </dl>
+</section>
+
+<!-- ===================== 背景 ===================== -->
+<section>
+  <span class="sec-no">02</span>
+  <h2>这张票在地图里的位置</h2>
+  <div class="flow">
+    <div class="node">
+      <div class="n-t">#1052 读路径</div>
+      <div class="n-d">起进程、查询、取票、分页、计数、归一化</div>
+    </div>
+    <div class="node">
+      <div class="n-t">#1053 写路径</div>
+      <div class="n-d">建票、改票、评论、标签配色、初始化</div>
+    </div>
+    <div class="node">
+      <div class="n-t">#1054 关系与边</div>
+      <div class="n-d">父子边、阻塞边、环检测、边修复</div>
+    </div>
+    <div class="node here">
+      <div class="n-t">#1051 本票</div>
+      <div class="n-d">三张票动手前先读的结论源</div>
+    </div>
+  </div>
+  <p>三张动手票的票面里都写着一句话：「本票边界与讨论结论冲突时，以讨论结论为准，并把冲突写进本票评论。」所以这张票的结论不是参考意见，是它们要遵守的规矩。</p>
+
+  <h3>「压」这个字是票面里的比喻</h3>
+  <p>票面写的是「契约第一次被真后端压」，听着像试验压力。仓库的术语表 <code>CONTEXT.md</code> 里没有这个词，本文一律换成大白话：<b>契约与真实后端对不上的地方</b>。查清这些地方，再定每一处怎么改。</p>
+
+  <h3>两个词的准确定义</h3>
+  <div class="panel quiet">
+    <p class="tight"><b>契约</b>：仓库里描述「一个后端必须实现哪些操作」的类型与数据，真源在 <code>src/tracker/contract/</code>，操作名录共 19 个名字。</p>
+    <p class="tight" style="margin-bottom:0"><b>真实后端</b>：真正干活的实现——GitHub 那套真的读写远端仓库，本地 Markdown 那套真的读写本地文件。</p>
+  </div>
+  <p class="muted" style="font-size:14px">小提醒：早期的调研文档 <code>research/1010-deck-contract-surface.md</code> 里记的是旧文件路径，那棵目录树已经搬过家。本文引用的都是搬家后的新路径，旧文档只看结论、不看路径。</p>
+</section>
+
+<!-- ===================== 八件事 ===================== -->
+<section>
+  <span class="sec-no">03</span>
+  <h2>八个事实：契约和真实后端到底哪里对不上</h2>
+  <p class="muted">每条都是「人话先说结论，证据指到文件和行号」。行号可以直接打开对应文件核对。</p>
+
+  <article class="fact">
+    <div class="fact-head"><span class="fact-no">Ⅰ</span><h3>探针有三处诚实的放宽</h3></div>
+    <p>探针是一种只做类型检查、不运行代码的检查文件。它检查「后端模块对象长什么样」时，有三格故意放宽了：<b>创建操作</b>只检查「存在、能调用」，不管返回的东西对不对；<b>开仓库方式</b>只检查「存在」，不管值是网址还是文件夹；<b>检查目录</b>只检查「存在」，不管它是数组还是函数。</p>
+    <p>为什么放宽：后端实现还是旧语言写的，要收紧就得动实现面，而那属于开发票的活，探针票不碰。放宽本身是诚实的，理由写在文件头里。</p>
+    <p><b>代价</b>：被放宽的成员如果少了，探针看不见；后端多带了成员，探针永远绿的。多带成员这件事，只能靠门禁在运行时把成员名字列出来、跟一张快照逐字比对才能发现。</p>
+    <div class="ev">
+      <b>证据：</b>放宽定义 <code>tests/contract-probe-github.ts:44-48</code>、<code>tests/contract-probe-markdown.ts:45-51</code>；理由 <code>tests/contract-probe-github.ts:9-24</code>；契约本来的要求 <code>src/tracker/contract/backend-module.ts:214-219</code>（开仓库方式二选一）、<code>:233-234</code>（检查目录是数组）；运行时快照 <code>tests/verify-contract-types.js:102-107</code> 与 <code>:490-497</code>
+    </div>
+  </article>
+
+  <article class="fact">
+    <div class="fact-head"><span class="fact-no">Ⅱ</span><h3>反面证明缺了第二条</h3></div>
+    <p>反面证明是这么个东西：故意把一处签名改错，看门禁会不会变红。会变红，才证明门禁真的有检查能力。现在只有一条——去掉「识别函数」时必须编不过。</p>
+    <p>缺的那条在于：探针平时是用<b>宽松开关</b>编译的，反面证明却用<b>严格开关</b>编译。证明用的条件和平时用的条件不是同一套，说服力就打了折扣。地图02 关票时把这件事移交过来，要求补上「用探针同款开关，去断那个放宽后的形状」这第二条反面证明。</p>
+    <div class="ev">
+      <b>证据：</b>宽松开关 <code>tests/verify-contract-types.js:93</code>；严格开关 <code>:447</code>；移交原文见 <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1051">#1051 现有评论</a> 与 <code>research/1026-adversarial-claims-verification.md</code> 的 P2 一节
+    </div>
+  </article>
+
+  <article class="fact">
+    <div class="fact-head"><span class="fact-no">Ⅲ</span><h3>创建返回有三处写宽了，但今天不影响运行</h3></div>
+    <p>后端实例在三个位置比契约写得宽：<b>成功标志</b>被写成「是/否」两个值都能收，契约要求成功与失败是二选一的字面量；<b>检查目录</b>GitHub 实际给的是「调用一次、返回一份新数组」的函数，契约写的是数组；<b>开仓库方式</b>旧代码里被放宽成普通字符串，契约要求「网址」或「文件夹」二选一。</p>
+    <p>为什么今天不出事：全仓没有任何地方真的去调用那个检查目录；用开仓库方式的地方只做「是网址就开浏览器、是文件夹就开目录」的分流，不靠编译期的严格取值；成功标志在运行时的真值仍然是真或假，宽类型不改变运行结果。</p>
+    <p><b>结论</b>：丢的是静态检查的精度，不是运行时的对错。但这件事不能无声无息——要么在开发票里收敛掉，要么在票面写明「故意不收敛，理由是什么」。</p>
+    <div class="ev">
+      <b>证据：</b>三处自述 <code>tests/contract-probe-github.ts:10-24</code>；GitHub 检查目录真值 <code>src/tracker/rooms/github/checks.ts:53</code>；GitHub 开仓库方式真值 <code>src/tracker/rooms/github/repo.ts:73</code>；门禁运行时腿记录真值 <code>tests/verify-contract-types.js:473-497</code>；调用方枚举见 <code>research/1026-adversarial-claims-verification.md</code> 的 P4 一节
+    </div>
+  </article>
+
+  <article class="fact">
+    <div class="fact-head"><span class="fact-no">Ⅳ</span><h3>契约之外有四个真实成员</h3></div>
+    <p>两个后端各带了一些契约 19 个操作名里没有的成员，四个都有真实的调用方，不是死代码：</p>
+    <p class="tight">① <b>子票列表</b>——按父票取全部子票，唯一调用方是宿主侧「打开地图」那条电话。<br>
+    ② <b>仓库权限查询</b>——查当前登录人对仓库有没有写权限，工具层问不到时按「未知」走。<br>
+    ③ <b>配色文件放置入口</b>——用户为工作区选定后端时，往工作区放一份标签配色文件。<br>
+    ④ <b>归一化与解析</b>——把文件文本变成统一的票行结构，只被本地后端自己内部用。</p>
+    <div class="ev">
+      <b>证据：</b>操作名录 19 名 <code>src/tracker/contract/operations-catalog.ts:37-57</code>；子票列表 <code>src/tracker/rooms/github/sub-issues.ts:36-44</code> 与 <code>:9-10</code>；权限查询 <code>src/tracker/rooms/github/backend.ts:129-137</code>、调用方 <code>src/deck/tools/context.ts:87-88</code>；配色入口 <code>src/tracker/rooms/markdown/index.ts:148</code>；归一化与解析 <code>src/tracker/rooms/markdown/parse.ts:79</code>；契约承认「创建返回里带房内扩展是有意的」<code>src/tracker/contract/backend-module.ts:159-163</code>
+    </div>
+  </article>
+
+  <article class="fact">
+    <div class="fact-head"><span class="fact-no">Ⅴ</span><h3>装配层留了三处历史痕迹</h3></div>
+    <p>装配层是把闸、注册表、额度、后端上下文组装成工具依赖的那一层。那里留着三处旧痕迹：<b>仓库标识补全的等待上限</b>没有被传进去（代码里写死了缺席时用 8000 毫秒）；<b>双命中保护</b>已经退役，但装配层还在传一个空函数（测试里明确写着「传了也忽略」）；<b>计划存储</b>没有注入，所以批量建图的中间态退回进程内存，重启就丢。</p>
+    <p>新接口要不要继承这三处，是这张票要定的。</p>
+    <div class="ev">
+      <b>证据：</b>等待上限 <code>src/deck/shell/call-shell.ts:81</code> 与 <code>:218</code>；双命中残留 <code>src/deck/registration/host-assemble.ts:93-96</code>、<code>:134</code>，退役证据 <code>tests/verify-957-workspace-writer.js:163-165</code>；计划存储缺席 <code>src/host/refresh/wiring.js:305</code>、退路 <code>src/deck/tools/map-plan-create.ts:127</code>
+    </div>
+  </article>
+
+  <article class="fact">
+    <div class="fact-head"><span class="fact-no">Ⅵ</span><h3>单次调用的上下文没有冻结</h3></div>
+    <p>每次工具调后端，都会带上一份「这次调用的上下文」：工作区目录、中止信号、调用方标识、沙箱策略、会话标识。形状已经写进契约了，但只读这件事只是口头约定——每次调用都是复制一份新的再加字段，全仓没有任何地方把它冻住，契约里也没有「只读」的字样。</p>
+    <p>冻不冻、怎么冻，是这张票要定的。</p>
+    <div class="ev">
+      <b>证据：</b>形状 <code>src/tracker/contract/contexts.ts:125-149</code> 与 <code>:156-174</code>；每次复制一份 <code>src/deck/shell/call-shell.ts:280-288</code>
+    </div>
+  </article>
+
+  <article class="fact">
+    <div class="fact-head"><span class="fact-no">Ⅶ</span><h3>边的换号责任在后端内部，不在契约</h3></div>
+    <p>边指父子关系和阻塞关系。契约和工具层对外只认<b>票面编号</b>——就是你在议题列表里看到的那串数字。但 GitHub 的原生接口要的是<b>内部数据库编号</b>，是另一串数字。</p>
+    <p>换号的活全在 GitHub 后端内部完成：先查号、再用内部编号调原生接口、出错时降级。工具层只管传票面编号。本地 Markdown 后端不需要换号。</p>
+    <div class="ev">
+      <b>证据：</b>契约签名 <code>src/tracker/contract/index.ts:46-47</code>；工具层只传票面编号 <code>src/deck/shell/edge-landing.ts:153-189</code>；后端内部换号 <code>src/tracker/rooms/github/graph.ts:35-42</code>、<code>:139-142</code>、<code>:272-311</code>；本地房 <code>src/tracker/rooms/markdown/graph.ts:11-28</code>
+    </div>
+  </article>
+
+  <article class="fact">
+    <div class="fact-head"><span class="fact-no">Ⅷ</span><h3>这轮讨论想达到的效果</h3></div>
+    <p class="tight">① 三张动手票拿到一份「形状差异清单 + 每处改法」，动手时不再猜。</p>
+    <p class="tight">② 地图 #1050 的「Decisions so far」里有一节是本图结论，后人只读那一节就知道当初为什么这么定。</p>
+    <p class="tight" style="margin-bottom:0">③ 改不掉、但决定故意留着的地方有书面记录，不会无声无息地烂在那里。</p>
+  </article>
+</section>
+
+<!-- ===================== 七个板 ===================== -->
+<section>
+  <span class="sec-no">04</span>
+  <h2>七个板，等你拍</h2>
+  <p class="muted">每题给出选项、我的推荐、理由，以及「选另一个会付出的代价」。你回复时可以直接说「Q3 换成 A」，也可以说「先跳过」——跳过的我记下来，不替你猜。</p>
+
+  <article class="q">
+    <div class="q-head"><span class="q-no">Q1</span><h3>检查目录：定「数组」还是定「调用一次返回新数组的函数」？</h3></div>
+    <p class="ask">契约写的是数组，GitHub 实现给的是函数。两边必须统一成一种，开发票照做。</p>
+    <div class="opts">
+      <div class="opt"><span class="tag">A</span><span>定数组。改实现侧：GitHub 那边把函数改成直接给出数组。</span></div>
+      <div class="opt"><span class="tag">B</span><span>定函数。改契约：允许「数组或函数」两种写法。</span></div>
+    </div>
+    <div class="rec">
+      <span class="r-t">我的推荐：B，把契约改成接受函数</span>
+      <p>检查链的推进原则是「每次重新求值才算数」。函数每次调用返回一份新数组，正好符合这个语义；反过来把实现改成数组，等于把一份随时可能过期的快照固定在内存里。而且改契约比改实现面的牵连小。</p>
+    </div>
+    <div class="cost">选 A 的代价：GitHub 那边的检查条目要在模块装配时就算好并冻结，环境变化后需要重启才能刷新。</div>
+  </article>
+
+  <article class="q">
+    <div class="q-head"><span class="q-no">Q2</span><h3>另两处写宽（成功标志、开仓库方式）放进哪张开发票？</h3></div>
+    <p class="ask">成功标志收回「成功与失败二选一」，开仓库方式收回「网址与文件夹二选一」。这项活归读路径 #1052、写路径 #1053，还是另立一张跟随任务？</p>
+    <div class="opts">
+      <div class="opt"><span class="tag">A</span><span>归 #1052 读路径，随读路径一起收。</span></div>
+      <div class="opt"><span class="tag">B</span><span>归 #1053 写路径。</span></div>
+      <div class="opt"><span class="tag">C</span><span>另立一张跟随任务，本图四张票变五张。</span></div>
+    </div>
+    <div class="rec">
+      <span class="r-t">我的推荐：B，归 #1053 写路径</span>
+      <p>成功标志是「创建操作」的返回值问题，开仓库方式是模块装配时透传的问题——两件都不属于「只读查询」。#1052 那张票的验收标准写的是「读相关的回执与今天逐字一致」，往里塞类型收敛会破坏它原本干净的边界。</p>
+    </div>
+    <div class="cost">选 A 的代价：#1052 的验收口径要跟着改，否则「逐字一致」和「类型收敛」两件事会互相打架。</div>
+  </article>
+
+  <article class="q">
+    <div class="q-head"><span class="q-no">Q3</span><h3>第二条反面证明归谁做，按移交原文的做法做吗？</h3></div>
+    <p class="ask">地图02 移交时给了具体做法：把放宽后的形状从探针文件里导出，门禁里加一条「用探针同款宽松开关、去断这个形状」的反面证明。</p>
+    <div class="opts">
+      <div class="opt"><span class="tag">A</span><span>归本图（08），按移交原文的做法做。</span></div>
+      <div class="opt"><span class="tag">B</span><span>退回契约图去做，本票只写下「欠一条」。</span></div>
+      <div class="opt"><span class="tag">C</span><span>归本图，但换一种做法（比如把探针开关直接对齐成严格）。</span></div>
+    </div>
+    <div class="rec">
+      <span class="r-t">我的推荐：A，归本图并按原文做法做</span>
+      <p>这是「契约第一次被真实后端检验」的门面。如果这里不把证明补上，开发票里做的每一处收敛都没有门禁守着，等于白收敛。按原文做法最省事，因为做法已经写死、不需要重新论证。</p>
+    </div>
+    <div class="cost">选 C 的代价：把探针改成严格开关会让旧语言实现当场爆出一批类型错误，等于把实现面的活提前塞进探针，与本图「先讨论清楚再动手」的顺序反了。</div>
+  </article>
+
+  <article class="q">
+    <div class="q-head"><span class="q-no">Q4</span><h3>四个契约外成员：哪些升进契约，哪些永远留在房里？</h3></div>
+    <p class="ask">子票列表、仓库权限查询、配色文件放置入口、归一化与解析——四组都有真实调用方。</p>
+    <div class="opts">
+      <div class="opt"><span class="tag">A</span><span>全部升进契约，19 个操作名扩成更多。</span></div>
+      <div class="opt"><span class="tag">B</span><span>四个都留房里，只在契约注释里写明它们是自愿扩展。</span></div>
+      <div class="opt"><span class="tag">C</span><span>分开处理：需要跨后端统一语义的升，只服务某一个后端的留。</span></div>
+    </div>
+    <div class="rec">
+      <span class="r-t">我的推荐：C，分开处理</span>
+      <p>逐项看：<b>仓库权限查询</b>留房里——本地 Markdown 后端根本没有远端权限这回事，升进契约等于逼它长一个假实现；<b>子票列表</b>留房里——它是「打开地图」那条电话的实现细节，操作名录里已经写明这类读路径细节不进名录；<b>配色文件放置入口</b>保持现状——契约里本来就有它的形状；<b>归一化与解析</b>永远留本地房内部——它们是文件格式的解析工具，不是后端对外能力。</p>
+    </div>
+    <div class="cost">选 A 的代价：契约会为「只有某一个后端才有的能力」承担形状义务，Markdown 房被迫长出四个空壳，后面每个新后端都要跟着长。</div>
+  </article>
+
+  <article class="q">
+    <div class="q-head"><span class="q-no">Q5</span><h3>装配层三处历史痕迹：删、补，还是继承？</h3></div>
+    <p class="ask">等待上限没人传、双命中保护已退役还在传空函数、计划存储没注入导致中间态退回内存。</p>
+    <div class="opts">
+      <div class="opt"><span class="tag">A</span><span>三处一起在这张图收掉：补上等待上限、删掉空函数、把计划存储的注入另立一张跟随任务。</span></div>
+      <div class="opt"><span class="tag">B</span><span>三处都留着，新接口原样继承，等以后再清。</span></div>
+      <div class="opt"><span class="tag">C</span><span>只删退役的空函数，另两处原样保留。</span></div>
+    </div>
+    <div class="rec">
+      <span class="r-t">我的推荐：A</span>
+      <p>三处的性质不同，处理也不同：<b>退役的空函数</b>该删——测试已经证明「传了也忽略」，新接口继续传就是骗后人；<b>等待上限</b>该补传入方——它现在是「文档写了、消费方读了、接线从来没给」的半截状态，不补就会一直靠 8000 毫秒的兜底；<b>计划存储</b>的注入是独立的一件事（批量建图的落盘），塞进这三张转写票会撑破它们的边界，另立跟随任务最干净。</p>
+    </div>
+    <div class="cost">选 B 的代价：三处都是「没人知道为什么还在」的痕迹，新接口继承之后，后人更不敢删。</div>
+  </article>
+
+  <article class="q">
+    <div class="q-head"><span class="q-no">Q6</span><h3>单次调用的上下文：冻住，还是只加「只读」类型？</h3></div>
+    <p class="ask">现状是每次调用复制一份新的、彼此不共享，但没有冻结，契约里也没写「只读」。</p>
+    <div class="opts">
+      <div class="opt"><span class="tag">A</span><span>类型上标只读，运行时也真冻住（改动就报错）。</span></div>
+      <div class="opt"><span class="tag">B</span><span>只在类型上标只读，运行时保持现状。</span></div>
+      <div class="opt"><span class="tag">C</span><span>维持现状，什么都不加。</span></div>
+    </div>
+    <div class="rec">
+      <span class="r-t">我的推荐：B，类型标只读，运行时不冻</span>
+      <p>「每次复制一份」已经保证了调用之间不会互相改写，运行时冻结并不会多挡住一类真实故障，反而会在开发期制造一堆「不能赋值」的报错噪音。类型上标只读成本极低、收益明确：写代码的人和 AI 都不会再去改它。真有人踩到互相改写，再补运行时冻结不迟。</p>
+    </div>
+    <div class="cost">选 A 的代价：需要逐个排查现有代码里所有对这份上下文的写操作，属于本票边界之外的实现改动。</div>
+  </article>
+
+  <article class="q">
+    <div class="q-head"><span class="q-no">Q7</span><h3>边的换号：把「责任在后端内部」定死吗？</h3></div>
+    <p class="ask">契约与工具层永远只传票面编号，把票面编号换成 GitHub 内部数据库编号的活永远在 GitHub 后端内部。</p>
+    <div class="opts">
+      <div class="opt"><span class="tag">A</span><span>定死，写进结论，开发票不用再议。</span></div>
+      <div class="opt"><span class="tag">B</span><span>不定死，留给开发票按实际情况处理。</span></div>
+    </div>
+    <div class="rec">
+      <span class="r-t">我的推荐：A，定死</span>
+      <p>这已经是代码今天的样子（换号查询、传参、降级三段都在后端内部完成）。定下来不是新增约束，只是把现状写成结论——省掉开发票里的一次重复论证，也让「工具层只认票面编号」这条边界有明文可依。</p>
+    </div>
+    <div class="cost">选 B 的代价：开发票可能各自理解不同，出现「工具层顺手换了一次号」这种越界写法。</div>
+  </article>
+</section>
+
+<!-- ===================== 术语 ===================== -->
+<section>
+  <span class="sec-no">05</span>
+  <h2>术语小抄</h2>
+  <table>
+    <thead><tr><th>词</th><th>一句话意思</th></tr></thead>
+    <tbody>
+      <tr><td>契约</td><td><span>仓库里描述「一个后端必须实现哪些操作」的类型与数据，操作名录 19 个名字。</span></td></tr>
+      <tr><td>探针</td><td><span>只做类型检查、不运行代码的检查文件，用来核对后端模块对象的形状。</span></td></tr>
+      <tr><td>门禁</td><td><span>判不变式的自动检查脚本，跑不过就阻塞发布。契约门禁是其中一条。</span></td></tr>
+      <tr><td>反面证明</td><td><span>故意改错一处，看门禁会不会变红；会红才证明门禁真有检查能力。</span></td></tr>
+      <tr><td>后端模块</td><td><span>进程启动时登记的那份静态描述：身份、显示名、创建函数、识别函数，加若干界面描述数据。</span></td></tr>
+      <tr><td>放宽（弱化）</td><td><span>检查时故意降低要求。三处放宽都写在探针文件头，是诚实的，但代价是抓不住缺成员与多成员。</span></td></tr>
+      <tr><td>装配层</td><td><span>把闸、注册表、额度、后端上下文组装成工具依赖的那一层。</span></td></tr>
+      <tr><td>单次调用上下文</td><td><span>每次工具调后端时带的那份上下文：工作区目录、中止信号、调用方、沙箱策略、会话标识。</span></td></tr>
+      <tr><td>票面编号</td><td><span>你在议题列表里看到的那串数字，契约与工具层只用它。</span></td></tr>
+      <tr><td>内部数据库编号</td><td><span>GitHub 原生接口传参要的另一串数字，只在 GitHub 后端内部出现。</span></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ===================== 下一步 ===================== -->
+<section>
+  <span class="sec-no">06</span>
+  <h2>你回完之后会发生什么</h2>
+  <ol class="steps">
+    <li><b>结论落盘</b>——写进 <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1051">#1051</a> 的正文与评论，一条一条写，不写「已讨论」。</li>
+    <li><b>地图同步</b>——把结论同步进 <a href="https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1050">#1050</a> 的「Decisions so far」。没写进那里的结论，等于没定。</li>
+    <li><b>下游知会</b>——只影响某一张的，写进那张票（例如成功标志的收敛归 #1053，就写进 #1053）。</li>
+    <li><b>固化规格</b>——讨论完毕、意图对齐后，执行一次 <code>/to-spec</code> 把结论固化成规格单。</li>
+    <li><b>挂上地图</b>——规格单作为子票挂到同一张地图 #1050 上。</li>
+    <li><b>对抗式审查</b>——对本次执行的所有任务做一次对抗式审查，确认无误后关闭 #1051。</li>
+  </ol>
+  <div class="panel quiet" style="margin-top:28px">
+    <p style="margin:0"><b>一个工具状态要交代：</b>插件自带的 issue 管理通道（<code>deck_</code> 开头的那组工具）连续两次远端超时，按插件规矩已暂时停用它的写操作。等你拍完板要落盘时，它会先用只读方式核对现状再续；若仍然不通，我会先告诉你，再改用系统自带的 <code>gh</code> 命令行写入，不会闷着不出声。</p>
+  </div>
+</section>
+
+<p class="note">
+  本文由对话整理而成，只读来源见仓库 <code>research/1051-background.md</code>（背景调查笔记）。<br>
+  讨论票 #1051 · 地图08「GitHub 房：真实读写主路径」· 整理于 2026-10-14。
+</p>
+
+</div>
+</body>
+</html>

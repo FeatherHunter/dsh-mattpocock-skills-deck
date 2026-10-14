@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>#1057 讨论 · 两房语义差异怎么定</title>
+<style>
+  :root{
+    --bg:#f5f6f8; --card:#fff; --ink:#1f2328; --muted:#5b6570;
+    --line:#e2e6ea;
+    --blue:#0b64c8; --blue-soft:#eaf3ff;
+    --orange:#9a6700; --orange-soft:#fff7db;
+    --red:#c0392b; --red-soft:#fdecea;
+    --green:#1a7f37; --green-soft:#e9f7ee;
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif;
+    line-height:1.8;font-size:16px;
+  }
+  .wrap{max-width:1000px;margin:0 auto;padding:30px 20px 90px}
+
+  header.hero{
+    background:linear-gradient(135deg,#20262e,#39424e);color:#fff;
+    border-radius:18px;padding:32px 34px;box-shadow:0 10px 30px rgba(0,0,0,.16);
+  }
+  header.hero h1{margin:0 0 10px;font-size:25px;letter-spacing:.3px}
+  header.hero p{margin:8px 0 0;color:#cfd6de;font-size:15.5px;max-width:78ch}
+  .badges{margin-top:16px;display:flex;flex-wrap:wrap;gap:8px}
+  .badge{display:inline-block;font-size:13px;padding:3px 13px;border-radius:999px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.25)}
+  .badge.solid{background:#fff;color:#20262e;border-color:#fff;font-weight:700}
+
+  nav.toc{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 18px;margin:18px 0 22px;position:sticky;top:10px;z-index:9;box-shadow:0 2px 10px rgba(0,0,0,.05);font-size:14px}
+  nav.toc a{color:var(--blue);text-decoration:none;margin-right:16px;white-space:nowrap}
+  nav.toc a:hover{text-decoration:underline}
+
+  section{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:24px 28px;margin:0 0 20px;box-shadow:0 2px 10px rgba(0,0,0,.04)}
+  h2{font-size:20px;margin:0 0 6px;letter-spacing:.2px}
+  h2 .no{display:inline-block;min-width:30px;color:var(--blue);font-weight:800}
+  .lead{color:var(--muted);font-size:15px;margin:0 0 18px}
+  h3{font-size:16.5px;margin:22px 0 8px}
+  h3:first-of-type{margin-top:6px}
+  p{margin:10px 0}
+  ul,ol{margin:10px 0;padding-left:22px}
+  li{margin:6px 0}
+  code{background:#eef1f4;padding:1.5px 6px;border-radius:6px;font-size:13.5px;font-family:"Cascadia Code",Consolas,monospace}
+  .file{color:#39424e;background:#eceff2}
+
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14.5px}
+  th,td{border:1px solid var(--line);padding:9px 12px;vertical-align:top;text-align:left}
+  th{background:#f2f4f7;font-weight:700;white-space:nowrap}
+  td.k{background:#fafbfc;font-weight:600;white-space:nowrap}
+
+  blockquote{margin:14px 0;padding:12px 16px;background:#f7f9fb;border-left:4px solid #b9c2cc;border-radius:0 8px 8px 0;color:#3b444e;font-size:14.5px}
+  blockquote .src{display:block;margin-top:6px;color:var(--muted);font-size:13px}
+
+  .bucket{border-radius:var(--radius);border:1px solid var(--line);padding:22px 26px;margin:18px 0;background:var(--card);border-top-width:5px}
+  .bucket.b1{border-top-color:var(--blue)}
+  .bucket.b2{border-top-color:var(--orange)}
+  .bucket.b3{border-top-color:var(--red)}
+  .bucket-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+  .bucket-head h3{margin:0;font-size:19px}
+  .pill{font-size:12.5px;font-weight:700;padding:2px 11px;border-radius:999px}
+  .pill.b1{background:var(--blue-soft);color:var(--blue)}
+  .pill.b2{background:var(--orange-soft);color:var(--orange)}
+  .pill.b3{background:var(--red-soft);color:var(--red)}
+
+  .note{border-radius:10px;padding:13px 16px;font-size:14.5px;margin:14px 0;border:1px solid}
+  .note.blue{background:var(--blue-soft);border-color:#a9cdf5}
+  .note.orange{background:var(--orange-soft);border-color:#e6cd7a}
+  .note.red{background:var(--red-soft);border-color:#f0b4ac}
+  .note.green{background:var(--green-soft);border-color:#a6dcb9}
+  .note b{display:block;margin-bottom:4px}
+
+  .q{border:1px solid var(--line);border-radius:var(--radius);padding:0;margin:18px 0;overflow:hidden}
+  .q-head{background:#f2f4f7;padding:14px 20px;border-bottom:1px solid var(--line)}
+  .q-head .num{display:inline-block;background:#39424e;color:#fff;font-weight:800;font-size:13px;border-radius:8px;padding:2px 10px;margin-right:10px}
+  .q-head h3{display:inline;margin:0;font-size:17px}
+  .q-body{padding:18px 20px}
+  .q-body h4{margin:14px 0 6px;font-size:14.5px;letter-spacing:.5px;color:var(--muted)}
+  .q-body h4:first-child{margin-top:0}
+  .opt{border:1px solid var(--line);border-radius:10px;padding:11px 15px;margin:8px 0;font-size:15px}
+  .opt .tag{display:inline-block;font-weight:800;color:var(--blue);margin-right:8px}
+  .rec{background:var(--green-soft);border:1.5px solid #7fc79a;border-radius:10px;padding:13px 16px;margin:12px 0 0;font-size:15px}
+  .rec .tag{display:inline-block;font-weight:800;color:var(--green);margin-right:8px}
+
+  .grid3{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:760px){.grid3{grid-template-columns:1fr}}
+  .mini{border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:#fafbfc;font-size:14.5px}
+  .mini b{display:block;margin-bottom:6px;font-size:15px}
+
+  footer{color:var(--muted);font-size:13.5px;margin-top:26px;text-align:center;line-height:1.9}
+  @media print{nav.toc{display:none}body{background:#fff}section,.bucket{box-shadow:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <h1>#1057 讨论 · 两房语义差异怎么定</h1>
+  <p>地图 09「Markdown 房：没有 gh 也能工作」的讨论票。同一套 deck 工具、同一个调用，在 GitHub 房和本地 Markdown 房跑出来的行为有几处不一样。这张票把这些不一样逐条定下来：要么补齐让两边对齐，要么写明「本地房就是不做」并让人看得见。</p>
+  <div class="badges">
+    <span class="badge solid">只讨论 · 不动手</span>
+    <span class="badge">三桶差异 · 每条钉到源文件行号</span>
+    <span class="badge">等你定夺</span>
+    <span class="badge">结论尚未落盘</span>
+  </div>
+</header>
+
+<nav class="toc">
+  <a href="#what">这张票在干什么</a>
+  <a href="#bg">背景：两房与地图 09</a>
+  <a href="#buckets">三桶差异</a>
+  <a href="#five">五要素对齐</a>
+  <a href="#ask">待你定夺 Q1–Q6</a>
+  <a href="#settle">结论落到哪</a>
+  <a href="#src">来源</a>
+</nav>
+
+<section id="what">
+  <h2><span class="no">01</span>这张票在干什么</h2>
+  <p class="lead">一句话：同一个工具在两个后端跑，有些地方结果不一样；把每一条的「补」或「不补」定死，并写明理由。</p>
+
+  <p>票面原文：</p>
+  <blockquote>
+    目的：把已知差异（可选参数被丢、没有写前版本校验、没有写后环检）逐条定掉：补齐还是明确记为差异。<br>
+    边界：只讨论。<br>
+    做完：每条差异都有去留与理由，写进本票评论。
+    <span class="src">来源：GitHub issue #1057 正文</span>
+  </blockquote>
+
+  <p>这件事不是可做可不做：地图 09 的「做完的标志」里明写了一条「两房语义差异逐条落定或明确记为已知差异」（来源：<span class="file">research/1010-ticket-structure.md:223</span>，地图 #1056 正文同句）。所以这张讨论票的结论，是地图 09 能不能往下走的门。</p>
+</section>
+
+<section id="bg">
+  <h2><span class="no">02</span>背景：两房与地图 09</h2>
+
+  <h3>两房是什么</h3>
+  <table>
+    <tr><th></th><th>GitHub 房</th><th>本地 Markdown 房</th></tr>
+    <tr><td class="k">票存在哪</td><td>远端 GitHub 仓库</td><td>本工作区磁盘上的 Markdown 文件（<code>.scratch</code> 目录下，一张地图一份 <code>map.md</code>，每张票一个文件）</td></tr>
+    <tr><td class="k">怎么读写</td><td>经过本机装的 <code>gh</code> 命令发网络请求</td><td>直接读文件、改内容、整份写回，不经过网络</td></tr>
+    <tr><td class="k">能不能离线</td><td>不能</td><td>能</td></tr>
+    <tr><td class="k">来源</td><td><span class="file">src/tracker/rooms/github/backend.ts:8</span>、<span class="file">graph.ts:80</span></td><td><span class="file">src/tracker/rooms/markdown/index.ts:29</span>、<span class="file">issues-status.ts:41-43</span></td></tr>
+  </table>
+  <p>两个后端物理隔离：一个动远端仓库，一个动本地磁盘，互相不引用、也不同步数据。跨房间不许引用是写在注释里的纪律（<span class="file">src/tracker/rooms/github/cycle-check.ts:7</span>）。</p>
+
+  <h3>地图 09 要证明什么</h3>
+  <p>证明「上层对后端无知」不是一句空话——<b>换一个完全没有 <code>gh</code> 的后端，同一套 deck 工具全部照样跑</b>（来源：<span class="file">research/1010-ticket-structure.md:223</span>）。</p>
+  <p>这句话的现实含义：工具层不应该知道底下是谁在存票。要做到这一点，两个后端的对外行为必须一样，或者差异必须是写在明面上、调用方看得见的。</p>
+
+  <h3>为什么这类差异要靠讨论定，编译器抓不到</h3>
+  <p>契约（工具和后端之间唯一的书面承诺）给这些操作声明了可选项参数。本地房在门口把参数收下、进屋就丢了——<b>声明了参数却不用，在 TypeScript 里是合法的</b>，编译一声不响。所以这一类差异只能靠人对着接口逐条定，或者靠注释写明。</p>
+  <p>已经定下的一句口径：本地房已知的差异不许用可选项藏起来，要在接口注释里逐条写明「本房不实现」（来源：<span class="file">specs/1010-ts-rewrite-spec.md:81</span>）。</p>
+
+  <div class="note blue">
+    <b>一句话总结背景</b>
+    GitHub 房是「远方真源」，本地房是「离线可用」。今天的现实是：本地房有几处对外说着和 GitHub 房一样的话，做起来少做了几步。这张票要定的就是：这几步该补，还是该明说。
+  </div>
+</section>
+
+<section id="buckets">
+  <h2><span class="no">03</span>三桶差异</h2>
+  <p class="lead">出自 <span class="file">research/1010-room-conformity-checklist.md</span> 第五节列的 8 处，归成三桶。每条都回到源文件核过行号。</p>
+
+  <!-- 桶一 -->
+  <div class="bucket b1">
+    <div class="bucket-head">
+      <h3>桶一 · 6 处「收了可选项，进屋就丢掉」</h3>
+      <span class="pill b1">静默少做</span>
+    </div>
+
+    <table>
+      <tr><th>操作</th><th>契约声明的可选项</th><th>GitHub 房</th><th>本地 Markdown 房</th></tr>
+      <tr><td class="k">取依赖关系<br><code>getDependencies</code></td><td>批量键：一次问多张票</td><td>走批量分支，逐个取回再合并</td><td>丢掉。只读第一张票的依赖</td></tr>
+      <tr><td class="k">关票<br><code>close</code></td><td>关闭原因（完成 / 重复 / 未计划…）</td><td>拼进关票命令，并回填到返回的票上</td><td>丢掉。文件里只写一行状态，原因没地方记</td></tr>
+      <tr><td class="k">改标签<br><code>setLabels</code></td><td rowspan="4">期望更新时间（下一桶细讲）</td><td>写前比对</td><td>丢掉（签名里没有收它的位置）</td></tr>
+      <tr><td class="k">改指派人<br><code>setAssignees</code></td><td>写前比对</td><td>丢掉</td></tr>
+      <tr><td class="k">改父地图<br><code>setParent</code></td><td>写前比对</td><td>丢掉</td></tr>
+      <tr><td class="k">改阻塞关系<br><code>setBlockedBy</code></td><td>写前比对</td><td>丢掉</td></tr>
+    </table>
+    <p style="font-size:14px;color:var(--muted)">来源：契约签名 <span class="file">src/tracker/contract/operations.ts:125-185</span>；本地装配层丢参数 <span class="file">src/tracker/rooms/markdown/index.ts:132,134,138-141</span>；本地实现签名无位置 <span class="file">markdown/graph.ts:21</span>、<span class="file">issues-status.ts:50-52</span>、<span class="file">issues-patch.ts:183,199,244,327</span>；GitHub 侧使用 <span class="file">github/graph.ts:177-188</span>、<span class="file">github/issues-write.ts:156-158,176</span>。</p>
+
+    <h4 style="font-size:15px;margin:16px 0 6px">你实际会看到什么</h4>
+    <ul>
+      <li><b>同一个关闭原因，同时关两张票，都显示成功。</b>GitHub 那张读回能看到原因；本地那张读回原因只能是空。同一个「成功」，含义不一样。</li>
+      <li><b>同一个批量取依赖调用，都显示成功。</b>GitHub 返回多张票的结果；本地只返回第一张票的结果。</li>
+    </ul>
+
+    <div class="grid3">
+      <div class="mini"><b>补齐要动哪</b>批量键：本地取依赖函数加接收位置，多张逐个读再合并；或者明确拒绝批量、回「做不到」。关闭原因：本地关票函数加接收位置，并定好写在文件哪一行、从哪一行读出来（文件格式有没有预留原因行，尚未核实）。</div>
+      <div class="mini"><b>记成差异的代价</b>最贵的是静默：调用方收到成功，以为原因记下了、批量取全了，盘上并没有。上层每个用到这两个字段的地方都要先问「现在在哪个后端」。</div>
+    </div>
+  </div>
+
+  <!-- 桶二 -->
+  <div class="bucket b2">
+    <div class="bucket-head">
+      <h3>桶二 · 写前版本校验，本地房整类缺席</h3>
+      <span class="pill b2">会丢改动</span>
+    </div>
+
+    <p><b>期望更新时间是什么：</b>一种乐观并发控制。你上次读票时拿到一串更新时间，下次写时原样交回去；后端拿它和当前存的比对，对不上就回「冲突」，不让你盖掉别人的改动（来源：<span class="file">src/tracker/contract/inputs.ts:116-123</span>）。冲突是显式的失败分类，不是靠错误文本猜的。</p>
+
+    <table>
+      <tr><th></th><th>GitHub 房</th><th>本地 Markdown 房</th></tr>
+      <tr><td class="k">认不认</td><td>4 处都认：改标签、改认领、改父地图、改阻塞关系，写前先读当前票比对</td><td>全房搜索「期望更新时间」<b>零命中</b>，4 个本地写函数签名里没有收它的位置</td></tr>
+      <tr><td class="k">对不上时</td><td>回冲突，不往下写</td><td>——（根本没有比对这个动作）</td></tr>
+      <tr><td class="k">来源</td><td><span class="file">github/labels.ts:99-106</span>、<span class="file">github/issues-write.ts:288-293</span>、<span class="file">github/graph.ts:60-67</span>、<span class="file">github/graph.ts:251-258</span></td><td><span class="file">markdown/issues-patch.ts:327,199,244,183</span>、<span class="file">markdown/index.ts:138-141</span></td></tr>
+    </table>
+
+    <h4 style="font-size:15px;margin:16px 0 6px">你实际会看到什么</h4>
+    <p>甲乙两人同时打开同一张票，读到的更新时间是同一串。甲先改标签并成功，更新时间变成新串。乙接着改同一张票，交回的还是旧串：</p>
+    <ul>
+      <li><b>GitHub 房</b>：乙收到冲突，盘上保持甲改完的样子，乙的改动没落盘。</li>
+      <li><b>本地房</b>：乙显示成功，文件被整份改写，<b>甲的改动被整份抹掉</b>，两次调用都成功，盘上只剩乙的版本。</li>
+    </ul>
+    <p style="font-size:14px;color:var(--muted)">本地已有「按文件排队」的单写者队列（<span class="file">markdown/issues-patch.ts:24-34</span>），它解决的是同时写同一份文件互相踩，<b>不解决</b>先后写后写盖先写——这是两个不同的并发层次。</p>
+
+    <div class="note orange">
+      <b>顺手发现的一处契约内部不一致（需要你决定，见 Q5）</b>
+      契约的关票注释写着「带期望更新时间时对不上就回冲突」（<span class="file">src/tracker/contract/operations.ts:135</span>），但关票选项的类型里今天只有关闭原因，没有期望更新时间（<span class="file">inputs.ts:99-103</span>）；改票操作今天根本没有可选项参数位（<span class="file">operations.ts:145</span>）。所以按今天的类型，能做版本校验的只有那 4 个操作。
+    </div>
+
+    <div class="grid3">
+      <div class="mini"><b>补齐要动哪</b>本地 4 个写函数各加一个接收期望更新的位置，写之前先读当前文件的更新时间（或等价的文件版本标记），对不上就冲突且不写文件。本地文件今天有没有可靠的更新时间可比，尚未核实。</div>
+      <div class="mini"><b>记成差异的代价</b>本地房永远后写盖先写。凡是靠「冲突」提醒人先合并再写的上层流程，在本地会静默丢改动，而且两次都返回成功，没有日志能指出谁盖了谁。将来在本地房上做协同编辑，这个会第一个变成丢数据故障。</div>
+    </div>
+  </div>
+
+  <!-- 桶三 -->
+  <div class="bucket b3">
+    <div class="bucket-head">
+      <h3>桶三 · 写后环检，只有 GitHub 房有</h3>
+      <span class="pill b3">图会打结</span>
+    </div>
+
+    <p>契约给「改阻塞关系」写了两条硬规矩：自己阻塞自己回冲突；<b>写完成环回冲突且不落盘</b>。注释还多写了一句：环检是写路径的一部分，不许省，省了图会变成一团，而且再也解不开（来源：<span class="file">src/tracker/contract/operations.ts:174-177</span>）。</p>
+
+    <table>
+      <tr><th></th><th>GitHub 房</th><th>本地 Markdown 房</th></tr>
+      <tr><td class="k">自环</td><td>当场回冲突</td><td>也挡：读、写两边各有一个自环分支</td></tr>
+      <tr><td class="k">成环</td><td>落盘前用全图邻接表判一次（深度优先搜索），成环就不写</td><td><b>不判。</b>直接改文件的阻塞行并落盘</td></tr>
+      <tr><td class="k">来源</td><td><span class="file">github/graph.ts:249,260-261</span>、<span class="file">github/cycle-check.ts:55-73</span></td><td><span class="file">markdown/issues-patch.ts:186</span>（只此一处）</td></tr>
+    </table>
+    <p style="font-size:14px;color:var(--muted)">一处措辞差别如实说明：契约写「写完之后成环」，GitHub 房实现是<b>写之前预判</b>（<span class="file">github/graph.ts:259</span> 注释「成环检测（写前，不落盘）」）。效果一致，都是成环的边不落盘，不是先写再回滚。</p>
+
+    <h4 style="font-size:15px;margin:16px 0 6px">你实际会看到什么</h4>
+    <p>已经有一条「甲等乙」，你再把乙设成「等甲」，两条边凑成一圈：</p>
+    <ul>
+      <li><b>GitHub 房</b>：第二次写入回冲突，盘上保持原样。</li>
+      <li><b>本地房</b>：第二次写入<b>成功</b>，两个文件各记一条，下次读依赖时两张票互相出现在对方的阻塞列表里，留下一圈解不开的等待。</li>
+    </ul>
+
+    <div class="grid3">
+      <div class="mini"><b>补齐要动哪</b>在本地写阻塞边函数里加一次写前判环：把同一工作单元内所有票的阻塞关系读出来组邻接表，把拟写入的边套进去做深度优先搜索，成环就冲突且不写文件。判环算法可参考 GitHub 房那份。判环范围要不要含跨工作单元的边，尚未核实——本地阻塞关系今天只在同一工作单元内成立（<span class="file">markdown/graph.ts:3-5</span>）。</div>
+      <div class="mini"><b>记成差异的代价</b>本地图可以长期带环运行。环一旦落盘，后续排序、展示、自动化推进都可能在环上打转；解环要人逐条拆边，机器判不出该先拆哪条。等于接受「本地图可能要人手工修环」。</div>
+    </div>
+  </div>
+</section>
+
+<section id="five">
+  <h2><span class="no">04</span>五要素对齐</h2>
+  <p class="lead">按讨论聚焦的五项各归一句，不多扩散。</p>
+  <table>
+    <tr><td class="k">目标</td><td>8 处差异逐条有去留与理由：补齐，或明确记为已知差异并在接口上写明。</td></tr>
+    <tr><td class="k">边界</td><td>只讨论，不写代码。动手在地图 09 的开发票里。本票不动实现文件。</td></tr>
+    <tr><td class="k">风险</td><td>两个方向都有代价：<b>藏起来</b>（用可选项掩盖差异）让上层以为两边一样，换后端就行为变了，且失败是静默的；<b>硬补</b>则要为本地单机场景付远端并发的那份钱，可能白花力气还增加出错面。</td></tr>
+    <tr><td class="k">选项权衡</td><td>每条独立成一题，不要打成一揽子：代价和收益各不相同，绑一起定会互相拖（见 Q2）。</td></tr>
+    <tr><td class="k">谁拍板</td><td>你拍。我给事实、选项和推荐，不替你决定；你不确认，我不落盘。</td></tr>
+  </table>
+</section>
+
+<section id="ask">
+  <h2><span class="no">05</span>待你定夺 Q1–Q6</h2>
+  <p class="lead">每题的推荐都写清了理由和影响，你只回选项字母、或者直接说你的第三种做法都行。</p>
+
+  <div class="q">
+    <div class="q-head"><span class="num">Q1</span><h3>完成判据与边界，认不认</h3></div>
+    <div class="q-body">
+      <p>票面写着「边界：只讨论」，收尾要写三处：本票评论（结论）、地图 #1056 的决定区、受影响的开发票正文或评论。三处都写完才算讨论完毕，只写第一处下游票看不到。另外票面有一条默认：贴出后 48 小时没人回话，就按票面默认方案往下走。</p>
+      <div class="opt"><span class="tag">A</span>认：三处都写；48 小时默认也认。</div>
+      <div class="opt"><span class="tag">B</span>三处认，但 48 小时默认不认（你要亲自看完再定）。</div>
+      <div class="rec"><span class="tag">推荐 A</span>三处不齐下游看不到；48 小时那条是防止讨论票把开发票卡死，认了不等于你不看，你随时可以推翻重定。</div>
+    </div>
+  </div>
+
+  <div class="q">
+    <div class="q-head"><span class="num">Q2</span><h3>桶一这 6 处，一起定还是拆开定</h3></div>
+    <div class="q-body">
+      <p>6 处里其实是两种性质：<b>关闭原因与批量键</b>（本地文件写一行就能记、多读几个文件就能办，代价小、用户看得见）；<b>4 处期望更新时间</b>（远端并发才需要，本地单机串行，属于桶二）。</p>
+      <div class="opt"><span class="tag">A</span>拆开定：前两处单独作为「有意义的字段」，跟桶二分开拍。</div>
+      <div class="opt"><span class="tag">B</span>6 处一起定，统一口径（全补 / 全记差异）。</div>
+      <div class="rec"><span class="tag">推荐 A</span>绑一起会让「便宜又有用」的两处被「贵又未必需要」的四处拖下水，或者反过来被一起补掉。分开拍更准。</div>
+      <p>如果选 A，前两处各自还有一个子问题：<b>关闭原因</b>，补进本地文件（要定写在哪个位置），还是明确记为「本地房不记原因」？<b>批量键</b>，补成批量（多张逐个读再合并），还是明确拒绝批量调用回「做不到」（比静默只回一张诚实）？这两处可以等你先答完 Q2 再进入下一轮。</p>
+    </div>
+  </div>
+
+  <div class="q">
+    <div class="q-head"><span class="num">Q3</span><h3>写前版本校验：本地房补，还是明确豁免</h3></div>
+    <div class="q-body">
+      <div class="opt"><span class="tag">A</span>补：本地 4 个写操作加期望更新时间比对，对不上回冲突不写。代价是本地票文件要有可靠的更新时间或版本标记，且每次写前多读一次文件。</div>
+      <div class="opt"><span class="tag">B</span>豁免：明确写「本地房长期是后写覆盖先写」，上层协同流程按此避开；契约注释加一句本地房不实现。</div>
+      <div class="rec"><span class="tag">推荐 A</span>这是三桶里唯一会<b>静默丢数据</b>的：两张票都回成功，改动却没了，事后无从追查。本地读一次文件比对，成本远低于远端再拉一遍。而且「本地单机不会并发」这个前提，在同一个工作区开两个会话时就不成立了。</div>
+      <p>如果选 B，请一并定：豁免写在契约注释里，还是也在本地房的接口说明里写一遍？</p>
+    </div>
+  </div>
+
+  <div class="q">
+    <div class="q-head"><span class="num">Q4</span><h3>写后环检：本地房补，还是接受带环</h3></div>
+    <div class="q-body">
+      <div class="opt"><span class="tag">A</span>补：本地写阻塞边前判环，成环回冲突不写。范围建议先定「只看同一工作单元」（与今天本地阻塞关系只在该单元内成立一致）。</div>
+      <div class="opt"><span class="tag">B</span>接受带环：保持只挡自环，写明本地图可能带环、由人手工拆。</div>
+      <div class="rec"><span class="tag">推荐 A</span>环检是契约里唯一被写明「不许省」的一条，理由也说得通：图一旦成环就再也解不开。本地组一次邻接表比远端拉全仓便宜得多，代价小、风险大，不值得豁免。</div>
+      <p>如果选 A，还要定判环范围：只看同一工作单元，还是看整个工作区的所有票？（本地今天阻塞关系只在同一工作单元内成立，跨单元暂时不在语义里。）</p>
+    </div>
+  </div>
+
+  <div class="q">
+    <div class="q-head"><span class="num">Q5</span><h3>关票与改票，要不要也加版本校验</h3></div>
+    <div class="q-body">
+      <p>顺手核出来的契约内部不一致：关票注释说带期望更新时间就比对（<span class="file">operations.ts:135</span>），但关票选项类型里只有原因（<span class="file">inputs.ts:99-103</span>），改票更是连可选项参数位都没有（<span class="file">operations.ts:145</span>）。这不是两房差异，是契约自己前后不一。</p>
+      <div class="opt"><span class="tag">A</span>补齐契约：给关票与改票都加上期望更新时间位置，桶二按 6 个操作一起算。</div>
+      <div class="opt"><span class="tag">B</span>改注释：注释跟着类型走，明确「今天只有 4 个写操作支持版本校验」。范围小、今天不做。</div>
+      <div class="opt"><span class="tag">C</span>本票不定，另立一张小票处理（本票先聚焦两房差异）。</div>
+      <div class="rec"><span class="tag">推荐 B</span>本票的题是「两房差异」，这处是契约自己的笔误级不一致；按类型为准改注释，成本最小，也不会把本票范围撑大。若你更看重「关票也该防并发覆盖」，那就选 A。</div>
+    </div>
+  </div>
+
+  <div class="q">
+    <div class="q-head"><span class="num">Q6</span><h3>结论落盘的形式</h3></div>
+    <div class="q-body">
+      <p>结论必须先写进这张票（正文/评论），这是票面判据。问题是要不要另立长期留存的地方。</p>
+      <div class="opt"><span class="tag">A</span>只留本票 + 地图 #1056 决定区。</div>
+      <div class="opt"><span class="tag">B</span>本票 + 地图决定区，另外对「选择豁免」的条目各写一条决策记录（ADR）。</div>
+      <div class="rec"><span class="tag">推荐 B（视结果而定）</span>如果 Q3/Q4 里选了豁免，那是一条「以后别人会问为什么」的长期决定，值得一条 ADR；如果都选了补齐，选项 A 就够，不必为对称而写。</div>
+    </div>
+  </div>
+</section>
+
+<section id="settle">
+  <h2><span class="no">06</span>结论落到哪 · 收尾动作</h2>
+
+  <h3>讨论完毕时，结论写三处</h3>
+  <ol>
+    <li><b>本票 #1057</b>：逐条写结论与理由，不写「已讨论」这种空话。</li>
+    <li><b>地图 #1056 的「Decisions so far」</b>：要动手的人先读这里，没写进这里的结论等于没定。</li>
+    <li><b>受影响的开发票</b>：只影响某一张就写进那一张的正文或评论。</li>
+  </ol>
+
+  <h3>讨论定案之后的收尾</h3>
+  <ul>
+    <li>全部讨论完、意图对齐时，走一次 <code>/to-spec</code>，把结论固化成规格文档。</li>
+    <li><code>/to-spec</code> 产出的规格单，挂到同一张地图 #1056 下成为子票。</li>
+    <li>按你的指示执行完 <code>/to-spec</code> 后，对本次执行的所有任务做一次对抗式审查，确认无误再关闭本票。</li>
+  </ul>
+
+  <div class="note green">
+    <b>本轮状态</b>
+    第一轮讨论已展开：背景证据齐了，6 道题摆出等你拍。你回完 Q1–Q6，我算下一轮的问题；全部答完、意图对齐，再请你走 <code>/to-spec</code>。在你确认之前，结论一律不落盘。
+  </div>
+</section>
+
+<section id="src">
+  <h2><span class="no">07</span>来源与未核实</h2>
+  <p class="lead">每条事实的来源；以及今天还没核实的几处，已如实标出，不猜。</p>
+
+  <h3>主要来源</h3>
+  <ul style="font-size:14.5px">
+    <li>差异清单：<span class="file">research/1010-room-conformity-checklist.md</span>（重点第五节 <code>:97-112</code>）</li>
+    <li>契约：<span class="file">src/tracker/contract/operations.ts</span>（<code>:125-136</code>、<code>:145</code>、<code>:148-185</code>、<code>:174-177</code>）、<span class="file">inputs.ts</span>（<code>:57-61</code>、<code>:99-103</code>、<code>:116-123</code>）、<span class="file">identity.ts:44-50,60-61</span></li>
+    <li>GitHub 房：<span class="file">rooms/github/graph.ts</span>（<code>:52-67</code>、<code>:172-188</code>、<code>:239-261</code>）、<span class="file">issues-write.ts</span>（<code>:147-177</code>、<code>:271-293</code>）、<span class="file">labels.ts:90-106</span>、<span class="file">backend.ts:82-94</span>、<span class="file">cycle-check.ts:25-73</span></li>
+    <li>本地 Markdown 房：<span class="file">rooms/markdown/index.ts:132-141</span>、<span class="file">graph.ts:21-72</span>、<span class="file">issues-patch.ts:183-197,199,244,327</span>、<span class="file">issues-status.ts:50-52</span></li>
+    <li>口径与地图：<span class="file">specs/1010-ts-rewrite-spec.md:81</span>、<span class="file">research/1010-ticket-structure.md:223</span>、<span class="file">research/1027-probe-handoff.md:121-129</span>、issue #1056 / #1057 正文</li>
+    <li>本次背景调查全文：<span class="file">research/1057-teacher-brief.md</span></li>
+  </ul>
+
+  <h3>今天尚未核实的 5 处</h3>
+  <ol style="font-size:14.5px">
+    <li>本地批量取依赖逐个合并时的性能影响。</li>
+    <li>本地票文件格式是否已有预留的「关闭原因」行。</li>
+    <li>本地文件是否已有可靠的更新时间可比对（决定 Q3 补齐的实际成本）。</li>
+    <li>判环范围要不要含跨工作单元的边。</li>
+    <li>关票与改票是否要新增版本校验位置（Q5）。</li>
+  </ol>
+  <p style="font-size:14px;color:var(--muted)">这 5 处不影响你拍方向，只影响补齐时的工量估算。你定了方向，我把它们补核一遍再写进结论。</p>
+</section>
+
+<footer>
+  #1057「地图 09 讨论：两房语义差异怎么定」· 第一轮讨论材料 · 2026-10-14<br>
+  只讨论、不落盘。结论以你确认为准。<br>
+  来源：<span class="file">research/1057-teacher-brief.md</span>、<span class="file">research/1010-room-conformity-checklist.md</span>
+</footer>
+
+</div>
+</body>
+</html>

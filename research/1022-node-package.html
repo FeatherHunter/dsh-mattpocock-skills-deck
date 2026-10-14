@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Node找JS、打包出什么、金标准到底保什么</title>
+<style>
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:#fafaf8;color:#22252a;font:17px/1.9 -apple-system,"Segoe UI","Microsoft YaHei","PingFang SC",sans-serif;padding:20px 14px 60px}
+main{max-width:640px;margin:0 auto}
+header{border-bottom:2px solid #22252a;padding-bottom:12px;margin-bottom:18px}
+.kicker{margin:0 0 6px;color:#7a7e87;font-size:13px}
+h1{margin:0;font-size:23px;line-height:1.4}
+.sub{margin:8px 0 0;color:#7a7e87;font-size:14px;line-height:1.7}
+.card{background:#fff;border:1px solid #e8e9ec;border-radius:12px;padding:16px;margin:0 0 12px}
+h2{font-size:19px;margin:0 0 10px}
+.badge{display:inline-block;background:#22252a;color:#fff;font-size:13px;border-radius:20px;padding:2px 10px;margin-right:8px}
+p{margin:0 0 10px}p:last-child{margin:0}
+ul{margin:8px 0;padding-left:20px}li{margin-bottom:8px}
+code{font-family:ui-monospace,Consolas,monospace;font-size:14px;background:#f3f4f6;padding:1px 6px;border-radius:4px;word-break:break-all}
+pre{margin:10px 0;background:#f5f6f7;border:1px solid #e8e9ec;border-radius:10px;padding:12px;font-size:13px;line-height:1.8;white-space:pre-wrap;word-break:break-all}
+.ok{background:#eefaf7;border-left:3px solid #0f766e;border-radius:8px;padding:10px 12px;font-size:15px;margin:10px 0}
+.bad{background:#fef7ec;border-left:3px solid #d97706;border-radius:8px;padding:10px 12px;font-size:15px;margin:10px 0}
+footer{margin-top:20px;padding-top:12px;border-top:1px solid #e8e9ec;color:#7a7e87;font-size:13px;line-height:1.7}
+</style>
+</head>
+<body>
+<main>
+<header>
+<p class="kicker">地图01 · 手机版 · 只讲本图</p>
+<h1>Node找JS、打包出什么、金标准保什么</h1>
+<p class="sub">先纠正一处复述，再答你的几个为什么，最后补两句你没问但该知道的。</p>
+</header>
+
+<div class="card">
+<h2><span class="badge">纠</span>你的复述对了一半</h2>
+<p>你说“金标准检测有没有真正引用新 TS、没有就引用旧 JS”，这句要拆成两层：</p>
+<p>真正管“有没有走到 .ts”的，是钩子自己的那道自证：如果磁盘明明有 <code>.ts</code> 兄弟却解析到 <code>.js</code>，当场红，不假装绿。金标准启动第一行还会打印“多少模块、几个走 .ts”，含糊时宁可红。</p>
+<p>金标准管的是另一层：九个工具的回执跟基准逐字节一样不一样。它不管你走的是 <code>.ts</code> 还是 <code>.js</code>，只管行为没变。所以钩子红是找文件错了，金标准红是行为变了，两把尺子分工不同。</p>
+<div class="ok">记住一句：钩子保“找到对的文件”，金标准保“做对同样的事”。</div>
+</div>
+
+<div class="card">
+<h2><span class="badge">问1</span>为什么 Node 非要找 JS</h2>
+<p>从头说：Node 是 JS 运行器，里面是 V8，只能执行 JS。它看不懂 TS 里的类型写法。所以 TS 必须先变成 JS，V8 才能跑。这和安卓是一个道理，只是名字不同：</p>
+<pre>安卓：Java/Kotlin 源码 → 编译器 → dex → 打成 APK
+我们：TS 源码 → 转译（esbuild）或类型剥离（Node 自带）→ JS → 装进 npm 包</pre>
+<p>源码里写 <code>./x.js</code> 而磁盘只有 <code>x.ts</code>，Node 会直接报错，不会帮你找。这是死规矩，钩子就是来补这一步的：先看有没有同名 <code>.ts</code>，有就给你，没有就放行让 Node 原样走。</p>
+</div>
+
+<div class="card">
+<h2><span class="badge">问2</span>找 JS 就是在编译吗</h2>
+<p>不是。要分开三个动作：</p>
+<ul>
+<li><b>找文件（解析）：</b>钩子只干这个，不管编译。它只换地址，不改内容。</li>
+<li><b>变 JS（转译）：</b>构建里的 esbuild 干这个，把 <code>.ts</code> 变成 <code>.js</code> 写进 <code>package/</code>。测试时是 Node 自带的类型剥离，擦掉类型就跑，不写文件。</li>
+<li><b>挑错（检查）：</b><code>tsc</code> 干这个，只看不产出（<code>noEmit</code>）。真正的 JS 由 esbuild 出。</li>
+</ul>
+<p>所以“Node 在找 JS”说的是运行加载那一刻，不是打包那一刻。打包是 <code>node scripts/build.mjs</code> 那 30 秒（含两遍 esbuild 各约 14.5 秒），有缓存命中就跳过。</p>
+</div>
+
+<div class="card">
+<h2><span class="badge">问3</span>最终打包出的是什么</h2>
+<p>你的类比只对一半：对的是“最后都是一堆能跑的东西”，错的是形状。</p>
+<p>安卓打出的是一个 APK（单个安装体）。我们打出的是一个 npm 包目录，就是 <code>package/</code>：</p>
+<pre>package/package.json（名字、版本、main 指 lib/index.js、exports、files 清单）
+package/lib/（宿主镜像）、package/deck/（工具镜像）、package/tracker/（追踪器镜像）
+package/shared/（四个核镜像）、cordis.patch.yml（装机补丁）、bundled-skills（技能）</pre>
+<p>用户不用自己起 Node。用户走市场升级、软件内升级或自己敲安装命令，把这个包目录装进 DSH 的插件文件夹。DSH 宿主（自己就是跑在 Node 里的）加载 <code>lib/index.js</code>，工具行再把九个工具注册给 AI。你开发时敲的 <code>npm test</code>、<code>node scripts/build.mjs</code> 跑的是你电脑；用户电脑上跑的是装好的包里的 JS，被宿主调起来。</p>
+<div class="ok">记住一句：npm 管“把文件放到位”，Node 管“把文件跑起来”。<code>prepare</code> 在我们这边跑，用户拿到的是建好的包。</div>
+</div>
+
+<div class="card">
+<h2><span class="badge">补</span>两句你没问但该知道的</h2>
+<p>一源出两物：根下的 <code>client.js / host.js</code> 是开发态（给本地调试），<code>package/lib/</code> 里的是发布态（给用户）。构建只写这三处，不碰你本机已装的插件，不读你电脑的 DSH 环境。</p>
+<p>为什么源码坚持写 <code>./x.js</code>：因为产物本来就是逐文件加载的 <code>.js</code>，源码跟着写 <code>.js</code>，产物一个字不用改，风险留在测试侧用钩子扛，不进线上。</p>
+</div>
+
+<footer>来源：package/package.json、根 package.json、scripts/build.mjs 头 90 行、金标准 README。只含地图01，未写票。</footer>
+</main>
+</body>
+</html>
