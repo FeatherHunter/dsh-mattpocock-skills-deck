@@ -151,13 +151,16 @@ async function setLabelsInner(repo: RepositoryRef, key: string, labels: LabelInp
     const spec = `${parsed.owner}/${parsed.name}`
 
     // 差集算出来了：从这一步起每一次加或撤都是一条写命令，走的是 gh issue 子命令（cli）。
-    trail.route = 'cli'
+    // route 在真发出命令那一刻才改口：一条都没发（差集为空）时它保持 none —— 结论线说的是
+    // 「真走到哪一层」，不是「本来打算走哪一层」。
     for (const n of toRemove) {
+      trail.route = 'cli'
       trail.written += 1
       const r = await c.execGh(['issue', 'edit', k, '--repo', spec, '--remove-label', n], { cwd: ctx && ctx.cwd })
       if (!r.ok) return { ok: false, error: await attributeLabelFailure(c, spec, wantNames, r.error, ctx) }
     }
     for (const n of toAdd) {
+      trail.route = 'cli'
       trail.written += 1
       const r = await c.execGh(['issue', 'edit', k, '--repo', spec, '--add-label', n], { cwd: ctx && ctx.cwd })
       if (!r.ok) return { ok: false, error: await attributeLabelFailure(c, spec, wantNames, r.error, ctx) }

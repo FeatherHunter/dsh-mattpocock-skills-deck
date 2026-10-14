@@ -434,13 +434,16 @@ async function setAssigneesInner(repo: RepositoryRef, key: string, assignees: As
     const toAdd = logins.filter((l) => !curLogins.includes(l))
     const toRemove = curLogins.filter((l) => !logins.includes(l))
     // 差集算出来了：从这一步起每一次加或撤都是一条写命令，走的是 gh issue 子命令（cli）。
-    trail.route = 'cli'
+    // route 在真发出命令那一刻才改口：一条都没发（差集为空）时它保持 none —— 结论线说的是
+    // 「真走到哪一层」，不是「本来打算走哪一层」。
     for (const l of toRemove) {
+      trail.route = 'cli'
       trail.written += 1
       const r = await c.execGh(['issue', 'edit', k, '--repo', `${parsed.owner}/${parsed.name}`, '--remove-assignee', l], { cwd: ctx && ctx.cwd })
       if (!r.ok) return { ok: false, error: r.error }
     }
     for (const l of toAdd) {
+      trail.route = 'cli'
       trail.written += 1
       const r = await c.execGh(['issue', 'edit', k, '--repo', `${parsed.owner}/${parsed.name}`, '--add-assignee', l], { cwd: ctx && ctx.cwd })
       if (!r.ok) return { ok: false, error: r.error }
