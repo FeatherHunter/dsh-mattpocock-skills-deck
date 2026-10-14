@@ -8,11 +8,16 @@
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 
 /** 写失败分档：入参是抛出来的错与文件相对位置，出参是 {kind, message}（直接给用户看）。 */
-export function describeWriteFailure(err, relPath) {
+// kind 注成 string 而不是契约 ErrorKind：冻住的 ERROR_KIND 常量对象成员被拓宽成 string，
+// 逐处断言是噪音；返回值恒为那八档之一（实现里只取 ERROR_KIND.ENV），调用方 failAs 收的正是 string。
+export function describeWriteFailure(err: unknown, relPath: string): { kind: string; message: string } {
   const rel = String(relPath || '')
-  const message = String((err && err.message) || err || '')
-  const code = String((err && (err.code || err.kind)) || '')
-  if (err && err.readBackMismatch === true) {
+  // err 的形状不一（文件服务各实现抛的不一样）：经 Record 视图读码值与文本；
+  // 每次访问前都有 `err &&` 守卫（与原来逐字相同的短路），cast 只为过类型。
+  const er = err as Record<string, unknown>
+  const message = String((err && er.message) || err || '')
+  const code = String((err && (er.code || er.kind)) || '')
+  if (err && er.readBackMismatch === true) {
     // 这一档能确定的只有「这次没写成功或没写全」，所以动作要带用户把最后一条退路走完：
     // 核对下来内容不对就手动补改，否则再重试一次只会拿到同一句话。
     return { kind: ERROR_KIND.ENV, message: '保存失败：写完之后重新读这个文件，读到的内容与刚写进去的不一致，因此不能确认标签颜色已经保存。请打开工作区里的标签配色文件（' + rel + '）核对内容：如果里面写的不是你想保存的那份颜色，请手动改成你想保存的颜色，然后重新保存。' }

@@ -14,6 +14,11 @@
 import { ERROR_KIND } from '../contract/vocabulary.js'
 import { OPERATIONS } from '../contract/index.js'
 import { fail } from '../preflight.js'
+import type { BackendId } from '../contract/identity.js'
+import type { BackendContext, RepoHandle } from '../contract/contexts.js'
+import type { BackendModule } from '../contract/backend-module.js'
+import type { Tracker } from '../contract/operations.js'
+import type { RoomOperations } from '../contract/operations.js'
 
 /**
  * 迁移键（migration 说明，非运行时分支）：旧 `'other'` 保留串 → `null`（无后端 = Selection.backendId:null）。
@@ -21,9 +26,11 @@ import { fail } from '../preflight.js'
  */
 export const MIGRATE_KEY = Object.freeze({ other: null })
 
-/** registry 错误（code 供程序判断；message 供人读）。 */
+/** registry 错误（code 供程序判断；message 供人读）。类型说明：code 是程序分支用的错误码。 */
 export class TrackerRegistryError extends Error {
-  constructor(code, message) {
+  // 错误码：供程序分支判断用，与给人读的 message 分开。
+  code: string
+  constructor(code: string, message?: string) {
     super(message || code)
     this.code = code
     this.name = 'TrackerRegistryError'
@@ -36,7 +43,7 @@ export class TrackerRegistryError extends Error {
  * 同一条目录的斜杠写法不同时仍落同一桶，而大小写与锚到工作区根这两步留给宿主唯一的
  * 异步出口 canonicalKey（src/host/workspaceKey.js），注册表不替它做系统相关归一。
  */
-export function washHandleKey(raw) {
+export function washHandleKey(raw: unknown): string {
   let s = String(raw == null ? '' : raw).trim()
   if (!s) return s
   s = s.replace(/\\/g, '/')
@@ -53,16 +60,17 @@ export function washHandleKey(raw) {
   }
   return s
 }
-/** handle 稳定键（cwd 或 refId，系统无关洗之后）。 */
-export function handleKey(handle) {
+/** handle 稳定键（cwd 或 refId，系统无关洗之后）。类型说明：收未知输入做防御式校验，契约形状经断言复用 RepoHandle。 */
+export function handleKey(handle: unknown): string {
   if (!handle || typeof handle !== 'object') throw new TrackerRegistryError('bad-handle', 'handle is required')
-  const k = handle.cwd || handle.refId
+  const h = handle as RepoHandle
+  const k = h.cwd || h.refId
   if (!k) throw new TrackerRegistryError('bad-handle', 'handle needs cwd or refId')
   return washHandleKey(String(k))
 }
 
-/** 缺方法 → uniform unsupported 桩（能力=运行时调用结果；返回不抛）。 */
-export function unsupportedStub(opName, backendId, hooks) {
+/** 缺方法 → uniform unsupported 桩（能力=运行时调用结果；返回不抛）。类型说明：后端标识复用契约 BackendId，日志钩子允许缺省。 */
+export function unsupportedStub(opName: string, backendId: BackendId, hooks: Partial<BackendContext> | null | undefined) {
   const stub = async function unsupportedOp() {
     try { if (hooks && hooks.isEnabled && hooks.isEnabled('debug') && hooks.logEvent) hooks.logEvent('debug', 'registry.stub', { op: String(opName || ''), backendId: String(backendId || '') }) } catch (eL) {}
     // 第三段原文给空串：这里是「本后端没有这个能力」的能力缺口，不是谁出了错，
@@ -80,7 +88,7 @@ export function unsupportedStub(opName, backendId, hooks) {
  *  - 其余未知属性原样透传（今天已不允许后端有独有对外方法，透传只为不改变既有行为；
  *    真出现独有方法应在契约评审里被拦下，不靠这一层拦）。
  */
-export function wrapTracker(mod, impl, hooks) {
+export function wrapTracker(mod: BackendModule, impl: RoomOperations | null | undefined, hooks: Partial<BackendContext> | null | undefined): Tracker {
   if (!impl || typeof impl !== 'object') {
     throw new TrackerRegistryError('shape', `create(${mod.id}) must return an object (got ${typeof impl})`)
   }
@@ -88,6 +96,7 @@ export function wrapTracker(mod, impl, hooks) {
     throw new TrackerRegistryError('shape', `create(${mod.id}) returned inconsistent id '${impl.id}'`)
   }
   const target = Object.assign({}, impl)
+  // 类型说明：代理在运行时补齐缺的操作，类型上断言为完整 Tracker，运行时形状不变。
   return new Proxy(target, {
     get(t, prop, receiver) {
       const v = Reflect.get(t, prop, receiver)
@@ -96,17 +105,19 @@ export function wrapTracker(mod, impl, hooks) {
       if (typeof prop === 'string' && OPERATIONS.includes(prop)) return unsupportedStub(prop, mod.id, hooks)
       return undefined
     },
-  })
+  }) as unknown as Tracker
 }
 
-/** 模块形状校验（原 createRegistry 内闭包，纯函数无闭包依赖，V1 #461 原样上提）。 */
-export function validateMod(mod) {
+/** 模块形状校验（原 createRegistry 内闭包，纯函数无闭包依赖，V1 #461 原样上提）。类型说明：收未知输入做断言式校验，通过后调用方拿到契约 BackendModule。 */
+export function validateMod(mod: unknown): asserts mod is BackendModule {
   if (!mod || typeof mod !== 'object') throw new TrackerRegistryError('shape', 'BackendModule must be an object')
-  if (typeof mod.id !== 'string' || !mod.id) throw new TrackerRegistryError('shape', 'id must be a non-empty string')
-  if (typeof mod.label !== 'string') throw new TrackerRegistryError('shape', 'label must be a string')
-  if (typeof mod.create !== 'function') throw new TrackerRegistryError('shape', 'create must be a function')
-  if (typeof mod.matches !== 'function') throw new TrackerRegistryError('shape', 'matches must be a function')
-  if (mod.id === 'other') {
+  // 类型说明：上面只排除非对象，这里断言为契约形状再逐项校验，运行时读的还是同一份对象。
+  const m = mod as BackendModule
+  if (typeof m.id !== 'string' || !m.id) throw new TrackerRegistryError('shape', 'id must be a non-empty string')
+  if (typeof m.label !== 'string') throw new TrackerRegistryError('shape', 'label must be a string')
+  if (typeof m.create !== 'function') throw new TrackerRegistryError('shape', 'create must be a function')
+  if (typeof m.matches !== 'function') throw new TrackerRegistryError('shape', 'matches must be a function')
+  if (m.id === 'other') {
     throw new TrackerRegistryError('other-not-registrable', "'other' 已弃用：无后端请用 Selection.backendId:null（不造后端，不造假身份）")
   }
 }

@@ -13,102 +13,125 @@
  */
 
 import { STATE, ISSUE_TYPE } from '../../contract/vocabulary.js'
+import type { Comment, Issue, IssueRef, Label, Milestone, Review } from '../../contract/entities.js';
+import type { Actor, IssueType, State } from '../../contract/identity.js';
 
-function normalizeLabel(rawLabel) {
+/** GitHub 原始对象的最小读形：GraphQL 与 REST 字段名各一套，缺谁都按空处理，所以全可选。 */
+type RawBag = Record<string, unknown>;
+
+/** 把未知输入收成键值袋：对象才有字段可读，其余一律按无字段处理，与原来的判空顺序一致。 */
+function asBag(raw: unknown): RawBag | null {
+  return (raw && typeof raw === 'object' ? (raw as RawBag) : null);
+}
+
+function normalizeLabel(rawLabel: unknown): Label | null {
   if (typeof rawLabel === 'string') {
     const name = rawLabel.trim()
     if (!name) return null
     return { name, color: '' }
   }
   if (!rawLabel || typeof rawLabel !== 'object') return null
-  const name = typeof rawLabel.name === 'string' ? rawLabel.name.trim() : ''
+  const bag = rawLabel as RawBag;
+  const name = typeof bag.name === 'string' ? bag.name.trim() : ''
   if (!name) return null
-  const color = typeof rawLabel.color === 'string' ? rawLabel.color : ''
-  const out = { name, color }
-  if (typeof rawLabel.description === 'string' && rawLabel.description.trim() !== '') {
-    out.description = rawLabel.description
+  const color = typeof bag.color === 'string' ? bag.color : ''
+  // 为什么先按 Label 定死再补可选字段：颜色无则空串，说明只在非空时携带，与契约三键一致。
+  const out: Label = { name, color }
+  if (typeof bag.description === 'string' && bag.description.trim() !== '') {
+    out.description = bag.description
   }
   return out
 }
 
-function normalizeLabels(raw) {
-  let nodes = null
-  if (raw && raw.labels && Array.isArray(raw.labels.nodes)) nodes = raw.labels.nodes
-  else if (Array.isArray(raw && raw.labels)) nodes = raw.labels
+function normalizeLabels(raw: unknown): Label[] {
+  const bag = asBag(raw);
+  let nodes: unknown = null
+  if (bag && bag.labels && typeof bag.labels === 'object' && Array.isArray((bag.labels as RawBag).nodes)) nodes = (bag.labels as RawBag).nodes
+  else if (Array.isArray(bag && (bag as RawBag).labels)) nodes = (bag as RawBag).labels
   else if (Array.isArray(raw)) nodes = raw
   else return [] // 无来源 → EMPTY（GitHub 恒可实现）
-  const out = []
-  for (const n of nodes) {
+  const out: Label[] = []
+  for (const n of (nodes as unknown[])) {
     const l = normalizeLabel(n)
     if (l) out.push(l)
   }
   return out
 }
 
-function kindFromTypename(t) {
+function kindFromTypename(t: unknown): string {
   const s = String(t || '').toLowerCase()
   if (s === 'bot') return 'bot'
   if (s === 'organization') return 'organization'
   return 'user'
 }
 
-function normalizeActor(raw) {
+function normalizeActor(raw: unknown): Actor | null {
   if (!raw || typeof raw !== 'object') return null
-  const login = typeof raw.login === 'string' ? raw.login.trim() : ''
+  const bag = raw as RawBag;
+  const login = typeof bag.login === 'string' ? bag.login.trim() : ''
   if (!login) return null
-  const out = { login }
-  const kind = raw.__typename ? kindFromTypename(raw.__typename) : (raw.kind ? String(raw.kind) : undefined)
+  // 为什么先只装 login：其余三格全是可选能力，缺了就省略，与契约参与人形状一致。
+  const out: Actor = { login }
+  const kind = bag.__typename ? kindFromTypename(bag.__typename) : (bag.kind ? String(bag.kind) : undefined)
   if (kind) out.kind = kind
-  if (typeof raw.name === 'string' && raw.name.trim() !== '') out.name = raw.name
-  if (typeof raw.avatarUrl === 'string' && raw.avatarUrl !== '') out.avatarUrl = raw.avatarUrl
-  else if (typeof raw.avatar_url === 'string' && raw.avatar_url !== '') out.avatarUrl = raw.avatar_url
+  if (typeof bag.name === 'string' && bag.name.trim() !== '') out.name = bag.name
+  if (typeof bag.avatarUrl === 'string' && bag.avatarUrl !== '') out.avatarUrl = bag.avatarUrl
+  else if (typeof bag.avatar_url === 'string' && bag.avatar_url !== '') out.avatarUrl = bag.avatar_url
   return out
 }
 
-function normalizeAssignees(raw) {
-  let nodes = null
-  if (raw && raw.assignees && Array.isArray(raw.assignees.nodes)) nodes = raw.assignees.nodes
-  else if (Array.isArray(raw && raw.assignees)) nodes = raw.assignees
-  else if (raw && Array.isArray(raw.nodes)) nodes = raw.nodes
+function normalizeAssignees(raw: unknown): Actor[] {
+  const bag = asBag(raw);
+  let nodes: unknown = null
+  if (bag && bag.assignees && typeof bag.assignees === 'object' && Array.isArray((bag.assignees as RawBag).nodes)) nodes = (bag.assignees as RawBag).nodes
+  else if (Array.isArray(bag && (bag as RawBag).assignees)) nodes = (bag as RawBag).assignees
+  else if (bag && Array.isArray((bag as RawBag).nodes)) nodes = (bag as RawBag).nodes
   else return [] // GitHub 恒实现 → EMPTY
-  const out = []
-  for (const n of nodes) {
+  const out: Actor[] = []
+  for (const n of (nodes as unknown[])) {
     const a = normalizeActor(n)
     if (a) out.push(a)
   }
   return out
 }
 
-function deriveKey(raw) {
+function deriveKey(raw: unknown): string {
   if (raw == null) return '0'
-  if (typeof raw.key === 'string' && raw.key !== '') return raw.key
-  if (raw.number != null) return String(raw.number)
-  if (raw.id != null) return String(raw.id)
+  const bag = asBag(raw);
+  if (bag && typeof bag.key === 'string' && bag.key !== '') return bag.key
+  if (bag && bag.number != null) return String(bag.number)
+  if (bag && bag.id != null) return String(bag.id)
   return '0'
 }
 
-function deriveType(raw) {
+function deriveType(raw: unknown): IssueType {
   const labels = normalizeLabels(raw)
   if (labels.some((l) => l.name === 'wayfinder:map')) return ISSUE_TYPE.MAP
-  if (raw && (raw.isMap === true || raw.type === 'map')) return ISSUE_TYPE.MAP
+  const bag = asBag(raw);
+  if (bag && (bag.isMap === true || bag.type === 'map')) return ISSUE_TYPE.MAP
   return ISSUE_TYPE.ISSUE
 }
 
-function deriveParentKey(raw) {
+function deriveParentKey(raw: unknown): string | null {
   if (!raw) return null
-  if (typeof raw.parentKey === 'string') return raw.parentKey
-  if (raw.parentKey === null) return null
-  if (raw.parent && raw.parent.number != null) return String(raw.parent.number)
-  if (raw.parent && typeof raw.parent.key === 'string') return raw.parent.key
+  const bag = asBag(raw);
+  if (!bag) return null
+  if (typeof bag.parentKey === 'string') return bag.parentKey
+  if (bag.parentKey === null) return null
+  const parent = (bag.parent && typeof bag.parent === 'object' ? (bag.parent as RawBag) : null) as RawBag | null;
+  if (parent && parent.number != null) return String(parent.number)
+  if (parent && typeof parent.key === 'string') return parent.key
   return null
 }
 
-function normalizeMilestone(raw) {
-  const src = raw && raw.milestone
+function normalizeMilestone(raw: unknown): Milestone | undefined {
+  const bag = asBag(raw);
+  const src = (bag && bag.milestone && typeof bag.milestone === 'object' ? (bag.milestone as RawBag) : null) as RawBag | null;
   if (!src || typeof src !== 'object') return undefined
   const title = typeof src.title === 'string' ? src.title.trim() : ''
   if (!title) return undefined
-  const out = { name: title }
+  // 为什么先只装名字：其余三格全是可选能力，缺了就省略或给空，与契约里程碑形状一致。
+  const out: Milestone = { name: title }
   if (typeof src.description === 'string' && src.description.trim() !== '') out.description = src.description
   if (typeof src.state === 'string') {
     const s = src.state.toLowerCase()
@@ -120,51 +143,57 @@ function normalizeMilestone(raw) {
   return out
 }
 
-function normalizeComments(raw) {
-  let nodes = null
-  if (raw && raw.comments && Array.isArray(raw.comments.nodes)) nodes = raw.comments.nodes
-  else if (Array.isArray(raw && raw.comments)) nodes = raw.comments
+function normalizeComments(raw: unknown): Comment[] {
+  const bag = asBag(raw);
+  let nodes: unknown = null
+  if (bag && bag.comments && typeof bag.comments === 'object' && Array.isArray((bag.comments as RawBag).nodes)) nodes = (bag.comments as RawBag).nodes
+  else if (Array.isArray(bag && (bag as RawBag).comments)) nodes = (bag as RawBag).comments
   else return [] // 恒实现 → EMPTY
-  const out = []
-  for (const n of nodes) {
+  const out: Comment[] = []
+  for (const n of (nodes as unknown[])) {
     if (!n || typeof n !== 'object') continue
-    const body = typeof n.body === 'string' ? n.body : ''
-    const author = normalizeActor(n.author || n.user) || { login: '' }
-    const association = typeof n.authorAssociation === 'string' ? n.authorAssociation : (typeof n.author_association === 'string' ? n.author_association : '')
-    const c = {
+    const rec = n as RawBag;
+    const body = typeof rec.body === 'string' ? rec.body : ''
+    const author = normalizeActor(rec.author || rec.user) || { login: '' }
+    const association = typeof rec.authorAssociation === 'string' ? rec.authorAssociation : (typeof rec.author_association === 'string' ? rec.author_association : '')
+    // 为什么先装五格必备：评论的作者与时间缺了就给空，与契约评论形状一致，编号与编辑时间后面再补。
+    const c: Comment = {
       author,
       authorAssociation: association,
       body,
-      createdAt: typeof n.createdAt === 'string' ? n.createdAt : (typeof n.created_at === 'string' ? n.created_at : ''),
-      updatedAt: typeof n.updatedAt === 'string' ? n.updatedAt : (typeof n.updated_at === 'string' ? n.updated_at : ''),
+      createdAt: typeof rec.createdAt === 'string' ? rec.createdAt : (typeof rec.created_at === 'string' ? rec.created_at : ''),
+      updatedAt: typeof rec.updatedAt === 'string' ? rec.updatedAt : (typeof rec.updated_at === 'string' ? rec.updated_at : ''),
     }
-    if (typeof n.id === 'string' || typeof n.id === 'number') c.id = String(n.id)
-    if (typeof n.editedAt === 'string' || n.editedAt === null) c.editedAt = n.editedAt
-    else if (typeof n.lastEditedAt === 'string' || n.lastEditedAt === null) c.editedAt = n.lastEditedAt
-    else if (typeof n.edited_at === 'string' || n.edited_at === null) c.editedAt = n.edited_at
-    else if (typeof n.last_edited_at === 'string' || n.last_edited_at === null) c.editedAt = n.last_edited_at
+    if (typeof rec.id === 'string' || typeof rec.id === 'number') c.id = String(rec.id)
+    if (typeof rec.editedAt === 'string' || rec.editedAt === null) c.editedAt = rec.editedAt
+    else if (typeof rec.lastEditedAt === 'string' || rec.lastEditedAt === null) c.editedAt = rec.lastEditedAt
+    else if (typeof rec.edited_at === 'string' || rec.edited_at === null) c.editedAt = rec.edited_at
+    else if (typeof rec.last_edited_at === 'string' || rec.last_edited_at === null) c.editedAt = rec.last_edited_at
     out.push(c)
   }
   return out
 }
 
-function normalizeBlockedBy(raw) {
-  let nodes = null
-  if (raw && raw.blockedBy && Array.isArray(raw.blockedBy.nodes)) nodes = raw.blockedBy.nodes
-  else if (raw && raw.blocked_by && Array.isArray(raw.blocked_by)) nodes = raw.blocked_by
-  else if (Array.isArray(raw && raw.blockedBy)) nodes = raw.blockedBy
+function normalizeBlockedBy(raw: unknown): IssueRef[] {
+  const bag = asBag(raw);
+  let nodes: unknown = null
+  if (bag && bag.blockedBy && typeof bag.blockedBy === 'object' && Array.isArray((bag.blockedBy as RawBag).nodes)) nodes = (bag.blockedBy as RawBag).nodes
+  else if (bag && bag.blocked_by && Array.isArray(bag.blocked_by)) nodes = bag.blocked_by
+  else if (Array.isArray(bag && (bag as RawBag).blockedBy)) nodes = (bag as RawBag).blockedBy
   else return [] // 恒实现 → EMPTY
-  const out = []
-  for (const n of nodes) {
+  const out: IssueRef[] = []
+  for (const n of (nodes as unknown[])) {
     if (!n || typeof n !== 'object') continue
-    const k = n.number != null ? String(n.number) : (typeof n.key === 'string' ? n.key : '')
+    const rec = n as RawBag;
+    const k = rec.number != null ? String(rec.number) : (typeof rec.key === 'string' ? rec.key : '')
     if (!k) continue
-    const title = typeof n.title === 'string' ? n.title : ''
-    const stateRaw = n.state != null ? String(n.state).toLowerCase() : 'open'
-    const state = stateRaw === 'closed' ? STATE.CLOSED : STATE.OPEN
-    const ref = { key: k, title, state }
+    const title = typeof rec.title === 'string' ? rec.title : ''
+    const stateRaw = rec.state != null ? String(rec.state).toLowerCase() : 'open'
+    const state: State = stateRaw === 'closed' ? STATE.CLOSED : STATE.OPEN
+    // 为什么先装三格必备：阻塞引用只保证 key 与标题状态，种类有才补，与契约轻量引用一致。
+    const ref: IssueRef = { key: k, title, state }
     // type 可选，若来源有 wayfinder:map label 可推断
-    if (n.type === 'map' || n.type === 'issue') ref.type = n.type
+    if (rec.type === 'map' || rec.type === 'issue') ref.type = rec.type
     out.push(ref)
   }
   return out
@@ -180,50 +209,55 @@ function normalizeBlockedBy(raw) {
 // 缺边（与 queries.js 同口径）：拉取请求类型原生没有 parent 与 blockedBy 边（2026-09-06 真仓探针已确认），
 // 所以查询侧首版不取这两条边；归一侧仍走同一函数（deriveParentKey 给 null，normalizeBlockedBy 给空数组），
 // milestone 在拉取请求类型可用，查询侧已补取，缺内容时归一给省略，与工单一致。
-function normalizeReview(n) {
+function normalizeReview(n: unknown): Review | null {
   if (!n || typeof n !== 'object') return null
-  if (typeof n.state !== 'string' || n.state === '') return null
-  const out = { state: n.state }
+  const rec = n as RawBag;
+  if (typeof rec.state !== 'string' || rec.state === '') return null
+  // 为什么先只装结论：评审人缺了就省略，与契约评审快照一致。
+  const out: Review = { state: rec.state }
   let login = ''
-  const cand = [n.reviewer, n.author, n.user]
+  const cand = [rec.reviewer, rec.author, rec.user]
   for (const c of cand) {
-    if (c && typeof c === 'object' && typeof c.login === 'string' && c.login.trim() !== '') { login = c.login; break }
+    if (c && typeof c === 'object' && typeof (c as RawBag).login === 'string' && ((c as RawBag).login as string).trim() !== '') { login = (c as RawBag).login as string; break }
   }
   if (login) out.reviewer = { login }
-  const when = typeof n.submittedAt === 'string' ? n.submittedAt : (typeof n.submitted_at === 'string' ? n.submitted_at : '')
+  const when = typeof rec.submittedAt === 'string' ? rec.submittedAt : (typeof rec.submitted_at === 'string' ? rec.submitted_at : '')
   if (when) out.submittedAt = when
   return out
 }
 
-function normalizeReviews(raw) {
-  let nodes = null
-  if (raw && raw.reviews && Array.isArray(raw.reviews.nodes)) nodes = raw.reviews.nodes
-  else if (raw && Array.isArray(raw.reviews)) nodes = raw.reviews
+function normalizeReviews(raw: unknown): Review[] {
+  const bag = asBag(raw);
+  let nodes: unknown = null
+  if (bag && bag.reviews && typeof bag.reviews === 'object' && Array.isArray((bag.reviews as RawBag).nodes)) nodes = (bag.reviews as RawBag).nodes
+  else if (bag && Array.isArray(bag.reviews)) nodes = bag.reviews
   else return [] // 无来源 → EMPTY（GitHub 恒可实现；REST 列表页无评审明细恒给 []，单票页 enrichSinglePR 才补真值，#506 展示不依赖条数）
-  const out = []
-  for (const n of nodes) {
+  const out: Review[] = []
+  for (const n of (nodes as unknown[])) {
     const r = normalizeReview(n)
     if (r) out.push(r)
   }
   return out
 }
 
-function deriveIsPullRequest(raw) {
+function deriveIsPullRequest(raw: unknown): boolean {
   if (!raw || typeof raw !== 'object') return false
-  if (typeof raw.isPullRequest === 'boolean') return raw.isPullRequest // 已归一重入
-  if (raw.pull_request != null) return true // REST issue 列表里的拉取请求标记
-  if (typeof raw.__typename === 'string' && raw.__typename.toLowerCase() === 'pullrequest') return true
-  if ('mergedAt' in raw || 'merged_at' in raw) return true // 拉取请求形状才有合并时间键
-  if (raw.reviews != null) return true // 评审键只出现在拉取请求形状
+  const bag = raw as RawBag;
+  if (typeof bag.isPullRequest === 'boolean') return bag.isPullRequest // 已归一重入
+  if (bag.pull_request != null) return true // REST issue 列表里的拉取请求标记
+  if (typeof bag.__typename === 'string' && bag.__typename.toLowerCase() === 'pullrequest') return true
+  if ('mergedAt' in bag || 'merged_at' in bag) return true // 拉取请求形状才有合并时间键
+  if (bag.reviews != null) return true // 评审键只出现在拉取请求形状
   return false
 }
 
-function deriveMergedAt(raw) {
+function deriveMergedAt(raw: unknown): string | null {
   if (!raw || typeof raw !== 'object') return null
-  if (typeof raw.mergedAt === 'string') return raw.mergedAt
-  if (typeof raw.merged_at === 'string') return raw.merged_at
-  const pr = raw.pull_request
-  if (pr && typeof pr === 'object' && typeof pr.merged_at === 'string') return pr.merged_at
+  const bag = raw as RawBag;
+  if (typeof bag.mergedAt === 'string') return bag.mergedAt
+  if (typeof bag.merged_at === 'string') return bag.merged_at
+  const pr = (bag.pull_request && typeof bag.pull_request === 'object' ? (bag.pull_request as RawBag) : null) as RawBag | null;
+  if (pr && typeof pr.merged_at === 'string') return pr.merged_at
   return null // 没合并或不是拉取请求 → null（EMPTY）；无能力后端才省略，本房恒给
 }
 
@@ -238,16 +272,18 @@ function deriveMergedAt(raw) {
  * 契约保持两态，界面另按合并时间把这类条目显示成「已合并」（判据在 client 的 views/shared/stateKind.js）。
  * 宿主单票详情那条路（src/host/issueDetail.js）也调它，保证两处状态口径一致。
  */
-export function pullStateOf(raw) {
-  const s = raw && raw.state != null ? String(raw.state).toLowerCase() : ''
+export function pullStateOf(raw: unknown): State {
+  const bag = asBag(raw);
+  const s = bag && bag.state != null ? String(bag.state).toLowerCase() : ''
   return (s === 'closed' || s === 'merged') ? STATE.CLOSED : STATE.OPEN
 }
 
 /**
- * @param {Object} raw GitHub issue 原始对象（GraphQL issue 或 REST issue，或测试桩）
- * @returns {import('../../../shared/tracker/shape.js').Issue}
+ * GitHub 原始数据归一成契约票：核心字段永远给全，能力字段有才给，拉取请求三字段恒给。
+ *
+ * 为什么收 unknown：输入是 GraphQL 工单、REST 工单或测试桩三路，形状不一，在内部逐格收窄比对外定大联合更稳。
  */
-export function normalizeIssue(raw) {
+export function normalizeIssue(raw: unknown): Issue {
   const key = deriveKey(raw)
   const type = deriveType(raw)
   // 状态：交给 pullStateOf 一处判定（已合并归到已关闭）；合并时间原样留在 mergedAt，界面据此显示「已合并」
@@ -258,31 +294,33 @@ export function normalizeIssue(raw) {
   const comments = normalizeComments(raw)
   const blockedBy = normalizeBlockedBy(raw)
   const parentKey = deriveParentKey(raw)
+  const bag = asBag(raw);
 
   // 基础核心字段（永远存在）
   // effortId：GitHub 一个仓库只有一个隐含 effort，核心字段填 ''（EMPTY，不是 MISSING）
-  const issue = {
+  // 为什么整体标成 Issue：后面还要补作者与里程碑等可选能力，先定死契约形状，后面补字段才不会报缺成员。
+  const issue: Issue = {
     key,
     effortId: '',
     type,
-    title: raw && typeof raw.title === 'string' ? raw.title : '',
+    title: bag && typeof bag.title === 'string' ? bag.title : '',
     state,
-    body: raw && typeof raw.body === 'string' ? raw.body : '',
-    url: raw && typeof raw.html_url === 'string' && raw.html_url ? raw.html_url : (raw && typeof raw.url === 'string' ? raw.url : ''),
-    createdAt: raw && typeof raw.createdAt === 'string' ? raw.createdAt : (typeof raw.created_at === 'string' ? raw.created_at : ''),
-    updatedAt: raw && typeof raw.updatedAt === 'string' ? raw.updatedAt : (typeof raw.updated_at === 'string' ? raw.updated_at : ''),
-    closedAt: raw && (typeof raw.closedAt === 'string' || raw.closedAt === null) ? raw.closedAt : (raw && (typeof raw.closed_at === 'string' || raw.closed_at === null) ? raw.closed_at : null),
+    body: bag && typeof bag.body === 'string' ? bag.body : '',
+    url: bag && typeof bag.html_url === 'string' && bag.html_url ? bag.html_url : (bag && typeof bag.url === 'string' ? bag.url : ''),
+    createdAt: bag && typeof bag.createdAt === 'string' ? bag.createdAt : (bag && typeof bag.created_at === 'string' ? (bag.created_at as string) : ''),
+    updatedAt: bag && typeof bag.updatedAt === 'string' ? bag.updatedAt : (bag && typeof bag.updated_at === 'string' ? (bag.updated_at as string) : ''),
+    closedAt: bag && (typeof bag.closedAt === 'string' || bag.closedAt === null) ? (bag.closedAt as string | null) : (bag && (typeof bag.closed_at === 'string' || bag.closed_at === null) ? (bag.closed_at as string | null) : null),
     parentKey,
     labels,
     assignees,
     comments,
     blockedBy,
     // reason：GitHub 支持 closedReason，open 也输出 ''(EMPTY)
-    reason: raw && typeof raw.reason === 'string' ? raw.reason : (raw && typeof raw.stateReason === 'string' ? raw.stateReason : ''),
+    reason: bag && typeof bag.reason === 'string' ? bag.reason : (bag && typeof bag.stateReason === 'string' ? (bag.stateReason as string) : ''),
   }
 
   // 能力字段：author（有则给对象，无则 MISSING → 省略）
-  const authorRaw = raw && (raw.author || raw.user)
+  const authorRaw = bag && (bag.author || bag.user);
   const author = normalizeActor(authorRaw)
   if (author) issue.author = author
 

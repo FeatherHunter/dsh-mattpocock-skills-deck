@@ -16,23 +16,46 @@ import { readTextFile, readDir, statFile, exists } from './read.js'
 import { issuesDir } from './path.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { failAs, rawJson } from './error-fail.js'
+import type { BackendPlatform, OpContext } from '../../contract/contexts.js'
+import type { RepositoryRef } from '../../contract/entities.js'
+import type { Issue } from '../../contract/entities.js'
+// @ts-expect-error 本域 tsconfig 有意不加载任何类型包（types 为空），node:path 的类型声明被挡在外面；
+// 运行时一定是 Node，该模块必然存在。忽略这一行导入的类型错误（path.ts 同款，不影响运行时转译）。
 import nodePath from 'node:path'
 
-export function getPlat(ctx){if(ctx&&ctx.platform&&ctx.platform.path)return ctx.platform.path;if(ctx&&ctx.path)return ctx.path;if(typeof process!=='undefined'&&process.platform==='win32')return nodePath.win32;return nodePath.posix}
-export async function getScratchRoot(ctx){
+// 运行时的 process 兜底声明：同上因 types 为空而不可见，但 Node 运行时保证存在；
+// 只声明本文件实际用到的两个成员（platform/cwd），不产生运行时代码。
+declare const process: { cwd(): string; platform: string } | undefined
+
+// 本地票仓引用：契约 RepositoryRef 之外，旧调用与测试夹具会用 path 直接当仓库根，
+// 故在此补一个可选 path（path.ts 的 RepoWithPath 同款，各文件自包含、不跨文件引用）。
+type RepoWithPath = RepositoryRef & { path?: string }
+// 定位口的寻址选项：effortId 定范围（null 表显式全仓库），mode 区分读写（写多命中即 conflict）。
+interface LocateOpts {
+  effortId?: string | null
+  mode?: string
+}
+// 一个命中的文件：路径 + 它所属的 effort（读按目录顺序取第一个，写多命中拒绝猜）。
+interface FileHit {
+  path: string
+  effortId: string
+}
+
+export function getPlat(ctx: OpContext): BackendPlatform['path'] {if(ctx&&ctx.platform&&ctx.platform.path)return ctx.platform.path;if(ctx&&ctx.path)return ctx.path;if(typeof process!=='undefined'&&process.platform==='win32')return nodePath.win32;return nodePath.posix}
+export async function getScratchRoot(ctx: OpContext): Promise<string> {
   const plat=getPlat(ctx)
   const cwd=ctx&&typeof ctx.cwd==='string'?ctx.cwd:(typeof process!=='undefined'&&typeof process.cwd==='function'?process.cwd():'.')
   return plat.join(cwd,'.scratch')
 }
 /** 列出本仓库的全部 effort（顺序稳定：根级扁平布局优先，其余按目录名排序）。返回 [{effortId, dir}]。 */
-export async function listEfforts(ctx){
+export async function listEfforts(ctx: OpContext): Promise<{ effortId: string; dir: string }[]> {
   const plat=getPlat(ctx)
   const root=await getScratchRoot(ctx)
-  const out=[]
+  const out: { effortId: string; dir: string }[]=[]
   try{ if(await exists(ctx, plat.join(root,'map.md'))) out.push({effortId:'', dir:root}) }catch{}
-  let entries=[]
+  let entries: string[]=[]
   try{ entries=await readDir(ctx, root) }catch{ entries=[] }
-  const names=entries.filter(function(e){ return e && !e.startsWith('.') }).sort()
+  const names=entries.filter(function(e: string){ return e && !e.startsWith('.') }).sort()
   for(const e of names){
     const dirPath=plat.join(root,e)
     const mapP=plat.join(dirPath,'map.md')
@@ -41,7 +64,7 @@ export async function listEfforts(ctx){
   return out
 }
 /** 兼容旧调用：只要目录路径列表（顺序与 listEfforts 一致）。 */
-export async function listEffortDirs(ctx){
+export async function listEffortDirs(ctx: OpContext): Promise<string[]> {
   return (await listEfforts(ctx)).map(function(e){ return e.dir })
 }
 /**
@@ -50,22 +73,22 @@ export async function listEffortDirs(ctx){
  *  - `opts.effortId === null` → 明确「全仓库」，连 repo 上的范围也不看（调用方显式要求时的逃生口）；
  *  - 都没给 → 看 `repo.effortId`；仍没有 → 全仓库（undefined）。
  */
-export function scopeOf(repo, opts){
+export function scopeOf(repo: RepoWithPath | null | undefined, opts: LocateOpts | undefined): string | undefined {
   if(opts && opts.effortId !== undefined) return opts.effortId === null ? undefined : String(opts.effortId)
   if(repo && repo.effortId !== undefined && repo.effortId !== null) return String(repo.effortId)
   return undefined
 }
-function conflict(key, hits){
+function conflict(key: string, hits: FileHit[]): { ok: false; error: { kind: string; message: string; raw: string } } {
   // 原文 = 命中的那几个文件与它们各自属于哪个 effort（本地就能定论：同名编号出现在多处）。
   // 这段原文正是人判断「该给哪个 effort 加范围」的依据，所以不许省。
   return failAs(ERROR_KIND.CONFLICT, 'issue '+key+' 在 '+hits.length+' 个 effort 里都存在，但没指定 effortId（拒绝猜目标文件）', rawJson(hits))
 }
 /** 按 (effort 范围, 编号) 找票文件。o.mode='write' 时多命中即 conflict；返回 {ok,path,effortId} 或 {ok:false,error}。 */
-export async function resolveIssueFile(ctx, repo, key, o={}){
+export async function resolveIssueFile(ctx: OpContext, repo: RepoWithPath | null, key: string, o: LocateOpts = {}): Promise<{ ok: true; path: string; effortId: string } | { ok: false; error: { kind: string; message: string; raw: string } }> {
   const plat=getPlat(ctx)
   const norm=String(key).padStart(2,'0')
   const scope=scopeOf(repo, o)
-  const hits=[]
+  const hits: FileHit[]=[]
   const efforts=await listEfforts(ctx)
   for(const e of efforts){
     if(scope!==undefined && e.effortId!==scope) continue
@@ -80,7 +103,7 @@ export async function resolveIssueFile(ctx, repo, key, o={}){
     }
   }
   // 兜底要试的那两个目录先声明在函数作用域里：失败时它们要进原文，人才能看出「都找过哪儿」。
-  const cands=[]
+  const cands: string[]=[]
   if(hits.length===0){
     // 夹具形态兜底：repo.refId / repo.path 直接当仓库根（单 effort、无 .scratch）
     try{ cands.push(issuesDir(repo,ctx)) }catch{}
@@ -104,10 +127,10 @@ export async function resolveIssueFile(ctx, repo, key, o={}){
   return { ok:true, path:hits[0].path, effortId:hits[0].effortId }
 }
 /** 按 effort 范围找地图文件（map.md）。未给范围且多命中时，读取第一个、写报 conflict。 */
-export async function resolveMapFile(ctx, repo, o={}){
+export async function resolveMapFile(ctx: OpContext, repo: RepoWithPath | null, o: LocateOpts = {}): Promise<{ ok: true; path: string; effortId: string } | { ok: false; error: { kind: string; message: string; raw: string } }> {
   const plat=getPlat(ctx)
   const scope=scopeOf(repo, o)
-  const hits=[]
+  const hits: FileHit[]=[]
   const efforts=await listEfforts(ctx)
   for(const e of efforts){
     if(scope!==undefined && e.effortId!==scope) continue
@@ -128,24 +151,36 @@ export async function resolveMapFile(ctx, repo, o={}){
   return { ok:true, path:hits[0].path, effortId:hits[0].effortId }
 }
 /** 兼容旧接口：全局按编号找（读语义，取第一个命中）。新代码请用 resolveIssueFile。 */
-export async function findIssueFileGlobal(ctx, key){
+export async function findIssueFileGlobal(ctx: OpContext, key: string): Promise<string | null> {
   const r=await resolveIssueFile(ctx, null, key, { mode:'read' })
   return r.ok?r.path:null
 }
 /** 兼容旧接口：按仓库/effort 找（读语义）。新代码请用 resolveIssueFile。 */
-export async function findIssueFileInEffort(ctx, repo, key){
-  const r=await resolveIssueFile(ctx, repo, key, { mode:'read' })
+export async function findIssueFileInEffort(ctx: OpContext, repo: RepoWithPath | { effortId?: string | null } | null, key: string): Promise<string | null> {
+  // 建票探测时用目标 effort 现拼 `{effortId}`（issues-create.js）：解析器只读 effortId/path/refId
+  // （读不到就回落，见 resolveIssueFile），断言只收类型视野，运行时还是原来那个对象。
+  const r=await resolveIssueFile(ctx, repo as RepoWithPath | null, key, { mode:'read' })
   return r.ok?r.path:null
 }
 
-export async function loadIssueFromFile(ctx,repo,fullPath,metaExtra={}){
+// 读单票文件的元数据：调用方只给零散线索（编号/父子/effort），地址由 fullPath 直接给；
+// 形状与 ParseMeta 对齐（多出的键一律不收，免得调用方把无关东西塞进解析）。
+interface FileMetaExtra {
+  key?: string | number
+  parentKey?: string | null
+  isMap?: boolean
+  effortId?: string
+}
+export async function loadIssueFromFile(ctx: OpContext, repo: RepoWithPath | null, fullPath: string, metaExtra: FileMetaExtra = {}): Promise<Issue> {
   const txt=await readTextFile(ctx,fullPath)
   const st=await statFile(ctx,fullPath)
   let mtime=''
   if(st){
-    const t=st.mtime||st.mtimeMs||st.ctime
-    if(t){try{mtime=new Date(t).toISOString()}catch{} if(!mtime&&typeof t==='number'){try{mtime=new Date(t).toISOString()}catch{}}}
-    if(!mtime&&st.mtime)mtime=String(st.mtime)
+    // stat 的契约类型是 unknown（各实现给出的字段不一）；运行时刻读 mtime/mtimeMs/ctime 三路回落，cast 只为过类型。
+    const s=st as Record<string, unknown>
+    const t=s.mtime||s.mtimeMs||s.ctime
+    if(t){try{mtime=new Date(t as string | number | Date).toISOString()}catch{} if(!mtime&&typeof t==='number'){try{mtime=new Date(t).toISOString()}catch{}}}
+    if(!mtime&&s.mtime)mtime=String(s.mtime)
   }
   const base=fullPath.split(/[\\/]/).pop()||''
   const km=/^(\d+)-/.exec(base)

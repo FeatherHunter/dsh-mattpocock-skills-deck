@@ -1,5 +1,5 @@
 /**
- * backends/gitlab/create-write.js — 建票那一次调用到底怎么发（#722）。
+ * backends/gitlab/create-write.ts — 建票那一次调用到底怎么发（#722）。
  *
  * 这个文件只做一件事：**把「建一张票」这件事收敛成一条写路径**，并保证一次调用里
  * 「会被远端收到的写请求」最多只有一次。
@@ -21,22 +21,39 @@
  */
 
 import { ERROR_KIND } from '../../contract/vocabulary.js'
+import type { ErrorKind } from '../../contract/identity.js'
+import type { BackendContext, OpContext } from '../../contract/contexts.js'
 import { glabClient } from './client.js'
 import { projectPath } from './queries.js'
 import { classifyCreateWriteAttempt, decideCreateWriteRetry } from '../../../shared/refresh/create-write.js'
+import type {
+  CreateWriteJudgement,
+  CreateWriteVerdict,
+} from '../../../shared/refresh/src/create-write.js'
 
 /** 建票写请求的超时（沿既有值）。 */
 const CREATE_TIMEOUT_MS = 8000
+
+// 建票 argv 的 body 形状只含三格，是因为回落路历史上就只拼这三项，加别的会改掉网关看到的形状。
+export interface CreateIssueBody {
+  title: string
+  description?: string
+  labels?: string
+}
+
+// 一次建票调用的写轨迹：判据结果加实际发出的每条 argv，调用方据此决定报错里写几次。
+export interface WriteNewIssueResult {
+  verdict: CreateWriteJudgement
+  argvs: string[][]
+}
 
 /**
  * 建票唯一一条写路径的 argv。参数拼法与改动前那条回落路一模一样（title / description / labels 逐项 -f），
  * 所以网关、脱敏与日志里看到的形状不变，变的只是「不再有另一条路」。
  *
- * @param {string} refId 目标仓库（形如 group/project）
- * @param {{title: string, description?: string, labels?: string}} body
- * @returns {string[]}
+ * @param refId 目标仓库（形如 group/project）
  */
-export function createIssueArgs(refId, body) {
+export function createIssueArgs(refId: string, body: CreateIssueBody): string[] {
   const args = ['api', `${projectPath(refId)}/issues`, '--method', 'POST', '-f', `title=${body.title}`]
   if (body.description) args.push('-f', `description=${body.description}`)
   if (body.labels) args.push('-f', `labels=${body.labels}`)
@@ -49,47 +66,55 @@ export function createIssueArgs(refId, body) {
  * 两次的情形只可能是「第一次确定没发出去」（判据见纯函数），第二次用的是**同一条 argv**：
  * 不换路、不改参数、不退回到另一种写法。
  *
- * @param {object} opCtx 本次调用的上下文（glabClient 吃这个 ctx）
- * @param {string} refId 目标仓库
- * @param {{title: string, description?: string, labels?: string}} body
- * @returns {Promise<{verdict: object, argvs: string[][]}>} verdict 是纯函数给的判据结果
+ * @param opCtx 本次调用的上下文（glabClient 吃这个 ctx）
+ * @param refId 目标仓库
  */
-export async function writeNewIssue(opCtx, refId, body) {
+export async function writeNewIssue(
+  opCtx: Partial<OpContext> & Partial<BackendContext>,
+  refId: string,
+  body: CreateIssueBody,
+): Promise<WriteNewIssueResult> {
   const argv = createIssueArgs(refId, body)
   const client = glabClient(opCtx)
-  const argvs = []
+  const argvs: string[][] = []
 
   const first = await client.run(argv, { timeout: CREATE_TIMEOUT_MS })
   argvs.push(argv.slice())
-  let verdict = classifyCreateWriteAttempt(first)
+  // 值实现来自构建产物 .js（无类型），判据形状以源码 .ts 的契约类型为准，这里只收敛类型不改逻辑。
+  let verdict = classifyCreateWriteAttempt(first) as unknown as CreateWriteJudgement
 
   const decision = decideCreateWriteRetry(verdict.verdict, argvs.length)
   if (decision.retry) {
     const again = await client.run(argv, { timeout: CREATE_TIMEOUT_MS })
     argvs.push(argv.slice())
-    verdict = classifyCreateWriteAttempt(again)
+    verdict = classifyCreateWriteAttempt(again) as unknown as CreateWriteJudgement
   }
 
   return { verdict, argvs }
 }
 
 /** 没建出票时的错误分类：判据档位直接对应既有档位（不拿回包原文去猜档位）。 */
-export function createWriteFailureKind(judgement) {
-  const verdict = judgement && judgement.verdict ? judgement.verdict : 'maybe-written'
-  if (verdict === 'never-sent') return ERROR_KIND.ENV
-  if (verdict === 'endpoint-absent') return ERROR_KIND.NOTFOUND
-  return ERROR_KIND.NETWORK
+export function createWriteFailureKind(judgement: CreateWriteJudgement | null | undefined): ErrorKind {
+  const verdict: CreateWriteVerdict =
+    judgement && judgement.verdict ? judgement.verdict : 'maybe-written'
+  if (verdict === 'never-sent') return ERROR_KIND.ENV as ErrorKind
+  if (verdict === 'endpoint-absent') return ERROR_KIND.NOTFOUND as ErrorKind
+  return ERROR_KIND.NETWORK as ErrorKind
 }
 
 /**
  * 没建出票时给调用方看的那句话。写这句话的规矩（#722）：把「这一次发了几次写请求、票可能已经建出来
  * 没有、接下来该怎么办」三件事说全，不糊过去。
  *
- * @param {object} judgement 纯函数给的判据结果
- * @param {string} idempotencyKey 本次调用带的幂等键（没带就是空串）
- * @param {string[][]} argvs 这个调用发出去的建票请求（每一条的 argv）
+ * @param judgement 纯函数给的判据结果
+ * @param idempotencyKey 本次调用带的幂等键（没带就是空串）
+ * @param argvs 这个调用发出去的建票请求（每一条的 argv）
  */
-export function createWriteFailureMessage(judgement, idempotencyKey, argvs) {
+export function createWriteFailureMessage(
+  judgement: CreateWriteJudgement | null | undefined,
+  idempotencyKey: string,
+  argvs: string[][] | null | undefined,
+): string {
   const key = String(idempotencyKey || '')
   const sent = Array.isArray(argvs) ? argvs.length : 0
   const reason = judgement && judgement.reason ? judgement.reason : '原因不明'

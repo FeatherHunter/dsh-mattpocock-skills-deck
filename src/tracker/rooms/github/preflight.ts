@@ -10,35 +10,45 @@
  */
 
 import { ERROR_KIND } from '../../contract/vocabulary.js'
+import type { OpContext, RepoHandle } from '../../contract/contexts.js';
+import type { PreflightResult } from '../../contract/results.js';
 import { rawText } from '../../preflight.js'
 import { ghClient } from './client.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'
 
-// #195 曾经在这里挂着一整段「怎么装 gh」的长文（按系统分平台列命令），交给界面直接注入。
-// #664（首开引导链定版 #661 第③条）：缺 gh 时注入的文案收成一句原话（「/wizard 帮用户安装gh cli 官方地址：
-//   https://cli.github.com/」），唯一一份住在共享清单 src/shared/tracker/guide-steps.js 的 gh:installed
-//   那一步里，界面从那一步取它。那段长文与预检结果里的 prompt 字段随之退役 —— 一个缺失状态不许有两份说明。
+// 为什么 catch 里的错误要先转这层再读：catch 出来是 unknown，短路后的真值分支会被收成空对象形状、
+// 直接读 message 报缺成员；转成最小形状后读法与原来一致，运行时不变。
+type CaughtMsg = { message?: unknown } | null;
+function caughtMessage(e: unknown): string {
+  const eb = e as CaughtMsg;
+  return String((eb && eb.message) || e).slice(0, 400)
+}
 
-function parseRepoRef(handle, ctx) {
+function parseRepoRef(handle: RepoHandle | null | undefined, ctx: OpContext): string | null {
   // 优先 handle.refId，其次 ctx.refId，再尝试从 cwd 的 git remote 解析（简化：若 refId 无则用 gh repo view）
   if (handle && typeof handle.refId === 'string' && handle.refId) return handle.refId
   if (ctx && typeof ctx.refId === 'string' && ctx.refId) return ctx.refId
   return null
 }
 
-function repoFromRefId(refId) {
+function repoFromRefId(refId: string | null): { owner: string; name: string } | null {
   if (!refId || typeof refId !== 'string') return null
   const idx = refId.indexOf('/')
   if (idx <= 0) return null
   return { owner: refId.slice(0, idx), name: refId.slice(idx + 1) }
 }
 
+// #195 曾经在这里挂着一整段「怎么装 gh」的长文（按系统分平台列命令），交给界面直接注入。
+// #664（首开引导链定版 #661 第③条）：缺 gh 时注入的文案收成一句原话（「/wizard 帮用户安装gh cli 官方地址：
+//   https://cli.github.com/」），唯一一份住在共享清单 src/shared/tracker/guide-steps.js 的 gh:installed
+//   那一步里，界面从那一步取它。那段长文与预检结果里的 prompt 字段随之退役 —— 一个缺失状态不许有两份说明。
+
 /**
  * @param {import('../../contract/index.js').RepoHandle} handle
  * @param {import('../../contract/index.js').OpContext} ctx
  * @returns {Promise<import('../../contract/index.js').PreflightResult>}
  */
-export async function ghPreflight(handle, ctx) {
+export async function ghPreflight(handle: RepoHandle, ctx: OpContext): Promise<PreflightResult> {
   const cwd = (handle && handle.cwd) || (ctx && ctx.cwd) || undefined
   const opCtx = Object.assign({}, ctx || {}, cwd ? { cwd } : {})
 
@@ -58,7 +68,7 @@ export async function ghPreflight(handle, ctx) {
   } catch (e) {
     // 抛出来这一路手里有原文：错误值原样交出去；档位与话术走本房唯一的出口。
     const verdict = ghVerdictOf(e, opCtx)
-    return { ok: false, error: { kind: verdict.kind, message: ghFailureMessage(verdict, String((e && e.message) || e).slice(0, 400)), raw: rawText(e) } }
+    return { ok: false, error: { kind: verdict.kind, message: ghFailureMessage(verdict, caughtMessage(e)), raw: rawText(e) } }
   }
 
   // 2) 登录态：gh auth status
@@ -72,7 +82,7 @@ export async function ghPreflight(handle, ctx) {
     }
   } catch (e) {
     const verdict = ghVerdictOf(e, opCtx)
-    return { ok: false, error: { kind: verdict.kind, message: ghFailureMessage(verdict, String((e && e.message) || e).slice(0, 400)), raw: rawText(e) } }
+    return { ok: false, error: { kind: verdict.kind, message: ghFailureMessage(verdict, caughtMessage(e)), raw: rawText(e) } }
   }
 
   // 3) 仓库可达（含权限）：gh api repos/{owner}/{name}
@@ -104,7 +114,7 @@ export async function ghPreflight(handle, ctx) {
     return { ok: true }
   } catch (e) {
     const verdict = ghVerdictOf(e, opCtx)
-    return { ok: false, error: { kind: verdict.kind, message: ghFailureMessage(verdict, String((e && e.message) || e).slice(0, 400)), raw: rawText(e) } }
+    return { ok: false, error: { kind: verdict.kind, message: ghFailureMessage(verdict, caughtMessage(e)), raw: rawText(e) } }
   }
 }
 

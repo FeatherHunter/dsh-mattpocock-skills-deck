@@ -21,23 +21,29 @@
  */
 
 import { ERROR_KIND, ISSUE_TYPE, STATE } from '../../contract/vocabulary.js'
+import type { OpContext } from '../../contract/contexts.js'
+import type { RepositoryRef, Issue } from '../../contract/entities.js'
+import type { ListFilter, PageOpts } from '../../contract/inputs.js'
 import { failAs, failFromError } from './error-fail.js'
 import { enumerateIssueRows } from './issues-read.js'
 // 这三件与 counts 共用同一份实现：分页与计数说的必须是**同一批票**，两处各写一份判定迟早走样。
 import { labelsOf, hasAllLabels, narrowStateOf, readFailureMessage } from './counts.js'
 
+// 仓库引用：path 是本地后端的自有约定（契约不保证），有就多认那个目录（path.ts 的同款，房间里各备一份）。
+type RepoWithPath = RepositoryRef & { path?: string }
+
 const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 200
 
 /** limit 归一（与 GitHub 那条同一口径）：不合法（缺、非整数、非正）按缺省 50；超过上限按上限 200。 */
-function limitOf(opts) {
+function limitOf(opts: PageOpts | undefined): number {
   const v = opts && typeof opts === 'object' ? opts.limit : undefined
   if (typeof v !== 'number' || !isFinite(v) || Math.floor(v) !== v || v <= 0) return DEFAULT_LIMIT
   return v > MAX_LIMIT ? MAX_LIMIT : v
 }
 
 /** 「创建时间倒序」比较器：先比 createdAt，再拿「工作单元 + 编号」兜底，保证同一时刻的票也有稳定次序。 */
-function byCreatedAtDesc(a, b) {
+function byCreatedAtDesc(a: Issue, b: Issue): number {
   const x = String((a && a.createdAt) || '')
   const y = String((b && b.createdAt) || '')
   if (x !== y) return x < y ? 1 : -1
@@ -48,15 +54,18 @@ function byCreatedAtDesc(a, b) {
 }
 
 /** 薄片段：正文与评论不随页数据走（契约「分页契约」那一节；界面画一行一个字都用不到它们）。 */
-function thinRow(row) {
-  const t = Object.assign({}, row)
+function thinRow(row: Issue): Issue {
+  // delete 要求键可选（Issue 的 body/comments 必填）：摊成匿名对象再经 Record 视图删
+  // （interface 没有隐式索引签名，断回 Issue 要经 unknown 中转）；删的是展开项，
+  // 行其余键原样保留，求值与原来逐字相同。
+  const t: Record<string, unknown> = { ...row }
   delete t.body
   delete t.comments
-  return t
+  return t as unknown as Issue
 }
 
 /** 游标 → 起始下标。不是数字、或指到了列表之外，都算「这个游标跟现在这份数据对不上」并说清怎么办。 */
-function startIndexOf(cursor, total) {
+function startIndexOf(cursor: string, total: number): { ok: true; start: number } | { ok: false; error: { kind: string; message: string; raw: string } } {
   if (!cursor) return { ok: true, start: 0 }
   if (!/^\d+$/.test(cursor)) {
     // 原文 = 收到的那段游标本身（本地就能定论：它不是一个下标数字）。
@@ -74,9 +83,10 @@ function startIndexOf(cursor, total) {
  * listPage(ctx, repo, filter, opts) → `{ok:true, data:{items, nextCursor, total}}` 或 `{ok:false, error:{kind,message}}`。
  * filter 只认 state 与 labels（契约同 counts）；effortId 走 repo（作用域与 list / counts 同口径）。
  */
-export async function listIssuesPage(ctx, repo, filter = {}, opts = {}) {
+export async function listIssuesPage(ctx: OpContext, repo: RepoWithPath, filter: ListFilter | undefined = {}, opts: PageOpts | undefined = {}) {
   try {
-    const scopeFilter = { effortId: filter && filter.effortId }
+    // effortId 不在契约 ListFilter 里（本房的寻址扩展，见 issues-read.js 的 RowFilter）：经视图读，不拓签名。
+    const scopeFilter = { effortId: filter && (filter as { effortId?: string | null }).effortId }
     const { rows, errors } = await enumerateIssueRows(ctx, repo, scopeFilter, { collectErrors: true })
     if (errors.length) {
       const kind = errors[0].kind || ERROR_KIND.ENV

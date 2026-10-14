@@ -15,10 +15,18 @@
 //     为什么按文件分队、不按工作区分队：批量补边这类操作一次要改很多张票，它们是不同的文件、彼此并不冲突；
 //     按文件分队才能让它们同时做（#919 的并发改造就是照这个口径放宽的，串成一条队会把那份并行又收回去）。
 // 跨进程不在本队列的保护范围内：它只认本进程里的并发（票 #919 的「Not yet specified」记着这件事）。
-const chains = new Map()
+import type { OpContext } from '../../contract/contexts.js'
+import type { RepositoryRef } from '../../contract/entities.js'
+
+// 运行时的 process 兜底声明：本域 tsconfig 有意不加载任何类型包（types 为空），
+// Node 运行时保证 process 存在；只声明本文件实际用到的 cwd，不产生运行时代码。
+declare const process: { cwd(): string } | undefined
+
+const chains = new Map<string, Promise<unknown>>()
 
 /** 同一把钥匙上的读—改—写排成一条链。上一条失败不把后面的调用一起带崩（链上只留「已经结束」这个事实）。 */
-export function withSingleWriter(key, work) {
+// 泛型只为把 work 的回值原样透出去（调用方 return withFileWriter(…) 时类型不断），不改任何排队逻辑。
+export function withSingleWriter<T>(key: string, work: () => Promise<T>): Promise<T> {
   const prev = chains.get(key) || Promise.resolve()
   const run = prev.then(work, work)
   chains.set(key, run.then(function () {}, function () {}))
@@ -26,7 +34,9 @@ export function withSingleWriter(key, work) {
 }
 
 /** 这个工作区是哪一个目录：会话给的 cwd 优先，其次仓库引用，最后进程当前目录。 */
-export function workspaceDirOf(ctx, repo) {
+// 部分读路（配色文件的 loadPaintColorMap 等）只传 ctx、不传 repo：
+// 仓库引用缺省时按「当前目录」处理（函数体内本就全程判空），签名放宽只为过类型，运行时路径不变。
+export function workspaceDirOf(ctx: OpContext, repo: RepositoryRef | null | undefined): string {
   if (ctx && typeof ctx.cwd === 'string' && ctx.cwd) return ctx.cwd
   if (repo && typeof repo.refId === 'string' && repo.refId) return repo.refId
   return (typeof process !== 'undefined' && typeof process.cwd === 'function') ? process.cwd() : '.'
@@ -34,23 +44,23 @@ export function workspaceDirOf(ctx, repo) {
 
 /** 归一后的工作区钥匙：统一斜杠、去掉尾部斜杠、折成小写。
  *  为什么不能直接用路径串当钥匙：大小写或斜杠写法不同的两串是同一个工作区，用原始串会各走一条队列。 */
-export function workspaceWriteKey(ctx, repo) {
+export function workspaceWriteKey(ctx: OpContext, repo: RepositoryRef | null | undefined): string {
   return String(workspaceDirOf(ctx, repo)).replace(/[\\]/g, '/').replace(/[/]+$/, '').toLowerCase()
 }
 
 /** 一份文件在队列里的钥匙：工作区钥匙 + 归一后的文件路径。 */
-export function fileWriteKey(ctx, repo, filePath) {
+export function fileWriteKey(ctx: OpContext, repo: RepositoryRef | null | undefined, filePath: string): string {
   const p = String(filePath || '').replace(/[\\]/g, '/').replace(/[/]+$/, '').toLowerCase()
   return workspaceWriteKey(ctx, repo) + '|' + p
 }
 
 /** 按工作区排队：这一步的读—改—写中间不许插进同一工作区的另一个读—改—写。 */
-export function withWorkspaceWriter(ctx, repo, work) {
+export function withWorkspaceWriter<T>(ctx: OpContext, repo: RepositoryRef | null | undefined, work: () => Promise<T>): Promise<T> {
   return withSingleWriter(workspaceWriteKey(ctx, repo), work)
 }
 
 /** 按文件排队：同一个工作区里同一个文件的读—改—写排成一条链，不同文件各走各的队。 */
-export function withFileWriter(ctx, repo, filePath, work) {
+export function withFileWriter<T>(ctx: OpContext, repo: RepositoryRef | null | undefined, filePath: string, work: () => Promise<T>): Promise<T> {
   return withSingleWriter(fileWriteKey(ctx, repo, filePath), work)
 }
 

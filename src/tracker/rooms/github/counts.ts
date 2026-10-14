@@ -20,6 +20,10 @@
  */
 
 import { ERROR_KIND } from '../../contract/vocabulary.js'
+import type { OpContext } from '../../contract/contexts.js';
+import type { Counts, OpResult } from '../../contract/results.js';
+import type { ListFilter } from '../../contract/inputs.js';
+import type { RepositoryRef } from '../../contract/entities.js';
 import { fail } from '../../preflight.js'
 import { ghClient } from './client.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'
@@ -27,17 +31,20 @@ import { parseRepo, repoId } from './issues.js'
 import { COUNTS_QUERY, COUNTS_QUERY_WITH_LABELS } from './queries.js'
 
 /** filter.state 归一：只有 'open' / 'closed' 两种收窄，其余（含缺失）都是「两种都要」。 */
-function narrowStateOf(filter) {
-  const s = filter && typeof filter === 'object' ? String(filter.state || '').toLowerCase() : ''
+function narrowStateOf(filter: ListFilter | null | undefined): string {
+  const bag = (filter && typeof filter === 'object' ? (filter as Record<string, unknown>) : null) as Record<string, unknown> | null;
+  const s = bag ? String(bag.state || '').toLowerCase() : ''
   return (s === 'open' || s === 'closed') ? s : ''
 }
 
 /** filter.labels 归一：去掉空白项与重复项，保持原顺序（原样交给后端筛，名字大小写不动）。 */
-function labelsOf(filter) {
-  const raw = filter && typeof filter === 'object' ? filter.labels : null
+function labelsOf(filter: ListFilter | null | undefined): string[] {
+  const bag = (filter && typeof filter === 'object' ? (filter as Record<string, unknown>) : null) as Record<string, unknown> | null;
+  const raw = bag ? bag.labels : null
   if (!Array.isArray(raw)) return []
-  const out = []
-  const seen = {}
+  const out: string[] = []
+  // 为什么显式标成记录：空对象起手再按名索引，编译器会判成隐式索引，标成字符串记录才过得了严格模式。
+  const seen: Record<string, boolean> = {}
   for (const v of raw) {
     const name = typeof v === 'string' ? v.trim() : ''
     if (!name || seen[name]) continue
@@ -48,8 +55,9 @@ function labelsOf(filter) {
 }
 
 /** totalCount 只接受非负整数：形状不对就等于没拿到，绝不用别的数凑一个出来。 */
-function countOf(node) {
-  const n = node && node.totalCount
+function countOf(node: unknown): number | null {
+  const bag = (node && typeof node === 'object' ? (node as Record<string, unknown>) : null) as Record<string, unknown> | null;
+  const n = bag ? bag.totalCount : undefined;
   return (typeof n === 'number' && Number.isFinite(n) && n >= 0 && Math.floor(n) === n) ? n : null
 }
 
@@ -60,7 +68,7 @@ function countOf(node) {
  * @param {import('../../contract/index.js').ListFilter} [filter]
  * @param {import('../../contract/index.js').OpContext} ctx
  */
-export async function countIssues(repo, filter, ctx) {
+export async function countIssues(repo: RepositoryRef, filter: ListFilter | undefined, ctx: OpContext): Promise<OpResult<Counts>> {
   try {
     const parsed = parseRepo(repo)
     // 形状不对的入参本身就是这一处的原文（这之前还没跑过任何外部命令）；它取出来可能是空串，那是如实交代。
@@ -77,10 +85,12 @@ export async function countIssues(repo, filter, ctx) {
     for (const name of labels) args.push('-F', `labels[]=${name}`)
     const r = await c.execGh(args, { cwd: ctx && ctx.cwd })
     if (!r.ok) return { ok: false, error: r.error }
-    let j
+    let j: { errors?: unknown; data?: { repository?: { openIssues?: unknown; closedIssues?: unknown } | null } | null }
     try { j = JSON.parse(r.data.stdout || '') } catch (e) {
+      // 为什么转一下再读：catch 出来是 unknown，直接读 message 会报缺成员；转成最小形状后读法与原来一致，运行时不变。
+      const eb = e as { message?: unknown } | null;
       // 没能解析成 JSON 的那份回包就是这里的原文（交的是这次 gh 的完整产出，不只 stdout 一截）。
-      return fail(ERROR_KIND.PARSE, `counts: invalid json ${String(e.message).slice(0, 200)}`, r.data)
+      return fail(ERROR_KIND.PARSE, `counts: invalid json ${String((eb && eb.message) || e).slice(0, 200)}`, r.data)
     }
     if (j.errors) {
       const msg = `counts: ${JSON.stringify(j.errors).slice(0, 800)}`
@@ -102,7 +112,9 @@ export async function countIssues(repo, filter, ctx) {
     return { ok: true, data: { open, closed, total: open + closed } }
   } catch (e) {
     const verdict = ghVerdictOf(e, ctx)
-    return fail(verdict.kind, ghFailureMessage(verdict, String((e && e.message) || e).slice(0, 800)), e)
+    // 为什么转一下再读：同上，catch 的 unknown 不能直接读 message，转后表达式与原来一致。
+    const eb = e as { message?: unknown } | null;
+    return fail(verdict.kind, ghFailureMessage(verdict, String((eb && eb.message) || e).slice(0, 800)), e)
   }
 }
 

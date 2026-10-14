@@ -5,7 +5,7 @@
  * 守着的源码路径（按改动挑门禁时照这份清单）：
  *   src/tracker/error-rules.ts            COMMON_RULES / RULE_LAYERS / matchRule / judgeFactsDetailed
  *   src/tracker/rooms/github/errors.ts    本家前置扩展表 + classifyGhError
- *   src/tracker/rooms/gitlab/errors.js    本家前置扩展表 + classifyGlabError
+ *   src/tracker/rooms/gitlab/errors.ts    本家前置扩展表 + classifyGlabError
  *   src/tracker/rooms/markdown/**         本后端有无可比的扩展表（今天没有，门禁会说明）
  *   docs/adr/20261014-error-classification-single-source.md  第 2 节第 3 条：层序的真源
  *   tests/fixtures/error-samples.js       真实原文夹具（本门禁的证据表）
@@ -349,7 +349,7 @@ async function main() {
   for (const s of ERROR_SAMPLES) {
     if (!s.via) continue
     const file = s.via === 'github' ? 'src/tracker/rooms/github/errors.ts'
-      : s.via === 'gitlab' ? 'src/tracker/rooms/gitlab/errors.js' : null
+      : s.via === 'gitlab' ? 'src/tracker/rooms/gitlab/errors.ts' : null
     if (!file) { backendBad.push(s.id + '：via=' + s.via + ' 没有对应的判档入口'); continue }
     try {
       if (!backendCache[file]) {

@@ -9,11 +9,15 @@
 import { normalizeColor } from '../../../shared/label-color/colors.js'
 import { readLabelColors } from './label-colors.js'
 import { builtinColorOf, builtinLabelColors } from './label-colors-palette.js'
+import type { OpContext } from '../../contract/contexts.js'
+import type { Issue } from '../../contract/entities.js'
+import type { RepositoryRef } from '../../contract/entities.js'
 
 /** 票面上色用的查色表：配色文件里的颜色优先，其余标签按内置默认色补上。
  *  这条读路不抛错也不失败：读不出来时只用内置默认色（读的那一次会在调试日志里留一条痕）。 */
-export async function loadPaintColorMap(ctx, repo) {
-  const map = {}
+// repo 可选：列举/读单票等读路只传 ctx（既有调用就是一个参数），读配色文件那层自己按缺省找工作区。
+export async function loadPaintColorMap(ctx: OpContext, repo?: RepositoryRef | null): Promise<Record<string, string>> {
+  const map: Record<string, string> = {}
   for (const item of builtinLabelColors()) {
     if (!item || !item.name) continue
     const c = normalizeColor(item.color)
@@ -27,7 +31,7 @@ export async function loadPaintColorMap(ctx, repo) {
 }
 
 /** 给一张票的标签上色。 */
-export function applyLabelColors(issue, colorMap) {
+export function applyLabelColors(issue: Issue, colorMap: Record<string, string>): void {
   if (!issue || !Array.isArray(issue.labels)) return
   for (const lab of issue.labels) {
     if (!lab || !lab.name) continue
@@ -36,7 +40,7 @@ export function applyLabelColors(issue, colorMap) {
 }
 
 /** 单个标签的颜色：文件里查得到就用文件里的，否则内置默认色，否则灰。 */
-export function colorOfLabel(name, colorMap) {
+export function colorOfLabel(name: string, colorMap: Record<string, string> | undefined): string {
   const fromFile = normalizeColor(colorMap && colorMap[name])
   if (fromFile) return fromFile
   return builtinColorOf(name) || 'cccccc'

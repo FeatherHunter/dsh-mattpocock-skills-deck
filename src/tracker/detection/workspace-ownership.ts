@@ -33,10 +33,11 @@ const OWNERSHIP_SIGNATURE = 'dubious ownership'
 
 /**
  * 「这段 git 输出是不是属主不一致」。
- * @param {string} errText git 的 stderr / 错误文本（任意大小写）
+ * 入参收成未知值：调用方传的是各处拼出来的错误文本，形状不可信，内部统一转成字符串再判。
+ * @param errText git 的 stderr / 错误文本（任意大小写）
  * @returns {boolean}
  */
-export function isOwnershipMismatch(errText) {
+export function isOwnershipMismatch(errText: unknown): boolean {
   return String(errText || '').toLowerCase().includes(OWNERSHIP_SIGNATURE)
 }
 
@@ -46,10 +47,11 @@ export function isOwnershipMismatch(errText) {
  * 为什么用原文而不是自己去拼工作区路径：git 报的就是它实际比对过的那个路径，方向天然正确；
  * 自己拼一个「规范化」的路径反而可能拼出 git 不认的那个（Android 上 /sdcard 常是软链接，
  * 两种写法在配置里是两个不同字符串）。
- * @param {string} errText
+ * 入参收成未知值：取不到路径时回空串，由调用方决定退路。
+ * @param errText
  * @returns {string} 取不到时回空串，由调用方决定退路
  */
-export function ownershipPathFrom(errText) {
+export function ownershipPathFrom(errText: unknown): string {
   const m = String(errText || '').match(/dubious ownership in repository at '([^']+)'/)
   return m ? m[1] : ''
 }
@@ -58,19 +60,21 @@ export function ownershipPathFrom(errText) {
  * 把一段 git 错误文本归一成错误档位。
  * 目前只认属主不一致这一档；其余一律 unknown —— 认不出来就说认不出来，这是 #993 的核心要求。
  * 网络/登录/同名已存在那些档位由 GitHub 后端自己的分类器判定，不走这里。
- * @param {string} errText
+ * 入参收成未知值：认不出来就回未知档，不抛异常。
+ * @param errText
  * @returns {string} KIND_GIT_OWNERSHIP 或 KIND_UNKNOWN
  */
-export function classifyGitFailure(errText) {
+export function classifyGitFailure(errText: unknown): string {
   return isOwnershipMismatch(errText) ? KIND_GIT_OWNERSHIP : KIND_UNKNOWN
 }
 
 /**
  * 给出「让 git 在这个工作区里能干活」要补的那一条设置，做成可以直接照做的一行命令。
- * @param {string} dirPath 要放行的目录（优先用 ownershipPathFrom 从 git 原文取到的那个）
+ * 入参收成未知值：空值统一按空串处理，由调用方决定退路。
+ * @param dirPath 要放行的目录（优先用 ownershipPathFrom 从 git 原文取到的那个）
  * @returns {string} 例如 `git config --global --add safe.directory /sdcard/Download/dsha`
  */
-export function safeDirectoryCommand(dirPath) {
+export function safeDirectoryCommand(dirPath: unknown): string {
   const p = String(dirPath || '').trim()
   if (!p) return ''
   return 'git config --global --add safe.directory ' + p
@@ -80,6 +84,6 @@ export function safeDirectoryCommand(dirPath) {
  * 自愈第一步与重试之间的判断用不到「环境档」，这里只保留一个名字，免得各调用点各起别名。
  * @returns {string} 'git-ownership'
  */
-export function ownershipKind() {
+export function ownershipKind(): string {
   return KIND_GIT_OWNERSHIP
 }

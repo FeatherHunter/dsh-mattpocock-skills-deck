@@ -18,9 +18,21 @@
  * 常驻 gh.exec 记一行（只记命令名与耗时，不记仓库原文），这里不再另记。
  */
 
-function pickPermissions(raw) {
+import type { OpContext } from '../../contract/contexts.js';
+import type { RepoPermissions } from '../../contract/results.js';
+import { ghClient } from './client.js'
+
+/** gh 客户端的最小口：本文件只用得到 execGh，类型从 ghClient 的返回里取，不自己另写一份。 */
+type GhClient = ReturnType<typeof ghClient>;
+
+/** 批内复用位：键是 `owner/name`，值是正在问的那份承诺（并行的几条同时撞上也只真问一次）。 */
+type PermissionsCache = Map<string, Promise<RepoPermissions | null>>;
+
+function pickPermissions(raw: unknown): RepoPermissions | null {
   if (!raw || typeof raw !== 'object') return null
-  const p = raw.permissions
+  // 为什么转成键值袋再读：回包是 gh 吐的原始形状，本函数只认 permissions 下 push/triage 两格是否为布尔值。
+  const bag = raw as Record<string, unknown>;
+  const p = (bag.permissions && typeof bag.permissions === 'object' ? bag.permissions : null) as Record<string, unknown> | null;
   if (!p || typeof p !== 'object') {
     // --jq .permissions 在仓库不存在时 gh 直接报错走失败分支；能到这里却没字段，视为问不出来
     return null
@@ -37,7 +49,7 @@ function pickPermissions(raw) {
  * @param {Map} [cache] 批内复用位（同批调用方共用一个；不传则这次单独问一次）
  * @returns {Promise<{push:boolean,triage:boolean}|null>} 问不出来返回 null（调用方按「分不清」处理）
  */
-export async function readRepoPermissions(c, spec, ctx, cache) {
+export async function readRepoPermissions(c: GhClient, spec: string, ctx: OpContext, cache?: PermissionsCache): Promise<RepoPermissions | null> {
   const key = String(spec || '').trim()
   if (!key || key.indexOf('/') <= 0) return null
   if (cache && typeof cache.get === 'function' && typeof cache.set === 'function') {
@@ -64,11 +76,12 @@ export async function readRepoPermissions(c, spec, ctx, cache) {
   }
 }
 
-async function queryPermissions(c, spec, ctx) {
+async function queryPermissions(c: GhClient, spec: string, ctx: OpContext): Promise<RepoPermissions | null> {
   const cwd = ctx && typeof ctx.cwd === 'string' ? ctx.cwd : undefined
   const r = await c.execGh(['api', 'repos/' + spec, '--jq', '.permissions'], { cwd: cwd })
   if (!r || !r.ok) return null
-  const text = String((r.data && (r.data.stdout || r.data.text)) || '').trim()
+  // text 兜底保留（理由同 backend.ts：上游仍有 text 这一格，stdout 为空时老代码走它）。
+  const text = String((r.data && (r.data.stdout || (r.data as { text?: unknown }).text)) || '').trim()
   if (!text || text === 'null') return null
   try {
     return pickPermissions({ permissions: JSON.parse(text) })
@@ -82,7 +95,7 @@ async function queryPermissions(c, spec, ctx) {
  * @param {string} spec `owner/name`（失败归因里必须带上它，用户才看得出绑的是哪个仓库）
  * @param {string[]} names 这次没挂上的标签名（原样列出，不截断到只剩数量）
  */
-export function readonlyMessage(spec, names) {
+export function readonlyMessage(spec: string, names: string[]): string {
   const list = (Array.isArray(names) ? names : []).map((n) => String(n || '').trim()).filter(Boolean)
   const suffix = list.length ? '这次没挂上的标签（' + list.join('、') + '）' : '这次要加的标签'
   return '你在「' + String(spec || '') + '」上只有读权限，没有给票打标签的权限（打标签要 triage 及以上，新建标签要 push）——'

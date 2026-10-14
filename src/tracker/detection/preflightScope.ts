@@ -35,22 +35,53 @@
  *（via 记的是调用链名），「这一轮问了几次」从那几行数得出来 —— 本票要它变少的就是那几条。
  */
 
+import type { ExecResult } from '../contract/contexts.js'
+
+/**
+ * 预检执行器的选项：只读身份键要用的 cwd，其余原样透传不解读。
+ * 超时不等进键（#963）：同一轮里探活与谓词带的超时不同，带上就认不出同一条。
+ */
+export interface PreflightExecOptions {
+  cwd?: unknown
+  [extra: string]: unknown
+}
+
+/**
+ * 预检问答的成功形状：两条出站路各说各的（detectionExec 回 code，runGh 回 ok），两种都认。
+ * 基座是契约的进程回包，ok 是包过后端命令那一路才有的标记，这里按未知值收口再判。
+ */
+export type PreflightAnswer = ExecResult & {
+  ok?: unknown
+}
+
+/**
+ * 真正执行命令的那一下：签名与宿主两条出站路一致（命令、参数、选项、调用链名）。
+ * 返回值用契约的进程回包形状，两条路的成功标记（code 与 ok）都在里面。
+ */
+export type PreflightExec = (
+  cmd: string,
+  args: string[],
+  opts: PreflightExecOptions | undefined,
+  via: string | undefined,
+) => Promise<PreflightAnswer>
+
 /** 环境预检成名的那两条命令（argv[0] 与参数分开写：gh 这个程序名可能带路径、也可能是裸名字）。 */
 const PREFLIGHT_COMMANDS = [
   { cmd: 'gh', head: ['auth', 'status'] },
   { cmd: 'gh', head: ['api', 'repos/'] },
 ]
 
-/** argv[0] 是不是 gh（带路径也认：真机上 runGh 传的是解析出来的完整路径）。 */
-function isGh(cmd) {
+/** argv[0] 是不是 gh（带路径也认：真机上 runGh 传的是解析出来的完整路径）。入参收成未知值，空值统一按空串判。 */
+function isGh(cmd: unknown): boolean {
   return /(^|[\\/])gh(\.exe)?$/i.test(String(cmd || ''))
 }
 
 /**
  * 这一条调用是不是成名的环境预检。
  * 「仓库可达」按前缀认 `api repos/`，因为它后面跟着的是 owner/name，逐字比不出来。
+ * 参数收成未知值：非数组按空数组处理，与原来 `(args || [])` 的口径一致。
  */
-export function isPreflightCommand(cmd, args) {
+export function isPreflightCommand(cmd: unknown, args: readonly unknown[] | null | undefined): boolean {
   if (!isGh(cmd)) return false
   const parts = (args || []).map(String)
   for (let i = 0; i < PREFLIGHT_COMMANDS.length; i++) {
@@ -68,7 +99,7 @@ export function isPreflightCommand(cmd, args) {
 
 /** 这条调用的身份键：只取决定「问的是不是同一件事」的那几个字段，绝不含工作区路径原文。
  *  等多久（timeout）不算“哪件事”：同一轮里探活与谓词各自带的超时不同，带着它两边认不出同一条，白问两遍（#963）。 */
-function keyOf(cmd, args, opts) {
+function keyOf(cmd: unknown, args: readonly unknown[] | null | undefined, opts: PreflightExecOptions | null | undefined): string {
   const o = opts || {}
   const parts = [
     String(cmd || ''),
@@ -80,13 +111,18 @@ function keyOf(cmd, args, opts) {
 
 /**
  * 开一次评估的环境预检复用位。
- * @param {(cmd: string, args: string[], opts: object) => Promise<any>} exec 真正执行命令的那一下
+ * 入参是真正执行命令的那一下，返回包过一层的执行器加两组计数（只数条数，不记原文）。
+ * @param exec 真正执行命令的那一下
  * @returns {{ exec: Function, asked: () => number, reused: () => number }}
  */
-export function createPreflightScope(exec) {
+export function createPreflightScope(exec: PreflightExec): {
+  exec: PreflightExec
+  asked: () => number
+  reused: () => number
+} {
   // 这一次评估里已经问出结论的预检：键 = 上面那串身份键，值 = 结论 + 被复用了几次。
   // 只用 Map 记「这两条命令」，其他命令一律直通 —— 一次评估里别的东西该问几次还问几次。
-  const answered = new Map()
+  const answered = new Map<string, { value: PreflightAnswer; hits: number }>()
 
   /**
    * 包了一层的外部命令执行器。**签名与原来一模一样**，调用方不需要知道有这一层。
@@ -95,7 +131,7 @@ export function createPreflightScope(exec) {
    * 为什么只复用成功的：失败不缓存（与 refresh-core 的 preflightUsable 同一口径），
    * 免得一次网络抖动被同一轮后面的调用当成「已经问过了」。
    */
-  function scopedExec(cmd, args, opts, via) {
+  function scopedExec(cmd: string, args: string[], opts: PreflightExecOptions | undefined, via: string | undefined): Promise<PreflightAnswer> {
     const a = args || []
     if (!isPreflightCommand(cmd, a)) return exec(cmd, a, opts, via)
     const key = keyOf(cmd, a, opts)
@@ -122,9 +158,9 @@ export function createPreflightScope(exec) {
      * 这一次评估里省掉了几次外部问答（同一轮里第二次、第三次来问同一条命令的次数合计）。
      * 这个数 > 0 才是「复用真的发生了」；等于 0 说明这一轮压根没重复问（或者复用位没起作用）。
      */
-    reused: function () {
+    reused: function (): number {
       let n = 0
-      answered.forEach(function (v) { n += Number(v && v.hits) || 0 })
+      answered.forEach(function (v: { value: PreflightAnswer; hits: number }): void { n += Number(v && v.hits) || 0 })
       return n
     },
   }

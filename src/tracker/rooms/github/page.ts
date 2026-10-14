@@ -22,6 +22,10 @@
  */
 
 import { ERROR_KIND } from '../../contract/vocabulary.js'
+import type { OpContext } from '../../contract/contexts.js';
+import type { Issue, RepositoryRef } from '../../contract/entities.js';
+import type { ListFilter, PageOpts } from '../../contract/inputs.js';
+import type { OpResult, PageResult } from '../../contract/results.js';
 import { fail } from '../../preflight.js'
 import { ghClient } from './client.js'
 import { normalizeIssue } from './normalize.js'
@@ -34,33 +38,38 @@ const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 200
 
 /** limit 归一：不合法（缺、非整数、非正、无穷大）按缺省 50；超过上限按上限 200。 */
-function limitOf(opts) {
-  const v = opts && typeof opts === 'object' ? opts.limit : undefined
+function limitOf(opts: PageOpts | null | undefined): number {
+  const bag = (opts && typeof opts === 'object' ? (opts as Record<string, unknown>) : null) as Record<string, unknown> | null;
+  const v = bag ? bag.limit : undefined
   if (typeof v !== 'number' || !isFinite(v) || Math.floor(v) !== v || v <= 0) return DEFAULT_LIMIT
   return v > MAX_LIMIT ? MAX_LIMIT : v
 }
 
 /** cursor 归一：省略、空串、纯空白都算「第一页」；其余原样回传（它是不透明字符串，调用方与后端都不解析它）。 */
-function cursorOf(opts) {
-  const v = opts && typeof opts === 'object' ? opts.cursor : undefined
+function cursorOf(opts: PageOpts | null | undefined): string {
+  const bag = (opts && typeof opts === 'object' ? (opts as Record<string, unknown>) : null) as Record<string, unknown> | null;
+  const v = bag ? bag.cursor : undefined
   if (typeof v !== 'string') return ''
   return v.trim()
 }
 
 /** filter.state 归一：'open' / 'closed' 两种收窄；其余（含缺失）= 两种都要。 */
-function statesOf(filter) {
-  const s = filter && typeof filter === 'object' ? String(filter.state || '').toLowerCase() : ''
+function statesOf(filter: ListFilter | null | undefined): string[] {
+  const bag = (filter && typeof filter === 'object' ? (filter as Record<string, unknown>) : null) as Record<string, unknown> | null;
+  const s = bag ? String(bag.state || '').toLowerCase() : ''
   if (s === 'open') return ['OPEN']
   if (s === 'closed') return ['CLOSED']
   return ['OPEN', 'CLOSED']
 }
 
 /** filter.labels 归一：去掉空白项与重复项，保持原顺序（名字大小写不动，交给后端筛）。 */
-function labelsOf(filter) {
-  const raw = filter && typeof filter === 'object' ? filter.labels : null
+function labelsOf(filter: ListFilter | null | undefined): string[] {
+  const bag = (filter && typeof filter === 'object' ? (filter as Record<string, unknown>) : null) as Record<string, unknown> | null;
+  const raw = bag ? bag.labels : null
   if (!Array.isArray(raw)) return []
-  const out = []
-  const seen = {}
+  const out: string[] = []
+  // 为什么显式标成记录：空对象起手再按名索引，编译器会判成隐式索引，标成字符串记录才过得了严格模式。
+  const seen: Record<string, boolean> = {}
   for (const v of raw) {
     const name = typeof v === 'string' ? v.trim() : ''
     if (!name || seen[name]) continue
@@ -71,12 +80,12 @@ function labelsOf(filter) {
 }
 
 /** totalCount 只接受非负整数：形状不对就等于没拿到，绝不用别的数凑一个出来（与 counts 同一条）。 */
-function countOf(v) {
+function countOf(v: unknown): number | null {
   return (typeof v === 'number' && isFinite(v) && v >= 0 && Math.floor(v) === v) ? v : null
 }
 
 /** 逐票归一失败会丢票，聚合后复用 error.normalize 调试事件记一行（与 issues.js 的 emitBadNodes 同一处置）。 */
-function emitBadNodes(ctx, dropped, total) {
+function emitBadNodes(ctx: OpContext, dropped: number, total: number): void {
   try {
     if (!dropped) return
     if (ctx && typeof ctx.isEnabled === 'function' && ctx.isEnabled('debug') && typeof ctx.logEvent === 'function') ctx.logEvent('debug', 'error.normalize', { rawKind: 'bad-node:page:' + dropped + '/' + total, mappedKind: ERROR_KIND.PARSE })
@@ -96,7 +105,7 @@ function emitBadNodes(ctx, dropped, total) {
  * @param {import('../../contract/contract-page.js').PageOpts} [opts]
  * @param {import('../../contract/index.js').OpContext} ctx
  */
-export async function listIssuesPage(repo, filter, opts, ctx) {
+export async function listIssuesPage(repo: RepositoryRef, filter: ListFilter | undefined, opts: PageOpts | undefined, ctx: OpContext): Promise<OpResult<PageResult>> {
   try {
     const parsed = parseRepo(repo)
     // 形状不对的入参本身就是这一处的原文（这之前还没跑过任何外部命令）；它取出来可能是空串，那是如实交代。
@@ -118,10 +127,14 @@ export async function listIssuesPage(repo, filter, opts, ctx) {
     for (const name of labels) args.push('-F', `labels[]=${name}`)
     const r = await c.execGh(args, { cwd: ctx && ctx.cwd })
     if (!r.ok) return { ok: false, error: r.error }
-    let j
+    // 为什么把回包定成这个形状：只读到本函数实际用的三层（errors/data.repository.issues），更深的节点按 unknown 读；
+    // 定宽了以后加字段要改两处，定窄了读不到，当前三层正好够用。
+    let j: { errors?: unknown; data?: { repository?: { issues?: { nodes?: unknown[]; totalCount?: unknown; pageInfo?: unknown } | null } | null } | null }
     try { j = JSON.parse(r.data.stdout || '') } catch (e) {
+      // 为什么转一下再读：catch 出来是 unknown，直接读 message 会报缺成员；转成最小形状后读法与原来一致，运行时不变。
+      const eb = e as { message?: unknown } | null;
       // 没能解析成 JSON 的那份回包就是这里的原文（交的是这次 gh 的完整产出，不只 stdout 一截）。
-      return fail(ERROR_KIND.PARSE, `listPage: invalid json ${String(e.message).slice(0, 200)}`, r.data)
+      return fail(ERROR_KIND.PARSE, `listPage: invalid json ${String((eb && eb.message) || e).slice(0, 200)}`, r.data)
     }
     if (j.errors) {
       const msg = `listPage: ${JSON.stringify(j.errors).slice(0, 800)}`
@@ -142,14 +155,16 @@ export async function listIssuesPage(repo, filter, opts, ctx) {
     if (!conn || !Array.isArray(conn.nodes)) return fail(ERROR_KIND.PARSE, 'listPage: graphql: missing issues.nodes', r.data)
     const total = countOf(conn.totalCount)
     if (total === null) return fail(ERROR_KIND.PARSE, 'listPage: totalCount missing or not a non-negative integer (refusing to guess a number)', r.data)
-    const items = []
+    const items: Issue[] = []
     let dropped = 0
     for (const n of conn.nodes) {
       try { items.push(normalizeIssue(n)) } catch { dropped += 1 }
     }
     if (dropped) emitBadNodes(ctx, dropped, conn.nodes.length)
-    const pageInfo = conn.pageInfo || {}
-    let nextCursor = null
+    // 为什么断言一下：游标段只读 hasNextPage/endCursor 两格，断言只为过编译，表达式与原来一字不差，运行时不变。
+    const pageInfo = (conn.pageInfo || {}) as { hasNextPage?: unknown; endCursor?: unknown }
+    // 为什么显式标成可空串：游标缺席是合法态（没有下一页），标成联合才接得住契约的 null，运行时还是原来那个值。
+    let nextCursor: string | null = null
     if (pageInfo.hasNextPage === true) {
       // 说「还有下一页」却给不出游标 = 拿不全。宁可如实失败，也不假装历史就到这里了。
       if (typeof pageInfo.endCursor !== 'string' || !pageInfo.endCursor) {
@@ -161,7 +176,9 @@ export async function listIssuesPage(repo, filter, opts, ctx) {
     return { ok: true, data: { items, nextCursor, total } }
   } catch (e) {
     const verdict = ghVerdictOf(e, ctx)
-    return fail(verdict.kind, ghFailureMessage(verdict, String((e && e.message) || e).slice(0, 800)), e)
+    // 为什么转一下再读：同上，catch 的 unknown 不能直接读 message，转后表达式与原来一致。
+    const eb = e as { message?: unknown } | null;
+    return fail(verdict.kind, ghFailureMessage(verdict, String((eb && eb.message) || e).slice(0, 800)), e)
   }
 }
 

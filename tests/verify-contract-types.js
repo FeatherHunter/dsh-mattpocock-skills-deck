@@ -5,40 +5,45 @@
 // 为什么显式写这两条：契约目录的路径是 resolveInRoot(process.env.DSH_CONTRACT_DIR || 'src/tracker/contract')
 // 拼出来的，归属表按字面量路径认不出它，会把这些契约文件算成「没人守」。这两条把归属钉死。
 //
-// 这个门禁替契约层守八件事，八件都过才算绿：
-//   零、缺件即红：契约目录、tsconfig、operations.ts、两份贴合探针，少任何一样都判红。
+// 这个门禁替契约层守五件事，五件都过才算绿：
 //   一、类型检查：用仓库 devDependencies 里的 typescript 跑一遍 `tsc -p tsconfig.contract.json`，
 //       零错误才算过；tsc 的输出原样透出，看错在哪一行不用再自己跑一遍。
-//   二、契约目录的文件一个都没漏编：自己列出契约目录下全部 .ts（`listTsFiles`），再拿
-//       `tsc -p … --listFiles` 那份「这次真的编了哪些文件」的清单逐一对账，姓名与数量对不上就判红。
-//       为什么要有这一条：第一件只说「编过的文件里没有错」，它管不住「某个文件根本没进编译」——
-//       tsconfig 的 include 被改窄、文件放进没被圈到的子目录、名字打成 `*.tsx`，都会让一个偷偷
-//       写错的类型文件全程隐身而门禁照样绿。这一条把「在不在编译范围里」变成可判定的。
-//   三、接口清单齐：读 operations.ts 与 operations-catalog.ts 两份文本，断言 25 条能力全部有名字
-//       ——22 个操作名（`OPERATION_NAMES`）加 3 条定位口（`LOCATOR_NAMES`），缺哪个报哪个。
-//       为什么要读两份：拆分工把操作名改成「名录单源」——名字住在 operations-catalog.ts，
-//       operations.ts 只从它生类型；只扫一份会漏掉真正的住处。
-//       （2026-10-14 #1051 由 19 条操作改成 22 条操作 + 3 条定位口：三条新收的操作原先分别挂在
-//       某一个后端的「后端私有扩展」名下，读者却都在后端之外；定位口三条也一并点名核对，
-//       免得它们只写在名录里、方法声明却漏了。）
-//   四、没有运行时实现：契约目录只许有类型与数据。禁六种：`function` 关键字、
+//       tsconfig 缺席也在自己门口判红（原来靠已撤的第零项数文件，现在缺谁谁说话）。
+//   二、没有运行时实现：契约目录只许有类型与数据。禁六种：`function` 关键字、
 //       `class` 关键字、箭头函数赋值（`const f = (…) => …`）、顶层 `new`（只有
 //       `Object.freeze` 与字面量是合法的数据写法）、`require(`、动态 `import(`；
 //       值引用只许目录内互引（数据引数据，目标文件自己也过这一条，所以不形成行为入口），
 //       指到目录外的、包名的、裸副作用引用的，一律判红。发现就判红，并指出文件与行号。
-//   五、贴合探针能编译：两份探针（GitHub / Markdown 后端）用宽松开关直编，探针文件自己
+//   三、贴合探针能编译：两份探针（GitHub / Markdown 后端）用宽松开关直编，探针文件自己
 //       一条报错都不能有（成员缺了、形状写歪了，第一落点就是这里）；后端文件内部自己的
 //       报错（旧语言时代的联合收窄、参数个数这类）另行计数，必须与本文件记的基线逐字相等——
 //       多了是新增债务，少了是有人修了实现面（那要先把基线数改过来，并考虑把探针收紧）。
-//   六、反面证明：现拼一个缺 `matches` 的假后端，拿同一套严格开关编它，必须编不过、
+//       探针缺席也在自己门口判红。两份探针退休之日（后端转 TypeScript 后直接对真实现检查），
+//       这一项跟着退休。
+//   四、反面证明：现拼一个缺 `matches` 的假后端，拿同一套严格开关编它，必须编不过、
 //       且报错里点名 `matches`。这条验的是「探针不是摆设」——它断得了缺少成员，真后端
-//       哪天丢了一个必填，探针一定红。
-//   七、运行时腿：把三个后端模块对象真加载起来，断三件事——`openRepository` 必须是
-//       `'url'` 或 `'folder'`：内置三家一律要声明（契约里那个成员对第三方后端仍可选）。
+//       哪天丢了一个必填，探针一定红。第二条走探针同款开关、断探针真用的弱化形状，同样齐了才算过。
+//   五、运行时腿：把三个后端模块对象真加载起来（加载失败就红），断两档真值——
+//       `openRepository` 必须是 `'url'` 或 `'folder'`：内置三家一律要声明
+//       （契约里那个成员对第三方后端仍可选）。
 //       这条口径是 #1139 收紧的：旧写法把「不声明」也算合法，那道口子正是 #1117 能长期躲在绿里的
 //       地方（值只挂在文件级导出上、模块对象上没有该键时，界面把内置后端当成「没读到开仓动作」）；
-//       `checks` 的种类如实记录（数组 / 函数 / 不声明）；模块对象的键集合必须与本文件
-//       记的快照逐字相等（加一个成员、删一个成员，都先回答「契约里有没有它」再登记）。
+//       `checks` 的种类如实记录（数组 / 函数 / 不声明）。
+//
+// 再撤四项（2026-10-14 #1147 决策 8：类型检查接管后撤掉。顺序是先立后撤——
+//   跟踪器配置落地、三条断言写好、三种错故意造出确认变红之后，才动手删）：
+//   旧零、缺件即红：缺文件时 tsc 与下游步骤本来就会红（配不起来、引不到、编不了），
+//     不再需要一条专门数文件的；删它不能删出静默跳过，所以 tsconfig 缺席改由第一项判、
+//     探针缺席改由第三项与第四项判（缺谁谁说话，见各步门口）。
+//   旧二、漏编对账（拿 tsc 清单数文件）：「每个域都被配置圈住」由覆盖对账
+//    （scripts/typecheck.mts）统一管，一个门禁不养两套账。
+//   旧三、接口清单齐（读文本数 25 个名字）：名录与 Tracker 的同集由断言 2 守（编译期），
+//     工厂交没交齐、多没多带由 satisfies + 断言 1、断言 3 守（编译期），文本数名字退休。
+//     红证明（2026-10-14 同日现测）：故意删成员、往名录加脏名、往工厂加多余成员，
+//     三次都当场红且点名，证据在 #1147 进度评论。
+//   旧七里的键快照：模块对象的键集合比对撤掉——工厂交出来的键由 satisfies + 三条断言守；
+//     「能真加载」与 openRepository / checksKind 真值保留（静态检查看不见真值，
+//     探针也断不了被加宽的字面量，这两档还得跑起来看）。
 //
 // 撤掉的两项（决定人与理由见 #1026 正文：维护者拍板，两条同集断言归 #1026，随本次改写撤掉）：
 //   旧五、旧六（名录与运行时真源同集、OpName 与运行时同集）是迁移期的临时脚手架——
@@ -46,12 +51,8 @@
 //   （`index.ts` 的 `OPERATIONS` 改成从名录转出，同一份数组、同一个引用），没有第二份
 //   手写副本之后，这两项就没有东西可比了，留着只会永远红。决定人与理由见 #1026 正文。
 //
-// 缺件即红（2026-10-12 改口径，旧口径见下）：契约目录、tsconfig、operations.ts 三样输入少任何一样，
-//   都当场 `check(false, …)` 并走到非零退出。旧口径是打印一行「等 A 落地后再跑」然后 `exit(0)`，
-//   理由是当时与写契约真源的另一路子任务并行开发、不想阻塞别人；代价是缺件在验证链里等于一条绿，
-//   而「真源没写完」与「真源写完且都对」在链上看不出区别。并行期已经过去，这个口子必须堵上：
-//   缺件本身就是要人看见的事故，不是可以跳过的等待。缺件时后续依赖它的判断会一并跳过，
-//   但第 0 步那条 FAIL 已经把退出码钉在非零上，链不会绿。
+// 缺件口径史（2026-10-12 改口径，2026-10-14 #1147 决策 8 随旧第零项一起退休，细则见上）：
+//   缺件本身就是要人看见的事故，不是可以跳过的等待；退休后缺谁谁在自己门口说话。
 //
 // 自测钩子（只给门禁自己验证「判红能力」用，正常跑不要传）：
 //   DSH_CONTRACT_DIR      覆盖契约目录，缺省 src/tracker/contract
@@ -59,15 +60,15 @@
 //   相对路径按仓库根解析，绝对路径原样用。
 //
 // 已知边界（如实写在文件头，免得以后有人以为它什么都管得住）：
-//   第四件事是行级扫描：`function` / `class` 关键字、`const f = (…) => …` 形的箭头赋值、
+//   第二项是行级扫描：`function` / `class` 关键字、`const f = (…) => …` 形的箭头赋值、
 //   `= new …` 形的顶层构造、`require(`、动态 `import(`、指到目录外的值引用。
 //   跨行写的箭头（`=` 与 `=>` 不在同一行）扫不到——真要管住得靠类型检查与代码审查。
 //   `new` 只认 `=` 之后的（值初始化形状），构造器类型（`new (x: …): T`，冒号形状）不在此列。
-//   第二件事只保证「契约目录里的 .ts 都进了这次编译」，管不住「tsconfig 里圈了目录外的文件」——
-//   那不是本门禁的辖区（但本门禁跑的那次 tsc 会把圈到的目录外文件一起检查，错了一样红）。
-//   第五件事不审后端实现内部：旧语言文件的内部报错只计数（基线在下面），审它们是迁移批次的事；
+//   「契约目录里的 .ts 是不是都进了编译」本门禁不管了（旧第二项已撤），由覆盖对账
+//   （scripts/typecheck.mts）统一管——但本门禁跑的那次 tsc 会把配置圈到的文件一起检查，错了一样红。
+//   第三项不审后端实现内部：旧语言文件的内部报错只计数（基线在下面），审它们是迁移批次的事；
 //   探针弱化的三处（`create` 返回深层、`openRepository` 字面量、`checks` 种类）各有去处——
-//   前两处一个留后续专票、一个由第七项断真值，`checks` 数组还是工厂也由第七项如实记录。
+//   前两处一个留后续专票、一个由第五项断真值，`checks` 数组还是工厂也由第五项如实记录。
 //
 // 用法：node tests/verify-contract-types.js（在仓库根目录）
 const fs = require('fs')
@@ -79,10 +80,7 @@ const ROOT = path.resolve(__dirname, '..')
 const resolveInRoot = (p) => (path.isAbsolute(p) ? p : path.join(ROOT, p))
 const CONTRACT_DIR = resolveInRoot(process.env.DSH_CONTRACT_DIR || 'src/tracker/contract')
 const TSCONFIG = resolveInRoot(process.env.DSH_CONTRACT_TSCONFIG || 'tsconfig.contract.json')
-const OPERATIONS_REL = 'operations.ts'
-/** 操作名录的住处（拆分工起的单源文件）：操作名真正写在这里，operations.ts 只从它生类型。 */
-const CATALOG_REL = 'operations-catalog.ts'
-/** 两份贴合探针：静态腿的输入。缺了它们，第五项没法编，缺件即红。 */
+/** 两份贴合探针：静态腿的输入。缺了它们，第三项在自己门口判红，不静默跳过。 */
 const PROBE_GITHUB_REL = 'tests/contract-probe-github.ts'
 const PROBE_MARKDOWN_REL = 'tests/contract-probe-markdown.ts'
 /**
@@ -106,8 +104,12 @@ const PROBE_MARKDOWN_REL = 'tests/contract-probe-markdown.ts'
  * （#1052 读路径、#1053 写路径、#1054 关系与边）。本门禁只如实计数，不拦住这三张票之外的东西。
  * 把这个数往回降的办法只有一条：把那三张票做完，再回来改这个数。
  * 探针要不要跟着收紧（把弱化面收掉、让这个数继续降）归 #1095 那条测试跟随线，本票不动它。
+ *
+ * 2026-10-14 由 183 改到 162（#1147 三房转制收口 + 工厂挂 satisfies）：
+ * 三个工厂的返回字面量挂上形状后，回调参数从契约签名拿到上下文类型，
+ * 加上转制时补的标注，实现面又还了 21 条。这是还债，不是放松。
  */
-const PROBE_NONPROBE_ERROR_BASELINE = 183
+const PROBE_NONPROBE_ERROR_BASELINE = 162
 /** 探针直编的开关（与探针文件头写的口径一致，改一处两处一起改）。 */
 const PROBE_TSC_ARGS = [
   '--noEmit', '--target', 'es2020', '--lib', 'es2020,dom', '--module', 'esnext',
@@ -115,22 +117,21 @@ const PROBE_TSC_ARGS = [
   '--skipLibCheck', '--strict', 'false',
 ]
 /**
- * 运行时腿的快照（#1026 实测；GitLab 一份按 #1110 实现决定第 15 条补上）：三个模块对象的键集合
- * 与两个断不了字面量的真值。键加了、减了、真值变了，都先回答「契约里有没有它」（`BackendModule`），
- * 确认后把新快照记进来；若契约要跟着改，改完再记。快照比较不看顺序（键按字母排过再比）。
- * 改名（#1110 实现决定第 14 条）与旧名退役（#1141，2026-10-14）：三家模块对象先各自迁到与后端无关的
+ * 运行时腿的真值快照（#1026 实测；GitLab 一份按 #1110 实现决定第 15 条补上）：
+ * 只剩两个断不了字面量的真值（openRepository 与 checks 种类），真值变了先确认再登记；
+ * 若契约要跟着改，改完再记。
+ * 键集合比对已撤（2026-10-14 #1147 决策 8）：工厂交出来的键由 satisfies + 三条断言守，
+ * 不再数模块对象的键。改名（#1110 实现决定第 14 条）与旧名退役（#1141，2026-10-14）：三家模块对象先各自迁到与后端无关的
  * 新名字（#1133 GitHub、#1134 本地 Markdown、#1135 GitLab），老名字作为同义别名留了一轮；
  * 客户端与宿主都不再读它们之后，那三个网址口吻的老名字连同契约里的同名成员一起删净，
  * 所以下面三份快照今天只列新名字：`issueAddress` / `issueRefPattern` / `repoSearchAddress`。
  */
 const RUNTIME_SNAPSHOTS = {
   github: {
-    keys: ['capabilities', 'checks', 'create', 'describe', 'fixes', 'id', 'issueAddress', 'issueRefPattern', 'label', 'links', 'matches', 'openRepository', 'presentation', 'prompts', 'repoSearchAddress', 'setupPrompt'],
     openRepository: 'url',
     checksKind: 'function',
   },
   markdown: {
-    keys: ['create', 'describe', 'fixes', 'id', 'issueAddress', 'issueRefPattern', 'label', 'labelPalette', 'links', 'matches', 'openRepository', 'presentation', 'prompts', 'repoSearchAddress', 'setupPrompt'],
     openRepository: 'folder',
     checksKind: 'absent',
   },
@@ -151,29 +152,10 @@ const RUNTIME_SNAPSHOTS = {
    * 所以下面这份键快照今天是 17 个（那 16 个名字，加上这次新挂的 `openRepository`）。
    */
   gitlab: {
-    keys: ['create', 'describe', 'fixes', 'id', 'issueAddress', 'issueRefPattern', 'label', 'links', 'matches', 'openRepository', 'presentation', 'prompts', 'repoSearchAddress', 'setupPrompt'],
     openRepository: 'url',
     checksKind: 'absent',
   },
 }
-
-/** 22 个契约操作名（真源：`src/tracker/contract/operations-catalog.ts` 的 `OPERATIONS`）。
- *  2026-10-14 由 19 条扩到 22 条（#1051 讨论结论）：新收进来的三条原先分别挂在某一个后端的
- *  「后端私有扩展」名下 —— `getRepoPermissions`（GitHub 的仓库写权限）、`listSubIssues`（GitHub 取一张地图的全部子票）、
- *  `ensureLabelColorsFile`（本地 Markdown 往工作区放配色文件）。收进来的理由是同一个：**它们的读者都在后端之外**，
- *  后端之外有读者就不是「某一家的细节」。三个私有扩展类型（`GitHubRoomExtension` / `MarkdownRoomExtension` /
- *  `RoomAuxiliaries`）随之删除，成员全部并进 `Tracker`。 */
-const OPERATION_NAMES = [
-  'preflight', 'list', 'get', 'getDependencies', 'create', 'close', 'reopen', 'comment', 'update',
-  'setLabels', 'setAssignees', 'setParent', 'setBlockedBy', 'getCurrentUser', 'initProject',
-  'listLabels', 'setLabelColors', 'counts', 'listPage',
-  'getRepoPermissions', 'listSubIssues', 'ensureLabelColorsFile',
-]
-
-/** 3 条定位口的名字（真源：同一份名录的 `LOCATORS`）。
- *  它们与操作的区别：没有「我不支持」这种答案，注册表不替它们补桩，缺席就是缺席。
- *  分开列是为了让「名录一共 25 条」这件事在门禁里看得见：22 + 3 = 25。 */
-const LOCATOR_NAMES = ['getRepoKey', 'describe', 'issueAddress']
 
 let failed = false
 const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
@@ -204,11 +186,6 @@ function listTsFiles(dir) {
   }
   walk(dir)
   return out.sort()
-}
-
-/** 名字出现判定：前后不能是标识符字符，免得 list 命中 listPage、get 命中 getDependencies。 */
-function hasName(text, name) {
-  return new RegExp('(^|[^A-Za-z0-9_$])' + name + '([^A-Za-z0-9_$]|$)').test(text)
 }
 
 /** 把引用串解成仓库相对路径（只解相对引用；包名引用回 null，由调用方按目录外处理）。 */
@@ -300,62 +277,14 @@ function findRuntimeImpl(abs, code) {
   return hits.sort((a, b) => a.line - b.line)
 }
 
-/**
- * 从 `tsc --listFiles` 的输出里挑出「这次真的编了哪些 .ts」，回绝对路径数组。
- * 那份输出是每行一个路径，还混着 lib.*.d.ts 这些语言库；报错行长得不一样（带 `(行,列)`），
- * 所以只认「整行就是一个以 .ts 收尾的绝对路径」这一种，其余一律不当文件：
- * 误把报错行当文件会让对账多出一个幽灵条目、把好好的状态判成红，宁可漏认也不误认。
- */
-function parseListedTsFiles(out) {
-  const seen = new Set()
-  for (const raw of String(out || '').split(/\r?\n/)) {
-    const line = raw.trim()
-    if (!line || !line.endsWith('.ts')) continue
-    if (/\(\d+,\d+\)/.test(line)) continue              // 报错行：path(行,列): error TS…
-    if (/\s/.test(line)) continue                        // 路径里不该有空白（有就说明这行是别的东西）
-    if (!/^(?:[A-Za-z]:[\\/]|\/)/.test(line)) continue   // 只认绝对路径（tsc 给的就是绝对路径）
-    seen.add(line)
-  }
-  return Array.from(seen)
-}
-
-/** 路径归一成比较用的键：反斜杠换正斜杠、去末尾斜杠；Windows 的盘符不分大小写。 */
-function normPathKey(p) {
-  const s = path.resolve(p).replace(/\\/g, '/').replace(/\/+$/, '')
-  return process.platform === 'win32' ? s.toLowerCase() : s
-}
-
-/** 这个路径是不是落在某个目录里（按归一后的键比，含该目录自己）。 */
-function inDir(file, dir) {
-  const f = normPathKey(file)
-  const d = normPathKey(dir)
-  return f === d || f.startsWith(d + '/')
-}
-
 function main() {
-  console.log('契约层类型门禁（缺件即红 + tsc 零错误 + 没漏编 + 25 条能力齐 + 无运行时实现 + 探针编译 + 两条反面证明 + 运行时腿）')
-
-  // ---- 0) 缺件即红：契约目录、tsconfig、operations.ts、两份探针，少任何一样都判红 ----
-  // 旧写法是打印「等 A 落地后再跑」并 exit(0)：那在验证链里就是一条绿，与「真源写完且都对」看不出区别。
-  // 现在缺件当场记一条 FAIL，退出码由文件末尾统一按 failed 收口；下面各步再按「手上有什么」决定做不做。
-  const dirExists = fs.existsSync(CONTRACT_DIR) && fs.statSync(CONTRACT_DIR).isDirectory()
-  const tsconfigExists = fs.existsSync(TSCONFIG)
-  const opsExists = fs.existsSync(path.join(CONTRACT_DIR, OPERATIONS_REL))
-  const probeGithubExists = fs.existsSync(path.join(ROOT, PROBE_GITHUB_REL))
-  const probeMarkdownExists = fs.existsSync(path.join(ROOT, PROBE_MARKDOWN_REL))
-  const missing = []
-  if (!dirExists) missing.push(path.relative(ROOT, CONTRACT_DIR) + '（目录）')
-  if (!tsconfigExists) missing.push(path.relative(ROOT, TSCONFIG))
-  if (dirExists && !opsExists) missing.push(path.relative(ROOT, path.join(CONTRACT_DIR, OPERATIONS_REL)))
-  if (!probeGithubExists) missing.push(PROBE_GITHUB_REL)
-  if (!probeMarkdownExists) missing.push(PROBE_MARKDOWN_REL)
-  check(
-    missing.length === 0,
-    '五样输入齐（契约目录 ' + path.relative(ROOT, CONTRACT_DIR) + '、' + path.relative(ROOT, TSCONFIG) + '、' + OPERATIONS_REL + '、两份探针）' +
-      (missing.length ? '，缺：' + missing.join('、') + '——缺件不是「等它落地」，是这里判红' : '，五样都在'),
-  )
+  console.log('契约层类型门禁（tsc 零错误 + 无运行时实现 + 探针编译 + 两条反面证明 + 运行时腿）')
 
   // ---- 1) 类型检查：tsc 零错误 ----
+  // 缺谁谁说话：tsconfig 缺席不再由已撤的第零项数，这里自己判（没有配置可指，也不静默跳过）。
+  const tsconfigExists = fs.existsSync(TSCONFIG)
+  const probeGithubExists = fs.existsSync(path.join(ROOT, PROBE_GITHUB_REL))
+  const probeMarkdownExists = fs.existsSync(path.join(ROOT, PROBE_MARKDOWN_REL))
   const requireFromRoot = createRequire(path.join(ROOT, 'package.json'))
   let tscBin = null
   try {
@@ -367,8 +296,9 @@ function main() {
     check(false, 'typescript 命令行入口存在（按包内 bin/tsc 找，实际没有这个文件）：' + tscBin)
     tscBin = null
   }
-  if (tscBin && !tsconfigExists) {
-    // 第 0 步已经判红；这里不再跑 tsc（没有配置可指），也不重复报同一件事。
+  if (!tsconfigExists) {
+    // 第零项已撤：tsconfig 缺席在这里自己判，不静默跳过（没有配置可指，也不跑 tsc）。
+    check(false, 'tsconfig 存在（' + path.relative(ROOT, TSCONFIG) + ' 不在）：没有配置可指，类型检查这一步没做')
     tscBin = null
   }
   if (tscBin) {
@@ -382,55 +312,11 @@ function main() {
     }
   }
 
-  // ---- 2) 契约目录的文件一个都没漏编 ----
-  // 第 1 步只说「这次编过的文件里没有错」，它管不住「某个文件根本没进这次编译」。
-  // 这里另跑一次 tsc 要 `--listFiles` 的清单（与第 1 步分开跑：清单会把报错区淹掉，一次求错一次求清单各管一头），
-  // 拿它与自己列出来的契约目录 .ts 逐一对账；名字或数量对不上都判红。
-  const tsFiles = dirExists ? listTsFiles(CONTRACT_DIR) : []
+  // ---- 2) 没有运行时实现：契约目录只许类型与数据，目录内数据互引除外 ----
+  // 缺谁谁说话：目录空（或目录不在）在这里自己判，不静默跳过。
+  const tsFiles = (fs.existsSync(CONTRACT_DIR) && fs.statSync(CONTRACT_DIR).isDirectory()) ? listTsFiles(CONTRACT_DIR) : []
   if (!tsFiles.length) {
-    check(false, '契约目录下有 .ts 文件（一个都没有：第 0 步的缺件判红之外，这里也没什么可对账的）')
-  } else if (!tscBin) {
-    // tsc 起不来（已在上一步判红）：没有清单可对账，如实记一条，不静默跳过。
-    check(false, '契约目录 ' + tsFiles.length + ' 个 .ts 都能对账（tsc 起不来，这一项没做：见上一条 FAIL）')
-  } else {
-    const rl = spawnSync(process.execPath, [tscBin, '-p', TSCONFIG, '--listFiles'], { encoding: 'utf8' })
-    if (rl.error) {
-      check(false, 'tsc --listFiles 能跑起来（起进程失败）：' + (rl.error.message || String(rl.error)))
-    } else {
-      const listed = parseListedTsFiles((rl.stdout || '') + (rl.stderr || ''))
-      // 只比契约目录那一部分（tsc 还会列 lib.*.d.ts 这些语言库；它们不在本门禁辖区）。
-      // 与本门禁自己的 listTsFiles 同口径：都排除 .d.ts，只收 .ts。
-      const listedHere = listed.filter((p) => inDir(p, CONTRACT_DIR) && !p.endsWith('.d.ts'))
-      const listedKeys = new Set(listedHere.map(normPathKey))
-      const notCompiled = tsFiles.filter((abs) => !listedKeys.has(normPathKey(abs)))
-      const extraInList = listedHere.filter((abs) => !tsFiles.some((f) => normPathKey(f) === normPathKey(abs)))
-      check(
-        notCompiled.length === 0 && extraInList.length === 0,
-        '契约目录 ' + tsFiles.length + ' 个 .ts 全部进了这次编译（tsc 清单里本目录 ' + listedHere.length + ' 个）' +
-          (notCompiled.length ? '；没进编译：' + notCompiled.map((p) => path.relative(ROOT, p)).join('、') : '') +
-          (extraInList.length ? '；只在清单里：' + extraInList.map((p) => path.relative(ROOT, p)).join('、') : ''),
-      )
-    }
-  }
-
-  // ---- 3) 接口清单齐：22 个操作名 + 3 条定位口，一个不少 ----
-  // 名字的**住处**是名录件 operations-catalog.ts，operations.ts 只从它生类型，
-  // 所以两份合起来查：只扫 operations.ts 会在「名录单源」之后漏掉真正写名字的地方。
-  // operations.ts 缺席时（第 0 步已判红）这里不读文件、只走名录件那一半，免得抛异常打断整趟检查。
-  // 定位口那三条也查 operations.ts：它们的方法声明写在那里（名录件里只有名字，声明在操作层）。
-  const catalogPath = path.join(CONTRACT_DIR, CATALOG_REL)
-  const catalogCode = fs.existsSync(catalogPath) ? stripComments(fs.readFileSync(catalogPath, 'utf8')) : ''
-  const opsPath = path.join(CONTRACT_DIR, OPERATIONS_REL)
-  const opsText = fs.existsSync(opsPath) ? stripComments(fs.readFileSync(opsPath, 'utf8')) : ''
-  const opsCode = opsText + '\n' + catalogCode
-  const missingOps = OPERATION_NAMES.filter((n) => !hasName(opsCode, n))
-  check(missingOps.length === 0, '22 个契约操作名全部出现' + (missingOps.length ? '，缺：' + missingOps.join('、') : '（' + OPERATION_NAMES.length + ' 个逐个查过，含名录件 ' + CATALOG_REL + '）'))
-  const missingLocators = LOCATOR_NAMES.filter((n) => !hasName(opsCode, n))
-  check(missingLocators.length === 0, '3 条定位口名全部出现' + (missingLocators.length ? '，缺：' + missingLocators.join('、') : '（共 ' + (OPERATION_NAMES.length + LOCATOR_NAMES.length) + ' 条能力）'))
-
-  // ---- 4) 没有运行时实现：契约目录只许类型与数据，目录内数据互引除外 ----
-  if (!tsFiles.length) {
-    // 第 2 步已经为「一个 .ts 都没有」判过红，这里不再重复同一条。
+    check(false, '契约目录下有 .ts 文件可查（' + path.relative(ROOT, CONTRACT_DIR) + ' 空或不在）：无运行时实现这一项没做')
   } else {
     let bad = 0
     for (const abs of tsFiles) {
@@ -445,11 +331,12 @@ function main() {
     check(bad === 0, '契约目录下 ' + tsFiles.length + ' 个 .ts 文件都没有运行时实现（只许类型与数据，目录内数据互引除外）')
   }
 
-  // ---- 5) 贴合探针能编译：探针文件自己零报错，后端内部报错数与基线相等 ----
+  // ---- 3) 贴合探针能编译：探针文件自己零报错，后端内部报错数与基线相等 ----
   // 探针直编不经任何 tsconfig（命令行开关）：后端入口会把半个房间拖进编译程序，
   // 经配置编会触发覆盖对账的重复归属；开关与探针文件头写的口径一致，改一处两处一起改。
   if (!probeGithubExists || !probeMarkdownExists) {
-    // 第 0 步已经为缺探针判过红，这里不再重复同一条。
+    // 第零项已撤：探针缺席在这里自己判，不静默跳过。
+    check(false, '两份贴合探针存在（缺：' + (!probeGithubExists ? PROBE_GITHUB_REL + ' ' : '') + (!probeMarkdownExists ? PROBE_MARKDOWN_REL : '') + '）：探针直编这一步没做')
   } else if (!tscBin) {
     check(false, '两份探针能直编（tsc 起不来，这一项没做：见第一项的 FAIL）')
   } else {
@@ -486,7 +373,7 @@ function main() {
     }
   }
 
-  // ---- 6) 反面证明：现拼一个缺 matches 的假后端，必须编不过且点名 matches ----
+  // ---- 4) 反面证明：现拼一个缺 matches 的假后端，必须编不过且点名 matches ----
   // 验的是「探针不是摆设」。假文件写进系统临时目录（不进仓库，不污染覆盖对账），编完就删。
   if (!tscBin) {
     check(false, '反面证明能跑（tsc 起不来，这一项没做：见第一项的 FAIL）')
@@ -521,7 +408,7 @@ function main() {
     }
   }
 
-  // ---- 6b) 反面证明第二条：走探针那条路，缺 matches 的假后端也必须编不过 ----
+  // ---- 4b) 反面证明第二条：走探针那条路，缺 matches 的假后端也必须编不过 ----
   // 第一条反面证明走的是**严格开关 + 完整 `BackendModule`**，那证明的不是探针这条路：探针自己
   // 跑在宽松开关（`--strict false`）下，断的是弱化过的 `ProbeShape`。弱化之后还抓不抓得住缺成员，
   // 在 #1051 讨论之前没有任何自动化证明（这正是那张票要补的两条之一）。
@@ -531,7 +418,8 @@ function main() {
   if (!tscBin) {
     check(false, '第二条反面证明能跑（tsc 起不来，这一项没做：见第一项的 FAIL）')
   } else if (!probeGithubExists) {
-    // 第 0 步已经为缺探针判过红，这里不再重复同一条。
+    // 第零项已撤：探针缺席在这里自己判，不静默跳过。
+    check(false, '第二条反面证明的探针输入存在（' + PROBE_GITHUB_REL + ' 不在）：这一条没做')
   } else {
     const os2 = require('os')
     const tmpDir2 = fs.mkdtempSync(path.join(os2.tmpdir(), 'dsh-contract-neg2-'))
@@ -568,9 +456,9 @@ function main() {
     }
   }
 
-  // ---- 7) 运行时腿：模块对象真加载，断真值与键快照 ----
-  // 静态探针断不了被加宽的字面量（openRepository）与数组/工厂之争（checks），这里断真值；
-  // 键集合与快照逐字比：加减成员都先回答「契约里有没有它」再登记。
+  // ---- 5) 运行时腿：模块对象真加载，断两档真值 ----
+  // 静态探针断不了被加宽的字面量（openRepository）与数组/工厂之争（checks），这里断真值。
+  // 键快照已撤（见文件头「再撤四项」）：工厂交出来的键由 satisfies + 三条断言守，这里只看真值。
   {
     const hookAbs = path.join(ROOT, 'scripts', 'ts-hook.mjs')
     // --import 吃的是模块说明符，Windows 绝对路径要先转成 file://，裸盘符路径会被 ESM 加载器拒收。
@@ -580,9 +468,9 @@ function main() {
     const evalScript = `Promise.all([import('./src/tracker/rooms/github/index.ts'), import('./src/tracker/rooms/markdown/index.ts'), import('./src/tracker/rooms/gitlab/index.ts')]).then(([g, m, l]) => {` +
       ` const kind = (v) => v === undefined ? 'absent' : (Array.isArray(v) ? 'array' : (typeof v === 'function' ? 'function' : typeof v));` +
       ` console.log(JSON.stringify({` +
-      ` github: { keys: Object.keys(g.githubModule).sort(), openRepository: g.githubModule.openRepository, checksKind: kind(g.githubModule.checks) },` +
-      ` markdown: { keys: Object.keys(m.markdownModule).sort(), openRepository: m.markdownModule.openRepository, checksKind: kind(m.markdownModule.checks) },` +
-      ` gitlab: { keys: Object.keys(l.gitlabBackend).sort(), openRepository: l.gitlabBackend.openRepository, checksKind: kind(l.gitlabBackend.checks) }}))` +
+      ` github: { openRepository: g.githubModule.openRepository, checksKind: kind(g.githubModule.checks) },` +
+      ` markdown: { openRepository: m.markdownModule.openRepository, checksKind: kind(m.markdownModule.checks) },` +
+      ` gitlab: { openRepository: l.gitlabBackend.openRepository, checksKind: kind(l.gitlabBackend.checks) }}))` +
       ` })`
     const rr = spawnSync(process.execPath, ['--import', hookUrl, '--eval', evalScript], { encoding: 'utf8', timeout: 120000 })
     if (rr.error) {
@@ -600,16 +488,14 @@ function main() {
         for (const name of ['github', 'markdown', 'gitlab']) {
           const want = RUNTIME_SNAPSHOTS[name]
           const got = snap[name]
-          const keysOk = JSON.stringify(got.keys) === JSON.stringify(want.keys)
           // #1139 起：内置三家必须声明。旧写法把「不声明」也算合法，那道口子正是 #1117 能长期存活的
           // 地方——值只挂在文件级导出上时，模块对象上没有这个键，界面就把它读成「没读到开仓动作」。
           const repoOk = got.openRepository === 'url' || got.openRepository === 'folder'
           const repoSame = got.openRepository === want.openRepository
           const kindSame = got.checksKind === want.checksKind
           check(
-            keysOk && repoOk && repoSame && kindSame,
-            name + ' 模块对象与快照一致（键 ' + got.keys.length + ' 个、openRepository=' + showRepo(got.openRepository) + '、checks=' + got.checksKind + ')' +
-              (!keysOk ? '；键集合变了：先确认增减的成员有没有契约覆盖，确认后把新快照记进本门禁' : '') +
+            repoOk && repoSame && kindSame,
+            name + ' 模块对象真值如初（openRepository=' + showRepo(got.openRepository) + '、checks=' + got.checksKind + ')' +
               (!repoOk ? '；openRepository 必须是 url 或 folder（内置三家一律要声明，可选只对第三方后端可选）：判红' : '') +
               (repoOk && !repoSame ? '；openRepository 真值变了（' + showRepo(want.openRepository) + '→' + showRepo(got.openRepository) + '）：确认后登记' : '') +
               (!kindSame ? '；checks 种类变了（' + want.checksKind + '→' + got.checksKind + '）：数组还是工厂的专票有结论了就按结论办，没结论先登记' : ''),

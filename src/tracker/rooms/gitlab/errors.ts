@@ -1,5 +1,5 @@
 /**
- * backends/gitlab/errors.js — glab/API 错误 → 契约 ERROR_KIND（本房间的判档出口）。
+ * backends/gitlab/errors.ts — glab/API 错误 → 契约 ERROR_KIND（本房间的判档出口）。
  *
  * ── 判据不在这里，这里只有「glab 这一家专有的条目」─────────────────────────────
  * 判「失败该归哪一档」的真源是全仓唯一那张有序规则表：`src/tracker/error-rules.ts`
@@ -18,10 +18,20 @@
  */
 
 import { ERROR_KIND } from '../../contract/vocabulary.js'
+import type { ErrorKind } from '../../contract/identity.js'
+import type { TrackerError } from '../../contract/results.js'
 import { HINT_UNRECOGNIZED, HINT_UNSUPPORTED, fail } from '../../preflight.js'
+import type { ClassifyCtx } from '../../preflight.js'
 import { emitPassthrough, factsFromError, judgeFactsDetailed } from '../../error-rules.js'
+import type { ErrorRule } from '../../error-rules.js'
 
-const KIND_VALUES = new Set(Object.values(ERROR_KIND))
+const KIND_VALUES: ReadonlySet<string> = new Set(Object.values(ERROR_KIND))
+
+// 判档结果只交档位与是否兜底，是因为调用方挑话只看这两格，层信息留给日志不进返回。
+export interface GlabVerdict {
+  kind: ErrorKind
+  fallback: boolean
+}
 
 /**
  * glab 这一家的前置扩展表（判档时先试它，再试通用表）。
@@ -38,9 +48,9 @@ const KIND_VALUES = new Set(Object.values(ERROR_KIND))
  *   · `no token`：glab 没找到凭据时的原话，通用表的认证句式认不出它
  *     （那条要求 `not … in` 连写，而这句里只有 `no token`）。
  */
-export const GLAB_ERROR_RULES = [
+export const GLAB_ERROR_RULES: readonly ErrorRule[] = [
   {
-    kind: ERROR_KIND.AUTH,
+    kind: ERROR_KIND.AUTH as ErrorKind,
     layer: 'phrase',
     pattern: /host not found/i,
     example: { text: 'glab: host not found for gitlab.example.com; run glab auth login' },
@@ -48,7 +58,7 @@ export const GLAB_ERROR_RULES = [
       + '让用户去 `glab auth login`。通用表的认证句式认不出这句（里面没有 auth/credential 这些词）',
   },
   {
-    kind: ERROR_KIND.AUTH,
+    kind: ERROR_KIND.AUTH as ErrorKind,
     layer: 'phrase',
     pattern: /no token/i,
     example: { text: 'no token found for gitlab.com' },
@@ -58,11 +68,16 @@ export const GLAB_ERROR_RULES = [
 ]
 
 /** `err` 已经是规范档位了吗（顶层 `kind` 或 `error.kind` 命中八档取值之一）。 */
-function carriedKind(err) {
+function carriedKind(err: unknown): ErrorKind | null {
   if (!err || typeof err !== 'object') return null
-  if (KIND_VALUES.has(err.kind)) return err.kind
-  const inner = err.error
-  if (inner && typeof inner === 'object' && KIND_VALUES.has(inner.kind)) return inner.kind
+  const bag = err as Record<string, unknown>
+  const top = bag['kind']
+  if (typeof top === 'string' && KIND_VALUES.has(top)) return top as ErrorKind
+  const inner = bag['error']
+  if (inner !== null && typeof inner === 'object') {
+    const innerKind = (inner as Record<string, unknown>)['kind']
+    if (typeof innerKind === 'string' && KIND_VALUES.has(innerKind)) return innerKind as ErrorKind
+  }
   return null
 }
 
@@ -72,14 +87,14 @@ function carriedKind(err) {
  * 顺序与全仓一致：已经是规范档位的失败原样透传（覆盖后端显式产生的 `conflict` / `unsupported`），
  * 其余走「本家扩展表 → 通用表」。判定与 `verdictOf` 同一趟，只是这里多挂了 glab 的扩展表。
  *
- * @param {unknown} err 任意错误值：Error / glab 的 `{stdout,stderr,code}` 进程结果 / 一段文本 /
+ * @param err 任意错误值：Error / glab 的 `{stdout,stderr,code}` 进程结果 / 一段文本 /
  *                      已是 `{kind,message,raw}` 的 TrackerError
- * @param {{logEvent?:Function,isEnabled?:Function}} [ctx] 本房间的调用上下文；给了它才可能留一条
+ * @param ctx 本房间的调用上下文；给了它才可能留一条
  *        `error.normalize` 轨迹（开关由 `isEnabled('debug')` 判，关着时零组装零调用）
- * @returns {{kind:string, fallback:boolean}} kind 是八档取值之一；fallback 为 true 表示
+ * @returns kind 是八档取值之一；fallback 为 true 表示
  *          「规则表一条都没认出来，按网络兜底」——调用方据此换用通用提示，别假装判出来了
  */
-export function classifyGlabError(err, ctx) {
+export function classifyGlabError(err: unknown, ctx?: ClassifyCtx): GlabVerdict {
   const carried = carriedKind(err)
   if (carried) {
     // 已经是规范档位（例如后端显式产生的 conflict/unsupported）：原样透传并留一趟归一轨迹。
@@ -97,12 +112,12 @@ export function classifyGlabError(err, ctx) {
  * 通用提示 —— 它们是**实话**：前者承认「没认出来」，后者让用户换路而不是重试。
  * 其余情况用调用方自己那句有上下文的话（例如「改标签没做成」）。
  *
- * @param {{kind:string, fallback:boolean}} verdict `classifyGlabError` 给的结果
- * @param {string} nativeMessage 本家那句话（判得出具体档位时用它）
+ * @param verdict `classifyGlabError` 给的结果
+ * @param nativeMessage 本家那句话（判得出具体档位时用它）
  */
-export function hintFor(verdict, nativeMessage) {
+export function hintFor(verdict: GlabVerdict | null | undefined, nativeMessage: string): string {
   if (verdict && verdict.fallback) return HINT_UNRECOGNIZED
-  if (verdict && verdict.kind === ERROR_KIND.UNSUPPORTED) return HINT_UNSUPPORTED
+  if (verdict && verdict.kind === (ERROR_KIND.UNSUPPORTED as ErrorKind)) return HINT_UNSUPPORTED
   return nativeMessage
 }
 
@@ -112,13 +127,18 @@ export function hintFor(verdict, nativeMessage) {
  * 为什么要有它：房里有六十多处失败站点，若每处各写一遍「先判档、再挑话、再取原文」，
  * 迟早有哪一处漏掉第三段。收在这里之后，每个站点只要说清「原始错误值是什么」。
  *
- * @param {unknown} err 原始错误值（进程结果 / Error / 一段文本），判档与取原文都用它
- * @param {string} nativeMessage 本家那句话；兜底与 unsupported 两档会被换成通用提示
- * @param {unknown} [raw] 原文（默认就是 `err` 本身；不传等于传 err）
- * @param {{logEvent?:Function,isEnabled?:Function}} [ctx] 判档上下文（留 error.normalize 轨迹用）
- * @returns {{ok:false, error:{kind:string,message:string,raw:string}}}
+ * @param err 原始错误值（进程结果 / Error / 一段文本），判档与取原文都用它
+ * @param nativeMessage 本家那句话；兜底与 unsupported 两档会被换成通用提示
+ * @param raw 原文（默认就是 `err` 本身；不传等于传 err）
+ * @param ctx 判档上下文（留 error.normalize 轨迹用）
+ * @returns 统一失败结果，kind 是八档之一，message 已按兜底规则挑过，raw 必填
  */
-export function failGlab(err, nativeMessage, raw, ctx) {
+export function failGlab(
+  err: unknown,
+  nativeMessage: string,
+  raw?: unknown,
+  ctx?: ClassifyCtx,
+): { ok: false; error: TrackerError } {
   const verdict = classifyGlabError(err, ctx)
   return fail(verdict.kind, hintFor(verdict, nativeMessage), arguments.length > 2 ? raw : err)
 }

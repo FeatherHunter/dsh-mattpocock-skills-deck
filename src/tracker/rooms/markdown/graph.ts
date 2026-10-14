@@ -8,8 +8,20 @@ import { readTextFile, readDir } from './read.js'
 import { getPlat, listEfforts, resolveIssueFile, resolveMapFile } from './issues-locate.js'
 import { failAs, failFromError } from './error-fail.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
+import type { OpContext } from '../../contract/contexts.js'
+import type { RepositoryRef, IssueRef } from '../../contract/entities.js'
+import type { Dependencies } from '../../contract/results.js'
 
-export async function readBlockedBy(ctx, repo, key){
+// 仓库引用：path 是本地后端的自有约定（契约不保证），有就多认那个目录（path.ts 的同款，房间里各备一份）。
+type RepoWithPath = RepositoryRef & { path?: string }
+
+// 本文件交出去的失败形状：与 failAs 落的三段式一致（成功侧各函数自带）。
+interface GraphFailure {
+  ok: false
+  error: { kind: string; message: string; raw: string }
+}
+
+export async function readBlockedBy(ctx: OpContext, repo: RepoWithPath | null, key: string): Promise<{ ok: true; data: IssueRef[]; effortId: string } | GraphFailure>{
   const norm=String(key).padStart(2,'0')
   const r=await resolveIssueFile(ctx,repo,norm,{mode:'read'})
   if(!r.ok)return{ok:false,error:r.error}
@@ -19,7 +31,7 @@ export async function readBlockedBy(ctx, repo, key){
     return{ok:true,data:issue.blockedBy||[],effortId:r.effortId}
   }catch(e){return failFromError(e,ctx,'读这张票的阻塞关系时出错')}
 }
-export async function getDependenciesForKey(ctx, repo, key){
+export async function getDependenciesForKey(ctx: OpContext, repo: RepoWithPath | null, key: string): Promise<{ ok: true; data: Dependencies } | GraphFailure>{
   const plat=getPlat(ctx)
   const normalizedKey=String(key).padStart(2,'0')
   const r=await readBlockedBy(ctx,repo,normalizedKey)
@@ -51,9 +63,9 @@ export async function getDependenciesForKey(ctx, repo, key){
     }
   }catch(e){}
   // 反向聚合：只扫本 effort
-  const blocking=[]
+  const blocking: IssueRef[]=[]
   for(const idir of idirs){
-    let files=[]
+    let files: string[]=[]
     try{ files=await readDir(ctx,idir) }catch(e){ files=[] }
     for(const f of files){
       if(!f||!f.endsWith('.md')) continue

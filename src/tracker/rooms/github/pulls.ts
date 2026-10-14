@@ -8,13 +8,22 @@
  */
 
 import { ERROR_KIND } from '../../contract/vocabulary.js'
+import type { OpContext } from '../../contract/contexts.js';
+import type { OpResult } from '../../contract/results.js';
 import { fail } from '../../preflight.js'
 import { ghClient } from './client.js'
 
+/** 仓库坐标：拥有者与仓库名，由调用方（issues 的 REST 兜底）保证形状。 */
+interface ParsedRepo {
+  owner: string;
+  name: string;
+}
+
 // 拉取请求 REST 列表（与 issues 同构；/issues 已含拉取请求条目，此处只为补合并时间做富化）。
-export async function fetchAllPullsREST(parsed, ctx) {
+export async function fetchAllPullsREST(parsed: ParsedRepo, ctx: OpContext): Promise<OpResult<unknown[]>> {
   const c = ghClient(ctx)
-  const out = []
+  // 为什么标成未知数组：回包是 GitHub 的原始行，本函数只负责翻页搬运、不解读形状，解读是调用方的事。
+  const out: unknown[] = []
   const MAX_PAGES = 10
   const PAGE = 100
   for (let p = 1; p <= MAX_PAGES; p++) {
@@ -23,10 +32,12 @@ export async function fetchAllPullsREST(parsed, ctx) {
       if (!out.length) return { ok: false, error: r.error }
       return { ok: true, data: out }
     }
-    let j
+    let j: unknown
     try { j = JSON.parse(r.data.stdout || '') } catch (e) {
+      // 为什么转一下再读：catch 出来是 unknown，直接读 message 会报缺成员；转成最小形状后读法与原来一致，运行时不变。
+      const eb = e as { message?: unknown } | null;
       // 原文交这次 gh 的完整产出：人自己就能看出回包里到底是什么。
-      if (!out.length) return fail(ERROR_KIND.PARSE, 'rest pulls: invalid json ' + String(e.message).slice(0, 200), r.data)
+      if (!out.length) return fail(ERROR_KIND.PARSE, 'rest pulls: invalid json ' + String((eb && eb.message) || e).slice(0, 200), r.data)
       return { ok: true, data: out }
     }
     if (!Array.isArray(j)) {
@@ -45,39 +56,49 @@ export async function fetchAllPullsREST(parsed, ctx) {
 // （合并时间也填在 pull_request.merged_at 里），两条接口的说法一致，多补一道只会多一处要维护的规则。
 // 树边不补是因为 sub_issues 树接口只有工单条目可用，拉取请求条目没有 parent 来源；
 // 评审明细不补是因为列表逐票拉 /reviews 太费配额，列表评审恒给空数组，单票 enrichSinglePR 才拉真值。
-export function enrichRestPRs(issueRaws, pullRaws) {
-  const byNum = new Map()
-  for (const p of (pullRaws || [])) {
-    if (p && p.number != null && !byNum.has(String(p.number))) byNum.set(String(p.number), p)
+export function enrichRestPRs(issueRaws: unknown, pullRaws: unknown): unknown {
+  // 为什么键值都标成未知：两份输入都是 GitHub 原始行，本函数只按号配对搬合并时间、不解读形状，解读是调用方的事。
+  const byNum = new Map<string, unknown>()
+  // 为什么断言一下：或出空数组的表达式与原来一字不差（不断言编译器不让迭代），断言只为过编译，运行时不变。
+  for (const p of ((pullRaws || []) as unknown[])) {
+    // 为什么转成键值袋再读：原始行可能是任意值，直接读 number 会报缺成员；是对象时袋与原值是同一份引用，读法与原来一致。
+    const pb = (p && typeof p === 'object' ? p : null) as Record<string, unknown> | null;
+    if (pb && pb.number != null && !byNum.has(String(pb.number))) byNum.set(String(pb.number), p)
   }
-  for (const x of (issueRaws || [])) {
-    if (x && x.pull_request != null) {
-      const p = byNum.get(String(x.number))
-      if (p && typeof p.merged_at === 'string' && typeof x.merged_at !== 'string') x.merged_at = p.merged_at
+  for (const x of ((issueRaws || []) as unknown[])) {
+    const xb = (x && typeof x === 'object' ? x : null) as Record<string, unknown> | null;
+    if (xb && xb.pull_request != null) {
+      const p = byNum.get(String(xb.number))
+      const qb = (p && typeof p === 'object' ? p : null) as Record<string, unknown> | null;
+      if (qb && typeof qb.merged_at === 'string' && typeof xb.merged_at !== 'string') xb.merged_at = qb.merged_at
     }
   }
   return issueRaws
 }
 
 // 单票富化：拉取请求条目补合并时间与评审明细（列表页不拉，单票页才拉真值；失败保持空值）。
-export async function enrichSinglePR(jr, parsed, ctx) {
+export async function enrichSinglePR(jr: unknown, parsed: ParsedRepo, ctx: OpContext): Promise<unknown> {
+  // 为什么转成键值袋再读写：单票原始行是 GitHub 给的形状，本函数只补 merged_at/reviews 两格；
+  // 是对象时袋与原值是同一份引用，读写与原来一字不差（改的还是原来那份行），返回的也是原来那个引用。
+  const jb = (jr && typeof jr === 'object' ? jr : null) as Record<string, unknown> | null;
   try {
     const c = ghClient(ctx)
-    if (jr && typeof jr.merged_at !== 'string') {
+    if (jb && typeof jb.merged_at !== 'string') {
       try {
-        const pr = await c.execGh(['api', 'repos/' + parsed.owner + '/' + parsed.name + '/pulls/' + jr.number], { cwd: ctx && ctx.cwd })
+        const pr = await c.execGh(['api', 'repos/' + parsed.owner + '/' + parsed.name + '/pulls/' + (jb.number as unknown)], { cwd: ctx && ctx.cwd })
         if (pr.ok) {
-          const pj = JSON.parse(pr.data.stdout || 'null')
-          if (pj && typeof pj.merged_at === 'string') jr.merged_at = pj.merged_at
+          const pj: unknown = JSON.parse(pr.data.stdout || 'null')
+          const pjb = (pj && typeof pj === 'object' ? pj : null) as Record<string, unknown> | null;
+          if (pjb && typeof pjb.merged_at === 'string') jb.merged_at = pjb.merged_at
         }
       } catch {}
     }
-    if (jr && !Array.isArray(jr.reviews)) {
+    if (jb && !Array.isArray(jb.reviews)) {
       try {
-        const rv = await c.execGh(['api', 'repos/' + parsed.owner + '/' + parsed.name + '/pulls/' + jr.number + '/reviews?per_page=100'], { cwd: ctx && ctx.cwd })
+        const rv = await c.execGh(['api', 'repos/' + parsed.owner + '/' + parsed.name + '/pulls/' + (jb.number as unknown) + '/reviews?per_page=100'], { cwd: ctx && ctx.cwd })
         if (rv.ok) {
-          const arr = JSON.parse(rv.data.stdout || 'null')
-          if (Array.isArray(arr)) jr.reviews = arr
+          const arr: unknown = JSON.parse(rv.data.stdout || 'null')
+          if (Array.isArray(arr)) jb.reviews = arr
         }
       } catch {}
     }

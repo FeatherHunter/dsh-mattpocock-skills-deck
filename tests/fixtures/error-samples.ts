@@ -209,7 +209,7 @@ const ERROR_SAMPLES = [
     expectLayer: 'phrase',
     expectVia: 'extension',
     via: 'gitlab',
-    traceFile: 'src/tracker/rooms/gitlab/errors.js',
+    traceFile: 'src/tracker/rooms/gitlab/errors.ts',
     trace: 'glab: host not found for gitlab.example.com; run glab auth login',
   },
   {
@@ -221,7 +221,7 @@ const ERROR_SAMPLES = [
     expectLayer: 'phrase',
     expectVia: 'extension',
     via: 'gitlab',
-    traceFile: 'src/tracker/rooms/gitlab/errors.js',
+    traceFile: 'src/tracker/rooms/gitlab/errors.ts',
     trace: 'no token found for gitlab.com',
   },
   {

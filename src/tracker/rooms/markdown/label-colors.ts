@@ -24,6 +24,8 @@
 //   无声抹掉（保存成功、颜色却没变，最难查）；配色文件又是用户会手改、会提交进版本库的文件，
 //   写一半崩掉就会留下半截内容；读不出来（被占用、写坏了）时若照常覆盖，用户手写的内容就被推平了。
 import { ERROR_KIND } from '../../contract/vocabulary.js'
+import type { OpContext, SandboxFs } from '../../contract/contexts.js'
+import type { RepositoryRef } from '../../contract/entities.js'
 import { decodeLabelsText, encodeLabelsTable } from './label-colors-codec.js'
 import { readTextFile } from './read.js'
 import { writeTextFile, renameFile } from './write.js'
@@ -39,7 +41,30 @@ export const LABEL_COLORS_LEGACY_REL_PATH = 'docs/agents/label-colors.json'
 
 // ── 路径与文件服务 ─────────────────────────────────────────────────────────────
 
-function getFs(ctx) {
+// 写路上要把宿主算好的本次会话政策往下传（publishAtomically 里读 ctx.sandboxPolicy）：
+// OpContext 本没有这个键，用交叉类型收（键可选，不传也不影响）；只改类型视野，不改运行时。
+type CtxWithPolicy = OpContext & { sandboxPolicy?: unknown }
+
+// 读配色文件的结果：成功与失败用 ok 的字面量区分（不用 boolean），调用方 `if (!read.ok)`
+// 窄化之后才能读 error 或 colors/raw——宽成 boolean 两边都读不到（ops 曾因此多处报错）。
+export interface LabelColorsReadOk {
+  ok: true
+  colors: Record<string, string>
+  raw: Record<string, unknown>
+  present: boolean
+  from: string
+  readonly: boolean
+}
+export interface LabelColorsReadFail {
+  ok: false
+  error: { kind: string; message: string; raw: string }
+}
+export type LabelColorsRead = LabelColorsReadOk | LabelColorsReadFail
+
+// 运行配色文件时没有文件服务：声明一个最小的 process 视图（只读 pid 拼临时文件名）。
+declare const process: { pid?: number } | undefined
+
+function getFs(ctx: OpContext): SandboxFs | null {
   if (ctx && ctx.platform && ctx.platform.fs) return ctx.platform.fs
   if (ctx && ctx.fs) return ctx.fs
   if (ctx && typeof ctx.get === 'function') { try { const f = ctx.get('fs'); if (f) return f } catch (e) {} }
@@ -50,17 +75,17 @@ function getFs(ctx) {
 // 算文件路径与算队列钥匙必须得到同一个答案，不各写一份。
 
 /** 配色文件的完整路径。 */
-export function labelColorsPath(ctx, repo) {
+export function labelColorsPath(ctx: CtxWithPolicy, repo?: RepositoryRef | null): string {
   return getPlat(ctx).join(workspaceDirOf(ctx, repo), LABEL_COLORS_REL_PATH)
 }
 
 /** 老配色文件的完整路径（只做兼容读与迁移删除）。 */
-export function legacyLabelColorsPath(ctx, repo) {
+export function legacyLabelColorsPath(ctx: CtxWithPolicy, repo?: RepositoryRef | null): string {
   return getPlat(ctx).join(workspaceDirOf(ctx, repo), LABEL_COLORS_LEGACY_REL_PATH)
 }
 
 /** 工作区键散列（日志只记散列，不记路径原文）。 */
-function hash8(s) {
+function hash8(s: unknown): string {
   try {
     const t = String(s || '')
     let h = 5381
@@ -70,13 +95,13 @@ function hash8(s) {
 }
 
 /** 写入记常驻：用户点一次保存才发生一次，低频、轻量，始终落盘。 */
-function logWrite(ctx, fields) {
+function logWrite(ctx: CtxWithPolicy, fields: Record<string, unknown>): void {
   try { if (ctx && typeof ctx.logEvent === 'function') ctx.logEvent('info', 'labelColors.write', fields) } catch (e) {}
 }
 
 /** 读取记按需：界面渲染与列标签都会读它，属高频路径，只在调试开关打开时才记。
  *  按纪律必须在同一行先判开关：关着的时候连字段对象都不组装（build 函数根本不会被调用）。 */
-function logRead(ctx, build) {
+function logRead(ctx: CtxWithPolicy, build: () => Record<string, unknown>): void {
   try {
     if (!ctx || typeof ctx.logEvent !== 'function') return
     if (typeof ctx.isEnabled === 'function' && ctx.isEnabled('debug') === true) ctx.logEvent('debug', 'labelColors.read', build())
@@ -89,7 +114,7 @@ function logRead(ctx, build) {
  *  按契约归解析档（parse），文案要说清是读不出来、以及插件不会覆盖用户自己写的内容。
  *  句子骨架（四档共用）：先说读不出来（+原因），再说这个文件不会被覆盖，最后说用户要做什么；
  *  detail 是「这次到底读到了什么」的一句大白话，并进正文末尾的括号里，不单独成句。 */
-function readFailure(why, action, detail, raw) {
+function readFailure(why: string, action: string, detail: string, raw: unknown): LabelColorsReadFail {
   // 第四段是原文：读这个文件时抛上来的那个错误本身（或译码失败时的那份文件内容）。
   // 提示语里只放一句「错误原文 …」的摘要，完整原文放在 raw 里，人展开就能看到全貌。
   return failAs(ERROR_KIND.PARSE,
@@ -100,7 +125,7 @@ function readFailure(why, action, detail, raw) {
 
 /** 写失败的统一出口：档位与话术来自 describeWriteFailure，原文是写过程抛上来的那个错误。
  *  提示语里照旧不许出现临时文件名（用户会照着去找一个并不存在的文件），原文只放在 raw 里。 */
-function writeFailure(e) {
+function writeFailure(e: unknown): LabelColorsReadFail {
   const d = describeWriteFailure(e, LABEL_COLORS_REL_PATH)
   return failAs(d.kind, d.message, e)
 }
@@ -112,10 +137,12 @@ function writeFailure(e) {
  *  两种环境各有一种「不在」的写法：DSH 文件服务给 `FS_NOT_FOUND`（消息里是 `not found`），
  *  Node 那套文件系统给 `ENOENT`。
  *  这一条判据对「文件」与「目录」是同一套：列标签时 `issues/` 目录不存在也按「这个地图还没有票」处理。 */
-export function isMissingFile(e) {
-  const code = String((e && (e.code || (e.cause && e.cause.code))) || '')
+export function isMissingFile(e: unknown): boolean {
+  // e 的形状不一（各文件服务抛的不一样）：经 Record 视图读码值；`e &&` 短路与原式逐字相同。
+  const er = e as Record<string, unknown>
+  const code = String((e && (er.code || (er.cause && (er.cause as Record<string, unknown>).code))) || '')
   if (code === 'ENOENT' || code === 'FS_NOT_FOUND') return true
-  const msg = String((e && e.message) || e || '')
+  const msg = String((e && er.message) || e || '')
   return /ENOENT|FS_NOT_FOUND/i.test(msg) || /cannot read .*: not found/i.test(msg)
 }
 
@@ -132,7 +159,7 @@ export function isMissingFile(e) {
  *  文本到形状的翻译在 label-colors-codec.js（调核），这里只管按路径拿文本、分新老、记日志。
  *  没有文件服务时按「文件确确实实不在」处理：这与本房间既有的读辅助件（readDir 返回空表、exists 返回 false）
  *  是同一套约定，契约测试也是在没有文件服务的上下文里调这个后端的。 */
-export async function readLabelColors(ctx, repo) {
+export async function readLabelColors(ctx: CtxWithPolicy, repo?: RepositoryRef | null): Promise<LabelColorsRead> {
   const path = labelColorsPath(ctx, repo)
   const legacyPath = legacyLabelColorsPath(ctx, repo)
   const where = () => hash8(workspaceWriteKey(ctx, repo))
@@ -141,8 +168,8 @@ export async function readLabelColors(ctx, repo) {
     return { ok: true, colors: {}, raw: {}, present: false, from: 'none', readonly: false }
   }
   // 先读新文件：只有「确实不在」才去读老文件；新文件在但读动作出错，不拿老文件顶（会掩盖这次的错）。
-  let yamlText = null
-  let yamlError = null
+  let yamlText: string | null = null
+  let yamlError: unknown = null
   try { yamlText = await readTextFile(ctx, path) } catch (e) {
     if (isMissingFile(e)) yamlText = null
     else yamlError = e
@@ -154,11 +181,11 @@ export async function readLabelColors(ctx, repo) {
     return readFailure(
       '插件按这个位置去读，读这个文件这一步出错了（不是文件里的内容不合法）。可能是当前账号读不到它，也可能是它正被别的程序占用；插件分不出是哪一种',
       '请检查这个文件当前账号能不能读取、有没有别的程序正打开着它，然后重新保存。',
-      '错误原文 ' + String((yamlError && yamlError.message) || yamlError).slice(0, 120), yamlError)
+      '错误原文 ' + String((yamlError && (yamlError as Record<string, unknown>).message) || yamlError).slice(0, 120), yamlError)
   }
   if (typeof yamlText === 'string') return finishLabelsRead(ctx, where, yamlText, 'yaml')
   // 新文件确实不在：读老文件（兼容；读到就由放置与保存迁走）。
-  let jsonText = null
+  let jsonText: string | null = null
   try { jsonText = await readTextFile(ctx, legacyPath) } catch (e) {
     if (isMissingFile(e)) {
       logRead(ctx, () => ({ cwdHash: where(), present: false, count: 0, ok: true }))
@@ -168,13 +195,13 @@ export async function readLabelColors(ctx, repo) {
     return readFailure(
       '插件按这个位置去读，读这个文件这一步出错了（不是文件里的内容不合法）。可能是当前账号读不到它，也可能是它正被别的程序占用；插件分不出是哪一种',
       '请检查这个文件当前账号能不能读取、有没有别的程序正打开着它，然后重新保存。',
-      '错误原文 ' + String((e && e.message) || e).slice(0, 120), e)
+      '错误原文 ' + String((e && (e as Record<string, unknown>).message) || e).slice(0, 120), e)
   }
   return finishLabelsRead(ctx, where, jsonText, 'json')
 }
 
 /** 文本读到之后：翻译、记日志、装成房间形状。from 告诉调用方这次读的是哪个文件。 */
-function finishLabelsRead(ctx, where, text, from) {
+function finishLabelsRead(ctx: CtxWithPolicy, where: () => string, text: string, from: string): LabelColorsRead {
   const decoded = decodeLabelsText(text)
   if (!decoded.ok) {
     logRead(ctx, () => ({ cwdHash: where(), present: true, count: 0, ok: false, reason: decoded.reason }))
@@ -189,7 +216,7 @@ function finishLabelsRead(ctx, where, text, from) {
 
 /** 默认文件内容（YAML 文本）：内置默认的那些标签，颜色按内置表预填。
  *  形状与用户手写的形状一致（键是标签名、值是颜色），方便人直接看懂、直接改。 */
-export function defaultLabelColorsText() {
+export function defaultLabelColorsText(): string {
   const made = encodeLabelsTable(defaultLabelColors())
   return made.ok ? made.text : ''
 }
@@ -205,7 +232,7 @@ export function defaultLabelColorsText() {
  *  没有改名原语（读它的实现可以看到：它自己的 writeText 就是「同目录暂存文件 + 改名」发布的，
  *  见 dsh-fs-local 的 writeFileAtomic），所以真实宿主里走的是这条退路——一次调用写完整份内容，
  *  同样是整份替换、不会留下半截文件。两条路都写完整份内容，都不做「边算边往目标上写」。 */
-async function publishAtomically(ctx, targetPath, text) {
+async function publishAtomically(ctx: CtxWithPolicy, targetPath: string, text: string): Promise<string> {
   const fs = getFs(ctx)
   if (!fs) throw Object.assign(new Error('fs unavailable'), { kind: ERROR_KIND.ENV })
   // 本次调用的政策由宿主按当前会话算好放在上下文里（见 src/host/workspaceCwd.js 的 resolveSandboxPolicy）。
@@ -238,7 +265,7 @@ import { failAs, rawJson } from './error-fail.js'
  *  照默认内容写一遍就等于把用户手写的东西整份抹掉。
  *  只有老文件时顺手迁进新文件（写法与说明都保留），写成功后删老文件——下次读到的就是新文件。
  *  返回 {ok:true, placed, reason} 或 {ok:false, error}。placed=true 表示这次真的新建或迁移了一份。 */
-export async function ensureLabelColors(ctx, repo) {
+export async function ensureLabelColors(ctx: CtxWithPolicy, repo?: RepositoryRef | null): Promise<{ ok: true; placed: boolean; reason: string; from: string } | LabelColorsReadOk | LabelColorsReadFail> {
   return await withWorkspaceWriter(ctx, repo, async () => {
     const read = await readLabelColors(ctx, repo)
     if (!read.ok) {
@@ -273,7 +300,7 @@ export async function ensureLabelColors(ctx, repo) {
 }
 
 /** 删老文件（迁移成功后顺手做）：删不掉返回 false，调用方记一条日志，主流程不受影响。 */
-async function removeLegacyLabelsFile(ctx, repo) {
+async function removeLegacyLabelsFile(ctx: CtxWithPolicy, repo?: RepositoryRef | null): Promise<boolean> {
   try {
     const fs = getFs(ctx)
     if (!fs || typeof fs.rm !== 'function') return false
@@ -285,7 +312,7 @@ async function removeLegacyLabelsFile(ctx, repo) {
 }
 
 /** 默认文件内容里那份「标签 → 颜色」对象（表与颜色都来自 label-colors-palette.js 注入的那份表）。 */
-function defaultLabelColors() {
+function defaultLabelColors(): Record<string, string> {
   return builtinColorObject()
 }
 
@@ -294,10 +321,11 @@ function defaultLabelColors() {
  *  没落盘时，用户会看到「保存成功、颜色却没变」而没有任何线索。回读不一致就如实报错，不静默当成功。
  *  写成功后顺手删老文件（删不掉只记一条日志，主流程不受影响）。
  *  返回 'rename' 或 'write-text'（走了哪条发布路径，给日志与门禁用）；失败抛错，由调用方分档。 */
-export async function publishLabelColors(ctx, repo, next, reason) {
+export async function publishLabelColors(ctx: CtxWithPolicy, repo: RepositoryRef | null | undefined, next: Record<string, unknown>, reason: string): Promise<string> {
   const made = encodeLabelsTable(next)
   if (!made.ok) {
-    const err = new Error(made.message)
+    // 拼装失败：挂一个标记让下面的 catch 认出来（已记过日志，不记第二次）；cast 只为挂标记，行为不变。
+    const err = new Error(made.message) as Error & { encodeFailed?: boolean }
     err.encodeFailed = true
     logWrite(ctx, { cwdHash: hash8(workspaceWriteKey(ctx, repo)), count: 0, ok: false, reason: 'write-fail' })
     throw err
@@ -310,7 +338,8 @@ export async function publishLabelColors(ctx, repo, next, reason) {
     via = await publishAtomically(ctx, labelColorsPath(ctx, repo), text)
     const back = await readTextFile(ctx, labelColorsPath(ctx, repo))
     if (String(back) !== text) {
-      const err = new Error('label-colors read-back mismatch')
+      // 回读不一致：挂标记让 describeWriteFailure 走专属档位（见 label-colors-errors.js）；cast 只为挂标记。
+      const err = new Error('label-colors read-back mismatch') as Error & { readBackMismatch?: boolean }
       err.readBackMismatch = true
       throw err
     }
@@ -319,7 +348,7 @@ export async function publishLabelColors(ctx, repo, next, reason) {
     }
   } catch (e) {
     // 拼装失败那支上面已经记过日志，直接透出去，不记第二次。
-    if (e && e.encodeFailed === true) throw e
+    if (e && (e as { encodeFailed?: unknown }).encodeFailed === true) throw e
     logWrite(ctx, { cwdHash: hash8(key), count: count, ok: false, reason: 'write-fail' })
     throw e
   }
@@ -330,7 +359,7 @@ export async function publishLabelColors(ctx, repo, next, reason) {
 
 /** 同一个工作区的读—改—写排队执行（单写者队列）。导出给契约操作那两条用。
  *  钥匙按工作区归一（见 write-queue.js 的 workspaceWriteKey）：同一个工作区的不同写法必须排同一条队。 */
-export function withLabelColorsWriter(ctx, repo, work) {
+export function withLabelColorsWriter<T>(ctx: CtxWithPolicy, repo: RepositoryRef | null | undefined, work: () => Promise<T>): Promise<T> {
   return withWorkspaceWriter(ctx, repo, work)
 }
 

@@ -25,15 +25,46 @@
 export const READ_BUCKET_MAX = 64
 export const WRITE_BUCKET_MAX = 16
 
+// 准入桶：读与写两只桶，配额与统计都按桶隔离，跨桶不抢名额。
+type GhBucket = 'read' | 'write'
+// 排队等待者的形状：创建时放行与取消函数先空着，随后立即补上真正的函数。
+interface GhWaiter {
+  settled: boolean
+  signal: AbortSignal | null
+  resolve: (() => void) | null
+  reject: ((e: unknown) => void) | null
+  bucket: GhBucket
+}
+// 准入选项与拿名额参数的形状：调用方没给就用缺省桶与缺省配额。
+interface GhAdmissionOpts {
+  readMax?: number
+  writeMax?: number
+}
+interface GhAcquireArgs {
+  bucket?: string
+  signal?: AbortSignal | null
+}
+interface GhLaneOpts {
+  bucket?: string
+  signal?: AbortSignal | null | undefined
+}
+// 取消错误的形状：标准 Error 上加两个标记，调用方靠它们认出取消而非失败。
+type AdmissionCancelledError = Error & { code: string; admissionCancelled: boolean }
+
 /** 取消错误的标记：调用方据此返回“取消”而非“失败”。 */
 export const ADMISSION_CANCELLED = 'admission-cancelled'
 
-export function isAdmissionCancelled(err) {
-  return !!(err && (err.code === ADMISSION_CANCELLED || err.admissionCancelled === true))
+/**
+ * 是不是排队期间的取消（取消按取消返回，不记失败）。
+ * 类型说明：错误值可能是任意形状，断言只做类型读取，运行时仍是原键读取。
+ */
+export function isAdmissionCancelled(err: unknown): boolean {
+  return !!(err && ((err as { code?: unknown }).code === ADMISSION_CANCELLED || (err as { admissionCancelled?: unknown }).admissionCancelled === true))
 }
 
-function cancelledError() {
-  const e = new Error('gh admission: cancelled while queued')
+function cancelledError(): AdmissionCancelledError {
+  // 类型说明：标准 Error 上加两个取消标记，断言不改变运行时对象。
+  const e = new Error('gh admission: cancelled while queued') as AdmissionCancelledError
   e.code = ADMISSION_CANCELLED
   e.admissionCancelled = true
   return e
@@ -43,45 +74,50 @@ function cancelledError() {
  * 建一道准入。opts: { readMax, writeMax }。
  * 用法：const release = await lane.acquire({ bucket: 'read'|'write', signal }); try { … } finally { release() }。
  * 排队期间 signal 中止 → acquire 抛取消错误（不占名额、不记失败，调用方按取消返回）。
+ * 类型说明：host 域文件，只做类型标注，不动逻辑不动结构；选项与参数缺省都按读桶处理。
  */
-export function createGhAdmission(opts) {
-  const o = opts || {}
-  const maxOf = {
+export function createGhAdmission(opts: GhAdmissionOpts | null | undefined) {
+  const o: GhAdmissionOpts = opts || {}
+  const maxOf: Record<GhBucket, number> = {
     read: (typeof o.readMax === 'number' && o.readMax > 0) ? Math.floor(o.readMax) : READ_BUCKET_MAX,
     write: (typeof o.writeMax === 'number' && o.writeMax > 0) ? Math.floor(o.writeMax) : WRITE_BUCKET_MAX,
   }
-  const running = { read: 0, write: 0 }
-  const queues = { read: [], write: [] }
+  const running: Record<GhBucket, number> = { read: 0, write: 0 }
+  const queues: Record<GhBucket, GhWaiter[]> = { read: [], write: [] }
   const stats = {
     read: { peak: 0, waited: 0, done: 0 },
     write: { peak: 0, waited: 0, done: 0 },
     cancelled: 0,
   }
 
-  function normBucket(b) { return b === 'write' ? 'write' : 'read' }
+  // 桶名归一：不是写桶一律按读桶算，调用方传错也不炸。
+  function normBucket(b: unknown): GhBucket { return b === 'write' ? 'write' : 'read' }
 
-  function pump(bucket) {
+  // 泵：有空名额就放行队首；已 settle 或已中止的只记取消不占名额。
+  function pump(bucket: GhBucket): void {
     const q = queues[bucket]
     while (q.length > 0 && running[bucket] < maxOf[bucket]) {
-      const waiter = q.shift()
+      // 类型说明：循环守了长度，断言队首一定在，运行时还是原来那个元素。
+      const waiter = q.shift() as GhWaiter
       if (waiter.settled) continue
       if (waiter.signal && waiter.signal.aborted === true) {
         waiter.settled = true
         stats.cancelled += 1
-        waiter.reject(cancelledError())
+        waiter.reject!(cancelledError())
         continue
       }
       running[bucket] += 1
       if (running[bucket] > stats[bucket].peak) stats[bucket].peak = running[bucket]
       waiter.settled = true
-      waiter.resolve()
+      waiter.resolve!()
     }
   }
 
-  function acquire(arg) {
-    const a = arg || {}
-    const bucket = normBucket(a.bucket)
-    const signal = a.signal || null
+  // 拿名额：有空位直接给，没空位排队；排队期间取消按取消返回。
+  function acquire(arg: GhAcquireArgs | null | undefined): Promise<() => void> {
+    const a: GhAcquireArgs = arg || {}
+    const bucket: GhBucket = normBucket(a.bucket)
+    const signal: AbortSignal | null = a.signal || null
     if (signal && signal.aborted === true) return Promise.reject(cancelledError())
     if (running[bucket] < maxOf[bucket]) {
       running[bucket] += 1
@@ -89,30 +125,33 @@ export function createGhAdmission(opts) {
       return Promise.resolve(releaseOf(bucket))
     }
     stats[bucket].waited += 1
-    return new Promise(function (resolve, reject) {
-      const waiter = { settled: false, signal: signal, resolve: null, reject: null, bucket: bucket }
-      waiter.resolve = function () { resolve(releaseOf(bucket)) }
-      waiter.reject = function (e) { reject(e) }
-      const onAbort = function () {
+    // 类型说明：Promise 泛型只定放行函数的形状，运行时仍是原来那只 Promise。
+    return new Promise<() => void>(function (resolve, reject) {
+      // 类型说明：放行与取消函数先空着，随后立即补上，空只存在这两行之间。
+      const waiter: GhWaiter = { settled: false, signal: signal, resolve: null, reject: null, bucket: bucket }
+      waiter.resolve = function (): void { resolve(releaseOf(bucket)) }
+      waiter.reject = function (e: unknown): void { reject(e) }
+      const onAbort = function (): void {
         if (waiter.settled) return
         waiter.settled = true
         const idx = queues[bucket].indexOf(waiter)
         if (idx >= 0) queues[bucket].splice(idx, 1)
         stats.cancelled += 1
-        waiter.reject(cancelledError())
+        // 类型说明：排到它时取消函数一定已补上，非空断言只过类型检查。
+        waiter.reject!(cancelledError())
         pump(bucket)
       }
       if (signal && typeof signal.addEventListener === 'function') {
         try { signal.addEventListener('abort', onAbort, { once: true }) } catch {}
         const origResolve = waiter.resolve
-        waiter.resolve = function () {
+        waiter.resolve = function (): void {
           try { if (typeof signal.removeEventListener === 'function') signal.removeEventListener('abort', onAbort) } catch {}
-          origResolve()
+          origResolve!()
         }
         const origReject = waiter.reject
-        waiter.reject = function (e) {
+        waiter.reject = function (e: unknown): void {
           try { if (typeof signal.removeEventListener === 'function') signal.removeEventListener('abort', onAbort) } catch {}
-          origReject(e)
+          origReject!(e)
         }
       }
       queues[bucket].push(waiter)
@@ -120,9 +159,10 @@ export function createGhAdmission(opts) {
     })
   }
 
-  function releaseOf(bucket) {
+  // 放名额：幂等，多次放只算一次，成功失败都放。
+  function releaseOf(bucket: GhBucket): () => void {
     let released = false
-    return function release() {
+    return function release(): void {
       if (released) return
       released = true
       running[bucket] = Math.max(0, running[bucket] - 1)
@@ -131,6 +171,7 @@ export function createGhAdmission(opts) {
     }
   }
 
+  /** 快照：只读统计，调用方看排队与峰值用，不参与准入判断。 */
   function snapshot() {
     return {
       readMax: maxOf.read, writeMax: maxOf.write,
@@ -143,33 +184,35 @@ export function createGhAdmission(opts) {
     }
   }
 
-  return { acquire: acquire, snapshot: snapshot, limits: function () { return { readMax: maxOf.read, writeMax: maxOf.write } } }
+  return { acquire: acquire, snapshot: snapshot, limits: function (): { readMax: number; writeMax: number } { return { readMax: maxOf.read, writeMax: maxOf.write } } }
 }
 
-let defaultLane = null
+// 进程内默认的一道准入单例：三条出站路共用同一口径，类型随创建函数走。
+let defaultLane: ReturnType<typeof createGhAdmission> | null = null
 
 /** 进程内默认的一道准入：三个出站路（room client / detectionExec / runGh）共用它才叫“同一口径”。 */
-export function getGhLane() {
+export function getGhLane(): ReturnType<typeof createGhAdmission> {
   if (!defaultLane) defaultLane = createGhAdmission({ readMax: READ_BUCKET_MAX, writeMax: WRITE_BUCKET_MAX })
   return defaultLane
 }
 
 /** 测试与特殊场景自建一道（不污染默认单例）。 */
-export function resetGhLaneForTest() { defaultLane = null }
+export function resetGhLaneForTest(): void { defaultLane = null }
 
 /**
  * 排队拿名额再跑（#965 共用包装器，给行数到顶的文件用，免得每个调用方各写一遍拿与放）。
  * 满了等（等不是失败）；排队被取消调 onQueuedCancel；跑完放名额（成功失败都放，抛错也放）。
  * 用法：return withGhLane({ bucket: 'read', signal: opts.signal }, async function () { …真起进程… },
  *   function () { return { kind: 'cancelled', cancelled: true } })。
+ * 类型说明：host 域文件，只做类型标注；取消回调允许缺省（缺省时取消仍会抛，与原来一致）。
  */
-export async function withGhLane(laneOpts, run, onQueuedCancel) {
-  const o = laneOpts || {}
-  let release = null
+export async function withGhLane(laneOpts: GhLaneOpts | null | undefined, run: () => unknown, onQueuedCancel?: (e: unknown) => unknown): Promise<unknown> {
+  const o: GhLaneOpts = laneOpts || {}
+  let release: (() => void) | null = null
   try {
     release = await getGhLane().acquire({ bucket: o.bucket || 'read', signal: o.signal || undefined })
   } catch (e) {
-    return onQueuedCancel(e)
+    return onQueuedCancel!(e)
   }
   try {
     return await run()

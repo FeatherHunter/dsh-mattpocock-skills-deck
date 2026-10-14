@@ -21,6 +21,9 @@
  */
 
 import { ERROR_KIND } from '../../contract/vocabulary.js'
+import type { OpContext } from '../../contract/contexts.js';
+import type { Issue, RepositoryRef } from '../../contract/entities.js';
+import type { OpResult, SubIssueList } from '../../contract/results.js';
 import { fail } from '../../preflight.js'
 import { ghClient } from './client.js'
 import { normalizeIssue } from './normalize.js'
@@ -41,7 +44,7 @@ const MAX_SUB_ISSUES = 1000
  *  - missing：没被上限卡住、却与 totalCount 对不上的差额（0 = 对上了）；
  *  - dropped：归一失败的条数（归一失败会丢行，丢了几条如实记下来，不混进 fetched）。
  */
-export async function listSubIssues(repo, mapKey, opts, ctx) {
+export async function listSubIssues(repo: RepositoryRef, mapKey: unknown, opts: unknown, ctx: OpContext): Promise<OpResult<SubIssueList>> {
   try {
     const parsed = parseRepo(repo)
     // 形状不对的入参本身就是这一处的原文（这之前还没跑过任何外部命令）；它取出来可能是空串，那是如实交代。
@@ -49,10 +52,11 @@ export async function listSubIssues(repo, mapKey, opts, ctx) {
     const num = Number(String(mapKey == null ? '' : mapKey).trim())
     if (!Number.isFinite(num)) return fail(ERROR_KIND.PARSE, `子票取数：GitHub 的地图编号必须是数字：${mapKey}`, mapKey)
     const c = ghClient(ctx)
-    const items = []
-    let total = null
+    const items: Issue[] = []
+    // 为什么显式标：空值起手再在分支里赋值，编译器会判成隐式 any；标成契约的形状才过得了严格模式，运行时还是原来那几个值。
+    let total: number | null = null
     let dropped = 0
-    let after = null
+    let after: unknown = null
     let capped = false
     // 逐页取到底：每页都问一次 hasNextPage，不用「上一页满不满」去猜（满页也可能是最后一页）。
     for (;;) {
@@ -66,10 +70,14 @@ export async function listSubIssues(repo, mapKey, opts, ctx) {
       if (!r.ok) r = await c.execGh(args, { cwd: ctx && ctx.cwd })
       // 这一支是「执行器连失败形状都没交回」的兜底，没有原文可交（空串是如实交代，不是漏填）。
       if (!r.ok) return { ok: false, error: (r && r.error) || { kind: ERROR_KIND.NETWORK, message: '子票取数：这一页没取回来', raw: '' } }
-      let j
+      // 为什么把回包定成这个形状：只读到本函数实际用的四层（errors/data.repository.issue.subIssues），
+      // 更深的节点按 unknown 读；定宽了以后加字段要改两处，定窄了读不到，当前四层正好够用。
+      let j: { errors?: unknown; data?: { repository?: { issue?: { subIssues?: { nodes?: unknown[]; totalCount?: unknown; pageInfo?: unknown } | null } | null } | null } | null }
       try { j = JSON.parse(r.data.stdout || '') } catch (e) {
+        // 为什么转一下再读：catch 出来是 unknown，直接读 message 会报缺成员；转成最小形状后读法与原来一致，运行时不变。
+        const eb = e as { message?: unknown } | null;
         // 没能解析成 JSON 的那份回包就是这里的原文（交的是这次 gh 的完整产出，不只 stdout 一截）。
-        return fail(ERROR_KIND.PARSE, `子票取数：回包不是合法 JSON：${String((e && e.message) || e).slice(0, 200)}`, r.data)
+        return fail(ERROR_KIND.PARSE, `子票取数：回包不是合法 JSON：${String((eb && eb.message) || e).slice(0, 200)}`, r.data)
       }
       if (j.errors) {
         const msg = `子票取数：${JSON.stringify(j.errors).slice(0, 800)}`
@@ -91,7 +99,8 @@ export async function listSubIssues(repo, mapKey, opts, ctx) {
       }
       // 硬上限：到顶就停，并把「被截断过」这个事实带回去（界面据此明说只加载了前 1000 张）。
       if (items.length >= MAX_SUB_ISSUES) { capped = true; break }
-      const pageInfo = conn.pageInfo
+      // 为什么断言一下：游标段只读 hasNextPage/endCursor 两格，断言只为过编译，表达式与原来一字不差，运行时不变。
+      const pageInfo = conn.pageInfo as { hasNextPage?: unknown; endCursor?: unknown } | null | undefined;
       if (!pageInfo || !pageInfo.hasNextPage) break
       after = pageInfo.endCursor
       if (!after) break // 后端说要翻下一页却没给游标：拿不到游标就停，别死循环
@@ -102,7 +111,9 @@ export async function listSubIssues(repo, mapKey, opts, ctx) {
     return { ok: true, data: { items, total: total === null ? fetched : total, fetched, capped, missing, dropped } }
   } catch (e) {
     const verdict = ghVerdictOf(e, ctx)
-    return fail(verdict.kind, ghFailureMessage(verdict, String((e && e.message) || e).slice(0, 800)), e)
+    // 为什么转一下再读：同上，catch 的 unknown 不能直接读 message，转后表达式与原来一致。
+    const eb = e as { message?: unknown } | null;
+    return fail(verdict.kind, ghFailureMessage(verdict, String((eb && eb.message) || e).slice(0, 800)), e)
   }
 }
 

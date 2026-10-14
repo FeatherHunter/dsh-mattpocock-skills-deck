@@ -7,11 +7,20 @@
  */
 
 import { ERROR_KIND } from '../../contract/vocabulary.js'
+import type { OpContext } from '../../contract/contexts.js';
+import type { Comment, RepositoryRef } from '../../contract/entities.js';
+import type { OpResult, TrackerError } from '../../contract/results.js';
 import { fail } from '../../preflight.js'
 import { ghClient } from './client.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'
 
-function parseRepo(repo) {
+/** 仓库坐标：拥有者与仓库名，refId 形不对就回 null 而不是抛。 */
+interface ParsedRepo {
+  owner: string;
+  name: string;
+}
+
+function parseRepo(repo: RepositoryRef | null | undefined): ParsedRepo | null {
   if (!repo || typeof repo.refId !== 'string' || !repo.refId) return null
   const s = repo.refId.trim()
   const idx = s.indexOf('/')
@@ -19,14 +28,14 @@ function parseRepo(repo) {
   return { owner: s.slice(0, idx), name: s.slice(idx + 1) }
 }
 
-function repoId(repo) {
+function repoId(repo: RepositoryRef | null | undefined): string {
   if (!repo) return ''
   if (typeof repo.refId === 'string' && repo.refId) return repo.refId
   if (typeof repo.name === 'string' && repo.name) return repo.name
   return ''
 }
 
-export async function addComment(repo, key, body, ctx) {
+export async function addComment(repo: RepositoryRef, key: string, body: string, ctx: OpContext): Promise<OpResult<Comment>> {
   try {
     const parsed = parseRepo(repo)
     // 形状不对的入参本身就是这一处的原文（这之前还没跑过任何外部命令）；它取出来可能是空串，那是如实交代。
@@ -55,7 +64,8 @@ export async function addComment(repo, key, body, ctx) {
       raw = { body, author: { login: '' }, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
     }
     const authorLogin = (raw && raw.author && raw.author.login) || (raw && raw.user && raw.user.login) || ''
-    const comment = {
+    // 为什么先定死契约再补可选键：字面量起手类型里没有 editedAt，后面再补会报缺成员；先标成评论形状，可选键自然有位置。
+    const comment: Comment = {
       id: raw && raw.id != null ? String(raw.id) : undefined,
       author: { login: String(authorLogin) },
       authorAssociation: (raw && (raw.authorAssociation || raw.author_association)) || '',
@@ -69,12 +79,14 @@ export async function addComment(repo, key, body, ctx) {
     // 判档只走本房唯一的出口（`ghVerdictOf`）：档位由规则表判、话术按票面实现决定第 11 条挑；
     // 第三段把出错的那个值原样交出去当原文（合并、遮蔽、截断由 `fail` 统一做）。
     const verdict = ghVerdictOf(e, ctx)
-    return fail(verdict.kind, ghFailureMessage(verdict, String((e && e.message) || e).slice(0, 800)), e)
+    // 为什么转一下再读：catch 出来是 unknown，直接读 message 会报缺成员；转成最小形状后读法与原来一致，运行时不变。
+    const eb = e as { message?: unknown } | null;
+    return fail(verdict.kind, ghFailureMessage(verdict, String((eb && eb.message) || e).slice(0, 800)), e)
   }
 }
 
 // 便捷：listComments 非 op（仅 get 的 comments 分页用，宿主不直接调用）
-export async function listComments(repo, key, ctx) {
+export async function listComments(repo: RepositoryRef, key: string, ctx: OpContext): Promise<{ ok: false; error: TrackerError }> {
   // 这是一条「请换用 get」的桩，还没有跑过外部命令，手里可当原文的只有调用时给的票号。
   return fail(ERROR_KIND.UNSUPPORTED, 'listComments: use get(repo,key,{comments})', key)
 }

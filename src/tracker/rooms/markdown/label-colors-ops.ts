@@ -4,17 +4,32 @@
 // 这里只管契约那一层：入参是不是一批改动、每一条改动记成功还是失败、拿不全时整条操作怎么失败。
 // 文件本身的读、写、原子发布、串行化在 label-colors.js 里。
 import { ERROR_KIND } from '../../contract/vocabulary.js'
+import type { OpContext } from '../../contract/contexts.js'
+import type { RepositoryRef, Label, LabelColor, LabelColorChange } from '../../contract/entities.js'
+import type { ErrorKind } from '../../contract/identity.js'
+import type { LabelColorBatchResult, TrackerError } from '../../contract/results.js'
+import type { SandboxFs } from '../../contract/contexts.js'
 import { normalizeColor } from '../../../shared/label-color/colors.js'
 import { readTextFile, readDir } from './read.js'
 import { getPlat, listEfforts } from './issues-locate.js'
 import { parseMd } from './parse.js'
 import { LABEL_COLORS_REL_PATH, readLabelColors, ensureLabelColors, publishLabelColors, withLabelColorsWriter, isMissingFile } from './label-colors.js'
+import type { LabelColorsRead } from './label-colors.js'
 import { describeWriteFailure } from './label-colors-errors.js'
 import { builtinLabelColors } from './label-colors-palette.js'
 import { failAs, rawJson } from './error-fail.js'
 
+// 扫票面的仓库引用：path 是本地后端的自有约定（契约的 RepositoryRef 不带它），
+// 调用方按契约只给 RepositoryRef；有 path 才多扫那个目录，没有就只扫 efforts（见下）。
+
+// 本文件交出去的失败形状：与 failAs 落的三段式一致（成功侧各函数自带，互不拼单）。
+interface OpsFailure {
+  ok: false
+  error: { kind: string; message: string; raw: string }
+}
+
 /** 本文件要用到的文件服务（与 label-colors.js 同一套取法）。 */
-function getFs(ctx) {
+function getFs(ctx: OpContext): SandboxFs | null {
   if (ctx && ctx.platform && ctx.platform.fs) return ctx.platform.fs
   if (ctx && ctx.fs) return ctx.fs
   if (ctx && typeof ctx.get === 'function') { try { const f = ctx.get('fs'); if (f) return f } catch (e) {} }
@@ -27,7 +42,7 @@ function getFs(ctx) {
 
 /** 改色入参的形状把关（契约：不是一批改动就整条失败，落解析档）。
  *  颜色写错不算入参坏掉：那一条落解析档，其余照改。 */
-function shapeProblem(changes) {
+function shapeProblem(changes: unknown): string {
   if (!Array.isArray(changes)) return '修改标签颜色需要一批「标签 → 新颜色」的改动，本次收到的内容不是这种格式'
   const seen = new Set()
   for (const c of changes) {
@@ -45,16 +60,17 @@ function shapeProblem(changes) {
 /** 扫票面：把这个工作区所有票（含地图票）的 Labels 行里出现过的标签名收齐。
  *  为什么不用本房间既有的 listIssues：它对读不出来的票文件一律吞掉错误（catch{}），
  *  而契约定死「取不全就必须整体失败」——它没法告诉我们有没有漏读，这里必须让错误冒出来。 */
-async function collectTicketLabelNames(ctx, repo) {
+async function collectTicketLabelNames(ctx: OpContext, repo: RepositoryRef | null): Promise<{ ok: true; names: string[] } | OpsFailure> {
   const plat = getPlat(ctx)
-  const names = new Set()
-  const dirs = []
-  if (repo && typeof repo.path === 'string' && repo.path) dirs.push(repo.path)
+  const names = new Set<string>()
+  const dirs: string[] = []
+  const rp = repo as (RepositoryRef & { path?: unknown }) | null
+  if (rp && typeof rp.path === 'string' && rp.path) dirs.push(rp.path)
   for (const e of await listEfforts(ctx)) dirs.push(e.dir)
   for (const dir of dirs) {
     const files = [plat.join(dir, 'map.md')]
     const idir = plat.join(dir, 'issues')
-    let entries = []
+    let entries: string[] = []
     try { entries = await readDirOrThrow(ctx, idir) } catch (e) {
       // 原文 = 文件服务抛上来的那个错误（人据此看是权限、被占用还是别的）。
       return failAs(ERROR_KIND.ENV, '未能获取全部标签：工作区中有文件无法读取。这是插件运行环境的问题，不是你的操作有误。请关闭可能占用这些文件的程序后重试。', e)
@@ -72,9 +88,10 @@ async function collectTicketLabelNames(ctx, repo) {
         if (isMissingFile(e)) continue
         // 有一张票读不出来 = 拿不全标签：整条操作失败，不许把残缺清单当全量发出去。
         // 原文 = 读这个文件抛上来的错误，另附文件路径（提示语里不出现路径，原文里必须有，否则没法定位）。
-        return failAs(ERROR_KIND.ENV, '未能获取全部标签：工作区中有一张票的文件无法读取。这是插件运行环境的问题，不是你的操作有误。请关闭可能占用这个文件的程序后重试。', String(file) + '：' + String((e && e.message) || e))
+        return failAs(ERROR_KIND.ENV, '未能获取全部标签：工作区中有一张票的文件无法读取。这是插件运行环境的问题，不是你的操作有误。请关闭可能占用这个文件的程序后重试。', String(file) + '：' + String((e && (e as Record<string, unknown>).message) || e))
       }
-      let labels = []
+      // labels 形的票面解析产物：只取 labels 一行，其余不管（解析失败按「这张票没有标签」处理，见下）。
+      let labels: Label[] = []
       try { labels = parseMd(text, { key: '00', parentKey: null, isMap: true }).labels || [] } catch (e) { labels = [] }
       for (const lab of labels) if (lab && lab.name) names.add(String(lab.name))
     }
@@ -90,10 +107,11 @@ async function collectTicketLabelNames(ctx, repo) {
  *  没有文件服务时按空表处理，与房间既有约定一致（exists 返回 false、readDir 返回空表）。
  *  已知缺口（写进报告，不在本票范围内修）：工作区根目录本身读不出来时，listEfforts 也拿不到 effort，
  *  这一层仍然会静默返回「没有票」——要把这个缺口也堵上，得改房间既有的读辅助件。 */
-async function readDirOrThrow(ctx, dir) {
+async function readDirOrThrow(ctx: OpContext, dir: string): Promise<string[]> {
   const fs = getFs(ctx)
   if (!fs) return []
-  const norm = (list) => (Array.isArray(list) ? list.map((x) => (typeof x === 'string' ? x : (x && x.name) || String(x))) : [])
+  // 目录项可能是字符串也可能是 {name} 形状：统一成字符串表；既不是也不抛，照 String() 兜底（与原来一致）。
+  const norm = (list: unknown): string[] => (Array.isArray(list) ? list.map((x) => (typeof x === 'string' ? x : (x && (x as Record<string, unknown>).name) || String(x))) : [])
   if (typeof fs.resolve === 'function' && typeof fs.listDir === 'function') {
     try { return norm(await fs.listDir(await fs.resolve(dir))) }
     catch (e) {
@@ -112,16 +130,19 @@ async function readDirOrThrow(ctx, dir) {
 }
 
 /** 文件里某一行的含义说明（值写成对象时才有）。 */
-function descriptionOf(value) {
-  if (value && typeof value === 'object' && !Array.isArray(value) && typeof value.description === 'string' && value.description.trim()) {
-    return value.description.trim()
+function descriptionOf(value: unknown): string {
+  // 值是字符串或对象两种写法（见 label-colors.js 文件头形状说明）：经 Record 视图读 description，
+  // `&&` 链与原式逐字相同；typeof 收窄后同一引用可直接 .trim()，求值不变。
+  const v = value as { description?: unknown }
+  if (value && typeof value === 'object' && !Array.isArray(value) && typeof v.description === 'string' && v.description.trim()) {
+    return v.description.trim()
   }
   return ''
 }
 
 /** 这次要列的全部标签：内置默认那些 ∪ 票面出现过的 ∪ 配色文件里的。 */
-async function collectAllLabels(ctx, repo) {
-  const read = await readLabelColors(ctx, repo)
+async function collectAllLabels(ctx: OpContext, repo: RepositoryRef | null): Promise<{ ok: true; labels: LabelColor[] } | OpsFailure> {
+  const read: LabelColorsRead = await readLabelColors(ctx, repo)
   if (!read.ok) {
     // 「读不出来」按契约落解析档，同时说清未能获取全部标签（界面上这两件事都要能看懂）。
     // 原文照抄读配色文件那一步已经取好的原文，不在这里重取一份。
@@ -129,12 +150,12 @@ async function collectAllLabels(ctx, repo) {
   }
   const tickets = await collectTicketLabelNames(ctx, repo)
   if (!tickets.ok) return tickets
-  const out = new Map()
+  const out = new Map<string, LabelColor>()
   // 内置默认那些：名字、颜色与含义说明都来自那份内置调色盘（表里写了说明的才给 description）。
   for (const item of builtinLabelColors()) {
     if (!item || !item.name) continue
     const name = String(item.name)
-    const entry = { name: name, color: normalizeColor(item.color) || '' }
+    const entry: LabelColor = { name: name, color: normalizeColor(item.color) || '' }
     if (typeof item.description === 'string' && item.description) entry.description = item.description
     out.set(name, entry)
   }
@@ -142,9 +163,10 @@ async function collectAllLabels(ctx, repo) {
   for (const name of tickets.names) if (!out.has(name)) out.set(name, { name: name, color: '' })
   // 配色文件里的：颜色以文件为准，含义说明取文件里写的或内置表里的。
   for (const name of Object.keys(read.colors)) {
-    const prev = out.get(name) || {}
-    const entry = { name: name, color: read.colors[name] || '' }
-    const description = descriptionOf(read.raw[name]) || prev.description
+    // get 拿不到时原来垫一个空对象再读 .description（读出来是 undefined）；`?.` 值完全一样，还省一次分配。
+    const prev = out.get(name)
+    const entry: LabelColor = { name: name, color: read.colors[name] || '' }
+    const description = descriptionOf(read.raw[name]) || prev?.description
     if (description) entry.description = String(description)
     out.set(name, entry)
   }
@@ -156,7 +178,7 @@ async function collectAllLabels(ctx, repo) {
 /** 列出标签与颜色（契约操作 listLabels）。
  *  首次打开改色弹窗时顺带补一份默认文件的兜底也在这里：文件缺失就按内置默认色预填一份（幂等，
  *  已存在时一个字都不改）；补不上不影响列标签，只记一条日志——列标签是只读操作，不该被写失败挡住。 */
-export async function listLabels(ctx, repo) {
+export async function listLabels(ctx: OpContext, repo: RepositoryRef | null): Promise<{ ok: true; data: LabelColor[] } | OpsFailure> {
   const placed = await ensureForDialog(ctx, repo)
   const all = await collectAllLabels(ctx, repo)
   if (!all.ok) return all
@@ -164,7 +186,7 @@ export async function listLabels(ctx, repo) {
 }
 
 /** 弹窗首次打开时的兜底放置：只在文件缺失时补一份，补不上不报错（记日志）。 */
-async function ensureForDialog(ctx, repo) {
+async function ensureForDialog(ctx: OpContext, repo: RepositoryRef | null): Promise<{ ok: true; placed: boolean; reason: string; from: string } | LabelColorsRead> {
   try {
     return await ensureLabelColors(ctx, repo)
   } catch (e) {
@@ -177,7 +199,7 @@ async function ensureForDialog(ctx, repo) {
 /** 批量改标签颜色（契约操作 setLabelColors）。
  *  逐条记账：颜色写错的、标签不在配色文件里的各记一条失败，其余照改；
  *  文件读不出来时整条操作失败、一个字节都不写（这是硬要求，见 contract.js 的那三条）。 */
-export async function setLabelColors(ctx, repo, changes) {
+export async function setLabelColors(ctx: OpContext, repo: RepositoryRef | null, changes: LabelColorChange[]): Promise<{ ok: true; data: LabelColorBatchResult } | OpsFailure> {
   const bad = shapeProblem(changes)
   // 原文 = 这次收到的整批改动（本地就能定论：形状不合契约，所以整条拒绝）。
   if (bad) return failAs(ERROR_KIND.PARSE, bad, rawJson(changes))
@@ -193,21 +215,23 @@ export async function setLabelColors(ctx, repo, changes) {
     // 文件不存在不算「读不出来」：这时一份颜色都没有，每一要改的标签都落「标签不存在」这一条，
     // 一个字节都不写（契约：两边一律报不存在、都不许新增一行），提示里说清怎么才能成功。
     const fileExists = read.present === true
-    const applied = []
-    const failed = []
-    const pending = {}
+    // 失败理由的 kind 取冻住的 ERROR_KIND 常量：它被拓宽成 string，往契约的 ErrorKind 交时逐处断言
+    // （运行时恒为那八档之一，断言只收窄类型视野；failAs 收 string 所以正文里的失败不用断）。
+    const applied: { name: string; color: string }[] = []
+    const failed: { name: string; reason: TrackerError }[] = []
+    const pending: Record<string, string> = {}
     for (const c of changes) {
       const want = normalizeColor(c.color)
       if (!want) {
-        failed.push({ name: c.name, reason: { kind: ERROR_KIND.PARSE, message: '「' + c.name + '」的新颜色不正确：请改为不带井号的六位十六进制，例如 9d7cd8。', raw: rawJson({ name: c.name, color: c.color }) } })
+        failed.push({ name: c.name, reason: { kind: ERROR_KIND.PARSE as ErrorKind, message: '「' + c.name + '」的新颜色不正确：请改为不带井号的六位十六进制，例如 9d7cd8。', raw: rawJson({ name: c.name, color: c.color }) } })
         continue
       }
       if (!fileExists) {
-        failed.push({ name: c.name, reason: { kind: ERROR_KIND.NOTFOUND, message: '工作区中还没有标签配色文件（' + LABEL_COLORS_REL_PATH + '），因此所有标签都没有配置过颜色。请先在面板头部点那颗「标签配色」图标，插件会在打开这个弹窗时生成一份默认的标签配色文件；然后在文件里加入一行 "标签名": "9d7cd8"，把这两处换成实际的标签名与颜色，再回到这个弹窗点「保存」。', raw: rawJson({ path: LABEL_COLORS_REL_PATH, present: false }) } })
+        failed.push({ name: c.name, reason: { kind: ERROR_KIND.NOTFOUND as ErrorKind, message: '工作区中还没有标签配色文件（' + LABEL_COLORS_REL_PATH + '），因此所有标签都没有配置过颜色。请先在面板头部点那颗「标签配色」图标，插件会在打开这个弹窗时生成一份默认的标签配色文件；然后在文件里加入一行 "标签名": "9d7cd8"，把这两处换成实际的标签名与颜色，再回到这个弹窗点「保存」。', raw: rawJson({ path: LABEL_COLORS_REL_PATH, present: false }) } })
         continue
       }
       if (!Object.prototype.hasOwnProperty.call(read.colors, c.name)) {
-        failed.push({ name: c.name, reason: { kind: ERROR_KIND.NOTFOUND, message: '标签配色文件里没有「' + c.name + '」这个标签，插件不会自动新增。如需修改这个标签的颜色，请先把 "标签名": "9d7cd8" 这一行加入 ' + LABEL_COLORS_REL_PATH + '（把这两处换成这个标签的名字与要用的颜色），然后点「保存」。', raw: rawJson({ path: LABEL_COLORS_REL_PATH, name: c.name }) } })
+        failed.push({ name: c.name, reason: { kind: ERROR_KIND.NOTFOUND as ErrorKind, message: '标签配色文件里没有「' + c.name + '」这个标签，插件不会自动新增。如需修改这个标签的颜色，请先把 "标签名": "9d7cd8" 这一行加入 ' + LABEL_COLORS_REL_PATH + '（把这两处换成这个标签的名字与要用的颜色），然后点「保存」。', raw: rawJson({ path: LABEL_COLORS_REL_PATH, name: c.name }) } })
         continue
       }
       pending[c.name] = want
@@ -215,7 +239,7 @@ export async function setLabelColors(ctx, repo, changes) {
     }
     if (applied.length === 0) return { ok: true, data: { applied: [], failed: failed } }
     // 只动被改的那几行，其余行（含用户自己写的含义说明与写法）按原样留着。
-    const next = {}
+    const next: Record<string, unknown> = {}
     for (const name of Object.keys(read.raw)) {
       const value = read.raw[name]
       if (Object.prototype.hasOwnProperty.call(pending, name)) {

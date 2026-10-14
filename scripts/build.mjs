@@ -1053,7 +1053,7 @@ function deployMovedTrees() {
     for (const r of rewrites) console.log(`[moved-trees] 改写 ${srcRel}：${r}`)
     rewrote += rewrites.length
   }
-  // gitlab 房的手写 .js（14 份）原样复制，保持相对位置；词汇表并排产物不归这里抄（见 copyJsTree）。
+  // gitlab 房已无手写 .js（2026-10-14 #1147 转完 13+1 个文件，全部 .ts 化；copyJsTree 遇到同名 .ts 会自动跳过 .js，这里只抄还剩 .js 的文件）。词汇表并排产物不归这里抄（见 copyJsTree）。
   const copiedJs = copyJsTree(resolve(ROOT, 'src/tracker'), resolve(ROOT, 'package/tracker'))
   console.log(`[moved-trees] 转译 ${sources.length} 份 TypeScript 进包（改写宿主引用 ${rewrote} 处），复制手写 JavaScript ${copiedJs} 份`)
   auditPackageSpecifiers(['package/lib', 'package/deck', 'package/tracker'])

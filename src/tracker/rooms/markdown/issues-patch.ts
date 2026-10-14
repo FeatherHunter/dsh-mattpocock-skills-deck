@@ -11,8 +11,27 @@ import { loadPaintColorMap, applyLabelColors } from './label-colors-paint.js'
 import { replaceOrInsertField } from './issues-status.js'
 // #922：票文件的读—改—写按文件排队，见 write-queue.js。
 import { withFileWriter } from './write-queue.js'
+import type { OpContext } from '../../contract/contexts.js'
+import type { RepositoryRef, Issue } from '../../contract/entities.js'
+import type { UpdatePatch, LabelInput, AssigneeInput } from '../../contract/inputs.js'
 
-async function resolveTarget(ctx,repo,norm,mode){
+// 仓库引用：path 是本地后端的自有约定（契约不保证），有就多认那个目录（path.ts 的同款，房间里各备一份）。
+type RepoWithPath = RepositoryRef & { path?: string }
+
+// 定位到的目标文件（resolveIssueFile/resolveMapFile 的成功侧）：读改写三步都认它。
+interface ResolvedTarget {
+  ok: true
+  path: string
+  effortId: string
+}
+
+// 本文件交出去的失败形状：与 failAs 落的三段式一致（成功侧各函数自带）。
+interface PatchFailure {
+  ok: false
+  error: { kind: string; message: string; raw: string }
+}
+
+async function resolveTarget(ctx: OpContext,repo: RepoWithPath | null,norm: string,mode: string): Promise<ResolvedTarget | PatchFailure>{
   if(norm==='00') return resolveMapFile(ctx,repo,{mode})
   return resolveIssueFile(ctx,repo,norm,{mode})
 }
@@ -21,13 +40,13 @@ async function resolveTarget(ctx,repo,norm,mode){
  *  两路并发改同一张票时会一起读到同一份旧内容，各自改各自的，后写的那一路把先写的那一路的改动整份抹掉
  *  —— 两路都回成功，盘上却少了一半改动。队按文件分：批量补边一次要改很多张票，
  *  它们是不同的文件、彼此不冲突，仍然可以同时做（#919 的并发改造就是照这个口径放宽的）。 */
-async function readParseWrite(ctx,repo,r,norm,fn){
+async function readParseWrite(ctx: OpContext,repo: RepoWithPath | null,r: ResolvedTarget,norm: string,fn: (txt: string) => string | undefined): Promise<{ ok: true; txt: string } | PatchFailure>{
   return withFileWriter(ctx,repo,r.path,async function(){
     try{
       let txt=await readTextFile(ctx,r.path)
       const out=fn(txt)
       const next=typeof out==='string'?out:txt
-      if(next!==txt)await writeTextFile(ctx,r.path,next, ctx && ctx.sandboxPolicy)
+      if(next!==txt)await writeTextFile(ctx,r.path,next, ctx&&(ctx as {sandboxPolicy?: unknown}).sandboxPolicy)
       return{ok:true,txt:next}
     }catch(e){return failFromError(e,ctx,'读—改—写这张票的文件时出错')}
   })
@@ -35,30 +54,30 @@ async function readParseWrite(ctx,repo,r,norm,fn){
 /** 递进来的正文是不是「一整份票文件」：自带 H1 标题（或幂等锚）。
  *  为什么要分开判：下面的插入分支把正文插在现有 H1 之后，认错了盘上就会留下两个 H1、两份正文。
  *  实测：自带 H1、又不带 Status 行的整份正文走了插入分支，票文件被写坏，调用方却收到 ok。 */
-function looksLikeWholeDocument(body){
+function looksLikeWholeDocument(body: unknown): boolean{
   const t=String(body||'')
   return /^\s*#\s+\S/m.test(t)||/^\s*<!--\s*DSH-IDEMPOTENCY-KEY:/m.test(t)
 }
 /** 盘上那份文本里的字段行（Status/Type/Blocked by/Labels）：整份替换时用来补齐递进来的正文里缺的字段。 */
-function fieldLinesOf(text){
-  const out=[]
+function fieldLinesOf(text: unknown): string[]{
+  const out: string[]=[]
   const lines=String(text||'').split('\n')
   for(const l of lines){ if(/^\s*(Status|Type|Blocked\s+by|Labels)\s*[:\uFF1A]/i.test(l)) out.push(l.replace(/\s+$/,'')) }
   return out
 }
-function fieldNameOf(line){ return String(line).split(/[:\uFF1A]/)[0].trim().toLowerCase() }
+function fieldNameOf(line: string): string{ return String(line).split(/[:\uFF1A]/)[0].trim().toLowerCase() }
 /** 取票文件里某骨架区整段（标题加内容，到下一个二级标题或文末）：改正文时用来把盘上旧评论搬回新正文。 */
-function sectionOf(text, name){
+function sectionOf(text: unknown, name: string): string{
   const re=new RegExp('^##\\s*'+name+'\\s*$[\\s\\S]*?(?=^##\\s|$(?![\\s\\S]))', 'im')
   const m=re.exec(String(text||''))
   return m?m[0].replace(/^\s*/, '').replace(/\s*$/, ''):''
 }
-function countRe(text, re){ return (String(text||'').match(re)||[]).length }
+function countRe(text: unknown, re: RegExp): number{ return (String(text||'').match(re)||[]).length }
 /** 写坏了没有的快速核对：新正文相对旧正文不许新增重复、不许弄丢锚与骨架，坏了就返回原因（调用方转成如实失败，不落盘）。
  *  缺字段补上（0 到 1）不算坏，那是在治旧数据的缺；翻倍（超过旧数且超过 1 个）才算坏。 */
-function checkNoWorseForPatch(oldText, newText){
+function checkNoWorseForPatch(oldText: string, newText: string): string{
   const o=String(oldText||''), n=String(newText||'')
-  const worse=function(oldC, newC){ return newC>1&&newC>oldC }
+  const worse=function(oldC: number, newC: number): boolean{ return newC>1&&newC>oldC }
   if(worse(countRe(o, /^#[ \t]+\S.*/gm), countRe(n, /^#[ \t]+\S.*/gm))) return '一级标题变多了'
   if(worse(countRe(o, /DSH-IDEMPOTENCY-KEY/g), countRe(n, /DSH-IDEMPOTENCY-KEY/g))) return '幂等锚变多了'
   if(countRe(o, /DSH-IDEMPOTENCY-KEY/g)>=1&&countRe(n, /DSH-IDEMPOTENCY-KEY/g)===0) return '幂等锚丢了'
@@ -73,7 +92,7 @@ function checkNoWorseForPatch(oldText, newText){
   return ''
 }
 /** 整份正文合并：锚一律用盘上旧的，缺一级标题用盘上旧标题补回，缺字段行与骨架区从盘上旧文件搬回（字段插在骨架之前）。 */
-function mergeWholeBodyForPatch(incomingRaw, diskText){
+function mergeWholeBodyForPatch(incomingRaw: unknown, diskText: unknown): string{
   let incoming=String(incomingRaw||'')
   incoming=incoming.replace(/^[ \t]*<!--[ \t]*DSH-IDEMPOTENCY-KEY:.*?-->[ \t]*\r?\n?/gim, '')
   const diskAnchor=(String(diskText||'').match(/^[ \t]*<!--[ \t]*DSH-IDEMPOTENCY-KEY:.*?-->[ \t]*$/m)||[])[0]
@@ -111,7 +130,7 @@ function mergeWholeBodyForPatch(incomingRaw, diskText){
   return incoming
 }
 
-export async function updateIssue(ctx,repo,key,patch){
+export async function updateIssue(ctx: OpContext,repo: RepoWithPath | null,key: string,patch: UpdatePatch): Promise<{ ok: true; data: Issue } | PatchFailure>{
   const norm=String(key).padStart(2,'0')
   const colorMap=await loadPaintColorMap(ctx)
   const r=await resolveTarget(ctx,repo,norm,'write')
@@ -152,10 +171,13 @@ export async function updateIssue(ctx,repo,key,patch){
         }
       }
     }
-    if(patch&&patch.labels!==undefined){
+    if(patch&&(patch as UpdatePatch & { labels?: unknown }).labels!==undefined){
+      // patch.labels 不在契约 UpdatePatch 里（调用方把覆盖式改标签塞进补丁一并递进来，见 setLabelsIssue）：
+      // 经视图读，不拓契约签名；求值与原来逐字相同。
+      const patchLabels=(patch as UpdatePatch & { labels?: unknown }).labels
       // #634：写进去的标签名同样先剥掉外层成对引号/反引号——别人递进来的名字可能带着
       // 照着文档代码写法抄下来的那层引号，落盘时必须是干净的标签名，否则这层脏写法会被写进票面。
-      const names=Array.isArray(patch.labels)? patch.labels.map(l=> typeof l==='string'? stripLabelDecoration(l) : (l&&l.name? stripLabelDecoration(l.name):'' )).filter(Boolean) : []
+      const names=Array.isArray(patchLabels)? patchLabels.map(l=> typeof l==='string'? stripLabelDecoration(l) : (l&&l.name? stripLabelDecoration(l.name):'' )).filter(Boolean) : []
       const line=names.length? 'Labels: '+names.join(', ') : 'Labels:'
       txt=replaceOrInsertField(txt,'Labels',line);changed=true
     }
@@ -180,7 +202,7 @@ export async function updateIssue(ctx,repo,key,patch){
     return{ok:true,data:iss}
   }catch(e){return failFromError(e,ctx,'改这张票的字段时出错')}
 }
-export async function setBlockedByIssue(ctx,repo,key,blockers){
+export async function setBlockedByIssue(ctx: OpContext,repo: RepoWithPath | null,key: string,blockers: string[]): Promise<{ ok: true; data: Issue } | PatchFailure>{
   const norm=String(key).padStart(2,'0')
   const colorMap=await loadPaintColorMap(ctx)
   // 原文 = 这张票自己的编号（结论是「入参自己和自己打架」，没有外部来源的原文）。
@@ -197,7 +219,7 @@ export async function setBlockedByIssue(ctx,repo,key,blockers){
     return{ok:true,data:iss}
   }catch(e){return failFromError(e,ctx,'改这张票的阻塞关系时出错')}
 }
-export async function setAssigneesIssue(ctx,repo,key,assignees){
+export async function setAssigneesIssue(ctx: OpContext,repo: RepoWithPath | null,key: string,assignees: AssigneeInput[]): Promise<{ ok: true; data: Issue } | PatchFailure>{
   const norm=String(key).padStart(2,'0')
   const colorMap=await loadPaintColorMap(ctx)
   const r=await resolveTarget(ctx,repo,norm,'write')
@@ -218,7 +240,7 @@ export async function setAssigneesIssue(ctx,repo,key,assignees){
  *  幂等锚那一行（DSH-IDEMPOTENCY-KEY）在最前，父注释紧跟在它后面；
  *  没有锚的文件直接插在最前。解除父子（null）写成明确的 null 字样，
  *  这样以后读回来是“没有父票”，而不会回落到老默认值 00。 */
-function upsertParentComment(text, want) {
+function upsertParentComment(text: string, want: unknown): string {
   const line = want === null ? '<!-- parentKey: null -->' : '<!-- parentKey: ' + String(want) + ' -->'
   const raw = String(text || '')
   // 只动文件头的注释：正文里举例写同样的写法不算数（读也只认文件头，这里只换文件头）。
@@ -234,7 +256,7 @@ function upsertParentComment(text, want) {
   lines.splice(at, 0, line)
   return lines.join('\n') + rest
 }
-function normParentKey(v) {
+function normParentKey(v: unknown): string | null {
   if (v === undefined || v === null) return null
   const t = String(v).trim()
   if (!t) return null
@@ -242,7 +264,7 @@ function normParentKey(v) {
   if (/^\d+$/.test(t)) return t.padStart(2, '0')
   return t
 }
-export async function setParentIssue(ctx,repo,key,parentKey){
+export async function setParentIssue(ctx: OpContext,repo: RepoWithPath | null,key: string,parentKey: string | null): Promise<{ ok: true; data: Issue } | PatchFailure>{
   const norm=String(key).padStart(2,'0')
   const want=normParentKey(parentKey)
   const colorMap=await loadPaintColorMap(ctx)
@@ -329,7 +351,7 @@ export async function setParentIssue(ctx,repo,key,parentKey){
   // 原文 = 那个找不到的父编号（本地就能定论：把它拿去找过、没找到）。
   return failAs(ERROR_KIND.NOTFOUND,'parent '+want+' not-found',String(want))
 }
-export async function setLabelsIssue(ctx,repo,key,labels){
+export async function setLabelsIssue(ctx: OpContext,repo: RepoWithPath | null,key: string,labels: LabelInput[]): Promise<{ ok: true; data: Issue } | PatchFailure>{
   const norm=String(key).padStart(2,'0')
   const colorMap=await loadPaintColorMap(ctx)
   // #634：与 patch.labels 同口径——落盘的标签名先剥掉外层成对引号/反引号

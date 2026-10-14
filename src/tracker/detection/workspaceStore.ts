@@ -9,25 +9,72 @@
  *  - 轻量化：本模块只管 Selection 缓存，不含 preflight/skill 聚合；pending 场景由 detectionService 决定不缓存
  */
 
+import type { RepoHandle } from '../contract/contexts.js'
+import type { Selection } from '../contract/results.js'
+
+/**
+ * 缓存条目：一次探测结论加写入时间。附加字段（preflight、skillProbes、fileMs）供调用方校验用，
+ * 这里只按索引签名收口，不逐个建模——逐个建模会把探测服务的返回形状钉死在这里。
+ */
+export interface WorkspaceStoreEntry {
+  selection?: Selection | null
+  at: number
+  fileMs?: number | null
+  preflight?: unknown
+  [extra: string]: unknown
+}
+
+/**
+ * 日志出口最小形状：有这两个方法才记轨迹，没有就静默跳过（与各房既有口径一致）。
+ */
+export interface WorkspaceStoreLogCtx {
+  isEnabled(level: string): boolean
+  fire(level: string, event: string, fields: unknown): void
+}
+
+/**
+ * 创建参数：只读 ttl 与日志出口。ttl 缺席用默认 30 秒，调用方传 0 也认（立即过期）。
+ */
+export interface WorkspaceStoreOptions {
+  ttl?: number
+  logCtx?: WorkspaceStoreLogCtx | null
+}
+
 const DEFAULT_TTL = 30000
 
-// #491 房外埋点：hash8 只记键散列不记原文。
-function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
-function handleKey(handle) {
+// #491 房外埋点：hash8 只记键散列不记原文。入参收成未知值，空值统一按空串算。
+function hash8(s: unknown): string { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
+/**
+ * 句柄取键：只认 cwd 或 refId。入参收成未知值，形状不对直接抛错由调用方接住。
+ */
+function handleKey(handle: unknown): string {
   if (!handle || typeof handle !== 'object') throw new Error('bad-handle: handle is required')
-  const k = handle.cwd || handle.refId
+  const h = handle as RepoHandle
+  const k = h.cwd || h.refId
   if (!k) throw new Error('bad-handle: handle needs cwd or refId')
   return String(k)
 }
 
-export function createWorkspaceStore(opts = {}) {
-  const ttl = (opts && opts.ttl != null) ? opts.ttl : DEFAULT_TTL
-  const logCtx = (opts && opts.logCtx) || null
+export function createWorkspaceStore(opts: WorkspaceStoreOptions = {}): {
+  readonly ttl: number
+  readonly handleKey: (handle: unknown) => string
+  size(): number
+  clear(): void
+  invalidate(handle: unknown): void
+  invalidateByKey(key: unknown): void
+  get(handle: unknown): WorkspaceStoreEntry | null
+  set(handle: unknown, payload: WorkspaceStoreEntry): void
+  has(handle: unknown): boolean
+  keys(): string[]
+  invalidateByBackend(backendId: unknown): number
+} {
+  const ttl: number = (opts && opts.ttl != null) ? opts.ttl : DEFAULT_TTL
+  const logCtx: WorkspaceStoreLogCtx | null = (opts && opts.logCtx) || null
   let wsHitN = 0
-  const map = new Map() // key -> { selection, at, raw, parsed }
+  const map = new Map<string, WorkspaceStoreEntry>() // key -> { selection, at, raw, parsed }
 
-  function isFresh(entry) {
-    return entry && (Date.now() - entry.at) < ttl
+  function isFresh(entry: WorkspaceStoreEntry | null | undefined): boolean {
+    return !!entry && (Date.now() - entry.at) < ttl
   }
 
   return {
@@ -35,12 +82,12 @@ export function createWorkspaceStore(opts = {}) {
     handleKey,
     size() { return map.size },
     clear() { map.clear() },
-    invalidate(handle) {
+    invalidate(handle: unknown): void {
       try { map.delete(handleKey(handle)) } catch {}
     },
-    invalidateByKey(key) { map.delete(String(key)) },
-    get(handle) {
-      let k
+    invalidateByKey(key: unknown): void { map.delete(String(key)) },
+    get(handle: unknown): WorkspaceStoreEntry | null {
+      let k: string
       try { k = handleKey(handle) } catch { return null }
       const e = map.get(k)
       if (!e) { try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'workspaceStore.miss', { keyHash: hash8(k), reason: 'empty' }) } catch (eL) {}; return null }
@@ -48,15 +95,15 @@ export function createWorkspaceStore(opts = {}) {
       try { if (logCtx && logCtx.isEnabled('debug') && ((++wsHitN % 100) === 0)) logCtx.fire('debug', 'workspaceStore.hit', function () { return { keyHash: hash8(k), fresh: true, ttlMs: ttl } }) } catch (eL) {}
       return e
     },
-    set(handle, payload) {
-      let k
+    set(handle: unknown, payload: WorkspaceStoreEntry): void {
+      let k: string
       try { k = handleKey(handle) } catch { return }
       // pending 场景不缓存（Q6）：调用方应在 pending 时跳过 set；此处二次兜底
       if (payload && payload.selection && payload.selection.pending) return
       map.set(k, { ...payload, at: Date.now() })
     },
-    has(handle) {
-      let k
+    has(handle: unknown): boolean {
+      let k: string
       try { k = handleKey(handle) } catch { return false }
       const e = map.get(k)
       return !!(e && isFresh(e))
@@ -66,7 +113,7 @@ export function createWorkspaceStore(opts = {}) {
     // 某个后端被卸载时清缓存：只清「这一格的答案正是那个后端」的格子。
     // #1138 之前这里叫 onRegistryBindStale(handle)，由「绑定表把工作区标 stale」驱动；绑定表删掉以后
     // 注册表不知道哪些工作区用过它，改成按缓存内容认——判定结果没有别的记法，按它认就是最准的认法。
-    invalidateByBackend(backendId) {
+    invalidateByBackend(backendId: unknown): number {
       const want = String(backendId || '')
       if (!want) return 0
       let n = 0

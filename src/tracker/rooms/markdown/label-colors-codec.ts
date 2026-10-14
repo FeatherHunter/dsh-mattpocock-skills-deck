@@ -22,15 +22,42 @@ import { normalizeColor } from '../../../shared/label-color/colors.js'
  * 失败：{ ok:false, reason, why, action, detail } —— reason 沿用 labelColors.read
  * 的 reason 词表；why/action/detail 给房间拼用户话术。
  */
-export function decodeLabelsText(text) {
+// 译码结果的字面量联合：ok 用 true/false 字面量（不用 boolean），调用方 `if (!d.ok)` 之后
+// 才能直接读 why 或 colors——宽成 boolean 的话两边都读不到（label-colors-ops 曾因此多处报错）。
+export interface DecodedLabelsOk {
+  ok: true
+  colors: Record<string, string>
+  raw: Record<string, unknown>
+  readonly: boolean
+}
+export interface DecodedLabelsFail {
+  ok: false
+  reason: string
+  why: string
+  action: string
+  detail: string
+}
+export type DecodedLabels = DecodedLabelsOk | DecodedLabelsFail
+// 核的解析产物形状（只取本文件实际读的几个键；核的完整形状归核，房间不复述）。
+interface ParsedLabels {
+  ok?: unknown
+  reason?: unknown
+  message?: unknown
+  keys?: unknown
+  value?: unknown
+  readonly?: unknown
+}
+export function decodeLabelsText(text: string): DecodedLabels {
   return decodeLabelsParsed(parseLabelsText(text))
 }
 
 /** 把核的解析结果整理成房间形状（核只管判对错，这里的 shapes 是房间沿用的）。 */
-export function decodeLabelsParsed(parsed) {
-  if (!parsed || parsed.ok !== true) {
-    const reason = (parsed && parsed.reason) || 'bad-shape'
-    const message = (parsed && parsed.message) || '这个文件里的内容不对。'
+export function decodeLabelsParsed(parsed: unknown): DecodedLabels {
+  // 核产物经 unknown 收口：`as` 只为过类型，求值顺序与原表达式逐字相同。
+  const p = parsed as ParsedLabels | null | undefined
+  if (!p || p.ok !== true) {
+    const reason = ((p && p.reason) || 'bad-shape') as string
+    const message = ((p && p.message) || '这个文件里的内容不对。') as string
     if (reason === 'oversize') {
       return {
         ok: false,
@@ -62,7 +89,7 @@ export function decodeLabelsParsed(parsed) {
       return {
         ok: false,
         reason: 'unknown-keys',
-        why: '这个文件里有多出来的名字，核不认识它们：' + ((parsed && parsed.keys) || []).join('、'),
+        why: '这个文件里有多出来的名字，核不认识它们：' + (((p && p.keys) as string[]) || []).join('、'),
         action: '请删掉这些多出来的名字，只留标签与颜色，然后重新保存。',
         detail: '',
       }
@@ -75,18 +102,20 @@ export function decodeLabelsParsed(parsed) {
       detail: '',
     }
   }
-  const colors = {}
-  const raw = {}
-  const table = (parsed.value && parsed.value.colors) || {}
+  const colors: Record<string, string> = {}
+  const raw: Record<string, unknown> = {}
+  const v = (p && p.value) as { colors?: Record<string, unknown> } | null | undefined
+  const table: Record<string, unknown> = (v && v.colors) as Record<string, unknown> || {}
   for (const name of Object.keys(table)) {
-    const entry = table[name]
+    // 值是字符串或对象两种写法（见文件头形状说明）：经视图读 color，求值与原来逐字相同。
+    const entry = table[name] as string | { color?: unknown } | null | undefined
     raw[name] = entry
     let colorText = ''
     if (typeof entry === 'string') colorText = entry
     else if (entry && typeof entry === 'object' && typeof entry.color === 'string') colorText = entry.color
     colors[name] = normalizeColor(colorText) || ''
   }
-  return { ok: true, colors, raw, readonly: parsed.readonly === true }
+  return { ok: true, colors, raw, readonly: p.readonly === true }
 }
 
 /**
@@ -95,11 +124,23 @@ export function decodeLabelsParsed(parsed) {
  * 失败时一个字节都不写；直给表里出现 version / colors 这两个保留字也会明确拒绝，
  * 不静默丢标签）。
  */
-export function encodeLabelsTable(table) {
+export interface EncodedLabelsOk {
+  ok: true
+  text: string
+}
+export interface EncodedLabelsFail {
+  ok: false
+  reason: string
+  message: string
+}
+export function encodeLabelsTable(table: Record<string, unknown>): EncodedLabelsOk | EncodedLabelsFail {
   try {
-    return stringifyLabelColors(table)
+    // 核的返回在它的声明里把 ok 拓宽成 boolean（它的 .d.ts 如此，房间动不了它）：
+    // 运行时的 ok 恒为 true/false 字面量（成功带 text、失败带 reason/message，调用方只读这三键），
+    // 断言只收类型视野，返回的还是原来那个对象。
+    return stringifyLabelColors(table) as EncodedLabelsOk | EncodedLabelsFail
   } catch (e) {
-    return { ok: false, reason: 'bad-shape', message: String((e && e.message) || e || '拼装失败') }
+    return { ok: false, reason: 'bad-shape', message: String((e && (e as Record<string, unknown>).message) || e || '拼装失败') }
   }
   // 注：stringifyLabelColors 从不抛错（任何输入都按档位回），上面这支 catch 只是防御。
 }

@@ -1,4 +1,4 @@
-import type { RoomOperations } from '../../contract/operations.js'
+import type { MarkdownBackendShape } from '../../capability-assertions.js'
 import type { RepositoryRef, Issue, Comment, LabelColor } from '../../contract/entities.js'
 import type { OpContext, RepoHandle } from '../../contract/contexts.js'
 import type { Actor } from '../../contract/identity.js'
@@ -108,7 +108,8 @@ export const issueRefPattern = "#(\\d+)"
 /**
  * 创建本地 Markdown 后端适配器（Tracker）。
  *
- * 返回类型标 `RoomOperations`（`Tracker` 的子集）：本后端没实现的那些操作由注册表补「我不支持」的桩。
+ * 返回类型故意不标（理由同 GitHub 房：标成成员全可选的集合就查不出少写，
+ * 形状用下面的 `satisfies MarkdownBackendShape` 判定）：本后端没实现的那些操作由注册表补「我不支持」的桩。
  * 下面逐条写明的「本后端不提供」是**有意为之的诚实回法**，不是漏做：
  * 能做的事与不能做的事都在这一份里看得见，读的人不用去别的文件里对账。
  */
@@ -120,7 +121,8 @@ export const issueRefPattern = "#(\\d+)"
 function asOpResult<T>(p: Promise<{ ok: boolean }> | { ok: boolean }): Promise<OpResult<T>>{
   return Promise.resolve(p) as Promise<OpResult<T>>
 }
-export function createMarkdownBackend(ctx: OpContext): RoomOperations {
+// 返回类型故意不标，形状判定收在 capability-assertions.ts（理由同 GitHub 房）。
+export function createMarkdownBackend(ctx: OpContext) {
   return{
     id:'markdown',
     preflight: async (handle: RepoHandle,opCtx: OpContext): Promise<PreflightResult>=>{
@@ -202,7 +204,7 @@ export function createMarkdownBackend(ctx: OpContext): RoomOperations {
     getRepoPermissions: ()=>asOpResult<RepoPermissions>(failAs(ERROR_KIND.UNSUPPORTED,'markdown getRepoPermissions unsupported','')),
     // 子票就在工作区的票文件里，宿主要「这张地图的全部子票」直接读文件即可，不经这里。
     listSubIssues: ()=>asOpResult<SubIssueList>(failAs(ERROR_KIND.UNSUPPORTED,'markdown listSubIssues unsupported','')),
-  }
+  } satisfies MarkdownBackendShape
 }
 /** #323（2026-08-29 定版复核）：本地 Markdown 后端自己的默认调色盘（不依赖 GitHub）——
  *  这里是本地标签结构与**内置默认色值**的真源；模块经契约层（BackendModule.labelPalette）提供给面板。

@@ -15,11 +15,22 @@
  */
 
 /**
+ * 主锚解析结果：显式后端声明加判据说明。调用方只读 backendId 与置信度，其余供排查。
+ */
+export interface ParsedIssueTracker {
+  explicitBackendId: string | null
+  rawHint: string
+  confidence: 'high' | 'low' | 'none'
+  reason: string
+}
+
+/**
  * 将 `docs/agents/issue-tracker.md` 文本结构化为显式后端声明。
- * @param {string|null|undefined} raw 主锚文本（BOM/字面 \\n 已在 normalizeBody 层处理，此处只做 Trim/BOM 清理）
+ * 入参收成未知值：上游读文件可能交来空值，内部统一转成字符串再判。
+ * @param raw 主锚文本（BOM/字面 \\n 已在 normalizeBody 层处理，此处只做 Trim/BOM 清理）
  * @returns {{ explicitBackendId: string|null, rawHint: string, confidence: 'high'|'low'|'none', reason: string }}
  */
-export function parseIssueTracker(raw) {
+export function parseIssueTracker(raw: unknown): ParsedIssueTracker {
   const text = String(raw || '').replace(/^\uFEFF/, '').trim()
   if (!text) return { explicitBackendId: null, rawHint: '', confidence: 'none', reason: 'empty' }
 
@@ -57,9 +68,10 @@ export function parseIssueTracker(raw) {
 }
 
 /**
- * 小工具：对已读文本判空并去 BOM（与 host normalizeBody 互补）
+ * 小工具：对已读文本判空并去 BOM（与 host normalizeBody 互补）。
+ * 入参收成未知值：空值统一按空串处理，不抛异常。
  */
-export function normalizeTrackerText(raw) {
+export function normalizeTrackerText(raw: unknown): string {
   if (raw == null) return ''
   let s = String(raw).replace(/^\uFEFF/, '')
   // 字面 \\n 还原仅在大量字面换行聚类时才触发（与 host normalizeBody 同阈值）

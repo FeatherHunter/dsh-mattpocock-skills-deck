@@ -26,22 +26,29 @@
  */
 
 import { ERROR_KIND, ISSUE_TYPE, STATE } from '../../contract/vocabulary.js'
+import type { OpContext } from '../../contract/contexts.js'
+import type { RepositoryRef, Issue } from '../../contract/entities.js'
+import type { ListFilter } from '../../contract/inputs.js'
 import { failAs, failFromError } from './error-fail.js'
 import { enumerateIssueRows } from './issues-read.js'
+import type { RowReadError } from './issues-read.js'
+
+// 仓库引用：path 是本地后端的自有约定（契约不保证），有就多认那个目录（path.ts 的同款，房间里各备一份）。
+type RepoWithPath = RepositoryRef & { path?: string }
 
 /** filter.state 归一：只有 'open' 与 'closed' 两种收窄，其余（含没给）都是「两种状态一起数」。
  *  导出给 page.js 共用：分页与计数说的必须是同一批票，判定只留这一份。 */
-export function narrowStateOf(filter) {
+export function narrowStateOf(filter: ListFilter | undefined): string {
   const s = filter && typeof filter === 'object' ? String(filter.state || '').toLowerCase() : ''
   return (s === STATE.OPEN || s === STATE.CLOSED) ? s : ''
 }
 
 /** filter.labels 归一（导出给 page.js 共用）：去掉空白项与重复项，保持原顺序（与 GitHub 那条同一口径）。 */
-export function labelsOf(filter) {
+export function labelsOf(filter: ListFilter | undefined): string[] {
   const raw = filter && typeof filter === 'object' ? filter.labels : null
   if (!Array.isArray(raw)) return []
-  const out = []
-  const seen = {}
+  const out: string[] = []
+  const seen: Record<string, boolean> = {}
   for (const v of raw) {
     const name = typeof v === 'string' ? v.trim() : ''
     if (!name || seen[name]) continue
@@ -52,9 +59,9 @@ export function labelsOf(filter) {
 }
 
 /** 一张票是不是同时带上了要求的全部标签（导出给 page.js 共用；本地票面只写标签名，按名字精确比对）。 */
-export function hasAllLabels(row, wanted) {
+export function hasAllLabels(row: Issue, wanted: string[]): boolean {
   if (!wanted.length) return true
-  const names = []
+  const names: string[] = []
   const list = row && Array.isArray(row.labels) ? row.labels : []
   for (const lab of list) if (lab && lab.name) names.push(String(lab.name))
   for (const name of wanted) if (!names.includes(name)) return false
@@ -62,11 +69,12 @@ export function hasAllLabels(row, wanted) {
 }
 
 /** 把「读不动的票文件」清单拼成一句人看得懂的话（导出给 page.js 共用）：说清是哪几个编号、哪个文件、哪一档错。 */
-export function readFailureMessage(errors) {
+export function readFailureMessage(errors: RowReadError[]): string {
   const parts = errors.map(function (e) { return String(e.key) + '（' + String(e.path) + '）' })
-  const first = errors[0] || {}
+  // errors 非空由调用方保证（下面两处只在 errors.length 时调）；首错取不到时按空档拼，不抛。
+  const first = errors[0] as RowReadError | undefined
   return '本地 Markdown 有票文件读不动，数字不完整，拒绝回一个偏小的数：' + parts.join('、') +
-    '（' + String(first.kind || '') + '：' + String(first.message || '') + '）'
+    '（' + String((first && first.kind) || '') + '：' + String((first && first.message) || '') + '）'
 }
 
 /**
@@ -74,11 +82,12 @@ export function readFailureMessage(errors) {
  * 枚举那一段与 list 共用同一份实现（见 issues-read.js 的 enumerateIssueRows），
  * 这里只做三件事：有票文件读不动就整体失败、按状态数票行、按 filter 的两项收窄。
  */
-export async function countIssues(ctx, repo, filter = {}) {
+export async function countIssues(ctx: OpContext, repo: RepoWithPath, filter: ListFilter | undefined = {}) {
   try {
     // 契约说 counts 只认 state 与 labels，keys 这类字段一律忽略 —— 所以枚举时不带 keys 过去，
     // 免得多出来的行提前被跳过、数字比实际票数小；effortId 照旧透传，作用域与 list 同口径。
-    const scopeFilter = { effortId: filter && filter.effortId }
+    // effortId 不在契约 ListFilter 里（本房的寻址扩展，见 issues-read.js 的 RowFilter）：经视图读，不拓签名。
+    const scopeFilter = { effortId: filter && (filter as { effortId?: string | null }).effortId }
     const { rows, errors } = await enumerateIssueRows(ctx, repo, scopeFilter, { collectErrors: true })
     if (errors.length) {
       const kind = errors[0].kind || ERROR_KIND.ENV

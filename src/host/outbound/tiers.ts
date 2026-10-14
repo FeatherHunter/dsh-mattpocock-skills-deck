@@ -19,14 +19,18 @@ export const PROBE_TIMEOUT_MS = 3000
 /** 拿不到档位时的旧默认：沿用历史 30000，不静默变快。 */
 export const DEFAULT_TIMEOUT_MS = 30000
 
-function partsOf(args) {
-  return (Array.isArray(args) ? args : []).map(function (a) { return String(a == null ? '' : a) })
+/**
+ * 参数归一成字符串数组：非数组按空数组处理，空位按空串处理。
+ * 类型说明：host 域文件，只做类型标注；收未知输入，运行时仍是原判断。
+ */
+function partsOf(args: unknown): string[] {
+  return (Array.isArray(args) ? args : []).map(function (a: unknown) { return String(a == null ? '' : a) })
 }
 
 /** 写操作动词：命中即走写档（等得最久，且调用方不许自动重试，见 #969）。 */
 const WRITE_VERBS = new Set(['create', 'edit', 'close', 'reopen', 'comment', 'delete', 'lock', 'unlock', 'pin', 'unpin'])
 
-function isApiWrite(parts) {
+function isApiWrite(parts: string[]): boolean {
   // 经接口写票一定带写方法：-X POST 之类或 --method 覆盖时才是写，默认读。
   if (parts[0] !== 'api') return false
   for (let i = 0; i < parts.length; i++) {
@@ -42,8 +46,9 @@ function isApiWrite(parts) {
 
 /**
  * 这条去 GitHub 的调用是不是写操作（写档 + 不自动重试，调用方人工核对）。
+ * 类型说明：调用方传的是进程参数数组，收未知以兼容旧调用，运行时仍按数组判断。
  */
-export function isWriteGhArgs(args) {
+export function isWriteGhArgs(args: unknown): boolean {
   const parts = partsOf(args)
   if (parts.length < 2) return false
   if (parts[0] === 'issue' || parts[0] === 'pr') return WRITE_VERBS.has(parts[1])
@@ -52,8 +57,8 @@ export function isWriteGhArgs(args) {
   return false
 }
 
-/** 探活动词：查登录态与版本号，走最短档。 */
-export function isProbeGhArgs(args) {
+/** 探活动词：查登录态与版本号，走最短档。类型说明：同写操作判断，收未知参数数组。 */
+export function isProbeGhArgs(args: unknown): boolean {
   const parts = partsOf(args)
   if (parts.length === 0) return false
   if (parts[0] === '--version') return true
@@ -62,22 +67,22 @@ export function isProbeGhArgs(args) {
   return false
 }
 
-/** 这条调用走哪一档：写最久、探活最短，其余读。 */
-export function tierForGhArgs(args) {
+/** 这条调用走哪一档：写最久、探活最短，其余读。类型说明：返回值收窄为三档字面量。 */
+export function tierForGhArgs(args: unknown): 'write' | 'probe' | 'read' {
   if (isWriteGhArgs(args)) return 'write'
   if (isProbeGhArgs(args)) return 'probe'
   return 'read'
 }
 
-/** 这一档等多久（毫秒）。 */
-export function timeoutForTier(tier) {
+/** 这一档等多久（毫秒）。类型说明：档位收字符串，未知档按读档处理，与原来一致。 */
+export function timeoutForTier(tier: string): number {
   if (tier === 'write') return WRITE_TIMEOUT_MS
   if (tier === 'probe') return PROBE_TIMEOUT_MS
   return READ_TIMEOUT_MS
 }
 
-/** 这条调用等多久：调用方显式传的优先，否则按档位来。 */
-export function timeoutForGhArgs(args, explicitTimeout) {
+/** 这条调用等多久：调用方显式传的优先，否则按档位来。类型说明：显式超时收未知，数字且为正才采用。 */
+export function timeoutForGhArgs(args: unknown, explicitTimeout?: unknown): number {
   if (typeof explicitTimeout === 'number' && isFinite(explicitTimeout) && explicitTimeout > 0) return explicitTimeout
   return timeoutForTier(tierForGhArgs(args))
 }

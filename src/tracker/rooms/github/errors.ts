@@ -40,10 +40,13 @@ import type { ErrorRule, Judged, PreflightCtx } from '../../preflight.js'
 const KIND_VALUES = new Set(Object.values(ERROR_KIND))
 
 /** 这个错误值是不是「已经是规范档位的失败」：顶层有 kind，或包在 error 里的 kind 都算。 */
-function isTrackerError(err) {
+function isTrackerError(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false
-  if (KIND_VALUES.has(err.kind)) return true
-  if (err.error && KIND_VALUES.has(err.error.kind)) return true
+  // 为什么转成 Record 再读：错误值形状开放（Error/进程结果/OpResult），契约只认 kind 字段，直接读会报缺成员。
+  const bag = err as Record<string, unknown>;
+  if (KIND_VALUES.has(bag.kind as import('../../contract/identity.js').ErrorKind)) return true
+  const inner = bag.error;
+  if (inner && typeof inner === 'object' && KIND_VALUES.has((inner as Record<string, unknown>).kind as import('../../contract/identity.js').ErrorKind)) return true
   return false
 }
 
@@ -69,7 +72,8 @@ export const GH_ERROR_RULES: readonly ErrorRule[] = [
     when: (f) => f.exitCode === 4,
     // 样本按「执行结果」的形状写：退出码在那一份结果里叫 `code`（`factsFromError` 只认这个键），
     // 另外把 `exitCode` 也写上，是为了让直接拿样本判档的门禁两种读法都能判出同一条规则。
-    example: { code: 4, exitCode: 4, text: 'gh: To get started with GitHub CLI, please run: gh auth login' },
+    // 为什么这里断言成事实形状：运行时两种键都认（见 error-rules.ts 的退出码双读），契约类型只收 exitCode，多写的 code 键只为覆盖另一种读法，删掉会丢一条门禁覆盖。
+    example: { code: 4, exitCode: 4, text: 'gh: To get started with GitHub CLI, please run: gh auth login' } as unknown as import('../../error-rules.js').ErrorFacts,
     note: '#620：gh 的「还没登录」用退出码 4 表达，退出码比文案可靠，归鉴权档',
   },
   {
@@ -80,7 +84,8 @@ export const GH_ERROR_RULES: readonly ErrorRule[] = [
     // 归环境档，界面那句「插件运行环境的问题，不是你的操作有误」才对得上（标签配色的门禁盯着这条）。
     // 「等到本地超时」那一路由 client 层写成一句带 timeout 的事实，先落通用表的网络档，不会走到这里。
     when: (f) => f.exitCode === -1 && !f.text,
-    example: { code: -1, exitCode: -1, text: '' },
+    // 为什么这里断言：同上，code 键覆盖执行结果的另一种读法，删掉会丢门禁覆盖，运行时无影响。
+    example: { code: -1, exitCode: -1, text: '' } as unknown as import('../../error-rules.js').ErrorFacts,
     note: '#620：拿不到退出码（-1）且没有任何输出 → 环境档，责任在插件这边',
   },
   {
@@ -177,7 +182,9 @@ export function ghFailureMessage(verdict: Judged, own: string): string {
  */
 export function toOpResultError(err: unknown, ctx?: PreflightCtx) {
   const verdict = ghVerdictOf(err, ctx)
-  const own = String((err && (err.message || err.stderr || err.stdout)) || err || 'unknown error').slice(0, 800)
+  // 为什么先转成键值袋再读：错误值形状开放（Error/进程结果/OpResult/字符串），直接读 message 会报缺成员；用或链保持与原来一致的兜底顺序（空串继续往下找）。
+  const bag = (err && typeof err === 'object' ? (err as Record<string, unknown>) : null) as Record<string, unknown> | null;
+  const own = String((bag && (bag.message || bag.stderr || bag.stdout)) || err || 'unknown error').slice(0, 800)
   return fail(verdict.kind, ghFailureMessage(verdict, own), err)
 }
 

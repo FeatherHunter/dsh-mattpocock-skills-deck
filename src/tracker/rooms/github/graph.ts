@@ -8,15 +8,42 @@
  */
 
 import { ERROR_KIND } from '../../contract/vocabulary.js'
+import type { OpContext } from '../../contract/contexts.js';
+import type { Issue, IssueRef, RepositoryRef } from '../../contract/entities.js';
+import type { DepsOpts, SetOpts } from '../../contract/inputs.js';
+import type { Dependencies, OpResult } from '../../contract/results.js';
 import { fail } from '../../preflight.js'
 import { ghClient } from './client.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'
 import { getIssue } from './issues.js'
 import { adjacencyFor, hasCycle } from './cycle-check.js'
 import { markDirty } from './roster.js'
+import type { MemoContext } from './roster.js';
 import { normalizeIssue } from './normalize.js'
 
-function parseRepo(repo) {
+/** gh 执行器的形状（client 房的 ghClient 回什么就是什么，这里只借它的类型）。 */
+type GhClient = ReturnType<typeof ghClient>;
+
+/** 仓库定位：拥有者 + 仓名（文件内自带的小解析，形状与 issues 房那一版一致）。 */
+interface ParsedRepo {
+  owner: string;
+  name: string;
+}
+
+// 为什么 catch 里的错误要先转这层再读：catch 出来是 unknown，直接读 message 报缺成员；
+// 转成最小形状后读法与原来一致，运行时不变。
+type CaughtMsg = { message?: unknown } | null;
+function caughtMessage(e: unknown, len: number): string {
+  const eb = e as CaughtMsg;
+  return String((eb && eb.message) || e).slice(0, len)
+}
+// 为什么不断言判空：失败里没有 stderr 这一格（类型上就没有，message 恒有字）；
+// 旧逻辑留了这道或门（万一哪天有了就读），断言只为过编译，读的还是原来那两格，运行时不变。
+function errMessageOrStderr(err: { message: string }): string {
+  return err.message || (err as unknown as { stderr?: unknown }).stderr as string || ''
+}
+
+function parseRepo(repo: RepositoryRef): ParsedRepo | null {
   if (!repo || typeof repo.refId !== 'string' || !repo.refId) return null
   const s = repo.refId.trim()
   const idx = s.indexOf('/')
@@ -24,7 +51,7 @@ function parseRepo(repo) {
   return { owner: s.slice(0, idx), name: s.slice(idx + 1) }
 }
 
-function repoId(repo) {
+function repoId(repo: RepositoryRef): string {
   if (!repo) return ''
   if (typeof repo.refId === 'string' && repo.refId) return repo.refId
   if (typeof repo.name === 'string' && repo.name) return repo.name
@@ -32,7 +59,7 @@ function repoId(repo) {
 }
 
 // 取一张票的数据库编号（非 # 显示编号）：裸接口建边用；与阻塞边的 idOf 同形。
-async function issueDbId(c, parsed, numberKey, ctx) {
+async function issueDbId(c: GhClient, parsed: ParsedRepo, numberKey: string, ctx: OpContext): Promise<number | null> {
   try {
     const rr = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/issues/${numberKey}`, '--jq', '.id'], { cwd: ctx && ctx.cwd })
     if (!rr.ok) return null
@@ -41,7 +68,7 @@ async function issueDbId(c, parsed, numberKey, ctx) {
   } catch { return null }
 }
 
-function isUnknownFlag(msg) {
+function isUnknownFlag(msg: unknown): boolean {
   return /unknown flag|unknown option|unknown shorthand/i.test(String(msg || ''))
 }
 
@@ -54,7 +81,7 @@ function isUnknownFlag(msg) {
  * 二是上游交回过结果（`gh` 的执行结果、别处 op 的返回）——交那份结果，原话就在它里面；
  * 三是本地根据读回来的数据算出的结论（自环、成环、编号查不到）——交触发它的那份入参。
  */
-export async function setParent(repo, key, parentKey, opts, ctx) {
+export async function setParent(repo: RepositoryRef, key: string, parentKey: string | null | undefined, opts: SetOpts | undefined, ctx: MemoContext): Promise<OpResult<Issue>> {
   try {
     const parsed = parseRepo(repo)
     if (!parsed) return fail(ERROR_KIND.NOTFOUND, `setParent: repo.refId missing: ${repoId(repo)}`, repo)
@@ -99,7 +126,7 @@ export async function setParent(repo, key, parentKey, opts, ctx) {
         if (back.ok) return back
         return curRes.ok ? curRes : back
       }
-      const rmMsg = String((rm.error && (rm.error.message || rm.error.stderr)) || '')
+      const rmMsg = errMessageOrStderr(rm.error)
       if (!isUnknownFlag(rmMsg)) return { ok: false, error: rm.error }
       const childId = await issueDbId(c, parsed, k, ctx)
       // 查编号没查到时还没有任何上游报错，能交的原文就是被查的那个票号。
@@ -121,7 +148,7 @@ export async function setParent(repo, key, parentKey, opts, ctx) {
       if (!/^\d+$/.test(k)) return fail(ERROR_KIND.PARSE, `setParent: key 必须是数字编号：${k}`, String(k))
       let set = await c.execGh(['issue', 'edit', k, '--repo', slug, '--parent', wantParent], { cwd: ctx && ctx.cwd })
       if (!set.ok) {
-        const m = String((set.error && (set.error.message || set.error.stderr)) || '')
+        const m = errMessageOrStderr(set.error)
         // 改挂：已是别的父的子票时先解再挂，保证单父语义不断。
         if (/already a sub-issue/i.test(m) && curParentKey != null && curParentKey !== wantParent) {
           const rm2 = await c.execGh(['issue', 'edit', k, '--repo', slug, '--remove-parent'], { cwd: ctx && ctx.cwd })
@@ -129,7 +156,7 @@ export async function setParent(repo, key, parentKey, opts, ctx) {
         }
       }
       if (!set.ok) {
-        const m = String((set.error && (set.error.message || set.error.stderr)) || '')
+        const m = errMessageOrStderr(set.error)
         // #829：旗报重复时以重读为准（读过期后重试）：已是目标父则成功，否则带原话失败。
         if (/already.*sub-issue|duplicate|addSubIssue|may not contain duplicate/i.test(m)) {
           try { const re = await getIssue(repo, k, {}, ctx); if (re.ok && re.data && re.data.parentKey === wantParent) return re } catch {}
@@ -171,7 +198,7 @@ export async function setParent(repo, key, parentKey, opts, ctx) {
     // 判档只走本房唯一的出口（`ghVerdictOf`）：档位由规则表判、话术按票面实现决定第 11 条挑。
     // 第三段把出错的那个值原样交出去当原文。
     const verdict = ghVerdictOf(e, ctx)
-    return fail(verdict.kind, ghFailureMessage(verdict, String((e && e.message) || e).slice(0, 800)), e)
+    return fail(verdict.kind, ghFailureMessage(verdict, caughtMessage(e, 800)), e)
   }
 }
 
@@ -180,14 +207,15 @@ export async function setParent(repo, key, parentKey, opts, ctx) {
  * - blockedBy 读自 GitHub blockedBy 边（GraphQL blockedBy 字段）
  * - blocking 反向聚合：全量扫描 blockedBy 或单点 blocking 边（此处全量扫描，host 侧 LRU 缓存）
  */
-export async function getDependencies(repo, key, opts, ctx) {
+export async function getDependencies(repo: RepositoryRef, key: string, opts: DepsOpts | undefined, ctx: MemoContext): Promise<OpResult<Dependencies>> {
   try {
     const parsed = parseRepo(repo)
     if (!parsed) return fail(ERROR_KIND.NOTFOUND, `getDependencies: repo.refId missing: ${repoId(repo)}`, repo)
     // 批量模式：opts.keys
     if (opts && Array.isArray(opts.keys) && opts.keys.length) {
       // 批量返回聚合：对每 key 各自取 blockedBy，再反向聚合 blocking（简化：直接调单点并合并）
-      const results = []
+      // 为什么显式标：循环里才往里装，编译器判成隐式 any；装的本来就是编号与那份依赖投影，运行时还是原来那几个值。
+      const results: { key: string; data: Dependencies }[] = []
       for (const kk of opts.keys) {
         const single = await getDependencies(repo, kk, {}, ctx)
         if (!single.ok) return single
@@ -206,20 +234,25 @@ export async function getDependencies(repo, key, opts, ctx) {
     const blockedBy = Array.isArray(cur.data.blockedBy) ? cur.data.blockedBy : []
     // blocking 反向聚合：名册优先（脏票定向重读），缺席时退回整仓拉取；阻塞方的标题逐张读回，读不回的键照列（标题空，不吞边）。
     const adj = await adjacencyFor(repo, ctx)
-    const blockingKeys = []
+    // 为什么显式标成串数组：分支里才往里装，编译器判成隐式 any；装的本来就是阻塞方的票号串，运行时还是原来那几个值。
+    const blockingKeys: string[] = []
     if (adj) {
       for (const entry of adj) { if (entry[1] && entry[1].has(k) && entry[0] !== k) blockingKeys.push(entry[0]) }
     } else {
       const allRes = await listIssues(repo, {}, ctx)
-      const all = allRes.ok ? allRes.data : []
+      // 为什么标成票数组：这一路本该是整仓的票（blockedBy 元素是引用形状）；标法只为过编译——listIssues 缺导入，
+      // 这一路今天跑起来是 ReferenceError（外层 catch 转失败），标什么都不影响运行时，见上报清单。
+      const all: Issue[] = allRes.ok ? allRes.data : []
       for (const issue of all) {
         if (!issue.blockedBy || !Array.isArray(issue.blockedBy)) continue
         if (issue.blockedBy.some((b) => b.key === k)) blockingKeys.push(issue.key)
       }
     }
-    const blocking = []
+    // 为什么标成引用数组：反向聚合的每一项本来就是「键+标题+状态」的引用（读不回的标题给空串），与契约的 blocking 一一对应。
+    const blocking: IssueRef[] = []
     for (const bk of blockingKeys) {
-      let info = null
+      // 为什么显式标：两条分支（读回 / 没读回）都往里装，编译器判成隐式 any；装的本来就是那张票或空，运行时还是原来那个值。
+      let info: Issue | null = null
       try { const g = await getIssue(repo, bk, {}, ctx); if (g && g.ok === true) info = g.data } catch (e) {}
       blocking.push(info ? { key: info.key, title: info.title, state: info.state, type: info.type } : { key: bk, title: '', state: 'open' })
     }
@@ -228,12 +261,12 @@ export async function getDependencies(repo, key, opts, ctx) {
     // 判档只走本房唯一的出口（`ghVerdictOf`）：档位由规则表判、话术按票面实现决定第 11 条挑。
     // 第三段把出错的那个值原样交出去当原文。
     const verdict = ghVerdictOf(e, ctx)
-    return fail(verdict.kind, ghFailureMessage(verdict, String((e && e.message) || e).slice(0, 800)), e)
+    return fail(verdict.kind, ghFailureMessage(verdict, caughtMessage(e, 800)), e)
   }
 }
 
 /** 成环检测：邻接关系名册优先（只定向重读脏票），缺席时退回整仓拉取；DFS 判环。返回 true = 成环。 */
-async function wouldCreateCycle(repo, key, blockers, ctx) {
+async function wouldCreateCycle(repo: RepositoryRef, key: string, blockers: unknown, ctx: MemoContext): Promise<boolean> {
   try {
     const adj = await adjacencyFor(repo, ctx)
     if (!adj) return false
@@ -249,7 +282,7 @@ async function wouldCreateCycle(repo, key, blockers, ctx) {
  * - 自环：self∈blockers → conflict
  * - 成环：写后环检成环 → conflict 不落盘
  */
-export async function setBlockedBy(repo, key, blockers, opts, ctx) {
+export async function setBlockedBy(repo: RepositoryRef, key: string, blockers: string[] | undefined, opts: SetOpts | undefined, ctx: MemoContext): Promise<OpResult<Issue>> {
   try {
     const parsed = parseRepo(repo)
     if (!parsed) return fail(ERROR_KIND.NOTFOUND, `setBlockedBy: repo.refId missing: ${repoId(repo)}`, repo)
@@ -281,20 +314,24 @@ export async function setBlockedBy(repo, key, blockers, opts, ctx) {
     // 为兼容，本实现用 REST 依赖 API
     const curRes = await getDependencies(repo, k, {}, ctx)
     if (!curRes.ok) return curRes
-    const curBlockers = curRes.data.blockedBy.map((b) => b.key)
+    // 为什么敢断言非空：getDependencies 的 blockedBy 恒为数组（本文件上面那一步取不到也给 []），成功返回不可能缺这一格。
+    const curBlockers = curRes.data.blockedBy!.map((b) => b.key)
     const toAdd = uniq.filter((b) => !curBlockers.includes(b))
     const toRemove = curBlockers.filter((b) => !uniq.includes(b))
     // 票号（number，如 758）与接口要的内部标识（id，如 5595650996）不是一回事：
     // 写边与删边都要先把票号换成内部标识，且传参用 -F（按类型传数字），-f 会传成字符串被 422 拒收。
-    async function idOf(numberKey) {
+    // 为什么进闭包前先留一个：parsed 在上面已验过非空，但闭包里编译器会丢掉那次收窄；留一个已收窄的别名，闭包里读的还是原来那两个串。
+    const repoParsed: ParsedRepo = parsed;
+    async function idOf(numberKey: string): Promise<number | null> {
       try {
-        const rr = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/issues/${numberKey}`, '--jq', '.id'], { cwd: ctx && ctx.cwd })
+        const rr = await c.execGh(['api', `repos/${repoParsed.owner}/${repoParsed.name}/issues/${numberKey}`, '--jq', '.id'], { cwd: ctx && ctx.cwd })
         if (!rr.ok) return null
         const v = Number(String(rr.data.stdout || '').trim())
         return Number.isFinite(v) && v > 0 ? Math.floor(v) : null
       } catch { return null }
     }
-    const idByKey = new Map()
+    // 为什么显式标：键是票号串、值是换到的内部标识（查不到的不进表）；标法与读写一致，运行时还是原来那几对值。
+    const idByKey = new Map<string, number>()
     for (const kk of [...new Set([...toAdd, ...toRemove])]) {
       const id = await idOf(kk)
       if (id) idByKey.set(kk, id)
@@ -331,16 +368,17 @@ export async function setBlockedBy(repo, key, blockers, opts, ctx) {
     if (finalRes.ok) {
       // 覆盖 blockedBy 为 uniq 归一（确保本地一致）
       // 需把 uniq 转为 IssueRef[]（title/state 暂空，由 normalize 补全）
-      finalRes.data.blockedBy = uniq.map((kk) => ({ key: String(kk), title: '', state: 'open' }))
+      // 为什么标返回形状：map 回的每一项本来就是引用形状（键+空标题+开态），标上后字面量里的开态才不会被展宽成串；交的还是原来那几项。
+      finalRes.data.blockedBy = uniq.map((kk): IssueRef => ({ key: String(kk), title: '', state: 'open' }))
       return finalRes
     }
     const optimisticRaw = { number: Number(k) || k, blockedBy: { nodes: uniq.map((kk) => ({ number: Number(kk), title: '', state: 'open' })) } }
     const issue = normalizeIssue(optimisticRaw)
-    issue.blockedBy = uniq.map((kk) => ({ key: String(kk), title: '', state: 'open' }))
+    issue.blockedBy = uniq.map((kk): IssueRef => ({ key: String(kk), title: '', state: 'open' }))
     return { ok: true, data: issue }
   } catch (e) {
     const verdict = ghVerdictOf(e, ctx)
-    const own = String((e && e.message) || e).slice(0, 800)
+    const own = caughtMessage(e, 800)
     // conflict 显式已在上处返回，此处兜底
     if (verdict.kind === ERROR_KIND.CONFLICT) return fail(ERROR_KIND.CONFLICT, ghFailureMessage(verdict, own), e)
     return fail(verdict.kind, ghFailureMessage(verdict, own), e)

@@ -10,20 +10,28 @@
 // 也不在这份表里才回灰（见 label-colors-paint.js）。
 import { normalizeColor } from '../../../shared/label-color/colors.js'
 
-let builtinColors = []
+// 内置表里的行形状：与契约 BackendModule.labelPalette（{name, color}[]）同形，
+// 另容 description（调色盘自带说明时列标签一并展示）。
+export interface BuiltinLabelEntry {
+  name: string
+  color: string
+  description?: string
+}
+
+let builtinColors: BuiltinLabelEntry[] = []
 
 /** 后端模块把内置默认色表交给本文件（同一个数组，不复制）。 */
-export function useBuiltinLabelColors(list) {
+export function useBuiltinLabelColors(list: unknown): void {
   builtinColors = Array.isArray(list) ? list : []
 }
 
 /** 当前生效的内置默认色表。 */
-export function builtinLabelColors() {
+export function builtinLabelColors(): BuiltinLabelEntry[] {
   return builtinColors
 }
 
 /** 标签名 → 内置默认色（小写六位；表里没有这个标签时返回空串）。 */
-export function builtinColorOf(name) {
+export function builtinColorOf(name: string): string {
   for (const item of builtinColors) {
     if (item && String(item.name || '') === String(name)) {
       const c = normalizeColor(item.color)
@@ -35,8 +43,8 @@ export function builtinColorOf(name) {
 
 /** 内置默认色表的对象形态：标签名 → 颜色（键的顺序按内置调色盘的顺序，人看起来稳定）。
  *  首建配色文件时用它；颜色统一成不带井号的小写六位。 */
-export function builtinColorObject() {
-  const out = {}
+export function builtinColorObject(): Record<string, string> {
+  const out: Record<string, string> = {}
   for (const item of builtinColors) {
     if (!item || !item.name) continue
     out[String(item.name)] = normalizeColor(item.color) || ''

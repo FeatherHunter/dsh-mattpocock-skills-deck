@@ -5,16 +5,21 @@
  * 严格对照 contract.js 13操作集（OPERATIONS）与 shape.js；按 #113 平台抽象（ctx.platform / ctx.exec / ctx.fs）。
  * 能力诚实：未就绪op由registry Proxy补unsupported桩，此处不再自造布尔capabilities表。
  *
- * 2026-10-14 从 index.js 改名成 index.ts（地图 06 的单房票 #1135，先修后转两次提交里的后一次）：
- * 这一次只改文件名与注释，代码一行没动，转完行为与转之前一致（九条工具回执逐字节一致的门禁把关）。
- * 下面这些函数的形参今天还没有类型标注，也不该被当成「已经查过」：整棵 src/tracker 的归属配置是
- * 另一张票（#1095），到那时候再补类型；现在补一半，读的人会误以为这一层已经过类型检查。
+ * 2026-10-14 从 index.js 改名成 index.ts（地图 06 的单房票 #1135，先修后转两次提交里的后一次），
+ * 同轮把 13 个手写 .js 一并转成 .ts：只加类型标注不改逻辑，转完行为与转之前一致。
+ * 本文件的公开函数形参已按契约类型标注（RepoHandle/RepositoryRef/BackendContext/OpContext），
+ * 与房内其余 13 个 .ts 一起在 `node node_modules/typescript/bin/tsc -p src/tracker/tsconfig.json`
+ * 下零错误（不要用 `npx tsc`，本仓那是占位壳，不是真编译器）。
  * 包里的 .js 是构建产物（scripts/build.mjs 把 src/tracker 下的 .ts 逐个转译进 package/tracker），
  * 不要手改；宿主源码引用本文件时照旧写 './index.js'（开发期由 scripts/ts-hook.mjs 指到本文件）。
  */
 
-import type { RoomOperations } from '../../contract/operations.js'
+import type { GitlabBackendShape } from '../../capability-assertions.js'
+import type { BackendId } from '../../contract/identity.js'
+import type { RepositoryRef } from '../../contract/entities.js'
+import type { BackendContext, OpContext, RepoHandle } from '../../contract/contexts.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
+import type { ErrorKind } from '../../contract/identity.js'
 import { fail } from '../../preflight.js'
 import { glabPreflight } from './preflight.js'
 import { listIssues, getIssue, createIssue, closeIssue, reopenIssue, updateIssue } from './issues.js'
@@ -22,10 +27,13 @@ import { addComment } from './comments.js'
 import { setLabels } from './labels.js'
 import { getDependencies, setBlockedBy, setParent, setAssignees } from './graph.js'
 
-function repoId(handle) {
+// 入参只取识别要用的两格，是因为 matches 只读工作区目录与仓库标识，拿全量会把无关字段搅进来。
+function repoId(handle: RepoHandle | Partial<RepositoryRef> | null | undefined): string {
   if (!handle) return ''
   if (typeof handle.refId === 'string' && handle.refId) return handle.refId
-  if (typeof handle.cwd === 'string' && handle.cwd) return handle.cwd
+  if (typeof (handle as RepoHandle).cwd === 'string' && (handle as RepoHandle).cwd) {
+    return (handle as RepoHandle).cwd as string
+  }
   return ''
 }
 
@@ -33,7 +41,10 @@ function repoId(handle) {
  * GitLab matches：启发式 boolean（读 .git/config / glab remote / issue-tracker.md）
  * 不确定一律 false + diagnostics（ctx.log.warn）
  */
-async function matches(handle, ctx) {
+async function matches(
+  handle: RepoHandle | null | undefined,
+  ctx: OpContext | null | undefined,
+): Promise<boolean> {
   try {
     if (!handle || typeof handle !== 'object') return false
     // refId 显式含 gitlab 串 → true
@@ -42,7 +53,7 @@ async function matches(handle, ctx) {
     if (!cwd || typeof cwd !== 'string') return false
     const platform = ctx && ctx.platform
     const fs = (ctx && ctx.fs) || (platform && platform.fs)
-    const log = ctx && ctx.log
+    void (ctx as unknown as Record<string, unknown>)?.['log']
     if (!fs || !platform) return false
     // 1) .git/config 是否含 gitlab
     try {
@@ -67,15 +78,35 @@ async function matches(handle, ctx) {
       }
     } catch {}
     return false
-  } catch (e) {
-    try { if (ctx && ctx.log && ctx.log.warn) ctx.log.warn('gitlab matches error: ' + String(e)) } catch {}
+  } catch (e: unknown) {
+    try {
+      const logBag = (ctx as unknown as Record<string, unknown>)?.['log'] as
+        | { warn?: unknown }
+        | undefined
+      if (logBag && typeof logBag['warn'] === 'function') {
+        ;(logBag['warn'] as (m: string) => void)('gitlab matches error: ' + String(e))
+      }
+    } catch {
+      // 诊断日志写失败不影响识别结论。
+    }
     return false
   }
 }
 
-export function describe(handle, backendId) {
+/**
+ * 产出仓库身份：refId 优先用传入的标识，缺了才拿目录名顶上，远端地址按 GitLab 规则拼。
+ *
+ * @param handle 识别时给的那点线索（只取 refId 与 cwd）
+ * @param backendId 后端 id（调用方透传 'gitlab'）
+ */
+export function describe(
+  handle: RepoHandle | Partial<RepositoryRef> | null | undefined,
+  backendId: BackendId,
+): RepositoryRef {
   const rawRef = handle && typeof handle.refId === 'string' && handle.refId ? String(handle.refId).trim() : ''
-  const cwd = handle && typeof handle.cwd === 'string' ? String(handle.cwd) : ''
+  // cwd 只在 RepoHandle 那一形上有，RepositoryRef 那一形没有，这里按存在判读而不是按类型硬取。
+  const maybeCwd = (handle as RepoHandle | null | undefined)?.cwd
+  const cwd = typeof maybeCwd === 'string' ? String(maybeCwd) : ''
   let refId = rawRef
   const name = refId || (cwd ? cwd.split(/[\\/]/).pop() || cwd : backendId) || backendId
   const url = refId && refId.includes('/') ? 'https://gitlab.com/' + refId : ''
@@ -84,13 +115,15 @@ export function describe(handle, backendId) {
 
 // 链接三件（#1110 实现决定第 14 条 / #1135 改名 / #1141 删旧名）：名字讲的是「地址」而不是「网址」，
 // 因为本地 Markdown 后端给的是票文件的绝对路径；网址口吻的旧名字已按 #1141 删净。
-export function issueAddress(ref, key) {
+// 票地址只认 refId，是因为 GitLab 的票链完全由仓库标识决定，拿不到就如实给空串不猜。
+export function issueAddress(ref: Partial<RepositoryRef> | null | undefined, key: string | number): string {
   const refId = ref && typeof ref.refId === 'string' ? ref.refId : ''
   if (!refId) return ''
   return 'https://gitlab.com/' + refId + '/-/issues/' + String(key)
 }
 
-export function repoSearchAddress(name) {
+// 按名搜仓库的地址只做编码拼串，是因为全站搜索页不需要鉴权，拼不出就等调用方自己处理空串。
+export function repoSearchAddress(name: string | null | undefined): string {
   return 'https://gitlab.com/search?search=' + encodeURIComponent(String(name || ''))
 }
 
@@ -118,13 +151,15 @@ export const links = {
 /**
  * 创建 GitLab 后端适配器（今天实现了 13 条操作 + 2 条定位口，其余交给注册表补桩）。
  *
- * 返回类型标 `RoomOperations`（`Tracker` 的子集）：没实现的那些操作由注册表补「我不支持」的桩。
+ * 返回类型故意不标（理由同 GitHub 房：标成成员全可选的集合就查不出少写，
+ * 形状判定收在 `src/tracker/capability-assertions.ts`）：没实现的那些操作由注册表补「我不支持」的桩。
  * 本后端今天的边界是「13 条操作 + describe/issueAddress 两条定位口」——
  * 计数、分页、标签配色、当前登录人、初始化发布、仓库写权限、子票、配色文件这几条都还没做。
  */
-export function createGitlabBackend(ctx): RoomOperations {
+export function createGitlabBackend(ctx: BackendContext) {
   // 原文给这次被拒的操作名（这条支路一个请求都没发，没有远端回包可取）。
-  const unsupported = (op) => fail(ERROR_KIND.UNSUPPORTED, `gitlab ${op} pending #145 stub`, String(op))
+  const unsupported = (op: string) => fail(ERROR_KIND.UNSUPPORTED as ErrorKind, `gitlab ${op} pending #145 stub`, String(op))
+  void unsupported
 
   return {
     id: 'gitlab',
@@ -143,7 +178,7 @@ export function createGitlabBackend(ctx): RoomOperations {
     setAssignees: (repo, key, assignees, opts, opCtx) => setAssignees(ctx, repo, key, assignees, opts, opCtx || ctx),
     setParent: (repo, key, parentKey, opts, opCtx) => setParent(ctx, repo, key, parentKey, opts, opCtx || ctx),
     setBlockedBy: (repo, key, blockers, opts, opCtx) => setBlockedBy(ctx, repo, key, blockers, opts, opCtx || ctx),
-  }
+  } satisfies GitlabBackendShape
 }
 
 /** 修复契约注入文案（GitLab 后端，双语单源；供 fixes 引用，host 组装时解析）。 */

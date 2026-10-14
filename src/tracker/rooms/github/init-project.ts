@@ -17,6 +17,44 @@ import { isOwnershipMismatch, ownershipPathFrom, safeDirectoryCommand } from '..
 // #1111：失败结果统一是三段式（kind / message / raw），这里几条直接写出来的失败字面量也要带原文段 ——
 //   原文取法走跟踪器层唯一那套（多路合并、遮蔽凭据、头尾截断），与 fail() 一致。
 import { rawText } from '../../preflight.js'
+import type { OpContext, RepoHandle } from '../../contract/contexts.js';
+import type { RepositoryRef } from '../../contract/entities.js';
+import type { InitProjectInput } from '../../contract/inputs.js';
+
+/**
+ * 开仓失败的错误：三段式，但 kind 是开仓自己的结果词（bad-name/no-git/no-gh/not-logged-in/
+ * already-exists/network/permission/git-ownership/unknown 这些，不在 TrackerError 八档内，见函数头注释）。
+ * raw 只是通常有：建仓那条分支历史上就没带原文段，保持原样（不断言、不补），所以标成可选。
+ */
+interface InitProjectError {
+  kind: string;
+  message: string;
+  raw?: string;
+  prompt?: string;
+  repoUrl?: string;
+}
+
+/** 开仓的返回：成功带仓库身份，失败带上面那句。 */
+type InitProjectOutcome = { ok: true; data: RepositoryRef } | { ok: false; error: InitProjectError };
+
+/** 本地进程执行结果：成功带原文，失败带退出码与一句短错（原文段由调用方另取，这里只记短错）。 */
+type ProcResult = { ok: true; code: number; text: string } | { ok: false; code: number; error: string; text: string };
+
+/**
+ * 工作区 git 可用性结论：能用（本来就能用、刚自愈好、本来就不是仓库三选一）或不能用（带档位与 git 原话）。
+ * 可选格只出现在成功分支里，调用方 `usable.notRepoYet` 读到的一定是成功分支，不用再收窄。
+ */
+type WorktreeUsable =
+  | { ok: true; healed?: boolean; notRepoYet?: boolean }
+  | { ok: false; kind: string; text: string; triedRepair?: boolean };
+
+// 为什么 catch 里的错误要先转这层再读：catch 出来是 unknown，直接读 message 报缺成员；
+// 转成最小形状后读法与原来一致，运行时不变。
+type CaughtMsg = { message?: unknown } | null;
+function caughtMessage(e: unknown, len: number): string {
+  const eb = e as CaughtMsg;
+  return String((eb && eb.message) || e).slice(0, len)
+}
 
 // ============ initProject 契约 op（git init→commit→gh repo create→push） ============
 /**
@@ -29,7 +67,7 @@ import { rawText } from '../../preflight.js'
  *  - 失败：{ok:false, error:{kind, message, raw}} kind∈{no-git,no-gh,not-logged-in,already-exists,network,permission,git-ownership,unknown}
  *    （raw 是原文段：确实没有原文的本地判断给空串，有 git / gh 原话的一律交出来，界面能展开看）
  */
-export async function initProject(handle, input, ctx) {
+export async function initProject(handle: RepoHandle, input: InitProjectInput, ctx: OpContext): Promise<InitProjectOutcome> {
   const cwd = (handle && handle.cwd) || (ctx && ctx.cwd) || ''
   const name = input && input.name ? String(input.name).trim() : ''
   const visibility = input && input.visibility === 'public' ? 'public' : 'private'
@@ -43,7 +81,7 @@ export async function initProject(handle, input, ctx) {
   const execFn = ctx && typeof ctx.exec === 'function' ? ctx.exec.bind(ctx) : (platform && typeof platform.exec === 'function' ? platform.exec.bind(platform) : null)
 
   // helper: execProc 兼容层（ctx.exec 契约 {stdout,stderr,code}；host 旧 execProc 返回 {ok,text,error}）
-  async function execProcLocal(argv, execCwd) {
+  async function execProcLocal(argv: string[], execCwd: string): Promise<ProcResult> {
     const cmd = argv[0]
     const args = argv.slice(1)
     if (execFn) {
@@ -55,7 +93,7 @@ export async function initProject(handle, input, ctx) {
         if (code !== 0) return { ok: false, code, error: (err || out || 'exit '+code).slice(0,400), text: out }
         return { ok: true, code: 0, text: out }
       } catch (e) {
-        return { ok: false, code: -1, error: String((e && e.message) || e).slice(0,400), text: '' }
+        return { ok: false, code: -1, error: caughtMessage(e, 400), text: '' }
       }
     }
     // 回退：尝试 ghClient 的底层（仅用于测试 mock）
@@ -86,7 +124,7 @@ export async function initProject(handle, input, ctx) {
   // 与 publishFlow.js 同一套判据（探针命令、自愈写法、失败信封都一致），两处共用共享模块出判断。
   const NOT_A_REPO_RE = /not a git repository/i
 
-  async function probeWorktreeUsable(git, cwd) {
+  async function probeWorktreeUsable(git: string, cwd: string): Promise<WorktreeUsable> {
     const r = await execProcLocal([git, '-C', cwd, 'rev-parse', '--is-inside-work-tree'], cwd)
     if (r.ok) return { ok: true }
     const text = String(r.error || '')
@@ -95,14 +133,14 @@ export async function initProject(handle, input, ctx) {
     return { ok: false, kind: classifyCreateError(text, null), text }
   }
 
-  async function healOwnership(git, cwd, probeText) {
+  async function healOwnership(git: string, cwd: string, probeText: string): Promise<{ ok: boolean; dir: string }> {
     const dir = ownershipPathFrom(probeText) || cwd
     const r = await execProcLocal([git, 'config', '--global', '--add', 'safe.directory', dir], cwd)
     return { ok: !!r.ok, dir: dir }
   }
 
   // git 侧失败的统一信封：属主那一档给可照做的一句话，unknown 那一档把 git 原话带给用户。
-  function gitFail(errText, cwd) {
+  function gitFail(errText: string, cwd: string): { ok: false; error: InitProjectError } {
     const kind = classifyCreateError(errText, null)
     const raw = String(errText || '')
     if (kind === 'git-ownership') {
@@ -117,7 +155,7 @@ export async function initProject(handle, input, ctx) {
 
   // 返回 ok 时，工作区要么本来就能用 git，要么刚补好 safe.directory 并已确认能用；
   //   返回失败时，这一步一步都没改过这个目录。
-  async function preflightWorkspaceGit(git, cwd) {
+  async function preflightWorkspaceGit(git: string, cwd: string): Promise<WorktreeUsable> {
     const first = await probeWorktreeUsable(git, cwd)
     if (first.ok) return first
     if (first.kind !== 'git-ownership') return first
@@ -146,9 +184,13 @@ export async function initProject(handle, input, ctx) {
       return { ok: false, error: { kind: 'not-logged-in', message: String(authR.error.message || authR.error).slice(0,400), raw: rawText(authR.error) } }
     }
   } catch (e) {
-    const t = String((e && e.message) || e).toLowerCase()
-    if (/network|econn|timed out|timeout|enotfound|getaddrinfo|connect/.test(t)) return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: String((e && e.message)||e).slice(0,400), raw: rawText(e) } }
-    return { ok: false, error: { kind: 'not-logged-in', message: String((e && e.message)||e).slice(0,400), raw: rawText(e) } }
+    // 判定口径不动：网络味仍在前 400 字里认（与原来一字不差）。400 字之后的关键字今天认不出来，
+    // 这是已知欠账（超长输出的误判），改判定口径另立一票，不在这次类型化里顺手改。
+    const eb = e as CaughtMsg;
+    const full = String((eb && eb.message) || e)
+    const t = full.slice(0, 400).toLowerCase()
+    if (/network|econn|timed out|timeout|enotfound|getaddrinfo|connect/.test(t)) return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: full.slice(0, 400), raw: rawText(e) } }
+    return { ok: false, error: { kind: 'not-logged-in', message: full.slice(0, 400), raw: rawText(e) } }
   }
 
   // 取当前登录用户（用于 already-exists 时拼 repoUrl 与成功后 owner 兜底）
@@ -203,20 +245,26 @@ export async function initProject(handle, input, ctx) {
   if (!hasOrigin) {
     const cr = await cGH.execGh(['repo', 'create', name, visFlag, '--source=.', '--push'], { cwd })
     if (!cr.ok) {
-      const kind = classifyCreateError(cr.error.message || cr.error, cr.error && cr.error.kind)
+      // 为什么断言一下：失败的 message 恒有字（空串才退回整个错误值），分类器只要字符串；断言只为过编译，交的还是原来那个值，运行时不变。
+      const kind = classifyCreateError((cr.error.message || cr.error) as string, cr.error && cr.error.kind)
       const repoUrl = (kind === 'already-exists' && currentUser) ? ('https://github.com/' + currentUser + '/' + name) : undefined
-      const err = { kind, message: String(cr.error.message || cr.error).slice(0,400) }
+      // 为什么错误体单列形状：建仓这条分支历史上就不带原文段（raw 缺席），与别处的三段式不一样；标成可选是如实记录现状，不是漏写。
+      const err: InitProjectError = { kind, message: String(cr.error.message || cr.error).slice(0, 400) }
       if (repoUrl) err.repoUrl = repoUrl
-      if (cr.error && cr.error.prompt) err.prompt = cr.error.prompt
+      // 为什么断言：gh 的失败里没有 prompt 这一格（类型上就没有），但旧逻辑留了这道门（万一哪天有了就透传）；
+      // 断言只为过编译，读的还是原来那一格，有就是有、没有就是没有，运行时不变。
+      const maybePrompt = (cr.error as unknown as { prompt?: unknown }).prompt;
+      if (cr.error && maybePrompt) err.prompt = maybePrompt as string;
       return { ok: false, error: err }
     }
   } else {
     // origin 已存在：先创建远程仓库（不带 --source），再 set-url + push
     const cr2 = await cGH.execGh(['repo', 'create', name, visFlag], { cwd })
     if (!cr2.ok) {
-      const kind = classifyCreateError(cr2.error.message || cr2.error, cr2.error && cr2.error.kind)
+      // 为什么断言一下：同上，分类器只要字符串，交的还是原来那个值，运行时不变。
+      const kind = classifyCreateError((cr2.error.message || cr2.error) as string, cr2.error && cr2.error.kind)
       const repoUrl = (kind === 'already-exists' && currentUser) ? ('https://github.com/' + currentUser + '/' + name) : undefined
-      const err = { kind, message: String(cr2.error.message || cr2.error).slice(0,400) }
+      const err: InitProjectError = { kind, message: String(cr2.error.message || cr2.error).slice(0, 400) }
       if (repoUrl) err.repoUrl = repoUrl
       return { ok: false, error: err }
     }

@@ -9,16 +9,27 @@ import { writeTextFile } from './write.js'
 import { failFromError } from './error-fail.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { resolveIssueFile } from './issues-locate.js'
+import type { OpContext } from '../../contract/contexts.js'
+import type { RepositoryRef, Comment } from '../../contract/entities.js'
 // #922：写评论同样是「读整份 → 在内存里改 → 整份写回」，要排在该票文件的单写者队列里，见 write-queue.js。
 import { withFileWriter } from './write-queue.js'
 
-export async function listComments(ctx,repo,key){
+// 仓库引用：path 是本地后端的自有约定（契约不保证），有就多认那个目录（path.ts 的同款，房间里各备一份）。
+type RepoWithPath = RepositoryRef & { path?: string }
+
+// 本文件交出去的失败形状：与 failAs 落的三段式一致（成功侧各函数自带）。
+interface CommentsFailure {
+  ok: false
+  error: { kind: string; message: string; raw: string }
+}
+
+export async function listComments(ctx: OpContext,repo: RepoWithPath | null,key: string): Promise<{ok:true,data:Comment[]}|CommentsFailure>{
   const norm=String(key).padStart(2,'0')
   const r=await resolveIssueFile(ctx,repo,norm,{mode:'read'})
   if(!r.ok)return{ok:false,error:r.error}
   try{const txt=await readTextFile(ctx,r.path);const iss=parseMd(txt,{key:norm,parentKey:'00',isMap:false,effortId:r.effortId});return{ok:true,data:iss.comments||[]}}catch(e){return failFromError(e,ctx,'读这张票的评论时出错')}
 }
-export async function addComment(ctx,repo,key,body){
+export async function addComment(ctx: OpContext,repo: RepoWithPath | null,key: string,body: string): Promise<{ok:true,data:Comment}|CommentsFailure>{
   const norm=String(key).padStart(2,'0')
   const r=await resolveIssueFile(ctx,repo,norm,{mode:'write'})
   if(!r.ok)return{ok:false,error:r.error}
@@ -28,7 +39,8 @@ export async function addComment(ctx,repo,key,body){
     try{
       let txt=await readTextFile(ctx,r.path)
       const nowIso=new Date().toISOString()
-      const actor=(ctx&&ctx.actor)||'local'
+      // actor 与 sandboxPolicy 不在契约 OpContext 上（宿主按会话透传的扩展键）：经视图读，不拓签名。
+      const actor=String((ctx&&(ctx as {actor?: unknown}).actor)||'local')
       const block='### '+actor+' \u2014 '+nowIso+'\n'+String(body||'').trim()+'\n'
       const re=/^\s*##\s*Comments\s*$/im
       const m=re.exec(txt)
@@ -47,8 +59,8 @@ export async function addComment(ctx,repo,key,body){
         if(!txt.endsWith('\n'))txt+='\n'
         txt+='\n## Comments\n\n'+block+'\n'
       }
-      await writeTextFile(ctx,r.path,txt, ctx && ctx.sandboxPolicy)
-      const comment={author:{login:actor},authorAssociation:'',body:String(body||''),createdAt:nowIso,updatedAt:nowIso}
+      await writeTextFile(ctx,r.path,txt, ctx&&(ctx as {sandboxPolicy?: unknown}).sandboxPolicy)
+      const comment: Comment={author:{login:actor},authorAssociation:'',body:String(body||''),createdAt:nowIso,updatedAt:nowIso}
       return{ok:true,data:comment}
     }catch(e){return failFromError(e,ctx,'把评论写进这张票的文件时出错')}
   })

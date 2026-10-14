@@ -9,21 +9,43 @@
  */
 
 import { STATE, ERROR_KIND } from '../../contract/vocabulary.js'
+import type { OpContext } from '../../contract/contexts.js';
+import type { Issue, RepositoryRef } from '../../contract/entities.js';
+import type { GetOpts, ListFilter } from '../../contract/inputs.js';
+import type { OpResult } from '../../contract/results.js';
 import { fail } from '../../preflight.js'
 import { ghClient } from './client.js'
 import { normalizeIssue } from './normalize.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'
 import { repairParentLinksREST } from './parent-repair.js'
 import { rosterAdoptList, rosterUpsert } from './roster.js'
+import type { MemoContext } from './roster.js'
 import { LIST_QUERY, GET_QUERY, LIST_PR_QUERY, GET_PR_QUERY } from './queries.js'
 import { fetchAllPullsREST, enrichRestPRs, enrichSinglePR } from './pulls.js'
 import { pickFallbackReason } from './fallback-reason.js'
+
+/** 仓库坐标：拥有者与仓库名，refId 形不对就回 null 而不是抛。 */
+interface ParsedRepo {
+  owner: string;
+  name: string;
+}
+
+/** list 的返回：成功时带票数组；走了 REST 降级时多带 fallback 标记（宿主快照据此写降级标记，界面只读不写）。 */
+type ListIssuesResult = OpResult<Issue[]> & { fallback?: string; fallbackReason?: string };
+
+// 为什么 catch 里的错误要先转这层再读：catch 出来是 unknown，短路后的真值分支会被收成空对象形状、
+// 直接读 message 报缺成员；转成最小形状后读法与原来一致，运行时不变。
+type CaughtMsg = { message?: unknown } | null;
+function caughtMessage(e: unknown, len: number): string {
+  const eb = e as CaughtMsg;
+  return String((eb && eb.message) || e).slice(0, len)
+}
 
 // 房内埋点（#494 O1）：GraphQL→REST 降级分支落同名事件 graphql.fallback（#8 告警）与 issues.fallback（#9 常驻）+ fallback.chain（#42 常驻），字段按 #489 附录 1.4。
 // 常驻直发（无外层开关判断，库体内兜底）；无 ctx.logEvent 时静默跳过；只记通道名与原因枚举，不记响应原文。
 // 降级原因分类（#504 雾证据补强）：细分原因实现见 fallback-reason.js（房内拆文件不拆房），此处只留落点。
 // 超时 → timeout；限流 → rate-limit；企业版主机 → ghe-host；其余 → graphql-error；只复用现有事件名与字段，附录不动。
-function emitRestFallback(ctx, scope, latencyMs, reason) {
+function emitRestFallback(ctx: OpContext, scope: string, latencyMs: number, reason: unknown): void {
   try {
     const f = ctx && typeof ctx.logEvent === 'function' ? ctx.logEvent : null
     if (!f) return
@@ -35,14 +57,14 @@ function emitRestFallback(ctx, scope, latencyMs, reason) {
 }
 // 坏节点计数（#504 可观测）：列表逐票归一失败会丢票，聚合计数后复用 error.normalize 调试事件记一行，不新增事件名，附录不动。
 // 高频路径：同行判断调试开关，关闭时不组装字段；只记范围与丢票计数，不记票原文。
-function emitBadNodes(ctx, scope, dropped, total) {
+function emitBadNodes(ctx: OpContext, scope: string, dropped: number, total: number): void {
   try {
     if (!dropped) return
     if (ctx && typeof ctx.isEnabled === 'function' && ctx.isEnabled('debug') && typeof ctx.logEvent === 'function') ctx.logEvent('debug', 'error.normalize', { rawKind: 'bad-node:' + scope + ':' + dropped + '/' + total, mappedKind: ERROR_KIND.PARSE })
   } catch {}
 }
 
-export function parseRepo(repo) {
+export function parseRepo(repo: RepositoryRef | null | undefined): ParsedRepo | null {
   if (!repo || typeof repo.refId !== 'string' || !repo.refId) return null
   const s = repo.refId.trim()
   const idx = s.indexOf('/')
@@ -50,7 +72,7 @@ export function parseRepo(repo) {
   return { owner: s.slice(0, idx), name: s.slice(idx + 1) }
 }
 
-export function repoId(repo) {
+export function repoId(repo: RepositoryRef | null | undefined): string {
   if (!repo) return ''
   if (typeof repo.refId === 'string' && repo.refId) return repo.refId
   if (typeof repo.name === 'string' && repo.name) return repo.name
@@ -65,9 +87,10 @@ export function repoId(repo) {
  *   用 `/issues/{map}/sub_issues` 端点修复树边（parentKey），保证 compose 的 maps/tickets 不受损。
  * 失败语义：首页失败 = 双路皆挂，诚实返回错误；尾页失败 = 按已得数据截断上报。
  */
-async function fetchAllIssuesREST(parsed, ctx) {
+async function fetchAllIssuesREST(parsed: ParsedRepo, ctx: OpContext): Promise<OpResult<unknown[]>> {
   const c = ghClient(ctx)
-  const out = []
+  // 为什么标成未知数组：回包是 GitHub 的原始行，本函数只负责翻页搬运、不解读形状，解读是调用方的事。
+  const out: unknown[] = []
   const MAX_PAGES = 10
   const PAGE = 100
   for (let p = 1; p <= MAX_PAGES; p++) {
@@ -76,10 +99,10 @@ async function fetchAllIssuesREST(parsed, ctx) {
       if (!out.length) return { ok: false, error: r.error }
       return { ok: true, data: out }
     }
-    let j
+    let j: unknown
     try { j = JSON.parse(r.data.stdout || '') } catch (e) {
       // 原文交这次 gh 的完整产出：人自己就能看出回包里到底是什么。
-      if (!out.length) return fail(ERROR_KIND.PARSE, `rest fallback: invalid json ${String(e.message).slice(0, 200)}`, r.data)
+      if (!out.length) return fail(ERROR_KIND.PARSE, `rest fallback: invalid json ${caughtMessage(e, 200)}`, r.data)
       return { ok: true, data: out }
     }
     if (!Array.isArray(j)) {
@@ -95,7 +118,7 @@ async function fetchAllIssuesREST(parsed, ctx) {
 
 
 // 内存过滤（list 两路共用）
-function applyIssueFilter(all, filter) {
+function applyIssueFilter(all: Issue[], filter: ListFilter | null | undefined): Issue[] {
   let filtered = all
   if (filter && typeof filter === 'object') {
     if (filter.state) {
@@ -126,7 +149,7 @@ function applyIssueFilter(all, filter) {
  * 读取用 GraphQL 批量（LIST_QUERY），GraphQL 失败（网络 EOF / 配额 / 无法解析）时 REST 降级；
  * 内存过滤 filter{type,state,parentKey,keys}
  */
-export async function listIssues(repo, filter, ctx) {
+export async function listIssues(repo: RepositoryRef, filter: ListFilter | undefined, ctx: MemoContext): Promise<ListIssuesResult> {
   try {
     const parsed = parseRepo(repo)
     if (!parsed) return fail(ERROR_KIND.NOTFOUND, `list: repo.refId missing or malformed: ${repoId(repo)}`, repo)
@@ -213,12 +236,14 @@ export async function listIssues(repo, filter, ctx) {
       const pulls = await fetchAllPullsREST(parsed, ctx)
       const raws = enrichRestPRs(rest.data, pulls.ok ? pulls.data : [])
       const rawFixed = await repairParentLinksREST(raws, parsed, ctx)
-      const restNorm = []
+      // 为什么断言：修树边返回的还是原来那份数组（原样回传）；断言只为过编译，迭代的还是原来那份值，运行时不变。
+      const rawList = rawFixed as unknown[];
+      const restNorm: Issue[] = []
       let droppedRest = 0
-      for (const n of rawFixed) {
+      for (const n of rawList) {
         try { restNorm.push(normalizeIssue(n)) } catch { droppedRest += 1 }
       }
-      if (droppedRest) emitBadNodes(ctx, 'rest', droppedRest, rawFixed.length)
+      if (droppedRest) emitBadNodes(ctx, 'rest', droppedRest, rawList.length)
       // #715：这一趟真的掉到 REST 通道了，把这件事如实带给调用方（`fallback: 'rest'`）——
       //   宿主快照组装处据此在快照上写下降级标记，界面那一侧只读不写（面板上那句「已切 REST 通道」的
       //   横幅本来就画好了，缺的一直是这个上游事实）。
@@ -234,14 +259,14 @@ export async function listIssues(repo, filter, ctx) {
     // 判档只走本房唯一的出口（`ghVerdictOf`）：档位由规则表判、话术按票面实现决定第 11 条挑。
     // 第三段把出错的那个值原样交出去当原文（合并、遮蔽、截断由 `fail` 统一做）。
     const verdict = ghVerdictOf(e, ctx)
-    return fail(verdict.kind, ghFailureMessage(verdict, String((e && e.message) || e).slice(0, 800)), e)
+    return fail(verdict.kind, ghFailureMessage(verdict, caughtMessage(e, 800)), e)
   }
 }
 
 /**
  * get(repo, key, opts, ctx) -> OpResult<Issue>
  */
-export async function getIssue(repo, key, opts, ctx) {
+export async function getIssue(repo: RepositoryRef, key: string, opts: GetOpts | undefined, ctx: MemoContext): Promise<OpResult<Issue>> {
   try {
     const parsed = parseRepo(repo)
     if (!parsed) return fail(ERROR_KIND.NOTFOUND, `get: repo.refId missing: ${repoId(repo)}`, repo)
@@ -256,11 +281,12 @@ export async function getIssue(repo, key, opts, ctx) {
     const args = ['api', 'graphql', '-f', `query=${query}`, '-F', `owner=${parsed.owner}`, '-F', `name=${parsed.name}`, '-F', `number=${num}`]
     const r = await c.execGh(args, { cwd: ctx && ctx.cwd })
     let issueFromGraphQL = null
-    let getCause = (!r.ok ? ((r && r.error) || r) : null)
+    // 为什么标成未知：这里装的是「第一现场的失败样子」（gh 的失败或抛出的值），形状不固定，只负责往下传、不解读。
+    let getCause: unknown = (!r.ok ? ((r && r.error) || r) : null)
     if (r.ok) {
       const text = r.data.stdout || ''
       let j
-      try { j = JSON.parse(text) } catch (e) { return fail(ERROR_KIND.PARSE, `get: invalid json ${String(e.message).slice(0, 200)}`, text) }
+      try { j = JSON.parse(text) } catch (e) { return fail(ERROR_KIND.PARSE, `get: invalid json ${caughtMessage(e, 200)}`, text) }
       if (j.errors) {
         const msg = JSON.stringify(j.errors).slice(0, 800)
         const verdict = ghVerdictOf({ message: msg, stderr: msg }, ctx)
@@ -296,11 +322,12 @@ export async function getIssue(repo, key, opts, ctx) {
     }
     if (!issueFromGraphQL) {
       // REST 降级（与 list 同一背景：GraphQL POST 偶发 unexpected EOF，REST 稳定；原因分类与列表同口径，不恒写 graphql-error）
-      emitRestFallback(ctx, '单票', Date.now() - t0, pickFallbackReason(getCause || ((r && r.error) || r), ctx))
+      // 为什么用收窄式：r 在这里可能是成功也可能是失败，直接读 error 编译器不认；失败分支读 error、成功分支用 r 本身，与原来短路式的取值一字不差。
+      emitRestFallback(ctx, '单票', Date.now() - t0, pickFallbackReason(getCause || (!r.ok ? r.error : r), ctx))
       const rr = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/issues/${num}`], { cwd: ctx && ctx.cwd })
       if (rr.ok) {
         let jr = null
-        try { jr = JSON.parse(rr.data.stdout || '') } catch (e) { return fail(ERROR_KIND.PARSE, `get(rest): invalid json ${String(e.message).slice(0, 200)}`, rr.data.stdout) }
+        try { jr = JSON.parse(rr.data.stdout || '') } catch (e) { return fail(ERROR_KIND.PARSE, `get(rest): invalid json ${caughtMessage(e, 200)}`, rr.data.stdout) }
         if (jr && typeof jr === 'object' && jr.number != null) {
           if (jr.pull_request != null) await enrichSinglePR(jr, parsed, ctx)
           try { if (ctx && ctx.memo) rosterUpsert(ctx.memo, jr) } catch (eU) {}
@@ -311,7 +338,7 @@ export async function getIssue(repo, key, opts, ctx) {
       const prr = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/pulls/${num}`], { cwd: ctx && ctx.cwd })
       if (prr.ok) {
         let prj = null
-        try { prj = JSON.parse(prr.data.stdout || '') } catch (e) { return fail(ERROR_KIND.PARSE, `get(rest): invalid json ${String(e.message).slice(0, 200)}`, prr.data.stdout) }
+        try { prj = JSON.parse(prr.data.stdout || '') } catch (e) { return fail(ERROR_KIND.PARSE, `get(rest): invalid json ${caughtMessage(e, 200)}`, prr.data.stdout) }
         if (prj && typeof prj === 'object' && prj.number != null) {
           await enrichSinglePR(prj, parsed, ctx)
           try { if (ctx && ctx.memo) rosterUpsert(ctx.memo, prj) } catch (eU) {}
@@ -336,7 +363,7 @@ export async function getIssue(repo, key, opts, ctx) {
     // 判档只走本房唯一的出口（`ghVerdictOf`）：档位由规则表判、话术按票面实现决定第 11 条挑。
     // 第三段把出错的那个值原样交出去当原文（合并、遮蔽、截断由 `fail` 统一做）。
     const verdict = ghVerdictOf(e, ctx)
-    return fail(verdict.kind, ghFailureMessage(verdict, String((e && e.message) || e).slice(0, 800)), e)
+    return fail(verdict.kind, ghFailureMessage(verdict, caughtMessage(e, 800)), e)
   }
 }
 

@@ -1,5 +1,7 @@
 import { parseMd } from './parse.js'
-export function normalizeIssue(text, meta){
+import type { ParseMeta } from './parse.js'
+import type { Issue } from '../../contract/entities.js'
+export function normalizeIssue(text: unknown, meta: ParseMeta): Issue {
   const issue=parseMd(text,meta)
   if('milestone' in issue)delete issue.milestone
   if('author' in issue)delete issue.author
@@ -16,8 +18,12 @@ export function normalizeIssue(text, meta){
   if(typeof issue.url!=='string')issue.url=''
   if(typeof issue.createdAt!=='string')issue.createdAt=''
   if(typeof issue.updatedAt!=='string')issue.updatedAt=''
-  if(!('closedAt' in issue))issue.closedAt=issue.state==='closed'?'':null
-  if(!('parentKey' in issue))issue.parentKey=(meta&&meta.parentKey!==undefined)?meta.parentKey:null
+  // 脏对象兜底：运行时的票行可能缺键（旧文件/手写票），`in` 守卫逐个补齐；
+  // 类型上 Issue 要求 closedAt/parentKey 必有，直接写会被收成 never，
+  // 故经由同一对象的 Record 视图补键（读写的是同一个对象、同一个键，行为不变）。
+  const rawView = issue as unknown as Record<string, unknown>
+  if(!('closedAt' in issue))rawView.closedAt=rawView.state==='closed'?'':null
+  if(!('parentKey' in issue))rawView.parentKey=(meta&&meta.parentKey!==undefined)?meta.parentKey:null
   if(!('blockedBy' in issue)||!Array.isArray(issue.blockedBy))issue.blockedBy=[]
   if(!('comments' in issue)||!Array.isArray(issue.comments))issue.comments=[]
   if(!('reason' in issue)){issue.reason=issue.state==='closed'?'completed':''}

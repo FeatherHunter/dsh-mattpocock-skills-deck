@@ -1,6 +1,21 @@
 import { STATE, ISSUE_TYPE } from '../../contract/vocabulary.js'
+import type { Issue } from '../../contract/entities.js'
+import type { IssueType, State } from '../../contract/identity.js'
 
-function slugify(s) {
+// parseMd 的元数据：调用方（读路径各处）已知的票身份，不从正文里读；
+// 契约 Issue 的核心字段多由此补齐（key/effortId/parentKey/时间/url）。
+// 全可选：纯文本解析时调用方可以一个都不给（缺了按空/默认回落）。
+export interface ParseMeta {
+  key?: string
+  parentKey?: string | null
+  isMap?: boolean
+  effortId?: string
+  createdAt?: string
+  updatedAt?: string
+  url?: string
+}
+
+function slugify(s: unknown): string {
   return String(s || '').trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-]+/g, '-').replace(/\-+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'untitled'
 }
 
@@ -20,7 +35,7 @@ function slugify(s) {
  *  规则：只剥「首尾是同一个字符、并且这个字符是反引号、单引号或双引号」的成对写法，
  *  一层一层往外剥（`"bug"` 这种两层包法也能剥干净）。不成对的一律不动——名字里自带
  *  单引号的写法（例如 don't）首尾字符不同，不会被切坏。 */
-export function stripLabelDecoration(name) {
+export function stripLabelDecoration(name: unknown): string {
   let s = String(name === null || name === undefined ? '' : name).trim()
   for (;;) {
     if (s.length < 2) break
@@ -41,7 +56,7 @@ export function stripLabelDecoration(name) {
  *  房规注：这条判据住在这里（Markdown 房内），建票与改正文同房引用。共享层 plan.js 里有一份逐字相同的
  *  写法给工具层与门禁读（房规不许后端引用共享层的 deck-tools 目录，共享层也不许互引，所以两份各自手写，
  *  改一处必须改另一处，两处注释都写明了对方）。 */
-export function isWholeIssueBody(body) {
+export function isWholeIssueBody(body: unknown): boolean {
   const t = typeof body === 'string' ? body : ''
   if (/^\s*#\s+\S/m.test(t)) return true
   if (/^\s*<!--[ \t]*DSH-IDEMPOTENCY-KEY:/m.test(t)) return true
@@ -60,7 +75,7 @@ export function isWholeIssueBody(body) {
  *  返回 {found, value}：found 表示文件里有没有这一行注释；
  *  value 是归一后的父票编号（数字补成两位），空值与 null 字样都归成 null（根票，没有父票）。
  *  只认 parentKey 这一行，不认幂等锚那一行（锚是 DSH-IDEMPOTENCY-KEY，不是父子关系）。 */
-export function parentKeyFromFile(text) {
+export function parentKeyFromFile(text: unknown): { found: boolean; value: string | null } {
   const raw = String(text || '')
   // 只看文件头（标题之前的那几行）：父注释是文件元数据，写在最前（锚之后、标题之前）。
   // 正文里也可能出现同样的写法（例如文档里举例怎么写注释），那一行不算数。
@@ -76,7 +91,7 @@ export function parentKeyFromFile(text) {
   return { found: true, value: v }
 }
 
-export function parseMd(text, meta) {
+export function parseMd(text: unknown, meta: ParseMeta): Issue {
   const raw = String(text || '')
   // 2026-10-10 修（#991 实测带回来的读路径缺陷）：冒号后面原来写的是 \s*，而 \s 含换行 —— 字段值为空的
   //   那一行（「Status:」单独一行）会让 \s* 跨过换行，再由 ([^\n]+) 把**下一行**当成这个字段的值抓走。
@@ -86,7 +101,9 @@ export function parseMd(text, meta) {
   const statusRaw = (/^\s*Status\s*[:\uFF1A][ \t]*([^\n]+)/im.exec(raw)?.[1]?.trim() || '')
   const statusNorm = statusRaw.toLowerCase().replace(/\s+/g, '-')
   const closedSet = new Set(['resolved', 'completed', 'closed', 'done'])
-  const state = closedSet.has(statusNorm) ? STATE.CLOSED : STATE.OPEN
+  const state = (closedSet.has(statusNorm) ? STATE.CLOSED : STATE.OPEN) as State
+  // 上一行断言的原因：STATE 是冻住的对象字面量（vocabulary.ts），成员类型被拓宽成 string；
+  // 运行时这里必为两态之一，转成契约的 State 字面量联合只为过类型，值不变。下同（type 一处）。
   const title = (() => {
     const m = /^#+\s+(.+)$/m.exec(raw)
     if (m) return m[1].trim()
@@ -173,7 +190,7 @@ export function parseMd(text, meta) {
     }
   }
   const key = String((meta && meta.key) || '00')
-  const type = meta && meta.isMap ? ISSUE_TYPE.MAP : ISSUE_TYPE.ISSUE
+  const type = (meta && meta.isMap ? ISSUE_TYPE.MAP : ISSUE_TYPE.ISSUE) as IssueType
   // #971：父子关系以文件顶注释为准，有注释就用注释，没有注释的老文件才回落。
   // 地图文件本身没有父票（恒为空）；计划里用票文件冒充的地图（正文写着 Type: map、却没有父注释）同样视作没有父票。
   // 其余票没有注释时沿用调用方递进来的固定值（今天是 00，即老单根工作区的地图），保持老数据行为不变。
@@ -204,7 +221,7 @@ export function parseMd(text, meta) {
   // 光有编号是拼不出来的，所以由调用方经 meta.url 传进来；没传就是空串（例如只借 parseMd 做纯文本解析）。
   const url = (meta && typeof meta.url === 'string') ? meta.url : ''
   const closedAt = state === STATE.CLOSED ? (updatedAt || createdAt || '') : null
-  const issue = {
+  const issue: Issue = {
     key,
     effortId,
     type,

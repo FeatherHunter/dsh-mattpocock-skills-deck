@@ -90,8 +90,10 @@ GitHub 房与本地 Markdown 房用 `implements Tracker` 去实现，少一个�
 ## 怎么自检
 
 ```bash
-npx tsc -p tsconfig.contract.json
+node node_modules/typescript/bin/tsc -p tsconfig.contract.json
 ```
+
+注意不要用 `npx tsc`：本仓的 `npx tsc` 是占位壳（会打印“This is not the tsc command you are looking for”），不是真编译器。
 
 零错误才算通过。这一层没有构建步骤、没有派生产物、也不进 `scripts/build.mjs`。
 

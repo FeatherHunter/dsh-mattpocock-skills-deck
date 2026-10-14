@@ -16,13 +16,18 @@
 // 这里不记日志、不碰退避、不起定时器：日志只有调用方搭上车时记原来那一行，
 // 事件名不新增，附录第 1 章的条数不动。
 export const CHAIN_RIDE_MAX_AGE_MS = 30000
-export function createChainRide(opts) {
+/** 注钟形状：生产不注（用 Date.now），测试注假钟（有 nowMs 用 nowMs，否则用 now）。 */
+export interface ChainRideClock {
+  nowMs?: () => number
+  now?: () => number
+}
+export function createChainRide(opts?: ChainRideClock | null) {
   const clock = (opts && typeof opts.nowMs === 'function') ? opts.nowMs : ((opts && typeof opts.now === 'function') ? opts.now : Date.now)
   const nowMs = () => { try { return Number(clock()) || Date.now() } catch (e) { return Date.now() } }
-  const runningByKey = new Map()
+  const runningByKey = new Map<string, { promise: unknown; startedAtMs: number }>()
   let lastWriteAtMs = 0
   let mergedN = 0
-  function take(key) {
+  function take(key: unknown) {
     const ride = runningByKey.get(String(key))
     if (!ride) return null
     if (nowMs() - ride.startedAtMs > CHAIN_RIDE_MAX_AGE_MS) return null
@@ -30,12 +35,12 @@ export function createChainRide(opts) {
     return ride.promise
   }
   function noteRide() { mergedN += 1 }
-  function park(key, promise) {
+  function park(key: unknown, promise: unknown) {
     const entry = { promise, startedAtMs: nowMs() }
     runningByKey.set(String(key), entry)
     return entry
   }
-  function leave(key, entry) { try { if (runningByKey.get(String(key)) === entry) runningByKey.delete(String(key)) } catch (e) {} }
+  function leave(key: unknown, entry: unknown) { try { if (runningByKey.get(String(key)) === entry) runningByKey.delete(String(key)) } catch (e) {} }
   function markWrite() { lastWriteAtMs = nowMs() }
   function stats() { return { merged: mergedN, inflight: runningByKey.size } }
   return { take, noteRide, park, leave, markWrite, stats, nowMs }
@@ -43,8 +48,8 @@ export function createChainRide(opts) {
 
 // 进程内共用的一本账（#966 收口）：探测链用它登记在飞，出站写路用它记写，写后不搭在生产里才成立。
 // 注钟就建新账（测试用假钟推进三十秒，不与生产单例串味）；不注钟才用单例。
-let sharedRide = null
-export function getChainRide(opts) {
+let sharedRide: ReturnType<typeof createChainRide> | null = null
+export function getChainRide(opts?: ChainRideClock | null) {
   const o = opts || {}
   const clock = (typeof o.nowMs === 'function') ? o.nowMs : ((typeof o.now === 'function') ? o.now : null)
   if (clock) return createChainRide({ now: clock })

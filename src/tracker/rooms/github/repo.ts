@@ -8,13 +8,23 @@
  */
 
 import { ghClient } from './client.js'
+import type { OpContext } from '../../contract/contexts.js';
+import type { RepositoryRef } from '../../contract/entities.js';
+import type { BackendId } from '../../contract/identity.js';
+import type { RepoHandle } from '../../contract/contexts.js';
+
+/** 解析出的仓库坐标：拥有者与仓库名，解析不出就回 null 而不是抛。 */
+export interface RepoKey {
+  owner: string;
+  name: string;
+}
 
 // ============ 仓库定位：parseGithubRepo（从 host 迁移，语义不变） ============
 /**
  * 解析 git 远程 URL → GitHub owner/repo；非 GitHub 返回 null（与 host/index.js parseGithubRepo 同构）。
  * 支持 SSH (git@github.com:owner/repo.git) 与 HTTPS (https://github.com/owner/repo.git)
  */
-export function parseGithubRepo(url) {
+export function parseGithubRepo(url: unknown): RepoKey | null {
   const s = String(url || '').trim()
   const m = s.match(/github\.com[\/:]([^\/\s]+)\/([^\/\s]+?)(?:\.git)?\s*$/)
   if (!m) return null
@@ -26,7 +36,7 @@ export function parseGithubRepo(url) {
  * 出 RepositoryRef：owner/name → url=github.com；handle.refId 优先，其次 cwd basename。
  * 同步纯函数（registry 期望同步），远端解析（getRepoKey）为独立 async 助手，host 按需调用。
  */
-export function describe(handle, backendId) {
+export function describe(handle: RepoHandle, backendId: BackendId): RepositoryRef {
   const rawRef = handle && typeof handle.refId === 'string' && handle.refId ? String(handle.refId).trim() : ''
   const cwd = handle && typeof handle.cwd === 'string' ? String(handle.cwd) : ''
   // refId 若为 owner/name 形态，直接作为 url 源
@@ -45,13 +55,13 @@ export function describe(handle, backendId) {
 // ============ 链接供给：issueAddress / repoSearchAddress / issueRefPattern（契约只读 view） ============
 // 三个名字讲的是「地址」而不是「网址」（#1110 实现决定第 14 条）：GitHub 这家回的是网址，
 // 本地 Markdown 那家回的是票文件路径（#1144 起那条算不出票文件名，改回空串），用同一个说法才不用替谁开例外。老名字已按 #1141 删净。
-export function issueAddress(ref, key) {
+export function issueAddress(ref: RepositoryRef, key: string): string {
   const refId = ref && typeof ref.refId === 'string' ? ref.refId : ''
   if (!refId) return ''
   return 'https://github.com/' + refId + '/issues/' + String(key)
 }
 
-export function repoSearchAddress(name) {
+export function repoSearchAddress(name: unknown): string {
   return 'https://github.com/search?q=' + encodeURIComponent(String(name || ''))
 }
 
@@ -84,7 +94,7 @@ export const openRepository = 'url'
  * @returns {Promise<{owner:string,name:string}|null>}
  */
 // 房内埋点：repo.resolve.tier（#4 常驻，1/1）：三层兜底每层只记成功一行，全挂记 tier3 失败一行；只记层号与耗时，不记地址原文。
-function emitRepoTier(ctx, tier, ok, t0) {
+function emitRepoTier(ctx: OpContext, tier: number, ok: boolean, t0: number): void {
   try {
     const f = ctx && typeof ctx.logEvent === 'function' ? ctx.logEvent : null
     if (!f) return
@@ -92,7 +102,7 @@ function emitRepoTier(ctx, tier, ok, t0) {
   } catch {}
 }
 
-export async function getRepoKey(cwd, ctx) {
+export async function getRepoKey(cwd: string, ctx: OpContext): Promise<RepoKey | null> {
   const t0 = Date.now()
   const execCwd = cwd || ''
   const platform = ctx && ctx.platform ? ctx.platform : null

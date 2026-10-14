@@ -7,16 +7,36 @@
  */
 
 import { ERROR_KIND } from '../../contract/vocabulary.js'
+import type { OpContext } from '../../contract/contexts.js';
+import type { Issue, RepositoryRef } from '../../contract/entities.js';
+import type { Actor } from '../../contract/identity.js';
+import type { AssigneeInput, CloseOpts, CreateInput, SetOpts, UpdatePatch } from '../../contract/inputs.js';
+import type { OpResult } from '../../contract/results.js';
 import { fail } from '../../preflight.js'
 import { ghClient } from './client.js'
 import { normalizeIssue } from './normalize.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'
 import { rosterUpsert } from './roster.js'
+import type { MemoContext } from './roster.js';
 import { getIssue, parseRepo, repoId } from './issues.js'
 // #711：创建幂等锚。锚那一行怎么拼、命中判据是什么，在刷新核心的产物里（唯一一处判据）；
 // 本间房专属的「建后按锚回查」在 ./idempotency.js（两条路：搜索接口 + 最近更新列表逐张读正文）。
 import { checkIdempotencyKey } from '../../../shared/refresh/idempotency.js'
 import { withAnchor, lookupByAnchor } from './idempotency.js'
+
+/**
+ * 建票过程中组装的那张票：归一后的票 + 没挂上的标签/父边记账（工具层读回时据此说清部分成功）。
+ * 记账两格是本文件自己添的，契约 Issue 里没有；读它们的只有工具层（运行时照读），类型上标成可选。
+ */
+type IssueWithNotes = Issue & { labelError?: { kind: string; message: string }; parentError?: { kind: string; message: string } };
+
+// 为什么 catch 里的错误要先转这层再读：catch 出来是 unknown，直接读 message 报缺成员；
+// 转成最小形状后读法与原来一致，运行时不变。
+type CaughtMsg = { message?: unknown } | null;
+function caughtMessage(e: unknown, len: number): string {
+  const eb = e as CaughtMsg;
+  return String((eb && eb.message) || e).slice(0, len)
+}
 
 /**
  * create(repo, input, ctx) -> OpResult<Issue>
@@ -31,7 +51,7 @@ import { withAnchor, lookupByAnchor } from './idempotency.js'
  * 二是上游交回过结果（`gh` 的执行结果、别处 op 的返回）——交那份结果，原话就在它里面；
  * 三是回包解析失败——交那份没能解析的回包文本本身。
  */
-export async function createIssue(repo, input, ctx) {
+export async function createIssue(repo: RepositoryRef, input: CreateInput, ctx: MemoContext): Promise<OpResult<Issue>> {
   try {
     const parsed = parseRepo(repo)
     if (!parsed) return fail(ERROR_KIND.NOTFOUND, `create: repo.refId missing: ${repoId(repo)}`, repo)
@@ -53,15 +73,17 @@ export async function createIssue(repo, input, ctx) {
     // gh issue create 不认 --json，所以不走它。标签与认领建后另补（已有现成函数）。
     const createArgs = ['api', `repos/${parsed.owner}/${parsed.name}/issues`, '--method', 'POST', '-f', `title=${input.title.trim()}`, '-f', `body=${body}`, '--jq', '.']
     const r = await c.execGh(createArgs, { cwd: ctx && ctx.cwd })
-    let createdRaw = null
+    // 为什么标成键值袋：建票回包是 gh 回的任意形状，只读 number/state/url/时间/labels/assignees 几格；
+    // 有值时袋与原值是同一份引用，读法与原来一致。
+    let createdRaw: Record<string, unknown> | null = null
     if (!r.ok) return { ok: false, error: r.error }
     const text = r.data.stdout || ''
     try {
-      const j = JSON.parse(text)
-      createdRaw = Array.isArray(j) ? j[0] : j
+      const j: unknown = JSON.parse(text)
+      createdRaw = (Array.isArray(j) ? j[0] : j) as Record<string, unknown> | null;
     } catch (e) {
       // 原文交那份没能解析成 JSON 的回包文本。
-      return fail(ERROR_KIND.PARSE, `create: invalid json ${String(e.message).slice(0, 200)}`, text)
+      return fail(ERROR_KIND.PARSE, `create: invalid json ${caughtMessage(e, 200)}`, text)
     }
     if (!createdRaw) return fail(ERROR_KIND.PARSE, 'create: empty response', r.data)
     // REST 返回 number → 需补充 parentKey 等字段，再 normalize
@@ -75,10 +97,11 @@ export async function createIssue(repo, input, ctx) {
       labels: createdRaw.labels ? { nodes: (Array.isArray(createdRaw.labels) ? createdRaw.labels.map((l) => typeof l === 'string' ? { name: l, color: '' } : l) : []) } : { nodes: [] },
       assignees: createdRaw.assignees ? { nodes: (Array.isArray(createdRaw.assignees) ? createdRaw.assignees.map((a) => typeof a === 'string' ? { login: a } : a) : []) } : { nodes: [] },
     })
-    let issue = normalizeIssue(rawForNormalize)
+    let issue: IssueWithNotes = normalizeIssue(rawForNormalize)
     // 标签与认领建后另补（建票一步只带标题正文；已有现成函数走正常接口）
     try {
-      const wantLabels = [];
+      // 为什么显式标成串数组：条件分支里才往里装，编译器判成隐式 any；装的本来就是标签名串，运行时还是原来那几个值。
+      const wantLabels: string[] = [];
       if (Array.isArray(input.labels) && input.labels.length) {
         for (const l of input.labels) {
           const n = (typeof l === 'string' ? l.trim() : (l && typeof l.name === 'string' ? l.name.trim() : ''));
@@ -86,17 +109,20 @@ export async function createIssue(repo, input, ctx) {
         }
       }
       const wantType = input.type === 'map' ? 'map' : 'issue';
-      if (wantType === 'map' && !issue.labels.some((l) => l.name === 'wayfinder:map') && !wantLabels.includes('wayfinder:map')) wantLabels.push('wayfinder:map');
+      // 为什么敢断言 labels 非空：归一后的票 labels 恒为数组（normalize.ts 取不到也给 []，契约叫恒 EMPTY），成功建票后不可能缺这一格。
+      if (wantType === 'map' && !issue.labels!.some((l) => l.name === 'wayfinder:map') && !wantLabels.includes('wayfinder:map')) wantLabels.push('wayfinder:map');
       if (wantLabels.length) {
         const { setLabels } = await import('./labels.js');
-        const merged = [...issue.labels.map((l) => l.name)];
+        const merged = [...issue.labels!.map((l) => l.name)];
         for (const n of wantLabels) if (!merged.includes(n)) merged.push(n);
         const lr = await setLabels(repo, issue.key, merged.map((n) => ({ name: n })), {}, ctx);
         if (lr && lr.ok === true && lr.data) issue = lr.data;
         else {
           // #992：标签没挂上不再吞错，记在票上让工具层读回时能说清（照 parentError 先例，票照样建成 ok:true）。
-          const kind = String((lr && lr.error && lr.error.kind) || '');
-          const message = String((lr && lr.error && lr.error.message) || '后端没给出原因').slice(0, 300);
+          // 为什么先收窄：setLabels 的返回是可辨识联合，失败分支才有 error；直接读 error 编译器不认，收窄后读的还是原来那一格。
+          const lrError = (lr && !lr.ok) ? lr.error : null;
+          const kind = String((lrError && lrError.kind) || '');
+          const message = String((lrError && lrError.message) || '后端没给出原因').slice(0, 300);
           issue.labelError = { kind: kind, message: message };
           if (wantType === 'map') issue.type = 'map';
           // Q6：正文“待补标签（只读未落盘）”区 —— 把没确认挂上的标签名写进正文，区名必带“未落盘”。
@@ -137,10 +163,11 @@ export async function createIssue(repo, input, ctx) {
       try {
         const { setParent } = await import('./graph.js')
         const pr = await setParent(repo, issue.key, String(input.parentKey), {}, ctx)
-        if (pr.ok) issue = pr.data
+        // 为什么断言：setParent 成功时一定带回那张票（失败走 else 记账）；graph.ts 定型后这里再复核，断言只为过编译、交的还是原来那个值。
+        if (pr.ok) issue = pr.data as Issue
         else issue.parentError = { kind: String((pr.error && pr.error.kind) || ''), message: String((pr.error && pr.error.message) || '后端没给出原因').slice(0, 300) }
       } catch (e) {
-        issue.parentError = { kind: 'unknown', message: String((e && e.message) || e).slice(0, 300) }
+        issue.parentError = { kind: 'unknown', message: caughtMessage(e, 300) }
       }
     }
     try { if (ctx && ctx.memo) rosterUpsert(ctx.memo, issue) } catch (eU) {}
@@ -149,11 +176,11 @@ export async function createIssue(repo, input, ctx) {
     // 判档只走本房唯一的出口（`ghVerdictOf`）：档位由规则表判、话术按票面实现决定第 11 条挑；
     // 第三段把出错的那个值原样交出去当原文。`ctx` 一定要传下去，`error.normalize` 那条轨迹才不断。
     const verdict = ghVerdictOf(e, ctx)
-    return fail(verdict.kind, ghFailureMessage(verdict, String((e && e.message) || e).slice(0, 800)), e)
+    return fail(verdict.kind, ghFailureMessage(verdict, caughtMessage(e, 800)), e)
   }
 }
 
-export async function closeIssue(repo, key, opts, ctx) {
+export async function closeIssue(repo: RepositoryRef, key: string, opts: CloseOpts | undefined, ctx: OpContext): Promise<OpResult<Issue>> {
   try {
     const parsed = parseRepo(repo)
     if (!parsed) return fail(ERROR_KIND.NOTFOUND, `close: repo.refId missing: ${repoId(repo)}`, repo)
@@ -174,12 +201,14 @@ export async function closeIssue(repo, key, opts, ctx) {
       return { ok: true, data: optimistic }
     }
     const text = vr.data.stdout || ''
-    let raw
-    try { raw = JSON.parse(text); if (Array.isArray(raw)) raw = raw[0] } catch (e) { return fail(ERROR_KIND.PARSE, `close: invalid json ${String(e.message).slice(0, 200)}`, text) }
+    let raw: unknown
+    try { raw = JSON.parse(text); if (Array.isArray(raw)) raw = raw[0] } catch (e) { return fail(ERROR_KIND.PARSE, `close: invalid json ${caughtMessage(e, 200)}`, text) }
+    // 为什么断言：回包是 gh 回的任意形状，只读 number/url/closedAt 几格；断言只为过编译，读的还是原来那几格，运行时不变。
+    const rawb = raw as Record<string, unknown>;
     const normalized = normalizeIssue(Object.assign({}, raw, {
-      number: raw.number ?? Number(k),
-      url: raw.url || raw.html_url || '',
-      closedAt: raw.closedAt || raw.closed_at || new Date().toISOString(),
+      number: rawb.number ?? Number(k),
+      url: rawb.url || rawb.html_url || '',
+      closedAt: rawb.closedAt || rawb.closed_at || new Date().toISOString(),
     }))
     // reason 回填
     if (opts && typeof opts.reason === 'string') normalized.reason = opts.reason
@@ -188,11 +217,11 @@ export async function closeIssue(repo, key, opts, ctx) {
     // 判档只走本房唯一的出口（`ghVerdictOf`）：档位由规则表判、话术按票面实现决定第 11 条挑；
     // 第三段把出错的那个值原样交出去当原文。`ctx` 一定要传下去，`error.normalize` 那条轨迹才不断。
     const verdict = ghVerdictOf(e, ctx)
-    return fail(verdict.kind, ghFailureMessage(verdict, String((e && e.message) || e).slice(0, 800)), e)
+    return fail(verdict.kind, ghFailureMessage(verdict, caughtMessage(e, 800)), e)
   }
 }
 
-export async function reopenIssue(repo, key, ctx) {
+export async function reopenIssue(repo: RepositoryRef, key: string, ctx: OpContext): Promise<OpResult<Issue>> {
   try {
     const parsed = parseRepo(repo)
     if (!parsed) return fail(ERROR_KIND.NOTFOUND, `reopen: repo.refId missing: ${repoId(repo)}`, repo)
@@ -207,12 +236,14 @@ export async function reopenIssue(repo, key, ctx) {
       return { ok: true, data: normalizeIssue({ number: Number(k) || k, title: '', state: 'open', body: '', url: '', closedAt: null }) }
     }
     const text = vr.data.stdout || ''
-    let raw
-    try { raw = JSON.parse(text); if (Array.isArray(raw)) raw = raw[0] } catch (e) { return fail(ERROR_KIND.PARSE, `reopen: invalid json ${String(e.message).slice(0, 200)}`, text) }
+    let raw: unknown
+    try { raw = JSON.parse(text); if (Array.isArray(raw)) raw = raw[0] } catch (e) { return fail(ERROR_KIND.PARSE, `reopen: invalid json ${caughtMessage(e, 200)}`, text) }
+    // 为什么断言：同上，回包是 gh 回的任意形状，只读 number/url 几格；断言只为过编译，运行时不变。
+    const rawb = raw as Record<string, unknown>;
     const normalized = normalizeIssue(Object.assign({}, raw, {
-      number: raw.number ?? Number(k),
+      number: rawb.number ?? Number(k),
       state: 'open',
-      url: raw.url || raw.html_url || '',
+      url: rawb.url || rawb.html_url || '',
       closedAt: null,
     }))
     return { ok: true, data: normalized }
@@ -220,11 +251,11 @@ export async function reopenIssue(repo, key, ctx) {
     // 判档只走本房唯一的出口（`ghVerdictOf`）：档位由规则表判、话术按票面实现决定第 11 条挑；
     // 第三段把出错的那个值原样交出去当原文。`ctx` 一定要传下去，`error.normalize` 那条轨迹才不断。
     const verdict = ghVerdictOf(e, ctx)
-    return fail(verdict.kind, ghFailureMessage(verdict, String((e && e.message) || e).slice(0, 800)), e)
+    return fail(verdict.kind, ghFailureMessage(verdict, caughtMessage(e, 800)), e)
   }
 }
 
-export async function updateIssue(repo, key, patch, ctx) {
+export async function updateIssue(repo: RepositoryRef, key: string, patch: UpdatePatch, ctx: OpContext): Promise<OpResult<Issue>> {
   try {
     const parsed = parseRepo(repo)
     if (!parsed) return fail(ERROR_KIND.NOTFOUND, `update: repo.refId missing: ${repoId(repo)}`, repo)
@@ -253,45 +284,51 @@ export async function updateIssue(repo, key, patch, ctx) {
     const vr = await c.execGh(['issue', 'view', k, '--repo', `${parsed.owner}/${parsed.name}`, '--json', 'number,title,state,body,url,updatedAt,createdAt,closedAt,labels,assignees'], { cwd: ctx && ctx.cwd })
     if (!vr.ok) return { ok: true, data: normalizeIssue({ number: Number(k) || k, title: typeof patch.title === 'string' ? patch.title : '', state: 'open', body: typeof patch.body === 'string' ? patch.body : '', url: '' }) }
     const text = vr.data.stdout || ''
-    let raw
-    try { raw = JSON.parse(text); if (Array.isArray(raw)) raw = raw[0] } catch (e) { return fail(ERROR_KIND.PARSE, `update: invalid json ${String(e.message).slice(0, 200)}`, text) }
+    let raw: unknown
+    try { raw = JSON.parse(text); if (Array.isArray(raw)) raw = raw[0] } catch (e) { return fail(ERROR_KIND.PARSE, `update: invalid json ${caughtMessage(e, 200)}`, text) }
+    // 为什么断言：同上，回包是 gh 回的任意形状，只读 number/url 两格；断言只为过编译，运行时不变。
+    const rawb = raw as Record<string, unknown>;
     const normalized = normalizeIssue(Object.assign({}, raw, {
-      number: raw.number ?? Number(k),
-      url: raw.url || raw.html_url || '',
+      number: rawb.number ?? Number(k),
+      url: rawb.url || rawb.html_url || '',
     }))
     return { ok: true, data: normalized }
   } catch (e) {
     // 判档只走本房唯一的出口（`ghVerdictOf`）：档位由规则表判、话术按票面实现决定第 11 条挑；
     // 第三段把出错的那个值原样交出去当原文。`ctx` 一定要传下去，`error.normalize` 那条轨迹才不断。
     const verdict = ghVerdictOf(e, ctx)
-    return fail(verdict.kind, ghFailureMessage(verdict, String((e && e.message) || e).slice(0, 800)), e)
+    return fail(verdict.kind, ghFailureMessage(verdict, caughtMessage(e, 800)), e)
   }
 }
 
-function normalizeAssigneeInput(ai) {
+function normalizeAssigneeInput(ai: unknown): Actor | null {
   if (typeof ai === 'string') {
     const login = ai.trim()
     if (!login) return null
     return { login }
   }
   if (!ai || typeof ai !== 'object') return null
-  const login = typeof ai.login === 'string' ? ai.login.trim() : ''
+  // 为什么转成袋再读：输入可能是任意形状，直接读 login/name/avatarUrl/kind 报缺成员；对象检查通过后袋与原值是同一份引用，读法与原来一致。
+  const bag = ai as { login?: unknown; name?: unknown; avatarUrl?: unknown; kind?: unknown };
+  const login = typeof bag.login === 'string' ? bag.login.trim() : ''
   if (!login) return null
-  const out = { login }
-  if (typeof ai.name === 'string' && ai.name.trim() !== '') out.name = ai.name
-  if (typeof ai.avatarUrl === 'string' && ai.avatarUrl !== '') out.avatarUrl = ai.avatarUrl
-  if (typeof ai.kind === 'string' && ai.kind) out.kind = ai.kind
+  // 为什么先定死契约再补可选键：字面量起手类型里没有 name/avatarUrl/kind，后面再补会报缺成员；先标成认领形状，可选键自然有位置。
+  const out: Actor = { login }
+  if (typeof bag.name === 'string' && bag.name.trim() !== '') out.name = bag.name
+  if (typeof bag.avatarUrl === 'string' && bag.avatarUrl !== '') out.avatarUrl = bag.avatarUrl
+  if (typeof bag.kind === 'string' && bag.kind) out.kind = bag.kind
   return out
 }
 
-export async function setAssignees(repo, key, assignees, opts, ctx) {
+export async function setAssignees(repo: RepositoryRef, key: string, assignees: AssigneeInput[] | undefined, opts: SetOpts | undefined, ctx: MemoContext): Promise<OpResult<Issue>> {
   try {
     const parsed = parseRepo(repo)
     if (!parsed) return fail(ERROR_KIND.NOTFOUND, `setAssignees: repo.refId missing: ${repoId(repo)}`, repo)
     const k = String(key || '').trim()
     if (!k) return fail(ERROR_KIND.PARSE, 'setAssignees: key required', key)
-    const wanted = []
-    const seen = new Set()
+    // 为什么显式标：循环里才往里装，编译器判成隐式 any；装的本来就是归一后的认领，运行时还是原来那几个值。
+    const wanted: Actor[] = []
+    const seen = new Set<string>()
     if (Array.isArray(assignees)) {
       for (const ai of assignees) {
         const a = normalizeAssigneeInput(ai)
@@ -313,7 +350,8 @@ export async function setAssignees(repo, key, assignees, opts, ctx) {
     const logins = wanted.map((a) => a.login)
     // 先读当前 assignees 做 diff（gh issue edit --add-assignee/--remove-assignee 为增量，需 diff）
     const curRes = await getIssue(repo, k, {}, ctx)
-    const curLogins = curRes.ok ? curRes.data.assignees.map((a) => a.login) : []
+    // 为什么敢断言 assignees 非空：同上，归一后的票 assignees 恒为数组（取不到也给 []），读到缺这一格就抛、与原来一致。
+    const curLogins = curRes.ok ? curRes.data.assignees!.map((a) => a.login) : []
     const toAdd = logins.filter((l) => !curLogins.includes(l))
     const toRemove = curLogins.filter((l) => !logins.includes(l))
     for (const l of toRemove) {
@@ -341,6 +379,6 @@ export async function setAssignees(repo, key, assignees, opts, ctx) {
     // 判档只走本房唯一的出口（`ghVerdictOf`）：档位由规则表判、话术按票面实现决定第 11 条挑；
     // 第三段把出错的那个值原样交出去当原文。`ctx` 一定要传下去，`error.normalize` 那条轨迹才不断。
     const verdict = ghVerdictOf(e, ctx)
-    return fail(verdict.kind, ghFailureMessage(verdict, String((e && e.message) || e).slice(0, 800)), e)
+    return fail(verdict.kind, ghFailureMessage(verdict, caughtMessage(e, 800)), e)
   }
 }

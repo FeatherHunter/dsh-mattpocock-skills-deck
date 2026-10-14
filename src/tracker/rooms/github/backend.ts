@@ -5,7 +5,11 @@
  * 以后改后端装配的人改它。预估约 115 行。
  */
 
-import type { RoomOperations } from '../../contract/operations.js'
+import type { GithubBackendShape } from '../../capability-assertions.js'
+import type { OpContext, RepoHandle } from '../../contract/contexts.js';
+import type { Actor } from '../../contract/identity.js';
+import type { OpResult } from '../../contract/results.js';
+import type { RepositoryRef } from '../../contract/entities.js';
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { fail } from '../../preflight.js'
 import { ghClient } from './client.js'
@@ -28,7 +32,9 @@ import { describe, issueAddress, getRepoKey } from './repo.js'
  * 启发式：handle.refId 含 '/' → 视为 github（显式绑定）；否则检查 cwd 下 .git/config 是否含 github.com
  * 不抛错；不确定一律 false + diagnostics 由 registry 调用方日志（此处只返回 boolean）
  */
-export async function githubMatches(handle, ctx) {
+// 为什么标成操作上下文而不是后端上下文：本函数读 ctx.cwd（工作区目录），而后端上下文里没有这一格（它是操作上下文加的）；
+// 标窄是如实记录，调用方传的一直是完整上下文，运行时不变。
+export async function githubMatches(handle: RepoHandle, ctx: OpContext): Promise<boolean> {
   try {
     if (handle && typeof handle.refId === 'string' && handle.refId.includes('/')) {
       // 若 refId 已显式为 owner/name，视为命中（由 host 显式绑定或 registry describe 产生）
@@ -64,11 +70,11 @@ export async function githubMatches(handle, ctx) {
  * 创建 GitHub 后端适配器（Tracker）。
  * @param {import('../../contract/index.js').BackendContext} ctx DSH host ctx（platform 已解析实例注入，#113）
  *
- * 返回类型标 `RoomOperations`（`Tracker` 的子集）：本后端没实现的那几条由注册表补「我不支持」的桩，
- * 这是合规的常态。标注的用处是把签名核对交给编译器 —— 参数写错、返回类型写错当场编译不过，
- * 不再需要一份手写的名字清单门禁去数。
+ * 返回类型故意不标：标成 `RoomOperations`（成员全可选）就查不出少写。
+ * 形状的判定收在 `src/tracker/capability-assertions.ts` 三条断言里（少写、名录漂移、多带都由它拦）。
+ * 本后端没实现的那几条由注册表补「我不支持」的桩，这是合规的常态。
  */
-export function createGithubBackend(ctx): RoomOperations {
+export function createGithubBackend(ctx: OpContext) {
   // 可选：预解析 ghPath 无副作用，此处不做
   void ghClient(ctx)
   return {
@@ -107,21 +113,27 @@ export function createGithubBackend(ctx): RoomOperations {
         return { ok: false, error: r.error }
       }
       try {
-        const j = JSON.parse(r.data.stdout || r.data.text || '{}')
+        // text 兜底保留：执行层上游仍有 text 这一格（client 房自己还在读 result.text），
+        // stdout 非串时老代码走 text；类型上没有这一格，用视图读，取值与原来一字不差。
+        const j = JSON.parse(String(r.data.stdout || (r.data as { text?: unknown }).text || '{}'))
         const login = String(j.login || '').trim()
         // 说「viewer 的登录名是空的」时，原文就是这次 gh 回来的那份数据（人自己看得出缺了什么）。
         if (!login) return fail(ERROR_KIND.UNSUPPORTED, 'viewer login empty', r.data)
-        const actor = { login }
+        // 为什么先定死契约再补可选键：字面量起手类型里没有 name/avatarUrl/kind，后面再补会报缺成员；先标成认领形状，可选键自然有位置。
+        const actor: Actor = { login }
         if (j.name) actor.name = String(j.name)
         if (j.avatarUrl) actor.avatarUrl = String(j.avatarUrl)
         else if (j.avatar_url) actor.avatarUrl = String(j.avatar_url)
         actor.kind = 'user'
         return { ok: true, data: actor }
       } catch (e) {
-        return fail(ERROR_KIND.PARSE, String(e.message || e), r.data)
+        const eb = (e && typeof e === 'object' ? e : null) as { message?: unknown } | null;
+        return fail(ERROR_KIND.PARSE, String((eb && eb.message) || e), r.data)
       }
     },
-    initProject: (handle, input, opCtx) => initProject(handle, input, opCtx || ctx),
+    // 为什么断言一下：开仓失败的档位是它自己的结果词（bad-name/no-git 这类，不在八档内），与 OpResult 的失败形状只差 kind 一格；
+    // 断言只为过编译，成功带仓、失败带三段式的原值都原样交出去，运行时不变。
+    initProject: (handle, input, opCtx) => initProject(handle, input, opCtx || ctx) as unknown as Promise<OpResult<RepositoryRef>>,
     describe: (handle, opCtx) => describe(handle, 'github'),
     issueAddress: (ref, key) => issueAddress(ref, key),
     // 调用方没有仓库标识时的补全口（#758）：注册表出空 refId 是常态（匹配源不带标识），
@@ -143,5 +155,5 @@ export function createGithubBackend(ctx): RoomOperations {
       if (!perms) return fail(ERROR_KIND.NETWORK, 'getRepoPermissions: 仓库权限问不出来（网络或仓库不可达），按未知处理', '')
       return { ok: true, data: perms }
     },
-  }
+  } satisfies GithubBackendShape
 }

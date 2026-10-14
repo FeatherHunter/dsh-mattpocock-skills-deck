@@ -14,31 +14,45 @@
 
 import { fail, rawText } from '../../preflight.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
+import type { OpContext } from '../../contract/contexts.js';
+import type { Issue, Label, RepositoryRef } from '../../contract/entities.js';
+import type { LabelInput, SetOpts } from '../../contract/inputs.js';
+import type { OpResult, TrackerError } from '../../contract/results.js';
 import { normalizeIssue } from './normalize.js'
 import { ghClient } from './client.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'
 import { readRepoPermissions, readonlyMessage } from './repo-permissions.js'
 import { getIssue } from './issues.js'
+import type { MemoContext } from './roster.js';
 
-function normalizeLabelInput(li) {
+/** 仓库坐标：拥有者与仓库名，refId 形不对就回 null 而不是抛。 */
+interface ParsedRepo {
+  owner: string;
+  name: string;
+}
+
+function normalizeLabelInput(li: unknown): Label | null {
   if (typeof li === 'string') {
     const name = li.trim()
     if (!name) return null
     return { name, color: '' }
   }
   if (!li || typeof li !== 'object') return null
-  const name = typeof li.name === 'string' ? li.name.trim() : ''
+  // 为什么转成袋再读：输入可能是任意形状，直接读 name 会报缺成员；对象检查通过后袋与原值是同一份引用，读法与原来一致。
+  const bag = li as { name?: unknown; color?: unknown; description?: unknown };
+  const name = typeof bag.name === 'string' ? bag.name.trim() : ''
   if (!name) return null
-  const color = typeof li.color === 'string' ? li.color : ''
-  const out = { name, color }
-  if (typeof li.description === 'string' && li.description.trim() !== '') out.description = li.description
+  const color = typeof bag.color === 'string' ? bag.color : ''
+  // 为什么先定死契约再补可选键：字面量起手类型里没有 description，后面再补会报缺成员；先标成标签形状，可选键自然有位置。
+  const out: Label = { name, color }
+  if (typeof bag.description === 'string' && bag.description.trim() !== '') out.description = bag.description
   return out
 }
 
-function normalizeLabelInputs(labels) {
+function normalizeLabelInputs(labels: unknown): Label[] {
   if (!Array.isArray(labels)) return []
-  const out = []
-  const seen = new Set()
+  const out: Label[] = []
+  const seen = new Set<string>()
   for (const li of labels) {
     const l = normalizeLabelInput(li)
     if (!l) continue
@@ -49,7 +63,7 @@ function normalizeLabelInputs(labels) {
   return out
 }
 
-export function parseRepo(repo) {
+export function parseRepo(repo: RepositoryRef | null | undefined): ParsedRepo | null {
   if (!repo || typeof repo.refId !== 'string' || !repo.refId) return null
   const s = repo.refId.trim()
   const idx = s.indexOf('/')
@@ -57,7 +71,7 @@ export function parseRepo(repo) {
   return { owner: s.slice(0, idx), name: s.slice(idx + 1) }
 }
 
-export function repoId(repo) {
+export function repoId(repo: RepositoryRef | null | undefined): string {
   if (!repo) return ''
   if (typeof repo.refId === 'string' && repo.refId) return repo.refId
   if (typeof repo.name === 'string' && repo.name) return repo.name
@@ -71,7 +85,7 @@ export function repoId(repo) {
  * （404 或 GraphQL 那句复数权限句）就多问一次仓库权限：只有读权限（triage 为假）
  * 才改判成鉴权档并说清仓库与原因；问不出来或本就有写权限，原样返回、不瞎猜。
  */
-async function attributeLabelFailure(c, spec, wantNames, err, ctx) {
+async function attributeLabelFailure(c: ReturnType<typeof ghClient>, spec: string, wantNames: string[], err: TrackerError & { stderr?: unknown }, ctx: OpContext): Promise<TrackerError> {
   const text = String((err && (err.message || err.stderr)) || '')
   const suspicious = /HTTP 404|\b404\b|does not have the correct permissions|addlabelstolabelable/i.test(text)
     || (err && err.kind === ERROR_KIND.AUTH)
@@ -88,7 +102,7 @@ async function attributeLabelFailure(c, spec, wantNames, err, ctx) {
  * 整集替换 labels（GitHub 对齐）。
  * 若提供 expectedUpdatedAt，先取当前 Issue.updatedAt 比对，不匹配 → conflict 不落盘。
  */
-export async function setLabels(repo, key, labels, opts, ctx) {
+export async function setLabels(repo: RepositoryRef, key: string, labels: LabelInput[] | undefined, opts: SetOpts | undefined, ctx: MemoContext): Promise<OpResult<Issue>> {
   const wanted = normalizeLabelInputs(labels)
   const k = String(key || '').trim()
   if (!k) return fail(ERROR_KIND.PARSE, 'setLabels: key required (string)', key)
@@ -111,7 +125,8 @@ export async function setLabels(repo, key, labels, opts, ctx) {
     const c = ghClient(ctx)
     // 读当前 labels 做 diff（需知 toAdd/toRemove）
     const curRes = await getIssue(repo, k, {}, ctx)
-    const curLabels = curRes.ok ? curRes.data.labels.map((l) => l.name) : []
+    // 为什么敢断言 labels 非空：getIssue 回的票都经过 normalizeIssue 归一，归一里 labels 恒为数组（normalize.ts 取不到也给 []，契约叫恒 EMPTY），成功时不可能缺这一格。
+    const curLabels = curRes.ok ? curRes.data.labels!.map((l) => l.name) : []
     const wantNames = wanted.map((l) => l.name)
     const toAdd = wantNames.filter((n) => !curLabels.includes(n))
     const toRemove = curLabels.filter((n) => !wantNames.includes(n))
@@ -140,7 +155,9 @@ export async function setLabels(repo, key, labels, opts, ctx) {
     return finalRes
   } catch (err) {
     const verdict = ghVerdictOf(err, ctx)
-    const own = err && err.message ? String(err.message) : String(err)
+    // 为什么转成袋再读：catch 出来的是未知值，直接读 message 报缺成员；有值时袋与原值是同一份引用，真值判断与原来一致。
+    const eb = (err && typeof err === 'object' ? err : {}) as { message?: unknown };
+    const own = eb.message ? String(eb.message) : String(err)
     // conflict 由后端显式产生、不是从文本猜出来的：这里原样透传那一档，话术照旧走统一那一份。
     if (verdict.kind === ERROR_KIND.CONFLICT) return fail(ERROR_KIND.CONFLICT, ghFailureMessage(verdict, own), err)
     return fail(verdict.kind, ghFailureMessage(verdict, own), err)
@@ -148,6 +165,7 @@ export async function setLabels(repo, key, labels, opts, ctx) {
 }
 
 // 旧名兼容：addLabel → setLabels（#124：label→setLabels）—— 保留别名但标记弃用
-export const addLabel = (...args) => setLabels(...args)
+// 为什么标成同签名：别名只是转发，参数形状与原函数完全一致，标成同签名后调用方传错会在编译时露出来，运行时还是同一份转发。
+export const addLabel: typeof setLabels = (...args) => setLabels(...args)
 
 export default { setLabels, addLabel }

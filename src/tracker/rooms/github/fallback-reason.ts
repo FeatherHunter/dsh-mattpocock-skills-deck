@@ -8,7 +8,24 @@
  * 合成探针见 tests/verify-504-github-pr.js（企业版主机/限流/timeout 三合成失败各走各的 reason）。
  */
 
-export function readGhHost(ctx) {
+import type { OpContext } from '../../contract/contexts.js';
+
+/** 能读 GH_HOST 的最小环境口：契约平台环境口与历史遗留的顶层 env 口都只认这一个方法。 */
+interface GhHostEnv {
+  get(name: string): string | undefined;
+}
+
+/** 读主机名时的最小上下文：契约上下文加历史遗留的顶层 env（老调用方仍在传，拿不准就兼容读）。 */
+type GhHostCtx = OpContext & { env?: GhHostEnv | null };
+
+/** 从全局取进程环境：为什么走 globalThis 而不是直写 process——严格模式下没有 node 类型，直写会报找不到名字，走全局取与原来是同一份值，运行时不变。 */
+function procEnv(): Record<string, string | undefined> | null {
+  const g = globalThis as Record<string, unknown>;
+  const p = g.process as { env?: Record<string, string | undefined> } | undefined;
+  return (p && p.env) || null;
+}
+
+export function readGhHost(ctx: GhHostCtx): string {
   try {
     const env = ctx && ctx.platform && ctx.platform.env && typeof ctx.platform.env.get === 'function' ? ctx.platform.env : null
     const v = env ? String(env.get('GH_HOST') || '') : ''
@@ -21,21 +38,28 @@ export function readGhHost(ctx) {
     }
   } catch {}
   try {
-    if (typeof process !== 'undefined' && process.env && process.env.GH_HOST) return String(process.env.GH_HOST)
+    const penv = procEnv();
+    if (penv && penv.GH_HOST) return String(penv.GH_HOST)
   } catch {}
   return ''
 }
 
-export function isGheHostName(h) {
+export function isGheHostName(h: unknown): boolean {
   const s = String(h || '').trim().toLowerCase()
   if (!s) return false
   if (s === 'github.com' || s === 'api.github.com' || s.endsWith('.github.com')) return false
   return true
 }
 
-export function pickFallbackReason(err, ctx) {
+/** 降级原因的四种取值：超时、限流、企业版主机、其余统称查询失败，调用方按它记 reason 字段。 */
+export type FallbackReason = 'timeout' | 'rate-limit' | 'ghe-host' | 'graphql-error';
+
+export function pickFallbackReason(err: unknown, ctx: GhHostCtx): FallbackReason {
   try {
-    const msg = String((err && (err.stderr || err.message || err.stdout || (err.error && err.error.message))) || err || '')
+    // 为什么转成键值袋再读：错误值形状开放，直接读 stderr 会报缺成员；或链保持与原来一致的兜底顺序。
+    const bag = (err && typeof err === 'object' ? (err as Record<string, unknown>) : null) as Record<string, unknown> | null;
+    const inner = (bag && bag.error && typeof bag.error === 'object' ? (bag.error as Record<string, unknown>) : null) as Record<string, unknown> | null;
+    const msg = String((bag && (bag.stderr || bag.message || bag.stdout || (inner && inner.message))) || err || '')
     const s = msg.toLowerCase()
     if (/timeout|timed out|timedout|etimedout/i.test(msg)) return 'timeout'
     if (/rate limit|429|api rate limit exceeded|secondary rate limit/i.test(s)) return 'rate-limit'

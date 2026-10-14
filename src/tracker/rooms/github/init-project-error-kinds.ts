@@ -21,13 +21,19 @@ export const KIND_UNKNOWN = 'unknown'
 
 /**
  * 造一个「创建并发布」的错误分类器。
- * @param {Object} deps
- * @param {(errText: string) => boolean} deps.isOwnership 这段文本是不是「属主与运行用户不一致」
- * @returns {(errText: string, kind?: string|null) => string} 归一后的档位
+ * 为什么自定这两个小形状：调用方只传是否属主不一致的判断，返回的分类器只收文本与可选档位，契约里没有这一家的专有形状。
+ * @param deps 依赖：判断文本是否属主不一致
  */
-export function makeCreateErrorClassifier(deps) {
-  const isOwnership = (deps && deps.isOwnership) || function () { return false }
-  return function classifyCreateError(errText, kind) {
+interface CreateErrorClassifierDeps {
+  isOwnership?: (errText: string) => boolean;
+}
+
+/** 创建并发布错误分类器的函数形状：收错误文本与可选上游档位，回归一后的档位串。 */
+type CreateErrorClassifier = (errText: string, kind?: string | null) => string;
+
+export function makeCreateErrorClassifier(deps: CreateErrorClassifierDeps): CreateErrorClassifier {
+  const isOwnership = (deps && deps.isOwnership) || function (): boolean { return false }
+  return function classifyCreateError(errText: string, kind?: string | null): string {
     const low = String(errText || '').toLowerCase()
     // 属主不一致必须先判：它的原文里既有路径又有命令，不能让后面的规则先认走。
     if (isOwnership(errText)) return KIND_GIT_OWNERSHIP
