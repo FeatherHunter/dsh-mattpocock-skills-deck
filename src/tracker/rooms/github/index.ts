@@ -21,7 +21,7 @@ import { describe, issueAddress, repoSearchAddress, issueRefPattern, links, capa
 import { checks } from './checks.js'
 import { githubMatches, createGithubBackend } from './backend.js'
 // 链接三件的名字与后端无关（#1110 实现决定第 14 条）：GitHub 这家回的是网址，本地 Markdown 那家回的
-// 是票文件路径，用「地址」一个说法就都罩得住，不必替谁开例外。改名是 #1133 做的，那时老名字（网址
+// 是票文件路径（#1144 起那条算不出票文件名，改回空串），用「地址」一个说法就都罩得住，不必替谁开例外。改名是 #1133 做的，那时老名字（网址
 // 口吻的那三个）作为同义别名留了一轮；客户端与宿主都不再读它们之后，别名已按 #1141 删净。
 // 实现只有 repo.js 里那一份，本文件只是把名字摆出来，不再另起别名。
 export { describe, issueAddress, repoSearchAddress, issueRefPattern, links, capabilities, checks, githubMatches, createGithubBackend }
@@ -215,7 +215,7 @@ export const githubModule = {
   matches: githubMatches,
   describe,
   // 链接三件（#1110 实现决定第 14 条 / #1133 改名 / #1141 删旧名）：名字讲的是「地址」，
-  // 因为本地那家给的是票文件路径不是网址；实现只有 repo.ts 里那一份。
+  // 因为本地那家给过票文件路径不是网址（#1144 起那条改回空串）；实现只有 repo.ts 里那一份。
   issueAddress,
   repoSearchAddress,
   issueRefPattern,

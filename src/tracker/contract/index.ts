@@ -59,7 +59,7 @@ import { OPERATIONS as CATALOG_OPERATIONS } from './operations-catalog.js'
  * 定位口三条（没有「我不支持」这种答案，缺席就是缺席，调用方拿空值往下走）：
  * @property {(cwd: string, ctx: OpContext) => Promise<{owner: string, name: string}|null>} getRepoKey 从工作区目录解析出 owner/name；解析不出来回 null（不是异常）。只有需要连远端的后端才有
  * @property {(handle: RepoHandle, backendId?: string) => import('../../shared/tracker/shape.js').RepositoryRef} describe 产出仓库身份（实例版；与模块对象上同名方法同义，供注册表视图的回退链取用）
- * @property {(ref: import('../../shared/tracker/shape.js').RepositoryRef, key: string) => string} issueAddress 一张票在这个后端里的地址（实例版；本地后端回票文件路径）
+ * @property {(ref: import('../../shared/tracker/shape.js').RepositoryRef, key: string) => string} issueAddress 一张票在这个后端里的地址（实例版；本地后端算不出票文件名，诚实回空串，见 #1144）
  */
 
 /**
@@ -131,7 +131,7 @@ export const OPERATIONS: readonly string[] = Object.freeze(CATALOG_OPERATIONS)
  * @property {(ctx: BackendContext) => Partial<Tracker>} create 只实现真会的；缺的方法由 registry Proxy 补 unsupported 桩
  * @property {(handle: RepoHandle, ctx: OpContext) => boolean} matches 启发式 boolean（读 .scratch/map.md / git remote / issue-tracker.md）；不确定一律 false + 记 diagnostics
  * @property {(handle: RepoHandle, backendId: string) => import('../../shared/tracker/shape.js').RepositoryRef} [describe] 可选：出 RepositoryRef（refId/name/url）；未提供时注册表给一个不带地址的骨架（refId 取 handle 自带的，没有就拿本地文件后端的 cwd；url 一律空），不另猜地址
- * @property {(ref: import('../../shared/tracker/shape.js').RepositoryRef, key: string) => string} [issueAddress] 可选：票的地址（如 GitHub 的 https://github.com/{refId}/issues/{key}、GitLab 的 https://gitlab.com/{refId}/-/issues/{key}、本地 Markdown 的票文件绝对路径）。地址形状由本后端自己说了算；注册表只转发，没提供时回空串，不替任何后端拼地址（#1112）。名字与后端无关（#1110 实现决定第 14 条）：本地后端给的是路径不是网址，所以叫「地址」
+ * @property {(ref: import('../../shared/tracker/shape.js').RepositoryRef, key: string) => string} [issueAddress] 可选：票的地址（如 GitHub 的 https://github.com/{refId}/issues/{key}、GitLab 的 https://gitlab.com/{refId}/-/issues/{key}）。地址形状由本后端自己说了算；注册表只转发，没提供时回空串，不替任何后端拼地址（#1112）。本地 Markdown 算不出票文件名，这条回空串，票的地址改由票自己的 url 字段带出来（#1142 / #1144）。名字与后端无关（#1110 实现决定第 14 条）：路径也是地址，本地这条曾经给的是票文件路径，所以不叫「网址」
  * @property {(name: string) => string} [repoSearchAddress] 可选：按仓库名找仓库的地址（如 GitHub 的 https://github.com/search?q=...）；本地后端没有全站搜索页，回空串（#1112）
  * @property {RegExp|string} [issueRefPattern] 可选：在这个后端的文本里认出票引用的写法；注册表只转发，没提供时回 null，不替任何后端造正则（#1112）
  * @property {{trackerLine: string, trackerChoice: string, backendNote: string, labelReqs: string}} [setupPrompt]

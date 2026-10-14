@@ -44,7 +44,7 @@ export function describe(handle, backendId) {
 
 // ============ 链接供给：issueAddress / repoSearchAddress / issueRefPattern（契约只读 view） ============
 // 三个名字讲的是「地址」而不是「网址」（#1110 实现决定第 14 条）：GitHub 这家回的是网址，
-// 本地 Markdown 那家回的是票文件路径，用同一个说法才不用替谁开例外。老名字已按 #1141 删净。
+// 本地 Markdown 那家回的是票文件路径（#1144 起那条算不出票文件名，改回空串），用同一个说法才不用替谁开例外。老名字已按 #1141 删净。
 export function issueAddress(ref, key) {
   const refId = ref && typeof ref.refId === 'string' ? ref.refId : ''
   if (!refId) return ''

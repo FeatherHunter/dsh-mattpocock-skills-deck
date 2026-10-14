@@ -1,6 +1,10 @@
 import type { RoomOperations } from '../../contract/operations.js'
+import type { RepositoryRef, Issue, Comment, LabelColor } from '../../contract/entities.js'
+import type { OpContext, RepoHandle } from '../../contract/contexts.js'
+import type { Actor } from '../../contract/identity.js'
+import type { OpResult, PreflightResult, Counts, PageResult, Dependencies, RepoPermissions, SubIssueList, LabelColorsFilePlacement, LabelColorBatchResult } from '../../contract/results.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
-import { mdPath, effortMapPath, effortIssuePath } from './path.js'
+import { mdPath } from './path.js'
 import { readTextFile, exists } from './read.js'
 import { listIssues, getIssue, createIssue, closeIssue, reopenIssue, updateIssue, setBlockedByIssue, setAssigneesIssue, setParentIssue, setLabelsIssue } from './issues.js'
 import { countIssues } from './counts.js'
@@ -11,10 +15,14 @@ import { listLabels, setLabelColors } from './label-colors-ops.js'
 import { ensureLabelColors } from './label-colors.js'
 import { useBuiltinLabelColors } from './label-colors-palette.js'
 import { failAs } from './error-fail.js'
+// node:path 无类型声明（与 path.ts 同款）：压住这一行，拿到的 nodePath 按 any 用。
+// @ts-expect-error node:path has no types here (types: []), same as path.ts
 import nodePath from 'node:path'
-function getPlat(ctx){if(ctx&&ctx.platform&&ctx.platform.path)return ctx.platform.path;if(ctx&&ctx.path)return ctx.path;if(typeof process!=='undefined'&&process.platform==='win32')return nodePath.win32;return nodePath.posix}
-function isAbsolute(p,plat){try{return plat.isAbsolute(p)}catch{return nodePath.isAbsolute(p)}}
-export async function matches(handle, ctx){
+// 运行本文件时没有文件服务：声明一个最小的 process 视图（只读 platform 选换行那套路径实现）。
+declare const process: { platform?: string } | undefined
+function getPlat(ctx: OpContext | undefined){if(ctx&&ctx.platform&&ctx.platform.path)return ctx.platform.path;if(ctx&&ctx.path)return ctx.path;if(typeof process!=='undefined'&&process.platform==='win32')return nodePath.win32;return nodePath.posix}
+function isAbsolute(p: string,plat: { isAbsolute: (p: string) => boolean }){try{return plat.isAbsolute(p)}catch{return nodePath.isAbsolute(p)}}
+export async function matches(handle: RepoHandle, ctx: OpContext): Promise<boolean>{
   try{
     const cwd=handle&&handle.cwd?String(handle.cwd):(handle&&handle.refId?String(handle.refId):'')
     if(!cwd)return false
@@ -29,11 +37,13 @@ export async function matches(handle, ctx){
     candidatePaths.push(plat.join(root,'map.md'))
     try{
       const fs=ctx&&ctx.platform?ctx.platform.fs:(ctx&&ctx.fs)||(ctx&&typeof ctx.get==='function'?ctx.get('fs'):null)
-      let entries=[]
+      let entries: unknown[]=[]
       if(fs&&typeof fs.resolve==='function'&&typeof fs.listDir==='function'){try{const t=await fs.resolve(root);entries=await fs.listDir(t)}catch{}}
       else if(fs&&typeof fs.readdir==='function'){try{entries=await fs.readdir(root)}catch{}}
       for(const e of entries){
-        const name=typeof e==='string'?e:(e&&e.name)||''
+        // 目录项可能是字符串或 {name}：取出来按字符串用；`as string` 只收类型视野，
+        // 运行时还是原值（name 真不是字符串时原来怎么崩现在还怎么崩，不在这里改判）。
+        const name=(typeof e==='string'?e:(e&&(e as Record<string, unknown>).name)||'') as string
         if(!name||name.startsWith('.'))continue
         candidatePaths.push(plat.join(root,name,'map.md'))
       }
@@ -56,38 +66,43 @@ export async function matches(handle, ctx){
     return false
   }catch{return false}
 }
-export function describe(handle, backendId){
+export function describe(handle: RepoHandle, backendId: string): RepositoryRef{
   const cwd=handle&&handle.cwd?String(handle.cwd):''
   const refId=handle&&handle.refId?String(handle.refId):(cwd?cwd:'')
   const finalRef=refId||cwd||''
   const name=finalRef?finalRef.split(/[\\/]/).pop()||finalRef:backendId
   // effort 维度：handle 带 effortId 时如实透传（describe 是 ref 的唯一产地，这里丢掉就再也拿不回来）
-  const out={backend:backendId,refId:finalRef,name:name||backendId,url:''}
+  const out: RepositoryRef={backend:backendId,refId:finalRef,name:name||backendId,url:''}
   if(handle&&handle.effortId!==undefined&&handle.effortId!==null) out.effortId=String(handle.effortId)
   return out
 }
-/** 给一张票的地址（#1110 实现决定第 14 条）：本地 Markdown 没有远端网址，这里给的是这张票在工作区
- *  里的文件路径——路径也是「地址」，所以名字不叫「网址」；同一个名字要同时罩住远端网址
- *  （GitHub / GitLab）与本地路径两家后端，说成「网址」会把本地这一家说成例外。
- *  网址口吻的旧名字已按 #1141 删净。 */
-export function issueAddress(ref, key) {
-  try {
-    if (ref == null || key == null) return ''
-    const k = String(key).trim()
-    if (!k) return ''
-    const cwdArg = { cwd: (ref && ref.refId) || '' }
-    // effort 维度：带 effort 范围的引用 → 路径落在 <cwd>/.scratch/<effortId>/ 下（'00' 是地图文件）
-    if (ref.effortId !== undefined && ref.effortId !== null) {
-      if (String(k).padStart(2, '0') === '00') return effortMapPath(ref, cwdArg)
-      return effortIssuePath(ref, k, cwdArg)
-    }
-    // 文件约束内现算：mdPath 已处理 refId 绝对/相对、repo.path、getRoot 三分支
-    // UI 拿到的是裸盘符路径（D:\…\issues\01-xxx.md），由 wf.openPath 按 OS 打开，不经 file:// 编码
-    return mdPath(ref, 'issue', k, cwdArg)
-  } catch { return '' }
+/** 给一张票的地址（#1110 实现决定第 14 条立这条；#1144 改成诚实回空串）。
+ *
+ *  本地 Markdown 后端**算不出**一张票的地址，所以这里回空串，不再按编号拼一个文件名。
+ *  为什么算不出：在本后端里一张票就是工作区里的一个文件，文件名是「编号-标题转出来的后缀.md」，
+ *  而标题转后缀会把中文等非 ASCII 字符全部删掉、删空了回落 untitled（parse.ts 顶上的 slugify）。
+ *  于是同一个编号在盘上可能叫 01-hello-world.md、也可能叫 01-untitled.md —— 光凭引用与编号谁也算不出真名字。
+ *  真正知道地址的只有读写这个文件的那一层：#1142 起它把地址随票一起交出来（票的 url 字段，
+ *  见 issues-locate.ts 的 loadIssueFromFile 与 parse.ts 的 url）。所以「一张票的地址」读票上的 url 就够了，
+ *  本函数不是票地址的第二真源。
+ *
+ *  为什么这条还留在模块对象上：契约把「票的地址」列为三条定位口之一，而定位口的答案允许是空
+ *  （contract/operations.ts 的「定位口三条」：答案是名字或者空，空也是答案，不是失败）。
+ *  注册表对「后端没提供」与「后端回了空串」同样回空串，调用方本来就要处理空（registry/views.ts 的 issueAddress）。
+ *
+ *  为什么不用「扫一遍 issues/ 目录找 01-*.md、找不到再回空串」这条看上去更聪明的路：本函数是同步的，
+ *  而本后端的文件读写一律经调用方递进来的平台文件层（ctx.platform.fs，是异步的）。扫目录要么绕开
+ *  那一层直接摸盘、要么把这条改成异步，两条都比「回空串、让地址随票走」贵，还会多出第二个地址来源。
+ *  三选一的定案过程见 #1144。
+ *
+ *  名字叫「地址」不叫「网址」的来由：同一个名字要同时罩住远端网址（GitHub / GitLab）与本地文件路径两家
+ *  后端，路径也是地址；网址口吻的旧名字已按 #1141 删净（见下面 markdownModule 那一段）。 */
+export function issueAddress(ref: RepositoryRef, key: string): string {
+  // 两个参数照契约收下、故意不读：这一条回答的是「算不出来」，不是「算一个给你」。
+  return ''
 }
 /** 按仓库名找仓库的地址（#1110 实现决定第 14 条）：本地后端没有全站搜索页，诚实回空串。 */
-export function repoSearchAddress(name) { return '' }
+export function repoSearchAddress(name: string): string { return '' }
 /** 在这个后端的文本里认出票引用的写法（#1110 实现决定第 14 条）。 */
 export const issueRefPattern = "#(\\d+)"
 /**
@@ -97,10 +112,18 @@ export const issueRefPattern = "#(\\d+)"
  * 下面逐条写明的「本后端不提供」是**有意为之的诚实回法**，不是漏做：
  * 能做的事与不能做的事都在这一份里看得见，读的人不用去别的文件里对账。
  */
-export function createMarkdownBackend(ctx): RoomOperations {
+// 房间各操作经 failAs 交失败（error-fail.js 把 kind 注成 string，房间动不了它），
+// 而契约的 OpResult/PreflightResult 要 ErrorKind：运行时的 kind 恒为 ERROR_KIND 八档之一
+// （全房只从那八个常量里取，从不手写档位字符串），这里一次性断言收窄，后面每条操作复用——
+// 只收类型视野，不碰运行时。入参收 `{ok:boolean}` 是因为各操作的成功侧形状不一
+// （listIssues 的 {ok:true,data}、page 的 {ok:boolean,…}、create 透出的放置形状），但都有 ok。
+function asOpResult<T>(p: Promise<{ ok: boolean }> | { ok: boolean }): Promise<OpResult<T>>{
+  return Promise.resolve(p) as Promise<OpResult<T>>
+}
+export function createMarkdownBackend(ctx: OpContext): RoomOperations {
   return{
     id:'markdown',
-    preflight: async (handle,opCtx)=>{
+    preflight: async (handle: RepoHandle,opCtx: OpContext): Promise<PreflightResult>=>{
       const c=opCtx||ctx
       try{
         const plat=getPlat(c)
@@ -110,11 +133,12 @@ export function createMarkdownBackend(ctx): RoomOperations {
           const root=plat.join(cwd,'.scratch')
           try{
             const fs=c&&c.platform?c.platform.fs:(c&&c.fs)||(c&&typeof c.get==='function'?c.get('fs'):null)
-            let entries=[]
+            let entries: unknown[]=[]
             if(fs&&typeof fs.resolve==='function'&&typeof fs.listDir==='function'){try{const t=await fs.resolve(root);entries=await fs.listDir(t)}catch{}}
             else if(fs&&typeof fs.readdir==='function'){try{entries=await fs.readdir(root)}catch{}}
             for(const e of entries){
-              const name=typeof e==='string'?e:(e&&e.name)||''
+              // 同 matches 里那一处：`as string` 只收类型视野，运行时还是原值。
+              const name=(typeof e==='string'?e:(e&&(e as Record<string, unknown>).name)||'') as string
               if(!name||name.startsWith('.'))continue
               const cand=plat.join(root,name,'map.md')
               if(await exists(c,cand)) return{ok:true}
@@ -122,7 +146,9 @@ export function createMarkdownBackend(ctx): RoomOperations {
             if(await exists(c,plat.join(root,'map.md'))) return{ok:true}
           }catch{}
         }
-        const repo=handle&&handle.backend?handle:describe(handle,'markdown')
+        // 带 backend 的 handle 被当成「已选定后端的引用」用（refId 即路径，见 matches）；
+        // 契约的 RepositoryRef 要求 refId 等键齐全，断言只收类型视野，运行时还是原来那个对象。
+        const repo=handle&&handle.backend?(handle as RepositoryRef):describe(handle,'markdown')
         const mapP=mdPath(repo,'map',undefined,c)
         if(await exists(c,mapP))return{ok:true}
         const plat2=getPlat(c)
@@ -132,48 +158,50 @@ export function createMarkdownBackend(ctx): RoomOperations {
           if(await exists(c,plat2.join(root,'map.md')))return{ok:true}
         }
         // 原文给空串：预检只是没找到地图文件，没有任何命令或文件读过它（这条结论本地就能定）。
-        return failAs(ERROR_KIND.NOTFOUND,'markdown map.md not-found','')
+        return failAs(ERROR_KIND.NOTFOUND,'markdown map.md not-found','') as PreflightResult
       }catch(e){
         // 档位按本步语义定：预检问的是「这个工作区能不能用本地 Markdown 当票仓」，
         // 中途任何意外都归环境档（这不是一次真的读写调用，判成网络档会让人去查错方向）。
         // 原文 = 抛上来的那个错误本身（人据此看它到底为什么读不动这个目录）。
-        const kind=e&&e.kind?e.kind:ERROR_KIND.ENV
-        return failAs(kind,e&&e.message?e.message:String(e),e)
+        // caught 只为过类型：`e &&` 短路与原式逐字相同，message 非字符串时原样透传（不断言改值）。
+        const caught=e as Record<string, unknown>
+        const kind=((e&&caught.kind)||ERROR_KIND.ENV) as string
+        return failAs(kind,(e&&caught.message?caught.message:String(e)) as string,e) as PreflightResult
       }
     },
-    list:(repo,filter,opCtx)=>listIssues(opCtx||ctx,repo,filter),
+    list:(repo,filter,opCtx)=>asOpResult<Issue[]>(listIssues(opCtx||ctx,repo,filter)),
     // #691：本地 Markdown 补上契约的 counts（数「列举会返回的那些票行」，地图容器行分开算）。
     // 语义见 tracker/contract.js 的「计数契约」；本后端数的口径见 counts.js 顶部注释。
-    counts:(repo,filter,opCtx)=>countIssues(opCtx||ctx,repo,filter),
+    counts:(repo,filter,opCtx)=>asOpResult<Counts>(countIssues(opCtx||ctx,repo,filter)),
     // #691：本地 Markdown 补上契约的 listPage（按「创建时间倒序」切一页票行 + 同口径总数）。
     // 语义见 tracker/contract-page.js 的「分页契约」；本后端的游标是「排好序的票行列表里的下标」。
-    listPage:(repo,filter,opts,opCtx)=>listIssuesPage(opCtx||ctx,repo,filter,opts),
-    get:(repo,key,opts,opCtx)=>getIssue(opCtx||ctx,repo,key,opts),
-    getDependencies:(repo,key,opts,opCtx)=>getDependenciesForKey(opCtx||ctx,repo,key),
-    create:(repo,input,opCtx)=>createIssue(opCtx||ctx,repo,input),
-    close:(repo,key,opts,opCtx)=>closeIssue(opCtx||ctx,repo,key),
-    reopen:(repo,key,opCtx)=>reopenIssue(opCtx||ctx,repo,key),
-    comment:(repo,key,body,opCtx)=>addComment(opCtx||ctx,repo,key,body),
-    update:(repo,key,patch,opCtx)=>updateIssue(opCtx||ctx,repo,key,patch),
-    setLabels:(repo,key,labels,opts,opCtx)=>setLabelsIssue(opCtx||ctx,repo,key,labels),
-    setAssignees:(repo,key,assignees,opts,opCtx)=>setAssigneesIssue(opCtx||ctx,repo,key,assignees),
-    setParent:(repo,key,parentKey,opts,opCtx)=>setParentIssue(opCtx||ctx,repo,key,parentKey),
-    setBlockedBy:(repo,key,blockers,opts,opCtx)=>setBlockedByIssue(opCtx||ctx,repo,key,blockers),
+    listPage:(repo,filter,opts,opCtx)=>asOpResult<PageResult>(listIssuesPage(opCtx||ctx,repo,filter,opts)),
+    get:(repo,key,opts,opCtx)=>asOpResult<Issue>(getIssue(opCtx||ctx,repo,key,opts)),
+    getDependencies:(repo,key,opts,opCtx)=>asOpResult<Dependencies>(getDependenciesForKey(opCtx||ctx,repo,key)),
+    create:(repo,input,opCtx)=>asOpResult<Issue>(createIssue(opCtx||ctx,repo,input)),
+    close:(repo,key,opts,opCtx)=>asOpResult<Issue>(closeIssue(opCtx||ctx,repo,key)),
+    reopen:(repo,key,opCtx)=>asOpResult<Issue>(reopenIssue(opCtx||ctx,repo,key)),
+    comment:(repo,key,body,opCtx)=>asOpResult<Comment>(addComment(opCtx||ctx,repo,key,body)),
+    update:(repo,key,patch,opCtx)=>asOpResult<Issue>(updateIssue(opCtx||ctx,repo,key,patch)),
+    setLabels:(repo,key,labels,opts,opCtx)=>asOpResult<Issue>(setLabelsIssue(opCtx||ctx,repo,key,labels)),
+    setAssignees:(repo,key,assignees,opts,opCtx)=>asOpResult<Issue>(setAssigneesIssue(opCtx||ctx,repo,key,assignees)),
+    setParent:(repo,key,parentKey,opts,opCtx)=>asOpResult<Issue>(setParentIssue(opCtx||ctx,repo,key,parentKey)),
+    setBlockedBy:(repo,key,blockers,opts,opCtx)=>asOpResult<Issue>(setBlockedByIssue(opCtx||ctx,repo,key,blockers)),
     // #618：标签配色契约的两条操作（形状见 src/host/tracker/contract.js 的「标签配色契约」一节）。
     // listLabels 会在文件缺失时顺手补一份默认配色文件（首次打开改色弹窗那条放置路）。
-    listLabels:(repo,opCtx)=>listLabels(opCtx||ctx,repo),
-    setLabelColors:(repo,changes,opCtx)=>setLabelColors(opCtx||ctx,repo,changes),
+    listLabels:(repo,opCtx)=>asOpResult<LabelColor[]>(listLabels(opCtx||ctx,repo)),
+    setLabelColors:(repo,changes,opCtx)=>asOpResult<LabelColorBatchResult>(setLabelColors(opCtx||ctx,repo,changes)),
     // 放置配色文件的入口，给「用户为工作区选定后端」那一步用（host 不问后端 id，只问它愿不愿意放）。
     // 只有本后端实现它，所以只有 Markdown 系后端会往工作区放这个文件。
-    ensureLabelColorsFile:(repo,opCtx)=>ensureLabelColors(opCtx||ctx,repo),
+    ensureLabelColorsFile:(repo,opCtx)=>asOpResult<LabelColorsFilePlacement>(ensureLabelColors(opCtx||ctx,repo)),
     // 下面这几条是「本后端明确不提供这项能力」：原文给空串（一次调用都没发出去，没有外部来源的原文）。
     // 2026-10-14 起它们都是契约里的正式成员，回 unsupported 是合规答案，不是缺陷。
-    getCurrentUser: async ()=>(failAs(ERROR_KIND.UNSUPPORTED,'markdown getCurrentUser unsupported','')),
-    initProject: async ()=>(failAs(ERROR_KIND.UNSUPPORTED,'markdown initProject unsupported','')),
+    getCurrentUser: ()=>asOpResult<Actor>(failAs(ERROR_KIND.UNSUPPORTED,'markdown getCurrentUser unsupported','')),
+    initProject: ()=>asOpResult<RepositoryRef>(failAs(ERROR_KIND.UNSUPPORTED,'markdown initProject unsupported','')),
     // 本地票仓的写入能力由目录权限与沙箱决定，没有「仓库权限」这回事，所以没有可问的对象。
-    getRepoPermissions: async ()=>(failAs(ERROR_KIND.UNSUPPORTED,'markdown getRepoPermissions unsupported','')),
+    getRepoPermissions: ()=>asOpResult<RepoPermissions>(failAs(ERROR_KIND.UNSUPPORTED,'markdown getRepoPermissions unsupported','')),
     // 子票就在工作区的票文件里，宿主要「这张地图的全部子票」直接读文件即可，不经这里。
-    listSubIssues: async ()=>(failAs(ERROR_KIND.UNSUPPORTED,'markdown listSubIssues unsupported','')),
+    listSubIssues: ()=>asOpResult<SubIssueList>(failAs(ERROR_KIND.UNSUPPORTED,'markdown listSubIssues unsupported','')),
   }
 }
 /** #323（2026-08-29 定版复核）：本地 Markdown 后端自己的默认调色盘（不依赖 GitHub）——
@@ -247,8 +275,9 @@ export const markdownModule = {
   id: 'markdown',
   label: 'Markdown',
   describe,
-  // 链接三件（#1110 实现决定第 14 条 / #1134 改名 / #1141 删旧名）：名字讲的是「地址」，
-  // 因为本地这家给的是票文件路径不是网址；实现就是本文件里的那几个导出。
+  // 链接三件（#1110 实现决定第 14 条 / #1134 改名 / #1141 删旧名 / #1144 收口）：名字讲的是「地址」，
+  // 不是「网址」，因为本地这家给的曾经是票文件路径。#1144 起 issueAddress 诚实回空串
+  // （本地后端算不出票的地址，地址随票走，理由见它自己的注释）；另两条本来就没有本地对应物，一并回空。
   issueAddress,
   repoSearchAddress,
   issueRefPattern,
@@ -270,7 +299,8 @@ export const markdownModule = {
   labelPalette: defaultLabelPalette,
   create: createMarkdownBackend,
   matches,
-  // #231：本地 Markdown 无远程链接 —— issueAddress 由后端现算为裸盘符路径，links 仅留提及识别正则；开仓为打开文件夹
+  // #231：本地 Markdown 无远程链接 —— 票的地址随票走（#1142 的票 url；#1144 后 issueAddress 回空串），
+  // links 仅留提及识别正则；开仓为打开文件夹
   links: { linkPatternSource: "#(\\d+)" },
   openRepository: 'folder',
   prompts,
