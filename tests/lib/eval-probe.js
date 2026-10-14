@@ -21,6 +21,13 @@
  *   evalWithScope(expr, scope)  等价于对 expr 做直接求值，expr 里引用的外层变量由 scope 显式给出
  *   evalInWindow(dom, code)     等价于在 jsdom 窗口里执行 code（jsdom 必须开 runScripts）
  *
+ * 求值失败时会把原因说清
+ *   最常见的两种失败都是「传进来的文本根本不是一段函数文本」：把整份源码文件当函数体传进来
+ *   （于是函数体里出现模块级的 import/export），或者文本里还留着 TypeScript 的类型写法
+ *   （vm.compileFunction 只吃纯 JavaScript，不做类型剥离）。这两种情况下引擎只会丢一句
+ *   “Cannot use import statement outside a module” 或 “Unexpected token”，看到的人得自己推。
+ *   诊断集中在 describeFailure 里，按文本形状指名说清，并给出两条可行改法（见该函数注释）。
+ *
  * 真 Chromium 里跑的那三处探针不在这里：页面里引不进 Node 模块，它们按同一做法（插一段经典脚本）
  * 各写了一份页面内小函数，位置见各自文件里的注释。
  * 换行符注意：本仓库已声明文本文件一律 LF 检出（见根目录 .gitattributes），
@@ -48,12 +55,52 @@ function splitParamNames(params) {
 }
 
 /**
+ * 把「求值失败」翻译成能直接照着改的话。没有更清楚的话可说时，原样把原错误抛回去。
+ *
+ * 为什么要有它：这个入口被八十来个门禁共用，其中任何一份把整份源码文件当函数体传进来时，
+ * 引擎只留一句 “Cannot use import statement outside a module”，看到的人还得自己推
+ * 「函数体里为什么会出现 import」。按文本形状把两种最常见的原因指名说清，并各给两条改法：
+ *   ① 直接引真源模块（说明符写显式 .ts 就能直接跑；写 .js 结尾要挂 scripts/ts-hook.mjs，验证链会自动挂）；
+ *   ② 只把要测的那一段函数文本切出来，不要用整份文件。
+ * 只在求值已经失败之后才调用，所以就算猜错了也不会影响跑得通的门禁。
+ */
+function describeFailure(err, code) {
+  const lines = [String((err && err.message) || err)]
+  if (/(^|\n)[ \t]*(?:import|export)\s/.test(code)) {
+    lines.push('这段文本里有模块级的 import/export —— 看着是整份源码文件，不是一段函数文本。')
+    lines.push('vm.compileFunction 造的是函数体，函数体里不能出现 import/export。两种改法：')
+    lines.push('  ① 直接引真源模块，调用它导出的那个函数；')
+    lines.push('  ② 只把要测的那一段函数文本切出来再交给本入口，不要传整份文件。')
+  } else if (/(^|\n)[ \t]*(?:export\s+)?(?:interface|type)\s+[A-Za-z_$]/.test(code)) {
+    lines.push('这段文本里有 TypeScript 的类型写法（interface / type）—— vm.compileFunction 只吃纯 JavaScript，不做类型剥离。')
+    lines.push('改法同前一条：直接引真源模块，或只切出纯 JavaScript 的那一段。')
+  } else if (
+    /[A-Za-z_$][\w$]*\s*:\s*(?:string|number|boolean|unknown|any|void|never|object|Record\b|Promise\b|[A-Z][\w$]*)\b/.test(code) ||
+    /\bas\s+(?:const|[A-Z][\w$]*|Record\b|unknown)\b/.test(code)
+  ) {
+    lines.push('这段文本里可能有 TypeScript 的类型标注（写成「名字: 类型」或「值 as 类型」）—— vm.compileFunction 只吃纯 JavaScript，不做类型剥离。')
+    lines.push('这是按文本形状给的线索，不是结论：如果确实不是类型标注，可以忽略这一条。')
+  }
+  if (lines.length === 1) return err
+  const out = new Error(lines.join('\n'))
+  out.name = (err && err.name) || 'Error'
+  out.cause = err
+  return out
+}
+
+/**
  * 等价于「用 names 当参数名、body 当函数体」造一个函数。
  * 与原来那种写法一样：不捕获调用处的作用域，拿不到调用方的局部变量，
  * 造出来的对象属于当前环境（Array.isArray 与 instanceof 的结论都一致）。
+ * 造不出来时抛出的错误里会带上原因（见 describeFailure）。
  */
 function compileFn(params, body) {
-  return vm.compileFunction(String(body), splitParamNames(params), { filename: 'eval-probe.js' })
+  const code = String(body)
+  try {
+    return vm.compileFunction(code, splitParamNames(params), { filename: 'eval-probe.js' })
+  } catch (err) {
+    throw describeFailure(err, code)
+  }
 }
 
 /**
