@@ -49,11 +49,50 @@ export type MarkdownBackendMembers =
 export type MarkdownBackendShape = { [K in MarkdownBackendMembers]: Tracker[K] }
 function getPlat(ctx: OpContext | undefined){if(ctx&&ctx.platform&&ctx.platform.path)return ctx.platform.path;if(ctx&&ctx.path)return ctx.path;if(typeof process!=='undefined'&&process.platform==='win32')return nodePath.win32;return nodePath.posix}
 function isAbsolute(p: string,plat: { isAbsolute: (p: string) => boolean }){try{return plat.isAbsolute(p)}catch{return nodePath.isAbsolute(p)}}
+/**
+ * Markdown matches：启发式 boolean —— 这个工作区是不是本地 Markdown 票仓。
+ *
+ * 依次看两处，任何一处成立就认：
+ *   1. 候选位置里有 map.md（调用方给的 refId 那一处、以及 `.scratch/map.md`）；
+ *   2. `docs/agents/issue-tracker.md` 里声明 Local Markdown。
+ * 两处都不成立，或者线索不够，一律回 false ——「不确定就当不是」是既定口径，不是故障。
+ *
+ * #1182 第 4 件（照 GitLab 房 #1130 那一趟的口径）：这一趟的失败原因必须能从房里报出来
+ * （走本房的 `read-log.ts`，事件名沿用全仓登记的 `read.degraded`），不能像从前那样被一个裸
+ * catch 吞掉、外面只剩注册表那句「没认出来」。判据与 GitLab 房逐字相同，是「哪一层没能给出
+ * 答案」，不是「哪一层没认出 Markdown」—— 读到了内容只是里面没写 Local Markdown，那是正常的
+ * 否定结论，不记；一个规规矩矩的工作区（有 `.scratch/map.md`，或者有声明文件）走这一趟
+ * 一行都不会多出来。
+ *
+ * 三处落点（与 GitLab 房那三处同一套判据，只是这一房的步骤名按本房实况取）：
+ *   - 分不出平台对象（`ctx.platform.path` 与 `ctx.path` 都不是个能用的东西，也不是 win32）→
+ *     `matches:fs-unavailable`：识别这一趟根本没跑起来。这是故障，不是「这个工作区不是 Markdown」。
+ *   - 声明文件 `docs/agents/issue-tracker.md` 这一层没能给出答案 —— 文件在、可两路读法都读不动，
+ *     或者连它在不在都问不出来（拼路径那一步自己抛了）→ `matches:tracker-doc`：这一层是识别最后
+ *     一道证据，它不出声，整条识别就只剩「没认出来」。
+ *   - 上面之外整段抛了（平台对象形状怪、路径拼接抛错这类）→ `matches:unknown`，结论照旧按「不确定 = 不是」。
+ *
+ * 为什么没有第四个取值 `matches:no-map`（候选位置都没找到地图）：「候选都没有地图」这件事，
+ * 恰恰是所有不是 Markdown 的工作区都会出现的正常答案 —— 记它等于给每一次 GitHub、GitLab 工作区
+ * 探测都加一行噪音，而读了内容发现没写 Local Markdown 这一条又按上面的判据不记，两处口径就打架了。
+ * 所以「没找到地图」本身不记，只有它后面的那一层（声明文件）也读不动时才留下痕迹。
+ *
+ * @param handle 识别时给的那点线索（只取 refId 与 cwd）
+ * @param ctx 单次调用上下文（没有它、或它没有 logEvent 就记不出日志，但结论照旧）
+ * @returns 认得出是本地 Markdown 就 true
+ */
 export async function matches(handle: RepoHandle, ctx: OpContext): Promise<boolean>{
+  const startedAt = Date.now()
   try{
     const cwd=handle&&handle.cwd?String(handle.cwd):(handle&&handle.refId?String(handle.refId):'')
     if(!cwd)return false
     const plat=getPlat(ctx)
+    // 分不出平台对象就拼不出候选路径：识别这一趟没跑起来。这是故障（`matches:fs-unavailable`），
+    // 不是「这个工作区不是 Markdown」—— 一个 GitHub / GitLab 工作区走这一趟不该留下这一行。
+    if(!plat||typeof plat.join!=='function'){
+      emitReadDegraded(ctx,'matches','matches:fs-unavailable',Date.now()-startedAt)
+      return false
+    }
     let candidatePaths=[]
     if(handle.refId&&String(handle.refId).includes('.scratch')){
       const p=isAbsolute(String(handle.refId),plat)?String(handle.refId):plat.join(cwd,String(handle.refId))
@@ -78,17 +117,34 @@ export async function matches(handle: RepoHandle, ctx: OpContext): Promise<boole
       const itPath=plat.join(cwd,'docs/agents/issue-tracker.md')
       if(await exists(ctx,itPath)){
         let txt=''
+        // 「两路读法都读不动」要单独留个记号：这时 `txt` 停在空串，与「读到了、内容恰好是空的」
+        // 在结果上长得一样，可两者不是一回事 —— 前者是这一层没能给出答案（降级，要记），
+        // 后者是正常的否定结论（不记）。
+        let unreadable=false
         try{ txt=await readTextFile(ctx,itPath) }catch{
+          unreadable=true
           try{
             const fs2=ctx&&ctx.platform?ctx.platform.fs:(ctx&&ctx.fs)||null
-            if(fs2&&typeof fs2.resolve==='function'&&typeof fs2.readText==='function'){ const t=await fs2.resolve(itPath,{cwd}); txt=await fs2.readText(t) }
+            if(fs2&&typeof fs2.resolve==='function'&&typeof fs2.readText==='function'){ const t=await fs2.resolve(itPath,{cwd}); txt=await fs2.readText(t); unreadable=false }
           }catch{}
         }
         if(typeof txt==='string'&&/Local\s+Markdown/i.test(txt)) return true
+        // 声明文件在、可房里的读法与平台 fs 那条兜底都没读动：识别最后一道证据没能出声。
+        if(unreadable) emitReadDegraded(ctx,'matches','matches:tracker-doc',Date.now()-startedAt)
+        // 走到这里说明声明文件在、也读到了内容，只是里面没写 Local Markdown：这是正常的否定结论，不记。
       }
-    }catch{}
+    }catch{
+      // 声明文件这一层没能给出答案的另一种走法：拼这个路径的时候抛了（平台对象形状怪、join 自己抛）。
+      // 与上面「两路都读不动」是同一件事（这一层没给出答案），所以落同一个取值。
+      emitReadDegraded(ctx,'matches','matches:tracker-doc',Date.now()-startedAt)
+    }
     return false
-  }catch{return false}
+  }catch{
+    // 上面那几处之外整段抛了（平台对象形状怪、路径拼接抛错这类）：结论照旧按「不确定 = 不是」，
+    // 但这一趟为什么没给出答案要留下痕迹 —— 从前的裸 catch 让这类故障在日志里一个字都没有。
+    emitReadDegraded(ctx,'matches','matches:unknown',Date.now()-startedAt)
+    return false
+  }
 }
 // 契约把第二个参数标成可选（`describe(handle, backendId?)`，见 contract/operations.ts 定位口那一段：
 // 「实例自己知道身份，可以忽略它」）。这里给它一个默认值，别让契约说可选、实现却离了它就调不动。

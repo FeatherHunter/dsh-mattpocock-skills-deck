@@ -22,6 +22,8 @@ import { ERROR_KIND } from '../../contract/vocabulary.js'
 import type { BackendPlatform, ExecResult, OpContext } from '../../contract/contexts.js';
 import type { TrackerError } from '../../contract/results.js';
 import { fail, rawText } from '../../kernel/preflight.js'
+// 记日志那层壳在内核一份（#1182 第 3 件）：本房只管给出级别、事件名与字段。
+import { guardEmit } from '../../kernel/log-emit.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'
 import { timeoutForGhArgs, isWriteGhArgs } from '../../kernel/outbound-tiers.js'
 // #1159：名额闸与搭车账本不再从宿主 import —— 它们是有状态的运行时能力，形状由契约层声明
@@ -89,11 +91,9 @@ interface OutboundGate {
 function hash8(s: unknown): string { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch { return '00000000' } }
 
 function roomLogEvent(ctx: OpContext, level: string, event: string, fields: Record<string, unknown>): void {
-  try {
-    const f = ctx && typeof ctx.logEvent === 'function' ? ctx.logEvent : null
-    if (!f) return
-    f(level, event, fields)
-  } catch {}
+  guardEmit(ctx, (c) => {
+    c.logEvent(level, event, fields)
+  })
 }
 
 function roomInfoEnabled(ctx: OpContext): boolean {

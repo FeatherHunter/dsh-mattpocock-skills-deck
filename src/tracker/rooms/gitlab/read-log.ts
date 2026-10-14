@@ -25,9 +25,14 @@
  *    几行长得一样的 glab 调用。
  *
  * 改 `reason` 取值的含义就当改事件，照 #489 附录的规矩另立一条，不要就地改意思。
+ *
+ * 记日志那层壳与耗时归一化搬去了 `src/tracker/kernel/log-emit.ts`（#1182 第 3 件）：三座房的
+ * `read-log.ts` 抄的是同一副骨架，留着三份就会有一天给一处补上处理、另两处忘了补。本文件对外
+ * 导出的名字、签名与行为一个都没变。
  */
 
 import type { OpContext } from '../../contract/contexts.js'
+import { guardEmit, ms } from '../../kernel/log-emit.js'
 
 /**
  * 会报降级的读操作。只列本房读路径真会报降级的几条；写路径不在本片范围。
@@ -147,13 +152,6 @@ export function isPreflightGate(gate: unknown): boolean {
 /** 只读开关的那点最小形状：契约上下文里就有 `isEnabled` 与 `logEvent`，这里不另定义上下文。 */
 type LoggerCtx = Pick<OpContext, 'isEnabled' | 'logEvent'>
 
-/** 让「这一笔花了多久」永远是一个非负整数：负数、小数、非数字都收敛到 0。 */
-function ms(latencyMs: unknown): number {
-  const n = typeof latencyMs === 'number' ? latencyMs : Number(latencyMs)
-  if (!Number.isFinite(n) || n <= 0) return 0
-  return Math.floor(n)
-}
-
 /**
  * 记一行「这一趟读没读成」（`read.degraded`）。
  *
@@ -176,17 +174,14 @@ export function emitReadDegraded(
   reason: string,
   latencyMs: unknown,
 ): void {
-  try {
-    if (!ctx || typeof ctx.logEvent !== 'function') return
-    ctx.logEvent('warn', 'read.degraded', {
+  guardEmit(ctx, (c) => {
+    c.logEvent('warn', 'read.degraded', {
       op: String(op || ''),
       reason: String(reason || ''),
       latencyMs: ms(latencyMs),
-      opId: String(ctx.opId || ''),
+      opId: String(c.opId || ''),
     })
-  } catch {
-    // 读路径不许因为日志写不出去而失败。
-  }
+  })
 }
 
 /**
@@ -204,18 +199,14 @@ export function emitPreflightGatePass(
   gate: number,
   latencyMs: unknown,
 ): void {
-  try {
-    if (!ctx || typeof ctx.logEvent !== 'function') return
-    if (!isPreflightGate(gate)) return
-    ctx.logEvent('warn', 'preflight.gate', {
+  guardEmit(ctx, (c) => {
+    c.logEvent('warn', 'preflight.gate', {
       gate: gate,
       reason: 'ok',
       latencyMs: ms(latencyMs),
-      opId: String(ctx.opId || ''),
+      opId: String(c.opId || ''),
     })
-  } catch {
-    // 同上：日志写不出去不影响探测结论。
-  }
+  }, () => isPreflightGate(gate))
 }
 
 /**
@@ -236,16 +227,13 @@ export function emitRepoTier(
   ok: boolean,
   startedAt: number,
 ): void {
-  try {
-    if (!ctx || typeof ctx.logEvent !== 'function') return
-    ctx.logEvent('info', 'repo.resolve.tier', {
+  guardEmit(ctx, (c) => {
+    c.logEvent('info', 'repo.resolve.tier', {
       tier: tier,
       ok: ok === true,
       latencyMs: ms(Date.now() - startedAt),
     })
-  } catch {
-    // 同上。
-  }
+  })
 }
 
 export default {

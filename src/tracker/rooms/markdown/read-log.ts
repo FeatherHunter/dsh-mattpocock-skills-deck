@@ -28,6 +28,10 @@
  * 改 `reason` 取值的含义就当改事件，照 #489 附录的规矩另立一条，不要就地改意思 ——
  * 事后拿导出包的人按取值查文档，就地改意思等于把旧日志的解释一并改掉。
  *
+ * 记日志那层壳与耗时归一化搬去了 `src/tracker/kernel/log-emit.ts`（#1182 第 3 件）：三座房的
+ * `read-log.ts` 抄的是同一副骨架，留着三份就会有一天给一处补上处理、另两处忘了补。本文件对外
+ * 导出的名字、签名与行为一个都没变。
+ *
  * 调用点三条纪律（照 #1058 的实现约定）：
  *   1）只在**这一趟没成或成得不完整**的分支上记；一趟干净的读一行都不记（日志不许当心跳刷屏）。
  *   2）记日志这件事永远不许改变读的结果：本文件整段包 try/catch，没有上下文就静默跳过，
@@ -37,12 +41,20 @@
  */
 
 import type { OpContext } from '../../contract/contexts.js'
+import { guardEmit, ms } from '../../kernel/log-emit.js'
 
 /**
  * 会报降级的读操作。只列本房读路径真会报降级的几条；写路径（#1059）与关系边（#1060）不在本片范围。
  * `preflight` 是模块入口那一关：这个工作区能不能用本地 Markdown 当票仓。
+ *
+ * `matches`（#1182 第 4 件补）与 GitLab 房的同一条同名同义：它不是契约操作，是本房「这个工作区
+ * 是不是本地 Markdown」那一次识别（`index.ts` 的 `matches`）—— 读 `.scratch/map.md`、
+ * 读 `docs/agents/issue-tracker.md`、看 `.scratch` 底下有没有地图文件，全是读。
+ * 从前这条路的失败被一个裸 catch 吞掉，外面只剩注册表那句「没认出来」，所以这一趟的失败原因
+ * 必须从房里报出来（GitLab 房在 #1130 已经这么做并关票）。
  */
 export const READ_DEGRADED_OPS = Object.freeze([
+  'matches',
   'preflight',
   'list',
   'get',
@@ -63,6 +75,24 @@ export const READ_DEGRADED_OPS = Object.freeze([
  *  - `no-key`          : 取单票时没给编号，连文件都没找过
  *  - `notfound`        : 这个编号找不到对应的票文件 / 找不到地图文件
  *
+ * 识别那一条（`op: 'matches'`，取值见下面三条 `matches:*`）与别的操作**判据不一样**：
+ * 别的操作是「读不动才记」，而这一条是「哪一层没能给出答案才记」—— 一层读成功了不记
+ * （读到了内容、只是内容里没写 Local Markdown，那是正常的否定结论：GitHub 工作区、GitLab
+ * 工作区走这一趟都是一个字都不该多）。与 GitLab 房同名取值同一套口径。
+ *  - `matches:fs-unavailable`: 分不出平台对象（`ctx.platform.path` 与 `ctx.path` 都不是个能用的东西，
+ *                          也不是 win32），连候选路径都拼不出来 —— 识别这一趟根本没跑起来。这是故障，
+ *                          不是「这个工作区不是本地 Markdown」
+ *  - `matches:tracker-doc`: 声明文件 `docs/agents/issue-tracker.md` 在，可两路读法都读不动（或者
+ *                          连它在不在都问不出来）：这一层没能给出答案
+ *  - `matches:unknown`     : 上面两处之外整段抛了（平台对象形状怪、路径拼接抛错这类）；不许拿它当
+ *                          偷懒的默认值，新增分支时回来加取值
+ *
+ * 为什么没有 `matches:no-map`（候选位置都没找到地图文件）：那恰恰是**每一个不是本地 Markdown 的
+ * 工作区都会出现的正常答案** —— 记它等于给每一次 GitHub、GitLab 工作区探测都加一行噪音；
+ * 而且它与「读了声明文件、里面没写 Local Markdown」那条不记的判据直接打架。所以「没找到地图」
+ * 本身不记，只有后面那一层（声明文件）也读不动时才留下痕迹。GitLab 房同理不记 `.git/config`
+ * 里没写 gitlab 这一条。
+ *
  * 只记「读不动却照旧回成功」那几种细步骤（票文件读不动被静默跳过、地图行读不动），
  * 以及每条操作整条失败时的一行粗结论。为什么不给失败再细分步骤：**整条失败时，失败结果本身
  * 已经把具体原因（哪个文件、哪一档错）写全了**，日志只需回答「这一趟走到哪一步停的」；
@@ -72,6 +102,9 @@ export const READ_DEGRADED_OPS = Object.freeze([
  * 新增取值时回来补这两样：先加进这张表，再加一条会走到它的用例。
  */
 export const READ_DEGRADED_REASONS = Object.freeze([
+  'matches:fs-unavailable',
+  'matches:tracker-doc',
+  'matches:unknown',
   'preflight:no-map',
   'preflight:fs-fail',
   'list:ticket-read-fail',
@@ -94,13 +127,6 @@ export const READ_DEGRADED_REASONS = Object.freeze([
 /** 只读上下文里那点最小形状：契约上下文自带 `logEvent` 与 `opId`，这里不另定义上下文。 */
 type LoggerCtx = Pick<OpContext, 'logEvent' | 'opId'>
 
-/** 让「这一笔花了多久」永远是一个非负整数：负数、小数、非数字都收敛到 0。 */
-function ms(latencyMs: unknown): number {
-  const n = typeof latencyMs === 'number' ? latencyMs : Number(latencyMs)
-  if (!Number.isFinite(n) || n <= 0) return 0
-  return Math.floor(n)
-}
-
 /**
  * 记一行「这一趟读没读成」（`read.degraded`）。
  *
@@ -113,10 +139,14 @@ function ms(latencyMs: unknown): number {
  * @param latencyMs 这一笔从这条操作的入口到这里的耗时（毫秒）
  */
 export function emitReadDegraded(ctx: LoggerCtx | null | undefined, op: string, reason: string, latencyMs: unknown): void {
-  try {
-    if (!ctx || typeof ctx.logEvent !== 'function') return
-    ctx.logEvent('warn', 'read.degraded', { op: String(op || ''), reason: String(reason || ''), latencyMs: ms(latencyMs), opId: String(ctx.opId || '') })
-  } catch {}
+  guardEmit(ctx, (c) => {
+    c.logEvent('warn', 'read.degraded', {
+      op: String(op || ''),
+      reason: String(reason || ''),
+      latencyMs: ms(latencyMs),
+      opId: String(c.opId || ''),
+    })
+  })
 }
 
 export default { emitReadDegraded, READ_DEGRADED_OPS, READ_DEGRADED_REASONS }

@@ -41,6 +41,8 @@ import { ghFailureMessage, ghVerdictOf } from './errors.js'
 import { parseRepo, repoId } from './issues.js'
 import { LIST_PAGE_QUERY, LIST_PAGE_QUERY_WITH_LABELS } from './queries.js'
 import { emitReadDegraded } from './read-log.js'
+// 记日志那层壳与「调试开关开着吗」那一问都在内核一份（#1182 第 3 件）。
+import { debugOn, guardEmit } from '../../kernel/log-emit.js'
 
 // 一页的默认张数与上限（契约「分页契约」定的：缺省 50、上限 200，要多了按上限给，不是报错）。
 const DEFAULT_LIMIT = 50
@@ -95,10 +97,10 @@ function countOf(v: unknown): number | null {
 
 /** 逐票归一失败会丢票，聚合后复用 error.normalize 调试事件记一行（与 issues.js 的 emitBadNodes 同一处置）。 */
 function emitBadNodes(ctx: OpContext, dropped: number, total: number): void {
-  try {
-    if (!dropped) return
-    if (ctx && typeof ctx.isEnabled === 'function' && ctx.isEnabled('debug') && typeof ctx.logEvent === 'function') ctx.logEvent('debug', 'error.normalize', { rawKind: 'bad-node:page:' + dropped + '/' + total, mappedKind: ERROR_KIND.PARSE })
-  } catch {}
+  if (!dropped) return
+  guardEmit(ctx, (c) => {
+    c.logEvent('debug', 'error.normalize', { rawKind: 'bad-node:page:' + dropped + '/' + total, mappedKind: ERROR_KIND.PARSE })
+  }, () => debugOn(ctx))
 }
 
 /**

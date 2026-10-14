@@ -17,9 +17,14 @@
  * 隐私：只记计数、布尔、枚举与耗时；票号、标题正文、标签名、颜色值、仓库地址、命令原文、上游报错
  * 原文一个字都不记（它们在工具返回值与 gh.exec / gh.timeout 那两条里）。字段白名单由
  * tests/verify-log-fields.js 守着，字段与「走了哪条路」的实况由 tests/verify-1053-issue-write.ts 守着。
+ *
+ * 记日志那层壳（`guardEmit`）、以及从返回里读结论的两件小事（`outcomeOf` / `failReason`）搬去了
+ * `src/tracker/kernel/log-emit.ts`（#1182 第 3 件）：三座房的读出口、两座房的写出口抄的是同一副
+ * 骨架，留着几份就会有一天给一处补上处理、别处忘了补。本文件对外导出的名字、签名与行为一个都没变。
  */
 
 import type { OpContext } from '../../contract/contexts.js'
+import { guardEmit, outcomeOf, failReason } from '../../kernel/log-emit.js'
 
 /**
  * 一趟写走过的路：none 没走到外部调用 / rest 走 gh api / cli 走 gh issue 子命令 /
@@ -49,16 +54,9 @@ export function beginWriteTrail(): WriteTrail {
   return { route: 'none', planned: 0, written: 0, failed: 0, steps: 0 }
 }
 
-/** 从返回里读「成没成、失败是哪一档」：返回是联合类型，先判 ok，再读 error.kind（读法与别处一致）。 */
-function outcomeOf(r: unknown): { ok: boolean; errKind: string } {
-  const rb = r as { ok?: unknown; error?: { kind?: unknown } } | null | undefined
-  return { ok: !!(rb && rb.ok === true), errKind: String((rb && rb.error && rb.error.kind) || 'unknown') }
-}
-
-/** 失败一律以档位收尾：查的人不用再去别处拼。 */
-function failReason(errKind: string): string {
-  return 'fail:' + errKind
-}
+// 从返回里读「成没成、失败是哪一档」（`outcomeOf`）与把档位拼成 `fail:<档位>`（`failReason`）
+// 这两件小事，逐字同形的实现搬去了 `src/tracker/kernel/log-emit.ts`（#1182 第 3 件）：
+// 三座房的读出口、两座房的写出口原本各抄一份，改一处忘一处就会让同一条结论线在不同房里长得不一样。
 
 /**
  * 票写的结论：fresh 真新建 / reuse 幂等命中复用 / edited 改了已有票 / noop 一处没改 /
@@ -96,10 +94,9 @@ function repoInitReason(ok: boolean, errKind: string): string {
  * 「是不是建重了一张」这类问题时，查的人不会先打开调试开关；它也是这一族唯一一条「写没写下去」的结论线。
  */
 export function emitIssueWrite(ctx: OpContext, kind: string, trail: WriteTrail, r: unknown, t0: number): void {
-  try {
-    if (!ctx || typeof ctx.logEvent !== 'function') return
+  guardEmit(ctx, (c) => {
     const o = outcomeOf(r)
-    ctx.logEvent('info', 'issue.write', {
+    c.logEvent('info', 'issue.write', {
       kind: kind,
       route: trail.route,
       ok: o.ok,
@@ -108,7 +105,7 @@ export function emitIssueWrite(ctx: OpContext, kind: string, trail: WriteTrail, 
       reason: issueReason(kind, trail, o.ok, o.errKind),
       latencyMs: Date.now() - t0,
     })
-  } catch {}
+  })
 }
 
 /**
@@ -117,10 +114,9 @@ export function emitIssueWrite(ctx: OpContext, kind: string, trail: WriteTrail, 
  * 为什么定常驻：批量改色是用户点一次才发生一次的显式动作，事后要能回答「这次要动 7 个，改上几个」。
  */
 export function emitLabelDefsWrite(ctx: OpContext, trail: WriteTrail, r: unknown, t0: number): void {
-  try {
-    if (!ctx || typeof ctx.logEvent !== 'function') return
+  guardEmit(ctx, (c) => {
     const o = outcomeOf(r)
-    ctx.logEvent('info', 'labelDefs.write', {
+    c.logEvent('info', 'labelDefs.write', {
       planned: trail.planned,
       written: trail.written,
       failed: trail.failed,
@@ -128,7 +124,7 @@ export function emitLabelDefsWrite(ctx: OpContext, trail: WriteTrail, r: unknown
       reason: labelDefsReason(trail, o.ok, o.errKind),
       latencyMs: Date.now() - t0,
     })
-  } catch {}
+  })
 }
 
 /**
@@ -138,15 +134,14 @@ export function emitLabelDefsWrite(ctx: OpContext, trail: WriteTrail, r: unknown
  * 而它是用户点一次才发生一次的显式动作。
  */
 export function emitRepoInitWrite(ctx: OpContext, trail: WriteTrail, r: unknown, t0: number): void {
-  try {
-    if (!ctx || typeof ctx.logEvent !== 'function') return
+  guardEmit(ctx, (c) => {
     const o = outcomeOf(r)
-    ctx.logEvent('info', 'repo.init', {
+    c.logEvent('info', 'repo.init', {
       route: trail.route,
       steps: trail.steps,
       ok: o.ok,
       reason: repoInitReason(o.ok, o.errKind),
       latencyMs: Date.now() - t0,
     })
-  } catch {}
+  })
 }

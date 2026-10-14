@@ -35,6 +35,9 @@
  */
 
 import type { OpContext } from '../../contract/contexts.js'
+// 记日志那层壳、耗时归一化与「成没成、失败哪一档」的读法都搬去了内核一份（#1182 第 3 件）：
+// 本文件从前各留一份手写副本，与另两座房逐字同形，留着就是「同一句承诺三处实现」。
+import { debugOn, guardEmit, outcomeOf } from '../../kernel/log-emit.js'
 
 /** 一趟边写入走过的路：none 没走到写票文件这一步（目标状态本来就在位、一处没改，或压根没走到写这一步）/ file 走到了。 */
 export type EdgeRoute = 'none' | 'file'
@@ -87,12 +90,6 @@ export type EdgeCycleVerdict = (typeof EDGE_CYCLE_VERDICT)[keyof typeof EDGE_CYC
 /** 三种结论的取值表：门禁拿它反过来对账（表里每条都走到过、表外一个都没出现）。 */
 export const EDGE_CYCLE_VERDICTS = Object.freeze(['clear', 'cycle', 'unchecked'] as const)
 
-/** 从返回里读「成没成、失败是哪一档」：返回是联合类型，先判 ok，再读 error.kind（读法与同房 write-log.ts 一致）。 */
-function outcomeOf(r: unknown): { ok: boolean; errKind: string } {
-  const rb = r as { ok?: unknown; error?: { kind?: unknown } } | null | undefined
-  return { ok: !!(rb && rb.ok === true), errKind: String((rb && rb.error && rb.error.kind) || 'unknown') }
-}
-
 /**
  * 这一趟边写入的结论，由出口按事实桶推导、不散在内层分支里（与 GitHub 房同一条理由：同一件事两处写，迟早对不上）。
  * 撤与挂各算一笔时记 `diff`，只挂记 `added`，只撤记 `removed`，一处没动记 `noop`，失败记 `fail:档位`。
@@ -111,13 +108,12 @@ export function edgeReason(t: EdgeTrail, ok: boolean, errKind: string): string {
  * 为什么定常驻（信息级）：边是人和 AI 的显式动作（一次建图十几步），出「这条边怎么没挂上」
  * 「刚才那次改父子到底落盘没有」这类问题时，查的人不会先打开调试开关；
  * 它也是这一族唯一一条「写没写下去」的结论线。记日志这件事永远不许改变写的结果：整段包 try/catch，
- * 没有上下文就静默跳过。
+ * 没有上下文就静默跳过（这层壳与「成没成」的读法都在 `kernel/log-emit.ts`，#1182 第 3 件）。
  */
 export function emitEdgeWrite(ctx: OpContext | null | undefined, kind: string, trail: EdgeTrail, r: unknown, t0: number): void {
-  try {
-    if (!ctx || typeof ctx.logEvent !== 'function') return
+  guardEmit(ctx, (c) => {
     const o = outcomeOf(r)
-    ctx.logEvent('info', 'edge.write', {
+    c.logEvent('info', 'edge.write', {
       kind: kind,
       route: trail.route,
       ok: o.ok,
@@ -127,7 +123,7 @@ export function emitEdgeWrite(ctx: OpContext | null | undefined, kind: string, t
       reason: edgeReason(trail, o.ok, o.errKind),
       latencyMs: Date.now() - t0,
     })
-  } catch {}
+  })
 }
 
 /**
@@ -137,10 +133,9 @@ export function emitEdgeWrite(ctx: OpContext | null | undefined, kind: string, t
  * 关闭时连字段对象都不组装。票号一个字都不记：哪张票在工具返回值与失败结果的 raw 里。
  */
 export function emitEdgeCycle(ctx: OpContext | null | undefined, verdict: EdgeCycleVerdict, nodes: number, blockers: number, t0: number): void {
-  try {
-    if (!ctx || typeof ctx.isEnabled !== 'function' || ctx.isEnabled('debug') !== true || typeof ctx.logEvent !== 'function') return
-    ctx.logEvent('debug', 'edge.cycle', { verdict: verdict, nodes: nodes, blockers: blockers, latencyMs: Date.now() - t0 })
-  } catch {}
+  guardEmit(ctx, (c) => {
+    c.logEvent('debug', 'edge.cycle', { verdict: verdict, nodes: nodes, blockers: blockers, latencyMs: Date.now() - t0 })
+  }, () => debugOn(ctx))
 }
 
 export default { beginEdgeTrail, edgeReason, emitEdgeWrite, emitEdgeCycle, EDGE_KINDS, EDGE_REASONS, EDGE_CYCLE_VERDICT, EDGE_CYCLE_VERDICTS }

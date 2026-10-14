@@ -13,9 +13,14 @@
  * 隐私：只记计数、枚举与耗时；票号、标题正文、标签名、文件名、路径、上游报错原文一个字都不记
  * （它们在工具返回值与 `error.normalize` 那一条里）。字段白名单由 tests/verify-log-fields.js 守着，
  * 字段与「这一趟到底写没写下去」的实况由 tests/verify-1059-issue-write.ts 守着。
+ *
+ * 记日志那层壳（`guardEmit`）、以及从返回里读结论的两件小事（`outcomeOf` / `failReason`）搬去了
+ * `src/tracker/kernel/log-emit.ts`（#1182 第 3 件）：三座房的读出口、两座房的写出口抄的是同一副
+ * 骨架，留着几份就会有一天给一处补上处理、别处忘了补。本文件对外导出的名字、签名与行为一个都没变。
  */
 
 import type { OpContext } from '../../contract/contexts.js'
+import { guardEmit, outcomeOf, failReason } from '../../kernel/log-emit.js'
 
 /** 一趟写走过的路：none 一个文件都没写（幂等命中复用、一处没改，或压根没走到写这一步）/ file 写了票文件。 */
 export type WriteRoute = 'none' | 'file'
@@ -73,16 +78,9 @@ export const ISSUE_WRITE_KINDS = Object.freeze([
  */
 export const ISSUE_WRITE_REASONS = Object.freeze(['fresh', 'reuse', 'edited', 'noop'] as const)
 
-/** 从返回里读「成没成、失败是哪一档」：返回是联合类型，先判 ok，再读 error.kind（读法与别处一致）。 */
-function outcomeOf(r: unknown): { ok: boolean; errKind: string } {
-  const rb = r as { ok?: unknown; error?: { kind?: unknown } } | null | undefined
-  return { ok: !!(rb && rb.ok === true), errKind: String((rb && rb.error && rb.error.kind) || 'unknown') }
-}
-
-/** 失败一律以档位收尾：查的人不用再去别处拼。 */
-function failReason(errKind: string): string {
-  return 'fail:' + errKind
-}
+// 从返回里读「成没成、失败是哪一档」（`outcomeOf`）与把档位拼成 `fail:<档位>`（`failReason`）
+// 这两件小事，逐字同形的实现搬去了 `src/tracker/kernel/log-emit.ts`（#1182 第 3 件）：
+// 三座房的读出口、两座房的写出口原本各抄一份，改一处忘一处就会让同一条结论线在不同房里长得不一样。
 
 /**
  * 票写的结论：fresh 真新建 / reuse 幂等命中复用 / edited 改了已有票 / noop 一处没改 / fail:档位 失败。
@@ -107,10 +105,9 @@ export function issueReason(kind: string, t: WriteTrail, ok: boolean, errKind: s
  * 它也是这一族唯一一条「写没写下去」的结论线。
  */
 export function emitIssueWrite(ctx: OpContext, kind: string, trail: WriteTrail, r: unknown, t0: number): void {
-  try {
-    if (!ctx || typeof ctx.logEvent !== 'function') return
+  guardEmit(ctx, (c) => {
     const o = outcomeOf(r)
-    ctx.logEvent('info', 'issue.write', {
+    c.logEvent('info', 'issue.write', {
       kind: kind,
       route: trail.route,
       ok: o.ok,
@@ -119,7 +116,7 @@ export function emitIssueWrite(ctx: OpContext, kind: string, trail: WriteTrail, 
       reason: issueReason(kind, trail, o.ok, o.errKind),
       latencyMs: Date.now() - t0,
     })
-  } catch {}
+  })
 }
 
 export default { beginWriteTrail, noteFileWritten, issueReason, emitIssueWrite, ISSUE_WRITE_KINDS, ISSUE_WRITE_REASONS }

@@ -13,6 +13,9 @@ import type { Issue, IssueRef, RepositoryRef } from '../../contract/entities.js'
 import type { DepsOpts, SetOpts } from '../../contract/inputs.js';
 import type { Dependencies, OpResult } from '../../contract/results.js';
 import { fail } from '../../kernel/preflight.js'
+// 记日志那层壳、耗时与「成没成、失败哪一档」的读法都在内核一份（#1182 第 3 件）：
+// 本文件从前留着手写副本，与另两座房逐字同形，留着就是「同一句承诺三处实现」。
+import { debugOn, guardEmit, outcomeOf } from '../../kernel/log-emit.js'
 import { ghClient } from './client.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'
 import { getIssue, listIssues } from './issues.js'
@@ -71,15 +74,12 @@ function newEdgeTrail(): EdgeTrail {
  * 查的人不会先去打开调试开关；它也是这一组里唯一一条「写没写下去」的结论线。
  */
 function emitEdgeWrite(ctx: OpContext, kind: string, trail: EdgeTrail, r: OpResult<Issue>, t0: number): void {
-  try {
-    if (!ctx || typeof ctx.logEvent !== 'function') return
+  guardEmit(ctx, (c) => {
     // 失败那一路的档位从返回里读；返回是联合类型，先按「有 error 这一格」的形状取，读法与原逻辑一致。
-    const rb = r as { ok?: unknown; error?: { kind?: unknown } } | null | undefined
-    const okFlag = !!(rb && rb.ok === true)
-    const errKind = String((rb && rb.error && rb.error.kind) || 'unknown')
-    const reason = okFlag ? trail.reason : 'fail:' + errKind
-    ctx.logEvent('info', 'edge.write', { kind: kind, route: trail.route, ok: okFlag, added: trail.added, removed: trail.removed, kept: trail.kept, reason: reason, latencyMs: Date.now() - t0 })
-  } catch {}
+    const o = outcomeOf(r)
+    const reason = o.ok ? trail.reason : 'fail:' + o.errKind
+    c.logEvent('info', 'edge.write', { kind: kind, route: trail.route, ok: o.ok, added: trail.added, removed: trail.removed, kept: trail.kept, reason: reason, latencyMs: Date.now() - t0 })
+  })
 }
 
 function parseRepo(repo: RepositoryRef): ParsedRepo | null {
@@ -367,10 +367,9 @@ export async function getDependencies(repo: RepositoryRef, key: string, opts: De
  * 票号一个字都不记（哪张票在工具返回值与 gh.exec 的调用链里）。
  */
 function emitEdgeCycle(ctx: OpContext, verdict: CycleVerdict, nodes: number, blockers: number, t0: number): void {
-  try {
-    if (!ctx || typeof ctx.isEnabled !== 'function' || ctx.isEnabled('debug') !== true || typeof ctx.logEvent !== 'function') return
-    ctx.logEvent('debug', 'edge.cycle', { verdict: verdict, nodes: nodes, blockers: blockers, latencyMs: Date.now() - t0 })
-  } catch {}
+  guardEmit(ctx, (c) => {
+    c.logEvent('debug', 'edge.cycle', { verdict: verdict, nodes: nodes, blockers: blockers, latencyMs: Date.now() - t0 })
+  }, () => debugOn(ctx))
 }
 
 /**

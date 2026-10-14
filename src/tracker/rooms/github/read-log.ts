@@ -18,9 +18,14 @@
  *
  * 字段只有短枚举与毫秒数，三样东西一个字都不记：**票号、命令原文、上游报错原文**。
  * 改 `reason` 的取值含义就当改事件，照 #489 附录的规矩另立一条，不要就地改意思。
+ *
+ * 记日志那层壳与耗时归一化搬去了 `src/tracker/kernel/log-emit.ts`（#1182 第 3 件）：三座房的
+ * `read-log.ts` 抄的是同一副骨架，留着三份就会有一天给一处补上处理、另两处忘了补。本文件对外
+ * 导出的名字、签名与行为一个都没变。
  */
 
 import type { OpContext } from '../../contract/contexts.js'
+import { guardEmit, ms } from '../../kernel/log-emit.js'
 
 /** 出问题的读操作。只列读路径这一片真会报降级的几条；写路径与关系边那两片不在本片范围。 */
 export const READ_DEGRADED_OPS = Object.freeze([
@@ -127,13 +132,6 @@ export function isPreflightGate(gate: unknown): boolean {
 /** 只读开关的那点最小形状：契约上下文里就有 `isEnabled`，这里不另定义上下文。 */
 type LoggerCtx = Pick<OpContext, 'isEnabled' | 'logEvent'>
 
-/** 让「这一笔花了多久」永远是一个非负整数：负数、小数、非数字都收敛到 0。 */
-function ms(latencyMs: unknown): number {
-  const n = typeof latencyMs === 'number' ? latencyMs : Number(latencyMs)
-  if (!Number.isFinite(n) || n <= 0) return 0
-  return Math.floor(n)
-}
-
 /**
  * 记一行「这一趟读没读成」（`read.degraded`）。
  *
@@ -146,10 +144,9 @@ function ms(latencyMs: unknown): number {
  * @param latencyMs 这一笔从入口到这里的耗时（毫秒）
  */
 export function emitReadDegraded(ctx: OpContext | null | undefined, op: string, reason: string, latencyMs: unknown): void {
-  try {
-    if (!ctx || typeof ctx.logEvent !== 'function') return
-    ctx.logEvent('warn', 'read.degraded', { op: String(op || ''), reason: String(reason || ''), latencyMs: ms(latencyMs), opId: String(ctx.opId || '') })
-  } catch {}
+  guardEmit(ctx, (c) => {
+    c.logEvent('warn', 'read.degraded', { op: String(op || ''), reason: String(reason || ''), latencyMs: ms(latencyMs), opId: String(c.opId || '') })
+  })
 }
 
 /**
@@ -163,11 +160,9 @@ export function emitReadDegraded(ctx: OpContext | null | undefined, op: string, 
  * @param latencyMs 这一项从动手到过（或到判定）花了多久
  */
 export function emitPreflightGatePass(ctx: OpContext | null | undefined, gate: number, latencyMs: unknown): void {
-  try {
-    if (!ctx || typeof ctx.logEvent !== 'function') return
-    if (!isPreflightGate(gate)) return
-    ctx.logEvent('warn', 'preflight.gate', { gate: gate, reason: 'ok', latencyMs: ms(latencyMs), opId: String(ctx.opId || '') })
-  } catch {}
+  guardEmit(ctx, (c) => {
+    c.logEvent('warn', 'preflight.gate', { gate: gate, reason: 'ok', latencyMs: ms(latencyMs), opId: String(c.opId || '') })
+  }, () => isPreflightGate(gate))
 }
 
 export default { emitReadDegraded, emitPreflightGatePass, READ_DEGRADED_OPS, READ_DEGRADED_REASONS, PREFLIGHT_GATE_REASONS }

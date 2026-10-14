@@ -5,6 +5,8 @@
 // 同房间内引用（graph.js 不需要它，只有 issues.js 用），跨房间不许引。
 import { ghClient } from './client.js'
 import type { OpContext } from '../../contract/contexts.js';
+// 记日志那层壳与「调试开关开着吗」那一问都在内核一份（#1182 第 3 件）。
+import { debugOn, guardEmit } from '../../kernel/log-emit.js'
 
 /** 仓库坐标：拥有者与仓库名，由调用方（issues 的 REST 兜底）保证形状。 */
 interface ParsedRepo {
@@ -22,10 +24,9 @@ type RawRow = Record<string, unknown>;
  * 票号一个字都不记（哪几张地图与子票在 gh.exec 的调用链里）。
  */
 function emitEdgeRepair(ctx: OpContext, maps: number, linked: number, failed: number, t0: number): void {
-  try {
-    if (!ctx || typeof ctx.isEnabled !== 'function' || ctx.isEnabled('debug') !== true || typeof ctx.logEvent !== 'function') return
-    ctx.logEvent('debug', 'edge.repair', { maps: maps, linked: linked, failed: failed, latencyMs: Date.now() - t0 })
-  } catch {}
+  guardEmit(ctx, (c) => {
+    c.logEvent('debug', 'edge.repair', { maps: maps, linked: linked, failed: failed, latencyMs: Date.now() - t0 })
+  }, () => debugOn(ctx))
 }
 
 export async function repairParentLinksREST(raws: unknown, parsed: ParsedRepo, ctx: OpContext): Promise<unknown> {

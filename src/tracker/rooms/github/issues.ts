@@ -32,6 +32,8 @@ import type { MemoContext } from './roster.js'
 import { LIST_QUERY, GET_QUERY, LIST_PR_QUERY, GET_PR_QUERY } from './queries.js'
 import { fetchAllPullsREST, enrichRestPRs, enrichSinglePR } from './pulls.js'
 import { pickFallbackReason } from './fallback-reason.js'
+// 记日志那层壳与「调试开关开着吗」那一问都在内核一份（#1182 第 3 件）。
+import { debugOn, guardEmit } from '../../kernel/log-emit.js'
 
 /** 仓库坐标：拥有者与仓库名，refId 形不对就回 null 而不是抛。 */
 interface ParsedRepo {
@@ -55,22 +57,20 @@ function caughtMessage(e: unknown, len: number): string {
 // 降级原因分类（#504 雾证据补强）：细分原因实现见 fallback-reason.js（房内拆文件不拆房），此处只留落点。
 // 超时 → timeout；限流 → rate-limit；企业版主机 → ghe-host；其余 → graphql-error；只复用现有事件名与字段，附录不动。
 function emitRestFallback(ctx: OpContext, scope: string, latencyMs: number, reason: unknown): void {
-  try {
-    const f = ctx && typeof ctx.logEvent === 'function' ? ctx.logEvent : null
-    if (!f) return
+  guardEmit(ctx, (c) => {
     const r = typeof reason === 'string' && reason ? reason : 'graphql-error'
-    f('warn', 'graphql.fallback', { scope, reason: r })
-    f('info', 'issues.fallback', { from: 'graphql', to: 'rest', reason: r })
-    f('info', 'fallback.chain', { in: 'graphql', out: 'rest', latencyMs: typeof latencyMs === 'number' ? latencyMs : 0 })
-  } catch {}
+    c.logEvent('warn', 'graphql.fallback', { scope, reason: r })
+    c.logEvent('info', 'issues.fallback', { from: 'graphql', to: 'rest', reason: r })
+    c.logEvent('info', 'fallback.chain', { in: 'graphql', out: 'rest', latencyMs: typeof latencyMs === 'number' ? latencyMs : 0 })
+  })
 }
 // 坏节点计数（#504 可观测）：列表逐票归一失败会丢票，聚合计数后复用 error.normalize 调试事件记一行，不新增事件名，附录不动。
 // 高频路径：同行判断调试开关，关闭时不组装字段；只记范围与丢票计数，不记票原文。
 function emitBadNodes(ctx: OpContext, scope: string, dropped: number, total: number): void {
-  try {
-    if (!dropped) return
-    if (ctx && typeof ctx.isEnabled === 'function' && ctx.isEnabled('debug') && typeof ctx.logEvent === 'function') ctx.logEvent('debug', 'error.normalize', { rawKind: 'bad-node:' + scope + ':' + dropped + '/' + total, mappedKind: ERROR_KIND.PARSE })
-  } catch {}
+  if (!dropped) return
+  guardEmit(ctx, (c) => {
+    c.logEvent('debug', 'error.normalize', { rawKind: 'bad-node:' + scope + ':' + dropped + '/' + total, mappedKind: ERROR_KIND.PARSE })
+  }, () => debugOn(ctx))
 }
 
 export function parseRepo(repo: RepositoryRef | null | undefined): ParsedRepo | null {

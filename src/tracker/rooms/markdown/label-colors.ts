@@ -26,6 +26,7 @@
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import type { OpContext, SandboxFs } from '../../contract/contexts.js'
 import type { RepositoryRef } from '../../contract/entities.js'
+import { debugOn, guardEmit } from '../../kernel/log-emit.js'
 import { decodeLabelsText, encodeLabelsTable } from './label-colors-codec.js'
 import { readTextFile } from './read.js'
 import { publishTextFile } from './write.js'
@@ -61,9 +62,6 @@ export interface LabelColorsReadFail {
 }
 export type LabelColorsRead = LabelColorsReadOk | LabelColorsReadFail
 
-// 运行配色文件时没有文件服务：声明一个最小的 process 视图（只读 pid 拼临时文件名）。
-declare const process: { pid?: number } | undefined
-
 function getFs(ctx: OpContext): SandboxFs | null {
   if (ctx && ctx.platform && ctx.platform.fs) return ctx.platform.fs
   if (ctx && ctx.fs) return ctx.fs
@@ -94,18 +92,16 @@ function hash8(s: unknown): string {
   } catch (e) { return '00000000' }
 }
 
-/** 写入记常驻：用户点一次保存才发生一次，低频、轻量，始终落盘。 */
+/** 写入记常驻：用户点一次保存才发生一次，低频、轻量，始终落盘。
+ *  这层壳与「调试开关开着吗」那一问都在 `kernel/log-emit.ts` 一份（#1182 第 3 件）。 */
 function logWrite(ctx: CtxWithPolicy, fields: Record<string, unknown>): void {
-  try { if (ctx && typeof ctx.logEvent === 'function') ctx.logEvent('info', 'labelColors.write', fields) } catch (e) {}
+  guardEmit(ctx, (c) => { c.logEvent('info', 'labelColors.write', fields) })
 }
 
 /** 读取记按需：界面渲染与列标签都会读它，属高频路径，只在调试开关打开时才记。
  *  按纪律必须在同一行先判开关：关着的时候连字段对象都不组装（build 函数根本不会被调用）。 */
 function logRead(ctx: CtxWithPolicy, build: () => Record<string, unknown>): void {
-  try {
-    if (!ctx || typeof ctx.logEvent !== 'function') return
-    if (typeof ctx.isEnabled === 'function' && ctx.isEnabled('debug') === true) ctx.logEvent('debug', 'labelColors.read', build())
-  } catch (e) {}
+  guardEmit(ctx, (c) => { c.logEvent('debug', 'labelColors.read', build()) }, () => debugOn(ctx))
 }
 
 // ── 读 ────────────────────────────────────────────────────────────────────────

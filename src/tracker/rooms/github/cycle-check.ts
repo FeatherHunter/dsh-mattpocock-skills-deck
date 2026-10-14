@@ -9,6 +9,9 @@ import { rosterUpsert } from './roster.js'
 import type { RosterMemo } from './roster.js';
 import type { OpContext } from '../../contract/contexts.js';
 import type { Issue, RepositoryRef } from '../../contract/entities.js';
+// 记日志那层壳与「调试开关开着吗」那一问都在内核一份（#1182 第 3 件）：本文件从前留着手写副本，
+// 与另两座房逐字同形，留着就是「同一句承诺三处实现」。
+import { debugOn, guardEmit } from '../../kernel/log-emit.js'
 
 /** 名册容器的最小读形：只读 complete 与 byKey，缺谁都按无名册处理，与 roster.ts 同形。 */
 interface RosterLike {
@@ -41,10 +44,9 @@ function adjacencyOfRoster(roster: RosterLike | null | undefined): Map<string, S
  * （见 tests/verify-log-fields.js 第四段），这里要表达的本来就是「来源」而不是路径。
  */
 function emitEdgeRoster(ctx: OpContext, source: string, complete: boolean, dirty: number, t0: number): void {
-  try {
-    if (!ctx || typeof ctx.isEnabled !== 'function' || ctx.isEnabled('debug') !== true || typeof ctx.logEvent !== 'function') return
-    ctx.logEvent('debug', 'edge.roster', { source: source, complete: complete, dirty: dirty, latencyMs: Date.now() - t0 })
-  } catch {}
+  guardEmit(ctx, (c) => {
+    c.logEvent('debug', 'edge.roster', { source: source, complete: complete, dirty: dirty, latencyMs: Date.now() - t0 })
+  }, () => debugOn(ctx))
 }
 
 /**

@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-14T21:40:59.598Z",
+  "generatedAt": "2026-10-14T22:17:23.122Z",
   "generatedBy": "node scripts/gate-map.mjs",
-  "chainLength": 257,
-  "gateCount": 257,
-  "attributedGates": 228,
+  "chainLength": 258,
+  "gateCount": 258,
+  "attributedGates": 229,
   "unattributedGates": 29,
   "buildOutputOnlyGates": 19,
   "completionRecordedGates": 6,
@@ -5660,6 +5660,8 @@
       "step": "node tests/verify-1058-markdown-read-log.ts",
       "file": "tests/verify-1058-markdown-read-log.ts",
       "guards": [
+        "docs/agents",
+        "docs/agents/issue-tracker.md",
         "src/tracker/rooms/markdown/counts.ts",
         "src/tracker/rooms/markdown/index.ts",
         "src/tracker/rooms/markdown/issues-read.ts",
@@ -5667,13 +5669,14 @@
         "src/tracker/rooms/markdown/read-log.ts"
       ],
       "dirs": [
+        "docs/agents",
         "src/tracker/rooms/markdown"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：静态 import 说明符 5 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；静态 import 说明符 5 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-1059-issue-write.ts",
@@ -5743,6 +5746,23 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 2 条"
+    },
+    {
+      "step": "node tests/verify-1182-log-emit-single-source.ts",
+      "file": "tests/verify-1182-log-emit-single-source.ts",
+      "guards": [
+        "src/tracker/kernel/log-emit.ts",
+        "src/tracker/rooms"
+      ],
+      "dirs": [
+        "src/tracker/kernel",
+        "src/tracker/rooms"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条"
     },
     {
       "step": "node tests/verify-github-gh-via.ts",
@@ -5945,6 +5965,7 @@
       "node tests/verify-detection-evidence.ts",
       "node tests/verify-1003-migration.js",
       "node tests/verify-1003-layout-in-file.js",
+      "node tests/verify-1058-markdown-read-log.ts",
       "node tests/verify-gate-map.js"
     ],
     "docs/releases": [
@@ -6762,7 +6783,8 @@
       "node tests/verify-chain-view.js",
       "node tests/verify-error-single-source.ts",
       "node tests/verify-error-rule-samples.ts",
-      "node tests/verify-error-normalize-log.ts"
+      "node tests/verify-error-normalize-log.ts",
+      "node tests/verify-1182-log-emit-single-source.ts"
     ],
     "src/tracker/registry": [
       "node tests/verify-tracker-contract.js",
@@ -6794,7 +6816,8 @@
       "node tests/verify-prompt-newlines.js",
       "node tests/verify-prompts.js",
       "node tests/verify-no-mixed-session.js",
-      "node tests/verify-error-rule-samples.ts"
+      "node tests/verify-error-rule-samples.ts",
+      "node tests/verify-1182-log-emit-single-source.ts"
     ],
     "src/tracker/rooms/github": [
       "node tests/verify-capability-register.ts",

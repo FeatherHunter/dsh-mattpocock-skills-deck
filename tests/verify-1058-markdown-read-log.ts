@@ -30,7 +30,7 @@ import * as os from 'node:os'
 import { listIssues, getIssue } from '../src/tracker/rooms/markdown/issues-read.ts'
 import { countIssues } from '../src/tracker/rooms/markdown/counts.ts'
 import { listIssuesPage } from '../src/tracker/rooms/markdown/page.ts'
-import { createMarkdownBackend } from '../src/tracker/rooms/markdown/index.ts'
+import { createMarkdownBackend, matches } from '../src/tracker/rooms/markdown/index.ts'
 import { READ_DEGRADED_OPS, READ_DEGRADED_REASONS } from '../src/tracker/rooms/markdown/read-log.ts'
 
 type LogLine = { level: string; event: string; fields: Record<string, unknown> }
@@ -55,8 +55,10 @@ const seen = new Set<string>()
 
 /** 与 tests/verify-691-markdown-counts-page.js 同一套适配器形状。
  *  `unreadableFiles` 里的文件名在读的时候抛错；`unreadableDirs` 里的目录名在列的时候抛错。
- *  另外把每一条 read.degraded 收进 ctx.events，供本门禁逐条对（op、reason、字段形状）。 */
-function makeCtx(cwd: string, unreadableFiles: string[] = [], unreadableDirs: string[] = []): Ctx {
+ *  另外把每一条 read.degraded 收进 ctx.events，供本门禁逐条对（op、reason、字段形状）。
+ *  `denyRead` 是可选的第二个判据：命中就拒（#1182 第九节要用「路径以某个名字结尾」这种判法，
+ *  光靠 `unreadableFiles` 比文件名不够用 —— 那边要拒的是深层路径 `docs/agents/issue-tracker.md`）。 */
+function makeCtx(cwd: string, unreadableFiles: string[] = [], unreadableDirs: string[] = [], denyRead?: (p: string) => boolean): Ctx {
   const denied = (what: string, t: string) => {
     const e = new Error('EACCES: permission denied, ' + what + ' ' + t) as Error & { code?: string }
     e.code = 'EACCES'
@@ -67,7 +69,8 @@ function makeCtx(cwd: string, unreadableFiles: string[] = [], unreadableDirs: st
     fs: {
       async resolve(p: string) { return p },
       async readText(t: string) {
-        if (unreadableFiles.includes(String(t).split('/').pop() as string)) throw denied('open', t)
+        const name = String(t).split('/').pop() as string
+        if (unreadableFiles.includes(name) || (denyRead ? denyRead(String(t)) : false)) throw denied('open', t)
         return fs.readFileSync(t, 'utf8')
       },
       async writeText(t: string, c: string) { fs.mkdirSync(path.dirname(t), { recursive: true }); fs.writeFileSync(t, c, 'utf8') },
@@ -105,6 +108,13 @@ function writeEffort(root: string, effortId: string, tickets: Array<[string, str
 
 const REPO = { backend: 'markdown', refId: '.scratch/demo', name: 'demo', url: '' }
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'md-1058-readlog-'))
+
+/** 调用识别那一趟：`matches` 是模块级导出（不在房间工厂实例上），照注册表那条路调。
+ *  `refId` 照真实注册表给的形状传（`.scratch/<工作单元>`），于是候选位置里就有那一处的地图。 */
+const matchCall = (ctx: Ctx, cwd: string, refId = '') => matches({ cwd, refId } as never, ctx as never)
+/** 识别这一趟用平台对象拼路径（适配器的 path 就是 path.posix），所以工作区路径要先换成正斜杠写法：
+ *  否则 Windows 上 `C:\…\ws` 与 `.scratch/map.md` 拼出来是 `C:\…\ws/.scratch/map.md`，真盘上读不到。 */
+const posixWs = (p: string) => p.split('\\').join('/')
 
 /** 只看 read.degraded 那一条线：别的日志（判档那条 error.normalize 是调试级）不算本门禁的账。
  *  顺手把出现过的取值收进 seen，供最后一条断言跟取值表对账。 */
@@ -341,6 +351,75 @@ console.log('\n== 八、反向断言：干净的读、夹具形态的工作区�
   const quietRows = await listIssues(quiet, REPO, {})
   check(!!quietRows.ok && quietRows.data.length === 1,
     '读不动、又没有日志上下文时：静默跳过照旧（只回 1 行地图行），不抛 → 实得 ' + (quietRows.ok ? quietRows.data.length : '抛了') + ' 行')
+}
+
+console.log('\n== 九、识别这一趟（matches）三档落点：#1182 第 4 件，照 GitLab 房 #1130 的口径 ==')
+{
+  // 判据与别的操作不一样：**哪一层没能给出答案才记** —— 一层读成功了不记（读到了内容、
+  // 只是里面没写 Local Markdown，那是正常的否定结论；GitHub / GitLab 工作区走这一趟
+  // 一个字都不该多）。所以下面既有「该记的三档」，也有「一行都不许记」的两档。
+  const ws = fs.mkdtempSync(path.join(tmpRoot, 'ws-k-'))
+  writeEffort(ws, 'demo', [['01-open-a.md', 'ready-for-agent']])
+  const wsP = posixWs(ws)
+
+  // 一档：分不出平台对象 —— `platform.path` 不是个能用的东西（这里给个字符串），`ctx.path` 也没有，
+  // 候选路径根本拼不出来。这是故障，不是「这个工作区不是本地 Markdown」。
+  const brokenPlatCtx = makeCtx(ws)
+  ;(brokenPlatCtx.platform as { path: unknown }).path = 'not-a-path-impl'
+  const brokenPlat = await matchCall(brokenPlatCtx, wsP)
+  const brokenPlatLines = degraded(brokenPlatCtx)
+  check(brokenPlat === false && brokenPlatLines.length === 1 && String(brokenPlatLines[0].fields.reason) === 'matches:fs-unavailable',
+    'matches：平台对象分不出来 → 照旧回「不是」，落一行 matches:fs-unavailable → ' + (brokenPlatLines.map(lineText).join(' / ') || '一行都没有'))
+  if (brokenPlatLines.length) checkShape(brokenPlatLines[0], 'matches 分不出平台那一行')
+
+  // 二档：声明文件在，可两路读法都读不动（`exists` 走 stat 还看得见，read 两条路都被拒）。
+  // 声明文件放在一个没有地图的工作区里，识别于是走到「读声明文件」这一步 —— 这一步读不动，
+  // 整条识别就只剩「没认出来」，日志是唯一能说清「看过了、没看成」的地方。
+  const docWs = fs.mkdtempSync(path.join(tmpRoot, 'ws-m-'))
+  fs.mkdirSync(path.join(docWs, 'docs', 'agents'), { recursive: true })
+  fs.writeFileSync(path.join(docWs, 'docs', 'agents', 'issue-tracker.md'), '# 票仓\n\n后端：Local Markdown\n', 'utf8')
+  const docCtxDenied = makeCtx(docWs, [], [], (p) => p.endsWith('docs/agents/issue-tracker.md'))
+  const docMiss = await matchCall(docCtxDenied, posixWs(docWs))
+  const docLines = degraded(docCtxDenied)
+  check(docMiss === false && docLines.length === 1 && String(docLines[0].fields.reason) === 'matches:tracker-doc',
+    'matches：声明文件读不动 → 照旧回「不是」，落一行 matches:tracker-doc → ' + (docLines.map(lineText).join(' / ') || '一行都没有'))
+  if (docLines.length) checkShape(docLines[0], 'matches 读不动声明文件那一行')
+
+  // 三档：整段抛了（平台对象形状怪、路径拼接抛错这类）—— 用一份第一次拼接就抛的 platform 造出来，
+  // 抛点在候选路径那一段（不在声明文件那一段），于是掉到最外层那个 catch 记 matches:unknown。
+  const throwCtx = makeCtx(ws)
+  const realPlat = throwCtx.platform.path
+  let joins = 0
+  throwCtx.platform.path = {
+    ...realPlat,
+    join(...parts: string[]) { if (joins++ === 0) throw new Error('boom: join 抛了（模拟识别这一趟自己折了）'); return (realPlat.join as (...p: string[]) => string)(...parts) },
+  } as typeof realPlat
+  const threw = await matchCall(throwCtx, wsP)
+  const threwLines = degraded(throwCtx)
+  check(threw === false && threwLines.length === 1 && String(threwLines[0].fields.reason) === 'matches:unknown',
+    'matches：识别这一趟自己折了 → 照旧回「不是」，落一行 matches:unknown → ' + (threwLines.map(lineText).join(' / ') || '一行都没有'))
+  if (threwLines.length) checkShape(threwLines[0], 'matches 自己折了那一行')
+
+  // 反向一档：地图在 → 认出 true，一行都不记。
+  const hitCtx = makeCtx(ws)
+  const hit = await matchCall(hitCtx, wsP, '.scratch/demo')
+  check(hit === true && degraded(hitCtx).length === 0,
+    'matches：`.scratch/map.md` 在 → 认出 true，一行都不记（成功那一趟不落线）→ ' + (degraded(hitCtx).map(lineText).join(' / ') || '零行'))
+
+  // 反向一档：声明文件读了、里面没写 Local Markdown → 正常的否定结论，也不许记。
+  const plainWs = fs.mkdtempSync(path.join(tmpRoot, 'ws-l-'))
+  fs.mkdirSync(path.join(plainWs, 'docs', 'agents'), { recursive: true })
+  fs.writeFileSync(path.join(plainWs, 'docs', 'agents', 'issue-tracker.md'), '# 票仓\n\n后端：GitHub Issues\n', 'utf8')
+  const plainCtx = makeCtx(plainWs)
+  const plain = await matchCall(plainCtx, posixWs(plainWs))
+  check(plain === false && degraded(plainCtx).length === 0,
+    'matches：不是本地 Markdown 的工作区（读了内容、里面没写）→ 一行都不记（那是正常否定，不是降级）→ ' + (degraded(plainCtx).map(lineText).join(' / ') || '零行'))
+
+  // 「没有 logEvent 也照样读得出原来的结论」这一条对 matches 同样成立。
+  const silentMatchCtx = makeCtx(ws)
+  delete (silentMatchCtx as { logEvent?: unknown }).logEvent
+  const silentHit = await matchCall(silentMatchCtx, wsP, '.scratch/demo')
+  check(silentHit === true, 'matches：上下文没有 logEvent 时照样认出 true（日志不许反过来左右识别）→ ' + String(silentHit))
 }
 
 console.log('\n== 九、取值表与落点两向对账 ==')

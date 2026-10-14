@@ -11,6 +11,8 @@
  */
 
 import { ghClient } from './client.js'
+// 记日志那层壳在内核一份（#1182 第 3 件）。
+import { guardEmit } from '../../kernel/log-emit.js'
 import type { OpContext } from '../../contract/contexts.js';
 import type { RepositoryRef } from '../../contract/entities.js';
 import type { BackendId } from '../../contract/identity.js';
@@ -103,11 +105,9 @@ export const openRepository: 'url' | 'folder' = 'url'
  */
 // 房内埋点：repo.resolve.tier（#4 常驻，1/1）：三层兜底每层只记成功一行，全挂记 tier3 失败一行；只记层号与耗时，不记地址原文。
 function emitRepoTier(ctx: OpContext, tier: number, ok: boolean, t0: number): void {
-  try {
-    const f = ctx && typeof ctx.logEvent === 'function' ? ctx.logEvent : null
-    if (!f) return
-    f('info', 'repo.resolve.tier', { tier, ok: ok === true, latencyMs: Date.now() - t0 })
-  } catch {}
+  guardEmit(ctx, (c) => {
+    c.logEvent('info', 'repo.resolve.tier', { tier, ok: ok === true, latencyMs: Date.now() - t0 })
+  })
 }
 
 export async function getRepoKey(cwd: string, ctx: OpContext): Promise<RepoKey | null> {
