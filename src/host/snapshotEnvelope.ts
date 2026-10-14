@@ -84,7 +84,8 @@ export function createSnapshotEnvelope(deps: EnvelopeDeps) {
   // —— 加在既有事件里不新增一条（每次重建都会走到这里），字段表见 research/489-appendix.md 第 1 章。
   // 类型说明（#1155）：落盘那一步是接线处给的回调，它的返回形状在这一层表达不出来，
   // 所以按调用方传进来的类型原样还回去（运行时不碰，只是把类型跟过去）。
-  function adoptSnapLog<T>(snap: T, c: unknown): T {
+  // 这里必须保持 async（原样就是 async）：调用方按承诺等它，产物里也必须是 async 函数。
+  async function adoptSnapLog<T>(snap: T, c: unknown): Promise<T> {
     try {
       const logCtx = d.logCtx
       const s = snap as SnapLike
