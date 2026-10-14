@@ -39,7 +39,8 @@
 //
 // 为什么放在 tests/lib 而不是 src：它是门禁自己的工具，产品代码一行都不用知道它存在
 //（产品代码本来就通过注入 now、或者读全局 Date.now 来看钟，这里只是把全局那一份换掉）。
-// 为什么是 .js：tests/** 是 node 直接拉起来跑的检查脚本，不走构建，按仓库约定「自动检查本身不转 TypeScript」。
+// 为什么是 TypeScript：tests/** 是 node 直接拉起来跑的检查脚本，既不进构建也不进 tsc，跑的就是本文件；
+// 调用点仍然写作 `./lib/time-compress.js`，由 scripts/ts-hook.mjs 把这类说明符改指到同目录同名的 .ts。
 //
 // 用法：
 //   const { installTimeCompression, uninstallTimeCompression } = require('./lib/time-compress.js')
@@ -48,6 +49,67 @@
 //   uninstallTimeCompression()    // 同一个进程里后面还要跑别的门禁，就必须还原
 // 本文件不打印任何东西；要核对这次压缩干了多少活，读 installTimeCompression() 返回的那份统计。
 
+/** 一次虚拟等待在队列里的记录：到期时间用虚拟毫秒，refed 就是「它还算不算存活来源」。 */
+interface TimerEntry {
+  id: number
+  seq: number
+  fn: (...args: any[]) => void
+  args: any[]
+  delay: number
+  interval: number | null
+  due: number
+  refed: boolean
+  handle?: VirtualHandle
+}
+
+/** 交给调用方的句柄：形状照 node 的 Timeout 给足（多出来的 [ENTRY] 只给 clearTimeout 认领用）。 */
+interface VirtualHandle {
+  ref(): VirtualHandle
+  unref(): VirtualHandle
+  hasRef(): boolean
+  refresh(): VirtualHandle
+  close(): void
+}
+
+/** 压缩助手记的账：和 publicHandle().stats 是同一个对象，边跑边可读。 */
+interface CompressionStats {
+  installs: number; installRepeats: number; uninstalls: number
+  scheduled: number; fired: number; cleared: number; intervalTicks: number
+  virtualAdvancedMs: number; callbackErrors: number; pendingAtUninstall: number
+}
+
+/** 安装那一刻捕获的原生实现与属性描述符，卸载时照着它还原。 */
+interface OriginalClock {
+  setTimeout: any; clearTimeout: any; setInterval: any; clearInterval: any
+  dateNow: () => number
+  globals: Record<string, PropertyDescriptor | null>
+}
+
+/** 全局唯一的压缩状态。 */
+interface CompressionState {
+  maxDelayMs: number
+  installed: boolean
+  flushing: boolean
+  offsetMs: number
+  seq: number
+  entries: Map<number, TimerEntry>
+  pumpTimer: any
+  pumpDelay: number
+  originals: OriginalClock | null
+  stats: CompressionStats
+}
+
+/** 安装参数：maxDelayMs 是「真实最多等多久」，只影响真实等待，不影响虚拟时间。 */
+interface InstallOptions { maxDelayMs?: number }
+
+/** 装在调用方手上的那份句柄。 */
+interface PublicHandle {
+  maxDelayMs: number
+  stats: CompressionStats
+  isInstalled(): boolean
+  uninstall(): boolean
+}
+
 /** 默认真实等待上限（毫秒）：虚拟要等多久都行，真实只等这么久。 */
 const DEFAULT_MAX_DELAY_MS = 5
 
@@ -55,7 +117,7 @@ const DEFAULT_MAX_DELAY_MS = 5
 const ENTRY = Symbol.for('dsh.timeCompress.entry')
 
 /** 全局唯一的压缩状态：同一进程重复安装不重复包装，卸载后仍留着待触发的虚拟定时器。 */
-const state = {
+const state: CompressionState = {
   maxDelayMs: DEFAULT_MAX_DELAY_MS,
   installed: false,
   flushing: false,
@@ -73,19 +135,19 @@ const state = {
 }
 
 /** 真实时间：用安装那一刻捕获的原生 Date.now，不受本文件接管影响。 */
-function realNow() { return state.originals.dateNow() }
+function realNow(): number { return state.originals!.dateNow() }
 /** 虚拟时间：真实时间加上「已经等掉的虚拟时长」。只增不减。 */
-function virtualNow() { return realNow() + state.offsetMs }
+function virtualNow(): number { return realNow() + state.offsetMs }
 
 /** 延时规整：非数字、负数、NaN 一律当 0（与 node 对非法延时的宽容方向一致）。 */
-function normalizeDelay(ms) {
+function normalizeDelay(ms: unknown): number {
   const n = (typeof ms === 'number' && isFinite(ms)) ? ms : 0
   return n > 0 ? n : 0
 }
 
 /** 当前最早到期的那个虚拟定时器：先比到期时间，同时到期的按排号（先排先跑，与 node 同）。 */
-function earliestEntry() {
-  let best = null
+function earliestEntry(): TimerEntry | null {
+  let best: TimerEntry | null = null
   state.entries.forEach(function (e) {
     if (best === null || e.due < best.due || (e.due === best.due && e.seq < best.seq)) best = e
   })
@@ -93,7 +155,7 @@ function earliestEntry() {
 }
 
 /** 还有没有「被引用着」的虚拟定时器：一个都没有时，泵不该拖着事件循环不让退出。 */
-function anyReferenced() {
+function anyReferenced(): boolean {
   let any = false
   state.entries.forEach(function (e) { if (e.refed) any = true })
   return any
@@ -116,7 +178,7 @@ function anyReferenced() {
  * 实测拆掉 tests/verify-deck-no-hang.js 里的原生把手后，断言从 21 条掉到 0 条。那一半要等产品侧
  * 有显式存活租约（#1157）与夹具自己拥有存活之后才开，见 docs/adr/20261014-process-liveness-lease.md。
  */
-function syncPumpLiveness() {
+function syncPumpLiveness(): void {
   if (state.pumpTimer === null) return
   if (!anyReferenced()) return
   try { state.pumpTimer.ref() } catch (e) {}
@@ -127,7 +189,7 @@ function syncPumpLiveness() {
  * 真实等待 = min(到最早到期者的虚拟间隔, maxDelayMs)；卸载后的收尾阶段压成 0，尽快放完。
  * 已经排着的泵只有在「新的等待更短」时才重排——变长不用管，泵醒来会自己重算。
  */
-function armPump() {
+function armPump(): void {
   if (!state.originals) return
   // 队列的每一次变化都会走到这里（排入、撤销、ref、unref、refresh、到点放行、安装与卸载），
   // 所以引用状态的同步放在这个门口：下面任何一条提前返回的路都不可能把它漏掉（#1146）。
@@ -135,7 +197,7 @@ function armPump() {
   const next = earliestEntry()
   if (!next) {
     if (state.pumpTimer !== null) {
-      try { state.originals.clearTimeout(state.pumpTimer) } catch (e) {}
+      try { state.originals!.clearTimeout(state.pumpTimer) } catch (e) {}
       state.pumpTimer = null
       state.pumpDelay = -1
     }
@@ -145,16 +207,16 @@ function armPump() {
   const delay = state.flushing ? 0 : Math.min(gap, state.maxDelayMs)
   if (state.pumpTimer !== null) {
     if (delay >= state.pumpDelay) return
-    try { state.originals.clearTimeout(state.pumpTimer) } catch (e) {}
+    try { state.originals!.clearTimeout(state.pumpTimer) } catch (e) {}
     state.pumpTimer = null
   }
-  state.pumpTimer = state.originals.setTimeout(pump, delay)
+  state.pumpTimer = state.originals!.setTimeout(pump, delay)
   state.pumpDelay = delay
   if (!anyReferenced()) { try { state.pumpTimer.unref() } catch (e) {} }
 }
 
 /** 放行一个到期者：先把虚拟时钟推到它的到期时间，再按 node 的规矩跑回调（异常照样冒成未捕获异常）。 */
-function pump() {
+function pump(): void {
   state.pumpTimer = null
   state.pumpDelay = -1
   const next = earliestEntry()
@@ -181,11 +243,11 @@ function pump() {
 }
 
 /** 排一个虚拟定时器。interval 为 null 是一次性的，否则是周期毫秒数。 */
-function schedule(fn, ms, args, interval) {
-  if (typeof fn !== 'function') return state.originals.setTimeout(fn, ms)   // 字符串回调等怪用法交回原生
+function schedule(fn: unknown, ms: unknown, args: any[], interval: number | null): any {
+  if (typeof fn !== 'function') return state.originals!.setTimeout(fn, ms)   // 字符串回调等怪用法交回原生
   const delay = normalizeDelay(ms)
   state.seq += 1
-  const entry = { id: state.seq, seq: state.seq, fn: fn, args: args, delay: delay, interval: interval, due: virtualNow() + delay, refed: true }
+  const entry: TimerEntry = { id: state.seq, seq: state.seq, fn: fn, args: args, delay: delay, interval: interval, due: virtualNow() + delay, refed: true }
   state.entries.set(entry.id, entry)
   state.stats.scheduled += 1
   entry.handle = makeHandle(entry)
@@ -194,7 +256,7 @@ function schedule(fn, ms, args, interval) {
 }
 
 /** 取消一个虚拟定时器；不是本助手排的（例如安装前留下的原生句柄）返回 false，交调用方转给原生 clear。 */
-function cancelEntry(handle) {
+function cancelEntry(handle: any): boolean {
   const entry = (handle && typeof handle === 'object') ? handle[ENTRY] : null
   if (!entry || !state.entries.has(entry.id)) return false
   state.entries.delete(entry.id)
@@ -204,8 +266,8 @@ function cancelEntry(handle) {
 }
 
 /** 句柄形状照 node 的 Timeout 给足：ref/unref/hasRef/refresh/close 都要能用。 */
-function makeHandle(entry) {
-  const handle = { [ENTRY]: entry }
+function makeHandle(entry: TimerEntry): VirtualHandle {
+  const handle: any = { [ENTRY]: entry }
   Object.defineProperties(handle, {
     ref: { value: function () { entry.refed = true; armPump(); return handle } },
     unref: { value: function () { entry.refed = false; armPump(); return handle } },
@@ -221,25 +283,25 @@ function makeHandle(entry) {
     close: { value: function () { cancelEntry(handle) } },
     [Symbol.toPrimitive]: { value: function () { return entry.id } },
   })
-  return handle
+  return handle as VirtualHandle
 }
 
-function patchedSetTimeout(fn, ms) {
+function patchedSetTimeout(fn: any, ms?: any): any {
   return schedule(fn, ms, Array.prototype.slice.call(arguments, 2), null)
 }
-function patchedSetInterval(fn, ms) {
+function patchedSetInterval(fn: any, ms?: any): any {
   const every = normalizeDelay(ms)
   return schedule(fn, ms, Array.prototype.slice.call(arguments, 2), every > 0 ? every : 1)
 }
-function patchedClearTimeout(handle) {
-  if (!cancelEntry(handle)) { try { state.originals.clearTimeout(handle) } catch (e) {} }
+function patchedClearTimeout(handle: any): void {
+  if (!cancelEntry(handle)) { try { state.originals!.clearTimeout(handle) } catch (e) {} }
 }
 
 /**
  * 造一个「无参构造读虚拟时间」的 Date。有参构造、Date() 当函数调用（返回字符串）、
  * Date.parse/UTC、instanceof、Date.prototype 全部照原样，只有「不给参数取当下」这一件事改走虚拟时间。
  */
-function makeVirtualDate(OrigDate) {
+function makeVirtualDate(OrigDate: DateConstructor): any {
   function VirtualDate() {
     const args = Array.prototype.slice.call(arguments)
     if (!new.target) return OrigDate()
@@ -255,14 +317,14 @@ function makeVirtualDate(OrigDate) {
 }
 
 /** 换掉一整套全局时钟；同一进程重复调用是幂等的（不重复包装）。 */
-function installTimeCompression(opts) {
-  const o = opts || {}
+function installTimeCompression(opts?: InstallOptions): PublicHandle {
+  const o: InstallOptions = opts || {}
   if (state.installed) {
     state.stats.installRepeats += 1
     return publicHandle()
   }
   const g = globalThis
-  const desc = function (name) { return Object.getOwnPropertyDescriptor(g, name) || null }
+  const desc = function (name: string) { return Object.getOwnPropertyDescriptor(g, name) || null }
   state.originals = {
     setTimeout: g.setTimeout,
     clearTimeout: g.clearTimeout,
@@ -299,10 +361,10 @@ function installTimeCompression(opts) {
  * （它们的回调都已经按压缩后的时间点该跑了），这样同一个进程里接下来的门禁既看不到虚拟时钟，
  * 也不会被上一扇门禁留下的等待拖住。
  */
-function uninstallTimeCompression() {
+function uninstallTimeCompression(): boolean {
   if (!state.installed) return false
   const g = globalThis
-  const orig = state.originals
+  const orig = state.originals as OriginalClock
   const put = function (name) {
     const d = orig.globals[name]
     if (d) { try { Object.defineProperty(g, name, d) } catch (e) {} } else { try { delete g[name] } catch (e) {} }
@@ -321,7 +383,7 @@ function uninstallTimeCompression() {
 }
 
 /** 装在手上的那份句柄：统计是活的对象，随时读得到这次压缩干了多少活。 */
-function publicHandle() {
+function publicHandle(): PublicHandle {
   return {
     maxDelayMs: state.maxDelayMs,
     stats: state.stats,
