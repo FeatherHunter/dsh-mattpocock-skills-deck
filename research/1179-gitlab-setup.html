@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>给 GitLab 房接通真环境 — 从零配置指南</title>
+<style>
+  :root {
+    --ink: #1b1f24;
+    --ink-soft: #4a545e;
+    --line: #dfe4ea;
+    --bg: #ffffff;
+    --bg-soft: #f7f9fb;
+    --blue: #1f5fa8;
+    --blue-soft: #eaf2fb;
+    --green: #1a7f4b;
+    --green-soft: #e8f6ee;
+    --amber: #9a6206;
+    --amber-soft: #fdf3e2;
+    --red: #a8232b;
+    --red-soft: #fdeced;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg-soft);
+    color: var(--ink);
+    font-family: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+    font-size: 16px;
+    line-height: 1.75;
+  }
+  .page { max-width: 860px; margin: 0 auto; padding: 40px 28px 72px; }
+  header { border-bottom: 3px solid var(--ink); padding-bottom: 20px; margin-bottom: 28px; }
+  header .kicker { font-size: 13px; letter-spacing: .12em; color: var(--ink-soft); text-transform: uppercase; }
+  header h1 { font-size: 30px; line-height: 1.35; margin: 10px 0 14px; }
+  header .meta { font-size: 14px; color: var(--ink-soft); }
+  header .meta b { color: var(--ink); font-weight: 600; }
+  h2 {
+    font-size: 21px; margin: 44px 0 14px; padding-left: 12px;
+    border-left: 4px solid var(--blue);
+  }
+  h3 { font-size: 17px; margin: 26px 0 8px; }
+  p { margin: 10px 0; }
+  ul, ol { margin: 10px 0; padding-left: 24px; }
+  li { margin: 6px 0; }
+  code {
+    background: var(--bg-soft); border: 1px solid var(--line); border-radius: 4px;
+    padding: 1px 6px; font-family: "Cascadia Mono", Consolas, monospace; font-size: 14px;
+    word-break: break-all;
+  }
+  pre {
+    background: #1e2530; color: #e6edf3; border-radius: 8px; padding: 14px 16px;
+    overflow-x: auto; font-family: "Cascadia Mono", Consolas, monospace; font-size: 13.5px;
+    line-height: 1.6; margin: 12px 0;
+  }
+  pre code { background: none; border: none; color: inherit; padding: 0; }
+  a { color: var(--blue); text-decoration: none; border-bottom: 1px solid rgba(31,95,168,.35); }
+  a:hover { border-bottom-color: var(--blue); }
+  table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 15px; background: var(--bg); }
+  th, td { border: 1px solid var(--line); padding: 9px 12px; text-align: left; vertical-align: top; }
+  th { background: var(--bg-soft); font-weight: 600; }
+  .tag {
+    display: inline-block; font-size: 12.5px; line-height: 1.5; padding: 1px 9px;
+    border-radius: 999px; white-space: nowrap; font-weight: 600;
+  }
+  .ok    { background: var(--green-soft); color: var(--green); }
+  .todo  { background: var(--amber-soft); color: var(--amber); }
+  .no    { background: var(--red-soft);   color: var(--red); }
+  .card {
+    background: var(--bg); border: 1px solid var(--line); border-left: 4px solid var(--blue);
+    border-radius: 6px; padding: 16px 20px; margin: 18px 0;
+  }
+  .card.warn { border-left-color: var(--amber); background: var(--amber-soft); }
+  .card.stop { border-left-color: var(--red); background: var(--red-soft); }
+  .card h3 { margin-top: 0; }
+  .step {
+    background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+    padding: 4px 22px 18px; margin: 20px 0;
+  }
+  .step .num {
+    display: inline-block; background: var(--blue); color: #fff; font-weight: 700;
+    width: 30px; height: 30px; line-height: 30px; text-align: center; border-radius: 50%;
+    margin-right: 10px; font-size: 15px;
+  }
+  .step h3 { display: flex; align-items: center; font-size: 18px; margin: 18px 0 6px; }
+  .who { font-size: 13.5px; color: var(--ink-soft); margin: 0 0 10px 40px; }
+  .why { font-size: 14.5px; color: var(--ink-soft); }
+  .why b { color: var(--ink); }
+  footer {
+    margin-top: 52px; padding-top: 18px; border-top: 1px solid var(--line);
+    font-size: 14px; color: var(--ink-soft);
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+<header>
+  <div class="kicker">地图10 · GitLab 房</div>
+  <h1>给 GitLab 房接通真环境<br>—— 从零配置指南</h1>
+  <div class="meta">
+    用途：票 <b>#1179</b>（真实采样固件与生成脚本）的前置第 0 步<br>
+    你的起点：<b>有 GitLab 账号，但从来没用过 GitLab</b><br>
+    目标：让这台机器上有一个<b>真能对话的 GitLab</b>，而不只是文档上写的 GitLab
+  </div>
+</header>
+
+<h2>一、为什么要做这一步</h2>
+
+<p>GitLab 房今天全部关于「远端会怎么回话」的判断，都是<b>照着官方文档写的</b>，一次真命令行都没跑过。九条新能力、887 条契约测试断言、能力登记表，全建立在纸面形状上。</p>
+
+<p>这件事本身不丢人——本地没有 GitLab，只能这样。但它有一个后果：<b>文档写错了、或者某一档账号根本用不了，今天没人知道</b>。把「我以为它会这么回」换成「它真的这么回」，是这张票要解决的唯一问题。</p>
+
+<p>而且还有一件更急的事压在它后面：<b>票 #1176</b> 记着一个会真删数据的缺陷（取消父子关系时可能把这张票全部关联链接一起删掉）。这个缺陷<b>必须真跑一次才能定案</b>——不真跑，改与不改都是猜。</p>
+
+<h2>二、这台机器现在缺什么（实测，不是推测）</h2>
+
+<table>
+  <tr><th>东西</th><th>状态</th><th>说明</th></tr>
+  <tr><td>git</td><td><span class="tag ok">已有</span></td><td><code>C:\Program Files\Git\cmd\git.exe</code></td></tr>
+  <tr><td>node</td><td><span class="tag ok">已有</span></td><td><code>D:\2Study\nodejs\node.exe</code></td></tr>
+  <tr><td>gh（GitHub 的命令行）</td><td><span class="tag ok">已有</span></td><td><code>D:\0Tools\GitHubCLI\gh.exe</code>，摆在 <code>D:\0Tools</code> 这个工具目录里</td></tr>
+  <tr><td><b>glab</b>（GitLab 的命令行）</td><td><span class="tag no">没有</span></td><td>这是这次要装的主角</td></tr>
+  <tr><td>winget / choco / scoop</td><td><span class="tag no">都没有</span></td><td>所以不能一键装，只能手动下载一个压缩包</td></tr>
+  <tr><td>真 GitLab 项目</td><td><span class="tag no">没有</span></td><td>要在网页上建一个</td></tr>
+  <tr><td>glab 的登录</td><td><span class="tag no">没有</span></td><td>要用一个令牌登一次</td></tr>
+</table>
+
+<h2>三、六步做完</h2>
+
+<div class="step">
+  <h3><span class="num">1</span>装 glab</h3>
+  <p class="who">谁做：我可以替你做（下载 + 解压 + 放进工具目录）。你要自己做也行，命令都在下面。</p>
+
+  <p>winget 这类包管理器这台机器上没有，所以走官方发布页的压缩包。当前最新版是 <b>1.123.0</b>（2026-10-13 发布），Windows 64 位压缩包：</p>
+  <pre><code>https://gitlab.com/gitlab-org/cli/-/releases/v1.123.0/downloads/glab_1.123.0_windows_amd64.zip</code></pre>
+
+  <p>解压后里面有 <code>bin\glab.exe</code>。照 <code>gh</code> 的摆法，放到：</p>
+  <pre><code>D:\0Tools\GitLabCLI\glab.exe</code></pre>
+
+  <p>然后把这个目录加进<b>用户级 PATH</b>（不是临时 PATH）：</p>
+  <pre><code>[Environment]::SetEnvironmentVariable('PATH',
+  [Environment]::GetEnvironmentVariable('PATH','User') + ';D:\0Tools\GitLabCLI\', 'User')</code></pre>
+
+  <p class="why"><b>为什么强调「用户级」</b>：临时改当前窗口的 PATH，只对那一个窗口有效，程序下次启动就看不见了。写进用户级 PATH 才是持久的。</p>
+
+  <div class="card warn">
+    <h3>这一步有个坑，必须知道</h3>
+    <p>DSH（也就是我运行在里面的这个程序）用的 PATH，是<b>它启动那一刻</b>从系统里读到的那一份。你在运行中改了 PATH，<b>它自己看不见</b>——这和 GitHub 那边的 <code>DSH_GH_PATH</code> 是同一个限制：那个变量也是只有宿主进程启动时就存在才有用。</p>
+    <p>两个办法，二选一：</p>
+    <ul>
+      <li><b>办法甲（干净）</b>：按上面装好、加好 PATH，然后<b>重启一次 DSH</b>。以后长期都顺。</li>
+      <li><b>办法乙（马上能用）</b>：先把 <code>glab.exe</code> 放进 <code>D:\0Tools\GitHubCLI\</code>——这个目录已经在 PATH 上了，立刻就能找到。名字上难看一点，但不用重启。</li>
+    </ul>
+    <p>另外，我的命令行调用不受这个限制：我可以用完整路径 <code>D:\0Tools\GitLabCLI\glab.exe</code> 跑它。受影响的是<b>插件自己</b>去解析 <code>glab</code> 那条路。</p>
+  </div>
+</div>
+
+<div class="step">
+  <h3><span class="num">2</span>建一个专门的沙箱项目</h3>
+  <p class="who">谁做：你，在浏览器里。这件事只有你能做（要登录你的账号）。</p>
+
+  <p>在 gitlab.com 上建一个<b>私有</b>项目，名字例如 <code>dsh-gitlab-sandbox</code>：</p>
+  <ul>
+    <li>右上角 <b>+</b> → <b>New project</b> → <b>Create blank project</b></li>
+    <li>Project name 填 <code>dsh-gitlab-sandbox</code></li>
+    <li>Visibility 选 <b>Private</b></li>
+    <li>下面那个「Initialize repository with a README」勾上，这样项目一建好就有内容可拉</li>
+  </ul>
+
+  <div class="card">
+    <h3>为什么要专门建一个，不能拿现成的仓库</h3>
+    <p>因为采样和验证是<b>真的动手</b>：建票、关票、改标签颜色、给两张票挂关联、再取消关联。这些动作会留下痕迹，甚至删掉东西。拿你在意的仓库做这件事，等于拿真账本做实验。</p>
+  </div>
+</div>
+
+<div class="step">
+  <h3><span class="num">3</span>造一个令牌</h3>
+  <p class="who">谁做：你，在浏览器里。令牌原文不要给任何人看，包括我。</p>
+
+  <p>令牌（Personal access token）就是给命令行用的一把钥匙。直达链接（已经把名字和要勾的作用域预填好了）：</p>
+  <pre><code>https://gitlab.com/-/user_settings/personal_access_tokens?name=dsh-glab&amp;scopes=api</code></pre>
+
+  <p>手点的路径也一样：右上角头像 → <b>Edit profile</b> → 左侧 <b>Access</b> → <b>Personal access tokens</b> → 右上 <b>Generate token</b> 下拉里选 <b>Legacy token</b>。</p>
+
+  <p>要勾的东西：</p>
+  <table>
+    <tr><th>项目</th><th>填什么</th><th>为什么</th></tr>
+    <tr><td>Token name</td><td><code>dsh-glab</code></td><td>以后好认</td></tr>
+    <tr><td>Expiration date</td><td>默认 365 天即可</td><td>到期会自动失效，到时再换</td></tr>
+    <tr><td>Scopes</td><td><b>只勾 <code>api</code> 一个</b></td><td>见下面</td></tr>
+  </table>
+
+  <div class="card">
+    <h3>为什么只勾 <code>api</code> 就够</h3>
+    <p>官方文档在作用域表下面有一条脚注写得很清楚：对<b>个人</b>令牌来说，<code>api</code> 这一个作用域同时覆盖「调 REST 接口」和「通过 HTTPS 推代码」两件事。所以不需要再勾 <code>write_repository</code>。</p>
+    <p>顺带一提：<code>write_repository</code> 那一行反过来还专门写着「不支持 API 认证」——所以就算勾了它，也替代不了 <code>api</code>。</p>
+  </div>
+
+  <div class="card stop">
+    <h3>两条红线</h3>
+    <ul>
+      <li><b>令牌只在生成的那一刻显示一次</b>，刷新页面就再也看不到。请当场存到一个临时文件里。</li>
+      <li><b>不要把令牌原文贴进和我的对话</b>。对话会被完整记进会话记录，贴一次就等于把它写进了日志。正确的做法是：存进文件，登录时用文件喂给 glab，登完把文件删掉。</li>
+    </ul>
+  </div>
+</div>
+
+<div class="step">
+  <h3><span class="num">4</span>登录</h3>
+  <p class="who">谁做：你，在自己的终端里。这一步必须你来，因为只有你手里有那把钥匙。</p>
+
+  <p>先把这个令牌存成一个临时文件，比如 <code>D:\tmp\token.txt</code>（里面只放令牌那一行），然后在终端里跑：</p>
+  <pre><code>glab auth login --hostname gitlab.com --stdin &lt; D:\tmp\token.txt</code></pre>
+
+  <p>然后<b>立刻删掉那个文件</b>：</p>
+  <pre><code>Remove-Item D:\tmp\token.txt</code></pre>
+
+  <p class="why"><b>为什么用 <code>--stdin</code> 而不是直接把令牌写在命令里</b>：写在命令行参数里的东西会进命令历史；用文件喂进去不会。</p>
+
+  <p class="why"><b>凭据存到哪了</b>：glab 默认把凭据存进 Windows 凭据管理器（系统的钥匙串），不是明文文件。只有加 <code>--insecure-storage</code> 才会落到 <code>~/.config/glab-cli/config.yml</code> 明文里——我们不这么干。</p>
+</div>
+
+<div class="step">
+  <h3><span class="num">5</span>把项目拉到本地</h3>
+  <p class="who">谁做：你（一条命令），或者做完第 4 步之后叫我做也行。</p>
+
+  <pre><code>git clone https://gitlab.com/&lt;你的命名空间&gt;/dsh-gitlab-sandbox.git</code></pre>
+
+  <p class="why"><b>为什么必须本地有一份</b>：有一条能力叫「从本地仓库认出它对应远端哪个项目」——它是读 <code>git remote</code> 认出来的。本地没有这份仓库，就没有可测的对象。</p>
+
+  <p class="why">推到远端需要身份，而你的令牌已经被 glab 记下来了。如果 <code>git push</code> 提示要密码，密码填令牌原文即可（用户名随便填一个非空字符串）。</p>
+</div>
+
+<div class="step">
+  <h3><span class="num">6</span>三条验证命令</h3>
+  <p class="who">谁做：你跑一遍，或者告诉我「装好了」，我来跑。</p>
+
+  <pre><code># 1) 看登录状态
+glab auth status
+
+# 2) 看它认为「我是谁」——这条对应契约里的「当前用户」能力
+glab api user
+
+# 3) 看这个项目的权限——这条回的话里就有 permissions 那一格
+glab api "projects/&lt;命名空间&gt;%2Fdsh-gitlab-sandbox?simple=true"</code></pre>
+
+  <p>第 3 条要特别注意：地址里的斜杠必须写成 <code>%2F</code>，这是 GitLab 的规矩（它叫 URL 编码的路径）。这一格回话里的 <code>permissions</code>，正是「我能不能推、能不能整理票」那条能力要读的地方。</p>
+
+  <p>三条都通了，第 0 步就算完成。</p>
+</div>
+
+<h2>四、做完之后会发生什么</h2>
+
+<ol>
+  <li>我接着做 <b>#1179</b>：真跑一遍这些接口，把回话<b>脱敏后落盘</b>成固件，写一个能一键重采的生成脚本，再让机器离线比对形状。从此以后每一条 GitLab 改动都能离线复验。</li>
+  <li><b>#1176</b> 那个删关联的缺陷也就有了定案的条件——真跑一次「取消父子关系」，看链接到底有没有消失。</li>
+  <li>「哪些形状已经真采过、哪些还只是文档说的」会有一份清单，写在明面上，不再靠门禁全绿把它盖过去。</li>
+</ol>
+
+<h2>五、关于免费档：要有心理准备</h2>
+
+<p>你用的是免费账号，而 GitLab 有些能力是要付费档的。已知的两处：</p>
+
+<ul>
+  <li><b>原生的父子层级</b>（epics 那一支）是付费的。所以这一房从一开始就不走它，而是把父子关系落成平级链接——这是设计选择，不是缺陷。</li>
+  <li><b>阻塞边</b>在免费档常常拿不到原生支持，代码里备了一条降级写法（回落到正文里的「Blocked by:」那一行）。</li>
+</ul>
+
+<p>反过来，<b>这次九条新能力要用的接口，查过文档都是免费档就有的</b>。举一条最容易踩的：数票数用的那个统计接口（<code>GET /projects/:id/issues_statistics</code>），官方文档标的是「Free, Premium, Ultimate」三档全有，回话形状是 <code>{"statistics":{"counts":{"all":20,"closed":5,"opened":15}}}</code>——和我们代码里写的一模一样。</p>
+
+<p>但「文档说有」和「你的账号真的有」是两件事。这正是要真跑一遍的原因：<b>跑完就知道哪些是真能用的，哪些只是文档上说能用。</b></p>
+
+<h2>六、出处（都是一手来源）</h2>
+
+<ul>
+  <li>glab 的登录参数与凭据存放位置：<a href="https://gitlab.com/gitlab-org/cli/-/raw/main/docs/source/auth/login.md">glab 官方文档 · auth login</a></li>
+  <li>Windows 上的安装方式（winget / choco / scoop / 直接下载）：<a href="https://gitlab.com/gitlab-org/cli/-/raw/main/docs/installation_options.md">glab 官方文档 · 其它安装方式</a></li>
+  <li>令牌怎么造、怎么用、有效期：<a href="https://gitlab.com/gitlab-org/gitlab/-/raw/master/doc/user/profile/personal_access_tokens.md">GitLab 官方文档 · Personal access tokens</a></li>
+  <li>作用域表，以及「个人令牌的 api 覆盖 Git-over-HTTPS」那条脚注：<a href="https://gitlab.com/gitlab-org/gitlab/-/raw/master/doc/security/tokens/access_token_scopes.md">GitLab 官方文档 · Access token scopes</a></li>
+  <li>数票数用的统计接口（含档位与回话形状）：<a href="https://gitlab.com/gitlab-org/gitlab/-/raw/master/doc/api/issues_statistics.md">GitLab 官方文档 · Issues statistics API</a></li>
+  <li>glab 当前最新版本 1.123.0 与下载地址：<a href="https://gitlab.com/gitlab-org/cli/-/releases">glab 发布页</a></li>
+</ul>
+
+<footer>
+  这份指南服务于票 #1179（GitLab 房的真实采样固件与生成脚本），它是地图 #1062（地图10 GitLab 房：补齐到契约 25 条能力）下的一张子票。<br>
+  本页不含任何令牌、账号或私有地址；步骤里出现的路径都是这台机器上实测到的。
+</footer>
+
+</div>
+</body>
+</html>
