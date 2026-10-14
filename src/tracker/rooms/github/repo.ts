@@ -1,8 +1,9 @@
 /**
  * backends/github/repo.js — 仓库身份与链接供给。
  *
- * 由 #440 从 index.js 纯结构移出（parseGithubRepo / describe / issueUrl / searchUrl /
- * linkPattern / links / capabilities / openRepository / getRepoKey），行为零变化。
+ * 由 #440 从 index.js 纯结构移出（parseGithubRepo / describe / links / capabilities /
+ * openRepository / getRepoKey），行为零变化。链接三件（issueAddress / repoSearchAddress /
+ * issueRefPattern）原先叫网址口吻的名字，改名与删旧名是 #1110/#1133/#1141 一条线的事。
  * 以后改仓库识别规则或链接形态的人改它。预估约 150 行。
  */
 
@@ -41,18 +42,20 @@ export function describe(handle, backendId) {
   return { backend: backendId, refId: refId || '', name: name || refId || backendId, url }
 }
 
-// ============ URL 供给：issueUrl / searchUrl / linkPattern（契约只读 view） ============
-export function issueUrl(ref, key) {
+// ============ 链接供给：issueAddress / repoSearchAddress / issueRefPattern（契约只读 view） ============
+// 三个名字讲的是「地址」而不是「网址」（#1110 实现决定第 14 条）：GitHub 这家回的是网址，
+// 本地 Markdown 那家回的是票文件路径，用同一个说法才不用替谁开例外。老名字已按 #1141 删净。
+export function issueAddress(ref, key) {
   const refId = ref && typeof ref.refId === 'string' ? ref.refId : ''
   if (!refId) return ''
   return 'https://github.com/' + refId + '/issues/' + String(key)
 }
 
-export function searchUrl(name) {
+export function repoSearchAddress(name) {
   return 'https://github.com/search?q=' + encodeURIComponent(String(name || ''))
 }
 
-export const linkPattern = /github\.com\/[^\/\s]+\/[^\/\s]+\/issues\/(\d+)/g
+export const issueRefPattern = /github\.com\/[^\/\s]+\/[^\/\s]+\/issues\/(\d+)/g
 
 // ============ UI-lane 描述数据（#231 类别7核销 · 宿主沙箱外只读）：链接模板/能力位/注入文案 后端单源 ============
 /** #231：client 渲染与链接识别的模板数据；null 字段=诚实缺该形态。 */

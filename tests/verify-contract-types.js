@@ -104,15 +104,14 @@ const PROBE_TSC_ARGS = [
  * 运行时腿的快照（#1026 实测；GitLab 一份按 #1110 实现决定第 15 条补上）：三个模块对象的键集合
  * 与两个断不了字面量的真值。键加了、减了、真值变了，都先回答「契约里有没有它」（`BackendModule`），
  * 确认后把新快照记进来；若契约要跟着改，改完再记。快照比较不看顺序（键按字母排过再比）。
- * 别名窗口（#1110 实现决定第 14 条）：契约层与注册表今天已经同时认新名字
- * （`issueAddress`/`issueRefPattern`/`repoSearchAddress`）与老名字。三家各自迁到新名字是分房进行的小票
- * （房间纪律：一次会话只改一房），谁迁完谁把自己这一份快照加上新键。
- * 现况：三家都已迁完（#1133 GitHub、#1134 本地 Markdown、#1135 GitLab，2026-10-14），
- * 三份快照因此六个名字都在——三个新名字是主，三个老名字是同一份实现的别名。
+ * 改名（#1110 实现决定第 14 条）与旧名退役（#1141，2026-10-14）：三家模块对象先各自迁到与后端无关的
+ * 新名字（#1133 GitHub、#1134 本地 Markdown、#1135 GitLab），老名字作为同义别名留了一轮；
+ * 客户端与宿主都不再读它们之后，那三个网址口吻的老名字连同契约里的同名成员一起删净，
+ * 所以下面三份快照今天只列新名字：`issueAddress` / `issueRefPattern` / `repoSearchAddress`。
  */
 const RUNTIME_SNAPSHOTS = {
   github: {
-    keys: ['capabilities', 'checks', 'create', 'describe', 'fixes', 'id', 'issueAddress', 'issueRefPattern', 'issueUrl', 'label', 'linkPattern', 'links', 'matches', 'openRepository', 'presentation', 'prompts', 'repoSearchAddress', 'searchUrl', 'setupPrompt'],
+    keys: ['capabilities', 'checks', 'create', 'describe', 'fixes', 'id', 'issueAddress', 'issueRefPattern', 'label', 'links', 'matches', 'openRepository', 'presentation', 'prompts', 'repoSearchAddress', 'setupPrompt'],
     openRepository: 'url',
     checksKind: 'function',
   },

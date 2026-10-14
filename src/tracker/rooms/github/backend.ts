@@ -20,7 +20,7 @@ import { readRepoPermissions } from './repo-permissions.js'
 import { listLabels, setLabelColors } from './label-colors-ops.js'
 import { setParent, getDependencies, setBlockedBy } from './graph.js'
 import { initProject } from './init-project.js'
-import { describe, issueUrl, getRepoKey } from './repo.js'
+import { describe, issueAddress, getRepoKey } from './repo.js'
 
 /**
  * Registry 身份：matches(handle, ctx) → boolean
@@ -119,7 +119,7 @@ export function createGithubBackend(ctx) {
     },
     initProject: (handle, input, opCtx) => initProject(handle, input, opCtx || ctx),
     describe: (handle, opCtx) => describe(handle, 'github'),
-    issueUrl: (ref, key) => issueUrl(ref, key),
+    issueAddress: (ref, key) => issueAddress(ref, key),
     // 调用方没有仓库标识时的补全口（#758）：注册表出空 refId 是常态（匹配源不带标识），
     // 有该能力的后端把三层兜底（git remote → 配置 → gh 视图）开给调用方自己补；
     // 没有该能力的后端没有这一格，调用方跳过，原样诚实失败。只读，无副作用。

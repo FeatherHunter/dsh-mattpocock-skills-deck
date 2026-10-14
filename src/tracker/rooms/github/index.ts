@@ -8,7 +8,8 @@
  *
  * 定版：#133（labels 对齐）+#138（13 ops 形状归一 + 错误分类）+#129（平台三底座）
  * 定版：#133（labels 对齐）+#138（13 ops 形状归一 + 错误分类）+#129（平台三底座）
- * 2026-08-28 下沉（#227）：parseGithubRepo / getRepoKey / describe / issueUrl / initProject / checks 入本模块，
+ * 2026-08-28 下沉（#227）：parseGithubRepo / getRepoKey / describe / 链接三件（今天的名字是
+ * issueAddress / repoSearchAddress / issueRefPattern）/ initProject / checks 入本模块，
  * host 私货删除，registry 只转发。
  * 对照 contract.js 操作集与 shape.js，不手拼 OS 路径，所有 OS 交互经 ctx.platform。
  */
@@ -16,19 +17,14 @@
 import { CANONICAL_LABELS } from '../../contract/canonical-labels.js'
 // #716：缺 gh 时那句装 CLI 的原话，从共享清单挪回了本模块的 prompts.cliInstall（它跟具体后端有关，
 //   共享清单是三个后端共用的文件，不该住那儿）。共享清单里 gh:installed 那一步只留「注入 cliInstall」。
-import { describe, issueUrl, searchUrl, linkPattern, links, capabilities, openRepository } from './repo.js'
+import { describe, issueAddress, repoSearchAddress, issueRefPattern, links, capabilities, openRepository } from './repo.js'
 import { checks } from './checks.js'
 import { githubMatches, createGithubBackend } from './backend.js'
-// 三个链接能力改成与后端无关的名字（#1110 实现决定第 14 条，GitHub 这一半见 #1133）。
-// 新名字是主、老名字是别名，两组名字指向同一份实现（repo.ts 里那几个导出），不是空壳。
-// 为什么在这里起名而不是改 repo.ts：repo.ts 与 backend.ts 内部自己的引用照旧用老名字，
-//   这样这一次改动只落在本文件的模块对象上，房间内部一个引用都不用跟着抖。
-// 退役条件是「客户端与宿主都不再读老名字」：那时把这里的三个别名连同契约里的同名成员、
-//   三份运行时键快照里的老名字一起删掉（注册表那半边已经在 #1044 改完了）。
-const issueAddress = issueUrl
-const repoSearchAddress = searchUrl
-const issueRefPattern = linkPattern
-export { describe, issueUrl, searchUrl, linkPattern, issueAddress, repoSearchAddress, issueRefPattern, links, capabilities, checks, githubMatches, createGithubBackend }
+// 链接三件的名字与后端无关（#1110 实现决定第 14 条）：GitHub 这家回的是网址，本地 Markdown 那家回的
+// 是票文件路径，用「地址」一个说法就都罩得住，不必替谁开例外。改名是 #1133 做的，那时老名字（网址
+// 口吻的那三个）作为同义别名留了一轮；客户端与宿主都不再读它们之后，别名已按 #1141 删净。
+// 实现只有 repo.js 里那一份，本文件只是把名字摆出来，不再另起别名。
+export { describe, issueAddress, repoSearchAddress, issueRefPattern, links, capabilities, checks, githubMatches, createGithubBackend }
 export { parseGithubRepo, getRepoKey, openRepository } from './repo.js'
 export { GITHUB_CHECKS } from './checks.js'
 export { initProject } from './init-project.js'
@@ -218,16 +214,11 @@ export const githubModule = {
   create: createGithubBackend,
   matches: githubMatches,
   describe,
-  // 链接三件：新名字是主（讲的是「地址」，因为本地那家给的是路径不是网址），
-  // 老名字是同义别名，指向同一份实现，保留一轮不断链（#1110 实现决定第 14 条 / #1133）。
+  // 链接三件（#1110 实现决定第 14 条 / #1133 改名 / #1141 删旧名）：名字讲的是「地址」，
+  // 因为本地那家给的是票文件路径不是网址；实现只有 repo.ts 里那一份。
   issueAddress,
   repoSearchAddress,
   issueRefPattern,
-  // 老名字，一轮之后删：客户端与宿主今天是去注册表要链接的（注册表新名字优先、老名字兜底），
-  // 模块对象上这三个名字如今没有房外读者，留着只为别名窗口内形状一致、回退有路。
-  issueUrl,
-  searchUrl,
-  linkPattern,
   links,
   capabilities,
   // 开仓方式（#231 的开仓契约动作）：'url' = 界面用浏览器新窗打开 describe().url。
