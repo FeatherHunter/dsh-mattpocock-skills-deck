@@ -153,13 +153,24 @@ module.exports = {
       to: { path: '^(src/tracker/rooms/|src/tracker/kernel/|src/host/tracker/detection/)' },
     },
 
-    // ── 跨层深引（反方向）：今天先不上，理由记在这里，免得后来者以为是漏了 ──────────────────
-    // 反方向那条是「src/tracker/rooms/** 只许被装配点与房间自身引用」（#1014 Q2 的另一面）。
-    // 今天上不了：真实的装配就在区域外——src/host/platformChannel.js 会按后端名动态加载房间的
-    // index.js，另有 src/host/index.js、issueDetail.js、publishFlow.js、remotePredicates.js 四处
-    // 直接连房间实现（5 个宿主文件、7 处 import）。硬加这条规则会当场把全链判红，
-    // 那就不是「只换判据的读取对象」，而是顺手改了架构。
-    // 归 #1161：先立装配点 src/tracker/registry/builtins.ts 把这几处收进去，再上线这条规则。
+    // ── 反方向：房间实现只许被装配点与房间自身引用（#1161 上线）────────────────────────────
+    // 为什么装配点是唯一出口：房间的实现细节（client / normalize / parse 这些件）是房间私有的，
+    // 谁都能深引就没人守得住「房间与宿主之间的边界」；宿主侧真正需要的少数几个件，由装配点
+    // src/tracker/registry/builtins.ts 从房间的公开面转出（房间里那几行 re-export 就是为这件事写的）。
+    // 这条规则从前上不了：5 个宿主文件、7 处深引，硬加会把全链判红。装配点立起来之后才上线。
+    // from.path 写 '^src/' 而不是留空：起点空着与起点指错地方在门禁上长得一模一样（#1136 的假绿成因），
+    //   所以判据一/六要求每条规则都有能落地的起点判据（见 tests/verify-dependency-rules.ts 的文件头）。
+    {
+      name: 'rooms-imported-only-by-assembly',
+      severity: 'error',
+      comment:
+        '房间实现只许被装配点引用：别处要房间里的东西，先让装配点把它从房间公开面转出来，或走契约层。',
+      from: {
+        path: '^src/',
+        pathNot: ['^src/tracker/rooms/', '^src/tracker/registry/builtins\\.(ts|js)$'],
+      },
+      to: { path: '^src/tracker/rooms/' },
+    },
 
     // ── 纯规则侧只许算，不许碰世界（#1039 的 #1108 定版：纯侧不许引宿主能力）──────────────
     // src/deck/rules/ 是「纯规则侧」：只做计算，不取会话、不起进程、不读写文件、不读钟。

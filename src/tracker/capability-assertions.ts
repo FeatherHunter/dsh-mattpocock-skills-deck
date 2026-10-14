@@ -13,9 +13,11 @@
  * 全仓唯一判定「能力齐不齐」的地方就是这里（规格 #1147 测试决策章）。
  *
  * 各房自己交哪些成员、字面量形状长什么样，定义在三个房间文件里（形状跟着工厂走）。
+ * 这些形状经装配点 src/tracker/registry/builtins.ts 转出（#1161）：装配点是全仓唯一允许 import 房间的
+ * 地方（规则 rooms-imported-only-by-assembly），本文件与房间之间因此没有直接边。
  * 为什么不把这些定义放在本文件：本文件的判定必须 import 三个工厂的类型，工厂又要用形状，
  * 两边同住一处就成了 type-only 的环 —— #1136 把 src/tracker 收进门禁扫描域时当场抓到，
- * 所以形状跟着工厂走、判定留在这里，方向单向：判定文件 → 房间。
+ * 所以形状跟着工厂走、判定留在这里，方向单向：判定文件 → 装配点 → 房间。
  *
  * 三条断言各管一个方向：
  * 1. 完整：工厂交出来的成员，一个不少地等于登记表里给它记的那一套（少写→红）。
@@ -29,9 +31,11 @@
 
 import type { RoomOperations, Tracker } from './contract/operations.js'
 import type { OPERATIONS, LOCATORS } from './contract/operations-catalog.js'
-import type { GithubBackendMembers, createGithubBackend } from './rooms/github/backend.js'
-import type { GitlabBackendMembers, createGitlabBackend } from './rooms/gitlab/index.js'
-import type { MarkdownBackendMembers, createMarkdownBackend } from './rooms/markdown/index.js'
+// #1161：形状与工厂类型经装配点转出，本文件不许直接 import 房间
+// （规则 rooms-imported-only-by-assembly；装配点是全仓唯一允许引房间的地方）。
+import type { GithubBackendMembers, createGithubBackend } from './registry/builtins.js'
+import type { GitlabBackendMembers, createGitlabBackend } from './registry/builtins.js'
+import type { MarkdownBackendMembers, createMarkdownBackend } from './registry/builtins.js'
 
 /** 名录两段合起来的全部名字（25 个）。 */
 type _CapabilityName = (typeof OPERATIONS)[number] | (typeof LOCATORS)[number]

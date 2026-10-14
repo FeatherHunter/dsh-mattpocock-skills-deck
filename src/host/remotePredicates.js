@@ -1,8 +1,8 @@
 // src/host/remotePredicates.js —— H3 #447 从 host/index.js 242-309 搬出，纯结构、行为零变化。
 // 以后谁改它：改本地关卡地图谓词或候选规则的人。预估约80行，超 350 打回。
-// 接线：由 index.js 动态 import 加载；纯函数、零外部依赖；本文件不引用其他新文件。
+// 接线：由 index.js 动态 import 加载；本文件除装配点（src/tracker/registry/builtins.ts）外不引其他新文件。
 export function createRemotePredicates() {
-    // #284：markdown 后端谓词：本地图谱可解析（复用 backends/markdown/parse.js parseMd）
+    // #284：markdown 后端谓词：本地图谱可解析（解析件经装配点从 markdown 房公开面取，见下方调用处）
     // 2026-08-28 修复：本函数与 fileExistsChainRel 曾被误嵌套在 parseGithubRepo 函数体内，
     //   作用域外（wf.chain 谓词注册处）不可见 → 运行时 ReferenceError「mdParseOkPredicate is not defined」。
     async function mdParseOkPredicate(platform, cwd, lang) {
@@ -16,8 +16,11 @@ export function createRemotePredicates() {
         if (cands.length === 0) {
           return { status: 'fail', detail: zh ? '尚未生成关卡地图（先执行本地 Markdown 初始化）' : 'No map file yet — run Local Markdown setup first' }
         }
-        const mod = await import('../tracker/rooms/markdown/parse.js')
-        const parseMd = mod.parseMd || mod.default
+        // #1161：宿主不再直接深引房间实现（规则 rooms-imported-only-by-assembly），本地图谱解析
+        //   经装配点 src/tracker/registry/builtins.ts 从 markdown 房的公开面取。
+        const { loadBuiltinRoom } = await import('../tracker/registry/builtins.js')
+        const mdRoom = await loadBuiltinRoom('markdown')
+        const parseMd = mdRoom.parseMd || mdRoom.default
         if (typeof parseMd !== 'function') return { status: 'pending', detail: 'parseMd not exported' }
         let lastErr = ''
         for (const rel of cands) {

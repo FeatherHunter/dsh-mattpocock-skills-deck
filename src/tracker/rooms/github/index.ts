@@ -189,6 +189,13 @@ export const prompts = (function () {
   }
 })()
 
+// 装配点转出的宿主侧遗留件（#1161）：宿主不许再直接深引房间实现（规则 rooms-imported-only-by-assembly），
+// 它今天还需要这三个件，只能经装配点 src/tracker/registry/builtins.ts 从这里取。
+// 等宿主那几条路（单票详情、建仓发布、检测链超时）改走注册表之后，这几行跟着一起收回。
+export { TIMEOUT_MS } from './client.js'
+export { pullStateOf } from './normalize.js'
+export { makeCreateErrorClassifier, KIND_UNKNOWN } from './init-project-error-kinds.js'
+
 /**
  * BackendModule（供 registry.register 用）。
  * - id/label/create/matches 四件套；select/describe 由 registry 托管，不属 OpName

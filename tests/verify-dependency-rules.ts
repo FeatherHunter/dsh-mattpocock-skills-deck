@@ -63,8 +63,8 @@ const CONFIG_REL = '.dependency-cruiser.cjs'
 const BASELINE_REL = 'tests/same-layer-baseline.json'
 const DEPCRUISE_BIN_REL = 'node_modules/dependency-cruiser/bin/dependency-cruiser.mjs'
 const SOURCE_EXTS = ['.js', '.mjs', '.cjs', '.ts', '.mts', '.cts']
-// 同层互引四条 + 房间纪律两条 + deck 深引一条 + 纯规则侧两条 + 禁循环一条。出现在这里的作用是
-// 「配置被改松就判红」：少一条、名字改了、severity 不是 error，都会在下面对不上。
+// 同层互引四条 + 房间纪律两条 + 房间只许装配点引用一条 + deck 深引一条 + 纯规则侧两条 + 禁循环一条。
+// 出现在这里的作用是「配置被改松就判红」：少一条、名字改了、severity 不是 error，都会在下面对不上。
 const EXPECTED_RULES = [
   'same-layer-import-platform',
   'same-layer-import-host',
@@ -72,6 +72,7 @@ const EXPECTED_RULES = [
   'same-layer-import-seam',
   'cross-room-import',
   'room-imports-third-party-package',
+  'rooms-imported-only-by-assembly',
   'deck-deep-import',
   'deck-rules-stay-pure',
   'deck-rules-no-node-builtins',

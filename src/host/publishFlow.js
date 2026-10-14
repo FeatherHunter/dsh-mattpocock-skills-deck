@@ -2,23 +2,24 @@
 // 以后谁改它：改建仓发布流程或推送重试的人。预估约190行，超 350 打回。
 // 接线：由 index.js 动态 import 加载；repoKeys/repoRoots 与 H1 同形（对象引用，删除才删得中）；本文件不引用其他新文件。
 //
-// 2026-10-10（票 #993 / #994）：本文件原先自带一份 classifyCreateError，与
-//   src/host/tracker/backends/github/init-project.js 里那份逐字符相同。现在两处都改成引
-//   src/shared/tracker/ 下的共享实现（那里是 cross-import 门禁的白名单目录）：
-//     · initProjectErrorKinds.js —— 兜底从 permission 改成 unknown，「认不出来」不再等于「没权限」；
-//     · workspaceOwnership.js    —— 「属主不一致」这一档的唯一判断，两票共用。
+// 2026-10-10（票 #993 / #994）：本文件原先自带一份 classifyCreateError，与 GitHub 房里那份逐字符相同。
+//   两处都改成引共享实现：initProjectErrorKinds —— 兜底从 permission 改成 unknown，「认不出来」不再等于
+//   「没权限」；workspaceOwnership —— 「属主不一致」这一档的唯一判断，两票共用。
 //   另外 #994 在流程最前面加了「工作区 git 可用性」探测：属主不一致时补一条 safe.directory
 //   再重试一次，仍然不行才报错 —— 不再让问题推迟到 git add 才炸。
-import { makeCreateErrorClassifier, KIND_UNKNOWN } from '../tracker/rooms/github/init-project-error-kinds.js'
+// 2026-10-14（票 #1161）：这两件从前是本文件直接 import 房间实现拿的。宿主侧不许再深引房间
+//   （规则 rooms-imported-only-by-assembly），改由调用方（index.js）经装配点 src/tracker/registry/builtins.ts
+//   取到后注入：deps.makeCreateErrorClassifier 与 deps.KIND_UNKNOWN。
 import { isOwnershipMismatch, ownershipPathFrom, safeDirectoryCommand } from '../tracker/detection/workspace-ownership.js'
 
 export function createPublishFlow(deps) {
-  const { DEFAULT_CWD, resolveGit, resolveGh, getGhLastError, runGh, execProc, canonicalKey, getRepoKey, repoKeys, repoRoots, setCache, logCtx } = deps
+  const { DEFAULT_CWD, resolveGit, resolveGh, getGhLastError, runGh, execProc, canonicalKey, getRepoKey, repoKeys, repoRoots, setCache, logCtx, makeCreateErrorClassifier, KIND_UNKNOWN } = deps
   // #606：本文件里的外部命令全是 git，都属于「初始化仓库 / 推送」这条链，统一打上链名再往下传，
   //   这样日志里的 exec.run 行就能答出「这条命令是发布链起的」。
   const gitExec = function (argv, cwd) { return execProc(argv, cwd, 'publish') }
   // #993：分类器收进共享模块（两处调用方共用一份，见文件头 2026-10-10 注）。属主那一档由
   //   共享的 workspaceOwnership 判断，这里只把判断函数注入进去。
+  // #1161：分类器本身由调用方从装配点取来注入（见文件头 2026-10-14 注）。
   const classifyCreateError = makeCreateErrorClassifier({ isOwnership: isOwnershipMismatch })
 
   // ============ #994：动手前的「工作区 git 可用性」探测与属主自愈 ============

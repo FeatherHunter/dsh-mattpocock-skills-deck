@@ -1,7 +1,15 @@
 // src/host/issueDetail.js —— 单详情与快照拼装（H2 #446 从 host/index.js 546–840 搬出，纯结构、行为零变化）。
 // 以后谁改它：改详情查询字段（GraphQL/REST 双通道）或快照拼装结构的人。预估约 330 行，超 350 打回。
-// 接线：由 index.js 动态 import 加载；执行器/注册表/解析函数等 18 项依赖全显式注入；本文件不引用其他新文件。
-import { pullStateOf } from '../tracker/rooms/github/normalize.js'
+// 接线：由 index.js 动态 import 加载；执行器/注册表/解析函数等 18 项依赖全显式注入；本文件除装配点
+//   （src/tracker/registry/builtins.ts，见下方 githubRoom）外不引用其他新文件。
+// #1161：从前这里是 `import { pullStateOf } from '../tracker/rooms/github/normalize.js'` —— 宿主直接深引
+//   房间实现。宿主侧不许再这样引（规则 rooms-imported-only-by-assembly），改经装配点从 github 房公开面取。
+//   懒加载一次、之后复用同一个 Promise：房间在插件启动时已由装配点加载过，这里不会多花一次加载。
+let _ghRoomP = null
+function githubRoom() {
+  if (!_ghRoomP) _ghRoomP = import('../tracker/registry/builtins.js').then(function (m) { return m.loadBuiltinRoom('github') })
+  return _ghRoomP
+}
 
 export function createIssueDetail(deps) {
   const { getRepoKey, runGh, execProc, getTrackerRegistry, getPlatform, getDetectionService } = deps
@@ -73,8 +81,9 @@ export function createIssueDetail(deps) {
             blockedBy.nodes = arr.map(function (b) { return { number: b.number != null ? b.number : b.id, title: b.title || '', state: (String(b.state).toLowerCase()==='closed' ? 'CLOSED' : 'OPEN') } })
           }
         } catch (e) {}
+        const ghRoom = await githubRoom()
         const mapped = {
-          number: issue.number, title: issue.title, state: pullStateOf(issue),
+          number: issue.number, title: issue.title, state: ghRoom.pullStateOf(issue),
           body: issue.body || '', url: issue.html_url || ('https://github.com/' + repo.owner + '/' + repo.name + (isPR ? '/pull/' : '/issues/') + n),
           updatedAt: issue.updated_at, createdAt: issue.created_at, closedAt: issue.closed_at,
           author: (issue.user && issue.user.login) ? { login: issue.user.login, name: (issue.user.name || ''), avatarUrl: (issue.user.avatar_url || '') } : undefined,
@@ -108,7 +117,8 @@ export function createIssueDetail(deps) {
           if (!pr) return { miss: true }
           pr.isPullRequest = true; pr.subIssues = { totalCount: 0, nodes: [] }; pr.blockedBy = { nodes: [] }; pr.blocking = { nodes: [] }
           // #599：已合并的拉取请求在 GitHub 那边 state=MERGED，这里收成契约的已关闭（与列表同一条规则）
-          pr.state = pullStateOf(pr)
+          const ghRoom = await githubRoom()
+          pr.state = ghRoom.pullStateOf(pr)
           return { found: true, issue: pr }
         } catch (e) { return { miss: true } }
       }

@@ -54,33 +54,13 @@ export function createPlatformChannel(deps) {
           //   src/tracker/registry/core.ts 的缺省值（缺省 30 秒，见那份文件里的 MATCHES_TIMEOUT_MS）。
           //   两处各写各的，就会出现「改了一处、另一处照旧」。门禁见 tests/verify-1109-matches-timeout.ts。
           const reg = createRegistry(backendCtxForRooms)
-          // 注册内置后端（github/markdown/gitlab），失败忽略（保持可用）
-          try {
-            const ghMod = await import('../tracker/rooms/github/index.js')
-            const m = ghMod.githubModule || ghMod.defaultModule || ghMod.default
-            if (m && m.id) try { reg.register(m) } catch {}
-          } catch {}
-          try {
-            const mdMod = await import('../tracker/rooms/markdown/index.js')
-            // #230（D10）修复 2026-08-28：必须注册【完整模块】——markdownModule 携带 setupPrompt 键表（locale 键名），
-            //   wf.registry 原样转发到 st.backendModules，setupRunPrompt 按它取 markdown 模板文案（"本地 Markdown 模板…"）。
-            //   此前 host 重新拼装只保留 id/label/presentation/create/matches，setupPrompt 丢失 → 弹窗选 markdown 后
-            //   注入的 setup 提示词落入缺省键组（GitHub 模板，谎称"已按默认 GitHub 初始化"），导致错误地生成 GitHub 主锚。
-            const fullMdModule = mdMod.markdownModule || null
-            let mdModule = fullMdModule
-            if (!mdModule) {
-              const mkCreate = mdMod.createMarkdownBackend || mdMod.createBackend || mdMod.default
-              const mkMatches = mdMod.matches
-              const mdPresentation = mdMod.markdownModule?.presentation || mdMod.presentation
-              mdModule = mkCreate ? { id: 'markdown', label: 'Markdown', presentation: mdPresentation || { color: '#1a7f37' }, create: mkCreate, matches: mkMatches || (async()=>false) } : null
-            }
-            if (mdModule) try { reg.register(mdModule) } catch {}
-          } catch {}
-          try {
-            const glMod = await import('../tracker/rooms/gitlab/index.js')
-            const m2 = glMod.gitlabBackend || glMod.default
-            if (m2 && m2.id) try { reg.register(m2) } catch {}
-          } catch {}
+          // 注册内置后端（github → gitlab → markdown）：「有哪几个内置房间」的唯一出处是装配点
+          //   src/tracker/registry/builtins.ts（#1161）。这里只消费装配结果，不再认识任何具体房间。
+          //   逐间加载失败已在装配点里吞掉（一间房坏掉不拖累其余两间），注册失败照旧忽略以保持可用。
+          //   #230（D10）那条教训（markdown 必须整份注册，否则 setupPrompt 丢失）已写进装配点，别再搬回来。
+          const builtinsMod = await import('../tracker/registry/builtins.js')
+          const builtinModules = await builtinsMod.loadBuiltinBackendModules()
+          for (const m of builtinModules) try { reg.register(m) } catch {}
           _trackerRegistry = reg
           try { ctx.set && ctx.set('trackerRegistry', reg) } catch {}
           return reg

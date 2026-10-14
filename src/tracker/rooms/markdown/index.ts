@@ -291,6 +291,10 @@ export const fixes = Object.freeze({
   },
 })
 
+// 装配点转出的宿主侧遗留件（#1161）：远程判定（remotePredicates）今天还需要本地图谱解析这一件，
+// 宿主不许再直接深引房间实现，只能经装配点 src/tracker/registry/builtins.ts 从这里取。
+export { parseMd } from './parse.js'
+
 export const markdownModule = {
   id: 'markdown',
   label: 'Markdown',
