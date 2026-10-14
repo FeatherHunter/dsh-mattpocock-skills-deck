@@ -251,15 +251,18 @@ async function main() {
     check((partial.items || []).some((i) => i.landing && i.landing.indexOf('做不到') >= 0) || (partial.items || []).some((i) => String(i.reason || i.evidence || '').indexOf('not-found') >= 0), '做不到的那一条逐项写在 items 里：' + JSON.stringify((partial.items || [])[0]))
   }
 
-  // ── ⑦ deck_issue_patch：改一张票（评论 + 标签 + 关闭；负向：后端做不到认领） ──
+  // ── ⑦ deck_issue_patch：改一张票（评论 + 标签 + 关闭 + 认领） ──
   {
     const r = await callTool('deck_issue_patch', { key: createdKey, comment: '这一条是工具发的评论', addLabels: ['wayfinder:research'], close: true })
     check(envelopeOk(r), 'deck_issue_patch 正例：回三态之一（实得 ' + (r && r.status) + '）')
     check((r.items || []).some((i) => i.step === 'comment' && i.status === 'ok'), 'deck_issue_patch 评论那一步成了：' + JSON.stringify(r.items))
     check((r.items || []).some((i) => i.step === 'close' && i.status === 'ok'), 'deck_issue_patch 关闭那一步成了')
+    // 认领这一步在 #1174 之前是「本地 Markdown 做不到」的负向例子：它只把状态改成 claimed，
+    // 不记认领人，回读只能拿 @me 占位，所以工具层只能回 partial。现在本地房把名字写进票面、
+    // 原样读回，这一步就该如实成功——这条断言跟着产品决定改了方向，不是放松检查。
     const assign = await callTool('deck_issue_patch', { key: createdKey, comment: '再来一条评论', assignees: ['someone'] })
-    check(envelopeOk(assign) && assign.status === 'partial', '✗ 负向：本地 Markdown 只改状态不记认领人 → 评论成了、认领没成，回 partial（实得 ' + (assign && assign.status) + '）')
-    check((assign.items || []).some((i) => i.step === 'assignees' && i.status === 'failed' && String(i.reason).indexOf('没记认领人') >= 0), '认领那一步如实说了「只改了状态、没记认领人」：' + JSON.stringify((assign.items || []).filter((i) => i.step === 'assignees')[0]))
+    check(envelopeOk(assign) && assign.status === 'ok', '认领在本地 Markdown 上真能做成，回 ok（实得 ' + (assign && assign.status) + '）')
+    check((assign.items || []).some((i) => i.step === 'assignees' && i.status === 'ok' && (i.assignees || []).indexOf('someone') >= 0), '认领那一步带回了写进去的名字：' + JSON.stringify((assign.items || []).filter((i) => i.step === 'assignees')[0]))
     const nothing = await callTool('deck_issue_patch', { key: createdKey })
     check(nothing.ok === false && nothing.reason === 'bad-args', 'deck_issue_patch 负向：什么都没点名 → bad-args，不抛')
   }
