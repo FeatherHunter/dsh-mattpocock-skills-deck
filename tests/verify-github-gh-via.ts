@@ -18,6 +18,7 @@
 // 它不判写路径与关系边那两片（#1053、#1054）：那里 via 是可选的，谁动到谁补，口径与附录一致。
 
 import { readFileSync } from 'node:fs'
+import { ghClient } from '../src/tracker/rooms/github/client.ts'
 
 const HERE = 'tests/verify-github-gh-via.ts'
 const CLIENT = 'src/tracker/rooms/github/client.ts'
@@ -254,6 +255,54 @@ const templated = `execGh(['api', \x60repos/\${o}/\${n}/issues?page=\${p}\x60], 
 check(tagOf(templated, CALL_AT) === 'list.rest',
   '解析器认得选项对象里带模板串的调用点（模板里的花括号不许把对象读断）')
 check(tagOf("execGh(args, { cwd: cwd /* 说明（父边） */, via: 'get.gql' })", CALL_AT) === 'get.gql', '解析器认得选项对象里带注释的调用点')
+
+console.log('== 六、真跑一段：标签确实落进了 gh.exec 那一行（不是只写在调用点上） ==')
+// 为什么这一段必须有：上面五节读的是源码文本，只能证明「调用点写了标签」。
+// 标签要真落进日志那一行，还得管子通、发射处认它。这一段用一个假执行器把这一笔跑完，
+// 收下来的事件与真跑读路径时落盘的是同一条路（同一个 emitGhExec、同一份字段）。
+const EVENT_LOG: Array<{ level: string; event: string; fields: Record<string, unknown> }> = []
+const FAKE_CTX = {
+  cwd: 'D:\\fake-workspace',
+  signal: new AbortController().signal,
+  platform: {
+    resolveExecutable: () => 'gh',
+    exec: async () => ({ stdout: '[]', stderr: '', code: 0 }),
+  },
+  logEvent: (level: string, event: string, fields: Record<string, unknown>) => { EVENT_LOG.push({ level, event, fields }) },
+  isEnabled: (level: string) => level === 'info',
+  memo: new Map(),
+} as never
+
+const CLIENT_FOR_RUN = ghClient(FAKE_CTX)
+const runs = [
+  { tag: 'counts.gql', args: ['api', 'graphql', '-f', 'query=query{}'], out: '{"data":{"repository":{"issues":{"totalCount":3}}}}' },
+  { tag: 'list.rest', args: ['api', 'repos/o/n/issues?state=all&per_page=100&page=1'], out: '[]' },
+]
+let runOk = true
+for (const r of runs) {
+  EVENT_LOG.length = 0
+  const res = await CLIENT_FOR_RUN.execGh(r.args, { cwd: 'D:\\fake-workspace', timeout: 2000, via: r.tag })
+  const ghEvents = EVENT_LOG.filter((e) => e.event === 'gh.exec')
+  if (!res.ok || ghEvents.length !== 1) { runOk = false; check(false, '用 via=' + r.tag + ' 跑一笔：应当成功且只落一行 gh.exec（实得 ok=' + res.ok + '、行数 ' + ghEvents.length + '）'); continue }
+  const f = ghEvents[0].fields
+  check(f.via === r.tag, '真跑一笔：gh.exec 的 via 就是 ' + r.tag + '（实得 ' + JSON.stringify(f.via) + '）')
+  check(JSON.stringify(Object.keys(f).sort()) === JSON.stringify(['argv0', 'cwdHash', 'exitCode', 'kind', 'latencyMs', 'via', 'waitedMs']),
+    '真跑一笔：gh.exec 的字段恰好是登记的那七格（实得 ' + Object.keys(f).sort().join('、') + '）')
+  check(f.exitCode === 0 && f.kind === 'ok', '真跑一笔：成功这一笔记的是退出码 0 与 kind=ok')
+}
+// 不给标签的调用点：照旧落一行，via 记空串（不是「这一格没写」，而是如实说没给）。
+EVENT_LOG.length = 0
+await CLIENT_FOR_RUN.execGh(['api', 'user'], { cwd: 'D:\\fake-workspace', timeout: 2000 })
+const noTag = EVENT_LOG.filter((e) => e.event === 'gh.exec')
+check(noTag.length === 1 && noTag[0].fields.via === '', '不给标签的调用点照样落一行，via 记空串（行为与从前一字不差）')
+// 两笔不同的读落在同一份事件流里，靠 via 分得开 —— 这正是加这一格要解决的问题。
+EVENT_LOG.length = 0
+await CLIENT_FOR_RUN.execGh(['api', 'graphql', '-f', 'query=query{}'], { cwd: 'D:\\fake-workspace', timeout: 2000, via: 'counts.gql' })
+await CLIENT_FOR_RUN.execGh(['api', 'repos/o/n/issues'], { cwd: 'D:\\fake-workspace', timeout: 2000, via: 'list.rest' })
+const both = EVENT_LOG.filter((e) => e.event === 'gh.exec').map((e) => String(e.fields.via))
+check(both.length === 2 && both[0] === 'counts.gql' && both[1] === 'list.rest',
+  '两笔不同的读落在同一份事件流里，靠 via 分得出谁是谁（实得 ' + JSON.stringify(both) + '）')
+check(runOk, '上面每一笔都真的跑完了（没跑完的笔数会在这里露出来）')
 
 console.log('')
 if (failures) {
