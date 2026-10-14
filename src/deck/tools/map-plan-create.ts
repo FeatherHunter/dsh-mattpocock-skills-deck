@@ -15,7 +15,7 @@
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
 import { withCallScope } from '../shell/call-budget.js'
-import { createMemoryPlanStore, createFilePlanStore } from '../shell/plan-cursor.js'
+import { createMemoryPlanStore, createFilePlanStore, planCursorDir } from '../shell/plan-cursor.js'
 import { matchAnchor, isAnchorHit } from '../../shared/refresh/idempotency.js'
 import { applyParentEdge, applyBlockEdges, statusOfItems, childrenOf } from '../shell/edge-landing.js'
 import { ensureLabels, ensureBody, anchorKeyFor } from '../shell/minimal-spec.js'
@@ -77,11 +77,16 @@ type CapResult<T> = { ok: true; value: T } | { ok: false; timedOut?: true }
 function withCap<T>(promise: Promise<T> | T, ms: number): Promise<CapResult<T>> { return Promise.race([Promise.resolve(promise).then(function (v): CapResult<T> { return { ok: true, value: v } }, function (): CapResult<T> { return { ok: false } }), new Promise<CapResult<T>>(function (resolve) { setTimeout(function () { resolve({ ok: false, timedOut: true }) }, ms) })]) }
 const SANDBOX_TIMEOUT_MS = 5000; const STORE_TIMEOUT_MS = 10000
 
-/** 宿主的文件读写能力：每样都可能缺（缺了就不落盘），下面用它之前都先判过一次类型。 */
+/**
+ * 宿主的文件读写能力：每样都可能缺（缺了就不落盘），下面用它之前都先判过一次类型。
+ * 读写两样收的是 unknown 而不是路径串：宿主那份文件服务是目标形状（吃 resolve() 的产物），
+ * 老形状才收路径串，两条都从这一格过（见 storeIoFrom 里那一段）。
+ */
 type HostFs = {
-  readText?: (p: string) => unknown
-  writeText?: (p: string, t: string) => unknown
-  mkdir?: (p: string) => unknown
+  resolve?: (p: string, o?: unknown) => unknown
+  readText?: (p: unknown) => unknown
+  writeText?: (p: unknown, t: string) => unknown
+  mkdir?: (p: unknown) => unknown
 }
 
 /** 宿主能力袋：backendCtx 回的就是它（平台工具与文件读写）；缺哪样就退哪条老路。 */
@@ -105,10 +110,18 @@ function storeIoFrom(deps: DeckMapPlanCreateDeps, cwd: string | undefined) {
     const join = (platform.path && typeof platform.path.join === 'function')
       ? function (a: string, c: string) { return platform.path!.join(a, c) }
       : function (a: string, c: string) { return String(a).replace(/\\/g, '/') + '/' + c }
-    const dir = join(String(cwd || ''), '.dsh-mattskillsdeck-cache') + '/deck-plans'
+    const dir = planCursorDir(cwd, join)
+    // 读写前一律先 resolve：宿主那份文件服务是目标形状 —— readText / writeText 收的是 resolve() 的产物
+    // （{ targetKey, displayPath }），给裸路径串会被拒（docs/cache-and-diagnostics.md 第 7.1 节）。
+    // 这条老路（没有注入存储器、由本文件自建 IO）以前直接把路径串递过去，于是写盘每次都被拒、而拒掉是静默的
+    // ——回执照样说 durable:true（#1150 抓到的就是这一格）。没有 resolve 的老形状就原样传，行为不变。
+    const target = function (p: string) {
+      const rs = (fs as HostFs).resolve
+      return (typeof rs === 'function') ? Promise.resolve(rs(p)) : Promise.resolve(p)
+    }
     return {
-      readText: function (p: string) { return fs.readText!(p) },
-      writeText: function (p: string, t: string) { return fs.writeText!(p, t) },
+      readText: function (p: string) { return target(p).then(function (t) { return fs.readText!(t) }) },
+      writeText: function (p: string, t: string) { return target(p).then(function (x) { return fs.writeText!(x, t) }) },
       mkdir: (typeof fs.mkdir === 'function') ? function (p: string) { return fs.mkdir!(p) } : undefined,
       dir: dir,
     }
@@ -123,6 +136,14 @@ export interface DeckMapPlanCreateDeps {
   readonly [key: string]: unknown
   /** 宿主能力袋：文件读写与平台工具从这儿取（本地后端要把计划游标落盘）；回不来就按工作区目录自己拼一份。 */
   backendCtx?: () => HostBackendCtx
+  /**
+   * 计划游标存储器（#1150）。两种形状都收：
+   *   · 现成的一份（形状见下面 PlanStoreLike）：测试与别的宿主直接给；
+   *   · 按这次调用现造的工厂 `(info: { cwd, workspaceKey }) => store | null`：宿主接线走这条 —— 装配在进程
+   *     启动时只跑一次，那时还不知道这次调用落在哪个工作区，而游标按工作区分区（文件名里带工作区键），
+   *     所以由工厂在拿到工作区键之后现造一份。工厂回不来（缺文件能力）就退到本文件自建的那条路。
+   */
+  planStore?: unknown
   /** 沙箱许可策略：给工作区与会话，回这一轮的策略快照；两个值原样传，可能还没有。 */
   sandboxPolicyFor?: (arg: { cwd: string | undefined; sessionId: string | undefined }) => Promise<unknown>
   /** 时钟旁路：测试里换假时钟用，缺省 Date.now。 */
@@ -186,9 +207,17 @@ export function createDeckMapPlanCreate(deps?: DeckMapPlanCreateDeps) {
     const effortId = (a.effortId === undefined || a.effortId === null) ? '' : String(a.effortId).trim()
     if (effortId) repo.effortId = effortId
 
-    // d.planStore 在依赖袋里是 unknown（装配层塞进来的运行时对象，形状由 plan-cursor.ts 定）：两处读取各按
+    // d.planStore 在依赖袋里是 unknown（装配层塞进来的运行时对象，形状由 plan-cursor.ts 定）：读取各按
     // 纯类型断言收口 —— 读的还是同一格 d.planStore，取值表达式一字不动；形状不对就退到下面现建的文件游标。
-    let store: PlanStoreLike | null = (d.planStore && typeof (d.planStore as PlanStoreLike).load === 'function') ? (d.planStore as PlanStoreLike) : null
+    // #1150：注入的既可能是现成的一份，也可能是工厂（装配层那时还不知道这次调用落在哪个工作区）；
+    // 工厂抛错、或回的东西不成形，都按「没有注入」处理，往下走本文件自建的那条路。
+    let store: PlanStoreLike | null = null
+    try {
+      const injected = (typeof d.planStore === 'function')
+        ? (d.planStore as (info: { cwd: string | undefined; workspaceKey: unknown }) => unknown)({ cwd: s.cwd, workspaceKey: s.workspaceKey })
+        : d.planStore
+      store = (injected && typeof (injected as PlanStoreLike).load === 'function') ? (injected as PlanStoreLike) : null
+    } catch (eInjected) { store = null }
     if (!store) {
       const built = storeIoFrom(d, s.cwd)
       store = built ? createFilePlanStore<PlanState>({ io: built, dir: built.dir, workspaceKey: s.workspaceKey, now: nowFn }) : fallbackStore

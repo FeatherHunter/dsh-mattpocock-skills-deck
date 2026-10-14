@@ -23,6 +23,9 @@ import { createAttention, createFocusHandler } from './attention.js'
 // 工厂由 ../platform/deckToolsAssembly.js 一处读进来 —— 收在那一层是因为宿主层文件之间不许互引（同层引用门禁），
 // 宿主层里再读一次那七个文件就要新增 7 条同层边，本票不许。见那个文件的文件头与交付报告第 6 节。
 import { createDeckToolsForHost, DECK_TOOL_FILES, withCap } from '../../deck/registration/host-assemble.js'
+// #1150：批量建图的计划游标（中间态）要真落盘，存储器在这里造、随工具依赖注入。落盘目录与文件名约定
+// 都住在 plan-cursor.ts 里（planCursorDir / createFilePlanStore），不在这里另写一份。
+import { createFilePlanStore, planCursorDir } from '../../deck/shell/plan-cursor.js'
 // #1115：计时器口的唯一实现放在共享层（本文件原先自己写了一份，写法对但仍是第二份；六处调用点收成一份）。
 import { hostTimers } from '../../shared/host-timer/host-timers.js'
 // deck 工具前置三处的等待上限：保读数含一次远端读数（读档 12 秒加排队），给 15 秒；
@@ -304,7 +307,9 @@ export function createRefreshWiring(deps) {
   // registry（后端注册表，选后端走它的三级联）、budget 与 estimate/costInputFrom（额度与算账两件）、
   // handleFor（会话→注册表里绑过的真实句柄）、backendCtx（platform / fs / exec，exec 走 platformChannel
   // 的 detectionExec，也就是起进程那一层）、invalidate（写后作废那个工作区的快照缓存）、hourUsage（问账本）。
-  // planStore 没有注入：批量建图的中间态因此退回进程内存，工具会在返回值里如实说 durable:false。
+  // planStore（#1150）：把一个**落盘**的计划游标存储器注入批量建图工具，建一半断掉能靠它续跑。
+  // 注入的是工厂而不是现成的一份：本函数（宿主装配）在进程启动时只跑一次，那时还不知道这次调用落在哪个
+  // 工作区；而游标按工作区分区，两个工作区里的同名计划标识不能互相认成「上次建过」（认错了会跳过该建的票）。
   // 注意（2026-09-26）：loadDefineTool 固定给 null，走原生形状直接注册——照官方工具写法，插件不 import 框架包，
   // 注册纯数据对象；从前这里动态 import 自带副本，挂载后全部工具调用报 prepare undefined。
   // 退路输出与参数形状见 shared/deck-tools/agent-register.js（deckAgentOutputSchemaRaw）。
@@ -341,6 +346,37 @@ export function createRefreshWiring(deps) {
           logEvent: function (level, event, fields) { try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire(level, event, fields) } catch (e) {} },
           isEnabled: function (level) { try { return logCtx ? logCtx.isEnabled(level) : (level === 'error' || level === 'warn') } catch (e) { return level === 'error' || level === 'warn' } },
         }
+        /**
+         * #1150：批量建图的计划游标存储器，按这一次调用的工作区现造一份落盘的。
+         * 为什么现造：装配（上面这段）在进程启动时只跑一次，那时还不知道这次调用落在哪个工作区；
+         *   而游标按工作区分区（文件名里带工作区键），两个工作区里的同名计划标识不能互相认成「上次建过」。
+         * 为什么读写前先 resolve：宿主那份文件服务是目标形状 —— readText / writeText 收的是 resolve() 的
+         *   产物（{ targetKey, displayPath }），给裸路径串会被拒（docs/cache-and-diagnostics.md 第 7.1 节）。
+         *   目录不用谁来建：父目录由 writeText 递归创建，宿主那份文件服务没有 mkdir。
+         * 缺文件能力就回 null：工具那边退到按工作区自建的那条路或进程内存，并在回执里如实说 durable。
+         */
+        function planStoreFor(info) {
+          try {
+            const fsSvc = backendObj.fs
+            if (!fsSvc || typeof fsSvc.readText !== 'function' || typeof fsSvc.writeText !== 'function') return null
+            const cwd = String((info && info.cwd) || '')
+            if (!cwd) return null
+            const plat = backendObj.platform
+            const join = (plat && plat.path && typeof plat.path.join === 'function') ? plat.path.join : null
+            const target = function (p) {
+              return (typeof fsSvc.resolve === 'function') ? Promise.resolve(fsSvc.resolve(p)) : Promise.resolve(p)
+            }
+            return createFilePlanStore({
+              io: {
+                readText: function (p) { return target(p).then(function (t) { return fsSvc.readText(t) }) },
+                writeText: function (p, text) { return target(p).then(function (t) { return fsSvc.writeText(t, text) }) },
+              },
+              dir: planCursorDir(cwd, join),
+              workspaceKey: (info && info.workspaceKey) || '',
+              now: Date.now,
+            })
+          } catch (e) { return null }
+        }
         const built = createDeckToolsForHost({
           gate: gate,
           registry: registry,
@@ -359,6 +395,8 @@ export function createRefreshWiring(deps) {
           parseWorkspaceFile: parseWorkspaceFile,
           sandboxPolicyFor: createSandboxPolicyFor(d.ctx),
           backendCtx: function () { return backendObj },
+          // #1150：批量建图的计划游标落盘（按这次调用的工作区现造一份；看见 planStoreFor 上面那段注释）。
+          planStore: planStoreFor,
           // #1147 决策 10a：仓库标识补全（resolve 步）的等待上限毫秒数。壳缺席时取 8000，
           //   这里显式传入同一数值 —— 这个上限的值由装配层拥有，不再是壳里无人认领的缺省（行为零变化）。
           resolveTimeoutMs: 8000,

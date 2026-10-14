@@ -77,6 +77,20 @@ export function createMemoryPlanStore<T = PlanCursorState>(): PlanStore<T> {
 }
 
 /**
+ * 计划游标的落盘目录：工作区根下的 .dsh-mattskillsdeck-cache/deck-plans。
+ * 目录约定与文件名约定（下面 fileOf 里那一份）同住本文件：宿主接线（注入存储器的那一路）与工具自建 IO
+ * 那一路都用它，免得同一个约定在两地各写一遍、以后改一处漏一处。
+ * join 由调用方给（宿主平台的 path.join；不给就按 `/` 拼），宿主换平台分隔符也跟着走。
+ * 注意：本目录不用谁去建，父目录由宿主文件服务的 writeText 递归创建（docs/cache-and-diagnostics.md 第 7.1 节）。
+ */
+export function planCursorDir(cwd: unknown, join?: unknown): string {
+  const j = (typeof join === 'function') ? (join as (a: string, b: string) => string)
+    : function (a: string, b: string) { return a + '/' + b }
+  const base = String(cwd || '').replace(/\\/g, '/').replace(/\/+$/, '')
+  return j(j(base, '.dsh-mattskillsdeck-cache'), 'deck-plans')
+}
+
+/**
  * 落盘形态。io：{ readText(path), writeText(path, text), mkdir(path) }，
  * 读不到文件时 readText 应抛错或回空（都按“没有”处理）；缺任一即退化成内存形态。
  * dir：目录；workspaceKey：工作区键（隔离文件名）；now：取时间；ttlMs：过期毫秒数。
