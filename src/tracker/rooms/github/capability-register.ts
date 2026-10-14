@@ -1,7 +1,7 @@
 /**
  * src/tracker/rooms/github/capability-register.ts —— GitHub 后端对 25 条能力的回答（数据）
  *
- * 三类的判据、为什么写成联合、以及「运行时不读它」这条 G5 纪律，都写在
+ * 四类的判据、为什么写成联合、以及「运行时不读它」这条 G5 纪律，都写在
  * `src/tracker/contract/capability-answer.ts` 的文件头，这里不重复。
  *
  * ── 这份文件与谁是一对 ──────────────────────────────────────────────────────────
@@ -28,33 +28,33 @@ import type { CapabilityRegister } from '../../contract/capability-answer.js'
  */
 export const GITHUB_CAPABILITY_REGISTER = {
   // —— 操作 22 条：21 条真实现 ——
-  preflight: { kind: 'provided' },
-  list: { kind: 'provided' },
-  get: { kind: 'provided' },
-  getDependencies: { kind: 'provided' },
-  create: { kind: 'provided' },
-  close: { kind: 'provided' },
-  reopen: { kind: 'provided' },
-  comment: { kind: 'provided' },
-  update: { kind: 'provided' },
-  setLabels: { kind: 'provided' },
-  setAssignees: { kind: 'provided' },
-  setParent: { kind: 'provided' },
-  setBlockedBy: { kind: 'provided' },
-  getCurrentUser: { kind: 'provided' },
-  initProject: { kind: 'provided' },
-  listLabels: { kind: 'provided' },
-  setLabelColors: { kind: 'provided' },
-  counts: { kind: 'provided' },
-  listPage: { kind: 'provided' },
-  getRepoPermissions: { kind: 'provided' },
-  listSubIssues: { kind: 'provided' },
+  preflight: { tier: 'provided' },
+  list: { tier: 'provided' },
+  get: { tier: 'provided' },
+  getDependencies: { tier: 'provided' },
+  create: { tier: 'provided' },
+  close: { tier: 'provided' },
+  reopen: { tier: 'provided' },
+  comment: { tier: 'provided' },
+  update: { tier: 'provided' },
+  setLabels: { tier: 'provided' },
+  setAssignees: { tier: 'provided' },
+  setParent: { tier: 'provided' },
+  setBlockedBy: { tier: 'provided' },
+  getCurrentUser: { tier: 'provided' },
+  initProject: { tier: 'provided' },
+  listLabels: { tier: 'provided' },
+  setLabelColors: { tier: 'provided' },
+  counts: { tier: 'provided' },
+  listPage: { tier: 'provided' },
+  getRepoPermissions: { tier: 'provided' },
+  listSubIssues: { tier: 'provided' },
   // 唯一一条形态不合的：配色文件的读者在本地 Markdown 那边（颜色真源是工作区文件）；
   // GitHub 的颜色真源是仓库标签，放一份手改不算数的文件只会误导人。理由见 md 表的依据列。
-  ensureLabelColorsFile: { kind: 'unsupported', stubBy: 'registry' },
+  ensureLabelColorsFile: { tier: 'unsupported-by-design', stubBy: 'registry' },
 
   // —— 定位口 3 条：全部提供 ——
-  getRepoKey: { kind: 'provided' },
-  describe: { kind: 'provided' },
-  issueAddress: { kind: 'provided' },
+  getRepoKey: { tier: 'provided' },
+  describe: { tier: 'provided' },
+  issueAddress: { tier: 'provided' },
 } as const satisfies CapabilityRegister

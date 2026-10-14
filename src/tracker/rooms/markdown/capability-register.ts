@@ -31,48 +31,48 @@ import type { CapabilityRegister } from '../../contract/capability-answer.js'
  *  #1174 决策 2、决策 11③。 */
 export const MARKDOWN_CAPABILITY_REGISTER = {
   // —— 操作 22 条：15 条真提供（每种合法输入都对得上承诺）——
-  preflight: { kind: 'provided' },
-  list: { kind: 'provided' },
-  get: { kind: 'provided' },
-  create: { kind: 'provided' },
-  close: { kind: 'provided' },
-  reopen: { kind: 'provided' },
-  comment: { kind: 'provided' },
-  setLabels: { kind: 'provided' },
-  setAssignees: { kind: 'provided' },
-  setBlockedBy: { kind: 'provided' },
-  listLabels: { kind: 'provided' },
-  setLabelColors: { kind: 'provided' },
-  counts: { kind: 'provided' },
-  listPage: { kind: 'provided' },
-  ensureLabelColorsFile: { kind: 'provided' },
+  preflight: { tier: 'provided' },
+  list: { tier: 'provided' },
+  get: { tier: 'provided' },
+  create: { tier: 'provided' },
+  close: { tier: 'provided' },
+  reopen: { tier: 'provided' },
+  comment: { tier: 'provided' },
+  setLabels: { tier: 'provided' },
+  setAssignees: { tier: 'provided' },
+  setBlockedBy: { tier: 'provided' },
+  listLabels: { tier: 'provided' },
+  setLabelColors: { tier: 'provided' },
+  counts: { tier: 'provided' },
+  listPage: { tier: 'provided' },
+  ensureLabelColorsFile: { tier: 'provided' },
 
   // —— 操作 22 条：3 条做了但有对不上的输入（差在哪写在 gap 里，这是给人看的账）——
   getDependencies: {
-    kind: 'partial',
+    tier: 'partial',
     gap: '一次问多个编号（opts.keys）这一条不认：契约的返回形状只装得下一个编号的依赖关系，本后端的做法是如实回「不支持」，请逐个编号调用。单个编号的读取、以及两个方向（被谁阻塞、阻塞了谁）都正常。',
     ticket: '#1174',
   },
 
   update: {
-    kind: 'partial',
+    tier: 'partial',
     gap: '里程碑、以及「类型」以外的自定义字段不认：本地票文件里没有放这些的地方，传了就如实回「不支持」，不再静默丢掉然后回一句成功。标题、正文、标签照常。',
     ticket: '#1174',
   },
   setParent: {
-    kind: 'partial',
+    tier: 'partial',
     gap: '认在同一个工作单元里换父；父挂在别的工作单元时不认（本地是「目录即父子」，跨目录等于要搬文件），如实回「不支持」。这条限制从本地后端做出来那天就在，不是这次新加的。',
     ticket: '#1174',
   },
 
   // —— 操作 22 条：4 条明确不支持（后端自己在实例上补了显式桩）——
-  getCurrentUser: { kind: 'unsupported', stubBy: 'backend' },
-  initProject: { kind: 'unsupported', stubBy: 'backend' },
-  getRepoPermissions: { kind: 'unsupported', stubBy: 'backend' },
-  listSubIssues: { kind: 'unsupported', stubBy: 'backend' },
+  getCurrentUser: { tier: 'unsupported-by-design', stubBy: 'backend' },
+  initProject: { tier: 'unsupported-by-design', stubBy: 'backend' },
+  getRepoPermissions: { tier: 'unsupported-by-design', stubBy: 'backend' },
+  listSubIssues: { tier: 'unsupported-by-design', stubBy: 'backend' },
 
   // —— 定位口 3 条：全部提供；其中两条在模块对象上，getRepoKey 在实例上、答案恒为空 ——
-  getRepoKey: { kind: 'provided' },
-  describe: { kind: 'provided' },
-  issueAddress: { kind: 'provided' },
+  getRepoKey: { tier: 'provided' },
+  describe: { tier: 'provided' },
+  issueAddress: { tier: 'provided' },
 } as const satisfies CapabilityRegister

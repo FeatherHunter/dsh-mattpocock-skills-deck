@@ -195,7 +195,7 @@ async function main() {
       'S1-5 edge.write 记下这一趟的真实轨迹（' + JSON.stringify(w && w.fields) + '）')
     check(keysOf(w && w.fields) === 'added,kept,kind,latencyMs,ok,reason,removed,route', 'S1-6 edge.write 字段就是登记的那八个')
     const cy = lastOf(log, 'edge.cycle')
-    check(!!cy && cy.fields.verdict === 'ok' && cy.fields.blockers === 2 && cy.fields.nodes >= 3, 'S1-7 edge.cycle 记下结论与票数（' + JSON.stringify(cy && cy.fields) + '）')
+    check(!!cy && cy.fields.verdict === 'clear' && cy.fields.blockers === 2 && cy.fields.nodes >= 3, 'S1-7 edge.cycle 记下结论与票数（' + JSON.stringify(cy && cy.fields) + '）')
     check(keysOf(cy && cy.fields) === 'blockers,latencyMs,nodes,verdict', 'S1-8 edge.cycle 字段就是登记的那四个')
     const ro = lastOf(log, 'edge.roster')
     check(!!ro && ro.fields.source === 'roster' && ro.fields.complete === true, 'S1-9 edge.roster 记下来源是名册（' + JSON.stringify(ro && ro.fields) + '）')
@@ -281,7 +281,7 @@ async function main() {
     check(r.ok === false && String((r.error && r.error.kind) || '') === 'conflict', 'S9-1 反向边仍判 conflict（实得 ' + String((r.error && r.error.kind) || r.ok) + '）')
     check(state.posts.length === 0 && state.deletes.length === 0, 'S9-2 成环时不落任何边（POST ' + state.posts.length + ' / DELETE ' + state.deletes.length + '）')
     const cy = lastOf(log, 'edge.cycle')
-    check(!!cy && cy.fields.verdict === 'conflict', 'S9-3 edge.cycle 记下 conflict（' + JSON.stringify(cy && cy.fields) + '）')
+    check(!!cy && cy.fields.verdict === 'cycle', 'S9-3 edge.cycle 记下 cycle（' + JSON.stringify(cy && cy.fields) + '）')
   }
 
   // ── S10 关掉调试开关：三条按需事件一行不发，常驻那条照发 ──

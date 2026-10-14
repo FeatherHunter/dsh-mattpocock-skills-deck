@@ -16,7 +16,8 @@ import { fail } from '../../kernel/preflight.js'
 import { ghClient } from './client.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'
 import { getIssue, listIssues } from './issues.js'
-import { adjacencyFor, hasCycle } from './cycle-check.js'
+import { adjacencyFor, hasCycle, CYCLE_VERDICT } from './cycle-check.js'
+import type { CycleVerdict } from './cycle-check.js'
 import { markDirty } from './roster.js'
 import type { MemoContext } from './roster.js';
 import { normalizeIssue } from './normalize.js'
@@ -360,11 +361,12 @@ export async function getDependencies(repo: RepositoryRef, key: string, opts: De
 /**
  * 环检测的调试线（附录 1.5 节 #101 `edge.cycle`）：一趟一行，回答「这次查没查、拿什么查的、结论是什么」。
  * 只在调试开关打开时记（写一条阻塞边就可能查一次，属高频路径），字段全是枚举与计数：
- * verdict 结论（ok 没成环 / conflict 成环 / unknown 邻接关系没取到、这一趟按不成环放行）、
+ * verdict 结论（clear 没成环 / cycle 成环 / unchecked 邻接关系没取到、这一趟按不成环放行；
+ * 三个词只在 `cycle-check.ts` 的 `CYCLE_VERDICT` 里声明一次，#1180）、
  * nodes 邻接表里几张票、blockers 这一次拟写入几条阻塞边、latencyMs 查了多久。
  * 票号一个字都不记（哪张票在工具返回值与 gh.exec 的调用链里）。
  */
-function emitEdgeCycle(ctx: OpContext, verdict: string, nodes: number, blockers: number, t0: number): void {
+function emitEdgeCycle(ctx: OpContext, verdict: CycleVerdict, nodes: number, blockers: number, t0: number): void {
   try {
     if (!ctx || typeof ctx.isEnabled !== 'function' || ctx.isEnabled('debug') !== true || typeof ctx.logEvent !== 'function') return
     ctx.logEvent('debug', 'edge.cycle', { verdict: verdict, nodes: nodes, blockers: blockers, latencyMs: Date.now() - t0 })
@@ -374,23 +376,25 @@ function emitEdgeCycle(ctx: OpContext, verdict: string, nodes: number, blockers:
 /**
  * 成环检测：邻接关系名册优先（只定向重读脏票），缺席时退回整仓拉取；DFS 判环。
  * 返回三态而不是布尔：邻接关系没取到时这一趟其实没查成（老行为是当不成环放行），
- * 这个「没查成」必须能被日志看见，所以单列 unknown 一档（#1054 补日志）。
+ * 这个「没查成」必须能被日志看见，所以单列 `unchecked` 一档（#1054 补日志）。
+ * 三个取值一律写 `CYCLE_VERDICT.XXX`，不手写字符串（#1180）。
  */
-async function cycleVerdict(repo: RepositoryRef, key: string, blockers: unknown, ctx: MemoContext): Promise<'ok' | 'conflict' | 'unknown'> {
+async function cycleVerdict(repo: RepositoryRef, key: string, blockers: unknown, ctx: MemoContext): Promise<CycleVerdict> {
   const t0 = Date.now()
   const count = Array.isArray(blockers) ? blockers.length : 0
   try {
     const adj = await adjacencyFor(repo, ctx)
     if (!adj) {
-      emitEdgeCycle(ctx, 'unknown', 0, count, t0)
-      return 'unknown'
+      emitEdgeCycle(ctx, CYCLE_VERDICT.UNCHECKED, 0, count, t0)
+      return CYCLE_VERDICT.UNCHECKED
     }
     const cycle = hasCycle(adj, key, blockers)
-    emitEdgeCycle(ctx, cycle ? 'conflict' : 'ok', adj.size, count, t0)
-    return cycle ? 'conflict' : 'ok'
+    const verdict = cycle ? CYCLE_VERDICT.CYCLE : CYCLE_VERDICT.CLEAR
+    emitEdgeCycle(ctx, verdict, adj.size, count, t0)
+    return verdict
   } catch {
-    emitEdgeCycle(ctx, 'unknown', 0, count, t0)
-    return 'unknown'
+    emitEdgeCycle(ctx, CYCLE_VERDICT.UNCHECKED, 0, count, t0)
+    return CYCLE_VERDICT.UNCHECKED
   }
 }
 
@@ -435,7 +439,7 @@ async function setBlockedByInner(repo: RepositoryRef, key: string, blockers: str
     // 成环检测（写前，不落盘）
     const verdict = await cycleVerdict(repo, k, uniq, ctx)
     // 成环是本地拿读回来的邻接关系算出来的，还没有任何上游报错可交，原文就交调用方给的这份阻塞列表。
-    if (verdict === 'conflict') return fail(ERROR_KIND.CONFLICT, `conflict: cycle detected for ${k} -> [${uniq.join(',')}]`, blockers)
+    if (verdict === CYCLE_VERDICT.CYCLE) return fail(ERROR_KIND.CONFLICT, `conflict: cycle detected for ${k} -> [${uniq.join(',')}]`, blockers)
 
     const c = ghClient(ctx)
     // 读当前 blockedBy 做 diff（需额外 API：GitHub dependencies API）

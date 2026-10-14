@@ -1,7 +1,7 @@
 /**
  * src/tracker/rooms/gitlab/capability-register.ts —— GitLab 后端对 25 条能力的回答（数据）
  *
- * 三类的判据、为什么写成联合、以及「运行时不读它」这条 G5 纪律，都写在
+ * 四类的判据、为什么写成联合、以及「运行时不读它」这条 G5 纪律，都写在
  * `src/tracker/contract/capability-answer.ts` 的文件头，这里不重复。
  *
  * ── 这一家的账，本轮还清了 ─────────────────────────────────────────────────────
@@ -33,40 +33,40 @@ import type { CapabilityRegister } from '../../contract/capability-answer.js'
  */
 export const GITLAB_CAPABILITY_REGISTER = {
   // —— 操作 22 条：21 条真实现 ——
-  preflight: { kind: 'provided' },
-  list: { kind: 'provided' },
-  get: { kind: 'provided' },
-  getDependencies: { kind: 'provided' },
-  create: { kind: 'provided' },
-  close: { kind: 'provided' },
-  reopen: { kind: 'provided' },
-  comment: { kind: 'provided' },
-  update: { kind: 'provided' },
-  setLabels: { kind: 'provided' },
-  setAssignees: { kind: 'provided' },
-  setParent: { kind: 'provided' },
-  setBlockedBy: { kind: 'provided' },
+  preflight: { tier: 'provided' },
+  list: { tier: 'provided' },
+  get: { tier: 'provided' },
+  getDependencies: { tier: 'provided' },
+  create: { tier: 'provided' },
+  close: { tier: 'provided' },
+  reopen: { tier: 'provided' },
+  comment: { tier: 'provided' },
+  update: { tier: 'provided' },
+  setLabels: { tier: 'provided' },
+  setAssignees: { tier: 'provided' },
+  setParent: { tier: 'provided' },
+  setBlockedBy: { tier: 'provided' },
   // 本轮补的九条。
-  counts: { kind: 'provided' },
-  listPage: { kind: 'provided' },
-  listLabels: { kind: 'provided' },
-  setLabelColors: { kind: 'provided' },
-  getCurrentUser: { kind: 'provided' },
-  getRepoPermissions: { kind: 'provided' },
+  counts: { tier: 'provided' },
+  listPage: { tier: 'provided' },
+  listLabels: { tier: 'provided' },
+  setLabelColors: { tier: 'provided' },
+  getCurrentUser: { tier: 'provided' },
+  getRepoPermissions: { tier: 'provided' },
   // 这一条读的是本房 setParent 写下的 relates_to 平级链接，不是原生子票 ——
   // 「能读回来」这件事成立，但读回来的东西叫什么要看清，理由见 md 表与交接说明。
-  listSubIssues: { kind: 'provided' },
-  initProject: { kind: 'provided' },
+  listSubIssues: { tier: 'provided' },
+  initProject: { tier: 'provided' },
   // 唯一一条形态不合的，与 GitHub 那家是同一件事、同一把尺子：这条能力承诺的不只是
   // 「文件存在」，还有「改了算数」。GitLab 的颜色真源是远端仓库的标签，工作区里放一份
   // 文件没有任何读者，改了不算数 —— 硬做出来正好撞上契约那句禁止。这不是欠账：欠账是
   // 「形态成立、只是没做」，它连形态都不成立。理由见 md 表的依据列。
-  ensureLabelColorsFile: { kind: 'unsupported', stubBy: 'registry' },
+  ensureLabelColorsFile: { tier: 'unsupported-by-design', stubBy: 'registry' },
 
   // —— 定位口 3 条：全部提供 ——
   // getRepoKey 是这一轮补的第三条。定位口没有「我不支持」这种答案，注册表也不替它们补桩：
   // 问「这个仓库叫什么」，答案是名字或者空，空也是答案。
-  getRepoKey: { kind: 'provided' },
-  describe: { kind: 'provided' },
-  issueAddress: { kind: 'provided' },
+  getRepoKey: { tier: 'provided' },
+  describe: { tier: 'provided' },
+  issueAddress: { tier: 'provided' },
 } as const satisfies CapabilityRegister

@@ -108,3 +108,27 @@ export function hasCycle(adj: Map<string, Set<string>> | null | undefined, key: 
   for (const u of g.keys()) { if (dfs(u)) return true }
   return false
 }
+
+/**
+ * 写前那次成环检查的三态结论（#1180 定）。**这不是错误档位**：错误档位说的是「这次调用为什么失败」
+ * （`ERROR_KIND` 八档，真源 `src/tracker/contract/vocabulary.ts`），这个说的是「检查查出了什么」。
+ * 两轴要能一眼分开，所以词也分开：此前这三态是散在函数签名与返回值里的裸字符串
+ * `'ok' | 'conflict' | 'unknown'`，其中 `conflict` 与 `unknown` 都是错误档位那边的词，
+ * 而门禁 `tests/verify-error-single-source.ts` 只逐字看源码、看不到类型，分不出是谁的词。
+ *
+ * 三态的含义，以及拿到之后该怎么走：
+ *   - `clear`     —— 查过，不成环：放行，往下写；
+ *   - `cycle`     —— 查过，成环：**不落盘**，调用方把它翻成一条 `ERROR_KIND.CONFLICT` 的失败；
+ *   - `unchecked` —— 没查成（邻接关系取不到，或中途抛了）：按老行为放行，但那一行 `edge.cycle`
+ *     会如实记下 `unchecked` —— **「没看到环」不等于「没有环」**，这一格就是把这句话留在日志里。
+ *
+ * 取值只在下面这一处声明：类型由它推出来，调用点一律写 `CYCLE_VERDICT.XXX`，不再手写字符串。
+ */
+export const CYCLE_VERDICT = Object.freeze({
+  CLEAR: 'clear',
+  CYCLE: 'cycle',
+  UNCHECKED: 'unchecked',
+} as const)
+
+/** 三态的名字（从上面那张表取出来，不另抄一份词）。 */
+export type CycleVerdict = (typeof CYCLE_VERDICT)[keyof typeof CYCLE_VERDICT]
