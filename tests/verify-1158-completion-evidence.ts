@@ -230,6 +230,23 @@ console.log('戊）真仓里的挂接与登记')
   const shared = ['scripts/verify-chain.js', 'scripts/verify-parallel.mjs', 'scripts/verify-all.mjs']
   const wired = shared.filter((rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8').includes('judgeStepCompletion'))
   check(wired.length === shared.length, '三条执行器都从 tests/lib/gate-result.ts 取判据（' + wired.length + '/' + shared.length + '）')
+  // 第四条入口 test:smoke 不在三条执行器里：它今天一条已开闸的门禁都没有，所以判据在它那里无事可做。
+  // 这条断言把边界钉住 —— 将来有人给冒烟链上的门禁开闸，本门禁当场红，提示先给冒烟入口接上判据，
+  // 不许那条路静默漏掉（票面第四条验收要的就是四条入口行为一致）。
+  const smokeChain = String((pkg.scripts && pkg.scripts['test:smoke']) || '')
+  const smokeFiles = smokeChain
+    .split('&&')
+    .map((s) => s.trim())
+    .map((s) => {
+      const m = /tests\/\S+\.(js|mjs|cjs|ts|mts|cts)$/.exec(s)
+      return m ? m[0] : ''
+    })
+    .filter(Boolean)
+  const smokeOpened = smokeFiles.filter((f) => expectations.byFile.has(f))
+  check(
+    smokeOpened.length === 0,
+    'test:smoke 那 ' + smokeFiles.length + ' 条里没有已开闸的门禁（今天 0 扇；将来给它们开闸之前，得先给冒烟入口接上完成证据判据' + (smokeOpened.length ? '，现在已经有 ' + smokeOpened.join('、') : '') + '）',
+  )
   // 本门禁自己也要开闸：归属表里记的期望条数必须与本趟实际跑出来的条数一致。
   // 这条是「归属表不会悄悄过期」的保证 —— 以后往这里加断言、忘了改归属表，这里当场红。
   const mine = expectations.byFile.get(SELF)

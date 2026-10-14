@@ -57,7 +57,7 @@ export const COMPLETION_RECORDED_GATES = {
   'verify-log-selfmon': 27,
   'verify-settings-templates': 65,
   'verify-settings-view': 215,
-  'verify-1158-completion-evidence': 41,
+  'verify-1158-completion-evidence': 42,
 }
 
 /** 门禁名：文件名去扩展名。执行器判完成证据时按这个名字对，别在别处另起一套写法。 */
