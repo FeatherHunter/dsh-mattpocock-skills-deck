@@ -93,8 +93,16 @@ export function searchUrl(name) {
 
 export const linkPattern = /gitlab\.com\/[^\/\s]+\/[^\/\s]+\/-\/issues\/(\d+)/g
 
-/** #231：开仓契约动作——url 型由 UI 以浏览器新窗打开 describe().url。 */
-export const openRepository = 'url'
+/**
+ * #231：开仓契约动作——url 型由 UI 以浏览器新窗打开 describe().url。
+ *
+ * 为什么这里**不写 export**（#1139 收口那天改的）：界面拿到的那份数据来自模块对象（下面的
+ * gitlabBackend），不是这个文件的命名空间；本文件里读它的只有同一份模块对象，房外零读者。
+ * 留一个 `export` 在这里，下一个人就会以为「文件级导出已经声明过了，够了」——#620 的 GitHub
+ * 与 #1117 的 GitLab 都是这么漏掉的（当时两边的门禁快照只认模块对象上的键，看不到文件级导出）。
+ * 所以要加声明就往模块对象上加，别在这里开口子。
+ */
+const openRepository = 'url'
 
 /** #231：client 渲染模板数据（UI-lane 只读）。 */
 export const links = {
@@ -236,11 +244,12 @@ export const gitlabBackend = {
   linkPattern,
   links,
   // 开仓方式（#231 的开仓契约动作）：'url' = 界面用浏览器新窗打开 describe().url。
-  // 2026-10-14 补（#1117）：这个值原来只以文件级导出的形式存在（本文件顶上的 export const openRepository），
-  //   没有挂进注册表真正读的那个模块对象 —— 注册表只在模块对象上有这个字段时才转发它，于是界面按
-  //   「后端自己声明的开仓动作」分套的那处（src/client/views/labels/labelColorErrors.js 的 lcCopyPlanOf）
-  //   把 GitLab 归到「没读到开仓动作」那一套。这跟 #620 给 GitHub 修掉的是同一处形状（那边补完把理由
-  //   记在 src/tracker/rooms/github/index.ts），所以这里补上同一个值；契约里这个成员本来就是可选的。
+  // 2026-10-14 补（#1117）：这个值原来只以文件级导出（本文件上面的 const openRepository）的形式
+  //   存在，没有挂进模块对象。宿主把模块对象变成「发给界面的那份数据」时只挑模块对象上的字段
+  //   （那段挑选今天收在 src/tracker/ui-description.ts 一处，见 #1139），文件级导出到不了界面：
+  //   按「后端自己声明的开仓动作」分套的那处（src/client/views/labels/labelColorErrors.js 的
+  //   lcCopyPlanOf）于是把 GitLab 归到「没读到开仓动作」那一套。这跟 #620 给 GitHub 修掉的是同一处
+  //   形状，所以这里挂上同一个值；契约里这个成员本来就是可选的。
   openRepository,
   // #191：品牌色完整色板（B 方案定版 · #177）
   presentation: {

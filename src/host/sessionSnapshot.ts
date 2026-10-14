@@ -4,6 +4,8 @@
 // #723（T19）：信封组装（字段清单与落盘那一步的日志）搬到了同目录的 ./snapshotEnvelope.js —— 这个文件
 // 贴着 350 行上限，要让出位置把「每个会话在处理哪些票」的读数挂到快照回包上（票面 3e）。搬的时候只搬不改。
 import { createSnapshotEnvelope } from './snapshotEnvelope.js'
+// #1139：界面描述（发给界面的那份后端数据）的投影只有一处实现，本文件不再自己挑字段。
+import { projectUiDescription } from '../tracker/ui-description.js'
 
 // 以后谁改它：改快照缓存短路或快照组装的人。预估约340行，超 350 打回。
 // 接线：由 index.js 动态 import 加载；早选判据由 index 从启停模块转供给；本文件不引用其他新文件。
@@ -23,7 +25,7 @@ export function createSessionSnapshot(deps) {
     try {
       const regM = await getTrackerRegistry()
       if (regM && typeof regM.modules === 'function') {
-        return regM.modules().map(function (m) { return Object.assign({ id: m.id, label: m.label, presentation: m.presentation }, m.links ? { links: m.links } : {}, m.capabilities ? { capabilities: m.capabilities } : {}, m.prompts ? { prompts: m.prompts } : {}, m.setupPrompt ? { setupPrompt: m.setupPrompt } : {}, m.labelPalette ? { labelPalette: m.labelPalette } : {}, m.openRepository ? { openRepository: m.openRepository } : {}) })
+        return regM.modules().map(projectUiDescription)
       }
     } catch (e) {}
     return null
@@ -162,7 +164,7 @@ export function createSessionSnapshot(deps) {
           try {
             const regM = await getTrackerRegistry()
             if (regM && typeof regM.modules === 'function') {
-              backendModules = regM.modules().map(function(m){ return Object.assign({id:m.id,label:m.label,presentation:m.presentation}, m.links?{links:m.links}:{}, m.capabilities?{capabilities:m.capabilities}:{}, m.prompts?{prompts:m.prompts}:{}, m.setupPrompt?{setupPrompt:m.setupPrompt}:{}, m.labelPalette?{labelPalette:m.labelPalette}:{}, m.openRepository?{openRepository:m.openRepository}:{}) })
+              backendModules = regM.modules().map(projectUiDescription)
             }
           } catch {}
           // B: 补全标签全量（只有本地 Markdown 后端这一段）：没用过的标签也常驻，色取后端自报的内置默认色表 labelPalette（即 backends/markdown/index.js 的 defaultLabelPalette 那 11 枚）；已用标签的颜色已是宿主按工作区配色文件 docs/agents/label-colors.json 算好的票面最终色，这里只补缺、不覆盖（#618：旧的 docs/agents/triage-labels.md 调色盘表不再参与）
@@ -221,7 +223,7 @@ export function createSessionSnapshot(deps) {
           try {
             const regM = await getTrackerRegistry()
             if (regM && typeof regM.modules === 'function') {
-              backendModules = regM.modules().map(function(m){ return Object.assign({id:m.id,label:m.label,presentation:m.presentation}, m.links?{links:m.links}:{}, m.capabilities?{capabilities:m.capabilities}:{}, m.prompts?{prompts:m.prompts}:{}, m.setupPrompt?{setupPrompt:m.setupPrompt}:{}, m.labelPalette?{labelPalette:m.labelPalette}:{}, m.openRepository?{openRepository:m.openRepository}:{}) })
+              backendModules = regM.modules().map(projectUiDescription)
             }
           } catch {}
           const snap = buildSnap({
@@ -249,7 +251,7 @@ export function createSessionSnapshot(deps) {
             try {
               const regMNo = await getTrackerRegistry()
               if (regMNo && typeof regMNo.modules === 'function') {
-                backendModulesNoRepo = regMNo.modules().map(function(m){ return Object.assign({id:m.id,label:m.label,presentation:m.presentation}, m.links?{links:m.links}:{}, m.capabilities?{capabilities:m.capabilities}:{}, m.prompts?{prompts:m.prompts}:{}, m.setupPrompt?{setupPrompt:m.setupPrompt}:{}, m.labelPalette?{labelPalette:m.labelPalette}:{}, m.openRepository?{openRepository:m.openRepository}:{}) })
+                backendModulesNoRepo = regMNo.modules().map(projectUiDescription)
               }
             } catch {}
             const _selNoRepo = (typeof _sel !== 'undefined' ? _sel : (typeof _selEarly !== 'undefined' ? _selEarly : null))
@@ -318,7 +320,7 @@ export function createSessionSnapshot(deps) {
         try {
           const regM2 = await getTrackerRegistry()
           if (regM2 && typeof regM2.modules === 'function') {
-            backendModules2 = regM2.modules().map(function(m){ return Object.assign({id:m.id,label:m.label,presentation:m.presentation}, m.links?{links:m.links}:{}, m.capabilities?{capabilities:m.capabilities}:{}, m.prompts?{prompts:m.prompts}:{}, m.setupPrompt?{setupPrompt:m.setupPrompt}:{}, m.labelPalette?{labelPalette:m.labelPalette}:{}, m.openRepository?{openRepository:m.openRepository}:{}) })
+            backendModules2 = regM2.modules().map(projectUiDescription)
           }
         } catch {}
         const repoRoot2 = await getRepoRoot(cwd)

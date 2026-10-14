@@ -30,8 +30,10 @@
 //   六、反面证明：现拼一个缺 `matches` 的假后端，拿同一套严格开关编它，必须编不过、
 //       且报错里点名 `matches`。这条验的是「探针不是摆设」——它断得了缺少成员，真后端
 //       哪天丢了一个必填，探针一定红。
-//   七、运行时腿：把三个后端模块对象真加载起来，断三件事——`openRepository` 只能是
-//       `'url'` / `'folder'` / 不声明（静态探针断不了被加宽的字面量，这里断真值）；
+//   七、运行时腿：把三个后端模块对象真加载起来，断三件事——`openRepository` 必须是
+//       `'url'` 或 `'folder'`：内置三家一律要声明（契约里那个成员对第三方后端仍可选）。
+//       这条口径是 #1139 收紧的：旧写法把「不声明」也算合法，那道口子正是 #1117 能长期躲在绿里的
+//       地方（值只挂在文件级导出上、模块对象上没有该键时，界面把内置后端当成「没读到开仓动作」）；
 //       `checks` 的种类如实记录（数组 / 函数 / 不声明）；模块对象的键集合必须与本文件
 //       记的快照逐字相等（加一个成员、删一个成员，都先回答「契约里有没有它」再登记）。
 //
@@ -525,14 +527,16 @@ function main() {
           const want = RUNTIME_SNAPSHOTS[name]
           const got = snap[name]
           const keysOk = JSON.stringify(got.keys) === JSON.stringify(want.keys)
-          const repoOk = got.openRepository === undefined || got.openRepository === 'url' || got.openRepository === 'folder'
+          // #1139 起：内置三家必须声明。旧写法把「不声明」也算合法，那道口子正是 #1117 能长期存活的
+          // 地方——值只挂在文件级导出上时，模块对象上没有这个键，界面就把它读成「没读到开仓动作」。
+          const repoOk = got.openRepository === 'url' || got.openRepository === 'folder'
           const repoSame = got.openRepository === want.openRepository
           const kindSame = got.checksKind === want.checksKind
           check(
             keysOk && repoOk && repoSame && kindSame,
             name + ' 模块对象与快照一致（键 ' + got.keys.length + ' 个、openRepository=' + showRepo(got.openRepository) + '、checks=' + got.checksKind + ')' +
               (!keysOk ? '；键集合变了：先确认增减的成员有没有契约覆盖，确认后把新快照记进本门禁' : '') +
-              (!repoOk ? '；openRepository 不是 url/folder/不声明：判红' : '') +
+              (!repoOk ? '；openRepository 必须是 url 或 folder（内置三家一律要声明，可选只对第三方后端可选）：判红' : '') +
               (repoOk && !repoSame ? '；openRepository 真值变了（' + showRepo(want.openRepository) + '→' + showRepo(got.openRepository) + '）：确认后登记' : '') +
               (!kindSame ? '；checks 种类变了（' + want.checksKind + '→' + got.checksKind + '）：数组还是工厂的专票有结论了就按结论办，没结论先登记' : ''),
           )

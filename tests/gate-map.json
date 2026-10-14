@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-14T04:27:32.381Z",
+  "generatedAt": "2026-10-14T04:44:42.629Z",
   "generatedBy": "node scripts/gate-map.mjs",
-  "chainLength": 238,
-  "gateCount": 238,
-  "attributedGates": 210,
+  "chainLength": 239,
+  "gateCount": 239,
+  "attributedGates": 211,
   "unattributedGates": 28,
   "buildOutputOnlyGates": 20,
   "graphFileCount": 525,
@@ -1408,17 +1408,19 @@
         "src/client/kernel/locale-word.js",
         "src/client/kernel/locale.js",
         "src/client/kernel/prompts.js",
-        "src/host/workspaceCwd.js"
+        "src/host/workspaceCwd.js",
+        "src/tracker/ui-description.ts"
       ],
       "dirs": [
         "package/lib",
         "src/client",
         "src/client/kernel",
-        "src/host"
+        "src/host",
+        "src/tracker"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 8 条；源码里的路径字面量 5 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 9 条；源码里的路径字面量 5 条"
     },
     {
       "step": "node tests/verify-client-hardcode-gate.js",
@@ -3201,6 +3203,7 @@
       "guards": [
         "docs/agents",
         "docs/agents/issue-tracker.md",
+        "src",
         "src/host/choiceStore.js",
         "src/host/sessionSnapshot.ts",
         "src/host/workspaceCwd.js",
@@ -3213,6 +3216,7 @@
       ],
       "dirs": [
         "docs/agents",
+        "src",
         "src/host",
         "src/tracker/detection",
         "src/tracker/registry",
@@ -3220,7 +3224,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；静态 import 说明符 1 条；源码里的路径字面量 8 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；静态 import 说明符 1 条；源码里的路径字面量 8 条"
     },
     {
       "step": "node tests/verify-685-healthcheck-button.js",
@@ -4477,6 +4481,26 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
     },
     {
+      "step": "node tests/verify-ui-description-single-source.ts",
+      "file": "tests/verify-ui-description-single-source.ts",
+      "guards": [
+        "src/host/sessionRefresh.ts",
+        "src/host/sessionSnapshot.ts",
+        "src/host/snapshotBuild.ts",
+        "src/host/workspaceCwd.js",
+        "src/tracker/rooms/gitlab/index.ts",
+        "src/tracker/ui-description.ts"
+      ],
+      "dirs": [
+        "src/host",
+        "src/tracker",
+        "src/tracker/rooms/gitlab"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 6 条）"
+    },
+    {
       "step": "node tests/verify-link-capabilities.ts",
       "file": "tests/verify-link-capabilities.ts",
       "guards": [
@@ -5167,6 +5191,7 @@
       "node tests/verify-file-granularity.js",
       "node tests/verify-strict-module-syntax.js",
       "node tests/verify-683-choice-rev.js",
+      "node tests/verify-683-host-wiring.js",
       "node tests/verify-gh-gateway.js",
       "node tests/verify-gate-map.js"
     ],
@@ -5494,6 +5519,7 @@
       "node tests/verify-config-store-comments.js",
       "node tests/verify-config-store-migration.js",
       "node tests/verify-config-store-package.js",
+      "node tests/verify-ui-description-single-source.ts",
       "node tests/verify-settings-phones.js",
       "node tests/verify-settings-view.js",
       "node tests/verify-settings-templates.js",
@@ -5718,6 +5744,7 @@
       "node tests/verify-build-artifacts.js",
       "node tests/verify-parse-leaf.js",
       "node tests/verify-labels-sync.js",
+      "node tests/verify-setup-describe.js",
       "node tests/verify-no-mixed-session.js",
       "node tests/verify-map-drill.js",
       "node tests/verify-992-readonly-labels.js",
@@ -5728,6 +5755,7 @@
       "node tests/verify-663-gh-install-inject.js",
       "node tests/verify-delta-patch.js",
       "node tests/verify-chain-view.js",
+      "node tests/verify-ui-description-single-source.ts",
       "node tests/verify-deck-slots.js",
       "node tests/verify-error-single-source.ts",
       "node tests/verify-error-rule-samples.ts",
@@ -5834,6 +5862,7 @@
       "node tests/verify-no-mixed-session.js",
       "node tests/verify-686-accept.js",
       "node tests/verify-gh-gateway.js",
+      "node tests/verify-ui-description-single-source.ts",
       "node tests/verify-link-capabilities.ts",
       "node tests/verify-error-raw-samples.ts",
       "node tests/verify-error-rule-samples.ts",

@@ -119,8 +119,13 @@ async function main() {
     stubs.push({ id: b, setupPrompt: keys })
   }
   // host wf.registry 转发（H5 #449：转发体随 handleRegistry 搬入 workspaceCwd.js，断言跟随代码，意图不变）
+  // #1139：这条回包不再自己挑字段——原来那句 `m.setupPrompt ? { setupPrompt: m.setupPrompt }` 已经收进
+  //   src/tracker/ui-description.ts 一处（四个宿主文件共用同一份投影）。要断的意图没变（setupPrompt 必须
+  //   能随回包到界面），所以改成断两件事：这条通道走那次统一投影，而那张字段表里有 setupPrompt。
   const hostSrc = fs.readFileSync(path.join(root, 'src/host/workspaceCwd.js'), 'utf8')
-  check(hostSrc.indexOf('m.setupPrompt ? { setupPrompt: m.setupPrompt }') >= 0, 'host wf.registry 转发 setupPrompt')
+  const fieldTableSrc = fs.readFileSync(path.join(root, 'src/tracker/ui-description.ts'), 'utf8')
+  check(hostSrc.indexOf('projectUiDescription') >= 0, 'host wf.registry 走统一的界面描述投影（projectUiDescription，#1139）')
+  check(fieldTableSrc.indexOf("'setupPrompt'") >= 0, '界面描述字段表里有 setupPrompt：wf.registry 转发它靠的是这张表（#1139）')
   // 快照镜像：locale 双语键一一成对存在（防单一语言漂移）
   const keyList = []
   for (const ns of ['github', 'markdown', 'gitlab', 'default']) for (const f of ['trackerLine', 'trackerChoice', 'backendNote', 'labelReqs']) keyList.push('setup.' + ns + '.' + f)

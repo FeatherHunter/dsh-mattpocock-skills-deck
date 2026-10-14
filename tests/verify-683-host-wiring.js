@@ -309,20 +309,35 @@ const snapSrc = read('src/host/sessionSnapshot.ts')
   const from2 = 'if (sameBackend && prevRev === nowRev && (sameLayout || !_layEarly)) return s'
   check(snapSrc.includes(from2), '反证 F2 的改法能在真源里落地（短路路永远返回缓存里那份、不带新选择）')
   if (snapSrc.includes(from2)) {
-    const broken2 = path.join(makeDir('dsh-683-broken2-'), 'sessionSnapshot.mjs')
-    fs.writeFileSync(broken2, snapSrc.replace(from2, 'return s'), 'utf8')
     // 这一组跑的是把源文件**复制到临时目录**再改坏的一份。复制过去的那一份，它 import 的兄弟文件
-    //   也在新目录里找 —— 所以兄弟文件必须一起带过去，否则这一组连求值都到不了，先在解析阶段就报
+    //   也在新目录里找 —— 所以那份 import 闭包必须一起带过去，否则这一组连求值都到不了，先在解析阶段就报
     //   ERR_MODULE_NOT_FOUND（那是夹具缺件，不是实现错）。
-    //   #723（T19）把快照电话拆了：信封组装搬到了同目录的 ./snapshotEnvelope.js，就是这一次踩到的。
-    //   按真源里那些相对 import 逐个带，以后谁再拆一次也不用回来改这里。
-    const siblingRe = /^[ \t]*import[^\n]*from[ \t]*['"](\.\/[^'"]+)['"]/gm
-    let sm
-    while ((sm = siblingRe.exec(snapSrc)) !== null) {
-      const fromPath = path.join(ROOT, 'src', 'host', sm[1].replace(/^\.\//, ''))
-      if (!fs.existsSync(fromPath)) continue
-      fs.copyFileSync(fromPath, path.join(path.dirname(broken2), path.basename(fromPath)))
+    //   #723（T19）把快照电话拆了：信封组装搬到了同目录的 ./snapshotEnvelope.js，就是那一次踩到的。
+    //   #1139 又从宿主跨目录引了 ../tracker/ui-description.js：所以这里改成按真源里**所有相对 import**
+    //   （./ 与 ../ 都算）连目录结构一起镜像到夹具目录，以后谁再拆一次、再跨一次目录，都不用回来改这段。
+    const mirror = makeDir('dsh-683-broken2-')
+    const mirrored = new Set()
+    const mirrorOne = function (relFromSrc) {
+      if (mirrored.has(relFromSrc)) return
+      mirrored.add(relFromSrc)
+      const fromPath = path.join(ROOT, 'src', relFromSrc)
+      if (!fs.existsSync(fromPath)) return
+      const toPath = path.join(mirror, relFromSrc)
+      fs.mkdirSync(path.dirname(toPath), { recursive: true })
+      fs.copyFileSync(fromPath, toPath)
+      const text = fs.readFileSync(fromPath, 'utf8')
+      const re = /^[ \t]*import\s+(?!type\b)[^\n]*from[ \t]*['"](\.\.?\/[^'"]+)['"]/gm
+      let im
+      while ((im = re.exec(text)) !== null) {
+        // 说明符写的是 .js，磁盘上住的常常是同名 .ts（ts-hook 的规则），两样都试一遍再镜像。
+        const joined = path.posix.normalize(path.posix.join(path.posix.dirname(relFromSrc), im[1]))
+        const cand = [joined.replace(/\.js$/, '.ts'), joined]
+        mirrorOne(cand.find(function (c) { return fs.existsSync(path.join(ROOT, 'src', c)) }) || joined)
+      }
     }
+    mirrorOne('host/sessionSnapshot.ts')
+    const broken2 = path.join(mirror, 'host', 'sessionSnapshot.mjs')
+    fs.writeFileSync(broken2, snapSrc.replace(from2, 'return s'), 'utf8')
     const mod2 = await import(pathToFileURL(broken2).href)
     const cached = { ok: true, generatedMs: 1, maps: [], issues: [], labels: [], selection: { backendId: 'github', source: 'auto' } }
     const cache = { ts: Date.now(), snapshot: cached, error: null, cwd: 'D:\\ws' }

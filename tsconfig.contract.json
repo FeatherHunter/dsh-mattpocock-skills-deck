@@ -35,6 +35,9 @@
     "src/tracker/identity-keys.ts",
     "src/tracker/label-names.ts",
     "src/tracker/fix-contract.ts",
+    // #1139：界面描述投影（字段表 + projectUiDescription）。与上面三份同一类——带运行时行为，
+    // 所以不住契约目录；它只从契约的 backend-module.ts 取类型，不会把没标注的旧语言文件拉进来。
+    "src/tracker/ui-description.ts",
     // #1111：判档规则表是这一票的核心模块，全标注、严格干净，与上面三份同样暂住这里。
     // 它只 import 契约层的 vocabulary.ts，不会把没标注的旧语言文件拉进这次检查。
     "src/tracker/error-rules.ts",
