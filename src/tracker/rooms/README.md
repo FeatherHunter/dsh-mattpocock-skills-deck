@@ -33,20 +33,14 @@
 
 两条纪律，CI 硬卡，本地 npm run verify 可复现。
 
-纪律一：代码门禁 —— 禁止跨房引用（tests/verify-dependency-rules.ts；跨房规则与白名单写在根目录 .dependency-cruiser.cjs）
+纪律一：代码门禁 —— 禁止跨房引用（判据门禁 tests/verify-dependency-rules.ts；规则在根目录 .dependency-cruiser.cjs，起点按 `src/tracker/rooms/([^/]+)/` 抓房名，不写死哪几间房）
 
-- 扫描域：src/tracker/rooms/github/、gitlab/、markdown/ 三座内置后端，两两禁止相互 import；examples/demo-mini 等第三方扩展不在域内。
+- 扫描域：src/tracker/rooms/<名字>/ 下的内置后端（今天三座：github、gitlab、markdown），两两禁止相互 import；examples/demo-mini 等第三方扩展不在域内。
 - 检查对象：静态 import / export ... from 与动态 import('...') 的字面量说明符；每条违规输出文件、行号、目标房间。
-- 白名单（允许引用，其余一律禁止）：
+- 规则自己实现的两种放行（不是登记表条目，也不该写进登记表）：
   - node 内置模块（含 node: 前缀与裸名如 path / fs）
-  - 同房间内相对路径（解析后仍在 src/tracker/rooms/<self>/ 内）
-  - src/shared/tracker/**
-  - src/tracker/contract/canonical-labels.ts
-  - src/shared/label-color/**（#629）
-  - src/shared/refresh/**（#711）
-  - src/shared/config-store/**（#1012）
-  - src/tracker/preflight.ts
-  - src/host/platform/**
+  - 同房间内的相对路径（规则用 `$1` 按起点抓到的房名放行，解析后仍在同一间房内）
+- 其余房外目标一律要在登记表里逐条放行，登记表只有一份：`tests/tracker-room-imports.json`（每条 `pattern` / `why` / `ticket` 三样齐全，条数上限只许减）。少理由、匹配不到任何源码文件、把受保护的房间目录整个吃掉，门禁都会当场判红。为什么放在那份 JSON 里而不是配置里：dependency-cruiser 对配置的顶层键做白名单校验，多一个自定义键就拒绝启动。来龙去脉见 `docs/adr/20261014-tracker-room-boundary.md`。
 - 纪律：后端文件的引用说明符必须是字面量字符串（import(someVar) 视为违规）；host 主程序引用后端（如 #284 复用 markdown 解析）不在检查范围。
 
 纪律二：会话门禁 —— 一次会话只改一房（verify-no-mixed-session）
@@ -62,7 +56,7 @@
 
 常驻位置
 
-白名单与两条纪律同时写入本文件与根目录 `.dependency-cruiser.cjs`（判据门禁 `tests/verify-dependency-rules.ts`），新增共享依赖须改白名单并在票据留痕（#313 D2）。
+两条纪律的判据都常驻在 `tests/verify-dependency-rules.ts`（CI 硬卡）。房间能引哪些房外目录，唯一真源是 `tests/tracker-room-imports.json` —— **本文件只指路，不抄第二份**。抄两份正是 #1136 这次漂移的机制：规则起点指着搬家前的旧目录、白名单留在说明文档里没人对账，两边都过时了而门禁还是绿的。新增共享依赖要改的是那份 JSON，并在票据留痕（#313 D2）。
 
 ## 第三方扩展（#117 #148 范式）
 

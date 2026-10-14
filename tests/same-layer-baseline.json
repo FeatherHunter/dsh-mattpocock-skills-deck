@@ -1,7 +1,7 @@
 {
   "version": 1,
   "recordedAt": "2026-10-13",
-  "note": "存量豁免清单：只许减不许增；拆分票消掉一条边就同票删一条。backends 三房间不在此清单（房间纪律由 .dependency-cruiser.cjs 的 cross-room-import 一条守着，没有豁免）。 2026-10-09：888 技能详情落地新增一条（index 动态加载 ./skillDoc.js）。 2026-10-13（#1017 换轨）：判据从「扫 .js 文本」换成「读依赖图（.js 与 .ts 一起看）」，键仍是 file|resolved；换轨后 .ts 源码里的同层边第一次可见，共 27 条，已按条记名（owner 标 #1017）。以后只许减。 2026-10-13（#1019 目录归位）：键跟着搬家表换到新路径（src/deck/**、src/tracker/**），条目数只减不增；六个「只换扩展名」的件本票退回 .js，键同票跟回。",
+  "note": "存量豁免清单：只许减不许增；拆分票消掉一条边就同票删一条。三个房间（src/tracker/rooms/github、gitlab、markdown）不在此清单：房间纪律由 .dependency-cruiser.cjs 的 cross-room-import 一条守着，没有豁免。 2026-10-09：888 技能详情落地新增一条（index 动态加载 ./skillDoc.js）。 2026-10-13（#1017 换轨）：判据从「扫 .js 文本」换成「读依赖图（.js 与 .ts 一起看）」，键仍是 file|resolved；换轨后 .ts 源码里的同层边第一次可见，共 27 条，已按条记名（owner 标 #1017）。以后只许减。 2026-10-13（#1019 目录归位）：键跟着搬家表换到新路径（src/deck/**、src/tracker/**），条目数只减不增；六个「只换扩展名」的件本票退回 .js，键同票跟回。 2026-10-14（#1136）：房间纪律的起点改成按 `src/tracker/rooms/([^/]+)/` 抓房名（原来写死旧目录，起点命中 0 个模块、跨房判绿），房外放行清单搬进 tests/tracker-room-imports.json；本清单的键与条数不受影响（换轨前后都是 106 条）。",
   "entries": [
     {
       "file": "src/host/index.js",
