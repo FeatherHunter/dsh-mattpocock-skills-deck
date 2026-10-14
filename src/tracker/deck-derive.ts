@@ -120,22 +120,26 @@ export interface DeckInput {
 }
 
 /**
- * 子票清单：是数组就按票数组用，不是数组（缺席、对象、数字…）当没有子票。
+ * 子票清单：缺席、空串、0 都当没有子票；形状坏成「真值但不是数组」时会当场抛——这与老写法一致。
  *
- * 约定：老实现写的是 `(m.tickets || [])` 直接 for...of——形状坏成不可迭代时会当场抛。
- * 这里改成「形状不对当没有」，与 deriveDeck 读入参、map-snapshot 读 map.labels 是同一口径；
- * 真数据里 tickets 只可能是数组或缺席，所以对可观测行为没有影响，但少一种「快照被坏形状掀翻」的可能。
+ * 老实现逐字是 `(m.tickets || [])` 直接 for...of。转类型时保留原样，没有顺手加形状守卫：
+ * 这次转换的验收口径是「行为零变化」，`|| []` 对上面每一种输入都和老代码给出同一个结果，
+ * 而加 Array.isArray 会在「真值非数组」这一格上从抛异常变成静默当成没有子票——那是行为变化。
+ * 真要防坏形状另开一票，别混在类型迁移里。
+ *
+ * 这里的断言不是「我保证它是数组」：`|| []` 之后仍可能是任何真值，断言只是把「按票数组用」这个
+ * 原有的读法写出来（下面的消费点都是按票数组用的），运行时形状与老代码完全一致。
  */
 function kidsOf(node: DeckTicket): readonly DeckTicket[] {
-  return Array.isArray(node.tickets) ? (node.tickets as readonly DeckTicket[]) : []
+  return (node.tickets || []) as readonly DeckTicket[]
 }
 
-/** 阻塞引用清单：与 {@link kidsOf} 同一口径（不是数组就没有阻塞边）。 */
+/** 阻塞引用清单：老实现这里本来就写了 Array.isArray 守卫（缺字段、非数组一律当没有阻塞边），逐字保留。 */
 function refsOf(ticket: DeckTicket): readonly DeckRef[] {
   return Array.isArray(ticket.blockedBy) ? (ticket.blockedBy as readonly DeckRef[]) : []
 }
 
-/** 标签清单：与 {@link kidsOf} 同一口径（不是数组就没有标签）。 */
+/** 标签清单：老实现这里同样是 Array.isArray 守卫（MISSING 字段跳过不崩溃），逐字保留。 */
 function labelsOf(ticket: DeckTicket): readonly DeckLabelRaw[] {
   return Array.isArray(ticket.labels) ? (ticket.labels as readonly DeckLabelRaw[]) : []
 }
