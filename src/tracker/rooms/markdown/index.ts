@@ -21,20 +21,26 @@ import nodePath from 'node:path'
 // 运行本文件时没有文件服务：声明一个最小的 process 视图（只读 platform 选换行那套路径实现）。
 declare const process: { platform?: string } | undefined
 
-// —— Markdown 交出来的成员：22 条能力 + id（4 条显式“不支持”桩也在实例上；describe 等 3 条定位口
-// 住在模块对象，不在实例上）——
-// 为什么集合与形状住在房间文件里：判定收在 src/tracker/capability-assertions.ts，而判定必须 import
-// 三个工厂的类型；形状若跟判定同住一处，两边就成了 type-only 的环（#1136 把 src/tracker 收进门禁
-// 扫描域时当场抓到）。方向单向：判定文件 → 房间。
-// 改成员先改对应后端的登记表（docs/tracker/capability-*.md），再改这里，两处同一次提交。
+import type { LocatorCapability, ProvidedCapability, StubbedByBackend } from '../../contract/capability-answer.js'
+// `import type` 取登记数据：转译后不留运行时引用（理由与 GitHub 房那处相同，见 rooms/github/backend.ts）。
+import type { MARKDOWN_CAPABILITY_REGISTER } from './capability-register.js'
+
+// —— Markdown 交出来的成员：22 条能力 + id ——
+// 这份集合不再手写，从本房的登记数据推出来：一半是「明确提供功能」的名字，另一半是
+// 「明确不支持、但后端自己在实例上补了显式桩」的那 4 条（登记里 `stubBy: 'backend'`）。
+// 那 3 条定位口要再摘掉：本后端只有 `describe` / `issueAddress` 两条是提供的，而它们住在模块对象上
+// （`markdownModule`），不在工厂实例上；`getRepoKey` 是形态不合。这是本房与另外两家唯一的形状差别，
+// 所以这里多一句 `Exclude<…, LocatorCapability>`：定位口归模块对象那份形状管，不进实例形状。
+// 为什么集合与形状住在房间文件里（而不是判定文件）：判定收在 src/tracker/capability-assertions.ts，
+// 而判定必须 import 三个工厂的类型；形状若跟判定同住一处，两边就成了 type-only 的环（#1136 把
+// src/tracker 收进门禁扫描域时当场抓到）。方向单向：判定文件 → 房间。
 export type MarkdownBackendMembers =
   | 'id'
-  | 'preflight' | 'list' | 'counts' | 'listPage'
-  | 'get' | 'getDependencies' | 'create' | 'close' | 'reopen'
-  | 'comment' | 'update' | 'setLabels'
-  | 'setAssignees' | 'setParent' | 'setBlockedBy'
-  | 'listLabels' | 'setLabelColors' | 'ensureLabelColorsFile'
-  | 'getCurrentUser' | 'initProject' | 'getRepoPermissions' | 'listSubIssues'
+  | Exclude<
+      | ProvidedCapability<typeof MARKDOWN_CAPABILITY_REGISTER>
+      | StubbedByBackend<typeof MARKDOWN_CAPABILITY_REGISTER>,
+      LocatorCapability
+    >
 
 /** 交出来的字面量形状：工厂用 `satisfies` 挂它（缺一条、多一条都在编译期红）。 */
 export type MarkdownBackendShape = { [K in MarkdownBackendMembers]: Tracker[K] }

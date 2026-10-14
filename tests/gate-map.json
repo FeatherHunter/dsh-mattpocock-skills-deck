@@ -1,14 +1,35 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-14T12:20:13.408Z",
+  "generatedAt": "2026-10-14T13:34:02.900Z",
   "generatedBy": "node scripts/gate-map.mjs",
-  "chainLength": 246,
-  "gateCount": 246,
-  "attributedGates": 217,
+  "chainLength": 247,
+  "gateCount": 247,
+  "attributedGates": 218,
   "unattributedGates": 29,
   "buildOutputOnlyGates": 20,
-  "graphFileCount": 532,
+  "graphFileCount": 536,
   "gates": [
+    {
+      "step": "node tests/verify-capability-register.ts",
+      "file": "tests/verify-capability-register.ts",
+      "guards": [
+        "docs/tracker",
+        "src/tracker/contract/capability-answer.ts",
+        "src/tracker/rooms/github/capability-register.ts",
+        "src/tracker/rooms/gitlab/capability-register.ts",
+        "src/tracker/rooms/markdown/capability-register.ts"
+      ],
+      "dirs": [
+        "docs/tracker",
+        "src/tracker/contract",
+        "src/tracker/rooms/github",
+        "src/tracker/rooms/gitlab",
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "reason": "归属来自 文件头 // 门禁归属: 注释（共 5 条）"
+    },
     {
       "step": "node tests/verify-596-rpc-carrier.js",
       "file": "tests/verify-596-rpc-carrier.js",
@@ -5161,6 +5182,9 @@
       "node tests/verify-release-contract.js",
       "node tests/verify-market-tarball.js"
     ],
+    "docs/tracker": [
+      "node tests/verify-capability-register.ts"
+    ],
     "examples": [],
     "examples/demo-mini": [
       "node tests/verify-tracker-contract.js"
@@ -5917,6 +5941,7 @@
       "node tests/verify-error-normalize-log.ts"
     ],
     "src/tracker/contract": [
+      "node tests/verify-capability-register.ts",
       "node tests/verify-build-artifacts.js",
       "node tests/verify-labels-sync.js",
       "node tests/verify-locale-completeness.js",
@@ -5980,6 +6005,7 @@
       "node tests/verify-error-rule-samples.ts"
     ],
     "src/tracker/rooms/github": [
+      "node tests/verify-capability-register.ts",
       "node tests/verify-prompts.js",
       "node tests/verify-tracker-contract.js",
       "node tests/verify-deck-tools-matrix.js",
@@ -6014,6 +6040,7 @@
       "node tests/verify-github-gh-via.ts"
     ],
     "src/tracker/rooms/gitlab": [
+      "node tests/verify-capability-register.ts",
       "node tests/verify-tracker-contract.js",
       "node tests/verify-gitlab-single-write.js",
       "node tests/verify-deck-tools-matrix.js",
@@ -6027,6 +6054,7 @@
       "node tests/verify-error-normalize-log.ts"
     ],
     "src/tracker/rooms/markdown": [
+      "node tests/verify-capability-register.ts",
       "node tests/verify-deck-tools.js",
       "node tests/verify-deck-tools-matrix.js",
       "node tests/verify-deck-tools-host-wiring.js",
@@ -6194,9 +6222,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 541,
+    "fileCount": 545,
     "dirCount": 50,
-    "coveredFileCount": 541,
+    "coveredFileCount": 545,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 49,
@@ -6640,6 +6668,7 @@
       "src/tracker/contract/README.md",
       "src/tracker/contract/backend-module.ts",
       "src/tracker/contract/canonical-labels.ts",
+      "src/tracker/contract/capability-answer.ts",
       "src/tracker/contract/contexts.ts",
       "src/tracker/contract/contract-idempotency.ts",
       "src/tracker/contract/contract-label-colors.ts",
@@ -6674,6 +6703,7 @@
       "src/tracker/registry/views.ts",
       "src/tracker/rooms/README.md",
       "src/tracker/rooms/github/backend.ts",
+      "src/tracker/rooms/github/capability-register.ts",
       "src/tracker/rooms/github/checks.ts",
       "src/tracker/rooms/github/client.ts",
       "src/tracker/rooms/github/comments.ts",
@@ -6702,6 +6732,7 @@
       "src/tracker/rooms/github/roster.ts",
       "src/tracker/rooms/github/sub-issues.ts",
       "src/tracker/rooms/github/write-log.ts",
+      "src/tracker/rooms/gitlab/capability-register.ts",
       "src/tracker/rooms/gitlab/client.ts",
       "src/tracker/rooms/gitlab/comments.ts",
       "src/tracker/rooms/gitlab/create-write.ts",
@@ -6716,6 +6747,7 @@
       "src/tracker/rooms/gitlab/normalize.ts",
       "src/tracker/rooms/gitlab/preflight.ts",
       "src/tracker/rooms/gitlab/queries.ts",
+      "src/tracker/rooms/markdown/capability-register.ts",
       "src/tracker/rooms/markdown/comments.ts",
       "src/tracker/rooms/markdown/counts.ts",
       "src/tracker/rooms/markdown/error-fail.ts",
