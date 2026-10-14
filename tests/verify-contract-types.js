@@ -158,10 +158,27 @@ const PROBE_ROOMS = ['github', 'markdown']
  * `scripts/typecheck.mts`（门禁 `tests/verify-typecheck.mts`）——那两处今天都是绿的。
  * 要真正还清这一笔，得把探针的 `--strict false` 收紧（那是另一张票的事）。
  *
+ * 2026-10-15 由 167 改到 172（#1058 补读路径日志之后实测，2026-10-14 那两笔提交 b0668743 与 f062208c）。
+ * 这一笔是「新代码把同一类存量债照出来」，不是新毛病。把数看清楚的经过：
+ * 在 #1058 动手之前（d1e07545）按本门禁同一套开关实测是 167，与基线一致；
+ * #1058 那两笔提交之后实测 173（多 6），随后 349d48d6（#1159 把房间共用的判定件收进 src/tracker/kernel）
+ * 又收回去 1 条，落到今天的 172。
+ * 多出来的那 6 条的落点与形状：全在本次新接的读路径分支上（`issues-read.ts` 5 条、`page.ts` 1 条），
+ * 形状与这段上面记的完全一样——本地 Markdown 房把「读文件的结果」写成带判别字段的联合类型，
+ * 在 `--strict false` 这套探针参数下判别字段不收窄，于是 `.error` / `.missing` 一律报 TS2339。
+ * 换句话说：探针脚下的那句「后端文件内部报错」数的是旧写法在新调用点上的投影，不是这次改坏了什么
+ * ——真正在守类型的两处（`src/tracker/tsconfig.json` 与 `scripts/typecheck.mts`，门禁 `tests/verify-typecheck.mts`）
+ * 今天都是绿的。**没有为了把数字压回去而加强制转换或 `any`**：那样过得了这个探针，却把真实的收窄一起丢掉。
+ * 要真正还清，得把这套探针的 `--strict false` 收紧（那是另一张票的事）。
+ * 怎么量的（下一位复核照着走）：`node node_modules/typescript/bin/tsc --noEmit --target es2020 --lib es2020,dom
+ * --module esnext --moduleResolution bundler --allowJs --checkJs false --skipLibCheck --strict false
+ * tests/contract-probe-github.ts tests/contract-probe-markdown.ts`，数带 `(行,列): error TS####` 的行；
+ * 两笔提交之间逐行比过：新增 13 处、消失 7 处（多数是行号平移），净 +6。
+ *
  * 下一次动这个数，请沿用同一条规矩——写清「谁改的、从多少到多少、为什么」，
  * 并说明这一笔是还债还是新欠的。
  */
-const PROBE_NONPROBE_ERROR_BASELINE = 167
+const PROBE_NONPROBE_ERROR_BASELINE = 172
 /** 探针直编的开关（与探针文件头写的口径一致，改一处两处一起改）。 */
 const PROBE_TSC_ARGS = [
   '--noEmit', '--target', 'es2020', '--lib', 'es2020,dom', '--module', 'esnext',

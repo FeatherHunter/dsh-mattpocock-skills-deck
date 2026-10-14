@@ -169,7 +169,10 @@ async function main() {
   { // 后四个是既有事件（core.ts/workspaceKey/workspaceRoot/choiceStore 里的原有埋点，本图没碰这些文件），不是本图新增。
     // `detection.step` 是 #1048（2026-10-14）新增的按需步骤线：统一判定出口在有日志出口时逐层记一步
     //   （哪一层看过、结论、认下谁、耗时、为什么），平时不发，调试开关打开才发；这里记的是它的埋点，不是本图新增。
-  const known = ['detection.detect', 'detection.step', 'host.call.fail', 'chain.cache.hit', 'chain.cache.miss', 'dedup.hit', 'chain.preflight.reuse', 'chain.predicate', 'gh.exec', 'gh.timeout', 'error.normalize', 'skill.probe', 'skill.pending.cap', 'workspaceStore.miss', 'workspaceStore.hit', 'platform.resolve', 'registry.select', 'workspaceKey.canonical', 'workspaceRoot.resolve', 'choiceStore.read'];
+    // `read.degraded` 是全仓已登记的降级结论线（#1052 起）。它会出现在这一趟里，是因为 S5 那一段的探测
+    //   故意没有文件服务（`fs: null`），而 GitLab 房的识别路径自 #1130（2026-10-14）起不再把读不到吞掉，
+    //   于是照它的口径记了一行 `matches:fs-unavailable`。这是那一段场景的预期产物，不是本图新增的事件名。
+  const known = ['detection.detect', 'detection.step', 'host.call.fail', 'chain.cache.hit', 'chain.cache.miss', 'dedup.hit', 'chain.preflight.reuse', 'chain.predicate', 'gh.exec', 'gh.timeout', 'error.normalize', 'read.degraded', 'skill.probe', 'skill.pending.cap', 'workspaceStore.miss', 'workspaceStore.hit', 'platform.resolve', 'registry.select', 'workspaceKey.canonical', 'workspaceRoot.resolve', 'choiceStore.read'];
     const unknown = [...allEvents].filter((e) => !known.includes(e));
     console.log('  事件集合：' + [...allEvents].sort().join(', '));
     must(unknown.length === 0, '无新增事件名', unknown.join(',')); }
