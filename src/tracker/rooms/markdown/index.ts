@@ -67,10 +67,10 @@ export function describe(handle, backendId){
   if(handle&&handle.effortId!==undefined&&handle.effortId!==null) out.effortId=String(handle.effortId)
   return out
 }
-/** 给一张票的地址（#1110 实现决定第 14 条改名，原名就是文件末尾那个别名 issueUrl）。
- *  本地 Markdown 没有远端网址：这里给的是这张票在工作区里的文件路径——路径也是「地址」，
- *  所以名字不叫「网址」；同一个名字要同时说清远端网址（GitHub / GitLab）与本地路径两家后端，
- *  说成「网址」会把本地这一家说成例外。老名字 issueUrl 是同义别名，保留一轮。 */
+/** 给一张票的地址（#1110 实现决定第 14 条）：本地 Markdown 没有远端网址，这里给的是这张票在工作区
+ *  里的文件路径——路径也是「地址」，所以名字不叫「网址」；同一个名字要同时罩住远端网址
+ *  （GitHub / GitLab）与本地路径两家后端，说成「网址」会把本地这一家说成例外。
+ *  网址口吻的旧名字已按 #1141 删净。 */
 export function issueAddress(ref, key) {
   try {
     if (ref == null || key == null) return ''
@@ -87,19 +87,10 @@ export function issueAddress(ref, key) {
     return mdPath(ref, 'issue', k, cwdArg)
   } catch { return '' }
 }
-/** 按仓库名找仓库的地址（#1110 改名，原名 searchUrl）：本地后端没有全站搜索页，诚实回空串。 */
+/** 按仓库名找仓库的地址（#1110 实现决定第 14 条）：本地后端没有全站搜索页，诚实回空串。 */
 export function repoSearchAddress(name) { return '' }
-/** 在这个后端的文本里认出票引用的写法（#1110 改名，原名 linkPattern）。 */
+/** 在这个后端的文本里认出票引用的写法（#1110 实现决定第 14 条）。 */
 export const issueRefPattern = "#(\\d+)"
-/** 老名字别名（#1110 实现决定第 14 条）：与上面三个新名字同义、指向同一个实现，保留一轮不断链。
- *  退役条件是「客户端与宿主都不再读老名字」，今天还没到：宿主两处读模块对象上的 issueUrl
- *  （src/host/sessionRefresh.ts:155、src/host/sessionSnapshot.ts:188），契约里也还留着同名可选成员
- *  （src/tracker/contract/backend-module.ts:205-213）。
- *  退役时一起删：这三个老名字、契约里的同名成员、tests/verify-contract-types.js 里
- *  Markdown 那份运行时键快照的老键。 */
-export const issueUrl = issueAddress
-export const searchUrl = repoSearchAddress
-export const linkPattern = issueRefPattern
 export function createMarkdownBackend(ctx){
   return{
     id:'markdown',
@@ -247,17 +238,11 @@ export const markdownModule = {
   id: 'markdown',
   label: 'Markdown',
   describe,
-  // 链接三件：新名字是主（讲的是「地址」，因为本地这家给的是票文件路径不是网址），
-  // 老名字是同义别名，指向同一份实现，保留一轮不断链（#1110 实现决定第 14 条 / #1134）。
-  // 注册表取值时新名字优先、老名字兜底（src/tracker/registry/views.ts 的 pickFn / pickValue），
-  // 所以这里新老六个名字都要在，少写哪一半都会有一边取不到。
+  // 链接三件（#1110 实现决定第 14 条 / #1134 改名 / #1141 删旧名）：名字讲的是「地址」，
+  // 因为本地这家给的是票文件路径不是网址；实现就是本文件里的那几个导出。
   issueAddress,
   repoSearchAddress,
   issueRefPattern,
-  // 老名字，一轮之后删：宿主今天还读模块对象上的 issueUrl（见上面那三个别名处的注释）。
-  issueUrl,
-  searchUrl,
-  linkPattern,
   // #191：品牌色完整色板（B 方案定版 · #177）
   presentation: {
     color: '#1a7f37',

@@ -116,7 +116,7 @@ const RUNTIME_SNAPSHOTS = {
     checksKind: 'function',
   },
   markdown: {
-    keys: ['create', 'describe', 'fixes', 'id', 'issueAddress', 'issueRefPattern', 'issueUrl', 'label', 'labelPalette', 'linkPattern', 'links', 'matches', 'openRepository', 'presentation', 'prompts', 'repoSearchAddress', 'searchUrl', 'setupPrompt'],
+    keys: ['create', 'describe', 'fixes', 'id', 'issueAddress', 'issueRefPattern', 'label', 'labelPalette', 'links', 'matches', 'openRepository', 'presentation', 'prompts', 'repoSearchAddress', 'setupPrompt'],
     openRepository: 'folder',
     checksKind: 'absent',
   },
