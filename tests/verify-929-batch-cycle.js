@@ -1,3 +1,4 @@
+import { createOutboundControl } from '../src/host/platform/outbound-control.ts'
 // tests/verify-929-batch-cycle.js —— 门禁：同一批并发补阻塞边不许造出环（#929）
 // 用法：在插件根目录执行 node tests/verify-929-batch-cycle.js，可独立运行。
 //
@@ -64,6 +65,7 @@ function makeEnv(opts) {
   const tracker = registry.get('github')
   const backendCtx = {
     cwd: '/ws/github',
+    outbound: createOutboundControl(),
     platform: { resolveExecutable: async (n) => (n === 'gh' ? '/usr/local/bin/gh' : null), path: path.posix, env: { get: () => undefined } },
     exec, isEnabled: () => false, logEvent: () => {},
   }

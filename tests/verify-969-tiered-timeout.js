@@ -21,6 +21,12 @@ const check = (ok, msg, detail) => {
 
 console.log('== #969 分档超时（读12秒／写30秒／探活3秒） ==')
 
+// #1159：房间的出站能力从「直接 import 宿主件」改成「宿主注入一份 ctx.outbound」，
+// 所以夹具里也得挂上那一份。这里用生产那份（src/host/platform/outbound-control.ts，只做转发），
+// 顺带证明「注入进来的端口确实能让房间正常出站」；缺了它房内会大声报 env 错、一笔都不发。
+const { createOutboundControl } = await import(pathToFileURL(nodePath.join(ROOT, 'src/host/platform/outbound-control.ts')).href)
+const outbound = createOutboundControl()
+
 // —— 一、纯函数分档：读的短、写的长、探活的最短 ——
 let tiers = null
 try {
@@ -74,6 +80,7 @@ if (tiers) {
     return { stdout: '[]', stderr: '', code: 0 }
   }
   const fakeCtx = {
+    outbound,
     platform: { resolveExecutable: async () => 'gh' },
     exec: fakeExec,
     cwd: '.',
@@ -108,6 +115,7 @@ if (tiers) {
     throw e
   }
   const ctx = {
+    outbound,
     platform: { resolveExecutable: async () => 'gh' },
     exec: timeoutExec,
     cwd: '.',
@@ -141,6 +149,7 @@ if (tiers) {
   const hangExec = () => new Promise(() => {})
   const events = []
   const hangCtx = {
+    outbound,
     platform: { resolveExecutable: async () => 'gh' },
     exec: hangExec,
     cwd: '.',

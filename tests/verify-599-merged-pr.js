@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { createOutboundControl } from '../src/host/platform/outbound-control.ts'
 /**
  * 回归门禁：GitHub 房的「已合并」拉取请求 #599。
  *
@@ -96,6 +97,7 @@ function makeGraphQLCtx() {
   const queries = []
   const ctx = {
     cwd: ROOT,
+    outbound: createOutboundControl(),
     platform: { resolveExecutable: async (n) => (n === 'gh' ? 'gh' : null), env: { get: () => '' } },
     exec: async (cmd, args) => {
       const joined = (args || []).join('\n')
@@ -124,6 +126,7 @@ function makeRESTCtx() {
   const calls = []
   const ctx = {
     cwd: ROOT,
+    outbound: createOutboundControl(),
     platform: { resolveExecutable: async (n) => (n === 'gh' ? 'gh' : null), env: { get: () => '' } },
     exec: async (cmd, args) => {
       const joined = (args || []).join('\n')

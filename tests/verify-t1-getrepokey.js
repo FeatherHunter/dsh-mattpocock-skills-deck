@@ -1,3 +1,4 @@
+const { createOutboundControl } = require('../src/host/platform/outbound-control.ts')
 // verify-t1-getrepokey.js — #41 T1 修复验证：getRepoKey 显式解析 origin
 // 多远程下（旧实现 → `gh repo view` 命中 upstream；新实现 → `git remote get-url origin` 命中 Fork）
 // 用法：node tests/verify-t1-getrepokey.js

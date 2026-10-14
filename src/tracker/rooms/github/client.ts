@@ -24,8 +24,10 @@ import type { TrackerError } from '../../contract/results.js';
 import { fail, rawText } from '../../kernel/preflight.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'
 import { timeoutForGhArgs, isWriteGhArgs } from '../../../host/outbound/tiers.js'
-import { getGhLane, isAdmissionCancelled } from '../../../host/outbound/admission.js'
-import { getChainRide } from '../../../host/refresh/chain-ride.js'
+// #1159：名额闸与搭车账本不再从宿主 import —— 它们是有状态的运行时能力，形状由契约层声明
+// （`OutboundControl`），实现由宿主在接线处挂进 `ctx.outbound`。这与本房已有的 `ctx.gate`
+// 是同一条路：闸由接线处注入，本房不 import 它。读不到就按环境失败大声报出来，不许静默直通。
+import type { OutboundControl } from '../../contract/outbound.js'
 
 /** gh 执行成功的数据：三件套，调用方读 stdout 解析，stderr 留查，code 为 0。 */
 export interface GhExecData {
@@ -116,6 +118,43 @@ function getExec(ctx: OpContext): OpContext['exec'] | null {
   const plat = (ctx && (ctx as unknown as { platform?: unknown }).platform) as BackendPlatform | undefined;
   if (plat && typeof plat.exec === 'function') return (plat.exec.bind(plat) as OpContext['exec'])
   return null
+}
+
+/**
+ * #1159：装配那一刻宿主交来的出站控制面，全房共用一份。
+ *
+ * 为什么要有这一格：宿主给房间造「这一次操作的上下文」的地方有十几处（列表页、地图票、会话快照、
+ * 评论线程……），逐处挂一遍既啰嗦又容易漏；而名额闸与搭车账本本身就是**进程级单例**，一份就够。
+ * 所以宿主在装配点（注册表造本房时）把能力放进创建上下文，本房在这里记下来，房内每一笔出站共用。
+ * 当次操作的上下文里若也带着一份（门禁夹具常这么给），以它为准 —— 这样单测可以逐场替换。
+ */
+let assembledOutbound: OutboundControl | null = null
+
+/**
+ * 装配点调用：把宿主给的能力记下来。传 null / 结构对不上就清空，
+ * 免得上一场装配留下的旧对象被后来的房间误用。
+ */
+export function rememberOutbound(control: OutboundControl | null | undefined): void {
+  assembledOutbound = shapeOk(control) ? (control as OutboundControl) : null
+}
+
+/** 结构对得上才算接上：三样本事缺一件都当没接上（宁可按环境失败，也不静默直通）。 */
+function shapeOk(c: unknown): boolean {
+  const o = c as OutboundControl | null | undefined
+  return Boolean(o) && typeof o!.acquire === 'function' && typeof o!.isCancelled === 'function' && typeof o!.noteWrite === 'function'
+}
+
+/**
+ * #1159：取这次调用能用的出站控制面（名额闸 / 取消判定 / 搭车账本）。
+ *
+ * 优先读当次上下文里的 `ctx.outbound`（装配点注入的那一份，或夹具自带的一份）；
+ * 没有就退回装配时记下的那一份。两处都没有才回 null —— 调用点据此按环境失败返回，
+ * 而不是静默直通（静默直通会让进程级的并发上限悄悄消失）。
+ */
+function getOutbound(ctx: OpContext): OutboundControl | null {
+  const fromCtx = (ctx as unknown as { outbound?: OutboundControl } | null)?.outbound
+  if (shapeOk(fromCtx)) return fromCtx as OutboundControl
+  return assembledOutbound
 }
 
 /**
@@ -232,6 +271,12 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
   async function execGh(args: string[], opts: GhExecOpts = {}): Promise<GhExecResult> {
     const cwd = getCwd(ctx, opts.cwd)
     const t0 = Date.now()
+    // #1159：出站控制面必须先接上。名额闸缺了还照发请求，等于进程级的并发上限悄悄消失 ——
+    // 那种故障事后只看日志查不出来，所以这里按环境失败大声报出来，不发这一笔。
+    const control = getOutbound(ctx)
+    if (!control) {
+      return { ok: false, error: { kind: ERROR_KIND.ENV, message: '出站控制面没有接上：名额闸、取消判定与搭车账本都拿不到，这一笔不发出去。宿主接线要给两处：装配点造房时的上下文（生产里是 src/host/platformChannel.ts 的 backendCtxForRooms 与 src/host/refresh/wiring.js 的 backendObj），以及当次操作的上下文（ctx.outbound，门禁夹具走这一条）。', code: -1, raw: '' } }
+    }
     // #969：默认超时按读写探活分档（调用方显式 timeout 优先）；#965 读写分桶拿名额。
     const bucket = isWriteGhArgs(args) ? 'write' : 'read'
     const signal = opts.signal || (ctx && ctx.signal) || undefined
@@ -287,7 +332,7 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
     // #965：先拿名额再起进程，满了就排队等（等不是失败）；排队中被调用方取消则按取消返回，不算失败。
     let release: (() => void) | null = null
     try {
-      const acquired = await raceDeadline(getGhLane().acquire({ bucket: bucket, signal: laneSignal || undefined }))
+      const acquired = await raceDeadline(control.acquire({ bucket: bucket, signal: laneSignal || undefined }))
       if (isDeadlineHit(acquired)) { clearDeadline(); return selfTimeoutOutcome() }
       release = acquired
       // #1007：这一笔在名额队列里等了多久（给 gh.exec 那一格记，答「名额到底有没有挡过路」）。
@@ -354,7 +399,7 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
       }
       emitGhExec('ok', 0, t0, cwd, slotWaitedMs, opts.via)
       // #966 收口：写成功记一笔搭车账，写过东西之后来的探测不搭旧车。
-      try { if (bucket === 'write') getChainRide({}).markWrite() } catch {}
+      try { if (bucket === 'write') control.noteWrite() } catch {}
       return { ok: true, data: { stdout, stderr, code } }
     } catch (e) {
       // exec 抛的错误（timeout/network 等）→ 归一化
@@ -362,7 +407,7 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
       // #1007：先认房内自己那只表（它到点中止的按超时返回），再认调用方取消（那个不算失败）。
       if (selfTimedOut) return selfTimeoutOutcome()
       // #969：调用方取消（排队/在飞中被杀）按取消返回，不算失败；其余照旧归一。
-      if (isAdmissionCancelled(e) || (signal && signal.aborted === true)) {
+      if (control.isCancelled(e) || (signal && signal.aborted === true)) {
         emitGhExec('cancelled', -1, t0, cwd, slotWaitedMs, opts.via)
         return { ok: false, error: { kind: ERROR_KIND.NETWORK, message: '已取消（没有发出有效请求，可重试）', code: -1, cancelled: true, raw: rawText(e) } }
       }

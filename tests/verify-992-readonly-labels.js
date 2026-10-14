@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+const { createOutboundControl } = require('../src/host/platform/outbound-control.ts')
 // tests/verify-992-readonly-labels.js —— #992 只读仓库标签能力降级专属门禁（不联网）
 //
 // 测什么（定版“最终方案”第 1–6 项 + Q6/Q7；第 7 项 `gh:labels` 清理属 #1001，不在这里）：
@@ -66,7 +67,7 @@ function makeCtx(opts) {
     }
     return { code: 1, stdout: '', stderr: 'verify-992 假 gh 没脚本化这条命令: ' + line }
   }
-  return { ctx: { cwd: '/ws/992', platform: plat(), exec: exec }, calls: calls }
+  return { ctx: { cwd: '/ws/992', outbound: createOutboundControl(), platform: plat(), exec: exec }, calls: calls }
 }
 const permCalls = (calls) => calls.filter((l) => l.startsWith('api repos/') && l.includes('.permissions'))
 
@@ -209,6 +210,7 @@ async function main() {
     const tracker = githubModule.create({})
     const calls = []
     const ctx = {
+      outbound: createOutboundControl(),
       cwd: '/ws/992',
       platform: plat(),
       exec: async (cmd, args) => {

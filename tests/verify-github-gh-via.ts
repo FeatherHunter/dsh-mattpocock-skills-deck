@@ -1,3 +1,4 @@
+import { createOutboundControl } from '../src/host/platform/outbound-control.ts'
 // tests/verify-github-gh-via.ts —— #1052 专属门禁：GitHub 房读路径每一次起 gh 进程都带上「这一次是谁发的、走到哪一支」的短标签
 //
 // 门禁归属: src/tracker/rooms/github/
@@ -271,6 +272,7 @@ const FAKE_CTX = {
   // #1052 续：宿主起这一趟操作时生成的编号，房间原样记进 gh.exec；这一段断的就是它有没有真落进去。
   opId: 'testop-7',
   signal: new AbortController().signal,
+  outbound: createOutboundControl(),
   platform: {
     resolveExecutable: () => 'gh',
     exec: async () => ({ stdout: '[]', stderr: '', code: 0 }),

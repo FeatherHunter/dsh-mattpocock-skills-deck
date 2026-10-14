@@ -1,3 +1,4 @@
+import { createOutboundControl } from '../src/host/platform/outbound-control.ts'
 /**
  * tests/verify-691-map-subissues.js — 「地图子票拉全 · 已关闭地图不进首屏」门禁（#691 阶段 3）。
  *
@@ -33,7 +34,7 @@ function mkCtx(pages, opts = {}) {
     if (typeof p === 'string') return { code: 0, stdout: p, stderr: '' }
     return { code: 0, stdout: JSON.stringify(p), stderr: '' }
   }
-  return { asked, ctx: { cwd: '/ws/fake', platform: { resolveExecutable: async (n) => (n === 'gh' ? 'gh' : null) }, exec, isEnabled: () => false, logEvent: () => {} } }
+  return { asked, ctx: { cwd: '/ws/fake', outbound: createOutboundControl(), platform: { resolveExecutable: async (n) => (n === 'gh' ? 'gh' : null) }, exec, isEnabled: () => false, logEvent: () => {} } }
 }
 const row = (n) => ({ number: n, title: 't' + n, state: 'OPEN', body: '', url: 'u', createdAt: 'c', updatedAt: 'u', closedAt: null, author: null, assignees: { nodes: [] }, labels: { nodes: [] }, parent: { number: 692 }, blockedBy: { nodes: [] } })
 const pageOf = (from, count, total, hasNext, endCursor) => ({ data: { repository: { issue: { number: 692, subIssues: { totalCount: total, nodes: Array.from({ length: count }, (_, i) => row(from + i)), pageInfo: { hasNextPage: hasNext, endCursor: endCursor || null } } } } } })

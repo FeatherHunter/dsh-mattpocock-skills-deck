@@ -1,3 +1,4 @@
+import { createOutboundControl } from '../src/host/platform/outbound-control.ts'
 // tests/verify-1054-edge-graph.ts —— #1054 关系与边专属门禁（不联网）
 //
 // 测什么（两件事，缺一不可）：
@@ -155,6 +156,7 @@ function makeMemo(state: Stub) {
 function makeCtx(stub: any, memo: any, log: any[], debugOn: boolean) {
   return {
     cwd: '/ws/demo',
+    outbound: createOutboundControl(),
     platform: { resolveExecutable: async (n: string) => (n === 'gh' ? '/usr/bin/gh' : null), path: path.posix, env: { get: () => undefined } },
     exec: async (cmd: string, args: string[], opts: unknown) => stub.exec(cmd, args, opts),
     isEnabled: (level: string) => (debugOn && level === 'debug') || level === 'info',

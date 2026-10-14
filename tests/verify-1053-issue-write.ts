@@ -1,3 +1,4 @@
+import { createOutboundControl } from '../src/host/platform/outbound-control.ts'
 // tests/verify-1053-issue-write.ts —— #1053 写路径专属门禁（不联网）
 //
 // 测什么：GitHub 房间三条写路径的常驻结论线真发得出来、字段就是各自登记的那几个，
@@ -139,6 +140,7 @@ type Stub = ReturnType<typeof makeStub>
 function makeCtx(stub: Stub, log: any[]) {
   return {
     cwd: '/ws/demo',
+    outbound: createOutboundControl(),
     platform: { resolveExecutable: async (n: string) => (n === 'gh' ? '/usr/bin/gh' : null), path: path.posix, env: { get: () => undefined } },
     exec: async (cmd: string, args: string[], opts: unknown) => stub.exec(cmd, args, opts),
     isEnabled: (_level: string) => true,
@@ -194,6 +196,7 @@ function makeInitStub(o: { origin?: string; failAuth?: boolean } = {}) {
 function makeInitCtx(stub: { exec: (cmd: string, args: string[], opts?: unknown) => Promise<unknown> }, log: any[]) {
   return {
     cwd: '/ws/demo',
+    outbound: createOutboundControl(),
     platform: {
       resolveExecutable: async (n: string) => (n === 'gh' ? '/usr/bin/gh' : n === 'git' ? '/usr/bin/git' : null),
       path: path.posix,

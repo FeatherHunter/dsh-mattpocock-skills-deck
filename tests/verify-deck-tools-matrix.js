@@ -1,3 +1,4 @@
+const { createOutboundControl } = require('../src/host/platform/outbound-control.ts')
 // verify-deck-tools-matrix.js —— 门禁：同一个动作在三种后端上分别落到哪里（#713 第六批）
 // 用法：在插件根目录执行 node tests/verify-deck-tools-matrix.js，可独立运行。
 //
@@ -120,12 +121,14 @@ async function main() {
   // （git 只读远端地址那一条不算 HTTP 请求，所以不报。）
   const ghCtx = {
     cwd: '/ws/github',
+    outbound: createOutboundControl(),
     platform: { resolveExecutable: async (n) => (n === 'gh' ? '/usr/local/bin/gh' : null), path: path.posix, env: { get: () => undefined } },
     exec: async (cmd, args) => { if (cmd === 'gh') gate.noteOutbound({ requests: 1, points: 0 }); return gh.exec(cmd, args) },
     isEnabled: () => false, logEvent: () => {},
   }
   const glCtx = {
     cwd: '/ws/gitlab',
+    outbound: createOutboundControl(),
     platform: { resolveExecutable: async (n) => (n === 'glab' ? '/usr/local/bin/glab' : null), path: path.posix, env: { get: () => undefined } },
     exec: async (cmd, args) => { if (cmd === 'glab') gate.noteOutbound({ requests: 1, points: 0 }); return gl.run(args) },
     isEnabled: () => false, logEvent: () => {},

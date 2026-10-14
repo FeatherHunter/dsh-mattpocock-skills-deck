@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { createOutboundControl } from '../src/host/platform/outbound-control.ts'
 /**
  * tests/verify-github-label-colors.js —— GitHub 房间「列标签 / 批量改色」两条契约操作的门禁（#620）。
  *
@@ -54,6 +55,7 @@ function makeGh(opts) {
   const state = { inFlight: 0, maxInFlight: 0 }
   const ctx = {
     cwd: WS,
+    outbound: createOutboundControl(),
     platform: o.noGh === true
       ? { resolveExecutable: async () => null, env: { get: () => '' } }
       : { resolveExecutable: async (n) => (n === 'gh' || n === 'git' ? n : null), env: { get: () => '' } },
@@ -254,6 +256,7 @@ const SEED = [
   // 退出码修复的直证：client 回来的错误对象里必须带着退出码（不然上一条只能靠文案巧合）
   const c = ghClient({
     cwd: WS,
+    outbound: createOutboundControl(),
     platform: { resolveExecutable: async () => 'gh', env: { get: () => '' } },
     exec: async () => ({ code: 4, stdout: '', stderr: 'please run gh auth login' }),
     logEvent: () => {}, isEnabled: () => false,
@@ -468,7 +471,8 @@ const SEED = [
     timer: { timeout: (fn, ms) => setTimeout(fn, ms) },
     detectionExec: async (cmd, args, opts, via) => { vias.push({ cmd: cmd, args: args, via: via }); return gh.ctx.exec(cmd, args) },
   })
-  const reg = createRegistry({ logEvent: () => {}, isEnabled: () => false }, { matchesTimeout: 200 })
+  // #1159：注册表造房时要把出站控制面交给房间（生产里由 src/host/platformChannel.ts 的 backendCtxForRooms 交）。
+  const reg = createRegistry({ logEvent: () => {}, isEnabled: () => false, outbound: createOutboundControl() }, { matchesTimeout: 200 })
   const d = reg.register(githubModule)
   // 用户选过 github，但**谁也不给 owner/name** —— 和真实工作区里「用户选定后端」那一步完全一样。
   //   #1138 起这一步的落点是工作区文件（上面 wsFs 里那一份），注册表的进程内绑定口子已整段删除。
@@ -489,7 +493,7 @@ const SEED = [
 
   // 反面：工作区里既没有 git 远端、也没法从 gh 问出来 → 如实失败，并说清怎么才能成功
   const noRemoteGh = makeGh({ labels: SEED, noRemote: true })
-  const reg2 = createRegistry({ logEvent: () => {}, isEnabled: () => false }, { matchesTimeout: 200 })
+  const reg2 = createRegistry({ logEvent: () => {}, isEnabled: () => false, outbound: createOutboundControl() }, { matchesTimeout: 200 })
   const d2 = reg2.register(githubModule)
   // 这个工作区「用户选过 github」那条记录由上面 wsFs 里的内存工作区文件提供
   //   （#1138 起人选的唯一载体；原来这里是一句 reg2.bind({cwd:'/ws/no-repo'},'github')，注册表那个口子已删）。
@@ -560,7 +564,7 @@ const SEED = [
     timer: { timeout: (fn, ms) => setTimeout(fn, ms) },
     detectionExec: async (cmd, args, opts, via) => { vias.push({ cmd: cmd, args: args, via: via }); return gh.ctx.exec(cmd, args) },
   })
-  const regBoth = createRegistry({ logEvent: () => {}, isEnabled: () => false }, { matchesTimeout: 200 })
+  const regBoth = createRegistry({ logEvent: () => {}, isEnabled: () => false, outbound: createOutboundControl() }, { matchesTimeout: 200 })
   // 先注册另一个也认领这个工作区的后端：这样注册序排前面的赢家是它，不是 GitHub——
   // 于是下面「交给 github」这条断言就真的在证明「按面板说的走」，而不是碰巧撞上了注册序。
   const dOther = regBoth.register({ id: 'other-local', label: 'other', create: () => ({}), matches: async () => true })

@@ -1,3 +1,4 @@
+const { createOutboundControl } = require('../src/host/platform/outbound-control.ts')
 // tests/verify-790-parent-edge.js —— #790 父子边静默失败专属门禁（不联网）
 // 测什么（第一性原理：真 GitHub 只认数据库编号 + -F，票面号 + -f 必 422）：
 //   A) graph.setParent 主路走原生旗 `gh issue edit --parent`（按票号，不碰数据库编号）
@@ -84,7 +85,7 @@ function strictExecFactory(opts) {
 }
 
 function ghCtxFor(factory) {
-  return { cwd: '/ws', platform: { resolveExecutable: async () => '/usr/bin/gh' }, exec: factory.exec }
+  return { cwd: '/ws', outbound: createOutboundControl(), platform: { resolveExecutable: async () => '/usr/bin/gh' }, exec: factory.exec }
 }
 
 async function main() {

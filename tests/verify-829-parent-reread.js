@@ -1,3 +1,4 @@
+const { createOutboundControl } = require('../src/host/platform/outbound-control.ts')
 // tests/verify-829-parent-reread.js —— #829 补 #790 未盖住的两处（不联网）
 // 测什么（第一性原理：报单人重试三次，第二次可能撞“重复”；读回失败不能只说 parent 为空）：
 //   G1) 原生旗回“重复/已是子票” + 重读已是目标父 → ok:true（幂等，重试安全，不再报 0 条）
@@ -50,7 +51,7 @@ function execFactory(opts) {
 }
 
 function ghCtxFor(factory) {
-  return { cwd: '/ws', platform: { resolveExecutable: async () => '/usr/bin/gh' }, exec: factory.exec }
+  return { cwd: '/ws', outbound: createOutboundControl(), platform: { resolveExecutable: async () => '/usr/bin/gh' }, exec: factory.exec }
 }
 
 async function main() {

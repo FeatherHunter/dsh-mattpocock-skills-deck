@@ -1,12 +1,11 @@
 {
-  "note": "房间（src/tracker/rooms/<名字>/）可以引用的房外目录：这份 JSON 是唯一真源（#1136 定的形态，决策见 docs/adr/20261014-tracker-room-boundary.md）。为什么不直接写在 .dependency-cruiser.cjs 里：dependency-cruiser 对配置的顶层键做白名单校验，多一个自定义键就直接拒绝启动（报 data must NOT have additional properties），所以登记表放在这份数据文件里，由规则文件与 tests/verify-dependency-rules.ts 共同读取 —— 一份数据、两个读者。房间说明 src/tracker/rooms/README.md 只指路，不抄第二份：抄两份正是这次漂移（#1136）的机制。每条必须写清「为什么在」与「归哪张票」，门禁的五条判据会逐条核对（活着 / 有名有据 / 不吃自己 / 不被吸收 / 报分母），写不出理由、或者匹配不到任何源码文件的条目过不了门禁。#1159 把逐文件点名的四条（preflight / error-rules / identity-keys / detection/workspace-ownership）并进了 kernel/ 一条，把四条 shared 子目录并进了 ^src/shared/ 一条，并删掉了早已没房间引用的 host/platform 一条。",
+  "note": "房间（src/tracker/rooms/<名字>/）可以引用的房外目录：这份 JSON 是唯一真源（#1136 定的形态，决策见 docs/adr/20261014-tracker-room-boundary.md）。为什么不直接写在 .dependency-cruiser.cjs 里：dependency-cruiser 对配置的顶层键做白名单校验，多一个自定义键就直接拒绝启动（报 data MUST NOT have additional properties），所以登记表放在这份数据文件里，由规则文件与 tests/verify-dependency-rules.ts 共同读取 —— 一份数据、两个读者。房间说明 src/tracker/rooms/README.md 只指路，不抄第二份：抄两份正是这次漂移（#1136）的机制。每条必须写清「为什么在」与「归哪张票」，门禁的五条判据会逐条核对（活着 / 有名有据 / 不吃自己 / 不被吸收 / 报分母），写不出理由、或者匹配不到任何源码文件的条目过不了门禁。#1159 把逐文件点名的四条（preflight / error-rules / identity-keys / detection/workspace-ownership）并进了 kernel/ 一条，把四条 shared 子目录并进了 ^src/shared/ 一条，并删掉了早已没房间引用的 host/platform 一条；同票又把名额闸与搭车账本改成从 ctx.outbound 注入（形状在 src/tracker/contract/outbound.ts），房间不再引宿主那两处运行时能力，所以 ^src/host/refresh/ 这一条随之删掉。",
   "protected": "^src/tracker/rooms/",
   "entries": [
     { "pattern": "^src/tracker/contract/", "why": "契约层：三房唯一公共面（纯类型与数据）", "ticket": 1014 },
     { "pattern": "^src/tracker/kernel/", "why": "共享内核：与具体后端无关、房间与宿主都要用的判定件（#1159 建的归口，与契约层的分界见 docs/adr/20261014-tracker-room-boundary.md）", "ticket": 1159 },
     { "pattern": "^src/shared/", "why": "共享模块：跟踪器形状层与四个自包含计算核（标签配色、刷新、配置存储等）", "ticket": 1159 },
-    { "pattern": "^src/host/outbound/", "why": "宿主的出站执行控制面（超时档、准入闸）—— 收口口径待定，见 #1159", "ticket": 1159 },
-    { "pattern": "^src/host/refresh/", "why": "宿主侧的搭车账本 —— 收口口径待定，见 #1159", "ticket": 1159 }
+    { "pattern": "^src/host/outbound/", "why": "出站档位策略（读 12 秒 / 写 30 秒 / 探活 3 秒的纯判定）—— #1159 收尾时随 tiers.ts 搬进内核后这一条也删掉；今天房间还引着它一处", "ticket": 1159 }
   ],
-  "maxEntries": 5
+  "maxEntries": 4
 }

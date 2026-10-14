@@ -28,6 +28,10 @@ import { createDeckToolsForHost, DECK_TOOL_FILES, withCap } from '../../deck/reg
 import { createFilePlanStore, planCursorDir } from '../../deck/shell/plan-cursor.js'
 // #1115：计时器口的唯一实现放在共享层（本文件原先自己写了一份，写法对但仍是第二份；六处调用点收成一份）。
 import { hostTimers } from '../../shared/host-timer/host-timers.js'
+// #1159：出站控制面（名额闸 / 取消判定 / 搭车账本）由宿主实现、随进程注入一次，房间只认形状、
+// 不再从宿主 import。这里与 src/host/platformChannel.ts 的 backendCtxForRooms 是两处注入点，
+// 缺一处那条路上的房间会按环境失败大声报出来（宁可报错，也不静默绕过名额闸）。
+import { createOutboundControl } from '../platform/outbound-control.js'
 // deck 工具前置三处的等待上限：保读数含一次远端读数（读档 12 秒加排队），给 15 秒；
 // 本机记忆与工作区文件是本地读，给 5 秒。超时都走既有的失败继续路径（保不住照旧往下走、
 // 读不到按缺席跳过），成功路径一字不动——挂住的文件服务或排满的出站队列不能卡住整笔调用。
@@ -345,6 +349,9 @@ export function createRefreshWiring(deps) {
           },
           logEvent: function (level, event, fields) { try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire(level, event, fields) } catch (e) {} },
           isEnabled: function (level) { try { return logCtx ? logCtx.isEnabled(level) : (level === 'error' || level === 'warn') } catch (e) { return level === 'error' || level === 'warn' } },
+          // #1159：出站控制面（进程级能力，随这份后端上下文注入一次）。房间起 gh 命令前拿名额、
+          // 认取消、写完记账都从这里取；缺了房间按环境失败返回，不静默绕过名额闸。
+          outbound: createOutboundControl(),
         }
         /**
          * #1150：批量建图的计划游标存储器，按这一次调用的工作区现造一份落盘的。

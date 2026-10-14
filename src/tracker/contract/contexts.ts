@@ -6,7 +6,10 @@
  * 与装配那一层（`BackendModule.create()` 收的就是这里的 `BackendContext`）。
  * 本文件只引用地基层（identity.ts）之外什么都不引 —— 它不引用实体、不引用返回值：
  * 上下文回答「怎么干活」，不回答「票长什么样」。
+ * #1159 起多引一件同层的 outbound.ts（出站控制面的形状）：仍是契约内部，仍然只有类型。
  */
+
+import type { OutboundControl } from './outbound.js'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 三、调用上下文：进程级能力与单次调用上下文
@@ -146,6 +149,17 @@ export interface BackendContext {
   logEvent: (level: string, event: string, fields: Record<string, unknown>) => void
   /** 日志开关的同步判断（信息与调试级要不要记）；权威判断仍在日志库体内兜底。 */
   isEnabled: (level: string) => boolean
+  /**
+   * 出站控制面：名额闸、取消判定、搭车账本（形状见同目录 outbound.ts，宿主实现、随进程注入一次）。
+   *
+   * 为什么算进程级能力而不是单次调用现场：出站并发上限是全进程一份的，读写分桶、排队、
+   * 搭车账本都是跨调用的状态 —— 与 `exec`／`timers` 同类，所以和它们放在一起。
+   * 为什么房间不直接 import 宿主那份实现：房间不许 import 宿主模块（`cross-room-import`），
+   * 只认形状；实现由宿主在接线处挂进来（与 `ctx.gate` 同一条路）。
+   *
+   * **必填**：缺了就是接线漏了一处，房间会按环境失败大声报出来（理由见 outbound.ts 末尾一节）。
+   */
+  outbound: OutboundControl
 }
 
 /**
