@@ -229,7 +229,11 @@ export async function listPage(
     const nextCursor = rows.length >= perPage ? String(page + 1) : null
     return { ok: true, data: { items, nextCursor, total: counted.data.total } }
   } catch (e) {
-    // 抛上来的东西交给本房统一的判档出口；这一支没有已登记的降级 reason，所以不落 read.degraded。
+    // 抛上来的东西交给本房统一的判档出口；按 read-log.ts 对 `transport` 的定义
+    // （起不了进程、超时、非 0 退出这一族），它同样属于「这一页没读成」，所以先照上面各条的规矩
+    // 落一行 read.degraded，再失败 —— 这一支还兜着上面那条 counts 子读抛上来的情形，
+    // 不落这一行的话，「这一页没读成」在日志里就是空的，分不清「没走这条路」还是「折在中间」。
+    emitReadDegraded(ctx, 'listPage', 'listPage:transport', Date.now() - t0)
     return failGlab(e, msgOf(e), e, ctx)
   }
 }

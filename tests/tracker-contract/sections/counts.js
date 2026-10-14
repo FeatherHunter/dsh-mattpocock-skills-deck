@@ -14,12 +14,17 @@
  *   counting-fake    —— 能计数的后端：数字是它自己给的（本地 Markdown 数文件、GitLab 用它的计数口都是这个位置）。
  *   guessing-fake    —— 数不全却照样回一个数的后端：这一段必须把它逮住（它正是 #677 要消灭的那种行为）。
  *
- * 另有两条不是对着假身自说自话，而是对着真实的东西断言：
- *   三 · 真实 GitLab 后端模块：这一轮不实现（维护者 2026-09-22 决定，见票 #694 / #695），注册表自动补桩，
- *        这条操作必须诚实地说「做不到」。
- *   三之二 · 真实本地 Markdown 后端模块（#691 第四件）：给它一个临时工作区，要求它把三个数给对。
- *   四 · 真实 GitHub 后端模块：给一个脚本化的 gh，要求它要么诚实地失败、要么把三个数给对；
- *        再单独验一件事 —— gh 回了个带 errors / 缺 totalCount 的响应时，它必须整体失败，不许猜。
+ * 另有三条不是对着假身自说自话，而是对着真实的东西断言：
+ *   四之一 · 真实 GitLab 后端模块：给一个脚本化的 glab，要求它拿到（假的）issues_statistics 回话之后
+ *          把三个数给对 —— 这一条 2026-10-14 起真实现（地图 10 / #1062），所以判据是正向的行为断言。
+ *   四之二 · 真实本地 Markdown 后端模块（#691 第四件）：给它一个临时工作区，要求它把三个数给对。
+ *   四之三 · 真实 GitHub 后端模块：给一个脚本化的 gh，要求它要么诚实地失败、要么把三个数给对；
+ *          再单独验一件事 —— gh 回了个带 errors / 缺 totalCount 的响应时，它必须整体失败，不许猜。
+ *
+ * 2026-10-15 返工（对抗式审查报告 research/1063-adversarial-review.md 的发现 1）：GitLab 那一段原来只
+ * 断言「失败得好看就算过」（ok:false、档位不是 unsupported、消息非空）—— 把真实现换成一律
+ * fail(env, '还没做') 的空壳，它照样绿。现在改成 `countsAnswerCheck`：拿脚本化的远端回话核对三个数。
+ * 每一条新判据都自带「空壳必须被逮住」的 ✗ probe，理由写在那个 ✗ probe 旁边。
  *
  * 每段自带反例（✗ probe）：检查器是纯函数，把故意写错的样本喂给它必须逮住；逮不住这一段就形同虚设。
  */
@@ -101,6 +106,28 @@ export function countsFailureCheck(res) {
 export function countsProbeCheck(res) {
   if (res && typeof res === 'object' && res.ok === false) return unsupportedAnswerCheck('counts', res)
   return countsShapeCheck(res)
+}
+
+/**
+ * 对着**真实现**的计数探针判据（2026-10-15 返工新增）：必须真的把三个数给对，不是「失败得好看」。
+ *
+ * 为什么要有它：`countsProbeCheck` 把「ok:false 且形状齐全」也算合规 —— 那是给「这一条还是注册表补的桩」
+ * 那个阶段写的。GitLab 这一条真实现之后，拿它来验真实现就等于没验：一律 `fail(env, '还没做')` 的空壳
+ * 照样过（对抗式审查的发现 1）。凡是对着真实现的探针，都要要求它做到契约要求的那件事。
+ *
+ * @param res 真实后端模块的返回
+ * @param want 期望的三个数 —— 测试自己脚本化了远端回话，所以测试知道该是多少
+ */
+export function countsAnswerCheck(res, want) {
+  const bad = countsShapeCheck(res)
+  if (bad.length) return bad
+  const w = want || {}
+  for (const k of ['open', 'closed', 'total']) {
+    if (typeof w[k] === 'number' && res.data[k] !== w[k]) {
+      bad.push('counts.' + k + ' 应为 ' + w[k] + '（脚本化的回话给的就是这个数），实得 ' + JSON.stringify(res.data[k]))
+    }
+  }
+  return bad
 }
 
 // ── 三个假身（只活在测试里）──────────────────────────────────────────────────
@@ -212,10 +239,10 @@ export async function run() {
     d.dispose()
   }
 
-  // ── 四、真实后端模块探针：诚实地做不到，或者把数字给对 ──
-  //   GitLab 与本地 Markdown 这一轮一行不改（实现排在阶段 3），注册表按 OPERATIONS 自动补桩。
-  //   GitHub 这一轮真实现（一次 GraphQL 的 totalCount）；给它一个脚本化的 gh，让它走得通「真去做」这条路。
-  //   判据一个字没放宽：检查器检查的是**真实模块的输出**。
+  // ── 四、真实后端模块探针：三个真后端各给一个「能跑起来」的上下文 ──
+  //   GitLab（地图 10 / #1062）与本地 Markdown（#691）这一轮真实现了 counts；GitHub 更早实现。
+  //   三段各自桩掉外部命令或给一个临时工作区，让「真去做」这条路走得通。
+  //   判据一个字没放宽：检查器检查的是**真实模块的输出**，而且对真实现只收「做到」这一种答案。
   {
     // 脚本化的 gh：按命令给不同的应答；可以通过 seed 换成「带 errors」「缺 totalCount」等坏响应。
     const mkScriptedGh = (payload, opts) => async (cmd, args) => {
@@ -227,17 +254,62 @@ export async function run() {
     const GOOD = { data: { repository: { openIssues: { totalCount: 31 }, closedIssues: { totalCount: 649 } } } }
     const probeCtx = (ghPayload, opts) => ({ cwd: '/ws/fake', platform: { resolveExecutable: async (n) => (n === 'gh' ? 'gh' : null) }, exec: mkScriptedGh(ghPayload, opts), isEnabled: () => false, logEvent: () => {} })
 
-    //   2026-10-14 改动（地图 10 / #1062）：GitLab 后端这一轮真实现了 counts，所以这一段不再要求它
-    //   「落到做不到的桩」。改成验另一件事，判据一个字没放宽：**这条能力确实挂上去了（不再是注册表
-    //   补的桩），并且在没有 glab 运行时的上下文里如实失败**——这一段的 ctx 只有 logEvent 与
-    //   isEnabled，没有 platform、没有 exec。补的桩回 kind=unsupported，真实现回的是环境类失败，
-    //   两者分得开，所以「是不是桩」这件事仍然可判。
-    for (const rb of [{ id: 'gitlab', mod: gitlabBackend }]) {
-      const regReal = createRegistry({ logEvent: () => {}, isEnabled: () => false }, { matchesTimeout: 200 })
-      const d = regReal.register(rb.mod)
-      const r = await regReal.get(rb.id).counts(ref(rb.id), {}, ctx)
-      await assert('真实 ' + rb.id + ' 后端：能力已挂上（不再是补的桩），且没有 glab 运行时时如实失败', r && r.ok === false && r.error && typeof r.error.kind === 'string' && r.error.kind !== 'unsupported' && typeof r.error.message === 'string' && r.error.message.trim().length > 0, JSON.stringify(r))
-      d.dispose()
+    // ── 四之一、真实 GitLab 后端：给它一个脚本化的 glab，要求它拿到回话之后把三个数给对 ──
+    //   2026-10-14（地图 10 / #1062）这一房真实现了 counts；2026-10-15 返工（对抗式审查发现 1）把这一段
+    //   从「失败得好看就算过」改成正向行为断言。
+    //   这一段的 ctx 与下面 github 探针同一个形状：cwd、platform（resolveExecutable 认得 glab）、
+    //   exec（脚本化的桩）、isEnabled 与 logEvent。有 exec 有 platform，glabClient 才会走「真去做」那条路
+    //   —— 不再靠「没有运行环境所以失败」来验这条能力。
+    {
+      // 脚本化的 glab：按命令名分派（本房读路径都走 execGlab → exec('glab', args)）。
+      // 只脚本化 issues_statistics 一条；别的路径一律回失败，好让「多发了一次没脚本化的请求」当场露出来。
+      const mkScriptedGlab = (opts) => {
+        const o = opts || {}
+        const calls = []
+        const exec = async (cmd, args) => {
+          const line = (args || []).join(' ')
+          calls.push(line)
+          if (cmd !== 'glab') return { code: 1, stdout: '', stderr: 'probe 没脚本化这条命令: ' + cmd }
+          if (line.indexOf('/issues_statistics?') >= 0) {
+            if (o.statFail) return { code: 1, stdout: '', stderr: o.statFail }
+            return { code: 0, stdout: typeof o.statPayload === 'string' ? o.statPayload : JSON.stringify(o.statPayload), stderr: '' }
+          }
+          return { code: 1, stdout: '', stderr: 'probe 没脚本化这条命令: ' + line }
+        }
+        return { exec: exec, calls: calls }
+      }
+      // 官方文档那个回包形状：statistics.counts 里是 all / closed / opened。
+      const STATS = { statistics: { counts: { all: 20, closed: 5, opened: 15 } } }
+      const glProbeCtx = (s) => ({ cwd: '/ws/fake', platform: { resolveExecutable: async (n) => (n === 'glab' ? 'glab' : null) }, exec: s.exec, isEnabled: () => false, logEvent: () => {} })
+
+      const regGl = createRegistry({ logEvent: () => {}, isEnabled: () => false }, { matchesTimeout: 200 })
+      const dGl = regGl.register(gitlabBackend)
+      const gl = regGl.get('gitlab')
+
+      const s1 = mkScriptedGlab({ statPayload: STATS })
+      const rAll = await gl.counts(ref('gitlab'), {}, glProbeCtx(s1))
+      await assert('真实 gitlab 后端：拿到 issues_statistics 回话后把三个数给对（opened→open、all→total）', countsAnswerCheck(rAll, { open: 15, closed: 5, total: 20 }).length === 0, countsAnswerCheck(rAll, { open: 15, closed: 5, total: 20 }).join('；') || JSON.stringify(rAll))
+      await assert('真实 gitlab 后端：请求打到 issues_statistics，且显式带 scope=all（不赌远端没写出来的默认值）', s1.calls.length === 1 && /projects\/acme%2Fdemo\/issues_statistics\?/.test(s1.calls[0]) && /[?&]scope=all(&|$)/.test(s1.calls[0]), JSON.stringify(s1.calls))
+
+      const beforeOpen = s1.calls.length
+      const rOpen = await gl.counts(ref('gitlab'), { state: 'open' }, glProbeCtx(s1))
+      await assert('真实 gitlab 后端：filter.state=open 在本地收窄（打开的那个数、关闭归零）', countsAnswerCheck(rOpen, { open: 15, closed: 0, total: 15 }).length === 0, countsAnswerCheck(rOpen, { open: 15, closed: 0, total: 15 }).join('；') || JSON.stringify(rOpen))
+      await assert('真实 gitlab 后端：filter.state 不进 URL（这个端点没有 state 这一格，收窄只能在本地做）', s1.calls.length === beforeOpen + 1 && s1.calls[beforeOpen] === s1.calls[0], JSON.stringify(s1.calls))
+      const rClosed = await gl.counts(ref('gitlab'), { state: 'closed' }, glProbeCtx(s1))
+      await assert('真实 gitlab 后端：filter.state=closed 同样只在本地收窄（关闭的那个数、打开归零）', countsAnswerCheck(rClosed, { open: 0, closed: 5, total: 5 }).length === 0, countsAnswerCheck(rClosed, { open: 0, closed: 5, total: 5 }).join('；') || JSON.stringify(rClosed))
+
+      // 数不出来 → 整体失败，不许拿三个零顶上（远端报错原文里带 401，档位走既有分类）
+      const s2 = mkScriptedGlab({ statFail: 'glab: HTTP 401: Bad credentials' })
+      const rDown = await gl.counts(ref('gitlab'), {}, glProbeCtx(s2))
+      await assert('真实 gitlab 后端：issues_statistics 报错 → 整体失败，不许给三个零', countsFailureCheck(rDown).length === 0 && !(rDown.data && rDown.data.open === 0 && rDown.data.closed === 0 && rDown.data.total === 0), countsFailureCheck(rDown).join('；') || JSON.stringify(rDown))
+
+      // ✗ probe：这一段的新判据必须逮得住「一律返回失败」的空壳 —— 这正是 2026-10-15 返工要堵的洞。
+      //   为什么要专门写这几条：原来那一条断言只看「ok:false、档位不是 unsupported、消息非空」，
+      //   把真实现换成 `fail(env, '还没做')` 的空壳照样绿。判据放不放空壳过去，只能靠喂空壳来证明。
+      const SHELL = { ok: false, error: { kind: 'env', message: '还没做' } }
+      await assert('✗ probe: 「一律返回失败」的空壳回答过不了新判据', countsAnswerCheck(SHELL, { open: 15, closed: 5, total: 20 }).length > 0, '判据给出的违规清单：' + JSON.stringify(countsAnswerCheck(SHELL, { open: 15, closed: 5, total: 20 })))
+      await assert('✗ probe: 空壳改回一个漂亮的 0 也过不了（三个数必须来自远端回话）', countsAnswerCheck({ ok: true, data: { open: 0, closed: 0, total: 0 } }, { open: 15, closed: 5, total: 20 }).length > 0, '判据给出的违规清单：' + JSON.stringify(countsAnswerCheck({ ok: true, data: { open: 0, closed: 0, total: 0 } }, { open: 15, closed: 5, total: 20 })))
+      dGl.dispose()
     }
 
     // 本地 Markdown 这一轮真实现了（#691 第四件）：给它一个临时工作区，要求它把三个数给对。

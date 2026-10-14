@@ -6,9 +6,13 @@
 
 ## 一、这一家最要紧的几条不同
 
-### 1. 命令行工具是 `glab`，而且客户端丢掉了 HTTP 响应头
+### 1. 命令行工具是 `glab`，而且本房客户端丢掉了 HTTP 响应头
 
-`client.ts` 是本房唯一跑外部命令的地方，它只回 `{stdout, stderr, code}` 三段——**响应头在它这一层就没有了**。所以 GitLab REST 那些靠 `X-Total` 头拿总数的做法在本房走不通：计数只能改问 `GET /projects/:id/issues_statistics`（见 `counts.ts` 的文件头，那里写了为什么选这条）。以后想加一条「靠响应头才能做」的能力，先想清楚这个限制还在不在。
+`client.ts` 是本房唯一跑外部命令的地方，它只回 `{stdout, stderr, code}` 三段——**响应头在它这一层就没有了**。所以 GitLab REST 那些靠 `X-Total` 头拿总数的做法在本房走不通：计数改问 `GET /projects/:id/issues_statistics`（见 `counts.ts` 的文件头，那里写了为什么选这条）。
+
+**响应头是本房客户端丢掉的，不是 glab 没有。** `glab api` 自己就有两个现成的开关：`-i`（`--include`，把 HTTP 响应头一起打进输出）与 `--paginate`（自动把剩下的页全部翻完）。本房的 `client.ts` 拼参数时没有加这两个，所以它们能给的东西在本房拿不到。代价也说清楚：`-i` 会把响应头混进标准输出，而本房现在一律按纯 JSON 解析回包（`JSON.parse(r.stdout)`），加上它这一步当场就会解析失败。所以真有人需要用响应头时，第一步是改客户端——把响应头与正文分开取回来，并按纯 JSON 解析回包的那些调用方跟着一起改——而不是换个接口绕开。以后想加一条「靠响应头才能做」的能力，先看这两个开关在客户端里打开没有。
+
+跟这条限制同源的一处代价落在 `listPage` 上：`pages.ts` 里 `nextCursor` 的算法是「这一页取满了（行数等于每页条数）就再给一个页码，取不满才是最后一页」。因为拿不到响应头里的总数，**当总数正好是每页条数的整数倍时，最后一页仍然会给出一个游标**，调用方会多取一次、拿回一个空数组。这是这套接口设计的代价，不是错误：契约的返回里能表达「有没有下一页」的只有 `nextCursor` 这一格，没有别的位置能补一句「这已经是最后一页」。读的人不要以为这里已经省下了那一趟。
 
 `platform` 或 `exec` 不在上下文里时，客户端回的是 `code: 127` 加一句 `stderr: 'platform unavailable'`，不抛异常。调用方按 `OpResult` 归一。
 
@@ -16,13 +20,15 @@
 
 `repo.refId` 形如 `group/sub/project`，可以有好几层。往 API 路径里拼之前一律 `encodeURIComponent`。`repo.ts` 的 `getRepoKey` 就是干这个的：从 git remote 解析，认不出就退到 `.git/config`，再退到 `glab repo view`。
 
-### 3. 没有原生父子关系
+### 3. 本房走的这条 REST 路拿不到层级边，父子关系落成平级链接
 
-GitLab 今天没有「这一张是那一张的子票」这种原生边。所以：
+GitLab 平台本身有原生的父子层级：官方文档的「Child items」一页整页在讲这件事（`Tier: Free, Premium, Ultimate`，任务可以作为子条目挂在议题下面，epic 下面也能挂议题）。**层级不在本房走的这条路上**：那条路叫 work items，入口是界面与 GraphQL。本房取数一律走 `glab api` 的 REST `issue links` 接口，而这个接口的 `link_type` 只有 `relates_to`、`blocks`、`is_blocked_by` 三种，没有表示层级的那一个值。所以：
 
 - `setParent` 落下去的是一条 `relates_to` **平级链接**，不是层级。
 - `listSubIssues` 读的也是这条链接（见 `sub-issues.ts` 的文件头，那里写了结论与依据）。
 - `relates_to` 是对称的：**人手工加的链接与程序写下的父子分不出来**。拿回来的东西能画关系，但别当成原生层级用，也别对用户说「这是它的子票」而不加限定。
+
+**该往哪使劲**：这是「本房这条 REST 路拿不到」，不是「GitLab 做不到」。以后真需要远端认的层级，那是一条新能力——换成 work items 的 GraphQL 查询，把读与写一起重做，得另开一票，别指望在 `issue links` 上改出层级来；反过来，也别对用户说「GitLab 没有子票」，平台有。
 
 ### 4. 阻塞边：原生能力常拿不到，回落到正文里的 `Blocked by:` 行
 

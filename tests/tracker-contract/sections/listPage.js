@@ -17,10 +17,17 @@
  *   guessing-fake    —— 数不全却照样回一个总数的后端：形状挑不出毛病，所以责任写在后端自报失败那一侧
  *                       （第 6 段把这个已知边界写下来，免得以后有人以为已经守住了）。
  *
- * 另有两条不是对着假身自说自话，而是对着真实的东西断言：
- *   真实 GitLab 与本地 Markdown 后端模块：走到哪一步算哪一步 —— 要么实现了并给出合规的一页，
- *     要么经注册表自动补桩、落到「做不到」（这一轮它们是否实现由各自的落地票决定，本段两种都收）。
+ * 另有几条不是对着假身自说自话，而是对着真实的东西断言：
+ *   真实本地 Markdown 后端模块：走到哪一步算哪一步 —— 要么实现了并给出合规的一页，要么经注册表自动补桩、
+ *     落到「做不到」（它是否实现由自己的落地票决定，本段两种都收）。
+ *   真实 GitLab 后端模块：这一条 2026-10-14 起真实现（地图 10 / #1062），所以这一段改成**正向行为断言** ——
+ *     给一个脚本化的 glab，逐条核对 URL 实参、游标语义、总数与「总数拿不到就整条失败」。
  *   真实 GitHub 后端模块：给一个脚本化的 gh，逐条验上面那四件事（含「薄片段不带正文与评论」）。
+ *
+ * 2026-10-15 返工（对抗式审查报告 research/1063-adversarial-review.md 的发现 1）：GitLab 那一段原来与
+ * markdown 共用 `pageProbeCheck`，而那个判据把「ok:false 且形状齐全」也算合规 —— 把真实现换成一律
+ * fail(env, '还没做') 的空壳，它照样绿。现在 GitLab 那一路换成 `pageAnswerCheck`（必须真给出一页，
+ * 且条数、游标、总数与脚本化的回话对得上），每条新判据自带「空壳必须被逮住」的 ✗ probe。
  *
  * 每段自带反例（✗ probe）：检查器是纯函数，把故意写错的样本喂给它必须逮住；逮不住这一段就形同虚设。
  */
@@ -89,6 +96,33 @@ export function pageProbeCheck(res) {
     return stub.concat(honest)
   }
   return pageShapeCheck(res)
+}
+
+/**
+ * 对着**真实现**的分页探针判据（2026-10-15 返工新增）：必须真给出一页合规数据，而且这一页要与测试
+ * 脚本化的远端回话对得上（条数、下一页游标、总数）。
+ *
+ * 为什么要有它：`pageProbeCheck` 把「ok:false 且形状齐全」也算合规 —— 那是给「这一条还是注册表补的桩」
+ * 那个阶段写的。GitLab 这一条真实现之后，拿它来验真实现就等于没验：一律 `fail(env, '还没做')` 的空壳
+ * 照样过（对抗式审查的发现 1）。凡是对着真实现的探针，都要要求它做到契约要求的那件事。
+ *
+ * @param res 真实后端模块的返回
+ * @param want 期望的 `{items, nextCursor, total}` —— 测试自己脚本化了远端回话，所以测试知道该是多少
+ */
+export function pageAnswerCheck(res, want) {
+  const bad = pageShapeCheck(res)
+  if (bad.length) return bad
+  const w = want || {}
+  if (typeof w.items === 'number' && res.data.items.length !== w.items) {
+    bad.push('这一页应有 ' + w.items + ' 行（脚本化的回话给了这么多），实得 ' + res.data.items.length)
+  }
+  if ('nextCursor' in w && res.data.nextCursor !== w.nextCursor) {
+    bad.push('nextCursor 应为 ' + JSON.stringify(w.nextCursor) + '，实得 ' + JSON.stringify(res.data.nextCursor))
+  }
+  if (typeof w.total === 'number' && res.data.total !== w.total) {
+    bad.push('total 应为 ' + w.total + '（脚本化的回话给的就是这个数），实得 ' + JSON.stringify(res.data.total))
+  }
+  return bad
 }
 
 // ── 三个假身（只活在测试里）──────────────────────────────────────────────────
@@ -214,15 +248,122 @@ export async function run() {
     d2.dispose()
   }
 
-  // ── 四、真实后端模块探针：GitLab / 本地 Markdown 走到哪一步算哪一步 ──
+  // ── 四、真实本地 Markdown 后端探针：走到哪一步算哪一步（判据与原来一字不差）──
   {
-    for (const rb of [{ id: 'gitlab', mod: gitlabBackend }, { id: 'markdown', mod: markdownModule }]) {
-      const regReal = createRegistry({ logEvent: () => {}, isEnabled: () => false }, { matchesTimeout: 200 })
-      const d = regReal.register(rb.mod)
-      const r = await regReal.get(rb.id).listPage(ref(rb.id), { state: 'closed' }, { cursor: '', limit: 50 }, ctx)
-      await assert('真实 ' + rb.id + ' 后端：要么给一页合规数据、要么诚实说做不到', pageProbeCheck(r).length === 0, pageProbeCheck(r).join('；') || JSON.stringify(r).slice(0, 200))
-      d.dispose()
+    const regMd = createRegistry({ logEvent: () => {}, isEnabled: () => false }, { matchesTimeout: 200 })
+    const dMd = regMd.register(markdownModule)
+    const rMd = await regMd.get('markdown').listPage(ref('markdown'), { state: 'closed' }, { cursor: '', limit: 50 }, ctx)
+    await assert('真实 markdown 后端：要么给一页合规数据、要么诚实说做不到', pageProbeCheck(rMd).length === 0, pageProbeCheck(rMd).join('；') || JSON.stringify(rMd).slice(0, 200))
+    dMd.dispose()
+  }
+
+  // ── 四之二、真实 GitLab 后端：给一个脚本化的 glab，逐条钉住它拿到回话之后做对 ──
+  //   2026-10-14（地图 10 / #1062）这一房真实现了 listPage；2026-10-15 返工（对抗式审查发现 1）把这一段
+  //   从「失败得好看也算过」改成正向行为断言。
+  //   这一段的 ctx 与下面 github 探针同一个形状：cwd、platform（resolveExecutable 认得 glab）、
+  //   exec（脚本化的桩）、isEnabled 与 logEvent —— 有 exec 有 platform，glabClient 才走「真去做」那条路。
+  {
+    // 脚本化的 glab：一个 exec 同时伺候两个端点（issues 与 issues_statistics），按路径分派。
+    // rows 按创建时间倒序排好 —— URL 里写着 order_by=created_at&sort=desc，远端就该这么回；
+    // 桩只按 page / per_page 切片，不做任何别的加工。
+    const mkScriptedGlab = (opts) => {
+      const o = opts || {}
+      const calls = []
+      const total = typeof o.total === 'number' ? o.total : 5
+      const allRows = []
+      for (let i = total; i >= 1; i--) {
+        allRows.push({
+          iid: i,
+          title: '第 ' + i + ' 张票',
+          state: 'closed',
+          description: '',
+          web_url: 'https://gitlab.example/acme/demo/-/issues/' + i,
+          created_at: '2026-01-0' + ((i % 9) + 1) + 'T00:00:00Z',
+          updated_at: '2026-02-01T00:00:00Z',
+          labels: [{ name: 'bug', color: '#d73a4a' }],
+          assignees: [{ username: 'someone' }],
+          author: { username: 'author' },
+        })
+      }
+      const exec = async (cmd, args) => {
+        const line = (args || []).join(' ')
+        calls.push(line)
+        if (cmd !== 'glab') return { code: 1, stdout: '', stderr: 'probe 没脚本化这条命令: ' + cmd }
+        const path = String((args && args[1]) || '')
+        const q = path.indexOf('?') >= 0 ? new URLSearchParams(path.slice(path.indexOf('?') + 1)) : new URLSearchParams()
+        if (path.indexOf('/issues_statistics?') >= 0) {
+          if (o.statFail) return { code: 1, stdout: '', stderr: o.statFail }
+          return { code: 0, stdout: JSON.stringify({ statistics: { counts: { all: total, closed: total, opened: total } } }), stderr: '' }
+        }
+        if (path.indexOf('/issues?') >= 0) {
+          if (o.issuesFail) return { code: 1, stdout: '', stderr: o.issuesFail }
+          const page = Number(q.get('page') || '1')
+          const perPage = Number(q.get('per_page') || '20')
+          const from = (page - 1) * perPage
+          return { code: 0, stdout: JSON.stringify(allRows.slice(from, from + perPage)), stderr: '' }
+        }
+        return { code: 1, stdout: '', stderr: 'probe 没脚本化这条命令: ' + line }
+      }
+      return { exec: exec, calls: calls, issuesCalls: () => calls.filter((c) => c.indexOf('/issues?') >= 0) }
     }
+    const glProbeCtx = (s) => ({ cwd: '/ws/fake', platform: { resolveExecutable: async (n) => (n === 'glab' ? 'glab' : null) }, exec: s.exec, isEnabled: () => false, logEvent: () => {} })
+
+    const regGl = createRegistry({ logEvent: () => {}, isEnabled: () => false }, { matchesTimeout: 200 })
+    const dGl = regGl.register(gitlabBackend)
+    const gl = regGl.get('gitlab')
+
+    // ① 基本一页：URL 实参、行、游标、总数（5 张票、每页 2 张）
+    const s1 = mkScriptedGlab({ total: 5 })
+    const p1 = await gl.listPage(ref('gitlab'), { state: 'closed' }, { cursor: '', limit: 2 }, glProbeCtx(s1))
+    await assert('真实 gitlab 后端：一页合规数据（2 行、还有下一页、总数 5）', pageAnswerCheck(p1, { items: 2, nextCursor: '2', total: 5 }).length === 0, pageAnswerCheck(p1, { items: 2, nextCursor: '2', total: 5 }).join('；') || JSON.stringify(p1).slice(0, 240))
+    await assert('真实 gitlab 后端：行按回包顺序原样交出（回包是创建时间倒序，所以头两行是最后建的那两张）', p1.ok === true && p1.data.items.map((it) => it.key).join(',') === '5,4', JSON.stringify(p1.ok === true ? p1.data.items.map((it) => it.key) : p1))
+    await assert('真实 gitlab 后端：URL 里 page、per_page、创建时间倒序、with_labels_details、scope=all 都对（cursor 与 limit 确实传下去了）', /[?&]page=1(&|$)/.test(s1.calls[0]) && /[?&]per_page=2(&|$)/.test(s1.calls[0]) && /[?&]order_by=created_at(&|$)/.test(s1.calls[0]) && /[?&]sort=desc(&|$)/.test(s1.calls[0]) && /[?&]with_labels_details=true(&|$)/.test(s1.calls[0]) && /[?&]scope=all(&|$)/.test(s1.calls[0]), s1.calls[0])
+    await assert('真实 gitlab 后端：filter.state 下推到远端（state=closed），不是先取一页再内存过滤', /[?&]state=closed(&|$)/.test(s1.calls[0]), s1.calls[0])
+    await assert('真实 gitlab 后端：总数来自同房的 counts（每条读多问一次 issues_statistics，这是本房的设计代价）', s1.calls.length === 2 && s1.calls[1].indexOf('/issues_statistics?') >= 0, JSON.stringify(s1.calls))
+
+    // ② 游标原样回传 → 下一页；取不满 → 翻到底
+    const p2 = await gl.listPage(ref('gitlab'), { state: 'closed' }, { cursor: p1.data.nextCursor, limit: 2 }, glProbeCtx(s1))
+    await assert('真实 gitlab 后端：游标原样回传就翻到下一页（页码编在游标里，调用方不解析它）', pageAnswerCheck(p2, { items: 2, nextCursor: '3', total: 5 }).length === 0 && s1.issuesCalls()[1].indexOf('page=2') >= 0, pageAnswerCheck(p2, { items: 2, nextCursor: '3', total: 5 }).join('；') || s1.issuesCalls()[1])
+    const p3 = await gl.listPage(ref('gitlab'), { state: 'closed' }, { cursor: p2.data.nextCursor, limit: 2 }, glProbeCtx(s1))
+    await assert('真实 gitlab 后端：这一页取不满 → nextCursor 给 null（翻到底了）', pageAnswerCheck(p3, { items: 1, nextCursor: null, total: 5 }).length === 0, pageAnswerCheck(p3, { items: 1, nextCursor: null, total: 5 }).join('；') || JSON.stringify(p3).slice(0, 200))
+
+    // ③ 特别钉住「总数正好是每页条数的整数倍」这一格 —— 写的是**实际行为**，不是做不到的期望：
+    //   本房在 glab 这条缝上拿不到响应头（见 ./counts.ts 文件头），「还有下一页」只能靠「这一页的行数
+    //   够不够 per_page」判；于是总数正好是整数倍时，最后一页仍会给一个游标，调用方要多取一次才拿回
+    //   空表。这是设计代价，不是错误：少取一次的办法（读响应头的 rel="next"）在结果超过 10000 条时
+    //   远端根本不返回那一格，反而会变成静默截断。
+    const s2 = mkScriptedGlab({ total: 4 })
+    const e1 = await gl.listPage(ref('gitlab'), { state: 'closed' }, { cursor: '', limit: 2 }, glProbeCtx(s2))
+    const e2 = await gl.listPage(ref('gitlab'), { state: 'closed' }, { cursor: e1.data.nextCursor, limit: 2 }, glProbeCtx(s2))
+    const e3 = await gl.listPage(ref('gitlab'), { state: 'closed' }, { cursor: e2.data.nextCursor, limit: 2 }, glProbeCtx(s2))
+    await assert('真实 gitlab 后端：总数是每页条数的整数倍时，取满的第二页仍给游标「3」（拿不到响应头总数，这是设计代价）', pageAnswerCheck(e2, { items: 2, nextCursor: '3', total: 4 }).length === 0, pageAnswerCheck(e2, { items: 2, nextCursor: '3', total: 4 }).join('；') || JSON.stringify(e2).slice(0, 200))
+    await assert('真实 gitlab 后端：多取一次才拿到空表与 null 游标（整数倍这一格的收尾方式，不是漏行）', pageAnswerCheck(e3, { items: 0, nextCursor: null, total: 4 }).length === 0 && s2.issuesCalls().length === 3, pageAnswerCheck(e3, { items: 0, nextCursor: null, total: 4 }).join('；') || JSON.stringify(e3).slice(0, 200))
+
+    // ④ limit 要多了按 GitLab 的 per_page 上限收（远端会把超出的自己截到 100，那时「比 per_page 少」
+    //   就成了假信号，历史会从这儿少一段 —— 所以本房先把它收到 100）
+    const s3 = mkScriptedGlab({ total: 5 })
+    await gl.listPage(ref('gitlab'), { state: 'closed' }, { cursor: '', limit: 999 }, glProbeCtx(s3))
+    await assert('真实 gitlab 后端：limit 要多了按远端 per_page 上限收（999 → 100，不报错）', /[?&]per_page=100(&|$)/.test(s3.calls[0]), s3.calls[0])
+
+    // ⑤ 拿不到总数 / 拿不到行 / 游标认不出来 → 整条失败，不许返回半成品
+    const s4 = mkScriptedGlab({ total: 5, statFail: 'glab: HTTP 401: Bad credentials' })
+    const noTotal = await gl.listPage(ref('gitlab'), { state: 'closed' }, { cursor: '', limit: 2 }, glProbeCtx(s4))
+    await assert('真实 gitlab 后端：行取到了、总数没取到 → 整条失败（不许返回「有行、没总数」的半成品）', pageFailureCheck(noTotal, false).length === 0 && noTotal.data === undefined && s4.issuesCalls().length === 1, pageFailureCheck(noTotal, false).join('；') || JSON.stringify(noTotal))
+    const s5 = mkScriptedGlab({ total: 5, issuesFail: 'glab: HTTP 404: Not Found' })
+    const noRows = await gl.listPage(ref('gitlab'), { state: 'closed' }, { cursor: '', limit: 2 }, glProbeCtx(s5))
+    await assert('真实 gitlab 后端：列票这一趟报错 → 整条失败（档位来自既有分类，不退化成空页）', pageFailureCheck(noRows, false).length === 0 && noRows.error.kind === 'not-found', pageFailureCheck(noRows, false).join('；') || JSON.stringify(noRows))
+    const s6 = mkScriptedGlab({ total: 5 })
+    const badCursor = await gl.listPage(ref('gitlab'), { state: 'closed' }, { cursor: 'abc', limit: 2 }, glProbeCtx(s6))
+    await assert('真实 gitlab 后端：游标认不出来 → 整条失败且点名「游标已失效」，一个请求都不发', pageFailureCheck(badCursor, true).length === 0 && s6.calls.length === 0, pageFailureCheck(badCursor, true).join('；') || JSON.stringify(badCursor))
+
+    // ✗ probe：这一段的新判据必须逮得住「一律返回失败」的空壳 —— 这正是 2026-10-15 返工要堵的洞。
+    //   为什么要专门写这几条：原来 GitLab 这一路与 markdown 共用 `pageProbeCheck`，那个判据把
+    //   「ok:false 且形状齐全」也算合规，把真实现换成 `fail(env, '还没做')` 的空壳照样绿。
+    //   判据放不放空壳过去，只能靠喂空壳来证明。
+    const SHELL = { ok: false, error: { kind: 'env', message: 'listPage 还没做' } }
+    await assert('✗ probe: 「一律返回失败」的空壳回答过不了新判据', pageAnswerCheck(SHELL, { items: 2, nextCursor: '2', total: 5 }).length > 0, '判据给出的违规清单：' + JSON.stringify(pageAnswerCheck(SHELL, { items: 2, nextCursor: '2', total: 5 })))
+    await assert('✗ probe: 空壳改回一个合规的空页也过不了（条数、游标、总数要与脚本化的回话对得上）', pageAnswerCheck({ ok: true, data: { items: [], nextCursor: null, total: 0 } }, { items: 2, nextCursor: '2', total: 5 }).length > 0, '判据给出的违规清单：' + JSON.stringify(pageAnswerCheck({ ok: true, data: { items: [], nextCursor: null, total: 0 } }, { items: 2, nextCursor: '2', total: 5 })))
+    dGl.dispose()
   }
 
   // ── 五、真实 GitHub 后端：给一个脚本化的 gh，逐条验那四件事 ──

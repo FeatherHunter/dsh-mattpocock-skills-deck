@@ -2,7 +2,9 @@
  * src/tracker/rooms/gitlab/sub-issues.ts —— 取一张地图上挂着的票（契约第 21 条 `Tracker.listSubIssues` 的 GitLab 实现）。
  *
  * ── 这条能力在 GitLab 上读回来的到底是什么（先读这一段，再读代码）──────────────────
- * GitLab 没有原生父子关系。本房的 `setParent` 落到远端，是在**子票自己**的链接资源上 POST
+ * 本房走的 REST issue links 接口没有层级类型（`link_type` 只有 `relates_to`、`blocks`、`is_blocked_by`
+ * 三种）。GitLab 平台本身有原生的父子层级，但它在 work items 那条路上（入口是界面与 GraphQL），
+ * 本房不走那条。本房的 `setParent` 落到远端，是在**子票自己**的链接资源上 POST
  * 一条 `relates_to` 平级链接（`graph-membership.ts:97`：路径是子票的 `/issues/:childIid/links`，
  * 请求里带 `target_issue_iid=<父票>`、`link_type=relates_to`）。所以这条能力读回来的是
  * 「挂在这张地图上的票」，**不是** GitLab 意义上的子票：层级是「本房按写的时候的约定认出来的」，

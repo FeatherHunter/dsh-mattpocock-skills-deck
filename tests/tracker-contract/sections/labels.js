@@ -17,8 +17,9 @@
  *                       配色文件里的 ∪ 内置默认那些」的并集，改色只改文件里已有的标签。
  *
  * 另外三段不是对着假身自说自话，而是对着真实的东西断言：
- *   一之二 · 真实 GitLab 后端模块：两条操作已由地图 10（#1062）真实现（2026-10-14 起），
- *            所以这一段验的是「确实挂上去了、不再靠注册表补桩，且没有运行环境时如实回报」。
+ *   一之二 · 真实 GitLab 后端模块：两条操作已由地图 10（#1062）真实现（2026-10-14 起）。这一段给一个
+ *            脚本化的 glab，要求它拿到（假的）远端回话之后**做对**：两页拼出完整清单、颜色归一、
+ *            逐条记账、空批次不发请求、重名整批拒掉、404 落「找不到」档。
  *   五     · 真实 GitHub 与本地 Markdown 后端模块（#627 二次整改 P1）：把两个真实模块注册进注册表真调用，
  *            要求它们**要么诚实地说做不到（unsupported），要么把这一条操作做到契约要求**（列表形状检查器
  *            与逐条记账检查器全过）。今天两个后端都还没实现这两条操作，所以走「诚实地说做不到」；
@@ -26,6 +27,11 @@
  *   六     · 宿主那两条电话（src/host/workspaceCwd.js 的 wf.listLabels / wf.setLabelColors）：验回包信封
  *            形状与失败分档（真连不通才归 network；形状不对、抛异常、宿主自己的错一律归 env；
  *            没选定后端 / 多个后端同时命中 / 身份识别没定下来一律归 conflict）。
+ *
+ * 2026-10-15 返工（对抗式审查报告 research/1063-adversarial-review.md 的发现 1）：一之二原来只断言
+ * 「失败得好看就算过」（`honestFailure(...) || batchBookkeeping(...)`）—— 把两条真实现换成一律
+ * fail(env, '还没做') 的空壳，它照样绿。现在换成 `labelListAnswerCheck` / `labelBatchAnswerCheck`
+ * 这两条正向判据（清单要真的全、记账要与脚本化的远端回话对得上），并各带「空壳必须被逮住」的 ✗ probe。
  *
  * 每段自带反例（✗ probe）：检查器是纯函数，把故意写错的样本喂给它，必须逮住；逮不住这一段就形同虚设。
  */
@@ -202,6 +208,63 @@ export function labelBatchProbeCheck(changes, res) {
   return bad.concat(labelBatchCheck(changes, res.data))
 }
 
+/**
+ * 对着**真实现**的列标签探针判据（2026-10-15 返工新增）：必须真的给出完整清单。
+ *
+ * 为什么要有它：`labelListProbeCheck` 把「ok:false 且 kind=unsupported」也算合规 —— 那是给「这一条还是
+ * 注册表补的桩」那个阶段写的；一之二那段更宽，只要「失败得好看」就放行。于是把真实现换成一律
+ * `fail(env, '还没做')` 的空壳照样绿（对抗式审查的发现 1）。凡是对着真实现的探针，都要要求它做到
+ * 契约要求的那件事，还要用测试自己知道的全量去核对「拿全了没有」。
+ *
+ * @param res 真实后端模块的返回
+ * @param expectedNames 测试自己知道的那份全量（脚本化的回话给了哪些标签，测试就知道全量是什么）
+ */
+export function labelListAnswerCheck(res, expectedNames) {
+  if (!res || typeof res !== 'object' || res.ok !== true) {
+    return ['列标签要真的拿到清单（{ok:true, data:[...]}），不许用「失败得好看」过关，实得 ' + JSON.stringify(res)]
+  }
+  return labelListCheck(res.data).concat(labelCompletenessCheck(res.data, expectedNames || []))
+}
+
+/**
+ * 对着**真实现**的批量改色探针判据（2026-10-15 返工新增）：必须真的给出逐条记账，而且账目要与测试
+ * 脚本化的远端回话对得上（哪几条该改成、哪几条该落哪一档）。
+ *
+ * 为什么光有 `labelBatchCheck` 不够：它只管「每一条改动恰好被记账一次」，不管记的是不是真话 ——
+ * 「全部记成 env 失败」的空壳能过它。所以这里再用 `want` 核对两摞名单与失败档位。
+ *
+ * @param changes 这一批改动（入参，labelBatchCheck 用它核对记账）
+ * @param res 真实后端模块的返回
+ * @param want 期望的 `{applied, failed, kindOf}`：前两个是标签名清单，kindOf 是「某个名字该落哪一档」
+ */
+export function labelBatchAnswerCheck(changes, res, want) {
+  if (!res || typeof res !== 'object' || res.ok !== true) {
+    return ['批量改色要真的给出逐条记账（{ok:true, data:{applied,failed}}），不许用「失败得好看」过关，实得 ' + JSON.stringify(res)]
+  }
+  const bad = labelBatchCheck(changes, res.data)
+  if (bad.length) return bad
+  const w = want || {}
+  const sortedNames = (arr) => arr.map((x) => x.name).slice().sort()
+  if (w.applied) {
+    const got = sortedNames(res.data.applied)
+    const exp = w.applied.slice().sort()
+    if (got.join('|') !== exp.join('|')) bad.push('改成的应是 ' + JSON.stringify(exp) + '，实得 ' + JSON.stringify(got))
+  }
+  if (w.failed) {
+    const got = sortedNames(res.data.failed)
+    const exp = w.failed.slice().sort()
+    if (got.join('|') !== exp.join('|')) bad.push('没改成的应是 ' + JSON.stringify(exp) + '，实得 ' + JSON.stringify(got))
+  }
+  if (w.kindOf) {
+    for (const name of Object.keys(w.kindOf)) {
+      const f = res.data.failed.find((x) => x.name === name)
+      if (!f) bad.push('「' + name + '」该落在 failed 里（脚本化的远端回话让它失败），实得不在')
+      else if (f.reason.kind !== w.kindOf[name]) bad.push('「' + name + '」的 reason.kind 应为 ' + w.kindOf[name] + '，实得 ' + JSON.stringify(f.reason.kind))
+    }
+  }
+  return bad
+}
+
 // ── 三个假身（只活在测试里）──────────────────────────────────────────────────
 
 /** 做不到的假身：create() 只给 list，两条新操作由注册表按 OPERATIONS 自动补桩。 */
@@ -368,31 +431,109 @@ export async function run() {
     d.dispose()
   }
 
-  // ── 一之二、真实 GitLab 后端模块：这一轮两条操作都真实现了，不再落到「做不到」的桩 ──
-  //   2026-10-14 改动（地图 10 / #1062）：这一段原来断言 GitLab「一行不改、两条操作自动落到做不到」。
-  //   现在这一房真实现了 listLabels 与 setLabelColors，于是改验另一件事，判据一个字没放宽：
-  //   **先证明它不再是补的桩**（桩的回答恰好满足 unsupportedAnswerCheck，实得不是），
-  //   **再证明它在没有 glab 运行时的上下文里如实回报**——这里的 ctx 只有 cwd，没有 platform、没有 exec。
-  //   补的桩回 kind=unsupported；真实现回的是环境类失败，或者改色那一条按「逐条记账」回报部分成功。
+  // ── 一之二、真实 GitLab 后端模块：给一个脚本化的 glab，要求它拿到回话之后做对 ──
+  //   2026-10-14（地图 10 / #1062）这一房真实现了 listLabels 与 setLabelColors；2026-10-15 返工
+  //   （对抗式审查报告 research/1063-adversarial-review.md 的发现 1）把这一段从「失败得好看就算过」
+  //   改成正向行为断言。
+  //   这一段的 ctx 与第五节 github/markdown 探针同一个形状：cwd、platform（resolveExecutable 认得 glab）、
+  //   exec（脚本化的桩）、isEnabled 与 logEvent —— 有 exec 有 platform，glabClient 才走「真去做」那条路。
   {
+    // 脚本化的 glab：按路径分派。GET /labels 按 page / per_page 切片（本房固定 per_page=100，所以只有
+    // 第一页会满、第二页短）；PUT /labels/:name 按标签名决定这一条成还是败。
+    const mkScriptedGlab = (opts) => {
+      const o = opts || {}
+      const calls = []
+      const pages = o.pages || [[]]
+      const exec = async (cmd, args) => {
+        const line = (args || []).join(' ')
+        calls.push(line)
+        if (cmd !== 'glab') return { code: 1, stdout: '', stderr: 'probe 没脚本化这条命令: ' + cmd }
+        const path = String((args && args[1]) || '')
+        const q = path.indexOf('?') >= 0 ? new URLSearchParams(path.slice(path.indexOf('?') + 1)) : new URLSearchParams()
+        if (path.indexOf('/labels?') >= 0) {
+          const page = Number(q.get('page') || '1')
+          if (o.listFailPage === page) return { code: 1, stdout: '', stderr: o.listFailText || 'glab: HTTP 404: Not Found' }
+          return { code: 0, stdout: JSON.stringify(pages[page - 1] || []), stderr: '' }
+        }
+        const put = /\/labels\/([^?]*)$/.exec(path)
+        if (put) {
+          const name = decodeURIComponent(put[1])
+          const verdict = (o.write && o.write[name]) || 'ok'
+          if (verdict === 'ok') return { code: 0, stdout: '{}', stderr: '' }
+          return { code: 1, stdout: '', stderr: verdict }
+        }
+        return { code: 1, stdout: '', stderr: 'probe 没脚本化这条命令: ' + line }
+      }
+      return { exec: exec, calls: calls }
+    }
+    const glProbeCtx = (s) => ({ cwd: '/ws/fake', platform: { resolveExecutable: async (n) => (n === 'glab' ? 'glab' : null) }, exec: s.exec, isEnabled: () => false, logEvent: () => {} })
+
     const d = reg.register(gitlabBackend)
     const tracker = reg.get('gitlab')
-    const rl = await tracker.listLabels(ref('gitlab'), ctx)
-    const rs = await tracker.setLabelColors(ref('gitlab'), [{ name: 'bug', color: '9d7cd8' }], ctx)
-    const isStubAnswer = (res) => unsupportedAnswerCheck('listLabels', res).length === 0
-    const honestFailure = (res, op) => !!res && res.ok === false && !!res.error && typeof res.error.kind === 'string' && res.error.kind !== 'unsupported' && typeof res.error.message === 'string' && res.error.message.trim().length > 0 && !isStubAnswer(res)
-    const batchBookkeeping = (res) => !!res && res.ok === true && !!res.data && Array.isArray(res.data.applied) && Array.isArray(res.data.failed) && res.data.applied.length + res.data.failed.length === 1
-    await assert(
-      '真实 gitlab 后端：listLabels 已挂上（不再是补的桩），且没有 glab 运行时时如实失败',
-      !isStubAnswer(rl) && honestFailure(rl, 'listLabels'),
-      JSON.stringify(rl)
-    )
-    await assert(
-      '真实 gitlab 后端：setLabelColors 已挂上（不再是补的桩），回报形状合规（逐条恰好记账一次，或如实失败）',
-      !isStubAnswer(rs) && (batchBookkeeping(rs) || honestFailure(rs, 'setLabelColors')),
-      JSON.stringify(rs)
-    )
-    await assert('真实 gitlab 后端：既有的列票操作不受影响（加操作没碰坏旧后端）', (await tracker.list(ref('gitlab'), {}, ctx)) !== undefined, 'list 调用没拿到结果')
+    const glRef = ref('gitlab')
+
+    // ① 两页拼出完整清单：第一页取满 100、第二页 3 条（短页就是最后一页），而且只请求这两页
+    const page1 = []
+    for (let i = 1; i <= 100; i++) page1.push({ name: 'label-' + String(i).padStart(3, '0'), color: '#0E8A16' })
+    const page2 = [
+      { name: 'bug', color: '#D73A4A', description: "Something isn't working" },
+      { name: 'wayfinder:grilling', color: '9d7cd8' },
+      { name: 'unused-label', color: '' },
+    ]
+    const wantAll = page1.map((x) => x.name).concat(page2.map((x) => x.name))
+    const s1 = mkScriptedGlab({ pages: [page1, page2] })
+    const rl = await tracker.listLabels(glRef, glProbeCtx(s1))
+    await assert('真实 gitlab 后端：两页拼出完整清单（100 + 3，一条不少、顺序照回包）', labelListAnswerCheck(rl, wantAll).length === 0 && rl.ok === true && rl.data.length === 103 && rl.data[102].name === 'unused-label', labelListAnswerCheck(rl, wantAll).join('；') || JSON.stringify(rl).slice(0, 240))
+    await assert('真实 gitlab 后端：只请求了这两页（第二页是短页就收手，不多翻一页）', s1.calls.length === 2 && /[?&]page=1(&|$)/.test(s1.calls[0]) && /[?&]page=2(&|$)/.test(s1.calls[1]), JSON.stringify(s1.calls))
+    await assert('真实 gitlab 后端：列表请求带上了 include_ancestor_groups=false（只列项目自己的标签，分组标签改不了色）与 per_page=100', /[?&]include_ancestor_groups=false(&|$)/.test(s1.calls[0]) && /[?&]per_page=100(&|$)/.test(s1.calls[0]), s1.calls[0])
+    await assert('真实 gitlab 后端：颜色归一（带井号的 #D73A4A → d73a4a，不带井号的原样小写，给不出的写空串）', rl.ok === true && rl.data.some((l) => l.name === 'bug' && l.color === 'd73a4a') && rl.data.some((l) => l.name === 'wayfinder:grilling' && l.color === '9d7cd8') && rl.data.some((l) => l.name === 'unused-label' && l.color === ''), rl.ok === true ? JSON.stringify(rl.data.slice(100)) : JSON.stringify(rl))
+
+    // ② 第二页失败 → 整体失败，不许把第一页那 100 条当全量交出去
+    const s2 = mkScriptedGlab({ pages: [page1, page2], listFailPage: 2 })
+    const rlBroken = await tracker.listLabels(glRef, glProbeCtx(s2))
+    await assert('真实 gitlab 后端：第二页失败 → 整体失败，不许返回残缺清单（档位来自既有分类）', rlBroken.ok === false && rlBroken.error.kind === 'not-found' && rlBroken.data === undefined, JSON.stringify(rlBroken).slice(0, 240))
+
+    // ③ 批量改色：全部成功 / 部分失败 / 全部失败，三种都要逐条记账
+    const changes = [{ name: 'bug', color: '#9D7CD8' }, { name: 'wayfinder:grilling', color: '0e8a16' }]
+    const s3 = mkScriptedGlab({})
+    const rs = await tracker.setLabelColors(glRef, changes, glProbeCtx(s3))
+    await assert('真实 gitlab 后端：全部成功时逐条记账（两条都改成了）', labelBatchAnswerCheck(changes, rs, { applied: ['bug', 'wayfinder:grilling'], failed: [] }).length === 0, labelBatchAnswerCheck(changes, rs, { applied: ['bug', 'wayfinder:grilling'], failed: [] }).join('；') || JSON.stringify(rs))
+    await assert('真实 gitlab 后端：发出去的颜色参数带前导井号（GitLab 要求 #rrggbb）', s3.calls.length === 2 && s3.calls.every((c) => /-f color=#[0-9a-f]{6}/.test(c)), JSON.stringify(s3.calls))
+    await assert('真实 gitlab 后端：走现行接口 PUT /projects/:id/labels/:label_id，只发 color 一个参数', s3.calls.every((c) => /\/labels\/(bug|wayfinder%3Agrilling) --method PUT -f color=#/.test(c)), JSON.stringify(s3.calls))
+
+    const s4 = mkScriptedGlab({ write: { 'wayfinder:grilling': 'glab: HTTP 404: Not Found' } })
+    const rsPartial = await tracker.setLabelColors(glRef, changes, glProbeCtx(s4))
+    await assert('真实 gitlab 后端：部分成功逐条记账（一条改成、一条落 failed 且归「找不到」档）', labelBatchAnswerCheck(changes, rsPartial, { applied: ['bug'], failed: ['wayfinder:grilling'], kindOf: { 'wayfinder:grilling': 'not-found' } }).length === 0, labelBatchAnswerCheck(changes, rsPartial, { applied: ['bug'], failed: ['wayfinder:grilling'], kindOf: { 'wayfinder:grilling': 'not-found' } }).join('；') || JSON.stringify(rsPartial))
+
+    const changesAllFail = [{ name: 'bug', color: '9d7cd8' }, { name: 'unused-label', color: '0e8a16' }]
+    const s5 = mkScriptedGlab({ write: { bug: 'no token found for gitlab.com', 'unused-label': 'no token found for gitlab.com' } })
+    const rsAllFail = await tracker.setLabelColors(glRef, changesAllFail, glProbeCtx(s5))
+    await assert('真实 gitlab 后端：全部失败时也逐条记账（两条都落 failed、都归认证档）', labelBatchAnswerCheck(changesAllFail, rsAllFail, { applied: [], failed: ['bug', 'unused-label'], kindOf: { bug: 'auth', 'unused-label': 'auth' } }).length === 0, labelBatchAnswerCheck(changesAllFail, rsAllFail, { applied: [], failed: ['bug', 'unused-label'], kindOf: { bug: 'auth', 'unused-label': 'auth' } }).join('；') || JSON.stringify(rsAllFail))
+
+    // ④ 空批次与重名：两种都不该发请求（用计数器证明「一个请求都没发」）
+    const s6 = mkScriptedGlab({})
+    const rsEmpty = await tracker.setLabelColors(glRef, [], glProbeCtx(s6))
+    await assert('真实 gitlab 后端：空批次成功且一个请求都不发', rsEmpty.ok === true && rsEmpty.data.applied.length === 0 && rsEmpty.data.failed.length === 0 && s6.calls.length === 0, JSON.stringify(rsEmpty) + '；请求数 ' + s6.calls.length)
+    const s7 = mkScriptedGlab({})
+    const rsDup = await tracker.setLabelColors(glRef, [{ name: 'bug', color: '9d7cd8' }, { name: ' bug ', color: '0e8a16' }], glProbeCtx(s7))
+    await assert('真实 gitlab 后端：同一批里重名（去掉首尾空白后逐字相同）→ 整批拒掉，一个请求都不发', rsDup.ok === false && rsDup.error.kind === 'parse' && s7.calls.length === 0, JSON.stringify(rsDup) + '；请求数 ' + s7.calls.length)
+    const s8 = mkScriptedGlab({})
+    const caseChanges = [{ name: 'Bug', color: '9d7cd8' }, { name: 'bug', color: '0e8a16' }]
+    const rsCase = await tracker.setLabelColors(glRef, caseChanges, glProbeCtx(s8))
+    await assert('真实 gitlab 后端：只差大小写的两个名字不算重名（GitLab 标签名区分大小写），两条都发出去', rsCase.ok === true && s8.calls.length === 2 && labelBatchAnswerCheck(caseChanges, rsCase, { applied: ['Bug', 'bug'], failed: [] }).length === 0, JSON.stringify(rsCase) + '；请求数 ' + s8.calls.length)
+
+    await assert('真实 gitlab 后端：既有的列票操作不受影响（加操作没碰坏旧后端）', (await tracker.list(glRef, {}, ctx)) !== undefined, 'list 调用没拿到结果')
+
+    // ✗ probe：这一段的新判据必须逮得住「一律返回失败」的空壳 —— 这正是 2026-10-15 返工要堵的洞。
+    //   为什么要专门写这几条：原来这一段只看「ok:false、档位不是 unsupported、消息非空」，把两条真实现
+    //   换成 `fail(env, '还没做')` 的空壳照样绿。判据放不放空壳过去，只能靠喂空壳来证明。
+    const SHELL_LIST = { ok: false, error: { kind: 'env', message: 'listLabels 还没做' } }
+    await assert('✗ probe: 「一律返回失败」的空壳回答过不了新的列标签判据', labelListAnswerCheck(SHELL_LIST, wantAll).length > 0, '判据给出的违规清单：' + JSON.stringify(labelListAnswerCheck(SHELL_LIST, wantAll)))
+    await assert('✗ probe: 空壳改回一个合规的空清单也过不了（清单必须真的全）', labelListAnswerCheck({ ok: true, data: [] }, wantAll).length > 0, '判据给出的违规清单：' + JSON.stringify(labelListAnswerCheck({ ok: true, data: [] }, wantAll)))
+    const SHELL_BATCH = { ok: true, data: { applied: [], failed: changes.map((c) => ({ name: c.name, reason: { kind: 'env', message: '还没做', raw: '' } })) } }
+    await assert('✗ probe: 「逐条都记成 env 失败」的空壳过不了新的记账判据（形状全对、账目是假话）', labelBatchAnswerCheck(changes, SHELL_BATCH, { applied: ['bug', 'wayfinder:grilling'], failed: [] }).length > 0, '判据给出的违规清单：' + JSON.stringify(labelBatchAnswerCheck(changes, SHELL_BATCH, { applied: ['bug', 'wayfinder:grilling'], failed: [] })))
+    await assert('✗ probe: 空壳记账连 raw 都缺时更过不了（形状这关就拦住）', labelBatchAnswerCheck([{ name: 'bug', color: '9d7cd8' }], { ok: true, data: { applied: [], failed: [{ name: 'bug', reason: { kind: 'env', message: '还没做' } }] } }, { applied: ['bug'], failed: [] }).length > 0, '判据给出的违规清单：' + JSON.stringify(labelBatchAnswerCheck([{ name: 'bug', color: '9d7cd8' }], { ok: true, data: { applied: [], failed: [{ name: 'bug', reason: { kind: 'env', message: '还没做' } }] } }, { applied: ['bug'], failed: [] })))
+    await assert('✗ probe: 「一律返回失败」的空壳回答也过不了记账判据', labelBatchAnswerCheck(changes, { ok: false, error: { kind: 'env', message: 'setLabelColors 还没做' } }, { applied: ['bug', 'wayfinder:grilling'], failed: [] }).length > 0, '判据给出的违规清单：' + JSON.stringify(labelBatchAnswerCheck(changes, { ok: false, error: { kind: 'env', message: 'setLabelColors 还没做' } }, { applied: ['bug', 'wayfinder:grilling'], failed: [] })))
     d.dispose()
   }
 

@@ -44,6 +44,14 @@
  *     标签名里的冒号与空格都算在标签名里，编码交给 URL 那一层，本文件不自己做字符串拼接。
  * 四、`description` 与 `priority` 是另两个可写参数：本文件**只改颜色**，一个都不碰
  *     （契约的入参只有 name 与 color 两格，别处没有地方放它们）。
+ * 五、**列表只列项目自己的标签，不列上层分组的标签**（2026-10-15 照官方文档核实）：
+ *     官方文档「List all project labels」的属性表原文是
+ *     「| `include_ancestor_groups` | boolean | no  | Include ancestor groups. Defaults to `true`. |」
+ *     （https://docs.gitlab.com/api/labels/）—— 也就是说**默认就会把上层分组的标签一起列出来**。
+ *     而改色走的 `PUT /projects/:id/labels/:label_id` 只认项目自己的标签，分组标签在这条路径上改不了色
+ *     （远端回 404）。契约对 listLabels 的定义是「这个后端**能改色**的全部标签」
+ *     （`contract/contract-label-colors.ts:60`），所以列表请求上必须显式写 `include_ancestor_groups=false`，
+ *     否则界面上会多出一批「看着能改、一按保存就失败」的假标签（详见 listLabels 里那段注释）。
  *
  * ── 与任务单上那份「GitLab 侧的实情」不一致的三处（照文档写，不照印象写）─────────
  *   · 任务单写「每项有 color，形如 "d9534f"，**不带 #**」：官方文档的列表示例是带井号的
@@ -243,9 +251,17 @@ export async function listLabels(repo: RepositoryRef, ctx: OpContext): Promise<O
   // 手上已经拿到的那些页在失败时全部丢掉 —— 它们就是「残缺清单」，交出去就是契约点名的那个错误。
   for (;;) {
     // 页码从 1 起（官方文档：`page` 默认 1）；per_page 顶到官方上限 100，少翻几趟。
+    // 为什么要写 include_ancestor_groups=false：官方文档「List all project labels」的属性表原文是
+    //   「| `include_ancestor_groups` | boolean | no  | Include ancestor groups. Defaults to `true`. |」
+    //   （https://docs.gitlab.com/api/labels/，2026-10-15 照官方文档核实），即**不写它就默认带上上层分组的标签**。
+    // 而改色走 `PUT /projects/:id/labels/:label_id`，那个接口只认项目自己的标签 —— 分组标签改不了色（远端回 404）。
+    // 契约对 listLabels 的定义是「这个后端**能改色**的全部标签」（`contract/contract-label-colors.ts:60`），
+    // 带上分组标签就是一份**超集**：界面会把这些标签当成可编辑的，用户一按保存就失败，而本房给出的提示是
+    // 「请核对标签名与项目全路径」—— 名字与路径其实都是对的，人照着这句话核对只会白费劲。
+    // 显式关掉继承之后，列表里的每一条都能经由 setLabelColors 改色，两条操作才对得上。
     const res = await execGlab(ctx, [
       'api',
-      'projects/' + encodeURIComponent(refId) + '/labels?per_page=' + String(LABEL_LIST_PER_PAGE) + '&page=' + String(page),
+      'projects/' + encodeURIComponent(refId) + '/labels?per_page=' + String(LABEL_LIST_PER_PAGE) + '&page=' + String(page) + '&include_ancestor_groups=false',
     ], { timeout: GLAB_TIMEOUT_MS })
     if (res.code !== 0) {
       // 这一档是「房间这层没拿到任何回包」，原文是这一次 glab 调用的完整进程结果。

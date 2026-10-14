@@ -19,9 +19,6 @@ import type { Tracker } from '../../contract/operations.js'
 import type { BackendId } from '../../contract/identity.js'
 import type { RepositoryRef } from '../../contract/entities.js'
 import type { BackendContext, OpContext, RepoHandle } from '../../contract/contexts.js'
-import { ERROR_KIND } from '../../contract/vocabulary.js'
-import type { ErrorKind } from '../../contract/identity.js'
-import { fail } from '../../preflight.js'
 import { glabPreflight } from './preflight.js'
 import { listIssues, getIssue, createIssue, closeIssue, reopenIssue, updateIssue } from './issues.js'
 import { addComment } from './comments.js'
@@ -186,10 +183,6 @@ export const links = {
  * 仓库坐标 `./repo.ts`。接手的人先读 `./README.md`（这一房与另外两房不一样的地方）。
  */
 export function createGitlabBackend(ctx: BackendContext) {
-  // 原文给这次被拒的操作名（这条支路一个请求都没发，没有远端回包可取）。
-  const unsupported = (op: string) => fail(ERROR_KIND.UNSUPPORTED as ErrorKind, `gitlab ${op} pending #145 stub`, String(op))
-  void unsupported
-
   return {
     id: 'gitlab',
     describe: (handle) => describe(handle, 'gitlab'),
@@ -246,10 +239,15 @@ export const prompts = {
     // #716 两处改正：
     //   ① 建边与校验已经搬进契约层的 deck_map_link / deck_map_snapshot，所以这里只讲用哪个工具，不留裸命令；
     //   ② 原先这段写「建原生父子边」，与本后端的实现不符 —— setParent 落下去的是 relates_to 平级链接
-    //      （见 graph-membership.js），不是原生父子边。以契约为准，文案同步改正：GitLab 上这条边只会落成
+    //      （见 graph-membership.ts），不是原生父子边。以契约为准，文案同步改正：GitLab 上这条边只会落成
     //      一条平级链接，工具会如实回报它落在那一列，不要把它说成父子关系。
-    zh: '建边用 deck_map_link：父子边传 parentKey、阻塞边传 blockedBy。要注意本后端的能力边界 —— GitLab 上没有原生父子关系，parentKey 落下去是一条 relates_to 平级链接（工具会如实回报它落在哪一列，不要把平级链接说成父子关系）；阻塞边在免费档往往也拿不到原生能力，工具会回落到正文首行的那行降级写法。建完用 deck_map_snapshot 读回地图，核对子票张数与预期一致。',
-    en: 'Wire edges with deck_map_link: parentKey for the parent-child edge, blockedBy for blocking edges. Mind this backend\'s limit — GitLab has no native parent-child relation, so parentKey lands as a relates_to sibling link (the tool reports which column it landed in; do not describe a sibling link as a parent-child relation); on the free tier blocking edges usually have no native capability either and the tool falls back to the first line of the body. Then read the map back with deck_map_snapshot and confirm the child count matches the plan.',
+    // #1176 之后补正（2026-10-15，来自对抗式审查）：原先这里写「GitLab 上没有原生父子关系」，这句是错的
+    //   —— 平台有原生的父子层级（官方有整页在讲「Child items」，免费档就有），只是它在 work items 那条路上，
+    //   入口是界面与 GraphQL；本房取数一律走 glab api 的 REST issue links，而那个接口的 link_type 只有
+    //   relates_to / blocks / is_blocked_by 三种，没有表示层级的那一种。所以准确的说法是「本房这条 REST 路
+    //   拿不到层级边」，不是「GitLab 做不到」。差别要留住：读的人据此才能判断要不要另开一票走 GraphQL。
+    zh: '建边用 deck_map_link：父子边传 parentKey、阻塞边传 blockedBy。要注意本后端的能力边界 —— 本房走的 REST 接口（issue links）只有 relates_to、blocks、is_blocked_by 三种关系，没有表示层级的那一种，所以 parentKey 落下去是一条 relates_to 平级链接（工具会如实回报它落在哪一列，不要把平级链接说成父子关系）。GitLab 平台本身有原生父子层级，但它在 work items 那条路上（入口是界面与 GraphQL），本房不走那条；要远端认的层级得另开一票换成 GraphQL，别指望在 issue links 上改出来。阻塞边在免费档往往也拿不到原生能力，工具会回落到正文首行的那行降级写法。建完用 deck_map_snapshot 读回地图，核对子票张数与预期一致。',
+    en: 'Wire edges with deck_map_link: parentKey for the parent-child edge, blockedBy for blocking edges. Mind this backend\'s limit — this backend goes through the REST issue-links API, whose link_type has only relates_to, blocks and is_blocked_by, with no level kind, so parentKey lands as a relates_to sibling link (the tool reports which column it landed in; do not describe a sibling link as a parent-child relation). GitLab itself does have a native parent-child hierarchy, but it lives on the work-items path (reached through the UI and GraphQL), which this backend does not use; a remotely-recognised hierarchy would be a new capability on GraphQL, not a tweak to issue links. On the free tier blocking edges usually have no native capability either and the tool falls back to the first line of the body. Then read the map back with deck_map_snapshot and confirm the child count matches the plan.',
   },
   // #595：正文格式契约归后端单源 —— GitLab 写回用后端自己的命令行，正文从文件读入；
   // #684：「体检」的 GitLab 科目。票仓结构与 GitHub 是同一套（地图 + 子议题 + 阻塞边），所以口径照搬；
@@ -260,8 +258,8 @@ export const prompts = {
   //   并且这个占位符本身原样漏进了会话（tests/verify-686-accept.js 的「无多余占位符漏进会话」当场红）。
   //   中文那句没有这个东西，两边的意思本来就一样，删掉。
   healthCheck: {
-    zh: '**游离的开放票**在这条后端上的落地口径：这张票**没有关闭**、**自己不是地图**、**不在任何地图的子票里** —— 与另一条远端后端同一套（两个后端的票仓结构本来就是同一套：地图 + 子议题 + 阻塞边）。\n\n**动手时只做两件结构动作**，都走工具：\n1. 建边，把票挂到合适的地图下：deck_map_link 的 parentKey；\n2. 为人点过头的票开一张新地图：deck_map_plan_create 先写最小的 Destination 草稿。\n\n**本后端今天做不到的地方，如实写出来**：GitLab 上没有原生父子关系，parentKey 落下去是一条 relates_to 平级链接，解析率也还没用真仓库量过 —— 动手之前先量一次，量与不出来的原因都写进报告，**不要硬来**。\n\n**不碰**：已关闭的票、任何票的标题与正文、标签与认领状态、别的仓库；不关票、不删评论、不改源码、不发版、不提交。\n\n报告按标签与建议类型分区，但体检的范围是全部开放票、不跟随面板当前的筛选。',
-    en: '**How "orphaned open ticket" lands on this backend**: the ticket is **not closed**, it is **not itself a map**, and it is **not inside any map as a sub-ticket** — the same rules as the other remote backend (both backends share one ticket-store shape: maps + sub-tickets + blocking edges).\n\n**When acting, only two structural actions**, both through the tools:\n1. Wire the edge that attaches the ticket under a suitable map: deck_map_link with parentKey;\n2. Open a new map for a ticket the human has nodded on: deck_map_plan_create, writing only the minimal Destination draft.\n\n**State plainly what this backend cannot do today**: GitLab has no native parent-child relation, so parentKey lands as a relates_to sibling link, and its resolution rate has not been measured against a real repository yet — measure once before acting, write both the measurement and any reason it fails into the report, and **do not force it**.\n\n**Never touch**: closed tickets, any ticket title or body, labels and claim state, other repositories; do not close tickets, delete comments, change source code, publish a release, or commit.',
+    zh: '**游离的开放票**在这条后端上的落地口径：这张票**没有关闭**、**自己不是地图**、**不在任何地图的子票里** —— 与另一条远端后端同一套（两个后端的票仓结构本来就是同一套：地图 + 子议题 + 阻塞边）。\n\n**动手时只做两件结构动作**，都走工具：\n1. 建边，把票挂到合适的地图下：deck_map_link 的 parentKey；\n2. 为人点过头的票开一张新地图：deck_map_plan_create 先写最小的 Destination 草稿。\n\n**本后端做不到的地方，如实写出来**：本房走的 REST issue links 接口没有层级类型，parentKey 落下去是一条 relates_to 平级链接（原生层级在 work items 那条路上，本房不走），解析率也还没用真仓库量过 —— 动手之前先量一次，量与不出来的原因都写进报告，**不要硬来**。\n\n**不碰**：已关闭的票、任何票的标题与正文、标签与认领状态、别的仓库；不关票、不删评论、不改源码、不发版、不提交。\n\n报告按标签与建议类型分区，但体检的范围是全部开放票、不跟随面板当前的筛选。',
+    en: '**How "orphaned open ticket" lands on this backend**: the ticket is **not closed**, it is **not itself a map**, and it is **not inside any map as a sub-ticket** — the same rules as the other remote backend (both backends share one ticket-store shape: maps + sub-tickets + blocking edges).\n\n**When acting, only two structural actions**, both through the tools:\n1. Wire the edge that attaches the ticket under a suitable map: deck_map_link with parentKey;\n2. Open a new map for a ticket the human has nodded on: deck_map_plan_create, writing only the minimal Destination draft.\n\n**State plainly what this backend cannot do**: the REST issue-links API this backend uses has no level kind, so parentKey lands as a relates_to sibling link (the native hierarchy lives on the work-items path, which this backend does not use); its resolution rate has not been measured against a real repository yet — measure once before acting, write both the measurement and any reason it fails into the report, and **do not force it**.\n\n**Never touch**: closed tickets, any ticket title or body, labels and claim state, other repositories; do not close tickets, delete comments, change source code, publish a release, or commit.',
   },
 }
 

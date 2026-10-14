@@ -22,8 +22,19 @@
  *   2）不带 `--group` 时，项目建在当前登录人的命名空间下（文档原文：defaults to the current user's namespace）。
  *   3）不带 `--private` / `--public` / `--internal` 时，可见性取实例默认值 —— 所以本房**总是显式给一个**
  *      （契约的 `InitProjectInput.visibility` 省略时按私有处理，那就显式传 `--private`）。
- * 另外：`-s/--skipGitInit` 与 `--remoteName` 都不传。前者是为了不在老版本 glab 上撞「不认识的参数」
- * （它只在较新的版本里有），后者是默认值本来就是 origin，配 remote 这一步由本函数自己做，看得见也测得出。
+ * 另外两处要说清楚（2026-10-15 查官方文档与 glab 源码核实）：
+ *   · `-s/--skipGitInit` **要传**。官方 CLI 文档那一页原文是
+ *     「`-s, --skipGitInit            Skip local repository setup (skips both 'git init' and cloning).`」
+ *     （https://docs.gitlab.com/cli/repo/create/；源文件 docs/source/repo/create.md）。
+ *     glab 源码 `internal/commands/project/create/project_create.go` 里，本函数用的这一路
+ *     （`glab repo create <名字>`，带一个名字参数）默认会问一句「Create a local project directory for <项目全路径>?」，
+ *     答「是」就在**新建的子目录**里 `git init` + `git remote add origin`；源码里那一段的门就是
+ *     `if !skipGitInit && …`，也就是说只有 `-s` 能把它整个关掉。
+ *     而本函数在这之前已经自己在工作区里 `git init` / `add` / `commit` 过，之后又自己把 origin 指到新仓库 ——
+ *     再让 glab 做一次本地初始化，要么在交互式终端里多一次挡路的提问、要么在别处多建一个没人要的目录，
+ *     两种结果都不是本函数想要的。宿主没有终端时 glab 本来就不做本地初始化，传 `-s` 是把这条口径**写明**，
+ *     让它不再取决于「这一次有没有终端」。
+ *   · `--remoteName` 仍然不传：默认值本来就是 origin，配 remote 这一步由本函数自己做，看得见也测得出。
  *
  * ── 一次失败可能已经改过世界，写清楚免得人误判 ─────────────────────────────────
  * 远端仓库建成之后还有两步（配 remote、`git push`），这两步失败时**远端仓库已经存在**：
@@ -279,7 +290,10 @@ export async function initProject(
   }
 
   // ── 4）建远端仓库（这一步之后远端已经有东西了）────────────────────────────────
-  const create = await c.run(['repo', 'create', name, visFlag], { timeout: 60000 })
+  // 为什么带 --skipGitInit：本函数在这之前已经自己 `git init` / `add` / `commit` 过，第 6 步又自己配 origin，
+  // 所以不要 glab 再碰本地仓库 —— glab 的 `repo create <名字>` 默认会问一句要不要在本地建一个项目目录，
+  // 只有这个开关能把那段本地动作整个关掉（逐条依据与出处见文件头）。
+  const create = await c.run(['repo', 'create', name, visFlag, '--skipGitInit'], { timeout: 60000 })
   if (create.code !== 0) {
     return failGlab(create, 'initProject: glab repo create 没建成远端仓库', create, ctx)
   }

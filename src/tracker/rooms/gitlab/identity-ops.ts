@@ -24,7 +24,9 @@
  *   · 各档能做什么（官方「默认角色」权限表）：Guest 能看议题、写评论，**不能推代码、看不到仓库代码**；
  *     Reporter 能看代码、建议题、出报告，**不能推代码、不能管保护分支**；
  *     Developer 能**往非保护分支推代码**、开合并请求、跑流水线；Maintainer / Owner 是更高的全集。
- *     项目计划那张表里「编辑议题（含元数据与锁定）」从 Planner 起有、Guest 那一行是空的。
+ *     项目计划那张表里「编辑议题（含元数据与锁定）」与「关闭/重开议题」两行都从 Planner(15) 起有、
+ *     Guest 那一行是空的 —— 本文件的 `TRIAGE_MIN_LEVEL` 就是按这两行定的（15），
+ *     `PUSH_MIN_LEVEL` 按仓库表里「推送到非保护分支」那一行定（Developer，30），逐条依据写在两个常量上。
  * 未核实（别把它当已核实用）：
  *   · 没有在真仓库上实测过任何一种角色的回包；上面每个数字、每句话都来自官方文档与 GitLab 源码，不是实测。
  *   · `?simple=true` 这一格：源码级已核实（本机没真发过这个请求）。`optional :simple` 在
@@ -57,11 +59,24 @@ import { projectPath } from './queries.js'
 const PUSH_MIN_LEVEL = 30
 
 /**
- * 能整理别人的票的最低档位：Reporter(20)。
- * 依据是官方项目计划权限表里「编辑议题（含元数据与锁定）」从 Reporter 起有、Guest 没有；
- * 契约自己给 `triage` 的注释也是「Reporter 及以上」（`contract/results.ts` 的 `RepoPermissions`）。
+ * 能整理别人的票的最低档位：Planner(15)。
+ *
+ * 依据是官方文档「Roles and permissions」里「Project planning」那一节的项目权限表
+ * （https://docs.gitlab.com/user/permissions/，2026-10-15 照官方文档核实）。「整理别人的票」对应表里这两件事，
+ * 两行的勾选都**从 Planner 起有**，Guest 那一格是空的。把那两行抄下来（第一列是动作，
+ * 之后依次是 Guest / Planner / Reporter / Security Manager / Developer / Maintainer / Owner，
+ * 原文挂在动作上的脚注编号略去）就是这样：
+ *   | Edit issues, including metadata and item locking |  | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+ *   | Close and reopen issues                          |  | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+ * Planner 的档位数字是 15：GitLab 源码 `lib/gitlab/access.rb` 里写着 `PLANNER = 15`
+ * （同处还写着 `GUEST = 10`、`REPORTER = 20`、`DEVELOPER = 30`，与文件头那串数字同一出处）。
+ * 契约对 `triage` 的定义是「能不能整理别人的票（改指派、关别人的票）」（`contract/results.ts:104`），
+ * 与上面那两行正是同一件事。
+ *
+ * **此前这里写的是 20，注释里还引了一句「契约自己给 triage 的注释也是『Reporter 及以上』」——
+ * 契约里没有这句话（`RepoPermissions` 只定义了两个布尔，一个档位数字都没提），是编的，已删。**
  */
-const TRIAGE_MIN_LEVEL = 20
+const TRIAGE_MIN_LEVEL = 15
 
 // 只取 refId/name 两格，是因为这两条读只认仓库坐标，拿全量会把 effortId 之类搅进来。
 type RepoLike = Partial<RepositoryRef> | null | undefined
@@ -218,10 +233,12 @@ export async function getCurrentUser(repo: RepositoryRef, ctx: OpContext): Promi
  *   1）只回 `push` / `triage` 两个布尔，**问不出来就如实失败**，不许拿 `false` 顶上 ——
  *      契约对这两个字段的约定是「未知由调用方处理」，编一个 false 等于替远端说「你没有权限」。
  *   2）`permissions` 整格缺席、两格 access 都没有、回包是空串或字面 null，都是失败（见下面各条）。
- *   3）数字比较对 10/20/30/40/50 这五档是准的；对今天新增的 15（Planner）会偏保守：
- *      官方文档说 Planner 能编辑议题，而本规则按 `>= 20` 会判 `triage: false`。
- *      偏保守是**少报能力**（不会误报能写），今天按契约那句「Reporter 及以上」执行；
- *      要把它改成按档位穷尽列举，另立一票，别在这里就地改。
+ *   3）`triage` 按 `>= 15` 判，与官方权限表的勾选一致：有整理议题权限的档位是 Planner(15)、
+ *      Reporter(20)、Security Manager(25)、Developer(30)、Maintainer(40)、Owner(50)，
+ *      Guest(10) 与 Minimal access(5) 没有 —— 这些档位在「Edit issues, including metadata and item locking」
+ *      与「Close and reopen issues」两行上是连续一路 ✓ 的，所以数字比较与逐档列举等价，不必再写一张表。
+ *      **但不许拿角色名字去推断别的能力**：官方文档明说 Planner 与 Security Manager 是「专精档」，
+ *      不继承其它档位的全部权限，只有逐行读表才算数。
  *
  * @param repo 仓库身份（refId 缺失或不像项目路径就如实失败）
  * @param ctx 单次调用上下文（glab 从这里取平台与执行器；日志也记在它上面）

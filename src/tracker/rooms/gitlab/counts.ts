@@ -32,8 +32,9 @@
  * 判档与选话走本房唯一的出口 `./errors.ts` 的 `failGlab`（判档表在 `src/tracker/error-rules.ts`）；
  * 「命令成功了、这个数仍然拿不到」的几条路各自在返回前落一行 `read.degraded`，reason 只取本房
  * 已登记的取值（`./read-log.ts` 的 READ_DEGRADED_REASONS）：`counts:repo-ref` / `counts:transport` /
- * `counts:json` / `counts:shape` / `counts:stat`。catch 支路没有已登记的 reason，所以那一支不落降级行
- * —— 宁可少记一行，也不新造一个没登记的含义。
+ * `counts:json` / `counts:shape` / `counts:stat`。最外层那个 catch（调用抛上来的那一族）同属
+ * `counts:transport` —— read-log.ts 对它的定义是「命令没跑成（起不了进程、超时、非 0 退出），
+ * 房间这层没拿到任何回包」，抛上来的异常正落在这一格里，所以它同样先落一行再失败。
  */
 
 import { ERROR_KIND } from '../../contract/vocabulary.js'
@@ -206,7 +207,10 @@ export async function counts(
           : { open: opened, closed, total: all }
     return { ok: true, data }
   } catch (e) {
-    // 抛上来的东西交给本房统一的判档出口；这一支没有已登记的降级 reason，所以不落 read.degraded。
+    // 抛上来的东西交给本房统一的判档出口；按 read-log.ts 对 `transport` 的定义
+    // （起不了进程、超时、非 0 退出这一族），它同样属于「这一趟没读成」，所以先照其余各条的规矩
+    // 落一行 read.degraded，再失败 —— 不然「数没读成」在日志里是空的，事后分不清「没走这条路」还是「折在中间」。
+    emitReadDegraded(ctx, 'counts', 'counts:transport', Date.now() - t0)
     return failGlab(e, msgOf(e), e, ctx)
   }
 }

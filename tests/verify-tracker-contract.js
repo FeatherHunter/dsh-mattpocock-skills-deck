@@ -49,6 +49,7 @@ import labelsSection from './tracker-contract/sections/labels.js'
 import countsSection from './tracker-contract/sections/counts.js'
 import listPageSection from './tracker-contract/sections/listPage.js'
 import idempotencySection from './tracker-contract/sections/idempotency.js'
+import roomGitlabExtrasSection from './tracker-contract/sections/room-gitlab-extras.js'
 
 const results = [
   ...runContractTests(compliant), // 合规 → 应全 PASS
@@ -234,7 +235,7 @@ try {
   results.push({ name: 'pr-shape · probe-crash', ok: false, detail: String(e && e.stack || e) })
 }
 
-for (const s of [contractSection, registrySection, preflightSection, deckSection, snapshotSection, chainSection, labelsSection, countsSection, listPageSection, idempotencySection]) {
+for (const s of [contractSection, registrySection, preflightSection, deckSection, snapshotSection, chainSection, labelsSection, countsSection, listPageSection, idempotencySection, roomGitlabExtrasSection]) {
   try {
     const r = await s.run()
     results.push(...r)
