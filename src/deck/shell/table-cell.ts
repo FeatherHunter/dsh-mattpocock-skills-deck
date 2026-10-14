@@ -6,11 +6,13 @@
 // 若两边真不在同一进程（旧桌面那种），这一格永远是空的，行按原路退回，
 // 一行老行为都不变。
 //
-// 本文件零导入：共享层的文件之间不许互相引用，零导入是唯一的住法。
+// 本树内部只有一处导入：进程存活租约（#1157，等表装好这段算一场没结算的活）；其余最小工具自带一份，不引同层别的文件。
 // 状态只有三种：empty（宿主还没放）、pending（放了还没装好）、ready（装好了）。
 // pid 只在进程内比对，永不外发（探针只报比对结果的布尔值）。
 // 另附一小段闸口径迹：壳把每次裁决的机器码（阶段、结论、原因枚举）记在这里，
 // 探针读走，线上卡在哪一段一眼可见。正文与路径一律不记。
+
+import { withInFlightLease } from './in-flight-lease.js'
 
 /** 格子的三种状态：宿主还没放、放了还没装好、装好了。 */
 type CellState = 'empty' | 'pending' | 'ready';
@@ -111,10 +113,14 @@ export function awaitDeckTable<T = unknown>(timeoutMs?: number, opts?: DeckTable
     const o = opts || {}
     const sleep = (typeof o.sleep === 'function') ? o.sleep : realSleep
     const cap = (typeof timeoutMs === 'number' && timeoutMs > 0) ? Math.floor(timeoutMs) : 25000
-    return Promise.race([
-      Promise.resolve(cell.promise).then(function (t: unknown) { return (t as T) || null }, function () { return null }),
-      sleep(cap).then(function () { return null }, function () { return null }),
-    ])
+    // #1157：这家竞速还没结算，先扣一份存活租约。等待口是 unref 过的（#1114），宿主一直没装表时
+    // 唯一活着的东西就是这笔等待；没有租约进程会带着它收摊，调用方永远等不到「没有表」这个结论。
+    return withInFlightLease(function () {
+      return Promise.race([
+        Promise.resolve(cell.promise).then(function (t: unknown) { return (t as T) || null }, function () { return null }),
+        sleep(cap).then(function () { return null }, function () { return null }),
+      ])
+    })
   } catch (e) { return Promise.resolve(null) }
 }
 

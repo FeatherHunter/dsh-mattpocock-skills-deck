@@ -1,7 +1,7 @@
 // src/deck/shell/session-workdir.ts —— 会话目录归一（#934 工作区钥匙单源；#1040 转 TypeScript）
 //
-// 住共享层（src/deck/shell/），九个工具直接引用它；共享层文件之间不许互相引用，
-// 所以本文件零导入，自带最小字符串与散列工具。
+// 住共享层（src/deck/shell/），九个工具直接引用它；本树内部只有一处导入——进程存活租约
+// （#1157，等归一这段算一场没结算的活）；其余最小工具自带一份，不引同层别的文件。
 // 归一出口 canonicalKey 由宿主注入（归一加锚根只有那一份实现）；缺席时沿用原始目录（旧门禁兼容）。
 // 归一在场却算不出规范根时如实失败，不凑钥匙——超时、抛错、空结果走同一条路，不新增语义。
 //
@@ -11,6 +11,8 @@
 // 本文件的返回形状是「两支合一」：ok 为真那支带 cwd/workspaceKey/sessionId/source（source 是
 // 从 exec 的哪一格取到的目录，排错用），ok 为假那支带机器码 reason 与给 AI 看的 text。
 // 调用方按 ok 分两支之后，各自的字段才是可用的——这是本文件给出去的唯一契约。
+
+import { withInFlightLease } from './in-flight-lease.js'
 
 /** 外层递进来的东西都是未知形状（exec 由 DSH 给、deps 由工具与测试拼），逐格验，不猜。 */
 type UnknownRecord = Record<string, unknown>;
@@ -94,10 +96,14 @@ function canonicalFailure(sessionId: string): SessionContextFailure {
 
 /** 给一个承诺加竞速上限：到点如实失败，不抛（与「算不出就失败」同一条纪律）。 */
 function withCap<T>(promise: Promise<T>, ms: number, sleep: (ms: number) => Promise<unknown>): Promise<CapResult<T>> {
-  return Promise.race([
-    Promise.resolve(promise).then(function (v: T): CapResult<T> { return { ok: true, value: v } }, function (): CapResult<T> { return { ok: false } }),
-    sleep(ms).then(function (): CapResult<T> { return { ok: false, timedOut: true } }),
-  ])
+  // #1157：归一还没出结果就算一场活，先扣一份存活租约。这里的等待口 unref 过（#1114），
+  // 文件服务真挂住时唯一活着的东西就是这笔等待；没有租约进程会带着这场竞速收摊，归一永远不结算。
+  return withInFlightLease(function () {
+    return Promise.race([
+      Promise.resolve(promise).then(function (v: T): CapResult<T> { return { ok: true, value: v } }, function (): CapResult<T> { return { ok: false } }),
+      sleep(ms).then(function (): CapResult<T> { return { ok: false, timedOut: true } }),
+    ])
+  })
 }
 
 /**

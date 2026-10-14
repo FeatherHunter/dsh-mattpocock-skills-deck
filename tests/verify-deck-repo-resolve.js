@@ -21,6 +21,11 @@
 //   连带的一处：ref 也不再由 select 给了 —— 壳在出口没给 ref 时改问注册表的 describe()
 //   （`src/deck/shell/call-shell.ts:273`），所以各夹具如实补上 describe（生产那一份就是注册表转发的）。
 //   写用途拦截本身由六扇 verify-1003 门禁守着，这里不重复守。
+//
+// #1157（2026-10-14）拆掉了那个「不退出的等待口」
+//   它是 #1114 把等待定时器 unref 之后，为「补全 hang 住」那条用例打的绕行：那场竞速只剩一笔等待时，
+//   进程会提前收摊，13 条断言只跑到 7 条。产品侧现在自己拿存活租约（src/deck/shell/in-flight-lease.ts，
+//   ADR 20261014-process-liveness-lease 第 4 条），绕行没有必要了：这条用例改回跑真的等待口。
 const path = require('path')
 const { pathToFileURL } = require('url')
 const { makeDecideStub, chooseWorkspace } = require('./lib/deck-decide-stub.js')
@@ -42,11 +47,11 @@ function baseShellDeps(over) {
     estimate: function () { return { points: 1, requests: 1, tickets: 0, withinCallCap: true, shards: 1, perShard: 1, text: '' } },
     costInputFrom: function () { return {} },
     resolveTimeoutMs: 50,
-    // 补全那一路的等待口：壳自带的 realSleep 是 unref 过的（#1114 的教训——只为到点提醒的定时器
-    // 不许决定进程活多久），而本文件「补全 hang 住」那个用例里，唯一还活着的东西就是这笔等待，
-    // 于是 Node 会在 50ms 到点之前把进程收掉：后面的断言（补全被闸推迟、补全走闸、真房间）一条都不跑，
-    // 整条门禁变成假绿。这里注入一个不退出的等待口，让那场竞速真的跑完；形状与 deps.sleep 同。
-    sleep: function (ms) { return new Promise(function (resolve) { setTimeout(resolve, Math.min(Number(ms) || 0, 50)) }) },
+    // 这里从前注入过一个「不退出的等待口」，用来绕开 #1114 留下的那个洞：壳自带的 realSleep 是 unref 过的，
+    // 而本文件「补全 hang 住」那个用例里唯一还活着的东西就是这笔等待，Node 会在 50ms 到点之前把进程
+    // 收掉，后面的断言一条都不跑，整条门禁变成假绿。#1157 落地之后这个绕行拆掉了：产品自己那份存活租约
+    // （src/deck/shell/in-flight-lease.ts，ADR 20261014-process-liveness-lease 第 4 条）会拿住进程，
+    // 所以这条用例现在跑在真的 realSleep 上，验的就是产品行为本身。
     decideBackend: makeDecideStub(o.registry),
   }, o)
 }

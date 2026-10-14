@@ -38,6 +38,7 @@ import type {
   DeckShell, DeckShellDeps, GateLike, GateSendResult, HourUsageView, PickResult, PickSuccess, RegistryLike,
   ShellSession, UnknownRecord, WaitSignal,
 } from './call-shell-types.js'
+import { withInFlightLease } from './in-flight-lease.js'
 
 /** 这批工具的身份（写日志时进 host.call 的 kind 字段；不是新事件，沿用它原有的字段清单）。 */
 export const DECK_TOOL_KIND = 'deck-tool'
@@ -308,10 +309,15 @@ export function createDeckShell(deps?: DeckShellDeps): DeckShell {
           try {
             resolveSent = await gate.send({ source: 'tool.call', kind: 'probe', bucket: 'rest', workspaceKey: ss.workspaceKey, plan: [{ phase: 'resolve' }] }, async () => {
               try {
-                key = await Promise.race([
-                  Promise.resolve((getRepoKey as (cwd: string, ctx: unknown) => unknown)(ss.cwd, Object.assign({}, backendCtxNow(), { cwd: ss.cwd, caller: DECK_TOOL_KIND }))),
-                  sleep(capMs).then(function () { return null }, function () { return null }),
-                ])
+                // #1157：这场竞速还没结算，就先扣一份存活租约。下面的等待口是 unref 过的
+                // （#1114：提醒不拥有存活），补全真挂住时唯一还活着的东西就是这笔等待 ——
+                // 没有租约，Node 会带着这场没结算的竞速收摊，工具调用永远没有下文。
+                key = await withInFlightLease(function () {
+                  return Promise.race([
+                    Promise.resolve((getRepoKey as (cwd: string, ctx: unknown) => unknown)(ss.cwd, Object.assign({}, backendCtxNow(), { cwd: ss.cwd, caller: DECK_TOOL_KIND }))),
+                    sleep(capMs).then(function () { return null }, function () { return null }),
+                  ])
+                })
               } catch (eResolve) { key = null }
               return { requests: 1, points: 0 }
             })

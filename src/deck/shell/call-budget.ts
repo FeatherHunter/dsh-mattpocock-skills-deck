@@ -15,6 +15,7 @@
 // 日志：不新增事件名、不记新字段（复用宿主壳既有的 host.call 两行）。
 
 import { canon, createCallMemo, isArr, repoIdOf, rosterAddCreated, rosterAdoptList, rosterDirty, rosterUpsert, type CallMemo } from './call-memo.js'
+import { withInFlightLease } from './in-flight-lease.js'
 
 /** 单次执行允许的最长时间（毫秒）：与 agent 注册那份 AGENT_TOOL_TIMEOUT_MS 同值，改一边必须同步另一边。
  *  2026-10-14 由 120000 放宽到 300000（票 #1040）：批量活要发几十次远端调用，两分钟常在半路被外层
@@ -148,7 +149,9 @@ function num(v: unknown, d: number): number { const n = (typeof v === 'number' &
 
 /** 缺省等待口：可中止的真定时器。到点或收到中止都放行一次；中止时把定时器清掉，不留尾巴。
  *  定时器一律 unref（#1114 的实测教训）：它只负责「到点提醒」，不该成为进程活下去的理由——
- *  赢的那一方到了没清它时，进程也能照常退出；真还有活干时，干活的那条路自己会留住进程。
+ *  赢的那一方到了没清它时，进程也能照常退出。**但这不等于「有活干时进程自己就活着」**：一场还没结算的
+ *  调用如果只剩这笔等待在手，Node 会带着它收摊（#1157 实测 54 毫秒、退出码 0），所以那一整段
+ *  由 in-flight-lease.ts 的存活租约圈住，见下面 execOp 里那句注释。
  *  单次远端调用的钳制计时走它，测试注入假时钟就能把「钳到点」那条路走通，不必真等 30 秒。
  *  为什么必须继续用全局 setTimeout：别的会话（#1052 两房）会把它换成假时钟来压缩等待；
  *  一旦把 setTimeout 捕获进模块级常量，压缩就失效了。 */
@@ -250,7 +253,10 @@ export function withCallScope(c: unknown, exec?: unknown, opts?: CallScopeOpts):
         }, function () {})
       }
       const ctx2 = sig ? Object.assign({}, baseOpCtx, { signal: sig }) : baseOpCtx
-      const result = await fn(ctx2)
+      // #1157：等这次调用回来 = 这场调用还没结算，整段圈进存活租约。缺了它，被抓的那次调用
+      // 只剩钳制那笔 unref 过的等待时（#1114），进程会带着这次调用收摊——调用方永远等不到回执，
+      // 契约层记的 timeout / aborted 只会随进程一起消失。
+      const result = await withInFlightLease(function () { return fn(ctx2) })
       if (timedOut) return { ok: false, timeout: true, result: result }
       if (sig && sig.aborted) return { ok: false, aborted: true, result: result }
       return { ok: true, result: result }
