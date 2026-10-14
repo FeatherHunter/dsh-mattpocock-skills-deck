@@ -15,10 +15,16 @@
 //   · 新语言文件（.ts / .mts / .cts）——迁完的形状，正是目标。
 //   · 旁边有同名 .ts 的 .js——那是构建产物，不是手写源。
 //   · 基线里已有的文件：它们算存量，可以继续躺在那儿，直到各自的迁移票动手。
-// 判据只有一条：**「现在这棵树上的旧语言手写文件」必须是「基线那份清单」的子集**。多出来的就是新的。
+// 判据有两条，方向相反，缺一个就会出现「登记永不匹配却判绿」：
+//   ① **「现在这棵树上的旧语言手写文件」必须是「基线那份清单」的子集**。多出来的就是新的。
+//   ② **「基线那份清单」里的每一条，今天都必须在树上找得到**（#1154 加的）。迁走、删掉或改名之后
+//      没重录基线，那一条就成了失效条目——留着它等于给那个路径预留了豁免：将来在那里重新写一个
+//      .js 测试，判据①认不出它是新的。所以失效条目判红，修法是跑 --record-baseline 重录。
 //
 // 反例（写这条的时候亲手验过）：放一个 tests/xxx.js 再跑，它判红并点名那个文件；把基线重录一遍，
 // 它就绿了——重录是一次有意的动作，会出现在提交 diff 里，而不是被悄悄放宽。
+// 判据②的反例同理：往基线里塞一条树上没有的路径（例如已经删掉的 tests/verify-deck-tools-host-wiring.js），
+// 它判红并点名那一条；重录之后绿。两条判据的内存自查写在下面 selfCheck() 里，不靠人去记。
 //
 // 用法：node tests/verify-unmigrated-tests.ts（挂在 verify 长串上）
 //       node tests/verify-unmigrated-tests.ts --record-baseline（迁移之后重录；同时会把「迁走了哪几条」打出来）
@@ -60,6 +66,44 @@ function listOldLanguageTestFiles(): string[] {
   return out.sort()
 }
 
+/**
+ * 对账：把「今天树上的清单」与「基线清单」比一遍。
+ *
+ * 两个方向都要看，缺一个就会出现「登记永不匹配却判绿」：
+ *   · added —— 树上多出来的旧语言测试文件（新写的），只许减不许增的那一半；
+ *   · stale —— 只留在基线里、树上已经没有的（迁走、删掉、改名），
+ *     留着它等于给那个路径预留豁免：将来在那里重新写一个 .js 测试，added 认不出它是新的。
+ *
+ * 抽成纯函数是为了让下面的判据与内存自查共用同一份实现，不各写一套。
+ */
+function compareBaseline(current: string[], baselineFiles: string[]): { added: string[]; stale: string[] } {
+  const known = new Set(baselineFiles)
+  const currentSet = new Set(current)
+  return {
+    added: current.filter((f) => !known.has(f)),
+    stale: baselineFiles.filter((f) => !currentSet.has(f)),
+  }
+}
+
+/**
+ * 判据自查：两个方向各自判红、两边一致时放行。
+ *
+ * 为什么要自查：这两条判据用真仓库只能验出「今天不红」，验不出「该红时真会红」——
+ * 真仓库今天两条都不该红。三组内存夹具把「多出来」与「只留在基线里」各自钉一遍。
+ */
+function selfCheck(): void {
+  const grown = compareBaseline(['tests/a.js', 'tests/b.js'], ['tests/a.js'])
+  check(grown.added.length === 1 && grown.added[0] === 'tests/b.js' && grown.stale.length === 0,
+    '判据自查：树上多出来的旧语言文件被 added 点到，且不误报失效条目')
+
+  const stale = compareBaseline(['tests/a.js'], ['tests/a.js', 'tests/b.js'])
+  check(stale.stale.length === 1 && stale.stale[0] === 'tests/b.js' && stale.added.length === 0,
+    '判据自查：只留在基线里、树上没有的路径被 stale 点到，且不误报新增')
+
+  const same = compareBaseline(['tests/a.js'], ['tests/a.js'])
+  check(same.added.length === 0 && same.stale.length === 0, '判据自查：两边一致时不报任何一条')
+}
+
 /** verify 长串里那几条的读数：链上一共几步、其中还有几条是旧语言。 */
 function chainReadout(): { steps: number; oldSteps: number } {
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
@@ -97,6 +141,9 @@ if (process.argv.includes('--record-baseline')) {
 }
 
 function main() {
+  // 先跑判据自查：真仓库今天两条判据都不该红，光跑真仓库证明不了「该红时会红」。
+  selfCheck()
+
   const baseline = loadBaseline()
   if (!baseline || !Array.isArray(baseline.files)) {
     check(false, '基线缺失或读不动：请运行 node tests/verify-unmigrated-tests.ts --record-baseline')
@@ -117,18 +164,19 @@ function main() {
     process.exit(1)
   }
 
-  const known = new Set(baseline.files)
-  const added = current.filter((f) => !known.has(f))
-  const migrated = baseline.files.filter((f) => !current.includes(f))
+  const { added, stale } = compareBaseline(current, baseline.files)
   const chain = chainReadout()
 
   if (added.length) console.log('    新出现的旧语言测试文件:\n    ' + added.join('\n    '))
   check(added.length === 0, '没有新写的旧语言测试文件（新写的测试一律 .ts；'
     + '确有必要时重录基线并在提交信息里写清理由）')
 
+  if (stale.length) console.log('    基线里留着、树上已经没有的路径:\n    ' + stale.join('\n    '))
+  check(stale.length === 0, '基线里没有失效条目（迁走、删掉或改名之后跑一次 --record-baseline 重录；'
+    + '留着这些路径等于给它们预留豁免：将来在那里重新写 .js 测试时棘轮不会判红）')
+
   console.log('  INFO 未迁移的旧语言测试文件还有 ' + current.length + ' 个（基线 ' + baseline.files.length + ' 个，'
-    + '相对基线已少 ' + migrated.length + ' 个）；其中挂在 verify 长串上的旧语言步骤 ' + chain.oldSteps + ' 条（长串共 ' + chain.steps + ' 步）')
-  if (migrated.length && migrated.length <= 20) console.log('    已迁走：' + migrated.join('、'))
+    + '相对基线已少 ' + stale.length + ' 个）；其中挂在 verify 长串上的旧语言步骤 ' + chain.oldSteps + ' 条（长串共 ' + chain.steps + ' 步）')
 
   console.log(failed ? '\n存在失败' : '\n全部通过 — 未迁移旧测试数棘轮生效（只降不升）')
   process.exit(failed ? 1 : 0)

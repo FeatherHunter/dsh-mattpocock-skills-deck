@@ -16,6 +16,10 @@
 // 上半段用几组假的配置事实把归属口径钉住——「顺 import 看到别人目录的文件」与「include 声明了别人
 // 目录的文件」是两件事，前者不报越界、不报重复归属，后者才报。这几条用真仓库验不出来：真仓库今天
 // 恰好没有「声明越界」的配置，只有「顺 import 看见」这种正常依赖，光跑一遍真仓库只能证明它不红。
+//
+// #1154 加的第三段：棘轮名单的反方向判据。名单里留着仓库里已经找不到的路径时判红（原来只打印
+// 信息级「棘轮已缩」）。失效条目不只是数字难看：它会给那个路径预留豁免——将来有人在同一个路径上
+// 重新写手写 .js，ratchet.added 认不出它是新的。同样用假事实验，真仓库今天这一条不该红。
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 // 类型从入口借，不在这里手抄一份：假事实将来少填一格、或判据多读一格，这里跟着报错，
@@ -48,12 +52,12 @@ function fakeConfig(config: string, dir: string, { claimed = [], files = [], che
 }
 
 /** 一次假调查：配置事实 + 仓库源码清单 + 一份「基线齐、没涨没缩」的棘轮对账。 */
-function fakeFacts(configs: ConfigFacts[], repoScripts: string[]): Facts {
+function fakeFacts(configs: ConfigFacts[], repoScripts: string[], ratchet: Partial<Facts['ratchet']> = {}): Facts {
   return {
     configs,
     repoScripts,
     repoScriptsInSrc: repoScripts.filter((f) => f.startsWith('src/')),
-    ratchet: { current: [], baseline: [], added: [], gone: [], baselineFound: true },
+    ratchet: { current: [], baseline: [], added: [], gone: [], baselineFound: true, ...ratchet },
   }
 }
 
@@ -135,6 +139,24 @@ checkCase('缺口仍按程序闭包判：顺 import 看过就算有人管', () =
   const findings = mod.judge(facts)
   if (hits(findings, '缺口', 'src/a/a.ts').length) return '被编译器看过的 src/a/a.ts 被误报成缺口'
   if (!hits(findings, '缺口', 'src/c/c.ts').length) return '谁都没看的 src/c/c.ts 没被报成缺口'
+  return null
+})
+
+checkCase('棘轮名单里留着仓库里没有的路径：报失效条目（硬失败）', () => {
+  // #1154：这条原来按信息级打印，于是 130 条失效路径在名单里躺了一个多月。失效条目会让
+  // ratchet.added 认不出「在同一个路径上重新写的手写 .js」，所以必须判红。
+  const facts = fakeFacts([], [], { gone: ['src/host/tracker/backends/github/index.js'] })
+  const findings = mod.judge(facts)
+  const hit = hits(findings, '棘轮名单失效', 'src/host/tracker/backends/github/index.js')
+  if (!hit.length) return '名单里那条失效路径没被判红'
+  if (hit[0].level !== 'fail') return '失效条目报了，但不是硬失败（级别 ' + hit[0].level + '），改不了退出码'
+  return null
+})
+
+checkCase('棘轮名单与仓库一一对应：不报失效条目', () => {
+  const facts = fakeFacts([], [], { current: ['tests/a.js'], baseline: ['tests/a.js'] })
+  const findings = mod.judge(facts)
+  if (hits(findings, '棘轮名单失效', 'tests/a.js').length) return '名单与仓库一致时仍报了失效条目'
   return null
 })
 
