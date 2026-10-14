@@ -15,7 +15,7 @@ import type { Dependencies, OpResult } from '../../contract/results.js';
 import { fail } from '../../preflight.js'
 import { ghClient } from './client.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'
-import { getIssue } from './issues.js'
+import { getIssue, listIssues } from './issues.js'
 import { adjacencyFor, hasCycle } from './cycle-check.js'
 import { markDirty } from './roster.js'
 import type { MemoContext } from './roster.js';
@@ -240,8 +240,8 @@ export async function getDependencies(repo: RepositoryRef, key: string, opts: De
       for (const entry of adj) { if (entry[1] && entry[1].has(k) && entry[0] !== k) blockingKeys.push(entry[0]) }
     } else {
       const allRes = await listIssues(repo, {}, ctx)
-      // 为什么标成票数组：这一路本该是整仓的票（blockedBy 元素是引用形状）；标法只为过编译——listIssues 缺导入，
-      // 这一路今天跑起来是 ReferenceError（外层 catch 转失败），标什么都不影响运行时，见上报清单。
+      // 整仓回退：名册缺席时把整仓的票拉回来，逐张扫它的 blockedBy 反推 blocking。
+      // 名册平时都在，这条路罕见；拉全仓慢，但这是设计（见 235 行注释），不是临时凑合。
       const all: Issue[] = allRes.ok ? allRes.data : []
       for (const issue of all) {
         if (!issue.blockedBy || !Array.isArray(issue.blockedBy)) continue

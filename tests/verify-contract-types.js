@@ -108,8 +108,11 @@ const PROBE_MARKDOWN_REL = 'tests/contract-probe-markdown.ts'
  * 2026-10-14 由 183 改到 162（#1147 三房转制收口 + 工厂挂 satisfies）：
  * 三个工厂的返回字面量挂上形状后，回调参数从契约签名拿到上下文类型，
  * 加上转制时补的标注，实现面又还了 21 条。这是还债，不是放松。
+ *
+ * 2026-10-14 由 162 改到 161（#1147 收尾补上 graph.ts:242 缺的 listIssues 导入）：
+ * 整仓回退分支从 ReferenceError 变成真实现，探针口径下少了一条报错。同样是还债。
  */
-const PROBE_NONPROBE_ERROR_BASELINE = 162
+const PROBE_NONPROBE_ERROR_BASELINE = 161
 /** 探针直编的开关（与探针文件头写的口径一致，改一处两处一起改）。 */
 const PROBE_TSC_ARGS = [
   '--noEmit', '--target', 'es2020', '--lib', 'es2020,dom', '--module', 'esnext',
