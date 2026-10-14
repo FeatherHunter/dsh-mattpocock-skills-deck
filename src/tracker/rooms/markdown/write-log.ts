@@ -29,7 +29,7 @@ export interface WriteTrail {
   route: WriteRoute
   /** 真写到盘上的文件份数（0 表示幂等命中复用或一处没改）。本房一趟写只动一份票文件，所以今天只有 0 与 1。 */
   written: number
-  /** 没写成的步数。本房今天没有「写成一部分」的步骤，这个格子保持 0；留着它是与另两房同一个形状。 */
+  /** 没写成的步数。本房今天没有「写成一部分」的步骤，这个格子保持 0；留着它是与 GitHub 房同一个形状。 */
   failed: number
 }
 
@@ -38,7 +38,7 @@ export function beginWriteTrail(): WriteTrail {
 }
 
 /**
- * 真把一份票文件写到盘上的那一刻调一次（调用点就在 write.js 的 writeTextFile 旁边）。
+ * 真把一份票文件写到盘上的那一刻调一次（调用点就在各入口调 write.ts 的 writeTextFile 的紧后面）。
  * 为什么用函数而不是让内层直接 `trail.written += 1`：route 与 written 是一件事的两面，
  * 只加计数忘了改 route，日志里就会出现「写了 1 份、路却是 none」这种自相矛盾的行。
  */
@@ -50,8 +50,9 @@ export function noteFileWritten(trail: WriteTrail | null | undefined): void {
 
 /**
  * 本房写路径今天会出现的写操作类别（与 GitHub 房同一份取值，它那边的登记见附录第 104 条）。
- * 关系与边那两条写操作（setParent / setBlockedBy）走的是同一份票文件，但它们归 #1060，
- * 接进来只是往这张表加一个名字、再补一条用例。
+ * 关系与边那两条写操作（setParent / setBlockedBy）写的是同一份票文件，但它们报在另一条结论线上：
+ * #1060 起归 `edge.write` 那一族（见 edge-log.ts），**不在这张表里** —— 同一趟动作发两种事件名，
+ * 对账时人会以为漏了一个。本文件只管票本身的读写（建、关、重开、改字段、贴标签、改认领、评论）。
  */
 export const ISSUE_WRITE_KINDS = Object.freeze([
   'create',
@@ -65,8 +66,10 @@ export const ISSUE_WRITE_KINDS = Object.freeze([
 
 /**
  * 一趟写可能得到的结论（失败那一档是 `fail:档位`，档位取自 error.kind，取值不固定，所以不在表里）。
- * 表里只列今天真会出现的取值：本房没有「写成一部分」的步骤，`partial` 因此不在表内 ——
- * 哪天真有了一步只写一半的流程，连同取值与用例一起补进来，不要就地改这条线的意思。
+ * 表里列的正好是下面 `issueReason` 能算出来的全部取值：另两房那个 `partial`（写成了但有步没写成）
+ * 在本房不出现 —— 一趟只写一份票文件，没有「写成一部分」的步骤，`failed` 那一格也就恒为 0。
+ * 哪天真有了一步只写一半的流程，先把 `failed` 填起来，再把取值与用例一起补进这张表，
+ * 不要就地改这条线的意思。
  */
 export const ISSUE_WRITE_REASONS = Object.freeze(['fresh', 'reuse', 'edited', 'noop'] as const)
 
@@ -82,13 +85,14 @@ function failReason(errKind: string): string {
 }
 
 /**
- * 票写的结论：fresh 真新建 / reuse 幂等命中复用 / edited 改了已有票 / noop 一处没改 /
- * partial 写成了但有步没写成 / fail:档位 失败。
+ * 票写的结论：fresh 真新建 / reuse 幂等命中复用 / edited 改了已有票 / noop 一处没改 / fail:档位 失败。
  * 建票与其余几件的分别只在「一份文件都没写」那一格：建票一份没写是复用已有一张，改票一份没写是一处没改。
+ *
+ * 这里不推导 `partial`：本房一趟只写一份票文件，没有「写成一部分」的步骤，`trail.failed` 恒为 0，
+ * 写一条永远走不到的分支只会让人以为它会发生。等真有那一步流程，连取值表与用例一起补回来。
  */
 export function issueReason(kind: string, t: WriteTrail, ok: boolean, errKind: string): string {
   if (!ok) return failReason(errKind)
-  if (t.failed > 0) return 'partial'
   if (t.written === 0) return kind === 'create' ? 'reuse' : 'noop'
   return kind === 'create' ? 'fresh' : 'edited'
 }

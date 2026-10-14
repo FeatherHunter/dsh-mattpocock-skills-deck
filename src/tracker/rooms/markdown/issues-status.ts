@@ -4,7 +4,7 @@
 import { parseMd } from './parse.js'
 import { readTextFile } from './read.js'
 import { writeTextFile } from './write.js'
-// #1059：这一趟写没写下去的结论线（事件 `issue.write`，与另两房同一个名字、同一套字段）。
+// #1059：这一趟写没写下去的结论线（事件 `issue.write`，与 GitHub 房同一个名字、同一套字段；GitLab 房的写路径还没做）。
 import { beginWriteTrail, emitIssueWrite, noteFileWritten } from './write-log.js'
 import type { WriteTrail } from './write-log.js'
 import { failFromError } from './error-fail.js'
@@ -75,7 +75,7 @@ async function setStatus(ctx: OpContext,repo: RepoWithPath | null,key: string,st
       if(extraLine)txt=replaceOrInsertField(txt,'Close\\s+reason',extraLine)
       // 一处没改就不写盘（#1059）：关一张已经关着的票、重开一张本来就开着的票，改出来的整份文本与盘上
       // 一字不差 —— 照旧写回去只会换掉文件的修改时间（本地房的创建时间对老票就回落在这上面，翻页顺序会跟着动），
-      // 而这一趟在结论线上必须是 noop 而不是 edited。与 issues-patch.js 的读—改—写是同一条口径。
+      // 而这一趟在结论线上必须是 noop 而不是 edited。与 issues-patch.ts 的读—改—写是同一条口径。
       if(txt!==before){
         await writeTextFile(ctx,r.path,txt, ctx&&(ctx as {sandboxPolicy?: unknown}).sandboxPolicy)
         noteFileWritten(trail)

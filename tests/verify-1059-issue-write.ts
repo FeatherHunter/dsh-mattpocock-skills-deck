@@ -9,7 +9,9 @@
  * 分两件事断：
  *   一、**每一档结论都留得下、而且与盘上事实对得上**：真新建记 fresh、幂等锚命中记 reuse、
  *       改到盘上记 edited、一处没改记 noop、失败记 fail:档位；written 那一格与「这次真写了几份文件」
- *       逐趟对齐（复用与 noop 那两趟必须是 0 次写，靠文件服务的写调用计数器核，不靠读回来猜）。
+ *       逐趟对齐（复用与 noop 那两趟必须是 0 次写，靠文件服务的写调用计数器核，不靠读回来猜 ——
+ *       一次写调用都没有，就意味着这份文件在盘上的字节与修改时间都不会动，老票的创建时间回落
+ *       与翻页顺序也就不会跟着变；夹具里没有真盘，所以钉的是「有没有写」这一步，不读时钟）。
  *   二、**形状与噪音**：每趟恰好一行、字段恰好登记的那七个、级别是常驻信息级；没有 logEvent 的上下文
  *       照样写得出原来的结果、也不抛；最后把取值表反过来对一次账——表里每一条都在本文件里走到过，
  *       表外一个都没出现。
@@ -205,7 +207,7 @@ console.log('== 二、关票与重开：改到盘上记 edited，一张已经关
   checkOneMore(ctx, before, '再关一次')
   f = checkShape(lastLine(ctx), '再关一次')
   check(f.kind === 'close' && f.reason === 'noop' && f.written === 0, '再关一次：reason=noop、written=0（盘上一字未变）→ ' + f.reason + '/' + f.written)
-  check(ctx.writes.length === writesBefore, '再关一次：一次写盘都没发生 → 实得 ' + (ctx.writes.length - writesBefore) + ' 次')
+  check(ctx.writes.length === writesBefore, '再关一次：一次写盘都没发生（盘上这份文件的字节与修改时间都不会动）→ 实得 ' + (ctx.writes.length - writesBefore) + ' 次')
 
   before = countBefore(ctx)
   const reopened = await b.reopen(REPO, '01', ctx)

@@ -8,7 +8,7 @@
 import { parseMd, slugify, stripLabelDecoration, isWholeIssueBody, loginOfAssignee } from './parse.js'
 import { listDir, readTextFile, statFile, exists } from './read.js'
 import { writeTextFile, ensureDir } from './write.js'
-// #1059：这一趟写没写下去的结论线（事件 `issue.write`，与另两房同一个名字、同一套字段）。
+// #1059：这一趟写没写下去的结论线（事件 `issue.write`，与 GitHub 房同一个名字、同一套字段；GitLab 房的写路径还没做）。
 import { beginWriteTrail, emitIssueWrite, noteFileWritten } from './write-log.js'
 import type { WriteTrail } from './write-log.js'
 import { issuesDir } from './path.js'
