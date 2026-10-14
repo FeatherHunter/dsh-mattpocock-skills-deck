@@ -26,5 +26,5 @@ Used by `/wayfinder`. The **map** is a file with one **child** file per ticket.
 - **Child ticket**: `.scratch/<effort>/issues/NN-<slug>.md`, numbered from `01`, with the question in the body. A `Type:` line records the ticket type (`research`/`prototype`/`grilling`/`task`); a `Status:` line records `claimed`/`resolved`.
 - **Blocking**: a `Blocked by: NN, NN` line near the top. A ticket is unblocked when every file it lists is `resolved`.
 - **Frontier**: scan `.scratch/<effort>/issues/` for files that are open, unblocked, and unclaimed; first by number wins.
-- **Claim**: set `Status: claimed` and save before any work.
+- **Claim**: set `Status: claimed`, add an `Assignees: <your name>` line with the name you claim under, and save before any work. The name is read back verbatim — there is no logged-in user locally, so the ticket file is the only place it can live. (Before #1174 the claim only wrote the status, and reading it back showed the placeholder `@me`.)
 - **Resolve**: append the answer under an `## Answer` heading, set `Status: resolved`, then append a context pointer (gist + link) to the map's Decisions-so-far in `map.md`.

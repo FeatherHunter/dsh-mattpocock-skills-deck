@@ -31,7 +31,7 @@ import { listLabels, setLabelColors } from './labels-ops.js'
 import { getCurrentUser, getRepoPermissions } from './identity-ops.js'
 import { listSubIssues } from './sub-issues.js'
 import { initProject } from './init-project.js'
-import type { ProvidedCapability } from '../../contract/capability-answer.js'
+import type { PartiallyProvidedCapability, ProvidedCapability } from '../../contract/capability-answer.js'
 // `import type` 取登记数据：转译后不留运行时引用（理由与 GitHub 房那处相同，见 rooms/github/backend.ts）。
 import type { GITLAB_CAPABILITY_REGISTER } from './capability-register.js'
 
@@ -41,7 +41,10 @@ import type { GITLAB_CAPABILITY_REGISTER } from './capability-register.js'
 // 为什么集合与形状住在房间文件里（而不是判定文件）：判定收在 src/tracker/capability-assertions.ts，
 // 而判定必须 import 三个工厂的类型；形状若跟判定同住一处，两边就成了 type-only 的环（#1136 把
 // src/tracker 收进门禁扫描域时当场抓到）。方向单向：判定文件 → 房间。
-export type GitlabBackendMembers = 'id' | ProvidedCapability<typeof GITLAB_CAPABILITY_REGISTER>
+// `PartiallyProvidedCapability`（#1174 加的第四档）今天在本房取出来是空的，仍然一并写上：
+// 三个后端推成员集合的口径必须一样，否则哪天本房出现一条「做了但没做到位」，
+// 它就会既不进成员集合、也不被断言要求，静默地少一个成员。
+export type GitlabBackendMembers = 'id' | (ProvidedCapability<typeof GITLAB_CAPABILITY_REGISTER> | PartiallyProvidedCapability<typeof GITLAB_CAPABILITY_REGISTER>)
 
 /** 交出来的字面量形状：工厂用 `satisfies` 挂它（缺一条、多一条都在编译期红）。 */
 export type GitlabBackendShape = { [K in GitlabBackendMembers]: Tracker[K] }

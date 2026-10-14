@@ -10,7 +10,13 @@
  * ── 三类的判据只有一条，别造第二把尺子 ──────────────────────────────────────────
  * 问的永远是「这条能力在这个后端上的**形态存不存在**」，不是「今天做没做」：
  *
- *   - `provided`    —— 这个后端真会做这件事：成员在、调得动、真干活。
+ *   - `provided`    —— 这个后端真会做这件事：成员在、调得动、真干活，且**每一种合法输入都对得上承诺**。
+ *   - `partial`     —— 形态成立、也确实有实现，但**有某几种输入与承诺对不上**：要么当场如实回
+ *     「这个后端不认它」，要么行为另有出入。区别于 `provided` 的地方是「不是每种输入都对得上」，
+ *     区别于 `unsupported` 的地方是「这件事本身在这个后端上成立、主要路径真在做」。
+ *     为什么要单开这一档（#1174）：在此之前只有三档，判据是「有没有实现」，于是「实现了但没做到位」
+ *     只能记成 `provided` —— 登记表于是替这些缺口说了「一切正常」，账本是假的。这一档必须写清差在哪
+ *     （`gap`），写不出差在哪，就说明还没审过。
  *   - `unsupported` —— 形态根本不存在，永远不会有，**不是欠账**。
  *     例：GitHub 的标签颜色真源是仓库标签，工作区里那份配色文件没有任何读者，
  *     「放一份手改了就生效的文件」这件事在这个后端上不成立。硬做出来只会误导人。
@@ -68,6 +74,7 @@ export type CapabilityName = OperationCapability | LocatorCapability
  */
 export type CapabilityStanding =
   | { readonly kind: 'provided' }
+  | { readonly kind: 'partial'; readonly gap: string; readonly ticket: string }
   | { readonly kind: 'unsupported'; readonly stubBy: 'backend' | 'registry' }
   | { readonly kind: 'planned'; readonly ticket: string }
 
@@ -92,4 +99,12 @@ export type ProvidedCapability<R extends CapabilityRegister> = {
 /** 从一份登记里取出「后端自己补了显式桩」的那些名字（同样是成员集合的一半）。 */
 export type StubbedByBackend<R extends CapabilityRegister> = {
   [K in keyof R]: R[K] extends { kind: 'unsupported'; stubBy: 'backend' } ? K : never
+}[keyof R]
+
+/** 从一份登记里取出「做了但没做到位」的那些名字（#1174 加的第四档）。
+ *
+ *  为什么它也要算进成员集合：这一档的能力**实现是有的**，实例上叫得到这个方法，只是某些输入对不上承诺。
+ *  漏掉它，成员的完整性断言就会反过来要求把这些实现删掉。 */
+export type PartiallyProvidedCapability<R extends CapabilityRegister> = {
+  [K in keyof R]: R[K] extends { kind: 'partial' } ? K : never
 }[keyof R]

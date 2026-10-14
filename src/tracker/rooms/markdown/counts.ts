@@ -43,37 +43,18 @@ export function narrowStateOf(filter: ListFilter | undefined): string {
   return (s === STATE.OPEN || s === STATE.CLOSED) ? s : ''
 }
 
-/** filter.labels 归一（导出给 page.js 共用）：去掉空白项与重复项，保持原顺序（与 GitHub 那条同一口径）。 */
-export function labelsOf(filter: ListFilter | undefined): string[] {
-  const raw = filter && typeof filter === 'object' ? filter.labels : null
-  if (!Array.isArray(raw)) return []
-  const out: string[] = []
-  const seen: Record<string, boolean> = {}
-  for (const v of raw) {
-    const name = typeof v === 'string' ? v.trim() : ''
-    if (!name || seen[name]) continue
-    seen[name] = true
-    out.push(name)
-  }
-  return out
-}
+// filter.labels 的归一与判定只有一份实现，住在 issues-read.ts（list 也要用它筛行）。
+// 这里再导出一次：page.ts 一直是从本文件取这两个函数的，改路径会白动一处。
+import { labelsOf, hasAllLabels } from './issues-read.js'
+export { labelsOf, hasAllLabels }
 
-/** 一张票是不是同时带上了要求的全部标签（导出给 page.js 共用；本地票面只写标签名，按名字精确比对）。 */
-export function hasAllLabels(row: Issue, wanted: string[]): boolean {
-  if (!wanted.length) return true
-  const names: string[] = []
-  const list = row && Array.isArray(row.labels) ? row.labels : []
-  for (const lab of list) if (lab && lab.name) names.push(String(lab.name))
-  for (const name of wanted) if (!names.includes(name)) return false
-  return true
-}
-
-/** 把「读不动的票文件」清单拼成一句人看得懂的话（导出给 page.js 共用）：说清是哪几个编号、哪个文件、哪一档错。 */
+/** 把「读不动的票文件 / 读不动的票目录」清单拼成一句人看得懂的话（导出给 page.js 共用）：
+ *  说清是哪几个编号、哪个文件、哪一档错。目录那一条没有编号（key 为空串），写成「票目录（路径）」。 */
 export function readFailureMessage(errors: RowReadError[]): string {
-  const parts = errors.map(function (e) { return String(e.key) + '（' + String(e.path) + '）' })
+  const parts = errors.map(function (e) { return (e.key ? String(e.key) : '票目录') + '（' + String(e.path) + '）' })
   // errors 非空由调用方保证（下面两处只在 errors.length 时调）；首错取不到时按空档拼，不抛。
   const first = errors[0] as RowReadError | undefined
-  return '本地 Markdown 有票文件读不动，数字不完整，拒绝回一个偏小的数：' + parts.join('、') +
+  return '本地 Markdown 有票文件或票目录读不动，数字不完整，拒绝回一个偏小的数：' + parts.join('、') +
     '（' + String((first && first.kind) || '') + '：' + String((first && first.message) || '') + '）'
 }
 

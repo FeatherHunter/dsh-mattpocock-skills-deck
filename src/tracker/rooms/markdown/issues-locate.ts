@@ -12,7 +12,7 @@
 //    **写**返回 conflict 诚实失败，绝不猜（猜错文件是数据损坏，不是显示问题）。
 //  - 根级 `.scratch/map.md` 这种扁平历史布局算作 effortId = ''（空串）。
 import { parseMd } from './parse.js'
-import { readTextFile, readDir, statFile, exists } from './read.js'
+import { readTextFile, listDirOrMissingIsEmpty, statFile, exists } from './read.js'
 import { issuesDir } from './path.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { failAs, rawJson } from './error-fail.js'
@@ -53,8 +53,10 @@ export async function listEfforts(ctx: OpContext): Promise<{ effortId: string; d
   const root=await getScratchRoot(ctx)
   const out: { effortId: string; dir: string }[]=[]
   try{ if(await exists(ctx, plat.join(root,'map.md'))) out.push({effortId:'', dir:root}) }catch{}
-  let entries: string[]=[]
-  try{ entries=await readDir(ctx, root) }catch{ entries=[] }
+  // 列不出 `.scratch` 这一层时：目录不存在算空（全新工作区还没有它，这不是故障）；
+  // 目录在却读不出来，就抛错由调用方如实失败 —— 把「读不成」当「一个 effort 都没有」，
+  // 会让 counts 回 0、list 回空表，正是 #1174 要根治的那类谎话。
+  const entries=await listDirOrMissingIsEmpty(ctx, root)
   const names=entries.filter(function(e: string){ return e && !e.startsWith('.') }).sort()
   for(const e of names){
     const dirPath=plat.join(root,e)
@@ -93,7 +95,8 @@ export async function resolveIssueFile(ctx: OpContext, repo: RepoWithPath | null
   for(const e of efforts){
     if(scope!==undefined && e.effortId!==scope) continue
     const idir=plat.join(e.dir,'issues')
-    const files=await readDir(ctx, idir)
+    // 票目录不存在算空（这个 effort 还没建过票），读不出来则抛错如实失败（同上）。
+    const files=await listDirOrMissingIsEmpty(ctx, idir)
     for(const f of files){
       if(!f || !f.endsWith('.md')) continue
       const m=/^(\d+)-/.exec(f)
@@ -109,7 +112,7 @@ export async function resolveIssueFile(ctx: OpContext, repo: RepoWithPath | null
     try{ cands.push(issuesDir(repo,ctx)) }catch{}
     if(repo && repo.path){ try{ cands.push(plat.join(repo.path,'issues')) }catch{} }
     for(const idir of cands){
-      const files=await readDir(ctx, idir)
+      const files=await listDirOrMissingIsEmpty(ctx, idir)
       for(const f of files){
         if(!f || !f.endsWith('.md')) continue
         const m=/^(\d+)-/.exec(f)

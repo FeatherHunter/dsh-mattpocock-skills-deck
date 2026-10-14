@@ -21,16 +21,17 @@ import nodePath from 'node:path'
 // 运行本文件时没有文件服务：声明一个最小的 process 视图（只读 platform 选换行那套路径实现）。
 declare const process: { platform?: string } | undefined
 
-import type { LocatorCapability, ProvidedCapability, StubbedByBackend } from '../../contract/capability-answer.js'
+import type { PartiallyProvidedCapability, ProvidedCapability, StubbedByBackend } from '../../contract/capability-answer.js'
 // `import type` 取登记数据：转译后不留运行时引用（理由与 GitHub 房那处相同，见 rooms/github/backend.ts）。
 import type { MARKDOWN_CAPABILITY_REGISTER } from './capability-register.js'
 
 // —— Markdown 交出来的成员：22 条能力 + id ——
-// 这份集合不再手写，从本房的登记数据推出来：一半是「明确提供功能」的名字，另一半是
-// 「明确不支持、但后端自己在实例上补了显式桩」的那 4 条（登记里 `stubBy: 'backend'`）。
-// 那 3 条定位口要再摘掉：本后端只有 `describe` / `issueAddress` 两条是提供的，而它们住在模块对象上
-// （`markdownModule`），不在工厂实例上；`getRepoKey` 是形态不合。这是本房与另外两家唯一的形状差别，
-// 所以这里多一句 `Exclude<…, LocatorCapability>`：定位口归模块对象那份形状管，不进实例形状。
+// 这份集合不再手写，从本房的登记数据推出来：明说「提供」的名字、明说「做了但没做到位」的名字（#1174 第四档，
+// 它们的实现是有的），再加上「明确不支持、但后端自己在实例上补了显式桩」的那 4 条（登记里 `stubBy: 'backend'`）。
+// 定位口要摘掉两条：本后端只有 `describe` / `issueAddress` 住在模块对象上（`markdownModule`）、不在工厂实例上，
+// 所以这里点名摘它们；`getRepoKey` 则相反 —— 以前它在登记里写「由注册表补桩」，可注册表只按 22 条操作那个
+// 名录补桩、不给定位口补，于是实例上没有这个方法却又不被要求有（#1174 决策 2）。现在它按「提供」登记、
+// 在实例上真实现一条回空的，于是它留在成员集合里。
 // 为什么集合与形状住在房间文件里（而不是判定文件）：判定收在 src/tracker/capability-assertions.ts，
 // 而判定必须 import 三个工厂的类型；形状若跟判定同住一处，两边就成了 type-only 的环（#1136 把
 // src/tracker 收进门禁扫描域时当场抓到）。方向单向：判定文件 → 房间。
@@ -38,8 +39,9 @@ export type MarkdownBackendMembers =
   | 'id'
   | Exclude<
       | ProvidedCapability<typeof MARKDOWN_CAPABILITY_REGISTER>
+      | PartiallyProvidedCapability<typeof MARKDOWN_CAPABILITY_REGISTER>
       | StubbedByBackend<typeof MARKDOWN_CAPABILITY_REGISTER>,
-      LocatorCapability
+      'describe' | 'issueAddress'
     >
 
 /** 交出来的字面量形状：工厂用 `satisfies` 挂它（缺一条、多一条都在编译期红）。 */
@@ -87,7 +89,9 @@ export async function matches(handle: RepoHandle, ctx: OpContext): Promise<boole
     return false
   }catch{return false}
 }
-export function describe(handle: RepoHandle, backendId: string): RepositoryRef{
+// 契约把第二个参数标成可选（`describe(handle, backendId?)`，见 contract/operations.ts 定位口那一段：
+// 「实例自己知道身份，可以忽略它」）。这里给它一个默认值，别让契约说可选、实现却离了它就调不动。
+export function describe(handle: RepoHandle, backendId: string = 'markdown'): RepositoryRef{
   const cwd=handle&&handle.cwd?String(handle.cwd):''
   const refId=handle&&handle.refId?String(handle.refId):(cwd?cwd:'')
   const finalRef=refId||cwd||''
@@ -200,16 +204,16 @@ export function createMarkdownBackend(ctx: OpContext) {
     // 语义见 tracker/contract-page.js 的「分页契约」；本后端的游标是「排好序的票行列表里的下标」。
     listPage:(repo,filter,opts,opCtx)=>asOpResult<PageResult>(listIssuesPage(opCtx||ctx,repo,filter,opts)),
     get:(repo,key,opts,opCtx)=>asOpResult<Issue>(getIssue(opCtx||ctx,repo,key,opts)),
-    getDependencies:(repo,key,opts,opCtx)=>asOpResult<Dependencies>(getDependenciesForKey(opCtx||ctx,repo,key)),
+    getDependencies:(repo,key,opts,opCtx)=>asOpResult<Dependencies>(getDependenciesForKey(opCtx||ctx,repo,key,opts)),
     create:(repo,input,opCtx)=>asOpResult<Issue>(createIssue(opCtx||ctx,repo,input)),
-    close:(repo,key,opts,opCtx)=>asOpResult<Issue>(closeIssue(opCtx||ctx,repo,key)),
+    close:(repo,key,opts,opCtx)=>asOpResult<Issue>(closeIssue(opCtx||ctx,repo,key,opts)),
     reopen:(repo,key,opCtx)=>asOpResult<Issue>(reopenIssue(opCtx||ctx,repo,key)),
     comment:(repo,key,body,opCtx)=>asOpResult<Comment>(addComment(opCtx||ctx,repo,key,body)),
     update:(repo,key,patch,opCtx)=>asOpResult<Issue>(updateIssue(opCtx||ctx,repo,key,patch)),
-    setLabels:(repo,key,labels,opts,opCtx)=>asOpResult<Issue>(setLabelsIssue(opCtx||ctx,repo,key,labels)),
-    setAssignees:(repo,key,assignees,opts,opCtx)=>asOpResult<Issue>(setAssigneesIssue(opCtx||ctx,repo,key,assignees)),
-    setParent:(repo,key,parentKey,opts,opCtx)=>asOpResult<Issue>(setParentIssue(opCtx||ctx,repo,key,parentKey)),
-    setBlockedBy:(repo,key,blockers,opts,opCtx)=>asOpResult<Issue>(setBlockedByIssue(opCtx||ctx,repo,key,blockers)),
+    setLabels:(repo,key,labels,opts,opCtx)=>asOpResult<Issue>(setLabelsIssue(opCtx||ctx,repo,key,labels,opts)),
+    setAssignees:(repo,key,assignees,opts,opCtx)=>asOpResult<Issue>(setAssigneesIssue(opCtx||ctx,repo,key,assignees,opts)),
+    setParent:(repo,key,parentKey,opts,opCtx)=>asOpResult<Issue>(setParentIssue(opCtx||ctx,repo,key,parentKey,opts)),
+    setBlockedBy:(repo,key,blockers,opts,opCtx)=>asOpResult<Issue>(setBlockedByIssue(opCtx||ctx,repo,key,blockers,opts)),
     // #618：标签配色契约的两条操作（形状见 src/host/tracker/contract.js 的「标签配色契约」一节）。
     // listLabels 会在文件缺失时顺手补一份默认配色文件（首次打开改色弹窗那条放置路）。
     listLabels:(repo,opCtx)=>asOpResult<LabelColor[]>(listLabels(opCtx||ctx,repo)),
@@ -225,6 +229,11 @@ export function createMarkdownBackend(ctx: OpContext) {
     getRepoPermissions: ()=>asOpResult<RepoPermissions>(failAs(ERROR_KIND.UNSUPPORTED,'markdown getRepoPermissions unsupported','')),
     // 子票就在工作区的票文件里，宿主要「这张地图的全部子票」直接读文件即可，不经这里。
     listSubIssues: ()=>asOpResult<SubIssueList>(failAs(ERROR_KIND.UNSUPPORTED,'markdown listSubIssues unsupported','')),
+    // 定位口（#1174 决策 2）：问「这个仓库在这个后端上叫什么」。本地房的身份就是工作区目录本身，
+    // 没有 owner/name 可以解析出来，所以恒回 null —— 契约写着定位口的答案「是名字或者空，
+    // 空也是答案，不是失败」，所以这不是一条失败桩，是一条诚实回空的实现。
+    // 契约 `operations.ts` 里那句「本地 Markdown 后端没有这条」也随这次改成「算不出来就回空」。
+    getRepoKey: async ()=>null,
   } satisfies MarkdownBackendShape
 }
 /** #323（2026-08-29 定版复核）：本地 Markdown 后端自己的默认调色盘（不依赖 GitHub）——

@@ -144,7 +144,12 @@ export interface Tracker {
   /** 建一张票（可带幂等锚，见 `CreateInput.idempotencyKey`）。 */
   create(repo: RepositoryRef, input: CreateInput, ctx: OpContext): Promise<OpResult<Issue>>
 
-  /** 关票；带 `expectedUpdatedAt` 时对不上就回 `conflict`。 */
+  /** 关票。`opts.reason` 是关闭原因（开放字符串，原样记录、原样读回）。
+   *
+   *  这里以前写着「带 `expectedUpdatedAt` 时对不上就回 `conflict`」，那是一句**写错了的话**：
+   *  `CloseOpts` 里根本没有这一项（见 `inputs.ts`），三个后端也没有一条在关票路径上做过这种比对。
+   *  #1174 决策 11① 把这句改成真话：写前版本校验只存在于四个「改字段」的操作上
+   *  （`setLabels` / `setAssignees` / `setParent` / `setBlockedBy`，走 `SetOpts.expectedUpdatedAt`）。 */
   close(repo: RepositoryRef, key: string, opts: CloseOpts | undefined, ctx: OpContext): Promise<OpResult<Issue>>
 
   /** 重开票。 */
@@ -284,7 +289,11 @@ export interface Tracker {
   /**
    * 从工作区目录解析出 `owner/name`（只有需要连远端的后端才有意义）。
    * 返回 `null` 表示这一趟没解析出来（不是异常，调用方按「补不出来」处理，**不许编一个名字**）。
-   * 本地 Markdown 后端没有这条 —— 它的身份就是工作区目录本身，没有什么可解析的。
+   * 本地 Markdown 后端**也实现这一条**：它的身份就是工作区目录本身，没有 `owner/name` 可解析，
+   * 所以它的答案恒为 `null` —— 这是「算不出来」，是定位口的合法答案，不是失败。
+   * （#1174 决策 2、11②：这里以前写「本地 Markdown 后端没有这条」，与下面那句
+   * 「定位口没有『我不支持』这种答案」自相矛盾；注册表也确实不替定位口补桩，
+   * 照旧写法登记会让实例上根本没有这个方法、调用方一调就抛类型错误。）
    */
   getRepoKey(cwd: string, ctx: OpContext): Promise<{ owner: string; name: string } | null>
 

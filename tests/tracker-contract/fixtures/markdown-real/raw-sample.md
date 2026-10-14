@@ -3,6 +3,7 @@
 Body for hello world.
 
 Status: claimed
+Assignees: local
 Type: task
 Blocked by: #02
 

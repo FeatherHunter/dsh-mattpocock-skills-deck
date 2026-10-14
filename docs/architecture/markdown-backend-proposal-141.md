@@ -31,7 +31,7 @@
 | `## 进度:N%` | 不进形状 | `body` 原文透传，`deck-derive.parseProgress(body)` 派生 `progressOf` | — |
 | 标题 | 首个 `^#+\s+(.+)$`，无则首非空行，回退 `''` | `title: string` | 缺→`''` |
 | `key` | 文件名 `<NN>` 两位零填充 | `key: string` | 缺失抛 `parse` 错误，不回退 `'00'` |
-| `assignees` | `Status:claimed→[{login:'@me'}] 或 []`，`ready-for-agent→[]`，无 Status → MISSING | `assignees?: Actor[]` | `claimed→EMPTY/有值`，`ready→EMPTY []`，无 Status → 省略（`indeterminate`，不误判 `frontier`） |
+| `assignees` | 票面上有 `Assignees:` 行 → 读那几个名字；没有这一行的老票按老口径回落（`Status:claimed→[{login:''}]` 表示「认领了、但没记下是谁」，`ready-for-agent→[]`），无 Status → MISSING | `assignees?: Actor[]` | `claimed→EMPTY/有值`，`ready→EMPTY []`，无 Status → 省略（`indeterminate`，不误判 `frontier`） |
 | `labels/milestone` | 本地无此概念 | 省略（MISSING） | 恒 MISSING；`diagnoseCapabilities` 记 `labels:<absent> (MISSING)` |
 | `closedAt/reason` | `state==='closed' ? (fileMtimeISO??nowISO) : null`；`reason:'completed'` | `closedAt: string\|null`，`reason?: string` | open 时 `closedAt:null`，`reason` 省略或 `''` |
 
@@ -42,10 +42,10 @@
 | 操作 V4 | Markdown 行为 | 保留性 |
 |---|---|---|
 | `create(repo,input)` | 扫 `issues/` 取 `maxNN+1` 两位零填充，`slugify(title)` 生成 `issues/<NN>-<slug>.md`；模板含 `Status:/Type:/Blocked by:` 行 + `## Comments` 空段 + `## Answer` 占位；`platform.fs.mkdir(dir,{recursive:true})` 后 `writeFile` | 新增文件 |
-| `close(repo,key)` | 读原文 → `replace(/^Status\s*[：:].*$/m,'Status: resolved')` 无则首段后插入；`closedAt` 由文件 mtime 体现 | 保留 `## Comments` 段 |
+| `close(repo,key)` | 读原文 → `replace(/^Status\s*[：:].*$/m,'Status: resolved')` 无则首段后插入；调方给了 `CloseOpts.reason` 时另写一行 `Close reason: <原因>`（#1174 决策 8），读回就是它，没给则按后端默认 `completed`；`closedAt` 由文件 mtime 体现 | 保留 `## Comments` 段 |
 | `comment(repo,key,body)` | 追加到 `## Comments` 段尾 `### <actor> — <ISO>\n${body}\n`，无段则先追加 `## Comments` | 追加不重写前文 |
 | `update` | 行内字段替换（`Type:/Blocked by:`） | 字段行替换，段不动 |
-| `setParent/setBlockedBy/setAssignees` | `setParent` 跨目录 `rename`（慎用，#115 树由目录层级表达）；`setBlockedBy` 重写 `Blocked by: #NN, #MM` 行；`setAssignees: claimed→Status: claimed / unclaim→Status: ready-for-agent` | 同上 |
+| `setParent/setBlockedBy/setAssignees` | `setParent` 跨目录 `rename`（慎用，#115 树由目录层级表达）；`setBlockedBy` 重写 `Blocked by: #NN, #MM` 行；`setAssignees`：认领 → `Status: claimed` **并把登录名原样写进 `Assignees:` 行**（#1174 决策 12；早先只写状态、回读用 `@me` 占位，那是占位符不是名字），取消认领 → `Status: ready-for-agent` + 一行空的 `Assignees:` | 同上 |
 | `reopen` | `Status: ready-for-agent` | — |
 | `setLabels` | 本地无 labels → `{ok:false, error:{kind:'unsupported', message:'labels unsupported on markdown'}}` | 诚实上报 |
 

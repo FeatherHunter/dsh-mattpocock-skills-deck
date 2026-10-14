@@ -33,19 +33,22 @@ import { GITHUB_CAPABILITY_REGISTER } from '../src/tracker/rooms/github/capabili
 import { MARKDOWN_CAPABILITY_REGISTER } from '../src/tracker/rooms/markdown/capability-register.js'
 import { GITLAB_CAPABILITY_REGISTER } from '../src/tracker/rooms/gitlab/capability-register.js'
 
-type Kind = 'provided' | 'unsupported' | 'planned'
+type Kind = 'provided' | 'partial' | 'unsupported' | 'planned'
 
 /** 一份登记数据在门禁眼里的样子（只读，够比对用）。 */
-type RegisterView = { readonly [name: string]: { readonly kind: Kind; readonly ticket?: string } }
+type RegisterView = { readonly [name: string]: { readonly kind: Kind; readonly gap?: string; readonly ticket?: string } }
 
 const ROOT = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '..')
 
 /** 契约名录的全部 25 个名字（22 条操作 + 3 条定位口）：登记表要有多少行，就是它说了算。 */
 const CATALOG: string[] = [...OPERATIONS, ...LOCATORS]
 
-/** md 表「登记」列里那三个词 ↔ 数据里的三类。词是 2026-10-14 #1147 决策 9 定下的，多一个就是有人新造了第四类。 */
+/** md 表「登记」列里那四个词 ↔ 数据里的四类。前三个词是 2026-10-14 #1147 决策 9 定下的，
+ *  第四个（`partial`）是 #1174 加的第四档：形态成立、有实现，但有某几种输入与承诺对不上。
+ *  多一个没登记在这里的词就是有人新造了第五类——那要先改契约里的判据，不是在 md 表里随手写个新词。 */
 const KIND_OF_LABEL: { [label: string]: Kind } = {
   明确提供功能: 'provided',
+  做了但没做到位: 'partial',
   明确不支持: 'unsupported',
   '当前不支持、未来会开发': 'planned',
 }
@@ -138,7 +141,20 @@ for (const backend of BACKENDS) {
       (plannedNoTicket.length ? '（没写：' + plannedNoTicket.join('、') + '）' : ''),
   )
 
-  // —— 四、实现面：成员集合由登记推出来，不再手写一份 ——
+  // —— 四、`partial` 必须写清差在哪（`gap`），并且说明这处缺口由谁承接 ——
+  // 为什么单独立一条：这一档的全部价值就是「把差在哪写下来」。写不出差在哪，说明这条压根还没审过，
+  // 那它就该老老实实是 `provided` 或者 `unsupported`，不该占着这一档当挡箭牌。
+  const partialNoGap = dataNames.filter((n) => backend.register[n].kind === 'partial' && !String(backend.register[n].gap || '').trim())
+  const partialNoTicket = dataNames.filter((n) => backend.register[n].kind === 'partial' && !String(backend.register[n].ticket || '').trim())
+  const partial = dataNames.filter((n) => backend.register[n].kind === 'partial').length
+  check(
+    partialNoGap.length === 0 && partialNoTicket.length === 0,
+    backend.id + ' 的 ' + partial + ' 条「做了但没做到位」都写清了差在哪、由谁承接' +
+      (partialNoGap.length ? '（没写差在哪：' + partialNoGap.join('、') + '）' : '') +
+      (partialNoTicket.length ? '（没写承接票：' + partialNoTicket.join('、') + '）' : ''),
+  )
+
+  // —— 五、实现面：成员集合由登记推出来，不再手写一份 ——
   const roomText = fs.readFileSync(path.join(ROOT, backend.room), 'utf8')
   check(
     /ProvidedCapability<typeof\s+\w+_CAPABILITY_REGISTER>/.test(roomText),
@@ -147,7 +163,7 @@ for (const backend of BACKENDS) {
 
   // 概览（不是判定，是给人看的一行账）
   const count = (kind: Kind) => dataNames.filter((n) => backend.register[n].kind === kind).length
-  console.log('  ---- ' + backend.id + '：' + count('provided') + ' 提供 / ' + count('unsupported') + ' 明确不支持 / ' + count('planned') + ' 未来会开发')
+  console.log('  ---- ' + backend.id + '：' + count('provided') + ' 提供 / ' + count('partial') + ' 做了但没做到位 / ' + count('unsupported') + ' 明确不支持 / ' + count('planned') + ' 未来会开发')
 }
 
 // —— 五、G5：登记数据只许被 `import type` 引用（运行时不读它）——

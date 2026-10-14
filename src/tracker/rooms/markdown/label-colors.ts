@@ -265,7 +265,7 @@ import { failAs, rawJson } from './error-fail.js'
  *  照默认内容写一遍就等于把用户手写的东西整份抹掉。
  *  只有老文件时顺手迁进新文件（写法与说明都保留），写成功后删老文件——下次读到的就是新文件。
  *  返回 {ok:true, placed, reason} 或 {ok:false, error}。placed=true 表示这次真的新建或迁移了一份。 */
-export async function ensureLabelColors(ctx: CtxWithPolicy, repo?: RepositoryRef | null): Promise<{ ok: true; placed: boolean; reason: string; from: string } | LabelColorsReadOk | LabelColorsReadFail> {
+export async function ensureLabelColors(ctx: CtxWithPolicy, repo?: RepositoryRef | null): Promise<{ ok: true; placed: boolean; reason: string; from?: string } | LabelColorsReadOk | LabelColorsReadFail> {
   return await withWorkspaceWriter(ctx, repo, async () => {
     const read = await readLabelColors(ctx, repo)
     if (!read.ok) {
@@ -295,7 +295,10 @@ export async function ensureLabelColors(ctx: CtxWithPolicy, repo?: RepositoryRef
       // 原文 = 放置这份默认文件时写失败抛上来的错误；提示语里不许出现临时文件名。
       return writeFailure(e)
     }
-    return { ok: true, placed: true, reason: 'created', from: 'yaml' }
+    // #1174：这一趟是**新建**，本来没有文件，所以不回 `from`。契约写着 `from` 是「它原先是什么格式，
+    // 只在文件本来就在时有值」；以前这里无论新建还是迁移都回 `'yaml'`，读的人分不清
+    // 「文件早就在那儿，是 yaml」与「这次刚建的」——排查时会以为工作区里原本就有一份配色文件。
+    return { ok: true, placed: true, reason: 'created' }
   })
 }
 

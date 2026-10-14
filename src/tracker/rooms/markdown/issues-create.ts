@@ -5,8 +5,8 @@
 //   - 仓库只有一个 effort → 自动落它（单 effort 仓库用起来无感）；
 //   - 仓库有多个 effort 又没指定 → 返回 conflict 诚实失败，绝不猜（旧实现在所有 effort 之间取全局 max+1，
 //     与契约冲突，而且因为少了 getScratchRoot 的 import 从未生效）。
-import { parseMd, slugify, stripLabelDecoration, isWholeIssueBody } from './parse.js'
-import { readDir, readTextFile, statFile, exists } from './read.js'
+import { parseMd, slugify, stripLabelDecoration, isWholeIssueBody, loginOfAssignee } from './parse.js'
+import { listDirOrMissingIsEmpty, readTextFile, statFile, exists } from './read.js'
 import { writeTextFile, ensureDir } from './write.js'
 import { issuesDir } from './path.js'
 import { failAs, failFromError } from './error-fail.js'
@@ -17,7 +17,10 @@ import { loadPaintColorMap, applyLabelColors } from './label-colors-paint.js'
 import { withWorkspaceWriter } from './write-queue.js'
 // #711：创建幂等锚。锚那一行长什么样、怎么从票面把锚读回来、回查命中要满足什么条件，
 // 全在刷新核心的产物里（唯一一处判据），本文件只负责把锚写进票文件、并从盘上按锚找票。
-import { anchorLineFor, checkIdempotencyKey, idempotencyKeyOf } from '../../../shared/refresh/idempotency.js'
+// #1174：回查的**结论**也交给那份判据（matchAnchor）—— 旧实现自己写了一套「比中锚就算命中」，
+// 少了「候选必须还开着」这一条，于是票关掉之后拿同一个锚再提交，会把新活记到那张关着的旧票上。
+import { anchorLineFor, checkIdempotencyKey, idempotencyKeyOf, matchAnchor, isAnchorHit, isAnchorUnsupported, anchorUnsupported, describeAnchorFailure } from '../../../shared/refresh/idempotency.js'
+import type { AnchorCandidate, AnchorMatch } from '../../../shared/refresh/src/idempotency.js'
 import type { OpContext } from '../../contract/contexts.js'
 import type { RepositoryRef, Issue } from '../../contract/entities.js'
 import type { CreateInput, LabelInput } from '../../contract/inputs.js'
@@ -101,8 +104,11 @@ function checkSingletonsForCreate(content: string, wantAnchor: boolean): string{
   if(count(/^##\s*Comments\s*$/gim)!==1) return 'Comments 骨架不是 1 个'
   if(count(/^##\s*Answer\s*$/gim)!==1) return 'Answer 骨架不是 1 个'
   if(count(/^\s*Type\s*[:\uFF1A]/gim)>1) return 'Type 行翻倍了'
+  if(count(/^\s*Assignees\s*[:\uFF1A]/gim)>1) return 'Assignees 行翻倍了'
   return ''
 }
+/** 建票时刻：本仓房间层的既有做法就是取真实时钟（comments.ts 那条评论时间同款），不另立时钟源。 */
+function builtAtIso(): string { return new Date().toISOString() }
 function buildIssueText(input: CreateView){
   const blockedByStr=Array.isArray(input.blockedBy)&&input.blockedBy.length?input.blockedBy.map(k=>'#'+String(k).padStart(2,'0')).join(', '):(typeof input.blockedBy==='string'?input.blockedBy:'')
   const typeField=input.type?String(input.type):(input.Type?String(input.Type):'')
@@ -123,15 +129,25 @@ function buildIssueText(input: CreateView){
   const rawBody=input.body?String(input.body):''
   const bodyPart=isWholeIssueBody(rawBody)?cleanWholeBodyForCreate(rawBody):rawBody.trim()
   const title=String(input.title).trim()
+  // 建票时的指派人（#1174 决策 8）：契约的 `CreateInput.assignees` 以前被静默丢掉 —— 调用方以为指派了，
+  // 票面上一个字都没有。现在原样写进 `Assignees:` 那一行；给了人就同时把状态记成「已认领」，
+  // 与 setAssignees 同一个口径（那边也是「有名字 ⇒ claimed」）。
+  const assigneeNames=Array.isArray(input.assignees)?input.assignees.map(loginOfAssignee).filter(Boolean):[]
   let content='# '+title+'\n\n'
   if(bodyPart)content+=bodyPart+'\n\n'
-  content+='Status: '+(input.status as string||'ready-for-agent')+'\n'
+  content+='Status: '+((input.status as string)||(assigneeNames.length?'claimed':'ready-for-agent'))+'\n'
+  if(assigneeNames.length)content+='Assignees: '+assigneeNames.join(', ')+'\n'
   if(typeField)content+='Type: '+typeField+'\n'
   if(blockedByStr)content+='Blocked by: '+blockedByStr+'\n'
   else content+='Blocked by:\n'
   if(labelsStr) content+='Labels: '+labelsStr+'\n'
   else content+='Labels:\n'
   content+='\n## Comments\n\n\n## Answer\n\n'
+  // #1174 决策 10：建票时刻写进文件顶的那一行注释（写在标题之前）。为什么要写下来：契约要求按页取票
+  // 的排序键是「创建时间倒序」，而本地这一侧一直拿**文件修改时间**当创建时间 —— 改一次票就换一个时间，
+  // 翻页期间有人改票会让票在页与页之间挪位置，正是契约要防的那件事。写下来之后它就不动了。
+  // 老票没有这一行，继续回落到文件修改时间（见 parse.ts 的 createdStampFromFile，那里也不回填）。
+  content='<!-- created: '+builtAtIso()+' -->\n'+content
   if(input.parentKey)content='<!-- parentKey: '+input.parentKey+' -->\n'+content
   // 锚在最前（含它自己的换行）：parentKey 那行若也在，紧跟在锚后面，两行都是看不见的注释。
   if(input.idempotencyKey)content=anchorLineFor(String(input.idempotencyKey))+content
@@ -140,24 +156,56 @@ function buildIssueText(input: CreateView){
 
 /** 按锚在盘上找那张票（#711 的回查）。这是**读**：建票时它在写者队列里面跑、建完的回读核对也在队列里，
  *  读到的都是盘上真实的内容，不看任何内存表。
- *  - 找不到：返回 null（那就是「还没建过」，照常建）；
- *  - 有文件读不出来（被占用、权限、目录读不出来）：抛错，由调用方转成 unsupported 如实失败 ——
- *    「读不出来」当成「没找到」正是重复建票的来路，而且是在看起来成功了的样子下发生的。
- *  性能：先用「文件内容里有没有锚」粗筛（每份读一次、不解析），筛中才解析这一份。 */
-async function findAnchoredTicket(ctx: OpContext,idir: string,key: string): Promise<{ path: string; key: string; text: string } | null>{
-  if(!idir)return null
+ *
+ *  三种结论，判据一条不自己写，全部交给刷新核心那份共享判据（`shared/refresh` 的 `matchAnchor`）：
+ *   - `hit`          —— 那张票的票面上真写着这个锚，**而且它还开着**（已关闭的票不算命中：
+ *                       一个锚对应一件要做完的事，那件事已经做完了，调用方这次要的是新建）；
+ *   - `miss`         —— 按锚找遍了没有，那就是「还没建过」，照常建；
+ *   - `unsupported`  —— **回查做不成**（列目录读不出来、某份票文件读不出来）。这一档必须如实失败，
+ *                       绝不降级成「没找到」：「读不出来」被当成「没有」正是重复建票的来路，
+ *                       而且是在看起来成功了的样子下发生的（契约 contract-idempotency 第 35-37 行
+ *                       点名了这一档，并指定 error.kind 用 unsupported）。
+ *
+ *  性能：先用「文件内容里有没有锚」粗筛（每份读一次、不解析），只有锚对上的才解析成候选取态。 */
+type AnchorLookup =
+  | { status: 'hit'; path: string; key: string; text: string }
+  | { status: 'miss' }
+  | { status: 'unsupported'; reason: string }
+async function findAnchoredTicket(ctx: OpContext,idir: string,key: string): Promise<AnchorLookup>{
+  if(!idir)return{status:'miss'}
   const plat=getPlat(ctx)
-  const files=await readDir(ctx,idir)
+  // 列目录失败**不许**当空表（旧实现正是这么做的，于是一路静默建出第二张票）。
+  let files: string[]
+  try{ files=await listDirOrMissingIsEmpty(ctx,idir) }
+  catch(e){ return{status:'unsupported',reason:'回查要列这个工作单元的票目录，但列不出来：'+idir+'（'+String((e as Error)?.message||e)+'）'} }
+  const candidates: Array<{ path: string; key: string; text: string; candidate: AnchorCandidate }>=[]
   for(const f of files){
     if(!f||!f.endsWith('.md'))continue
     const km=/^(\d+)-/.exec(f)
     if(!km)continue
     const full=plat.join(idir,f)
-    const txt=await readTextFile(ctx,full)
+    let txt: string
+    // 单份票文件读不出来同样算「回查做不成」（旧的注释这么写，但当时列目录那一路根本不抛，
+    // 所以这句话只在单文件这条路上成立；现在两条路都成立）。
+    try{ txt=await readTextFile(ctx,full) }
+    catch(e){ return{status:'unsupported',reason:'回查要读票文件，但读不出来：'+full+'（'+String((e as Error)?.message||e)+'）'} }
     if(idempotencyKeyOf(txt)!==String(key))continue
-    return{path:full,key:km[1].padStart(2,'0'),text:txt}
+    const k=km[1].padStart(2,'0')
+    const iss=parseMd(txt,{key:k,parentKey:'00',isMap:false})
+    candidates.push({ path:full, key:k, text:txt, candidate:{ key:k, body:txt, state:iss.state } })
   }
-  return null
+  if(!candidates.length)return{status:'miss'}
+  // 仓库同不同这一条本房不用传 refId：候选全部来自同一个工作区，不存在跨仓库候选。
+  // 值实现来自构建产物 .js（无类型），回查结论以源码 .ts 的 AnchorMatch 为准，只收敛类型不改逻辑
+  // （GitLab 房同款做法，见 rooms/gitlab/idempotency.ts 的注释）。
+  const verdict=matchAnchor(candidates.map(function(c){ return c.candidate }),undefined,String(key)) as unknown as AnchorMatch
+  if(isAnchorHit(verdict)){
+    const hit=candidates.find(function(c){ return c.key===verdict.key })||candidates[0]
+    return{status:'hit',path:hit.path,key:hit.key,text:hit.text}
+  }
+  if(isAnchorUnsupported(verdict))return{status:'unsupported',reason:verdict.reason}
+  // mismatch：候选都在，但没一个同时满足「锚对得上 + 还开着」。按共享判据的口径这等于没命中，照常建。
+  return{status:'miss'}
 }
 
 export async function createIssue(ctx: OpContext,repo: RepoWithPath | null,input: CreateInput): Promise<{ ok: true; data: Issue } | CreateFailure>{
@@ -190,9 +238,15 @@ export async function createIssue(ctx: OpContext,repo: RepoWithPath | null,input
       // ① 先按锚回查盘上有没有这张票（回查看的是票文件里的锚，不是内存里的表）。命中就复用它：
       //    不取号、不落盘、不改任何文件，返回同一个 key。
       if(idemKey){
-        const hit=await findAnchoredTicket(ctx,idir,idemKey)
-        if(hit){
-          const st=await statFile(ctx,hit.path)
+        const look=await findAnchoredTicket(ctx,idir,idemKey)
+        // 回查做不成（列目录读不出来、票文件读不出来）：如实失败，绝不降级成「没找到」再建一张。
+        // 档位按契约 contract-idempotency 第 35-37 行定成 unsupported；话术用共享判据那一句
+        // （它把「这不是『已经建过』的意思」和接下来能怎么办一并说清）。
+        if(look.status==='unsupported'){
+          return failAs(ERROR_KIND.UNSUPPORTED, describeAnchorFailure(anchorUnsupported(look.reason)), look.reason)
+        }
+        if(look.status==='hit'){
+          const st=await statFile(ctx,look.path)
           let hitMtime=new Date().toISOString()
           // stat 的契约类型是 unknown（各实现给出的字段不一，locate.js 里同款读法）：
           // 经视图读 mtime，坏值进 catch 回默认；cast 只为过类型，求值与原来逐字相同。
@@ -200,14 +254,15 @@ export async function createIssue(ctx: OpContext,repo: RepoWithPath | null,input
           if(hitStMtime){try{hitMtime=new Date(hitStMtime as string).toISOString()}catch{}}
           // #971：回落值给 00（老单根工作区的地图），文件顶有注释就以注释为准，没有注释但正文写着 Type: map 的视作没有父票。
           // 这里原来写死 null，复用老票时会把本该是 00 的子票读成没有父票；现在交给 parseMd 按注释与类型判。
-          const hitIss=parseMd(hit.text,{key:hit.key,parentKey:'00',isMap:false,effortId,createdAt:hitMtime,updatedAt:hitMtime})
+          const hitIss=parseMd(look.text,{key:look.key,parentKey:'00',isMap:false,effortId,createdAt:hitMtime,updatedAt:hitMtime})
           applyLabelColors(hitIss, colorMap)
-          return{ok:true,effortId,finalPath:hit.path,finalKey:hit.key,reused:true}
+          return{ok:true,effortId,finalPath:look.path,finalKey:look.key,reused:true}
         }
       }
-      // 编号：只在目标 effort 内取 max+1（契约：每个 effort 从 01 起）
+      // 编号：只在目标 effort 内取 max+1（契约：每个 effort 从 01 起）。
+      // 列目录读不出来时抛错（不吞成空表）：吞掉就等于「这里一个号都没占」，会覆盖别人的票。
       let max=0
-      const filesSelf=await readDir(ctx,idir)
+      const filesSelf=await listDirOrMissingIsEmpty(ctx,idir)
       for(const f of filesSelf){ const m=/^(\d+)-/.exec(f); if(m){ const n=parseInt(m[1],10); if(!isNaN(n)&&n>max) max=n } }
       let next=max+1
       let attempt=0

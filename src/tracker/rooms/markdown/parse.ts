@@ -91,6 +91,68 @@ export function parentKeyFromFile(text: unknown): { found: boolean; value: strin
   return { found: true, value: v }
 }
 
+/** 从票文件顶上读出「这张票是什么时候建的」（#1174 决策 10）。
+ *
+ *  为什么要有这一步：契约要求按页取票的排序键是**创建时间倒序**，理由是「翻页期间有人改票也不会
+ *  让票在页与页之间挪位置」（contract-page 的「翻页稳定」那一段）。而本地这一侧的创建时间一直取的是
+ *  票文件的**修改时间**——关票、加评论、改标签都会重写文件，于是「创建时间」每改一次就变一次，
+ *  排序键实际是「最近修改时间倒序」，契约选创建时间的那个理由正好落空。
+ *
+ *  怎么修：建票时把创建时刻写进文件顶的一行注释，以后每次写回都原样保留、不再改动。老票（没有这一行）
+ *  继续回落到文件修改时间，与今天的行为一模一样 —— 不回填，因为回填等于拿「第一次被写的时间」假装成
+ *  「建票的时间」，那是编一个数出来。
+ *
+ *  只认文件头（标题之前的那几行），理由与 parentKeyFromFile 相同：正文里举例写同样的注释不算数。 */
+export function createdStampFromFile(text: unknown): { found: boolean; value: string } {
+  const raw = String(text || '')
+  const h1 = /^#+\s+/m.exec(raw)
+  const head = h1 ? raw.slice(0, h1.index) : String(raw).split('\n').slice(0, 10).join('\n')
+  const m = /^[ \t]*<!--[ \t]*created[ \t]*:[ \t]*(.*?)-->/im.exec(head)
+  if (!m) return { found: false, value: '' }
+  const v = String(m[1] || '').trim()
+  return v ? { found: true, value: v } : { found: false, value: '' }
+}
+
+/** 关票原因：票面上 `Close reason:` 那一行的值（#1174 决策 8）。
+ *
+ *  为什么要存：契约的 `close` 签名收 `CloseOpts.reason`，本地房以前把它丢了，回读时不管调用方给的是什么
+ *  都写 `completed`。现在调用方给了就原样存、原样读回；没这一行的老票仍然按后端默认 `completed`。
+ *  取值是开放字符串（契约 `contract/identity.ts` 对 `ClosedReason` 的说法），这里不判合法与否。 */
+export function closeReasonFromFile(text: unknown): string {
+  const m = /^[ \t]*Close[ \t]+reason[ \t]*[:\uFF1A][ \t]*(.*)$/im.exec(String(text || ''))
+  return m ? String(m[1] || '').trim() : ''
+}
+
+/** 从指派入参里取出登录名（#1174 决策 12）：契约允许只给一个名字，也允许给完整形状。
+ *
+ *  取不出名字的（空串、形状里 login 不是字符串）一律丢掉，不写成一行空名字 ——
+ *  那会读成「有人认领，但名字是空的」，与「明确没人认领」是两回事。
+ *  住在 parse 这一件里：建票（写 `Assignees:` 行）与改认领人都要用，两处必须是同一把尺子。 */
+export function loginOfAssignee(a: unknown): string {
+  if (typeof a === 'string') return a.trim()
+  if (a && typeof a === 'object' && typeof (a as { login?: unknown }).login === 'string') {
+    return String((a as { login: string }).login).trim()
+  }
+  return ''
+}
+
+/** 从票面上读出「这张票指派给了谁」（#1174 决策 12）。
+ *
+ *  读的是 `Assignees:` 这一行（名字之间用逗号或顿号分隔）。这一行是这次改动新加的：以前认领只写
+ *  `Status: claimed`，谁认领的没地方放，回读时只能给一个 `@me` 占位符 —— 调用方看到的名字既不是
+ *  自己给的那个、也不是本地用户名（契约 `contract/identity.ts` 对 login 的说法是「本地用户名或空串」）。
+ *
+ *  返回 `{found, value}`，两件事分开：`found` 表示票面上有没有这一行 —— 有、但值是空的，是
+ *  「明确没人认领」（值为 `[]`）；根本没有这一行，才是「这份文件没记下是谁」。这两种在契约里是
+ *  不同的意思（`contract/entities.ts` 对 `assignees: []` 与字段省略的区别有专门说明），不能混成一个值。 */
+export function assigneesFromFile(text: unknown): { found: boolean; value: Array<{ login: string; kind: 'user' }> } {
+  const raw = String(text || '')
+  const m = /^[ \t]*Assignees[ \t]*[:\uFF1A][ \t]*(.*)$/im.exec(raw)
+  if (!m) return { found: false, value: [] }
+  const names = String(m[1] || '').split(/[,\uFF0C]+/).map((s) => s.trim()).filter(Boolean)
+  return { found: true, value: names.map((login) => ({ login: login, kind: 'user' as const })) }
+}
+
 export function parseMd(text: unknown, meta: ParseMeta): Issue {
   const raw = String(text || '')
   // 2026-10-10 修（#991 实测带回来的读路径缺陷）：冒号后面原来写的是 \s*，而 \s 含换行 —— 字段值为空的
@@ -214,7 +276,10 @@ export function parseMd(text: unknown, meta: ParseMeta): Issue {
   if (parentKey === '') parentKey = null
   // effort 维度：effort 是核心字段（永远存在）；扁平布局 / 单 effort 后端填 ''（EMPTY）
   const effortId = String((meta && meta.effortId) || '')
-  const createdAt = (meta && typeof meta.createdAt === 'string' ? meta.createdAt : '') || ''
+  // #1174 决策 10：创建时间**优先取文件里写下来的那一行**（写下来就不动了），没有这一行的老票才回落到
+  // 调用方给的（本地是文件修改时间）。更新时间仍取调用方给的（本地就是文件修改时间，改一次变一次）。
+  const fileCreated = createdStampFromFile(raw)
+  const createdAt = (fileCreated.found ? fileCreated.value : '') || (meta && typeof meta.createdAt === 'string' ? meta.createdAt : '') || ''
   const updatedAt = (meta && typeof meta.updatedAt === 'string' ? meta.updatedAt : '') || ''
   // 地址（#1142）：本地后端的票就是工作区里的文件，所以一张票的地址就是它所在的那个文件的路径。
   // 只有真正读/写这个文件的那一层知道路径 —— 文件名里还带标题转出来的后缀（01-hello-world.md），
@@ -238,15 +303,18 @@ export function parseMd(text: unknown, meta: ParseMeta): Issue {
     labels,
   }
   if (customFields) issue.customFields = customFields
+  // #1174 决策 12：认领人**原样读回来**。票面上写着 `Assignees:` 那一行时，读的就是那几个名字；
+  // 没有这一行的老票（写的人还没经过这次改动）落到老口径：认领了、但这份文件没记下是谁，就诚实给空名字
+  // ——「本地用户名或 ''」本来就是契约允许的值（contract/identity.ts 对 login 的说法），
+  // 而 `@me` 是个占位符，它既不是调用方给的名字、也不是本地用户名。
+  // 没有 Status 行时仍然整个字段省略，表示「认领状态未知」，与 entities.ts 里 EMPTY 与省略的区别对齐。
   if (statusRaw) {
-    const s = statusNorm
-    if (s === 'claimed') {
-      issue.assignees = [{ login: '@me', kind: 'user' }]
-    } else {
-      issue.assignees = []
-    }
+    const named = assigneesFromFile(raw)
+    if (named.found) issue.assignees = named.value
+    else if (statusNorm === 'claimed') issue.assignees = [{ login: '', kind: 'user' }]
+    else issue.assignees = []
   }
-  if (state === STATE.CLOSED) issue.reason = 'completed'
+  if (state === STATE.CLOSED) issue.reason = closeReasonFromFile(raw) || 'completed'
   else issue.reason = ''
   return issue
 }

@@ -16,14 +16,103 @@ export async function readTextFile(ctx: OpContext, fullPath: string): Promise<st
   if(typeof fs.readText==='function'){try{const txt=await fs.readText(fullPath);return String(txt??'')}catch(e){const kind=classifyError(e, ctx);const err=new Error(errText(e)) as TaggedError;err.kind=kind;try{err.cause=e}catch{}throw err}}
   throw Object.assign(new Error('fs.read not supported'),{kind:ERROR_KIND.ENV})
 }
-export async function readDir(ctx: OpContext, dirPath: string): Promise<string[]> {
-  const fs=getFs(ctx);if(!fs)return[]
-  // 下列三路都承诺回文件名串数组（调用方直接拿去拼路径）：沙箱 readdir/listDir 的契约类型是 unknown[]，
-  // 运行时里装的是文件名串；cast 只为把这一既有约定写进类型，不改返回的数组本身。
-  if(typeof fs.resolve==='function'&&typeof fs.listDir==='function'){try{const t=await fs.resolve(dirPath);const list=await fs.listDir(t);if(Array.isArray(list))return list.map(x=>typeof x==='string'?x:(x&&(x as Record<string, unknown>).name)||String(x)) as string[];return[]}catch{return[]}}
-  if(typeof fs.readdir==='function'){try{const list=await fs.readdir(dirPath);return (Array.isArray(list)?list:[]) as string[]}catch{return[]}}
-  if(typeof fs.listDir==='function'){try{const list=await fs.listDir(dirPath);return (Array.isArray(list)?list:[]) as string[]}catch{return[]}}
-  return[]
+/**
+ * 列一个目录的结果，分三种。**这是本房唯一一处「列目录」的口径。**
+ *
+ * 为什么不是「回一个数组」：数组把「没读成」与「本来就没有」压成了同一个值（空表）。下游于是把
+ * 读盘失败读成「这里本来没有票」，长出来的全是谎话——建票前的回查找不到锚就照常再建一张
+ * （重复建票）、计数回三个 0、翻页回一页假的空白。这三件事在 #1174 里就是最重的四条，
+ * 根因都是这一个值被合并。所以这里把两件事在**类型上**分开：
+ * 拿到 `{ok:false, missing:false}` 的调用方必须如实失败，不许当空表用。
+ *
+ * 三种各自的意思：
+ *  - `{ok:true, names}`     —— 列出来了，names 可能是空数组（目录在，里面没东西）；
+ *  - `{ok:false, missing:true}`  —— 这个目录本来就**不存在**。全新工作区还没有 `.scratch/issues`
+ *    目录是正常状态，调用方按空表处理即可，不算故障；
+ *  - `{ok:false, missing:false, error}` —— 目录在、或者说不清在不在，总之**没读成**。这一种
+ *    任何调用方都不许当空表，必须如实失败（档位与原文都在 error 上）。
+ */
+export type DirListing =
+  | { ok: true; names: string[] }
+  | { ok: false; missing: true }
+  | { ok: false; missing: false; error: TaggedError }
+
+/** 把一个原始错误包成带规范档位的错误：与 readTextFile 三条支路同一套做法（kind 让人判档、cause 留原文）。 */
+function tagError(e: unknown, kind: unknown): TaggedError {
+  const err=new Error(errText(e)) as TaggedError
+  err.kind=kind
+  try{err.cause=e}catch{}
+  return err
+}
+/** 沙箱 listDir / readdir 的契约类型是 unknown[]，运行时里装的是文件名串；统一成名字串（既有约定，不改值）。
+ *  三种形状按原样认：串（就是名字）、带 name 的对象（取 name）、别的（String 一下）。 */
+function nameOfEntry(x: unknown): string {
+  if(typeof x==='string') return x
+  const name=x&&typeof x==='object'?(x as Record<string, unknown>).name:undefined
+  return typeof name==='string'&&name?name:String(x)
+}
+
+/**
+ * 列目录失败时，这一次究竟算「这个目录本来就不存在」还是「没读成」。
+ *
+ * 两条里任一条成立就按「本来就不存在」处理：文件系统给出的错误码是 `ENOENT` / `ENOTDIR`，
+ * 或者错误按跟踪器层那张规则表判出来是 `NOTFOUND`（沙箱可能把错误包装过一层，所以两条都要看）。
+ *
+ * 但有一条更硬的规矩压在上面：**只要 exists() 说这个路径在，就一律算「没读成」**。
+ * 目录明明在、却列不出来，那是权限或故障，绝不能当空——这一条就是不敢把「读不成」交给
+ * 「错误码长什么样」单独决定的原因（换个沙箱实现、错误码换个说法，判据就悄悄失效了）。
+ */
+async function treatListingFailureAsMissing(ctx: OpContext, dirPath: string, e: unknown): Promise<boolean> {
+  for(const c of [e, e&&(e as {cause?: unknown}).cause]){
+    const code=c&&typeof c==='object'?String((c as Record<string, unknown>).code||''):''
+    if(code==='ENOENT'||code==='ENOTDIR') return true
+  }
+  try{ if(await exists(ctx,dirPath)) return false }catch{}
+  try{ return classifyError(e, ctx)===ERROR_KIND.NOTFOUND }catch{ return false }
+}
+
+/**
+ * 列目录（本房唯一实现）：按 `resolve + listDir` → `readdir` → `listDir` 三路依次尝试，
+ * 谁先成功用谁；三路都失败再判「本来就不存在」还是「没读成」，如实回报三种结果之一。
+ * 取不到文件服务时算「没读成」——那不是「这个目录是空的」，而是根本没法看。
+ */
+export async function listDir(ctx: OpContext, dirPath: string): Promise<DirListing> {
+  const fs=getFs(ctx)
+  if(!fs) return { ok:false, missing:false, error:tagError(new Error('fs unavailable'), ERROR_KIND.ENV) }
+  const attempts: Array<() => Promise<unknown>>=[]
+  // 先取出可用的那几个方法再来回调用：`fs.resolve` 这类可选成员在闭包里不再保持「刚才 typeof 过」的收窄，
+  // 直接写进箭头函数会报「可能是 undefined」。绑定 this 之后行为与原来 `fs.resolve(...)` 完全一样。
+  const resolveFn = typeof fs.resolve === 'function' ? fs.resolve.bind(fs) : null
+  const listDirFn = typeof fs.listDir === 'function' ? fs.listDir.bind(fs) : null
+  const readdirFn = typeof fs.readdir === 'function' ? fs.readdir.bind(fs) : null
+  if(resolveFn&&listDirFn) attempts.push(async()=>await listDirFn(await resolveFn(dirPath)))
+  if(readdirFn) attempts.push(async()=>await readdirFn(dirPath))
+  if(listDirFn) attempts.push(async()=>await listDirFn(dirPath))
+  if(!attempts.length) return { ok:false, missing:false, error:tagError(new Error('fs.list not supported'), ERROR_KIND.ENV) }
+  let last: unknown=null
+  for(const run of attempts){
+    try{ const list=await run(); return { ok:true, names:(Array.isArray(list)?list:[]).map(nameOfEntry) } }
+    catch(e){ last=e }
+  }
+  if(await treatListingFailureAsMissing(ctx,dirPath,last)) return { ok:false, missing:true }
+  return { ok:false, missing:false, error:tagError(last, classifyError(last, ctx)) }
+}
+
+/**
+ * 列一个「可能有、也可能还没有」的目录的名字：**只要没列成，一律当空表**（老口径，保留）。
+ *
+ * 什么时候用它：调用方只想列出名字，而「这个目录现在没有」确实是正常状态，而且**它不打算为
+ * 「没读成」单独交代**（例如全新工作区还没有 `issues/` 目录、按编号找票时逐个工作单元去试）。
+ * 什么时候别用它：调用方必须分清「读不成」——那就直接用 `listDir`，按 `missing` 分两种处理
+ * （建票回查、计数、翻页这三处就是这种，它们必须如实失败：读不动就不能当「这里没有票」）。
+ *
+ * 为什么这里不抛错（#1174 实现时改过一次、又改回来）：这一条是**读路径上的宽松口**，用它的人
+ * 有十几处，都不接异常。让它在 fs 拿不到时抛「fs unavailable」，等于把宽松口变成硬失败，
+ * 第一次跑就撞了契约测试台的 labels 段。要严格就用 listDir，两条 API 各管一种意图，别混。
+ */
+export async function listDirOrMissingIsEmpty(ctx: OpContext, dirPath: string): Promise<string[]> {
+  const r=await listDir(ctx,dirPath)
+  return r.ok ? r.names : []
 }
 export async function exists(ctx: OpContext, fullPath: string): Promise<boolean> {
   const fs=getFs(ctx);if(!fs)return false

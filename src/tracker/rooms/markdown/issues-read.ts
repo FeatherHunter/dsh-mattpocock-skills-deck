@@ -4,7 +4,7 @@
 // 本文件的职责是「按 effort 范围列出/读取」，每张票与每张地图都带上 effortId；
 // 父子关系只在同一 effort 内成立（子票 parentKey='00' 指的是**本 effort 的地图**）。
 import { parseMd } from './parse.js'
-import { readTextFile, readDir, statFile } from './read.js'
+import { readTextFile, listDirOrMissingIsEmpty, statFile } from './read.js'
 import { mdPath, issuesDir } from './path.js'
 import { failAs, failFromError, kindFromError, rawFromError, rawTextOf } from './error-fail.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
@@ -92,9 +92,24 @@ export async function enumerateIssueRows(ctx: OpContext, repo: RepoWithPath, fil
     try { rows.push(await loadIssueFromFile(ctx, repo, fullPath, { parentKey: '00', isMap: false, effortId })) }
     catch (err) { noteReadError(key, fullPath, err) }
   }
-  /** 把某个 issues/ 目录下的票文件逐个读成行（文件名规则与列举一致：编号加短横开头的 .md 才算票）。 */
+  /** 把某个 issues/ 目录下的票文件逐个读成行（文件名规则与列举一致：编号加短横开头的 .md 才算票）。
+   *  列目录这一层分两种情形，都不许当「这里没有票」：
+   *   - 目录**不存在**（这个工作单元还没建过票）→ 正常，就是空；
+   *   - 目录**读不出来**（权限、故障）→ 开了错误收集（counts / listPage）就记下这一条由调用方整体失败；
+   *     没开（list）就当场抛错，由 listIssues 转成如实失败。 */
+  const noteDirReadError = function (idir: string, err: unknown): void {
+    const got = kindFromError(err, ctx)
+    const detail = err && (err as Record<string, unknown>).message ? String((err as Record<string, unknown>).message) : String(err)
+    errors.push({ key: '', path: String(idir || ''), kind: got.kind, message: '这个工作单元的票目录读不出来：' + String(idir || '') + '（' + detail + '）', raw: rawTextOf(rawFromError(err)) })
+  }
   const collectTicketsIn = async function (idir: string, effortId: string, useKeyFilter: boolean): Promise<void> {
-    const files = await readDir(ctx, idir)
+    let files: string[]
+    try { files = await listDirOrMissingIsEmpty(ctx, idir) }
+    catch (err) {
+      if (!collectErrors) throw err
+      noteDirReadError(idir, err)
+      return
+    }
     for (const f of files) {
       const m = /^(\d+)-/.exec(f)
       if (!m) continue
@@ -128,6 +143,37 @@ export async function enumerateIssueRows(ctx: OpContext, repo: RepoWithPath, fil
     }
   }
   return { rows, errors }
+}
+
+/** filter.labels 归一：去掉空白项与重复项，保持原顺序（与 GitHub 那条同一口径）。
+ *
+ *  住在这一件里、由 counts 再导出，是因为两个读者都在这一层以下：`list` 要用它筛行，
+ *  `counts` 与 `page` 要用它数数切页。放在 counts 里会绕成环（counts 已经 import 本文件的枚举函数）。
+ *  ⚠️ 空数组按「不过滤」处理 —— 契约对这一格自己写着两句互相矛盾的话（`contract/inputs.ts` 说
+ *  「一个标签都不带」，另一处说空集恒真），#1174 规格明确「先复现、复现出来再定」，今天没有调用方
+ *  这么传，所以先维持两房一致的老行为，别单方面改一边。 */
+export function labelsOf(filter: { labels?: unknown } | undefined | null): string[] {
+  const raw = filter && typeof filter === 'object' ? filter.labels : null
+  if (!Array.isArray(raw)) return []
+  const out: string[] = []
+  const seen: Record<string, boolean> = {}
+  for (const v of raw) {
+    const name = typeof v === 'string' ? v.trim() : ''
+    if (!name || seen[name]) continue
+    seen[name] = true
+    out.push(name)
+  }
+  return out
+}
+
+/** 一张票是不是同时带上了要求的全部标签（本地票面只写标签名，按名字精确比对）。 */
+export function hasAllLabels(row: Issue, wanted: string[]): boolean {
+  if (!wanted.length) return true
+  const names: string[] = []
+  const list = row && Array.isArray(row.labels) ? row.labels : []
+  for (const lab of list) if (lab && lab.name) names.push(String(lab.name))
+  for (const name of wanted) if (!names.includes(name)) return false
+  return true
 }
 
 export async function listIssues(ctx: OpContext, repo: RepoWithPath, filter: RowFilter = {}): Promise<{ ok: true; data: Issue[] } | { ok: false; error: { kind: string; message: string; raw: string } }> {
@@ -166,6 +212,14 @@ export async function listIssues(ctx: OpContext, repo: RepoWithPath, filter: Row
         else filtered=filtered.filter(x=>x.parentKey===filter.parentKey)
       }
       if(Array.isArray(filter.keys)&&filter.keys.length){const keys=filter.keys;filtered=filtered.filter(x=>keys.includes(x.key))}
+      // 按标签筛（#1174）：契约的 ListFilter.labels 写的是「必须同时带上这些标签」，本后端的 counts
+      // 一直按它筛，list 却把这一项丢了 —— 于是界面上会出现「上面数 3 张、下面列 12 张」这种自相矛盾的画面。
+      // 判定用同一份 labelsOf / hasAllLabels，保证数字与行同源。
+      const wantedLabels=labelsOf(filter)
+      if(wantedLabels.length)filtered=filtered.filter(x=>hasAllLabels(x,wantedLabels))
+      // 拉取请求筛选（#1174）：本地票仓里没有「拉取请求」这种东西，每一张票都是普通票。
+      // 所以「只要拉取请求」的诚实答案就是空 —— 空也是答案，不是失败（契约对定位口与筛选的同一口径）。
+      if(filter.isPullRequest===true)filtered=[]
     }
     filtered.sort((a,b)=>String(a.effortId||'').localeCompare(String(b.effortId||''))||a.key.localeCompare(b.key))
     return{ok:true,data:filtered}

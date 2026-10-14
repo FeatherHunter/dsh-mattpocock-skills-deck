@@ -10,7 +10,7 @@ import type { ErrorKind } from '../../contract/identity.js'
 import type { LabelColorBatchResult, TrackerError } from '../../contract/results.js'
 import type { SandboxFs } from '../../contract/contexts.js'
 import { normalizeColor } from '../../../shared/label-color/colors.js'
-import { readTextFile, readDir } from './read.js'
+import { readTextFile, listDirOrMissingIsEmpty } from './read.js'
 import { getPlat, listEfforts } from './issues-locate.js'
 import { parseMd } from './parse.js'
 import { LABEL_COLORS_REL_PATH, readLabelColors, ensureLabelColors, publishLabelColors, withLabelColorsWriter, isMissingFile } from './label-colors.js'
@@ -101,32 +101,15 @@ async function collectTicketLabelNames(ctx: OpContext, repo: RepositoryRef | nul
 
 /** 列目录：目录不存在按「这里还没有票」处理（返回空表），只有别的读失败才抛出去让上层判「取不全」。
  *  为什么要分开：地图建好、还没开任何票的工作区里 `issues/` 目录根本不存在，
- *  而「首次打开改色弹窗」正是本票新增的那条路——把「目录不存在」当错误，用户一开弹窗就会看到一句报错，
- *  而他什么都没做错（审查实测过这个场景）。判据与配色文件那条一样窄：只有明确的「不在」才算不存在，
- *  非 ENOENT 的读失败（权限、被占用、磁盘故障）照旧按「取不全」整体失败，不许退回残缺清单。
- *  没有文件服务时按空表处理，与房间既有约定一致（exists 返回 false、readDir 返回空表）。
- *  已知缺口（写进报告，不在本票范围内修）：工作区根目录本身读不出来时，listEfforts 也拿不到 effort，
- *  这一层仍然会静默返回「没有票」——要把这个缺口也堵上，得改房间既有的读辅助件。 */
+ *  而「首次打开改色弹窗」正是那条路——把「目录不存在」当错误，用户一开弹窗就会看到一句报错，
+ *  而他什么都没做错（审查实测过这个场景）。
+ *
+ *  #1174 起判据不再由本文件自备一份，改用房间唯一的列目录口径（`read.ts` 的 `listDirOrMissingIsEmpty`）：
+ *  两处各判一次「什么算不存在」，换个沙箱实现就会走样；而且旧写法只罩得住这一条调用路径，
+ *  工作区根目录读不出来时 `listEfforts` 那一层仍会静默返回「没有票」（旧注释自己把这条记成已知缺口）——
+ *  那个缺口现在由 `read.ts` 一并堵上，这里跟着收掉重复的那份判据。 */
 async function readDirOrThrow(ctx: OpContext, dir: string): Promise<string[]> {
-  const fs = getFs(ctx)
-  if (!fs) return []
-  // 目录项可能是字符串也可能是 {name} 形状：统一成字符串表；既不是也不抛，照 String() 兜底（与原来一致）。
-  const norm = (list: unknown): string[] => (Array.isArray(list) ? list.map((x) => (typeof x === 'string' ? x : (x && (x as Record<string, unknown>).name) || String(x))) : [])
-  if (typeof fs.resolve === 'function' && typeof fs.listDir === 'function') {
-    try { return norm(await fs.listDir(await fs.resolve(dir))) }
-    catch (e) {
-      if (isMissingFile(e)) return []
-      throw e
-    }
-  }
-  if (typeof fs.readdir === 'function') {
-    try { return norm(await fs.readdir(dir)) }
-    catch (e) {
-      if (isMissingFile(e)) return []
-      throw e
-    }
-  }
-  return await readDir(ctx, dir)
+  return await listDirOrMissingIsEmpty(ctx, dir)
 }
 
 /** 文件里某一行的含义说明（值写成对象时才有）。 */
@@ -186,7 +169,7 @@ export async function listLabels(ctx: OpContext, repo: RepositoryRef | null): Pr
 }
 
 /** 弹窗首次打开时的兜底放置：只在文件缺失时补一份，补不上不报错（记日志）。 */
-async function ensureForDialog(ctx: OpContext, repo: RepositoryRef | null): Promise<{ ok: true; placed: boolean; reason: string; from: string } | LabelColorsRead> {
+async function ensureForDialog(ctx: OpContext, repo: RepositoryRef | null): Promise<{ ok: true; placed: boolean; reason: string; from?: string } | LabelColorsRead> {
   try {
     return await ensureLabelColors(ctx, repo)
   } catch (e) {

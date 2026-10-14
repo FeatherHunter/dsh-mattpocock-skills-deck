@@ -1,44 +1,46 @@
 # Markdown 后端能力登记表
 
-`#1147` 决策 9 的交付物（2026-10-14）。登记口径同 GitHub 那份（三类定义见规格票），一条一条审过实现才落笔，不估。
+`#1147` 决策 9 的交付物（2026-10-14），`#1174` 补齐后订正（2026-10-15）。登记口径同 GitHub 那份，一条一条审过实现才落笔，不估。
 
-实现真源：`src/tracker/rooms/markdown/index.ts`（工厂 18 个真实现 + 4 个显式“不支持”桩）。注意本后端的一个特殊形状：**两条定位口（`describe`、`issueAddress`）不在工厂实例上，住在模块对象上**（`markdownModule`），注册表走模块路径取用——能力是提供的，只是位置不在实例里，下表逐条写明位置。
+四类的判据写在 `src/tracker/contract/capability-answer.ts` 的文件头，这里只重复一句最容易记错的：**第四档「做了但没做到位」不是「没实现」**——方法在、主要路径真在做，只是有某几种输入与契约承诺对不上（那时它当场如实回「这个后端不认它」，不静默丢掉）。这一档是 `#1174` 加的；在此之前这类情况只能记成「明确提供功能」，账本于是替缺口说了「一切正常」。
 
-## 操作（22 条中提供 18 条、不支持 4 条）
+实现真源：`src/tracker/rooms/markdown/index.ts`（工厂 18 个真实现 + 4 个显式“不支持”桩）。注意本后端的一个特殊形状：**两条定位口（`describe`、`issueAddress`）不在工厂实例上，住在模块对象上**（`markdownModule`），注册表走模块路径取用；`getRepoKey` 相反，它在工厂实例上。
+
+## 操作（22 条中：17 条明确提供功能、4 条做了但没做到位、4 条明确不支持）
 
 | 能力 | 登记 | 依据 |
 |---|---|---|
 | preflight | 明确提供功能 | 工厂内联实现（查 `.scratch/map.md` 或文档声明），识别链在用 |
-| list | 明确提供功能 | `issues.ts`，读票文件列票 |
-| get | 明确提供功能 | `issues.ts` |
-| getDependencies | 明确提供功能 | `graph.ts`，读票文件里的阻塞行 |
-| create | 明确提供功能 | `issues.ts`，写票文件 |
-| close | 明确提供功能 | `issues.ts` |
-| reopen | 明确提供功能 | `issues.ts` |
+| list | 明确提供功能 | `issues-read.ts`，读票文件列票；按标签筛与拉取请求筛都真按它收窄 |
+| get | 做了但没做到位 | `issues-read.ts`。差在评论分页：只认「要前几条」（`opts.comments.first`），「从某一条之后接着读」（`opts.comments.after`）不认——本后端不往外发评论游标，调用方拿不到可回传的值，此时如实回「不支持」 |
+| getDependencies | 做了但没做到位 | `graph.ts`，读票文件里的阻塞行 + 反向聚合。差在批量键：`opts.keys` 想一次问多个编号，而契约的返回形状只装得下一个，此时如实回「不支持」，请逐个编号调用 |
+| create | 明确提供功能 | `issues-create.ts`，写票文件；幂等锚命中前先确认那张票还开着，指派人原样写入 |
+| close | 明确提供功能 | `issues-status.ts`；`CloseOpts.reason` 原样存进票面，读回就是它 |
+| reopen | 明确提供功能 | `issues-status.ts` |
 | comment | 明确提供功能 | `comments.ts` |
-| update | 明确提供功能 | `issues.ts` |
-| setLabels | 明确提供功能 | `issues.ts` |
-| setAssignees | 明确提供功能 | `issues.ts` |
-| setParent | 明确提供功能 | `issues.ts`，地图清单引用 |
-| setBlockedBy | 明确提供功能 | `issues.ts`，正文首行降级写法 |
+| update | 做了但没做到位 | `issues-patch.ts`，改标题、正文、标签。差在里程碑与「类型」以外的自定义字段：本地票文件里没有放它们的地方，传了就如实回「不支持」，不再静默丢掉然后回一句成功 |
+| setLabels | 明确提供功能 | `issues-patch.ts`；写前版本校验（`opts.expectedUpdatedAt`）真比对 |
+| setAssignees | 明确提供功能 | `issues-patch.ts`；认领人原样写入票面的 `Assignees:` 行、原样读回，不再用 `@me` 占位 |
+| setParent | 做了但没做到位 | `issues-patch.ts`，改造地图清单引用。差在跨工作单元的父：本地是「目录即父子」，跨目录等于要搬文件，此时如实回「不支持」（这条限制从做出来那天就在） |
+| setBlockedBy | 明确提供功能 | `issues-patch.ts`；自环与全图成环都在落盘前拦住（成环时一个字都不写） |
 | listLabels | 明确提供功能 | `label-colors-ops.ts`，文件缺失时顺手补默认配色文件 |
 | setLabelColors | 明确提供功能 | `label-colors-ops.ts` |
-| counts | 明确提供功能 | `counts.ts`，数列举会返回的票行 |
-| listPage | 明确提供功能 | `page.ts`，游标是排序后下标 |
+| counts | 明确提供功能 | `counts.ts`，数列举会返回的票行；读不动票文件或目录时整体失败，不猜一个偏小的数 |
+| listPage | 明确提供功能 | `page.ts`，游标是排序后下标；排序按票文件里记下的建票时间，改票不再换位置 |
 | ensureLabelColorsFile | 明确提供功能 | `label-colors.ts`，建仓选后端那一步宿主会问它 |
 | getCurrentUser | 明确不支持 | 工厂显式桩：本地票仓没有“当前登录人”这个概念 |
 | initProject | 明确不支持 | 工厂显式桩：本地没有远端可初始化 |
 | getRepoPermissions | 明确不支持 | 工厂显式桩：写入能力由目录权限与沙箱决定，没有“仓库权限”可问 |
 | listSubIssues | 明确不支持 | 工厂显式桩：子票就在票文件里，宿主直接读文件，不经这里 |
 
-## 定位口（提供 2 条、不支持 1 条）
+## 定位口（3 条全部提供）
 
 | 能力 | 登记 | 依据 |
 |---|---|---|
-| describe | 明确提供功能 | **位置在模块对象**（`markdownModule.describe`，`index.ts` 的 `describe` 函数）：从工作区目录产出身份，注册表识别链在用 |
+| describe | 明确提供功能 | **位置在模块对象**（`markdownModule.describe`）：从工作区目录产出身份，注册表识别链在用 |
 | issueAddress | 明确提供功能 | **位置在模块对象**：算不出票地址时诚实回空串（#1144；文件名里的标题后缀要读文件才知道），票的地址随票走（票的 `url` 字段） |
-| getRepoKey | 明确不支持 | 实例与模块都没有：本地票仓没有远端 owner/name 可解析；调用方（工具壳）缺席即跳过，不拦路 |
+| getRepoKey | 明确提供功能 | **位置在工厂实例上**，答案恒为空：本地票仓的身份就是工作区目录本身，没有远端 `owner/name` 可解析。契约对定位口的口径是「答案是名字或者空，空也是答案，不是失败」，所以这不是一条失败桩（`#1174` 决策 2）。**注册表只按 22 条操作那个名录补桩、不给定位口补桩**，所以这里不能填「由注册表补桩」——那样实例上会压根没有这个方法，调用方一调就抛类型错误 |
 
 ## 交接
 
-随地图 09 交付（Markdown 房开发票）。本表由 `#1147` 预交付，开发票不再重审，只需在实现偏离本表时回来改表。
+随地图 09 交付（Markdown 房开发票）。本表由 `#1147` 预交付，`#1174` 按实现订正；此后实现偏离本表时回来改表，门禁 `tests/verify-capability-register.ts` 会挡住两边不一致。

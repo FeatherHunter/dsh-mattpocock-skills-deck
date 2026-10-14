@@ -9,6 +9,7 @@ import { resolveIssueFile, resolveMapFile } from './issues-locate.js'
 import { loadPaintColorMap, applyLabelColors } from './label-colors-paint.js'
 import type { OpContext } from '../../contract/contexts.js'
 import type { RepositoryRef, Issue } from '../../contract/entities.js'
+import type { CloseOpts } from '../../contract/inputs.js'
 // #922：票文件的读—改—写按文件排队（关门/重开也是「读整份、改一行、整份写回」），见 write-queue.js。
 import { withFileWriter } from './write-queue.js'
 
@@ -37,7 +38,12 @@ export function replaceOrInsertField(txt: string,fieldName: string,newLine: stri
   lines.splice(insertIdx,0,newLine)
   return lines.join('\n')
 }
-async function setStatus(ctx: OpContext,repo: RepoWithPath | null,key: string,statusLine: string): Promise<{ok:true,data:Issue}|StatusFailure>{
+/** 改状态，可选再补一行（关票原因走这条）。
+ *
+ *  `extraLine` 为什么单独开一行、而不是拼进状态那一行：状态那一行的取值是「这张票现在是什么状态」，
+ *  全房都按它判开还是关（`parse.ts` 认 `resolved` 就记成已关闭），把原因拼进去，
+ *  每一个读它的人都得先拆一遍字符串才能判断状态。 */
+async function setStatus(ctx: OpContext,repo: RepoWithPath | null,key: string,statusLine: string,extraLine?: string): Promise<{ok:true;data:Issue}|StatusFailure>{
   const norm=String(key).padStart(2,'0')
   const colorMap=await loadPaintColorMap(ctx)
   const isMap=norm==='00'
@@ -51,6 +57,7 @@ async function setStatus(ctx: OpContext,repo: RepoWithPath | null,key: string,st
     try{
       let txt=await readTextFile(ctx,r.path)
       txt=replaceOrInsertField(txt,'Status',statusLine)
+      if(extraLine)txt=replaceOrInsertField(txt,'Close\\s+reason',extraLine)
       await writeTextFile(ctx,r.path,txt, ctx&&(ctx as {sandboxPolicy?: unknown}).sandboxPolicy)
       const iss=parseMd(txt,{key:norm,parentKey:isMap?null:'00',isMap,effortId:r.effortId,url:r.path})
       applyLabelColors(iss, colorMap)
@@ -58,9 +65,13 @@ async function setStatus(ctx: OpContext,repo: RepoWithPath | null,key: string,st
     }catch(e){return failFromError(e,ctx,'改这张票的状态时出错')}
   })
 }
-export async function closeIssue(ctx: OpContext,repo: RepoWithPath | null,key: string): Promise<{ok:true,data:Issue}|StatusFailure>{
-  return setStatus(ctx,repo,key,'Status: resolved')
+export async function closeIssue(ctx: OpContext,repo: RepoWithPath | null,key: string,opts?: CloseOpts): Promise<{ok:true;data:Issue}|StatusFailure>{
+  // 调用方给了原因就原样记下来（契约说这是开放字符串，不在这里分支：插件只认得 completed 与 duplicate，
+  // GitHub 那边还会有 not_planned，照原样展示即可）；没给就一个字节都不写这一行，
+  // 读回来按后端默认 `completed` —— 也就是这次改动之前的老行为，一字不变。
+  const reason=opts&&typeof opts.reason==='string'?opts.reason.trim():''
+  return setStatus(ctx,repo,key,'Status: resolved',reason?'Close reason: '+reason:undefined)
 }
-export async function reopenIssue(ctx: OpContext,repo: RepoWithPath | null,key: string): Promise<{ok:true,data:Issue}|StatusFailure>{
+export async function reopenIssue(ctx: OpContext,repo: RepoWithPath | null,key: string): Promise<{ok:true;data:Issue}|StatusFailure>{
   return setStatus(ctx,repo,key,'Status: ready-for-agent')
 }
