@@ -16,6 +16,8 @@ import { statFile } from './read.js'
 import { failAs } from './error-fail.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { readBlockedByGraph, cycleThrough } from './graph.js'
+// #1060：环检这一趟的结论线（事件 `edge.cycle`，与 GitHub 房同一个名字、同一套字段）。
+import { emitEdgeCycle, EDGE_CYCLE_VERDICT } from './edge-log.js'
 import type { OpContext } from '../../contract/contexts.js'
 import type { RepositoryRef } from '../../contract/entities.js'
 import type { SetOpts } from '../../contract/inputs.js'
@@ -74,11 +76,22 @@ export async function checkExpectedUpdatedAt(ctx: OpContext, fullPath: string, o
  *  （只说「成环了」而不说哪几张票，人还得自己再去图上找一遍）。
  *  图读不全（列目录读不出来、某份票读不出来）时同样不放行：这时候「没看到环」不等于「没有环」。 */
 export async function cycleVerdictFor(ctx: OpContext, repo: RepoWithPath | null, effortId: string, key: string, blockers: unknown[]): Promise<{ ok: true } | GuardFailure>{
+  const t0=Date.now()
   const g=await readBlockedByGraph(ctx,repo,effortId)
-  if(!g.ok)return{ok:false,error:g.error}
+  // 「没查成」也是一个结论（#1060）：图读不全时不放行这件事此前只落在返回里，导出包里看不出这一趟到底查没查。
+  // 与 GitHub 房同一套写法记一行，取 `unchecked`（那边 unchecked 之后按不成环放行，本房因此连写都不写，差异见 edge-log.ts 文件头）。
+  if(!g.ok){
+    emitEdgeCycle(ctx,EDGE_CYCLE_VERDICT.UNCHECKED,0,blockers.length,t0)
+    return{ok:false,error:g.error}
+  }
   const graph=new Map<string,string[]>(g.graph)
   graph.set(key,blockers.map(function(k){ return String(k).padStart(2,'0') }).filter(Boolean))
   const cycle=cycleThrough(graph,key)
-  if(!cycle)return{ok:true}
+  // nodes 记的是这张邻接表里有几张票（含这次代进去的那张），人据此判断这一趟判环看全了没有。
+  if(!cycle){
+    emitEdgeCycle(ctx,EDGE_CYCLE_VERDICT.CLEAR,graph.size,blockers.length,t0)
+    return{ok:true}
+  }
+  emitEdgeCycle(ctx,EDGE_CYCLE_VERDICT.CYCLE,graph.size,blockers.length,t0)
   return failAs(ERROR_KIND.CONFLICT,'这条依赖写下去会成环（'+cycle.join(' → ')+'），所以这次一个字都没写',JSON.stringify({key:key,blockers:blockers,cycle:cycle}))
 }

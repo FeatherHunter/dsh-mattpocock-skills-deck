@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-14T19:49:05.514Z",
+  "generatedAt": "2026-10-14T20:05:19.094Z",
   "generatedBy": "node scripts/gate-map.mjs",
-  "chainLength": 253,
-  "gateCount": 253,
-  "attributedGates": 224,
+  "chainLength": 254,
+  "gateCount": 254,
+  "attributedGates": 225,
   "unattributedGates": 29,
   "buildOutputOnlyGates": 19,
   "completionRecordedGates": 6,
   "smokeLength": 6,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 550,
+  "graphFileCount": 552,
   "gates": [
     {
       "step": "node tests/verify-capability-register.ts",
@@ -5694,6 +5694,24 @@
       "reason": "归属来自：静态 import 说明符 3 条"
     },
     {
+      "step": "node tests/verify-1060-edge-log.ts",
+      "file": "tests/verify-1060-edge-log.ts",
+      "guards": [
+        "src/tracker/contract/vocabulary.ts",
+        "src/tracker/rooms/markdown/edge-log.ts",
+        "src/tracker/rooms/markdown/index.ts"
+      ],
+      "dirs": [
+        "src/tracker/contract",
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：静态 import 说明符 3 条"
+    },
+    {
       "step": "node tests/verify-github-gh-via.ts",
       "file": "tests/verify-github-gh-via.ts",
       "guards": [
@@ -6665,7 +6683,8 @@
       "node tests/verify-detection-evidence.ts",
       "node tests/verify-error-single-source.ts",
       "node tests/verify-error-rule-samples.ts",
-      "node tests/verify-1059-issue-write.ts"
+      "node tests/verify-1059-issue-write.ts",
+      "node tests/verify-1060-edge-log.ts"
     ],
     "src/tracker/detection": [
       "node tests/verify-deck-quota-sync.js",
@@ -6803,6 +6822,7 @@
       "node tests/verify-error-normalize-log.ts",
       "node tests/verify-1058-markdown-read-log.ts",
       "node tests/verify-1059-issue-write.ts",
+      "node tests/verify-1060-edge-log.ts",
       "node tests/verify-1150-plan-store-durable.ts"
     ],
     "tests": [
@@ -6952,9 +6972,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 561,
+    "fileCount": 564,
     "dirCount": 51,
-    "coveredFileCount": 561,
+    "coveredFileCount": 564,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 50,
@@ -7467,6 +7487,7 @@
       "src/tracker/rooms/github/sub-issues.ts",
       "src/tracker/rooms/github/write-log.ts",
       "src/tracker/rooms/gitlab/README.md",
+      "src/tracker/rooms/gitlab/SETUP-PROMPT.md",
       "src/tracker/rooms/gitlab/capability-register.ts",
       "src/tracker/rooms/gitlab/client.ts",
       "src/tracker/rooms/gitlab/comments.ts",
@@ -7493,6 +7514,7 @@
       "src/tracker/rooms/markdown/capability-register.ts",
       "src/tracker/rooms/markdown/comments.ts",
       "src/tracker/rooms/markdown/counts.ts",
+      "src/tracker/rooms/markdown/edge-log.ts",
       "src/tracker/rooms/markdown/error-fail.ts",
       "src/tracker/rooms/markdown/graph.ts",
       "src/tracker/rooms/markdown/index.ts",
@@ -7511,6 +7533,7 @@
       "src/tracker/rooms/markdown/normalize.ts",
       "src/tracker/rooms/markdown/page.ts",
       "src/tracker/rooms/markdown/parse.ts",
+      "src/tracker/rooms/markdown/patch-body.ts",
       "src/tracker/rooms/markdown/path.ts",
       "src/tracker/rooms/markdown/read-log.ts",
       "src/tracker/rooms/markdown/read.ts",

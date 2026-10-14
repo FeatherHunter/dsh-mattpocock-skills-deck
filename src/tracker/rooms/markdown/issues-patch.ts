@@ -1,12 +1,18 @@
 // issues-patch.js —— 以后改打补丁类字段更新时改它（预估约 190 行）。
 //
 // effort 维度（2026-09-09）：所有写路径按 (effort 范围, 编号) 定位文件，多命中即 conflict。
-import { parseMd, stripLabelDecoration, parentKeyFromFile, isWholeIssueBody, loginOfAssignee, stripFencedCode } from './parse.js'
+import { parseMd, stripLabelDecoration, parentKeyFromFile, isWholeIssueBody, loginOfAssignee } from './parse.js'
 import { readTextFile } from './read.js'
 import { writeTextFile } from './write.js'
-// #1059：这一趟写没写下去的结论线（事件 `issue.write`，与另两房同一个名字、同一套字段）。
+// #1059：整份正文的合并与「写坏没有」的核对搬到了 patch-body.ts（纯文本函数，与写盘无关）；
+// 那一路补上结论线之后这份文件越过了 350 有效行的上限，抽出去才回到线内。
+import { looksLikeWholeDocument, fieldLinesOf, checkNoWorseForPatch, mergeWholeBodyForPatch } from './patch-body.js'
+// #1059：这一趟写没写下去的结论线（事件 `issue.write`，与 GitHub 房同一个名字、同一套字段；GitLab 房的写路径还没做）。
 import { beginWriteTrail, emitIssueWrite, noteFileWritten } from './write-log.js'
 import type { WriteTrail } from './write-log.js'
+// #1060：关系与边那一族的结论线（事件 `edge.write` / `edge.cycle`，与 GitHub 房同一个名字、同一套字段）。
+import { beginEdgeTrail, emitEdgeWrite } from './edge-log.js'
+import type { EdgeTrail } from './edge-log.js'
 import { failAs, failFromError } from './error-fail.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
 import { resolveIssueFile, resolveMapFile } from './issues-locate.js'
@@ -63,101 +69,6 @@ async function readParseWrite(ctx: OpContext,repo: RepoWithPath | null,r: Resolv
       return{ok:true,txt:next}
     }catch(e){return failFromError(e,ctx,'读—改—写这张票的文件时出错')}
   })
-}
-/** 递进来的正文是不是「一整份票文件」：自带 H1 标题（或幂等锚）。
- *  为什么要分开判：下面的插入分支把正文插在现有 H1 之后，认错了盘上就会留下两个 H1、两份正文。
- *  实测：自带 H1、又不带 Status 行的整份正文走了插入分支，票文件被写坏，调用方却收到 ok。 */
-function looksLikeWholeDocument(body: unknown): boolean{
-  const t=String(body||'')
-  return /^\s*#\s+\S/m.test(t)||/^\s*<!--\s*DSH-IDEMPOTENCY-KEY:/m.test(t)
-}
-/** 盘上那份文本里的字段行（Status/Assignees/Type/Blocked by/Labels/Close reason）：整份替换时用来补齐递进来的正文里缺的字段。 */
-/** Assignees 也必须算进来（#1174 决策 12）：不算的话，一次「改正文」的整份替换会把认领人那一行整行抹掉。 */
-/** Close reason 同理（#1174 复核 P1-1）：关票原因是事后写上去的一行，不进白名单就会被下一次改正文吃掉。 */
-function fieldLinesOf(text: unknown): string[]{
-  const out: string[]=[]
-  const lines=String(text||'').split('\n')
-  for(const l of lines){ if(/^\s*(Status|Assignees|Type|Blocked\s+by|Labels|Close\s+reason)\s*[:\uFF1A]/i.test(l)) out.push(l.replace(/\s+$/,'')) }
-  return out
-}
-function fieldNameOf(line: string): string{ return String(line).split(/[:\uFF1A]/)[0].trim().toLowerCase() }
-/** 取票文件里某骨架区整段（标题加内容，到下一个二级标题或文末）：改正文时用来把盘上旧评论搬回新正文。 */
-function sectionOf(text: unknown, name: string): string{
-  const re=new RegExp('^##\\s*'+name+'\\s*$[\\s\\S]*?(?=^##\\s|$(?![\\s\\S]))', 'im')
-  const m=re.exec(String(text||''))
-  return m?m[0].replace(/^\s*/, '').replace(/\s*$/, ''):''
-}
-function countRe(text: unknown, re: RegExp): number{ return (String(text||'').match(re)||[]).length }
-/** 写坏了没有的快速核对：新正文相对旧正文不许新增重复、不许弄丢锚与骨架，坏了就返回原因（调用方转成如实失败，不落盘）。
- *  缺字段补上（0 到 1）不算坏，那是在治旧数据的缺；翻倍（超过旧数且超过 1 个）才算坏。 */
-function checkNoWorseForPatch(oldText: string, newText: string): string{
-  const o=String(oldText||''), n=String(newText||'')
-  // 字段行按「票面」计数（围栏代码块里的举例不算）：与 parse.ts 读字段行是同一把尺子。
-  // 不这么分的话，正文里写一段包含 `Close reason: …` 的示例就会被当成「多出来一个字段」而拒绝写入 ——
-  // 一条给读者看的样例把人挡住，那是尺子不对，不是人写错了（#1174 复核 P1-3）。
-  // 标题、幂等锚、骨架区仍按整份原文计数：那几处读的就是原文，与围栏无关。
-  const of=stripFencedCode(o), nf=stripFencedCode(n)
-  const worse=function(oldC: number, newC: number): boolean{ return newC>1&&newC>oldC }
-  if(worse(countRe(o, /^#[ \t]+\S.*/gm), countRe(n, /^#[ \t]+\S.*/gm))) return '一级标题变多了'
-  if(worse(countRe(o, /DSH-IDEMPOTENCY-KEY/g), countRe(n, /DSH-IDEMPOTENCY-KEY/g))) return '幂等锚变多了'
-  if(countRe(o, /DSH-IDEMPOTENCY-KEY/g)>=1&&countRe(n, /DSH-IDEMPOTENCY-KEY/g)===0) return '幂等锚丢了'
-  if(worse(countRe(of, /^\s*Status\s*[:\uFF1A]/gim), countRe(nf, /^\s*Status\s*[:\uFF1A]/gim))) return 'Status 行变多了'
-  if(worse(countRe(of, /^\s*Type\s*[:\uFF1A]/gim), countRe(nf, /^\s*Type\s*[:\uFF1A]/gim))) return 'Type 行变多了'
-  if(worse(countRe(of, /^\s*Blocked\s+by\s*[:\uFF1A]/gim), countRe(nf, /^\s*Blocked\s+by\s*[:\uFF1A]/gim))) return 'Blocked by 行变多了'
-  if(worse(countRe(of, /^\s*Labels\s*[:\uFF1A]/gim), countRe(nf, /^\s*Labels\s*[:\uFF1A]/gim))) return 'Labels 行变多了'
-  if(worse(countRe(o, /^##\s*Comments\s*$/gim), countRe(n, /^##\s*Comments\s*$/gim))) return 'Comments 骨架变多了'
-  if(worse(countRe(o, /^##\s*Answer\s*$/gim), countRe(n, /^##\s*Answer\s*$/gim))) return 'Answer 骨架变多了'
-  if(countRe(o, /^##\s*Comments\s*$/gim)>=1&&countRe(n, /^##\s*Comments\s*$/gim)===0) return 'Comments 骨架丢了'
-  if(countRe(o, /^##\s*Answer\s*$/gim)>=1&&countRe(n, /^##\s*Answer\s*$/gim)===0) return 'Answer 骨架丢了'
-  // 认领人那一行（#1174 决策 12）：与 Status 同样按行数核对，翻倍才算坏。
-  if(worse(countRe(of, /^\s*Assignees\s*[:\uFF1A]/gim), countRe(nf, /^\s*Assignees\s*[:\uFF1A]/gim))) return 'Assignees 行变多了'
-  // 关票原因那一行（#1174 复核 P1-1）：同上。它是 close 之后才出现的一行，改正文时必须按字段保住。
-  if(worse(countRe(of, /^\s*Close\s+reason\s*[:\uFF1A]/gim), countRe(nf, /^\s*Close\s+reason\s*[:\uFF1A]/gim))) return 'Close reason 行变多了'
-  return ''
-}
-/** 整份正文合并：锚一律用盘上旧的，缺一级标题用盘上旧标题补回，缺字段行与骨架区从盘上旧文件搬回（字段插在骨架之前）。 */
-function mergeWholeBodyForPatch(incomingRaw: unknown, diskText: unknown): string{
-  let incoming=String(incomingRaw||'')
-  incoming=incoming.replace(/^[ \t]*<!--[ \t]*DSH-IDEMPOTENCY-KEY:.*?-->[ \t]*\r?\n?/gim, '')
-  const diskAnchor=(String(diskText||'').match(/^[ \t]*<!--[ \t]*DSH-IDEMPOTENCY-KEY:.*?-->[ \t]*$/m)||[])[0]
-  if(diskAnchor) incoming=String(diskAnchor).trim()+'\n'+incoming.replace(/^\s*/, '')
-  // created 那行（#1174 决策 10）与锚同理：递进来的正文里没有，就把盘上那一行搬回来。
-  // 不搬的话，一次「改正文」会让建票时间掉回文件修改时间，翻页顺序也跟着变（决策 11）。
-  const diskCreated=(String(diskText||'').match(/^[ \t]*<!--[ \t]*created[ \t]*:.*?-->[ \t]*$/m)||[])[0]
-  if(diskCreated&&!/<!--[ \t]*created[ \t]*:/.test(incoming)) incoming=String(diskCreated).trim()+'\n'+incoming
-  const h1count=(incoming.match(/^#[ \t]+\S.*/gm)||[]).length
-  if(h1count===0){
-    const diskH1=(String(diskText||'').match(/^#[ \t]+.*$/m)||[])[0]
-    if(diskH1){
-      const lines=incoming.split('\n')
-      let at=0
-      // created 那行（#1174 决策 10）也是文件头注释：漏了它，标题会被插在它前面，
-      // 于是「建票时间」掉出文件头、读不回来，创建时间又变回文件修改时间。
-      while(at<lines.length&&/^[ \t]*<!--[ \t]*(DSH-IDEMPOTENCY-KEY|parentKey|created)[ \t]*:/.test(lines[at])) at++
-      lines.splice(at, 0, String(diskH1).trim(), '')
-      incoming=lines.join('\n')
-    }
-  }else if(h1count>1){
-    let first=true
-    incoming=incoming.replace(/^#[ \t]+.*$/gm, function(m){ if(first){ first=false; return m } return '' })
-  }
-  const have=fieldLinesOf(incoming).map(fieldNameOf)
-  const keep=fieldLinesOf(diskText).filter(function(l){ return have.indexOf(fieldNameOf(l))<0 })
-  if(keep.length){
-    const skelIdx=incoming.search(/^##\s*(Comments|Answer)\s*$/m)
-    if(skelIdx>=0) incoming=incoming.slice(0, skelIdx).replace(/\s*$/, '')+'\n\n'+keep.join('\n')+'\n\n'+incoming.slice(skelIdx).replace(/^\s*/, '')
-    else incoming=incoming.replace(/\s*$/, '')+'\n\n'+keep.join('\n')+'\n'
-  }
-  const names=['Comments', 'Answer']
-  for(const name of names){
-    const hasRe=new RegExp('^##\\s*'+name+'\\s*$', 'm')
-    if(!hasRe.test(incoming)){
-      const diskSec=sectionOf(diskText, name)
-      if(diskSec) incoming=incoming.replace(/\s*$/, '')+'\n\n'+diskSec+'\n'
-      else incoming=incoming.replace(/\s*$/, '')+'\n\n## '+name+'\n\n'
-    }
-  }
-  return incoming
 }
 
 /** 改票的入口：先起一个事实桶，这一趟写完后按实况落一行结论（#1059）。 */
@@ -257,7 +168,42 @@ async function updateIssueInner(ctx: OpContext,repo: RepoWithPath | null,key: st
     return{ok:true,data:iss}
   }catch(e){return failFromError(e,ctx,'改这张票的字段时出错')}
 }
+/** 一条边在「读回来的形状」里长什么样：读路径把它补成了 `{key,title,state}` 三格，写路径拿到的却是裸编号。
+ *  对账要在同一把尺子上比，就先统一取那一格 key —— 照着对象去比，两边永远不相等，差集会把每条边都算成「新挂」。 */
+function keyOfRef(k: unknown): string{
+  if(k&&typeof k==='object'){ const r=k as { key?: unknown }; return r.key===undefined||r.key===null?'':String(r.key) }
+  return k===undefined||k===null?'':String(k)
+}
+/** 一批边编号归一：补成两位、去掉重复。
+ *
+ *  为什么要把重复去掉：同一张票在入参里写两遍，落到票文件上就是一条边（`Blocked by: #02, #02` 与 `#02` 是同一件事）。
+ *  结论线要报「真挂上去几条」，就得与写出来的那一行同一把尺子量。 */
+function uniqueKeysOf(keys: unknown[]): string[]{
+  const out: string[]=[]
+  for(const k of keys){
+    const t=keyOfRef(k).padStart(2,'0')
+    if(t&&out.indexOf(t)<0)out.push(t)
+  }
+  return out
+}
+/** 盘上这张票现在挂着哪几条阻塞边：从刚读到的这一份文本里解析，与读路径用同一把尺子。
+ *
+ *  解析不动时按「一条都没有」算：对账只是为了让结论线说实话，不许因为它把一次本来能写成的改动拦下来。 */
+function keysOfBlockedBy(txt: string,key: string,effortId: string): string[]{
+  try{
+    const iss=parseMd(txt,{key:key,parentKey:'00',isMap:false,effortId:effortId})
+    return uniqueKeysOf(iss.blockedBy||[])
+  }catch{return []}
+}
+/** 改阻塞边的入口：先起一个事实桶，这一趟写完后按实况落一行结论（#1060，事件 `edge.write`）。 */
 export async function setBlockedByIssue(ctx: OpContext,repo: RepoWithPath | null,key: string,blockers: string[],opts?: SetOpts): Promise<{ ok: true; data: Issue } | PatchFailure>{
+  const t0=Date.now()
+  const trail=beginEdgeTrail()
+  const r=await setBlockedByInner(ctx,repo,key,blockers,opts,trail)
+  emitEdgeWrite(ctx,'block',trail,r,t0)
+  return r
+}
+async function setBlockedByInner(ctx: OpContext,repo: RepoWithPath | null,key: string,blockers: string[],opts?: SetOpts,trail?: EdgeTrail): Promise<{ ok: true; data: Issue } | PatchFailure>{
   const norm=String(key).padStart(2,'0')
   const colorMap=await loadPaintColorMap(ctx)
   // 原文 = 这张票自己的编号（结论是「入参自己和自己打架」，没有外部来源的原文）。
@@ -273,6 +219,22 @@ export async function setBlockedByIssue(ctx: OpContext,repo: RepoWithPath | null
   const res=await readParseWrite(ctx,repo,r,norm,async function(txt){
     const verdict=await cycleVerdictFor(ctx,repo,r.effortId,norm,arr)
     if(!verdict.ok){ cycleFailure=verdict; return undefined }
+    // 写前逐条对账（#1060）：盘上这张票现在挂着哪几条边，与这次要写的那几条比一次差集。
+    // 为什么在写者队列里面、拿刚读到的这一份算：队外先读一次再比，两路并发改同一张票时比的是旧值，
+    // 结论线就会把「已经撤下去的边」记成还在位。
+    const oldKeys=keysOfBlockedBy(txt,norm,r.effortId)
+    const wantKeys=uniqueKeysOf(arr)
+    const added=wantKeys.filter(k=>oldKeys.indexOf(k)<0)
+    const removed=oldKeys.filter(k=>wantKeys.indexOf(k)<0)
+    if(trail){
+      trail.added=added.length
+      trail.removed=removed.length
+      trail.kept=wantKeys.length-added.length
+    }
+    // 差集为空：盘上本来挂的就是这几条边，这一趟一处都不用改（结论线记 noop、route 停在 none）。
+    if(!added.length&&!removed.length)return undefined
+    // 走到这里说明真要把改动写进票文件了：route 在这一步改口（与同房 issue.write 的 route 同一套口径）。
+    if(trail)trail.route='file'
     return replaceOrInsertField(txt,'Blocked\\s+by',line)
   },opts)
   if(cycleFailure)return cycleFailure
@@ -334,10 +296,7 @@ function upsertParentComment(text: string, want: unknown): string {
   const line = want === null ? '<!-- parentKey: null -->' : '<!-- parentKey: ' + String(want) + ' -->'
   const raw = String(text || '')
   // 只动文件头的注释：正文里举例写同样的写法不算数（读也只认文件头，这里只换文件头）。
-  const h1 = /^#+\s+/m.exec(raw)
-  const headEnd = h1 ? h1.index : raw.split('\n').slice(0, 10).join('\n').length
-  const head = raw.slice(0, headEnd)
-  const rest = raw.slice(headEnd)
+  const { head, rest } = headOf(raw)
   const re = /^[ \t]*<!--[ \t]*parentKey[ \t]*:[ \t]*.*?-->[ \t]*\r?\n?/im
   if (re.test(head)) return head.replace(re, line + '\n') + rest
   const lines = head.split('\n')
@@ -345,6 +304,20 @@ function upsertParentComment(text: string, want: unknown): string {
   if (lines.length && /^[ \t]*<!--[ \t]*DSH-IDEMPOTENCY-KEY:/.test(lines[0])) at = 1
   lines.splice(at, 0, line)
   return lines.join('\n') + rest
+}
+/** 文件头那一截（第一个标题之前）与其余部分：父注释只认这一段，正文里举例写同样的写法不算数。 */
+function headOf(raw: string): { head: string; rest: string } {
+  const h1 = /^#+\s+/m.exec(raw)
+  const headEnd = h1 ? h1.index : raw.split('\n').slice(0, 10).join('\n').length
+  return { head: raw.slice(0, headEnd), rest: raw.slice(headEnd) }
+}
+/** 这份文本里**明写着**父注释没有（有 `<!-- parentKey: ... -->` 那一行才算）。
+ *
+ *  为什么要分「明写」与「没写」：这一房没写父注释的票读回来落在默认父票（地图 '00'）上，
+ *  那是结构给的默认值，不是盘上真记着的一条边。结论线要报「这一趟撤下来几条边」，
+ *  就不能把这条默认值算成撤了一条 —— 绝大多数「挂到某张票上」的票本来就没写过父注释。 */
+function hasExplicitParentComment(txt: string): boolean {
+  return /^[ \t]*<!--[ \t]*parentKey[ \t]*:[ \t]*.*?-->/im.test(headOf(String(txt || '')).head)
 }
 function normParentKey(v: unknown): string | null {
   if (v === undefined || v === null) return null
@@ -354,7 +327,57 @@ function normParentKey(v: unknown): string | null {
   if (/^\d+$/.test(t)) return t.padStart(2, '0')
   return t
 }
+/** 改父子的入口：先起一个事实桶，这一趟写完后按实况落一行结论（#1060，事件 `edge.write`）。 */
 export async function setParentIssue(ctx: OpContext,repo: RepoWithPath | null,key: string,parentKey: string | null,opts?: SetOpts): Promise<{ ok: true; data: Issue } | PatchFailure>{
+  const t0=Date.now()
+  const trail=beginEdgeTrail()
+  const r=await setParentInner(ctx,repo,key,parentKey,opts,trail)
+  emitEdgeWrite(ctx,'parent',trail,r,t0)
+  return r
+}
+/** 盘上这张票现在的父票编号，外加「这个编号是明写的还是结构给的默认值」。
+ *
+ *  为什么分「认没认出来」与「认出来的值」两格：老写法把文本解析失败吞掉之后照样往下写，
+ *  这里保持同一条行为——认不出来当作「与目标值不等」，绝不当作「已经等于目标值」，否则会漏写一次本该有的改动（#922）。
+ *  为什么还要第三格 explicit：没写父注释的票读回来是默认父票（地图 '00'），那不是盘上记着的一条边（见 hasExplicitParentComment）。 */
+function currentParentOf(txt: string,key: string,effortId: string): { known: boolean; key: string | null; explicit: boolean }{
+  try{
+    const cur0=parseMd(txt,{key:key,parentKey:'00',isMap:false,effortId:effortId}).parentKey
+    return{known:true,key:cur0===undefined||cur0===null?null:normParentKey(cur0),explicit:hasExplicitParentComment(txt)}
+  }catch{return{known:false,key:null,explicit:false}}
+}
+/** 挂父 / 改挂 / 解除父子共用的那一趟读—改—写，顺手把这一趟边上的事实记进事实桶（#1060）。
+ *
+ *  三种走法（挂到地图上、挂到同一工作单元的某张票上、去掉父注释）做的都是同一件事：换掉正文里那一行父注释。
+ *  差别只在「要不要写」与「撤几条挂几条」：目标那条边已经在位就一处不改（挂父那一趟记 kept 一笔），
+ *  本来没有父就是新挂（记 added 一笔），原来是别的父就是改挂（撤一条、挂一条，结论线上记 diff）。 */
+async function writeParentLink(ctx: OpContext,repo: RepoWithPath | null,r: Parameters<typeof readParseWrite>[2],norm: string,childEffort: string,want: string | null,opts: SetOpts | undefined,colorMap: Awaited<ReturnType<typeof loadPaintColorMap>>,trail?: EdgeTrail): Promise<{ ok: true; data: Issue } | PatchFailure>{
+  const res=await readParseWrite(ctx,repo,r,norm,function(txt){
+    const cur=currentParentOf(txt,norm,childEffort)
+    if(cur.known&&cur.key===want){
+      // 挂父那一趟是真有一条边在位（kept 记一笔）；解除那一趟是本来就没有边可撤（kept 记 0，免得把「没有边」说成「边在位」）。
+      if(trail&&want!==null)trail.kept=1
+      return undefined
+    }
+    if(trail){
+      trail.route='file'
+      if(want===null)trail.removed=1
+      else{
+        trail.added=1
+        // 只有「盘上真记着另一条边」才算撤下来一条：默认父票（地图 '00'）与解析不出来那两种都不算。
+        if(cur.known&&cur.explicit&&cur.key!==null)trail.removed=1
+      }
+    }
+    return upsertParentComment(txt, want)
+  },opts)
+  if(!res.ok)return{ok:false,error:res.error}
+  try{
+    const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort,url:r.path})
+    applyLabelColors(iss, colorMap)
+    return{ok:true,data:iss}
+  }catch(e){return failFromError(e,ctx,'改这张票的父子关系时出错')}
+}
+async function setParentInner(ctx: OpContext,repo: RepoWithPath | null,key: string,parentKey: string | null,opts?: SetOpts,trail?: EdgeTrail): Promise<{ ok: true; data: Issue } | PatchFailure>{
   const norm=String(key).padStart(2,'0')
   const want=normParentKey(parentKey)
   const colorMap=await loadPaintColorMap(ctx)
@@ -380,57 +403,18 @@ export async function setParentIssue(ctx: OpContext,repo: RepoWithPath | null,ke
   // 而先读的那一路还按旧值报成功。下面三条写路径都在队内先读 fresh 的那一份，相等就不写直接成功。
   // 解除父子不需要搬文件（同一目录内去掉注释即可），直接成功。
   if(want===null){
-    const res=await readParseWrite(ctx,repo,r,norm,function(txt){
-      try{
-        const cur0=parseMd(txt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort}).parentKey
-        const curN=cur0===undefined||cur0===null?null:normParentKey(cur0)
-        if(curN===want)return undefined
-      }catch{}
-      return upsertParentComment(txt, null)
-    },opts)
-    if(!res.ok)return{ok:false,error:res.error}
-    try{
-      const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort,url:r.path})
-      applyLabelColors(iss, colorMap)
-      return{ok:true,data:iss}
-    }catch(e){return failFromError(e,ctx,'改这张票的父子关系时出错')}
+    return writeParentLink(ctx,repo,r,norm,childEffort,want,opts,colorMap,trail)
   }
   // 新父必须在同一个工作单元里（同一个目录树下）：目录即父子，跨目录搬文件不支持，如实失败。
   if(want==='00'){
     const mr=await resolveMapFile(ctx,repo,{effortId:childEffort,mode:'read'})
     // 原文 = 这次请求的入参与目标工作单元（本地就能定论：这个单元里没有地图文件，父票无从查起）。
     if(!mr.ok)return failAs(ERROR_KIND.NOTFOUND,'parent 00 not-found in effort「'+childEffort+'」',JSON.stringify({key:norm,parentKey:String(parentKey),effortId:childEffort}))
-    const res=await readParseWrite(ctx,repo,r,norm,function(txt){
-      try{
-        const cur0=parseMd(txt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort}).parentKey
-        const curN=cur0===undefined||cur0===null?null:normParentKey(cur0)
-        if(curN===want)return undefined
-      }catch{}
-      return upsertParentComment(txt, '00')
-    },opts)
-    if(!res.ok)return{ok:false,error:res.error}
-    try{
-      const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort,url:r.path})
-      applyLabelColors(iss, colorMap)
-      return{ok:true,data:iss}
-    }catch(e){return failFromError(e,ctx,'改这张票的父子关系时出错')}
+    return writeParentLink(ctx,repo,r,norm,childEffort,want,opts,colorMap,trail)
   }
   const pr=await resolveIssueFile(ctx,repo,want,{effortId:childEffort,mode:'read'})
   if(pr.ok&&(pr.effortId||'')===childEffort){
-    const res=await readParseWrite(ctx,repo,r,norm,function(txt){
-      try{
-        const cur0=parseMd(txt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort}).parentKey
-        const curN=cur0===undefined||cur0===null?null:normParentKey(cur0)
-        if(curN===want)return undefined
-      }catch{}
-      return upsertParentComment(txt, want)
-    },opts)
-    if(!res.ok)return{ok:false,error:res.error}
-    try{
-      const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort,url:r.path})
-      applyLabelColors(iss, colorMap)
-      return{ok:true,data:iss}
-    }catch(e){return failFromError(e,ctx,'改这张票的父子关系时出错')}
+    return writeParentLink(ctx,repo,r,norm,childEffort,want,opts,colorMap,trail)
   }
   // 同目录里找不到这个父：看它是不是在别的工作单元里，是就是跨目录（不支持），不是就是不存在。
   try{
