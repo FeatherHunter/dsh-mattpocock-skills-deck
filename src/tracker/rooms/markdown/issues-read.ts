@@ -8,8 +8,9 @@ import { readTextFile, listDir, statFile } from './read.js'
 import { mdPath, issuesDir } from './path.js'
 import { failAs, failFromError, kindFromError, rawFromError, rawTextOf } from './error-fail.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
-import { idOfParts } from '../../identity-keys.js'
+import { idOfParts } from '../../kernel/identity-keys.js'
 import { getPlat, listEfforts, resolveIssueFile, resolveMapFile, loadIssueFromFile, scopeOf } from './issues-locate.js'
+import { emitReadDegraded } from './read-log.js'
 import { loadPaintColorMap, applyLabelColors } from './label-colors-paint.js'
 import type { OpContext } from '../../contract/contexts.js'
 import type { Issue } from '../../contract/entities.js'
@@ -24,6 +25,9 @@ type RowFilter = ListFilter & { effortId?: string | null }
 // 枚举选项：今天只有「票文件读不动时收不收集」一个开关（list 静默跳过，counts 收集后整体失败）。
 interface EnumerateOpts {
   collectErrors?: boolean
+  /** 这一趟是谁在枚举（list / counts / listPage）：只用来给日志那行的操作名定位，不参与任何判定。
+   *  收成这三个字面量，是让这一层拼不出登记表以外的操作名（reason 的前缀就是它）。 */
+  op?: 'list' | 'counts' | 'listPage'
 }
 // 一条读不动的票文件：编号、文件、判出的档位、给人看的话、原文（调用方据此如实报失败，不许猜数）。
 export interface RowReadError {
@@ -53,9 +57,22 @@ export interface RowReadError {
  *     与列举同形（两边都回空），所以也不额外报错。
  */
 export async function enumerateIssueRows(ctx: OpContext, repo: RepoWithPath, filter: RowFilter = {}, opts: EnumerateOpts = {}): Promise<{ rows: Issue[]; errors: RowReadError[] }> {
+  const t0 = Date.now()
   const plat = getPlat(ctx)
   const scope = scopeOf(repo, filter)
   const collectErrors = !!(opts && opts.collectErrors === true)
+  // 这一趟是谁在枚举：只影响日志那行的操作名（list / counts / listPage 三条路的降级原因各写各的）。
+  const op: 'list' | 'counts' | 'listPage' = (opts && opts.op) || 'list'
+  /** 记一行「这一趟读得不完整」（#1058）：耗时从这一次枚举的入口算起。记日志不许改变读的结果。
+   *
+   *  同一趟里同一个步骤只留一条线（#1058 复核）：主形态读不动之后本函数还会再试夹具兜底形态，
+   *  而那个形态常常指回同一批文件，同一个故障记两遍只会让人以为是两回事。 */
+  const logged: Record<string, boolean> = {}
+  const degraded = function (step: string): void {
+    if (logged[step]) return
+    logged[step] = true
+    emitReadDegraded(ctx, op, op + ':' + step, Date.now() - t0)
+  }
   const rows: Issue[] = []
   const errors: RowReadError[] = []
   /** 记下一个读不动的票文件：调用方据此如实报失败（编号、文件、错误档位、原文都带上）。 */
@@ -85,12 +102,17 @@ export async function enumerateIssueRows(ctx: OpContext, repo: RepoWithPath, fil
         extra.updatedAt = mtime
       }
       rows.push(parseMd(txt, Object.assign({ key: '00', parentKey: null, isMap: true, effortId, url: mapPath }, extra)))
-    } catch {}
+    } catch { degraded('map-read-fail') }
   }
   /** 一个票文件读成一行：读不动时按上面的开关决定「静默跳过」还是「记下错误」。 */
   const pushTicketRow = async function (fullPath: string, key: string, effortId: string): Promise<void> {
     try { rows.push(await loadIssueFromFile(ctx, repo, fullPath, { parentKey: '00', isMap: false, effortId })) }
-    catch (err) { noteReadError(key, fullPath, err) }
+    catch (err) {
+      // 开了收集的（counts / listPage）不在这里记：调用方会把整条操作判失败，那时再记一行，
+      // 一次故障只留一条线，不会同一件事记两遍。
+      if (!collectErrors) degraded('ticket-read-fail')
+      noteReadError(key, fullPath, err)
+    }
   }
   /** 把某个 issues/ 目录下的票文件逐个读成行（文件名规则与列举一致：编号加短横开头的 .md 才算票）。
    *  列目录这一层分两种情形，都不许当「这里没有票」：
@@ -133,7 +155,10 @@ export async function enumerateIssueRows(ctx: OpContext, repo: RepoWithPath, fil
     await pushMapRow(plat.join(e.dir, 'map.md'), e.effortId, true)
     await collectTicketsIn(plat.join(e.dir, 'issues'), e.effortId, true)
   }
-  // 二、夹具形态兜底（repo.refId 直接当仓库根、没有 .scratch）：仅在全局一个都没找到时走
+  // 二、夹具形态兜底（repo.refId 直接当仓库根、没有 .scratch）：仅在全局一个都没找到时走。
+  // 这一支不记日志（#1058 复核）：走到这里有两种情形——主形态确实一份都没有（那这次读是完整的，
+  // 不是降级），或者主形态在、只是读不动（那上面已经各记了一行）。再贴一条「走了夹具兜底形态」，
+  // 在后一种情形下是假的，在前一种情形下是拿日志当心跳。
   if (rows.length === 0) {
     await pushMapRow(mdPath(repo, 'map', undefined, ctx), scope || '', true)
     await collectTicketsIn(issuesDir(repo, ctx), scope || '', true)
@@ -183,10 +208,11 @@ export function hasAllLabels(row: Issue, wanted: string[]): boolean {
 }
 
 export async function listIssues(ctx: OpContext, repo: RepoWithPath, filter: RowFilter = {}): Promise<{ ok: true; data: Issue[] } | { ok: false; error: { kind: string; message: string; raw: string } }> {
+  const t0=Date.now()
   const colorMap=await loadPaintColorMap(ctx)
   try{
     // 枚举这一段与 counts 共用同一份实现；这里不打开错误收集（读不动的票文件静默跳过，既有行为）
-    const out=(await enumerateIssueRows(ctx,repo,filter)).rows
+    const out=(await enumerateIssueRows(ctx,repo,filter,{op:'list'})).rows
     // 票面上色：原来在枚举时逐行上色，抽出来之后统一在这里上，结果与之前一样
     for(const it of out) applyLabelColors(it, colorMap)
     // A: 回填 blockedBy 的 title/state（文件约束内满足契约：Blocked by 行只存 key，标题从被引文件首行取）
@@ -229,7 +255,12 @@ export async function listIssues(ctx: OpContext, repo: RepoWithPath, filter: Row
     }
     filtered.sort((a,b)=>String(a.effortId||'').localeCompare(String(b.effortId||''))||a.key.localeCompare(b.key))
     return{ok:true,data:filtered}
-  }catch(e){return failFromError(e,ctx,'列举这个工作区的票时出错')}
+  }catch(e){
+    // 包括「票目录读不出来」那条（枚举里当场抛上来）：整条操作如实失败时，失败结果本身说清了
+    // 是哪个目录、哪一档错，日志这条只回答「这一趟走到列举这一步就停了」。
+    emitReadDegraded(ctx,'list','list:fs-fail',Date.now()-t0)
+    return failFromError(e,ctx,'列举这个工作区的票时出错')
+  }
 }
 // 读单票的选项：契约 GetOpts 加上本房的 effort 寻址（经 scopeOf 透给定位口；不给就看 repo 上的范围）。
 type GetIssueOpts = GetOpts & { effortId?: string | null }
@@ -258,13 +289,28 @@ function sliceComments(iss: Issue, opts: GetIssueOpts): Issue {
 }
 
 export async function getIssue(ctx: OpContext, repo: RepoWithPath, key: string, opts: GetIssueOpts = {}): Promise<{ ok: true; data: Issue } | { ok: false; error: { kind: string; message: string; raw: string } }> {
+  const t0=Date.now()
+  /** 按定位这一路的结果挑 reason（找不到 / 其余读写故障），只影响日志那行，不碰结果。
+   *  没有「编号撞车」那一档：读的语义是「多命中按目录顺序回落」（见 issues-locate.ts 头部），
+   *  撞车只在写路径才拒绝猜，所以取单票这一路只有这两档。 */
+  const degraded=function(kind:unknown):void{
+    const k=String(kind||'')
+    emitReadDegraded(ctx,'get', k===ERROR_KIND.NOTFOUND?'get:notfound':'get:fs-fail', Date.now()-t0)
+  }
   // 原文给空串：这条支路一个文件都没碰过，没有外部来源的原文可取。
-  if(!key)return failAs(ERROR_KIND.NOTFOUND,'missing key','')
+  if(!key){emitReadDegraded(ctx,'get','get:no-key',Date.now()-t0);return failAs(ERROR_KIND.NOTFOUND,'missing key','')}
   const norm=String(key).padStart(2,'0')
   const colorMap=await loadPaintColorMap(ctx)
   const scope=scopeOf(repo, opts)
+  /** 走定位口找文件。定位这一路会把「没读成」直接抛上来（票目录列不出来，见 issues-locate.ts 的
+   *  `listDirOrThrow`）：整条操作如实失败之前先记一行，否则事后看日志只有「什么都没有」。
+   *  #1058 复核发现：这一层以前一条线都不留，`get:fs-fail` 这个取值也就没人走到过。
+   *  记完原样抛出 —— 读的结果一个字节不变，只是多一行证据。 */
+  const located=async function <T>(run: () => Promise<T>): Promise<T> {
+    try{ return await run() }catch(e){ emitReadDegraded(ctx,'get','get:fs-fail',Date.now()-t0); throw e }
+  }
   if(norm==='00'){
-    const r=await resolveMapFile(ctx,repo,{effortId: scope, mode:'read'})
+    const r=await located(function(){ return resolveMapFile(ctx,repo,{effortId: scope, mode:'read'}) })
     if(r.ok){
       try{
         const txt=await readTextFile(ctx,r.path)
@@ -276,13 +322,13 @@ export async function getIssue(ctx: OpContext, repo: RepoWithPath, key: string, 
         const iss=parseMd(txt,{key:norm,parentKey:null,isMap:true,effortId:r.effortId,createdAt:mtime,updatedAt:mtime,url:r.path})
         applyLabelColors(iss, colorMap)
         return{ok:true,data:sliceComments(iss,opts)}
-      }catch(e){return failFromError(e,ctx,'读这个工作单元的地图文件时出错')}
+      }catch(e){emitReadDegraded(ctx,'get','get:read-fail',Date.now()-t0);return failFromError(e,ctx,'读这个工作单元的地图文件时出错')}
     }
-    return{ok:false,error:r.error}
+    degraded(r.error&&r.error.kind);return{ok:false,error:r.error}
   }
-  const r=await resolveIssueFile(ctx,repo,norm,{effortId: scope, mode:'read'})
+  const r=await located(function(){ return resolveIssueFile(ctx,repo,norm,{effortId: scope, mode:'read'}) })
   if(r.ok){
-    try{const iss=await loadIssueFromFile(ctx,repo,r.path,{parentKey:'00',isMap:false,effortId:r.effortId});applyLabelColors(iss, colorMap);return{ok:true,data:sliceComments(iss,opts)}}catch(e){return failFromError(e,ctx,'读这张票的文件时出错')}
+    try{const iss=await loadIssueFromFile(ctx,repo,r.path,{parentKey:'00',isMap:false,effortId:r.effortId});applyLabelColors(iss, colorMap);return{ok:true,data:sliceComments(iss,opts)}}catch(e){emitReadDegraded(ctx,'get','get:read-fail',Date.now()-t0);return failFromError(e,ctx,'读这张票的文件时出错')}
   }
-  return{ok:false,error:r.error}
+  degraded(r.error&&r.error.kind);return{ok:false,error:r.error}
 }

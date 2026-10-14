@@ -25,6 +25,7 @@ import type { OpContext } from '../../contract/contexts.js'
 import type { RepositoryRef, Issue } from '../../contract/entities.js'
 import type { ListFilter, PageOpts } from '../../contract/inputs.js'
 import { failAs, failFromError } from './error-fail.js'
+import { emitReadDegraded } from './read-log.js'
 import { enumerateIssueRows } from './issues-read.js'
 // 这三件与 counts 共用同一份实现：分页与计数说的必须是**同一批票**，两处各写一份判定迟早走样。
 import { labelsOf, hasAllLabels, narrowStateOf, readFailureMessage } from './counts.js'
@@ -64,17 +65,19 @@ function thinRow(row: Issue): Issue {
   return t as unknown as Issue
 }
 
-/** 游标 → 起始下标。不是数字、或指到了列表之外，都算「这个游标跟现在这份数据对不上」并说清怎么办。 */
-function startIndexOf(cursor: string, total: number): { ok: true; start: number } | { ok: false; error: { kind: string; message: string; raw: string } } {
+/** 游标 → 起始下标。不是数字、或指到了列表之外，都算「这个游标跟现在这份数据对不上」并说清怎么办。
+ *  不成立时连**该记哪一档日志**（`listPage:cursor` 还是 `listPage:cursor-stale`）一起交出来：
+ *  这两档在界面上长得一样（都要重新加载），事后只能靠日志分。 */
+function startIndexOf(cursor: string, total: number): { ok: true; start: number } | { ok: false; reason: string; error: { kind: string; message: string; raw: string } } {
   if (!cursor) return { ok: true, start: 0 }
   if (!/^\d+$/.test(cursor)) {
     // 原文 = 收到的那段游标本身（本地就能定论：它不是一个下标数字）。
-    return failAs(ERROR_KIND.PARSE, '游标已失效，请重新加载（这个后端的游标是排好序的票行列表里的下标，收到的不是数字：' + cursor.slice(0, 32) + '）', cursor.slice(0, 120))
+    return { ok: false, reason: 'listPage:cursor', error: failAs(ERROR_KIND.PARSE, '游标已失效，请重新加载（这个后端的游标是排好序的票行列表里的下标，收到的不是数字：' + cursor.slice(0, 32) + '）', cursor.slice(0, 120)).error }
   }
   const start = parseInt(cursor, 10)
   if (start >= total) {
     // 原文给这次的下标与总行数（本地就能定论：游标越过了现有数据）。
-    return failAs(ERROR_KIND.NOTFOUND, '游标已失效，请重新加载（下标 ' + start + ' 越过了现在这 ' + total + ' 行）', JSON.stringify({ start: start, total: total }))
+    return { ok: false, reason: 'listPage:cursor-stale', error: failAs(ERROR_KIND.NOTFOUND, '游标已失效，请重新加载（下标 ' + start + ' 越过了现在这 ' + total + ' 行）', JSON.stringify({ start: start, total: total })).error }
   }
   return { ok: true, start: start }
 }
@@ -84,12 +87,16 @@ function startIndexOf(cursor: string, total: number): { ok: true; start: number 
  * filter 只认 state 与 labels（契约同 counts）；effortId 走 repo（作用域与 list / counts 同口径）。
  */
 export async function listIssuesPage(ctx: OpContext, repo: RepoWithPath, filter: ListFilter | undefined = {}, opts: PageOpts | undefined = {}) {
+  const t0 = Date.now()
   try {
     // effortId 不在契约 ListFilter 里（本房的寻址扩展，见 issues-read.js 的 RowFilter）：经视图读，不拓签名。
     const scopeFilter = { effortId: filter && (filter as { effortId?: string | null }).effortId }
-    const { rows, errors } = await enumerateIssueRows(ctx, repo, scopeFilter, { collectErrors: true })
+    const { rows, errors } = await enumerateIssueRows(ctx, repo, scopeFilter, { collectErrors: true, op: 'listPage' })
     if (errors.length) {
       const kind = errors[0].kind || ERROR_KIND.ENV
+      // 整条失败之前记一行（#1058）：翻页失败在界面上只是「这一页加载不出来」，日志这边留一句
+      // 「走到枚举这一步、有票文件读不动」；是哪个文件、哪一档错，失败结果的原文里已经列全。
+      emitReadDegraded(ctx, 'listPage', 'listPage:read-fail', Date.now() - t0)
       // 原文与 counts 同一口径：每张读不动的票「编号 + 文件 + 档位 + 那句错误」，一行一张。
       return failAs(kind, readFailureMessage(errors), errors.map(function (e) {
         return String(e.key) + ' ' + String(e.path) + ' [' + String(e.kind || '') + '] ' + String(e.message || '')
@@ -103,13 +110,19 @@ export async function listIssuesPage(ctx: OpContext, repo: RepoWithPath, filter:
     const sorted = tickets.slice().sort(byCreatedAtDesc)
     const total = sorted.length
     const startRes = startIndexOf((opts && typeof opts.cursor === 'string') ? opts.cursor.trim() : '', total)
-    if (!startRes.ok) return { ok: false, error: startRes.error }
+    if (!startRes.ok) {
+      // 游标不成立的两档在这里分开记（#1058）：界面上都是「请重新加载」，日志里要分得出是哪一档。
+      emitReadDegraded(ctx, 'listPage', startRes.reason, Date.now() - t0)
+      return { ok: false, error: startRes.error }
+    }
     const start = startRes.start
     const lim = limitOf(opts)
     const items = sorted.slice(start, start + lim).map(thinRow)
     const nextCursor = (start + items.length) < total ? String(start + items.length) : null
     return { ok: true, data: { items: items, nextCursor: nextCursor, total: total } }
   } catch (e) {
+    // 枚举这一层之外冒上来的故障：整条失败，日志留一行「停在哪条操作」。
+    emitReadDegraded(ctx, 'listPage', 'listPage:fs-fail', Date.now() - t0)
     return failFromError(e, ctx, '给这个工作区的票分页时出错')
   }
 }

@@ -15,6 +15,7 @@ import { listLabels, setLabelColors } from './label-colors-ops.js'
 import { ensureLabelColors } from './label-colors.js'
 import { useBuiltinLabelColors } from './label-colors-palette.js'
 import { failAs } from './error-fail.js'
+import { emitReadDegraded } from './read-log.js'
 // node:path 无类型声明（与 path.ts 同款）：压住这一行，拿到的 nodePath 按 any 用。
 // @ts-expect-error node:path has no types here (types: []), same as path.ts
 import nodePath from 'node:path'
@@ -152,6 +153,7 @@ export function createMarkdownBackend(ctx: OpContext) {
     id:'markdown',
     preflight: async (handle: RepoHandle,opCtx: OpContext): Promise<PreflightResult>=>{
       const c=opCtx||ctx
+      const startedAt=Date.now()
       try{
         const plat=getPlat(c)
         const cwd=(handle&&handle.cwd)||(c&&c.cwd)||''
@@ -185,6 +187,9 @@ export function createMarkdownBackend(ctx: OpContext) {
           if(await exists(c,plat2.join(root,'map.md')))return{ok:true}
         }
         // 原文给空串：预检只是没找到地图文件，没有任何命令或文件读过它（这条结论本地就能定）。
+        // 记一行（#1058）：探测没过是「这个工作区不能用本地 Markdown 当票仓」的唯一一句解释，
+        // 不记的话事后只看得到「后端没选上」，看不出是走到这一步才没过的。
+        emitReadDegraded(c,'preflight','preflight:no-map',Date.now()-startedAt)
         return failAs(ERROR_KIND.NOTFOUND,'markdown map.md not-found','') as PreflightResult
       }catch(e){
         // 档位按本步语义定：预检问的是「这个工作区能不能用本地 Markdown 当票仓」，
@@ -192,6 +197,7 @@ export function createMarkdownBackend(ctx: OpContext) {
         // 原文 = 抛上来的那个错误本身（人据此看它到底为什么读不动这个目录）。
         // caught 只为过类型：`e &&` 短路与原式逐字相同，message 非字符串时原样透传（不断言改值）。
         const caught=e as Record<string, unknown>
+        emitReadDegraded(c,'preflight','preflight:fs-fail',Date.now()-startedAt)
         const kind=((e&&caught.kind)||ERROR_KIND.ENV) as string
         return failAs(kind,(e&&caught.message?caught.message:String(e)) as string,e) as PreflightResult
       }

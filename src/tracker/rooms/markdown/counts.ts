@@ -30,6 +30,7 @@ import type { OpContext } from '../../contract/contexts.js'
 import type { RepositoryRef, Issue } from '../../contract/entities.js'
 import type { ListFilter } from '../../contract/inputs.js'
 import { failAs, failFromError } from './error-fail.js'
+import { emitReadDegraded } from './read-log.js'
 import { enumerateIssueRows } from './issues-read.js'
 import type { RowReadError } from './issues-read.js'
 
@@ -64,14 +65,18 @@ export function readFailureMessage(errors: RowReadError[]): string {
  * 这里只做三件事：有票文件读不动就整体失败、按状态数票行、按 filter 的两项收窄。
  */
 export async function countIssues(ctx: OpContext, repo: RepoWithPath, filter: ListFilter | undefined = {}) {
+  const t0 = Date.now()
   try {
     // 契约说 counts 只认 state 与 labels，keys 这类字段一律忽略 —— 所以枚举时不带 keys 过去，
     // 免得多出来的行提前被跳过、数字比实际票数小；effortId 照旧透传，作用域与 list 同口径。
     // effortId 不在契约 ListFilter 里（本房的寻址扩展，见 issues-read.js 的 RowFilter）：经视图读，不拓签名。
     const scopeFilter = { effortId: filter && (filter as { effortId?: string | null }).effortId }
-    const { rows, errors } = await enumerateIssueRows(ctx, repo, scopeFilter, { collectErrors: true })
+    const { rows, errors } = await enumerateIssueRows(ctx, repo, scopeFilter, { collectErrors: true, op: 'counts' })
     if (errors.length) {
       const kind = errors[0].kind || ERROR_KIND.ENV
+      // 整条失败之前记一行（#1058）：界面上只会看到「数不出来」，日志这边留一句「走到枚举这一步、
+      // 有票文件读不动」。哪个文件、哪一档错，失败结果的原文里已经列全，日志不重复。
+      emitReadDegraded(ctx, 'counts', 'counts:read-fail', Date.now() - t0)
       // 原文 = 每张读不动的票「编号（文件）+ 判出来的档位 + 那句错误」，一行一张。
       // 光看汇总出来的人话看不出是哪几个文件、各是什么错，这一段才是能照着查的东西。
       return failAs(kind, readFailureMessage(errors), errors.map(function (e) {
@@ -92,6 +97,8 @@ export async function countIssues(ctx: OpContext, repo: RepoWithPath, filter: Li
     const closedOut = narrow === STATE.OPEN ? 0 : closed
     return { ok: true, data: { open: openOut, closed: closedOut, total: openOut + closedOut } }
   } catch (e) {
+    // 枚举这一层之外冒上来的故障（列工作单元、读目录……）：整条失败，日志留一行「停在哪条操作」。
+    emitReadDegraded(ctx, 'counts', 'counts:fs-fail', Date.now() - t0)
     return failFromError(e, ctx, '数这个工作区的票数时出错')
   }
 }
