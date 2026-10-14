@@ -29,8 +29,16 @@
 
 import type { OpContext } from '../../contract/contexts.js'
 
-/** 会报降级的读操作。只列本房读路径真会报降级的几条；写路径不在本片范围。 */
+/**
+ * 会报降级的读操作。只列本房读路径真会报降级的几条；写路径不在本片范围。
+ *
+ * `matches` 不是契约里的操作，是本房「这个工作区是不是 GitLab」那一次识别（`index.ts` 的
+ * `matches`）：它同样是读——读 `.git/config`、读 `docs/agents/issue-tracker.md`、问一次 git remote。
+ * 识别失败今天在外面只剩注册表那一行「没认出来」，所以这一趟的失败原因必须从房里报出来
+ * （#1130）。`preflight` 也是同类：不是契约操作，是模块自己的探测钩子。
+ */
 export const READ_DEGRADED_OPS = Object.freeze([
+  'matches',
   'preflight',
   'list',
   'get',
@@ -62,9 +70,17 @@ export const READ_DEGRADED_OPS = Object.freeze([
  *  - `partial`    : 只拿到一部分就按成功返回（拿不全但没失败）
  *  - `truncated`  : 条数到了上限，被截断（拿不全但没失败）
  *  - `notfound`   : 远端明确说这张票 / 这个仓库不在
+ *  - `fs-unavailable` : 连文件服务都拿不到（没有 fs、没有 platform，或它没长 resolve+readText 这两件），
+ *                       识别这一趟根本没跑起来 —— 这是故障，不是「这个仓库不是 GitLab」
+ *  - `git-config` : 读工作区里的 `.git/config` 这一步没给出答案（文件不在，或者读这一下出了问题）
+ *  - `tracker-doc`: 读工作区里的 `docs/agents/issue-tracker.md` 这一步没给出答案（同上）
  *  - `unknown`    : 上面都不像（不许拿它当偷懒的默认值，新增分支时回来加取值）
  */
 export const READ_DEGRADED_REASONS = Object.freeze([
+  'matches:fs-unavailable',
+  'matches:git-config',
+  'matches:tracker-doc',
+  'matches:unknown',
   'preflight:glab',
   'preflight:auth',
   'preflight:repo-view',
@@ -143,6 +159,11 @@ function ms(latencyMs: unknown): number {
  *
  * 什么时候调：一条读操作经 `fail(...)` 返回之前，或者「拿不全却按成功返回」那个分支里。
  * 成功且完整的读不记。
+ *
+ * 识别那一条（`op: 'matches'`）另有一套判据：**一层读成功了不记**（读到了内容、只是内容里没有
+ * `gitlab` 这个词，那是正常的否定结论）；**这一层没能给出答案才记**（文件不在、读不出来、
+ * 或者干脆没有文件服务）。所以一个规规矩矩的仓库（有 `.git/config`、有 `docs/agents/issue-tracker.md`）
+ * 走这一趟一行都不会多出来。
  *
  * @param ctx 单次调用上下文（没有它、或者它没有 `logEvent` 就静默跳过：读路径不许因为日志而失败）
  * @param op 哪条读操作，取 READ_DEGRADED_OPS 里的值

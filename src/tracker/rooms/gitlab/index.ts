@@ -20,6 +20,7 @@ import type { BackendId } from '../../contract/identity.js'
 import type { RepositoryRef } from '../../contract/entities.js'
 import type { BackendContext, OpContext, RepoHandle } from '../../contract/contexts.js'
 import { glabPreflight } from './preflight.js'
+import { emitReadDegraded } from './read-log.js'
 import { listIssues, getIssue, createIssue, closeIssue, reopenIssue, updateIssue } from './issues.js'
 import { addComment } from './comments.js'
 import { setLabels } from './labels.js'
@@ -60,13 +61,71 @@ function repoId(handle: RepoHandle | Partial<RepositoryRef> | null | undefined):
 }
 
 /**
- * GitLab matches：启发式 boolean（读 .git/config / glab remote / issue-tracker.md）
- * 不确定一律 false + diagnostics（ctx.log.warn）
+ * 兜底问一次 git remote 的时间上限（毫秒）。
+ *
+ * 保持 2 秒：这是识别用的启发式探针，前面两道读文件的口子才是正常会给出答案的那两道，
+ * 它只在前面都没答案时才跑。仓里同一句 `git remote get-url origin` 在别处写的是 3 秒
+ * （GitHub 房的 matches 与两房的 getRepoKey），这里没有跟着改，因为改数值是改行为，
+ * 而这张票要的是「数值与注释说的是同一件事」——注释从前写着 5 秒，那才是错的。
+ */
+const GIT_FALLBACK_TIMEOUT_MS = 2000
+
+/** 识别这一趟要用的文件服务：就用契约上下文里那一格，不另定义形状。 */
+type MarkerFs = OpContext['fs']
+
+/**
+ * 按文件服务的规矩读一个工作区文件（#1130）。
+ *
+ * 为什么必须经 `fs.resolve` 再 `fs.readText`：DSH 的文件服务吃的是 `resolve()` 给出的那个
+ * target，直接喂一个自己拼出来的路径字符串会抛错 —— 而且抛的不是「文件不在」，是形状不对。
+ * 同一个教训记在 `src/host/versionControl.js` 的 stat 那一处：喂路径抛的是 TypeError，不是
+ * ENOENT，老写法因此一票否决了。本文件从前的
+ * `fs.readText(platform.path.join(cwd, '.git', 'config'))` 正是这个错法：对「文件明明在」
+ * 也一律失败，失败又被空 catch 吞掉，外面只看到注册表一句「没认出来」。
+ *
+ * 读不出来一律回 null，不在这一层记日志：这里分不清「文件本来就不在」（正常，不是故障）
+ * 与「读这一下出了问题」（故障），而分档的判据住在 `src/host/fsAbsence.js`，房间引不到它
+ * （房间可引目录的登记表里没有它，而且已经到条数上限），就地重写一份又会让同一条契约事实
+ * 有两个出处。所以交给调用方按「这一步没给出答案」记一行，不假装知道是哪种。
+ *
+ * @param fs 沙箱文件服务（调用方已确认它长着 resolve 与 readText 两件）
+ * @param cwd 工作区目录
+ * @param rel 相对工作区目录的文件路径
+ * @returns 读到的文本；读不出来回 null
+ */
+async function readWorkspaceFile(fs: MarkerFs, cwd: string, rel: string): Promise<string | null> {
+  try {
+    const target = await fs.resolve(rel, { cwd })
+    const text = await fs.readText(target)
+    return typeof text === 'string' ? text : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * GitLab matches：启发式 boolean —— 这个工作区是不是 GitLab 仓库。
+ *
+ * 依次看三处，任何一处写着 gitlab 就认：
+ *   1. `.git/config` 里的远端地址；
+ *   2. `docs/agents/issue-tracker.md` 里声明的后端；
+ *   3. 兜底真问一次 `git remote get-url origin`（best-effort，2 秒）。
+ * 三处都不认，或者线索不够，一律回 false —— 「不确定就当不是」是既定口径，不是故障。
+ *
+ * #1130：这一趟的失败原因必须能从房里报出来（走本房的 `read-log.ts`，事件名沿用全仓登记的
+ * `read.degraded`），不能像从前那样被空 catch 吞掉、外面只剩一句「没认出来」。
+ * 判据是「哪一层没能给出答案」，不是「哪一层没认出 gitlab」——读到了内容只是里面没写
+ * gitlab，那是正常的否定结论，不记；一个规规矩矩的仓库走这一趟一行都不会多出来。
+ *
+ * @param handle 识别时给的那点线索（只取 refId 与 cwd）
+ * @param ctx 单次调用上下文（没有它、或它没有 logEvent 就记不出日志，但结论照旧）
+ * @returns 认得出是 GitLab 就 true
  */
 async function matches(
   handle: RepoHandle | null | undefined,
   ctx: OpContext | null | undefined,
 ): Promise<boolean> {
+  const startedAt = Date.now()
   try {
     if (!handle || typeof handle !== 'object') return false
     // refId 显式含 gitlab 串 → true
@@ -75,42 +134,38 @@ async function matches(
     if (!cwd || typeof cwd !== 'string') return false
     const platform = ctx && ctx.platform
     const fs = (ctx && ctx.fs) || (platform && platform.fs)
-    void (ctx as unknown as Record<string, unknown>)?.['log']
-    if (!fs || !platform) return false
-    // 1) .git/config 是否含 gitlab
-    try {
-      const cfgPath = platform.path.join(cwd, '.git', 'config')
-      // target-shaped需先resolve path-shaped；平台层path已处理，此处直接读
-      const text = await fs.readText(cfgPath)
-      if (typeof text === 'string' && /gitlab/i.test(text)) return true
-    } catch {}
-    // 2) issue-tracker.md 是否声明 gitlab
-    try {
-      const trackerPath = platform.path.join(cwd, 'docs', 'agents', 'issue-tracker.md')
-      const text = await fs.readText(trackerPath)
-      if (typeof text === 'string' && /gitlab/i.test(text)) return true
-    } catch {}
-    // 3) exec git remote 兜底（best-effort，5s）
-    try {
-      const exec = ctx.exec
-      if (exec) {
-        const res = await exec('git', ['remote', 'get-url', 'origin'], { cwd, timeout: 2000 })
-        const out = (res.stdout || '') + (res.stderr || '')
-        if (/gitlab/i.test(out)) return true
-      }
-    } catch {}
-    return false
-  } catch (e: unknown) {
-    try {
-      const logBag = (ctx as unknown as Record<string, unknown>)?.['log'] as
-        | { warn?: unknown }
-        | undefined
-      if (logBag && typeof logBag['warn'] === 'function') {
-        ;(logBag['warn'] as (m: string) => void)('gitlab matches error: ' + String(e))
-      }
-    } catch {
-      // 诊断日志写失败不影响识别结论。
+    // 没有文件服务、或者它没长 resolve+readText 这两件：识别根本跑不起来。这是故障，
+    // 不是「这个仓库不是 GitLab」，所以先记一行再回 false。
+    const canRead =
+      !!fs &&
+      typeof (fs as { resolve?: unknown }).resolve === 'function' &&
+      typeof (fs as { readText?: unknown }).readText === 'function'
+    if (!canRead) {
+      emitReadDegraded(ctx, 'matches', 'matches:fs-unavailable', Date.now() - startedAt)
+      return false
     }
+    // 1) .git/config 是否含 gitlab
+    const cfg = await readWorkspaceFile(fs, cwd, '.git/config')
+    if (cfg === null) emitReadDegraded(ctx, 'matches', 'matches:git-config', Date.now() - startedAt)
+    else if (/gitlab/i.test(cfg)) return true
+    // 2) issue-tracker.md 是否声明 gitlab
+    const doc = await readWorkspaceFile(fs, cwd, 'docs/agents/issue-tracker.md')
+    if (doc === null) emitReadDegraded(ctx, 'matches', 'matches:tracker-doc', Date.now() - startedAt)
+    else if (/gitlab/i.test(doc)) return true
+    // 3) exec git remote 兜底（best-effort，2s）
+    const exec = ctx && ctx.exec
+    if (exec) {
+      const res = await exec('git', ['remote', 'get-url', 'origin'], {
+        cwd,
+        timeout: GIT_FALLBACK_TIMEOUT_MS,
+      })
+      const out = (res.stdout || '') + (res.stderr || '')
+      if (/gitlab/i.test(out)) return true
+    }
+    return false
+  } catch {
+    // 整段抛了（例如 exec 抛、平台对象形状怪）：这是故障，记一行；结论照旧按「不确定 = 不是」。
+    emitReadDegraded(ctx, 'matches', 'matches:unknown', Date.now() - startedAt)
     return false
   }
 }
