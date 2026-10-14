@@ -18,6 +18,11 @@
 // 恰好没有「声明越界」的配置，只有「顺 import 看见」这种正常依赖，光跑一遍真仓库只能证明它不红。
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+// 类型从入口借，不在这里手抄一份：假事实将来少填一格、或判据多读一格，这里跟着报错，
+// 而不是继续全绿。这个 import 只有类型、运行时会被整句删掉（Node 的类型剥离 + ts-hook 都不受影响）；
+// 写全 `.mts` 后缀是因为这份测试今天不在任何 tsconfig 里，将来真给它配一份时用 noEmit +
+// allowImportingTsExtensions 就能直接查（仓里所有配置都是 noEmit）。
+import type { ConfigFacts, Facts, Finding } from '../scripts/typecheck.mts'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const ENTRY = path.join(HERE, '..', 'scripts', 'typecheck.mts')
@@ -26,15 +31,24 @@ const ENTRY = path.join(HERE, '..', 'scripts', 'typecheck.mts')
 // 所以这里不能自己 spawn 一个不带钩子的 node（那样会报 ERR_UNKNOWN_FILE_EXTENSION）。
 // import 的实参必须是 URL 形状：Windows 上直接给 'D:\...\typecheck.mts' 会被当成协议名而报
 // ERR_UNSUPPORTED_ESM_URL_SCHEME。
-const mod = await import(pathToFileURL(ENTRY).href)
+// 标上入口的类型（实参是 URL 字符串，编译器认不出它指向谁，不标就是 any）：
+// 下面 judge() 的返回、report() 的入参才有类型，`(f) => f.level` 这类回调也不再是隐式 any。
+const mod: typeof import('../scripts/typecheck.mts') = await import(pathToFileURL(ENTRY).href)
 
-/** 一条假配置事实：只填判据真正读到的字段，其余给不骗人的空值。 */
-function fakeConfig(config, dir, { claimed = [], files = [], checkCode = 0 } = {}) {
-  return { config, dir, files, claimed, enumCode: 0, enumOutput: '', checkCode, errors: [] }
+/** 造假配置事实时可以拨的几格。 */
+type FakeConfigOptions = { claimed?: string[]; files?: string[]; checkCode?: number }
+
+/**
+ * 一条假配置事实：只填判据真正读到的字段，其余给不骗人的空值。
+ * 返回值标成入口导出的 ConfigFacts，就是为了让「少填一格」在类型上站不住——不然判据多读一格时，
+ * 这组自查照样全绿，反而成了新的假安全。
+ */
+function fakeConfig(config: string, dir: string, { claimed = [], files = [], checkCode = 0 }: FakeConfigOptions = {}): ConfigFacts {
+  return { config, dir, files, claimed, claimedFrom: 'include', enumCode: 0, enumOutput: '', checkCode, errors: [] }
 }
 
 /** 一次假调查：配置事实 + 仓库源码清单 + 一份「基线齐、没涨没缩」的棘轮对账。 */
-function fakeFacts(configs, repoScripts) {
+function fakeFacts(configs: ConfigFacts[], repoScripts: string[]): Facts {
   return {
     configs,
     repoScripts,
@@ -44,10 +58,11 @@ function fakeFacts(configs, repoScripts) {
 }
 
 /** 某类结论里点到某个文件的那些条。 */
-const hits = (findings, topic, file) => findings.filter((f) => f.topic === topic && f.msg.includes(file))
+const hits = (findings: Finding[], topic: string, file: string): Finding[] =>
+  findings.filter((f) => f.topic === topic && f.msg.includes(file))
 
-const caseFailures = []
-function checkCase(name, run) {
+const caseFailures: string[] = []
+function checkCase(name: string, run: () => string | null): void {
   try {
     const bad = run()
     if (bad) {

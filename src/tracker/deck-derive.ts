@@ -362,4 +362,9 @@ export function deriveDeck(input: DeckInput = {}): DeckDerivation {
   return { progressOf, labels, stats, blockedByKeys }
 }
 
+/**
+ * 投影口径的版本标记：随投影**规则**的语义变化往上抬，不随代码改动抬。
+ * 老代码就导出着它（`src/tracker/index.ts` 还再导出一次），今天仓里还没有读取点——
+ * 它是留给消费方（图快照、UI）认「这份派生结果按哪一版口径算的」用的；谁要先读，先把口径写清。
+ */
 export const DECK_DERIVE = Object.freeze({ version: 1 })

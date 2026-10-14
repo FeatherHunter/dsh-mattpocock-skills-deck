@@ -175,6 +175,14 @@ export interface ConfigFacts {
    * 覆盖类判据（B 缺口）认 files——两个问题不一样，混用会得出两条都不对的结论，详见 measureConfig。
    */
   claimed: string[]
+  /**
+   * 上面这份 claimed 是从哪儿来的。
+   *
+   * `'include'` = 真读到了 `--showConfig` 的声明清单；`'closure'` = 没读到（配置读不通、或过滤完一个都不剩），
+   * 用程序闭包顶替了它。降级时 claimed 与 files 是同一份清单，归属判据会比平时严（多报几条），
+   * 但报告里必须说出来：不然「声明得少、全靠顺 import 蹭检查」与「压根没读到声明」在输出里长得一模一样。
+   */
+  claimedFrom: 'include' | 'closure'
   /** 枚举这一步的原始退出码。非 0 表示枚举本身失败，不是「有缺口」。 */
   enumCode: number
   /** 枚举失败时编译器留下的文字。 */
@@ -242,9 +250,12 @@ function measureConfig(config: string, tsc: string): ConfigFacts {
   // 拿不到 --showConfig（配置读不通、输出认不出来）时退回闭包：宁可多报几条，不可漏报。
   // 「拿到了、但过滤完一个都不剩」同样按拿不到处理：那种情况多半是 include 写的路径在磁盘上不存在
   // 或跑到仓库外去了，此时若认下这份空清单，归属判据（C 重复归属、D 越界）会对这份配置一言不发——
-  // 静默漏判比多报几条坏得多。
+  // 静默漏判比多报几条坏得多。降级这件事同时记进 claimedFrom，由 report 打出来：不然读的人会以为
+  // 「声明 N 个」里的 N 永远是 include 写的数。
   const claimedRaw = claimFiles(config, tsc)
-  const claimed = claimedRaw && claimedRaw.length > 0 ? claimedRaw : unique
+  const claimedOk = claimedRaw !== null && claimedRaw.length > 0
+  const claimedFrom: ConfigFacts['claimedFrom'] = claimedOk ? 'include' : 'closure'
+  const claimed: string[] = claimedOk && claimedRaw !== null ? claimedRaw : unique
 
   // 第 4 步：真编译一遍。与枚举分开跑是有意的——两者支撑的是不同的事实，合并会让「枚举成功」
   // 被误读成「类型没问题」（实测：纯类型错误时枚举退 0、真编译退 1）。
@@ -273,6 +284,7 @@ function measureConfig(config: string, tsc: string): ConfigFacts {
     dir,
     files: unique,
     claimed,
+    claimedFrom,
     enumCode: listed.code,
     enumOutput: listed.out.trim(),
     checkCode: checked.code,
@@ -463,7 +475,10 @@ export function judge(facts: Facts): Finding[] {
       // 它们的「自己所在目录」是根，所以这一条对它们恒真——越界对这两份没有意义，跳过。
       if (c.dir === '') continue
       if (f === c.dir || f.startsWith(c.dir + '/')) continue
-      // 只看 src/ 与 tests/ 下的源码：声明文件（.d.ts）与配置自身不属于任何域，跨目录出现是正常的。
+      // 只看仓库源码清单里的文件（facts.repoScripts）：配置自身、构建产物、仓库外的文件都不属于任何域。
+      // 说明：`.d.ts` 其实**在**这份清单里（它是源码是看扩展名 `.ts` 定的，见 isSourceScript），
+      // 所以「声明文件豁免越界」这句话今天并不成立；今天也没有配置去声明别人目录里的 `.d.ts`，
+      // 真出现了再单独决定要不要豁免，别在这里写一句与代码不符的话。
       if (!facts.repoScripts.includes(f)) continue
       add('fail', '越界', c.config + ' 声明了自己目录之外的 ' + f + '。要么把这个文件圈回它所属的那份配置，要么把这份配置的 include 收窄到自己目录。')
     }
@@ -523,7 +538,12 @@ export function report(facts: Facts, findings: Finding[]): void {
   for (const c of facts.configs) {
     // 两个数分开报：files 是「编译器真看过多少」（含顺 import 带进来的），claimed 是「配置自己声明了多少」。
     // 只报一个数的话，「某份配置声明得很少、全靠 import 蹭检查」这件事在输出里看不出来。
-    console.log('  ' + c.config + ' —— 声明 ' + c.claimed.length + ' 个源码文件，顺 import 共看到 ' + c.files.length + ' 个' + (c.checkCode === 0 && c.enumCode === 0 ? '' : '（未通过）'))
+    // 降级（没读到 include 声明、拿闭包顶替）时明说：不然「声明 N 个」会被读成「这份配置真的只声明了 N 个」，
+    // 而两种情形在数字上长得一样（降级时 N 恰好等于顺 import 看到的数）。
+    const declared = c.claimedFrom === 'include'
+      ? '声明 ' + c.claimed.length + ' 个源码文件'
+      : '没读到 include 声明，拿顺 import 看到的 ' + c.claimed.length + ' 个顶替'
+    console.log('  ' + c.config + ' —— ' + declared + '，顺 import 共看到 ' + c.files.length + ' 个' + (c.checkCode === 0 && c.enumCode === 0 ? '' : '（未通过）'))
   }
   console.log('src/ 下源码 ' + facts.repoScriptsInSrc.length + ' 份，被配置看到 ' + inSrcCovered + ' 份')
   console.log('手写 JavaScript 名单 ' + facts.ratchet.current.length + ' 份，基线 ' + facts.ratchet.baseline.length + ' 份')
