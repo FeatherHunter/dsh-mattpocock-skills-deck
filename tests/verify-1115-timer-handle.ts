@@ -219,6 +219,24 @@ async function main() {
     handle.fire()
     check(disposed === 1 && fired === 0, '带 dispose 的对象句柄走 dispose()，撤销之后不再触发（dispose 调用 ' + disposed + ' 次、触发 ' + fired + ' 次）')
   }
+  {
+    // 可调用且带 dispose 的包装句柄：计时器服务里 throttle / debounce 交回的就是这种形状
+    // （_schedule 造的 wrapper：可调用，同时挂着 .dispose）。对它「调用句柄」等于再排一次，
+    // 正好是撤销的反面，所以撤销必须先认显式的 .dispose。这一条钉住那个判断顺序。
+    let disposed = 0
+    let invoked = 0
+    let fired = 0
+    const wrapperService = {
+      timeout(fn: TimerFn) {
+        let alive = true
+        return Object.assign(() => { invoked += 1; if (alive) fn() }, { dispose() { alive = false; disposed += 1 } })
+      },
+    }
+    const timers = hostTimers(wrapperService)
+    const handle = timers.setTimeout(() => { fired += 1 }, WANT_MS)
+    timers.clearTimeout(handle)
+    check(disposed === 1 && invoked === 0 && fired === 0, '可调用且带 dispose 的包装句柄走 dispose()，没有被当成撤销器调用（dispose 调用 ' + disposed + ' 次、调用句柄 ' + invoked + ' 次、触发 ' + fired + ' 次）')
+  }
 
   // ── ⑥ 真实调用点 a：平台通道的 getTimers（经它自己建的探测服务，opCtx 里那一份）──
   {

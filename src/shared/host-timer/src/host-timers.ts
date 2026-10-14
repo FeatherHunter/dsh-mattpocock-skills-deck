@@ -18,11 +18,21 @@
  *   src/host/snapshotBuild.ts 的 tmpCtx 与 ctxSel、
  *   src/host/refresh/wiring.js 的 backendObj.timers。
  *
+ * 依据（2026-10-14 从 DSH 自带的 @deepseek-ai/cordis-plugin-timer/src/index.ts 逐行核过）：
+ *   · timeout(回调, 毫秒) 交回 ctx.effect() 的撤销器 —— 一支可调用的函数，没有 dispose 方法；
+ *   · interval(回调, 毫秒)、setTimeout(回调, 毫秒) 与 timeout 同一支形状（后两个只是改名转发）；
+ *   · throttle / debounce 交回的是 _schedule 造的包装函数 —— **既可调用、又挂着 .dispose**；
+ *   · timeout(毫秒) 那一档（当 Promise 用）交回 Promise.finally(撤销器)，是 Promise，
+ *     外部**撤不掉**：只有它所属的 fiber 被销毁时才会被拒（'Context has been disposed'）。
+ *
  * 约定（改这个文件的人别踩）：
- *   1. 撤销按句柄形状分三档：可调用 → 调它本身（cordis 撤销器）；有可调用的 dispose() → 调 dispose()
- *      （部分计时器服务与门禁夹具交回这种形状）；其余（数字句柄）→ 交全局 clearTimeout。
- *      顺序不能反：真句柄上 `.dispose` 是 undefined，先判 dispose 的那种写法在真句柄上就是空操作
- *      （那正是 #1115 要修掉的形态）。
+ *   1. 撤销按句柄形状分三档，判断顺序是：有可调用的 dispose() → 调 dispose()；否则可调用 → 调它本身
+ *      （cordis 撤销器）；其余（数字句柄）→ 交全局 clearTimeout。
+ *      为什么显式 dispose() 必须排在「可调用」前面：throttle/debounce 的包装函数可调用且带 dispose，
+ *      对它「调用句柄」等于**再排一次**（throttle 在窗口外还会立刻执行），正好是撤销的反面。
+ *      而真句柄（timeout/interval/setTimeout）没有 dispose 属性，照样落到第二档，行为不变 ——
+ *      先判 dispose 在它身上不是本票要修的那种空操作（那种写法的毛病在于**回退**到全局 clearTimeout，
+ *      而不在于先判 dispose）。
  *   2. 三档都吞异常：撤销是收尾动作，撤不掉不该把调用方带崩，也不该把已经答完的那一趟变成失败。
  *   3. 重复撤销是安全的：插件自己到点时会先撤销再跑回调，所以撤销之后再调一次没有副作用，
  *      这里也就不记账「撤过没有」——记了反而会多一处会过期的状态。
@@ -44,11 +54,12 @@ export interface HostTimers {
 /**
  * 撤销一支计时器句柄，形状分三档，见文件头约定第 1 条。
  * 它不知道、也不需要知道句柄是谁给的：撤销失败一律咽掉，不往上抛。
+ * 对 Promise 形状（timeout(毫秒) 那一档）这里是空操作 —— 那形状从外部就撤不掉，见文件头依据那一段。
  */
 export function cancelHostTimer(handle: unknown): void {
   try {
-    if (typeof handle === 'function') { (handle as () => void)(); return }
     if (handle && typeof (handle as { dispose?: unknown }).dispose === 'function') { (handle as { dispose(): void }).dispose(); return }
+    if (typeof handle === 'function') { (handle as () => void)(); return }
     if (handle !== undefined && handle !== null) clearTimeout(handle as number)
   } catch (e) { /* 收尾动作：撤不掉也不能把调用方带崩 */ }
 }
