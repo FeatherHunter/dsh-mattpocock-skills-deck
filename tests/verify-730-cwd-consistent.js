@@ -161,6 +161,7 @@ async function main() {
     const mod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'workspaceCwd.js')).href)
     const decMod730 = await import(pathToFileURL(path.join(ROOT, 'src', 'tracker', 'detection', 'backendDecision.ts')).href)
     try { decMod730.decideBackend.selectionFromOutlet = decMod730.selectionFromOutlet } catch (eAttach730) {}
+    const detMod730 = await import(pathToFileURL(path.join(ROOT, 'src', 'tracker', 'detection', 'detectionService.ts')).href)
     const resolveCalls = []
     let seenPolicy = 'untouched'
     const tracker = {
@@ -169,6 +170,13 @@ async function main() {
         if (opCtx.sandboxPolicy === undefined) return { ok: false, error: { kind: 'env', message: '无归属会话，政策缺席' } }
         return { ok: true, data: [] }
       },
+    }
+    // 注册表这一份同时给工作区入口与探测服务（#1131：改色电话的判定取数改走探测服务，两边必须是同一个注册表）
+    const registry730 = {
+      has: (id) => id === 'markdown',
+      select: async () => ({ backendId: 'markdown' }),
+      get: () => tracker,
+      describe: () => ({ backend: 'markdown', refId: '', name: '', url: '' }),
     }
     const ws = mod.createWorkspaceCwd({
       ctx: {
@@ -181,11 +189,14 @@ async function main() {
       },
       DEFAULT_CWD: 'D:\\',
       getPlatform: async () => ({}),
-      getTrackerRegistry: async () => ({
-        has: (id) => id === 'markdown',
-        select: async () => ({ backendId: 'markdown' }),
-        get: () => tracker,
-        describe: () => ({ backend: 'markdown', refId: '', name: '', url: '' }),
+      getTrackerRegistry: async () => registry730,
+      // #1131：改色电话的判定改经探测服务走，夹具照生产的接法把服务给上（同一个出口、同一个注册表）。
+      //   这一组验的是政策缺席时如实失败，所以工作区缓存给 null（不缓存，每次真算一遍）。
+      getDetectionService: async () => detMod730.createDetectionService({
+        registry: registry730,
+        getPlatform: async () => ({}),
+        workspaceStore: null,
+        decideBackend: decMod730.decideBackend,
       }),
       getWorkspaceStore: async () => null,
       getChoiceStore: async () => null,

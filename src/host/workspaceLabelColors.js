@@ -10,7 +10,7 @@
 // 选中的后端即可，不必让别的文件再走一遍这两步（同层互引门禁也不许新开的文件之间互相引用）。
 /** 造两条标签配色电话的处理体。依赖全部由父文件 createWorkspaceCwd 显式传入，本文件不自取任何环境。 */
 export function createWorkspaceLabelColors(deps) {
-  const { normCwd, getTrackerRegistry, getPlatform, ctx, opCtxFor, resolveSandboxPolicy, getDecisionFn, getChoiceStore } = deps
+  const { normCwd, getTrackerRegistry, getPlatform, opCtxFor, resolveSandboxPolicy, getDecisionFn, getDetectionService } = deps
   // ============ 标签配色两条电话（#627 契约票）============
   // 「列出标签与颜色」与「批量改色」两个契约操作，界面经下面两条电话调到。
   // 为什么曾住在绑定文件、现搬成叶子：两条电话的第一步都要把工作区路径归一、第二步都要按工作区问出当前后端。归一（normCwd）与上下文（opCtxFor、政策）由父文件显式传进来，就地转交选中的后端即可，
@@ -73,19 +73,38 @@ export function createWorkspaceLabelColors(deps) {
     const platform = await getPlatform()
     // #1003 单出口：显式那几层（工作区文件→声明文件）整段交统一判定，自动识别仍由出口内同一注册表跑；
     //   下面只做核验与分档，不再自己判一次。本文件不引用判定服务（同层门禁），函数只经依赖值由工作区入口递进来。
-    const useOutlet = (typeof getDecisionFn === 'function') ? await getDecisionFn().catch(function () { return null }) : null
+    // #1131 起这一步分两道：先按同一个装配口问「出口装没装上」（探测服务就是从它那儿拿的出口），
+    //   再从探测服务取这一次的判定（它管缓存）。前一道只是装配检查，不是第二套判定——少了它，
+    //   「出口没装」会被报成「没有拿回结果」，这两句话指的故障不是一回事。
+    // 问法用 try 兜住两种坏装配：递进来的口子可能同步抛，也可能回的压根不是 Promise（`await` 都救不了
+    //   那种情况），两种都按「没装」处理 —— 这一句只是装配检查，不该把电话本身掀翻。
+    let useOutlet = null
+    try { useOutlet = (typeof getDecisionFn === 'function') ? await getDecisionFn() : null } catch (eD) { useOutlet = null }
     if (!useOutlet || typeof useOutlet.decideBackend !== 'function') {
       // 缺依赖即装配错：如实说插件这边有问题，不抛，不编一个后端出来。
       return { ok: false, error: { kind: 'env', message: '列出标签与修改标签颜色时插件运行出错：判定出口这次没装上，所以没有动仓库里的任何东西。请重试一次；如果仍然失败，请把这条提示原文报告给插件维护者。' } }
     }
+    let svc = null
+    try { svc = (typeof getDetectionService === 'function') ? await getDetectionService() : null } catch (eS) { svc = null }
+    if (!svc || typeof svc.detect !== 'function') {
+      // 同样按「缺依赖即装配错」办，文案与上面那条一样：这句话要说的就是「判定这一套这次没装上」，
+      //   换谁承载它都一样，用户该做的事也一样（重试，不行就把原文报告维护者）。
+      return { ok: false, error: { kind: 'env', message: '列出标签与修改标签颜色时插件运行出错：判定出口这次没装上，所以没有动仓库里的任何东西。请重试一次；如果仍然失败，请把这条提示原文报告给插件维护者。' } }
+    }
+    // #1131：判定整段交探测服务走（每个工作区那份缓存归它管），不再在这里直调出口。
+    //   为什么不直调：出口是纯计算，每问一次都要把工作区文件、声明文件、自动识别从头跑一遍；而「这个工作区
+    //   现在用哪个后端」面板、deck 工具与改色电话问的是同一件事，就该吃同一份结论 —— 同一个工作区连着两次
+    //   改色，第二次一行判定都不该重算（命中没命中看按需日志 detection.cache.hit）。
+    //   withOutlet 是必要条件：改色电话还要出口原话里的 canWrite（这一次的结论算不算人亲手选过），
+    //   以及 multiHit / pending 两样分档依据，而 selectionFromOutlet 交出来的只有五个字段，带不出它们。
+    //   skipSkillProbes：这两条电话只要「用哪个后端」，技能探测是另一件事（面板那条路也这么传）。
+    let res = null
+    try { res = await svc.detect({ cwd: cwd }, { skipSkillProbes: true, caller: caller, signal: signal, withOutlet: true }) } catch (e) { res = null }
+    const o = (res && res.outlet) || null
     let sel = null
     let canWrite0 = undefined
     {
-      const fsSvc0 = ctx.get('fs');
       const hasId0 = function (id) { try { return !!(id && reg.has(id)); } catch { return false; } };
-      const o = await useOutlet.decideBackend(cwd, {
-        registry: reg, platform: platform, fs: fsSvc0, caller: caller, signal: signal,
-      }).catch(function () { return null })
       canWrite0 = !!(o && o.canWrite === true)
       if (o && o.backendId && hasId0(o.backendId) && !(Array.isArray(o.multiHit) && o.multiHit.length > 1) && !o.pending) {
         const t9 = reg.get(o.backendId);

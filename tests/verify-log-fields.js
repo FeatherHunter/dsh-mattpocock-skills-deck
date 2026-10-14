@@ -1,6 +1,6 @@
 // verify-log-fields.js —— #494 第三件事：日志门禁之字段白名单（#489 附录第 4 节断言一）。
 // 用法：在插件根目录执行 node tests/verify-log-fields.js，可独立运行。
-// 断言文字：扫描全部埋点调用，每个事件只含第 1 节允许字段（#746 增补常驻 #90 naming.summary，#782 增补常驻 #92 cwd.persisted，#817 增补常驻 #94 git.exec 与 #95 git.exec.fail，#864 增补按需 #96 vc.cache.screen，#958 增补按需 #97 labelColors.listed）；
+// 断言文字：扫描全部埋点调用，每个事件只含第 1 节允许字段（#746 增补常驻 #90 naming.summary，#782 增补常驻 #92 cwd.persisted，#817 增补常驻 #94 git.exec 与 #95 git.exec.fail，#864 增补按需 #96 vc.cache.screen，#958 增补按需 #97 labelColors.listed，#1048 增补按需 #98 detection.step 并给常驻 #16 detection.detect 补四键，#1131 增补按需 #99 detection.cache.hit（缓存命中那一行：这一次没重算、直接把上一次的判定回给了调用方））；
 // 出现工作区原始路径、仓库地址原文、令牌原文、模板正文、快照全文即红。
 // 做法：从宿主与客户端源码里找出全部日志调用，逐个事件收拢实际字段键，
 // 与下面这张允许表逐项比对；未知事件名、未知字段键都算失败并打印清单。
@@ -12,7 +12,7 @@ let failed = false
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
-console.log('日志字段白名单门禁（#494/#498/#548/#618/#652/#655/#690/#709/#724/#782/#817/#864/#958：94 事件逐个只记已知安全字段，未知字段默认不记）')
+console.log('日志字段白名单门禁（#494/#498/#548/#618/#652/#655/#690/#709/#724/#782/#817/#864/#958/#1048/#1131：95 事件逐个只记已知安全字段，未知字段默认不记）')
 
 // 允许表：事件名对应它能记的全部字段键，之外的键一律不许出现。
 // 键名取自实现原文，语义与 #489 附录 1.4、1.5 节对照表一致。
@@ -33,7 +33,27 @@ const ALLOWED = {
   'panelSync.dirty': ['cwdHash', 'ageMs'],
   'registry.select': ['cwdHash', 'backendId', 'source', 'latencyMs', 'caller'],
   'registry.stub': ['op', 'backendId'],
-  'detection.detect': ['cwdHash', 'explicit', 'matches', 'pending', 'selection'],
+  // 2026-10-14（#1048）：常驻 #16 `detection.detect` 从「判定链条上的一处埋点」改成「统一判定出口
+  //   每个工作区一条结论」，字段随之增补四键：origin 这条结论来自哪一层（workspace-file 工作区文件 /
+  //   declaration 声明文件 / autodetect 各房认领）、state 三态（decided 判到了 / no-backend 确实没有 /
+  //   undetermined 判不出来）、latencyMs 这一趟判了多久、conflict 有没有互相矛盾的两处认领（空串表示没有）。
+  //   原有五键一个不改：cwdHash 工作区散列、explicit 是不是文件里明写的、matches 命中数、pending 待定、
+  //   selection 选中结果。落点由 src/host/detectChain.ts 挪到 src/tracker/detection/backendDecision.ts（出口一处）。
+  'detection.detect': ['cwdHash', 'explicit', 'matches', 'pending', 'selection', 'origin', 'state', 'latencyMs', 'conflict'],
+  // 2026-10-14（#1048）新增按需 #98 `detection.step`：判定链每一步一行（看了哪一层、这一层什么结论、
+  //   花了多久、为什么），只在调试开关打开时记；结论线（常驻 #16）不开开关也有。字段五个，全是短枚举、
+  //   数字与后端标识，不记路径原文：step 哪一步（workspace-file / declaration / autodetect / claim-order）、
+  //   outcome 这一步的结论、backendId 这一步认下的后端（没有记空串）、ms 这一步花了多少毫秒、reason 为什么。
+  'detection.step': ['step', 'outcome', 'backendId', 'ms', 'reason'],
+  // 2026-10-14（#1131）新增按需 #99 `detection.cache.hit`：探测服务这一次没有重算，直接把上一次的
+  //   判定结果回给了调用方（命中了工作区缓存）。为什么定按需：每一次探测调用都可能落一行，属高频，
+  //   所以调用处先判一次调试开关（logCtx.isEnabled('debug') 为真才 fire），关闭时连字段对象都不组装；
+  //   不采样 —— 存储层那条 #17 workspaceStore.hit 有 1/100 采样，采样漏掉的那几趟正好是排查
+  //   「改色电话为什么拿到了旧结论」时最需要的，这一条把它补上。字段三个，全是散列、字符串与数字，
+  //   不记路径原文、不记后端内容：cwdHash 工作区键的短散列、caller 这一次是哪个调用方来问的
+  //   （例如 wf.listLabels、detection-service）、ageMs 这一格缓存存了多久（毫秒）。落点：
+  //   src/tracker/detection/detectionService.ts 的 detect 命中工作区缓存、直接返回上一次结果的那一支。
+  'detection.cache.hit': ['cwdHash', 'caller', 'ageMs'],
   'workspaceStore.hit': ['keyHash', 'fresh', 'ttlMs'],
   // 2026-09-25 登记订正（#709 · T5）：这一条的落点已经变成「被退避挡下，直接把上一份快照回给界面」，
   //   实现记的是 keyHash、lang、deferred、reason、waitMs 五个键；从前的 ageMs 早已不再发射，

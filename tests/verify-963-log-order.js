@@ -167,7 +167,9 @@ async function main() {
     for (const r of spy.rows) allEvents.add(r.event); }
   title('事件白名单：全程无新增事件名');
   { // 后四个是既有事件（core.ts/workspaceKey/workspaceRoot/choiceStore 里的原有埋点，本图没碰这些文件），不是本图新增。
-  const known = ['detection.detect', 'host.call.fail', 'chain.cache.hit', 'chain.cache.miss', 'dedup.hit', 'chain.preflight.reuse', 'chain.predicate', 'gh.exec', 'gh.timeout', 'error.normalize', 'skill.probe', 'skill.pending.cap', 'workspaceStore.miss', 'workspaceStore.hit', 'platform.resolve', 'registry.select', 'workspaceKey.canonical', 'workspaceRoot.resolve', 'choiceStore.read'];
+    // `detection.step` 是 #1048（2026-10-14）新增的按需步骤线：统一判定出口在有日志出口时逐层记一步
+    //   （哪一层看过、结论、认下谁、耗时、为什么），平时不发，调试开关打开才发；这里记的是它的埋点，不是本图新增。
+  const known = ['detection.detect', 'detection.step', 'host.call.fail', 'chain.cache.hit', 'chain.cache.miss', 'dedup.hit', 'chain.preflight.reuse', 'chain.predicate', 'gh.exec', 'gh.timeout', 'error.normalize', 'skill.probe', 'skill.pending.cap', 'workspaceStore.miss', 'workspaceStore.hit', 'platform.resolve', 'registry.select', 'workspaceKey.canonical', 'workspaceRoot.resolve', 'choiceStore.read'];
     const unknown = [...allEvents].filter((e) => !known.includes(e));
     console.log('  事件集合：' + [...allEvents].sort().join(', '));
     must(unknown.length === 0, '无新增事件名', unknown.join(',')); }

@@ -419,7 +419,20 @@ const SEED = [
   const { createRegistry } = await import('../src/tracker/registry/core.ts')
   const decModGh = await import('../src/tracker/detection/backendDecision.ts')
   try { decModGh.decideBackend.selectionFromOutlet = decModGh.selectionFromOutlet } catch (eAttachGh) {}
+  const detModGh = await import('../src/tracker/detection/detectionService.ts')
   const getDecisionFnGh = async () => ({ decideBackend: decModGh.decideBackend })
+  // #1131：改色电话的判定取数改走带缓存的探测服务，夹具照生产的接法把服务给上（同一个出口、同一个注册表）。
+  //   这一组要断言「这些外部命令都由标签配色这条链发起（via 是 label-colors）」，所以服务不递 exec：
+  //   预检一条命令都不发，via 不会被别的来路弄脏；工作区缓存给 null（不缓存，每次调用照旧真算一遍，
+  //   命令条数与改动前一致）。注册表经 deps 现取，换注册表的宿主（下面 host2）才拿的是它自己那一份。
+  const withDetSvcGh = (deps) => Object.assign(deps, {
+    getDetectionService: async () => detModGh.createDetectionService({
+      registry: await deps.getTrackerRegistry(),
+      getPlatform: deps.getPlatform,
+      workspaceStore: null,
+      decideBackend: decModGh.decideBackend,
+    }),
+  })
   const HOST_CWD = '/ws/gh-project'
   // #1138：判定出口只认工作区文件里那份记录（注册表里那份进程内绑定已整段删除），所以这里给它一份
   //   内存里的 docs/agents/workspace.yaml —— 等于「用户在这个工作区里选过 github」，而且不碰盘。
@@ -437,7 +450,7 @@ const SEED = [
   }
   const gh = makeGh({ labels: SEED })
   const vias = []
-  const ctxHost = {
+  const ctxHost = withDetSvcGh({
     ctx: { get: () => undefined },
     DEFAULT_CWD: HOST_CWD,
     // 假平台：真实平台有 resolveExecutable（后端解析 gh / git 都靠它），这里照它的形状给一份；
@@ -451,7 +464,7 @@ const SEED = [
     logCtx: { fire: () => {}, isEnabled: () => false },
     timer: { timeout: (fn, ms) => setTimeout(fn, ms) },
     detectionExec: async (cmd, args, opts, via) => { vias.push({ cmd: cmd, args: args, via: via }); return gh.ctx.exec(cmd, args) },
-  }
+  })
   const reg = createRegistry({ logEvent: () => {}, isEnabled: () => false }, { matchesTimeout: 200 })
   const d = reg.register(githubModule)
   // 用户选过 github，但**谁也不给 owner/name** —— 和真实工作区里「用户选定后端」那一步完全一样。
@@ -477,10 +490,10 @@ const SEED = [
   const d2 = reg2.register(githubModule)
   // 这个工作区「用户选过 github」那条记录由上面 wsFs 里的内存工作区文件提供
   //   （#1138 起人选的唯一载体；原来这里是一句 reg2.bind({cwd:'/ws/no-repo'},'github')，注册表那个口子已删）。
-  const host2 = createWorkspaceCwd(Object.assign({}, ctxHost, {
+  const host2 = createWorkspaceCwd(withDetSvcGh(Object.assign({}, ctxHost, {
     getTrackerRegistry: async () => reg2,
     detectionExec: async (cmd, args) => (cmd === 'git' ? noRemoteGh.ctx.exec(cmd, args) : { code: 1, stdout: '', stderr: 'HTTP 404: Not Found (https://api.github.com/repos/acme/demo)' }),
-  }))
+  })))
   const rNoRepo = await host2.handleListLabels({ cwd: '/ws/no-repo' })
   check(rNoRepo.ok === false && rNoRepo.error.kind === 'not-found' && String(rNoRepo.error.message).includes('未能确定这个工作区属于哪个 GitHub 仓库'), '认不出仓库时如实失败，并说清先配远端或先选定仓库（实得 ' + JSON.stringify(rNoRepo) + '）')
   d.dispose()
@@ -497,6 +510,17 @@ const SEED = [
   const decModGh2 = await import('../src/tracker/detection/backendDecision.ts')
   try { decModGh2.decideBackend.selectionFromOutlet = decModGh2.selectionFromOutlet } catch (eAttachGh2) {}
   const getDecisionFnGh = async () => ({ decideBackend: decModGh2.decideBackend })
+  // #1131：改色电话的判定取数改走带缓存的探测服务，夹具照生产的接法把服务给上（同一个出口、同一个注册表）。
+  //   同上一段：服务不递 exec（预检一条命令都不发），工作区缓存给 null（不缓存，每次调用照旧真算一遍）。
+  const detModGh2 = await import('../src/tracker/detection/detectionService.ts')
+  const withDetSvcGh2 = (deps) => Object.assign(deps, {
+    getDetectionService: async () => detModGh2.createDetectionService({
+      registry: await deps.getTrackerRegistry(),
+      getPlatform: deps.getPlatform,
+      workspaceStore: null,
+      decideBackend: decModGh2.decideBackend,
+    }),
+  })
   const HOST_CWD = '/ws/gh-and-markdown'
   // #1138：这一段里「用户在面板上选定 github」以前是 regBoth.bind(...)，今天那一步就是 wf.bind 把选择
   //   写进工作区文件 —— 唯一的一份记录。夹具用这张表当这个工作区的盘：一开始没有那份文件
@@ -505,7 +529,7 @@ const SEED = [
   const wsPath631 = HOST_CWD + '/docs/agents/workspace.yaml'
   const gh = makeGh({ labels: SEED })
   const vias = []
-  const ctxHost = {
+  const ctxHost = withDetSvcGh2({
     ctx: { get: () => undefined },
     DEFAULT_CWD: HOST_CWD,
     // 假平台：除了原来的两件，还挂一个假文件系统——GitHub 那侧的「这个目录是不是我的」
@@ -532,7 +556,7 @@ const SEED = [
     logCtx: { fire: () => {}, isEnabled: () => false },
     timer: { timeout: (fn, ms) => setTimeout(fn, ms) },
     detectionExec: async (cmd, args, opts, via) => { vias.push({ cmd: cmd, args: args, via: via }); return gh.ctx.exec(cmd, args) },
-  }
+  })
   const regBoth = createRegistry({ logEvent: () => {}, isEnabled: () => false }, { matchesTimeout: 200 })
   // 先注册另一个也认领这个工作区的后端：这样注册序排前面的赢家是它，不是 GitHub——
   // 于是下面「交给 github」这条断言就真的在证明「按面板说的走」，而不是碰巧撞上了注册序。

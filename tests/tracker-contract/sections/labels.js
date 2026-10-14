@@ -35,6 +35,7 @@ import { gitlabBackend } from '../../../src/tracker/rooms/gitlab/index.ts'
 import { githubModule } from '../../../src/tracker/rooms/github/index.ts'
 import { markdownModule } from '../../../src/tracker/rooms/markdown/index.ts'
 import { createWorkspaceCwd } from '../../../src/host/workspaceCwd.js'
+import { createDetectionService } from '../../../src/tracker/detection/detectionService.ts'
 import { decideBackend as decDecideBackend, selectionFromOutlet as decSelectionFromOutlet } from '../../../src/tracker/detection/backendDecision.ts'
 try { decDecideBackend.selectionFromOutlet = decSelectionFromOutlet } catch (eAttachDec) {}
 import nodePath from 'node:path'
@@ -639,13 +640,24 @@ export async function run() {
     const mkHost = (reg) => {
       const events = []
       const execVias = []
+      const hostPlatform = { path: nodePath.posix, getHome: async () => '/home/u', fs: workspaceFs }
       const host = createWorkspaceCwd({
         ctx: { get: () => undefined },
         DEFAULT_CWD: HOST_CWD,
-        getPlatform: async () => ({ path: nodePath.posix, getHome: async () => '/home/u', fs: workspaceFs }),
+        getPlatform: async () => hostPlatform,
         getTrackerRegistry: async () => reg,
         getWorkspaceStore: async () => ({ invalidate: () => {} }),
         getDecisionFn: async () => ({ decideBackend: decDecideBackend }),
+        // #1131：这两条电话的判定取数改走带缓存的探测服务，夹具照生产的接法把服务给上：
+        //   同一个注册表、同一份平台与文件服务，出口是同一份统一判定函数。这一组验的是回包形状与失败分档、
+        //   不验缓存，所以工作区缓存给 null（每次调用照旧真算一遍，与改动前的行为一致）。
+        getDetectionService: async () => createDetectionService({
+          registry: reg,
+          getPlatform: async () => hostPlatform,
+          getFs: () => workspaceFs,
+          workspaceStore: null,
+          decideBackend: decDecideBackend,
+        }),
         canonicalKey: async (c) => c,
         setCache: () => {},
         logCtx: { fire: (level, event, fields) => events.push({ level: level, event: event, fields: fields }), isEnabled: () => false },

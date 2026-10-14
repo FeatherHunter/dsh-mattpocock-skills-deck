@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-14T06:34:32.641Z",
+  "generatedAt": "2026-10-14T07:48:31.153Z",
   "generatedBy": "node scripts/gate-map.mjs",
-  "chainLength": 238,
-  "gateCount": 238,
-  "attributedGates": 210,
+  "chainLength": 240,
+  "gateCount": 240,
+  "attributedGates": 212,
   "unattributedGates": 28,
   "buildOutputOnlyGates": 20,
-  "graphFileCount": 525,
+  "graphFileCount": 527,
   "gates": [
     {
       "step": "node tests/verify-596-rpc-carrier.js",
@@ -764,7 +764,6 @@
         "examples/demo-mini/matches.js",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/github/normalize.ts",
-        "src/tracker/rooms/gitlab/normalize.js",
         "tests/tracker-contract/fixtures/compliant.js",
         "tests/tracker-contract/fixtures/demo.js",
         "tests/tracker-contract/fixtures/gitlab.js",
@@ -787,7 +786,6 @@
         "examples/demo-mini/fixtures/demo-real",
         "src/tracker/registry",
         "src/tracker/rooms/github",
-        "src/tracker/rooms/gitlab",
         "tests/tracker-contract",
         "tests/tracker-contract/fixtures",
         "tests/tracker-contract/runner",
@@ -795,7 +793,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 6 条；静态 import 说明符 16 条；源码里的路径字面量 1 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 5 条；静态 import 说明符 16 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-gitlab-single-write.js",
@@ -2081,6 +2079,21 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；静态 import 说明符 5 条；源码里的路径字面量 1 条"
     },
     {
+      "step": "node tests/verify-1144-markdown-issue-address.ts",
+      "file": "tests/verify-1144-markdown-issue-address.ts",
+      "guards": [
+        "src/tracker/registry/views.ts",
+        "src/tracker/rooms/markdown/index.ts"
+      ],
+      "dirs": [
+        "src/tracker/registry",
+        "src/tracker/rooms/markdown"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "reason": "归属来自：静态 import 说明符 2 条"
+    },
+    {
       "step": "node tests/verify-691-markdown-counts-page.js",
       "file": "tests/verify-691-markdown-counts-page.js",
       "guards": [
@@ -2140,6 +2153,7 @@
       "guards": [
         "src/host/workspaceCwd.js",
         "src/tracker/detection/backendDecision.ts",
+        "src/tracker/detection/detectionService.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/github/client.ts",
         "src/tracker/rooms/github/index.ts",
@@ -2154,7 +2168,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；静态 import 说明符 3 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 4 条；静态 import 说明符 3 条"
     },
     {
       "step": "node tests/verify-992-readonly-labels.js",
@@ -3682,9 +3696,7 @@
         "src/host/refresh/ledger.ts",
         "src/host/versionControl.js",
         "src/tracker/rooms/github/client.ts",
-        "src/tracker/rooms/gitlab/client.js",
         "src/tracker/rooms/gitlab/index.ts",
-        "src/tracker/rooms/gitlab/preflight.js",
         "tests/fixtures/gh-gateway",
         "tests/fixtures/gh-gateway/compliant.registry.json",
         "tests/fixtures/gh-gateway/violating.registry.json"
@@ -3700,7 +3712,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；源码里的路径字面量 11 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；源码里的路径字面量 9 条"
     },
     {
       "step": "node tests/verify-723-single-refresh-instance.js",
@@ -4307,7 +4319,6 @@
       "file": "tests/verify-957-workspace-writer.js",
       "guards": [
         "docs/agents",
-        "src/deck/registration/host-assemble.ts",
         "src/deck/shell/call-shell.ts",
         "src/deck/shell/workspace-anchor.ts",
         "src/host/refresh/gate.ts",
@@ -4319,7 +4330,6 @@
       ],
       "dirs": [
         "docs/agents",
-        "src/deck/registration",
         "src/deck/shell",
         "src/host",
         "src/host/refresh",
@@ -4328,7 +4338,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 9 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 8 条"
     },
     {
       "step": "node tests/verify-970-whole-document.js",
@@ -4662,7 +4672,8 @@
         "src/shared/refresh/budget.js",
         "src/shared/refresh/tool-cost.js",
         "src/tracker/detection/backendDecision.ts",
-        "src/tracker/detection/detectionService.ts"
+        "src/tracker/detection/detectionService.ts",
+        "src/tracker/detection/workspaceStore.ts"
       ],
       "dirs": [
         "docs/agents",
@@ -4674,7 +4685,7 @@
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；源码里的路径字面量 9 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；源码里的路径字面量 10 条"
     },
     {
       "step": "node tests/verify-1003-unified-decision.js",
@@ -4701,6 +4712,26 @@
       "unattributed": false,
       "buildOutputOnly": false,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；源码里的路径字面量 7 条"
+    },
+    {
+      "step": "node tests/verify-detection-evidence.ts",
+      "file": "tests/verify-detection-evidence.ts",
+      "guards": [
+        "docs/agents/issue-tracker.md",
+        "src/host/platformChannel.js",
+        "src/tracker/contract/contexts.ts",
+        "src/tracker/detection/backendDecision.ts",
+        "src/tracker/detection/parseIssueTracker.ts"
+      ],
+      "dirs": [
+        "docs/agents",
+        "src/host",
+        "src/tracker/contract",
+        "src/tracker/detection"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "reason": "归属来自：静态 import 说明符 3 条；源码里的路径字面量 2 条"
     },
     {
       "step": "node tests/verify-1003-migration.js",
@@ -4881,7 +4912,7 @@
         "src/tracker/error-rules.ts",
         "src/tracker/rooms",
         "src/tracker/rooms/github/errors.ts",
-        "src/tracker/rooms/gitlab/errors.js"
+        "src/tracker/rooms/gitlab/errors.ts"
       ],
       "dirs": [
         "docs/adr",
@@ -4904,7 +4935,6 @@
         "src/tracker/error-rules.ts",
         "src/tracker/preflight.ts",
         "src/tracker/rooms/github/errors.ts",
-        "src/tracker/rooms/gitlab/errors.js",
         "src/tracker/rooms/markdown"
       ],
       "dirs": [
@@ -4912,12 +4942,11 @@
         "src/tracker",
         "src/tracker/detection",
         "src/tracker/rooms/github",
-        "src/tracker/rooms/gitlab",
         "src/tracker/rooms/markdown"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
-      "reason": "归属来自：源码里的路径字面量 7 条"
+      "reason": "归属来自：源码里的路径字面量 6 条"
     },
     {
       "step": "node tests/verify-gate-map.js",
@@ -4993,6 +5022,7 @@
       "node tests/verify-957-workspace-writer.js",
       "node tests/verify-1003-single-outlet.js",
       "node tests/verify-1003-unified-decision.js",
+      "node tests/verify-detection-evidence.ts",
       "node tests/verify-1003-migration.js",
       "node tests/verify-1003-layout-in-file.js",
       "node tests/verify-gate-map.js"
@@ -5399,8 +5429,7 @@
       "node tests/verify-deck-no-hang.js",
       "node tests/verify-deck-tools-row-zero-dep.js",
       "node tests/verify-dependency-rules.ts",
-      "node tests/verify-927-gate-injection.js",
-      "node tests/verify-957-workspace-writer.js"
+      "node tests/verify-927-gate-injection.js"
     ],
     "src/deck/rules": [
       "node tests/verify-dependency-rules.ts",
@@ -5516,6 +5545,7 @@
       "node tests/verify-settings-templates.js",
       "node tests/verify-settings-debug.js",
       "node tests/verify-1003-single-outlet.js",
+      "node tests/verify-detection-evidence.ts",
       "node tests/verify-1003-migration.js",
       "node tests/verify-1003-no-cwd-masquerade.js",
       "node tests/verify-1003-layout-in-file.js",
@@ -5759,6 +5789,7 @@
       "node tests/verify-544-standalone-blocked.js",
       "node tests/verify-issue195.js",
       "node tests/verify-contract-types.js",
+      "node tests/verify-detection-evidence.ts",
       "node tests/verify-error-single-source.ts",
       "node tests/verify-error-rule-samples.ts"
     ],
@@ -5775,6 +5806,7 @@
       "node tests/verify-957-workspace-writer.js",
       "node tests/verify-1003-single-outlet.js",
       "node tests/verify-1003-unified-decision.js",
+      "node tests/verify-detection-evidence.ts",
       "node tests/verify-error-normalize-log.ts"
     ],
     "src/tracker/registry": [
@@ -5790,6 +5822,7 @@
       "node tests/verify-971-markdown-parent.js",
       "node tests/verify-golden-receipts.ts",
       "node tests/verify-dependency-rules.ts",
+      "node tests/verify-1144-markdown-issue-address.ts",
       "node tests/verify-github-label-colors.js",
       "node tests/verify-992-readonly-labels.js",
       "node tests/verify-929-batch-cycle.js",
@@ -5837,7 +5870,6 @@
       "node tests/verify-error-normalize-log.ts"
     ],
     "src/tracker/rooms/gitlab": [
-      "node tests/verify-tracker-contract.js",
       "node tests/verify-gitlab-single-write.js",
       "node tests/verify-deck-tools-matrix.js",
       "node tests/verify-no-mixed-session.js",
@@ -5845,8 +5877,7 @@
       "node tests/verify-gh-gateway.js",
       "node tests/verify-ui-description-single-source.ts",
       "node tests/verify-error-raw-samples.ts",
-      "node tests/verify-error-rule-samples.ts",
-      "node tests/verify-error-normalize-log.ts"
+      "node tests/verify-error-rule-samples.ts"
     ],
     "src/tracker/rooms/markdown": [
       "node tests/verify-deck-tools.js",
@@ -5856,6 +5887,7 @@
       "node tests/verify-971-markdown-parent.js",
       "node tests/verify-golden-receipts.ts",
       "node tests/verify-markdown-backend.js",
+      "node tests/verify-1144-markdown-issue-address.ts",
       "node tests/verify-691-markdown-counts-page.js",
       "node tests/verify-markdown-label-colors.js",
       "node tests/verify-922-ticket-file-queue.js",
@@ -6011,9 +6043,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 534,
+    "fileCount": 536,
     "dirCount": 50,
-    "coveredFileCount": 534,
+    "coveredFileCount": 536,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 49,
@@ -6452,6 +6484,7 @@
       "src/shared/version-control/write-ticket.js",
       "src/shared/workspaceKey.js",
       "src/tracker/body-parse.ts",
+      "src/tracker/capability-assertions.ts",
       "src/tracker/contract/README.md",
       "src/tracker/contract/backend-module.ts",
       "src/tracker/contract/canonical-labels.ts",
@@ -6513,20 +6546,20 @@
       "src/tracker/rooms/github/repo.ts",
       "src/tracker/rooms/github/roster.ts",
       "src/tracker/rooms/github/sub-issues.ts",
-      "src/tracker/rooms/gitlab/client.js",
-      "src/tracker/rooms/gitlab/comments.js",
-      "src/tracker/rooms/gitlab/create-write.js",
-      "src/tracker/rooms/gitlab/errors.js",
-      "src/tracker/rooms/gitlab/graph-blocking.js",
-      "src/tracker/rooms/gitlab/graph-membership.js",
-      "src/tracker/rooms/gitlab/graph.js",
-      "src/tracker/rooms/gitlab/idempotency.js",
+      "src/tracker/rooms/gitlab/client.ts",
+      "src/tracker/rooms/gitlab/comments.ts",
+      "src/tracker/rooms/gitlab/create-write.ts",
+      "src/tracker/rooms/gitlab/errors.ts",
+      "src/tracker/rooms/gitlab/graph-blocking.ts",
+      "src/tracker/rooms/gitlab/graph-membership.ts",
+      "src/tracker/rooms/gitlab/graph.ts",
+      "src/tracker/rooms/gitlab/idempotency.ts",
       "src/tracker/rooms/gitlab/index.ts",
-      "src/tracker/rooms/gitlab/issues.js",
-      "src/tracker/rooms/gitlab/labels.js",
-      "src/tracker/rooms/gitlab/normalize.js",
-      "src/tracker/rooms/gitlab/preflight.js",
-      "src/tracker/rooms/gitlab/queries.js",
+      "src/tracker/rooms/gitlab/issues.ts",
+      "src/tracker/rooms/gitlab/labels.ts",
+      "src/tracker/rooms/gitlab/normalize.ts",
+      "src/tracker/rooms/gitlab/preflight.ts",
+      "src/tracker/rooms/gitlab/queries.ts",
       "src/tracker/rooms/markdown/comments.ts",
       "src/tracker/rooms/markdown/counts.ts",
       "src/tracker/rooms/markdown/error-fail.ts",
@@ -6551,6 +6584,7 @@
       "src/tracker/rooms/markdown/read.ts",
       "src/tracker/rooms/markdown/write-queue.ts",
       "src/tracker/rooms/markdown/write.ts",
+      "src/tracker/tsconfig.json",
       "src/tracker/ui-description.ts"
     ],
     "guardedDirs": [

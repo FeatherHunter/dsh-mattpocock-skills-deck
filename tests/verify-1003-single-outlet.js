@@ -69,6 +69,7 @@ async function main() {
   const decMod = await imp('src/tracker/detection/backendDecision.ts');
   const anchorMod = await imp('src/deck/shell/workspace-anchor.ts');
   const detMod = await imp('src/tracker/detection/detectionService.ts');
+  const wsStoreMod = await imp('src/tracker/detection/workspaceStore.ts');
   const lcMod = await imp('src/host/workspaceLabelColors.js');
   const { decideBackend } = decMod;
   // 映射函数挂判定函数上整包递（与生产装配点同形，见 platformChannel.getDecisionFn）
@@ -92,16 +93,18 @@ async function main() {
       try { return anchorMod.parseWorkspaceFile(txt) } catch (e) { return null }
     },
   });
-  const lcOf = (reg, fss, mem) => lcMod.createWorkspaceLabelColors({
+  // 改色电话的依赖：生产由 src/host/workspaceCwd.js 的 labelColorsPhones 显式递进来（本文件 :220）。
+  //   #1131 起它的判定取数不再直调出口，而是经带缓存的探测服务（同一条工作区那份缓存），所以夹具照生产的接法
+  //   把「同一个出口 + 同一份探测服务」给上；第 4 个参数是给 S6 用的：要验缓存时递一份带真缓存的探测服务。
+  const lcOf = (reg, fss, mem, svc) => lcMod.createWorkspaceLabelColors({
     normCwd: async (r) => r,
     getTrackerRegistry: async () => reg,
     getPlatform: async () => ({ fs: fss, path: path }),
-    ctx: { get: (k) => (k === 'fs' ? fss : undefined) },
     opCtxFor: () => ({}),
     resolveSandboxPolicy: () => ({ policy: undefined, sessionId: '' }),
     // 测的就是出口这条路（生产由平台经工作区入口递进来，这里直递同一函数）
     getDecisionFn: async () => ({ decideBackend: decMod.decideBackend }),
-    getChoiceStore: async () => ({ getWorkspace: async () => (mem || { ok: true, found: false }) }),
+    getDetectionService: async () => svc || detOf(reg, fss, mem),
   });
   const detOf = (reg, fss, mem) => detMod.createDetectionService({
     registry: reg,
@@ -211,6 +214,54 @@ async function main() {
     check(d.selection && d.selection.backendId === null, 'S5 探测服务同样不再拿记忆回答', JSON.stringify(d.selection));
     check(l.ok === false, 'S5 改色电话（列标签）同样不再拿记忆回答：如实说这个工作区还没选定后端', JSON.stringify(l).slice(0, 200));
     check(asked === 0, 'S5 判定链一次都没去读记忆库（记录留在机器上不删，但判定不再问它）', 'asked=' + asked);
+  }
+
+  // —— S6（#1131）：同一个工作区连着两次改色，第二次吃缓存，判定链一行都不重跑 ——
+  //   本票交付的核心就是这一条：改色电话与面板、deck 工具问的是同一件事，就该吃同一份结论，
+  //   而「有没有吃到缓存」不许靠反推——按需日志里要有一行写着谁问的 detection.cache.hit。
+  {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'v1003s6-'));
+    const dir = path.join(tmp, 'warm');
+    fs.mkdirSync(path.join(dir, 'docs', 'agents'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'README.md'), 'non-empty\n');
+    // 人选：工作区文件里写着 github（改色电话的写用途认的就是这一份「人亲手选过」的记录）
+    fs.writeFileSync(path.join(dir, 'docs', 'agents', 'workspace.yaml'), 'version: 2\nbackendId: github\npickedAt: 1\nsource: user\n');
+    const fss = makeFs();
+    const regBase = regOf(async () => ({ backendId: null, source: 'fallback' }));
+    const reg = Object.assign({}, regBase, { get: () => fakeTracker() });
+    const events = [];
+    const logCtx = { isEnabled: () => true, fire: (level, event, fields) => events.push({ level: level, event: event, fields: fields }) };
+    const store = wsStoreMod.createWorkspaceStore({ ttl: 30000, logCtx: logCtx });
+    // 数一数判定出口真跑了几次：第二次吃缓存的话，它就只该是一。
+    let decided = 0;
+    const countedDecide = function (...a) { decided += 1; return decMod.decideBackend.apply(null, a); };
+    try { countedDecide.selectionFromOutlet = decMod.selectionFromOutlet } catch (eAttachCounted) {}
+    const svc = detMod.createDetectionService({
+      registry: reg,
+      getPlatform: async () => ({ fs: fss, path: path }),
+      getFs: () => fss,
+      workspaceStore: store,
+      getChoiceStore: async () => ({ getWorkspace: async () => ({ ok: true, found: false }) }),
+      logCtx: logCtx,
+      decideBackend: countedDecide,
+    });
+    const phone = lcOf(reg, fss, undefined, svc);
+    const l1 = await phone.handleListLabels({ cwd: dir });
+    const l2 = await phone.handleListLabels({ cwd: dir });
+    check(l1.ok === true && l2.ok === true && l1.backendId === 'github' && l2.backendId === 'github',
+      'S6 同一个工作区连着两次列标签都回 github（第一次算出来，第二次吃缓存）', JSON.stringify([l1, l2]).slice(0, 200));
+    check(decided === 1, 'S6 判定出口只跑了一次：第二次没有重跑判定链（工作区文件、声明文件、自动识别都没再问一遍）', 'decided=' + decided);
+    const hits = events.filter((e) => e.event === 'detection.cache.hit');
+    check(hits.length === 1 && hits[0].fields && hits[0].fields.caller === 'wf.listLabels',
+      'S6 命中缓存这件事在按需日志里看得见：一行 detection.cache.hit，并写着是 wf.listLabels 问的', JSON.stringify(hits));
+    check(events.some((e) => e.event === 'workspaceStore.miss'),
+      'S6 第一次是真算的（存储层记了一行没有可用结论），不是两次都白吃', events.map((e) => e.event).join(','));
+    const dPlain = await svc.detect({ cwd: dir }, { skipSkillProbes: true });
+    check(!Object.prototype.hasOwnProperty.call(dPlain, 'outlet'),
+      'S6 边界：不提 withOutlet 的调用方（面板那条路）拿到的结果不带出口原话，对外返回结构不变', Object.keys(dPlain).join(','));
+    const dOut = await svc.detect({ cwd: dir }, { skipSkillProbes: true, withOutlet: true });
+    check(dOut.outlet && dOut.outlet.canWrite === true,
+      'S6 边界：明确要原话的那一路（改色电话）拿得到带 canWrite 的判定原话', JSON.stringify(dOut.outlet).slice(0, 160));
   }
 
   console.log(failed ? `\nFAIL（${total} 条）` : `\n全部通过（${total} 条）`);

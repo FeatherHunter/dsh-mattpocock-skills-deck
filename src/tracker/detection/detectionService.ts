@@ -131,6 +131,21 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
   // skillProbe 为可选：未注入时返回空技能集（正交，复用 host probeSkill 旧逻辑但不在二联版强依赖）
   const probeSkills = typeof skillProbe === 'function' ? skillProbe : async () => ({ ok: true, missing: [], probes: {} })
 
+  /**
+   * #1131：判定出口上一次的「原话」，按工作区另存一份，只交给明确要素材的调用方（改色电话）。
+   *
+   * 为什么改色电话要素材：`selectionFromOutlet` 交出去的永远只有五个字段（backendId / source / ref /
+   *   multiHit / pending，见 backendDecision.ts 那一段注释），出口原话里的 `canWrite`（这一次的结论算不算
+   *   「人亲手选过」）不在里面，而改色电话的写用途正是按它决定放不放行。从前它自己直调出口，原话当场就有；
+   *   现在它改吃这份带缓存的探测结果，就得把原话一并留着，分档依据不许自己再推一遍。
+   * 为什么不塞进 detect 的返回或缓存条目里：wf.detect 那条电话把整个结果摊开回给客户端
+   *   （src/host/detectChain.ts 的 `{ ok: true, ...res }`），塞进去等于把内部判定细节变成对外结构——
+   *   本票边界写明「不动对外返回结构」。所以另存一份，只有带 `withOutlet: true` 来问的那一路拿得到。
+   * 读得到的前提与缓存一致：这一份与 store 的写入发生在同一处、同一个键；store 里没有可用条目时，
+   *   detect 根本走不到「回原话」那一步，所以过了期的原话不会被读走。
+   */
+  const outletByKey = new Map()
+
   async function detect(handle, opts = {}) {
     // #709（T5 补）一次评估里环境预检只花一次：调用方可以为自己这一次求值交来一个「外部命令执行器」，
     //   本函数这一整轮（含下面那次 preflight）都用它。检查链那边交来的是一个包过的执行器，
@@ -152,6 +167,12 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
       return { handle: { cwd: '' }, selection: null, repoHandle: { cwd: '', refId: '' }, explicit: { raw: null, parsed: { explicitBackendId: null, rawHint: '', confidence: 'none', reason: 'empty-cwd' } }, preflight: null, skillProbes: null, at: Date.now(), rev: 0, fromHint: false, choiceSource: 'empty-cwd' };
     }
     const force = !!opts.force
+    // #1131：这一次是谁来问的（改色电话填 wf.listLabels / wf.setLabelColors）。判定出口的 ctx、
+    //   自动识别那一步的 ctx 与「命中缓存」那一行日志都用它；没给就按本服务的名字记。默认值只留这一处：
+    //   从前它在两处硬编码，任何新调用方都会被记成「探测服务自己问的」，事后分不清是谁引发的重算。
+    const caller = (typeof opts.caller === 'string' && opts.caller) ? opts.caller : 'detection-service'
+    // #1131：只有明确要素材的调用方（改色电话）能拿到判定出口的原话，见上面 outletByKey 的说明。
+    const wantOutlet = opts.withOutlet === true
     const platform = getPlatform ? await getPlatform() : null
     const fs = getFs ? getFs() : (platform && platform.fs) || null
     const timers = getTimers ? getTimers() : null
@@ -187,6 +208,22 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
           if (isStale) {
             try { store.invalidate(handle) } catch {}
           } else {
+            // #1131：命中缓存——这一次不重跑判定链（工作区文件、声明文件、自动识别一次都不问），
+            //   直接把上一份结论回给调用方。按需日志记一行：谁问的、哪条工作区、这一格存了多久，
+            //   让「改色电话到底吃没吃到缓存」这类问题不用靠反推（存储层那条 workspaceStore.hit 是
+            //   1/100 采样，看不准是哪一路问的、也看不见调用方）。
+            try {
+              if (logCtx && logCtx.isEnabled('debug')) {
+                logCtx.fire('debug', 'detection.cache.hit', { cwdHash: hash8(cwd), caller: caller, ageMs: Date.now() - (Number(cached.at) || 0) })
+              }
+            } catch (eL) {}
+            // 出口原话与这份缓存同一次写入（见下面 store.set 那一处），这里按键取回；取不到就回 null，
+            //   由调用方按「这一次没拿回判定结果」如实分档（不猜，也不退回第二套判定）。
+            if (wantOutlet) {
+              let raw = null
+              try { raw = outletByKey.has(store.handleKey(handle)) ? outletByKey.get(store.handleKey(handle)) : null } catch (eK) {}
+              return Object.assign({}, cached, { outlet: raw })
+            }
             return cached
           }
         }
@@ -208,6 +245,9 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
     let choiceRev = 0
     const choiceFromHint = false
     let choiceSource = ''
+    // #1131：出口这一次的原话（带 canWrite 的那一份完整答案），命中缓存时要连同缓存一起回给改色电话，
+    //   所以才要按工作区留一份（见 outletByKey 的说明）。出口没装或抛错时它保持 null，调用方如实分档。
+    let outletAnswer = null
     if (useOutlet) {
       // 补全点之一：从这几行往下，opCtx 一定带 `caller`（调用方给了就用调用方的，
       // 没给就填 `detection-service`），形状见契约里的 `EnrichedOpContext`。下游只许读，不许再改。
@@ -219,7 +259,12 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
       }
       // #1003 契约（2026-10-12）：判定链里已没有「本机记忆」这一层，所以这里也不再为它算「工作区是否已空」，
       //   更不往出口递记忆口子（getChoiceStore）——出口已经不读它了。
-      const o = await useOutlet(cwd, { registry: registry, platform: platform, fs: fs, caller: 'detection-service', signal: opts.signal, autodetect: autoHook }).catch(function () { return null })
+      // #1048：把日志出口一并递给统一判定出口 —— 结论线（常驻 detection.detect）与步骤线（按需
+      //   detection.step）都在出口那一处发，四条路（面板、deck 工具、改色电话、探测服务）因此说同一件事。
+      //   以前是面板那条路自己在 src/host/detectChain.ts 里补发一条结论，出口这一层什么也不记；
+      //   出口发得出之后，那条重复的已删。日志出口是可选的：这里没有（平台层没递）就只是留不下轨迹，判定照做。
+      const o = await useOutlet(cwd, { registry: registry, platform: platform, fs: fs, caller: caller, signal: opts.signal, autodetect: autoHook, logCtx: logCtx }).catch(function () { return null })
+      outletAnswer = o || null
       const mapped = (useOutlet.selectionFromOutlet && o) ? useOutlet.selectionFromOutlet(o, describeOf) : null
       if (mapped && mapped.backendId) {
         selection = mapped
@@ -291,9 +336,19 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
     if (store && selection && !selection.pending) {
       const pf2 = result.preflight
       const isEnvFail2 = pf2 && !pf2.ok && pf2.error && pf2.error.kind === 'env'
-      if (!isEnvFail2) { try { result.fileMs = await workspaceFileMs(cwd, platform); store.set(handle, result) } catch {} }
+      if (!isEnvFail2) {
+        try {
+          result.fileMs = await workspaceFileMs(cwd, platform)
+          store.set(handle, result)
+          // #1131：与这份缓存同一次写入出口原话（同一个键）——以后命中这一格时，要素材的调用方
+          //   （改色电话）才能拿回「同一次」的判定原话，而不是自己重算一份可能不一样的。
+          try { outletByKey.set(store.handleKey(handle), outletAnswer) } catch (eK) {}
+        } catch {}
+      }
     }
-    return result
+    // #1131：素材只给明确要的那一路（改色电话）。其余调用方拿到的仍是原来那个形状，
+    //   wf.detect 那条 `{ ok: true, ...res }` 也就不会多出键来（本票边界：不动对外返回结构）。
+    return wantOutlet ? Object.assign({}, result, { outlet: outletAnswer }) : result
   }
 
   return { detect, handleKey: (h) => (h.cwd || h.refId || String(h)) }

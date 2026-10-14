@@ -48,7 +48,9 @@ export function createDetectChain(deps) {
       try {
         const svc = await getDetectionService()
         const res = await svc.detect({ cwd }, { force }) // 上报已退役不传：刚选的经写入口直达文件，本轮即读到
-        try { if (logCtx) logCtx.fire('info', 'detection.detect', { cwdHash: hash8(cwd), explicit: !!((res && res.selection && res.selection.source === 'explicit')), pending: !!((res && res.selection && res.selection.pending)), selection: String((res && res.selection && res.selection.backendId) || '') }) } catch (eL) {}
+        // #1048：结论线（常驻 #16 `detection.detect`）已挪到统一判定出口 `src/tracker/detection/backendDecision.ts`
+        //   一处发出 —— 出口经探测服务拿到日志出口（`detectionService` 把 `logCtx` 递进去），四条路因此说同一件事。
+        //   这里原来补发的那一条已删：同一次判定只该有一条结论，两条只是把同一件事记两遍。
         // 对抗式：ensure DetectionResult 形态（含 selection/pending/multiHit，按 #125）
         return { ok: true, ...res }
       } catch (e) {
