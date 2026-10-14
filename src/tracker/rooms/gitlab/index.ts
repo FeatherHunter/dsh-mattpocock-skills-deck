@@ -2,7 +2,8 @@
  * src/tracker/rooms/gitlab/index.ts — GitLab 后端适配器（主缝实现），本文件是这个房间的 TypeScript 真源。
  *
  * 定版：#135（labels/milestone分流）+ #144 一页纸（数据归一8文件表 + blocking双路径 + preflight + parentKey归一 + 三底座）
- * 严格对照 contract.js 13操作集（OPERATIONS）与 shape.js；按 #113 平台抽象（ctx.platform / ctx.exec / ctx.fs）。
+ * 严格对照契约名录（`../../contract/operations-catalog.ts` 的 22 条操作 + 3 条定位口）与实体形状；
+ * 按 #113 平台抽象（ctx.platform / ctx.exec / ctx.fs）。
  * 能力诚实：未就绪op由registry Proxy补unsupported桩，此处不再自造布尔capabilities表。
  *
  * 2026-10-14 从 index.js 改名成 index.ts（地图 06 的单房票 #1135，先修后转两次提交里的后一次），
@@ -26,13 +27,20 @@ import { listIssues, getIssue, createIssue, closeIssue, reopenIssue, updateIssue
 import { addComment } from './comments.js'
 import { setLabels } from './labels.js'
 import { getDependencies, setBlockedBy, setParent, setAssignees } from './graph.js'
+import { getRepoKey } from './repo.js'
+import { counts } from './counts.js'
+import { listPage } from './pages.js'
+import { listLabels, setLabelColors } from './labels-ops.js'
+import { getCurrentUser, getRepoPermissions } from './identity-ops.js'
+import { listSubIssues } from './sub-issues.js'
+import { initProject } from './init-project.js'
 import type { ProvidedCapability } from '../../contract/capability-answer.js'
 // `import type` 取登记数据：转译后不留运行时引用（理由与 GitHub 房那处相同，见 rooms/github/backend.ts）。
 import type { GITLAB_CAPABILITY_REGISTER } from './capability-register.js'
 
-// —— GitLab 交出来的成员：15 条能力 + id（13 条操作 + describe/issueAddress；其余 10 条今天没做）——
-// 这份集合不再手写，从本房的登记数据推出来：「明确提供功能」的名字才是实例成员；登记里那 10 条
-// 「未来会开发」因此不会出现在这里（它们由注册表按名录补桩）。
+// —— GitLab 交出来的成员：24 条能力 + id（21 条操作 + describe/issueAddress/getRepoKey 三条定位口）——
+// 这份集合不再手写，从本房的登记数据推出来：「明确提供功能」的名字才是实例成员；登记里那 1 条
+// 「明确不支持」（ensureLabelColorsFile）因此不会出现在这里（它由注册表按名录补桩）。
 // 为什么集合与形状住在房间文件里（而不是判定文件）：判定收在 src/tracker/capability-assertions.ts，
 // 而判定必须 import 三个工厂的类型；形状若跟判定同住一处，两边就成了 type-only 的环（#1136 把
 // src/tracker 收进门禁扫描域时当场抓到）。方向单向：判定文件 → 房间。
@@ -163,12 +171,19 @@ export const links = {
 }
 
 /**
- * 创建 GitLab 后端适配器（今天实现了 13 条操作 + 2 条定位口，其余交给注册表补桩）。
+ * 创建 GitLab 后端适配器（今天交 24 条：21 条操作 + 3 条定位口；剩下 1 条由注册表补桩）。
  *
  * 返回类型故意不标（理由同 GitHub 房：标成成员全可选的集合就查不出少写，
  * 形状判定收在 `src/tracker/capability-assertions.ts`）：没实现的那些操作由注册表补「我不支持」的桩。
- * 本后端今天的边界是「13 条操作 + describe/issueAddress 两条定位口」——
- * 计数、分页、标签配色、当前登录人、初始化发布、仓库写权限、子票、配色文件这几条都还没做。
+ * 本后端今天的边界是「21 条操作 + describe / issueAddress / getRepoKey 三条定位口」——
+ * 唯一没实现的是 `ensureLabelColorsFile`，而且它**不是欠账**：这一条在本后端上形态不成立
+ * （颜色真源在远端仓库标签，工作区里那份文件没有读者，改了不算数），登记为「明确不支持」，
+ * 理由见 `./capability-register.ts` 那一行的注释与 `docs/tracker/capability-gitlab.md`。
+ *
+ * 地图 10（`#1062`）本轮补的九条在这里各占一行，实现在房内各自的文件：
+ * 计数 `./counts.ts`、分页 `./pages.ts`、列标签与批量改色 `./labels-ops.ts`、
+ * 当前登录人与仓库写权限 `./identity-ops.ts`、子票 `./sub-issues.ts`、开仓发布 `./init-project.ts`、
+ * 仓库坐标 `./repo.ts`。接手的人先读 `./README.md`（这一房与另外两房不一样的地方）。
  */
 export function createGitlabBackend(ctx: BackendContext) {
   // 原文给这次被拒的操作名（这条支路一个请求都没发，没有远端回包可取）。
@@ -179,6 +194,7 @@ export function createGitlabBackend(ctx: BackendContext) {
     id: 'gitlab',
     describe: (handle) => describe(handle, 'gitlab'),
     issueAddress: (ref, key) => issueAddress(ref, key),
+    getRepoKey: (cwd, opCtx) => getRepoKey(cwd, opCtx || ctx),
     preflight: (handle, opCtx) => glabPreflight(handle, opCtx || ctx),
     list: (repo, filter, opCtx) => listIssues(ctx, repo, filter, opCtx || ctx),
     get: (repo, key, opts, opCtx) => getIssue(ctx, repo, key, opts, opCtx || ctx),
@@ -192,6 +208,19 @@ export function createGitlabBackend(ctx: BackendContext) {
     setAssignees: (repo, key, assignees, opts, opCtx) => setAssignees(ctx, repo, key, assignees, opts, opCtx || ctx),
     setParent: (repo, key, parentKey, opts, opCtx) => setParent(ctx, repo, key, parentKey, opts, opCtx || ctx),
     setBlockedBy: (repo, key, blockers, opts, opCtx) => setBlockedBy(ctx, repo, key, blockers, opts, opCtx || ctx),
+    // —— 地图 10（#1062）本轮补的九条 ——
+    // 这几条的实现在房内自己的文件里，签名是「ctx 收在最后一格」（与上面那十几条「ctx 在头一格」不同），
+    // 所以这里直接透传，不再往前面塞 ctx。
+    counts: (repo, filter, opCtx) => counts(repo, filter, opCtx || ctx),
+    listPage: (repo, filter, opts, opCtx) => listPage(repo, filter, opts, opCtx || ctx),
+    listLabels: (repo, opCtx) => listLabels(repo, opCtx || ctx),
+    setLabelColors: (repo, changes, opCtx) => setLabelColors(repo, changes, opCtx || ctx),
+    getCurrentUser: (repo, opCtx) => getCurrentUser(repo, opCtx || ctx),
+    getRepoPermissions: (repo, opCtx) => getRepoPermissions(repo, opCtx || ctx),
+    // 子票这一条读的是本房 setParent 写下的 relates_to 平级链接，不是原生子票：
+    // 它回答的是「挂在这张地图上的票」，且分不出人手工加的关联。详见 ./sub-issues.ts 文件头。
+    listSubIssues: (repo, mapKey, opts, opCtx) => listSubIssues(repo, mapKey, opts, opCtx || ctx),
+    initProject: (handle, input, opCtx) => initProject(handle, input, opCtx || ctx),
   } satisfies GitlabBackendShape
 }
 

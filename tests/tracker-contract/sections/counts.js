@@ -227,11 +227,16 @@ export async function run() {
     const GOOD = { data: { repository: { openIssues: { totalCount: 31 }, closedIssues: { totalCount: 649 } } } }
     const probeCtx = (ghPayload, opts) => ({ cwd: '/ws/fake', platform: { resolveExecutable: async (n) => (n === 'gh' ? 'gh' : null) }, exec: mkScriptedGh(ghPayload, opts), isEnabled: () => false, logEvent: () => {} })
 
+    //   2026-10-14 改动（地图 10 / #1062）：GitLab 后端这一轮真实现了 counts，所以这一段不再要求它
+    //   「落到做不到的桩」。改成验另一件事，判据一个字没放宽：**这条能力确实挂上去了（不再是注册表
+    //   补的桩），并且在没有 glab 运行时的上下文里如实失败**——这一段的 ctx 只有 logEvent 与
+    //   isEnabled，没有 platform、没有 exec。补的桩回 kind=unsupported，真实现回的是环境类失败，
+    //   两者分得开，所以「是不是桩」这件事仍然可判。
     for (const rb of [{ id: 'gitlab', mod: gitlabBackend }]) {
       const regReal = createRegistry({ logEvent: () => {}, isEnabled: () => false }, { matchesTimeout: 200 })
       const d = regReal.register(rb.mod)
       const r = await regReal.get(rb.id).counts(ref(rb.id), {}, ctx)
-      await assert('真实 ' + rb.id + ' 后端：counts 自动落到「做不到」（不碰它一行代码）', unsupportedAnswerCheck('counts', r).length === 0, unsupportedAnswerCheck('counts', r).join('；') || JSON.stringify(r))
+      await assert('真实 ' + rb.id + ' 后端：能力已挂上（不再是补的桩），且没有 glab 运行时时如实失败', r && r.ok === false && r.error && typeof r.error.kind === 'string' && r.error.kind !== 'unsupported' && typeof r.error.message === 'string' && r.error.message.trim().length > 0, JSON.stringify(r))
       d.dispose()
     }
 

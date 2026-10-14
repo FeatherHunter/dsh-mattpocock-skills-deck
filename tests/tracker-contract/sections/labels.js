@@ -17,7 +17,8 @@
  *                       配色文件里的 ∪ 内置默认那些」的并集，改色只改文件里已有的标签。
  *
  * 另外三段不是对着假身自说自话，而是对着真实的东西断言：
- *   一之二 · 真实 GitLab 后端模块：首期一行不改，注册表自动给它补桩，两条操作落到「做不到」。
+ *   一之二 · 真实 GitLab 后端模块：两条操作已由地图 10（#1062）真实现（2026-10-14 起），
+ *            所以这一段验的是「确实挂上去了、不再靠注册表补桩，且没有运行环境时如实回报」。
  *   五     · 真实 GitHub 与本地 Markdown 后端模块（#627 二次整改 P1）：把两个真实模块注册进注册表真调用，
  *            要求它们**要么诚实地说做不到（unsupported），要么把这一条操作做到契约要求**（列表形状检查器
  *            与逐条记账检查器全过）。今天两个后端都还没实现这两条操作，所以走「诚实地说做不到」；
@@ -367,14 +368,30 @@ export async function run() {
     d.dispose()
   }
 
-  // ── 一之二、真实 GitLab 后端模块：这一轮一行不改，两条操作自动落到「做不到」 ──
+  // ── 一之二、真实 GitLab 后端模块：这一轮两条操作都真实现了，不再落到「做不到」的桩 ──
+  //   2026-10-14 改动（地图 10 / #1062）：这一段原来断言 GitLab「一行不改、两条操作自动落到做不到」。
+  //   现在这一房真实现了 listLabels 与 setLabelColors，于是改验另一件事，判据一个字没放宽：
+  //   **先证明它不再是补的桩**（桩的回答恰好满足 unsupportedAnswerCheck，实得不是），
+  //   **再证明它在没有 glab 运行时的上下文里如实回报**——这里的 ctx 只有 cwd，没有 platform、没有 exec。
+  //   补的桩回 kind=unsupported；真实现回的是环境类失败，或者改色那一条按「逐条记账」回报部分成功。
   {
     const d = reg.register(gitlabBackend)
     const tracker = reg.get('gitlab')
     const rl = await tracker.listLabels(ref('gitlab'), ctx)
     const rs = await tracker.setLabelColors(ref('gitlab'), [{ name: 'bug', color: '9d7cd8' }], ctx)
-    await assert('真实 gitlab 后端：listLabels 自动落到「做不到」（不碰它一行代码）', unsupportedAnswerCheck('listLabels', rl).length === 0, unsupportedAnswerCheck('listLabels', rl).join('；') || JSON.stringify(rl))
-    await assert('真实 gitlab 后端：setLabelColors 自动落到「做不到」', unsupportedAnswerCheck('setLabelColors', rs).length === 0, unsupportedAnswerCheck('setLabelColors', rs).join('；') || JSON.stringify(rs))
+    const isStubAnswer = (res) => unsupportedAnswerCheck('listLabels', res).length === 0
+    const honestFailure = (res, op) => !!res && res.ok === false && !!res.error && typeof res.error.kind === 'string' && res.error.kind !== 'unsupported' && typeof res.error.message === 'string' && res.error.message.trim().length > 0 && !isStubAnswer(res)
+    const batchBookkeeping = (res) => !!res && res.ok === true && !!res.data && Array.isArray(res.data.applied) && Array.isArray(res.data.failed) && res.data.applied.length + res.data.failed.length === 1
+    await assert(
+      '真实 gitlab 后端：listLabels 已挂上（不再是补的桩），且没有 glab 运行时时如实失败',
+      !isStubAnswer(rl) && honestFailure(rl, 'listLabels'),
+      JSON.stringify(rl)
+    )
+    await assert(
+      '真实 gitlab 后端：setLabelColors 已挂上（不再是补的桩），回报形状合规（逐条恰好记账一次，或如实失败）',
+      !isStubAnswer(rs) && (batchBookkeeping(rs) || honestFailure(rs, 'setLabelColors')),
+      JSON.stringify(rs)
+    )
     await assert('真实 gitlab 后端：既有的列票操作不受影响（加操作没碰坏旧后端）', (await tracker.list(ref('gitlab'), {}, ctx)) !== undefined, 'list 调用没拿到结果')
     d.dispose()
   }

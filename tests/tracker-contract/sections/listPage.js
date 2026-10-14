@@ -72,9 +72,22 @@ export function pageFailureCheck(res, needStaleMsg) {
   return bad
 }
 
-/** 真实后端探针的判据：要么诚实地说做不到（unsupported 桩），要么给出一页合规的数据。 */
+/**
+ * 真实后端探针的判据：要么给出一页合规的数据，要么诚实地回报失败。
+ *
+ * 2026-10-14 改动（地图 10 / #1062）：失败也分两种合规 —— 注册表按名录补的「做不到」桩，与真实现
+ * 撞上「这一趟没有可用的运行环境」而如实失败。改动之前只认前一种，因为那会儿探针里的两个真实后端
+ * （GitLab 与本地 Markdown）在分页这条上都是桩；GitLab 这一轮真实现了它，于是后一种也成了合规答案。
+ * **判据没有放宽成「随便失败都算过」**：仍然要求 error 形状齐全（能看懂的 kind 与一句 message），
+ * 而且两种之间必须落进其中一种。
+ */
 export function pageProbeCheck(res) {
-  if (res && typeof res === 'object' && res.ok === false) return unsupportedAnswerCheck('listPage', res)
+  if (res && typeof res === 'object' && res.ok === false) {
+    const stub = unsupportedAnswerCheck('listPage', res)
+    const honest = pageFailureCheck(res, false)
+    if (stub.length === 0 || honest.length === 0) return []
+    return stub.concat(honest)
+  }
   return pageShapeCheck(res)
 }
 
