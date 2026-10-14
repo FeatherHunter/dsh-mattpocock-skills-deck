@@ -28,7 +28,7 @@ import type { OpContext, SandboxFs } from '../../contract/contexts.js'
 import type { RepositoryRef } from '../../contract/entities.js'
 import { decodeLabelsText, encodeLabelsTable } from './label-colors-codec.js'
 import { readTextFile } from './read.js'
-import { writeTextFile, renameFile } from './write.js'
+import { publishTextFile } from './write.js'
 import { getPlat } from './issues-locate.js'
 import { builtinColorObject } from './label-colors-palette.js'
 // 单写者队列与工作区钥匙：与建票取号、写票文件共用同一份实现（#922），不在这里另写一份。
@@ -231,27 +231,14 @@ export function defaultLabelColorsText(): string {
  *  为什么还要有「没有改名原语」的那条退路：DSH 的文件服务只给了 writeText / editText 两个写方法，
  *  没有改名原语（读它的实现可以看到：它自己的 writeText 就是「同目录暂存文件 + 改名」发布的，
  *  见 dsh-fs-local 的 writeFileAtomic），所以真实宿主里走的是这条退路——一次调用写完整份内容，
- *  同样是整份替换、不会留下半截文件。两条路都写完整份内容，都不做「边算边往目标上写」。 */
+ *  同样是整份替换、不会留下半截文件。两条路都写完整份内容，都不做「边算边往目标上写」。
+ *  #1182 起这份实现搬到了 write.js 的 publishTextFile，票文件那一族与这里共用同一份：
+ *  同一件事两处各写一遍，迟早只剩一处是对的（配色那份是门禁 `tests/verify-markdown-label-colors.js`
+ *  逐条走到的，票文件那份由 `tests/verify-1182-ticket-file-publish.ts` 走到）。 */
 async function publishAtomically(ctx: CtxWithPolicy, targetPath: string, text: string): Promise<string> {
-  const fs = getFs(ctx)
-  if (!fs) throw Object.assign(new Error('fs unavailable'), { kind: ERROR_KIND.ENV })
   // 本次调用的政策由宿主按当前会话算好放在上下文里（见 src/host/workspaceCwd.js 的 resolveSandboxPolicy）。
-  // 这里原样往下传，不自己填模式：会话是只读时就该被 DSH 拒掉。
-  const policy = ctx && ctx.sandboxPolicy
-  if (typeof fs.rename !== 'function') {
-    await writeTextFile(ctx, targetPath, text, policy)
-    return 'write-text'
-  }
-  const tmpPath = targetPath + '.' + String((typeof process !== 'undefined' && process.pid) || 0) + '.tmp'
-  await writeTextFile(ctx, tmpPath, text, policy)
-  try {
-    await renameFile(ctx, tmpPath, targetPath)
-  } catch (e) {
-    // 改名没成功：把临时文件清掉（清不掉也不影响目标文件，目标文件此时仍是旧内容），再把错报上去。
-    try { if (typeof fs.rm === 'function') await fs.rm(tmpPath, { force: true }) } catch (e2) {}
-    throw e
-  }
-  return 'rename'
+  // 这里原样往下传（publishTextFile 会读 ctx.sandboxPolicy），不自己填模式：会话是只读时就该被 DSH 拒掉。
+  return publishTextFile(ctx, targetPath, text)
 }
 
 /** 写失败分档住 label-colors-errors.js（调用时把文件位置递进去，房间内部不转圈引用）。

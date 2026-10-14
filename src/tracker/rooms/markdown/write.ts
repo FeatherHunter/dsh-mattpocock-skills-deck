@@ -38,6 +38,32 @@ export async function writeTextFile(ctx: WriteOpContext, fullPath: string, conte
   if(typeof fs.writeText==='function'){try{await fs.writeText(fullPath,String(content));return}catch(e){ if(isSandboxDeny(e)) throw sandboxDenyError(e, hasPolicy); const kind=e&&(e as Record<string, unknown>).kind?(e as Record<string, unknown>).kind:classifyError(e, ctx);const err=new Error(e&&(e as Record<string, unknown>).message?String((e as Record<string, unknown>).message):String(e)) as TaggedError;err.kind=kind;try{err.cause=e}catch{}throw err}}
   throw Object.assign(new Error('fs.write not supported'),{kind:ERROR_KIND.ENV})
 }
+/** 原子发布：先把完整内容写进同目录的临时文件，再把它改名成目标文件（#1182 起票文件与配色文件共用这一份）。
+ *
+ *  为什么要临时文件＋改名：这一类文件（票文件、配色文件）都是「整份一次性覆盖」的文件，用户会手改、
+ *  也会提交进版本库；直接往目标上写，写一半崩掉就会把内容留成半截 —— 半截的票文件读回来是一张缺字段的票，
+ *  比写失败更贵（失败还能重试，半截内容会被当成「盘上本来就是这样」）。
+ *  为什么还要有「没有改名原语」的那条退路：DSH 的文件服务只给了 writeText / editText 两个写方法，
+ *  没有改名原语（读它的实现可以看到：它自己的 writeText 就是「同目录暂存文件 + 改名」发布的，
+ *  见 dsh-fs-local 的 writeFileAtomic），所以真实宿主里走的是这条退路 —— 一次调用写完整份内容，
+ *  同样是整份替换、不会留下半截文件。两条路都写完整份内容，都不做「边算边往目标上写」。
+ *
+ *  返回走了哪条发布路（rename 真改名 / write-text 直写退路），给日志与门禁用；失败抛错，由调用方分档。 */
+export async function publishTextFile(ctx: WriteOpContext, targetPath: string, content: string, sandboxPolicy?: unknown): Promise<'rename' | 'write-text'> {
+  const fs=getFs(ctx); if(!fs)throw Object.assign(new Error('fs unavailable'),{kind:ERROR_KIND.ENV})
+  const policy = (sandboxPolicy !== undefined) ? sandboxPolicy : (ctx && ctx.sandboxPolicy)
+  if(typeof fs.rename!=='function'){ await writeTextFile(ctx,targetPath,content,policy); return 'write-text' }
+  const tmpPath = targetPath + '.' + String((typeof process !== 'undefined' && process.pid) || 0) + '.tmp'
+  await writeTextFile(ctx,tmpPath,content,policy)
+  try{
+    await renameFile(ctx,tmpPath,targetPath)
+  }catch(e){
+    // 改名没成功：把临时文件清掉（清不掉也不影响目标文件，目标文件此时仍是旧内容），再把错报上去。
+    try{ if(typeof fs.rm==='function') await fs.rm(tmpPath,{force:true}) }catch{}
+    throw e
+  }
+  return 'rename'
+}
 export async function renameFile(ctx: OpContext, fromPath: string, toPath: string): Promise<void> {
   const fs=getFs(ctx);const plat=getPlatformPath(ctx);if(!fs)throw Object.assign(new Error('fs unavailable'),{kind:ERROR_KIND.ENV})
   if(plat){try{await ensureDir(ctx,plat.dirname(toPath))}catch{}}

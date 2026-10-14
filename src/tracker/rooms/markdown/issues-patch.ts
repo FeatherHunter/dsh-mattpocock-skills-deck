@@ -3,7 +3,7 @@
 // effort 维度（2026-09-09）：所有写路径按 (effort 范围, 编号) 定位文件，多命中即 conflict。
 import { parseMd, stripLabelDecoration, parentKeyFromFile, isWholeIssueBody, loginOfAssignee } from './parse.js'
 import { readTextFile } from './read.js'
-import { writeTextFile } from './write.js'
+import { publishTextFile } from './write.js'
 // #1059：整份正文的合并与「写坏没有」的核对搬到了 patch-body.ts（纯文本函数，与写盘无关）；
 // 那一路补上结论线之后这份文件越过了 350 有效行的上限，抽出去才回到线内。
 import { looksLikeWholeDocument, fieldLinesOf, checkNoWorseForPatch, mergeWholeBodyForPatch } from './patch-body.js'
@@ -51,7 +51,7 @@ async function resolveTarget(ctx: OpContext,repo: RepoWithPath | null,norm: stri
  *  两路并发改同一张票时会一起读到同一份旧内容，各自改各自的，后写的那一路把先写的那一路的改动整份抹掉
  *  —— 两路都回成功，盘上却少了一半改动。队按文件分：批量补边一次要改很多张票，
  *  它们是不同的文件、彼此不冲突，仍然可以同时做（#919 的并发改造就是照这个口径放宽的）。 */
-async function readParseWrite(ctx: OpContext,repo: RepoWithPath | null,r: ResolvedTarget,norm: string,fn: (txt: string) => string | undefined | Promise<string | undefined>, opts?: SetOpts, trail?: WriteTrail): Promise<{ ok: true; txt: string } | PatchFailure>{
+async function readParseWrite(ctx: OpContext,repo: RepoWithPath | null,r: ResolvedTarget,norm: string,fn: (txt: string) => string | undefined | Promise<string | undefined>, opts?: SetOpts, trail?: WriteTrail, onWritten?: () => void): Promise<{ ok: true; txt: string } | PatchFailure>{
   return withFileWriter(ctx,repo,r.path,async function(){
     try{
       // 写前版本校验必须在队里、在读到这份文件之前（#1174 决策 9）：队外先比一次再进队，
@@ -62,9 +62,14 @@ async function readParseWrite(ctx: OpContext,repo: RepoWithPath | null,r: Resolv
       const out=await fn(txt)
       const next=typeof out==='string'?out:txt
       if(next!==txt){
-        await writeTextFile(ctx,r.path,next, ctx&&(ctx as {sandboxPolicy?: unknown}).sandboxPolicy)
+        // #1182：整份覆盖写走原子发布（同目录临时文件 + 改名；没有改名原语时退回整份直写）——
+        // 写一半崩掉不会把这张票留成半截内容。各路写票文件的地方同一条口径。
+        await publishTextFile(ctx,r.path,next, ctx&&(ctx as {sandboxPolicy?: unknown}).sandboxPolicy)
         // 只有真写了才记（#1059）：内容没变那一路一份文件都没写，结论是 noop 而不是 edited。
         noteFileWritten(trail)
+        // 关系与边那两条入口要的也是同一件事（#1060）：写盘这一步真做成了，才把 route 与增减记进事实桶。
+        // 传「打算改几条」是不行的 —— 写盘抛错那一路分量一条都没落，结论线上却会报「写了 file、挂上一条」。
+        if(onWritten)onWritten()
       }
       return{ok:true,txt:next}
     }catch(e){return failFromError(e,ctx,'读—改—写这张票的文件时出错')}
@@ -216,6 +221,10 @@ async function setBlockedByInner(ctx: OpContext,repo: RepoWithPath | null,key: s
   // 放在写者队列里面：判环要读整张图，读完到落盘之间不许有本进程的别的写插进来。
   // 成环时 fn 返回 undefined —— 这一份文件一个字都不改，由下面把那次判定的失败原样交出去。
   let cycleFailure: PatchFailure | null=null
+  // 这一趟真写下去时该记的增减：先在队内算出来放这里，等 readParseWrite 说「文件真写成了」才记进事实桶。
+  // 为什么不能算完就记：写盘那一步会抛错（目录没权限、文件被占），那一路份量一条都没落，
+  // 结论线上必须报 route=none、增减全 0，才与附录里「失败那一趟说的正是『一个字都没写』」对得上。
+  let pending: { added: number; removed: number } | null=null
   const res=await readParseWrite(ctx,repo,r,norm,async function(txt){
     const verdict=await cycleVerdictFor(ctx,repo,r.effortId,norm,arr)
     if(!verdict.ok){ cycleFailure=verdict; return undefined }
@@ -226,17 +235,18 @@ async function setBlockedByInner(ctx: OpContext,repo: RepoWithPath | null,key: s
     const wantKeys=uniqueKeysOf(arr)
     const added=wantKeys.filter(k=>oldKeys.indexOf(k)<0)
     const removed=oldKeys.filter(k=>wantKeys.indexOf(k)<0)
-    if(trail){
-      trail.added=added.length
-      trail.removed=removed.length
-      trail.kept=wantKeys.length-added.length
-    }
+    // kept 当场就记：它说的是「读回来的这一份里本来就有几条边」，与这一趟写没写成无关。
+    if(trail)trail.kept=wantKeys.length-added.length
     // 差集为空：盘上本来挂的就是这几条边，这一趟一处都不用改（结论线记 noop、route 停在 none）。
     if(!added.length&&!removed.length)return undefined
-    // 走到这里说明真要把改动写进票文件了：route 在这一步改口（与同房 issue.write 的 route 同一套口径）。
-    if(trail)trail.route='file'
+    pending={ added: added.length, removed: removed.length }
     return replaceOrInsertField(txt,'Blocked\\s+by',line)
-  },opts)
+  },opts,undefined,function(){
+    if(!trail||!pending)return
+    trail.route='file'
+    trail.added=pending.added
+    trail.removed=pending.removed
+  })
   if(cycleFailure)return cycleFailure
   if(!res.ok)return{ok:false,error:res.error}
   try{
@@ -315,7 +325,7 @@ function headOf(raw: string): { head: string; rest: string } {
  *
  *  为什么要分「明写」与「没写」：这一房没写父注释的票读回来落在默认父票（地图 '00'）上，
  *  那是结构给的默认值，不是盘上真记着的一条边。结论线要报「这一趟撤下来几条边」，
- *  就不能把这条默认值算成撤了一条 —— 绝大多数「挂到某张票上」的票本来就没写过父注释。 */
+ *  就不能把这条默认值算成撤了一条 —— 绝大多数「挂到某张票上」的票本来就没写过父注释（#1060 定下的口径）。 */
 function hasExplicitParentComment(txt: string): boolean {
   return /^[ \t]*<!--[ \t]*parentKey[ \t]*:[ \t]*.*?-->/im.test(headOf(String(txt || '')).head)
 }
@@ -337,7 +347,7 @@ export async function setParentIssue(ctx: OpContext,repo: RepoWithPath | null,ke
 }
 /** 盘上这张票现在的父票编号，外加「这个编号是明写的还是结构给的默认值」。
  *
- *  为什么分「认没认出来」与「认出来的值」两格：老写法把文本解析失败吞掉之后照样往下写，
+ *  为什么要分「认没认出来」与「认出来的值」两格：老写法把文本解析失败吞掉之后照样往下写，
  *  这里保持同一条行为——认不出来当作「与目标值不等」，绝不当作「已经等于目标值」，否则会漏写一次本该有的改动（#922）。
  *  为什么还要第三格 explicit：没写父注释的票读回来是默认父票（地图 '00'），那不是盘上记着的一条边（见 hasExplicitParentComment）。 */
 function currentParentOf(txt: string,key: string,effortId: string): { known: boolean; key: string | null; explicit: boolean }{
@@ -350,8 +360,17 @@ function currentParentOf(txt: string,key: string,effortId: string): { known: boo
  *
  *  三种走法（挂到地图上、挂到同一工作单元的某张票上、去掉父注释）做的都是同一件事：换掉正文里那一行父注释。
  *  差别只在「要不要写」与「撤几条挂几条」：目标那条边已经在位就一处不改（挂父那一趟记 kept 一笔），
- *  本来没有父就是新挂（记 added 一笔），原来是别的父就是改挂（撤一条、挂一条，结论线上记 diff）。 */
+ *  本来没有父就是新挂（记 added 一笔），原来是别的父就是改挂（撤一条、挂一条，结论线上记 diff，见下）。
+ *  怎么算「撤下来一条」按 #1060 定下的口径：只有盘上**真明写着**另一条父注释才算；
+ *  没写父注释的票读回来落在默认父票（地图 '00'）上，那是结构给的默认值、不是盘上记着的一条边，
+ *  所以「挂到某张票上」记 added=1、removed=0。解析不出来那一趟按「与目标值不等」照旧往下写，
+ *  但既然盘上有没有边都认不出来，就不记 removed（与 kept 同一层意思：看不见的边不当成撤下来了）。
+ *  增减等 readParseWrite 说「文件真写成了」才记（#1182）：写盘那一步会抛错（目录没权限、文件被占），
+ *  那一路份量一条都没落，结论线上必须报 route=none、增减全 0，才与附录里
+ *  「失败那一趟说的正是『一个字都没写』」对得上。 */
 async function writeParentLink(ctx: OpContext,repo: RepoWithPath | null,r: Parameters<typeof readParseWrite>[2],norm: string,childEffort: string,want: string | null,opts: SetOpts | undefined,colorMap: Awaited<ReturnType<typeof loadPaintColorMap>>,trail?: EdgeTrail): Promise<{ ok: true; data: Issue } | PatchFailure>{
+  // 真写下去时该记的增减：先算出来放这里，等 readParseWrite 回话说「文件写成了」才记进事实桶。
+  let pending: { added: number; removed: number } | null=null
   const res=await readParseWrite(ctx,repo,r,norm,function(txt){
     const cur=currentParentOf(txt,norm,childEffort)
     if(cur.known&&cur.key===want){
@@ -359,17 +378,18 @@ async function writeParentLink(ctx: OpContext,repo: RepoWithPath | null,r: Param
       if(trail&&want!==null)trail.kept=1
       return undefined
     }
-    if(trail){
-      trail.route='file'
-      if(want===null)trail.removed=1
-      else{
-        trail.added=1
-        // 只有「盘上真记着另一条边」才算撤下来一条：默认父票（地图 '00'）与解析不出来那两种都不算。
-        if(cur.known&&cur.explicit&&cur.key!==null)trail.removed=1
-      }
-    }
+    const added=want!==null?1:0
+    // 只有「盘上真明写着另一条父注释」才算撤下来一条：默认父票（地图 '00'）不是盘上记着的一条边，
+    // 解析不出来那一趟也看不见边在哪，两种都不记 removed（#1060 口径，与 hasExplicitParentComment 的说明同一件事）。
+    const removed=(want===null)?1:((cur.known&&cur.explicit&&cur.key!==null)?1:0)
+    pending={ added: added, removed: removed }
     return upsertParentComment(txt, want)
-  },opts)
+  },opts,undefined,function(){
+    if(!trail||!pending)return
+    trail.route='file'
+    trail.added=pending.added
+    trail.removed=pending.removed
+  })
   if(!res.ok)return{ok:false,error:res.error}
   try{
     const iss=parseMd(res.txt,{key:norm,parentKey:'00',isMap:false,effortId:childEffort,url:r.path})

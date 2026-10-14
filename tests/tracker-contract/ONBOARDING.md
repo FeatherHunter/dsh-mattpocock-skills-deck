@@ -11,10 +11,10 @@
 
 ## 四件清单
 
-### ① 适配器代码 — `src/host/tracker/backends/<backendId>/`
+### ① 适配器代码 — `src/tracker/rooms/<backendId>/`
 
 - 目录即后端：`<backendId>` 为开放 string（推荐 `publisher.name`），`'other'` 禁用（→ `selection.backendId: null`）。
-- 入口 `index.js` 必须导出 `BackendModule`：
+- 入口 `index.ts` 必须导出 `BackendModule`：
 
   ```js
   export const myModule = {
@@ -25,22 +25,23 @@
   }
   ```
 
-- `create(ctx)` 的 `ctx` 是 **BackendContext**（含 **已解析的 `platform` 实例**，见 `src/host/tracker/contract.js`），不是工厂。
+- `create(ctx)` 的 `ctx` 是 **BackendContext**（含 **已解析的 `platform` 实例**，见 `src/tracker/contract/index.ts`），不是工厂。
   - `platform`: 已按 #129 三底座实现的 OS 抽象（`getHome/path/resolveExecutable/fs/env`），**不可**在后端内自拼 `C:\` 或直接 `import('node:fs')`。
   - `fs`/`exec`/`timers`/`log` 由宿主经此 `ctx` 注入；后端只用它们。
-  - 实现**只写你真会的**：`create` 返回对象里只放你实现的 op；**缺的方法不手写，由 `registry.js` 的 Proxy 自动补 `unsupported` 桩**（能力零声明，G5）。
-- 13 `OpName`（`OPERATIONS`）按需实现：
+  - 实现**只写你真会的**：`create` 返回对象里只放你实现的 op；**缺的方法不手写，由 `src/tracker/registry/shape.ts` 的 Proxy 自动补 `unsupported` 桩**（能力零声明，G5）。
+- 22 条操作（`OpName`，名录 `OPERATIONS` 的真源在 `src/tracker/contract/operations-catalog.ts`）按需实现：
 
   ```
-  preflight, list, get, getDependencies, create, close, reopen, comment, update, setLabels, setAssignees, setParent, setBlockedBy
+  preflight, list, get, getDependencies, create, close, reopen, comment, update, setLabels, setAssignees, setParent, setBlockedBy,
+  getCurrentUser, initProject, listLabels, setLabelColors, counts, listPage, getRepoPermissions, listSubIssues, ensureLabelColorsFile
   ```
 
   - 未实现 → 返回 `{ ok:false, error:{ kind:'unsupported' } }`（由 Proxy 兜底，你也可显式返回）。
   - 写后语义：`create/update` 多字段原子；`set*` 整集替换；增量后端用 `read→diff→N写` 且接受 Last-write-wins；`expectedUpdatedAt` 不匹配 → `conflict`。
   - 环检：`setBlockedBy` 自环/成环 → `conflict` 不落盘。
-- 错误分类：失败**返回**而非抛；`kind` 仅八种（`env/auth/rate-limit/conflict/unsupported/not-found/network/parse`），`classifyError` 顺序（`env>not-found`, `auth>rate-limit`, 兜底 `network`）已在 `host/tracker/preflight.js` 固化，后端显式产 `conflict/unsupported`。
+- 错误分类：失败**返回**而非抛；`kind` 仅八种（`env/auth/rate-limit/conflict/unsupported/not-found/network/parse`），`classifyError` 顺序（`env>not-found`, `auth>rate-limit`, 兜底 `network`）已在 `src/tracker/kernel/preflight.ts` 固化，后端显式产 `conflict/unsupported`。
 
-- 按操作域拆文件（避免 God file）：`issues.js`/`comments.js`/`labels.js`/`graph.js`/`normalize.js`/`client.js`/`errors.js`/`preflight.js` 等，`index.js` 仅装配。
+- 按操作域拆文件（避免 God file）：`issues.ts`/`comments.ts`/`labels.ts`/`graph.ts`/`normalize.ts`/`client.ts`/`errors.ts`/`preflight.ts` 等，`index.ts` 仅装配。
 
 ### ② 真实采样固件 — `tests/tracker-contract/fixtures/<backendId>-real/`
 
@@ -76,7 +77,7 @@
 - 可复现：`node scripts/generate-<id>-fixtures.js --repo <ref> --out fixtures/<id>-real` 一键重采。
 - 记录来源：脚本头注释与 `metadata.json.source` 双处记录端点/API。
 - 记录脱敏：脚本头注释与 `metadata.json.desensitization.rules` 双处记录规则（token/邮箱/内部 URL 等），并**实做**脱敏（正则替换）。
-- 归一化产物：脚本内 `import('../src/host/tracker/backends/<id>/normalize.js')` 生成 `normalized-*.json`，保证“采样→归一”链路与 harness 同款 normalize。
+- 归一化产物：脚本内 `import('../src/tracker/rooms/<id>/normalize.ts')` 生成 `normalized-*.json`，保证“采样→归一”链路与 harness 同款 normalize。
 
 参考实现：`scripts/generate-github-fixtures.js`（GitHub 已落地）。
 

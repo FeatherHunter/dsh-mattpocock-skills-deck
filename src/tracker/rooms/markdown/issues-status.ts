@@ -3,7 +3,7 @@
 // effort 维度（2026-09-09）：关票/重开都按 (effort 范围, 编号) 定位，写模式多命中即 conflict，不猜文件。
 import { parseMd } from './parse.js'
 import { readTextFile } from './read.js'
-import { writeTextFile } from './write.js'
+import { publishTextFile } from './write.js'
 // #1059：这一趟写没写下去的结论线（事件 `issue.write`，与 GitHub 房同一个名字、同一套字段；GitLab 房的写路径还没做）。
 import { beginWriteTrail, emitIssueWrite, noteFileWritten } from './write-log.js'
 import type { WriteTrail } from './write-log.js'
@@ -77,7 +77,8 @@ async function setStatus(ctx: OpContext,repo: RepoWithPath | null,key: string,st
       // 一字不差 —— 照旧写回去只会换掉文件的修改时间（本地房的创建时间对老票就回落在这上面，翻页顺序会跟着动），
       // 而这一趟在结论线上必须是 noop 而不是 edited。与 issues-patch.ts 的读—改—写是同一条口径。
       if(txt!==before){
-        await writeTextFile(ctx,r.path,txt, ctx&&(ctx as {sandboxPolicy?: unknown}).sandboxPolicy)
+        // #1182：这一份走原子发布（同目录临时文件 + 改名；没有改名原语时退回整份直写），与同房另几条写票路同口径。
+        await publishTextFile(ctx,r.path,txt, ctx&&(ctx as {sandboxPolicy?: unknown}).sandboxPolicy)
         noteFileWritten(trail)
       }
       const iss=parseMd(txt,{key:norm,parentKey:isMap?null:'00',isMap,effortId:r.effortId,url:r.path})

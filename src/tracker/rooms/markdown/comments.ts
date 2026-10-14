@@ -5,7 +5,7 @@
 // 绝不落到第一个 effort 的同号文件里（此前就是这样写错文件的）。
 import { parseMd } from './parse.js'
 import { readTextFile } from './read.js'
-import { writeTextFile } from './write.js'
+import { publishTextFile } from './write.js'
 // #1059：这一趟写没写下去的结论线（事件 `issue.write`，与 GitHub 房同一个名字、同一套字段；GitLab 房的写路径还没做）。
 import { beginWriteTrail, emitIssueWrite, noteFileWritten } from './write-log.js'
 import type { WriteTrail } from './write-log.js'
@@ -71,7 +71,8 @@ async function addCommentInner(ctx: OpContext,repo: RepoWithPath | null,key: str
         if(!txt.endsWith('\n'))txt+='\n'
         txt+='\n## Comments\n\n'+block+'\n'
       }
-      await writeTextFile(ctx,r.path,txt, ctx&&(ctx as {sandboxPolicy?: unknown}).sandboxPolicy)
+      // #1182：评论追加进票文件同样走原子发布（同目录临时文件 + 改名；没有改名原语时退回整份直写）。
+      await publishTextFile(ctx,r.path,txt, ctx&&(ctx as {sandboxPolicy?: unknown}).sandboxPolicy)
       // 这一份真写到盘上了，记进事实桶（#1059）。
       noteFileWritten(trail)
       const comment: Comment={author:{login:actor},authorAssociation:'',body:String(body||''),createdAt:nowIso,updatedAt:nowIso}

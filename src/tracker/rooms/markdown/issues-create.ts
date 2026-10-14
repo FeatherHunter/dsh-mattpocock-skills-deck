@@ -7,7 +7,7 @@
 //     与契约冲突，而且因为少了 getScratchRoot 的 import 从未生效）。
 import { parseMd, slugify, stripLabelDecoration, isWholeIssueBody, loginOfAssignee } from './parse.js'
 import { listDir, readTextFile, statFile, exists } from './read.js'
-import { writeTextFile, ensureDir } from './write.js'
+import { publishTextFile, ensureDir } from './write.js'
 // #1059：这一趟写没写下去的结论线（事件 `issue.write`，与 GitHub 房同一个名字、同一套字段；GitLab 房的写路径还没做）。
 import { beginWriteTrail, emitIssueWrite, noteFileWritten } from './write-log.js'
 import type { WriteTrail } from './write-log.js'
@@ -240,7 +240,7 @@ async function createIssueInner(ctx: OpContext,repo: RepoWithPath | null,input: 
   try{
     // 取号 → 探测 → 落盘这三段必须在**同一个按工作区串行的写者队列**里跑完（#712）。
     // 为什么：取号是「读目录取 max+1」（下面 readDir 那一段），落盘是整份覆盖
-    // （write.js 的 writeTextFile，没有独占创建），而读目录这个 await 会让出事件循环 ——
+    // （write.js 的 publishTextFile：整份覆盖写，没有独占创建），而读目录这个 await 会让出事件循环 ——
     // 多个会话/子代理同时建票时，多路会读到同一个 max、算出同一个编号、都探测到「这个编号还没人占」，
     // 然后互相覆盖，最后盘上只剩一张，而每一路都回了 ok:true（本机实测 8 路并发全部回 key="01"）。
     // 队列钥匙按工作区归一（write-queue.js 的 workspaceWriteKey），与配色文件那条写路径共用同一条队，
@@ -314,7 +314,9 @@ async function createIssueInner(ctx: OpContext,repo: RepoWithPath | null,input: 
       // #1002：落盘前核对单例，拼坏了就如实失败不落盘（静默写坏比失败更贵）。
       const builtBad=checkSingletonsForCreate(builtText, !!idemKey)
       if(builtBad)return failAs(ERROR_KIND.UNSUPPORTED,'建票内容拼装后核对没过（'+builtBad+'），这次没落盘：请换一种正文形态再试。',String(builtBad))
-      await writeTextFile(ctx,finalPath,builtText, ctx&&(ctx as {sandboxPolicy?: unknown}).sandboxPolicy)
+      // #1182：票文件走原子发布（同目录临时文件 + 改名；没有改名原语时退回整份直写）：建到一半崩掉
+      // 不会在盘上留一张半截的票 —— 半截的票读回来是一张缺字段的票，比这次建票失败更贵。
+      await publishTextFile(ctx,finalPath,builtText, ctx&&(ctx as {sandboxPolicy?: unknown}).sandboxPolicy)
       // 这一份真写到盘上了，记进事实桶（#1059）：幂等命中复用那一路走不到这里，于是结论是 reuse 而不是 fresh。
       noteFileWritten(trail)
       // ② 落盘之后当场回读核对（#711）：确认锚真的写进了这个文件。只写不核对的话，
