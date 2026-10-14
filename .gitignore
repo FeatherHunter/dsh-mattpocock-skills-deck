@@ -50,10 +50,13 @@ _research/
 #
 # 下面这套规则按「真实目录里住着什么」写，不是按「哪一层像生成物」写：同一个目录里可能既有
 # 生成物又有手写的 .js（views 顶层是 1 份生成物配 20 份手写），一刀切会把真源码静默忽略掉，
-# 那比不忽略危险得多。三条手写的 .js 在域目录里同理，逐份开例外（它们没有同名 .ts）。
+# 那比不忽略危险得多。手写的 .js 在域目录里同理，逐份开例外（它们没有同名 .ts）。
 /src/shared/*/*.js
-!/src/shared/refresh/chain-ride.js
-!/src/shared/refresh/refusal-text.js
+# #1153 顺带清理：原来这两行上面还有两条放行——!/src/shared/refresh/chain-ride.js 与
+# !/src/shared/refresh/refusal-text.js（#1023 第三刀写这时，它们还是停在产物位上的手写 .js）。
+# 这两份的真身后来搬去 src/host/refresh/chain-ride.ts 与 src/host/refresh/refusal-text.ts，
+# 产物位上已经没有同名 .js，两条放行命不中任何文件。死条目和死规则一样会骗人——留着会让人
+# 以为产物位上有主，所以删掉；今天这一组例外只剩下面这一条。
 !/src/shared/version-control/exec-envelope.js
 /src/tracker/contract/vocabulary.js
 /src/client/kernel/locale-cards.js
