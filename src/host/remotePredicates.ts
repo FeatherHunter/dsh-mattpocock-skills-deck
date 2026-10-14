@@ -42,7 +42,9 @@ export function createRemotePredicates() {
         const { loadBuiltinRoom } = await import('../tracker/registry/builtins.js')
         const mdRoom = await loadBuiltinRoom('markdown')
         // 只当「文本进、结果出」的函数用：这一层不关心解析结果的形状（meta 由房间自己解释）。
-        const parseMd: (text: unknown, meta: unknown) => unknown = mdRoom.parseMd || mdRoom.default
+        //   注：这里不再给 parseMd 另写一套宽签名——房间的签名就是契约，自己写一份宽签名等于把
+        //   房间的接口在宿主侧又抄一遍（#1161 要消灭的正是这种第二份口径）。
+        const parseMd = mdRoom.parseMd
         if (typeof parseMd !== 'function') return { status: 'pending', detail: 'parseMd not exported' }
         let lastErr = ''
         for (const rel of cands) {

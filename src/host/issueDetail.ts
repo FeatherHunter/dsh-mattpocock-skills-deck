@@ -132,13 +132,16 @@ export function createIssueDetail(deps: Deps) {
       const repo = await getRepoKey(cwd)
       if (!repo) return { ok: false, error: { kind: 'env', message: '无法解析 owner/repo（git remote 或 gh repo view 失败）' } }
       if (!n) return { ok: false, error: { kind: 'parse', message: '缺少 number' } }
+      // 下面 queryPR 是闭包，编译器在闭包里收不到上面那条「repo 非空」的窄化；这里先各取一份局部量（值不变）。
+      const repoOwner = repo.owner
+      const repoName = repo.name
       const frag = 'number title state body url updatedAt createdAt closedAt author{login avatarUrl ... on User{name} ... on Organization{name}} labels(first:20){nodes{name color}} assignees(first:10){nodes{login}} comments(first:50){nodes{author{login} authorAssociation body createdAt updatedAt} pageInfo{hasNextPage endCursor}} subIssues(first:50){totalCount nodes{number title state}} blockedBy(first:20){nodes{number title state}} blocking(first:20){nodes{number title state}}'
       // 拉取请求与新后端单票查询同分支：快照已标是拉取请求则先查拉取请求，否则先查普通工单再查拉取请求；两边都不中才走 REST（REST 内再试 /pulls 一次）
       const prFrag = 'number title state body url updatedAt createdAt closedAt mergedAt author{login avatarUrl ... on User{name} ... on Organization{name}} labels(first:20){nodes{name color}} assignees(first:10){nodes{login}} comments(first:50){nodes{author{login} authorAssociation body createdAt updatedAt} pageInfo{hasNextPage endCursor}} reviews(first:20){nodes{state author{login} submittedAt}}'
       async function queryPR() {
         try {
           const q = 'query($owner:String!,$name:String!){repository(owner:$owner,name:$name){pullRequest(number:' + n + '){' + prFrag + '}}}'
-          const p = await runGh(['api', 'graphql', '-f', 'query=' + q, '-F', 'owner=' + repo.owner, '-F', 'name=' + repo.name], cwd)
+          const p = await runGh(['api', 'graphql', '-f', 'query=' + q, '-F', 'owner=' + repoOwner, '-F', 'name=' + repoName], cwd)
           if (!p.ok) { if (isRateLimitError(p)) return { rateLimit: true }; return { miss: true } }
           const j = JSON.parse(p.text)
           if (j.errors) { if (isRateLimitError({ error: JSON.stringify(j.errors) })) return { rateLimit: true }; return { miss: true } }

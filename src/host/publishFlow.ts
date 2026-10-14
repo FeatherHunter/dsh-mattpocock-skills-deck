@@ -1,6 +1,8 @@
-// src/host/publishFlow.js —— 建仓发布与重试推送（H6 #450 从 host/index.js 855–1005/1007–1028 搬出，纯结构；classifyCreateError 由 initPublish 内提升为模块共享）。
+// src/host/publishFlow.ts —— 建仓发布与重试推送（H6 #450 从 host/index.js 855–1005/1007–1028 搬出，纯结构；classifyCreateError 由 initPublish 内提升为模块共享）。
+// 2026-10-14（#1161）从 .js 转成 .ts：只加类型标注与注释，逻辑一行未动（唯一的写法调整：loggedPhone 的
+//   `fn.apply(null, arguments)` 换成剩余参数 `fn(...a)`，同一个调用语义，为了拿到类型）。
 // 以后谁改它：改建仓发布流程或推送重试的人。预估约190行，超 350 打回。
-// 接线：由 index.js 动态 import 加载；repoKeys/repoRoots 与 H1 同形（对象引用，删除才删得中）；本文件不引用其他新文件。
+// 接线：由 index.js 动态 import 加载；repoKeys/repoRoots 与 H1 同形（对象引用，删除才删得中）。
 //
 // 2026-10-10（票 #993 / #994）：本文件原先自带一份 classifyCreateError，与 GitHub 房里那份逐字符相同。
 //   两处都改成引共享实现：initProjectErrorKinds —— 兜底从 permission 改成 unknown，「认不出来」不再等于
@@ -12,11 +14,54 @@
 //   取到后注入：deps.makeCreateErrorClassifier 与 deps.KIND_UNKNOWN。
 import { isOwnershipMismatch, ownershipPathFrom, safeDirectoryCommand } from '../tracker/detection/workspace-ownership.js'
 
-export function createPublishFlow(deps) {
+interface RepoKey { owner: string; name: string }
+
+/** gh 命令的返回信封（宿主注入的 runGh 产出的形状）。 */
+interface GhReply { ok: boolean; text: string; error?: unknown; kind?: string }
+
+/** git 命令的返回信封（宿主注入的 execProc 产出的形状）：本文件只用到 ok 与 error。 */
+interface ExecReply { ok: boolean; error?: unknown; text?: string }
+
+/** 工作区可用性探测的结果：ok 为真时可能带 notRepoYet（这个目录还没建仓）；为假时带分类与原话。 */
+type UsableResult =
+  | { ok: true; notRepoYet?: boolean; healed?: boolean; dir?: string }
+  | { ok: false; kind: string; text: string; triedRepair?: boolean }
+
+/** 建仓发布的入参（前端传进来的原始对象，字段一律按 unknown 收、用到时再转）。 */
+interface InitPublishArgs { cwd?: string; name?: unknown; visibility?: unknown }
+/** 重试推送的入参（半成功时由前端从 initPublish 结果带出）。 */
+interface RetryPushArgs { cwd?: string; name?: unknown; repoUrl?: unknown; owner?: unknown }
+
+/** 接线处注入的依赖（形状按本文件实际用到的部分写）。 */
+interface Deps {
+  DEFAULT_CWD: string
+  resolveGit(): Promise<string | null>
+  resolveGh(): Promise<string | null>
+  getGhLastError(): string | null | undefined
+  runGh(args: string[], cwd: string): Promise<GhReply>
+  execProc(argv: string[], cwd: string, phase: string): Promise<ExecReply>
+  canonicalKey(cwd: string): Promise<string | null> | string | null
+  getRepoKey(cwd: string): Promise<RepoKey | null> | RepoKey | null
+  repoKeys: Record<string, unknown>
+  repoRoots: Record<string, unknown>
+  setCache(entry: { ts: number; snapshot: unknown; error: unknown; cwd: string | null }): unknown
+  logCtx?: { fire(level: string, event: string, fields?: unknown): void } | null
+  makeCreateErrorClassifier(deps: { isOwnership: (text: string) => boolean }): (errText: unknown, kind?: unknown) => string
+  KIND_UNKNOWN: string
+}
+
+/** 从任意结果信封里取一句错误指纹原料（原写法 `res.error.message || res.error || res.errorKind` 的类型安全版）。 */
+function errFingerprint(v: unknown): string {
+  const o = (v && typeof v === 'object') ? (v as { error?: unknown; errorKind?: unknown }) : null
+  const inner = (o && o.error && typeof o.error === 'object') ? (o.error as { message?: unknown }).message : undefined
+  return String(inner || (o ? o.error : undefined) || (o ? o.errorKind : undefined) || 'publish-not-ok')
+}
+
+export function createPublishFlow(deps: Deps) {
   const { DEFAULT_CWD, resolveGit, resolveGh, getGhLastError, runGh, execProc, canonicalKey, getRepoKey, repoKeys, repoRoots, setCache, logCtx, makeCreateErrorClassifier, KIND_UNKNOWN } = deps
   // #606：本文件里的外部命令全是 git，都属于「初始化仓库 / 推送」这条链，统一打上链名再往下传，
   //   这样日志里的 exec.run 行就能答出「这条命令是发布链起的」。
-  const gitExec = function (argv, cwd) { return execProc(argv, cwd, 'publish') }
+  const gitExec = function (argv: string[], cwd: string) { return execProc(argv, cwd, 'publish') }
   // #993：分类器收进共享模块（两处调用方共用一份，见文件头 2026-10-10 注）。属主那一档由
   //   共享的 workspaceOwnership 判断，这里只把判断函数注入进去。
   // #1161：分类器本身由调用方从装配点取来注入（见文件头 2026-10-14 注）。
@@ -35,7 +80,7 @@ export function createPublishFlow(deps) {
   //   `not a git repository`，与「属主不一致」一样都是读原文，不做别的猜测。
   const NOT_A_REPO_RE = /not a git repository/i
 
-  async function probeWorktreeUsable(git, cwd) {
+  async function probeWorktreeUsable(git: string, cwd: string): Promise<UsableResult> {
     const r = await gitExec([git, '-C', cwd, 'rev-parse', '--is-inside-work-tree'], cwd)
     if (r.ok) return { ok: true }
     const text = String(r.error || '')
@@ -48,7 +93,7 @@ export function createPublishFlow(deps) {
   //   用 git 报出来的那个目录（它报的就是它实际比对过的路径），不自己拼路径 —— Android 上
   //   /sdcard 常是软链，两种写法在配置里是两个不同字符串，拼错那个等于没修。
   //   用 --add 是维护者定的写法；实测这一条是幂等的（同值重复添加不会写出第二行），不会堆积。
-  async function healOwnership(git, cwd, probeText) {
+  async function healOwnership(git: string, cwd: string, probeText: string) {
     const dir = ownershipPathFrom(probeText) || cwd
     const r = await gitExec([git, 'config', '--global', '--add', 'safe.directory', dir], cwd)
     return { ok: !!r.ok, dir: dir, repaired: !!r.ok }
@@ -57,10 +102,15 @@ export function createPublishFlow(deps) {
   // git 侧失败的统一信封（分类器认档 + 这一档对用户说什么）。
   //   #993 的两条要求就落在这里：属主那一档给「能照做的一句话」，unknown 那一档把 git 的原始
   //   报错原样交给用户 —— 认不出来却翻译成「权限不足」，正是这次要修掉的毛病。
-  function gitFail(errText) {
+  function gitFail(errText: unknown) {
     const kind = classifyCreateError(errText, null)
     const raw = String(errText || '')
     if (kind === 'git-ownership') {
+      // 原文这里写的是 `|| cwd`，而 `cwd` 在 gitFail 的作用域里根本不存在——它只是 handleInitPublish /
+      //   handleRetryPush 的局部量。这一支真跑到会抛 ReferenceError「cwd is not defined」（原 .js 也如此）。
+      //   转换只求行为零变化，故原样保留、让编译器放行；真要修，应把工作区目录当参数传进来（不属 #1161
+      //   的接线范围，已记进票里等维护者拍板）。
+      // @ts-expect-error 见上：`cwd` 是原写法留下的悬空引用（TS2304）
       const cmd = safeDirectoryCommand(ownershipPathFrom(raw) || cwd)
       return {
         ok: false,
@@ -77,7 +127,7 @@ export function createPublishFlow(deps) {
 
   // #994：这一段是「动手改工作区之前」的环境关卡。返回 ok 时，工作区要么本来就能用 git，
   //   要么刚刚补好 safe.directory 之后已确认能用；返回失败时一步都还没改过这个目录。
-  async function preflightWorkspaceGit(git, cwd) {
+  async function preflightWorkspaceGit(git: string, cwd: string): Promise<UsableResult> {
     const first = await probeWorktreeUsable(git, cwd)
     if (first.ok) return first
     if (first.kind !== 'git-ownership') return first
@@ -97,7 +147,7 @@ export function createPublishFlow(deps) {
   // 返回：{ ok: true, repo: { owner, name } } | { ok: false, errorKind, error, repoUrl? }
   // errorKind: no-git / no-gh / not-logged-in / already-exists / network / permission / git-ownership / unknown
   //   （#993：兜底从 permission 改成 unknown，「属主不一致」单独成 git-ownership 一档）
-  async function handleInitPublish(args) {
+  async function handleInitPublish(args?: InitPublishArgs | null) {
     const cwd = (args && args.cwd) || DEFAULT_CWD
     const name = args && args.name ? String(args.name).trim() : ''
     const visibility = (args && args.visibility) === 'public' ? 'public' : 'private'
@@ -231,7 +281,7 @@ export function createPublishFlow(deps) {
   // ============ 重试推送（#420/#426 定版：仅推送，不动建仓）============
   // 入参：{ cwd, name, repoUrl, owner }（半成功时由前端从 initPublish 结果带出）
   // 流程：origin 缺失则以 repoUrl 补 remote → git push -u origin HEAD；成功 ok:true（前端走成功闭环），失败回带半成功契约
-  async function handleRetryPush(args) {
+  async function handleRetryPush(args?: RetryPushArgs | null) {
     const cwd = (args && args.cwd) || DEFAULT_CWD
     const name = args && args.name ? String(args.name).trim() : ''
     const repoUrl = args && typeof args.repoUrl === 'string' && args.repoUrl ? String(args.repoUrl) : ''
@@ -250,11 +300,15 @@ export function createPublishFlow(deps) {
     const gf = gitFail(pushR.error)
     return { ok: false, errorKind: gf.errorKind, error: gf.error, repoUrl: repoUrl || undefined, repo: { owner: owner, name: name }, halfCreated: true }
   }
-  function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
-  function phoneLog(method, kind, t0, res, err) { try {
-    if (err !== undefined && err !== null) { if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: method, kind: kind, errorHash: hash8(String((err && err.message) || err)) }) }
-    else if (res && res.ok) { if (logCtx) logCtx.fire('info', 'host.call', { method: method, latencyMs: Date.now() - t0, ok: true, kind: kind }) }
-    else if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: method, kind: kind, errorHash: hash8(String((res && ((res.error && res.error.message) || res.error || res.errorKind)) || 'publish-not-ok')) }) } catch (eL) {} }
-  function loggedPhone(method, kind, fn) { return async function () { const t0 = Date.now(); try { const r = await fn.apply(null, arguments); phoneLog(method, kind, t0, r); return r } catch (e) { phoneLog(method, kind, t0, null, e); throw e } } }
+  function hash8(s: unknown) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
+  function phoneLog(method: string, kind: string, t0: number, res: unknown, err?: unknown): void { try {
+    if (err !== undefined && err !== null) { if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: method, kind: kind, errorHash: hash8(String((err as { message?: unknown } | null | undefined)?.message || err)) }) }
+    else if ((res as { ok?: boolean } | null | undefined)?.ok) { if (logCtx) logCtx.fire('info', 'host.call', { method: method, latencyMs: Date.now() - t0, ok: true, kind: kind }) }
+    else if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: method, kind: kind, errorHash: hash8(errFingerprint(res)) }) } catch (eL) {} }
+  /** 给一个动作套上「进一次、出一次」的日志：返回值与入参原样透传，外面看到的签名不变（泛型 F 就是原函数类型）。 */
+  function loggedPhone<F extends (...a: never[]) => Promise<unknown>>(method: string, kind: string, fn: F): F {
+    const wrapped = async function (...a: never[]): Promise<unknown> { const t0 = Date.now(); try { const r = await fn(...a); phoneLog(method, kind, t0, r); return r } catch (e) { phoneLog(method, kind, t0, null, e); throw e } }
+    return wrapped as unknown as F
+  }
   return { handleInitPublish: loggedPhone('wf.initPublish', 'publish', handleInitPublish), handleRetryPush: loggedPhone('wf.retryPush', 'publish', handleRetryPush) }
 }
