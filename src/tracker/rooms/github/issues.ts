@@ -8,6 +8,12 @@
  *
  * 定版依据：#138 一页纸方案，契约操作签名归一。
  * 所有 op 返回 OpResult，不 throw；错误经 ghVerdictOf 归一（判档表在 src/tracker/error-rules.ts）。
+ *
+ * 日志（#1052）：每一笔 gh 命令由房内常驻的 `gh.exec` 落盘（`via` 写 `list.gql` / `list.pr` / `list.rest` /
+ * `get.gql` / `get.pr` / `get.rest` / `get.rest-pr`，于是同一趟里哪一行属于哪条路一目了然）；而「命令成功了、
+ * 这一趟仍然没读成（或只读回一部分）」的几条路各自在返回前落一行 `read.degraded`，`reason` 依次写
+ * `list:repo-ref` / `list:gql-err` / `list:json` / `list:shape` / `list:page-fail` / `list:partial` /
+ * `list:degraded`，单票那条写 `get:repo-ref` / `get:json` / `get:shape` / `get:gql-err` / `get:degraded`。
  */
 
 import { STATE, ERROR_KIND } from '../../contract/vocabulary.js'
@@ -16,6 +22,7 @@ import type { Issue, RepositoryRef } from '../../contract/entities.js';
 import type { GetOpts, ListFilter } from '../../contract/inputs.js';
 import type { OpResult } from '../../contract/results.js';
 import { fail } from '../../preflight.js'
+import { emitReadDegraded } from './read-log.js'
 import { ghClient } from './client.js'
 import { normalizeIssue } from './normalize.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'
@@ -95,26 +102,40 @@ async function fetchAllIssuesREST(parsed: ParsedRepo, ctx: OpContext): Promise<O
   const out: unknown[] = []
   const MAX_PAGES = 10
   const PAGE = 100
+  // 本函数的起点：下面每一行降级日志带的是「这一笔从本函数入口到这里花掉的毫秒数」。
+  const startsAt = Date.now()
   for (let p = 1; p <= MAX_PAGES; p++) {
     // 这是 GraphQL 主路失败之后的 REST 降级翻页：标签与主路分开，事后一眼看出走的是哪条路。
     const r = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/issues?state=all&per_page=${PAGE}&page=${p}`], { cwd: ctx && ctx.cwd, via: 'list.rest' })
     if (!r.ok) {
       if (!out.length) return { ok: false, error: r.error }
+      // 尾页失败按已得数据截断上报（本函数一贯的口径）：回的是成功，可翻到第 p 页就断了。
+      emitReadDegraded(ctx, 'list', 'list:page-fail', Date.now() - startsAt)
       return { ok: true, data: out }
     }
     let j: unknown
     try { j = JSON.parse(r.data.stdout || '') } catch (e) {
       // 原文交这次 gh 的完整产出：人自己就能看出回包里到底是什么。
-      if (!out.length) return fail(ERROR_KIND.PARSE, `rest fallback: invalid json ${caughtMessage(e, 200)}`, r.data)
+      if (!out.length) {
+        emitReadDegraded(ctx, 'list', 'list:rest-json', Date.now() - startsAt)
+        return fail(ERROR_KIND.PARSE, `rest fallback: invalid json ${caughtMessage(e, 200)}`, r.data)
+      }
+      emitReadDegraded(ctx, 'list', 'list:page-fail', Date.now() - startsAt)
       return { ok: true, data: out }
     }
     if (!Array.isArray(j)) {
-      if (!out.length) return fail(ERROR_KIND.PARSE, 'rest fallback: non-array response', r.data)
+      if (!out.length) {
+        emitReadDegraded(ctx, 'list', 'list:rest-shape', Date.now() - startsAt)
+        return fail(ERROR_KIND.PARSE, 'rest fallback: non-array response', r.data)
+      }
+      emitReadDegraded(ctx, 'list', 'list:page-fail', Date.now() - startsAt)
       return { ok: true, data: out }
     }
     for (const n of j) out.push(n)
     if (j.length < PAGE) break
   }
+  // 翻满十页还没到底这一支不记日志：REST 这条接口不报总数，看不出「库里真有这么多」还是「被十页截住了」，
+  // 本函数一贯按「翻到十页为止」的上报口径处理（不是故障）。
   return { ok: true, data: out }
 }
 
@@ -153,15 +174,26 @@ function applyIssueFilter(all: Issue[], filter: ListFilter | null | undefined): 
  * 内存过滤 filter{type,state,parentKey,keys}
  */
 export async function listIssues(repo: RepositoryRef, filter: ListFilter | undefined, ctx: MemoContext): Promise<ListIssuesResult> {
+  // 这一笔的起点：只给降级日志算耗时用；主路失败原因要的那份耗时刻是下面单独的 `t0`，两者不混。
+  const tList = Date.now()
   try {
     const parsed = parseRepo(repo)
-    if (!parsed) return fail(ERROR_KIND.NOTFOUND, `list: repo.refId missing or malformed: ${repoId(repo)}`, repo)
+    if (!parsed) {
+      emitReadDegraded(ctx, 'list', 'list:repo-ref', Date.now() - tList)
+      return fail(ERROR_KIND.NOTFOUND, `list: repo.refId missing or malformed: ${repoId(repo)}`, repo)
+    }
     const c = ghClient(ctx)
     const t0 = Date.now()
     const all = []
     let after = null
     let hasNext = true
+    // 拉取请求那张表到 1000 条就停；工单那张到 500 条就停。两处都在停下来的那一刻把这件事记在这两个变量上，
+    // 收尾时统一记一行降级 —— 「回成功、只装了一部分」必须能从日志里看出来。
+    let issuesTruncated = false
+    let prTruncated = false
     let needRest = false
+    // 主路是怎么败下阵来的（只填第一次那一个）：它决定降级行 `read.degraded` 的 reason 用哪个。
+    let needRestWhy = 'list:gql-err'
     let firstRestCause = null
     let droppedIssues = 0
     let seenIssues = 0
@@ -175,15 +207,15 @@ export async function listIssues(repo: RepositoryRef, filter: ListFilter | undef
       if (after) args.push('-F', `after=${after}`)
       else args.push('-F', 'after=')
       const r = await c.execGh(args, { cwd: ctx && ctx.cwd, via: 'list.gql' })
-      if (!r.ok) { needRest = true; if (!firstRestCause) firstRestCause = (r && r.error) || r; break }
+      if (!r.ok) { needRest = true; needRestWhy = 'list:gql-err'; if (!firstRestCause) firstRestCause = (r && r.error) || r; break }
       const text = r.data.stdout || ''
       let j
-      try { j = JSON.parse(text) } catch (e) { needRest = true; if (!firstRestCause) firstRestCause = e; break }
-      if (j.errors) { needRest = true; if (!firstRestCause) firstRestCause = { message: JSON.stringify(j.errors).slice(0, 800) }; break }
+      try { j = JSON.parse(text) } catch (e) { needRest = true; needRestWhy = 'list:json'; if (!firstRestCause) firstRestCause = e; break }
+      if (j.errors) { needRest = true; needRestWhy = 'list:gql-err'; if (!firstRestCause) firstRestCause = { message: JSON.stringify(j.errors).slice(0, 800) }; break }
       const repoData = j.data && j.data.repository
-      if (!repoData) { needRest = true; if (!firstRestCause) firstRestCause = { message: 'graphql: missing repository' }; break }
+      if (!repoData) { needRest = true; needRestWhy = 'list:shape'; if (!firstRestCause) firstRestCause = { message: 'graphql: missing repository' }; break }
       const issues = repoData.issues
-      if (!issues || !Array.isArray(issues.nodes)) { needRest = true; if (!firstRestCause) firstRestCause = { message: 'graphql: missing issues.nodes' }; break }
+      if (!issues || !Array.isArray(issues.nodes)) { needRest = true; needRestWhy = 'list:shape'; if (!firstRestCause) firstRestCause = { message: 'graphql: missing issues.nodes' }; break }
       for (const n of issues.nodes) {
         seenIssues += 1
         try { all.push(normalizeIssue(n)) } catch { droppedIssues += 1 }
@@ -191,8 +223,8 @@ export async function listIssues(repo: RepositoryRef, filter: ListFilter | undef
       const pageInfo = issues.pageInfo
       if (pageInfo && pageInfo.hasNextPage) after = pageInfo.endCursor
       else hasNext = false
-      // 安全上限：最多 500 条
-      if (all.length >= 500) break
+      // 安全上限：最多 500 条。到顶就 break，并把「被截断过」记在 `issuesTruncated` 上（收尾时记一行降级）。
+      if (all.length >= 500) { issuesTruncated = true; break }
     }
     if (!needRest) {
       // 拉取请求主路（同池合并：GraphQL issues 不含拉取请求，直接拼接；限流/超时走下方同一兜底）
@@ -218,7 +250,7 @@ export async function listIssues(repo: RepositoryRef, filter: ListFilter | undef
         const pageInfo = prs.pageInfo
         if (pageInfo && pageInfo.hasNextPage) prAfter = pageInfo.endCursor
         else prHasNext = false
-        if (all.length >= 1000) break
+        if (all.length >= 1000) { prTruncated = true; break }
       }
     }
     if (!needRest) {
@@ -226,6 +258,8 @@ export async function listIssues(repo: RepositoryRef, filter: ListFilter | undef
       if (droppedPulls) emitBadNodes(ctx, 'pulls', droppedPulls, seenPulls)
     }
     if (needRest) {
+      // 降级这一趟先记一行：从入口到这里花了多久、主路是折在哪一步（回包坏 / 缺东西 / 起不了进程）。
+      emitReadDegraded(ctx, 'list', String(needRestWhy), Date.now() - tList)
       // 双路兜底：GraphQL 不可用（unexpected EOF / 配额 / 形状差异）→ REST 分页 + pulls 富化 + sub_issues 树边修复。
       // 企业版（GHE）走同一 gh 命令（GH_HOST 由环境变量给 gh），失败按错误归一诚实返回，不另分支。
       // #734：原因只算一次并随 fallback 交出去 —— 界面按它选句（只有 quota 才说配额耗尽）。
@@ -247,6 +281,8 @@ export async function listIssues(repo: RepositoryRef, filter: ListFilter | undef
         try { restNorm.push(normalizeIssue(n)) } catch { droppedRest += 1 }
       }
       if (droppedRest) emitBadNodes(ctx, 'rest', droppedRest, rawList.length)
+      // REST 这一路自己也可能撞上尾页失败（那时它按已得数据回成功）：这里再记一行，把「少了几条」说清楚。
+      if (!restNorm.length) emitReadDegraded(ctx, 'list', 'list:page-fail', Date.now() - tList)
       // #715：这一趟真的掉到 REST 通道了，把这件事如实带给调用方（`fallback: 'rest'`）——
       //   宿主快照组装处据此在快照上写下降级标记，界面那一侧只读不写（面板上那句「已切 REST 通道」的
       //   横幅本来就画好了，缺的一直是这个上游事实）。
@@ -256,12 +292,16 @@ export async function listIssues(repo: RepositoryRef, filter: ListFilter | undef
       try { if (ctx && ctx.memo) rosterAdoptList(ctx.memo, restNorm, filter) } catch (eU) {}
       return { ok: true, data: applyIssueFilter(restNorm, filter), fallback: 'rest', fallbackReason: fbCause }
     }
+    // 上限截断要能从日志里看出来：工单那条一到 500 就 break、拉取请求那条到 1000 才 break，
+    // 两条都是「回成功、只装了一部分」。
+    if (issuesTruncated || prTruncated) emitReadDegraded(ctx, 'list', 'list:partial', Date.now() - tList)
     try { if (ctx && ctx.memo) rosterAdoptList(ctx.memo, all, filter) } catch (eU) {}
     return { ok: true, data: applyIssueFilter(all, filter) }
   } catch (e) {
     // 判档只走本房唯一的出口（`ghVerdictOf`）：档位由规则表判、话术按票面实现决定第 11 条挑。
     // 第三段把出错的那个值原样交出去当原文（合并、遮蔽、截断由 `fail` 统一做）。
     const verdict = ghVerdictOf(e, ctx)
+    emitReadDegraded(ctx, 'list', 'list:transport', Date.now() - tList)
     return fail(verdict.kind, ghFailureMessage(verdict, caughtMessage(e, 800)), e)
   }
 }
@@ -270,9 +310,14 @@ export async function listIssues(repo: RepositoryRef, filter: ListFilter | undef
  * get(repo, key, opts, ctx) -> OpResult<Issue>
  */
 export async function getIssue(repo: RepositoryRef, key: string, opts: GetOpts | undefined, ctx: MemoContext): Promise<OpResult<Issue>> {
+  // 这一笔的起点：本函数每一行降级日志都带「从入口到这里花了多久」。
+  const tGet = Date.now()
   try {
     const parsed = parseRepo(repo)
-    if (!parsed) return fail(ERROR_KIND.NOTFOUND, `get: repo.refId missing: ${repoId(repo)}`, repo)
+    if (!parsed) {
+      emitReadDegraded(ctx, 'get', 'get:repo-ref', Date.now() - tGet)
+      return fail(ERROR_KIND.NOTFOUND, `get: repo.refId missing: ${repoId(repo)}`, repo)
+    }
     const k = String(key || '').trim()
     if (!k) return fail(ERROR_KIND.PARSE, 'get: key required (string)', key)
     const num = Number(k)
@@ -289,12 +334,16 @@ export async function getIssue(repo: RepositoryRef, key: string, opts: GetOpts |
     if (r.ok) {
       const text = r.data.stdout || ''
       let j
-      try { j = JSON.parse(text) } catch (e) { return fail(ERROR_KIND.PARSE, `get: invalid json ${caughtMessage(e, 200)}`, text) }
+      try { j = JSON.parse(text) } catch (e) {
+        emitReadDegraded(ctx, 'get', 'get:json', Date.now() - tGet)
+        return fail(ERROR_KIND.PARSE, `get: invalid json ${caughtMessage(e, 200)}`, text)
+      }
       if (j.errors) {
         const msg = JSON.stringify(j.errors).slice(0, 800)
         const verdict = ghVerdictOf({ message: msg, stderr: msg }, ctx)
         // 不是配额/网络类的那一类直接如实失败：原文用 GraphQL 回给的那份错误清单，人自己看得见。
         if (!/rate limit|forbidden|unexpected|network|eof/i.test(msg)) {
+          emitReadDegraded(ctx, 'get', 'get:gql-err', Date.now() - tGet)
           return fail(verdict.kind, ghFailureMessage(verdict, msg), { message: msg, stderr: msg })
         }
         // 配额/网络类 GraphQL 错误 → 走 REST 降级（下方单条 REST 通道）
@@ -328,21 +377,30 @@ export async function getIssue(repo: RepositoryRef, key: string, opts: GetOpts |
       // REST 降级（与 list 同一背景：GraphQL POST 偶发 unexpected EOF，REST 稳定；原因分类与列表同口径，不恒写 graphql-error）
       // 为什么用收窄式：r 在这里可能是成功也可能是失败，直接读 error 编译器不认；失败分支读 error、成功分支用 r 本身，与原来短路式的取值一字不差。
       emitRestFallback(ctx, '单票', Date.now() - t0, pickFallbackReason(getCause || (!r.ok ? r.error : r), ctx))
+      emitReadDegraded(ctx, 'get', 'get:degraded', Date.now() - tGet)
       const rr = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/issues/${num}`], { cwd: ctx && ctx.cwd, via: 'get.rest' })
       if (rr.ok) {
         let jr = null
-        try { jr = JSON.parse(rr.data.stdout || '') } catch (e) { return fail(ERROR_KIND.PARSE, `get(rest): invalid json ${caughtMessage(e, 200)}`, rr.data.stdout) }
+        try { jr = JSON.parse(rr.data.stdout || '') } catch (e) {
+          emitReadDegraded(ctx, 'get', 'get:rest-json', Date.now() - tGet)
+          return fail(ERROR_KIND.PARSE, `get(rest): invalid json ${caughtMessage(e, 200)}`, rr.data.stdout)
+        }
         if (jr && typeof jr === 'object' && jr.number != null) {
           if (jr.pull_request != null) await enrichSinglePR(jr, parsed, ctx)
           try { if (ctx && ctx.memo) rosterUpsert(ctx.memo, jr) } catch (eU) {}
           return { ok: true, data: normalizeIssue(jr) }
         }
+        // /issues 回的这份东西没有 number，不像一张票：降级路走了一半、形状不认，如实记一行再退到 /pulls。
+        emitReadDegraded(ctx, 'get', 'get:shape', Date.now() - tGet)
       }
       // /issues 不中（404 或坏形状）→ 试 /pulls 直取拉取请求单票
       const prr = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/pulls/${num}`], { cwd: ctx && ctx.cwd, via: 'get.rest-pr' })
       if (prr.ok) {
         let prj = null
-        try { prj = JSON.parse(prr.data.stdout || '') } catch (e) { return fail(ERROR_KIND.PARSE, `get(rest): invalid json ${caughtMessage(e, 200)}`, prr.data.stdout) }
+        try { prj = JSON.parse(prr.data.stdout || '') } catch (e) {
+          emitReadDegraded(ctx, 'get', 'get:rest-json', Date.now() - tGet)
+          return fail(ERROR_KIND.PARSE, `get(rest): invalid json ${caughtMessage(e, 200)}`, prr.data.stdout)
+        }
         if (prj && typeof prj === 'object' && prj.number != null) {
           await enrichSinglePR(prj, parsed, ctx)
           try { if (ctx && ctx.memo) rosterUpsert(ctx.memo, prj) } catch (eU) {}
@@ -367,6 +425,7 @@ export async function getIssue(repo: RepositoryRef, key: string, opts: GetOpts |
     // 判档只走本房唯一的出口（`ghVerdictOf`）：档位由规则表判、话术按票面实现决定第 11 条挑。
     // 第三段把出错的那个值原样交出去当原文（合并、遮蔽、截断由 `fail` 统一做）。
     const verdict = ghVerdictOf(e, ctx)
+    emitReadDegraded(ctx, 'get', 'get:transport', Date.now() - tGet)
     return fail(verdict.kind, ghFailureMessage(verdict, caughtMessage(e, 800)), e)
   }
 }

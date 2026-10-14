@@ -23,6 +23,11 @@
  *  - 拉到 1000 张硬上限还没到底 → 仍回成功，但 capped=true，让界面把「只加载了前 1000 张」说出来；
  *  - 拉到的张数与 totalCount 对不上（且不是被上限卡住）→ 仍回成功，但 missing 记下差额，
  *    界面必须把差额说出来 —— 这一条是本票验收里「拉到的张数等于 totalCount」的守门人。
+ *
+ * 日志（#1052）：每一页那一笔由房内常驻的 `gh.exec` 落盘（`via` 写 `subIssues.gql`，第二次试写
+ * `subIssues.retry`，于是「重试过」在日志里看得见两行标签不同的记录）；而「拿不全 / 拿不回来」的几条路
+ * 各自在返回前落一行 `read.degraded`（`subIssues:page-fail`、`subIssues:notfound`、`subIssues:json`、
+ * `subIssues:shape`、`subIssues:gql-err`、`subIssues:truncated`）。
  */
 
 import { ERROR_KIND } from '../../contract/vocabulary.js'
@@ -35,6 +40,7 @@ import { normalizeIssue } from './normalize.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'
 import { SUB_ISSUES_QUERY } from './queries.js'
 import { parseRepo, repoId } from './issues.js'
+import { emitReadDegraded } from './read-log.js'
 
 // 每页 100 张（GraphQL 连接的单页上限），硬上限 1000 张（规格第 6.4 节：超过就明说只加载了前 1000 张）。
 const PAGE_SIZE = 100
@@ -50,10 +56,15 @@ const MAX_SUB_ISSUES = 1000
  *  - dropped：归一失败的条数（归一失败会丢行，丢了几条如实记下来，不混进 fetched）。
  */
 export async function listSubIssues(repo: RepositoryRef, mapKey: unknown, opts: unknown, ctx: OpContext): Promise<OpResult<SubIssueList>> {
+  // 这一笔的起点：本函数每一行降级日志都带「从入口到这里花了多久」。
+  const t0 = Date.now()
   try {
     const parsed = parseRepo(repo)
     // 形状不对的入参本身就是这一处的原文（这之前还没跑过任何外部命令）；它取出来可能是空串，那是如实交代。
-    if (!parsed) return fail(ERROR_KIND.NOTFOUND, `子票取数：repo.refId 缺失或形状不对：${repoId(repo)}`, repo)
+    if (!parsed) {
+      emitReadDegraded(ctx, 'subIssues', 'subIssues:repo-ref', Date.now() - t0)
+      return fail(ERROR_KIND.NOTFOUND, `子票取数：repo.refId 缺失或形状不对：${repoId(repo)}`, repo)
+    }
     const num = Number(String(mapKey == null ? '' : mapKey).trim())
     if (!Number.isFinite(num)) return fail(ERROR_KIND.PARSE, `子票取数：GitHub 的地图编号必须是数字：${mapKey}`, mapKey)
     const c = ghClient(ctx)
@@ -74,7 +85,10 @@ export async function listSubIssues(repo: RepositoryRef, mapKey: unknown, opts: 
       let r = await c.execGh(args, { cwd: ctx && ctx.cwd, via: 'subIssues.gql' })
       if (!r.ok) r = await c.execGh(args, { cwd: ctx && ctx.cwd, via: 'subIssues.retry' })
       // 这一支是「执行器连失败形状都没交回」的兜底，没有原文可交（空串是如实交代，不是漏填）。
-      if (!r.ok) return { ok: false, error: (r && r.error) || { kind: ERROR_KIND.NETWORK, message: '子票取数：这一页没取回来', raw: '' } }
+      if (!r.ok) {
+        emitReadDegraded(ctx, 'subIssues', 'subIssues:page-fail', Date.now() - t0)
+        return { ok: false, error: (r && r.error) || { kind: ERROR_KIND.NETWORK, message: '子票取数：这一页没取回来', raw: '' } }
+      }
       // 为什么把回包定成这个形状：只读到本函数实际用的四层（errors/data.repository.issue.subIssues），
       // 更深的节点按 unknown 读；定宽了以后加字段要改两处，定窄了读不到，当前四层正好够用。
       let j: { errors?: unknown; data?: { repository?: { issue?: { subIssues?: { nodes?: unknown[]; totalCount?: unknown; pageInfo?: unknown } | null } | null } | null } | null }
@@ -82,6 +96,7 @@ export async function listSubIssues(repo: RepositoryRef, mapKey: unknown, opts: 
         // 为什么转一下再读：catch 出来是 unknown，直接读 message 会报缺成员；转成最小形状后读法与原来一致，运行时不变。
         const eb = e as { message?: unknown } | null;
         // 没能解析成 JSON 的那份回包就是这里的原文（交的是这次 gh 的完整产出，不只 stdout 一截）。
+        emitReadDegraded(ctx, 'subIssues', 'subIssues:json', Date.now() - t0)
         return fail(ERROR_KIND.PARSE, `子票取数：回包不是合法 JSON：${String((eb && eb.message) || e).slice(0, 200)}`, r.data)
       }
       if (j.errors) {
@@ -89,12 +104,19 @@ export async function listSubIssues(repo: RepositoryRef, mapKey: unknown, opts: 
         // 原文交的是 GitHub 回的那份 errors 负载本身（msg 只是给它加了个操作名前缀，不算原文）。
         // 判档与话术都走本房唯一的出口：档位由规则表判、message 按票面实现决定第 11 条挑。
         const verdict = ghVerdictOf({ message: msg, stderr: msg }, ctx)
+        emitReadDegraded(ctx, 'subIssues', 'subIssues:gql-err', Date.now() - t0)
         return fail(verdict.kind, ghFailureMessage(verdict, msg), JSON.stringify(j.errors))
       }
       const issue = j.data && j.data.repository && j.data.repository.issue
-      if (!issue) return fail(ERROR_KIND.NOTFOUND, `子票取数：地图 #${num} 没找到（或没有权限看它）`, r.data)
+      if (!issue) {
+        emitReadDegraded(ctx, 'subIssues', 'subIssues:notfound', Date.now() - t0)
+        return fail(ERROR_KIND.NOTFOUND, `子票取数：地图 #${num} 没找到（或没有权限看它）`, r.data)
+      }
       const conn = issue.subIssues
-      if (!conn || !Array.isArray(conn.nodes)) return fail(ERROR_KIND.PARSE, '子票取数：回包里没有 subIssues.nodes（形状不对，不猜）', r.data)
+      if (!conn || !Array.isArray(conn.nodes)) {
+        emitReadDegraded(ctx, 'subIssues', 'subIssues:shape', Date.now() - t0)
+        return fail(ERROR_KIND.PARSE, '子票取数：回包里没有 subIssues.nodes（形状不对，不猜）', r.data)
+      }
       if (total === null) {
         const tc = Number(conn.totalCount)
         total = Number.isFinite(tc) && tc >= 0 ? tc : null
@@ -113,11 +135,14 @@ export async function listSubIssues(repo: RepositoryRef, mapKey: unknown, opts: 
     const fetched = items.length
     // 对不上就算差额；被上限卡住时不算「少了」—— 那件事由 capped 单独说（两件事别混成一句）。
     const missing = (total !== null && !capped && fetched + dropped < total) ? (total - fetched - dropped) : 0
+    // 「拉全了」这一趟不记；被上限截断的那一趟必须记：回的是成功，可这次只装了一部分子票。
+    if (capped) emitReadDegraded(ctx, 'subIssues', 'subIssues:truncated', Date.now() - t0)
     return { ok: true, data: { items, total: total === null ? fetched : total, fetched, capped, missing, dropped } }
   } catch (e) {
     const verdict = ghVerdictOf(e, ctx)
     // 为什么转一下再读：同上，catch 的 unknown 不能直接读 message，转后表达式与原来一致。
     const eb = e as { message?: unknown } | null;
+    emitReadDegraded(ctx, 'subIssues', 'subIssues:transport', Date.now() - t0)
     return fail(verdict.kind, ghFailureMessage(verdict, String((eb && eb.message) || e).slice(0, 800)), e)
   }
 }

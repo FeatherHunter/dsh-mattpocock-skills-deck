@@ -17,15 +17,18 @@
  * 作用域只活一批（调用方现场建、现场丢），不跨批、不落盘。读不到（网络、仓库不存在、
  * 字段缺失）返回 null，调用方走已有的「分不清」诚实分支，不瞎猜。
  *
- * 日志：本文件不新增事件名。这一路走 ghClient.execGh，那一行由房内既有的常驻 gh.exec 落盘
+ * 日志：这一路走 ghClient.execGh，那一行由房内既有的常驻 gh.exec 落盘
  * （只记命令名、耗时与 via 标签，不记仓库原文）；via 写 `permissions.api`，于是它跟读路径上
  * 另外几笔长得一样的 gh.exec 在日志里分得开。至于「命令成功了、可权限仍然问不出来」那几条
- * （回包缺 push/triage、空回包、JSON 坏掉），gh.exec 只会显示成功，由 #1052 另补的降级行交代。
+ * （回包缺 push/triage、空回包、JSON 坏掉），gh.exec 只会显示成功，#1052 起由 read-log.ts 的
+ * `read.degraded` 交代（`reason` 写 `permissions:api` / `permissions:empty` / `permissions:no-fields` /
+ * `permissions:unknown`）。
  */
 
 import type { OpContext } from '../../contract/contexts.js';
 import type { RepoPermissions } from '../../contract/results.js';
 import { ghClient } from './client.js'
+import { emitReadDegraded } from './read-log.js'
 
 /** gh 客户端的最小口：本文件只用得到 execGh，类型从 ghClient 的返回里取，不自己另写一份。 */
 type GhClient = ReturnType<typeof ghClient>;
@@ -83,14 +86,27 @@ export async function readRepoPermissions(c: GhClient, spec: string, ctx: OpCont
 
 async function queryPermissions(c: GhClient, spec: string, ctx: OpContext): Promise<RepoPermissions | null> {
   const cwd = ctx && typeof ctx.cwd === 'string' ? ctx.cwd : undefined
+  // 这一笔的起点：下面每一行降级日志带的是「从本函数入口到这里花掉的毫秒数」。
+  const t0 = Date.now()
   const r = await c.execGh(['api', 'repos/' + spec, '--jq', '.permissions'], { cwd: cwd, via: 'permissions.api' })
-  if (!r || !r.ok) return null
+  if (!r || !r.ok) {
+    // 命令没跑成这一路，gh.exec 那行已经写了退出码；这里再补一行，好让「权限问不出来」整条链在日志里是一条线。
+    emitReadDegraded(ctx, 'permissions', 'permissions:api', Date.now() - t0)
+    return null
+  }
   // text 兜底保留（理由同 backend.ts：上游仍有 text 这一格，stdout 为空时老代码走它）。
   const text = String((r.data && (r.data.stdout || (r.data as { text?: unknown }).text)) || '').trim()
-  if (!text || text === 'null') return null
+  if (!text || text === 'null') {
+    emitReadDegraded(ctx, 'permissions', 'permissions:empty', Date.now() - t0)
+    return null
+  }
   try {
-    return pickPermissions({ permissions: JSON.parse(text) })
+    const picked = pickPermissions({ permissions: JSON.parse(text) })
+    // 回包能解析、命令也成功，可 push/triage 两格不在里面：这一条原先一个字都不留，最容易被当成「没权限」。
+    if (!picked) emitReadDegraded(ctx, 'permissions', 'permissions:no-fields', Date.now() - t0)
+    return picked
   } catch {
+    emitReadDegraded(ctx, 'permissions', 'permissions:unknown', Date.now() - t0)
     return null
   }
 }

@@ -1,10 +1,15 @@
 /**
- * backends/github/pulls.js — 拉取请求读路径的 REST 帮手（列表富化 + 单票明细）。
+ * src/tracker/rooms/github/pulls.ts — 拉取请求读路径的 REST 帮手（列表富化 + 单票明细）。
  *
- * 由 #504 从 issues.js 拆出（单文件 350 行纪律：房内拆文件不拆房）。
- * GraphQL 主路仍在 issues.js（与工单同池合并）；本文件只装 REST 兜底件：
+ * 由 #504 从 issues.ts 拆出（单文件 350 行纪律：房内拆文件不拆房）。
+ * GraphQL 主路仍在 issues.ts（与工单同池合并）；本文件只装 REST 兜底件：
  * 列表 /pulls 富化合并时间、单票 /pulls 补合并时间与 /reviews 评审明细。
  * 全部尽力而为：失败保持空值（null/[]），不抛错，不吞工单。
+ *
+ * 日志（#1052）：本文件三笔都起 gh 进程，各带 via 标签（`pulls.rest` 列表富化翻页、
+ * `pulls.detail` 单票补合并时间、`pulls.reviews` 单票拉评审明细），于是它们与读路径上
+ * 别的 gh.exec 在日志里分得开。三笔都是「尽力而为」，失败只留空值不报错——所以本文件
+ * 不另记降级行（没有「这一趟读不成立」可交代，调用方照旧拿到能用的数据）。
  */
 
 import { ERROR_KIND } from '../../contract/vocabulary.js'
@@ -27,7 +32,8 @@ export async function fetchAllPullsREST(parsed: ParsedRepo, ctx: OpContext): Pro
   const MAX_PAGES = 10
   const PAGE = 100
   for (let p = 1; p <= MAX_PAGES; p++) {
-    const r = await c.execGh(['api', 'repos/' + parsed.owner + '/' + parsed.name + '/pulls?state=all&per_page=' + PAGE + '&page=' + p], { cwd: ctx && ctx.cwd })
+    // 这一笔是列表富化的 REST 翻页：标签写 pulls.rest，跟同一次读里的 list.rest 分得开。
+    const r = await c.execGh(['api', 'repos/' + parsed.owner + '/' + parsed.name + '/pulls?state=all&per_page=' + PAGE + '&page=' + p], { cwd: ctx && ctx.cwd, via: 'pulls.rest' })
     if (!r.ok) {
       if (!out.length) return { ok: false, error: r.error }
       return { ok: true, data: out }
@@ -85,7 +91,7 @@ export async function enrichSinglePR(jr: unknown, parsed: ParsedRepo, ctx: OpCon
     const c = ghClient(ctx)
     if (jb && typeof jb.merged_at !== 'string') {
       try {
-        const pr = await c.execGh(['api', 'repos/' + parsed.owner + '/' + parsed.name + '/pulls/' + (jb.number as unknown)], { cwd: ctx && ctx.cwd })
+        const pr = await c.execGh(['api', 'repos/' + parsed.owner + '/' + parsed.name + '/pulls/' + (jb.number as unknown)], { cwd: ctx && ctx.cwd, via: 'pulls.detail' })
         if (pr.ok) {
           const pj: unknown = JSON.parse(pr.data.stdout || 'null')
           const pjb = (pj && typeof pj === 'object' ? pj : null) as Record<string, unknown> | null;
@@ -95,7 +101,7 @@ export async function enrichSinglePR(jr: unknown, parsed: ParsedRepo, ctx: OpCon
     }
     if (jb && !Array.isArray(jb.reviews)) {
       try {
-        const rv = await c.execGh(['api', 'repos/' + parsed.owner + '/' + parsed.name + '/pulls/' + (jb.number as unknown) + '/reviews?per_page=100'], { cwd: ctx && ctx.cwd })
+        const rv = await c.execGh(['api', 'repos/' + parsed.owner + '/' + parsed.name + '/pulls/' + (jb.number as unknown) + '/reviews?per_page=100'], { cwd: ctx && ctx.cwd, via: 'pulls.reviews' })
         if (rv.ok) {
           const arr: unknown = JSON.parse(rv.data.stdout || 'null')
           if (Array.isArray(arr)) jb.reviews = arr

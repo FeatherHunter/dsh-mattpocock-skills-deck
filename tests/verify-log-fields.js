@@ -28,6 +28,17 @@ const ALLOWED = {
   //   只写短枚举，票号、仓库地址原文、路径原文一个字都不记。登记册与「读路径调用点必须带标签」那条
   //   断言在 tests/verify-github-gh-via.ts。
   'gh.exec': ['argv0', 'via', 'cwdHash', 'latencyMs', 'waitedMs', 'kind', 'exitCode'],
+  // 2026-10-14（#1052 补做）常驻 #108 `read.degraded`：一条读操作「本来能成、这一趟没成，或者成得不完整」
+  //   的结论线，一趟一行（命令成功了、可回包不是合法 JSON / 缺东西 / 游标失效 / 只拿到前几页 / 被上限截断
+  //   这类路，从前一个字都不留）。三个键全是短枚举与数字：op 哪条读操作、reason 为什么、latencyMs 这一趟
+  //   从入口到这里花了多久（毫秒）；票号、命令原文、上游报错原文一个字都不记。发射口在
+  //   src/tracker/rooms/github/read-log.ts 的 emitReadDegraded。
+  'read.degraded': ['op', 'reason', 'latencyMs'],
+  // 2026-10-14（#1052 补做）常驻 #109 `preflight.gate`：探测那三项门禁每过一项各落一行，第三项过了也落一行。
+  //   为什么过了也记：三项门禁落三行长得一样的 gh.exec，没有这一行就读不出「探测走到底了」还是「第一关就没过」。
+  //   三个键：gate 第几项（1 起 gh / 2 登录态 / 3 认得出仓库且连得上接口）、reason 为什么（过了一律写 ok）、
+  //   latencyMs 这一项花了多久。发射口在 src/tracker/rooms/github/read-log.ts 的 emitPreflightGatePass。
+  'preflight.gate': ['gate', 'reason', 'latencyMs'],
   'gh.timeout': ['argv0', 'timeoutMs'],
   'gh.resolve.fail': ['hasDSH_GH_PATH', 'errorHash'],
   'graphql.fallback': ['scope', 'reason'],
@@ -307,6 +318,9 @@ const ROOM_SHAPES = {
   //   只写短枚举，票号、仓库地址原文、路径原文一个字都不记。登记册与「读路径调用点必须带标签」那条
   //   断言在 tests/verify-github-gh-via.ts。
   'gh.exec': ['argv0', 'via', 'cwdHash', 'latencyMs', 'waitedMs', 'kind', 'exitCode'],
+  // 2026-10-14（#1052 补做）房内两条新结论线的形状（字段含义见上面 ALLOWED 里同名的两段注释）。
+  'read.degraded': ['op', 'reason', 'latencyMs'],
+  'preflight.gate': ['gate', 'reason', 'latencyMs'],
   'gh.timeout': ['argv0', 'timeoutMs'],
   'gh.resolve.fail': ['hasDSH_GH_PATH', 'errorHash'],
   'graphql.fallback': ['scope', 'reason'],

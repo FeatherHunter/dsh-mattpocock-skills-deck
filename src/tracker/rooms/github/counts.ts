@@ -1,9 +1,6 @@
 /**
  * src/tracker/rooms/github/counts.ts — 后端计数（counts op；契约见 `src/tracker/contract/operations.ts` 的「计数契约」，#689 新加）。
  *
- * 文件头原写 `backends/github/counts.js`，是 #1019 目录归位前的旧路径；#1052 把读路径这一片的
- * 文件头逐个改成今天的真名（本文件也在这一片里）。
- *
  * 文件头原写 `backends/github/counts.js`，契约也写作 `tracker/contract.js`——两份都是 #1019 目录归位前的旧路径；
  * #1052 按读路径这一片改成今天的真名。
  *
@@ -11,7 +8,7 @@
  * 那份票池得到，而票池被本后端的 500 条安全上限截断过，于是数字跟着偏（缺陷票 #677）；数字改问后端要，
  * 截断就与数字无关了。
  *
- * 实现就是一次 GraphQL 往返：issues 连接的 totalCount（见 queries.js 的 COUNTS_QUERY）。为什么是它：
+ * 实现就是一次 GraphQL 往返：issues 连接的 totalCount（见 queries.ts 的 COUNTS_QUERY）。为什么是它：
  *  - 不翻页、不带行，2026-09-22 实测一次 1 点额度；
  *  - issues 连接天然不含拉取请求，正合契约的「只数工单」（REST 的 open_issues_count 把拉取请求也算在内）；
  *  - 两个数在同一份查询里取，天然同时刻，相加出来的 total 不会是两个时刻拼的。
@@ -23,6 +20,10 @@
  *  - **不缓存判定**（G5 红线）：失败（含 unsupported 桩）不进任何缓存，缓存层在编排层，这里只如实返回。
  *
  * 错误分类走本房间唯一的出口 ghVerdictOf（判档表在 src/tracker/error-rules.ts），不另造词。
+ *
+ * 日志（#1052）：命令本身成没成由房内常驻的 `gh.exec` 落盘（`via` 写 `counts.gql`）；而「命令成功了、
+ * 这个数仍然拿不到」的四条路（回包不是合法 JSON、远端回 errors、回包里没有 repository、totalCount 形状不对）
+ * 各自在返回前落一行 `read.degraded`，`reason` 写 `counts:json` / `counts:gql-err` / `counts:shape` / `counts:total`。
  */
 
 import { ERROR_KIND } from '../../contract/vocabulary.js'
@@ -35,6 +36,7 @@ import { ghClient } from './client.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'
 import { parseRepo, repoId } from './issues.js'
 import { COUNTS_QUERY, COUNTS_QUERY_WITH_LABELS } from './queries.js'
+import { emitReadDegraded } from './read-log.js'
 
 /** filter.state 归一：只有 'open' / 'closed' 两种收窄，其余（含缺失）都是「两种都要」。 */
 function narrowStateOf(filter: ListFilter | null | undefined): string {
@@ -75,10 +77,15 @@ function countOf(node: unknown): number | null {
  * @param {import('../../contract/index.js').OpContext} ctx
  */
 export async function countIssues(repo: RepositoryRef, filter: ListFilter | undefined, ctx: OpContext): Promise<OpResult<Counts>> {
+  // 这一笔的起点：本函数每一行降级日志都带「从入口到这里花了多久」。
+  const t0 = Date.now()
   try {
     const parsed = parseRepo(repo)
     // 形状不对的入参本身就是这一处的原文（这之前还没跑过任何外部命令）；它取出来可能是空串，那是如实交代。
-    if (!parsed) return fail(ERROR_KIND.NOTFOUND, `counts: repo.refId missing or malformed: ${repoId(repo)}`, repo)
+    if (!parsed) {
+      emitReadDegraded(ctx, 'counts', 'counts:repo-ref', Date.now() - t0)
+      return fail(ERROR_KIND.NOTFOUND, `counts: repo.refId missing or malformed: ${repoId(repo)}`, repo)
+    }
     const narrow = narrowStateOf(filter)
     const labels = labelsOf(filter)
     const c = ghClient(ctx)
@@ -91,12 +98,17 @@ export async function countIssues(repo: RepositoryRef, filter: ListFilter | unde
     for (const name of labels) args.push('-F', `labels[]=${name}`)
     // 计数这条路只有这一笔：标签写 counts.gql，跟那一串长得一样的 gh.exec 分得开。
     const r = await c.execGh(args, { cwd: ctx && ctx.cwd, via: 'counts.gql' })
-    if (!r.ok) return { ok: false, error: r.error }
+    if (!r.ok) {
+      // 命令没跑成也记一行：常驻 gh.exec 只写「退出码几」，这一行才说得清「这次要数的数没拿到」。
+      emitReadDegraded(ctx, 'counts', 'counts:transport', Date.now() - t0)
+      return { ok: false, error: r.error }
+    }
     let j: { errors?: unknown; data?: { repository?: { openIssues?: unknown; closedIssues?: unknown } | null } | null }
     try { j = JSON.parse(r.data.stdout || '') } catch (e) {
       // 为什么转一下再读：catch 出来是 unknown，直接读 message 会报缺成员；转成最小形状后读法与原来一致，运行时不变。
       const eb = e as { message?: unknown } | null;
       // 没能解析成 JSON 的那份回包就是这里的原文（交的是这次 gh 的完整产出，不只 stdout 一截）。
+      emitReadDegraded(ctx, 'counts', 'counts:json', Date.now() - t0)
       return fail(ERROR_KIND.PARSE, `counts: invalid json ${String((eb && eb.message) || e).slice(0, 200)}`, r.data)
     }
     if (j.errors) {
@@ -104,14 +116,19 @@ export async function countIssues(repo: RepositoryRef, filter: ListFilter | unde
       // 原文交的是 GitHub 回的那份 errors 负载本身（msg 只是给它加了个操作名前缀，不算原文）。
       // 判档与话术都走本房唯一的出口：档位由规则表判、message 按票面实现决定第 11 条挑。
       const verdict = ghVerdictOf({ message: msg, stderr: msg }, ctx)
+      emitReadDegraded(ctx, 'counts', 'counts:gql-err', Date.now() - t0)
       return fail(verdict.kind, ghFailureMessage(verdict, msg), JSON.stringify(j.errors))
     }
     const repoData = j.data && j.data.repository
     // 说「回包里缺东西」时，原文就是这份回包本身 —— 人自己能看出它到底缺了什么。
-    if (!repoData) return fail(ERROR_KIND.PARSE, 'counts: graphql: missing repository', r.data)
+    if (!repoData) {
+      emitReadDegraded(ctx, 'counts', 'counts:shape', Date.now() - t0)
+      return fail(ERROR_KIND.PARSE, 'counts: graphql: missing repository', r.data)
+    }
     const openAll = countOf(repoData.openIssues)
     const closedAll = countOf(repoData.closedIssues)
     if (openAll === null || closedAll === null) {
+      emitReadDegraded(ctx, 'counts', 'counts:total', Date.now() - t0)
       return fail(ERROR_KIND.PARSE, 'counts: totalCount missing or not a non-negative integer (refusing to guess a number)', r.data)
     }
     const open = narrow === 'closed' ? 0 : openAll

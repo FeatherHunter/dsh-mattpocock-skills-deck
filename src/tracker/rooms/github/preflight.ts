@@ -17,6 +17,7 @@ import type { PreflightResult } from '../../contract/results.js';
 import { rawText } from '../../preflight.js'
 import { ghClient } from './client.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'
+import { emitPreflightGatePass, emitReadDegraded } from './read-log.js'
 
 // 为什么 catch 里的错误要先转这层再读：catch 出来是 unknown，短路后的真值分支会被收成空对象形状、
 // 直接读 message 报缺成员；转成最小形状后读法与原来一致，运行时不变。
@@ -54,40 +55,53 @@ export async function ghPreflight(handle: RepoHandle, ctx: OpContext): Promise<P
   const cwd = (handle && handle.cwd) || (ctx && ctx.cwd) || undefined
   const opCtx = Object.assign({}, ctx || {}, cwd ? { cwd } : {})
 
+  // 这一笔的起点：三项门禁的每一行日志都要带「从探测入口到这里花了多久」。
+  const t0 = Date.now()
+
   // 1) gh 可执行
   try {
     const platform = opCtx.platform
     if (!platform || typeof platform.resolveExecutable !== 'function') {
       // 这一条没有「上游原文」可言：宿主根本没交上来解析可执行文件的能力，是房内自己发现的事实。
       // 原文段留空串是如实表示「手里没有原文」，比编一句话强（要查就照 message 与这行日志查）。
+      emitReadDegraded(opCtx, 'preflight', 'preflight:gh', Date.now() - t0)
       return { ok: false, error: { kind: ERROR_KIND.ENV, message: 'gh not found: platform.resolveExecutable unavailable', raw: '' } }
     }
     const ghPath = await platform.resolveExecutable('gh')
     if (!ghPath) {
       // 同上：解析结果是 null，手里没有能当原文的文字。
+      emitReadDegraded(opCtx, 'preflight', 'preflight:gh', Date.now() - t0)
       return { ok: false, error: { kind: ERROR_KIND.ENV, message: 'gh not found: platform.resolveExecutable returned null (install https://cli.github.com/)', raw: '' } }
     }
   } catch (e) {
     // 抛出来这一路手里有原文：错误值原样交出去；档位与话术走本房唯一的出口。
     const verdict = ghVerdictOf(e, opCtx)
+    emitReadDegraded(opCtx, 'preflight', 'preflight:gh', Date.now() - t0)
     return { ok: false, error: { kind: verdict.kind, message: ghFailureMessage(verdict, caughtMessage(e)), raw: rawText(e) } }
   }
+  // 过了第一关（找得到 gh 可执行）：记一行，好让「探测走到第几关」在日志里是看得见的。
+  emitPreflightGatePass(opCtx, 1, Date.now() - t0)
 
   // 2) 登录态：gh auth status
+  const t1 = Date.now()
   try {
     const c = ghClient(opCtx)
     const r = await c.execGh(['auth', 'status'], { cwd, via: 'preflight.auth' })
     if (!r.ok) {
       // 非 0 就把 client 层归一好的那一份失败原样交出去：档位、话术与原文都在里面，
       // 这里不再自己判第二遍（原来那三个分支最后返回的都是同一份 r.error）。
+      emitReadDegraded(opCtx, 'preflight', 'preflight:auth', Date.now() - t1)
       return { ok: false, error: r.error }
     }
   } catch (e) {
     const verdict = ghVerdictOf(e, opCtx)
+    emitReadDegraded(opCtx, 'preflight', 'preflight:auth', Date.now() - t1)
     return { ok: false, error: { kind: verdict.kind, message: ghFailureMessage(verdict, caughtMessage(e)), raw: rawText(e) } }
   }
+  emitPreflightGatePass(opCtx, 2, Date.now() - t1)
 
   // 3) 仓库可达（含权限）：gh api repos/{owner}/{name}
+  const t2 = Date.now()
   try {
     let refId = parseRepoRef(handle, opCtx)
     // 若无 refId，尝试 gh repo view 取当前仓库（与 host/index.js getRepoKey 同源）
@@ -102,21 +116,29 @@ export async function ghPreflight(handle: RepoHandle, ctx: OpContext): Promise<P
     if (!refId) {
       // 无仓库上下文 → 视为 not-found（无法判定仓库可达）。这条是房内自己推出来的结论：
       // 上面那条 `gh repo view` 真失败时，它的原文在它自己的失败结果里，这里手里没有原文，留空串。
+      emitReadDegraded(opCtx, 'preflight', 'preflight:repo-view', Date.now() - t2)
       return { ok: false, error: { kind: ERROR_KIND.NOTFOUND, message: 'repo not found: cannot resolve owner/name (no refId and gh repo view failed)', raw: '' } }
     }
     const repo = repoFromRefId(refId)
     // 说「refId 形状不对」的原文就是这个 refId 本身：人一眼能看出错在哪。
-    if (!repo) return { ok: false, error: { kind: ERROR_KIND.NOTFOUND, message: `repo refId malformed: ${refId}`, raw: String(refId) } }
+    if (!repo) {
+      emitReadDegraded(opCtx, 'preflight', 'preflight:repo-view', Date.now() - t2)
+      return { ok: false, error: { kind: ERROR_KIND.NOTFOUND, message: `repo refId malformed: ${refId}`, raw: String(refId) } }
+    }
     const c = ghClient(opCtx)
     // 这是三项门禁里的第三项（能连上接口）：这一笔的成败在日志里由 via 认领。
     const r = await c.execGh(['api', `repos/${repo.owner}/${repo.name}`], { cwd, via: 'preflight.api' })
     if (!r.ok) {
       // 分类已在 client 层归一，此处直接返回
+      emitReadDegraded(opCtx, 'preflight', 'preflight:api', Date.now() - t2)
       return { ok: false, error: r.error }
     }
+    // 三关全过也记一行：不然「探测走到底了」在日志里只是三行长得一样的 gh.exec，读的人看不出走到哪。
+    emitPreflightGatePass(opCtx, 3, Date.now() - t2)
     return { ok: true }
   } catch (e) {
     const verdict = ghVerdictOf(e, opCtx)
+    emitReadDegraded(opCtx, 'preflight', 'preflight:api', Date.now() - t2)
     return { ok: false, error: { kind: verdict.kind, message: ghFailureMessage(verdict, caughtMessage(e)), raw: rawText(e) } }
   }
 }

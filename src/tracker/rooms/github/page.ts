@@ -22,6 +22,11 @@
  *  - **不缓存判定**（G5 红线）：失败（含「做不到」的桩）不进任何缓存，缓存层在编排层。
  *
  * 错误分类走本房间唯一的出口 ghVerdictOf（判档表在 src/tracker/error-rules.ts），不另造词。
+ *
+ * 日志（#1052）：命令本身成没成由房内常驻的 `gh.exec` 落盘（`via` 写 `listPage.gql`）；而「命令成功了、
+ * 这一页仍然拿不回来」的几条路（回包不是合法 JSON、游标已失效、远端回 errors、回包里缺 repository/issues.nodes、
+ * totalCount 形状不对、后端说有下一页却不给游标）各自在返回前落一行 `read.degraded`，`reason` 依次写
+ * `listPage:json` / `listPage:cursor` / `listPage:gql-err` / `listPage:shape` / `listPage:total` / `listPage:no-cursor`。
  */
 
 import { ERROR_KIND } from '../../contract/vocabulary.js'
@@ -35,6 +40,7 @@ import { normalizeIssue } from './normalize.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'
 import { parseRepo, repoId } from './issues.js'
 import { LIST_PAGE_QUERY, LIST_PAGE_QUERY_WITH_LABELS } from './queries.js'
+import { emitReadDegraded } from './read-log.js'
 
 // 一页的默认张数与上限（契约「分页契约」定的：缺省 50、上限 200，要多了按上限给，不是报错）。
 const DEFAULT_LIMIT = 50
@@ -109,10 +115,15 @@ function emitBadNodes(ctx: OpContext, dropped: number, total: number): void {
  * @param {import('../../contract/index.js').OpContext} ctx
  */
 export async function listIssuesPage(repo: RepositoryRef, filter: ListFilter | undefined, opts: PageOpts | undefined, ctx: OpContext): Promise<OpResult<PageResult>> {
+  // 这一笔的起点：本函数每一行降级日志都带「从入口到这里花了多久」。
+  const t0 = Date.now()
   try {
     const parsed = parseRepo(repo)
     // 形状不对的入参本身就是这一处的原文（这之前还没跑过任何外部命令）；它取出来可能是空串，那是如实交代。
-    if (!parsed) return fail(ERROR_KIND.NOTFOUND, `listPage: repo.refId missing or malformed: ${repoId(repo)}`, repo)
+    if (!parsed) {
+      emitReadDegraded(ctx, 'listPage', 'listPage:repo-ref', Date.now() - t0)
+      return fail(ERROR_KIND.NOTFOUND, `listPage: repo.refId missing or malformed: ${repoId(repo)}`, repo)
+    }
     const lim = limitOf(opts)
     const cursor = cursorOf(opts)
     const states = statesOf(filter)
@@ -129,7 +140,10 @@ export async function listIssuesPage(repo: RepositoryRef, filter: ListFilter | u
     for (const s of states) args.push('-F', `states[]=${s}`)
     for (const name of labels) args.push('-F', `labels[]=${name}`)
     const r = await c.execGh(args, { cwd: ctx && ctx.cwd, via: 'listPage.gql' })
-    if (!r.ok) return { ok: false, error: r.error }
+    if (!r.ok) {
+      emitReadDegraded(ctx, 'listPage', 'listPage:transport', Date.now() - t0)
+      return { ok: false, error: r.error }
+    }
     // 为什么把回包定成这个形状：只读到本函数实际用的三层（errors/data.repository.issues），更深的节点按 unknown 读；
     // 定宽了以后加字段要改两处，定窄了读不到，当前三层正好够用。
     let j: { errors?: unknown; data?: { repository?: { issues?: { nodes?: unknown[]; totalCount?: unknown; pageInfo?: unknown } | null } | null } | null }
@@ -137,6 +151,7 @@ export async function listIssuesPage(repo: RepositoryRef, filter: ListFilter | u
       // 为什么转一下再读：catch 出来是 unknown，直接读 message 会报缺成员；转成最小形状后读法与原来一致，运行时不变。
       const eb = e as { message?: unknown } | null;
       // 没能解析成 JSON 的那份回包就是这里的原文（交的是这次 gh 的完整产出，不只 stdout 一截）。
+      emitReadDegraded(ctx, 'listPage', 'listPage:json', Date.now() - t0)
       return fail(ERROR_KIND.PARSE, `listPage: invalid json ${String((eb && eb.message) || e).slice(0, 200)}`, r.data)
     }
     if (j.errors) {
@@ -144,20 +159,31 @@ export async function listIssuesPage(repo: RepositoryRef, filter: ListFilter | u
       // 游标失效是单独一类，要认得出：界面据此丢游标重取第一页，而不是把这一页当成历史翻到了头。
       if (cursor && /cursor/i.test(msg)) {
         // raw 交的是 GitHub 回的那份 errors 负载本身（上面那句提示只是给它加了前缀）。
+        emitReadDegraded(ctx, 'listPage', 'listPage:cursor', Date.now() - t0)
         return fail(ERROR_KIND.NOTFOUND, `listPage: 游标已失效，请重新加载（${msg.slice(0, 400)}）`, JSON.stringify(j.errors))
       }
       // 原文交的是 GitHub 回的那份 errors 负载本身（msg 只是给它加了个操作名前缀，不算原文）。
       // 判档与话术都走本房唯一的出口：档位由规则表判、message 按票面实现决定第 11 条挑。
       const verdict = ghVerdictOf({ message: msg, stderr: msg }, ctx)
+      emitReadDegraded(ctx, 'listPage', 'listPage:gql-err', Date.now() - t0)
       return fail(verdict.kind, ghFailureMessage(verdict, msg), JSON.stringify(j.errors))
     }
     const repoData = j.data && j.data.repository
     // 说「回包里缺东西」时，原文就是这份回包本身 —— 人自己能看出它到底缺了什么。
-    if (!repoData) return fail(ERROR_KIND.PARSE, 'listPage: graphql: missing repository', r.data)
+    if (!repoData) {
+      emitReadDegraded(ctx, 'listPage', 'listPage:shape', Date.now() - t0)
+      return fail(ERROR_KIND.PARSE, 'listPage: graphql: missing repository', r.data)
+    }
     const conn = repoData.issues
-    if (!conn || !Array.isArray(conn.nodes)) return fail(ERROR_KIND.PARSE, 'listPage: graphql: missing issues.nodes', r.data)
+    if (!conn || !Array.isArray(conn.nodes)) {
+      emitReadDegraded(ctx, 'listPage', 'listPage:shape', Date.now() - t0)
+      return fail(ERROR_KIND.PARSE, 'listPage: graphql: missing issues.nodes', r.data)
+    }
     const total = countOf(conn.totalCount)
-    if (total === null) return fail(ERROR_KIND.PARSE, 'listPage: totalCount missing or not a non-negative integer (refusing to guess a number)', r.data)
+    if (total === null) {
+      emitReadDegraded(ctx, 'listPage', 'listPage:total', Date.now() - t0)
+      return fail(ERROR_KIND.PARSE, 'listPage: totalCount missing or not a non-negative integer (refusing to guess a number)', r.data)
+    }
     const items: Issue[] = []
     let dropped = 0
     for (const n of conn.nodes) {
@@ -172,6 +198,7 @@ export async function listIssuesPage(repo: RepositoryRef, filter: ListFilter | u
       // 说「还有下一页」却给不出游标 = 拿不全。宁可如实失败，也不假装历史就到这里了。
       if (typeof pageInfo.endCursor !== 'string' || !pageInfo.endCursor) {
         // 说出「没有 endCursor」这句话的证据就是这段 pageInfo 本身，原文交它（比整份回包短得多、也看得准）。
+        emitReadDegraded(ctx, 'listPage', 'listPage:no-cursor', Date.now() - t0)
         return fail(ERROR_KIND.PARSE, 'listPage: hasNextPage 为真但 endCursor 缺失（拒绝假装已经翻到底）', JSON.stringify(pageInfo))
       }
       nextCursor = pageInfo.endCursor

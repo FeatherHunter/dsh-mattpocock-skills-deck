@@ -33,7 +33,9 @@ const check = (cond, msg) => { if (!cond) { fail += 1; console.error('FAIL  ' + 
 
 const WS = '/ws/gate'
 const REF = { backend: 'github', refId: 'acme/demo', name: 'demo', url: '' }
-const GH_EXEC_FIELDS = ['argv0', 'cwdHash', 'latencyMs', 'waitedMs', 'kind', 'exitCode']
+// gh.exec 的字段白名单：#1052 给这一条常驻事件增补了一格 via（「这一次是谁发的、走到哪一支」，
+// 见 tests/verify-github-gh-via.ts），所以这里是七格；与 tests/verify-log-fields.js 的白名单一致。
+const GH_EXEC_FIELDS = ['argv0', 'via', 'cwdHash', 'latencyMs', 'waitedMs', 'kind', 'exitCode']
 
 /** 从参数数组里读 `--flag value` 这种写法（不拼字符串再正则，标签名里可能有空格与冒号）。 */
 function flagsOf(args) {
