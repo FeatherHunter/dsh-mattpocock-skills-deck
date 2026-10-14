@@ -1,4 +1,4 @@
-// src/host/tracker/backends/github/cycle-check.js —— 依赖图邻接关系的按需组装（#895 去放大）
+// src/tracker/rooms/github/cycle-check.ts —— 依赖图邻接关系的按需组装（#895 去放大）
 //
 // 为什么有这个文件：成环检查与反向聚合以前每次整仓拉取（仓库越大越慢，单次补几条边
 // 就能打满执行限时）。现在名册优先：调用上下文带名册（ctx.memo，工具层调用上下文建的）
@@ -32,13 +32,33 @@ function adjacencyOfRoster(roster: RosterLike | null | undefined): Map<string, S
 }
 
 /**
+ * 名册这一趟的调试线（附录 1.5 节 #102 `edge.roster`）：一趟一行，回答「这次走的是哪条路、名册全不全、有几张脏票」。
+ * 只在调试开关打开时记（查一次成环、或一次反向聚合就会落一行，属高频路径），字段全是枚举、布尔与计数：
+ * source 这份邻接关系是从哪儿来的（roster 名册 / full-scan 整仓拉取 / none 一条都没走通）、
+ * complete 进这一趟时名册是不是「已经拿全」（没有名册时记 false）、dirty 名册外待定向重读的票数、
+ * latencyMs 这一趟花了多久。票号、目录路径一个字都不记。
+ * 为什么这个键叫 source 而不叫 path：字段白名单门禁把 path 列为「原文类键名」一律不许作键
+ * （见 tests/verify-log-fields.js 第四段），这里要表达的本来就是「来源」而不是路径。
+ */
+function emitEdgeRoster(ctx: OpContext, source: string, complete: boolean, dirty: number, t0: number): void {
+  try {
+    if (!ctx || typeof ctx.isEnabled !== 'function' || ctx.isEnabled('debug') !== true || typeof ctx.logEvent !== 'function') return
+    ctx.logEvent('debug', 'edge.roster', { source: source, complete: complete, dirty: dirty, latencyMs: Date.now() - t0 })
+  } catch {}
+}
+
+/**
  * 取当前邻接关系。名册路径：脏票逐张定向重读（读不回就整仓拉取兜底，不猜）；
  * 无名册路径：整仓拉取一次（老行为）。返回 Map 或 null（拉取失败）。
+ * 每一条出口都发一行 `edge.roster`（附录 1.5 节 #102），说清这一趟走的是哪条路。
  */
 export async function adjacencyFor(repo: RepositoryRef, ctx: MemoCtx): Promise<Map<string, Set<string>> | null> {
+  const t0 = Date.now()
   const memo = ctx && ctx.memo
   const roster = memo && memo.roster
-  if (roster && roster.complete === true) {
+  const hasRoster = !!(roster && roster.complete === true)
+  const dirtyCount = hasRoster ? Array.from((memo && memo.dirty) || []).length : 0
+  if (hasRoster) {
     const dirty = Array.from((memo && memo.dirty) || [])
     let stale = false
     for (const k of dirty) {
@@ -49,12 +69,15 @@ export async function adjacencyFor(repo: RepositoryRef, ctx: MemoCtx): Promise<M
     }
     if (!stale) {
       const adj = adjacencyOfRoster(roster)
-      if (adj) return adj
+      if (adj) {
+        emitEdgeRoster(ctx, 'roster', true, dirtyCount, t0)
+        return adj
+      }
     }
   }
   let allRes = null as Awaited<ReturnType<typeof listIssues>> | null;
-  try { allRes = await listIssues(repo, {}, ctx) } catch (e) { return null }
-  if (!allRes || allRes.ok !== true || !Array.isArray(allRes.data)) return null
+  try { allRes = await listIssues(repo, {}, ctx) } catch (e) { emitEdgeRoster(ctx, 'none', hasRoster, dirtyCount, t0); return null }
+  if (!allRes || allRes.ok !== true || !Array.isArray(allRes.data)) { emitEdgeRoster(ctx, 'none', hasRoster, dirtyCount, t0); return null }
   const adj = new Map<string, Set<string>>()
   for (const issue of allRes.data as Issue[]) {
     const deps = Array.isArray(issue.blockedBy)
@@ -62,6 +85,7 @@ export async function adjacencyFor(repo: RepositoryRef, ctx: MemoCtx): Promise<M
       : []
     adj.set(String(issue.key), new Set(deps))
   }
+  emitEdgeRoster(ctx, 'full-scan', hasRoster, dirtyCount, t0)
   return adj
 }
 

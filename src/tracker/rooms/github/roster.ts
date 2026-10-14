@@ -1,4 +1,4 @@
-// src/host/tracker/backends/github/roster.js —— 调用内票关系名册（#895 去放大）
+// src/tracker/rooms/github/roster.ts —— 调用内票关系名册（#895 去放大）
 //
 // 为什么有这个文件：成环检查与反向聚合以前每次整仓拉取。调用上下文带名册
 // （ctx.memo，工具层调用上下文建的）时只定向重读脏票，大幅减少出站。

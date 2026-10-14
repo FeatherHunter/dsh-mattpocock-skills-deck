@@ -1,5 +1,5 @@
 /**
- * backends/github/graph.js — 图关系（setParent / getDependencies / setBlockedBy）。
+ * src/tracker/rooms/github/graph.ts — 图关系（setParent / getDependencies / setBlockedBy）。
  *
  * 定版依据：#138 §1.2 + #128（树/图数据需求由 parentKey+tickets+getDependencies 覆盖）
  * - 树 setParent → POST/DELETE /repos/{o}/{r}/issues/{n}/sub_issues（null → DELETE；GHES 不支持 → unsupported）
@@ -43,6 +43,44 @@ function errMessageOrStderr(err: { message: string }): string {
   return err.message || (err as unknown as { stderr?: unknown }).stderr as string || ''
 }
 
+/**
+ * 一趟边写入的轨迹：由 setParent / setBlockedBy 的内层实现边走边填，外层包装统一发射（附录 1.4 节 #100 `edge.write`）。
+ * 为什么用一个小对象传进内层，而不是在出口处回头猜：同一趟写入可能走原生旗、也可能退回裸接口，
+ * 还可能因为「这条边本来就在位」一条都没真写下去 —— 这些事实只有内层知道。小对象按调用各建一个，并发写不会串。
+ */
+interface EdgeTrail {
+  route: 'none' | 'flag' | 'rest';
+  added: number;
+  removed: number;
+  kept: number;
+  reason: string;
+}
+function newEdgeTrail(): EdgeTrail {
+  return { route: 'none', added: 0, removed: 0, kept: 0, reason: 'none' }
+}
+
+/**
+ * 边写入的常驻结论线（附录 1.4 节 #100 `edge.write`）：一趟写入一行，成功与失败都记，
+ * 回答「这条边落没落下去、停在哪一步、为什么」。字段全是枚举、布尔与计数：
+ * kind 这一次写的是父子边还是阻塞边、route 走的哪条路（none 没走到外部调用 / flag 原生旗 / rest 裸接口）、
+ * ok 成没成、added 真落了几条、removed 真撤了几条、kept 本来就在位几条（对账之后没重复提交的那些）、
+ * reason 为什么是这个结论、latencyMs 这一趟花了多久。
+ * 票号、命令原文、上游报错原文一个字都不记：票号在工具返回值里，命令与报错原文在 gh.exec / gh.timeout 那两条里。
+ * 为什么定常驻：边是人和 AI 显式动作（一次建图十几步），出「这条边怎么没挂上」这类问题时，
+ * 查的人不会先去打开调试开关；它也是这一组里唯一一条「写没写下去」的结论线。
+ */
+function emitEdgeWrite(ctx: OpContext, kind: string, trail: EdgeTrail, r: OpResult<Issue>, t0: number): void {
+  try {
+    if (!ctx || typeof ctx.logEvent !== 'function') return
+    // 失败那一路的档位从返回里读；返回是联合类型，先按「有 error 这一格」的形状取，读法与原逻辑一致。
+    const rb = r as { ok?: unknown; error?: { kind?: unknown } } | null | undefined
+    const okFlag = !!(rb && rb.ok === true)
+    const errKind = String((rb && rb.error && rb.error.kind) || 'unknown')
+    const reason = okFlag ? trail.reason : 'fail:' + errKind
+    ctx.logEvent('info', 'edge.write', { kind: kind, route: trail.route, ok: okFlag, added: trail.added, removed: trail.removed, kept: trail.kept, reason: reason, latencyMs: Date.now() - t0 })
+  } catch {}
+}
+
 function parseRepo(repo: RepositoryRef): ParsedRepo | null {
   if (!repo || typeof repo.refId !== 'string' || !repo.refId) return null
   const s = repo.refId.trim()
@@ -73,15 +111,57 @@ function isUnknownFlag(msg: unknown): boolean {
 }
 
 /**
+ * 读一张票**原生**的阻塞边真值（`GET /repos/{o}/{r}/issues/{n}/dependencies/blocked_by`），返回一组票面编号。
+ *
+ * 为什么单开这条路（#1100 现象 2）：写前差集从前只读契约的 blockedBy 字段，而那张字段在 GraphQL 拿不到、
+ * 退回 REST 列表读时是空的（REST 单票与列表回包都不带父子与阻塞边）。差集于是退化成「全集」——
+ * 已经存在的边会被再 POST 一遍，上游回 422 already been taken，这一批边一条都落不下去。
+ * 这里直接问原生接口，读到什么就是什么，不猜。
+ *
+ * 读不到（端点不存在、没权限、回包不是数组）返回 null，调用方退回契约字段的老口径 —— 那时行为与改动前一致。
+ */
+async function nativeBlockedByKeys(c: GhClient, parsed: ParsedRepo, numberKey: string, ctx: OpContext): Promise<Set<string> | null> {
+  try {
+    const rr = await c.execGh(['api', `repos/${parsed.owner}/${parsed.name}/issues/${numberKey}/dependencies/blocked_by?per_page=100`], { cwd: ctx && ctx.cwd })
+    if (!rr.ok) return null
+    let j: unknown
+    try { j = JSON.parse(rr.data.stdout || '') } catch { return null }
+    if (!Array.isArray(j)) return null
+    const out = new Set<string>()
+    for (const it of j) {
+      // 每一条就是一张票的对象（回包形状不对的行跳过），只取它的票面编号。
+      if (!it || typeof it !== 'object') continue
+      const n = (it as Record<string, unknown>).number
+      if (n != null) out.add(String(n))
+    }
+    return out
+  } catch { return null }
+}
+
+/**
  * setParent(repo, key, parentKey, opts, ctx) -> OpResult<Issue>
  * parentKey: string|null（单父语义，只认原生 parent，忽略 task list）
+ *
+ * 对外入口只做两件事：记这一趟开始时的时间、把内层填好的轨迹发成 `edge.write`（附录 1.4 节 #100）。
+ * 真正的读写全在内层；走原生旗还是退回裸接口，只有内层知道。
+ */
+export async function setParent(repo: RepositoryRef, key: string, parentKey: string | null | undefined, opts: SetOpts | undefined, ctx: MemoContext): Promise<OpResult<Issue>> {
+  const trail = newEdgeTrail()
+  const t0 = Date.now()
+  const r = await setParentInner(repo, key, parentKey, opts, ctx, trail)
+  emitEdgeWrite(ctx, 'parent', trail, r, t0)
+  return r
+}
+
+/**
+ * setParent 的内层实现。
  *
  * 失败时的第三段原文（`fail` 的 `raw`）按三种情况交：
  * 一是入参形状不合格——这时还没跑过任何外部命令，手里确实没有更早的原文，就交那个不合格的入参本身；
  * 二是上游交回过结果（`gh` 的执行结果、别处 op 的返回）——交那份结果，原话就在它里面；
  * 三是本地根据读回来的数据算出的结论（自环、成环、编号查不到）——交触发它的那份入参。
  */
-export async function setParent(repo: RepositoryRef, key: string, parentKey: string | null | undefined, opts: SetOpts | undefined, ctx: MemoContext): Promise<OpResult<Issue>> {
+async function setParentInner(repo: RepositoryRef, key: string, parentKey: string | null | undefined, opts: SetOpts | undefined, ctx: MemoContext, trail: EdgeTrail): Promise<OpResult<Issue>> {
   try {
     const parsed = parseRepo(repo)
     if (!parsed) return fail(ERROR_KIND.NOTFOUND, `setParent: repo.refId missing: ${repoId(repo)}`, repo)
@@ -104,7 +184,8 @@ export async function setParent(repo: RepositoryRef, key: string, parentKey: str
     const curParentKey = curRes.ok ? curRes.data.parentKey : null
 
     if (wantParent === curParentKey) {
-      // 已是目标状态，幂等
+      // 已是目标状态，幂等（这一趟一条边都没动，结论线照记一行：写没写到、为什么没写）
+      trail.reason = 'noop'
       if (curRes.ok) return curRes
       // 原文交上游那次读取的结果：说「这张票没有」的原话就在它里面。
       return fail(ERROR_KIND.NOTFOUND, `setParent: issue ${k} not found`, curRes)
@@ -122,6 +203,8 @@ export async function setParent(repo: RepositoryRef, key: string, parentKey: str
       }
       const rm = await c.execGh(['issue', 'edit', k, '--repo', slug, '--remove-parent'], { cwd: ctx && ctx.cwd })
       if (rm.ok) {
+        // 走的是原生旗这一路：真撤掉了一条父子边。
+        trail.route = 'flag'; trail.removed = 1; trail.reason = 'removed'
         const back = await getIssue(repo, k, {}, ctx)
         if (back.ok) return back
         return curRes.ok ? curRes : back
@@ -141,6 +224,8 @@ export async function setParent(repo: RepositoryRef, key: string, parentKey: str
         }
         return { ok: false, error: r.error }
       }
+      // 原生旗不认识 → 退回裸接口这一路，真撤掉了一条父子边。
+      trail.route = 'rest'; trail.removed = 1; trail.reason = 'removed'
     } else {
       // 设置父子：先走原生旗 `gh issue edit --parent`（按票号；裸接口要数据库编号且用 -F，-f 传票号必 422，见 #790）。
       // 说「编号必须是数字」的原文就是调用方给的那个值本身。
@@ -159,7 +244,8 @@ export async function setParent(repo: RepositoryRef, key: string, parentKey: str
         const m = errMessageOrStderr(set.error)
         // #829：旗报重复时以重读为准（读过期后重试）：已是目标父则成功，否则带原话失败。
         if (/already.*sub-issue|duplicate|addSubIssue|may not contain duplicate/i.test(m)) {
-          try { const re = await getIssue(repo, k, {}, ctx); if (re.ok && re.data && re.data.parentKey === wantParent) return re } catch {}
+          // 旗报重复、重读确认已是目标父：这一趟没有新写边，但目标状态确实在（kept 记一笔）。
+          try { const re = await getIssue(repo, k, {}, ctx); if (re.ok && re.data && re.data.parentKey === wantParent) { trail.route = 'flag'; trail.kept = 1; trail.reason = 'noop'; return re } } catch {}
           return { ok: false, error: set.error }
         }
         if (!isUnknownFlag(m)) {
@@ -183,7 +269,13 @@ export async function setParent(repo: RepositoryRef, key: string, parentKey: str
           }
           return { ok: false, error: r.error }
         }
+        // 走的是裸接口这一路（原生旗不认识）。
+        trail.route = 'rest'
       }
+      // 走到这里说明这一趟父子边已经落下去了：原生旗那一路是 flag，退回裸接口那一路在上面的分支里已改成 rest。
+      if (trail.route === 'none') trail.route = 'flag'
+      trail.added = 1
+      trail.reason = 'added'
     }
 
     // 读回最新
@@ -265,14 +357,40 @@ export async function getDependencies(repo: RepositoryRef, key: string, opts: De
   }
 }
 
-/** 成环检测：邻接关系名册优先（只定向重读脏票），缺席时退回整仓拉取；DFS 判环。返回 true = 成环。 */
-async function wouldCreateCycle(repo: RepositoryRef, key: string, blockers: unknown, ctx: MemoContext): Promise<boolean> {
+/**
+ * 环检测的调试线（附录 1.5 节 #101 `edge.cycle`）：一趟一行，回答「这次查没查、拿什么查的、结论是什么」。
+ * 只在调试开关打开时记（写一条阻塞边就可能查一次，属高频路径），字段全是枚举与计数：
+ * verdict 结论（ok 没成环 / conflict 成环 / unknown 邻接关系没取到、这一趟按不成环放行）、
+ * nodes 邻接表里几张票、blockers 这一次拟写入几条阻塞边、latencyMs 查了多久。
+ * 票号一个字都不记（哪张票在工具返回值与 gh.exec 的调用链里）。
+ */
+function emitEdgeCycle(ctx: OpContext, verdict: string, nodes: number, blockers: number, t0: number): void {
+  try {
+    if (!ctx || typeof ctx.isEnabled !== 'function' || ctx.isEnabled('debug') !== true || typeof ctx.logEvent !== 'function') return
+    ctx.logEvent('debug', 'edge.cycle', { verdict: verdict, nodes: nodes, blockers: blockers, latencyMs: Date.now() - t0 })
+  } catch {}
+}
+
+/**
+ * 成环检测：邻接关系名册优先（只定向重读脏票），缺席时退回整仓拉取；DFS 判环。
+ * 返回三态而不是布尔：邻接关系没取到时这一趟其实没查成（老行为是当不成环放行），
+ * 这个「没查成」必须能被日志看见，所以单列 unknown 一档（#1054 补日志）。
+ */
+async function cycleVerdict(repo: RepositoryRef, key: string, blockers: unknown, ctx: MemoContext): Promise<'ok' | 'conflict' | 'unknown'> {
+  const t0 = Date.now()
+  const count = Array.isArray(blockers) ? blockers.length : 0
   try {
     const adj = await adjacencyFor(repo, ctx)
-    if (!adj) return false
-    return hasCycle(adj, key, blockers)
+    if (!adj) {
+      emitEdgeCycle(ctx, 'unknown', 0, count, t0)
+      return 'unknown'
+    }
+    const cycle = hasCycle(adj, key, blockers)
+    emitEdgeCycle(ctx, cycle ? 'conflict' : 'ok', adj.size, count, t0)
+    return cycle ? 'conflict' : 'ok'
   } catch {
-    return false
+    emitEdgeCycle(ctx, 'unknown', 0, count, t0)
+    return 'unknown'
   }
 }
 
@@ -281,8 +399,19 @@ async function wouldCreateCycle(repo: RepositoryRef, key: string, blockers: unkn
  * - blockers: string[]（key 列表）
  * - 自环：self∈blockers → conflict
  * - 成环：写后环检成环 → conflict 不落盘
+ *
+ * 对外入口只做两件事：记这一趟开始时的时间、把内层填好的轨迹发成 `edge.write`（附录 1.4 节 #100）。
  */
 export async function setBlockedBy(repo: RepositoryRef, key: string, blockers: string[] | undefined, opts: SetOpts | undefined, ctx: MemoContext): Promise<OpResult<Issue>> {
+  const trail = newEdgeTrail()
+  const t0 = Date.now()
+  const r = await setBlockedByInner(repo, key, blockers, opts, ctx, trail)
+  emitEdgeWrite(ctx, 'block', trail, r, t0)
+  return r
+}
+
+/** setBlockedBy 的内层实现：读真值 → 算差集 → 逐条写，走得怎样写进 trail。 */
+async function setBlockedByInner(repo: RepositoryRef, key: string, blockers: string[] | undefined, opts: SetOpts | undefined, ctx: MemoContext, trail: EdgeTrail): Promise<OpResult<Issue>> {
   try {
     const parsed = parseRepo(repo)
     if (!parsed) return fail(ERROR_KIND.NOTFOUND, `setBlockedBy: repo.refId missing: ${repoId(repo)}`, repo)
@@ -304,9 +433,9 @@ export async function setBlockedBy(repo: RepositoryRef, key: string, blockers: s
       }
     }
     // 成环检测（写前，不落盘）
-    const cycle = await wouldCreateCycle(repo, k, uniq, ctx)
+    const verdict = await cycleVerdict(repo, k, uniq, ctx)
     // 成环是本地拿读回来的邻接关系算出来的，还没有任何上游报错可交，原文就交调用方给的这份阻塞列表。
-    if (cycle) return fail(ERROR_KIND.CONFLICT, `conflict: cycle detected for ${k} -> [${uniq.join(',')}]`, blockers)
+    if (verdict === 'conflict') return fail(ERROR_KIND.CONFLICT, `conflict: cycle detected for ${k} -> [${uniq.join(',')}]`, blockers)
 
     const c = ghClient(ctx)
     // 读当前 blockedBy 做 diff（需额外 API：GitHub dependencies API）
@@ -316,8 +445,18 @@ export async function setBlockedBy(repo: RepositoryRef, key: string, blockers: s
     if (!curRes.ok) return curRes
     // 为什么敢断言非空：getDependencies 的 blockedBy 恒为数组（本文件上面那一步取不到也给 []），成功返回不可能缺这一格。
     const curBlockers = curRes.data.blockedBy!.map((b) => b.key)
-    const toAdd = uniq.filter((b) => !curBlockers.includes(b))
-    const toRemove = curBlockers.filter((b) => !uniq.includes(b))
+    // 写前逐条对账（#1100 现象 2）：先直接问原生接口「这一张票现在真正挂着哪几条阻塞边」，
+    // 按这份真值算差集；问不到（端点不在、没权限）才退回契约字段的老口径，行为与改动前一致。
+    // 为什么必须多问这一趟：契约那张 blockedBy 字段在 GraphQL 拿不到时是空的（读路径的 REST 降级回包
+    // 不带阻塞边），而空字段算出来的差集是「全集」——已经存在的边会被再提交一遍，上游 422 整批中止。
+    const native = await nativeBlockedByKeys(c, parsed, k, ctx)
+    const knownSet: Set<string> = native || new Set<string>(curBlockers.map(String))
+    const toAdd = uniq.filter((b) => !knownSet.has(b))
+    const toRemove = [...knownSet].filter((b) => !uniq.includes(b))
+    // 轨迹：走的这条 REST 路；kept 记几条第这次目标里的边本来就在位（对账之后没重复提交的那些）。
+    trail.route = 'rest'
+    trail.kept = uniq.length - toAdd.length
+    trail.reason = (toAdd.length || toRemove.length) ? 'diff' : 'noop'
     // 票号（number，如 758）与接口要的内部标识（id，如 5595650996）不是一回事：
     // 写边与删边都要先把票号换成内部标识，且传参用 -F（按类型传数字），-f 会传成字符串被 422 拒收。
     // 为什么进闭包前先留一个：parsed 在上面已验过非空，但闭包里编译器会丢掉那次收窄；留一个已收窄的别名，闭包里读的还是原来那两个串。
@@ -342,25 +481,29 @@ export async function setBlockedBy(repo: RepositoryRef, key: string, blockers: s
       if (!bid) return fail(ERROR_KIND.NOTFOUND, `setBlockedBy: issue ${b} not found`, b)
       const args = ['api', `repos/${parsed.owner}/${parsed.name}/issues/${k}/dependencies/blocked_by/${bid}`, '--method', 'DELETE']
       const r = await c.execGh(args, { cwd: ctx && ctx.cwd })
-      if (!r.ok) {
-        // 若 API 不存在（GHES）→ unsupported
-        const msg = String(r.error.message || '').toLowerCase()
-        if (/unsupported|not found|404.*dependencies/i.test(msg)) return fail(ERROR_KIND.UNSUPPORTED, 'setBlockedBy unsupported', r)
-        return { ok: false, error: r.error }
-      }
+      if (r.ok) { trail.removed += 1; continue }
+      const msg = String(r.error.message || '').toLowerCase()
+      // 若 API 不存在（GHES）→ unsupported。判据是「原生真值没读到」加上一个 404：
+      // 真值读得到说明端点活着，那时的 404 只能是「这条边本来就不在」，见下一条分支。
+      if (/unsupported|not supported/i.test(msg) || (!native && /not found|404/i.test(msg))) return fail(ERROR_KIND.UNSUPPORTED, 'setBlockedBy unsupported', r)
+      // 对账之后才发现这条边本来就不在（真值比上游晚一拍）：删除的目标已经达成，不算失败。
+      if (/not found|404/.test(msg)) continue
+      return { ok: false, error: r.error }
     }
     for (const b of toAdd) {
       const bid = idByKey.get(b)
       if (!bid) return fail(ERROR_KIND.NOTFOUND, `setBlockedBy: issue ${b} not found`, b)
       const args = ['api', `repos/${parsed.owner}/${parsed.name}/issues/${k}/dependencies/blocked_by`, '--method', 'POST', '-F', `issue_id=${bid}`]
       const r = await c.execGh(args, { cwd: ctx && ctx.cwd })
-      if (!r.ok) {
-        const msg = String(r.error.message || '').toLowerCase()
-        // 上游报错时原文交那份执行结果：判 unsupported 还是 conflict 的原话都在它里面。
-        if (/unsupported|not found|404.*dependencies/i.test(msg)) return fail(ERROR_KIND.UNSUPPORTED, 'setBlockedBy unsupported', r)
-        if (/cycle|circular/i.test(msg)) return fail(ERROR_KIND.CONFLICT, `conflict: cycle ${msg.slice(0, 200)}`, r)
-        return { ok: false, error: r.error }
-      }
+      if (r.ok) { trail.added += 1; continue }
+      const msg = String(r.error.message || '').toLowerCase()
+      // 上游报错时原文交那份执行结果：判 unsupported 还是 conflict 的原话都在它里面。
+      if (/unsupported|not found|404.*dependencies/i.test(msg)) return fail(ERROR_KIND.UNSUPPORTED, 'setBlockedBy unsupported', r)
+      if (/cycle|circular/i.test(msg)) return fail(ERROR_KIND.CONFLICT, `conflict: cycle ${msg.slice(0, 200)}`, r)
+      // 上游说「这条边已经在」：目标状态已经达成，算已经到位，不算失败，更不能像从前那样把这一批剩下的边一起丢掉
+      // （#1100 现象 2 的整批中止就是从这里来的：读回看不见原生关系 → 差集是全集 → 第一条已存在的边 422 → 整批丢写）。
+      if (/already been taken|already exists|already exist|duplicate/i.test(msg)) { trail.kept += 1; continue }
+      return { ok: false, error: r.error }
     }
 
     // 读回最新
