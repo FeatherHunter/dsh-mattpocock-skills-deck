@@ -386,10 +386,13 @@ function main() {
       )
       check(
         nonProbeCount === PROBE_NONPROBE_ERROR_BASELINE,
-        '后端文件内部报错 ' + nonProbeCount + ' 条，与基线 ' + PROBE_NONPROBE_ERROR_BASELINE + ' 条相等' +
+        // 这句提示要按两种结果分开说：相等时才说「两边相等」，不等时先把「不相等」说出来，
+        // 再解释往哪边偏是什么意思。原先无论哪一边都写着「与基线 X 条相等」，
+        // 判红的时候等于自己给出一个自相矛盾的数字，看日志的人得先怀疑是不是门禁写错了。
+        '后端文件内部报错 ' + nonProbeCount + ' 条，基线 ' + PROBE_NONPROBE_ERROR_BASELINE + ' 条' +
           (nonProbeCount === PROBE_NONPROBE_ERROR_BASELINE
-            ? '（实现面的债，审它们是迁移批次的事）'
-            : '——多了是新增债务，少了是有人动了实现面：先把基线数改过来，并考虑把探针收紧'),
+            ? '，两边相等（实现面的债，审它们是迁移批次的事）'
+            : '，两边不相等——多了是新增债务，少了是有人动了实现面：先把基线数改过来，并考虑把探针收紧'),
       )
       if (nonProbeCount !== PROBE_NONPROBE_ERROR_BASELINE) failed = true
     }
