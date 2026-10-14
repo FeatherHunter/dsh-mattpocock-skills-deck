@@ -7,11 +7,58 @@
 //
 // 搬的时候只搬不改：函数体、注释、字段顺序、`cdk` 兜底值与原来逐字一致；`ghPath` / `ghError` 取的是
 // 通话那一刻的宿主状态，所以由调用方（那个电话）每次现取好交进来。
-export function createSnapshotEnvelope(deps) {
-  const d = deps || {}
+
+/** 接线处交进来的几只口子：取宿主状态（gh 路径/错误）、落盘那一步、日志与读数。 */
+type EnvelopeDeps = {
+  getGhPath: () => string
+  getGhLastError: () => unknown
+  adoptSnapshot: (snap: unknown, c: unknown) => unknown
+  logCtx?: { fire(level: string, event: string, fields?: unknown): void } | null
+  chainReadout?: () => unknown
+  chainField?: string
+}
+
+/** buildSnap 的输入：五条分支各带一部分字段，这里只声明本文件真读到的那些。 */
+type SnapInput = {
+  repo?: unknown
+  repoRoot?: unknown
+  workspaceRoot?: unknown
+  maps?: unknown[]
+  issues?: unknown[]
+  thinTickets?: unknown[]
+  labels?: unknown[]
+  repository?: unknown
+  backendModules?: unknown
+  selection?: unknown
+  setupLayout?: unknown
+  viewer?: unknown
+  viewerLogin?: unknown
+  deck?: unknown
+  fallback?: string
+  fallbackAt?: unknown
+  fallbackReason?: unknown
+  refresh?: unknown
+}
+
+/** deck 那一块里本文件真读到的两个字段。 */
+type DeckLike = { counts?: { open?: number; closed?: number } | null; partial?: boolean }
+
+/** 信封形状：显式声明本文件真读到的字段，其余（调用方透传的那些）原样放过。 */
+type SnapLike = {
+  [key: string]: unknown
+  fromCache?: boolean
+  generatedMs?: number
+  maps?: unknown[]
+  issues?: unknown[]
+  labels?: unknown[]
+  deck?: DeckLike | null
+}
+
+export function createSnapshotEnvelope(deps: EnvelopeDeps) {
+  const d = deps || ({} as EnvelopeDeps)
 
   /** 五条分支的快照同形，收在一处组装（#653：加字段改一处，免漏；repo 与 repoRoot 由调用方传入）。 */
-  function buildSnap(o) {
+  function buildSnap(o: SnapInput): SnapLike {
     const snap = {
       ok: true,
       repo: (o.repo !== undefined ? o.repo : null),
@@ -35,16 +82,19 @@ export function createSnapshotEnvelope(deps) {
 
   // #689：snapshot.built 多了三个字段（open / closed 是后端计数给的真值、拿不到记 -1；partial 说这份行数据全不全）
   // —— 加在既有事件里不新增一条（每次重建都会走到这里），字段表见 research/489-appendix.md 第 1 章。
-  async function adoptSnapLog(snap, c) {
+  // 类型说明（#1155）：落盘那一步是接线处给的回调，它的返回形状在这一层表达不出来，
+  // 所以按调用方传进来的类型原样还回去（运行时不碰，只是把类型跟过去）。
+  function adoptSnapLog<T>(snap: T, c: unknown): T {
     try {
       const logCtx = d.logCtx
-      if (logCtx && snap && snap.fromCache !== true) {
-        const _d = (snap.deck && typeof snap.deck === 'object') ? snap.deck : {}
+      const s = snap as SnapLike
+      if (logCtx && snap && s.fromCache !== true) {
+        const _d: DeckLike = (s.deck && typeof s.deck === 'object') ? s.deck : {}
         const _ct = (_d.counts && typeof _d.counts === 'object') ? _d.counts : null
-        logCtx.fire('info', 'snapshot.built', { maps: (snap.maps || []).length, issues: (snap.issues || []).length, labels: (snap.labels || []).length, open: _ct ? _ct.open : -1, closed: _ct ? _ct.closed : -1, partial: _d.partial === true, latencyMs: Date.now() - (snap.generatedMs || Date.now()) })
+        logCtx.fire('info', 'snapshot.built', { maps: (s.maps || []).length, issues: (s.issues || []).length, labels: (s.labels || []).length, open: _ct ? _ct.open : -1, closed: _ct ? _ct.closed : -1, partial: _d.partial === true, latencyMs: Date.now() - (s.generatedMs || Date.now()) })
       }
     } catch (e) {}
-    return d.adoptSnapshot(snap, c)
+    return d.adoptSnapshot(snap, c) as T
   }
 
   /**
@@ -60,11 +110,15 @@ export function createSnapshotEnvelope(deps) {
    *
    * 回包不是 ok:true（失败那种）、或接线处没给读数函数，都原样返回：不挂字段，
    * 也不能把一份失败的快照伪装成成功的。
+   *
+   * 类型说明（#1155）：回包形状由各条电话自己定，这里按调用方传进来的类型原样还回去。
    */
-  function withChainReadout(reply) {
-    if (!reply || typeof reply !== 'object' || reply.ok !== true) return reply
+  function withChainReadout<T>(reply: T): T {
+    if (!reply || typeof reply !== 'object') return reply
+    const r = reply as { ok?: unknown; [key: string]: unknown }
+    if (r.ok !== true) return reply
     if (typeof d.chainReadout !== 'function') return reply
-    try { reply[d.chainField || 'sessionTickets'] = d.chainReadout() } catch (eR) { /* 读数取不到不影响这份快照本身 */ }
+    try { r[d.chainField || 'sessionTickets'] = d.chainReadout() } catch (eR) { /* 读数取不到不影响这份快照本身 */ }
     return reply
   }
 

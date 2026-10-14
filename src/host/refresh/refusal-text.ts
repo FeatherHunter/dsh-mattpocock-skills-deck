@@ -12,15 +12,30 @@
 //   ②「额度被别人用掉了」——剩余额度已到保底线，会话里别的 GitHub 调用把额度吃掉了，
 //     这时先拒 AI 工具写入，绝不挤掉插件刷新与人的动作。
 
-/**
- * @param {{reason: string, points: number, requests: number}} a 准入结论
- * @param {{remaining: number}} q 这一桶现在的账（只用剩下多少点）
- * @param {{points: number, requests: number}} hour 本小时 AI 工具已经花掉多少
- * @param {{shards: number, perShard: number}} plan 建议分几片、每片最多几张票
- * @param {{aiToolMaxPointsPerCall: number, aiToolMaxRequestsPerCall: number, aiToolMaxPointsPerHour: number, aiToolMaxRequestsPerHour: number}} limits 两道硬顶的数字（由调用方从 budget.js 取好传进来）
- * @returns {string}
- */
-export function refusalTextRef(a, q, hour, plan, limits) {
+/** 准入结论：哪一种拒、这次要花多少。 */
+type RefusalArgs = { reason: string; points: number; requests: number }
+/** 这一桶现在的账：只用到「还剩多少点」。 */
+type RefusalQuota = { remaining: number }
+/** 本小时 AI 工具已经花掉多少。 */
+type RefusalHourSpend = { points: number; requests: number }
+/** 建议分几片、每片最多几张票。 */
+type RefusalPlan = { shards: number; perShard: number }
+/** 两道硬顶的数字（由调用方从 budget.js 取好传进来）。 */
+type RefusalLimits = {
+  aiToolMaxPointsPerCall: number
+  aiToolMaxRequestsPerCall: number
+  aiToolMaxPointsPerHour: number
+  aiToolMaxRequestsPerHour: number
+}
+
+/** 拼出那句拒绝文案。函数体一个字没动，只把类型从 JSDoc 挪进签名（#1155）。 */
+export function refusalTextRef(
+  a: RefusalArgs,
+  q: RefusalQuota,
+  hour: RefusalHourSpend,
+  plan: RefusalPlan,
+  limits: RefusalLimits,
+): string {
   const cap = (a.reason === 'ai-tool-over-call-cap' || a.reason === 'ai-tool-over-hour-cap')
   const head = cap
     ? '这次调用超过了插件给 AI 工具设的自己那道硬顶（额度没被别人用掉，是这一笔太大或这一小时攒太多了）'

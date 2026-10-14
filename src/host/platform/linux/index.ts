@@ -13,18 +13,33 @@
  * 通用包装（缓存 / throw→null / path 委托 / fs 透传 / env 视图）由 `platform/index.js:composePlatform` 单点提供，
  * 本文件只提供 OS 专属原语（pathImpl / getHome / resolveExecutable），不重复实现通用层。
  */
+// 本域 tsconfig 有意不加载任何类型包（types 为空），node:path / node:os 的类型声明随 @types/node
+// 一起被挡在门外；运行时一定是 Node，这两个模块必然存在。所以只忽略导入这一行的类型错误
+// （纯类型层面，不影响 esbuild 的运行时转译）——与 src/tracker/rooms/markdown/path.ts 同一写法。
+// @ts-expect-error
 import nodePath from 'node:path'
+// @ts-expect-error
 import nodeOs from 'node:os'
 
-function resolveHomedir(ctx, opts) {
-  const o = opts && typeof opts === 'object' ? opts : {}
+/** 宿主上下文的最小形状：适配器只从它取 subprocess 原语，外加两个测试注入点（#113/#131）。 */
+type HostCtx = {
+  get(name: 'subprocess'): { resolveExecutable(name: string): string | Promise<string> }
+  _homedir?: () => string
+  __homedir?: () => string
+}
+
+/** 适配器可选项：测试夹具用它注入 homedir 实现；生产走 ctx 与 node:os。 */
+type HostAdapterOpts = { homedir?: () => string }
+
+function resolveHomedir(ctx: HostCtx | undefined, opts: HostAdapterOpts | undefined) {
+  const o: HostAdapterOpts = opts && typeof opts === 'object' ? opts : {}
   if (typeof o.homedir === 'function') return o.homedir
   if (ctx && typeof ctx._homedir === 'function') return ctx._homedir
   if (ctx && typeof ctx.__homedir === 'function') return ctx.__homedir
   return () => nodeOs.homedir()
 }
 
-export default function linuxAdapter(ctx, opts) {
+export default function linuxAdapter(ctx: HostCtx, opts?: HostAdapterOpts) {
   const homedir = resolveHomedir(ctx, opts)
   return {
     os: 'linux',
@@ -44,7 +59,7 @@ export default function linuxAdapter(ctx, opts) {
      * - sh 等通用名：直透 DSH `subprocess.resolveExecutable(name)`，找不到时 throw → 由通用层 composePlatform 转 null。
      * - gh：同直透；PATH 未命中时由通用层读 env.DSH_GH_PATH + fs.lstat 校验兜底（原 L4 逻辑已移除，单一真源）。
      */
-    async resolveExecutable(name) {
+    async resolveExecutable(name: string) {
       const subprocess = ctx.get('subprocess')
       return subprocess.resolveExecutable(name)
     },
@@ -53,10 +68,10 @@ export default function linuxAdapter(ctx, opts) {
      */
     shellOpen: {
       opener: 'xdg-open',
-      normalize: (t) => t,
+      normalize: (t: string) => t,
       allowOpen: () => true,
-      folderArgs: (t) => [t],
-      fileArgs: (t) => [t],
+      folderArgs: (t: string) => [t],
+      fileArgs: (t: string) => [t],
     },
   }
 }
