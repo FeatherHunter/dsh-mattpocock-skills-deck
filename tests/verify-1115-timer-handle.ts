@@ -8,7 +8,10 @@
 //   ③ 两个真实调用点用「句柄是函数」的假计时器服务真跑一遍，断言那笔等待答完之后不再悬着：
 //      a. 平台通道的 getTimers（经它自己建的探测服务，src/host/platformChannel.js:316 / :326 那一份）；
 //      b. 宿主接线的 backendObj.timers（经 deck 工具那条路，src/host/refresh/wiring.js 那一份）；
-//   ④ 六个调用点都走共享层那一份（静态钉住），共享层那份自己不 import 任何模块。
+//   ④ 六个调用点都走共享层那一份（静态钉住），共享层那份自己不 import 任何模块；
+//   ⑤ 客户端那一份同款判断（src/client/hostShim.js 的 timer.clearTimeout）也真跑一遍三档 ——
+//      客户端叶子文件是构建时拼进闭包的文本，不能用 import 引共享层那份源码，只能照抄一套判断，
+//      所以这里把「照抄的这一份」也拉到门禁下；并钉住 settings-view-write.js 撤销时走它。
 //
 // 为什么「真形状」要单独钉：宿主计时器服务由 DSH 里的 @deepseek-ai/cordis-plugin-timer 提供，
 // 它的 timeout(回调, 毫秒) 交回的是一支**可调用的函数**（cordis 的 effect 撤销器）：不是数字句柄、
@@ -332,7 +335,57 @@ async function main() {
     check(!/\brequire\s*\(/.test(codeOnly) && !/\bctx\s*\.\s*get\s*\(/.test(codeOnly), '共享层那一份不碰宿主专属入口（require / ctx）')
   }
 
-  // ── ⑨ 本文件必须在 verify 链里（不挂进链就等于没跑）──
+  // ── ⑨ 客户端那一份同款判断：hostShim 的 timer.clearTimeout（叶子不能 import，照抄一套，这里真跑一遍）──
+  {
+    const shimRel = 'src/client/hostShim.js'
+    const shimSrc = fs.readFileSync(path.join(ROOT, shimRel), 'utf8')
+    const disposeIdx = shimSrc.indexOf("typeof id.dispose === 'function'")
+    const fnIdx = shimSrc.indexOf("typeof id === 'function'")
+    check(disposeIdx > 0 && fnIdx > 0 && disposeIdx < fnIdx, shimRel + '：撤销顺序与共享层一致——先认显式 dispose、再才是调用句柄本身（本票复查改的那一处）')
+    check(/clearTimeout:\s*function\s*\(id\)/.test(shimSrc), shimRel + '：timer 上挂着按形状撤销的那一份（客户端改调它的地方靠它）')
+    // 按构建的做法（剥行首 export，叶子文本是缩进过的）把这片叶子拼成可求值的文本，喂一个「句柄是函数」的假宿主 timer 真跑。
+    const body = shimSrc.replace(/^[ \t]*export /gm, '')
+    const makeShim = () => new Function('ctx', 'React', body + '\n; return { timer: timer, _timerRaw: _timerRaw }')
+    const fakeShim = makeCordisTimer()
+    const mod = makeShim()({ get: (n: string) => (n === 'timer' ? fakeShim.service : undefined) }, { createElement: () => null })
+    let fired = 0
+    const h = mod.timer.timeout(() => { fired += 1 }, 30)
+    check(typeof h === 'function' && (h as { dispose?: unknown }).dispose === undefined, shimRel + '：宿主真形状——timer.timeout 交回可调用、没有 dispose 的撤销器')
+    mod.timer.clearTimeout(h)
+    check(fakeShim.pendingCount() === 0, shimRel + '：clearTimeout 把那笔宿主等待真的撤掉了（还剩 ' + fakeShim.pendingCount() + ' 个）')
+    fakeShim.fireAll()
+    check(fired === 0, shimRel + '：撤销之后回调不再触发（实得 ' + fired + ' 次）')
+    // 反面对照：旧写法（拿全局 clearTimeout 撤宿主句柄）在这一份上照样撤不掉。
+    let firedOld = 0
+    const h2 = mod.timer.timeout(() => { firedOld += 1 }, 30)
+    clearTimeout(h2 as number)
+    check(fakeShim.pendingCount() === 1, shimRel + '：反面对照——全局 clearTimeout 撤不掉宿主句柄，那笔等待还悬着（旧写法就是这里空转）')
+    fakeShim.fireAll()
+    check(firedOld === 1, shimRel + '：反面对照——撤不掉的那笔照常触发（实得 ' + firedOld + ' 次）')
+    // 第二档：可调用且带 dispose 的包装句柄必须走 dispose()，不能被当成撤销器调用（调用等于再排一次）。
+    let disposed = 0
+    let invoked = 0
+    const wrapper = function () { invoked += 1 } as TimerFn & { dispose?: () => void }
+    wrapper.dispose = function () { disposed += 1 }
+    mod.timer.clearTimeout(wrapper)
+    check(disposed === 1 && invoked === 0, shimRel + '：可调用且带 dispose 的包装句柄走 dispose()、没有被当成撤销器调用（dispose ' + disposed + ' 次、调用 ' + invoked + ' 次）')
+    // 第三档：宿主 timer 缺失时退回页面自己的句柄（Node 里是 Timeout 对象、浏览器里是数字），也得撤得掉。
+    const mod2 = makeShim()({ get: () => undefined }, { createElement: () => null })
+    let firedNum = 0
+    const id = mod2.timer.timeout(() => { firedNum += 1 }, 20)
+    check(id !== null && id !== undefined && typeof id !== 'function', shimRel + '：宿主 timer 缺失时退回页面自己的 setTimeout，交回的是非函数句柄（实得 ' + typeof id + '）')
+    mod2.timer.clearTimeout(id)
+    await sleep(60)
+    check(firedNum === 0, shimRel + '：页面自己那一档（数字或 Timeout 对象）也撤得掉（实得 ' + firedNum + ' 次）')
+    // 真实调用点：设置那一族写盘前的防抖等待撤销要走它（原先拿全局 clearTimeout 撤宿主句柄，是空操作）。
+    const writeRel = 'src/client/kernel/settings-view-write.js'
+    const writeSrc = fs.readFileSync(path.join(ROOT, writeRel), 'utf8')
+    check(/viewFlagCancelTimer\(viewFlagState\.timer\)/.test(writeSrc), writeRel + '：撤销上一次排的那支等待走 viewFlagCancelTimer')
+    check(!/clearTimeout\(viewFlagState\.timer\)/.test(writeSrc), writeRel + '：没有再做「拿全局 clearTimeout 撤宿主句柄」的旧写法')
+    check(/typeof timer\.clearTimeout === 'function'/.test(writeSrc), writeRel + '：优先用 hostShim 那一份按形状撤销')
+  }
+
+  // ── ⑩ 本文件必须在 verify 链里（不挂进链就等于没跑）──
   {
     const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
     const steps = String(pkg.scripts.verify).split('&&').map((s: string) => s.trim())

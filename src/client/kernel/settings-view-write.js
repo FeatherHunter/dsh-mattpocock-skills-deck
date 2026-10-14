@@ -208,6 +208,13 @@
         })
       } catch (e) { try { viewFlagFallbackToLegacy(Object.keys(viewFlagState.journal)) } catch (e2) {} }
     }
+    // 撤销上一次排的那支等待。宿主那只 timer 交回的是可调用的撤销器函数，对它调全局 clearTimeout 是
+    //   空操作（不报错、也撤不掉，见 #1115），所以句柄一律交给 hostShim 的 timer.clearTimeout 按形状处理；
+    //   拿不到宿主那只 timer 时（页面自己排的数字句柄）才走全局 clearTimeout。
+    const viewFlagCancelTimer = function (h) {
+      try { if (typeof timer !== 'undefined' && timer && typeof timer.clearTimeout === 'function') { timer.clearTimeout(h); return } } catch (eS) {}
+      try { clearTimeout(h) } catch (eC) {}
+    }
     // 排一次落盘（一次只排一个：连着来的几下会并进同一个窗口）。只排一次、跑完就停，不是自续的定时器，
     //   与 log.js / store-snapshot.js 用 timer 的写法同例（拿不到宿主那只 timer 就退回页面自己的 setTimeout）。
     const viewFlagScheduleWrite = function () {
@@ -216,7 +223,7 @@
         try { if (typeof timer !== 'undefined' && timer && typeof timer.timeout === 'function') arm = function (fn, ms) { return timer.timeout(fn, ms) } } catch (eT) {}
         if (!arm && typeof setTimeout === 'function') arm = function (fn, ms) { return setTimeout(fn, ms) }
         if (!arm) { viewFlagWriteNow(); return }
-        if (viewFlagState.timer) { try { clearTimeout(viewFlagState.timer) } catch (eC) {} }
+        if (viewFlagState.timer) viewFlagCancelTimer(viewFlagState.timer)
         viewFlagState.timer = arm(viewFlagWriteNow, VIEW_FLAG_WRITE_DEBOUNCE_MS)
       } catch (e) {}
     }

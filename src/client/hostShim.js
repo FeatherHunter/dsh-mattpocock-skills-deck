@@ -2,7 +2,7 @@
  * client/hostShim.js —— 宿主适配垫片（从 index.js 拆出，#459，纯结构、行为零变化）
  * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
  * src/client/index.js 的 leaf 标记处（一源两物，标记 id 与本文件名一致）。
- * 以后谁改它：修宿主环境差异兜底（现在只剩 timer 缺失降级这一件）与自由变量绑定的人改它。
+ * 以后谁改它：修宿主环境差异兜底（timer 缺失降级、计时器句柄的撤销两件）与自由变量绑定的人改它。
  * 接线：本文件只用闭包已有名字（ctx/React/setTimeout/console），不引用其他新文件。
  */
     // 2026-08-28 实机修复：timer 服务在部分宿主上下文（Web 壳）里可能未注入、
@@ -21,6 +21,19 @@
       },
       setTimeout: function (fn, ms) {
         return timer.timeout(fn, ms)
+      },
+      // 撤销一支计时器句柄。宿主那支服务（cordis 的 timer）交回的是**一支可调用的撤销器函数**，
+      //   对它调全局 clearTimeout 不报错、也撤不掉（#1115 实测）；装了 dispose 的对象与页面自己的
+      //   数字句柄又各是另一档，所以按形状分三档，顺序不能反：先认显式 dispose，再才是调用句柄本身。
+      //   这一套判断与 src/shared/host-timer/src/host-timers.ts 的 cancelHostTimer 是同一份约定 ——
+      //   客户端这片是拼进 src/client/index.js 的叶子（构建剥行首 export 直接拼文本），不能用 import
+      //   引那份共享源码，所以这里照抄一份；改一处要同时改另一处，两边都有门禁钉着。
+      clearTimeout: function (id) {
+        try {
+          if (id && typeof id.dispose === 'function') { id.dispose(); return }
+          if (typeof id === 'function') { id(); return }
+          if (id !== undefined && id !== null) clearTimeout(id)
+        } catch (e) {}
       },
     }
     export const h = React.createElement
