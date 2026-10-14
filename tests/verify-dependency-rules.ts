@@ -22,6 +22,11 @@
 //      图外、扩展名引擎不跟、路径形状对不上，三种都会让规则静默空转）。五条都是纯结构判据，不需要
 //      往工作树里写探针文件就能判 —— 正控与负控是验收手段，放样本门禁那侧。
 //      第六条是分母：绿灯行必须报出「命中几个房间模块 / 盘上几个」。
+//   五、工具分不清的边（#1153）：解析器把「解析不到」全归成一个类型，分不清「今天不在盘上的构建产物位」
+//      与「路径真的断了」。本文件按「有没有同名源码会在构建后落在这个位置」把它拆开：有源码的打 INFO 放行，
+//      没源码的判红；同一节还做一次对账，图上未解析的包名边必须条条都被规则
+//      room-imports-unresolved-package 判到（规则哪天命不中这一类，就判红而不是安静放行）。
+//      起因、口径与两个方向的实验见下面「二之三」那一节。
 //
 // 存量豁免：tests/same-layer-baseline.json 的 entries（键 file|resolved），只许减不许增。
 //   在册的边放行；不在册的新边判红；在册但图上已经没有的条目打 INFO，提示可以清理。
@@ -63,7 +68,7 @@ const CONFIG_REL = '.dependency-cruiser.cjs'
 const BASELINE_REL = 'tests/same-layer-baseline.json'
 const DEPCRUISE_BIN_REL = 'node_modules/dependency-cruiser/bin/dependency-cruiser.mjs'
 const SOURCE_EXTS = ['.js', '.mjs', '.cjs', '.ts', '.mts', '.cts']
-// 同层互引四条 + 房间纪律两条 + 房间只许装配点引用一条 + deck 深引一条 + 纯规则侧两条 + 禁循环一条。
+// 同层互引四条 + 房间纪律三条 + 房间只许装配点引用一条 + deck 深引一条 + 纯规则侧两条 + 禁循环一条。
 // 出现在这里的作用是「配置被改松就判红」：少一条、名字改了、severity 不是 error，都会在下面对不上。
 const EXPECTED_RULES = [
   'same-layer-import-platform',
@@ -72,6 +77,10 @@ const EXPECTED_RULES = [
   'same-layer-import-seam',
   'cross-room-import',
   'room-imports-third-party-package',
+  // #1153 拆出来的第二条：#1153 之前「解析不到的包名」与「确凿的第三方包」在同一张类型表里，
+  // 本仓产物位缺失被误判成引了第三方包。拆完两条合起来才是原来「房间只许引内置模块」的完整判据，
+  // 少任何一条都等于判据变松，所以两条都必须在这个清单里。
+  'room-imports-unresolved-package',
   'rooms-imported-only-by-assembly',
   'deck-deep-import',
   'deck-rules-stay-pure',
@@ -510,6 +519,120 @@ export function countRoomModules(modules: unknown): number {
 }
 
 // ---------------------------------------------------------------------------
+// 二之三、工具分不清的边：未解析的边由本文件分开判（#1153）
+// ---------------------------------------------------------------------------
+//
+// 起因：规则 room-imports-third-party-package 原来把解析器的 unknown / undetermined / npm-unknown
+// 与确凿的 npm 类型列在同一张表里，于是「解析不到」一律当成「引了第三方包」。房间引的本仓共享件写成
+// 产物路径（../../../shared/refresh/idempotency.js）时，没跑过构建的检出上那些产物不在盘上，解析器
+// 归成 unknown —— 同一份提交，未构建检出多报 12 条、构建后 0 条，输出格式与真违规一模一样，
+// 人本地看得见红、CI（先构建）永远看不见。
+//
+// 为什么不能只把 unknown 从规则里删掉：解析不到还分两种，混在一张表里分不开，删掉就是「用改松判据换绿」。
+// 现在这样分：
+//   包名形状（ws、@scope/pkg、#subpath）解析不到 → 规则 room-imports-unresolved-package 判红；
+//   路径形状（./x.js、../x.js、/abs、盘符）解析不到 → 本文件按「有没有同名源码会在构建后落在这个位置」判：
+//     有（同位换扩展名，或 <目录>/src/<名字>.ts 这种源码位与产物位分离的形态）→ 打 INFO 放行；
+//     没有 → 判红（路径真断了，或引的东西压根不存在）。
+// 另外做一次对账：图上未解析的包名边必须条条都被那条新规则报出来 —— 规则的终点判据哪天命不中了
+// （上游改类别名、pathNot 写松），这一条会当场红，而不是安静地放行。
+
+/** 图上一条「解析不到的房间边」：从哪个房间文件出发、写的什么说明符、说明符落在本仓哪个位置（包名形状记空串）。 */
+export type UnresolvedRoomEdge = { file: string, specifier: string, target: string }
+
+/** 说明符是不是「路径形状」：相对路径、绝对路径、Windows 盘符。包名形状（ws、@scope/pkg、#subpath）不算。 */
+export function isPathSpecifier(spec: string): boolean {
+  return /^\.{1,2}(\/|\\|$)/.test(spec) || spec.startsWith('/') || /^[A-Za-z]:[\\/]/.test(spec)
+}
+
+/** 把相对说明符换算成本仓相对路径（posix 斜杠）；不是相对路径、或走楼梯走到仓库外时返回空串。 */
+export function resolveSpecifierTarget(file: string, spec: string): string {
+  if (!/^\.{1,2}(\/|\\|$)/.test(spec)) return ''
+  const parts = file.split('/').slice(0, -1).concat(spec.split(/[\\/]/))
+  const stack: string[] = []
+  for (const part of parts) {
+    if (!part || part === '.') continue
+    if (part === '..') {
+      // 走到仓库之外：这不是任何构建产物位，按判红那半边处置（记空串）。
+      if (!stack.length) return ''
+      stack.pop()
+      continue
+    }
+    stack.push(part)
+  }
+  return stack.join('/')
+}
+
+/** 构建产物位的「同名源码」候选：产物位旁边就是源码（换扩展名），以及源码位与产物位分离的 <目录>/src/<名字>.ts。 */
+export function productSourceCandidates(target: string): string[] {
+  if (!target) return []
+  const slash = target.lastIndexOf('/')
+  const dir = slash < 0 ? '' : target.slice(0, slash)
+  const name = (slash < 0 ? target : target.slice(slash + 1)).replace(/\.(js|mjs|cjs|jsx)$/, '')
+  if (!name) return []
+  const out: string[] = []
+  for (const ext of ['.ts', '.mts', '.cts', '.tsx']) {
+    out.push((dir ? dir + '/' : '') + name + ext)
+    out.push((dir ? dir + '/src/' : 'src/') + name + ext)
+  }
+  return out
+}
+
+/** 收集图上所有「从房间出发、解析不到」的边。target 只有路径形状的相对说明符才换算出值，其余记空串。 */
+export function collectUnresolvedRoomEdges(modules: unknown): UnresolvedRoomEdge[] {
+  const out: UnresolvedRoomEdge[] = []
+  for (const m of Array.isArray(modules) ? modules : []) {
+    if (!m || typeof m !== 'object') continue
+    const source = (m as { source?: unknown }).source
+    if (!source) continue
+    const file = toRepoRel(source)
+    if (!file.startsWith(ROOM_PATH_PREFIX)) continue
+    const raw = (m as { dependencies?: unknown }).dependencies
+    const deps = Array.isArray(raw) ? raw : []
+    for (const d of deps) {
+      if (!d || typeof d !== 'object') continue
+      const dep = d as { module?: unknown, resolved?: unknown, couldNotResolve?: unknown }
+      if (dep.couldNotResolve !== true) continue
+      const specifier = String(dep.module || dep.resolved || '')
+      if (!specifier) continue
+      out.push({ file, specifier, target: resolveSpecifierTarget(file, specifier) })
+    }
+  }
+  return out
+}
+
+/**
+ * 判据七（未解析的路径边）：有同名源码的放行（未构建检出上的产物位），既没产物也没源码的判红。
+ *
+ * 为什么用「有没有同名源码」而不是按路径形状放行：形状一样的两条边里，一条是还没构建的产物位
+ * （src/shared/refresh/idempotency.js 对应 src/shared/refresh/src/idempotency.ts），另一条是写错的路径
+ * （idempotensy.js）。只看形状会把后者一起放行，等于改松；看源码在不在，两种才分得开。
+ * exists 由调用方注入，自检夹具就能用它把「有源码 / 没源码 / 仓库外」三种情形都走一遍。
+ */
+export function unresolvedPathEdgeProblems(
+  edges: UnresolvedRoomEdge[],
+  exists: (rel: string) => boolean,
+): { problems: string[], explained: UnresolvedRoomEdge[] } {
+  const problems: string[] = []
+  const explained: UnresolvedRoomEdge[] = []
+  for (const edge of edges) {
+    if (edge.target && productSourceCandidates(edge.target).some((c) => exists(c))) {
+      explained.push(edge)
+      continue
+    }
+    const where = edge.target
+      ? '（解析为 ' + edge.target + '）'
+      : '（这条边的目标落在本仓之外，不在任何构建产物位上）'
+    problems.push(
+      '房间引的路径既不在盘上、也没有同名源码会在构建后落在这个位置：' + edge.file +
+      " -> '" + edge.specifier + "'" + where +
+      ' —— 先修路径；如果它本该是构建产物，就把源码放在 <目录>/src/<名字>.ts（产物位的同名源码），让构建生成它',
+    )
+  }
+  return { problems, explained }
+}
+
+// ---------------------------------------------------------------------------
 // 三、扫描域：三棵树里到底有没有文件
 // ---------------------------------------------------------------------------
 
@@ -624,6 +747,7 @@ function selfCheck(): void {
 
   selfCheckPurityRules()
   selfCheckRoomStructure()
+  selfCheckUnresolvedEdges()
 }
 
 /**
@@ -733,6 +857,77 @@ function selfCheckRoomStructure(): void {
   const silentDowngraded = graphScopeProblems([{ name: 'warn-rule', severity: 'warn', from: { path: '^src/tracker/rooms/' } }], [], rels)
   if (silentDowngraded.length === 0) pass('判据六（图上活着）：非 error 的规则不归它管（severity 由规则清单那条判）')
   else fail('判据六（图上活着）管了非 error 的规则：' + JSON.stringify(silentDowngraded))
+}
+
+/**
+ * 判据七自己的夹具（#1153）：先证明「会红」，再证明「该放行的不误伤」，最后才拿去判真仓库。
+ * 为什么要这一层：这条判据读的是图上的边与磁盘上的源码，写松了（路径形状认错、产物位候选少算一种、
+ * 落在仓库外的边也当产物位放行）读一遍代码看不出来 —— 而它正是「未构建检出上多报 12 条」的解药。
+ */
+function selfCheckUnresolvedEdges(): void {
+  console.log('== 未解析的路径边夹具（#1153）==')
+
+  // 形状：判据七只吃路径形状；包名形状归规则 room-imports-unresolved-package，一条都不许漏到这边来。
+  const shapeCases: Array<[string, boolean]> = [
+    ['./x.js', true],
+    ['../x.js', true],
+    ['..', true],
+    ['/abs/x.js', true],
+    ['D:/x.js', true],
+    ['ws', false],
+    ['@scope/pkg', false],
+    ['#subpath', false],
+    ['ws/lib/x.js', false],
+  ]
+  for (const [spec, expect] of shapeCases) {
+    const got = isPathSpecifier(spec)
+    if (got === expect) pass('说明符 ' + spec + (expect ? ' 认成路径形状' : ' 不认成路径形状'))
+    else fail('说明符 ' + spec + ' 的形状认错了：应为 ' + expect + '，实际 ' + got)
+  }
+
+  // 换算：房间文件在 src/tracker/rooms/github/ 下，三级 .. 回到 src/；走过头就是仓库外。
+  const t1 = resolveSpecifierTarget('src/tracker/rooms/github/idempotency.ts', '../../../shared/refresh/idempotency.js')
+  if (t1 === 'src/shared/refresh/idempotency.js') pass('相对说明符换算成本仓相对路径（' + t1 + '）')
+  else fail('相对说明符换算错了：' + t1)
+  const t2 = resolveSpecifierTarget('src/tracker/rooms/github/idempotency.ts', '../../../../../../outside.js')
+  if (t2 === '') pass('走到仓库外的相对说明符不认成产物位（记空串）')
+  else fail('走到仓库外的相对说明符应记空串，实际 ' + t2)
+
+  // 产物位候选：同位换扩展名与「源码位与产物位分离」两种形态都要有，少一种就会误判真产物位。
+  const cands = productSourceCandidates('src/shared/refresh/idempotency.js')
+  if (cands.includes('src/shared/refresh/idempotency.ts') && cands.includes('src/shared/refresh/src/idempotency.ts')) {
+    pass('产物位候选两种形态都在（同位换扩展名 + <目录>/src/<名字>.ts）')
+  } else fail('产物位候选少了形态：' + cands.join('、'))
+
+  const edge = (spec: string, target: string): UnresolvedRoomEdge => ({
+    file: 'src/tracker/rooms/github/idempotency.ts',
+    specifier: spec,
+    target,
+  })
+  const sameDir = unresolvedPathEdgeProblems(
+    [edge('./idempotency.js', 'src/tracker/rooms/github/idempotency.js')],
+    (rel) => rel === 'src/tracker/rooms/github/idempotency.ts',
+  )
+  if (sameDir.problems.length === 0 && sameDir.explained.length === 1) pass('产物位缺失、但同位有同名源码时放行（打 INFO）')
+  else fail('同位有同名源码时不该判红：' + JSON.stringify(sameDir.problems))
+
+  const split = unresolvedPathEdgeProblems(
+    [edge('../../../shared/refresh/idempotency.js', 'src/shared/refresh/idempotency.js')],
+    (rel) => rel === 'src/shared/refresh/src/idempotency.ts',
+  )
+  if (split.problems.length === 0 && split.explained.length === 1) pass('源码位与产物位分离（<目录>/src/<名字>.ts）时放行')
+  else fail('分离形态下不该判红：' + JSON.stringify(split.problems))
+
+  const noSource = unresolvedPathEdgeProblems(
+    [edge('../../../shared/refresh/idempotensy.js', 'src/shared/refresh/idempotensy.js')],
+    () => false,
+  )
+  if (noSource.problems.length === 1) pass('既没产物也没同名源码的路径判红（写错的路径不许混过去）')
+  else fail('没源码的路径应判红，实际 ' + noSource.problems.length + ' 个问题')
+
+  const outside = unresolvedPathEdgeProblems([edge('../../../../../../outside.js', '')], () => true)
+  if (outside.problems.length === 1) pass('走到仓库外的路径判红（磁盘上到处都有同名文件也不放行）')
+  else fail('仓库外的路径应判红，实际 ' + outside.problems.length + ' 个问题')
 }
 
 // ---------------------------------------------------------------------------
@@ -968,6 +1163,36 @@ if (ruleSetUsed.length) {
     } else {
       pass('五条结构判据全过：起点在扫描域里活着、在图上也咬得到东西、登记表有名有据（' + entries.length + ' 条）、没吃掉自己、没有互相吸收')
     }
+  }
+}
+
+// 判据七（未解析的边，见上面「二之三」那一节）：未构建检出上的产物位放行，真断链判红；包名那一类与新规则对账。
+// 为什么对账：新规则 room-imports-unresolved-package 的判据是文本（类型表 + pathNot），上游改类别名或
+// pathNot 写松，它就会静默地一条都不报 —— 那时本判据会红，而不是安静地放行。
+{
+  const unresolvedEdges = collectUnresolvedRoomEdges(graphModules)
+  const bareEdges = unresolvedEdges.filter((e) => !isPathSpecifier(e.specifier))
+  const pathEdges = unresolvedEdges.filter((e) => isPathSpecifier(e.specifier))
+  const judgedBare = violations.filter((v) => String((v.rule && v.rule.name) || '') === 'room-imports-unresolved-package').length
+  if (bareEdges.length !== judgedBare) {
+    fail(
+      '判据七（对账）不符：图上未解析的包名边 ' + bareEdges.length + ' 条，规则 room-imports-unresolved-package 只报了 ' + judgedBare +
+      ' 条 —— 这条规则的终点判据（dependencyTypes 与 pathNot）可能已经命不中这一类边了' +
+      (bareEdges.length ? '；漏掉的例子：' + bareEdges.slice(0, 3).map((e) => e.file + " -> '" + e.specifier + "'").join('、') : ''),
+    )
+  } else {
+    pass('判据七（对账）：图上未解析的包名边 ' + bareEdges.length + ' 条，与规则 room-imports-unresolved-package 报出的条数一致')
+  }
+
+  const triage = unresolvedPathEdgeProblems(pathEdges, (rel) => existsSync(join(ROOT, rel)))
+  for (const p of triage.problems) fail(p)
+  if (triage.explained.length) {
+    info(
+      '未解析的本仓路径 ' + triage.explained.length + ' 条：全是构建产物位（同名源码在盘上），没跑过构建的检出上本来就不在盘上，放行不判红；例：' +
+      triage.explained.slice(0, 2).map((e) => e.file + " -> '" + e.specifier + "'").join('、'),
+    )
+  } else if (!pathEdges.length) {
+    info('未解析的本仓路径 0 条（本检出上房间引的本仓路径都解析得到）')
   }
 }
 

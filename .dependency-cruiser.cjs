@@ -112,7 +112,13 @@ module.exports = {
       severity: 'error',
       comment:
         '后端房间只许引 Node 内置模块，不许引任何第三方包（例如 ws）。'
-        + '房间要发网络请求就走宿主注入的端口，不许自己挑实现。',
+        + '房间要发网络请求就走宿主注入的端口，不许自己挑实现。'
+        + '终点判据只收「确凿是第三方包」的那几种类型：解析器认出了包、认出了它的来源分类。'
+        + '「解析不到」的三种类型（unknown / undetermined / npm-unknown）不在这里判 —— '
+        + '它们既可能是没装的第三方包，也可能是今天不在盘上的本仓构建产物，'
+        + '混在一起会把后者误报成第三方包（#1153：同一份提交在没跑过构建的检出上多报 12 条、'
+        + '跑过构建后 0 条）。包名形状的那一半由下面一条规则接，本仓路径形状的那一半由'
+        + 'tests/verify-dependency-rules.ts 按「有没有同名源码」分开判。',
       from: { path: '^src/tracker/rooms/' },
       to: {
         dependencyTypes: [
@@ -122,10 +128,25 @@ module.exports = {
           'npm-peer',
           'npm-bundled',
           'npm-no-pkg',
-          'npm-unknown',
-          'unknown',
-          'undetermined',
         ],
+      },
+    },
+    {
+      name: 'room-imports-unresolved-package',
+      severity: 'error',
+      comment:
+        '房间引了一个解析不到的包名：没装的第三方包，或者包名写错（把 ws 写成 wss 这种）。'
+        + '这一条只收「包名形状」的终点（不以 . 或 / 或盘符开头），'
+        + '因为同一个 unknown 类型里还混着另一类东西：房间引本仓路径、而那个路径今天不在盘上'
+        + '（未跑过构建的检出上，产物位本来就是空的）。那一类不是「引了第三方包」，'
+        + '由 tests/verify-dependency-rules.ts 按「有没有同名源码会在构建后落在这个位置」分开判：'
+        + '有源码的打 INFO 放行，既没产物也没源码的才判红。'
+        + '它与上面那条合起来，等于原来「房间只许引 Node 内置模块」的全部判据。',
+      from: { path: '^src/tracker/rooms/' },
+      to: {
+        dependencyTypes: ['unknown', 'undetermined', 'npm-unknown'],
+        // 路径形状的终点不归这条管：'.' 开头是相对路径，'/' 开头或盘符开头是绝对路径。
+        pathNot: ['^\\.', '^/', '^[A-Za-z]:'],
       },
     },
 
