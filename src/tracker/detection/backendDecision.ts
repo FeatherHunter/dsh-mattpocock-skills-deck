@@ -201,6 +201,8 @@ export async function decideBackend(root, deps = {}) {
   //   生成出来一次（那条路在工作区入口的迁移里，不经这里），此后不再拿它回答判定。
   //   记录本身留在机器上不删（先只停用），文件万一被删还能再生成一次。
   let autodetect = null;
+  // 补全点之二：下面两处交出去的 ctx 都一定带 `caller`（调用方给了就用调用方的，
+  // 没给就填 `backend-decision`），形状见契约里的 `EnrichedOpContext`。下游只许读，不许再改。
   try {
     if (typeof deps.autodetect === 'function') {
       // 可选钩子：调用方把自己的自动识别包一层再交进来（例如工具壳把配额闸包在外面，

@@ -209,6 +209,8 @@ export function createDetectionService({ registry, getPlatform, getFs, getTimers
     const choiceFromHint = false
     let choiceSource = ''
     if (useOutlet) {
+      // 补全点之一：从这几行往下，opCtx 一定带 `caller`（调用方给了就用调用方的，
+      // 没给就填 `detection-service`），形状见契约里的 `EnrichedOpContext`。下游只许读，不许再改。
       const autoHook = async function (h, c) {
         const opCtx = buildOpContextBase(cwd, platform, fs, timers, execForThisRound, 'detect-select', logCtx)
         if (opts.signal) opCtx.signal = opts.signal

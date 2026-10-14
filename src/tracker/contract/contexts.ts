@@ -174,6 +174,22 @@ export type OpContext = BackendContext & {
 }
 
 /**
+ * 已补全的单次调用上下文：`OpContext` 加上「谁触发的」。
+ * 为什么要另起一个形状，而不是给 `OpContext` 加一个可选的 `caller`：
+ * 调用链里有两个补全点（探测服务的自动识别钩子、统一判定出口），它们在往下传之前
+ * 一定会把 `caller` 写死（调用方给了就用调用方的，没给就填自己的名字）。补全点之后
+ * `caller` 一定有，下游只许读不许改；补全点之前它可能还没有。前后是两种形状，
+ * 写成两种类型，非法的样子（补全之后还没有 `caller`）就写不出来。
+ */
+export interface EnrichedOpContext extends OpContext {
+  /**
+   * 谁触发的这次调用（比如 `detection-service`、`comment-threads`）。
+   * 只读：补全点写死之后，下游任何人不许再改——改了日志里的「由谁触发」就对不上真凶了。
+   */
+  readonly caller: string
+}
+
+/**
  * 探测输入（识别后端时给的那一点点线索）。
  * 界面**从不**手拼 `refId`：`refId` 由注册表的 describe 产出。
  */
