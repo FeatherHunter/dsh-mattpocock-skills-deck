@@ -44,6 +44,7 @@ import { markdownModule } from '../../../src/tracker/rooms/markdown/index.ts'
 import { createWorkspaceCwd } from '../../../src/host/workspaceCwd.js'
 import { createDetectionService } from '../../../src/tracker/detection/detectionService.ts'
 import { decideBackend as decDecideBackend, selectionFromOutlet as decSelectionFromOutlet } from '../../../src/tracker/detection/backendDecision.ts'
+import { createOutboundControl } from '../../../src/host/platform/outbound-control.ts'
 try { decDecideBackend.selectionFromOutlet = decSelectionFromOutlet } catch (eAttachDec) {}
 import nodePath from 'node:path'
 // #1138：夹具手里的「工作区文件」账本（虚拟目录，不碰盘）。这两件都在 tests/lib/deck-decide-stub.js，
@@ -720,6 +721,9 @@ export async function run() {
       markdown: ctx,
       // GitHub：给它一个能跑的外部命令（gh），否则它只能报「本机缺工具」
       github: Object.assign({}, ctx, {
+        // #1159 起房间要求宿主注入出站控制面（ctx.outbound）；夹具自带生产那一份（只做转发），
+        // 否则脚本化的 gh 连被调用的机会都没有（与 sections/counts.js 同一套做法，#1197）。
+        outbound: createOutboundControl(),
         platform: { resolveExecutable: async (n) => (n === 'gh' ? 'gh' : null) },
         exec: scriptedGh,
       }),

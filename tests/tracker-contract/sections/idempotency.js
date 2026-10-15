@@ -33,6 +33,7 @@ import { githubModule } from '../../../src/tracker/rooms/github/index.ts'
 import { gitlabBackend } from '../../../src/tracker/rooms/gitlab/index.ts'
 import { markdownModule } from '../../../src/tracker/rooms/markdown/index.ts'
 import { normalizeIssue as ghNormalize } from '../../../src/tracker/rooms/github/normalize.ts'
+import { createOutboundControl } from '../../../src/host/platform/outbound-control.ts'
 import {
   IDEMPOTENCY_MARKER_PREFIX,
   anchorLineFor,
@@ -301,6 +302,9 @@ function makeScriptedGlab(opts) {
 function remoteCtx(scripted) {
   return {
     cwd: '/ws/fake',
+    // #1159 起房间要求宿主注入出站控制面（ctx.outbound）；夹具自带生产那一份（只做转发），
+    // 否则脚本化的 gh / glab 连被调用的机会都没有（与 sections/counts.js 同一套做法，#1197）。
+    outbound: createOutboundControl(),
     platform: {
       resolveExecutable: async (n) => ((n === 'gh' || n === 'glab') ? '/usr/local/bin/' + n : null),
       path: nodePath.posix,
