@@ -256,8 +256,10 @@ function deriveUpdateClientVersionForLog() {
 
 /** 从规范源模块提取插件对象函数体（export default { ... } 的 `{ ... }` 部分，含 apply 方法）。
  *  插件对象 = export default 之后到文件末尾的内容（规范源约定：对象闭合是文件最后一个 `}`）。 */
-function extractPluginBody(srcPath) {
-  const src = read(srcPath)
+function extractPluginBody(srcPath, srcTextOverride) {
+  // #1074（修）：调用方把转译好的文本直接递进来时不再读盘（宿主入口转成 .ts 后，抽的是转译产物不是手写源）；
+  //   不传就走老路。srcPath 只剩报错指路用。
+  const src = (srcTextOverride !== undefined) ? srcTextOverride : read(srcPath)
   const marker = 'export default {'
   const idx = src.indexOf(marker)
   if (idx < 0) throw new Error(`${srcPath}: 找不到 export default {`)
@@ -461,7 +463,9 @@ const KERNEL_MODULES = [
   // #621 标签配色弹窗的中英词条：单独一份片段，由 locale.js 的合并器一起并进 L
   { name: 'localeLabels', file: 'src/client/kernel/locale-labels.js' },
   // #690 历史票按需翻页的五条文案：locale-flow.js 已贴 350 行上限，照 #621 的做法自成一个片段
-  { name: 'localePages', file: 'src/client/kernel/locale-pages.js' },
+  // #1209：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 从此是 pixel-ts 那一步的产物，不再入库）。
+  { name: 'localePages', file: 'src/client/kernel/locale-pages.ts' },
   // #842 写操作那一族的词条：locale-panel 与 locale-flow 都在上限上（后者还冻结在零增长基线里），照 #621/#690 的做法自成一个片段
   { name: 'localeVcWrite', file: 'src/client/kernel/locale-vcwrite.js' },
   // #879 技能描述 27 条中英词条：locale-word.js 已贴 350 行上限（363 行超标），照 #621/#690/#842 的做法自成一个片段
@@ -474,7 +478,9 @@ const KERNEL_MODULES = [
   // #685：「体检」按钮的件数派生与开新会话注入（游离票口径见 #678、按钮形态见 #681）；
   //   它写的那条常驻日志必须落在内核文件里（渲染目录写日志是一张点名白名单），所以单独一片。
   { name: 'healthCheck', file: 'src/client/kernel/health-check.js' },
-  { name: 'prompts', file: 'src/client/kernel/prompts.js' },
+  // #1209：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 从此是 pixel-ts 那一步的产物，不再入库）。
+  { name: 'prompts', file: 'src/client/kernel/prompts.ts' },
   // #698：初始化那段文案「该不该注入 / 先问还是先给」的决策（layoutCardShouldOpen / injectSetupDecision）
   { name: 'promptsSetup', file: 'src/client/kernel/prompts-setup.js' },
   // #698：弹窗表单字段那一串渲染（slotRenderer-modal-view.js 那时到了 404 行）
@@ -704,7 +710,9 @@ const LEAF_MODULES = [
   { id: 'seg', file: 'src/client/statusbar/Seg.js' },
   { id: 'checksums', file: 'src/client/statusbar/checksums.js' },
   { id: 'StatusMenus', file: 'src/client/statusbar/StatusMenus.js' },
-  { id: 'StatusBackend', file: 'src/client/statusbar/StatusBackend.js' },
+  // #1209：这一片由手写 .js 转成 .ts，这里改指新真源（读源由 readSpliceFragmentSource 按扩展名分派，
+  //   它会把 .ts 转译成可拼接的 JavaScript；同名 .js 从此是 pixel-ts 那一步的产物，不再入库）。
+  { id: 'StatusBackend', file: 'src/client/statusbar/StatusBackend.ts' },
   { id: 'capFold', file: 'src/client/statusbar/capFold.js' }, // #725 新增：状态栏胶囊那条横条的逐字折叠阶梯（纯函数，无组件）
   { id: 'capFoldMachine', file: 'src/client/statusbar/capFoldMachine.js' }, // #725 新增：同一处的阶梯机（读写胶囊那一段 DOM；判据在上一项，接线在 statusBar）
   { id: 'bannerChain', file: 'src/client/statusbar/bannerChain.js' }, // #663 新增：状态栏那条横幅按引导链清单决定出哪一条、那颗按钮点了做什么
@@ -728,22 +736,40 @@ const LEAF_MODULES = [
  * 一条片段既可以是手写的 .js，也可以是从 .ts 转译来的（.ts 片段先在那一处按全仓唯一那份转译口径
  * 变成 JavaScript 再拼）；转完仍留着模块级 import/export 的，那边会当场指名报错。
  */
+/**
+ * 取一条要拼进闭包的片段文本，并保证它以一个换行收尾（#1209）。
+ *
+ * 为什么要在这里补这一下：`toSpliceableFragment` 会把片段首尾空白一起 trim 掉，而 src/client/index.js
+ * 里有一批标记是**同一行上连着写**的（例如 `// ==== leaf:StatusMenus ==== // ==== leaf:StatusBackend ==== //…`，见 index.js:275 那一行）。
+ * 片段末尾不带换行时，前一条片段的收尾 `}` 会与后一条片段开头的 `const` 拼成 `} const X = …`——
+ * 而前一条片段最后往往是一行 `//` 注释，那一拼就把后一条片段的头一行整行吃进注释里。
+ * 实测（#1209 转 StatusBackend 时）：拼出来的闭包在 precheck 处报 `Unexpected token 'const'`，
+ * 报错行是 `} const SETUP_LAYOUT_VALUES = ["single", "multi"];`，而真因在上一行那条注释。
+ *
+ * 统一补在取片段这一个入口上，三个拼接点（kernel / leaf / shared）都受益；判据只认「末尾是不是换行」，
+ * 不改成别的空白形态，免得同一个标记位置在不同片段下拼出不一样的字节。
+ */
+function spliceText(file) {
+  const text = readSpliceFragmentSource(file)
+  return /\n$/.test(text) ? text : text + '\n'
+}
+
 function wireModules(body) {
   let out = body
   for (const m of KERNEL_MODULES) {
     const marker = `// ==== kernel:${m.name} (spliced by build) ====`
     if (out.indexOf(marker) < 0) throw new Error(`[build] 缺 marker ${marker} 对应 ${m.file} — 请在 src/client/index.js 加标记并在 KERNEL_MODULES 注册`)
-    out = out.replace(marker, readSpliceFragmentSource(m.file))
+    out = out.replace(marker, spliceText(m.file))
   }
   for (const m of LEAF_MODULES) {
     const marker = `// ==== leaf:${m.id} (spliced by build) ====`
     if (out.indexOf(marker) < 0) throw new Error(`[build] 缺 marker ${marker} 对应 ${m.file} — 请在 src/client/index.js 加标记并在 LEAF_MODULES 注册`)
-    out = out.replace(marker, readSpliceFragmentSource(m.file))
+    out = out.replace(marker, spliceText(m.file))
   }
   for (const m of SHARED_SPLICE) {
     const marker = m.marker
     if (out.indexOf(marker) < 0) throw new Error(`[build] 缺 marker ${marker} 对应 ${m.file} — 请在 src/client/index.js 加标记并在 SHARED_SPLICE 注册`)
-    out = out.replace(marker, readSpliceFragmentSource(m.file))
+    out = out.replace(marker, spliceText(m.file))
   }
   // 反向检查：src 下有叶子文件却未在 LEAF_MODULES 登记（比“忘贴纸条”更隐蔽）
   try {
@@ -1078,8 +1104,18 @@ function deployMovedTrees() {
 
 // ---------- 构建 host（方案 C 原样复制 · #136/#172） ----------
 async function buildHost({ version }) {
-  const { header, body } = extractPluginBody('src/host/index.js')
-  const hostDevBanner = `// AUTO-GENERATED by scripts/build.mjs — DO NOT EDIT. Source: src/host/index.js (${version})\n// 产物 gitignore，一源两物；改 src/ 后运行 node scripts/build.mjs 重新生成。\n`
+  // #1074（修：构建先行兼容）：宿主入口真源可能是手写 .js（转制前）或 .ts（转制后）。
+  //   .ts 先按全仓唯一转译口径转成 JavaScript（去掉产物头一行再抽取），再走同一条抽取；
+  //   .js 路径仍在时走老路，产物字节一字不变。转制提交只换真源扩展名，构建不用再动。
+  const indexTsRel = 'src/host/index.ts'
+  const indexJsRel = 'src/host/index.js'
+  const useTsEntry = existsSync(resolve(ROOT, indexTsRel))
+  const indexSrcRel = useTsEntry ? indexTsRel : indexJsRel
+  const indexSrcText = useTsEntry
+    ? transpileMovedTs(indexTsRel).replace(/^\/\/ AUTO-GENERATED[^\n]*\n/, '')
+    : read(indexJsRel)
+  const { header, body } = extractPluginBody(indexSrcRel, indexSrcText)
+  const hostDevBanner = `// AUTO-GENERATED by scripts/build.mjs — DO NOT EDIT. Source: ${indexSrcRel}${useTsEntry ? '（转译）' : ''} (${version})\n// 产物 gitignore，一源两物；改 src/ 后运行 node scripts/build.mjs 重新生成。\n`
 
   // ---- _dev：cordis_define 函数体形态（保留，host.js 不在发布包，#172 不碰其函数体）----
   const devCode = `${hostDevBanner}${header}\n\nreturn ${body}\n`
@@ -1178,13 +1214,21 @@ async function buildHost({ version }) {
   // 放在复制之后、校验之前：投放失败（转译不过、引用落空）当场抛错，不进 fallback
   // （fallback 只管“复制工具不可用”这一种故障，内容问题重跑复制也一样）。
   deployMovedTrees()
-  // 校验：package/lib/index.js 必须与 src/host/index.js 逐字节一致（零打包不变量）
+  // 校验：入口一致性（#1074 修：跟真源走）。手写 .js 真源在时守旧不变量（包内入口与手写源逐字节一致）；
+  //   .ts 真源在时守新不变量（包内入口 === 按同一条投放流水线重算一遍的结果，转译漏投放当场红）。
   try {
-    const a = readFileSync(resolve(ROOT, 'src/host/index.js'), 'utf8')
-    const b = readFileSync(join(pkgLib, 'index.js'), 'utf8')
-    if (a !== b) throw new Error('package/lib/index.js 与 src/host/index.js 不一致（原样复制失败）')
+    if (existsSync(resolve(ROOT, 'src/host/index.ts'))) {
+      const outRel = 'package/lib/index.js'
+      const replayed = rewriteMovedSpecifiers(transpileMovedTs('src/host/index.ts'), 'src/host/index.ts', outRel).code
+      const b = readFileSync(resolve(ROOT, outRel), 'utf8')
+      if (replayed !== b) throw new Error('package/lib/index.js 与 src/host/index.ts 的投放重算不一致（转译投放失败）')
+    } else {
+      const a = readFileSync(resolve(ROOT, 'src/host/index.js'), 'utf8')
+      const b = readFileSync(join(pkgLib, 'index.js'), 'utf8')
+      if (a !== b) throw new Error('package/lib/index.js 与 src/host/index.js 不一致（原样复制失败）')
+    }
   } catch (e) {
-    throw new Error(`[build] 原样复制校验失败：${e.message}`)
+    throw new Error(`[build] 入口一致性校验失败：${e.message}`)
   }
   // 校验：发布清单里点名的每个文件都得在盘上（#1023 第二刀的构建期断言）。
   // 为什么放在构建里、不做成一道门禁：入口指错文件这件事，构建当场能看出来，也只有在构建
