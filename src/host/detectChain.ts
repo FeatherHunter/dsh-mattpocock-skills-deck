@@ -1,4 +1,4 @@
-// src/host/detectChain.js —— H3 #447 从 host/index.js 639-884 搬出，纯结构、行为零变化。
+// src/host/detectChain.ts —— H3 #447 从 host/index.js 639-884 搬出，纯结构、行为零变化。
 // 以后谁改它：改探测编排或检查链快照的人。预估约260行，超 350 打回。
 // 接线：由 index.js 动态 import 加载；harness 注册留守 index，处理器体经 handleDetect/handleChain 供给。
 import { refreshSourceOf } from './refresh/refreshSource.js'
