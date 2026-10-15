@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * tests/verify-1206-glossary-naming.js — 领域文档文件名一致门禁（#1206）
+ * tests/verify-1206-glossary-naming.ts — 领域文档文件名一致门禁（#1206）
  *
  * 为什么要有它：插件有两条独立演化的真源——
  *   一、随包技能正文：技能读、写用户仓库的领域文档时认哪些文件名（上游说什么就是什么）；

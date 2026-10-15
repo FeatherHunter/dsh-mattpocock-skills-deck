@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-15T14:52:01.179Z",
+  "generatedAt": "2026-10-15T15:02:05.759Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 263,
   "gateCount": 263,
@@ -5904,8 +5904,8 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
     },
     {
-      "step": "node tests/verify-1206-glossary-naming.js",
-      "file": "tests/verify-1206-glossary-naming.js",
+      "step": "node tests/verify-1206-glossary-naming.ts",
+      "file": "tests/verify-1206-glossary-naming.ts",
       "guards": [
         "package/bundled-skills",
         "src/client/kernel/locale-pages.js",
@@ -6113,7 +6113,7 @@
       "node tests/verify-bundled-skills.js",
       "node tests/verify-bundled-discovery.js",
       "node tests/verify-bundled-trio-matrix.js",
-      "node tests/verify-1206-glossary-naming.js"
+      "node tests/verify-1206-glossary-naming.ts"
     ],
     "package/deck": [
       "node tests/verify-build-artifacts.js"
@@ -6380,7 +6380,7 @@
       "node tests/verify-settings-debug.js",
       "node tests/verify-deck-slots.js",
       "node tests/verify-error-single-source.ts",
-      "node tests/verify-1206-glossary-naming.js"
+      "node tests/verify-1206-glossary-naming.ts"
     ],
     "src/client/panel": [
       "node tests/verify-655-setup-layout.js",
