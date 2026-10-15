@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-15T08:42:41.641Z",
+  "generatedAt": "2026-10-15T13:48:35.619Z",
   "generatedBy": "node scripts/gate-map.mjs",
-  "chainLength": 261,
-  "gateCount": 261,
-  "attributedGates": 233,
+  "chainLength": 262,
+  "gateCount": 262,
+  "attributedGates": 234,
   "unattributedGates": 28,
   "buildOutputOnlyGates": 18,
   "completionRecordedGates": 6,
@@ -5903,6 +5903,24 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
     },
     {
+      "step": "node tests/verify-1206-glossary-naming.js",
+      "file": "tests/verify-1206-glossary-naming.js",
+      "guards": [
+        "package/bundled-skills",
+        "src/client/kernel/locale-pages.js",
+        "src/client/kernel/prompts.js"
+      ],
+      "dirs": [
+        "package/bundled-skills",
+        "src/client/kernel"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条"
+    },
+    {
       "step": "node tests/verify-gate-map.js",
       "file": "tests/verify-gate-map.js",
       "guards": [
@@ -6072,7 +6090,8 @@
       "node tests/verify-matt-skills-sync.js",
       "node tests/verify-bundled-skills.js",
       "node tests/verify-bundled-discovery.js",
-      "node tests/verify-bundled-trio-matrix.js"
+      "node tests/verify-bundled-trio-matrix.js",
+      "node tests/verify-1206-glossary-naming.js"
     ],
     "package/deck": [
       "node tests/verify-build-artifacts.js"
@@ -6336,7 +6355,8 @@
       "node tests/verify-settings-templates.js",
       "node tests/verify-settings-debug.js",
       "node tests/verify-deck-slots.js",
-      "node tests/verify-error-single-source.ts"
+      "node tests/verify-error-single-source.ts",
+      "node tests/verify-1206-glossary-naming.js"
     ],
     "src/client/panel": [
       "node tests/verify-655-setup-layout.js",
