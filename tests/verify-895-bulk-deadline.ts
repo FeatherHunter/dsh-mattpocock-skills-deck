@@ -1,5 +1,5 @@
-// verify-895-bulk-deadline.js —— #895 回归门禁：批量调用的限时自停与续跑（TDD 先红）。
-// 用法：在插件根目录执行 node tests/verify-895-bulk-deadline.js，可独立运行。
+// verify-895-bulk-deadline.ts —— #895 回归门禁：批量调用的限时自停与续跑（TDD 先红）。
+// 用法：在插件根目录执行 node tests/verify-895-bulk-deadline.ts，可独立运行。
 //
 // 这一段盯七件事（简报验收前六条，均用缩放假预算，几秒跑完；真 120 秒不等）：
 //   ① 自停出部分成功：预算打满时主动停，带游标（planId、已建、剩余、下一次），不被外层掐死。

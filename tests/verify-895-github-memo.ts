@@ -1,5 +1,5 @@
-// verify-895-github-memo.js —— #895 回归门禁：github 房读放大的名册定向刷新。
-// 用法：在插件根目录执行 node tests/verify-895-github-memo.js，可独立运行。
+// verify-895-github-memo.ts —— #895 回归门禁：github 房读放大的名册定向刷新。
+// 用法：在插件根目录执行 node tests/verify-895-github-memo.ts，可独立运行。
 //
 // 这一段盯三件事（脚本化 gh + 计数执行层，真后端模块）：
 //   ① 第二次补边不再整仓拉取：定向重读脏票，整仓列表只在第一次出现。
