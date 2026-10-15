@@ -279,14 +279,18 @@ async function setParentInner(repo: RepositoryRef, key: string, parentKey: strin
       trail.reason = 'added'
     }
 
-    // 读回最新
+    // 读回最新。这一步是「这条边到底落上了没有」的唯一判据（#790）：
+    // 写动作自己回成功不等于盘上有这条边。从前这里在读回失败时拼一张 parentKey = wantParent 的票
+    // 回 ok:true（optimistic 写法），调用方据此把没确认的边报成了落上 —— 现在如实回失败，
+    // 并把「写已回成功、读没读回来」这件事说清楚，让上层按「没确认」处理（既不算成功，也不说没落上）。
     const finalRes = await getIssue(repo, k, {}, ctx)
     if (finalRes.ok) return finalRes
-    // optimistic：若 get 失败，构造本地更新
-    const optimisticRaw = { number: Number(k) || k, parent: wantParent ? { number: Number(wantParent) } : null, parentKey: wantParent }
-    const issue = normalizeIssue(optimisticRaw)
-    issue.parentKey = wantParent
-    return { ok: true, data: issue }
+    const readMsg = String((finalRes.error && finalRes.error.message) || '后端没给出原因')
+    return fail(
+      (finalRes.error && finalRes.error.kind) || ERROR_KIND.NETWORK,
+      `setParent: 写动作已回成功（route=${trail.route}），但写后读回失败：${readMsg}；这条父子边可能已建成但没确认`,
+      finalRes
+    )
   } catch (e) {
     // 判档只走本房唯一的出口（`ghVerdictOf`）：档位由规则表判、话术按票面实现决定第 11 条挑。
     // 第三段把出错的那个值原样交出去当原文。

@@ -10,7 +10,8 @@
 // 返回值就是**写后的真状态**（契约 create 回的那张票），AI 不必再读一次确认。
 import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-shell.js'
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
-import { classifyEdgeLanding, unsupportedEvidence, edgeEvidence } from '../shell/edge-landing.js'
+import { classifyEdgeLanding, edgeVerdict, unsupportedEvidence, edgeEvidence } from '../shell/edge-landing.js'
+import type { EdgeEvidence } from '../shell/edge-landing.js'
 import { withCallScope } from '../shell/call-budget.js'
 import { ensureLabels, ensureBody, anchorKeyFor } from '../shell/minimal-spec.js'
 import * as budget from '../../shared/refresh/budget.js'
@@ -178,17 +179,29 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
       let parentLanded = true
       let parentEvidence = null
       if (rel) {
-        // 父子边：写入已在 create 里做过（contract 的 parentKey 输入），这里只判它落在哪一列。
-        // #790：classify 的 ok 只表示“判出来了”，未知也回 true；必须按读回的 parentKey 是否等于目标判。
+        // 父子边：写入已在 create 里做过（contract 的 parentKey 输入），这里只判它落上了没有。
+        // #790 的教训：判据只有一条 —— 写后读回的结构字段里能看到这条父子（纯侧的 edgeVerdict）。
+        //   建票回包里的 parentKey 是「这次写动作自称写了什么」，正文里出现票号是「作者写了这行字」，
+        //   两者都不是「盘上有这条边」的证据；它们与读回不一致时按没挂上算，并把不一致写进证据里。
         const readBack = (typeof t.get === 'function' && !sc.outOfBudget()) ? await t.get(repo, issue.key, {}, opCtx) : null
         const after = (readBack && readBack.ok === true) ? { issue: readBack.data } : null
-        const ev = after ? classifyEdgeLanding('parent', rel, after) : unsupportedEvidence('写后没读回来，判不了这条父子落点')
-        parentEvidence = ev
+        let ev: EdgeEvidence = after ? classifyEdgeLanding('parent', rel, after) : unsupportedEvidence('写后没读回来，判不了这条父子落点')
+        const verdict = edgeVerdict('parent', rel, after)
+        parentLanded = verdict === 'landed'
         const landedKey = (after && after.issue && after.issue.parentKey !== undefined && after.issue.parentKey !== null) ? String(after.issue.parentKey) : ''
-        // 建票时 tracker.create 回来的票自带 parentKey 时也认（读回抖动时不误报失败）。
         const createdKey = (issue && issue.parentKey !== undefined && issue.parentKey !== null) ? String(issue.parentKey) : ''
-        parentLanded = (landedKey === String(rel)) || (createdKey === String(rel)) || ((ev && ev.kind) === 'body-line')
-        if (ev && ev.kind === 'unsupported') parentLanded = false
+        const createdError = (issue && issue.parentError && issue.parentError.message) ? String(issue.parentError.message).slice(0, 200) : ''
+        if (!parentLanded) {
+          const echo = (createdKey === String(rel))
+            ? '；建票回包里写着父票 ' + createdKey + '，但写后读回里没有这条父子 —— 回包是写动作的自述，不算落上'
+            : ''
+          const roomWords = createdError ? '；房自己记下的原话：' + createdError : ''
+          const base = (verdict === 'unconfirmed')
+            ? '写后没读回来，判不了这条父子落上了没有'
+            : ('写后读回：票的 parentKey 读到的是 ' + (landedKey || '空') + '，要的是 ' + rel)
+          ev = { kind: verdict === 'unconfirmed' ? 'unknown' : 'missing', ok: false, text: base + echo + roomWords + '。' + String(ev.text || '') }
+        }
+        parentEvidence = ev
         // 落点证据那一支：壳那层还没标类型（见 #1040），第四个形参（额外字段）本文件本来就没传，
         // 断言只为把「可选」告诉编译器，编译后这条语句与老写法逐字相同。
         items.push(Object.assign({ key: issue.key, edge: { op: 'parent', target: rel }, status: parentLanded ? 'ok' : 'failed' }, (edgeEvidence as EdgeEvidenceFn)('parent', rel, ev)))

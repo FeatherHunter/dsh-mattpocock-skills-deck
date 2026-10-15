@@ -6,6 +6,10 @@ const { createOutboundControl } = require('../src/host/platform/outbound-control
 //   C) 裸接口拒收票面号时如实失败，不静默成功
 //   D) deck_map_link：写成功但读回没挂上 → failed，且顶层带失败摘要（不再“建成 0 条、无话”）
 //   E) deck_issue_create：票建成、边没挂上 → partial +“没挂上”，不再报“建好了（父票 X）”
+//   G) 写动作回成功、写后读回失败 → 房如实失败，不许自己拼一张「父票已挂上」的票
+//   H) 建票回包写着父票、写后读回失败 → partial +“没读到、没确认”（回包不是「盘上有这条边」的证据）
+//   I) 正文里提到父票号、读回里没有这条父子 → partial（正文提到票号不是这条边落上的证据）
+//   J) 阻塞边写成功、读回失败 → 说“没读回来”，不说“没出现在票上”
 const path = require('path')
 const { pathToFileURL } = require('url')
 // 判定出口桩（#1003 单出口）：壳拿不到它时一律回「判定出口这次没装上」，
@@ -27,6 +31,8 @@ function strictExecFactory(opts) {
   const parents = new Map(Object.entries(o.parents || {}))
   const missing = new Set(o.missing || [])
   const exists = (n) => !missing.has(String(n))
+  // #790 残留：写动作成功之后那一趟读回按需失败（复现「写成功、读不回来」）。
+  let wrote = false
   const exec = async (cmd, args) => {
     calls.push(args.join(' '))
     const line = args.join(' ')
@@ -35,6 +41,7 @@ function strictExecFactory(opts) {
     if (m && line.includes('--jq .id') && !line.includes('sub_issues') && !line.includes('--method')) return { code: 0, stdout: String(DB(m[1])), stderr: '' }
     // GraphQL 读票（含 parent 边）
     if (line.startsWith('api graphql')) {
+      if (o.readFailsAfterWrite && wrote) return { code: 1, stdout: '', stderr: 'HTTP 403: API rate limit exceeded' }
       const nm = line.match(/number=(\d+)/)
       const n = nm ? nm[1] : '0'
       if (o.missing && o.missing.includes(n)) return { code: 0, stdout: JSON.stringify({ data: { repository: { issue: null } } }), stderr: '' }
@@ -52,6 +59,7 @@ function strictExecFactory(opts) {
       if (!exists(parent)) return { code: 1, stdout: '', stderr: 'HTTP 404: could not resolve to an Issue (# ' + parent + ')' }
       if (o.rejectParent && o.rejectParent[child]) return { code: 1, stdout: '', stderr: o.rejectParent[child] }
       parents.set(child, parent)
+      wrote = true
       return { code: 0, stdout: '', stderr: '' }
     }
     if (args[0] === 'issue' && args[1] === 'edit' && args.includes('--remove-parent')) {
@@ -69,6 +77,7 @@ function strictExecFactory(opts) {
       // 按数据库编号反查票面号
       const childNum = String(Math.round(val - 1000000))
       parents.set(childNum, m[1])
+      wrote = true
       return { code: 0, stdout: '{}', stderr: '' }
     }
     if (m && line.includes('--method DELETE')) {
@@ -121,6 +130,16 @@ async function main() {
     const r = await graph.setParent(repo, '90', '78', {}, ghCtxFor(f))
     check(r.ok === false, 'C1 子票不存在时如实失败（ok=false，实得 ok=' + r.ok + '）')
     check(String((r.error && r.error.message) || '').includes('404'), 'C2 错误里带 404（实得：' + String((r.error && r.error.message) || '').slice(0, 80) + '）')
+  }
+
+  // G) 写动作回成功、写后读回失败时，本房不许自己拼一张「父票已挂上」的票（#790 残留）
+  {
+    const f = strictExecFactory({ readFailsAfterWrite: true })
+    const r = await graph.setParent(repo, '90', '78', {}, ghCtxFor(f))
+    check(r.ok === false, 'G1 写成功但写后读回失败 → 如实回失败，不装成功（实得 ok=' + r.ok + '）')
+    check(String((r.error && r.error.message) || '').includes('读回'), 'G2 失败原话里说清是写后读回没成功（实得：' + String((r.error && r.error.message) || '').slice(0, 120) + '）')
+    check(!(r.data && String(r.data.parentKey || '') === '78'), 'G3 返回值里不许出现「父票已挂上」的拼票（实得 parentKey=' + String((r.data && r.data.parentKey) || '(无 data)') + '）')
+    check(f.parents.get('90') === '78', 'G4 写动作本身确实发出去了（读回失败不改变「写过」这个事实）')
   }
 
   // D/E) 工具层：写成功但读回没挂上 → failed/partial，且顶层带原因
@@ -212,6 +231,104 @@ async function main() {
     const link2 = linkMod.createDeckMapLink(deps)
     const lr2 = await link2.run(exec, { key: '91', parentKey: '78' })
     check(lr2.status === 'ok' && (lr2.items || [])[0].status === 'ok', 'F1 读写一致时仍 ok（回归对照，实得 ' + lr2.status + '）')
+
+    // H) 建票回包里有父票、写后读回失败 → 说「没读到、没确认」，不报 ok
+    //    （#790 残留：契约回包是写动作的自我介绍，不是「盘上有这条边」的证据）
+    const stubEcho = {
+      id: 'stub-790-echo', label: '桩（建票回包写着父票、读回失败）', matches: async () => false,
+      create: () => ({
+        id: 'stub-790-echo',
+        async create(repoArg, input) {
+          return { ok: true, data: { key: '92', title: input.title, state: 'open', body: '', labels: [], assignees: [], parentKey: input.parentKey || null } }
+        },
+        async get(repoArg, key) {
+          return { ok: false, error: { kind: 'network', message: 'HTTP 403: API rate limit exceeded' } }
+        },
+        async setParent(repoArg, key, parentKey) {
+          return { ok: true, data: { key: String(key), title: 't', state: 'open', body: '', labels: [], assignees: [], parentKey: String(parentKey) } }
+        },
+        async setBlockedBy(repoArg, key, blockers) {
+          return { ok: true, data: { key: String(key), title: 't', state: 'open', body: '', labels: [], assignees: [], blockedBy: [] } }
+        },
+        async getDependencies(repoArg, key) {
+          return { ok: false, error: { kind: 'network', message: 'HTTP 403: API rate limit exceeded' } }
+        },
+      }),
+    }
+    const dispEcho = registry.register(stubEcho)
+    chooseWorkspace('/ws/790', 'stub-790-echo')
+    const createEcho = createMod.createDeckIssueCreate(deps)
+    const crEcho = await createEcho.run(exec, { title: '回包写着父票、读回失败', parentKey: '78' })
+    const crEchoItem = (crEcho.items || [])[0] || {}
+    check(crEcho.status === 'partial', 'H1 写后读回失败 → partial，不因建票回包写着父票就算落上（实得 ' + crEcho.status + '）')
+    check(!String(crEcho.text || '').includes('建好了（父票'), 'H2 不报「建好了（父票 X）」：' + String(crEcho.text).slice(0, 140))
+    check(/没读到|没读回|没确认|未确认/.test(String(crEcho.text || '') + ' ' + String(crEchoItem.evidence || '')), 'H3 文案说清「没读到、没确认」：' + String(crEchoItem.evidence || '').slice(0, 120))
+    dispEcho.dispose()
+
+    // I) 正文里提到父票号、写后读回里没有这条父子 → 不算落上
+    //    （#790 残留：正文里出现「归属 #78」是作者写的字，不是这条边落上的证据）
+    const stubBody = {
+      id: 'stub-790-body', label: '桩（正文提到父票号、读回没有父子）', matches: async () => false,
+      create: () => ({
+        id: 'stub-790-body',
+        async create(repoArg, input) {
+          return { ok: true, data: { key: '93', title: input.title, state: 'open', body: '这一张归属 #78。', labels: [], assignees: [], parentKey: null } }
+        },
+        async get(repoArg, key) {
+          return { ok: true, data: { key: String(key), title: 't', state: 'open', body: '这一张归属 #78。', labels: [], assignees: [], parentKey: null } }
+        },
+        async setParent(repoArg, key, parentKey) {
+          return { ok: true, data: { key: String(key), title: 't', state: 'open', body: '这一张归属 #78。', labels: [], assignees: [], parentKey: null } }
+        },
+        async setBlockedBy(repoArg, key, blockers) {
+          return { ok: true, data: { key: String(key), title: 't', state: 'open', body: '', labels: [], assignees: [], blockedBy: [] } }
+        },
+        async getDependencies(repoArg, key) {
+          return { ok: true, data: { blockedBy: [], blocking: [] } }
+        },
+      }),
+    }
+    const dispBody = registry.register(stubBody)
+    chooseWorkspace('/ws/790', 'stub-790-body')
+    const createBody = createMod.createDeckIssueCreate(deps)
+    const crBody = await createBody.run(exec, { title: '正文提到父票号', parentKey: '78' })
+    const crBodyItem = (crBody.items || [])[0] || {}
+    check(crBody.status === 'partial', 'I1 正文提到父票号不算落上 → partial（实得 ' + crBody.status + '）')
+    check(!String(crBody.text || '').includes('（父票'), 'I2 顶层不说「（父票 78）」：' + String(crBody.text).slice(0, 140))
+    check(/正文/.test(String(crBodyItem.evidence || '')), 'I3 证据里点明正文提到票号不等于这条边落上：' + String(crBodyItem.evidence || '').slice(0, 140))
+    dispBody.dispose()
+
+    // J) 阻塞边：写成功、读回失败 → 说「没读回来」，不说「没出现在票上」
+    const stubBlockRead = {
+      id: 'stub-790-blockread', label: '桩（阻塞边写成功、读回失败）', matches: async () => false,
+      create: () => ({
+        id: 'stub-790-blockread',
+        async create(repoArg, input) {
+          return { ok: true, data: { key: '94', title: input.title, state: 'open', body: '', labels: [], assignees: [], parentKey: null } }
+        },
+        async get(repoArg, key) {
+          return { ok: true, data: { key: String(key), title: 't', state: 'open', body: '', labels: [], assignees: [], parentKey: null } }
+        },
+        async setParent(repoArg, key, parentKey) {
+          return { ok: true, data: { key: String(key), title: 't', state: 'open', body: '', labels: [], assignees: [], parentKey: String(parentKey) } }
+        },
+        async setBlockedBy(repoArg, key, blockers) {
+          return { ok: true, data: { key: String(key), title: 't', state: 'open', body: '', labels: [], assignees: [], blockedBy: [] } }
+        },
+        async getDependencies(repoArg, key) {
+          return { ok: false, error: { kind: 'network', message: 'HTTP 403: API rate limit exceeded' } }
+        },
+      }),
+    }
+    const dispBlockRead = registry.register(stubBlockRead)
+    chooseWorkspace('/ws/790', 'stub-790-blockread')
+    const link3 = linkMod.createDeckMapLink(deps)
+    const lrJ = await link3.run(exec, { key: '94', blockedBy: ['78'] })
+    const jItem = (lrJ.items || [])[0] || {}
+    check(lrJ.status !== 'ok' && jItem.status === 'failed', 'J1 阻塞边读回失败 → 逐条 failed、顶层不是 ok（实得 ' + jItem.status + ' / ' + lrJ.status + '）')
+    check(/没读回|没读到|未确认|没确认/.test(String(jItem.evidence || '')) && !/没出现在票上/.test(String(jItem.evidence || '')), 'J2 说「没读回来」而不是「没出现在票上」：' + String(jItem.evidence || '').slice(0, 140))
+    dispBlockRead.dispose()
+
     disp2.dispose()
     disp.dispose()
   }

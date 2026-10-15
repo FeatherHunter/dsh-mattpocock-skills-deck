@@ -37,7 +37,44 @@ export const EDGE_LANDING = Object.freeze({
   CONTRACT_BLOCK_FIELD: '契约的依赖列（分不出是原生边还是正文行）',
   UNSUPPORTED: '做不到',
   UNKNOWN: '说不好（这次没读回来，别当它已经建好）',
+  READ_BACK_MISSING: '读回来了，这条边不在票上（别当它已经建好）',
 })
+
+/**
+ * 一条边到底落上了没有：只有三种答案，不许用布尔值糊过去。
+ *
+ * 为什么要有它（#790 的教训）：判断「落上了」曾经是三处各自拼的或表达式 ——
+ * 读回里的字段、写动作返回的对象、正文里出现过票号，任意一个成立就算落上。
+ * 于是「写成功但读不回来」「正文里作者自己写了一句归属 #78」都会被报成落上。
+ * 这里把判据收成一条：**只有写后读回的结构字段能确认一条边落上了**。
+ * 写动作的返回值、建票回包里的字段、正文里的字都不是「盘上有这条边」的证据，
+ * 它们最多能把「确认没落上」降级成「没读到，所以不知道」。
+ *
+ * 三档的含义：
+ *   landed       写后读回的结构字段里确实有这条边（父子的 parentKey、阻塞的 blockedBy）。
+ *   not-landed   读回来了，结构字段里确实没有这条边。
+ *   unconfirmed  没读到（读失败、没读、或没给目标），所以不知道落上了没有 —— 既不许报成功，也不许说没落上。
+ */
+export type EdgeVerdict = 'landed' | 'not-landed' | 'unconfirmed'
+
+/**
+ * 判一条边落上了没有。`after` 是写后读回的那份结果（`{issue, dependencies}` 形状，也可以直接给票本身）；
+ * 传 null / undefined 表示这次没读到，一律回 unconfirmed。
+ */
+export function edgeVerdict(op: string, target: unknown, after: unknown): EdgeVerdict {
+  if (after === null || after === undefined) return 'unconfirmed'
+  const want = str(target).trim()
+  if (!want) return 'unconfirmed'
+  const a = obj(after)
+  const readHappened = (a.issue !== undefined && a.issue !== null)
+    || (a.dependencies !== undefined && a.dependencies !== null)
+    || (typeof a.body === 'string')
+  if (!readHappened) return 'unconfirmed'
+  const issueObj = (a.issue !== undefined && a.issue !== null) ? obj(a.issue) : null
+  const rel = relationsOf(issueObj || a, a.dependencies)
+  if (op === 'block') return rel.blockedBy.indexOf(want) >= 0 ? 'landed' : 'not-landed'
+  return rel.parentKey === want ? 'landed' : 'not-landed'
+}
 
 /** 判落点用的证据：`kind` 是证据的档次，`ok:false` 表示这一步没成，`text` 是给人看的原话。 */
 export interface EdgeEvidence {
@@ -63,6 +100,7 @@ export function landingOf(op: string, evidence: unknown): string {
   if (kind === 'body-line') return EDGE_LANDING.BODY_LINE
   if (kind === 'file-note') return EDGE_LANDING.FILE_NOTE
   if (kind === 'contract') return op === 'block' ? EDGE_LANDING.CONTRACT_BLOCK_FIELD : EDGE_LANDING.CONTRACT_PARENT_FIELD
+  if (kind === 'missing') return EDGE_LANDING.READ_BACK_MISSING
   return EDGE_LANDING.UNKNOWN
 }
 
@@ -129,6 +167,13 @@ export function classifyEdgeLanding(op: string, target: unknown, after: unknown)
   const want = str(target)
   const issueObj = (a.issue !== undefined && a.issue !== null) ? obj(a.issue) : null
   const rel = relationsOf(issueObj || a, a.dependencies)
+  // 「没读回来」与「读回来了、没有」是两件事，不许混成一句「说不好」：
+  //   unknown  这次根本没读到（读失败 / 没传结果），落点与落没落都不知道；
+  //   missing  读回来了，结构字段里确实没有这条边（正文里有没有提到是另一件事，见下面）。
+  const readHappened = (a.issue !== undefined && a.issue !== null)
+    || (a.dependencies !== undefined && a.dependencies !== null)
+    || (typeof a.body === 'string')
+  if (!readHappened) return { kind: 'unknown', ok: true, text: '写后没读回来，判不了这条边的落点' }
   // #829：读回失败时 after.issue 为 null，旧写法 (a.issue && a.issue.body) !== undefined
   // 在 null 上仍进真分支并读 .body 直接抛错，把「读失败」变成工具崩溃（backend-threw）。
   // 这里先判空：没读到票正文按空串处理，落点判 unknown，真正的读错误由调用方在证据里另带原话。
@@ -144,10 +189,12 @@ export function classifyEdgeLanding(op: string, target: unknown, after: unknown)
     const inField = rel.blockedBy.indexOf(want) >= 0
     if (inField && !bodyHas) return { kind: 'native', ok: true, text: '写后读回：结构字段里有这条依赖、正文里没有那一行（后端把它放在自己的原生边上）' }
     if (inField && bodyHas) return { kind: 'body-line', ok: true, text: '写后读回：结构字段里有这条依赖，正文里也写着指向 #' + want + ' 的一行（这是把关系写进正文的那种落法）' }
-    if (!inField && bodyHas) return { kind: 'body-line', ok: true, text: '写后读回：结构字段里没有这条依赖，正文里有指向 #' + want + ' 的一行 —— 它只落在正文里' }
-    return { kind: 'unknown', ok: true, text: '写后读回：结构字段与正文里都没找到指向 #' + want + ' 的这条依赖' }
+    // 字段里没有、正文里有：正文里出现票号只是「作者写了这行字」，不是「这条边在盘上」的证据（#790）。
+    if (!inField && bodyHas) return { kind: 'missing', ok: true, text: '写后读回：结构字段里没有这条依赖（正文里出现了指向 #' + want + ' 的一行，但正文提到票号不等于这条边落上了）' }
+    return { kind: 'missing', ok: true, text: '写后读回：结构字段与正文里都没找到指向 #' + want + ' 的这条依赖' }
   }
   if (rel.parentKey === want) return { kind: 'contract', ok: true, text: '写后读回：票的 parentKey = ' + want + '（契约把父子放在这一列，分不出原生层级还是平级链接）' }
-  if (bodyHas) return { kind: 'body-line', ok: true, text: '写后读回：结构字段里没有父子，正文里出现了指向 #' + want + ' 的一行' }
-  return { kind: 'unknown', ok: true, text: '写后读回：结构字段与正文里都没找到这条父子关系' }
+  // 父子边同理：正文里写「归属 #78」不是这条边落上的证据（#790 里正是这一条把没挂上的边报成了挂上）。
+  if (bodyHas) return { kind: 'missing', ok: true, text: '写后读回：结构字段里没有这条父子关系（正文里出现了指向 #' + want + ' 的一行，但正文提到票号不等于这条边落上了）' }
+  return { kind: 'missing', ok: true, text: '写后读回：结构字段与正文里都没找到这条父子关系' }
 }

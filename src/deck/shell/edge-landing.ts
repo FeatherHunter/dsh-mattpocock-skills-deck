@@ -16,6 +16,7 @@
 import {
   bodyRefersTo as bodyRefersToRules,
   classifyEdgeLanding as classifyEdgeLandingRules,
+  edgeVerdict as edgeVerdictRules,
   landingOf as landingOfRules,
   relationsOf as relationsOfRules,
 } from '../rules/edge-landing.js'
@@ -25,7 +26,7 @@ import { hasCycleInAdj as hasCycleInAdjRules, refuseCyclicBlockBatch } from '../
 export { EDGE_LANDING } from '../rules/edge-landing.js'
 // 类型导出与值导出走的是两条不同的通道：这里把纯侧的三个类型原样转出去，
 // 让工具层既能拿到值也能拿到标注用的类型。
-export type { EdgeEvidence, Relations } from '../rules/edge-landing.js'
+export type { EdgeEvidence, EdgeVerdict, Relations } from '../rules/edge-landing.js'
 
 /** 落点判定：判定本体在纯侧，这里只是转发（调用方按老路径 import 不用改）。 */
 export const landingOf = landingOfRules
@@ -35,6 +36,8 @@ export const relationsOf = relationsOfRules
 export const bodyRefersTo = bodyRefersToRules
 /** 写完之后读回一次，判这一条边落在哪一列。 */
 export const classifyEdgeLanding = classifyEdgeLandingRules
+/** 判一条边落上了没有：只有写后读回的结构字段能确认（landed / not-landed / unconfirmed）。 */
+export const edgeVerdict = edgeVerdictRules
 /** 依赖图里有没有环（邻接表是「票号 → 它的阻塞方集合」）。 */
 export const hasCycleInAdj = hasCycleInAdjRules
 
@@ -153,11 +156,13 @@ export async function applyParentEdge(
   const issueRow = (afterIssue && typeof afterIssue === 'object') ? afterIssue as { parentKey?: unknown } : {}
   let ev: EdgeEvidence = classifyEdgeLandingRules('parent', want, { issue: afterIssue, dependencies: null })
   const landedKey = (issueRow.parentKey !== undefined && issueRow.parentKey !== null) ? String(issueRow.parentKey) : ''
-  const landedOk = (landedKey === want) || (ev.kind === 'body-line')
-  if (!landedOk && ev.kind !== 'unsupported') {
+  // #790 的教训：判「落上了」只看写后读回的结构字段（纯侧的 edgeVerdict），
+  // 不许再拿「正文里出现过票号」或写动作自己的返回当证据 —— 那两条会把没挂上的边报成挂上。
+  const landedOk = edgeVerdictRules('parent', want, afterIssue === null ? null : { issue: afterIssue, dependencies: null }) === 'landed'
+  if (!landedOk) {
     ev = backError
       ? { kind: 'unknown', ok: false, text: '写后读回失败：读票没成功（后端原话：' + backError + '）；写操作已回成功，边可能已建成但没确认。票的 parentKey 读到的是 ' + (landedKey || '空') + '，要的是 ' + want }
-      : { kind: 'unknown', ok: false, text: '写后读回：票的 parentKey = ' + (landedKey || '空') + '，要的是 ' + want + '（这条父子没挂上）' }
+      : { kind: 'missing', ok: false, text: '票的 parentKey 读到的是 ' + (landedKey || '空') + '，要的是 ' + want + '（这条父子没挂上）。' + String(ev.text || '') }
   }
   return { item: Object.assign({ key: from, role: 'edge', status: landedOk ? 'ok' : 'failed' }, edgeEvidence('parent', want, ev)), applied: landedOk }
 }
@@ -190,10 +195,19 @@ export async function applyBlockEdges(
   const back = (t && typeof t.get === 'function') ? await t.get(repo, from, {}, opCtx) : null
   const dep = (t && typeof t.getDependencies === 'function') ? await t.getDependencies(repo, from, {}, opCtx) : null
   const after = { issue: (back && back.ok === true) ? back.data : null, dependencies: (dep && dep.ok === true) ? dep.data : null }
-  const landed = relationsOfRules(after.issue || {}, after.dependencies).blockedBy
+  // 读回这一步自己成没成，与「读回来了、里面没有这条边」是两件事（#790）：
+  // 读失败时只能说「没读回来，判不了」，绝不许说成「这条依赖没出现在票上」。
+  const depReadable = !!(t && typeof t.getDependencies === 'function')
+  const readOk = (back && back.ok === true) && (!depReadable || (dep && dep.ok === true))
+  const landed = readOk ? relationsOfRules(after.issue || {}, after.dependencies).blockedBy : []
+  const readError = readOk ? '' : failureText((back && back.ok !== true) ? back : dep)
   const items = list.map((to) => {
-    const hit = landed.indexOf(to) >= 0
-    const ev: EdgeEvidence = hit ? classifyEdgeLandingRules('block', to, after) : { kind: 'unknown', ok: false, text: '写后读回：这条依赖没出现在票上（要 ' + to + '，读回来 ' + (landed.join('、') || '空') + '）' }
+    if (!readOk) {
+      const ev = unsupportedEvidence('写后没读回来，判不了这条依赖落上了没有（' + (readError || '读回没成功') + '）；写操作已回成功，这条边可能已建成但没确认')
+      return Object.assign({ key: from, role: 'edge', status: 'failed' }, edgeEvidence('block', to, ev))
+    }
+    const hit = edgeVerdictRules('block', to, after) === 'landed'
+    const ev: EdgeEvidence = hit ? classifyEdgeLandingRules('block', to, after) : { kind: 'missing', ok: false, text: '写后读回：这条依赖不在票上（要 ' + to + '，读回来 ' + (landed.join('、') || '空') + '）' }
     return Object.assign({ key: from, role: 'edge', status: hit ? 'ok' : 'failed' }, edgeEvidence('block', to, ev))
   })
   return { items: items, applied: list.filter((to) => landed.indexOf(to) >= 0), landed: landed, after: after, failed: null }
