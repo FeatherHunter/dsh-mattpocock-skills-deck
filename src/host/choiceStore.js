@@ -23,7 +23,7 @@ export const CHOICES_DIR_NAME = 'mattskillsdeck'
 export const CHOICES_FILE_NAME = 'choices.json'
 // 文件形状的版本号。写在文件里的这一位不认的（更高的、或根本没有的）当「这次读不到」处理： 宁可这一轮不用记忆，也不拿一份来路不明的文件去猜（降级方向是安全的，见 ADR 的 R5c）。
 export const CHOICES_VERSION = 1
-// 布局答案的取值只有这两种（根目录一份 CONTEXT.md / 子项目各一份加一份 CONTEXT-MAP.md）。
+// 布局答案的取值只有这两种（根目录一份 GLOSSARY.md / 子项目各一份加一份 GLOSSARY-MAP.md）。
 export const LAYOUT_VALUES = ['single', 'multi']
 // 上限（ADR 的 R8）：条数与文件体积。超过就按 pickedAt 从最旧的开始丢，只影响最旧的那些工作区。
 export const DEFAULT_MAX_WORKSPACES = 200

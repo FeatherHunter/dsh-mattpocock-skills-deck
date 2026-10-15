@@ -32,7 +32,7 @@ export const readStatusSetupLayout = function(s){
 }
 // 卡片上这一组单选默认选中哪一项：**卡片开着时以用户在卡上刚点的那一下为准**（否则点了另一个选项会立刻被按回去 ——
 //   2026-09-25 真机上报的「另一个选项点不动」就是这个顺序错），卡片没开时按「会话里答过的 > 这个工作区记住的 >
-//   卡上上次碰过的」给值，都没有再回到第一项「根目录一份 CONTEXT.md」。
+//   卡上上次碰过的」给值，都没有再回到第一项「根目录一份 GLOSSARY.md」。
 export const layoutSelectionOf = function(s){
   const inCard=function(){ try{ const v=String((s&&s.setupPickLayout)||'').toLowerCase(); return SETUP_LAYOUT_VALUES.indexOf(v)>=0?v:null }catch(e){ return null } }
   try{ if(s&&s.setupLayoutCardOpen===true){ const p=inCard(); if(p) return p } }catch(e){}
@@ -90,7 +90,7 @@ export const cancelStatusSetupPick = function(s){
 // #698：这张卡是「切换后端」那条路弹出来的吗（黄条 / 检查页那两条路不走切换这套收尾）。
 export const cardOwnedBySwitch = function(s){ try{ return !!(s && s.setupCardOwner === 'switch') }catch(e){ return false } }
 // 把两个布局取值翻成人话（卡上那两句词条），用来写「从 X 改成 Y」那条对齐指令。
-//   取值不认识（或词条查不到）时落回「根目录一份 CONTEXT.md」那一句 —— 宁可话说得保守一点，也不留空占位符。
+//   取值不认识（或词条查不到）时落回「根目录一份 GLOSSARY.md」那一句 —— 宁可话说得保守一点，也不留空占位符。
 const layoutWordOf=function(v){
   try{
     const t=String(v==null?'':v).toLowerCase()
