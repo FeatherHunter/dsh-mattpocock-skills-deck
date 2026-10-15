@@ -196,7 +196,7 @@ export const IssueDetail = function (props: any): any {
                 const _kids = [Ic({ n: 'link', size: 11 }), h('span', null, tr('detail.viewOnTracker'))]
                 return _isHttp
                   ? h('a', Object.assign({ href: _u, target: '_blank', rel: 'noreferrer' }, _props), _kids)
-                  : h('button', Object.assign({ onClick: _openLocal }, _props), _kids)
+                  : h('button', Object.assign({ type: 'button', onClick: _openLocal }, _props), _kids)
               })(),
             ]),
             errRawBlockOf(err),
@@ -331,7 +331,7 @@ export const IssueDetail = function (props: any): any {
               const _props = { className: 'dsws-btn ghost', style: { display: 'inline-flex', alignItems: 'center', padding: '2px 4px', flex: 'none' } }
               return _isHttp
                 ? h('a', Object.assign({ href: _u, target: '_blank', rel: 'noreferrer' }, _props), Ic({ n: 'link', size: 13 }))
-                : h('button', Object.assign({ onClick: _openLocal }, _props), Ic({ n: 'link', size: 13 }))
+                : h('button', Object.assign({ type: 'button', onClick: _openLocal }, _props), Ic({ n: 'link', size: 13 }))
             })()),
           ]),
         ]),

@@ -20,7 +20,13 @@ const trFn = (key, params) => {
 }
 globalThis.tr = trFn
 globalThis.emit = () => {}
-globalThis.Ic = () => null
+// Ic 透出图标名（真实现渲染 svg；桩返回标记串，让门禁能分清跟踪器按钮与复制按钮）
+globalThis.Ic = (props) => ('[' + ((props && props.n) || '?') + ']')
+// window 只在点击那一刻接桩（renderToStaticMarkup 探 window 定服务端行为，常驻会污染渲染）
+function withWindowStub(fn) {
+  globalThis.window = { open: (...a) => { opened.push(a); return null } }
+  try { fn() } finally { delete globalThis.window }
+}
 // 身份算法走真实现（link.js 读的是同闭包全局量；手写桩一旦与真源分叉，门禁就测了个假环境）
 const identityMod = await import('../src/tracker/kernel/identity-keys.js')
 globalThis.effortOf = identityMod.effortOf
@@ -103,7 +109,7 @@ const fakeDetail = { comments: { nodes: [{ body: '好', author: { login: 'a' }, 
   const link = findLinkNode(tree, 'detail.viewOnTrackerHint')
   check(!!link, '评论加载失败横幅：找到了打开链接节点')
   check(!!link && link.tag === 'button', '本地票渲染的是 button 不是 a（裸 href 点了没反应）')
-  if (link && typeof link.props.onClick === 'function') link.props.onClick({ stopPropagation() {} })
+  if (link && typeof link.props.onClick === 'function') withWindowStub(() => link.props.onClick({ stopPropagation() {} }))
   check(hostCalls.length === 1 && hostCalls[0][0] === 'wf.openPath' && hostCalls[0][1] && hostCalls[0][1].path === MD7,
     '点击调宿主 wf.openPath 且 path 为票文件路径')
   check(opened.length === 0, '没走 window.open（文件路径不是网址）')
@@ -116,7 +122,7 @@ const fakeDetail = { comments: { nodes: [{ body: '好', author: { login: 'a' }, 
   const link = findLinkNode(tree, 'detail.authFailCta')
   check(!!link, '鉴权横幅：找到了打开链接节点')
   check(!!link && link.tag === 'button', '本地票渲染的是 button 不是 a')
-  if (link && typeof link.props.onClick === 'function') link.props.onClick({ stopPropagation() {} })
+  if (link && typeof link.props.onClick === 'function') withWindowStub(() => link.props.onClick({ stopPropagation() {} }))
   check(hostCalls.length === 1 && hostCalls[0][0] === 'wf.openPath' && hostCalls[0][1] && hostCalls[0][1].path === MD7,
     '点击调宿主 wf.openPath 且 path 为票文件路径')
   check(opened.length === 0, '没走 window.open')
@@ -161,7 +167,9 @@ function renderDetail(st) {
   const html = renderDetail(st)
   check(html.includes('data-tip="tip.openInTracker"'), '顶栏找到了打开提示位')
   check(!html.includes('href="D:'), '顶栏本地票没有裸 href 链接')
-  check(html.includes('<button class="dsws-btn ghost"'), '顶栏本地票渲染的是 ghost 按钮（与复制按钮同形、点调宿主）')
+  // 只认装着 link 图标的跟踪器按钮（复制按钮同形但装的是 clipboard 图标，旧断言会被它满足）
+  check(/<button(?=[^>]*class="dsws-btn ghost")(?=[^>]*type="button")[^>]*>\[link\]<\/button>/.test(html),
+    '顶栏本地票渲染的是跟踪器 ghost 按钮（点调宿主）')
 }
 // B2：顶栏 https 票 → a[href] 不动
 {
@@ -182,7 +190,8 @@ function renderDetail(st) {
   }
   const html = renderDetail(st)
   check(!html.includes('href="D:'), '报错横幅本地票没有裸 href 链接')
-  check(html.includes('<button class="dsws-btn ghost"'), '报错横幅本地票渲染的是 ghost 按钮')
+  check(/<button(?=[^>]*class="dsws-btn ghost")(?=[^>]*type="button")[^>]*>\[link\]/.test(html),
+    '报错横幅本地票渲染的是跟踪器 ghost 按钮')
 }
 
 console.log(failures ? `\n#1145 门禁失败 ${failures} 项（共 ${total} 条）` : `\n#1145 门禁全部通过（共 ${total} 条）`)

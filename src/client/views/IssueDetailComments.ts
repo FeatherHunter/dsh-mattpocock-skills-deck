@@ -102,13 +102,13 @@ export const renderIssueDetailComments = function (h: any, st: any, issueNumber:
               h('span', null, '以下评论未加载，'),
                     // 本地票的 url 是文件路径不是网址：https 走新页，本地走宿主打开（裸 href 点了没反应，#1145）
       (function () {
-        const _u = issueUrlFor(st, issueNumber)
+        const _u: any = issueUrlFor(st, issueNumber, _eff)
         const _isHttp = /^https?:\/\//i.test(String(_u || ''))
-        const _openLocal = function (e: any) { e.stopPropagation(); openIssueUrl(st, issueNumber, (typeof host !== 'undefined' ? host : undefined)) }
+        const _openLocal = function (e: any) { e.stopPropagation(); openIssueUrl(st, issueNumber, (typeof host !== 'undefined' ? host : undefined), _eff) }
         const _textStyle = { color: '#58a6ff', textDecoration: 'underline' }
         return _isHttp
           ? h('a', { href: _u, target: '_blank', rel: 'noreferrer', style: _textStyle }, tr('detail.viewOnTrackerHint'))
-          : h('button', { onClick: _openLocal, style: Object.assign({ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 'inherit' }, _textStyle) }, tr('detail.viewOnTrackerHint'))
+          : h('button', { type: 'button', onClick: _openLocal, style: Object.assign({ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 'inherit' }, _textStyle) }, tr('detail.viewOnTrackerHint'))
       })(),
             ])
           }
@@ -144,13 +144,13 @@ export const renderIssueDetailComments = function (h: any, st: any, issueNumber:
             h('span', null, cmtErrTextOf(st.cmtError)),
                   // 本地票的 url 是文件路径不是网址：https 走新页，本地走宿主打开（裸 href 点了没反应，#1145）
       st.cmtError.kind === 'auth' ? (function () {
-        const _u = issueUrlFor(st, issueNumber)
+        const _u: any = issueUrlFor(st, issueNumber, _eff)
         const _isHttp = /^https?:\/\//i.test(String(_u || ''))
-        const _openLocal = function (e: any) { e.stopPropagation(); openIssueUrl(st, issueNumber, (typeof host !== 'undefined' ? host : undefined)) }
+        const _openLocal = function (e: any) { e.stopPropagation(); openIssueUrl(st, issueNumber, (typeof host !== 'undefined' ? host : undefined), _eff) }
         const _textStyle = { color: '#58a6ff', textDecoration: 'underline' }
         return _isHttp
           ? h('a', { href: _u, target: '_blank', rel: 'noreferrer', style: _textStyle }, tr('detail.authFailCta'))
-          : h('button', { onClick: _openLocal, style: Object.assign({ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 'inherit' }, _textStyle) }, tr('detail.authFailCta'))
+          : h('button', { type: 'button', onClick: _openLocal, style: Object.assign({ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 'inherit' }, _textStyle) }, tr('detail.authFailCta'))
       })() : null,
           ]) : null,
           h('textarea', {
