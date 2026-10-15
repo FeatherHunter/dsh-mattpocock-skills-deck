@@ -178,6 +178,8 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
       const items = []
       let parentLanded = true
       let parentEvidence = null
+      // 父子边的判决（landed / not-landed / unconfirmed）要留到下面的回执抬头用，所以在块外先立一格。
+      let parentVerdict = 'unconfirmed'
       if (rel) {
         // 父子边：写入已在 create 里做过（contract 的 parentKey 输入），这里只判它落上了没有。
         // #790 的教训：判据只有一条 —— 写后读回的结构字段里能看到这条父子（纯侧的 edgeVerdict）。
@@ -187,6 +189,7 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
         const after = (readBack && readBack.ok === true) ? { issue: readBack.data } : null
         let ev: EdgeEvidence = after ? classifyEdgeLanding('parent', rel, after) : unsupportedEvidence('写后没读回来，判不了这条父子落点')
         const verdict = edgeVerdict('parent', rel, after)
+        parentVerdict = verdict
         parentLanded = verdict === 'landed'
         const landedKey = (after && after.issue && after.issue.parentKey !== undefined && after.issue.parentKey !== null) ? String(after.issue.parentKey) : ''
         const createdKey = (issue && issue.parentKey !== undefined && issue.parentKey !== null) ? String(issue.parentKey) : ''
@@ -209,13 +212,18 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
       if (rel && !parentLanded) {
         // 票建成了、边没挂上：按部分成功回，不再报“建好了（父票 X）”。
         const why = String((parentEvidence && parentEvidence.text) || '后端没给出原因').slice(0, 300)
+        // 「没挂上」与「没读回来、判不了」是两件事，抬头那句话也要分开说（#790 审查指出：
+        // 同一个「父子边没挂上（要 X）」在两种判决下都出现，H 节的正则分不出来）。
+        const edgeHead = (parentVerdict === 'unconfirmed')
+          ? '父子边没确认（要 ' + rel + '）'
+          : '父子边没挂上（要 ' + rel + '）'
         notes.push('父子边没建成，别把它当成已经挂上：逐条原因在上面的 items 里。')
         if (labelFailed) items.push({ key: issue.key, step: 'labels', status: 'failed', reason: labelWhy })
         return {
           value: {
             status: DECK_STATUS.PARTIAL,
             reason: REFUSAL_REASONS.BACKEND_UNSUPPORTED,
-            text: '票 ' + (issue.key || '（后端没回票号）') + ' 建好了：' + title + '。父子边没挂上（要 ' + rel + '）：' + why
+            text: '票 ' + (issue.key || '（后端没回票号）') + ' 建好了：' + title + '。' + edgeHead + '：' + why
               + (labelFailed ? '标签也没挂上：' + labelWhy : ''),
             data: { ticket: issue, kind: kind, idempotencyKey: anchor, limits: { maxChildTicketsPerCall: budget.AI_TOOL_MAX_CHILD_TICKETS_PER_CALL } },
             items: items,

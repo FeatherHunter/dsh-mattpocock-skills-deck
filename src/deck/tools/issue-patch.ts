@@ -221,8 +221,21 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
             const uniq = want.filter((n, i) => want.indexOf(n) === i)
             if (sc.outOfBudget()) { over('labels'); return }
             const r = must(await t.setLabels(repo, key, uniq, {}, opCtx))
-            if (r && r.ok === true) items.push({ key: key, step: 'labels', status: 'ok', labels: uniq })
-            else fail('labels', r)
+            if (r && r.ok === true) {
+              // 「回了 ok」不等于「标签改成了」：判据只取写后读回这一次（后端的回答本身），
+              // 不取写动作自己的回包 —— 后端把回包里的标签写成刚提交的那一份时，拿它当证据等于自问自答，
+              // 「写命令成功、盘上没落全」会被报成 ok（#790 同一类：回执只许说读回来的事）。
+              const canRead = typeof t.get === 'function' && !sc.outOfBudget()
+              const after = canRead ? await t.get(repo, key, {}, opCtx) : null
+              const readOk = !!(after && after.ok === true)
+              const gotLabels = readOk ? names((after.data || {}).labels) : []
+              const missing = uniq.filter((n) => gotLabels.indexOf(n) < 0)
+              if (!readOk) {
+                items.push({ key: key, step: 'labels', status: 'failed', reason: '写动作回了成功，但写后没读回来（' + (canRead ? '后端原话：' + String((after && after.error && after.error.message) || '没给出原因').slice(0, 160) : '剩余额度不够读回这一次的结果') + '）：标签改成没改成不知道，别当成已经改好。' })
+              } else if (missing.length) {
+                items.push({ key: key, step: 'labels', status: 'failed', reason: '写动作回了成功，但写后读回来的标签里没有这些（' + missing.join('、') + '）：整批替换没落全，别当成已经改好。' })
+              } else items.push({ key: key, step: 'labels', status: 'ok', labels: uniq })
+            } else fail('labels', r)
           }, lockOpts)
           if (held && held.ok === false && held.timedOut) lockedOut('labels')
         }
@@ -235,12 +248,19 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
           const r = must(await t.setAssignees(repo, key, want, {}, opCtx))
           if (r && r.ok === true) {
             // 「回了 ok」不等于「认领人记上了」：本地 Markdown 只会把状态改成 claimed，认领人的名字不记。
-            // 判据是读回来的票（后端的回答本身），不是后端是谁 —— 名字没出现在票上就如实说没记上。
+            // 判据只取写后读回这一次（后端的回答本身），不取写动作自己的回包 —— GitHub 房会把回包里的
+            // 认领人覆盖成刚提交的那一份（issues-write.ts 的 setAssignees），拿它当证据等于自问自答，
+            // 于是「写命令成功、认领人没记上」会被报成 ok（#790 同一类）。
+            const canRead = typeof t.get === 'function' && !sc.outOfBudget()
+            const after = canRead ? await t.get(repo, key, {}, opCtx) : null
+            const readOk = !!(after && after.ok === true)
             // 索引签名只为让下面按字段名读认领人能过编译（读法与默认值一字未改）。
-            const back: Record<string, unknown> = (r.data && r.data.assignees) ? r.data : (typeof t.get === 'function' && !sc.outOfBudget() ? ((must(await t.get(repo, key, {}, opCtx)).data || {})) : {})
+            const back: Record<string, unknown> = readOk ? (after.data || {}) : {}
             const got = Array.isArray(back.assignees) ? back.assignees.map((x) => (x && x.login) || String(x)) : []
             const missing = want.filter((w) => got.indexOf(w) < 0)
-            if (want.length && missing.length) {
+            if (!readOk) {
+              items.push({ key: key, step: 'assignees', status: 'failed', reason: '写动作回了成功，但写后没读回来（' + (canRead ? '后端原话：' + String((after && after.error && after.error.message) || '没给出原因').slice(0, 160) : '剩余额度不够读回这一次的结果') + '）：认领人记上没记上不知道，别当成已经记上。' })
+            } else if (want.length && missing.length) {
               items.push({ key: key, step: 'assignees', status: 'failed', reason: '后端回了 ok，但读回来的票上没有这些认领人（' + missing.join('、') + '）：它可能只改了状态、没记认领人，别当成认领已经记上。' })
             } else items.push({ key: key, step: 'assignees', status: 'ok', assignees: want })
           } else if (r && r.error && r.error.kind === 'unsupported') {
@@ -289,8 +309,23 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
         if (sc.outOfBudget()) over(a.close === true ? 'close' : 'reopen')
         else {
           const r = a.close === true ? must(await t.close(repo, key, {}, opCtx)) : must(await t.reopen(repo, key, opCtx))
-          if (r && r.ok === true) items.push({ key: key, step: a.close === true ? 'close' : 'reopen', status: 'ok' })
-          else fail(a.close === true ? 'close' : 'reopen', r)
+          const stateStep = a.close === true ? 'close' : 'reopen'
+          const wantState = a.close === true ? 'closed' : 'open'
+          if (r && r.ok === true) {
+            // 「回了 ok」不等于「这张票真的关/开了」：判据只取写后读回这一次（#790 同一类）。
+            // 读回来的状态按契约是两态（三房都在归一里落成 open / closed），读不回来就不敢说已经改好。
+            const canRead = typeof t.get === 'function' && !sc.outOfBudget()
+            const after = canRead ? await t.get(repo, key, {}, opCtx) : null
+            const readOk = !!(after && after.ok === true)
+            const gotState = readOk ? String(((after.data || {}) as Record<string, unknown>).state || '').toLowerCase() : ''
+            if (!readOk) {
+              items.push({ key: key, step: stateStep, status: 'failed', reason: '写动作回了成功，但写后没读回来（' + (canRead ? '后端原话：' + String((after && after.error && after.error.message) || '没给出原因').slice(0, 160) : '剩余额度不够读回这一次的结果') + '）：这张票现在是不是 ' + wantState + ' 不知道，别当成已经改好。' })
+            } else if (!gotState) {
+              items.push({ key: key, step: stateStep, status: 'failed', reason: '写动作回了成功，但写后读回来的票没带状态字段，判不了这张票现在是不是 ' + wantState + '：别当成已经改好。' })
+            } else if (gotState !== wantState) {
+              items.push({ key: key, step: stateStep, status: 'failed', reason: '写动作回了成功，但写后读回来的状态是 ' + gotState + '，不是 ' + wantState + '：别当成已经改好。' })
+            } else items.push({ key: key, step: stateStep, status: 'ok' })
+          } else fail(stateStep, r)
         }
       }
 

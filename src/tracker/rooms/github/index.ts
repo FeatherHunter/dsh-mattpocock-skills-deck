@@ -161,8 +161,8 @@ export const prompts = (function () {
       // #716：这一段原先写着一整套 gh api 直连命令（取数据库号 → 建原生子议题边 → 校验张数 → 建原生依赖边）。
       //   这些事已经搬进契约层的 deck_map_link / deck_map_snapshot（票面点名「该搬进工具实现的：建边与校验」），
       //   所以这里只讲「用哪个工具、参数是什么、工具会回报什么」，一条裸命令都不留。
-      zh: '建边用 deck_map_link：父子边传 parentKey（把这张子票挂到那张地图下），阻塞边传 blockedBy（数组里放阻塞它的那几张票号）；工具自己按本后端的方式落下去，并逐条回报这条边落在哪一列。建完用 deck_map_snapshot 读回地图，核对子票张数与预期一致（deck_map_link 也会在返回值里给出读回结果）。判「落上了」只看写后读回：读回里看不到这条边就不算落上；读不回来时如实说没确认，绝不报成已经挂上。',
-      en: 'Wire edges with deck_map_link: pass parentKey for the parent-child edge (attach this child under that map) and blockedBy for blocking edges (the numbers of the tickets blocking it); the tool lands each edge the way this backend does and reports, per edge, which column it landed in. Then read the map back with deck_map_snapshot and confirm the child count matches the plan (deck_map_link also returns the read-back result). Landing is only claimed when the read-back taken after the write shows the edge; when that read-back cannot be taken the tool says plainly that the edge is unconfirmed, never that it landed.',
+      zh: '建边用 deck_map_link：父子边传 parentKey（把这张子票挂到那张地图下），阻塞边传 blockedBy（数组里放阻塞它的那几张票号）；工具自己按本后端的方式落下去，并逐条回报这条边落在哪一列。建完用 deck_map_snapshot 读回地图，核对子票张数与预期一致（deck_map_link 的逐条明细里带着每一条边的读回落点与证据原话）。判「落上了」只看写后读回：读回里看不到这条边就不算落上；读不回来时如实说没确认，绝不报成已经挂上。',
+      en: 'Wire edges with deck_map_link: pass parentKey for the parent-child edge (attach this child under that map) and blockedBy for blocking edges (the numbers of the tickets blocking it); the tool lands each edge the way this backend does and reports, per edge, which column it landed in. Then read the map back with deck_map_snapshot and confirm the child count matches the plan (deck_map_link returns, per edge, the read-back landing and its evidence). Landing is only claimed when the read-back taken after the write shows the edge; when that read-back cannot be taken the tool says plainly that the edge is unconfirmed, never that it landed.',
     },
     // #684：「体检」的 GitHub 科目（游离的开放票归位）。总纲住在提示词单源 src/client/kernel/prompts.js 的
     //   healthCheck 一条；这里只交 GitHub 自己那一份，经总纲里的 {subject} 填空。建边与开图复用本模块已声明的

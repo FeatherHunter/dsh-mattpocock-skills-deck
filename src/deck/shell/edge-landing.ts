@@ -162,16 +162,18 @@ export async function applyParentEdge(
   if (!landedOk) {
     ev = backError
       ? { kind: 'unknown', ok: false, text: '写后读回失败：读票没成功（后端原话：' + backError + '）；写操作已回成功，边可能已建成但没确认。票的 parentKey 读到的是 ' + (landedKey || '空') + '，要的是 ' + want }
-      : { kind: 'missing', ok: false, text: '票的 parentKey 读到的是 ' + (landedKey || '空') + '，要的是 ' + want + '（这条父子没挂上）。' + String(ev.text || '') }
+      : { kind: 'missing', ok: false, text: '写后读回：票的 parentKey 读到的是 ' + (landedKey || '空') + '，要的是 ' + want + '。' + String(ev.text || '') }
   }
   return { item: Object.assign({ key: from, role: 'edge', status: landedOk ? 'ok' : 'failed' }, edgeEvidence('parent', want, ev)), applied: landedOk }
 }
 
 /**
  * 写一组阻塞边（整批替换一次）并读回核对。occurrences 是本次要出明细的目标清单
- * （调用方已按票合并，同一张票只调一次）。回 { items, applied, landed, after, failed }：
+ * （调用方已按票合并，同一张票只调一次）。回 { items, applied, landed, after, failed, readOk }：
  * items 是逐条明细，applied 是真正落上的目标，landed 是读回来的全集，
- * after 是读回的原文（调用方给重复项补明细用），failed 非空表示写这一步就没成。
+ * after 是读回的原文（调用方给重复项补明细用），failed 非空表示写这一步就没成，
+ * readOk 说「写后读回这一步自己成没成」——读失败时 landed 是空的，但那是「没读到」，
+ * 不是「读回来了、里面没有」，调用方给重复项补明细时必须照 readOk 分开说（#790）。
  */
 export async function applyBlockEdges(
   t: EdgeContract, repo: unknown, opCtx: unknown, from: string, targets: unknown, occurrences: unknown,
@@ -181,6 +183,7 @@ export async function applyBlockEdges(
   landed: string[]
   after: { issue: unknown; dependencies: unknown }
   failed: EdgeEvidence | null
+  readOk: boolean
 }> {
   const want = (Array.isArray(targets) ? targets : []).map(String)
   const list = (Array.isArray(occurrences) ? occurrences : []).map(String)
@@ -189,7 +192,7 @@ export async function applyBlockEdges(
     const ev = unsupportedEvidence(failureText(written))
     return {
       items: list.map((to) => Object.assign({ key: from, role: 'edge', status: 'failed' }, edgeEvidence('block', to, ev))),
-      applied: [], landed: [], after: { issue: null, dependencies: null }, failed: ev,
+      applied: [], landed: [], after: { issue: null, dependencies: null }, failed: ev, readOk: false,
     }
   }
   const back = (t && typeof t.get === 'function') ? await t.get(repo, from, {}, opCtx) : null
@@ -210,7 +213,7 @@ export async function applyBlockEdges(
     const ev: EdgeEvidence = hit ? classifyEdgeLandingRules('block', to, after) : { kind: 'missing', ok: false, text: '写后读回：这条依赖不在票上（要 ' + to + '，读回来 ' + (landed.join('、') || '空') + '）' }
     return Object.assign({ key: from, role: 'edge', status: hit ? 'ok' : 'failed' }, edgeEvidence('block', to, ev))
   })
-  return { items: items, applied: list.filter((to) => landed.indexOf(to) >= 0), landed: landed, after: after, failed: null }
+  return { items: items, applied: list.filter((to) => landed.indexOf(to) >= 0), landed: landed, after: after, failed: null, readOk: readOk }
 }
 
 /**

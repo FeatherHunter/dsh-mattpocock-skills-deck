@@ -11,6 +11,9 @@ const { createOutboundControl } = require('../src/host/platform/outbound-control
 //   H) 建票回包写着父票、写后读回失败 → partial +“没读到、没确认”（回包不是「盘上有这条边」的证据）
 //   I) 正文里提到父票号、读回里没有这条父子 → partial（正文提到票号不是这条边落上的证据）
 //   J) 阻塞边写成功、读回失败 → 说“没读回来”，不说“没出现在票上”
+//   K) 同一票号的阻塞边出现两次、读回失败 → 重复项也说“没读回来，判不了”（2026-10-15 对抗式审查补）
+//   L) 整图建骨架：子票建成、房在票上记着父子边没挂上 → 这张子票记 failed，不报 ok（同上）
+//   M) 认领人 / 标签 / 关票：写动作自述成功、写后读回来的票不认 → 逐条 failed（同上）
 const path = require('path')
 const { pathToFileURL } = require('url')
 // 判定出口桩（#1003 单出口）：壳拿不到它时一律回「判定出口这次没装上」，
@@ -328,7 +331,72 @@ async function main() {
     const jItem = (lrJ.items || [])[0] || {}
     check(lrJ.status !== 'ok' && jItem.status === 'failed', 'J1 阻塞边读回失败 → 逐条 failed、顶层不是 ok（实得 ' + jItem.status + ' / ' + lrJ.status + '）')
     check(/没读回|没读到|未确认|没确认/.test(String(jItem.evidence || '')) && !/没出现在票上/.test(String(jItem.evidence || '')), 'J2 说「没读回来」而不是「没出现在票上」：' + String(jItem.evidence || '').slice(0, 140))
+    // K) 同一票号的阻塞边出现两次、写后读回失败 → 重复项也说「没读回来，判不了」（#790 审查 ②-2）
+    //    （重复项分支以前自己重算一次「读回来了、里面没有」，与 J 节同一处不诚实）
+    const lrK = await link3.run(exec, { edges: [{ key: '94', blockedBy: ['78'] }, { key: '94', blockedBy: ['79'] }] })
+    const kItems = lrK.items || []
+    const kDup = kItems[kItems.length - 1] || {}
+    check(kItems.length >= 2 && kDup.status === 'failed', 'K1 重复项也逐条 failed（实得 ' + kDup.status + ' / ' + kItems.length + ' 条）')
+    check(/没读回|判不了|没确认/.test(String(kDup.evidence || '')) && !/没出现在票上/.test(String(kDup.evidence || '')), 'K2 重复项说「没读回来，判不了」而不是「没出现在票上」：' + String(kDup.evidence || '').slice(0, 140))
     dispBlockRead.dispose()
+
+    // L) 整图建骨架：子票建成了、房在票上记着父子边没挂上 → 这张子票记 failed，不报 ok（#790 审查 ②-3）
+    //    （parentError 是房自己的原话，建骨架以前从不读它，于是整图会报 status:'ok' 而边其实一条没挂）
+    const stubPlan = {
+      id: 'stub-790-plan', label: '桩（子票建成、父子边没挂上）', matches: async () => false,
+      create: () => ({
+        id: 'stub-790-plan',
+        async create(repoArg, input) {
+          return { ok: true, data: { key: '97', title: input.title, state: 'open', body: '', labels: [], assignees: [], parentKey: null, parentError: { kind: 'unsupported', message: 'HTTP 422: sub_issue_id must be a database id' } } }
+        },
+        async get(repoArg, key) { return { ok: true, data: { key: String(key), title: 't', state: 'open', body: '', labels: [], assignees: [], parentKey: null } } },
+        async setParent() { return { ok: true, data: {} } },
+        async setBlockedBy() { return { ok: true, data: {} } },
+        async getDependencies() { return { ok: true, data: { blockedBy: [], blocking: [] } } },
+      }),
+    }
+    const dispPlan = registry.register(stubPlan)
+    chooseWorkspace('/ws/790', 'stub-790-plan')
+    const planMod = await imp('src/deck/tools/map-plan-create.ts')
+    const planTool = planMod.createDeckMapPlanCreate(deps)
+    const planRun = await planTool.run(exec, { title: '地图', children: [{ key: 'c1', title: '子票一' }], edges: [{ from: '@map', to: 'c1', type: 'parent' }] })
+    const childItem = (planRun.items || []).filter((i) => i.role === 'child')[0] || {}
+    check(childItem.status === 'failed', 'L1 父子边没挂上 → 这张子票记 failed，不报 ok（实得 ' + childItem.status + '）')
+    check(/父子边没挂上/.test(String(childItem.reason || '')), 'L2 原因里点明父子边没挂上：' + String(childItem.reason || '').slice(0, 140))
+    dispPlan.dispose()
+
+    // M) 认领人 / 标签 / 关票三步：写动作自述成功、写后读回来的票不认 → 逐条 failed（#790 审查 ①-1、①-2）
+    //    （三步以前都只看写动作自己的回包：认领人那一步因为 GitHub 房把回包覆盖成刚提交的那份，
+    //     连读回那一支都永远走不到，于是「写命令成功、盘上没记上」被报成 ok）
+    const stubSteps = {
+      id: 'stub-790-steps', label: '桩（写动作自述成功、读回来的票不认）', matches: async () => false,
+      create: () => ({
+        id: 'stub-790-steps',
+        async get(repoArg, key) { return { ok: true, data: { key: String(key), title: 't', state: 'open', body: '', labels: [], assignees: [], parentKey: null } } },
+        async setAssignees(repoArg, key, want) { return { ok: true, data: { key: String(key), title: 't', state: 'open', body: '', labels: [], assignees: want, parentKey: null } } },
+        async setLabels(repoArg, key, want) { return { ok: true, data: { key: String(key), title: 't', state: 'open', body: '', labels: want, assignees: [], parentKey: null } } },
+        async close(repoArg, key) { return { ok: true, data: { key: String(key), title: 't', state: 'closed', body: '', labels: [], assignees: [], parentKey: null } } },
+        async comment() { return { ok: true, data: {} } },
+        async setParent() { return { ok: true, data: {} } },
+        async setBlockedBy() { return { ok: true, data: {} } },
+        async getDependencies() { return { ok: true, data: { blockedBy: [], blocking: [] } } },
+      }),
+    }
+    const dispSteps = registry.register(stubSteps)
+    chooseWorkspace('/ws/790', 'stub-790-steps')
+    const patchMod = await imp('src/deck/tools/issue-patch.ts')
+    const patchTool = patchMod.createDeckIssuePatch(deps)
+    const prA = await patchTool.run(exec, { key: '96', assignees: ['alice'] })
+    const aItem = (prA.items || [])[0] || {}
+    check(aItem.status === 'failed', 'M1 写回包写着认领人、读回来的票上没有 → 这一步 failed（实得 ' + aItem.status + '）')
+    check(/没记|没读回|没有这些认领人/.test(String(aItem.reason || '')), 'M2 认领人那一步的原因说清读回来的票上没有：' + String(aItem.reason || '').slice(0, 140))
+    const prL = await patchTool.run(exec, { key: '96', addLabels: ['bug'] })
+    const lItem = (prL.items || [])[0] || {}
+    check(lItem.status === 'failed', 'M3 标签：写回包写着改好了、读回来没有 → 这一步 failed（实得 ' + lItem.status + '）')
+    const prC = await patchTool.run(exec, { key: '96', close: true })
+    const cItem = (prC.items || [])[0] || {}
+    check(cItem.status === 'failed', 'M4 关票：写回包写着已关、读回来还是 open → 这一步 failed（实得 ' + cItem.status + '）')
+    dispSteps.dispose()
 
     disp2.dispose()
     disp.dispose()

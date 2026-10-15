@@ -23,7 +23,6 @@ import type { OpResult, TrackerError } from '../../contract/results.js';
 // #104 `issue.write`：票写入的常驻结论线（轨迹形状与发射口在 ./write-log.js）。
 import { beginWriteTrail, emitIssueWrite } from './write-log.js'
 import type { WriteTrail } from './write-log.js';
-import { normalizeIssue } from './normalize.js'
 import { ghClient } from './client.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'
 import { readRepoPermissions, readonlyMessage } from './repo-permissions.js'
@@ -165,17 +164,13 @@ async function setLabelsInner(repo: RepositoryRef, key: string, labels: LabelInp
       const r = await c.execGh(['issue', 'edit', k, '--repo', spec, '--add-label', n], { cwd: ctx && ctx.cwd })
       if (!r.ok) return { ok: false, error: await attributeLabelFailure(c, spec, wantNames, r.error, ctx) }
     }
-    // 读回最新
+    // 读回最新：回包里那份必须是读回来的，不能是刚提交的那份（#790 同一类：写动作的回包不算证据）。
+    // 读不回来就如实报失败，不再乐观拼一张「标签已经改好」的票回 ok。
     const finalRes = await getIssue(repo, k, {}, ctx)
     if (!finalRes.ok) {
-      // optimistic 回落（测试桩或离线时）
-      const optimisticRaw = { number: Number(k) || k, title: '', state: 'open', body: '', url: '', labels: { nodes: wanted.map((l) => ({ name: l.name, color: l.color || '', description: l.description || '' })) }, updatedAt: new Date().toISOString() }
-      const issue = normalizeIssue(optimisticRaw)
-      issue.labels = wanted
-      return { ok: true, data: issue }
+      const readMsg = String((finalRes.error && finalRes.error.message) || '').slice(0, 300)
+      return fail((finalRes.error && finalRes.error.kind) || ERROR_KIND.NETWORK, 'setLabels: 写命令已回成功，但写后读回失败：' + (readMsg || '没给出原因') + '；标签改成没改成没确认', finalRes)
     }
-    // 确保 labels 为归一后的 wanted（带 color '' 兜底、description 可选）
-    finalRes.data.labels = wanted
     return finalRes
   } catch (err) {
     const verdict = ghVerdictOf(err, ctx)

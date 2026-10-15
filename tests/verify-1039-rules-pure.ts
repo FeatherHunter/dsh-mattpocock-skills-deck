@@ -137,6 +137,10 @@ async function edgeLanding() {
   check(e.edgeVerdict('block', '3', { dependencies: { blockedBy: [] } }) === 'not-landed', '读回来了、blockedBy 里没有 → 没落上')
   check(e.edgeVerdict('block', '3', { issue: { body: 'Blocked by: #3' }, dependencies: { blockedBy: [] } }) === 'not-landed', '只有正文提到 → 没落上')
   check(e.edgeVerdict('parent', '', { issue: { parentKey: '' } }) === 'unconfirmed', '没给目标 → 没确认（不猜）')
+  // 2026-10-15 对抗式审查补：直接给票本身（带 parentKey / blockedBy 的行）也算「读回来了」，
+  // 以前只认 {issue, dependencies} 与 body，字段明明对得上的读回会被判成「没读到」。
+  check(e.edgeVerdict('parent', '7', { parentKey: '7' }) === 'landed', '直接给票本身、parentKey = 目标 → 落上')
+  check(e.edgeVerdict('block', '3', { blockedBy: [{ key: '3' }] }) === 'landed', '直接给票本身、blockedBy 里有目标 → 落上')
 
   // #829 的教训：读回失败（issue 为 null）不许抛错，只能判说不好。
   let threw = false

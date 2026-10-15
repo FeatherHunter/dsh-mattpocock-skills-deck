@@ -77,12 +77,14 @@ function asList(v: unknown) {
 
 /**
  * 一条阻塞边写完之后读回来的结果：landed 是读回来的全集，after 是读回的原文（给重复项补明细用），
- * failed 非空表示写这一步就没成。
+ * failed 非空表示写这一步就没成，readOk 说「写后读回这一步自己成没成」——读失败时 landed 是空的，
+ * 但那是「没读到」，不是「读回来了、里面没有」，给重复项补明细时必须照它分开说（#790）。
  */
 type EdgeReadback = {
   landed: unknown[]
   after: { issue: unknown; dependencies: unknown }
   failed: { kind?: string; ok?: boolean; text?: string } | null
+  readOk: boolean
 }
 
 /**
@@ -196,8 +198,10 @@ export function createDeckMapLink(deps?: DeckMapLinkDeps) {
               // 同一票号的阻塞边已按合并后的完整集合写过并读回过，这一重复项不再重写，
               // 按当时的读回结果为它自己的目标逐个补明细（写失败时同样逐个补失败）。
               for (const target of asList(job.blockedBy)) {
-                const hit = !out.readback.failed && out.readback.landed.indexOf(target) >= 0
+                // readOk 分开看：读失败时只能说「没读回来，判不了」，绝不许说成「这条依赖没出现在票上」（#790）。
+                const hit = out.readback.readOk && !out.readback.failed && out.readback.landed.indexOf(target) >= 0
                 const e2 = out.readback.failed ? out.readback.failed
+                  : !out.readback.readOk ? { kind: 'unknown', ok: false, text: '写后没读回来，判不了这条依赖落上了没有：这一组边已按合并后的完整集合写过一次，读回没成功，别把这条当成已建成、也别当成没建成（同组第一条明细里有后端原话）。' }
                   : hit ? classifyEdgeLanding('block', target, out.readback.after)
                   : { kind: 'unknown', ok: false, text: '写后读回：这条依赖没出现在票上（要 ' + target + '，读回来 ' + (out.readback.landed.join('、') || '空') + '）' }
                 out.items.push(Object.assign({ key: key, status: hit ? 'ok' : 'failed' }, (edgeEvidence as EdgeEvidenceFn)('block', target, e2)))
@@ -208,7 +212,7 @@ export function createDeckMapLink(deps?: DeckMapLinkDeps) {
               const r = await applyBlockEdges(t, repo, opCtx, key, want, asList(job.blockedBy))
               if (r.failed) {
                 out.items.push(Object.assign({ key: key, status: 'failed' }, (edgeEvidence as EdgeEvidenceFn)('block', want.join('、'), r.failed)))
-                out.readback = { landed: [], after: { issue: null, dependencies: null }, failed: r.failed }
+                out.readback = { landed: [], after: { issue: null, dependencies: null }, failed: r.failed, readOk: false }
               } else {
                 for (const item of r.items) {
                   out.items.push(item)
@@ -216,7 +220,7 @@ export function createDeckMapLink(deps?: DeckMapLinkDeps) {
                 }
                 const extra = r.landed.filter((k) => want.indexOf(k) < 0)
                 if (extra.length) out.notes.push('票 ' + key + ' 上还有计划外的阻塞边：' + extra.join('、') + '（setBlockedBy 是整批替换，后端却留下了它们，读回来核对一次）。')
-                out.readback = { landed: r.landed, after: r.after, failed: null }
+                out.readback = { landed: r.landed, after: r.after, failed: null, readOk: r.readOk }
               }
             }
           }

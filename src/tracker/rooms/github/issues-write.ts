@@ -237,9 +237,10 @@ async function closeIssueInner(repo: RepositoryRef, key: string, opts: CloseOpts
     if (!r.ok) return { ok: false, error: r.error }
     const vr = await c.execGh(['issue', 'view', k, '--repo', `${parsed.owner}/${parsed.name}`, '--json', 'number,title,state,body,url,updatedAt,createdAt,closedAt,labels,assignees'], { cwd: ctx && ctx.cwd })
     if (!vr.ok) {
-      const optimistic = normalizeIssue({ number: Number(k) || k, title: '', state: 'closed', body: '', url: '', closedAt: new Date().toISOString() })
-      if (opts && typeof opts.reason === 'string') optimistic.reason = opts.reason
-      return { ok: true, data: optimistic }
+      // 写命令已回成功、写后读回失败：不许乐观拼一张「已经关上了」的票回 ok（#790 同一类：
+      // 写动作的回包不算证据）。读不回来就如实报失败，让上层说「没确认」而不是「已改好」。
+      const readMsg = String((vr.error && vr.error.message) || '').slice(0, 300)
+      return fail((vr.error && vr.error.kind) || ERROR_KIND.NETWORK, 'close: 写命令已回成功，但写后读回失败：' + (readMsg || '没给出原因') + '；这张票现在是不是 closed 没确认', vr)
     }
     const text = vr.data.stdout || ''
     let raw: unknown
@@ -286,7 +287,9 @@ async function reopenIssueInner(repo: RepositoryRef, key: string, ctx: OpContext
     // 重开这条真成了：这一趟改的是已有一张票（结论由出口按事实算，这里不再自己写一遍）。
     const vr = await c.execGh(['issue', 'view', k, '--repo', `${parsed.owner}/${parsed.name}`, '--json', 'number,title,state,body,url,updatedAt,createdAt,closedAt,labels,assignees'], { cwd: ctx && ctx.cwd })
     if (!vr.ok) {
-      return { ok: true, data: normalizeIssue({ number: Number(k) || k, title: '', state: 'open', body: '', url: '', closedAt: null }) }
+      // 同上：读不回来不许拼「已经重开了」的票（#790 同一类）。
+      const readMsg = String((vr.error && vr.error.message) || '').slice(0, 300)
+      return fail((vr.error && vr.error.kind) || ERROR_KIND.NETWORK, 'reopen: 写命令已回成功，但写后读回失败：' + (readMsg || '没给出原因') + '；这张票现在是不是 open 没确认', vr)
     }
     const text = vr.data.stdout || ''
     let raw: unknown
@@ -347,7 +350,11 @@ async function updateIssueInner(repo: RepositoryRef, key: string, patch: UpdateP
     if (!r.ok) return { ok: false, error: r.error }
     // 改票这条真成了：这一趟改的是已有一张票（结论由出口按事实算，这里不再自己写一遍）。
     const vr = await c.execGh(['issue', 'view', k, '--repo', `${parsed.owner}/${parsed.name}`, '--json', 'number,title,state,body,url,updatedAt,createdAt,closedAt,labels,assignees'], { cwd: ctx && ctx.cwd })
-    if (!vr.ok) return { ok: true, data: normalizeIssue({ number: Number(k) || k, title: typeof patch.title === 'string' ? patch.title : '', state: 'open', body: typeof patch.body === 'string' ? patch.body : '', url: '' }) }
+    if (!vr.ok) {
+      // 同上：读不回来不许拼一张「已经改好了」的票（#790 同一类）。
+      const readMsg = String((vr.error && vr.error.message) || '').slice(0, 300)
+      return fail((vr.error && vr.error.kind) || ERROR_KIND.NETWORK, 'update: 写命令已回成功，但写后读回失败：' + (readMsg || '没给出原因') + '；这次改的字段落上没落上没确认', vr)
+    }
     const text = vr.data.stdout || ''
     let raw: unknown
     try { raw = JSON.parse(text); if (Array.isArray(raw)) raw = raw[0] } catch (e) { return fail(ERROR_KIND.PARSE, `update: invalid json ${caughtMessage(e, 200)}`, text) }
@@ -442,18 +449,14 @@ async function setAssigneesInner(repo: RepositoryRef, key: string, assignees: As
       const r = await c.execGh(['issue', 'edit', k, '--repo', `${parsed.owner}/${parsed.name}`, '--add-assignee', l], { cwd: ctx && ctx.cwd })
       if (!r.ok) return { ok: false, error: r.error }
     }
-    // 读回最新
+    // 读回最新：回包里那份必须是读回来的，不能是刚提交的那份（#790 同一类：写动作的回包不算证据）。
+    // 读不回来就如实报失败，不再乐观拼一张「认领人已就位」的票回 ok —— 那会让上层把
+    // 「写命令成功、盘上没记上」报成完成（setAssignees 的调用方正是按这个回包判 ok 的）。
     const finalRes = await getIssue(repo, k, {}, ctx)
     if (!finalRes.ok) {
-      // optimistic 回落
-      const optimisticRaw = { number: Number(k) || k, title: '', state: 'open', body: '', url: '', assignees: { nodes: wanted } }
-      const issue = normalizeIssue(optimisticRaw)
-      issue.assignees = wanted
-      try { if (ctx && ctx.memo) rosterUpsert(ctx.memo, issue) } catch (eU) {}
-    return { ok: true, data: issue }
+      const readMsg = String((finalRes.error && finalRes.error.message) || '').slice(0, 300)
+      return fail((finalRes.error && finalRes.error.kind) || ERROR_KIND.NETWORK, 'setAssignees: 写命令已回成功，但写后读回失败：' + (readMsg || '没给出原因') + '；认领人记上没记上没确认', finalRes)
     }
-    // 覆盖 assignees 为 wanted（确保归一）
-    finalRes.data.assignees = wanted
     return finalRes
   } catch (e) {
     // 判档只走本房唯一的出口（`ghVerdictOf`）：档位由规则表判、话术按票面实现决定第 11 条挑；

@@ -47,8 +47,9 @@ export const EDGE_LANDING = Object.freeze({
  * 读回里的字段、写动作返回的对象、正文里出现过票号，任意一个成立就算落上。
  * 于是「写成功但读不回来」「正文里作者自己写了一句归属 #78」都会被报成落上。
  * 这里把判据收成一条：**只有写后读回的结构字段能确认一条边落上了**。
- * 写动作的返回值、建票回包里的字段、正文里的字都不是「盘上有这条边」的证据，
- * 它们最多能把「确认没落上」降级成「没读到，所以不知道」。
+ * 写动作的返回值、建票回包里的字段、正文里的字都不是「盘上有这条边」的证据：
+ * 它们只允许出现在证据行里（给人看的原话），不许参与三档判决。
+ * 读回本身没成（读失败、没读）时一律 unconfirmed —— 既不许报成功，也不许说没落上。
  *
  * 三档的含义：
  *   landed       写后读回的结构字段里确实有这条边（父子的 parentKey、阻塞的 blockedBy）。
@@ -66,9 +67,14 @@ export function edgeVerdict(op: string, target: unknown, after: unknown): EdgeVe
   const want = str(target).trim()
   if (!want) return 'unconfirmed'
   const a = obj(after)
+  // 「读回来了」的判据是「这份结果里带着要判的那种结构字段」：读回来的整份结果（{issue, dependencies}）
+  // 算读过，直接给票本身（带 parentKey / blockedBy 的行）也算读过 —— 后者是调用方最省事的传法，
+  // 漏掉它会把字段明明对得上的读回判成「没读到」（#790 审查指出）。
   const readHappened = (a.issue !== undefined && a.issue !== null)
     || (a.dependencies !== undefined && a.dependencies !== null)
     || (typeof a.body === 'string')
+    || (a.parentKey !== undefined && a.parentKey !== null)
+    || (a.blockedBy !== undefined && a.blockedBy !== null)
   if (!readHappened) return 'unconfirmed'
   const issueObj = (a.issue !== undefined && a.issue !== null) ? obj(a.issue) : null
   const rel = relationsOf(issueObj || a, a.dependencies)

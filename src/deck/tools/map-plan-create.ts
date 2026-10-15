@@ -330,8 +330,17 @@ export function createDeckMapPlanCreate(deps?: DeckMapPlanCreateDeps) {
         const created = o.created
         if (created && created.ok === true) {
           state.keys[String(o.ch.key)] = String((created.data && created.data.key) || '')
-          state.done.push('child:' + String(o.ch.key))
-          items.push({ key: state.keys[String(o.ch.key)], role: 'child', planKey: String(o.ch.key), title: String(o.ch.title), status: 'ok' })
+          // 子票建成了，但父子边是另一件事：房把挂父失败记在票上的 parentError 里（issues-write.ts 的 IssueWithNotes），
+          // 这里必须读它 —— 否则整图建骨架会在每条父子边都没挂上的情况下报 status:'ok'（#790 审查指出）。
+          // 为什么断言：契约的 Issue 没声明 parentError 这一格，断言只为过编译，读的还是原来那一格。
+          const childBag = (created.data || {}) as { parentError?: { message?: unknown } }
+          const pErr = (childBag.parentError && childBag.parentError.message) ? String(childBag.parentError.message).slice(0, 200) : ''
+          if (pErr) {
+            items.push({ key: state.keys[String(o.ch.key)], role: 'child', planKey: String(o.ch.key), title: String(o.ch.title), status: 'failed', reason: '子票建成了（票号 ' + (state.keys[String(o.ch.key)] || '后端没回票号') + '），但父子边没挂上：' + pErr })
+          } else {
+            state.done.push('child:' + String(o.ch.key))
+            items.push({ key: state.keys[String(o.ch.key)], role: 'child', planKey: String(o.ch.key), title: String(o.ch.title), status: 'ok' })
+          }
         } else {
           const msg = String((created && created.error && created.error.message) || '后端没给出原因').slice(0, 200)
           items.push({ key: '', role: 'child', planKey: String(o.ch.key), title: String(o.ch.title), status: 'failed', reason: msg })

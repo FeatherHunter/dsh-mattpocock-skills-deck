@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-15T05:46:41.980Z",
+  "generatedAt": "2026-10-15T06:11:02.604Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 258,
   "gateCount": 258,
@@ -999,7 +999,9 @@
       "file": "tests/verify-790-parent-edge.ts",
       "guards": [
         "src/deck/tools/issue-create.ts",
+        "src/deck/tools/issue-patch.ts",
         "src/deck/tools/map-link.ts",
+        "src/deck/tools/map-plan-create.ts",
         "src/host/platform/outbound-control.ts",
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
@@ -1022,7 +1024,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 8 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 10 条"
     },
     {
       "step": "node tests/verify-829-parent-reread.js",
