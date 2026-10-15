@@ -109,3 +109,17 @@
 ## 五、若真要处理，该怎么做
 
 把 `src/deck/tools/issue-create.ts:189-190` 那两个「或」项收掉或降级：建票回执判父子成没成，只认工具自己那一次写后读回（读回来的 `parentKey` 等于目标），契约交回来的 `parentKey` 只在读回确实没回来时用来避免误报失败，不再与读回平级；同时把 `body-line` 这一项限定在真的会写正文兜底的后端上，GitHub 这一房不接受「正文提到票号」当作父子边落下的证据（补边那一路的 `src/deck/shell/edge-landing.ts:156` 同一处判据要一起看）。顺带让工具层读一下房已经记下的 `parentError`，把后端原话带进顶层那一句话，别让它白记。
+
+
+## 六、结果（2026-10-15，本票修好并关闭）
+
+第五节那几条处理方向都已落地，另有一批由对抗式审查补出来的同类活口：
+
+1. 判据收成一条：`src/deck/rules/edge-landing.ts` 的 `edgeVerdict`（`landed` / `not-landed` / `unconfirmed` 三态），只认写后读回的结构字段；正文行与写动作回包只允许出现在证据行里，不参与判决。建票（`src/deck/tools/issue-create.ts`）、补父边与补阻塞边（`src/deck/shell/edge-landing.ts`）三处都改成问它。
+2. GitHub 房 `setParent` 在读回失败时拼一张「父票已挂上」的票回 `ok:true` 的乐观写法删掉（`src/tracker/rooms/github/graph.ts`），改成如实回失败，并把「写动作已回成功、读回失败」写进原话。
+3. 对抗式审查（另一个只读 agent，基线 `474c62f5`）指出同一类写法在仓里还有活口，已一并收掉：`deck_issue_patch` 的认领人一步以前拿写动作回包当读回（GitHub 房会把回包覆盖成刚提交的那份，读回那一支永远走不到），标签与关票/重开两步也只看写回 `ok`；GitHub 房的 `setAssignees` / `setLabels` / `close` / `reopen` / `update` 在读回失败时都会乐观拼一张「已经改好了」的票；补阻塞边的重复项分支把「没读回来」说成「没出现在票上」；整图建骨架从不读房记下的 `parentError`。提交 `26f4579a`。
+4. 判据：`tests/verify-790-parent-edge.ts` 17 → 37 条（G/H/I/J/K/L/M 七节），`tests/verify-1039-rules-pure.ts` 95 → 97 项；两份拷到未修复的基线上跑，K2/L1/L2/M1–M4 会红。
+5. 真机重放做过了：临时夹具 #1193（地图）/#1194（子票），挂父 → 解除 → 重挂，GraphQL 读回都对；地图的 `subIssues` 清单也含子票。票面「待真仓重放」那几条因此可以勾掉。
+6. 审查报告里「`map-link.ts` 的 `done.push` 记的是想写的那批」这一条不成立：今天的代码是 `out.done += 1` 计数，只在逐条判据为 ok 时加，`done.push` 在仓里不存在。
+
+还没做的（已如实记进 #790 的收尾评论）：GitLab 房 `fetchAugment` 把链接读失败吞掉，读「成功」但内容不全时新判据会把「其实没读到」判成「确认没落上」（要给票打一个记号、判据见到就回「未确认」，另立一票）；`comments.ts` 的乐观回包；`map-link.ts` 的 `data.requested` 记的是明细条数；真 GitHub 上「认领人一步」的端到端验证没做。
