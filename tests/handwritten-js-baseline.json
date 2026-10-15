@@ -137,7 +137,6 @@
     "src/client/views/primitives/Tip.js",
     "src/client/views/shared/BackendSelector.js",
     "src/client/views/shared/ChainRenderer.js",
-    "src/client/views/shared/DebugSwitchFailHint.js",
     "src/client/views/shared/RestFallbackBanner.js",
     "src/client/views/shared/SwitchConfirmModal.js",
     "src/client/views/shared/Tabs.js",

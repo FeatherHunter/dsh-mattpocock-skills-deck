@@ -24,6 +24,7 @@
     "src/client/ts-pixel-ambient.d.ts",
     "src/client/views/pixelProps.d.ts",
     "src/client/views/*.ts",
+    "src/client/views/diagnosticLog/*.ts",
     "src/client/views/pixel/*.ts",
     "src/client/views/skillDetail/*.ts",
     "src/client/views/cards/cardProps.d.ts",
