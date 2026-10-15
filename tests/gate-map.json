@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-15T15:15:58.088Z",
+  "generatedAt": "2026-10-15T15:36:37.607Z",
   "generatedBy": "node scripts/gate-map.mjs",
-  "chainLength": 264,
-  "gateCount": 264,
-  "attributedGates": 235,
+  "chainLength": 265,
+  "gateCount": 265,
+  "attributedGates": 236,
   "unattributedGates": 29,
   "buildOutputOnlyGates": 18,
   "completionRecordedGates": 6,
   "smokeLength": 6,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 561,
+  "graphFileCount": 566,
   "gates": [
     {
       "step": "node tests/verify-capability-register.ts",
@@ -211,6 +211,7 @@
         "src/shared/refresh/budget.js",
         "src/shared/refresh/src/budget.ts",
         "src/shared/refresh/step-cost.js",
+        "src/shared/refresh/tuning.js",
         "src/shared/version-control/parse-log.js",
         "src/shared/version-control/src/parse-log.ts",
         "src/tracker",
@@ -242,7 +243,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 11 条；源码里的路径字面量 20 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 11 条；源码里的路径字面量 21 条"
     },
     {
       "step": "node tests/verify-label-color-core.js",
@@ -673,6 +674,8 @@
         "src/client/views/SettingsWorkspaces.js",
         "src/client/views/SkillsTab.js",
         "src/client/views/TicketRow.js",
+        "src/client/views/diagnosticLog/DiagnosticLogSection.ts",
+        "src/client/views/diagnosticLog/diagnosticLogActions.ts",
         "src/client/views/diagnosticLog/diagnosticLogModel.ts",
         "src/client/views/feedback/feedback-styles.js",
         "src/client/views/labels/LabelColorDialog.js",
@@ -723,7 +726,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 66 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 68 条"
     },
     {
       "step": "node tests/verify-ctx.js",
@@ -5961,6 +5964,22 @@
       "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 1 条"
     },
     {
+      "step": "node tests/verify-diagnostic-log-actions.ts",
+      "file": "tests/verify-diagnostic-log-actions.ts",
+      "guards": [
+        "src/client/views/diagnosticLog/diagnosticLogActions.ts",
+        "src/client/views/diagnosticLog/diagnosticLogModel.ts"
+      ],
+      "dirs": [
+        "src/client/views/diagnosticLog"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：源码里的路径字面量 2 条"
+    },
+    {
       "step": "node tests/verify-gate-map.js",
       "file": "tests/verify-gate-map.js",
       "guards": [
@@ -6461,7 +6480,8 @@
     ],
     "src/client/views/diagnosticLog": [
       "node tests/verify-leaves.ts",
-      "node tests/verify-diagnostic-log-model.ts"
+      "node tests/verify-diagnostic-log-model.ts",
+      "node tests/verify-diagnostic-log-actions.ts"
     ],
     "src/client/views/feedback": [
       "node tests/verify-leaves.ts"
@@ -7195,9 +7215,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 573,
+    "fileCount": 578,
     "dirCount": 52,
-    "coveredFileCount": 573,
+    "coveredFileCount": 578,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 51,
@@ -7296,6 +7316,7 @@
       "src/client/views/PrTab.js",
       "src/client/views/RunPanel.js",
       "src/client/views/SettingsPage.js",
+      "src/client/views/SettingsPage.ts",
       "src/client/views/SettingsWorkspaces.js",
       "src/client/views/SetupCard.js",
       "src/client/views/SkillsTab.887.PROTOTYPE.html",
@@ -7339,6 +7360,8 @@
       "src/client/views/cards/PixelMapDots.ts",
       "src/client/views/cards/cardBits.d.ts",
       "src/client/views/cards/cardProps.d.ts",
+      "src/client/views/diagnosticLog/DiagnosticLogSection.ts",
+      "src/client/views/diagnosticLog/diagnosticLogActions.ts",
       "src/client/views/diagnosticLog/diagnosticLogModel.ts",
       "src/client/views/feedback/feedback-styles.js",
       "src/client/views/issueDetailFold.js",
@@ -7594,10 +7617,12 @@
       "src/shared/refresh/src/ports.ts",
       "src/shared/refresh/src/step-cost.ts",
       "src/shared/refresh/src/tool-cost.ts",
+      "src/shared/refresh/src/tuning.ts",
       "src/shared/refresh/src/write-detect.ts",
       "src/shared/refresh/step-cost.js",
       "src/shared/refresh/tool-cost.js",
       "src/shared/refresh/tsconfig.json",
+      "src/shared/refresh/tuning.js",
       "src/shared/refresh/write-detect.js",
       "src/shared/session-cwd.js",
       "src/shared/skill-probe-channels.js",

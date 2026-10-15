@@ -35,7 +35,8 @@ import { createOutboundControl } from '../platform/outbound-control.js'
 // deck 工具前置三处的等待上限：保读数含一次远端读数（读档 12 秒加排队），给 15 秒；
 // 本机记忆与工作区文件是本地读，给 5 秒。超时都走既有的失败继续路径（保不住照旧往下走、
 // 读不到按缺席跳过），成功路径一字不动——挂住的文件服务或排满的出站队列不能卡住整笔调用。
-const DECK_ENSURE_TIMEOUT_MS = 15000
+// 取值住共用调参表（真源 src/shared/refresh/src/tuning.ts），这里只留缺表回落的缺省值（与今天一致）。
+const DECK_ENSURE_TIMEOUT_MS = TUNING.deckEnsureTimeoutMs ?? 15000
 const DECK_EXPLICIT_TIMEOUT_MS = 5000
 import { createNamingSummary, readFirstUserText } from '../platform/namingSummary.js'   // #746：命名摘要编排（单例，见下）；#746 首句直读（随单下发供免锁比对）
 import { hookDeckAgentTools, makeDeckRegisterReport } from '../../deck/registration/register-options.js' // #741 注册那一步（向 agent 交七个工具）：形状、循环与报告住共享层（两边都要用），这里只递表
@@ -46,6 +47,7 @@ import { createDeckQuotaSync } from '../../deck/registration/quota-sync.js' // #
 import { createPatchForHost } from '../platform/refreshAssembly.js'
 import * as budget from '../../shared/refresh/budget.js'
 import * as toolCost from '../../shared/refresh/tool-cost.js'
+import { TUNING } from '../../shared/refresh/tuning.js'
 // #724：闸那一侧的工作区钥匙（短散列）只有一份实现，住在共享层（宿主层文件之间不许互引，而链求值那侧也要用
 // 同一把钥匙）。本文件把它转出来，「活跃集合、写事件白名单、七个 deck_* 工具、行级增量、检查链记账」五处同源。
 import { hash8, workspaceKeyOf } from '../../shared/refresh-workspace-key.js'

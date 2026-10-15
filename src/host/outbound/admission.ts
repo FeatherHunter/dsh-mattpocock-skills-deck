@@ -22,8 +22,11 @@
  * 终值仍以测量回填（#967 测量 / #966 收口）为准。
  */
 
-export const READ_BUCKET_MAX = 64
-export const WRITE_BUCKET_MAX = 16
+import { TUNING } from '../../shared/refresh/tuning.js'
+
+// 取值住共用调参表（真源 src/shared/refresh/src/tuning.ts），这里只留缺表回落的缺省值（与今天一致）。
+export const READ_BUCKET_MAX = TUNING.readBucketMax ?? 64
+export const WRITE_BUCKET_MAX = TUNING.writeBucketMax ?? 16
 
 // 准入桶：读与写两只桶，配额与统计都按桶隔离，跨桶不抢名额。
 type GhBucket = 'read' | 'write'
