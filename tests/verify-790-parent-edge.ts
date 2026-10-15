@@ -1,5 +1,6 @@
 const { createOutboundControl } = require('../src/host/platform/outbound-control.ts')
-// tests/verify-790-parent-edge.js —— #790 父子边静默失败专属门禁（不联网）
+// tests/verify-790-parent-edge.ts —— #790 父子边静默失败专属门禁（不联网）
+// 2026-10-15 从 .js 转成 TypeScript：只改文件名与这行注释，判据与断言一条没动。
 // 测什么（第一性原理：真 GitHub 只认数据库编号 + -F，票面号 + -f 必 422）：
 //   A) graph.setParent 主路走原生旗 `gh issue edit --parent`（按票号，不碰数据库编号）
 //   B) 原生旗未知（老版本）时回退裸接口，且用 -F 传数据库编号（不用 -f 传票面号）
