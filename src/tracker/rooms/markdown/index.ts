@@ -1,4 +1,5 @@
 import type { Tracker } from '../../contract/operations.js'
+import type { BackendModule } from '../../contract/backend-module.js'
 import type { RepositoryRef, Issue, Comment, LabelColor } from '../../contract/entities.js'
 import type { OpContext, RepoHandle } from '../../contract/contexts.js'
 import type { Actor } from '../../contract/identity.js'
@@ -402,5 +403,5 @@ export const markdownModule = {
   openRepository: 'folder',
   prompts,
   fixes,
-}
+} satisfies BackendModule
 export default createMarkdownBackend

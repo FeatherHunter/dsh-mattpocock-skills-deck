@@ -14,27 +14,33 @@
 //       `Object.freeze` 与字面量是合法的数据写法）、`require(`、动态 `import(`；
 //       值引用只许目录内互引（数据引数据，目标文件自己也过这一条，所以不形成行为入口），
 //       指到目录外的、包名的、裸副作用引用的，一律判红。发现就判红，并指出文件与行号。
-//   三、贴合探针能编译：两份探针（GitHub / Markdown 后端）用宽松开关直编，探针文件自己
-//       一条报错都不能有（成员缺了、形状写歪了，第一落点就是这里）；后端文件内部自己的
-//       报错（旧语言时代的联合收窄、参数个数这类）另行计数，必须与本文件记的基线逐字相等——
-//       多了是新增债务，少了是有人修了实现面（那要先把基线数改过来，并考虑把探针收紧）。
-//       探针缺席也在自己门口判红。两份探针退休之日（后端转 TypeScript 后直接对真实现检查），
-//       这一项跟着退休。
+//   三、后端自己声明了对上契约：三个后端的模块对象都用 `satisfies BackendModule` 挂上契约
+//       （去掉注释后按文本找这三处），且这份声明真会被编译检查——看它的是域配置
+//       `src/tracker/tsconfig.json`（strict，include 是目录通配，三个后端目录都在里面）与
+//       覆盖对账 `scripts/typecheck.mts`（门禁 `tests/verify-typecheck.mts`），两处都必须在盘上。
+//       为什么按文本找：把 `satisfies BackendModule` 这一句摘掉之后，普通 `tsc` 不会红
+//       （没有声明就没有检查），所以「声明还在不在」只能自己钉住。这一项的前身是两份「贴合探针」，
+//       它们的去处由 #1025 第 7 条定死（后端转成 TypeScript 之后，由后端自己写对上契约的声明），
+//       #1027（2026-10-15）执行到位之后退休。
 //   四、反面证明：现拼一个缺 `matches` 的假后端，拿同一套严格开关编它，必须编不过、
-//       且报错里点名 `matches`。这条验的是「探针不是摆设」——它断得了缺少成员，真后端
-//       哪天丢了一个必填，探针一定红。第二条走探针同款开关、断探针真用的弱化形状，同样齐了才算过。
+//       且报错里点名 `matches`。这条验的是「契约不是摆设」——它断得了缺少成员，真后端
+//       哪天丢了一个必填，编译一定红。（第二条反面证明原本走探针那条路、断探针真用的弱化形状，
+//       随探针在 #1027 一起退休：探针没了，就没有第二条路可验。）
 //   五、运行时腿：把三个后端模块对象真加载起来（加载失败就红），断两档真值——
 //       `openRepository` 必须是 `'url'` 或 `'folder'`：内置三家一律要声明
 //       （契约里那个成员对第三方后端仍可选）。
 //       这条口径是 #1139 收紧的：旧写法把「不声明」也算合法，那道口子正是 #1117 能长期躲在绿里的
 //       地方（值只挂在文件级导出上、模块对象上没有该键时，界面把内置后端当成「没读到开仓动作」）；
-//       `checks` 的种类如实记录（数组 / 函数 / 不声明）。
+//       `checks` 的种类如实记录（数组 / 函数 / 不声明）。#1027（2026-10-15）把「数组还是工厂」
+//       这件事定死了：后端交出来的是写死的常量表（GitHub 后端挂的就是 `checks.ts` 的 `GITHUB_CHECKS`），
+//       契约那一格跟着收成只读的 `readonly RoomCheckEntry[]`，所以下面 github 那份快照从 `function` 改成 `array`。
 //
 // 再撤四项（2026-10-14 #1147 决策 8：类型检查接管后撤掉。顺序是先立后撤——
 //   跟踪器配置落地、三条断言写好、三种错故意造出确认变红之后，才动手删）：
 //   旧零、缺件即红：缺文件时 tsc 与下游步骤本来就会红（配不起来、引不到、编不了），
 //     不再需要一条专门数文件的；删它不能删出静默跳过，所以 tsconfig 缺席改由第一项判、
-//     探针缺席改由第三项与第四项判（缺谁谁说话，见各步门口）。
+//     探针缺席改由第三项与第四项判（缺谁谁说话，见各步门口）。这一句里点名的探针已在
+//     #1027 退休（见下一段），口径不变：第三项缺声明、第四项缺输入时，各自在自己门口判红。
 //   旧二、漏编对账（拿 tsc 清单数文件）：「每个域都被配置圈住」由覆盖对账
 //    （scripts/typecheck.mts）统一管，一个门禁不养两套账。
 //   旧三、接口清单齐（读文本数 25 个名字）：名录与 Tracker 的同集由断言 2 守（编译期），
@@ -51,6 +57,21 @@
 //   （`index.ts` 的 `OPERATIONS` 改成从名录转出，同一份数组、同一个引用），没有第二份
 //   手写副本之后，这两项就没有东西可比了，留着只会永远红。决定人与理由见 #1026 正文。
 //
+// #1027（2026-10-15）退休的两件（前身与去向见第三项的说明）：
+//   一、两份贴合探针：`tests/contract-probe-github.ts`、`tests/contract-probe-markdown.ts`，
+//     以及它们 `/// <reference>` 引的 `tests/contract-probe-env.d.ts`。三份文件随之删除。
+//     探针原本要做的事（「后端到底合不合契约」）现在由后端自己在编译期回答：
+//     三家模块对象各自挂 `satisfies BackendModule`，操作面挂 `satisfies <后端>BackendShape`。
+//   二、「后端文件内部报错数与基线相等」那一半（基线常量的来历见下一段留档）。探针用
+//     `--strict false` 直编，数的不是「有没有违约」，而是旧写法在新调用点上投影出来的存量报错；
+//     这个数一路漂，到 #1027 开工时已经与实测不符（基线 172、实测 170），门禁因此常红——
+//     它红的不是契约有问题，是这本人情账没人记得记。真正在守类型的是 `src/tracker/tsconfig.json`
+//     与覆盖对账 `scripts/typecheck.mts`（门禁 `tests/verify-typecheck.mts`），那两处今天都绿；
+//     一个门禁不养两套账（#1147 决策 8），所以这一半随探针一起退休。
+//   留档：那条基线的来历链是 200→156→155→183→162→161→152→154→167→172（每一笔的「谁改的、
+//   为什么」原先写在常量上面，随常量一起删）。留这一行只为说明「这个数曾经存在、谁要追溯去哪找」：
+//   逐笔理由见 #1147、#1174、#1058、#1111、#1051 的进度评论与本文件的历史版本。
+//
 // 缺件口径史（2026-10-12 改口径，2026-10-14 #1147 决策 8 随旧第零项一起退休，细则见上）：
 //   缺件本身就是要人看见的事故，不是可以跳过的等待；退休后缺谁谁在自己门口说话。
 //
@@ -66,9 +87,11 @@
 //   `new` 只认 `=` 之后的（值初始化形状），构造器类型（`new (x: …): T`，冒号形状）不在此列。
 //   「契约目录里的 .ts 是不是都进了编译」本门禁不管了（旧第二项已撤），由覆盖对账
 //   （scripts/typecheck.mts）统一管——但本门禁跑的那次 tsc 会把配置圈到的文件一起检查，错了一样红。
-//   第三项不审后端实现内部：旧语言文件的内部报错只计数（基线在下面），审它们是迁移批次的事；
-//   探针弱化的三处（`create` 返回深层、`openRepository` 字面量、`checks` 种类）各有去处——
-//   前两处一个留后续专票、一个由第五项断真值，`checks` 数组还是工厂也由第五项如实记录。
+//   第三项是文本查找，不是类型检查：它只认 `satisfies BackendModule` 这个写法。有人换成
+//   标注（`const x: BackendModule = {…}`）这类等价写法、或把模块对象挪到别的文件时，本项要按
+//   新落点改上面的 `BACKEND_DECLARATIONS`；反过来，只把那一句删掉、别的不动，本项一定红。
+//   第三项不审三个后端内部的类型债：那是 `src/tracker/tsconfig.json` 的账（strict、零错误），
+//   本门禁不另数一份（#1147 决策 8：一个门禁不养两套账）。
 //
 // 用法：node tests/verify-contract-types.js（在仓库根目录）
 const fs = require('fs')
@@ -80,111 +103,25 @@ const ROOT = path.resolve(__dirname, '..')
 const resolveInRoot = (p) => (path.isAbsolute(p) ? p : path.join(ROOT, p))
 const CONTRACT_DIR = resolveInRoot(process.env.DSH_CONTRACT_DIR || 'src/tracker/contract')
 const TSCONFIG = resolveInRoot(process.env.DSH_CONTRACT_TSCONFIG || 'tsconfig.contract.json')
-/** 两份贴合探针：静态腿的输入。缺了它们，第三项在自己门口判红，不静默跳过。 */
-const PROBE_GITHUB_REL = 'tests/contract-probe-github.ts'
-const PROBE_MARKDOWN_REL = 'tests/contract-probe-markdown.ts'
 /**
- * 静态腿的观察面：只有这两房进探针编译，第三项数的「后端文件内部报错」也只数它们。
- * GitLab 房不在里面，原因与替代的那条腿写在文件头「第二段，少掉的那 1 条不是还债」那一段；
- * 将来要给 GitLab 房补一份探针，改这里与那一段两处（#1172）。
+ * 三处「后端自己声明对上契约」的落点（第三项去掉注释后按文本找它们）。
+ * 为什么不用类型检查找：这是「声明本身在不在」的问题——把 `satisfies BackendModule` 摘掉，
+ * 普通 tsc 不会红（没有声明就没有检查），所以只能自己按文本钉住。
+ * 换写法（改成标注、或把模块对象挪到别的文件）要同步改这张表，并把 what 写成那个对象的新名字。
  */
-const PROBE_ROOMS = ['github', 'markdown']
-/**
- * 探针直编时，后端文件内部自己的报错数（旧语言时代的联合收窄、参数个数这类，
- * 实现面的债，不归本门禁审）。必须逐字相等：多了是新增债务，少了是有人动了实现面。
- *
- * 2026-10-14 由 200 改到 156（#1111「报错判据收成一源，失败结果带原文」）：那一票把各后端的失败构造
- * 从「手写 message 字面量」换成跟踪器层统一的 fail(kind, message, raw) 与各房带类型的辅助函数，
- * 旧语言时代那种「对象字面量对不上联合类型」的内部报错随之减少——这是实现面真的动了，不是门禁放松。
- * 同日又由 156 改到 155：关闭后那轮对抗式审查发现两个后端的逐条改色失败没带原文，把 GitHub 房那条
- * 逐条失败改成走 fail()、其余各条补上第三段，实现面再动一处，内部报错又少一条。
- *
- * 2026-10-14 由 155 改到 183（#1051「契约层补齐能力上限」，同一个 10-14 的第二笔）：
- * 这一次**不是新债，是把原先看不见的债照出来了**。那三个后端工厂的 `create` 返回对象
- * （`createGithubBackend` / `createMarkdownBackend` / `createGitlabBackend`）原先没有写返回类型，
- * 对象字面量按自己的形状推断，对不上契约也看不出来；#1051 给三家都标上了 `: RoomOperations`
- * （`src/tracker/contract/operations.ts` 的 `Tracker` 子集），于是「这个对象到底合不合契约」
- * 第一次有了编译期判据，原先隐身的 28 条当场现形。
- * 这 28 条的归类与去处：绝大多数是**辅助函数把 `ok` 收窄成 `boolean`**（`OpResult` 要求可辨识联合），
- * 修它要给后端内部几十个函数补返回标注——那是后端实现面的改动，归地图 08 / 09 的三张转写票
- * （#1052 读路径、#1053 写路径、#1054 关系与边）。本门禁只如实计数，不拦住这三张票之外的东西。
- * 把这个数往回降的办法只有一条：把那三张票做完，再回来改这个数。
- * 探针要不要跟着收紧（把弱化面收掉、让这个数继续降）归 #1095 那条测试跟随线，本票不动它。
- *
- * 2026-10-14 由 183 改到 162（#1147 三房转制收口 + 工厂挂 satisfies）：
- * 三个工厂的返回字面量挂上形状后，回调参数从契约签名拿到上下文类型，
- * 加上转制时补的标注，实现面又还了 21 条。这是还债，不是放松。
- *
- * 2026-10-14 由 162 改到 161（#1147 收尾补上 graph.ts:242 缺的 listIssues 导入）：
- * 整仓回退分支从 ReferenceError 变成真实现，探针口径下少了一条报错。同样是还债。
- *
- * 2026-10-14 由 161 改到 152（收口地图 08 时还掉的那笔：这个写法先被照出来，再被还清）。
- * 先说这一天里数怎么动的：161（79b069ba 17:21 定下的基线，当时实测就是 161）
- * → 160（0bd83612，见下面第二段，观察面少了一个房）
- * → 172（16885485 18:40 给读路径补结论线：往下游那个类型已经烂掉的局部变量上又挂了 12 个调用点）
- * → 152（同日收口地图 08 时改掉那一行写法，见第一段）。
- * 第一段，还债 20 条：`src/tracker/rooms/github/preflight.ts` 的 opCtx 原先写
- * `Object.assign({}, ctx || {}, cwd ? { cwd } : {})`，推出来的类型只有 `{ cwd: string } | { cwd?: undefined }`，
- * OpContext 的成员一个不剩；凡把它当 OpContext / ClassifyCtx 传下去的地方（读路径的日志钩子、ghClient、
- * ghVerdictOf）全报 TS2345。改成带标注的对象展开 `const opCtx: OpContext = { ...ctx, ...(cwd ? { cwd } : {}) }`
- * 之后，该文件从 22 条降到 2 条（剩下那两条是读 GhExecResult 的旧账，属存量），全池 172 → 152。
- * 这 20 条里 16 条是同一个毛病的不同调用点：其中 4 条在基线里已有，12 条是 16885485 新挂的。
- * 注意这个数不是「新增债务」，是**旧写法被新调用点照出来**（与上面 183 那次同一性质），
- * 只是一行就能还清，所以当场还了。
- * 第二段，少掉的那 1 条不是还债：0bd83612（#1136）摘掉各房对 capability-assertions 的 import type 之后，
- * `src/tracker/capability-assertions.ts` 退出本探针的编译程序，而它是全仓唯一静态 import 了
- * `./rooms/gitlab/index.js` 的文件 —— 整个 GitLab 房随之离开静态腿（少的那条是 gitlab 房 issues.ts 的 TS2322）。
- * 也就是说静态腿今天只看 GitHub 与 Markdown 两房，而运行时腿仍在看三个房的模块对象。
- * #1172 把这条边界写成了代码里的 `PROBE_ROOMS`（两房），并指定替代的那条腿：GitLab 房的形态由
- * src/tracker/tsconfig.json（include 写的是目录通配，新增文件自动进检查）与覆盖对账
- * scripts/typecheck.mts（门禁 tests/verify-typecheck.mts 跑它）守着。将来要给 GitLab 房补探针，
- * 改 `PROBE_ROOMS` 与这一段两处。
- * 读这段数的时候请把两件事分开：152 是「还清之后剩下的存量」，不是「债务变少了」的证据。
- *
- * 2026-10-15 由 152 改到 154（#1174 收尾实测）。这个数中间先涨后落，来历要写清：
- * 152 是 2026-10-14 收口地图 08 时记下的；在那之后、到 f3c16cb7（#1064 把 GitLab 房补齐到 25 条）
- * 那一笔为止，别的开发提交又把它顶回 161，而门禁从那时起一直红着、没有人登记这个数。
- * 所以本次开工实测到的起点不是 152，是 161（另抽一份 06b1b975 的干净树实测，同为 161）。
- * #1174 重写 Markdown 房若干失败分支与列目录的写法，把这 9 条还掉 7 条，落到 154。
- *
- * 2026-10-15 由 154 改到 167（还是 #1174，同一笔改动的后半段）。多出来的 13 条不是新毛病，
- * 是**同一类存量债被新代码照出来的**：本地 Markdown 房把「列目录的三种结果」写成了带判别字段的
- * 联合类型（`read.ts` 的 `DirListing`），在 `--strict false` 这套探针参数下，`ok` 这个判别字段
- * 不参与收窄，于是 `listed.missing` / `listed.error` 一律报 TS2339——与这 154 条里绝大多数
- * （`Property 'error' does not exist on type ...`）是同一种报错、同一个成因。
- * 具体分布：`issues-create.ts` 8 条（建票回查与取号那两段三态分支）、`issues-read.ts` 3 条、
- * `read.ts` 2 条。**没有为了把数字压回去而改成强制转换或 `any`**：那种写法过得了这个探针，
- * 却会把真实的类型收窄一起丢掉，而真正在守类型的是 `src/tracker/tsconfig.json` 与
- * `scripts/typecheck.mts`（门禁 `tests/verify-typecheck.mts`）——那两处今天都是绿的。
- * 要真正还清这一笔，得把探针的 `--strict false` 收紧（那是另一张票的事）。
- *
- * 2026-10-15 由 167 改到 172（#1058 补读路径日志之后实测，2026-10-14 那两笔提交 b0668743 与 f062208c）。
- * 这一笔是「新代码把同一类存量债照出来」，不是新毛病。把数看清楚的经过：
- * 在 #1058 动手之前（d1e07545）按本门禁同一套开关实测是 167，与基线一致；
- * #1058 那两笔提交之后实测 173（多 6），随后 349d48d6（#1159 把房间共用的判定件收进 src/tracker/kernel）
- * 又收回去 1 条，落到今天的 172。
- * 多出来的那 6 条的落点与形状：全在本次新接的读路径分支上（`issues-read.ts` 5 条、`page.ts` 1 条），
- * 形状与这段上面记的完全一样——本地 Markdown 房把「读文件的结果」写成带判别字段的联合类型，
- * 在 `--strict false` 这套探针参数下判别字段不收窄，于是 `.error` / `.missing` 一律报 TS2339。
- * 换句话说：探针脚下的那句「后端文件内部报错」数的是旧写法在新调用点上的投影，不是这次改坏了什么
- * ——真正在守类型的两处（`src/tracker/tsconfig.json` 与 `scripts/typecheck.mts`，门禁 `tests/verify-typecheck.mts`）
- * 今天都是绿的。**没有为了把数字压回去而加强制转换或 `any`**：那样过得了这个探针，却把真实的收窄一起丢掉。
- * 要真正还清，得把这套探针的 `--strict false` 收紧（那是另一张票的事）。
- * 怎么量的（下一位复核照着走）：`node node_modules/typescript/bin/tsc --noEmit --target es2020 --lib es2020,dom
- * --module esnext --moduleResolution bundler --allowJs --checkJs false --skipLibCheck --strict false
- * tests/contract-probe-github.ts tests/contract-probe-markdown.ts`，数带 `(行,列): error TS####` 的行；
- * 两笔提交之间逐行比过：新增 13 处、消失 7 处（多数是行号平移），净 +6。
- *
- * 下一次动这个数，请沿用同一条规矩——写清「谁改的、从多少到多少、为什么」，
- * 并说明这一笔是还债还是新欠的。
- */
-const PROBE_NONPROBE_ERROR_BASELINE = 172
-/** 探针直编的开关（与探针文件头写的口径一致，改一处两处一起改）。 */
-const PROBE_TSC_ARGS = [
-  '--noEmit', '--target', 'es2020', '--lib', 'es2020,dom', '--module', 'esnext',
-  '--moduleResolution', 'bundler', '--allowJs', '--checkJs', 'false',
-  '--skipLibCheck', '--strict', 'false',
+const BACKEND_DECLARATIONS = [
+  { rel: 'src/tracker/rooms/github/index.ts', what: 'githubModule' },
+  { rel: 'src/tracker/rooms/markdown/index.ts', what: 'markdownModule' },
+  { rel: 'src/tracker/rooms/gitlab/index.ts', what: 'gitlabBackend' },
 ]
+/** 声明必须长成这样（第三项的正则；大小写与空格宽松，只认这个挂法）。 */
+const BACKEND_DECLARATION_RE = /satisfies\s+BackendModule\b/
+/**
+ * 替代贴合探针的那条腿（第三项要确认它在盘上）：域配置给三个后端做 strict 类型检查，
+ * 覆盖对账统一管「有没有源码没人检查」。两者缺一，这句声明就没有腿去检查。
+ */
+const ALT_DOMAIN_CONFIG_REL = 'src/tracker/tsconfig.json'
+const ALT_COVERAGE_GATE_REL = 'scripts/typecheck.mts'
 /**
  * 运行时腿的真值快照（#1026 实测；GitLab 一份按 #1110 实现决定第 15 条补上）：
  * 只剩两个断不了字面量的真值（openRepository 与 checks 种类），真值变了先确认再登记；
@@ -198,7 +135,10 @@ const PROBE_TSC_ARGS = [
 const RUNTIME_SNAPSHOTS = {
   github: {
     openRepository: 'url',
-    checksKind: 'function',
+    // #1027（2026-10-15）：原先如实记的是 `function`——模块对象挂的是 `checks.ts` 里的零参工厂 `checks()`，
+    // 而契约那一格写的是数组。定死成「后端交出来的是一张写死的常量表」之后，模块对象挂的是
+    // `GITHUB_CHECKS` 本身（那把无人调用的工厂已删），契约跟着收成 `readonly RoomCheckEntry[]`，此处记 `array`。
+    checksKind: 'array',
   },
   markdown: {
     openRepository: 'folder',
@@ -347,13 +287,11 @@ function findRuntimeImpl(abs, code) {
 }
 
 function main() {
-  console.log('契约层类型门禁（tsc 零错误 + 无运行时实现 + 探针编译 + 两条反面证明 + 运行时腿）')
+  console.log('契约层类型门禁（tsc 零错误 + 无运行时实现 + 后端自己声明对上契约 + 一条反面证明 + 运行时腿）')
 
   // ---- 1) 类型检查：tsc 零错误 ----
   // 缺谁谁说话：tsconfig 缺席不再由已撤的第零项数，这里自己判（没有配置可指，也不静默跳过）。
   const tsconfigExists = fs.existsSync(TSCONFIG)
-  const probeGithubExists = fs.existsSync(path.join(ROOT, PROBE_GITHUB_REL))
-  const probeMarkdownExists = fs.existsSync(path.join(ROOT, PROBE_MARKDOWN_REL))
   const requireFromRoot = createRequire(path.join(ROOT, 'package.json'))
   let tscBin = null
   try {
@@ -400,66 +338,42 @@ function main() {
     check(bad === 0, '契约目录下 ' + tsFiles.length + ' 个 .ts 文件都没有运行时实现（只许类型与数据，目录内数据互引除外）')
   }
 
-  // ---- 3) 贴合探针能编译：探针文件自己零报错，后端内部报错数与基线相等 ----
-  // 探针直编不经任何 tsconfig（命令行开关）：后端入口会把半个房间拖进编译程序，
-  // 经配置编会触发覆盖对账的重复归属；开关与探针文件头写的口径一致，改一处两处一起改。
-  {
-    // 观察面如实写出来（#1172）：这条腿只看两房这件事，光写在文件头里别人还得自己读一遍；
-    // 同时把「不看的那个房由谁守」钉在盘上——替代的那条腿被撤掉时这里要红，那句话才有落点。
-    const altGate = path.join(ROOT, 'scripts', 'typecheck.mts')
-    const altConfig = path.join(ROOT, 'src', 'tracker', 'tsconfig.json')
-    const altOk = fs.existsSync(altGate) && fs.existsSync(altConfig)
+  // ---- 3) 后端自己声明了对上契约：三处声明在盘上，替代探针的那条腿也在 ----
+  // 这一项的前身是两份贴合探针的编译（探针自己零报错 + 后端文件内部报错数等于基线），#1027 退休。
+  // 留下的问题只有一个：「声明还在不在」——把 `satisfies BackendModule` 摘掉，tsc 不会红。
+  for (const d of BACKEND_DECLARATIONS) {
+    const abs = path.join(ROOT, d.rel)
+    if (!fs.existsSync(abs)) {
+      check(false, d.what + ' 自己声明了对上契约（' + d.rel + ' 不在盘上）：这一项没做')
+      continue
+    }
+    const code = stripComments(fs.readFileSync(abs, 'utf8'))
+    const found = BACKEND_DECLARATION_RE.test(code)
     check(
-      altOk,
-      '静态腿观察面只有两房（' + PROBE_ROOMS.join('、') + '）：GitLab 房的形态由 src/tracker/tsconfig.json 与覆盖对账 scripts/typecheck.mts 守，两处都在盘上' +
-        (!fs.existsSync(altGate) ? '；scripts/typecheck.mts 不在：替代的那条腿没了' : '') +
-        (!fs.existsSync(altConfig) ? '；src/tracker/tsconfig.json 不在：GitLab 房没有类型检查' : ''),
+      found,
+      d.what + ' 自己声明了对上契约（' + d.rel + ' 里挂着 `satisfies BackendModule`）' +
+        (found ? '' : '：这一句摘掉之后 tsc 不会红，所以本项按文本钉住它；换写法就同步改上面的 BACKEND_DECLARATIONS'),
     )
   }
-  if (!probeGithubExists || !probeMarkdownExists) {
-    // 第零项已撤：探针缺席在这里自己判，不静默跳过。
-    check(false, '两份贴合探针存在（缺：' + (!probeGithubExists ? PROBE_GITHUB_REL + ' ' : '') + (!probeMarkdownExists ? PROBE_MARKDOWN_REL : '') + '）：探针直编这一步没做')
-  } else if (!tscBin) {
-    check(false, '两份探针能直编（tsc 起不来，这一项没做：见第一项的 FAIL）')
-  } else {
-    const pr = spawnSync(
-      process.execPath,
-      [tscBin, ...PROBE_TSC_ARGS, path.join(ROOT, PROBE_GITHUB_REL), path.join(ROOT, PROBE_MARKDOWN_REL)],
-      { encoding: 'utf8' },
+  {
+    // 声明要真被编译检查才算数：看它的是域配置（strict，include 是目录通配，三个后端目录都在里面）
+    // 与覆盖对账。本门禁不另养一套账（#1147 决策 8），只确认那条腿还在盘上——腿没了，
+    // 这句声明就只是一行文字，不是「编译器是唯一检查者」。
+    const altConfig = path.join(ROOT, ALT_DOMAIN_CONFIG_REL)
+    const altGate = path.join(ROOT, ALT_COVERAGE_GATE_REL)
+    const altConfigOk = fs.existsSync(altConfig)
+    const altGateOk = fs.existsSync(altGate)
+    check(
+      altConfigOk && altGateOk,
+      '三个后端的形态由 ' + ALT_DOMAIN_CONFIG_REL + '（strict 域配置，include 是目录通配）与覆盖对账 ' +
+        ALT_COVERAGE_GATE_REL + ' 守，两处都在盘上' +
+        (!altConfigOk ? '；' + ALT_DOMAIN_CONFIG_REL + ' 不在：三个后端没有类型检查' : '') +
+        (!altGateOk ? '；' + ALT_COVERAGE_GATE_REL + ' 不在：覆盖对账那条腿没了' : ''),
     )
-    if (pr.error) {
-      check(false, '探针直编能跑起来（起进程失败）：' + (pr.error.message || String(pr.error)))
-    } else {
-      const out = (pr.stdout || '') + (pr.stderr || '')
-      const errLines = out.split(/\r?\n/).filter((l) => /\(\d+,\d+\)\s*:\s*error\s+TS\d+/.test(l))
-      const fileOf = (l) => l.slice(0, l.indexOf('(')).replace(/\\/g, '/')
-      const probeErrs = errLines.filter((l) => {
-        const f = fileOf(l)
-        return f.endsWith('/' + PROBE_GITHUB_REL) || f.endsWith('/' + PROBE_MARKDOWN_REL)
-      })
-      for (const l of probeErrs) console.log('  FAIL 探针自己报错（成员缺了或形状歪了，第一落点）：' + l.trim().slice(0, 300))
-      if (probeErrs.length) failed = true
-      const nonProbeCount = errLines.length - probeErrs.length
-      check(
-        probeErrs.length === 0,
-        '两份探针文件自己零报错（' + probeErrs.length + ' 条；有报错先看探针指出的成员，再看后端是不是改了形状）',
-      )
-      check(
-        nonProbeCount === PROBE_NONPROBE_ERROR_BASELINE,
-        // 这句提示要按两种结果分开说：相等时才说「两边相等」，不等时先把「不相等」说出来，
-        // 再解释往哪边偏是什么意思。原先无论哪一边都写着「与基线 X 条相等」，
-        // 判红的时候等于自己给出一个自相矛盾的数字，看日志的人得先怀疑是不是门禁写错了。
-        '后端文件内部报错 ' + nonProbeCount + ' 条，基线 ' + PROBE_NONPROBE_ERROR_BASELINE + ' 条' +
-          (nonProbeCount === PROBE_NONPROBE_ERROR_BASELINE
-            ? '，两边相等（实现面的债，审它们是迁移批次的事）'
-            : '，两边不相等——多了是新增债务，少了是有人动了实现面：先把基线数改过来，并考虑把探针收紧'),
-      )
-      if (nonProbeCount !== PROBE_NONPROBE_ERROR_BASELINE) failed = true
-    }
   }
 
   // ---- 4) 反面证明：现拼一个缺 matches 的假后端，必须编不过且点名 matches ----
-  // 验的是「探针不是摆设」。假文件写进系统临时目录（不进仓库，不污染覆盖对账），编完就删。
+  // 验的是「契约不是摆设」。假文件写进系统临时目录（不进仓库，不污染覆盖对账），编完就删。
   if (!tscBin) {
     check(false, '反面证明能跑（tsc 起不来，这一项没做：见第一项的 FAIL）')
   } else {
@@ -486,88 +400,20 @@ function main() {
       check(
         nr.status !== 0 && mentionsMatches,
         '缺 matches 的假后端编不过、且报错点名 matches' +
-          (nr.status !== 0 && mentionsMatches ? '' : '（退出码 ' + nr.status + '，' + (mentionsMatches ? '没点名' : '输出里没见到 matches') + '：探针可能断不了缺少成员，速查）'),
+          (nr.status !== 0 && mentionsMatches ? '' : '（退出码 ' + nr.status + '，' + (mentionsMatches ? '没点名' : '输出里没见到 matches') + '：契约可能断不了缺少成员，速查）'),
       )
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true })
     }
   }
 
-  // ---- 4b) 反面证明第二条：走探针那条路，缺 matches 的假后端也必须编不过 ----
-  // 第一条反面证明走的是**严格开关 + 完整 `BackendModule`**，那证明的不是探针这条路：探针自己
-  // 跑在宽松开关（`--strict false`）下，断的是弱化过的 `ProbeShape`。弱化之后还抓不抓得住缺成员，
-  // 在 #1051 讨论之前没有任何自动化证明（这正是那张票要补的两条之一）。
-  // 这一条就是补上的证明：用**探针同款开关**、断**探针真用的那份 ProbeShape**，现拼一个缺 matches 的假后端。
-  // 只认「报错落在假文件自己身上」，不认别的文件里冒出来的 matches —— 后端内部本来就有报错，
-  // 不筛文件的话这条证明谁都能过（那就成了摆设）。
-  if (!tscBin) {
-    check(false, '第二条反面证明能跑（tsc 起不来，这一项没做：见第一项的 FAIL）')
-  } else if (!probeGithubExists) {
-    // 第零项已撤：探针缺席在这里自己判，不静默跳过。
-    check(false, '第二条反面证明的探针输入存在（' + PROBE_GITHUB_REL + ' 不在）：这一条没做')
-  } else {
-    const os2 = require('os')
-    const tmpDir2 = fs.mkdtempSync(path.join(os2.tmpdir(), 'dsh-contract-neg2-'))
-    try {
-      const relToProbe = path.relative(tmpDir2, path.join(ROOT, PROBE_GITHUB_REL)).replace(/\\/g, '/')
-      const neg2 = path.join(tmpDir2, 'negative-probe-shape.ts')
-      fs.writeFileSync(
-        neg2,
-        `import type { ProbeShape } from '${relToProbe}'\n` +
-          `export const bad: ProbeShape = { id: 'neg', label: 'neg', create: () => ({}) }\n`,
-        'utf8',
-      )
-      const nr2 = spawnSync(process.execPath, [tscBin, ...PROBE_TSC_ARGS, neg2], { encoding: 'utf8' })
-      const nout2 = (nr2.stdout || '') + (nr2.stderr || '')
-      // 按文件名认「假文件自己身上」的报错：tsc 打印的路径是相对当前目录的，拿绝对路径前缀对不上。
-      // 文件名带随机目录名，不会与仓库里的任何文件重名。
-      // 还要往后读几行：`Property 'matches' is missing …` 这一句落在报错块的续行上，
-      // 只看首行会得出「没点名 matches」的错误结论（这条断言刚上线时就是这么误判过一次）。
-      const neg2Name = path.basename(neg2)
-      const all2 = nout2.split(/\r?\n/)
-      const selfIdx = all2.findIndex((l) => /\(\d+,\d+\)\s*:\s*error\s+TS\d+/.test(l) && l.replace(/\\/g, '/').includes('/' + neg2Name + '('))
-      const selfBlock = selfIdx >= 0 ? all2.slice(selfIdx, selfIdx + 4).join('\n') : ''
-      const selfLines = selfIdx >= 0 ? [all2[selfIdx]] : []
-      const mentions = /matches/.test(selfBlock)
-      check(
-        selfLines.length > 0 && mentions,
-        '探针那条路也断得住缺成员：缺 matches 的假后端在 ProbeShape 上编不过、且报错点名 matches' +
-          (selfLines.length > 0 && mentions
-            ? '（宽松开关 + 弱化形状，证明' + PROBE_GITHUB_REL + ' 的 ProbeShape 不是摆设）'
-            : '（假文件自己身上 ' + selfLines.length + ' 条报错' + (mentions ? '' : '，没点名 matches') + '：探针的弱化形状可能断不了缺少成员，速查）'),
-      )
-    } finally {
-      fs.rmSync(tmpDir2, { recursive: true, force: true })
-    }
-  }
-
-  // ---- 4c) 基线来历：数字变了，就必须在同一次提交里把来历写上（#1172）----
-  // 规矩：这个常量上面那段注释里，最后一条「由 X 改到 Y」的 Y 必须正好是今天的基线，且相邻两条首尾相接
-  // （200→156→155→183→162→161→152 这条链）。只改数字不写来历，这里当场红——那正是 2026-10-14
-  // 门禁红了七个多小时没人当次拉回绿的成因：数动了，却没人留下「哪次改动、多了几条、为什么」。
-  {
-    const self = fs.readFileSync(__filename, 'utf8')
-    const pairs = [...self.matchAll(/由\s*(\d+)\s*改到\s*(\d+)/g)].map((m) => ({ from: Number(m[1]), to: Number(m[2]) }))
-    const last = pairs[pairs.length - 1]
-    const broken = pairs.filter((p, i) => i > 0 && pairs[i - 1].to !== p.from)
-    const ok = pairs.length > 0 && broken.length === 0 && !!last && last.to === PROBE_NONPROBE_ERROR_BASELINE
-    check(
-      ok,
-      '基线数的来历齐全（注释里最后一条「由 X 改到 Y」的 Y＝今天的基线 ' + PROBE_NONPROBE_ERROR_BASELINE +
-        ' 条；链上 ' + pairs.length + ' 条首尾相接）' +
-        (ok
-          ? ''
-          : '：' +
-            (pairs.length === 0
-              ? '注释里一条来历都没找到'
-              : last && last.to !== PROBE_NONPROBE_ERROR_BASELINE
-                ? '最后一条记的是 ' + last.to + '，与常量 ' + PROBE_NONPROBE_ERROR_BASELINE + ' 不一致——改了数字就把来历补上'
-                : '链断了：' + broken.map((p) => p.from + '→' + p.to).join('、'))),
-    )
-  }
+  // 这里原本还有两条：4b「走探针那条路再证一次缺成员」与 4c「基线数的来历链必须首尾相接」。
+  // 两条都随贴合探针与那条基线在 #1027 退休（理由见文件头「#1027 退休的两件」）：
+  // 探针没了，就没有第二条路可验；基线没了，也就没有来历可对。
 
   // ---- 5) 运行时腿：模块对象真加载，断两档真值 ----
-  // 静态探针断不了被加宽的字面量（openRepository）与数组/工厂之争（checks），这里断真值。
+  // 静态检查看不见两样东西：被加宽的字面量（openRepository 的真实取值）与运行时装上去的
+  // 检查目录（是数组、是函数、还是没有），所以这两档还得真跑起来看。
   // 键快照已撤（见文件头「再撤四项」）：工厂交出来的键由 satisfies + 三条断言守，这里只看真值。
   {
     const hookAbs = path.join(ROOT, 'scripts', 'ts-hook.mjs')
@@ -608,7 +454,7 @@ function main() {
             name + ' 模块对象真值如初（openRepository=' + showRepo(got.openRepository) + '、checks=' + got.checksKind + ')' +
               (!repoOk ? '；openRepository 必须是 url 或 folder（内置三家一律要声明，可选只对第三方后端可选）：判红' : '') +
               (repoOk && !repoSame ? '；openRepository 真值变了（' + showRepo(want.openRepository) + '→' + showRepo(got.openRepository) + '）：确认后登记' : '') +
-              (!kindSame ? '；checks 种类变了（' + want.checksKind + '→' + got.checksKind + '）：数组还是工厂的专票有结论了就按结论办，没结论先登记' : ''),
+              (!kindSame ? '；checks 种类变了（' + want.checksKind + '→' + got.checksKind + '）：这一档在 #1027 有结论——契约把检查目录定义成一组数据（数组），GitHub 交的是 GITHUB_CHECKS，另两家不声明；再变就是有人动了真源，确认后登记' : ''),
           )
         }
       }

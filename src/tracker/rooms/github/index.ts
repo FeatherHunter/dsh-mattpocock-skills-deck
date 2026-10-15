@@ -15,16 +15,17 @@
  */
 
 import { CANONICAL_LABELS } from '../../contract/canonical-labels.js'
+import type { BackendModule } from '../../contract/backend-module.js'
 // #716：缺 gh 时那句装 CLI 的原话，从共享清单挪回了本模块的 prompts.cliInstall（它跟具体后端有关，
 //   共享清单是三个后端共用的文件，不该住那儿）。共享清单里 gh:installed 那一步只留「注入 cliInstall」。
 import { describe, issueAddress, repoSearchAddress, issueRefPattern, links, capabilities, openRepository } from './repo.js'
-import { checks } from './checks.js'
+import { GITHUB_CHECKS } from './checks.js'
 import { githubMatches, createGithubBackend } from './backend.js'
 // 链接三件的名字与后端无关（#1110 实现决定第 14 条）：GitHub 这家回的是网址，本地 Markdown 那家回的
 // 是票文件路径（#1144 起那条算不出票文件名，改回空串），用「地址」一个说法就都罩得住，不必替谁开例外。改名是 #1133 做的，那时老名字（网址
 // 口吻的那三个）作为同义别名留了一轮；客户端与宿主都不再读它们之后，别名已按 #1141 删净。
 // 实现只有 repo.js 里那一份，本文件只是把名字摆出来，不再另起别名。
-export { describe, issueAddress, repoSearchAddress, issueRefPattern, links, capabilities, checks, githubMatches, createGithubBackend }
+export { describe, issueAddress, repoSearchAddress, issueRefPattern, links, capabilities, githubMatches, createGithubBackend }
 export { parseGithubRepo, getRepoKey, openRepository } from './repo.js'
 export { GITHUB_CHECKS } from './checks.js'
 export { initProject } from './init-project.js'
@@ -232,8 +233,8 @@ export const githubModule = {
   //   本地 Markdown 一直是好的（markdownModule 里带 openRepository: 'folder'），这里补上同一个值。
   openRepository,
   prompts,
-  checks,
+  checks: GITHUB_CHECKS,
   fixes,
-}
+} satisfies BackendModule
 
 export default createGithubBackend

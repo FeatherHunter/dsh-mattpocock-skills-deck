@@ -1,5 +1,5 @@
 /**
- * src/tracker/rooms/github/checks.ts — 检查目录定义（GITHUB_CHECKS / checks）。
+ * src/tracker/rooms/github/checks.ts — 检查目录定义（GITHUB_CHECKS）。
  *
  * 由 #440 从 index.js 纯结构移出，行为零变化。文件头原写 `backends/github/checks.js`，
  * 是 #1019 目录归位前的旧路径；#1052 按读路径这一片改到今天的真名。
@@ -52,9 +52,7 @@ export const GITHUB_CHECKS = Object.freeze([
   },
 ])
 
-/**
- * 供编排层/门禁调用的只读 view：按需返回目录（轻量，与 catalogFor('github') 后端段一致）。
- */
-export function checks() {
-  return [...GITHUB_CHECKS]
-}
+// 这里曾有一把 `checks()` 工厂，按需返回目录的一份浅拷贝（「轻量 view，与 catalogFor('github') 后端段一致」）。
+// #1027（2026-10-15）把它删掉：全仓零调用——模块对象 `githubModule` 挂的是上面那张常量表本身，门禁与编排层
+// 读的也是 `githubModule.checks`，没有任何一处走这把工厂。留着的代价是同一件事有两个名字（表、拷贝），
+// 读代码的人会以为它们有分工，而实际分工并不存在。真需要一份可改的拷贝时，当场写 `[...GITHUB_CHECKS]` 即可。

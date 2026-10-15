@@ -16,6 +16,7 @@
  */
 
 import type { Tracker } from '../../contract/operations.js'
+import type { BackendModule } from '../../contract/backend-module.js'
 import type { BackendId } from '../../contract/identity.js'
 import type { RepositoryRef } from '../../contract/entities.js'
 import type { BackendContext, OpContext, RepoHandle } from '../../contract/contexts.js'
@@ -394,6 +395,6 @@ export const gitlabBackend = {
   matches,
   prompts,
   fixes,
-}
+} satisfies BackendModule
 
 export default createGitlabBackend

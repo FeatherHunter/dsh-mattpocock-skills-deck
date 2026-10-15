@@ -16,14 +16,20 @@
 都回答同样的方法、收同样的参数、回同样的形状。没有这份承诺，每加一个后端，
 上层就要多一堆「如果这个后端就……」的分支。
 
-这份承诺写成 TypeScript 的 `interface` 之后，「有没有对上」由编译器回答：
-GitHub 房与本地 Markdown 房用 `implements Tracker` 去实现，少一个参数、错一个返回类型，
-编译当场报错，不必等运行时才发现。
+这份承诺写成 TypeScript 的 `interface` 之后，「有没有对上」由编译器回答。先说清写法：`implements` 是类专用的
+关键字，三个后端的实现都是**工厂交出来的对象字面量**，挂的是同一件事的另一种写法（`satisfies`），分两处：
+
+- **每个操作收什么、回什么**：每个后端自己声明一份成员集合（从它的能力登记推出来），再把工厂交出来的对象
+  用 `satisfies <后端>BackendShape` 挂上去，而这份形状的每一格都写成 `Tracker[该操作名]`——少一个参数、
+  错一个返回类型，编译当场报错，不必等运行时才发现。
+- **模块对象**（进程刚启动、还没有工作区时注册表真正读的那份，见 `backend-module.ts`）：三个后端的模块对象
+  都用 `satisfies BackendModule` 挂上契约，缺一条、多一条都在编译期红（#1027，2026-10-15 落地）。
 
 ## 谁实现、谁消费
 
-- **实现方（房间）**：`src/tracker/rooms/github/`、`src/tracker/rooms/markdown/`。
-  GitLab 房本轮不在改造范围内（房间目录留着，将来按同一份契约接进来）。
+- **实现方（后端）**：`src/tracker/rooms/github/`、`src/tracker/rooms/markdown/`、`src/tracker/rooms/gitlab/`。
+  三家都按同一份契约接进来。GitLab 后端原先写着「本轮不在改造范围内」，那是搬家期的说法；
+  它现在与另外两家一样是内置后端（注册表的内置清单见 `src/tracker/registry/builtins.ts`）。
 - **消费方**：deck 九个工具（经共享壳选好后端后直接调）、注册表（`core.ts`）、
   宿主电话与面板。
 

@@ -230,8 +230,16 @@ export interface BackendModule {
    */
   prompts?: Record<string, { zh: string; en: string } | { cli?: string; cliBrand?: string } | Record<string, { zh: string; en: string }>>
 
-  /** 这个后端自己的检查目录（见 `RoomCheckEntry`）。 */
-  checks?: RoomCheckEntry[]
+  /**
+   * 这个后端自己的检查目录（见 `RoomCheckEntry`）。
+   *
+   * 为什么写成「只读的数组」而不是普通数组（#1027 判定，2026-10-15）：后端交出来的检查表是写死的常量，
+   * GitHub 后端那张表还套了 `Object.freeze`，值是只读的。承诺写成可变的 `RoomCheckEntry[]`，谁想直接
+   * 把那张常量表挂上来都会在编译期报「只读不能赋给可变」（TS4104）；而写死之后想再往表里塞一项的调用方
+   * 才是真正不该被允许的那一个。反过来不成立：可变数组照样能赋给只读数组，第三方后端按老样子交一个
+   * 现搭的数组不受影响。所以这里收窄的是「承诺」，不是「接受范围」。
+   */
+  checks?: readonly RoomCheckEntry[]
 
   /** 检查失败之后的修复知识（见 `RoomFixEntry`）。 */
   fixes?: Record<string, RoomFixEntry>
