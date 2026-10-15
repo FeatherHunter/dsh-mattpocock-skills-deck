@@ -11,7 +11,7 @@
  *      （Windows 小写折叠、尾斜杠去除、盘根/UNC/POSIX 根不去斜杠、三级回退、空值回退）。
  *   P2 三区五轮推演 —— A→B→C→B→A 连续切 5 轮：旧钥匙（原始串）必然分裂成多桶（缺陷在案），
  *      新钥匙（规整钥匙）每个工作区恰好一桶且三区互不合并（无串味）。
- *   P3 接线在场守卫 —— src/host/index.js 与 detectionService.js 的全部按工作区分桶点位
+ *   P3 接线在场守卫 —— src/host/index.ts 与 detectionService.js 的全部按工作区分桶点位
  *      （repoKeys/repoRoots/chainCache/workspaceStore/wf.detect/wf.chain/wf.snapshot/wf.bind/
  *      建仓失效点/detect 入口）必须出现规整钥匙调用（门禁扫描先例：verify-client-hardcode-gate）。
  */
@@ -109,7 +109,7 @@ async function main() {
   }
   const hasTok = function (arr, tok) { return arr.some(function (l) { return l.indexOf(tok) >= 0 }) }
 
-  const idx = linesOf(path.join('src', 'host', 'index.js'))
+  const idx = linesOf(path.join('src', 'host', 'index.ts'))
   // H1 #445：getRepoRoot/getRepoKey/canonicalKey 已原样搬到 src/host/git-process.ts，守卫跟随代码位置（意图不变：在场即查）。
   const rkf = linesOf(path.join('src', 'host', 'git-process.ts'))
   const idxAt = function (tok) { for (let i = 0; i < idx.length; i++) { if (idx[i].indexOf(tok) >= 0) return i } return -1 }
@@ -128,10 +128,10 @@ async function main() {
   ;((g2 >= 0 && hasTok(idx.slice(g2, g2 + 5), 'canonical')) || (g2r >= 0 && hasTok(rkf.slice(g2r, g2r + 5), 'canonical'))) ? ok('getRepoKey 首行规整') : bad('getRepoKey 首行未见规整钥匙')
   // H3 #447：wf.chain/wf.detect 处理器体已搬到 src/host/detectChain.ts，守卫跟随代码位置。
   // H4 #448：wf.snapshot 处理器体已搬到 src/host/sessionSnapshot.ts，守卫跟随代码位置（H3 同例）。
-  // H5 #449：wf.bind 处理器体已搬到 src/host/workspaceCwd.js，守卫跟随代码位置（H3 同例）。
+  // H5 #449：wf.bind 处理器体已搬到 src/host/workspaceCwd.ts，守卫跟随代码位置（H3 同例）。
   const dcf = linesOf(path.join('src', 'host', 'detectChain.ts'))
   const ssf = linesOf(path.join('src', 'host', 'sessionSnapshot.ts'))
-  const wcf = linesOf(path.join('src', 'host', 'workspaceCwd.js'))
+  const wcf = linesOf(path.join('src', 'host', 'workspaceCwd.ts'))
   const guardSiteMovedIn = function (name, anchor, before, after, fileLines, movedFn, mBefore, mAfter) {
     const at = idxAt(anchor);
     if (at >= 0 && hasTok(idx.slice(Math.max(0, at - before), at + after + 1), 'canonical')) return ok(name);
@@ -157,7 +157,7 @@ async function main() {
   const d2 = idxAt('delete repoRoots[')
   const d2m = pbfAt('delete repoRoots[')
   ;((d2 >= 0 && hasTok(idx.slice(Math.max(0, d2 - 6), d2 + 1), 'canonical')) || (d2m >= 0 && hasTok(pbf.slice(Math.max(0, d2m - 6), d2m + 1), 'canonical'))) ? ok('建仓失效点 repoRoots 删除前规整') : bad('repoRoots 删除前未见规整钥匙（删不中即缓存僵尸）')
-  ;(hasTok(idx, 'workspaceKey.js') || hasTok(rkf, 'workspaceKey.js')) ? ok('index.js 引入 workspaceKey 模块') : bad('index.js 未引入 workspaceKey 模块')
+  ;(hasTok(idx, 'workspaceKey.js') || hasTok(rkf, 'workspaceKey.js')) ? ok('index.ts 引入 workspaceKey 模块') : bad('index.ts 未引入 workspaceKey 模块')
 
   const ds = linesOf(path.join('src', 'tracker', 'detection', 'detectionService.ts'))
   // #845：这条断言原来只看 detect 声明前后各 8 行。detect 的规整那一步（canonicalWorkspaceKey(handle.cwd)）

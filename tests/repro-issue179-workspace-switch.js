@@ -5,7 +5,7 @@ const fs = require('fs')
 console.log('=== 复现 #179：切工作区后右侧面板仓库名残留 DSH 本体路径 ===')
 
 const srcDock = fs.readFileSync('src/client/panel/Dock.js','utf8')
-const srcHost = fs.readFileSync('src/host/index.js','utf8')
+const srcHost = fs.readFileSync('src/host/index.ts','utf8')
 const clientBuilt = fs.existsSync('client.js') ? fs.readFileSync('client.js','utf8') : ''
 const checks = []
 function ok(cond, msg){ checks.push({msg, pass:!!cond}); console.log((cond?'  PASS ':'  FAIL ')+msg) }
@@ -96,9 +96,9 @@ ok(storeCross.cwd===cwdDeck, '跨 sid 切工作区亦正确')
 // 回切保障：非判定电话保留兜底（#1003 范围外不动），判定链空目录不冒充（#1003 新纪律，见 ADR 3.3）
 ok(/\|\| DEFAULT_CWD/.test(srcHost), 'host 保留 DEFAULT_CWD 兜底（非判定电话）')
 try {
-  const srcWsCwd = fs.readFileSync('src/host/workspaceCwd.js','utf8')
+  const srcWsCwd = fs.readFileSync('src/host/workspaceCwd.ts','utf8')
   ok(/还没就绪/.test(srcWsCwd), '判定链空目录说还没就绪（不拿进程目录冒充，#1003）')
-} catch (e) { ok(false, '读 workspaceCwd.js 失败') }
+} catch (e) { ok(false, '读 workspaceCwd.ts 失败') }
 
 // 构建产物校验（构建后才有 host.js）
 if(clientBuilt){

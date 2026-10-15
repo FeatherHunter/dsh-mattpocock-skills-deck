@@ -4,7 +4,7 @@
 // 门禁归属: src/host/sessionSnapshot.ts
 // 门禁归属: src/host/sessionRefresh.ts
 // 门禁归属: src/host/snapshotBuild.ts
-// 门禁归属: src/host/workspaceCwd.js
+// 门禁归属: src/host/workspaceCwd.ts
 // 门禁归属: src/tracker/rooms/gitlab/index.ts
 //
 // 为什么要有这条（#1139 交付时一起立的）：
@@ -81,7 +81,7 @@ const CHANNELS = [
   { file: 'src/host/sessionSnapshot.ts', calls: 5 },
   { file: 'src/host/sessionRefresh.ts', calls: 4 },
   { file: 'src/host/snapshotBuild.ts', calls: 1 },
-  { file: 'src/host/workspaceCwd.js', calls: 1 },
+  { file: 'src/host/workspaceCwd.ts', calls: 1 },
 ]
 
 const hostFiles = sourceFiles('src/host')

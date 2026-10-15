@@ -16,6 +16,11 @@
 const fs = require('fs')
 const path = require('path')
 const { pathToFileURL } = require('url')
+// 取源走共用入口（#1207 立，见 tests/lib/source-text.ts）：#1209 把 prompts.js 与 locale-pages.js
+// 的真源转成了 .ts。按 .js 路径直接读会读到真源旁边那份构建产物（esbuild 排版过）；
+// 按 .js 路径直接 import 呢，Node 认的就是那个路径，不会替我们挑 .ts —— 实测报的是
+// 「Cannot read properties of undefined (reading 'setupRun')」（.js 是产物、导出的名字对不上）。
+const { sourcePath, sourceText } = require('./lib/source-text.ts')
 
 let failed = false, total = 0, passed = 0
 const check = (ok, msg) => { total++; if (ok) passed++; else { failed = true; console.log('  FAIL ' + msg) } }
@@ -83,14 +88,14 @@ const fill = (frame, prm) => String(frame).replace(/\{(\w+)\}/g, function (mm, n
 async function main() {
   const root = process.cwd()
   console.log('== #230 · setup 提示词后端描述数据化（键入 locale）==')
-  const localeSrc = ['src/client/kernel/locale-panel.js', 'src/client/kernel/locale-flow.js', 'src/client/kernel/locale-word.js', 'src/client/kernel/locale-pages.js', 'src/client/kernel/locale.js'].map((f) => fs.readFileSync(path.join(root, f), 'utf8')).join('\n') // #458 K5：locale.js 已拆为三片段加合并器，src 侧读五文件拼合（panel 含 setup 全家，合并器无键仅合并逻辑）；#698 起布局那一问的四条键在 locale-pages.js（panel 贴着 350 行上限）
+  const localeSrc = ['src/client/kernel/locale-panel.js', 'src/client/kernel/locale-flow.js', 'src/client/kernel/locale-word.js', 'src/client/kernel/locale-pages.js', 'src/client/kernel/locale.js'].map((f) => sourceText(f)).join('\n') // #458 K5：locale.js 已拆为三片段加合并器，src 侧读五文件拼合（panel 含 setup 全家，合并器无键仅合并逻辑）；#698 起布局那一问的四条键在 locale-pages.js（panel 贴着 350 行上限）；#1209 起取源走共用入口拿 .ts 真源
 
-  const P = await import(pathToFileURL(path.join(root, 'src/client/kernel/prompts.js')).href)
-  const LOCALE_PANEL = await import(pathToFileURL(path.join(root, 'src/client/kernel/locale-panel.js')).href) // #458 K5：合并器在构建闭包内才可见三片段，单文件 import 拿不到 L，故此处直引三片段按合并器同逻辑拼出 L
-  const LOCALE_FLOW = await import(pathToFileURL(path.join(root, 'src/client/kernel/locale-flow.js')).href)
-  const LOCALE_WORD = await import(pathToFileURL(path.join(root, 'src/client/kernel/locale-word.js')).href)
+  const P = await import(pathToFileURL(path.join(root, sourcePath('src/client/kernel/prompts.js'))).href)
+  const LOCALE_PANEL = await import(pathToFileURL(path.join(root, sourcePath('src/client/kernel/locale-panel.js'))).href) // #458 K5：合并器在构建闭包内才可见三片段，单文件 import 拿不到 L，故此处直引三片段按合并器同逻辑拼出 L
+  const LOCALE_FLOW = await import(pathToFileURL(path.join(root, sourcePath('src/client/kernel/locale-flow.js'))).href)
+  const LOCALE_WORD = await import(pathToFileURL(path.join(root, sourcePath('src/client/kernel/locale-word.js'))).href)
   // #698：布局那一问的四条键（问题、两个选项、两条结论句、以及切换那条路上的说明）搬去了 locale-pages.js
-  const LOCALE_PAGES = await import(pathToFileURL(path.join(root, 'src/client/kernel/locale-pages.js')).href)
+  const LOCALE_PAGES = await import(pathToFileURL(path.join(root, sourcePath('src/client/kernel/locale-pages.js'))).href)
   const L = { zh: Object.assign({}, LOCALE_PANEL.L_PANEL.zh, LOCALE_FLOW.L_FLOW.zh, LOCALE_WORD.L_WORD.zh, LOCALE_PAGES.L_PAGES.zh), en: Object.assign({}, LOCALE_PANEL.L_PANEL.en, LOCALE_FLOW.L_FLOW.en, LOCALE_WORD.L_WORD.en, LOCALE_PAGES.L_PAGES.en) }
 
   // ---- 后端声明提取 ----
@@ -118,11 +123,11 @@ async function main() {
     }
     stubs.push({ id: b, setupPrompt: keys })
   }
-  // host wf.registry 转发（H5 #449：转发体随 handleRegistry 搬入 workspaceCwd.js，断言跟随代码，意图不变）
+  // host wf.registry 转发（H5 #449：转发体随 handleRegistry 搬入 workspaceCwd.ts，断言跟随代码，意图不变）
   // #1139：这条回包不再自己挑字段——原来那句 `m.setupPrompt ? { setupPrompt: m.setupPrompt }` 已经收进
   //   src/tracker/ui-description.ts 一处（四个宿主文件共用同一份投影）。要断的意图没变（setupPrompt 必须
   //   能随回包到界面），所以改成断两件事：这条通道走那次统一投影，而那张字段表里有 setupPrompt。
-  const hostSrc = fs.readFileSync(path.join(root, 'src/host/workspaceCwd.js'), 'utf8')
+  const hostSrc = fs.readFileSync(path.join(root, 'src/host/workspaceCwd.ts'), 'utf8')
   const fieldTableSrc = fs.readFileSync(path.join(root, 'src/tracker/ui-description.ts'), 'utf8')
   check(hostSrc.indexOf('projectUiDescription') >= 0, 'host wf.registry 走统一的界面描述投影（projectUiDescription，#1139）')
   check(fieldTableSrc.indexOf("'setupPrompt'") >= 0, '界面描述字段表里有 setupPrompt：wf.registry 转发它靠的是这张表（#1139）')

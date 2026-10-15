@@ -315,7 +315,7 @@ async function main() {
   const SITES = [
     { file: 'src/host/platformChannel.ts', calls: 2 },
     { file: 'src/host/commentThreads.js', calls: 1 },
-    { file: 'src/host/workspaceCwd.js', calls: 1 },
+    { file: 'src/host/workspaceCwd.ts', calls: 1 },
     { file: 'src/host/snapshotBuild.ts', calls: 2 },
     { file: 'src/host/refresh/wiring.js', calls: 1 },
   ]

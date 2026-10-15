@@ -88,7 +88,7 @@ async function main() {
 
   // ===================== C · 宿主分发端到端（需先构建）=====================
   // C 段的跳过闸：宿主里没有 issuePathPoll 分发通道时整段退役（#345 整块移除后即为此情形）。
-  const hostSrc = readSrc('src/host/index.js').replace(/\r\n/g, '\n')
+  const hostSrc = readSrc('src/host/index.ts').replace(/\r\n/g, '\n')
   const pollAt = hostSrc.indexOf("harness.handle('wf.issuePathPoll'")
   const pkgIndex = path.join(ROOT, 'package/lib/index.js')
   if (pollAt === -1) {

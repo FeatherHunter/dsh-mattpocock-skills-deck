@@ -11,7 +11,7 @@
 //      答案，而早快照会拿这第二套答案当结果（#1138 要收掉的「两条路两个答案」）。
 //   ② 真走兜底那一趟自己落一行按需事件 detection.fallback（为什么走这一步、拿到什么、花了多久），不再借
 //      detection.detect 的名字；调试开关关着时一行都不落；没有日志出口时不抛。
-//   ③ 另外两条直调点把日志出口递进了判定出口：wf.selection（src/host/workspaceCwd.js）与 deck 工具壳
+//   ③ 另外两条直调点把日志出口递进了判定出口：wf.selection（src/host/workspaceCwd.ts）与 deck 工具壳
 //      （src/deck/shell/call-shell.ts）。这两处补的是「同一件事没被记录到」这个洞。驱动它们要装配整条宿主链
 //      （另有门禁在跑那些行为），这里只钉「递了没有」这一件事，用的是定点文本断言。
 //
@@ -156,7 +156,7 @@ async function main() {
 
   console.log('\n四、另外两条直调点把日志出口递进了判定出口')
   {
-    const cwdSrc = fs.readFileSync(path.join(ROOT, 'src/host/workspaceCwd.js'), 'utf8')
+    const cwdSrc = fs.readFileSync(path.join(ROOT, 'src/host/workspaceCwd.ts'), 'utf8')
     check(/caller: 'wf\.selection', logCtx: logCtx/.test(cwdSrc), "wf.selection 那条出口调用递了 logCtx（caller: 'wf.selection', logCtx: logCtx）")
     const shellSrc = fs.readFileSync(path.join(ROOT, 'src/deck/shell/call-shell.ts'), 'utf8')
     check(/readDeclarationId: d\.readDeclarationId[\s\S]{0,400}?logCtx: log,/.test(shellSrc), 'deck 工具壳那条出口调用递了 logCtx（logCtx: log，与它记 host.call 的是同一个出口）')

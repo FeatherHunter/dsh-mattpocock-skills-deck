@@ -96,7 +96,7 @@ console.log('== #281 红牌分拣与等待合同门禁（#284 迁移：断言经
     check(existsSync(pkgLog), '构建产物存在：' + pkgLog)
     if (existsSync(pkgLog)) {
       const lib = readFileSync(pkgLog, 'utf8')
-      // SKILL_PENDING_MAX 那个封顶常量住在宿主模块 package/lib/skillProbe.js 里，入口 index.js 只做装配、
+      // SKILL_PENDING_MAX 那个封顶常量住在宿主模块 package/lib/skillProbe.js 里，入口 index.ts 只做装配、
       // 不会把模块内容拼进来（它靠动态 import 加载）。所以这条按模块文件读，才真的在查「产物与 src 同步」。
       const probeLib = existsSync('package/lib/skillProbe.js') ? readFileSync('package/lib/skillProbe.js', 'utf8') : ''
       check(probeLib.includes('SKILL_PENDING_MAX'), 'pkg 产物含 SKILL_PENDING_MAX（产物不陈旧）')
@@ -113,7 +113,7 @@ console.log('== #281 红牌分拣与等待合同门禁（#284 迁移：断言经
 console.log('\n— 验收2：轻探分拣 缺失 vs 名片无效（永不绿） —')
 {
   // 构造带轻探的 host 实例：skills.get 返回 null，fs 控制文件是否存在与合法性
-  const hostUrl = new URL('../src/host/index.js', import.meta.url)
+  const hostUrl = new URL('../src/host/index.ts', import.meta.url)
   // 动态构造测试用的 ctx
   // 使用真实 host 源码的 probeSkill 逻辑：需加载宿主并触发 wf.chain（#284 迁移）
   const tmpHome = mkdtempSync(join(tmpdir(), 'home281-'))
@@ -211,7 +211,7 @@ console.log('\n— 验收2：轻探分拣 缺失 vs 名片无效（永不绿） 
 
   // 加载 host
   let hostMod
-  try { hostMod = await import(hostUrl.href) } catch (e) { check(false, '导入 src/host/index.js 失败', String(e)); hostMod = null }
+  try { hostMod = await import(hostUrl.href) } catch (e) { check(false, '导入 src/host/index.ts 失败', String(e)); hostMod = null }
   if (hostMod) {
     const mod = hostMod.default ?? hostMod
     try { (mod.apply ?? mod).call(null, ctx) } catch (e) { console.log('apply error', e) }
@@ -357,7 +357,7 @@ console.log('\n— 验收3：标准根外有效副本 绿+来源行 —')
     effect: (fn)=>{ try{ const d=fn(); return typeof d==='function'?d:()=>{} } catch{return ()=>{}} },
     set: ()=>{},
   }
-  const hostUrl2 = new URL('../src/host/index.js', import.meta.url)
+  const hostUrl2 = new URL('../src/host/index.ts', import.meta.url)
   const hostMod2 = await import(hostUrl2.href)
   const mod2 = hostMod2.default ?? hostMod2
   try { (mod2.apply ?? mod2).call(null, ctx2) } catch{}
@@ -448,7 +448,7 @@ console.log('\n— 验收3.5：多通道并联 — 注册表未命中时任一�
     effect: (fn)=>{ try{ const d=fn(); return typeof d==='function'?d:()=>{} } catch{return ()=>{}} },
     set: ()=>{},
   }
-  const hostUrl5 = new URL('../src/host/index.js', import.meta.url)
+  const hostUrl5 = new URL('../src/host/index.ts', import.meta.url)
   const hostMod5 = await import(hostUrl5.href)
   const mod5 = hostMod5.default ?? hostMod5
   try{ (mod5.apply ?? mod5).call(null, ctx5) } catch{}
@@ -569,7 +569,7 @@ console.log('\n— 验收3.6：BOM 名片 — Windows 编辑器另存的合法�
     effect: (fn)=>{ try{ const d=fn(); return typeof d==='function'?d:()=>{} } catch{return ()=>{}} },
     set: ()=>{},
   }
-  const hostUrl6 = new URL('../src/host/index.js', import.meta.url)
+  const hostUrl6 = new URL('../src/host/index.ts', import.meta.url)
   const hostMod6 = await import(hostUrl6.href)
   const mod6 = hostMod6.default ?? hostMod6
   try{ (mod6.apply ?? mod6).call(null, ctx6) } catch{}
@@ -650,7 +650,7 @@ console.log('\n— 验收4：等待态 有界推进 + 失效广播 + 封顶失�
     effect: (fn)=>{ try{ const d=fn(); return typeof d==='function'?d:()=>{} } catch{return ()=>{}} },
     set: ()=>{},
   }
-  const hostUrl3 = new URL('../src/host/index.js', import.meta.url)
+  const hostUrl3 = new URL('../src/host/index.ts', import.meta.url)
   const hostMod3 = await import(hostUrl3.href)
   const mod3 = hostMod3.default ?? hostMod3
   try{ (mod3.apply ?? mod3).call(null, ctx3) } catch{}
