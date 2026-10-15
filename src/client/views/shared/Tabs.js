@@ -34,11 +34,15 @@ export const useTabsRow = function (s, tabsRef) {
   //   从大到小逐个收，数值越大越早让位。新页签插在列表之后、占 5，既有三项各加一档挪成 6/7/8，两个理由：
   //   1) 既有三项之间「拉取请求 → 技能 → 环境检查」的相对折叠次序一个字不动；
   //   2) 新页签紧随列表之后显示，在需要让位的页签里最晚被折叠（比列表先走，比既有三项都晚）。
+  // #1198 显示顺序调整：技能页签放到第二位，其余页签的相对顺序不变。
+  //   只改下面 items 数组的先后，不管折叠优先级的数字：技能仍用 7，版本管理仍用 5，
+  //   拉取请求仍用 6，环境检查仍用 8。变窄时还是按数字从大到小收起，先收环境检查，
+  //   再收技能，与改动前完全一样，这样改动最小，不会带出意外的折叠变化。
   const items = [
     tabBtn('list', 'list', tr('panel.tabList'), 4),
+    tabBtn('skills', 'compass', tr('panel.tabSkills'), 7),
     showVc ? tabBtn('versionControl', 'branch', tr('panel.tabVersionControl'), 5) : null,
     showPr ? tabBtn('pr', 'swap', tr('panel.tabPr'), 6) : null,
-    tabBtn('skills', 'compass', tr('panel.tabSkills'), 7),
     tabBtn('checks', 'gear', tr('panel.tabChecks'), 8),
     h('span', { style: { flex: 1 } }),
     // v1.5 T6 修订（V2 描边紫 · 刷新左侧）：新增 wayfinder —— 注入 /wayfinder + 仓库信息 + 需求引导
