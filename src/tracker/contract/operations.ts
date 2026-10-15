@@ -107,7 +107,7 @@ export interface Tracker {
    */
   preflight(handle: RepoHandle, ctx: OpContext): Promise<PreflightResult>
 
-  /** 列票（薄行，不带正文评论之外的展开；详细口径见 `ListFilter` 各字段注释）。 */
+  /** 列票（完整行：带正文与评论；除正文、评论外不带别的展开。只要列表里的一行、不要正文评论时走 `listPage`；详细口径见 `ListFilter` 各字段注释）。 */
   list(repo: RepositoryRef, filter: ListFilter | undefined, ctx: OpContext): Promise<OpResult<Issue[]>>
 
   /**

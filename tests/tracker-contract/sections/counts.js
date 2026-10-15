@@ -38,6 +38,7 @@ import { gitlabBackend } from '../../../src/tracker/rooms/gitlab/index.ts'
 import { githubModule } from '../../../src/tracker/rooms/github/index.ts'
 import { markdownModule } from '../../../src/tracker/rooms/markdown/index.ts'
 import { unsupportedAnswerCheck } from './labels.js'
+import { createOutboundControl } from '../../../src/host/platform/outbound-control.ts'
 
 const KNOWN_KINDS = Object.values(ERROR_KIND)
 
@@ -245,14 +246,19 @@ export async function run() {
   //   判据一个字没放宽：检查器检查的是**真实模块的输出**，而且对真实现只收「做到」这一种答案。
   {
     // 脚本化的 gh：按命令给不同的应答；可以通过 seed 换成「带 errors」「缺 totalCount」等坏响应。
+    // 发出去的实参记在 lastGhArgs 里：#1183 要看「空数组有没有进查询」，只看返回的数字看不出来。
+    let lastGhArgs = ''
     const mkScriptedGh = (payload, opts) => async (cmd, args) => {
       const a = (args || []).join(' ')
+      lastGhArgs = a
       if (opts && opts.fail) return { code: 1, stdout: '', stderr: opts.fail }
       if (a.includes('api graphql')) return { code: 0, stdout: typeof payload === 'string' ? payload : JSON.stringify(payload), stderr: '' }
       return { code: 1, stdout: '', stderr: 'probe 没脚本化这条命令: ' + a }
     }
     const GOOD = { data: { repository: { openIssues: { totalCount: 31 }, closedIssues: { totalCount: 649 } } } }
-    const probeCtx = (ghPayload, opts) => ({ cwd: '/ws/fake', platform: { resolveExecutable: async (n) => (n === 'gh' ? 'gh' : null) }, exec: mkScriptedGh(ghPayload, opts), isEnabled: () => false, logEvent: () => {} })
+    // #1159 起房间要求宿主注入出站控制面（ctx.outbound）；夹具自带生产那一份（只做转发），
+    // 否则脚本化的 gh 连被调用的机会都没有（#1183 补夹具时发现整段 github 探针都红在这里）。
+    const probeCtx = (ghPayload, opts) => ({ cwd: '/ws/fake', outbound: createOutboundControl(), platform: { resolveExecutable: async (n) => (n === 'gh' ? 'gh' : null) }, exec: mkScriptedGh(ghPayload, opts), isEnabled: () => false, logEvent: () => {} })
 
     // ── 四之一、真实 GitLab 后端：给它一个脚本化的 glab，要求它拿到回话之后把三个数给对 ──
     //   2026-10-14（地图 10 / #1062）这一房真实现了 counts；2026-10-15 返工（对抗式审查发现 1）把这一段
@@ -290,6 +296,12 @@ export async function run() {
       const rAll = await gl.counts(ref('gitlab'), {}, glProbeCtx(s1))
       await assert('真实 gitlab 后端：拿到 issues_statistics 回话后把三个数给对（opened→open、all→total）', countsAnswerCheck(rAll, { open: 15, closed: 5, total: 20 }).length === 0, countsAnswerCheck(rAll, { open: 15, closed: 5, total: 20 }).join('；') || JSON.stringify(rAll))
       await assert('真实 gitlab 后端：请求打到 issues_statistics，且显式带 scope=all（不赌远端没写出来的默认值）', s1.calls.length === 1 && /projects\/acme%2Fdemo\/issues_statistics\?/.test(s1.calls[0]) && /[?&]scope=all(&|$)/.test(s1.calls[0]), JSON.stringify(s1.calls))
+      // #1183：空数组与省略同结果（都是不过滤）。桩不看筛条件，所以数字相等之外，还要看新发的那条
+      //   请求里没有 labels 这一格 —— 空数组进了 URL 才是真的走样。
+      const callsBeforeEmpty = s1.calls.length
+      const rEmpty = await gl.counts(ref('gitlab'), { labels: [] }, glProbeCtx(s1))
+      await assert('真实 gitlab 后端：labels 空数组与省略同结果（opened→open、all→total，三个数一样）', countsAnswerCheck(rEmpty, { open: 15, closed: 5, total: 20 }).length === 0, countsAnswerCheck(rEmpty, { open: 15, closed: 5, total: 20 }).join('；') || JSON.stringify(rEmpty))
+      await assert('真实 gitlab 后端：空数组不进 URL（远端没写清空数组的含义，不赌它）', s1.calls.length === callsBeforeEmpty + 1 && !/[?&]labels=/.test(s1.calls[callsBeforeEmpty]), JSON.stringify(s1.calls))
 
       const beforeOpen = s1.calls.length
       const rOpen = await gl.counts(ref('gitlab'), { state: 'open' }, glProbeCtx(s1))
@@ -321,6 +333,9 @@ export async function run() {
         const dMd = regMd.register(markdownModule)
         const rMd = await regMd.get('markdown').counts(fx.repo, {}, fx.ctx)
         await assert('真实 markdown 后端：数字给对（2 开 3 关，数的是临时工作区里真实的票文件）', countsShapeCheck(rMd).length === 0 && rMd.ok === true && rMd.data.open === 2 && rMd.data.closed === 3 && rMd.data.total === 5, countsShapeCheck(rMd).join('；') || JSON.stringify(rMd))
+        // #1183：空数组与省略同结果（都是不过滤）。这一房在内存里筛，数字相等就是行为相等。
+        const rMdEmpty = await regMd.get('markdown').counts(fx.repo, { labels: [] }, fx.ctx)
+        await assert('真实 markdown 后端：labels 空数组与省略同结果（2 开 3 关，一个不少）', rMdEmpty.ok === true && rMdEmpty.data.open === 2 && rMdEmpty.data.closed === 3 && rMdEmpty.data.total === 5, JSON.stringify(rMdEmpty))
         dMd.dispose()
       } finally {
         fx.cleanup()
@@ -332,6 +347,11 @@ export async function run() {
     const gh = regGh.get('github')
     const good = await gh.counts(ref('github'), {}, probeCtx(GOOD))
     await assert('真实 github 后端：数字给对（三个数形状与自洽都对，值来自脚本化的 gh）', countsShapeCheck(good).length === 0 && good.data.open === 31 && good.data.closed === 649 && good.data.total === 680, countsShapeCheck(good).join('；') || JSON.stringify(good))
+    // #1183：空数组与省略同结果（都是不过滤）。桩不看筛条件，数字相等之外，还要看走的是不带
+    //   filterBy 的那一版查询、且一个 labels[] 都没传 —— 空数组进了查询才是真的走样。
+    const goodEmpty = await gh.counts(ref('github'), { labels: [] }, probeCtx(GOOD))
+    await assert('真实 github 后端：labels 空数组与省略同结果（三个数与不筛时一样）', countsShapeCheck(goodEmpty).length === 0 && goodEmpty.data.open === 31 && goodEmpty.data.closed === 649 && goodEmpty.data.total === 680, JSON.stringify(goodEmpty))
+    await assert('真实 github 后端：空数组不进远端查询（走不带 filterBy 的那一版，一个 labels[] 都不传）', !/labels\[\]=/.test(lastGhArgs) && !/filterBy/.test(lastGhArgs), lastGhArgs.slice(0, 220))
     const goodFiltered = await gh.counts(ref('github'), { state: 'open' }, probeCtx(GOOD))
     await assert('真实 github 后端：filter.state 收窄（另一个状态计 0）', countsShapeCheck(goodFiltered).length === 0 && goodFiltered.data.open === 31 && goodFiltered.data.closed === 0, JSON.stringify(goodFiltered))
 

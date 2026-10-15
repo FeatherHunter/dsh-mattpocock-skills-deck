@@ -38,6 +38,7 @@ import { gitlabBackend } from '../../../src/tracker/rooms/gitlab/index.ts'
 import { githubModule } from '../../../src/tracker/rooms/github/index.ts'
 import { markdownModule } from '../../../src/tracker/rooms/markdown/index.ts'
 import { unsupportedAnswerCheck } from './labels.js'
+import { createOutboundControl } from '../../../src/host/platform/outbound-control.ts'
 
 const KNOWN_KINDS = Object.values(ERROR_KIND)
 
@@ -362,6 +363,13 @@ export async function run() {
     const badCursor = await gl.listPage(ref('gitlab'), { state: 'closed' }, { cursor: 'abc', limit: 2 }, glProbeCtx(s6))
     await assert('真实 gitlab 后端：游标认不出来 → 整条失败且点名「游标已失效」，一个请求都不发', pageFailureCheck(badCursor, true).length === 0 && s6.calls.length === 0, pageFailureCheck(badCursor, true).join('；') || JSON.stringify(badCursor))
 
+    // ⑥ labels 空数组与省略同结果（#1183 定：都是不过滤）。桩不看筛条件，一页 2 行之外，还要看
+    //   取行的那条请求里没有 labels 这一格 —— 空数组进了 URL 才是真的走样。
+    const s7 = mkScriptedGlab({ total: 5 })
+    const pEmpty = await gl.listPage(ref('gitlab'), { state: 'closed', labels: [] }, { cursor: '', limit: 2 }, glProbeCtx(s7))
+    await assert('真实 gitlab 后端：labels 空数组与省略同结果（一页 2 行、还有下一页、总数 5）', pageAnswerCheck(pEmpty, { items: 2, nextCursor: '2', total: 5 }).length === 0, pageAnswerCheck(pEmpty, { items: 2, nextCursor: '2', total: 5 }).join('；') || JSON.stringify(pEmpty).slice(0, 240))
+    await assert('真实 gitlab 后端：空数组不进 URL（取行的那条请求里没有 labels 这一格）', s7.issuesCalls().length >= 1 && !/[?&]labels=/.test(s7.issuesCalls()[0]), JSON.stringify(s7.issuesCalls()))
+
     // ✗ probe：这一段的新判据必须逮得住「一律返回失败」的空壳 —— 这正是 2026-10-15 返工要堵的洞。
     //   为什么要专门写这几条：原来 GitLab 这一路与 markdown 共用 `pageProbeCheck`，那个判据把
     //   「ok:false 且形状齐全」也算合规，把真实现换成 `fail(env, '还没做')` 的空壳照样绿。
@@ -382,7 +390,7 @@ export async function run() {
       if (opts && opts.fail) return { code: 1, stdout: '', stderr: opts.fail }
       return { code: 0, stdout: typeof payload === 'string' ? payload : JSON.stringify(payload), stderr: '' }
     }
-    const probeCtx = (ghPayload, opts) => ({ cwd: '/ws/fake', platform: { resolveExecutable: async (n) => (n === 'gh' ? 'gh' : null) }, exec: mkScriptedGh(ghPayload, opts), isEnabled: () => false, logEvent: () => {} })
+    const probeCtx = (ghPayload, opts) => ({ cwd: '/ws/fake', outbound: createOutboundControl(), platform: { resolveExecutable: async (n) => (n === 'gh' ? 'gh' : null) }, exec: mkScriptedGh(ghPayload, opts), isEnabled: () => false, logEvent: () => {} })
     const regGh = createRegistry({ logEvent: () => {}, isEnabled: () => false }, { matchesTimeout: 200 })
     const dGh = regGh.register(githubModule)
     const gh = regGh.get('github')
@@ -406,6 +414,11 @@ export async function run() {
 
     const withLabels = await gh.listPage(ref('github'), { state: 'closed', labels: ['bug', 'bug', ' '] }, { cursor: '', limit: 50 }, probeCtx(goodPage({ hasNextPage: false, endCursor: null }, 649)))
     await assert('labels 去重去空白后原样交给后端（filterBy）', withLabels.ok && /labels\[\]=bug/.test(lastArgs) && (lastArgs.match(/labels\[\]=/g) || []).length === 1, lastArgs.slice(0, 220))
+    // #1183：空数组与省略同结果（都是不过滤）。桩不看筛条件，总数相等之外，还要看走的是不带
+    //   filterBy 的那一版查询、且一个 labels[] 都没传 —— 空数组进了查询才是真的走样。
+    const emptyLabels = await gh.listPage(ref('github'), { state: 'closed', labels: [] }, { cursor: '', limit: 50 }, probeCtx(goodPage({ hasNextPage: false, endCursor: null }, 649)))
+    await assert('labels 空数组与省略同结果（总数与不筛时一样，都是 649）', emptyLabels.ok && emptyLabels.data.total === 649, JSON.stringify(emptyLabels.data && emptyLabels.data.total))
+    await assert('labels 空数组不进远端查询（走不带 filterBy 的那一版，一个 labels[] 都不传）', !/labels\[\]=/.test(lastArgs || '') && !/filterBy/.test(lastArgs || ''), String(lastArgs).slice(0, 220))
 
     const stale = await gh.listPage(ref('github'), { state: 'closed' }, { cursor: 'OLD', limit: 50 }, probeCtx({ data: null, errors: [{ type: 'INVALID_CURSOR', message: 'The `after` cursor is invalid.' }] }))
     await assert('真实 github 后端：游标失效 → 整体失败且点名「游标已失效」', pageFailureCheck(stale, true).length === 0, pageFailureCheck(stale, true).join('；') || JSON.stringify(stale))

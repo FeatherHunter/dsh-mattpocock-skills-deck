@@ -180,9 +180,8 @@ export async function enumerateIssueRows(ctx: OpContext, repo: RepoWithPath, fil
  *
  *  住在这一件里、由 counts 再导出，是因为两个读者都在这一层以下：`list` 要用它筛行，
  *  `counts` 与 `page` 要用它数数切页。放在 counts 里会绕成环（counts 已经 import 本文件的枚举函数）。
- *  ⚠️ 空数组按「不过滤」处理 —— 契约对这一格自己写着两句互相矛盾的话（`contract/inputs.ts` 说
- *  「一个标签都不带」，另一处说空集恒真），#1174 规格明确「先复现、复现出来再定」，今天没有调用方
- *  这么传，所以先维持两房一致的老行为，别单方面改一边。 */
+ *  空数组按「不过滤」处理（#1183 定为准行为：契约曾写「一个标签都不带」，
+ *  与三后端一致的老行为对立；复现确认后已按行为改契约文字，两处一致，别单方面改一边）。 */
 export function labelsOf(filter: { labels?: unknown } | undefined | null): string[] {
   const raw = filter && typeof filter === 'object' ? filter.labels : null
   if (!Array.isArray(raw)) return []
