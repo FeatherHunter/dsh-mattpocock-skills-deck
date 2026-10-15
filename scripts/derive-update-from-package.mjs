@@ -122,7 +122,7 @@ export function deriveClient() {
   const version = installedUpdateVersion()
   const tool = join(pkgDir, 'derive-client-values.mjs')
   if (!existsSync(tool)) {
-    throw new Error('[derive-update] 已安装的更新包里没有官方生成工具（' + tool + '）：请确认装的是 0.13.x（含 derive-client-values.mjs），重装一次试试')
+    throw new Error('[derive-update] 已安装的更新包里没有官方生成工具（' + tool + '）：请确认装的是 0.17.x（含 derive-client-values.mjs），重装一次试试')
   }
   mkdirSync(dirname(CLIENT_OUT), { recursive: true })
   // 第一步：调官方工具生成（唯一数据源是已安装包，版本号写进产物头）。
@@ -160,7 +160,7 @@ export function deriveClient() {
   assertNoShadowing(text)
   writeFileSync(CLIENT_OUT, text, 'utf8')
   console.log('[derive-update] 官方工具派生 + 改名守卫：' + pkgDir + ' (' + version + ') -> scripts/generated/updateClient.derived.js')
-  console.log('[derive-update] 打包前请确认：已先跑 pnpm update dsh-plugin-update@^0.13.0 并提交锁文件（最新 0.13.x → 派生 → 构建）')
+  console.log('[derive-update] 打包前请确认：已先跑 pnpm update dsh-plugin-update@^0.17.0 并提交锁文件（最新 0.17.x → 派生 → 构建）')
   return version
 }
 

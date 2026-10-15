@@ -11,11 +11,11 @@ importers:
   .:
     dependencies:
       dsh-log:
-        specifier: ^0.2.2
-        version: 0.2.2
+        specifier: ^0.3.4
+        version: 0.3.4
       dsh-plugin-update:
-        specifier: ^0.13.0
-        version: 0.13.0
+        specifier: ^0.17.0
+        version: 0.17.0
       ws:
         specifier: ^8.22.0
         version: 8.22.0
@@ -595,12 +595,13 @@ packages:
     engines: {node: ^22||^24||>=26}
     hasBin: true
 
-  dsh-log@0.2.2:
-    resolution: {integrity: sha512-rzcOH4WawZFZwVXZaY6DZYMtT0uojwbhqm0wwdAIZhKC5ly2Sh+WFggqgoiR7Zb1GESaUKV7qBGj23tIJ7t7PA==}
+  dsh-log@0.3.4:
+    resolution: {integrity: sha512-uCG6sLTze5YjmZmLln2KAeCCepsKvzGhnpZmkym/3OKNOsMKH5sA2lunwrLoOfmLxxju3/ZkKQmLp76Fklpw2w==}
     engines: {node: '>=22'}
+    hasBin: true
 
-  dsh-plugin-update@0.13.0:
-    resolution: {integrity: sha512-uMJYTrO0kUjDle79WdPzSz738tUsa7dHcxcLOL13MClkZuXcpKQU4CVUHBqDiuEa7etoK9aA38qIbh2AmHAipw==}
+  dsh-plugin-update@0.17.0:
+    resolution: {integrity: sha512-yECG9LqRd8m4kd/3AVQT8pKUprXLlhn9XkkgxFFvTQEyqIBp+1isLVZQuhyODMonFpg1t2tZnVyCHIeft6kLog==}
     engines: {node: '>=22'}
 
   enhanced-resolve@5.26.0:
@@ -1275,9 +1276,11 @@ snapshots:
       typescript: 5.6.3
       watskeburt: 6.0.0
 
-  dsh-log@0.2.2: {}
+  dsh-log@0.3.4: {}
 
-  dsh-plugin-update@0.13.0: {}
+  dsh-plugin-update@0.17.0:
+    dependencies:
+      dsh-log: 0.3.4
 
   enhanced-resolve@5.26.0:
     dependencies:

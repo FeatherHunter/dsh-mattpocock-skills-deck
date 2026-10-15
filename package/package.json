@@ -23,8 +23,8 @@
     "./package.json": "./package.json"
   },
   "dependencies": {
-    "dsh-log": "0.2.2",
-    "dsh-plugin-update": "^0.13.0",
+    "dsh-log": "0.3.4",
+    "dsh-plugin-update": "^0.17.0",
     "yaml": "^2.9.1"
   },
   "files": [

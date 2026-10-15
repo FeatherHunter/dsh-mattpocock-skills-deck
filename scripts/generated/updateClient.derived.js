@@ -1,7 +1,7 @@
-// 由 dsh-plugin-update@0.13.0 的集成工具生成，人手不改。
+// 由 dsh-plugin-update@0.17.0 的集成工具生成，人手不改。
 // 生成命令：node dsh-plugin-update/derive-client-values.mjs --prefix wf --out <本文件路径>
 // 生成对象：dsh-mattpocock-skills-deck。改了前缀或想升级本包，重新跑一次这条命令即可。
-// node_modules/.pnpm/dsh-plugin-update@0.13.0/node_modules/dsh-plugin-update/dist/config.js
+// node_modules/.pnpm/dsh-plugin-update@0.17.0/node_modules/dsh-plugin-update/dist/config.js
 // 派生后处理（#800）：已按 #597 把三个重名函数改名（build* → updBuild*），顶撞检查已过；数据源是已安装的更新包，本地包目录不是来源。
 var DEFAULT_CONFIRMATION_TTL_MS = 10 * 6e4;
 var DEFAULT_INSTALL_TIMEOUT_MS = 15 * 6e4;
@@ -16,13 +16,15 @@ function assertPrefix(value, role) {
   }
   return value;
 }
+var LOG_APPEND_ACTION = "logAppend";
 function updBuildPhoneNames(prefix) {
   const checked = assertPrefix(prefix, "\u7535\u8BDD\u540D\u524D\u7F00 prefix");
   return {
     updateStatus: checked + ".updateStatus",
     updateCheck: checked + ".updateCheck",
     updateInstall: checked + ".updateInstall",
-    updateChangelog: checked + ".updateChangelog"
+    updateChangelog: checked + ".updateChangelog",
+    logAppend: checked + "." + LOG_APPEND_ACTION
   };
 }
 function buildChangelogPhoneName(prefix) {
@@ -32,7 +34,7 @@ function updBuildPhoneName(prefix, action) {
   return updBuildPhoneNames(prefix)[action];
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.13.0/node_modules/dsh-plugin-update/dist/commands.js
+// node_modules/.pnpm/dsh-plugin-update@0.17.0/node_modules/dsh-plugin-update/dist/commands.js
 var PACKAGE_NAME = "dsh-mattpocock-skills-deck";
 var NPM_REGISTRY = "https://registry.npmjs.org/";
 var INSTALL_TIMEOUT_MS = 15 * 6e4;
@@ -146,7 +148,7 @@ function manualCommand(input) {
   return `dsh plugin --profile ${arg} add --save-exact ${targetName}@${version} --registry=${registry}`;
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.13.0/node_modules/dsh-plugin-update/dist/queue.js
+// node_modules/.pnpm/dsh-plugin-update@0.17.0/node_modules/dsh-plugin-update/dist/queue.js
 var QUEUE_INTENT_TTL_MS = 10 * 6e4;
 function emptyQueueState() {
   return { version: 1, owner: null, waiting: [] };
@@ -300,7 +302,7 @@ function derivedRequestId(state, viewerPluginId) {
   return mine[0].requestId;
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.13.0/node_modules/dsh-plugin-update/dist/batch.js
+// node_modules/.pnpm/dsh-plugin-update@0.17.0/node_modules/dsh-plugin-update/dist/batch.js
 var BATCH_SESSION_VERSION = 1;
 function isTerminalPhase(phase) {
   return phase === "done" || phase === "failed" || phase === "skipped" || phase === "current";
@@ -467,7 +469,7 @@ function resumeBatchSession(session, now) {
   return changed ? { ...session, entries, updatedAt: at } : session;
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.13.0/node_modules/dsh-plugin-update/dist/service.js
+// node_modules/.pnpm/dsh-plugin-update@0.17.0/node_modules/dsh-plugin-update/dist/service.js
 var CONFIRMATION_TTL_MS = 10 * 6e4;
 var MAX_METADATA_BYTES = 256 * 1024;
 function updateError(code) {
@@ -554,7 +556,7 @@ function compareReleaseVersions2(a, b) {
   return 0;
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.13.0/node_modules/dsh-plugin-update/dist/lang.js
+// node_modules/.pnpm/dsh-plugin-update@0.17.0/node_modules/dsh-plugin-update/dist/lang.js
 function normalizeLangTag(tag) {
   if (typeof tag !== "string") return "zh";
   const s = tag.trim().toLowerCase().replace(/_/g, "-");
@@ -565,7 +567,7 @@ function normalizeLangTag(tag) {
   return "zh";
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.13.0/node_modules/dsh-plugin-update/dist/bilingual.js
+// node_modules/.pnpm/dsh-plugin-update@0.17.0/node_modules/dsh-plugin-update/dist/bilingual.js
 var BILINGUAL_STRINGS = {
   "entry.label.idle": { en: "Check for updates", zh: "\u68C0\u67E5\u66F4\u65B0", draft: true },
   "entry.label.failed": { en: "Update failed \u2014 View details", zh: "\u66F4\u65B0\u5931\u8D25\uFF0C\u8BF7\u67E5\u770B\u8BE6\u60C5", draft: true },
@@ -646,6 +648,7 @@ var BILINGUAL_STRINGS = {
   "panel.banner.update-action": { en: "Install runs the exact version; only one install runs per scope at a time.", zh: "\u9009\u62E9\u5B89\u88C5\u5C06\u6309\u7CBE\u786E\u7248\u672C\u5B89\u88C5\uFF1B\u540C\u4E00\u4F7F\u7528\u8303\u56F4\u540C\u65F6\u4EC5\u5B89\u88C5\u4E00\u9879\u3002", draft: true },
   "panel.action.install-version": { en: "Install {latest}", zh: "\u5B89\u88C5\u7248\u672C {latest}", draft: true },
   "panel.banner.done": { en: "Up to date. No update needed.", zh: "\u5DF2\u662F\u6700\u65B0\uFF0C\u65E0\u9700\u66F4\u65B0\u3002", draft: true },
+  "panel.banner.not-installed": { en: "Not installed", zh: "\u672A\u5B89\u88C5", draft: true },
   "panel.toast.checking": { en: "Checking for updates\u2026", zh: "\u6B63\u5728\u67E5\u8BE2\u7248\u672C\u4FE1\u606F\u2026", draft: true },
   "panel.toast.installing": { en: "Installing\u2026", zh: "\u6B63\u5728\u5B89\u88C5\u2026", draft: true },
   "panel.toast.copy-manual-ok": { en: "Manual command copied; paste the full line into the terminal to run it.", zh: "\u624B\u5DE5\u547D\u4EE4\u5DF2\u590D\u5236\uFF0C\u8BF7\u7C98\u8D34\u81F3\u7EC8\u7AEF\u6574\u884C\u6267\u884C\u3002", draft: true },
@@ -725,7 +728,7 @@ var BILINGUAL_STRINGS = {
   "panel.error.evidence-frozen": { en: "Evidence frozen: the code, versions, and IDs in copied diagnostics are from the failure moment and do not refresh with polling; the next check or install will update them.", zh: "\u8BC1\u636E\u5DF2\u51BB\u7ED3\uFF1A\u590D\u5236\u8BCA\u65AD\u4E2D\u7684\u7A33\u5B9A\u7801\u3001\u7248\u672C\u4E0E\u7F16\u53F7\u5747\u53D6\u81EA\u5931\u8D25\u65F6\u523B\uFF0C\u4E0D\u968F\u8F6E\u8BE2\u5237\u65B0\uFF1B\u4E0B\u6B21\u67E5\u8BE2\u7248\u672C\u4FE1\u606F\u6216\u5B89\u88C5\u5C06\u66F4\u65B0\u3002", draft: true },
   "panel.error.evidence-transient": { en: "Transient read failure: it clears on the next successful read; if it persists, troubleshoot by stable code.", zh: "\u77AC\u6001\u8BFB\u53D6\u5931\u8D25\uFF1A\u4E0B\u6B21\u6210\u529F\u8BFB\u53D6\u5C06\u81EA\u52A8\u89E3\u9664\uFF1B\u82E5\u6301\u7EED\u51FA\u73B0\uFF0C\u8BF7\u6309\u7A33\u5B9A\u7801\u6392\u67E5\u3002", draft: true },
   "panel.error.no-failure": { en: "No failure: copying diagnostics gives the current state snapshot.", zh: "\u6682\u65E0\u5931\u8D25\uFF1A\u6B64\u65F6\u590D\u5236\u8BCA\u65AD\u63D0\u4F9B\u7684\u662F\u5F53\u524D\u72B6\u6001\u5FEB\u7167\u3002", draft: true },
-  "panel.error.log-hint": { en: "Check logs: filter by plugin ID {pluginId} for events {e1}, {e2}, {e3}.", zh: "\u8BF7\u67E5\u770B\u65E5\u5FD7\uFF1A\u6309\u63D2\u4EF6\u6807\u8BC6 {pluginId} \u7B5B\u9009 {e1}\u3001{e2}\u3001{e3} \u4E8B\u4EF6\u3002", draft: true },
+  "panel.error.log-hint": { en: "Check logs: {dir} (one directory per plugin, no overlap). Read them with {cmd}; filter by plugin ID {pluginId} for events {e1}, {e2}, {e3}.", zh: "\u8BF7\u67E5\u770B\u65E5\u5FD7\uFF1A{dir}\uFF08\u4E00\u4E2A\u63D2\u4EF6\u4E00\u68F5\u76EE\u5F55\uFF0C\u4E92\u4E0D\u8986\u76D6\uFF09\u3002\u4E00\u6761\u547D\u4EE4\u770B\uFF1A{cmd}\uFF1B\u6309\u63D2\u4EF6\u6807\u8BC6 {pluginId} \u7B5B\u9009 {e1}\u3001{e2}\u3001{e3} \u4E8B\u4EF6\u3002", draft: true },
   "panel.error.log-follow": { en: "Match the request/check IDs above in {eFail}; baseline timing in {eCall}, execution result in {eExec}.", zh: "\u51ED\u4E0A\u65B9\u8BF7\u6C42\uFF0F\u68C0\u67E5\u7F16\u53F7\u5728 {eFail} \u4E2D\u5339\u914D\uFF1B\u57FA\u7EBF\u8017\u65F6\u8BF7\u67E5\u770B {eCall}\uFF0C\u6267\u884C\u7ED3\u679C\u8BF7\u67E5\u770B {eExec}\u3002", draft: true },
   "panel.manual.heading": { en: "Manual fallback command (copy the full line to run):", zh: "\u624B\u5DE5\u5907\u7528\u547D\u4EE4\uFF08\u8BF7\u590D\u5236\u6574\u884C\u6267\u884C\uFF09\uFF1A", draft: true },
   "panel.manual.absent": { en: "No manual command available (unrecognized scope or source install).", zh: "\u5F53\u524D\u6CA1\u6709\u53EF\u7528\u7684\u624B\u5DE5\u547D\u4EE4\uFF08\u4F7F\u7528\u8303\u56F4\u65E0\u6CD5\u8BC6\u522B\u6216\u6E90\u7801\u5B89\u88C5\u573A\u666F\u4E0D\u63D0\u4F9B\uFF09\u3002", draft: true },
@@ -778,6 +781,7 @@ var BILINGUAL_STRINGS = {
   "batch.row.current": { en: "Up to date", zh: "\u5DF2\u662F\u6700\u65B0\uFF0C\u65E0\u9700\u64CD\u4F5C\u3002", draft: true },
   "batch.row.never": { en: "Not checked yet", zh: "\u5C1A\u672A\u67E5\u8BE2", draft: true },
   "batch.row.failed": { en: "Last check failed", zh: "\u672C\u6B21\u672A\u80FD\u67E5\u8BE2", draft: true },
+  "batch.row.not-installed": { en: "Not installed", zh: "\u672A\u5B89\u88C5", draft: true },
   "batch.notice.auto-resumed": { en: "Auto-continued the unfinished batch ({count} left).", zh: "\u5DF2\u81EA\u52A8\u7EE7\u7EED\u4E0A\u6B21\u672A\u5B8C\u6210\u7684\u66F4\u65B0\uFF08\u5269\u4F59 {count} \u4E2A\uFF09\u3002", draft: true },
   "batch.notice.resumed": { en: "Continued the unfinished batch ({count} left).", zh: "\u5DF2\u7EE7\u7EED\u4E0A\u6B21\u672A\u5B8C\u6210\u7684\u66F4\u65B0\uFF08\u5269\u4F59 {count} \u4E2A\uFF09\u3002", draft: true },
   "batch.notice.no-resume": { en: "Nothing to continue.", zh: "\u6682\u65E0\u53EF\u7EE7\u7EED\u7684\u5185\u5BB9\u3002", draft: true },
@@ -865,6 +869,8 @@ var BILINGUAL_STRINGS = {
   "changelog.breaking.badge": { en: "Breaking", zh: "\u4E0D\u517C\u5BB9", draft: true },
   "changelog.breaking.aria": { en: "Breaking change", zh: "\u7834\u574F\u6027\u53D8\u66F4", draft: true },
   "changelog.truncated.count": { en: "Showing {n} of {m} items", zh: "\u5171 {m} \u6761\uFF0C\u4EC5\u663E\u793A\u524D {n} \u6761", draft: true },
+  "changelog.truncated.file": { en: "This log is larger than 64 KiB; only the first part is rendered.", zh: "\u65E5\u5FD7\u8FC7\u957F\uFF0C\u8D85\u51FA\u4E0A\u9650\u7684\u90E8\u5206\u6CA1\u6709\u6E32\u67D3\u3002", draft: true },
+  "changelog.truncated.versions": { en: "{n} more versions are hidden.", zh: "\u5176\u540E\u8FD8\u6709 {n} \u4E2A\u7248\u672C\u672A\u663E\u793A\u3002", draft: true },
   "changelog.yanked.banner": { en: "Version {version} was yanked by the author. Install is not affected. Please confirm before proceeding.", zh: "\u76EE\u6807\u7248\u672C {version} \u5DF2\u88AB\u4F5C\u8005\u64A4\u56DE\uFF08yanked\uFF09\uFF0C\u5B89\u88C5\u4E0D\u53D7\u5F71\u54CD\uFF0C\u7EE7\u7EED\u524D\u8BF7\u786E\u8BA4\u3002", draft: true },
   "changelog.yanked.suffix": { en: " \xB7 Yanked", zh: " \xB7 \u5DF2\u64A4\u56DE", draft: true },
   "changelog.security.summary": { en: "{n} more items", zh: "\u5176\u4F59 {n} \u6761", draft: true },
@@ -909,7 +915,7 @@ var BILINGUAL_CSS = [
   ".dsh-upd-bi [lang]{overflow-wrap:anywhere}"
 ].join("\n");
 
-// node_modules/.pnpm/dsh-plugin-update@0.13.0/node_modules/dsh-plugin-update/dist/changelog.js
+// node_modules/.pnpm/dsh-plugin-update@0.17.0/node_modules/dsh-plugin-update/dist/changelog.js
 var CHANGELOG_FILENAME = "CHANGELOG.md";
 var CHANGELOG_NEUTRAL_HINT = "\u4F5C\u8005\u672A\u63D0\u4F9B\u66F4\u65B0\u8BF4\u660E";
 var CHANGELOG_NEUTRAL_LINE = "\u4F5C\u8005\u672A\u63D0\u4F9B\u66F4\u65B0\u8BF4\u660E\uFF0C\u5B89\u88C5\u4E0D\u53D7\u5F71\u54CD\u3002";
@@ -917,6 +923,7 @@ var CHANGELOG_MAX_CHARS = 64 * 1024;
 var CHANGELOG_MAX_ENTRIES = 100;
 var CHANGELOG_MAX_BULLETS_PER_SECTION = 200;
 var CHANGELOG_MAX_BULLET_CHARS = 500;
+var CHANGELOG_MAX_ENTRY_DEPTH = 3;
 var CHANGELOG_ALL_CATEGORIES = [
   "Added",
   "Fixed",
@@ -935,6 +942,27 @@ var CHANGELOG_CATEGORY_ZH = {
   Removed: "\u79FB\u9664",
   Security: "\u5B89\u5168"
 };
+var CHANGELOG_CATEGORY_ALIASES = {
+  "bug fixes": "Fixed",
+  fixes: "Fixed",
+  fix: "Fixed",
+  "bug fix": "Fixed",
+  features: "Added",
+  feature: "Added",
+  feat: "Added",
+  "security fixes": "Security",
+  "security fix": "Security",
+  deprecations: "Deprecated",
+  removals: "Removed",
+  \u4FEE\u590D: "Fixed",
+  \u65B0\u589E: "Added",
+  \u7279\u6027: "Added",
+  \u53D8\u66F4: "Changed",
+  \u6539\u52A8: "Changed",
+  \u79FB\u9664: "Removed",
+  \u5F03\u7528: "Deprecated",
+  \u5B89\u5168: "Security"
+};
 function emptySections() {
   return { Added: [], Fixed: [], Changed: [], Deprecated: [], Removed: [], Security: [] };
 }
@@ -952,10 +980,26 @@ function normalizeCategory(raw) {
   if (t === "deprecated") return "Deprecated";
   if (t === "removed") return "Removed";
   if (t === "security") return "Security";
+  const alias = CHANGELOG_CATEGORY_ALIASES[t];
+  if (alias) return alias;
   for (const k of CHANGELOG_ALL_CATEGORIES) {
     if (t === CHANGELOG_CATEGORY_ZH[k]) return k;
   }
   return null;
+}
+function normalizeCategoryMulti(raw) {
+  const t = String(raw || "").trim();
+  if (!t) return null;
+  const parts = t.split(/[/|·、,，;；+]/).map((s) => s.trim()).filter((s) => !!s);
+  if (parts.length <= 1) return normalizeCategory(t);
+  let acc = null;
+  for (const part of parts) {
+    const cat = normalizeCategory(part);
+    if (!cat) return null;
+    if (acc === null) acc = cat;
+    else if (acc !== cat) return null;
+  }
+  return acc;
 }
 function isUnreleasedVersion(v) {
   return typeof v === "string" && v.trim().toLowerCase() === "unreleased";
@@ -965,7 +1009,7 @@ function extractVersionDateAndYanked(title) {
   if (!t) return { version: null, date: null, yanked: false };
   const yanked = /\[YANKED\]/i.test(t);
   if (/unreleased/i.test(t)) return { version: "Unreleased", date: null, yanked };
-  const vm = t.match(/(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)/);
+  const vm = t.match(RE_VERSION_TOKEN);
   if (!vm) return { version: null, date: null, yanked: false };
   const dm = t.match(/(\d{4}-\d{2}-\d{2})/);
   return { version: vm[1], date: dm ? dm[1] : null, yanked };
@@ -976,29 +1020,108 @@ function truncateBullet(text) {
   if (t.length <= CHANGELOG_MAX_BULLET_CHARS) return t;
   return `${t.slice(0, CHANGELOG_MAX_BULLET_CHARS - 1)}\u2026`;
 }
-var RE_VERSION_HEADING = /^##(?!#)\s*(.+?)\s*$/;
-var RE_CATEGORY_HEADING = /^###\s*(.+?)\s*$/;
+function indentLevel(line) {
+  const raw = (String(line || "").match(/^[ \t]*/) || [""])[0];
+  let n = 0;
+  for (const ch of raw) n += ch === "	" ? 2 : 1;
+  return Math.min(CHANGELOG_MAX_ENTRY_DEPTH, Math.floor(n / 2));
+}
+function matchOrderedBody(line) {
+  const m = String(line || "").match(/^\s*\d{1,9}[.)]\s+(.+?)\s*$/);
+  return m ? String(m[1] !== void 0 && m[1] !== null ? m[1] : "") : null;
+}
+function truncateEntryLines(lines, ledger) {
+  const out = [];
+  let truncated = false;
+  for (const raw of lines) {
+    const line = String(raw === null || raw === void 0 ? "" : raw).replace(/[ \t]+$/, "");
+    if (!line) continue;
+    const next = out.length > 0 ? out.join("\n") + "\n" + line : line;
+    if (next.length <= CHANGELOG_MAX_BULLET_CHARS) {
+      out.push(line);
+      continue;
+    }
+    truncated = true;
+    break;
+  }
+  const text = out.join("\n");
+  if (!truncated) return text;
+  if (ledger) ledger.items += 1;
+  if (text.length < CHANGELOG_MAX_BULLET_CHARS) return text + "\u2026";
+  return text.slice(0, CHANGELOG_MAX_BULLET_CHARS - 1) + "\u2026";
+}
+function bufEndsWithItem(lines) {
+  const last = Array.isArray(lines) && lines.length > 0 ? String(lines[lines.length - 1] || "") : "";
+  if (!last) return false;
+  if (RE_FENCE_TOGGLE.test(last)) return true;
+  return /^[ \t]*(?:[-*+]|\d{1,9}[.)])\s+/.test(last);
+}
+function canonicalNestedItem(line, level, body) {
+  const m = String(line || "").match(/^[ \t]*(?:([-*+])|(\d{1,9}[.)]))\s+/);
+  const marker = m && m[2] ? m[2] : m && m[1] ? m[1] : "-";
+  return "  ".repeat(Math.max(1, level)) + marker + " " + String(body || "").replace(/\s+/g, " ").trim();
+}
 var RE_BULLET = /^\s*[-*+]\s+(.+?)\s*$/;
 var RE_FENCE_TOGGLE = new RegExp("^\\s*(" + String.fromCharCode(96).repeat(3) + "|~~~)");
-function matchVersionHeading(line) {
+var RE_VERSION_NUM = /(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)/;
+var RE_UNRELEASED = /unreleased/i;
+var RE_VERSION_TOKEN = /(\d+\.\d+(?:\.\d+)*(?:-[0-9A-Za-z.-]+)?)/;
+function isPlainVersionTitle(text) {
+  const t = String(text || "").trim();
+  if (!t) return false;
+  if (!/(?:^|[^\d.])v?\d+\.\d+(?![\d.])/.test(t)) return false;
+  const core = t.replace(/\[YANKED\]/gi, " ").replace(/\[([^\]]*)\]\([^)]*\)/g, " ").replace(/\([^)]*\)/g, " ").replace(/（[^）]*）/g, " ").replace(/\d{4}-\d{2}-\d{2}/g, " ").replace(/[\[\]()（）【】]/g, " ").replace(/^[\s#>*_\-\u2014\u2013:：|]+/, "").replace(/[\s#>*_\-\u2014\u2013:：|]+$/, "").trim();
+  return /^v?\d+\.\d+$/.test(core);
+}
+function isVersionIshWithoutNumber(text) {
+  const t = String(text !== null && text !== void 0 ? text : "").trim();
+  if (!t) return false;
+  if (extractVersionDateAndYanked(t).version) return false;
+  return /^\s*v?\d+\s*(?:$|[\u2014\u2013\-(（])/.test(t);
+}
+function isSetextTextCandidate(line) {
+  const t = String(line === null || line === void 0 ? "" : line);
+  if (!t.trim()) return false;
+  if (/^[ \t]/.test(t)) return false;
+  if (/^\s{0,3}#{1,6}\s/.test(t)) return false;
+  if (/^\s*(?:[-*+]|\d{1,9}[.)])\s+/.test(t)) return false;
+  if (/^\s*>/.test(t)) return false;
+  if (/^\s*\|/.test(t)) return false;
+  if (isFenceToggle(t)) return false;
+  return true;
+}
+function normalizeSetextHeadings(lines) {
+  const out = lines.map((l) => String(l === null || l === void 0 ? "" : l));
+  for (let i = 0; i + 1 < out.length; i++) {
+    const m = out[i + 1].match(/^ {0,3}(={3,}|-{3,})\s*$/);
+    if (!m || !isSetextTextCandidate(out[i])) continue;
+    out[i] = (m[1].charAt(0) === "=" ? "# " : "## ") + out[i].trim();
+    out[i + 1] = "";
+  }
+  return out;
+}
+var RE_ANY_HEADING = /^\s{0,3}(#{1,6})\s*(.+?)\s*$/;
+function looksLikeVersionHeading(text) {
+  const t = String(text !== null && text !== void 0 ? text : "").trim();
+  if (!t) return false;
+  if (RE_UNRELEASED.test(t)) return true;
+  if (RE_VERSION_NUM.test(t)) return true;
+  return isPlainVersionTitle(t);
+}
+function matchAnyHeading(line) {
   try {
     const s = String(line !== null && line !== void 0 ? line : "");
-    const m = s.match(RE_VERSION_HEADING);
+    const m = s.match(RE_ANY_HEADING);
     if (!m) return null;
-    return String(m[1] !== void 0 && m[1] !== null ? m[1] : "").trim();
+    return { level: (m[1] || "").length, text: String(m[2] !== void 0 && m[2] !== null ? m[2] : "").trim() };
   } catch {
     return null;
   }
 }
-function matchCategoryHeading(line) {
-  try {
-    const s = String(line !== null && line !== void 0 ? line : "");
-    const m = s.match(RE_CATEGORY_HEADING);
-    if (!m) return null;
-    return String(m[1] !== void 0 && m[1] !== null ? m[1] : "").trim();
-  } catch {
-    return null;
-  }
+function matchVersionHeadingAny(line) {
+  const h = matchAnyHeading(line);
+  if (!h || h.level > 4) return null;
+  return looksLikeVersionHeading(h.text) ? h.text : null;
 }
 function matchBulletBody(line) {
   try {
@@ -1045,86 +1168,228 @@ function splitBreakingPrefix(item) {
   }
 }
 var CHANGELOG_POLL_BACKOFF_MS = 30 * 1e3;
-function parseChangelog(markdown) {
+function ensureOther(cur, title) {
+  const list = cur.otherSections ?? (cur.otherSections = []);
+  const last = list[list.length - 1];
+  if (title && last && last.title === "" && last.items.length === 0) {
+    last.title = title.slice(0, 120);
+    return last;
+  }
+  const sec = { title: title.slice(0, 120), items: [], count: 0 };
+  list.push(sec);
+  return sec;
+}
+function countVersionHeadings(tail) {
+  let n = 0;
+  for (const line of String(tail || "").split("\n")) {
+    if (matchVersionHeadingAny(line) !== null) n += 1;
+  }
+  return n;
+}
+function parseChangelogReport(markdown) {
+  const ledger = { chars: false, tailVersions: 0, entries: 0, sections: 0, sectionItems: 0, items: 0 };
   try {
-    if (typeof markdown !== "string" || !markdown.trim()) return [];
+    if (typeof markdown !== "string" || !markdown.trim()) return { entries: [], truncation: ledger };
     let text = markdown.replace(/\r\n/g, "\n");
-    if (text.length > CHANGELOG_MAX_CHARS) text = text.slice(0, CHANGELOG_MAX_CHARS);
-    const lines = text.split("\n");
+    if (text.length > CHANGELOG_MAX_CHARS) {
+      ledger.chars = true;
+      ledger.tailVersions = countVersionHeadings(text.slice(CHANGELOG_MAX_CHARS));
+      text = text.slice(0, CHANGELOG_MAX_CHARS);
+    }
+    const lines = normalizeSetextHeadings(text.split("\n"));
     const entries = [];
     let cur = null;
-    let curCat = null;
+    let bucket = null;
     let inFence = false;
+    let buf = null;
+    const bufNow = () => buf;
+    let fenceTo = null;
+    let fenceIndent = 0;
+    let pendingBlank = false;
+    const destOf = () => {
+      if (!bucket) return null;
+      return "cat" in bucket ? { cat: bucket.cat } : { other: bucket.other };
+    };
+    const ensureDest = () => {
+      const d = destOf();
+      if (d) return d;
+      if (!cur) return null;
+      const other = ensureOther(cur, "");
+      bucket = { other };
+      return { other };
+    };
+    const flushBuf = () => {
+      const pending = buf;
+      buf = null;
+      pendingBlank = false;
+      if (!pending || !cur) return;
+      const text2 = truncateEntryLines(pending.lines, ledger);
+      if (!text2) return;
+      const c = cur;
+      if ("cat" in pending.dest) {
+        c.sections[pending.dest.cat].push(text2);
+        try {
+          if (c.counts) c.counts[pending.dest.cat] += 1;
+        } catch {
+        }
+      } else {
+        pending.dest.other.items.push(text2);
+        pending.dest.other.count = (pending.dest.other.count ?? 0) + 1;
+      }
+    };
+    const openBuf = (first, dest) => {
+      buf = { lines: [first], dest };
+    };
     const pushCurrent = () => {
+      flushBuf();
       if (!cur) return;
-      const hasAny = CHANGELOG_ALL_CATEGORIES.some(
-        (c) => cur.sections[c].length > 0
-      );
+      const e = cur;
+      const hasAny = CHANGELOG_ALL_CATEGORIES.some((c) => e.sections[c].length > 0) || (e.otherSections ?? []).some((s) => s.items.length > 0);
       if (!hasAny) return;
       for (const c of CHANGELOG_ALL_CATEGORIES) {
-        const list = cur.sections[c];
+        const list = e.sections[c];
         if (list.length > CHANGELOG_MAX_BULLETS_PER_SECTION) {
-          cur.sections[c] = list.slice(0, CHANGELOG_MAX_BULLETS_PER_SECTION);
+          ledger.sections += 1;
+          ledger.sectionItems += list.length - CHANGELOG_MAX_BULLETS_PER_SECTION;
+          e.sections[c] = list.slice(0, CHANGELOG_MAX_BULLETS_PER_SECTION);
         }
       }
-      entries.push(cur);
+      for (const s of e.otherSections ?? []) {
+        if (s.items.length > CHANGELOG_MAX_BULLETS_PER_SECTION) {
+          ledger.sections += 1;
+          ledger.sectionItems += s.items.length - CHANGELOG_MAX_BULLETS_PER_SECTION;
+          s.items = s.items.slice(0, CHANGELOG_MAX_BULLETS_PER_SECTION);
+        }
+      }
+      entries.push(e);
     };
     for (const rawLine of lines) {
       const line = String(rawLine ?? "");
       if (isFenceToggle(line)) {
-        inFence = !inFence;
+        if (inFence) {
+          inFence = false;
+          if (fenceTo) {
+            fenceTo.push("```");
+            fenceTo = null;
+          }
+          continue;
+        }
+        inFence = true;
+        const lead = ((line.match(/^[ \t]*/) || [""])[0] || "").length;
+        fenceIndent = lead;
+        const b0 = bufNow();
+        if (lead > 0 && b0) {
+          fenceTo = b0.lines;
+          fenceTo.push("```" + line.replace(/^[ \t]*(?:`{3,}|~{3,})\s*/, "").trim());
+          continue;
+        }
+        const dest = ensureDest();
+        flushBuf();
+        if (dest) {
+          openBuf("```" + line.replace(/^[ \t]*(?:`{3,}|~{3,})\s*/, "").trim(), dest);
+          const b1 = bufNow();
+          fenceTo = b1 ? b1.lines : null;
+        } else {
+          fenceTo = null;
+        }
         continue;
       }
-      if (inFence) continue;
-      const versionTitle = matchVersionHeading(line);
-      if (versionTitle !== null) {
-        pushCurrent();
-        cur = null;
-        curCat = null;
-        const title = versionTitle;
-        const { version, date, yanked } = extractVersionDateAndYanked(title);
-        if (!version) continue;
-        cur = { version, date, yanked, sections: emptySections(), counts: emptyCounts() };
+      if (inFence) {
+        if (fenceTo) {
+          const lead = ((line.match(/^[ \t]*/) || [""])[0] || "").length;
+          fenceTo.push(line.slice(Math.min(fenceIndent, lead)).replace(/[ \t]+$/, ""));
+        }
         continue;
       }
-      const catTitle = matchCategoryHeading(line);
-      if (catTitle !== null) {
-        const cat = normalizeCategory(catTitle);
-        curCat = cur && cat && isCategoryName(cat) ? cat : null;
+      const head = matchAnyHeading(line);
+      if (head) {
+        const vTitle = head.level <= 4 && looksLikeVersionHeading(head.text) ? head.text : null;
+        if (vTitle !== null) {
+          pushCurrent();
+          cur = null;
+          bucket = null;
+          const { version, date, yanked } = extractVersionDateAndYanked(vTitle);
+          if (!version) continue;
+          cur = { version, date, yanked, sections: emptySections(), counts: emptyCounts() };
+          continue;
+        }
+        if (isVersionIshWithoutNumber(head.text)) {
+          if (cur) {
+            pushCurrent();
+            cur = null;
+            bucket = null;
+          }
+          continue;
+        }
+        if (cur) {
+          flushBuf();
+          const cat = normalizeCategoryMulti(head.text);
+          if (cat && isCategoryName(cat)) bucket = { cat };
+          else bucket = { other: ensureOther(cur, head.text) };
+          continue;
+        }
         continue;
       }
       const bulletBody = matchBulletBody(line);
-      if (bulletBody !== null && cur && curCat) {
-        const item = truncateBullet(bulletBody);
-        if (item) {
-          cur.sections[curCat].push(item);
-          try {
-            if (cur.counts) cur.counts[curCat] += 1;
-          } catch {
-          }
+      const orderedBody = bulletBody === null ? matchOrderedBody(line) : null;
+      const body = bulletBody !== null ? bulletBody : orderedBody;
+      if (body !== null) {
+        const level = indentLevel(line);
+        const b = bufNow();
+        if (level > 0 && b && !(pendingBlank && !bufEndsWithItem(b.lines))) {
+          b.lines.push(canonicalNestedItem(line, level, body));
+          pendingBlank = false;
+          continue;
         }
-        continue;
+        if (bulletBody !== null) {
+          const b2 = bufNow();
+          if (pendingBlank && b2 && !bufEndsWithItem(b2.lines)) flushBuf();
+          flushBuf();
+          const dest = ensureDest();
+          if (body.replace(/\s+/g, " ").trim().length > CHANGELOG_MAX_BULLET_CHARS) ledger.items += 1;
+          const item = truncateBullet(body);
+          if (dest && item) openBuf(item, dest);
+          continue;
+        }
       }
       const trimmed = line.trim();
-      if (trimmed && !trimmed.startsWith("#") && /^\s/.test(line) && cur && curCat) {
-        const list = cur.sections[curCat];
-        if (list.length > 0) {
-          const merged = truncateBullet(`${list[list.length - 1]} ${trimmed}`);
-          if (merged) list[list.length - 1] = merged;
-        }
+      if (!trimmed) {
+        pendingBlank = true;
         continue;
+      }
+      if (trimmed.startsWith("#")) continue;
+      if (cur) {
+        const dest = ensureDest();
+        if (!dest) continue;
+        const bp = bufNow();
+        if (bp && pendingBlank && !/^[ \t]/.test(line)) flushBuf();
+        const isQuote = trimmed === ">" || trimmed.startsWith("> ");
+        const text2 = isQuote ? "> " + trimmed.replace(/^>\s?/, "") : /^[ \t]/.test(line) ? "  ".repeat(Math.max(1, indentLevel(line))) + trimmed : trimmed.replace(/[ \t]+$/, "");
+        const bp2 = bufNow();
+        if (bp2) bp2.lines.push(text2);
+        else openBuf(text2, dest);
+        pendingBlank = false;
       }
     }
     pushCurrent();
-    return entries.slice(0, CHANGELOG_MAX_ENTRIES);
+    if (entries.length > CHANGELOG_MAX_ENTRIES) {
+      ledger.entries = entries.length - CHANGELOG_MAX_ENTRIES;
+      return { entries: entries.slice(0, CHANGELOG_MAX_ENTRIES), truncation: ledger };
+    }
+    return { entries, truncation: ledger };
   } catch {
-    return [];
+    return { entries: [], truncation: ledger };
   }
+}
+function parseChangelog(markdown) {
+  return parseChangelogReport(markdown).entries;
 }
 function hasVisibleSections(entry) {
   if (!entry || typeof entry !== "object") return false;
   try {
-    return CHANGELOG_ALL_CATEGORIES.some((c) => Array.isArray(entry.sections?.[c]) && entry.sections[c].length > 0);
+    if (CHANGELOG_ALL_CATEGORIES.some((c) => Array.isArray(entry.sections?.[c]) && entry.sections[c].length > 0)) return true;
+    const other = entry.otherSections;
+    return Array.isArray(other) && other.some((s) => Array.isArray(s?.items) && s.items.length > 0);
   } catch {
     return false;
   }
@@ -1180,6 +1445,168 @@ function changelogForUpdate(entries, runningVersion, latestVersion, installedVer
 function escapeChangelogHtml(text) {
   return String(text ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
+var MD_URL_MAX = 2048;
+var MD_MAX_DEPTH = 2;
+function isHttpUrl(u) {
+  return /^https?:\/\//i.test(String(u || ""));
+}
+function renderInlineTailAware(s) {
+  let src = s;
+  let out = renderInlineMarkdown(src, 0);
+  if (!s.endsWith("\u2026")) return out;
+  for (let round = 0; round < 3; round++) {
+    let visible = "";
+    try {
+      visible = out.replace(/<code[^>]*>[\s\S]*?<\/code>/g, "").replace(/<[^>]*>/g, "");
+    } catch {
+      break;
+    }
+    const m = visible.match(/\*\*|__|~~|`/);
+    if (!m) break;
+    const marker = m[0];
+    const at = src.lastIndexOf(marker);
+    if (at < 0) break;
+    src = src.slice(0, at) + src.slice(at + marker.length);
+    out = renderInlineMarkdown(src, 0);
+  }
+  return out;
+}
+function matchBracketLink(s, openIdx) {
+  try {
+    if (s[openIdx] !== "[") return null;
+    const close = s.indexOf("]", openIdx + 1);
+    if (close < 0 || s[close + 1] !== "(") return null;
+    const urlEnd = s.indexOf(")", close + 2);
+    if (urlEnd < 0) return null;
+    const raw = s.slice(close + 2, urlEnd).trim();
+    if (!raw || raw.length > MD_URL_MAX) return null;
+    const url = raw.split(/\s+/)[0] || "";
+    if (!url) return null;
+    return { text: s.slice(openIdx + 1, close), url, end: urlEnd + 1 };
+  } catch {
+    return null;
+  }
+}
+function trimBareUrl(raw) {
+  let u = String(raw || "");
+  while (u.length > 0 && /[.,;:!?'"”’、。，；：！？]/.test(u[u.length - 1])) u = u.slice(0, -1);
+  while (u.endsWith(")")) {
+    const open = (u.match(/\(/g) || []).length;
+    const close = (u.match(/\)/g) || []).length;
+    if (close <= open) break;
+    u = u.slice(0, -1);
+  }
+  return u;
+}
+function mdAnchor(url, inner) {
+  return '<a class="dsh-upd-md-link" data-openlink="1" href="' + escapeChangelogHtml(url) + '" target="_blank" rel="noopener noreferrer">' + inner + "</a>";
+}
+function renderInlineMarkdown(text, depth) {
+  const s = String(text ?? "");
+  if (!s) return "";
+  if (depth > MD_MAX_DEPTH) return escapeChangelogHtml(s);
+  let out = "";
+  let i = 0;
+  const n = s.length;
+  while (i < n) {
+    const c = s[i];
+    if (c === "\\" && i + 1 < n && /[\\`*_~[\]()!<>#|]/.test(s[i + 1])) {
+      out += escapeChangelogHtml(s[i + 1]);
+      i += 2;
+      continue;
+    }
+    if (c === "`") {
+      let ticks = 1;
+      while (i + ticks < n && s[i + ticks] === "`" && ticks < 3) ticks++;
+      const fence = "`".repeat(ticks);
+      const end = s.indexOf(fence, i + ticks);
+      if (end > i + ticks) {
+        out += '<code class="dsh-upd-md-code">' + escapeChangelogHtml(s.slice(i + ticks, end)) + "</code>";
+        i = end + ticks;
+        continue;
+      }
+    }
+    if (c === "!" && s[i + 1] === "[") {
+      const img = matchBracketLink(s, i + 1);
+      if (img && isHttpUrl(img.url)) {
+        const alt = img.text.trim() || img.url;
+        out += '<span class="dsh-upd-md-img" data-src="' + escapeChangelogHtml(img.url) + '" title="' + escapeChangelogHtml(img.url) + '">' + renderInlineMarkdown(alt, depth + 1) + "</span>";
+        i = img.end;
+        continue;
+      }
+    }
+    if (c === "[") {
+      const lk = matchBracketLink(s, i);
+      if (lk && isHttpUrl(lk.url)) {
+        out += mdAnchor(lk.url, renderInlineMarkdown(lk.text, depth + 1));
+        i = lk.end;
+        continue;
+      }
+    }
+    if (c === "<") {
+      const m = s.slice(i).match(/^<(https?:\/\/[^<>\s]+)>/i);
+      if (m) {
+        out += mdAnchor(m[1], escapeChangelogHtml(m[1]));
+        i += m[0].length;
+        continue;
+      }
+    }
+    if ((c === "h" || c === "H") && /^https?:\/\//i.test(s.slice(i, i + 8))) {
+      const m = s.slice(i).match(/^https?:\/\/[A-Za-z0-9\-._~:/?#@!$&*+,;=%()[\]]+/i);
+      if (m) {
+        const url = trimBareUrl(m[0]);
+        if (url.length > 8) {
+          out += mdAnchor(url, escapeChangelogHtml(url));
+          i += url.length;
+          continue;
+        }
+      }
+    }
+    if (c === "*" || c === "_") {
+      let run = 1;
+      while (i + run < n && s[i + run] === c && run < 2) run++;
+      const marker = c.repeat(run);
+      const prev = i > 0 ? s[i - 1] : "";
+      const inWord = c === "_" && /[0-9A-Za-z\u4e00-\u9fff]/.test(prev);
+      if (!inWord) {
+        const end = s.indexOf(marker, i + run);
+        if (end > i + run) {
+          const inner = s.slice(i + run, end);
+          if (inner.trim() === inner && !inner.includes("\n")) {
+            const tag = run === 2 ? "strong" : "em";
+            out += "<" + tag + ">" + renderInlineMarkdown(inner, depth + 1) + "</" + tag + ">";
+            i = end + run;
+            continue;
+          }
+        }
+      }
+    }
+    if (c === "~" && s[i + 1] === "~") {
+      const end = s.indexOf("~~", i + 2);
+      if (end > i + 2) {
+        out += '<del class="dsh-upd-md-del">' + renderInlineMarkdown(s.slice(i + 2, end), depth + 1) + "</del>";
+        i = end + 2;
+        continue;
+      }
+    }
+    out += escapeChangelogHtml(c);
+    i++;
+  }
+  return out;
+}
+function renderChangelogInline(text) {
+  try {
+    const s = String(text !== null && text !== void 0 ? text : "");
+    if (!s) return "";
+    return renderInlineTailAware(s);
+  } catch {
+    try {
+      return escapeChangelogHtml(String(text !== null && text !== void 0 ? text : ""));
+    } catch {
+      return "";
+    }
+  }
+}
 function countsOf(entry) {
   try {
     const out = { Added: 0, Fixed: 0, Changed: 0, Deprecated: 0, Removed: 0, Security: 0 };
@@ -1211,20 +1638,151 @@ function truncatedNoteHTML(total, shown, lang) {
     return "";
   }
 }
-function renderChangelogItem(item, lang) {
+function matchListItem(line) {
+  const m = String(line || "").match(/^([ \t]*)(?:([-*+])|(\d{1,9}[.)]))[ \t]+(.*)$/);
+  if (!m) return null;
+  return { depth: indentLevel(m[1] || ""), ordered: m[3] !== void 0 && m[3] !== null, text: m[4] || "" };
+}
+function renderListItems(items, start, base) {
+  const first = items[start];
+  const tag = first && first.ordered ? "ol" : "ul";
+  const cls = tag === "ol" ? "dsh-upd-md-list-ol" : "dsh-upd-md-list";
+  let html = "<" + tag + ' class="' + cls + '">';
+  let i = start;
+  while (i < items.length && items[i].depth >= base) {
+    const it = items[i];
+    if (it.depth > base) {
+      const sub = renderListItems(items, i, it.depth);
+      html += sub.html;
+      i = sub.next;
+      continue;
+    }
+    html += "<li>" + renderChangelogInline(it.text);
+    i += 1;
+    const nextItem = items[i];
+    if (nextItem && nextItem.depth > base) {
+      const sub = renderListItems(items, i, nextItem.depth);
+      html += sub.html;
+      i = sub.next;
+    }
+    html += "</li>";
+  }
+  html += "</" + tag + ">";
+  return { html, next: i };
+}
+function isThematicBreak(line) {
+  const t = String(line === null || line === void 0 ? "" : line);
+  return /^ {0,3}([-*_])(?:\s*\1){2,}\s*$/.test(t);
+}
+function renderChangelogBlocks(lines) {
+  try {
+    const src = Array.isArray(lines) ? lines.map((x) => String(x === null || x === void 0 ? "" : x)) : [];
+    const out = [];
+    let para = [];
+    const flushPara = () => {
+      if (!para.length) return;
+      out.push('<div class="dsh-upd-md-para">' + renderChangelogInline(para.join(" ")) + "</div>");
+      para = [];
+    };
+    let i = 0;
+    while (i < src.length) {
+      const line = src[i];
+      if (isFenceToggle(line)) {
+        flushPara();
+        const code = [];
+        i += 1;
+        while (i < src.length && !isFenceToggle(src[i])) {
+          code.push(src[i]);
+          i += 1;
+        }
+        if (i < src.length) i += 1;
+        out.push('<pre class="dsh-upd-md-pre"><code class="dsh-upd-md-precode">' + escapeChangelogHtml(code.join(String.fromCharCode(10))) + "</code></pre>");
+        continue;
+      }
+      if (/^[ \t]*>/.test(line)) {
+        flushPara();
+        const quote = [];
+        while (i < src.length && /^[ \t]*>/.test(src[i])) {
+          quote.push(src[i].replace(/^[ \t]*>[ \t]?/, ""));
+          i += 1;
+        }
+        out.push('<blockquote class="dsh-upd-md-quote">' + renderChangelogInline(quote.join(" ")) + "</blockquote>");
+        continue;
+      }
+      if (isThematicBreak(line)) {
+        flushPara();
+        out.push('<hr class="dsh-upd-md-hr">');
+        i += 1;
+        continue;
+      }
+      const li = matchListItem(line);
+      if (li) {
+        flushPara();
+        const items = [];
+        while (i < src.length) {
+          const head = matchListItem(src[i]);
+          if (!head) break;
+          let text2 = head.text;
+          i += 1;
+          while (i < src.length && !matchListItem(src[i]) && !isFenceToggle(src[i]) && !/^[ \t]*>/.test(src[i]) && !isThematicBreak(src[i])) {
+            const extra = src[i].trim();
+            if (extra) text2 += " " + extra;
+            i += 1;
+          }
+          items.push({ depth: head.depth, ordered: head.ordered, text: text2 });
+        }
+        out.push(renderListItems(items, 0, items.length > 0 ? items[0].depth : 0).html);
+        continue;
+      }
+      const text = line.trim();
+      if (text) para.push(text);
+      i += 1;
+    }
+    flushPara();
+    return out.join("");
+  } catch {
+    return "";
+  }
+}
+function leadsWithCategoryName(item, cat) {
+  const first = String(item !== null && item !== void 0 ? item : "").split(String.fromCharCode(10))[0].trim();
+  if (!first) return false;
+  const bare = first.replace(/^[*_`~\s]+/, "");
+  for (const name of [String(cat), CHANGELOG_CATEGORY_ZH[cat]]) {
+    if (!name) continue;
+    if (bare.slice(0, name.length).toLowerCase() !== name.toLowerCase()) continue;
+    const next = bare.slice(name.length, name.length + 1);
+    if (!next) return true;
+    if (/[\s·:：,，)）\]】\-—–、。.;；/|｜*_`~]/.test(next)) return true;
+  }
+  return false;
+}
+function renderChangelogItem(item, lang, cat) {
   try {
     const l = normalizeLangTag(lang ?? "zh");
     const s = String(item !== null && item !== void 0 ? item : "");
     if (!s) return "";
-    const split = splitBreakingPrefix(s);
-    if (!split) return "<li>" + escapeChangelogHtml(s) + "</li>";
-    const head = escapeChangelogHtml(split.head);
-    const prefix = escapeChangelogHtml(split.prefix);
-    const rest = escapeChangelogHtml(split.rest);
+    const nlIdx = s.indexOf(String.fromCharCode(10));
+    const firstLine = nlIdx === -1 ? s : s.slice(0, nlIdx);
+    if (/^[ \t]*(?:```|~~~|>|[-*+][ \t]|\d{1,9}[.)][ \t]|[-*_]{3,}\s*$)/.test(firstLine)) {
+      const blockLead = cat && isCategoryName(String(cat)) ? ' data-cat-block="1"' : "";
+      const blockHtml = renderChangelogBlocks(s.split(String.fromCharCode(10)));
+      return blockHtml ? "<li" + blockLead + ">" + blockHtml + "</li>" : "";
+    }
+    const head = firstLine;
+    const tail = nlIdx === -1 ? [] : s.slice(nlIdx + 1).split(String.fromCharCode(10));
+    const tailHtml = renderChangelogBlocks(tail);
+    const lead = cat && isCategoryName(String(cat)) && leadsWithCategoryName(head, String(cat)) ? ' data-cat-lead="1"' : "";
+    if (!head) return tailHtml ? "<li" + lead + ">" + tailHtml + "</li>" : "";
+    const split = splitBreakingPrefix(head);
+    if (!split) return "<li" + lead + ">" + renderChangelogInline(head) + tailHtml + "</li>";
+    const headHtml = renderChangelogInline(split.head);
+    const prefix = renderChangelogInline(split.prefix);
+    const rest = renderChangelogInline(split.rest);
     const badgeText = updCopyText("changelog.breaking.badge", l);
     const badgeAria = updCopyText("changelog.breaking.aria", l);
     const badge = '<span class="dsh-upd-breaking-badge" role="img" aria-label="' + escapeChangelogHtml(badgeAria) + '">' + escapeChangelogHtml(badgeText) + "</span> ";
-    return "<li>" + head + badge + "<strong>" + prefix + "</strong>" + rest + "</li>";
+    return "<li" + lead + ">" + headHtml + badge + "<strong>" + prefix + "</strong>" + rest + tailHtml + "</li>";
   } catch {
     return "";
   }
@@ -1259,7 +1817,7 @@ function renderChangelogSection(entry, lang) {
       parts.push("<ul>");
       for (const item of items) {
         if (!item) continue;
-        const li = renderChangelogItem(item, l);
+        const li = renderChangelogItem(item, l, cat);
         if (li) parts.push(li);
       }
       parts.push("</ul>");
@@ -1285,11 +1843,12 @@ function renderChangelogSection(entry, lang) {
       parts.push("<ul>");
       for (const item of items) {
         if (!item) continue;
-        const li = renderChangelogItem(item, l);
+        const li = renderChangelogItem(item, l, cat);
         if (li) parts.push(li);
       }
       parts.push("</ul></details>");
     }
+    for (const block of renderOtherSections(entry, l)) parts.push(block);
     parts.push("</div>");
     return parts.join(String.fromCharCode(10));
   } catch {
@@ -1305,9 +1864,55 @@ function renderChangelogNeutral(lang) {
     return "";
   }
 }
+function renderOtherSections(entry, l) {
+  const out = [];
+  const list = Array.isArray(entry.otherSections) ? entry.otherSections : [];
+  for (const s of list) {
+    const items = Array.isArray(s?.items) ? s.items : [];
+    if (items.length === 0) continue;
+    const title = String(s.title || "").trim();
+    out.push('<div class="dsh-upd-changelog-cat" data-cat="other">');
+    if (title) out.push('<div class="dsh-upd-changelog-catname">' + renderChangelogInline(title) + "</div>");
+    const total = typeof s.count === "number" && s.count > items.length ? s.count : items.length;
+    if (total > items.length) out.push(truncatedNoteHTML(total, items.length, l));
+    out.push("<ul>");
+    for (const item of items) {
+      if (!item) continue;
+      const li = renderChangelogItem(item, l, null);
+      if (li) out.push(li);
+    }
+    out.push("</ul>");
+    out.push("</div>");
+  }
+  return out;
+}
+function truncationNoteHTML(tr, lang) {
+  try {
+    const l = normalizeLangTag(lang ?? "zh");
+    if (!tr || typeof tr !== "object") return "";
+    const parts = [];
+    if (tr.chars === true) {
+      parts.push(updCopyText("changelog.truncated.file", l));
+      const n = Number(tr.tailVersions) || 0;
+      if (n > 0) parts.push(updCopyText("changelog.truncated.versions", l, { n: String(n) }));
+    }
+    const droppedEntries = Number(tr.entries) || 0;
+    if (droppedEntries > 0) {
+      parts.push(updCopyText("changelog.truncated.count", l, {
+        n: String(CHANGELOG_MAX_ENTRIES),
+        m: String(CHANGELOG_MAX_ENTRIES + droppedEntries)
+      }));
+    }
+    if (parts.length === 0) return "";
+    return '<div class="dsh-upd-changelog-truncnote">' + escapeChangelogHtml(parts.join(" ")) + "</div>";
+  } catch {
+    return "";
+  }
+}
 function renderChangelogHTML(entries, opts) {
   try {
     const l = normalizeLangTag(opts?.lang ?? "zh");
+    const note = truncationNoteHTML(opts?.truncated, l);
     if (!Array.isArray(entries) || entries.length === 0) return renderChangelogNeutral(l);
     const from = opts && typeof opts.from === "string" ? opts.from : null;
     const to = opts && typeof opts.to === "string" ? opts.to : null;
@@ -1324,11 +1929,11 @@ function renderChangelogHTML(entries, opts) {
         }
       });
     }
-    if (ranged.length === 0) return renderChangelogNeutral(l);
+    if (ranged.length === 0) return note + renderChangelogNeutral(l);
     const blocks = ranged.map((e) => renderChangelogSection(e, l)).filter((s) => !!s);
-    if (blocks.length === 0) return renderChangelogNeutral(l);
+    if (blocks.length === 0) return note + renderChangelogNeutral(l);
     return `<div class="dsh-upd-changelog">
-${blocks.join("\n")}
+${note}${blocks.join("\n")}
 </div>`;
   } catch {
     try {
@@ -1340,7 +1945,7 @@ ${blocks.join("\n")}
   }
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.13.0/node_modules/dsh-plugin-update/dist/client.js
+// node_modules/.pnpm/dsh-plugin-update@0.17.0/node_modules/dsh-plugin-update/dist/client.js
 var CLIENT_POLL = {
   defaultMs: DEFAULT_PANEL_POLL_MS,
   minMs: MIN_PANEL_POLL_MS

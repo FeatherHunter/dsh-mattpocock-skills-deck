@@ -5,7 +5,7 @@
  * 这一份门禁量十九件事，每一件都用完整的一句话说清，第一次读的人能直接看懂。
  * 第一件事是构建与登记：这一片的运行时形状来自拼接，不跑构建就证明不了它进了双产物；它必须排在写这一趟
  *   之后（要用待写队列与排期）与运行时那份日志内核之后（要用 logSwitch / persistLocalDebugSwitch 等名字）。
- * 第二件事是开机秒显仍读旧键 dsws.debug：同步、不等文件（这是包里的行为，本次不回归）。
+ * 第二件事是开机秒显仍读本地快照：同步、不等文件（这是包里的行为，本次不回归；0.3.x 起快照键是 dsws.debug.wf，裸键只当升级证据）。
  * 第三件事是文件里 debug.enabled 说开时以文件为准：内存、旧键快照、界面广播、宿主副本四处都跟着文件走，
  *   采样率也用文件里那个数。
  * 第四件事是文件说关、旧键说开（升级前用户开着）时认开，并把开排队写回文件 —— 先立后破，老用户的选择不许丢。
@@ -166,7 +166,7 @@ const WRITE_REL = 'src/client/kernel/settings-view-write.js'
 const DEBUG_REL = 'src/client/kernel/settings-debug.js'
 const LOG_REL = 'src/client/kernel/log.js'
 const INDEX_REL = 'src/client/index.js'
-const TAIL = '\nreturn { LOG_DEBUG_KEY: LOG_DEBUG_KEY, logSwitch: logSwitch, logQueue: logQueue, readLocalDebugSwitch: readLocalDebugSwitch, persistLocalDebugSwitch: persistLocalDebugSwitch, setLogSwitch: setLogSwitch, reconcileLogSwitch: reconcileLogSwitch, settingsViewLoad: settingsViewLoad, viewFlagReadyNow: viewFlagReadyNow, viewFlagState: viewFlagState, VIEW_FLAG_WRITE_DEBOUNCE_MS: VIEW_FLAG_WRITE_DEBOUNCE_MS, settingsDebugSet: settingsDebugSet, settingsDebugToggle: settingsDebugToggle, settingsDebugAdoptFromDoc: settingsDebugAdoptFromDoc, settingsDebugDrainDeferred: settingsDebugDrainDeferred, settingsDebugSetInDoc: settingsDebugSetInDoc, settingsDebugLegacyWrite: settingsDebugLegacyWrite, settingsDebugHasPending: settingsDebugHasPending, setViewFlagRoot: setViewFlagRoot }'
+const TAIL = '\nreturn { LOG_DEBUG_KEY: LOG_DEBUG_KEY, logSwitch: logSwitch, logQueue: logQueue, readLocalDebugSwitch: readLocalDebugSwitch, persistLocalDebugSwitch: persistLocalDebugSwitch, setLogSwitch: setLogSwitch, reconcileLogSwitch: reconcileLogSwitch, settingsDebugLegacy: settingsDebugLegacy, settingsViewLoad: settingsViewLoad, viewFlagReadyNow: viewFlagReadyNow, viewFlagState: viewFlagState, VIEW_FLAG_WRITE_DEBOUNCE_MS: VIEW_FLAG_WRITE_DEBOUNCE_MS, settingsDebugSet: settingsDebugSet, settingsDebugToggle: settingsDebugToggle, settingsDebugAdoptFromDoc: settingsDebugAdoptFromDoc, settingsDebugDrainDeferred: settingsDebugDrainDeferred, settingsDebugSetInDoc: settingsDebugSetInDoc, settingsDebugLegacyWrite: settingsDebugLegacyWrite, settingsDebugHasPending: settingsDebugHasPending, setViewFlagRoot: setViewFlagRoot }'
 function makeClient(env) {
   const body = [noExport(readText(DERIVED_REL)), noExport(readText(STATE_REL)), noExport(readText(VIEW_REL)), noExport(readText(WRITE_REL)), noExport(readText(DEBUG_REL))].join('\n')
   const names = ['host', 'timer', 'localStorage', 'broadcastLogSwitch', 'keyOf', 'wsKeyOf', 'shared', 'stores', 'emit', 'currentOs', 'workspaceRootByCwd', 'dswsLogHash']
@@ -259,7 +259,9 @@ async function main() {
   const callsOf = (env, method) => env.calls.filter((c) => c.method === method)
   const lastCall = (env, method) => { const l = callsOf(env, method); return l.length ? l[l.length - 1] : null }
   const lsWrites = (env, key) => env.ls.calls.filter((c) => c.key === key)
-  const legacyOf = (env) => { const raw = env.ls.getItem('dsws.debug'); try { return raw ? JSON.parse(raw) : null } catch (e) { return null } }
+  // 本地快照键（日志包 0.3.x 起开关落在这里；裸键 dsws.debug 只剩升级证据，见 settingsDebugLegacy）。
+  const SNAPSHOT_KEY = 'dsws.debug.wf'
+  const legacyOf = (env) => { const raw = env.ls.getItem(SNAPSHOT_KEY); try { return raw ? JSON.parse(raw) : null } catch (e) { return null } }
   // 轮询等一个条件成立，最多等 8 秒（机器忙时固定 sleep 会假红）。
   async function waitFor(fn, capMs) {
     const t0 = Date.now()
@@ -294,20 +296,24 @@ async function main() {
       JSON.stringify({ timer: st.timer, journal: Object.keys(st.journal), deferred: Object.keys(st.deferred), hasPending: env.mod.settingsDebugHasPending() }))
   }
 
-  // ── 第二件事：开机秒显仍读旧键（同步、不等文件）──
+  // ── 第二件事：开机秒显读本地快照（同步、不等文件；裸旧键只当升级证据，进来那一刻搬进新键）──
   console.log('')
-  console.log('== 第二件事：开机秒显读旧键 dsws.debug（同步、不等文件，本次不回归） ==')
+  console.log('== 第二件事：开机秒显读本地快照（同步、不等文件，本次不回归） ==')
   {
     const env = makeEnv({ tag: 'boot', localStorage: { 'dsws.debug': JSON.stringify({ enabled: true, sampleRate: 0.5, rev: 3 }) } })
-    check(env.mod.logSwitch.enabled === true && env.mod.logSwitch.sampleRate === 0.5,
-      '模块一加载就从旧键读出了开关与采样率（开机秒显不等设置文件）。', JSON.stringify(env.mod.logSwitch))
+    check(env.mod.logSwitch.enabled === true,
+      '模块一加载就从本地读出了开（开机秒显不等设置文件）。', JSON.stringify(env.mod.logSwitch))
+    check(env.mod.settingsDebugLegacy.seen === true && env.mod.settingsDebugLegacy.enabled === true && env.mod.settingsDebugLegacy.sampleRate === 0.5,
+      '裸旧键里的选择被认成升级证据（开 + 采样率 0.5），给设置文件采纳用。', JSON.stringify(env.mod.settingsDebugLegacy))
+    check(legacyOf(env) && legacyOf(env).enabled === true,
+      '旧选择同时搬进了新键 dsws.debug.wf（包的新形状里没有采样率，快照只保开关）。', JSON.stringify(legacyOf(env)))
     check(env.mod.viewFlagState.status === 'idle', '此时设置文档还没开始问（秒显与文件无关）。', env.mod.viewFlagState.status)
     check(env.mod.LOG_DEBUG_KEY === 'dsws.debug', '旧键名仍是字面 dsws.debug（门禁钉着的硬约束）。', env.mod.LOG_DEBUG_KEY)
   }
 
   // ── 第三件事：文件说开 → 以文件为准（内存、旧键快照、广播、宿主副本、采样率都跟文件走）──
   console.log('')
-  console.log('== 第三件事：文件里 debug.enabled 说开 → 以文件为准（旧键那一份不顶它） ==')
+  console.log('== 第三件事：文件里 debug.enabled 说开 → 以文件为准（快照那一份不顶它） ==')
   {
     const env = makeEnv({ tag: 'docwins', localStorage: { 'dsws.debug': JSON.stringify({ enabled: false, sampleRate: 1, rev: 2 }) } })
     const w = await store.writeLocalSettings(dbgDoc({ enabled: true, sampleRate: 0.25 }), env.home, realIo)
@@ -318,24 +324,24 @@ async function main() {
     check(env.mod.logSwitch.sampleRate === 0.25, '采样率也用文件里那个数（0.25，不是旧键里的 1）。', String(env.mod.logSwitch.sampleRate))
     check(env.broadcasts.n >= 1, '采纳后广播了一次（界面跟着重画）。', String(env.broadcasts.n))
     const push = lastCall(env, 'wf.logSetSwitch')
-    check(!!push && push.args.enabled === true && push.args.sampleRate === 0.25,
-      '真源被推给宿主那份副本，带的就是文件里的值（enabled true、sampleRate 0.25）。', JSON.stringify(push && push.args))
-    check(legacyOf(env) && legacyOf(env).enabled === true, '旧键被写成开，当这一趟的秒显快照。', JSON.stringify(legacyOf(env)))
+    check(!!push && push.args.enabled === true && !('sampleRate' in (push.args || {})),
+      '真源被推给宿主那份副本（enabled true；采样率的真源是文件，电话里不带死字段）。', JSON.stringify(push && push.args))
+    check(legacyOf(env) && legacyOf(env).enabled === true, '快照键被写成开，当这一趟的秒显。', JSON.stringify(legacyOf(env)))
     await quietAfter(env)
     check(callsOf(env, 'wf.setSettings').length === 0, '文件里已经是这个值 → 不往文件里写多余的东西（一次 wf.setSettings 都没有）。', String(callsOf(env, 'wf.setSettings').length))
     checkNoPending(env, '这一趟也没留下待写与排期（定时器已停、队列为空）。')
   }
 
-  // ── 第四件事：文件说关、旧键说开 → 认旧键（升级前用户的选择），并排队写回文件 ──
+  // ── 第四件事：文件说关、升级证据说开 → 认开，并把开排队写回文件 ──
   console.log('')
-  console.log('== 第四件事：文件说关、旧键说开 → 认开，并把开排队写回文件（先立后破） ==')
+  console.log('== 第四件事：文件说关、升级证据说开 → 认开，并把开排队写回文件（先立后破） ==')
   {
     const env = makeEnv({ tag: 'migrate', localStorage: { 'dsws.debug': JSON.stringify({ enabled: true, sampleRate: 0.5, rev: 4 }) } })
     await store.writeLocalSettings(dbgDoc({ enabled: false, sampleRate: 1 }), env.home, realIo)
     env.mod.settingsViewLoad()
     check(await ready(env), '读口就绪（文档到手，文件里说关）。')
-    check(env.mod.logSwitch.enabled === true, '文件说关、旧键说开 → 认开（升级前用户开着）。', String(env.mod.logSwitch.enabled))
-    check(env.mod.logSwitch.sampleRate === 0.5, '采样率跟证据那一份走（旧键里的 0.5，不是文件里归一后的默认 1）。', String(env.mod.logSwitch.sampleRate))
+    check(env.mod.logSwitch.enabled === true, '文件说关、升级证据说开 → 认开（升级前用户开着）。', String(env.mod.logSwitch.enabled))
+    check(env.mod.logSwitch.sampleRate === 0.5, '采样率跟证据那一份走（升级证据里的 0.5，不是文件里归一后的默认 1）。', String(env.mod.logSwitch.sampleRate))
     const push = lastCall(env, 'wf.logSetSwitch')
     check(!!push && push.args.enabled === true, '宿主副本被推成开（副本要跟上真源）。', JSON.stringify(push && push.args))
     const landed = await waitFor(async () => { const d = await readDoc(env.home); return !!d && d.debug && d.debug.enabled === true })
@@ -346,7 +352,7 @@ async function main() {
 
   // ── 第五件事：文件说关、旧键没见过、内存也是关 → 默认关，不写多余的东西 ──
   console.log('')
-  console.log('== 第五件事：文件说关、旧键没见过、内存也是关 → 默认关，不往文件里写多余的东西 ==')
+  console.log('== 第五件事：文件说关、升级证据没有、内存也是关 → 默认关，不往文件里写多余的东西 ==')
   {
     const env = makeEnv({ tag: 'noevidence' })
     await store.writeLocalSettings(dbgDoc({ enabled: false, sampleRate: 1 }), env.home, realIo)
@@ -369,23 +375,23 @@ async function main() {
     env.mod.settingsViewLoad()
     check(await ready(env), '读口就绪（文档到手）。')
     const nBefore = env.broadcasts.n
-    const legacyBefore = lsWrites(env, 'dsws.debug').length
+    const legacyBefore = lsWrites(env, SNAPSHOT_KEY).length
     const res = await env.mod.settingsDebugToggle(true, 1)
     check(!!res && res.ok === true && res.enabled === true && res.sampleRate === 1,
       '宿主拒绝写副本，但真源已经落地 → 回 ok: true（不把用户这一下判成失败）。', JSON.stringify(res))
     check(env.mod.logSwitch.enabled === true, '内存当场改成开（不等落盘）。', String(env.mod.logSwitch.enabled))
     check(env.broadcasts.n > nBefore, '广播了一次（界面跟着重画）。', String(env.broadcasts.n))
-    check(legacyOf(env) && legacyOf(env).enabled === true, '旧键写成开当秒显快照。', JSON.stringify(legacyOf(env)))
+    check(legacyOf(env) && legacyOf(env).enabled === true, '快照键写成开当秒显。', JSON.stringify(legacyOf(env)))
     const wrote = await waitWrite(env)
     check(wrote, '这一笔落进了设置文件（发生了 wf.setSettings）。', String(callsOf(env, 'wf.setSettings').length))
     const d = await readDoc(env.home)
     check(!!d && d.debug.enabled === true && d.debug.sampleRate === 1, '文件里的 debug 节是 {enabled: true, sampleRate: 1}。', JSON.stringify(d && d.debug))
     const push = lastCall(env, 'wf.logSetSwitch')
-    check(!!push && push.args.enabled === true && push.args.sampleRate === 1, '宿主副本被推成同一个值（副本只是副本）。', JSON.stringify(push && push.args))
+    check(!!push && push.args.enabled === true && !('sampleRate' in (push.args || {})), '宿主副本被推成同一个值（副本只是副本；采样率不走这趟电话）。', JSON.stringify(push && push.args))
     const fails = env.logged.filter((q) => q.event === 'host.call.fail' && q.fields && q.fields.method === 'wf.logSetSwitch')
     check(fails.length >= 1 && fails[fails.length - 1].fields.kind === 'set-switch-host-rejected',
       '宿主那一步失败记了一行 host.call.fail（method 与 kind 沿用包里的分档，不新增事件名）。', JSON.stringify(fails.length ? fails[fails.length - 1].fields : env.logged.map((q) => q.event)))
-    check(lsWrites(env, 'dsws.debug').length === legacyBefore + 1, '旧键这一趟只多写一次（写文件成功，旧键只当秒显快照）。', String(lsWrites(env, 'dsws.debug').length - legacyBefore))
+    check(lsWrites(env, SNAPSHOT_KEY).length === legacyBefore + 1, '快照键这一趟只多写一次（写文件成功，快照只当秒显用）。', String(lsWrites(env, SNAPSHOT_KEY).length - legacyBefore))
   }
 
   // ── 第七件事：文件这条路接不下 → 退回包里的老路（错误码原样）──
@@ -446,8 +452,8 @@ async function main() {
     check(await ready(env), '文档到手。')
     check(env.mod.logSwitch.enabled === true, '采纳以文件为准，把对账覆盖回来的「关」纠正成「开」。', String(env.mod.logSwitch.enabled))
     const push = lastCall(env, 'wf.logSetSwitch')
-    check(!!push && push.args.enabled === true && push.args.sampleRate === 0.25,
-      '推给宿主副本的是文件里那一份（enabled true、sampleRate 0.25）。', JSON.stringify(push && push.args))
+    check(!!push && push.args.enabled === true && !('sampleRate' in (push.args || {})),
+      '推给宿主副本的是文件里那一份开关（enabled true；采样率不走这趟电话）。', JSON.stringify(push && push.args))
   }
 
   // ── 第十件事：采样率越界不许写进文件（核会整份拒绝）──
@@ -487,7 +493,7 @@ async function main() {
     const dOff = await readDoc(env.home)
     check(!!dOff && dOff.debug.sampleRate === 1, '同一节的采样率也跟着这一下写成了 1（两格一起写，不留半份）。', JSON.stringify(dOff && dOff.debug))
     check(env.mod.logSwitch.enabled === false, '内存还是用户拨的关。', String(env.mod.logSwitch.enabled))
-    check(legacyOf(env) && legacyOf(env).enabled === false, '旧键快照也写成了关（开机秒显那一路跟着走）。', JSON.stringify(legacyOf(env)))
+    check(legacyOf(env) && legacyOf(env).enabled === false, '快照键也写成了关（开机秒显那一路跟着走）。', JSON.stringify(legacyOf(env)))
     // 这一档是「先造一笔、再撤干净」的那一种：上面刚查过两笔待写真的记下了，这里再查它们被「文档到手 → 落进
     //   文件」那一趟吃干净了。两句连起来才量得完整 —— 单看下面这一句区分不了「撤掉了」与「压根没造过」。
     await quietAfter(env)
@@ -545,15 +551,15 @@ async function main() {
     const env = makeEnv({ tag: 'idle-nodoc', getFail: true })
     const res = await env.mod.settingsDebugToggle(true, 0.5)
     check(!!res && res.ok === true && res.enabled === true, '文档问不到，老路照样把这一下接下来了（回的是开）。', JSON.stringify(res))
-    check(legacyOf(env) && legacyOf(env).enabled === true && legacyOf(env).sampleRate === 0.5,
-      '旧键快照里就是用户刚拨的那个值（这一下没有静默消失）。', JSON.stringify(legacyOf(env)))
+    check(legacyOf(env) && legacyOf(env).enabled === true,
+      '快照键里就是用户刚拨的那个值（这一下没有静默消失；快照只保开关，采样率以文件为准）。', JSON.stringify(legacyOf(env)))
     check(callsOf(env, 'wf.logSetSwitch').length >= 1, '宿主副本那条老电话收到了这一下。', String(callsOf(env, 'wf.logSetSwitch').length))
     check(env.logged.some((e) => e && e.event === 'host.call.fail' && e.fields && e.fields.method === 'wf.getSettings'),
       '文档问不到这件事有日志留痕（不静默），名字用的是既有的 host.call.fail。', JSON.stringify(env.logged.map((e) => e && e.event)))
     check(await waitFor(async () => env.mod.viewFlagState.status === 'unavailable'), '文档这条口子收在「问不到」那一档（不是一直挂着）。', env.mod.viewFlagState.status)
     const dNone = await readDoc(env.home)
     check(dNone === null, '没有凭空造出一份设置文件（问不到文档就不写文件）。', JSON.stringify(dNone))
-    check(lsWrites(env, 'dsws.debug').length >= 1, '旧键被写过（老路成功那一趟的快照，加上这一手兜底口子）。', String(lsWrites(env, 'dsws.debug').length))
+    check(lsWrites(env, SNAPSHOT_KEY).length >= 1, '快照键被写过（老路成功那一趟的快照，加上这一手兜底口子）。', String(lsWrites(env, SNAPSHOT_KEY).length))
   }
 
   // ── 第十四件事：半份文档当不了真源（拨动退回老路；写之前那次重读也不许拿它当基底）──
@@ -667,17 +673,17 @@ async function main() {
     check(fs.readFileSync(settingsPathIn(home), 'utf8') === rawBefore, '文件逐字节没变（只读这一档不许动它）。')
   }
 
-  // ── 第十六件事：旧键只在文件这条路接不下时才由本片兜底写 ──
+  // ── 第十六件事：快照键只在文件这条路接不下时才兜底写 ──
   console.log('')
-  console.log('== 第十六件事：旧键只在文件这条路接不下时才兜底写（接得下时不乱写） ==')
+  console.log('== 第十六件事：快照键只在文件这条路接不下时才兜底写（接得下时不乱写） ==')
   {
     const env = makeEnv({ tag: 'legacy-nofile', getFail: true, logSetRefuse: true })
     env.mod.settingsViewLoad()
     await ready(env)
-    const legacyBefore = lsWrites(env, 'dsws.debug').length
+    const legacyBefore = lsWrites(env, SNAPSHOT_KEY).length
     await env.mod.settingsDebugToggle(true, 1)
-    check(callsOf(env, 'wf.logSetSwitch').length >= 1 && lsWrites(env, 'dsws.debug').length === legacyBefore,
-      '老路失败这一档这一次拨动没有再写旧键（包里的老路只在成功时才写快照）。', String(lsWrites(env, 'dsws.debug').length - legacyBefore))
+    check(callsOf(env, 'wf.logSetSwitch').length >= 1 && lsWrites(env, SNAPSHOT_KEY).length === legacyBefore,
+      '老路失败这一档这一次拨动没有再写快照键（包里的老路只在成功时才写快照）。', String(lsWrites(env, SNAPSHOT_KEY).length - legacyBefore))
     const env2 = makeEnv({ tag: 'legacy-docgone', getFail: true, logSetRefuse: true })
     await store.writeLocalSettings(dbgDoc({ enabled: false, sampleRate: 1 }), env2.home, realIo)
     env2.mod.settingsViewLoad()
@@ -685,7 +691,7 @@ async function main() {
     env2.mod.settingsViewLoad()
     const took = env2.mod.settingsDebugLegacyWrite()
     check(took === true && legacyOf(env2) && legacyOf(env2).enabled === false,
-      '这一手兜底口子写得进旧键，写的是内存那一份（此处内存是关）。', JSON.stringify(legacyOf(env2)))
+      '这一手兜底口子写得进快照键，写的是内存那一份（此处内存是关）。', JSON.stringify(legacyOf(env2)))
   }
 
   // ── 第十七件事：不新增日志事件名（对着 #489 附录里的现行清单查，不改那个文件）──

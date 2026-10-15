@@ -5,8 +5,10 @@
  *   kernel:log 与 kernel:settingsTemplates 之后 —— 运行时那份日志内核在 npm 包 dsh-log 里（log.js 只是 #564 留而不搬的旧真源，改它既不进产物、
  *   还会让 verify-client-no-undef 变红）。本片与界面偏好、动作模板共用同一个待写队列与同一份文档。
  * 维护者 2026-10-12 拍板（#1012 评论 6113252694）：真源是本机设置文件 <用户主目录>/.dsh/mattskillsdeck/settings.yaml 的 debug 节
- *   { enabled, sampleRate }；宿主那份 log-switch.json 只是副本。旧键 dsws.debug 只剩两个用处：开机秒显的同步快照，以及「升级前
- *   用户选过什么」的线索。一条缺口：宿主副本眼下仍是「日志记不记」的实际闸门（src/host/logStore.js 的 isEnabled 只认它），副本没
+ *   { enabled, sampleRate }；宿主那份 log-switch.json 只是副本。本地开关快照（开机秒显用）走包的 persist，
+ *   日志包 0.3.x 起落在 dsws.debug.wf（包按插件标识派生键，不按前缀）；裸键 dsws.debug 只剩一个用处：「升级前
+ *   用户选过什么」的线索，加载那一刻搬一次（采样率一并带进证据，做法见 settingsDebugLegacy 头上那段迁移注释）。
+ *   一条缺口：宿主副本眼下仍是「日志记不记」的实际闸门（宿主那份 log-switch.json 副本），副本没
  *   接上就记不下调试行；改宿主不在本票范围，本片只能把结果回给界面（文案带限定语）并在下一次机会自己重推一次。
  *
  * 写这一侧：先写设置文件，写进去了就算成功（内存、旧键快照、广播，顺手把宿主副本推成一样）；这条路接不下（文档问不到、更高
@@ -28,15 +30,28 @@
     let settingsDebugPushBusy = false
     let settingsDebugPushNext = null
     let settingsDebugPushLast = Promise.resolve(true)
-    // 旧键在模块加载那一刻的样子：必须在包的 reconcileLogSwitch（它会用宿主副本覆盖旧键）之前读，否则读到的不是升级前的选择。
+    // 旧键在模块加载那一刻的样子：必须在包的 reconcileLogSwitch（它会用宿主副本覆盖本地）之前读，否则读到的不是升级前的选择。
+    // 存储键迁移（日志包 0.3.x）：开关从 dsws.debug 搬到 dsws.debug.wf（包的 debugStorageKey 按插件标识派生，本插件标识即 wf），
+    // 形状里也不再带 sampleRate。新键有值就认新键；新键没有、旧键有，才是刚升级——把旧选择搬过去（走包的 persist，
+    // 写出的形状与新版一致），采样率只留在这份证据里给设置文件采纳（包的新形状里没有它的位置，文件才是它此后的真源）。
+    // 旧键写坏了（不是一组名字→值）就当没见过：读新键的默认值，升级证据按「没见过」处理，不拿坏值顶掉文件。
     const settingsDebugLegacy = (function () {
       try {
         if (typeof localStorage === 'undefined' || !localStorage) return { seen: false, enabled: false, sampleRate: 1 }
-        const raw = localStorage.getItem(LOG_DEBUG_KEY)
-        if (!raw) return { seen: false, enabled: false, sampleRate: 1 }
+        const newKey = debugStorageKey('wf')
+        let migratedRate = null
+        try {
+          if (!localStorage.getItem(newKey)) {
+            const saved = JSON.parse(localStorage.getItem(LOG_DEBUG_KEY) || 'null')
+            if (saved && typeof saved === 'object' && !Array.isArray(saved)) {
+              if (typeof saved.sampleRate === 'number' && isFinite(saved.sampleRate) && saved.sampleRate >= 0 && saved.sampleRate <= 1) migratedRate = saved.sampleRate
+              persistLocalDebugSwitch({ enabled: saved.enabled === true })
+            }
+          }
+        } catch (eM) {}
+        if (!localStorage.getItem(newKey) && !localStorage.getItem(LOG_DEBUG_KEY)) return { seen: false, enabled: false, sampleRate: 1 }
         const v = readLocalDebugSwitch()
-        const r = v ? v.sampleRate : 1
-        return { seen: true, enabled: !!(v && v.enabled === true), sampleRate: (typeof r === 'number' && isFinite(r) && r >= 0 && r <= 1) ? r : 1 }
+        return { seen: true, enabled: !!(v && v.enabled === true), sampleRate: (migratedRate !== null) ? migratedRate : 1 }
       } catch (e) { return { seen: false, enabled: false, sampleRate: 1 } }
     })()
     // 队列里 debug 那两笔的记号：固定段名 + \u0000 + 格名（工作区路径里不可能出现 \u0000，三族记号不会撞上）。一笔的形状（待写、
@@ -141,8 +156,10 @@
     //   等下一次机会自己再推（settingsDebugRetryHost 与 adopt 开头那一趟）—— 副本跟不上不是用户的错，真源已经定了。在途去重
     //   （2026-10-12 复核第三轮建议 1）：最近一趟还在飞时不再发新电话，只留最后一趟等它落地再发 —— 慢宿主下每一帧都发会堆出
     //   好几趟同时在途、还带着新旧不同的值，谁先到全看回话顺序；返回链尾的 promise，排队那一趟拿到的是它自己那一趟的结果。
-    const settingsDebugPushToHost = function (on, rate) {
-      const want = { on: on === true, rate: rate }
+    //   发出去的只有 enabled 一格：宿主开关电话的契约就是 { enabled }（日志包 0.3.x 起多余字段直接忽略），采样率的真源
+    //   是设置文件，不在这趟电话里带死字段。
+    const settingsDebugPushToHost = function (on) {
+      const want = { on: on === true }
       if (settingsDebugPushBusy) { settingsDebugPushNext = want; return settingsDebugPushLast }
       settingsDebugPushBusy = true
       let p = null
@@ -150,7 +167,7 @@
         if (typeof host === 'undefined' || !host || typeof host.call !== 'function') {
           settingsDebugHostFailLog('host-unavailable', 'host-unavailable')
         } else {
-          const pending = host.call('wf.logSetSwitch', { enabled: want.on, sampleRate: want.rate })
+          const pending = host.call('wf.logSetSwitch', { enabled: want.on })
           if (!pending || typeof pending.then !== 'function') settingsDebugHostFailLog('host-unavailable', 'bad-reply')
           else p = pending.then(function (res) {
             if (res && res.ok === true) { settingsDebugHostStale = false; return true }
@@ -166,7 +183,7 @@
         settingsDebugPushBusy = false
         if (took !== true) settingsDebugHostStale = true
         const n = settingsDebugPushNext; settingsDebugPushNext = null
-        return n ? settingsDebugPushToHost(n.on, n.rate) : took === true
+        return n ? settingsDebugPushToHost(n.on) : took === true
       })
       return settingsDebugPushLast
     }
@@ -180,7 +197,7 @@
       } catch (e) {}
       settingsDebugLegacyWrite()
       try { if (typeof broadcastLogSwitch === 'function') broadcastLogSwitch() } catch (eB) {}
-      if (skipPush !== true) settingsDebugHostPush = settingsDebugPushToHost(next.enabled, next.sampleRate)
+      if (skipPush !== true) settingsDebugHostPush = settingsDebugPushToHost(next.enabled)
       return next
     }
     // 把这一份真源排队写进设置文件。返回值与 setViewFlag / setUiPref 同义：true ＝ 交给本机设置文件这条路了
@@ -290,7 +307,7 @@
     export const settingsDebugRetryHost = function () {
       try {
         if (!settingsDebugHostStale) return false
-        settingsDebugPushToHost(logSwitch.enabled === true, settingsDebugRateOf(logSwitch.sampleRate))
+        settingsDebugPushToHost(logSwitch.enabled === true)
         return true
       } catch (e) { return false }
     }
@@ -298,7 +315,7 @@
     //   之一（另一处是上面那个导出件：文档比拨动晚到时，那一趟就能把上一次没推上去的副本补上）。
     export const settingsDebugAdoptFromDoc = function () {
       try {
-        if (settingsDebugHostStale) settingsDebugPushToHost(logSwitch.enabled === true, settingsDebugRateOf(logSwitch.sampleRate))
+        if (settingsDebugHostStale) settingsDebugPushToHost(logSwitch.enabled === true)
         if (debugAdopted) return
         debugAdopted = true
         if (settingsDebugHasPending()) return

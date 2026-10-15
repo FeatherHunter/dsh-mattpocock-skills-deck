@@ -324,7 +324,7 @@ export default {
     harness.handle('wf.updateStatus', async function (args) { const h = await _update(); return h.handleUpdateStatus(args) })
     harness.handle('wf.updateCheck', async function (args) { const h = await _update(); return h.handleUpdateCheck(args) })
     harness.handle('wf.updateInstall', async function (args) { const h = await _update(); return h.handleUpdateInstall(args) })
-    harness.handle('wf.updateChangelog', async function (args) { const h = await _update(); return h.handleUpdateChangelog(args) })
+    harness.handle('wf.updateChangelog', async function (args) { const h = await _update(); return h.handleUpdateChangelog(args) }); harness.handle('wf.logAppend', async function (args) { const h = await _update(); return h.handleLogAppend(args) }) // 日志直追加与上句合一行：同属更新包同一份处理器表；本文件已顶三百五十行上限
     // 轮询已按 #348 Q3 关闭（60s 全量贴配额上限）：纯手动刷新 + 打开面板即刷，自动待 P1 再议。命名守护按 #709（T5）改事件驱动，
     // 下面这一次只做一次性铺垫（预热跟踪态、把攒下的脏账落盘），此后每一跳都由事件带起来，宿主侧没有自续定时器（由门禁守着）。缘由见账本 §8。
     _naming().then(function(h){ try { h.startNamingGuardianEvents() } catch (eEvents) {} }).catch(function(){})

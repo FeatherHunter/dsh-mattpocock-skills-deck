@@ -112,12 +112,14 @@ export async function __syncInstalledManifest({ moduleDir, targetVersion, io, lo
 }
 
 /**
- * 建四个电话的处理器（查状态 / 查新版 / 装更新 / 取更新日志）。
+ * 建五个电话的处理器（查状态 / 查新版 / 装更新 / 取更新日志 / 客户端日志行直追加）。
  * 入参与旧形状同名（deps.logCtx、deps.ctx、deps.readerOverrides），调用方与门禁都不用改；
  * 内部只是更新包的建能力入口，不传自定义安装执行，不挡包路由。
  * 装更新那条包一层验明正身（见 __syncInstalledManifest）：文件级安装不换身份证时，
  * 把身份证补成代码横幅里那个已装好的版本；平时无操作直通，安装回包原样返回。
  * 取更新日志那条原样直通，给面板日志章用（面板票 #876）。
+ * 日志直追加那条（0.17 新增）原样直通：更新面板把攒下的客户端日志行一次发过来，
+ * 包里验格式、验新鲜、记入更新事件表，调用方只传 rows 数组。
  */
 export function createUpdatePhoneHandlers(deps = {}) {
   const ctx = deps.ctx ?? null
@@ -135,7 +137,7 @@ export function createUpdatePhoneHandlers(deps = {}) {
       releaseChannel: UPDATE_RELEASE_CHANNEL,
     }
   )
-  // 更新包给的是「电话名 → 处理器」的表；调用方要的是四个具名入口，
+  // 更新包给的是「电话名 → 处理器」的表；调用方要的是五个具名入口，
   // 这里按键取出来，键名取自包自己拼的电话名，不另拼字符串。
   const rawInstall = holder.handlers[holder.phoneNames.updateInstall]
   const hereDir = dirname(fileURLToPath(import.meta.url))
@@ -151,13 +153,14 @@ export function createUpdatePhoneHandlers(deps = {}) {
       return result
     },
     handleUpdateChangelog: holder.handlers[holder.phoneNames.updateChangelog],
+    handleLogAppend: holder.handlers[holder.phoneNames.logAppend],
   }
   phonesKey = key
   return phones
 }
 
 /** 测试与门禁复位单例（正常运行不调用）。
- *  要复位两处：本文件缓存的四个处理器，以及更新包内部缓存的那个读取器。
+ *  要复位两处：本文件缓存的五个处理器，以及更新包内部缓存的那个读取器。
  *  只复位前者会留下一个隐患——换了假机器之后，包里的旧读取器还在，下一次调用仍复用它，
  *  于是「换一台机器重查」这种用例会拿到上一台的缓存结果（门禁实测踩到过：断网用例却回了成功）。 */
 export function __resetSharedUpdateReaderForTests() {

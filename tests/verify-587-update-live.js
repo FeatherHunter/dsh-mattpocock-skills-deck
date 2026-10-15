@@ -111,7 +111,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
   try { global.navigator = window.navigator } catch (e) {}
   if (typeof window.MutationObserver !== 'undefined') global.MutationObserver = window.MutationObserver
 
-  const snapOf = (over) => Object.assign({ runningVersion: '1.7.20', installedVersion: '1.7.20', latestVersion: '1.7.20', canInstall: false, blockedReason: null, job: null }, over)
+  const snapOf = (over) => Object.assign({ runningVersion: '1.7.20', installed: true, installedVersion: '1.7.20', latestVersion: '1.7.20', canInstall: false, blockedReason: null, job: null }, over)
   const mountWith = async (snapshot) => {
     const el = window.document.createElement('div')
     window.document.body.appendChild(el)

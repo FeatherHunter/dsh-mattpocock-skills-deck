@@ -57,7 +57,8 @@ async function main() {
     const res = await phones.handleUpdateStatus({})
     const keys = res && res.snapshot ? Object.keys(res.snapshot).sort() : []
     check(res && res.ok === true, '查状态成功返回（不联网）')
-    check(JSON.stringify(keys) === JSON.stringify(['blockedReason', 'canInstall', 'installedVersion', 'job', 'latestVersion', 'runningVersion'].sort()), '查状态快照恰好六字段（实际 ' + keys.join(',') + '）')
+    check(JSON.stringify(keys) === JSON.stringify(['blockedReason', 'canInstall', 'installed', 'installedVersion', 'job', 'latestVersion', 'runningVersion'].sort()), '查状态快照恰好七字段（实际 ' + keys.join(',') + '）')
+    check(typeof res.snapshot.installed === 'boolean', '新增的 installed 是布尔（装没装上，0.17 起有这一格）')
     check(!('checkId' in (res.snapshot || {})), '查状态快照里没有钥匙')
   }
   // 7b) 点了才联网：有新版时快照带出远端版本；单例让随后的查状态也能看到
