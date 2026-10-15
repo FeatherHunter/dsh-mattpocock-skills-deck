@@ -9,7 +9,8 @@
  *  - 无 `subIssues`/`blocking`：树边 = `parentKey`向上 + MapNode.tickets向下；`blocking`仅getDependencies投影。
  *  - GitLab原生支持 labels → `Issue.labels`恒存在，空→`[]`EMPTY（capability-by-fill）。
  *  - `Label={name,color,description?}` color无则''；milestone独立字段，有→对象，无→省略(MISSING)。
- *  - `parentKey`/`blockedBy`双路径：原生links/blocked_by优先→`Blocked by:`行回退。
+ *  - `parentKey` 只有一条真相：正文里的 `Part of #<地图号>` 声明行；
+ *    `blockedBy` 双路径：原生 `is_blocked_by` 优先 → `Blocked by:` 行回退。
  */
 
 import { STATE, ISSUE_TYPE } from '../../contract/vocabulary.js'
@@ -249,55 +250,52 @@ function deriveBlockedBy(raw: unknown): IssueRef[] {
   return []
 }
 
+// 子票归属的唯一真相：正文里的 `Part of #<地图号>` 声明行（模板 Wayfinding operations 第 42 行）。
+// 为什么不再看 links：`relates_to` 是对称的平级关联，列表行里分不出哪一头是父；
+// 按时间取最早一条是猜，不是读。旧的 `Parent: #iid` 自造关键词一并退役：没有任何模板会写它。
+const PART_OF_RE = /^Part of #(\d+)\s*$/m
+
+/** 从正文里读出 `Part of #<地图号>`；没有返回 null。 */
+export function parsePartOfLine(body: unknown): string | null {
+  if (typeof body !== 'string' || !body) return null
+  const m = body.match(PART_OF_RE)
+  if (!m) return null
+  return m[1] as string
+}
+
+/** 建出 `Part of #<地图号>` 那一行。 */
+export function buildPartOfLine(mapKey: string): string {
+  return `Part of #${mapKey}`
+}
+
+/**
+ * 把 `Part of #` 行写进正文最前面（幂等替换，不在才加）。
+ * 传 null 表示拆掉这一行（其余正文一个字不动）。
+ *
+ * 幂等锚是渲染后看不见的 HTML 注释行，按行扫描认得出来，
+ * 所以这一行固定放最前面不会影响建票幂等回查。
+ */
+export function rewriteDescriptionWithPartOf(oldBody: string | null | undefined, mapKey: string | null): string {
+  const body = oldBody || ''
+  if (mapKey === null) {
+    if (!PART_OF_RE.test(body)) return body
+    return body.replace(PART_OF_RE, '').replace(/^\n+/, '')
+  }
+  const line = buildPartOfLine(String(mapKey))
+  if (PART_OF_RE.test(body)) return body.replace(PART_OF_RE, line)
+  return line + (body ? '\n\n' + body : '')
+}
+
 function deriveParentKey(raw: unknown): string | null {
   const bag = asBag(raw)
-  // 原生 links 优先
-  let links: unknown = null
-  if (bag && Array.isArray(bag['links'])) links = bag['links']
-  else if (bag && Array.isArray(bag['related_issues'])) links = bag['related_issues']
-  else if (bag && Array.isArray(bag['linked_issues'])) links = bag['linked_issues']
-  if (Array.isArray(links) && (links as unknown[]).length > 0) {
-    const all = links as RawBag[]
-    const rel = all.filter((l) => {
-      const lb = asBag(l)
-      const t = lb ? lb['link_type'] || lb['linkType'] || '' : ''
-      return String(t).toLowerCase() === 'relates_to'
-    })
-    const pool = rel.length > 0 ? rel : all // 若无 relates_to，回落全部
-    if (pool.length > 0) {
-      // 最早 created_at 优先
-      let earliest = pool[0] as RawBag
-      for (const c of pool) {
-        const cb = asBag(c) as RawBag
-        const eb = asBag(earliest) as RawBag
-        const ea = (eb['created_at'] || eb['createdAt'] || '') as string
-        const ca = (cb['created_at'] || cb['createdAt'] || '') as string
-        if (ca && ea && ca < ea) earliest = c as RawBag
-        else if (ca && !ea) earliest = c as RawBag
-      }
-      const ek = asBag(earliest) as RawBag
-      const k =
-        ek['iid'] != null ? String(ek['iid']) : ek['key'] != null ? String(ek['key']) : ''
-      if (k) return k
-    }
-  }
-  // 回退：Parent: #iid
   const body =
     bag && typeof bag['description'] === 'string'
       ? (bag['description'] as string)
       : bag && typeof bag['body'] === 'string'
         ? (bag['body'] as string)
         : ''
-  if (typeof body === 'string' && body) {
-    const m = body.match(/^Parent:\s*(.+)$/m)
-    if (m) {
-      const rawRef = (m[1] as string).trim()
-      const mm = rawRef.match(/#(\d+)\s*$/)
-      if (mm) return mm[1] as string
-      const cleaned = rawRef.replace(/^#/, '').trim()
-      if (cleaned) return cleaned.split(',')[0]!.trim()
-    }
-  }
+  const declared = parsePartOfLine(body)
+  if (declared) return declared
   if (bag && typeof bag['parentKey'] === 'string') return bag['parentKey'] as string
   if (bag && bag['parentKey'] === null) return null
   return null

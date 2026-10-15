@@ -17,6 +17,7 @@
  * 只桩到「远端/进程」这一条边界，房里的判档、归一、回执组装全是真的在跑。
  *
  * ── 五条能力各自钉住什么（每条都带 ✗ 反例自证）────────────────────────────────
+ *   （2026-10-15 加第六条：阻塞上限制 —— 原生边真写、回退、读回核对、真实状态、环检。）
  *   1）`getCurrentUser`：问的是「当前登录人」那条命令（`glab api user`）一次；回的是身份标识
  *      （`login` 取回包的 `username`，不是显示名）与显示名；回包没说 bot 时 `kind` 必须省略；
  *      问不出来时如实失败，**不许编一个人**；仓库坐标认不出来时一个请求都不发。
@@ -24,11 +25,10 @@
  *      Guest(10) 两个 false、Planner(15) 能整理票不能推、Reporter(20) 同上、
  *      Security Manager(25) 同上、Developer(30) 能推；两格都有时取高的那一档；
  *      拿不到档位（没有 `permissions`、两格都 null）时如实失败，**不许拿 false 顶上**。
- *   3）`listSubIssues`：读的是**平级链接资源**（`.../issues/7/links`）；只算 `link_type === 'relates_to'`
- *      的行（`blocks` 既不算子票也不算 dropped，连明细都不去读）；逐行回读明细用的是列表行的
- *      `issue_link_id`（不是 `id`）；对面在 `source_issue` 才算子票，在 `target_issue` 的是地图自己的父票
- *      （不画、也不算 dropped）；分不出方向的记 `dropped`；一行都没能算进去时如实失败，
- *      **不许回一张空表**（「读不出来」与「真的没有子票」必须长得不一样）。
+ *   3）`listSubIssues`：读的是**翻页列表**（`.../issues?per_page=100&page=N`），子票的唯一判据是正文里的
+ *      `Part of #<地图>` 声明行；没写这一行的（@ 了地图、别家地图的子票）不画；缺编号、形状不对、归一抛错的
+ *      记 `dropped`；有候选行却一行都没能算进去时如实失败，**不许回一张空表**（「读不出来」与「真的没有子票」
+ *      必须长得不一样）；links 表一次都不碰（`relates_to` 是对称的平级关联，分不出谁是父）。
  *   4）`initProject`：按名字与可见性建仓，两个可见性值都真的出现在发出去的命令里（省略时显式 `--private`）；
  *      回执是合 `RepositoryRef` 的（`name` 等于全路径 `refId`，与 `describe` 同一口径）；
  *      远端建完之后本地那两步（配 origin、push）失败时**如实失败**并说清「远端仓库已经建好了」；
@@ -40,7 +40,7 @@
  * ── 反例（✗ probe）怎么自证 ──────────────────────────────────────────────────
  * 五条能力各配一个**检查器**（下面那几个具名导出）：检查器接收「一次调用的结果」，返回违规清单，
  * 空清单 = 这一趟合规。正例是「拿真结果喂检查器 → 清单为空」；✗ 反例是「把故意做坏的样本喂给同一个
- * 检查器 → 清单必须非空」，坏样本就是审查报告点名的那些坏法：只取前两段路径、按 `id` 查明细、
+ * 检查器 → 清单必须非空」，坏样本就是审查报告点名的那些坏法：只取前两段路径、把没写声明行的票算进来、
  * 拿旧门槛 20 判 triage、把 read 不出来画成空表/假成功/编一个人等等。
  *
  * ── getRepoPermissions 的档位依据（一手来源，2026-10-15 本机实拉）───────────────
@@ -57,8 +57,9 @@
  *     真的建仓/推送的副作用，本段都判不了；
  *   · `?simple=true` 这个参数在单项目接口上到底认不认（源码级已核实、没真发过请求）—— 本段只钉
  *     「问的是这个项目的这条路径」，不钉远端怎么回；
- *   · 人手工在界面上加的「关联」链接与程序写下的链接在远端长得一样，这一段按房的既有约定判读，
- *     判不了「手工链接该不该算子票」。
+ *   · 人手工在界面上加的「关联」链接与程序写下的链接在远端长得一样 —— 但归属判据只有正文里的
+ *     `Part of #<地图>` 声明行，links 表一次都不认，所以「手工链接该不该算子票」这个问题已经不存在，
+ *     本段只钉「没写声明行的票不画」。
  */
 
 import * as nodePath from 'node:path'
@@ -444,83 +445,62 @@ export async function run() {
     )
   }
 
-  // ── 三、listSubIssues：读的是平级链接资源，方向分不出来记 dropped、一行都算不进去就失败 ──
+  // ── 三、listSubIssues：翻页扫仓、只认正文里的 `Part of #<地图>` 声明行，links 表一次都不碰 ──
   {
     const MAP_KEY = '7'
-    // 五行各代表一种情形（顺序即调用顺序）：
-    //   9001 方向是 peer（对面在 source_issue）→ 画出来
-    //   9002 方向是 parent（对面在 target_issue）→ 是地图自己的父票，不画、也不算 dropped
-    //   9003 link_type 是 blocks（不是 relates_to，且没写 link_type 时按接口默认值 relates_to 办）→ 跳过
-    //   55   只有列表行的 id、没有 issue_link_id → 拿不到链接编号，记 dropped
-    //   9005 没写 link_type → 按接口默认值 relates_to 办 → 画出来
-    const LINKS = [
-      { iid: 21, project_id: 100, link_type: 'relates_to', issue_link_id: 9001, title: '子票甲', state: 'opened', description: '' },
-      { iid: 30, project_id: 100, link_type: 'relates_to', issue_link_id: 9002, title: '地图自己的父票', state: 'opened', description: '' },
-      { iid: 40, project_id: 100, link_type: 'blocks', issue_link_id: 9003, title: '阻塞票（不是子票）', state: 'opened', description: '' },
-      { iid: 55, id: 55, project_id: 100, link_type: 'relates_to', title: '缺链接编号的行', state: 'opened', description: '' },
-      { iid: 22, project_id: 100, issue_link_id: 9005, title: '没写 link_type 的行', state: 'opened', description: '' },
+    const LIST_PAGE1 = 'projects/acme%2Fdemo/issues?per_page=100&page=1&with_labels_details=true'
+    // 五行各代表一种情形（顺序即列表接口的返回顺序）：
+    //   21 写了 `Part of #7` → 画出来
+    //   30 正文里 @ 了地图、但没写声明行 → 不是子票，不画
+    //   40 写的是别家地图的声明行（`Part of #9`）→ 不画
+    //   缺编号那行（只有 id、没有 iid）→ 算不进去，记 dropped
+    //   22 只有幂等锚、声明行与一行正文 → 照样认（判据只看声明行，不看正文多少）
+    const ROWS = [
+      { iid: 21, title: '子票甲', state: 'opened', description: 'Part of #7\n\n子票甲的正文', labels: ['wayfinder:task'] },
+      { iid: 30, title: '只是 @ 了地图', state: 'opened', description: '这里 @ 了 #7，但没写声明行', labels: [] },
+      { iid: 40, title: '别家地图的子票', state: 'opened', description: 'Part of #9\n\n归属是另一张地图', labels: ['wayfinder:task'] },
+      { id: 55, title: '缺编号的行', state: 'opened', description: 'Part of #7\n\n编号这一格是空的' },
+      { iid: 22, title: '只有声明行', state: 'opened', description: '<!-- DSH-IDEMPOTENCY-KEY: k22 -->\nPart of #7' },
     ]
-    // 明细里 source_issue 是「认地图为父」的那一头（房的写路径永远 POST 到子票那一头）。
-    const PEER_DETAIL = (iid) => JSON.stringify({ source_issue: { iid: iid, project_id: 100 }, target_issue: { iid: 7, project_id: 100 } })
-    const PARENT_DETAIL = JSON.stringify({ source_issue: { iid: 7, project_id: 100 }, target_issue: { iid: 30, project_id: 100 } })
-    const linksPath = 'projects/acme%2Fdemo/issues/7/links'
 
     const script = (cmd, args) => {
       if (cmd !== 'glab' || args[0] !== 'api') return { code: 1, stdout: '', stderr: 'probe 没脚本化: ' + cmd + ' ' + args.join(' ') }
       const path = String(args[1] || '')
-      if (path === linksPath) return { code: 0, stdout: JSON.stringify(LINKS), stderr: '' }
-      if (path === linksPath + '/9001') return { code: 0, stdout: PEER_DETAIL(21), stderr: '' }
-      if (path === linksPath + '/9002') return { code: 0, stdout: PARENT_DETAIL, stderr: '' }
-      if (path === linksPath + '/9005') return { code: 0, stdout: PEER_DETAIL(22), stderr: '' }
-      // 下面两条是给「做坏了的实现」准备的：真去读 blocks 行、或真拿列表行的 id 当链接编号，
-      // 就会查到这里，并因此多画出一张子票（40 / 55），检查器随即逮住。
-      if (path === linksPath + '/9003') return { code: 0, stdout: PEER_DETAIL(40), stderr: '' }
-      if (path === linksPath + '/55') return { code: 0, stdout: PEER_DETAIL(55), stderr: '' }
-      return { code: 1, stdout: '', stderr: 'probe 没脚本化这条链接明细: ' + path }
+      if (path === LIST_PAGE1) return { code: 0, stdout: JSON.stringify(ROWS), stderr: '' }
+      // 第一页没装满就停了，正常走不到第二页；备一条空页，免得实现翻页时掉进未脚本化。
+      if (path.indexOf('issues?per_page=') >= 0) return { code: 0, stdout: '[]', stderr: '' }
+      return { code: 1, stdout: '', stderr: 'probe 没脚本化这条列表页: ' + path }
     }
 
     const sc = scriptedCtx({ script })
     const r = await withGitlabTracker((t) => t.listSubIssues(GL_REPO, MAP_KEY, undefined, sc.ctx))
     const expect = { keys: ['21', '22'], dropped: 1 }
     await assert(
-      'listSubIssues：只画「对面在 source_issue」的行；地图自己的父票不画、也不算 dropped；缺链接编号的行记 dropped',
+      'listSubIssues：只画写着 `Part of #7` 的行；@ 了地图、别家地图的子票都不画；缺编号的行记 dropped',
       subIssuesCheck(r, expect).length === 0,
       subIssuesCheck(r, expect).join('；') || JSON.stringify(r).slice(0, 500),
     )
-    const detailIds = sc.calls.filter((c) => c.indexOf('/links/') >= 0).map((c) => c.slice(c.indexOf('/links/') + 7))
     await assert(
-      'listSubIssues：读的是平级链接资源，逐行回读明细用的是列表行的 issue_link_id（不是 id）',
-      sc.calls[0] === 'glab api ' + linksPath &&
-        JSON.stringify(detailIds) === JSON.stringify(['9001', '9002', '9005']),
-      JSON.stringify(sc.calls),
-    )
-    await assert(
-      'listSubIssues：不是 relates_to 的行（blocks）既不画也不算 dropped —— 连明细都不去读',
-      sc.calls.filter((c) => c.indexOf('/links/9003') >= 0).length === 0 &&
-        sc.calls.filter((c) => c.indexOf('/links/55') >= 0).length === 0,
+      'listSubIssues：走的是翻页列表接口，links 表一次都不碰（对称的平级关联分不出谁是父）',
+      sc.calls.length === 1 && sc.calls[0] === 'glab api ' + LIST_PAGE1,
       JSON.stringify(sc.calls),
     )
 
-    // ✗ 反例：同一个检查器对上四种做坏了的结论，必须都非空。
+    // ✗ 反例：同一个检查器对三种做坏了的结论，必须都非空。
     const sample = r.ok ? r.data : {}
     const doctored = (patch) => ({ ok: true, data: Object.assign({}, sample, patch) })
     await assert(
-      '✗ probe: 把 blocks 行也算成子票的结论必须被逮住',
-      subIssuesCheck(doctored({ items: [{ key: '21' }, { key: '22' }, { key: '40' }] }), expect).length > 0,
-      '检查器放过了不是 relates_to 的行',
-    )
-    await assert(
-      '✗ probe: 把地图自己的父票也算成子票的结论必须被逮住',
+      '✗ probe: 把没写声明行的票（30）也算成子票的结论必须被逮住',
       subIssuesCheck(doctored({ items: [{ key: '21' }, { key: '22' }, { key: '30' }] }), expect).length > 0,
-      '检查器放过了方向是 parent 的那一头',
+      '检查器放过了没写声明行的行',
     )
     await assert(
-      '✗ probe: 拿列表行的 id 当链接编号（多画一张 55）的结论必须被逮住',
-      subIssuesCheck(doctored({ items: [{ key: '21' }, { key: '22' }, { key: '55' }] }), expect).length > 0,
-      '检查器放过了按 id 查出来的行',
+      '✗ probe: 把别家地图的子票（40）也算进来的结论必须被逮住',
+      subIssuesCheck(doctored({ items: [{ key: '21' }, { key: '22' }, { key: '40' }] }), expect).length > 0,
+      '检查器放过了归属别家地图的行',
     )
     await assert(
-      '✗ probe: 把方向分不出来的行抹掉（dropped 记 0）的结论必须被逮住',
+      '✗ probe: 把缺编号的行抹掉（dropped 记 0）的结论必须被逮住',
       subIssuesCheck(doctored({ dropped: 0 }), expect).length > 0,
       '检查器放过了被抹掉的 dropped',
     )
@@ -529,11 +509,8 @@ export async function run() {
     const undecidableSc = scriptedCtx({
       script: (cmd, args) => {
         const path = String((args || [])[1] || '')
-        if (cmd === 'glab' && path === linksPath) {
-          return { code: 0, stdout: JSON.stringify([{ iid: 21, project_id: 100, link_type: 'relates_to', issue_link_id: 9004, title: '分不出方向的行', state: 'opened' }]), stderr: '' }
-        }
-        if (cmd === 'glab' && path.indexOf('/9004') >= 0) {
-          return { code: 0, stdout: JSON.stringify({ note: '明细里没有 source_issue / target_issue' }), stderr: '' }
+        if (cmd === 'glab' && path.indexOf('issues?per_page=') >= 0) {
+          return { code: 0, stdout: JSON.stringify([{ id: 1, title: '没编号' }, { id: 2, title: '也没编号' }]), stderr: '' }
         }
         return { code: 1, stdout: '', stderr: 'probe 没脚本化: ' + cmd + ' ' + (args || []).join(' ') }
       },
@@ -550,15 +527,15 @@ export async function run() {
       '检查器把「读不出来」当成了「没有子票」',
     )
 
-    // 真的没有关联行 → 照常回空表，这不是失败（与上一条正好是一对）。
+    // 真的没有子票（仓里一张都没写声明行）→ 照常回空表，这不是失败（与上一条正好是一对）。
     const emptySc = scriptedCtx({
-      script: (cmd, args) => (cmd === 'glab' && String((args || [])[1] || '') === linksPath
-        ? { code: 0, stdout: '[]', stderr: '' }
+      script: (cmd, args) => (cmd === 'glab' && String((args || [])[1] || '').indexOf('issues?per_page=') >= 0
+        ? { code: 0, stdout: JSON.stringify([{ iid: 1, title: '路人票', state: 'opened', description: '普通正文' }]), stderr: '' }
         : { code: 1, stdout: '', stderr: 'probe 没脚本化: ' + cmd + ' ' + (args || []).join(' ') }),
     })
     const none = await withGitlabTracker((t) => t.listSubIssues(GL_REPO, MAP_KEY, undefined, emptySc.ctx))
     await assert(
-      'listSubIssues：真的没有关联行时照常回空表（「没有子票」不是失败）',
+      'listSubIssues：仓里没有一张写声明行时照常回空表（「没有子票」不是失败）',
       subIssuesCheck(none, { keys: [], dropped: 0 }).length === 0,
       subIssuesCheck(none, { keys: [], dropped: 0 }).join('；') || JSON.stringify(none).slice(0, 300),
     )
@@ -837,7 +814,236 @@ export async function run() {
     )
   }
 
-  // ── 六、这一段故意不判的东西（与文件头那段是同一件事，放在收尾便于读）──
+  // ── 六、阻塞上限路径：原生边真写、没能力回退正文行、两条路写后都读回核对、状态逐张落实、环检共用同一道门 ──
+  //   桩里那台假 GitLab：票只能从这张表里来（对端状态落实、环检沿边展开都要读它），links 行带 issue_link_id
+  //   （删边只能拿这个编号，真 GitLab 的回包里有它，没有它删不掉 —— 房里拿不到编号时如实失败，不拿 id 顶）。
+  {
+    const BASE = 'projects/acme%2Fdemo/issues'
+    const PREMIUM_MSG = 'Blocked issues not available for current license'
+    function makeStore(tickets, opts) {
+      const o = opts || {}
+      const T = new Map()
+      for (const t of tickets) {
+        T.set(String(t.iid), {
+          iid: t.iid, title: t.title, state: t.state || 'opened',
+          description: t.description || '',
+          links: (t.links || []).map((l) => Object.assign({}, l)),
+        })
+      }
+      let nextLinkId = 9000
+      const row = (t) => ({
+        iid: t.iid, title: t.title, state: t.state, description: t.description,
+        labels: [], updated_at: '2026-10-15T00:00:00Z', web_url: 'https://gitlab.example/acme/demo/-/issues/' + t.iid,
+      })
+      const fval = (args, name) => {
+        for (let i = 0; i < args.length; i++) {
+          if (args[i] === '-f' && String(args[i + 1] || '').indexOf(name + '=') === 0) return String(args[i + 1]).slice(name.length + 1)
+        }
+        return ''
+      }
+      const script = (cmd, args) => {
+        if (cmd !== 'glab' || args[0] !== 'api') return { code: 1, stdout: '', stderr: 'probe 没脚本化: ' + cmd + ' ' + (args || []).join(' ') }
+        const path = String(args[1] || '')
+        const method = args.indexOf('--method') >= 0 ? String(args[args.indexOf('--method') + 1]) : 'GET'
+        let m = new RegExp('^' + BASE + '/(\\d+)/links/(\\d+)$').exec(path)
+        if (m && method === 'DELETE') {
+          const t = T.get(m[1])
+          if (!t) return { code: 1, stdout: '', stderr: '404 Issue Not Found' }
+          const at = t.links.findIndex((l) => String(l.issue_link_id) === m[2])
+          if (at < 0) return { code: 1, stdout: '', stderr: '404 Link Not Found' }
+          t.links.splice(at, 1)
+          return { code: 0, stdout: '{}', stderr: '' }
+        }
+        m = new RegExp('^' + BASE + '/(\\d+)/links$').exec(path)
+        if (m) {
+          const t = T.get(m[1])
+          if (!t) return { code: 1, stdout: '', stderr: '404 Issue Not Found' }
+          if (o.links403) return { code: 1, stdout: '', stderr: '403 ' + PREMIUM_MSG }
+          if (method === 'POST') {
+            const target = fval(args, 'target_issue_iid')
+            const type = fval(args, 'link_type') || 'relates_to'
+            const link = { issue_link_id: ++nextLinkId, iid: Number(target), link_type: type }
+            t.links.push(link)
+            return { code: 0, stdout: JSON.stringify({ issue_link_id: link.issue_link_id }), stderr: '' }
+          }
+          if (o.lyingReadback) return { code: 0, stdout: '[]', stderr: '' }
+          return { code: 0, stdout: JSON.stringify(t.links), stderr: '' }
+        }
+        m = new RegExp('^' + BASE + '/(\\d+)(\\?|$)').exec(path)
+        if (m) {
+          const t = T.get(m[1])
+          if (!t) return { code: 1, stdout: '', stderr: '404 Issue Not Found' }
+          if (method === 'PUT') {
+            const desc = fval(args, 'description')
+            t.description = desc
+            const echoed = row(t)
+            if (o.dropDescriptionEcho) delete echoed.description
+            return { code: 0, stdout: JSON.stringify(echoed), stderr: '' }
+          }
+          return { code: 0, stdout: JSON.stringify(row(t)), stderr: '' }
+        }
+        if (path.indexOf(BASE + '?') === 0) return { code: 0, stdout: JSON.stringify([...T.values()].map(row)), stderr: '' }
+        return { code: 1, stdout: '', stderr: 'probe 没脚本化这条路径: ' + path }
+      }
+      return { script, get: (iid) => T.get(String(iid)) }
+    }
+    const writesOf = (sc) => sc.calls.filter((c) => c.indexOf('--method') >= 0)
+
+    // A. 原生加上两条：两次 POST 都是 is_blocked_by，一次 PUT 都没有；返回的阻塞带真实标题与真实开关。
+    {
+      const store = makeStore([
+        { iid: 1, title: '被阻塞的票', description: '正文' },
+        { iid: 2, title: '阻塞者甲', state: 'opened', description: '' },
+        { iid: 3, title: '阻塞者乙', state: 'closed', description: '' },
+      ])
+      const sc = scriptedCtx({ script: store.script })
+      const r = await withGitlabTracker((t) => t.setBlockedBy(GL_REPO, '1', ['2', '3'], null, sc.ctx))
+      const refs = r.ok ? r.data.blockedBy : null
+      await assert(
+        'setBlockedBy：原生可达时逐条 POST is_blocked_by（两次），一次 PUT 都不发',
+        r.ok === true && writesOf(sc).length === 2 && writesOf(sc).every((c) => c.indexOf('link_type=is_blocked_by') >= 0),
+        JSON.stringify(writesOf(sc)),
+      )
+      await assert(
+        'setBlockedBy：原生写后读回对上才算成功，返回的阻塞带对端的真实标题与真实开关（开着/已关）',
+        refs !== null && refs.length === 2 && refs[0].key === '2' && refs[0].title === '阻塞者甲' && refs[0].state === 'open' &&
+          refs[1].key === '3' && refs[1].title === '阻塞者乙' && refs[1].state === 'closed',
+        JSON.stringify(refs),
+      )
+      await assert(
+        '✗ probe: 少 POST 一条（只加上一条阻塞）却报成功的结论必须被逮住',
+        writesOf(sc).length !== 1,
+        '检查器数不清 POST 的条数',
+      )
+    }
+
+    // B. 原生删掉一条：DELETE 拿的是链接自己的编号（issue_link_id），不是两头票的编号。
+    {
+      const store = makeStore([
+        { iid: 1, title: '被阻塞的票', description: '' },
+        { iid: 2, title: '阻塞者甲', description: '' },
+      ])
+      store.get(1).links.push({ issue_link_id: 9001, iid: 2, link_type: 'is_blocked_by' })
+      const sc = scriptedCtx({ script: store.script })
+      const r = await withGitlabTracker((t) => t.setBlockedBy(GL_REPO, '1', [], null, sc.ctx))
+      await assert(
+        'setBlockedBy：删原生边调的是 links/<issue_link_id>（9001），不是票编号',
+        r.ok === true && r.data.blockedBy.length === 0 && writesOf(sc).length === 1 && writesOf(sc)[0].indexOf('/links/9001') >= 0,
+        JSON.stringify(writesOf(sc)),
+      )
+      await assert(
+        '✗ probe: 拿票编号当链接编号删（/links/2）的实现，在这台桩上删不掉、必须失败',
+        writesOf(sc).every((c) => c.indexOf('/links/2 ') < 0 && c.indexOf('/links/2 --') < 0),
+        JSON.stringify(writesOf(sc)),
+      )
+    }
+
+    // C. 没能力（403 点名要 Premium）→ 滚回干净 → 正文行回退：PUT 的正文用真换行，多行正文不断行。
+    {
+      const store = makeStore([
+        { iid: 1, title: '被阻塞的票', description: '第一行\n\n第三行' },
+        { iid: 2, title: '阻塞者甲', description: '' },
+      ], { links403: true })
+      const sc = scriptedCtx({ script: store.script })
+      const r = await withGitlabTracker((t) => t.setBlockedBy(GL_REPO, '1', ['2'], null, sc.ctx))
+      const putBody = store.get(1).description
+      await assert(
+        'setBlockedBy：远端说没能力时滑进正文行回退（一次 POST 都没有，一次 PUT 写行）',
+        r.ok === true && writesOf(sc).length === 1 && writesOf(sc)[0].indexOf('--method PUT') >= 0 &&
+          writesOf(sc).every((c) => c.indexOf('--method POST') < 0),
+        JSON.stringify(writesOf(sc)),
+      )
+      await assert(
+        'setBlockedBy：回退写行用真换行（行是 `Blocked by: #2`，后面跟原来的多行正文，不出现字面反斜杠 n）',
+        putBody.indexOf('Blocked by: #2\n\n第一行\n\n第三行') === 0 && putBody.indexOf('\\n') < 0,
+        JSON.stringify(putBody),
+      )
+    }
+
+    // D. 原生加上了、读回却对不上（远端撒谎）→ 如实失败，且不许滑进正文行（盘上已经动了，写行会留双份）。
+    {
+      const store = makeStore([
+        { iid: 1, title: '被阻塞的票', description: '' },
+        { iid: 2, title: '阻塞者甲', description: '' },
+      ], { lyingReadback: true })
+      const sc = scriptedCtx({ script: store.script })
+      const r = await withGitlabTracker((t) => t.setBlockedBy(GL_REPO, '1', ['2'], null, sc.ctx))
+      await assert(
+        'setBlockedBy：写后读回对不上时如实失败（不把写丢了包装成成功）',
+        honestFailureCheck(r).length === 0 && /读回|readback|mismatch/i.test(r.error.message),
+        JSON.stringify(r).slice(0, 300),
+      )
+      await assert(
+        'setBlockedBy：读回对不上时不许滑进正文行回退（一次 PUT 都没有）',
+        writesOf(sc).every((c) => c.indexOf('--method PUT') < 0),
+        JSON.stringify(writesOf(sc)),
+      )
+    }
+
+    // E. 成环拦：2 号票的原生边指着 1 号，再让 1 号阻塞于 2 号 → conflict，一个写请求都不发。
+    {
+      const store = makeStore([
+        { iid: 1, title: '票一', description: '' },
+        { iid: 2, title: '票二', description: '' },
+      ])
+      store.get(2).links.push({ issue_link_id: 9001, iid: 1, link_type: 'is_blocked_by' })
+      const sc = scriptedCtx({ script: store.script })
+      const r = await withGitlabTracker((t) => t.setBlockedBy(GL_REPO, '1', ['2'], null, sc.ctx))
+      await assert(
+        'setBlockedBy：原生边织成的环也拦得住（1 ← 2 再连 2 → 1 成环，回 conflict）',
+        r.ok === false && r.error.kind === 'conflict' && /成环|环|cycle/i.test(r.error.message),
+        JSON.stringify(r).slice(0, 300),
+      )
+      await assert(
+        'setBlockedBy：拦下成环时一个写请求都不发（读可以读，写一次都不许）',
+        writesOf(sc).length === 0,
+        JSON.stringify(writesOf(sc)),
+      )
+    }
+
+    // F. 读：原生边优先，relates_to 不算阻塞；行里没写开关的逐张取对端，取不到的按开着记（保守方向）。
+    {
+      const store = makeStore([
+        { iid: 1, title: '被阻塞的票', description: 'Blocked by: #9' },
+        { iid: 2, title: '阻塞者甲', state: 'closed', description: '' },
+        { iid: 5, title: '关联票（不是阻塞）', description: '' },
+      ])
+      store.get(1).links.push({ issue_link_id: 9001, iid: 2, link_type: 'is_blocked_by' })
+      store.get(1).links.push({ issue_link_id: 9002, iid: 5, link_type: 'relates_to' })
+      store.get(1).links.push({ issue_link_id: 9003, iid: 9, link_type: 'is_blocked_by' })
+      const sc = scriptedCtx({ script: store.script })
+      const r = await withGitlabTracker((t) => t.getDependencies(GL_REPO, '1', null, sc.ctx))
+      const refs = r.ok ? r.data.blockedBy : null
+      await assert(
+        'getDependencies：原生边优先（正文行被忽略）；relates_to 不算阻塞；已关的对端如实记 closed',
+        refs !== null && refs.length === 2 && refs[0].key === '2' && refs[0].title === '阻塞者甲' && refs[0].state === 'closed' &&
+          refs[1].key === '9' && refs[1].title === '#9' && refs[1].state === 'open',
+        JSON.stringify(refs),
+      )
+      await assert(
+        '✗ probe: 把 relates_to 也算成阻塞的结论必须被逮住（5 号票是关联，不是阻塞）',
+        refs !== null && refs.every((b) => b.key !== '5'),
+        JSON.stringify(refs),
+      )
+    }
+
+    // G. 回退写丢了（PUT 回显里没正文）→ 如实失败，不把写丢包装成成功。
+    {
+      const store = makeStore([
+        { iid: 1, title: '被阻塞的票', description: '正文' },
+        { iid: 2, title: '阻塞者甲', description: '' },
+      ], { links403: true, dropDescriptionEcho: true })
+      const sc = scriptedCtx({ script: store.script })
+      const r = await withGitlabTracker((t) => t.setBlockedBy(GL_REPO, '1', ['2'], null, sc.ctx))
+      await assert(
+        'setBlockedBy：回退 PUT 回显里没有正文（要写的阻塞丢了）时如实失败',
+        honestFailureCheck(r).length === 0 && /missing|readback|回/i.test(r.error.message),
+        JSON.stringify(r).slice(0, 300),
+      )
+    }
+  }
+
+  // ── 七、这一段故意不判的东西（与文件头那段是同一件事，放在收尾便于读）──
   //   全部断言跑的都是脚本化的命令行：真 GitLab 实例上的回包形状、真建仓与真推送的副作用、
   //   真机上各档角色的 `permissions`，这一段一条都判不了 —— 那是远端行为，不是实现行为。
 

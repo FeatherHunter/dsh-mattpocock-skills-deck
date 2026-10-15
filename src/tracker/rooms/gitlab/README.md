@@ -22,19 +22,19 @@
 
 `repo.refId` 形如 `group/sub/project`，可以有好几层。往 API 路径里拼之前一律 `encodeURIComponent`。`repo.ts` 的 `getRepoKey` 就是干这个的：从 git remote 解析，认不出就退到 `.git/config`，再退到 `glab repo view`。
 
-### 3. 本房走的这条 REST 路拿不到层级边，父子关系落成平级链接
+### 3. 父子关系落在票正文的 `Part of #<地图>` 声明行，不是远端原生层级
 
-GitLab 平台本身有原生的父子层级：官方文档的「Child items」一页整页在讲这件事（`Tier: Free, Premium, Ultimate`，任务可以作为子条目挂在议题下面，epic 下面也能挂议题）。**层级不在本房走的这条路上**：那条路叫 work items，入口是界面与 GraphQL。本房取数一律走 `glab api` 的 REST `issue links` 接口，而这个接口的 `link_type` 只有 `relates_to`、`blocks`、`is_blocked_by` 三种，没有表示层级的那一个值。所以：
+GitLab 平台本身有原生的父子层级：官方文档的「Child items」一页整页在讲这件事（`Tier: Free, Premium, Ultimate`，任务可以作为子条目挂在议题下面，epic 下面也能挂议题）。**层级不在本房走的这条路上**：那条路叫 work items，入口是界面与 GraphQL。本房取数一律走 `glab api` 的 REST 接口。所以：
 
-- `setParent` 落下去的是一条 `relates_to` **平级链接**，不是层级。
-- `listSubIssues` 读的也是这条链接（见 `sub-issues.ts` 的文件头，那里写了结论与依据）。
-- `relates_to` 是对称的：**人手工加的链接与程序写下的父子分不出来**。拿回来的东西能画关系，但别当成原生层级用，也别对用户说「这是它的子票」而不加限定。
+- `setParent` 落下去的是票正文顶部的 `Part of #<地图>` **声明行**（建票时带 `parentKey` 直接写进去），不是任何 links，更不是层级。
+- `listSubIssues` 读的也是这一行（见 `sub-issues.ts` 的文件头，那里写了结论与依据）：有这一行就是子票，没有就不是 —— 不猜、不按 links 方向推断。人手工加的 `relates_to` 关联不参与归属判定。
+- 归属的真相只有这一行：免费档/付费档都一样，不存在「付费档才能用」的限制。
 
-**该往哪使劲**：这是「本房这条 REST 路拿不到」，不是「GitLab 做不到」。以后真需要远端认的层级，那是一条新能力——换成 work items 的 GraphQL 查询，把读与写一起重做，得另开一票，别指望在 `issue links` 上改出层级来；反过来，也别对用户说「GitLab 没有子票」，平台有。
+**该往哪使劲**：这是「本房这条 REST 路拿不到层级边」，不是「GitLab 做不到」。以后真需要远端认的层级，那是一条新能力——换成 work items 的 GraphQL 查询，把读与写一起重做，得另开一票；反过来，也别对用户说「GitLab 没有子票」，平台有。
 
-### 4. 阻塞边：原生能力常拿不到，回落到正文里的 `Blocked by:` 行
+### 4. 阻塞边：有原生能力就真写，拿不到才回落到正文里的 `Blocked by:` 行
 
-免费档探测原生 `is_blocked_by` 常常拿到 403/404。本房的做法不是报「做不到」，而是**回落到重写正文里那一行** `Blocked by: #12, #13`（见 `graph-blocking.ts`）。读的时候也是这个顺序：原生有值就用原生，没有就读那一行。写之前会先做环检（含自环），拦住会让依赖成环的改动。
+免费档探测原生 `is_blocked_by` 常常拿到 403/404。本房的做法按上限走：**有能力就逐条写原生边（POST 加、DELETE 删，删边拿链接自己的 `issue_link_id`），写后读回核对**；拿不到能力（滚回干净）才**回落到重写正文里那一行** `Blocked by: #12, #13`（见 `graph-blocking.ts`）。读的时候也是这个顺序：原生有值就用原生（状态逐张落实），没有就读那一行。写之前会先做环检（含自环），拦住会让依赖成环的改动。
 
 ### 5. 标签颜色只有一个 `color` 字段，写入必须带前导井号
 

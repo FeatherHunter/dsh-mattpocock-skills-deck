@@ -19,15 +19,15 @@
 | update | 明确提供功能 | `issues.ts`，改票 |
 | setLabels | 明确提供功能 | `labels.ts`，给票改标签（milestone 分流见 `#135`） |
 | setAssignees | 明确提供功能 | `graph.ts`，改认领 |
-| setParent | 明确提供功能 | `graph.ts`，**落成 `relates_to` 平级链接**——本房走的 REST `issue links` 接口只有 `relates_to` / `blocks` / `is_blocked_by` 三种关系，没有层级类型（原生层级在 work items 那条路上，入口是界面与 GraphQL，本房不走）；写下去之后读回来分不出方向 |
-| setBlockedBy | 明确提供功能 | `graph.ts`，阻塞边；免费档常拿不到原生能力，回落到正文首行的降级写法 |
+| setParent | 明确提供功能 | `graph-membership.ts`，**落在票正文顶部的 `Part of #<地图>` 声明行**——归属的唯一真相是子票自己写下的这一行，建票时带 `parentKey` 直接写进去，挂载/拆除走同一行（幂等改写）；不再写任何 links（`relates_to` 是对称的平级关联，分不出哪一头是父，链上它反而污染归属）。原生层级在 work items 那条路上，入口是界面与 GraphQL，本房不走 |
+| setBlockedBy | 明确提供功能 | `graph-blocking.ts`，阻塞边走原生 `is_blocked_by`：有能力就逐条真写（POST 加、DELETE 删，删边拿链接自己的 `issue_link_id`）、写后读回核对；免费档常拿不到原生能力，滚回干净后才回落到正文首行的降级写法。读的顺序是原生优先、没有读那一行，对端开关状态逐张落实 |
 | counts | 明确提供功能 | `counts.ts`，走 `issues_statistics` 拿三个数 |
 | listPage | 明确提供功能 | `pages.ts`，分页读票 |
 | listLabels | 明确提供功能 | `labels-ops.ts`，翻页拉全，取不全就整体失败 |
 | setLabelColors | 明确提供功能 | `labels-ops.ts`，逐条改色、逐条记账；GitLab 只有单个 `color` 字段，没有 GitHub 那种前景/背景双色 |
 | getCurrentUser | 明确提供功能 | `identity-ops.ts`，`glab api user` |
 | getRepoPermissions | 明确提供功能 | `identity-ops.ts`，读 `permissions` 里的 access level 折算 push / triage |
-| listSubIssues | 明确提供功能 | `sub-issues.ts`，读 `setParent` 写下的 `relates_to` 链接（**不是远端认的层级子条目**，见下面的实话） |
+| listSubIssues | 明确提供功能 | `sub-issues.ts`，读票正文顶部的 `Part of #<地图>` 声明行（**不是远端认的层级子条目**，见下面的实话）：有这一行就是子票，没有就不是，不猜、不按 links 方向推断；翻页扫仓，拿不全就整体失败 |
 | initProject | 明确提供功能 | `init-project.ts`，`glab repo create` + git 初始化 |
 | ensureLabelColorsFile | 明确不支持 | 这条能力承诺的是「在工作区放一份用户可以手改、**改了就生效**的标签配色文件」。GitLab 这一家的颜色真源是远端仓库的标签，工作区里那份文件没有任何读者，手改也不会影响颜色——放一份改了不算数的文件只会误导人，属于形态不合。要读颜色用 `listLabels`，要改颜色用 `setLabelColors`。理由与 GitHub 那家同一条，见 `capability-github.md` 的变更段。 |
 
@@ -51,8 +51,8 @@
 
 ## 两条不能忘的实话
 
-- `listSubIssues` 在 GitLab 上读的是本房 `setParent` 写下的 `relates_to` 平级链接，不是远端认的层级子条目。`relates_to` 是对称的，所以「人手工加的链接」与「程序写下的父子」分不出来。拿到的东西能用来画关系，但别把它当成原生层级去用。
-- GitLab 平台有原生的父子层级（work items 那条路，入口是界面与 GraphQL），但本房走的 REST `issue links` 接口只有 `relates_to` / `blocks` / `is_blocked_by` 三种关系，拿不到层级边；免费档的阻塞能力也常常拿不到。遇到拿不到的情况按登记表与代码注释如实回报，不要把平级链接说成层级，也不要把「本房这条路拿不到」说成「GitLab 做不到」。
+- `listSubIssues` 在 GitLab 上读的是子票自己正文顶部的 `Part of #<地图>` 声明行，不是远端认的层级子条目。人手工加的 `relates_to` 关联不参与归属判定。拿到的东西能用来画关系，但别把它当成原生层级去用。
+- GitLab 平台有原生的父子层级（work items 那条路，入口是界面与 GraphQL），但本房不走那条路；免费档的阻塞原生能力也常常拿不到，拿不到时按登记表与代码注释回落到正文行。不要把声明行说成原生层级，也不要把「本房这条路拿不到」说成「GitLab 做不到」。
 
 ## 交接
 

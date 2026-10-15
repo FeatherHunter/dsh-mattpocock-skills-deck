@@ -115,10 +115,15 @@ try {
   const labEmpty = norm({ iid: 1, title: 'e', state: 'opened', description: '', labels: [] })
   const labelsEmptyOk = Array.isArray(labEmpty.labels) && labEmpty.labels.length === 0 && !('number' in labEmpty) && !('subIssues' in labEmpty) && !('blocking' in labEmpty)
   results.push({ name: 'gitlab · labels EMPTY + no legacy fields', ok: labelsEmptyOk, detail: labelsEmptyOk ? '' : JSON.stringify(labEmpty) })
-  // parentKey 归一：relates_to 最早
-  const parentIssue = norm({ iid: 10, title: 't', state: 'opened', description: '', links: [{ iid: 3, link_type: 'relates_to', created_at: '2024-01-02' }, { iid: 2, link_type: 'relates_to', created_at: '2024-01-01' }] })
-  const parentOk = parentIssue.parentKey === '2'
-  results.push({ name: 'gitlab · parentKey earliest relates_to', ok: parentOk, detail: parentOk ? '' : 'got=' + parentIssue.parentKey })
+  // parentKey 归一：正文 `Part of #<地图>` 声明行是唯一判据，links 表一次都不认
+  // （GitLab 原生层级挂不上 issue 到 issue，relates_to 又是对称平级关联分不出谁是父）。
+  const parentIssue = norm({ iid: 10, title: 't', state: 'opened', description: 'Part of #7\n\n正文', links: [{ iid: 3, link_type: 'relates_to', created_at: '2024-01-02' }, { iid: 2, link_type: 'relates_to', created_at: '2024-01-01' }] })
+  const parentOk = parentIssue.parentKey === '7'
+  results.push({ name: 'gitlab · parentKey from Part-of line', ok: parentOk, detail: parentOk ? '' : 'got=' + parentIssue.parentKey })
+  // 反例：只有 links、没有声明行 → 归属不明，不许猜（回 null）。
+  const orphanIssue = norm({ iid: 11, title: 't', state: 'opened', description: '普通正文', links: [{ iid: 2, link_type: 'relates_to', created_at: '2024-01-01' }] })
+  const orphanOk = orphanIssue.parentKey === null
+  results.push({ name: 'gitlab · parentKey null without Part-of line', ok: orphanOk, detail: orphanOk ? '' : 'got=' + orphanIssue.parentKey })
 } catch (e) {
   results.push({ name: 'gitlab-adapter · import-failed', ok: false, detail: String(e && e.message || e) })
 }

@@ -184,6 +184,9 @@ function makeScriptedGh(sink) {
 function makeScriptedGlab(sink) {
   const issues = []
   let next = 1
+  // 真 GitLab 的 links 行自带链接自己的编号（issue_link_id）：删边只能拿这个编号，
+  // 拿两头票的编号删不掉。桩里照真服务给，缺了它回滚与删边两条路在门禁里就验不起来。
+  let nextLinkId = 9000
   function find(iid) { return issues.find((x) => String(x.iid) === String(iid)) || null }
   function row(t) {
     if (!t) return null
@@ -213,11 +216,23 @@ function makeScriptedGlab(sink) {
       const t = mk(fval(a, 'title'), fval(a, 'description'), fval(a, 'labels') ? fval(a, 'labels').split(',') : [])
       return { code: 0, stdout: JSON.stringify(row(t)), stderr: '' }
     }
-    let m = /^projects\/[^/]+\/issues\/(\d+)\/links$/.exec(path0)
+    let m = /^projects\/[^/]+\/issues\/(\d+)\/links\/(\d+)$/.exec(path0)
     if (m) {
       const t = find(m[1])
       if (!t) return { code: 1, stdout: '', stderr: '404 Issue Not Found' }
-      if (method === 'POST') { const target = fval(a, 'target_issue_iid'); const type = fval(a, 'link_type') || 'relates_to'; t.links.push({ iid: Number(target), link_type: type, created_at: '2026-09-24' }); return { code: 0, stdout: JSON.stringify({ source_issue: row(t) }), stderr: '' } }
+      if (method === 'DELETE') {
+        const at = t.links.findIndex((l) => String(l.issue_link_id) === m[2])
+        if (at < 0) return { code: 1, stdout: '', stderr: '404 Link Not Found' }
+        t.links.splice(at, 1)
+        return { code: 0, stdout: '{}', stderr: '' }
+      }
+      return { code: 1, stdout: '', stderr: 'probe 没脚本化这条命令：' + line }
+    }
+    m = /^projects\/[^/]+\/issues\/(\d+)\/links$/.exec(path0)
+    if (m) {
+      const t = find(m[1])
+      if (!t) return { code: 1, stdout: '', stderr: '404 Issue Not Found' }
+      if (method === 'POST') { const target = fval(a, 'target_issue_iid'); const type = fval(a, 'link_type') || 'relates_to'; const link = { issue_link_id: ++nextLinkId, iid: Number(target), link_type: type, created_at: '2026-09-24' }; t.links.push(link); return { code: 0, stdout: JSON.stringify({ issue_link_id: link.issue_link_id }), stderr: '' } }
       return { code: 0, stdout: JSON.stringify(t.links), stderr: '' }
     }
     m = /^projects\/[^/]+\/issues\/(\d+)\/notes$/.exec(path0)

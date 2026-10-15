@@ -269,8 +269,8 @@ export function createGitlabBackend(ctx: BackendContext) {
     setLabelColors: (repo, changes, opCtx) => setLabelColors(repo, changes, opCtx || ctx),
     getCurrentUser: (repo, opCtx) => getCurrentUser(repo, opCtx || ctx),
     getRepoPermissions: (repo, opCtx) => getRepoPermissions(repo, opCtx || ctx),
-    // 子票这一条读的是本房 setParent 写下的 relates_to 平级链接，不是原生子票：
-    // 它回答的是「挂在这张地图上的票」，且分不出人手工加的关联。详见 ./sub-issues.ts 文件头。
+    // 子票这一条读的是票正文顶部的 `Part of #<地图>` 声明行（setParent / create 建票时写下）：
+    // 它回答的是「挂在这张地图上的票」；人手工加的 relates_to 关联不参与归属判定。详见 ./sub-issues.ts 文件头。
     listSubIssues: (repo, mapKey, opts, opCtx) => listSubIssues(repo, mapKey, opts, opCtx || ctx),
     initProject: (handle, input, opCtx) => initProject(handle, input, opCtx || ctx),
   } satisfies GitlabBackendShape
@@ -297,28 +297,27 @@ export const prompts = {
     //   改成这个后端真的能做的动作：在 map 文件的任务清单里引用子票。
     // #716 两处改正：
     //   ① 建边与校验已经搬进契约层的 deck_map_link / deck_map_snapshot，所以这里只讲用哪个工具，不留裸命令；
-    //   ② 原先这段写「建原生父子边」，与本后端的实现不符 —— setParent 落下去的是 relates_to 平级链接
-    //      （见 graph-membership.ts），不是原生父子边。以契约为准，文案同步改正：GitLab 上这条边只会落成
-    //      一条平级链接，工具会如实回报它落在那一列，不要把它说成父子关系。
+    //   ② 原先这段写「建原生父子边」，与本后端的实现不符 —— setParent 落下去的是票正文顶部的
+    //      `Part of #<地图>` 声明行（见 graph-membership.ts），不是原生父子边。以契约为准，文案同步改正。
     // #1176 之后补正（2026-10-15，来自对抗式审查）：原先这里写「GitLab 上没有原生父子关系」，这句是错的
     //   —— 平台有原生的父子层级（官方有整页在讲「Child items」，免费档就有），只是它在 work items 那条路上，
     //   入口是界面与 GraphQL；本房取数一律走 glab api 的 REST issue links，而那个接口的 link_type 只有
     //   relates_to / blocks / is_blocked_by 三种，没有表示层级的那一种。所以准确的说法是「本房这条 REST 路
     //   拿不到层级边」，不是「GitLab 做不到」。差别要留住：读的人据此才能判断要不要另开一票走 GraphQL。
-    zh: '建边用 deck_map_link：父子边传 parentKey、阻塞边传 blockedBy。要注意本后端的能力边界 —— 本房走的 REST 接口（issue links）只有 relates_to、blocks、is_blocked_by 三种关系，没有表示层级的那一种，所以 parentKey 落下去是一条 relates_to 平级链接（工具会如实回报它落在哪一列，不要把平级链接说成父子关系）。GitLab 平台本身有原生父子层级，但它在 work items 那条路上（入口是界面与 GraphQL），本房不走那条；要远端认的层级得另开一票换成 GraphQL，别指望在 issue links 上改出来。阻塞边在免费档往往也拿不到原生能力，工具会回落到正文首行的那行降级写法。建完用 deck_map_snapshot 读回地图，核对子票张数与预期一致。',
-    en: 'Wire edges with deck_map_link: parentKey for the parent-child edge, blockedBy for blocking edges. Mind this backend\'s limit — this backend goes through the REST issue-links API, whose link_type has only relates_to, blocks and is_blocked_by, with no level kind, so parentKey lands as a relates_to sibling link (the tool reports which column it landed in; do not describe a sibling link as a parent-child relation). GitLab itself does have a native parent-child hierarchy, but it lives on the work-items path (reached through the UI and GraphQL), which this backend does not use; a remotely-recognised hierarchy would be a new capability on GraphQL, not a tweak to issue links. On the free tier blocking edges usually have no native capability either and the tool falls back to the first line of the body. Then read the map back with deck_map_snapshot and confirm the child count matches the plan.',
+    zh: '建边用 deck_map_link：父子边传 parentKey、阻塞边传 blockedBy。要注意本后端的能力边界 —— 父子边不走接口，落在票正文顶部的 Part of #<地图> 声明行（读回走契约的父子列）。GitLab 平台本身有原生父子层级，但它在 work items 那条路上（入口是界面与 GraphQL），本房不走那条；要远端认的层级得另开一票换成 GraphQL。阻塞边走原生 is_blocked_by：有能力就真写、写后读回核对；免费档拿不到原生能力时，工具回落到正文首行的那行降级写法。建完用 deck_map_snapshot 读回地图，核对子票张数与预期一致。',
+    en: 'Wire edges with deck_map_link: parentKey for the parent-child edge, blockedBy for blocking edges. Mind this backend\'s limit — the parent-child edge does not go through the API; it lands as a Part of #<map> declaration line at the top of the ticket body (read back through the contract parent column). GitLab itself does have a native parent-child hierarchy, but it lives on the work-items path (reached through the UI and GraphQL), which this backend does not use; a remotely-recognised hierarchy would be a new capability on GraphQL. Blocking edges use native is_blocked_by: written for real with read-back verification when capable; on the free tier without native capability the tool falls back to the first line of the body. Then read the map back with deck_map_snapshot and confirm the child count matches the plan.',
   },
   // #595：正文格式契约归后端单源 —— GitLab 写回用后端自己的命令行，正文从文件读入；
   // #684：「体检」的 GitLab 科目。票仓结构与 GitHub 是同一套（地图 + 子议题 + 阻塞边），所以口径照搬；
-  //   唯一的实话是父子边在 GitLab 上落成 relates_to 平级链接、解析率还没用真仓库量过 —— 写进文案让人先量再下结论，不硬来。
+  //   唯一的实话是父子边落在票正文的 `Part of #<地图>` 声明行、解析率还没用真仓库量过 —— 写进文案让人先量再下结论，不硬来。
   // #716：查数与建边改为走工具（deck_context / deck_map_snapshot / deck_map_link），这里一条裸命令都不留。
   // 收口（2026-09-24）：英文那句的结尾原来多挂了一个 {subject}。那个占位符就是总纲用来填「本后端这一份科目」
   //   的位置，也就是这条文本自己 —— 自己引用自己的结果是：总纲补第二遍时把整段文本又抄了一份，
   //   并且这个占位符本身原样漏进了会话（tests/verify-686-accept.js 的「无多余占位符漏进会话」当场红）。
   //   中文那句没有这个东西，两边的意思本来就一样，删掉。
   healthCheck: {
-    zh: '**游离的开放票**在这条后端上的落地口径：这张票**没有关闭**、**自己不是地图**、**不在任何地图的子票里** —— 与另一条远端后端同一套（两个后端的票仓结构本来就是同一套：地图 + 子议题 + 阻塞边）。\n\n**动手时只做两件结构动作**，都走工具：\n1. 建边，把票挂到合适的地图下：deck_map_link 的 parentKey；\n2. 为人点过头的票开一张新地图：deck_map_plan_create 先写最小的 Destination 草稿。\n\n**本后端做不到的地方，如实写出来**：本房走的 REST issue links 接口没有层级类型，parentKey 落下去是一条 relates_to 平级链接（原生层级在 work items 那条路上，本房不走），解析率也还没用真仓库量过 —— 动手之前先量一次，量与不出来的原因都写进报告，**不要硬来**。\n\n**不碰**：已关闭的票、任何票的标题与正文、标签与认领状态、别的仓库；不关票、不删评论、不改源码、不发版、不提交。\n\n报告按标签与建议类型分区，但体检的范围是全部开放票、不跟随面板当前的筛选。',
-    en: '**How "orphaned open ticket" lands on this backend**: the ticket is **not closed**, it is **not itself a map**, and it is **not inside any map as a sub-ticket** — the same rules as the other remote backend (both backends share one ticket-store shape: maps + sub-tickets + blocking edges).\n\n**When acting, only two structural actions**, both through the tools:\n1. Wire the edge that attaches the ticket under a suitable map: deck_map_link with parentKey;\n2. Open a new map for a ticket the human has nodded on: deck_map_plan_create, writing only the minimal Destination draft.\n\n**State plainly what this backend cannot do**: the REST issue-links API this backend uses has no level kind, so parentKey lands as a relates_to sibling link (the native hierarchy lives on the work-items path, which this backend does not use); its resolution rate has not been measured against a real repository yet — measure once before acting, write both the measurement and any reason it fails into the report, and **do not force it**.\n\n**Never touch**: closed tickets, any ticket title or body, labels and claim state, other repositories; do not close tickets, delete comments, change source code, publish a release, or commit.',
+    zh: '**游离的开放票**在这条后端上的落地口径：这张票**没有关闭**、**自己不是地图**、**不在任何地图的子票里** —— 与另一条远端后端同一套（两个后端的票仓结构本来就是同一套：地图 + 子议题 + 阻塞边）。\n\n**动手时只做两件结构动作**，都走工具：\n1. 建边，把票挂到合适的地图下：deck_map_link 的 parentKey；\n2. 为人点过头的票开一张新地图：deck_map_plan_create 先写最小的 Destination 草稿。\n\n**本后端做不到的地方，如实写出来**：父子边落在票正文顶部的 Part of #<地图> 声明行（原生层级在 work items 那条路上，本房不走），解析率也还没用真仓库量过 —— 动手之前先量一次，量与不出来的原因都写进报告，**不要硬来**。\n\n**不碰**：已关闭的票、任何票的标题与正文、标签与认领状态、别的仓库；不关票、不删评论、不改源码、不发版、不提交。\n\n报告按标签与建议类型分区，但体检的范围是全部开放票、不跟随面板当前的筛选。',
+    en: '**How "orphaned open ticket" lands on this backend**: the ticket is **not closed**, it is **not itself a map**, and it is **not inside any map as a sub-ticket** — the same rules as the other remote backend (both backends share one ticket-store shape: maps + sub-tickets + blocking edges).\n\n**When acting, only two structural actions**, both through the tools:\n1. Wire the edge that attaches the ticket under a suitable map: deck_map_link with parentKey;\n2. Open a new map for a ticket the human has nodded on: deck_map_plan_create, writing only the minimal Destination draft.\n\n**State plainly what this backend cannot do**: the parent-child edge lands as a Part of #<map> declaration line at the top of the ticket body (the native hierarchy lives on the work-items path, which this backend does not use); its resolution rate has not been measured against a real repository yet — measure once before acting, write both the measurement and any reason it fails into the report, and **do not force it**.\n\n**Never touch**: closed tickets, any ticket title or body, labels and claim state, other repositories; do not close tickets, delete comments, change source code, publish a release, or commit.',
   },
 }
 

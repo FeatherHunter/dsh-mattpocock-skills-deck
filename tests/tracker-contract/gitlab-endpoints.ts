@@ -138,15 +138,15 @@ export const GITLAB_ENDPOINTS: readonly GitlabEndpointSpec[] = [
     method: 'GET',
     shape: 'projects/{}/issues/{}/links',
     request: 'projects/{id}/issues/{child}/links',
-    note: '读关系：本房把「父子」落成平级链接 relates_to，阻塞关系也走同一张表',
+    note: '读关系：阻塞关系走这张表（is_blocked_by）；父子归属不走这里，走票正文顶部的 `Part of #<地图>` 声明行',
   },
   {
     id: 'link-create',
     method: 'POST',
     shape: 'projects/{}/issues/{}/links',
     request: 'projects/{id}/issues/{child}/links',
-    fields: ['target_project_id={ref}', 'target_issue_iid={iid}', 'link_type=relates_to'],
-    note: '挂关系：setParent（relates_to）与 setBlockedBy（blocks）都从子票这一头发起',
+    fields: ['target_project_id={ref}', 'target_issue_iid={iid}', 'link_type=is_blocked_by'],
+    note: '挂阻塞：setBlockedBy 从被阻塞的票这一头发起（link_type=is_blocked_by）；setParent 不走这里，改走票正文的 `Part of` 声明行',
   },
   {
     id: 'link-get',
@@ -160,7 +160,7 @@ export const GITLAB_ENDPOINTS: readonly GitlabEndpointSpec[] = [
     method: 'DELETE',
     shape: 'projects/{}/issues/{}/links/{}',
     request: 'projects/{id}/issues/{child}/links/{link_id}',
-    note: '取消一条关系。注意：本房今天这一支疑似拿错了编号（列表行里的 id 是对面那张票，链接自己的编号在 issue_link_id），见 #1176',
+    note: '取消一条阻塞关系：删的是链接自己的编号（列表行里的 issue_link_id，不是两头票的编号）',
   },
   {
     id: 'issue-statistics',
