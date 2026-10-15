@@ -233,7 +233,6 @@
     "src/shared/refresh-workspace-key.js",
     "src/shared/session-cwd.js",
     "src/shared/skill-probe-channels.js",
-    "src/shared/step-cost.js",
     "src/shared/tracker/backendWritePermissions.js",
     "src/shared/tracker/chain-evaluate.js",
     "src/shared/tracker/chain-types.js",

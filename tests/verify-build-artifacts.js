@@ -287,10 +287,13 @@ console.log('\n三棵新树镜像校验（后缀换算 + 转译结果比对）')
   //   · src/shared/host-timer/host-timers.js —— #1115：宿主计时器句柄的撤销收成共享层的新域
   //     （src/shared/<域>/src/*.ts → 域根同名 .js，与另外几个域同一套形状）。它是本票故意新增的产物，
   //     出处就是这一行；同样不抬高上限——上限那条数按「搬家那条线的存量」算，新混进来的产物照旧看得见。
+  //     · src/shared/refresh/step-cost.js —— #1069：闸独用的按步记账从 src/shared/ 根搬进 refresh 域
+  //     （真源是 src/shared/refresh/src/step-cost.ts），产物落域根，与 budget.js 同类。同样不抬高上限。
   const KNOWN_PRODUCTS_OUT_OF_SCOPE = [
     'src/tracker/contract/vocabulary.js',
     'src/client/kernel/api-io.js',
     'src/shared/host-timer/host-timers.js',
+    'src/shared/refresh/step-cost.js',
   ]
   const SKIP_DIRS = new Set(['node_modules', '.git'])
 

@@ -10,7 +10,7 @@
 //      静态扫描门禁（tests/verify-gh-gateway.js）扫整个 src，要求每一个能起 gh 进程的调用点都登记在册。
 //   2. **记账单位是真实出站 HTTP 请求数**：调用方报几条、传输层真发几条，两个数各自记账并当场对账；
 //      分页、重试、兜底链、扇出都要算进去，所以闸不认「逻辑上一次调用」这个说法。
-//   3. **不排队、按步记账**：发送之间互不排队（不同工作区、同一工作区的并发都直接发，本地文件的写保护见各自房间的单写者队列）；每一步的真实花费按这一步的计数器归属（见 shared/step-cost.js），并发算不进对方。
+//   3. **不排队、按步记账**：发送之间互不排队（不同工作区、同一工作区的并发都直接发，本地文件的写保护见各自房间的单写者队列）；每一步的真实花费按这一步的计数器归属（见 shared/refresh/step-cost.ts），并发算不进对方。
 //   4. **推迟 ≠ 失败**：被推迟的进推迟队列，同一工作区只留最后一次，5 分钟（DEFER_EXPIRY_MS）过期即丢；
 //      丢弃不算失败、不计连续失败次数。只有真失败才进 failuresSinceSuccess，由裁决那侧安排退避。
 //   5. **运行期漏网计数**：传输层每真发一条就报一次（noteOutbound），与闸记下来的条数之差就是绕开闸
@@ -21,7 +21,7 @@
 import { decide, aiToolAdmission, degradePlanFor, REQUEST_KINDS, REASONS, FAILURE_DEFER_AT, nextAttemptDelayMs } from '../../shared/refresh/policy.js'
 import * as budget from '../../shared/refresh/budget.js'
 import * as failureWindow from '../../shared/refresh/failure-window.js'
-import { measureStep, noteStepOutbound } from '../../shared/step-cost.js'
+import { measureStep, noteStepOutbound } from '../../shared/refresh/step-cost.js'
 import { refusalTextRef } from './refusal-text.js'
 
 // ---------------------------------------------------------------------------
@@ -324,7 +324,9 @@ export function createGate(deps?: GateDeps) {
     let failure = null
     const m = await measureStep(function () { return perform(step, { category: req.category, kind: req.kind, bucket: req.bucket }) })
     if (m.thrown) failure = m.thrown
-    else reported = readReport(m.result)
+    // perform 回来的是未知形状（StepPerform 本来就这么定的），readReport 只收数字或对象；
+    // 这里断言只为过签名，运行时 readReport 本来就能收任何东西（`|| {}` 兜底），一字未改。
+    else reported = readReport(m.result as number | OutboundReport | null)
     actual = { requests: m.actual.requests, points: m.actual.points }
     if (reported) {
       stats.claimed.requests += reported.requests
