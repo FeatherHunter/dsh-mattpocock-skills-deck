@@ -1,13 +1,20 @@
 /**
- * client/kernel/link.js — 客户端 URL 契约 helper（#227 引入 · #231 模板化重写 · 清尾批终态）。
+ * client/kernel/link.ts — 客户端 URL 契约 helper（#227 引入 · #231 模板化重写 · 清尾批终态）。
  *
  * 真源链：后端模块声明 links.{issueUrlTemplate,repoUrlTemplate,searchUrlTemplate,linkPatternSource}
  * → wf.registry / 快照 backendModules 双通道透传 → 本文件按模板渲染，**零 backendId 分支、零品牌 URL 字面量**。
  * 元数据未达（旧宿主/极早窗口）：返回空串 —— 诚实缺该形态（D8：markdown '' UI 按空不渲染；同理适用于一切无据可依场景）。
+ * 本文件从 .js 改名而来（改名是搬家线做的）；我补了类型标注与环境声明，
+ * 并做了 #1199 的修复：https 分支在没有 window 的环境回假。
  */
-function __sel(st) { return st && (st.selection || (st.snapshot && st.snapshot.selection)) }
-function __backendId(st) { const s = __sel(st); return s ? s.backendId : null }
-function __refIdOf(st) {
+declare const shared: any;
+declare function idOfParts(...args: any[]): any;
+declare function idOf(...args: any[]): any;
+declare function backendPromptFrom(...args: any[]): any;
+declare function declaredLangPick(...args: any[]): any;
+function __sel(st: any) { return st && (st.selection || (st.snapshot && st.snapshot.selection)) }
+function __backendId(st: any) { const s = __sel(st); return s ? s.backendId : null }
+function __refIdOf(st: any) {
   const repo = st && st.snapshot && (st.snapshot.repository || st.snapshot.repo)
   const repo2 = st && st.repository
   if (repo && typeof repo.refId === 'string' && repo.refId) return repo.refId
@@ -16,7 +23,7 @@ function __refIdOf(st) {
   if (repo2 && repo2.owner && repo2.name) return repo2.owner + '/' + repo2.name
   return ''
 }
-function __metaLinks(st) {
+function __metaLinks(st: any) {
   const bid = __backendId(st)
   if (bid == null) return null
   const ms = st && st.backendModules
@@ -28,8 +35,8 @@ function __metaLinks(st) {
   return null
 }
 /** 各后端 links.linkPatternSource 的可用来源：本会话快照优先，回退全局共享缓存。 */
-function __patternSources(st) {
-  const out = []
+function __patternSources(st: any) {
+  const out: any[] = []
   const ms = (st && Array.isArray(st.backendModules)) ? st.backendModules
     : ((typeof shared !== 'undefined' && shared && Array.isArray(shared.backendModules)) ? shared.backendModules : null)
   if (ms) for (let i = 0; i < ms.length; i++) {
@@ -38,7 +45,7 @@ function __patternSources(st) {
   }
   return out
 }
-export const issueUrlFor = (st, key, effortId) => {
+export const issueUrlFor = (st: any, key: any, effortId?: any): any => {
   // 优先用后端现算的 url（markdown 的盘符路径已在快照 issues[].url 中）；回退到模板渲染（github）
   const n = String(key || '').trim()
   if (!n) return ''
@@ -46,11 +53,11 @@ export const issueUrlFor = (st, key, effortId) => {
   // effort 维度：编号在仓库内不再唯一，给了 effortId 就按 (effort, 编号) 精确取，否则退回第一个命中（旧行为）。
   try {
     const snap = st && st.snapshot
-    const all = snap ? [].concat(snap.issues||[]).concat((snap.maps||[]).flatMap(function(m){return m.tickets||[]})) : []
+    const all = snap ? [].concat(snap.issues||[]).concat((snap.maps||[]).flatMap(function(m: any){return m.tickets||[]})) : []
     const wantId = (effortId !== undefined && effortId !== null) ? idOfParts(effortId, String(n).padStart(2,'0')) : ''
-    let hit = null
-    if (wantId) hit = all.find(function(x){ return idOf(x) === wantId })
-    if (!hit) hit = all.find(function(x){ return String(x.key).padStart(2,'0')===String(n).padStart(2,'0') || String(x.number)===String(n) })
+    let hit: any = null
+    if (wantId) hit = all.find(function(x: any){ return idOf(x) === wantId })
+    if (!hit) hit = all.find(function(x: any){ return String(x.key).padStart(2,'0')===String(n).padStart(2,'0') || String(x.number)===String(n) })
     if(hit && hit.url) return String(hit.url)
   } catch {}
   const meta = __metaLinks(st)
@@ -62,14 +69,14 @@ export const issueUrlFor = (st, key, effortId) => {
   return tpl.split('{refId}').join(refId).split('{key}').join(n)
 }
 // 统一打开：https 走新页，file 盘符走宿主 wf.openPath（UI 零分支）
-export const openIssueUrl = function(st, key, host, effortId){
+export const openIssueUrl = function(st: any, key: any, host: any, effortId?: any): any {
   const u = issueUrlFor(st, key, effortId)
   if(!u) return false
-  if(/^https?:\/\//i.test(String(u))) { try{ window.open(u,'_blank','noreferrer') }catch{} return true }
+  if(/^https?:\/\//i.test(String(u))) { if(typeof window==='undefined') return false; try{ window.open(u,'_blank','noreferrer') }catch{} return true }
   try{ if(host && typeof host.call==='function'){ host.call('wf.openPath',{path:u}); return true } }catch{}
   return false
 }
-export const searchUrlFor = (st, name) => {
+export const searchUrlFor = (st: any, name: any): any => {
   const n = String(name || '').trim()
   if (!n) return ''
   const meta = __metaLinks(st)
@@ -78,7 +85,7 @@ export const searchUrlFor = (st, name) => {
   if (!tpl) return ''
   return tpl.split('{q}').join(encodeURIComponent(n))
 }
-export const repoUrlFor = (st) => {
+export const repoUrlFor = (st: any): any => {
   // 宿主 describe 产出的 url 是权威值：任何后端、只要给 url 就直用
   const repoFirst = st && (st.snapshot && (st.snapshot.repository || st.snapshot.repo))
   if (repoFirst && repoFirst.url) return repoFirst.url
@@ -91,17 +98,17 @@ export const repoUrlFor = (st) => {
   return tpl.split('{refId}').join(refId)
 }
 /** 新会话锚点/提及识别（#231 清尾终态）：扫描式样只来自各后端 links.linkPatternSource 声明；无数据 → 无识别（诚实）。 */
-export function issueRefNumbersFrom(text, st) {
+export function issueRefNumbersFrom(text: any, st: any): any {
   const s = String(text || '')
   if (!s) return []
   const srcs = __patternSources(st)
   if (!srcs.length) return []
-  const out = []
-  const have = {}
+  const out: any[] = []
+  const have: any = {}
   for (let k = 0; k < srcs.length; k++) {
     try {
       const re = new RegExp(srcs[k], 'g')
-      let m
+      let m: any
       while ((m = re.exec(s)) !== null) { const n = Number(m[1]); if (!have[n]) { have[n] = true; out.push(n) } }
     } catch (e) {}
   }
@@ -113,7 +120,7 @@ export function issueRefNumbersFrom(text, st) {
 //   文件级判据）；client 只按当前后端查表填空，零 backendId 字面量分支 —— 与 subIssue 同一条路。
 //   后端没声明该键（含快照里没有这个后端）时返回空串：总纲照旧完整，只是少一节后端自己的科目。
 //   住在这里而不是 prompts.js：那个文件已经贴着 350 行上限（仓库的文件行数门禁）。
-export const healthCheckParamsFrom = function (modules, backendId) {
+export const healthCheckParamsFrom = function (modules: any, backendId: any): any {
   const dict = backendPromptFrom(modules, backendId, 'healthCheck')
   return { subject: declaredLangPick(dict, promptLang()) }
 }

@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-15T07:56:53.039Z",
+  "generatedAt": "2026-10-15T08:08:15.515Z",
   "generatedBy": "node scripts/gate-map.mjs",
-  "chainLength": 259,
-  "gateCount": 259,
-  "attributedGates": 230,
+  "chainLength": 260,
+  "gateCount": 260,
+  "attributedGates": 231,
   "unattributedGates": 29,
   "buildOutputOnlyGates": 19,
   "completionRecordedGates": 6,
   "smokeLength": 6,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 558,
+  "graphFileCount": 560,
   "gates": [
     {
       "step": "node tests/verify-capability-register.ts",
@@ -652,7 +652,7 @@
         "src/client/views/SettingsPage.js",
         "src/client/views/SettingsWorkspaces.js",
         "src/client/views/SkillsTab.js",
-        "src/client/views/TicketRow.ts",
+        "src/client/views/TicketRow.js",
         "src/client/views/feedback/feedback-styles.js",
         "src/client/views/labels/LabelColorDialog.js",
         "src/client/views/labels/LabelColorEntry.js",
@@ -1373,7 +1373,7 @@
       "file": "tests/verify-1145-open-local.ts",
       "guards": [
         "src/client/kernel/ctx.js",
-        "src/client/kernel/link.ts",
+        "src/client/kernel/link.js",
         "src/client/views/IssueDetail.js",
         "src/client/views/IssueDetailComments.js",
         "src/tracker/kernel/identity-keys.ts"
@@ -1388,6 +1388,26 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 5 条"
+    },
+    {
+      "step": "node tests/verify-1199-row-closed-link.ts",
+      "file": "tests/verify-1199-row-closed-link.ts",
+      "guards": [
+        "src/client/kernel/ctx.js",
+        "src/client/kernel/link.js",
+        "src/client/views/TicketRow.js",
+        "src/tracker/kernel/identity-keys.ts"
+      ],
+      "dirs": [
+        "src/client/kernel",
+        "src/client/views",
+        "src/tracker/kernel"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 4 条"
     },
     {
       "step": "node tests/verify-deck-exec-phone.js",
@@ -6240,6 +6260,7 @@
       "node tests/verify-tabsfold-leaf.js",
       "node tests/verify-1115-timer-handle.ts",
       "node tests/verify-1145-open-local.ts",
+      "node tests/verify-1199-row-closed-link.ts",
       "node tests/verify-setup-describe.js",
       "node tests/verify-locale-completeness.js",
       "node tests/verify-626-type-chip.js",
@@ -6333,6 +6354,7 @@
       "node tests/verify-655-setup-layout.js",
       "node tests/verify-leaves.js",
       "node tests/verify-1145-open-local.ts",
+      "node tests/verify-1199-row-closed-link.ts",
       "node tests/verify-626-type-chip.js",
       "node tests/verify-map-drill.js",
       "node tests/verify-reuse.js",
@@ -6807,6 +6829,7 @@
     ],
     "src/tracker/kernel": [
       "node tests/verify-1145-open-local.ts",
+      "node tests/verify-1199-row-closed-link.ts",
       "node tests/verify-no-mixed-session.js",
       "node tests/verify-map-drill.js",
       "node tests/verify-992-readonly-labels.js",
@@ -7082,9 +7105,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 570,
+    "fileCount": 572,
     "dirCount": 51,
-    "coveredFileCount": 570,
+    "coveredFileCount": 572,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 50,
@@ -7107,6 +7130,7 @@
       "src/client/kernel/health-check.js",
       "src/client/kernel/icons.js",
       "src/client/kernel/issue-pages.js",
+      "src/client/kernel/link.js",
       "src/client/kernel/link.ts",
       "src/client/kernel/locale-cards.js",
       "src/client/kernel/locale-cards.ts",
@@ -7188,6 +7212,7 @@
       "src/client/views/SkillsTab.js",
       "src/client/views/SkillsTab.ts",
       "src/client/views/SubworkspaceMark.js",
+      "src/client/views/TicketRow.js",
       "src/client/views/TicketRow.ts",
       "src/client/views/UpdateEntryHost.js",
       "src/client/views/cards/PixelBlockedChrome.js",
