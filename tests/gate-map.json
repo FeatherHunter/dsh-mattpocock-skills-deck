@@ -992,7 +992,7 @@
         "src/tracker/rooms/github/index.ts",
         "src/tracker/rooms/gitlab/index.ts",
         "src/tracker/rooms/markdown/index.ts",
-        "tests/deck-tools-matrix-transports.js",
+        "tests/deck-tools-matrix-transports.ts",
         "tests/lib/deck-decide-stub.js"
       ],
       "dirs": [
@@ -1272,7 +1272,7 @@
         "src/host/platform/outbound-control.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/github/index.ts",
-        "tests/deck-tools-matrix-transports.js"
+        "tests/deck-tools-matrix-transports.ts"
       ],
       "dirs": [
         "src/deck/shell",
@@ -2669,7 +2669,7 @@
         "src/shared/refresh/tool-cost.js",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/github/index.ts",
-        "tests/deck-tools-matrix-transports.js",
+        "tests/deck-tools-matrix-transports.ts",
         "tests/lib/deck-decide-stub.js"
       ],
       "dirs": [

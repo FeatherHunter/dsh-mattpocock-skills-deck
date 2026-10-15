@@ -1,9 +1,11 @@
-// verify-deck-tools-matrix.js —— 门禁：同一个动作在三种后端上分别落到哪里（#713 第六批）
-// 用法：在插件根目录执行 node tests/verify-deck-tools-matrix.js，可独立运行。
+// tests/deck-tools-matrix-transports.ts —— 三个后端的脚本化传输层（#713 第六批门禁的夹具）
+// 用法：被 tests/verify-deck-tools-matrix.js 等门禁引用（require './deck-tools-matrix-transports.js' 原样保留，
+//   装载钩子把同名 .js 说明符改指到本文件；其它 require 与 module.exports 也不动）。
 //
 // 为什么要这一段：这七个工具坐在 tracker 契约之上，而三个后端表达关系的方式**不一样**：
 //   GitHub：父子是原生 sub-issues 层级，阻塞是原生 dependencies 边；
-//   GitLab：父子落在平级链接 relates_to 上（不是层级），阻塞走它自己的道，做不到时退回正文；
+//   GitLab：父子落在票正文顶部的 `Part of #<地图>` 声明行，阻塞走原生 is_blocked_by、
+//     拿不到能力时退回正文里的 Blocked by 行；
 //   本地 Markdown：父子根本做不到（单根工作区），阻塞写进票文件正文里的 Blocked by 那一行。
 // 同一个工具调用在这三种地方会得到不同的结果，如果返回里不逐项说清落点，AI 会以为地图结构已经建好了。
 // 所以这一段把「建票 / 建整张地图骨架 / 补边 / 改票 / 读回」五个动作在三个后端上各跑一遍，
@@ -31,7 +33,7 @@ const REPO_GL = { backend: 'gitlab', refId: 'acme/demo', name: 'demo', url: '' }
 // ─────────────────────────────────────────────────────────────────────────────
 // 一、脚本化的 gh：按真实命令形状回 JSON（命令清单来自三个后端房间的实际取数路径）
 // ─────────────────────────────────────────────────────────────────────────────
-function makeScriptedGh(sink) {
+function makeScriptedGh(sink: string[]) {
   const tickets = []
   let next = 1
   const nowIso = '2026-09-24T00:00:00Z'
@@ -83,7 +85,7 @@ function makeScriptedGh(sink) {
     }
     return ''
   }
-  async function exec(cmd, args) {
+  async function exec(cmd: string, args: string[]) {
     const a = Array.isArray(args) ? args : []
     const line = a.join(' ')
     if (cmd === 'git') return { code: 0, stdout: 'https://github.com/acme/demo.git\n', stderr: '' }
@@ -181,7 +183,7 @@ function makeScriptedGh(sink) {
 // ─────────────────────────────────────────────────────────────────────────────
 // 二、脚本化的 glab（同样是真实命令形状；每条命令都是一条真实出站请求）
 // ─────────────────────────────────────────────────────────────────────────────
-function makeScriptedGlab(sink) {
+function makeScriptedGlab(sink: string[]) {
   const issues = []
   let next = 1
   // 真 GitLab 的 links 行自带链接自己的编号（issue_link_id）：删边只能拿这个编号，
@@ -203,7 +205,7 @@ function makeScriptedGlab(sink) {
     return t
   }
   function fval(a, name) { const i = a.indexOf('-f'); for (let j = 0; j < a.length; j++) if (a[j] === '-f' && String(a[j + 1] || '').indexOf(name + '=') === 0) return String(a[j + 1]).slice(name.length + 1); return '' }
-  async function run(args) {
+  async function run(args: string[]) {
     const a = Array.isArray(args) ? args : []
     const line = a.join(' ')
     if (sink) sink.push(line)

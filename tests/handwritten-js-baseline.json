@@ -249,7 +249,6 @@
     "src/shared/ui/slots.js",
     "src/shared/version-control/exec-envelope.js",
     "src/shared/workspaceKey.js",
-    "tests/deck-tools-matrix-transports.js",
     "tests/diag-live-panel-open.js",
     "tests/diag-live-return-vs-wait.js",
     "tests/diag-live-rpc-latency.js",
