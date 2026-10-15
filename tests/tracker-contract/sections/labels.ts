@@ -1,5 +1,5 @@
 /**
- * tests/tracker-contract/sections/labels.js — 标签配色契约段（#627）。
+ * tests/tracker-contract/sections/labels.ts — 标签配色契约段（#627）。
  *
  * 第一性原理：这两条操作（listLabels / setLabelColors）是「标签颜色可编辑」在契约层的全部接缝，
  * 界面只跟它们打交道、不知道底下是哪个后端。所以这一段**只断言它们答应的事有没有做到**：
@@ -60,7 +60,7 @@ const EXTRA_KEYS_HINT = '列表项只许有 name、color 与可选的 descriptio
 const norm = (v) => String(v == null ? '' : v).trim().replace(/^#/, '').toLowerCase()
 
 /** 列表检查器：返回违规清单（空 = 合规）。 */
-export function labelListCheck(list) {
+export function labelListCheck(list): string[] {
   const bad = []
   if (!Array.isArray(list)) return ['列标签要返回一个数组（这次收到 ' + typeof list + '）']
   list.forEach((it, i) => {
@@ -77,7 +77,7 @@ export function labelListCheck(list) {
 
 /** 批量改色入参检查器：返回违规清单（空 = 合规）。
  *  只管形状：颜色的写法由后端校验（写不对这一条落解析档，不会让整批崩掉），所以这里不判六位十六进制。 */
-export function labelChangeCheck(changes) {
+export function labelChangeCheck(changes): string[] {
   const bad = []
   if (!Array.isArray(changes)) return ['批量改色要收一批「标签 → 新颜色」（changes 数组）']
   const seen = new Set()
@@ -95,7 +95,7 @@ export function labelChangeCheck(changes) {
 }
 
 /** 逐条记账检查器：拿入参那一批改动去核对返回，返回违规清单（空 = 合规）。 */
-export function labelBatchCheck(changes, result) {
+export function labelBatchCheck(changes, result): string[] {
   const bad = []
   if (!result || typeof result !== 'object' || Array.isArray(result)) return ['批量改色的返回要是 {applied, failed} 形状的对象']
   const keys = Object.keys(result).sort().join(',')
@@ -136,7 +136,7 @@ export function labelBatchCheck(changes, result) {
 }
 
 /** 「做不到」那一档的检查器：没实现的后端必须诚实地说做不到，不许假装能。 */
-export function unsupportedAnswerCheck(opName, res) {
+export function unsupportedAnswerCheck(opName, res): string[] {
   const bad = []
   if (!res || typeof res !== 'object') return [opName + ' 要返回 {ok:false, error:{kind, message}}']
   if (res.ok !== false) bad.push(opName + ' 没实现就该返回 ok:false，实得 ok=' + JSON.stringify(res.ok))
@@ -150,7 +150,7 @@ export function unsupportedAnswerCheck(opName, res) {
 }
 
 /** 沙箱拒绝那一档的检查器：必须是环境类，且说清是插件自己的限制，不指用户去查文件夹权限。 */
-export function sandboxDenialCheck(reason) {
+export function sandboxDenialCheck(reason): string[] {
   const bad = []
   if (!reason || typeof reason !== 'object') return ['沙箱拒绝要给 reason {kind, message}']
   if (reason.kind !== 'env') bad.push('沙箱拒绝属于环境类（kind 应为 env），实得 ' + JSON.stringify(reason.kind))
@@ -166,7 +166,7 @@ export function sandboxDenialCheck(reason) {
  *  所以残缺清单在界面上和全量一模一样——用户只会看到「标签凭空少了几个」。契约因此定死：
  *  取不全就必须整体失败（env 或 network 档），不许静默返回残缺列表（契约正文见 contract.js 的 listLabels）。
  *  expectedNames 是测试自己知道的那份全量（假身的数据是测试给的，所以测试知道全量是什么）。 */
-export function labelCompletenessCheck(list, expectedNames) {
+export function labelCompletenessCheck(list, expectedNames): string[] {
   if (!Array.isArray(list)) return ['要核对「拿全了没有」，得先有一份标签清单（数组），这次收到 ' + typeof list]
   const bad = []
   const got = new Set(list.map((it) => (it && typeof it === 'object') ? it.name : undefined))
@@ -177,7 +177,7 @@ export function labelCompletenessCheck(list, expectedNames) {
 }
 
 /** 「取不全就整体失败」那一档的检查器：整条操作失败，且说清是未能获取全部标签，档位只能是 env 或 network。 */
-export function incompleteAnswerCheck(res, expectedNames) {
+export function incompleteAnswerCheck(res, expectedNames): string[] {
   const bad = []
   if (!res || typeof res !== 'object') return ['取不全时要以 {ok:false, error:{kind, message}} 整体失败，实得 ' + JSON.stringify(res)]
   if (res.ok !== false) {
@@ -195,14 +195,14 @@ export function incompleteAnswerCheck(res, expectedNames) {
 
 /** 真实后端探针的判据（#627 二次整改 P1）：要么诚实地说做不到（unsupported），要么把这一条做到契约要求。
  *  今天没实现这两条操作的真实后端走前一条；下游实现之后自动走后一条——测试不必改，红绿自动跟着变。 */
-export function labelListProbeCheck(res) {
+export function labelListProbeCheck(res): string[] {
   if (res && typeof res === 'object' && res.ok === false) return unsupportedAnswerCheck('listLabels', res)
   if (!res || res.ok !== true) return ['列出标签要么回 {ok:true, data:[...]}，要么诚实地回 {ok:false, error:{kind:unsupported,...}}，实得 ' + JSON.stringify(res)]
   return labelListCheck(res.data)
 }
 
 /** 同上，批量改色的探针判据：输入形状（labelChangeCheck）＋ 逐条记账（labelBatchCheck）。 */
-export function labelBatchProbeCheck(changes, res) {
+export function labelBatchProbeCheck(changes, res): string[] {
   const bad = labelChangeCheck(changes)
   if (res && typeof res === 'object' && res.ok === false) return bad.concat(unsupportedAnswerCheck('setLabelColors', res))
   if (!res || res.ok !== true) return bad.concat(['批量改色要么回 {ok:true, data:{applied,failed}}，要么诚实地回 {ok:false, error:{kind:unsupported,...}}，实得 ' + JSON.stringify(res)])
@@ -220,7 +220,7 @@ export function labelBatchProbeCheck(changes, res) {
  * @param res 真实后端模块的返回
  * @param expectedNames 测试自己知道的那份全量（脚本化的回话给了哪些标签，测试就知道全量是什么）
  */
-export function labelListAnswerCheck(res, expectedNames) {
+export function labelListAnswerCheck(res, expectedNames): string[] {
   if (!res || typeof res !== 'object' || res.ok !== true) {
     return ['列标签要真的拿到清单（{ok:true, data:[...]}），不许用「失败得好看」过关，实得 ' + JSON.stringify(res)]
   }
@@ -238,7 +238,7 @@ export function labelListAnswerCheck(res, expectedNames) {
  * @param res 真实后端模块的返回
  * @param want 期望的 `{applied, failed, kindOf}`：前两个是标签名清单，kindOf 是「某个名字该落哪一档」
  */
-export function labelBatchAnswerCheck(changes, res, want) {
+export function labelBatchAnswerCheck(changes, res, want): string[] {
   if (!res || typeof res !== 'object' || res.ok !== true) {
     return ['批量改色要真的给出逐条记账（{ok:true, data:{applied,failed}}），不许用「失败得好看」过关，实得 ' + JSON.stringify(res)]
   }

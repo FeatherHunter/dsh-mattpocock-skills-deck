@@ -51,8 +51,6 @@
     "tests/tracker-contract/sections/deck.js",
     "tests/tracker-contract/sections/idempotency-counterproof-markdown.js",
     "tests/tracker-contract/sections/idempotency-counterproof.js",
-    "tests/tracker-contract/sections/idempotency.js",
-    "tests/tracker-contract/sections/labels.js",
     "tests/tracker-contract/sections/listPage.js",
     "tests/tracker-contract/sections/preflight.js",
     "tests/tracker-contract/sections/registry.js",

@@ -1,5 +1,5 @@
 /**
- * tests/tracker-contract/sections/idempotency.js — 创建幂等锚段（#711）。
+ * tests/tracker-contract/sections/idempotency.ts — 创建幂等锚段（#711）。
  *
  * 第一性原理：这一段的对手不是「有没有实现一个函数」，而是一种最难查的错：**票已经建成了、
  * 只是调用方没收到回答**（超时、EOF、退出码非 0 但票已经写进去了）。这种时候调用方一定会重试，
@@ -50,7 +50,7 @@ const KNOWN_KINDS = Object.values(ERROR_KIND)
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** 锚形状检查器：返回违规清单（空 = 合规）。 */
-export function anchorLineCheck(line) {
+export function anchorLineCheck(line): string[] {
   const bad = []
   if (typeof line !== 'string') return ['锚那一行要是字符串，实得 ' + typeof line]
   if (line.indexOf('<!--') !== 0) bad.push('锚要以 HTML 注释开头（这样渲染后看不见），实得 ' + JSON.stringify(line.slice(0, 20)))
@@ -60,7 +60,7 @@ export function anchorLineCheck(line) {
 }
 
 /** 回查命中判据的检查器：这一份是不是「找到了、可以复用」。 */
-export function hitCheck(match) {
+export function hitCheck(match): string[] {
   const bad = []
   if (!match || typeof match !== 'object') return ['回查结论要是一个对象，实得 ' + JSON.stringify(match)]
   if (match.status !== 'hit') return ['这一份是命中样本，status 应为 hit，实得 ' + JSON.stringify(match.status)]

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-15T07:51:42.587Z",
+  "generatedAt": "2026-10-15T07:56:53.039Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 259,
   "gateCount": 259,
@@ -652,7 +652,7 @@
         "src/client/views/SettingsPage.js",
         "src/client/views/SettingsWorkspaces.js",
         "src/client/views/SkillsTab.js",
-        "src/client/views/TicketRow.js",
+        "src/client/views/TicketRow.ts",
         "src/client/views/feedback/feedback-styles.js",
         "src/client/views/labels/LabelColorDialog.js",
         "src/client/views/labels/LabelColorEntry.js",
@@ -868,8 +868,8 @@
         "tests/tracker-contract/sections/contract.js",
         "tests/tracker-contract/sections/counts.js",
         "tests/tracker-contract/sections/deck.js",
-        "tests/tracker-contract/sections/idempotency.js",
-        "tests/tracker-contract/sections/labels.js",
+        "tests/tracker-contract/sections/idempotency.ts",
+        "tests/tracker-contract/sections/labels.ts",
         "tests/tracker-contract/sections/listPage.js",
         "tests/tracker-contract/sections/preflight.js",
         "tests/tracker-contract/sections/registry.js",
@@ -1373,7 +1373,7 @@
       "file": "tests/verify-1145-open-local.ts",
       "guards": [
         "src/client/kernel/ctx.js",
-        "src/client/kernel/link.js",
+        "src/client/kernel/link.ts",
         "src/client/views/IssueDetail.js",
         "src/client/views/IssueDetailComments.js",
         "src/tracker/kernel/identity-keys.ts"
@@ -2512,7 +2512,7 @@
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/github/client.ts",
         "src/tracker/rooms/github/index.ts",
-        "tests/tracker-contract/sections/labels.js"
+        "tests/tracker-contract/sections/labels.ts"
       ],
       "dirs": [
         "src/host",
@@ -7107,7 +7107,7 @@
       "src/client/kernel/health-check.js",
       "src/client/kernel/icons.js",
       "src/client/kernel/issue-pages.js",
-      "src/client/kernel/link.js",
+      "src/client/kernel/link.ts",
       "src/client/kernel/locale-cards.js",
       "src/client/kernel/locale-cards.ts",
       "src/client/kernel/locale-flow.js",
@@ -7188,7 +7188,7 @@
       "src/client/views/SkillsTab.js",
       "src/client/views/SkillsTab.ts",
       "src/client/views/SubworkspaceMark.js",
-      "src/client/views/TicketRow.js",
+      "src/client/views/TicketRow.ts",
       "src/client/views/UpdateEntryHost.js",
       "src/client/views/cards/PixelBlockedChrome.js",
       "src/client/views/cards/PixelBlockedChrome.ts",
