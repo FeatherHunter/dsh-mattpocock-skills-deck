@@ -9,7 +9,7 @@
 // 整笔那条 2026-10-14 由两分钟放宽到五分钟、余量一并放到 15 秒，见票 #1040）。本文件钉住：
 //   ① 挂住的归一 → 如实失败（no-session-context），不凑钥匙；
 //   ② 挂住的沙箱/钩子/游标 → 走既有缺席路径，成功路径不变；
-//   ③ 挂住的后端 → 30 秒内诚实回超时（backend-threw，可重试），不改判成“做不到”；
+//   ③ 挂住的后端 → 30 秒内诚实回超时（backend-timeout，可重试），不改判成“做不到”；
 //   ④ 已中止的调用 → 立刻诚实回，不起新进程；
 //   ⑤ 执行层抛错仍走 backend-threw（可重试），与“做不到”分得开（与 verify-deck-tools ⑨ 同口径）。
 // 本文件不联网：后端全是桩，只量“回不回、快不快、判得对不对”。
@@ -163,7 +163,7 @@ async function main() {
     const r = await tool.run(execFor(), { key: '7' })
     const dt = Date.now() - t1
     check(r && r.ok === false && r.status === 'unsupported', '挂住的后端诚实回没做成（实得 ' + (r && r.status) + '）')
-    check(r && r.reason === 'backend-threw', '超时判成可重试的执行失败（实得 ' + (r && r.reason) + '）')
+    check(r && r.reason === 'backend-timeout', '超时判成独立的超时原因（实得 ' + (r && r.reason) + '）')
     check(dt < 10000, '后端挂住仍在钳制内回来（' + dt + 'ms）')
   }
 

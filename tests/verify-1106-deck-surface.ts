@@ -88,8 +88,8 @@ const FROZEN_DESC: Record<string, string> = {
 /** 表二 · 信封表：两种形状的字段清单，一个不多一个不少。 */
 const ENVELOPE_FULL = ['backend', 'cost', 'data', 'items', 'notes', 'ok', 'readBack', 'reason', 'repo', 'status', 'text', 'tool', 'touched', 'workspace']
 const ENVELOPE_PRE_GATE = ['cost', 'ok', 'reason', 'status', 'text', 'tool']
-/** 七个原因码，取值写在 src/deck/shell/call-shell.ts:47-55。 */
-const REASONS = ['no-session-context', 'ai-tool-refused', 'no-backend', 'gate-defer', 'backend-threw', 'backend-unsupported', 'bad-args']
+/** 八个原因码，取值写在 src/deck/shell/call-shell.ts:47-55。 */
+const REASONS = ['no-session-context', 'ai-tool-refused', 'no-backend', 'gate-defer', 'backend-threw', 'backend-timeout', 'backend-unsupported', 'bad-args']
 const STATUSES = ['ok', 'partial', 'unsupported']
 
 /** 表三 · 点数表：工具自己报的那一笔（不含选后端那固定 1 条 0 点）。 */

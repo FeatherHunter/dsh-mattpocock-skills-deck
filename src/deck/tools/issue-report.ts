@@ -28,13 +28,21 @@ const SANDBOX_TIMEOUT_MS = 5000
 const HOOK_TIMEOUT_MS = 5000
 // 执行层失败与后端诚实失败的分界（见 issue-create.ts 同名注释）：前者抛给壳走
 // backend-threw（可重试），后者走 BACKEND_UNSUPPORTED。钳制只管超时，不改判。
-const TRANSPORT_KINDS: readonly string[] = ['backend-threw', 'timeout', 'aborted', 'over-budget']
+// 超时单列一支（kind 'timeout'）：它也是执行层失败，但机器可读的原因码走独立的
+// backend-timeout（#1195），不再与真正的抛错共用 backend-threw。
+const TRANSPORT_KINDS: readonly string[] = ['backend-threw', 'aborted', 'over-budget']
 /** 后端回包在契约层还没建模：这里只按本工具真正会读的那一个字段收口，调用处拿断言喂进来（断言不产码）。 */
 type TransportResult = { error?: { kind?: string; message?: unknown } } | null | undefined
 /** 后端回包里「执行层失败」的原话；不是执行层失败（后端诚实地说做不到）就回 null，一个字不改判。 */
 function transportMessage(result: TransportResult): string | null {
   const e = result && result.error
   if (e && TRANSPORT_KINDS.indexOf(e.kind as string) >= 0) return String(e.message || '执行层没回来')
+  return null
+}
+/** 超时那一支的原话（kind 'timeout'）：调用处直接回独立原因码，不抛给壳。 */
+function timeoutMessage(result: TransportResult): string | null {
+  const e = result && result.error
+  if (e && e.kind === 'timeout') return String(e.message || '执行层没回来')
   return null
 }
 
@@ -145,6 +153,17 @@ export function createDeckIssueReport(deps?: DeckIssueReportDeps) {
       if (effortId) notes.push('这次带了 effortId（' + effortId.slice(0, 60) + '）：本地后端只在那一个目录里找，远端后端忽略它。')
       if (note) notes.push('备注只回显，不进链（链上每条只留票键、时间与动作类别）。')
       const got = typeof t.get === 'function' ? await t.get(repo, key, { comments: { first: 0 } }, opCtx) : null
+      const gotTimeout = timeoutMessage(got as TransportResult)
+      if (gotTimeout) return {
+        value: {
+          status: DECK_STATUS.UNSUPPORTED,
+          reason: REFUSAL_REASONS.BACKEND_TIMEOUT,
+          text: '这张票这次没上报（超时了：在限时内没等到后端回话，票有没有记上说不清，重调一次就行）。',
+          data: { key: key, backendId: pick.backendId, effortId: effortId, error: { kind: 'timeout', message: gotTimeout.slice(0, 300) } },
+          notes: notes,
+        },
+        claimed: { requests: 1, points: 3 },
+      }
       const gotTransport = transportMessage(got as TransportResult)
       if (gotTransport) throw new Error(gotTransport)
       if (!got || got.ok !== true) {

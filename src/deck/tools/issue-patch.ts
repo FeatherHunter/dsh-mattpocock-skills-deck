@@ -26,7 +26,9 @@ function withCap<T>(promise: Promise<T> | T, ms: number): Promise<CapResult<T>> 
 const SANDBOX_TIMEOUT_MS = 5000
 // 执行层失败与后端诚实失败的分界（见 issue-create.ts 同名注释）：前者抛给壳走
 // backend-threw（可重试），后者走逐项 fail（partial）。must() 包住每一次远端调用。
-const TRANSPORT_KINDS: readonly string[] = ['backend-threw', 'timeout', 'aborted', 'over-budget']
+// 超时单列一支（kind 'timeout'）：它也是执行层失败，但机器可读的原因码走独立的
+// backend-timeout（#1195），不再与真正的抛错共用 backend-threw。
+const TRANSPORT_KINDS: readonly string[] = ['backend-threw', 'aborted', 'over-budget']
 /** 后端回包在契约层还没建模：这里只按本工具真正会读的那一个字段收口，调用处拿断言喂进来（断言不产码）。 */
 type TransportResult = { error?: { kind?: string; message?: unknown } } | null | undefined
 /** 后端回包里「执行层失败」的原话；不是执行层失败（后端诚实地说做不到）就回 null，一个字不改判。 */
@@ -40,6 +42,12 @@ function must<T>(result: T): T {
   const m = transportMessage(result as unknown as TransportResult)
   if (m) throw new Error(m)
   return result
+}
+/** 超时那一支的原话（kind 'timeout'）：调用处直接回独立原因码，不抛给壳。 */
+function timeoutMessage(result: TransportResult): string | null {
+  const e = result && result.error
+  if (e && e.kind === 'timeout') return String(e.message || '执行层没回来')
+  return null
 }
 
 /**
@@ -183,6 +191,9 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
       const notes = []
       if (effortId) notes.push('这次带了 effortId（' + effortId.slice(0, 60) + '）：本地后端只在那一个目录里找，远端后端忽略它。')
       const touched = [key]
+      // 锁内超时的传话格：锁回调里不能直接回整笔回执（那只会结束锁回调），超时原话先记在这里，
+      // 锁出来以后统一回 timedOut；每次进锁前清零。
+      let lockTimeout: string | null = null
       // result 是后端回包（形状是运行时真值，契约层还没建模）：参数就地收窄成「只读 error.message」，
       // 下面那句读的还是原来那个 result，字段名与默认值一个字没改。
       const fail = (step: string, result: { error?: { message?: unknown } } | null | undefined) => {
@@ -193,6 +204,16 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
       const over = (step: string) => {
         items.push({ key: key, step: step, status: 'failed', reason: '剩余额度不够发这一次调用了，这一步这次没动：带同样参数再调一次即可。' })
       }
+      // 超时整笔回：执行层超时不是某一项没做成，整笔直接回独立原因码（可重试），不抛给壳。
+      const timedOut = (msg: string) => ({
+        value: {
+          status: DECK_STATUS.UNSUPPORTED,
+          reason: REFUSAL_REASONS.BACKEND_TIMEOUT,
+          text: '这次没改成（超时了：在限时内没等到后端回话，改上没有说不清；先读一次现状再续，不要直接重放）。',
+          data: { key: key, backendId: pick.backendId, error: { kind: 'timeout', message: String(msg || '').slice(0, 300) } },
+        },
+        claimed: { requests: est.requests, points: est.points },
+      })
       // 同票并发写互斥：等不到锁就诚实记一笔，不硬挤（单次原子写不拿锁，只有读改写序列拿）。
       const lockOpts = { timeoutMs: numOpt(d.keyLockTimeoutMs) }
       const lockedOut = (step: string) => {
@@ -202,7 +223,10 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
       if (wants.comment) {
         if (sc.outOfBudget()) over('comment')
         else {
-          const r = must(await t.comment(repo, key, a.comment, opCtx))
+          const rawComment = await t.comment(repo, key, a.comment, opCtx)
+          const tmoComment = timeoutMessage(rawComment as unknown as TransportResult)
+          if (tmoComment) return timedOut(tmoComment)
+          const r = must(rawComment)
           if (r && r.ok === true) items.push({ key: key, step: 'comment', status: 'ok' })
           else fail('comment', r)
         }
@@ -213,14 +237,21 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
         // 读改写序列持同票锁：同票并发改标签不再丢一次改动；不同票照旧并行。
         if (sc.outOfBudget()) over('labels')
         else {
+          lockTimeout = null
           const held = await withKeyLock(repo, key, async () => {
-            const cur = must(await t.get(repo, key, {}, opCtx))
+            const rawCur = await t.get(repo, key, {}, opCtx)
+            const tmoCur = timeoutMessage(rawCur as unknown as TransportResult)
+            if (tmoCur) { lockTimeout = tmoCur; return }
+            const cur = must(rawCur)
             if (!cur || cur.ok !== true) { fail('labels', cur); return }
             const have = names(cur.data && cur.data.labels)
             const want = have.concat(addLabels).filter((n) => removeLabels.indexOf(n) < 0)
             const uniq = want.filter((n, i) => want.indexOf(n) === i)
             if (sc.outOfBudget()) { over('labels'); return }
-            const r = must(await t.setLabels(repo, key, uniq, {}, opCtx))
+            const rawLabels = await t.setLabels(repo, key, uniq, {}, opCtx)
+            const tmoLabels = timeoutMessage(rawLabels as unknown as TransportResult)
+            if (tmoLabels) { lockTimeout = tmoLabels; return }
+            const r = must(rawLabels)
             if (r && r.ok === true) {
               // 「回了 ok」不等于「标签改成了」：判据只取写后读回这一次（后端的回答本身），
               // 不取写动作自己的回包 —— 后端把回包里的标签写成刚提交的那一份时，拿它当证据等于自问自答，
@@ -237,6 +268,7 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
               } else items.push({ key: key, step: 'labels', status: 'ok', labels: uniq })
             } else fail('labels', r)
           }, lockOpts)
+          if (lockTimeout) return timedOut(lockTimeout)
           if (held && held.ok === false && held.timedOut) lockedOut('labels')
         }
       }
@@ -245,7 +277,10 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
         const want = Array.isArray(a.assignees) ? a.assignees.map((x) => String(x)) : []
         if (sc.outOfBudget()) over('assignees')
         else {
-          const r = must(await t.setAssignees(repo, key, want, {}, opCtx))
+          const rawAssign = await t.setAssignees(repo, key, want, {}, opCtx)
+          const tmoAssign = timeoutMessage(rawAssign as unknown as TransportResult)
+          if (tmoAssign) return timedOut(tmoAssign)
+          const r = must(rawAssign)
           if (r && r.ok === true) {
             // 「回了 ok」不等于「认领人记上了」：本地 Markdown 只会把状态改成 claimed，认领人的名字不记。
             // 判据只取写后读回这一次（后端的回答本身），不取写动作自己的回包 —— GitHub 房会把回包里的
@@ -273,6 +308,7 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
         // 正文读改写序列持同票锁（单次标题直写也一起 serial，保证与进度回写不交错）。
         if (sc.outOfBudget()) over('text')
         else {
+          lockTimeout = null
           const held = await withKeyLock(repo, key, async () => {
             // 索引签名只为让下面按字段名赋值、delete 与取键名能过编译；写进去的键与值一个字没改。
             const patch: Record<string, unknown> = {}
@@ -283,7 +319,10 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
               if (typeof a.body === 'string') patch.body = replaceProgressSection(a.body, a.progress)
               else if (sc.outOfBudget()) { progressBlocked = true; over('text') }
               else {
-                const cur = must(await t.get(repo, key, {}, opCtx))
+                const rawCur = await t.get(repo, key, {}, opCtx)
+                const tmoCur = timeoutMessage(rawCur as unknown as TransportResult)
+                if (tmoCur) { lockTimeout = tmoCur; return }
+                const cur = must(rawCur)
                 const base = (cur && cur.ok === true && cur.data && typeof cur.data.body === 'string') ? cur.data.body : null
                 // 旧正文没读回来时不敢拿空正文覆盖：空写一次就会把整张票冲成只剩进度段（#908 亲历）。这次宁可报失败，让调用方等能读回再写，或改传整段 body。
                 if (base === null) { progressBlocked = true; fail('text', { error: { message: '旧正文没读回来，不敢拿半截正文覆盖：这次进度没写，等能读回旧正文再写（若急用，改传整段 body）。' } }) }
@@ -295,12 +334,16 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
             if (!progressBlocked || Object.keys(patch).length > 0) {
               if (sc.outOfBudget()) over('text')
               else {
-                const r = must(await t.update(repo, key, patch, opCtx))
+                const rawText = await t.update(repo, key, patch, opCtx)
+                const tmoText = timeoutMessage(rawText as unknown as TransportResult)
+                if (tmoText) { lockTimeout = tmoText; return }
+                const r = must(rawText)
                 if (r && r.ok === true) items.push({ key: key, step: 'text', status: 'ok', fields: Object.keys(patch) })
                 else fail('text', r)
               }
             }
           }, lockOpts)
+          if (lockTimeout) return timedOut(lockTimeout)
           if (held && held.ok === false && held.timedOut) lockedOut('text')
         }
       }
@@ -308,7 +351,10 @@ export function createDeckIssuePatch(deps?: DeckIssuePatchDeps) {
       if (wants.state) {
         if (sc.outOfBudget()) over(a.close === true ? 'close' : 'reopen')
         else {
-          const r = a.close === true ? must(await t.close(repo, key, {}, opCtx)) : must(await t.reopen(repo, key, opCtx))
+          const rawState = a.close === true ? await t.close(repo, key, {}, opCtx) : await t.reopen(repo, key, opCtx)
+          const tmoState = timeoutMessage(rawState as unknown as TransportResult)
+          if (tmoState) return timedOut(tmoState)
+          const r = must(rawState)
           const stateStep = a.close === true ? 'close' : 'reopen'
           const wantState = a.close === true ? 'closed' : 'open'
           if (r && r.ok === true) {

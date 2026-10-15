@@ -51,6 +51,7 @@ export const REFUSAL_REASONS = Object.freeze({
   NO_BACKEND: 'no-backend',
   GATE_DEFER: 'gate-defer',
   BACKEND_THREW: 'backend-threw',
+  BACKEND_TIMEOUT: 'backend-timeout',
   BACKEND_UNSUPPORTED: 'backend-unsupported',
   BAD_ARGS: 'bad-args',
 })

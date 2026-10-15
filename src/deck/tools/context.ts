@@ -25,13 +25,21 @@ function withCap<T>(promise: Promise<T> | T, ms: number): Promise<CapResult<T>> 
 const SANDBOX_TIMEOUT_MS = 5000
 // 执行层失败与后端诚实失败的分界（见 issue-create.ts 同名注释）：前者抛给壳走
 // backend-threw（可重试），后者走 PARTIAL/notes。钳制只管超时，不改判。
-const TRANSPORT_KINDS: readonly string[] = ['backend-threw', 'timeout', 'aborted', 'over-budget']
+// 超时单列一支（kind 'timeout'）：它也是执行层失败，但机器可读的原因码走独立的
+// backend-timeout（#1195），不再与真正的抛错共用 backend-threw。
+const TRANSPORT_KINDS: readonly string[] = ['backend-threw', 'aborted', 'over-budget']
 /** 后端回包在契约层还没建模：这里只按本工具真正会读的那一个字段收口，调用处拿断言喂进来（断言不产码）。 */
 type TransportResult = { error?: { kind?: string; message?: unknown } } | null | undefined
 /** 后端回包里「执行层失败」的原话；不是执行层失败（后端诚实地说做不到）就回 null，一个字不改判。 */
 function transportMessage(result: TransportResult): string | null {
   const e = result && result.error
   if (e && TRANSPORT_KINDS.indexOf(e.kind as string) >= 0) return String(e.message || '执行层没回来')
+  return null
+}
+/** 超时那一支的原话（kind 'timeout'）：调用处直接回独立原因码，不抛给壳。 */
+function timeoutMessage(result: TransportResult): string | null {
+  const e = result && result.error
+  if (e && e.kind === 'timeout') return String(e.message || '执行层没回来')
   return null
 }
 
@@ -121,10 +129,40 @@ export function createDeckContext(deps?: DeckContextDeps) {
       const pre = await preP
       const listed = await listP
       const perm = await permP
+      const preTimeout = timeoutMessage(pre as TransportResult)
+      if (preTimeout) return {
+        value: {
+          status: DECK_STATUS.UNSUPPORTED,
+          reason: REFUSAL_REASONS.BACKEND_TIMEOUT,
+          text: '工作区这次没确认下来（超时了：在限时内没等到后端回话，这次读没动手，重调一次就行）。',
+          data: { backendId: pick.backendId, error: { kind: 'timeout', message: preTimeout.slice(0, 300) } },
+        },
+        claimed: { requests: 3, points: 2 },
+      }
       const preTransport = transportMessage(pre as TransportResult)
       if (preTransport) throw new Error(preTransport)
+      const listedTimeout = timeoutMessage(listed as TransportResult)
+      if (listedTimeout) return {
+        value: {
+          status: DECK_STATUS.UNSUPPORTED,
+          reason: REFUSAL_REASONS.BACKEND_TIMEOUT,
+          text: '地图清单这次没取到（超时了：在限时内没等到后端回话，这次读没动手，重调一次就行）。',
+          data: { backendId: pick.backendId, error: { kind: 'timeout', message: listedTimeout.slice(0, 300) } },
+        },
+        claimed: { requests: 3, points: 2 },
+      }
       const listedTransport = transportMessage(listed as TransportResult)
       if (listedTransport) throw new Error(listedTransport)
+      const permTimeout = timeoutMessage(perm as TransportResult)
+      if (permTimeout) return {
+        value: {
+          status: DECK_STATUS.UNSUPPORTED,
+          reason: REFUSAL_REASONS.BACKEND_TIMEOUT,
+          text: '写权限那一问超时了：在限时内没等到后端回话，这次读没动手，重调一次就行。',
+          data: { backendId: pick.backendId, error: { kind: 'timeout', message: permTimeout.slice(0, 300) } },
+        },
+        claimed: { requests: 3, points: 2 },
+      }
       const permTransport = transportMessage(perm as TransportResult)
       if (permTransport) throw new Error(permTransport)
       const maps = (listed.ok && Array.isArray(listed.data)) ? listed.data.map(mapRow) : []

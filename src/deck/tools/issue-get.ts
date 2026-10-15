@@ -23,7 +23,9 @@ function withCap<T>(promise: Promise<T> | T, ms: number): Promise<CapResult<T>> 
 const SANDBOX_TIMEOUT_MS = 5000
 // 执行层失败与后端诚实失败的分界（见 issue-create.ts 同名注释）：前者抛给壳走
 // backend-threw（可重试），后者走逐项的 BACKEND_UNSUPPORTED。钳制只管超时，不改判。
-const TRANSPORT_KINDS: readonly string[] = ['backend-threw', 'timeout', 'aborted', 'over-budget']
+// 超时单列一支（kind 'timeout'）：它也是执行层失败，但机器可读的原因码走独立的
+// backend-timeout（#1195），不再与真正的抛错共用 backend-threw。
+const TRANSPORT_KINDS: readonly string[] = ['backend-threw', 'aborted', 'over-budget']
 /** 后端回包在契约层还没建模：这里只按本工具真正会读的那一个字段收口，调用处拿断言喂进来（断言不产码）。 */
 type TransportResult = { error?: { kind?: string; message?: unknown } } | null | undefined
 /** 后端回包里「执行层失败」的原话；不是执行层失败（后端诚实地说做不到）就回 null，一个字不改判。 */
@@ -31,6 +33,24 @@ function transportMessage(result: TransportResult): string | null {
   const e = result && result.error
   if (e && TRANSPORT_KINDS.indexOf(e.kind as string) >= 0) return String(e.message || '执行层没回来')
   return null
+}
+/** 超时那一支的原话（kind 'timeout'）：调用处直接回独立原因码，不抛给壳。 */
+function timeoutMessage(result: TransportResult): string | null {
+  const e = result && result.error
+  if (e && e.kind === 'timeout') return String(e.message || '执行层没回来')
+  return null
+}
+/** 超时回执：状态与失败那一支同形（unsupported + 独立原因码 + 原话进 data），不抛。 */
+function timeoutValue(text: string, data: Record<string, unknown>, claimed: { requests: number; points: number }) {
+  return {
+    value: {
+      status: DECK_STATUS.UNSUPPORTED,
+      reason: REFUSAL_REASONS.BACKEND_TIMEOUT,
+      text: text,
+      data: data,
+    },
+    claimed: claimed,
+  }
 }
 
 /**
@@ -157,6 +177,8 @@ export function createDeckIssueGet(deps?: DeckIssueGetDeps) {
       const t = sc.tracker!
       const opCtx = sc.opCtx
       const got = await t.get(repo, key, { comments: { first: first } }, opCtx)
+      const gotTimeout = timeoutMessage(got as TransportResult)
+      if (gotTimeout) return timeoutValue('这张票这次没读回来（超时了：在限时内没等到后端回话，这次读没动手，重调一次就行）。', { key: key, backendId: pick.backendId, error: { kind: 'timeout', message: gotTimeout.slice(0, 300) } }, { requests: 1, points: 3 })
       const gotTransport = transportMessage(got as TransportResult)
       if (gotTransport) throw new Error(gotTransport)
       if (!got || got.ok !== true) {
@@ -175,6 +197,8 @@ export function createDeckIssueGet(deps?: DeckIssueGetDeps) {
       // 反向边是整笔调用里最贵的一段（算“谁被阻塞”要扫全仓）：关掉就整段跳过，
       // 只读单票本身；反向边记空并注记，不假装 0 条。
       const dep = (wantBlocking && typeof t.getDependencies === 'function') ? await t.getDependencies(repo, key, {}, opCtx) : null
+      const depTimeout = wantBlocking ? timeoutMessage(dep as TransportResult) : null
+      if (depTimeout) return timeoutValue('这张票读到一半（阻塞边超时了：在限时内没等到后端回话；票本身已读回，阻塞边重调一次就行）。', { key: key, backendId: pick.backendId, error: { kind: 'timeout', message: depTimeout.slice(0, 300) } }, { requests: 1, points: 3 })
       const depTransport = wantBlocking ? transportMessage(dep as TransportResult) : null
       if (depTransport) throw new Error(depTransport)
       const dependencies = (dep && dep.ok === true) ? dep.data : null
