@@ -2,7 +2,7 @@
 // 用法：被 tests/verify-deck-tools-matrix.js 等门禁引用（require './deck-tools-matrix-transports.js' 原样保留，
 //   装载钩子把同名 .js 说明符改指到本文件；其它 require 与 module.exports 也不动）。
 //
-// 为什么要这一段：这七个工具坐在 tracker 契约之上，而三个后端表达关系的方式**不一样**：
+// 为什么要这一段：这九个工具坐在 tracker 契约之上，而三个后端表达关系的方式**不一样**：
 //   GitHub：父子是原生 sub-issues 层级，阻塞是原生 dependencies 边；
 //   GitLab：父子落在票正文顶部的 `Part of #<地图>` 声明行，阻塞走原生 is_blocked_by、
 //     拿不到能力时退回正文里的 Blocked by 行；

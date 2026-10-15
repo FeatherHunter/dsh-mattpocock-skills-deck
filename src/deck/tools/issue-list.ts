@@ -1,4 +1,4 @@
-// src/deck/tools/issue-list.ts —— deck_issue_list（全局薄列表，补七个工具没有的那一块；#1019 换到新树、#1035 转 TypeScript）
+// src/deck/tools/issue-list.ts —— deck_issue_list（全局薄列表，补其他八个工具没有的那一块；#1019 换到新树、#1035 转 TypeScript）
 //
 // 为什么需要它：deck_context 只给地图清单，deck_map_snapshot 要逐张地图传 key 才给子票，
 // 全仓开放清单、按 label 与 assignee 筛这两件事原来只能走 gh。这一只走同一只壳、同一道闸、

@@ -1,7 +1,7 @@
-// verify-deck-tools-agent-register.js —— 门禁：七个 deck_* 工具真的交到 agent 手上（#741）
+// verify-deck-tools-agent-register.js —— 门禁：九个 deck_* 工具真的交到 agent 手上（#741)
 // 用法：在插件根目录执行 node tests/verify-deck-tools-agent-register.js，可独立运行。
 //
-// 为什么要这一段：七个工具的实现与宿主装配都在（实现由 verify-deck-tools.js 盯着，装配由
+// 为什么要这一段：九个工具的实现与宿主装配都在（实现由 verify-deck-tools.js 盯着，装配由
 // verify-1109-matches-timeout.ts、verify-1150-plan-store-durable.ts、verify-723-gate-wiring.js
 // 盯着），但 agent 的工具列表里一个都看不见 ——
 // 从来没有一处调用过工具注册。这一段盯最后那一步：
@@ -135,7 +135,7 @@ async function main() {
   check(row && Array.isArray(row.inject) && row.inject.indexOf('tools') >= 0, '行模块注入工具服务（框架保证就绪才加载）')
   check(typeof row.name === 'string' && row.name.length > 0, '行模块有名字')
 
-  // ── 1. 用八个真定义跑转换：名字齐、形状合法、必填对上 ──
+  // ── 1. 用九个真定义跑转换：名字齐、形状合法、必填对上 ──
   const toolFiles = [
     'src/deck/tools/context.ts',
     'src/deck/tools/issue-get.ts',
@@ -217,7 +217,7 @@ async function main() {
   check(noSvc && noSvc.registered.length === 0 && (noSvc.reason || '').length > 0, '服务不在只进 reason，不抛')
   const emptyTable = await agent.registerDeckAgentTools(stubToolsSvc(), { names: [], definitions: [], tools: {} }, realDefineTool)
   check(emptyTable && emptyTable.registered.length === 0 && emptyTable.reason === 'empty-table', '表是空的给空表原因（不谎报已交过）')
-  // 退路（工具包没装好、defineTool 传不进来）：直接按注册表形状交，八个照样出去。
+  // 退路（工具包没装好、defineTool 传不进来）：直接按注册表形状交，九个照样出去。
   const rawSvc = stubToolsSvc()
   const raw = await agent.registerDeckAgentTools(rawSvc, table, null)
   check(raw && raw.registered.join(',') === SEVEN_NAMES.join(',') && (!raw.missing || raw.missing.length === 0),
@@ -226,7 +226,7 @@ async function main() {
   const rawDef = seven.filter((d) => d.name === 'deck_issue_get')[0]
   check(rawOne && rawOne.parameters === rawDef.parameters && typeof rawOne.execute === 'function',
     '退路参数用定义里编好的那份原样交（注册表不重编，直接当模式用）')
-  // 退路七个的形状逐个过原生子集判定（官方写法走编译器，退路走这一关），
+  // 退路九个的形状逐个过原生子集判定（官方写法走编译器，退路走这一关），
   // 再过一遍真原生判定（手写判定只防回归，真实现才是准绳）。
   for (const t of rawSvc.registered) {
     const rProblems = []
@@ -255,7 +255,7 @@ async function main() {
   //   inject 声明里是 connection 而不是 webServer。这些钉的都是手写源码的写法与字面量，
   //   改写法、搬文件、调注入顺序就会变红，按维护者要求整段去掉（连带只用在这里的 readText）。
 
-  // ── 5. 钩子行为（全桩）：有服务就交八个，没服务静默跳过 ──
+  // ── 5. 钩子行为（全桩）：有服务就交九个，没服务静默跳过 ──
   check(typeof agent.hookDeckAgentTools === 'function', '交出 hookDeckAgentTools（接线调的就是它）')
   const hookSvc = stubToolsSvc()
   agent.hookDeckAgentTools({ tools: hookSvc }, async function () { return table }, async function () { return { defineTool: realDefineTool } })
@@ -264,12 +264,12 @@ async function main() {
   const hookRawSvc = stubToolsSvc()
   agent.hookDeckAgentTools({ tools: hookRawSvc }, async function () { return table }, async function () { return null })
   await waitFor(function () { return hookRawSvc.registered.length === 9 }, '退路钩子交出九个')
-  check(hookRawSvc.registered.length === 9, '拿不到工具包时钩子走退路，八个照样交')
+  check(hookRawSvc.registered.length === 9, '拿不到工具包时钩子走退路，九个照样交')
   let hookCrashed = false
   try { agent.hookDeckAgentTools({}, async function () { return table }, async function () { return null }) } catch (e) { hookCrashed = true }
   await sleep(50)
   check(!hookCrashed, '工具服务不在，钩子静默等几轮（宿主照常起）')
-  // 服务晚到两秒：钩子第一轮取不到，等一轮再取到，七个照样交。
+  // 服务晚到两秒：钩子第一轮取不到，等一轮再取到，九个照样交。
   const lateCtx = {}
   const lateSvc = stubToolsSvc()
   const lateReports = []
@@ -311,7 +311,7 @@ async function main() {
   try { noLog({ ok: true, ms: 1 }); noLog({ ok: false, reason: 'x' }) } catch (e) { reportCrashed = true }
   check(!reportCrashed, '日志口不在，报告静默跳过')
 
-  // ── 7. 行模块：agent 层那一行交出八个加探针 ──
+  // ── 7. 行模块：agent 层那一行交出九个加探针 ──
   const rowSvc = stubToolsSvc()
   let rowCrashed = null
   try { row.apply({ tools: rowSvc, connection: {} }) } catch (e) { rowCrashed = e }
@@ -327,7 +327,7 @@ async function main() {
   const pendOut = await pending.execute({}, { agent: { session: { cwd: '/ws' } } })
   check(pendOut && pendOut.status === 'unsupported' && String(pendOut.text).indexOf('面板') >= 0,
     '通道未通时执行诚实说明并指去面板（不谎报成功）')
-  // 注册表第二个就拒绝：剩下的照样交，坏一个不连累其余六个加探针。
+  // 注册表第二个就拒绝：剩下的照样交，坏一个不连累其余八个加探针。
   const flakySvc = stubToolsSvc()
   let flakyCalls = 0
   const flakyOrig = flakySvc.register

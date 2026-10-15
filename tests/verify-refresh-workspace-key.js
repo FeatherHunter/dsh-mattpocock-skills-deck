@@ -13,7 +13,7 @@
 //   一、钥匙只有一处：接线转出来的那把与共享层那一把是**同一个函数**；
 //      （2026-10-12 修订：原来还有半条读 wiring.js 源码文本、数「自己抄了几处散列」的断言，已删。）
 //   二、三条路进闸带的是同一把钥匙、落在同一格上：① 视图模型标活跃（wf.focus → syncAttention）；
-//      ② 检查链求值那一笔记账（detectChain 的 noteChainEval）；③ 七个 deck_* 工具里的一次调用过闸。
+//      ② 检查链求值那一笔记账（detectChain 的 noteChainEval）；③ 九个 deck_* 工具里的一次调用过闸。
 //      其中 ① 与 ② 正是真机那次错位的两半。
 //   三、反证：把 cwd **原文**喂给闸，它就是另一格（后台档被判 background-inactive 推迟）——
 //      这条判据有牙齿，改动把钥匙改回原文时，本门禁的第二组断言会红。
@@ -39,7 +39,7 @@ function canon(p) {
   return s.toLowerCase()
 }
 
-/** 一个本地 Markdown 工作区（票就是盘上的文件）：七个 deck_* 工具要在一个真工作区上真跑一次。 */
+/** 一个本地 Markdown 工作区（票就是盘上的文件）：九个 deck_* 工具要在一个真工作区上真跑一次。 */
 function markdownWorkspace() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-724-'))
   const dir = path.join(root, '.scratch', 'demo')
@@ -233,9 +233,9 @@ async function main() {
   check(chainSends.length === 1 && chainSends[0].key === K, '链那一笔记账带的钥匙 = 活跃集合那把（实得 ' + (chainSends[0] && chainSends[0].key) + '，应为 ' + K + '）')
   check(chainSends.length === 1 && chainSends[0].sent === true && chainSends[0].verdict === 'allow', '链那一笔在同一格上被放行（' + (chainSends[0] && (chainSends[0].verdict + '/' + chainSends[0].reason)) + '）')
 
-  // ③ 七个 deck_* 工具里的一次调用过闸（同一个闸、同一把钥匙）
+  // ③ 九个 deck_* 工具里的一次调用过闸（同一个闸、同一把钥匙）
   const table = await host.wiring.deckToolsForHost()
-  check(!!(table && table.tools && table.tools.deck_context), '七个工具在宿主装配形状下装起来了（reason=' + JSON.stringify(table && table.reason) + '）')
+  check(!!(table && table.tools && table.tools.deck_context), '九个工具在宿主装配形状下装起来了（reason=' + JSON.stringify(table && table.reason) + '）')
   const exec = { agent: { session: { id: 's-724', cwd: s.canon } } }
   const ctxOut = await table.tools.deck_context.run(exec, {})
   check(!!(ctxOut && ctxOut.status === 'ok'), 'deck_context 真跑通一次（status=' + (ctxOut && ctxOut.status) + '）')

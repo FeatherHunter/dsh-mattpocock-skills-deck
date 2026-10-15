@@ -1,5 +1,5 @@
 # dsh-mattpocock-skills-deck bundle 层：插入 Matt Skills Deck 控制面板插件条目
-# 与 agent 层工具行（#741：七个 deck 工具向 agent 注册走行模块，与宿主行互不干扰）。
+# 与 agent 层工具行（#741：九个 deck 工具向 agent 注册走行模块，与宿主行互不干扰）。
 # 行模块零框架引用（不引用工具包，只交纯数据对象），装机时不再多装一份工具包，
 # 真机上全部工具调用一起失败的那次（Cannot read properties of undefined (reading 'prepare')）
 # 不会重演；宿主侧兼容钩子留着（别的产品可能是同一容器）。

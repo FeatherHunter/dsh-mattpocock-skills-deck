@@ -1,4 +1,4 @@
-// verify-784-effortId.js —— #784 回归：七个 deck 工具的 effortId 逐项核对
+// verify-784-effortId.js —— #784 回归：八个带 effortId 的 deck 工具逐项核对
 // 用法：在插件根目录执行 node tests/verify-784-effortId.js，可独立运行。
 const path = require('path')
 const fs = require('fs')
@@ -39,7 +39,7 @@ function makeWS() {
 }
 
 async function main() {
-  console.log('#784 七工具验收')
+  console.log('#784 八工具验收（八个带 effortId 的工具，deck_context 不带 effortId 不在内）')
   const budget = await imp('src/shared/refresh/budget.js')
   const ledgerMod = await imp('src/host/refresh/ledger.ts')
   const gateMod = await imp('src/host/refresh/gate.ts')
@@ -89,7 +89,7 @@ async function main() {
   // 与 report 逐字一致
   const repMod = await imp('src/deck/tools/issue-report.ts')
   const repDesc = repMod.definition.parameters.properties.effortId.description
-  check(firstDesc === repDesc, '七个的参数说明与 deck_issue_report 逐字一致（' + firstDesc + '）')
+  check(firstDesc === repDesc, '八个带 effortId 的工具的参数说明逐字一致（' + firstDesc + '）')
 
   // 读票
   const gA = await tools.deck_issue_get.run(exec, { key: '01', effortId: 'alpha' })

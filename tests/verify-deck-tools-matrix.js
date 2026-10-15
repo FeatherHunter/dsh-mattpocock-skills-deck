@@ -2,7 +2,7 @@ const { createOutboundControl } = require('../src/host/platform/outbound-control
 // verify-deck-tools-matrix.js —— 门禁：同一个动作在三种后端上分别落到哪里（#713 第六批）
 // 用法：在插件根目录执行 node tests/verify-deck-tools-matrix.js，可独立运行。
 //
-// 为什么要这一段：这七个工具坐在 tracker 契约之上，而三个后端表达关系的方式**不一样**：
+// 为什么要这一段：这九个工具坐在 tracker 契约之上，而三个后端表达关系的方式**不一样**：
 //   GitHub：父子是它自己的原生 sub-issues 层级，阻塞是原生 dependencies 边；
 //   GitLab：父子是票正文顶部的 `Part of #<地图>` 声明行（读回走契约的父子列），阻塞是原生 is_blocked_by 边
 //     （上限；免费档或远端说没能力时才回退到重写正文里的 Blocked by 行）；

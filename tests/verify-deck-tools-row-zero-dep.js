@@ -43,7 +43,7 @@ async function main() {
   const patch = readText('package/cordis.patch.yml')
   check(patch.indexOf('dsh-mattpocock-skills-deck/tools') >= 0, '装配补丁含工具行（agent 层能装上）')
 
-  // 2. 行模块交出七个加探针，且形状过真原生判定
+  // 2. 行模块交出九个加探针，且形状过真原生判定
   let row = null
   try { row = await imp('src/deck/registration/agent-row.ts') } catch (e) {
     check(false, '行模块可加载（' + String((e && e.message) || e).slice(0, 120) + '）')

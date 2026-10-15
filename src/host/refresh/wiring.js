@@ -19,9 +19,9 @@ import { createWriteEvents } from './writeEvents.js'
 import { createSessionTickets } from './sessionTickets.js'
 import { buildSessionChainReadout, SESSION_CHAIN_FIELD } from './sessionChainReadout.js'
 import { createAttention, createFocusHandler } from './attention.js'
-// #723（T19c）第 D 件：七个 deck_* 工具。装配口在共享层（createDeckTools 只收参数、不 import 工具文件），七个
+// #723（T19c）第 D 件：九个 deck_* 工具。装配口在共享层（createDeckTools 只收参数、不 import 工具文件），九个
 // 工厂由 ../platform/deckToolsAssembly.js 一处读进来 —— 收在那一层是因为宿主层文件之间不许互引（同层引用门禁），
-// 宿主层里再读一次那七个文件就要新增 7 条同层边，本票不许。见那个文件的文件头与交付报告第 6 节。
+// 宿主层里再读一次那九个文件就要新增 9 条同层边，本票不许。见那个文件的文件头与交付报告第 6 节。
 import { createDeckToolsForHost, DECK_TOOL_FILES, withCap } from '../../deck/registration/host-assemble.js'
 // #1150：批量建图的计划游标（中间态）要真落盘，存储器在这里造、随工具依赖注入。落盘目录与文件名约定
 // 都住在 plan-cursor.ts 里（planCursorDir / createFilePlanStore），不在这里另写一份。
@@ -39,7 +39,7 @@ import { createOutboundControl } from '../platform/outbound-control.js'
 const DECK_ENSURE_TIMEOUT_MS = TUNING.deckEnsureTimeoutMs ?? 15000
 const DECK_EXPLICIT_TIMEOUT_MS = 5000
 import { createNamingSummary, readFirstUserText } from '../platform/namingSummary.js'   // #746：命名摘要编排（单例，见下）；#746 首句直读（随单下发供免锁比对）
-import { hookDeckAgentTools, makeDeckRegisterReport } from '../../deck/registration/register-options.js' // #741 注册那一步（向 agent 交七个工具）：形状、循环与报告住共享层（两边都要用），这里只递表
+import { hookDeckAgentTools, makeDeckRegisterReport } from '../../deck/registration/register-options.js' // #741 注册那一步（向 agent 交九个工具）：形状、循环与报告住共享层（两边都要用），这里只递表
 import { publishDeckTable, noteDeckGate } from '../../deck/shell/table-cell.js' // #758 同进程共享格：行与宿主同一进程，表放进格子里行直接取，不经调用面
 import { createSandboxPolicyFor } from '../../deck/registration/sandbox-guard.js'
 import { createDeckQuotaSync } from '../../deck/registration/quota-sync.js' // #758 剩余额度读数接线：差读数先免费读一次，裁决数字不动（平台区，不新增宿主层边）
@@ -49,7 +49,7 @@ import * as budget from '../../shared/refresh/budget.js'
 import * as toolCost from '../../shared/refresh/tool-cost.js'
 import { TUNING } from '../../shared/refresh/tuning.js'
 // #724：闸那一侧的工作区钥匙（短散列）只有一份实现，住在共享层（宿主层文件之间不许互引，而链求值那侧也要用
-// 同一把钥匙）。本文件把它转出来，「活跃集合、写事件白名单、七个 deck_* 工具、行级增量、检查链记账」五处同源。
+// 同一把钥匙）。本文件把它转出来，「活跃集合、写事件白名单、九个 deck_* 工具、行级增量、检查链记账」五处同源。
 import { hash8, workspaceKeyOf } from '../../shared/refresh-workspace-key.js'
 import { parseWorkspaceFile, WORKSPACE_FILE_REL } from '../../deck/shell/workspace-anchor.js'
 export { workspaceKeyOf } from '../../shared/refresh-workspace-key.js'
@@ -103,7 +103,7 @@ export function makeRefreshLoader(deps) {
  *   canonicalKey   会话目录 → 工作区键的既有出口（src/host/repoKeys.js 的 canonicalKey）
  *   runGh / execProc / getRepoKey / getCacheDir / readDiskCache / writeDiskCache / getTrackerRegistry / getPlatform
  *                  宿主既有出口，交给各件跑腿用
- *   trackerRegistry 可选：后端注册表（七个 deck 工具的壳要用它选后端）
+ *   trackerRegistry 可选：后端注册表（九个 deck 工具的壳要用它选后端）
  *   gate / ledger  可选：已经造好的闸与账本（门禁与单测里注入用）；不给就现场造
  *
  * 回包：{ ledger, gate, writeEvents, sessionTickets, attention, chainReadoutOf, noteWorkspaceActive,
@@ -308,8 +308,8 @@ export function createRefreshWiring(deps) {
     return { detach: detach }
   }
 
-  // ── D（#723 T19c）：七个 deck_* 工具在宿主里装起来 ─────────────────────────────────────────
-  // 把七个工具工厂交给共享层装配口 createDeckTools，并把它要的依赖如实给全：gate（本文件造的那一个闸）、
+  // ── D（#723 T19c）：九个 deck_* 工具在宿主里装起来 ─────────────────────────────────────────
+  // 把九个工具工厂交给共享层装配口 createDeckTools，并把它要的依赖如实给全：gate（本文件造的那一个闸）、
   // registry（后端注册表，选后端走它的三级联）、budget 与 estimate/costInputFrom（额度与算账两件）、
   // handleFor（会话→注册表里绑过的真实句柄）、backendCtx（platform / fs / exec，exec 走 platformChannel
   // 的 detectionExec，也就是起进程那一层）、invalidate（写后作废那个工作区的快照缓存）、hourUsage（问账本）。
@@ -319,7 +319,7 @@ export function createRefreshWiring(deps) {
   // 注意（2026-09-26）：loadDefineTool 固定给 null，走原生形状直接注册——照官方工具写法，插件不 import 框架包，
   // 注册纯数据对象；从前这里动态 import 自带副本，挂载后全部工具调用报 prepare undefined。
   // 退路输出与参数形状见 shared/deck-tools/agent-register.js（deckAgentOutputSchemaRaw）。
-  let deckToolsP = null; try { hookDeckAgentTools(d.ctx, deckToolsForHost, function () { return Promise.resolve(null) }, makeDeckRegisterReport(logCtx)) } catch (eH) {} // #741 注册那一步：表装好就向 agent 交七个工具，成败落既有日志（deckToolsForHost 声明提升，这里可直接用）
+  let deckToolsP = null; try { hookDeckAgentTools(d.ctx, deckToolsForHost, function () { return Promise.resolve(null) }, makeDeckRegisterReport(logCtx)) } catch (eH) {} // #741 注册那一步：表装好就向 agent 交九个工具，成败落既有日志（deckToolsForHost 声明提升，这里可直接用）
   async function deckToolsForHost() {
     if (!deckToolsP) {
       deckToolsP = (async function () {        const empty = { tools: {}, names: [], definitions: [], missing: [], reason: '', files: DECK_TOOL_FILES }

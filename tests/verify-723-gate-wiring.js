@@ -210,7 +210,7 @@ async function main() {
     void chain
   }
 
-  // ── ⑤ 真被拒绝的现场：经**真入口**（宿主装配出来的七个工具）的一次调用被闸真拒绝 ──
+  // ── ⑤ 真被拒绝的现场：经**真入口**（宿主装配出来的九个工具）的一次调用被闸真拒绝 ──
   // 与 ③ 段的区别：③ 是拿闸自己的 admitAiTool 直调（证明裁决函数会拒），这一段是把额度压到只剩一点点，
   // 然后走 wiring.deckToolsForHost() 装出来的表、调真工具，看它是不是照契约回拒绝态。
   {
@@ -250,7 +250,7 @@ async function main() {
     // 生产判定出口读它得出的结论与旧绑定那一条同源（写用途因此才被放行）。
     writeWorkspaceFile(wsRoot, 'markdown')
 
-    /** 额度剩多少由 remaining 定；七个工具与闸都从这一个 wiring 上取（与生产同形）。 */
+    /** 额度剩多少由 remaining 定；九个工具与闸都从这一个 wiring 上取（与生产同形）。 */
     async function buildHost(remaining) {
       const base = ledgerMod.createLedger({ now: () => CLOCK })
       // 读数先落账（与实际顺序一致：宿主每分钟同步一次剩余），闸再按这份账判档 —— 顺序反了的话
