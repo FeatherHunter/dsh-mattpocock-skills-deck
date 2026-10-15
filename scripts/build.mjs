@@ -41,7 +41,7 @@ import { bundleEntryPanel } from './bundle-update-entry.mjs'
 // #1023 内置 TypeScript 域的逐文件转译：原先四个计算核各自带一份 build.mjs，
 // 现在收成 scripts/lib 里的一份共用实现（transpile-domains.mjs），由本条命令统一驱动。
 // 这样「谁写产物」只有一处：构建。做法与为什么这么做写在那个文件里。
-import { buildDomain, findDomains, readSpliceFragmentSource } from './lib/transpile-domains.mjs'
+import { buildDomain, findDomains, isLeafSourcePath, readSpliceFragmentSource } from './lib/transpile-domains.mjs'
 import { TRANSPILE_OPTIONS, inlineExportDeclarations, generatedHeader } from './lib/transpile-unit.mjs'
 
 // 域里允许住**手写**的 .js（没有同名源码，也不是构建产出）。今天只有这三份，
@@ -753,7 +753,7 @@ function wireModules(body) {
         const rel = dir + '/' + ent.name
         const absEnt = resolve(ROOT, rel)
         if (ent.isDirectory()) walk(rel)
-        else if (ent.isFile() && isLeafSourcePath(rel)) leafFiles.push(rel)
+        else if (ent.isFile() && isLeafSourcePath(ROOT, rel)) leafFiles.push(rel)
       }
     }
     walk('src/client/views'); walk('src/client/panel'); walk('src/client/statusbar'); walk('src/client/floating')
@@ -768,19 +768,11 @@ function wireModules(body) {
 }
 
 /**
- * 这个文件算不算「一份要拼进闭包的叶子源码」（上面那条反向检查用的判据）。
- *
- * 三种形态要分清：`.js` 是登记表里今天记的那种；`.ts` 是转成 TypeScript 之后的形态（#1207），
- * 只有当它旁边没有同名 `.js` 产物时才算一份独立叶子 —— 视图树里同名并排的 .ts/.js 是
- * 「一份源码 + 一份产物」，产物那一条已经在 `.js` 那一支里算过一次，再算一次会把同一份叶子
- * 数成两份、把好叶子报成未登记；`.d.ts` 是纯类型声明，没有运行时产物，永远不算叶子。
+ * 「这个文件算不算一份要拼进闭包的叶子源码」这条判据已经搬进 scripts/lib/transpile-domains.mjs 的
+ * isLeafSourcePath（#1207 对抗式审查指出：它住在 build.mjs 里时，门禁只能拿正则看它有没有写，
+ * 把实现掏空成 `return false` 也全绿）。搬过去之后它接一个显式的根目录参数，门禁能在临时目录里
+ * 把 .js / 没有同名 .js 的 TypeScript / 有同名 .js 的 TypeScript / .d.ts 四种情形都真跑一遍。
  */
-function isLeafSourcePath(rel) {
-  if (rel.endsWith('.d.ts')) return false
-  if (rel.endsWith('.js')) return true
-  if (!rel.endsWith('.ts')) return false
-  return !existsSync(resolve(ROOT, rel.slice(0, -'.ts'.length) + '.js'))
-}
 
 // ---------- 构建 client ----------
 async function buildClient({ version, repoUrl }) {

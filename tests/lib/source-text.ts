@@ -26,6 +26,17 @@
  *   scripts/lib/transpile-unit.mjs 的 TRANSPILE_OPTIONS 加 inlineExportDeclarations，与构建
  *   （scripts/build.mjs 经 scripts/lib/transpile-domains.mjs 的 readSpliceFragmentSource）用的是同一份；
  *   这里不写第二遍参数，也不自己删 export。
+ *
+ * 为什么它敢引构建侧的 scripts/lib（层方向是反的，这是刻意取舍）
+ *   这个文件住在 tests/lib/，却 require 构建侧的 scripts/lib/transpile-domains.mjs，等于把构建侧
+ *   （node:child_process、createRequire、esbuild 的惰性加载）拉进测试进程。#1207 的对抗式审查把这条
+ *   记了一笔：同目录的 eval-probe.ts 之所以坚持「只引 node:vm」，是因为它要能在没有装载钩子的情况下
+ *   被直接加载；本文件没有这个约束。取舍的理由是：真正要防的偏差是「门禁看到的源码形态与构建拼进产物的
+ *   形态分家」，这个风险远大于层方向好不好看。只走 sourceText 那一档的门禁（按文本形状扫描，例如
+ *   tests/verify-diagnostic-log-model.ts）不会因此多拉起 esbuild：transpile-domains.mjs 里 esbuild 是
+ *   惰性加载的。
+ *   要彻底拆干净，得把纯文本判据（片段形态、扩展名分派）与「读盘 + 转译」分开住 —— 那是另一张票的活，
+ *   本文件先把这条取舍写在明处。
  */
 'use strict'
 

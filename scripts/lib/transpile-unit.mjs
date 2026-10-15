@@ -123,40 +123,151 @@ export function inlineExportDeclarations(code, prefix) {
  * 语法错的文本，等构建的语法门禁去报，报出来的位置离真因很远。第二条管「.ts 片段没走过转译」：
  * 那种文本里留着模块级 import，拼进闭包不会当场报错（闭包是一个函数体，编译器只管语法），
  * 要到运行时才炸成 “Cannot use import statement outside a module”。两条都在构建这一处指名报错。
- * 判据只认行首那几个真写法：`import x`、`import {`、`import 'x'`、`export{`、`export *`，
- * 不碰 `exports.foo` 这类正常标识符，也不碰行首的 `import(`（那是合法的动态导入）。
+ * 判据只认行首那几个真写法：`import x`、`import {`、`import 'x'`、`export{`、`export *`、`export default`，
+ * 不碰 `exports.foo` 这类正常标识符，也不碰行首的 `import(`（那是合法的动态导入）。判据看的是
+ * **涂掉字符串与注释之后**的文本（maskNonCodeText）：注释里举例写的 `import x`、模板串里的示例代码
+ * 都不算数——它们不是代码，当成模块写法会把本来能拼的片段判死。
  *
  * 它挡不住什么：一份从没转译过的 .ts 片段，如果只有类型写法（`const x: number = 1`、`type T = …`）
- * 而没有任何 import/export，这段文本能过这里；它会在构建的语法门禁（`new Function` 那一关）当场
- * 报语法错——那也是构建期报错，只是报错位置在语法门禁不在这一处。
+ * 而没有任何 import/export，这段文本能过这里；它会在构建的语法门禁那一关当场报语法错——那也是
+ * 构建期报错，只是报错位置在语法门禁不在这一处。同理，`import` 与 `{` 之间夹着别的写法这类怪形状
+ * 也留给语法门禁：这里只认行首、且只认能一句话说清的那几种。
  *
  * @param {string} code 已经是 JavaScript 的源码文本（.ts 必须先过转译口径再进来）
  * @param {{ source: string }} options source 是仓库相对路径，只用于报错时指认是哪个片段
  * @returns {string} 可直接拼进闭包的文本
  */
 export function toSpliceableFragment(code, { source }) {
-  const moduleForm = /^[ \t]*export[ \t]*(\{|\*|default\b)/m.exec(code)
-  if (moduleForm) {
-    throw new Error(
-      `片段 ${source} 里是模块导出写法「${moduleForm[0].trim()}」：拼进闭包的片段只能写 ` +
-        '`export <声明>` 这种行首形式（去掉 export 就是一段普通声明），' +
-        '`export {…}` / `export * from` / `export default` 去掉 export 之后不是合法语句。'
-    )
-  }
+  checkSpliceableModuleForms(code, { source })
   const stripped = code
     .split('\n')
     .map((line) => line.replace(/^(\s*)export\s+/, '$1'))
     .join('\n')
     .trim()
-  const leftover = /^[ \t]*(?:import|export)[ \t{*'"]/m.exec(stripped)
+  const leftover = /^[^\S\r\n]*(?:import|export)[\s.{"'*]/m.exec(maskNonCodeText(stripped))
   if (leftover) {
     throw new Error(
-      `片段 ${source} 在拼接前还留着模块级写法「${leftover[0].trim()}」：` +
+      `片段 ${source} 在拼接前还留着模块级写法「${lineAt(stripped, leftover.index)}」：` +
         '拼接点吃的是 JavaScript 文本，.ts 片段必须先按全仓唯一那份转译口径（本文件的 ' +
         'TRANSPILE_OPTIONS 加 inlineExportDeclarations）转成 JavaScript 再拼。'
     )
   }
   return stripped
+}
+
+/**
+ * 把一段文本里「不是代码」的部分涂成空格：字符串、模板串、行注释、块注释。
+ *
+ * 为什么要它：上面两条判据是逐行正则，只按行首形状认模块写法。片段里常有注释和模板串，里面为举例
+ * 写着一行 `import x from 'y'`——那不是代码，正则却会当成代码把整份片段拦下，把本来能拼进去的片段
+ * 判死（#1207 的对抗式审查发现）。涂成空格只改判据看到的东西，片段文本本身一个字不动。
+ *
+ * 涂法是**等长**的：换行原样保留、其余字符换成空格，所以报错里引用的那一行、行号都还对得上。
+ * 它只回答「哪一段不是代码」，不看语法：模板串里的 `${…}` 也一并涂掉（那是代码，但一个片段不该把
+ * import 藏在插值里；真藏了还有构建的语法门禁兜着）。
+ *
+ * @param {string} text 片段原文
+ * @returns {string} 与原文等长、行结构相同的文本，代码之外的部分是空格
+ */
+function maskNonCodeText(text) {
+  const out = []
+  let i = 0
+  while (i < text.length) {
+    const ch = text[i]
+    const next = text[i + 1]
+    if (ch === '/' && next === '/') {
+      while (i < text.length && text[i] !== '\n') {
+        out.push(' ')
+        i++
+      }
+      continue
+    }
+    if (ch === '/' && next === '*') {
+      out.push(' ', ' ')
+      i += 2
+      while (i < text.length && !(text[i] === '*' && text[i + 1] === '/')) {
+        out.push(text[i] === '\n' ? '\n' : ' ')
+        i++
+      }
+      if (i < text.length) {
+        out.push(' ', ' ')
+        i += 2
+      }
+      continue
+    }
+    if (ch === "'" || ch === '"' || ch === '`') {
+      const quote = ch
+      out.push(' ')
+      i++
+      while (i < text.length) {
+        const c = text[i]
+        if (c === '\\') {
+          out.push(' ', ' ')
+          i += 2
+          continue
+        }
+        if (c === '\n') {
+          // 单双引号串里出现换行，说明这段文本本来就不是合法 JavaScript，涂到这里为止；
+          // 模板串里的换行是正常内容，留着（行结构不变，后面的行仍按「不是代码」涂）。
+          if (quote !== '`') break
+          out.push('\n')
+          i++
+          continue
+        }
+        if (c === quote) {
+          out.push(' ')
+          i++
+          break
+        }
+        out.push(' ')
+        i++
+      }
+      continue
+    }
+    out.push(ch)
+    i++
+  }
+  return out.join('')
+}
+
+/** 报错里引用出错那一行的原文：从命中位置取到行尾、去掉首尾空白（命中位置在行首，见下面两条判据）。 */
+function lineAt(text, index) {
+  const end = text.indexOf('\n', index)
+  return text.slice(index, end < 0 ? text.length : end).trim()
+}
+
+/**
+ * 找「改不动的模块写法」：`export {…}`、`export * from`、`export default`。
+ *
+ * 这三种去掉 export 之后剩下的不是合法语句（`{ a }` 是个空块、`* from` 与 `default` 直接是语法错），
+ * 拼进闭包只会得到一段语法错的文本，等构建的语法门禁去报，报出来的位置离真因很远。
+ * 前导空白用 `[^\S\r\n]`（任何空白但不算换行），这样缩进是全角空格或不断行空格也认。
+ */
+function findUnfixableModuleForm(code) {
+  return /^[^\S\r\n]*export\s*(\{|\*|default\b)/m.exec(maskNonCodeText(code))
+}
+
+/**
+ * 只查「改不动的模块写法」这一条，不改动文本；给 .ts 片段在**转译之前**先过一遍。
+ *
+ * 为什么要在转译前查：`.ts` 里的 `export default f` 经 esbuild 会变成 `export { f as default }`，
+ * 于是先撞上 inlineExportDeclarations 那句「不支持 as 改名」，把病因指到别处（#1207 对抗式审查发现）。
+ *
+ * 这一条**不查**模块级 import：.ts 里没被用到的 import 会被 esbuild 删掉，删干净之后确实能拼，
+ * 在转译前把它拦下反而会把本来能构建的片段判死（转译之后仍留着 import 的，toSpliceableFragment 会拦）。
+ *
+ * @param {string} code 片段原文（可以是 .ts，不必先转译）
+ * @param {{ source: string }} options source 只用于报错时指认是哪个片段
+ */
+export function checkSpliceableModuleForms(code, { source }) {
+  const hit = findUnfixableModuleForm(code)
+  if (hit) {
+    throw new Error(
+      `片段 ${source} 里是模块导出写法「${lineAt(code, hit.index)}」：拼进闭包的片段只能写 ` +
+        '`export <声明>` 这种行首形式（去掉 export 就是一段普通声明），' +
+        '`export {…}` / `export * from` / `export default` 去掉 export 之后不是合法语句。'
+    )
+  }
 }
 
 /**

@@ -14,6 +14,11 @@
  * checkDomainConsistency 会把它当陈旧产物报出来（判据本身在 scripts/lib/transpile-unit.mjs）。
  *
  * 这个文件负责读盘写盘，算路径与判据的纯函数都在 scripts/lib/transpile-unit.mjs 里。
+ *
+ * 这里还住着客户端拼接缝的两个读入口（#1207）：readSpliceFragmentSource 读一份片段源码、给出可直接
+ * 拼进客户端闭包的 JavaScript 文本；isLeafSourcePath 判断一个路径算不算「一份要拼进闭包的叶子源码」。
+ * 两者与域构建共用同一份转译口径（TRANSPILE_OPTIONS 加 inlineExportDeclarations），所以收在一处，
+ * 而不是让 build.mjs 各写一遍。
  */
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
@@ -21,7 +26,7 @@ import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 
-import { TRANSPILE_OPTIONS, checkDomainConsistency, deriveOutputPath, domainDir, generatedHeader, inlineExportDeclarations, toSpliceableFragment } from './transpile-unit.mjs'
+import { TRANSPILE_OPTIONS, checkDomainConsistency, checkSpliceableModuleForms, deriveOutputPath, domainDir, generatedHeader, inlineExportDeclarations, toSpliceableFragment } from './transpile-unit.mjs'
 
 /** 仓库根：本文件在 scripts/lib/ 下，往上两层就是根。 */
 export const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
@@ -153,30 +158,91 @@ function loadEsbuild() {
 }
 
 /**
+ * 片段源码按扩展名分派转译器：`.ts` / `.mts` / `.cts` 是同一门 TypeScript（loader 都填 ts），
+ * `.tsx` 要多认 JSX（loader tsx）。`.d.ts` 不在这张表里，它是纯类型声明，没有运行时内容可拼。
+ *
+ * 为什么要一张表而不是「路径结尾是不是 .ts」一个判断（#1207 对抗式审查发现）：只认 `.ts` 时，
+ * 视图树里放一份 `.mts` 叶子既不报「未登记」（反向检查的判据也不认它），登记了又会被原样带着
+ * 类型标注拼进闭包——错误要等发布产物的语法门禁才现形，是一条静默漏拼的路。AGENTS.md 允许新写
+ * `.mts`，所以这里一次认全这一族的扩展名。
+ */
+const FRAGMENT_LOADERS = new Map([
+  ['.ts', 'ts'],
+  ['.mts', 'ts'],
+  ['.cts', 'ts'],
+  ['.tsx', 'tsx'],
+])
+
+/**
+ * 这份路径的扩展名对应哪个转译器；不是片段源码时回空串（`.js` 与 `.d.ts`、以及别的扩展名）。
+ * 导出它是为了让门禁能直接断言扩展名判定，而不是拿正则看源码里有没有写某个分支。
+ */
+export function fragmentLoaderFor(relPath) {
+  const rel = String(relPath).toLowerCase()
+  if (rel.endsWith('.d.ts')) return ''
+  for (const [ext, loader] of FRAGMENT_LOADERS) {
+    if (rel.endsWith(ext)) return loader
+  }
+  return ''
+}
+
+/**
  * 读一份要拼进客户端闭包的片段源码，返回**可以直接拼接**的 JavaScript 文本（#1207）。
  *
  * 与「域里的源码 → 产物」那条路只差两处：片段不写盘（它的去处是拼进 client.js 那一大段文本），
  * 以及转译之后还要过一遍 toSpliceableFragment 那条判据——拼进闭包之前必须已经是纯 JavaScript。
  *
  * `.js` 片段原样读、也过同一条判据（它本来就是 JavaScript，过一遍只是为了让两条来源落到同一种形态）；
- * `.ts` 片段先按全仓唯一那份 TRANSPILE_OPTIONS 转译，再用 inlineExportDeclarations 把 esbuild 收在
- * 文件末尾的导出块改回行首写法。将来谁把一份片段从 .js 改成 .ts，只需要改登记表里的扩展名。
+ * TypeScript 那一族的片段先按全仓唯一那份 TRANSPILE_OPTIONS 转译（loader 按扩展名给，见
+ * FRAGMENT_LOADERS），再用 inlineExportDeclarations 把 esbuild 收在文件末尾的导出块改回行首写法。
+ * 将来谁把一份片段从 .js 改成 .ts，只需要改登记表里的扩展名。
  *
+ * 转译**之前**先过 checkSpliceableModuleForms：`export default f` 这类改不动的写法，转译之后会变成
+ * `export { f as default }`，报错会指到「不支持 as 改名」去，病因就看不出来了。
  * 转完仍留着模块级 import/export 时由 toSpliceableFragment 当场报错——那说明这段文本没走过转译，
  * 拼进闭包只会在运行时炸成 “Cannot use import statement outside a module”。
  *
  * @param {string} relPath 仓库相对的片段路径，登记在 build.mjs 的 KERNEL_MODULES / LEAF_MODULES / SHARED_SPLICE 里
  */
 export function readSpliceFragmentSource(relPath) {
+  if (String(relPath).toLowerCase().endsWith('.d.ts')) {
+    throw new Error(`[build] 片段 ${relPath} 是纯类型声明（.d.ts）：它没有运行时内容，拼不出任何东西，要登记的应该是使用它那份文件`)
+  }
+  const loader = fragmentLoaderFor(relPath)
   const source = readFileSync(resolve(REPO_ROOT, relPath), 'utf8')
-  if (!relPath.endsWith('.ts')) return toSpliceableFragment(source, { source: relPath })
+  if (!loader) return toSpliceableFragment(source, { source: relPath })
+  checkSpliceableModuleForms(source, { source: relPath })
   let code
   try {
-    code = loadEsbuild().transformSync(source, TRANSPILE_OPTIONS).code
+    code = loadEsbuild().transformSync(source, { ...TRANSPILE_OPTIONS, loader }).code
   } catch (e) {
     throw new Error(`[build] 片段 ${relPath} 转译失败：${(e && e.message) || e}`)
   }
   return toSpliceableFragment(inlineExportDeclarations(code, `[build] 片段 ${relPath}`), { source: relPath })
+}
+
+/**
+ * 这个路径算不算「一份要拼进闭包的叶子源码」（build.mjs 那条反向检查用的判据）。
+ *
+ * 三种形态要分清：`.js` 是登记表里今天记的那种；TypeScript 那一族（`.ts` / `.mts` / `.cts` / `.tsx`）
+ * 是转成 TypeScript 之后的形态（#1207），只有当它旁边没有同名 `.js` 产物时才算一份独立叶子 ——
+ * 视图树里同名并排的 .ts/.js 是「一份源码 + 一份产物」，产物那一条已经在 `.js` 那一支里算过一次，
+ * 再算一次会把同一份叶子数成两份、把好叶子报成未登记；`.d.ts` 是纯类型声明，没有运行时产物，
+ * 永远不算叶子。
+ *
+ * 为什么住在这里而不是 scripts/build.mjs：#1207 的对抗式审查发现，这条判据写在 build.mjs 里时，
+ * 门禁只能拿正则看它「有没有写」，把实现掏空成 `return false` 照样全绿。所以它接一个显式的根目录
+ * 参数搬到这里，门禁能在临时目录里把四种情形都摆出来真跑一遍。
+ *
+ * @param {string} root 仓库根（由调用方给，这个函数不读 REPO_ROOT，好让门禁在临时目录里验它）
+ * @param {string} rel 仓库相对路径，用 `/` 分隔
+ */
+export function isLeafSourcePath(root, rel) {
+  if (rel.endsWith('.d.ts')) return false
+  if (rel.endsWith('.js')) return true
+  if (!fragmentLoaderFor(rel)) return false
+  const ext = rel.slice(rel.lastIndexOf('.'))
+  return !existsSync(resolve(root, rel.slice(0, -ext.length) + '.js'))
 }
 
 /**

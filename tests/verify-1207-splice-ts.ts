@@ -15,20 +15,29 @@
  *   3. 缝真的会转译 .ts 片段：带类型标注的 .ts 片段经 readSpliceFragmentSource 之后，类型标注被剥掉、
  *      行首 export 被去掉，而且拼出来的文本能当场交给 eval-probe 求值（vm 只吃纯 JavaScript）；
  *   4. 三个拼接点都走同一条缝：build.mjs 里三处 marker 替换都调 readSpliceFragmentSource（构建与门禁
- *      共用同一份读取实现），且叶子反向检查认得 .ts（漏登记的叶子要报错，不能静默不拼）。
+ *      共用同一份读取实现），且叶子反向检查用的是 lib 里那份判据（不是 build.mjs 里自己写一遍）；
+ *   5. **拦截走真缝**：一段真正会被拒绝的片段，在 readSpliceFragmentSource 这一层就必须抛错——判据 1、2
+ *      测的是纯函数，谁把缝里那次调用换成一行内联的「去行首 export」，纯函数照样绿而缝不再拦；
+ *      同一节还守着「不误伤」那一面：注释与模板串里写着的行首 import/export 是文本、不是代码；
+ *   6. **登记表里的真片段逐份过缝**：不是只喂临时夹具——按路径前缀跳过转译、只对认识的扩展名转译这类
+ *      改动，只有拿真片段跑才看得出来；顺带盯住 `.ts` 一族与 `.d.ts` 的分派；
+ *   7. **叶子判据真跑一遍**：.js / 没有同名 .js 的 TypeScript / 有同名 .js 的 TypeScript / .d.ts 四种
+ *      情形摆在临时目录里逐个断言（#1207 对抗式审查发现：写在 build.mjs 里时门禁只能拿正则看它有没有写）。
  *
  * 夹具都建在系统临时目录里，跑完就删，不往仓库里写东西。
  *
- * 能红也能绿：把任一处的 readSpliceFragmentSource 换回「读文件、去行首 export」，第 3、4 条红；
- * 把 toSpliceableFragment 里那条 leftover 判据删掉，第 2 条红；全对时绿。
+ * 能红也能绿（每条都实测过）：把任一处的 readSpliceFragmentSource 换回「读文件、去行首 export」→ 判据 3、5 红；
+ * 把缝里那次 toSpliceableFragment 调用换成内联去 export → 判据 5 红；按路径前缀跳过转译 → 判据 6 红；
+ * 把 toSpliceableFragment 的 leftover 判据删掉 → 判据 2 红；把 moduleForm 判据里的 `default\b` 去掉 → 判据 2 红；
+ * 把叶子判据掏空成 `return false` → 判据 7 红；把 .js 分支改成 `source.trim()` → 判据 5 红；全对时绿。
  * 退出码 0 = 全通过；1 = 有断言不成立（会卡住 verify 链）。
  */
-const { mkdtempSync, readFileSync, rmSync, writeFileSync } = require('node:fs')
+const { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 
 const { toSpliceableFragment } = require('../scripts/lib/transpile-unit.mjs')
-const { REPO_ROOT, readSpliceFragmentSource } = require('../scripts/lib/transpile-domains.mjs')
+const { REPO_ROOT, isLeafSourcePath, readSpliceFragmentSource } = require('../scripts/lib/transpile-domains.mjs')
 const { sourcePath, sourceText, spliceableJs } = require('./lib/source-text.ts')
 const probe = require('./lib/eval-probe.ts')
 
@@ -108,6 +117,68 @@ function main(): void {
       sheetMissing(dir),
       '两种扩展名都不在盘上时当场报错（不许静默读到空文本，把后面的判据全放过去）'
     )
+
+    // ---- 判据 5：拦截与不误伤都走真缝（判据 1、2 测的是纯函数，这里测缝自己）----
+    // 为什么单独走一遍真缝：谁把 readSpliceFragmentSource 里那次 toSpliceableFragment 调用换成一行内联的
+    // 「去行首 export」，纯函数那两条判据照样绿，而缝已经不再拦任何东西（#1207 对抗式审查实测如此）。
+    const valueImport = path.join(dir, 'bad-import.js')
+    writeFileSync(valueImport, "import { readFileSync } from 'node:fs'\nconst read = readFileSync\n", 'utf8')
+    const refused = throwsText(() => readSpliceFragmentSource(valueImport))
+    ok(refused !== '' && refused.includes('bad-import.js'), '走真缝：片段里还留着模块级 import 时当场拒绝，报错指认是哪个片段')
+    const badExport = path.join(dir, 'bad-export.js')
+    writeFileSync(badExport, 'const a = 1\nexport { a }\n', 'utf8')
+    ok(throwsText(() => readSpliceFragmentSource(badExport)) !== '', '走真缝：`export { a }` 同样当场拒绝')
+
+    const tmpl = path.join(dir, 'ok-template.js')
+    writeFileSync(tmpl, 'const help = `\nimport { a } from "b"\n`\n', 'utf8')
+    ok(
+      throwsText(() => readSpliceFragmentSource(tmpl)) === '',
+      '不误伤：模板串里出现行首 import 的示例文本不算模块写法（对抗式审查 F7 指出这条原来会让构建失败）'
+    )
+    const commented = path.join(dir, 'ok-comment.js')
+    writeFileSync(commented, '/*\nexport { a }\n*/\nconst a = 1\n', 'utf8')
+    ok(throwsText(() => readSpliceFragmentSource(commented)) === '', '不误伤：块注释里出现行首 export 的示例文本不算模块写法')
+
+    const plainJs = path.join(dir, 'plain.js')
+    writeFileSync(plainJs, 'export const a = 1\n', 'utf8')
+    ok(spliceableJs(plainJs) === 'const a = 1', '走真缝：只有 .js 的片段也过同一条形态判据（行首 export 去掉）')
+
+    const tsDefault = path.join(dir, 'default.ts')
+    writeFileSync(tsDefault, 'export default function f(): number { return 1 }\n', 'utf8')
+    ok(
+      throwsText(() => readSpliceFragmentSource(tsDefault)).includes('模块导出写法'),
+      '走真缝：.ts 里的 `export default` 在转译前就被拦下，报错说的是模块导出写法（不是转译后的 as 改名）'
+    )
+
+    const mtsFixture = path.join(dir, 'plain.mts')
+    writeFileSync(mtsFixture, 'export const n: number = 1\n', 'utf8')
+    const mtsOut = spliceableJs(mtsFixture)
+    ok(
+      mtsOut.includes('const n = 1') && !/\bexport\b/.test(mtsOut),
+      '.mts 片段同样认得、同样剥掉类型与行首 export（AGENTS.md 允许新写 .mts，原来这条是静默漏拼）'
+    )
+
+    const declOnly = path.join(dir, 'shape.d.ts')
+    writeFileSync(declOnly, 'export interface Shape { a: number }\n', 'utf8')
+    ok(throwsText(() => readSpliceFragmentSource(declOnly)) !== '', '纯类型声明 .d.ts 不能当片段：当场拒绝，而不是拼出一段空文本')
+
+    // ---- 判据 7：叶子的认定真跑一遍（四种情形摆出来，而不是拿正则看源码里有没有写）----
+    const leafRoot = path.join(dir, 'leaves')
+    mkdirSync(leafRoot, { recursive: true })
+    writeFileSync(path.join(leafRoot, 'only.ts'), 'export const a = 1\n', 'utf8')
+    writeFileSync(path.join(leafRoot, 'both.ts'), 'export const b = 1\n', 'utf8')
+    writeFileSync(path.join(leafRoot, 'both.js'), 'const b = 1\n', 'utf8')
+    writeFileSync(path.join(leafRoot, 'plain.js'), 'const c = 1\n', 'utf8')
+    writeFileSync(path.join(leafRoot, 'shape.d.ts'), 'export interface S { a: number }\n', 'utf8')
+    writeFileSync(path.join(leafRoot, 'helper.mts'), 'const d = 1\n', 'utf8')
+    writeFileSync(path.join(leafRoot, 'view.tsx'), 'const e = 1\n', 'utf8')
+    writeFileSync(path.join(leafRoot, 'notes.md'), '# 说明\n', 'utf8')
+    const leaf = (rel: string): boolean => isLeafSourcePath(leafRoot, rel)
+    ok(leaf('only.ts') === true, '叶子判据：没有同名 .js 的 .ts 算一份叶子')
+    ok(leaf('both.ts') === false && leaf('both.js') === true, '叶子判据：同名并排的 .ts/.js 只在 .js 那一条算一次（不然同一份叶子会数成两份）')
+    ok(leaf('shape.d.ts') === false, '叶子判据：.d.ts 是纯类型声明，不算叶子')
+    ok(leaf('helper.mts') === true && leaf('view.tsx') === true, '叶子判据：.mts / .tsx 也算叶子（不然它们既不被反向检查报出来，也拼不进去）')
+    ok(leaf('notes.md') === false, '叶子判据：不是片段源码的扩展名不算叶子')
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
@@ -122,8 +193,45 @@ function main(): void {
     '拼接点用的是构建与门禁共用的那一份读取实现（不是各写一份）'
   )
   ok(
-    /isLeafSourcePath\(rel\)/.test(buildSrc) && /\.d\.ts/.test(buildSrc),
-    '叶子反向检查认得 .ts 片段，且不会把纯类型声明 .d.ts 当成叶子'
+    /isLeafSourcePath\(ROOT, rel\)/.test(buildSrc) && /isLeafSourcePath[^\n]*from '\.\/lib\/transpile-domains\.mjs'/.test(buildSrc),
+    '叶子反向检查用的是 lib 里那份判据（build.mjs 只调用，不自己再写一遍）'
+  )
+  ok(!/function isLeafSourcePath/.test(buildSrc), 'build.mjs 里不再留一份自己的叶子判据实现')
+
+  // ---- 判据 6：登记表里的真片段逐份过缝（不是只喂临时夹具）----
+  // 为什么要有它：判据 3、5 用的全是临时夹具，于是「按路径前缀跳过转译」「只对认识的扩展名转译」这类
+  // 最像真实回归的改动正好落在盲区（对抗式审查 F3/F5 实测全绿）。这里把三份登记表里的真片段全过一遍，
+  // 顺带把「转译完不留行首 import/export」这条守到每一份上——#1208/#1209 之后 .ts 片段会越来越多。
+  const registered = [...buildSrc.matchAll(/file:\s*'([^']+)'/g)].map((m) => m[1])
+  ok(registered.length >= 150, '登记表读得出条目（实到 ' + registered.length + ' 条）')
+  let passed = 0
+  let missing = 0
+  let firstBad = ''
+  for (const rel of registered) {
+    if (!existsSync(path.join(REPO_ROOT, rel))) {
+      // 盘上还没有这份文件（构建自己的错会当场报 ENOENT），门禁这里不替它判，只记下跳过了几份。
+      missing++
+      continue
+    }
+    let out = ''
+    try {
+      out = readSpliceFragmentSource(rel)
+    } catch (e) {
+      firstBad = rel + ' 过缝时报错：' + String((e && (e as { message?: unknown }).message) || e)
+      break
+    }
+    if (/^[^\S\r\n]*(?:import|export)\b/m.test(out)) {
+      firstBad = rel + ' 拼完还留着行首 import/export'
+      break
+    }
+    passed++
+  }
+  ok(
+    firstBad === '',
+    '登记表里每一份真片段过缝之后都没有行首 import/export 残留（过了 ' + passed + ' 份' +
+      (missing ? '，盘上还没有的跳过 ' + missing + ' 份' : '') +
+      (firstBad ? ' — ' + firstBad : '') +
+      '）'
   )
 
   console.log('')
