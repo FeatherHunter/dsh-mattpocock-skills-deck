@@ -338,24 +338,61 @@ function stripFencedBlocks(text) {
 const MAP_SECTION_RE = /^##\s*(Notes|Decisions so far|Not yet specified|Out of scope)\s*$/m;
 
 /**
+ * 找粘在行中的规范标题（#1184）：`## 规范标题` 写到行尾、前面却没有换行
+ *（比如「…没有动环检逻辑。## Not yet specified」）。后面还跟字的不算
+ *（那是正文在讨论标题本身）；围栏代码块里的不算（块里写什么都是示例）。
+ * 五个标题都认（含 Destination：解析器拆行中标题时五个都拆，
+ * src/tracker/body-parse.ts 的 MAP_SECTION_TITLES；守门与解析认同一套）。
+ * 找到回标题名，找不到回 null。
+ */
+function findGluedHeading(text) {
+  const titles = "(Destination|Notes|Decisions so far|Not yet specified|Out of scope)";
+  const gluedRe = new RegExp("^(.*\\S)\\s*##\\s*" + titles + "\\s*$");
+  let fence = null;
+  for (const line of String(text == null ? "" : text).split(/\r?\n/)) {
+    const fm = line.match(/^\s*(`{3,}|~{3,})/);
+    if (fm) {
+      const marker = fm[1][0];
+      if (fence === null) fence = marker;
+      else if (marker === fence) fence = null;
+      continue;
+    }
+    if (fence !== null) continue;
+    const m = line.match(gluedRe);
+    if (m) return m[2];
+  }
+  return null;
+}
+
+/**
  * 保护：正文文件看起来不是地图正文时拒绝执行（退出码 2，不写任何东西）。
- * 两条判定（都先剥掉围栏代码块，围栏里的引用不算）：
- *   1. 第一处有内容的行恰是 `## Destination`；
+ * 三条判定（都先剥掉围栏代码块，围栏里的引用不算）：
+ *   1. 第一处有内容的行恰是 `## Destination`（所以下面四个标题的表里
+ *      不用再列 Destination：它由这一条单独卡住）；
  *   2. 正文里至少出现一个 wayfinder 规范章节（## Notes / ## Decisions so far / ## Not yet specified / ## Out of scope）。
+ *   3. 没有粘在行中的规范标题（#1184）：`## 规范标题` 写到行尾、前面却没有换行时，
+ *      解析器会把它当成普通文字，整节内容在面板上看不见——这种正文不许写进去。
+ *      这一档认全部五个标题（含 Destination），与解析器拆的
+ *      src/tracker/body-parse.ts 的 MAP_SECTION_TITLES 是同一套。
  * 为什么要这么严：本脚本会把这份正文整篇写回 --map 那张票，一旦放行子票正文，地图正文就被覆盖，
  *   而地图正文是 Decisions 索引与计划的唯一载体（src/tracker/body-parse.ts 的 parseMapBody 直接解析它）。
  *   只判「第一行是 ## Destination」还不够：子票正文首行恰好也写 `## Destination` 时会被放行
  *   （对抗式审查实测过），而子票正文几乎不可能同时具备规范章节。
  *   实测口径：仓库现存 52 张地图里，通过第 1 条的 34 张全部也通过第 2 条，所以这道闸对真地图零误拒。
  */
-function assertLooksLikeMapBody(text) {
+function assertLooksLikeMapBody(text, bodyFile) {
+  const name = baseName(bodyFile);
   const stripped = stripFencedBlocks(text);
   const first = firstMeaningfulLine(stripped);
   if (!/^##\s*Destination\s*$/.test(first)) {
-    fail(2, `--body-file 的第一处有内容的行不是「## Destination」，看起来不是地图正文（实际读到的是「${first.slice(0, 40)}」）。本脚本只写地图正文，子票正文请用 ${SIBLING_SCRIPT}。`);
+    fail(2, `正文文件 ${name} 的第一处有内容的行不是「## Destination」，看起来不是地图正文（实际读到的是「${first.slice(0, 40)}」）。本脚本只写地图正文，子票正文请用 ${SIBLING_SCRIPT}。`);
   }
   if (!MAP_SECTION_RE.test(stripped)) {
-    fail(2, `--body-file 里没有 wayfinder 地图的规范章节（## Notes / ## Decisions so far / ## Not yet specified / ## Out of scope 至少要有其中一个），看起来不是地图正文。本脚本只写地图正文，子票正文请用 ${SIBLING_SCRIPT}。`);
+    fail(2, `正文文件 ${name} 里没有 wayfinder 地图的规范章节（## Notes / ## Decisions so far / ## Not yet specified / ## Out of scope 至少要有其中一个），看起来不是地图正文。本脚本只写地图正文，子票正文请用 ${SIBLING_SCRIPT}。`);
+  }
+  const glued = findGluedHeading(stripped);
+  if (glued) {
+    fail(2, `正文文件 ${name} 里有一处「## ${glued}」粘在上一行末尾（前面没有换行），解析器会把它当成普通文字，整节内容在面板上看不见。请把它放到独立一行的行首再跑。`);
   }
 }
 
@@ -643,7 +680,7 @@ function main() {
   }
 
   const normalized = normalizeForWrite(raw);
-  assertLooksLikeMapBody(normalized.text);
+  assertLooksLikeMapBody(normalized.text, opts.bodyFile);
 
   const expected = opts.children.length;
 

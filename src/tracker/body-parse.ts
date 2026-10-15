@@ -55,6 +55,80 @@ export interface ParsedMapBody {
 // ——— parseMapBody：wayfinder map 五区块解析（## Destination / Notes / Decisions so far / Not yet specified / Out of scope） ———
 
 /**
+ * 五个规范标题：只有它们能切出区块。
+ * 行中出现也一样（#1184）：粘在上一行末尾的标题不再静默丢掉整节。
+ * 故意只认这五个：正文里讨论标题本身（比如写到「行中出现 ## Notes 几个字」）
+ * 不是标题，不能切；任意 `##` 都切会把正文里的引用变成假区块。
+ */
+export const MAP_SECTION_TITLES = ['Destination', 'Notes', 'Decisions so far', 'Not yet specified', 'Out of scope']
+
+/**
+ * 把粘在行中的规范标题拆成独立行（#1184）。
+ * 只拆一种形状：`## 规范标题` 出现在行中、且一直写到行尾（前面没有换行，
+ * 比如「…没有动环检逻辑。## Not yet specified」）。后面还跟字的（比如
+ * 「见 ## Notes 一节怎么定」）是正文在讨论标题本身，原样保留。
+ * 围栏代码块里的一律不动：块里写什么都是示例。
+ * 行首 `##` 的旧语义一个字没改（允许任何标题名，前导空格仍不认）。
+ */
+export function splitGluedHeadings(body: unknown): string {
+  const lines = String(body || '').split(/\r?\n/)
+  const out: string[] = []
+  let fence: string | null = null
+  const fenceRe = /^\s*(`{3,}|~{3,})/
+  const titles = MAP_SECTION_TITLES.map((t) => t.replace(/ /g, '\\s+')).join('|')
+  // #1184：`##` 后面允许没有空格（`text##Notes` 也要拆），与写回守门同一口径。
+  const gluedRe = new RegExp('^(.*\\S)\\s*##\\s*(' + titles + ')\\s*$')
+  for (const line of lines) {
+    const fm = line.match(fenceRe)
+    if (fm) {
+      const marker = fm[1][0]
+      if (fence === null) fence = marker
+      else if (marker === fence) fence = null
+      out.push(line)
+      continue
+    }
+    if (fence !== null) { out.push(line); continue }
+    const m = line.match(gluedRe)
+    if (m) { out.push(m[1]); out.push('## ' + m[2].replace(/\s+/g, ' ').trim()); continue }
+    out.push(line)
+  }
+  return out.join('\n')
+}
+
+/** 一条决策行：经典 `- [标题](链接) — 一句话` 与加粗 `- **…**：…` 两种写法（#1184 收第二种）。 */
+export function parseDecisionLine(l: string): MapDecision | null {
+  if (l.indexOf('- [') === 0) {
+    const t = l.match(/\[(.+?)\]\((.+?)\)/)
+    const g = l.replace(/^-\s*\[.+?\]\(.+?\)\s*[-–—]?\s*/, '')
+    return { title: t ? t[1] : l, url: t ? t[2] : '', gist: truncateGist(g) }
+  }
+  const b = l.match(/^-\s*\*\*(.+?)\*\*\s*[:：-]?\s*(.*)$/)
+  if (b) {
+    const inner = b[1]
+    const t = inner.match(/\[(.+?)\]\((.+?)\)/)
+    // 标题里 `[#1057](链接)` 这种写成链接文字本身，不丢票号。
+    const title = t ? inner.replace('[' + t[1] + '](' + t[2] + ')', t[1]) : inner
+    return { title: title, url: t ? t[2] : '', gist: truncateGist(b[2]) }
+  }
+  return null
+}
+
+/**
+ * 决策那句话太长时截到 240 字（#1184 验收②）：不断词——退到 240 字内
+ * 最后一个完整词后面，省略号紧跟在后面；240 字里连一个完整词都
+ * 没有（单个超长 token）时硬切在 240 字处再加省略号。
+ */
+export function truncateGist(gist: string): string {
+  const LIMIT = 240
+  const s = String(gist || '')
+  if (s.length <= LIMIT) return s
+  const head = s.slice(0, LIMIT)
+  const lastBlank = head.search(/\s+\S*$/)
+  const kept = (lastBlank > 0 ? head.slice(0, lastBlank) : head).replace(/\s+$/, '')
+  return (kept === '' ? head : kept) + '…'
+}
+
+/**
  * 把地图正文按二级标题切成区块，取出五个区块的内容。
  * 入参收成未知值：正文可能缺席（老票、新建的票），统一按空处理。
  */
@@ -63,10 +137,12 @@ export function parseMapBody(body: unknown): ParsedMapBody {
   if (!body) return out
   // 区块名 → 该区块下的原行；## 标题行本身不入表。
   const sec: Record<string, string[]> = {}
-  const lines = normalizeBody(body).split(/\r?\n/)
+  const lines = splitGluedHeadings(normalizeBody(body)).split(/\r?\n/)
   let cur: string | null = null
   for (let i = 0; i < lines.length; i++) {
-    const m = lines[i].match(/^##\s+(.+?)\s*$/)
+    // #1184：`##` 与标题之间允许没有空格（`##Notes` 也是标题），与写回守门
+    // （scripts/wire-subissues.mjs，三处都用 `##\s*`）保持同一口径。
+    const m = lines[i].match(/^##\s*(.+?)\s*$/)
     if (m) { cur = m[1]; sec[cur] = sec[cur] || []; continue }
     if (cur) sec[cur].push(lines[i])
   }
@@ -74,11 +150,7 @@ export function parseMapBody(body: unknown): ParsedMapBody {
   const clean = (arr: string[] | undefined): string[] => (arr || []).map((s) => s.trim()).filter(Boolean)
   out.destination = clean(sec['Destination']).join(' ')
   out.notes = clean(sec['Notes']).join(' ')
-  out.decisions = clean(sec['Decisions so far']).filter((l) => l.indexOf('- [') === 0).map((l) => {
-    const t = l.match(/\[(.+?)\]\((.+?)\)/)
-    const g = l.replace(/^-\s*\[.+?\]\(.+?\)\s*[-–—]?\s*/, '')
-    return { title: t ? t[1] : l, url: t ? t[2] : '', gist: g }
-  })
+  out.decisions = clean(sec['Decisions so far']).map((l) => parseDecisionLine(l)).filter((d): d is MapDecision => d !== null)
   out.fog = clean(sec['Not yet specified']).filter((l) => l.indexOf('<!--') !== 0)
   out.outOfScope = clean(sec['Out of scope']).filter((l) => l.indexOf('<!--') !== 0)
   return out

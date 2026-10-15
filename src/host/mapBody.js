@@ -15,24 +15,75 @@ export function createMapBody() {
       return s
     }
     function parseMapBody(body) {
+      // #1184：粘在行中的规范标题不再静默丢掉整节；决策行收第二种写法 `- **…**：…`。
+      // 与 src/tracker/body-parse.ts 的 splitGluedHeadings / parseDecisionLine 同一套，
+      // 写成内层函数是因为门禁按函数名抽取 parseMapBody 文本求值（tests/verify-parse-leaf.js），
+      // 抽出去的兄弟函数在求值作用域里不存在。本文件是宿主侧内联副本，真源在叶子那一份，
+      // 改这里必须两边一起改（输出差分由那道门禁钉住）。
+      var MAP_SECTION_TITLES = ['Destination', 'Notes', 'Decisions so far', 'Not yet specified', 'Out of scope']
+      function splitGluedHeadings(text) {
+        var splitLines = String(text || '').split(/\r?\n/)
+        var splitOut = []
+        var fence = null
+        var titles = MAP_SECTION_TITLES.map(function (t) { return t.replace(/ /g, '\\s+') }).join('|')
+        var gluedRe = new RegExp('^(.*\\S)\\s*##\\s*(' + titles + ')\\s*$')
+        for (var i = 0; i < splitLines.length; i++) {
+          var line = splitLines[i]
+          var fm = line.match(/^\s*(`{3,}|~{3,})/)
+          if (fm) {
+            var marker = fm[1][0]
+            if (fence === null) fence = marker
+            else if (marker === fence) fence = null
+            splitOut.push(line)
+            continue
+          }
+          if (fence !== null) { splitOut.push(line); continue }
+          var m = line.match(gluedRe)
+          if (m) { splitOut.push(m[1]); splitOut.push('## ' + m[2].replace(/\s+/g, ' ').trim()); continue }
+          splitOut.push(line)
+        }
+        return splitOut.join('\n')
+      }
+      function truncateGist(gist) {
+        // 与叶子 truncateGist 同一套：240 字不断词截断，省略号粘在最后一个完整词后。
+        var LIMIT = 240
+        var s = String(gist || '')
+        if (s.length <= LIMIT) return s
+        var head = s.slice(0, LIMIT)
+        var lastBlank = head.search(/\s+\S*$/)
+        var kept = (lastBlank > 0 ? head.slice(0, lastBlank) : head).replace(/\s+$/, '')
+        return (kept === '' ? head : kept) + '…'
+      }
+      function parseDecisionLine(l) {
+        if (l.indexOf('- [') === 0) {
+          var t = l.match(/\[(.+?)\]\((.+?)\)/)
+          var g = l.replace(/^-\s*\[.+?\]\(.+?\)\s*[-–—]?\s*/, '')
+          return { title: t ? t[1] : l, url: t ? t[2] : '', gist: truncateGist(g) }
+        }
+        var b = l.match(/^-\s*\*\*(.+?)\*\*\s*[:：-]?\s*(.*)$/)
+        if (b) {
+          var inner = b[1]
+          var bt = inner.match(/\[(.+?)\]\((.+?)\)/)
+          var title = bt ? inner.replace('[' + bt[1] + '](' + bt[2] + ')', bt[1]) : inner
+          return { title: title, url: bt ? bt[2] : '', gist: truncateGist(b[2]) }
+        }
+        return null
+      }
       const out = { destination: '', notes: '', decisions: [], fog: [], outOfScope: [] }
       if (!body) return out
       const sec = {}
-      const lines = normalizeBody(body).split(/\r?\n/)
+      const lines = splitGluedHeadings(normalizeBody(body)).split(/\r?\n/)
       let cur = null
       for (let i = 0; i < lines.length; i++) {
-        const m = lines[i].match(/^##\s+(.+?)\s*$/)
+        // #1184：`##` 后无空格也认（`##Notes`），与叶子、写回守门同一口径。
+        const m = lines[i].match(/^##\s*(.+?)\s*$/)
         if (m) { cur = m[1]; sec[cur] = sec[cur] || []; continue }
         if (cur) sec[cur].push(lines[i])
       }
       const clean = function (arr) { return (arr || []).map(function (s) { return s.trim() }).filter(Boolean) }
       out.destination = clean(sec['Destination']).join(' ')
       out.notes = clean(sec['Notes']).join(' ')
-      out.decisions = clean(sec['Decisions so far']).filter(function (l) { return l.indexOf('- [') === 0 }).map(function (l) {
-        const t = l.match(/\[(.+?)\]\((.+?)\)/)
-        const g = l.replace(/^-\s*\[.+?\]\(.+?\)\s*[-–—]?\s*/, '')
-        return { title: t ? t[1] : l, url: t ? t[2] : '', gist: g }
-      })
+      out.decisions = clean(sec['Decisions so far']).map(parseDecisionLine).filter(function (d) { return d !== null })
       out.fog = clean(sec['Not yet specified']).filter(function (l) { return l.indexOf('<!--') !== 0 })
       out.outOfScope = clean(sec['Out of scope']).filter(function (l) { return l.indexOf('<!--') !== 0 })
       return out
