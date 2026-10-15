@@ -183,6 +183,8 @@ export function createDeckMapPlanCreate(deps?: DeckMapPlanCreateDeps) {
 
   /** 工具入口：exec 是宿主给的执行上下文（只读它的 signal 取消信号），args 是 AI 传的参数；回执由壳层包成最终回执。 */
   async function run(exec: unknown, args: Record<string, unknown>): Promise<unknown> {
+    // 预算起算点：入口前耗时（会话归一、选后端、探沙箱、游标包装）也要算进预算（#1195）。
+    const toolEntryAt = nowFn()
     const a: Record<string, unknown> = args || {}
     const title = String(a.title === undefined || a.title === null ? '' : a.title).trim()
     // 子票与边都是 AI 传来的对象数组：这里只按「有没有那几格」筛一遍，筛出来的元素仍是运行时原值。
@@ -244,7 +246,7 @@ export function createDeckMapPlanCreate(deps?: DeckMapPlanCreateDeps) {
     // 取值表达式一字不动，所以转译出来的 JS 与转换前逐字节一致。
     let out = null
     try {
-      out = await shell.call({ tool: 'deck_map_plan_create', kind: 'write', session: s, pick: pick, repo: repo, estimate: est, sandbox: (await (async function () { try { if (typeof d.sandboxPolicyFor !== 'function') return null; const raced = await withCap(d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }), SANDBOX_TIMEOUT_MS); return (raced && raced.ok === true) ? raced.value : null } catch (eS) { return null } })()), signal: (exec && (exec as { signal?: unknown }).signal && typeof (exec as { signal?: unknown }).signal === 'object') ? (exec as { signal?: unknown }).signal : undefined }, async (c: unknown) => {      const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), now: nowFn })
+      out = await shell.call({ tool: 'deck_map_plan_create', kind: 'write', session: s, pick: pick, repo: repo, estimate: est, sandbox: (await (async function () { try { if (typeof d.sandboxPolicyFor !== 'function') return null; const raced = await withCap(d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }), SANDBOX_TIMEOUT_MS); return (raced && raced.ok === true) ? raced.value : null } catch (eS) { return null } })()), signal: (exec && (exec as { signal?: unknown }).signal && typeof (exec as { signal?: unknown }).signal === 'object') ? (exec as { signal?: unknown }).signal : undefined }, async (c: unknown) => {      const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), startedAt: toolEntryAt, now: nowFn })
       // 走到这里 tracker 一定在（预算壳自己的约定：能进这一段就是选好后端了）；
       // 断言只为让编译器安静，运行时一个字节都不动 —— 真为空时下面那句照样抛 TypeError 走 backend-threw。
       const t = sc.tracker!

@@ -143,10 +143,13 @@ async function main() {
   }
 
   // ② 挂住的沙箱许可 → 按缺席走老路，读照样回来
+  // #1195 起预算从工具入口算：沙箱竞速的 5 秒（各工具 SANDBOX_TIMEOUT_MS）是入口前耗时，
+  // 会进剩余额度。所以这一节的整笔预算必须大于沙箱上限（这里给 12000），否则诚实回没做成
+  // 才是对的；“沙箱挂住读照样回来”不断的是“按缺席走老路”这条路，不是“预算看不见入口前耗时”。
   {
     const g = stubGateLedger(budget, gateMod, ledgerMod)
     const mod = await imp('src/deck/tools/issue-get.ts')
-    const tool = mod.createDeckIssueGet(baseDeps({ gate: g.gate, registry: stubRegistry('o/n', okTracker()), budget: budget, sandboxPolicyFor: hanging }))
+    const tool = mod.createDeckIssueGet(baseDeps({ gate: g.gate, registry: stubRegistry('o/n', okTracker()), budget: budget, toolTimeoutMs: 12000, sandboxPolicyFor: hanging }))
     const t1 = Date.now()
     const r = await tool.run(execFor(), { key: '7' })
     const dt = Date.now() - t1

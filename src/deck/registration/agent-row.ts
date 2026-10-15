@@ -310,9 +310,17 @@ async function callViaFetch(payload: DeckRpcPayload, signal: unknown): Promise<H
   }
 }
 
-function makeDelegatedExecute(toolName: unknown, ctx: unknown): (args: unknown, exec: unknown) => Promise<unknown> {
+export function makeDelegatedExecute(toolName: unknown, ctx: unknown, opts?: { cellRunTimeoutMs?: unknown }): (args: unknown, exec: unknown) => Promise<unknown> {
   const pending = makePendingExecute(toolName) as () => Promise<unknown>;
   const name = String(toolName || 'deck');
+  // 同进程格里跑宿主实现的上限（毫秒）：缺省与注册侧单次上限同值；测试可点名更小的值（#1195）。
+  const cellCap = (function (): number {
+    try {
+      const v = opts && (opts as { cellRunTimeoutMs?: unknown }).cellRunTimeoutMs
+      if (typeof v === 'number' && v > 0) return Math.floor(v)
+    } catch (e) {}
+    return AGENT_TOOL_TIMEOUT_MS
+  })()
   function notePath(via: string): void { try { noteDeckPath(name, via) } catch (eN) {} }
   function fallthrough(): Promise<unknown> { notePath('fallback'); return pending() }
   return async function (args: unknown, exec: unknown): Promise<unknown> {
@@ -336,12 +344,36 @@ function makeDelegatedExecute(toolName: unknown, ctx: unknown): (args: unknown, 
         const entry = (table && table.tools ? table.tools[toolName as string] : undefined) as { run?: unknown } | undefined;
         const run = entry && entry.run
         if (typeof run === 'function') {
-          const execLike = { agent: { session: { cwd: hint.cwd, id: hint.sessionId } } }
-          let back: unknown = null
-          try { back = await (run as (exec: unknown, args: unknown) => Promise<unknown>)(execLike, args) } catch (eRun) { back = null }
-          const backObj = back as { value?: unknown } | null;
-          const value = (backObj && backObj.value !== undefined ? backObj.value : back) as HostValue | null;
-          if (value && typeof value.status === 'string' && typeof value.text === 'string') { notePath('cell'); return value }
+          // 快路也要传取消信号、也要有上限（#1195）：调用方中止或到上限时停用这次回包，
+          // 迟到的值一律不用（无残留写）；超时走下一路，不抛。定时器与订阅用完即清（#1114）。
+          const callerSig = (function (): AbortLike | null {
+            try { const e = exec as { signal?: AbortLike } | null | undefined; return (e && e.signal) || null } catch (e2) { return null }
+          })()
+          const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null
+          const execLike = { agent: { session: { cwd: hint.cwd, id: hint.sessionId } }, signal: (ctrl ? ctrl.signal : callerSig) as unknown }
+          let timer: ReturnType<typeof setTimeout> | null = null
+          let onCallerAbort: (() => void) | null = null
+          const timeoutP = new Promise<never>(function (_, reject) {
+            timer = setTimeout(function () {
+              try { if (ctrl) ctrl.abort() } catch (eT) {}
+              reject(new Error('cell-run-timeout'))
+            }, cellCap)
+          })
+          try {
+            if (ctrl && callerSig && typeof callerSig.addEventListener === 'function') {
+              onCallerAbort = function (): void { try { ctrl.abort() } catch (eA) {} }
+              callerSig.addEventListener('abort', onCallerAbort, { once: true })
+            }
+            try { if (ctrl && callerSig && callerSig.aborted) ctrl.abort() } catch (eB) {}
+            let back: unknown = null
+            try { back = await Promise.race([(run as (exec: unknown, args: unknown) => Promise<unknown>)(execLike, args), timeoutP]) } catch (eRun) { back = null }
+            const backObj = back as { value?: unknown } | null;
+            const value = (backObj && backObj.value !== undefined ? backObj.value : back) as HostValue | null;
+            if (value && typeof value.status === 'string' && typeof value.text === 'string') { notePath('cell'); return value }
+          } finally {
+            try { if (timer !== null) clearTimeout(timer) } catch (eT2) {}
+            try { if (callerSig && typeof callerSig.removeEventListener === 'function' && onCallerAbort) callerSig.removeEventListener('abort', onCallerAbort) } catch (eR) {}
+          }
         }
       }
     } catch (eCell) {}

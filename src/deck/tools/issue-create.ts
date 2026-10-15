@@ -113,6 +113,8 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
    * 参数先当「未知」再逐项收口（title / kind / labels 下面各收一次），回执形状由壳统一渲染。
    */
   async function run(exec: unknown, args: Record<string, unknown>): Promise<unknown> {
+    // 预算起算点：入口前耗时（会话归一、选后端、探沙箱）也要算进预算（#1195）。
+    const toolEntryAt = (typeof d.now === 'function') ? d.now() : Date.now()
     const a: Record<string, unknown> = args || {}
     const title = String(a.title === undefined || a.title === null ? '' : a.title).trim()
     const kind = kindOf(a)
@@ -143,7 +145,7 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
     } catch (eS) { sandbox = null }
 
     return shell.call({ tool: 'deck_issue_create', kind: 'write', session: s, pick: pick, repo: repo, estimate: est, sandbox: sandbox }, async (c: unknown) => {
-      const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), now: (typeof d.now === 'function') ? d.now : Date.now })
+      const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), startedAt: toolEntryAt, now: (typeof d.now === 'function') ? d.now : Date.now })
       // 走到这里 tracker 一定在（预算壳自己的约定：能进这一段就是选好后端了）；
       // 断言只为让编译器安静，运行时一个字节都不动 —— 真为空时下面那句照样抛 TypeError 走 backend-threw。
       const t = sc.tracker!
@@ -155,6 +157,10 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
       if (rel) input.parentKey = rel
       if (Array.isArray(a.assignees) && a.assignees.length) input.assignees = a.assignees
       const created = await t.create(repo, input, opCtx)
+      const notes = []
+      if (effortId) notes.push('这次带了 effortId（' + effortId.slice(0, 60) + '）：本地后端只在那一个目录里找，远端后端忽略它。')
+      if (body.added.length) notes.push('我替你补了正文区块：' + body.added.join('、'))
+      if (!a.idempotencyKey) notes.push('这次用的是自动幂等锚（同会话 + 同标题 + 同标签，5 分钟窗口内重复调用复用同一张票）。')
       // 执行层失败原样抛给壳（走 backend-threw，可重试）；后端诚实失败才走下面的部分成功。
       // 只有超时单列：直接回独立原因码 backend-timeout（是否生效说不清，重试前先核对）。
       const createdTimeout = timeoutMessage(created as TransportResult)
@@ -164,10 +170,6 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
       }
       const createdTransport = transportMessage(created as TransportResult)
       if (createdTransport) throw new Error(createdTransport)
-      const notes = []
-      if (effortId) notes.push('这次带了 effortId（' + effortId.slice(0, 60) + '）：本地后端只在那一个目录里找，远端后端忽略它。')
-      if (body.added.length) notes.push('我替你补了正文区块：' + body.added.join('、'))
-      if (!a.idempotencyKey) notes.push('这次用的是自动幂等锚（同会话 + 同标题 + 同标签，5 分钟窗口内重复调用复用同一张票）。')
       if (!created || created.ok !== true) {
         const msg = String((created && created.error && created.error.message) || '后端没给出原因').slice(0, 300)
         return {

@@ -84,6 +84,8 @@ export function createDeckContext(deps?: DeckContextDeps) {
    * 本工具不收参数（见上面的 parameters），args 只原样交给成本估算。
    */
   async function run(exec: unknown, args: Record<string, unknown>): Promise<unknown> {
+    // 预算起算点：入口前耗时（会话归一、选后端、探沙箱）也要算进预算（#1195）。
+    const toolEntryAt = (typeof d.now === 'function') ? d.now() : Date.now()
     const s = await sessionContextOfAsync(exec, { canonicalKey: d.canonicalKey, workspaceKeyOf: d.workspaceKeyOf })
     const est = shell.estimateFor('deck_context', args)
     // 会话没解析出来时回的是「为什么」那一支。编译器分不出两支（ok 在会话壳里是运行时布尔，
@@ -113,7 +115,7 @@ export function createDeckContext(deps?: DeckContextDeps) {
     return shell.call({ tool: 'deck_context', kind: 'read', session: s, pick: pick, repo: repo, estimate: est, sandbox: sandbox }, async (c: unknown) => {
       // 进预算壳 + 两路并行：预检与清单互相独立，之前串行要等两份慢调用，
       // 并行后只等较慢的那一份。回包的字段与 notes 顺序与之前一致。
-      const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), now: (typeof d.now === 'function') ? d.now : Date.now })
+      const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), startedAt: toolEntryAt, now: (typeof d.now === 'function') ? d.now : Date.now })
       // 走到这里 tracker 一定在（预算壳自己的约定：能进这一段就是选好后端了）；
       // 断言只为让编译器安静，运行时一个字节都不动 —— 真为空时下面那句照样抛 TypeError 走 backend-threw。
       const t = sc.tracker!

@@ -137,6 +137,8 @@ export interface CallScopeOpts {
   timeoutMs?: unknown;
   marginMs?: unknown;
   perOpTimeoutMs?: unknown;
+  /** 预算起算点（工具入口那一刻，选后端、探沙箱之前）；不传就按建壳这一刻算（老口径）。 */
+  startedAt?: unknown;
   now?: () => number;
   sleep?: SleepFn;
 }
@@ -198,7 +200,7 @@ function budgetResult(): OpOutcome {
  * 给一次工具调用包一层执行上下文。
  * c：壳给的调用上下文（tracker / opCtx / now，缺 tracker 则 scope.ok 为假）。
  * exec：工具 run 收到的 exec（只为取调用方取消信号，拿不到就当没有）。
- * opts：{ timeoutMs, marginMs, perOpTimeoutMs, now, sleep } 全可选，测试注入小预算与假时钟就靠它。
+ * opts：{ timeoutMs, marginMs, perOpTimeoutMs, startedAt, now, sleep } 全可选，测试注入小预算与假时钟就靠它。
  */
 export function withCallScope(c: unknown, exec?: unknown, opts?: CallScopeOpts): CallScope {
   const o = opts || {}
@@ -211,7 +213,9 @@ export function withCallScope(c: unknown, exec?: unknown, opts?: CallScopeOpts):
     timeoutMs: num(o.timeoutMs, DEFAULT_TOOL_TIMEOUT_MS),
     marginMs: num(o.marginMs, DEFAULT_TOOL_MARGIN_MS),
     perOpTimeoutMs: num(o.perOpTimeoutMs, DEFAULT_PER_OP_TIMEOUT_MS),
-    startedAt: nowFn(),
+    // 起算点是工具入口（选后端、探沙箱之前那一刻），不是建壳这一刻（#1195）：
+    // 入口前耗时也要算进预算；没传就按老口径；传了未来的值按现在算，不倒欠。
+    startedAt: (typeof o.startedAt === 'number' && isFinite(o.startedAt)) ? Math.min(o.startedAt, nowFn()) : nowFn(),
   }
   const execRec = (exec || {}) as UnknownRecord
   const rawSignal = execRec.signal

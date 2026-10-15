@@ -142,6 +142,8 @@ export function createDeckIssueGet(deps?: DeckIssueGetDeps) {
    * 参数先当「未知」再逐项收口（key / effortId / comments 下面各收一次），回执形状由壳统一渲染。
    */
   async function run(exec: unknown, args: Record<string, unknown>): Promise<unknown> {
+    // 预算起算点：入口前耗时（会话归一、选后端、探沙箱）也要算进预算（#1195）。
+    const toolEntryAt = (typeof d.now === 'function') ? d.now() : Date.now()
     const a: Record<string, unknown> = args || {}
     const key = String(a.key === undefined || a.key === null ? '' : a.key).trim()
     const est = shell.estimateFor('deck_issue_get', a)
@@ -171,7 +173,7 @@ export function createDeckIssueGet(deps?: DeckIssueGetDeps) {
     return shell.call({ tool: 'deck_issue_get', kind: 'read', session: s, pick: pick, repo: repo, estimate: est, sandbox: sandbox }, async (c: unknown) => {
       // 进预算壳：两次远端各有 30 秒单次钳制、可中止，超时只坏自己那一项；
       // 名册随上下文走，后端内部的定向重读能用上。成功路径的形状一字不动。
-      const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), now: (typeof d.now === 'function') ? d.now : Date.now })
+      const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), startedAt: toolEntryAt, now: (typeof d.now === 'function') ? d.now : Date.now })
       // 走到这里 tracker 一定在（预算壳自己的约定：能进这一段就是选好后端了）；
       // 断言只为让编译器安静，运行时一个字节都不动 —— 真为空时下面那句照样抛 TypeError 走 backend-threw。
       const t = sc.tracker!

@@ -11,7 +11,7 @@
 //   一、参数表：九个定义的形状（参数名与书写顺序、必填、枚举、每个对象节点都显式写 additionalProperties:false），
 //       连同「模型看到的那几句话」逐字冻住（工具本级一句、每个参数各一句：改一个字就红）。
 //   二、信封表：回执只有两种形状 —— 走到选后端之后的 14 格、还没走到之前的 6 格；三态取值；
-//       失败时的原因码只能是七个之一；失败永远是值不是异常（稀奇古怪的参数形状也回值）；
+//       失败时的原因码只能是八个之一（#1195 起超时与抛错分家，多了 backend-timeout）；失败永远是值不是异常（稀奇古怪的参数形状也回值）；
 //       记账数不上信封。
 //   三、点数表：每一支调用在闸上记多少条、多少点。
 //   四、越界：工具层不许出现直连外面的写法（起进程、联网、读环境、读写文件、动态求值）。
@@ -307,7 +307,7 @@ async function main() {
   await run('deck_issue_create', { title: '信封表乙票', parentKey: '00' })
 
   // ── 二、信封表 ──
-  console.log('— 二、信封表：两种形状、三态、七个原因码、失败不抛、记账数不外露')
+  console.log('— 二、信封表：两种形状、三态、八个原因码、失败不抛、记账数不外露')
   const representative: Array<[string, Record<string, unknown>]> = [
     ['deck_context', {}],
     ['deck_issue_get', { key: '01' }],
@@ -348,7 +348,7 @@ async function main() {
       if (r.status === 'ok' && r.reason !== '') badReason.push(name + ' 成功了却带原因码：' + r.reason)
     }
     check(unexpected.length === 0, '失败也回值、回执只有两种形状、三态自洽' + (unexpected.length ? '：' + unexpected.join('；') : ''))
-    check(badReason.length === 0, '失败的原因码都在七个码里（' + (badReason.length ? badReason.join('；') : '零例外') + '）')
+    check(badReason.length === 0, '失败的原因码都在八个码里（' + (badReason.length ? badReason.join('；') : '零例外') + '）')
   }
   {
     // 稀奇古怪的参数形状：一律回值，一支都不许抛（抛出去 AI 会退回去用 gh，两条写路径同时开火）。
