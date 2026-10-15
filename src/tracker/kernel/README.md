@@ -20,7 +20,7 @@
 ## 契约层与内核的分界
 
 判据不是新造的，是仓里早就写着的那条：**契约层只有类型与数据、没有运行时实现**
-（`.dependency-cruiser.cjs` 的两条规则与 `tests/verify-contract-types.js` 第二项守着）。
+（`.dependency-cruiser.cjs` 的两条规则与 `tests/verify-contract-types.ts` 第二项守着）。
 带规则表、带判断逻辑的运行时实现因此进不了契约层 —— 给它一个有名有界的家，就是这份目录。
 
 一句话：房间与宿主都要用、又不是「类型与数据」的，放内核。

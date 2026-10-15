@@ -8,7 +8,7 @@
 //   正控：src/tracker 下放一个引同层另一个干活文件的探针 → 门禁必须判红，且违规行里点名这条边的两端；
 //   负控一：探针引契约层（src/tracker/contract）→ 不许被误伤（契约层是公共面，不在本规则判域里）；
 //   负控二：房间里的探针引同房间模块 → 不许被误伤（房间有自己的两条纪律，同房间引用本来就允许）；
-//   负控三：契约层内部两个文件互引 → 不许被误伤（契约层内部值引用只许引自己，归 tests/verify-contract-types.js 管）。
+//   负控三：契约层内部两个文件互引 → 不许被误伤（契约层内部值引用只许引自己，归 tests/verify-contract-types.ts 管）。
 // 跑完四个探针都删掉（finally 里删），开跑前先确认它们不在，绝不覆盖别人的文件。
 // #1159 之后判域又去掉了一层：src/tracker/kernel/（房间与宿主都要用的判定件，两边都可以引），
 // 所以正控改成引 registry/shape.ts，存量也从 15 条降到 10 条（涉及搬走那四份的 5 条不再是违规）。
@@ -66,7 +66,7 @@ const PROBES: Array<{ rel: string, body: string }> = [
   {
     rel: INNER_REL,
     body:
-      '// 临时探针（#1152 负控三，跑完即删）：契约层内部互引，归 tests/verify-contract-types.js 管\n' +
+      '// 临时探针（#1152 负控三，跑完即删）：契约层内部互引，归 tests/verify-contract-types.ts 管\n' +
       "import { TRACKER_CONTRACT } from './index.js'\n" +
       'export const zzProbeInner = TRACKER_CONTRACT\n',
   },

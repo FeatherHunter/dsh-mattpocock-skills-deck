@@ -42,7 +42,7 @@
   "include": ["**/*.ts"],
   // 下面这一段让出契约域，是 #1148 定下的收口方向：让配置说清归属，而不是放宽对账判据去容忍重叠。
   //
-  // 契约子树与那几份散件归仓库根的 tsconfig.contract.json 声明，并受 tests/verify-contract-types.js
+  // 契约子树与那几份散件归仓库根的 tsconfig.contract.json 声明，并受 tests/verify-contract-types.ts
   // 那条契约门禁管（零错误、能力齐全、目录内不许有运行时实现）。不排除的话，这些文件会被两份配置
   // 同时当根输入，覆盖对账报【重复归属】——同一份文件被检查两遍，谁负责也说不清。
   //

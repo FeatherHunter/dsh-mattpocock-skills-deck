@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-14T22:17:23.122Z",
+  "generatedAt": "2026-10-15T05:23:38.727Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 258,
   "gateCount": 258,
@@ -5083,8 +5083,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条"
     },
     {
-      "step": "node tests/verify-contract-types.js",
-      "file": "tests/verify-contract-types.js",
+      "step": "node tests/verify-contract-types.ts",
+      "file": "tests/verify-contract-types.ts",
       "guards": [
         "src/tracker/contract",
         "src/tracker/contract/index.ts"
@@ -6750,7 +6750,7 @@
       "node tests/verify-992-readonly-labels.js",
       "node tests/verify-544-standalone-blocked.js",
       "node tests/verify-issue195.js",
-      "node tests/verify-contract-types.js",
+      "node tests/verify-contract-types.ts",
       "node tests/verify-detection-evidence.ts",
       "node tests/verify-error-single-source.ts",
       "node tests/verify-error-rule-samples.ts",

@@ -17,7 +17,7 @@
  * 放进任何一座房里都会让另两座跨房 import，而 `.dependency-cruiser.cjs` 的 `cross-room-import`
  * 明令禁止（起点 `^src/tracker/rooms/([^/]+)/`）：三座房是平级的。放进契约层
  * （`src/tracker/contract/`）也不行 —— 那一层只有类型与数据、不许有运行时实现
- * （`tests/verify-contract-types.js` 第二项守着），本文件带的是函数体。
+ * （`tests/verify-contract-types.ts` 第二项守着），本文件带的是函数体。
  *
  * 这个文件**一个 import 都没有**，是有意的：内核里的件互相引用不算违规（同层规则把 `^src/tracker/kernel/`
  * 排除在外），但今天这几份内核件互相零依赖；这里不用契约层的 `OpContext`，是为了让「只要有 logEvent 就能记」

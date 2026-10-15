@@ -446,7 +446,6 @@
     "tests/verify-config-store-core.js",
     "tests/verify-config-store-migration.js",
     "tests/verify-config-store-package.js",
-    "tests/verify-contract-types.js",
     "tests/verify-contract-vocabulary.js",
     "tests/verify-ctx.js",
     "tests/verify-deck-event-gate.mjs",

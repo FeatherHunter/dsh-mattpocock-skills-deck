@@ -78,7 +78,7 @@ const EXPECTED_RULES = [
   'same-layer-import-seam',
   // #1152 补的第五条：src/tracker 原来长在 src/host/tracker/ 下、受 same-layer-import-host 管，
   // 搬进 src/tracker/ 之后掉出了所有同层规则，树内互引没人判。判域去掉三个房间（有自己的纪律）与
-  // 契约层（纯类型与数据的公共面，内部值引用只许引自己，由 tests/verify-contract-types.js 守）。
+  // 契约层（纯类型与数据的公共面，内部值引用只许引自己，由 tests/verify-contract-types.ts 守）。
   'same-layer-import-tracker',
   'cross-room-import',
   'room-imports-third-party-package',

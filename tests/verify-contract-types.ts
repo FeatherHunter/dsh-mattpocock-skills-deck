@@ -1,4 +1,5 @@
-// tests/verify-contract-types.js — 契约层类型门禁（deck 重构第二批 B 落地；#1026 收尾重定口径）
+// tests/verify-contract-types.ts — 契约层类型门禁（deck 重构第二批 B 落地；#1026 收尾重定口径）
+// （本文件 2026-10-15 由同名 .js 转成 TypeScript，#1027：类型标注只是标注，判据一条没动。）
 //
 // 门禁归属: src/tracker/contract
 // 门禁归属: src/tracker/contract/index.ts
@@ -93,14 +94,19 @@
 //   第三项不审三个后端内部的类型债：那是 `src/tracker/tsconfig.json` 的账（strict、零错误），
 //   本门禁不另数一份（#1147 决策 8：一个门禁不养两套账）。
 //
-// 用法：node tests/verify-contract-types.js（在仓库根目录）
-const fs = require('fs')
-const path = require('path')
-const { spawnSync } = require('child_process')
-const { createRequire } = require('module')
+// 用法：node --import ./scripts/ts-hook.mjs tests/verify-contract-types.ts（在仓库根目录；
+//   npm test / npm run verify:parallel / node scripts/verify-all.mjs 三个入口会自动挂装载钩子）。
+//   装载钩子见 scripts/ts-hook.mjs。本文件是 .ts 真源：Node 的类型剥离只删类型标注，ESM 里没有
+//   `__dirname`，所以按 `import.meta.url` 算回仓库根目录。
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import { spawnSync } from 'node:child_process'
+import { createRequire } from 'node:module'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
-const ROOT = path.resolve(__dirname, '..')
-const resolveInRoot = (p) => (path.isAbsolute(p) ? p : path.join(ROOT, p))
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const resolveInRoot = (p: string): string => (path.isAbsolute(p) ? p : path.join(ROOT, p))
 const CONTRACT_DIR = resolveInRoot(process.env.DSH_CONTRACT_DIR || 'src/tracker/contract')
 const TSCONFIG = resolveInRoot(process.env.DSH_CONTRACT_TSCONFIG || 'tsconfig.contract.json')
 /**
@@ -166,22 +172,29 @@ const RUNTIME_SNAPSHOTS = {
   },
 }
 
+/** 门禁自查出来的「一处可疑写法」：行号、原文，以及为什么算可疑（第 2 项用 why 说明落点）。 */
+interface GateHit {
+  line: number
+  text: string
+  why?: string
+}
+
 let failed = false
-const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
+const check = (ok: boolean, msg: string): void => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
 /** 去掉块注释与整行注释，避免把注释里写的示例当成真的实现（写法沿用 tests/verify-build-artifacts.js）。
  * 块注释按换行数原样垫回空行（#1103）：不垫的话，下面的行号全是错的，人只能对着错行号跳代码。
  * 行号错了不只是难看——指出「第几行有问题」本身就是这道门禁的交付物，行号必须是文件里的真行号。 */
-const stripComments = (text) =>
+const stripComments = (text: string): string =>
   text
     .replace(/\/\*([\s\S]*?)\*\//g, (m, inner) => String(inner).split('\n').map(() => '').join('\n'))
     .replace(/(^|[^A-Za-z0-9_$:])\/\/.*$/gm, '$1')
 
 /** 递归收 .ts 文件（含子目录）；跳过 node_modules 与 .d.ts（声明文件本来就只放类型）。 */
-function listTsFiles(dir) {
-  const out = []
-  const walk = (abs) => {
-    let entries = []
+function listTsFiles(dir: string): string[] {
+  const out: string[] = []
+  const walk = (abs: string): void => {
+    let entries: Array<{ name: string; isDirectory(): boolean; isFile(): boolean }> = []
     try { entries = fs.readdirSync(abs, { withFileTypes: true }) } catch { return }
     for (const e of entries) {
       if (e.name === 'node_modules') continue
@@ -198,7 +211,7 @@ function listTsFiles(dir) {
 }
 
 /** 把引用串解成仓库相对路径（只解相对引用；包名引用回 null，由调用方按目录外处理）。 */
-function resolveImportSpec(fromAbs, spec) {
+function resolveImportSpec(fromAbs: string, spec: string): string | null {
   if (!spec.startsWith('.')) return null
   const abs = path.resolve(path.dirname(fromAbs), spec)
   return path.relative(ROOT, abs).replace(/\\/g, '/')
@@ -212,8 +225,8 @@ function resolveImportSpec(fromAbs, spec) {
  * （数据引数据：目标文件自己也过第四项，不形成行为入口）；指到外面、包名、裸副作用引用的，
  * 一律算运行时引用。动态 `import(` 另由 findRuntimeImpl 盯，这里不管。
  */
-function findRuntimeImports(abs, code) {
-  const hits = []
+function findRuntimeImports(abs: string, code: string): GateHit[] {
+  const hits: GateHit[] = []
   const lines = code.split('\n')
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i]
@@ -254,8 +267,8 @@ function findRuntimeImports(abs, code) {
  * 顶层 `new`（只有 `Object.freeze` 与字面量是合法的数据写法）、运行时 import、
  * require(、动态 import(。
  */
-function findRuntimeImpl(abs, code) {
-  const hits = []
+function findRuntimeImpl(abs: string, code: string): GateHit[] {
+  const hits: GateHit[] = []
   const lines = code.split('\n')
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i]
@@ -286,18 +299,23 @@ function findRuntimeImpl(abs, code) {
   return hits.sort((a, b) => a.line - b.line)
 }
 
-function main() {
-  console.log('契约层类型门禁（tsc 零错误 + 无运行时实现 + 后端自己声明对上契约 + 一条反面证明 + 运行时腿）')
+function main(): void {
+  // 起点输入摘要（日志埋点纪律第 3 条）：这一趟查的是哪个目录、拿哪份配置编、仓库根在哪。
+  // 事后只看日志就能回答「它到底查了什么」，不必回头翻代码或猜环境变量。
+  console.log(
+    '契约层类型门禁（tsc 零错误 + 无运行时实现 + 后端自己声明对上契约 + 一条反面证明 + 运行时腿）' +
+      '｜仓库根 ' + ROOT + '｜契约目录 ' + path.relative(ROOT, CONTRACT_DIR) + '｜配置 ' + path.relative(ROOT, TSCONFIG),
+  )
 
   // ---- 1) 类型检查：tsc 零错误 ----
   // 缺谁谁说话：tsconfig 缺席不再由已撤的第零项数，这里自己判（没有配置可指，也不静默跳过）。
   const tsconfigExists = fs.existsSync(TSCONFIG)
   const requireFromRoot = createRequire(path.join(ROOT, 'package.json'))
-  let tscBin = null
+  let tscBin: string | null = null
   try {
     tscBin = path.join(path.dirname(requireFromRoot.resolve('typescript/package.json')), 'bin', 'tsc')
   } catch (e) {
-    check(false, 'typescript 已安装（找不到 typescript/package.json：请先跑 pnpm install，devDependencies 里含 typescript）：' + ((e && e.message) || e))
+    check(false, 'typescript 已安装（找不到 typescript/package.json：请先跑 pnpm install，devDependencies 里含 typescript）：' + ((e as Error)?.message || String(e)))
   }
   if (tscBin && !fs.existsSync(tscBin)) {
     check(false, 'typescript 命令行入口存在（按包内 bin/tsc 找，实际没有这个文件）：' + tscBin)
@@ -377,7 +395,6 @@ function main() {
   if (!tscBin) {
     check(false, '反面证明能跑（tsc 起不来，这一项没做：见第一项的 FAIL）')
   } else {
-    const os = require('os')
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-contract-neg-'))
     try {
       const relToContract = path.relative(tmpDir, path.join(CONTRACT_DIR, 'backend-module.ts')).replace(/\\/g, '/')
@@ -418,7 +435,7 @@ function main() {
   {
     const hookAbs = path.join(ROOT, 'scripts', 'ts-hook.mjs')
     // --import 吃的是模块说明符，Windows 绝对路径要先转成 file://，裸盘符路径会被 ESM 加载器拒收。
-    const hookUrl = require('url').pathToFileURL(hookAbs).href
+    const hookUrl = pathToFileURL(hookAbs).href
     // 三家现在都是 .ts 真源（GitHub #1133、本地 Markdown #1134、GitLab #1135，2026-10-14 同日收口），
     // 所以这里三家都直接点 .ts：走的是真源，不是构建产物，也不必依赖加载钩子的「同名 .ts 优先」那一步。
     const evalScript = `Promise.all([import('./src/tracker/rooms/github/index.ts'), import('./src/tracker/rooms/markdown/index.ts'), import('./src/tracker/rooms/gitlab/index.ts')]).then(([g, m, l]) => {` +
@@ -434,13 +451,13 @@ function main() {
     } else if (rr.status !== 0) {
       check(false, '三个后端模块对象能真加载（退出码 ' + rr.status + '）：' + String(rr.stderr || '').slice(-300))
     } else {
-      let snap = null
-      try { snap = JSON.parse(String(rr.stdout || '').trim().split(/\r?\n/).pop()) } catch (e) { snap = null }
+      let snap: Record<string, { openRepository?: unknown; checksKind?: string }> | null = null
+      try { snap = JSON.parse(String(rr.stdout || '').trim().split(/\r?\n/).pop()) } catch { snap = null }
       if (!snap || !snap.github || !snap.markdown || !snap.gitlab) {
         check(false, '运行时快照读得出来（输出解析失败）：' + String(rr.stdout || '').slice(-200))
       } else {
         // 快照里「不声明」写成 undefined，打印时要能一眼看出来是「不声明」而不是漏填，所以这里换个写法。
-        const showRepo = (v) => (v === undefined ? '不声明' : JSON.stringify(v))
+        const showRepo = (v: unknown): string => (v === undefined ? '不声明' : JSON.stringify(v))
         for (const name of ['github', 'markdown', 'gitlab']) {
           const want = RUNTIME_SNAPSHOTS[name]
           const got = snap[name]
@@ -468,6 +485,6 @@ function main() {
 try {
   main()
 } catch (e) {
-  console.error('门禁执行异常：' + ((e && e.stack) || e))
+  console.error('门禁执行异常：' + ((e as Error)?.stack || String(e)))
   process.exit(1)
 }
