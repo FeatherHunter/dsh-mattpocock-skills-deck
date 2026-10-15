@@ -83,6 +83,26 @@ async function main() {
     check(current.rec.wrote === false, '超时后宿主的迟到值不用（无残留写）')
   }
 
+  // ②b 宿主不响应信号：行侧照样到上限就走，迟到值不用
+  // （行侧的约是“有界等待＋弃用迟到值”；宿主听到信号后停不停得下来，是宿主那边的约，不响应的属后端违约。
+  // 这一节钉住的是：即使宿主聋了，调用方也不被拖住，聋宿主事后回来的东西也不会被采用。）
+  {
+    const rec = { wrote: false }
+    const deafRun = async () => {
+      await new Promise((resolve) => setTimeout(resolve, 3000))
+      rec.wrote = true
+      return { status: 'ok', text: '聋宿主事后做了' }
+    }
+    current = { run: deafRun, rec: { sawSignal: false, wrote: false, aborted: false } }
+    const exec = rowMod.makeDelegatedExecute('deck_context', {}, { cellRunTimeoutMs: 200 })
+    const execCtx = { agent: { session: { cwd: 'D:/demo', id: 's-1' } } }
+    const t0 = Date.now()
+    const r = await exec({}, execCtx)
+    const dt = Date.now() - t0
+    check(dt < 2000, '宿主聋了也不被拖住（实耗 ' + dt + ' 毫秒）')
+    check(!(r && r.text === '聋宿主事后做了'), '聋宿主的迟到值不用、走了下一路')
+  }
+
   // ③ 快路不断：宿主立刻回就原样采用
   {
     current = fakeHost(10)
