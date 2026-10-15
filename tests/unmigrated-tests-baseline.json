@@ -239,7 +239,6 @@
     "tests/verify-kernel.js",
     "tests/verify-label-color-core.js",
     "tests/verify-labels-sync.js",
-    "tests/verify-leaves.js",
     "tests/verify-locale-completeness.js",
     "tests/verify-log-artifacts.js",
     "tests/verify-log-client.js",

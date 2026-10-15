@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-15T15:08:32.336Z",
+  "generatedAt": "2026-10-15T15:15:58.088Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 264,
   "gateCount": 264,
@@ -632,8 +632,8 @@
       "reason": "归属来自：源码里的路径字面量 6 条"
     },
     {
-      "step": "node tests/verify-leaves.js",
-      "file": "tests/verify-leaves.js",
+      "step": "node tests/verify-leaves.ts",
+      "file": "tests/verify-leaves.ts",
       "guards": [
         "package/lib/client.js",
         "package/package.json",
@@ -673,6 +673,7 @@
         "src/client/views/SettingsWorkspaces.js",
         "src/client/views/SkillsTab.js",
         "src/client/views/TicketRow.js",
+        "src/client/views/diagnosticLog/diagnosticLogModel.ts",
         "src/client/views/feedback/feedback-styles.js",
         "src/client/views/labels/LabelColorDialog.js",
         "src/client/views/labels/LabelColorEntry.js",
@@ -712,6 +713,7 @@
         "src/client/panel",
         "src/client/statusbar",
         "src/client/views",
+        "src/client/views/diagnosticLog",
         "src/client/views/feedback",
         "src/client/views/labels",
         "src/client/views/shared",
@@ -721,7 +723,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 65 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 66 条"
     },
     {
       "step": "node tests/verify-ctx.js",
@@ -6111,7 +6113,7 @@
       "node tests/verify-update-panel.js",
       "node tests/verify-update-migration.js",
       "node tests/verify-kernel.js",
-      "node tests/verify-leaves.js",
+      "node tests/verify-leaves.ts",
       "node tests/verify-ctx.js",
       "node tests/verify-parse-leaf.js",
       "node tests/verify-tabsfold-leaf.js",
@@ -6152,7 +6154,7 @@
       "node tests/verify-skill-tooltip.js",
       "node tests/verify-bug-entry.js",
       "node tests/verify-kernel.js",
-      "node tests/verify-leaves.js",
+      "node tests/verify-leaves.ts",
       "node tests/verify-ctx.js",
       "node tests/verify-parse-leaf.js",
       "node tests/verify-tabsfold-leaf.js",
@@ -6235,7 +6237,7 @@
       "node tests/verify-1184-body-parse-gap.ts",
       "node tests/verify-prompts.js",
       "node tests/verify-kernel.js",
-      "node tests/verify-leaves.js",
+      "node tests/verify-leaves.ts",
       "node tests/verify-ctx.js",
       "node tests/verify-parse-leaf.js",
       "node tests/verify-tabsfold-leaf.js",
@@ -6271,7 +6273,7 @@
     ],
     "scripts/lib": [
       "node tests/verify-build-artifacts.js",
-      "node tests/verify-leaves.js",
+      "node tests/verify-leaves.ts",
       "node tests/verify-deck-tools-row-zero-dep.js",
       "node tests/verify-map-drill.js",
       "node tests/verify-file-granularity.js",
@@ -6293,7 +6295,7 @@
     ],
     "src/client": [
       "node tests/verify-kernel.js",
-      "node tests/verify-leaves.js",
+      "node tests/verify-leaves.ts",
       "node tests/verify-ctx.js",
       "node tests/verify-tabsfold-leaf.js",
       "node tests/verify-1115-timer-handle.ts",
@@ -6316,7 +6318,7 @@
       "node tests/verify-gate-map.js"
     ],
     "src/client/floating": [
-      "node tests/verify-leaves.js",
+      "node tests/verify-leaves.ts",
       "node tests/verify-reuse.js",
       "node tests/verify-hovertip.js",
       "node tests/verify-no-title.js"
@@ -6400,7 +6402,7 @@
     ],
     "src/client/panel": [
       "node tests/verify-655-setup-layout.js",
-      "node tests/verify-leaves.js",
+      "node tests/verify-leaves.ts",
       "node tests/verify-panel-workspace-shared.js",
       "node tests/verify-reuse.js",
       "node tests/verify-no-title.js",
@@ -6410,7 +6412,7 @@
     ],
     "src/client/statusbar": [
       "node tests/verify-655-setup-layout.js",
-      "node tests/verify-leaves.js",
+      "node tests/verify-leaves.ts",
       "node tests/verify-reuse.js",
       "node tests/verify-no-title.js",
       "node tests/verify-cap-fold.js",
@@ -6432,7 +6434,7 @@
       "node tests/verify-update-panel.js",
       "node tests/verify-587-update-restart.js",
       "node tests/verify-655-setup-layout.js",
-      "node tests/verify-leaves.js",
+      "node tests/verify-leaves.ts",
       "node tests/verify-1145-open-local.ts",
       "node tests/verify-1199-row-closed-link.ts",
       "node tests/verify-626-type-chip.js",
@@ -6458,14 +6460,15 @@
       "node tests/verify-cards-dir.js"
     ],
     "src/client/views/diagnosticLog": [
+      "node tests/verify-leaves.ts",
       "node tests/verify-diagnostic-log-model.ts"
     ],
     "src/client/views/feedback": [
-      "node tests/verify-leaves.js"
+      "node tests/verify-leaves.ts"
     ],
     "src/client/views/labels": [
       "node tests/verify-label-color-core.js",
-      "node tests/verify-leaves.js"
+      "node tests/verify-leaves.ts"
     ],
     "src/client/views/pixel": [
       "node tests/verify-skill-detail-stack.js"
@@ -6476,7 +6479,7 @@
       "node tests/verify-no-title.js"
     ],
     "src/client/views/shared": [
-      "node tests/verify-leaves.js",
+      "node tests/verify-leaves.ts",
       "node tests/verify-626-type-chip.js",
       "node tests/verify-reuse.js",
       "node tests/verify-599-merged-pr.js",
@@ -6493,7 +6496,7 @@
       "node tests/verify-skill-detail-stack.js"
     ],
     "src/client/views/versionControl": [
-      "node tests/verify-leaves.js",
+      "node tests/verify-leaves.ts",
       "node tests/verify-818-version-control-view.js",
       "node tests/verify-997-vc-sight.js",
       "node tests/verify-997-vc-sight-browser.js",

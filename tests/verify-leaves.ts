@@ -1,19 +1,21 @@
-// verify-leaves.js — dsh-mattpocock-skills-deck 阶段 2 叶子迁移（#97 T4）：叶子文件清单门禁
+// verify-leaves.ts — dsh-mattpocock-skills-deck 阶段 2 叶子迁移（#97 T4）：叶子文件清单门禁
 // 验证：
 //   1) 全部叶子文件存在（G3 共享 → views/shared/ · G4 严格一文件）
 //   2) 每个叶子文件 ≤350 行（G4 Q1：≤350 默认、>500 强制拆；在册文件按零增长基线判）
 //   3) 产物新鲜度门禁（缺失/过期 → FAIL，提示先构建；与 verify-kernel 同口径）
 // 「叶子导出齐全」「组件消费 useContext」「产物里拼进没拼进」这三类读源码文本钉形状的断言，
 // 已按维护者要求删除；LEAVES 表里的 exports / components 两列从此只是档案记录，不再参与断言。
-// 用法: node tests/verify-leaves.js（在插件根目录；先运行 node scripts/build.mjs 生成产物）
+// 用法: node --import ./scripts/ts-hook.mjs tests/verify-leaves.ts（在插件根目录；先运行 node scripts/build.mjs 生成产物）
+// 写法保持 require 风格：验证链经装载钩子载入本文件，require 与 __dirname 照 CommonJS 形态工作
+// （与 tests/verify-1207-splice-ts.ts 同形）；改成 import 形态没有收益，只添风险，所以不改。
 const fs = require('fs')
 const path = require('path')
 const { countEffectiveLines, EFFECTIVE_LINES_METRIC } = require('../scripts/lib/effective-lines.mts')
 let failed = false
-const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
+const check = (ok: unknown, msg: string): void => { console.log(((ok ? '  PASS ' : '  FAIL ') + msg) as string); if (!ok) failed = true }
 
 /** 零增长基线（#845）：在册文件按基线值判，不在册的按 350 判；与 verify-file-granularity.js 同一份文件。 */
-const GRANULARITY_BASELINE = (function () {
+const GRANULARITY_BASELINE: Record<string, number> = (function (): Record<string, number> {
   try {
     const data = JSON.parse(fs.readFileSync(path.join(__dirname, 'file-granularity-baseline.json'), 'utf8'))
     // 口径不符就当成没有基线：#1017 起那份文件按「有效行」记，数字换成旧口径（总行数）后会偏大，
@@ -105,7 +107,7 @@ const SOURCES = [
   ...LEAVES.map((l) => l.file),
 ]
 
-function productStale(prod) {
+function productStale(prod: string): string | null {
   if (!fs.existsSync(prod)) return '缺失（请先运行 node scripts/build.mjs）'
   const pm = fs.statSync(prod).mtimeMs
   for (const s of SOURCES) {
@@ -116,7 +118,7 @@ function productStale(prod) {
   return null
 }
 
-function main() {
+function main(): void {
   // ---- 产物新鲜度门禁 ----
   PRODUCTS.forEach((p) => {
     const why = productStale(p)
