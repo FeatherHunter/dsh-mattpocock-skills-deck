@@ -944,8 +944,8 @@ const contractChecksInner = function (reg, src) {
 
   // 版本号 bump（#573 §2.7 逐条清单；只许升不许降）
   const V_MIN = {
-    mapExecute: 11, complete: 9, fixate: 6, 'tpl.diagnose': 10, 'tpl.fix': 11, 'tpl.discuss': 8,
-    'tpl.research': 5, 'tpl.prototype': 5, 'tpl.takeover': 1, 'tpl.supplement': 1, 'tpl.execute': 9, mapInspect: 6, newWayfinder: 14,
+    mapExecute: 11, complete: 9, fixate: 6, 'tpl.diagnose': 14, 'tpl.fix': 11, 'tpl.discuss': 14,
+    'tpl.research': 5, 'tpl.prototype': 5, 'tpl.takeover': 4, 'tpl.supplement': 3, 'tpl.execute': 13, mapInspect: 6, newWayfinder: 14,
     // #619：setupRun v11 删掉了 paletteNote（旧调色盘注入通道），版本号跟着抬到 11
     // #655：setupRun v12 新增 {contextLayout}（用户选的域文档布局），版本号跟着抬到 12
     // #664：setupRun v13 删掉初始化全文末尾那段「仓库还没就绪就先停下」的告诫（界面已保证过），版本号跟着抬到 13
@@ -980,15 +980,19 @@ const contractChecksInner = function (reg, src) {
     if (me.en.indexOf('- [ ]') < 0) fail('mapExecute en 缺清单标记 - [ ]')
     if (me.en.indexOf('## Tools') < 0 || me.en.indexOf('## Analyze') < 0 || me.en.indexOf('## Pick the ticket') < 0 || me.en.indexOf('## Execute') < 0 || me.en.indexOf('## Wrap-up') < 0) fail('mapExecute en 缺清单段标题（Tools/Analyze/Pick the ticket/Execute/Wrap-up）')
   }
-  // tpl.execute（#64 清单式）
+  // tpl.execute（#64 清单式；#1212：加调查节先查后问）
   const ex = reg['tpl.execute']
   if (ex) {
     if (ex.zh.indexOf('- [ ]') < 0) fail('tpl.execute zh 缺清单标记 - [ ]（A★ 清单式）')
     if (ex.zh.indexOf('## 读现状') < 0 || ex.zh.indexOf('## 阶段闸门') < 0 || ex.zh.indexOf('## 收尾') < 0) fail('tpl.execute zh 缺清单三段标题（读现状/阶段闸门/收尾）')
     if (ex.zh.indexOf('|') >= 0) fail('tpl.execute zh 含表格 |（已约定无表格，全勾选框）')
     if (ex.en.indexOf('- [ ]') < 0) fail('tpl.execute en 缺清单标记 - [ ]')
+    if (ex.zh.indexOf('## 调查（建议先查后问）') < 0) fail('tpl.execute zh 缺 #1212 调查节（先查后问）')
+    if (ex.zh.indexOf('建议先阅读本票正文、评论及仓内相关内容后再提问') < 0) fail('tpl.execute zh 缺 #1212 调查首行（先读本票与仓内）')
+    if (ex.en.indexOf('## Investigate first (recommended: look before asking)') < 0) fail('tpl.execute en 缺 #1212 调查节（同中文那条的对应节）')
+    if (ex.en.indexOf('It is recommended to read this ticket body') < 0) fail('tpl.execute en 缺 #1212 调查首行（同中文那条的对应句）')
   }
-  // tpl.diagnose（#65 清单式 · 诊断≠修复）
+  // tpl.diagnose（#65 清单式 · 诊断≠修复；#1212：加调查节先查后问）
   const di = reg['tpl.diagnose']
   if (di) {
     if (di.zh.indexOf('- [ ]') < 0) fail('tpl.diagnose zh 缺清单标记 - [ ]（A★ 清单式）')
@@ -1001,6 +1005,10 @@ const contractChecksInner = function (reg, src) {
     if (di.en.indexOf('diagnosis') < 0 || di.en.indexOf('Stage gate') < 0) fail('tpl.diagnose en 缺关键段（diagnosis/Stage gate）')
     if (di.en.indexOf('What are the symptoms') < 0 || di.en.indexOf('What is the impact') < 0) fail('tpl.diagnose en 缺 Symptoms 三行拆分')
     if (di.en.indexOf('grill snippet') >= 0) fail('tpl.diagnose en 残留 grill snippet 引用（#77 grill 入口已删）')
+    if (di.zh.indexOf('## 调查（建议先查后问）') < 0) fail('tpl.diagnose zh 缺 #1212 调查节（先查后问）')
+    if (di.zh.indexOf('建议先阅读本票正文、评论及仓内相关内容后再提问') < 0) fail('tpl.diagnose zh 缺 #1212 调查首行（先读本票与仓内）')
+    if (di.en.indexOf('## Investigate first (recommended: look before asking)') < 0) fail('tpl.diagnose en 缺 #1212 调查节（同中文那条的对应节）')
+    if (di.en.indexOf('It is recommended to read this ticket body') < 0) fail('tpl.diagnose en 缺 #1212 调查首行（同中文那条的对应句）')
   }
   // tpl.fix（#900：阶段闸门整节删除，只在读现状留一句兜底；定位与修复保留四行）
   const fxt = reg['tpl.fix']
@@ -1029,7 +1037,26 @@ const contractChecksInner = function (reg, src) {
     if (dc.zh.indexOf('同 map 的subissue需要知晓该规格单的存在') < 0) fail('tpl.discuss zh 缺 #1205 知晓行（同 map 子票要知晓规格单）')
     if (dc.en.indexOf('Make sure the sibling sub-issues on the same map know this spec issue exists.') < 0) fail('tpl.discuss en 缺 #1205 知晓行（同中文那条的对应句）')
     if (!(dc.zh.indexOf('挂到同一张 map 上成为 subissue') < dc.zh.indexOf('同 map 的subissue需要知晓该规格单的存在') && dc.zh.indexOf('同 map 的subissue需要知晓该规格单的存在') < dc.zh.indexOf('在用户指示下执行完 /to-spec 后对当前执行的所有任务执行一次对抗式审查'))) fail('tpl.discuss zh #1205 知晓行位置不对（应在挂图行之后、#808 审查行之前）')
+    if (dc.zh.indexOf('## 调查（建议先查后问）') < 0) fail('tpl.discuss zh 缺 #1212 调查节（先查后问）')
+    if (dc.zh.indexOf('建议先阅读本票正文、评论及仓内相关内容后再提问') < 0) fail('tpl.discuss zh 缺 #1212 调查首行（先读本票与仓内）')
+    if (dc.en.indexOf('## Investigate first (recommended: look before asking)') < 0) fail('tpl.discuss en 缺 #1212 调查节（同中文那条的对应节）')
+    if (dc.en.indexOf('It is recommended to read this ticket body') < 0) fail('tpl.discuss en 缺 #1212 调查首行（同中文那条的对应句）')
   }
+  // tpl.takeover / tpl.supplement（#1212：两条都加调查节先查后问；此前两条无内容断言，只在注册表计数里出现）
+  const to = reg['tpl.takeover']
+  if (to) {
+    if (to.zh.indexOf('## 调查（建议先查后问）') < 0) fail('tpl.takeover zh 缺 #1212 调查节（先查后问）')
+    if (to.zh.indexOf('建议先阅读本票正文、评论及仓内相关内容后再提问') < 0) fail('tpl.takeover zh 缺 #1212 调查首行（先读本票与仓内）')
+    if (to.en.indexOf('## Investigate first (recommended: look before asking)') < 0) fail('tpl.takeover en 缺 #1212 调查节（同中文那条的对应节）')
+    if (to.en.indexOf('It is recommended to read this ticket body') < 0) fail('tpl.takeover en 缺 #1212 调查首行（同中文那条的对应句）')
+  } else fail('缺条目 tpl.takeover')
+  const su = reg['tpl.supplement']
+  if (su) {
+    if (su.zh.indexOf('## 调查（建议先查后问）') < 0) fail('tpl.supplement zh 缺 #1212 调查节（先查后问）')
+    if (su.zh.indexOf('建议先阅读本票正文、评论及仓内相关内容后再提问') < 0) fail('tpl.supplement zh 缺 #1212 调查首行（先读本票与仓内）')
+    if (su.en.indexOf('## Investigate first (recommended: look before asking)') < 0) fail('tpl.supplement en 缺 #1212 调查节（同中文那条的对应节）')
+    if (su.en.indexOf('It is recommended to read this ticket body') < 0) fail('tpl.supplement en 缺 #1212 调查首行（同中文那条的对应句）')
+  } else fail('缺条目 tpl.supplement')
   // newWayfinder（#77 v8 + #573 v14 子议题关联收敛）
   const nw = reg['newWayfinder']
   if (nw) {
@@ -1543,10 +1570,11 @@ const selfDigest = function () {
 // #1167：共用求值入口 tests/lib/eval-probe.js 转成 TypeScript 后，L2 注入那节的子进程要显式带上装载钩子
 //   （子进程不继承父进程的钩子），否则子进程一启动就找不到那个按 .js 说明符写的模块，自摘要一并重算。
 // #1205：tpl.discuss 收尾再补一条（同 map 子票要知晓规格单），中英各一行断言并钉住行序（挂图行之后、#808 审查行之前），自摘要跟着重算。
+// #1212：执行/讨论/诊断/接手/补充五条加调查节（建议先查后问），中英各两行断言，版本底线同步抬到 13/14/14/4/3，自摘要跟着重算。
 const LOCK = {
   'tests/prompt-gate-exempt.json': 'c661ccd0fbfd46aa99790c073d0ccea89ebf5787a9113462c092b17c72a2a2d9',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.js': '93a99e7fd52b927b46cc41853761c2895d32ab7d7301efa73ec2f9af6cbf2fd7',
+  'tests/verify-prompts.js': 'c6aaca777a9d908b4b00c12ec3647be479ae0b72d84e5447927afa9983105453',
 }
 // ---- LOCK-END ----
 
