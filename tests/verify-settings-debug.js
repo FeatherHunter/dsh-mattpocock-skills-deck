@@ -733,9 +733,14 @@ async function main() {
     // 自愈那一步的真触发路径在第十九件事里真跑一遍设置页来量（2026-10-12 复核的必修 B：直接调内部函数
     //   只能证明那个函数还在，证明不了产品里那一趟真的会走到它 —— adopt 一个会话只跑一次，这条路上的
     //   重推在产品里到不了）。这里先钉一句静态的：设置页挂载那一趟确实留了口子。
-    const pageRetry = readText('src/client/views/SettingsPage.js')
+    //   重推口子搬家（调试分组收进 views/diagnosticLog/DiagnosticLogSection.ts）：口子还在设置页的渲染树里
+    //   （设置页挂载分组，分组挂载那一趟跑口子），静态检查跟到新家，意图不变。
+    const pageStillMountsSection = readText('src/client/views/SettingsPage.js')
+    check(pageStillMountsSection.indexOf('DiagnosticLogSection') >= 0,
+      '设置页还挂着调试分组（分组搬走后页面只剩一行挂载，挂载丢了口子就到不了）。', String(pageStillMountsSection.indexOf('DiagnosticLogSection')))
+    const pageRetry = readText('src/client/views/diagnosticLog/DiagnosticLogSection.ts')
     check(pageRetry.indexOf('settingsDebugRetryHost') >= 0 && pageRetry.indexOf('React.useEffect') >= 0,
-      '设置页在挂载那一趟留了重推口子（settingsDebugRetryHost 在 useEffect 里被调用）。', String(pageRetry.indexOf('settingsDebugRetryHost')))
+      '调试分组在挂载那一趟留了重推口子（settingsDebugRetryHost 在 useEffect 里被调用）。', String(pageRetry.indexOf('settingsDebugRetryHost')))
     // 二、副本接受：回包 hostPushed: true（界面照旧弹那句不带限定语的）。
     const env2 = makeEnv({ tag: 'hostpushed-yes' })
     await store.writeLocalSettings(dbgDoc({ enabled: false, sampleRate: 1 }), env2.home, realIo)
@@ -746,10 +751,12 @@ async function main() {
     // 三、界面：副本没跟上时不弹没限定语的「已开启」，而且两个方向各有一句（拨成开说「文件已写、副本没接上」，
     //   拨成关说「文件已写、副本还开着，调试行还在记」）—— 拿同一句套两个方向，总有一边把话说反。这句话中文
     //   与英文两份词表里都得有（界面文案一律走词表，不许写字面量）。
-    const page = readText('src/client/views/SettingsPage.js')
-    check(page.indexOf('res.hostPushed === false') >= 0 && page.indexOf("'cfg.dbgSwitchOnNoHost'") >= 0 && page.indexOf("'cfg.dbgSwitchOffNoHost'") >= 0,
-      '设置页按 hostPushed 与方向换文案：副本没跟上时拨成开、拨成关各一句，都不弹没限定语的那句。',
-      JSON.stringify({ hostPushed: page.indexOf('res.hostPushed === false'), on: page.indexOf('cfg.dbgSwitchOnNoHost'), off: page.indexOf('cfg.dbgSwitchOffNoHost') }))
+    //   选句搬家（原来设置页里那条嵌套三元收进 views/diagnosticLog/diagnosticLogModel.ts 的 switchToastKey）：
+    //   静态检查跟到新家，三个要素一个不少（看 hostPushed、开方向一句、关方向一句）。
+    const page = readText('src/client/views/diagnosticLog/diagnosticLogModel.ts')
+    check(page.indexOf('hostPushed') >= 0 && page.indexOf("'cfg.dbgSwitchOnNoHost'") >= 0 && page.indexOf("'cfg.dbgSwitchOffNoHost'") >= 0,
+      '诊断日志模型按 hostPushed 与方向换文案：副本没跟上时拨成开、拨成关各一句，都不弹没限定语的那句。',
+      JSON.stringify({ hostPushed: page.indexOf('hostPushed'), on: page.indexOf('cfg.dbgSwitchOnNoHost'), off: page.indexOf('cfg.dbgSwitchOffNoHost') }))
     const localeSrc = readText('src/client/kernel/locale-flow.js')
     const localeOf = (key) => localeSrc.split(/\r?\n/).filter((l) => l.indexOf("'" + key + "'") >= 0)
     const zhOn = localeOf('cfg.dbgSwitchOnNoHost').find((l) => l.indexOf('调试日志已打开') >= 0) || ''
