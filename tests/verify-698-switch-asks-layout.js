@@ -32,6 +32,10 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { compileFn } from './lib/eval-probe.js'
+// #1209 起状态栏那份的真源是 .ts：直接按 .js 路径读会读到 pixel-ts 产物（本票之前那份还是手写时代的旧文件）。
+//   spliceableJs 按「同名 .ts 优先」解到真源再按全仓唯一口径转译成可求值的 JavaScript（与拼包同一条路），
+//   store-switch.js 与 prompts-setup.js 还没转 .ts，仍按原路径直读。
+import { spliceableJs } from './lib/source-text.js'
 
 const root = resolve(import.meta.dirname, '..')
 const read = (rel) => readFileSync(resolve(root, rel), 'utf8')
@@ -42,7 +46,7 @@ const check = (ok, msg) => { if (ok) { console.log('  PASS ' + msg); passed++ } 
 const stripExports = (s) => s.replace(/^[ \t]*export[ \t]+/gm, '')
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-const sbSrc = read('src/client/statusbar/StatusBackend.js')
+const sbSrc = spliceableJs('src/client/statusbar/StatusBackend.js')
 const swSrc = read('src/client/kernel/store-switch.js')
 const setupSrc = read('src/client/kernel/prompts-setup.js')
 
@@ -268,7 +272,9 @@ console.log('== G 反证：三处实现各做坏一次，对应的断言必须�
   check(modB.layoutCardShouldOpen({ setupLayout: 'multi' }, { askLayout: true }) === false, '反证 ① 成立：改回「答过就不问」之后，答过布局的那一档不再问（正是本票要结束的那个行为）')
 
   // ② 把「点确认那一刻重判」改掉（照开卡时的旧结论办）—— E 组「还没初始化 + 确认」那条要当场红
-  const brokenSettle = sbSrc.replace("if(state==='fresh'){", 'if (false) {')
+  //   锚点用宽容写法：真源手写 if(state==='fresh'){，转译成可求值文本后是 if (state === "fresh") {（esbuild
+  //   统了空格与引号），两边都咬得住，改转译口径也不用再动这里。
+  const brokenSettle = sbSrc.replace(/if\s*\(\s*state\s*===\s*['"]fresh['"]\s*\)\s*\{/, 'if (false) {')
   check(brokenSettle !== sbSrc, '反证 ② 的改法能在真源里落地')
   const seen2 = { inject: [], flash: [], decision: [] }
   const sb2 = {

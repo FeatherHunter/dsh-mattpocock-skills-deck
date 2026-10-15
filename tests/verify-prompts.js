@@ -48,6 +48,16 @@ const path = require('path')
 const childProcess = require('child_process')
 // 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
 const { compileFn } = require('./lib/eval-probe.js')
+// 取源走共用入口（#1207 立）：本文件好几处要拿 prompts 的**源码文本**做注入与正则解析。
+//   #1209 把这份源码从手写 .js 转成 .ts 之后，按 .js 路径直接读会读到构建产物（pixel-ts 那一步
+//   写在真源旁边的同名 .js），产物是转译过的排版——引号全变双引号、对象被压成一行，
+//   本文件那几条「一行一条、单引号包裹」的正则与文本锚点会当场失效（旧写法实测：S1 求值仍解析出 23 条，
+//   但单行正则解析到 0 条，L2 的四处注入全成了空操作，报的是看不懂的「红得不对」）。
+const { sourceText, sourcePath } = require('./lib/source-text.ts')
+// 求值前那一步整段转译走全仓唯一那份口径（构建也用它）：这里不另写一份 esbuild 参数，
+// 否则门禁求值的文本会和真正拼进产物的那份慢慢分家，而且分家不报错。
+const { loadEsbuild } = require('../scripts/lib/transpile-domains.mjs')
+const { TRANSPILE_OPTIONS } = require('../scripts/lib/transpile-unit.mjs')
 
 const ROOT = path.join(__dirname, '..')
 const SELF = path.join(__dirname, 'verify-prompts.js')
@@ -387,6 +397,45 @@ const auditExemptTable = function (list, surfaceIds, opts) {
 
 // ==================== 3. 解析层 ====================
 // S1 求值解析：去掉行首 export 后整段求值 —— 不受拆行 / 换引号 / 转义影响；语法错误直接抛（判红，不静默少扫）
+//
+// #1209 起这份真源是 .ts，两件事要分开办（混成一件会把跨门禁一致性悄悄弄坏）：
+//
+//   ① stripTypeSyntax：只摘类型写法，**一个字面量都不动**（声明上的 `: PromptRegistry` → 去掉，
+//      收尾的 `} satisfies X;` → `};`）。按文本形状扫描的那几条判据（单行正则解析注册表、
+//      与 tests/verify-prompt-newlines.js 的跨门禁一致性、L2 注入的两处文本锚点）用的就是它，
+//      因为它们认的是「真源当前长什么样」——换成转译后的排版，条目会被压成一行或换引号，判据当场失真。
+//   ② transpileForEval：整段转译成 JavaScript，**只给求值用**（S1 求值、渲染入口 prime、兜底常量提取）。
+//      vm.compileFunction 只吃纯 JS，文件里那些 type / interface 声明与带标注的变量声明它一个都不认识；
+//      转译口径取自构建那份唯一实现（scripts/lib/transpile-unit.mjs 的 TRANSPILE_OPTIONS），
+//      这里不另写参数 —— 否则门禁求值的文本会和真正拼进产物的那份慢慢分家，而且分家不报错。
+//   为什么不能反过来（求值也用 ①，或文本扫描也用 ②）：① 剩下的文本仍带 TypeScript 声明，喂 vm 报的是
+//   看不懂的语法错；② 的排版会把 23 条压成 8 条能过单行正则的（转译器把内层引号转义改写了），
+//   于是「跨门禁不一致」当场红 —— 实测过，两条路各自都走不通，所以分成两步。
+const stripTypeSyntax = function (src) {
+  const s = String(src)
+  const out = s
+    // 声明可能带 export（真源是模块，.ts 里就带着），也可能已经剥掉了 export 再进来（子进程那条路）。
+    .replace(/^([ \t]*(?:export[ \t]+)?const PROMPTS)[ \t]*:[^=\r\n]*= \{/m, '$1 = {')
+    // 收尾可能是 `} satisfies X;`，也可能省略分号写成 `} satisfies X` 再换行——两种都要认。
+    .replace(/\}[ \t]*satisfies[ \t]*[A-Za-z0-9_.<>[\]]+(?:[ \t]*\|[ \t]*[A-Za-z0-9_.<>[\]]+)*[ \t]*;?[ \t]*(?=\r?\n)/, '};\n')
+  // 复查只看「还有没有**代码里**的 satisfies」：注释里出现这个单词（本次就有一条注释拿它做解释）
+  // 不算漏摘。判据写成不跨行匹配，且要求后面跟着一个标识符或 . / [ 这类类型写法开头。
+  if (!/^[ \t]*(?:export[ \t]+)?const PROMPTS = \{/m.test(out) || /satisfies[ \t]+[A-Za-z_$]/.test(out)) {
+    throw new Error('取到的文本里还有摘不掉的类型写法（本门禁只认 `const PROMPTS = {` 起头、`} satisfies X` 收尾这一种注册表声明）')
+  }
+  return out
+}
+/** 求值专用：先摘类型写法，真源是 .ts 时再整段转译成 JavaScript（口径与构建同一份）。 */
+const transpileForEval = function (src) {
+  const out = stripTypeSyntax(src)
+  if (!SOURCE_IS_TS) return out
+  try {
+    return loadEsbuild().transformSync(out, { ...TRANSPILE_OPTIONS, loader: 'ts' }).code
+  } catch (e) {
+    throw new Error('转译真源失败（这一步在求值之前，不是模板本身的问题）：' + ((e && e.message) || e))
+  }
+}
+
 const evalRegistrySource = function (src) {
   const body = String(src).replace(/^[ \t]*export[ \t]+/gm, '')
   // 这里选 compileFn：原来按文本造一个无参函数再当场调用，共用入口同样造函数，接法不变、取回的就是 PROMPTS。
@@ -476,14 +525,26 @@ const unescapeLiteral = function (s) {
 }
 // tests/verify-prompt-newlines.js:71 用的同一条单行正则（跨门禁一致性断言用；#588 起转义感知：
 // 第 ① 步命令含 require.resolve('...') 内层单引号，源码写成 \'，[^']* 会提前截断少扫）
-const ENTRY_RE = /^\s*"([a-zA-Z0-9.]+)": \{ version: (\d+), placeholders: \[([^\]]*)\], use: '((?:[^'\\]|\\.)*)', zh: '((?:[^'\\]|\\.)*)', en: '((?:[^'\\]|\\.)*)' \},?$/gm
+//
+//   #1209 起这份真源是 .ts，同一条正则要同时认两种排版：
+//   ① 手写真源（prompts.ts）：键与六个字段都是单引号，四空格收尾——形状由人写死，仍然不许拆行；
+//   ② 构建产物（pixel-ts 写在真源旁边的 prompts.js、以及它拼进的 client.js 系列）：
+//      真源那份被 esbuild 再转一次，字符串字面量统一变成双引号。
+//   字段正文用反向引用 \5 / \7 / \9 咬住**同一个引号**，正文里允许出现另一种引号原文
+//   （例如双引号排版里的 ' 、单引号排版里的 "），只禁掉与定界符相同的那一个：
+//   旧写法 ((?:[^'\\]|\\.)*) 永远禁单引号，转译把 \' 还原成 ' 后双引号排版的条目含 ' 即失配、
+//   产物被静默少扫（#1209 实测：产物 23 条只扫出 8 条）。新写法 ((?:(?!\5)[^\\]|\\.)*)
+//   只禁定界符本身与反斜杠，另一种引号原文照收 —— 拆行或混用引号照样一条都解析不出来；
+//   这样「一半单引号一半双引号」那种被转译改形的写法仍然解析不出来，硬口径没有放松；
+//   键名、字段顺序、一条一行这三条也照旧——拆行或改顺序照样一条都解析不出来（条数会当场对不上）。
+const ENTRY_RE = /^\s*(['"])([a-zA-Z0-9.]+)\1: \{ version: (\d+), placeholders: \[([^\]]*)\], use: (['"])((?:(?!\5)[^\\]|\\.)*)\5, zh: (['"])((?:(?!\7)[^\\]|\\.)*)\7, en: (['"])((?:(?!\9)[^\\]|\\.)*)\9 \},?$/gm
 const parseRegistryByRegex = function (src) {
   const reg = {}
   const re = new RegExp(ENTRY_RE.source, 'gm')
   let m
   while ((m = re.exec(src)) !== null) {
-    const ph = m[3] ? m[3].split(',').map(function (x) { return x.trim().replace(/'/g, '') }).filter(Boolean) : []
-    reg[m[1]] = { version: Number(m[2]), placeholders: ph, use: m[4], zh: unescapeLiteral(m[5]), en: unescapeLiteral(m[6]) }
+    const ph = m[4] ? m[4].split(',').map(function (x) { return x.trim().replace(/['"]/g, '') }).filter(Boolean) : []
+    reg[m[2]] = { version: Number(m[3]), placeholders: ph, use: unescapeLiteral(m[6]), zh: unescapeLiteral(m[8]), en: unescapeLiteral(m[10]) }
   }
   return reg
 }
@@ -1430,11 +1491,30 @@ const L2_PAYLOADS = JSON.parse(fs.readFileSync(PAYLOAD_FILE, 'utf8')).payloads |
 const EXPECT_L2_EXPECT_OVERRIDE = 1
 const L2_EXPECT_OVERRIDE = { 'backend-prompt': ['subIssue', 'R8'] }
 const injectNewEntry = function (src) {
-  const anchor = /\r?\n {4}\}\r?\n/
-  const from = src.indexOf('const PROMPTS = {')
-  const m = anchor.exec(src.slice(from))
+  // 两处锚点都要认 TypeScript 真源的写法（#1209 起真源是 prompts.ts）：
+  //   ① 声明行：.ts 里的写法是 `export const PROMPTS = {`（可带类型标注 `: PromptRegistry`），
+  //      所以正则里类型标注那一段可有可无；照旧只认 `const PROMPTS = {` 会搜不到，
+  //      后面 slice(-1) 就把条目注进文件尾巴。
+  //   ② 收尾行：.ts 里写作 `} satisfies PromptRegistry`（老 .js 里是 `    }`）。这一行贴在**行首**，
+  //      所以收尾锚点用「行首的 }」来认，比「四个空格的 }」准：后者会锚到 promptLang 的收尾括号上
+  //      （实测：条目被注进 promptLang 体内，子进程报的是「Expected ";" but found ":"」这种转译错，
+  //      红得完全不是地方）。
+  //   从声明结尾往后找，而且**只找第一个行首 }**：登记表内部所有行都带缩进，行首出现 } 就是它收尾了。
+  const declRe = /const PROMPTS[ \t]*(?::[^=\r\n]*)?= \{/
+  const endRe = /^\}(?:[ \t]*satisfies[^\r\n]*)?;?[ \t]*\r?$/m
+  const dm = declRe.exec(src)
+  if (!dm) throw new Error('找不到注册表声明（`const PROMPTS = {` 或带类型标注的写法都没匹配上）')
+  const afterDecl = dm.index + dm[0].length
+  const m = endRe.exec(src.slice(afterDecl))
   if (!m) throw new Error('找不到注册表收尾')
-  const at = from + m.index
+  // 插入点取「收尾括号那一行开头」：新条目补在最后一个条目之后、收尾括号之前。
+  //   最后一条条目必须正好在插入点上一行 —— 不是的话说明锚点漂了，宁可当场抛错也不要静默注错地方。
+  const at = afterDecl + m.index
+  const beforeText = src.slice(0, at)
+  const lastEntryLine = beforeText.replace(/\r?\n$/, '').split(/\r?\n/).pop() || ''
+  if (!/\},\s*$/.test(lastEntryLine)) {
+    throw new Error('注册表收尾锚点漂了：插入点上一行不是条目收尾（实得 ' + JSON.stringify(lastEntryLine.slice(-40)) + '）')
+  }
   return src.slice(0, at) + '\n      "tpl.brandNew": { version: 1, placeholders: [], use: \'x\', zh: \'写回用 gh issue edit 573 --body-file x.md\', en: \'same\' },' + src.slice(at)
 }
 const injectUseField = function (src, text) {
@@ -1454,7 +1534,9 @@ const runL2Injection = function () {
   let tmp = null
   try {
     tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-verify-prompts-'))
-    const regSrc = fs.readFileSync(path.join(ROOT, 'src/client/kernel/prompts.js'), 'utf8')
+    // 注入用**真源原文**（不摘类型写法）：injectNewEntry 的两处锚点就是按 `.ts` 的写法认的
+    //   （声明带类型标注、收尾带 `satisfies`）；先摘再注入反而让收尾锚点漂到别的函数上。
+    const regSrc = readS1Source()
     const backendSrc = fs.readFileSync(path.join(ROOT, 'src/tracker/rooms/github/index.ts'), 'utf8')
     L2_PAYLOADS.forEach(function (p) {
       let mutated = null
@@ -1482,8 +1564,21 @@ const runL2Injection = function () {
         fs.writeFileSync(bpath, mutatedBackend)
         extraArgs = ['--backend-probe=' + bpath]
       }
-      const args = (mutated != null) ? [path.join(tmp, 'prompts-probe-' + p.n + '.js')] : extraArgs
+      // 注入探针的扩展名跟着真源走：真源是 .ts 时就写成 .ts。
+      //   为什么在乎扩展名：子进程是按「单文件模式」跑的，它要自己判断「这份文本要不要先转译成 JS」——
+      //   判断依据就是扩展名（见 SOURCE_IS_TS）。写成 .js 而内容是 TypeScript 的话，
+      //   子进程会拿带类型标注的文本直接喂 vm，报出来的是「Unexpected token ':'」这种语法错，
+      //   而这一层的判据本来是「注入的坏文本有没有被规则点名」——语法错一起，红得就不是地方了。
+      const probeExt = SOURCE_IS_TS ? '.ts' : '.js'
+      const args = (mutated != null) ? [path.join(tmp, 'prompts-probe-' + p.n + probeExt)] : extraArgs
       if (mutated != null) fs.writeFileSync(args[0], mutated)
+      if (mutated != null && process.env.DSH_VERIFY_PROMPTS_KEEP === '1') {
+        const keepDir = path.join(ROOT, '.scratch', 'l2probe')
+        fs.mkdirSync(keepDir, { recursive: true })
+        const keepPath = path.join(keepDir, 'kept-' + p.n + probeExt)
+        fs.writeFileSync(keepPath, mutated)
+        console.log('    · 探针副本留在 ' + keepPath)
+      }
       let out = ''
       let code = 0
       try {
@@ -1571,10 +1666,18 @@ const selfDigest = function () {
 //   （子进程不继承父进程的钩子），否则子进程一启动就找不到那个按 .js 说明符写的模块，自摘要一并重算。
 // #1205：tpl.discuss 收尾再补一条（同 map 子票要知晓规格单），中英各一行断言并钉住行序（挂图行之后、#808 审查行之前），自摘要跟着重算。
 // #1212：执行/讨论/诊断/接手/补充五条加调查节（建议先查后问），中英各两行断言，版本底线同步抬到 13/14/14/4/3，自摘要跟着重算。
+// #1209：prompts 真源从手写 .js 转成 .ts（旁边那份同名 .js 变成 pixel-ts 产物）。本文件因此改了四处读法：
+//   ① 取源改走共用入口 tests/lib/source-text.ts 的 sourceText（按 .js 路径直接读会读到产物，正则与文本锚点当场失效）；
+//   ② 求值前把类型写法摘掉（声明上的类型标注、收尾的 satisfies），再按构建那份唯一口径整段转译成 JavaScript；
+//   ③ 单行正则 ENTRY_RE 的引号改成反向引用，真源的单引号与产物的双引号两种排版都认，
+//      但「六个字段必须同一种引号、一条一行」这两条硬口径没放松；
+//   ④ L2 注入探针的扩展名跟着真源走（.ts），内容锚点认 `.ts` 的写法（`const PROMPTS: X = {` 与 `} satisfies X`）。
+//   夹具文件一个字没动，只有本文件改了，自摘要跟着重算。
+// #1209：ENTRY_RE 与 verify-prompt-newlines.js 的孪生正则同步改成定界符感知（产物双引号排版含 ' 原文时不再静默少扫），自摘要跟着重算。
 const LOCK = {
   'tests/prompt-gate-exempt.json': 'c661ccd0fbfd46aa99790c073d0ccea89ebf5787a9113462c092b17c72a2a2d9',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.js': 'c6aaca777a9d908b4b00c12ec3647be479ae0b72d84e5447927afa9983105453',
+  'tests/verify-prompts.js': '13986e8a9f8ae94f276e31f3282ae3bcba6d7fc0798265fe8f78e633bc0528d1',
 }
 // ---- LOCK-END ----
 
@@ -1584,6 +1687,15 @@ const backendProbe = (argv.filter(function (a) { return a.indexOf('--backend-pro
 const fileArgs = argv.filter(function (a) { return a.indexOf('--') !== 0 })
 const singleFileMode = fileArgs.length > 0
 const stepOk = function (before) { return problems.length === before }
+// 取源文本：单文件模式（L2 注入的子进程）读点名的那一份；平时走共用取源入口拿**真源**。
+//   #1209 把 prompts 从手写 .js 转成 .ts 之后，按 .js 路径直接读会读到构建产物（pixel-ts 写在真源旁），
+//   而本文件下面几条正则与文本锚点认的是手写排版（一行一条、单引号、四空格收尾），读产物会静默少扫。
+//   定义在这里而不是 S1 那一节：上面的 L2 注入也要用同一份取法，两处不能各读各的。
+const s1Rel = 'src/client/kernel/prompts.js'
+const readS1Source = function () { return singleFileMode ? fs.readFileSync(fileArgs[0], 'utf8') : sourceText(s1Rel) }
+// 求值要的是 JavaScript，而真源已经换成 .ts：这里问一次「今天住在盘上的到底是哪种扩展名」，
+// 只有 .ts 才需要整段转译（见上面的 transpileForEval）。用共用取源入口问，规则与装载钩子同一条。
+const SOURCE_IS_TS = singleFileMode ? /\.ts$/.test(fileArgs[0]) : sourcePath(s1Rel).endsWith('.ts')
 
 console.log('P1: prompt 注册表契约（#573 五面扫描 + 外部豁免登记 + 归一化 + #603 判据 R1–R8）')
 // 子进程模式（L2 注入用）：必须带单文件参数或 --backend-probe，否则等于用环境变量静默关掉整层自检
@@ -1609,27 +1721,27 @@ if (!IS_CHILD) {
 }
 
 // —— S1 + S5 ——
-const s1Path = singleFileMode ? fileArgs[0] : path.join(ROOT, 'src/client/kernel/prompts.js')
-const s1Label = singleFileMode ? fileArgs[0] : 'src/client/kernel/prompts.js'
+const s1Path = singleFileMode ? fileArgs[0] : path.join(ROOT, s1Rel)
+const s1Label = singleFileMode ? fileArgs[0] : s1Rel
 // #698：prompts.js 在本票里贴着 350 行上限（表里加了 switchLayout 一条，靠把两段注释压短腾出的地方），
 //   本门禁照旧只评估这一份、不拼别的文件 —— 条目必须一条一行、文本内联，这条口径没有放松。
 const s1Fragment = ''
 let reg = null
 let s1Ids = []
 try {
-  const s1Src = fs.readFileSync(s1Path, 'utf8')
+  const s1Src = transpileForEval(readS1Source())
   reg = evalRegistrySource(s1Fragment + '\n' + s1Src)
   s1Ids = Object.keys(reg)
   auditRegistryShape(s1Src + '\n' + s1Fragment, reg).forEach(function (m) { fail(m) })
 } catch (e) {
   fail('FAIL S1 ' + s1Label + ' 求值失败（模板语法错误或写法被改坏）：' + e.message + '\n' +
-    '     修法：模板条目必须是一行一条、单引号包裹的合法 JS；求值失败即判红，不许静默少扫')
+    '     修法：模板条目必须是一行一条、由引号包裹的合法 JS；求值失败即判红，不许静默少扫')
 }
 if (reg) {
   const pS1 = problems.length
   check(s1Ids.length === EXPECT_REGISTRY_ENTRIES, 'S1 注册表条目数 ' + s1Ids.length + '（期望 ' + EXPECT_REGISTRY_ENTRIES + '）——解析层不许静默少扫')
   // 跨门禁一致性：tests/verify-prompt-newlines.js 的单行正则必须解析到同样多的条目（拆行/换引号会让它静默少 1 条）
-  const byRegex = parseRegistryByRegex(fs.readFileSync(s1Path, 'utf8'))
+  const byRegex = parseRegistryByRegex(stripTypeSyntax(readS1Source()))
   const regexIds = Object.keys(byRegex)
   check(regexIds.length === s1Ids.length, '跨门禁不一致：单行正则解析到 ' + regexIds.length + ' 条，S1 求值解析到 ' + s1Ids.length +
     ' 条（条目被拆行或换了引号；tests/verify-prompt-newlines.js 会静默少扫）')
@@ -1643,7 +1755,7 @@ if (reg) {
     if (v.en != null) subIssueValues[b + '.en'] = v.en
   })
   // #595：注册表之外还有几处会进客户端产物的文本来源，一并扫（以前完全没扫：塞进去就全绿）
-  const nonReg = collectNonRegistrySource(s1Label, fs.readFileSync(s1Path, 'utf8'))
+  const nonReg = collectNonRegistrySource(s1Label, readS1Source())
   nonReg.problems.forEach(function (m) { fail(m) })
   surfaceReport.S6 = nonReg.literals
   if (nonReg.literals < 4) fail('S6 ' + s1Label + ' 去掉注册表后只扫到 ' + nonReg.literals + ' 个字面量（NEW_BUG_FIELDS_BODY / NEW_WAYFINDER_DEFAULT_WIRING 这些常量没被扫到，扫描面会静默少扫）')
@@ -1655,7 +1767,7 @@ if (reg) {
   // 兜底 wiring 不再硬抄常量：从注册表源码的 NEW_WAYFINDER_DEFAULT_WIRING 机械求值（少一处会漂移的第二份字面量）
   const wiring = (function () {
     try {
-      const body = String(fs.readFileSync(s1Path, 'utf8')).replace(/^[ \t]*export[ \t]+/gm, '')
+      const body = transpileForEval(readS1Source()).replace(/^[ \t]*export[ \t]+/gm, '')
       // 这里选 compileFn：无参造函数后当场调用，取的就是那段源码里那个常量的值，缺这个常量时照旧得 null。
       const got = compileFn([], body + '\n;return (typeof NEW_WAYFINDER_DEFAULT_WIRING === "undefined" ? null : NEW_WAYFINDER_DEFAULT_WIRING);')()
       return (got && typeof got === 'object') ? got : null
@@ -1672,7 +1784,7 @@ if (reg) {
   surfaceReport.S1 = s1Ids.length
   surfaceReport.S5 = s1.rendered
   // 结构契约（沿用既有断言，陈旧两组已按现状修正）
-  contractChecks(reg, fs.readFileSync(s1Path, 'utf8'))
+  contractChecks(reg, readS1Source())
   // 后端注入链的另一半（#603 定的是「模板里只有 {subIssue} 占位符，真正的关联步骤写在 github 后端的
   //   prompts.subIssue 里，经 {subIssue} 渲染时填空」）。#716 把那些事搬进了契约层的 deck_* 工具，
   //   所以这里改钉「工具写法」而不是「gh 直连」——同一件事的两种实现，后者已被本票取代：
@@ -1697,7 +1809,7 @@ if (reg) {
   try {
     const FIX_IDS = ['mapExecute', 'complete', 'fixate', 'tpl.diagnose', 'tpl.fix', 'tpl.discuss', 'tpl.research', 'tpl.prototype', 'tpl.takeover', 'tpl.supplement', 'tpl.execute', 'mapInspect']
     // #595 核心验收：把 12 个条目按「真渲染函数 + 后端声明文本」渲染出来再断言（不再断言源码字面量）
-    evalPromptHelpers.prime(s1Fragment + '\n' + fs.readFileSync(s1Path, 'utf8'))
+    evalPromptHelpers.prime(s1Fragment + '\n' + transpileForEval(readS1Source()))
     const backendDecls = {}
     BACKENDS.forEach(function (b) {
       const bsrc = fs.readFileSync(backendPath(b, backendProbe), 'utf8')

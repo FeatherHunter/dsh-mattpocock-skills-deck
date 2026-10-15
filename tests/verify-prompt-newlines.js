@@ -19,6 +19,9 @@
 const fs = require('fs')
 const path = require('path')
 const ROOT = path.join(__dirname, '..')
+// #1209：prompts 真源改成 .ts 之后，按 .js 路径直接读会读到构建产物（pixel-ts 写在真源旁边那份）。
+//   本文件的单行正则与「源码里 \\n 的写法」都认手写排版，读产物等于换了底本、判据悄悄变味 —— 所以取源走共用入口。
+const { sourceText } = require('./lib/source-text.ts')
 let failed = false
 
 // #725：正文格式契约（带「写成 \n 是什么样」那几句教学片段）整节删除，所以这份豁免清单已经空了。
@@ -76,19 +79,24 @@ if (ALLOWED_LITERAL_BSN.length !== EXPECT_ALLOWED_COUNT || fingerprint !== EXPEC
 
 // 1) client PROMPTS 注册表（src 单源 + 双产物：改 src 必须重建，产物同步校验）
 const parseEntries = function (src) {
-  // #588 起转义感知（与 verify-prompts.js ENTRY_RE 同口径）：第 ① 步命令的内层单引号在源码是 \'，[^']* 会提前截断少扫
+  // #588 起转义感知（与 verify-prompts.js ENTRY_RE 同口径）：第 ① 步命令的内层单引号在源码是 \'，[^']* 会提前截断少扫。
+  // #1209 起真源是 .ts：引号按反向引用咬住同一个字符（真源单引号 / 产物双引号两种排版都认），
+  //   正文只禁定界符本身（另一种引号原文照收，见 verify-prompts.js ENTRY_RE 上的说明），
+  //   但「六个字段同一种引号、一条一行」这条硬口径照旧 —— 拆行或混用引号会静默少扫，那正是本门禁要抓的。
   const out = []
-  const re = /^\s*"([a-zA-Z0-9.]+)": \{ version: (\d+), placeholders: \[([^\]]*)\], use: '((?:[^'\\]|\\.)*)', zh: '((?:[^'\\]|\\.)*)', en: '((?:[^'\\]|\\.)*)' \},?$/gm
+  const re = /^\s*(['"])([a-zA-Z0-9.]+)\1: \{ version: (\d+), placeholders: \[([^\]]*)\], use: (['"])((?:(?!\5)[^\\]|\\.)*)\5, zh: (['"])((?:(?!\7)[^\\]|\\.)*)\7, en: (['"])((?:(?!\9)[^\\]|\\.)*)\9 \},?$/gm
   let m
   while ((m = re.exec(src)) !== null) {
-    out.push({ id: m[1], version: Number(m[2]), zh: unescapeLiteral(m[5]), en: unescapeLiteral(m[6]) })
+    out.push({ id: m[2], version: Number(m[3]), zh: unescapeLiteral(m[8]), en: unescapeLiteral(m[10]) })
   }
   return out
 }
 ;['src/client/kernel/prompts.js', 'client.js', 'package/lib/client.js'].forEach(function (file) {
   const p = path.join(ROOT, file)
   if (!fs.existsSync(p)) { failed = true; console.log('FAIL ' + file + ' 不存在'); return }
-  const entries = parseEntries(fs.readFileSync(p, 'utf8'))
+  // 第一项是**真源**（.js 说明符 → 今天住在 prompts.ts 里），后两项是构建产物，照旧直接读那个文件。
+  const isSource = file === 'src/client/kernel/prompts.js'
+  const entries = parseEntries(isSource ? sourceText(file) : fs.readFileSync(p, 'utf8'))
   entries.forEach(function (e) {
     ['zh', 'en'].forEach(function (lang) { checkText(file, e.id + '.' + lang, e[lang]) })
   })

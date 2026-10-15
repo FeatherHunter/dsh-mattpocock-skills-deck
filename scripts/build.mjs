@@ -1408,7 +1408,9 @@ for (const domain of findDomains()) {
 
 // 887 客户端 TS 真源（px 系列）：真源是同名 .ts，esbuild 逐文件转译出 .js（AUTO-GENERATED 头），
 // tsc --noEmit 只做类型检查；拼接拼的是生成的 .js。与域构建同模式，只是真源与产物同目录并排。
-const PX_TS_DIRS = ['src/client/views', 'src/client/views/pixel', 'src/client/views/skillDetail', 'src/client/views/cards', 'src/client/views/versionControl', 'src/client/kernel']
+// #1209：statusbar 也在内 —— StatusBackend.ts 住在那里，它的同名 .js 同样是 pixel-ts 产物
+//   （.gitignore 里三份同名 .js 都已忽略）；漏掉它，盘上会剩一份手写时代的旧 .js，被按路径直读的门禁读到。
+const PX_TS_DIRS = ['src/client/views', 'src/client/views/pixel', 'src/client/views/skillDetail', 'src/client/views/cards', 'src/client/views/versionControl', 'src/client/kernel', 'src/client/statusbar']
 function pixelTsTruthFiles() {
   const out = []
   for (const d of PX_TS_DIRS) {

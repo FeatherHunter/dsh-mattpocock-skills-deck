@@ -30,6 +30,7 @@
     "src/client/views/cards/cardProps.d.ts",
     "src/client/views/cards/*.ts",
     "src/client/views/versionControl/*.ts",
-    "src/client/kernel/**/*.ts"
+    "src/client/kernel/**/*.ts",
+    "src/client/statusbar/*.ts"
   ]
 }

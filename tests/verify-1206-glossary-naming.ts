@@ -33,12 +33,17 @@
 const { readFileSync, readdirSync, statSync } = require('node:fs')
 const path = require('node:path')
 const { pathToFileURL } = require('node:url')
+// #1209 起这两份的真源是 .ts：按 .js 路径直接读会读到 pixel-ts 产物（值虽然一样，但本门禁要钉的是真源）。
+//   共用取源入口按「同名 .ts 优先」解到真源（规则与装载钩子同一条），读产物还是读真源不再碰运气。
+const { sourcePath, sourceText } = require('./lib/source-text.ts')
 
 const ROOT = path.resolve(__dirname, '..')
 const SKILLS_DIR = path.join(ROOT, 'package/bundled-skills')
 const SKILL_DOMAIN_DOC = path.join(SKILLS_DIR, 'setup-matt-pocock-skills/domain.md')
-const LOCALE_SRC = path.join(ROOT, 'src/client/kernel/locale-pages.js')
-const PROMPTS_SRC = path.join(ROOT, 'src/client/kernel/prompts.js')
+const LOCALE_JSSPEC = path.join('src', 'client', 'kernel', 'locale-pages.js')
+const PROMPTS_JSSPEC = path.join('src', 'client', 'kernel', 'prompts.js')
+const LOCALE_SRC = sourcePath(LOCALE_JSSPEC)
+const PROMPTS_SRC = sourcePath(PROMPTS_JSSPEC)
 
 let failures = 0
 function ok(cond, msg) {

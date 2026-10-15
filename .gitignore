@@ -69,6 +69,8 @@ _research/
 # #1199：列表行与链接 helper 两文件由手写 .js 转成 .ts，同名 .js 从此是构建产物（真源是同名 .ts）。
 /src/client/views/TicketRow.js
 /src/client/kernel/link.js
+# 调试开关内核由手写 .js 转成 .ts，同名 .js 从此是构建产物（真源是同名 .ts）。
+/src/client/kernel/settings-debug.js
 # #1196：版本管理页三文件由手写 .js 转成 .ts，同名 .js 从此是构建产物（真源是同名 .ts）。
 /src/client/views/versionControl/VersionControlTab.js
 /src/client/views/versionControl/vcStyles.js
@@ -76,6 +78,12 @@ _research/
 /src/client/views/SkillsTab.js
 # 调试分组搬进 views/diagnosticLog/ 时设置页由手写 .js 转成 .ts，同名 .js 从此是构建产物（真源是同名 .ts）。
 /src/client/views/SettingsPage.js
+# #1209：客户端拼片段三份由手写 .js 转成 .ts，同名 .js 从此是 pixel-ts 那一步的构建产物（真源是同名 .ts）。
+#   这三份是 scripts/build.mjs 拼进客户端闭包的片段，登记表里已经改指 .ts；同名 .js 留着是为了
+#   让按 .js 说明符装载源码的门禁（ts-hook 的同名 .ts 优先）与拼片段两条路都各取所需。
+/src/client/kernel/locale-pages.js
+/src/client/kernel/prompts.js
+/src/client/statusbar/StatusBackend.js
 /src/client/views/pixel/
 /src/client/views/skillDetail/
 /src/client/views/cards/
