@@ -83,7 +83,7 @@ const REQUIRED_TOPLEVEL = ['debugStorageKey', 'LOG_DEBUG_KEY']
 const REQUIRED_SOURCE_COMMENTS = ['// packages/dsh-log/dist/client.js', '// packages/dsh-log/dist/config/phones.js']
 // 引号归一的名单照旧是自监控那一族五条，但只有三条出现在客户端产物里（实测 2026-10-14，dsh-log 0.2.2）：
 //   log.forward.summary / log.switch.watchdog / log.export.fail 在 dist/client.js；
-//   host.dispatch.error 由本仓宿主侧发射（src/host/rpcChannel.js:96、:119，src/host/index.js:337），
+//   host.dispatch.error 由本仓宿主侧发射（src/host/rpcChannel.js:96、:119，src/host/index.ts:345），
 //   log.persist.fail 在包的宿主那一半（node_modules/dsh-log/dist/store.js）。
 // 所以只对客户端这三条设断言；另外两条仍走同一次归一循环（它们各归各自的那一半，这里只是照旧带上）。
 const SELF_MONITOR_EVENTS = [

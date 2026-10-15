@@ -123,7 +123,7 @@
 
 **结论**：你要的是「拆」，不是「换语言」。**用 esbuild 做纯 JS 的模块化拆分**——把 `apply(ctx)` 闭包拆成能 import 的 ES 模块文件，构建直出 bundle。TS 完全不需要，也不引入。
 
-- **构建器**：`esbuild`（devDep 引入）。今天实际跑的是 `node scripts/build.mjs`，入口是 `src/client/index.js` 与 `src/host/index.js`，产物按下面「双 entry」那节出到 `package/lib/` 与仓库根。
+- **构建器**：`esbuild`（devDep 引入）。今天实际跑的是 `node scripts/build.mjs`，入口是 `src/client/index.js` 与 `src/host/index.ts`，产物按下面「双 entry」那节出到 `package/lib/` 与仓库根。
 - **源码语言**：保持 **JS**（仓库现 3700 行全是 ES5 风格，原样拆分，不重写）。**文件一律 `.js`（UI 组件也是 `.js`，因为本仓库用 `React.createElement` 手写、无 JSX 标签）——不引入 `.ts`/`.tsx`。**（官方插件用 `.tsx` 是因为他们用了 TS + JSX，与本方案无关。）
 - **目录**：`src/host/`、`src/client/`（见 §4 模块树）。
 - **产物（双 entry）**：

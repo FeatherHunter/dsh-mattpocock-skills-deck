@@ -99,7 +99,7 @@ interface ProcFail { ok: false; error: string; code?: number }
 type ProcResult = ProcOk | ProcFail
 
 /**
- * 接线处注入的整套依赖（src/host/index.js 一处构造）。可选的三项都是「没有就跳过」的能力：闸可能晚一步
+ * 接线处注入的整套依赖（src/host/index.ts 一处构造）。可选的三项都是「没有就跳过」的能力：闸可能晚一步
  * 就位（getGate/gate）、清工作区抽屉与检查链退避器都是可选勾子。logCtx 按必给标：第 197/203 行
  * `_execT0 && logCtx.isEnabled(...)` 里 _execT0 非 0 本身就说明第 159 行已确认过它存在（这条由运行时保证）。
  */

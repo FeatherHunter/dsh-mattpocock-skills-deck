@@ -10,7 +10,7 @@
 
 /** 接线处交进来的几只口子：取宿主状态（gh 路径/错误）、落盘那一步、日志与读数。 */
 type EnvelopeDeps = {
-  getGhPath: () => string
+  getGhPath: () => string | null
   getGhLastError: () => unknown
   adoptSnapshot: (snap: unknown, c: unknown) => unknown
   logCtx?: { fire(level: string, event: string, fields?: unknown): void } | null

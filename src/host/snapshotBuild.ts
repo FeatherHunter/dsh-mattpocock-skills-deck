@@ -8,7 +8,7 @@
 // 两半的改动理由不同：前者随卡片字段与选择/仓库身份变，后者随单票字段与降级路变。
 //
 // 接线：同层互引门禁（tests/verify-dependency-rules.ts）不许两个「干活的」文件互相引用 ——
-// 组合点放在宿主入口 src/host/index.js：地图详情拉取与 buildSnapshot 都产自本文件，
+// 组合点放在宿主入口 src/host/index.ts：地图详情拉取与 buildSnapshot 都产自本文件，
 // issueDetail.ts 要的那份也由入口转交。
 //
 // #1115：本文件两处 opCtx（viewer 预取与 select 三级联）的计时器口改用共享层那一份实现；
@@ -21,7 +21,7 @@ import { projectUiDescription } from '../tracker/ui-description.js'
 import type { BackendModule } from '../tracker/contract/backend-module.js'
 
 // ── 依赖与回包形状（票 #1155 补类型标注）─────────────────────────────────────────
-// 为什么在这里逐条写：本文件的依赖对象是 src/host/index.js 里现拼出来的那份接线（旧语言文件，
+// 为什么在这里逐条写：本文件的依赖对象是 src/host/index.ts 里现拼出来的那份接线（转制后旧注记里“编译器看不见”已过时，
 // 编译器看不见），所以这一组类型就是「本文件按什么形状读它们」的书面约定。只列本文件真正读到的格子：
 // 接线对不上时，报错点应当落在这一组类型上，而不是等到运行时才发现某一格是空的。
 // 标注只是给编译器看的，运行期形状一个字都没改——产物逐字节比对是这条约定的验收办法。
@@ -131,7 +131,7 @@ type DetectionService = {
   detect(input: unknown, opts: unknown): Promise<{ selection?: Selection | null } | null>
 }
 
-/** 组装快照要的依赖：接线对象在 src/host/index.js 里现拼，这里只列本文件用到的那些。 */
+/** 组装快照要的依赖：接线对象在 src/host/index.ts 里现拼，这里只列本文件用到的那些。 */
 type SnapshotDeps = {
   getRepoKey(cwd: string): Promise<{ owner: string; name: string } | null>
   runGh(args: string[], cwd?: string, via?: string): Promise<GhReply>
@@ -160,7 +160,7 @@ type SnapshotDeps = {
   getRepoRoot(cwd: string): Promise<string>
   getGhPath(): unknown
   getGhLastError(): unknown
-  getDetectionService(): Promise<DetectionService>
+  getDetectionService?(): Promise<DetectionService>
   ctx: { get(name: string): unknown }
   /** 宿主计时器服务：原样转交给共享层的 hostTimers（那边按「可能缺席」收口）。 */
   timer: unknown
@@ -299,7 +299,7 @@ export function createSnapshotBuilder(deps: SnapshotDeps) {
           //   经 detectionService 判定（explicit 主锚 → matches → fallback），主锚是权威。
           //   此前快照裸 registry.select 不读主锚：「GitHub 版锚 + 非 git 目录」在快照侧判 fallback null，
           //   客户端保留旧 markdown 意向 → 头部 chip=Markdown 与环境检查=github（链按锚判定）互相矛盾（用户观察）。
-          const selMod = await deps.getDetectionService().then(function(svc){ return svc.detect({ cwd }, { skipSkillProbes: true }) }).catch(function(){ return null }) // 上报已退役不传：刚选的经写入口直达文件
+          const selMod = await (typeof deps.getDetectionService === 'function' ? deps.getDetectionService().then(function(svc){ return svc.detect({ cwd }, { skipSkillProbes: true }) }).catch(function(){ return null }) : null) // 接线从没注入过这一口（index.ts 不传），原来同步抛、外层 355 行接住走 selection=null；守卫后同样走 null，行为不变
           let sel = selMod && selMod.selection
           // #297 失效维度：显式空（source explicit + null）是权威“无后端”（空目录 stale），不退回裸 select，否则旧绑定会复活
           if (!sel || (sel.backendId == null && (!sel.source || sel.source !== 'explicit'))) {

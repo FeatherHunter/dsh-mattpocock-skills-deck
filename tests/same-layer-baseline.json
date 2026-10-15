@@ -1,10 +1,10 @@
 {
   "version": 1,
   "recordedAt": "2026-10-13",
-  "note": "存量豁免清单：只许减不许增；拆分票消掉一条边就同票删一条。三个房间（src/tracker/rooms/github、gitlab、markdown）不在此清单：房间纪律由 .dependency-cruiser.cjs 的 cross-room-import 一条守着，没有豁免。 2026-10-09：888 技能详情落地新增一条（index 动态加载 ./skillDoc.js）。 2026-10-13（#1017 换轨）：判据从「扫 .js 文本」换成「读依赖图（.js 与 .ts 一起看）」，键仍是 file|resolved；换轨后 .ts 源码里的同层边第一次可见，共 27 条，已按条记名（owner 标 #1017）。以后只许减。 2026-10-13（#1019 目录归位）：键跟着搬家表换到新路径（src/deck/**、src/tracker/**），条目数只减不增；六个「只换扩展名」的件本票退回 .js，键同票跟回。 2026-10-14（#1136）：房间纪律的起点改成按 `src/tracker/rooms/([^/]+)/` 抓房名（原来写死旧目录，起点命中 0 个模块、跨房判绿），房外放行清单搬进 tests/tracker-room-imports.json；本清单的键与条数不受影响（换轨前后都是 106 条）。 2026-10-14（#1161）：四份宿主文件（platformChannel / issueDetail / publishFlow / remotePredicates）按「先修后转」从 .js 转成 .ts，键（file|resolved）同票跟到新扩展名，条数不变。 2026-10-15（#1152）：给 src/tracker 补上同层判据 same-layer-import-tracker（判域去掉三个房间与契约层）。这棵树搬出 src/host/tracker/ 之后掉出了所有同层规则，树内互引第一次被记名：今天 15 条，只许减不许增。判域为什么去掉契约层与三个房间，见 .dependency-cruiser.cjs 那条规则的注释。 2026-10-15（#1159）：preflight / error-rules / identity-keys / detection/workspace-ownership 四份搬进 src/tracker/kernel/，same-layer-import-tracker 的判域跟着把 kernel 去掉；涉及它们的 5 条存量（index→preflight、deck-derive→identity-keys、preflight→error-rules、registry/shape→preflight、detectionService→preflight）不再是违规，同票删掉。tracker 存量 15 条降到 10 条。",
+  "note": "存量豁免清单：只许减不许增；拆分票消掉一条边就同票删一条。三个房间（src/tracker/rooms/github、gitlab、markdown）不在此清单：房间纪律由 .dependency-cruiser.cjs 的 cross-room-import 一条守着，没有豁免。 2026-10-09：888 技能详情落地新增一条（index 动态加载 ./skillDoc.js）。 2026-10-13（#1017 换轨）：判据从「扫 .js 文本」换成「读依赖图（.js 与 .ts 一起看）」，键仍是 file|resolved；换轨后 .ts 源码里的同层边第一次可见，共 27 条，已按条记名（owner 标 #1017）。以后只许减。 2026-10-13（#1019 目录归位）：键跟着搬家表换到新路径（src/deck/**、src/tracker/**），条目数只减不增；六个「只换扩展名」的件本票退回 .js，键同票跟回。 2026-10-14（#1136）：房间纪律的起点改成按 `src/tracker/rooms/([^/]+)/` 抓房名（原来写死旧目录，起点命中 0 个模块、跨房判绿），房外放行清单搬进 tests/tracker-room-imports.json；本清单的键与条数不受影响（换轨前后都是 106 条）。 2026-10-14（#1161）：四份宿主文件（platformChannel / issueDetail / publishFlow / remotePredicates）按「先修后转」从 .js 转成 .ts，键（file|resolved）同票跟到新扩展名，条数不变。 2026-10-15（#1152）：给 src/tracker 补上同层判据 same-layer-import-tracker（判域去掉三个房间与契约层）。这棵树搬出 src/host/tracker/ 之后掉出了所有同层规则，树内互引第一次被记名：今天 15 条，只许减不许增。判域为什么去掉契约层与三个房间，见 .dependency-cruiser.cjs 那条规则的注释。 2026-10-15（#1159）：preflight / error-rules / identity-keys / detection/workspace-ownership 四份搬进 src/tracker/kernel/，same-layer-import-tracker 的判域跟着把 kernel 去掉；涉及它们的 5 条存量（index→preflight、deck-derive→identity-keys、preflight→error-rules、registry/shape→preflight、detectionService→preflight）不再是违规，同票删掉。tracker 存量 15 条降到 10 条。 2026-10-16（#1074）：宿主入口与工作区两份从 .js 转成 .ts，file 键同票跟到新扩展名（index 34 条、workspaceCwd 1 条），index→workspaceCwd 那条的 resolved 跟到 .ts，specifier 原文不动，条数不变。",
   "entries": [
     {
-      "file": "src/host/index.js",
+      "file": "src/host/index.ts",
       "spec": "./remotePredicates.js",
       "resolved": "src/host/remotePredicates.ts",
       "layer": "host",
@@ -13,7 +13,7 @@
       "note": "H3 接线：index 动态加载远端谓词模块（装配扇入）"
     },
     {
-      "file": "src/host/index.js",
+      "file": "src/host/index.ts",
       "spec": "./skillProbe.js",
       "resolved": "src/host/skillProbe.js",
       "layer": "host",
@@ -22,7 +22,7 @@
       "note": "H3 接线：index 动态加载技能探测模块（装配扇入）"
     },
     {
-      "file": "src/host/index.js",
+      "file": "src/host/index.ts",
       "spec": "./detectChain.js",
       "resolved": "src/host/detectChain.ts",
       "layer": "host",
@@ -31,7 +31,7 @@
       "note": "H3 接线：index 动态加载探测编排模块（装配扇入）"
     },
     {
-      "file": "src/host/index.js",
+      "file": "src/host/index.ts",
       "spec": "./refresh/chainBackoff.js",
       "resolved": "src/host/refresh/chainBackoff.js",
       "layer": "host",
@@ -40,7 +40,7 @@
       "note": "检查链退避的宿主薄壳：index 装配扇入，与 detectChain.js 同一条做法"
     },
     {
-      "file": "src/host/index.js",
+      "file": "src/host/index.ts",
       "spec": "./sessionLifecycle.js",
       "resolved": "src/host/sessionLifecycle.js",
       "layer": "host",
@@ -49,7 +49,7 @@
       "note": "H4 接线：index 动态加载会话启停模块（装配扇入）"
     },
     {
-      "file": "src/host/index.js",
+      "file": "src/host/index.ts",
       "spec": "./sessionSnapshot.js",
       "resolved": "src/host/sessionSnapshot.ts",
       "layer": "host",
@@ -58,7 +58,7 @@
       "note": "H4 接线：index 动态加载会话快照模块（装配扇入）"
     },
     {
-      "file": "src/host/index.js",
+      "file": "src/host/index.ts",
       "spec": "./sessionRefresh.js",
       "resolved": "src/host/sessionRefresh.ts",
       "layer": "host",
@@ -193,7 +193,7 @@
       "note": "接缝聚合出口重出门禁绑定"
     },
     {
-      "file": "src/host/index.js",
+      "file": "src/host/index.ts",
       "spec": "./bootstrap.js",
       "resolved": "src/host/bootstrap.js",
       "layer": "host",
@@ -202,7 +202,7 @@
       "note": "H1 接线：index 动态加载启动模块（装配扇入）"
     },
     {
-      "file": "src/host/index.js",
+      "file": "src/host/index.ts",
       "spec": "./platformChannel.js",
       "resolved": "src/host/platformChannel.ts",
       "layer": "host",
@@ -211,7 +211,7 @@
       "note": "H1 接线：index 动态加载平台通道模块（装配扇入）"
     },
     {
-      "file": "src/host/index.js",
+      "file": "src/host/index.ts",
       "spec": "./git-process.js",
       "resolved": "src/host/git-process.ts",
       "layer": "host",
@@ -229,7 +229,7 @@
       "note": "H1 搬迁：工作区钥匙装配随函数搬入本文件"
     },
     {
-      "file": "src/host/index.js",
+      "file": "src/host/index.ts",
       "spec": "./mapBody.js",
       "resolved": "src/host/mapBody.js",
       "layer": "host",
@@ -238,7 +238,7 @@
       "note": "H2 接线：index 动态加载正文解析模块（装配扇入）"
     },
     {
-      "file": "src/host/index.js",
+      "file": "src/host/index.ts",
       "spec": "./issueList.js",
       "resolved": "src/host/issueList.js",
       "layer": "host",
@@ -247,7 +247,7 @@
       "note": "H2 接线：index 动态加载列表拉取模块（装配扇入）"
     },
     {
-      "file": "src/host/index.js",
+      "file": "src/host/index.ts",
       "spec": "./issueDetail.js",
       "resolved": "src/host/issueDetail.ts",
       "layer": "host",
@@ -256,16 +256,16 @@
       "note": "H2 接线：index 动态加载详情快照模块（装配扇入）"
     },
     {
-      "file": "src/host/index.js",
+      "file": "src/host/index.ts",
       "spec": "./workspaceCwd.js",
-      "resolved": "src/host/workspaceCwd.js",
+      "resolved": "src/host/workspaceCwd.ts",
       "layer": "host",
       "count": 1,
       "owner": "二批·host-5/6 #449",
       "note": "H5 接线：index 动态加载工作区归一模块（装配扇入）"
     },
     {
-      "file": "src/host/index.js",
+      "file": "src/host/index.ts",
       "spec": "./commentThreads.js",
       "resolved": "src/host/commentThreads.js",
       "layer": "host",
@@ -301,7 +301,7 @@
       "note": "V1 拆分：注册表机制引用原语执行器"
     },
     {
-      "file": "src/host/index.js",
+      "file": "src/host/index.ts",
       "spec": "./handoffClaim.js",
       "resolved": "src/host/handoffClaim.js",
       "layer": "host",
@@ -310,7 +310,7 @@
       "note": "H6 接线：index 动态加载交接认领模块（装配扇入）"
     },
     {
-      "file": "src/host/index.js",
+      "file": "src/host/index.ts",
       "spec": "./namingGuardian.js",
       "resolved": "src/host/namingGuardian.js",
       "layer": "host",
@@ -319,7 +319,7 @@
       "note": "H6 接线：index 动态加载命名守护模块（装配扇入）"
     },
     {
-      "file": "src/host/index.js",
+      "file": "src/host/index.ts",
       "spec": "./publishFlow.js",
       "resolved": "src/host/publishFlow.ts",
       "layer": "host",
@@ -328,7 +328,7 @@
       "note": "H6 接线：index 动态加载建仓发布模块（装配扇入）"
     },
     {
-      "file": "src/host/index.js",
+      "file": "src/host/index.ts",
       "spec": "./pickerShell.js",
       "resolved": "src/host/pickerShell.js",
       "layer": "host",
@@ -337,7 +337,7 @@
       "note": "H6 接线：index 动态加载选择器外壳模块（装配扇入）"
     },
     {
-      "file": "src/host/index.js",
+      "file": "src/host/index.ts",
       "spec": "./ticketGrouping.js",
       "resolved": "src/host/ticketGrouping.js",
       "layer": "host",
@@ -346,7 +346,7 @@
       "note": "H6 接线：index 动态加载分组纯函数模块（装配扇入，用户定夺追加第 5 件）"
     },
     {
-      "file": "src/host/index.js",
+      "file": "src/host/index.ts",
       "spec": "./logStore.js",
       "resolved": "src/host/logStore.js",
       "layer": "host",
@@ -355,7 +355,7 @@
       "note": "#490 接线：index 动态加载宿主日志库（装配扇入，设计 #335 第 1、2、4 章 host 部分）"
     },
     {
-      "file": "src/host/index.js",
+      "file": "src/host/index.ts",
       "spec": "./dispatchMeta.js",
       "resolved": "src/host/dispatchMeta.js",
       "layer": "host",
@@ -373,7 +373,7 @@
       "note": "#500 接线：logStore 动态加载电话组模块（导出/清空/开关三组电话体逐行原样搬出，依赖全显式传入，单向引用）"
     },
     {
-      "file": "src/host/index.js",
+      "file": "src/host/index.ts",
       "spec": "./logFromPackage.js",
       "resolved": "src/host/logFromPackage.js",
       "layer": "host",
@@ -382,7 +382,7 @@
       "note": "当前插件迁移到日志包：宿主运行时走日志包派生（旧文件留而不搬），接线与派生副本的引用边"
     },
     {
-      "file": "src/host/index.js",
+      "file": "src/host/index.ts",
       "spec": "./rpcChannel.js",
       "resolved": "src/host/rpcChannel.js",
       "layer": "host",
@@ -391,7 +391,7 @@
       "note": "#596 接线：index 动态加载通道模块（装配扇入）。这段通道注册与信封校验原先内联在 index.js 里，把该文件顶过了文件粒度门禁的 350 行上限（379 → 414 行，该文件是已冻结的存量超标文件、只许减不许增），搬出后 index.js 降到 350 行、两侧门禁同时达标；通道本体是「注册一次 + 按请求解信封」的一页代码，独立成文件也让它的协议与失败记账自成一页"
     },
     {
-      "file": "src/host/index.js",
+      "file": "src/host/index.ts",
       "spec": "./snapshotBuild.js",
       "resolved": "src/host/snapshotBuild.ts",
       "layer": "host",
@@ -418,7 +418,7 @@
       "note": "#709 新增功能：链求值这一步要判「这一次是人亲手点的还是插件自己的动作」（挂载时那一次强制刷新不许记成人手动过的），判据归 refreshSource.js 一处；链路顶层已在同层内（它本来就要加载 refresh/chainBackoff.js 与 tracker/detection/*），要消掉这条边得连同链求值这一步一起搬层，属单独重构"
     },
     {
-      "file": "src/host/index.js",
+      "file": "src/host/index.ts",
       "spec": "./refresh/wiring.js",
       "resolved": "src/host/refresh/wiring.js",
       "layer": "host",
@@ -481,7 +481,7 @@
       "note": "#723 接线：装配点建视野模型（createAttention），写事件白名单的活跃集合来源就是它（票面 3c：两处用的是同一份「当前在看谁」）。同 ledger.js 那一条。"
     },
     {
-      "file": "src/host/index.js",
+      "file": "src/host/index.ts",
       "spec": "./snapshotEnvelope.js",
       "resolved": "src/host/snapshotEnvelope.ts",
       "layer": "host",
@@ -499,7 +499,7 @@
       "note": "#723 拆文件：同上那一步的引用。会话快照电话要拼信封、要写 snapshot.built 那一行日志；没注入时（门禁与单测里手工拼实例的那几处）现造一个，行为与搬前一致。"
     },
     {
-      "file": "src/host/index.js",
+      "file": "src/host/index.ts",
       "spec": "./versionControl.js",
       "resolved": "src/host/versionControl.js",
       "layer": "host",
@@ -580,7 +580,7 @@
       "note": "同上：四条执行电话住独立叶子；票据表由预检叶子交给本文件的装配器再转交（叶子之间不互引），起进程只走本文件交出去的同一个 runGit。"
     },
     {
-      "file": "src/host/index.js",
+      "file": "src/host/index.ts",
       "spec": "./mapTickets.js",
       "resolved": "src/host/mapTickets.js",
       "layer": "host",
@@ -589,7 +589,7 @@
       "note": "补记 #691 遗留的装配扇入边：当时没记进基线，门禁一直红着"
     },
     {
-      "file": "src/host/index.js",
+      "file": "src/host/index.ts",
       "spec": "./issuePage.js",
       "resolved": "src/host/issuePage.js",
       "layer": "host",
@@ -598,7 +598,7 @@
       "note": "补记 #690 遗留的装配扇入边：当时没记进基线，门禁一直红着"
     },
     {
-      "file": "src/host/index.js",
+      "file": "src/host/index.ts",
       "spec": "./updateFromPackage.js",
       "resolved": "src/host/updateFromPackage.js",
       "layer": "host",
@@ -607,7 +607,7 @@
       "note": "宿主入口到更新包接线的引用边（旧实现边已随文件删除，基线同步清理）"
     },
     {
-      "file": "src/host/workspaceCwd.js",
+      "file": "src/host/workspaceCwd.ts",
       "spec": "./workspaceLabelColors.js",
       "resolved": "src/host/workspaceLabelColors.js",
       "layer": "host",
@@ -616,7 +616,7 @@
       "note": "落盘位置不够：workspaceCwd.js 正好 350 行没有余量，照 #500（logStore→logPhones）/ #821（versionControl→versionControlFiles）同一先例，把改色两条电话搬成自包含叶子，归一与上下文与政策全由父文件显式传入，叶子不引用父文件，父文件只留一行动态加载器。"
     },
     {
-      "file": "src/host/index.js",
+      "file": "src/host/index.ts",
       "spec": "./skillDoc.js",
       "resolved": "src/host/skillDoc.js",
       "layer": "host",
@@ -625,7 +625,7 @@
       "note": "index 动态加载技能原文直读模块（装配扇入，与 detectChain.js、skillProbe.js 同一条做法）"
     },
     {
-      "file": "src/host/index.js",
+      "file": "src/host/index.ts",
       "spec": "./settingsPhones.js",
       "resolved": "src/host/settingsPhones.js",
       "layer": "host",
@@ -634,7 +634,7 @@
       "note": "本机设置接线：入口动态加载设置叶子（装配扇入），依赖全由入口显式传入，叶子不引用其他宿主干活文件。"
     },
     {
-      "file": "src/host/index.js",
+      "file": "src/host/index.ts",
       "spec": "./configStore.js",
       "resolved": "src/host/configStore.js",
       "layer": "host",

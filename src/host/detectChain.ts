@@ -1,12 +1,12 @@
 // src/host/detectChain.ts —— H3 #447 从 host/index.js 639-884 搬出，纯结构、行为零变化。
 // 以后谁改它：改探测编排或检查链快照的人。预估约260行，超 350 打回。
-// 接线：由 index.js 动态 import 加载；harness 注册留守 index，处理器体经 handleDetect/handleChain 供给。
+// 接线：由 index.ts 动态 import 加载；harness 注册留守入口，处理器体经 handleDetect/handleChain 供给。
 import { refreshSourceOf } from './refresh/refreshSource.js'
 import { workspaceKeyOf } from '../shared/refresh-workspace-key.js'   // #724：链记账给闸的钥匙，与活跃集合同一把（从前传 cwd 原文 → 同一个工作区在闸里有两格）
 import { getChainRide } from './refresh/chain-ride.js'   // #964 小账本住共享层；#966 用进程单例，出站写路能记写
 
 // ── 依赖与回包形状（票 #1155 补类型标注）────────────────────────────────────────
-// 为什么逐条写在这里：本文件的依赖对象是 src/host/index.js 里现拼的接线（旧语言文件，编译器看不见），
+// 为什么逐条写在这里：本文件的依赖对象是 src/host/index.ts 里现拼的接线（转制后编译器看得见，形状以各文件的类型为准），
 // 所以这一组类型就是「本文件按什么形状读它们」的书面约定，只列本文件真正读到的格子。
 // 标注只给编译器看，运行期形状一个字没改——产物逐字节比对是这条约定的验收办法。
 // 共享层的形状按「类型引用」取：那些文件是 JS + JSDoc，这种写法与他们自己的 JSDoc 一致。
@@ -126,7 +126,7 @@ type ChainBackoff = {
   note(key: string, snap: unknown, at: number, result: unknown): Promise<unknown>
 }
 
-/** 依赖：接线对象在 src/host/index.js 里现拼，这里只列本文件用到的那些。 */
+/** 依赖：接线对象在 src/host/index.ts 里现拼，这里只列本文件用到的那些。 */
 type DetectChainDeps = {
   canonicalKey(cwdIn: string): Promise<string>
   resetGhCache(): void

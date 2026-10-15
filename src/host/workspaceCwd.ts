@@ -1,6 +1,6 @@
-// src/host/workspaceCwd.js —— 工作区归一、绑定选择与工作区配置文件落盘（H5 #449 从 host/index.js 302–388 搬出电话体，纯结构、行为零变化；#957 起标签配色两条电话搬到 ./workspaceLabelColors.js）。
+// src/host/workspaceCwd.ts —— 工作区归一、绑定选择与工作区配置文件落盘（H5 #449 从 host/index.js 302–388 搬出电话体，纯结构、行为零变化；#957 起标签配色两条电话搬到 ./workspaceLabelColors.js）。
 // 以后谁改它：改工作区路径归一、后端绑定选择、工作区配置文件落盘（#957 首绑人选与保护自动两写）的人。标签配色两条电话（#627）已搬到 ./workspaceLabelColors.js，改那两条去那边。预估约 200 行，超 350 打回。
-// 接线：由 index.js 动态 import 加载；normCwd 由本文件单一持有，评论线程经 index 转供给复用；改色叶子经本文件动态加载（单向，基线有记录），工作区文件纯函数经静态引用（跨层允许）；目录取法调 shared 共用函数（#730）。
+// 接线：由 index.ts 动态 import 加载；normCwd 由本文件单一持有，评论线程经 index 转供给复用；改色叶子经本文件动态加载（单向，基线有记录），工作区文件纯函数经静态引用（跨层允许）；目录取法调 shared 共用函数（#730）。
 import { resolveSessionCwd } from '../shared/session-cwd.js'
 // #1115：opCtxFor 那个计时器口的唯一实现（撤销真句柄的三档判据见该文件头）。
 import { hostTimers } from '../shared/host-timer/host-timers.js'
@@ -11,18 +11,31 @@ import { projectUiDescription } from '../tracker/ui-description.js'
  * 写工作区文件失败时把原因分成四档（#1003 契约期望行为第 2 条：失败必须带原因，四档各说各的）：
  * 拿不到文件通道、沙箱不给本次写许可、文件系统只读、目录不存在；判不出来归 other，绝不编一个具体原因。
  */
-function fileWriteReasonOf(e) { const s = String((e && (e.code || e.message)) || e || ''); return /EACCES|EPERM|permission|denied|permit|沙箱/i.test(s) ? 'no-permit' : (/EROFS|read-only|readonly/i.test(s) ? 'readonly' : (/ENOENT|not found|不存在/i.test(s) ? 'no-dir' : 'other')) }
+function fileWriteReasonOf(e: any) { const s = String((e && (e.code || e.message)) || e || ''); return /EACCES|EPERM|permission|denied|permit|沙箱/i.test(s) ? 'no-permit' : (/EROFS|read-only|readonly/i.test(s) ? 'readonly' : (/ENOENT|not found|不存在/i.test(s) ? 'no-dir' : 'other')) }
 /**
  * 写文件失败的四档原因 → 一句人话（#1138：写不进去就等于这次选择没生效，所以这句话会直接出现在界面提示里）。
  * 分档口径与 fileWriteReasonOf 同一份，不另判一次；认不出来的那档照实说「写入这一步报了错」，不编具体原因。
  */
-function bindFailAdviceOf(reason) {
+function bindFailAdviceOf(reason: any) {
   if (reason === 'no-permit') return '这个工作区不在本次会话允许写入的范围内'
   if (reason === 'readonly') return '这个工作区所在的磁盘是只读的'
   if (reason === 'no-dir') return '工作区里的 docs/agents 这个目录建不出来'
   return '写入这一步报了错'
 }
-export function createWorkspaceCwd(deps) {
+// #1074 转制类型：Ctx.get 取出来按 any 用（框架服务晚到是既有语义，运行时处处有 typeof 守卫）；
+// WfArgs 是客户端 JSON 的边界，入口电话只负责原样转交。
+type Ctx = { get(key: string): any }
+type WfArgs = Record<string, any>
+type Platform = import('./platform/index.js').Platform
+type Registry = ReturnType<typeof import('../tracker/registry/core.js').createRegistry>
+type FsSvc = { resolve(rel: string, opts?: unknown): Promise<any>; readText(t: unknown): Promise<string>; writeText(t: unknown, text: string, a?: unknown, b?: unknown, policy?: unknown): Promise<unknown>; mkdir(dir: string, opts?: unknown): Promise<unknown> }
+type WorkspaceStore = { invalidate(h: unknown): unknown }
+type ChoiceStore = { rememberWorkspace(cwd: unknown, backendId: unknown): Promise<any>; rememberLayout(cwd: unknown, want: unknown): Promise<any>; getWorkspace(key: unknown): Promise<any>; getLayout(cwd: unknown): Promise<any> }
+type DecisionOutlet = { decideBackend(cwd: string, opts: unknown): Promise<any>; selectionFromOutlet?(o: unknown, describe: (id: string) => unknown): unknown }
+type DetExec = ReturnType<typeof import('./platformChannel.js').createPlatformChannel>['detectionExec']
+type LogCtx = { fire(level: string, event: string, fields?: unknown): void; isEnabled(level: string): boolean } | null
+type Deps = { ctx: Ctx; DEFAULT_CWD: string; getPlatform(): Promise<Platform | null>; getTrackerRegistry(): Promise<Registry | null>; getWorkspaceStore(): Promise<WorkspaceStore>; getChoiceStore(): Promise<ChoiceStore | null>; getDecisionFn(): Promise<any>; getDetectionService?: unknown; canonicalKey(raw: string): Promise<string>; setCache(v: unknown): void; logCtx: LogCtx; timer: { timeout(ms: number): Promise<unknown> }; detectionExec: DetExec }
+export function createWorkspaceCwd(deps: Deps) {
   const { ctx, DEFAULT_CWD, getPlatform, getTrackerRegistry, getWorkspaceStore, getChoiceStore, getDecisionFn, getDetectionService, canonicalKey, setCache, logCtx, timer, detectionExec } = deps
   // #176 + #190 修复：cwd 归一（绝对直通 + 相对尝试 fs.resolve + home 试探）
   // 根因：workspaces 服务在 client runtime 暴露的 item.path 可能是相对名（如 "matt-demo-markdown"），
@@ -30,7 +43,7 @@ export function createWorkspaceCwd(deps) {
   // fs.resolve 默认基于进程 cwd 解析失败 → matches false → fallback → UI "未绑定"。
   // 归一后所有 handler 收到绝对 cwd，markdown.matches 命中 docs/agents/issue-tracker.md → Markdown 自动。
   // #652 起：上面三步回退连同「往上锚到工作区根」一起收进 canonicalWorkspaceKey 这一个出口 （源码在 src/host/workspaceKey.js，本文件只转交）。理由两条：① 钥匙只能有一个出口，读写删三侧 同形才删得中（#301 踩过的坑）；② 锚根正是本文件每条电话都要的——后端选择、后端绑定、配色文件 落点、标签读写全该按工作区根算。与旧行为的差别只有一条：会话选在子目录里时算出的是工作区根。
-  async function normCwd(raw){
+  async function normCwd(raw: string){
     try { return await canonicalKey(raw || DEFAULT_CWD) } catch (e) { return raw || DEFAULT_CWD }
   }
   // #155 + #152：后端绑定（per-workspace 覆盖，唯一写路径不回写 issue-tracker.md）+ 注册表查询 + detection 缓存失效
@@ -41,7 +54,7 @@ export function createWorkspaceCwd(deps) {
   //   它回的那句「不支持」就是「我不放这份文件」的意思，按跳过处理，不当失败。
   // 放失败不影响绑定本身（用户这次是来选后端的），但**不能无声**：失败要记一条日志，并且把结果如实 放进 bind 的回包里（labelColorsFile 一项），让界面与排查的人都能看见「这次没放上、为什么」。
   //   真正要用这份文件的时候（打开改色弹窗）会再试一次，那时按写失败分档如实报「写不进去」。
-  async function placeLabelColorsFile(cwd, backendId) {
+  async function placeLabelColorsFile(cwd: string, backendId: string) {
     if (!backendId) return { ok: true, skipped: 'not-markdown' }
     try {
       const reg = await getTrackerRegistry()
@@ -52,7 +65,7 @@ export function createWorkspaceCwd(deps) {
       let ref = null
       try { ref = reg.describe({ cwd: cwd }, backendId) } catch (e) { ref = { backend: backendId, refId: '', name: '', url: '' } }
       const sb = resolveSandboxPolicy(null, cwd)
-      const placed = await tracker.ensureLabelColorsFile(ref, opCtxFor(cwd, platform, ref, 'wf.bind', new AbortController().signal, sb.policy, sb.sessionId))
+      const placed = await tracker.ensureLabelColorsFile(ref, opCtxFor(cwd, platform, ref, 'wf.bind', new AbortController().signal, sb.policy, sb.sessionId)) as unknown as { ok?: unknown; placed?: unknown; reason?: unknown; error?: { kind?: unknown; message?: unknown } }
       if (placed && placed.ok === true) return { ok: true, placed: placed.placed === true, reason: placed.reason || '' }
       // 后端如实回了「这件事我不做」：它的颜色存在别处，没有本地文件可放 —— 这是跳过，不是失败。
       if (placed && placed.error && placed.error.kind === 'unsupported') return { ok: true, skipped: 'backend-wants-no-file' }
@@ -61,7 +74,7 @@ export function createWorkspaceCwd(deps) {
       return { ok: false, error: { kind: 'env', message: '插件没能把标签配色文件放进这个工作区（放入这一步出错），所以这个工作区里现在可能还没有这份文件。请重试一次；如果仍然失败，请把这条提示原文报告给插件维护者。' } }
     }
   }
-  async function handleBind(args) {
+  async function handleBind(args: WfArgs) {
     // #1003 空目录闸：还没认出工作区是哪条时，不拿进程目录冒充去绑定写文件，直接说还没就绪。
     if (!args || typeof args.cwd !== 'string' || !args.cwd.trim()) return { ok: false, error: '这个工作区还没就绪（还没认出是哪个目录），等面板认出工作区后再试。' }
     const cwd = await canonicalKey(args.cwd)
@@ -108,18 +121,18 @@ export function createWorkspaceCwd(deps) {
       const wr = (cw && typeof cw.rememberWorkspace === 'function') ? await cw.rememberWorkspace(cwd, backendId).catch(function () { return null }) : null
       return { ok: true, cwd: cwd, backendId: backendId, labelColorsFile: labelColorsFile, workspaceFile: workspaceFile, rev: (wr && wr.ok === true) ? (wr.rev || 0) : 0, persisted: !!(wr && wr.ok === true) }
     } catch (e) {
-      const msg = String((e && e.message) || e)
+      const msg = String(((e as { message?: unknown }) && (e as { message?: unknown }).message) || e)
       if (/unknown-backend/.test(msg)) return { ok: false, error: msg, kind: 'unknown-backend' }
       return { ok: false, error: msg }
     }
   }
   // #1003 拍板：布局是「这个工作区用单栏还是多栏」的选择，属于这份工作区文件——写进去、也从它读回；本机记忆只在文件里还没有后端记录时兜底（老工作区过渡用）。
-  async function handleSetupLayout(args) {
+  async function handleSetupLayout(args: WfArgs) {
     const raw = (args && typeof args.cwd === 'string' && args.cwd.trim()) ? args.cwd : ''; if (!raw) { const v0 = args ? args.layout : undefined; return v0 == null ? { ok: true, cwd: '', layout: null, pickedAt: 0 } : { ok: false, cwd: '', error: 'not-stored' } }
     const cwd = await normCwd(raw); const cs = (typeof getChoiceStore === 'function') ? await getChoiceStore().catch(function () { return null }) : null; const v = args ? args.layout : undefined
-    const plat = await getPlatform().catch(function () { return null }); let f = (plat && plat.fs) || null; if (!f && ctx && typeof ctx.get === 'function') { try { f = ctx.get('fs') } catch (eG) { f = null } }
+    const plat = await getPlatform().catch(function () { return null }); let f: FsSvc | null = ((plat && plat.fs) as FsSvc | null) || null; if (!f && ctx && typeof ctx.get === 'function') { try { f = ctx.get('fs') } catch (eG) { f = null } }
     const usable = !!(f && typeof f.resolve === 'function' && typeof f.readText === 'function' && typeof f.writeText === 'function'); let target = null; let rec = null
-    if (usable) { try { target = await f.resolve(WORKSPACE_FILE_REL, { cwd: cwd }); rec = parseWorkspaceFile(await f.readText(target)) } catch (eR) {} }
+    if (usable && f) { /* usable 已含 f 非空，写出来只是过类型检查 */ try { target = await f.resolve(WORKSPACE_FILE_REL, { cwd: cwd }); rec = parseWorkspaceFile(await f.readText(target)) } catch (eR) {} }
     if (v == null) {
       if (rec && (rec.layout === 'single' || rec.layout === 'multi')) return { ok: true, cwd: cwd, layout: rec.layout, pickedAt: 0 }
       const r = (cs && typeof cs.getLayout === 'function') ? await cs.getLayout(cwd).catch(function () { return null }) : null
@@ -128,8 +141,8 @@ export function createWorkspaceCwd(deps) {
     const want = String(v).toLowerCase(); let why = usable ? 'no-record' : 'no-channel'
     if (rec && rec.backendId) { try {
         const text = stringifyWorkspaceFile({ backendId: rec.backendId, pickedAt: rec.pickedAt, source: rec.source, layout: want }); const pp = plat && plat.path
-        if (pp && typeof pp.dirname === 'function' && typeof f.mkdir === 'function') { try { await f.mkdir(pp.dirname(target), { recursive: true }) } catch (eM) {} }
-        await f.writeText(target, text, undefined, undefined, resolveSandboxPolicy(args, cwd).policy)
+        if (pp && typeof pp.dirname === 'function' && typeof f!.mkdir === 'function') { try { await f!.mkdir(pp.dirname(target), { recursive: true }) } catch (eM) {} } /* f 为空时原来直接抛（外层接住报失败），! 只过检查，不改这条路 */
+        await f!.writeText(target, text, undefined, undefined, resolveSandboxPolicy(args, cwd).policy)
         try { const ws = await getWorkspaceStore(); ws.invalidate({ cwd: cwd }) } catch {}; try { setCache({ ts: 0, snapshot: null, error: null, cwd: cwd }) } catch {}
         why = 'written'
       } catch (e) { why = fileWriteReasonOf(e) } }
@@ -143,9 +156,9 @@ export function createWorkspaceCwd(deps) {
   //   都以文件为准，与判定出口读的是同一份东西。
   //   为什么要候选目录：插件这边没有「这台机器上有哪些工作区」的名单，那是 DSH 工作区服务的知识；
   //   调用方（设置页）手上有这份名单，直接把它递进来即可，谁也不替谁猜。
-  async function readWorkspaceRecord(cwd) {
-    let fsSvc = null
-    try { const platform = await getPlatform(); fsSvc = (platform && platform.fs) || null } catch (eP) { fsSvc = null }
+  async function readWorkspaceRecord(cwd: string) {
+    let fsSvc: FsSvc | null = null
+    try { const platform = await getPlatform(); fsSvc = ((platform && platform.fs) as FsSvc | null) || null } catch (eP) { fsSvc = null }
     if (!fsSvc && ctx && typeof ctx.get === 'function') { try { fsSvc = ctx.get('fs') } catch (eG) { fsSvc = null } }
     if (!fsSvc || typeof fsSvc.resolve !== 'function' || typeof fsSvc.readText !== 'function') return null
     // 新路径优先、老文件兼容读，与判定出口（src/tracker/detection/backendDecision.ts 的 readFileLayer）同一顺序。
@@ -159,7 +172,7 @@ export function createWorkspaceCwd(deps) {
     }
     return null
   }
-  async function handleBindings(args) {
+  async function handleBindings(args: WfArgs) {
     try {
       const reg = await getTrackerRegistry()
       if (!reg) return { ok: false, error: 'registry unavailable' }
@@ -178,9 +191,9 @@ export function createWorkspaceCwd(deps) {
         bindings.push({ cwd: cwd, backendId: rec.backendId, source: 'explicit', ref: ref })
       }
       return { ok: true, bindings: bindings }
-    } catch (e) { return { ok: false, error: String((e && e.message) || e) } }
+    } catch (e) { return { ok: false, error: String(((e as { message?: unknown }) && (e as { message?: unknown }).message) || e) } }
   }
-  async function handleRegistry(args) {
+  async function handleRegistry(args: WfArgs) {
     try {
       const reg = await getTrackerRegistry()
       if (!reg) return { ok: false, error: 'registry unavailable' }
@@ -189,9 +202,9 @@ export function createWorkspaceCwd(deps) {
       //   副本删掉之后没有东西可答，而全仓没有任何调用方读它 —— 整格去掉，不拿别的来源凑一个值。
       //   要问「这个工作区用哪个后端」请走 wf.selection，那条路是唯一判定出口。
       return { ok: true, modules: mods }
-    } catch (e) { return { ok: false, error: String((e && e.message) || e) } }
+    } catch (e) { return { ok: false, error: String(((e as { message?: unknown }) && (e as { message?: unknown }).message) || e) } }
   }
-  async function handleSelection(args) {
+  async function handleSelection(args: WfArgs) {
     // #1003 空目录闸：还没认出工作区是哪条时，不拿进程目录冒充去探测，直接按未知回（界面说还没就绪）。
     const _rawSelCwd = (args && typeof args.cwd === 'string' && args.cwd.trim()) ? args.cwd : ''
     if (!_rawSelCwd) return { ok: true, selection: { backendId: null, source: 'unknown', origin: 'unknown-workspace', canWrite: false, reason: 'workspace-not-ready' }, repository: null }
@@ -210,19 +223,19 @@ export function createWorkspaceCwd(deps) {
       // #1048 收口补做：把日志出口一并递进去，这条电话的判定才留下结论线（与面板、deck 工具同源同形）。
       //   不递的后果是「用户在设置页选了后端、事后想查为什么是这个」，日志里查不到这一趟判定。
       const o = await outlet.decideBackend(cwd, { registry: reg, platform: await getPlatform(), fs: ctx.get('fs'), caller: 'wf.selection', logCtx: logCtx }).catch(function () { return null })
-      const describeOf = function (id) { try { return reg.describe({ cwd: cwd }, id) } catch (eD) { return null } }
+      const describeOf = function (id: string) { try { return reg.describe({ cwd: cwd }, id) } catch (eD) { return null } }
       const sel = (typeof outlet.selectionFromOutlet === 'function' && o) ? outlet.selectionFromOutlet(o, describeOf) : null
       let repoRef = null
       if (sel && sel.backendId) { try { repoRef = reg.describe({ cwd: cwd }, sel.backendId) } catch (eD) {} }
       return { ok: true, selection: sel || { backendId: null, source: 'fallback' }, repository: repoRef }
-    } catch (e) { return { ok: false, error: String((e && e.message) || e) } }
+    } catch (e) { return { ok: false, error: String(((e as { message?: unknown }) && (e as { message?: unknown }).message) || e) } }
   }
   // #957 拆分：改色两条电话住自包含叶子（./workspaceLabelColors.js），本文件只做装配与日志包装（动态加载、单向，同一出口、同一信封、同一 loggedPhone）。
-  let _labelColorsP = null
-  function labelColorsPhones() { if (!_labelColorsP) _labelColorsP = import('./workspaceLabelColors.js').then(function (m) { return m.createWorkspaceLabelColors({ normCwd: normCwd, getTrackerRegistry: getTrackerRegistry, getPlatform: getPlatform, opCtxFor: opCtxFor, resolveSandboxPolicy: resolveSandboxPolicy, getDecisionFn: getDecisionFn, getDetectionService: getDetectionService }) }); return _labelColorsP }
-  async function handleListLabels(args) { const p = await labelColorsPhones(); return p.handleListLabels(args) }
-  async function handleSetLabelColors(args) { const p = await labelColorsPhones(); return p.handleSetLabelColors(args) }
-  function msgOf(e) { return String((e && e.message) || e) }
+  let _labelColorsP: Promise<any> | null = null
+  function labelColorsPhones(): Promise<any> { if (!_labelColorsP) _labelColorsP = import('./workspaceLabelColors.js').then(function (m: any) { return m.createWorkspaceLabelColors({ normCwd: normCwd, getTrackerRegistry: getTrackerRegistry, getPlatform: getPlatform, opCtxFor: opCtxFor, resolveSandboxPolicy: resolveSandboxPolicy, getDecisionFn: getDecisionFn, getDetectionService: getDetectionService }) }); return _labelColorsP }
+  async function handleListLabels(args: WfArgs) { const p = await labelColorsPhones(); return p.handleListLabels(args) }
+  async function handleSetLabelColors(args: WfArgs) { const p = await labelColorsPhones(); return p.handleSetLabelColors(args) }
+  function msgOf(e: any) { return String(((e as { message?: unknown }) && (e as { message?: unknown }).message) || e) }
   // #1003 唯一写入口（#1138 起是真正唯一的一份）：用户在任何能选后端的地方点确认，都走这一处写工作区文件。
   //   旧规则“文件已在就不覆盖”已废：唯一真源意味着用户明确选择时必须能覆盖它，否则换后端永远换不动。
   //   这里只做一件事：把「谁选的、什么时候、来源」写进文件；**写成或写不成如实回**，没有第三条路。
@@ -230,7 +243,7 @@ export function createWorkspaceCwd(deps) {
   //   调用方（handleBind）现在先自己判这两件事并当场回失败，所以早退整段删掉 ——
   //   留着的话，写不进去会被上层当成「跳过」而不是「失败」，又回到「以为选了其实没选」。
   //   日志沿用既有事件（不新增事件、不新增字段）：成功记常驻 host.call，失败记常驻 host.call.fail。
-  async function writeWorkspaceRecord(cwd, backendId, args, via, layout) {
+  async function writeWorkspaceRecord(cwd: string, backendId: string, args: WfArgs, via?: string, layout?: unknown) {
     const _via = (via === 'migrate') ? 'migrate' : 'bind';
     const _method = (_via === 'migrate') ? 'wf.bind.migrate' : 'wf.bind.workspaceFile';
     const _t0 = Date.now();
@@ -239,10 +252,10 @@ export function createWorkspaceCwd(deps) {
     if (!backendId || typeof backendId !== 'string' || backendId.trim() === '') {
       return { ok: false, error: { kind: 'env', reason: 'other', message: '内部调用没给后端名，这次没有写工作区文件。' } }
     }
-    let fsSvc = null
+    let fsSvc: FsSvc | null = null
     try {
       const platform = await getPlatform()
-      fsSvc = (platform && platform.fs) || null
+      fsSvc = ((platform && platform.fs) as FsSvc | null) || null
       if (!fsSvc && ctx && typeof ctx.get === 'function') { try { fsSvc = ctx.get('fs') } catch (eG) { fsSvc = null } }
       if (!fsSvc || typeof fsSvc.resolve !== 'function' || typeof fsSvc.readText !== 'function' || typeof fsSvc.writeText !== 'function') {
         try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('warn', 'host.call.fail', { method: _method, kind: 'bind', errorHash: hash8('no-fs') }) } catch (eL) {}
@@ -265,11 +278,11 @@ export function createWorkspaceCwd(deps) {
       const sb = resolveSandboxPolicy(args, cwd)
       const target2 = await fsSvc.resolve(WORKSPACE_FILE_REL, { cwd: cwd })
       try {
-        const platPath = await getPlatform().then(function (p) { return (p && p.path) || null }).catch(function () { return null })
+        const platPath = await getPlatform().then(function (p: any) { return (p && p.path) || null }).catch(function () { return null })
         if (platPath && typeof platPath.dirname === 'function' && typeof fsSvc.mkdir === 'function') { try { await fsSvc.mkdir(platPath.dirname(target2), { recursive: true }) } catch (eM) {} }
       } catch (eD) {}
       // #1003：写不进去先重试一次（重试前再建一次父目录）——目标是尽量百分百写成，失败才如实报因。
-      try { await fsSvc.writeText(target2, text, undefined, undefined, sb.policy) } catch (eW1) { const pp2 = await getPlatform().then(function (p) { return (p && p.path) || null }).catch(function () { return null }); if (pp2 && typeof pp2.dirname === 'function' && typeof fsSvc.mkdir === 'function') { try { await fsSvc.mkdir(pp2.dirname(target2), { recursive: true }) } catch (eM2) {} }; await fsSvc.writeText(target2, text, undefined, undefined, sb.policy) }
+      try { await fsSvc.writeText(target2, text, undefined, undefined, sb.policy) } catch (eW1) { const pp2 = await getPlatform().then(function (p: any) { return (p && p.path) || null }).catch(function () { return null }); if (pp2 && typeof pp2.dirname === 'function' && typeof fsSvc.mkdir === 'function') { try { await fsSvc.mkdir(pp2.dirname(target2), { recursive: true }) } catch (eM2) {} }; await fsSvc.writeText(target2, text, undefined, undefined, sb.policy) }
       try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire('info', 'host.call', { method: _method, latencyMs: Date.now() - _t0, ok: true, kind: 'bind' }) } catch (eL) {}
       try { const ws = await getWorkspaceStore(); ws.invalidate({ cwd: cwd }) } catch {}
       try { setCache({ ts: 0, snapshot: null, error: null, cwd: cwd }) } catch {}
@@ -285,14 +298,14 @@ export function createWorkspaceCwd(deps) {
   //   节流：每个工作区每进程只试一次（Set），不在探测热路径上试（只在选择电话里后台捎带一次，
   //   不挡回包）；失败留痕（host.call.fail 一行）可重试（下次进程再试，Set 是进程内的）。
   const migratedAttempted = new Set()
-  async function migrateChoiceToFile(cwd, args) {
+  async function migrateChoiceToFile(cwd: string, args: WfArgs) {
     const key = String(cwd || '')
     if (!key || !key.trim()) return { ok: true, skipped: 'empty-cwd' }
     if (migratedAttempted.has(key)) return { ok: true, skipped: 'already-tried' }
     migratedAttempted.add(key)
     try {
       const platform = await getPlatform().catch(function () { return null })
-      const fsSvc = (platform && platform.fs) || (ctx && typeof ctx.get === 'function' ? (function () { try { return ctx.get('fs') } catch (eG) { return null } })() : null)
+      const fsSvc: FsSvc | null = ((platform && platform.fs) as FsSvc | null) || (ctx && typeof ctx.get === 'function' ? (function () { try { return ctx.get('fs') } catch (eG) { return null } })() : null)
       if (fsSvc && typeof fsSvc.resolve === 'function' && typeof fsSvc.readText === 'function') {
         try {
           const target = await fsSvc.resolve(WORKSPACE_FILE_REL, { cwd: key })
@@ -325,24 +338,25 @@ export function createWorkspaceCwd(deps) {
       return { ok: false, error: { kind: 'env', message: msgOf(eM).slice(0, 120) } }
     }
   }
-  function opCtxFor(cwd, platform, repoRef, caller, signal, sandboxPolicy, sessionId) {
+  function opCtxFor(cwd: string, platform: Platform | null, repoRef: { refId?: string } | null, caller: string, signal: AbortSignal, sandboxPolicy: unknown, sessionId: string) {
     return {
       cwd: cwd,
       refId: (repoRef && repoRef.refId) || '',
       signal: signal,
-      platform: platform,
+      platform: platform as unknown as import('../tracker/contract/contexts.js').BackendPlatform,
       fs: ctx.get('fs'),
       caller: caller,
+      outbound: undefined as unknown as import('../tracker/contract/outbound.js').OutboundControl,
       // 写文件要用的「本次调用的政策」（会话政策）：由沙箱政策服务按会话算，这里只传不算。
       // 后端把它当写方法的第 5 个参数交给 DSH 的文件服务 —— 不传就等于用部署默认政策，
       // 而部署默认可写根是 DSH 进程所在目录，不是用户工作区，所以往工作区写必然被拒（研究 #614/#624）。
       sandboxPolicy: sandboxPolicy,
       // 这份政策是按哪个会话算的（给日志与排查用；拿不到会话时是空串）。
       sessionId: sessionId || '',
-      timers: hostTimers(timer),
-      exec: function (cmd, args, opts) { return detectionExec(cmd, args, opts, 'label-colors') },
-      logEvent: function (level, event, fields) { try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire(level, event, fields) } catch (e) {} },
-      isEnabled: function (level) { try { return (logCtx && typeof logCtx.isEnabled === 'function') ? logCtx.isEnabled(level) === true : (level === 'error' || level === 'warn') } catch (e) { return level === 'error' || level === 'warn' } },
+      timers: hostTimers(timer) as unknown as { setTimeout: typeof setTimeout; clearTimeout: typeof clearTimeout },
+      exec: function (cmd: any, args: any, opts: any) { return detectionExec(cmd, args, opts, 'label-colors') },
+      logEvent: function (level: string, event: string, fields: unknown) { try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire(level, event, fields) } catch (e) {} },
+      isEnabled: function (level: string) { try { return (logCtx && typeof logCtx.isEnabled === 'function') ? logCtx.isEnabled(level) === true : (level === 'error' || level === 'warn') } catch (e) { return level === 'error' || level === 'warn' } },
     }
   }
   // ── 会话政策：写用户工作区时那条正规口子的两半（研究 #624）────────────────────
@@ -351,8 +365,8 @@ export function createWorkspaceCwd(deps) {
   // 没带会话号时怎么办：找这个工作区名下活着的会话，正好一个就用它；找不到（或不止一个，无法确定
   // 是哪一次操作）就不猜、也不自己拼政策——退回让 DSH 按部署默认政策判，写不进用户工作区就如实报失败。
   // 为什么不猜：会话模式可以不一样（有的是只读），猜错等于替用户绕开他自己选的那档限制。
-  function pathKeyOf(p) { return String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase() }
-  function sessionById(sid) {
+  function pathKeyOf(p: unknown) { return String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase() }
+  function sessionById(sid: unknown) {
     if (!sid) return null
     try {
       const svc = ctx.get('sessions')
@@ -363,7 +377,7 @@ export function createWorkspaceCwd(deps) {
   // 找「这个工作区名下活着的会话」。两种匹配，先精确、后包含（#652 补了后一种）：
   //   精确＝会话自己的目录就是这一条（根会话）；包含＝会话开在这个工作区根下面的某条子目录里。
   //   包含只在精确一个都没有时才用——顺序反了会让根会话被下面的子目录会话挤掉。
-  function sessionsOfWorkspace(cwd, inside) {
+  function sessionsOfWorkspace(cwd: unknown, inside: unknown) {
     try {
       const svc = ctx.get('sessions')
       if (!svc || typeof svc.list !== 'function') return []
@@ -388,7 +402,7 @@ export function createWorkspaceCwd(deps) {
   // 绝不在插件这边自己拼一个宽松政策。
   // #652：传进来的 cwd 现在是工作区根，而子目录会话自己仍挂在子目录上，所以「按同一条目录找」之外
   //   还要能「按这个根找它下面的会话」（sessionsOfWorkspace 的第二个参数），否则子目录会话写文件拿不到政策。
-  function resolveSandboxPolicy(args, cwd) {
+  function resolveSandboxPolicy(args: WfArgs | null, cwd: string) {
     try {
       const svc = ctx.get('sandboxPolicy')
       if (!svc || typeof svc.resolve !== 'function') return { policy: undefined, sessionId: '' }
@@ -405,12 +419,12 @@ export function createWorkspaceCwd(deps) {
       return { policy: svc.resolve({ session: session }), sessionId: session.id ? String(session.id) : '' }
     } catch (e) { return { policy: undefined, sessionId: '' } }
   }
-  function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
-  function phoneLog(method, kind, t0, res, err) {
+  function hash8(s: unknown) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
+  function phoneLog(method: string, kind: string, t0: number, res: any, err?: any) {
     try {
     if (err !== undefined && err !== null) { if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: method, kind: kind, errorHash: hash8(String((err && err.message) || err)) }) }
     else if (res && res.ok) { if (logCtx) logCtx.fire('info', 'host.call', { method: method, latencyMs: Date.now() - t0, ok: true, kind: kind }) }
     else if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: method, kind: kind, errorHash: hash8(String((res && (res.error || res.errorKind)) || 'workspace-not-ok')) }) } catch (eL) {} }
-  function loggedPhone(method, kind, fn) { return async function () { const t0 = Date.now(); try { const r = await fn.apply(null, arguments); phoneLog(method, kind, t0, r); return r } catch (e) { phoneLog(method, kind, t0, null, e); throw e } } }
+  function loggedPhone(method: string, kind: string, fn: (...args: any[]) => Promise<any>) { return async function (...args: any[]) { const t0 = Date.now(); try { const r = await fn.apply(null, args); phoneLog(method, kind, t0, r); return r } catch (e) { phoneLog(method, kind, t0, null, e); throw e } } }
   return { normCwd: normCwd, handleBind: loggedPhone('wf.bind', 'bind', handleBind), handleSetupLayout: loggedPhone('wf.setupLayout', 'setup-layout', handleSetupLayout), handleBindings: loggedPhone('wf.bindings', 'bindings', handleBindings), handleRegistry: loggedPhone('wf.registry', 'registry', handleRegistry), handleSelection: loggedPhone('wf.selection', 'selection', handleSelection), handleListLabels: loggedPhone('wf.listLabels', 'label-colors', handleListLabels), handleSetLabelColors: loggedPhone('wf.setLabelColors', 'label-colors', handleSetLabelColors), _migrateChoiceToFile: migrateChoiceToFile }
 }

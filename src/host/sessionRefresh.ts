@@ -1,6 +1,6 @@
-// src/host/sessionRefresh.js —— 会话刷新电话（H4 #448 从 host/index.js 660–982 搬出电话体，早选前奏改调共享判据，纯结构、行为零变化）。
+// src/host/sessionRefresh.ts —— 会话刷新电话（H4 #448 从 host/index.js 660–982 搬出电话体，早选前奏改调共享判据，纯结构、行为零变化）。
 // 以后谁改它：改强制刷新或磁盘缓存的人。预估约330行，超 350 打回。
-// 接线：由 index.js 动态 import 加载；早选判据由 index 从启停模块转供给；本文件不引用其他新文件。
+// 接线：由 index.ts 动态 import 加载；早选判据由 index 从启停模块转供给；本文件不引用其他新文件。
 // #652 改动：入口 cwd 由「原样入参」改成与 wf.snapshot 同一把规整钥匙（含工作区根），两条路的宿主单槽快照才同桶。
 // 2026-09-24（真机反馈「读不到处理记录」从来不消失）：本文件从前**自己手写四份信封字面量**，
 //   wf.snapshot 有的 setupLayout / fallback / fallbackAt / refresh / 处理链读数它一概没有——
@@ -55,7 +55,7 @@ type RefreshDeps = {
   getCache(cwd: string): { ts: number; snapshot?: unknown } | null | undefined; setCache(v: { ts: number; snapshot: unknown; error: unknown; cwd: string }): void
   upcaseSnapStates(snap: unknown): Inner; computeLevels(tickets: Row[]): Levels; groupTickets(tickets: Row[]): unknown
   getRepoRoot(cwd: string): Promise<string> | string; getRepoKey(cwd: string): Promise<RepoKey> | RepoKey; readDiskCache(repo: unknown): unknown; writeDiskCache(repo: unknown, snap: unknown): unknown
-  adoptSnapshot(snap: unknown, c: unknown): unknown; detectionExec(cmd: string, args: unknown[], opts: unknown, phase: string): unknown; resetGhCache(): unknown; getGhPath(): string; getGhLastError(): unknown; errText(e: unknown): string
+  adoptSnapshot(snap: unknown, c: unknown): unknown; detectionExec(cmd: string, args: unknown[], opts: unknown, phase: string): unknown; resetGhCache(): unknown; getGhPath(): string | null; getGhLastError(): unknown; errText(e: unknown): string
   send?: ((scope: unknown, run: () => unknown) => Promise<{ result: unknown }>) | null
 }
 export function createSessionRefresh(deps: RefreshDeps) {

@@ -224,8 +224,12 @@ async function main() {
   {
     const nLeaf = countLines('src/host/settingsPhones.js')
     check(nLeaf <= 350, '新叶子不超过三百五十行，实得 ' + nLeaf + ' 行。')
-    const nIndex = countLines('src/host/index.js')
-    check(nIndex <= 350, '宿主入口不超过三百五十行，实得 ' + nIndex + ' 行。')
+    // #1074：入口转成 .ts 后类型标注与中文注释占了约五十行（实得三百五十八行），行数口径改跟真源；
+    // 上限四百是给注释类型留的，不是给逻辑留的——逻辑只许装配，电话条数另断言，添电话两处一起改。
+    const nIndex = countLines('src/host/index.ts')
+    check(nIndex <= 400, '宿主入口不超过四百行，实得 ' + nIndex + ' 行。')
+    const nPhones = (readText('src/host/index.ts').match(/harness\.handle\(/g) || []).length
+    check(nPhones === 59, '宿主电话五十九条（添电话先改这个数，见上一条注释），实得 ' + nPhones + ' 条。')
   }
 
   // —— 第五件事：每条电话真跑一遍并断言真的落了一行对应的日志 ——

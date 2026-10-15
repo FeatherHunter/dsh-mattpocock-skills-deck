@@ -7,7 +7,7 @@
 //       2) 产物新鲜度门禁（缺失/过期 → FAIL，提示先构建；防止陈旧产物假绿）
 //       3) 叶子 === _dev 产物（根 host.js）——「构建未改变叶子行为」探测器
 //       4) 叶子 === _pkg 产物（package/lib/index.js）
-//       5) 文本逐字断言：产物内函数文本 === src/host/index.js 内联（构建为文本组合，函数体逐字保留）
+//       5) 文本逐字断言：分组两函数与搬迁三函数产物文本 === src 内联（入口三函数 #1074 起是 .ts，类型擦除后逐字不可比，入口一致性改由构建的投放重算校验）
 //       6) 双源镜像特征（文本镜像断言，T5 #98 统一删除）
 const fs = require('fs')
 const path = require('path')
@@ -69,7 +69,6 @@ async function main() {
 
   const host = fs.readFileSync('host.js', 'utf8')
   const pkg = fs.readFileSync('package/lib/index.js', 'utf8')
-  const srcHost = fs.readFileSync('src/host/index.js', 'utf8')
   const srcMap = fs.readFileSync('src/host/mapBody.js', 'utf8')
   const pkgMap = fs.readFileSync('package/lib/mapBody.js', 'utf8')
   const srcGroup = fs.readFileSync('src/host/ticketGrouping.js', 'utf8')
@@ -138,12 +137,12 @@ async function main() {
 
   // ---- Part E：文本逐字断言（T1 新增；构建 = 文本组合，产物函数文本必须与 src 内联逐字一致）----
   // #450 H6：分组两函数搬入 ticketGrouping.js，_dev 单文件不再内嵌模块体；逐字锚到 _pkg 装配（src index+分组 === pkg index+分组合集，原样复制不变量由 build.mjs 校验）。
-  const srcStay = rawAll(srcHost + '\n' + srcGroup)
-  const pkgStay = rawAll(pkg + '\n' + pkgGroup)
+  const srcStay = rawAll(srcGroup)
+  const pkgStay = rawAll(pkgGroup)
   const srcMapRaw = rawAll(srcMap)
   const pkgMapRaw = rawAll(pkgMap)
-  check(!!srcStay.trim() && !!pkgStay.trim() && !!srcMapRaw.trim() && !!pkgMapRaw.trim(), '文本抽取：分组两函数（ticketGrouping）与搬迁三函数在 src/pkg 装配均可抽取')
-  check(srcStay === pkgStay, '文本逐字：pkg 装配体 === src 装配体（index 残留空 + 分组模块，原样复制）')
+  check(!!srcStay.trim() && !!pkgStay.trim() && !!srcMapRaw.trim() && !!pkgMapRaw.trim(), '文本抽取：分组两函数在 src/pkg 均可抽取（入口三函数转成 .ts 后逐字不可比，入口一致性由构建校验）')
+  check(srcStay === pkgStay, '文本逐字：package/lib/ticketGrouping.js === src/host/ticketGrouping.js（原样复制）')
   check(srcMapRaw === pkgMapRaw, '文本逐字：package/lib/mapBody.js === src/host/mapBody.js（原样复制）')
 
   // ---- Part D 已移除（T5 #98：双源镜像文本断言由运行时冒烟取代；保留 Part C 真值表 + Part E src↔产物逐字）----
