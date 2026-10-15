@@ -1,4 +1,4 @@
-// views/IssueDetailComments.js — Issue 详情评论区（从 IssueDetail.js 拆出，V3 #463，纯结构、行为零变化）
+// views/IssueDetailComments.ts — Issue 详情评论区（从 IssueDetail.js 拆出，V3 #463，纯结构、行为零变化）
 // 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
 // src/client/index.js 的 leaf 标记处（一源两物，标记 id 与本文件名一致）。
 // 以后谁改它：改评论提交、评论列表、加载下 50、输入框的人改它。
@@ -8,7 +8,18 @@
 //   mode/commentsNodes/canComment = 派生（调用方传入）。
 // #693 起，这里不再收「快照那一行」：那一行只是轻量预览，可能不带评论，
 //   它的分页游标也只有详情带回来的那一份才有。
-export const renderIssueDetailComments = function (h, st, issueNumber, detail, mode, commentsNodes, canComment, issueEffort) {
+// 本文件由 .js 转来（转时只加类型标注与环境声明，行为一字不动）。
+declare function submitIssueComment(...args: any[]): any;
+declare function fetchIssueDetail(...args: any[]): any;
+declare function fetchIssueComments(...args: any[]): any;
+declare function probeNow(...args: any[]): any;
+declare function mdToHtml(...args: any[]): any;
+declare function idOfParts(...args: any[]): any;
+declare function issueUrlFor(...args: any[]): any;
+declare function openIssueUrl(...args: any[]): any;
+declare function Ic(props?: any): any;
+declare const Tip: any;
+export const renderIssueDetailComments = function (h: any, st: any, issueNumber: any, detail: any, mode: any, commentsNodes: any, canComment: any, issueEffort: any): any {
       const _eff = (issueEffort === undefined || issueEffort === null) ? '' : String(issueEffort)
       // #255 提交确认闪烁下标：仅当 force 重取后的评论里真实存在 body 全等匹配项才点亮
       // （新评论必须来自服务端重取的证据；定时清空归位，无乐观假设）
@@ -20,7 +31,7 @@ export const renderIssueDetailComments = function (h, st, issueNumber, detail, m
           if (String(commentsNodes[__ci] && commentsNodes[__ci].body || '') === __cb) { confirmedIdx = __ci; break }
         }
       }
-      const cmtErrTextOf = function (er) {
+      const cmtErrTextOf = function (er: any) {
         const k = er && er.kind || ''
         if (k === 'auth') return tr('detail.cmtAuthFail')
         if (k === 'rate-limit') return tr('detail.cmtRateLimit')
@@ -35,7 +46,7 @@ export const renderIssueDetailComments = function (h, st, issueNumber, detail, m
         if (typeof submitIssueComment !== 'function') { st.cmtError = { kind: 'env' }; emit(st); return }
         st.cmtSending = true; st.cmtError = null; st.cmtResult = null; emit(st)
         const startedAt = Date.now()
-        submitIssueComment(st, issueNumber, text, { effortId: _eff }).then(function (res) {
+        submitIssueComment(st, issueNumber, text, { effortId: _eff }).then(function (res: any) {
           st.cmtSending = false
           if (!res || res.ok !== true) {
             st.cmtError = (res && res.error) || { kind: 'network' }
@@ -53,7 +64,7 @@ export const renderIssueDetailComments = function (h, st, issueNumber, detail, m
           try { setTimeout(function () { if (st.cmtResult && st.cmtResult.kind === 'ok' && st.cmtResult.at === startedAt) { st.cmtResult = null; try { emit(st) } catch (eR) {} } }, 1500) } catch (eT) {}
           if (typeof fetchIssueDetail === 'function') fetchIssueDetail(st, issueNumber, { force: true, effortId: _eff })
           try { if (typeof probeNow === 'function') probeNow(false) } catch (ePn) {}
-        }).catch(function (eSub) {
+        }).catch(function (eSub: any) {
           st.cmtSending = false
           st.cmtError = { kind: 'network', message: String((eSub && eSub.message) || eSub) }
           st.cmtResult = { kind: 'fail', at: Date.now() }
@@ -65,7 +76,7 @@ export const renderIssueDetailComments = function (h, st, issueNumber, detail, m
         h('div', { style: { fontSize: 11, fontWeight: 600, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', marginBottom: 6 } }, detail
           ? '评论 ' + (commentsNodes.length ? '(' + commentsNodes.length + ')' : '(0)')
           : '评论 · ' + (mode === 'err' ? tr('detail.notYet') : tr('list.loading'))),
-        commentsNodes.length ? h('div', { style: { display: 'flex', flexDirection: 'column', gap: 6 } }, commentsNodes.slice(0,50).map(function (c, i) {
+        commentsNodes.length ? h('div', { style: { display: 'flex', flexDirection: 'column', gap: 6 } }, commentsNodes.slice(0,50).map(function (c: any, i: any) {
           const login = c.author && c.author.login || 'ghost'
           const t = c.createdAt ? String(c.createdAt).slice(0,10) : ''
           const itemCls = (typeof confirmedIdx === 'number' && confirmedIdx === i) ? ' dsws-row-added' : ''
@@ -93,7 +104,7 @@ export const renderIssueDetailComments = function (h, st, issueNumber, detail, m
       (function () {
         const _u = issueUrlFor(st, issueNumber)
         const _isHttp = /^https?:\/\//i.test(String(_u || ''))
-        const _openLocal = function (e) { e.stopPropagation(); openIssueUrl(st, issueNumber, (typeof host !== 'undefined' ? host : undefined)) }
+        const _openLocal = function (e: any) { e.stopPropagation(); openIssueUrl(st, issueNumber, (typeof host !== 'undefined' ? host : undefined)) }
         const _textStyle = { color: '#58a6ff', textDecoration: 'underline' }
         return _isHttp
           ? h('a', { href: _u, target: '_blank', rel: 'noreferrer', style: _textStyle }, tr('detail.viewOnTrackerHint'))
@@ -135,7 +146,7 @@ export const renderIssueDetailComments = function (h, st, issueNumber, detail, m
       st.cmtError.kind === 'auth' ? (function () {
         const _u = issueUrlFor(st, issueNumber)
         const _isHttp = /^https?:\/\//i.test(String(_u || ''))
-        const _openLocal = function (e) { e.stopPropagation(); openIssueUrl(st, issueNumber, (typeof host !== 'undefined' ? host : undefined)) }
+        const _openLocal = function (e: any) { e.stopPropagation(); openIssueUrl(st, issueNumber, (typeof host !== 'undefined' ? host : undefined)) }
         const _textStyle = { color: '#58a6ff', textDecoration: 'underline' }
         return _isHttp
           ? h('a', { href: _u, target: '_blank', rel: 'noreferrer', style: _textStyle }, tr('detail.authFailCta'))
@@ -147,10 +158,10 @@ export const renderIssueDetailComments = function (h, st, issueNumber, detail, m
             placeholder: tr('detail.cmtPlaceholder'),
             disabled: !!st.cmtSending,
             rows: 3,
-            onKeyDown: function (ev) {
+            onKeyDown: function (ev: any) {
               if ((ev.metaKey || ev.ctrlKey) && ev.key === 'Enter') { try { ev.preventDefault() } catch (ePd) {} doSubmit() }
             },
-            onChange: function (ev) { st.cmtDraft = ev.target.value; st.cmtResult = null; emit(st) },
+            onChange: function (ev: any) { st.cmtDraft = ev.target.value; st.cmtResult = null; emit(st) },
             style: { width: '100%', boxSizing: 'border-box', resize: 'vertical', minHeight: 56, fontSize: 12, lineHeight: 1.5, padding: '7px 9px', borderRadius: 6, border: '1px solid var(--dsw-alias-border-l1,#2a2d35)', background: 'rgba(255,255,255,.03)', color: 'var(--dsw-alias-label-primary,#e6edf3)', outline: 'none' },
           }),
           h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, marginTop: 5 } }, [

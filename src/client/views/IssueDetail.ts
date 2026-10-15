@@ -1,12 +1,41 @@
 /**
- * views/IssueDetail.js — Issue 详情页（独立叶模块 · v1.7.0 T1/T2/T3）
+ * views/IssueDetail.ts — Issue 详情页（独立叶模块 · v1.7.0 T1/T2/T3）
  * 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回
  * src/client/index.js 对应叶标记处（一源两物）。
  * 设计约束：每个模块可独立并发开发 — 本文件仅依赖内核 seam（store/router/api/locale/shared组件），
  * 同层禁止 import 其他视图（ListTab/MapDetail 等），像插件般隔离；所有共享能力经 DswsCtx 取用。
  * T2 数据通路：fetchIssueDetail(n)（GraphQL+REST 双通道，host 侧 wf.issueDetail），60s 缓存命中即用，loading/real/err 三态。
+ * 本文件由 .js 转来（转时只加类型标注与环境声明，行为一字不动）。
  */
-export const IssueDetail = function (props) {
+declare function peekNav(...args: any[]): any;
+declare function repoStr(...args: any[]): any;
+declare function buildColorOf(...args: any[]): any;
+declare function fetchIssueDetail(...args: any[]): any;
+declare function useIssueDetailFold(...args: any[]): any;
+declare function effortOf(...args: any[]): any;
+declare function popNav(...args: any[]): any;
+declare function prStateKind(...args: any[]): any;
+declare function effortNamesOf(...args: any[]): any;
+declare function rowActionText(...args: any[]): any;
+declare function rowActionKind(...args: any[]): any;
+declare function actionColorOf(...args: any[]): any;
+declare function isLightHex(...args: any[]): any;
+declare function findMapByIdentity(...args: any[]): any;
+declare function pushNav(...args: any[]): any;
+declare function copyText(...args: any[]): any;
+declare function openInNewSession(...args: any[]): any;
+declare function inject(...args: any[]): any;
+declare function mdToHtml(...args: any[]): any;
+declare function hexA(...args: any[]): any;
+declare function darken(...args: any[]): any;
+declare function idOfParts(...args: any[]): any;
+declare function renderIssueDetailComments(...args: any[]): any;
+declare function mdImgOverlay(...args: any[]): any;
+declare function issueUrlFor(...args: any[]): any;
+declare function openIssueUrl(...args: any[]): any;
+declare function Ic(props?: any): any;
+declare const Tip: any;
+export const IssueDetail = function (props: any): any {
       const cx = React.useContext(DswsCtx)
       const h = cx ? cx.h : React.createElement
       const st = props.st
@@ -35,7 +64,7 @@ export const IssueDetail = function (props) {
       // 详情缓存按 (effort, 编号) 键入；比对时 effort 一致才算同一张票（缺字段的旧详情按编号兜底）
       const detail = (st.issueDetail && st.issueDetail.number === issueNumber && (st.issueDetail.effortId === undefined || String(st.issueDetail.effortId) === issueEffort)) ? st.issueDetail : null
       const issues = (st.snapshot && Array.isArray(st.snapshot.issues)) ? st.snapshot.issues : []
-      const snapIssue = issues.find(function (x) { return x.number === issueNumber && effortOf(x) === issueEffort }) || issues.find(function (x) { return x.number === issueNumber })
+      const snapIssue = issues.find(function (x: any) { return x.number === issueNumber && effortOf(x) === issueEffort }) || issues.find(function (x: any) { return x.number === issueNumber })
       // #693 取数口径：快照那一行只当**轻量预览**用（标题、状态、标签、指派人、被阻塞、
       //   是不是拉取请求这些），**正文与评论一律以详情自己那次取数为准**。
       //   理由：快照那一行可能是不带正文、也不带评论的薄片段（阶段 2 的历史行就是这样），
@@ -52,18 +81,18 @@ export const IssueDetail = function (props) {
       // 一条失败拆成三样：主行是给人看的一句话（后端或界面自己写的那句 message），
       // 档位只当可选的小标签（kind，八档取值，可能没有），后端原文收进可展开区（raw，没有就不渲染这一段）。
       // 这三样都由 api-io 的 dswsNormalizeError 统一给出；这里不再照着原文另猜档位。
-      const errSayOf = function (e) {
+      const errSayOf = function (e: any) {
         const said = String((e && e.message) || '').trim()
         return said || tr('list.loadFail')
       }
-      const errKindOf = function (e) { return String((e && e.kind) || '').trim() }
-      const errRawOf = function (e) {
+      const errKindOf = function (e: any) { return String((e && e.kind) || '').trim() }
+      const errRawOf = function (e: any) {
         const direct = String((e && e.raw) || '').trim()
         if (direct) return direct
         // 兼容本次修复之前就已经存进状态里的错误对象：那时后端原文放在 error 字段里
         return (e && typeof e.error === 'string') ? String(e.error).trim() : ''
       }
-      const errRawBlockOf = function (e) {
+      const errRawBlockOf = function (e: any) {
         const rawText = errRawOf(e)
         if (!rawText) return null
         return h('details', { style: { width: '100%', marginTop: 2, paddingTop: 4, borderTop: '1px solid rgba(248,113,113,.25)' } }, [
@@ -71,7 +100,7 @@ export const IssueDetail = function (props) {
           h('div', { style: { marginTop: 4, padding: '6px 8px', background: 'rgba(0,0,0,.18)', border: '1px solid rgba(248,113,113,.25)', borderRadius: 6, fontSize: 11, lineHeight: 1.6, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 200, overflow: 'auto' } }, rawText),
         ])
       }
-      const copyUrl = function (n) {
+      const copyUrl = function (n: any) {
         const url = issueUrlFor(st, n, issueEffort)
         copyText(st, url, tr('toast.copiedLink', { n: n }))
       }
@@ -80,7 +109,7 @@ export const IssueDetail = function (props) {
         const maps = (st.snapshot && st.snapshot.maps) || []
         for (let mi = 0; mi < maps.length; mi++) {
           const m = maps[mi]
-          const hits = (m.tickets || []).some(function (t) { return t.number === issueNumber && effortOf(t) === issueEffort })
+          const hits = (m.tickets || []).some(function (t: any) { return t.number === issueNumber && effortOf(t) === issueEffort })
           if (hits) return m
         }
         return null
@@ -104,23 +133,23 @@ export const IssueDetail = function (props) {
       // 节点自带标签时按标签判：有地图标签且快照里找得到这张地图才进地图详情，否则回落工单详情；
       // 节点没有标签（阻塞票节点只有编号标题状态）时按快照本地找图：找得到进地图详情，
       // 找不到回落普通工单详情（有字可看，不静默回列表）。只定种类与编号，取数与评论不动。
-      const subLabelsOf = function (x) {
+      const subLabelsOf = function (x: any) {
         if (!x || x.labels == null) return []
         if (Array.isArray(x.labels)) return x.labels
         if (typeof x.labels === 'object' && Array.isArray(x.labels.nodes)) return x.labels.nodes
         return []
       }
-      const subHasRoutingInfo = function (x) {
+      const subHasRoutingInfo = function (x: any) {
         if (!x) return false
         if (subLabelsOf(x).length > 0) return true
         return typeof x.type === 'string' && x.type !== ''
       }
-      const subHasMapTag = function (x) {
+      const subHasMapTag = function (x: any) {
         const ls = subLabelsOf(x)
         for (let i = 0; i < ls.length; i++) { const n = (typeof ls[i] === 'string') ? ls[i] : ls[i].name; if (n === 'wayfinder:map') return true }
         return x && x.type === 'map'
       }
-      const enterSubDetail = function (x) {
+      const enterSubDetail = function (x: any) {
         if (!x || x.number == null) return
         // effort 维度：子票/阻塞票的 effort 取节点自带字段，没有就跟当前票同 effort（同 effort 内的引用）
         const eid = (x.effortId !== undefined && x.effortId !== null) ? String(x.effortId) : issueEffort
@@ -162,7 +191,7 @@ export const IssueDetail = function (props) {
               (function () {
                 const _u = issueUrlFor(st, issueNumber, issueEffort)
                 const _isHttp = /^https?:\/\//i.test(String(_u || ''))
-                const _openLocal = function (e) { e.stopPropagation(); openIssueUrl(st, issueNumber, (typeof host !== 'undefined' ? host : undefined), issueEffort) }
+                const _openLocal = function (e: any) { e.stopPropagation(); openIssueUrl(st, issueNumber, (typeof host !== 'undefined' ? host : undefined), issueEffort) }
                 const _props = { className: 'dsws-btn ghost', style: { padding: '1px 8px', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4 } }
                 const _kids = [Ic({ n: 'link', size: 11 }), h('span', null, tr('detail.viewOnTracker'))]
                 return _isHttp
@@ -210,9 +239,9 @@ export const IssueDetail = function (props) {
             mode === 'err' ? null : h('div', { className: 'dsws-spinner', style: { width: 11, height: 11, border: '2px solid rgba(255,255,255,.15)', borderTopColor: '#c084fc', borderRadius: '50%', animation: 'dsws-spin 1s linear infinite' } }),
             h('span', null, mode === 'err' ? tr('detail.bodyNotYet') : tr('list.loading')),
           ])
-      const has = function (nm) { return labelArr.some(function (l) { return (l.name || l) === nm }) }
+      const has = function (nm: any) { return labelArr.some(function (l: any) { return (l.name || l) === nm }) }
       const _isTriageLikeLocal = !labelArr.length || has('needs-triage')
-      const fakeIssue = { number: issueNumber, ['title']: title, labels: labelArr.map(function (l) { return typeof l === 'string' ? { name: l } : l }), state: stateRaw }
+      const fakeIssue = { number: issueNumber, ['title']: title, labels: labelArr.map(function (l: any) { return typeof l === 'string' ? { name: l } : l }), state: stateRaw }
       // #763 顶栏主动作按钮：与列表行同口径（图标/文字/注入文本），但自建按钮以便折叠机逐字裁字。
       // 复用行动作的注入文本，不复用它的按钮节点（那个节点写死 flex:none，折叠机裁不动它）。
       // #771 分类走一处 rowActionKind（状态优先于类型：未分流 → 接手 → 补充 → 修复 → 讨论 → 研究 → 原型 → 执行）。
@@ -291,14 +320,14 @@ export const IssueDetail = function (props) {
           h('span', { style: { flex: 1, minWidth: 8 } }),
           h('div', { style: { display: 'flex', alignItems: 'center', gap: 3, flex: 'none', minWidth: 0, overflow: 'hidden', flexWrap: 'nowrap' } }, [
             detail ? h('span', { 'data-detail-snapshot': 1, 'data-full': (isStale ? '快照' : (mode === 'loading' ? tr('list.loading') : '')), style: { fontSize: 10, color: isStale ? '#f59e0b' : '#8b8b95', flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' } }, isStale ? '快照' : (mode === 'loading' ? tr('list.loading') : '')) : null,
-            h(Tip, { content: primaryInfo.tip }, h('button', { className: 'dsws-btn primary', onClick: function (e) { e.stopPropagation(); try { inject(st, primaryInfo.text) } catch (err2) {} }, style: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, background: actColor, borderColor: 'transparent', color: actTextColor, flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' } }, [Ic({ n: primaryInfo.icon, size: primaryInfo.icon === 'prototype' ? 12 : 10 }), h('span', { 'data-detail-primary-text': 1, 'data-full': primaryInfo.label, style: { overflow: 'hidden', whiteSpace: 'nowrap', minWidth: 0 } }, primaryInfo.label)])),
-            h(Tip, { content: tr('tip.newSession', { n: issueNumber }) }, h('button', { className: 'dsws-btn primary', onClick: function (e) { e.stopPropagation(); openInNewSession(st, { number: issueNumber, ['title']: title, labels: labelArr }) }, style: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, background: actColor, borderColor: 'transparent', color: actTextColor, flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' } }, [Ic({ n: 'external-link', size: 10 }), h('span', { 'data-detail-new-text': 1, 'data-full': tr('list.newSessionLabel'), style: { overflow: 'hidden', whiteSpace: 'nowrap', minWidth: 0 } }, tr('list.newSessionLabel'))])),
-            h(Tip, { content: tr('tip.copyLink') }, h('button', { className: 'dsws-btn ghost', onClick: function (e) { e.stopPropagation(); copyUrl(issueNumber) }, style: { display: 'inline-flex', alignItems: 'center', padding: '2px 4px', flex: 'none' } }, Ic({ n: 'clipboard', size: 13 }))),
+            h(Tip, { content: primaryInfo.tip }, h('button', { className: 'dsws-btn primary', onClick: function (e: any) { e.stopPropagation(); try { inject(st, primaryInfo.text) } catch (err2) {} }, style: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, background: actColor, borderColor: 'transparent', color: actTextColor, flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' } }, [Ic({ n: primaryInfo.icon, size: primaryInfo.icon === 'prototype' ? 12 : 10 }), h('span', { 'data-detail-primary-text': 1, 'data-full': primaryInfo.label, style: { overflow: 'hidden', whiteSpace: 'nowrap', minWidth: 0 } }, primaryInfo.label)])),
+            h(Tip, { content: tr('tip.newSession', { n: issueNumber }) }, h('button', { className: 'dsws-btn primary', onClick: function (e: any) { e.stopPropagation(); openInNewSession(st, { number: issueNumber, ['title']: title, labels: labelArr }) }, style: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, background: actColor, borderColor: 'transparent', color: actTextColor, flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' } }, [Ic({ n: 'external-link', size: 10 }), h('span', { 'data-detail-new-text': 1, 'data-full': tr('list.newSessionLabel'), style: { overflow: 'hidden', whiteSpace: 'nowrap', minWidth: 0 } }, tr('list.newSessionLabel'))])),
+            h(Tip, { content: tr('tip.copyLink') }, h('button', { className: 'dsws-btn ghost', onClick: function (e: any) { e.stopPropagation(); copyUrl(issueNumber) }, style: { display: 'inline-flex', alignItems: 'center', padding: '2px 4px', flex: 'none' } }, Ic({ n: 'clipboard', size: 13 }))),
                         // 本地票的 url 是文件路径不是网址：https 走新页，本地走宿主打开（裸 href 点了没反应，#1145）
             h(Tip, { content: tr('tip.openInTracker', { n: issueNumber }) }, (function () {
               const _u = issueUrlFor(st, issueNumber, issueEffort)
               const _isHttp = /^https?:\/\//i.test(String(_u || ''))
-              const _openLocal = function (e) { e.stopPropagation(); openIssueUrl(st, issueNumber, (typeof host !== 'undefined' ? host : undefined), issueEffort) }
+              const _openLocal = function (e: any) { e.stopPropagation(); openIssueUrl(st, issueNumber, (typeof host !== 'undefined' ? host : undefined), issueEffort) }
               const _props = { className: 'dsws-btn ghost', style: { display: 'inline-flex', alignItems: 'center', padding: '2px 4px', flex: 'none' } }
               return _isHttp
                 ? h('a', Object.assign({ href: _u, target: '_blank', rel: 'noreferrer' }, _props), Ic({ n: 'link', size: 13 }))
@@ -325,12 +354,12 @@ export const IssueDetail = function (props) {
           h('span', { className: 'dsws-chip', style: { fontSize: 10, background: isOpen ? 'rgba(63,185,80,.15)' : 'rgba(139,148,158,.15)', color: stateColor, border: '1px solid ' + stateColor, flex: 'none' } }, [Ic({ n: isOpen ? 'dot' : 'check', size: 9 }), h('span', { style: { marginLeft: 3 } }, stateLabel)]),
         ]),
         h('div', { style: { display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' } }, [
-          labelArr.map(function (l, i) {
+          labelArr.map(function (l: any, i: any) {
             const nm = l.name || l
             const col = l.color || ''
             return h('span', { key: i, className: 'dsws-chip', style: { fontSize: 10, background: hexA ? hexA(col, 0.18) : ('#' + col), color: col ? '#' + col : '#bc8cff', border: '1px solid ' + (darken ? darken(col, 0.16) : 'rgba(188,140,255,.6)') } }, nm)
           }),
-          assignees.map(function (a, i) {
+          assignees.map(function (a: any, i: any) {
             const login = (typeof a === 'string') ? a : (a.login || '')
             return h('span', { key: 'a' + i, className: 'dsws-chip', style: { fontSize: 10, background: 'rgba(88,166,255,.12)', color: '#58a6ff', border: '1px solid rgba(88,166,255,.4)' } }, [Ic({ n: 'person', size: 9 }), h('span', { style: { marginLeft: 3 } }, '@' + login)])
           }),
@@ -347,7 +376,7 @@ export const IssueDetail = function (props) {
           Ic({ n: 'map', size: 11, color: '#c084fc' }),
           h('span', { style: { color: 'var(--dsw-alias-label-secondary,#a1a1aa)' } }, '属于'),
           // T4 #554：所属地图链接压栈进下一层（保留返回路径，不断掉上一级）。
-          h('a', { href: '#', onClick: function (e) { e.preventDefault(); pushNav(st, 'map', parentMap.number, effortOf(parentMap)) }, style: { color: '#c084fc', textDecoration: 'underline', fontWeight: 600 } }, '#' + parentMap.number + ' ' + parentMap.title),
+          h('a', { href: '#', onClick: function (e: any) { e.preventDefault(); pushNav(st, 'map', parentMap.number, effortOf(parentMap)) }, style: { color: '#c084fc', textDecoration: 'underline', fontWeight: 600 } }, '#' + parentMap.number + ' ' + parentMap.title),
         ]) : null,
         // body
         h('div', { style: { padding: '8px 0', borderTop: '1px solid var(--dsw-alias-border-l1,#2a2d35)', borderBottom: '1px solid var(--dsw-alias-border-l1,#2a2d35)' } }, [
@@ -357,10 +386,10 @@ export const IssueDetail = function (props) {
         // sub-issues
         subNodes.length || subTotal ? h('div', { style: { padding: '6px 0' } }, [
           h('div', { style: { fontSize: 11, fontWeight: 600, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', marginBottom: 6 } }, '子票 ' + subTotal + (subNodes.length ? '' : '（无加载）')),
-          h('div', { style: { display: 'flex', flexDirection: 'column', gap: 4 } }, subNodes.map(function (s) {
+          h('div', { style: { display: 'flex', flexDirection: 'column', gap: 4 } }, subNodes.map(function (s: any) {
             const sc = s.state === 'CLOSED' ? '#3fb950' : '#8b8b95'
             // T4 整改 #554：子票按上面 enterSubDetail 分流（有标签按标签，无标签按快照找图）。
-            return h('div', { key: idOfParts((s.effortId!==undefined&&s.effortId!==null)?s.effortId:issueEffort, s.number), className: 'dsws-aggrow', tabIndex: 0, role: 'button', 'aria-label': '#' + s.number + ' ' + (s.title || ''), onClick: function () { enterSubDetail(s) }, onKeyDown: function (e) { if (!e || e.target !== e.currentTarget) return; const k = e && e.key; if (k === 'Enter' || k === ' ') { try { if (e.preventDefault) e.preventDefault() } catch (_) {} try { if (e.currentTarget) e.currentTarget.click() } catch (_) {} } }, style: { cursor: 'pointer', padding: '6px 8px' } }, [
+            return h('div', { key: idOfParts((s.effortId!==undefined&&s.effortId!==null)?s.effortId:issueEffort, s.number), className: 'dsws-aggrow', tabIndex: 0, role: 'button', 'aria-label': '#' + s.number + ' ' + (s.title || ''), onClick: function () { enterSubDetail(s) }, onKeyDown: function (e: any) { if (!e || e.target !== e.currentTarget) return; const k = e && e.key; if (k === 'Enter' || k === ' ') { try { if (e.preventDefault) e.preventDefault() } catch (_) {} try { if (e.currentTarget) e.currentTarget.click() } catch (_) {} } }, style: { cursor: 'pointer', padding: '6px 8px' } }, [
               h('div', { style: { display: 'flex', alignItems: 'center', gap: 6 } }, [
                 h('span', { className: 'dsws-idnum', style: { color: sc, borderColor: sc, fontSize: 11 } }, '#' + s.number),
                 h(Tip, { content: h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 } }, [h('div', { style: { fontSize: 10, color: '#8b8b95', lineHeight: '14px' } }, tr('tip.header.fullTitle')), h('div', { style: { fontSize: 11, color: '#e6edf3', lineHeight: '16px', wordBreak: 'break-word', whiteSpace: 'normal' } }, s.title)]) }, h('span', { className: 'dsws-tt-wrap', style: { flex: 1, fontSize: 12 } }, s.title)),
@@ -372,9 +401,9 @@ export const IssueDetail = function (props) {
         // blockers
         blockedNodes.length ? h('div', { style: { padding: '6px 0' } }, [
           h('div', { style: { fontSize: 11, fontWeight: 600, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', marginBottom: 6 } }, tr('detail.blockedPrefix') + blockedNodes.length),
-          h('div', { style: { display: 'flex', flexDirection: 'column', gap: 4 } }, blockedNodes.map(function (b) {
+          h('div', { style: { display: 'flex', flexDirection: 'column', gap: 4 } }, blockedNodes.map(function (b: any) {
             // T4 整改 #554：阻塞票同样按 enterSubDetail 分流（无标签时按快照找图）。
-            return h('div', { key: idOfParts((b.effortId!==undefined&&b.effortId!==null)?b.effortId:issueEffort, b.number), className: 'dsws-aggrow', tabIndex: 0, role: 'button', 'aria-label': '#' + b.number + ' ' + (b.title || ''), onClick: function () { enterSubDetail(b) }, onKeyDown: function (e) { if (!e || e.target !== e.currentTarget) return; const k = e && e.key; if (k === 'Enter' || k === ' ') { try { if (e.preventDefault) e.preventDefault() } catch (_) {} try { if (e.currentTarget) e.currentTarget.click() } catch (_) {} } }, style: { cursor: 'pointer', padding: '6px 8px' } }, [
+            return h('div', { key: idOfParts((b.effortId!==undefined&&b.effortId!==null)?b.effortId:issueEffort, b.number), className: 'dsws-aggrow', tabIndex: 0, role: 'button', 'aria-label': '#' + b.number + ' ' + (b.title || ''), onClick: function () { enterSubDetail(b) }, onKeyDown: function (e: any) { if (!e || e.target !== e.currentTarget) return; const k = e && e.key; if (k === 'Enter' || k === ' ') { try { if (e.preventDefault) e.preventDefault() } catch (_) {} try { if (e.currentTarget) e.currentTarget.click() } catch (_) {} } }, style: { cursor: 'pointer', padding: '6px 8px' } }, [
               h('div', { style: { display: 'flex', alignItems: 'center', gap: 6 } }, [
                 Ic({ n: 'lock', size: 10, color: '#f0883e' }),
                 h('span', { className: 'dsws-idnum', style: { color: '#f0883e', borderColor: '#f0883e', fontSize: 11 } }, '#' + b.number),

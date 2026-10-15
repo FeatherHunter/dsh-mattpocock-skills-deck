@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-15T07:21:34.112Z",
+  "generatedAt": "2026-10-15T07:27:19.498Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 259,
   "gateCount": 259,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 6,
   "smokeLength": 6,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 553,
+  "graphFileCount": 555,
   "gates": [
     {
       "step": "node tests/verify-capability-register.ts",
@@ -7082,9 +7082,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 565,
+    "fileCount": 567,
     "dirCount": 51,
-    "coveredFileCount": 565,
+    "coveredFileCount": 567,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 50,
@@ -7169,7 +7169,9 @@
       "src/client/ts-pixel-ambient.d.ts",
       "src/client/views/ChecksTab.js",
       "src/client/views/IssueDetail.js",
+      "src/client/views/IssueDetail.ts",
       "src/client/views/IssueDetailComments.js",
+      "src/client/views/IssueDetailComments.ts",
       "src/client/views/ListTab.js",
       "src/client/views/ListTabClosed.js",
       "src/client/views/ListTabRow.js",

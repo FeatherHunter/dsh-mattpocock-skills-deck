@@ -111,8 +111,6 @@
     "src/client/statusbar/capFoldMachine.js",
     "src/client/statusbar/checksums.js",
     "src/client/views/ChecksTab.js",
-    "src/client/views/IssueDetail.js",
-    "src/client/views/IssueDetailComments.js",
     "src/client/views/ListTab.js",
     "src/client/views/ListTabClosed.js",
     "src/client/views/ListTabRow.js",
