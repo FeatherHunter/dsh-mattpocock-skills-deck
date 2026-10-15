@@ -1015,7 +1015,7 @@ const contractChecksInner = function (reg, src) {
     if (fxt.en.indexOf('## Stage gate') >= 0) fail('tpl.fix en 不该再含整节 Stage gate（#900 已删）')
     if (fxt.en.indexOf('If it still carries needs-triage') < 0) fail('tpl.fix en 缺读现状兜底句（If it still carries needs-triage）')
   } else fail('缺条目 tpl.fix')
-  // tpl.discuss（#628：收尾补一条 —— /to-spec 产出的规格单要挂回同一张 map；#808：收尾再补一条 —— /to-spec 后对抗式审查再关单）
+  // tpl.discuss（#628：收尾补一条 —— /to-spec 产出的规格单要挂回同一张 map；#808：收尾再补一条 —— /to-spec 后对抗式审查再关单；#1205：收尾再补一条 —— 同 map 子票要知晓规格单）
   //   补块理由：本模板此前无任何结构块，整段被删门禁也不会红（#382 就是那样丢的）
   const dc = reg['tpl.discuss']
   if (dc) {
@@ -1026,6 +1026,9 @@ const contractChecksInner = function (reg, src) {
     if (dc.en.indexOf('skip this if the issue has no map') < 0) fail('tpl.discuss en 缺 #628 的生效条件（skip if no map）')
     if (dc.zh.indexOf('在用户指示下执行完 /to-spec 后对当前执行的所有任务执行一次对抗式审查，确认无误后close当前issue') < 0) fail('tpl.discuss zh 缺 #808 对抗式审查行（/to-spec 后审查再关单）')
     if (dc.en.indexOf('run one adversarial review over all tasks executed in this run') < 0) fail('tpl.discuss en 缺 #808 对抗式审查行（同中文那条的对应句）')
+    if (dc.zh.indexOf('同 map 的subissue需要知晓该规格单的存在') < 0) fail('tpl.discuss zh 缺 #1205 知晓行（同 map 子票要知晓规格单）')
+    if (dc.en.indexOf('Make sure the sibling sub-issues on the same map know this spec issue exists.') < 0) fail('tpl.discuss en 缺 #1205 知晓行（同中文那条的对应句）')
+    if (!(dc.zh.indexOf('挂到同一张 map 上成为 subissue') < dc.zh.indexOf('同 map 的subissue需要知晓该规格单的存在') && dc.zh.indexOf('同 map 的subissue需要知晓该规格单的存在') < dc.zh.indexOf('在用户指示下执行完 /to-spec 后对当前执行的所有任务执行一次对抗式审查'))) fail('tpl.discuss zh #1205 知晓行位置不对（应在挂图行之后、#808 审查行之前）')
   }
   // newWayfinder（#77 v8 + #573 v14 子议题关联收敛）
   const nw = reg['newWayfinder']
@@ -1539,10 +1542,11 @@ const selfDigest = function () {
 // #1110：GitLab 房入口转成 TypeScript 后，本文件三份后端源码的路径统一读 index.ts，自摘要一并重算。
 // #1167：共用求值入口 tests/lib/eval-probe.js 转成 TypeScript 后，L2 注入那节的子进程要显式带上装载钩子
 //   （子进程不继承父进程的钩子），否则子进程一启动就找不到那个按 .js 说明符写的模块，自摘要一并重算。
+// #1205：tpl.discuss 收尾再补一条（同 map 子票要知晓规格单），中英各一行断言并钉住行序（挂图行之后、#808 审查行之前），自摘要跟着重算。
 const LOCK = {
   'tests/prompt-gate-exempt.json': 'c661ccd0fbfd46aa99790c073d0ccea89ebf5787a9113462c092b17c72a2a2d9',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.js': '749700710c28fec5353eb6c3ccee7b574bb587f57d7d208d222541e98d02f63e',
+  'tests/verify-prompts.js': '93a99e7fd52b927b46cc41853761c2895d32ab7d7301efa73ec2f9af6cbf2fd7',
 }
 // ---- LOCK-END ----
 
