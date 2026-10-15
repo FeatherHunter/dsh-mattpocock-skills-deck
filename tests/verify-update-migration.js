@@ -33,12 +33,17 @@ async function main() {
   // ---- 0) 版本一致 ----
   const pj = JSON.parse(read('package.json'))
   const expectedRange = pj.dependencies && pj.dependencies['dsh-plugin-update']
-  check(typeof expectedRange === 'string' && /^\^0\.\d+\.0$/.test(expectedRange), '清单依赖更新包是 0.x 范围（实际 ' + expectedRange + '）')
+  check(typeof expectedRange === 'string' && /^\^0\.\d+\.\d+$/.test(expectedRange), '清单依赖更新包是 0.x 范围（实际 ' + expectedRange + '）')
   const pubPj = JSON.parse(read('package/package.json'))
   check(pubPj.dependencies && pubPj.dependencies['dsh-plugin-update'] === expectedRange, '发布清单依赖与根清单同范围（' + expectedRange + '）')
   const installed = JSON.parse(read('node_modules/dsh-plugin-update/package.json')).version
-  const rangeMinor = (expectedRange.match(/^\^0\.(\d+)\.0$/) || [])[1]
-  check(typeof rangeMinor === 'string' && new RegExp('^0\\.' + rangeMinor + '\\.\\d+$').test(installed), '已安装更新包与清单范围同代（范围 ' + expectedRange + '，实际 ' + installed + '）')
+  const rangeMatch = (expectedRange.match(/^\^0\.(\d+)\.(\d+)$/) || [])
+  const rangeMinor = rangeMatch[1]
+  const rangePatch = rangeMatch[2]
+  const instMatch = (String(installed).match(/^0\.(\d+)\.(\d+)$/) || [])
+  // 同代 = 同 minor；补丁号只许比范围新不许比它旧（caret 范围本来就这么允，锁版本只会往前进）。
+  // 上一版这里把范围的补丁写死成 .0，补丁一升级（0.17.0→0.17.1）门禁自己先红，与被测行为无关。
+  check(typeof rangeMinor === 'string' && instMatch[1] === rangeMinor && Number(instMatch[2]) >= Number(rangePatch), '已安装更新包与清单范围同代（范围 ' + expectedRange + '，实际 ' + installed + '）')
   const lock = read('pnpm-lock.yaml')
   check(lock.includes('dsh-plugin-update@' + installed), '锁文件含已安装版本 ' + installed)
   check(!lock.includes('packages/dsh-plugin-update:'), '锁文件无本地旧包登记')

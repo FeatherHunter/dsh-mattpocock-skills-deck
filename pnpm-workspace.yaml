@@ -31,6 +31,7 @@ minimumReleaseAgeExclude:
   - dsh-plugin-update@0.16.1
   - dsh-plugin-update@0.16.2
   - dsh-plugin-update@0.17.0
+  - dsh-plugin-update@0.17.1
 
 packages:
   - 'packages/*'
