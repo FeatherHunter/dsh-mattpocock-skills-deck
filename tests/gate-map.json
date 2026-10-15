@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-15T07:27:19.498Z",
+  "generatedAt": "2026-10-15T07:51:42.587Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 259,
   "gateCount": 259,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 6,
   "smokeLength": 6,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 555,
+  "graphFileCount": 558,
   "gates": [
     {
       "step": "node tests/verify-capability-register.ts",
@@ -7082,9 +7082,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 567,
+    "fileCount": 570,
     "dirCount": 51,
-    "coveredFileCount": 567,
+    "coveredFileCount": 570,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 50,
@@ -7281,6 +7281,7 @@
       "src/client/views/skillDetail/PixelStyles.ts",
       "src/client/views/useIssueDetailFold.js",
       "src/client/views/versionControl/VersionControlTab.js",
+      "src/client/views/versionControl/VersionControlTab.ts",
       "src/client/views/versionControl/vcAiHandoff.js",
       "src/client/views/versionControl/vcBlocks.js",
       "src/client/views/versionControl/vcCache.js",
@@ -7292,6 +7293,7 @@
       "src/client/views/versionControl/vcInView.js",
       "src/client/views/versionControl/vcRows.js",
       "src/client/views/versionControl/vcStyles.js",
+      "src/client/views/versionControl/vcStyles.ts",
       "src/client/views/versionControl/vcTabVisible.js",
       "src/client/views/versionControl/vcText.js",
       "src/client/views/versionControl/vcViews.js",
@@ -7300,6 +7302,7 @@
       "src/client/views/versionControl/vcWriteRun.js",
       "src/client/views/versionControl/vcWriteUi.js",
       "src/client/views/versionControl/vcWriteView.js",
+      "src/client/views/versionControl/vcWriteView.ts",
       "src/deck/registration/agent-row.ts",
       "src/deck/registration/host-assemble.ts",
       "src/deck/registration/host-delegate.ts",

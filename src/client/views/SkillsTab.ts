@@ -10,8 +10,6 @@
  */
 import type { PixelSkillItem } from './pixelProps';
 declare function inject(st: any, name: string): void;
-declare function compute(st: any): any;
-declare function findGroupByIdentity(groups: any, n: number, effort: string): any;
 declare const SKILLS: any[];
 declare function Ic(props?: any): any;
 declare const PixelSkillList: (props?: any) => any;
@@ -21,35 +19,13 @@ declare function pixelRetryDetail(st: any): void;
 export const SkillsTab = ({ st }: any): any => {
       const cx = React.useContext(DswsCtx)
       const h = cx ? cx.h : React.createElement
-      const groups = compute(st)
-      let rec: string[] = []
-      let recTitle = tr('skill.generic')
-      // T4 #554：推荐源取最近的地图祖先（从栈顶往下找第一个地图层）。栈顶是地图时就是它自己，
-      // 与原来读当前地图一致；栈顶是工单（从地图下钻进来）时取把它带进来的那张地图；
-      // 栈里没有地图（纯工单栈或空栈）则置空，回通用推荐。先后经过同一编号不合并，找最近的即可。
-      const recMapNum = (function () {
-        try {
-          if (st && Array.isArray(st.navStack)) {
-            for (let i = st.navStack.length - 1; i >= 0; i--) {
-              const e = st.navStack[i]
-              if (e && e.kind === 'map' && typeof e.n === 'number' && !isNaN(e.n)) return e.n
-            }
-            return null
-          }
-        } catch (e) { /* 读不到就回通用推荐 */ }
-        if (st && st.activeMap !== null && st.activeMap !== undefined) {
-          const v = Number(st.activeMap)
-          if (!isNaN(v)) return v
-        }
-        return null
-      })()
-      if (recMapNum !== null) {
-        const g = findGroupByIdentity(groups, recMapNum, st.activeEffortId || '')
-        if (g && /research/.test(g.m.notes)) rec = ['research']
-        if (g && /grill/.test(g.m.notes)) rec = ['grilling', 'domain-modeling']
-        if (g) recTitle = tr('skill.notes', { m: g.m.title })
-      }
-      if (!rec.length) rec = ['ask-matt']
+      // #1201 方案一：技能页不再读地图导航栈，推荐固定为通用建议加 `/ask-matt`。
+      //   之前这里从导航栈里找最近的地图，找到就把标题换成该地图的标题。
+      //   切页签不会清空导航栈，于是在地图里待过、直接切到技能页，标题会被残留的地图顶掉；
+      //   地图正文里没有推荐关键字时推荐还回落到 `/ask-matt`，只剩标题在变，看着像乱跳。
+      //   地图的要求本来就写在地图正文的 `## Notes` 里，需要时点开地图就能看到，技能页不再代劳。
+      const rec: string[] = ['ask-matt']
+      const recTitle = tr('skill.generic')
       // 组件要的 items：描述走词条（跟随 DSH 语言），推荐行带 recommended 标记（老逻辑：紫色高亮那几行）。
       const items: PixelSkillItem[] = SKILLS.map(function (sk: any) {
         return {

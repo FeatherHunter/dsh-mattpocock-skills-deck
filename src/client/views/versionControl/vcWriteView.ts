@@ -1,5 +1,7 @@
-// views/versionControl/vcWriteView.js —— 写操作的节点画法（#842）
+// views/versionControl/vcWriteView.ts —— 写操作的节点画法（#842）
 // 契约：模块真源（ESM 导出）；构建时剥行首 export 拼回 src/client/index.js 的 leaf 标记处（一源两物）。
+// 本文件由同名 .js 转来（转时只加类型标注与环境声明，行为一字不动）。
+declare function vcAiButtonNode(...args: any[]): any;
 //
 // 把写操作那几处 DOM 从入口组件里搬出来，好让组件那一份守住 350 行。这些函数都只接「画什么」与
 //   几个帮手（h / tone / tipNode / 回调），自己不读状态、不发电话 —— 判定与执行在 vcWrite.js 与 vcWriteOps.js。
@@ -10,15 +12,15 @@
 // #953 中长等待：跑起来的那一颗盖转圈（忙态覆盖层复用 951：文字占位、圈盖上面；
 //   窄按钮只转圈加禁用，不轮阶段文字；行级暂存/撤回不盖——在跑哪个文件模型里没有，只拦重入）。
 //   同文件三个画法共用这一对，跨文件不共用（各叶独立，构建拼接顺序不靠）。
-const vcBusySpinOf = function (h) {
+const vcBusySpinOf = function (h: any) {
   return h('span', { className: 'dsws-spinner', style: { width: 11, height: 11, borderWidth: 2 } })
 }
-const vcBusyClsOf = function (runningOp, op) { return runningOp === op ? ' dsws-fb-busy' : '' }
-const vcBusyKidsOf = function (h, runningOp, op, text) {
+const vcBusyClsOf = function (runningOp: any, op: any) { return runningOp === op ? ' dsws-fb-busy' : '' }
+const vcBusyKidsOf = function (h: any, runningOp: any, op: any, text: any) {
   if (runningOp !== op) return text
   return [h('span', { key: 't', className: 'fb-t', 'aria-hidden': 'true' }, text), h('span', { key: 's', className: 'fb-spin', 'aria-hidden': 'true' }, vcBusySpinOf(h))]
 }
-export const vcRowStageNodes = function (h, o) {
+export const vcRowStageNodes = function (h: any, o: any) {
   const a = o && o.row ? o.row.stageAction : null
   if (!a) return []
   if (a.conflict) {
@@ -27,29 +29,29 @@ export const vcRowStageNodes = function (h, o) {
   if (!a.show) return []
   return [o.tipNode(a.tip, h('button', {
     key: 'stage', className: 'dsws-btn', type: 'button', 'data-vc-stage': 1,
-    onClick: function (e) { try { e.stopPropagation() } catch (err) { /* 忽略 */ } o.stagePaths([a.path]) },
+    onClick: function (e: any) { try { e.stopPropagation() } catch (err) { /* 忽略 */ } o.stagePaths([a.path]) },
     style: { flex: 'none' },
   }, a.text))]
 }
 /** 已暂存行右侧那颗「撤回」（点下去把这一个文件撤回成未暂存，改动本身不动）。 */
-export const vcRowUnstageNodes = function (h, o) {
+export const vcRowUnstageNodes = function (h: any, o: any) {
   const a = o && o.row ? o.row.unstageAction : null
   if (!a || a.show !== true) return []
   return [o.tipNode(a.tip, h('button', {
     key: 'unstage', className: 'dsws-btn', type: 'button', 'data-vc-unstage': 1,
-    onClick: function (e) { try { e.stopPropagation() } catch (err) { /* 忽略 */ } o.unstagePaths([a.path]) },
+    onClick: function (e: any) { try { e.stopPropagation() } catch (err) { /* 忽略 */ } o.unstagePaths([a.path]) },
     style: { flex: 'none' },
   }, a.text))]
 }
 
 /** 身份行右侧那三颗（拉取 / 更新 / 推送）：拉取与推送的文字走折叠阶梯，更新二字极短不折叠，完整文字都在悬停里。 */
-export const vcActionsNode = function (h, o) {
+export const vcActionsNode = function (h: any, o: any) {
   const a = o && o.actions
   if (!a) return null
-  const label = function (key, full) { return (o.foldActions && o.foldActions[key]) || full }
+  const label = function (key: any, full: any) { return (o.foldActions && o.foldActions[key]) || full }
   // #976：禁用与警告的理由一定有常驻文字，不只放悬停。提示行可聚焦，键盘与触屏都能读到。
-  const hintOf = function (op) { return String((a[op] && (a[op].hint || a[op].tip)) || '') }
-  const hintNode = function (op) {
+  const hintOf = function (op: any) { return String((a[op] && (a[op].hint || a[op].tip)) || '') }
+  const hintNode = function (op: any) {
     const text = hintOf(op)
     if (!text) return null
     return h('div', { key: 'hint-' + op, 'data-vc-action-hint': op, tabIndex: 0, style: { fontSize: 11, marginTop: 2 } }, text)
@@ -67,7 +69,7 @@ export const vcActionsNode = function (h, o) {
 }
 
 /** changes 标题行右侧那颗「全部暂存」（未暂存计数 > 0 才出现）。 */
-export const vcStageAllNode = function (h, o) {
+export const vcStageAllNode = function (h: any, o: any) {
   const s = o && o.stageAll
   if (!s || s.show !== true) return null
   return o.tipNode(s.tip, h('button', {
@@ -77,13 +79,13 @@ export const vcStageAllNode = function (h, o) {
 }
 
 /** changes 块底部的提交区（输入框 + 按钮 + 一句说明）。 */
-export const vcCommitAreaNode = function (h, o) {
+export const vcCommitAreaNode = function (h: any, o: any) {
   const c = o && o.commitArea
   if (!c) return null
   return h('div', { key: 'commitArea', 'data-vc-commit-area': 1, style: { marginTop: 8, borderTop: '1px solid var(--vc-line,#2a2d35)', paddingTop: 6, display: 'flex', flexDirection: 'column', gap: 4 } }, [
     h('input', {
       key: 'input', type: 'text', value: c.value, placeholder: c.placeholder, 'data-vc-commit-msg': 1,
-      onChange: function (e) { o.writeMessageOf(e && e.target ? e.target.value : '') },
+      onChange: function (e: any) { o.writeMessageOf(e && e.target ? e.target.value : '') },
       style: { boxSizing: 'border-box', width: '100%' },
     }),
     h('div', { key: 'row', style: { display: 'flex', gap: 6, alignItems: 'center' } }, [
@@ -98,13 +100,13 @@ export const vcCommitAreaNode = function (h, o) {
 
 /** 改动视图顶部的视图条（854 布局 C 原型的 viewbar）：虚线框里横排提交动作 inline 输入与提交按钮。
  *  入参复用 changes 块那两份模型（stageAll 与 commitArea），行为与底部提交区完全一致，只是换了位置。 */
-export const vcViewBarNode = function (h, o) {
+export const vcViewBarNode = function (h: any, o: any) {
   const c = o && o.commitArea
   if (!c) return null
   const s = o && o.stageAll
   // 根上同时挂提交区钩子：视图条就是提交区的新位置，门禁按这个钩子断言输入框与按钮在。
   const a = o && o.actions
-  const label = function (key, full) { return (o.foldActions && o.foldActions[key]) || full }
+  const label = function (key: any, full: any) { return (o.foldActions && o.foldActions[key]) || full }
   return h('div', { key: 'viewbar', className: 'dsws-vc-viewbar', 'data-vc-viewbar': 1, 'data-vc-commit-area': 1 }, [
     h('div', { key: 'lbl', className: 'dsws-vc-viewbar-lbl', style: { marginBottom: 1 } }, o.t('vc.viewbar.submit')),
     h('div', { key: 'acts', className: 'dsws-vc-viewbar-row' }, [
@@ -124,7 +126,7 @@ export const vcViewBarNode = function (h, o) {
     h('div', { key: 'row', className: 'dsws-vc-viewbar-row' }, [
       h('input', {
         key: 'input', type: 'text', value: c.value, placeholder: c.placeholder, 'data-vc-commit-msg': 1,
-        onChange: function (e) { o.writeMessageOf(e && e.target ? e.target.value : '') },
+        onChange: function (e: any) { o.writeMessageOf(e && e.target ? e.target.value : '') },
         style: { flex: 1, minWidth: 120 },
       }),
       o.tipNode(c.tip || c.text, h('button', {
@@ -138,7 +140,7 @@ export const vcViewBarNode = function (h, o) {
 /** 三块尾巴：执行中那一句、上一次结果、确认框（都在块清单之外，不新增块）。
  *  入参是 **vcWriteUiOf 的模型**（不是 ops.writeState 的原始形状）：confirm 的标题/正文/主按钮文字、result 的
  *  主句/limit 句/动作词都已经翻成词条。传原始形状会让确认框变空框、横幅露出键名 —— #842 视觉预览 V1/V2 的根因。 */
-export const vcWriteTailNodes = function (h, o) {
+export const vcWriteTailNodes = function (h: any, o: any) {
   const w = (o && o.writeUi) || {}
   const running = w.running ? h('div', { key: 'running', 'data-vc-running': w.running, style: { fontSize: 11, color: o.tone('accent') } }, w.runningText || o.tr('vc.op.running')) : null
   const result = w.result
@@ -168,7 +170,7 @@ export const vcWriteTailNodes = function (h, o) {
         c.warnText ? h('div', { key: 'warn', 'data-vc-confirm-warn': 1, tabIndex: 0, style: { fontSize: 11, lineHeight: 1.6 } }, c.warnText) : null,
         c.ttlText ? h('div', { key: 'ttl', 'data-vc-confirm-ttl': 1, style: { fontSize: 11, color: o.tone('caption') } }, c.ttlText) : null,
         c.pickRemote && c.remotes.length
-          ? h('select', { key: 'pick', 'data-vc-remote-pick': 1, value: c.remote || 'origin', onChange: function (e) { o.pickRemote(e && e.target ? e.target.value : '') }, style: { fontSize: 11, padding: '2px 6px', borderRadius: 6, border: '1px solid var(--vc-line2,#3a3f4a)', background: 'var(--vc-inset,#0c0e12)', color: 'var(--vc-ink,#e6edf3)' } }, c.remotes.map(function (r) { return h('option', { key: r, value: r }, r) }))
+          ? h('select', { key: 'pick', 'data-vc-remote-pick': 1, value: c.remote || 'origin', onChange: function (e: any) { o.pickRemote(e && e.target ? e.target.value : '') }, style: { fontSize: 11, padding: '2px 6px', borderRadius: 6, border: '1px solid var(--vc-line2,#3a3f4a)', background: 'var(--vc-inset,#0c0e12)', color: 'var(--vc-ink,#e6edf3)' } }, c.remotes.map(function (r: any) { return h('option', { key: r, value: r }, r) }))
           : null,
         h('div', { key: 'buttons', style: { display: 'flex', gap: 6, justifyContent: 'flex-end' } }, [
           h('button', { key: 'cancel', className: 'dsws-btn ghost', type: 'button', 'data-vc-confirm-cancel': 1, onClick: o.cancelConfirm, style: {} }, o.tr('vc.confirm.cancel')),
@@ -183,7 +185,7 @@ export const vcWriteTailNodes = function (h, o) {
     ? h('div', { key: 'remoteChoice', 'data-vc-remote-choice': 1, 'data-vc-popover': 1, style: { position: 'absolute', zIndex: 30, top: 0, left: 0, width: 360, maxWidth: 'calc(100% - 16px)', minWidth: 280, marginTop: 0, border: '1px solid var(--vc-line2)', borderRadius: 'var(--vc-radius,4px)', padding: 12, background: 'var(--vc-elevated,#1a2438)', boxShadow: '0 8px 30px rgba(0,0,0,.45)', display: 'flex', flexDirection: 'column', gap: 6 } }, [
         h('div', { key: 'title', style: { fontSize: 12, fontWeight: 700, color: o.tone('primary') } }, rc.title),
         h('div', { key: 'body', 'data-vc-remote-choice-body': 1, style: { fontSize: 11, color: o.tone('caption'), lineHeight: 1.6 } }, rc.body),
-        h('div', { key: 'list', style: { display: 'flex', gap: 6, flexWrap: 'wrap' } }, rc.remotes.map(function (name) {
+        h('div', { key: 'list', style: { display: 'flex', gap: 6, flexWrap: 'wrap' } }, rc.remotes.map(function (name: any) {
           return h('button', { key: name, className: 'dsws-btn', type: 'button', 'data-vc-remote': name, onClick: function () { o.pickRemote(name) }, style: {} }, name)
         })),
       ])

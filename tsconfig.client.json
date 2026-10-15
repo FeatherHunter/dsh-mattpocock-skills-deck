@@ -28,6 +28,7 @@
     "src/client/views/skillDetail/*.ts",
     "src/client/views/cards/cardProps.d.ts",
     "src/client/views/cards/*.ts",
+    "src/client/views/versionControl/*.ts",
     "src/client/kernel/**/*.ts"
   ]
 }

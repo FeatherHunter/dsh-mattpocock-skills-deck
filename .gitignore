@@ -66,6 +66,10 @@ _research/
 # #1145：详情页两文件由手写 .js 转成 .ts，同名 .js 从此是构建产物（真源是同名 .ts）。
 /src/client/views/IssueDetail.js
 /src/client/views/IssueDetailComments.js
+# #1196：版本管理页三文件由手写 .js 转成 .ts，同名 .js 从此是构建产物（真源是同名 .ts）。
+/src/client/views/versionControl/VersionControlTab.js
+/src/client/views/versionControl/vcStyles.js
+/src/client/views/versionControl/vcWriteView.js
 /src/client/views/SkillsTab.js
 /src/client/views/pixel/
 /src/client/views/skillDetail/

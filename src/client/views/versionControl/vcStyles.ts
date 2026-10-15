@@ -1,6 +1,7 @@
 /**
- * src/client/views/versionControl/vcStyles.js — 版本管理页签的皮肤（#853：深色 A 工程台账 / 浅色 C 纸质便签）
+ * src/client/views/versionControl/vcStyles.ts — 版本管理页签的皮肤（#853：深色 A 工程台账 / 浅色 C 纸质便签）
  *
+ * 本文件由同名 .js 转来（转时只加类型标注与环境声明，行为一字不动）。
  * 契约：本文件是一段 CSS 文本（ESM 导出）；scripts/build.mjs 去掉行首 export 后拼进 src/client/index.js
  *   的拼接标记处，与 kernel/styles.js 同一套做法（一源两物）。注入仍走同一个 styles.insert 接缝
  *   （index.js 里紧接着再 insert 一次），没有第二个 <style>，也没有新的注入机制。
@@ -174,7 +175,7 @@ export const VC_STYLE_TEXT = [
 ].join('')
 // 一键换肤的两个小函数（只包属性读写，不碰样式表；面板里不提供开关，验收与调试时在控制台调用）。
 // 用法：vcSetTheme('light') 强制纸面皮肤，vcSetTheme('dark') 强制台账皮肤，vcClearTheme() 恢复跟随宿主。
-export const vcSetTheme = function (theme) {
+export const vcSetTheme = function (theme: any) {
   try {
     const root = typeof document !== 'undefined' ? document.querySelector('[data-vc-root]') : null
     if (!root) return theme

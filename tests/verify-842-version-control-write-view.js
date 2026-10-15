@@ -180,6 +180,10 @@ const EXPORTS = [
   'vcWriteUiOf',
 ]
 function stripExports(text) { return text.replace(/^(\s*)export\s+/gm, '$1') }
+// 种子注入的匹配口（#1196 转 TS 时发现的耦合）：门禁按源码文本往闭包里注种子，手写 .js 与构建
+//   生成的双生 .js（esbuild 重排了空格、引号与换行）两种写法都认。只换匹配方式，不断言含义。
+const VC_SEED_RE = /React\.useState\(function\s*\(\)\s*\{\s*return vcCacheSeedOf\(cwd\) \|\| vcNewReads\(\)\s*;?\s*\}\)/
+const VC_WRITE_INIT_RE = /write:\s*\{\s*op:\s*["']{2},\s*state:\s*["']idle["'],\s*message:\s*["']{2},\s*confirm:\s*null,\s*result:\s*null,\s*remoteChoice:\s*null\s*\}/
 function buildView(patch, React, DswsCtx, Tip, Ic, seedReads, logs, trFn, exportsList) {
   let src = VC_FILES.map((f) => stripExports(read(f))).join('\n')
   if (patch) src = patch(src)
@@ -252,7 +256,7 @@ const flush = async function (n) { for (let i = 0; i < (n || 6); i++) await tick
 // ============================================================
 function renderTab(React, DswsCtx, TipStub, IcStub, seedReads, patch) {
   const seeded = buildView(function (s) {
-    const out = s.replace('React.useState(function () { return vcCacheSeedOf(cwd) || vcNewReads() })', 'React.useState(function () { return seedReads })')
+    const out = s.replace(VC_SEED_RE, 'React.useState(function () { return seedReads })')
     return patch ? patch(out) : out
   }, React, DswsCtx, TipStub, IcStub, seedReads, [], trZh)
   try {
@@ -310,7 +314,7 @@ function groupA(view, React, DswsCtx, TipStub, IcStub) {
   const choiceUi = uiOf({ write: { op: '', state: 'idle', message: '', confirm: null, result: null, remoteChoice: { show: true, remotes: ['origin', 'mirror'], hint: '' } } })
   const choiceModel = view.vcWriteUiOf(screen, choiceUi, { t: trZh, nowMs: NOW, decisions: decisionsOf(view, screen) })
   const choiceHtml = renderTab(React, DswsCtx, TipStub, IcStub, reads, function (s) {
-    return s.replace("write: { op: '', state: 'idle', message: '', confirm: null, result: null, remoteChoice: null }", "write: { op: '', state: 'idle', message: '', confirm: null, result: null, remoteChoice: { show: true, remotes: ['origin', 'mirror'], hint: '' } }")
+    return s.replace(VC_WRITE_INIT_RE, "write: { op: '', state: 'idle', message: '', confirm: null, result: null, remoteChoice: { show: true, remotes: ['origin', 'mirror'], hint: '' } }")
   }).html
   const a6 = !!(choiceModel.remoteChoice && choiceModel.remoteChoice.remotes.join(',') === 'origin,mirror') && choiceHtml.indexOf('data-vc-remote-choice') >= 0 && choiceHtml.indexOf('data-vc-remote="origin"') >= 0 && choiceHtml.indexOf('data-vc-remote="mirror"') >= 0
   check(a6, 'A6 多远端 + 没有上游：界面上有一排可点的远端入口（模型 ' + JSON.stringify(choiceModel.remoteChoice && choiceModel.remoteChoice.remotes) + '，DOM ' + (choiceHtml.indexOf('data-vc-remote-choice') >= 0) + '）')
@@ -620,7 +624,7 @@ async function groupG(view) {
 function writePresetHtml(React, DswsCtx, TipStub, IcStub, screen, write) {
   const preset = JSON.stringify(write)
   return renderTab(React, DswsCtx, TipStub, IcStub, readsOf(screen), function (s) {
-    return s.replace("view: vcRememberedView(), write: { op: '', state: 'idle', message: '', confirm: null, result: null, remoteChoice: null } }", "view: vcRememberedView(), write: " + preset + " }")
+    return s.replace(VC_WRITE_INIT_RE, "write: " + preset)
   })
 }
 function domText(html) {
@@ -703,10 +707,10 @@ function groupJ(React, DswsCtx, TipStub, IcStub) {
     paths.forEach(function (p2) { diffs[p2] = { state: 'ok', lines: [{ kind: 'add', text: '+新行' }], reason: 'ok', truncated: false, error: null } })
     return Object.assign({}, readsOf(screen), { diffs: diffs })
   }
-  const uiSeed = "openDiff: '', openCommit: '', view:"
+  const uiSeed = /openDiff:\s*["']{2},\s*openCommit:\s*["']{2},\s*view:/
   const renderOpen = function (key, reads, patchExtra) {
     const v = buildView(function (s) {
-      let out = s.replace('React.useState(function () { return vcCacheSeedOf(cwd) || vcNewReads() })', 'React.useState(function () { return seedReads })')
+      let out = s.replace(VC_SEED_RE, 'React.useState(function () { return seedReads })')
       out = out.replace(uiSeed, 'openDiff: ' + JSON.stringify(key) + ", openCommit: '', view:")
       return patchExtra ? patchExtra(out) : out
     }, React, DswsCtx, TipStub, IcStub, reads, [], trZh)
@@ -768,7 +772,7 @@ function groupL(view, React, DswsCtx, TipStub, IcStub) {
   })
   const render = function (patch) {
     const v = buildView(function (s) {
-      let out = s.replace('React.useState(function () { return vcCacheSeedOf(cwd) || vcNewReads() })', 'React.useState(function () { return seedReads })')
+      let out = s.replace(VC_SEED_RE, 'React.useState(function () { return seedReads })')
       return patch ? patch(out) : out
     }, React, DswsCtx, TipStub, IcStub, readsOf(screen), [], trZh)
     try { return require('react-dom/server').renderToStaticMarkup(React.createElement(v.VersionControlTab, { st: { cwd: 'D:/w/repo' } })) } catch (e) { return '' }

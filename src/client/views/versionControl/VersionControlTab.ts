@@ -1,6 +1,61 @@
-// views/versionControl/VersionControlTab.js — 「版本管理」页签的内容区（#818 的入口组件）
+// views/versionControl/VersionControlTab.ts — 「版本管理」页签的内容区（#818 的入口组件）
 // 契约：模块真源（ESM 导出）；scripts/build.mjs 构建时剥行首 export 拼回 src/client/index.js
 //   的 leaf 标记处（一源两物）。壳层（panel/Dock.js）按 h(VersionControlTab, { st, narrow }) 调它。
+// 本文件由同名 .js 转来（转时只加类型标注与环境声明，行为一字不动）。
+// 下面是闭包里别的叶子给的能力（构建按 build.mjs 的次序拼进同一个函数作用域，真机上有值）：
+//   类型检查时各文件独立看，所以这里按「只声明形状、不参与转译」逐个声明，行为以真机闭包为准。
+declare function vcAiButtonNode(...args: any[]): any;
+declare function vcAiHandoffOf(...args: any[]): any;
+declare function vcApplyCommitFileDiffReply(...args: any[]): any;
+declare function vcApplyCommitReply(...args: any[]): any;
+declare function vcApplyDiffReply(...args: any[]): any;
+declare function vcBlocksOf(...args: any[]): any;
+declare function vcCacheSave(...args: any[]): any;
+declare function vcCacheSeedOf(...args: any[]): any;
+declare function vcCommitSkelNodes(...args: any[]): any;
+declare function vcDiffOpenKeyOf(...args: any[]): any;
+declare function vcDiffOpsOf(...args: any[]): any;
+declare function vcFoldDataOf(...args: any[]): any;
+declare const VC_FOLD_BANDS: any;
+declare const Tip: any;
+declare function openTextInNewSession(...args: any[]): any;
+declare function vcFoldOf(...args: any[]): any;
+declare function vcFoldStateAt(...args: any[]): any;
+declare function vcFreshOnCwd(...args: any[]): any;
+declare function vcMarkCommitFileDiffLoading(...args: any[]): any;
+declare function vcMarkCommitLoading(...args: any[]): any;
+declare function vcMarkDiffLoading(...args: any[]): any;
+declare function vcMarkLogLoading(...args: any[]): any;
+declare function vcMoreShownOf(...args: any[]): any;
+declare function vcMoreStateOf(...args: any[]): any;
+declare function vcNewReads(...args: any[]): any;
+declare function vcNextSkipOf(...args: any[]): any;
+declare function vcOpenAiHandoff(...args: any[]): any;
+declare function vcPickViewStateOf(...args: any[]): any;
+declare function vcReadCommitFileDiff(...args: any[]): any;
+declare function vcReadCommitFiles(...args: any[]): any;
+declare function vcReadDiff(...args: any[]): any;
+declare function vcReadMoreCommits(...args: any[]): any;
+declare function vcReadsOf(...args: any[]): any;
+declare function vcReadStatus(...args: any[]): any;
+declare function vcRememberedView(...args: any[]): any;
+declare function vcRememberView(...args: any[]): any;
+declare function vcResetViewMemory(...args: any[]): any;
+declare function vcRowStageNodes(...args: any[]): any;
+declare function vcRowUnstageNodes(...args: any[]): any;
+declare function vcShouldRead(...args: any[]): any;
+declare function vcStatsNode(...args: any[]): any;
+declare function vcStatsOf(...args: any[]): any;
+declare function vcUseMoreSightOf(...args: any[]): any;
+declare function vcViewBarNode(...args: any[]): any;
+declare function vcViewBlocksOf(...args: any[]): any;
+declare function vcViewCountsOf(...args: any[]): any;
+declare function vcViewOf(...args: any[]): any;
+declare function vcViewSkelNode(...args: any[]): any;
+declare function vcViewTabsNode(...args: any[]): any;
+declare function vcWriteOpsOf(...args: any[]): any;
+declare function vcWriteTailNodes(...args: any[]): any;
+declare function vcWriteUiOf(...args: any[]): any;
 //
 // 这一层只做三件事：把宽度与展开状态收起来、按 vcFold.js 的阶梯算该画什么、把 vcBlocks.js 给的
 //   块清单画成 DOM。所有判定与措辞都在那两个纯函数文件里，这里一个中文字面量都没有。
@@ -9,8 +64,9 @@
 //   纯规则层只给「success / warning / error / accent / caption / primary」这几个色档名。
 // 定时器：一个都没有（既不自续也不排一次性）；宽度靠 ResizeObserver，「还能显示更多」那几处统一走
 //   vcInView.js 的观察器（改动页每组 / 工作树页 / 提交历史页），都在卸载时断开（#709 的不变量照旧）。
-export const VC_TONE = {
+export const VC_TONE: Record<string, string> = {
   // #853：这六个色档改指本页的皮肤令牌，不再吃宿主那一套 —— 换肤就换这一处。
+  //   注明 Record<string, string> 只为过类型检查（tone() 拿变量取值），转译后与原来一字不差。
   success: 'var(--vc-accent,#22c55e)',
   warning: 'var(--vc-warn,#f59e0b)',
   error: 'var(--vc-danger,#ef4444)',
@@ -18,7 +74,7 @@ export const VC_TONE = {
   caption: 'var(--vc-mut,#94a3b8)',
   primary: 'var(--vc-ink,#e6edf3)',
 }
-export const VersionControlTab = function (props) {
+export const VersionControlTab = function (props: any) {
   // 壳层还传了 narrow（面板窄于 380 的那一档），本页签不读它：这一页的让位按自己量到的
   //   可用宽度走（vcFold.js 那条阶梯），比整面板一个布尔更准；留着这个入参是为了与壳层调用形状一致。
   const cx = React.useContext(DswsCtx)
@@ -57,11 +113,11 @@ export const VersionControlTab = function (props) {
   }
   const readsRef = React.useRef(reads)
   readsRef.current = reads
-  const callHost = function (method, args) {
+  const callHost = function (method: any, args: any) {
     if (typeof host === 'undefined' || !host || typeof host.call !== 'function') return Promise.resolve({ ok: false, error: { kind: 'shape', message: '' } })
     return host.call(method, args)
   }
-  const screenOf = function (r) { return (r && r.screen && r.screen.data) ? r.screen.data.screen : null }
+  const screenOf = function (r: any) { return (r && r.screen && r.screen.data) ? r.screen.data.screen : null }
   // 空 cwd 一律不读：宿主对空串会退回它自己的默认目录，那样画出来的是插件自己那个仓库的数据。
   const cwdEmpty = !vcShouldRead(cwd)
   // 面板每次切进这个页签都会重新挂载，所以这一次就是规格说的「面板打开」那一次读取。
@@ -69,14 +125,14 @@ export const VersionControlTab = function (props) {
     if (!cwd) return
     let alive = true
     // 复位那一帧 setReads 已经把读数清空了；这里从清空后的读数起读，绝不把上一个工作区的旧数据带进来。
-    vcReadStatus(staleCwd ? vcNewReads() : readsRef.current, callHost, cwd).then(function (next) { if (alive) { setReads(next); vcCacheSave(cwd, next) } })
+    vcReadStatus(staleCwd ? vcNewReads() : readsRef.current, callHost, cwd).then(function (next: any) { if (alive) { setReads(next); vcCacheSave(cwd, next) } })
     return function () { alive = false }
   }, [cwd])
   // 宽度：量的是本页签自己的内容宽（Dock 的内容区左右各 12 像素内边距已经在外面扣掉了）。
   React.useEffect(function () {
     const el = rootRef.current
     if (!el || typeof ResizeObserver === 'undefined') return
-    const ro = new ResizeObserver(function (entries) {
+    const ro = new ResizeObserver(function (entries: any) {
       try {
         const w = Math.round(entries[0].contentRect.width)
         // 只有宽度真的变了才把档号归零重走一遍：同一个宽度被反复回调时也归零，会让某一档来回切
@@ -123,7 +179,7 @@ export const VersionControlTab = function (props) {
     logBusyRef.current = true
     setReads(vcMarkLogLoading(readsRef.current))
     const skip = vcNextSkipOf(screenOf(readsRef.current), readsRef.current.log)
-    vcReadMoreCommits(readsRef.current, callHost, cwd, skip).then(function (next) {
+    vcReadMoreCommits(readsRef.current, callHost, cwd, skip).then(function (next: any) {
       logBusyRef.current = false
       setReads(next)
       vcCacheSave(cwd, next)
@@ -132,13 +188,13 @@ export const VersionControlTab = function (props) {
   }
   // 「还能显示更多」那三处（改动页每组、工作树页、提交历史页）统一走 vcInView.js 那套接线：这句话进入视野
   //   就接着显示下一批、显示完再判一次，直到它离开视野或没有更多；失败态不自动重试（#997）。
-  const drawMore = function (key) {
+  const drawMore = function (key: any) {
     if (key === 'commits') return loadMore()
     vcMoreShownOf(setUi, key)
     return true
   }
   const moreSight = vcUseMoreSightOf({
-    stateOf: function (key) { return moreStateRef.current[key] },
+    stateOf: function (key: any) { return moreStateRef.current[key] },
     draw: drawMore,
   })
   const blocks = vcBlocksOf(screen, reads, ui, { t: tr, nowMs: Date.now(), cwdEmpty: cwdEmpty, decisions: decisions, fold: Object.assign({}, fold, { state: foldState }) })
@@ -147,12 +203,12 @@ export const VersionControlTab = function (props) {
   // 接线那边在观察回调里读「这一处还有没有没显示的」：每帧从刚算好的块清单里抽一次（判定仍是纯函数）。
   moreStateRef.current = vcMoreStateOf(blocks, reads)
 
-  const tone = function (name) { return VC_TONE[name] || VC_TONE.primary }
-  const retryScreen = function () { vcReadStatus(readsRef.current, callHost, cwd).then(function (next) { setReads(next); vcCacheSave(cwd, next) }) }
+  const tone = function (name: any) { return VC_TONE[name] || VC_TONE.primary }
+  const retryScreen = function () { vcReadStatus(readsRef.current, callHost, cwd).then(function (next: any) { setReads(next); vcCacheSave(cwd, next) }) }
   // #853 第三步：视图切换只改 ui.view（函数式更新，不会顶掉同期别的 setUi）；选择跨挂载记住，换工作区复位。
-  const pickView = function (v) { vcRememberView(v); setUi(function (cur) { return vcPickViewStateOf(cur, v) }) }
+  const pickView = function (v: any) { vcRememberView(v); setUi(function (cur: any) { return vcPickViewStateOf(cur, v) }) }
   // #854：面板解决不了的事 —— 一个按钮把当前问题写成 prompt 交给 AI（预填不发送，尾部留白让人补话）。
-  const openHandoff = function (ai) { const handoff = vcAiHandoffOf({ ai: ai, t: tr, screen: screen }); if (handoff) vcOpenAiHandoff({ opener: (typeof openTextInNewSession === 'function') ? openTextInNewSession : null, st: st, handoff: handoff }) }
+  const openHandoff = function (ai: any) { const handoff = vcAiHandoffOf({ ai: ai, t: tr, screen: screen }); if (handoff) vcOpenAiHandoff({ opener: (typeof openTextInNewSession === 'function') ? openTextInNewSession : null, st: st, handoff: handoff }) }
   // 就地看差异：展开键与块模型侧共用同一个函数（#850）—— 未提交那一层是「分组 + 路径」（同一个文件在两组各一行时各自展开），
   //   提交那一层是「修订号 + 路径」（同一个文件在两处的补丁是两回事）。原来这里只按路径，点开时与块模型对不上，补丁块永远不画。
   // #857：差异与提交那几路的动作抽到 vcDiffOps.js（读、发、回包落地前的两道闸、同键在途不重复发）。
@@ -168,9 +224,9 @@ export const VersionControlTab = function (props) {
   const reloadNow = function () { retryScreen() }
   // 悬停包裹层要把孩子的 key 带过去：不带的话，凡是用 tipNode 包过的元素在数组里都会触发
   //   React 的「Each child in a list should have a unique key prop」警告（#842 视觉预览顺手修）。
-  const tipNode = function (content, child) { return content ? h(Tip, { key: child && child.key !== undefined ? child.key : undefined, content: content }, child) : child }
-  const button = function (label, onClick) { return h('button', { className: 'dsws-btn', type: 'button', onClick: onClick, style: { flex: 'none' } }, label) }
-  const diffLine = function (l, i) {
+  const tipNode = function (content: any, child: any) { return content ? h(Tip, { key: child && child.key !== undefined ? child.key : undefined, content: content }, child) : child }
+  const button = function (label: any, onClick: any) { return h('button', { className: 'dsws-btn', type: 'button', onClick: onClick, style: { flex: 'none' } }, label) }
+  const diffLine = function (l: any, i: any) {
     const kind = l && l.kind ? String(l.kind) : 'context'
     const raw = l && l.text !== undefined ? String(l.text) : ''
     let body = raw
@@ -182,7 +238,7 @@ export const VersionControlTab = function (props) {
     else if (kind === 'filehead') { col = tone('caption') }
     return h('div', { key: i, 'data-vc-line': kind, style: { color: col, whiteSpace: 'pre-wrap', wordBreak: 'break-all' } }, body)
   }
-  const diffNode = function (row) {
+  const diffNode = function (row: any) {
     const d = row.diff
     if (!d) return null
     // #857 P6：读取中的差异画骨架条，不画一句会跳动的文字；失败那一支照旧给正文与重试。
@@ -198,12 +254,12 @@ export const VersionControlTab = function (props) {
       // 这一处差异指的是哪一段（未提交那一层写清「相对上一次提交的全部改动」）：
       //   不写清，用户会把「已暂存」组里点开的差异当成「将要提交的那一部分」。
       d.scopeText ? h('div', { key: 'scope', 'data-vc-scope': 1, style: { color: tone('caption'), marginBottom: 4, fontFamily: 'inherit', whiteSpace: 'normal' } }, d.scopeText) : null,
-      d.hunks.length ? h('div', { key: 'hunks', 'data-vc-hunks': 1, style: { marginBottom: 4 } }, [h('div', { key: 'title', style: { color: tone('caption') } }, d.hunksTitle)].concat(d.hunks.map(function (s, i) { return h('div', { key: i, style: { color: tone('accent') } }, s) }))) : null,
+      d.hunks.length ? h('div', { key: 'hunks', 'data-vc-hunks': 1, style: { marginBottom: 4 } }, [h('div', { key: 'title', style: { color: tone('caption') } }, d.hunksTitle)].concat(d.hunks.map(function (s: any, i: any) { return h('div', { key: i, style: { color: tone('accent') } }, s) }))) : null,
       d.lines.map(diffLine),
       d.shownNote ? h('div', { key: 'note', style: { color: tone('caption'), marginTop: 4 } }, d.shownNote) : null,
     ])
   }
-  const fileRow = function (row) {
+  const fileRow = function (row: any) {
     const open = ui.openDiff === diffKeyOf(row)
     // #851：字母徽章只在极窄档让位（门槛取折叠阶梯最后一档 300px，也就是组件跳到收尾档的那一档）——
     //   那一档里路径与计数优先，中文状态词仍在，字母只是冗余的视觉标记。
@@ -229,7 +285,7 @@ export const VersionControlTab = function (props) {
       diffNode(row),
     ])
   }
-  const groupNode = function (g) {
+  const groupNode = function (g: any) {
     return h('div', { key: g.key, 'data-vc-group': g.key }, [
       // #851 ⑤：分段小标题（原型 C 的 ix-sec）——小字、拉开字距、下压一条细分隔线；文字照旧是既有词条。
       tipNode(g.tip, h('div', { key: 'title', className: 'dsws-vc-sec', style: { display: 'flex', alignItems: 'center', gap: 6 } }, g.title)),
@@ -237,7 +293,7 @@ export const VersionControlTab = function (props) {
       g.moreCount > 0 ? h('div', { key: 'more', ref: moreSight.refOf(g.key), className: 'dsws-vc-link', onClick: function () { drawMore(g.key) }, style: { padding: '3px 0', color: tone('accent'), cursor: 'pointer' } }, g.moreLabel) : null,
     ])
   }
-  const node = function (b) {
+  const node = function (b: any) {
     if (b.kind === 'hint') return h('div', { key: b.key, 'data-vc-hint': 1, style: { display: 'flex', gap: 6, alignItems: 'center', color: tone(b.tone), background: 'var(--vc-inset,#16181d)', borderRadius: 'var(--vc-radius,6px)', padding: '4px 8px' } }, [h('span', { key: 'text', style: { flex: 1 } }, b.text), b.retry ? h('span', { key: 'retry', style: { display: 'contents' } }, button(b.retry, retryScreen)) : null])
     if (b.kind === 'error') return h('div', { key: b.key, 'data-vc-error': 1, style: { border: '1px dashed var(--vc-line2,#3a3f4a)', borderRadius: 'calc(var(--vc-radius,2px) * 2)', padding: '18px 14px', textAlign: 'center', fontSize: 12, color: tone(b.tone) } }, [
       // 可见正文只有一句按种类映射出来的词条句；宿主原话（中文）只进悬停，英文界面上不会串出中文。
@@ -246,7 +302,7 @@ export const VersionControlTab = function (props) {
       b.retry ? h('div', { key: 'retry', style: { marginTop: 10 } }, button(b.retry, retryScreen)) : null,
       b.ai ? h('div', { key: 'aibtn', style: { marginTop: 10 } }, vcAiButtonNode(h, { ai: b.ai, tr: tr, onOpen: openHandoff })) : null,
     ])
-    if (b.kind === 'band') return h('div', { key: b.key, 'data-vc-band': 1, style: { display: 'flex', flexDirection: 'column', gap: 4 } }, b.items.map(function (it, i) {
+    if (b.kind === 'band') return h('div', { key: b.key, 'data-vc-band': 1, style: { display: 'flex', flexDirection: 'column', gap: 4 } }, b.items.map(function (it: any, i: any) {
       // 提示带按 854 原型画：左侧 3px 语气色条加标记，主句加粗，正文第二行，交接按钮右置。
       return h('div', { key: i, 'data-vc-band-item': it.key, style: { display: 'flex', gap: 9, alignItems: 'flex-start', color: tone(it.tone), background: 'var(--vc-inset,#16181d)', border: '1px solid var(--vc-line,#2a2d35)', borderLeft: '3px solid ' + tone(it.tone), borderRadius: 'var(--vc-radius,6px)', padding: '9px 11px', lineHeight: 1.6 } }, [it.tone === 'caption' ? null : h('span', { key: 'mark', style: { flex: 'none', fontWeight: 800, fontSize: 11, paddingTop: 1 } }, '!'), h('div', { key: 'main', style: { flex: 1, minWidth: 0 } }, [tipNode(it.tip, h('span', { key: 'text', style: { fontWeight: 650 } }, it.text)), it.tip ? h('div', { key: 'body', style: { color: tone('caption'), marginTop: 2 } }, it.tip) : null]), it.ai ? h('span', { key: 'ai', style: { flex: 'none', marginLeft: 6 } }, vcAiButtonNode(h, { ai: it.ai, tr: tr, onOpen: openHandoff })) : null])
     }))
@@ -290,7 +346,7 @@ export const VersionControlTab = function (props) {
       h('div', { key: 'title', className: 'dsws-vc-sec', style: { color: tone('primary') } }, b.title),
       b.collapsed ? h('div', { key: 'collapsed', className: 'dsws-vc-caption', style: { marginTop: 2 } }, b.collapseText) : null,
       b.empty && !b.collapsed ? h('div', { key: 'empty', className: 'dsws-vc-empty', style: { color: tone('caption'), marginTop: 2, textAlign: 'center' } }, b.emptyText) : null,
-      b.rows.map(function (c, i) {
+      b.rows.map(function (c: any, i: any) {
         return h('div', { key: c.key, className: 'dsws-vc-row dsws-vc-sep', 'data-vc-commit': 1, 'data-vc-commit-open': c.open ? 1 : undefined, onClick: function () { openCommit(c) }, style: { display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', background: c.open ? 'var(--vc-hover,rgba(255,255,255,.14))' : undefined } }, [
           h('span', { key: 'badge', className: 'dsws-vc-badge', style: { flex: 'none' } }, '·'),
           tipNode(c.tip, h('div', { key: 'subject', style: { flex: 1, minWidth: 0 } }, [h('span', { key: 'short', className: 'dsws-vc-mono', 'data-vc-short': 1, style: { display: 'block' } }, c.short), h('span', { key: 'title', style: { display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: tone('primary') } }, c.subject)])),
@@ -306,7 +362,7 @@ export const VersionControlTab = function (props) {
       b.empty ? h('div', { key: 'empty', className: 'dsws-vc-empty', style: { color: tone('caption'), marginTop: 2, textAlign: 'center' } }, b.emptyText) : null,
       // 摘要档那一行同样挂悬停：名字是折短过的，完整路径就在悬停里（规格第 5 条）。
       b.mode === 'summary' && !b.empty ? tipNode(b.tip, h('div', { 'data-vc-other-summary': 1, key: 'summary', style: { fontSize: 11, color: tone('caption'), marginTop: 2 } }, b.summaryText)) : null,
-      b.rows.map(function (w, i) {
+      b.rows.map(function (w: any, i: any) {
         return h('div', { key: w.key, className: 'dsws-vc-row dsws-vc-sep', 'data-vc-other-row': 1, style: { display: 'flex', alignItems: 'center', gap: 8 } }, [
           h('span', { key: 'badge', className: 'dsws-vc-badge', style: { flex: 'none' } }, 'o'),
           h('div', { key: 'main', style: { flex: 1, minWidth: 0 } }, [
@@ -344,7 +400,7 @@ export const VersionControlTab = function (props) {
     if (!writeUi || (!writeUi.confirm && !writeUi.remoteChoice)) return
     const root = rootRef.current
     if (!root || typeof document === 'undefined') return
-    const place = function (sel, op) {
+    const place = function (sel: any, op: any) {
       const pop = root.querySelector(sel)
       if (!pop) return
       // 三档推送共用视图条上那一颗推送按钮，确认框的 op 是哪一档都跟同一颗按钮。
@@ -367,7 +423,7 @@ export const VersionControlTab = function (props) {
       if (writeUi.remoteChoice) place('[data-vc-remote-choice]', writeUi.remoteChoice.op)
     }
     placeAll()
-    const onKey = function (e) {
+    const onKey = function (e: any) {
       if (e && e.key === 'Escape' && writeUi.confirm) ops.cancelConfirm()
     }
     document.addEventListener('keydown', onKey)

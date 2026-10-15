@@ -1336,7 +1336,7 @@ for (const domain of findDomains()) {
 
 // 887 客户端 TS 真源（px 系列）：真源是同名 .ts，esbuild 逐文件转译出 .js（AUTO-GENERATED 头），
 // tsc --noEmit 只做类型检查；拼接拼的是生成的 .js。与域构建同模式，只是真源与产物同目录并排。
-const PX_TS_DIRS = ['src/client/views', 'src/client/views/pixel', 'src/client/views/skillDetail', 'src/client/views/cards', 'src/client/kernel']
+const PX_TS_DIRS = ['src/client/views', 'src/client/views/pixel', 'src/client/views/skillDetail', 'src/client/views/cards', 'src/client/views/versionControl', 'src/client/kernel']
 function pixelTsTruthFiles() {
   const out = []
   for (const d of PX_TS_DIRS) {
