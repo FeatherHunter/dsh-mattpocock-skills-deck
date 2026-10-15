@@ -690,8 +690,10 @@ const LEAF_MODULES = [
   { id: 'checksTab', file: 'src/client/views/ChecksTab.js' },
   { id: 'SettingsWorkspaces', file: 'src/client/views/SettingsWorkspaces.js' },
   { id: 'diagnosticLogModel', file: 'src/client/views/diagnosticLog/diagnosticLogModel.ts' }, // 诊断日志的纯推演层：失败翻译、日期、开关选句（#597 那张表由此搬入，DebugSwitchFailHint.js 删档）
+  { id: 'diagnosticLogActions', file: 'src/client/views/diagnosticLog/diagnosticLogActions.ts' }, // 诊断日志的不纯跑腿层：五个动作调宿主弹提示，世界全从参数进（原来设置页 toggleDbg 与 do 开头那一串）
+  { id: 'diagnosticLogSection', file: 'src/client/views/diagnosticLog/DiagnosticLogSection.ts' }, // 诊断日志分组画法：抱住五个 useState，接好世界，画原来沉底那一组（原来设置页 194-220 行）
   { id: 'updateEntryHost', file: 'src/client/views/UpdateEntryHost.js' }, // #876 更新入口挂载点：只挂包的入口件（含内部 dialog 面板），本仓不再自带按钮状态机与浮层弹窗
-  { id: 'settingsPage', file: 'src/client/views/SettingsPage.js' },
+  { id: 'settingsPage', file: 'src/client/views/SettingsPage.js' }, // 真源是同名 .ts（调试分组搬走后转成 TS）：构建先转出同名 .js 产物再拼，登记产物这一支（与 SkillsTab.js 同例）
   { id: 'runPanel', file: 'src/client/views/RunPanel.js' },
   { id: 'DockSync', file: 'src/client/panel/DockSync.js' },
   { id: 'headFold', file: 'src/client/panel/headFold.js' }, // #667 新增：面板头部第一行的逐字折叠阶梯（纯函数，无组件）

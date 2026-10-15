@@ -74,6 +74,8 @@ _research/
 /src/client/views/versionControl/vcStyles.js
 /src/client/views/versionControl/vcWriteView.js
 /src/client/views/SkillsTab.js
+# 调试分组搬进 views/diagnosticLog/ 时设置页由手写 .js 转成 .ts，同名 .js 从此是构建产物（真源是同名 .ts）。
+/src/client/views/SettingsPage.js
 /src/client/views/pixel/
 /src/client/views/skillDetail/
 /src/client/views/cards/

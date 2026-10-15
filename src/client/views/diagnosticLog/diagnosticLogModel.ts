@@ -114,18 +114,40 @@ export function switchToastKey(res: unknown): DiagnosticLocaleKey {
 }
 
 /**
- * 开关落定后行内闪光的颜色档（原 SettingsPage.js 的 setDbgFlash 那一句：成功且副本跟上才闪绿，其余闪琥珀）。
- * 成功但副本没跟上时闪琥珀是有意的：那不是一次完全的成功，绿色会骗人。
+ * 拨开关落定后提示条的颜色档（原 SettingsPage.js 里 flash 那一句：成功且副本跟上才走 ok，其余走 warn）。
+ * 成功但副本没跟上时走 warn 是有意的：那不是一次完全的成功，绿色会骗人。
+ * 注意它与行内那一闪不是同一个东西：行内那一闪只看写进真源成功没有（成功就绿），
+ * 提示条这一档还要看宿主副本跟上没有。两处判据不同，不要合并成一个。
  */
-export function switchFlashKind(res: unknown): 'ok' | 'warn' {
+export function switchToastKind(res: unknown): 'ok' | 'warn' {
   if (!isRecord(res) || res['ok'] !== true) return 'warn';
   return res['hostPushed'] === false ? 'warn' : 'ok';
 }
 
 /**
- * 这个动作现在能不能动手（原两处 `if (busy) return` 的那条互斥，原样收成一处）。
+ * 这个动作现在能不能动手（原来 guardOp 里 `if (dbgBusy) return false` 那一句，加上清空问与确认的两处）。
  * 一次只跑一个日志动作：导出跑着的时候点清空必须没反应，而不是排队，保证一次只记一行账。
  */
 export function canStartOp(busy: LogBusy): boolean {
   return busy === null;
+}
+
+/**
+ * 从导出回包里取出日志目录（原 SettingsPage.js 的 dirOfExport，原样搬运）。
+ * 宿主回包里目录藏在三层里面（summary.header.dir），外面拼上 `/logs` 才是打开与复制要用的那一级；
+ * 尾巴上的斜杠先清干净再拼，不然会拼出双斜杠。取不到就给空串，调用方按「目录未知」处理，不抛错。
+ */
+export function exportDirOf(res: unknown): string {
+  try {
+    if (!isRecord(res)) return '';
+    const summary = res['summary'];
+    if (!isRecord(summary)) return '';
+    const header = summary['header'];
+    if (!isRecord(header)) return '';
+    const dir = header['dir'];
+    if (typeof dir !== 'string' || dir === '') return '';
+    return dir.replace(/\/+$/, '') + '/logs';
+  } catch (ignored) {
+    return '';
+  }
 }

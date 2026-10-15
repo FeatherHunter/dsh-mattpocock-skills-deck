@@ -5,7 +5,8 @@
  * 在重构中被收进同一份纯模块。纯的意思是它不碰宿主、不碰界面、不读钟，所以测试不需要造会话、
  * 不需要起宿主，只喂值、看返回值；这里任何一条红了，说明搬运改了行为，必须先修再往下走。
  *
- * 判据分五组：失败翻译对照表（含回落）、当天文件名与合法性、开关结果选句、闪光颜色档、动作互斥。
+ * 判据分六组：失败翻译对照表（含回落）、当天文件名与合法性、开关结果选句、提示条颜色档、
+ * 导出回包取目录、动作互斥。
  * 另有一条静态扫描：纯侧源码里不许出现读钟、调宿主、碰界面的写法，出现即红（纯度丢了，单测就测不住了）。
  *
  * 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-diagnostic-log-model.ts。
@@ -32,10 +33,11 @@ async function main(): Promise<void> {
 
   const failKey = model['dbgSwitchFailKey'] as (res: unknown) => string;
   const toastKey = model['switchToastKey'] as (res: unknown) => string;
-  const flashKind = model['switchFlashKind'] as (res: unknown) => 'ok' | 'warn';
+  const toastKind = model['switchToastKind'] as (res: unknown) => 'ok' | 'warn';
   const todayName = model['todayName'] as (now: Date) => string;
   const isTodayName = model['isTodayName'] as (name: unknown) => boolean;
   const canStartOp = model['canStartOp'] as (busy: unknown) => boolean;
+  const exportDirOf = model['exportDirOf'] as (res: unknown) => string;
   const ops = model['LOG_OPS'] as readonly unknown[];
   const table = model['DBG_SWITCH_FAIL_KEY'] as Record<string, string>;
   const fallback = model['DBG_SWITCH_FAIL_FALLBACK'] as string;
@@ -79,10 +81,17 @@ async function main(): Promise<void> {
   check(toastKey({ ok: false, error: 'host-rejected' }) === 'cfg.dbgSwitchFailRejected', '失败走翻译，不弹成功句');
   check(toastKey(null) === 'cfg.dbgSwitchFail', '空包走回落');
 
-  console.log('— 闪光颜色档（成功且跟上才绿，其余琥珀）');
-  check(flashKind({ ok: true, hostPushed: true, enabled: true }) === 'ok', '完全成功闪绿');
-  check(flashKind({ ok: true, hostPushed: false, enabled: true }) === 'warn', '副本没跟上闪琥珀（不是完全成功，绿色会骗人）');
-  check(flashKind({ ok: false, error: 'stale' }) === 'warn', '失败闪琥珀');
+  console.log('— 提示条颜色档（成功且跟上才绿，其余琥珀；与行内那一闪判据不同，不要合并）');
+  check(toastKind({ ok: true, hostPushed: true, enabled: true }) === 'ok', '完全成功走绿');
+  check(toastKind({ ok: true, hostPushed: false, enabled: true }) === 'warn', '副本没跟上走琥珀（不是完全成功，绿色会骗人）');
+  check(toastKind({ ok: false, error: 'stale' }) === 'warn', '失败走琥珀');
+
+  console.log('— 导出回包取目录（三层里取，拼 /logs，尾巴斜杠先清）');
+  check(exportDirOf({ ok: true, summary: { header: { dir: 'C:/x' } } }) === 'C:/x/logs', '正常三层拼出目录');
+  check(exportDirOf({ ok: true, summary: { header: { dir: 'C:/x///' } } }) === 'C:/x/logs', '尾巴斜杠清干净再拼，不出双斜杠');
+  check(exportDirOf({ ok: true, summary: { header: {} } }) === '', '缺 dir 格给空串，不抛错');
+  check(exportDirOf({ ok: true }) === '', '缺整层给空串，不抛错');
+  check(exportDirOf(null) === '', '空包给空串，不抛错');
 
   console.log('— 动作互斥与动作表');
   check(canStartOp(null) === true, '空闲时能动手');

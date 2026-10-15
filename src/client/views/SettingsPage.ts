@@ -1,155 +1,47 @@
 /**
- * views/SettingsPage.js — 配置页（TPL 表 + 设置，5.9）真源 ESM，build 拼回 src/client/index.js leaf
+ * views/SettingsPage.ts — 配置页（TPL 表 + 设置，5.9）真源 ESM，build 拼回 src/client/index.js leaf。
+ * （原来是 .js：调试分组搬进 views/diagnosticLog/ 之后按「动到哪里转到哪里」转成 TypeScript。
+ * 本页现在只剩标题、总览、更多插件三样，调试那一组只剩一行挂载，行为零变化。）
+ *
+ * 跨叶子的值引用按仓里规矩写模块级 declare（实现只在闭包里有一份，类型检查各看各的）：
+ * 全局已声明的（React、DswsCtx、tr）直接用；下面这几行是本文件自己声明的，只写本页实际用的形状。
  */
+declare function useStore(sessionId?: unknown): { notice?: { kind: string; text: string } | null };
+declare function useWsOverview(cx: unknown, sharedSt: unknown): { wsOverview: unknown; loadRef: unknown };
+declare function renderWsOverview(
+  h: unknown,
+  sharedSt: unknown,
+  wsOverview: unknown,
+  loadRef: unknown,
+  foldVer: number,
+  setFoldVer: (v: number) => void,
+): unknown;
+declare const UpdateEntryHost: unknown;
+declare const HoverTip: unknown;
+declare const Icon: (props: { scheme: string; size: number }) => unknown;
+declare const Ic: (props: { n: string; size: number; color?: string }) => unknown;
+declare const NOTICE_COLOR: Record<string, string>;
+declare function noticeIcon(kind: unknown): string;
+declare const DSW_REPO_URL: string;
+declare const DSW_VERSION: unknown;
+declare const DiagnosticLogSection: (props: { sessionId?: unknown }) => unknown;
+
 // 增-2（#520）：底部作者其他插件清单（4 个，2026-09-06 已验真；写死网址，不拉取不新增网络请求）
-const MORE_PLUGINS = [
+const MORE_PLUGINS: Array<{ slug: string; url: string; descKey: string }> = [
   { slug: 'dsh-mattpocock-skills-deck', url: 'https://github.com/FeatherHunter/dsh-mattpocock-skills-deck', descKey: 'more.desc.deck' },
   { slug: 'dsh-opencode-palette', url: 'https://github.com/FeatherHunter/dsh-opencode-palette', descKey: 'more.desc.palette' },
   { slug: 'dsh-prompt', url: 'https://github.com/FeatherHunter/dsh-prompt', descKey: 'more.desc.prompt' },
   { slug: 'dsh-im-companion', url: 'https://github.com/FeatherHunter/dsh-im-companion', descKey: 'more.desc.companion' },
 ]
-export     const SettingsPage = (props) => {
+export     const SettingsPage = (props: { sessionId?: unknown }): unknown => {
       const cx = React.useContext(DswsCtx)
       const h = cx ? cx.h : React.createElement
       // T5 修订：订阅 store（设置页独立于面板 dock，需自己订阅 shared 才能渲染 flash toast）
       const sharedSt = cx ? cx.storeSvc.useStore(props && props.sessionId) : useStore(props && props.sessionId)
       // T2 悬停提示迁移：设置提示框的定位、翻转、挂顶显示已统一交给 HoverTip（mode='mouse'）负责，显示悬停提示、移动悬停提示、隐藏悬停提示三个旧函数（showCfgTip/moveCfgTip/hideCfgTip）已经下线，移除了全局显示时序，翻转阈值与样式走统一配置表，页面行为没有变化
       const [foldVer, setFoldVer] = React.useState(0)
-      // #492调试分组：开关秒显读内存这一份（构建产物里的 logSwitch），拨动走 settingsDebugToggle 写进
-      //   本机设置文件的 debug 节（#1012 第 8 条：真源是设置文件，宿主那份只是副本），底座广播刷新；
-      //   导出日志那四键仍走宿主电话。
-      const [dbgPending, setDbgPending] = React.useState(false)
-      const [dbgBusy, setDbgBusy] = React.useState(null)
-      const [clearAsked, setClearAsked] = React.useState(false)
-      // #951：开关落定后行内闪光（成功绿跟提示 ok 同色，失败琥珀跟提示 warn 同色，半秒自退）
-      const [dbgFlash, setDbgFlash] = React.useState('')
-      const [lastExport, setLastExport] = React.useState(null)
-      // 宿主那份副本没跟上时的自愈口子（#1012 第 8 条）：这一页每次重新画一遍就跑一次 —— 故意不写依赖数组。
-      //   为什么不写：DSH 宿主那侧的设置对话框不在本仓，「设置分组每次打开都会重新挂载这一页」只是本仓的推断、
-      //   核不了；若它其实是一直挂着，只挂载跑一次的口子在同一次挂载里就没有第二次机会，文案里那句
-      //   「下一次机会会自动重推」会变成做不到的承诺。改成每次渲染都跑，页面重画一遍就够。
-      //   为什么不会打转：这个口子只在确实没接上时才推，推完不改任何 state（失败只记一行日志），它自己引不出
-      //   下一次渲染；渲染次数由用户操作与既有状态更新决定，所以推的次数与渲染次数同阶，不会自续。
-      //   为什么「下一次机会」一定来得到：拨开关那三个分支（成功 then 里、失败 catch 里、同步 catch 里）都无条件
-      //   调 setDbgPending(false)，而进 toggleDbg 时 dbgPending 必为真 —— 所以失败之后必有一次渲染，口子也就必跑一次。
-      //   三条分支门禁各量到哪几条（2026-10-12 复核第四轮逐条实测，别当成三条都有人看着）：
-      //   ① 成功 then 那条量得到（删掉它门禁会红一片）；② 失败 catch 那条这次补上了（第十九件事第八段把「等宿主
-      //   回话」那颗 5000 毫秒定时器换成抛错，逼出「整趟被拒」，这时成功分支一个字都没跑、只有 .catch 能收场；
-      //   把它短路第八段会红 —— 第七段量不到这一行，它自己的注释里写着）；③ 同步 catch 那条量不到 —— 现行产物里走不到那一行
-      //   （settingsDebugToggle 自己吞掉全部异常，包里 setLogSwitch 也只回 { ok: false } 不 reject，内部每一步
-      //   都包了 catch），门禁没有能把语句抛进那行 catch 的入口，要覆盖得给产品加一个注入口，属另一件事。
-      //   谁删掉或短路了其中某条，自愈会跟着失效，改这一段务必连门禁一起看。
-      React.useEffect(function () {
-        try { if (typeof settingsDebugRetryHost === 'function') settingsDebugRetryHost() } catch (eRetry) {}
-      })
-      const dbgChecked = (function () {
-        try { if (typeof logSwitch !== 'undefined' && logSwitch) return logSwitch.enabled === true } catch (eDbg) {}
-        try { return !!readLocalDebugSwitch().enabled } catch (eDbg2) { return false }
-      })()
-      const hostReady = function () { try { return !!(typeof host !== 'undefined' && host && host.call) } catch (eDbg) { return false } }
-      const todayName = function () { try { const d = new Date(); const p = function (n) { return String(n).padStart(2, '0') }; return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) } catch (eDbg) { return '' } }
-      const dirOfExport = function (res) { try { const d = res && res.summary && res.summary.header && res.summary.header.dir ? String(res.summary.header.dir) : ''; return d ? (d.replace(/\/+$/, '') + '/logs') : '' } catch (eDbg) { return '' } }
-      const rememberExport = function (res) { try { setLastExport({ dir: dirOfExport(res), fileName: res.fileName || '', fallback: res.fallback === true }) } catch (eDbg) {} }
-      const guardOp = function () {
-        if (dbgBusy) return false
-        if (!hostReady()) { flash(sharedSt, tr('err.hostUnavailable'), 'warn'); return false }
-        return true
-      }
-      const toggleDbg = function (e) {
-        if (dbgPending || !guardOp()) return
-        const next = !!(e && e.target && e.target.checked)
-        setDbgPending(true)
-        try {
-          // 拨开关走 kernel/settings-debug.js 的 settingsDebugToggle（#1012 第 8 条）：真源是本机设置文件的
-          //   debug 节，它先把这一笔写进文件，文件这条路接不下才原样退回包里的 setLogSwitch（老路）。
-          //   两个名字都认：老产物里没有新名字，新产物里那个才是主路，返回形状两者一致；比包里多回的那一格
-          //   hostPushed 只说宿主那份副本跟没跟上 —— 真源落地了就算成功，但副本没跟上时不弹没限定语的「已开启」
-          //   （说清已写进本机设置文件、本机日志暂时记不下调试行；那条缺口与归属写在 kernel/settings-debug.js 文件头）。
-          const dbgSwitch = (typeof settingsDebugToggle === 'function') ? settingsDebugToggle : ((typeof setLogSwitch === 'function') ? setLogSwitch : null)
-          if (typeof dbgSwitch !== 'function') throw new Error('no-switch')
-          dbgSwitch(next, 1).then(function (res) {
-            setDbgPending(false)
-            const okSw = !!(res && res.ok)
-            setDbgFlash(okSw ? 'ok' : 'warn')
-            try { setTimeout(function () { setDbgFlash('') }, 600) } catch (eT) {}
-            // 宿主那份副本没跟上（hostPushed 为 false）时不许只弹一句「已开启」：文案要说清本机真源已经落地、副本还是老样子，
-            //   并按告警着色。两个方向各一句：拨成开时副本还关着（调试行暂时记不下），拨成关时副本还开着（调试行还在记）——
-            //   拿同一句套两个方向，总有一边把话说反。自愈口子就在本页挂载那一趟（见上面那个 React.useEffect）。
-            const staleHost = (okSw && res.hostPushed === false)
-            const staleKey = (res.enabled === true) ? 'cfg.dbgSwitchOnNoHost' : 'cfg.dbgSwitchOffNoHost'
-            flash(sharedSt, tr(!okSw ? dbgSwitchFailKey(res) : (staleHost ? staleKey : ((res.enabled === true) ? 'cfg.dbgSwitchOnToast' : 'cfg.dbgSwitchOffToast'))), (okSw && !staleHost) ? 'ok' : 'warn')
-          }).catch(function () { setDbgPending(false); setDbgFlash('warn'); try { setTimeout(function () { setDbgFlash('') }, 600) } catch (eT2) {}; flash(sharedSt, tr('cfg.dbgSwitchFail'), 'warn') })
-        } catch (errDbg) { setDbgPending(false); flash(sharedSt, tr('cfg.dbgSwitchFail'), 'warn') }
-      }
-      // 静默取导出结果解析目录位置并缓存，不刷提示，供打开与复制复用
-      const resolveLogDir = function () {
-        if (lastExport && lastExport.dir) { try { log('info', 'host.call', { method: 'wf.logExport', latencyMs: 0, ok: true, kind: 'log-resolve-cache' }) } catch (eL) {} return Promise.resolve(lastExport.dir) }
-        const t0 = Date.now()
-        if (!hostReady()) { try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'log-resolve', errorHash: dswsLogHash(dswsLogTrunc('host-unavailable', 120, 'error')) }) } catch (eL) {}; return Promise.resolve('') }
-        try {
-          return host.call('wf.logExport', { format: 'zip' }).then(function (res) {
-            if (!res || res.ok !== true) { try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'log-resolve', errorHash: dswsLogHash(dswsLogTrunc('export-not-ok', 120, 'error')) }) } catch (eL) {}; try { if (typeof logExportFail === 'function') logExportFail('resolve', 'export-not-ok', (res && res.error) || 'not-ok') } catch (eDbg2) {} return '' }
-            rememberExport(res)
-            const _dir = dirOfExport(res)
-            try { log('info', 'host.call', { method: 'wf.logExport', latencyMs: Date.now() - t0, ok: !!_dir, kind: 'log-resolve' }) } catch (eL) {}
-            if (!_dir) { try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'log-resolve', errorHash: dswsLogHash(dswsLogTrunc('path-missing', 120, 'error')) }) } catch (eL) {}; try { if (typeof logExportFail === 'function') logExportFail('resolve', 'path-missing', 'path-missing') } catch (eDbg2) {} }
-            return _dir
-          }).catch(function (e) { try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'log-resolve', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}; try { if (typeof logExportFail === 'function') logExportFail('resolve', 'export-not-ok', e) } catch (eDbg2) {}; return '' })
-        } catch (eDbg) { try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'log-resolve', errorHash: dswsLogHash(dswsLogTrunc(String((eDbg && eDbg.message) || eDbg), 120, 'error')) }) } catch (eL) {}; return Promise.resolve('') }
-      }
-      const doExport = function () {
-        if (!guardOp()) return
-        setDbgBusy('export')
-        try {
-          host.call('wf.logExport', { format: 'zip' }).then(function (res) {
-            setDbgBusy(null)
-            if (!res || res.ok !== true) { try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'export', errorHash: dswsLogHash(dswsLogTrunc('export-not-ok', 120, 'error')) }) } catch (eL) {}; try { if (typeof logExportFail === 'function') logExportFail('export', 'export-not-ok', (res && res.error) || 'not-ok') } catch (eDbg2) {} flash(sharedSt, tr('cfg.dbgExportFail'), 'warn'); return }
-            rememberExport(res)
-            let msg = tr('cfg.dbgExportOk', { file: String(res.fileName || '') })
-            if (res.fallback === true) msg = msg + ' ' + tr('cfg.dbgExportFallback')
-            flash(sharedSt, msg, 'ok')
-          }).catch(function (e) { try { log('warn', 'host.call.fail', { method: 'wf.logExport', kind: 'export', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}; setDbgBusy(null); try { if (typeof logExportFail === 'function') logExportFail('export', 'export-not-ok', e) } catch (eDbg2) {} flash(sharedSt, tr('cfg.dbgExportFail'), 'warn') })
-        } catch (eDbg) { setDbgBusy(null); flash(sharedSt, tr('cfg.dbgExportFail'), 'warn') }
-      }
-      const doOpen = function () {
-        if (!guardOp()) return
-        setDbgBusy('open')
-        resolveLogDir().then(function (dir) {
-          if (!dir) { setDbgBusy(null); try { if (typeof logExportFail === 'function') logExportFail('openDir', 'path-missing', 'path-missing') } catch (eDbg2) {} flash(sharedSt, tr('cfg.dbgExportFail'), 'warn'); return }
-          try {
-            host.call('wf.openFolder', { cwd: dir }).then(function (res) {
-              setDbgBusy(null)
-              const okOpen = !!(res && res.ok === true)
-              if (!okOpen) { try { log('warn', 'host.call.fail', { method: 'wf.openFolder', kind: 'open-path', errorHash: dswsLogHash(dswsLogTrunc('open-not-ok', 120, 'error')) }) } catch (eL) {}; try { if (typeof logExportFail === 'function') logExportFail('openDir', 'open-fail', (res && res.error) || 'not-ok') } catch (eDbg2) {} }; flash(sharedSt, tr(okOpen ? 'cfg.dbgOpenedDir' : 'cfg.dbgOpenDirFail'), okOpen ? 'ok' : 'warn')
-            }).catch(function (e) { try { log('warn', 'host.call.fail', { method: 'wf.openFolder', kind: 'open-path', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}; setDbgBusy(null); try { if (typeof logExportFail === 'function') logExportFail('openDir', 'open-fail', e) } catch (eDbg2) {} flash(sharedSt, tr('cfg.dbgOpenDirFail'), 'warn') })
-          } catch (eDbg) { setDbgBusy(null); try { if (typeof logExportFail === 'function') logExportFail('openDir', 'open-fail', eDbg) } catch (eDbg2) {} flash(sharedSt, tr('cfg.dbgOpenDirFail'), 'warn') }
-        })
-      }
-      const doCopy = function () {
-        if (!guardOp()) return
-        setDbgBusy('copy')
-        resolveLogDir().then(function (dir) {
-          setDbgBusy(null)
-          if (!dir) { try { if (typeof logExportFail === 'function') logExportFail('copyPath', 'path-missing', 'path-missing') } catch (eDbg2) {} flash(sharedSt, tr('cfg.dbgExportFail'), 'warn'); return }
-          try { copyText(sharedSt, dir, tr('cfg.dbgCopied')) } catch (eDbg) { try { if (typeof logExportFail === 'function') logExportFail('copyPath', 'copy-fail', eDbg) } catch (eDbg2) {} flash(sharedSt, tr('toast.copyFailed'), 'warn') }
-        })
-      }
-      const doClearAsk = function () { if (!dbgBusy) setClearAsked(true) }
-      const doClearCancel = function () { setClearAsked(false) }
-      const doClearConfirm = function () {
-        if (dbgBusy) return
-        if (!hostReady()) { setClearAsked(false); flash(sharedSt, tr('err.hostUnavailable'), 'warn'); return }
-        const name = todayName()
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(name)) { setClearAsked(false); flash(sharedSt, tr('cfg.dbgClearFail'), 'warn'); return }
-        setDbgBusy('clear')
-        try {
-          host.call('wf.logClear', { date: name }).then(function (res) {
-            setDbgBusy(null); setClearAsked(false)
-            if (!res || res.ok !== true) { try { log('warn', 'host.call.fail', { method: 'wf.logClear', kind: 'clear', errorHash: dswsLogHash(dswsLogTrunc('clear-not-ok', 120, 'error')) }) } catch (eL) {}; flash(sharedSt, tr('cfg.dbgClearFail'), 'warn'); return }
-            flash(sharedSt, tr((res.removed || 0) > 0 ? 'cfg.dbgClearOk' : 'cfg.dbgClearEmpty'), 'ok')
-          }).catch(function (e) { try { log('warn', 'host.call.fail', { method: 'wf.logClear', kind: 'clear', errorHash: dswsLogHash(dswsLogTrunc(String((e && e.message) || e), 120, 'error')) }) } catch (eL) {}; setDbgBusy(null); setClearAsked(false); flash(sharedSt, tr('cfg.dbgClearFail'), 'warn') })
-        } catch (eDbg) { setDbgBusy(null); setClearAsked(false); flash(sharedSt, tr('cfg.dbgClearFail'), 'warn') }
-      }
+      // #492 调试分组已搬进 views/diagnosticLog/DiagnosticLogSection.ts（状态、跑腿、画法全在里面，
+      //   本页只剩一行挂载）；拨开关写本机设置文件 debug 节、导出四键走宿主电话，口径一点没变。
       // #876 更新入口全权委托：标题行按钮与更新面板 dialog 形态都由更新包的入口件挂上
       // （views/UpdateEntryHost.js），本文件不再自带按钮状态机与浮层弹窗；
       // 调用只走包的电话名与轮询间隔，关闭与轮询收尾按包的约定来。
@@ -192,32 +84,8 @@ export     const SettingsPage = (props) => {
         renderWsOverview(h, sharedSt, overview.wsOverview, overview.loadRef, foldVer, setFoldVer),
 
         // #492 沉底调试分组（布局文案沿 #334 原型：主开关默认关，写经 settingsDebugToggle（真源是本机设置文件的
-      //   debug 节，宿主那份只是副本，见 #1012 第 8 条），保存即广播；四键调宿主三电话加复用目录电话）
-        h('div', { className: 'dsws-cfg-group' }, [
-          h('div', { className: 'dsws-cfg-gtitle' }, [Ic({ n: 'gear', size: 13 }), h('span', null, tr('cfg.dbgTitle'))]),
-          h('div', { className: 'dsws-cfg-gdesc' }, tr('cfg.dbgDesc')),
-          h('div', { className: 'dsws-cfg-row' + (dbgFlash === 'ok' ? ' dsws-fb-okflash' : '') + (dbgFlash === 'warn' ? ' dsws-fb-warnflash' : '') }, [
-            h('label', { className: 'dsws-cfg-sw' }, [
-              h('input', { type: 'checkbox', checked: dbgChecked, disabled: !!(dbgPending || dbgBusy), onChange: toggleDbg }),
-              h('span', { className: 'tr' }), h('span', null, tr(dbgChecked ? 'cfg.dbgSwitchOn' : 'cfg.dbgSwitchOff')),
-            ]),
-          ]),
-          h('div', { className: 'dsws-cfg-row', style: { flexWrap: 'wrap', gap: 6, marginTop: 8 } }, [
-            h('button', { className: 'dsws-cfg-btn', disabled: !!dbgBusy, onClick: doExport }, tr('cfg.dbgExport')),
-            h('button', { className: 'dsws-cfg-btn', disabled: !!dbgBusy, onClick: doOpen }, tr('cfg.dbgOpen')),
-            h('button', { className: 'dsws-cfg-btn', disabled: !!dbgBusy, onClick: doCopy }, tr('cfg.dbgCopy')),
-            h('button', { className: 'dsws-cfg-btn', disabled: !!dbgBusy, onClick: doClearAsk }, tr('cfg.dbgClear')),
-          ]),
-          h('div', { className: 'dsws-cfg-gdesc', style: { marginTop: 6 } }, tr('cfg.dbgPackageHint')),
-          clearAsked ? h('div', { className: 'dsws-cfg-err', style: { marginTop: 8 } }, [
-            h('div', { className: 't' }, [Ic({ n: 'alert', size: 13 }), h('span', null, tr('cfg.dbgClearTitle'))]),
-            h('div', null, tr('cfg.dbgClearDesc')),
-            h('div', { style: { display: 'flex', gap: 8, marginTop: 8 } }, [
-              h('button', { className: 'dsws-cfg-btn', onClick: doClearCancel }, tr('switch.cancel')),
-              h('button', { className: 'dsws-cfg-btn', disabled: !!dbgBusy, onClick: doClearConfirm }, tr('cfg.dbgConfirmClear')),
-            ]),
-          ]) : null,
-        ]),
+        //   debug 节，宿主那份只是副本，见 #1012 第 8 条），保存即广播；四键调宿主三电话加复用目录电话）
+        h(DiagnosticLogSection, { sessionId: props && props.sessionId }),
         // 增-2（#520）：底部作者其他插件独立区域（默认展开，每行点开跳对应仓库首页；不新增本地存档键）
         h('div', { className: 'dsws-cfg-group' }, [
           h('div', { className: 'dsws-cfg-gtitle' }, [Ic({ n: 'skills', size: 13 }), h('span', null, tr('more.title'))]),

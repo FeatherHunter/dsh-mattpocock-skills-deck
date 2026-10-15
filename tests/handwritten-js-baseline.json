@@ -119,7 +119,6 @@
     "src/client/views/NoRepoCard.js",
     "src/client/views/PrTab.js",
     "src/client/views/RunPanel.js",
-    "src/client/views/SettingsPage.js",
     "src/client/views/SettingsWorkspaces.js",
     "src/client/views/SetupCard.js",
     "src/client/views/SubworkspaceMark.js",
