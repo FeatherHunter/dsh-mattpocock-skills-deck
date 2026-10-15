@@ -32,7 +32,7 @@ type FsSvc = { resolve(rel: string, opts?: unknown): Promise<any>; readText(t: u
 type WorkspaceStore = { invalidate(h: unknown): unknown }
 type ChoiceStore = { rememberWorkspace(cwd: unknown, backendId: unknown): Promise<any>; rememberLayout(cwd: unknown, want: unknown): Promise<any>; getWorkspace(key: unknown): Promise<any>; getLayout(cwd: unknown): Promise<any> }
 type DecisionOutlet = { decideBackend(cwd: string, opts: unknown): Promise<any>; selectionFromOutlet?(o: unknown, describe: (id: string) => unknown): unknown }
-type DetExec = ReturnType<typeof import('./platformChannel.js').createPlatformChannel>['detectionExec']
+type DetExec = (cmd: any, args: any, opts: any, via: any) => Promise<any> // 只转交不读：真签名唯一在平台通道 detectionExec（platformChannel.ts），这里写 any 透传；写 typeof 查值会多出一条同层边
 type LogCtx = { fire(level: string, event: string, fields?: unknown): void; isEnabled(level: string): boolean } | null
 type Deps = { ctx: Ctx; DEFAULT_CWD: string; getPlatform(): Promise<Platform | null>; getTrackerRegistry(): Promise<Registry | null>; getWorkspaceStore(): Promise<WorkspaceStore>; getChoiceStore(): Promise<ChoiceStore | null>; getDecisionFn(): Promise<any>; getDetectionService?: unknown; canonicalKey(raw: string): Promise<string>; setCache(v: unknown): void; logCtx: LogCtx; timer: { timeout(ms: number): Promise<unknown> }; detectionExec: DetExec }
 export function createWorkspaceCwd(deps: Deps) {
