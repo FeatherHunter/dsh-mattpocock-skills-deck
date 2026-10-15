@@ -19,6 +19,13 @@
 //       （去掉注释后按文本找这三处），且这份声明真会被编译检查——看它的是域配置
 //       `src/tracker/tsconfig.json`（strict，include 是目录通配，三个后端目录都在里面）与
 //       覆盖对账 `scripts/typecheck.mts`（门禁 `tests/verify-typecheck.mts`），两处都必须在盘上。
+//       3b、入口不断言：装配点 `src/tracker/registry/builtins.ts` 里不许出现对 BackendModule
+//       的 as 断言（单写多写都算）——#1192 起，交模块的形状由 `backendModuleOf` 的
+//       `Promise<BackendModule>` 返回值类型检查，断言会把检查点 bypass 掉；
+//       这个返回值类型本身也必须在位（改成 any 等于拆掉检查点，一并钉住），
+//       尖括号断言与检查器静默（`@ts-ignore` / `@ts-expect-error`）同样是 bypass，一并钉死。
+//       唯一的形状断言函数是 `registry/shape.ts` 的 `validateMod`（它内部那一处单写
+//       是断言函数自己收窄未知输入，不在 3b 范围内；3b 只查入口文件）。
 //       为什么按文本找：把 `satisfies BackendModule` 这一句摘掉之后，普通 `tsc` 不会红
 //       （没有声明就没有检查），所以「声明还在不在」只能自己钉住。这一项的前身是两份「贴合探针」，
 //       它们的去处由 #1025 第 7 条定死（后端转成 TypeScript 之后，由后端自己写对上契约的声明），
@@ -27,6 +34,10 @@
 //       且报错里点名 `matches`。这条验的是「契约不是摆设」——它断得了缺少成员，真后端
 //       哪天丢了一个必填，编译一定红。（第二条反面证明原本走探针那条路、断探针真用的弱化形状，
 //       随探针在 #1027 一起退休：探针没了，就没有第二条路可验。）
+//       4b、反面证明·入口姿势：同一个残模块改走「函数返回 BackendModule」姿势
+//       （装配点交模块的姿势）再编一次，同样必须编不过且点名 `matches`——
+//       只删声明、形状又走样时，拦住它的就是入口这个检查点。（#1192 新加，
+//       与上面退休的那条旧 4b 同名不同物，不要混。）
 //   五、运行时腿：把三个后端模块对象真加载起来（加载失败就红），断两档真值——
 //       `openRepository` 必须是 `'url'` 或 `'folder'`：内置三家一律要声明
 //       （契约里那个成员对第三方后端仍可选）。
@@ -35,6 +46,9 @@
 //       `checks` 的种类如实记录（数组 / 函数 / 不声明）。#1027（2026-10-15）把「数组还是工厂」
 //       这件事定死了：后端交出来的是写死的常量表（GitHub 后端挂的就是 `checks.ts` 的 `GITHUB_CHECKS`），
 //       契约那一格跟着收成只读的 `readonly RoomCheckEntry[]`，所以下面 github 那份快照从 `function` 改成 `array`。
+//       5b、运行时反面证明：真建一个注册表，残模块试注册必须被拒（理由是形状），
+//       有效最小模块试注册必须能进（正控）。这条验的是「入口断言没被拿掉」——
+//       `register` 里调 `validateMod` 是运行时唯一的形状入口，删了它编译不会说话。（#1192 新加。）
 //
 // 再撤四项（2026-10-14 #1147 决策 8：类型检查接管后撤掉。顺序是先立后撤——
 //   跟踪器配置落地、三条断言写好、三种错故意造出确认变红之后，才动手删）：
@@ -93,6 +107,8 @@
 //   新落点改上面的 `BACKEND_DECLARATIONS`；反过来，只把那一句删掉、别的不动，本项一定红。
 //   第三项不审三个后端内部的类型债：那是 `src/tracker/tsconfig.json` 的账（strict、零错误），
 //   本门禁不另数一份（#1147 决策 8：一个门禁不养两套账）。
+//   3b 只查入口文件（`src/tracker/registry/builtins.ts`），且只认 as 断言写法；
+//   `validateMod` 自己内部那一处收窄（`shape.ts`）是断言函数分内的事，不在 3b 范围内。
 //
 // 用法：node --import ./scripts/ts-hook.mjs tests/verify-contract-types.ts（在仓库根目录；
 //   npm test / npm run verify:parallel / node scripts/verify-all.mjs 三个入口会自动挂装载钩子）。
@@ -303,7 +319,7 @@ function main(): void {
   // 起点输入摘要（日志埋点纪律第 3 条）：这一趟查的是哪个目录、拿哪份配置编、仓库根在哪。
   // 事后只看日志就能回答「它到底查了什么」，不必回头翻代码或猜环境变量。
   console.log(
-    '契约层类型门禁（tsc 零错误 + 无运行时实现 + 后端自己声明对上契约 + 一条反面证明 + 运行时腿）' +
+    '契约层类型门禁（tsc 零错误 + 无运行时实现 + 后端声明对上契约与入口不断言 + 两条反面证明 + 运行时腿与运行时反面证明）' +
       '｜仓库根 ' + ROOT + '｜契约目录 ' + path.relative(ROOT, CONTRACT_DIR) + '｜配置 ' + path.relative(ROOT, TSCONFIG),
   )
 
@@ -390,6 +406,54 @@ function main(): void {
     )
   }
 
+  // ---- 3b) 入口不断言：装配点交模块时不许自己断言形状 ----
+  // 为什么有这一项：#1192 把 `backendModuleOf` 交模块那三处断言删了，改由它的
+  // `Promise<BackendModule>` 返回值类型当检查点——交出来的模块对象形状走样，编译当场报错。
+  // 谁在这里重新写下形状断言，就等于把检查点 bypass 掉：之后形状再怎么走样，编译都不会说话。
+  // 所以入口文件里一个形状断言也不许有；唯一的形状断言函数是 `registry/shape.ts` 的
+  // `validateMod`（注册表在 `core.ts` 里调它，那是运行时那道口）。
+  {
+    const entryRel = 'src/tracker/registry/builtins.ts'
+    const entryAbs = path.join(ROOT, entryRel)
+    if (!fs.existsSync(entryAbs)) {
+      check(false, '入口文件在盘上（' + entryRel + ' 不在）：入口不断言这一项没做')
+    } else {
+      const raw = fs.readFileSync(entryAbs, 'utf8')
+      const code = stripComments(raw)
+      const assertionRe = /\bas\s+(unknown\s+as\s+)?BackendModule\b/
+      const hit = assertionRe.exec(code)
+      check(
+        !hit,
+        '入口文件不断言形状（' + entryRel + ' 里没有对 BackendModule 的断言，检查点是返回值类型）' +
+          (hit ? '：在「' + hit[0] + '」附近又写下了断言，删掉它，让返回值类型当检查点' : ''),
+      )
+      // 检查点本身也得在：返回值类型被改成 any / 断言以外的旁路写法，照样等于没检查。
+      const checkpointRe = /function\s+backendModuleOf\s*\([^)]*\)\s*:\s*Promise<BackendModule>/
+      const checkpoint = checkpointRe.test(code)
+      check(
+        checkpoint,
+        '入口检查点在位（' + entryRel + ' 里 `backendModuleOf` 声明返回 `Promise<BackendModule>`）' +
+          (checkpoint ? '' : '：返回值类型被改动过，交错形状编译不再报错，先恢复它'),
+      )
+      // 旁路写法一并钉死：尖括号断言（`<BackendModule>…`，去掉注释后找）与
+      // 检查器静默（`@ts-ignore` / `@ts-expect-error`，注释里找，所以看原文）。
+      // 检查点那一行自己的 `Promise<BackendModule>` 是唯一的合法尖括号，先摘掉它再数。
+      const withoutCheckpoint = code.replace(checkpointRe, '')
+      const angleHit = /<\s*BackendModule\s*>/.test(withoutCheckpoint)
+      check(
+        !angleHit,
+        '入口文件没有尖括号断言（`' + entryRel + '` 里除检查点外不许再出现 `<BackendModule`）' +
+          (angleHit ? '：换了种断言写法，同样等于 bypass 检查点，删掉它' : ''),
+      )
+      const suppressHit = /@ts-(ignore|expect-error)/.test(raw)
+      check(
+        !suppressHit,
+        '入口文件不静默检查器（`' + entryRel + '` 里不许出现 `@ts-ignore` / `@ts-expect-error`，静默等于拆检查点）' +
+          (suppressHit ? '：把静默指令删掉，有报错就修形状，不要捂住检查器' : ''),
+      )
+    }
+  }
+
   // ---- 4) 反面证明：现拼一个缺 matches 的假后端，必须编不过且点名 matches ----
   // 验的是「契约不是摆设」。假文件写进系统临时目录（不进仓库，不污染覆盖对账），编完就删。
   if (!tscBin) {
@@ -427,6 +491,49 @@ function main(): void {
   // 这里原本还有两条：4b「走探针那条路再证一次缺成员」与 4c「基线数的来历链必须首尾相接」。
   // 两条都随贴合探针与那条基线在 #1027 退休（理由见文件头「#1027 退休的两件」）：
   // 探针没了，就没有第二条路可验；基线没了，也就没有来历可对。
+  // 注意编号：下面这条是 #1192 新加的「4b」，与上面退休的那条同名不同物——
+  // 退休那条走的是探针，这条走的是装配点入口姿势，不要混。
+
+  // ---- 4b) 反面证明·入口姿势：残模块走「函数返回 BackendModule」这个姿势，同样编不过 ----
+  // 第四项是「标注姿势」（`const bad: BackendModule = …`）；这一项是「入口姿势」——
+  // 装配点 `backendModuleOf` 就是这个姿势（返回值类型是 `Promise<BackendModule>`，交出去靠 `return`）。
+  // 两个姿势都要咬得住，缺成员才没有第二条路可走：只删 `satisfies`、形状又走样时，
+  // 拦住它的就是这一条所证的检查点（门禁 3b 保证检查点不被断言 bypass）。
+  // 残法与第四项同集（缺 matches），报错必须点名 matches。
+  if (!tscBin) {
+    check(false, '入口姿势反面证明能跑（tsc 起不来，这一项没做：见第一项的 FAIL）')
+  } else {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-contract-neg-entry-'))
+    try {
+      const relToContract = path.relative(tmpDir, path.join(CONTRACT_DIR, 'backend-module.ts')).replace(/\\/g, '/')
+      const negFile = path.join(tmpDir, 'negative-entry.ts')
+      fs.writeFileSync(
+        negFile,
+        `import type { BackendModule } from '${relToContract}'\n` +
+          `function loadEntry(): BackendModule {\n` +
+          `  return { id: 'neg-entry', label: 'neg-entry', ` +
+          `create: (() => { throw new Error('neg-entry') }) as unknown as BackendModule['create'] }\n` +
+          `}\n` +
+          `export const entry = loadEntry\n`,
+        'utf8',
+      )
+      const nr = spawnSync(
+        process.execPath,
+        [tscBin, '--noEmit', '--strict', '--target', 'es2020', '--lib', 'es2020,dom',
+          '--module', 'esnext', '--moduleResolution', 'bundler', '--skipLibCheck', negFile],
+        { encoding: 'utf8' },
+      )
+      const nout = (nr.stdout || '') + (nr.stderr || '')
+      const mentionsMatches = /matches/.test(nout)
+      check(
+        nr.status !== 0 && mentionsMatches,
+        '缺 matches 的残模块走入口姿势（函数返回 BackendModule）同样编不过、且报错点名 matches' +
+          (nr.status !== 0 && mentionsMatches ? '' : '（退出码 ' + nr.status + '，' + (mentionsMatches ? '没点名' : '输出里没见到 matches') + '：入口检查点可能断不了缺少成员，速查）'),
+      )
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true })
+    }
+  }
 
   // ---- 5) 运行时腿：模块对象真加载，断两档真值 ----
   // 静态检查看不见两样东西：被加宽的字面量（openRepository 的真实取值）与运行时装上去的
@@ -474,6 +581,48 @@ function main(): void {
               (!kindSame ? '；checks 种类变了（' + want.checksKind + '→' + got.checksKind + '）：这一档在 #1027 有结论——契约把检查目录定义成一组数据（数组），GitHub 交的是 GITHUB_CHECKS，另两家不声明；再变就是有人动了真源，确认后登记' : ''),
           )
         }
+      }
+    }
+  }
+
+  // ---- 5b) 运行时反面证明：真走一遍注册，垃圾模块必须被拒，有效模块必须能进 ----
+  // 验的是「入口断言没被拿掉」。`register` 里调 `validateMod`（`core.ts`）是运行时唯一的
+  // 形状入口：谁把这一句删了，缺 `create`/`matches` 的垃圾模块就能注册进去，
+  // 编译还不会说话（运行时形状，类型检查看不见）。所以这里真建一个注册表，
+  // 拿一个残模块试注册——必须被拒（且理由是形状）；同时拿一个有效最小模块试注册——
+  // 必须能进（正控：证明探针自己能建表能注册，拒掉残模块是真咬住了，不是探针坏了啥都拒）。
+  {
+    const hookAbs = path.join(ROOT, 'scripts', 'ts-hook.mjs')
+    const hookUrl = pathToFileURL(hookAbs).href
+    const evalScript = `import('./src/tracker/registry/core.ts').then((core) => {` +
+      ` const reg = core.createRegistry();` +
+      ` let garbageRejected = false;` +
+      ` try { reg.register({ id: 'neg-entry', label: 'neg-entry' }); } catch (e) { garbageRejected = !!(e && e.code === 'shape'); }` +
+      ` let validAccepted = false;` +
+      ` try { const d = reg.register({ id: 'pos-entry', label: 'pos-entry', create: () => ({}), matches: () => false }); validAccepted = !!d; } catch (e) { validAccepted = false; }` +
+      ` console.log(JSON.stringify({ garbageRejected, validAccepted }));` +
+      ` }).catch((e) => { console.log(JSON.stringify({ loadError: String((e && e.message) || e) })); })`
+    const rr = spawnSync(process.execPath, ['--import', hookUrl, '--eval', evalScript], { encoding: 'utf8', timeout: 120000 })
+    if (rr.error) {
+      check(false, '运行时反面证明能跑起来（起进程失败）：' + (rr.error.message || String(rr.error)))
+    } else if (rr.status !== 0) {
+      check(false, '运行时反面证明能跑起来（退出码 ' + rr.status + '）：' + String(rr.stderr || '').slice(-300))
+    } else {
+      let got: { garbageRejected?: unknown; validAccepted?: unknown; loadError?: unknown } | null = null
+      try { got = JSON.parse(String(rr.stdout || '').trim().split(/\r?\n/).pop()) } catch { got = null }
+      if (!got || got.loadError) {
+        check(false, '注册表真建得起来（加载 core 失败）：' + String((got && got.loadError) || rr.stdout || '').slice(-200))
+      } else {
+        check(
+          got.garbageRejected === true,
+          '缺 create/matches 的残模块真注册时被拒（理由是形状）' +
+            (got.garbageRejected === true ? '' : '：注册竟然通过了——`register` 里的形状入口可能被拿掉，速查'),
+        )
+        check(
+          got.validAccepted === true,
+          '有效最小模块真注册时能进（正控：探针自己没坏）' +
+            (got.validAccepted === true ? '' : '：有效模块都没进去，是探针写法坏了，不是注册表坏了，先修探针'),
+        )
       }
     }
   }

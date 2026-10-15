@@ -34,6 +34,15 @@ export const BUILTIN_ROOM_IDS: readonly BuiltinRoomId[] = ['github', 'markdown',
 /**
  * 挑出注册表要的那一份模块对象。
  *
+ * 形状对不对由本函数的返回值类型回答：声明的是 `Promise<BackendModule>`，
+ * 房间交出来的模块对象缺成员、错签名，编译就在这里报错（#1192 的收口）。
+ * 所以这里不写任何形状断言——唯一的形状断言函数是 `registry/shape.ts` 的
+ * `validateMod`（注册表在 `core.ts` 里调它，那是运行时那道口；门禁 3b 钉住这里零断言）。
+ *
+ * 没有 `|| ns.default` 兜底：具名导出缺失必须在编译期炸出来，
+ * 不能在运行时悄悄拿一个不是模块的东西继续走（各家的 `default` 都是建后端的工厂，不是模块对象）。
+ * 搬家前的容错写法在这里没有意义——这三个常量恒在，恒在的东西不需要兜底。
+ *
  * github / gitlab 取模块对象本身；markdown 必须整份取 `markdownModule` —— 它的 `setupPrompt`
  * （setup 提示词的 locale 键名）挂在模块对象上，自己拼一份 create/matches 会把它丢掉，
  * 于是弹窗里选 Markdown 之后注入的 setup 提示词会落进 GitHub 的键组（#230 D10 实测过的故障）。
@@ -41,15 +50,14 @@ export const BUILTIN_ROOM_IDS: readonly BuiltinRoomId[] = ['github', 'markdown',
 async function backendModuleOf(id: BuiltinRoomId): Promise<BackendModule> {
   if (id === 'github') {
     const ns = await import('../rooms/github/index.js')
-    // githubModule 恒在（房间 index.ts 里写着）；`|| ns.default` 只是照搬搬家前的容错写法。
-    return (ns.githubModule || ns.default) as unknown as BackendModule
+    return ns.githubModule
   }
   if (id === 'gitlab') {
     const ns = await import('../rooms/gitlab/index.js')
-    return (ns.gitlabBackend || ns.default) as unknown as BackendModule
+    return ns.gitlabBackend
   }
   const ns = await import('../rooms/markdown/index.js')
-  return (ns.markdownModule || ns.default) as unknown as BackendModule
+  return ns.markdownModule
 }
 
 /**
