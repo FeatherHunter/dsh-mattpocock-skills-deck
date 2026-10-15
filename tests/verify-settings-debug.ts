@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 /**
- * verify-settings-debug.js —— 调试开关真源搬进本机设置文件 debug 节的门禁（#1012 第 8 条）。
+ * verify-settings-debug.ts —— 调试开关真源搬进本机设置文件 debug 节的门禁（#1012 第 8 条）。
+ * 写法保持 require 风格：验证链经装载钩子载入本文件，require 与 __dirname 照 CommonJS 形态工作
+ * （与 tests/verify-1207-splice-ts.ts 同形）；改成 import 形态没有收益，只添风险，所以不改。
+ * 用法: node --import ./scripts/ts-hook.mjs tests/verify-settings-debug.ts（在插件根目录；先运行 node scripts/build.mjs 生成产物）
  *
  * 这一份门禁量十九件事，每一件都用完整的一句话说清，第一次读的人能直接看懂。
  * 第一件事是构建与登记：这一片的运行时形状来自拼接，不跑构建就证明不了它进了双产物；它必须排在写这一趟
@@ -79,14 +82,14 @@ installTimeCompression()
 const ROOT = path.resolve(__dirname, '..')
 let passed = 0
 let failed = 0
-const check = (ok, msg, detail) => {
+const check = (ok: unknown, msg: string, detail?: unknown): void => {
   if (ok) { console.log('  PASS ' + msg); passed += 1 } else { console.log('  FAIL ' + msg + (detail ? ' —— ' + String(detail).slice(0, 300) : '')); failed += 1 }
 }
-const readText = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
+const readText = (rel: string): string => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 // 行数口径与 tests/verify-file-granularity.js 的 LIMIT=350 共用同一份实现（scripts/lib/effective-lines.mts）：
 //   #1017 起两条门禁都按**有效行**算（注释与空行不计）。此前这里数的是总行数，同一条尺子两处两种算法，
 //   一份文件多写几行注释就会两边给出不同的数；现在统一成有效行，注释随便写，只有真内容增长才算增长。
-const countLines = (rel) => countEffectiveLines(readText(rel))
+const countLines = (rel: string): number => countEffectiveLines(readText(rel))
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const makeHome = (tag) => fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-dbg-' + tag + '-'))
 const settingsPathIn = (home) => path.join(home, '.dsh', 'mattskillsdeck', 'settings.yaml')
@@ -175,7 +178,7 @@ function makeClient(env) {
 // 一份空文档（形状与核归一之后那一份逐字一致），debug 节按用例预置。
 const dbgDoc = (debug) => ({ version: 1, ui: { stateFilter: '', sortKey: '', sortDir: '', labelClicks: {} }, workspaces: {}, debug: debug || { enabled: false, sampleRate: 1 }, templates: {} })
 
-async function main() {
+async function main(): Promise<void> {
   console.log('调试开关真源搬进本机设置文件 debug 节门禁（#1012 第 8 条：读以文件为准、拨开关先写文件、宿主只当副本）')
 
   // ── 第一件事：先构建，并确认这一片真的进了双产物、排在正确的次序上 ──
@@ -199,7 +202,7 @@ async function main() {
     }
     check(readText('scripts/build.mjs').indexOf("name: 'settingsDebug', file: 'src/client/kernel/settings-debug.js'") >= 0,
       'scripts/build.mjs 的模块清单里登记了 settingsDebug（不登记会静默不编译）。')
-    check(readText('package.json').indexOf('node tests/verify-settings-debug.js') >= 0,
+    check(readText('package.json').indexOf('node tests/verify-settings-debug.ts') >= 0,
       'package.json 的验证链里登记了这一份门禁。')
     check(countLines(DEBUG_REL) <= 350 && countLines(LOG_REL) <= 350 && countLines(INDEX_REL) <= 350 && countLines(VIEW_REL) <= 350 && countLines(WRITE_REL) <= 350,
       '五份文件都在 350 行以内（本片 ' + countLines(DEBUG_REL) + '、旧真源 log.js ' + countLines(LOG_REL) + '、index.js ' + countLines(INDEX_REL) + '、settings-view.js ' + countLines(VIEW_REL) + '、settings-view-write.js ' + countLines(WRITE_REL) + '）。')

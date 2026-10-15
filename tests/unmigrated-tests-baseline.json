@@ -289,7 +289,6 @@
     "tests/verify-rest-fallback-banner.js",
     "tests/verify-reuse.js",
     "tests/verify-session-title.js",
-    "tests/verify-settings-debug.js",
     "tests/verify-settings-phones.js",
     "tests/verify-settings-templates.js",
     "tests/verify-settings-view.js",
