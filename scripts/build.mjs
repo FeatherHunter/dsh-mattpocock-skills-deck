@@ -41,7 +41,7 @@ import { bundleEntryPanel } from './bundle-update-entry.mjs'
 // #1023 内置 TypeScript 域的逐文件转译：原先四个计算核各自带一份 build.mjs，
 // 现在收成 scripts/lib 里的一份共用实现（transpile-domains.mjs），由本条命令统一驱动。
 // 这样「谁写产物」只有一处：构建。做法与为什么这么做写在那个文件里。
-import { buildDomain, findDomains } from './lib/transpile-domains.mjs'
+import { buildDomain, findDomains, readSpliceFragmentSource } from './lib/transpile-domains.mjs'
 import { TRANSPILE_OPTIONS, inlineExportDeclarations, generatedHeader } from './lib/transpile-unit.mjs'
 
 // 域里允许住**手写**的 .js（没有同名源码，也不是构建产出）。今天只有这三份，
@@ -716,25 +716,32 @@ const LEAF_MODULES = [
   { id: 'hostShim', file: 'src/client/hostShim.js' }, // #459 由 index.js 拆出：宿主适配垫片（timer 兜底加旧标签迁移）
   { id: 'panelAssembly', file: 'src/client/panelAssembly.js' }, // #459 由 index.js 拆出：面板装配（Ctx 装配加插槽注册加启动收尾）
 ]
-function extractModuleBlock(file) {
-  return read(file).split('\n').map((l) => l.replace(/^(\s*)export\s+/, '$1')).join('\n').trim()
-}
+/**
+ * 把登记过的片段拼进闭包（#1207）。
+ *
+ * 三个拼接点（kernel / leaf / shared 各一处）都走同一个入口，不各写一份读取逻辑：
+ * 片段读取与「行首 export 去掉、首尾空白去掉」那条判据收在 scripts/lib/transpile-domains.mjs 的
+ * readSpliceFragmentSource 与 scripts/lib/transpile-unit.mjs 的 toSpliceableFragment 里。
+ *
+ * 一条片段既可以是手写的 .js，也可以是从 .ts 转译来的（.ts 片段先在那一处按全仓唯一那份转译口径
+ * 变成 JavaScript 再拼）；转完仍留着模块级 import/export 的，那边会当场指名报错。
+ */
 function wireModules(body) {
   let out = body
   for (const m of KERNEL_MODULES) {
     const marker = `// ==== kernel:${m.name} (spliced by build) ====`
     if (out.indexOf(marker) < 0) throw new Error(`[build] 缺 marker ${marker} 对应 ${m.file} — 请在 src/client/index.js 加标记并在 KERNEL_MODULES 注册`)
-    out = out.replace(marker, extractModuleBlock(m.file))
+    out = out.replace(marker, readSpliceFragmentSource(m.file))
   }
   for (const m of LEAF_MODULES) {
     const marker = `// ==== leaf:${m.id} (spliced by build) ====`
     if (out.indexOf(marker) < 0) throw new Error(`[build] 缺 marker ${marker} 对应 ${m.file} — 请在 src/client/index.js 加标记并在 LEAF_MODULES 注册`)
-    out = out.replace(marker, extractModuleBlock(m.file))
+    out = out.replace(marker, readSpliceFragmentSource(m.file))
   }
   for (const m of SHARED_SPLICE) {
     const marker = m.marker
     if (out.indexOf(marker) < 0) throw new Error(`[build] 缺 marker ${marker} 对应 ${m.file} — 请在 src/client/index.js 加标记并在 SHARED_SPLICE 注册`)
-    out = out.replace(marker, extractModuleBlock(m.file))
+    out = out.replace(marker, readSpliceFragmentSource(m.file))
   }
   // 反向检查：src 下有叶子文件却未在 LEAF_MODULES 登记（比“忘贴纸条”更隐蔽）
   try {
@@ -746,7 +753,7 @@ function wireModules(body) {
         const rel = dir + '/' + ent.name
         const absEnt = resolve(ROOT, rel)
         if (ent.isDirectory()) walk(rel)
-        else if (ent.isFile() && rel.endsWith('.js')) leafFiles.push(rel)
+        else if (ent.isFile() && isLeafSourcePath(rel)) leafFiles.push(rel)
       }
     }
     walk('src/client/views'); walk('src/client/panel'); walk('src/client/statusbar'); walk('src/client/floating')
@@ -758,6 +765,21 @@ function wireModules(body) {
     if (e && e.message && e.message.startsWith('[build]')) throw e
   }
   return out
+}
+
+/**
+ * 这个文件算不算「一份要拼进闭包的叶子源码」（上面那条反向检查用的判据）。
+ *
+ * 三种形态要分清：`.js` 是登记表里今天记的那种；`.ts` 是转成 TypeScript 之后的形态（#1207），
+ * 只有当它旁边没有同名 `.js` 产物时才算一份独立叶子 —— 视图树里同名并排的 .ts/.js 是
+ * 「一份源码 + 一份产物」，产物那一条已经在 `.js` 那一支里算过一次，再算一次会把同一份叶子
+ * 数成两份、把好叶子报成未登记；`.d.ts` 是纯类型声明，没有运行时产物，永远不算叶子。
+ */
+function isLeafSourcePath(rel) {
+  if (rel.endsWith('.d.ts')) return false
+  if (rel.endsWith('.js')) return true
+  if (!rel.endsWith('.ts')) return false
+  return !existsSync(resolve(ROOT, rel.slice(0, -'.ts'.length) + '.js'))
 }
 
 // ---------- 构建 client ----------

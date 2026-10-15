@@ -110,6 +110,56 @@ export function inlineExportDeclarations(code, prefix) {
 }
 
 /**
+ * 把一段源码文本整成「可以拼进客户端闭包」的形态：行首的 export 去掉、首尾空白去掉。
+ *
+ * 为什么要有它：客户端那个大文件是把几十份源码片段按文本拼出来的（拼接点见 scripts/build.mjs 的
+ * wireModules），拼接的规则就是这一条。片段现在有两种来源——手写的 .js，和先按 TRANSPILE_OPTIONS
+ * 转译过的 .ts——两条来源必须落成同一种形态；规则只写在拼接点那一处的话，谁把一份片段改成 .ts、
+ * 走另一条读取路径，就会拼出不一样的字节，而且不报错。
+ *
+ * 里面那两条报错是**防静默拼错**。第一条管「这份片段根本不是拼进闭包该有的形态」：拼进闭包的
+ * 是函数体里的一段声明，行首 `export <声明>` 去掉 export 就对了，而模块写法（`export {…}`、
+ * `export * from`、`export default`）去掉 export 之后剩下的不是合法语句——静默拼出来只会是一段
+ * 语法错的文本，等构建的语法门禁去报，报出来的位置离真因很远。第二条管「.ts 片段没走过转译」：
+ * 那种文本里留着模块级 import，拼进闭包不会当场报错（闭包是一个函数体，编译器只管语法），
+ * 要到运行时才炸成 “Cannot use import statement outside a module”。两条都在构建这一处指名报错。
+ * 判据只认行首那几个真写法：`import x`、`import {`、`import 'x'`、`export{`、`export *`，
+ * 不碰 `exports.foo` 这类正常标识符，也不碰行首的 `import(`（那是合法的动态导入）。
+ *
+ * 它挡不住什么：一份从没转译过的 .ts 片段，如果只有类型写法（`const x: number = 1`、`type T = …`）
+ * 而没有任何 import/export，这段文本能过这里；它会在构建的语法门禁（`new Function` 那一关）当场
+ * 报语法错——那也是构建期报错，只是报错位置在语法门禁不在这一处。
+ *
+ * @param {string} code 已经是 JavaScript 的源码文本（.ts 必须先过转译口径再进来）
+ * @param {{ source: string }} options source 是仓库相对路径，只用于报错时指认是哪个片段
+ * @returns {string} 可直接拼进闭包的文本
+ */
+export function toSpliceableFragment(code, { source }) {
+  const moduleForm = /^[ \t]*export[ \t]*(\{|\*|default\b)/m.exec(code)
+  if (moduleForm) {
+    throw new Error(
+      `片段 ${source} 里是模块导出写法「${moduleForm[0].trim()}」：拼进闭包的片段只能写 ` +
+        '`export <声明>` 这种行首形式（去掉 export 就是一段普通声明），' +
+        '`export {…}` / `export * from` / `export default` 去掉 export 之后不是合法语句。'
+    )
+  }
+  const stripped = code
+    .split('\n')
+    .map((line) => line.replace(/^(\s*)export\s+/, '$1'))
+    .join('\n')
+    .trim()
+  const leftover = /^[ \t]*(?:import|export)[ \t{*'"]/m.exec(stripped)
+  if (leftover) {
+    throw new Error(
+      `片段 ${source} 在拼接前还留着模块级写法「${leftover[0].trim()}」：` +
+        '拼接点吃的是 JavaScript 文本，.ts 片段必须先按全仓唯一那份转译口径（本文件的 ' +
+        'TRANSPILE_OPTIONS 加 inlineExportDeclarations）转成 JavaScript 再拼。'
+    )
+  }
+  return stripped
+}
+
+/**
  * 产物第一行那句「这是机器生成的、别手改，真源在哪」。
  *
  * 为什么不带时间和版本号：那样每构建一次字节都变，产物进了 git 就会天天有噪音改动，

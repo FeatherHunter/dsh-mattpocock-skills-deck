@@ -21,7 +21,7 @@ import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 
-import { TRANSPILE_OPTIONS, checkDomainConsistency, deriveOutputPath, domainDir, generatedHeader, inlineExportDeclarations } from './transpile-unit.mjs'
+import { TRANSPILE_OPTIONS, checkDomainConsistency, deriveOutputPath, domainDir, generatedHeader, inlineExportDeclarations, toSpliceableFragment } from './transpile-unit.mjs'
 
 /** 仓库根：本文件在 scripts/lib/ 下，往上两层就是根。 */
 export const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
@@ -126,13 +126,7 @@ export function domainFromSourcePath(sourcePath) {
  */
 export function transpileUnit(sourcePath) {
   const domain = domainFromSourcePath(sourcePath)
-  const require = createRequire(resolve(REPO_ROOT, 'package.json'))
-  let esbuild
-  try {
-    esbuild = require('esbuild')
-  } catch (e) {
-    throw new Error(`[transpile] 没装 esbuild（先跑 pnpm install 再构建）：${(e && e.message) || e}`)
-  }
+  const esbuild = loadEsbuild()
   const source = readFileSync(resolve(REPO_ROOT, sourcePath), 'utf8')
   // 参数取自 scripts/lib/transpile-unit.mjs 的 TRANSPILE_OPTIONS：仓里所有逐文件转译共用同一份，
   // 客户端像素那一段也用这一份，两处不会各自漂移。
@@ -140,6 +134,49 @@ export function transpileUnit(sourcePath) {
   const prefix = `[${domainDir(domain)}]`
   const normalized = out.code.replace(/\r\n/g, '\n').replace(/\s+$/, '') + '\n'
   return generatedHeader(sourcePath) + inlineExportDeclarations(normalized, prefix)
+}
+
+/**
+ * esbuild 只加载一次：域构建、客户端片段、像素那一段都要它。装没装各自给一句能照着做的话，
+ * 不要在每个调用点各写一遍 require 与报错。
+ */
+let esbuildModule = null
+function loadEsbuild() {
+  if (esbuildModule) return esbuildModule
+  const require = createRequire(resolve(REPO_ROOT, 'package.json'))
+  try {
+    esbuildModule = require('esbuild')
+  } catch (e) {
+    throw new Error(`[transpile] 没装 esbuild（先跑 pnpm install 再构建）：${(e && e.message) || e}`)
+  }
+  return esbuildModule
+}
+
+/**
+ * 读一份要拼进客户端闭包的片段源码，返回**可以直接拼接**的 JavaScript 文本（#1207）。
+ *
+ * 与「域里的源码 → 产物」那条路只差两处：片段不写盘（它的去处是拼进 client.js 那一大段文本），
+ * 以及转译之后还要过一遍 toSpliceableFragment 那条判据——拼进闭包之前必须已经是纯 JavaScript。
+ *
+ * `.js` 片段原样读、也过同一条判据（它本来就是 JavaScript，过一遍只是为了让两条来源落到同一种形态）；
+ * `.ts` 片段先按全仓唯一那份 TRANSPILE_OPTIONS 转译，再用 inlineExportDeclarations 把 esbuild 收在
+ * 文件末尾的导出块改回行首写法。将来谁把一份片段从 .js 改成 .ts，只需要改登记表里的扩展名。
+ *
+ * 转完仍留着模块级 import/export 时由 toSpliceableFragment 当场报错——那说明这段文本没走过转译，
+ * 拼进闭包只会在运行时炸成 “Cannot use import statement outside a module”。
+ *
+ * @param {string} relPath 仓库相对的片段路径，登记在 build.mjs 的 KERNEL_MODULES / LEAF_MODULES / SHARED_SPLICE 里
+ */
+export function readSpliceFragmentSource(relPath) {
+  const source = readFileSync(resolve(REPO_ROOT, relPath), 'utf8')
+  if (!relPath.endsWith('.ts')) return toSpliceableFragment(source, { source: relPath })
+  let code
+  try {
+    code = loadEsbuild().transformSync(source, TRANSPILE_OPTIONS).code
+  } catch (e) {
+    throw new Error(`[build] 片段 ${relPath} 转译失败：${(e && e.message) || e}`)
+  }
+  return toSpliceableFragment(inlineExportDeclarations(code, `[build] 片段 ${relPath}`), { source: relPath })
 }
 
 /**

@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-15T14:39:12.734Z",
+  "generatedAt": "2026-10-15T14:52:01.179Z",
   "generatedBy": "node scripts/gate-map.mjs",
-  "chainLength": 262,
-  "gateCount": 262,
+  "chainLength": 263,
+  "gateCount": 263,
   "attributedGates": 234,
-  "unattributedGates": 28,
+  "unattributedGates": 29,
   "buildOutputOnlyGates": 18,
   "completionRecordedGates": 6,
   "smokeLength": 6,
@@ -210,6 +210,7 @@
         "src/shared/host-timer/host-timers.js",
         "src/shared/refresh/budget.js",
         "src/shared/refresh/src/budget.ts",
+        "src/shared/refresh/step-cost.js",
         "src/shared/version-control/parse-log.js",
         "src/shared/version-control/src/parse-log.ts",
         "src/tracker",
@@ -241,7 +242,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 11 条；源码里的路径字面量 19 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 11 条；源码里的路径字面量 20 条"
     },
     {
       "step": "node tests/verify-label-color-core.js",
@@ -5921,6 +5922,27 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条"
     },
     {
+      "step": "node tests/verify-1207-splice-ts.ts",
+      "file": "tests/verify-1207-splice-ts.ts",
+      "guards": [
+        "scripts/build.mjs",
+        "scripts/lib/transpile-domains.mjs",
+        "scripts/lib/transpile-unit.mjs",
+        "tests/lib/eval-probe.ts",
+        "tests/lib/source-text.ts"
+      ],
+      "dirs": [
+        "scripts",
+        "scripts/lib",
+        "tests/lib"
+      ],
+      "unattributed": true,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "读到的路径都落在 scripts、tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
+    },
+    {
       "step": "node tests/verify-gate-map.js",
       "file": "tests/verify-gate-map.js",
       "guards": [
@@ -6219,6 +6241,7 @@
       "node tests/verify-settings-view.js",
       "node tests/verify-settings-templates.js",
       "node tests/verify-settings-debug.js",
+      "node tests/verify-1207-splice-ts.ts",
       "node tests/verify-gate-map.js",
       "node tests/verify-typecheck.mts"
     ],
@@ -6241,6 +6264,7 @@
       "node tests/verify-visible-truth.js",
       "node tests/verify-chain-view.js",
       "node tests/verify-settings-debug.js",
+      "node tests/verify-1207-splice-ts.ts",
       "node tests/verify-gate-map.js"
     ],
     "src": [
@@ -7122,6 +7146,7 @@
       "node tests/verify-settings-templates.js",
       "node tests/verify-settings-debug.js",
       "node tests/verify-1150-plan-store-durable.ts",
+      "node tests/verify-1207-splice-ts.ts",
       "node tests/verify-gate-map.js"
     ],
     "tests/tracker-contract": [
