@@ -158,7 +158,17 @@ export const IssueDetail = function (props) {
               errKindOf(err) ? h('span', { style: { fontSize: 10, padding: '0 6px', border: '1px solid rgba(248,113,113,.45)', borderRadius: 10, flex: 'none' } }, errKindOf(err)) : null,
               h('span', { style: { flex: 1 } }),
               h('button', { className: 'dsws-btn primary', onClick: doRetry, style: { padding: '1px 8px', fontSize: 11, background: '#f87171', borderColor: 'transparent', color: '#fff' } }, '重试'),
-              h('a', { className: 'dsws-btn ghost', href: issueUrlFor(st, issueNumber, issueEffort), target: '_blank', rel: 'noreferrer', style: { padding: '1px 8px', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4 } }, [Ic({ n: 'link', size: 11 }), h('span', null, tr('detail.viewOnTracker'))]),
+                            // 本地票的 url 是文件路径不是网址：https 走新页，本地走宿主打开（裸 href 点了没反应，#1145）
+              (function () {
+                const _u = issueUrlFor(st, issueNumber, issueEffort)
+                const _isHttp = /^https?:\/\//i.test(String(_u || ''))
+                const _openLocal = function (e) { e.stopPropagation(); openIssueUrl(st, issueNumber, (typeof host !== 'undefined' ? host : undefined), issueEffort) }
+                const _props = { className: 'dsws-btn ghost', style: { padding: '1px 8px', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4 } }
+                const _kids = [Ic({ n: 'link', size: 11 }), h('span', null, tr('detail.viewOnTracker'))]
+                return _isHttp
+                  ? h('a', Object.assign({ href: _u, target: '_blank', rel: 'noreferrer' }, _props), _kids)
+                  : h('button', Object.assign({ onClick: _openLocal }, _props), _kids)
+              })(),
             ]),
             errRawBlockOf(err),
           ]),
@@ -284,7 +294,16 @@ export const IssueDetail = function (props) {
             h(Tip, { content: primaryInfo.tip }, h('button', { className: 'dsws-btn primary', onClick: function (e) { e.stopPropagation(); try { inject(st, primaryInfo.text) } catch (err2) {} }, style: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, background: actColor, borderColor: 'transparent', color: actTextColor, flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' } }, [Ic({ n: primaryInfo.icon, size: primaryInfo.icon === 'prototype' ? 12 : 10 }), h('span', { 'data-detail-primary-text': 1, 'data-full': primaryInfo.label, style: { overflow: 'hidden', whiteSpace: 'nowrap', minWidth: 0 } }, primaryInfo.label)])),
             h(Tip, { content: tr('tip.newSession', { n: issueNumber }) }, h('button', { className: 'dsws-btn primary', onClick: function (e) { e.stopPropagation(); openInNewSession(st, { number: issueNumber, ['title']: title, labels: labelArr }) }, style: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, background: actColor, borderColor: 'transparent', color: actTextColor, flex: 'none', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' } }, [Ic({ n: 'external-link', size: 10 }), h('span', { 'data-detail-new-text': 1, 'data-full': tr('list.newSessionLabel'), style: { overflow: 'hidden', whiteSpace: 'nowrap', minWidth: 0 } }, tr('list.newSessionLabel'))])),
             h(Tip, { content: tr('tip.copyLink') }, h('button', { className: 'dsws-btn ghost', onClick: function (e) { e.stopPropagation(); copyUrl(issueNumber) }, style: { display: 'inline-flex', alignItems: 'center', padding: '2px 4px', flex: 'none' } }, Ic({ n: 'clipboard', size: 13 }))),
-            h(Tip, { content: tr('tip.openInTracker', { n: issueNumber }) }, h('a', { className: 'dsws-btn ghost', href: issueUrlFor(st, issueNumber), target: '_blank', rel: 'noreferrer', style: { display: 'inline-flex', alignItems: 'center', padding: '2px 4px', flex: 'none' } }, Ic({ n: 'link', size: 13 }))),
+                        // 本地票的 url 是文件路径不是网址：https 走新页，本地走宿主打开（裸 href 点了没反应，#1145）
+            h(Tip, { content: tr('tip.openInTracker', { n: issueNumber }) }, (function () {
+              const _u = issueUrlFor(st, issueNumber, issueEffort)
+              const _isHttp = /^https?:\/\//i.test(String(_u || ''))
+              const _openLocal = function (e) { e.stopPropagation(); openIssueUrl(st, issueNumber, (typeof host !== 'undefined' ? host : undefined), issueEffort) }
+              const _props = { className: 'dsws-btn ghost', style: { display: 'inline-flex', alignItems: 'center', padding: '2px 4px', flex: 'none' } }
+              return _isHttp
+                ? h('a', Object.assign({ href: _u, target: '_blank', rel: 'noreferrer' }, _props), Ic({ n: 'link', size: 13 }))
+                : h('button', Object.assign({ onClick: _openLocal }, _props), Ic({ n: 'link', size: 13 }))
+            })()),
           ]),
         ]),
         // 顶部 err 横幅（有 src 时可重试，不遮挡主体）：主行给人看的一句话，档位作可选小标签，原文可展开

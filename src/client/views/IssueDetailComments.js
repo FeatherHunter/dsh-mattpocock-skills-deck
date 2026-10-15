@@ -89,7 +89,16 @@ export const renderIssueDetailComments = function (h, st, issueNumber, detail, m
             return h('div', { style: { marginTop: 8, padding: '8px 10px', background: 'rgba(248,113,113,.08)', border: '1px solid rgba(248,113,113,.2)', borderRadius: 6, fontSize: 11, color: '#f87171', display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' } }, [
               Ic({ n: 'alert', size: 11 }),
               h('span', null, '以下评论未加载，'),
-              h('a', { href: issueUrlFor(st, issueNumber), target: '_blank', rel: 'noreferrer', style: { color: '#58a6ff', textDecoration: 'underline' } }, tr('detail.viewOnTrackerHint')),
+                    // 本地票的 url 是文件路径不是网址：https 走新页，本地走宿主打开（裸 href 点了没反应，#1145）
+      (function () {
+        const _u = issueUrlFor(st, issueNumber)
+        const _isHttp = /^https?:\/\//i.test(String(_u || ''))
+        const _openLocal = function (e) { e.stopPropagation(); openIssueUrl(st, issueNumber, (typeof host !== 'undefined' ? host : undefined)) }
+        const _textStyle = { color: '#58a6ff', textDecoration: 'underline' }
+        return _isHttp
+          ? h('a', { href: _u, target: '_blank', rel: 'noreferrer', style: _textStyle }, tr('detail.viewOnTrackerHint'))
+          : h('button', { onClick: _openLocal, style: Object.assign({ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 'inherit' }, _textStyle) }, tr('detail.viewOnTrackerHint'))
+      })(),
             ])
           }
           const hasMore = (detail.comments && detail.comments.pageInfo) ? detail.comments.pageInfo.hasNextPage : commentsNodes.length >= 50
@@ -122,7 +131,16 @@ export const renderIssueDetailComments = function (h, st, issueNumber, detail, m
             color: st.cmtError.kind === 'rate-limit' ? '#f59e0b' : '#f87171' } }, [
             Ic({ n: 'alert', size: 11 }),
             h('span', null, cmtErrTextOf(st.cmtError)),
-            st.cmtError.kind === 'auth' ? h('a', { href: issueUrlFor(st, issueNumber), target: '_blank', rel: 'noreferrer', style: { color: '#58a6ff', textDecoration: 'underline' } }, tr('detail.authFailCta')) : null,
+                  // 本地票的 url 是文件路径不是网址：https 走新页，本地走宿主打开（裸 href 点了没反应，#1145）
+      st.cmtError.kind === 'auth' ? (function () {
+        const _u = issueUrlFor(st, issueNumber)
+        const _isHttp = /^https?:\/\//i.test(String(_u || ''))
+        const _openLocal = function (e) { e.stopPropagation(); openIssueUrl(st, issueNumber, (typeof host !== 'undefined' ? host : undefined)) }
+        const _textStyle = { color: '#58a6ff', textDecoration: 'underline' }
+        return _isHttp
+          ? h('a', { href: _u, target: '_blank', rel: 'noreferrer', style: _textStyle }, tr('detail.authFailCta'))
+          : h('button', { onClick: _openLocal, style: Object.assign({ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 'inherit' }, _textStyle) }, tr('detail.authFailCta'))
+      })() : null,
           ]) : null,
           h('textarea', {
             value: st.cmtDraft || '',
