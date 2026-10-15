@@ -10,7 +10,7 @@
  *   L5 路径形态：全量委托 `node:path.posix`（sep='/'），零自实现（沿 #113 D1）。
  *   L6 ~/$VAR 展开：平台层不展开（shell 语义归调用方；path.posix 不展开 ~/ 语义）。
  *
- * 通用包装（缓存 / throw→null / path 委托 / fs 透传 / env 视图）由 `platform/index.js:composePlatform` 单点提供，
+ * 通用包装（缓存 / throw→null / path 委托 / fs 透传 / env 视图）由 `platform/index.ts:composePlatform` 单点提供，
  * 本文件只提供 OS 专属原语（pathImpl / getHome / resolveExecutable），不重复实现通用层。
  */
 // 本域 tsconfig 有意不加载任何类型包（types 为空），node:path / node:os 的类型声明随 @types/node

@@ -33,7 +33,7 @@ function check(ok, msg) {
 const PRODUCTS = ['client.js', 'host.js', 'package/lib/client.js', 'package/lib/index.js']
 const SOURCES = [
   'src/host/platform/win32/index.ts',
-  'src/host/platform/index.js',
+  'src/host/platform/index.ts',
   'src/host/platform/darwin/index.ts',
   'src/host/platform/linux/index.ts',
   'scripts/build.mjs',
@@ -87,7 +87,7 @@ function makeCtx(subprocessImpl, fsImpl, extra) {
 
 async function runWin32() {
   const win32Url = 'file://' + path.resolve('src/host/platform/win32/index.ts').replace(/\\/g, '/')
-  const platformUrl = 'file://' + path.resolve('src/host/platform/index.js').replace(/\\/g, '/')
+  const platformUrl = 'file://' + path.resolve('src/host/platform/index.ts').replace(/\\/g, '/')
   const win32Mod = await import(win32Url)
   const platMod = await import(platformUrl)
   const win32Adapter = win32Mod.default
@@ -221,7 +221,7 @@ async function runWin32() {
 async function runDarwin() {
   console.log('\n== 运行时：darwin 10项（#164 3a-D1~D10 · #165极薄） ==')
   const darwinUrl = 'file://' + path.resolve('src/host/platform/darwin/index.ts').replace(/\\/g, '/')
-  const platformUrl = 'file://' + path.resolve('src/host/platform/index.js').replace(/\\/g, '/')
+  const platformUrl = 'file://' + path.resolve('src/host/platform/index.ts').replace(/\\/g, '/')
   const darwinMod = await import(darwinUrl)
   const platMod = await import(platformUrl)
   const darwinAdapter = darwinMod.default
@@ -322,7 +322,7 @@ async function runDarwin() {
   // OS覆盖单机可判真
   {
     const ctx = makeCtx({ resolveExecutable: async (n) => n === 'sh' ? '/bin/sh' : null })
-    const plat = await (await import('file://' + path.resolve('src/host/platform/index.js').replace(/\\/g,'/'))).createPlatform(ctx, 'darwin', { homedir: () => '/Users/darwinCov', env: {} })
+    const plat = await (await import('file://' + path.resolve('src/host/platform/index.ts').replace(/\\/g,'/'))).createPlatform(ctx, 'darwin', { homedir: () => '/Users/darwinCov', env: {} })
     check(plat.os === 'darwin', 'darwin createPlatform OS覆盖生效')
     check((await plat.getHome()) === '/Users/darwinCov', 'darwin createPlatform覆盖后getHome正常')
   }
@@ -332,7 +332,7 @@ async function runDarwin() {
 async function runLinux() {
   console.log('\n== 运行时：linux 分组（L1-L6 · G1-G13 容器可判真） ==')
   const linuxUrl = 'file://' + path.resolve('src/host/platform/linux/index.ts').replace(/\\/g, '/')
-  const platformUrl = 'file://' + path.resolve('src/host/platform/index.js').replace(/\\/g, '/')
+  const platformUrl = 'file://' + path.resolve('src/host/platform/index.ts').replace(/\\/g, '/')
   const linuxMod = await import(linuxUrl)
   const platMod = await import(platformUrl)
   const linuxAdapter = linuxMod.default

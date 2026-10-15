@@ -112,7 +112,7 @@
       "note": "#729 一次性方案：刷新路（客户端手动刷新的真路径）此前整篇无在途表，动态引入共用协调器；门禁原文允许确认后记入，理由与归属见本条。"
     },
     {
-      "file": "src/host/platform/index.js",
+      "file": "src/host/platform/index.ts",
       "spec": "./darwin/index.js",
       "resolved": "src/host/platform/darwin/index.ts",
       "layer": "platform",
@@ -121,7 +121,7 @@
       "note": "平台入口按系统分发苹果实现"
     },
     {
-      "file": "src/host/platform/index.js",
+      "file": "src/host/platform/index.ts",
       "spec": "./win32/index.js",
       "resolved": "src/host/platform/win32/index.ts",
       "layer": "platform",
@@ -130,7 +130,7 @@
       "note": "平台入口按系统分发视窗实现"
     },
     {
-      "file": "src/host/platform/index.js",
+      "file": "src/host/platform/index.ts",
       "spec": "./linux/index.js",
       "resolved": "src/host/platform/linux/index.ts",
       "layer": "platform",

@@ -33,7 +33,7 @@ function check(ok, msg) {
 const PRODUCTS = ['client.js', 'host.js', 'package/lib/client.js', 'package/lib/index.js']
 const SOURCES = [
   'src/host/platform/win32/index.ts',
-  'src/host/platform/index.js',
+  'src/host/platform/index.ts',
   'src/host/platform/darwin/index.ts',
   'src/host/platform/linux/index.ts',
   'scripts/build.mjs',
@@ -79,8 +79,8 @@ async function main() {
   console.log('\n== I2 零手拼（一次） ==')
   const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
   {
-    const idxSrc = fs.readFileSync('src/host/platform/index.js', 'utf8')
-    check(!/import\s*\(/.test(idxSrc), 'platform/index.js 无变量动态 import')
+    const idxSrc = fs.readFileSync('src/host/platform/index.ts', 'utf8')
+    check(!/import\s*\(/.test(idxSrc), 'platform/index.ts 无变量动态 import')
     check(idxSrc.includes("import win32 from './win32/index.js'"), '静态 import win32')
   }
   for (const rel of ['src/host/platform/win32/index.ts','src/host/platform/darwin/index.ts','src/host/platform/linux/index.ts']) {

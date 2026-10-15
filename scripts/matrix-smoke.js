@@ -30,7 +30,7 @@ function check(ok, msg) {
 const PRODUCTS = ['client.js', 'host.js', 'package/lib/client.js', 'package/lib/index.js']
 const SOURCES = [
   'src/host/platform/win32/index.ts',
-  'src/host/platform/index.js',
+  'src/host/platform/index.ts',
   'src/host/platform/darwin/index.ts',
   'src/host/platform/linux/index.ts',
   'scripts/build.mjs',
@@ -86,11 +86,11 @@ async function main() {
     check(srcRaw.includes('USERPROFILE') && srcRaw.includes('HOMEDRIVE'), 'win32 护栏回退链 USERPROFILE→HOMEDRIVE+HOMEPATH 存在')
   }
   {
-    const idxSrc = fs.readFileSync('src/host/platform/index.js', 'utf8')
-    check(idxSrc.includes("import win32 from './win32/index.js'"), 'platform/index.js 静态 import win32')
-    check(idxSrc.includes("import darwin from './darwin/index.js'"), 'platform/index.js 静态 import darwin')
-    check(idxSrc.includes("import linux from './linux/index.js'"), 'platform/index.js 静态 import linux')
-    check(!/import\s*\(/.test(idxSrc), 'platform/index.js 无变量动态 import（打包可断）')
+    const idxSrc = fs.readFileSync('src/host/platform/index.ts', 'utf8')
+    check(idxSrc.includes("import win32 from './win32/index.js'"), 'platform/index.ts 静态 import win32')
+    check(idxSrc.includes("import darwin from './darwin/index.js'"), 'platform/index.ts 静态 import darwin')
+    check(idxSrc.includes("import linux from './linux/index.js'"), 'platform/index.ts 静态 import linux')
+    check(!/import\s*\(/.test(idxSrc), 'platform/index.ts 无变量动态 import（打包可断）')
   }
   {
     const darwinRaw = fs.readFileSync('src/host/platform/darwin/index.ts', 'utf8')
@@ -126,7 +126,7 @@ async function main() {
     check(typeof backendCtx.platform.resolveExecutable === 'function', `${os} platform.resolveExecutable 可用`)
     // getHome 不返 null（注入 homedir 后）与形态校验
     // 用注入 homedir 验证 I1 典型分支
-    const { createPlatform } = await import('file://' + path.resolve('src/host/platform/index.js').replace(/\\/g,'/'))
+    const { createPlatform } = await import('file://' + path.resolve('src/host/platform/index.ts').replace(/\\/g,'/'))
     if (os === 'win32') {
       const mockCtx = { get: (n) => n === 'fs' ? { lstat: async()=>null, readText: async()=>'', writeText: async()=>{}, resolve:(p)=>p, listDir: async()=>[], stat: async()=>null } : n==='subprocess' ? { resolveExecutable: async()=>null } : undefined }
       const plat = await createPlatform(mockCtx, 'win32', { homedir: () => 'C:\\Users\\a', env: {} })

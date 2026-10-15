@@ -4,7 +4,7 @@
  * 定版来源：#129（平台原语接口）+ #160 G 票三裁决
  *  ① 护栏 ^[A-Za-z]:→USERPROFILE→HOMEDRIVE+HOMEPATH（#129 D2）/ 别名仅 cmd→cmd.exe / 路径全委托 node:path.win32。
  * 通用包装（getHome 缓存 / env 只读视图 / resolveExecutable throw→null / path 委托 node:path / fs 透传）
- * 由 `platform/index.js` 的 `composePlatform` 单点提供，不在此重复。
+ * 由 `platform/index.ts` 的 `composePlatform` 单点提供，不在此重复。
  */
 
 // 本域 tsconfig 有意不加载任何类型包（types 为空），node:path / node:os 的类型声明随 @types/node

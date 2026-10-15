@@ -37,7 +37,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 
 async function main() {
-  const { createPlatform } = await import('../src/host/platform/index.js')
+  const { createPlatform } = await import('../src/host/platform/index.ts')
   const { default: linuxAdapter } = await import('../src/host/platform/linux/index.ts')
 
   let failed = false

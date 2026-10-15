@@ -184,7 +184,6 @@
     "src/host/mapTickets.js",
     "src/host/namingGuardian.js",
     "src/host/pickerShell.js",
-    "src/host/platform/index.js",
     "src/host/platform/issueIndexWindow.js",
     "src/host/platform/namingSummary.js",
     "src/host/platform/refreshAssembly.js",

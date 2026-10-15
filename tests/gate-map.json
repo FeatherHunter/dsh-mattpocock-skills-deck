@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-15T13:48:35.619Z",
+  "generatedAt": "2026-10-15T13:58:52.515Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 262,
   "gateCount": 262,
@@ -812,7 +812,7 @@
         "package/package.json",
         "scripts/build.mjs",
         "src/host/platform/darwin/index.ts",
-        "src/host/platform/index.js",
+        "src/host/platform/index.ts",
         "src/host/platform/linux/index.ts",
         "src/host/platform/win32/index.ts"
       ],
@@ -835,7 +835,7 @@
       "step": "node tests/verify-platform-linux.js",
       "file": "tests/verify-platform-linux.js",
       "guards": [
-        "src/host/platform/index.js",
+        "src/host/platform/index.ts",
         "src/host/platform/linux/index.ts"
       ],
       "dirs": [
@@ -2931,7 +2931,7 @@
       "guards": [
         "src/host/pickerShell.js",
         "src/host/platform/darwin/index.ts",
-        "src/host/platform/index.js",
+        "src/host/platform/index.ts",
         "src/host/platform/linux/index.ts",
         "src/host/platform/win32/index.ts"
       ],
@@ -4268,7 +4268,7 @@
       "guards": [
         "src",
         "src/host/git-process.ts",
-        "src/host/platform/index.js",
+        "src/host/platform/index.ts",
         "src/host/platformChannel.ts",
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
@@ -7433,7 +7433,7 @@
       "src/host/pickerShell.js",
       "src/host/platform/README.md",
       "src/host/platform/darwin/index.ts",
-      "src/host/platform/index.js",
+      "src/host/platform/index.ts",
       "src/host/platform/issueIndexWindow.js",
       "src/host/platform/linux/index.ts",
       "src/host/platform/namingSummary.js",
