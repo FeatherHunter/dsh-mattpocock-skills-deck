@@ -1,6 +1,6 @@
-// src/host/snapshotEnvelope.js —— 快照信封的组装与落盘（#723 T19 从 sessionSnapshot.js 原样搬出，纯结构、行为零变化）
+// src/host/snapshotEnvelope.ts —— 快照信封的组装与落盘（#723 T19 从 sessionSnapshot.ts 原样搬出，纯结构、行为零变化）
 //
-// 为什么单开这一个文件：会话快照电话（src/host/sessionSnapshot.js）的五条分支（内存缓存短路、磁盘回放、
+// 为什么单开这一个文件：会话快照电话（src/host/sessionSnapshot.ts）的五条分支（内存缓存短路、磁盘回放、
 // 304、重建、失败）都要拼同一个形状的信封，而那个文件贴着 350 行上限（tests/verify-file-granularity.js
 // 的零增长基线）—— #723 要往快照回包上挂「每个会话在处理哪些票」的读数时，那个文件已经 349 行。
 // 所以先把这两件与电话体无关的纯组装搬出来：谁要改「快照里都有哪些字段」，改这一处就够（#653 的老规矩）。

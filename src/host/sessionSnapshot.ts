@@ -1,7 +1,7 @@
-// src/host/sessionSnapshot.js —— 会话快照电话（H4 #448 从 host/index.js 310–658 搬出电话体，早选前奏改调共享判据，纯结构、行为零变化）。
+// src/host/sessionSnapshot.ts —— 会话快照电话（H4 #448 从 host/index.js 310–658 搬出电话体，早选前奏改调共享判据，纯结构、行为零变化）。
 // 以后谁改它：改快照缓存短路或快照组装的人。预估约340行，超 350 打回。
 // 接线：由 index.js 动态 import 加载；早选判据由 index 从启停模块转供给。
-// #723（T19）：信封组装（字段清单与落盘那一步的日志）搬到了同目录的 ./snapshotEnvelope.js —— 这个文件
+// #723（T19）：信封组装（字段清单与落盘那一步的日志）搬到了同目录的 ./snapshotEnvelope.ts —— 这个文件
 // 贴着 350 行上限，要让出位置把「每个会话在处理哪些票」的读数挂到快照回包上（票面 3e）。搬的时候只搬不改。
 import { createSnapshotEnvelope } from './snapshotEnvelope.js'
 // #1139：界面描述（发给界面的那份后端数据）的投影只有一处实现，本文件不再自己挑字段。
