@@ -200,8 +200,9 @@ export async function applyBlockEdges(
   const after = { issue: (back && back.ok === true) ? back.data : null, dependencies: (dep && dep.ok === true) ? dep.data : null }
   // 读回这一步自己成没成，与「读回来了、里面没有这条边」是两件事（#790）：
   // 读失败时只能说「没读回来，判不了」，绝不许说成「这条依赖没出现在票上」。
+  // 为什么套 !!：`back && ...` 在 back 为 null 时求值成 null，这一格要的是布尔（类型检查会红）。
   const depReadable = !!(t && typeof t.getDependencies === 'function')
-  const readOk = (back && back.ok === true) && (!depReadable || (dep && dep.ok === true))
+  const readOk = !!((back && back.ok === true) && (!depReadable || (dep && dep.ok === true)))
   const landed = readOk ? relationsOfRules(after.issue || {}, after.dependencies).blockedBy : []
   const readError = readOk ? '' : failureText((back && back.ok !== true) ? back : dep)
   const items = list.map((to) => {
