@@ -333,6 +333,54 @@ export const VersionControlTab = function (props) {
   //   早先这里传错了对象，真机上确认框是空框、失败横幅露出 vc.op.failed 这个键名（#842 视觉预览 V1/V2）。
   const writeUi = (typeof vcWriteUiOf === 'function') ? vcWriteUiOf(screen, ui, { t: tr, nowMs: Date.now(), decisions: decisions }) : null
   const writeTail = vcWriteTailNodes(h, { writeUi: writeUi, tone: tone, tipNode: tipNode, tr: tr, retryResult: ops.retryResult, cancelConfirm: ops.cancelConfirm, confirmNow: ops.confirmNow, pickRemote: ops.pickRemote, openHandoff: openHandoff })
+  // 气泡确认框的落点：点哪个按钮，气泡就跟在哪个按钮下面（气泡顶部贴按钮底部），拉取与推送走同一套。
+  //   尾巴节点里只给了气泡本体的样子（绝对定位、top/left 先占 0），这里量到按钮底部再写进去；
+  //   量不到按钮（比如按钮被折叠）就退回视图条，保证气泡仍在页内可见。点外关掉走覆盖层，Esc 关掉走这里。
+  const rawConfirm = (ui && ui.write && ui.write.confirm) || null
+  // 票据是对象（{id,…}）或字符串都可能，直接拼会全变成 [object Object] 撞车，这里只取票号。
+  const rawTicket = rawConfirm ? (rawConfirm.ticket && rawConfirm.ticket.id) || rawConfirm.ticket : ''
+  const anchorKey = (rawConfirm ? rawConfirm.op + '|' + rawTicket : '') + '#' + (writeUi && writeUi.remoteChoice ? writeUi.remoteChoice.op : '')
+  React.useEffect(function () {
+    if (!writeUi || (!writeUi.confirm && !writeUi.remoteChoice)) return
+    const root = rootRef.current
+    if (!root || typeof document === 'undefined') return
+    const place = function (sel, op) {
+      const pop = root.querySelector(sel)
+      if (!pop) return
+      // 三档推送共用视图条上那一颗推送按钮，确认框的 op 是哪一档都跟同一颗按钮。
+      const btnOp = op && op.indexOf('push') === 0 ? 'push' : op
+      const btn = btnOp ? root.querySelector('[data-vc-action="' + btnOp + '"]') : null
+      const target = btn || root.querySelector('[data-vc-viewbar]')
+      if (!target) return
+      const r = target.getBoundingClientRect()
+      const rr = root.getBoundingClientRect()
+      const gap = 6
+      const popW = 360
+      let left = r.left - rr.left
+      if (left + popW > rr.width - 8) left = rr.width - popW - 8
+      if (left < 8) left = 8
+      pop.style.top = Math.round(r.bottom - rr.top + gap) + 'px'
+      pop.style.left = Math.round(left) + 'px'
+    }
+    const placeAll = function () {
+      if (writeUi.confirm) place('[data-vc-confirm]', writeUi.confirm.op)
+      if (writeUi.remoteChoice) place('[data-vc-remote-choice]', writeUi.remoteChoice.op)
+    }
+    placeAll()
+    const onKey = function (e) {
+      if (e && e.key === 'Escape' && writeUi.confirm) ops.cancelConfirm()
+    }
+    document.addEventListener('keydown', onKey)
+    window.addEventListener('resize', placeAll)
+    // 面板滚动时跟住按钮：根的上层滚动容器滚动也要重算，不然气泡会飘走。
+    const scroller = root.parentElement
+    if (scroller) scroller.addEventListener('scroll', placeAll, true)
+    return function () {
+      document.removeEventListener('keydown', onKey)
+      window.removeEventListener('resize', placeAll)
+      if (scroller) scroller.removeEventListener('scroll', placeAll, true)
+    }
+  }, [anchorKey])
   // #857 P5：首屏还没拿到数据时不画空白，画骨架 —— 骨架里一个字都不写；有旧数据时走旧数据那条。
   const screenState = (reads.screen && reads.screen.state) || 'idle'
   const showSkel = !screen && blocks.length === 0 && (screenState === 'idle' || screenState === 'loading')
@@ -345,5 +393,5 @@ export const VersionControlTab = function (props) {
   const parts = vcViewBlocksOf(blocks)
   const viewBlocks = effView === 'commits' ? parts.commits : (effView === 'worktrees' ? parts.worktrees : parts.changes)
   const tabs = vcViewTabsNode(h, { view: effView, counts: vcViewCountsOf(screen, reads), t: tr, onPick: pickView })
-  return h('div', { ref: rootRef, 'data-vc-root': 1, 'data-vc-tier': tier, style: { display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 } }, showSkel ? [skeleton] : parts.always.map(node).concat([tabs], viewBlocks.map(node), writeTail))
+  return h('div', { ref: rootRef, 'data-vc-root': 1, 'data-vc-tier': tier, style: { position: 'relative', display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 } }, showSkel ? [skeleton] : parts.always.map(node).concat([tabs], viewBlocks.map(node), writeTail))
 }

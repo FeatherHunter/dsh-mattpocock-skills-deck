@@ -163,6 +163,9 @@ export const VC_STYLE_TEXT = [
   // 根取消统一 gap 后块间节奏按原型走：提示与异常带下留 10px，执行结果与确认框上留 10px。
   "[data-vc-root] [data-vc-hint],[data-vc-root] [data-vc-band]{margin-bottom:10px}",
   "[data-vc-root] [data-vc-op-result],[data-vc-root] [data-vc-confirm],[data-vc-root] [data-vc-remote-choice]{margin-top:10px}",
+  // 气泡确认框：以前是尾巴的整宽面板（上留 10px），现在是跟在按钮下面的绝对定位气泡，落点由入口组件量到按钮底部再写进 top/left。
+  //   这里只把尾巴那 10px 上边距清掉、把宽度收住，免得气泡还占着整宽面板的位置。
+  "[data-vc-root] [data-vc-confirm][data-vc-popover],[data-vc-root] [data-vc-remote-choice][data-vc-popover]{margin-top:0;max-width:min(360px,calc(100% - 16px))}",
   ".dsws-vc-viewbar-lbl{font-size:10.5px;color:var(--vc-faint);font-family:ui-monospace,SFMono-Regular,Consolas,Menlo,monospace}",
   // #857 P5/P6：骨架条——固定高度占位，不跳；减弱动态偏好下静止。
   ".dsws-vc-skel{border-radius:4px;background:linear-gradient(90deg,var(--vc-hover,rgba(127,127,160,.12)) 25%,var(--vc-elevated,#16181d) 50%,var(--vc-hover,rgba(127,127,160,.12)) 75%);background-size:200% 100%;animation:dsws-vc-shimmer 1.4s linear infinite;margin:7px 0}",

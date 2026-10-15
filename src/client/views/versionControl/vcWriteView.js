@@ -154,19 +154,15 @@ export const vcWriteTailNodes = function (h, o) {
       ])
     : null
   // 多远端 + 没有上游：候选远端来自失败回包的顶层 remotes，画成一排可点的入口（选中后带 remote 重跑预检）。
+  //   气泡样子与落点在下面的 remotePopover 里统一给，这里只留模型。
   const rc = w.remoteChoice
-  const remoteChoice = rc
-    ? h('div', { key: 'remoteChoice', 'data-vc-remote-choice': 1, style: { border: '1px solid var(--vc-line2)', borderRadius: 'var(--vc-radius,4px)', padding: 12, background: 'var(--vc-inset)', display: 'flex', flexDirection: 'column', gap: 6 } }, [
-        h('div', { key: 'title', style: { fontSize: 12, fontWeight: 700, color: o.tone('primary') } }, rc.title),
-        h('div', { key: 'body', 'data-vc-remote-choice-body': 1, style: { fontSize: 11, color: o.tone('caption'), lineHeight: 1.6 } }, rc.body),
-        h('div', { key: 'list', style: { display: 'flex', gap: 6, flexWrap: 'wrap' } }, rc.remotes.map(function (name) {
-          return h('button', { key: name, className: 'dsws-btn', type: 'button', 'data-vc-remote': name, onClick: function () { o.pickRemote(name) }, style: {} }, name)
-        })),
-      ])
-    : null
   const c = w.confirm
+  // 气泡确认框：同一个人机动作（拉取 / 三档推送）共用这一处，点哪个按钮就跟在哪个按钮下面。
+  //   以前这里是跟在整页尾巴的整宽大面板（按钮在上、面板贴底），现在改成绝对定位的气泡：
+  //   具体落点由入口组件那一处定位效果量到按钮底部再写进 top / left，这里只给气泡本体的样子与关掉的路。
   const confirm = c
-    ? h('div', { key: 'confirm', 'data-vc-confirm': c.op, style: { border: '1px solid var(--vc-line2)', borderRadius: 'var(--vc-radius,4px)', padding: 12, background: 'var(--vc-inset)', display: 'flex', flexDirection: 'column', gap: 6 } }, [
+    ? [h('div', { key: 'confirmOverlay', 'data-vc-confirm-overlay': 1, onClick: o.cancelConfirm, style: { position: 'fixed', inset: 0, zIndex: 20, background: 'transparent' } }),
+      h('div', { key: 'confirm', role: 'dialog', tabIndex: -1, 'data-vc-confirm': c.op, 'data-vc-popover': 1, style: { position: 'absolute', zIndex: 30, top: 0, left: 0, width: 360, maxWidth: 'calc(100% - 16px)', minWidth: 280, marginTop: 0, border: '1px solid var(--vc-line2)', borderRadius: 'var(--vc-radius,4px)', padding: 12, background: 'var(--vc-elevated,#1a2438)', boxShadow: '0 8px 30px rgba(0,0,0,.45)', display: 'flex', flexDirection: 'column', gap: 6 } }, [
         h('div', { key: 'title', className: 'dsws-vc-dlg-t', style: { fontWeight: 700, color: o.tone('primary') } }, c.title),
         h('div', { key: 'body', className: 'dsws-vc-dlg-b', 'data-vc-confirm-body': 1, style: { color: o.tone('primary'), lineHeight: 1.6 } }, c.body),
         c.warnText ? h('div', { key: 'warn', 'data-vc-confirm-warn': 1, tabIndex: 0, style: { fontSize: 11, lineHeight: 1.6 } }, c.warnText) : null,
@@ -178,7 +174,19 @@ export const vcWriteTailNodes = function (h, o) {
           h('button', { key: 'cancel', className: 'dsws-btn ghost', type: 'button', 'data-vc-confirm-cancel': 1, onClick: o.cancelConfirm, style: {} }, o.tr('vc.confirm.cancel')),
           h('button', { key: 'ok', className: 'dsws-btn primary', type: 'button', 'data-vc-confirm-ok': 1, onClick: o.confirmNow, style: { fontWeight: 700 } }, c.okText),
         ]),
+      ])]
+    : null
+  // 多远端候选框：以前是尾巴的整宽面板，现在与确认框同一套锚定（按钮下面的气泡）。
+  //   它没有取消路（必须选一个远端），所以不铺点外关掉的覆盖层，只改样子与落点，旧面板不再保留。
+  const confirmNodes = confirm || []
+  const remotePopover = rc
+    ? h('div', { key: 'remoteChoice', 'data-vc-remote-choice': 1, 'data-vc-popover': 1, style: { position: 'absolute', zIndex: 30, top: 0, left: 0, width: 360, maxWidth: 'calc(100% - 16px)', minWidth: 280, marginTop: 0, border: '1px solid var(--vc-line2)', borderRadius: 'var(--vc-radius,4px)', padding: 12, background: 'var(--vc-elevated,#1a2438)', boxShadow: '0 8px 30px rgba(0,0,0,.45)', display: 'flex', flexDirection: 'column', gap: 6 } }, [
+        h('div', { key: 'title', style: { fontSize: 12, fontWeight: 700, color: o.tone('primary') } }, rc.title),
+        h('div', { key: 'body', 'data-vc-remote-choice-body': 1, style: { fontSize: 11, color: o.tone('caption'), lineHeight: 1.6 } }, rc.body),
+        h('div', { key: 'list', style: { display: 'flex', gap: 6, flexWrap: 'wrap' } }, rc.remotes.map(function (name) {
+          return h('button', { key: name, className: 'dsws-btn', type: 'button', 'data-vc-remote': name, onClick: function () { o.pickRemote(name) }, style: {} }, name)
+        })),
       ])
     : null
-  return [running, remoteChoice, result, confirm]
+  return [running, result].concat(confirmNodes).concat(remotePopover ? [remotePopover] : [])
 }
