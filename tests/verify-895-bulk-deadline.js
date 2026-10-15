@@ -1,13 +1,14 @@
 // verify-895-bulk-deadline.js —— #895 回归门禁：批量调用的限时自停与续跑（TDD 先红）。
 // 用法：在插件根目录执行 node tests/verify-895-bulk-deadline.js，可独立运行。
 //
-// 这一段盯六件事（简报验收前六条，均用缩放假预算，几秒跑完；真 120 秒不等）：
+// 这一段盯七件事（简报验收前六条，均用缩放假预算，几秒跑完；真 120 秒不等）：
 //   ① 自停出部分成功：预算打满时主动停，带游标（planId、已建、剩余、下一次），不被外层掐死。
 //   ② 钳制：单次超支调用被掐断但整包不抛，失败项说清超时与核对指引，其余照常建。
 //   ③ 记忆：同票两读底层只打一次；写后失效再读。
 //   ④ 预检消费：批量锚预检命中则跳过创建（不再建一次）；预检缺席则照常走。
 //   ⑤ 互斥：同计划标识并发第二跑被拒，第一跑不受影响。
 //   ⑥ 毒例：同调用双边成环拒第二条（第一条保留）；同票两写终态等于最后一次意图。
+//   ⑦ 超时常量同源：注册侧外层上限与壳内预算同值（两处不能共用一份常量，由本节看守）。
 // 附带：读失败快照计数置空 + 截断旗；落盘游标 roundtrip、删除与过期。
 const path = require('path')
 const fs = require('fs')
@@ -288,6 +289,18 @@ async function main() {
     const fin = await tracker.get({}, xk, {}, {})
     const got = ((fin.data || {}).blockedBy || []).map((b) => b.key).sort().join(',')
     check(got === keys['A'], '同票两写终态等于最后意图（实得 ' + got + '）')
+  }
+
+  // ── ⑦ 超时常量同源：注册侧外层上限与壳内预算必须同值 ──
+  // register-options.ts 不引用其他层的文件，两处常量不能靠 import 收成一份，
+  // 改一边不同步另一边时由这一节变红。两处注释见 src/deck/shell/call-budget.ts:20-24
+  // 与 src/deck/registration/register-options.ts:33-38。
+  {
+    const regMod = await imp('src/deck/registration/register-options.ts')
+    check(scopeMod.DEFAULT_TOOL_TIMEOUT_MS === regMod.AGENT_TOOL_TIMEOUT_MS,
+      '两处单次执行上限同值（壳 ' + scopeMod.DEFAULT_TOOL_TIMEOUT_MS + ' / 注册 ' + regMod.AGENT_TOOL_TIMEOUT_MS + '）')
+    check(Number.isInteger(scopeMod.DEFAULT_TOOL_TIMEOUT_MS) && scopeMod.DEFAULT_TOOL_TIMEOUT_MS > 0
+      && Number.isInteger(regMod.AGENT_TOOL_TIMEOUT_MS) && regMod.AGENT_TOOL_TIMEOUT_MS > 0, '两处上限都是正整数毫秒')
   }
 
   // ── 附带：读失败快照计数置空 + 游标落盘 ──

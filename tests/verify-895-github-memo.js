@@ -23,12 +23,17 @@ async function main() {
   const memoMod = await imp('src/deck/shell/call-memo.ts')
   const registryMod = await imp('src/tracker/registry/core.ts')
   const githubModule = (await imp('src/tracker/rooms/github/index.ts')).githubModule
+  // #1159 起房间要求宿主注入出站控制面（ctx.outbound）；夹具自带生产那一份
+  // （src/host/platform/outbound-control.ts，只做转发），否则种子票第 0 张
+  // 就报 kind=env（出站控制面没有接上），后面的断言一条跑不起来。
+  const { createOutboundControl } = await imp('src/host/platform/outbound-control.ts')
 
   const sink = []
   const gh = transports.makeScriptedGh(sink)
   const argvCount = { n: 0 }
   const ghCtxBase = {
     cwd: '/ws/github',
+    outbound: createOutboundControl(),
     platform: { resolveExecutable: async (n) => (n === 'gh' ? '/usr/local/bin/gh' : null), path: path.posix, env: { get: () => undefined } },
     exec: async (cmd, args, opts) => { argvCount.n += 1; await sleep(5); return gh.exec(cmd, args, opts) },
     isEnabled: () => false, logEvent: () => {},
@@ -43,7 +48,7 @@ async function main() {
   const ids = []
   for (let i = 0; i < 8; i++) {
     const r = await tracker.create(repo, { title: '票' + i }, Object.assign({}, ghCtxBase))
-    if (!r.ok) { check(false, '种子票建成（第 ' + i + ' 张失败：' + JSON.stringify(r.error) + '）'); return }
+    if (!r.ok) { check(false, '种子票建成（第 ' + i + ' 张失败：' + JSON.stringify(r.error) + '）'); console.log('\n共 ' + total + ' 条，有失败'); process.exitCode = 1; return }
     ids.push(String(r.data.key))
   }
   check(ids.length === 8, '种子 8 票建成')

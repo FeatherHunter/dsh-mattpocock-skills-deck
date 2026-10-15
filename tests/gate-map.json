@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-15T06:11:02.604Z",
+  "generatedAt": "2026-10-15T06:51:10.038Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 258,
   "gateCount": 258,
@@ -1221,6 +1221,7 @@
       "step": "node tests/verify-895-bulk-deadline.js",
       "file": "tests/verify-895-bulk-deadline.js",
       "guards": [
+        "src/deck/registration/register-options.ts",
         "src/deck/shell/call-budget.ts",
         "src/deck/shell/plan-cursor.ts",
         "src/deck/tools/map-link.ts",
@@ -1232,6 +1233,7 @@
         "tests/lib/time-compress.ts"
       ],
       "dirs": [
+        "src/deck/registration",
         "src/deck/shell",
         "src/deck/tools",
         "src/shared/refresh",
@@ -1241,19 +1243,21 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 7 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 8 条"
     },
     {
       "step": "node tests/verify-895-github-memo.js",
       "file": "tests/verify-895-github-memo.js",
       "guards": [
         "src/deck/shell/call-memo.ts",
+        "src/host/platform/outbound-control.ts",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/github/index.ts",
         "tests/deck-tools-matrix-transports.js"
       ],
       "dirs": [
         "src/deck/shell",
+        "src/host/platform",
         "src/tracker/registry",
         "src/tracker/rooms/github",
         "tests"
@@ -1262,7 +1266,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 3 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 4 条"
     },
     {
       "step": "node tests/verify-898-block-merge.js",
@@ -6376,6 +6380,7 @@
     ],
     "src/deck/registration": [
       "node tests/verify-deck-tools.js",
+      "node tests/verify-895-bulk-deadline.js",
       "node tests/verify-deck-tools-agent-register.js",
       "node tests/verify-deck-render-detail.js",
       "node tests/verify-deck-exec-phone.js",
@@ -6518,6 +6523,7 @@
       "node tests/verify-deck-tools-matrix.js",
       "node tests/verify-790-parent-edge.ts",
       "node tests/verify-829-parent-reread.js",
+      "node tests/verify-895-github-memo.js",
       "node tests/verify-691-map-subissues.js",
       "node tests/verify-github-label-colors.js",
       "node tests/verify-992-readonly-labels.js",

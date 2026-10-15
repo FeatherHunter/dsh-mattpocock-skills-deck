@@ -18,6 +18,7 @@ import { canon, createCallMemo, isArr, repoIdOf, rosterAddCreated, rosterAdoptLi
 import { withInFlightLease } from './in-flight-lease.js'
 
 /** 单次执行允许的最长时间（毫秒）：与 agent 注册那份 AGENT_TOOL_TIMEOUT_MS 同值，改一边必须同步另一边。
+ *  同值由 tests/verify-895-bulk-deadline.js 第⑦节断言看守（注册侧文件不引用其他层的文件，不能靠 import 收成一份）。
  *  2026-10-14 由 120000 放宽到 300000（票 #1040）：批量活要发几十次远端调用，两分钟常在半路被外层
  *  掐死、整包进度作废；放宽后最坏情况多等三分钟，换回来的是整批活能跑完。
  *  为什么宁可放宽也不许为了「省额度」做慢做坏，见 docs/adr/20261014-quota-function-first.md。 */
