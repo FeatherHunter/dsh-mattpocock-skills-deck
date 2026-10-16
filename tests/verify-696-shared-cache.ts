@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * verify-696-shared-cache.js — 同一工作区根共用宿主内存缓存门禁（票 #696）
+ * verify-696-shared-cache.ts — 同一工作区根共用宿主内存缓存门禁（票 #696）
  *
  * 治的是什么：宿主内存里两份快照（面板快照一份、检查链快照一份）此前是单格。
  * 同一工作区根的两个会话（根目录开的、子目录开的）各刷一次数据；在两个工作区
@@ -16,7 +16,7 @@
  * 测法：A 真夹具 + 真判定函数；B 真跑 sessionSnapshot（计数重建次数，不起外部命令）；
  * C 表行为直接跑 Map 语义 + 并发跑真 handleChain（计数探测次数）。
  *
- * 用法：node tests/verify-696-shared-cache.js
+ * 用法：node tests/verify-696-shared-cache.ts
  */
 const fsx = require('fs')
 const fsp = fsx.promises
@@ -25,66 +25,69 @@ const nodeOs = require('os')
 const { pathToFileURL } = require('url')
 
 const ROOT = nodePath.resolve(__dirname, '..')
-const url = (rel) => pathToFileURL(nodePath.join(ROOT, rel)).href
+const url = (rel: string): string => pathToFileURL(nodePath.join(ROOT, rel)).href
 
 let total = 0
-const broken = []
-function must(cond, invariant, detail) {
+const broken: string[] = []
+function must (cond: unknown, invariant: string, detail?: unknown): void {
   total++
   if (cond) { console.log('  PASS ' + invariant); return }
   const line = '  FAIL 不变式破了 —— ' + invariant + (detail ? '【实测：' + detail + '】' : '')
   console.log(line)
   broken.push(line.replace(/^\s+/, ''))
 }
-function title(t) { console.log('\n' + t) }
+function title (t: string): void { console.log('\n' + t) }
 
 const OS = process.platform === 'win32' ? 'win32' : (process.platform === 'darwin' ? 'darwin' : 'linux')
-const PLATFORM = { os: OS, path: nodePath, async getHome() { return nodeOs.homedir() } }
-const target = (t) => (t && typeof t === 'object') ? String(t.path || t.targetKey || '') : String(t)
-function makeFsSvc(counter) {
+const PLATFORM = { os: OS, path: nodePath, async getHome (): Promise<string> { return nodeOs.homedir() } }
+const target = (t: any): string => (t && typeof t === 'object') ? String(t.path || t.targetKey || '') : String(t)
+function makeFsSvc (counter: { probes: number } | null): any {
   return {
-    async resolve(p, opts) {
+    async resolve (p: string, opts?: { cwd?: string }): Promise<{ path: string, targetKey: string }> {
       const abs = nodePath.isAbsolute(String(p)) ? String(p) : nodePath.resolve((opts && opts.cwd) || process.cwd(), String(p))
       return { path: abs, targetKey: abs }
     },
-    async lstat(p) { if (counter) counter.probes++; return fsp.lstat(target(p)) },
-    async stat(t) { if (counter) counter.probes++; return fsp.stat(target(t)) },
-    async listDir(t) { if (counter) counter.probes++; return fsp.readdir(target(t)) },
-    async readText(t) { return fsp.readFile(target(t), 'utf8') },
+    async lstat (p: any): Promise<any> { if (counter) counter.probes++; return fsp.lstat(target(p)) },
+    async stat (t: any): Promise<any> { if (counter) counter.probes++; return fsp.stat(target(t)) },
+    async listDir (t: any): Promise<string[]> { if (counter) counter.probes++; return fsp.readdir(target(t)) },
+    async readText (t: any): Promise<string> { return fsp.readFile(target(t), 'utf8') },
   }
 }
 
-let BASE = null
-function cleanup() { try { if (BASE) fsx.rmSync(BASE, { recursive: true, force: true }) } catch (e) {} }
+/** 表里的条目：两套表共用的三件（时刻戳、内容、键）。 */
+interface TableEntry { ts: number; snapshot?: unknown; error?: unknown; value?: unknown; cwd?: unknown; key?: unknown }
 
 // 与 src/host/index.js 同语义的表（行为一致，静态段另行钉住下标一致）：60 秒有效、最多 20 条。
-function makeSnapshotTable() {
-  const m = new Map()
-  function touch(k, v) { if (m.has(k)) m.delete(k); m.set(k, v); if (m.size > 20) m.delete(m.keys().next().value) }
+function makeSnapshotTable (): { map: Map<string, TableEntry>, getCache: (cwd: unknown) => TableEntry, setCache: (v: any) => void } {
+  const m = new Map<string, TableEntry>()
+  function touch (k: string, v: TableEntry): void { if (m.has(k)) m.delete(k); m.set(k, v); if (m.size > 20) m.delete(m.keys().next().value as string) }
   return {
     map: m,
-    getCache(cwd) { if (cwd == null) return { ts: 0, snapshot: null, error: null, cwd: null }; const k = String(cwd); const e = m.get(k); if (e) { m.delete(k); m.set(k, e); return e } return { ts: 0, snapshot: null, error: null, cwd: k } },
-    setCache(v) { const c = v && v.cwd; if (!c) { m.clear(); return } const k = String(c); if (v.ts === 0 && !v.snapshot && !v.error) { m.delete(k); return } touch(k, { ts: v.ts, snapshot: v.snapshot, error: v.error, cwd: k }) },
+    getCache (cwd: unknown): TableEntry { if (cwd == null) return { ts: 0, snapshot: null, error: null, cwd: null }; const k = String(cwd); const e = m.get(k); if (e) { m.delete(k); m.set(k, e); return e } return { ts: 0, snapshot: null, error: null, cwd: k } },
+    setCache (v: any): void { const c = v && v.cwd; if (!c) { m.clear(); return } const k = String(c); if (v.ts === 0 && !v.snapshot && !v.error) { m.delete(k); return } touch(k, { ts: v.ts, snapshot: v.snapshot, error: v.error, cwd: k }) },
   }
 }
-function makeChainTable() {
-  const m = new Map()
-  function touch(k, v) { if (m.has(k)) m.delete(k); m.set(k, v); if (m.size > 20) m.delete(m.keys().next().value) }
+function makeChainTable (): { map: Map<string, TableEntry>, getChainCache: (key: unknown) => TableEntry, setChainCache: (v: any) => void } {
+  const m = new Map<string, TableEntry>()
+  function touch (k: string, v: TableEntry): void { if (m.has(k)) m.delete(k); m.set(k, v); if (m.size > 20) m.delete(m.keys().next().value as string) }
   return {
     map: m,
-    getChainCache(key) { if (!key) return { ts: 0, key: null, value: null }; const k = String(key); const e = m.get(k); if (e) { m.delete(k); m.set(k, e); return e } return { ts: 0, key: k, value: null } },
-    setChainCache(v) { if (!v || !v.key) { m.clear(); return } touch(String(v.key), { ts: v.ts, key: String(v.key), value: v.value }) },
+    getChainCache (key: unknown): TableEntry { if (!key) return { ts: 0, key: null, value: null }; const k = String(key); const e = m.get(k); if (e) { m.delete(k); m.set(k, e); return e } return { ts: 0, key: k, value: null } },
+    setChainCache (v: any): void { if (!v || !v.key) { m.clear(); return } touch(String(v.key), { ts: v.ts, key: String(v.key), value: v.value }) },
   }
 }
 
-async function main() {
+let BASE: string | null = null
+function cleanup (): void { try { if (BASE) fsx.rmSync(BASE, { recursive: true, force: true }) } catch (e) {} }
+
+async function main (): Promise<void> {
   const wm = await import(url('src/host/workspaceKey.js'))
-  const normPath = (p) => wm.normalizeWorkspacePath(p, PLATFORM)
+  const normPath = (p: string): string => wm.normalizeWorkspacePath(p, PLATFORM)
 
   BASE = fsx.mkdtempSync(nodePath.join(nodeOs.tmpdir(), 'shared696-'))
-  const at = (rel) => nodePath.join(BASE, rel)
-  const put = (rel, content) => { const abs = at(rel); fsx.mkdirSync(nodePath.dirname(abs), { recursive: true }); fsx.writeFileSync(abs, content); return abs }
-  const mkdir = (rel) => { const abs = at(rel); fsx.mkdirSync(abs, { recursive: true }); return abs }
+  const at = (rel: string): string => nodePath.join(BASE as string, rel)
+  const put = (rel: string, content: string): string => { const abs = at(rel); fsx.mkdirSync(nodePath.dirname(abs), { recursive: true }); fsx.writeFileSync(abs, content); return abs }
+  const mkdir = (rel: string): string => { const abs = at(rel); fsx.mkdirSync(abs, { recursive: true }); return abs }
   put('repo/.git/config', '[core]\n')
   put('repo/docs/agents/issue-tracker.md', '# Issue tracker: GitHub\n')
   mkdir('repo/packages/a')
@@ -93,7 +96,7 @@ async function main() {
   const RAW = { repo: at('repo'), sub: at('repo/packages/a'), subDeep: at('repo/packages/b/deep'), sibling: at('sibling') }
   const counter = { probes: 0 }
   const fixtureFs = makeFsSvc(counter)
-  const canon = (raw) => wm.canonicalWorkspaceKey(raw, { getPlatform: async () => PLATFORM, getFs: () => fixtureFs, getDefaultCwd: () => BASE })
+  const canon = (raw: string): Promise<string> => wm.canonicalWorkspaceKey(raw, { getPlatform: async () => PLATFORM, getFs: () => fixtureFs, getDefaultCwd: () => BASE })
   const K = { repo: await canon(RAW.repo), sub: await canon(RAW.sub), subDeep: await canon(RAW.subDeep), sibling: await canon(RAW.sibling) }
 
   title('A) 钥匙：子目录与根同钥匙，兄弟不同（真判定）')
@@ -105,27 +108,27 @@ async function main() {
   {
     const table = makeSnapshotTable()
     let builds = 0
-    const snapFires = []
-    const { createSessionSnapshot } = await import(url('src/host/sessionSnapshot.ts'))
+    const snapFires: Array<{ level: unknown, event: unknown, fields: any }> = []
+    const { createSessionSnapshot } = await import(url('src/host/sessionSnapshot.js'))
     const h = createSessionSnapshot({
-      canonicalKey: async (raw) => { if (raw === RAW.sub || raw === RAW.subDeep || raw === RAW.repo) return K.repo; if (raw === RAW.sibling) return K.sibling; return String(raw) },
-      selectEarly: async ({ cwd, backendId }) => ({ backendId: backendId || 'github', source: 'auto', rev: 0 }),
+      canonicalKey: async (raw: string) => { if (raw === RAW.sub || raw === RAW.subDeep || raw === RAW.repo) return K.repo; if (raw === RAW.sibling) return K.sibling; return String(raw) },
+      selectEarly: async ({ cwd, backendId }: any) => ({ backendId: backendId || 'github', source: 'auto', rev: 0 }),
       isComposerSelection: () => true,
       getTrackerRegistry: async () => ({
         modules: () => [],
-        describe: ({ cwd }, backendId) => ({ backend: backendId, refId: 'acme/demo', name: 'acme/demo', url: '' }),
+        describe: ({ cwd }: any, backendId: string) => ({ backend: backendId, refId: 'acme/demo', name: 'acme/demo', url: '' }),
         get: () => ({ list: async () => { builds++; await new Promise((r) => setTimeout(r, 80)); return { ok: true, data: [{ type: 'issue', key: '1', title: 'A', state: 'open', body: '', url: '', createdAt: '', updatedAt: '', closedAt: null, parentKey: null, labels: [], assignees: [], blockedBy: [], comments: [], reason: '' }] } } }),
       }),
       getPlatform: async () => PLATFORM,
       ctx: { get: () => undefined },
       getCache: table.getCache, setCache: table.setCache, CACHE_MS: 60000,
       cacheSnapshotIsCurrent: async () => null,
-      upcaseSnapStates: (s) => s, computeLevels: () => ({ byNumber: {}, byKey: {} }), groupTickets: (t) => ({ total: t.length, open: t.length, closed: 0, frontier: 0, claimed: 0, blocked: 0, levels: [], levelOf: {} }),
-      getRepoRoot: async (cwd) => cwd, getRepoKey: async () => ({ owner: 'acme', name: 'demo' }),
+      upcaseSnapStates: (s: any) => s, computeLevels: () => ({ byNumber: {}, byKey: {} }), groupTickets: (t: any[]) => ({ total: t.length, open: t.length, closed: 0, frontier: 0, claimed: 0, blocked: 0, levels: [], levelOf: {} }),
+      getRepoRoot: async (cwd: string) => cwd, getRepoKey: async () => ({ owner: 'acme', name: 'demo' }),
       readDiskCache: async () => null, writeDiskCache: async () => {},
-      adoptSnapshot: (snap, cwd) => { table.setCache({ ts: Date.now(), snapshot: snap, error: null, cwd: cwd }); return snap },
-      detectionExec: async () => ({ ok: false }), getGhPath: () => '', getGhLastError: () => '', errText: (e) => String((e && e.message) || e),
-      DEFAULT_CWD: RAW.repo, logCtx: { fire: (level, event, fields) => { snapFires.push({ level: level, event: event, fields: (typeof fields === 'function') ? fields() : fields }) }, isEnabled: () => true },
+      adoptSnapshot: (snap: any, cwd: string) => { table.setCache({ ts: Date.now(), snapshot: snap, error: null, cwd: cwd }); return snap },
+      detectionExec: async () => ({ ok: false }), getGhPath: () => '', getGhLastError: () => '', errText: (e: any) => String((e && e.message) || e),
+      DEFAULT_CWD: RAW.repo, logCtx: { fire: (level: unknown, event: unknown, fields: any) => { snapFires.push({ level: level, event: event, fields: (typeof fields === 'function') ? fields() : fields }) }, isEnabled: () => true },
     })
     const first = await h.handleSnapshot({ cwd: RAW.repo })
     must(first && first.ok !== false && builds === 1, '根目录会话首次打开面板重建一次（后端只调一次）', 'builds=' + builds)
@@ -186,22 +189,22 @@ async function main() {
     must(table.map.size === 20, '链表最多留 20 条，超出丢最久没用的', 'size=' + table.map.size)
     // 并发共用同一份：真跑 handleChain，计数探测次数
     let detects = 0
-    const chainFires = []
-    const { createDetectChain } = await import(url('src/host/detectChain.ts'))
+    const chainFires: Array<{ level: unknown, event: unknown, fields: any }> = []
+    const { createDetectChain } = await import(url('src/host/detectChain.js'))
     const chainTable = makeChainTable()
     const dh = createDetectChain({
-      canonicalKey: async (raw) => { if (raw === RAW.sub || raw === RAW.repo) return K.repo; return String(raw) },
+      canonicalKey: async (raw: string) => { if (raw === RAW.sub || raw === RAW.repo) return K.repo; return String(raw) },
       DEFAULT_CWD: RAW.repo, resetGhCache: () => {},
       getDetectionService: async () => ({ detect: async () => { detects++; await new Promise((r) => setTimeout(r, 80)); return { selection: { backendId: 'github', source: 'auto' } } } }),
       getPlatform: async () => PLATFORM,
       getTrackerRegistry: async () => ({ modules: () => [] }),
       getRepoKey: async () => ({ owner: 'acme', name: 'demo' }),
       runGh: async () => ({ ok: false, kind: 'network', error: 'net' }),
-      timer: { timeout: (ms) => new Promise((r) => setTimeout(r, ms)) },
+      timer: { timeout: (ms: number) => new Promise((r) => setTimeout(r, ms)) },
       probeSkill: async () => { await new Promise((r) => setTimeout(r, 60)); return { ok: false, level: 'bad', detail: 'x', hint: '', repo: null } },
       mdParseOkPredicate: async () => ({ status: 'pending', detail: 'x' }),
       getChainCache: chainTable.getChainCache, setChainCache: chainTable.setChainCache,
-      logCtx: { fire: (level, event, fields) => { chainFires.push({ level: level, event: event, fields: (typeof fields === 'function') ? fields() : fields }) }, isEnabled: () => true },
+      logCtx: { fire: (level: unknown, event: unknown, fields: any) => { chainFires.push({ level: level, event: event, fields: (typeof fields === 'function') ? fields() : fields }) }, isEnabled: () => true },
     })
     const [r1, r2] = await Promise.all([dh.handleChain({ cwd: RAW.repo, backendId: 'github', lang: 'zh' }), dh.handleChain({ cwd: RAW.sub, backendId: 'github', lang: 'zh' })])
     must(r1 === r2, '同根并发同时求链拿到同一份（在途合并）', 'same=' + (r1 === r2))

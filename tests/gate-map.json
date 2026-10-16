@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T18:39:23.419Z",
+  "generatedAt": "2026-10-16T18:41:03.079Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 302,
   "gateCount": 302,
@@ -2540,8 +2540,8 @@
       "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 3 条"
     },
     {
-      "step": "node tests/verify-696-shared-cache.js",
-      "file": "tests/verify-696-shared-cache.js",
+      "step": "node tests/verify-696-shared-cache.ts",
+      "file": "tests/verify-696-shared-cache.ts",
       "guards": [
         "src/host/detectChain.ts",
         "src/host/sessionSnapshot.ts",
@@ -2692,7 +2692,7 @@
         "src/host/snapshotEnvelope.ts",
         "src/host/snapshotInflight.ts",
         "tests/same-layer-baseline.json",
-        "tests/verify-696-shared-cache.js",
+        "tests/verify-696-shared-cache.ts",
         "tests/verify-729-force-dedup.js",
         "tests/verify-log-artifacts.js"
       ],
@@ -7498,7 +7498,7 @@
       "node tests/verify-683-host-wiring.ts",
       "node tests/verify-690-closed-pages.ts",
       "node tests/verify-691-map-subissues.ts",
-      "node tests/verify-696-shared-cache.js",
+      "node tests/verify-696-shared-cache.ts",
       "node tests/verify-709-no-self-continuing-timers.js",
       "node tests/verify-723-single-refresh-instance.js",
       "node tests/verify-729-force-dedup.js",
