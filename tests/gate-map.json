@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T18:26:12.093Z",
+  "generatedAt": "2026-10-16T18:27:26.772Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 302,
   "gateCount": 302,
@@ -2380,8 +2380,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 1 条；源码里的路径字面量 7 条"
     },
     {
-      "step": "node tests/verify-683-mirror-write.js",
-      "file": "tests/verify-683-mirror-write.js",
+      "step": "node tests/verify-683-mirror-write.ts",
+      "file": "tests/verify-683-mirror-write.ts",
       "guards": [
         "src/client/kernel/store-prefs.js",
         "src/shared/time-config/values.js",
@@ -7241,7 +7241,7 @@
       "node tests/verify-669-switch-visible.ts",
       "node tests/verify-670-panel-first-frame.ts",
       "node tests/verify-683-choice-rev.ts",
-      "node tests/verify-683-mirror-write.js",
+      "node tests/verify-683-mirror-write.ts",
       "node tests/verify-685-healthcheck-button.js",
       "node tests/verify-686-accept.js",
       "node tests/verify-689-counts-ui.js",
@@ -7755,7 +7755,7 @@
       "node tests/verify-669-choice-precedence.ts",
       "node tests/verify-669-switch-visible.ts",
       "node tests/verify-683-choice-rev.ts",
-      "node tests/verify-683-mirror-write.js",
+      "node tests/verify-683-mirror-write.ts",
       "node tests/verify-698-switch-asks-layout.js",
       "node tests/verify-709-no-self-continuing-timers.js",
       "node tests/verify-818-version-control-view.js",
@@ -8105,7 +8105,7 @@
       "node tests/verify-671-modal-global-overlay.ts",
       "node tests/verify-683-choice-rev.ts",
       "node tests/verify-683-host-wiring.ts",
-      "node tests/verify-683-mirror-write.js",
+      "node tests/verify-683-mirror-write.ts",
       "node tests/verify-685-healthcheck-button.js",
       "node tests/verify-686-accept.js",
       "node tests/verify-690-closed-pages.js",

@@ -15,45 +15,45 @@ import path from 'node:path'
 import { compileFn } from './lib/eval-probe.js'
 // 中央时间真值：缓存 TTL 只住 config/*.yaml，这里读同一份导出来预埋，不在测试里写第二份数字。
 import { SYNC_ISSUE_CACHE_TTL_MS } from '../src/shared/time-config/values.js'
-globalThis.SYNC_ISSUE_CACHE_TTL_MS = SYNC_ISSUE_CACHE_TTL_MS
+;(globalThis as unknown as Record<string, unknown>).SYNC_ISSUE_CACHE_TTL_MS = SYNC_ISSUE_CACHE_TTL_MS
 // 中央 import 在 compileFn 函数体里非法，求值前整行剥掉（闭包里它由时间片段提供，门禁里走上面的全局预埋）。
-const stripTimeConfigImport = (s) => s.split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')
+const stripTimeConfigImport = (s: string): string => s.split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 const PREFS_REL = 'src/client/kernel/store-prefs.js'
 let passed = 0
 let failed = 0
-const check = (ok, msg) => { if (ok) { console.log('  PASS ' + msg); passed++ } else { console.log('  FAIL ' + msg); failed++ } }
+const check = (ok: unknown, msg: string): void => { if (ok) { console.log('  PASS ' + msg); passed++ } else { console.log('  FAIL ' + msg); failed++ } }
 
 const prefsSrc = fs.readFileSync(path.join(ROOT, PREFS_REL), 'utf8')
-const stripExports = (s) => s.replace(/^[ \t]*export[ \t]+/gm, '')
+const stripExports = (s: string): string => s.replace(/^[ \t]*export[ \t]+/gm, '')
 const TBL_SEL = 'dsws.selectionByCwd'
 const TBL_LAYOUT = 'dsws.setupLayoutByCwd'
-const wsKey = (p) => String(p == null ? '' : p).replace(/\\/g, '/').toLowerCase()
+const wsKey = (p: unknown): string => String(p == null ? '' : p).replace(/\\/g, '/').toLowerCase()
 
-const makeHarness = function (srcText, opts) {
+const makeHarness = function (srcText: string, opts?: any) {
   const o = opts || {}
-  const disk = {}
+  const disk: Record<string, string> = {}
   Object.keys(o.disk || {}).forEach((k) => { disk[k] = o.disk[k] })
-  const logs = []
-  const storageHandlers = []
-  const failKeys = o.failKeys || []
+  const logs: any[] = []
+  const storageHandlers: any[] = []
+  const failKeys: any[] = o.failKeys || []
   const localStorage = {
-    getItem: function (k) { return Object.prototype.hasOwnProperty.call(disk, k) ? disk[k] : null },
-    setItem: function (k, v) { if (failKeys.indexOf(k) >= 0) throw new Error('quota-exceeded'); disk[k] = String(v) },
-    removeItem: function (k) { delete disk[k] },
+    getItem: function (k: string) { return Object.prototype.hasOwnProperty.call(disk, k) ? disk[k] : null },
+    setItem: function (k: string, v: unknown) { if (failKeys.indexOf(k) >= 0) throw new Error('quota-exceeded'); disk[k] = String(v) },
+    removeItem: function (k: string) { delete disk[k] },
   }
-  const win = { innerHeight: 800, addEventListener: function (name, fn) { storageHandlers.push({ name: name, fn: fn }) } }
+  const win = { innerHeight: 800, addEventListener: function (name: string, fn: any) { storageHandlers.push({ name: name, fn: fn }) } }
   const body = stripExports(stripTimeConfigImport(srcText)) +
     '\n; return { setCachedSelection: setCachedSelection, getCachedSelection: getCachedSelection, selectionByCwd: selectionByCwd,' +
     ' setCachedSetupLayout: setCachedSetupLayout, getCachedSetupLayout: getCachedSetupLayout, setupLayoutByCwd: setupLayoutByCwd,' +
     ' writeTableEntry: writeTableEntry, migrateCachedChoiceToKey: migrateCachedChoiceToKey, SELECTION_BY_CWD_KEY: SELECTION_BY_CWD_KEY, SETUP_LAYOUT_BY_CWD_KEY: SETUP_LAYOUT_BY_CWD_KEY }'
   const factory = compileFn(['window', 'localStorage', 'log', 'keyOf', 'wsKeyOf', 'emit', 'shared', 'stores'], body)
-  const api = factory(win, localStorage, function (level, event, fields) { logs.push({ level: level, event: event, fields: fields }) }, wsKey, wsKey, function () {}, {}, {})
+  const api = factory(win, localStorage, function (level: unknown, event: unknown, fields: unknown) { logs.push({ level: level, event: event, fields: fields }) }, wsKey, wsKey, function () {}, {}, {})
   return { api: api, disk: disk, logs: logs, handlers: storageHandlers }
 }
-const tableOf = (h, key) => { try { return JSON.parse(h.disk[key] || '{}') || {} } catch (e) { return {} } }
-const fireStorage = (h, key) => {
+const tableOf = (h: any, key: string) => { try { return JSON.parse(h.disk[key] || '{}') || {} } catch (e) { return {} } }
+const fireStorage = (h: any, key: string) => {
   const hs = h.handlers.filter((x) => x.name === 'storage')
   if (!hs.length) return false
   hs.forEach((x) => x.fn({ key: key }))
@@ -119,7 +119,7 @@ console.log('== E 搬家只搬布局，选择不搬 ==')
 console.log('')
 console.log('== F 反证：把实现做坏，对应的那几条必须当场红 ==')
 const brokenDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-1003-mirror-'))
-const loadBroken = function (tag, from, to) {
+const loadBroken = function (tag: string, from: string, to: string): { bad?: string; src?: string } {
   if (!prefsSrc.includes(from)) return { bad: '这道反证的改法在真源里找不到落点（源文本已变）' }
   const file = path.join(brokenDir, tag + '.js')
   fs.writeFileSync(file, prefsSrc.replace(from, to), 'utf8')
