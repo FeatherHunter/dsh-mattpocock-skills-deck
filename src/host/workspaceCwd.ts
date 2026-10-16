@@ -235,9 +235,21 @@ export function createWorkspaceCwd(deps: Deps) {
       const o = await outlet.decideBackend(cwd, { registry: reg, platform: await getPlatform(), fs: ctx.get('fs'), caller: 'wf.selection', logCtx: logCtx }).catch(function () { return null })
       const describeOf = function (id: string) { try { return reg.describe({ cwd: cwd }, id) } catch (eD) { return null } }
       const sel = (typeof outlet.selectionFromOutlet === 'function' && o) ? outlet.selectionFromOutlet(o, describeOf) : null
+      // #1238 行级别失败线索：统一判定结论里的诊断（三态：查清了确实没有还是没查清）只活在 decideBackend 的回包里，
+      //   selectionFromOutlet 的对外五格按约定不带它（判定层注释写明那一格是给排查与将来界面的，形状被门禁锁死，不动它）。
+      //   总览就是那个“将来界面”：未绑定的行把 state 原样捎给客户端，客户端只做分类显示，不做新判定。
+      //   只捎 state 一格：等就绪还是查文件只看三态就够分（没查清就是去查文件），缺什么的档位名今天没有消费者，不捎。
+      //   已绑定的行不捎（只显示后端名，不添噪音）；o 为空或 state 为空就不捎（按无信息处理，渲染保持普通未绑定）。
+      //   空目录早退那条（上面的 workspace-not-ready）本来就自带原因直达客户端，不走这里。
+      let outSel: { backendId?: unknown; source?: unknown; state?: string } | null = sel
+      if (outSel && !outSel.backendId && o && typeof o === 'object') {
+        const oo = o as { state?: unknown }
+        const st = typeof oo.state === 'string' ? oo.state : ''
+        if (st) outSel = Object.assign({}, outSel, { state: st })
+      }
       let repoRef = null
       if (sel && sel.backendId) { try { repoRef = reg.describe({ cwd: cwd }, sel.backendId) } catch (eD) {} }
-      return { ok: true, selection: sel || { backendId: null, source: 'fallback' }, repository: repoRef }
+      return { ok: true, selection: outSel || { backendId: null, source: 'fallback' }, repository: repoRef }
     } catch (e) { return { ok: false, error: String(((e as { message?: unknown }) && (e as { message?: unknown }).message) || e) } }
   }
   // #957 拆分：改色两条电话住自包含叶子（./workspaceLabelColors.js），本文件只做装配与日志包装（动态加载、单向，同一出口、同一信封、同一 loggedPhone）。

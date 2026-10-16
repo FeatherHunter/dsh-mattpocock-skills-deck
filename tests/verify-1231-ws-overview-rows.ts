@@ -138,6 +138,48 @@ async function main(): Promise<void> {
     check(out.total === out.rows.length && out.boundCount === 1, '总数与已绑定数与行数对得上');
   }
 
+  console.log('— 未绑定行的失败线索（#1238：等就绪与查文件分得清，正常无记录保持原样）');
+  {
+    const out = computeWsOverviewRows(
+      ['D:/a/bad'],
+      { 'D:/a/bad': { backendId: null, source: 'fallback', state: 'undetermined' } },
+      depsOf({}),
+    );
+    check(out.rows[0].bound === false && out.rows[0].unboundHint === 'check', '判定没查清的行带查文件线索，不再是普通未绑定');
+  }
+  {
+    const out = computeWsOverviewRows(
+      ['D:/a/empty'],
+      { 'D:/a/empty': { backendId: null, source: 'fallback', state: 'no-backend' } },
+      depsOf({}),
+    );
+    check(out.rows[0].bound === false && out.rows[0].unboundHint === null, '查清了确实没有的行保持普通未绑定，不加线索');
+  }
+  {
+    const out = computeWsOverviewRows(
+      ['D:/a/pend'],
+      { 'D:/a/pend': { backendId: null, source: 'fallback', pending: true } },
+      depsOf({}),
+    );
+    check(out.rows[0].unboundHint === 'wait', '还没判完的行带等就绪线索');
+  }
+  {
+    const out = computeWsOverviewRows(
+      ['D:/a/nr'],
+      { 'D:/a/nr': { backendId: null, source: 'unknown', reason: 'workspace-not-ready' } },
+      depsOf({}),
+    );
+    check(out.rows[0].unboundHint === 'wait', '工作区没就绪的行带等就绪线索');
+  }
+  {
+    const out = computeWsOverviewRows(
+      ['D:/a/ok'],
+      { 'D:/a/ok': { backendId: 'github', source: 'explicit', state: 'decided' } },
+      depsOf({}),
+    );
+    check(out.rows[0].bound === true && out.rows[0].unboundHint === null, '已绑定的行不带线索');
+  }
+
   console.log(`共 ${total} 条`);
   if (failed) {
     console.log('存在失败');

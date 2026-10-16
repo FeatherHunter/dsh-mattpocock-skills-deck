@@ -22,10 +22,16 @@
  *   宿主回包一律按 unknown 收、内部先收窄再用：回包缺字段、包错层都按「没有结论」处理，不抛错。
  */
 
-/** 统一判定结论里总览真正要读的两格：后端名（空表示没选）与来源（人选还是程序认的）。 */
+/** 统一判定结论里总览真正要读的格：后端名（空表示没选）与来源（人选还是程序认的）。
+ *  #1238 再加三格只读诊断（统一口回包里本来就有，渲染过去没接）：
+ *  pending（还没判完）、reason（工作区没就绪那条早退回的原因）、state（三态：decided / undetermined（没查清）/ no-backend（查清了确实没有））。
+ *  三格全缺席按无信息处理，不抛错（本文件既定做法：宿主回包一律先收窄再用）。 */
 export type WsSelection = {
   backendId?: string | null;
   source?: string;
+  pending?: boolean;
+  reason?: string;
+  state?: string;
 };
 
 /** 所选目录原文 → 判定结论（键是请求时递给 wf.selection 的那个目录原样，不做归一）。 */
@@ -55,6 +61,12 @@ export interface WsOverviewRow {
   backendId: string | null;
   source: string;
   bound: boolean;
+  /**
+   * 未绑定行才用的失败线索（已绑定行恒为 null，只显示后端名不添噪音）：
+   * wait 是等就绪（还没判完或工作区没就绪，点刷新重试）；check 是查文件（判定没查清，去看工作区选择文件）；
+   * null 是查清了确实没有（普通未绑定，保持原样）。分类只看统一结论自带的诊断格，不新判定。
+   */
+  unboundHint: 'wait' | 'check' | null;
   /** 代表行的显示名（按最短唯一后缀算好，渲染层直接用）。 */
   display?: string;
 }
@@ -109,6 +121,21 @@ export const wsDisplayOf = function (path: string, keep: number): string {
 }
 
 /**
+ * 未绑定行的失败线索分类：输入统一判定结论，输出渲染直接用的档位。
+ * wait：pending 为真（还没判完）或原因是工作区没就绪——都是“等”的情形，点刷新重试。
+ * check：三态是没查清（undetermined）——文件可能缺席或读不出来，去查文件。
+ * null：其余一律普通未绑定（查清了确实没有、结论缺席、将来结论带了不认识的新格），不加线索。
+ * 判定依据的格全是统一口自带的，这里只分类不重新判定；已绑定行不走这里（调用方保证）。
+ */
+export const wsUnboundHintOf = function (sel: WsSelection | null): 'wait' | 'check' | null {
+  if (!sel) return null
+  if (sel.pending === true) return 'wait'
+  if (typeof sel.reason === 'string' && sel.reason === 'workspace-not-ready') return 'wait'
+  if (typeof sel.state === 'string' && sel.state === 'undetermined') return 'check'
+  return null
+}
+
+/**
  * 总览行计算：输入候选目录清单与统一判定结论表，输出要渲染的行。
  * 合并：能查到同一个工作区根的目录并成一行，代表行优先取根本身；查不到根的各自成行（不猜）。
  * 判定：代表行优先认自己的结论，没有再看组里有没有成员有结论（组里有一个就算这组已绑定）；
@@ -152,7 +179,7 @@ export const computeWsOverviewRows = function (paths: string[], selections: WsSe
     // root 是这一组的工作区根（原样路径，找得到才有；找不到就是空，不猜）。
     //   代表行优先取根本身；根不在清单里时才退到组里第一条（这时根是空的）。
     //   merged 标记这组是不是真并进了不止一条目录，渲染层据此决定要不要标一句。
-    return { cwd: rep, root: root, members: members.slice(), merged: members.length > 1, backendId: backendId, source: (sel && sel.source) ? sel.source : 'fallback', bound: !!backendId }
+    return { cwd: rep, root: root, members: members.slice(), merged: members.length > 1, backendId: backendId, source: (sel && sel.source) ? sel.source : 'fallback', bound: !!backendId, unboundHint: backendId ? null : wsUnboundHintOf(sel) }
   })
   // 显示名：代表行之间按最短唯一后缀区分（重名取两段以上，不重名只取末段）。
   const keeps = wsSuffixKeepOf(rows.map(function (r) { return r.cwd }))
@@ -292,7 +319,9 @@ export const renderWsOverview = function (h: any, sharedSt: any, wsOverview: any
                 const source=row.source
                 const srcLabel=source==='explicit'?tr('cfg.wsSrcExplicit'):source==='matches'?tr('cfg.wsSrcAuto'):tr('cfg.wsSrcUnset')
                 const srcColor=source==='explicit'?'#4ade80':source==='matches'?'#58a6ff':'#8b8b95'
-                const srcTitle=source==='explicit'?tr('cfg.wsSrcExplicitTip'):source==='matches'?tr('cfg.wsSrcAutoTip'):tr('cfg.wsSrcUnsetTip')
+                // #1238：未绑定行带失败线索时，来源标签的悬停换成线索文案（等就绪还是查文件分得清）；
+                //   标签本身的字样不动，正常未绑定行与已绑定行的悬停也都不动。
+                const srcTitle=row.unboundHint==='wait'?tr('cfg.wsHintWait'):row.unboundHint==='check'?tr('cfg.wsHintCheck'):source==='explicit'?tr('cfg.wsSrcExplicitTip'):source==='matches'?tr('cfg.wsSrcAutoTip'):tr('cfg.wsSrcUnsetTip')
                 const display=row.display||cwd
                 // #653：这一组并进了不止一条目录才标一句（几条目录并在这里）；Hover 浮层给组里每条原样路径，不猜。
                 const mergedNote = row.merged ? tr('cfg.wsMergedCount', { n: row.members.length }) : ''
