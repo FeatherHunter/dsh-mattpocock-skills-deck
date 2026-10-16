@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T17:49:05.623Z",
+  "generatedAt": "2026-10-16T17:50:14.190Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 302,
   "gateCount": 302,
@@ -1803,8 +1803,8 @@
       "reason": "读到的路径都落在 package、scripts、tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
-      "step": "node tests/verify-589-list-dedupe.js",
-      "file": "tests/verify-589-list-dedupe.js",
+      "step": "node tests/verify-589-list-dedupe.ts",
+      "file": "tests/verify-589-list-dedupe.ts",
       "guards": [
         "src/shared/tracker/list-dedupe.js"
       ],
@@ -7790,7 +7790,7 @@
       "node tests/verify-chain.js",
       "node tests/verify-contract-vocabulary.js",
       "node tests/verify-deck-slots.js",
-      "node tests/verify-589-list-dedupe.js",
+      "node tests/verify-589-list-dedupe.ts",
       "node tests/verify-655-setup-layout.js",
       "node tests/verify-663-gh-install-inject.js",
       "node tests/verify-665-fresh-workspace-chain.js",
