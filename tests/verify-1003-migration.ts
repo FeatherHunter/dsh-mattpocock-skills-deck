@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 // tests/verify-1003-migration.js —— #1003 二期门禁：老用户迁移先写后退 + 空目录不冒充
 // 用法：node tests/verify-1003-migration.js
 // 钉四条（契约期望行为第5条 + 第9条的 workspaceCwd 落点）：
@@ -14,47 +15,47 @@ const { pathToFileURL } = require('url');
 const ROOT = path.resolve(__dirname, '..');
 let failed = false;
 let total = 0;
-const check = (ok, msg, detail) => {
+const check = (ok: unknown, msg: string, detail = '') => {
   total += 1;
   console.log((ok ? '  PASS ' : '  FAIL ') + msg + (ok ? '' : (detail ? ' — ' + String(detail).slice(0, 300) : '')));
   if (!ok) failed = true;
 };
-const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href);
+const imp = (rel: string) => import(pathToFileURL(path.join(ROOT, rel)).href);
 function makeFs() {
   return {
-    async resolve(p, opts) {
+    async resolve(p: unknown, opts?: { cwd?: string }) {
       const base = (opts && opts.cwd) || '';
       const rel = String(p || '').replace(/\\/g, '/');
       return base ? String(base).replace(/\\/g, '/') + '/' + rel : rel;
     },
-    async readText(t) {
+    async readText(t: unknown) {
       const real = String(t).replace(/\//g, path.sep);
       return fs.readFileSync(real, 'utf8');
     },
-    async writeText(t, c) {
+    async writeText(t: unknown, c: unknown) {
       const real = String(t).replace(/\//g, path.sep);
       fs.mkdirSync(path.dirname(real), { recursive: true });
       fs.writeFileSync(real, String(c), 'utf8');
     },
   };
 }
-function makeWs(dir, memBackendId, opts) {
+function makeWs(dir: string, memBackendId: string | null, opts?: { layout?: string }) {
   const o = opts || {};
   const fss = makeFs();
   const plat = { fs: fss, path: path };
   const reg = {
-    has: (id) => id === 'github' || id === 'markdown',
-    get: (id) => ((id === 'github' || id === 'markdown') ? {} : undefined),
+    has: (id: unknown) => id === 'github' || id === 'markdown',
+    get: (id: unknown) => ((id === 'github' || id === 'markdown') ? {} : undefined),
     bound: () => undefined,
-    describe: (h, id) => ({ backend: id, refId: '', name: '', url: '' }),
+    describe: (h: unknown, id: unknown) => ({ backend: id, refId: '', name: '', url: '' }),
     select: async () => ({ backendId: null, source: 'fallback' }),
   };
   const cs = {
-    async getWorkspace(cwd) {
+    async getWorkspace(cwd: unknown) {
       if (memBackendId == null) return { ok: true, found: false };
       return { ok: true, found: true, backendId: memBackendId, rev: 7, pickedAt: 123 };
     },
-    async getLayout(cwd) {
+    async getLayout(cwd: unknown) {
       if (o && (o.layout === 'single' || o.layout === 'multi')) return { ok: true, found: true, layout: o.layout, pickedAt: 124 };
       return { ok: true, found: false };
     },
@@ -62,19 +63,19 @@ function makeWs(dir, memBackendId, opts) {
   };
   let invalidated = 0;
   return { fss, plat, reg, cs, invalidated: () => invalidated,
-    mod: null,
+    mod: null as unknown,
     async build() {
       const m = await imp('src/host/workspaceCwd.js');
       this.mod = m;
       const self = this;
       return m.createWorkspaceCwd({
-        ctx: { get: (k) => (k === 'fs' ? fss : undefined) },
+        ctx: { get: (k: string) => (k === 'fs' ? fss : undefined) },
         DEFAULT_CWD: 'D:/process-dir',
         getPlatform: async () => plat,
         getTrackerRegistry: async () => reg,
         getWorkspaceStore: async () => ({ invalidate() { invalidated += 1; } }),
         getChoiceStore: async () => cs,
-        canonicalKey: async (r) => r,
+        canonicalKey: async (r: unknown) => r,
         setCache: () => { invalidated += 1; },
         logCtx: { fire: () => {}, isEnabled: () => false },
         timer: { timeout: () => 0 },

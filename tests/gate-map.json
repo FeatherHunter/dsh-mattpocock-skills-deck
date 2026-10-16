@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T17:35:32.942Z",
+  "generatedAt": "2026-10-16T17:36:23.102Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 301,
   "gateCount": 301,
@@ -883,8 +883,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；源码里的路径字面量 2 条"
     },
     {
-      "step": "node tests/verify-1003-migration.js",
-      "file": "tests/verify-1003-migration.js",
+      "step": "node tests/verify-1003-migration.ts",
+      "file": "tests/verify-1003-migration.ts",
       "guards": [
         "docs/agents",
         "docs/agents/workspace.yaml",
@@ -6913,7 +6913,7 @@
     "docs/agents": [
       "node tests/verify-gate-map.js",
       "node tests/verify-1003-layout-in-file.ts",
-      "node tests/verify-1003-migration.js",
+      "node tests/verify-1003-migration.ts",
       "node tests/verify-1003-single-outlet.ts",
       "node tests/verify-1003-unified-decision.ts",
       "node tests/verify-1003-workspace-write-robust.ts",
@@ -7466,7 +7466,7 @@
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-gate-map.js",
       "node tests/verify-1003-layout-in-file.ts",
-      "node tests/verify-1003-migration.js",
+      "node tests/verify-1003-migration.ts",
       "node tests/verify-1003-no-cwd-masquerade.ts",
       "node tests/verify-1003-single-outlet.ts",
       "node tests/verify-1003-workspace-write-robust.ts",
