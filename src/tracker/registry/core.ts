@@ -24,6 +24,9 @@ import type { RepositoryRef } from '../contract/entities.js'
 import type { Selection } from '../contract/results.js'
 import type { BackendModule } from '../contract/backend-module.js'
 import type { Tracker } from '../contract/operations.js'
+// 等待上限住中央 YAML（config/timeouts.yaml 的 matchesTimeoutMs 键）：这里只留别名，
+// 对外导出的仍是 MATCHES_TIMEOUT_MS，调时间改 YAML。值由 tests/verify-time-config.ts 看守一致。
+import { MATCHES_TIMEOUT_MS as CENTRAL_MATCHES_TIMEOUT_MS } from '../../shared/time-config/values.js'
 
 // 注册表内存表的形状：id 到模块与实例的映射，迭代序即注册序（平局按注册序取首个）。
 type RegistryStore = Map<string, { mod: BackendModule; tracker: Tracker }>
@@ -38,10 +41,12 @@ type ListenerStore = Map<string, Set<(payload: unknown) => void>>
  * 会把本来答得完的那一路误判成「等不到」。折中到 30 秒：够各家答完，又不至于让一家卡住的后端
  * 把整次选择拖死 —— 超时只把它排除出决策集，并不静默当作「没有后端」（那是 pending 而非 Other）。
  *
- * 改这个数只改这里：生产装配路径（src/host/platformChannel.js）不许自带等待值，两边各写各的
- * 会变成「改了一处、另一处照旧」。这条有门禁盯着：tests/verify-1109-matches-timeout.ts。
+ * 改这个数改中央 YAML（config/timeouts.yaml 的 matchesTimeoutMs 键），不要改这里：
+ * 生产装配路径（src/host/platformChannel.js）不许自带等待值，两边各写各的
+ * 会变成「改了一处、另一处照旧」。这条有两扇门禁盯着：tests/verify-1109-matches-timeout.ts
+ * 与 tests/verify-time-config.ts。
  */
-export const MATCHES_TIMEOUT_MS = 30000
+export const MATCHES_TIMEOUT_MS = CENTRAL_MATCHES_TIMEOUT_MS
 
 /** matches 超时包装：返回 {value} / {timedOut:true}；超时同时 abort（传给模块的 signal）。类型说明：未知异步值收 unknown，定时器与控制器都允许缺省。 */
 function withTimeout(

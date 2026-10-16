@@ -60,12 +60,12 @@ interface ImportRow {
   note?: string
 }
 const IMPORTS: ImportRow[] = [
-  { file: 'src/tracker/kernel/outbound-tiers.ts', name: 'READ_TIMEOUT_MS', gen: 'OUTBOUND_READ_TIMEOUT_MS', key: 'outboundReadMs', kind: 'literal' },
-  { file: 'src/tracker/kernel/outbound-tiers.ts', name: 'WRITE_TIMEOUT_MS', gen: 'OUTBOUND_WRITE_TIMEOUT_MS', key: 'outboundWriteMs', kind: 'literal' },
-  { file: 'src/tracker/kernel/outbound-tiers.ts', name: 'PROBE_TIMEOUT_MS', gen: 'OUTBOUND_PROBE_TIMEOUT_MS', key: 'outboundProbeMs', kind: 'literal' },
-  { file: 'src/tracker/kernel/outbound-tiers.ts', name: 'DEFAULT_TIMEOUT_MS', gen: 'OUTBOUND_DEFAULT_TIMEOUT_MS', key: 'outboundDefaultMs', kind: 'literal' },
-  { file: 'src/tracker/registry/core.ts', name: 'MATCHES_TIMEOUT_MS', gen: 'MATCHES_TIMEOUT_MS', key: 'matchesTimeoutMs', kind: 'literal' },
-  { file: 'src/tracker/rooms/github/client.ts', name: 'TIMEOUT_MS', gen: 'GITHUB_CLIENT_TIMEOUT_MS', key: 'githubClientTimeoutMs', kind: 'literal' },
+  { file: 'src/tracker/kernel/outbound-tiers.ts', name: 'READ_TIMEOUT_MS', gen: 'OUTBOUND_READ_TIMEOUT_MS', key: 'outboundReadMs', kind: 'imported' },
+  { file: 'src/tracker/kernel/outbound-tiers.ts', name: 'WRITE_TIMEOUT_MS', gen: 'OUTBOUND_WRITE_TIMEOUT_MS', key: 'outboundWriteMs', kind: 'imported' },
+  { file: 'src/tracker/kernel/outbound-tiers.ts', name: 'PROBE_TIMEOUT_MS', gen: 'OUTBOUND_PROBE_TIMEOUT_MS', key: 'outboundProbeMs', kind: 'imported' },
+  { file: 'src/tracker/kernel/outbound-tiers.ts', name: 'DEFAULT_TIMEOUT_MS', gen: 'OUTBOUND_DEFAULT_TIMEOUT_MS', key: 'outboundDefaultMs', kind: 'imported' },
+  { file: 'src/tracker/registry/core.ts', name: 'MATCHES_TIMEOUT_MS', gen: 'MATCHES_TIMEOUT_MS', key: 'matchesTimeoutMs', kind: 'imported' },
+  { file: 'src/tracker/rooms/github/client.ts', name: 'TIMEOUT_MS', gen: 'GITHUB_CLIENT_TIMEOUT_MS', key: 'githubClientTimeoutMs', kind: 'imported' },
   { file: 'src/shared/refresh/src/budget.ts', name: 'PROBE_INTERVAL_MS', gen: 'PROBE_INTERVAL_MS', key: 'probeIntervalMs', kind: 'literal', note: '共享域之间不许互相 import，永久 literal，只断言值相等' },
   { file: 'src/shared/refresh/src/budget.ts', name: 'PROBE_INTERVAL_YELLOW_MS', gen: 'PROBE_INTERVAL_YELLOW_MS', key: 'probeIntervalYellowMs', kind: 'literal', note: '同上' },
   { file: 'src/shared/refresh/src/budget.ts', name: 'PROBE_INTERVAL_LINGER_MS', gen: 'PROBE_INTERVAL_LINGER_MS', key: 'probeIntervalLingerMs', kind: 'literal', note: '同上' },
@@ -85,14 +85,14 @@ const IMPORTS: ImportRow[] = [
   { file: 'src/shared/refresh/src/budget.ts', name: 'CHAIN_BACKOFF_MS', gen: 'CHAIN_BACKOFF_MS', key: 'chainBackoffMs', kind: 'literal', note: '同上' },
   { file: 'src/shared/refresh/src/tuning.ts', name: 'TUNING.deckEnsureTimeoutMs', gen: 'DECK_ENSURE_TIMEOUT_MS', key: 'deckEnsureMs', kind: 'literal', note: '共享域之间不许互相 import，永久 literal，只断言值相等' },
   { file: 'src/shared/version-control/src/write-ticket.ts', name: 'TICKET_TTL_MS', gen: 'TICKET_TTL_MS', key: 'ticketTtlMs', kind: 'literal', note: '共享域之间不许互相 import，永久 literal，只断言值相等' },
-  { file: 'src/host/refresh/chain-ride.ts', name: 'CHAIN_RIDE_MAX_AGE_MS', gen: 'CHAIN_RIDE_MAX_AGE_MS', key: 'chainRideMaxAgeMs', kind: 'literal' },
-  { file: 'src/deck/shell/call-budget.ts', name: 'DEFAULT_TOOL_TIMEOUT_MS', gen: 'TOOL_TIMEOUT_MS', key: 'toolTimeoutMs', kind: 'literal' },
-  { file: 'src/deck/shell/call-budget.ts', name: 'DEFAULT_TOOL_MARGIN_MS', gen: 'TOOL_MARGIN_MS', key: 'toolMarginMs', kind: 'literal' },
-  { file: 'src/deck/shell/call-budget.ts', name: 'DEFAULT_PER_OP_TIMEOUT_MS', gen: 'PER_OP_TIMEOUT_MS', key: 'perOpTimeoutMs', kind: 'literal' },
+  { file: 'src/host/refresh/chain-ride.ts', name: 'CHAIN_RIDE_MAX_AGE_MS', gen: 'CHAIN_RIDE_MAX_AGE_MS', key: 'chainRideMaxAgeMs', kind: 'imported' },
+  { file: 'src/deck/shell/call-budget.ts', name: 'DEFAULT_TOOL_TIMEOUT_MS', gen: 'TOOL_TIMEOUT_MS', key: 'toolTimeoutMs', kind: 'imported' },
+  { file: 'src/deck/shell/call-budget.ts', name: 'DEFAULT_TOOL_MARGIN_MS', gen: 'TOOL_MARGIN_MS', key: 'toolMarginMs', kind: 'imported' },
+  { file: 'src/deck/shell/call-budget.ts', name: 'DEFAULT_PER_OP_TIMEOUT_MS', gen: 'PER_OP_TIMEOUT_MS', key: 'perOpTimeoutMs', kind: 'imported' },
   { file: 'src/deck/registration/register-options.ts', name: 'AGENT_TOOL_TIMEOUT_MS', gen: 'TOOL_TIMEOUT_MS', key: 'toolTimeoutMs', kind: 'literal', note: '零导入约束（该文件 :37 注释），永久 literal；双生子同值另由 tests/verify-895-bulk-deadline.ts 第⑦节看守' },
-  { file: 'src/deck/rules/anchor.ts', name: 'ANCHOR_WINDOW_MS', gen: 'ANCHOR_WINDOW_MS', key: 'anchorWindowMs', kind: 'literal' },
-  { file: 'src/deck/shell/write-mutex.ts', name: 'DEFAULT_KEY_LOCK_TIMEOUT_MS', gen: 'KEY_LOCK_TIMEOUT_MS', key: 'keyLockMs', kind: 'literal' },
-  { file: 'src/deck/registration/host-assemble.ts', name: 'DECK_ASSEMBLY_TIMEOUT_MS', gen: 'DECK_ASSEMBLY_TIMEOUT_MS', key: 'deckAssemblyMs', kind: 'literal' },
+  { file: 'src/deck/rules/anchor.ts', name: 'ANCHOR_WINDOW_MS', gen: 'ANCHOR_WINDOW_MS', key: 'anchorWindowMs', kind: 'imported' },
+  { file: 'src/deck/shell/write-mutex.ts', name: 'DEFAULT_KEY_LOCK_TIMEOUT_MS', gen: 'KEY_LOCK_TIMEOUT_MS', key: 'keyLockMs', kind: 'imported' },
+  { file: 'src/deck/registration/host-assemble.ts', name: 'DECK_ASSEMBLY_TIMEOUT_MS', gen: 'DECK_ASSEMBLY_TIMEOUT_MS', key: 'deckAssemblyMs', kind: 'imported' },
 ]
 
 // ---------------------------------------------------------------------------
@@ -311,8 +311,10 @@ async function main(): Promise<void> {
     }
     if (row.kind === 'imported') {
       // imported 形态断言的是“就是同一个东西”：数字比值相等，数组比引用相等（同一个对象才算真导入，不是抄的数字）
+      // 判红时先重跑一次构建再看：imported 读的是域构建产物（values.js），只改 YAML、只跑生成器、
+      // 没跑构建时产物是旧的，这里的值会对不上（admission.ts 引 tuning.js 同例）。
       const same = Array.isArray(eff) ? mod[row.name] === timeMod[row.gen] : eqValue(mod[row.name], eff)
-      check(same, row.file + ' 的 ' + row.name + ' 与 time-config 的 ' + row.gen + ' 是同一份值（真导入，不是抄的数字）')
+      check(same, row.file + ' 的 ' + row.name + ' 与 time-config 的 ' + row.gen + ' 是同一份值（真导入，不是抄的数字）' + (same ? '' : '（先重跑构建排除产物过期）'))
       continue
     }
     check(eqValue(mod[row.name], eff), row.file + ' 的 ' + row.name + ' == YAML 生效值 ' + JSON.stringify(eff))
@@ -372,6 +374,9 @@ async function main(): Promise<void> {
   const files = String(ls.stdout || '').split('\n').map((s) => s.trim()).filter((s) => s.endsWith('.ts'))
   let scanned = 0
   for (const file of files) {
+    // 生成文件自己不参检：src/shared/time-config/src/values.ts 的每一项导出就是 YAML 的键，
+    // 它由第一节的新鲜度看守，不需要第二份登记。把它也扫进去会自己告自己（S2 踩过）。
+    if (file === 'src/shared/time-config/src/values.ts') continue
     const text = fs.readFileSync(path.join(ROOT, file), 'utf8')
     const names = new Set<string>()
     for (const m of text.matchAll(declRe)) {

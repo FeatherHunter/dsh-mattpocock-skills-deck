@@ -16,18 +16,21 @@
 
 import { canon, createCallMemo, isArr, repoIdOf, rosterAddCreated, rosterAdoptList, rosterDirty, rosterUpsert, type CallMemo } from './call-memo.js'
 import { withInFlightLease } from './in-flight-lease.js'
+// 三个预算数住中央 YAML（config/timeouts.yaml 的 tool* 三键）：这里只留别名，
+// 对外导出的仍是 DEFAULT_* 名字，调时间改 YAML。值由 tests/verify-time-config.ts 看守一致。
+import { TOOL_TIMEOUT_MS, TOOL_MARGIN_MS, PER_OP_TIMEOUT_MS } from '../../shared/time-config/values.js'
 
 /** 单次执行允许的最长时间（毫秒）：与 agent 注册那份 AGENT_TOOL_TIMEOUT_MS 同值，改一边必须同步另一边。
  *  同值由 tests/verify-895-bulk-deadline.js 第⑦节断言看守（注册侧文件不引用其他层的文件，不能靠 import 收成一份）。
  *  2026-10-14 由 120000 放宽到 300000（票 #1040）：批量活要发几十次远端调用，两分钟常在半路被外层
  *  掐死、整包进度作废；放宽后最坏情况多等三分钟，换回来的是整批活能跑完。
  *  为什么宁可放宽也不许为了「省额度」做慢做坏，见 docs/adr/20261014-quota-function-first.md。 */
-export const DEFAULT_TOOL_TIMEOUT_MS = 300000
+export const DEFAULT_TOOL_TIMEOUT_MS = TOOL_TIMEOUT_MS
 /** 剩余额度到这条线就停发新调用：留给收尾回包与误差（只大不小，方向安全）。
  *  预算从两分钟放到五分钟后，余量跟着从 10 秒放到 15 秒：收尾那几笔（写游标、拼回执）在慢后端上要更宽的边。 */
-export const DEFAULT_TOOL_MARGIN_MS = 15000
+export const DEFAULT_TOOL_MARGIN_MS = TOOL_MARGIN_MS
 /** 单次远端调用默认钳制（毫秒）：与 github 房单条命令默认同值；改那边时同步改这里。 */
-export const DEFAULT_PER_OP_TIMEOUT_MS = 30000
+export const DEFAULT_PER_OP_TIMEOUT_MS = PER_OP_TIMEOUT_MS
 
 /** 未知形状的入参统一按这张表逐格验，不猜。 */
 type UnknownRecord = Record<string, unknown>;

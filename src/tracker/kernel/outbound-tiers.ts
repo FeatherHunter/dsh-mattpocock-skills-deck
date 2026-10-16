@@ -12,12 +12,16 @@
  * 这个文件是纯函数：不读盘、不联网、不起定时器。调用方显式传了超时就按调用方的来。
  */
 
-export const READ_TIMEOUT_MS = 12000
-export const WRITE_TIMEOUT_MS = 30000
-export const PROBE_TIMEOUT_MS = 3000
+// 四档时长住中央 YAML（config/timeouts.yaml 的 outbound* 四键）：这里只留同名别名，
+// 调时间改 YAML，不改这里。值由 tests/verify-time-config.ts 看守一致。
+import { OUTBOUND_READ_TIMEOUT_MS, OUTBOUND_WRITE_TIMEOUT_MS, OUTBOUND_PROBE_TIMEOUT_MS, OUTBOUND_DEFAULT_TIMEOUT_MS } from '../../shared/time-config/values.js'
+
+export const READ_TIMEOUT_MS = OUTBOUND_READ_TIMEOUT_MS
+export const WRITE_TIMEOUT_MS = OUTBOUND_WRITE_TIMEOUT_MS
+export const PROBE_TIMEOUT_MS = OUTBOUND_PROBE_TIMEOUT_MS
 
 /** 拿不到档位时的旧默认：沿用历史 30000，不静默变快。 */
-export const DEFAULT_TIMEOUT_MS = 30000
+export const DEFAULT_TIMEOUT_MS = OUTBOUND_DEFAULT_TIMEOUT_MS
 
 /**
  * 参数归一成字符串数组：非数组按空数组处理，空位按空串处理。

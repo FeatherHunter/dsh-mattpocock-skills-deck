@@ -17,6 +17,9 @@
 // 不必真等 60 秒；与「now 缺省 Date.now」同款，生产行为一字不变。
 
 import { withInFlightLease } from './in-flight-lease.js'
+// 默认等待上限住中央 YAML（config/timeouts.yaml 的 keyLockMs 键）：这里只留别名，
+// 调时间改 YAML。值由 tests/verify-time-config.ts 看守一致。
+import { KEY_LOCK_TIMEOUT_MS } from '../../shared/time-config/values.js'
 
 /** 外层递进来的仓库标识只用来拼锁键，形状不固定，逐格验，不猜。 */
 type UnknownRecord = Record<string, unknown>;
@@ -43,8 +46,9 @@ function repoIdOf(repo: unknown): string {
   return id + (ef ? '#' + ef : '')
 }
 
-/** 默认等待上限（毫秒）：持锁序列本身被预算壳钳住（整笔默认 5 分钟，见 register-options.ts），60 秒等不到就诚实回。 */
-export const DEFAULT_KEY_LOCK_TIMEOUT_MS = 60000
+/** 默认等待上限（毫秒）：持锁序列本身被预算壳钳住（整笔默认 5 分钟，见 register-options.ts），60 秒等不到就诚实回。
+ * 真源是中央 YAML（config/timeouts.yaml 的 keyLockMs 键），这里是别名，数值仍冻在 60 秒（#1030 Q4）。 */
+export const DEFAULT_KEY_LOCK_TIMEOUT_MS = KEY_LOCK_TIMEOUT_MS
 
 // 键 → 队尾（前一个持有者的放行 promise；空时删键不留垃圾）。
 const tails = new Map<string, Promise<unknown>>()

@@ -26,6 +26,8 @@ import { fail, rawText } from '../../kernel/preflight.js'
 import { guardEmit } from '../../kernel/log-emit.js'
 import { ghFailureMessage, ghVerdictOf } from './errors.js'
 import { timeoutForGhArgs, isWriteGhArgs } from '../../kernel/outbound-tiers.js'
+// 默认超时住中央 YAML（config/timeouts.yaml 的 githubClientTimeoutMs 键），这里只留别名。
+import { GITHUB_CLIENT_TIMEOUT_MS } from '../../../shared/time-config/values.js'
 // #1159：名额闸与搭车账本不再从宿主 import —— 它们是有状态的运行时能力，形状由契约层声明
 // （`OutboundControl`），实现由宿主在接线处挂进 `ctx.outbound`。这与本房已有的 `ctx.gate`
 // 是同一条路：闸由接线处注入，本房不 import 它。读不到就按环境失败大声报出来，不许静默直通。
@@ -108,8 +110,10 @@ function roomInfoEnabled(ctx: OpContext): boolean {
  * 那条链要按「命令 + 工作目录 + 超时」认「是不是同一件事」，从前它在自己文件里又写了一遍
  * 30000 —— 两处各写一份，改一处就会静默对不上（实测踩过：一边带 30000、一边不带，白问两遍）。
  * 现在那个文件从宿主接线接这一个数（`src/host/registerPhones.js` 转发），全仓只有这一处字面量。
+ * #1215 起这个数的真源是中央 YAML（config/timeouts.yaml 的 githubClientTimeoutMs 键），
+ * 这里只留别名，调时间改 YAML。值由 tests/verify-time-config.ts 看守一致。
  */
-export const TIMEOUT_MS = 30000
+export const TIMEOUT_MS = GITHUB_CLIENT_TIMEOUT_MS
 
 /** 取进程执行器：优先 ctx.exec，兼容历史挂在 platform 上的写法，哪个都没有就回 null，调用方按环境失败处理。 */
 function getExec(ctx: OpContext): OpContext['exec'] | null {

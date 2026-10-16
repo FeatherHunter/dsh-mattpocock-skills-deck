@@ -34,6 +34,10 @@ import { createDeckMapPlanCreate } from '../tools/map-plan-create.js'
 import { createDeckMapLink } from '../tools/map-link.js'
 import { createDeckIssuePatch } from '../tools/issue-patch.js'
 import { createDeckIssueReport } from '../tools/issue-report.js'
+// 声明文件读取的等待上限住中央 YAML（config/timeouts.yaml 的 deckAssemblyMs 键）：这里只留别名，
+// 名字与位置不动（#1030 Q4 冻的是数值与位置，别名不断），调时间改 YAML。
+// 值由 tests/verify-time-config.ts 看守一致。
+import { DECK_ASSEMBLY_TIMEOUT_MS as CENTRAL_DECK_ASSEMBLY_TIMEOUT_MS } from '../../shared/time-config/values.js'
 
 /** 未知形状的对象（接线递进来的依赖包先按这形接住，用到哪格验哪格，不猜）。 */
 type UnknownRecord = Record<string, unknown>;
@@ -84,8 +88,8 @@ export function withCap(promise: unknown, ms: number): Promise<{ ok: boolean; va
     new Promise<{ ok: boolean; timedOut: boolean }>(function (resolve) { setTimeout(function () { resolve({ ok: false, timedOut: true }) }, ms) }),
   ])
 }
-/** 声明文件读取的等待上限（毫秒）：挂住的文件服务不能卡住选后端，超时按缺席跳过。数值与位置全冻（#1030 Q4）。 */
-export const DECK_ASSEMBLY_TIMEOUT_MS = 8000
+/** 声明文件读取的等待上限（毫秒）：挂住的文件服务不能卡住选后端，超时按缺席跳过。数值与位置全冻（#1030 Q4），真源见中央 YAML。 */
+export const DECK_ASSEMBLY_TIMEOUT_MS = CENTRAL_DECK_ASSEMBLY_TIMEOUT_MS
 
 export function createDeckToolsForHost(toolDeps: unknown): unknown {
   const base = ((toolDeps as UnknownRecord | null | undefined) || {}) as UnknownRecord;

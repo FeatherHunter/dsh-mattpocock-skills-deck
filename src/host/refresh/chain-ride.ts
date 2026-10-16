@@ -15,7 +15,12 @@
 // 被合并掉的那几次只记合并数，不算失败，也不碰退避。
 // 这里不记日志、不碰退避、不起定时器：日志只有调用方搭上车时记原来那一行，
 // 事件名不新增，附录第 1 章的条数不动。
-export const CHAIN_RIDE_MAX_AGE_MS = 30000
+// 搭车上限住中央 YAML（config/timeouts.yaml 的 chainRideMaxAgeMs 键）：
+// 这里只留别名（缺表回落 30000 与今天一致，防构建产物过期），调时间改 YAML。
+// 路径走域构建产物写法（与 src/host/outbound/admission.ts 引 tuning.js 同例），
+// 值由 tests/verify-time-config.ts 看守一致。
+import { CHAIN_RIDE_MAX_AGE_MS as CENTRAL_CHAIN_RIDE_MAX_AGE_MS } from '../../shared/time-config/values.js'
+export const CHAIN_RIDE_MAX_AGE_MS = CENTRAL_CHAIN_RIDE_MAX_AGE_MS ?? 30000
 /** 注钟形状：生产不注（用 Date.now），测试注假钟（有 nowMs 用 nowMs，否则用 now）。 */
 export interface ChainRideClock {
   nowMs?: () => number

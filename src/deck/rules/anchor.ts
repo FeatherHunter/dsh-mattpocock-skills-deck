@@ -12,13 +12,17 @@
 // 为什么时刻必须从形参进来：读钟是碰外面（#1038 定版）。拆开之后单测可以喂假时钟，
 // 同一份输入永远得到同一个锚；宿主侧（工具入口）把真钟读出来传进来。
 import type { Timestamp } from './time.js'
+// 幂等窗口住中央 YAML（config/timeouts.yaml 的 anchorWindowMs 键）：这里只留别名。
+// 纯规则侧引共享域的纯数据常量不碰世界（禁的是宿主能力，见 .dependency-cruiser.cjs），
+// 调时间改 YAML。值由 tests/verify-time-config.ts 看守一致。
+import { ANCHOR_WINDOW_MS as CENTRAL_ANCHOR_WINDOW_MS } from '../../shared/time-config/values.js'
 
 /**
  * 幂等窗口的长度，单位毫秒（5 分钟）。
  * 这个数写死在规则里而不是让调用方传：它是「什么样算同一次意图」这条业务判断，
- * 与后端、与工作区都无关；要改就改这一处，别让各调用方各传一个值。
+ * 与后端、与工作区都无关；要改就改中央 YAML，别让各调用方各传一个值。
  */
-export const ANCHOR_WINDOW_MS = 300000
+export const ANCHOR_WINDOW_MS = CENTRAL_ANCHOR_WINDOW_MS
 
 /**
  * 窗口序号：把时刻切成一个个窗口，同一个窗口里的所有时刻得到同一个序号。
