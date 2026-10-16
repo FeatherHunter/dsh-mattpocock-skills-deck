@@ -16,13 +16,25 @@ import { resolve, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 // 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
 import { compileFn } from './lib/eval-probe.js'
+// 取源走共用入口（#1207 立，见 tests/lib/source-text.ts）：#1209 起 locale-pages 的真源是 .ts，
+// 按 .js 路径直接读会读到真源旁边那份构建产物。
+//   这里 read() 的调用面很宽：既有 src/ 下的真源（locale-pages 那份要认 .ts），
+//   也有已经构建好的产物（client.js、package/lib/client.js、会话胶囊那份 .js），
+//   所以只在 sourcePath 能解析出同名 .ts 时才改指，其余路径原样交给 readFileSync ——
+//   产物不能从共用入口读（见 source-text.ts 文件头的规矩）。
+import { sourcePath } from './lib/source-text.ts'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 let passed = 0, failed = 0
 function ok(msg) { passed++; console.log('  PASS ' + msg) }
 function bad(msg) { failed++; console.log('  FAIL ' + msg) }
 function check(cond, msg) { if (cond) ok(msg); else bad(msg) }
-const read = (rel) => readFileSync(resolve(ROOT, rel), 'utf8')
+const read = (rel) => {
+  // 真源旁边有同名 .ts 时读 .ts 原文；产物（client.js 等）与还没迁移的 .js 原样读。
+  let real = rel
+  try { const p = sourcePath(rel); if (p !== rel) real = p } catch (e) { real = rel }
+  return readFileSync(resolve(ROOT, real), 'utf8')
+}
 
 const LEAF = 'src/client/statusbar/SessionChainCapsule.js'
 if (!existsSync(resolve(ROOT, LEAF))) { console.log('缺文件 ' + LEAF); process.exit(1) }

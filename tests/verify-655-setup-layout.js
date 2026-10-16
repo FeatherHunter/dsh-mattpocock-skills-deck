@@ -16,6 +16,10 @@ const fs = require('fs')
 const path = require('path')
 // 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
 const { compileFn } = require('./lib/eval-probe.js')
+// 取源走共用入口（#1207 立）：sourceText 给源码原文（按文本形状扫描用），spliceableJs 给
+// 「可以直接当函数体求值」的 JavaScript 文本（.ts 会先按构建那份口径转译，引号与换行会被重排，
+// 所以只扫关键字的判据用 sourceText、要拿去求值的用 spliceableJs，别混着用）。
+const { sourceText, spliceableJs } = require('./lib/source-text.ts')
 
 const root = path.resolve(__dirname, '..')
 let failed = false
@@ -32,7 +36,7 @@ const ok = (cond, msg) => { total++; if (cond) console.log('  PASS ' + msg); els
 function loadPrompts(localeDict, guide, cachedLayout) {
   // #698：注入决策那一段（injectSetupDecision / setupBlockedByGuide 的调用方）搬去了 kernel/prompts-setup.js，
   //   与 prompts.js 在构建时拼回同一个闭包；沙箱里照同一口径把它们拼起来求值。
-  const src = fs.readFileSync(path.join(root, 'src/client/kernel/prompts.js'), 'utf8')
+  const src = spliceableJs('src/client/kernel/prompts.js')
     + '\n' + fs.readFileSync(path.join(root, 'src/client/kernel/prompts-setup.js'), 'utf8')
   const body = src.replace(/^[ \t]*export[ \t]+/gm, '')
   const injected = []
@@ -353,7 +357,7 @@ async function main() {
   ok(directCalls.length === 0, '产物与视图里没有绕开决策函数直取初始化文案的地方' + (directCalls.length ? '（' + directCalls.join('；') + '）' : ''))
   const checkSrc = fs.readFileSync(path.join(root, 'src/client/views/ChecksTab.js'), 'utf8')
   ok(checkSrc.indexOf('resolveSetupRunText') >= 0 && checkSrc.indexOf('setupRunTextForClick') >= 0, '检查页红牌那颗「执行初始化」按钮走的是同一个注入决策函数（经内核那一处判据）')
-  const statusSrc = fs.readFileSync(path.join(root, 'src/client/statusbar/StatusBackend.js'), 'utf8')
+  const statusSrc = sourceText('src/client/statusbar/StatusBackend.js')
   ok(statusSrc.indexOf('injectSetupDecision') >= 0, '状态栏黄条与那张小卡的确认都走同一个注入决策函数')
   const barSrc = fs.readFileSync(path.join(root, 'src/client/statusbar/StatusBar.js'), 'utf8')
   // #663：门控那个窗里那组单选撤了（全新工作区还没装 gh、还没建仓库，先把「各部分共用一套用语吗」问出来是超前的问题），

@@ -18,6 +18,10 @@ const path = require('path')
 const { pathToFileURL } = require('url')
 // 本文件选 compileFn 手法：这一段是把拼好的源码文本当函数体造沙箱函数，要传进去的名字本来就列在 names 数组里。
 const { compileFn } = require('./lib/eval-probe.js')
+// 取源走共用入口（#1207 立）：sourceText 给源码原文（按文本形状扫描用），spliceableJs 给
+// 「可以直接当函数体求值」的 JavaScript 文本（.ts 会先按构建那份口径转译，引号与换行会被重排，
+// 所以只扫关键字的判据用 sourceText、要拿去求值的用 spliceableJs，别混着用）。
+const { sourceText, spliceableJs } = require('./lib/source-text.ts')
 
 const root = path.resolve(__dirname, '..')
 let failed = false
@@ -84,11 +88,14 @@ async function loadChain(locale, backends, sbPatch) {
   // 三个模块的真实文件文本拼在一起，装饰掉行首 export 后当同一个闭包求值（与 scripts/build.mjs 的拼法一致）。
   //   #698：注入决策那一段（injectSetupDecision / layoutCardShouldOpen）搬去了 kernel/prompts-setup.js，
   //   构建时与 prompts.js 拼回同一个闭包；沙箱里照同一口径把它接在 prompts.js 后面。
-  const body = read('src/client/kernel/prompts.js').replace(/^[ \t]*export[ \t]+/gm, '')
-    + read('src/client/kernel/prompts-setup.js').replace(/^[ \t]*export[ \t]+/gm, '')
+  // 三份片段各自的 export 都要剥掉：spliceableJs 交出来的 .ts 片段还带着行首 export（构建在拼接那一步剥），
+  //   prompts-setup.js 是还没迁移的手写 .js，也带着。所以最后统一过一遍剥 export。
+  const body = (spliceableJs('src/client/kernel/prompts.js')
+    + '\n' + read('src/client/kernel/prompts-setup.js')
     // sbPatch：反证用 —— 把 StatusBackend 的真源按改动后的文本喂进来（正常路径下就是真源本身）
-    + ((sbPatch && sbPatch.text) ? sbPatch.text : read('src/client/statusbar/StatusBackend.js')).replace(/^[ \t]*export[ \t]+/gm, '')
-    + read('src/client/statusbar/bannerChain.js').replace(/^[ \t]*export[ \t]+/gm, '')
+    + '\n' + ((sbPatch && sbPatch.text) ? sbPatch.text : spliceableJs('src/client/statusbar/StatusBackend.js'))
+    + '\n' + read('src/client/statusbar/bannerChain.js'))
+    .replace(/^[ \t]*export[ \t]+/gm, '')
   // 词表本身在生产里也住同一个闭包（kernel/locale.js 合并四个片段得到），这里照同一形状塞进去。
   const tail = '\n;const L = ' + JSON.stringify({ zh: locale.zh, en: locale.en }) + ';'
     + '\n;return {'
@@ -370,15 +377,45 @@ async function main() {
   ok(stEdit.setupLayout === 'multi' && seen.layoutMemory['/w/pick-edit'] === 'multi', '卡上确认 → 会话与记住的那份都改成用户刚选的那一项（multi）')
   const textEdited = mod.setupOrRepoPrompt(stEdit, 'github').text || ''
   ok(textEdited.indexOf('multi-context') >= 0, '注入的全文跟着换成「多上下文」那一句结论（不是记住的旧答案）')
-  // 反证：把「卡片开着时以卡上刚点的那一下为准」这一段从真源里拆掉，上面三条必须当场变红
+  // 反证：把「卡片开着时以卡上刚点的那一下为准」这一段从待求值的文本里拆掉，上面三条必须当场变红
   //   （这个 bug 就是这么进来的：1.7.25 让卡片预选去读「记住的那一份」，却没把它排在用户刚点的那一下后面）。
-  const sbText = read('src/client/statusbar/StatusBackend.js')
-  const brokenText = sbText.replace('try{ if(s&&s.setupLayoutCardOpen===true){ const p=inCard(); if(p) return p } }catch(e){}', '')
+  //   要找的那一段在两种排法里都写得出来（手写原文挤成一行、esbuild 交出来的是多行），所以两边都先把
+  //   空白抹平、并允许把 if(...) 那层括号拆成 `if ...`，再按抹平后的形状找下标、把下标换回原文去切片。
+  //   拆下来的是待求值的那份文本（spliceableJs 的输出）：拆完要能直接喂进沙箱。
+  //   找不到那段就原样返回，下面那圈静默跳过、不当场判红（以源码文本形状为对象的断言早先已按维护者口径整段删除）。
+  const flatten = (t) => t.replace(/if\s*\(/g, 'if ').replace(/\s+/g, '')
+  const flatAnchor = flatten('try{ if(s&&s.setupLayoutCardOpen===true){ const p=inCard(); if(p) return p } }catch(e){}')
+  const foundAnchor = flatten(sourceText('src/client/statusbar/StatusBackend.js')).indexOf(flatAnchor) >= 0
+  const sbJs = spliceableJs('src/client/statusbar/StatusBackend.js')
+  let brokenText = sbJs
+  if (foundAnchor) {
+    const flatSb = flatten(sbJs)
+    // 按「抹平后第 atAnchor 个保留字符」换回 sbJs 的下标（flatten 只删除空白、替换 `if (`，不改保留字符的先后）。
+    const atAnchor = flatSb.indexOf(flatAnchor)
+    let origAt = -1
+    let kept = 0
+    for (let i = 0; i < sbJs.length; i++) {
+      if (kept === atAnchor) { origAt = i; break }
+      if (/\s/.test(sbJs[i])) continue
+      kept++
+    }
+    if (origAt >= 0) {
+      // 终点：从 origAt 起数够「抹平后模板那一段」的非空白字符数。
+      const want = flatAnchor.length
+      let seen = 0
+      let end = origAt
+      while (end < sbJs.length && seen < want) {
+        if (!/\s/.test(sbJs[end])) seen++
+        end++
+      }
+      brokenText = sbJs.slice(0, origAt) + sbJs.slice(end)
+    }
+  }
   // 【已删除】原先这里有一条 ok(brokenText !== sbText, '反证：能在真源里拆掉…')——它断言的是手写源码里必须
   //   出现上面那段字符串，属于以源码文本为对象的门禁，撤掉。下面这圈「把那一段拆掉再跑一遍」的变异试验
   //   本身是抠真源出来执行（HYBRID，口径要求保留），所以这个 if 判断留着：源码里没有这段可拆时，
   //   这一圈静默跳过，不当场变红。
-  if (brokenText !== sbText) {
+  if (brokenText !== sbJs) {
     const brokenChain = await loadChain(locale, backends, { text: brokenText })
     const stBroken = stateOf(chainOf(STEP_CHAIN.noSetup), { backend: 'github', backends: backends })
     stBroken.cwd = '/w/pick-edit'

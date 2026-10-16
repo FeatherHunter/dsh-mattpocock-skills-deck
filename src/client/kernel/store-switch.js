@@ -223,7 +223,7 @@
             } catch (eRec) {}
             let _kind = ''
             // askLayout:true 是这次维护者拍板的那一条：布局答过也照旧问一遍（#674 的「答过就不问」到此为止）。
-            //   source:'switch' 让决策器把这张卡的收尾记在会话状态上（statusbar/StatusBackend.js 的
+            //   source:'switch' 让决策器把这张卡的收尾记在会话状态上（statusbar/StatusBackend.ts 的
             //   settleSwitchCard 要读它）；返回值只有一个名字 'askLayout' —— 黄条那条路与这条路开的是同一张卡，
             //   不按「谁开的」分两个名字，分开的只是「谁在等这一问的答案」。
             try { if (typeof injectSetupDecision === 'function') _kind = injectSetupDecision(st, targetId, { allowCard: true, askLayout: true, source: 'switch' }) } catch (eDec) {}
