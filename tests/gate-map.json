@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T18:02:01.378Z",
+  "generatedAt": "2026-10-16T18:02:23.209Z",
   "generatedBy": "node scripts/gate-map.mjs",
-  "chainLength": 303,
-  "gateCount": 303,
-  "attributedGates": 261,
+  "chainLength": 302,
+  "gateCount": 302,
+  "attributedGates": 260,
   "unattributedGates": 42,
   "buildOutputOnlyGates": 25,
   "completionRecordedGates": 6,
@@ -32,31 +32,6 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "读到的路径都落在 scripts、tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
-    },
-    {
-      "step": "node tests/verify-663-banner-chain.js",
-      "file": "tests/verify-663-banner-chain.js",
-      "guards": [
-        "package/lib/client.js",
-        "src/client/kernel/actions.js",
-        "src/client/statusbar/StatusBackend.js",
-        "src/client/statusbar/bannerChain.js",
-        "src/shared/tracker/guide-steps.js",
-        "tests/lib/eval-probe.ts",
-        "tests/lib/source-text.ts"
-      ],
-      "dirs": [
-        "package/lib",
-        "src/client/kernel",
-        "src/client/statusbar",
-        "src/shared/tracker",
-        "tests/lib"
-      ],
-      "unattributed": false,
-      "buildOutputOnly": false,
-      "completionRecord": false,
-      "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 3 条"
     },
     {
       "step": "node tests/verify-663-banner-chain.ts",
@@ -7026,7 +7001,6 @@
       "node tests/verify-deck-tools-row-zero-dep.js"
     ],
     "package/lib": [
-      "node tests/verify-663-banner-chain.js",
       "node tests/verify-663-banner-chain.ts",
       "node tests/verify-build-artifacts.js",
       "node tests/verify-leaves.ts",
@@ -7241,7 +7215,6 @@
       "node tests/verify-reuse.js"
     ],
     "src/client/kernel": [
-      "node tests/verify-663-banner-chain.js",
       "node tests/verify-663-banner-chain.ts",
       "node tests/verify-build-artifacts.js",
       "node tests/verify-chain-capsule.js",
@@ -7331,7 +7304,6 @@
       "node tests/verify-reuse.js"
     ],
     "src/client/statusbar": [
-      "node tests/verify-663-banner-chain.js",
       "node tests/verify-663-banner-chain.ts",
       "node tests/verify-leaves.ts",
       "node tests/verify-chain-capsule.js",
@@ -7814,7 +7786,6 @@
       "node tests/verify-file-granularity.js"
     ],
     "src/shared/tracker": [
-      "node tests/verify-663-banner-chain.js",
       "node tests/verify-663-banner-chain.ts",
       "node tests/verify-chain.js",
       "node tests/verify-contract-vocabulary.js",
@@ -8093,7 +8064,6 @@
     ],
     "tests/lib": [
       "node tests/verify-1207-splice-ts.ts",
-      "node tests/verify-663-banner-chain.js",
       "node tests/verify-663-banner-chain.ts",
       "node tests/verify-leaves.ts",
       "node tests/verify-chain-capsule.js",

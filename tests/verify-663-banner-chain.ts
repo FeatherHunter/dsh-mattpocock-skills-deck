@@ -1,9 +1,9 @@
-// verify-663-banner-chain.js — #663 状态栏横幅链（前半）：黄条等仓库就绪 · 仓库那一段的按钮开的是建仓弹窗
+// verify-663-banner-chain.ts — #663 状态栏横幅链（前半）：黄条等仓库就绪 · 仓库那一段的按钮开的是建仓弹窗
 // 只测外部行为、不测 DOM：把 src/client/statusbar/bannerChain.js 取出来在沙箱里求值
 //   （顺序真源用真的 src/shared/tracker/guide-steps.js，动作分发用真的 src/client/kernel/actions.js），
 //   喂假会话状态与假链快照，断言「今天该出哪一条横幅」与「那颗按钮点下去干什么」。
 // 取源做法照 tests/verify-668-guide-steps-single-source.js 与 tests/verify-655-setup-layout.js。
-// 用法: node tests/verify-663-banner-chain.js
+// 用法: node --import ./scripts/ts-hook.mjs tests/verify-663-banner-chain.ts
 const fs = require('fs')
 const path = require('path')
 const { pathToFileURL } = require('url')
@@ -18,56 +18,66 @@ const root = path.resolve(__dirname, '..')
 let failed = false
 let failedN = 0
 let total = 0
-const ok = (cond, msg) => { total++; if (cond) console.log('  PASS ' + msg); else { failed = true; failedN += 1; console.log('  FAIL ' + msg) } }
-const read = (rel) => fs.readFileSync(path.join(root, sourcePath(rel)), 'utf8')
+const ok = (cond: unknown, msg: string) => { total++; if (cond) console.log('  PASS ' + msg); else { failed = true; failedN += 1; console.log('  FAIL ' + msg) } }
+const read = (rel: string): string => fs.readFileSync(path.join(root, sourcePath(rel)), 'utf8')
 
+// 沙箱记账五件套：字段名镜像产品调用形状，不许改名（injected/logged/forms/gateOpened/setupInit）。
+interface BannerSeen {
+  injected: string[]
+  logged: Array<{ level: string; event: string; fields: Record<string, any> }>
+  forms: any[]
+  gateOpened: number
+  setupInit: number
+}
 // —— 取真源：bannerChain.js 是 leaf 模块（每行行首 export），去掉 export 后在沙箱里求值 ——
 //   闭包里的那些依赖按真形状顶替：链快照读数照产物里的写法从 st.chainSnapshot 取，
 //   动作分发用真的 createActionDispatcher（它只认动作词表，不认后端），其余只记下被调过。
-async function loadBannerChain() {
+async function loadBannerChain(): Promise<{ mod: any; seen: BannerSeen; guide: any }> {
   const guide = await import(pathToFileURL(path.join(root, 'src/shared/tracker/guide-steps.js')).href)
   const actions = await import(pathToFileURL(path.join(root, 'src/client/kernel/actions.js')).href)
   const body = read('src/client/statusbar/bannerChain.js').replace(/^[ \t]*export[ \t]+/gm, '')
-  const seen = { injected: [], logged: [], forms: [], gateOpened: 0, setupInit: 0 }
-  const stepsOf = (st) => (st && st.chainSnapshot && Array.isArray(st.chainSnapshot.steps)) ? st.chainSnapshot.steps : []
+  const seen: BannerSeen = { injected: [], logged: [], forms: [], gateOpened: 0, setupInit: 0 }
+  const stepsOf = (st: any) => (st && st.chainSnapshot && Array.isArray(st.chainSnapshot.steps)) ? st.chainSnapshot.steps : []
   const sandbox = {
     guideStepsFor: guide.guideStepsFor,
     guideStepDone: guide.guideStepDone,
-    currentBackendId: (st) => (st && st.selection && st.selection.backendId != null) ? st.selection.backendId : null,
+    currentBackendId: (st: any) => (st && st.selection && st.selection.backendId != null) ? st.selection.backendId : null,
     chainSteps: stepsOf,
-    chainStep: (st, id) => stepsOf(st).find((x) => String(x.id) === String(id)) || null,
-    checkShowTitle: (show, fallback) => String((show && (show.title || show.fallback || show.desc)) || fallback || ''),
+    chainStep: (st: any, id: string) => stepsOf(st).find((x: any) => String(x.id) === String(id)) || null,
+    checkShowTitle: (show: any, fallback: any) => String((show && (show.title || show.fallback || show.desc)) || fallback || ''),
     installSkillsParams: () => ({ probeList: 'wayfinder', probeCount: '1' }),
-    promptText: (id) => '提示词全文：' + id,
-    promptTextFor: (st, id) => '提示词全文：' + id,
-    moduleMetaOf: (st, bid) => ((st && st.backendModules) || []).find((m) => String(m.id) === String(bid)) || null,
+    promptText: (id: any) => '提示词全文：' + id,
+    promptTextFor: (st: any, id: any) => '提示词全文：' + id,
+    moduleMetaOf: (st: any, bid: any) => ((st && st.backendModules) || []).find((m: any) => String(m.id) === String(bid)) || null,
     promptLang: () => 'zh',
-    onStatusSetupInit: (st) => { seen.setupInit += 1; return (st && ('__setupKind' in st)) ? st.__setupKind : 'askLayout' },
+    onStatusSetupInit: (st: any) => { seen.setupInit += 1; return (st && ('__setupKind' in st)) ? st.__setupKind : 'askLayout' },
     createActionDispatcher: actions.createActionDispatcher,
-    inject: (st, text) => { seen.injected.push(String(text)) },
+    inject: (st: any, text: any) => { seen.injected.push(String(text)) },
     openUrl: () => {},
     host: { call: () => Promise.resolve({ ok: true }) },
-    openFormModal: (st, payload) => { seen.forms.push(payload) },
+    openFormModal: (st: any, payload: any) => { seen.forms.push(payload) },
     loadChain: () => {},
     loadSnapshot: () => {},
     flash: () => {},
     openStatusGate: () => { seen.gateOpened += 1 },
-    log: (level, event, fields) => { seen.logged.push({ level: level, event: event, fields: fields }) },
+    log: (level: string, event: string, fields: Record<string, any>) => { seen.logged.push({ level: level, event: event, fields: fields }) },
     console: { log: function () {}, warn: function () {}, error: function () {} },
   }
   const names = Object.keys(sandbox)
   // 这里选 compileFn：沙箱依赖名是运行时拼出来的数组、个数还会随桩变化，共用入口同样接数组，names 原样转交即可。
   const factory = compileFn(names, body + '\n;return { guideBannerStep: guideBannerStep, guideBannerParams: guideBannerParams, runGuideMissing: runGuideMissing }')
-  return { mod: factory(...names.map((n) => sandbox[n])), seen: seen, guide: guide }
+  return { mod: factory(...names.map((n) => (sandbox as Record<string, any>)[n])), seen: seen, guide: guide }
 }
 
+// 快照行只有 id 与状态字：没出现的项就当快照里没有（渲染与宿主都只认快照里有的那些）。
 // 链快照替身：喂「某个检查项什么状态」，其余不出现的项就当快照里没有（渲染与宿主都只认快照里有的那些）。
-const chainOf = (statusMap) => ({ steps: Object.keys(statusMap).map((id) => ({ id: id, status: statusMap[id] })) })
-const stOf = (opts) => {
+const chainOf = (statusMap: Record<string, string>) => ({ steps: Object.keys(statusMap).map((id) => ({ id: id, status: statusMap[id] })) })
+// 会话桩只拼两维（选择 + 链快照）：chain 缺省时就是「快照还没到」那一档，用 any 承载（测试桩，不进类型注册表）。
+const stOf = (opts: any): any => {
   const o = opts || {}
-  const st = { cwd: '/w/demo', selection: { backendId: o.backend === undefined ? 'github' : o.backend } }
+  const st: any = { cwd: '/w/demo', selection: { backendId: o.backend === undefined ? 'github' : o.backend } }
   if (o.chain) st.chainSnapshot = chainOf(o.chain)
-  if (o.actions) st.chainSnapshot.steps = st.chainSnapshot.steps.map((s) => o.actions[s.id] ? Object.assign({}, s, { actions: o.actions[s.id] }) : s)
+  if (o.actions) st.chainSnapshot.steps = st.chainSnapshot.steps.map((s: any) => o.actions[s.id] ? Object.assign({}, s, { actions: o.actions[s.id] }) : s)
   return st
 }
 // 一条「装了 gh、也登录了、但还没有远端仓库」的 GitHub 链（全新目录走到第 4 步的样子）。
@@ -75,7 +85,7 @@ const GH_NO_REPO = { 'gh:installed': 'done', 'gh:authed': 'done', 'gh:remote': '
 
 async function main() {
   const { mod, seen, guide } = await loadBannerChain()
-  const stepIdOf = (st, gateOpen) => { const s = mod.guideBannerStep(st, gateOpen); return s ? s.id : null }
+  const stepIdOf = (st: any, gateOpen: boolean) => { const s = mod.guideBannerStep(st, gateOpen); return s ? s.id : null }
 
   console.log('== 1. 链快照还没到：一条横幅都不出（不把「还没查到」当「没过」）==')
   ok(stepIdOf(stOf({ backend: 'github' }), false) === null, '后端已定、链快照还没到 → 不出横幅（不闪黄条）')
@@ -95,7 +105,7 @@ async function main() {
   ok(!!setupStep && setupStep.banner.text === 'banner.setup', '那一步的横幅就是「该工作区尚未初始化」黄条')
 
   console.log('== 4. 顺序就是清单那一条：gh cli → 登录 → 仓库 → 初始化 → 技能 ==')
-  const order = [
+  const order: Array<[Record<string, string>, string]> = [
     [{ 'gh:installed': 'fail' }, 'gh:installed'],
     [{ 'gh:installed': 'done', 'gh:authed': 'fail' }, 'gh:authed'],
     [GH_NO_REPO, 'gh:remote'],
@@ -136,25 +146,26 @@ async function main() {
 
   console.log('== 8. 门控那个窗：点确认只把后端定下来，不注入、也不记布局 ==')
   const sbSrc = spliceableJs('src/client/statusbar/StatusBackend.js')
-  const sbSeen = { injected: [], decisions: [], bound: [] }
+  const sbSeen: { injected: string[]; decisions: Array<{ id: string; allowCard: boolean; askLayout: boolean }>; bound: any[] } = { injected: [], decisions: [], bound: [] }
   const sbSandbox = {
-    tr: (k) => String(k),
+    tr: (k: any) => String(k),
     emit: () => {},
     firstBackendIdOf: () => 'github',
     setCachedSelection: () => {},
     setPresentationMap: () => {},
-    labelOf: (id) => String(id),
+    labelOf: (id: any) => String(id),
     flash: () => {},
     loadSnapshot: () => {},
     moduleMetaOf: () => null,
-    injectSetupDecision: (st, id, opts) => { sbSeen.decisions.push({ id: id, allowCard: !!(opts && opts.allowCard), askLayout: !!(opts && opts.askLayout) }); return 'askLayout' },
-    host: { call: (method, params) => { sbSeen.bound.push({ method: method, params: params }); return Promise.resolve({ ok: true }) } },
+    injectSetupDecision: (st: any, id: any, opts: any) => { sbSeen.decisions.push({ id: id, allowCard: !!(opts && opts.allowCard), askLayout: !!(opts && opts.askLayout) }); return 'askLayout' },
+    host: { call: (method: string, params: unknown) => { sbSeen.bound.push({ method: method, params: params }); return Promise.resolve({ ok: true }) } },
     console: { log: function () {}, warn: function () {}, error: function () {} },
   }
   const sbNames = Object.keys(sbSandbox)
   // 这里选 compileFn：与上一处同理（参数名是拼出来的数组），调用时仍按原顺序把桩挨个传进去。
-  const sbMod = compileFn(sbNames, sbSrc + '\n;return { confirmStatusGate: confirmStatusGate, onStatusSetupInit: onStatusSetupInit, layoutRadios: layoutRadios }')(...sbNames.map((n) => sbSandbox[n]))
-  const stGate = { cwd: '/w/demo', selection: null, snapshot: null, gateModalOpen: true, gateModalSource: 'status', gateSelected: 'github' }
+  const sbMod = compileFn(sbNames, sbSrc + '\n;return { confirmStatusGate: confirmStatusGate, onStatusSetupInit: onStatusSetupInit, layoutRadios: layoutRadios }')(...sbNames.map((n) => (sbSandbox as Record<string, any>)[n]))
+  // 门控窗的会话桩：确认动作会往上写字段（后端定选、关窗），用 any 承载（测试桩，不进类型注册表）。
+  const stGate: any = { cwd: '/w/demo', selection: null, snapshot: null, gateModalOpen: true, gateModalSource: 'status', gateSelected: 'github' }
   sbMod.confirmStatusGate(stGate)
   await new Promise((r) => setTimeout(r, 0))
   ok(stGate.selection && stGate.selection.backendId === 'github', '点确认把后端定下来了')
@@ -188,10 +199,10 @@ async function main() {
   const pkgBundle = read('package/lib/client.js')
   ok(clientBundle.indexOf('const guideBannerStep = function') >= 0 && pkgBundle.indexOf('const guideBannerStep = function') >= 0, '双产物里都带着这份横幅链（已随构建拼进闭包）')
   ok(clientBundle.indexOf("'guide.inject'") >= 0 && pkgBundle.indexOf("'guide.inject'") >= 0, '双产物里都带着那条常驻注入日志的落点')
-  ok(guide.GUIDE_STEPS.filter((s) => s.id === 'gh:remote' && s.blocksSetup === true).length === 1, '顺序真源那边「仓库那一步挡初始化全文」仍然成立（本票只消费它）')
+  ok(guide.GUIDE_STEPS.filter((s: any) => s.id === 'gh:remote' && s.blocksSetup === true).length === 1, '顺序真源那边「仓库那一步挡初始化全文」仍然成立（本票只消费它）')
 
   console.log(failed ? 'FAIL ' + total + ' 项检查里有 ' + failedN + ' 项未过' : 'PASS 全部 ' + total + ' 项检查通过')
   process.exit(failed ? 1 : 0)
 }
 
-main().catch(function (e) { console.error('RUNNER ERROR:', e); process.exit(1) })
+main().catch(function (e: any) { console.error('RUNNER ERROR:', e); process.exit(1) })
