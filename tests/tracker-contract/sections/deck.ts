@@ -1,5 +1,5 @@
 /**
- * tests/tracker-contract/sections/deck.js — deck-derive.js 纯函数段（#132 Q2=B，Q4 细则必测）。
+ * tests/tracker-contract/sections/deck.ts — deck-derive.js 纯函数段（#132 Q2=B，Q4 细则必测）。
  *
  * 第一性原理（#127/#124）：deck 是派生视图——frontier/claimed/blocked/indeterminate 由
  * state+blockedBy+assignees 推导；「assignees 已知且空 + !claimed + !blocked」才 frontier；
@@ -7,27 +7,81 @@
  * 本段必须有 **NFD + 环** 两条用例（Q4 裁决）。
  */
 
-import { deriveDeck, parseProgress } from '../../../src/tracker/deck-derive.ts'
+import { deriveDeck, parseProgress, type DeckTicket } from '../../../src/tracker/deck-derive.js'
+
+/**
+ * 造票用的可写半成品：与 DeckTicket 同形但字段可写。
+ *
+ * 可写的原因：`indeterminate` 那张票要用 `delete assignees` 造出「字段缺席」（MISSING），
+ * 与「已知且空数组」区分开——这是本段的核心被测语义，缺席本身是断言对象。
+ * 传给 deriveDeck 时直接按 DeckInput（两格 unknown）收，不做断言。
+ */
+interface TicketSeed {
+  key: string
+  type: string
+  title: string
+  state: string
+  body: unknown
+  url: string
+  createdAt: string
+  updatedAt: string
+  closedAt: null
+  parentKey: string | null
+  labels: unknown
+  assignees?: unknown
+  comments: unknown[]
+  blockedBy: unknown
+  reason: string
+  effortId?: string
+  isPullRequest?: unknown
+}
+
+/** 造 map 节点用的可写半成品：比票多一张子票清单与可选的 effortId。 */
+interface MapSeed {
+  key: string
+  type: string
+  title: string
+  state: string
+  body: unknown
+  url: string
+  createdAt: string
+  updatedAt: string
+  closedAt: null
+  parentKey: null
+  labels: unknown
+  assignees: unknown[]
+  comments: unknown[]
+  blockedBy: unknown[]
+  reason: string
+  tickets: TicketSeed[]
+  effortId?: string
+}
+
+interface AssertRecord {
+  name: string
+  ok: boolean
+  detail: string
+}
 
 /** 造一张票（默认挂在 m1 下、空 assignees=EMPTY、无阻塞）。 */
-const t = (key, over = {}) => Object.assign({
+const t = (key: string, over: Partial<TicketSeed> = {}): TicketSeed => Object.assign({
   key, type: 'issue', title: key, state: 'open', body: '', url: '',
   createdAt: '', updatedAt: '', closedAt: null, parentKey: 'm1',
   labels: [], assignees: [], comments: [], blockedBy: [], reason: '',
 }, over)
 
 /** 造一张 map 节点。 */
-const m = (key, tickets = [], over = {}) => Object.assign({
+const m = (key: string, tickets: TicketSeed[] = [], over: Partial<MapSeed> = {}): MapSeed => Object.assign({
   key, type: 'map', title: key, state: 'open', body: '', url: '',
   createdAt: '', updatedAt: '', closedAt: null, parentKey: null,
   labels: [], assignees: [], comments: [], blockedBy: [], reason: '',
   tickets,
 }, over)
 
-export async function run() {
-  const out = []
+export async function run(): Promise<AssertRecord[]> {
+  const out: AssertRecord[] = []
   const P = 'deck · '
-  const assert = async (name, cond, detail) => {
+  const assert = async (name: string, cond: unknown, detail?: string): Promise<void> => {
     let ok = false
     try { ok = !!(await cond) } catch (e) { out.push({ name: P + name, ok: false, detail: String(e) }); return }
     out.push({ name: P + name, ok, detail: detail || '' })
@@ -87,11 +141,12 @@ export async function run() {
     await assert('NFD levelOf 按 0 计 → 占层级 level=1', deck.stats.levelOf.nfd === 1, `level=${deck.stats.levelOf.nfd}`)
     await assert('✗ probe: NFD 若被误当满足 → 会错判 frontier（自证）', (async () => {
       // naive：查表缺失的依赖当「满足」→ nfd 会被误判为 frontier（与正确口径可区分）
-      const naiveSatisfied = (ticket, map) => (ticket.blockedBy || []).every((ref) => {
-        const target = map.get(ref.key)
-        return !target || target.state !== 'open'
-      })
-      const naiveFrontier = naiveSatisfied(nfd, new Map([['nfd', nfd]])) // ghost 不在表内 → naive 判满足
+      const naiveSatisfied = (ticket: DeckTicket, map: Map<string, DeckTicket>): boolean =>
+        (Array.isArray(ticket.blockedBy) ? ticket.blockedBy : []).every((ref) => {
+          const target = map.get((ref as { key?: unknown }).key as string)
+          return !target || target.state !== 'open'
+        })
+      const naiveFrontier = naiveSatisfied(nfd, new Map<string, DeckTicket>([['nfd', nfd]])) // ghost 不在表内 → naive 判满足
       return naiveFrontier === true && deck.stats.frontier === 0
     })(), 'NFD semantic must be distinguishable from naive (satisfied)')
   }
@@ -117,12 +172,14 @@ export async function run() {
       JSON.stringify(deck.stats.levelOf))
     await assert('✗ probe: 无守卫实现会栈溢出（自证）', (async () => {
       // 同输入的「无 visited 守卫」递归实现 → 环必然 RangeError 溢出；守卫版已正常返回。
-      const noGuardLevelOf = (ticket, map) => {
-        const blockers = (ticket.blockedBy || []).map((x) => map.get(x.key)).filter(Boolean)
+      const noGuardLevelOf = (ticket: DeckTicket, map: Map<string, DeckTicket>): number => {
+        const blockers = (Array.isArray(ticket.blockedBy) ? ticket.blockedBy : [])
+          .map((x) => map.get((x as { key?: unknown }).key as string))
+          .filter((x): x is DeckTicket => Boolean(x))
         if (!blockers.length) return 0
         return 1 + Math.max(...blockers.map((b) => noGuardLevelOf(b, map)))
       }
-      const byKey = new Map([['c1', c1], ['c2', c2]])
+      const byKey = new Map<string, DeckTicket>([['c1', c1], ['c2', c2]])
       let overflow = false
       try { noGuardLevelOf(c1, byKey) } catch (e) { overflow = e instanceof RangeError }
       return overflow
