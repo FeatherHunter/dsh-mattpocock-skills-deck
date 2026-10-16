@@ -30,13 +30,13 @@ import { loadEsbuild } from '../scripts/lib/transpile-domains.mjs'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 const MODULE_REL = 'src/host/choiceStore.ts'
-const url = (rel) => pathToFileURL(path.join(ROOT, rel)).href
+const url = (rel: string): string => pathToFileURL(path.join(ROOT, rel)).href
 let passed = 0
 let failed = 0
-const check = (ok, msg) => { if (ok) { console.log('  PASS ' + msg); passed++ } else { console.log('  FAIL ' + msg); failed++ } }
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
-const tmpDirs = []
-const makeHome = function () { const d = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-choice-store-')); tmpDirs.push(d); return d }
+const check = (ok: unknown, msg: string): void => { if (ok) { console.log('  PASS ' + msg); passed++ } else { console.log('  FAIL ' + msg); failed++ } }
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
+const tmpDirs: string[] = []
+const makeHome = function (): string { const d = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-choice-store-')); tmpDirs.push(d); return d }
 const KEY = 'd:\\3DeepSeekHarness\\agents\\shujucangkuguanliyuan'
 const OTHER_KEY = 'd:\\dsh-plugin\\demo-test-09200013'
 
@@ -52,10 +52,10 @@ const { createChoiceStore, choicesFilePath, hashWorkspaceKey, LAYOUT_VALUES, DEF
 console.log('选择状态文件门禁（#683 F1：原子落盘、只存散列、上限淘汰、并发串行、坏文件不采纳也不写）')
 
 // 记录型文件服务：把真 node:fs 包一层，既落真盘又能看调用序列；overrides 用来制造失败与延迟。
-const wrapFs = function (calls, overrides) {
-  const out = {}
+const wrapFs = function (calls: any[], overrides?: any) {
+  const out: Record<string, any> = {}
   for (const name of ['mkdir', 'readFile', 'rename', 'stat', 'unlink', 'writeFile']) {
-    out[name] = async function (...args) {
+    out[name] = async function (...args: any[]) {
       calls.push({ name: name, args: args })
       if (overrides && overrides[name]) return overrides[name](...args)
       return realFs[name](...args)
@@ -63,7 +63,7 @@ const wrapFs = function (calls, overrides) {
   }
   return out
 }
-const makeStore = function (home, extra) {
+const makeStore = function (home: string, extra?: any) {
   return createChoiceStore(Object.assign({ homeDir: home, isKnownBackend: () => true }, extra || {}))
 }
 
@@ -97,7 +97,7 @@ console.log('== A 行为层：真模块 + 真落盘（临时主目录）==')
   check(JSON.parse(text).workspaces[hashWorkspaceKey(KEY)].source === 'user' && JSON.parse(text).version === 1, '记录形状带 source=user，文件带 version=1（R2 定的形状）')
 
   // R7：原子落盘 —— 先写临时文件、再改名；写完不残留
-  const calls = []
+  const calls: any[] = []
   const st2 = makeStore(home, { fs: wrapFs(calls) })
   const r3 = await st2.rememberWorkspace(KEY, 'github')
   const wrote = calls.filter((c) => c.name === 'writeFile')[0]
@@ -143,7 +143,7 @@ console.log('== A 行为层：真模块 + 真落盘（临时主目录）==')
   const mixFile = choicesFilePath(mixHome)
   fs.mkdirSync(path.dirname(mixFile), { recursive: true })
   const goodEntry = { backendId: 'github', rev: 3, pickedAt: 1758500000000, source: 'user' }
-  const mix = { version: 1, workspaces: {}, layouts: {} }
+  const mix: { version: number; workspaces: Record<string, any>; layouts: Record<string, any> } = { version: 1, workspaces: {}, layouts: {} }
   mix.workspaces[hashWorkspaceKey(KEY)] = goodEntry
   mix.workspaces[hashWorkspaceKey(OTHER_KEY)] = { backendId: 'markdown', rev: '2', pickedAt: 1, source: 'user' }
   mix.workspaces['not-a-hash'] = { backendId: 'github', rev: 1, pickedAt: 1, source: 'user' }
@@ -161,7 +161,7 @@ console.log('== A 行为层：真模块 + 真落盘（临时主目录）==')
   // R5b：注册表不认的后端与 null 不许进文件
   const guardHome = makeHome()
   const guardFile = choicesFilePath(guardHome)
-  const stG = createChoiceStore({ homeDir: guardHome, isKnownBackend: (id) => id === 'github' })
+  const stG = createChoiceStore({ homeDir: guardHome, isKnownBackend: (id: unknown) => id === 'github' })
   const nullWrite = await stG.rememberWorkspace(KEY, null)
   check(nullWrite.ok === false, 'backendId 为 null 不许写（退役的「无后端」逃生舱不许借这条路复活）—— 实得 ' + JSON.stringify(nullWrite))
   const unknownWrite = await stG.rememberWorkspace(KEY, 'gitlab')
@@ -198,8 +198,8 @@ console.log('== A 行为层：真模块 + 真落盘（临时主目录）==')
 
   // R9：两个窗口同时写 —— 进程内排队串行，修订号不许丢
   const raceHome = makeHome()
-  const raceCalls = []
-  const stR = makeStore(raceHome, { fs: wrapFs(raceCalls, { readFile: async (...a) => { await sleep(20); return realFs.readFile(...a) } }) })
+  const raceCalls: any[] = []
+  const stR = makeStore(raceHome, { fs: wrapFs(raceCalls, { readFile: async (...a: any[]) => { await sleep(20); return realFs.readFile(...a) } }) })
   const both = await Promise.all([stR.rememberWorkspace(KEY, 'github'), stR.rememberWorkspace(KEY, 'markdown')])
   check(both[0].rev === 1 && both[1].rev === 2, '两个并发写入被排成一队：第一次 rev=1、第二次 rev=2（不丢更新）—— 实得 ' + JSON.stringify(both.map((r) => r.rev)))
   check((await stR.getWorkspace(KEY)).rev === 2, '落盘之后文件里就是最后那一次的 rev —— 实得 ' + JSON.stringify(await stR.getWorkspace(KEY)))
@@ -239,19 +239,19 @@ tmpDirs.push(brokenDir)
 // 反证求值的是「改坏之后的源码文本」：真源现在是 TypeScript，直接写进 .mjs 求值会报语法错，
 // 所以先按全仓唯一那份转译口径（TRANSPILE_OPTIONS，与构建同一份）转成 JavaScript 再求值。
 // 转译失败按落点缺失处理（当场红），不让门禁崩在没有结论的地方。
-const toRunnableJs = function (text) {
+const toRunnableJs = function (text: string): { text?: string; bad?: string } {
   try {
     return { text: loadEsbuild().transformSync(text, TRANSPILE_OPTIONS).code }
   } catch (e) {
     return { bad: '反证变体转译失败（' + ((e && e.message) || e) + '）' }
   }
 }
-const loadBroken = async function (tag, from, to) {
+const loadBroken = async function (tag: string, from: string, to: string): Promise<{ bad?: string; src?: string }> {
   if (!src.includes(from)) return { bad: '这道反证的改法在真源里找不到落点（源文本已变）：' + String(from).split('\n')[0].slice(0, 80) }
   const js = toRunnableJs(src.replace(from, to))
   if (js.bad) return js
   const file = path.join(brokenDir, tag + '.mjs')
-  fs.writeFileSync(file, js.text, 'utf8')
+  fs.writeFileSync(file, js.text!, 'utf8')
   return { mod: await import(pathToFileURL(file).href) }
 }
 
@@ -262,12 +262,12 @@ const loadBroken = async function (tag, from, to) {
  * 为什么要有这一份：B1 原来锚的是「六空格缩进的两整行」，真源只要被格式化一下（换缩进、折行），
  * 门禁就报「源文本已变」自己变红 —— 那不是产品坏了，是门禁把字节当成了行为。
  */
-const loadBrokenRe = async function (tag, re, to, what) {
+const loadBrokenRe = async function (tag: string, re: RegExp, to: string, what: string): Promise<{ bad?: string; mod?: any }> {
   if (!re.test(src)) return { bad: '这道反证的语义锚点在真源里找不到落点（找的是：' + what + '）' }
   const js = toRunnableJs(src.replace(re, to))
   if (js.bad) return js
   const file = path.join(brokenDir, tag + '.mjs')
-  fs.writeFileSync(file, js.text, 'utf8')
+  fs.writeFileSync(file, js.text!, 'utf8')
   return { mod: await import(pathToFileURL(file).href) }
 }
 
@@ -286,7 +286,7 @@ const ATOMIC_WRITE_RE = /await\s+fsPort\.writeFile\(\s*tmp\s*,\s*body\s*,\s*\{[^
     const st0 = b.mod.createChoiceStore({ homeDir: home, isKnownBackend: () => true })
     await st0.rememberWorkspace(KEY, 'github')
     const before = fs.readFileSync(b.mod.choicesFilePath(home), 'utf8')
-    const calls = []
+    const calls: any[] = []
     const st1 = b.mod.createChoiceStore({ homeDir: home, isKnownBackend: () => true, fs: wrapFs(calls, { rename: async () => { throw new Error('boom') } }) })
     await st1.rememberWorkspace(KEY, 'gitlab')
     const after = fs.readFileSync(b.mod.choicesFilePath(home), 'utf8')
@@ -323,7 +323,7 @@ const ATOMIC_WRITE_RE = /await\s+fsPort\.writeFile\(\s*tmp\s*,\s*body\s*,\s*\{[^
   check(!b.bad, '反证 B3 的改法能在真源里落地（守卫整段摘掉）' + (b.bad ? ' —— ' + b.bad : ''))
   if (b.mod) {
     const home = makeHome()
-    const st = b.mod.createChoiceStore({ homeDir: home, isKnownBackend: (id) => id === 'github' })
+    const st = b.mod.createChoiceStore({ homeDir: home, isKnownBackend: (id: unknown) => id === 'github' })
     const r = await st.rememberWorkspace(KEY, 'gitlab')
     check(r.ok === true, '反证 B3 成立：守卫摘掉之后，注册表不认的后端（gitlab）也写进去了 —— 实得 ' + JSON.stringify(r))
   }
@@ -337,8 +337,8 @@ const ATOMIC_WRITE_RE = /await\s+fsPort\.writeFile\(\s*tmp\s*,\s*body\s*,\s*\{[^
   check(!b.bad, '反证 B4 的改法能在真源里落地（去掉进程内排队）' + (b.bad ? ' —— ' + b.bad : ''))
   if (b.mod) {
     const home = makeHome()
-    const calls = []
-    const st = b.mod.createChoiceStore({ homeDir: home, isKnownBackend: () => true, fs: wrapFs(calls, { readFile: async (...a) => { await sleep(20); return realFs.readFile(...a) } }) })
+    const calls: any[] = []
+    const st = b.mod.createChoiceStore({ homeDir: home, isKnownBackend: () => true, fs: wrapFs(calls, { readFile: async (...a: any[]) => { await sleep(20); return realFs.readFile(...a) } }) })
     const both = await Promise.all([st.rememberWorkspace(KEY, 'github'), st.rememberWorkspace(KEY, 'markdown')])
     // 不排队时这一对拿不到「先 1 后 2」：常见两种坏法 —— 两次都读到旧状态、都发到 rev=1（丢一次更新），
     // 或两次的临时文件互相踩到、有一次直接写失败。这里只断言「串行才有的那个结果消失了」，不锁死某一种坏法。

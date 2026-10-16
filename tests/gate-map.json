@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T18:22:36.554Z",
+  "generatedAt": "2026-10-16T18:24:27.450Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 302,
   "gateCount": 302,
@@ -2330,8 +2330,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；静态 import 说明符 3 条；源码里的路径字面量 2 条"
     },
     {
-      "step": "node tests/verify-683-choice-store.js",
-      "file": "tests/verify-683-choice-store.js",
+      "step": "node tests/verify-683-choice-store.ts",
+      "file": "tests/verify-683-choice-store.ts",
       "guards": [
         "scripts/lib/transpile-domains.mjs",
         "scripts/lib/transpile-unit.mjs",
@@ -7156,7 +7156,7 @@
       "node tests/verify-596-rpc-carrier.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-668-guide-steps-single-source.ts",
-      "node tests/verify-683-choice-store.js",
+      "node tests/verify-683-choice-store.ts",
       "node tests/verify-683-host-wiring.js",
       "node tests/verify-693-detail-fallback-honesty.js",
       "node tests/verify-729-force-dedup.js",
@@ -7494,7 +7494,7 @@
       "node tests/verify-596-rpc-carrier.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-666-subws-mark-root.ts",
-      "node tests/verify-683-choice-store.js",
+      "node tests/verify-683-choice-store.ts",
       "node tests/verify-683-host-wiring.js",
       "node tests/verify-690-closed-pages.js",
       "node tests/verify-691-map-subissues.js",
