@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T22:06:18.966Z",
+  "generatedAt": "2026-10-16T22:13:05.564Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 300,
   "gateCount": 300,
@@ -6424,8 +6424,8 @@
       "reason": "它读的是构建产物（package/ 下的打包结果）。产物由整份源码打出来，脚本里看不出产物跟哪个源码文件对应，所以算不出它守着哪条源码路径；挑选门禁时按「只要动到源码就先跑它」保守处理"
     },
     {
-      "step": "node tests/verify-t3-locale.js",
-      "file": "tests/verify-t3-locale.js",
+      "step": "node tests/verify-t3-locale.ts",
+      "file": "tests/verify-t3-locale.ts",
       "guards": [
         "package/lib/client.js"
       ],
@@ -7052,7 +7052,7 @@
       "node tests/verify-success-failure-contract.js",
       "node tests/verify-t1-getrepokey.js",
       "node tests/verify-t1-initpublish.js",
-      "node tests/verify-t3-locale.js",
+      "node tests/verify-t3-locale.ts",
       "node tests/verify-tabsfold-leaf.js",
       "node tests/verify-locale-completeness.js"
     ],

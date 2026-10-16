@@ -390,7 +390,6 @@
     "tests/verify-t1-initpublish.js",
     "tests/verify-t14-detail-badge.js",
     "tests/verify-t2-repokey-ui.js",
-    "tests/verify-t3-locale.js",
     "tests/verify-tabs-narrow.js",
     "tests/verify-tabsfold-leaf.js",
     "tests/verify-takeable-menu.js",

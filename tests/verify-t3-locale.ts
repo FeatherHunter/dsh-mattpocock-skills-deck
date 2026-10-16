@@ -1,5 +1,6 @@
-// verify-t3-locale.js — dsh-waystation v25 T3 双语字典一致性验证（ticket #366）
-// 用法: node tests/verify-t3-locale.js [file...]（默认 client.js + package/lib/client.js）
+// verify-t3-locale.ts — dsh-waystation v25 T3 双语字典一致性验证（ticket #366）
+// 2026-10-17 从 .js 转成 TypeScript：只改文件名、用法这行与几处类型标注，判据与断言一条没动。
+// 用法: node --import ./scripts/ts-hook.mjs tests/verify-t3-locale.ts [file...]（默认 client.js + package/lib/client.js）
 // 验证：
 //   1) zh/en 字典键完全一致（双语平衡）
 //   2) 所有 tr('...') 调用键都存在（无悬空键；以 '.' 结尾的键为动态前缀，校验前缀存在）
@@ -7,7 +8,7 @@ const fs = require('fs')
 const files = process.argv.slice(2)
 const targets = files.length ? files : ['client.js', 'package/lib/client.js']
 let failed = false
-const check = function (file) {
+const check = function (file: string) {
   const src = fs.readFileSync(file, 'utf8')
   const dictStart = src.indexOf('const L_PANEL = {') >= 0 ? src.indexOf('const L_PANEL = {') : src.indexOf('const L = {') // #458 K5：locale.js 已拆为三片段加合并器，产物中字典真源为 L_PANEL/L_FLOW/L_WORD 三块加 L 合并器，此处从首片段切到装配点才能含全键（单切 L 合并器仅含 Object.assign 无键）
   if (dictStart < 0) { console.log('  FAIL', file, '无 L 字典'); failed = true; return }
@@ -17,18 +18,18 @@ const check = function (file) {
   // 原来的正则只认单引号，于是 zh/en 两个集合都是空的，整扇门禁在主干上假红。
   // 这里同时接受单引号与双引号两种写法，键与引用各一处。
   const keyRe = /["']([a-zA-Z0-9.]+)["']:/g
-  const zh = new Set(); const en = new Set()
+  const zh = new Set<string>(); const en = new Set<string>()
   let inEn = false
   for (const line of dictBlock.split('\n')) {
     if (line.includes('zh: {')) { inEn = false; continue }
     if (line.includes('en: {')) { inEn = true; continue }
-    let m
+    let m: RegExpExecArray | null
     keyRe.lastIndex = 0
     while ((m = keyRe.exec(line)) !== null) { (inEn ? en : zh).add(m[1]) }
   }
   const useRe = /\btr\(["']([a-zA-Z0-9.]*)(?:["']|\+)/g
   const used = new Set()
-  let m
+  let m: RegExpExecArray | null
   while ((m = useRe.exec(src)) !== null) used.add(m[1])
   const problems = []
   if (zh.size !== en.size) problems.push('zh/en 数量不一致 ' + zh.size + ' vs ' + en.size)
