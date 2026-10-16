@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * verify-653-subworkspace.js — 子目录工作区场景门禁（#653 验收）
+ * verify-653-subworkspace.ts — 子目录工作区场景门禁（#653 验收）
  *
  * 治的是什么：客户端那五样抽屉（面板快照、检查链快照、在途去重、后端选择镜像、仓库引用）此前按
  * 「会话所选目录」分桶。同一个仓库里，仓库根会话与子目录会话因此各占一桶、互不相认——子目录会话
@@ -14,18 +14,18 @@
  *   D. 归属标志：只在「所选目录 ≠ 工作区根」时出现（行为级，跑真函数）。
  *   E. 双产物一致：client.js 与 package/lib/client.js 都带着这套接线。
  */
-const fs = require('fs')
-const path = require('path')
-const { compileFn } = require('./lib/eval-probe.js')
+import fs from 'node:fs'
+import path from 'node:path'
+import { compileFn } from './lib/eval-probe.js'
 
-const root = path.resolve(__dirname, '..')
+const root = path.resolve(import.meta.dirname, '..')
 let failed = false
 let passed = 0
-const ok = (msg) => { passed++; console.log('  PASS ' + msg) }
-const bad = (msg) => { failed = true; console.log('  FAIL ' + msg) }
+const ok = (msg: string): void => { passed++; console.log('  PASS ' + msg) }
+const bad = (msg: string): void => { failed = true; console.log('  FAIL ' + msg) }
 
-const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8')
-const noExport = (s) => s.replace(/^\s*export\s+/gm, '')
+const read = (rel: string): string => fs.readFileSync(path.join(root, rel), 'utf8')
+const noExport = (s: string): string => s.replace(/^\s*export\s+/gm, '')
 
 console.log('=== #653 子目录工作区场景门禁 ===')
 
@@ -99,7 +99,7 @@ const CACHE = compileFn(
   ['keyOf', 'wsKeyOf', 'snapshotByCwd', 'dswsLogHash', 'isEnabled', 'log', 'touchLRUClient', 'getProbeAt', 'diskPutSnapshot', 'SNAP_CWD_LRU_MAX'],
   storeBlock + '\nreturn { getCachedSnapshot: getCachedSnapshot, setCachedSnapshot: setCachedSnapshot, table: snapshotByCwd }'
 )(
-  keyOfFn, KEY.wsKeyOf, new Map(), () => 'h', () => false, () => {}, (m, k, v) => m.set(k, v), () => 0, () => {}, 20
+  keyOfFn, KEY.wsKeyOf, new Map(), () => 'h', () => false, () => {}, (m: Map<string, unknown>, k: string, v: unknown) => m.set(k, v), () => 0, () => {}, 20
 )
 const snap = { ok: true, maps: [], workspaceRoot: ROOT_DIR, generatedMs: 1 }
 CACHE.setCachedSnapshot(SUB_DIR, snap)
@@ -119,7 +119,7 @@ const isPolluted = compileFn(
   '\nreturn isPollutedSnapshot'
 )(
   keyOfFn, KEY.wsKeyOf,
-  (c) => { const s = String(c || '').split(/[\\/]/); for (let i = s.length - 1; i >= 0; i--) if (s[i]) return s[i]; return 'repo' }
+  (c: string) => { const s = String(c || '').split(/[\\/]/); for (let i = s.length - 1; i >= 0; i--) if (s[i]) return s[i]; return 'repo' }
 )
 // 【已删除】原先还断言 DockSync.js 的源码文本里不出现 "startsWith(rr + '/')"（旧白名单的写法）。
 // 钉源码文本，撤掉；下面直接跑切出来的真函数，看「两个工作区互为祖先」判不判污染。
@@ -156,8 +156,8 @@ const markBlock = noExport(
   markSrc.slice(markSrc.indexOf('export const subwsMarkRootOf'), markSrc.indexOf('export const SubworkspaceMark'))
 )
 // 手法：compileFn——归属标志的纯函数块走共用入口造函数，参数仍是 keyOf 与 tr 两个。
-const markApi = compileFn(['keyOf', 'tr'], markBlock + '\nreturn { shows: subwsMarkShows }')(keyOfFn, (k) => k)
-const isSubOf = function (root, cwd) { try { return markApi.shows(root, cwd) === true } catch (e) { return false } }
+const markApi = compileFn(['keyOf', 'tr'], markBlock + '\nreturn { shows: subwsMarkShows }')(keyOfFn, (k: string) => k)
+const isSubOf = function (root: string, cwd: string): boolean { try { return markApi.shows(root, cwd) === true } catch (e) { return false } }
 if (isSubOf(ROOT_DIR, SUB_DIR) === true) ok('子目录会话：出现（所选目录 ≠ 工作区根）')
 else bad('子目录会话没出现标志')
 if (isSubOf(ROOT_DIR, ROOT_DIR) === false) ok('根会话：不出现')
@@ -191,7 +191,7 @@ const TABLES = compileFn(
   'return { getCachedSnapshot: getCachedSnapshot, setCachedSnapshot: setCachedSnapshot, getChainCacheKey: getChainCacheKey,' +
   ' getCachedChain: getCachedChain, setCachedChain: setCachedChain, getProbeAt: getProbeAt, touchProbeAt: touchProbeAt }'
 )(
-  keyOfFn, KEY.wsKeyOf, new Map(), new Map(), () => 'h', () => false, () => {}, (m, k, v) => m.set(k, v), () => {}, 20
+  keyOfFn, KEY.wsKeyOf, new Map(), new Map(), () => 'h', () => false, () => {}, (m: Map<string, unknown>, k: string, v: unknown) => m.set(k, v), () => {}, 20
 )
 // 模拟宿主：子目录会话问一次快照，宿主回包里带着工作区根（#652 起由 canonicalKey 算出，这里直接给）
 const hostSnap = { ok: true, maps: [], issues: [], labels: [], workspaceRoot: ROOT_DIR, generatedMs: Date.now() }

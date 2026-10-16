@@ -250,7 +250,6 @@
     "tests/smoke-render.test.js",
     "tests/tracker-contract/fixtures/markdown.js",
     "tests/tracker-contract/sections/idempotency-counterproof.js",
-    "tests/verify-653-subworkspace.js",
     "tests/verify-655-setup-layout.js",
     "tests/verify-656-subworkspace-acceptance.js",
     "tests/verify-663-banner-chain.js",

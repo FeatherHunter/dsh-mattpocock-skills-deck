@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T17:57:27.080Z",
+  "generatedAt": "2026-10-16T17:58:23.778Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 302,
   "gateCount": 302,
@@ -1929,8 +1929,8 @@
       "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 6 条"
     },
     {
-      "step": "node tests/verify-653-subworkspace.js",
-      "file": "tests/verify-653-subworkspace.js",
+      "step": "node tests/verify-653-subworkspace.ts",
+      "file": "tests/verify-653-subworkspace.ts",
       "guards": [
         "package/lib/client.js",
         "src/client/kernel/store-snapshot.js",
@@ -1951,7 +1951,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 5 条"
+      "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 5 条"
     },
     {
       "step": "node tests/verify-655-setup-layout.js",
@@ -2013,7 +2013,7 @@
         "src/tracker/rooms/markdown/label-colors.ts",
         "src/tracker/rooms/markdown/path.ts",
         "tests/lib/eval-probe.ts",
-        "tests/verify-653-subworkspace.js",
+        "tests/verify-653-subworkspace.ts",
         "tests/verify-656-subworkspace-acceptance.js",
         "tests/verify-t1-getrepokey.js"
       ],
@@ -7013,7 +7013,7 @@
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-626-type-chip.ts",
       "node tests/verify-646-native-tab.ts",
-      "node tests/verify-653-subworkspace.js",
+      "node tests/verify-653-subworkspace.ts",
       "node tests/verify-655-setup-layout.js",
       "node tests/verify-665-fresh-workspace-chain.js",
       "node tests/verify-667-dock-header-no-brand.js",
@@ -7230,7 +7230,7 @@
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-626-type-chip.ts",
       "node tests/verify-646-native-tab.ts",
-      "node tests/verify-653-subworkspace.js",
+      "node tests/verify-653-subworkspace.ts",
       "node tests/verify-655-setup-layout.js",
       "node tests/verify-656-subworkspace-acceptance.js",
       "node tests/verify-663-gh-install-inject.js",
@@ -7296,7 +7296,7 @@
     "src/client/panel": [
       "node tests/verify-leaves.ts",
       "node tests/verify-no-title.js",
-      "node tests/verify-653-subworkspace.js",
+      "node tests/verify-653-subworkspace.ts",
       "node tests/verify-655-setup-layout.js",
       "node tests/verify-667-dock-header-no-brand.js",
       "node tests/verify-670-panel-first-frame.js",
@@ -7336,7 +7336,7 @@
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-626-type-chip.ts",
       "node tests/verify-646-native-tab.ts",
-      "node tests/verify-653-subworkspace.js",
+      "node tests/verify-653-subworkspace.ts",
       "node tests/verify-655-setup-layout.js",
       "node tests/verify-666-subws-mark-root.js",
       "node tests/verify-669-chain-after-pick.js",
@@ -7654,7 +7654,7 @@
       "node tests/verify-build-artifacts.js",
       "node tests/verify-contract-vocabulary.js",
       "node tests/verify-dependency-rules.ts",
-      "node tests/verify-653-subworkspace.js",
+      "node tests/verify-653-subworkspace.ts",
       "node tests/verify-656-subworkspace-acceptance.js",
       "node tests/verify-730-cwd-consistent.js",
       "node tests/verify-948-feedback-map.js",
@@ -8090,7 +8090,7 @@
       "node tests/verify-626-type-chip.ts",
       "node tests/verify-640-dock-width-browser.ts",
       "node tests/verify-646-native-tab.ts",
-      "node tests/verify-653-subworkspace.js",
+      "node tests/verify-653-subworkspace.ts",
       "node tests/verify-655-setup-layout.js",
       "node tests/verify-656-subworkspace-acceptance.js",
       "node tests/verify-663-gh-install-inject.js",
