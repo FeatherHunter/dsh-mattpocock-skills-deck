@@ -142,7 +142,7 @@ function pluginFiles(dir) {
       if (ent.isDirectory()) {
         if (path.resolve(p) === probeAbs) { skipped.push(path.relative(ROOT, p).replace(/\\/g, '/')); continue }
         walk(p)
-      } else if (ent.name.endsWith('.js')) out.push(p)
+      } else if (ent.name.endsWith('.js') || ent.name.endsWith('.ts')) out.push(p)
     }
   }
   if (fs.existsSync(dir)) walk(dir)
