@@ -1,5 +1,7 @@
-// tests/verify-1003-unified-decision.js —— #1003 一期门禁：四条判定一致 + 空目录不起命令
-// 用法：node tests/verify-1003-unified-decision.js
+// tests/verify-1003-unified-decision.ts —— #1003 一期门禁：四条判定一致 + 空目录不起命令
+// 用法：node tests/verify-1003-unified-decision.ts
+// 写法保持 require 风格：require 与 __dirname 照 CommonJS 形态工作，类型只做标注（与 tests/verify-leaves.ts 同形）；
+// 行为与改名前一字不差。
 // 钉四条（契约验收前四条的一期子集）：
 //   D1 只放声明文件的工作区，工具壳与统一判定同答案（面板链已由 verify-947 W2 覆盖）
 //   D2 文件存在时只听文件的（手改立刻反映，不被缓存挡住的一期：每次直读文件）
@@ -13,12 +15,12 @@ const { pathToFileURL } = require('url');
 const ROOT = path.resolve(__dirname, '..');
 let failed = false;
 let total = 0;
-const check = (ok, msg, detail) => {
+const check = (ok: unknown, msg: string, detail?: unknown): void => {
   total += 1;
   console.log((ok ? '  PASS ' : '  FAIL ') + msg + (ok ? '' : (detail ? ' — ' + String(detail).slice(0, 300) : '')));
   if (!ok) failed = true;
 };
-const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href);
+const imp = (rel: string): Promise<any> => import(pathToFileURL(path.join(ROOT, rel)).href);
 
 function makeFs() {
   return {
@@ -59,7 +61,7 @@ function makeFs() {
     },
   };
 }
-function makeGateLedger(gateMod, ledgerMod) {
+function makeGateLedger(gateMod: any, ledgerMod: any): any {
   const ledger = ledgerMod.createLedger({ now: () => 1700000000000 });
   const gate = gateMod.createGate({ ledger, logCtx: null, now: () => 1700000000000 });
   ledger.syncServer(
@@ -79,14 +81,14 @@ async function main() {
   const decMod = await imp('src/tracker/detection/backendDecision.ts');
   const { decideBackend, decidePure } = decMod;
 
-  const regOf = (selectFn) => ({
+  const regOf = (selectFn: any): any => ({
     bound: () => undefined,
-    has: (id) => id === 'github' || id === 'markdown',
-    describe: (h, id) => ({ backend: id, refId: 'o/n', name: id, url: '' }),
+    has: (id: string) => id === 'github' || id === 'markdown',
+    describe: (h: any, id: string) => ({ backend: id, refId: 'o/n', name: id, url: '' }),
     select: selectFn,
   });
-  const sOf = (cwd) => ({ cwd, workspaceKey: 'k1003', sessionId: 's1003', source: 't', text: '' });
-  const shellOf = (reg, extra) =>
+  const sOf = (cwd: string): any => ({ cwd, workspaceKey: 'k1003', sessionId: 's1003', source: 't', text: '' });
+  const shellOf = (reg: any, extra?: any): any =>
     shellMod.createDeckShell(
       Object.assign(
         {
@@ -177,7 +179,7 @@ async function main() {
   //   就是工作区文件，判定里不再有第二份。所以下面只留「文件胜声明」这一条 —— 它守的是
   //   「人亲手选的赢过仓库里那份声明」这件事，这件事今天仍然成立，也正是这一级存在的理由。
   {
-    const reg = { has: (id) => id === 'github' || id === 'markdown' };
+    const reg = { has: (id: string) => id === 'github' || id === 'markdown' };
     const rFile = decidePure({ fileParsed: { backendId: 'markdown', source: 'user' }, declarationId: 'github', autodetect: { backendId: 'github', source: 'matches' }, registry: reg });
     check(rFile.backendId === 'markdown', '纯核文件胜声明', JSON.stringify(rFile));
   }
@@ -186,7 +188,7 @@ async function main() {
   process.exit(failed ? 1 : 0);
 }
 
-main().catch((e) => {
-  console.error('FATAL ' + String((e && e.message) || e));
+main().catch((e: unknown) => {
+  console.error('FATAL ' + (e instanceof Error ? e.message : String(e)));
   process.exit(1);
 });

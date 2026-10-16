@@ -1,5 +1,7 @@
-// tests/verify-947-workspace-file.js —— 工作区配置文件门禁（947 规格验收，#1012 切核后口径）
-// 用法：在插件根目录执行 node tests/verify-947-workspace-file.js，可独立运行。
+// tests/verify-947-workspace-file.ts —— 工作区配置文件门禁（947 规格验收，#1012 切核后口径）
+// 用法：在插件根目录执行 node tests/verify-947-workspace-file.ts，可独立运行。
+// 写法保持 require 风格：require 与 __dirname 照 CommonJS 形态工作，类型只做标注（与 tests/verify-leaves.ts 同形）；
+// 行为与改名前一字不差。
 //
 // 盯四件事（读链，不含写器；写器顺延 948）：
 //   W1 解析只认人选：坏文本、错版本、空 id、非人选来源一律 null；
@@ -17,8 +19,8 @@ const { pathToFileURL } = require('url')
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
 let total = 0
-const check = (ok, msg, detail) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg + (ok ? '' : (detail ? ' — ' + String(detail).slice(0, 300) : ''))); if (!ok) failed = true }
-const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href)
+const check = (ok: unknown, msg: string, detail?: unknown): void => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg + (ok ? '' : (detail ? ' — ' + String(detail).slice(0, 300) : ''))); if (!ok) failed = true }
+const imp = (rel: string): Promise<any> => import(pathToFileURL(path.join(ROOT, rel)).href)
 
 function makeFs() {
   return {
@@ -30,7 +32,7 @@ function makeFs() {
     async stat(t) { try { return fs.statSync(t) } catch (e) { return null } },
   }
 }
-function makeGateLedger(gateMod, ledgerMod) {
+function makeGateLedger(gateMod: any, ledgerMod: any): any {
   const ledger = ledgerMod.createLedger({ now: () => 1700000000000 })
   const gate = gateMod.createGate({ ledger: ledger, logCtx: null, now: () => 1700000000000 })
   ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: 1700003600000 }, graphql: { limit: 5000, remaining: 5000, reset: 1700003600000 } }, 1700000000000)
@@ -64,12 +66,12 @@ async function main() {
   //   所以探测从文件读起（见 src/tracker/detection/explicitDetector.ts 文件头那段说明）。
   const detMod = await imp('src/tracker/detection/explicitDetector.ts')
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'wf947-'))
-  const anchorOf = (title) => '# Issue tracker: ' + title + '\n\nBody mentions gh issue.\n'
-  const regStub = () => ({
-    has: (id) => id === 'github' || id === 'markdown',
-    describe: (h, id) => ({ backend: id, refId: (h && h.cwd) || '', name: id, url: '' }),
+  const anchorOf = (title: string): string => '# Issue tracker: ' + title + '\n\nBody mentions gh issue.\n'
+  const regStub = (): any => ({
+    has: (id: string) => id === 'github' || id === 'markdown',
+    describe: (h: any, id: string) => ({ backend: id, refId: (h && h.cwd) || '', name: id, url: '' }),
   })
-  const platOf = (fss) => ({ path: path.posix, fs: fss })
+  const platOf = (fss: any): any => ({ path: path.posix, fs: fss })
   {
     const dir = path.join(tmp, 'a'); fs.mkdirSync(path.join(dir, 'docs', 'agents'), { recursive: true })
     fs.writeFileSync(path.join(dir, 'docs', 'agents', 'issue-tracker.md'), anchorOf('GitHub'))
@@ -90,11 +92,11 @@ async function main() {
   const gateMod = await imp('src/host/refresh/gate.ts')
   const toolCost = await imp('src/shared/refresh/tool-cost.js')
   const decMod947 = await imp('src/tracker/detection/backendDecision.ts')
-  const sOf = (cwd) => ({ cwd: cwd, workspaceKey: 'k947', sessionId: 's947', source: 't', text: '' })
-  const shellOf = (reg, extra) => shellMod.createDeckShell(Object.assign({ gate: makeGateLedger(gateMod, ledgerMod), registry: reg, budget: budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, backendCtx: {}, decideBackend: decMod947.decideBackend }, extra || {}))
-  const regOf = (matchedId) => ({
-    has: (id) => id === 'github' || id === 'markdown',
-    describe: (h, id) => ({ backend: id, refId: 'o/n', name: id, url: '' }),
+  const sOf = (cwd: string): any => ({ cwd: cwd, workspaceKey: 'k947', sessionId: 's947', source: 't', text: '' })
+  const shellOf = (reg: any, extra?: any): any => shellMod.createDeckShell(Object.assign({ gate: makeGateLedger(gateMod, ledgerMod), registry: reg, budget: budget, estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, backendCtx: {}, decideBackend: decMod947.decideBackend }, extra || {}))
+  const regOf = (matchedId: string | null): any => ({
+    has: (id: string) => id === 'github' || id === 'markdown',
+    describe: (h: any, id: string) => ({ backend: id, refId: 'o/n', name: id, url: '' }),
     select: async () => ({ backendId: matchedId, source: 'matches', ref: null }),
   })
   {
@@ -136,4 +138,4 @@ async function main() {
   process.exit(failed ? 1 : 0)
 }
 
-main().catch((e) => { console.error('FATAL ' + String((e && e.message) || e)); process.exit(1) })
+main().catch((e: unknown) => { console.error('FATAL ' + (e instanceof Error ? e.message : String(e))); process.exit(1) })

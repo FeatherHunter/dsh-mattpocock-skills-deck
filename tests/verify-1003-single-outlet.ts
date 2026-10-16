@@ -1,5 +1,7 @@
-// tests/verify-1003-single-outlet.js —— #1003 单出口门禁：四路同答案（接受按 (a) 硬接前的行为锁）
-// 用法：node tests/verify-1003-single-outlet.js
+// tests/verify-1003-single-outlet.ts —— #1003 单出口门禁：四路同答案（接受按 (a) 硬接前的行为锁）
+// 用法：node tests/verify-1003-single-outlet.ts
+// 写法保持 require 风格：require 与 __dirname 照 CommonJS 形态工作，类型只做标注（与 tests/verify-leaves.ts 同形）；
+// 行为与改名前一字不差。
 // 钉四条（契约“四类消费方同一个后端与同一个来源”的行为子集）：
 //   S1 只放声明文件的工作区：统一判定、工具壳、改色电话、探测服务四路同答 github
 //   S2 文件存在时只听文件的：四路同答文件里的 markdown（手改即换由统一判定直读保证）
@@ -15,12 +17,12 @@ const { pathToFileURL } = require('url');
 const ROOT = path.resolve(__dirname, '..');
 let failed = false;
 let total = 0;
-const check = (ok, msg, detail) => {
+const check = (ok: unknown, msg: string, detail?: unknown): void => {
   total += 1;
   console.log((ok ? '  PASS ' : '  FAIL ') + msg + (ok ? '' : (detail ? ' — ' + String(detail).slice(0, 280) : '')));
   if (!ok) failed = true;
 };
-const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href);
+const imp = (rel: string): Promise<any> => import(pathToFileURL(path.join(ROOT, rel)).href);
 
 function makeFs() {
   return {
@@ -43,7 +45,7 @@ function makeFs() {
     async stat(t) { try { return fs.statSync(String(t).replace(/\//g, path.sep)); } catch { return null; } },
   };
 }
-function makeGateLedger(gateMod, ledgerMod) {
+function makeGateLedger(gateMod: any, ledgerMod: any): any {
   const ledger = ledgerMod.createLedger({ now: () => 1700000000000 });
   const gate = gateMod.createGate({ ledger, logCtx: null, now: () => 1700000000000 });
   ledger.syncServer(
@@ -52,12 +54,12 @@ function makeGateLedger(gateMod, ledgerMod) {
   );
   return gate;
 }
-const regOf = (selectFn) => ({
-  has: (id) => id === 'github' || id === 'markdown',
-  describe: (h, id) => ({ backend: id, refId: 'o/n', name: id, url: '' }),
+const regOf = (selectFn: any): any => ({
+  has: (id: string) => id === 'github' || id === 'markdown',
+  describe: (h: any, id: string) => ({ backend: id, refId: 'o/n', name: id, url: '' }),
   select: selectFn,
 });
-const fakeTracker = () => ({ listLabels: async () => ({ ok: true, data: [] }), setLabelColors: async () => ({ ok: true, data: { applied: [], failed: [] } }) });
+const fakeTracker = (): any => ({ listLabels: async () => ({ ok: true, data: [] }), setLabelColors: async () => ({ ok: true, data: { applied: [], failed: [] } }) });
 
 async function main() {
   console.log('#1003 单出口门禁：四路同答案');
@@ -73,10 +75,10 @@ async function main() {
   const lcMod = await imp('src/host/workspaceLabelColors.js');
   const { decideBackend } = decMod;
   // 映射函数挂判定函数上整包递（与生产装配点同形，见 platformChannel.getDecisionFn）
-  try { decideBackend.selectionFromOutlet = decMod.selectionFromOutlet } catch (eAttach) {}
+  try { decideBackend.selectionFromOutlet = decMod.selectionFromOutlet } catch { /* 只读属性时跳过 */ }
 
-  const sOf = (cwd) => ({ cwd, workspaceKey: 'k1003s', sessionId: 's1003s', source: 't', text: '' });
-  const shellOf = (reg, extra) => shellMod.createDeckShell(Object.assign({
+  const sOf = (cwd: string): any => ({ cwd, workspaceKey: 'k1003s', sessionId: 's1003s', source: 't', text: '' });
+  const shellOf = (reg: any, extra?: any): any => shellMod.createDeckShell(Object.assign({
     gate: makeGateLedger(gateMod, ledgerMod), registry: reg, budget,
     estimate: toolCost.estimateToolCost, costInputFrom: toolCost.toolCostInputFrom, backendCtx: {},
     // 测的就是出口这条路（生产由装配层递进来，这里直递同一函数；过闸钩子壳内自建）
@@ -85,19 +87,19 @@ async function main() {
   // 工具壳自己不带文件通道：生产由装配层把这两件事递进壳（见 src/host/refresh/wiring.js 给 deck 工具壳
   //   递的 readWorkspaceFileText/parseWorkspaceFile），壳再转手递给判定出口。夹具照生产的接法给上，
   //   壳才读得到工作区文件里人的选择 —— 这一步是 #1138 之后唯一能表达「这个工作区选过了」的通道。
-  const wfDepsOf = (fss) => ({
-    readWorkspaceFileText: async (cwd) => {
-      try { return await fss.readText(await fss.resolve('docs/agents/workspace.yaml', { cwd })) } catch (e) { return null }
+  const wfDepsOf = (fss: any): any => ({
+    readWorkspaceFileText: async (cwd: string) => {
+      try { return await fss.readText(await fss.resolve('docs/agents/workspace.yaml', { cwd })) } catch { return null }
     },
-    parseWorkspaceFile: (txt) => {
-      try { return anchorMod.parseWorkspaceFile(txt) } catch (e) { return null }
+    parseWorkspaceFile: (txt: string) => {
+      try { return anchorMod.parseWorkspaceFile(txt) } catch { return null }
     },
   });
   // 改色电话的依赖：生产由 src/host/workspaceCwd.js 的 labelColorsPhones 显式递进来（本文件 :220）。
   //   #1131 起它的判定取数不再直调出口，而是经带缓存的探测服务（同一条工作区那份缓存），所以夹具照生产的接法
   //   把「同一个出口 + 同一份探测服务」给上；第 4 个参数是给 S6 用的：要验缓存时递一份带真缓存的探测服务。
-  const lcOf = (reg, fss, mem, svc) => lcMod.createWorkspaceLabelColors({
-    normCwd: async (r) => r,
+  const lcOf = (reg: any, fss: any, mem?: any, svc?: any): any => lcMod.createWorkspaceLabelColors({
+    normCwd: async (r: any) => r,
     getTrackerRegistry: async () => reg,
     getPlatform: async () => ({ fs: fss, path: path }),
     opCtxFor: () => ({}),
@@ -106,7 +108,7 @@ async function main() {
     getDecisionFn: async () => ({ decideBackend: decMod.decideBackend }),
     getDetectionService: async () => svc || detOf(reg, fss, mem),
   });
-  const detOf = (reg, fss, mem) => detMod.createDetectionService({
+  const detOf = (reg: any, fss: any, mem?: any): any => detMod.createDetectionService({
     registry: reg,
     getPlatform: async () => ({ fs: fss, path: path }),
     getFs: () => fss,
@@ -231,13 +233,13 @@ async function main() {
     const fss = makeFs();
     const regBase = regOf(async () => ({ backendId: null, source: 'fallback' }));
     const reg = Object.assign({}, regBase, { get: () => fakeTracker() });
-    const events = [];
-    const logCtx = { isEnabled: () => true, fire: (level, event, fields) => events.push({ level: level, event: event, fields: fields }) };
+    const events: Array<{ level: unknown; event: string; fields: unknown }> = [];
+    const logCtx = { isEnabled: () => true, fire: (level: unknown, event: string, fields: unknown) => events.push({ level: level, event: event, fields: fields }) };
     const store = wsStoreMod.createWorkspaceStore({ ttl: 30000, logCtx: logCtx });
     // 数一数判定出口真跑了几次：第二次吃缓存的话，它就只该是一。
     let decided = 0;
-    const countedDecide = function (...a) { decided += 1; return decMod.decideBackend.apply(null, a); };
-    try { countedDecide.selectionFromOutlet = decMod.selectionFromOutlet } catch (eAttachCounted) {}
+    const countedDecide = function (...a: any[]): any { decided += 1; return decMod.decideBackend.apply(null, a); };
+    try { countedDecide.selectionFromOutlet = decMod.selectionFromOutlet } catch { /* 只读属性时跳过 */ }
     const svc = detMod.createDetectionService({
       registry: reg,
       getPlatform: async () => ({ fs: fss, path: path }),
@@ -270,4 +272,4 @@ async function main() {
   process.exit(failed ? 1 : 0);
 }
 
-main().catch((e) => { console.error('FATAL ' + String((e && e.message) || e)); process.exit(2); });
+main().catch((e: unknown) => { console.error('FATAL ' + (e instanceof Error ? e.message : String(e))); process.exit(2); });

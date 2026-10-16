@@ -1,5 +1,7 @@
-// verify-deck-repo-resolve.js —— 门禁：仓库标识补全（#758）
-// 用法：在插件根目录执行 node tests/verify-deck-repo-resolve.js，可独立运行。
+// verify-deck-repo-resolve.ts —— 门禁：仓库标识补全（#758）
+// 用法：在插件根目录执行 node tests/verify-deck-repo-resolve.ts，可独立运行。
+// 写法保持 require 风格：require 与 __dirname 照 CommonJS 形态工作，类型只做标注（与 tests/verify-leaves.ts 同形）；
+// 行为与改名前一字不差。
 //
 // 为什么要这一段：匹配源常带空标识（注册表只认显式 refId），
 // 而房间读写真要它——空着进房间，一律诚实失败（真机在案：
@@ -35,14 +37,14 @@ const { makeDecideStub, chooseWorkspace } = require('./lib/deck-decide-stub.js')
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
 let total = 0
-const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
-const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href)
+const check = (ok: unknown, msg: string): void => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
+const imp = (rel: string): Promise<any> => import(pathToFileURL(path.join(ROOT, rel)).href)
 
-function baseShellDeps(over) {
+function baseShellDeps(over?: any): any {
   const o = over || {}
   return Object.assign({
     gate: {
-      send: async function (req, perform) { await perform(); return { sent: true, requests: 1, points: 0 } },
+      send: async function (req: any, perform: any): Promise<any> { await perform(); return { sent: true, requests: 1, points: 0 } },
       admitAiTool: function () { return { admitted: true, reason: 'ai-tool-within-caps', points: 1, requests: 1 } },
     },
     budget: {},
@@ -58,7 +60,7 @@ function baseShellDeps(over) {
   }, o)
 }
 
-function sess(cwd) {
+function sess(cwd: string): any {
   return { cwd: cwd, workspaceKey: 'ws-' + String(cwd).length, sessionId: 's1', source: 't', text: '' }
 }
 
@@ -78,7 +80,7 @@ async function main() {
     describe: function () { return { backend: 'github', refId: '', name: 'ws', url: '' } },
     get: function () {
       return {
-        getRepoKey: async function (cwd) {
+        getRepoKey: async function (cwd: string): Promise<any> {
           resolveCalls += 1
           if (cwd !== '/ws') throw new Error('目录没递过去')
           return { owner: 'acme', name: 'box' }
@@ -150,7 +152,7 @@ async function main() {
   const p6 = await sh6.pickBackend({ agent: { session: { cwd: '/ws' } } }, sess('/ws'))
   check(p6 && p6.ok === true && (Date.now() - t0) < 5000, '补全 hang 住有时限兜底（测试配 50ms）')
   const deferGate = {
-    send: async function (req, perform) {
+    send: async function (req: any, perform: any): Promise<any> {
       if (req && req.plan && req.plan[0] && req.plan[0].phase === 'resolve') return { sent: false, verdict: 'defer', reason: 'reserve-kept-for-writes', detail: '读让路' }
       await perform()
       return { sent: true, requests: 1, points: 0 }
@@ -169,9 +171,9 @@ async function main() {
   check(p7 && p7.ok === true && p7.ref.refId === '' && deferResolveCalls === 0, '补全被闸推迟就不补（尊重裁决，空着交下去）')
 
   // ── 4. 补全走闸（读探针一格，可归因）──
-  const kinds = []
+  const kinds: unknown[] = []
   const recordGate = {
-    send: async function (req, perform) { kinds.push(req && req.kind); await perform(); return { sent: true, requests: 1, points: 0 } },
+    send: async function (req: any, perform: any): Promise<any> { kinds.push(req && req.kind); await perform(); return { sent: true, requests: 1, points: 0 } },
     admitAiTool: function () { return { admitted: true, reason: 'ai-tool-within-caps', points: 1, requests: 1 } },
   }
   const sh8 = shell.createDeckShell(baseShellDeps({ gate: recordGate, registry: withCap }))
@@ -182,8 +184,8 @@ async function main() {
   const backendMod = await imp('src/tracker/rooms/github/backend.ts')
   check(backendMod && typeof backendMod.createGithubBackend === 'function', '房间交出装配函数')
   const fakeCtx = {
-    platform: { resolveExecutable: async function (name) { return String(name) === 'git' ? 'git' : null } },
-    exec: async function (cmd, args) {
+    platform: { resolveExecutable: async function (name: string): Promise<string | null> { return String(name) === 'git' ? 'git' : null } },
+    exec: async function (cmd: unknown, args: unknown): Promise<any> {
       if (String(cmd) === 'git') return { stdout: 'https://github.com/real-owner/real-name.git\n' }
       throw new Error('unexpected')
     },
@@ -197,4 +199,4 @@ async function main() {
   process.exit(failed ? 1 : 0)
 }
 
-main().catch((e) => { console.error('门禁抛错：' + ((e && e.stack) || e)); process.exit(1) })
+main().catch((e: unknown) => { console.error('门禁抛错：' + (e instanceof Error ? (e.stack || e.message) : String(e))); process.exit(1) })
