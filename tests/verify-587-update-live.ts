@@ -1,4 +1,4 @@
-// verify-587-update-live.js —— 真机形态验收（#876 搭架、主题票 #877 切档案卷皮肤：真宿主判据 + 入口件真挂载）
+// verify-587-update-live.ts —— 真机形态验收（#876 搭架、主题票 #877 切档案卷皮肤：真宿主判据 + 入口件真挂载）
 //
 // 这份门禁回答的是「界面上到底长什么样」，不是「代码里写了什么字」：
 //   1. 真宿主判据：拿已安装更新包的宿主读取器（node_modules 里那份已装版，运行时唯一来源）
@@ -11,7 +11,7 @@
 //      深浅跟随系统，档案头与印章与待重启横幅走档案卷样式）。
 //      文案取包的单语渲染（中文界面纯中文），关闭与轮询收尾按包的约定来。
 //
-// 用法：node tests/verify-587-update-live.js（在仓库根目录；先跑 node scripts/build.mjs）
+// 用法：node --import ./scripts/ts-hook.mjs tests/verify-587-update-live.ts（在仓库根目录；先跑 node scripts/build.mjs）
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
@@ -22,14 +22,14 @@ const ROOT = path.resolve(__dirname, '..')
 const LF = String.fromCharCode(10)
 let failed = false
 let total = 0
-const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+const check = (ok: unknown, msg: string) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 ;(async function main() {
   console.log('真机形态验收（#876 搭架 + #877 档案卷皮肤：真宿主判据 + 入口件真挂载）')
 
   // ============ 一、真宿主判据：跑已安装更新包的读取器，读磁盘上那份插件的真目录 ============
-  const home = process.env.USERPROFILE || process.env.HOME || os.homedir()
+  const home: string = process.env.USERPROFILE || process.env.HOME || os.homedir() as string
   const profilesDir = path.join(home, '.dsh', 'profiles')
   let pkgDir = ''
   try {
@@ -45,7 +45,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
   if (!pkgDir) { console.log(LF + '存在失败'); process.exit(1) }
 
   const manifestPath = path.join(pkgDir, 'package.json')
-  const originalManifest = fs.readFileSync(manifestPath, 'utf8')
+  const originalManifest: string = fs.readFileSync(manifestPath, 'utf8')
   const installedVersion = JSON.parse(originalManifest).version
   const profileDir = path.dirname(path.dirname(pkgDir))
   check(!!installedVersion, '读到磁盘上装的那一版（' + installedVersion + '）')
@@ -56,7 +56,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
   // 本机装的是稳定版时行为一个字不变；装的是测试版时按测试版通道判，两种装法都成立（2026-10-10）。
   const releaseChannel = /-/.test(installedVersion) ? 'prerelease' : 'stable'
   const profileSpec = (JSON.parse(fs.readFileSync(path.join(profileDir, 'package.json'), 'utf8')).dependencies || {})['dsh-mattpocock-skills-deck'] || ''
-  const readEnv = async (runningVersion) => {
+  const readEnv = async (runningVersion: string): Promise<any> => {
     const readerMod = await import(readerUrl)
     const reader = readerMod.createUpdateReader({ runningVersion: runningVersion, profileDir: profileDir, pluginId: 'dsh-mattpocock-skills-deck', homeDir: path.join(home, '.dsh'), targetPackageDir: pkgDir, releaseChannel: releaseChannel })
     return await reader.readEnv()
@@ -80,7 +80,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
     const afterRestart = await readEnv('9.9.9')
     check(afterRestart.installedVersion === '9.9.9' && afterRestart.blockedReason !== 'pending-restart', '按新版重启后（运行版本追上磁盘）缺一次重启消失（实际 ' + (afterRestart.blockedReason || '无阻拦') + '）')
   } catch (e) {
-    check(false, '真宿主判据跑通（异常：' + ((e && e.message) || e) + '）')
+    check(false, '真宿主判据跑通（异常：' + (((e as { message?: string }) && (e as { message?: string }).message) || e) + '）')
   } finally {
     fs.writeFileSync(manifestPath, originalManifest, 'utf8')
     const back = JSON.parse(fs.readFileSync(manifestPath, 'utf8')).version
@@ -88,7 +88,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
   }
 
   // ============ 二、真挂载渲染：发布产物委托 + 入口件在 jsdom 里真跑 ============
-  const product = fs.readFileSync(path.join(ROOT, 'package', 'lib', 'client.js'), 'utf8')
+  const product: string = fs.readFileSync(path.join(ROOT, 'package', 'lib', 'client.js'), 'utf8')
   check(product.includes('__DshUpdateEntry') && product.includes('UpdateEntryHost'), '发布产物含入口件绑定包与挂载点（面板委托已进产物）')
   check(product.includes("theme: 'archive'"), '发布产物挂载点传档案卷皮肤（只用档案卷）')
   check(!product.includes('useUpdatePanel'), '发布产物无自有按钮状态机（useUpdatePanel 已删）')
@@ -99,27 +99,27 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
   if (typeof window.MutationObserver === 'undefined') {
     window.MutationObserver = class { constructor() {} observe() {} disconnect() {} }
   }
-  const bundleText = fs.readFileSync(path.join(ROOT, 'scripts', 'generated', 'updateEntryPanel.bundle.js'), 'utf8')
+  const bundleText: string = fs.readFileSync(path.join(ROOT, 'scripts', 'generated', 'updateEntryPanel.bundle.js'), 'utf8')
   // jsdom 的 window.eval 作用域里没有裸 window，赋值语句会抛；改拿求值返回值。
   // 这里选 compileFn：这份 jsdom 没开 runScripts，原来那个 window.eval 其实是 Node 全局的间接求值（不是页面内执行，插脚本也不会被执行），所以把绑定包当函数体跑、末尾显式 return 那个变量，取到的值与原来逐字相同。
   const liveEntry = compileFn([], bundleText + '\nreturn __DshUpdateEntry')()
   check(!!liveEntry && typeof liveEntry.mountUpdateEntry === 'function', '绑定包在真浏览器环境可加载（挂载函数可用）')
   check(bundleText.includes('[data-theme="archive"]'), '绑定包内有档案卷皮肤样式（入口件与面板按档案卷呈现）')
   // 入口件运行时读裸 document 与 navigator，挂载前把本轮 jsdom 的对象挂到 Node 全局上。
-  global.window = window
-  global.document = window.document
-  try { global.navigator = window.navigator } catch (e) {}
-  if (typeof window.MutationObserver !== 'undefined') global.MutationObserver = window.MutationObserver
+  ;(global as unknown as Record<string, unknown>).window = window
+  ;(global as unknown as Record<string, unknown>).document = window.document
+  try { ;(global as unknown as Record<string, unknown>).navigator = window.navigator } catch (e) {}
+  if (typeof window.MutationObserver !== 'undefined') (global as unknown as Record<string, unknown>).MutationObserver = window.MutationObserver
 
-  const snapOf = (over) => Object.assign({ runningVersion: '1.7.20', installed: true, installedVersion: '1.7.20', latestVersion: '1.7.20', canInstall: false, blockedReason: null, job: null }, over)
-  const mountWith = async (snapshot) => {
+  const snapOf = (over: Record<string, unknown>) => Object.assign({ runningVersion: '1.7.20', installed: true, installedVersion: '1.7.20', latestVersion: '1.7.20', canInstall: false, blockedReason: null, job: null }, over)
+  const mountWith = async (snapshot: Record<string, unknown>) => {
     const el = window.document.createElement('div')
     window.document.body.appendChild(el)
     const entry = liveEntry.mountUpdateEntry(el, {
       pluginId: 'dsh-mattpocock-skills-deck',
       prefix: 'wf',
       theme: 'archive',
-      call: async (name) => {
+      call: async (name: string) => {
         if (String(name).endsWith('.updateStatus') || String(name).endsWith('.updateCheck')) {
           return { ok: true, snapshot: snapOf(snapshot), manual: null, receipt: null }
         }
@@ -129,8 +129,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
     await sleep(60)
     return { el, entry }
   }
-  const unmount = (m) => { try { m.entry.unmount() } catch (e) {} try { if (m.el.parentNode) m.el.parentNode.removeChild(m.el) } catch (e) {} }
-  const btnTextOf = (el) => { const b = el.querySelector('button'); return b ? (b.textContent || '').trim() : '' }
+  const unmount = (m: { entry: { unmount: () => void }; el: { parentNode: { removeChild: (c: unknown) => void } | null } }) => { try { m.entry.unmount() } catch (e) {} try { if (m.el.parentNode) m.el.parentNode.removeChild(m.el) } catch (e) {} }
+  const btnTextOf = (el: { querySelector: (s: string) => { textContent: string | null } | null }) => { const b = el.querySelector('button'); return b ? (b.textContent || '').trim() : '' }
 
   // 场景一：已是最新 —— 按钮本身即已是最新（0.9.0 默认摆法，可点再查，不打扰）
   {
@@ -182,4 +182,4 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
   console.log(failed ? LF + '存在失败' : LF + '全部通过 — 真机形态验收生效（' + total + ' 项断言）')
   process.exit(failed ? 1 : 0)
-})().catch((e) => { console.error('验收执行异常：' + ((e && e.stack) || e)); process.exit(1) })
+})().catch((e: unknown) => { console.error('验收执行异常：' + (((e as Error) && (e as Error).stack) || e)); process.exit(1) })

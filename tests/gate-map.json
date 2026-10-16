@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T17:47:39.183Z",
+  "generatedAt": "2026-10-16T17:49:05.623Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 302,
   "gateCount": 302,
@@ -1784,8 +1784,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 1 条"
     },
     {
-      "step": "node tests/verify-587-update-live.js",
-      "file": "tests/verify-587-update-live.js",
+      "step": "node tests/verify-587-update-live.ts",
+      "file": "tests/verify-587-update-live.ts",
       "guards": [
         "package/lib/client.js",
         "scripts/generated/updateEntryPanel.bundle.js",
@@ -7009,7 +7009,7 @@
       "node tests/verify-deck-slots.js",
       "node tests/verify-gate-map.js",
       "node tests/verify-530-pr-tab.ts",
-      "node tests/verify-587-update-live.js",
+      "node tests/verify-587-update-live.ts",
       "node tests/verify-599-merged-pr.js",
       "node tests/verify-626-type-chip.js",
       "node tests/verify-646-native-tab.js",
@@ -7133,7 +7133,7 @@
     ],
     "scripts/generated": [
       "node tests/verify-build-artifacts.js",
-      "node tests/verify-587-update-live.js",
+      "node tests/verify-587-update-live.ts",
       "node tests/verify-generated-no-shadow.js",
       "node tests/verify-settings-debug.ts",
       "node tests/verify-update-migration.js",
@@ -8086,7 +8086,7 @@
       "node tests/verify-1206-glossary-naming.ts",
       "node tests/verify-423-title-clamp-browser.ts",
       "node tests/verify-530-pr-tab.ts",
-      "node tests/verify-587-update-live.js",
+      "node tests/verify-587-update-live.ts",
       "node tests/verify-626-type-chip.js",
       "node tests/verify-640-dock-width-browser.js",
       "node tests/verify-646-native-tab.js",
