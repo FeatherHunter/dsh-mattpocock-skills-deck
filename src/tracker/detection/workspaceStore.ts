@@ -11,7 +11,7 @@
 
 import type { RepoHandle } from '../contract/contexts.js'
 import type { Selection } from '../contract/results.js'
-// 超时住中央 YAML，调时间改 config/timeouts.yaml。
+// 有效期住中央 YAML，调时间改 config/ttl.yaml。
 import { WORKSPACE_STORE_TTL_MS } from '../../shared/time-config/values.js'
 
 /**
