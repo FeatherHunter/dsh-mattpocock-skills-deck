@@ -1,5 +1,10 @@
-// tests/verify-934-935-invariants.js —— 两条不变式回归门禁（933 图收敛验收 · 934 钥匙 / 935 许可）
-// 用法：在插件根目录执行 node tests/verify-934-935-invariants.js，可独立运行。
+// tests/verify-934-935-invariants.js —— 两条不变式回归门禁（934 钥匙挨踢归一 · 935 写许可两档）
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-934-935-invariants.js。
+// 它不能裸跑：本文件用的 ./lib/time-compress.js 与 ./lib/deck-decide-stub.js 盘上只有 .ts，
+// 要靠装载钩子改指同名 .ts（旧说法「可独立运行」是错的）。
+//
+// 名字里的 933 已经去掉：那句话原本写作「933 图收敛验收」，但「图收敛」在 CONTEXT.md 与 research/
+// 里没有任何出处，文件里的判据也都与 933 无关，唯一来历是提交 5a8b697c 的标题同时带了 933-936 四个票号。
 //
 // 这一条盯四件事，都是 930 缺陷 A/B 的不变式形态：
 //   I1 两写法同键、同一份人选记录：同一条目录用大小写与斜杠不同的两种写法，各查一次，归一后同根、同闸钥匙、命中同一份人选记录（工作区文件里写着 markdown），显式选 markdown 即回 markdown。

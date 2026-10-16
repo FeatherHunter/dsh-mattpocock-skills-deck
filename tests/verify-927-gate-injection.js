@@ -1,5 +1,7 @@
 // tests/verify-927-gate-injection.js —— 门禁：闸真的接到了传输层，而且「闸晚一步就位」也接得上（#927）
-// 用法：在插件根目录执行 node tests/verify-927-gate-injection.js，可独立运行。
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-927-gate-injection.js。
+// 它不能裸跑：src/host/platformChannel.js 这个说明符要靠装载钩子改指同名的 .ts 源文件，
+// 不挂钩子会直接 ERR_MODULE_NOT_FOUND（这一行的旧说法「可独立运行」是错的）。
 //
 // 守的是什么：#723（T19）写好那两处报账（platformChannel 的 detectionExec、repoKeys 的 runGh）之后，
 // 宿主装配处一直没把闸交给它们，于是生产里「每一笔真实出站都记在账上」这条不变式是空的：

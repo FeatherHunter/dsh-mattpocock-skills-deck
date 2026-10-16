@@ -7,19 +7,31 @@
  *    状态栏 timeStr 优先取上次探测时间（数据不变也走针）
  *  - 特性 B：IndexedDB 磁盘层（dsws-cache/snapshots，不可用环境静默降级）；setCachedSnapshot 写穿透（内存+磁盘）；
  *    loadSnapshot 内存未命中先查磁盘，命中秒显（不出现可见加载态）且照常发起网络校验
- *  - 淘汰逻辑行为模拟：超出 SNAP_DISK_CAP 按最旧淘汰
  *  - 双产物一致：client.js 与 package/lib/client.js 均含上述接线
+ *
+ * 说明：这里全部是「产物里还在不在」的在场检查（indexOf 判子串），不是行为证明——
+ * 源码坏了但字面还在，它照样绿。2026-10-17 删掉了原来第 4 段「淘汰逻辑行为模拟」：
+ * 那两条断言在门禁里自己造 30 条数据、自己排序，与被测代码无关，源码里真淘汰逻辑废掉它也全绿，
+ * 属于一段冒充证据的复刻自测。真要守「超出上限按最旧淘汰」得另立一条行为级门禁（本票不写）。
  */
 const fs = require('fs')
 const path = require('path')
-const assert = require('assert')
 
 const root = path.resolve(__dirname, '..')
 let failed = false
 let passed = 0
 const ok = (msg) => { passed++; console.log('  PASS', msg) }
 const bad = (msg) => { failed = true; console.log('  FAIL', msg) }
-function read(rel) { return fs.readFileSync(path.join(root, rel), 'utf8') }
+// 产物缺失时直接说人话：这两份产物在 .gitignore 里，新克隆的树没跑构建就没它们，
+// 抛裸 ENOENT 栈会让人以为是门禁坏了（邻居 verify-kernel.js 是老写法，这里按人话写法）。
+function read(rel) {
+  const p = path.join(root, rel)
+  if (!fs.existsSync(p)) {
+    console.error('找不到构建产物 ' + rel + '：请先运行 node scripts/build.mjs 再跑这条门禁。')
+    process.exit(1)
+  }
+  return fs.readFileSync(p, 'utf8')
+}
 const has = (src, needle, name, label) => { (src.indexOf(needle) >= 0) ? ok(name + ' ' + label) : bad(name + ' ' + label) }
 
 console.log('=== #327 多级缓存与上次探测时间门禁 ===')
@@ -59,30 +71,6 @@ for (const [name, src] of targets) {
   has(src, "if (force && !silent && !hasCache) st.snapMode = 'loading'", name, '可见加载态仅限三层全未命中')
   has(src, 'lastProbeAt > getProbeAt(st.cwd)) lastProbeAtByCwd.set', name, '磁盘条目恢复上次探测时间')
   has(src, 'const doLoad = async function () {', name, 'doLoad 支持磁盘异步读')
-}
-
-console.log('\n4) 淘汰逻辑行为模拟（超出上限按最旧淘汰）')
-{
-  // 与 diskPutSnapshot 内淘汰逻辑同式：按 ts 升序排，保留最新 CAP 条
-  const CAP = 24
-  const rows = []
-  for (let i = 0; i < 30; i++) rows.push({ key: 'k' + i, ts: 1000 + i })
-  rows.sort(function (a, b) { return (a.ts || 0) - (b.ts || 0) })
-  const kill = rows.slice(0, rows.length - CAP)
-  const kept = rows.slice(rows.length - CAP)
-  try {
-    assert.strictEqual(kill.length, 6)
-    assert.deepStrictEqual(kill.map(r => r.key), ['k0', 'k1', 'k2', 'k3', 'k4', 'k5'])
-    assert.strictEqual(kept[0].key, 'k6')
-    assert.strictEqual(kept[kept.length - 1].key, 'k29')
-    ok('30 条 → 淘汰最旧 6 条，保留 k6..k29')
-  } catch (e) { bad('淘汰逻辑不符：' + e.message) }
-  // 磁盘条目形状：{key, snapshot, version, ts, lastProbeAt}
-  const ent = { snapshot: { ok: true, maps: [] }, version: 'v1', ts: 1, key: 'd:/w', lastProbeAt: 42 }
-  try {
-    assert(ent.key && typeof ent.lastProbeAt === 'number' && ent.snapshot.ok === true)
-    ok('磁盘条目形状 {key,snapshot,version,ts,lastProbeAt}')
-  } catch (e) { bad('条目形状不符') }
 }
 
 console.log('\n=== 汇总：' + passed + ' PASS / ' + (failed ? 'FAIL' : '0 FAIL') + ' ===')
