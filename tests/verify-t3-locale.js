@@ -13,7 +13,10 @@ const check = function (file) {
   if (dictStart < 0) { console.log('  FAIL', file, '无 L 字典'); failed = true; return }
   const dictEnd = src.indexOf('const localeSvc = ctx.get', dictStart)
   const dictBlock = src.slice(dictStart, dictEnd)
-  const keyRe = /'([a-zA-Z0-9.]+)':/g
+  // 2026-10-17 修：产物里的键与引用都被 esbuild 改成了双引号（源码写单引号），
+  // 原来的正则只认单引号，于是 zh/en 两个集合都是空的，整扇门禁在主干上假红。
+  // 这里同时接受单引号与双引号两种写法，键与引用各一处。
+  const keyRe = /["']([a-zA-Z0-9.]+)["']:/g
   const zh = new Set(); const en = new Set()
   let inEn = false
   for (const line of dictBlock.split('\n')) {
@@ -23,7 +26,7 @@ const check = function (file) {
     keyRe.lastIndex = 0
     while ((m = keyRe.exec(line)) !== null) { (inEn ? en : zh).add(m[1]) }
   }
-  const useRe = /\btr\('([a-zA-Z0-9.]*)(?:'|\+)/g
+  const useRe = /\btr\(["']([a-zA-Z0-9.]*)(?:["']|\+)/g
   const used = new Set()
   let m
   while ((m = useRe.exec(src)) !== null) used.add(m[1])
