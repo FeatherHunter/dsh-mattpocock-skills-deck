@@ -1,4 +1,4 @@
-// verify-640-dock-width-browser.js — 真实 Chromium 量「状态栏容器左右边 == 输入卡左右边」（#640）
+// verify-640-dock-width-browser.ts — 真实 Chromium 量「状态栏容器左右边 == 输入卡左右边」（#640）
 //
 // 起因：#640 报的是「输入框上方出现横向大面积背景带，且提示条 / 状态栏胶囊 / 输入框三者左右边互相对不齐」。
 // 本门的判据是几何的，不是字符串的：
@@ -23,7 +23,7 @@ const path = require('path');
 const fs = require('fs');
 
 let ok = true;
-const check = function (cond, msg) { console.log((cond ? 'PASS ' : 'FAIL ') + msg); if (!cond) ok = false; };
+const check = function (cond: unknown, msg: string): void { console.log((cond ? 'PASS ' : 'FAIL ') + msg); if (!cond) ok = false; };
 
 (async () => {
   const gen = require(path.resolve(__dirname, '../scripts/gen-fixture-640.js'));
@@ -32,7 +32,7 @@ const check = function (cond, msg) { console.log((cond ? 'PASS ' : 'FAIL ') + ms
   if (gen.skipped) {
     console.log('SKIP verify-640：本机找不到宿主原文产物（这道门量的是「容器 vs 宿主输入卡」的外部尺子，缺了它没有替代量法）。');
     console.log('  试过这些路径：');
-    (gen.tried || []).forEach(function (p) { console.log('    ' + p); });
+    (gen.tried || []).forEach(function (p: string): void { console.log('    ' + p); });
     console.log('  asar 兜底：' + (gen.asarDisabled ? '被 DSWS_640_NO_ASAR=1 关掉' : ('试过 ' + gen.asarPath + ' 的 ' + gen.asarEntry)));
     console.log('  要跑：把宿主那份 client.js 放到任一候选位置，或设 DSH_CONVERSATION_BUNDLE=<client.js 路径>。');
     console.log('  口径：默认跳过不算红（exit 0）；设 DSWS_REQUIRE_HOST_BUNDLE=1 时跳过算失败（exit 1）。');
@@ -44,10 +44,10 @@ const check = function (cond, msg) { console.log((cond ? 'PASS ' : 'FAIL ') + ms
   check(/padding:0 var\(--dsh-composer-side-clearance\)/.test(gen.hostRootRule), 'A2 输入卡外层规则取自宿主原文：' + String(gen.hostRootRule).slice(0, 90));
   check(/max-width:var\(--dsh-composer-card-max-width\)/.test(gen.hostCardRule), 'A3 输入卡规则取自宿主原文：' + String(gen.hostCardRule).slice(0, 90));
   let byFeature = '';
-  try { byFeature = gen.pickRule('.p_NOT_THERE_root', function (b) { return /^padding:0 var\(--dsh-composer-side-clearance\)\s+\d/.test(b); }, '输入卡外层'); } catch (e) { byFeature = ''; }
+  try { byFeature = gen.pickRule('.p_NOT_THERE_root', function (b: string): boolean { return /^padding:0 var\(--dsh-composer-side-clearance\)\s+\d/.test(b); }, '输入卡外层'); } catch (e) { byFeature = ''; }
   check(/padding:0 var\(--dsh-composer-side-clearance\)/.test(byFeature), 'A4 反证：类名不存在时按算式特征仍扫得到（实得 ' + String(byFeature).slice(0, 90) + '）');
   let threw = false;
-  try { gen.pickByFormula(gen.hostBundleText, function (b) { return /这份产物里绝不可能出现的算式/.test(b); }, '输入卡外层'); } catch (e) { threw = true; }
+  try { gen.pickByFormula(gen.hostBundleText, function (b: string): boolean { return /这份产物里绝不可能出现的算式/.test(b); }, '输入卡外层'); } catch (e) { threw = true; }
   check(threw, 'A5 反证：算式特征找不到时报错（不是随便返回第一条）');
 
   const fixture = path.resolve(__dirname, 'fixtures/640-dock-width-repro.html');

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T17:56:23.574Z",
+  "generatedAt": "2026-10-16T17:57:27.080Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 302,
   "gateCount": 302,
@@ -1887,8 +1887,8 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 5 条"
     },
     {
-      "step": "node tests/verify-640-dock-width-browser.js",
-      "file": "tests/verify-640-dock-width-browser.js",
+      "step": "node tests/verify-640-dock-width-browser.ts",
+      "file": "tests/verify-640-dock-width-browser.ts",
       "guards": [
         "scripts/gen-fixture-640.js",
         "tests/lib/browser-pool.ts"
@@ -7108,7 +7108,7 @@
       "node tests/verify-1157-in-flight-lease.ts",
       "node tests/verify-1158-completion-evidence.ts",
       "node tests/verify-1184-body-parse-gap.ts",
-      "node tests/verify-640-dock-width-browser.js",
+      "node tests/verify-640-dock-width-browser.ts",
       "node tests/verify-ctx.js",
       "node tests/verify-golden-receipts.ts",
       "node tests/verify-issue-body-script.js",
@@ -8088,7 +8088,7 @@
       "node tests/verify-530-pr-tab.ts",
       "node tests/verify-587-update-live.ts",
       "node tests/verify-626-type-chip.ts",
-      "node tests/verify-640-dock-width-browser.js",
+      "node tests/verify-640-dock-width-browser.ts",
       "node tests/verify-646-native-tab.ts",
       "node tests/verify-653-subworkspace.js",
       "node tests/verify-655-setup-layout.js",
