@@ -7,18 +7,19 @@
  *   （罗盘图标 + 「MattSkills」字样），其余元素一个不动；同时两条边界不许碰 ——
  *   DSH 右栏那个标签页上的名字不改（那是注册标签类型时给的名字），状态胶囊栏照旧。
  *
- * 为什么这道门要真起浏览器量，而不是只断源码文本：
- *   本票的判据有一半是**几何的** ——「左边不再有那一段」等于「这一行的第一个元素就是仓库芯片、且紧贴左内边距」；
+ * 为什么这道门要真起浏览器、而不是只断源码文本：
+ *   本票的判据有一半是**几何的** —— 「左边不再有那一段」等于「这一行的第一个元素就是仓库芯片、且紧贴左内边距」；
  *   「别让去掉之后留下空位或撑破」等于「一行不溢出、窄面板下也一样」。断源码只能证明「源码里没有那两段字」，
  *   证明不了画出来的是什么、位置对不对 —— #666 那次的缺陷恰恰长在「源码全在、纯函数全对，
- *   组件每次却返回 null」这一层，只断文本拦不住它。所以这里把**真产物**（package/lib/client.js）挂进
+ *   组件却每次都返回 null」这一层，只断文本拦不住它。所以这里把**真产物**（package/lib/client.js）挂进
  *   真 Chromium，走真 rpc 载体（connection.rpc.call）喂一份带仓库的快照，再量那一行。
  *
  * 几组（原先的源码文本层已拆掉，理由见下）：
  *   【已删除】原先 A 组与 B-pre 组读 Dock.js / StatusBar.js / panelAssembly.js / router.js / SettingsPage.js 的源码文本，
- *     用正则断言「哪段文本还在、哪个钩子没了、第一个孩子是什么写法、两个控件谁在前」。那种门禁会因为等价重构
- *     （换写法、搬文件、改注释）而变红，所以整段删掉；这些事改由真渲染层（B / C / D / E）与两份产物（C-pre）来守 ——
- *     画出来是什么、位置对不对、有没有溢出。产物那一条照旧：改完 src 忘了重建产物，红在 C-pre。
+ *     用正则断言「哪段文本还在、哪个钩子没了、第一个孩子是什么写法、两个控件谁在前」。
+ *     那种门禁会因为等价重构（换写法、搬文件、改注释）而变红，所以整段拆掉；这些事改由真渲染层（B / C / D / E）
+ *     与两份产物（C-pre）来守 —— 画出来是什么、位置对不对、有没有溢出。产物那一条照旧：改完 src 忘了重建
+ *     产物，红在 C-pre。
  *   B 真渲染层（真 Chromium + 真产物 + 真数据）：头部第一个孩子是仓库芯片、贴着左内边距（左侧没有空位）、
  *     整行没有品牌字样也没有罗盘图形、一行不溢出；360 像素窄面板下这四条照旧（#28 那条收缩链还在跑）。
  *   C 反向两处照旧：DSH 右栏标签页的名字仍是「MattSkills」；状态胶囊栏里那枚品牌图标与字样仍在，
@@ -29,7 +30,7 @@
  *     （仓库名那一长串 / 刷新按钮上的字 / 时间标签那句相对时间 / 三颗单字形小图标）**不许整块一下子不见**——
  *     一次让步最多只能少一个字符。核心断言就是这句话的可执行版：任意相邻两档之间，版面上的可见字符数最多减 1；
  *     另加：完整仓库名与完整的上次更新说法在每一档的悬停提示里都读得到，刷新那颗齿轮图标每一档都还在。
- *   【已删除】F 组读 Dock.js 的源码文本、数「哪几行挂了折叠类」——同上属源码文本门禁，整段拆掉；
+ *   【已删除】F 组读 Dock.js 的源码文本、数「哪几行挂了折叠类」——同属源码文本门禁，整段拆掉；
  *     「一串字不整块消失、折叠标记落对了层」这件事由 E 组在真渲染里逐档量（可见字符数最多减 1、齿轮每档都在）。
  *   G 判据层（纯函数，不开浏览器）：把 panel/headFold.js 那条阶梯喂一份同形数据，逐档核对「最多少一个字符」与让位顺序。
  *
@@ -41,11 +42,14 @@ import { resolve } from 'node:path'
 import { createServer } from 'node:http'
 // 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头（本文件是 ESM，用 import 取具名导出）。
 import { compileFn } from './lib/eval-probe.js'
+// 页面求值回调里出现的 window 只是浏览器侧的全局名，门禁进程里并没有它；这里声明成任意值，
+// 运行时与原来一样（这些回调只被序列化送进页面执行，从不在门禁进程里取值）。
+declare const window: any
 
 let passed = 0, failed = 0
-function ok(msg) { passed++; console.log('  PASS ' + msg) }
-function bad(msg) { failed++; console.log('  FAIL ' + msg) }
-function check(cond, msg) { if (cond) ok(msg); else bad(msg) }
+function ok(msg: string): void { passed++; console.log('  PASS ' + msg) }
+function bad(msg: string): void { failed++; console.log('  FAIL ' + msg) }
+function check(cond: unknown, msg: string): void { if (cond) ok(msg); else bad(msg) }
 
 // ICONS 留着：只用来从真源里取出罗盘那几笔，喂给浏览器里的反证（D 组插回旧品牌时要照它画图形）——
 //   这是「读源码文本当输入」，不是断言源码文本。原先还读 Dock.js / StatusBar.js / router.js /
@@ -53,7 +57,7 @@ function check(cond, msg) { if (cond) ok(msg); else bad(msg) }
 const ICONS = 'src/client/kernel/icons.js'
 const ARTIFACTS = ['client.js', 'package/lib/client.js']
 
-const read = (rel) => readFileSync(resolve(rel), 'utf8')
+const read = (rel: string): string => readFileSync(resolve(rel), 'utf8')
 const missing = [ICONS, ...ARTIFACTS].filter((rel) => !existsSync(resolve(rel)))
 for (const rel of missing) bad(rel + ' 读不到' + (ARTIFACTS.indexOf(rel) >= 0 ? '（先跑 node scripts/build.mjs 重建产物）' : ''))
 
@@ -87,14 +91,14 @@ if (!headFold) {
   const SAMPLE_EN = { name: 'FeatherHunter/dsh-mattpocock-skills-deck', refresh: 'Refresh', time: '3 min ago', icons: ['palette', 'switch', 'mark'] }
   // 数「从这一档到下一档，每个元素各少了几个字」——这条尺子本身就是这组断言的判据，所以先把它单独写出来：
   //   仓库名末尾那个省略号是记号，不算被减掉的名字（不然一步减两个字也能糊过去）。
-  const visible = (s) => String(s == null ? '' : s).replace(/\s+/g, '')
-  const nameBody = (s) => { const v = visible(s); return v.slice(-1) === '…' ? v.slice(0, -1) : v }
-  const stepDrop = (a, b) => Math.max(
+  const visible = (s: unknown): string => String(s == null ? '' : s).replace(/\s+/g, '')
+  const nameBody = (s: unknown): string => { const v = visible(s); return v.slice(-1) === '…' ? v.slice(0, -1) : v }
+  const stepDrop = (a: any, b: any): number => Math.max(
     visible(a.refresh).length - visible(b.refresh).length,
     visible(a.time).length - visible(b.time).length,
     nameBody(a.name).length - nameBody(b.name).length,
   )
-  const dropTable = function (sample) {
+  const dropTable = function (sample: any) {
     const ladder = headFold.headFoldLadderOf(sample)
     const states = []
     for (let t = 0; t <= ladder.steps.length; t++) states.push(headFold.headFoldStateAt(ladder, t))
@@ -108,11 +112,11 @@ if (!headFold) {
   const states = zhRun.states
   const worstZh = zhRun.drops.reduce((m, x) => Math.max(m, x.d), 0)
   const worstEn = enRun.drops.reduce((m, x) => Math.max(m, x.d), 0)
-  const whereOf = (run) => run.drops.filter((x) => x.d === run.drops.reduce((m, y) => Math.max(m, y.d), 0)).map((x) => '第' + x.step + '步(' + x.el + ')').join('、')
+  const whereOf = (run: any): string => run.drops.filter((x) => x.d === run.drops.reduce((m, y) => Math.max(m, y.d), 0)).map((x) => '第' + x.step + '步(' + x.el + ')').join('、')
   check(worstZh <= 1 && worstEn <= 1,
     'G1 每一档之间每个元素最多少一个字符（实测中文那一套最多一次少 ' + worstZh + ' 个字' + (worstZh ? '：' + whereOf(zhRun) : '') + '；英文那一套最多 ' + worstEn + ' 个字' + (worstEn ? '：' + whereOf(enRun) : '') + '；中文阶梯共 ' + ladder.steps.length + ' 档、英文共 ' + enRun.ladder.steps.length + ' 档）')
-  const firstOf = (el) => ladder.steps.findIndex((s) => s.el === el)
-  const lastOf = (el) => ladder.steps.reduce((m, s, i) => (s.el === el ? i : m), -1)
+  const firstOf = (el: unknown) => ladder.steps.findIndex((s) => s.el === el)
+  const lastOf = (el: unknown) => ladder.steps.reduce((m, s, i) => (s.el === el ? i : m), -1)
   check(firstOf('refresh') === 0 && lastOf('refresh') < firstOf('time') && lastOf('time') < firstOf('name') && lastOf('name') < firstOf('icon'),
     'G2 让位顺序：先刷新的字，再时间标签，再仓库名，最后才是小图标（实测各段：刷新 ' + firstOf('refresh') + '–' + lastOf('refresh') + ' / 时间 ' + firstOf('time') + '–' + lastOf('time') + ' / 仓库名 ' + firstOf('name') + '–' + lastOf('name') + ' / 小图标 ' + firstOf('icon') + '–' + lastOf('icon') + '）')
   check(ladder.steps.filter((s) => s.el === 'icon').map((s) => s.id).join(',') === 'palette,switch,mark',
@@ -136,7 +140,7 @@ console.log('')
 
 console.log('')
 console.log('C-pre) 两份产物里也带着这次改动（改完 src 忘了重建产物就红在这里）')
-const artifacts = {}
+const artifacts: Record<string, string> = {}
 for (const rel of ARTIFACTS) artifacts[rel] = existsSync(resolve(rel)) ? read(rel) : ''
 for (const rel of ARTIFACTS) {
   const t = artifacts[rel]
@@ -526,7 +530,7 @@ html,body{margin:0;height:100%;background:#10131a}
 
 // 页面要落在一个真 origin 上：插件启动时要读 localStorage（调试开关那些），
 //   about:blank / file:// 上读它会直接抛，探针根本跑不起来。所以起一个本机临时小服务器。
-const server = createServer((req, res) => {
+const server: any = createServer((req: any, res: any) => {
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
   res.end(html)
 })
@@ -538,8 +542,8 @@ const browser = await getBrowser({ headless: true })
 try {
   const page = await browser.newPage({ viewport: { width: 900, height: 700 } })
   const pageErrors = []
-  page.on('pageerror', (e) => pageErrors.push('pageerror: ' + (e && e.message)))
-  page.on('console', (m) => { if (m.type() === 'error') pageErrors.push('console: ' + m.text()) })
+  page.on('pageerror', (e: any) => pageErrors.push('pageerror: ' + (e && e.message)))
+  page.on('console', (m: any) => { if (m.type() === 'error') pageErrors.push('console: ' + m.text()) })
   await page.goto(origin, { waitUntil: 'load' })
   await page.waitForFunction(() => window.__PROBE_READY__ === true, null, { timeout: 15000 })
 
@@ -572,7 +576,7 @@ try {
         const list = [['mark', bs.mark], ['switch', bs.switch], ['palette', bs.palette]]
         const miss = list.filter(function (p) { return !p[1] }).map(function (p) { return p[0] })
         if (miss.length) { bad('B9 三颗头部按钮没凑齐，缺 ' + miss.join('、') + '（实测 ' + JSON.stringify(bs) + '）'); return }
-        const near = function (arr) { return (Math.max.apply(null, arr) - Math.min.apply(null, arr)) <= 0.6 }
+        const near = function (arr: number[]) { return (Math.max.apply(null, arr) - Math.min.apply(null, arr)) <= 0.6 }
         const ws = list.map(function (p) { return p[1].w })
         const hs = list.map(function (p) { return p[1].h })
         const cys = list.map(function (p) { return p[1].cy })
@@ -632,7 +636,7 @@ try {
       const sweep = []
       let lastBrand = null
       for (let x = 1400; x >= 240; x -= 40) {
-        const s = await page.evaluate((v) => window.__CAPSULE_WIDTH__(v), x)
+        const s = await page.evaluate((v: any) => window.__CAPSULE_WIDTH__(v), x)
         if (!s || s.error) continue
         const b1 = String((s.segs || {})['1'] || '')
         const b2 = String((s.segs || {})['2'] || '')
@@ -657,7 +661,7 @@ try {
     const samples = []
     let headErr = null
     for (let w = 900; w >= MIN_W; w -= 6) {
-      const tier = await page.evaluate((x) => window.__SETTLE_WIDTH__(x), w)
+      const tier = await page.evaluate((x: any) => window.__SETTLE_WIDTH__(x), w)
       if (tier === null) { headErr = { error: 'no row at ' + w }; break }
       const m = await page.evaluate(() => window.__HEAD_ROW__())
       if (m && m.error) { headErr = m; break }
@@ -665,8 +669,8 @@ try {
     }
     // 把面板宽度定到某一档，再悬停指定控件，读回悬停提示里所有字（提示是 fixed 定位的浮层，只在这时候才画）。
     //   每次先把鼠标挪开、等上一条提示收掉，免得读到上一条的残留。
-    const tipAt = async function (w, sel) {
-      await page.evaluate((x) => window.__SETTLE_WIDTH__(x), w)
+    const tipAt = async function (w: number, sel: string) {
+      await page.evaluate((x: any) => window.__SETTLE_WIDTH__(x), w)
       await page.mouse.move(3, 3)
       await page.waitForTimeout(320)
       await page.hover(sel)
@@ -681,7 +685,7 @@ try {
     } else {
       // 先把这个宽度扫出来的阶梯表打印出来（报告要逐个元素列「宽度档 → 渲染成什么」，这张表就是它的出处）：
       //   每个档号第一次出现的那一档：宽度 → 仓库名 / 刷新的字 / 时间的字 / 小图标剩几颗。
-      const firstAt = {}
+      const firstAt: Record<string, any> = {}
       samples.forEach((s) => { if (!(s.m.tier in firstAt)) firstAt[s.m.tier] = s })
       console.log('     （宽度 → 渲染成什么；每档第一次出现的那一处）')
       Object.keys(firstAt).map(Number).sort((a, b) => a - b).forEach((t) => {
