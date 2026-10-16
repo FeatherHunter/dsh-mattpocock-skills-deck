@@ -22,6 +22,18 @@ let failed = false
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
+// 反证与注种的锚点有两种落点：还住在手写 .js 里的代码写成单引号，已经变成构建产物的界面叶子被
+//   esbuild 统一成双引号（产物首行写着 AUTO-GENERATED）。字符串 replace 找不到目标就原样返回，于是
+//   「改坏了」其实没落到源码上、断言当然不会红；这个包装先按原样、再按双引号形态各试一次。只试这两种
+//   写法，不做整份源码的引号替换 —— 那会误伤字符串里本来就有的撇号。
+const subQ = function (from, to) {
+  return function (s) {
+    if (s.indexOf(from) >= 0) return s.replace(from, to)
+    const altFrom = from.replace(/'/g, '"')
+    if (altFrom !== from && s.indexOf(altFrom) >= 0) return s.replace(altFrom, to.replace(/'/g, '"'))
+    return s
+  }
+}
 const NOW = Date.parse('2026-10-04T03:00:00+08:00')
 
 // ---------- 界面侧闭包：照 scripts/build.mjs 的做法把叶子拼起来再跑 ----------
@@ -698,7 +710,7 @@ function groupJ(React, DswsCtx, TipStub, IcStub) {
   //   展开键是「分组\u0000路径」（块模型那一层的口径）；未提交那一层点开打不开是既有缺陷，见 .tmp-842-visual/POLISH.md。
   const diffReads = Object.assign({}, readsOf(screen), { diffs: { 'a.txt': { state: 'ok', lines: [{ kind: 'add', text: '+新行' }, { kind: 'del', text: '-旧行' }], reason: 'ok', truncated: false, error: null } } })
   const diffRender = renderTab(React, DswsCtx, TipStub, IcStub, diffReads, function (s) {
-    return s.replace("openDiff: '', openCommit: '', view:", "openDiff: 'staged' + String.fromCharCode(0) + 'a.txt', openCommit: '', view:")
+    return subQ("openDiff: '', openCommit: '', view:", "openDiff: 'staged' + String.fromCharCode(0) + 'a.txt', openCommit: '', view:")(s)
   })
   const doc9 = new (require('jsdom').JSDOM)('<div id="m">' + diffRender.html + '</div>').window.document
   const card = doc9.querySelector('[data-vc-diff="lines"]')
@@ -824,9 +836,9 @@ function groupL(view, React, DswsCtx, TipStub, IcStub) {
   // 反证（三条）：把新加的样式钩子改回去，对应的判据必须当场变红。
   const noBadge = docOf(render(function (s) { return s.replace("    badge: vcBadgeLetterOf(row.change),", "    badge: '',") }))
   check(badgeOk(noBadge) === false, 'L6 反证：把行模型里的徽章字母去掉 → L1 那条当场不成立')
-  const noMono = docOf(render(function (s) { return s.replace("h('span', { key: 'path', className: 'dsws-vc-mono', style: { display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, row.pathText)", "h('span', { key: 'path', style: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, row.pathText)") }))
+  const noMono = docOf(render(function (s) { return subQ("h('span', { key: 'path', className: 'dsws-vc-mono', style: { display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, row.pathText)", "h('span', { key: 'path', style: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, row.pathText)")(s) }))
   check(monoOk(noMono) === false, 'L7 反证：把路径上的 dsws-vc-mono 撤掉 → L2 那条当场不成立')
-  const noSign = docOf(render(function (s) { return s.replace("h('span', { key: 'add', className: 'dsws-vc-add' }, row.addText),", "h('span', { key: 'add' }, row.addText),") }))
+  const noSign = docOf(render(function (s) { return subQ("h('span', { key: 'add', className: 'dsws-vc-add' }, row.addText),", "h('span', { key: 'add' }, row.addText),")(s) }))
   check(countsOk(noSign) === false, 'L8 反证：把加减行数的着色类撤掉 → L3 那条当场不成立')
 }
 

@@ -878,6 +878,37 @@ async function main() {
   check(VIEW.vcFailKeyOf('exit') === 'vc.fail.exit', 'M7 非零退出仍然映射到这条话术（接法没变）')
 
   // ---- H 组：反证（把被守的东西改坏，同一套断言必须当场变红）----
+  // 反证锚点的两种落点：还住在手写 .js 里的代码写成单引号，已经变成构建产物的界面叶子被 esbuild
+  //   统一成双引号（产物首行写着 AUTO-GENERATED）。字符串 replace 找不到目标就原样返回，于是
+  //   「改坏了」其实没落到源码上、断言当然不会红；这里对同一个锚点先按原样、再按双引号形态各试一次。
+  //   只试这两种写法，不做整份源码的引号替换 —— 那会误伤字符串里本来就有的撇号。
+  function subQuoteAware(text, from, to) {
+    if (text.indexOf(from) >= 0) return { text: text.replace(from, to), hit: true }
+    const altFrom = from.replace(/'/g, '"')
+    if (altFrom !== from && text.indexOf(altFrom) >= 0) {
+      return { text: text.replace(altFrom, to.replace(/'/g, '"')), hit: true }
+    }
+    return { text, hit: false }
+  }
+  // 一处反证可以有好几处替换（先注种子、再把某一行改坏）。逐处记命中，全部命中才算
+  //   「这处改法真的落到了源码上」——只看"文本变过没有"会被第一处永远命中的替换骗过去。
+  function applyPairs(text, pairs) {
+    const hits = []
+    let cur = text
+    for (const pair of pairs) {
+      const from = pair[0]
+      if (from instanceof RegExp) {
+        const next = cur.replace(from, pair[1])
+        hits.push(next !== cur)
+        cur = next
+        continue
+      }
+      const r = subQuoteAware(cur, from, pair[1])
+      cur = r.text
+      hits.push(r.hit)
+    }
+    return { src: cur, allHit: hits.every(Boolean) }
+  }
   const antiCases = [
     { name: '显隐谓词改成永远隐藏', patch: (s) => s.replace('const vcTabVisible = function (st) {\n  void st\n  return true\n}', 'const vcTabVisible = function (st) {\n  void st\n  return false\n}'), test: tabVisibleJudgmentOf, what: 'A1' },
     { name: '冲突条目不再合成一行（同一路径画两行）', patch: (s) => s.replace('      if (conflictSeen[path]) return', '      if (false) return'), test: (v) => { const m = v.vcBlocksOf(merge, readsOf(merge), {}, envOf(merge, readsOf(merge))); return rowsOf(m).length === 1 }, what: 'C9' },
@@ -886,7 +917,11 @@ async function main() {
     { name: '「回到未提交改动」那一步去掉', patch: (s) => s.replace("    back: t('vc.commit.back'),", "    back: '',"), test: (v) => { const b = v.vcBlocksOf(commitScreen, sReads(), { openCommit: REV1 }, envOf(commitScreen, sReads())); return blockOf(b, 'changes').back === '回到未提交改动' }, what: 'S1' },
     { name: '截断判据改坏（读不全也装作有清单）', patch: (s) => s.replace("  else if (mine.truncated === true) note = t('vc.commit.truncated')", "  else if (false) note = t('vc.commit.truncated')"), test: (v) => { const r2 = sReads({ commit: commitEntry({ files: [], truncated: true, reason: 'truncated' }) }); const b = v.vcBlocksOf(commitScreen, r2, { openCommit: REV1 }, envOf(commitScreen, r2)); return blockOf(b, 'changes').note === '这笔提交的改动太大，读不全就没给清单；请在命令行里看完整改动。' }, what: 'S7' },
     { name: '合并提交那条差异原因键删掉（落回「没读到改动内容」）', patch: (s) => s.replace("  'merge-commit': 'vc.diff.mergeCommit',", "  'merge-commit-removed': 'vc.diff.mergeCommit',"), test: (v) => { const r2 = readsOf(files, { diffs: { '改.txt': { state: 'ok', lines: [], reason: 'merge-commit', truncated: false, error: null } } }); const row = rowsOf(v.vcBlocksOf(files, r2, { openDiff: 'unstaged\u0000改.txt' }, envOf(files, r2)))[0]; return row.diff.text === '这是一次合并提交：git 默认不展开合并提交的逐行差异，所以这里没有内容。' }, what: 'C19b' },
-    { name: '宿主原话又直出到可见正文（英文界面串出中文）', en: true, seed: errSeedEn, patch: (s) => s.replace(VC_SEED_RE, 'React.useState(function () { return seedReads })').replace("        rawTip: err.message ? t('vc.fail.raw', { msg: String(err.message) }) : '',", "        detail: err.message ? t('vc.fail.raw', { msg: String(err.message) }) : '',").replace("      h('span', { key: 'text', style: { display: 'contents' } }, tipNode(b.rawTip, h('div', { style: { lineHeight: 1.7 } }, b.text))),", "      h('div', { style: { lineHeight: 1.7 } }, b.text),\n      b.detail ? h('div', { style: { marginTop: 6 } }, b.detail) : null,"), test: (v) => { let html = ''; try { html = renderToStaticMarkup(React.createElement(v.VersionControlTab, { st: { cwd: 'D:/w/repo' } })) } catch (e) { html = '' } return !/[\u4e00-\u9fff]/.test(html.replace(/<[^>]*>/g, ' ')) }, what: 'G10' },
+    { name: '宿主原话又直出到可见正文（英文界面串出中文）', en: true, seed: errSeedEn, pairs: [
+      [VC_SEED_RE, 'React.useState(function () { return seedReads })'],
+      ["        rawTip: err.message ? t('vc.fail.raw', { msg: String(err.message) }) : '',", "        detail: err.message ? t('vc.fail.raw', { msg: String(err.message) }) : '',"],
+      ["      h('span', { key: 'text', style: { display: 'contents' } }, tipNode(b.rawTip, h('div', { style: { lineHeight: 1.7 } }, b.text))),", "      h('div', { style: { lineHeight: 1.7 } }, b.text),\n      b.detail ? h('div', { style: { marginTop: 6 } }, b.detail) : null,"],
+    ], test: (v) => { let html = ''; try { html = renderToStaticMarkup(React.createElement(v.VersionControlTab, { st: { cwd: 'D:/w/repo' } })) } catch (e) { html = '' } return !/[\u4e00-\u9fff]/.test(html.replace(/<[^>]*>/g, ' ')) }, what: 'G10' },
     { name: '换工作区不复位（旧工作区的数据继续画）', patch: (s) => s.replace(VC_SEED_RE, 'React.useState(function () { return seedReads })').replace('  const staleCwd = fresh.changed', '  const staleCwd = false'), test: (v) => { let html = ''; try { html = renderToStaticMarkup(React.createElement(v.VersionControlTab, { st: { cwd: 'D:/w/B' } })) } catch (e) { html = '' } return html.indexOf('data-vc-identity') < 0 && html.indexOf('data-vc-commit-mode') < 0 }, what: 'N3', seed: staleSeed },
     { name: '首屏形状只判真假值（坏形状画成干净仓库）', patch: (s) => s.replace('reply.ok === true && vcScreenShapeOk(reply.screen)', 'reply.ok === true && reply.screen'), test: async (v) => { const r = await v.vcReadStatus(v.vcNewReads(), function () { return Promise.resolve({ ok: true, screen: {} }) }, 'D:/w/repo'); return r.screen.state === 'err' && r.screen.error.kind === 'shape' }, what: 'N4' },
     { name: '分组退回按记录上的标记判（同一个文件两段改动挤进一组）', patch: (s) => s.replace("  return row.group === 'unstaged' ? 'unstaged' : 'staged'", "  return row.staged ? 'staged' : 'unstaged'"), test: (v) => { const b = v.vcBlocksOf(dual, readsOf(dual), {}, envOf(dual, readsOf(dual))); return b.groups.map(function (g) { return g.key + ':' + g.rows.length }).join(',') === 'staged:1,unstaged:1' }, what: 'N7' },
@@ -911,8 +946,10 @@ async function main() {
     const keepT = tZh
     if (c.en === true) tZh = tEn
     try {
-      const v = buildView(c.patch, [], React, DswsCtx, TipStub, IcStub, c.seed || null, c.hostStub)
-      applied = c.patch(closureSrc) !== closureSrc
+      const patchFn = (s) => (c.pairs ? applyPairs(s, c.pairs).src : c.patch(s))
+      const v = buildView(patchFn, [], React, DswsCtx, TipStub, IcStub, c.seed || null, c.hostStub)
+      // 自证逐条算：一处改法里第一处替换永远命中时，只看「文本变过没有」会漏掉后面空转的替换。
+      applied = c.pairs ? applyPairs(closureSrc, c.pairs).allHit : c.patch(closureSrc) !== closureSrc
       broke = applied && (await c.test(v)) === false
     } catch (e) { broke = true }
     tZh = keepT
@@ -938,7 +975,7 @@ async function main() {
   check(brokenHtml.replace(/<[^>]*>/g, ' ').indexOf('vc.views.changes') >= 0, 'H 反证：词典查不到就回键名时，DOM 里当场出现键名（上一版的中文界面就是这个样子，G8 抓得住）')
   // 反证本身也要自证：改坏的源码必须真的与原文不同（改不中就等于没证）—— 循环里已经逐条确认过一次，
   //   这里再把整张表聚合报一遍，哪几条没改中一眼看全。
-  const untouched = antiCases.filter((c) => c.patch(closureSrc) === closureSrc)
+  const untouched = antiCases.filter((c) => (c.pairs ? !applyPairs(closureSrc, c.pairs).allHit : c.patch(closureSrc) === closureSrc))
   check(untouched.length === 0, 'H 反证自证：' + antiCases.length + ' 处改法都真的改到了源码（改不中就等于没证）' + (untouched.length ? ' —— 没改中的：' + untouched.map((c) => c.name).join('、') : ''))
 
   console.log(failed ? '\n存在失败 — verify-818-version-control-view 未通过' : '\n全部通过 — 版本管理页签界面侧门禁生效（' + total + ' 项断言）')
