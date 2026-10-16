@@ -1,5 +1,5 @@
-// tests/verify-927-gate-injection.js —— 门禁：闸真的接到了传输层，而且「闸晚一步就位」也接得上（#927）
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-927-gate-injection.js。
+// tests/verify-927-gate-injection.ts —— 门禁：闸真的接到了传输层，而且「闸晚一步就位」也接得上（#927）
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-927-gate-injection.ts。
 // 它不能裸跑：src/host/platformChannel.js 这个说明符要靠装载钩子改指同名的 .ts 源文件，
 // 不挂钩子会直接 ERR_MODULE_NOT_FOUND（这一行的旧说法「可独立运行」是错的）。
 //
@@ -16,7 +16,7 @@ import { createRepoKeys } from '../src/host/git-process.ts'
 const ROOT = nodePath.resolve(nodePath.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..')
 let failed = 0
 let total = 0
-const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
+const check = (ok: unknown, msg: string): void => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
 // ── 一份假传输底座：不起真进程，只把 handle 的形状给全 ──
 function mkSubprocess() {

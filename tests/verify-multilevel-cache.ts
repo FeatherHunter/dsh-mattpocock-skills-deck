@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * verify-multilevel-cache.js — #327 多级缓存与上次探测时间门禁
+ * verify-multilevel-cache.ts — #327 多级缓存与上次探测时间门禁
  *
  * 覆盖：
  *  - 特性 A：lastProbeAtByCwd/getProbeAt/touchProbeAt 在场；快照校验（ok/304）与 wf.probe 完成即走针；
@@ -20,11 +20,11 @@ const path = require('path')
 const root = path.resolve(__dirname, '..')
 let failed = false
 let passed = 0
-const ok = (msg) => { passed++; console.log('  PASS', msg) }
-const bad = (msg) => { failed = true; console.log('  FAIL', msg) }
+const ok = (msg: string): void => { passed++; console.log('  PASS', msg) }
+const bad = (msg: string): void => { failed = true; console.log('  FAIL', msg) }
 // 产物缺失时直接说人话：这两份产物在 .gitignore 里，新克隆的树没跑构建就没它们，
 // 抛裸 ENOENT 栈会让人以为是门禁坏了（邻居 verify-kernel.js 是老写法，这里按人话写法）。
-function read(rel) {
+function read(rel: string): string {
   const p = path.join(root, rel)
   if (!fs.existsSync(p)) {
     console.error('找不到构建产物 ' + rel + '：请先运行 node scripts/build.mjs 再跑这条门禁。')
@@ -32,7 +32,7 @@ function read(rel) {
   }
   return fs.readFileSync(p, 'utf8')
 }
-const has = (src, needle, name, label) => { (src.indexOf(needle) >= 0) ? ok(name + ' ' + label) : bad(name + ' ' + label) }
+const has = (src: string, needle: string, name: string, label: string): void => { (src.indexOf(needle) >= 0) ? ok(name + ' ' + label) : bad(name + ' ' + label) }
 
 console.log('=== #327 多级缓存与上次探测时间门禁 ===')
 

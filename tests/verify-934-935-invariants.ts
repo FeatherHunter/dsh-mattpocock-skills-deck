@@ -1,5 +1,5 @@
-// tests/verify-934-935-invariants.js —— 两条不变式回归门禁（934 钥匙挨踢归一 · 935 写许可两档）
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-934-935-invariants.js。
+// tests/verify-934-935-invariants.ts —— 两条不变式回归门禁（934 钥匙挨踢归一 · 935 写许可两档）
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-934-935-invariants.ts。
 // 它不能裸跑：本文件用的 ./lib/time-compress.js 与 ./lib/deck-decide-stub.js 盘上只有 .ts，
 // 要靠装载钩子改指同名 .ts（旧说法「可独立运行」是错的）。
 //
@@ -26,8 +26,8 @@ installTimeCompression()
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
 let total = 0
-const check = (ok, msg, detail) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg + (ok ? '' : (detail ? ' — ' + String(detail).slice(0, 500) : ''))); if (!ok) failed = true }
-const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href)
+const check = (ok: unknown, msg: string, detail?: unknown): void => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg + (ok ? '' : (detail ? ' — ' + String(detail).slice(0, 500) : ''))); if (!ok) failed = true }
+const imp = (rel: string): Promise<any> => import(pathToFileURL(path.join(ROOT, rel)).href)
 // 夹具说「这个工作区选过了」的唯一办法（#1138 起）：给这个工作区一份工作区文件。
 // 两种造法与判定出口桩的来历见 tests/lib/deck-decide-stub.js 文件头。
 const { makeDecideStub, chooseWorkspace } = require('./lib/deck-decide-stub.js')

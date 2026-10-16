@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T21:13:25.046Z",
+  "generatedAt": "2026-10-16T21:20:37.756Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 301,
   "gateCount": 301,
@@ -3319,8 +3319,8 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 3 条"
     },
     {
-      "step": "node tests/verify-927-gate-injection.js",
-      "file": "tests/verify-927-gate-injection.js",
+      "step": "node tests/verify-927-gate-injection.ts",
+      "file": "tests/verify-927-gate-injection.ts",
       "guards": [
         "src/deck/registration/quota-sync.ts",
         "src/host/git-process.ts",
@@ -3340,8 +3340,8 @@
       "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 3 条"
     },
     {
-      "step": "node tests/verify-928-field-line-rewrite.js",
-      "file": "tests/verify-928-field-line-rewrite.js",
+      "step": "node tests/verify-928-field-line-rewrite.ts",
+      "file": "tests/verify-928-field-line-rewrite.ts",
       "guards": [
         "src/tracker/rooms/markdown/index.ts",
         "src/tracker/rooms/markdown/issues-status.ts"
@@ -3384,8 +3384,8 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 2 条；源码里的路径字面量 5 条"
     },
     {
-      "step": "node tests/verify-934-935-invariants.js",
-      "file": "tests/verify-934-935-invariants.js",
+      "step": "node tests/verify-934-935-invariants.ts",
+      "file": "tests/verify-934-935-invariants.ts",
       "guards": [
         "src/deck/shell/call-shell.ts",
         "src/deck/shell/session-workdir.ts",
@@ -3446,8 +3446,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；源码里的路径字面量 9 条"
     },
     {
-      "step": "node tests/verify-948-feedback-map.js",
-      "file": "tests/verify-948-feedback-map.js",
+      "step": "node tests/verify-948-feedback-map.ts",
+      "file": "tests/verify-948-feedback-map.ts",
       "guards": [
         "src/shared/feedback-map.js"
       ],
@@ -5442,8 +5442,8 @@
       "reason": "归属来自：源码里的路径字面量 7 条"
     },
     {
-      "step": "node tests/verify-multilevel-cache.js",
-      "file": "tests/verify-multilevel-cache.js",
+      "step": "node tests/verify-multilevel-cache.ts",
+      "file": "tests/verify-multilevel-cache.ts",
       "guards": [
         "package/lib/client.js"
       ],
@@ -7034,7 +7034,7 @@
       "node tests/verify-log-store.js",
       "node tests/verify-map-drill.js",
       "node tests/verify-markdown.js",
-      "node tests/verify-multilevel-cache.js",
+      "node tests/verify-multilevel-cache.ts",
       "node tests/verify-newsession-blank-seed-315.js",
       "node tests/verify-newsession-preset-guard.js",
       "node tests/verify-newsession-workspace-fallback.js",
@@ -7407,7 +7407,7 @@
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-1195-cell-cancel.ts",
       "node tests/verify-895-bulk-deadline.ts",
-      "node tests/verify-927-gate-injection.js"
+      "node tests/verify-927-gate-injection.ts"
     ],
     "src/deck/rules": [
       "node tests/verify-dependency-rules.ts",
@@ -7432,7 +7432,7 @@
       "node tests/verify-895-github-memo.ts",
       "node tests/verify-898-block-merge.ts",
       "node tests/verify-908-progress-replace.ts",
-      "node tests/verify-934-935-invariants.js",
+      "node tests/verify-934-935-invariants.ts",
       "node tests/verify-947-workspace-file.ts",
       "node tests/verify-957-workspace-writer.js",
       "node tests/verify-detection-log-reach.ts"
@@ -7498,7 +7498,7 @@
       "node tests/verify-847-stall-watch.ts",
       "node tests/verify-849-fs-absence.ts",
       "node tests/verify-907-chain-titles.ts",
-      "node tests/verify-927-gate-injection.js",
+      "node tests/verify-927-gate-injection.ts",
       "node tests/verify-957-workspace-writer.js",
       "node tests/verify-963-log-order.js",
       "node tests/verify-968-skill-ondemand.js",
@@ -7605,8 +7605,8 @@
       "node tests/verify-790-parent-edge.ts",
       "node tests/verify-829-parent-reread.ts",
       "node tests/verify-907-chain-titles.ts",
-      "node tests/verify-927-gate-injection.js",
-      "node tests/verify-934-935-invariants.js",
+      "node tests/verify-927-gate-injection.ts",
+      "node tests/verify-934-935-invariants.ts",
       "node tests/verify-947-workspace-file.ts",
       "node tests/verify-957-workspace-writer.js",
       "node tests/verify-971-markdown-parent.js",
@@ -7627,7 +7627,7 @@
       "node tests/verify-507-pr-offline.ts",
       "node tests/verify-691-map-subissues.ts",
       "node tests/verify-907-chain-titles.ts",
-      "node tests/verify-934-935-invariants.js",
+      "node tests/verify-934-935-invariants.ts",
       "node tests/verify-dirwritable.js",
       "node tests/verify-generic-catalog.js",
       "node tests/verify-multi-effort-panel.js",
@@ -7644,7 +7644,7 @@
       "node tests/verify-653-subworkspace.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-730-cwd-consistent.ts",
-      "node tests/verify-948-feedback-map.js",
+      "node tests/verify-948-feedback-map.ts",
       "node tests/verify-952-short-text.js",
       "node tests/verify-955-alignment.js",
       "node tests/verify-968-skill-ondemand.js",
@@ -7708,7 +7708,7 @@
       "node tests/verify-895-bulk-deadline.ts",
       "node tests/verify-898-block-merge.ts",
       "node tests/verify-929-batch-cycle.js",
-      "node tests/verify-934-935-invariants.js",
+      "node tests/verify-934-935-invariants.ts",
       "node tests/verify-947-workspace-file.ts",
       "node tests/verify-957-workspace-writer.js",
       "node tests/verify-970-whole-document.js",
@@ -7897,7 +7897,7 @@
       "node tests/verify-829-parent-reread.ts",
       "node tests/verify-895-github-memo.ts",
       "node tests/verify-929-batch-cycle.js",
-      "node tests/verify-934-935-invariants.js",
+      "node tests/verify-934-935-invariants.ts",
       "node tests/verify-971-markdown-parent.js",
       "node tests/verify-992-readonly-labels.js",
       "node tests/verify-detection-cascade.js",
@@ -7986,8 +7986,8 @@
       "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-784-effortId.ts",
       "node tests/verify-922-ticket-file-queue.ts",
-      "node tests/verify-928-field-line-rewrite.js",
-      "node tests/verify-934-935-invariants.js",
+      "node tests/verify-928-field-line-rewrite.ts",
+      "node tests/verify-934-935-invariants.ts",
       "node tests/verify-970-whole-document.js",
       "node tests/verify-971-markdown-parent.js",
       "node tests/verify-972-title-body.js",
@@ -8114,7 +8114,7 @@
       "node tests/verify-916-ghauth-unknown-banner.ts",
       "node tests/verify-926-capfold-gate.ts",
       "node tests/verify-929-batch-cycle.js",
-      "node tests/verify-934-935-invariants.js",
+      "node tests/verify-934-935-invariants.ts",
       "node tests/verify-958-label-name-visible.js",
       "node tests/verify-963-log-order.js",
       "node tests/verify-971-markdown-parent.js",

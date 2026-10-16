@@ -1,5 +1,7 @@
-// tests/verify-948-feedback-map.js —— #949 瞬间底座与组合映射门禁（948 图首批）
-// 用法：在插件根目录执行 node tests/verify-948-feedback-map.js，可独立运行。
+// tests/verify-948-feedback-map.ts —— #949 瞬间底座与组合映射门禁（948 图首批）
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-948-feedback-map.ts。
+// 说明符 src/shared/feedback-map.js 要保持 .js：真源还是手写 JavaScript，
+// 等它自己转成 .ts 时由装载钩子的「同名 .ts 优先」接管，本文件不用改。
 //
 // 盯住 #949 验收里的组合规矩（样式类的几条随「读源码文本钉形状」门禁一起删掉了，
 // 这里只留跑起来能验的部分）：
@@ -12,7 +14,7 @@ const { pathToFileURL } = require('url')
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
 let total = 0
-const check = (ok, msg, detail) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg + (ok ? '' : (detail ? ' — ' + String(detail).slice(0, 400) : ''))); if (!ok) failed = true }
+const check = (ok: unknown, msg: string, detail?: unknown): void => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg + (ok ? '' : (detail ? ' — ' + String(detail).slice(0, 400) : ''))); if (!ok) failed = true }
 
 async function main() {
   console.log('948 首批门禁：组合映射全函数 + 瞬间底座（#949）')
