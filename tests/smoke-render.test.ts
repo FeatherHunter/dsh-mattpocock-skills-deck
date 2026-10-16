@@ -1,8 +1,8 @@
-// smoke-render.test.js — T5 阶段 3 运行时冒烟（关键渲染路径：面板/状态栏/tab）
+// smoke-render.test.ts — T5 阶段 3 运行时冒烟（关键渲染路径：面板/状态栏/tab）
 // 按 R3 第二步设计：jsdom + 真实 React/ReactDOM + DswsCtx，渲染产物注册的宿主无关组件
 // 覆盖：StatusBar（状态栏胶囊 + seg）、DetailsDock（面板容器 + tabs 行）、
 ///      ListTab / MapDetail / SkillsTab / ChecksTab / SettingsPage（视图区小件）
-// 用法: node tests/smoke-render.test.js
+// 用法: node --import ./scripts/ts-hook.mjs tests/smoke-render.test.ts
 import { JSDOM } from 'jsdom'
 import { readFileSync } from 'node:fs'
 import React from 'react'
@@ -42,11 +42,11 @@ global.React = React
 global.ReactDOM = ReactDOMClient
 
 let failures = 0
-const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failures++ }
+const check = (ok: unknown, msg: string): void => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failures++ }
 
 // ---- 宿主 stub（与 smoke-client 一致，但 slots 捕获注册）----
-const dict = {}
-const trFn = (key, params) => {
+const dict: Record<string, string> = {}
+const trFn = (key: string, params?: Record<string, unknown>): string => {
   let s = dict[key] !== undefined ? dict[key] : key
   if (params) s = s.replace(/\{(\w+)\}/g, (m, name) => (name in params ? String(params[name]) : m))
   return s
@@ -113,7 +113,7 @@ const styles = window.document.head.querySelectorAll('style[data-plugin]')
 check(styles.length > 0, `style[data-plugin] 已注入（${styles.length}）`)
 
 // ---- 辅助：渲染单个组件到独立容器并断言 DOM 特征 ----
-async function renderAndCheck(Comp, props, expects, label) {
+async function renderAndCheck(Comp: unknown, props: Record<string, unknown> | null, expects: string[], label: string) {
   const container = window.document.createElement('div')
   window.document.body.appendChild(container)
   let root = null

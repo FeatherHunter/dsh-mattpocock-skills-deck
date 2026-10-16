@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T21:04:21.808Z",
+  "generatedAt": "2026-10-16T21:13:25.046Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 301,
   "gateCount": 301,
@@ -6870,36 +6870,36 @@
   ],
   "smokeGates": [
     {
-      "step": "node --import ./scripts/ts-hook.mjs tests/smoke-client.test.js",
-      "file": "tests/smoke-client.test.js",
+      "step": "node --import ./scripts/ts-hook.mjs tests/smoke-client.test.ts",
+      "file": "tests/smoke-client.test.ts",
       "gate": "smoke-client",
       "completionRecord": false,
       "expectedAssertions": 0
     },
     {
-      "step": "node --import ./scripts/ts-hook.mjs tests/smoke-host-dispatch.test.js",
-      "file": "tests/smoke-host-dispatch.test.js",
+      "step": "node --import ./scripts/ts-hook.mjs tests/smoke-host-dispatch.test.ts",
+      "file": "tests/smoke-host-dispatch.test.ts",
       "gate": "smoke-host-dispatch",
       "completionRecord": true,
       "expectedAssertions": 40
     },
     {
-      "step": "node --import ./scripts/ts-hook.mjs tests/smoke-render.test.js",
-      "file": "tests/smoke-render.test.js",
+      "step": "node --import ./scripts/ts-hook.mjs tests/smoke-render.test.ts",
+      "file": "tests/smoke-render.test.ts",
       "gate": "smoke-render",
       "completionRecord": false,
       "expectedAssertions": 0
     },
     {
-      "step": "node --import ./scripts/ts-hook.mjs tests/smoke-naming-persistence.test.js",
-      "file": "tests/smoke-naming-persistence.test.js",
+      "step": "node --import ./scripts/ts-hook.mjs tests/smoke-naming-persistence.test.ts",
+      "file": "tests/smoke-naming-persistence.test.ts",
       "gate": "smoke-naming-persistence",
       "completionRecord": true,
       "expectedAssertions": 37
     },
     {
-      "step": "node --import ./scripts/ts-hook.mjs tests/smoke-comment-passthrough.test.js",
-      "file": "tests/smoke-comment-passthrough.test.js",
+      "step": "node --import ./scripts/ts-hook.mjs tests/smoke-comment-passthrough.test.ts",
+      "file": "tests/smoke-comment-passthrough.test.ts",
       "gate": "smoke-comment-passthrough",
       "completionRecord": false,
       "expectedAssertions": 0

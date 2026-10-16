@@ -1,4 +1,4 @@
-// smoke-naming-persistence.test.js — #265 命名守护跟踪态真实磁盘 IO 冒烟（重启续跑语义 · 崩溃窗口补强验证）
+// smoke-naming-persistence.test.ts — #265 命名守护跟踪态真实磁盘 IO 冒烟（重启续跑语义 · 崩溃窗口补强验证）
 // 与 dispatch 冒烟同法装载 package/lib/index.js，但 fs 服务桥接 node:fs 真实文件：
 //   注册 → 落盘立即存在（即时持久化，非防抖）→ 二次加载模块实例模拟 DSH 重启 → 计划单仍在
 //   → renamed 回报后盘上账目更新（lastMachineTitle/stage）→ 单次预算跨重启成立
@@ -17,13 +17,13 @@ process.chdir(tmp)
 
 let total = 0
 let failures = 0
-const check = (ok, msg) => { total++; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failures++ }
-const sleep = (ms) => new Promise(function (res) { setTimeout(res, ms) })
+const check = (ok: unknown, msg: string): void => { total++; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failures++ }
+const sleep = (ms: number): Promise<void> => new Promise(function (res) { setTimeout(res, ms) })
 // 「模拟 DSH 重启」在本冒烟里是**连续加载多个模块实例**：旧实例的定时器若还在跑，它和新实例会各自
 // 持一份内存账目、互相覆盖同一个状态文件——真实重启里前一个进程已经死了，不会发生这种事。所以每换
 // 一个实例之前都要先把上一个实例停手：先等它的防抖落盘窗口（1200 毫秒）走完，再清掉它排下的定时器。
-const pendingTimers = new Set()
-async function killInstance() {
+const pendingTimers = new Set<ReturnType<typeof setTimeout>>()
+async function killInstance(): Promise<void> {
   await sleep(1300)
   for (const h of pendingTimers) { try { clearTimeout(h) } catch (e) {} }
   pendingTimers.clear()
@@ -56,7 +56,7 @@ const platformSvc = {
   env: { get: () => undefined },
 }
 
-function makeCtx(gen) {
+function makeCtx(gen: number) {
   const subprocess = { async resolveExecutable() { return 'gh' }, spawn() { return { stdout: { on: () => {} }, stderr: { on: () => {} }, on: () => {}, terminate: () => {}, done: Promise.resolve({ exitCode: 0 }), collected: { stdout: { readFrom: () => ({ text: ghIndexText }) }, stderr: { readFrom: () => ({ text: '' }) } } } } }
   // host 的真实 timer 服务双签名：timeout(fn, ms) 节流 / timeout(ms) → Promise（runGh 超时竞速用）
   const timer = { timeout: (a, b) => (typeof a === 'function' ? (function () { const h = setTimeout(function () { pendingTimers.delete(h); a() }, b); pendingTimers.add(h); return h })() : new Promise(function (res) { setTimeout(res, a) })) }
@@ -65,7 +65,7 @@ function makeCtx(gen) {
 }
 
 // 通道注册经 ./rpcChannel.js 动态加载完成（宿主禁止静态 import 的既有约定），等它落地再发调用。
-async function waitRoute() {
+async function waitRoute(): Promise<boolean> {
   const t0 = Date.now()
   while (Date.now() - t0 < 3000) {
     if (route && typeof route.fetch === 'function' && routeGen === expectGen) return true
@@ -76,7 +76,7 @@ async function waitRoute() {
 
 // 按客户端真实形状发一次调用：POST 到 /api/dsws，体是 DSH 的 client-request 信封，
 // 内层 payload 装 { method: 端点名, payload: 入参 }；从回包里取出端点原始返回值。
-async function callHandler(endpoint, args) {
+async function callHandler(endpoint: string, args: Record<string, unknown>) {
   if (!(await waitRoute())) throw new Error('通道未注册：connection.fetch.register 没被调用')
   const res = await route.fetch({
     method: 'POST',

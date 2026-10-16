@@ -1,12 +1,12 @@
-// smoke-comment-passthrough.test.js — #255 宿主透传冒烟（wf.commentIssue）
+// smoke-comment-passthrough.test.ts — #255 宿主透传冒烟（wf.commentIssue）
 // 注入假 trackerRegistry（getTrackerRegistry 优先消费 ctx.get('trackerRegistry')），
 // 断言：select→describe→tracker.comment 全链路转发、参数无损、错误 kind 直透（G5 无能力表）。
-// 用法: node tests/smoke-comment-passthrough.test.js
+// 用法: node --import ./scripts/ts-hook.mjs tests/smoke-comment-passthrough.test.ts
 import { readFileSync } from 'node:fs'
 import * as esbuild from 'esbuild'
 
 let failures = 0
-const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failures++ }
+const check = (ok: unknown, msg: string): void => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failures++ }
 
 // ---- ESM 语法门禁 ----
 try {
@@ -17,13 +17,14 @@ try {
 }
 
 // ---- 假 registry：github 后端带 comment 捕获器；bad2 后端无 comment 方法（unsupported 桩语义）----
-const calls = []
-const ghTracker = {
+// calls 收 tracker.comment 实收参数，用来事后核对「原样透传」；字段类型按断言实际用到的形状标。
+const calls: Array<{ repoRef: { refId: string }; key: unknown; body: string }> = []
+const ghTracker: { id: string; comment: (...args: unknown[]) => Promise<unknown> } = {
   id: 'github',
-  comment: async (repoRef, key, body, opCtx) => { calls.push({ repoRef, key, body }); return { ok: true, data: { id: '42', author: { login: 'tester' }, body } } },
+  comment: async (repoRef, key, body, opCtx) => { calls.push({ repoRef: repoRef as { refId: string }, key, body: body as string }); return { ok: true, data: { id: '42', author: { login: 'tester' }, body } } },
 }
 const badTracker = { id: 'gitlab-x' }
-let commentResult = null // 可注入失败场景
+let commentResult: unknown = null // 可注入失败场景
 const fakeRegistry = {
   select: async () => ({ backendId: 'github', source: 'explicit' }),
   describe: (_handle, backendId) => ({ backend: backendId, refId: 'FeatherHunter/dsh-mattpocock-skills-deck', name: 'dsh-mattpocock-skills-deck', url: 'https://github.com/FeatherHunter/dsh-mattpocock-skills-deck' }),
@@ -50,7 +51,7 @@ const mod = modRaw.default ?? modRaw
 ;(mod.apply ?? mod.default?.apply)(ctx)
 
 // 通道注册经 ./rpcChannel.js 动态加载完成（宿主禁止静态 import 的既有约定），等它落地再发调用。
-async function waitRoute() {
+async function waitRoute(): Promise<boolean> {
   const t0 = Date.now()
   while (Date.now() - t0 < 3000) {
     if (route && typeof route.fetch === 'function') return true
@@ -60,7 +61,7 @@ async function waitRoute() {
 }
 // 按客户端真实形状发一次调用：POST 到 /api/dsws，体是 DSH 的 client-request 信封，
 // 内层 payload 装 { method: 端点名, payload: 入参 }；从回包里取出端点原始返回值。
-async function callHandler(endpoint, args) {
+async function callHandler(endpoint: string, args: Record<string, unknown>): Promise<unknown> {
   if (!(await waitRoute())) throw new Error('通道未注册：connection.fetch.register 没被调用')
   const res = await route.fetch({
     method: 'POST',
@@ -72,7 +73,10 @@ async function callHandler(endpoint, args) {
   return env.result && env.result.value
 }
 
-const unwrap = (r) => (r && r.ok === true && 'value' in r ? r.value : r) // dispatch 传输信封：{ok:true,value:handler结果}
+// 回包既可能是 {ok:true,value:...} 的传输信封，也可能是端点原始返回值；两种形状字段不同，
+// 所以这里按联合类型标注，断言处自己按字段收窄（本文件不被 tsc 检查，标注只为读起来清楚）。
+type EndpointReply = { ok?: boolean; value?: unknown; error?: { kind?: string; message?: string } } | null | undefined
+const unwrap = (r: EndpointReply): EndpointReply => (r && r.ok === true && 'value' in r ? (r.value as EndpointReply) : r) // dispatch 传输信封：{ok:true,value:handler结果}
 if (await waitRoute()) {
   check(!!route && route.path === '/api/dsws', '通道注册在 /api/dsws（客户端请求路径与宿主注册路径同源）')
   // 1) 校验：缺 body → parse

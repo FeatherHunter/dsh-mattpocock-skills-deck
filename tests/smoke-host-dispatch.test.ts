@@ -1,4 +1,4 @@
-// smoke-host-dispatch.test.js — host seam dispatch 端到端验证
+// smoke-host-dispatch.test.ts — host seam dispatch 端到端验证
 // 验证 harness.handle 注册的 handler 能经 connection.fetch.register('/api/dsws') 那条精确路由被调用：
 //   注册路径是精确路径 /api/dsws（不带端点尾巴），端点名与入参装在请求体 payload 里（#596）；
 //   wf.logGetSwitch → logGetSwitch 端点 → { ok: true, enabled, sampleRate }（#498 退役 wf.ping，探活改走免参开关读电话）
@@ -63,13 +63,13 @@ await new Promise(function (resolve) {
 
 let total = 0
 let failures = 0
-const check = (ok, msg) => { total++; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failures++ }
+const check = (ok: unknown, msg: string): void => { total++; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failures++ }
 check(!!route && typeof route.fetch === 'function', 'connection.fetch.register 收到 /api/dsws 路由')
 check(!!route && route.path === '/api/dsws', `路由路径 = ${route && route.path}`)
 
 // 按 DSH 信封调用一次：client-request 进，server-response 出（返回信封里的 result）。
 // #596：路径是精确路径 /api/dsws，端点名与入参一并装进 body 的 payload（{method, payload}）。
-const dispatchOnce = async function (endpoint, args) {
+const dispatchOnce = async function (endpoint: string, args: Record<string, unknown>): Promise<unknown> {
   const res = await route.fetch({
     method: 'POST',
     url: 'http://127.0.0.1:1/api/dsws',

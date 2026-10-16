@@ -15,7 +15,7 @@
     "update:latest": "pnpm update dsh-plugin-update@^0.18.6 && node scripts/derive-update-from-package.mjs && node scripts/build.mjs",
     "prepare": "node scripts/build.mjs",
     "test": "npm run typecheck && node scripts/build.mjs && node scripts/verify-chain.js && npm run test:smoke",
-    "smoke": "node --import ./scripts/ts-hook.mjs tests/smoke-client.test.js && node --import ./scripts/ts-hook.mjs tests/smoke-host-dispatch.test.js && node --import ./scripts/ts-hook.mjs tests/smoke-render.test.js && node --import ./scripts/ts-hook.mjs tests/smoke-naming-persistence.test.js && node --import ./scripts/ts-hook.mjs tests/smoke-comment-passthrough.test.js",
+    "smoke": "node --import ./scripts/ts-hook.mjs tests/smoke-client.test.ts && node --import ./scripts/ts-hook.mjs tests/smoke-host-dispatch.test.ts && node --import ./scripts/ts-hook.mjs tests/smoke-render.test.ts && node --import ./scripts/ts-hook.mjs tests/smoke-naming-persistence.test.ts && node --import ./scripts/ts-hook.mjs tests/smoke-comment-passthrough.test.ts",
     "test:smoke": "node scripts/verify-chain.js --script smoke",
     "test:nobuild": "node scripts/verify-chain.js && npm run test:smoke",
     "verify:parallel": "node scripts/verify-parallel.mjs --keep-going",

@@ -1,10 +1,10 @@
-// smoke-client.test.js — T0 阶段 0 验收·jsdom 冒烟（R3 模板）
+// smoke-client.test.ts — T0 阶段 0 验收·jsdom 冒烟（R3 模板）
 // 加载 package/lib/client.js（__ModuleLoader__ stub），断言：
 //   1) ModuleLoader 注册成功（id 正确）
 //   2) inject 含 5 个服务声明
 //   3) apply 后 style[data-plugin] 注入（样式生命周期 seam）
 //   4) STYLE_TEXT 含 .dsws-panel / .dsws-capsule / .dsws-tabs 特征
-// 用法: node tests/smoke-client.test.js
+// 用法: node --import ./scripts/ts-hook.mjs tests/smoke-client.test.ts
 import { JSDOM } from 'jsdom'
 import { readFileSync } from 'node:fs'
 import { evalInWindow } from './lib/eval-probe.js'
@@ -17,14 +17,20 @@ const { window } = dom
 const { document } = window
 
 // ---- __ModuleLoader__ stub：捕获 load 注册 ----
-let loaded = null
+// loaded 收的是产物注册进来的模块说明：id 用来核对注册身份，factory 是拿依赖表换模块对象的入口。
+// 两个字段都可能缺席（没注册成功时整体是 null），所以断言一律先判 loaded 再看字段。
+interface LoadedSpec {
+  id?: string
+  factory: (req: (name: string) => unknown) => { inject?: unknown; apply?: (ctx: unknown) => void }
+}
+let loaded: LoadedSpec | null = null
 window.__ModuleLoader__ = {
   load(spec) { loaded = spec; return spec },
 }
 
 // ---- 宿主 stub（R3 清单 7 项：slots / connection.rpc / locale / workspaces / sessions / timer / React+ReactDOM）----
-const dict = {}
-const trFn = (key, params) => {
+const dict: Record<string, string> = {}
+const trFn = (key: string, params?: Record<string, unknown>): string => {
   let s = dict[key] !== undefined ? dict[key] : key
   if (params) s = s.replace(/\{(\w+)\}/g, (m, name) => (name in params ? String(params[name]) : m))
   return s
@@ -59,7 +65,7 @@ const code = readFileSync('package/lib/client.js', 'utf8')
 evalInWindow(dom, code)
 
 let failures = 0
-const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failures++ }
+const check = (ok: unknown, msg: string): void => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failures++ }
 
 check(!!loaded, 'ModuleLoader.load 被调用')
 check(loaded && loaded.id === 'dsh-mattpocock-skills-deck', `id = ${loaded && loaded.id}`)
