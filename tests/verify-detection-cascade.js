@@ -16,9 +16,7 @@ try { outletDecideBackend.selectionFromOutlet = outletSelectionFromOutlet } catc
 import { createRegistry } from '../src/tracker/registry/core.ts' // V1 #461：registry.js 已拆为三块
 // #1138：夹具手里的「工作区文件」账本（虚拟目录，不碰盘）。两块都要：chooseWorkspace 记下「这个工作区选了谁」，
 // workspaceFileOf 把记下的内容交给判定出口读（读的口子是 deps.fs，与真平台上的文件服务同一形状）。
-import decideStub from './lib/deck-decide-stub.js'
-const chooseWorkspace = decideStub.chooseWorkspace
-const workspaceFileOf = decideStub.workspaceFileOf
+import { chooseWorkspace, workspaceFileOf } from './lib/deck-decide-stub.js'
 
 /**
  * 判定出口读工作区文件那一路用的最小文件服务：只有工作区文件这两张脸有内容，别的路径一律说没有。

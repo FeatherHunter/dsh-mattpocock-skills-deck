@@ -1,5 +1,5 @@
 /**
- * tests/lib/deck-decide-stub.js —— deck 工具门禁专用的「判定出口」桩，外加门禁夹具的「工作区文件」账本
+ * tests/lib/deck-decide-stub.ts —— deck 工具门禁专用的「判定出口」桩，外加门禁夹具的「工作区文件」账本
  *
  * 为什么门禁必须给这个依赖
  *   2026-10-11 起（提交 24a4bf33，#1003 单出口），工具壳把「这个工作区用哪个后端」整段交给装配方
@@ -30,25 +30,30 @@
  *   （只有 select）。那些桩表达的是「这个工作区已经选好了」，不是「认不得后端怎么办」，
  *   所以对没有 has 的桩按「认得」算 —— 认不得后端那条路另有门禁在守。
  *
- * 用法（两种模块形态都能取；本文件是 CJS，夹具 require 与 import 都行）
+ * 用法（本文件是 ESM 具名导出；CJS 夹具 require 也行，走 require(esm)，无顶层 await，不断链）
  *   CJS 夹具：const { makeDecideStub, chooseWorkspace } = require('./lib/deck-decide-stub.js')
  *   ESM 夹具：import { makeDecideStub, chooseWorkspace } from './lib/deck-decide-stub.js'
  *   接法：chooseWorkspace(cwd, 'markdown')
  *         const deps = { ... , decideBackend: makeDecideStub(registry) }
+ *   注意：不要用默认导入（import decideStub from ...）—— ESM 只有具名导出，没有 default。
  */
-'use strict'
-
-const fs = require('fs')
-const path = require('path')
+import fs from 'node:fs'
+import path from 'node:path'
 
 /** 与 `src/deck/shell/workspace-anchor.ts` 的 WORKSPACE_FILE_REL 同一处口径（生产读写的就是这条）。 */
-const WORKSPACE_FILE_REL = 'docs/agents/workspace.yaml'
+export const WORKSPACE_FILE_REL = 'docs/agents/workspace.yaml'
 /** 老路径：切核前的 JSON 位置，只做兼容读；夹具写文件一律走上面那条新路径。 */
-const WORKSPACE_FILE_LEGACY_REL = 'docs/agents/workspace.json'
+export const WORKSPACE_FILE_LEGACY_REL = 'docs/agents/workspace.json'
 
 /** 同一个工作区在账本里只许有一把钥匙（与生产对目录的洗法同构：斜杠统一、去掉末尾斜杠）。 */
-function keyOf(cwd) {
+function keyOf(cwd: unknown): string {
   return String(cwd == null ? '' : cwd).replace(/\\/g, '/').replace(/\/+$/, '')
+}
+
+export interface WorkspaceFileOpts {
+  pickedAt?: number
+  source?: string
+  layout?: string
 }
 
 /**
@@ -56,7 +61,7 @@ function keyOf(cwd) {
  * 所以夹具造出来的就是「用户亲手选过」那一条路，而不是另一套只有夹具认得的写法。
  * （字段与校验见 `src/shared/config-store/src/workspace.ts` 的 parseWorkspace。）
  */
-function workspaceFileText(backendId, opts) {
+export function workspaceFileText(backendId: unknown, opts?: WorkspaceFileOpts): string {
   const id = String(backendId == null ? '' : backendId).trim()
   if (!id) throw new Error('夹具要造一份工作区文件，但没给后端名')
   const o = (opts && typeof opts === 'object') ? opts : {}
@@ -68,10 +73,10 @@ function workspaceFileText(backendId, opts) {
 }
 
 // ── 账本：工作区目录 → 那份工作区文件的文本（夹具用它当「这台机器上的工作区磁盘」）──
-const book = new Map()
+const book = new Map<string, string>()
 
 /** 说「这个工作区里有一份写着 backendId 的工作区文件」。返回写进去的文本，方便夹具自己再看一眼。 */
-function chooseWorkspace(cwd, backendId, opts) {
+export function chooseWorkspace(cwd: unknown, backendId: unknown, opts?: WorkspaceFileOpts): string {
   const k = keyOf(cwd)
   if (!k) throw new Error('夹具要说「这个工作区选过了」，但没给工作区目录')
   const text = workspaceFileText(backendId, opts)
@@ -80,13 +85,13 @@ function chooseWorkspace(cwd, backendId, opts) {
 }
 
 /** 账本里这个工作区那份文件的文本；没记过就回 null（＝这个工作区里没有那份文件）。 */
-function workspaceFileOf(cwd) {
+export function workspaceFileOf(cwd: unknown): string | null {
   const k = keyOf(cwd)
-  return (k && book.has(k)) ? book.get(k) : null
+  return (k && book.has(k)) ? (book.get(k) as string) : null
 }
 
 /** 忘掉所有账目：一个夹具里要反复从「没有这份文件」开头时用它。 */
-function resetWorkspaceChoices() {
+export function resetWorkspaceChoices(): void {
   book.clear()
 }
 
@@ -94,7 +99,7 @@ function resetWorkspaceChoices() {
  * 真盘那一份：在真实的工作区目录里写下这份文件（真临时目录 + 真文件服务的夹具用这个）。
  * 真写下去的意义是「门禁能看见盘上确实有这份文件」，不只是内存里说过一句。
  */
-function writeWorkspaceFile(root, backendId, opts) {
+export function writeWorkspaceFile(root: unknown, backendId: unknown, opts?: WorkspaceFileOpts): string {
   const dir = path.join(String(root), 'docs', 'agents')
   fs.mkdirSync(dir, { recursive: true })
   const target = path.join(dir, 'workspace.yaml')
@@ -102,9 +107,11 @@ function writeWorkspaceFile(root, backendId, opts) {
   return target
 }
 
+type DecideFn = (cwd: string, deps: Record<string, unknown>) => Promise<Record<string, unknown>>
+
 /** 判定出口这一份只装一次：它是个纯核加读文件的函数，夹具反复调不必反复装载。 */
-let outletPromise = null
-function loadOutlet() {
+let outletPromise: Promise<{ decideBackend?: DecideFn } | null> | null = null
+function loadOutlet(): Promise<{ decideBackend?: DecideFn } | null> {
   if (!outletPromise) {
     outletPromise = import('../../src/tracker/detection/backendDecision.ts').catch(function () { return null })
   }
@@ -112,8 +119,8 @@ function loadOutlet() {
 }
 
 /** 判定出口这一份还要「一段文本 → 人选后端」的解析器：与生产同源，不另写一份解析。 */
-let parserPromise = null
-function loadParser() {
+let parserPromise: Promise<{ parseWorkspaceFile?: (text: string) => unknown } | null> | null = null
+function loadParser(): Promise<{ parseWorkspaceFile?: (text: string) => unknown } | null> {
   if (!parserPromise) {
     parserPromise = import('../../src/deck/shell/workspace-anchor.ts').catch(function () { return null })
   }
@@ -124,9 +131,9 @@ function loadParser() {
  * 没有 has 的桩注册表补一个「认得」：判定出口要靠它判「这个名字我认不认得」。
  * 有 has 的原样交回去（那种夹具要测的正是认不认得）。
  */
-function fixtureRegistry(registry) {
+function fixtureRegistry(registry: unknown): unknown {
   if (!registry || typeof registry !== 'object') return registry
-  if (typeof registry.has === 'function') return registry
+  if (typeof (registry as { has?: unknown }).has === 'function') return registry
   return Object.assign({}, registry, { has: function () { return true } })
 }
 
@@ -135,23 +142,23 @@ function fixtureRegistry(registry) {
  * 返回的函数形状与生产一致：`(cwd, opts) => { backendId, source, origin, canWrite, reason }`，
  * 壳怎么调生产那一个，就怎么调这一个（第二个参数是壳递进来的依赖袋，原样往下传）。
  */
-function makeDecideStub(registry) {
-  return async function decideBackendStub(cwd, opts) {
+export function makeDecideStub(registry: unknown): DecideFn {
+  return async function decideBackendStub(cwd: unknown, opts?: Record<string, unknown>): Promise<Record<string, unknown>> {
     const mod = await loadOutlet()
     if (!mod || typeof mod.decideBackend !== 'function') {
       // 判定出口这一份装载失败：按「没有后端」回，让门禁自己红在该红的那条断言上（不在这里编一个后端）。
       return { backendId: null, source: 'fallback', canWrite: false, reason: 'outlet-unavailable' }
     }
-    const o = (opts && typeof opts === 'object') ? opts : {}
-    const deps = Object.assign({}, o, {
+    const o: Record<string, unknown> = (opts && typeof opts === 'object') ? opts : {}
+    const deps: Record<string, unknown> = Object.assign({}, o, {
       registry: fixtureRegistry(o.registry || registry),
       caller: o.caller || 'gate-decide-stub',
     })
     // 读文件那一条：壳给的读口（若有）先问，问不到再问夹具账本——账本正是夹具说
     // 「这个工作区选过了」的地方。生产那一条走的是真文件通道，这里替它的是同一件事的账本。
-    const origRead = (typeof o.readWorkspaceFileText === 'function') ? o.readWorkspaceFileText : null
-    deps.readWorkspaceFileText = async function (cwd2) {
-      let text = null
+    const origRead = (typeof o.readWorkspaceFileText === 'function') ? o.readWorkspaceFileText as (cwd2: unknown) => Promise<string | null> : null
+    deps.readWorkspaceFileText = async function (cwd2: unknown): Promise<string | null> {
+      let text: string | null = null
       if (origRead) { try { text = await origRead(cwd2) } catch (e) { text = null } }
       if (!text) text = workspaceFileOf(cwd2)
       return text
@@ -162,15 +169,4 @@ function makeDecideStub(registry) {
     }
     return await mod.decideBackend(String(cwd || ''), deps)
   }
-}
-
-module.exports = {
-  makeDecideStub,
-  chooseWorkspace,
-  workspaceFileOf,
-  workspaceFileText,
-  writeWorkspaceFile,
-  resetWorkspaceChoices,
-  WORKSPACE_FILE_REL,
-  WORKSPACE_FILE_LEGACY_REL,
 }

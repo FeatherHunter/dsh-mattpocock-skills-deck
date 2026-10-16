@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T16:24:35.710Z",
+  "generatedAt": "2026-10-16T16:26:19.037Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 301,
   "gateCount": 301,
@@ -431,7 +431,7 @@
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
         "src/shared/refresh/budget.js",
-        "tests/lib/deck-decide-stub.js",
+        "tests/lib/deck-decide-stub.ts",
         "tests/lib/gate-result.ts",
         "tests/lib/time-compress.ts"
       ],
@@ -457,7 +457,7 @@
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
         "src/shared/refresh/budget.js",
-        "tests/lib/deck-decide-stub.js"
+        "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
         "src/deck/shell",
@@ -514,7 +514,7 @@
       "guards": [
         "src/deck/shell/call-shell.ts",
         "src/tracker/rooms/github/backend.ts",
-        "tests/lib/deck-decide-stub.js"
+        "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
         "src/deck/shell",
@@ -574,7 +574,7 @@
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
         "src/shared/refresh/budget.js",
-        "tests/lib/deck-decide-stub.js"
+        "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
         "src/deck/tools",
@@ -636,7 +636,7 @@
         "src/tracker/rooms/gitlab/index.ts",
         "src/tracker/rooms/markdown/index.ts",
         "tests/deck-tools-matrix-transports.ts",
-        "tests/lib/deck-decide-stub.js"
+        "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
         "src/deck/tools",
@@ -702,7 +702,7 @@
         "src/shared/refresh/tool-cost.js",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/markdown/index.ts",
-        "tests/lib/deck-decide-stub.js"
+        "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
         "src/deck/registration",
@@ -1138,7 +1138,7 @@
         "scripts/lib/discover-gates.ts",
         "src/host/platformChannel.ts",
         "src/host/refresh/wiring.ts",
-        "tests/lib/deck-decide-stub.js"
+        "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
         "scripts/lib",
@@ -1310,7 +1310,7 @@
         "src/shared/refresh/tool-cost.js",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/markdown/index.ts",
-        "tests/lib/deck-decide-stub.js"
+        "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
         "src/deck/tools",
@@ -1469,7 +1469,7 @@
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
         "src/shared/refresh/budget.js",
-        "tests/lib/deck-decide-stub.js"
+        "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
         "src/deck/shell",
@@ -1512,7 +1512,7 @@
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
         "src/shared/refresh/budget.js",
-        "tests/lib/deck-decide-stub.js"
+        "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
         "src/deck/tools",
@@ -2626,7 +2626,7 @@
         "src/shared/tracker/indexWindow.js",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/markdown/index.ts",
-        "tests/lib/deck-decide-stub.js"
+        "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
         "src/deck/tools",
@@ -2838,7 +2838,7 @@
         "src/shared/refresh/tool-cost.js",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/markdown/index.ts",
-        "tests/lib/deck-decide-stub.js"
+        "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
         "src/deck/tools",
@@ -2886,7 +2886,7 @@
         "src/shared/refresh/tool-cost.js",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/github/graph.ts",
-        "tests/lib/deck-decide-stub.js"
+        "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
         "src/deck/tools",
@@ -2963,7 +2963,7 @@
         "src/shared/refresh/tool-cost.js",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/github/graph.ts",
-        "tests/lib/deck-decide-stub.js"
+        "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
         "src/deck/tools",
@@ -3152,7 +3152,7 @@
         "src/shared/refresh/budget.js",
         "src/shared/refresh/tool-cost.js",
         "src/shared/time-config/values.js",
-        "tests/lib/deck-decide-stub.js",
+        "tests/lib/deck-decide-stub.ts",
         "tests/lib/time-compress.ts"
       ],
       "dirs": [
@@ -3201,7 +3201,7 @@
         "src/deck/tools/map-plan-create.ts",
         "src/shared/refresh/budget.js",
         "src/shared/refresh/tool-cost.js",
-        "tests/lib/deck-decide-stub.js",
+        "tests/lib/deck-decide-stub.ts",
         "tests/lib/time-compress.ts"
       ],
       "dirs": [
@@ -3361,7 +3361,7 @@
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/github/index.ts",
         "tests/deck-tools-matrix-transports.ts",
-        "tests/lib/deck-decide-stub.js"
+        "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
         "src/deck/tools",
@@ -3393,7 +3393,7 @@
         "src/tracker/registry/shape.ts",
         "src/tracker/rooms/markdown/index.ts",
         "src/tracker/rooms/markdown/write.ts",
-        "tests/lib/deck-decide-stub.js",
+        "tests/lib/deck-decide-stub.ts",
         "tests/lib/time-compress.ts"
       ],
       "dirs": [
@@ -3613,7 +3613,7 @@
         "src/tracker/rooms/markdown/issues-create.ts",
         "src/tracker/rooms/markdown/issues-patch.ts",
         "src/tracker/rooms/markdown/issues-read.ts",
-        "tests/lib/deck-decide-stub.js"
+        "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
         "src/deck/tools",
@@ -3683,7 +3683,7 @@
         "src/tracker/rooms/github/issues-write.ts",
         "src/tracker/rooms/github/labels.ts",
         "src/tracker/rooms/github/repo-permissions.ts",
-        "tests/lib/deck-decide-stub.js"
+        "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
         "docs",
@@ -4229,7 +4229,7 @@
         "src/tracker/detection/parseIssueTracker.ts",
         "src/tracker/detection/workspaceStore.ts",
         "src/tracker/registry/core.ts",
-        "tests/lib/deck-decide-stub.js"
+        "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
         "docs/agents",
@@ -4683,7 +4683,7 @@
         "src/tracker/rooms/github/normalize.ts",
         "src/tracker/rooms/markdown/index.ts",
         "src/tracker/rooms/markdown/normalize.ts",
-        "tests/lib/deck-decide-stub.js"
+        "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
         "scripts",
@@ -5886,7 +5886,7 @@
         "src/shared/refresh-workspace-key.js",
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/markdown/index.ts",
-        "tests/lib/deck-decide-stub.js"
+        "tests/lib/deck-decide-stub.ts"
       ],
       "dirs": [
         "src/host",

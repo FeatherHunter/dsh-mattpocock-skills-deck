@@ -49,9 +49,7 @@ try { decDecideBackend.selectionFromOutlet = decSelectionFromOutlet } catch (eAt
 import nodePath from 'node:path'
 // #1138：夹具手里的「工作区文件」账本（虚拟目录，不碰盘）。这两件都在 tests/lib/deck-decide-stub.js，
 // 与 verify-deck-tools.js 用的是同一份；以前夹具想说「这个工作区选过了」只能调 reg.bind，那个口子已经删了。
-import decideStub from '../../lib/deck-decide-stub.js'
-const chooseWorkspace = decideStub.chooseWorkspace
-const workspaceFileOf = decideStub.workspaceFileOf
+import { chooseWorkspace, workspaceFileOf } from '../../lib/deck-decide-stub.js'
 
 const HEX6 = /^[0-9a-f]{6}$/
 const KNOWN_KINDS = Object.values(ERROR_KIND)
