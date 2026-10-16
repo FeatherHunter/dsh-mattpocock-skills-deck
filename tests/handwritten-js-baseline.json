@@ -250,7 +250,6 @@
     "tests/smoke-render.test.js",
     "tests/tracker-contract/fixtures/markdown.js",
     "tests/tracker-contract/sections/idempotency-counterproof.js",
-    "tests/verify-686-accept.js",
     "tests/verify-691-markdown-counts-page.js",
     "tests/verify-693-detail-fallback-honesty.js",
     "tests/verify-696-shared-cache.js",
