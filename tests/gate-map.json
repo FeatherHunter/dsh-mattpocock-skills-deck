@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T18:35:20.186Z",
+  "generatedAt": "2026-10-16T18:37:52.931Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 302,
   "gateCount": 302,
@@ -2502,8 +2502,8 @@
       "reason": "归属来自：静态 import 说明符 6 条"
     },
     {
-      "step": "node tests/verify-691-markdown-counts-page.js",
-      "file": "tests/verify-691-markdown-counts-page.js",
+      "step": "node tests/verify-691-markdown-counts-page.ts",
+      "file": "tests/verify-691-markdown-counts-page.ts",
       "guards": [
         "src/tracker/rooms/markdown/counts.ts",
         "src/tracker/rooms/markdown/issues-read.ts",
@@ -7995,7 +7995,7 @@
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
       "node tests/verify-686-accept.ts",
-      "node tests/verify-691-markdown-counts-page.js",
+      "node tests/verify-691-markdown-counts-page.ts",
       "node tests/verify-723-gate-wiring.js",
       "node tests/verify-784-effortId.js",
       "node tests/verify-922-ticket-file-queue.js",

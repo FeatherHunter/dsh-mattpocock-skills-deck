@@ -1,5 +1,5 @@
 /**
- * tests/verify-691-markdown-counts.js — 本地 Markdown 后端的计数（counts）门禁（#691 的第 4 件交付物）。
+ * tests/verify-691-markdown-counts-page.ts — 本地 Markdown 后端的计数（counts）门禁（#691 的第 4 件交付物）。
  *
  * 断的是 #688 第一手实测定下的口径（数「列举会返回的那些票行」）与契约的「拿不全就整体失败」：
  *   一、计数等于目录里真实的票数（notes.md 不算票、地图容器行不算票）；
@@ -13,7 +13,7 @@
  * fs/platform 适配器形状；不打真网、不碰真实工作区（临时目录用完即删）。
  * 「读不动」是让适配器在读指定文件名时抛错，效果与真机上「权限不足 / 读到时已被删 / 被锁住」相同。
  *
- * 运行：node tests/verify-691-markdown-counts.js
+ * 运行：node tests/verify-691-markdown-counts-page.ts
  */
 
 import * as fs from 'node:fs'
@@ -23,39 +23,49 @@ import { countIssues } from '../src/tracker/rooms/markdown/counts.ts'
 import { listIssues } from '../src/tracker/rooms/markdown/issues-read.ts'
 import { listIssuesPage } from '../src/tracker/rooms/markdown/page.ts'
 
+// 假适配器的形状故意只按本文件真用到的那几件事收窄，不照抄产品的完整接口：
+// 产品那几个模块要的是 OpContext / RepoWithPath，这里用 Parameters 取「跟产品签名同源」的类型，
+// 再在造夹具那一处断言成它 —— 改动产品签名时这里会当场编译不过，不会悄悄放行。
+type MdCtx = Parameters<typeof countIssues>[0]
+type CountRepo = Parameters<typeof countIssues>[1]
+type PageRepo = Parameters<typeof listIssuesPage>[1]
+type CountsOut = Awaited<ReturnType<typeof countIssues>>
+type ListOut = Awaited<ReturnType<typeof listIssues>>
+type PageOut = Awaited<ReturnType<typeof listIssuesPage>>
+
 let failed = false
-const check = (ok, msg) => {
+const check = (ok: unknown, msg: string): void => {
   console.log((ok ? '  PASS ' : '  FAIL ') + msg)
   if (!ok) failed = true
 }
-const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
-const countsText = (r) => (r && r.ok ? '三个键都对=' + same(Object.keys(r.data).sort(), ['closed', 'open', 'total']) + ' open=' + r.data.open + ' closed=' + r.data.closed + ' total=' + r.data.total : JSON.stringify(r))
+const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b)
+const countsText = (r: CountsOut): string => (r.ok ? '三个键都对=' + same(Object.keys(r.data).sort(), ['closed', 'open', 'total']) + ' open=' + r.data.open + ' closed=' + r.data.closed + ' total=' + r.data.total : JSON.stringify(r))
 
 /** 与 tests/verify-markdown-backend.js 同一套适配器形状；unreadable 里的文件名在读的时候抛错。 */
-function makeCtx(cwd, unreadable = []) {
+function makeCtx (cwd: string, unreadable: string[] = []): MdCtx {
   const plat = {
     path: path.posix,
     fs: {
-      async resolve(p) { return p },
-      async readText(t) {
-        if (unreadable.includes(String(t).split('/').pop())) {
-          const e = new Error('EACCES: permission denied, open ' + t)
+      async resolve (p: string): Promise<string> { return p },
+      async readText (t: string): Promise<string> {
+        if (unreadable.includes(String(t).split('/').pop() as string)) {
+          const e = new Error('EACCES: permission denied, open ' + t) as Error & { code?: string }
           e.code = 'EACCES'
           throw e
         }
         return fs.readFileSync(t, 'utf8')
       },
-      async writeText(t, c) { fs.mkdirSync(path.dirname(t), { recursive: true }); fs.writeFileSync(t, c, 'utf8') },
-      async lstat(t) { try { return fs.statSync(t) } catch { return null } },
-      async listDir(t) { try { return fs.readdirSync(t) } catch { return [] } },
-      async stat(t) { try { return fs.statSync(t) } catch { return null } },
+      async writeText (t: string, c: string): Promise<void> { fs.mkdirSync(path.dirname(t), { recursive: true }); fs.writeFileSync(t, c, 'utf8') },
+      async lstat (t: string): Promise<fs.Stats | null> { try { return fs.statSync(t) } catch { return null } },
+      async listDir (t: string): Promise<string[]> { try { return fs.readdirSync(t) } catch { return [] } },
+      async stat (t: string): Promise<fs.Stats | null> { try { return fs.statSync(t) } catch { return null } },
     },
   }
-  return { platform: plat, fs: plat.fs, cwd, get(name) { if (name === 'fs') return plat.fs; return undefined } }
+  return { platform: plat, fs: plat.fs, cwd, get (name: string) { if (name === 'fs') return plat.fs; return undefined } } as unknown as MdCtx
 }
 
 /** 在临时工作区里写一个工作单元（地图 + 若干票文件）；tickets 里每项是 [文件名, 状态, 额外行]。 */
-function writeEffort(root, effortId, tickets) {
+function writeEffort (root: string, effortId: string, tickets: Array<[file: string, status: string, extra?: string]>): string {
   const dir = path.join(root, '.scratch', effortId)
   fs.mkdirSync(path.join(dir, 'issues'), { recursive: true })
   fs.writeFileSync(path.join(dir, 'map.md'), '# 工作单元 ' + effortId + '\n\nStatus: ready-for-agent\n\n## Destination\n\n夹具\n', 'utf8')
@@ -66,7 +76,7 @@ function writeEffort(root, effortId, tickets) {
   return dir
 }
 
-const REPO = { backend: 'markdown', refId: '.scratch/demo', name: 'demo', url: '' }
+const REPO = { backend: 'markdown', refId: '.scratch/demo', name: 'demo', url: '' } as unknown as CountRepo & PageRepo
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'md-691-counts-'))
 
 console.log('== 一、计数等于目录里真实的票数（notes.md 不算票、地图容器行不算票） ==')
@@ -87,7 +97,7 @@ console.log('== 一、计数等于目录里真实的票数（notes.md 不算票�
   const r = await countIssues(ctx, REPO, {})
   check(r.ok && r.data.open === 2 && r.data.closed === 3 && r.data.total === 5,
     '两个工作单元一起数：2 开 + 3 关 = 5 张票（目录里真实票数）→ ' + countsText(r))
-  const rows = await listIssues(ctx, REPO, {})
+  const rows: ListOut = await listIssues(ctx, REPO, {})
   check(rows.ok && rows.data.length === 7,
     '同一份夹具上列举回 7 行 = 5 张票 + 2 张地图容器行（数字与行同源，地图行没算进票数）→ 实得 ' + (rows.ok ? rows.data.length : '失败') + ' 行')
 
@@ -131,12 +141,12 @@ console.log('\n== 三、票文件读不动 → 失败（不是少一行），消
 
   const r = await countIssues(ctx, hurtRepo, {})
   check(r.ok === false, 'counts 回失败（绝不静默少一行、绝不回一个偏小的数）→ ' + JSON.stringify(r))
-  check(r.ok === false && r.error && typeof r.error.message === 'string' && r.error.message.includes('03'),
+  check(r.ok === false && typeof r.error.message === 'string' && r.error.message.includes('03'),
     '失败消息里说清是哪个编号的文件 → ' + (r.ok === false ? r.error.message : '(回成功了)'))
   check(r.ok === false && ['env', 'auth', 'parse', 'not-found', 'network'].includes(r.error.kind),
     '失败档位是既有错误分类之一 → ' + (r.ok === false ? r.error.kind : '(回成功了)'))
 
-  const rows = await listIssues(ctx, hurtRepo, {})
+  const rows: ListOut = await listIssues(ctx, hurtRepo, {})
   const ticketRows = rows.ok ? rows.data.filter((x) => x.type === 'issue') : []
   check(rows.ok && ticketRows.length === 2,
     '同一次 list 仍按既有口径静默少一行（既有行为一个字没改，只有 counts 这条路如实报错）→ 实得票行 ' + ticketRows.length + ' 张')
@@ -167,12 +177,12 @@ console.log('\n== 五、按页取票（listPage）：创建时间倒序、游标
   writeEffort(ws, 'page', [['01-old.md', 'resolved', ''], ['02-mid.md', 'resolved', ''], ['03-new.md', 'ready-for-agent', '']])
   const dir = path.join(ws, '.scratch', 'page', 'issues')
   const t0 = Date.parse('2026-01-01T00:00:00.000Z')
-  const stamp = (f, mins) => fs.utimesSync(path.join(dir, f), new Date(t0 + mins * 60000), new Date(t0 + mins * 60000))
+  const stamp = (f: string, mins: number): void => fs.utimesSync(path.join(dir, f), new Date(t0 + mins * 60000), new Date(t0 + mins * 60000))
   stamp('01-old.md', 0); stamp('02-mid.md', 10); stamp('03-new.md', 20)
   const ctx = makeCtx(ws)
   const pageRepo = { ...REPO, refId: '.scratch/page' }
 
-  const p1 = await listIssuesPage(ctx, pageRepo, {}, { limit: 2 })
+  const p1: PageOut = await listIssuesPage(ctx, pageRepo, {}, { limit: 2 })
   check(p1.ok && p1.data.items.length === 2 && p1.data.total === 3 && p1.data.nextCursor === '2',
     '第一页：按创建时间倒序切两行、总数 3、下一页游标 2 → ' + JSON.stringify(p1.ok ? { keys: p1.data.items.map((x) => x.key), total: p1.data.total, next: p1.data.nextCursor } : p1.error))
   check(p1.ok && p1.data.items.map((x) => x.key).join(',') === '03,02',
@@ -180,24 +190,24 @@ console.log('\n== 五、按页取票（listPage）：创建时间倒序、游标
   check(p1.ok && p1.data.items.every((x) => x.body === undefined && x.comments === undefined),
     '行数据是薄片段：不带正文、不带评论 → 实得 ' + (p1.ok ? JSON.stringify(Object.keys(p1.data.items[0])) : '(失败)'))
 
-  const p2 = await listIssuesPage(ctx, pageRepo, {}, { cursor: p1.data.nextCursor, limit: 2 })
+  const p2: PageOut = await listIssuesPage(ctx, pageRepo, {}, { cursor: p1.ok ? p1.data.nextCursor : null, limit: 2 })
   check(p2.ok && p2.data.items.map((x) => x.key).join(',') === '01' && p2.data.nextCursor === null,
     '第二页接上第一页的游标：只剩 01、且没有下一页（nextCursor 为 null）→ ' + (p2.ok ? JSON.stringify({ keys: p2.data.items.map((x) => x.key), next: p2.data.nextCursor }) : JSON.stringify(p2.error)))
-  const all = p1.data.items.concat(p2.data.items).map((x) => x.key)
+  const all = (p1.ok ? p1.data.items : []).concat(p2.ok ? p2.data.items : []).map((x) => x.key)
   check(all.length === 3 && new Set(all).size === 3, '翻到底拼起来不重不漏（三张票各出现一次）→ ' + all.join(','))
 
-  const closed = await listIssuesPage(ctx, pageRepo, { state: 'closed' }, { limit: 50 })
+  const closed: PageOut = await listIssuesPage(ctx, pageRepo, { state: 'closed' }, { limit: 50 })
   check(closed.ok && closed.data.total === 2 && closed.data.items.every((x) => String(x.state).toUpperCase() === 'CLOSED'),
     'filter.state=closed 收窄：只回已关闭的两张，总数与它同口径 → ' + (closed.ok ? JSON.stringify({ n: closed.data.items.length, total: closed.data.total }) : JSON.stringify(closed.error)))
 
-  const badCursor = await listIssuesPage(ctx, pageRepo, {}, { cursor: '9' })
+  const badCursor: PageOut = await listIssuesPage(ctx, pageRepo, {}, { cursor: '9' })
   check(badCursor.ok === false && badCursor.error.kind === 'not-found' && badCursor.error.message.includes('游标已失效'),
     '游标越过现在这份数据 → 明说「游标已失效，请重新加载」（界面据此重取第一页）→ ' + JSON.stringify(badCursor.error))
-  const junkCursor = await listIssuesPage(ctx, pageRepo, {}, { cursor: 'abc' })
+  const junkCursor: PageOut = await listIssuesPage(ctx, pageRepo, {}, { cursor: 'abc' })
   check(junkCursor.ok === false && junkCursor.error.kind === 'parse',
     '游标不是数字 → 解析档失败（不假装历史翻到了头）→ ' + JSON.stringify(junkCursor.error))
 
-  const readHurt = await listIssuesPage(makeCtx(ws, ['02-mid.md']), pageRepo, {}, { limit: 50 })
+  const readHurt: PageOut = await listIssuesPage(makeCtx(ws, ['02-mid.md']), pageRepo, {}, { limit: 50 })
   check(readHurt.ok === false && String(readHurt.error.message).includes('02'),
     '有票文件读不动 → 整页整体失败（不许在历史里悄悄少几行）→ ' + JSON.stringify(readHurt.error))
 }
@@ -205,11 +215,11 @@ console.log('\n== 五、按页取票（listPage）：创建时间倒序、游标
 console.log('\n== 六、limit 上限 200：要多了按上限给，不是报错 ==')
 {
   const ws = fs.mkdtempSync(path.join(tmpRoot, 'ws-g-'))
-  const many = []
+  const many: Array<[string, string, string]> = []
   for (let i = 1; i <= 205; i++) many.push([String(i).padStart(2, '0') + '-t.md', 'resolved', ''])
   writeEffort(ws, 'big', many)
   const ctx = makeCtx(ws)
-  const r = await listIssuesPage(ctx, { ...REPO, refId: '.scratch/big' }, {}, { limit: 999 })
+  const r: PageOut = await listIssuesPage(ctx, { ...REPO, refId: '.scratch/big' }, {}, { limit: 999 })
   check(r.ok && r.data.items.length === 200 && r.data.total === 205 && r.data.nextCursor === '200',
     '要 999 行 → 按上限给 200 行，总数仍是 205，游标指向 200 → ' + (r.ok ? JSON.stringify({ n: r.data.items.length, total: r.data.total, next: r.data.nextCursor }) : JSON.stringify(r.error)))
 }
