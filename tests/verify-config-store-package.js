@@ -4,7 +4,7 @@
 //      主版本号一致；两份文件的版本号一致且为当前候选版（发版推进时同步改这里的两处字面）。
 //   P2 装好的包里能解析：node_modules/yaml 可加载，且用它能解析一份 YAML。
 //   P3 核产物随包发布：package/package.json 的 files 白名单含 shared（产物能进包）。
-//   P4 宿主适配器可加载：src/host/configStore.js 能 import，六个冻结函数都在。
+//   P4 宿主适配器可加载：src/host/configStore.js 能 import，八个冻结函数都在（两个文本出入口 + 六个文件读写）。
 // 用法：node tests/verify-config-store-package.js（在仓库根目录）
 const fs = require('fs')
 const path = require('path')
