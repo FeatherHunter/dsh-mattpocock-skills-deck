@@ -118,11 +118,33 @@ export     const MapDetail = ({ st, g, drill }) => {
       }
       const node = function (t) {
         const blocked = isFog(t)
+        // #1237：复制是瞬间动作，不套转圈；按剪贴板真实结果换对勾叉号加闪光，
+        //   成功 1.3 秒自退，失败留到下一次操作（下一次点复制先清掉）。逻辑与列表页 ListTabRow.js 的复制按钮同一份。
+        const copyUrl = function (x) {
+          const key = idOf(x)
+          st.copyFlash = null
+          emit(st)
+          const done = function (ok) {
+            st.copyFlash = { key: key, kind: ok === true ? 'ok' : 'fail', at: Date.now() }
+            emit(st)
+            // 复制成功提示的停留时间：对勾闪光亮这么久就自己退掉（失败不设时限，留到下一次操作才换）。
+            // 数值写在 config/ttl.yaml 的 copyFlashMs，构建时由生成器变成常量拼进界面闭包。
+            if (ok === true) { try { setTimeout(function () { if (st.copyFlash && st.copyFlash.key === key && st.copyFlash.kind === 'ok') { st.copyFlash = null; try { emit(st) } catch (eR) {} } }, COPY_FLASH_MS) } catch (eT) {} }
+          }
+          try {
+            const r = copyText(st, issueUrlFor(st, x.number, effortOf(x)), tr('toast.copiedLink', { n: x.number }))
+            if (r && typeof r.then === 'function') r.then(done, function () { done(false) })
+            else done(!!r)
+          } catch (eC) { done(false) }
+        }
+        const copyRes = (st.copyFlash && st.copyFlash.key === idOf(t)) ? st.copyFlash.kind : ''
         // T15：acts 恒渲染容器（CLOSED/fog 空占位）→ 卡片高度恒定
         // 补齐「新会话」按钮（与列表页 issueRow 一致）：primary 色随 actionColorOf，浅色自动深字，marginLeft 4 与 mkRowAction 成组
         const acts = h('div', { className: 'acts' }, (t.state === 'OPEN' && !blocked) ? [
           mkRowAction(st, t, false, colorOf),
           h(Tip, { content: tr('tip.newSession', { n: t.number }) }, h('button', { className: 'dsws-btn primary', onClick: function (e) { e.stopPropagation(); openInNewSession(st, t) }, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', fontSize: 11, flex: 'none', marginLeft: 4, background: actionColorOf(t, colorOf), borderColor: 'transparent', color: isLightHex(actionColorOf(t, colorOf)) ? '#140a1e' : '#ffffff' } }, [Ic({ n: 'external-link', size: 10 }), h('span', null, tr('list.newSessionLabel'))])),
+          // #1237：补上复制链接按钮（与列表页 ListTabRow.js:130 同一样式与同反馈；图标取 11，与本行外链按钮对齐）
+          h(Tip, { content: tr('tip.copyLink') }, h('button', { className: 'dsws-btn ghost' + (copyRes === 'ok' ? ' dsws-fb-okflash dsws-fb-success-ring dsws-fb-pop' : '') + (copyRes === 'fail' ? ' dsws-fb-errflash dsws-fb-shake' : ''), onClick: function (e) { e.stopPropagation(); copyUrl(t) }, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '2px 4px', flex: 'none' } }, copyRes === 'ok' ? Ic({ n: 'check', size: 11 }) : (copyRes === 'fail' ? Ic({ n: 'x', size: 11 }) : Ic({ n: 'clipboard', size: 11 })))),
           (function(){ const _u=issueUrlFor(st, t.number, effortOf(t)); const _isHttp=/^https?:\/\//i.test(String(_u||'')); const _open=function(e){ e.stopPropagation(); const u=issueUrlFor(st, t.number, effortOf(t)); if(!u) return; if(/^https?:\/\//i.test(String(u))) { try{ window.open(u,'_blank','noreferrer') }catch{} } else { try{ if(typeof host!=='undefined'&&host.call) host.call('wf.openPath',{path:u}) }catch{} } }; return _isHttp ? h(Tip, {content: tr('list.openInTrackerTitle', { n: t.number })}, h('a', { className: 'dsws-btn ghost', href: _u, target: '_blank', rel: 'noreferrer', onClick: function (e) { e.stopPropagation() }, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '2px 4px' }, 'aria-label': tr('list.openInTrackerTitle', { n: t.number }) }, Ic({ n: 'link', size: 11 }))) : h(Tip, {content: tr('list.openInTrackerTitle', { n: t.number })}, h('button', { className: 'dsws-btn ghost', onClick: _open, style: { textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '2px 4px' }, 'aria-label': tr('list.openInTrackerTitle', { n: t.number }) }, Ic({ n: 'link', size: 11 }))); })(),
         ] : [])
         // v1.4 修复：图标名必须用 Ic 支持的（search/hammer/chat/gear），原 mag/bolt/wrench 不存在 → 节点图标空白
