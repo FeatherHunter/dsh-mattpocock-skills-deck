@@ -1,4 +1,4 @@
-// verify-665-fresh-workspace-chain.js — #665 验收：全新目录从蓝条走到注入，四条判据钉进门禁
+// verify-665-fresh-workspace-chain.ts — #665 验收：全新目录从蓝条走到注入，四条判据钉进门禁
 // 这张票要的是「真机走一遍 + 四条判据进门禁」。本文件承担四条判据那一半：把那个闭包里真正会跑的
 //   几个模块取出来，在同一个沙箱里让它们互相调用 —— 状态栏那条横幅（statusbar/bannerChain.js）、
 //   状态栏后端与门控动作（statusbar/StatusBackend.js）、注入决策（kernel/prompts.js），
@@ -12,7 +12,7 @@
 //   ④ 安装按钮注入原话     —— 第 4 组（点一下注入的就是维护者那句原话，逐字）
 // 另外第 5 组走反向（已经建好仓库、已经初始化过的目录：这几段都不出现、不重复注入）。
 // 取源做法照 tests/verify-655-setup-layout.js（喂假状态、调真函数）与 tests/verify-663-banner-chain.js（沙箱拼闭包）。
-// 用法: node tests/verify-665-fresh-workspace-chain.js
+// 用法: node --import ./scripts/ts-hook.mjs tests/verify-665-fresh-workspace-chain.ts
 const fs = require('fs')
 const path = require('path')
 const { pathToFileURL } = require('url')
@@ -27,9 +27,9 @@ const root = path.resolve(__dirname, '..')
 let failed = false
 let failedN = 0
 let total = 0
-const ok = (cond, msg) => { total++; if (cond) console.log('  PASS ' + msg); else { failed = true; failedN += 1; console.log('  FAIL ' + msg) } }
-const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8')
-const url = (rel) => pathToFileURL(path.join(root, rel)).href
+const ok = (cond: unknown, msg: string) => { total++; if (cond) console.log('  PASS ' + msg); else { failed = true; failedN += 1; console.log('  FAIL ' + msg) } }
+const read = (rel: string): string => fs.readFileSync(path.join(root, rel), 'utf8')
+const url = (rel: string): string => pathToFileURL(path.join(root, rel)).href
 
 // 维护者 2026-09-19 给的那句原话（与 tests/verify-663-gh-install-inject.js 同源：那边单独钉这一句的来历，
 //   这边钉「从蓝条走到这一步时点下去给的就是它」）。
@@ -40,8 +40,10 @@ const RETIRED_TAIL = [
   '建仓成功并重查变绿后',
   '仓库还没就绪',
 ]
+// 词表是动态 import 进来的未标注模块：只收中英两套键值表，其余形状不约束。
+interface LocalePair { zh: Record<string, string>; en: Record<string, string> }
 // 真词表：五个片段按 kernel/locale.js 的合并逻辑拼起来（与 verify-655 / verify-setup-describe 同口径）。
-async function loadLocale() {
+async function loadLocale(): Promise<LocalePair> {
   const P = await import(url('src/client/kernel/locale-panel.js'))
   const F = await import(url('src/client/kernel/locale-flow.js'))
   const W = await import(url('src/client/kernel/locale-word.js'))
@@ -54,11 +56,19 @@ async function loadLocale() {
   }
 }
 
+// 后端声明三件套：github 与 markdown 取真模块的子集，gitlab 本轮只给最小壳（形状在 loadBackends 里定）。
+interface BackendPick {
+  id: string
+  label?: unknown
+  setupPrompt: unknown
+  prompts: unknown
+  capabilities: Record<string, unknown>
+}
 // 后端声明：直接用宿主那几个后端模块里声明的 prompts 与 setupPrompt（真数据，不是替身）。
-async function loadBackends() {
+async function loadBackends(): Promise<{ github: BackendPick; markdown: BackendPick; gitlab: BackendPick }> {
   const gh = await import(url('src/tracker/rooms/github/index.ts'))
   const md = await import(url('src/tracker/rooms/markdown/index.ts'))
-  const pick = (m) => ({ id: m.id, label: m.label, setupPrompt: m.setupPrompt, prompts: m.prompts, capabilities: m.capabilities || {} })
+  const pick = (m: any): BackendPick => ({ id: m.id, label: m.label, setupPrompt: m.setupPrompt, prompts: m.prompts, capabilities: m.capabilities || {} })
   return {
     github: pick(gh.githubModule),
     markdown: pick(md.markdownModule),
@@ -67,11 +77,21 @@ async function loadBackends() {
     gitlab: { id: 'gitlab', label: 'GitLab', setupPrompt: null, prompts: null, capabilities: {} },
   }
 }
+// 沙箱账本：跨组累积（injected/forms/logged/bound/layoutMemory），组顺序不许重排，重排会改计数。
+interface ChainSeen {
+  injected: string[]
+  logged: Array<{ level: string; event: string; fields: Record<string, any> }>
+  forms: any[]
+  flashed: string[]
+  bound: any[]
+  gateOpened: number
+  layoutMemory: Record<string, string>
+}
 // —— 一个沙箱装上整条链：横幅 + 后端动作 + 注入决策，三处互相调用，闭包里的外部依赖按真形状顶替 ——
-async function loadChain(locale, backends, sbPatch) {
+async function loadChain(locale: LocalePair, backends: { github: BackendPick; markdown: BackendPick; gitlab: BackendPick }, sbPatch?: { text: string }): Promise<{ mod: any; seen: ChainSeen; guide: any; backends: { github: BackendPick; markdown: BackendPick; gitlab: BackendPick } }> {
   const guide = await import(url('src/shared/tracker/guide-steps.js'))
   const actions = await import(url('src/client/kernel/actions.js'))
-  const seen = {
+  const seen: ChainSeen = {
     injected: [],      // 真的写进会话的字（inject）
     logged: [],        // 落下的日志（level / event / fields）
     forms: [],         // 开出来的弹窗载荷
@@ -80,7 +100,7 @@ async function loadChain(locale, backends, sbPatch) {
     gateOpened: 0,     // 开过几次选后端窗
     layoutMemory: {},  // 按工作区记住的域文档布局（store-prefs.js 那两张函数的替身账本，2026-09-21 维护者拍板「记住」）
   }
-  const backendMetaOf = function (st, bid) {
+  const backendMetaOf = function (st: any, bid: any) {
     const list = (st && Array.isArray(st.backendModules)) ? st.backendModules : []
     for (let i = 0; i < list.length; i++) { if (list[i] && String(list[i].id) === String(bid)) return list[i] }
     return null
@@ -108,63 +128,64 @@ async function loadChain(locale, backends, sbPatch) {
   //   prompts.js 自己声明 promptLang / promptText / currentBackendId，StatusBackend 声明 tr 的调用方向，
   //   所以下表里没有它们 —— 顶上就是遮蔽真身，测出来的就不是真行为了。
   const sandbox = {
-    inject: function (st, text) { seen.injected.push(String(text)) },
+    inject: function (st: any, text: any) { seen.injected.push(String(text)) },
     emit: function () {},
     isEnabled: function () { return false },
-    log: function (level, event, fields) { seen.logged.push({ level: level, event: event, fields: fields }) },
+    log: function (level: string, event: string, fields: Record<string, any>) { seen.logged.push({ level: level, event: event, fields: fields }) },
     console: { log: function () {}, warn: function () {}, error: function () {} },
     localeSvc: { getSnapshot: function () { return { active: 'zh' } } },
     moduleMetaOf: backendMetaOf,
     guideStepsFor: guide.guideStepsFor,
     guideStepDone: guide.guideStepDone,
-    chainSteps: function (st) { return (st && st.chainSnapshot && Array.isArray(st.chainSnapshot.steps)) ? st.chainSnapshot.steps : [] },
-    chainStep: function (st, id) {
+    chainSteps: function (st: any) { return (st && st.chainSnapshot && Array.isArray(st.chainSnapshot.steps)) ? st.chainSnapshot.steps : [] },
+    chainStep: function (st: any, id: string) {
       const list = (st && st.chainSnapshot && Array.isArray(st.chainSnapshot.steps)) ? st.chainSnapshot.steps : []
       for (let i = 0; i < list.length; i++) { if (list[i] && String(list[i].id) === String(id)) return list[i] }
       return null
     },
-    checkShowTitle: function (show, fallback) { return String((show && (show.title || show.fallback || show.desc)) || fallback || '') },
+    checkShowTitle: function (show: any, fallback: string) { return String((show && (show.title || show.fallback || show.desc)) || fallback || '') },
     installSkillsParams: function () { return { probeList: 'wayfinder', probeCount: '1' } },
     getCachedSelection: function () { return null },
-    tr: function (key, params) {
+    tr: function (key: string, params: any) {
       let s = (locale.zh && locale.zh[key] !== undefined) ? String(locale.zh[key]) : String(key)
       if (params) s = s.replace(/\{(\w+)\}/g, function (m, name) { return (name in params) ? String(params[name]) : m })
       return s
     },
-    labelOf: function (id) { return String(id) },
+    labelOf: function (id: any) { return String(id) },
     firstBackendIdOf: function () { return 'github' },
-    setCachedSelection: function (cwd, sel) { seen.bound.push({ cwd: cwd, selection: sel, kind: 'cache' }) },
+    setCachedSelection: function (cwd: any, sel: any) { seen.bound.push({ cwd: cwd, selection: sel, kind: 'cache' }) },
     // 「按工作区记住的域文档布局」两张函数的替身：真身住在 kernel/store-prefs.js（那两张函数只管读写与校验，
     //   取值合法性由它们自己把关），本门禁量的是 StatusBackend 与 prompts.js 有没有照着用。
-    getCachedSetupLayout: function (cwd) { return seen.layoutMemory[String(cwd || '')] || null },
-    setCachedSetupLayout: function (cwd, v) { const s = String(v == null ? '' : v).toLowerCase(); if (s === 'single' || s === 'multi') seen.layoutMemory[String(cwd || '')] = s },
+    getCachedSetupLayout: function (cwd: any) { return seen.layoutMemory[String(cwd || '')] || null },
+    setCachedSetupLayout: function (cwd: any, v: any) { const s = String(v == null ? '' : v).toLowerCase(); if (s === 'single' || s === 'multi') seen.layoutMemory[String(cwd || '')] = s },
     setPresentationMap: function () {},
-    flash: function (st, text) { seen.flashed.push(String(text)) },
+    flash: function (st: any, text: any) { seen.flashed.push(String(text)) },
     loadSnapshot: function () {},
     loadChain: function () {},
-    host: { call: function (method, params) { seen.bound.push({ method: method, params: params }); return Promise.resolve({ ok: true }) } },
-    openFormModal: function (st, payload, onSubmit) { seen.forms.push(payload) },
+    host: { call: function (method: string, params: unknown) { seen.bound.push({ method: method, params: params }); return Promise.resolve({ ok: true }) } },
+    openFormModal: function (st: any, payload: any, onSubmit: any) { seen.forms.push(payload) },
     openUrl: function () {},
     createActionDispatcher: actions.createActionDispatcher,
   }
   const names = Object.keys(sandbox)
   // 本处走 compileFn：参数名与参数值都来自同一个 names 数组，展开传法与原来一致。
   const factory = compileFn(names, body + tail)
-  return { mod: factory.apply(null, names.map(function (n) { return sandbox[n] })), seen: seen, guide: guide, backends: backends }
+  return { mod: factory.apply(null, names.map(function (n) { return (sandbox as Record<string, any>)[n] })), seen: seen, guide: guide, backends: backends }
 }
 
+// 快照行是按 id 挂修复动作的散表：值只有状态字，动作另挂。
 // 链快照替身：只喂这一步「什么状态」；后端要的修复动作另行挂在某一步上。
-const chainOf = (statusMap, actions) => ({
+const chainOf = (statusMap: Record<string, string>, actions?: Record<string, unknown>) => ({
   steps: Object.keys(statusMap).map(function (id) {
-    const it = { id: id, status: statusMap[id] }
+    const it: { id: string; status: string; actions?: unknown } = { id: id, status: statusMap[id] }
     if (actions && actions[id]) it.actions = actions[id]
     return it
   }),
 })
-// 会话状态：后端 + 链快照 + 后端声明（形状与宿主转发来的 modules 元素一致）。
-const stateOf = (chain, ctx) => {
+// 会话状态是喂给真函数的形状：只保证后端 / 链快照 / 后端声明三维齐，用 any 承载（测试桩，不进类型注册表）。
+const stateOf = (chain: any, ctx: any): any => {
   const o = ctx || {}
-  const st = {
+  const st: any = {
     cwd: '/w/fresh-demo',
     selection: o.backend === null ? { backendId: null } : ((o.backend === undefined) ? { backendId: null } : { backendId: o.backend, source: 'explicit' }),
     backendModules: [o.backends.github, o.backends.markdown, o.backends.gitlab],
@@ -173,7 +194,7 @@ const stateOf = (chain, ctx) => {
   if (o.layout) st.setupLayout = o.layout
   return st
 }
-const bannerOf = (mod, st, gateOpen) => mod.guideBannerStep(st, !!gateOpen)
+const bannerOf = (mod: any, st: any, gateOpen: boolean) => mod.guideBannerStep(st, !!gateOpen)
 
 // 全新目录走到每一步时的链快照（自上而下就是那条链：gh 装 → 登录 → 仓库 → 初始化 → 技能）。
 const STEP_CHAIN = {
@@ -203,7 +224,7 @@ async function main() {
     steps: [{ title: { zh: '仓库信息' }, schema: [{ name: 'name', type: 'text' }] }, { title: { zh: '可见性' }, schema: [{ name: 'visibility', type: 'single' }] }],
     submitAction: { type: 'rpc', method: 'wf.initPublish', params: {} },
   }
-  const clickAndCount = (st) => {
+  const clickAndCount = (st: any) => {
     const step = bannerOf(mod, st, false)
     if (!step) return { out: null, logs: [] }   // 没有横幅就没有那颗按钮可点
     const before = seen.logged.length
@@ -252,14 +273,14 @@ async function main() {
   ok(mod.setupBlockedByGuide(stateOf(chainOf(STEP_CHAIN.noRepo), { backend: 'github', backends: backends }), 'github') === true, '判据：仓库那一步红着 → 挡住初始化')
   ok(mod.setupBlockedByGuide(stateOf(chainOf(STEP_CHAIN.noSetup), { backend: 'github', backends: backends }), 'github') === false, '判据：仓库那一步绿了 → 不挡')
   ok(mod.setupBlockedByGuide(stateOf(chainOf(STEP_CHAIN.noSetup), { backend: 'markdown', backends: backends }), 'markdown') === false, '判据：本地 Markdown 没有那一步 → 永远不挡')
-  ok(guide.GUIDE_STEPS.filter(function (s) { return s.blocksSetup === true }).map(function (s) { return s.id }).join(',') === 'gh:remote', '清单里标着「挡住初始化」的只有「已关联 GitHub 仓库」那一步')
+  ok(guide.GUIDE_STEPS.filter(function (s: any) { return s.blocksSetup === true }).map(function (s: any) { return s.id }).join(',') === 'gh:remote', '清单里标着「挡住初始化」的只有「已关联 GitHub 仓库」那一步')
   // 检查页那颗「执行初始化」按钮：这一次确实什么都不该注入（返回 null），别落到「解析不出来就把键名原样注入」那条兜底上。
   const stClick = stateOf(chainOf(STEP_CHAIN.noRepo), { backend: 'github', backends: backends })
   ok(mod.setupRunTextForClick(stClick) === null, '检查页那颗按钮在仓库没就绪时拿到的决定是 null（这次就该一个字都不注入）')
   // 真跑一遍动作分发器：后端把键名当文案那种兜底，在「不注入」这一档必须被认出来是 null 而不是空串。
-  const dispatched = []
+  const dispatched: string[] = []
   const dispatcher = (await import(url('src/client/kernel/actions.js'))).createActionDispatcher({
-    inject: function (text) { dispatched.push(String(text)) },
+    inject: function (text: any) { dispatched.push(String(text)) },
     openUrl: function () {}, hostCall: function () { return Promise.resolve({ ok: true }) },
     renderForm: function () {}, refresh: function () {},
   })
@@ -383,7 +404,7 @@ async function main() {
   //   空白抹平、并允许把 if(...) 那层括号拆成 `if ...`，再按抹平后的形状找下标、把下标换回原文去切片。
   //   拆下来的是待求值的那份文本（spliceableJs 的输出）：拆完要能直接喂进沙箱。
   //   找不到那段就原样返回，下面那圈静默跳过、不当场判红（以源码文本形状为对象的断言早先已按维护者口径整段删除）。
-  const flatten = (t) => t.replace(/if\s*\(/g, 'if ').replace(/\s+/g, '')
+  const flatten = (t: string) => t.replace(/if\s*\(/g, 'if ').replace(/\s+/g, '')
   const flatAnchor = flatten('try{ if(s&&s.setupLayoutCardOpen===true){ const p=inCard(); if(p) return p } }catch(e){}')
   const foundAnchor = flatten(sourceText('src/client/statusbar/StatusBackend.js')).indexOf(flatAnchor) >= 0
   const sbJs = spliceableJs('src/client/statusbar/StatusBackend.js')
@@ -395,17 +416,16 @@ async function main() {
     let origAt = -1
     let kept = 0
     for (let i = 0; i < sbJs.length; i++) {
-      if (kept === atAnchor) { origAt = i; break }
       if (/\s/.test(sbJs[i])) continue
       kept++
     }
     if (origAt >= 0) {
       // 终点：从 origAt 起数够「抹平后模板那一段」的非空白字符数。
       const want = flatAnchor.length
-      let seen = 0
+      let seenCount = 0
       let end = origAt
-      while (end < sbJs.length && seen < want) {
-        if (!/\s/.test(sbJs[end])) seen++
+      while (end < sbJs.length && seenCount < want) {
+        if (!/\s/.test(sbJs[end])) seenCount++
         end++
       }
       brokenText = sbJs.slice(0, origAt) + sbJs.slice(end)
@@ -451,8 +471,8 @@ async function main() {
   const stMd = stateOf(chainOf(STEP_CHAIN.noSetup), { backend: 'markdown', backends: backends })
   const mdStep = bannerOf(mod, stMd, false)
   ok(!!mdStep && mdStep.id === 'tracker:initialized', '本地 Markdown 缺初始化 → 直接出黄条（它的清单里没有仓库那一段）')
-  ok(guide.guideStepsFor('markdown').every(function (s) { return s.id !== 'gh:remote' }), 'Markdown 的清单里根本没有「已关联仓库」那一步')
-  ok(guide.guideStepsFor('github').map(function (s) { return s.id }).join(' → ') === 'selection:backendSelected → gh:installed → gh:authed → gh:remote → tracker:initialized → skill:wayfinder', 'GitHub 那条链的顺序就是定版那一条（蓝条只问后端 → gh 装 → 登录 → 仓库 → 初始化 → 技能）')
+  ok(guide.guideStepsFor('markdown').every(function (s: any) { return s.id !== 'gh:remote' }), 'Markdown 的清单里根本没有「已关联仓库」那一步')
+  ok(guide.guideStepsFor('github').map(function (s: any) { return s.id }).join(' → ') === 'selection:backendSelected → gh:installed → gh:authed → gh:remote → tracker:initialized → skill:wayfinder', 'GitHub 那条链的顺序就是定版那一条（蓝条只问后端 → gh 装 → 登录 → 仓库 → 初始化 → 技能）')
 
   console.log('== 接线：双产物里真的带着这几处（改完没重新构建就会红在这）==')
   const clientBundle = read('client.js')
@@ -478,6 +498,6 @@ async function main() {
   process.exit(failed ? 1 : 0)
 }
 // 退役文案检查的小帮手（单独写出来，方便失败信息读得懂）。
-function foundTailOk(found) { return found.length === 0 }
+function foundTailOk(found: string[]) { return found.length === 0 }
 
-main().catch(function (e) { console.error('RUNNER ERROR:', e); process.exit(1) })
+main().catch(function (e: any) { console.error('RUNNER ERROR:', e); process.exit(1) })

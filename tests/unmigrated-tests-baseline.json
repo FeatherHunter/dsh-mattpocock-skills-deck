@@ -23,7 +23,6 @@
     "tests/verify-656-subworkspace-acceptance.js",
     "tests/verify-663-banner-chain.js",
     "tests/verify-663-gh-install-inject.js",
-    "tests/verify-665-fresh-workspace-chain.js",
     "tests/verify-666-subws-mark-root.js",
     "tests/verify-667-dock-header-no-brand.js",
     "tests/verify-668-guide-steps-single-source.js",
