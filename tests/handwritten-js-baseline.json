@@ -253,7 +253,6 @@
     "tests/verify-666-subws-mark-root.js",
     "tests/verify-667-dock-header-no-brand.js",
     "tests/verify-668-guide-steps-single-source.js",
-    "tests/verify-669-choice-precedence.js",
     "tests/verify-669-collapsed-recoverable.js",
     "tests/verify-669-switch-visible.js",
     "tests/verify-670-panel-first-frame.js",
