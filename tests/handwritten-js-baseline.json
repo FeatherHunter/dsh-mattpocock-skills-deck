@@ -109,7 +109,6 @@
     "src/client/views/ListTab.js",
     "src/client/views/ListTabClosed.js",
     "src/client/views/ListTabRow.js",
-    "src/client/views/MapDetail.js",
     "src/client/views/MapDetailHead.js",
     "src/client/views/MapDetailTop.js",
     "src/client/views/NoRepoCard.js",

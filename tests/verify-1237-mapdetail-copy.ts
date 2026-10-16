@@ -1,14 +1,14 @@
 // tests/verify-1237-mapdetail-copy.ts —— #1237 门禁：地图详情页子票行必须有四个动作（主动作/新会话/复制链接/外链打开）
 // https://github.com/FeatherHunter/dsh-mattpocock-skills-deck/issues/1237
-// 门禁归属: src/client/views/MapDetail.js
-// 判据（第一性原理）：
+// 门禁归属: src/client/views/MapDetail.ts
+// 判据：
 // 1. 用户在地图详情页点一张子票，能做的事情必须和列表页那一行一样多——四个都看得见、都点得动。
 //    缺一个，就是把一条能走的路藏起来了，用户只能绕去列表页，之前 #1237 就是复制按钮没画出来。
 // 2. 复制按钮的行为与列表页 ListTabRow.js 是同一套：点一下写剪贴板，成功变对勾 1.3 秒自退，
 //    失败变叉号留到下一次操作。两边各搞一套反馈，用户会看到两种长相。
 // 跑法：node tests/verify-1237-mapdetail-copy.ts
-// 说明：按钮个数与顺序走 react-dom/server 静态渲染断（真组件、真 h、真身份算法，只桩掉渲染之外的世界）；
-//   反馈类名与列表页同口径走源码文本断（读文件不断行为，只防“自创第二套样式”这种分叉）。
+// 说明：按钮个数与顺序走 react-dom/server 静态渲染断（真组件、真 h、真身份算法，只把渲染之外的外部依赖换成假实现）；
+//   反馈类名与列表页同口径走源码文本断（读文件不断行为，只防“自创第二套样式”这种两边各搞一套的情况）。
 // 全程不用 DOM：静态字符串断言就够了。
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -17,7 +17,7 @@ import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 
 const here = dirname(fileURLToPath(import.meta.url))
-const mapDetailPath = join(here, '..', 'src', 'client', 'views', 'MapDetail.js')
+const mapDetailPath = join(here, '..', 'src', 'client', 'views', 'MapDetail.ts')
 const listRowPath = join(here, '..', 'src', 'client', 'views', 'ListTabRow.js')
 
 const trFn = (key: any, params?: any) => {
@@ -30,7 +30,7 @@ globalThis.React = React
 globalThis.tr = trFn
 globalThis.emit = () => {}
 globalThis.Ic = (props: any) => ('[icon:' + ((props && props.n) || '?') + ']')
-// 身份算法走真实现（手写桩一旦与真源分叉，门禁就测了个假环境）
+// 身份算法走真实现（手写的假实现一旦与真实现不一致，门禁就测了个假环境）
 const identityMod = await import('../src/tracker/kernel/identity-keys.js')
 const linkMod = await import('../src/client/kernel/link.js')
 const { DswsCtx, createCx } = await import('../src/client/kernel/ctx.js')
