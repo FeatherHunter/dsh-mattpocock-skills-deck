@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 /**
- * verify-965-admission.js —— 传输层准入架子（#965）的行为门禁。
+ * verify-965-admission.ts —— 传输层准入架子（#965）的行为门禁。
+ *
+ * 2026-10-17 从 .js 转成 TypeScript：只改文件名、用法这行与几处类型标注，判据与断言一条没动。
  *
  * 只看外部行为，不看内部队列数组长什么样：
  * 1. 并发压 N 路，峰值不超过暂定上限（读 8 / 写 2）。
@@ -12,7 +14,7 @@
  * 原来那组「读宿主源码文本、断言 getGhLane / outbound-admission 字样出现过」的接线检查
  * 已删：断言对象是手写源码文件的文本，等价重构（换写法、搬文件、改注释）就会误报。
  *
- * 用法：node tests/verify-965-admission.js
+ * 用法：node --import ./scripts/ts-hook.mjs tests/verify-965-admission.ts
  * 退出码：0 = 通过；1 = 有违规。
  */
 const path = require('path')
@@ -20,22 +22,22 @@ const path = require('path')
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
 let total = 0
-const check = (ok, msg, detail) => {
+const check = (ok: boolean, msg: string, detail?: unknown) => {
   total += 1
   console.log((ok ? '  PASS ' : '  FAIL ') + msg + (ok || !detail ? '' : '\n         → ' + detail))
   if (!ok) failed = true
 }
 
 async function main() {
-  let mod = null
+  let mod: Record<string, any> | null = null
   try {
     mod = await import(pathToFileURL().href)
-  } catch (e) {
+  } catch (e: any) {
     check(false, '准入模块能被测到', String((e && e.message) || e))
     finish()
     return
   }
-  const { createGhAdmission, getGhLane, READ_BUCKET_MAX, WRITE_BUCKET_MAX, isAdmissionCancelled, ADMISSION_CANCELLED } = mod
+  const { createGhAdmission, getGhLane, READ_BUCKET_MAX, WRITE_BUCKET_MAX, isAdmissionCancelled, ADMISSION_CANCELLED } = mod!
 
   check(READ_BUCKET_MAX === 64, '读桶上限 64（保险丝：远高于实测峰值 12，正常永不介入）', '实得 ' + String(READ_BUCKET_MAX))
   check(WRITE_BUCKET_MAX === 16, '写桶上限 16（写需求远小于读，仍留一道远高于需求的保险丝）', '实得 ' + String(WRITE_BUCKET_MAX))

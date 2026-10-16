@@ -1,5 +1,6 @@
-// tests/verify-955-alignment.js —— #955 对齐补欠账门禁（948 图第七批）
-// 用法：在插件根目录执行 node tests/verify-955-alignment.js，可独立运行。
+// tests/verify-955-alignment.ts —— #955 对齐补欠账门禁（948 图第七批）
+// 2026-10-17 从 .js 转成 TypeScript：只改文件名、用法这行与几处类型标注，判据与断言一条没动。
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-955-alignment.ts。
 //
 // 只留行为断言：把共享层 src/shared/feedback-map.js 加载起来，看它导出的三张对账表
 // （FB_ICON_SIZES / FB_DURATIONS / FB_FAIL_RED_PATHS）在不在、长得对不对——条数够、
@@ -13,7 +14,7 @@ const { pathToFileURL } = require('url')
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
 let total = 0
-const check = (ok, msg, detail) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg + (ok ? '' : (detail ? ' — ' + String(detail).slice(0, 300) : ''))); if (!ok) failed = true }
+const check = (ok: boolean, msg: string, detail?: unknown) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg + (ok ? '' : (detail ? ' — ' + String(detail).slice(0, 300) : ''))); if (!ok) failed = true }
 
 async function main() {
   console.log('948 第七批门禁：对齐补欠账（#955，只留行为断言）')
@@ -36,7 +37,7 @@ async function main() {
   const TIERS = ['instant', 'short', 'medium', 'long']
   const badTier = durs.filter((d) => TIERS.indexOf(d.tier) === -1)
   check(badTier.length === 0, '每条都归到四档之一（瞬间/短/中长/长）', badTier.map((d) => d.fx).join(','))
-  const tiersUsed = {}
+  const tiersUsed: Record<string, boolean> = {}
   durs.forEach((d) => { tiersUsed[d.tier] = true })
   check(TIERS.every((t) => tiersUsed[t] === true), '四档都有条目（表覆盖全档，不挑着写）', TIERS.filter((t) => !tiersUsed[t]).join(','))
   // 「不编数字」：没有真实数的那几条必须显式写 null 并说明原因

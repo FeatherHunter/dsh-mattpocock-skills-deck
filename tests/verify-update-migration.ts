@@ -1,4 +1,5 @@
-// verify-update-migration.js — 更新能力委托门禁（#586 起迁移门禁，#875 改为薄接线委托门禁，#880 收尾本地旧包）
+// verify-update-migration.ts — 更新能力委托门禁（#586 起迁移门禁，#875 改为薄接线委托门禁，#880 收尾本地旧包）
+// 2026-10-17 从 .js 转成 TypeScript：只改文件名、用法这行与几处类型标注，判据与断言一条没动。
 //
 // 这道门禁回答一个问题：更新能力是不是全权委托给了已安装的更新包，本仓还有没有自己的更新实现。规则：
 //   0) 版本一致：根清单与发布清单用同一范围依赖更新包（当前 0.18 范围）；锁文件版本＝已安装版本＝派生文件头版本一致；
@@ -7,16 +8,16 @@
 //      退役的四道旧门禁已从校验链移除。
 //   2) 接线只走包：六个电话名从已安装包的 phoneNames 读出来，宿主接线把第六个（日志直追加）也暴露出来。
 // 约束：全程假零件与假网络，不真跑安装命令、不直连官方源。
-// 用法：node tests/verify-update-migration.js（在仓库根目录）
+// 用法：node --import ./scripts/ts-hook.mjs tests/verify-update-migration.ts（在仓库根目录）
 const fs = require('fs')
 const path = require('path')
 const { pathToFileURL } = require('url')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
-const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
-const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
-const exists = (rel) => fs.existsSync(path.join(ROOT, rel))
+const check = (ok: boolean, msg: string) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
+const read = (rel: string) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
+const exists = (rel: string) => fs.existsSync(path.join(ROOT, rel))
 
 const GONE = [
   'src/host/update.js', 'src/host/updateReader.js', 'src/host/updateStore.js',

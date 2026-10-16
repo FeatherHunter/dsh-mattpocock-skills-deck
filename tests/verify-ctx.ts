@@ -1,20 +1,21 @@
-// verify-ctx.js — dsh-mattpocock-skills-deck 阶段 2 步骤 1（#95）：Ctx 接线模块验证
+// verify-ctx.ts — dsh-mattpocock-skills-deck 阶段 2 步骤 1（#95）：Ctx 接线模块验证
+// 2026-10-17 从 .js 转成 TypeScript：只改文件名、用法这行与几处类型标注，判据与断言一条没动。
 // 验证：
 //   1) src/client/kernel/ctx.js 模块可用：DswsCtx = React.createContext(null)（缺省值 null → Provider 缺失兜底）
 //   2) createCx 产出 G3 冻结 8 字段（ctx/h/rdom/storeSvc/localeSvc/timer/api/router），值原样保留
 //   3) createCx 缺项兜底为 null（防御性），字段数仍恒为 8
 //   4) 构建产物（_dev client.js / _pkg package/lib/client.js）已注入 ctx 模块声明（一源两物）
 //   5) 产物新鲜度门禁（缺失/过期 → FAIL，提示先构建；与 verify-tabsfold-leaf 同口径）
-// 用法: node tests/verify-ctx.js（在插件根目录；先运行 node scripts/build.mjs 生成产物）
+// 用法: node --import ./scripts/ts-hook.mjs tests/verify-ctx.ts（在插件根目录；先运行 node scripts/build.mjs 生成产物）
 const fs = require('fs')
 const path = require('path')
 let failed = false
-const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
+const check = (ok: boolean, msg: string) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
 const PRODUCTS = ['client.js', 'package/lib/client.js']
 const SOURCES = ['src/client/kernel/ctx.js', 'src/client/index.js', 'scripts/build.mjs', 'package/package.json']
 
-function productStale(prod) {
+function productStale(prod: string): string | null {
   if (!fs.existsSync(prod)) return '缺失（请先运行 node scripts/build.mjs）'
   const pm = fs.statSync(prod).mtimeMs
   for (const s of SOURCES) {
@@ -34,7 +35,7 @@ async function main() {
   if (failed) { console.log('\n存在失败'); process.exit(1) }
 
   // ---- 模块级：DswsCtx 缺省 null + createCx 8 字段 ----
-  globalThis.React = { createContext: (v) => ({ _defaultValue: v, Provider: 'Provider' }) }
+  (globalThis as any).React = { createContext: (v: unknown) => ({ _defaultValue: v, Provider: 'Provider' }) }
   const mod = await import('file://' + path.resolve('src/client/kernel/ctx.js').replace(/\\/g, '/'))
   check(typeof mod.DswsCtx === 'object' && mod.DswsCtx !== null, 'ctx.js 导出 DswsCtx')
   check(mod.DswsCtx && mod.DswsCtx._defaultValue === null, 'DswsCtx 缺省值 = null（Provider 缺失兜底）')
