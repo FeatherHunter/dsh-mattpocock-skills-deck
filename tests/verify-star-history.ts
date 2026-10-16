@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 // —— 聚合与合并 ——
 assert.deepEqual(aggregateByDay([]), [], 'empty');
 assert.deepEqual(aggregateByDay(['2026-08-17T03:19:47Z','2026-08-17T10:00:00Z']), [{date:'2026-08-17',total:2,daily:2}]);
-const sample=['2026-08-17T03:19:47Z','2026-08-19T07:53:02Z','2026-08-19T09:11:17Z','2026-08-20T05:24:04Z','2026-08-20T15:21:41Z','2026-08-22T07:53:52Z','2026-08-22T09:58:44Z'];
+const sample: string[]=['2026-08-17T03:19:47Z','2026-08-19T07:53:02Z','2026-08-19T09:11:17Z','2026-08-20T05:24:04Z','2026-08-20T15:21:41Z','2026-08-22T07:53:52Z','2026-08-22T09:58:44Z'];
 assert.deepEqual(aggregateByDay(sample), [{date:'2026-08-17',total:1,daily:1},{date:'2026-08-19',total:3,daily:2},{date:'2026-08-20',total:5,daily:2},{date:'2026-08-22',total:7,daily:2}]);
 const existing=[{date:'2026-08-17',total:1,daily:1},{date:'2026-08-19',total:3,daily:2}];
 const next=[{date:'2026-08-20',total:5,daily:2}];
@@ -14,7 +14,7 @@ const full=[{date:'2026-08-17',total:1,daily:1},{date:'2026-08-19',total:3,daily
 assert.deepEqual(mergeHistory(existing,full), full);
 
 // —— SVG 生成：确定性、单标题、双主题、完整坐标 ——
-const days=[
+const days: Array<{date: string, total: number, daily: number}>=[
   {date:'2026-08-17',total:1,daily:1},
   {date:'2026-08-19',total:3,daily:2},
   {date:'2026-08-20',total:5,daily:2},

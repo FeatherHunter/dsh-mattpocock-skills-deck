@@ -12,7 +12,7 @@ const path = require('path')
 const { compileFn } = require('./lib/eval-probe.js')
 
 const root = path.join(__dirname, '..')
-const read = (p) => fs.readFileSync(path.join(root, p), 'utf8')
+const read = (p: string): string => fs.readFileSync(path.join(root, p), 'utf8')
 
 const ioSrc = read('src/client/kernel/api-io.js')
 
@@ -20,7 +20,7 @@ const ioSrc = read('src/client/kernel/api-io.js')
 const start = ioSrc.indexOf('export const withTrailingNewline = function')
 const brace0 = ioSrc.indexOf('{', start)
 let depth = 0
-let fn = null
+let fn: ((text: unknown) => string) | null = null
 for (let i = brace0; i < ioSrc.length; i++) {
   if (ioSrc[i] === '{') depth += 1
   if (ioSrc[i] === '}') {
@@ -34,7 +34,7 @@ for (let i = brace0; i < ioSrc.length; i++) {
   }
 }
 if (!fn) throw new Error('归一函数提取失败')
-const eq = (name, got, want) => { assert.strictEqual(got, want, name); console.log('  PASS · ' + name) }
+const eq = (name: string, got: unknown, want: unknown) => { assert.strictEqual(got, want, name); console.log('  PASS · ' + name) }
 eq('普通文本补 1 个换行', fn('第一行\n第二行'), '第一行\n第二行\n')
 eq('已有换行不重复', fn('abc\n'), 'abc\n')
 eq('多个尾随换行动', fn('a\n\n'), 'a\n\n')

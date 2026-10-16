@@ -17,14 +17,22 @@ let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8')
 
+// 读手写源时同名 .ts 优先（这份源早晚会按 #1239 转成 TypeScript），退回 .js。
+// 写死 .js 的毛病是源一改名就读不到，第一条 check 当场假红，跟字典内容好不好没关系。
+const readSource = (base) => {
+  try { return read(base + '.ts') } catch (e) { return read(base + '.js') }
+}
+
 console.log('状态栏门禁（只保留文案键双语配对核对）')
 
 let locale = ''
-try { locale = read('src/client/kernel/locale-word.js'); check(true, '文案文件可读') } catch (e) { check(false, '文案文件可读') }
+try { locale = readSource('src/client/kernel/locale-word'); check(true, '文案文件可读') } catch (e) { check(false, '文案文件可读') }
 
-// 文案键双语配对（每键恰出现两次：中＋英）
+// 文案键双语配对（每键恰出现两次：中＋英）。
+// 单引号与双引号写法都算命中——只看单引号会把 esbuild 转译后的产物误报成缺键（#1209 起 locale 真源是 .ts）。
 const KEYS = ['logmenu.title', 'logmenu.titleOn', 'logmenu.export', 'logmenu.openDir', 'logmenu.copyPath', 'logmenu.clear', 'logmenu.note', 'logmenu.clearTitle', 'logmenu.clearDesc', 'logmenu.cancel', 'logmenu.confirmClear', 'logmenu.clearing', 'logmenu.exporting', 'logtoast.exported', 'logtoast.exportFallback', 'logtoast.exportFailed', 'logtoast.openFailed', 'logtoast.pathCopied', 'logtoast.cleared', 'logtoast.clearEmpty', 'logtoast.clearFailed', 'logtoast.hostUnavailable']
-const unpaired = KEYS.filter((k) => locale.split("'" + k + "':").length - 1 !== 2)
+const countKey = (text, k) => text.split("'" + k + "':").length - 1 + (text.split('"' + k + '":').length - 1)
+const unpaired = KEYS.filter((k) => countKey(locale, k) !== 2)
 check(unpaired.length === 0, '22 个文案键中英配对' + (unpaired.length ? ' —— 缺：' + unpaired.join('、') : ''))
 
 console.log(failed ? '\n存在失败 — verify-log-statusbar 未通过' : '\n全部通过 — 状态栏文案键核对生效（' + total + ' 项断言）')
