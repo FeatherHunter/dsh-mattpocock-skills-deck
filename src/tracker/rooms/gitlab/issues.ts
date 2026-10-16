@@ -23,6 +23,8 @@ import { withAnchor, lookupByAnchor } from './idempotency.js'
 // 不许再写成「先发 PUT、拿不到票面再回落发 POST」——那是一次调用里两次可能都成功的写。
 import { writeNewIssue, createWriteFailureKind, createWriteFailureMessage } from './create-write.js'
 import type { CreateIssueBody } from './create-write.js'
+// 超时住中央 YAML，调时间改 config/timeouts.yaml。
+import { GITLAB_READ_TIMEOUT_MS, GITLAB_SLOW_READ_TIMEOUT_MS } from '../../../shared/time-config/values.js'
 
 // 仓库身份只取 refId/name，是因为票读写只认这两样，拿全量会把 effortId 搅进来。
 type RepoLike = Partial<RepositoryRef> | null | undefined
@@ -67,7 +69,7 @@ function toApiError(message: string, stderr: string, stdout: string, code: numbe
 
 async function apiGet(opCtx: CtxLike | null | undefined, path: string): Promise<unknown> {
   const c = glabClient(opCtx as Partial<OpContext> & Partial<BackendContext>)
-  const res = await c.run(['api', path], { timeout: 8000 })
+  const res = await c.run(['api', path], { timeout: GITLAB_READ_TIMEOUT_MS })
   if (res.code !== 0) {
     throw toApiError(res.stderr || res.stdout || `api ${path} failed`, res.stderr, res.stdout, res.code)
   }
@@ -82,7 +84,7 @@ async function apiPut(opCtx: CtxLike | null | undefined, path: string, body: Raw
     if (Array.isArray(v)) args.push('-f', `${k}=${(v as unknown[]).join(',')}`)
     else args.push('-f', `${k}=${String(v)}`)
   }
-  const res = await c.run(args, { timeout: 8000 })
+  const res = await c.run(args, { timeout: GITLAB_READ_TIMEOUT_MS })
   if (res.code !== 0) {
     throw toApiError(res.stderr || res.stdout || `api PUT ${path} failed`, res.stderr, res.stdout, res.code)
   }
@@ -139,7 +141,7 @@ export async function listIssues(
   try {
     const path = issuesPath(id, params.toString())
     const c = glabClient(effective as Partial<OpContext> & Partial<BackendContext>)
-    const res = await c.run(['api', path], { timeout: 10000 })
+    const res = await c.run(['api', path], { timeout: GITLAB_SLOW_READ_TIMEOUT_MS })
     if (res.code !== 0) {
       // 原文 = 列票那一次 glab 调用的进程结果。
       return failGlab(res, res.stderr || res.stdout || 'list failed', res, effective)

@@ -12,6 +12,8 @@ import { glabClient } from './client.js'
 import { normalizeIssue } from './normalize.js'
 import { failGlab } from './errors.js'
 import { issuePath, linksPath } from './queries.js'
+// 超时住中央 YAML，调时间改 config/timeouts.yaml。
+import { GITLAB_READ_TIMEOUT_MS, GITLAB_PROBE_TIMEOUT_MS } from '../../../shared/time-config/values.js'
 
 // 仓库身份只取 refId/name，是因为阻塞读写只认这两样，拿全量会把 effortId 搅进来。
 type RepoLike = Partial<RepositoryRef> | null | undefined
@@ -91,7 +93,7 @@ export async function fetchRawIssue(
   key: string,
 ): Promise<RawBag | null> {
   const c = glabClient(opCtx as Partial<OpContext> & Partial<BackendContext>)
-  const res = await c.run(['api', `${issuePath(refId, key)}?with_labels_details=true`], { timeout: 8000 })
+  const res = await c.run(['api', `${issuePath(refId, key)}?with_labels_details=true`], { timeout: GITLAB_READ_TIMEOUT_MS })
   if (res.code !== 0) {
     // 抛出去的那个错带上这一趟的原始回包（stderr/stdout/退出码）：上层只 catch 到一个 Error 时，
     // 原始回包仍然躺在这个错上，`fail()` 取原文时才拿得到「glab 到底说了什么」。
@@ -120,7 +122,7 @@ async function tryNativeBlockedBy(
   // GitLab原生blocking仅Premium；free返回403/404
   const c = glabClient(opCtx as Partial<OpContext> & Partial<BackendContext>)
   // 先试 links filtered
-  const res = await c.run(['api', linksPath(refId, key)], { timeout: 8000 })
+  const res = await c.run(['api', linksPath(refId, key)], { timeout: GITLAB_READ_TIMEOUT_MS })
   if (res.code !== 0) {
     const s = String(res.stderr || res.stdout || '').toLowerCase()
     if (/403|404|premium|not found/.test(s)) return { native: null, probeFailed: true }
@@ -232,7 +234,7 @@ async function buildBlockMap(
   const map = new Map<string, string[]>()
   try {
     const c = glabClient(effective as Partial<OpContext> & Partial<BackendContext>)
-    const listRes = await c.run(['api', `projects/${encodeURIComponent(id)}/issues?per_page=100`], { timeout: 8000 })
+    const listRes = await c.run(['api', `projects/${encodeURIComponent(id)}/issues?per_page=100`], { timeout: GITLAB_READ_TIMEOUT_MS })
     if (listRes.code === 0) {
       let arr: unknown = []
       try {
@@ -302,7 +304,7 @@ async function writeNativeBlockedBy(
     if (currentKeys.includes(w)) continue
     const res = await c.run(
       ['api', linksPath(id, key), '--method', 'POST', '-f', `target_project_id=${id}`, '-f', `target_issue_iid=${w}`, '-f', 'link_type=is_blocked_by'],
-      { timeout: 8000 },
+      { timeout: GITLAB_READ_TIMEOUT_MS },
     )
     if (res.code !== 0) {
       if (!isNativeCapabilityError(res)) {
@@ -314,7 +316,7 @@ async function writeNativeBlockedBy(
           const back = await tryNativeBlockedBy(effective, id, key)
           const row = (back.native || []).find((l) => keyOf(l) === a)
           const linkId = row ? String(row['issue_link_id'] ?? row['link_id'] ?? '') : ''
-          if (linkId) await c.run(['api', `${linksPath(id, key)}/${linkId}`, '--method', 'DELETE'], { timeout: 8000 })
+          if (linkId) await c.run(['api', `${linksPath(id, key)}/${linkId}`, '--method', 'DELETE'], { timeout: GITLAB_READ_TIMEOUT_MS })
         } catch {
           // 滚回尽力而为；滚没滚干净由下面的核对说了算，这里不提前下结论。
         }
@@ -336,7 +338,7 @@ async function writeNativeBlockedBy(
     if (!linkId) {
       return { ok: false, fallback: false, message: `阻塞真写：原生边 #${cur} 在回包里没有 link id，删不掉（盘上是中间态，加边已成功）`, raw: current }
     }
-    const res = await c.run(['api', `${linksPath(id, key)}/${linkId}`, '--method', 'DELETE'], { timeout: 8000 })
+    const res = await c.run(['api', `${linksPath(id, key)}/${linkId}`, '--method', 'DELETE'], { timeout: GITLAB_READ_TIMEOUT_MS })
     if (res.code !== 0) {
       if (isNativeCapabilityError(res)) {
         return { ok: false, fallback: false, message: `阻塞真写：删原生边 #${cur} 时远端说没能力，但加边可能已成功，不敢滑进正文行`, raw: res }
@@ -506,7 +508,7 @@ export async function setBlockedBy(
     const c = glabClient(effective as Partial<OpContext> & Partial<BackendContext>)
     // 换行按真换行发：远端存什么读回就是什么，读回的解析才对得上。旧代码在这里把换行转成字面 `\n`，
     // 多行正文走这条路会被破坏（读回整段变成一行，正文丢格式），2026-10-15 查实并修。
-    const putRes = await c.run(['api', issuePath(id, k), '--method', 'PUT', '-f', `description=${newBody}`], { timeout: 8000 })
+    const putRes = await c.run(['api', issuePath(id, k), '--method', 'PUT', '-f', `description=${newBody}`], { timeout: GITLAB_READ_TIMEOUT_MS })
     // glab api 对换行处理：改用 --input stdin 更稳妥，重试
     const res = putRes
     if (putRes.code !== 0) {
@@ -529,7 +531,7 @@ export async function setBlockedBy(
     const ub = updatedRaw !== null && typeof updatedRaw === 'object' ? (updatedRaw as RawBag) : ({} as RawBag)
     if (!ub['links']) {
       try {
-        const linksRes = await glabClient(effective as Partial<OpContext> & Partial<BackendContext>).run(['api', linksPath(id, k)], { timeout: 5000 })
+        const linksRes = await glabClient(effective as Partial<OpContext> & Partial<BackendContext>).run(['api', linksPath(id, k)], { timeout: GITLAB_PROBE_TIMEOUT_MS })
         if (linksRes.code === 0) {
           try {
             ub['links'] = JSON.parse(linksRes.stdout) as unknown

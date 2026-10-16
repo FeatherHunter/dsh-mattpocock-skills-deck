@@ -13,6 +13,8 @@ import { fail } from '../../kernel/preflight.js'
 import { glabClient } from './client.js'
 import { failGlab } from './errors.js'
 import { notesPath } from './queries.js'
+// 超时住中央 YAML，调时间改 config/timeouts.yaml。
+import { GITLAB_READ_TIMEOUT_MS } from '../../../shared/time-config/values.js'
 
 // 仓库身份只取 refId/name 两格，是因为评论读写只认这两样，拿全量 RepositoryRef 反而把 effortId 搅进来。
 type RepoLike = Partial<RepositoryRef> | null | undefined
@@ -60,7 +62,7 @@ export async function addComment(
   }
   try {
     const c = glabClient(effective as Partial<OpContext> & Partial<BackendContext>)
-    const res = await c.run(['api', notesPath(id, k), '--method', 'POST', '-f', `body=${body}`], { timeout: 8000 })
+    const res = await c.run(['api', notesPath(id, k), '--method', 'POST', '-f', `body=${body}`], { timeout: GITLAB_READ_TIMEOUT_MS })
     if (res.code !== 0) {
       // 原文 = glab 这一趟的进程结果（stderr/stdout/退出码都在里面），判档与给人看的原文用同一份。
       return failGlab(res, res.stderr || res.stdout || 'comment failed', res, effective)
@@ -112,7 +114,7 @@ export async function listComments(
   const k = String(key)
   try {
     const c = glabClient(effective as Partial<OpContext> & Partial<BackendContext>)
-    const res = await c.run(['api', notesPath(id, k)], { timeout: 8000 })
+    const res = await c.run(['api', notesPath(id, k)], { timeout: GITLAB_READ_TIMEOUT_MS })
     if (res.code !== 0) {
       // 原文 = glab 这一趟的进程结果（stderr/stdout/退出码都在里面）。
       return failGlab(res, res.stderr || res.stdout || 'listComments failed', res, effective)

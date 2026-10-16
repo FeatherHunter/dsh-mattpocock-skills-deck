@@ -81,6 +81,8 @@ import { fail } from '../../kernel/preflight.js'
 import { execGlab } from './client.js'
 import { classifyGlabError, failGlab } from './errors.js'
 import { emitReadDegraded } from './read-log.js'
+// 超时住中央 YAML，调时间改 config/timeouts.yaml。
+import { GITLAB_READ_TIMEOUT_MS } from '../../../shared/time-config/values.js'
 
 // ── 常量：本文件与门禁都读它们，改一处就能一起变 ──────────────────────────────
 
@@ -102,7 +104,6 @@ export const WRITE_CONCURRENCY_MAX = 4
 export const WRITE_CONCURRENCY_DEFAULT = 4
 
 /** 单次 glab 调用的超时（毫秒）。与同房其余读路径一致。 */
-const GLAB_TIMEOUT_MS = 8000
 
 // ── 入参把关 ──────────────────────────────────────────────────────────────────
 
@@ -262,7 +263,7 @@ export async function listLabels(repo: RepositoryRef, ctx: OpContext): Promise<O
     const res = await execGlab(ctx, [
       'api',
       'projects/' + encodeURIComponent(refId) + '/labels?per_page=' + String(LABEL_LIST_PER_PAGE) + '&page=' + String(page) + '&include_ancestor_groups=false',
-    ], { timeout: GLAB_TIMEOUT_MS })
+    ], { timeout: GITLAB_READ_TIMEOUT_MS })
     if (res.code !== 0) {
       // 这一档是「房间这层没拿到任何回包」，原文是这一次 glab 调用的完整进程结果。
       emitReadDegraded(ctx, 'labels', 'labels:transport', Date.now() - t0)
@@ -371,7 +372,7 @@ async function applyOne(ctx: OpContext, refId: string, ch: LabelColorChange, lab
     'projects/' + encodeURIComponent(refId) + '/labels/' + labelId,
     '--method', 'PUT',
     '-f', 'color=#' + want,
-  ], { timeout: GLAB_TIMEOUT_MS })
+  ], { timeout: GITLAB_READ_TIMEOUT_MS })
   if (res.code === 0) {
     // applied 里放的是**这次写下去的目标颜色**，不是回读值（契约 results.ts:150-151 明写）。
     // 所以这里不解析回包 —— 回包解码失败也不该把一条已经成功的写入记成失败（那是漏记账）。

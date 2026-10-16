@@ -50,6 +50,8 @@ import { glabClient } from './client.js'
 import { failGlab } from './errors.js'
 import { emitReadDegraded } from './read-log.js'
 import { projectPath } from './queries.js'
+// 超时住中央 YAML，调时间改 config/timeouts.yaml。
+import { GITLAB_READ_TIMEOUT_MS } from '../../../shared/time-config/values.js'
 
 /**
  * 能推代码的最低档位：Developer(30)。
@@ -187,7 +189,7 @@ export async function getCurrentUser(repo: RepositoryRef, ctx: OpContext): Promi
   }
 
   try {
-    const res = await glabClient(ctx).run(['api', 'user'], { timeout: 8000 })
+    const res = await glabClient(ctx).run(['api', 'user'], { timeout: GITLAB_READ_TIMEOUT_MS })
     if (res.code !== 0) {
       // 按 read-log.ts 里 transport 的定义，非 0 退出（glab 不在、没登录、远端 401/403）都归这一格；
       // 具体档位仍由 failGlab 按原文判，这里只负责让「权限没问出来」在日志里是一条线。
@@ -254,7 +256,7 @@ export async function getRepoPermissions(repo: RepositoryRef, ctx: OpContext): P
 
   try {
     // 项目路径的编码只有 queries.ts 一处口径，这里照旧走它；`simple=true` 的来龙去脉见文件头。
-    const res = await glabClient(ctx).run(['api', `${projectPath(id)}?simple=true`], { timeout: 8000 })
+    const res = await glabClient(ctx).run(['api', `${projectPath(id)}?simple=true`], { timeout: GITLAB_READ_TIMEOUT_MS })
     if (res.code !== 0) {
       emitReadDegraded(ctx, 'permissions', 'permissions:transport', Date.now() - t0)
       // 原文 = 这一次 glab 调用的进程结果。

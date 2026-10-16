@@ -36,6 +36,8 @@ import { initProject } from './init-project.js'
 import type { PartiallyProvidedCapability, ProvidedCapability } from '../../contract/capability-answer.js'
 // `import type` 取登记数据：转译后不留运行时引用（理由与 GitHub 房那处相同，见 rooms/github/backend.ts）。
 import type { GITLAB_CAPABILITY_REGISTER } from './capability-register.js'
+// 超时住中央 YAML，调时间改 config/timeouts.yaml。
+import { GITLAB_FALLBACK_TIMEOUT_MS } from '../../../shared/time-config/values.js'
 
 // —— GitLab 交出来的成员：24 条能力 + id（21 条操作 + describe/issueAddress/getRepoKey 三条定位口）——
 // 这份集合不再手写，从本房的登记数据推出来：「明确提供功能」的名字才是实例成员；登记里那 1 条
@@ -69,7 +71,6 @@ function repoId(handle: RepoHandle | Partial<RepositoryRef> | null | undefined):
  * （GitHub 房的 matches 与两房的 getRepoKey），这里没有跟着改，因为改数值是改行为，
  * 而这张票要的是「数值与注释说的是同一件事」——注释从前写着 5 秒，那才是错的。
  */
-const GIT_FALLBACK_TIMEOUT_MS = 2000
 
 /** 识别这一趟要用的文件服务：就用契约上下文里那一格，不另定义形状。 */
 type MarkerFs = OpContext['fs']
@@ -158,7 +159,7 @@ async function matches(
     if (exec) {
       const res = await exec('git', ['remote', 'get-url', 'origin'], {
         cwd,
-        timeout: GIT_FALLBACK_TIMEOUT_MS,
+        timeout: GITLAB_FALLBACK_TIMEOUT_MS,
       })
       const out = (res.stdout || '') + (res.stderr || '')
       if (/gitlab/i.test(out)) return true

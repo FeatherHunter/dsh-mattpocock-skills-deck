@@ -27,6 +27,8 @@
 import type { OpContext } from '../../contract/contexts.js'
 import { glabClient } from './client.js'
 import { emitRepoTier } from './read-log.js'
+// 超时住中央 YAML，调时间改 config/timeouts.yaml。
+import { GITLAB_REPO_GIT_TIMEOUT_MS } from '../../../shared/time-config/values.js'
 
 /** 认出来的仓库坐标：分组（可能多段）+ 项目名。 */
 export interface RepoKey {
@@ -115,7 +117,7 @@ export async function getRepoKey(cwd: string, ctx: OpContext): Promise<RepoKey |
         try {
           const r = await execFn('git', ['-C', execCwd, 'remote', 'get-url', 'origin'], {
             cwd: execCwd,
-            timeout: 3000,
+            timeout: GITLAB_REPO_GIT_TIMEOUT_MS,
           })
           const out = String((r && (r.stdout || r.text)) || '')
           const k = parseGitlabRepo(out)

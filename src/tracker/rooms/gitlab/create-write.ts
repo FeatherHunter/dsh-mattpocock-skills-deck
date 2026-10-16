@@ -30,9 +30,10 @@ import type {
   CreateWriteJudgement,
   CreateWriteVerdict,
 } from '../../../shared/refresh/src/create-write.js'
+// 超时住中央 YAML，调时间改 config/timeouts.yaml。
+import { GITLAB_READ_TIMEOUT_MS } from '../../../shared/time-config/values.js'
 
 /** 建票写请求的超时（沿既有值）。 */
-const CREATE_TIMEOUT_MS = 8000
 
 // 建票 argv 的 body 形状只含三格，是因为回落路历史上就只拼这三项，加别的会改掉网关看到的形状。
 export interface CreateIssueBody {
@@ -78,14 +79,14 @@ export async function writeNewIssue(
   const client = glabClient(opCtx)
   const argvs: string[][] = []
 
-  const first = await client.run(argv, { timeout: CREATE_TIMEOUT_MS })
+  const first = await client.run(argv, { timeout: GITLAB_READ_TIMEOUT_MS })
   argvs.push(argv.slice())
   // 值实现来自构建产物 .js（无类型），判据形状以源码 .ts 的契约类型为准，这里只收敛类型不改逻辑。
   let verdict = classifyCreateWriteAttempt(first) as unknown as CreateWriteJudgement
 
   const decision = decideCreateWriteRetry(verdict.verdict, argvs.length)
   if (decision.retry) {
-    const again = await client.run(argv, { timeout: CREATE_TIMEOUT_MS })
+    const again = await client.run(argv, { timeout: GITLAB_READ_TIMEOUT_MS })
     argvs.push(argv.slice())
     verdict = classifyCreateWriteAttempt(again) as unknown as CreateWriteJudgement
   }

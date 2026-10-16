@@ -31,6 +31,8 @@ import type { GlabVerdict } from './errors.js'
 import { normalizeIssue } from './normalize.js'
 import { issuesPath } from './queries.js'
 import { ERROR_KIND } from '../../contract/vocabulary.js'
+// 超时住中央 YAML，调时间改 config/timeouts.yaml。
+import { GITLAB_READ_TIMEOUT_MS, GITLAB_SLOW_READ_TIMEOUT_MS } from '../../../shared/time-config/values.js'
 
 /** 慢路最多看几张候选（按创建时间倒序的第一页）。到了这个数还没找到就如实说「拿不准」。 */
 const SCAN_LIMIT = 100
@@ -143,7 +145,7 @@ export async function lookupByAnchor(
   let searchError: string | null = null
   try {
     const q = 'search=' + encodeURIComponent(key) + '&in=description&state=opened'
-    const res = await c.run(['api', issuesPath(id, q)], { timeout: 8000 })
+    const res = await c.run(['api', issuesPath(id, q)], { timeout: GITLAB_READ_TIMEOUT_MS })
     if (res.code !== 0) searchError = res.stderr || res.stdout || '搜索接口报错'
     else {
       const rows = parseRows(res.stdout)
@@ -163,7 +165,7 @@ export async function lookupByAnchor(
   let listError: string | null = null
   try {
     const q = 'state=opened&order_by=created_at&sort=desc&per_page=' + SCAN_LIMIT + '&' + DETAIL_QUERY
-    const res = await c.run(['api', issuesPath(id, q)], { timeout: 10000 })
+    const res = await c.run(['api', issuesPath(id, q)], { timeout: GITLAB_SLOW_READ_TIMEOUT_MS })
     if (res.code !== 0) listError = res.stderr || res.stdout || '列出票时报错'
     else {
       const rows = parseRows(res.stdout)

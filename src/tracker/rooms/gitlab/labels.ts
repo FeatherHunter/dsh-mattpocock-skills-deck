@@ -19,6 +19,8 @@ import { glabClient } from './client.js'
 import { normalizeIssue } from './normalize.js'
 import { failGlab } from './errors.js'
 import { issuePath } from './queries.js'
+// 超时住中央 YAML，调时间改 config/timeouts.yaml。
+import { GITLAB_READ_TIMEOUT_MS } from '../../../shared/time-config/values.js'
 
 // 仓库身份只取 refId/name，是因为标签读写只认这两样，拿全量会把 effortId 搅进来。
 type RepoLike = Partial<RepositoryRef> | null | undefined
@@ -101,7 +103,7 @@ export async function setLabels(
     // If-Match 前置：expectedUpdatedAt
     if (opts && typeof opts.expectedUpdatedAt === 'string' && opts.expectedUpdatedAt !== '') {
       const c = glabClient(effective as Partial<OpContext> & Partial<BackendContext>)
-      const res = await c.run(['api', `${issuePath(id, k)}?with_labels_details=true`], { timeout: 8000 })
+      const res = await c.run(['api', `${issuePath(id, k)}?with_labels_details=true`], { timeout: GITLAB_READ_TIMEOUT_MS })
       if (res.code !== 0) {
         // 原文 = 改色前置那一次 GET 的进程结果；判档走同一趟归一（带上下文，日志里留得下轨迹）。
         return failGlab(res, res.stderr || res.stdout || 'setLabels preflight get failed', res, effective)
@@ -128,7 +130,7 @@ export async function setLabels(
     const labelNames = wanted.map((l) => l.name).join(',')
     const c = glabClient(effective as Partial<OpContext> & Partial<BackendContext>)
     // PUT labels（空串→清空）
-    const res = await c.run(['api', issuePath(id, k), '--method', 'PUT', '-f', `labels=${labelNames}`], { timeout: 8000 })
+    const res = await c.run(['api', issuePath(id, k), '--method', 'PUT', '-f', `labels=${labelNames}`], { timeout: GITLAB_READ_TIMEOUT_MS })
     if (res.code !== 0) {
       // 原文 = 写标签那一次 PUT 的进程结果。
       return failGlab(res, res.stderr || res.stdout || 'setLabels failed', res, effective)
@@ -167,7 +169,7 @@ export async function listLabels(
   if (!id) return fail(ERROR_KIND.NOTFOUND as ErrorKind, 'listLabels: repo.refId missing', '')
   try {
     const c = glabClient(effective as Partial<OpContext> & Partial<BackendContext>)
-    const res = await c.run(['api', `projects/${encodeURIComponent(id)}/labels`], { timeout: 8000 })
+    const res = await c.run(['api', `projects/${encodeURIComponent(id)}/labels`], { timeout: GITLAB_READ_TIMEOUT_MS })
     if (res.code !== 0) {
       // 原文 = 列色板那一次 glab 调用的进程结果。
       return failGlab(res, res.stderr || res.stdout || 'listLabels failed', res, effective)

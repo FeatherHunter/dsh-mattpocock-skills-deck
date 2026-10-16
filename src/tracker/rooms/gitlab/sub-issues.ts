@@ -46,13 +46,14 @@ import { normalizeIssue } from './normalize.js'
 import { issuesPath } from './queries.js'
 import { repoId } from './graph-blocking.js'
 import { emitReadDegraded } from './read-log.js'
+// 超时住中央 YAML，调时间改 config/timeouts.yaml。
+import { GITLAB_READ_TIMEOUT_MS } from '../../../shared/time-config/values.js'
 
 // 一张地图最多装多少张子票：与 GitHub 房同一个硬上限（契约 operations.ts:244「1000 张硬上限」）。
 const MAX_SUB_ISSUES = 1000
 // 翻页扫仓时一页取多少张：与房内列表路径一致（issues.ts 的 listIssues 也是 100）。
 const PAGE_SIZE = 100
 // 列表页与重试共用这个超时；与房内其它读路径保持一致（issues.ts / graph-blocking.ts 都是 8000）。
-const READ_TIMEOUT_MS = 8000
 
 // 本房既有形状：仓库标识只取 partial，缺了按 404 那一档如实回而不是抛（与 issues.ts / labels.ts 同一份写法）。
 type RepoLike = Partial<RepositoryRef> | null | undefined
@@ -126,8 +127,8 @@ export async function listSubIssues(
     let page = 1
     for (;;) {
       const listArgs = ['api', issuesPath(id, `per_page=${PAGE_SIZE}&page=${page}&with_labels_details=true`)]
-      let listRes = await c.run(listArgs, { timeout: READ_TIMEOUT_MS })
-      if (listRes.code !== 0) listRes = await c.run(listArgs, { timeout: READ_TIMEOUT_MS })
+      let listRes = await c.run(listArgs, { timeout: GITLAB_READ_TIMEOUT_MS })
+      if (listRes.code !== 0) listRes = await c.run(listArgs, { timeout: GITLAB_READ_TIMEOUT_MS })
       lastRes = listRes
       if (listRes.code !== 0) {
         // 「这张票不在」与「这一页没跑成」是两件事：日志里用两个不同的理由记，人一眼分得开。

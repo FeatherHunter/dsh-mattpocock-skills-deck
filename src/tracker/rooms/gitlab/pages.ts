@@ -54,6 +54,8 @@ import { failGlab } from './errors.js'
 import { normalizeIssue } from './normalize.js'
 import { issuesPath } from './queries.js'
 import { emitReadDegraded } from './read-log.js'
+// 超时住中央 YAML，调时间改 config/timeouts.yaml。
+import { GITLAB_SLOW_READ_TIMEOUT_MS } from '../../../shared/time-config/values.js'
 
 // 契约的分页口径：缺省一页 50 张、要多了按 200 封顶（`contract/results.ts` 的「分页契约」，与 GitHub 房同一套）。
 const DEFAULT_LIMIT = 50
@@ -64,7 +66,6 @@ const MAX_LIMIT = 200
 // 代价照实说：调用方要 200 行时这一趟只回 100 行 + 一个游标，接着翻就是（要多了按上限给，不是报错）。
 const MAX_PER_PAGE = 100
 // 一趟读等远端的时限：与房内 list 那条同一档（10 秒）。
-const TIMEOUT_MS = 10000
 
 // 入参只取识别要用的那几格：调用方可能拿半份仓库标识、半份筛选或半份分页选项进来。
 type RepoLike = Partial<RepositoryRef> | null | undefined
@@ -186,7 +187,7 @@ export async function listPage(
   params.set('with_labels_details', 'true')
   try {
     const c = glabClient(ctx)
-    const r = await c.api(issuesPath(fullPath, params.toString()), {}, { timeout: TIMEOUT_MS })
+    const r = await c.api(issuesPath(fullPath, params.toString()), {}, { timeout: GITLAB_SLOW_READ_TIMEOUT_MS })
     if (r.code !== 0) {
       // 原文 = 这一次 glab 调用的进程结果（stderr 里那几句是 glab 或远端的原话）。
       emitReadDegraded(ctx, 'listPage', 'listPage:transport', Date.now() - t0)

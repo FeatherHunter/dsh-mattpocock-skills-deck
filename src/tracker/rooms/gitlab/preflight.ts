@@ -21,6 +21,8 @@ import type { BackendContext, OpContext } from '../../contract/contexts.js'
 import type { RepositoryRef } from '../../contract/entities.js'
 import type { PreflightResult } from '../../contract/results.js'
 import { fail } from '../../kernel/preflight.js'
+// 超时住中央 YAML，调时间改 config/timeouts.yaml。
+import { GITLAB_PROBE_TIMEOUT_MS } from '../../../shared/time-config/values.js'
 
 // 预检入参两形都收，是因为调用方有时拿仓库身份、有时拿句柄，直接收窄会把另一路挡在门外。
 type PreflightHandle = Partial<OpContext> & Partial<BackendContext> & {
@@ -76,7 +78,7 @@ export async function glabPreflight(
     return fail(ERROR_KIND.ENV as ErrorKind, 'exec unavailable', '')
   }
   try {
-    const authRes = await exec('glab', ['auth', 'status'], { cwd, signal, timeout: 5000 })
+    const authRes = await exec('glab', ['auth', 'status'], { cwd, signal, timeout: GITLAB_PROBE_TIMEOUT_MS })
     const out = String(authRes.stdout || '') + '\n' + String(authRes.stderr || '')
     const s = out.toLowerCase()
     if (authRes.code !== 0 || /not logged in|no token|unauthenticated|401|403/i.test(s)) {
@@ -108,7 +110,7 @@ export async function glabPreflight(
   if (probeId) {
     const encoded = encodeURIComponent(probeId)
     try {
-      const probe = await exec('glab', ['api', `projects/${encoded}`], { cwd, signal, timeout: 5000 })
+      const probe = await exec('glab', ['api', `projects/${encoded}`], { cwd, signal, timeout: GITLAB_PROBE_TIMEOUT_MS })
       const out = String(probe.stdout || '') + '\n' + String(probe.stderr || '')
       if (probe.code !== 0) {
         // 探活这一步问的是「连不连得上」，所以档位按本条支路原本的口径展开：

@@ -12,6 +12,8 @@ import { normalizeIssue, rewriteDescriptionWithPartOf } from './normalize.js'
 import { failGlab } from './errors.js'
 import { issuePath } from './queries.js'
 import { repoId, fetchRawIssue } from './graph-blocking.js'
+// 超时住中央 YAML，调时间改 config/timeouts.yaml。
+import { GITLAB_READ_TIMEOUT_MS, GITLAB_PROBE_TIMEOUT_MS } from '../../../shared/time-config/values.js'
 
 // 仓库身份只取 refId/name，是因为亲缘与指派只认这两样，拿全量会把 effortId 搅进来。
 type RepoLike = Partial<RepositoryRef> | null | undefined
@@ -87,7 +89,7 @@ export async function setParent(
         const issue = normalizeIssue(curRaw)
         return { ok: true, data: issue }
       }
-      const res = await c.run(['api', issuePath(id, k), '--method', 'PUT', '-f', `description=${newBody}`], { timeout: 8000 })
+      const res = await c.run(['api', issuePath(id, k), '--method', 'PUT', '-f', `description=${newBody}`], { timeout: GITLAB_READ_TIMEOUT_MS })
       if (res.code !== 0) {
         // 原文 = 拆归属行那一次 PUT 的进程结果。
         return failGlab(res, res.stderr || res.stdout || 'setParent failed', res, effective)
@@ -101,7 +103,7 @@ export async function setParent(
       const newBody = rewriteDescriptionWithPartOf(oldBody, pk)
       if (newBody !== oldBody) {
         // PUT 整篇 description（换行原样发，不转义：读回来的归一靠真实换行认行）。
-        const res = await c.run(['api', issuePath(id, k), '--method', 'PUT', '-f', `description=${newBody}`], { timeout: 8000 })
+        const res = await c.run(['api', issuePath(id, k), '--method', 'PUT', '-f', `description=${newBody}`], { timeout: GITLAB_READ_TIMEOUT_MS })
         if (res.code !== 0) {
           // 原文 = 写归属行那一次 PUT 的进程结果。
           return failGlab(res, res.stderr || res.stdout || 'setParent failed', res, effective)
@@ -159,7 +161,7 @@ export async function setAssignees(
     const assigneeIds: string[] = []
     for (const u of wanted) {
       try {
-        const res = await c.run(['api', `users?username=${encodeURIComponent(u)}`], { timeout: 5000 })
+        const res = await c.run(['api', `users?username=${encodeURIComponent(u)}`], { timeout: GITLAB_PROBE_TIMEOUT_MS })
         if (res.code === 0) {
           const arr: unknown = JSON.parse(res.stdout) as unknown
           if (Array.isArray(arr) && arr[0] && (arr[0] as RawBag)['id']) {
@@ -170,7 +172,7 @@ export async function setAssignees(
         // 单个用户换不出 id 就跳过，不拦整批。
       }
     }
-    const res = await c.run(['api', issuePath(id, k), '--method', 'PUT', '-f', `assignee_ids=${assigneeIds.join(',')}`], { timeout: 8000 })
+    const res = await c.run(['api', issuePath(id, k), '--method', 'PUT', '-f', `assignee_ids=${assigneeIds.join(',')}`], { timeout: GITLAB_READ_TIMEOUT_MS })
     if (res.code !== 0) {
       // 原文 = 写指派那一次 PUT 的进程结果。
       return failGlab(res, res.stderr || res.stdout || 'setAssignees failed', res, effective)

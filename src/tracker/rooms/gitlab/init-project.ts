@@ -56,6 +56,8 @@ import { glabClient } from './client.js'
 import { failGlab } from './errors.js'
 import { projectPath } from './queries.js'
 import { parseGitlabRepo } from './repo.js'
+// 超时住中央 YAML，调时间改 config/timeouts.yaml。
+import { GITLAB_READ_TIMEOUT_MS, GITLAB_CREATE_PROJECT_TIMEOUT_MS } from '../../../shared/time-config/values.js'
 
 /** glab 客户端的最小口：本文件只用它的 run，类型从工厂的返回里取，不另写一份。 */
 type GlabClient = ReturnType<typeof glabClient>
@@ -151,7 +153,7 @@ function addressFromOutput(stdout: string): CreatedProject | null {
  * @param fallbackPath 「登录人/仓库名」，不带 `--group` 建仓时项目就落在登录人的命名空间下
  */
 async function readCreatedProject(c: GlabClient, fallbackPath: string): Promise<CreatedProject | null> {
-  const res = await c.run(['api', projectPath(fallbackPath)], { timeout: 8000 })
+  const res = await c.run(['api', projectPath(fallbackPath)], { timeout: GITLAB_READ_TIMEOUT_MS })
   if (res.code !== 0) return null
   const bag = parseJsonObject(res.stdout)
   if (!bag) return null
@@ -250,7 +252,7 @@ export async function initProject(
   }
 
   const c = glabClient(ctx)
-  const userRes = await c.run(['api', 'user'], { timeout: 8000 })
+  const userRes = await c.run(['api', 'user'], { timeout: GITLAB_READ_TIMEOUT_MS })
   if (userRes.code !== 0) {
     // glab 不在（127）、没登录、远端回绝，都在这里拦下；档位交 failGlab 按原文判。
     return failGlab(userRes, userRes.stderr || userRes.stdout || 'initProject: glab 没答出当前登录人', userRes, ctx)
@@ -293,7 +295,7 @@ export async function initProject(
   // 为什么带 --skipGitInit：本函数在这之前已经自己 `git init` / `add` / `commit` 过，第 6 步又自己配 origin，
   // 所以不要 glab 再碰本地仓库 —— glab 的 `repo create <名字>` 默认会问一句要不要在本地建一个项目目录，
   // 只有这个开关能把那段本地动作整个关掉（逐条依据与出处见文件头）。
-  const create = await c.run(['repo', 'create', name, visFlag, '--skipGitInit'], { timeout: 60000 })
+  const create = await c.run(['repo', 'create', name, visFlag, '--skipGitInit'], { timeout: GITLAB_CREATE_PROJECT_TIMEOUT_MS })
   if (create.code !== 0) {
     return failGlab(create, 'initProject: glab repo create 没建成远端仓库', create, ctx)
   }

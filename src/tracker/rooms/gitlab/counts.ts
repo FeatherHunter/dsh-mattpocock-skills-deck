@@ -47,9 +47,10 @@ import { glabClient } from './client.js'
 import { failGlab } from './errors.js'
 import { projectPath } from './queries.js'
 import { emitReadDegraded } from './read-log.js'
+// 超时住中央 YAML，调时间改 config/timeouts.yaml。
+import { GITLAB_SLOW_READ_TIMEOUT_MS } from '../../../shared/time-config/values.js'
 
 // 一趟读等远端的时限：与房内 list 那条同一档（10 秒）。计数是轻请求，但等待仍按整趟算进降级行的耗时。
-const TIMEOUT_MS = 10000
 
 // 入参只取识别要用的那几格：调用方可能拿半份仓库标识或半份筛选进来，缺了按「入参不合格」如实回。
 type RepoLike = Partial<RepositoryRef> | null | undefined
@@ -164,7 +165,7 @@ export async function counts(
   const path = `${projectPath(fullPath)}/issues_statistics?${params.toString()}`
   try {
     const c = glabClient(ctx)
-    const r = await c.api(path, {}, { timeout: TIMEOUT_MS })
+    const r = await c.api(path, {}, { timeout: GITLAB_SLOW_READ_TIMEOUT_MS })
     if (r.code !== 0) {
       // 原文 = 这一次 glab 调用的进程结果（stderr 里那几句是 glab 或远端的原话）。
       emitReadDegraded(ctx, 'counts', 'counts:transport', Date.now() - t0)
