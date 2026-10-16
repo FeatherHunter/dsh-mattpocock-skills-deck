@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T18:27:26.772Z",
+  "generatedAt": "2026-10-16T18:29:55.360Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 302,
   "gateCount": 302,
@@ -2445,8 +2445,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 7 条；载入模块（require / import / pathToFileURL） 1 条"
     },
     {
-      "step": "node tests/verify-689-counts-ui.js",
-      "file": "tests/verify-689-counts-ui.js",
+      "step": "node tests/verify-689-counts-ui.ts",
+      "file": "tests/verify-689-counts-ui.ts",
       "guards": [
         "src/client/kernel/store-derived.js"
       ],
@@ -7244,7 +7244,7 @@
       "node tests/verify-683-mirror-write.ts",
       "node tests/verify-685-healthcheck-button.js",
       "node tests/verify-686-accept.js",
-      "node tests/verify-689-counts-ui.js",
+      "node tests/verify-689-counts-ui.ts",
       "node tests/verify-690-closed-pages.js",
       "node tests/verify-698-switch-asks-layout.js",
       "node tests/verify-786-focus-end.js",
