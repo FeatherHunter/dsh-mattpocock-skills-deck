@@ -1,5 +1,6 @@
-// verify-907-chain-titles.js —— 门禁：处理链那一行的标题查得到（票 #907）
-// 用法：node tests/verify-907-chain-titles.js（插件根目录）
+// verify-907-chain-titles.ts —— 门禁：处理链那一行的标题查得到（票 #907）
+// 2026-10-17 从 .js 转成 TypeScript：只改文件名与用法这行，模块写法保持 CommonJS，判据与断言一条没动。
+// 用法：node --import ./scripts/ts-hook.mjs tests/verify-907-chain-titles.ts（插件根目录）
 //
 // 现场与修法（票 #907 的诊断写在 issue 正文里）：
 //   已关闭地图的子票不进首屏（#691 的体积取舍），而处理链那一行的标题只从快照给得出的行里查，

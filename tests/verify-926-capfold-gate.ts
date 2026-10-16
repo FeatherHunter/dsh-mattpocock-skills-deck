@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 /**
- * verify-926-capfold-gate.js — 926 胶囊折叠性能门禁（#926）
+ * verify-926-capfold-gate.ts — 926 胶囊折叠性能门禁（#926）
+ *
+ * 2026-10-17 从 .js 转成 TypeScript：只改文件名与用法这行，模块写法保持 CommonJS，判据与断言一条没动。
  *
  * 锁四件事（行为口径，与实现写法无关）：
  *   1. 守卫等价：同样的可用宽与同样的完整字，第二趟直接复用档位，一个字不写、一次阶梯不跑；
@@ -10,7 +12,7 @@
  * 本文件只测行为：把真判据与真折叠机器按文本求值后，配一颗假胶囊跑，全文没有一句对源码文本的正则断言
  * （接线与单写路径的现任守卫是 tests/verify-capsule-narrow.js；「开关与记日志同行」那条今天已没有在跑的门禁）。
  *
- * 运行：node --import ./scripts/ts-hook.mjs tests/verify-926-capfold-gate.js（必须挂钩子：它靠钩子把 ./lib/eval-probe.js 落到同名 .ts，不挂会 ERR_MODULE_NOT_FOUND）
+ * 运行：node --import ./scripts/ts-hook.mjs tests/verify-926-capfold-gate.ts（必须挂钩子：它靠钩子把 ./lib/eval-probe.js 落到同名 .ts，不挂会 ERR_MODULE_NOT_FOUND）
  */
 const { readFileSync, existsSync } = require('node:fs')
 const { resolve } = require('node:path')

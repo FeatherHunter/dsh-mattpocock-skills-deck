@@ -247,8 +247,6 @@
     "tests/smoke-render.test.js",
     "tests/tracker-contract/fixtures/markdown.js",
     "tests/tracker-contract/sections/idempotency-counterproof.js",
-    "tests/verify-907-chain-titles.js",
-    "tests/verify-926-capfold-gate.js",
     "tests/verify-927-gate-injection.js",
     "tests/verify-928-field-line-rewrite.js",
     "tests/verify-929-batch-cycle.js",

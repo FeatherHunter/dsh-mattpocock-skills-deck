@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T21:00:49.421Z",
+  "generatedAt": "2026-10-16T21:04:21.808Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 301,
   "gateCount": 301,
@@ -3221,8 +3221,8 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 5 条"
     },
     {
-      "step": "node tests/verify-907-chain-titles.js",
-      "file": "tests/verify-907-chain-titles.js",
+      "step": "node tests/verify-907-chain-titles.ts",
+      "file": "tests/verify-907-chain-titles.ts",
       "guards": [
         "src/client/kernel/locale-pages.js",
         "src/client/statusbar/SessionChainCapsule.js",
@@ -3230,7 +3230,8 @@
         "src/host/refresh/sessionChainReadout.js",
         "src/host/snapshotEnvelope.ts",
         "src/host/tracker/snapshot.js",
-        "tests/lib/eval-probe.ts"
+        "tests/lib/eval-probe.ts",
+        "tests/lib/source-text.ts"
       ],
       "dirs": [
         "src/client/kernel",
@@ -3245,7 +3246,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 3 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 3 条"
     },
     {
       "step": "node tests/verify-908-progress-replace.ts",
@@ -3299,8 +3300,8 @@
       "reason": "归属来自：静态 import 说明符 1 条"
     },
     {
-      "step": "node tests/verify-926-capfold-gate.js",
-      "file": "tests/verify-926-capfold-gate.js",
+      "step": "node tests/verify-926-capfold-gate.ts",
+      "file": "tests/verify-926-capfold-gate.ts",
       "guards": [
         "src/client/statusbar/StatusBar.js",
         "src/client/statusbar/capFold.js",
@@ -7237,7 +7238,7 @@
       "node tests/verify-818-version-control-view.ts",
       "node tests/verify-842-version-control-write-view.ts",
       "node tests/verify-891-setup-refresh.ts",
-      "node tests/verify-907-chain-titles.js",
+      "node tests/verify-907-chain-titles.ts",
       "node tests/verify-997-vc-sight-browser.js",
       "node tests/verify-997-vc-sight.js",
       "node tests/verify-cap-fold.js",
@@ -7302,9 +7303,9 @@
       "node tests/verify-669-choice-precedence.ts",
       "node tests/verify-671-modal-global-overlay.ts",
       "node tests/verify-698-switch-asks-layout.ts",
-      "node tests/verify-907-chain-titles.js",
+      "node tests/verify-907-chain-titles.ts",
       "node tests/verify-916-ghauth-unknown-banner.ts",
-      "node tests/verify-926-capfold-gate.js",
+      "node tests/verify-926-capfold-gate.ts",
       "node tests/verify-cap-fold.js",
       "node tests/verify-reuse.js",
       "node tests/verify-subdir-first-frame.js"
@@ -7371,7 +7372,7 @@
       "node tests/verify-626-type-chip.ts",
       "node tests/verify-693-detail-fallback-honesty.ts",
       "node tests/verify-783-chain-effort.ts",
-      "node tests/verify-907-chain-titles.js",
+      "node tests/verify-907-chain-titles.ts",
       "node tests/verify-rest-fallback-banner.js",
       "node tests/verify-rest-fallback-reason.ts",
       "node tests/verify-reuse.js",
@@ -7496,7 +7497,7 @@
       "node tests/verify-841-write-phones.ts",
       "node tests/verify-847-stall-watch.ts",
       "node tests/verify-849-fs-absence.ts",
-      "node tests/verify-907-chain-titles.js",
+      "node tests/verify-907-chain-titles.ts",
       "node tests/verify-927-gate-injection.js",
       "node tests/verify-957-workspace-writer.js",
       "node tests/verify-963-log-order.js",
@@ -7603,7 +7604,7 @@
       "node tests/verify-784-effortId.ts",
       "node tests/verify-790-parent-edge.ts",
       "node tests/verify-829-parent-reread.ts",
-      "node tests/verify-907-chain-titles.js",
+      "node tests/verify-907-chain-titles.ts",
       "node tests/verify-927-gate-injection.js",
       "node tests/verify-934-935-invariants.js",
       "node tests/verify-947-workspace-file.ts",
@@ -7625,7 +7626,7 @@
       "node tests/verify-344-chain-auto-refresh.ts",
       "node tests/verify-507-pr-offline.ts",
       "node tests/verify-691-map-subissues.ts",
-      "node tests/verify-907-chain-titles.js",
+      "node tests/verify-907-chain-titles.ts",
       "node tests/verify-934-935-invariants.js",
       "node tests/verify-dirwritable.js",
       "node tests/verify-generic-catalog.js",
@@ -8109,9 +8110,9 @@
       "node tests/verify-891-setup-refresh.ts",
       "node tests/verify-895-bulk-deadline.ts",
       "node tests/verify-898-block-merge.ts",
-      "node tests/verify-907-chain-titles.js",
+      "node tests/verify-907-chain-titles.ts",
       "node tests/verify-916-ghauth-unknown-banner.ts",
-      "node tests/verify-926-capfold-gate.js",
+      "node tests/verify-926-capfold-gate.ts",
       "node tests/verify-929-batch-cycle.js",
       "node tests/verify-934-935-invariants.js",
       "node tests/verify-958-label-name-visible.js",
