@@ -1,4 +1,4 @@
-// tests/verify-709-no-self-continuing-timers.js —— #709 行为断言：退避算术与一次评估的 REST 条数
+// tests/verify-709-no-self-continuing-timers.ts —— #709 行为断言：退避算术与一次评估的 REST 条数
 //
 // 这个文件原先还兼着一道「全库不再有自续定时器」的源码文本门禁：读 src/** 与 src/client/** 的
 // .js 文本、扫 setInterval 与自名递归排期、钉住旧名字不许回来。那种断言的对象是手写源码的文本，
@@ -17,11 +17,21 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 // 现在留下的两段都是「跑起来的结果」，与真实触发时刻无关。
 import { installTimeCompression, uninstallTimeCompression } from './lib/time-compress.js'
 import { CHAIN_BACKOFF_MS, CHAIN_ALL_GREEN_TTL_MS, PREFLIGHT_TTL_MS } from '../src/shared/time-config/values.js'
+
+// 这一段假件只落在「起进程」那一处接缝上，下面三类形状就是那处接缝的账本条目与请求。
+// 三种用途（git 探远端、gh 探登录与可达、gh 取当前用户名）都从同一个 spawn 走，
+// 所以账本里只留 argv 与「这一笔算不算 REST」两个字段，够后面按命令分类数数用。
+interface RecordedSpawn { argv: string[]; rest: boolean }
+interface SpawnRequest { argv?: unknown[]; cwd?: string; stdio?: Record<string, unknown>; graceMs?: number }
+interface FakeReply { code: number; stdout: string }
+
+// 装载时间压缩必须在任何断言之前：它把全局定时器换成虚拟时钟，退避与预检那些「等超时」的路径
+// 才不会真等满 30 秒；收工（文件末尾汇总之后）必须还原，多扇门禁同进程跑时不能把虚拟时钟留给后面。
 installTimeCompression()
 
 let failed = false
 let total = 0
-function check(ok, msg, detail) {
+function check(ok: boolean, msg: string, detail?: string): void {
   total++
   if (ok) console.log('  PASS ' + msg)
   else { failed = true; console.log('  FAIL ' + msg + (detail ? ' — ' + detail : '')) }
@@ -82,12 +92,12 @@ console.log('\n— 一次评估里环境预检只花一次（断言取数路径�
   // 在一层假的「起进程」接缝上数：**这一轮到底对外问了几条 REST**。
   // 从前一次评估是 5 条（登录态 ×2、仓库可达 ×2，另加取当前登录用户名 1 条），本票要求降到 3 条。
   const ROOTDIR = join(dirname(fileURLToPath(import.meta.url)), '..')
-  const imp = (p) => import(pathToFileURL(p).href)
+  const imp = (p: string) => import(pathToFileURL(p).href)
 
   // 假进程的账本：每一笔「起进程」都记下来，并按 argv 回一份该命令该有的输出。
   function makeHost() {
-    const spawns = []
-    const replyFor = (argv) => {
+    const spawns: RecordedSpawn[] = []
+    const replyFor = (argv: string[]): FakeReply => {
       const rest = argv.slice(1).map(String)
       const a = rest.join(' ')
       if (/git(\.exe)?$/i.test(String(argv[0] || ''))) {
@@ -103,12 +113,12 @@ console.log('\n— 一次评估里环境预检只花一次（断言取数路径�
       return { code: 0, stdout: '{}\n' }
     }
     // 「算 REST」判据与票面同一口径：gh auth status 与 gh api 这两类才去 GitHub；`--version` 探 gh 存不存在不算。
-    const isRest = (argv) => {
+    const isRest = (argv: string[]): boolean => {
       const rest = argv.slice(1).map(String)
       if (rest.length === 1 && rest[0] === '--version') return false
       return rest.some((x) => x === 'auth' || x === 'api')
     }
-    const spawn = (req) => {
+    const spawn = (req?: SpawnRequest) => {
       const argv = ((req && req.argv) || []).map(String)
       const out = replyFor(argv)
       spawns.push({ argv: argv, rest: isRest(argv) })
@@ -142,7 +152,7 @@ console.log('\n— 一次评估里环境预检只花一次（断言取数路径�
       logCtx: null,
     })
     // 第二条出口的形状与 platformChannel 的 detectionExec 一致（都从 subprocess.spawn 起 gh）。
-    const detectionExec = async (cmd, args, opts) => {
+    const detectionExec = async (cmd: unknown, args?: unknown[], opts?: { cwd?: string }) => {
       const h = spawn({ argv: [String(cmd)].concat(args || []), cwd: (opts && opts.cwd) || ROOTDIR, stdio: {}, graceMs: 2000 })
       const outcome = await h.done
       return { stdout: h.collected.stdout.readFrom(0).text, stderr: '', code: outcome.exitCode }
@@ -181,7 +191,7 @@ console.log('\n— 一次评估里环境预检只花一次（断言取数路径�
     })
     return { chain: chain, spawns: spawns }
   }
-  const countOf = (spawns, cmd0, cmd1) => spawns.filter((s) => s.rest && String(s.argv[1]) === cmd0 && String(s.argv[2]) === cmd1).length
+  const countOf = (spawns: RecordedSpawn[], cmd0: string, cmd1: string) => spawns.filter((s) => s.rest && String(s.argv[1]) === cmd0 && String(s.argv[2]) === cmd1).length
 
   const repoKeysMod = await imp(join(ROOTDIR, 'src/host/git-process.ts'))
   const detMod = await imp(join(ROOTDIR, 'src/tracker/detection/detectionService.ts'))
@@ -209,7 +219,7 @@ console.log('\n— 一次评估里环境预检只花一次（断言取数路径�
   // 闸的那张调用点表（gate.js 的 CALL_SITE_CATEGORIES）说了算：它把每个调用点归到四类之一，
   // 账本再按类别分档记（user-action 一档、插件自己一档）。这里拿**真跑出来的结果**去问闸，
   // 不是拿一个测试内部自己编的名字去问 —— 断言的是取数路径给出的身份。
-  const assertSource = (label, chainSource, wantCategory) => {
+  const assertSource = (label: string, chainSource: string, wantCategory: string): void => {
     const ledger = ledgerMod.createLedger({ now: () => 1700000000000 })
     ledger.syncServer({ rest: { limit: 5000, remaining: 5000, reset: 1700003600000 }, graphql: { limit: 5000, remaining: 5000, reset: 1700003600000 } }, 1700000000000)
     const gate = gateMod.createGate({ ledger: ledger, now: () => 1700000000000 })
