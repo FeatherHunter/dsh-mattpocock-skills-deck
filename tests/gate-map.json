@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T18:32:10.188Z",
+  "generatedAt": "2026-10-16T18:34:28.355Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 302,
   "gateCount": 302,
@@ -2399,8 +2399,8 @@
       "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 1 条"
     },
     {
-      "step": "node tests/verify-685-healthcheck-button.js",
-      "file": "tests/verify-685-healthcheck-button.js",
+      "step": "node tests/verify-685-healthcheck-button.ts",
+      "file": "tests/verify-685-healthcheck-button.ts",
       "guards": [
         "src/client/kernel/health-check.js",
         "src/client/kernel/locale-flow.js",
@@ -7242,7 +7242,7 @@
       "node tests/verify-670-panel-first-frame.ts",
       "node tests/verify-683-choice-rev.ts",
       "node tests/verify-683-mirror-write.ts",
-      "node tests/verify-685-healthcheck-button.js",
+      "node tests/verify-685-healthcheck-button.ts",
       "node tests/verify-686-accept.js",
       "node tests/verify-689-counts-ui.ts",
       "node tests/verify-690-closed-pages.ts",
@@ -8106,7 +8106,7 @@
       "node tests/verify-683-choice-rev.ts",
       "node tests/verify-683-host-wiring.ts",
       "node tests/verify-683-mirror-write.ts",
-      "node tests/verify-685-healthcheck-button.js",
+      "node tests/verify-685-healthcheck-button.ts",
       "node tests/verify-686-accept.js",
       "node tests/verify-690-closed-pages.ts",
       "node tests/verify-698-switch-asks-layout.js",

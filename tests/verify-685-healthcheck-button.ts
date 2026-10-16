@@ -18,8 +18,8 @@ const path = require('path')
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
 let total = 0
-const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
-const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
+const check = (ok: unknown, msg: string): void => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
+const read = (rel: string): string => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 // 取源走共用入口（#1207 立的 tests/lib/source-text.ts）：locale-panel 已从 .js 转成 .ts，
 // 直接读 .js 会读到构建产物（或读不到），而且朴素拼文本过不了转译（类型标注与 satisfies 会把 eval 噎死）。
 // 共用入口先按全仓唯一口径转译再给可拼接文本；没转的文件走同一条，原样返回。
@@ -27,7 +27,7 @@ const { spliceableJs } = require('./lib/source-text.ts')
 
 // 与 scripts/build.mjs 同一条拼接思路：可拼接的 JavaScript 文本按顺序拼在一起，
 // 只在最后把要用的那几个名字导出来。这样跑的是真实现，不是另写一份。
-function spliceToFile(files, exportsList, tmpName) {
+function spliceToFile(files: string[], exportsList: string[], tmpName: string): string {
   let out = ''
   for (const rel of files) out += spliceableJs(rel) + '\n'
   out += '\nexport { ' + exportsList.join(', ') + ' }\n'
@@ -45,14 +45,14 @@ async function main() {
     ['healthCheckCountOf', 'healthCheckVisible', 'healthCheckSubjectOf', 'healthCheckLogEvent', 'openHealthCheck'],
     'tmp-685-hc.mjs'
   )
-  let hc
+  let hc: any
   try {
     hc = await import('file:///' + tmpHc.replace(/\\/g, '/'))
   } finally {
     try { fs.unlinkSync(tmpHc) } catch (e) {}
   }
-  const snapOf = (issues) => ({ snapshot: { issues: issues } })
-  const orphanField = (st) => hc.healthCheckCountOf(st)
+  const snapOf = (issues: any) => ({ snapshot: { issues: issues } })
+  const orphanField = (st: any) => hc.healthCheckCountOf(st)
   check(orphanField(null) === null, '空 st 算不出来时回 null（不是 0）')
   check(orphanField({}) === null, '快照都没有时回 null')
   check(orphanField({ snapshot: {} }) === null, '快照里没有 issues 一项时回 null')
@@ -92,10 +92,10 @@ async function main() {
       ],
     },
   }
-  const isMapRow = (x) => x.type === 'map' || (x.labels || []).some((l) => l && l.name === 'wayfinder:map')
-  const inAnyMap = {}
-  ;(realish.snapshot.maps || []).forEach((m) => (m.tickets || []).forEach((t) => { inAnyMap[String(t.key)] = true }))
-  const standaloneRows = realish.snapshot.issues.filter((x) => String(x.state).toUpperCase() !== 'CLOSED' && !isMapRow(x) && !inAnyMap[String(x.key)])
+  const isMapRow = (x: any) => x.type === 'map' || (x.labels || []).some((l: any) => l && l.name === 'wayfinder:map')
+  const inAnyMap: Record<string, boolean> = {}
+  ;(realish.snapshot.maps || []).forEach((m: any) => (m.tickets || []).forEach((t: any) => { inAnyMap[String(t.key)] = true }))
+  const standaloneRows = realish.snapshot.issues.filter((x: any) => String(x.state).toUpperCase() !== 'CLOSED' && !isMapRow(x) && !inAnyMap[String(x.key)])
   check(hc.healthCheckCountOf(realish) === standaloneRows.length,
     '件数与列表里「独立票」的行数一致（件数 ' + hc.healthCheckCountOf(realish) + ' vs 行数 ' + standaloneRows.length + '）')
   check(hc.healthCheckCountOf(realish) === 4, '地图节点与已挂图的子票都不计进件数（那两张即便出现在扁平行集里也不数）')
@@ -120,7 +120,7 @@ async function main() {
       ],
     },
   }
-  const nonMapOpenRows = flattened.snapshot.issues.filter((x) => String(x.state).toUpperCase() !== 'CLOSED' && !isMapRow(x)).length
+  const nonMapOpenRows = flattened.snapshot.issues.filter((x: any) => String(x.state).toUpperCase() !== 'CLOSED' && !isMapRow(x)).length
   check(nonMapOpenRows === 5, '对照量成立：扁平行集里非地图的开放行确实是 5 行（实得 ' + nonMapOpenRows + '）')
   check(hc.healthCheckCountOf(flattened) === 3,
     '扁平行集里已挂图的子票不算游离（应得 3，实得 ' + hc.healthCheckCountOf(flattened) + '；只数 issues 会得 5）')
@@ -165,21 +165,21 @@ async function main() {
     ['L_PANEL', 'L_FLOW', 'promptTextFor', 'healthCheckCountOf', 'healthCheckVisible', 'healthCheckLogEvent', 'openHealthCheck'],
     'tmp-685-open.mjs'
   )
-  let mod
+  let mod: any
   try {
     mod = await import('file:///' + tmpOpen.replace(/\\/g, '/'))
   } finally {
     try { fs.unlinkSync(tmpOpen) } catch (e) {}
   }
-  const L = { zh: Object.assign({}, mod.L_PANEL.zh, mod.L_FLOW.zh), en: Object.assign({}, mod.L_PANEL.en, mod.L_FLOW.en) }
+  const L: any = { zh: Object.assign({}, mod.L_PANEL.zh, mod.L_FLOW.zh), en: Object.assign({}, mod.L_PANEL.en, mod.L_FLOW.en) }
   let lang = 'zh'
-  const opened = []
-  const logged = []
-  globalThis.localeSvc = { getSnapshot: () => ({ active: lang }), subscribe: () => {} }
-  globalThis.tr = function (k, p) { const d = L[lang] || L.zh; let s = (d && d[k] !== undefined) ? d[k] : k; if (p) s = String(s).replace(/\{(\w+)\}/g, (m, n) => (p[n] === undefined ? m : String(p[n]))); return s }
-  globalThis.log = function (level, event, fields) { logged.push({ level: level, event: event, fields: fields }) }
-  globalThis.openTextInNewSession = function (st, text, title) { opened.push({ text: text, title: title }); return true }
-  globalThis.inject = function (st, text) { opened.push({ text: text, title: null, viaInject: true }) }
+  const opened: any[] = []
+  const logged: any[] = []
+  ;(globalThis as any).localeSvc = { getSnapshot: () => ({ active: lang }), subscribe: () => {} }
+  ;(globalThis as any).tr = function (k: any, p: any) { const d = L[lang] || L.zh; let s = (d && d[k] !== undefined) ? d[k] : k; if (p) s = String(s).replace(/\{(\w+)\}/g, (m: any, n: any) => (p[n] === undefined ? m : String(p[n]))); return s }
+  ;(globalThis as any).log = function (level: any, event: any, fields: any) { logged.push({ level: level, event: event, fields: fields }) }
+  ;(globalThis as any).openTextInNewSession = function (st: any, text: any, title: any) { opened.push({ text: text, title: title }); return true }
+  ;(globalThis as any).inject = function (st: any, text: any) { opened.push({ text: text, title: null, viaInject: true }) }
 
   const ghSubject = { zh: '科目甲：把游离的开放票找出来', en: 'subject A: find the orphaned open tickets' }
   const stOk = {
