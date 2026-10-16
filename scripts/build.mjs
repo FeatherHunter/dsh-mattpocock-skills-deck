@@ -79,7 +79,7 @@ const CACHE_PATH = join(ROOT, 'node_modules', '.cache', 'dsh-build.json')
 // 代价是改任何测试文件都会让指纹变、走一次全量重建——这是正确行为，不是故障：测试改了，
 // 就该重新构建一次再判定。
 const INPUT_ROOTS = ['src', 'scripts', 'tests']
-const INPUT_EXTRA = ['package.json', 'package/package.json', 'README.md', 'tsconfig.client.json', 'tsconfig.contract.json', 'config/timeouts.yaml']
+const INPUT_EXTRA = ['package.json', 'package/package.json', 'README.md', 'tsconfig.client.json', 'tsconfig.contract.json', 'config/timeouts.yaml', 'config/intervals.yaml', 'config/ttl.yaml']
 const ARTIFACT_FILES = ['client.js', 'host.js', 'package/README.md']
 // package/lib 要整目录收进来：它下面除了两份入口，还有构建写出来的其他镜像，
 // 而 verify-log-artifacts 比的是「package/lib 里的镜像 vs src 里的真源」，两边必须一起提 mtime。
@@ -603,8 +603,8 @@ const SHARED_SPLICE = [
   //   产物 src/shared/version-control/rules.js 由本文件上面的版本控制核心构建步骤生成。
   //   界面不许自己算（自己算就会与宿主执行前那次判定各说各话），所以把这一份也拼进界面闭包。
   { marker: '// ==== shared:vcRules (spliced by build) ====', file: 'src/shared/version-control/rules.js' },
-  // #1215 中央时间参数：全部时间旋钮只有一份真源 config/timeouts.yaml，产物由生成器落到
-  // src/shared/time-config/values.js（构建前先重跑生成器，见上面的预域再生）。
+  // #1215 中央时间参数：全部时间旋钮只有一份真源（config/ 下的 timeouts.yaml / intervals.yaml / ttl.yaml），
+  // 产物由生成器落到 src/shared/time-config/values.js（构建前先重跑生成器，见上面的预域再生）。
   // 界面那一半不能运行时 import（客户端半边今天没有任何对 src/shared 的运行时 import），
   // 所以按同一套拼接做法把客户端消费的那几个常量拼进界面闭包 —— 整份 values.js 不能拼（与 refreshBudget
   // 重名，见下面的 buildTimeConfigClientFragment），这里拼的是摘出来的 .tmp 片段（不入库，每次构建重算）。
@@ -1409,12 +1409,12 @@ syncReadme(version, repoUrl)
 // 每个域先跑类型检查、再把它的 src/*.ts 逐份转译成同目录同名的 .js。
 // 放在两段派生之前：这些产物是客户端闭包与宿主模块的输入，必须先就位。
 // 域里没有源码目录时（发布包与 package/ 子树）这一步自己跳过并打印一行提示，构建继续走。
-// #1215：进域循环之前，先按 config/timeouts.yaml 重算 time-config 域的生成源码——
+// #1215：进域循环之前，先按 config/ 下的三份时间参数文件重算 time-config 域的生成源码——
 // 域构建的第一步是该域的类型检查，生成必须在它之前，否则检查的是上一版的数字。
 {
   const r = spawnSync(process.execPath, [resolve(ROOT, 'scripts', 'generate-time-config.mjs')], { encoding: 'utf8' })
   if (r.status !== 0) {
-    throw new Error('中央时间参数生成失败（config/timeouts.yaml → time-config 域）：' + String((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(0, 3).join(' ／ '))
+    throw new Error('中央时间参数生成失败（config/ 下的三份时间参数文件 → time-config 域）：' + String((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(0, 3).join(' ／ '))
   }
 }
 for (const domain of findDomains()) {
@@ -1425,7 +1425,30 @@ for (const domain of findDomains()) {
 // budget 的 18 个同名常量声明两遍（client-dev 预检报 Identifier has already been declared）。
 // 所以只从 values.js 里摘客户端真正消费的那几行，落到 .tmp（不入库，每次构建重算），再拼进闭包。
 // 加新的客户端消费名时，把名字追加到 CLIENT_TIME_NAMES 即可，不用动拼接管线。
-const CLIENT_TIME_NAMES = ['MAP_TICKETS_TTL_MS', 'SETTINGS_DEBUG_PUSH_WAIT_MS']
+const CLIENT_TIME_NAMES = [
+  'MAP_TICKETS_TTL_MS',
+  'SETTINGS_DEBUG_PUSH_WAIT_MS',
+  'CLIENT_SESSION_TICK_MS',
+  'CLIENT_HANDOFF_DELAY_MS',
+  'PROBE_AUTO_WAIT_MS',
+  'SLOT_QUEUE_STEP_MS',
+  'SLOT_MODAL_OPEN_DELAY_MS',
+  'STORE_SWITCH_CONFIRM_MS',
+  'STATUS_MENU_DISMISS_DELAY_MS',
+  'STATUS_MENU_HOVER_OPEN_DELAY_MS',
+  'STATUS_MENU_FALLBACK_DELAY_MS',
+  'SNAPSHOT_PROBE_MS',
+  'STORE_NOTICE_DISMISS_MS',
+  'ISSUE_DETAIL_CONFIRM_MS',
+  'COMMENT_RESULT_FLASH_MS',
+  'COMMENTS_MORE_LOADING_MIN_MS',
+  'COPY_FLASH_MS',
+  // 客户端里那几处「SYNC 缺席时的兜底」也用中央常量，不在源码里留第二份数字。
+  'SYNC_FALLBACK_PROBE_MS',
+  'SYNC_FOCUS_PROBE_MIN_MS',
+  'SYNC_SNAP_FRESH_MS',
+  'SYNC_ISSUE_CACHE_TTL_MS',
+]
 function buildTimeConfigClientFragment() {
   const src = read('src/shared/time-config/values.js')
   const lines = []

@@ -1,16 +1,13 @@
-# 中央时间参数（票 #1215 立）
+# 中央时间参数的「超时」一份（票 #1215 立的头，2026-10-16 全量收拢时按用途拆开）。
 #
-# 这份文件是全仓 TypeScript 时间参数的唯一书写处：超时、节拍间隔、有效期、退避序列，
+# 全仓手写代码里的时间参数只在这三份文件里书写，按「这个时间是干什么的」分：
+#   config/timeouts.yaml   单次等待的上限（到点没回来就按失败或放弃处理）
+#   config/intervals.yaml  节拍间隔（每隔多久跑一次）与退避序列（失败后等多久再试）
+#   config/ttl.yaml        有效期（一份结果多长之内算数，过期重取）
 # 单位一律是毫秒，文件里不写单位后缀。想改一个时间，先改这里，再跑一次生成器
 # （node scripts/generate-time-config.mjs），调用方读到的是生成出来的值。
 #
-# 四组是按“这个时间是干什么的”分的：
-#   timeouts  单次等待的上限（到点没回来就按失败或放弃处理）
-#   intervals 节拍间隔（每隔多久跑一次）
-#   ttl       有效期（一份结果多长之内算数，过期重取）
-#   backoff   退避序列（失败后等多久再试，一档比一档久）
-#
-# 缺键是合法状态，不是故障：生成器对缺的键只告警，调用方用今天的数字顶上
+# 缺键是合法状态，不是故障：生成器对缺的键只告警，调用方用收拢当天的数字顶上
 # （回落底座见生成器里的 FALLBACKS 表）。未知键一律报错，不静默忽略。
 
 version: 1
@@ -54,6 +51,51 @@ timeouts:
   # GitLab 房建仓那一步的超时：60 秒。建仓含远端建仓库与本地初始化两段。
   gitlabCreateProjectMs: 60000
 
+  # —— 宿主直调的 git 命令与凭据助手（2026-10-16 全量收拢补）——
+  # 单条 git 命令的默认超时：20 秒。接线显式给了超时就按接线那个（versionControl.js 的 TIMEOUT_MS）。
+  vcRunTimeoutMs: 20000
+  # 版本控制核对的整趟预算：60 秒。一趟核对里所有 git 命令加起来不许超过它。
+  vcCheckCallBudgetMs: 60000
+  # 核对时列表 files 的超时：15 秒。
+  vcLsFilesTimeoutMs: 15000
+  # 核对时问远端地址的超时：5 秒。
+  vcRemoteTimeoutMs: 5000
+  # 写路径五条命令各自的超时：add 15 秒、commit 60 秒、pull 3 分钟、push 2 分钟、fetch 2 分钟。
+  # pull 给得最宽：它要跟远端协商并搬对象，是这几条里最容易慢的。
+  vcAddTimeoutMs: 15000
+  vcCommitTimeoutMs: 60000
+  vcPullTimeoutMs: 180000
+  vcPushTimeoutMs: 120000
+  vcFetchTimeoutMs: 120000
+  # 读类命令的单条超时：5 秒。写路径里问状态、读内容、查远端都走这一档。
+  vcReadCmdTimeoutMs: 5000
+  # 写路径四类调用的整趟预算：读头部 20 秒、默认读 10 秒、列表 files 30 秒、远端列表 15 秒。
+  # 「单条超时」与「整趟预算」是两件事：一条命令不许超 5 秒，一趟调用最多能花 10 秒。
+  vcHeadCallBudgetMs: 20000
+  vcReadCallBudgetMs: 10000
+  vcLsFilesCallBudgetMs: 30000
+  vcRemoteListCallBudgetMs: 15000
+  # 推送前让 git 复核两个分支名（只读命令）这一步的整趟预算：15 秒。两个名字共用这一趟预算。
+  vcPrePushCheckCallBudgetMs: 15000
+  # 写命令给整趟预算留的余量：10 秒。add / unstage / commit / pull / fetch / push 的整趟预算
+  # = 该条命令的超时 + 这个余量（超时管「一条命令最多跑多久」，整趟预算管「这一步所有命令合起来的上限」）。
+  vcWriteCallMarginMs: 10000
+  # git 凭据代执行的整趟预算：4 分钟。上下限 1 秒与 10 分钟：接线给的预算会被钳进这个范围。
+  gitCredentialCallBudgetMs: 240000
+  gitCredentialMinBudgetMs: 1000
+  gitCredentialMaxBudgetMs: 600000
+  # 问 git 用哪个凭据助手（config --get credential.helper）的超时：5 秒。
+  gitCredentialProbeTimeoutMs: 5000
+  # 每类 git 操作的默认预算：ls-remote 20 秒、fetch 2 分钟、pull 3 分钟、push 2 分钟、其余（default）1 分钟。
+  # 调用方没给每操作预算时按这一档；写操作要联网，给得比只读宽，到点一律强杀。
+  gitCredentialLsRemoteBudgetMs: 20000
+  gitCredentialFetchBudgetMs: 120000
+  gitCredentialPullBudgetMs: 180000
+  gitCredentialPushBudgetMs: 120000
+  gitCredentialDefaultBudgetMs: 60000
+  # http 传输连续 20 秒低于 1000 字节/秒就放弃。git 的 http.lowSpeedTime 只认秒，代码里把这一档毫秒除以 1000 再交给它。
+  gitLowSpeedTimeoutMs: 20000
+
   # 跟踪器假身位匹配的超时：30 秒。超时视作 pending（未知），排除出决策集。
   matchesTimeoutMs: 30000
 
@@ -77,6 +119,9 @@ timeouts:
 
   # 宿主接线的通用超时：30 秒。经 deps 注入各宿主模块，改这里全链生效。
   hostTimeoutMs: 30000
+  # 宿主启动时等 subprocess/timer 通道就绪的兜底：30 秒。等不到只记一行警告，不拦进程启动。
+  # 它与上一条不是一件事：上一条是接线给各模块的业务超时，这一条是启动引导自己的保险丝。
+  hostBootDeferMs: 30000
   # 写锁默认等待上限：60 秒。等不到就诚实回，不无限排队。
   keyLockMs: 60000
   # 会话工作目录规范化的等待上限：5 秒。超时回退，不拦启动。
@@ -93,68 +138,13 @@ timeouts:
   registerRetryWaitMs: 2000
   # 壳命令寻址解析的等待上限：8 秒。等不到就按解析失败走，不拦工具执行。
   shellResolveMs: 8000
+  # 问模型写一份工作区命名摘要的超时：30 秒。等不到就按没有摘要继续，名字回落到目录名。
+  namingSummaryTimeoutMs: 30000
+  # 客户端日志看门狗的阈值：5 秒。开关写与启动对账超过这么久没回，就记一行告警自举证。
+  logWatchdogMs: 5000
+  # 客户端等一次自动探测结果的上限：15 秒。等不到就按“这一次没结果”继续，不卡住整轮。
+  probeAutoWaitMs: 15000
   # 子进程收尾宽限：探活类（gh --version 这种一闪即走的）1 秒，常规 2 秒。
   # 宽限到了进程还没退才杀——杀早了会把“正在刷最后一段输出”的进程误杀。
   procProbeGraceMs: 1000
   procGraceMs: 2000
-
-intervals:
-  # 变化探测的间隔：正在看的那个活跃工作区每 5 秒探一次。
-  probeIntervalMs: 5000
-  # 黄档时探测放慢到的间隔：120 秒。红档不下探，直接全停。
-  probeIntervalYellowMs: 120000
-  # 活跃集合里“刚离开的那个”的探测间隔：15 秒。
-  probeIntervalLingerMs: 15000
-  # 黄档时两次整池重建之间的最短间隔：300 秒。防止降档之后还按原节奏重建。
-  rebuildMinIntervalYellowMs: 300000
-  # 后台对账（整池重建）的间隔：10 分钟。黄档时是否执行由档位决定。
-  reconcileIntervalMs: 600000
-  # 服务端剩余额度同步的间隔：60 秒。走不扣配额的接口，但仍是一条真实出站请求。
-  quotaSyncIntervalMs: 60000
-  # 面板可见时本地心跳的间隔：20 秒。零配额、不出网，只证明界面还看着这个工作区。
-  attentionHeartbeatMs: 20000
-
-ttl:
-  # 环境预检成功后的寿命：10 分钟。10 分钟之内复用同一份结果，不再重复花请求。
-  preflightTtlMs: 600000
-  # 检查链全绿后的缓存寿命：30 分钟。全绿这个状态本身变化很慢，不必反复重算。
-  chainAllGreenTtlMs: 1800000
-  # 被推迟的请求在队列里的过期时间：5 分钟。过期直接丢，不排队、不堆积、不重试。
-  deferExpiryMs: 300000
-  # 连续失败走完一整轮退避后，再等多久才放一笔探针试一次：5 分钟。
-  # 与推迟过期同一量级：两件事都是“等这么久还没好转，就当这一轮过去了”。
-  failureHalfOpenDelayMs: 300000
-  # 视野信号失效的判据：90 秒内没有任何“我在看谁”的上报，全部工作区降为后台档。
-  attentionExpiryMs: 90000
-  # 刚离开的那个工作区还算“活跃”多久：30 秒。照顾两个工作区之间快速来回切的手感。
-  activeLingerMs: 30000
-  # 行级补行的合并窗口：同一个工作区 10 秒内的多次补行合并成一次。
-  patchMergeWindowMs: 10000
-  # 数据超过多久算“黄”：5 分钟。定稿第十章“界面三件事”第一条的延迟承诺。
-  freshnessYellowMs: 300000
-  # 数据超过多久算“红”：30 分钟。
-  freshnessRedMs: 1800000
-  # 写票据的有效期：2 分钟。过期未用即作废，重走申请。
-  ticketTtlMs: 120000
-  # 工作区探测缓存的有效期：30 秒。
-  workspaceStoreTtlMs: 30000
-  # 搭检查链便车的单次有效期：30 秒。超了就自己重新求值，不蹭旧结论。
-  chainRideMaxAgeMs: 30000
-  # 快照组合器的缓存有效期：5 秒。四处同值（两次快照组装加两次刷新组装）。
-  snapshotTtlMs: 5000
-  # 宿主平台通道的状态缓存有效期：30 秒。workspaceStore 探测级联的寿命。
-  statusCacheMs: 30000
-  # 会话快照内存缓存的有效期：60 秒。命中即用，不重算。
-  snapshotCacheMs: 60000
-  # 计划游标文件的有效期：7 天。过期视为无游标，重走全量。
-  planCursorTtlMs: 604800000
-  # 幂等锚的时间档位宽度：5 分钟。把时刻压到档位上，同一档位内的重复调用视为同一笔。
-  anchorWindowMs: 300000
-  # GitHub 房幂等回看窗口：30 分钟。建票前回看这么久之内的同名票，防重复建。
-  idempotencyLookbackMs: 1800000
-  # 地图票列表缓存的有效期：60 秒（客户端）。命中即用，miss 才走远端。
-  mapTicketsTtlMs: 60000
-
-backoff:
-  # 检查链的退避序列：8 秒 → 30 秒 → 2 分钟 → 5 分钟。任何一步有进展立刻回到第一档。
-  chainBackoffMs: [8000, 30000, 120000, 300000]

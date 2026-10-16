@@ -1,0 +1,81 @@
+# 中央时间参数的「间隔与延时」一份（票 #1215 立的头，2026-10-16 全量收拢时按用途拆开）。
+#
+# 全仓手写代码里的时间参数只在这三份文件里书写，按「这个时间是干什么的」分：
+#   config/timeouts.yaml   单次等待的上限（到点没回来就按失败或放弃处理）
+#   config/intervals.yaml  节拍间隔（每隔多久跑一次）、一次性延时（等一下再动）与退避（失败后等多久再试）
+#   config/ttl.yaml        有效期（一份结果多长之内算数，过期重取）
+# 单位一律是毫秒，文件里不写单位后缀。想改一个时间，先改这里，再跑一次生成器
+# （node scripts/generate-time-config.mjs），调用方读到的是生成出来的值。
+#
+# 缺键是合法状态，不是故障：生成器对缺的键只告警，调用方用收拢当天的数字顶上
+# （回落底座见生成器里的 FALLBACKS 表）。未知键一律报错，不静默忽略。
+
+version: 1
+
+intervals:
+  # 变化探测的间隔：正在看的那个活跃工作区每 5 秒探一次。
+  probeIntervalMs: 5000
+  # 黄档时探测放慢到的间隔：120 秒。红档不下探，直接全停。
+  probeIntervalYellowMs: 120000
+  # 活跃集合里“刚离开的那个”的探测间隔：15 秒。
+  probeIntervalLingerMs: 15000
+  # 黄档时两次整池重建之间的最短间隔：300 秒。防止降档之后还按原节奏重建。
+  rebuildMinIntervalYellowMs: 300000
+  # 后台对账（整池重建）的间隔：10 分钟。黄档时是否执行由档位决定。
+  reconcileIntervalMs: 600000
+  # 服务端剩余额度同步的间隔：60 秒。走不扣配额的接口，但仍是一条真实出站请求。
+  quotaSyncIntervalMs: 60000
+  # 面板可见时本地心跳的间隔：20 秒。零配额、不出网，只证明界面还看着这个工作区。
+  attentionHeartbeatMs: 20000
+
+  # —— 跟踪器同步的节拍（src/shared/tracker/sync.js，宿主与界面吃同一份）——
+  # 一轮求值之间的最小间隙：4.5 秒。它管着「别把同一件事算两遍」。
+  syncEvalGapMs: 4500
+  # 脏标记探测的合并窗：1.2 秒。连着来的几次变化合成一次探测。
+  syncDirtyProbeDebounceMs: 1200
+  # 失败之后放慢到的探测间隔：5 分钟。单值退避放这一组，成序列的退避在下面的 backoff 组。
+  syncFailureBackoffMs: 300000
+  # 轮询栅格：4 秒。所有工作区的探测都对齐到这个栅格上，避免各查各的。
+  syncPollGridMs: 4000
+  # 没人看时的兜底探测间隔：60 秒。面板不可见时也不至于完全停摆。
+  syncFallbackProbeMs: 60000
+  # 刚获得焦点时的最短探测间隔：60 秒。焦点切换不该变成请求风暴。
+  syncFocusProbeMinMs: 60000
+
+  # —— 命名状态与日志的节拍 ——
+  # 命名状态落盘的合并窗：1.2 秒。短窗内多次改动只落一次盘。
+  namingPersistDebounceMs: 1200
+  # 命名即时推进的默认合并窗：1.5 秒。调用方给了延迟就按调用方的。
+  namingSweepSoonMs: 1500
+  # 命名兜底整轮的间隔：10 分钟。长期没有事件时靠它把状态推齐。
+  namingFallbackIntervalMs: 600000
+  # 命名重试的冷却：45 秒。同一项失败之后至少隔这么久再试。
+  namingRetryCooldownMs: 45000
+  # 宿主日志落盘的合并窗：1 秒。短窗内的多行合成一次写。
+  logWriteDebounceMs: 1000
+  # 客户端日志通道的批量间隔：1 秒（界面的日志分批发给宿主）。
+  logFlushMs: 1000
+
+  # —— 界面上的一次性延时（等一下再动，动手之前留给人的眼睛）——
+  # 交接会话时看通道的节拍：1 秒一次。等宿主把新的会话认下来。
+  clientSessionTickMs: 1000
+  # 交接之后至少转这么久才收尾：2 秒。“已经切走了”这件事要在界面上看得见。
+  clientHandoffDelayMs: 2000
+  # 连续弹两个窗口之间的让位间隔：80 毫秒。前一个先退场，后一个再上来。
+  slotQueueStepMs: 80
+  # 界面开关写盘的合并窗：500 毫秒。短窗内多次切换只写一次。
+  viewFlagWriteDebounceMs: 500
+  # 弹表格窗之前留的让位时间：1.1 秒。
+  slotModalOpenDelayMs: 1100
+  # 切库确认提示自动收起的时间：220 毫秒。
+  storeSwitchConfirmMs: 220
+  # 状态栏日志菜单关闭后的收起延时：300 毫秒（给鼠标一点回到菜单里的时间）。
+  statusMenuDismissDelayMs: 300
+  # 鼠标悬停到状态栏菜单上多久才展开：200 毫秒（划过去不算要看）。
+  statusMenuHoverOpenDelayMs: 200
+  # 状态栏菜单在宿主回话之前先开门的兜底延时：160 毫秒。
+  statusMenuFallbackDelayMs: 160
+
+backoff:
+  # 检查链的退避序列：8 秒 → 30 秒 → 2 分钟 → 5 分钟。任何一步有进展立刻回到第一档。
+  chainBackoffMs: [8000, 30000, 120000, 300000]
