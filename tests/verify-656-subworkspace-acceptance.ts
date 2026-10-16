@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * verify-656-subworkspace-acceptance.js — 子目录工作区场景验收门禁（地图 #647 · 票 #656）
+ * verify-656-subworkspace-acceptance.ts — 子目录工作区场景验收门禁（地图 #647 · 票 #656）
  *
  * 判据的出处是架构决定记录 docs/adr/20260918-subworkspace-identity-root.md 第 4 节，票 #656 把它
  * 分成四组。每条断言都先说清「守的是哪条不变式」，失败时把那句话原样打出来，不只有一个行号。
@@ -25,65 +25,68 @@
  *        （workspaceCwd.js）与统一判定出口（tracker/detection/backendDecision.ts）；「后端绑定」这一格
  *        的落点由本门禁自己那条内存文件服务（makeAuthorityFs）供着——它只替换磁盘，判定仍是生产那一份。
  *   D —— 在同一把钥匙上数真探测次数（第二次必须为零）。
- *   E —— 本门禁与票面点名的两条既有用例都在 npm run verify 链里。
+ *   E —— 本门禁与票面点名的两条用例都在 npm run verify 链里。
  *
  * 可选真机样本腿：默认跳过。设 DSW_VERIFY656_REAL=1 且本机存在样本目录时，额外在真样本上跑一遍。
  *   样本不在本机时只打一行说明、不计入断言——门禁本身不依赖任何机器上的具体路径。
  *
- * 用法：node tests/verify-656-subworkspace-acceptance.js
+ * 用法：node --import ./scripts/ts-hook.mjs tests/verify-656-subworkspace-acceptance.ts
  */
-const fsx = require('fs')
-const fsp = fsx.promises
-const nodePath = require('path')
-const nodeOs = require('os')
-const { pathToFileURL } = require('url')
+import fsx from 'node:fs'
+import nodePath from 'node:path'
+import nodeOs from 'node:os'
+import { pathToFileURL } from 'node:url'
 // 本文件按文本求值统一走共用入口 compileFn：把真源文本配假零件造成模块（理由与用法见 tests/lib/eval-probe.js 文件头）。
-const { compileFn } = require('./lib/eval-probe.js')
+import { compileFn } from './lib/eval-probe.js'
+// E 组问规划函数：本门禁与两条点名用例是否在链上（#1125 起不再读 package.json 长串）。
+import { isGatePlanned } from '../scripts/lib/discover-gates.js'
 
-const ROOT = nodePath.resolve(__dirname, '..')
-const read = (rel) => fsx.readFileSync(nodePath.join(ROOT, rel), 'utf8')
-const noExport = (s) => s.replace(/^[ \t]*export[ \t]+/gm, '')
-const url = (rel) => pathToFileURL(nodePath.join(ROOT, rel)).href
+const fsp = fsx.promises
+
+const ROOT = nodePath.resolve(import.meta.dirname, '..')
+const read = (rel: string): string => fsx.readFileSync(nodePath.join(ROOT, rel), 'utf8')
+const noExport = (s: string): string => s.replace(/^[ \t]*export[ \t]+/gm, '')
+const url = (rel: string): string => pathToFileURL(nodePath.join(ROOT, rel)).href
 
 let total = 0
-const broken = []
+const broken: string[] = []
 /**
  * 一条判据 = 一句不变式。cond 为假时把不变式原文打进失败行，并记进最后的小结。
- * @param {boolean} cond 这次实测是否守住
- * @param {string} invariant 不变式原文（人类读的那句话）
- * @param {string} [detail] 实测值之类的补充，只在失败时打
+ * @param cond 这次实测是否守住
+ * @param invariant 不变式原文（人类读的那句话）
+ * @param detail 实测值之类的补充，只在失败时打
  */
-function must(cond, invariant, detail) {
+function must(cond: unknown, invariant: string, detail?: string) {
   total++
   if (cond) { console.log('  PASS ' + invariant); return }
   const line = '  FAIL 不变式破了 —— ' + invariant + (detail ? '【实测：' + detail + '】' : '')
   console.log(line)
   broken.push(line.replace(/^\s+/, ''))
 }
-function title(t) { console.log('\n' + t) }
+function title(t: string) { console.log('\n' + t) }
 
 // ── 本机平台与夹具文件服务 ────────────────────────────────────────────────
 const OS = process.platform === 'win32' ? 'win32' : (process.platform === 'darwin' ? 'darwin' : 'linux')
 const PLATFORM = { os: OS, path: nodePath, async getHome() { return nodeOs.homedir() } }
-const target = (t) => (t && typeof t === 'object') ? String(t.path || t.targetKey || '') : String(t)
+const target = (t: any): string => (t && typeof t === 'object') ? String(t.path || t.targetKey || '') : String(t)
 /**
  * 照 DSH 文件服务的形状做一个真读盘的服务：lstat 收路径，stat / listDir / readText 收 resolve 出来的 target。
  * counter 记「探测次数」（读盘问某条路径在不在），D 组靠它证明第二次判定一次盘都没读。
  */
-function makeFsSvc(counter) {
+function makeFsSvc(counter: { probes: number } | null) {
   return {
-    async resolve(p, opts) {
+    async resolve(p: string, opts?: { cwd?: string }) {
       const abs = nodePath.isAbsolute(String(p)) ? String(p) : nodePath.resolve((opts && opts.cwd) || process.cwd(), String(p))
       return { path: abs, targetKey: abs }
     },
-    async lstat(p) { if (counter) counter.probes++; return fsp.lstat(target(p)) },   // 不在时抛错，与真服务同形
-    async stat(t) { if (counter) counter.probes++; return fsp.stat(target(t)) },
-    async listDir(t) { if (counter) counter.probes++; return fsp.readdir(target(t)) },
-    async readText(t) { return fsp.readFile(target(t), 'utf8') },
+    async lstat(p: string) { if (counter) counter.probes++; return fsp.lstat(target(p)) },   // 不在时抛错，与真服务同形
+    async stat(t: any) { if (counter) counter.probes++; return fsp.stat(target(t)) },
+    async listDir(t: any) { if (counter) counter.probes++; return fsp.readdir(target(t)) },
+    async readText(t: any) { return fsp.readFile(target(t), 'utf8') },
   }
 }
 
-let BASE = null
+let BASE = ''
 function cleanup() { try { if (BASE) fsx.rmSync(BASE, { recursive: true, force: true }) } catch (e) {} }
 
 /**
@@ -95,24 +98,24 @@ function cleanup() { try { if (BASE) fsx.rmSync(BASE, { recursive: true, force: 
  * writeText / mkdir），不做任何判定——判定仍由生产那一个出口做。
  */
 function makeAuthorityFs() {
-  const files = new Map()
-  const key = (p) => String(p).replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
-  const abs = (rel, cwd) => (nodePath.isAbsolute(String(rel)) ? String(rel) : nodePath.resolve(String(cwd || BASE), String(rel)))
+  const files = new Map<string, string>()
+  const key = (p: string): string => String(p).replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+  const abs = (rel: string, cwd?: string): string => (nodePath.isAbsolute(String(rel)) ? String(rel) : nodePath.resolve(String(cwd || BASE), String(rel)))
   return {
     /** 这一格里真写下来的内容（按读的原样回）：写没写成，靠它取证。 */
-    read(rel, cwd) {
+    read(rel: string, cwd?: string): string | null {
       const k = key(abs(rel, cwd))
-      return files.has(k) ? files.get(k) : null
+      return files.has(k) ? files.get(k)! : null
     },
     fs: {
-      async resolve(rel, opts) { return { path: abs(rel, opts && opts.cwd), rel: String(rel), cwd: String((opts && opts.cwd) || '') } },
-      async readText(t) {
+      async resolve(rel: string, opts?: { cwd?: string }) { return { path: abs(rel, opts && opts.cwd), rel: String(rel), cwd: String((opts && opts.cwd) || '') } },
+      async readText(t: any) {
         const p = String((t && t.path) || t)
         const v = files.get(key(p))
         if (v == null) throw Object.assign(new Error('ENOENT: no such file or directory, open \'' + p + '\''), { code: 'ENOENT' })
         return v
       },
-      async writeText(t, content) { files.set(key(String((t && t.path) || t)), String(content)) },
+      async writeText(t: any, content: string) { files.set(key(String((t && t.path) || t)), String(content)) },
       async mkdir() { return undefined },
     },
   }
@@ -120,8 +123,8 @@ function makeAuthorityFs() {
 
 async function main() {
   const wm = await import(url('src/host/workspaceKey.js'))
-  const normPath = (p) => wm.normalizeWorkspacePath(p, PLATFORM)
-  const canon = (raw) => wm.canonicalWorkspaceKey(raw, { getPlatform: async () => PLATFORM, getFs: () => fixtureFs, getDefaultCwd: () => BASE })
+  const normPath = (p: string): string => wm.normalizeWorkspacePath(p, PLATFORM)
+  const canon = (raw: string): Promise<string> => wm.canonicalWorkspaceKey(raw, { getPlatform: async () => PLATFORM, getFs: () => fixtureFs, getDefaultCwd: () => BASE })
 
   // ── 夹具树（真目录、真文件）──────────────────────────────────────────────
   // 一棵树里把票面点名的每种情形各放一处，A / B / C 三组都在它上面跑。
@@ -137,16 +140,17 @@ async function main() {
   //   base/outer/inner/                 内层自带 .git（更近）→ 截住上溯，不跳到 outer
   //   base/plain/sub/                   一路上去一个标记都没有 → 根就是它自己
   //   base/sibling/                     另一棵工作区（兄弟目录）→ 与 repo 不同根
+  //   base/repo/packages/cache-probe/deep/  D 组专用：没被问过的目录（缓存是空的）
   BASE = fsx.mkdtempSync(nodePath.join(nodeOs.tmpdir(), 'subws656-'))
-  const at = (rel) => nodePath.isAbsolute(rel) ? rel : nodePath.join(BASE, rel)
-  const put = (rel, content) => {
+  const at = (rel: string): string => nodePath.isAbsolute(rel) ? rel : nodePath.join(BASE, rel)
+  const put = (rel: string, content: string): string => {
     const abs = at(rel)
     fsx.mkdirSync(nodePath.dirname(abs), { recursive: true })
     fsx.writeFileSync(abs, content)
     return abs
   }
-  const mkdir = (rel) => { const abs = at(rel); fsx.mkdirSync(abs, { recursive: true }); return abs }
-  const W = (rel) => nodePath.join(BASE, rel)
+  const mkdir = (rel: string): string => { const abs = at(rel); fsx.mkdirSync(abs, { recursive: true }); return abs }
+  const W = (rel: string): string => nodePath.join(BASE, rel)
   put(W('repo/.git/config'), '[core]\n\trepositoryformatversion = 0\n')
   put(W('repo/docs/agents/issue-tracker.md'), '# Issue tracker: GitHub\n\n本仓库的 issue 在 GitHub 上。\n')
   const RAW = {
@@ -304,7 +308,7 @@ async function main() {
   const probeBlock = noExport(snapSrc.slice(snapSrc.indexOf('export const lastProbeAtByCwd'), snapSrc.indexOf('export const SNAP_DISK_CAP')))
   const chainBlock = noExport(snapSrc.slice(snapSrc.indexOf('export const getChainCacheKey'), snapSrc.indexOf('export const hydrateFromCache')))
   // 真源文本与假零件一起求值：改走共用入口 compileFn，参数名照原样逐个列出。
-  const C = compileFn(
+  const C: any = compileFn(
     ['keyOf', 'snapshotByCwd', 'chainByCwd', 'shared', 'stores', 'emit',
       'dswsLogHash', 'isEnabled', 'log', 'touchLRUClient', 'diskPutSnapshot', 'CHAIN_CWD_LRU_MAX'],
     keyOfSrc + '\n' + wsKeyBlock + '\n' + storeBlock + '\n' + probeBlock + '\n' + chainBlock + '\n' +
@@ -313,12 +317,12 @@ async function main() {
     ' getChainCacheKey: getChainCacheKey, getCachedChain: getCachedChain, setCachedChain: setCachedChain, chains: chainByCwd }'
   )(
     keyOfFn, new Map(), new Map(), { cwd: '' }, {}, () => {}, () => 'h', () => false, () => {},
-    (m, k, v) => m.set(k, v), () => {}, 20
+    (m: any, k: any, v: any) => m.set(k, v), () => {}, 20
   )
 
   const prefsSrc = read('src/client/kernel/store-prefs.js')
   // 同一手法：真源文本配假 localStorage 等零件，统一走共用入口 compileFn。
-  const P = compileFn(
+  const P: any = compileFn(
     ['keyOf', 'wsKeyOf', 'localStorage', 'log', 'emit', 'shared', 'stores'],
     noExport(prefsSrc.slice(prefsSrc.indexOf('export const selectionByCwd = {}'))) + '\n' +
     'return { getCachedSelection: getCachedSelection, setCachedSelection: setCachedSelection,' +
@@ -329,7 +333,7 @@ async function main() {
     () => {}, () => {}, { cwd: '' }, {}
   )
 
-  // —— B1 面板快照 ——
+  // —— B1 面板快照（瘦身后只留一条读通路：子目录落、根按根读；多子目录/兄弟隔离与条目数由 #653 守）——
   // 真流程：宿主回包带着工作区根（#652 起 canonicalKey 算出来的那一条），客户端先记住它再落缓存。
   const subSnap = { ok: true, maps: [], issues: [], workspaceRoot: RAW.repo, generatedMs: 2 }
   C.rememberWorkspaceRoot(RAW.sub, RAW.repo)        // 子目录会话第一次收到回包时学到根
@@ -337,37 +341,22 @@ async function main() {
   must(C.getCachedSnapshot(RAW.sub) === subSnap && C.getCachedSnapshot(RAW.repo) === subSnap,
     '面板快照：子目录会话落下的那一份，根会话按根就能读到（同一个工作区一份数据，不占两个桶）',
     'sub=' + !!C.getCachedSnapshot(RAW.sub) + ' root=' + !!C.getCachedSnapshot(RAW.repo))
-  C.rememberWorkspaceRoot(RAW.subDeep, RAW.repo)    // 同一个工作区里另一个子目录会话也学到了根
-  C.rememberWorkspaceRoot(RAW.sibling, RAW.sibling)
-  must(C.getCachedSnapshot(RAW.subDeep) === subSnap && C.getCachedSnapshot(RAW.sibling) === null && C.snapshots.size === 1,
-    '面板快照：同一个工作区里几个子目录会话读到的是同一份（面板不空着），兄弟工作区读不到它（不串台）',
-    'subDeep=' + !!C.getCachedSnapshot(RAW.subDeep) + ' sibling=' + !!C.getCachedSnapshot(RAW.sibling) + ' 表里条目=' + C.snapshots.size)
-  must(C.getCachedSnapshot(RAW.sub) === C.getCachedSnapshot(RAW.repo) && C.getCachedSnapshot(RAW.repo).workspaceRoot === RAW.repo,
-    '面板快照里那份数据自报的工作区根就是工作区根这一条（界面上的归属提示也按它判）',
-    JSON.stringify(C.getCachedSnapshot(RAW.repo)))
 
-  // —— B2 检查链快照 ——
+  // —— B2 检查链快照（瘦身后只留一条读通路：同钥匙共用同一条链；兄弟隔离与后端语言矩阵由 #653 守）——
   {
     const chain = { steps: [{ id: 'tracker:initialized', status: 'done' }], chainState: 'allDone' }
     C.setCachedChain(RAW.sub, 'github', 'zh', chain)
+    C.rememberWorkspaceRoot(RAW.subDeep, RAW.repo) // 同一个工作区里另一个子目录会话也学到了根（生产里每个会话第一次收到宿主回包时学；B2 这条读通路要它）
     const sameKey = C.getChainCacheKey(RAW.sub, 'github', 'zh') === C.getChainCacheKey(RAW.repo, 'github', 'zh')
-    const otherKey = C.getChainCacheKey(RAW.sibling, 'github', 'zh') !== C.getChainCacheKey(RAW.repo, 'github', 'zh')
     must(sameKey && C.getCachedChain(RAW.repo, 'github', 'zh') === chain && C.getCachedChain(RAW.subDeep, 'github', 'zh') === chain,
       '检查链快照：同一个工作区里的会话共用同一把链键、同一个答案（不重复求值）',
       'sameKey=' + sameKey + ' root=' + !!C.getCachedChain(RAW.repo, 'github', 'zh') + ' subDeep=' + !!C.getCachedChain(RAW.subDeep, 'github', 'zh'))
-    must(otherKey && C.getCachedChain(RAW.sibling, 'github', 'zh') === null,
-      '检查链快照：另一个工作区（兄弟目录）拿不到这条链的答案，它的键不一样',
-      'otherKey=' + otherKey + ' sibling=' + !!C.getCachedChain(RAW.sibling, 'github', 'zh'))
-    must(C.getChainCacheKey(RAW.sub, 'markdown', 'zh') !== C.getChainCacheKey(RAW.sub, 'github', 'zh') &&
-      C.getChainCacheKey(RAW.sub, 'github', 'en') !== C.getChainCacheKey(RAW.sub, 'github', 'zh'),
-      '检查链快照的键还带着后端与语言：同一把工作区钥匙下，换了后端或换了语言算另一条链（不与别的后端串）',
-      C.getChainCacheKey(RAW.sub, 'markdown', 'zh') + ' / ' + C.getChainCacheKey(RAW.sub, 'github', 'en'))
   }
 
   // —— B3 后端绑定（宿主侧真注册表 + 真 wf.bind 处理体 + 真判定出口）——
   {
     const anchor = await import(url('src/deck/shell/workspace-anchor.ts'))
-    const WORKSPACE_FILE_REL = anchor.WORKSPACE_FILE_REL
+    const WORKSPACE_FILE_REL: string = anchor.WORKSPACE_FILE_REL
     const parseWorkspaceFile = anchor.parseWorkspaceFile
     const registry = (await import(url('src/tracker/registry/core.ts'))).createRegistry()
     registry.register({ id: 'github', label: 'GitHub', create: () => ({}), matches: async () => false })
@@ -378,7 +367,7 @@ async function main() {
     const authority = makeAuthorityFs()
     const outlet = await import(url('src/tracker/detection/backendDecision.ts'))
     const wsCwd = (await import(url('src/host/workspaceCwd.js'))).createWorkspaceCwd({
-      ctx: { get: (name) => (name === 'fs' ? authority.fs : undefined) },
+      ctx: { get: (name: string) => (name === 'fs' ? authority.fs : undefined) },
       DEFAULT_CWD: '',
       getPlatform: async () => Object.assign({}, PLATFORM, { fs: authority.fs }),
       getTrackerRegistry: async () => registry,
@@ -399,7 +388,7 @@ async function main() {
       '回包=' + JSON.stringify(bindOut).slice(0, 240) + ' 真写盘=' + JSON.stringify(authority.read(WORKSPACE_FILE_REL, K.repo)))
     // 写下来的这份文件按工作区根这一层归一：子目录会话（RAW.subDeep）、它上面的子目录（RAW.sub）与根会话
     //   （RAW.repo）读到的是同一份；兄弟目录（RAW.sibling）没有这一份，读不着。
-    const readAt = (cwd) => authority.read(WORKSPACE_FILE_REL, cwd)
+    const readAt = (cwd: string): string | null => authority.read(WORKSPACE_FILE_REL, cwd)
     const atRoot = readAt(K.repo)
     must(atRoot !== null && atRoot === readAt(K.sub) && atRoot === readAt(K.subDeep) && readAt(K.sibling) === null,
       '后端绑定：这份文件按工作区根归一——同一仓库的子目录会话与根会话读到同一份，兄弟目录读不着',
@@ -518,9 +507,9 @@ async function main() {
     const detectExplicit = (await import(url('src/tracker/detection/explicitDetector.ts'))).detectExplicit
     const reg = (await import(url('src/tracker/registry/core.ts'))).createRegistry()
     reg.register({ id: 'github', label: 'GitHub', create: () => ({}), matches: async () => false })
-    const readPaths = []
+    const readPaths: string[] = []
     const spyFs = Object.assign({}, fixtureFs, {
-      async resolve(p, opts) {
+      async resolve(p: string, opts?: { cwd?: string }) {
         const abs = nodePath.isAbsolute(String(p)) ? String(p) : nodePath.resolve((opts && opts.cwd) || process.cwd(), String(p))
         if (String(p) === 'docs/agents/issue-tracker.md') readPaths.push(abs)
         return { path: abs, targetKey: abs }
@@ -578,16 +567,15 @@ async function main() {
 
   {
     // E) 门禁入链与票面点名的两条对齐（#1125 起问规划函数，不再读 package.json 长串）
-    const { isGatePlanned } = require('../scripts/lib/discover-gates.ts')
-    must(isGatePlanned(ROOT, 'tests/verify-656-subworkspace-acceptance.js'),
+    must(isGatePlanned(ROOT, 'tests/verify-656-subworkspace-acceptance.ts'),
       '本门禁已挂进 verify 链（判据不靠人记得手动跑）',
       '规划函数里没有它')
     must(isGatePlanned(ROOT, 'tests/verify-t1-getrepokey.js'),
       'tests/verify-t1-getrepokey.js 已收进 verify 链——它的场景 6 是仓库里唯一一条「cwd 是子目录」的用例，此前不在链上',
       '规划函数里没有它')
-    must(isGatePlanned(ROOT, 'tests/verify-653-subworkspace.js'),
-      '客户端那条落地票的门禁（verify-653-subworkspace.js）仍在链上，与本门禁一起守着这件事',
-      '规划函数里没有 verify-653-subworkspace.js')
+    must(isGatePlanned(ROOT, 'tests/verify-653-subworkspace.ts'),
+      '客户端那条落地票的门禁（verify-653-subworkspace.ts）仍在链上，与本门禁一起守着这件事',
+      '规划函数里没有 verify-653-subworkspace.ts')
     // 【已删除】原先这里读 tests/verify-bundled-trio-matrix.js 的源码文本，断言里面有
     // `function projectRootUpward`、没有「简化为 cwd 本身」。那是钉另一个测试文件的写法，
     // 等价重构就会变红，撤掉。
@@ -617,7 +605,7 @@ async function main() {
  *   ② 反着来一条：在自带 .git 的嵌套仓库里开会话，它自成一套，不被外层仓库吞掉
  *      （样本由本机现找：在 ① 那棵仓库里找一个自带 .git 的子目录；找不到就只打一行说明）。
  */
-async function realSamples(canon) {
+async function realSamples(canon: (raw: string) => Promise<string>) {
   if (process.env.DSW_VERIFY656_REAL !== '1') {
     console.log('  · 未开真机腿（设 DSW_VERIFY656_REAL=1 且本机有样本目录时会跑）；本条不参与断言，门禁不依赖任何机器上的具体路径')
     return
@@ -658,9 +646,9 @@ async function realSamples(canon) {
 }
 
 /** 在一棵目录树里（最多往下两层、跳过 node_modules 一类）找一个自带 .git 的子目录。 */
-function findNestedRepo(dir, depth) {
+function findNestedRepo(dir: string, depth: number): string | null {
   if (depth > 2) return null
-  let items = []
+  let items: any[] = []
   try { items = fsx.readdirSync(dir, { withFileTypes: true }) } catch (e) { return null }
   for (const it of items) {
     if (!it.isDirectory()) continue
@@ -674,7 +662,7 @@ function findNestedRepo(dir, depth) {
 }
 
 /** 这条目录下第一个子目录（没有就回空串）。 */
-function firstSubdir(dir) {
+function firstSubdir(dir: string): string {
   try {
     const items = fsx.readdirSync(dir, { withFileTypes: true })
     for (const it of items) { if (it.isDirectory() && it.name !== '.git') return nodePath.join(dir, it.name) }
@@ -682,4 +670,4 @@ function firstSubdir(dir) {
   return ''
 }
 
-main().catch(function (e) { console.error('RUNNER ERROR:', e && e.stack || e); cleanup(); process.exit(2) })
+main().catch(function (e: any) { console.error('RUNNER ERROR:', e && e.stack || e); cleanup(); process.exit(2) })

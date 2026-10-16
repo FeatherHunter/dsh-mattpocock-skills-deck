@@ -250,7 +250,6 @@
     "tests/smoke-render.test.js",
     "tests/tracker-contract/fixtures/markdown.js",
     "tests/tracker-contract/sections/idempotency-counterproof.js",
-    "tests/verify-656-subworkspace-acceptance.js",
     "tests/verify-666-subws-mark-root.js",
     "tests/verify-667-dock-header-no-brand.js",
     "tests/verify-668-guide-steps-single-source.js",
