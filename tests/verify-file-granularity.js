@@ -44,6 +44,16 @@ const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if
 // 直接取用已安装的 dsh-log 包）。名单留着——将来再有别的包编译产物原样拷进 src/，把前缀写这里。
 const DERIVED_DIRS = []
 
+// 生成源码同样不进本门禁（理由与上面那条并列）：这类文件的内容是「配置文件里的数据逐条展开」，
+// 行数由键的个数决定，不是人手写出来的结构；本门禁要的“拆到 350 行以内”对它无解——
+// 它只有一个可拆的维度，就是拆生成器，那属于改生成方案，不属于顺手拆文件。
+// 名单里的文件都自带「人手不改：本文件由某脚本写出」的头注释，正确性由各自的生成新鲜度门禁钉住：
+//   src/shared/time-config/src/values.ts → tests/verify-time-config.ts 第一节（生成物与三份 YAML 一致）
+//   src/shared/time-config/values.js → 同一份生成物的构建产物（构建把域内 src/*.ts 编译到域根，
+//     所以它与 .ts 不同目录，躲不过 PRODUCT_TWINS 那条同名产物判据），同上
+// 新增生成源码时把相对路径加进来，并把对应的新鲜度门禁写在下面一行注释里。
+const GENERATED_FILES = ['src/shared/time-config/src/values.ts', 'src/shared/time-config/values.js']
+
 /** 同名产物判定表：右列存在时，左列那份文件不算源文件。 */
 const PRODUCT_TWINS = { '.js': '.ts', '.mjs': '.mts', '.cjs': '.cts' }
 
@@ -65,6 +75,7 @@ function listSourceFiles() {
       }
       const rel = path.relative(ROOT, full).split(path.sep).join('/')
       if (DERIVED_DIRS.some((prefix) => rel.startsWith(prefix))) continue
+      if (GENERATED_FILES.includes(rel)) continue
       out.push(rel)
     }
   }

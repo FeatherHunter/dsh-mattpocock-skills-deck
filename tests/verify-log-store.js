@@ -80,7 +80,10 @@ async function main() {
   const phonesLines = phonesSrc.split(/\r?\n/).length
   check(lineCount <= 300, '日志库不超 300 行（留余量，实得 ' + lineCount + ' 行）')
   check(phonesLines <= 300, '日志电话组不超 300 行（#500 拆出，实得 ' + phonesLines + ' 行）')
-  check(LOG_DEBOUNCE_MS === 1000 && src.includes('LOG_DEBOUNCE_MS = 1000'), '防抖窗口为 1000 毫秒（设计 2.2 字面）')
+  // #1215 起防抖窗口的真源是中央时间参数（config/intervals.yaml 的 logWriteDebounceMs）：
+  // logStore.js 里那行写的是“别名接中央常量、缺表回落 1000”，所以这里断言值仍是 1000 毫秒，
+  // 并且确实接的是那个中央常量（源码里能读到 LOG_WRITE_DEBOUNCE_MS 这个名字）。
+  check(LOG_DEBOUNCE_MS === 1000 && src.includes('LOG_WRITE_DEBOUNCE_MS'), '防抖窗口为 1000 毫秒（设计 2.2 字面；#1215 起取值住中央 YAML 的 logWriteDebounceMs）')
   check(mod.LOG_SWITCH_FILE === 'log-switch.json', '开关文件名常量导出为 log-switch.json（持久化）')
   check(src.includes('log-switch.json'), '开关持久化落点为缓存目录下 log-switch.json')
   check(src.includes('host.start'), '启动时在日志头写入进程标识与启动时间（host.start）')
