@@ -1,5 +1,5 @@
 /**
- * tests/tracker-contract/sections/preflight.js — preflight 判档段（票 #1111 按新规则表同步）。
+ * tests/tracker-contract/sections/preflight.ts — preflight 判档段（票 #1111 按新规则表同步）。
  *
  * 判档现在的顺序是「按证据分层来」：src/tracker/kernel/error-rules.ts 里的 RULE_LAYERS 就是
  *   fact → errcode → phrase → vague → fallback
@@ -19,10 +19,17 @@
 import { classifyError, verdictOf, fail, HINT_UNRECOGNIZED, HINT_UNSUPPORTED } from '../../../src/tracker/kernel/preflight.ts'
 import { ERROR_KIND } from '../../../src/tracker/contract/vocabulary.ts'
 
-export async function run() {
-  const out = []
+/** 单条 preflight 断言的结果：ok 为判定，detail 留现场。 */
+export interface PreflightAssertResult {
+  name: string
+  ok: boolean
+  detail: string
+}
+
+export async function run(): Promise<PreflightAssertResult[]> {
+  const out: PreflightAssertResult[] = []
   const P = 'preflight · '
-  const assert = async (name, cond, detail) => {
+  const assert = async (name: string, cond: unknown, detail?: string): Promise<void> => {
     let ok = false
     try { ok = !!(await cond) } catch (e) { out.push({ name: P + name, ok: false, detail: String(e) }); return }
     out.push({ name: P + name, ok, detail: detail || '' })
@@ -127,7 +134,7 @@ export async function run() {
   // ✗ probe：分层顺序是真的 —— planted 一个「先看含糊短语再看整句」的错序分类器，
   //   它会把 command-not-found 判成「找不到」，而真分类器判成「环境问题」。
   await assert('✗ probe: 错序分类器（vague 先于 phrase）会把 command not found 误判为 not-found', (async () => {
-    const wrongOrder = (msg) => (/\bnot\s+found\b/i.test(msg) ? ERROR_KIND.NOTFOUND : ERROR_KIND.ENV)
+    const wrongOrder = (msg: string) => (/\bnot\s+found\b/i.test(msg) ? ERROR_KIND.NOTFOUND : ERROR_KIND.ENV)
     const mis = wrongOrder('command not found: gh')
     return mis === ERROR_KIND.NOTFOUND && classifyError('command not found: gh') === ERROR_KIND.ENV
   })(), 'prove layer order is real (vague-first misclassifies)')
