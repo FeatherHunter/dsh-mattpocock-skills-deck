@@ -36,7 +36,8 @@ const COMMENT_BACKEND = '# 这条工作区用哪个后端'
 const COMMENT_PICKED = '# 这次选择发生的时间（毫秒）'
 const COMMENT_SOURCE =
   '# 这条选择是谁做的：user=人在面板里亲手选的；migrated=从老版本机记忆搬来的；detected=插件按声明文件或自动识别生成的'
-const COMMENT_LAYOUT = '# 面板布局：single=单栏；multi=多栏'
+const COMMENT_LAYOUT_1 = '# 域文档布局：single=单上下文（各部分共用一套用语，根目录一份 GLOSSARY.md）；'
+const COMMENT_LAYOUT_2 = '# multi=多上下文（各有各的用语，子项目各一份 GLOSSARY.md，根目录一份 GLOSSARY-MAP.md指过去）'
 
 const SOURCES_V2 = ['user', 'migrated', 'detected']
 const SOURCES_V1 = ['user', 'migrated', 'detected', 'auto']
@@ -158,7 +159,7 @@ export function parseWorkspace(doc: unknown): ConfigParseResult {
   // 布局缺席允许：v1 老文件本来就没有；v2 文件缺了也照读（值里不带 layout 键）。
   // 写布局是调用方的事（有点确认/迁移时带上）；一旦写进去，覆盖写必须读改写保住。
   if (doc['layout'] !== undefined && (typeof doc['layout'] !== 'string' || LAYOUTS.indexOf(doc['layout']) < 0)) {
-    return fail('bad-shape', '工作区配置文件里的 layout 必须是 single（单栏）或 multi（多栏）')
+    return fail('bad-shape', '工作区配置文件里的 layout 必须是 single（单上下文）或 multi（多上下文）')
   }
   const value: Record<string, unknown> = {
     version,
@@ -206,7 +207,8 @@ export function stringifyWorkspace(value: unknown): ConfigStringifyResult {
   lines.push(COMMENT_SOURCE)
   lines.push('source: ' + esc(String(v['source'])))
   if (v['layout'] !== undefined) {
-    lines.push(COMMENT_LAYOUT)
+    lines.push(COMMENT_LAYOUT_1)
+    lines.push(COMMENT_LAYOUT_2)
     lines.push('layout: ' + esc(String(v['layout'])))
   }
   return { ok: true, text: lines.join('\n') + '\n' }

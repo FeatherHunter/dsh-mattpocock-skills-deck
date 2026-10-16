@@ -98,7 +98,7 @@ async function main() {
     try { body = fs.readFileSync(fp, 'utf8'); ok = body.includes('backendId: github') && body.includes('source: migrated') && body.includes('version: 2'); } catch (e) {}
     check(ok, 'M1 文件缺席+记忆有，选择后文件被建出来（github/migrated，新格式 YAML 版本 2：来源如实记搬来的）', body.slice(0, 200));
   }
-  // M1b 记忆里的版式一起搬过去（没有就不写，不丢也不造）
+  // M1b 记忆里的域文档布局一起搬过去（没有就不写，不丢也不造）
   {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'v1003m1b-'));
     const dir = path.join(tmp, 'ws');
@@ -109,7 +109,7 @@ async function main() {
     await new Promise((r) => setTimeout(r, 300));
     let ok = false, body = '';
     try { body = fs.readFileSync(path.join(dir, 'docs', 'agents', 'workspace.yaml'), 'utf8'); ok = body.includes('layout: multi'); } catch (e) {}
-    check(ok, 'M1b 记忆里的版式一起搬进文件（multi）', body.slice(0, 200));
+    check(ok, 'M1b 记忆里的域文档布局一起搬进文件（multi）', body.slice(0, 200));
   }
   // M2 文件已在 → 不覆盖
   {

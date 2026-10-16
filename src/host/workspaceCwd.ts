@@ -38,7 +38,7 @@ type Deps = { ctx: Ctx; DEFAULT_CWD: string; getPlatform(): Promise<Platform | n
 /**
  * 组装工作区路径归一、后端绑定选择、布局记忆与标签配色电话（#449 / #652 / #683 / #957 / #1003 / #1074 / #1138）。
  *
- * 为什么：所有涉及「当前工作区是哪个目录、绑定了哪个后端、采用单图还是多图布局、标签配什么颜色」的宿主电话都依赖同一把工作区根路径钥匙（`canonicalKey`）和同一份工作区配置文件（`docs/agents/workspace.json`）；集中在这里组装并用 `loggedPhone` 统一包一层常驻日志，能保证读写删三侧钥匙同形、每通电话留痕。
+ * 为什么：所有涉及「当前工作区是哪个目录、绑定了哪个后端、域文档布局是单上下文还是多上下文、标签配什么颜色」的宿主电话都依赖同一把工作区根路径钥匙（`canonicalKey`）和同一份工作区配置文件（`docs/agents/workspace.json`）；集中在这里组装并用 `loggedPhone` 统一包一层常驻日志，能保证读写删三侧钥匙同形、每通电话留痕。
  * 什么约定不能改：
  *   1. `handleBind` 的生效判据有且只有一条：先把选择写进工作区配置文件（`writeWorkspaceRecord`），只有文件写成功才算本次绑定生效（`ok: true`）；文件写失败必须当场返回 `ok: false` 与四档原因码（`no-permit` / `readonly` / `no-dir` / `other`），绝不能在文件未写成时返回 `ok: true`。
  *   2. `handleBind` 入口前 3 行内必须先做空目录守卫与 `canonicalKey` 归一（门禁 `verify-3-workspace-switch.js` 钉死）；`handleSelection` 调用统一判定出口 `decideBackend` 时必须递入 `caller: 'wf.selection', logCtx: logCtx`（门禁 `verify-detection-log-reach.ts` 钉死）。
@@ -136,7 +136,7 @@ export function createWorkspaceCwd(deps: Deps) {
       return { ok: false, error: msg }
     }
   }
-  // #1003 拍板：布局是「这个工作区用单栏还是多栏」的选择，属于这份工作区文件——写进去、也从它读回；本机记忆只在文件里还没有后端记录时兜底（老工作区过渡用）。
+  // #1003 拍板：布局是「这个仓库的域文档布局是单上下文还是多上下文」的选择，属于这份工作区文件——写进去、也从它读回；本机记忆只在文件里还没有后端记录时兜底（老工作区过渡用）。
   async function handleSetupLayout(args: WfArgs) {
     const raw = (args && typeof args.cwd === 'string' && args.cwd.trim()) ? args.cwd : ''; if (!raw) { const v0 = args ? args.layout : undefined; return v0 == null ? { ok: true, cwd: '', layout: null, pickedAt: 0 } : { ok: false, cwd: '', error: 'not-stored' } }
     const cwd = await normCwd(raw); const cs = (typeof getChoiceStore === 'function') ? await getChoiceStore().catch(function () { return null }) : null; const v = args ? args.layout : undefined
@@ -282,7 +282,7 @@ export function createWorkspaceCwd(deps: Deps) {
           if (parsed && (parsed.layout === 'single' || parsed.layout === 'multi')) existedLayout = parsed.layout;
         }
       } catch (eR) {}
-      // 布局保留旧值（覆盖写不丢用户版式；迁移那条由调用方把记忆里的版式递进来，递了就听递的）。
+      // 布局保留旧值（覆盖写不丢用户已选的域文档布局结论；迁移那条由调用方把记忆里的布局递进来，递了就听递的）。
       const _layout = (layout === 'single' || layout === 'multi') ? layout : existedLayout;
       const text = stringifyWorkspaceFile({ backendId: backendId, pickedAt: Date.now(), source: _source, layout: (_layout === null || _layout === undefined) ? undefined : _layout })
       const sb = resolveSandboxPolicy(args, cwd)
@@ -304,7 +304,7 @@ export function createWorkspaceCwd(deps: Deps) {
   // #1003 老用户迁移：文件缺席 + 本机记忆有 → 把记忆写进工作区文件，写成功才算迁移成。
   //   人话：老工作区从没建过那份文件（本机记忆替它答了上万次），先把选择落到文件，
   //   文件一旦建好判定就优先读文件，记忆那条自动失效（老文件本身保留备查，不删）。
-  //   来源记 migrated（切核后核认），版式把记忆里的那份一起搬过去（没有就不写，不丢也不造）。
+  //   来源记 migrated（切核后核认），域文档布局把记忆里的那份一起搬过去（没有就不写，不丢也不造）。
   //   节流：每个工作区每进程只试一次（Set），不在探测热路径上试（只在选择电话里后台捎带一次，
   //   不挡回包）；失败留痕（host.call.fail 一行）可重试（下次进程再试，Set 是进程内的）。
   const migratedAttempted = new Set()
@@ -329,7 +329,7 @@ export function createWorkspaceCwd(deps: Deps) {
       const got = await cs.getWorkspace(key).catch(function () { return null })
       if (!got || got.found !== true || !got.backendId || typeof got.backendId !== 'string' || !got.backendId.trim()) return { ok: true, skipped: 'no-memory' }
       const backendId = String(got.backendId).trim()
-      // 版式一起搬：记忆里有就带上，没有就不带（核缺席整段省略，不丢也不造）。
+      // 域文档布局一起搬：记忆里有就带上，没有就不带（核缺席整段省略，不丢也不造）。
       let memLayout = null
       try {
         if (cs && typeof cs.getLayout === 'function') {

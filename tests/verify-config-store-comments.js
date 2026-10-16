@@ -43,7 +43,8 @@ backendId: github
 pickedAt: 1791524461229
 # 这条选择是谁做的：user=人在面板里亲手选的；migrated=从老版本机记忆搬来的；detected=插件按声明文件或自动识别生成的
 source: user
-# 面板布局：single=单栏；multi=多栏
+# 域文档布局：single=单上下文（各部分共用一套用语，根目录一份 GLOSSARY.md）；
+# multi=多上下文（各有各的用语，子项目各一份 GLOSSARY.md，根目录一份 GLOSSARY-MAP.md指过去）
 layout: multi
 `
   const wsOut = stringifyConfig({ version: 2, backendId: 'github', pickedAt: 1791524461229, source: 'user', layout: 'multi' }, 'workspace')
