@@ -44,4 +44,7 @@ if (typeof setupPendingOf === 'function') {
   check(setupPendingOf(null) === false, 'null \u65F6\u4E0D\u4E2D\u65AD')
 }
 console.log(failed ? '\\n\u5B58\u5728\u5931\u8D25 \u2014 verify-891 \u672A\u901A\u8FC7' : '\\n\u5168\u90E8\u901A\u8FC7 \u2014 ' + total + ' \u9879\u65AD\u8A00')
-process.exit(failed ? 1 : 0)
+// 退出码用 process.exitCode 而不是 process.exit()：这个文件里用 vm.compileFunction 造函数，
+// 在 Windows 上强行 process.exit() 偶尔会撞 Node 内部的 libuv 断言崩溃（退出码变成 0xC0000409），
+// 让门禁偶发判红；交给进程自然退出，退出码语义完全一样（失败 1、成功 0）。
+process.exitCode = failed ? 1 : 0
