@@ -21,7 +21,6 @@
     "tests/tracker-contract/sections/idempotency-counterproof.js",
     "tests/verify-685-healthcheck-button.js",
     "tests/verify-686-accept.js",
-    "tests/verify-691-map-subissues.js",
     "tests/verify-691-markdown-counts-page.js",
     "tests/verify-693-detail-fallback-honesty.js",
     "tests/verify-696-shared-cache.js",
