@@ -37,11 +37,11 @@
 - 非时间数字：点数、条数、单价、比例、页数、次数（`budget.ts` 三十余项）、桶容量（tuning 的两个）、`HOUR_MS` 单位换算、`MIN_BACKOFF_STEPS` 步数。
 - 透传与计算值：函数内局部变量（接已登记参数）、注入结构体的字段（attention/policy/write-detect 三处）、别名（`ledger.ts` 的 `SYNC_INTERVAL_MS` 恒等于 `QUOTA_SYNC_INTERVAL_MS`）、读钟测量值（`nowMs`/`elapsedMs`/`latencyMs` 一类）、verdict 输出的等待结果。
 - 纯界面闪停（`views/*.ts` 的 600/1300/1500 等）与客户端调度节拍（`api-io.ts` 的 120/0）：不是超时语义，不入。
-- `.js` 存量全部不动（用户决断）：`versionControlWrite.js` 的总预算 10000、`skillProbeCache.js`、`predicateCore.js` 的 3000 pending 判定等，动到谁再按“随改随迁”转 TS，届时再入 YAML。
+- `.js` 存量全部不动（用户决断）：`versionControlWrite.js` 的总预算 10000、`skillProbeCache.js`、`predicateCore.js` 的 3000 pending 判定等，动到谁再按“随改随迁”转 TS，届时再入 YAML。这条口径已经实际走了一次：`src/host/refresh/wiring.js` 转成 `wiring.ts`（#1155 那条线）之后，它本地读等待的 5000 按本条入了 YAML（`deckLocalReadMs` → `DECK_LOCAL_READ_TIMEOUT_MS`），装配层传给壳的 resolve 步 8000 改读已登记的 `shellResolveMs`。
 
 ## 6. 与 #1069（tuning.ts）的关系
 
-`tuning.ts` 是“只搬运不统一”的第一步（它的文件头自己就是这么写的），本票是第二步：中央登记。两者不冲突——`tuning.ts` 的时间字段保留，值由本门禁看守与 YAML 一致；那张票定的“本轮不统一数值”（同值不同命的不合并）继续有效，本票 63 个键里同值不同命的各自保留独立的键（例如 `deckStoreMs` 10000 与 `deckEnsureMs` 15000 是两件事）。
+`tuning.ts` 是“只搬运不统一”的第一步（它的文件头自己就是这么写的），本票是第二步：中央登记。两者不冲突——`tuning.ts` 的时间字段保留，值由本门禁看守与 YAML 一致；那张票定的“本轮不统一数值”（同值不同命的不合并）继续有效，本票的键里同值不同命的各自保留独立的键（例如 `deckStoreMs` 10000 与 `deckEnsureMs` 15000 是两件事，`deckLocalReadMs` 5000 与 `deckEnsureMs` 15000 也是两件事）。
 
 ## 7. 怎么判（门禁总览）
 

@@ -5,7 +5,7 @@
 // 落盘的值永远是“实际生效的值”，TIME_YAML 只记录“YAML 里写了哪些”。
 // 本文件签入版本库：diff 就是调参记录。
 
-export type TimeKey = 'toolTimeoutMs' | 'toolMarginMs' | 'perOpTimeoutMs' | 'outboundReadMs' | 'outboundWriteMs' | 'outboundProbeMs' | 'outboundDefaultMs' | 'githubClientTimeoutMs' | 'githubProbeMs' | 'gitProbeMs' | 'githubInitTimeoutMs' | 'gitlabReadMs' | 'gitlabSlowReadMs' | 'gitlabProbeMs' | 'gitlabRepoGitMs' | 'gitlabFallbackMs' | 'gitlabCreateProjectMs' | 'matchesTimeoutMs' | 'deckSandboxMs' | 'deckStoreMs' | 'deckEnsureMs' | 'deckHookMs' | 'deckAssemblyMs' | 'bridgeDryTableWaitMs' | 'delegatedCellWaitMs' | 'hostTimeoutMs' | 'keyLockMs' | 'canonicalTimeoutMs' | 'inFlightKeepAliveMs' | 'settingsDebugPushWaitMs' | 'quotaSyncCooldownMs' | 'registerRetryWaitMs' | 'shellResolveMs' | 'procProbeGraceMs' | 'procGraceMs' | 'probeIntervalMs' | 'probeIntervalYellowMs' | 'probeIntervalLingerMs' | 'rebuildMinIntervalYellowMs' | 'reconcileIntervalMs' | 'quotaSyncIntervalMs' | 'attentionHeartbeatMs' | 'preflightTtlMs' | 'chainAllGreenTtlMs' | 'deferExpiryMs' | 'failureHalfOpenDelayMs' | 'attentionExpiryMs' | 'activeLingerMs' | 'patchMergeWindowMs' | 'freshnessYellowMs' | 'freshnessRedMs' | 'ticketTtlMs' | 'workspaceStoreTtlMs' | 'chainRideMaxAgeMs' | 'snapshotTtlMs' | 'statusCacheMs' | 'snapshotCacheMs' | 'planCursorTtlMs' | 'anchorWindowMs' | 'idempotencyLookbackMs' | 'mapTicketsTtlMs' | 'chainBackoffMs';
+export type TimeKey = 'toolTimeoutMs' | 'toolMarginMs' | 'perOpTimeoutMs' | 'outboundReadMs' | 'outboundWriteMs' | 'outboundProbeMs' | 'outboundDefaultMs' | 'githubClientTimeoutMs' | 'githubProbeMs' | 'gitProbeMs' | 'githubInitTimeoutMs' | 'gitlabReadMs' | 'gitlabSlowReadMs' | 'gitlabProbeMs' | 'gitlabRepoGitMs' | 'gitlabFallbackMs' | 'gitlabCreateProjectMs' | 'matchesTimeoutMs' | 'deckSandboxMs' | 'deckStoreMs' | 'deckEnsureMs' | 'deckLocalReadMs' | 'deckHookMs' | 'deckAssemblyMs' | 'bridgeDryTableWaitMs' | 'delegatedCellWaitMs' | 'hostTimeoutMs' | 'keyLockMs' | 'canonicalTimeoutMs' | 'inFlightKeepAliveMs' | 'settingsDebugPushWaitMs' | 'quotaSyncCooldownMs' | 'registerRetryWaitMs' | 'shellResolveMs' | 'procProbeGraceMs' | 'procGraceMs' | 'probeIntervalMs' | 'probeIntervalYellowMs' | 'probeIntervalLingerMs' | 'rebuildMinIntervalYellowMs' | 'reconcileIntervalMs' | 'quotaSyncIntervalMs' | 'attentionHeartbeatMs' | 'preflightTtlMs' | 'chainAllGreenTtlMs' | 'deferExpiryMs' | 'failureHalfOpenDelayMs' | 'attentionExpiryMs' | 'activeLingerMs' | 'patchMergeWindowMs' | 'freshnessYellowMs' | 'freshnessRedMs' | 'ticketTtlMs' | 'workspaceStoreTtlMs' | 'chainRideMaxAgeMs' | 'snapshotTtlMs' | 'statusCacheMs' | 'snapshotCacheMs' | 'planCursorTtlMs' | 'anchorWindowMs' | 'idempotencyLookbackMs' | 'mapTicketsTtlMs' | 'chainBackoffMs';
 
 export const TIME_ARRAY_KEYS: ReadonlyArray<TimeKey> = ["chainBackoffMs"];
 
@@ -32,6 +32,7 @@ export const TIME_YAML: Partial<Record<TimeKey, number | ReadonlyArray<number>>>
   deckSandboxMs: 5000,
   deckStoreMs: 10000,
   deckEnsureMs: 15000,
+  deckLocalReadMs: 5000,
   deckHookMs: 5000,
   deckAssemblyMs: 8000,
   bridgeDryTableWaitMs: 8000,
@@ -98,6 +99,7 @@ export const TIME_FALLBACKS: Record<TimeKey, number | ReadonlyArray<number>> = {
   deckSandboxMs: 5000,
   deckStoreMs: 10000,
   deckEnsureMs: 15000,
+  deckLocalReadMs: 5000,
   deckHookMs: 5000,
   deckAssemblyMs: 8000,
   bridgeDryTableWaitMs: 8000,
@@ -171,6 +173,7 @@ export const MATCHES_TIMEOUT_MS: number = 30000;
 export const DECK_SANDBOX_TIMEOUT_MS: number = 5000;
 export const DECK_STORE_TIMEOUT_MS: number = 10000;
 export const DECK_ENSURE_TIMEOUT_MS: number = 15000;
+export const DECK_LOCAL_READ_TIMEOUT_MS: number = 5000;
 export const DECK_HOOK_TIMEOUT_MS: number = 5000;
 export const DECK_ASSEMBLY_TIMEOUT_MS: number = 8000;
 export const BRIDGE_DRY_TABLE_WAIT_MS: number = 8000;

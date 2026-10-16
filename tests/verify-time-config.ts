@@ -175,6 +175,7 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/shared/refresh/src/write-detect.ts', name: 'probeIntervalMs', reason: '函数内局部变量，接的是注入的 limits（上游是 PROBE_INTERVAL_MS），不是新参数' },
   // —— 别名：恒等于已登记的参数，改一边自动跟另一边，不需要第二把锁 ——
   { file: 'src/host/refresh/ledger.ts', name: 'SYNC_INTERVAL_MS', reason: '别名，恒等于 QUOTA_SYNC_INTERVAL_MS（已登记），引用即跟随' },
+  { file: 'src/host/refresh/wiring.ts', name: 'DECK_ENSURE_TIMEOUT_MS', reason: '别名，取共用调参表的 TUNING.deckEnsureTimeoutMs（已登记为 deckEnsureMs，值由本门禁看守一致），缺表回落 15000；引用即跟随' },
   // —— 注入结构体的字段：值由调用方按已登记参数装进来，本文件不写数字 ——
   { file: 'src/shared/refresh/src/policy.ts', name: 'rebuildMinGapMs', reason: '注入字段，接的是上游 REBUILD_MIN_INTERVAL_YELLOW_MS（已登记），缺省 0' },
   // —— 读钟算出来的测量值（耗时、时刻）：调 YAML 改不了它，不是可调参数 ——

@@ -35,9 +35,9 @@ import { createOutboundControl } from '../platform/outbound-control.js'
 // deck 工具前置三处的等待上限：保读数含一次远端读数（读档 12 秒加排队），给 15 秒；
 // 本机记忆与工作区文件是本地读，给 5 秒。超时都走既有的失败继续路径（保不住照旧往下走、
 // 读不到按缺席跳过），成功路径一字不动——挂住的文件服务或排满的出站队列不能卡住整笔调用。
-// 取值住共用调参表（真源 src/shared/refresh/src/tuning.ts），这里只留缺表回落的缺省值（与今天一致）。
+// 取值住共用调参表（真源 src/shared/refresh/src/tuning.ts），这里只留缺表回落的缺省值（与今天一致）；
+// 本地读那一档（下面 DECK_LOCAL_READ_TIMEOUT_MS）自 #1215 起直接读中央 YAML 的生效值。
 const DECK_ENSURE_TIMEOUT_MS = TUNING.deckEnsureTimeoutMs ?? 15000
-const DECK_EXPLICIT_TIMEOUT_MS = 5000
 import { createNamingSummary, readFirstUserText } from '../platform/namingSummary.js'   // #746：命名摘要编排（单例，见下）；#746 首句直读（随单下发供免锁比对）
 import { hookDeckAgentTools, makeDeckRegisterReport } from '../../deck/registration/register-options.js' // #741 注册那一步（向 agent 交九个工具）：形状、循环与报告住共享层（两边都要用），这里只递表
 import { publishDeckTable, noteDeckGate } from '../../deck/shell/table-cell.js' // #758 同进程共享格：行与宿主同一进程，表放进格子里行直接取，不经调用面
@@ -48,6 +48,10 @@ import { createPatchForHost } from '../platform/refreshAssembly.js'
 import * as budget from '../../shared/refresh/budget.js'
 import * as toolCost from '../../shared/refresh/tool-cost.js'
 import { TUNING } from '../../shared/refresh/tuning.js'
+// #1215 中央时间参数：本地读等待（deckLocalReadMs）与 resolve 步等待（shellResolveMs）只有一份真源
+// config/timeouts.yaml，调用方读它生成出来的值。宿主半边走普通相对 import，构建时把这份说明符改写进包里
+// （与同目录的 src/host/refresh/chain-ride.ts 同做法），所以这里不再各写一份数字。
+import { DECK_LOCAL_READ_TIMEOUT_MS, SHELL_RESOLVE_TIMEOUT_MS } from '../../shared/time-config/values.js'
 // #724：闸那一侧的工作区钥匙（短散列）只有一份实现，住在共享层（宿主层文件之间不许互引，而链求值那侧也要用
 // 同一把钥匙）。本文件把它转出来，「活跃集合、写事件白名单、九个 deck_* 工具、行级增量、检查链记账」五处同源。
 import { hash8, workspaceKeyOf } from '../../shared/refresh-workspace-key.js'
@@ -415,7 +419,7 @@ export function createRefreshWiring(deps: any): any {
           // 947 显式后两层读口：查不到一律 null（缺席即跳过，不猜）。挂住时同样按缺席跳过。
           // #1138：这里原来还递一个 readChoice（读本机记忆 H）——H 自 2026-10-12 起就不参与判定了，
           //   壳里也没有任何调用点，留着只会让后来的人以为 H 还有话语权，所以整行删掉。
-          readWorkspaceFileText: function (rootCwd: any): Promise<any> { try { const fsSvc: any = backendObj && backendObj.fs; if (!fsSvc || typeof fsSvc.resolve !== 'function' || typeof fsSvc.readText !== 'function') return Promise.resolve(null); const p: any = Promise.resolve(fsSvc.resolve(WORKSPACE_FILE_REL, { cwd: rootCwd })).then(function (t: any): any { return fsSvc.readText(t) }, function (): any { return null }).then(function (txt: any): any { return (typeof txt === 'string' && txt) ? txt : null }, function (): any { return null }); return withCap(p, DECK_EXPLICIT_TIMEOUT_MS).then(function (r: any): any { return (r && r.ok === true) ? r.value : null }, function (): any { return null }) } catch (e: any) { return Promise.resolve(null) } },
+          readWorkspaceFileText: function (rootCwd: any): Promise<any> { try { const fsSvc: any = backendObj && backendObj.fs; if (!fsSvc || typeof fsSvc.resolve !== 'function' || typeof fsSvc.readText !== 'function') return Promise.resolve(null); const p: any = Promise.resolve(fsSvc.resolve(WORKSPACE_FILE_REL, { cwd: rootCwd })).then(function (t: any): any { return fsSvc.readText(t) }, function (): any { return null }).then(function (txt: any): any { return (typeof txt === 'string' && txt) ? txt : null }, function (): any { return null }); return withCap(p, DECK_LOCAL_READ_TIMEOUT_MS).then(function (r: any): any { return (r && r.ok === true) ? r.value : null }, function (): any { return null }) } catch (e: any) { return Promise.resolve(null) } },
           parseWorkspaceFile: parseWorkspaceFile,
           sandboxPolicyFor: createSandboxPolicyFor(d.ctx),
           backendCtx: function (): any { return backendObj },
@@ -423,7 +427,8 @@ export function createRefreshWiring(deps: any): any {
           planStore: planStoreFor,
           // #1147 决策 10a：仓库标识补全（resolve 步）的等待上限毫秒数。壳缺席时取 8000，
           //   这里显式传入同一数值 —— 这个上限的值由装配层拥有，不再是壳里无人认领的缺省（行为零变化）。
-          resolveTimeoutMs: 8000,
+          //   #1215：这个数（8000）住中央 YAML 的 shellResolveMs，装配层与壳读同一份生成值。
+          resolveTimeoutMs: SHELL_RESOLVE_TIMEOUT_MS,
           invalidate: function (info: any): void { try { const root: any = (info && info.workspace && info.workspace.root) || (info && info.cwd); if (typeof d.setCache === 'function' && root) d.setCache({ ts: 0, snapshot: null, error: null, cwd: String(root) }) } catch (e: any) {} },
           onTicketCreated: onDeckWrite, chainNote: function (input: any): any { try { return sessionTickets.note(input) } catch (e: any) { return null } }, // #746 建票直达命名守护；#775 主动上报写同一份链（report）
           hourUsage: function (): any { try { return ledger.hourOf('ai-tool') || {} } catch (e: any) { return {} } },
