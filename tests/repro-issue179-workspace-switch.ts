@@ -1,5 +1,6 @@
-// repro-issue179-workspace-switch.js — 复现 #179 切工作区后右侧仓库名残留 D:\2Study\...
-// 用法: node tests/repro-issue179-workspace-switch.js
+// repro-issue179-workspace-switch.ts — 复现 #179 切工作区后右侧仓库名残留 D:\2Study\...
+// 2026-10-17 从 .js 转成 TypeScript：只改文件名、用法行与几处类型标注，判据与断言一条没动。
+// 用法: node --import ./scripts/ts-hook.mjs tests/repro-issue179-workspace-switch.ts
 const fs = require('fs')
 
 console.log('=== 复现 #179：切工作区后右侧面板仓库名残留 DSH 本体路径 ===')
@@ -7,8 +8,8 @@ console.log('=== 复现 #179：切工作区后右侧面板仓库名残留 DSH �
 const srcDock = fs.readFileSync('src/client/panel/Dock.js','utf8')
 const srcHost = fs.readFileSync('src/host/index.ts','utf8')
 const clientBuilt = fs.existsSync('client.js') ? fs.readFileSync('client.js','utf8') : ''
-const checks = []
-function ok(cond, msg){ checks.push({msg, pass:!!cond}); console.log((cond?'  PASS ':'  FAIL ')+msg) }
+const checks: Array<{ msg: string; pass: boolean }> = []
+function ok(cond: unknown, msg: string): void { checks.push({msg, pass:!!cond}); console.log((cond?'  PASS ':'  FAIL ')+msg) }
 
 ok(/summaryCwd/.test(srcDock) && /useSessions/.test(srcDock), 'Dock 存在 summaryCwd 权威信号')
 ok(/React\.useEffect\(function \(\) \{[\s\S]*?apply\(summaryCwd/.test(srcDock), '存在响应式 cwd 同步 effect')

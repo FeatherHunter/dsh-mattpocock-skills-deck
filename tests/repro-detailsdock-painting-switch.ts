@@ -1,6 +1,7 @@
-// repro-detailsdock-painting-switch.js — 复现切绘画后右面板仍显旧工作区内容
+// repro-detailsdock-painting-switch.ts — 复现切绘画后右面板仍显旧工作区内容
+// 2026-10-17 从 .js 转成 TypeScript：只改文件名、用法行与几处类型标注，判据与断言一条没动。
 // 对应用户反馈：点中文补丁工作区的绘画→再点回当前工作区的某些绘画，右面板仍是中文仓库旧内容，仅新绘画才恢复
-// 用法: node tests/repro-detailsdock-painting-switch.js
+// 用法: node --import ./scripts/ts-hook.mjs tests/repro-detailsdock-painting-switch.ts
 
 const fs = require('fs')
 const vm = require('vm')
@@ -9,9 +10,9 @@ console.log('=== 复现：DetailsDock 切绘画串台 ===')
 
 // 1) 静态检查：DetailsDock 是否已跟随 session 变化
 const src = fs.readFileSync('client.js','utf8')
-const checks = []
+const checks: Array<{ msg: string; pass: boolean }> = []
 
-function ok(cond, msg){
+function ok(cond: unknown, msg: string): void {
   checks.push({msg, pass: !!cond})
   console.log((cond? '  PASS ':'  FAIL ')+msg)
   if(!cond) console.error('    ✗',msg)

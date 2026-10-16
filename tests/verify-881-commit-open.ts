@@ -1,5 +1,6 @@
-// tests/verify-881-commit-open.js — #881 回归门禁：提交历史里点开不再被清空
-// 用法：在插件根目录执行 node tests/verify-881-commit-open.js，可独立运行。
+// tests/verify-881-commit-open.ts — #881 回归门禁：提交历史里点开不再被清空
+// 2026-10-17 从 .js 转成 TypeScript：只改文件名与用法这行，判据与断言一条没动。
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-881-commit-open.ts，可独立运行。
 //
 // 守的是这一次修的最小可用：已经在提交历史里点某一条，原地展开详情；
 //   人手动点页签才离开详情。写法照 verify-842 的 M5/M6 那一组，只多模拟 React

@@ -1,18 +1,19 @@
-// repro-issue58-cache-first.js — 复现 #58 缓存优先回归
+// repro-issue58-cache-first.ts — 复现 #58 缓存优先回归
 // 目标：验证切换面板时不应出现“加载中”全屏遮罩，应为缓存优先秒开 + 后台静默刷新
 // 检测点（静态）+ 动态模拟（内存 per-cwd 缓存 + 空 cwd 探路）
-// 用法: node tests/repro-issue58-cache-first.js
+// 2026-10-17 从 .js 转成 TypeScript：只改文件名、用法行与几处类型标注，判据与断言一条没动。
+// 用法: node --import ./scripts/ts-hook.mjs tests/repro-issue58-cache-first.ts
 const fs = require('fs')
 const path = require('path')
 const assert = require('assert')
 
-function read(rel){ return fs.readFileSync(path.join(__dirname,'..',rel),'utf8') }
+function read(rel: string): string { return fs.readFileSync(path.join(__dirname,'..',rel),'utf8') }
 
 const client = read('client.js')
 const pkg = read('package/lib/client.js')
 
-let fails = []
-function check(cond, msg){
+let fails: string[] = []
+function check(cond: unknown, msg: string): void {
   if(cond) console.log('  ✓',msg)
   else { console.error('  ✗ FAIL:',msg); fails.push(msg) }
 }
