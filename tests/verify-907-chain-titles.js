@@ -17,6 +17,10 @@ const path = require('path')
 const { pathToFileURL } = require('url')
 // 本文件按文本求值统一走共用入口 compileFn：把真源文本配假 React 等零件造成模块（理由与用法见 tests/lib/eval-probe.js 文件头）。
 const { compileFn } = require('./lib/eval-probe.js')
+// 取源走共用入口 tests/lib/source-text.ts（#1207 立、#1209 起 locale-pages 的真源变成 .ts）：
+// 按 .js 路径直接读会读到真源旁边那份构建产物，产物不在盘上时还会 ENOENT 崩。
+// sourceText 摘名字（要保住 export 关键字），spliceableJs 出可直接求值的文本，两条都先解析到同名 .ts。
+const { sourceText, spliceableJs } = require('./lib/source-text.js')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -26,13 +30,14 @@ const read = function (p) { return fs.readFileSync(path.join(ROOT, p), 'utf8') }
 
 /** 把一份「一源两物」的源文件当模块跑起来：剥行首 export，作用域里塞进它在拼接闭包里的邻居（手法照 verify-chain-view.js）。 */
 function loadModule(relPath, deps) {
-  const src = read(relPath)
+  // 名字必须从原文摘（要保住 export 关键字），求值体用剥掉 export 与类型声明的那一份。
+  const src = sourceText(relPath)
   const names = []
   const re = /^[ \t]*export[ \t]+(?:const|let|var|function|class)[ \t]+([A-Za-z_$][\w$]*)/gm
   let m
   while ((m = re.exec(src)) !== null) names.push(m[1])
   if (!names.length) throw new Error(relPath + ' 里没有找到 export 声明')
-  const body = src.replace(/^[ \t]*export[ \t]+/gm, '')
+  const body = spliceableJs(relPath)
   // 真源文本配假零件造模块：改走共用入口 compileFn，参数名取 deps 的键。
   const fn = compileFn(Object.keys(deps), body + '\nreturn { ' + names.join(', ') + ' }')
   return fn.apply(null, Object.keys(deps).map(function (k) { return deps[k] }))
@@ -141,7 +146,7 @@ async function main() {
   })
 
   // ---------- 四、画法：留白 + 那句话只进无障碍名 ----------
-  const capSrc = read('src/client/statusbar/SessionChainCapsule.js').replace(/^[ \t]*export[ \t]+/gm, '')
+  const capSrc = spliceableJs('src/client/statusbar/SessionChainCapsule.js')
   const h = function (t, p) { return { t: t, p: p, c: Array.prototype.slice.call(arguments, 2) } }
   const opened = []
   // 同一手法：真源文本配假零件，统一走共用入口 compileFn，参数名逐个列出。
