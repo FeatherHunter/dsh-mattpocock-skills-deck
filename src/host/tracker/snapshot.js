@@ -26,6 +26,10 @@ import { ERROR_KIND } from '../../tracker/contract/vocabulary.js'
 import { effortOf, idOfParts } from '../../tracker/kernel/identity-keys.js'
 import { deriveDeck } from '../../tracker/deck-derive.js'
 import { parseMapBody } from '../../tracker/body-parse.js'
+// 快照与依赖边两份缓存的缺省存活时间住中央 YAML（config/ttl.yaml 的 snapshotTtlMs 键，注释写着
+// 「快照组合器的缓存有效期：5 秒」）：这里直接读中央常量，不再造新本地名，调时间改 YAML。
+// 路径走域构建产物写法，值由 tests/verify-time-config.ts 看守一致。
+import { SNAPSHOT_TTL_MS } from '../../shared/time-config/values.js'
 
 /**
  * 池内身份：先按 effort 圈定范围（effort 维度：同号票在不同 effort 里是两张票），再看是否为拉取请求。
@@ -172,7 +176,7 @@ async function countsFromBackend(tracker, ref, ctx) {
 /**
  * 创建宿主编排器。
  * @param {{get: (id: string) => Object|undefined}} registry trackerRegistry 实例（或等价 {get}）
- * @param {{snapshotTtl?: number, depsTtl?: number, logCtx?: {fire: Function, isEnabled: Function}}} [opts] 缓存 TTL（ms；默认 5000）；logCtx 可选，不传则静默（老调用方行为不变）
+ * @param {{snapshotTtl?: number, depsTtl?: number, logCtx?: {fire: Function, isEnabled: Function}}} [opts] 缓存 TTL（ms；缺省取 config/ttl.yaml 的 snapshotTtlMs，即 5000）；logCtx 可选，不传则静默（老调用方行为不变）
  * @returns {{
  *   composeSnapshot: (backendId: string, ref: import('../../shared/tracker/shape.js').RepositoryRef, ctx?: Object, o?: {force?: boolean, ifNoneMatch?: string}) => Promise<{ok: true, snapshot: import('../../shared/tracker/shape.js').Snapshot, cached?: boolean} | {ok: false, error: Object}>,
  *   getDependencies: (backendId: string, ref: import('../../shared/tracker/shape.js').RepositoryRef, key: string, ctx?: Object) => Promise<{ok: true, data: Object, cached?: boolean} | {ok: false, error: Object}>,
@@ -182,8 +186,10 @@ async function countsFromBackend(tracker, ref, ctx) {
  * }}
  */
 export function createSnapshotComposer(registry, opts = {}) {
-  const snapshotTtl = (opts && opts.snapshotTtl != null) ? opts.snapshotTtl : 5000
-  const depsTtl = (opts && opts.depsTtl != null) ? opts.depsTtl : 5000
+  // 两份缓存的存活时间都取中央常量，值住 config/ttl.yaml 的 snapshotTtlMs（5 秒）：
+  // 短窗内重复重建不再向后端重问，窗口一过就重问。调用方仍可用 opts.snapshotTtl / opts.depsTtl 覆盖。
+  const snapshotTtl = (opts && opts.snapshotTtl != null) ? opts.snapshotTtl : SNAPSHOT_TTL_MS
+  const depsTtl = (opts && opts.depsTtl != null) ? opts.depsTtl : SNAPSHOT_TTL_MS
   const SNAP_LRU_MAX = 20
   const snapCache = new Map() // `${backendId}:${refId}` -> {snapshot, version, at} LRU20
   function touchSnapLRU(k,v){ if(snapCache.has(k)) snapCache.delete(k); snapCache.set(k,v); if(snapCache.size>SNAP_LRU_MAX){ const f=snapCache.keys().next().value; snapCache.delete(f);} }

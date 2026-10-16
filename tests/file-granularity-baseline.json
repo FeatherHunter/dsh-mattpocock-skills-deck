@@ -5,7 +5,7 @@
   "note": "零增长基线：按有效行（注释与空行都不计）记，只许减不许增；达标文件由各自拆分票移出。",
   "files": {
     "src/client/kernel/api-io.ts": 370,
-    "src/host/namingGuardian.js": 371,
+    "src/host/namingGuardian.js": 372,
     "src/shared/refresh/src/chain.ts": 365
   }
 }

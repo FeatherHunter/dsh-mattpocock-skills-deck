@@ -1,4 +1,14 @@
 // 命名守护 host 半：持跟踪态并产出计划单（#265）；判定真源见 ../shared 命名三文件（S2 #452）。
+//
+// 本文件三个时间旋钮都住中央 YAML，这里只留引用（缺表回落原值，防构建产物过期），调时间改 YAML：
+//   NAMING_FALLBACK_MS —— 「至多每 10 分钟做一次单仓兜底扫描」的间隔（住 config/intervals.yaml 的
+//     namingFallbackIntervalMs 键）：事件跳每跳都跑，兜底跳靠它限频，保证没有任何事件的仓库也终会结算；
+//   NAMING_PERSIST_DEBOUNCE_MS —— 命名台账落盘的合并窗（住 config/intervals.yaml 的
+//     namingPersistDebounceMs 键）：一次扫描里可能连标几次脏，落盘是整份覆写，窗口内合成一次写；
+//   NAMING_SWEEP_SOON_MS —— 即时推进（namingSweepSoon）没带延时参数时的缺省合并窗（住
+//     config/intervals.yaml 的 namingSweepSoonMs 键）：短窗内多次事件合成一次索引扫描，防堆积。
+// 值由 tests/verify-time-config.ts 看守一致。
+import { NAMING_FALLBACK_INTERVAL_MS as CENTRAL_NAMING_FALLBACK_INTERVAL_MS, NAMING_PERSIST_DEBOUNCE_MS, NAMING_SWEEP_SOON_MS } from '../shared/time-config/values.js'
 export function createNamingGuardian(deps) {
   const { fs, timer, DEFAULT_CWD, getCacheDir, getPlatform, getRepoKey, runGh, logCtx, getFirstText, getTitleFact } = deps
   let _namingCore = null
@@ -13,7 +23,11 @@ export function createNamingGuardian(deps) {
     return _namingCoreInit
   }
   const NAMING_STATE_FILE = 'naming-guardian.json'   // 落盘 .dsh-mattskillsdeck-cache 目录下
-  const NAMING_FALLBACK_MS = 10 * 60_000   // #709：唯一 10 分钟兜底间隔
+  // #709：唯一 10 分钟兜底间隔。事件跳由事件带起、本身不排队，兜底跳靠这个间隔限频
+  // （每跳最多只扫一个仓库，游标轮转），让「一直没有事件」的仓库也不会永远不被结算。
+  // 别名接中央常量：值住 config/intervals.yaml 的 namingFallbackIntervalMs 键，
+  // 缺表回落 600000（即 10 * 60_000，与今天一致），调时间改 YAML。
+  const NAMING_FALLBACK_MS = CENTRAL_NAMING_FALLBACK_INTERVAL_MS ?? 600000
   let _namingState = null, _namingStateDirty = false, _namingPersistTimer = null, _namingSweepBusy = false
   let _namingSweepTimer = null; let sweepAnyChanged = false, sweepAssignedTotal = 0, sweepTrigger = 'event'; function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
   function namingDefaultState() { return { version: 1, sessions: {}, indexes: {} } }
@@ -46,10 +60,15 @@ export function createNamingGuardian(deps) {
       await fs.writeText(t, JSON.stringify(_namingState || namingDefaultState()))
     } catch (ePersist) { /* 写失败不影响主流程，下轮 tick 重试 */ }
   }
+  // 落盘合并：标脏只排一次合并窗。落盘是整份覆写（JSON.stringify 全量），而一次索引扫描里可能连着
+  // 标好几次脏（分配成功、基线回退各标一次），每次标脏都写会把缓存目录的文件服务打满；
+  // 所以窗口内的多次标脏只在窗口末尾写一次。
+  // 1200 毫秒住 config/intervals.yaml 的 namingPersistDebounceMs 键：这里直接用中央常量，
+  // 调时间改 YAML（构建产物过期时 values.ts 已回落到同一个数，行为与今天一致）。
   function markNamingStateDirty() {
     _namingStateDirty = true
     if (_namingPersistTimer) return
-    _namingPersistTimer = timer.timeout(function () { _namingPersistTimer = null; if (_namingStateDirty) persistNamingState() }, 1200); try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'timer.schedule', { name: 'naming-persist', intervalMs: 1200 }) } catch (eL) {}
+    _namingPersistTimer = timer.timeout(function () { _namingPersistTimer = null; if (_namingStateDirty) persistNamingState() }, NAMING_PERSIST_DEBOUNCE_MS); try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'timer.schedule', { name: 'naming-persist', intervalMs: NAMING_PERSIST_DEBOUNCE_MS }) } catch (eL) {}
   }
   // 事件驱动（#709：无自续定时器，每跳由事件带起，另加 10 分钟至多一次的单仓兜底）。
   let _namingFallbackAt = 0, _namingSweepCursor = 0
@@ -197,7 +216,10 @@ export function createNamingGuardian(deps) {
   }
   /** 即时推进：短窗合并（防堆积），注册/白名单/认领推送/四种事件共用。opts.trigger 只影响日志里的来路。 */
   function namingSweepSoon(delayMs, opts) {
-    const delay = typeof delayMs === 'number' ? delayMs : 1500
+    // 调用方只说「尽快」而没给具体毫秒时用缺省合并窗：短窗内来的多次事件（注册、白名单、认领推送、
+    // 四种事件）只合成一次索引扫描，防堆积。缺省值住 config/intervals.yaml 的 namingSweepSoonMs 键，
+    // 直接读中央常量；调用方显式传数时仍以传入值为准，语义不变（120 / 800 这些短窗照旧走传入值）。
+    const delay = typeof delayMs === 'number' ? delayMs : NAMING_SWEEP_SOON_MS
     if (_namingSweepTimer) { try { if (logCtx && logCtx.isEnabled('debug')) logCtx.fire('debug', 'timer.schedule', { name: 'naming-sweep', intervalMs: delay }) } catch (eL) {}; return }
     _namingSweepTimer = timer.timeout(function () {
       _namingSweepTimer = null

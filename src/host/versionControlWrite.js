@@ -11,8 +11,34 @@ import { fixedPrefix, stageArgs, unstageArgs, commitArgs, pullArgs, pushArgs, fe
 import { ticketVerdict, ticketPureVerdict, requestIdProblem, indexRecordCount, fingerprintInputOf } from '../shared/version-control/write-ticket.js'
 import { pushPlanOf } from '../shared/version-control/push-plan.js'
 import { classifyWriteFailure, writeHintFor, pathsProblem, messageProblem, idShapeProblem } from '../shared/version-control/write-reasons.js'
+// 这个文件里的时间分两组，都是可调的，全部住中央 YAML（config/timeouts.yaml），调时间改 YAML：
+//   · 五个写命令的超时（vcAddTimeoutMs / vcCommitTimeoutMs / vcPullTimeoutMs / vcPushTimeoutMs / vcFetchTimeoutMs）：
+//     每条都是「这一条写命令最多跑多久」，下面用别名接住（缺表回落原数字，防构建产物过期）；
+//   · runOne 那些裸数字改成的是另一组键：单条只读命令的超时（vcReadCmdTimeoutMs / vcLsFilesTimeoutMs）与
+//     「整趟预算」（vcHeadCallBudgetMs / vcReadCallBudgetMs / vcLsFilesCallBudgetMs / vcRemoteListCallBudgetMs）。
+// 单条超时与整趟预算是两件事：前者管某一条命令最多跑多久，后者管挂在这一步上的所有命令合起来的上限。
+// 路径走域构建产物写法（与 src/host/refresh/chain-ride.ts 引 values.js 同例），值由 tests/verify-time-config.ts 看守一致。
+import {
+  VC_ADD_TIMEOUT_MS as CENTRAL_VC_ADD_TIMEOUT_MS,
+  VC_COMMIT_TIMEOUT_MS as CENTRAL_VC_COMMIT_TIMEOUT_MS,
+  VC_PULL_TIMEOUT_MS as CENTRAL_VC_PULL_TIMEOUT_MS,
+  VC_PUSH_TIMEOUT_MS as CENTRAL_VC_PUSH_TIMEOUT_MS,
+  VC_FETCH_TIMEOUT_MS as CENTRAL_VC_FETCH_TIMEOUT_MS,
+  VC_READ_CMD_TIMEOUT_MS,
+  VC_HEAD_CALL_BUDGET_MS,
+  VC_READ_CALL_BUDGET_MS,
+  VC_LSFILES_TIMEOUT_MS,
+  VC_LSFILES_CALL_BUDGET_MS,
+  VC_REMOTE_LIST_CALL_BUDGET_MS,
+  VC_PRE_PUSH_CHECK_CALL_BUDGET_MS,
+  VC_WRITE_CALL_MARGIN_MS,
+} from '../shared/time-config/values.js'
 
-const ADD_TIMEOUT_MS = 15000, COMMIT_TIMEOUT_MS = 60000, PULL_TIMEOUT_MS = 180000, PUSH_TIMEOUT_MS = 120000, FETCH_TIMEOUT_MS = 120000
+// 五个写命令各自的超时（中央 YAML 的 vcAddTimeoutMs / vcCommitTimeoutMs / vcPullTimeoutMs / vcPushTimeoutMs /
+// vcFetchTimeoutMs）：暂存与撤回暂存还把 ADD_TIMEOUT_MS 兼作那一次调用的总预算。
+// 那条总预算不是裸字面量，而是「该条命令的超时 + VC_WRITE_CALL_MARGIN_MS（中央 YAML 的 vcWriteCallMarginMs，
+// 留 10 秒余量）」——超时管一条命令跑多久，整趟预算管这一步所有命令合起来的上限，两个数各管一件事。
+const ADD_TIMEOUT_MS = CENTRAL_VC_ADD_TIMEOUT_MS ?? 15000, COMMIT_TIMEOUT_MS = CENTRAL_VC_COMMIT_TIMEOUT_MS ?? 60000, PULL_TIMEOUT_MS = CENTRAL_VC_PULL_TIMEOUT_MS ?? 180000, PUSH_TIMEOUT_MS = CENTRAL_VC_PUSH_TIMEOUT_MS ?? 120000, FETCH_TIMEOUT_MS = CENTRAL_VC_FETCH_TIMEOUT_MS ?? 120000
 const SMALL_LIMIT = 256 * 1024, LSFILES_LIMIT = 8 * 1024 * 1024, REMOTE_LIMIT = 4096
 
 export function createWritePhones(deps) {
@@ -32,7 +58,9 @@ export function createWritePhones(deps) {
     return await call.run({ args: fixedPrefix().concat(args), cwd: cwd, timeoutMs: timeoutMs, stdoutLimit: stdoutLimit })
   }
   async function readHead(cwd) {
-    const r = await runOne(cwd, ['rev-parse', 'HEAD'], 5000, 4096, 20000)
+    // 读 HEAD 这一条：单条超时 5 秒（VC_READ_CMD_TIMEOUT_MS，这一条命令最多跑多久），
+    // 整趟预算 20 秒（VC_HEAD_CALL_BUDGET_MS，挂在读 HEAD 这一步上的所有命令合起来的上限）——两个数各管一件事。
+    const r = await runOne(cwd, ['rev-parse', 'HEAD'], VC_READ_CMD_TIMEOUT_MS, 4096, VC_HEAD_CALL_BUDGET_MS)
     return (r && r.ok === true) ? String(r.stdout || '').trim() : null
   }
   /** 票据核对用的「此刻状态」：HEAD 一定量；提交多量一次索引指纹；推送重量一次目标（含「还没有上游」再核）。 */
@@ -41,33 +69,42 @@ export function createWritePhones(deps) {
     const cur = { op: op, headOid: headOid || '', indexFingerprint: null, indexAvailable: false, target: null, repoRoot: '' }
     if (!ticket) return cur
     // 仓库根（票绑仓库）：两个不同目录的仓库可以有完全相同的 HEAD 与指纹，所以执行前必须重量一次。
-    const top = await runOne(cwd, ['rev-parse', '--show-toplevel'], 5000, 4096, 10000)
+    // 仓库根这一条：单条超时走只读命令那一档（VC_READ_CMD_TIMEOUT_MS），整趟预算走一次只读调用的那一档（VC_READ_CALL_BUDGET_MS）。
+    const top = await runOne(cwd, ['rev-parse', '--show-toplevel'], VC_READ_CMD_TIMEOUT_MS, 4096, VC_READ_CALL_BUDGET_MS)
     cur.repoRoot = (top && top.ok === true) ? String(top.stdout || '').trim() : ''
     if (op === 'pull') {
       // pull 也要绑目标：预检之后改上游或切分支都不许绕过。
-      const br = await runOne(cwd, ['rev-parse', '--abbrev-ref', 'HEAD'], 5000, 4096, 10000)
+      // 当前分支名这一条：单条超时 VC_READ_CMD_TIMEOUT_MS，整趟预算 VC_READ_CALL_BUDGET_MS（与上一条同一档）。
+      const br = await runOne(cwd, ['rev-parse', '--abbrev-ref', 'HEAD'], VC_READ_CMD_TIMEOUT_MS, 4096, VC_READ_CALL_BUDGET_MS)
       const branch = (br && br.ok === true) ? String(br.stdout || '').trim() : ''
-      const up = await runOne(cwd, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', branch + '@{u}'], 5000, 4096, 10000)
+      // 上游引用名这一条：同样单条超时 VC_READ_CMD_TIMEOUT_MS、整趟预算 VC_READ_CALL_BUDGET_MS。
+      const up = await runOne(cwd, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', branch + '@{u}'], VC_READ_CMD_TIMEOUT_MS, 4096, VC_READ_CALL_BUDGET_MS)
       const upstream = (up && up.ok === true) ? String(up.stdout || '').trim() : null
       cur.target = { mode: 'existing', remote: '', branch: '', localBranch: branch, upstream: upstream }
     }
     if (op === 'commit') {
-      const lf = await runOne(cwd, lsFilesStageArgs(), 15000, LSFILES_LIMIT, 30000)
+      // 读暂存区清单这一步：单条超时 VC_LSFILES_TIMEOUT_MS（清单可能很大，单独给 15 秒），
+      // 整趟预算 VC_LSFILES_CALL_BUDGET_MS（这一步所有命令合起来的上限）——两者不是一回事。
+      const lf = await runOne(cwd, lsFilesStageArgs(), VC_LSFILES_TIMEOUT_MS, LSFILES_LIMIT, VC_LSFILES_CALL_BUDGET_MS)
       if (lf && lf.ok === true && lf.truncated !== true && ticket.indexFingerprint !== null) {
         cur.indexFingerprint = fingerprintOf(lf.stdout)
         cur.indexAvailable = true
       }
     }
     if (op === 'push' && ticket.target) {
-      const rr = await runOne(cwd, remoteListArgs(), 5000, REMOTE_LIMIT, 15000)
+      // 列远端这一步：单条超时走只读命令那一档（VC_READ_CMD_TIMEOUT_MS，纯本地读很快），
+      // 整趟预算 VC_REMOTE_LIST_CALL_BUDGET_MS（列远端这一步所有命令合起来的上限）。
+      const rr = await runOne(cwd, remoteListArgs(), VC_READ_CMD_TIMEOUT_MS, REMOTE_LIMIT, VC_REMOTE_LIST_CALL_BUDGET_MS)
       const remotes = (rr && rr.ok === true) ? String(rr.stdout || '').split('\n').map(function (x) { return x.replace(/\r/g, '').trim() }).filter(function (x) { return x !== '' }) : []
       const branch = ticket.target.localBranch
       // 「还没有上游」在动手前再核一次：已经存在上游时再带 -u 会静默覆盖掉用户原来设的上游。
       // 上游要从**配置**解析（branch.<名>.remote + .merge），不能用 `<分支>@{u}`：上游被删时 git 对 @{u} 直接
       // 失败（exit 128），于是配置还在的那一档会解析成「没有上游」→ 重算成 set-upstream，与票里的 recreate 对不上
       // （真机证据抓到：recreate 永远回 target-changed）。配置给的是 remote 名 + refs/heads/<分支>，拼成 <remote>/<分支>。
-      const brCfg = await runOne(cwd, ['config', '--get', 'branch.' + branch + '.remote'], 5000, 4096, 10000)
-      const mgCfg = await runOne(cwd, ['config', '--get', 'branch.' + branch + '.merge'], 5000, 4096, 10000)
+      // 读 branch.<名>.remote 配置这一条：单条超时 VC_READ_CMD_TIMEOUT_MS，整趟预算 VC_READ_CALL_BUDGET_MS。
+      const brCfg = await runOne(cwd, ['config', '--get', 'branch.' + branch + '.remote'], VC_READ_CMD_TIMEOUT_MS, 4096, VC_READ_CALL_BUDGET_MS)
+      // 读 branch.<名>.merge 配置这一条：与上一条同一档（VC_READ_CMD_TIMEOUT_MS 管单条、VC_READ_CALL_BUDGET_MS 管整趟）。
+      const mgCfg = await runOne(cwd, ['config', '--get', 'branch.' + branch + '.merge'], VC_READ_CMD_TIMEOUT_MS, 4096, VC_READ_CALL_BUDGET_MS)
       const remoteName = (brCfg && brCfg.ok === true) ? String(brCfg.stdout || '').trim() : ''
       const mergeRef = (mgCfg && mgCfg.ok === true) ? String(mgCfg.stdout || '').trim() : ''
       const upstream = (remoteName !== '' && mergeRef.indexOf('refs/heads/') === 0) ? remoteName + '/' + mergeRef.slice('refs/heads/'.length) : null
@@ -76,7 +113,8 @@ export function createWritePhones(deps) {
       // 与票里的 recreate 对不上 → 永远回 target-changed，第三档根本执行不了（真机证据当场抓到）。
       let gone = false
       if (upstream !== null) {
-        const tr = await runOne(cwd, ['rev-parse', '--verify', '--quiet', 'refs/remotes/' + upstream], 5000, 4096, 10000)
+        // 核远端跟踪引用在不在这一条：单条超时 VC_READ_CMD_TIMEOUT_MS，整趟预算 VC_READ_CALL_BUDGET_MS。
+        const tr = await runOne(cwd, ['rev-parse', '--verify', '--quiet', 'refs/remotes/' + upstream], VC_READ_CMD_TIMEOUT_MS, 4096, VC_READ_CALL_BUDGET_MS)
         gone = !(tr && tr.ok === true)
       }
       const pp = pushPlanOf({ branch: branch, upstream: upstream, upstreamGone: gone, remotes: remotes, requestedRemote: ticket.target.remote })
@@ -111,7 +149,7 @@ export function createWritePhones(deps) {
     // 推送是唯一把「名字」拼进 refspec 的一档：动手前让 git 自己复核这两个分支名（只读命令，零副作用）。
     if (op === 'push' && ticket.target) {
       for (const name of [ticket.target.localBranch, ticket.target.branch]) {
-        const cr = await runOne(cwd, checkRefArgs(String(name)), 5000, 4096, 15000)
+        const cr = await runOne(cwd, checkRefArgs(String(name)), VC_READ_CMD_TIMEOUT_MS, 4096, VC_PRE_PUSH_CHECK_CALL_BUDGET_MS)
         if (!cr || cr.ok !== true) {
           const out = wfail('args', 'bad-target', writeHintFor('bad-target'))
           remember(requestId, out)
@@ -133,7 +171,7 @@ export function createWritePhones(deps) {
     const bad = pathsProblem(a.paths)
     if (bad) return wfail('args', bad, writeHintFor(bad))
     const paths = a.paths.map(function (p) { return String(p) })
-    const r = await runOne(cwd, stageArgs(paths), ADD_TIMEOUT_MS, SMALL_LIMIT, ADD_TIMEOUT_MS + 10000)
+    const r = await runOne(cwd, stageArgs(paths), ADD_TIMEOUT_MS, SMALL_LIMIT, ADD_TIMEOUT_MS + VC_WRITE_CALL_MARGIN_MS)
     if (r && r.ok === true) return { ok: true, staged: paths, atMs: now() }
     const text = failText(r)
     const reason = classifyWriteFailure('commit', r ? r.exitCode : -1, text)
@@ -147,7 +185,7 @@ export function createWritePhones(deps) {
     const bad = pathsProblem(a.paths)
     if (bad) return wfail('args', bad, writeHintFor(bad))
     const paths = a.paths.map(function (p) { return String(p) })
-    const r = await runOne(cwd, unstageArgs(paths), ADD_TIMEOUT_MS, SMALL_LIMIT, ADD_TIMEOUT_MS + 10000)
+    const r = await runOne(cwd, unstageArgs(paths), ADD_TIMEOUT_MS, SMALL_LIMIT, ADD_TIMEOUT_MS + VC_WRITE_CALL_MARGIN_MS)
     if (r && r.ok === true) return { ok: true, unstaged: paths, atMs: now() }
     const text = failText(r)
     const reason = classifyWriteFailure('commit', r ? r.exitCode : -1, text)
@@ -162,7 +200,7 @@ export function createWritePhones(deps) {
     if (g.replay) return g.replay
     if (g.denied) return g.denied
     const headBefore = String(g.ticket.headOid || '')
-    const r = await runOne(g.cwd, commitArgs(String(a.message)), COMMIT_TIMEOUT_MS, SMALL_LIMIT, COMMIT_TIMEOUT_MS + 10000)
+    const r = await runOne(g.cwd, commitArgs(String(a.message)), COMMIT_TIMEOUT_MS, SMALL_LIMIT, COMMIT_TIMEOUT_MS + VC_WRITE_CALL_MARGIN_MS)
     const headAfter = await readHead(g.cwd)
     // 读不到 HEAD 就如实说「结果未知」——绝不在不知道结果时说成功（#841 第三批 ⑤）。
     if (headAfter === null) return remember(g.requestId, wfail('other', 'head-unreadable', writeHintFor('head-unreadable'), { extra: { headBefore: headBefore, headAfter: '' } }))
@@ -179,7 +217,7 @@ export function createWritePhones(deps) {
     if (g.replay) return g.replay
     if (g.denied) return g.denied
     const headBefore = String(g.ticket.headOid || '')
-    const r = await runOne(g.cwd, pullArgs(), PULL_TIMEOUT_MS, SMALL_LIMIT, PULL_TIMEOUT_MS + 10000)
+    const r = await runOne(g.cwd, pullArgs(), PULL_TIMEOUT_MS, SMALL_LIMIT, PULL_TIMEOUT_MS + VC_WRITE_CALL_MARGIN_MS)
     const headAfter = await readHead(g.cwd)
     if (r && r.ok === true) {
       // 读不到 HEAD 时回 mode:'unknown'，不许回 up-to-date（那是在猜）。
@@ -197,7 +235,7 @@ export function createWritePhones(deps) {
     if (g.denied) return g.denied
     const remote = String((g.ticket.target && g.ticket.target.remote) || '')
     if (remote === '' || !REMOTE_PATTERN.test(remote)) return remember(g.requestId, wfail('args', 'bad-target', writeHintFor('bad-target')))
-    const r = await runOne(g.cwd, fetchArgs(remote), FETCH_TIMEOUT_MS, SMALL_LIMIT, FETCH_TIMEOUT_MS + 10000)
+    const r = await runOne(g.cwd, fetchArgs(remote), FETCH_TIMEOUT_MS, SMALL_LIMIT, FETCH_TIMEOUT_MS + VC_WRITE_CALL_MARGIN_MS)
     if (r && r.ok === true) return remember(g.requestId, { ok: true, mode: 'fetched', remote: remote, atMs: now() })
     const text = failText(r)
     const reason = classifyWriteFailure('fetch', r ? r.exitCode : -1, text)
@@ -209,7 +247,7 @@ export function createWritePhones(deps) {
     if (g.replay) return g.replay
     if (g.denied) return g.denied
     const plan = g.ticket.target
-    const r = await runOne(g.cwd, pushArgs(plan), PUSH_TIMEOUT_MS, SMALL_LIMIT, PUSH_TIMEOUT_MS + 10000)
+    const r = await runOne(g.cwd, pushArgs(plan), PUSH_TIMEOUT_MS, SMALL_LIMIT, PUSH_TIMEOUT_MS + VC_WRITE_CALL_MARGIN_MS)
     if (r && r.ok === true) {
       const text = String(r.stdout || '')
       return remember(g.requestId, { ok: true, mode: plan.mode === 'set-upstream' ? 'set-upstream' : 'existing-upstream', remote: plan.remote, branch: plan.branch, upToDate: /up-to-date/i.test(text), atMs: now() })

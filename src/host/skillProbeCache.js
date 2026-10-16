@@ -9,7 +9,12 @@
  *
  * 纯内存：不读盘、不联网、不起定时器（过期按读取时比对时间戳懒淘汰）。
  */
-export const SKILL_PROBE_CACHE_MS = 10000
+// 查到的结果短时缓存 10 秒：值住中央 YAML（config/ttl.yaml 的 skillProbeCacheMs 键），这里只留别名
+// （缺表回落 10000 与今天一致，防构建产物过期），调时间改 YAML。
+// 中央常量与本文件的导出同名，import 时用 as 改名，免得自己引自己。
+// 路径走域构建产物写法，值由 tests/verify-time-config.ts 看守一致。
+import { SKILL_PROBE_CACHE_MS as CENTRAL_SKILL_PROBE_CACHE_MS } from '../shared/time-config/values.js'
+export const SKILL_PROBE_CACHE_MS = CENTRAL_SKILL_PROBE_CACHE_MS ?? 10000
 
 export function createSkillProbeCache(opts) {
   const o = opts || {}

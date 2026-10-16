@@ -37,14 +37,29 @@
 // 凭据助手」的机器永远认证不上，而那正是地图终点要支持的情形；需要「一个助手都不许碰」的场合
 // （公开仓库的匿名读探针、或排查用的一次性命令）传 clearHelpers:true，会额外加 -c credential.helper=。
 
-/** 每类操作的默认预算（毫秒）：写操作要联网，给得比只读命令宽；到点一律强杀。 */
-export const OPERATION_BUDGETS = { 'ls-remote': 20000, fetch: 120000, pull: 180000, push: 120000, default: 60000 }
-/** 一次调用的总预算默认值（毫秒）：一次调用里跑几步也不许超过它。 */
-export const CALL_BUDGET_MS = 240000
-const MIN_BUDGET_MS = 1000
-const MAX_BUDGET_MS = 600000
-/** http 传输低于 1000 字节/秒、连续这么多秒就放弃。这个开关对抗式报告里没实测过，本票实测：黑洞服务下 2 秒即由 git 自己放弃（Operation too slow，exit 128），比预算强杀更早、更干净。 */
-const LOW_SPEED_SECONDS = 20
+// 调用级预算、预算上下限、探针超时与每类操作的默认预算都住中央 YAML（config/timeouts.yaml 的
+// gitCredentialCallBudgetMs / gitCredentialMinBudgetMs / gitCredentialMaxBudgetMs / gitCredentialProbeTimeoutMs
+// 与 gitCredentialLsRemoteBudgetMs / gitCredentialFetchBudgetMs / gitCredentialPullBudgetMs /
+// gitCredentialPushBudgetMs / gitCredentialDefaultBudgetMs 键）：这里只留别名
+// （前三个缺表分别回落 240000 / 1000 / 600000 与今天一致，防构建产物过期），调时间改 YAML。
+// 三个数的分工：CALL_BUDGET_MS 是「一次调用（一次用户动作）」的总预算默认值；MIN/MAX_BUDGET_MS 是夹取范围——
+// 调用方给的每操作预算与总预算都要夹在这两个数之间（上限用来守住「到点强杀」这条兜底，别被一个大数废掉）。
+// 路径走域构建产物写法（与 src/host/refresh/chain-ride.ts 引 values.js 同例），值由 tests/verify-time-config.ts 看守一致。
+import { GIT_CREDENTIAL_CALL_BUDGET_MS as CENTRAL_GIT_CREDENTIAL_CALL_BUDGET_MS, GIT_CREDENTIAL_MIN_BUDGET_MS as CENTRAL_GIT_CREDENTIAL_MIN_BUDGET_MS, GIT_CREDENTIAL_MAX_BUDGET_MS as CENTRAL_GIT_CREDENTIAL_MAX_BUDGET_MS, GIT_CREDENTIAL_PROBE_TIMEOUT_MS, GIT_CREDENTIAL_LS_REMOTE_BUDGET_MS, GIT_CREDENTIAL_FETCH_BUDGET_MS, GIT_CREDENTIAL_PULL_BUDGET_MS, GIT_CREDENTIAL_PUSH_BUDGET_MS, GIT_CREDENTIAL_DEFAULT_BUDGET_MS, GIT_LOW_SPEED_TIMEOUT_MS } from '../shared/time-config/values.js'
+
+/** 每类操作的默认预算（毫秒）：写操作要联网，给得比只读命令宽；到点一律强杀。
+ *  真源是中央 YAML（config/timeouts.yaml 的 gitCredentialLsRemoteBudgetMs / gitCredentialFetchBudgetMs /
+ *  gitCredentialPullBudgetMs / gitCredentialPushBudgetMs / gitCredentialDefaultBudgetMs 键），
+ *  这里只把这些常量摆成「每类操作到常量名」的对照表，值由 tests/verify-time-config.ts 看守一致。 */
+export const OPERATION_BUDGETS = { 'ls-remote': GIT_CREDENTIAL_LS_REMOTE_BUDGET_MS, fetch: GIT_CREDENTIAL_FETCH_BUDGET_MS, pull: GIT_CREDENTIAL_PULL_BUDGET_MS, push: GIT_CREDENTIAL_PUSH_BUDGET_MS, default: GIT_CREDENTIAL_DEFAULT_BUDGET_MS }
+/** 一次调用的总预算默认值（毫秒）：一次调用里跑几步也不许超过它。导出名不许改：其它文件与门禁按这个名字读它。 */
+export const CALL_BUDGET_MS = CENTRAL_GIT_CREDENTIAL_CALL_BUDGET_MS ?? 240000 // 中央 YAML 的 gitCredentialCallBudgetMs（一次用户动作的总预算默认值）
+const MIN_BUDGET_MS = CENTRAL_GIT_CREDENTIAL_MIN_BUDGET_MS ?? 1000 // 中央 YAML 的 gitCredentialMinBudgetMs：预算夹取的下限，低于它一步都跑不完
+const MAX_BUDGET_MS = CENTRAL_GIT_CREDENTIAL_MAX_BUDGET_MS ?? 600000 // 中央 YAML 的 gitCredentialMaxBudgetMs：预算夹取的上限，防止调用方拿一个大数把强杀兜底废掉
+/** http 传输低于 1000 字节/秒、连续这么多秒就放弃。这个开关对抗式报告里没实测过，本票实测：黑洞服务下 2 秒即由 git 自己放弃（Operation too slow，exit 128），比预算强杀更早、更干净。
+ *  值住中央 YAML（config/timeouts.yaml 的 gitLowSpeedTimeoutMs，20 秒）：git 的 http.lowSpeedTime 只认秒，
+ *  中央那份一律写毫秒，所以这里除以 1000；除法与这一档的毫秒数都由 tests/verify-time-config.ts 的 TEXT 表锁住。 */
+const LOW_SPEED_SECONDS = GIT_LOW_SPEED_TIMEOUT_MS / 1000
 const LOW_SPEED_LIMIT = '1000'
 
 /** 把 git 的话归类成稳定标识符；顺序有意义：先认「传输停住」，再认凭据三档，最后才是网络。 */
@@ -171,7 +186,9 @@ export function createCredentialSafeGit(deps) {
   async function suspectOf(exe, cwd, args, kind) {
     if (looksLikeSsh(args)) return 'ssh 通道（这条命令走的是 ssh，凭据问题与服务端都要看它）'
     if (kind === 'timeout' || kind === 'need-credentials' || kind === 'auth-rejected' || kind === 'stalled') {
-      const r = await runGit(exe, cwd, ['-C', cwd, 'config', '--get', 'credential.helper'], { timeoutMs: 5000, stdoutLimit: 4096 })
+      // 探针这一条（只在本步已经失败之后才跑，问一句本机配了什么凭据助手）：单条超时直接取中央 YAML 的
+      // gitCredentialProbeTimeoutMs（GIT_CREDENTIAL_PROBE_TIMEOUT_MS）——给得短，探针不该把失败回包拖慢。
+      const r = await runGit(exe, cwd, ['-C', cwd, 'config', '--get', 'credential.helper'], { timeoutMs: GIT_CREDENTIAL_PROBE_TIMEOUT_MS, stdoutLimit: 4096 })
       const name = (r && r.kind === 'ok') ? String(r.stdout || '').trim() : ''
       if (name) return '本机配的凭据助手 ' + name + '（它没在预算内回话；也可能是远端或代理）'
       return '本机的凭据链（没有配凭据助手；也可能是远端或代理）'

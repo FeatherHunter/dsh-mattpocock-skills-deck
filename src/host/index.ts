@@ -354,6 +354,7 @@ export default {
     let booted = false
     const bootOnce = () => { if (booted) return; booted = true; try { bootBody() } catch (eBoot) {} }
     try { ctx.inject(['subprocess', 'timer'], bootOnce) } catch (eInj) { bootOnce() }
+    // 这个 30000 是「等 subprocess/timer 就绪最多等多久」的那段延时，对应中央 YAML config/timeouts.yaml 的 hostBootDeferMs 键（生成常量 HOST_BOOT_DEFER_MS）；本文件是插件入口、不许加静态 import，所以数字留在这里，值由 tests/verify-time-config.ts 看守一致。
     setTimeout(() => {
       if (booted) return
       try { console.warn('[dsh-mattpocock-skills-deck] host boot deferred: subprocess/timer not ready after 30s, deck tools not registered') } catch (eW) {}

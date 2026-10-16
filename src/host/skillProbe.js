@@ -4,12 +4,19 @@
 // #968 技能按需新增两个可选接线：resetChainCacheForKey（按工作区键只清一桶链快照，缺省回落全清）、
 // skillCacheTtlMs（问到的结果记住多久，缺省 30 秒，与检测级联缓存同档）。
 import { isSkillCardValid, probeFsExists, directSkillCardRead, directPathExists, findProjectRootDir, probeCardViaFs, probeCardViaDirect, evidenceSummary, lightProbeReason } from '../shared/skill-probe-channels.js'
+// 短时缓存的缺省存活时间住中央 YAML（config/ttl.yaml 的 skillListCacheTtlMs 键）：
+// 这里直接读中央常量，调时间改 YAML（缺表时 values.ts 已回落到同一个数 30000，行为与今天一致）。
+// 路径走域构建产物写法，值由 tests/verify-time-config.ts 看守一致。
+import { SKILL_LIST_CACHE_TTL_MS } from '../shared/time-config/values.js'
 export function createSkillProbe(deps) {
   const { ctx, getPlatform, getWorkspaceStore, resetChainCache, resetChainCacheForKey, logCtx } = deps
     // 工作区与技能名只记短指纹，不记原始路径（日志白名单纪律，与仓里别处同一种取法）。
     function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch { return '00000000' } }
-    // #968 问到的结果短时记住多久（毫秒）。问不到（红）与没问出来（等待）永远不记，只记问到的（绿）。
-    const SKILL_CACHE_TTL_MS = (deps && typeof deps.skillCacheTtlMs === 'number' && deps.skillCacheTtlMs > 0) ? deps.skillCacheTtlMs : 30000
+    // #968 问到的结果短时记住多久（毫秒）。这里有一条不能改的约定：只记问到的（绿），问不到（红）
+    // 与没问出来（等待）永远不记 —— 否则刚装好的技能会被一条旧的「没有」按在缓存里骗住，重查也看不见。
+    // 接线 skillCacheTtlMs 仍可覆盖：调用方传了正数就听调用方的（语义不变）；没传时用中央常量的缺省值，
+    // 值住 config/ttl.yaml 的 skillListCacheTtlMs 键，调时间改 YAML。
+    const SKILL_CACHE_TTL_MS = (deps && typeof deps.skillCacheTtlMs === 'number' && deps.skillCacheTtlMs > 0) ? deps.skillCacheTtlMs : SKILL_LIST_CACHE_TTL_MS
     // #968 同一份回答最多在内存里留几条，超了丢最久没用的那条（键按写入顺序排）。
     const SKILL_CACHE_MAX = 200
     // #968 问到的结果按“工作区 + 语言 + 技能名”分桶记住：同一桶里短时不再重复问。
