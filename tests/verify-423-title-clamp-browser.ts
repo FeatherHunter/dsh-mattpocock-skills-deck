@@ -8,13 +8,13 @@ const path = require('path');
   const page = await browser.newPage({ viewport: { width: 1200, height: 1000 } });
   const url = 'file:///' + path.resolve(__dirname, 'fixtures/423-clamp-repro.html').replace(/\\/g, '/');
   await page.goto(url);
-  const data = await page.evaluate(() => {
-    const out = [];
+  const data: Array<{ name: string; display: string; clamp: string; lines: number; h: number; lh: number }> = await page.evaluate(() => {
+    const out: Array<{ name: string; display: string; clamp: string; lines: number; h: number; lh: number }> = [];
     document.querySelectorAll('.case').forEach(c => {
-      const t = c.querySelector('.dsws-tt-wrap');
+      const t = c.querySelector('.dsws-tt-wrap') as HTMLElement;
       const cs = getComputedStyle(t);
       const lh = parseFloat(cs.lineHeight) || 20.8;
-      out.push({ name: c.dataset.case, display: cs.display, clamp: cs.webkitLineClamp, lines: Math.round((t.clientHeight / lh) * 10) / 10, h: t.clientHeight, lh: lh });
+      out.push({ name: (c as HTMLElement).dataset.case as string, display: cs.display, clamp: (cs as unknown as { webkitLineClamp: string }).webkitLineClamp, lines: Math.round((t.clientHeight / lh) * 10) / 10, h: t.clientHeight, lh: lh });
     });
     return out;
   });
@@ -41,4 +41,4 @@ const path = require('path');
   await closeBrowser();
   console.log(ok ? '全部通过：真实浏览器中 fixed 结构两行截断、broken 结构无限制换行（反证成立）' : '存在失败项');
   process.exit(ok ? 0 : 1);
-})().catch(e => { console.error(e); process.exit(1); });
+})().catch((e: unknown) => { console.error(e); process.exit(1); });
