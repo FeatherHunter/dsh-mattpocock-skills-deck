@@ -1,4 +1,5 @@
-// verify-progress.js — dsh-waystation v1.5 T12/T16：进度块解析 + 正文容错 + 渲染契约校验
+// verify-progress.ts — dsh-waystation v1.5 T12/T16：进度块解析 + 正文容错 + 渲染契约校验
+// 2026-10-17 从 .js 转成 TypeScript：只改文件名、用法这行与几处类型标注，判据与断言一条没动。
 // 用法: node --import ./scripts/ts-hook.mjs tests/verify-progress.ts（在插件根目录；本文件依赖 tests/lib/eval-probe.ts，不挂钩子跑不起来）
 // 验证：1) parseProgress 变体解析 2) normalizeBody 容错（字面 \n + BOM） 3) parseMapBody 端到端（真跑 src/host/mapBody.js 里那三个函数）
 // 2026-10-12 修订：原来还有「host/package 均带 progress 字段」与「client/package 均含进度渲染符号」两条，
@@ -9,7 +10,7 @@ const { evalWithScope } = require('./lib/eval-probe.js')
 // H2 #446：解析三函数搬到 mapBody.js、详情拼装搬到 issueDetail.js（行为零变化）；断言跟随位置，意图不变。
 const hostMap = fs.readFileSync('src/host/mapBody.js', 'utf8')
 let failed = false
-const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
+const check = (ok: boolean, msg: string) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
 // 1) parseProgress 单元测试（从 host 提取函数）
 const fm = hostMap.match(/function parseProgress\(body\) \{[\s\S]*?\n    \}/)
@@ -29,7 +30,7 @@ const cases = [
   ['## 待 grill 点\n- 宽容：## 进度：90% 主格式\n## 进度：95%', 95],
   ['Progress: 40%', 40],
 ]
-cases.forEach(function (c) {
+cases.forEach(function (c: [string, number | null]) {
   const got = parseProgress(c[0])
   check(got === c[1], 'parseProgress(' + JSON.stringify(c[0]) + ') = ' + got + '（期望 ' + c[1] + '）')
 })

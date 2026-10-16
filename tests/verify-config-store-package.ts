@@ -1,18 +1,19 @@
-// verify-config-store-package.js — 发布包 YAML 门禁（#1012 落地）
+// verify-config-store-package.ts — 发布包 YAML 门禁（#1012 落地）
+// 2026-10-17 从 .js 转成 TypeScript：只改文件名、用法这行与几处类型标注，判据与断言一条没动。
 // 规则（维护者拍板：发布包要真的拿得到 YAML 解析，三者对齐，用门禁钉住）：
 //   P1 仓库 package.json 的生产依赖里有 yaml，发布包 package/package.json 的生产依赖里也有，
 //      主版本号一致；两份文件的版本号一致且为当前候选版（发版推进时同步改这里的两处字面）。
 //   P2 装好的包里能解析：node_modules/yaml 可加载，且用它能解析一份 YAML。
 //   P3 核产物随包发布：package/package.json 的 files 白名单含 shared（产物能进包）。
 //   P4 宿主适配器可加载：src/host/configStore.js 能 import，八个冻结函数都在（两个文本出入口 + 六个文件读写）。
-// 用法：node tests/verify-config-store-package.js（在仓库根目录）
+// 用法：node --import ./scripts/ts-hook.mjs tests/verify-config-store-package.ts（在仓库根目录）
 const fs = require('fs')
 const path = require('path')
 const { pathToFileURL } = require('url')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
-const check = (ok, msg, detail) => {
+const check = (ok: boolean, msg: string, detail?: unknown) => {
   console.log((ok ? '  PASS ' : '  FAIL ') + msg + (ok ? '' : (detail ? ' — ' + String(detail).slice(0, 300) : '')))
   if (!ok) failed = true
 }
@@ -28,7 +29,7 @@ async function main() {
   const shipYaml = (shipPkg.dependencies || {}).yaml
   check(typeof rootYaml === 'string' && rootYaml, '仓库 package.json 生产依赖里有 yaml', rootYaml)
   check(typeof shipYaml === 'string' && shipYaml, '发布包 package.json 生产依赖里有 yaml', shipYaml)
-  const majorOf = (s) => String(s || '').replace(/^[\^~>=< ]+/, '').split('.')[0]
+  const majorOf = (s: unknown) => String(s || '').replace(/^[\^~>=< ]+/, '').split('.')[0]
   check(!!rootYaml && !!shipYaml && majorOf(rootYaml) === majorOf(shipYaml), '两处 yaml 主版本一致（' + rootYaml + ' / ' + shipYaml + '）', '')
   check(rootPkg.version === '1.9.0-beta.1' && shipPkg.version === '1.9.0-beta.1', '两份版本号一致且为当前候选版', rootPkg.version + ' / ' + shipPkg.version)
 
@@ -38,7 +39,7 @@ async function main() {
     const mod = yaml || require('yaml')
     const parsed = mod.parse('version: 2\nbackendId: github\n')
     check(parsed && parsed.backendId === 'github', '装好的 yaml 能解析', JSON.stringify(parsed))
-  } catch (e) {
+  } catch (e: any) {
     check(false, '装好的 yaml 能解析：' + (e && e.message))
   }
 
@@ -57,7 +58,7 @@ async function main() {
     for (const name of ['parseConfig', 'stringifyConfig', 'readWorkspaceConfig', 'writeWorkspaceConfig', 'readLocalSettings', 'writeLocalSettings', 'readLabelColors', 'writeLabelColors']) {
       check(typeof adapter[name] === 'function', '冻结函数在：' + name)
     }
-  } catch (e) {
+  } catch (e: any) {
     check(false, '宿主适配器可加载：' + (e && e.message))
   }
 
@@ -65,4 +66,4 @@ async function main() {
   process.exit(failed ? 1 : 0)
 }
 
-main().catch((e) => { console.error('门禁执行异常：' + ((e && e.stack) || e)); process.exit(1) })
+main().catch((e: any) => { console.error('门禁执行异常：' + ((e && e.stack) || e)); process.exit(1) })
