@@ -6,7 +6,9 @@
  * 慢网下超时一律归网络档（未知、稍后再试），不能说成没登录让用户去重登。
  *
  * 暂定值（终值等 #967 测出耗时分布后回填，由 #966 收口执行）：
- *   读 12000 毫秒、写 30000 毫秒、探活 3000 毫秒。
+ *   读 12000 毫秒、写 30000 毫秒、探活 15000 毫秒。
+ * 探活从 3000 提到 15000（#1160）：gh auth status 在插件里是冷启动，
+ * keyring 读取加 TLS 握手在代理环境下经常超 3 秒，3 秒强杀会把登录态误判成网络异常。
  * 上限参考（4 下限、64 上限）管的是同时在飞几个，不管等多久，这里不混用。
  *
  * 这个文件是纯函数：不读盘、不联网、不起定时器。调用方显式传了超时就按调用方的来。
@@ -61,7 +63,7 @@ export function isWriteGhArgs(args: unknown): boolean {
   return false
 }
 
-/** 探活动词：查登录态与版本号，走最短档。类型说明：同写操作判断，收未知参数数组。 */
+/** 探活动词：查登录态与版本号，走探活档。类型说明：同写操作判断，收未知参数数组。 */
 export function isProbeGhArgs(args: unknown): boolean {
   const parts = partsOf(args)
   if (parts.length === 0) return false
@@ -71,7 +73,7 @@ export function isProbeGhArgs(args: unknown): boolean {
   return false
 }
 
-/** 这条调用走哪一档：写最久、探活最短，其余读。类型说明：返回值收窄为三档字面量。 */
+/** 这条调用走哪一档：写最久，其余读，探活走自己的档（#1160 起探活 15 秒，比读档久）。类型说明：返回值收窄为三档字面量。 */
 export function tierForGhArgs(args: unknown): 'write' | 'probe' | 'read' {
   if (isWriteGhArgs(args)) return 'write'
   if (isProbeGhArgs(args)) return 'probe'

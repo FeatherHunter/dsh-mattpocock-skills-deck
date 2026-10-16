@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T16:22:55.797Z",
+  "generatedAt": "2026-10-16T16:24:35.710Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 301,
   "gateCount": 301,
@@ -272,7 +272,7 @@
         "src/client/kernel/locale-word.js",
         "src/client/views/shared/sessionChainView.js",
         "tests/fixtures/chain-view-ui-probe.ts",
-        "tests/lib/browser-pool.js",
+        "tests/lib/browser-pool.ts",
         "tests/lib/eval-probe.ts"
       ],
       "dirs": [
@@ -1642,7 +1642,7 @@
       "step": "node tests/verify-423-title-clamp-browser.js",
       "file": "tests/verify-423-title-clamp-browser.js",
       "guards": [
-        "tests/lib/browser-pool.js"
+        "tests/lib/browser-pool.ts"
       ],
       "dirs": [
         "tests/lib"
@@ -1873,7 +1873,7 @@
       "file": "tests/verify-640-dock-width-browser.js",
       "guards": [
         "scripts/gen-fixture-640.js",
-        "tests/lib/browser-pool.js"
+        "tests/lib/browser-pool.ts"
       ],
       "dirs": [
         "scripts",
@@ -2107,7 +2107,7 @@
         "package/lib/client.js",
         "src/client/kernel/icons.js",
         "src/client/panel/headFold.js",
-        "tests/lib/browser-pool.js",
+        "tests/lib/browser-pool.ts",
         "tests/lib/eval-probe.ts"
       ],
       "dirs": [
@@ -2205,7 +2205,7 @@
       "file": "tests/verify-669-collapsed-recoverable.js",
       "guards": [
         "package/lib/client.js",
-        "tests/lib/browser-pool.js",
+        "tests/lib/browser-pool.ts",
         "tests/lib/eval-probe.ts",
         "tests/lib/gate-result.ts",
         "tests/lib/time-compress.ts"
@@ -2230,7 +2230,7 @@
         "src/client/kernel/probe-stale.js",
         "src/client/kernel/store-prefs.js",
         "src/shared/time-config/values.js",
-        "tests/lib/browser-pool.js",
+        "tests/lib/browser-pool.ts",
         "tests/lib/eval-probe.ts"
       ],
       "dirs": [
@@ -2253,7 +2253,7 @@
         "src/client/kernel/router.js",
         "src/client/kernel/styles.js",
         "src/client/panel/Dock.js",
-        "tests/lib/browser-pool.js"
+        "tests/lib/browser-pool.ts"
       ],
       "dirs": [
         "package/lib",
@@ -3519,7 +3519,7 @@
       "file": "tests/verify-958-label-name-visible.js",
       "guards": [
         "package/lib/client.js",
-        "tests/lib/browser-pool.js"
+        "tests/lib/browser-pool.ts"
       ],
       "dirs": [
         "package/lib",
@@ -3732,7 +3732,7 @@
         "src/client/views/versionControl/vcWriteUi.js",
         "src/client/views/versionControl/vcWriteView.js",
         "src/shared/version-control/rules.js",
-        "tests/lib/browser-pool.js"
+        "tests/lib/browser-pool.ts"
       ],
       "dirs": [
         "src/client/kernel",
@@ -3937,7 +3937,7 @@
       "file": "tests/verify-cap-fold-browser.js",
       "guards": [
         "package/lib/client.js",
-        "tests/lib/browser-pool.js"
+        "tests/lib/browser-pool.ts"
       ],
       "dirs": [
         "package/lib",
@@ -3958,7 +3958,7 @@
         "src/client/statusbar/StatusBar.js",
         "src/client/statusbar/capFold.js",
         "src/client/statusbar/capFoldMachine.js",
-        "tests/lib/browser-pool.js",
+        "tests/lib/browser-pool.ts",
         "tests/lib/eval-probe.ts"
       ],
       "dirs": [
@@ -4001,7 +4001,7 @@
       "file": "tests/verify-capsule-layout.js",
       "guards": [
         "package/lib/client.js",
-        "tests/lib/browser-pool.js"
+        "tests/lib/browser-pool.ts"
       ],
       "dirs": [
         "package/lib",

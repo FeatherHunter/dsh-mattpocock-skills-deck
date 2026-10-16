@@ -7,8 +7,8 @@
 # 单位一律是毫秒，文件里不写单位后缀。想改一个时间，先改这里，再跑一次生成器
 # （node scripts/generate-time-config.mjs），调用方读到的是生成出来的值。
 #
-# 缺键是合法状态，不是故障：生成器对缺的键只告警，调用方用收拢当天的数字顶上
-# （回落底座见生成器里的 FALLBACKS 表）。未知键一律报错，不静默忽略。
+# 缺键是构建错误，不是合法状态：生成器遇到 YAML 里没有的键直接报错，
+# 调用方不许自己写数字顶上（单源头纪律，见 #1215）。未知键同样报错，不静默忽略。
 
 version: 1
 
@@ -25,16 +25,19 @@ timeouts:
   # 去 GitHub 的分档超时（#969 暂定值，终值等 #967 测出耗时分布后回填）。
   outboundReadMs: 12000
   outboundWriteMs: 30000
-  outboundProbeMs: 3000
+  # 探活档：15 秒（#1160 从 3 秒提到 15 秒，与谓词注册表的 15 秒对齐）。
+  # gh auth status 在插件里是冷启动（keyring 读取加 TLS 握手，代理环境下经常超 3 秒），
+  # 3 秒到点强杀会把“登录着但慢”误判成网络异常。探活本该最快回来，但不能比冷启动还快。
+  outboundProbeMs: 15000
   # 拿不到档位时的旧默认：沿用历史 30 秒，不静默变快。
   outboundDefaultMs: 30000
 
   # GitHub 房客户端兜底超时：30 秒。调用方显式传了超时就按调用方的来。
   githubClientTimeoutMs: 30000
-  # 查登录态与版本号的探活用超时：3 秒。本该最快回来。
-  githubProbeMs: 3000
-  # git 直调的探活超时：3 秒（读远端地址那一类只读调用）。
-  gitProbeMs: 3000
+  # 查登录态与版本号的探活用超时：15 秒（#1160 从 3 秒提到 15 秒，理由同探活档）。
+  githubProbeMs: 15000
+  # git 直调的探活超时：15 秒（#1160 从 3 秒提到 15 秒；读远端地址那一类只读调用，慢网下 3 秒不够）。
+  gitProbeMs: 15000
   # GitHub 房建仓那一步的超时：30 秒。
   githubInitTimeoutMs: 30000
 
@@ -42,12 +45,12 @@ timeouts:
   gitlabReadMs: 8000
   # GitLab 房慢读超时：10 秒。翻页列表与计数查询走这一档。
   gitlabSlowReadMs: 10000
-  # GitLab 房探活与轻查询超时：5 秒。登录态检查与单个用户查询走这一档。
-  gitlabProbeMs: 5000
-  # GitLab 房内 git 直调超时：3 秒。
-  gitlabRepoGitMs: 3000
-  # GitLab 房 git 回退链超时：2 秒。回退只是兜底，不值得久等。
-  gitlabFallbackMs: 2000
+  # GitLab 房探活与轻查询超时：15 秒（从 5 秒提到 15 秒，与 GitHub 房探活对齐；登录态检查不该比登录态本身还急）。
+  gitlabProbeMs: 15000
+  # GitLab 房内 git 直调超时：15 秒（从 3 秒提到 15 秒；直调子进程冷启动与慢网同理，3 秒误杀）。
+  gitlabRepoGitMs: 15000
+  # GitLab 房 git 回退链超时：5 秒（从 2 秒提到 5 秒；回退只是兜底，仍是三档里最短的）。
+  gitlabFallbackMs: 5000
   # GitLab 房建仓那一步的超时：60 秒。建仓含远端建仓库与本地初始化两段。
   gitlabCreateProjectMs: 60000
 
@@ -58,8 +61,8 @@ timeouts:
   vcCheckCallBudgetMs: 60000
   # 核对时列表 files 的超时：15 秒。
   vcLsFilesTimeoutMs: 15000
-  # 核对时问远端地址的超时：5 秒。
-  vcRemoteTimeoutMs: 5000
+  # 核对时问远端地址的超时：15 秒（从 5 秒提到 15 秒；问的是远端，走网络，与读类本地命令不是一档）。
+  vcRemoteTimeoutMs: 15000
   # 写路径五条命令各自的超时：add 15 秒、commit 60 秒、pull 3 分钟、push 2 分钟、fetch 2 分钟。
   # pull 给得最宽：它要跟远端协商并搬对象，是这几条里最容易慢的。
   vcAddTimeoutMs: 15000
@@ -67,10 +70,10 @@ timeouts:
   vcPullTimeoutMs: 180000
   vcPushTimeoutMs: 120000
   vcFetchTimeoutMs: 120000
-  # 读类命令的单条超时：5 秒。写路径里问状态、读内容、查远端都走这一档。
-  vcReadCmdTimeoutMs: 5000
+  # 读类命令的单条超时：10 秒（从 5 秒提到 10 秒；与下面读调用的整趟预算 10 秒对齐，单条不许超过整趟）。
+  vcReadCmdTimeoutMs: 10000
   # 写路径四类调用的整趟预算：读头部 20 秒、默认读 10 秒、列表 files 30 秒、远端列表 15 秒。
-  # 「单条超时」与「整趟预算」是两件事：一条命令不许超 5 秒，一趟调用最多能花 10 秒。
+  # 「单条超时」与「整趟预算」是两件事：一条命令不许超 10 秒，一趟调用最多能花 10 秒。
   vcHeadCallBudgetMs: 20000
   vcReadCallBudgetMs: 10000
   vcLsFilesCallBudgetMs: 30000
@@ -80,12 +83,13 @@ timeouts:
   # 写命令给整趟预算留的余量：10 秒。add / unstage / commit / pull / fetch / push 的整趟预算
   # = 该条命令的超时 + 这个余量（超时管「一条命令最多跑多久」，整趟预算管「这一步所有命令合起来的上限」）。
   vcWriteCallMarginMs: 10000
-  # git 凭据代执行的整趟预算：4 分钟。上下限 1 秒与 10 分钟：接线给的预算会被钳进这个范围。
+  # git 凭据代执行的整趟预算：4 分钟。上下限 5 秒与 10 分钟：接线给的预算会被钳进这个范围
+  # （下限从 1 秒提到 5 秒；1 秒的预算在慢机器上连子进程启动都盖不住，等于没给）。
   gitCredentialCallBudgetMs: 240000
-  gitCredentialMinBudgetMs: 1000
+  gitCredentialMinBudgetMs: 5000
   gitCredentialMaxBudgetMs: 600000
-  # 问 git 用哪个凭据助手（config --get credential.helper）的超时：5 秒。
-  gitCredentialProbeTimeoutMs: 5000
+  # 问 git 用哪个凭据助手（config --get credential.helper）的超时：10 秒（从 5 秒提到 10 秒；本地读，但挂住的 git 不该 5 秒就判死）。
+  gitCredentialProbeTimeoutMs: 10000
   # 每类 git 操作的默认预算：ls-remote 20 秒、fetch 2 分钟、pull 3 分钟、push 2 分钟、其余（default）1 分钟。
   # 调用方没给每操作预算时按这一档；写操作要联网，给得比只读宽，到点一律强杀。
   gitCredentialLsRemoteBudgetMs: 20000
@@ -99,17 +103,17 @@ timeouts:
   # 跟踪器假身位匹配的超时：30 秒。超时视作 pending（未知），排除出决策集。
   matchesTimeoutMs: 30000
 
-  # 九个 deck 工具问沙箱政策的等待上限：5 秒。等不到就按无政策继续，不拦工具执行。
-  deckSandboxMs: 5000
+  # 九个 deck 工具问沙箱政策的等待上限：15 秒（从 5 秒提到 15 秒；等的是政策服务，短了会把“没问到”当成“无政策”继续）。
+  deckSandboxMs: 15000
   # 地图存取（读、写、删计划快照）的等待上限：10 秒。超时只记一笔，不抛错。
   deckStoreMs: 10000
   # 工具壳确保有可用地图时的等待上限：15 秒。它与上一条是两件事（“确保有”与“读写”），值不同是刻意的。
   deckEnsureMs: 15000
-  # deck 工具前置本地读的等待上限：5 秒。读本机记忆与工作区锚文件都是本地读，挂住的文件服务不该卡住整笔调用，
+  # deck 工具前置本地读的等待上限：10 秒（从 5 秒提到 10 秒；读本机记忆与工作区锚文件都是本地读，挂住的文件服务不该卡住整笔调用，
   # 等不到就按缺席跳过（超时走既有的失败继续路径，不抛错）。#1155 把宿主接线转成 TypeScript 后按“动到谁再入”的口径收进来。
-  deckLocalReadMs: 5000
-  # 工具钩子（票建好后的通知）的等待上限：5 秒。等不到就跳过，不影响主流程。
-  deckHookMs: 5000
+  deckLocalReadMs: 10000
+  # 工具钩子（票建好后的通知）的等待上限：10 秒（从 5 秒提到 10 秒）。等不到就跳过，不影响主流程。
+  deckHookMs: 10000
   # 工具表装配声明文件读取的等待上限：8 秒。
   deckAssemblyMs: 8000
   # 桥接干跑等工具表的等待上限：8 秒。
@@ -124,38 +128,38 @@ timeouts:
   hostBootDeferMs: 30000
   # 写锁默认等待上限：60 秒。等不到就诚实回，不无限排队。
   keyLockMs: 60000
-  # 会话工作目录规范化的等待上限：5 秒。超时回退，不拦启动。
-  canonicalTimeoutMs: 5000
+  # 会话工作目录规范化的等待上限：10 秒（从 5 秒提到 10 秒）。超时回退，不拦启动。
+  canonicalTimeoutMs: 10000
   # 在途租约保活哨兵：2 的 31 次方减 1。非常值，不可调——它不是“等多久”，
   # 是“让这一只定时器永远不触发”的写法，改小会让租约提前失效。
   inFlightKeepAliveMs: 2147483647
 
-  # 客户端设置调试推送的等待上限：5 秒（客户端经构建 splice 吃到这个值，不运行时 import）。
-  settingsDebugPushWaitMs: 5000
+  # 客户端设置调试推送的等待上限：10 秒（从 5 秒提到 10 秒；客户端经构建 splice 吃到这个值，不运行时 import）。
+  settingsDebugPushWaitMs: 10000
   # 配额同步失败后的冷却：60 秒。冷却期内不再发同步请求，不拿失败刷服务端。
   quotaSyncCooldownMs: 60000
-  # 注册重试两次尝试之间的等待：2 秒。只在注册那条慢路上用，不进快路。
-  registerRetryWaitMs: 2000
+  # 注册重试两次尝试之间的等待：5 秒（从 2 秒提到 5 秒；只在注册那条慢路上用，不进快路，刚失败就紧着重试没有意义）。
+  registerRetryWaitMs: 5000
   # 壳命令寻址解析的等待上限：8 秒。等不到就按解析失败走，不拦工具执行。
   shellResolveMs: 8000
   # 问模型写一份工作区命名摘要的超时：30 秒。等不到就按没有摘要继续，名字回落到目录名。
   namingSummaryTimeoutMs: 30000
-  # 客户端日志看门狗的阈值：5 秒。开关写与启动对账超过这么久没回，就记一行告警自举证。
-  logWatchdogMs: 5000
+  # 客户端日志看门狗的阈值：10 秒（从 5 秒提到 10 秒；负载高时开关写与启动对账 5 秒没回不代表坏了，阈值太短等于自己吓自己）。
+  logWatchdogMs: 10000
   # 客户端等一次自动探测结果的上限：15 秒。等不到就按“这一次没结果”继续，不卡住整轮。
   probeAutoWaitMs: 15000
-  # 子进程收尾宽限：探活类（gh --version 这种一闪即走的）1 秒，常规 2 秒。
+  # 子进程收尾宽限：探活类（gh --version 这种一闪即走的）5 秒，常规 10 秒（分别从 1 秒、2 秒提到现在的值）。
   # 宽限到了进程还没退才杀——杀早了会把“正在刷最后一段输出”的进程误杀。
-  procProbeGraceMs: 1000
-  procGraceMs: 2000
+  procProbeGraceMs: 5000
+  procGraceMs: 10000
   # 检测链里单个谓词（一条探活命令）的超时上限：15 秒。2026-08-28 实机修复留下的值——
   # gh auth status / gh api 是真实网络调用，3 秒必然超时，会把「gh 已登录」「仓库可达」误判成失败
   # 并给出误导性修复指引；15 秒给慢网络留余地，runGh 内部另有一层 30 秒兜底。
   predicateTimeoutMs: 15000
-  # 调用方不传 timeout 时的兜底：3 秒。生产里唯一的调用方（检测链）总是显式传 15 秒，
+  # 调用方不传 timeout 时的兜底：10 秒（从 3 秒提到 10 秒）。生产里唯一的调用方（检测链）总是显式传 15 秒，
   # 这一档只在将来有人裸调 createPredicateRegistry() 时生效。它决定「没传会等多久」这件事，
   # 所以照样登记；与上一档刻意不同值，改一个不要顺手改另一个。
-  predicateFallbackTimeoutMs: 3000
-  # 检测链预取 gh 登录名的一次性竞速超时：2.5 秒。owner 显示是装饰信息，
-  # 拿不到就留占位，不能让一次附带查询拖慢整条检测链，所以上限给得短。
-  ghLoginPrefetchMs: 2500
+  predicateFallbackTimeoutMs: 10000
+  # 检测链预取 gh 登录名的一次性竞速超时：5 秒（从 2.5 秒提到 5 秒；仍是全文件最短一档的量级）。
+  # owner 显示是装饰信息，拿不到就留占位，不能让一次附带查询拖慢整条检测链，所以上限给得短。
+  ghLoginPrefetchMs: 5000

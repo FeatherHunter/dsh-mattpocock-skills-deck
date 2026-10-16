@@ -38,7 +38,7 @@ if (tiers) {
   const { READ_TIMEOUT_MS, WRITE_TIMEOUT_MS, PROBE_TIMEOUT_MS, tierForGhArgs, timeoutForGhArgs, timeoutForTier } = tiers
   check(READ_TIMEOUT_MS === 12000, '一、读档是 12 秒（暂定值，终值等测量回填）', '实得 ' + String(READ_TIMEOUT_MS))
   check(WRITE_TIMEOUT_MS === 30000, '一、写档是 30 秒（暂定值，写超时不提前杀）', '实得 ' + String(WRITE_TIMEOUT_MS))
-  check(PROBE_TIMEOUT_MS === 3000, '一、探活档是 3 秒（登录态与版本自检最短）', '实得 ' + String(PROBE_TIMEOUT_MS))
+  check(PROBE_TIMEOUT_MS === 15000, '一、探活档是 15 秒（#1160：冷启动 keyring 加 TLS 经常超 3 秒，与谓词 15 秒对齐）', '实得 ' + String(PROBE_TIMEOUT_MS))
   // 读：列票与看票走读档
   check(tierForGhArgs(['issue', 'list', '--repo', 'a/b']) === 'read', '一、列票走读档')
   check(timeoutForGhArgs(['issue', 'view', '1']) === 12000, '一、看票超时 12 秒')
@@ -48,13 +48,13 @@ if (tiers) {
   check(tierForGhArgs(['issue', 'comment', '1', '--body', 'hi']) === 'write', '一、评论走写档')
   check(tierForGhArgs(['api', 'repos/a/b/issues', '--method', 'POST']) === 'write', '一、经接口写票（POST）走写档')
   check(tierForGhArgs(['api', 'repos/a/b/issues/1']) === 'read', '一、经接口读票（GET）走读档')
-  // 探活：登录态与版本自检走最短档
+  // 探活：登录态与版本自检走探活档（#1160 起探活 15 秒，不再是三档里最短的）
   check(tierForGhArgs(['auth', 'status']) === 'probe', '一、查登录态走探活档')
-  check(timeoutForGhArgs(['auth', 'status']) === 3000, '一、查登录态超时 3 秒')
+  check(timeoutForGhArgs(['auth', 'status']) === 15000, '一、查登录态超时 15 秒（#1160）')
   check(tierForGhArgs(['--version']) === 'probe', '一、查版本号走探活档')
   // 调用方显式传的超时优先，不被档位覆盖
   check(timeoutForGhArgs(['issue', 'list'], 5000) === 5000, '一、调用方显式传的超时优先')
-  check(timeoutForTier('write') === 30000 && timeoutForTier('probe') === 3000 && timeoutForTier('read') === 12000, '一、按档名取超时各走各的档')
+  check(timeoutForTier('write') === 30000 && timeoutForTier('probe') === 15000 && timeoutForTier('read') === 12000, '一、按档名取超时各走各的档')
 }
 
 // —— 二、慢网超时归网络档，不报没登录 ——
@@ -70,7 +70,7 @@ if (tiers) {
   check(k !== ERROR_KIND.AUTH, '二、超时不报没登录（归 ' + String(k) + '，不是 auth）')
 }
 
-// —— 三、执行层按档取超时：读 12 秒、写 30 秒、探活 3 秒 ——
+// —— 三、执行层按档取超时：读 12 秒、写 30 秒、探活 15 秒（#1160）——
 {
   const { ghClient } = await import(pathToFileURL(nodePath.join(ROOT, 'src/tracker/rooms/github/client.ts')).href)
   // 假执行器：只记调用方要它等多久，不真起进程
@@ -96,7 +96,7 @@ if (tiers) {
   check(seen.length === 1 && seen[0].timeout === 30000, '三、写调用默认等 30 秒', '实得 ' + JSON.stringify(seen[0] && seen[0].timeout))
   seen.length = 0
   await c.execGh(['auth', 'status'], { cwd: '.' })
-  check(seen.length === 1 && seen[0].timeout === 3000, '三、探活调用默认等 3 秒', '实得 ' + JSON.stringify(seen[0] && seen[0].timeout))
+  check(seen.length === 1 && seen[0].timeout === 15000, '三、探活调用默认等 15 秒（#1160）', '实得 ' + JSON.stringify(seen[0] && seen[0].timeout))
   // 调用方显式传的超时不被档位覆盖
   seen.length = 0
   await c.execGh(['issue', 'list'], { cwd: '.', timeout: 5000 })

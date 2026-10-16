@@ -140,16 +140,16 @@ async function main() {
     for (const r of spy.rows) allEvents.add(r.event); }
   title('S4 分档：读/探活/写各等各的，超时归网络档');
   { const spy = makeSpy();
-    const g = await makeRunGh(spy, { delayFor: (argv) => (argv[1] === 'auth' ? 3500 : 60) });
+    const g = await makeRunGh(spy, { delayFor: (argv) => (argv[1] === 'auth' ? 15500 : 60) });
     await g.runGh(['issue', 'list', '--limit', '5'], 'D:/repo');
     await g.runGh(['issue', 'create', '--title', 't', '--body', 'b'], 'D:/repo');
     must(g.timeouts.includes(12000), '读档等 12 秒', JSON.stringify(g.timeouts));
     must(g.timeouts.includes(30000), '写档等 30 秒', JSON.stringify(g.timeouts));
     const slow = await g.runGh(['auth', 'status'], 'D:/repo');
     spy.dump(['gh.timeout', 'gh.exec']);
-    must(g.timeouts.includes(3000), '探活档等 3 秒', JSON.stringify(g.timeouts));
+    must(g.timeouts.includes(15000), '探活档等 15 秒（#1160 从 3 秒提到 15 秒）', JSON.stringify(g.timeouts));
     must(slow.ok === false && slow.kind === 'network', '探活超时归网络档（未知稍后，不说没登录）', JSON.stringify(slow));
-    must(spy.count('gh.timeout', (f) => f && f.timeoutMs === 3000) === 1, '超时行记的分档值 3000');
+    must(spy.count('gh.timeout', (f) => f && f.timeoutMs === 15000) === 1, '超时行记的分档值 15000');
     for (const r of spy.rows) allEvents.add(r.event); }
   title('S5 技能：平时三项，重查全量，记住的走缓存');
   { const spy = makeSpy(); const w = await makeScopedDetect(spy);

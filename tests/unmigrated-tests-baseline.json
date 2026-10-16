@@ -7,7 +7,6 @@
     "tests/fixtures/gh-gateway/compliant/src/host/goodGated.js",
     "tests/fixtures/gh-gateway/violating/src/host/badBypass.js",
     "tests/fixtures/gh-gateway/violating/src/host/badRegistered.js",
-    "tests/lib/browser-pool.js",
     "tests/lib/deck-decide-stub.js",
     "tests/lib/render-subws-mark.js",
     "tests/playwright-e2e-probe.js",
