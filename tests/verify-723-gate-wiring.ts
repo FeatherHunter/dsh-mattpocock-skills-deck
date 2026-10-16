@@ -1,6 +1,6 @@
-// verify-723-gate-wiring.js —— 门禁：#723（T19）把存量三处传输出口接进唯一出口闸之后，
+// verify-723-gate-wiring.ts —— 门禁：#723（T19）把存量三处传输出口接进唯一出口闸之后，
 // 「裁决那一半」与「处理链喂数据那一半」在真业务路径上真的走通了（不是只记了一笔账、也不是只喂了一笔）。
-// 用法：在插件根目录执行 node tests/verify-723-gate-wiring.js，可独立运行。
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-723-gate-wiring.ts，可独立运行。
 //
 // 为什么必须单独有这一条：
 //   tests/verify-gh-gateway.js 守的是「每一笔出站都被报给了闸」（记账那一半）与「登记表不许说谎」。
@@ -31,18 +31,18 @@ const { writeWorkspaceFile } = require('./lib/deck-decide-stub.js')
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
 let total = 0
-const check = (ok, msg, detail) => {
+const check = (ok: boolean, msg: string, detail?: string): void => {
   total += 1
   console.log((ok ? '  PASS ' : '  FAIL ') + msg + (ok || !detail ? '' : '\n         → ' + detail))
   if (!ok) failed = true
 }
-const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href)
+const imp = (rel: string) => import(pathToFileURL(path.join(ROOT, rel)).href)
 
 const CLOCK = 1700000000000
 const CWD = 'C:\\ws\\723-gate'
 const WS = 'ws-723-gate'
 
-function row(n, state, updatedAt) {
+function row(n: number, state: string, updatedAt: string) {
   return { number: n, key: String(n), title: '票 ' + n, state: state, updatedAt: updatedAt, labels: [], assignees: [], createdAt: '2026-09-01T00:00:00Z' }
 }
 
@@ -63,7 +63,7 @@ async function main() {
   const DECK_TOOL_NAMES = (await imp('src/deck/tools/tool-order.ts')).DECK_TOOL_ORDER
 
   /** 一个只活在这一次里的闸 + 账本（真件），配一层假传输层（每真发一条就报给闸一次，与生产同一口径）。 */
-  function world(opts) {
+  function world(opts?: { remaining?: number }) {
     const o = opts || {}
     const store = {
       ok: true, repo: { owner: 'o', name: 'r' }, workspaceRoot: CWD, version: 'v0', generatedMs: CLOCK - 60000,
@@ -83,7 +83,7 @@ async function main() {
       indexOfSnapshot: win.indexFromSnapshot, windowRules: win,
       getRepoKey: async () => ({ owner: 'o', name: 'r' }),
       probeIndex: async () => ({ ok: true, index: { '301': 'CLOSED|2026-09-23T00:00:00Z', '302': 'OPEN|2026-09-19T00:00:00Z', '303': 'OPEN|2026-09-18T00:00:00Z' } }),
-      runGh: async (args) => {
+      runGh: async (args: string[]) => {
         calls.push(args)
         const n = Number(args[1].split('/').pop())
         return { ok: true, text: JSON.stringify({ number: n, title: '票 ' + n, state: 'closed', labels: [], assignees: [], user: { login: 'me' }, updated_at: '2026-09-23T00:00:00Z', created_at: '2026-09-01T00:00:00Z' }) }
@@ -136,7 +136,7 @@ async function main() {
     const WS2 = 'C:\\ws\\723-a2'
     const CMD = 'gh issue comment 723 --body "723"'
     /** 生产装配的那一套：真闸真账本 + 真注册表（报告「这个工作区用 github」）+ 真处理链。 */
-    function build(registryBackend) {
+    function build(registryBackend: string) {
       // #735 起落盘不再是只写不读：focus 会把盘上这一格读回来，所以缓存目录必须一次一格。
       // 共用 os.tmpdir() 的话，上一次跑留下的 session-tickets.json 会被读回来，
       // ④a 那条 sessions.length===1 就变成 2（自污染，与生产无关）。
@@ -157,7 +157,7 @@ async function main() {
       const focus = attentionMod.createFocusHandler({ attention: w.attention, afterReport: () => w.syncAttention() })
       return { w: w, gate: gate, entries: entries, decides: decides, focus: focus }
     }
-    const writeOnce = (w, sid, ws) => w.writeEvents.handle({ id: sid, header: { cwd: ws } }, 'tools/result', 'pwsh', JSON.stringify({ command: CMD }), true)
+    const writeOnce = (w: { writeEvents: { handle: (...args: unknown[]) => unknown } }, sid: string, ws: string) => w.writeEvents.handle({ id: sid, header: { cwd: ws } }, 'tools/result', 'pwsh', JSON.stringify({ command: CMD }), true)
 
     // ④a 放行 + 喂数据真的被链记下 + 界面的读数里真的出现那一笔
     const A1 = build('github')
@@ -251,7 +251,7 @@ async function main() {
     writeWorkspaceFile(wsRoot, 'markdown')
 
     /** 额度剩多少由 remaining 定；九个工具与闸都从这一个 wiring 上取（与生产同形）。 */
-    async function buildHost(remaining) {
+    async function buildHost(remaining: number) {
       const base = ledgerMod.createLedger({ now: () => CLOCK })
       // 读数先落账（与实际顺序一致：宿主每分钟同步一次剩余），闸再按这份账判档 —— 顺序反了的话
       // 闸看到的是「还没读过读数」那一份（档位红），什么都会推迟，那就测不到想测的东西。

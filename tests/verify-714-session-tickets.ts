@@ -1,5 +1,5 @@
-// verify-714-session-tickets.js —— 门禁：会话↔票 处理链（数据侧，票 #714 / T10）
-// 用法：在插件根目录执行 node tests/verify-714-session-tickets.js，可独立运行。
+// verify-714-session-tickets.ts —— 门禁：会话↔票 处理链（数据侧，票 #714 / T10）
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-714-session-tickets.ts，可独立运行。
 //
 // 这张门禁守的是票面点名的那几条，一条都不能少（每一条对应下面的一段断言）：
 //   1. **两条链互不覆盖**：会话 A 写 3 张、会话 B 写 2 张，各自数各自的（同一个仓库开着两个会话时
@@ -20,13 +20,22 @@ const os = require('os')
 const path = require('path')
 const { pathToFileURL } = require('url')
 
+// 本文件是 CommonJS：宿主半（src/host/refresh/sessionTickets.ts）只从 require 与动态 import 两条路取，
+// 不用静态 import，所以加类型标注不会把它变成 ESM。下面两个类型只描述这份门禁自己的假日志出口。
+interface LogLine { level: string; event: string; fields: unknown }
+interface FakeLogCtx {
+  lines: LogLine[]
+  fire: (level: string, event: string, fields: unknown) => void
+  isEnabled: (level: string) => boolean
+}
+
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
 let total = 0
-const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
+const check = (ok: boolean, msg: string): void => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
 /** 假日志出口：收下每一行与字段键，用来断言「读那一路一条都不记」与字段白名单。 */
-function makeLogCtx() {
+function makeLogCtx(): FakeLogCtx {
   const lines = []
   return {
     lines: lines,
@@ -52,12 +61,12 @@ async function main() {
   const SID_A = 'sess-aaaa-1111-2222'
   const SID_B = 'sess-bbbb-3333-4444'
   let clock = 1700000000000
-  const now = () => (clock += 1000)
+  const now = (): number => (clock += 1000)
   const logCtx = makeLogCtx()
   const app = mod.createSessionTickets({ cacheDir: dir, now: now, logCtx: logCtx })
 
   // ── 一、会话 A 写 3 张、会话 B 写 2 张：三个来源各走一遍 ────────────────────────
-  const w = (input) => app.note(Object.assign({ rootKey: ROOT_KEY, backend: 'github' }, input))
+  const w = (input: Record<string, unknown>) => app.note(Object.assign({ rootKey: ROOT_KEY, backend: 'github' }, input))
   const a1 = await w({ sessionId: SID_A, source: 'tool-args', tool: 'deck_issue_create', tier: 'write-confirmed', args: { issue: 701 } })
   const a2 = await w({ sessionId: SID_A, source: 'tool-args', tool: 'deck_issue_patch', tier: 'write-confirmed', args: { number: 702 } })
   const a3 = await w({ sessionId: SID_A, source: 'cli', tool: 'pwsh', tier: 'write-confirmed', reason: 'cmd.gh-write', verb: 'comment', ticketKey: '703' })
@@ -103,7 +112,7 @@ async function main() {
   const file = path.join(dir, mod.SESSION_TICKETS_FILE)
   check(fs.existsSync(file), '缓存落在工作区缓存目录下的 ' + mod.SESSION_TICKETS_FILE)
   const text = fs.readFileSync(file, 'utf8')
-  const notFound = (needle, what) => check(text.indexOf(needle) < 0, '落盘文件里搜不到' + what + '（' + JSON.stringify(needle.slice(0, 28)) + '）')
+  const notFound = (needle: string, what: string) => check(text.indexOf(needle) < 0, '落盘文件里搜不到' + what + '（' + JSON.stringify(needle.slice(0, 28)) + '）')
   notFound(ROOT_KEY, '原始工作区路径')
   notFound('D:\\proj', '路径的目录段')
   notFound(CMD_A, '命令行原文')

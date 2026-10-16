@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T18:54:59.964Z",
+  "generatedAt": "2026-10-16T19:02:10.562Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 302,
   "gateCount": 302,
@@ -2612,8 +2612,8 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；静态 import 说明符 2 条；源码里的路径字面量 6 条"
     },
     {
-      "step": "node tests/verify-714-session-tickets.js",
-      "file": "tests/verify-714-session-tickets.js",
+      "step": "node tests/verify-714-session-tickets.ts",
+      "file": "tests/verify-714-session-tickets.ts",
       "guards": [
         "src/host/refresh/sessionTickets.js",
         "src/shared/refresh/chain.js"
@@ -2629,8 +2629,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条"
     },
     {
-      "step": "node tests/verify-723-gate-wiring.js",
-      "file": "tests/verify-723-gate-wiring.js",
+      "step": "node tests/verify-723-gate-wiring.ts",
+      "file": "tests/verify-723-gate-wiring.ts",
       "guards": [
         "src/deck/tools/tool-order.ts",
         "src/host/refresh/attention.js",
@@ -2662,8 +2662,8 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 12 条"
     },
     {
-      "step": "node tests/verify-723-single-refresh-instance.js",
-      "file": "tests/verify-723-single-refresh-instance.js",
+      "step": "node tests/verify-723-single-refresh-instance.ts",
+      "file": "tests/verify-723-single-refresh-instance.ts",
       "guards": [
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
@@ -2683,18 +2683,15 @@
       "reason": "归属来自：源码里的路径字面量 6 条"
     },
     {
-      "step": "node tests/verify-729-force-dedup.js",
-      "file": "tests/verify-729-force-dedup.js",
+      "step": "node tests/verify-729-force-dedup.ts",
+      "file": "tests/verify-729-force-dedup.ts",
       "guards": [
         "scripts/lib/discover-gates.ts",
         "src/host/sessionRefresh.ts",
         "src/host/sessionSnapshot.ts",
         "src/host/snapshotEnvelope.ts",
         "src/host/snapshotInflight.ts",
-        "tests/same-layer-baseline.json",
-        "tests/verify-696-shared-cache.ts",
-        "tests/verify-729-force-dedup.js",
-        "tests/verify-log-artifacts.js"
+        "tests/verify-696-shared-cache.ts"
       ],
       "dirs": [
         "scripts/lib",
@@ -2705,7 +2702,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 8 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 5 条"
     },
     {
       "step": "node tests/verify-730-cwd-consistent.js",
@@ -7159,7 +7156,7 @@
       "node tests/verify-683-choice-store.ts",
       "node tests/verify-683-host-wiring.ts",
       "node tests/verify-693-detail-fallback-honesty.ts",
-      "node tests/verify-729-force-dedup.js",
+      "node tests/verify-729-force-dedup.ts",
       "node tests/verify-970-whole-document.js",
       "node tests/verify-972-title-body.js",
       "node tests/verify-file-granularity.js",
@@ -7462,7 +7459,7 @@
       "node tests/verify-1150-plan-store-durable.ts",
       "node tests/verify-1195-budget-start.ts",
       "node tests/verify-1195-timeout-split.ts",
-      "node tests/verify-723-gate-wiring.js",
+      "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-784-effortId.js",
       "node tests/verify-790-parent-edge.ts",
       "node tests/verify-829-parent-reread.js",
@@ -7500,8 +7497,8 @@
       "node tests/verify-691-map-subissues.ts",
       "node tests/verify-696-shared-cache.ts",
       "node tests/verify-709-no-self-continuing-timers.ts",
-      "node tests/verify-723-single-refresh-instance.js",
-      "node tests/verify-729-force-dedup.js",
+      "node tests/verify-723-single-refresh-instance.ts",
+      "node tests/verify-729-force-dedup.ts",
       "node tests/verify-730-cwd-consistent.js",
       "node tests/verify-733-unknown-endpoint.js",
       "node tests/verify-782-cwd-disk.js",
@@ -7608,9 +7605,9 @@
       "node tests/verify-1195-budget-start.ts",
       "node tests/verify-1195-timeout-split.ts",
       "node tests/verify-709-no-self-continuing-timers.ts",
-      "node tests/verify-714-session-tickets.js",
-      "node tests/verify-723-gate-wiring.js",
-      "node tests/verify-723-single-refresh-instance.js",
+      "node tests/verify-714-session-tickets.ts",
+      "node tests/verify-723-gate-wiring.ts",
+      "node tests/verify-723-single-refresh-instance.ts",
       "node tests/verify-735-chain-restore.js",
       "node tests/verify-781-chain-identity.js",
       "node tests/verify-783-chain-effort.js",
@@ -7710,8 +7707,8 @@
       "node tests/verify-1195-budget-start.ts",
       "node tests/verify-1195-timeout-split.ts",
       "node tests/verify-709-no-self-continuing-timers.ts",
-      "node tests/verify-714-session-tickets.js",
-      "node tests/verify-723-gate-wiring.js",
+      "node tests/verify-714-session-tickets.ts",
+      "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-735-chain-restore.js",
       "node tests/verify-781-chain-identity.js",
       "node tests/verify-783-chain-effort.js",
@@ -7797,7 +7794,7 @@
       "node tests/verify-668-guide-steps-single-source.ts",
       "node tests/verify-669-choice-precedence.ts",
       "node tests/verify-698-switch-asks-layout.ts",
-      "node tests/verify-723-gate-wiring.js",
+      "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-916-ghauth-unknown-banner.js",
       "node tests/verify-968-skill-ondemand.js",
       "node tests/verify-delta-patch.js",
@@ -7904,7 +7901,7 @@
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-669-choice-precedence.ts",
       "node tests/verify-683-host-wiring.ts",
-      "node tests/verify-723-gate-wiring.js",
+      "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-784-effortId.js",
       "node tests/verify-790-parent-edge.ts",
       "node tests/verify-829-parent-reread.js",
@@ -7996,7 +7993,7 @@
       "node tests/verify-665-fresh-workspace-chain.ts",
       "node tests/verify-686-accept.ts",
       "node tests/verify-691-markdown-counts-page.ts",
-      "node tests/verify-723-gate-wiring.js",
+      "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-784-effortId.js",
       "node tests/verify-922-ticket-file-queue.js",
       "node tests/verify-928-field-line-rewrite.js",
@@ -8028,7 +8025,7 @@
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-668-guide-steps-single-source.ts",
       "node tests/verify-693-detail-fallback-honesty.ts",
-      "node tests/verify-729-force-dedup.js",
+      "node tests/verify-729-force-dedup.ts",
       "node tests/verify-895-github-memo.ts",
       "node tests/verify-929-batch-cycle.js",
       "node tests/verify-970-whole-document.js",
@@ -8111,7 +8108,7 @@
       "node tests/verify-690-closed-pages.ts",
       "node tests/verify-698-switch-asks-layout.ts",
       "node tests/verify-709-no-self-continuing-timers.ts",
-      "node tests/verify-723-gate-wiring.js",
+      "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-763-detail-fold.js",
       "node tests/verify-783-chain-effort.js",
       "node tests/verify-784-effortId.js",

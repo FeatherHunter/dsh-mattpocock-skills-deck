@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * verify-729-force-dedup.js —— “点刷新不该另起一整趟”门禁（票 #729，一次性方案）
+ * verify-729-force-dedup.ts —— “点刷新不该另起一整趟”门禁（票 #729，一次性方案）
  *
  * 治的是什么：面板上有两条取数路（自动走 wf.snapshot、手动点刷新走 wf.refresh），
  * 从前强制刷新永远不查在途表（sessionSnapshot 里被 if (!isForce) 排除在外），
@@ -20,7 +20,7 @@
  *   D. 口径钉死：强制撞非强制仍为 2（#366 不动）；非强制搭强制为 1；换后端为 2（键能分清）。
  *   E. 反证：把协调器规则拆掉（补丁副本），Take 永不搭车 —— 证明规则行是承重的；
  *      把整单回滚（临摹旧码：强制不查表）→ A/B/C 当场变红。
- *   F. 本门禁已挂进 npm run verify 链；两处电话路的新增同层边已记基线。
+ *   F. #696 门禁（同一张在途表的另一扇）仍在 verify 链上，本扇与它一起守。
  *   H. 同 tick 并发（零延迟）：Take 到 Park 之间无等待点，确定性仍为 1（延迟 10ms 只是常量，不是遮羞布）。
  *
  *   原先的 E2（读 src/host/sessionSnapshot.ts 与 src/host/sessionRefresh.ts 的源码文本、
@@ -31,7 +31,7 @@
  * 测法：真跑 sessionSnapshot / sessionRefresh（计数重建次数，不起外部命令），外加把源码
  *   抠出来改坏后真跑一遍的反证（E 组）。
  *
- * 用法：node tests/verify-729-force-dedup.js
+ * 用法：node --import ./scripts/ts-hook.mjs tests/verify-729-force-dedup.ts
  */
 const fsx = require('fs')
 const fsp = fsx.promises
@@ -39,25 +39,35 @@ const nodePath = require('path')
 const nodeOs = require('os')
 const { pathToFileURL } = require('url')
 
+// 这份门禁用的三样假件形状：迷你表（记缓存条目）、计数桩（数重建次数）、日志出口（收 dedup.hit）。
+// 它们只描述本文件自己造的假件，不代表产品契约；产品那边由 src/host/snapshotInflight.ts 定义。
+interface CacheEntry { ts: number; snapshot: unknown; error: unknown; cwd: string }
+interface FakeTable {
+  getCache: (cwd: string) => CacheEntry
+  setCache: (v: CacheEntry) => void
+}
+interface Counter { n: number }
+interface FireRecord { level: string; event: string; fields: unknown }
+
 const ROOT = nodePath.resolve(__dirname, '..')
-const read = (rel) => fsx.readFileSync(nodePath.join(ROOT, rel), 'utf8')
-const url = (rel) => pathToFileURL(nodePath.join(ROOT, rel)).href
-const delay = (ms) => new Promise((r) => setTimeout(r, ms))
+const read = (rel: string) => fsx.readFileSync(nodePath.join(ROOT, rel), 'utf8')
+const url = (rel: string) => pathToFileURL(nodePath.join(ROOT, rel)).href
+const delay = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
 
 let total = 0
-const broken = []
-function must(cond, invariant, detail) {
+const broken: string[] = []
+function must(cond: unknown, invariant: string, detail?: string): void {
   total++
   if (cond) { console.log('  PASS ' + invariant); return }
   const line = '  FAIL 不变式破了 —— ' + invariant + (detail ? '【实测：' + detail + '】' : '')
   console.log(line)
   broken.push(line.replace(/^\s+/, ''))
 }
-function title(t) { console.log('\n' + t) }
+function title(t: string): void { console.log('\n' + t) }
 
 const PLATFORM = { os: 'win32', path: nodePath, async getHome() { return nodeOs.homedir() } }
-function makeTable() {
-  const m = new Map()
+function makeTable(): FakeTable {
+  const m = new Map<string, CacheEntry>()
   return {
     getCache(cwd) { const e = m.get(String(cwd)); return e || { ts: 0, snapshot: null, error: null, cwd: String(cwd) } },
     setCache(v) { if (v && v.cwd) m.set(String(v.cwd), v) },
@@ -66,8 +76,8 @@ function makeTable() {
 const quiet = { fire: () => {}, isEnabled: () => false }
 
 // 真宿主装配：与 src/host/index.js 同形的最小依赖（计数桩 + 80ms 延迟模拟大工作区）。
-function snapDeps(table, counter, fires, backendOf) {
-  const adopt = (s, c) => { table.setCache({ ts: Date.now(), snapshot: s, error: null, cwd: c }); return s }
+function snapDeps(table: FakeTable, counter: Counter, fires: FireRecord[], backendOf?: { backendId?: string }) {
+  const adopt = (s: unknown, c: string) => { table.setCache({ ts: Date.now(), snapshot: s, error: null, cwd: c }); return s }
   return {
     canonicalKey: async (x) => 'K729',
     selectEarly: async ({ backendId }) => ({ backendId: (backendOf && backendOf.backendId) || backendId || 'github', source: 'auto', rev: 0 }),
@@ -89,16 +99,16 @@ function snapDeps(table, counter, fires, backendOf) {
     logCtx: { fire: (l, e, f) => { fires.push({ level: l, event: e, fields: (typeof f === 'function') ? f() : f }) }, isEnabled: () => true },
   }
 }
-async function refreshDeps(table, counter, fires) {
+async function refreshDeps(table: FakeTable, counter: Counter, fires: FireRecord[]) {
   const envMod = await import(url('src/host/snapshotEnvelope.ts'))
-  const adopt = (s, c) => { table.setCache({ ts: Date.now(), snapshot: s, error: null, cwd: c }); return s }
+  const adopt = (s: unknown, c: string) => { table.setCache({ ts: Date.now(), snapshot: s, error: null, cwd: c }); return s }
   const d = snapDeps(table, counter, fires)
   d.resetGhCache = () => {}
   d.envelope = envMod.createSnapshotEnvelope({ getGhPath: () => '', getGhLastError: () => '', adoptSnapshot: adopt, logCtx: quiet })
   return d
 }
 // 先发车、隔 10ms 再来第二趟（第一趟必已登记在途，不赌微任务顺序），返回重建次数。
-async function twoTrips(first, second) {
+async function twoTrips(first: () => Promise<unknown>, second: () => Promise<unknown>) {
   const p1 = first()
   await delay(10)
   const p2 = second()
@@ -214,7 +224,7 @@ async function main() {
       const brokenTreePath = nodePath.join(tmpTree, 'src', 'host', 'snapshotInflight.ts')
       const brokenTreeSrc = fsx.readFileSync(brokenTreePath, 'utf8')
       fsx.writeFileSync(brokenTreePath, brokenTreeSrc.split('ongoing.isForce === true || !isForce').join('false'))
-      const treeUrl = (rel) => pathToFileURL(nodePath.join(tmpTree, rel)).href
+      const treeUrl = (rel: string) => pathToFileURL(nodePath.join(tmpTree, rel)).href
       const snapRolled = await import(treeUrl('src/host/sessionSnapshot.ts'))
       const refRolled = await import(treeUrl('src/host/sessionRefresh.ts'))
       {
@@ -246,16 +256,16 @@ async function main() {
 
   title('F) 门禁入链与文件纪律')
   {
-    // #1125 起问规划函数（执行器读的同一份），不再读 package.json 长串
+    // #1125 起问规划函数（执行器读的同一份），不再读 package.json 长串。
+    // 这里只留「#696 仍在链上」这一条：#1125 的门禁覆盖检查只保证「磁盘上的文件要么进链、要么在排除表」，
+    // 管不到「文件还在、却被塞进 verify-stages.json 的 exclude」，而本门禁与 #696 是同一张表的两个变体，
+    // 那一扇掉队时必须有人喊。原先另外四条（本门禁自己在链上、两条同层边已记基线、日志白名单里还有
+    // dedup.hit 字样）各有更强的继任者，2026-10-17 的对抗式审查逐条核实后裁掉：
+    // 本门禁在链上由 tests/verify-1125-gate-coverage.ts 更泛地保证；同层边由 tests/verify-dependency-rules.ts
+    // 拦硬方向（它读同一份基线，且违规不在白名单里就判红）；dedup.hit 的字段与落点由 tests/verify-log-fields.ts
+    // 的 218 条断言守着，而「在源码里搜字符串」按既定口径本来就不算牙齿。
     const { isGatePlanned } = require('../scripts/lib/discover-gates.ts')
-    must(isGatePlanned(ROOT, 'tests/verify-729-force-dedup.js'), '本门禁已挂进 verify 链', '规划函数里没有它')
     must(isGatePlanned(ROOT, 'tests/verify-696-shared-cache.ts'), '既有 #696 门禁仍在链上（与本门禁一起守）', '696 missing')
-    const baseline = JSON.parse(read('tests/same-layer-baseline.json'))
-    const keys = new Set((baseline.entries || []).map((e) => e.file + '|' + e.resolved))
-    must(keys.has('src/host/sessionSnapshot.ts|src/host/snapshotInflight.ts'), '同层基线记了快照路 → 协调器这条边（owner #729）')
-    must(keys.has('src/host/sessionRefresh.ts|src/host/snapshotInflight.ts'), '同层基线记了刷新路 → 协调器这条边（owner #729）')
-    const art = read('tests/verify-log-artifacts.js')
-    must(art.indexOf("'dedup.hit'") >= 0, '复用的事件名在日志白名单里（无新增事件，附录对照表不动）')
   }
 
 
