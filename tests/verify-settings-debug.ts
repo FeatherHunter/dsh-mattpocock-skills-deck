@@ -167,12 +167,14 @@ const STATE_REL = 'src/client/kernel/settings-view-state.js'
 const VIEW_REL = 'src/client/kernel/settings-view.js'
 const WRITE_REL = 'src/client/kernel/settings-view-write.js'
 const DEBUG_REL = 'src/client/kernel/settings-debug.js'
+// 行数口径量真源（转成 TS 后产物经转译排版会胀行，胀的是机器排版不是手写；零增长守的是手写，量真源）。
+const DEBUG_TRUTH_REL = 'src/client/kernel/settings-debug.ts'
 const LOG_REL = 'src/client/kernel/log.js'
 const INDEX_REL = 'src/client/index.js'
 const TAIL = '\nreturn { LOG_DEBUG_KEY: LOG_DEBUG_KEY, logSwitch: logSwitch, logQueue: logQueue, readLocalDebugSwitch: readLocalDebugSwitch, persistLocalDebugSwitch: persistLocalDebugSwitch, setLogSwitch: setLogSwitch, reconcileLogSwitch: reconcileLogSwitch, settingsDebugLegacy: settingsDebugLegacy, settingsViewLoad: settingsViewLoad, viewFlagReadyNow: viewFlagReadyNow, viewFlagState: viewFlagState, VIEW_FLAG_WRITE_DEBOUNCE_MS: VIEW_FLAG_WRITE_DEBOUNCE_MS, settingsDebugSet: settingsDebugSet, settingsDebugToggle: settingsDebugToggle, settingsDebugAdoptFromDoc: settingsDebugAdoptFromDoc, settingsDebugDrainDeferred: settingsDebugDrainDeferred, settingsDebugSetInDoc: settingsDebugSetInDoc, settingsDebugLegacyWrite: settingsDebugLegacyWrite, settingsDebugHasPending: settingsDebugHasPending, setViewFlagRoot: setViewFlagRoot }'
 function makeClient(env) {
   const body = [noExport(readText(DERIVED_REL)), noExport(readText(STATE_REL)), noExport(readText(VIEW_REL)), noExport(readText(WRITE_REL)), noExport(readText(DEBUG_REL))].join('\n')
-  const names = ['host', 'timer', 'localStorage', 'broadcastLogSwitch', 'keyOf', 'wsKeyOf', 'shared', 'stores', 'emit', 'currentOs', 'workspaceRootByCwd', 'dswsLogHash']
+  const names = ['host', 'timer', 'localStorage', 'broadcastLogSwitch', 'keyOf', 'wsKeyOf', 'shared', 'stores', 'emit', 'currentOs', 'workspaceRootByCwd', 'dswsLogHash', 'SETTINGS_DEBUG_PUSH_WAIT_MS']
   return compileFn(names, body + TAIL).apply(null, names.map((n) => env[n]))
 }
 // 一份空文档（形状与核归一之后那一份逐字一致），debug 节按用例预置。
@@ -204,13 +206,18 @@ async function main(): Promise<void> {
       'scripts/build.mjs 的模块清单里登记了 settingsDebug（不登记会静默不编译）。')
     check(readText('package.json').indexOf('node tests/verify-settings-debug.ts') >= 0,
       'package.json 的验证链里登记了这一份门禁。')
-    check(countLines(DEBUG_REL) <= 350 && countLines(LOG_REL) <= 350 && countLines(INDEX_REL) <= 350 && countLines(VIEW_REL) <= 350 && countLines(WRITE_REL) <= 350,
-      '五份文件都在 350 行以内（本片 ' + countLines(DEBUG_REL) + '、旧真源 log.js ' + countLines(LOG_REL) + '、index.js ' + countLines(INDEX_REL) + '、settings-view.js ' + countLines(VIEW_REL) + '、settings-view-write.js ' + countLines(WRITE_REL) + '）。')
+    check(countLines(DEBUG_TRUTH_REL) <= 350 && countLines(LOG_REL) <= 350 && countLines(INDEX_REL) <= 350 && countLines(VIEW_REL) <= 350 && countLines(WRITE_REL) <= 350,
+      '五份文件都在 350 行以内（本片量真源 ' + countLines(DEBUG_TRUTH_REL) + '、旧真源 log.js ' + countLines(LOG_REL) + '、index.js ' + countLines(INDEX_REL) + '、settings-view.js ' + countLines(VIEW_REL) + '、settings-view-write.js ' + countLines(WRITE_REL) + '）。')
   }
 
   // 真件：宿主的核与两条设置电话
   const leaf = await import(pathToFileURL(path.join(ROOT, 'src/host', 'settingsPhones.js')).href)
   const store = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'configStore.js')).href)
+  // #1215：等宿主回话的时长住中央 YAML（settingsDebugPushWaitMs）。真源 settings-debug.ts 里它已是 declare
+  //（运行时由构建拼进界面闭包），门禁单测那半（makeClient 当场拼片段 eval）没有闭包，只能在这里把中央生效值
+  // 喂给它；第八段按毫秒数认定时器的地方也用这个名字，不再写死 5000，调 YAML 不用改门禁。
+  const timeMod = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'time-config', 'values.js')).href)
+  const CENTRAL_PUSH_WAIT_MS = timeMod.TIME_YAML['settingsDebugPushWaitMs'] !== undefined ? timeMod.TIME_YAML['settingsDebugPushWaitMs'] : timeMod.TIME_FALLBACKS['settingsDebugPushWaitMs']
   const sharedKey = readText('src/shared/workspaceKey.js').replace(/^\s*export\s+/gm, '')
   const KEY_OF = compileFn([], sharedKey + '\nreturn keyOf')()
   const CURRENT_OS = compileFn([], sharedKey + '\nreturn currentOs')()
@@ -243,6 +250,7 @@ async function main(): Promise<void> {
       dswsLogHash: function (s) { return 'h' + String(s || '').length },
       timer: undefined,
       currentOs: CURRENT_OS,
+      SETTINGS_DEBUG_PUSH_WAIT_MS: CENTRAL_PUSH_WAIT_MS,
     })
     // 日志队列会被冲刷定时器清空，所以在这里给真队列的 push 挂一层记录：断言要查的那一行只要进过队列
     //   就一定留在这份副本里（这一层只观察，不改包里那一份的行为）。
@@ -708,10 +716,12 @@ async function main(): Promise<void> {
     const slice = (head >= 0 && tail > head) ? built.slice(head, tail) : ''
     check(slice.length > 0, '从构建产物里切出了这一片的正文（产物里找得到起止两个锚点）。', String(slice.length))
     const allowed = ['host.call.fail', 'storage.fail']
-    const re = /(?:^|[^A-Za-z0-9_$.])log\s*\(\s*'([^']+)'\s*,\s*'([^']+)'/g
-    const calls = []
-    let m
-    while ((m = re.exec(slice)) !== null) calls.push(m[2])
+    // 真源转成 TypeScript 后这一片经 esbuild 转译进产物，转译把字符串统一成双引号（手写时是单引）：
+    // 字面量正则两种引号都认 —— 认的是「写死」不是「单引」，走变量照样在这里露出来。
+    const re = /(?:^|[^A-Za-z0-9_$.])log\s*\(\s*(['"])([^'"]+)\1\s*,\s*(['"])([^'"]+)\3/g
+    const calls: Array<string> = []
+    let m: RegExpExecArray | null
+    while ((m = re.exec(slice)) !== null) calls.push(m[4])
     check(calls.length >= 2, '这一片在产物里确实留下了日志点（数到 ' + calls.length + ' 处）。', JSON.stringify(calls))
     // 产物里每一处 log 调用的事件名都要是写死的字面量：走变量（log('warn', name, …)）会在这里露出来。
     const allLogCalls = slice.match(/(?:^|[^A-Za-z0-9_$.])log\s*\(/g) || []
@@ -1216,8 +1226,8 @@ async function main(): Promise<void> {
     // 八、拨动那一趟的 Promise 真的被拒（2026-10-12 复核第四轮 M5 的决定性一档）：上一条那抛错发生在成功分支内部，
     //   而成功分支开头那句 setDbgPending(false) 已经跑过了，所以短路 .catch 里那句也能全绿（本轮实测：短路后仍
     //   194 条全绿）。要走到 .catch 那一行，只能是这一趟的 Promise 自己带着拒绝回来。
-    //   造法：拨动那条路在打电话给宿主之后，会用一颗「一直不回话就算没接上」的定时器收口（settings-debug.js 的
-    //   SETTINGS_DEBUG_PUSH_WAIT_MS = 5000），页面里取的是 window.setTimeout —— 门禁只把这一个 5000 毫秒的定时器
+    //   造法：拨动那条路在打电话给宿主之后，会用一颗「一直不回话就算没接上」的定时器收口（时长是中央 YAML 的
+    //   settingsDebugPushWaitMs，门禁里叫 CENTRAL_PUSH_WAIT_MS），页面里取的是 window.setTimeout —— 门禁只把这一个定时器
     //   换成抛错，Promise.race 整体被拒，拨动交回一个被拒的 Promise，成功分支一个字都没跑，收场只能走 .catch。
     //   代价要说清：这一拒之后 settingsDebugPushBusy 停在真上（产品里这条拒够不到，只有门禁这么逼），所以这一档
     //   不再量宿主电话的趟数（那件事在第七条里量，用的是不伤链子的抛错）。也正因为这一页的链子坏了，**别在本段
@@ -1228,9 +1238,9 @@ async function main(): Promise<void> {
       const realWinTimeout = p.window.setTimeout
       check(await p.click(a.container), '第一拨（拨成开，走老路）点得动（这一拨只为把文档问起来）。')
       await sleep(300)
-      // 只换「等宿主五秒」那一颗：页面别处那几颗（600 毫秒闪光退场之类）照旧。
+      // 只换「等宿主回话」那一颗（时长是中央 YAML 的 settingsDebugPushWaitMs，见本文件头的 CENTRAL_PUSH_WAIT_MS）：页面别处那几颗（600 毫秒闪光退场之类）照旧。
       p.window.setTimeout = function (fn, ms) {
-        if (ms === 5000) throw new Error('门禁：把「等宿主回话」那颗定时器换成抛错')
+        if (ms === CENTRAL_PUSH_WAIT_MS) throw new Error('门禁：把「等宿主回话」那颗定时器换成抛错')
         return realWinTimeout.apply(p.window, arguments)
       }
       check(await p.click(a.container), '第二拨（拨成关，走文件这条路）点得动（这一趟的 Promise 会被拒）。')
