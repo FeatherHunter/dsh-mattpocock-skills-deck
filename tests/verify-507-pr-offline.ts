@@ -18,7 +18,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 let pass = 0
 let fail = 0
-function check(cond, msg) { if (!cond) { fail++; console.error('FAIL', msg) } else { pass++; console.log('PASS', msg) } }
+function check(cond: unknown, msg: string) { if (!cond) { fail++; console.error('FAIL', msg) } else { pass++; console.log('PASS', msg) } }
 
 // ---------- A 契约三字段（形状 A：复用工单形状加三个可选字段，不新增实体）----------
 const { normalizeIssue } = await import(pathToFileURL(resolve(ROOT, 'src/tracker/rooms/github/normalize.ts')).href)
@@ -29,14 +29,14 @@ check(Array.isArray(bad.reviews) && bad.reviews.length === 0 && bad.mergedAt ===
 
 // ---------- B 双路降级合成（桩造四种失败，不碰真仓）----------
 const { listIssues } = await import(pathToFileURL(resolve(ROOT, 'src/tracker/rooms/github/issues.ts')).href)
-function stubCtx(failStderr, ghHost) {
-  const logs = []
-  return { logs, ctx: { cwd: ROOT, platform: { resolveExecutable: async (n) => (n === 'gh' ? 'gh' : null), env: { get: (k) => (k === 'GH_HOST' ? (ghHost || '') : '') } },
-    exec: async (cmd, args) => { const j = (args || []).join(' '); if (j.includes('graphql')) return { code: 1, stdout: '', stderr: failStderr };
+function stubCtx(failStderr: string, ghHost: string) {
+  const logs: Array<{ level: string; event: string; fields: any }> = []
+  return { logs, ctx: { cwd: ROOT, platform: { resolveExecutable: async (n: string) => (n === 'gh' ? 'gh' : null), env: { get: (k: string) => (k === 'GH_HOST' ? (ghHost || '') : '') } },
+    exec: async (cmd: unknown, args?: string[]) => { const j = (args || []).join(' '); if (j.includes('graphql')) return { code: 1, stdout: '', stderr: failStderr };
       if (j.includes('/issues?state=all')) return { code: 0, stdout: JSON.stringify([{ number: 1, title: 't', state: 'open', labels: [], user: { login: 'a' }, html_url: 'https://x/issues/1' }]), stderr: '' };
       if (j.includes('/pulls?state=all')) return { code: 0, stdout: '[]', stderr: '' }; if (j.includes('/sub_issues')) return { code: 0, stdout: '[]', stderr: '' };
       return { code: 1, stdout: '', stderr: 'unexpected' } },
-    logEvent: (level, event, fields) => { logs.push({ level, event, fields }) }, isEnabled: () => true } }
+    logEvent: (level: string, event: string, fields: any) => { logs.push({ level, event, fields }) }, isEnabled: () => true } }
 }
 const repo = { refId: 'o/r', name: 'o/r' }
 const cases = [
@@ -68,11 +68,11 @@ check(chainOk, 'B2 合成链指纹含耗时毫秒（fallback.chain 记 in/out/la
 }
 // 过滤字段消费（#504 留尾已接：后端按该字段过滤）
 {
-  const good = (n) => ({ number: n, title: 'good ' + n, state: 'open', labels: [], user: { login: 'a' }, html_url: 'https://x/issues/' + n })
+  const good = (n: number) => ({ number: n, title: 'good ' + n, state: 'open', labels: [], user: { login: 'a' }, html_url: 'https://x/issues/' + n })
   const pr = { number: 493, title: 'pr', state: 'OPEN', body: '', url: 'https://x/pull/493', createdAt: '', updatedAt: '', closedAt: null, mergedAt: null, author: { login: 'a' }, assignees: { nodes: [] }, labels: { nodes: [] }, milestone: null, comments: { nodes: [] }, reviews: { nodes: [] } }
   const origParse = JSON.parse
-  const ctx = { cwd: ROOT, platform: { resolveExecutable: async () => 'gh', env: () => '' }, exec: async (cmd, args) => { const j = (args || []).join(' '); if (j.includes('pullRequests')) return { code: 0, stdout: '__PR__', stderr: '' }; if (j.includes('graphql')) return { code: 0, stdout: '__ISS__', stderr: '' }; return { code: 1, stdout: '', stderr: 'x' } }, logEvent: () => {}, isEnabled: () => false }
-  JSON.parse = function (t) { if (t === '__ISS__') return { data: { repository: { issues: { nodes: [good(1)], pageInfo: { hasNextPage: false, endCursor: null } } } } }; if (t === '__PR__') return { data: { repository: { pullRequests: { nodes: [pr], pageInfo: { hasNextPage: false, endCursor: null } } } } }; return origParse(t) }
+  const ctx = { cwd: ROOT, platform: { resolveExecutable: async () => 'gh', env: () => '' }, exec: async (cmd: unknown, args?: string[]) => { const j = (args || []).join(' '); if (j.includes('pullRequests')) return { code: 0, stdout: '__PR__', stderr: '' }; if (j.includes('graphql')) return { code: 0, stdout: '__ISS__', stderr: '' }; return { code: 1, stdout: '', stderr: 'x' } }, logEvent: () => {}, isEnabled: () => false }
+  JSON.parse = function (t: string) { if (t === '__ISS__') return { data: { repository: { issues: { nodes: [good(1)], pageInfo: { hasNextPage: false, endCursor: null } } } } }; if (t === '__PR__') return { data: { repository: { pullRequests: { nodes: [pr], pageInfo: { hasNextPage: false, endCursor: null } } } } }; return origParse(t) }
   let only = null
   try { only = await listIssues(repo, { isPullRequest: true }, ctx) } finally { JSON.parse = origParse }
   check(only && only.ok && only.data.length === 1 && only.data[0].isPullRequest === true, 'B4 过滤字段消费：只取拉取请求时普通工单被滤掉（got ' + (only && only.data && only.data.length) + '）')
@@ -81,8 +81,8 @@ check(chainOk, 'B2 合成链指纹含耗时毫秒（fallback.chain 记 in/out/la
 // ---------- C 快照三态（真、假、省略分键，坏值隔离）----------
 const { createRegistry } = await import(pathToFileURL(resolve(ROOT, 'src/tracker/registry/core.ts')).href)
 const { createSnapshotComposer } = await import(pathToFileURL(resolve(ROOT, 'src/host/tracker/snapshot.js')).href)
-const base = (o) => Object.assign({ type: 'issue', title: 'T', state: 'open', body: '', url: '', createdAt: '', updatedAt: '', closedAt: null, parentKey: null, labels: [], assignees: [], blockedBy: [], comments: [], reason: '' }, o)
-const prData = [
+const base = (o: Record<string, unknown>) => Object.assign({ type: 'issue', title: 'T', state: 'open', body: '', url: '', createdAt: '', updatedAt: '', closedAt: null, parentKey: null, labels: [], assignees: [], blockedBy: [], comments: [], reason: '' }, o)
+const prData: Array<Record<string, any>> = [
   base({ key: 'm1', type: 'map', title: 'M' }),
   base({ key: '5', title: 'Issue5', parentKey: 'm1', isPullRequest: false, mergedAt: null, reviews: [] }),
   base({ key: '6', title: 'PR6', parentKey: 'm1', isPullRequest: true, mergedAt: null, reviews: [] }),
@@ -93,19 +93,19 @@ const prData = [
 {
   const registry = createRegistry({}, { matchesTimeout: 50 })
   registry.register({ id: 'prpool', label: 'prpool', create: () => ({ list: async () => ({ ok: true, data: prData }) }), matches: async () => true })
-  const fires = []
-  const composer = createSnapshotComposer(registry, { snapshotTtl: 60000, depsTtl: 60000, logCtx: { fire(l, e, f) { fires.push({ level: l, event: e, fields: f }) }, isEnabled: (l) => l === 'info' } })
+  const fires: Array<{ level: string; event: string; fields: any }> = []
+  const composer = createSnapshotComposer(registry, { snapshotTtl: 60000, depsTtl: 60000, logCtx: { fire(l: string, e: string, f: any) { fires.push({ level: l, event: e, fields: f }) }, isEnabled: (l: string) => l === 'info' } })
   const r = await composer.composeSnapshot('prpool', { backend: 'prpool', refId: 'r1', name: 'R1', url: '' }, {})
-  const m1 = r.snapshot.maps.find((x) => x.key === 'm1')
-  check(r.ok === true && m1 && m1.tickets.length === 2 && m1.tickets.some((t) => t.isPullRequest === false) && m1.tickets.some((t) => t.isPullRequest === true), 'C1 同池同挂一图（普通工单与拉取请求不分片）')
+  const m1 = r.snapshot.maps.find((x: { key: string }) => x.key === 'm1')
+  check(r.ok === true && m1 && m1.tickets.length === 2 && m1.tickets.some((t: { isPullRequest: boolean }) => t.isPullRequest === false) && m1.tickets.some((t: { isPullRequest: boolean }) => t.isPullRequest === true), 'C1 同池同挂一图（普通工单与拉取请求不分片）')
   const orphans = r.snapshot.issues
-  check(orphans.some((t) => t.title === 'PR5-orphan' && t.isPullRequest === true) && orphans.some((t) => t.key === '8') && orphans.some((t) => t.key === '9'), 'C2 同号异类不互吞且坏值单独隔离（孤儿拉取请求、省略、坏值各在）')
+  check(orphans.some((t: { title: string; isPullRequest: boolean }) => t.title === 'PR5-orphan' && t.isPullRequest === true) && orphans.some((t: { key: string }) => t.key === '8') && orphans.some((t: { key: string }) => t.key === '9'), 'C2 同号异类不互吞且坏值单独隔离（孤儿拉取请求、省略、坏值各在）')
   const po = (r.snapshot.deck && r.snapshot.deck.progressOf) || {}
   check(('5\0issue' in po) && ('5\0pr' in po) && r.snapshot.deck.stats.total === 5, 'C3 同键双票各记一票（牌面派生不丢任一）')
   const miss = fires.find((f) => f.event === 'snapshot.cache.miss')
   check(!!miss && miss.level === 'info' && miss.fields && typeof miss.fields.reason === 'string' && Object.keys(miss.fields).join(',') === 'reason', 'C4 未命中指纹只记原因枚举（got ' + JSON.stringify(miss && miss.fields) + '）')
   const v1 = r.version
-  prData.find((t) => t.title === 'PR6').mergedAt = '2024-03-01T00:00:00Z'
+  prData.find((t) => t.title === 'PR6')!.mergedAt = '2024-03-01T00:00:00Z'
   const r2 = await composer.composeSnapshot('prpool', { backend: 'prpool', refId: 'r1', name: 'R1', url: '' }, {}, { force: true })
   check(r2.version !== v1, 'C5 只改合并时间版号变化（不 serve 陈旧快照）')
 }
