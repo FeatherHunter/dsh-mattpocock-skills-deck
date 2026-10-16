@@ -1,4 +1,4 @@
-// verify-655-setup-layout.js — #655 初始化时由用户选域文档布局（规格 #657）行为验收
+// verify-655-setup-layout.ts — #655 初始化时由用户选域文档布局（规格 #657）行为验收
 // 只测外部行为、不测内部常量与 DOM：喂假会话状态 + 后端描述数据，断言「该注入哪段文本」与「该先问而不是注入」。
 // 唯一的缝是客户端内核里的注入决策函数（prompts.js 的 setupOrRepoPrompt / injectSetupDecision / setupBlockedByGuide），
 // 所有入口都汇聚在它上面。
@@ -11,7 +11,7 @@
 //      的用例（断言缺仓长文真的注入了）整段删掉，「仓库没就绪 → 一个字都不注入」那条用例补上来。
 //   2. 仓库没就绪时连那张布局小卡也不开：卡只有在那条黄条下面才有位置，而仓库没就绪时按顺序还轮不到黄条，
 //      先弹卡会让用户选完布局才发现什么都没注入（#655 收尾时修过的同一类毛病）。
-// 用法: node tests/verify-655-setup-layout.js
+// 用法: node --import ./scripts/ts-hook.mjs tests/verify-655-setup-layout.ts
 const fs = require('fs')
 const path = require('path')
 // 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
@@ -24,31 +24,28 @@ const { sourceText, spliceableJs } = require('./lib/source-text.ts')
 const root = path.resolve(__dirname, '..')
 let failed = false
 let total = 0
-const ok = (cond, msg) => { total++; if (cond) console.log('  PASS ' + msg); else { failed = true; console.log('  FAIL ' + msg) } }
+const ok = (cond: unknown, msg: string) => { total++; if (cond) console.log('  PASS ' + msg); else { failed = true; console.log('  FAIL ' + msg) } }
 
+// 中英词表两套键值表：动态 import 进来的是未标注模块，只收这两套，其余形状不约束。
+interface LocalePair { zh: Record<string, string>; en: Record<string, string> }
 // —— 取真源：prompts.js 是内核模块（每行行首 export），去掉 export 后在闭包里求值 ——
-//   闭包里的几样同名依赖用替身顶上：inject 记下注入的文本，emit 只当「界面重绘一次」，
-//   isEnabled/log 是日志开关（本测试不开调试开关，两处都该安静地什么都不做），
-//   L 是真词表——生产里由 kernel/locale.js 合并四个片段得到，standalone 求值没有它，
-//   所以这里把真词表塞进求值体的末尾（不塞的话占位符会空着，测的就不是真行为了）。
-//   guideStepsFor / guideStepDone 是共享清单 src/shared/tracker/guide-steps.js 里的两个真函数
-//   （生产里随构建拼进同一个闭包，沙箱里必须自己顶上，否则「仓库那一步没过」那一档永远走不到）。
-function loadPrompts(localeDict, guide, cachedLayout) {
+//   闭包里的几样同名依赖用替身顶上：inject 记下注入的文本，emit 只当「界面重绘一次」。
+function loadPrompts(localeDict: LocalePair, guide: any, cachedLayout?: { getCachedSetupLayout?: (cwd: string) => string | null }) {
   // #698：注入决策那一段（injectSetupDecision / setupBlockedByGuide 的调用方）搬去了 kernel/prompts-setup.js，
   //   与 prompts.js 在构建时拼回同一个闭包；沙箱里照同一口径把它们拼起来求值。
   const src = spliceableJs('src/client/kernel/prompts.js')
     + '\n' + fs.readFileSync(path.join(root, 'src/client/kernel/prompts-setup.js'), 'utf8')
   const body = src.replace(/^[ \t]*export[ \t]+/gm, '')
-  const injected = []
-  const emitted = []
-  const logged = []
+  const injected: string[] = []
+  const emitted: any[] = []
+  const logged: Array<{ level: string; event: string; fields: Record<string, any> }> = []
   // getCachedSetupLayout 在生产里由 kernel/store-prefs.js 声明、与 prompts.js 拼进同一个闭包；
   //   沙箱里默认给一个「什么都没记住」的替身（等价于旧行为），要量「按工作区记住」那一档时由调用方换掉它。
   const cached = (cachedLayout && typeof cachedLayout.getCachedSetupLayout === 'function') ? cachedLayout.getCachedSetupLayout : function () { return null }
   // moduleMetaOf 不由 prompts.js 提供：它在真正的产物里由另一个内核模块（kernel/builtin-backends.js）声明，
   //   与 prompts.js 拼回同一个闭包后直接可用。沙箱里必须自己顶一个替身，否则按后端查声明数据那几处
   //   在本门禁里永远拿不到东西，测出来的就不是真行为了。
-  const moduleMetaOf = function (st, bid) {
+  const moduleMetaOf = function (st: any, bid: any) {
     const list = (st && Array.isArray(st.backendModules)) ? st.backendModules : []
     for (let i = 0; i < list.length; i++) { if (list[i] && String(list[i].id) === String(bid)) return list[i] }
     return null
@@ -58,10 +55,10 @@ function loadPrompts(localeDict, guide, cachedLayout) {
   // 把剥掉行首 export 的内核源码整份当函数体造函数（原来那种按文本构造函数的写法），参数名在这儿显式列出，所以走 compileFn。
   const factory = compileFn(['inject', 'emit', 'isEnabled', 'log', 'console', 'moduleMetaOf', 'guideStepsFor', 'guideStepDone', 'getCachedSetupLayout'], body + tail)
   const mod = factory(
-    function (st, text) { injected.push(String(text)) },
-    function (st) { emitted.push(st) },
+    function (st: any, text: any) { injected.push(String(text)) },
+    function (st: any) { emitted.push(st) },
     function () { return false },
-    function (level, event, fields) { logged.push({ level: level, event: event, fields: fields }) },
+    function (level: string, event: string, fields: Record<string, any>) { logged.push({ level: level, event: event, fields: fields }) },
     { log: function () {}, warn: function () {}, error: function () {} },
     moduleMetaOf,
     guide.guideStepsFor,
@@ -71,11 +68,12 @@ function loadPrompts(localeDict, guide, cachedLayout) {
   return { mod: mod, injected: injected, emitted: emitted, logged: logged }
 }
 
+// 真词表分四至五片段：只收合并后的两套键值表，合并逻辑与 kernel/locale.js 同一形状（与 verify-setup-describe 同口径）。
 // —— 真词表：直接 import 四个片段，按 kernel/locale.js 合并器同一逻辑拼出来（与 verify-setup-describe 同口径）——
-const fUrl = (f) => require('url').pathToFileURL(path.join(root, f)).href
-async function loadLocale() {
+const fUrl = (f: string) => require('url').pathToFileURL(path.join(root, f)).href
+async function loadLocale(): Promise<LocalePair> {
   const { pathToFileURL } = require('url')
-  const url = (f) => pathToFileURL(path.join(root, f)).href
+  const url = (f: string) => pathToFileURL(path.join(root, f)).href
   const P = await import(url('src/client/kernel/locale-panel.js'))
   const F = await import(url('src/client/kernel/locale-flow.js'))
   const W = await import(url('src/client/kernel/locale-word.js'))
@@ -87,14 +85,21 @@ async function loadLocale() {
     en: Object.assign({}, P.L_PANEL.en, F.L_FLOW.en, W.L_WORD.en, L.L_LABELS.en, PG.L_PAGES.en),
   }
 }
-async function loadGuide() {
+async function loadGuide(): Promise<any> {
   const { pathToFileURL } = require('url')
   return import(pathToFileURL(path.join(root, 'src/shared/tracker/guide-steps.js')).href)
 }
 
-// —— 三个后端的描述数据替身（形状与 host 转发来的 modules 元素一致）——
+// 三个后端的描述数据替身（形状与 host 转发来的 modules 元素一致）。
 //   #664 起不再需要 repoRemoteFix：缺仓库那件事由界面上那一段负责，注入决策里没有这一档了。
-const BACKENDS = {
+// 后端描述替身三件套：只保证 setupPrompt 四键与 capabilities 形状，注入决策只读这几处。
+interface BackendDesc {
+  id: string
+  setupPrompt: { trackerLine: string; trackerChoice: string; backendNote: string; labelReqs: string }
+  capabilities: Record<string, unknown>
+  prompts: Record<string, unknown>
+}
+const BACKENDS: Record<string, BackendDesc> = {
   github: { id: 'github', setupPrompt: { trackerLine: 'setup.github.trackerLine', trackerChoice: 'setup.github.trackerChoice', backendNote: 'setup.github.backendNote', labelReqs: 'setup.github.labelReqs' }, capabilities: { repoCreateChain: true }, prompts: {} },
   gitlab: { id: 'gitlab', setupPrompt: { trackerLine: 'setup.gitlab.trackerLine', trackerChoice: 'setup.gitlab.trackerChoice', backendNote: 'setup.gitlab.backendNote', labelReqs: 'setup.gitlab.labelReqs' }, capabilities: { repoCreateChain: true }, prompts: {} },
   markdown: { id: 'markdown', setupPrompt: { trackerLine: 'setup.markdown.trackerLine', trackerChoice: 'setup.markdown.trackerChoice', backendNote: 'setup.markdown.backendNote', labelReqs: 'setup.markdown.labelReqs' }, capabilities: {}, prompts: {} },
@@ -102,13 +107,13 @@ const BACKENDS = {
 // 链快照：决定初始化放不放行的只有一件事 —— 清单里标着 blocksSetup 的那一步（GitHub 的「已关联仓库」）过没过。
 //   repoDone 省略/true = 那一步绿（仓库就绪）；repoDone:false = 那一步红（仓库还没建好）。
 //   本地 Markdown 与 GitLab 本轮没有那一步，所以它们永远不挡初始化。
-const chainOf = (backend, repoDone) => (backend === 'github'
+const chainOf = (backend: string, repoDone?: boolean) => (backend === 'github'
   ? [{ id: 'gh:remote', status: repoDone === false ? 'fail' : 'done' }]
   : [])
-// 会话状态：后端 / 布局 / 链快照三个维度按用例拼
-const stateOf = (opts) => {
+// 会话状态是喂给真决策函数的形状：只保证后端 / 布局 / 链快照三维，用 any 承载（测试桩，不进类型注册表）。
+const stateOf = (opts: any): any => {
   const o = opts || {}
-  const st = {
+  const st: any = {
     cwd: '/w/demo',
     backendModules: Object.keys(BACKENDS).map((k) => BACKENDS[k]),
     selection: { backendId: o.backend },
@@ -120,13 +125,13 @@ const stateOf = (opts) => {
 
 async function main() {
   const L = await loadLocale()
-  const G = await loadGuide()
+  const G: any = await loadGuide()
   const { mod, injected, emitted, logged } = loadPrompts(L, G)
   const MODULES = Object.keys(BACKENDS).map((k) => BACKENDS[k])
   // 取占位符值时要显式喂 locale 字典：standalone 求值没有闭包里的 L，与 verify-setup-describe 同口径。
-  const paramOf = (backend, layout, lang) => mod.setupRunParamsFrom(MODULES, backend, (L[lang || 'zh'] || null), layout)
+  const paramOf = (backend: string, layout: any, lang?: 'zh' | 'en') => mod.setupRunParamsFrom(MODULES, backend, (L[lang || 'zh'] || null), layout)
   // 用真 locale 把模板填成全文（与生产 promptText 的替换算法同一形状）
-  const textOf = (backend, layout, lang) => String(mod.PROMPTS.setupRun[lang]).replace(/\{(\w+)\}/g, function (m, name) {
+  const textOf = (backend: string, layout: any, lang?: 'zh' | 'en') => String(mod.PROMPTS.setupRun[lang]).replace(/\{(\w+)\}/g, function (m, name) {
     const p = paramOf(backend, layout, lang)
     return Object.prototype.hasOwnProperty.call(p, name) ? String(p[name]) : m
   })
@@ -180,9 +185,9 @@ async function main() {
   }
 
   console.log('== #655 · 选过之后注入全文，两种布局是两句不同的话 ==')
-  const seen = {}
+  const seen: Record<string, string> = {}
   for (const backend of Object.keys(BACKENDS)) {
-    for (const lang of ['zh', 'en']) {
+    for (const lang of ['zh', 'en'] as const) {
       for (const layout of ['single', 'multi']) {
         const st = stateOf({ backend: backend, layout: layout })
         const dec = mod.setupOrRepoPrompt(st, backend)
@@ -200,12 +205,12 @@ async function main() {
     }
   }
   // 按语言取模板帧：中文那一句进中文全文、英文那一句进英文全文，两种布局各自不同（两句不同的话）。
-  const fill = (backend, layout, lang) => String(mod.PROMPTS.setupRun[lang]).replace(/\{(\w+)\}/g, function (m, name) {
+  const fill = (backend: string, layout: any, lang: 'zh' | 'en') => String(mod.PROMPTS.setupRun[lang]).replace(/\{(\w+)\}/g, function (m, name) {
     const p = paramOf(backend, layout, lang)
     return Object.prototype.hasOwnProperty.call(p, name) ? String(p[name]) : m
   })
   for (const backend of Object.keys(BACKENDS)) {
-    for (const lang of ['zh', 'en']) {
+    for (const lang of ['zh', 'en'] as const) {
       const one = fill(backend, 'single', lang)
       const many = fill(backend, 'multi', lang)
       ok(one.indexOf(L[lang]['setup.layout.single']) >= 0, lang + ' · ' + backend + ' 单上下文全文里是单上下文那一句')
@@ -219,7 +224,7 @@ async function main() {
     ok(seen[backend + '|single'] !== seen[backend + '|multi'], '同后端的两种布局产出两句不同的话（金样不同）：' + backend)
   }
   // 三种后端共用同一份模板：把布局那一句与四个后端描述值都挖掉后逐字相同
-  const bodyOf = (backend) => {
+  const bodyOf = (backend: string) => {
     const p = paramOf(backend, 'single', 'zh')
     let t = fill(backend, 'single', 'zh')
     ;['contextLayout', 'trackerLine', 'trackerChoice', 'backendNote', 'labelReqs'].forEach(function (k) { t = t.split(String(p[k])).join('\u0000') })
@@ -228,9 +233,9 @@ async function main() {
   ok(bodyOf('github') === bodyOf('gitlab'), 'GitHub 与 GitLab 共用同一段模板（只有布局与后端描述值不同）')
   // Markdown 的 labelReqs 是空串（本地后端不要求标签齐全）：它与 GitHub 的全文差别只允许在后端描述值，
   //   以及少了那条「标签齐全」；句末标点因为空值会直接顶在句尾，一并按标点归一化后再比（不是行为差异）。
-  const norm = (t, vals) => {
+  const norm = (t: any, vals: any) => {
     let s = String(t)
-    vals.forEach(function (v) { if (v) s = s.split(String(v)).join('') })
+    vals.forEach(function (v: any) { if (v) s = s.split(String(v)).join('') })
     return s.replace(/[\s。．，,；;：:、]/g, '')
   }
   const ghVals = ['contextLayout', 'trackerLine', 'trackerChoice', 'backendNote', 'labelReqs'].map(function (k) { return paramOf('github', 'single', 'zh')[k] })
@@ -267,8 +272,8 @@ async function main() {
     ok(kB === 'setup', '检查页/切换那条路（不传 askLayout）：布局已答 → 直接注入（实得 ' + kB + '）')
     ok(injected.length === nB + 1 && injected[injected.length - 1] === textOf('github', 'single', 'zh'), '那条路注入的全文与金样逐字相同（还是那句已答的结论）')
     // ③ 按工作区记住：会话里没答过时，读这个工作区记住过的那一份（同一个工作区换个会话不该再问一遍）。
-    const remembered = { '/w/demo': 'multi' }
-    const withCache = loadPrompts(L, G, { getCachedSetupLayout: function (cwd) { return remembered[String(cwd || '')] || null } })
+    const remembered: Record<string, string> = { '/w/demo': 'multi' }
+    const withCache = loadPrompts(L, G, { getCachedSetupLayout: function (cwd: string) { return remembered[String(cwd || '')] || null } })
     const stC = stateOf({ backend: 'github' }) // 本次会话没答过
     ok(withCache.mod.readSetupLayout(stC) === 'multi', '会话里没答过 → 读到这个工作区记住的那一份（multi）')
     ok(withCache.mod.injectSetupDecision(stC, 'github', { allowCard: true }) === 'setup', '记住过之后，检查页/切换那条路直接用记住的那份注入（不再问）')
@@ -307,15 +312,15 @@ async function main() {
   //   于是「仓库还没就绪」那一档会把键名 setupRun 当文案塞进会话。下面照 ChecksTab 那条路走一遍真的分发器
   //   （真动作分发器 + 内核那处判据 setupRunTextForClick），三种情形各看一遍会话里收到几段。
   const actionsMod = await import(fUrl('src/client/kernel/actions.js'))
-  const clickInitRow = async function (st) {
-    const got = []
+  const clickInitRow = async function (st: any) {
+    const got: string[] = []
     const dispatcher = actionsMod.createActionDispatcher({
-      inject: function (text) { got.push(String(text)) },
+      inject: function (text: any) { got.push(String(text)) },
       openUrl: function () {},
       hostCall: function () { return Promise.reject(new Error('n/a')) },
       renderForm: function () {},
       refresh: async function () {},
-      resolvePrompt: function (id) {
+      resolvePrompt: function (id: any) {
         try { if (id === 'setupRun') return mod.setupRunTextForClick(st); return '' } catch (e) { return '' }
       },
     })
@@ -344,7 +349,7 @@ async function main() {
   console.log('== #655 · 结构门禁：产物里只允许一条注入初始化文案的路径 ==')
   // 这两条是结构门禁（源与双产物都查一遍），不是行为测试：谁再写一处「直接注入初始化文案」就红。
   const files = ['src/client/views/ChecksTab.js', 'src/client/views/NoRepoCard.js', 'client.js', 'package/lib/client.js']
-  const directCalls = []
+  const directCalls: string[] = []
   for (const rel of files) {
     let src = ''
     try { src = fs.readFileSync(path.join(root, rel), 'utf8') } catch (e) { continue }
@@ -381,4 +386,4 @@ async function main() {
   process.exit(failed ? 1 : 0)
 }
 
-main().catch(function (e) { console.error('RUNNER ERROR:', e); process.exit(1) })
+main().catch(function (e: any) { console.error('RUNNER ERROR:', e); process.exit(1) })
