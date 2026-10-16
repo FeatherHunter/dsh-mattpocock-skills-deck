@@ -235,7 +235,6 @@
     "src/shared/ui/slots.js",
     "src/shared/version-control/exec-envelope.js",
     "src/shared/workspaceKey.js",
-    "tests/diag-tags-layout-cost.js",
     "tests/fixtures/chain-view-ui-probe.js",
     "tests/fixtures/deck-event-gate/compliant/src/host/goodGated.js",
     "tests/fixtures/deck-event-gate/violating/src/host/badNoGate.js",
