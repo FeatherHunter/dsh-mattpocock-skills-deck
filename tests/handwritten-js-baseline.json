@@ -250,7 +250,6 @@
     "tests/smoke-render.test.js",
     "tests/tracker-contract/fixtures/markdown.js",
     "tests/tracker-contract/sections/idempotency-counterproof.js",
-    "tests/tracker-contract/sections/listPage.js",
     "tests/tracker-contract/sections/preflight.js",
     "tests/tracker-contract/sections/registry.js",
     "tests/tracker-contract/sections/snapshot.js",

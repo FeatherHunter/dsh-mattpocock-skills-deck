@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T17:13:05.783Z",
+  "generatedAt": "2026-10-16T17:16:33.394Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 301,
   "gateCount": 301,
@@ -6501,7 +6501,7 @@
         "tests/tracker-contract/sections/deck.ts",
         "tests/tracker-contract/sections/idempotency.ts",
         "tests/tracker-contract/sections/labels.ts",
-        "tests/tracker-contract/sections/listPage.js",
+        "tests/tracker-contract/sections/listPage.ts",
         "tests/tracker-contract/sections/preflight.js",
         "tests/tracker-contract/sections/registry.js",
         "tests/tracker-contract/sections/room-gitlab-extras.ts",
