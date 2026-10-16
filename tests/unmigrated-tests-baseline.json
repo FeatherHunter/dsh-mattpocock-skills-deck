@@ -19,7 +19,6 @@
     "tests/smoke-render.test.js",
     "tests/tracker-contract/fixtures/markdown.js",
     "tests/tracker-contract/sections/idempotency-counterproof.js",
-    "tests/verify-530-pr-tab.js",
     "tests/verify-544-standalone-blocked.js",
     "tests/verify-587-update-live.js",
     "tests/verify-589-list-dedupe.js",

@@ -16,7 +16,7 @@
  *   store（选择态为空），断言「必须出现」会变成一条永远红的假门禁。真要在渲染层断言能力门控，
  *   得先让门禁能替换组件取 store 的那条通道，那属于另一张票的事。
  *
- * 运行：node tests/verify-530-pr-tab.js（先跑 node scripts/build.mjs，保证产物新鲜）
+ * 运行：node --import ./scripts/ts-hook.mjs tests/verify-530-pr-tab.ts（先跑 node scripts/build.mjs，保证产物新鲜）
  */
 import { JSDOM } from 'jsdom'
 import { readFileSync } from 'node:fs'
@@ -25,88 +25,91 @@ import * as ReactDOMClient from 'react-dom/client'
 import { act } from 'react'
 // 本文件按文本求值统一走共用入口：产物在开了 runScripts 的 jsdom 窗口里跑，因此用 evalInWindow（理由与用法见 tests/lib/eval-probe.js 文件头）。
 import { evalInWindow } from './lib/eval-probe.js'
-global.IS_REACT_ACT_ENVIRONMENT = true
+(global as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
 const dom = new JSDOM('<!doctype html><html><head></head><body><div id="root"></div><textarea class="uV2eYG_input" style="width:780px"></textarea></body></html>', {
   url: 'http://127.0.0.1:59519/',
   runScripts: 'dangerously',
 })
 const { window } = dom
-global.window = window
-global.document = window.document
-try { global.navigator = window.navigator } catch (e) {}
-global.Node = window.Node
-global.HTMLElement = window.HTMLElement
-global.getComputedStyle = window.getComputedStyle
-global.requestAnimationFrame = window.requestAnimationFrame || ((cb) => setTimeout(cb, 0))
-global.cancelAnimationFrame = window.cancelAnimationFrame || clearTimeout
+const g = global as unknown as Record<string, unknown>
+g.window = window
+g.document = window.document
+try { g.navigator = window.navigator } catch (e) {}
+g.Node = window.Node
+g.HTMLElement = window.HTMLElement
+g.getComputedStyle = window.getComputedStyle
+g.requestAnimationFrame = window.requestAnimationFrame || ((cb: (...args: unknown[]) => void) => setTimeout(cb, 0))
+g.cancelAnimationFrame = window.cancelAnimationFrame || clearTimeout
 if (typeof window.ResizeObserver === 'undefined') {
-  window.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} }
+  (window as unknown as Record<string, unknown>).ResizeObserver = class { observe() {} unobserve() {} disconnect() {} }
 }
-global.ResizeObserver = window.ResizeObserver
-if (!window.document.fonts) window.document.fonts = { ready: Promise.resolve() }
-global.host = { call: async () => ({ ok: true }) }
-window.host = global.host
-window.React = React
-window.ReactDOM = ReactDOMClient
-global.React = React
-global.ReactDOM = ReactDOMClient
+g.ResizeObserver = window.ResizeObserver
+if (!window.document.fonts) (window.document as unknown as Record<string, unknown>).fonts = { ready: Promise.resolve() }
+g.host = { call: async () => ({ ok: true }) }
+;(window as unknown as Record<string, unknown>).host = g.host
+;(window as unknown as Record<string, unknown>).React = React
+;(window as unknown as Record<string, unknown>).ReactDOM = ReactDOMClient
+g.React = React
+g.ReactDOM = ReactDOMClient
 
 let failures = 0
-const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failures++ }
+const check = (ok: unknown, msg: string) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failures++ }
 
 // 与 smoke-render 一致的宿主 stub；词条 zh+en 合并（同键英文覆盖中文，与线上一致）
-const dict = {}
-const trFn = (key, params) => {
+const dict: Record<string, string> = {}
+const trFn = (key: string, params?: Record<string, string | number>) => {
   let s = dict[key] !== undefined ? dict[key] : key
   if (params) s = s.replace(/\{(\w+)\}/g, (m, name) => (name in params ? String(params[name]) : m))
   return s
 }
-const registrations = []
+interface SlotRegistration { meta: { name?: string } | null; comp: unknown }
+const registrations: SlotRegistration[] = []
 const slots = {
-  register: (meta, comp) => { registrations.push({ meta, comp }); return () => {} },
-  inject: (name, fn) => { try { fn() } catch (e) {} },
+  register: (meta: { name?: string }, comp: unknown) => { registrations.push({ meta, comp }); return () => {} },
+  inject: (name: string, fn: () => void) => { try { fn() } catch (e) {} },
 }
-const services = {
+const services: Record<string, unknown> = {
   slots,
   // #646：原生右侧边栏类型登记表 —— 有它，本插件才会注册自己那条标签（面板内容体挂在它下面）
   sidebarRightTabs: { register: () => () => {} },
   connection: { rpc: { call: async () => ({ ok: true, value: { ok: true, maps: [], checks: [], ready: 0, total: 0 } }) } },
-  locale: { register: (ns, d) => { Object.assign(dict, d.zh || {}, d.en || {}); return () => {} }, bind: () => trFn },
+  locale: { register: (ns: string, d: { zh?: Record<string, string>; en?: Record<string, string> }) => { Object.assign(dict, d.zh || {}, d.en || {}); return () => {} }, bind: () => trFn },
   workspaces: { list: async () => [] },
   sessions: { list: async () => [] },
-  timer: { timeout: (fn, ms) => setTimeout(fn, ms) },
+  timer: { timeout: (fn: (...args: unknown[]) => void, ms: number) => setTimeout(fn, ms) },
 }
 const ctx = {
-  get: (k) => services[k],
-  effect: (fn) => { const r = fn(); return typeof r === 'function' ? r : () => {} },
-  inject: (deps, cb) => { cb(ctx); return { dispose: () => {} } },
+  get: (k: string) => services[k],
+  effect: (fn: () => unknown) => { const r = fn(); return typeof r === 'function' ? r : () => {} },
+  inject: (deps: unknown, cb: (c: unknown) => void) => { cb(ctx); return { dispose: () => {} } },
 }
 
-let loaded = null
-window.__ModuleLoader__ = { load(spec) { loaded = spec; return spec } }
-const code = readFileSync('package/lib/client.js', 'utf8')
+interface LoadedModule { factory: (req: (m: string) => unknown) => { apply: (c: unknown) => void } }
+let loaded: LoadedModule | null = null
+;(window as unknown as Record<string, unknown>).__ModuleLoader__ = { load(spec: LoadedModule) { loaded = spec; return spec } }
+const code: string = readFileSync('package/lib/client.js', 'utf8')
 // 构建产物要在窗口环境里执行：这里改走共用入口 evalInWindow，脚本里不再直接调窗口的求值入口。
 evalInWindow(dom, code)
-const mod = loaded.factory((m) => {
+const mod = (loaded as LoadedModule).factory((m) => {
   if (m === 'react') return React
   if (m === 'react-dom') return ReactDOMClient
   throw new Error('unexpected require: ' + m)
 })
-try { mod.apply(ctx) } catch (e) { console.log('  WARN apply threw:', e.message) }
+try { mod.apply(ctx) } catch (e) { console.log('  WARN apply threw:', (e as Error).message) }
 const byName = Object.fromEntries(registrations.map((r) => [r.meta && r.meta.name, r.comp]))
 // #646：面板内容体现在挂在右侧边栏那格槽位下（原来挂在 details 槽位，那条路已删）
 const DetailsDockComp = byName['sidebar.right.pane.tab']
 check(!!DetailsDockComp, 'DetailsDock 已注册可渲染')
 
-const htmlSmoke = await (async () => {
+const htmlSmoke: string = await (async () => {
   const container = window.document.createElement('div')
   window.document.body.appendChild(container)
-  let root = null
+  let root: { render: (el: any) => void; unmount: () => void } | null = null
   try {
     await act(async () => {
       root = ReactDOMClient.createRoot(container)
-      root.render(React.createElement(DetailsDockComp, { sessionId: 'sid-530', session: { cwd: 'D:\\ws' }, useSessions: () => null }))
+      root!.render(React.createElement(DetailsDockComp as React.ComponentType<Record<string, unknown>>, { sessionId: 'sid-530', session: { cwd: 'D:\\ws' }, useSessions: () => null }))
     })
     // #646 起这一格挂的是面板内容体，它是「先出空壳、下一帧再挂内容」的组件（#603）：
     //   等它把内容挂上来再读 HTML（原来直接挂 DetailsDock，第一帧就有内容）。
@@ -116,7 +119,7 @@ const htmlSmoke = await (async () => {
     }
     return container.innerHTML
   } catch (e) {
-    return 'RENDER-THREW:' + e.message
+    return 'RENDER-THREW:' + (e as Error).message
   } finally {
     try { if (root) root.unmount() } catch (e) {}
     try { if (container.parentNode) container.parentNode.removeChild(container) } catch (e) {}
