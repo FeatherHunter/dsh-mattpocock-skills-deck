@@ -28,10 +28,12 @@ import { resolve } from 'node:path'
 import { createRequire } from 'node:module'
 // 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头（本文件是 ESM，用 import 取具名导出）。
 import { compileFn } from './lib/eval-probe.js'
+// jsdom 挂载要往 Node 全局上写浏览器对象，测试里按任意值处理；运行时与原来一样。
+declare const global: any
 
 let passed = 0
 let failed = 0
-function check (ok, msg) { if (ok) { console.log('  PASS ' + msg); passed++ } else { console.log('  FAIL ' + msg); failed++ } }
+function check (ok: unknown, msg: string): void { if (ok) { console.log('  PASS ' + msg); passed++ } else { console.log('  FAIL ' + msg); failed++ } }
 
 const SB = resolve('src/client/statusbar/StatusBar.js')
 const CT = resolve('src/client/views/ChecksTab.js')
@@ -62,7 +64,7 @@ console.log('== A 源码层：座位只在状态栏（三支都带上），检�
 // #698：那段渲染体现在要调 kernel/modal-fields.js 的 modalFormFields（表单字段那一串搬了出去），
 //   所以抽出来的那段单独跑会缺这个名字 —— 下面配一个能真渲染的替身（与产物里那一份同形：
 //   一层 div + 一行 label），B 组量的本来就是「弹窗落在哪一层」，不是字段长什么样。
-function extractSeatSource (code) {
+function extractSeatSource (code: string): { src: string; lineCount: number } {
   const lines = code.split('\n')
   let start = -1
   for (let i = 0; i < lines.length; i++) { if (lines[i].indexOf('const FormModalSeat = function') >= 0) { start = i; break } }
@@ -93,7 +95,7 @@ console.log('')
 console.log('== B 真渲染层（jsdom + 真产物）：只挂那个座位，弹窗必须落到 document.body 上 ==')
 check(seat.lineCount > 100, '从产物里抽到了弹窗组件那一段（' + seat.lineCount + ' 行）')
 
-function makeStore (withModal) {
+function makeStore (withModal: boolean) {
   return {
     sessionId: 'sid-671', cwd: 'D:\\tmp\\671-browser', tab: 'list',
     selection: { backendId: 'github', source: 'explicit' }, subs: [], tick: 0,
@@ -113,7 +115,7 @@ function makeStore (withModal) {
 }
 
 /** 造一个页面：同一个 React 实例下，把产物里那段弹窗组件挂进 DswsCtx.Provider。 */
-async function renderSeat (withModal) {
+async function renderSeat (withModal: boolean) {
   const dom = new JSDOM('<!doctype html><html><head></head><body></body></html>', { url: 'http://127.0.0.1:59519/', runScripts: 'dangerously' })
   const { window } = dom
   const prev = { window: global.window, document: global.document }
@@ -124,9 +126,9 @@ async function renderSeat (withModal) {
     // 那段组件的自由变量：h / React / DswsCtx / portalTop，以及几个只在这条路上用到的（给空实现即可）。
     const DswsCtx = React.createContext(null)
     const h = React.createElement
-    const portalTop = (node) => (ReactDOMBrowser.createPortal ? ReactDOMBrowser.createPortal(node, window.document.body) : node)
+    const portalTop = (node: any) => (ReactDOMBrowser.createPortal ? ReactDOMBrowser.createPortal(node, window.document.body) : node)
     const noop = () => {}
-    const deps = {
+    const deps: Record<string, any> = {
       h, React, DswsCtx, portalTop,
       fillDefaults: (schema, base) => Object.assign({}, base),
       emit: noop, flash: noop, closeFormModal: noop, consumePendingSetup: noop,
@@ -171,8 +173,8 @@ async function renderSeat (withModal) {
   }
 }
 
-let pos = null
-try { pos = await renderSeat(true) } catch (e) { check(false, 'B 组跑不起来：' + e.message) }
+let pos: any = null
+try { pos = await renderSeat(true) } catch (e: any) { check(false, 'B 组跑不起来：' + e.message) }
 if (pos) {
   check(pos.hasModal, '弹窗渲染出来了（这一趟里一个面板组件都没有）')
   check(pos.parentIsBody, '弹窗的父节点就是 document.body（走 portalTop，不是就地渲染）')
@@ -182,8 +184,8 @@ if (pos) {
 
 console.log('')
 console.log('== B 的反证：同一段组件、喂「没有弹窗」的状态，必须量不到 ==')
-let neg = null
-try { neg = await renderSeat(false) } catch (e) { check(false, '反证跑不起来：' + e.message) }
+let neg: any = null
+try { neg = await renderSeat(false) } catch (e: any) { check(false, '反证跑不起来：' + e.message) }
 if (neg) {
   check(!neg.hasModal, '没有弹窗状态时量不到 .dsws-modal（否则这一段是恒真）')
 }
