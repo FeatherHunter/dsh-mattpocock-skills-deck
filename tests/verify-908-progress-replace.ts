@@ -1,4 +1,5 @@
-// verify-908-progress-replace.js —— #908 回归：写进度只换标题、旧内容残留
+// verify-908-progress-replace.ts —— #908 回归：写进度只换标题、旧内容残留
+// 2026-10-17 从 .js 转成 TypeScript：只改文件名与用法行，判据与断言一条没动。
 //
 // 为什么要有这一条：deck_issue_patch 写进度时用的正则在多行模式下只匹配到标题行，
 // 旧进度块留在正文末尾，票面上出现两段进度记录，而且调用回执是成功，调用方发现不了。
@@ -6,7 +7,7 @@
 // 没有进度段的两种必须追加（不报错、标题恰好一条）。外加三条历史教训：带百分比的标题也要认、
 // 英文 Progress 标题也要认、之前写坏留下的双进度区要一次清干净。
 //
-// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-908-progress-replace.js（不挂钩子会在加载 .ts 真源时 ERR_MODULE_NOT_FOUND）。
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-908-progress-replace.ts（不挂钩子会在加载 .ts 真源时 ERR_MODULE_NOT_FOUND）。
 const path = require('path')
 const { pathToFileURL } = require('url')
 const ROOT = path.resolve(__dirname, '..')

@@ -1,6 +1,7 @@
-// verify-916-ghauth-unknown-banner.js — #916 查不到≠没登录：pending 出中性横幅+重查，fail 才出登录指引
+// verify-916-ghauth-unknown-banner.ts — #916 查不到≠没登录：pending 出中性横幅+重查，fail 才出登录指引
 // 只测外部行为、不测 DOM：bannerChain 沙箱求值（顺序真源用真的 guide-steps.js），喂假链快照断言横幅与按钮去向。
-// 用法: node tests/verify-916-ghauth-unknown-banner.js
+// 2026-10-17 从 .js 转成 TypeScript：只改文件名与用法这行，模块写法保持 CommonJS，判据与断言一条没动。
+// 用法: node --import ./scripts/ts-hook.mjs tests/verify-916-ghauth-unknown-banner.ts
 const fs = require('fs')
 const path = require('path')
 const { pathToFileURL } = require('url')

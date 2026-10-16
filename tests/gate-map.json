@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T20:57:01.139Z",
+  "generatedAt": "2026-10-16T21:00:49.421Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 301,
   "gateCount": 301,
@@ -3197,8 +3197,8 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 4 条"
     },
     {
-      "step": "node tests/verify-898-block-merge.js",
-      "file": "tests/verify-898-block-merge.js",
+      "step": "node tests/verify-898-block-merge.ts",
+      "file": "tests/verify-898-block-merge.ts",
       "guards": [
         "src/deck/shell/plan-cursor.ts",
         "src/deck/tools/map-link.ts",
@@ -3248,8 +3248,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 3 条"
     },
     {
-      "step": "node tests/verify-908-progress-replace.js",
-      "file": "tests/verify-908-progress-replace.js",
+      "step": "node tests/verify-908-progress-replace.ts",
+      "file": "tests/verify-908-progress-replace.ts",
       "guards": [
         "src/deck/shell/minimal-spec.ts",
         "src/deck/tools/issue-patch.ts"
@@ -3265,8 +3265,8 @@
       "reason": "归属来自：源码里的路径字面量 2 条"
     },
     {
-      "step": "node tests/verify-916-ghauth-unknown-banner.js",
-      "file": "tests/verify-916-ghauth-unknown-banner.js",
+      "step": "node tests/verify-916-ghauth-unknown-banner.ts",
+      "file": "tests/verify-916-ghauth-unknown-banner.ts",
       "guards": [
         "src/client/statusbar/bannerChain.js",
         "src/shared/tracker/guide-steps.js",
@@ -3284,8 +3284,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 1 条"
     },
     {
-      "step": "node tests/verify-922-ticket-file-queue.js",
-      "file": "tests/verify-922-ticket-file-queue.js",
+      "step": "node tests/verify-922-ticket-file-queue.ts",
+      "file": "tests/verify-922-ticket-file-queue.ts",
       "guards": [
         "src/tracker/rooms/markdown/index.ts"
       ],
@@ -7303,7 +7303,7 @@
       "node tests/verify-671-modal-global-overlay.ts",
       "node tests/verify-698-switch-asks-layout.ts",
       "node tests/verify-907-chain-titles.js",
-      "node tests/verify-916-ghauth-unknown-banner.js",
+      "node tests/verify-916-ghauth-unknown-banner.ts",
       "node tests/verify-926-capfold-gate.js",
       "node tests/verify-cap-fold.js",
       "node tests/verify-reuse.js",
@@ -7429,8 +7429,8 @@
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-895-bulk-deadline.ts",
       "node tests/verify-895-github-memo.ts",
-      "node tests/verify-898-block-merge.js",
-      "node tests/verify-908-progress-replace.js",
+      "node tests/verify-898-block-merge.ts",
+      "node tests/verify-908-progress-replace.ts",
       "node tests/verify-934-935-invariants.js",
       "node tests/verify-947-workspace-file.ts",
       "node tests/verify-957-workspace-writer.js",
@@ -7453,8 +7453,8 @@
       "node tests/verify-790-parent-edge.ts",
       "node tests/verify-829-parent-reread.ts",
       "node tests/verify-895-bulk-deadline.ts",
-      "node tests/verify-898-block-merge.js",
-      "node tests/verify-908-progress-replace.js",
+      "node tests/verify-898-block-merge.ts",
+      "node tests/verify-908-progress-replace.ts",
       "node tests/verify-929-batch-cycle.js",
       "node tests/verify-971-markdown-parent.js",
       "node tests/verify-992-readonly-labels.js",
@@ -7705,7 +7705,7 @@
       "node tests/verify-790-parent-edge.ts",
       "node tests/verify-829-parent-reread.ts",
       "node tests/verify-895-bulk-deadline.ts",
-      "node tests/verify-898-block-merge.js",
+      "node tests/verify-898-block-merge.ts",
       "node tests/verify-929-batch-cycle.js",
       "node tests/verify-934-935-invariants.js",
       "node tests/verify-947-workspace-file.ts",
@@ -7784,7 +7784,7 @@
       "node tests/verify-669-choice-precedence.ts",
       "node tests/verify-698-switch-asks-layout.ts",
       "node tests/verify-723-gate-wiring.ts",
-      "node tests/verify-916-ghauth-unknown-banner.js",
+      "node tests/verify-916-ghauth-unknown-banner.ts",
       "node tests/verify-968-skill-ondemand.js",
       "node tests/verify-delta-patch.js",
       "node tests/verify-delta-wiring.js",
@@ -7984,7 +7984,7 @@
       "node tests/verify-691-markdown-counts-page.ts",
       "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-784-effortId.ts",
-      "node tests/verify-922-ticket-file-queue.js",
+      "node tests/verify-922-ticket-file-queue.ts",
       "node tests/verify-928-field-line-rewrite.js",
       "node tests/verify-934-935-invariants.js",
       "node tests/verify-970-whole-document.js",
@@ -8108,9 +8108,9 @@
       "node tests/verify-842-version-control-write-view.ts",
       "node tests/verify-891-setup-refresh.ts",
       "node tests/verify-895-bulk-deadline.ts",
-      "node tests/verify-898-block-merge.js",
+      "node tests/verify-898-block-merge.ts",
       "node tests/verify-907-chain-titles.js",
-      "node tests/verify-916-ghauth-unknown-banner.js",
+      "node tests/verify-916-ghauth-unknown-banner.ts",
       "node tests/verify-926-capfold-gate.js",
       "node tests/verify-929-batch-cycle.js",
       "node tests/verify-934-935-invariants.js",
