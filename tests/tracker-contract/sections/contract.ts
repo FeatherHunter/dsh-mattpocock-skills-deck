@@ -1,16 +1,23 @@
 /**
- * tests/tracker-contract/sections/contract.js — contract.js 形状段（#132 Q2=B）。
+ * tests/tracker-contract/sections/contract.ts — contract.js 形状段（#132 Q2=B）。
  *
  * 第一性原理：OpName 是唯一真源——无 detect（身份=matches+select+describe）、
  * 含 getDependencies、snapshot 不是 op；ERROR_KIND 为新枚举（rate-limit/not-found/conflict）。
  * 每段含「✗ probe」：planted 违规必须被检查器逮住（自证测试会逮，否则本段形同虚设）。
  */
 
-import * as contractMod from '../../../src/tracker/contract/index.ts'
-import { OPERATIONS, TRACKER_CONTRACT } from '../../../src/tracker/contract/index.ts'
-import { ERROR_KIND } from '../../../src/tracker/contract/vocabulary.ts'
+import * as contractMod from '../../../src/tracker/contract/index.js'
+import { OPERATIONS, TRACKER_CONTRACT } from '../../../src/tracker/contract/index.js'
+import { ERROR_KIND } from '../../../src/tracker/contract/vocabulary.js'
 
-const EXPECTED_OPNAMES = [
+/** 单条 contract 断言的结果：ok 为判定，detail 留现场。 */
+export interface ContractAssertResult {
+  name: string
+  ok: boolean
+  detail: string
+}
+
+const EXPECTED_OPNAMES: string[] = [
   'preflight', 'list', 'get', 'getDependencies',
   'create', 'close', 'reopen', 'comment',
   'update', 'setLabels', 'setAssignees', 'setParent', 'setBlockedBy',
@@ -25,15 +32,13 @@ const EXPECTED_OPNAMES = [
   'listSubIssues',                   // #691 取一张地图的全部子票；原先挂在 GitHub 的房内扩展上，读者是宿主电话
   'ensureLabelColorsFile',           // #618 往工作区放一份用户可手改的标签配色文件；原先挂在本地 Markdown 的房内扩展上
 ]
-const LEGACY_OPS = ['detect', 'label', 'subIssue', 'blockedBy', 'syncSnapshot']
+const LEGACY_OPS: string[] = ['detect', 'label', 'subIssue', 'blockedBy', 'syncSnapshot']
 
 /**
- * OpName 检查器：返回违规清单（空 = 合规）。
- * @param {string[]} list
- * @returns {string[]}
+ * OpName 检查器：返回违规清单（空 = 合规）。只读入清单，不改动它。
  */
-export function opListCheck(list) {
-  const bad = []
+export function opListCheck(list: readonly string[]): string[] {
+  const bad: string[] = []
   if (list.includes('detect')) bad.push('detect must not exist (identity = matches+select+describe)')
   for (const op of LEGACY_OPS) if (list.includes(op)) bad.push(`legacy op '${op}' must not exist`)
   if (!list.includes('getDependencies')) bad.push('getDependencies must exist')
@@ -42,10 +47,10 @@ export function opListCheck(list) {
   return bad
 }
 
-export async function run() {
-  const out = []
+export async function run(): Promise<ContractAssertResult[]> {
+  const out: ContractAssertResult[] = []
   const P = 'contract · '
-  const assert = async (name, cond, detail) => {
+  const assert = async (name: string, cond: unknown, detail?: string): Promise<void> => {
     let ok = false
     try { ok = !!(await cond) } catch (e) { out.push({ name: P + name, ok: false, detail: String(e) }); return }
     out.push({ name: P + name, ok, detail: detail || '' })
