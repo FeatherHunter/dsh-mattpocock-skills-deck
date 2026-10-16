@@ -19,11 +19,11 @@
 
 | 文件 | 管什么 | 键数 |
 | --- | --- | --- |
-| `config/timeouts.yaml` | 单次等待的上限，到点没回来就按失败或放弃处理 | 66 |
-| `config/intervals.yaml` | 节拍间隔、一次性延时，以及末尾的退避序列 `chainBackoffMs` | 29 |
+| `config/timeouts.yaml` | 单次等待的上限，到点没回来就按失败或放弃处理 | 68 |
+| `config/intervals.yaml` | 节拍间隔、一次性延时，以及末尾的退避序列 `chainBackoffMs` | 31 |
 | `config/ttl.yaml` | 有效期，一份数据或一次判断过多久算过期 | 38 |
 
-三份合计 133 个键。
+三份合计 137 个键（第二轮 133 键 + 对抗式审查补的四个，见 §2.2 末段）。
 
 单位一律毫秒。唯一一处单位换算在 `src/host/gitCredentialExec.js`：git 的 `http.lowSpeedTime` 只认秒，那里把 `gitLowSpeedTimeoutMs`（20000）除以 1000，除法本身由门禁 TEXT 表锁住。每个键住哪份文件由 `scripts/generate-time-config.mjs` 的 KEYS 表第三列（分组）决定：
 分组 `timeouts` → timeouts.yaml，`intervals` 与 `backoff` → intervals.yaml，`ttl` → ttl.yaml。
@@ -42,6 +42,21 @@
 1. **存量 `.js` 不是“随改随迁”，是一次性收干净**。宿主侧的 `.js`（`versionControl*.js`、`gitCredentialExec.js`、`logStore.js`、`namingGuardian.js`、`skillProbe*.js`、`tracker/snapshot.js` 等）本来可以正常 import 生成值，本轮全部改成“别名接中央常量”（写法照 `src/host/refresh/chain-ride.ts`）：文件里留一个和原来同名的常量，值取中央常量、缺表回落原数字。调用点一行没动，行为零变化。共享层的 `src/shared/tracker/indexWindow.js` 不能这样办——`src/shared/` 里的文件互相 import 是依赖门禁的红线（`same-layer-import-shared`），所以它和 `budget.ts` 一样保留字面量、由门禁锁值。
 2. **界面半边只能靠构建拼接**。`src/client/**` 在构建时被整份拼进一个大闭包（`scripts/build.mjs` 的 SHARED_SPLICE），文件里出现 import 语句在闭包里就是语法错误。所以界面要用的中央常量走“构建时摘名字拼进闭包”那条路：名单是 `scripts/build.mjs` 的 `CLIENT_TIME_NAMES`，`src/client/index.js` 里有拼接标记位（放在闭包体最前面，避免 `const` 暂时性死区）。界面文件直接引用常量名，`.ts` 文件在模块级写 `declare const`。
 3. **七处界面常量坚持留在源码里**（见 §4），不是因为漏了，而是被测试按源码文本读取：`tests/verify-log-client.js:35` 断言源码里有 `LOG_FLUSH_MS = 1000` 这段文字，`tests/verify-subdir-first-frame.js:73` 拿 `'SNAP_WAIT_MS = 30000'` 当替换锚点，`tests/verify-kernel.js:46` 把 `ATTENTION_SILENT_MS` 列为导出契约，`tests/verify-rest-fallback-banner.js`、`tests/verify-842-version-control-write-view.js`、`tests/verify-settings-*.js` 同样按名字取用。把它们删掉改成拼接常量会同时打断这些测试的取用方式，得不偿失；改成“留字面量、门禁锁值”。
+
+### 2.2 生效时机：编译期配置，不做运行期可调（维护者 2026-10-16 决断）
+
+三份 YAML 只活在仓库里：`package/package.json` 的 files 白名单里没有 `config`，装到用户机器上的插件里没有它们；运行期也没有任何代码读它们——唯一的读者是构建期的 `scripts/generate-time-config.mjs`。调一个时间的完整动作是「改 YAML → 跑生成器 → 重新构建 → 重新发版」，装好插件的人在本机改不到。
+
+维护者明确决定**不做**运行期读取（例如从插件目录读同名文件、缺文件回落生成值）。后来的人不要顺手加这一层：那会把「值从哪来」变成运行期问题，而本方案的门禁（生成新鲜度、值一致、覆盖率、界面拼接名单对账）全都建立在“值在构建期就定死”之上。
+
+同一天还做了两处加固（对抗式审查的第二轮）：
+
+- 门禁在第二节之前先看域根的 `src/shared/time-config/values.js` 在不在（构建产物、不入库）。新克隆或刚清理过产物时，它现在直说“生成物不在，先跑一次 `node scripts/build.mjs`，这不是值不一致”，不再抛看不懂的 `Cannot find module`。
+- 生成器在某个值越过 JavaScript 定时器能表达的上限（`2147483647` 毫秒，约 24.8 天）时发告警：这类数只有做大小比较（有效期、窗口）才安全，直接当延时会被运行时折成 1 毫秒。今天的 `inFlightKeepAliveMs` 正好等于上限，是刻意的“永不”。
+
+补的四个键分别是 `predicateTimeoutMs`（15000，`src/host/detectChain.ts` 传给谓词表的单谓词超时）、`predicateFallbackTimeoutMs`（3000，`src/host/tracker/predicateCore.js` 不传时的兜底）、`tipShowDelayMs`（500）与 `tipHideDelayMs`（160）（`src/client/views/primitives/Tip.js` 的悬停提示）。前三类写法（裸 `timeout:`、`? opts.timeout : 3000`、`delay: { show, hide }`）原来的时间味判据都认不出，所以调查脚本与门禁一起漏掉了它们；判据这次补上了整词时间名、秒/分钟/小时/天单位，以及“时间味的键挂一个对象”这第三种藏法。
+
+
 
 ## 3. 五条架构约束（定版时逐条核实过，违反任何一条本方案即不成立）
 
