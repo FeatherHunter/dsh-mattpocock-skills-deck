@@ -250,7 +250,6 @@
     "tests/smoke-render.test.js",
     "tests/tracker-contract/fixtures/markdown.js",
     "tests/tracker-contract/sections/idempotency-counterproof.js",
-    "tests/verify-669-switch-visible.js",
     "tests/verify-670-panel-first-frame.js",
     "tests/verify-671-modal-global-overlay.js",
     "tests/verify-683-choice-rev.js",

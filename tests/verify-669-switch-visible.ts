@@ -35,15 +35,17 @@ const { getBrowser, closeBrowser } = require('./lib/browser-pool.js')
 const { compileFn, evalWithScope, evalInWindow } = require('./lib/eval-probe.js')
 // 中央时间真值：快照等待只住 config/*.yaml，这里读同一份导出来预埋，不在测试里写第二份数字。
 const centralTime = require('../src/shared/time-config/values.js')
-globalThis.SNAP_WAIT_MS = centralTime.SNAP_WAIT_MS
+;(globalThis as unknown as Record<string, unknown>).SNAP_WAIT_MS = centralTime.SNAP_WAIT_MS
+// jsdom 挂载要往 Node 全局上写浏览器对象，测试里按任意值处理；运行时与原来一样。
+declare const global: any
 // 中央 import 在 compileFn 函数体里非法，求值前整行剥掉（闭包里它由时间片段提供，门禁里走上面的全局预埋）。
-const stripTimeConfigImport = (s) => s.split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')
+const stripTimeConfigImport = (s: string): string => s.split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')
 
 const ROOT = path.resolve(__dirname, '..')
-const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
+const read = (rel: string): string => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 let passed = 0
 let failed = 0
-const check = (ok, msg) => { if (ok) { console.log('  PASS ' + msg); passed++ } else { console.log('  FAIL ' + msg); failed++ } }
+const check = (ok: unknown, msg: string): void => { if (ok) { console.log('  PASS ' + msg); passed++ } else { console.log('  FAIL ' + msg); failed++ } }
 
 const prod = read('package/lib/client.js')
 
@@ -65,13 +67,12 @@ const MODULES = [
   { id: 'markdown', label: 'Markdown', presentation: { color: '#1a7f37' } },
   { id: 'gitlab', label: 'GitLab', presentation: { color: '#fc6d26' } },
 ]
-const SNAP = (bid) => ({ ok: true, selection: { backendId: bid, source: 'explicit' }, repository: { backend: bid, refId: bid === 'markdown' ? 'local-folder' : 'X/Y', name: bid === 'markdown' ? 'local-folder' : 'X/Y', url: '' }, maps: [], checks: null, tickets: [], groups: {}, isLocal: false, version: 'v669', workspaceRoot: WS, backendModules: MODULES })
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+const SNAP = (bid: string) => ({ ok: true, selection: { backendId: bid, source: 'explicit' }, repository: { backend: bid, refId: bid === 'markdown' ? 'local-folder' : 'X/Y', name: bid === 'markdown' ? 'local-folder' : 'X/Y', url: '' }, maps: [], checks: null, tickets: [], groups: {}, isLocal: false, version: 'v669', workspaceRoot: WS, backendModules: MODULES })
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
 
 const mountModal = async function () {
   const dom = new JSDOM('<!doctype html><html><head></head><body><div id="pane"></div></body></html>', { url: 'http://127.0.0.1:59519/', runScripts: 'dangerously' })
   const { window } = dom
-  const saved = { window: global.window, document: global.document, navigator: global.navigator, Node: global.Node, HTMLElement: global.HTMLElement, getComputedStyle: global.getComputedStyle, requestAnimationFrame: global.requestAnimationFrame, cancelAnimationFrame: global.cancelAnimationFrame, ResizeObserver: global.ResizeObserver }
   global.window = window
   global.document = window.document
   try { global.navigator = window.navigator } catch (e) {}
@@ -84,10 +85,10 @@ const mountModal = async function () {
   if (typeof window.ResizeObserver === 'undefined') window.ResizeObserver = class { observe () {} unobserve () {} disconnect () {} }
   global.ResizeObserver = window.ResizeObserver
   if (!window.document.fonts) window.document.fonts = { ready: Promise.resolve() }
-  const dict = {}
-  const trFn = (key, params) => { let s = dict[key] !== undefined ? dict[key] : key; if (params) s = s.replace(/\{(\w+)\}/g, (m, n) => (n in params ? String(params[n]) : m)); return s }
-  const registrations = []
-  const services = {
+  const dict: Record<string, string> = {}
+  const trFn = (key: string, params: any) => { let s = dict[key] !== undefined ? dict[key] : key; if (params) s = s.replace(/\{(\w+)\}/g, (m, n) => (n in params ? String(params[n]) : m)); return s }
+  const registrations: any[] = []
+  const services: Record<string, any> = {
     slots: { register: (meta, comp) => { registrations.push({ meta, comp }); return () => {} }, inject: (name, fn) => { try { fn() } catch (e) {} } },
     sidebarRightTabs: { register: () => () => {} },
     connection: { rpc: { call: async (channel, endpoint, req) => {
@@ -106,8 +107,8 @@ const mountModal = async function () {
     timer: { timeout: (fn, ms) => setTimeout(fn, ms) },
     layout: { closeDetails: () => {} },
   }
-  const ctx = { get: (k) => services[k], effect: (fn) => { const r = fn(); return typeof r === 'function' ? r : () => {} }, inject: (deps, cb) => { cb(ctx); return { dispose: () => {} } } }
-  let loaded = null
+  const ctx: any = { get: (k) => services[k], effect: (fn) => { const r = fn(); return typeof r === 'function' ? r : () => {} }, inject: (deps, cb) => { cb(ctx); return { dispose: () => {} } } }
+  let loaded: any = null
   window.__ModuleLoader__ = { load (spec) { loaded = spec; return spec } }
   // 本处走 evalInWindow：这张 jsdom 窗口开了 runScripts，与原来在窗口上求值等价。
   evalInWindow(dom, prod)
@@ -115,13 +116,13 @@ const mountModal = async function () {
   mod.apply(ctx)
   // 先把产物注册了哪些槽位打出来：按钮搬家（换槽位、换组件）时这一行就是下一次改这一门的入口。
   console.log('  产物注册的槽位：' + registrations.map((r) => (r.meta && r.meta.name) || '(无名)').join(' / '))
-  const step = async (ms) => { await act(async () => { await sleep(ms || 30) }) }
+  const step = async (ms?: number) => { await act(async () => { await sleep(ms || 30) }) }
   // 逐个试挂，挑真的把 [data-repo-switch] 画出来的那一份。props 按产物注册时声明的 inject 约定给：
   //   pane.tab 那一份声明的是 inject(sessionId)，真实宿主交进来的就只有这一个值，所以这里也只给这一个。
   //   试挂没命中的那几份留在原地不再拆（拆 React 根会引出调度器在微任务里崩那一步，见文件末尾那段说明），
   //   它们各自的根节点互不相干，量的时候只认命中那一份的容器。
-  let reg = null
-  let container = null
+  let reg: any = null
+  let container: any = null
   for (let i = 0; i < registrations.length && !reg; i++) {
     const cand = registrations[i]
     const name = (cand.meta && cand.meta.name) || '(无名)'
@@ -179,7 +180,7 @@ check(mounted.overlayHTML.length > 500 && mounted.cardHTML.length > 500, '取到
 check(mounted.css.indexOf('.dsws-btn') >= 0, '取到了产物自己的样式表（含 .dsws-btn）')
 {
   const browser = await getBrowser({ headless: true })
-  const measure = async function (width, html, css) {
+  const measure = async function (width: number, html: string, css: string) {
     const p = await browser.newPage({ viewport: { width: width + 40, height: 900 } })
     await p.setContent('<!doctype html><html><head><meta charset=utf-8><style>html,body{margin:0;background:#0a0a0a}body{padding:20px}#stage{position:relative;width:' + width + 'px;height:820px}' + css + '</style></head><body><div id="stage"></div></body></html>')
     await p.evaluate((h) => { document.getElementById('stage').innerHTML = h }, html)
@@ -200,7 +201,7 @@ check(mounted.css.indexOf('.dsws-btn') >= 0, '取到了产物自己的样式表�
   // 判据：每颗按钮都只有一行（高 ≤ 40）、卡片不横向溢出（scrollWidth ≤ clientWidth + 1）、
   //   每颗按钮都待在卡片里（不越过卡片右边 —— 用户看到的就是确认按钮被推出卡片右边、✕ 不见了），
   //   而且最右那颗的右边不越过视口。
-  const verdict = function (m) {
+  const verdict = function (m: any) {
     const tall = m.btns.filter((b) => b.h > 40)
     const over = m.btns.filter((b) => m.card && b.right > m.card.right + 1)
     const past = m.btns.filter((b) => b.right > m.viewport + 1)
@@ -239,20 +240,20 @@ const staleSrc = read('src/client/kernel/probe-stale.js').replace(/^[ \t]*export
 const snapSrc = staleSrc + '\n' + stripTimeConfigImport(read('src/client/kernel/probe-snapshot.js')).replace(/^[ \t]*export[ \t]+/gm, '')
   + '\n' + read('src/client/kernel/probe-select.js').replace(/^[ \t]*export[ \t]+/gm, '')
 const staleGuardSrc = read('src/client/kernel/probe-stale.js')
-const deferredOf = () => { let res; const p = new Promise((r) => { res = r }); return { p, res } }
+const deferredOf = () => { let res: (value: any) => void = () => {}; const p = new Promise<any>((r) => { res = r }); return { p: p, res: res } }
 const tick = () => new Promise((r) => setTimeout(r, 0))
 
 // 假宿主 + 假 store：按任意顺序回包，量「发了哪几次请求」与「最后装进去的是哪一份」。
-const makeSnap = function (srcText) {
-  const calls = []
-  const scope = {
-    host: { call: (method, params) => { const d = deferredOf(); calls.push({ method, params, d }); return d.p } },
-    wsKeyOf: (p) => String(p || '').replace(/\\/g, '/').toLowerCase(),
-    tr: (k) => String(k),
+const makeSnap = function (srcText: string) {
+  const calls: any[] = []
+  const scope: Record<string, any> = {
+    host: { call: (method: string, params: any) => { const d = deferredOf(); calls.push({ method, params, d }); return d.p } },
+    wsKeyOf: (p: unknown) => String(p || '').replace(/\\/g, '/').toLowerCase(),
+    tr: (k: unknown) => String(k),
     log: () => {},
     isEnabled: () => false,
-    dswsLogHash: (s) => 'h' + String(s || '').length,
-    dswsLogTrunc: (s) => String(s || '').slice(0, 120),
+    dswsLogHash: (s: unknown) => 'h' + String(s || '').length,
+    dswsLogTrunc: (s: unknown) => String(s || '').slice(0, 120),
     emit: () => {},
     hydrateFromCache: () => false,
     getCachedSnapshot: () => null,
@@ -263,7 +264,7 @@ const makeSnap = function (srcText) {
     lastProbeAtByCwd: new Map(),
     rememberWorkspaceRoot: () => {},
     // 只用来「看见」装进去的是哪一份：selection/repository 的镜像规则见 store-snapshot.js 的 applySnapshotSelection
-    applySnapshotSelection: (st, snap) => { if (snap.selection !== undefined) st.selection = snap.selection; if (snap.repository !== undefined) st.repository = snap.repository },
+    applySnapshotSelection: (st: any, snap: any) => { if (snap.selection !== undefined) st.selection = snap.selection; if (snap.repository !== undefined) st.repository = snap.repository },
     startAutoProbe: () => {},
     scheduleFlashClear: () => {},
     flash: () => {},
@@ -278,7 +279,7 @@ const makeSnap = function (srcText) {
     //   这里取真身来判，所以 fixture 里的选择必须带 userPicked 才会上报后端（不带时请求上就没有 backendId）。
     // 本处走 evalWithScope：只是把真源里那一行函数表达式求值出来，它不引用本文件的任何外层变量，scope 给空对象。
     userHintOf: evalWithScope((read('src/client/kernel/store-prefs.js').split('\n').filter((l) => l.indexOf('export const userHintOf = function') >= 0)[0] || '').trim().replace(/^export const userHintOf = /, ''), {}),
-    timer: { timeout: (fn, ms) => setTimeout(fn, ms) },
+    timer: { timeout: (fn: () => void, ms: number) => setTimeout(fn, ms) },
     setTimeout, clearTimeout, AbortController,
     console: { log () {}, warn () {}, error () {} },
   }
@@ -288,14 +289,14 @@ const makeSnap = function (srcText) {
   // pending 那张在途登记表一并交出来：「这一次请求算在哪个后端名下」现在只剩这一个可观测的落点（见现场 1）。
   return { loadSnapshot: mod.loadSnapshot, calls, pending: mod.pendingSnapshotByCwd }
 }
-const snapOf = (bid, tag) => ({ ok: true, bid, tag, maps: [], selection: { backendId: bid, source: 'explicit' }, repository: { backend: bid, name: bid } })
+const snapOf = (bid: string, tag: string) => ({ ok: true, bid, tag, maps: [], selection: { backendId: bid, source: 'explicit' }, repository: { backend: bid, name: bid } })
 
-const runScenarios = async function (srcText) {
-  const out = {}
+const runScenarios = async function (srcText: string): Promise<Record<string, any>> {
+  const out: Record<string, any> = {}
   // 现场 1：切换前飞着一次强制重取（用户在面板上点了刷新），绑定成功之后再强制重取一次。
   {
     const s = makeSnap(srcText)
-    const st = { cwd: 'D:\\w1', selection: { backendId: 'github' }, snapshot: { bid: 'github-旧' } }
+    const st: Record<string, any> = { cwd: 'D:\\w1', selection: { backendId: 'github' }, snapshot: { bid: 'github-旧' } }
     s.loadSnapshot(st, true, true)
     st.selection = { backendId: 'markdown', userPicked: true } // 绑定成功：用户亲手切到新后端（带标记 → 这一次请求会把它当 hint 上报）
     s.loadSnapshot(st, true, true)
@@ -321,7 +322,7 @@ const runScenarios = async function (srcText) {
   // 现场 2（回归）：同一个后端上两次强制重取 —— 第二次仍复用第一次（#366 那层去重不能被弄丢）
   {
     const s = makeSnap(srcText)
-    const st = { cwd: 'D:\\w2', selection: { backendId: 'github' }, snapshot: null }
+    const st: Record<string, any> = { cwd: 'D:\\w2', selection: { backendId: 'github' }, snapshot: null }
     s.loadSnapshot(st, true, true)
     await tick() // 等第一次登记在途（登记发生在几处 await 之后，这是这一门的量法要照顾的）
     s.loadSnapshot(st, true, true)
@@ -331,7 +332,7 @@ const runScenarios = async function (srcText) {
   // 现场 3（回归 #366）：非 force 的在途请求，撞上一次强制重取 —— 强制重取必须真发一次
   {
     const s = makeSnap(srcText)
-    const st = { cwd: 'D:\\w3', selection: { backendId: 'github' }, snapshot: null }
+    const st: Record<string, any> = { cwd: 'D:\\w3', selection: { backendId: 'github' }, snapshot: null }
     s.loadSnapshot(st, false, false)
     s.loadSnapshot(st, true, true)
     await tick()
@@ -341,7 +342,7 @@ const runScenarios = async function (srcText) {
   // 现场 4：一个会话中途换后端，旧后端那份晚回来 —— 不许把会话状态倒回旧后端
   {
     const s = makeSnap(srcText)
-    const st = { cwd: 'D:\\w4', selection: { backendId: 'github' }, snapshot: null }
+    const st: Record<string, any> = { cwd: 'D:\\w4', selection: { backendId: 'github' }, snapshot: null }
     s.loadSnapshot(st, true, true)
     await tick()
     st.selection = { backendId: 'markdown', userPicked: true }
@@ -368,7 +369,7 @@ console.log('== D 反证：把这两处做坏，C 里对应的那几条必须当
     { label: '去重键改回「只按工作区」（不带后端）', patches: [["return wsKeyOf(cwd || '') + '|' + String(backendId || '')", "return wsKeyOf(cwd || '') + '|'"]], must: ['现场 1 发两次', '现场 1 问的是新后端', '现场 1 装新的', '现场 1 后端保持'] },
     { label: '回包守卫整段摘掉', patches: [['if (_snapRespStale(_reqNorm, _mine.seq, _mine.reqBackend, st)) {', 'if (false) {']], must: ['现场 1 后端保持', '现场 4 旧的不装'] },
   ]
-  const worse = (key, got) => {
+  const worse = (key: string, got: Record<string, any>): boolean => {
     if (key === '现场 1 发两次') return got.switchSentTwo !== 2
     if (key === '现场 1 问的是新后端') return got.secondOnNewBackendKey !== true
     if (key === '现场 1 装新的') return got.afterSwitch !== '切换后那一份'
