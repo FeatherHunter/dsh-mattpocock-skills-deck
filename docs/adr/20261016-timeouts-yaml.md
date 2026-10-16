@@ -24,13 +24,13 @@
 
 1. `register-options.ts:37` 零导入约束：`AGENT_TOOL_TIMEOUT_MS` 保留字面量，门禁只断言值相等（该文件永久 literal）。
 2. 共享域之间不许互相 import（`tests/verify-dependency-rules.ts` 红线）：`budget.ts`、`tuning.ts`、`write-ticket.ts` 保留自己的常量，门禁只断言值相等。
-3. 客户端无运行时 import：客户端吃的两个值（`settingsDebugPushWaitMs`、`mapTicketsTtlMs`）走构建 splice（`build.mjs` 的 refreshBudget 先例），S5 落地。
+3. 客户端无运行时 import：客户端吃的两个值（`settingsDebugPushWaitMs`、`mapTicketsTtlMs`）走构建 splice（`build.mjs` 的 refreshBudget 先例），S5 已落地（`shared:timeConfig` 标记位，消费处写 `declare const`）。
 4. 房间可引 `^src/shared/`（`tests/tracker-room-imports.json:7`，#1159）：房间侧 import 无需改 allowlist。
 5. `yaml@^2.9.1` 已是正式依赖：生成器不引入新包。
 
-## 4. 四个永久 literal（不是没迁完，是架构上不能迁）
+## 4. 五个永久 literal（不是没迁完，是架构上不能迁）
 
-`budget.ts`（18 项）、`tuning.ts`（`deckEnsureTimeoutMs`，另见 §6）、`write-ticket.ts`（`TICKET_TTL_MS`）、`register-options.ts`（`AGENT_TOOL_TIMEOUT_MS`）。其中双生子（`call-budget.ts` 的 `DEFAULT_TOOL_TIMEOUT_MS` 与 `register-options.ts` 的 `AGENT_TOOL_TIMEOUT_MS`）的三方同值由 `tests/verify-895-bulk-deadline.ts` 第⑦节（S6 起断言“两处字面量与 YAML 同值”）与本门禁第二节共同看守。
+`budget.ts`（18 项）、`tuning.ts`（`deckEnsureTimeoutMs`，另见 §6）、`write-ticket.ts`（`TICKET_TTL_MS`）、`register-options.ts`（`AGENT_TOOL_TIMEOUT_MS`）、`src/host/index.ts`（`TIMEOUT_MS` 30000 与 `CACHE_MS` 60000）。其中宿主入口这两项是 S4 落地时加进来的：入口禁静态 import（该文件 H7 #515 注释的 D7 约束，构建 host-dev 产物过 `vm.Script` 语法预检，静态 import 当场判红），所以沿用“留字面量、门禁锁值”的口径，调时间同样改 YAML。双生子（`call-budget.ts` 的 `DEFAULT_TOOL_TIMEOUT_MS` 与 `register-options.ts` 的 `AGENT_TOOL_TIMEOUT_MS`）的三方同值由 `tests/verify-895-bulk-deadline.ts` 第⑦节（S6 起断言“两处字面量与 YAML 同值”）与本门禁第二节共同看守。
 
 ## 5. 明确不入 YAML 的（门禁 EXEMPTS 表逐条有理由，这里只记分类）
 

@@ -189,6 +189,9 @@ export default {
     // src/shared/version-control/rules.js）。界面按同一份判定画按钮状态，不自己算 —— 自己算就会与
     // 宿主执行前那次判定各说各话。
     // ==== shared:vcRules (spliced by build) ====
+    // #1215 中央时间参数：真源 config/timeouts.yaml → 产物 src/shared/time-config/values.js。
+    // 界面只许消费这些名字（消费处写 declare const），不许再写一份数字。
+    // ==== shared:timeConfig (spliced by build) ====
     // ==== kernel:storePrefs (spliced by build) ====
     // ==== kernel:settingsViewState (spliced by build) ====
     // ==== kernel:settingsView (spliced by build) ====

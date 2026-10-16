@@ -111,8 +111,6 @@ interface TextRow {
 const TEXTS: TextRow[] = [
   { file: 'src/host/index.ts', snippet: 'const TIMEOUT_MS = 30000', count: 1, value: 30000, key: 'hostTimeoutMs', kind: 'literal' },
   { file: 'src/host/index.ts', snippet: 'const CACHE_MS = 60000', count: 1, value: 60000, key: 'snapshotCacheMs', kind: 'literal' },
-  { file: 'src/client/kernel/api-io.ts', snippet: 'const MAP_TICKETS_TTL = 60 * 1000', count: 1, value: 60000, key: 'mapTicketsTtlMs', kind: 'literal' },
-  { file: 'src/client/kernel/settings-debug.ts', snippet: 'const SETTINGS_DEBUG_PUSH_WAIT_MS = 5000', count: 1, value: 5000, key: 'settingsDebugPushWaitMs', kind: 'literal' },
   { file: 'src/deck/registration/register-options.ts', snippet: 'Math.floor(o.waitMs) : 2000', count: 1, value: 2000, key: 'registerRetryWaitMs', kind: 'literal' },
 ]
 

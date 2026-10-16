@@ -437,7 +437,8 @@
     //   每个桶是 { mode, items, stats, total, fetched, capped, missing, error, ts }；不落磁盘（随时可再取）。
     // 在途去重：同一张地图的并发请求合并成一次 —— 面板一重渲染就会连着触发，不合并会白花额度。
     const dswsMapTicketsInflight: Record<string, any> = {}
-    const MAP_TICKETS_TTL = 60 * 1000
+    // 存续期住中央 YAML（调时间改 config/timeouts.yaml）：界面闭包由构建把产物拼进来，本文件只声明名字（同 ISSUE_CACHE_TTL 的做法）。
+    declare const MAP_TICKETS_TTL_MS: number
     export const fetchMapTickets = function (st: any, n: any, opts: any) {
       // 地图的编号按原样当字符串用：本地 Markdown 后端的地图编号是 '00'，GitHub 是 '692' —— 两边都收。
       // （早先写成 Number() 判一下是不行的：Markdown 工作区里连「调一次、按真实返回退化」都做不到。）
@@ -449,7 +450,7 @@
       if (!st.mapTickets) st.mapTickets = {}
       const cur = st.mapTickets[bucketKey]
       const now = Date.now()
-      if (!force && cur && cur.mode === 'real' && (now - (cur.ts || 0)) < MAP_TICKETS_TTL) return Promise.resolve({ ok: true, fromCache: true })
+      if (!force && cur && cur.mode === 'real' && (now - (cur.ts || 0)) < MAP_TICKETS_TTL_MS) return Promise.resolve({ ok: true, fromCache: true })
       if (!force && dswsMapTicketsInflight[bucketKey]) return dswsMapTicketsInflight[bucketKey]
       if (typeof host === 'undefined' || typeof host.call !== 'function') {
         const err = { kind: 'env', message: tr('err.hostUnavailable'), raw: '' }
