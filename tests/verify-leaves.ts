@@ -48,7 +48,7 @@ const LEAVES = [
   { file: 'src/client/views/ListTab.js', exports: ['ListTab'], components: ['ListTab'] },
   { file: 'src/client/views/SkillsTab.js', exports: ['SkillsTab'], components: ['SkillsTab'] },
   { file: 'src/client/views/ChecksTab.js', exports: ['ChecksTab'], components: ['ChecksTab'] },
-  { file: 'src/client/views/SettingsWorkspaces.js', exports: ['useWsOverview', 'renderWsOverview'], components: [] }, // V3 #463 由 SettingsPage.js 拆出：后端总览（数据钩子 + 分组渲染）
+  { file: 'src/client/views/SettingsWorkspaces.js', exports: ['useWsOverview', 'renderWsOverview', 'wsSuffixKeepOf', 'wsDisplayOf', 'computeWsOverviewRows'], components: [] }, // V3 #463 由 SettingsPage.js 拆出：后端总览（数据钩子 + 分组渲染）；#1231 口径收进三个纯函数，只认统一判定结论
   { file: 'src/client/views/diagnosticLog/diagnosticLogModel.ts', exports: ['LOG_OPS', 'DBG_SWITCH_FAIL_KEY', 'DBG_SWITCH_FAIL_FALLBACK', 'dbgSwitchFailKey', 'todayName', 'isTodayName', 'switchToastKey', 'switchToastKind', 'canStartOp', 'exportDirOf'], components: [] }, // 诊断日志的纯推演层（#597 那张表由此搬入，DebugSwitchFailHint.js 删档；设置页与状态栏共用同一份判定）
   { file: 'src/client/views/diagnosticLog/diagnosticLogActions.ts', exports: ['createDiagnosticLogOps'], components: [] }, // 诊断日志的不纯跑腿层（原来设置页 toggleDbg 与 do 开头那一串，世界全从参数进）
   { file: 'src/client/views/diagnosticLog/DiagnosticLogSection.ts', exports: ['DiagnosticLogSection'], components: ['DiagnosticLogSection'] }, // 诊断日志分组画法（原来设置页沉底那一组，状态自持，单参 sessionId）
