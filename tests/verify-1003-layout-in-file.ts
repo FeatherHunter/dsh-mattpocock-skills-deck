@@ -18,30 +18,31 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
-const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href)
+const imp = (rel: string) => import(pathToFileURL(path.join(ROOT, rel)).href)
 let passed = 0
 let failed = 0
-const check = (ok, msg) => { if (ok) { console.log('  PASS ' + msg); passed++ } else { console.log('  FAIL ' + msg); failed++ } }
+const check = (ok: boolean, msg: string) => { if (ok) { console.log('  PASS ' + msg); passed++ } else { console.log('  FAIL ' + msg); failed++ } }
 
-const makeFs = (broken) => ({
-  async resolve(p, opts) { const base = (opts && opts.cwd) || ''; const rel = String(p || '').replace(/\\/g, '/'); return base ? String(base).replace(/\\/g, '/') + '/' + rel : rel },
-  async readText(t) { return fs.readFileSync(String(t).replace(/\//g, path.sep), 'utf8') },
-  async writeText(t, c) { if (broken) throw Object.assign(new Error('EACCES: 沙箱不给写许可'), { code: 'EACCES' }); const real = String(t).replace(/\//g, path.sep); fs.mkdirSync(path.dirname(real), { recursive: true }); fs.writeFileSync(real, String(c), 'utf8') },
-  async mkdir(t) { fs.mkdirSync(String(t).replace(/\//g, path.sep), { recursive: true }) },
+const makeFs = (broken: boolean) => ({
+  async resolve(p: unknown, opts?: { cwd?: string }) { const base = (opts && opts.cwd) || ''; const rel = String(p || '').replace(/\\/g, '/'); return base ? String(base).replace(/\\/g, '/') + '/' + rel : rel },
+  async readText(t: unknown) { return fs.readFileSync(String(t).replace(/\//g, path.sep), 'utf8') },
+  async writeText(t: unknown, c: unknown) { if (broken) throw Object.assign(new Error('EACCES: 沙箱不给写许可'), { code: 'EACCES' }); const real = String(t).replace(/\//g, path.sep); fs.mkdirSync(path.dirname(real), { recursive: true }); fs.writeFileSync(real, String(c), 'utf8') },
+  async mkdir(t: unknown) { fs.mkdirSync(String(t).replace(/\//g, path.sep), { recursive: true }) },
 })
+type StubFs = ReturnType<typeof makeFs>
 
 const { createWorkspaceCwd } = await imp('src/host/workspaceCwd.js')
 const { createChoiceStore } = await imp('src/host/choiceStore.ts')
 
 const home = fs.mkdtempSync(path.join(os.tmpdir(), 'v1003layout-home-'))
 const store = createChoiceStore({ homeDir: home, isKnownBackend: () => true })
-const mkApi = (fsSvc) => createWorkspaceCwd({
+const mkApi = (fsSvc: StubFs) => createWorkspaceCwd({
   ctx: { get: () => undefined }, DEFAULT_CWD: '',
   getPlatform: async () => ({ fs: fsSvc, path: path, getHome: async () => home }),
   getTrackerRegistry: async () => ({ has: () => true, bind: () => {}, get: () => null, describe: () => null }),
   getWorkspaceStore: async () => ({ invalidate: () => {} }),
   getChoiceStore: async () => store,
-  canonicalKey: async (c) => c, setCache: () => {}, timer: { timeout: () => null },
+  canonicalKey: async (c: unknown) => c, setCache: () => {}, timer: { timeout: () => null },
   detectionExec: async () => ({}), logCtx: null,
 })
 const mkWs = () => {
@@ -50,7 +51,7 @@ const mkWs = () => {
   fs.writeFileSync(path.join(ws, 'docs', 'agents', 'workspace.yaml'), 'version: 2\nbackendId: github\npickedAt: 1758500000000\nsource: user\n', 'utf8')
   return ws
 }
-const yamlOf = (ws) => fs.readFileSync(path.join(ws, 'docs', 'agents', 'workspace.yaml'), 'utf8')
+const yamlOf = (ws: string) => fs.readFileSync(path.join(ws, 'docs', 'agents', 'workspace.yaml'), 'utf8')
 
 console.log('== ① 写布局落进工作区文件 ==')
 const ws = mkWs()
