@@ -46,7 +46,6 @@
     "tests/verify-client-hardcode-gate.js",
     "tests/verify-config-store-core.js",
     "tests/verify-config-store-migration.js",
-    "tests/verify-contract-vocabulary.js",
     "tests/verify-deck-event-gate.mjs",
     "tests/verify-deck-exec-phone.js",
     "tests/verify-deck-no-hang.js",

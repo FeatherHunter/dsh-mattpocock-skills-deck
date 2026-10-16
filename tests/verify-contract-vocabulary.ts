@@ -1,5 +1,5 @@
-// verify-contract-vocabulary.js —— 门禁：契约层里不许有「死了的常量」（#719 T15 收口 · 2026-09-24 按统筹者裁定放大到整棵 src/shared）
-// 用法：在插件根目录执行 node tests/verify-contract-vocabulary.js，可独立运行。
+// verify-contract-vocabulary.ts —— 门禁：契约层里不许有「死了的常量」（#719 T15 收口 · 2026-09-24 按统筹者裁定放大到整棵 src/shared）
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-contract-vocabulary.ts，可独立运行。
 //
 // 为什么要有这一条（票面第 3 条的原话）：契约层与共享层是「两个半场共用的词汇表」，它多一个常量，
 // 后来人就会以为那条路还在。真实事故正是这样发生的：#213/#232 的四个事件源常量
@@ -40,7 +40,7 @@ const { pathToFileURL } = require('url')
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
 let total = 0
-const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
+const check = (ok: unknown, msg: string): void => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
 /** 值扫这三棵树里的前两棵：生产代码。 */
 const VALUE_DIRS = ['src/host', 'src/client']

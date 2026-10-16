@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T22:30:57.302Z",
+  "generatedAt": "2026-10-16T22:35:39.039Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 301,
   "gateCount": 301,
@@ -351,8 +351,8 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 2 条）"
     },
     {
-      "step": "node tests/verify-contract-vocabulary.js",
-      "file": "tests/verify-contract-vocabulary.js",
+      "step": "node tests/verify-contract-vocabulary.ts",
+      "file": "tests/verify-contract-vocabulary.ts",
       "guards": [
         "src/client",
         "src/host",
@@ -7185,7 +7185,7 @@
     ],
     "src/client": [
       "node tests/verify-leaves.ts",
-      "node tests/verify-contract-vocabulary.js",
+      "node tests/verify-contract-vocabulary.ts",
       "node tests/verify-gate-map.js",
       "node tests/verify-1115-timer-handle.ts",
       "node tests/verify-626-type-chip.ts",
@@ -7479,7 +7479,7 @@
     "src/host": [
       "node tests/verify-build-artifacts.js",
       "node tests/verify-chain-env-e2e.js",
-      "node tests/verify-contract-vocabulary.js",
+      "node tests/verify-contract-vocabulary.ts",
       "node tests/verify-deck-event-gate.mjs",
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-gate-map.js",
@@ -7655,7 +7655,7 @@
     ],
     "src/shared": [
       "node tests/verify-build-artifacts.js",
-      "node tests/verify-contract-vocabulary.js",
+      "node tests/verify-contract-vocabulary.ts",
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-653-subworkspace.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
@@ -7699,7 +7699,7 @@
       "node tests/verify-build-artifacts.js",
       "node tests/verify-chain-capsule.js",
       "node tests/verify-chain-view.js",
-      "node tests/verify-contract-vocabulary.js",
+      "node tests/verify-contract-vocabulary.ts",
       "node tests/verify-deck-no-hang.js",
       "node tests/verify-deck-parallel.ts",
       "node tests/verify-deck-thin-reads.js",
@@ -7791,7 +7791,7 @@
     "src/shared/tracker": [
       "node tests/verify-663-banner-chain.ts",
       "node tests/verify-chain.js",
-      "node tests/verify-contract-vocabulary.js",
+      "node tests/verify-contract-vocabulary.ts",
       "node tests/verify-deck-slots.ts",
       "node tests/verify-589-list-dedupe.ts",
       "node tests/verify-655-setup-layout.ts",
@@ -8018,7 +8018,7 @@
       "node tests/verify-refresh-workspace-key.js"
     ],
     "tests": [
-      "node tests/verify-contract-vocabulary.js",
+      "node tests/verify-contract-vocabulary.ts",
       "node tests/verify-deck-tools-matrix.js",
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-gate-map.js",
