@@ -11,6 +11,12 @@
 const fs = require('fs')
 const path = require('path')
 const { countEffectiveLines, EFFECTIVE_LINES_METRIC } = require('../scripts/lib/effective-lines.mts')
+// 取源入口（#1207 立的 tests/lib/source-text.ts）：本表里写的路径是「这份叶子原来叫什么」，
+// 个别文件已经转成 TypeScript（#1209 起：statusbar/StatusBackend）。下面每一处读源码文本的地方
+// 都先问一次 sourcePath，问到的才是真源今天住的那一份 —— 直接按 .js 读会读到构建产物（行数、
+// 新鲜度判据跟着一起量错），按 .ts 却又在没转的文件上读不到。
+const { sourcePath } = require('./lib/source-text.ts')
+const realPath = (rel: string): string => sourcePath(rel)
 let failed = false
 const check = (ok: unknown, msg: string): void => { console.log(((ok ? '  PASS ' : '  FAIL ') + msg) as string); if (!ok) failed = true }
 
@@ -106,7 +112,10 @@ const LEAVES = [
 ]
 const SOURCES = [
   'src/client/index.js', 'scripts/build.mjs', 'package/package.json',
+  // 两种路径都收进来：转成 TypeScript 的那些，产物同时取决于 .ts 真源与 pixel-ts 写下的同名 .js；
+  // 还没转的还是只有 .js。少了哪一条，都会让「改了源码、产物没重建」从这道门禁底下溜过去。
   ...LEAVES.map((l) => l.file),
+  ...LEAVES.map((l) => realPath(l.file)),
 ]
 
 function productStale(prod: string): string | null {
@@ -131,17 +140,22 @@ function main(): void {
   // ---- 叶子文件 + 导出齐全 + ≤350 行 + 组件 useContext ----
   for (const l of LEAVES) {
     const file = l.file
-    if (!fs.existsSync(file)) { check(false, file + ' 缺失'); continue }
-    const src = fs.readFileSync(file, 'utf8')
+    // 真源今天住哪：没转过就是它自己，转过就是同名 .ts。下面存在性、行数、基线查表三处都用这一份，
+    // 免得「按 .js 判行数、按 .ts 读文本」这种两头不一致。
+    const real = realPath(file)
+    if (!fs.existsSync(real)) { check(false, real + ' 缺失'); continue }
+    const src = fs.readFileSync(real, 'utf8')
     const lines = countEffectiveLines(src)
     // #845：这条断言原来写死「全员 350」，但 3ccef80 起仓库有一份零增长基线
     //   （tests/file-granularity-baseline.json：门禁落地时已超标的文件把当时行数记进去，只许减不许增）。
     //   判据改成与 verify-file-granularity.js 同一口径：在基线里的文件 ≤ 基线值，不在基线的 ≤350。
     // #1017：口径换成**有效行**（注释与空行不计），实现与那条门禁共用 scripts/lib/effective-lines.mts。
     //   同一份文件按总行数算是 359 行、按有效行算是 233 行，两处口径不一致会让这条断言凭空变红。
+    //   基线表按仓库相对路径查：一直查的是 LEAVES 里登记的那条路径（对转过的文件就是那个 .js 名字），
+    //   所以这里仍用 file 而不是 real —— 换名字会让转过的文件悄悄跳出它被冻结的那一行。
     const frozen = GRANULARITY_BASELINE[file]
     const limit = frozen === undefined ? 350 : Number(frozen)
-    check(lines <= limit, file + ' ≤' + limit + ' 有效行' + (frozen === undefined ? '（G4）' : '（零增长基线冻结值）') + ' · 实际 ' + lines + '）')
+    check(lines <= limit, real + ' ≤' + limit + ' 有效行' + (frozen === undefined ? '（G4）' : '（零增长基线冻结值）') + ' · 实际 ' + lines + '）')
   }
 
   // ---- 页内浮窗退役（只查文件在不在，不读源码文本） ----

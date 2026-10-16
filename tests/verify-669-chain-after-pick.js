@@ -30,18 +30,24 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 // 本文件按文本求值统一走共用入口 compileFn：真源文本配假零件造成模块（理由与用法见 tests/lib/eval-probe.js 文件头）。
 import { compileFn } from './lib/eval-probe.js'
+// 取源走共用入口（#1207 立）：spliceableJs 给「可以直接当函数体求值」的 JavaScript 文本
+// （.ts 会先按构建那份口径转译；手写 .js 原样返回并剥掉行首 export）。本文件只求值、不扫文本形状，所以只要它。
+import { spliceableJs } from './lib/source-text.ts'
 
 let passed = 0
 let failed = 0
 function check (ok, msg) { if (ok) { console.log('  PASS ' + msg); passed++ } else { console.log('  FAIL ' + msg); failed++ } }
 
+// read 留给还没迁移的 .js（probe-chain.js 那一份）：它没有同名 .ts，spliceableJs 会原样读。
 const read = (rel) => readFileSync(resolve(rel), 'utf8')
-const sbSrc = read('src/client/statusbar/StatusBackend.js')
+const sbSrc = spliceableJs('src/client/statusbar/StatusBackend.js')
 const chainSrc = read('src/client/kernel/probe-chain.js')
 
 console.log('== A 行为层：真的调一次 confirmStatusGate，看它绑完之后有没有重取链 ==')
 {
-  const body = sbSrc.replace(/^[ \t]*export[ \t]+/gm, '')
+  // 这份文本已经是「可以当函数体求值」的形态：spliceableJs 交出来的片段里行首 export 已经剥掉
+  //   （它过的就是构建拼闭包那一步 inlineExportDeclarations + toSpliceableFragment），所以这里不再自己剥。
+  const body = sbSrc
   const calls = { chain: [], snapshot: [], bind: [], flashes: [] }
   const sandbox = {
     tr: (k) => String(k),

@@ -29,7 +29,8 @@
  * 能红也能绿（每条都实测过）：把任一处的 readSpliceFragmentSource 换回「读文件、去行首 export」→ 判据 3、5 红；
  * 把缝里那次 toSpliceableFragment 调用换成内联去 export → 判据 5 红；按路径前缀跳过转译 → 判据 6 红；
  * 把 toSpliceableFragment 的 leftover 判据删掉 → 判据 2 红；把 moduleForm 判据里的 `default\b` 去掉 → 判据 2 红；
- * 把叶子判据掏空成 `return false` → 判据 7 红；把 .js 分支改成 `source.trim()` → 判据 5 红；全对时绿。
+ * 把叶子判据掏空成 `return false` → 判据 7 红；把 .js 分支改成 `source.trim()` → 判据 5 红；
+ * 把某处统一入口调用改回直接读缝、掏空入口内的补换行、在别处另起读缝调用 → 判据 4 红；全对时绿。
  * 退出码 0 = 全通过；1 = 有断言不成立（会卡住 verify 链）。
  */
 const { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } = require('node:fs')
@@ -175,7 +176,11 @@ function main(): void {
     writeFileSync(path.join(leafRoot, 'notes.md'), '# 说明\n', 'utf8')
     const leaf = (rel: string): boolean => isLeafSourcePath(leafRoot, rel)
     ok(leaf('only.ts') === true, '叶子判据：没有同名 .js 的 .ts 算一份叶子')
-    ok(leaf('both.ts') === false && leaf('both.js') === true, '叶子判据：同名并排的 .ts/.js 只在 .js 那一条算一次（不然同一份叶子会数成两份）')
+    // #1209 改口径：同名并排的 .ts/.js 里，那一份 .js 是构建写下的产物，不再算一份叶子。
+    //   旧口径（两边都算）在 kernel / statusbar 这两处转成 TypeScript 之后，会让构建每次都在反向检查里
+    //   报「StatusBackend.js 未在 LEAF_MODULES 登记」—— 而那份 .js 是构建自己刚写下的产物。
+    ok(leaf('both.ts') === false && leaf('both.js') === false, '叶子判据：同名并排的 .ts/.js 一份都不算叶子（.js 那一边是产物，不是待登记的源码）')
+    ok(leaf('plain.js') === true, '叶子判据：没有同名 .ts 的 .js 仍算一份叶子（登记表里今天记的就是这种）')
     ok(leaf('shape.d.ts') === false, '叶子判据：.d.ts 是纯类型声明，不算叶子')
     ok(leaf('helper.mts') === true && leaf('view.tsx') === true, '叶子判据：.mts / .tsx 也算叶子（不然它们既不被反向检查报出来，也拼不进去）')
     ok(leaf('notes.md') === false, '叶子判据：不是片段源码的扩展名不算叶子')
@@ -184,9 +189,29 @@ function main(): void {
   }
 
   // ---- 判据 4：三个拼接点都走同一条缝 ----
+  // #1074 起三个拼接点先经 spliceText 这一处入口（补末尾换行，防上一段的尾注释吃掉下一段的头一行），
+  // 再由它调构建与门禁共用的 readSpliceFragmentSource。对抗式审查补的三条（只数 m.file 会漏异名直调、
+  // 跨函数正则会把搬走的调用也算数、只看接线会漏掉被掏空的补换行），所以这里：数统一入口的调用到 3 处、
+  // 把统一入口的函数体抠出来断言两件事都在里面（调共用读取、补末尾换行）、抠掉入口与 import 行之后不许再有读缝调用。
   const buildSrc = readFileSync(path.join(REPO_ROOT, 'scripts/build.mjs'), 'utf8')
-  const seamCalls = buildSrc.split('readSpliceFragmentSource(m.file)').length - 1
+  const seamCalls = (buildSrc.match(/spliceText\(\w+\.file\)/g) || []).length
   ok(seamCalls === 3, 'kernel / leaf / shared 三处拼接点都走同一条缝（实到 ' + seamCalls + ' 处）')
+  const spliceBody = /function spliceText\(file\) \{([\s\S]*?)\n\}/.exec(buildSrc)?.[1] || ''
+  ok(
+    spliceBody.includes('readSpliceFragmentSource(file)'),
+    '统一入口内部调的是构建与门禁共用的那一份读取实现（不是各写一份，也不是搬到别处只留空壳）'
+  )
+  ok(
+    spliceBody.includes("'\\n'"),
+    '统一入口内部补了末尾换行（掏空这一句会让尾注释吃掉下一段的头一行，门禁要能变红）'
+  )
+  const withoutEntry = buildSrc
+    .replace(/import [^\n]*readSpliceFragmentSource[^\n]*\n/, '')
+    .replace(/function spliceText\(file\) \{[\s\S]*?\n\}/, '')
+  ok(
+    !/readSpliceFragmentSource\(/.test(withoutEntry),
+    '除统一入口外没有别的读缝调用（异名变量的直接调用同样算绕过，不许留）'
+  )
   ok(!/extractModuleBlock/.test(buildSrc), '拼接点不再各自写一份「读文件、去行首 export」')
   ok(
     /import \{[^}]*readSpliceFragmentSource[^}]*\} from '\.\/lib\/transpile-domains\.mjs'/.test(buildSrc),

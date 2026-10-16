@@ -1,0 +1,175 @@
+{
+  "_说明": "门禁分阶段顺序与显式排除表（#1125）。三个执行器以后读这一份，不再读 package.json 的长串。阶段内可并发、阶段间按数组顺序固定。",
+  "stages": [
+    {
+      "name": "build",
+      "说明": "先确认能构建：构建产物与拼接检查。这一段红了，后面不用再跑。",
+      "match": [
+        "verify-1207",
+        "verify-663-banner",
+        "verify-build",
+        "verify-splice",
+        "verify-transpile",
+        "verify-leaves"
+      ]
+    },
+    {
+      "name": "contract",
+      "说明": "契约与规则：门禁的门禁（归属表新鲜度、依赖规则、调用面）。",
+      "match": [
+        "verify-gate-map",
+        "verify-dependency",
+        "verify-contract",
+        "verify-deck-",
+        "verify-no-",
+        "verify-select",
+        "verify-chain"
+      ]
+    },
+    {
+      "name": "freshness",
+      "说明": "新鲜度：产物与文档是否跟上源码。放最后，因为它读的是前两段的产出。",
+      "match": [
+        "freshness",
+        "verify-readme-sync",
+        "verify-star-history",
+        "verify-locale-completeness"
+      ]
+    },
+    {
+      "name": "behavior",
+      "说明": "行为：其余全部。默认段，不在上面三段里的都到这里。",
+      "match": []
+    }
+  ],
+  "_排除规则": "下面每条必须带理由与票号；没有写进来的磁盘文件由看守门禁报红，不许静默漏掉。",
+  "exclude": [
+    {
+      "file": "tests/verify-1136-room-cross-sample.ts",
+      "reason": "样本门禁，会往工作树写探针文件，并发跑会让掃源码的门禁假红",
+      "ticket": "#1136"
+    },
+    {
+      "file": "tests/verify-1152-tracker-same-layer-sample.ts",
+      "reason": "样本门禁，同上",
+      "ticket": "#1152"
+    },
+    {
+      "file": "tests/verify-1159-deck-kernel-sample.ts",
+      "reason": "样本门禁，同上",
+      "ticket": "#1159"
+    },
+    {
+      "file": "tests/verify-1161-rooms-assembly-samples.ts",
+      "reason": "样本门禁，同上",
+      "ticket": "#1161"
+    },
+    {
+      "file": "tests/verify-964-same-key-ride.js",
+      "reason": "另一会话正在加的新门禁，还没挂链，切自动发现前先留位置",
+      "ticket": "#964"
+    },
+    {
+      "file": "tests/verify-965-admission.js",
+      "reason": "另一会话正在加的新门禁，还没挂链，切自动发现前先留位置",
+      "ticket": "#965"
+    },
+    {
+      "file": "tests/verify-967-measure.js",
+      "reason": "另一会话正在加的新门禁，还没挂链，切自动发现前先留位置",
+      "ticket": "#967"
+    },
+    {
+      "file": "tests/verify-969-tiered-timeout.js",
+      "reason": "另一会话正在加的新门禁，还没挂链，切自动发现前先留位置",
+      "ticket": "#969"
+    },
+    {
+      "file": "tests/verify-issue22-ui.js",
+      "reason": "只动手点：要真机 DSH 图形界面加 Chrome（127.0.0.1:59519），链上跑不了，留给人动手验收",
+      "ticket": "#1125"
+    },
+    {
+      "file": "tests/verify-t2-repokey-ui.js",
+      "reason": "只动手点：要真机加 playwright，同上",
+      "ticket": "#1125"
+    },
+    {
+      "file": "tests/verify-issue-comment.js",
+      "reason": "隔离待查：挂正确跑法仍红（谓词分拣加沙箱缺身份键），先修代码再进链",
+      "ticket": "#1227"
+    },
+    {
+      "file": "tests/verify-skill-probe-redcard-and-waiting.js",
+      "reason": "隔离待查：14/55 行为失败（坏名片分拣语义），先修代码再进链",
+      "ticket": "#1227"
+    },
+    {
+      "file": "tests/verify-time-config.ts",
+      "reason": "隔离待查：3 处覆盖告警（wiring.ts 新常量未登记），登记或豁免后再进链",
+      "ticket": "#1215"
+    },
+    {
+      "file": "tests/verify-504-github-pr.js",
+      "reason": "隔离待查：雾证据与坏节点行为失败，先定是回归还是门禁过期再进链",
+      "ticket": "#1227"
+    },
+    {
+      "file": "tests/verify-507-pr-offline.js",
+      "reason": "隔离待查：9过2败，先定性再进链",
+      "ticket": "#1227"
+    },
+    {
+      "file": "tests/verify-b2-map-newsession.js",
+      "reason": "待修门禁：锚点空白 brittle（completePrompt 后缺空格），修完进链",
+      "ticket": "#1125"
+    },
+    {
+      "file": "tests/verify-chain-renderer.js",
+      "reason": "待修门禁：4 处旧锚（必填硬字、模板搬家、谓词改名），重锚后进链",
+      "ticket": "#1125"
+    },
+    {
+      "file": "tests/verify-detail-fog.js",
+      "reason": "待修门禁：仍按旧约定取 h.wf.refresh（已改注册制），跟随后进链",
+      "ticket": "#1125"
+    },
+    {
+      "file": "tests/verify-detail-levels.js",
+      "reason": "待修门禁：同上",
+      "ticket": "#1125"
+    },
+    {
+      "file": "tests/verify-github-rest-fallback.js",
+      "reason": "待修门禁：夹具缺 ctx.outbound，补上后进链",
+      "ticket": "#1125"
+    },
+    {
+      "file": "tests/verify-map-subissues-352.js",
+      "reason": "待修门禁：版本 pin 过期（断言 v14，源码已 v17），改兼容后进链",
+      "ticket": "#1125"
+    },
+    {
+      "file": "tests/verify-panel.js",
+      "reason": "待修门禁：同 detail-fog，h.wf.refresh 约定跟随",
+      "ticket": "#1125"
+    },
+    {
+      "file": "tests/verify-t14-detail-badge.js",
+      "reason": "待修门禁：注释锚点漂移，按徽章重锚后进链",
+      "ticket": "#1125"
+    },
+    {
+      "file": "tests/verify-tabs-narrow.js",
+      "reason": "待修门禁：计数断言脆弱（tabsRef 现 9 处），改挂载点断言后进链",
+      "ticket": "#1125"
+    },
+    {
+      "file": "tests/verify-handoff-latest-sort.js",
+      "reason": "待修门禁：守的老地址（host.js），真身已搬进 src/host/handoffClaim.js，重锚后进链",
+      "ticket": "#1125"
+    }
+  ],
+  "_已删除": "2026-10-16 删掉 2 扇复刻自测（把源码逻辑抄进门禁里再断言，源码坏了照样绿， maintainer 同意去无价值门禁）：tests/verify-blocked-filter.js、tests/verify-t2b-templates.js。两处棘轮基线已同步（unmigrated 重录 318，handwritten 删行）。",
+  "_进链统计": "49 扇待分类：30 扇直接进链（挂正确跑法全绿且守活代码，含 857 在内 9 扇编号回归），10 扇修门禁后进链，5 扇隔离待查（代码或定性未决，见 #1227），2 扇只动手点，2 扇已删除。"
+}

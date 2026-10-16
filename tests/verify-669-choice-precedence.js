@@ -27,6 +27,9 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 // 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
 import { compileFn, evalWithScope } from './lib/eval-probe.js'
+// 取源走共用入口（#1207 立）：spliceableJs 给「可以直接当函数体求值」的 JavaScript 文本
+// （.ts 会先按构建那份口径转译，引号与换行会被重排）。本文件只求值、不按文本形状扫源码。
+import { spliceableJs } from './lib/source-text.ts'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
@@ -42,8 +45,9 @@ const snapSrc = read('src/client/kernel/store-snapshot.js')
 const switchSrc = read('src/client/kernel/store-switch.js')
 // 【已删除】原先这里还读两份源码文本 —— src/client/views/shared/SwitchConfirmModal.js 与
 //   src/client/kernel/locale-word.js，两份都只服务于上面整段删掉的 D 静态层，一并去掉。
-//   下面那份 prompts.js 留着：C 组要把切换那条路真跑起来，用的是它里面两个真身函数。
-const promptsSrc = read('src/client/kernel/prompts.js')
+//   下面那份 prompts 留着：C 组要把切换那条路真跑起来，用的是它里面两个真身函数。
+//   这份文本要当函数体求值，所以走 spliceableJs（.ts 会先按构建那份口径转译；原样读会带着类型标注，求值当场语法错）。
+const promptsSrc = spliceableJs('src/client/kernel/prompts.js')
 
 // ── A 组：宿主判定链（真 detectionService + 真注册表 + 真锚文件读）────────────────────────
 const tmpDirs = []
@@ -192,15 +196,22 @@ const CHAIN_NOT_INIT_READY = [{ id: 'gh:remote', status: 'done' }, { id: 'tracke
 const CHAIN_REPO_NOT_DONE = [{ id: 'gh:installed', status: 'done' }, { id: 'gh:authed', status: 'done' }, { id: 'gh:remote', status: 'current' }, { id: 'tracker:initialized', status: 'pending' }]
 const makeSwitch = function (srcText) {
   const seen = { inject: [], decision: [], flash: [], snap: [], chain: [], bind: [] }
-  // 「仓库那一步过没过」这条判据住在 prompts.js 里（setupBlockedByGuide），本门禁取它的真身来判，
+  // 「仓库那一步过没过」这条判据住在 prompts.ts 里（setupBlockedByGuide），本门禁取它的真身来判，
   //   不去自己抄第二份 —— 否则门禁验证的就不是「切换那条路真的用了同一个判据」了。
-  const chainStepsSrc = promptsSrc.match(/const setupChainSteps = function \(st\) \{[\s\S]*?\n    \}/)[0]
-  const blockedSrc = promptsSrc.match(/export const setupBlockedByGuide = function \(st, backendId\) \{[\s\S]*?\n    \}/)[0]
+  //
+  // 两条正则都写成「函数名 + 形状宽松的参数表」：这里匹配的是走共用入口转译后的 JavaScript，
+  //   排版由转译器决定（`function(st, backendId)` 这种括号前无空格的写法就是它给的），
+  //   照着手写源码的排版去钉（`function \(st\)`）会一条都匹配不到，报的还是看不懂的 null 错。
+  //   行首锚定没丢：源里这两个函数就写在左边顶格处。
+  const chainStepsSrc = promptsSrc.match(/^const setupChainSteps = function[ \t]*\([^)]*\) \{[\s\S]*?\n\};/m)[0]
+  const blockedSrc = promptsSrc.match(/^const setupBlockedByGuide = function[ \t]*\([^)]*\) \{[\s\S]*?\n\};/m)[0]
   const chainStepsImpl = (st) => (st && st.chainSnapshot && st.chainSnapshot.steps) || []
+  // 抠出来的两条都带着结尾那个分号（转译后的写法是 `};`），而 evalWithScope 要的是「函数体」，
+  //   所以剥的时候连分号一起剥；留一个裸分号进去，报的是 `eval-probe.ts:11 SyntaxError: Unexpected token ';'`。
   // 这里选 evalWithScope：这段源码要调 chainSteps，原来靠参数注入，现在在作用域里显式给出来。
-  const setupChainSteps = evalWithScope(chainStepsSrc.replace(/^const setupChainSteps = /, ''), { chainSteps: chainStepsImpl })
+  const setupChainSteps = evalWithScope(chainStepsSrc.replace(/^const setupChainSteps = /, '').replace(/;\s*$/, ''), { chainSteps: chainStepsImpl })
   // 这里选 evalWithScope：这段源码引用的三个名字（真 guide-steps 两件加上面那件）在作用域里逐个写明。
-  const setupBlockedByGuide = evalWithScope(blockedSrc.replace(/^export const setupBlockedByGuide = /, ''), { guideStepsFor: GUIDE.guideStepsFor, guideStepDone: GUIDE.guideStepDone, setupChainSteps: setupChainSteps })
+  const setupBlockedByGuide = evalWithScope(blockedSrc.replace(/^const setupBlockedByGuide = /, '').replace(/;\s*$/, ''), { guideStepsFor: GUIDE.guideStepsFor, guideStepDone: GUIDE.guideStepDone, setupChainSteps: setupChainSteps })
   const sandbox = {
     host: { call: (m, p) => { if (m === 'wf.bind') seen.bind.push(p); return Promise.resolve({ ok: true }) } },
     // 注意：labelOf / openSwitchConfirm / closeSwitchConfirm 这些**本文件自己声明**，不能当参数传进来（会重名）
@@ -287,7 +298,7 @@ const runSwitchScenario = async function (srcText, steps, from, to) {
 //   为什么单独一组：这一段的判据是「点确认那一刻**重新判一次**场景」——从开卡到点确认之间，
 //   刚注入的那条对齐指令可能已经把仓库初始化完了，照旧结论就会把初始化全文注进一个已经初始化过的仓库。
 //   所以这里把两个函数从真源里抠出来，配真 guide-steps 与一个记录器跑，不启整条插件。
-const settleSrc = read('src/client/statusbar/StatusBackend.js')
+const settleSrc = spliceableJs('src/client/statusbar/StatusBackend.js')
 const makeSettle = function (steps, opts) {
   const o = opts || {}
   const seen = { inject: [], flash: [], prompt: [], log: [] }

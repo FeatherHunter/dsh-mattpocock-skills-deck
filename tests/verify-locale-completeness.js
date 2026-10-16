@@ -22,7 +22,14 @@ const bad = function (name) { failed = true; console.log('  FAIL', name) }
 
 // ---------- A. locale 键集合 ----------
 const LOCALE_SRC_FILES = ['src/client/kernel/locale-panel.js', 'src/client/kernel/locale-flow.js', 'src/client/kernel/locale-word.js', 'src/client/kernel/locale-labels.js', 'src/client/kernel/locale-pages.js', 'src/client/kernel/locale-vcwrite.js', 'src/client/kernel/locale-skilldesc.js', 'src/client/kernel/locale.js'] // #458 K5：locale.js 已拆为三片段加合并器，此处读四文件拼起来的内容断言（panel 含导航面板横幅环境引导，flow 含动作类型列表配置详情地图提示，word 含技能检查浮层命名切换进度错误模板运行描述，合并器含 L 合并逻辑）；#621 起多一份 locale-labels.js（标签配色弹窗的中英词条），#690 起再多一份 locale-pages.js（历史票按需翻页的五条），#879 起再多一份 locale-skilldesc.js（技能描述 27 条），同样按「每个键 zh/en 各出现一次」判定
-const locSrc = LOCALE_SRC_FILES.map((f) => fs.readFileSync(path.join(root, f), 'utf8')).join('\n')
+// 这份清单里写的是词条「原来叫什么」，不是「今天住在哪」：本题（#1209）把 locale-pages 从
+// locale-pages.js 转成了 locale-pages.ts，而构建的 pixel-ts 那一段会把每个 .ts 真源转译成同名
+// .js（带 AUTO-GENERATED 横幅、字符串字面量被改写成双引号）。所以按 .js 路径读会读到派生产物：
+// 下面那句 keysOf 的正则认的是 '键': '值' 这种单引号写法，读到产物就会一个键都认不出来、
+// 把「键非双语配对」误报成红。取源统一走 tests/lib/source-text.ts（#1207 立的入口，
+// 问 .js 时同名 .ts 优先），下面读的与 import 的都换成它给的那条路径。
+const { sourcePath } = require('./lib/source-text.ts')
+const locSrc = LOCALE_SRC_FILES.map((f) => fs.readFileSync(path.join(root, sourcePath(f)), 'utf8')).join('\n')
 function sliceAfter(buf, marker) { const i = buf.indexOf(marker); return i < 0 ? '' : buf.slice(i) }
 function keysOf(seg) {
   const re = /'([a-zA-Z0-9_.]+)':\s*'((?:[^'\\]|\\.)*)'/g
@@ -100,10 +107,13 @@ for (const v of typeValues) {
 }
 
 // ---------- D. 双产物关键键 ----------
+// #1209 起 locale-pages 片段的真源是 .ts：构建的 pixel-ts 转译把字符串字面量改写成双引号，
+//   产物里键的写法是 "键" 而不再是 '键'（手写 .js 时代是逐字拼进去的）。判据只认键名本身，
+//   单双引号都算命中 —— 只认单引号会把转译后的产物误报成缺键。
 for (const a of ['client.js', path.join('package', 'lib', 'client.js')]) {
   let buf
   try { buf = fs.readFileSync(path.join(root, a), 'utf8') } catch (e) { bad('D. 产物缺失 ' + a); continue }
-  const miss = REQUIRED.filter(function (k) { return buf.indexOf("'" + k + "'") < 0 })
+  const miss = REQUIRED.filter(function (k) { return buf.indexOf("'" + k + "'") < 0 && buf.indexOf('"' + k + '"') < 0 })
   if (!miss.length) ok('D. 产物关键键齐备 ' + a)
   else bad('D. 产物缺键 ' + a + ' -> ' + miss.join(','))
 }
@@ -127,7 +137,11 @@ const LOCALE_STRUCT_FILES = [
   const problems = []
   for (const rel of LOCALE_STRUCT_FILES) {
     let mod
-    try { mod = await import(pathToFileURL(path.join(root, rel)).href) } catch (e) { problems.push(rel + ' 载入失败：' + ((e && e.message) || e)); continue }
+    // 与上面 locSrc 同一条口径：先问 sourcePath 拿到这份词条真源今天住在哪，再 import 它。
+    // 不先问就按 .js 拼 URL，这条 A2 断言盯的会是构建产物而不是源码 —— 产物对不对是
+    // verify-*-freshness 那几条的职责，不是这里的。
+    const real = path.join(root, sourcePath(rel))
+    try { mod = await import(pathToFileURL(real).href) } catch (e) { problems.push(rel + ' 载入失败：' + ((e && e.message) || e)); continue }
     for (const name of Object.keys(mod)) {
       const dict = mod[name]
       if (!dict || typeof dict !== 'object' || !dict.zh || !dict.en) continue

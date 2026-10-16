@@ -28,6 +28,8 @@ const path = require('path')
 // 后半段（truthLines）仍然走共用求值入口；说明符写成显式 .ts，所以这份门禁挂着钩子跑、裸着跑都行
 // （共用入口只引 node:vm，没有仓库内的依赖；写 .js 的调用方则必须挂 scripts/ts-hook.mjs）。
 const { compileFn } = require('./lib/eval-probe.ts')
+// 取源走共用入口（#1207 立）：按 .js 路径直接读，读到的会是真源旁边那份构建产物。
+const { sourceText } = require('./lib/source-text.ts')
 const ROOT = path.join(__dirname, '..')
 let failed = false
 const check = function (cond, msg) {
@@ -100,8 +102,11 @@ check(!!staleMissing && staleMissing.key === 'list.restFallbackStaleNonQuota', '
 check(view({ snapshot: { fallback: null, fallbackAt: null, fallbackReason: null } }, NOW, 0) === null, '恢复后的干净快照 → 一个字都不画（回切不清就红）')
 
 // ── 四、词条与产物：中性句里一个字不许提配额，配额句一字不动 ──
+// #1209：locale-pages 的真源从手写 .js 转成了 .ts，按 .js 路径直接读会读到构建产物
+//   （pixel-ts 写在真源旁边那份，字符串引号统一变双引号），下面那条只认单引号的正则会一条都取不到。
+//   所以取源走共用入口拿真源文本；正则仍只认单引号 —— 真源今天就是单引号写的，判据本身不放松。
 const localeAll = ['locale-flow.js', 'locale-word.js', 'locale-pages.js', 'locale-labels.js', 'locale-panel.js']
-  .map(function (f) { try { return fs.readFileSync(path.join(ROOT, 'src/client/kernel', f), 'utf8') } catch (e) { return '' } })
+  .map(function (f) { try { return sourceText('src/client/kernel/' + f) } catch (e) { return '' } })
   .join('\n')
 const textsOf = function (k) {
   return Array.from(localeAll.matchAll(new RegExp("'" + k.replace(/\./g, '\\.') + "':\\s*'([^']*)'", 'g')))

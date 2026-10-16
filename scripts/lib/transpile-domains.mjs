@@ -146,7 +146,7 @@ export function transpileUnit(sourcePath) {
  * 不要在每个调用点各写一遍 require 与报错。
  */
 let esbuildModule = null
-function loadEsbuild() {
+export function loadEsbuild() {
   if (esbuildModule) return esbuildModule
   const require = createRequire(resolve(REPO_ROOT, 'package.json'))
   try {
@@ -230,6 +230,13 @@ export function readSpliceFragmentSource(relPath) {
  * 再算一次会把同一份叶子数成两份、把好叶子报成未登记；`.d.ts` 是纯类型声明，没有运行时产物，
  * 永远不算叶子。
  *
+ * #1209 补的一支：同名并排的 `.js` 是**产物**，不是一份待登记的叶子源码。在这一支补齐之前，
+ * 凡是「源码 .ts 就在旁边」的 `.js` 都会被反向检查当成没登记的叶子 —— 客户端 kernel / statusbar
+ * 这两处本来不在这条检查的目录里（walk 只走 views / panel / statusbar / floating），三份片段转成
+ * TypeScript 之后构建每次都会报 `StatusBackend.js 未在 LEAF_MODULES 登记`，而那份 .js 其实是
+ * 构建自己刚写下的产物。判据是「旁边有没有同名 .ts」而不是「文件里有没有 AUTO-GENERATED 字样」：
+ * 前者是源码与产物的关系（构建写盘之前就该这么判），后者要读文件内容、还得依赖产物头上那行注释。
+ *
  * 为什么住在这里而不是 scripts/build.mjs：#1207 的对抗式审查发现，这条判据写在 build.mjs 里时，
  * 门禁只能拿正则看它「有没有写」，把实现掏空成 `return false` 照样全绿。所以它接一个显式的根目录
  * 参数搬到这里，门禁能在临时目录里把四种情形都摆出来真跑一遍。
@@ -239,7 +246,11 @@ export function readSpliceFragmentSource(relPath) {
  */
 export function isLeafSourcePath(root, rel) {
   if (rel.endsWith('.d.ts')) return false
-  if (rel.endsWith('.js')) return true
+  if (rel.endsWith('.js')) {
+    // 旁边有同名 TypeScript 源码时，这一份是它的产物（构建写下的），不算独立叶子。
+    const ext = rel.slice(rel.lastIndexOf('.'))
+    return !existsSync(resolve(root, rel.slice(0, -ext.length) + '.ts'))
+  }
   if (!fragmentLoaderFor(rel)) return false
   const ext = rel.slice(rel.lastIndexOf('.'))
   return !existsSync(resolve(root, rel.slice(0, -ext.length) + '.js'))

@@ -9,13 +9,17 @@ const path = require('path')
 const { pathToFileURL } = require('url')
 // 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
 const { compileFn } = require('./lib/eval-probe.js')
+// 取源走共用入口（#1207 立）：问 .js 时同名 .ts 优先。这道门禁读的都是片段真源的文本，
+// 而还没迁移的片段盘上也有一份同名 .js 产物（构建的 pixel-ts 那一段生成，字符串引号与缩进都被改写），
+// 按 .js 直接读会读到产物、正则扫不到东西。sourcePath 让「已迁移」与「未迁移」两种片段走同一条读法。
+const { sourcePath, spliceableJs } = require('./lib/source-text.ts')
 
 const root = path.resolve(__dirname, '..')
 let failed = false
 let failedN = 0
 let total = 0
 const ok = (cond, msg) => { total++; if (cond) console.log('  PASS ' + msg); else { failed = true; failedN += 1; console.log('  FAIL ' + msg) } }
-const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8')
+const read = (rel) => fs.readFileSync(path.join(root, sourcePath(rel)), 'utf8')
 
 // —— 取真源：bannerChain.js 是 leaf 模块（每行行首 export），去掉 export 后在沙箱里求值 ——
 //   闭包里的那些依赖按真形状顶替：链快照读数照产物里的写法从 st.chainSnapshot 取，
@@ -131,7 +135,7 @@ async function main() {
   ok(!!seen.logged.find((l) => l.event === 'guide.inject' && l.fields.step === 'gh:remote' && l.fields.outcome === 'action'), '日志里记下「哪一步、给出去的是哪一类」')
 
   console.log('== 8. 门控那个窗：点确认只把后端定下来，不注入、也不记布局 ==')
-  const sbSrc = read('src/client/statusbar/StatusBackend.js').replace(/^[ \t]*export[ \t]+/gm, '')
+  const sbSrc = spliceableJs('src/client/statusbar/StatusBackend.js')
   const sbSeen = { injected: [], decisions: [], bound: [] }
   const sbSandbox = {
     tr: (k) => String(k),

@@ -19,6 +19,9 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+// 取源走共用入口（#1207 立，见 tests/lib/source-text.ts）：#1209 把 prompts.js 与 StatusBackend.js
+// 的真源转成了 .ts，按 .js 路径直接读会读到真源旁边那份构建产物（esbuild 排版过，函数形状也变了）。
+import { sourcePath, spliceableJs } from './lib/source-text.ts'
 // 本文件按文本求值统一走共用入口 compileFn：把 store-prefs.js 真身与假 window/localStorage 一起求值（理由与用法见 tests/lib/eval-probe.js 文件头）。
 import { compileFn } from './lib/eval-probe.js'
 
@@ -27,7 +30,7 @@ const PREFS_REL = 'src/client/kernel/store-prefs.js'
 let passed = 0
 let failed = 0
 const check = (ok, msg) => { if (ok) { console.log('  PASS ' + msg); passed++ } else { console.log('  FAIL ' + msg); failed++ } }
-const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
+const read = (rel) => fs.readFileSync(path.join(ROOT, sourcePath(rel)), 'utf8')
 // #1003 收尾：版本位那根管子要拔净 —— 扫描一棵源码树下还有没有哪一处提到 baseRev，返回「文件:行号」清单。
 //   真源扫的是 src/（B 组）；反证 F4 拿它扫一份塞了 baseRev 的临时副本，证明这把扫描抓得到漏改。
 const scanBaseRev = function (rootDir) {
@@ -119,12 +122,15 @@ console.log('== D keepUserPick 原样透传 ==')
 console.log('')
 console.log('== G R6b：本地镜像不再垫底 ==')
 {
-  const promptsSrc = read('src/client/kernel/prompts.js')
-  const m = promptsSrc.match(/export const currentBackendId = function \(st\) \{[\s\S]*?\n    \}/)
+  // #1209：prompts 的真源已是 .ts，这里取的是「构建真正拼进闭包的那份 JavaScript」
+  //   （spliceableJs = 真源过 esbuild + 剥行首 export），所以下面这条正则按转译后的形状写：
+  //   没有 `export ` 前缀、`function(` 之间没有空格（esbuild 重新排版过）、收尾是 `};`。
+  const promptsSrc = spliceableJs('src/client/kernel/prompts.js')
+  const m = promptsSrc.match(/^const currentBackendId = function\(st\) \{[\s\S]*?\n\};/m)
   const fnSrc = m ? m[0] : ''
   check(!!fnSrc, '取到 prompts.js 里的 currentBackendId（真身，整段取出）')
   const mk = function (srcText) {
-    const body = srcText.trim().replace(/^export const currentBackendId = /, '')
+    const body = srcText.trim().replace(/^const currentBackendId = /, '')
     // 回读函数按生产行为恒空（镜像已退役）：改走共用入口 compileFn。
     return compileFn(['getCachedSelection'], 'return ' + body)(() => null)
   }
