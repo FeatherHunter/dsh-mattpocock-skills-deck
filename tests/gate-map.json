@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T17:33:31.368Z",
+  "generatedAt": "2026-10-16T17:34:29.905Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 301,
   "gateCount": 301,
@@ -978,8 +978,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；源码里的路径字面量 7 条"
     },
     {
-      "step": "node tests/verify-1003-workspace-write-robust.js",
-      "file": "tests/verify-1003-workspace-write-robust.js",
+      "step": "node tests/verify-1003-workspace-write-robust.ts",
+      "file": "tests/verify-1003-workspace-write-robust.ts",
       "guards": [
         "docs/agents/workspace.yaml",
         "src/host/workspaceCwd.ts"
@@ -6916,7 +6916,7 @@
       "node tests/verify-1003-migration.js",
       "node tests/verify-1003-single-outlet.ts",
       "node tests/verify-1003-unified-decision.ts",
-      "node tests/verify-1003-workspace-write-robust.js",
+      "node tests/verify-1003-workspace-write-robust.ts",
       "node tests/verify-1058-markdown-read-log.ts",
       "node tests/verify-1129-markdown-claim.ts",
       "node tests/verify-1130-gitlab-marker-read.ts",
@@ -7469,7 +7469,7 @@
       "node tests/verify-1003-migration.js",
       "node tests/verify-1003-no-cwd-masquerade.js",
       "node tests/verify-1003-single-outlet.ts",
-      "node tests/verify-1003-workspace-write-robust.js",
+      "node tests/verify-1003-workspace-write-robust.ts",
       "node tests/verify-1109-matches-timeout.ts",
       "node tests/verify-1115-timer-handle.ts",
       "node tests/verify-3-workspace-switch.js",

@@ -14,41 +14,42 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
-const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href)
+const imp = (rel: string) => import(pathToFileURL(path.join(ROOT, rel)).href)
 let passed = 0
 let failed = 0
-const check = (ok, msg) => { if (ok) { console.log('  PASS ' + msg); passed++ } else { console.log('  FAIL ' + msg); failed++ } }
+const check = (ok: boolean, msg: string) => { if (ok) { console.log('  PASS ' + msg); passed++ } else { console.log('  FAIL ' + msg); failed++ } }
 
 const { createWorkspaceCwd } = await imp('src/host/workspaceCwd.js')
 
 /** 造一个文件通道：writeText 按计划表行为（'ok' / 'throw:CODE'），其余方法落到真盘。 */
-const makeFs = (plan) => {
+const makeFs = (plan: string[]) => {
   let calls = 0
   return {
     calls: () => calls,
-    async resolve(p, opts) { const base = (opts && opts.cwd) || ''; const rel = String(p || '').replace(/\\/g, '/'); return base ? String(base).replace(/\\/g, '/') + '/' + rel : rel },
-    async readText(t) { return fs.readFileSync(String(t).replace(/\//g, path.sep), 'utf8') },
-    async writeText(t, c) {
+    async resolve(p: unknown, opts?: { cwd?: string }) { const base = (opts && opts.cwd) || ''; const rel = String(p || '').replace(/\\/g, '/'); return base ? String(base).replace(/\\/g, '/') + '/' + rel : rel },
+    async readText(t: unknown) { return fs.readFileSync(String(t).replace(/\//g, path.sep), 'utf8') },
+    async writeText(t: unknown, c: unknown) {
       calls += 1
       const step = plan[Math.min(calls - 1, plan.length - 1)]
       if (step !== 'ok') { const code = String(step).replace('throw:', ''); throw Object.assign(new Error(code + ': 这次写不进去'), { code: code }) }
       const real = String(t).replace(/\//g, path.sep); fs.mkdirSync(path.dirname(real), { recursive: true }); fs.writeFileSync(real, String(c), 'utf8')
     },
-    async mkdir(t) { fs.mkdirSync(String(t).replace(/\//g, path.sep), { recursive: true }) },
+    async mkdir(t: unknown) { fs.mkdirSync(String(t).replace(/\//g, path.sep), { recursive: true }) },
   }
 }
+type StubFs = ReturnType<typeof makeFs>
 
-const mkCase = async (plan) => {
+const mkCase = async (plan: string[]) => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'v1003w-home-'))
   const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'v1003w-ws-'))
   const f = makeFs(plan)
   const api = createWorkspaceCwd({
     ctx: { get: () => undefined }, DEFAULT_CWD: '',
-    getPlatform: async () => ({ fs: f, path: path, getHome: async () => home }),
+    getPlatform: async () => ({ fs: f as StubFs, path: path, getHome: async () => home }),
     getTrackerRegistry: async () => ({ has: () => true, bind: () => {}, get: () => null, describe: () => null }),
     getWorkspaceStore: async () => ({ invalidate: () => {} }),
     getChoiceStore: async () => ({ rememberWorkspace: async () => ({ ok: true, rev: 1 }), getWorkspace: async () => ({ ok: true, found: false }) }),
-    canonicalKey: async (c) => c, setCache: () => {}, timer: { timeout: () => null },
+    canonicalKey: async (c: unknown) => c, setCache: () => {}, timer: { timeout: () => null },
     detectionExec: async () => ({}), logCtx: null,
   })
   const out = await api.handleBind({ cwd: ws, backendId: 'github' })
