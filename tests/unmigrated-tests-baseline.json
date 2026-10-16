@@ -25,7 +25,6 @@
     "tests/verify-530-pr-tab.js",
     "tests/verify-544-standalone-blocked.js",
     "tests/verify-587-update-live.js",
-    "tests/verify-587-update-restart.js",
     "tests/verify-589-list-dedupe.js",
     "tests/verify-596-rpc-carrier.js",
     "tests/verify-599-merged-pr.js",
