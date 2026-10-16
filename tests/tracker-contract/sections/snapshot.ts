@@ -1,73 +1,175 @@
-/**
- * tests/tracker-contract/sections/snapshot.js — snapshot.js 宿主编排段（#132 Q2=B，Q3 细则必测）。
- *
- * 第一性原理（#124 §2.1 + Q3 裁决）：
- *  - composeSnapshot 非 op：纯 list 组合 + deck 派生；后端绝不存 deck 字段。
- *  - 缓存只缓存数据：快照（TTL 5000 可配）+ 依赖边 LRU（TTL 5s）；**绝不缓存 hasField/unsupported 判定**。
- *  - 「可选后端快路径」= snapshotFast（非 op）；只接受完整 Issue[]，否则回落 list（桩不误导）。
- *  - 写后自动逐出 = 宿主编排层显式 invalidate（本模块不感知写操作）。
- */
-
-import { createRegistry } from '../../../src/tracker/registry/core.ts' // V1 #461：registry.js 已拆为三块
+// tests/tracker-contract/sections/snapshot.ts —— 快照拼装分区（原 snapshot.js）。
+//
+// 守的东西（#132 Q2=B）：composeSnapshot 非 op（纯 list 组合 + deck 派生）；快照缓存
+// （TTL 可配）+ 依赖边 LRU 只缓存边数据；unsupported 不缓存；可选快路径（snapshotFast，
+// 不完整回落 list）；map 正文五区块解析；拉取请求同池（#505 落 #294 形状 A）；数字走
+// 后端 counts（deck.counts / deck.partial，#689）。
+//
+// 类型说明：
+// - 拼装器来自没类型的旧文件（allowJs 只保证引入得到，不做类型检查），
+//   它的选项与返回在用到的地方是弱类型——传参按 JSDoc 形状传，读数不断言；
+// - 注册表与 OPERATIONS 来自已转成 TS 的源文件，是强类型：
+//   假后端模块统一按 `as unknown as BackendModule` 断言（契约分区同款做法），
+//   因为它们故意返回坏形状（unsupported 桩、缺数字的 counts），本来就是要被逮住的反例。
+import { createRegistry } from '../../../src/tracker/registry/core.js'
 import { createSnapshotComposer } from '../../../src/host/tracker/snapshot.js'
 import { OPERATIONS } from '../../../src/tracker/contract/index.ts'
+import type { BackendModule } from '../../../src/tracker/contract/backend-module.ts'
+import type { BackendContext } from '../../../src/tracker/contract/contexts.ts'
+import type { Issue } from '../../../src/tracker/contract/entities.ts'
+import type { Snapshot, DeckProjection } from '../../../src/shared/tracker/shape.js'
 
-const ref = { backend: 'fake', refId: 'r1', name: 'R1', url: '' }
-const refU = { backend: 'unsup', refId: 'r2', name: 'R2', url: '' }
+/** 单条快照断言的结果：ok 为判定，detail 留现场。 */
+export interface SnapshotSectionResult {
+  name: string
+  ok: boolean
+  detail: string
+}
 
-const ALL = [
-  { key: 'm1', type: 'map', title: 'M', state: 'open', body: '', url: '', createdAt: '', updatedAt: '', closedAt: null, parentKey: null, labels: [], assignees: [], blockedBy: [], comments: [], reason: '' },
-  { key: 't1', type: 'issue', title: 'T1', state: 'open', body: '', url: '', createdAt: '', updatedAt: '', closedAt: null, parentKey: 'm1', labels: [], assignees: [], blockedBy: [], comments: [], reason: '' },
-  { key: 'o1', type: 'issue', title: 'O1', state: 'open', body: '', url: '', createdAt: '', updatedAt: '', closedAt: null, parentKey: 'ghost-map', labels: [], assignees: [], blockedBy: [], comments: [], reason: '' },
-]
+/**
+ * 拼装成功包：拼装器的 JSDoc 只写了 {ok, snapshot, version, cached}，
+ * 运行时带版号对上时的 304 那条还多带 notModified（见 snapshot.js:299），这里一并写上。
+ * deck 在运行时带 counts/partial（数字走后端 counts，#689），
+ * 共享形状的 DeckProjection 没跟上，这里按运行时补——不改源形状，本分区自用。
+ * 本分区每个用例都先断言成功再读数，读版/读缓存/读 304 标记/读数字都走这个形状，一处一断言。
+ */
+interface ComposeSuccess {
+  ok: true
+  snapshot: Snapshot & {
+    deck: DeckProjection & {
+      counts?: { open: number; closed: number; total: number }
+      partial?: boolean
+    }
+  }
+  version: string
+  cached?: boolean
+  notModified?: unknown
+}
+
+/** 依赖边成功包：ok 时读 data 与 cached。 */
+interface DependencySuccess {
+  ok: true
+  data: unknown
+  cached?: boolean
+}
+
+/**
+ * 快照里的地图节点：运行时是“整张 Issue（带 key）加解析出的正文区块”
+ *（见 src/host/tracker/snapshot.js 的 assembleSnapshot），
+ * 但共享形状的 MapNode 只写了 tickets。这里按运行时补全，
+ * 有 key 才能 find，有区块字段才能断言 map 正文那两条回归。
+ */
+interface SnapshotMapNode extends Issue {
+  tickets: Issue[]
+  destination: string
+  notes: string
+  decisions: Array<{ title: string; url: string }>
+  fog: string[]
+  outOfScope: string[]
+}
+
+/**
+ * 票池半成品：测试造票只写差异字段，缺的由 base 补齐。
+ * 拉取请求三字段全可选——Legacy8 那张票故意三个都不写（MISSING），这是要守的口径，
+ * 不是漏写；类型上可选才能把“省略”与“写 false/空”区分开。
+ */
+interface PoolTicket {
+  key?: string
+  type: string
+  title: string
+  state: string
+  body: string
+  url: string
+  createdAt: string
+  updatedAt: string
+  closedAt: string | null
+  parentKey: string | null
+  labels: string[]
+  assignees: string[]
+  blockedBy: string[]
+  comments: unknown[]
+  reason: string
+  isPullRequest?: boolean
+  mergedAt?: string | null
+  reviews?: unknown[]
+}
+
+// 注册表要一个进程级上下文，测试桩传空对象：运行时不读它，类型上断言一次。
+const emptyCtx = {} as unknown as BackendContext
 
 export async function run() {
-  const out = []
+  const out: SnapshotSectionResult[] = []
   const P = 'snapshot · '
-  const assert = async (name, cond, detail) => {
+  const assert = async (name: string, cond: unknown, detail?: string): Promise<void> => {
     let ok = false
     try { ok = !!(await cond) } catch (e) { out.push({ name: P + name, ok: false, detail: String(e) }); return }
     out.push({ name: P + name, ok, detail: detail || '' })
   }
 
+  // base 只做一件事：给半成品测试票补上通用默认字段。入参是差异字段，调用处只传要变的。
+  const base = (o: Partial<PoolTicket>): PoolTicket => Object.assign(
+    {
+      type: 'issue', title: 'T', state: 'open', body: '', url: '',
+      createdAt: '', updatedAt: '', closedAt: null, parentKey: null,
+      labels: [], assignees: [], blockedBy: [], comments: [], reason: ''
+    },
+    o
+  )
+
+  const ref = { backend: 'fake', refId: 'r1', name: 'R1', url: '' }
+  const refU = { backend: 'unsup', refId: 'r2', name: 'R2', url: '' }
+
+  const ALL = [
+    { key: 'm1', type: 'map', title: 'M', state: 'open', body: '', url: '', createdAt: '', updatedAt: '', closedAt: null, parentKey: null, labels: [], assignees: [], blockedBy: [], comments: [], reason: '' },
+    { key: 't1', type: 'issue', title: 'T1', state: 'open', body: '', url: '', createdAt: '', updatedAt: '', closedAt: null, parentKey: 'm1', labels: [], assignees: [], blockedBy: [], comments: [], reason: '' },
+    { key: 'o1', type: 'issue', title: 'O1', state: 'open', body: '', url: '', createdAt: '', updatedAt: '', closedAt: null, parentKey: 'ghost-map', labels: [], assignees: [], blockedBy: [], comments: [], reason: '' },
+  ]
+
   // ── 组装 / 非 op / deck 派生 ──
   {
     let listCalls = 0
-    const registry = createRegistry({}, { matchesTimeout: 50 })
+    const registry = createRegistry(emptyCtx, { matchesTimeout: 50 })
     registry.register({
       id: 'fake', label: 'fake',
       create: () => ({ list: async () => { listCalls++; return { ok: true, data: ALL } } }),
       matches: async () => true,
-    })
+    } as unknown as BackendModule)
     const composer = createSnapshotComposer(registry, { snapshotTtl: 50, depsTtl: 50 })
-    const res = await composer.composeSnapshot('fake', ref, { cwd: '/w' })
-    await assert('compose 成功且出 deck', res.ok === true && res.snapshot && res.snapshot.deck && typeof res.snapshot.deck.stats === 'object', JSON.stringify(res && res.error))
+    const res = await composer.composeSnapshot('fake', ref, { cwd: '/w' }) as ComposeSuccess
+    // detail 原来是 `res && res.error`：成功时 res.error 是 undefined，JSON 化后还是 undefined，
+    // 断言行不打印现场。这里保留这个语义（成功不打印）：res 已按成功形收窄，error 字段类型上没有，
+    // 只在运行时万一失败时才读得到，所以这里按“可能有 error”读一次，与原来逐字一致。
+    await assert('compose 成功且出 deck', res.ok === true && res.snapshot && res.snapshot.deck && typeof res.snapshot.deck.stats === 'object', JSON.stringify((res as unknown as { error?: unknown }).error))
     const snap = res.snapshot
+    // 地图节点运行时带 key 与正文区块，共享形状只写了 tickets，这里按运行时收窄一次。
+    const snapMaps = snap.maps as SnapshotMapNode[]
     await assert('repository 回填 ref', snap.repository === ref)
-    await assert('maps 挂一层 tickets', snap.maps.length === 1 && snap.maps[0].key === 'm1' && snap.maps[0].tickets.length === 1 && snap.maps[0].tickets[0].key === 't1')
+    await assert('maps 挂一层 tickets', snapMaps.length === 1 && snapMaps[0].key === 'm1' && snapMaps[0].tickets.length === 1 && snapMaps[0].tickets[0].key === 't1')
     await assert('孤儿（破链）归 issues', snap.issues.some((i) => i.key === 'o1'))
     await assert('deck 覆盖全量（map.tickets + orphan；map 节点是容器不重复计数）',
       snap.deck.stats.total === 2 && snap.deck.stats.levels && snap.deck.progressOf.t1 === null && 'm1' in snap.deck.progressOf,
       JSON.stringify(snap.deck.stats))
-    await assert('composeSnapshot 非 op：OPERATIONS 不含 snapshot', !OPERATIONS.includes('snapshot') && !('snapshot' in registry.get('fake')))
+    // 注册表 get 回来可能是空（没注册这个 id），这里感叹号：本文件现造现用的假注册表，
+    // fake 是同一段刚注册进去的，取不到只可能是测试自己写错了。
+    await assert('composeSnapshot 非 op：OPERATIONS 不含 snapshot', !OPERATIONS.includes('snapshot') && !('snapshot' in registry.get('fake')!))
   }
 
   // ── 快照缓存：TTL / force / invalidate / clear ──
   {
     let listCalls = 0
-    const registry = createRegistry({}, { matchesTimeout: 50 })
+    const registry = createRegistry(emptyCtx, { matchesTimeout: 50 })
     registry.register({
       id: 'fake', label: 'fake',
       create: () => ({ list: async () => { listCalls++; return { ok: true, data: ALL } } }),
       matches: async () => true,
-    })
+    } as unknown as BackendModule)
     const composer = createSnapshotComposer(registry, { snapshotTtl: 50, depsTtl: 50 })
     await composer.composeSnapshot('fake', ref, {})
-    const c2 = await composer.composeSnapshot('fake', ref, {})
+    const c2 = await composer.composeSnapshot('fake', ref, {}) as ComposeSuccess
     await assert('命中快照缓存（list 只调一次）', listCalls === 1 && c2.cached === true, `listCalls=${listCalls}`)
     await composer.composeSnapshot('fake', ref, {}, { force: true })
     await assert('force 绕过缓存 → 重新 list', listCalls === 2, `listCalls=${listCalls}`)
-    const last = await composer.composeSnapshot('fake', ref, {})
+    const last = await composer.composeSnapshot('fake', ref, {}) as ComposeSuccess
     await assert('force 后缓存已刷新', last.cached === true && listCalls === 2)
     composer.invalidateSnapshot('fake', ref)
     await composer.composeSnapshot('fake', ref, {})
@@ -90,7 +192,7 @@ export async function run() {
       fakeNow += 5000 // 时钟往前推 5 秒：缓存确定过期（不看机器忙不忙）
       await exp.composeSnapshot('fake', ref, {})
       await assert('✗ probe: TTL 过期 → 重新 list（不 Serve 陈旧）', listCalls === 6, `listCalls=${listCalls}`)
-      const stale = await exp.composeSnapshot('fake', ref, {})
+      const stale = await exp.composeSnapshot('fake', ref, {}) as ComposeSuccess
       await assert('TTL 过期后已重新缓存', stale.cached === true)
     } finally {
       Date.now = realNow
@@ -100,7 +202,7 @@ export async function run() {
   // ── 依赖 LRU：只缓存边数据 ──
   {
     let depCalls = 0
-    const registry = createRegistry({}, { matchesTimeout: 50 })
+    const registry = createRegistry(emptyCtx, { matchesTimeout: 50 })
     registry.register({
       id: 'fake', label: 'fake',
       create: () => ({
@@ -108,10 +210,10 @@ export async function run() {
         getDependencies: async () => { depCalls++; return { ok: true, data: { blockedBy: [], blocking: [] } } },
       }),
       matches: async () => true,
-    })
+    } as unknown as BackendModule)
     const composer = createSnapshotComposer(registry, { snapshotTtl: 50, depsTtl: 50 })
-    const d1 = await composer.getDependencies('fake', ref, 't1', {})
-    const d2 = await composer.getDependencies('fake', ref, 't1', {})
+    const d1 = await composer.getDependencies('fake', ref, 't1', {}) as DependencySuccess
+    const d2 = await composer.getDependencies('fake', ref, 't1', {}) as DependencySuccess
     await assert('依赖 LRU：第二次命中（只调一次 op）', depCalls === 1 && d1.cached !== true && d2.cached === true, `depCalls=${depCalls}`)
     composer.invalidateDependencies('fake', ref, 't1')
     await composer.getDependencies('fake', ref, 't1', {})
@@ -124,14 +226,14 @@ export async function run() {
   // ── unsupported 不缓存（G5 红线）：独立计数器验证 ──
   {
     let unsupCalls = 0
-    const registry = createRegistry({}, { matchesTimeout: 50 })
+    const registry = createRegistry(emptyCtx, { matchesTimeout: 50 })
     registry.register({
       id: 'unsup', label: 'unsup',
       create: () => ({
         getDependencies: async () => { unsupCalls++; return { ok: false, error: { kind: 'unsupported', message: 'no graph' } } },
       }),
       matches: async () => false,
-    })
+    } as unknown as BackendModule)
     const composer = createSnapshotComposer(registry, { snapshotTtl: 50, depsTtl: 50 })
     await composer.getDependencies('unsup', refU, 'x', {})
     await composer.getDependencies('unsup', refU, 'x', {})
@@ -142,7 +244,7 @@ export async function run() {
   {
     let listCalls = 0
     let fastUsed = 0
-    const registry = createRegistry({}, { matchesTimeout: 50 })
+    const registry = createRegistry(emptyCtx, { matchesTimeout: 50 })
     registry.register({
       id: 'fast', label: 'fast',
       create: () => ({
@@ -150,7 +252,7 @@ export async function run() {
         snapshotFast: async () => { fastUsed++; return { ok: true, data: ALL } },
       }),
       matches: async () => true,
-    })
+    } as unknown as BackendModule)
     const composer = createSnapshotComposer(registry, { snapshotTtl: 50, depsTtl: 50 })
     const r1 = await composer.composeSnapshot('fast', ref, {})
     await assert('快路径生效（list 不调，deck 照常派生）', r1.ok === true && fastUsed === 1 && listCalls === 0 && r1.snapshot.deck.stats.total === 2,
@@ -159,7 +261,7 @@ export async function run() {
   {
     let listCalls = 0
     let fastUsed = 0
-    const registry = createRegistry({}, { matchesTimeout: 50 })
+    const registry = createRegistry(emptyCtx, { matchesTimeout: 50 })
     registry.register({
       id: 'half', label: 'half',
       create: () => ({
@@ -167,7 +269,7 @@ export async function run() {
         snapshotFast: async () => { fastUsed++; return { ok: true, data: null } }, // 不完整 → 回落
       }),
       matches: async () => true,
-    })
+    } as unknown as BackendModule)
     const composer = createSnapshotComposer(registry, { snapshotTtl: 50, depsTtl: 50 })
     const r2 = await composer.composeSnapshot('half', ref, {})
     await assert('✗ probe: 快路径不完整 → 回落 list（桩不误导）', r2.ok === true && fastUsed === 1 && listCalls === 1,
@@ -183,16 +285,17 @@ export async function run() {
       { key: 'm1', type: 'map', title: 'M', state: 'open', body: '## Destination\n做好一件事\n## Notes\n背景说明\n## Decisions so far\n- [定版：先修详情页](https://example.com/1) 理由一\n## Not yet specified\n- 迷雾一\n<!-- 注释不进入迷雾 -->\n## Out of scope\n- 不做二\n', url: '', createdAt: '', updatedAt: '', closedAt: null, parentKey: null, labels: [], assignees: [], blockedBy: [], comments: [], reason: '' },
       { key: 'm2', type: 'map', title: 'M2', state: 'open', body: '', url: '', createdAt: '', updatedAt: '', closedAt: null, parentKey: null, labels: [], assignees: [], blockedBy: [], comments: [], reason: '' },
     ]
-    const registry = createRegistry({}, { matchesTimeout: 50 })
+    const registry = createRegistry(emptyCtx, { matchesTimeout: 50 })
     registry.register({
       id: 'mapbody', label: 'mapbody',
       create: () => ({ list: async () => ({ ok: true, data: MAP_BODY }) }),
       matches: async () => true,
-    })
+    } as unknown as BackendModule)
     const composer = createSnapshotComposer(registry, { snapshotTtl: 50, depsTtl: 50 })
-    const r = await composer.composeSnapshot('mapbody', ref, {})
-    const m1 = r.snapshot.maps.find((x) => x.key === 'm1')
-    const m2 = r.snapshot.maps.find((x) => x.key === 'm2')
+    const r = await composer.composeSnapshot('mapbody', ref, {}) as ComposeSuccess
+    const bodyMaps = r.snapshot.maps as SnapshotMapNode[]
+    const m1 = bodyMaps.find((x) => x.key === 'm1')
+    const m2 = bodyMaps.find((x) => x.key === 'm2')
     await assert('map 区块解析：destination/notes/decisions/fog/outOfScope 命中正文',
       m1 && m1.destination === '做好一件事' && m1.notes === '背景说明'
         && Array.isArray(m1.decisions) && m1.decisions.length === 1
@@ -212,7 +315,6 @@ export async function run() {
   // ── 拉取请求同池（#505 落 #294 形状 A：不分片、不新增集合；同号异类不混键；牌面派生不丢任一）──
   // 分界：组装层全量保留（普通工单与拉取请求同池），界面按类型过滤归前端页签（#506），本层不过滤。
   {
-    const base = (o) => Object.assign({ type: 'issue', title: 'T', state: 'open', body: '', url: '', createdAt: '', updatedAt: '', closedAt: null, parentKey: null, labels: [], assignees: [], blockedBy: [], comments: [], reason: '' }, o)
     const prData = [
       base({ key: 'm1', type: 'map', title: 'M' }),
       base({ key: '5', title: 'Issue5', parentKey: 'm1', isPullRequest: false, mergedAt: null, reviews: [] }),
@@ -221,44 +323,49 @@ export async function run() {
       base({ key: '7', title: 'PR7-orphan', isPullRequest: true, mergedAt: '2024-02-01T00:00:00Z', reviews: [] }),
       base({ key: '8', title: 'Legacy8' }), // 无拉取请求能力的后端：三字段全省略（MISSING）
     ]
-    const registry = createRegistry({}, { matchesTimeout: 50 })
+    const registry = createRegistry(emptyCtx, { matchesTimeout: 50 })
     registry.register({
       id: 'prpool', label: 'prpool',
       create: () => ({ list: async () => ({ ok: true, data: prData }) }),
       matches: async () => true,
-    })
+    } as unknown as BackendModule)
     const composer = createSnapshotComposer(registry, { snapshotTtl: 60000, depsTtl: 60000 })
-    const r = await composer.composeSnapshot('prpool', ref, {})
-    const m1 = r.snapshot.maps.find((x) => x.key === 'm1')
+    const r = await composer.composeSnapshot('prpool', ref, {}) as ComposeSuccess
+    const prMaps = r.snapshot.maps as SnapshotMapNode[]
+    const m1 = prMaps.find((x) => x.key === 'm1')
     await assert('同池 tickets：普通工单与拉取请求同挂一图', r.ok === true && m1 && m1.tickets.length === 2 && m1.tickets.some((t) => t.isPullRequest === false) && m1.tickets.some((t) => t.isPullRequest === true), JSON.stringify(m1 && m1.tickets.map((t) => ({ key: t.key, title: t.title, isPullRequest: t.isPullRequest }))))
     const orphans = r.snapshot.issues
     await assert('✗ probe: 同号异类不互吞（已挂载工单 5 不吞掉孤儿拉取请求 5）', orphans.length === 3 && orphans.some((t) => t.title === 'PR5-orphan' && t.isPullRequest === true) && orphans.some((t) => t.key === '7') && orphans.some((t) => t.key === '8'), JSON.stringify(orphans.map((t) => t.title)))
-    const pr6 = m1.tickets.find((t) => t.key === '6')
+    const pr6 = m1!.tickets.find((t) => t.key === '6')
     const legacy8 = orphans.find((t) => t.key === '8')
-    const issue5 = m1.tickets.find((t) => t.title === 'Issue5')
-    await assert('EMPTY-MISSING 口径：有字段原样带、无字段保持省略', pr6 && Array.isArray(pr6.reviews) && pr6.reviews.length === 1 && pr6.reviews[0].reviewer.login === 'r1' && Array.isArray(issue5.reviews) && issue5.reviews.length === 0 && !Object.prototype.hasOwnProperty.call(legacy8, 'isPullRequest') && !Object.prototype.hasOwnProperty.call(legacy8, 'mergedAt') && !Object.prototype.hasOwnProperty.call(legacy8, 'reviews'), JSON.stringify({ pr6reviews: pr6 && pr6.reviews, legacyKeys: legacy8 && Object.keys(legacy8) }))
+    const issue5 = m1!.tickets.find((t) => t.title === 'Issue5')
+    // 感叹号都是编译期收窄、运行时擦除：找的键/标题是同一文件上面的字面量，不可能找不到；
+    // 万一找不到，擦除后与原来一样抛 TypeError，门禁记 section-crash，行为逐字一致。
+    await assert('EMPTY-MISSING 口径：有字段原样带、无字段保持省略', pr6 && Array.isArray(pr6.reviews) && pr6.reviews.length === 1 && pr6.reviews[0].reviewer!.login === 'r1' && Array.isArray(issue5!.reviews) && issue5!.reviews.length === 0 && !Object.prototype.hasOwnProperty.call(legacy8!, 'isPullRequest') && !Object.prototype.hasOwnProperty.call(legacy8!, 'mergedAt') && !Object.prototype.hasOwnProperty.call(legacy8!, 'reviews'), JSON.stringify({ pr6reviews: pr6 && pr6.reviews, legacyKeys: legacy8 && Object.keys(legacy8) }))
     const po = (r.snapshot.deck && r.snapshot.deck.progressOf) || {}
     await assert('牌面派生覆盖拉取请求（池内身份全覆盖，不丢任一）', r.snapshot.deck && ('6\0pr' in po) && ('7\0pr' in po) && ('8' in po) && r.snapshot.deck.stats.total === 5, JSON.stringify(r.snapshot.deck && { total: r.snapshot.deck.stats.total, keys: Object.keys(po) }))
     await assert('✗ probe: 同键双票不丢（普通 5 与拉取请求 5 各记一票）', ('5\0issue' in po) && ('5\0pr' in po) && r.snapshot.deck.stats.total === 5, JSON.stringify(Object.keys(po)))
     // 版号：只改拉取请求字段也换版号；MISSING 变 EMPTY 也换版号；同数据重建版号不变。
     const v1 = r.version
-    const rSame = await composer.composeSnapshot('prpool', ref, {}, { force: true })
+    const rSame = await composer.composeSnapshot('prpool', ref, {}, { force: true }) as ComposeSuccess
     await assert('同数据强制重建 → 版号不变（可复现）', rSame.version === v1, `v1=${v1} again=${rSame.version}`)
-    prData.find((t) => t.title === 'PR6').mergedAt = '2024-03-01T00:00:00Z'
-    const rMerged = await composer.composeSnapshot('prpool', ref, {}, { force: true })
+    // find 后面跟感叹号：要找的标题是同一文件上面字面量写死的，不可能找不到；
+    // 不加的话类型是“可能为空”，后面赋值编译不过，运行时其实一定有值。
+    prData.find((t) => t.title === 'PR6')!.mergedAt = '2024-03-01T00:00:00Z'
+    const rMerged = await composer.composeSnapshot('prpool', ref, {}, { force: true }) as ComposeSuccess
     await assert('✗ probe: 只改合并时间 → 版号变化（不 served 陈旧 304）', rMerged.version !== v1, `v1=${v1} merged=${rMerged.version}`)
-    prData.find((t) => t.title === 'Legacy8').isPullRequest = false
-    const rMissing = await composer.composeSnapshot('prpool', ref, {}, { force: true })
+    prData.find((t) => t.title === 'Legacy8')!.isPullRequest = false
+    const rMissing = await composer.composeSnapshot('prpool', ref, {}, { force: true }) as ComposeSuccess
     await assert('✗ probe: MISSING 变 EMPTY（false）→ 版号变化', rMissing.version !== rMerged.version, `merged=${rMerged.version} missing=${rMissing.version}`)
   }
 
   // ── 缓存键按后端加仓库键隔离 + LRU20 逐出（#505 键策略）──
   {
     let listCalls = 0
-    const registry = createRegistry({}, { matchesTimeout: 50 })
+    const registry = createRegistry(emptyCtx, { matchesTimeout: 50 })
     const mkBackend = () => ({ list: async () => { listCalls++; return { ok: true, data: ALL } } })
-    registry.register({ id: 'ka', label: 'ka', create: mkBackend, matches: async () => true })
-    registry.register({ id: 'kb', label: 'kb', create: mkBackend, matches: async () => true })
+    registry.register({ id: 'ka', label: 'ka', create: mkBackend, matches: async () => true } as unknown as BackendModule)
+    registry.register({ id: 'kb', label: 'kb', create: mkBackend, matches: async () => true } as unknown as BackendModule)
     const composer = createSnapshotComposer(registry, { snapshotTtl: 60000, depsTtl: 60000 })
     await composer.composeSnapshot('ka', ref, {})
     await composer.composeSnapshot('kb', ref, {})
@@ -267,22 +374,22 @@ export async function run() {
     const before = listCalls
     await composer.composeSnapshot('ka', { backend: 'ka', refId: 'repo-0', name: 'R0', url: '' }, {})
     await assert('✗ probe: LRU20 逐出最早的仓库（第 21 个挤掉第 1 个 → 重新 list）', listCalls === before + 1, `listCalls=${listCalls} before=${before}`)
-    const warm = await composer.composeSnapshot('ka', { backend: 'ka', refId: 'repo-20', name: 'R20', url: '' }, {})
+    const warm = await composer.composeSnapshot('ka', { backend: 'ka', refId: 'repo-20', name: 'R20', url: '' }, {}) as ComposeSuccess
     await assert('LRU 内仍热 → 不重新 list', listCalls === before + 1 && warm.cached === true, `listCalls=${listCalls}`)
   }
 
   // ── 命中刷新 LRU 顺序（#505 小修：命中调 touch 刷新顺序，否则退化成先进先出）──
   {
     let listCalls = 0
-    const registry = createRegistry({}, { matchesTimeout: 50 })
-    registry.register({ id: 'lruref', label: 'lruref', create: () => ({ list: async () => { listCalls++; return { ok: true, data: ALL } } }), matches: async () => true })
+    const registry = createRegistry(emptyCtx, { matchesTimeout: 50 })
+    registry.register({ id: 'lruref', label: 'lruref', create: () => ({ list: async () => { listCalls++; return { ok: true, data: ALL } } }), matches: async () => true } as unknown as BackendModule)
     const composer = createSnapshotComposer(registry, { snapshotTtl: 60000, depsTtl: 60000 })
-    const R = (i) => ({ backend: 'lruref', refId: 'lru-' + i, name: 'L' + i, url: '' })
+    const R = (i: number) => ({ backend: 'lruref', refId: 'lru-' + i, name: 'L' + i, url: '' })
     for (let i = 0; i < 20; i++) await composer.composeSnapshot('lruref', R(i), {})
     await composer.composeSnapshot('lruref', R(0), {}) // 命中 lru-0 → 刷新为最新
     await composer.composeSnapshot('lruref', R(20), {}) // 挤掉最久未用的 lru-1，而不是刚命中的 lru-0
     const before = listCalls
-    const hit0 = await composer.composeSnapshot('lruref', R(0), {})
+    const hit0 = await composer.composeSnapshot('lruref', R(0), {}) as ComposeSuccess
     await assert('✗ probe: 命中刷新顺序（刚命中的 lru-0 不被逐出）', listCalls === before && hit0.cached === true, `listCalls=${listCalls} before=${before}`)
     await composer.composeSnapshot('lruref', R(1), {})
     await assert('✗ probe: 最久未用被逐出（未命中的 lru-1 重新 list）', listCalls === before + 1, `listCalls=${listCalls} before=${before}`)
@@ -290,33 +397,39 @@ export async function run() {
 
   // ── false 与 MISSING 不再混同（#505 小修三态：同键 false 已挂载不吞 MISSING 孤儿）──
   {
-    const base = (o) => Object.assign({ type: 'issue', title: 'T', state: 'open', body: '', url: '', createdAt: '', updatedAt: '', closedAt: null, parentKey: null, labels: [], assignees: [], blockedBy: [], comments: [], reason: '' }, o)
     const mixed = [
       base({ key: 'm1', type: 'map', title: 'M' }),
       base({ key: '9', title: 'Issue9', parentKey: 'm1', isPullRequest: false }),
       base({ key: '9', title: 'Legacy9' }), // MISSING：三字段全省略
     ]
-    const registry = createRegistry({}, { matchesTimeout: 50 })
+    const registry = createRegistry(emptyCtx, { matchesTimeout: 50 })
     registry.register({
       id: 'fmpool', label: 'fmpool',
       create: () => ({ list: async () => ({ ok: true, data: mixed }) }),
       matches: async () => true,
-    })
+    } as unknown as BackendModule)
     const composer = createSnapshotComposer(registry, { snapshotTtl: 60000, depsTtl: 60000 })
-    const r = await composer.composeSnapshot('fmpool', ref, {})
+    const r = await composer.composeSnapshot('fmpool', ref, {}) as ComposeSuccess
     await assert('✗ probe: false 与 MISSING 同键各算各的（孤儿不被吞）', r.ok === true && r.snapshot.issues.some((x) => x.title === 'Legacy9') && r.snapshot.deck.stats.total === 2, JSON.stringify({ issues: r.snapshot.issues.map((x) => x.title), total: r.snapshot.deck && r.snapshot.deck.stats.total }))
   }
 
   // ── 组装器房内日志（#505：未命中记常驻原因枚举；命中记按需，关开关不记、开着百分之一采样）──
   {
-    const fires = []
-    const mkLog = (debugOn) => ({ fire(level, event, fields) { fires.push({ level, event, fields: (typeof fields === 'function') ? fields() : fields }) }, isEnabled(level) { return level === 'info' || (level === 'debug' && debugOn) } })
-    const registry = createRegistry({}, { matchesTimeout: 50 })
+    const fires: Array<{ level: string; event: string; fields: Record<string, unknown> }> = []
+    // 日志收集器：fire 收到的 fields 可能是函数（延迟组装），调用后统一按对象记，
+    // 后面断言只读 reason/kind/ageMs 三个键。
+    const mkLog = (debugOn: boolean) => ({
+      fire(level: string, event: string, fields: Record<string, unknown> | (() => Record<string, unknown>)) {
+        fires.push({ level, event, fields: (typeof fields === 'function') ? fields() : fields })
+      },
+      isEnabled(level: string) { return level === 'info' || (level === 'debug' && debugOn) }
+    })
+    const registry = createRegistry(emptyCtx, { matchesTimeout: 50 })
     registry.register({
       id: 'prlog', label: 'prlog',
       create: () => ({ list: async () => ({ ok: true, data: ALL }) }),
       matches: async () => true,
-    })
+    } as unknown as BackendModule)
     const composer = createSnapshotComposer(registry, { snapshotTtl: 60000, depsTtl: 60000, logCtx: mkLog(true) })
     await composer.composeSnapshot('prlog', ref, {})
     const missEmpty = fires.find((f) => f.event === 'snapshot.cache.miss')
@@ -342,11 +455,12 @@ export async function run() {
   //   这一段守的是「面板上的数字从哪来」：数字是后端 counts 给的真值（不是数池子数出来的），
   //   「这份行数据全不全」由池子行数与 counts.total 对比得出；两者都要算进版号，否则数字变了会被 304 糊过去。
   {
-    const base = (o) => Object.assign({ type: 'issue', title: 'T', state: 'open', body: '', url: '', createdAt: '', updatedAt: '', closedAt: null, parentKey: null, labels: [], assignees: [], blockedBy: [], comments: [], reason: '' }, o)
     const POOL = [base({ key: '1', title: 'A' }), base({ key: '2', title: 'B', state: 'closed' })]
     let countsCalls = 0
-    const mkReg = (countsImpl) => {
-      const reg = createRegistry({}, { matchesTimeout: 50 })
+    // countsImpl 故意收宽：四个用例里有三个返回坏形状（unsupported 桩、配额错、缺数字），
+    // 本来就是要验证“拿不到计数时不写 deck.counts”的反例，类型上不可能是合规的 Counts。
+    const mkReg = (countsImpl: () => unknown) => {
+      const reg = createRegistry(emptyCtx, { matchesTimeout: 50 })
       reg.register({
         id: 'counted', label: 'counted',
         create: () => ({
@@ -354,7 +468,7 @@ export async function run() {
           counts: async () => { countsCalls++; return countsImpl() },
         }),
         matches: async () => true,
-      })
+      } as unknown as BackendModule)
       return reg
     }
 
@@ -362,25 +476,25 @@ export async function run() {
     {
       const live = { open: 1, closed: 1, total: 2 }
       const composer = createSnapshotComposer(mkReg(() => ({ ok: true, data: Object.assign({}, live) })), { snapshotTtl: 60000, depsTtl: 60000 })
-      const r = await composer.composeSnapshot('counted', ref, {})
+      const r = await composer.composeSnapshot('counted', ref, {}) as ComposeSuccess
       await assert('后端计数的三个数写进 deck.counts（面板不再自己数池子）',
         r.ok === true && r.snapshot.deck.counts && r.snapshot.deck.counts.open === 1 && r.snapshot.deck.counts.closed === 1 && r.snapshot.deck.counts.total === 2,
         JSON.stringify(r.snapshot.deck.counts))
       await assert('池子装全了（工单行数 == 后端说的总数）→ partial 为假', r.snapshot.deck.partial === false, 'partial=' + JSON.stringify(r.snapshot.deck.partial))
       const v1 = r.version
-      const again = await composer.composeSnapshot('counted', ref, {}, { force: true })
+      const again = await composer.composeSnapshot('counted', ref, {}, { force: true }) as ComposeSuccess
       await assert('同数据重建 → 版号不变（可复现）', again.version === v1, `v1=${v1} again=${again.version}`)
       // ② 数字变了必须换版号：否则带着旧版号问一次就能被 304 糊过去（规格第 12 节点名的风险）
       live.total = 3
       live.closed = 2
-      const rChanged = await composer.composeSnapshot('counted', ref, {}, { force: true, ifNoneMatch: v1 })
+      const rChanged = await composer.composeSnapshot('counted', ref, {}, { force: true, ifNoneMatch: v1 }) as ComposeSuccess
       await assert('✗ probe: 后端数字变了 → 版号变化且不回 304（数字变了不许被 304 糊过去）',
-        rChanged.version !== v1 && rChanged.notModified !== true && rChanged.snapshot.deck.counts.closed === 2,
+        rChanged.version !== v1 && rChanged.notModified !== true && rChanged.snapshot.deck.counts!.closed === 2,
         `v1=${v1} changed=${rChanged.version} notModified=${JSON.stringify(rChanged.notModified)}`)
       // ③ 池子被截断（总数比手上这些行多）→ partial 为真；且这个变化也要换版号
       const v2 = rChanged.version
-      const rTrunc = await (async () => {
-        const reg2 = createRegistry({}, { matchesTimeout: 50 })
+      const rTrunc = (await (async () => {
+        const reg2 = createRegistry(emptyCtx, { matchesTimeout: 50 })
         reg2.register({
           id: 'counted', label: 'counted',
           create: () => ({
@@ -388,18 +502,19 @@ export async function run() {
             counts: async () => ({ ok: true, data: { open: 1, closed: 1, total: 649 } }),
           }),
           matches: async () => true,
-        })
+        } as unknown as BackendModule)
         const c2 = createSnapshotComposer(reg2, { snapshotTtl: 60000, depsTtl: 60000 })
         return c2.composeSnapshot('counted', ref, {})
-      })()
+      })()) as ComposeSuccess
       await assert('✗ probe: 池子被截断（总数 649 > 手上 2 行）→ partial 为真（夹具覆盖「池子被截断 + 总数更大」这一态）',
-        rTrunc.snapshot.deck.partial === true && rTrunc.snapshot.deck.counts.total === 649 && rTrunc.version !== v2,
+        rTrunc.snapshot.deck.partial === true && rTrunc.snapshot.deck.counts!.total === 649 && rTrunc.version !== v2,
         `partial=${JSON.stringify(rTrunc.snapshot.deck.partial)} version=${rTrunc.version} v2=${v2}`)
     }
 
     // ④ 拿不到计数（后端没实现 / 配额耗尽 / 形状不对）：deck 不写 counts、partial 置真，绝不猜一个数
     {
-      const cases = [
+      // label 与 impl 成对：断言名里直接用 label，impl 是上面 mkReg 要的宽形状。
+      const cases: Array<[string, () => unknown]> = [
         ['后端没实现（注册表补的 unsupported 桩）', () => ({ ok: false, error: { kind: 'unsupported', message: 'counted does not implement op counts' } })],
         ['配额耗尽', () => ({ ok: false, error: { kind: 'rate-limit', message: 'quota exhausted' } })],
         ['回了个坏形状（数字缺失 / 不是整数）', () => ({ ok: true, data: { open: 1, closed: null, total: 2 } })],
@@ -407,7 +522,7 @@ export async function run() {
       for (const [label, impl] of cases) {
         countsCalls = 0
         const composer = createSnapshotComposer(mkReg(impl), { snapshotTtl: 60000, depsTtl: 60000 })
-        const r = await composer.composeSnapshot('counted', ref, {})
+        const r = await composer.composeSnapshot('counted', ref, {}) as ComposeSuccess
         const noCounts = !r.snapshot.deck.counts
         await assert('拿不到计数（' + label + '）→ 不写 deck.counts、partial 置真（界面据此说「这份清单不全」）',
           noCounts && r.snapshot.deck.partial === true && typeof r.snapshot.deck.stats.total === 'number',
@@ -420,14 +535,14 @@ export async function run() {
     // ⑤ 池子里的工单行数比 counts.total 还多 = 这个数字不可能对 → 同样置 partial（编排层那道判据）
     {
       const composer = createSnapshotComposer(mkReg(() => ({ ok: true, data: { open: 1, closed: 0, total: 1 } })), { snapshotTtl: 60000, depsTtl: 60000 })
-      const r = await composer.composeSnapshot('counted', ref, {})
+      const r = await composer.composeSnapshot('counted', ref, {}) as ComposeSuccess
       await assert('✗ probe: 池子行数（2）比后端说的总数（1）还多 → partial 置真（数字不可信的另一种情形）',
         r.snapshot.deck.partial === true, 'partial=' + JSON.stringify(r.snapshot.deck.partial))
     }
 
     // ⑥ 池子里的拉取请求不算工单：partial 的判据只数工单（与界面口径同一句话）
     {
-      const reg6 = createRegistry({}, { matchesTimeout: 50 })
+      const reg6 = createRegistry(emptyCtx, { matchesTimeout: 50 })
       reg6.register({
         id: 'counted', label: 'counted',
         create: () => ({
@@ -435,9 +550,9 @@ export async function run() {
           counts: async () => ({ ok: true, data: { open: 1, closed: 1, total: 2 } }),
         }),
         matches: async () => true,
-      })
+      } as unknown as BackendModule)
       const c6 = createSnapshotComposer(reg6, { snapshotTtl: 60000, depsTtl: 60000 })
-      const r6 = await c6.composeSnapshot('counted', ref, {})
+      const r6 = await c6.composeSnapshot('counted', ref, {}) as ComposeSuccess
       await assert('拉取请求不计入「池子装全了没有」的判据（工单口径：2 张工单 == 总数 2 → partial 为假）',
         r6.snapshot.deck.partial === false && r6.snapshot.issues.length === 3, JSON.stringify({ partial: r6.snapshot.deck.partial, rows: r6.snapshot.issues.length }))
     }
@@ -445,9 +560,10 @@ export async function run() {
 
   // ── 未知后端 ──
   {
-    const composer = createSnapshotComposer(createRegistry({}, { matchesTimeout: 50 }), {})
+    const composer = createSnapshotComposer(createRegistry(emptyCtx, { matchesTimeout: 50 }), {})
     const r = await composer.composeSnapshot('ghost', ref, {})
-    await assert('未知后端 → ok:false error', r.ok === false && r.error && r.error.kind === 'unsupported', JSON.stringify(r))
+    // error 在 JSDoc 里只写了 Object，读 kind 要收窄一次；运行时还是同一个对象。
+    await assert('未知后端 → ok:false error', r.ok === false && r.error && (r.error as { kind?: unknown }).kind === 'unsupported', JSON.stringify(r))
   }
 
   return out

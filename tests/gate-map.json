@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T17:21:16.882Z",
+  "generatedAt": "2026-10-16T17:30:02.345Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 301,
   "gateCount": 301,
@@ -6505,7 +6505,7 @@
         "tests/tracker-contract/sections/preflight.ts",
         "tests/tracker-contract/sections/registry.ts",
         "tests/tracker-contract/sections/room-gitlab-extras.ts",
-        "tests/tracker-contract/sections/snapshot.js"
+        "tests/tracker-contract/sections/snapshot.ts"
       ],
       "dirs": [
         "examples/demo-mini",
