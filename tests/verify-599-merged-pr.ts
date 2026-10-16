@@ -16,7 +16,7 @@ import { createOutboundControl } from '../src/host/platform/outbound-control.ts'
  *      断言已合并的显示「已合并」、已关闭没合并的仍显示「已关闭」、打开的仍显示「打开」。
  *  四、判据单源：两个界面文件都不再自己判「不是 CLOSED 就当打开」，而是调用 stateKind.js。
  *
- * 运行：node tests/verify-599-merged-pr.js
+ * 运行：node --import ./scripts/ts-hook.mjs tests/verify-599-merged-pr.ts
  *   （界面那几条需要先跑 node scripts/build.mjs；产物不在时自动跳过并说明）
  */
 import { readFileSync, existsSync, writeFileSync, mkdtempSync } from 'node:fs'
@@ -26,7 +26,7 @@ import { tmpdir } from 'node:os'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 let failed = 0
-function check(cond, msg) {
+function check(cond: unknown, msg: string): void {
   if (cond) console.log('  PASS ' + msg)
   else { failed++; console.log('  FAIL ' + msg) }
 }
@@ -34,16 +34,16 @@ function check(cond, msg) {
 // 真仓此刻的事实（2026-09-11 用 gh 查得，独立于被测代码）：
 // 本仓共 10 条拉取请求，其中 5 条已合并（#316 #321 #517 #518 #575）、5 条已关闭没有合并（#106 #273 #275 #287 #493）。
 // 下面用的就是这个事实，不是复算被测代码的结果。
-const MERGED_NUMBERS = [316, 321, 517, 518, 575]
-const CLOSED_ONLY_NUMBERS = [106, 273, 275, 287, 493]
-const MERGED_AT = {
+const MERGED_NUMBERS: number[] = [316, 321, 517, 518, 575]
+const CLOSED_ONLY_NUMBERS: number[] = [106, 273, 275, 287, 493]
+const MERGED_AT: Record<number, string> = {
   316: '2026-08-30T05:34:11Z',
   321: '2026-08-30T05:08:57Z',
   517: '2026-09-06T17:56:01Z',
   518: '2026-09-06T18:00:21Z',
   575: '2026-09-10T08:55:53Z',
 }
-const ALL_PR_NUMBERS = MERGED_NUMBERS.concat(CLOSED_ONLY_NUMBERS).sort((a, b) => a - b)
+const ALL_PR_NUMBERS: number[] = MERGED_NUMBERS.concat(CLOSED_ONLY_NUMBERS).sort((a, b) => a - b)
 
 // ------------------------------------------------------------------
 // 一、数据路：用插件自己的代码（GitHub 后端 listIssues）对合成数据跑一遍
@@ -54,7 +54,7 @@ const { prStateKind } = await import(pathToFileURL(resolve(ROOT, 'src/client/vie
 
 const REPO = { refId: 'FeatherHunter/dsh-mattpocock-skills-deck' }
 
-function gqlPR(n) {
+function gqlPR(n: number): Record<string, unknown> {
   const merged = Object.prototype.hasOwnProperty.call(MERGED_AT, n)
   return {
     number: n, title: 'PR #' + n, state: merged ? 'MERGED' : 'CLOSED', body: 'b',
@@ -65,7 +65,7 @@ function gqlPR(n) {
     comments: { nodes: [] }, reviews: { nodes: [] },
   }
 }
-function restPR(n) {
+function restPR(n: number): Record<string, unknown> {
   const merged = Object.prototype.hasOwnProperty.call(MERGED_AT, n)
   return {
     number: n, title: 'PR #' + n, state: 'closed', body: 'b',
@@ -77,8 +77,8 @@ function restPR(n) {
 }
 /** /issues 列表里的拉取请求条目（2026-09-11 真仓核过的形状）：已合并的也是 state=closed，
  *  合并时间就填在 pull_request.merged_at 里；这一条不是「已打开的拉取请求」。 */
-function restIssue(n) {
-  const out = {
+function restIssue(n: number): Record<string, unknown> {
+  const out: Record<string, unknown> = {
     number: n, title: 'issue ' + n, state: 'open', body: '', html_url: 'https://github.com/o/r/issues/' + n,
     created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-02T00:00:00Z', closed_at: null,
     user: { login: 'a' }, labels: [], assignees: [],
@@ -93,13 +93,13 @@ function restIssue(n) {
 }
 
 /** 主路：GraphQL 能正常返回。桩按查询里写的状态条件回答（与真 GitHub 行为一致），并记下收到的查询文本。 */
-function makeGraphQLCtx() {
-  const queries = []
-  const ctx = {
+function makeGraphQLCtx(): { ctx: Record<string, unknown>; queries: string[] } {
+  const queries: string[] = []
+  const ctx: Record<string, unknown> = {
     cwd: ROOT,
     outbound: createOutboundControl(),
-    platform: { resolveExecutable: async (n) => (n === 'gh' ? 'gh' : null), env: { get: () => '' } },
-    exec: async (cmd, args) => {
+    platform: { resolveExecutable: async (n: string) => (n === 'gh' ? 'gh' : null), env: { get: () => '' } },
+    exec: async (cmd: string, args: string[]) => {
       const joined = (args || []).join('\n')
       if (joined.includes('graphql')) {
         if (joined.includes('pullRequests(')) {
@@ -122,13 +122,13 @@ function makeGraphQLCtx() {
 /** 兜底路：GraphQL 整条失败，REST 顶上（/issues 给工单加拉取请求条目，/pulls 富化合并时间）。
  *  桩必须按 page 分页回答（第 2 页起给空）：这是真 GitHub 的行为，
  *  不给空的话列表那条「翻到不足一页为止」的循环会拿同一页翻满 10 页，条数会被放大十倍。 */
-function makeRESTCtx() {
-  const calls = []
-  const ctx = {
+function makeRESTCtx(): { ctx: Record<string, unknown>; calls: string[] } {
+  const calls: string[] = []
+  const ctx: Record<string, unknown> = {
     cwd: ROOT,
     outbound: createOutboundControl(),
-    platform: { resolveExecutable: async (n) => (n === 'gh' ? 'gh' : null), env: { get: () => '' } },
-    exec: async (cmd, args) => {
+    platform: { resolveExecutable: async (n: string) => (n === 'gh' ? 'gh' : null), env: { get: () => '' } },
+    exec: async (cmd: string, args: string[]) => {
       const joined = (args || []).join('\n')
       calls.push(joined)
       const page = Number((joined.match(/[?&]page=(\d+)/) || [])[1] || 1)
@@ -138,7 +138,7 @@ function makeRESTCtx() {
         // 工单编号从 1000 起，避开真仓那 10 条拉取请求的编号：
         //   真 GitHub 的 /issues 列表本来就带拉取请求条目（下面那段就是对它的模拟），
         //   若工单也占这些编号，同一编号会出现两条，条数判断就失了准头（实测踩过一次）。
-        const arr = []
+        const arr: Record<string, unknown>[] = []
         for (let i = 0; i < 505; i++) arr.push(restIssue(1000 + i))
         for (const n of ALL_PR_NUMBERS) arr.push(restIssue(n))
         return { code: 0, stdout: JSON.stringify(arr), stderr: '' }
@@ -155,11 +155,21 @@ function makeRESTCtx() {
   return { ctx, calls }
 }
 
-function prsOf(res) { return (res && res.ok ? res.data : []).filter((x) => x.isPullRequest === true) }
+interface ListedPr {
+  key: string | number
+  state: string
+  mergedAt: string | null
+  isPullRequest: boolean
+}
+
+function prsOf(res: { ok: boolean; data: ListedPr[] } | null | undefined): ListedPr[] {
+  if (!res || !res.ok || !Array.isArray(res.data)) return []
+  return res.data.filter((x) => x != null && x.isPullRequest === true)
+}
 
 {
   const { ctx, queries } = makeGraphQLCtx()
-  const res = await listIssues(REPO, {}, ctx)
+  const res = await (listIssues as (repo: unknown, opts: unknown, ctx: unknown) => Promise<{ ok: boolean; data: ListedPr[] }>)(REPO, {}, ctx)
   const prs = prsOf(res)
   check(prs.length === 10, '主路：拉取请求条数与真仓一致（10 条，实得 ' + prs.length + '）')
   const nums = prs.map((p) => Number(p.key)).sort((a, b) => a - b)
@@ -178,7 +188,7 @@ function prsOf(res) { return (res && res.ok ? res.data : []).filter((x) => x.isP
 
 {
   const { ctx, calls } = makeRESTCtx()
-  const res = await listIssues(REPO, {}, ctx)
+  const res = await (listIssues as (repo: unknown, opts: unknown, ctx: unknown) => Promise<{ ok: boolean; data: ListedPr[] }>)(REPO, {}, ctx)
   const prs = prsOf(res)
   check(calls.some((c) => c.includes('/pulls?state=all')), '兜底路：确实走了 REST（/pulls 被调用）')
   check(prs.length === 10, '兜底路：条数与主路一致（10 条，实得 ' + prs.length + '）')
@@ -193,24 +203,24 @@ function prsOf(res) { return (res && res.ok ? res.data : []).filter((x) => x.isP
 // 二、归一：已合并收成已关闭；坏值收敛
 // ------------------------------------------------------------------
 {
-  const m = normalizeIssue(gqlPR(575))
+  const m = (normalizeIssue as (raw: unknown) => ListedPr)(gqlPR(575))
   check(m.state === 'closed' && m.mergedAt === MERGED_AT[575], '归一：GitHub 回来的「已合并」收成已关闭，合并时间保留')
-  const c = normalizeIssue(gqlPR(106))
+  const c = (normalizeIssue as (raw: unknown) => ListedPr)(gqlPR(106))
   check(c.state === 'closed' && c.mergedAt === null, '归一：已关闭没合并的仍是已关闭，合并时间为空')
-  const o = normalizeIssue({ number: 1, title: 't', state: 'OPEN', mergedAt: null })
+  const o = (normalizeIssue as (raw: unknown) => ListedPr)({ number: 1, title: 't', state: 'OPEN', mergedAt: null })
   check(o.state === 'open', '归一：打开的仍是打开')
-  const restM = normalizeIssue(restPR(575))
+  const restM = (normalizeIssue as (raw: unknown) => ListedPr)(restPR(575))
   check(restM.state === 'closed' && restM.mergedAt === MERGED_AT[575], '归一：REST 形状的已合并在同一口径上')
   // 真 REST 的 /issues 条目（2026-09-11 真仓核过的形状）：已合并的也是 state=closed、合并时间填在标记里
-  const restIssuesEntry = normalizeIssue(restIssue(575))
+  const restIssuesEntry = (normalizeIssue as (raw: unknown) => { state: string; isPullRequest: boolean; mergedAt: string | null })(restIssue(575))
   check(restIssuesEntry.state === 'closed' && restIssuesEntry.isPullRequest === true && restIssuesEntry.mergedAt === MERGED_AT[575], '归一：兜底路 /issues 里的已合并条目收成已关闭且合并时间保留')
-  const plainIssue = normalizeIssue({ number: 506, title: '普通工单', state: 'open', html_url: 'https://github.com/o/r/issues/506', user: { login: 'a' }, labels: [] })
+  const plainIssue = (normalizeIssue as (raw: unknown) => ListedPr)({ number: 506, title: '普通工单', state: 'open', html_url: 'https://github.com/o/r/issues/506', user: { login: 'a' }, labels: [] })
   check(plainIssue.state === 'open' && plainIssue.mergedAt === null, '归一：普通工单不受影响（仍是打开，合并时间为空）')
-  const noState = normalizeIssue({ number: 2, title: 't' })
+  const noState = (normalizeIssue as (raw: unknown) => ListedPr)({ number: 2, title: 't' })
   check(noState.state === 'open', '坏值：来源缺 state 时收敛为打开（不抛错）')
-  const weird = normalizeIssue({ number: 3, title: 't', state: 42, mergedAt: 12345 })
+  const weird = (normalizeIssue as (raw: unknown) => ListedPr)({ number: 3, title: 't', state: 42, mergedAt: 12345 })
   check(weird.state === 'open' && weird.mergedAt === null, '坏值：state 是数字、合并时间是数字时都收敛（state=open、mergedAt=null）')
-  const upper = normalizeIssue({ number: 4, title: 't', state: 'MERGED' })
+  const upper = (normalizeIssue as (raw: unknown) => ListedPr)({ number: 4, title: 't', state: 'MERGED' })
   check(upper.state === 'closed', '坏值：合并时间缺失但 state 写着 MERGED 时仍收成已关闭（不画成打开）')
 }
 
@@ -219,11 +229,12 @@ function prsOf(res) { return (res && res.ok ? res.data : []).filter((x) => x.isP
 // ------------------------------------------------------------------
 {
   check(typeof prStateKind === 'function', '判据单源：views/shared/stateKind.js 导出 prStateKind')
-  check(prStateKind({ state: 'closed', mergedAt: MERGED_AT[575] }) === 'merged', '判据：已关闭 + 合并时间有值 = 已合并')
-  check(prStateKind({ state: 'closed', mergedAt: null }) === 'closed', '判据：已关闭 + 无合并时间 = 已关闭')
-  check(prStateKind({ state: 'open', mergedAt: null }) === 'open', '判据：打开 = 打开')
-  check(prStateKind({ state: 'merged', mergedAt: null }) === 'merged', '判据：来源直接写 MERGED 时也认（不必强求它改写形状）')
-  check(prStateKind({}) === 'open', '判据：来源为空时不抛错（按打开收敛）')
+  const kindOf = prStateKind as (issue: unknown) => string
+  check(kindOf({ state: 'closed', mergedAt: MERGED_AT[575] }) === 'merged', '判据：已关闭 + 合并时间有值 = 已合并')
+  check(kindOf({ state: 'closed', mergedAt: null }) === 'closed', '判据：已关闭 + 无合并时间 = 已关闭')
+  check(kindOf({ state: 'open', mergedAt: null }) === 'open', '判据：打开 = 打开')
+  check(kindOf({ state: 'merged', mergedAt: null }) === 'merged', '判据：来源直接写 MERGED 时也认（不必强求它改写形状）')
+  check(kindOf({}) === 'open', '判据：来源为空时不抛错（按打开收敛）')
 
   // 界面不认后端的私有字段（契约 docs/architecture/tracker-backend-design-contract.md 第 1、2 节：
   //   UI 不知道后端是谁；谁给界面递原生节点，谁先收成契约形状）
@@ -251,29 +262,29 @@ if (!existsSync(PRODUCT)) {
   check(false, '产物 package/lib/client.js 不在 —— 界面那一段没跑（先跑 node scripts/build.mjs；npm run verify 链里产物已备）')
 } else {
   const { JSDOM } = await import('jsdom')
-  const React = (await import('react')).default
+  const React = ((await import('react')) as { default: unknown }).default
   const ReactDOMClient = await import('react-dom/client')
   const { act } = await import('react')
-  const esbuild = (await import('esbuild')).default
+  const esbuild = ((await import('esbuild')) as { default: { transformSync: (code: string, opts: unknown) => { code: string } } }).default
   const bundle = readFileSync(PRODUCT, 'utf8')
 
   // 词条从产物里读真货（与线上同一份文字），避免门禁自己造词
-  const dict = {}
+  const dict: Record<string, string> = {}
   for (const key of ['list.state.open', 'list.state.closed', 'list.state.merged']) {
     const re = new RegExp("'" + key + "':\\s*'([^']*)'", 'g')
-    const hits = []
-    let m
+    const hits: string[] = []
+    let m: RegExpExecArray | null
     while ((m = re.exec(bundle)) !== null) hits.push(m[1])
     check(hits.length === 2, '词条 ' + key + ' 在产物里中英各一条（实得 ' + hits.length + ' 条）')
     dict[key] = hits[0]
   }
-  const trFn = (key, params) => {
+  const trFn = (key: string, params?: Record<string, string>): string => {
     let s = dict[key] !== undefined ? dict[key] : key
-    if (params) s = s.replace(/\{(\w+)\}/g, (mm, n) => (n in params ? String(params[n]) : mm))
+    if (params) s = s.replace(/\{(\w+)\}/g, (mm: string, n: string) => (n in params ? String(params[n]) : mm))
     return s
   }
 
-  function extractFn(src, header) {
+  function extractFn(src: string, header: string): string {
     const i = src.indexOf(header)
     if (i < 0) throw new Error('产物里找不到：' + header)
     let depth = 0
@@ -287,7 +298,7 @@ if (!existsSync(PRODUCT)) {
   }
 
   /** 把产物里的一个组件函数包成模块：函数体照抄，它依赖的名字由下面这段垫片按测试桩喂进去。 */
-  function loadComponent(fnSrc, label) {
+  function loadComponent(fnSrc: string, label: string): Promise<Record<string, (...args: never[]) => unknown>> {
     const shim = [
       'const React = globalThis.__REACT__',
       'const h = React.createElement',
@@ -309,7 +320,7 @@ if (!existsSync(PRODUCT)) {
       'const peekNav = () => null',
       'const popNav = () => {}',
       'const pushNav = () => {}',
-      'const copyText = () => {}',
+      'const copyText = () => ""',
       'const issueUrlFor = () => ""',
       'const repoStr = () => ""',
       'const effortOf = () => ""',
@@ -337,15 +348,15 @@ if (!existsSync(PRODUCT)) {
     const built = esbuild.transformSync(code, { loader: 'js', format: 'esm' }).code
     const file = join(dir, label + '.mjs')
     writeFileSync(file, built, 'utf8')
-    return import(pathToFileURL(file).href)
+    return import(pathToFileURL(file).href) as Promise<Record<string, (...args: never[]) => unknown>>
   }
 
   // jsdom + 真 React 的一套环境
   const dom = new JSDOM('<!doctype html><html><head></head><body><div id="root"></div></body></html>', { url: 'http://127.0.0.1:59599/' })
   const { window } = dom
-  window.requestAnimationFrame = window.requestAnimationFrame || ((cb) => setTimeout(cb, 0))
+  window.requestAnimationFrame = window.requestAnimationFrame || (((cb: (...args: unknown[]) => void) => setTimeout(cb, 0)) as typeof window.requestAnimationFrame)
   window.cancelAnimationFrame = window.cancelAnimationFrame || clearTimeout
-  if (typeof window.ResizeObserver === 'undefined') window.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} }
+  if (typeof window.ResizeObserver === 'undefined') window.ResizeObserver = class { observe(): void {} unobserve(): void {} disconnect(): void {} }
   if (!window.document.fonts) window.document.fonts = { ready: Promise.resolve() }
   global.window = window
   global.document = window.document
@@ -368,29 +379,29 @@ if (!existsSync(PRODUCT)) {
   // 下面这几个全局是切出来的组件要用的桩。
   // 注意：垫片是在模块装载那一刻取一次（const prIssuesOf = globalThis.__PRISSUES__），
   //   所以这些必须在装载之前就位，之后再改 globalThis 是没用的（踩过一次：组件里 prIssuesOf 变成 undefined）。
-  let currentIssues = []
+  let currentIssues: unknown[] = []
   globalThis.__REACT__ = React
   globalThis.__TR__ = trFn
   globalThis.__IC__ = () => null
-  globalThis.__TIP__ = function (props) { return props && props.children ? props.children : null }
+  globalThis.__TIP__ = function (props: { children?: unknown }): unknown { return props && props.children ? props.children : null }
   globalThis.__PRSTATEKIND__ = prStateKind
   globalThis.__PRISSUES__ = () => currentIssues
   globalThis.__SETACTIVE__ = () => {}
 
-  async function render(Comp, props) {
+  async function render(Comp: (...args: never[]) => unknown, props: Record<string, unknown>): Promise<string> {
     const container = window.document.createElement('div')
     window.document.body.appendChild(container)
-    let root = null
+    let root: { unmount: () => void } | null = null
     let html = ''
     try {
-      await act(async () => {
-        root = ReactDOMClient.createRoot(container)
-        root.render(React.createElement(Comp, props))
+      await (act as (fn: () => Promise<void>) => Promise<void>)(async () => {
+        root = (ReactDOMClient as unknown as { createRoot: (c: unknown) => { render: (e: unknown) => void; unmount: () => void } }).createRoot(container)
+        root.render((React as unknown as { createElement: (c: unknown, p: unknown) => unknown }).createElement(Comp, props))
         await new Promise((r) => setTimeout(r, 20))
       })
       html = container.innerHTML
     } finally {
-      try { if (root) root.unmount() } catch (e) {}
+      try { if (root) (root as { unmount: () => void }).unmount() } catch (e) {}
       try { if (container.parentNode) container.parentNode.removeChild(container) } catch (e) {}
     }
     return html
@@ -399,7 +410,7 @@ if (!existsSync(PRODUCT)) {
   // ---- 先跑单票详情页：它先跑，后面拉取请求页那一段才不会把整份门禁带走 ----
   {
     const mod = await loadComponent(extractFn(bundle, 'const IssueDetail = function (props)'), 'IssueDetail')
-    const storeOf = (issue) => ({ snapshot: { issues: [issue], maps: [] }, issueDetail: issue, activeIssue: issue.number, issueMode: 'real', cwd: 'D:\\ws', selection: null, backendModules: [], activeEffortId: '', navStack: [] })
+    const storeOf = (issue: unknown): Record<string, unknown> => ({ snapshot: { issues: [issue], maps: [] }, issueDetail: issue, activeIssue: (issue as { number: number }).number, issueMode: 'real', cwd: 'D:\\ws', selection: null, backendModules: [], activeEffortId: '', navStack: [] })
     const merged575 = snapshots.filter((x) => x.number === 575)[0]
     const closed106 = snapshots.filter((x) => x.number === 106)[0]
     const htmlMerged = await render(mod.IssueDetail, { st: storeOf(merged575) })
