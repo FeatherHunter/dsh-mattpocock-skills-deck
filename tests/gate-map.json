@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T17:39:39.436Z",
+  "generatedAt": "2026-10-16T17:40:34.072Z",
   "generatedBy": "node scripts/gate-map.mjs",
-  "chainLength": 301,
-  "gateCount": 301,
-  "attributedGates": 259,
+  "chainLength": 302,
+  "gateCount": 302,
+  "attributedGates": 260,
   "unattributedGates": 42,
   "buildOutputOnlyGates": 25,
   "completionRecordedGates": 6,
@@ -1690,6 +1690,22 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条"
+    },
+    {
+      "step": "node tests/verify-504-github-pr.ts",
+      "file": "tests/verify-504-github-pr.ts",
+      "guards": [
+        "src/tracker/rooms/github/issues.ts",
+        "src/tracker/rooms/github/normalize.ts"
+      ],
+      "dirs": [
+        "src/tracker/rooms/github"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：源码里的路径字面量 2 条"
     },
     {
       "step": "node tests/verify-524-pr-detail.js",
@@ -7919,6 +7935,7 @@
       "node tests/verify-no-mixed-session.js",
       "node tests/verify-1053-issue-write.ts",
       "node tests/verify-1054-edge-graph.ts",
+      "node tests/verify-504-github-pr.ts",
       "node tests/verify-599-merged-pr.js",
       "node tests/verify-663-gh-install-inject.js",
       "node tests/verify-665-fresh-workspace-chain.js",

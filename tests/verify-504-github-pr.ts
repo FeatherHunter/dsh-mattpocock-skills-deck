@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * 回归门禁：GitHub 房拉取请求 #504 专用契约探针（双源等价 / 坏值收空 / 雾证据 / 坏节点可观测）。
  *
@@ -18,7 +17,7 @@ import { resolve, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-function check(cond, msg) { if (!cond) { console.error('FAIL', msg); process.exitCode = 1 } else console.log('PASS', msg) }
+function check(cond: unknown, msg: string) { if (!cond) { console.error('FAIL', msg); process.exitCode = 1 } else console.log('PASS', msg) }
 
 const { normalizeIssue } = await import(pathToFileURL(resolve(ROOT, 'src/tracker/rooms/github/normalize.ts')).href)
 const { listIssues } = await import(pathToFileURL(resolve(ROOT, 'src/tracker/rooms/github/issues.ts')).href)
@@ -50,17 +49,17 @@ const empty = normalizeIssue({})
 check(empty.isPullRequest === false && empty.mergedAt === null && Array.isArray(empty.reviews) && empty.reviews.length === 0, '能力位：空来源逐票必带三字段空值（假、空、空数组）')
 
 // ---------- 3) 行为：雾证据四原因（合成，不碰真仓） ----------
-function makeCtx(failStderr, ghHost) {
-  const logs = []
+function makeCtx(failStderr: string, ghHost: string) {
+  const logs: Array<{ level: string; event: string; fields: unknown }> = []
   return {
     logs,
     ctx: {
       cwd: ROOT,
       platform: {
-        resolveExecutable: async (n) => (n === 'gh' ? 'gh' : null),
-        env: { get: (k) => (k === 'GH_HOST' ? (ghHost || '') : '') },
+        resolveExecutable: async (n: string) => (n === 'gh' ? 'gh' : null),
+        env: { get: (k: string) => (k === 'GH_HOST' ? (ghHost || '') : '') },
       },
-      exec: async (cmd, args) => {
+      exec: async (cmd: unknown, args: string[]) => {
         const joined = (args || []).join(' ')
         if (joined.includes('graphql')) return { code: 1, stdout: '', stderr: failStderr }
         if (joined.includes('/issues?state=all')) return { code: 0, stdout: JSON.stringify([{ number: 1, title: 't', state: 'open', labels: [], user: { login: 'a' }, html_url: 'https://github.com/o/r/issues/1' }]), stderr: '' }
@@ -68,7 +67,7 @@ function makeCtx(failStderr, ghHost) {
         if (joined.includes('/sub_issues')) return { code: 0, stdout: '[]', stderr: '' }
         return { code: 1, stdout: '', stderr: 'unexpected:' + joined.slice(0, 80) }
       },
-      logEvent: (level, event, fields) => { logs.push({ level, event, fields }) },
+      logEvent: (level: string, event: string, fields: unknown) => { logs.push({ level, event, fields }) },
       isEnabled: () => true,
     },
   }
@@ -84,7 +83,7 @@ for (const c of [
   const res = await listIssues(repo, {}, ctx)
   const fb = logs.find((l) => l.event === 'graphql.fallback')
   check(res && res.ok === true, '雾证据[' + c.name + ']：降级后 REST 仍返回')
-  check(!!fb && fb.fields && fb.fields.reason === c.want, '雾证据[' + c.name + ']：原因=' + c.want + '（got ' + (fb && fb.fields && fb.fields.reason) + '）')
+  check(!!fb && fb.fields && (fb.fields as { reason: string }).reason === c.want, '雾证据[' + c.name + ']：原因=' + c.want + '（got ' + (fb && fb.fields && (fb.fields as { reason: string }).reason) + '）')
 }
 {
   // 三合成原因互不相同且不复用恒值
@@ -96,7 +95,7 @@ for (const c of [
   ]) {
     const { logs, ctx } = makeCtx(c.stderr, c.host)
     await listIssues(repo, {}, ctx)
-    reasons.push((logs.find((l) => l.event === 'graphql.fallback') || {}).fields?.reason)
+    reasons.push(((logs.find((l) => l.event === 'graphql.fallback') || {}) as { fields?: { reason?: string } }).fields?.reason)
   }
   check(new Set(reasons).size === 3 && !reasons.includes('graphql-error'), '雾证据：超时、限流、企业版三原因互不相同且不用恒值（got ' + reasons.join(',') + '）')
 }
@@ -105,25 +104,25 @@ for (const c of [
 // 归一对纯 JSON 输入是全函数（不抛错），坏票只能来自宿主直接给的对象（如原型异常）。
 // 这里用临时替换 JSON.parse 的办法，把坏对象（含抛错取值器）直接塞进列表输入，验证逐票丢弃与计数。
 {
-  const logs = []
-  const good = (n) => ({ number: n, title: 'good ' + n, state: 'open', labels: [], user: { login: 'a' }, html_url: 'https://github.com/o/r/issues/' + n })
+  const logs: Array<{ level: string; event: string; fields: unknown }> = []
+  const good = (n: number) => ({ number: n, title: 'good ' + n, state: 'open', labels: [], user: { login: 'a' }, html_url: 'https://github.com/o/r/issues/' + n })
   const bad = {}
   Object.defineProperty(bad, 'number', { enumerable: true, get() { throw new Error('bad node') } })
   const prGood = { number: 493, title: 'pr', state: 'OPEN', body: '', url: 'https://github.com/o/r/pull/493', createdAt: '', updatedAt: '', closedAt: null, mergedAt: null, author: { login: 'a' }, assignees: { nodes: [] }, labels: { nodes: [] }, milestone: null, comments: { nodes: [] }, reviews: { nodes: [] } }
   const origParse = JSON.parse
   const ctx = {
     cwd: ROOT,
-    platform: { resolveExecutable: async (n) => (n === 'gh' ? 'gh' : null), env: { get: () => '' } },
-    exec: async (cmd, args) => {
+    platform: { resolveExecutable: async (n: string) => (n === 'gh' ? 'gh' : null), env: { get: () => '' } },
+    exec: async (cmd: unknown, args: string[]) => {
       const joined = (args || []).join(' ')
       if (joined.includes('pullRequests')) return { code: 0, stdout: '__PR_GOOD__', stderr: '' }
       if (joined.includes('graphql')) return { code: 0, stdout: '__ISSUES_MIXED__', stderr: '' }
       return { code: 1, stdout: '', stderr: 'unexpected' }
     },
-    logEvent: (level, event, fields) => { logs.push({ level, event, fields }) },
-    isEnabled: (k) => k === 'debug',
+    logEvent: (level: string, event: string, fields: unknown) => { logs.push({ level, event, fields }) },
+    isEnabled: (k: string) => k === 'debug',
   }
-  JSON.parse = function (t) {
+  JSON.parse = function (t: string) {
     if (t === '__ISSUES_MIXED__') return { data: { repository: { issues: { nodes: [good(1), bad, good(2)], pageInfo: { hasNextPage: false, endCursor: null } } } } }
     if (t === '__PR_GOOD__') return { data: { repository: { pullRequests: { nodes: [prGood], pageInfo: { hasNextPage: false, endCursor: null } } } } }
     return origParse(t)
@@ -131,7 +130,7 @@ for (const c of [
   let res = null
   try { res = await listIssues(repo, {}, ctx) } finally { JSON.parse = origParse }
   check(res && res.ok && res.data.length === 3, '坏节点：好票全保留（含拉取请求同池，got ' + (res && res.data && res.data.length) + '）')
-  const hit = logs.find((l) => l.event === 'error.normalize' && String(l.fields && l.fields.rawKind || '').startsWith('bad-node:'))
+  const hit = logs.find((l) => l.event === 'error.normalize' && String(((l.fields as { rawKind?: unknown } | undefined)?.rawKind) || '').startsWith('bad-node:'))
   check(!!hit && hit.level === 'debug', '坏节点：复用调试事件记一行计数（got ' + JSON.stringify(hit && hit.fields) + '）')
   check(!logs.some((l) => l.event !== 'error.normalize' && l.event !== 'gh.exec'), '坏节点：主路成功时不落降级事件（只记计数）')
 }
