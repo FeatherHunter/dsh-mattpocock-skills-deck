@@ -7,9 +7,10 @@
  *   2. 输入变化必重算：改任一段完整字的一个字、或改可用宽，第二趟必须重走测量；
  *   3. 未知不缓存：量不到可用宽的那趟不落键，宽度回来后必须重算；
  *   4. 元件换代必重算：同一个 keep 换到新元素上，即使输入相同也不许复用旧档位。
- * 外加三组结构断言：机器里有守卫与单写路径、接线走同帧合并、日志点复用已计数事件。
+ * 本文件只测行为：把真判据与真折叠机器按文本求值后，配一颗假胶囊跑，全文没有一句对源码文本的正则断言
+ * （接线与单写路径的现任守卫是 tests/verify-capsule-narrow.js；「开关与记日志同行」那条今天已没有在跑的门禁）。
  *
- * 运行：node tests/verify-926-capfold-gate.js（只读源码，不开浏览器）
+ * 运行：node --import ./scripts/ts-hook.mjs tests/verify-926-capfold-gate.js（必须挂钩子：它靠钩子把 ./lib/eval-probe.js 落到同名 .ts，不挂会 ERR_MODULE_NOT_FOUND）
  */
 const { readFileSync, existsSync } = require('node:fs')
 const { resolve } = require('node:path')
