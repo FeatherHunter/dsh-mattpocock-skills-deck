@@ -18,18 +18,16 @@
 //   naming.sweep（trigger direct-created），不新增事件。
 import { hash8 } from '../../shared/refresh-workspace-key.js'
 import { NAMING_STAGES } from '../../shared/naming-tracking.js'
-// 摘要超时住中央 YAML（config/timeouts.yaml 的 namingSummaryTimeoutMs 键）：这里只留别名
-// （缺表回落 30000 与今天一致，防构建产物过期），调时间改 YAML。
+// 摘要超时住中央 YAML（config/timeouts.yaml 的 namingSummaryTimeoutMs 键）：这里直接引用中央常量，调时间改 YAML。
 // 路径走域构建产物写法，值由 tests/verify-time-config.ts 看守一致。
-import { NAMING_SUMMARY_TIMEOUT_MS as CENTRAL_NAMING_SUMMARY_TIMEOUT_MS } from '../../shared/time-config/values.js'
+import { NAMING_SUMMARY_TIMEOUT_MS as SUMMARY_TIMEOUT_MS } from '../../shared/time-config/values.js'
 
 // 溢出 guard：用户拍板传全文，两段自然有界；超过此字节才截助手侧尾部（用户侧意图优先保留）。
 const SUMMARY_INPUT_MAX_BYTES = 48 * 1024
 // 调模型出摘要的超时：挂成那次模型调用的中止信号（AbortSignal.timeout），两段全文一次发出去、
 // 模型侧慢起来会一直挂着，到点就中止这次调用，按本文件上面的失败口径入账 —— 失败永不补调，
 // 连续失败到阈值才记 summaryFailed（见下面编排里「模型瞬败退避」那段注释）。
-// 别名接中央常量，值住 config/timeouts.yaml 的 namingSummaryTimeoutMs 键。
-const SUMMARY_TIMEOUT_MS = CENTRAL_NAMING_SUMMARY_TIMEOUT_MS ?? 30000
+// 值住 config/timeouts.yaml 的 namingSummaryTimeoutMs 键，直接引用上面的中央常量。
 const SUMMARY_MAX_TOKENS = 40
 
 function utf8Bytes(s) {

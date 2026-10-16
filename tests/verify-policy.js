@@ -8,6 +8,7 @@
 // 最后带一层「断言装置自检」：把裁决改坏成四种错法，同一套断言必须判红——门禁自己有牙齿。
 const path = require('path')
 const { pathToFileURL } = require('url')
+const { PROBE_INTERVAL_MS, PROBE_INTERVAL_YELLOW_MS, RECONCILE_INTERVAL_MS, CHAIN_BACKOFF_MS, REBUILD_MIN_INTERVAL_YELLOW_MS } = require('../src/shared/time-config/values.js')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -17,15 +18,15 @@ const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL '
 /** 从 budget.js 取一套裁决要用的数字（一处取值，两处使用：本门禁与 src/host/refresh/gate.ts 同一形状）。 */
 function limitsFromBudget(budget) {
   return {
-    probeIntervalMs: budget.PROBE_INTERVAL_MS,
-    probeIntervalYellowMs: budget.PROBE_INTERVAL_YELLOW_MS,
-    reconcileIntervalMs: budget.RECONCILE_INTERVAL_MS,
-    rebuildMinIntervalYellowMs: budget.REBUILD_MIN_INTERVAL_YELLOW_MS,
+    probeIntervalMs: PROBE_INTERVAL_MS,
+    probeIntervalYellowMs: PROBE_INTERVAL_YELLOW_MS,
+    reconcileIntervalMs: RECONCILE_INTERVAL_MS,
+    rebuildMinIntervalYellowMs: REBUILD_MIN_INTERVAL_YELLOW_MS,
     aiToolMaxPointsPerCall: budget.AI_TOOL_MAX_POINTS_PER_CALL,
     aiToolMaxRequestsPerCall: budget.AI_TOOL_MAX_REQUESTS_PER_CALL,
     aiToolMaxPointsPerHour: budget.AI_TOOL_MAX_POINTS_PER_HOUR,
     aiToolMaxRequestsPerHour: budget.AI_TOOL_MAX_REQUESTS_PER_HOUR,
-    failureBackoffMs: budget.CHAIN_BACKOFF_MS,
+    failureBackoffMs: CHAIN_BACKOFF_MS,
   }
 }
 
@@ -128,10 +129,10 @@ function scenarios(api) {
         const green = api.degradePlanFor('green', limits)
         const yellow = api.degradePlanFor('yellow', limits)
         const red = api.degradePlanFor('red', limits)
-        return green.probeIntervalMs === budget.PROBE_INTERVAL_MS &&
-          green.reconcileIntervalMs === budget.RECONCILE_INTERVAL_MS &&
-          yellow.probeIntervalMs === budget.PROBE_INTERVAL_YELLOW_MS &&
-          yellow.reconcileIntervalMs === null && yellow.rebuildMinGapMs === budget.REBUILD_MIN_INTERVAL_YELLOW_MS &&
+        return green.probeIntervalMs === PROBE_INTERVAL_MS &&
+          green.reconcileIntervalMs === RECONCILE_INTERVAL_MS &&
+          yellow.probeIntervalMs === PROBE_INTERVAL_YELLOW_MS &&
+          yellow.reconcileIntervalMs === null && yellow.rebuildMinGapMs === REBUILD_MIN_INTERVAL_YELLOW_MS &&
           red.probeIntervalMs === null && red.reconcileIntervalMs === null &&
           green.localWriteImmediate === true && yellow.localWriteImmediate === true && red.localWriteImmediate === true &&
           api.DEGRADE_ORDER[0] === 'probe-sensitivity' && api.DEGRADE_ORDER[1] === 'reconcile-frequency' &&

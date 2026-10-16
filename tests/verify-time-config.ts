@@ -1,41 +1,39 @@
-// verify-time-config.ts —— 中央时间参数门禁（票 #1215 立）。
+// verify-time-config.ts —— 中央时间参数门禁（票 #1215 立，单源头改造后重写）。
 //
 // 为什么要有这扇门禁：
 //   全仓时间参数的唯一书写处是 config/ 下的三份文件（人改的唯一地方）：
 //   config/timeouts.yaml（超时上限）、config/intervals.yaml（间隔与一次性延时、退避表）、
-//   config/ttl.yaml（有效期）。生效处是 src/shared/time-config/src/values.ts（生成器写出的，
-//   见 scripts/generate-time-config.mjs）。这扇门禁看守四件事，缺一件都会让“中央”二字落空：
-//   ① 生成新鲜度：values.ts 必须与今天的三份 YAML 对得上（调了 YAML 忘跑生成器，在这里判红）；
-//   ② 值一致：每个调用方文件里的数字（能 import 的按导出比，不能 import 的按源码字面比）
-//      必须等于 YAML 生效值（改了一边没改另一边，在这里判红）；
-//   ③ 覆盖率：src/ 下新冒出来的时间常量必须先登记，.ts 手写代码与 .js 存量代码一起扫
-//      （绕过 YAML 直接写数字，在这里判红）；
-//   ④ 界面半边能拿到值：界面文件是拼进同一个闭包才能用中央常量的，谁用了谁就必须出现在
-//      scripts/build.mjs 的拼接名单里（两边对不上，构建出来的界面会引用一个不存在的名字）。
+//   config/ttl.yaml（有效期）。生效处是构建时生成的 src/shared/time-config/src/values.ts
+//   （脚本见 scripts/generate-time-config.mjs，产物不入库，构建与测试时现场生成）。
+//   这扇门禁看守四件事，缺一件都会让“中央”二字落空：
+//   ① 生成新鲜度：现场生成的值必须与今天的三份 YAML 对得上；
+//   ② 真引用：每个调用方拿到的必须就是生成出来的那一份（引用相等），源码里不许再写时间数字；
+//   ③ 界面半边能拿到值：拼进闭包的常量，values、构建名单、界面用处三方一次对上；
+//   ④ 无字面量：src/ 下时间味的名字挂着的不许是数字（绕过 YAML 直接写数字，在这里判红）。
 //
-// 为什么分“能 import 的”与“不能 import 的”：
-//   有些文件有零导入约束（src/deck/registration/register-options.ts:37，
-//   本文件不引用其他层的文件），有些值藏在函数内部（src/host/index.ts 的 TIMEOUT_MS），
-//   有些只是调用点的字面量（GitLab 房二十多处 { timeout: 8000 }）。硬要它们 import，
-//   等于逼着改架构；所以前者按模块导出比（IMPORT 表），后者按源码字面出现次数比
-//   （TEXT 表）。两种表的每一行都同时锁死“文件里的写法”与“YAML 的生效值”，
-//   任何一边漂移都判红。
+// 和旧版的区别（2026-10-16 单源头改造）：
+//   旧版锁的是“两份数字相等”（IMPORT 表的 literal 行 + TEXT 表的片段行）：源码里写一份数字，
+//   门禁核对它等于 YAML。改造后源码里不再有第二份数字，所以这两张表整个删掉，换成：
+//   ② 的引用相等断言（REFERENCES 表：模块拿到的就是生成的那一份，不是抄的），
+//   ④ 的无字面量扫描（数字出现在时间味的位置就判红，唯一的出口是 PERMANENT 表）。
+//   以后加一个时间参数的动作是：YAML 里加键 → 文件里 import 生成常量 → REFERENCES 里加一行。
+//   删一行同理。三张表（REFERENCES / CLIENTS / PERMANENT）与 EXEMPTS 的行数只许增不许减式的维护：
+//   加参数加行，删参数删行，不许为了让门禁变绿而删行（那等于把参数放回源码里写数字）。
 //
-// 为什么界面半边（src/client/**）与两个被拼接的共享文件永远是字面量：
-//   界面半边在构建时被整份拼进一个大闭包（scripts/build.mjs 的 SHARED_SPLICE），
-//   文件里出现 import 语句在闭包里就是语法错误；src/shared/tracker/sync.js 与
-//   src/shared/naming-tracking.js 也是整份拼进去的，同理不能 import。它们的数字由本门禁
-//   按模块导出比（IMPORT 表 literal 行）或按源码字面出现次数比（TEXT 表）锁在 YAML 值上。
-//   界面真正要用的中央常量走“构建时摘名字拼进闭包”那条路，名单在 CLIENT 表。
+// 为什么有些文件是动态 import 或闭包拼接，而不是一律静态 import：
+//   src/host/index.ts 是插件入口，禁静态 import（D7），走动态 import；
+//   src/client/** 整份拼进界面闭包，文件里的 import 行由构建剥掉（见 stripTimeConfigRefs，
+//   单行是硬要求），名字由闭包里另一片提供，门禁把它当模块直接 import 跑时引用是真的；
+//   src/deck/registration/register-options.ts 的零导入约束已解除（只引用纯数据目录，不算跨层）。
+//   跨共享域引用中央时间参数目录是 architecture 允许的唯一例外（.dependency-cruiser.cjs 的
+//   same-layer-import-shared 规则里写明，只认 src/shared/time-config/ 这一个目录）。
 //
-// 迁移中的状态机（#1215 分六片落地）：
-//   每一行的 kind 只有两种：'literal'（文件里还是自己写的数字，门禁断言“相等”）与
-//   'imported'（文件已经改成从 time-config 导入，门禁断言“就是同一个导出”，数组用引用相等）。
-//   切片落地时把对应行翻成 'imported'，删掉 TEXT 行。永远保持 'literal' 的有四处，
-//   它们不是没迁完，是架构上不能迁，理由写在各自的 note 里：
-//   budget.ts（共享域之间不许互相 import）、tuning.ts（同上）、
-//   write-ticket.ts（同上）、register-options.ts（零导入约束，见上）；界面半边与两个
-//   被拼接的共享文件同理，理由写在各自行里。
+// 永久字面量（PERMANENT 表）：只有四种能留数字——
+//   ① 单位换算（1 小时、1 分钟：这是数学定义，不是旋钮，调它没有意义）；
+//   ② 0 表示“还没有/关掉”（状态初值与开关，不是时长）；
+//   ③ 非时间的数字（点数、条数、比例、字节、个数：覆盖率判据看名字，它们由 EXEMPTS 表认领）；
+//   ④ 除法里的 1000（毫秒换算成秒给只认秒的 git 选项：除数不是时长）。
+//   除此四种，时间味的名字后面不许出现数字。理由写不清的就不该出现在表里。
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -53,151 +51,134 @@ const check = (ok: boolean, msg: string) => {
 
 const eqValue = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b)
 
-/** YAML 生效值：YAML 写了就用 YAML 的，缺键用回落底座（与生成器 load() 同一条规则）。 */
-function effective(key: string, timeYaml: Record<string, unknown>, fallbacks: Record<string, unknown>): unknown {
-  return timeYaml[key] !== undefined ? timeYaml[key] : fallbacks[key]
-}
-
 // ---------------------------------------------------------------------------
-// 表一 IMPORT：能 import 到的模块导出。kind 见文件头“状态机”一节。
+// 表一 REFERENCES：调用方拿到的必须就是生成的那一份。
+// access 是模块里读值的路（导出名，或 对象.属性 / TUNING.属性）；gen 是生成侧的常量名；
+// key 是它对应的 YAML 键（这一列防“键写错”：键在 YAML 里不存在就判红）。
+// 断言的是引用相等（数字比值，数组比引用）：同一个对象才算真导入，不是抄的数字。
 // ---------------------------------------------------------------------------
-interface ImportRow {
+interface RefRow {
   file: string
-  /** 模块导出的名字；TUNING 那行是“导出名.属性”写法，见下面的 PROP 分支。 */
-  /** 生成侧（time-config values.ts）的常量名；imported 形态按这个名字比“同一份”。 */
+  access: string
   gen: string
-  name: string
   key: string
-  kind: 'literal' | 'imported'
-  note?: string
 }
-const IMPORTS: ImportRow[] = [
-  { file: 'src/tracker/kernel/outbound-tiers.ts', name: 'READ_TIMEOUT_MS', gen: 'OUTBOUND_READ_TIMEOUT_MS', key: 'outboundReadMs', kind: 'imported' },
-  { file: 'src/tracker/kernel/outbound-tiers.ts', name: 'WRITE_TIMEOUT_MS', gen: 'OUTBOUND_WRITE_TIMEOUT_MS', key: 'outboundWriteMs', kind: 'imported' },
-  { file: 'src/tracker/kernel/outbound-tiers.ts', name: 'PROBE_TIMEOUT_MS', gen: 'OUTBOUND_PROBE_TIMEOUT_MS', key: 'outboundProbeMs', kind: 'imported' },
-  { file: 'src/tracker/kernel/outbound-tiers.ts', name: 'DEFAULT_TIMEOUT_MS', gen: 'OUTBOUND_DEFAULT_TIMEOUT_MS', key: 'outboundDefaultMs', kind: 'imported' },
-  { file: 'src/tracker/registry/core.ts', name: 'MATCHES_TIMEOUT_MS', gen: 'MATCHES_TIMEOUT_MS', key: 'matchesTimeoutMs', kind: 'imported' },
-  { file: 'src/tracker/rooms/github/client.ts', name: 'TIMEOUT_MS', gen: 'GITHUB_CLIENT_TIMEOUT_MS', key: 'githubClientTimeoutMs', kind: 'imported' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'PROBE_INTERVAL_MS', gen: 'PROBE_INTERVAL_MS', key: 'probeIntervalMs', kind: 'literal', note: '共享域之间不许互相 import，永久 literal，只断言值相等' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'PROBE_INTERVAL_YELLOW_MS', gen: 'PROBE_INTERVAL_YELLOW_MS', key: 'probeIntervalYellowMs', kind: 'literal', note: '同上' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'PROBE_INTERVAL_LINGER_MS', gen: 'PROBE_INTERVAL_LINGER_MS', key: 'probeIntervalLingerMs', kind: 'literal', note: '同上' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'REBUILD_MIN_INTERVAL_YELLOW_MS', gen: 'REBUILD_MIN_INTERVAL_YELLOW_MS', key: 'rebuildMinIntervalYellowMs', kind: 'literal', note: '同上' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'RECONCILE_INTERVAL_MS', gen: 'RECONCILE_INTERVAL_MS', key: 'reconcileIntervalMs', kind: 'literal', note: '同上' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'QUOTA_SYNC_INTERVAL_MS', gen: 'QUOTA_SYNC_INTERVAL_MS', key: 'quotaSyncIntervalMs', kind: 'literal', note: '同上' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'ATTENTION_HEARTBEAT_MS', gen: 'ATTENTION_HEARTBEAT_MS', key: 'attentionHeartbeatMs', kind: 'literal', note: '同上' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'PREFLIGHT_TTL_MS', gen: 'PREFLIGHT_TTL_MS', key: 'preflightTtlMs', kind: 'literal', note: '同上' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'CHAIN_ALL_GREEN_TTL_MS', gen: 'CHAIN_ALL_GREEN_TTL_MS', key: 'chainAllGreenTtlMs', kind: 'literal', note: '同上' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'DEFER_EXPIRY_MS', gen: 'DEFER_EXPIRY_MS', key: 'deferExpiryMs', kind: 'literal', note: '同上' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'FAILURE_HALF_OPEN_DELAY_MS', gen: 'FAILURE_HALF_OPEN_DELAY_MS', key: 'failureHalfOpenDelayMs', kind: 'literal', note: '同上' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'ATTENTION_EXPIRY_MS', gen: 'ATTENTION_EXPIRY_MS', key: 'attentionExpiryMs', kind: 'literal', note: '同上' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'ACTIVE_LINGER_MS', gen: 'ACTIVE_LINGER_MS', key: 'activeLingerMs', kind: 'literal', note: '同上' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'PATCH_MERGE_WINDOW_MS', gen: 'PATCH_MERGE_WINDOW_MS', key: 'patchMergeWindowMs', kind: 'literal', note: '同上' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'FRESHNESS_YELLOW_MS', gen: 'FRESHNESS_YELLOW_MS', key: 'freshnessYellowMs', kind: 'literal', note: '同上' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'FRESHNESS_RED_MS', gen: 'FRESHNESS_RED_MS', key: 'freshnessRedMs', kind: 'literal', note: '同上' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'CHAIN_BACKOFF_MS', gen: 'CHAIN_BACKOFF_MS', key: 'chainBackoffMs', kind: 'literal', note: '同上' },
-  { file: 'src/shared/refresh/src/tuning.ts', name: 'TUNING.deckEnsureTimeoutMs', gen: 'DECK_ENSURE_TIMEOUT_MS', key: 'deckEnsureMs', kind: 'literal', note: '共享域之间不许互相 import，永久 literal，只断言值相等' },
-  { file: 'src/shared/version-control/src/write-ticket.ts', name: 'TICKET_TTL_MS', gen: 'TICKET_TTL_MS', key: 'ticketTtlMs', kind: 'literal', note: '共享域之间不许互相 import，永久 literal，只断言值相等' },
-  { file: 'src/shared/tracker/indexWindow.js', name: 'MAX_WINDOW_MS', gen: 'TRACKER_INDEX_MAX_WINDOW_MS', key: 'trackerIndexMaxWindowMs', kind: 'literal', note: '共享域之间不许互相 import（dependency-cruiser 的 same-layer-import-shared 红线，src/shared/ → src/shared/ 一律判红），永久 literal，只断言值相等' },
-  { file: 'src/shared/tracker/indexWindow.js', name: 'SKEW_MS', gen: 'TRACKER_INDEX_SKEW_MS', key: 'trackerIndexSkewMs', kind: 'literal', note: '同上' },
-  { file: 'src/host/refresh/chain-ride.ts', name: 'CHAIN_RIDE_MAX_AGE_MS', gen: 'CHAIN_RIDE_MAX_AGE_MS', key: 'chainRideMaxAgeMs', kind: 'imported' },
-  { file: 'src/deck/shell/call-budget.ts', name: 'DEFAULT_TOOL_TIMEOUT_MS', gen: 'TOOL_TIMEOUT_MS', key: 'toolTimeoutMs', kind: 'imported' },
-  { file: 'src/deck/shell/call-budget.ts', name: 'DEFAULT_TOOL_MARGIN_MS', gen: 'TOOL_MARGIN_MS', key: 'toolMarginMs', kind: 'imported' },
-  { file: 'src/deck/shell/call-budget.ts', name: 'DEFAULT_PER_OP_TIMEOUT_MS', gen: 'PER_OP_TIMEOUT_MS', key: 'perOpTimeoutMs', kind: 'imported' },
-  { file: 'src/deck/registration/register-options.ts', name: 'AGENT_TOOL_TIMEOUT_MS', gen: 'TOOL_TIMEOUT_MS', key: 'toolTimeoutMs', kind: 'literal', note: '零导入约束（该文件 :37 注释），永久 literal；双生子同值另由 tests/verify-895-bulk-deadline.ts 第⑦节看守' },
-  { file: 'src/deck/rules/anchor.ts', name: 'ANCHOR_WINDOW_MS', gen: 'ANCHOR_WINDOW_MS', key: 'anchorWindowMs', kind: 'imported' },
-  { file: 'src/deck/shell/write-mutex.ts', name: 'DEFAULT_KEY_LOCK_TIMEOUT_MS', gen: 'KEY_LOCK_TIMEOUT_MS', key: 'keyLockMs', kind: 'imported' },
-  { file: 'src/deck/registration/host-assemble.ts', name: 'DECK_ASSEMBLY_TIMEOUT_MS', gen: 'DECK_ASSEMBLY_TIMEOUT_MS', key: 'deckAssemblyMs', kind: 'imported' },
-  // —— 界面半边：被整份拼进同一个闭包，文件里出现 import 就是语法错误，所以数字只能写在文件里，
-  //    由本表按模块导出比（这是“永久 literal”，不是没迁完，理由见文件头） ——
-  { file: 'src/client/kernel/log.js', name: 'LOG_FLUSH_MS', gen: 'LOG_FLUSH_MS', key: 'logFlushMs', kind: 'literal', note: '界面半边不能 import，永久 literal，只断言值相等' },
-  { file: 'src/client/kernel/log.js', name: 'LOG_WATCHDOG_MS', gen: 'LOG_WATCHDOG_MS', key: 'logWatchdogMs', kind: 'literal', note: '同上' },
-  { file: 'src/client/kernel/probe-snapshot.js', name: 'SNAP_WAIT_MS', gen: 'SNAP_WAIT_MS', key: 'snapWaitMs', kind: 'literal', note: '同上（tests/verify-subdir-first-frame.js 按这段源码字面做替换，写法与数字都不能动）' },
-  { file: 'src/client/kernel/settings-view-write.js', name: 'VIEW_FLAG_WRITE_DEBOUNCE_MS', gen: 'VIEW_FLAG_WRITE_DEBOUNCE_MS', key: 'viewFlagWriteDebounceMs', kind: 'literal', note: '同上' },
-  { file: 'src/client/kernel/attention-heartbeat.js', name: 'ATTENTION_SILENT_MS', gen: 'ATTENTION_EXPIRY_MS', key: 'attentionExpiryMs', kind: 'literal', note: '同上；与宿主 budget.ts 的 ATTENTION_EXPIRY_MS 是同一个数，共用 attentionExpiryMs 这一档' },
-  { file: 'src/client/views/shared/truthLines.js', name: 'REST_FALLBACK_STALE_MS', gen: 'REST_FALLBACK_STALE_MS', key: 'restFallbackStaleMs', kind: 'literal', note: '同上' },
-  { file: 'src/client/views/versionControl/vcText.js', name: 'VC_RELATIVE_WINDOW_MS', gen: 'VC_RELATIVE_WINDOW_MS', key: 'vcRelativeWindowMs', kind: 'literal', note: '同上（tests/verify-842-version-control-write-view.js 把它列为导出契约）' },
-  // —— 跟踪器同步契约对象：src/shared/tracker/sync.js 也整份拼进界面闭包，同理永久 literal ——
-  { file: 'src/shared/tracker/sync.js', name: 'SYNC.EVAL_GAP_MS', gen: 'SYNC_EVAL_GAP_MS', key: 'syncEvalGapMs', kind: 'literal', note: '整份拼进界面闭包不能 import，永久 literal，只断言值相等' },
-  { file: 'src/shared/tracker/sync.js', name: 'SYNC.DIRTY_PROBE_DEBOUNCE_MS', gen: 'SYNC_DIRTY_PROBE_DEBOUNCE_MS', key: 'syncDirtyProbeDebounceMs', kind: 'literal', note: '同上' },
-  { file: 'src/shared/tracker/sync.js', name: 'SYNC.OVERLAP_SKEW_MS', gen: 'SYNC_OVERLAP_SKEW_MS', key: 'syncOverlapSkewMs', kind: 'literal', note: '同上' },
-  { file: 'src/shared/tracker/sync.js', name: 'SYNC.FAILURE_BACKOFF_MS', gen: 'SYNC_FAILURE_BACKOFF_MS', key: 'syncFailureBackoffMs', kind: 'literal', note: '同上' },
-  { file: 'src/shared/tracker/sync.js', name: 'SYNC.DIRTY_ECHO_TTL_MS', gen: 'SYNC_DIRTY_ECHO_TTL_MS', key: 'syncDirtyEchoTtlMs', kind: 'literal', note: '同上' },
-  { file: 'src/shared/tracker/sync.js', name: 'SYNC.POLL_GRID_MS', gen: 'SYNC_POLL_GRID_MS', key: 'syncPollGridMs', kind: 'literal', note: '同上' },
-  { file: 'src/shared/tracker/sync.js', name: 'SYNC.ACTION_PROBE_WINDOW_MS', gen: 'SYNC_ACTION_PROBE_WINDOW_MS', key: 'syncActionProbeWindowMs', kind: 'literal', note: '同上' },
-  { file: 'src/shared/tracker/sync.js', name: 'SYNC.FALLBACK_PROBE_MS', gen: 'SYNC_FALLBACK_PROBE_MS', key: 'syncFallbackProbeMs', kind: 'literal', note: '同上' },
-  { file: 'src/shared/tracker/sync.js', name: 'SYNC.FOCUS_PROBE_MIN_MS', gen: 'SYNC_FOCUS_PROBE_MIN_MS', key: 'syncFocusProbeMinMs', kind: 'literal', note: '同上' },
-  { file: 'src/shared/tracker/sync.js', name: 'SYNC.SNAP_FRESH_MS', gen: 'SYNC_SNAP_FRESH_MS', key: 'syncSnapFreshMs', kind: 'literal', note: '同上' },
-  { file: 'src/shared/tracker/sync.js', name: 'SYNC.ATTENTION_HEARTBEAT_MS', gen: 'ATTENTION_HEARTBEAT_MS', key: 'attentionHeartbeatMs', kind: 'literal', note: '同上；与 refresh-core 的 ATTENTION_HEARTBEAT_MS 同一个数，共用 attentionHeartbeatMs 这一档' },
-  { file: 'src/shared/tracker/sync.js', name: 'SYNC.ISSUE_CACHE_TTL', gen: 'SYNC_ISSUE_CACHE_TTL_MS', key: 'syncIssueCacheTtlMs', kind: 'literal', note: '同上' },
-  { file: 'src/shared/naming-tracking.js', name: 'NAMING_RETRY_COOLDOWN_MS', gen: 'NAMING_RETRY_COOLDOWN_MS', key: 'namingRetryCooldownMs', kind: 'literal', note: '整份拼进界面闭包不能 import，永久 literal，只断言值相等' },
+const REFERENCES: RefRow[] = [
+  // —— 宿主：静态 import 生成常量（别名只改名，不改值） ——
+  { file: 'src/host/versionControl.js', access: 'RUN_TIMEOUT_MS', gen: 'VC_RUN_TIMEOUT_MS', key: 'vcRunTimeoutMs' },
+  { file: 'src/host/versionControlCheck.js', access: 'CHECK_CALL_BUDGET_MS', gen: 'VC_CHECK_CALL_BUDGET_MS', key: 'vcCheckCallBudgetMs' },
+  { file: 'src/host/versionControlCheck.js', access: 'LSFILES_TIMEOUT_MS', gen: 'VC_LSFILES_TIMEOUT_MS', key: 'vcLsFilesTimeoutMs' },
+  { file: 'src/host/versionControlCheck.js', access: 'REMOTE_TIMEOUT_MS', gen: 'VC_REMOTE_TIMEOUT_MS', key: 'vcRemoteTimeoutMs' },
+  { file: 'src/host/versionControlWrite.js', access: 'ADD_TIMEOUT_MS', gen: 'VC_ADD_TIMEOUT_MS', key: 'vcAddTimeoutMs' },
+  { file: 'src/host/versionControlWrite.js', access: 'COMMIT_TIMEOUT_MS', gen: 'VC_COMMIT_TIMEOUT_MS', key: 'vcCommitTimeoutMs' },
+  { file: 'src/host/versionControlWrite.js', access: 'PULL_TIMEOUT_MS', gen: 'VC_PULL_TIMEOUT_MS', key: 'vcPullTimeoutMs' },
+  { file: 'src/host/versionControlWrite.js', access: 'PUSH_TIMEOUT_MS', gen: 'VC_PUSH_TIMEOUT_MS', key: 'vcPushTimeoutMs' },
+  { file: 'src/host/versionControlWrite.js', access: 'FETCH_TIMEOUT_MS', gen: 'VC_FETCH_TIMEOUT_MS', key: 'vcFetchTimeoutMs' },
+  { file: 'src/host/gitCredentialExec.js', access: 'CALL_BUDGET_MS', gen: 'GIT_CREDENTIAL_CALL_BUDGET_MS', key: 'gitCredentialCallBudgetMs' },
+  { file: 'src/host/gitCredentialExec.js', access: 'MIN_BUDGET_MS', gen: 'GIT_CREDENTIAL_MIN_BUDGET_MS', key: 'gitCredentialMinBudgetMs' },
+  { file: 'src/host/gitCredentialExec.js', access: 'MAX_BUDGET_MS', gen: 'GIT_CREDENTIAL_MAX_BUDGET_MS', key: 'gitCredentialMaxBudgetMs' },
+  { file: 'src/host/gitCredentialExec.js', access: 'GIT_LOW_SPEED_TIMEOUT_MS', gen: 'GIT_LOW_SPEED_TIMEOUT_MS', key: 'gitLowSpeedTimeoutMs' },
+  { file: 'src/host/workspaceKey.js', access: 'WORKSPACE_ROOT_TTL_MS', gen: 'WORKSPACE_ROOT_TTL_MS', key: 'workspaceRootTtlMs' },
+  { file: 'src/host/logStore.js', access: 'LOG_DEBOUNCE_MS', gen: 'LOG_WRITE_DEBOUNCE_MS', key: 'logWriteDebounceMs' },
+  { file: 'src/host/platform/namingSummary.js', access: 'SUMMARY_TIMEOUT_MS', gen: 'NAMING_SUMMARY_TIMEOUT_MS', key: 'namingSummaryTimeoutMs' },
+  { file: 'src/host/namingGuardian.js', access: 'NAMING_FALLBACK_MS', gen: 'NAMING_FALLBACK_INTERVAL_MS', key: 'namingFallbackIntervalMs' },
+  { file: 'src/host/skillProbeCache.js', access: 'SKILL_PROBE_CACHE_MS', gen: 'SKILL_PROBE_CACHE_MS', key: 'skillProbeCacheMs' },
+  { file: 'src/host/refresh/chain-ride.ts', access: 'CHAIN_RIDE_MAX_AGE_MS', gen: 'CHAIN_RIDE_MAX_AGE_MS', key: 'chainRideMaxAgeMs' },
+  { file: 'src/host/refresh/wiring.ts', access: 'DECK_ENSURE_TIMEOUT_MS', gen: 'DECK_ENSURE_TIMEOUT_MS', key: 'deckEnsureMs' },
+  { file: 'src/host/refresh/wiring.ts', access: 'DECK_LOCAL_READ_TIMEOUT_MS', gen: 'DECK_LOCAL_READ_TIMEOUT_MS', key: 'deckLocalReadMs' },
+  { file: 'src/host/refresh/wiring.ts', access: 'SHELL_RESOLVE_TIMEOUT_MS', gen: 'SHELL_RESOLVE_TIMEOUT_MS', key: 'shellResolveMs' },
+  { file: 'src/host/refresh/gate.ts', access: 'FAILURE_HALF_OPEN_DELAY_MS', gen: 'FAILURE_HALF_OPEN_DELAY_MS', key: 'failureHalfOpenDelayMs' },
+  { file: 'src/host/refresh/gate.ts', access: 'DEFER_EXPIRY_MS', gen: 'DEFER_EXPIRY_MS', key: 'deferExpiryMs' },
+  { file: 'src/host/refresh/gate.ts', access: 'PROBE_INTERVAL_MS', gen: 'PROBE_INTERVAL_MS', key: 'probeIntervalMs' },
+  { file: 'src/host/refresh/gate.ts', access: 'PROBE_INTERVAL_YELLOW_MS', gen: 'PROBE_INTERVAL_YELLOW_MS', key: 'probeIntervalYellowMs' },
+  { file: 'src/host/refresh/gate.ts', access: 'RECONCILE_INTERVAL_MS', gen: 'RECONCILE_INTERVAL_MS', key: 'reconcileIntervalMs' },
+  { file: 'src/host/refresh/gate.ts', access: 'REBUILD_MIN_INTERVAL_YELLOW_MS', gen: 'REBUILD_MIN_INTERVAL_YELLOW_MS', key: 'rebuildMinIntervalYellowMs' },
+  { file: 'src/host/refresh/gate.ts', access: 'CHAIN_BACKOFF_MS', gen: 'CHAIN_BACKOFF_MS', key: 'chainBackoffMs' },
+  { file: 'src/host/refresh/attention.js', access: 'ACTIVE_LINGER_MS', gen: 'ACTIVE_LINGER_MS', key: 'activeLingerMs' },
+  { file: 'src/host/refresh/attention.js', access: 'ATTENTION_EXPIRY_MS', gen: 'ATTENTION_EXPIRY_MS', key: 'attentionExpiryMs' },
+  { file: 'src/host/refresh/attention.js', access: 'PROBE_INTERVAL_MS', gen: 'PROBE_INTERVAL_MS', key: 'probeIntervalMs' },
+  { file: 'src/host/refresh/attention.js', access: 'PROBE_INTERVAL_LINGER_MS', gen: 'PROBE_INTERVAL_LINGER_MS', key: 'probeIntervalLingerMs' },
+  { file: 'src/host/refresh/attention.js', access: 'ATTENTION_HEARTBEAT_MS', gen: 'ATTENTION_HEARTBEAT_MS', key: 'attentionHeartbeatMs' },
+  { file: 'src/host/refresh/ledger.ts', access: 'QUOTA_SYNC_INTERVAL_MS', gen: 'QUOTA_SYNC_INTERVAL_MS', key: 'quotaSyncIntervalMs' },
+  { file: 'src/host/refresh/writeEvents.js', access: 'PATCH_MERGE_WINDOW_MS', gen: 'PATCH_MERGE_WINDOW_MS', key: 'patchMergeWindowMs' },
+  { file: 'src/host/refresh/writeEvents.js', access: 'PROBE_INTERVAL_MS', gen: 'PROBE_INTERVAL_MS', key: 'probeIntervalMs' },
+  // —— 动态 import（发布包里源码树不在时允许取不到，由调用方照旧求值）：名字走 central 命名空间，门禁认动态 import 行 ——
+  { file: 'src/host/refresh/chainBackoff.js', access: 'CHAIN_BACKOFF_MS', gen: 'CHAIN_BACKOFF_MS', key: 'chainBackoffMs' },
+  { file: 'src/host/refresh/chainBackoff.js', access: 'CHAIN_ALL_GREEN_TTL_MS', gen: 'CHAIN_ALL_GREEN_TTL_MS', key: 'chainAllGreenTtlMs' },
+  { file: 'src/host/refresh/chainBackoff.js', access: 'PREFLIGHT_TTL_MS', gen: 'PREFLIGHT_TTL_MS', key: 'preflightTtlMs' },
+  { file: 'src/host/versionControlCheck.js', access: 'TICKET_TTL_MS', gen: 'TICKET_TTL_MS', key: 'ticketTtlMs' },
+  // —— 宿主早先已是真引用的（第一轮接入，沿用） ——
+  { file: 'src/tracker/kernel/outbound-tiers.ts', access: 'READ_TIMEOUT_MS', gen: 'OUTBOUND_READ_TIMEOUT_MS', key: 'outboundReadMs' },
+  { file: 'src/tracker/kernel/outbound-tiers.ts', access: 'WRITE_TIMEOUT_MS', gen: 'OUTBOUND_WRITE_TIMEOUT_MS', key: 'outboundWriteMs' },
+  { file: 'src/tracker/kernel/outbound-tiers.ts', access: 'PROBE_TIMEOUT_MS', gen: 'OUTBOUND_PROBE_TIMEOUT_MS', key: 'outboundProbeMs' },
+  { file: 'src/tracker/kernel/outbound-tiers.ts', access: 'DEFAULT_TIMEOUT_MS', gen: 'OUTBOUND_DEFAULT_TIMEOUT_MS', key: 'outboundDefaultMs' },
+  { file: 'src/tracker/registry/core.ts', access: 'MATCHES_TIMEOUT_MS', gen: 'MATCHES_TIMEOUT_MS', key: 'matchesTimeoutMs' },
+  { file: 'src/tracker/rooms/github/client.ts', access: 'TIMEOUT_MS', gen: 'GITHUB_CLIENT_TIMEOUT_MS', key: 'githubClientTimeoutMs' },
+  // —— 共享层：整份转出（budget）与直接引用 ——
+  { file: 'src/shared/refresh/src/budget.ts', access: 'PROBE_INTERVAL_MS', gen: 'PROBE_INTERVAL_MS', key: 'probeIntervalMs' },
+  { file: 'src/shared/refresh/src/budget.ts', access: 'PROBE_INTERVAL_YELLOW_MS', gen: 'PROBE_INTERVAL_YELLOW_MS', key: 'probeIntervalYellowMs' },
+  { file: 'src/shared/refresh/src/budget.ts', access: 'PROBE_INTERVAL_LINGER_MS', gen: 'PROBE_INTERVAL_LINGER_MS', key: 'probeIntervalLingerMs' },
+  { file: 'src/shared/refresh/src/budget.ts', access: 'REBUILD_MIN_INTERVAL_YELLOW_MS', gen: 'REBUILD_MIN_INTERVAL_YELLOW_MS', key: 'rebuildMinIntervalYellowMs' },
+  { file: 'src/shared/refresh/src/budget.ts', access: 'RECONCILE_INTERVAL_MS', gen: 'RECONCILE_INTERVAL_MS', key: 'reconcileIntervalMs' },
+  { file: 'src/shared/refresh/src/budget.ts', access: 'QUOTA_SYNC_INTERVAL_MS', gen: 'QUOTA_SYNC_INTERVAL_MS', key: 'quotaSyncIntervalMs' },
+  { file: 'src/shared/refresh/src/budget.ts', access: 'ATTENTION_HEARTBEAT_MS', gen: 'ATTENTION_HEARTBEAT_MS', key: 'attentionHeartbeatMs' },
+  { file: 'src/shared/refresh/src/budget.ts', access: 'PREFLIGHT_TTL_MS', gen: 'PREFLIGHT_TTL_MS', key: 'preflightTtlMs' },
+  { file: 'src/shared/refresh/src/budget.ts', access: 'CHAIN_ALL_GREEN_TTL_MS', gen: 'CHAIN_ALL_GREEN_TTL_MS', key: 'chainAllGreenTtlMs' },
+  { file: 'src/shared/refresh/src/budget.ts', access: 'DEFER_EXPIRY_MS', gen: 'DEFER_EXPIRY_MS', key: 'deferExpiryMs' },
+  { file: 'src/shared/refresh/src/budget.ts', access: 'FAILURE_HALF_OPEN_DELAY_MS', gen: 'FAILURE_HALF_OPEN_DELAY_MS', key: 'failureHalfOpenDelayMs' },
+  { file: 'src/shared/refresh/src/budget.ts', access: 'ATTENTION_EXPIRY_MS', gen: 'ATTENTION_EXPIRY_MS', key: 'attentionExpiryMs' },
+  { file: 'src/shared/refresh/src/budget.ts', access: 'ACTIVE_LINGER_MS', gen: 'ACTIVE_LINGER_MS', key: 'activeLingerMs' },
+  { file: 'src/shared/refresh/src/budget.ts', access: 'PATCH_MERGE_WINDOW_MS', gen: 'PATCH_MERGE_WINDOW_MS', key: 'patchMergeWindowMs' },
+  { file: 'src/shared/refresh/src/budget.ts', access: 'FRESHNESS_YELLOW_MS', gen: 'FRESHNESS_YELLOW_MS', key: 'freshnessYellowMs' },
+  { file: 'src/shared/refresh/src/budget.ts', access: 'FRESHNESS_RED_MS', gen: 'FRESHNESS_RED_MS', key: 'freshnessRedMs' },
+  { file: 'src/shared/refresh/src/budget.ts', access: 'CHAIN_BACKOFF_MS', gen: 'CHAIN_BACKOFF_MS', key: 'chainBackoffMs' },
+  { file: 'src/shared/refresh/src/tuning.ts', access: 'TUNING.deckEnsureTimeoutMs', gen: 'DECK_ENSURE_TIMEOUT_MS', key: 'deckEnsureMs' },
+  { file: 'src/shared/version-control/src/write-ticket.ts', access: 'TICKET_TTL_MS', gen: 'TICKET_TTL_MS', key: 'ticketTtlMs' },
+  { file: 'src/shared/tracker/indexWindow.js', access: 'MAX_WINDOW_MS', gen: 'TRACKER_INDEX_MAX_WINDOW_MS', key: 'trackerIndexMaxWindowMs' },
+  { file: 'src/shared/tracker/indexWindow.js', access: 'SKEW_MS', gen: 'TRACKER_INDEX_SKEW_MS', key: 'trackerIndexSkewMs' },
+  { file: 'src/shared/tracker/sync.js', access: 'SYNC.EVAL_GAP_MS', gen: 'SYNC_EVAL_GAP_MS', key: 'syncEvalGapMs' },
+  { file: 'src/shared/tracker/sync.js', access: 'SYNC.DIRTY_PROBE_DEBOUNCE_MS', gen: 'SYNC_DIRTY_PROBE_DEBOUNCE_MS', key: 'syncDirtyProbeDebounceMs' },
+  { file: 'src/shared/tracker/sync.js', access: 'SYNC.OVERLAP_SKEW_MS', gen: 'SYNC_OVERLAP_SKEW_MS', key: 'syncOverlapSkewMs' },
+  { file: 'src/shared/tracker/sync.js', access: 'SYNC.FAILURE_BACKOFF_MS', gen: 'SYNC_FAILURE_BACKOFF_MS', key: 'syncFailureBackoffMs' },
+  { file: 'src/shared/tracker/sync.js', access: 'SYNC.DIRTY_ECHO_TTL_MS', gen: 'SYNC_DIRTY_ECHO_TTL_MS', key: 'syncDirtyEchoTtlMs' },
+  { file: 'src/shared/tracker/sync.js', access: 'SYNC.POLL_GRID_MS', gen: 'SYNC_POLL_GRID_MS', key: 'syncPollGridMs' },
+  { file: 'src/shared/tracker/sync.js', access: 'SYNC.ACTION_PROBE_WINDOW_MS', gen: 'SYNC_ACTION_PROBE_WINDOW_MS', key: 'syncActionProbeWindowMs' },
+  { file: 'src/shared/tracker/sync.js', access: 'SYNC.FALLBACK_PROBE_MS', gen: 'SYNC_FALLBACK_PROBE_MS', key: 'syncFallbackProbeMs' },
+  { file: 'src/shared/tracker/sync.js', access: 'SYNC.FOCUS_PROBE_MIN_MS', gen: 'SYNC_FOCUS_PROBE_MIN_MS', key: 'syncFocusProbeMinMs' },
+  { file: 'src/shared/tracker/sync.js', access: 'SYNC.SNAP_FRESH_MS', gen: 'SYNC_SNAP_FRESH_MS', key: 'syncSnapFreshMs' },
+  { file: 'src/shared/tracker/sync.js', access: 'SYNC.ATTENTION_HEARTBEAT_MS', gen: 'ATTENTION_HEARTBEAT_MS', key: 'attentionHeartbeatMs' },
+  { file: 'src/shared/tracker/sync.js', access: 'SYNC.ISSUE_CACHE_TTL', gen: 'SYNC_ISSUE_CACHE_TTL_MS', key: 'syncIssueCacheTtlMs' },
+  { file: 'src/shared/naming-tracking.js', access: 'NAMING_RETRY_COOLDOWN_MS', gen: 'NAMING_RETRY_COOLDOWN_MS', key: 'namingRetryCooldownMs' },
+  // —— deck 壳：注册外层上限（导出名沿用，值是中央那一份） ——
+  { file: 'src/deck/registration/register-options.ts', access: 'AGENT_TOOL_TIMEOUT_MS', gen: 'TOOL_TIMEOUT_MS', key: 'toolTimeoutMs' },
+  { file: 'src/deck/registration/register-options.ts', access: 'REGISTER_RETRY_WAIT_MS', gen: 'REGISTER_RETRY_WAIT_MS', key: 'registerRetryWaitMs' },
+  // —— 宿主 tracker：谓词回落超时（函数内裸用导入常量，模块不导出：门禁走源码 import 断言） ——
+  { file: 'src/host/tracker/predicateCore.js', access: 'PREDICATE_FALLBACK_TIMEOUT_MS', gen: 'PREDICATE_FALLBACK_TIMEOUT_MS', key: 'predicateFallbackTimeoutMs' },
+  { file: 'src/deck/shell/call-budget.ts', access: 'DEFAULT_TOOL_TIMEOUT_MS', gen: 'TOOL_TIMEOUT_MS', key: 'toolTimeoutMs' },
+  { file: 'src/deck/shell/call-budget.ts', access: 'DEFAULT_TOOL_MARGIN_MS', gen: 'TOOL_MARGIN_MS', key: 'toolMarginMs' },
+  { file: 'src/deck/shell/call-budget.ts', access: 'DEFAULT_PER_OP_TIMEOUT_MS', gen: 'PER_OP_TIMEOUT_MS', key: 'perOpTimeoutMs' },
+  { file: 'src/deck/rules/anchor.ts', access: 'ANCHOR_WINDOW_MS', gen: 'ANCHOR_WINDOW_MS', key: 'anchorWindowMs' },
+  { file: 'src/deck/shell/write-mutex.ts', access: 'DEFAULT_KEY_LOCK_TIMEOUT_MS', gen: 'KEY_LOCK_TIMEOUT_MS', key: 'keyLockMs' },
+  { file: 'src/deck/registration/host-assemble.ts', access: 'DECK_ASSEMBLY_TIMEOUT_MS', gen: 'DECK_ASSEMBLY_TIMEOUT_MS', key: 'deckAssemblyMs' },
+  // —— 界面半边：门禁把它当模块直接 import 跑，引用是真的（构建拼进闭包时剥掉 import 行） ——
+  { file: 'src/client/kernel/log.js', access: 'LOG_FLUSH_MS', gen: 'LOG_FLUSH_MS', key: 'logFlushMs' },
+  { file: 'src/client/kernel/log.js', access: 'LOG_WATCHDOG_MS', gen: 'LOG_WATCHDOG_MS', key: 'logWatchdogMs' },
+  { file: 'src/client/kernel/probe-snapshot.js', access: 'SNAP_WAIT_MS', gen: 'SNAP_WAIT_MS', key: 'snapWaitMs' },
+  { file: 'src/client/kernel/settings-view-write.js', access: 'VIEW_FLAG_WRITE_DEBOUNCE_MS', gen: 'VIEW_FLAG_WRITE_DEBOUNCE_MS', key: 'viewFlagWriteDebounceMs' },
+  { file: 'src/client/kernel/attention-heartbeat.js', access: 'ATTENTION_EXPIRY_MS', gen: 'ATTENTION_EXPIRY_MS', key: 'attentionExpiryMs' },
+  { file: 'src/client/kernel/attention-heartbeat.js', access: 'ATTENTION_HEARTBEAT_MS', gen: 'ATTENTION_HEARTBEAT_MS', key: 'attentionHeartbeatMs' },
+  { file: 'src/client/views/shared/truthLines.js', access: 'REST_FALLBACK_STALE_MS', gen: 'REST_FALLBACK_STALE_MS', key: 'restFallbackStaleMs' },
+  { file: 'src/client/views/versionControl/vcText.js', access: 'VC_RELATIVE_WINDOW_MS', gen: 'VC_RELATIVE_WINDOW_MS', key: 'vcRelativeWindowMs' },
+  { file: 'src/client/kernel/store-prefs.js', access: 'SYNC_ISSUE_CACHE_TTL_MS', gen: 'SYNC_ISSUE_CACHE_TTL_MS', key: 'syncIssueCacheTtlMs' },
+  { file: 'src/client/kernel/store-switch.js', access: 'STORE_SWITCH_CONFIRM_MS', gen: 'STORE_SWITCH_CONFIRM_MS', key: 'storeSwitchConfirmMs' },
+  { file: 'src/client/kernel/api-new-session.js', access: 'CLIENT_SESSION_TICK_MS', gen: 'CLIENT_SESSION_TICK_MS', key: 'clientSessionTickMs' },
+  { file: 'src/client/kernel/api-new-session.js', access: 'CLIENT_HANDOFF_DELAY_MS', gen: 'CLIENT_HANDOFF_DELAY_MS', key: 'clientHandoffDelayMs' },
+  { file: 'src/client/views/primitives/Tip.js', access: 'TIP_SHOW_DELAY_MS', gen: 'TIP_SHOW_DELAY_MS', key: 'tipShowDelayMs' },
+  { file: 'src/client/views/primitives/Tip.js', access: 'TIP_HIDE_DELAY_MS', gen: 'TIP_HIDE_DELAY_MS', key: 'tipHideDelayMs' },
 ]
 
 // ---------------------------------------------------------------------------
-// 表二 TEXT：不能 import 的（未导出、函数内局部、调用点字面量）。
-// snippet 是文件里今天的原样写法，count 是它在文件里的出现次数，value 是它代表的毫秒数。
-// 文件里的数字变了 → 出现次数对不上；YAML 的值变了 → value 与生效值对不上。两边都锁。
-// ---------------------------------------------------------------------------
-interface TextRow {
-  file: string
-  snippet: string
-  count: number
-  value: number
-  key: string
-  kind: 'literal' | 'imported'
-}
-const TEXTS: TextRow[] = [
-  { file: 'src/host/index.ts', snippet: 'const TIMEOUT_MS = 30000', count: 1, value: 30000, key: 'hostTimeoutMs', kind: 'literal' },
-  { file: 'src/host/index.ts', snippet: 'const CACHE_MS = 60000', count: 1, value: 60000, key: 'snapshotCacheMs', kind: 'literal' },
-  { file: 'src/deck/registration/register-options.ts', snippet: 'Math.floor(o.waitMs) : 2000', count: 1, value: 2000, key: 'registerRetryWaitMs', kind: 'literal' },
-  // 入口文件（src/host/index.ts）禁静态 import 的那一处延迟启动：数字只能留在函数体里，
-  // 这段写法在文件里只出现一次，改了数字或改了写法都会在这里判红。
-  { file: 'src/host/index.ts', snippet: '}, 30000)', count: 1, value: 30000, key: 'hostBootDeferMs', kind: 'literal' },
-  // —— 宿主侧“别名接中央常量”的那一批（第二轮全量收拢）——
-  // 写法是 `const 本地名 = CENTRAL_某常量 ?? 原数字`：本地名不导出时 IMPORT 表比不了（那边比的是模块导出），
-  // 所以走这张表——snippet 把「接的是哪个中央常量」与「缺表回落到哪个数字」一起锁住，
-  // 任一处被改（换常量、改回落值、删掉回落）都对不上出现次数。value 仍是这一档的毫秒数。
-  { file: 'src/host/versionControl.js', snippet: 'const RUN_TIMEOUT_MS = CENTRAL_VC_RUN_TIMEOUT_MS ?? 20000', count: 1, value: 20000, key: 'vcRunTimeoutMs', kind: 'literal' },
-  { file: 'src/host/versionControlCheck.js', snippet: 'const CHECK_CALL_BUDGET_MS = CENTRAL_VC_CHECK_CALL_BUDGET_MS ?? 60000', count: 1, value: 60000, key: 'vcCheckCallBudgetMs', kind: 'literal' },
-  { file: 'src/host/versionControlCheck.js', snippet: 'const LSFILES_TIMEOUT_MS = CENTRAL_VC_LSFILES_TIMEOUT_MS ?? 15000', count: 1, value: 15000, key: 'vcLsFilesTimeoutMs', kind: 'literal' },
-  { file: 'src/host/versionControlCheck.js', snippet: 'const REMOTE_TIMEOUT_MS = CENTRAL_VC_REMOTE_TIMEOUT_MS ?? 5000', count: 1, value: 5000, key: 'vcRemoteTimeoutMs', kind: 'literal' },
-  { file: 'src/host/versionControlWrite.js', snippet: 'const ADD_TIMEOUT_MS = CENTRAL_VC_ADD_TIMEOUT_MS ?? 15000', count: 1, value: 15000, key: 'vcAddTimeoutMs', kind: 'literal' },
-  { file: 'src/host/versionControlWrite.js', snippet: 'COMMIT_TIMEOUT_MS = CENTRAL_VC_COMMIT_TIMEOUT_MS ?? 60000', count: 1, value: 60000, key: 'vcCommitTimeoutMs', kind: 'literal' },
-  { file: 'src/host/versionControlWrite.js', snippet: 'PULL_TIMEOUT_MS = CENTRAL_VC_PULL_TIMEOUT_MS ?? 180000', count: 1, value: 180000, key: 'vcPullTimeoutMs', kind: 'literal' },
-  { file: 'src/host/versionControlWrite.js', snippet: 'PUSH_TIMEOUT_MS = CENTRAL_VC_PUSH_TIMEOUT_MS ?? 120000', count: 1, value: 120000, key: 'vcPushTimeoutMs', kind: 'literal' },
-  { file: 'src/host/versionControlWrite.js', snippet: 'FETCH_TIMEOUT_MS = CENTRAL_VC_FETCH_TIMEOUT_MS ?? 120000', count: 1, value: 120000, key: 'vcFetchTimeoutMs', kind: 'literal' },
-  { file: 'src/host/gitCredentialExec.js', snippet: 'const CALL_BUDGET_MS = CENTRAL_GIT_CREDENTIAL_CALL_BUDGET_MS ?? 240000', count: 1, value: 240000, key: 'gitCredentialCallBudgetMs', kind: 'literal' },
-  { file: 'src/host/gitCredentialExec.js', snippet: 'const MIN_BUDGET_MS = CENTRAL_GIT_CREDENTIAL_MIN_BUDGET_MS ?? 1000', count: 1, value: 1000, key: 'gitCredentialMinBudgetMs', kind: 'literal' },
-  { file: 'src/host/gitCredentialExec.js', snippet: 'const MAX_BUDGET_MS = CENTRAL_GIT_CREDENTIAL_MAX_BUDGET_MS ?? 600000', count: 1, value: 600000, key: 'gitCredentialMaxBudgetMs', kind: 'literal' },
-  { file: 'src/host/workspaceKey.js', snippet: 'const WORKSPACE_ROOT_TTL_MS = CENTRAL_WORKSPACE_ROOT_TTL_MS ?? 30000', count: 1, value: 30000, key: 'workspaceRootTtlMs', kind: 'literal' },
-  { file: 'src/host/logStore.js', snippet: 'export const LOG_DEBOUNCE_MS = CENTRAL_LOG_WRITE_DEBOUNCE_MS ?? 1000', count: 1, value: 1000, key: 'logWriteDebounceMs', kind: 'literal' },
-  { file: 'src/host/platform/namingSummary.js', snippet: 'const SUMMARY_TIMEOUT_MS = CENTRAL_NAMING_SUMMARY_TIMEOUT_MS ?? 30000', count: 1, value: 30000, key: 'namingSummaryTimeoutMs', kind: 'literal' },
-  { file: 'src/host/namingGuardian.js', snippet: 'const NAMING_FALLBACK_MS = CENTRAL_NAMING_FALLBACK_INTERVAL_MS ?? 600000', count: 1, value: 600000, key: 'namingFallbackIntervalMs', kind: 'literal' },
-  { file: 'src/host/skillProbeCache.js', snippet: 'export const SKILL_PROBE_CACHE_MS = CENTRAL_SKILL_PROBE_CACHE_MS ?? 10000', count: 1, value: 10000, key: 'skillProbeCacheMs', kind: 'literal' },
-  // git 的 http.lowSpeedTime 只认秒，中央这一档写的是毫秒：这里锁住「除的是 1000」与「毫秒数」两件事，
-  // 谁把除法改成别的、或把中央那一档改了，这一行都对不上。
-  { file: 'src/host/gitCredentialExec.js', snippet: 'const LOW_SPEED_SECONDS = GIT_LOW_SPEED_TIMEOUT_MS / 1000', count: 1, value: 20000, key: 'gitLowSpeedTimeoutMs', kind: 'literal' },
-  // —— 客户端“拼接常量缺席时退回原数字”的三处（第二轮全量收拢）——
-  // 这三个界面文件会被门禁当普通模块直接 import 进来跑（那时构建时拼进闭包的常量并不存在，
-  // 直接引用就是 ReferenceError，实测把 7 道门禁带红）。所以写法是
-  // `typeof 常量 === 'number' ? 常量 : 原数字`：产品里走拼进来的中央值，门禁里走同一个数字，
-  // 两边用的是不是同一个值，由下面这几行的片段与值一起锁住。
-  { file: 'src/client/kernel/store-prefs.js', snippet: "'number' ? SYNC_ISSUE_CACHE_TTL_MS : 60000", count: 1, value: 60000, key: 'syncIssueCacheTtlMs', kind: 'literal' },
-  { file: 'src/client/kernel/store-switch.js', snippet: "'number' ? STORE_SWITCH_CONFIRM_MS : 220", count: 1, value: 220, key: 'storeSwitchConfirmMs', kind: 'literal' },
-  { file: 'src/client/kernel/api-new-session.js', snippet: "'number' ? CLIENT_SESSION_TICK_MS : 1000", count: 2, value: 1000, key: 'clientSessionTickMs', kind: 'literal' },
-  { file: 'src/client/kernel/api-new-session.js', snippet: "'number' ? CLIENT_HANDOFF_DELAY_MS : 2000", count: 2, value: 2000, key: 'clientHandoffDelayMs', kind: 'literal' },
-  // —— 对抗式自查补的三处（2026-10-16）：名字是裸 timeout、或藏在 delay 对象里，原来的判据都看不见 ——
-  // 检测链传给谓词表的单谓词超时：值已改成读中央常量，这一行锁住「接的是哪个常量」与 15 秒这个值。
-  { file: 'src/host/detectChain.ts', snippet: 'timeout: PREDICATE_TIMEOUT_MS', count: 1, value: 15000, key: 'predicateTimeoutMs', kind: 'literal' },
-  // 谓词表自己不传 timeout 时的兜底：文件是手写 JavaScript（本仓规矩：动到谁就把谁转成 TS，这次不转，
-  // 所以保留字面量），这一行锁住 3 秒这个值与它对应的 YAML 键。
-  { file: 'src/host/tracker/predicateCore.js', snippet: '? opts.timeout : 3000', count: 1, value: 3000, key: 'predicateFallbackTimeoutMs', kind: 'literal' },
-  // 悬停提示薄预设的两个延时：叶子模块、不许 import，所以留字面量；同一段片段用两行分别锁 500 与 160。
-  { file: 'src/client/views/primitives/Tip.js', snippet: 'delay: { show: 500, hide: 160 }', count: 1, value: 500, key: 'tipShowDelayMs', kind: 'literal' },
-  { file: 'src/client/views/primitives/Tip.js', snippet: 'delay: { show: 500, hide: 160 }', count: 1, value: 160, key: 'tipHideDelayMs', kind: 'literal' },
-]
-
-// ---------------------------------------------------------------------------
-// 表三 CLIENT：界面半边要用的中央常量（走“构建时摘名字拼进闭包”那条路）。
+// 表二 CLIENT：界面半边要用的中央常量（走“构建时摘名字拼进闭包”那条路）。
 // 为什么单列一张表：界面文件不能 import，值只能由 scripts/build.mjs 的 CLIENT_TIME_NAMES
 // 挑出来塞进同一个闭包。三件事要一次对上，少一件界面就会引用一个不存在的名字或白拼一份：
 //   ① values.ts 里有这个常量（YAML 键存在）；② 构建名单里有它；③ 界面文件里确实在用它。
@@ -234,11 +215,78 @@ const CLIENTS: ClientRow[] = [
   { file: 'src/client/kernel/probe-auto.js', name: 'SYNC_FOCUS_PROBE_MIN_MS', key: 'syncFocusProbeMinMs' },
   { file: 'src/client/kernel/probe-auto.js', name: 'SYNC_SNAP_FRESH_MS', key: 'syncSnapFreshMs' },
   { file: 'src/client/kernel/store-prefs.js', name: 'SYNC_ISSUE_CACHE_TTL_MS', key: 'syncIssueCacheTtlMs' },
+  // 界面叶子与内核改成中央真引用后、剥掉 import 行的那些名字也由这一片提供。
+  { file: 'src/client/kernel/probe-snapshot.js', name: 'SNAP_WAIT_MS', key: 'snapWaitMs' },
+  { file: 'src/client/kernel/settings-view-write.js', name: 'VIEW_FLAG_WRITE_DEBOUNCE_MS', key: 'viewFlagWriteDebounceMs' },
+  { file: 'src/client/views/shared/truthLines.js', name: 'REST_FALLBACK_STALE_MS', key: 'restFallbackStaleMs' },
+  { file: 'src/client/views/primitives/Tip.js', name: 'TIP_SHOW_DELAY_MS', key: 'tipShowDelayMs' },
+  { file: 'src/client/views/primitives/Tip.js', name: 'TIP_HIDE_DELAY_MS', key: 'tipHideDelayMs' },
+  { file: 'src/client/views/versionControl/vcText.js', name: 'VC_RELATIVE_WINDOW_MS', key: 'vcRelativeWindowMs' },
+  { file: 'src/client/kernel/api-io.ts', name: 'DRAFT_REFOCUS_RETRY_MS', key: 'draftRefocusRetryMs' },
+  // —— 拼进闭包的共享文件：它们自己不能 import（闭包里没有模块系统），import 行剥掉之后，
+  // 下面这些名字由 timeConfig 片段提供声明。file 填的是真源（.ts/.js 源码），门禁只查“文件里确实在用”，
+  // 值的一致性由表一（REFERENCES）那几行管——两张表各管一头。
+  // naming-tracking.js（改名冷却窗，闭包里的面板逻辑要用它判“还在冷却里”）。
+  { file: 'src/shared/naming-tracking.js', name: 'NAMING_RETRY_COOLDOWN_MS', key: 'namingRetryCooldownMs' },
+  // sync.js（trackerSync 拼片）：SYNC 对象里原来是字面量，现在 12 个名字全由这一片提供。
+  { file: 'src/shared/tracker/sync.js', name: 'SYNC_EVAL_GAP_MS', key: 'syncEvalGapMs' },
+  { file: 'src/shared/tracker/sync.js', name: 'SYNC_DIRTY_PROBE_DEBOUNCE_MS', key: 'syncDirtyProbeDebounceMs' },
+  { file: 'src/shared/tracker/sync.js', name: 'SYNC_OVERLAP_SKEW_MS', key: 'syncOverlapSkewMs' },
+  { file: 'src/shared/tracker/sync.js', name: 'SYNC_FAILURE_BACKOFF_MS', key: 'syncFailureBackoffMs' },
+  { file: 'src/shared/tracker/sync.js', name: 'SYNC_DIRTY_ECHO_TTL_MS', key: 'syncDirtyEchoTtlMs' },
+  { file: 'src/shared/tracker/sync.js', name: 'SYNC_POLL_GRID_MS', key: 'syncPollGridMs' },
+  { file: 'src/shared/tracker/sync.js', name: 'SYNC_ACTION_PROBE_WINDOW_MS', key: 'syncActionProbeWindowMs' },
+  { file: 'src/shared/tracker/sync.js', name: 'SYNC_FALLBACK_PROBE_MS', key: 'syncFallbackProbeMs' },
+  { file: 'src/shared/tracker/sync.js', name: 'SYNC_FOCUS_PROBE_MIN_MS', key: 'syncFocusProbeMinMs' },
+  { file: 'src/shared/tracker/sync.js', name: 'SYNC_SNAP_FRESH_MS', key: 'syncSnapFreshMs' },
+  { file: 'src/shared/tracker/sync.js', name: 'ATTENTION_HEARTBEAT_MS', key: 'attentionHeartbeatMs' },
+  { file: 'src/shared/tracker/sync.js', name: 'SYNC_ISSUE_CACHE_TTL_MS', key: 'syncIssueCacheTtlMs' },
+  // budget.ts（refreshBudget 拼片）：函数体里裸用这 17 个名字，单源头改造前是字面量。
+  { file: 'src/shared/refresh/src/budget.ts', name: 'PROBE_INTERVAL_MS', key: 'probeIntervalMs' },
+  { file: 'src/shared/refresh/src/budget.ts', name: 'PROBE_INTERVAL_YELLOW_MS', key: 'probeIntervalYellowMs' },
+  { file: 'src/shared/refresh/src/budget.ts', name: 'PROBE_INTERVAL_LINGER_MS', key: 'probeIntervalLingerMs' },
+  { file: 'src/shared/refresh/src/budget.ts', name: 'REBUILD_MIN_INTERVAL_YELLOW_MS', key: 'rebuildMinIntervalYellowMs' },
+  { file: 'src/shared/refresh/src/budget.ts', name: 'RECONCILE_INTERVAL_MS', key: 'reconcileIntervalMs' },
+  { file: 'src/shared/refresh/src/budget.ts', name: 'PREFLIGHT_TTL_MS', key: 'preflightTtlMs' },
+  { file: 'src/shared/refresh/src/budget.ts', name: 'CHAIN_BACKOFF_MS', key: 'chainBackoffMs' },
+  { file: 'src/shared/refresh/src/budget.ts', name: 'FAILURE_HALF_OPEN_DELAY_MS', key: 'failureHalfOpenDelayMs' },
+  { file: 'src/shared/refresh/src/budget.ts', name: 'CHAIN_ALL_GREEN_TTL_MS', key: 'chainAllGreenTtlMs' },
+  { file: 'src/shared/refresh/src/budget.ts', name: 'PATCH_MERGE_WINDOW_MS', key: 'patchMergeWindowMs' },
+  { file: 'src/shared/refresh/src/budget.ts', name: 'DEFER_EXPIRY_MS', key: 'deferExpiryMs' },
+  { file: 'src/shared/refresh/src/budget.ts', name: 'ACTIVE_LINGER_MS', key: 'activeLingerMs' },
+  { file: 'src/shared/refresh/src/budget.ts', name: 'ATTENTION_HEARTBEAT_MS', key: 'attentionHeartbeatMs' },
+  { file: 'src/shared/refresh/src/budget.ts', name: 'ATTENTION_EXPIRY_MS', key: 'attentionExpiryMs' },
+  { file: 'src/shared/refresh/src/budget.ts', name: 'QUOTA_SYNC_INTERVAL_MS', key: 'quotaSyncIntervalMs' },
+  { file: 'src/shared/refresh/src/budget.ts', name: 'FRESHNESS_YELLOW_MS', key: 'freshnessYellowMs' },
+  { file: 'src/shared/refresh/src/budget.ts', name: 'FRESHNESS_RED_MS', key: 'freshnessRedMs' },
 ]
 
 // ---------------------------------------------------------------------------
-// 表四 EXEMPT：覆盖率扫描认出来、但刻意不入 YAML 的名字。每一行都要有理由，
-// 理由写不清的就不该出现在这里——那是漏登记的参数，不是豁免。
+// 表三 PERMANENT：源码里允许留数字的唯一出口。每一行锁死“文件 + 片段”，
+// 片段变了（改数字、改写法、挪位置）就判红。理由四选一，写不清的不许出现在这里。
+// ---------------------------------------------------------------------------
+interface PermanentRow {
+  file: string
+  snippet: string
+  reason: string
+}
+const PERMANENT: PermanentRow[] = [
+  // —— 单位换算（数学定义，不是旋钮） ——
+  { file: 'src/shared/refresh/src/budget.ts', snippet: 'HOUR_MS = 3_600_000', reason: '单位换算（1 小时），不是旋钮，调它没有意义' },
+  { file: 'src/client/views/shared/truthLines.js', snippet: 'TRUTH_MINUTE_MS = 60000', reason: '单位换算（1 分钟），只做“多久”折人话的刻度，不是旋钮' },
+  // —— 0 表示“还没有 / 关掉”（状态初值与开关，不是时长） ——
+  { file: 'src/shared/naming-tracking.js', snippet: 'NAMING_HINT_GRACE_MS = 0', reason: '值为 0 表示把这个宽限窗关掉，不是可调时长' },
+  { file: 'src/client/kernel/attention-heartbeat.js', snippet: "intervalMs: 0, lingerMs: 0, standing: '', limit: 0, atMs: 0", reason: '心跳计划的状态初值（0 = 还没定下节拍 / 还没跳过），真值由刷新预算注入，不是新参数' },
+  { file: 'src/client/kernel/router.js', snippet: 'commitMs: -1, fitMs: 0', reason: '面板时钟的状态初值（-1 / 0 = 还没提交过），不是可调时长' },
+  { file: 'src/shared/tracker/indexWindow.js', snippet: 'sinceMs: 0', reason: '还没有水位时从头全量（0 = 没有上次扫到哪儿），不是可调时长' },
+  // —— 单位不是毫秒（调它等于改语义，不是调时间） ——
+  { file: 'src/shared/refresh/src/backoff.ts', snippet: 'MIN_BACKOFF_STEPS = 2', reason: '退避步数下限（几档）：只有一档就没有「退」这件事，门禁按它核对序列；改它等于改校验语义' },
+]
+
+// ---------------------------------------------------------------------------
+// 表四 EXEMPT：覆盖率扫描认出来、但不是“本文件自己决定的可调时长”的名字。
+// 每一行都要有理由，理由写不清的就不该出现在这里——那是漏登记的参数，不是豁免。
+// 注意：这里只认“名字”，名字后面挂着数字由上一张 PERMANENT 表管（两张表各管一头）。
 // ---------------------------------------------------------------------------
 interface ExemptRow {
   file: string
@@ -246,46 +294,6 @@ interface ExemptRow {
   reason: string
 }
 const EXEMPTS: ExemptRow[] = [
-  // —— budget.ts：非时间数字（点数、条数、单价、比例）与单位换算 ——
-  { file: 'src/shared/refresh/src/budget.ts', name: 'HOUR_MS', reason: '单位换算（1 小时），不是旋钮，调它没有意义' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'PREFLIGHT_RETRY_AFTER_FAILURE', reason: '次数（失败几次后不再复用预检），不是毫秒' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'PLUGIN_SHARE_OF_REMAINING', reason: '比例，不是时间' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'PLUGIN_HOURLY_CAP', reason: '点数上限，不是时间' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'READ_SHARE_OF_ALLOWANCE', reason: '比例，不是时间' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'READ_HOURLY_CAP', reason: '点数上限，不是时间' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'WRITE_RESERVED_SHARE', reason: '比例，不是时间' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'WRITE_HOURLY_CAP', reason: '点数上限，不是时间' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'TIER_GREEN_BELOW', reason: '比例阈值，不是时间' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'TIER_RED_AT', reason: '比例阈值，不是时间' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'MAX_ACTIVE_WORKSPACES', reason: '个数，不是时间' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'MAX_PAGES', reason: '页数，不是时间' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'AI_TOOL_MAX_POINTS_PER_CALL', reason: '点数，不是时间' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'AI_TOOL_MAX_REQUESTS_PER_CALL', reason: '条数，不是时间' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'AI_TOOL_MAX_POINTS_PER_HOUR', reason: '点数，不是时间' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'AI_TOOL_MAX_REQUESTS_PER_HOUR', reason: '条数，不是时间' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'AI_TOOL_MAX_CHILD_TICKETS_PER_CALL', reason: '个数，不是时间' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'AI_TOOL_SHARD_SIZE', reason: '个数（由上一条推导），不是时间' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'QUOTA_READ_COST_REQUESTS', reason: '条数单价，不是时间' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'PROBE_COST_REQUESTS', reason: '条数单价，不是时间' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'PREFLIGHT_COST_REQUESTS', reason: '条数单价，不是时间' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'CHAIN_EVAL_COST_REQUESTS', reason: '条数单价，不是时间' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'PATCH_COST_POINTS_MIN', reason: '点数，不是时间' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'PATCH_COST_POINTS_MAX', reason: '点数，不是时间' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'PATCH_COST_REQUESTS', reason: '条数，不是时间' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'PAGE_COST_POINTS', reason: '点数单价，不是时间' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'PAGE_COST_POINTS_HALF', reason: '点数单价，不是时间' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'PR_PAGE_COST_POINTS', reason: '点数单价，不是时间' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'SUB_ISSUES_PAGE_COST_POINTS', reason: '点数单价，不是时间' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'COUNT_COST_POINTS', reason: '点数单价，不是时间' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'LIST_PAGE_COST_REQUESTS', reason: '条数单价，不是时间' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'PR_PAGE_COST_REQUESTS', reason: '条数单价，不是时间' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'COUNT_COST_REQUESTS', reason: '条数单价，不是时间' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'REBUILD_PAGE_COUNT', reason: '页数，不是时间' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'REBUILD_PR_PAGE_COUNT', reason: '页数，不是时间' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'REBUILD_COST_POINTS', reason: '点数（由页数与单价推导），不是时间' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'REBUILD_COST_REQUESTS', reason: '条数（由页数与单价推导），不是时间' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'WRITE_EVENT_COST_REQUESTS', reason: '条数单价，不是时间' },
-  { file: 'src/shared/refresh/src/budget.ts', name: 'SWITCH_COST_REQUESTS', reason: '条数单价（由探针单价推导），不是时间' },
   // —— tuning.ts：非时间条数 ——
   { file: 'src/shared/refresh/src/tuning.ts', name: 'readBucketMax', reason: '条数（桶容量），不是时间' },
   { file: 'src/shared/refresh/src/tuning.ts', name: 'writeBucketMax', reason: '条数（桶容量），不是时间' },
@@ -297,7 +305,6 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/shared/refresh/src/write-detect.ts', name: 'probeIntervalMs', reason: '函数内局部变量，接的是注入的 limits（上游是 PROBE_INTERVAL_MS），不是新参数' },
   // —— 别名：恒等于已登记的参数，改一边自动跟另一边，不需要第二把锁 ——
   { file: 'src/host/refresh/ledger.ts', name: 'SYNC_INTERVAL_MS', reason: '别名，恒等于 QUOTA_SYNC_INTERVAL_MS（已登记），引用即跟随' },
-  { file: 'src/host/refresh/wiring.ts', name: 'DECK_ENSURE_TIMEOUT_MS', reason: '别名，取共用调参表的 TUNING.deckEnsureTimeoutMs（已登记为 deckEnsureMs，值由本门禁看守一致），缺表回落 15000；引用即跟随' },
   // —— 注入结构体的字段：值由调用方按已登记参数装进来，本文件不写数字 ——
   { file: 'src/shared/refresh/src/policy.ts', name: 'rebuildMinGapMs', reason: '注入字段，接的是上游 REBUILD_MIN_INTERVAL_YELLOW_MS（已登记），缺省 0' },
   // —— 读钟算出来的测量值（耗时、时刻）：调 YAML 改不了它，不是可调参数 ——
@@ -317,7 +324,7 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/deck/registration/quota-sync.ts', name: 'cooldownMs', reason: '透传变量，缺省走 QUOTA_SYNC_COOLDOWN_MS（已登记）' },
   { file: 'src/host/detectChain.ts', name: 'nowMs', reason: '读钟时刻（Date.now），不是可调参数' },
   { file: 'src/host/detectChain.ts', name: 'waitMs', reason: '透传 backoff 的 verdict 结论，不是输入参数' },
-  { file: 'src/host/platformChannel.ts', name: 'timeoutMs', reason: '透传变量，接注入的 TIMEOUT_MS（已登记，上游是 hostTimeoutMs）' },
+  { file: 'src/host/platformChannel.ts', name: 'timeoutMs', reason: '透传变量，接注入的 TIMEOUT_MS（调用方按已登记的 hostTimeoutMs 装进来）' },
   { file: 'src/host/refresh/chain-ride.ts', name: 'nowMs', reason: '测试注钟口（生产用 Date.now），不是可调参数' },
   { file: 'src/shared/refresh/src/attention.ts', name: 'lingerMs', reason: '注入字段的本地接住（上游是 ACTIVE_LINGER_MS），不是新参数' },
   { file: 'src/shared/refresh/src/attention.ts', name: 'expiryMs', reason: '注入字段的本地接住（上游是 ATTENTION_EXPIRY_MS），不是新参数' },
@@ -327,7 +334,7 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/shared/refresh/src/backoff.ts', name: 'MIN_BACKOFF_STEPS', reason: '步数下限（次数），不是毫秒' },
   { file: 'src/shared/refresh/src/backoff.ts', name: 'evaluatedAtMs', reason: '状态里的时间戳（上次求值时刻），不是可调参数' },
   { file: 'src/shared/refresh/src/backoff.ts', name: 'waitMs', reason: '算出来的等待结果（verdict 的输出），不是输入参数' },
-  // —— 存量 JavaScript（票 #1215 全量收拢把覆盖率扫描从 .ts 扩到 .js 后新捞出来的）——
+  // —— 存量 JavaScript（覆盖率扫描从 .ts 扩到 .js 后新捞出来的）——
   // 分三类：测量值与时刻（调 YAML 改不了它）、状态字段与初值（0 表示“还没有”）、
   // 透传变量（值由调用方按已登记参数装进来）。
   { file: 'src/client/kernel/attention-heartbeat.js', name: 'intervalMs', reason: '心跳状态的初值字段（0 = 还没定下节拍），真值由刷新预算的 PROBE_INTERVAL_MS 注入，不是新参数' },
@@ -335,12 +342,11 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/client/kernel/attention-heartbeat.js', name: 'atMs', reason: '心跳时刻的初值字段（0 = 还没跳过），不是可调参数' },
   { file: 'src/client/kernel/attention-heartbeat.js', name: 'latencyMs', reason: '测量用局部变量（一次回话的耗时），不是可调参数' },
   { file: 'src/client/kernel/log.js', name: 'windowMs', reason: '算出来的时间差（距上次汇总过了多久），不是可调参数' },
-  { file: 'src/client/kernel/probe-auto.js', name: 'gateMs', reason: '派生变量，缺省接本文件顶部的 FOCUS_PROBE_MIN_MS（已登记），不是新参数' },
+  { file: 'src/client/kernel/probe-auto.js', name: 'gateMs', reason: '派生变量，缺省接本文件顶部的 FOCUS_PROBE_MIN_MS（拼进闭包的中央常量），不是新参数' },
   { file: 'src/client/kernel/probe-select.js', name: '_incMs', reason: '从快照里读出的时刻（那份快照是什么时候生成的），不是可调参数' },
   { file: 'src/client/kernel/probe-select.js', name: '_curMs', reason: '同上' },
   { file: 'src/client/kernel/probe-select.js', name: 'latencyMs', reason: '测量用局部变量（耗时），不是可调参数' },
   { file: 'src/client/kernel/probe-snapshot.js', name: 'timeOfMs', reason: '函数名（把时刻格式化成给人看的文字），不是时间参数' },
-  { file: 'src/client/kernel/probe-snapshot.js', name: '_waitMs', reason: '别名，接本文件已登记的 SNAP_WAIT_MS，引用即跟随' },
   { file: 'src/client/kernel/probe-snapshot.js', name: 'latencyMs', reason: '测量用局部变量（耗时），不是可调参数' },
   { file: 'src/client/kernel/router.js', name: 'fitMs', reason: '滚动位置回正的状态字段，不是时间参数' },
   { file: 'src/client/kernel/store-snapshot.js', name: 'cacheMs', reason: '从快照里读出的生成时刻，不是可调参数' },
@@ -350,11 +356,17 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/client/kernel/store-switch.js', name: '_hadToWait', reason: '布尔判断结果（这一步有没有等过），不是时间参数' },
   { file: 'src/client/statusbar/checksums.js', name: '_probeMs', reason: '读出来的探测时刻，不是可调参数' },
   { file: 'src/client/statusbar/StatusLogMenu.js', name: 'latencyMs', reason: '测量用局部变量（耗时），不是可调参数' },
-  { file: 'src/client/views/shared/truthLines.js', name: 'TRUTH_MINUTE_MS', reason: '单位换算（1 分钟），不是旋钮，调它没有意义' },
   { file: 'src/client/views/shared/truthLines.js', name: 'ageMs', reason: '算出来的时间差（距今多久），不是可调参数' },
   { file: 'src/client/views/versionControl/vcBlocks.js', name: 'nowMs', reason: '读钟时刻（Date.now），不是可调参数' },
   { file: 'src/host/gitCredentialExec.js', name: 'elapsedMs', reason: '测量用局部变量（耗时），不是可调参数' },
   { file: 'src/host/gitCredentialExec.js', name: 'timeoutMs', reason: '透传参数，缺省接 GIT_CREDENTIAL_PROBE_TIMEOUT_MS（已登记）' },
+  { file: 'src/host/gitCredentialExec.js', name: 'lowSpeedSeconds', reason: '派生变量：由已登记的 GIT_LOW_SPEED_TIMEOUT_MS 除以 1000 得到（git 的 lowSpeedTime 只认秒），除数不是时长' },
+  { file: 'src/host/gitCredentialExec.js', name: 'deadline', reason: '算出来的截止时刻（Date.now() 加整趟预算），不是可调参数' },
+  { file: 'src/host/namingGuardian.js', name: 'delay', reason: '派生变量：缺省接已登记的 NAMING_SWEEP_SOON_MS，正常路径用调用方给的 delayMs' },
+  { file: 'src/shared/naming-tracking.js', name: 'grace', reason: '派生变量：缺省接已登记的 NAMING_HINT_GRACE_MS，正常路径用调用方给的 hintGraceMs' },
+  { file: 'src/shared/refresh/src/backoff.ts', name: 'delay', reason: '派生变量：backoffDelayMs(state) 算出来的本次等待时长，序列本身已登记为 chainBackoffMs' },
+  { file: 'src/tracker/rooms/github/client.ts', name: 'timeout', reason: '透传参数：值来自上层调用参数，本文件不决定时长（出站层的档位由 outbound-tiers.ts 定，已登记）' },
+  { file: 'src/tracker/rooms/gitlab/client.ts', name: 'timeout', reason: '同上，透传参数' },
   { file: 'src/host/platform/issueIndexWindow.js', name: 'startedMs', reason: '读钟时刻（这趟扫描什么时候开始的），不是可调参数' },
   { file: 'src/host/platform/issueIndexWindow.js', name: 'nextWatermarkMs', reason: '算出来的下一个水位时刻，不是可调参数' },
   { file: 'src/host/platform/issueIndexWindow.js', name: 'watermarkMs', reason: '上次扫到哪儿的时刻（状态字段），不是可调参数' },
@@ -362,36 +374,25 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/host/refresh/chainBackoff.js', name: 'waitMs', reason: '算出来的等待结果（退避结论的输出），不是输入参数' },
   { file: 'src/host/refresh/patch.js', name: 'scanStartedMs', reason: '读钟时刻（这趟核对什么时候开始的），不是可调参数' },
   { file: 'src/host/refresh/patch.js', name: 'sinceMs', reason: '算出来的起点时刻（上次水位减容差），不是可调参数' },
-  { file: 'src/host/skillProbeCache.js', name: 'ttlMs', reason: '透传参数，缺省接 SKILL_PROBE_CACHE_MS（已登记，值由本门禁看守）' },
-  { file: 'src/host/skillProbe.js', name: 'SKILL_CACHE_TTL_MS', reason: '函数内局部变量：接线给了正数就听接线的，没给时取中央常量 SKILL_LIST_CACHE_TTL_MS（已登记为 skillListCacheTtlMs，值由本门禁看守）' },
+  { file: 'src/host/skillProbeCache.js', name: 'ttlMs', reason: '透传参数，缺省接 SKILL_PROBE_CACHE_MS（已登记）' },
+  { file: 'src/host/skillProbe.js', name: 'SKILL_CACHE_TTL_MS', reason: '函数内局部变量：接线给了正数就听接线的，没给时取中央常量 SKILL_LIST_CACHE_TTL_MS（已登记为 skillListCacheTtlMs）' },
   { file: 'src/host/tracker/snapshot.js', name: 'snapshotTtl', reason: '透传参数，缺省接 SNAPSHOT_TTL_MS（已登记为 snapshotTtlMs）' },
   { file: 'src/host/tracker/snapshot.js', name: 'depsTtl', reason: '同上' },
   { file: 'src/host/versionControl.js', name: 'timeoutMs', reason: '透传参数，缺省接本文件已登记的 RUN_TIMEOUT_MS' },
   { file: 'src/host/versionControl.js', name: 'graceMs', reason: '透传参数，缺省接 PROC_GRACE_MS（已登记为 procGraceMs）' },
-  { file: 'src/shared/naming-tracking.js', name: 'NAMING_HINT_GRACE_MS', reason: '值为 0 表示不宽限（把这个宽限窗关掉），不是可调时长' },
   { file: 'src/shared/tracker/indexWindow.js', name: 'sinceMs', reason: '算出来的起点时刻（水位减容差），不是可调参数' },
-  // —— 派生变量：正常路径取 SYNC 契约里的同名项（已登记、值由本门禁看守），
-  //    兜底取拼进闭包的中央常量；两条路都落在同一份 YAML 上，所以不需要第二把锁 ——
-  { file: 'src/client/kernel/probe-auto.js', name: 'PROBE_MS', reason: '派生变量，取 SYNC.FALLBACK_PROBE_MS（已登记为 syncFallbackProbeMs），兜底取 SYNC_FALLBACK_PROBE_MS（拼进闭包的中央常量）；引用即跟随' },
-  { file: 'src/client/kernel/probe-auto.js', name: 'FOCUS_PROBE_MIN_MS', reason: '派生变量，取 SYNC.FOCUS_PROBE_MIN_MS（已登记为 syncFocusProbeMinMs），兜底取 SYNC_FOCUS_PROBE_MIN_MS；引用即跟随' },
-  { file: 'src/client/kernel/probe-auto.js', name: 'SNAP_FRESH_MS', reason: '派生变量，取 SYNC.SNAP_FRESH_MS（已登记为 syncSnapFreshMs），兜底取 SYNC_SNAP_FRESH_MS；引用即跟随' },
-  { file: 'src/client/kernel/store-prefs.js', name: 'ISSUE_CACHE_TTL', reason: '派生变量，取 SYNC.ISSUE_CACHE_TTL（已登记为 syncIssueCacheTtlMs），兜底取 SYNC_ISSUE_CACHE_TTL_MS；引用即跟随' },
-  // —— 2026-10-16 对抗式自查：时间味判据加宽（补上裸 timeout/interval/delay 这类整词与秒/分钟单位）之后，
-  //    下面这些名字第一次被门禁认出来。逐个查过，都不是「本文件自己决定的可调时长」，故豁免并写明理由 ——
+  // —— 派生变量：正常路径取 SYNC 契约里的同名项（已登记），兜底取拼进闭包的中央常量 ——
+  { file: 'src/client/kernel/probe-auto.js', name: 'PROBE_MS', reason: '派生变量，取 SYNC.FALLBACK_PROBE_MS（已登记为 syncFallbackProbeMs），兜底取拼进闭包的 SYNC_FALLBACK_PROBE_MS；引用即跟随' },
+  { file: 'src/client/kernel/probe-auto.js', name: 'FOCUS_PROBE_MIN_MS', reason: '派生变量，取 SYNC.FOCUS_PROBE_MIN_MS（已登记为 syncFocusProbeMinMs），兜底取拼进闭包的 SYNC_FOCUS_PROBE_MIN_MS；引用即跟随' },
+  { file: 'src/client/kernel/probe-auto.js', name: 'SNAP_FRESH_MS', reason: '派生变量，取 SYNC.SNAP_FRESH_MS（已登记为 syncSnapFreshMs），兜底取拼进闭包的 SYNC_SNAP_FRESH_MS；引用即跟随' },
+  { file: 'src/client/kernel/store-prefs.js', name: 'ISSUE_CACHE_TTL', reason: '派生变量，取 SYNC.ISSUE_CACHE_TTL（已登记为 syncIssueCacheTtlMs），兜底取拼进闭包的 SYNC_ISSUE_CACHE_TTL_MS；引用即跟随' },
+  // —— 2026-10-16 对抗式自查：时间味判据加宽之后第一次被认出来的名字，逐个定性 ——
   { file: 'src/client/kernel/attention-heartbeat.js', name: 'interval', reason: '函数参数名，值由调用方给（planAttention 的入参），本文件不决定时长' },
   { file: 'src/client/kernel/attention-heartbeat.js', name: 'linger', reason: '同上，函数参数名，不是可调常量' },
   { file: 'src/deck/shell/call-shell.ts', name: 'sleep', reason: '等待函数的名字（sleep(ms)），不是数值；调用点给的毫秒数由各自的时间常量决定' },
   { file: 'src/deck/shell/session-workdir.ts', name: 'sleep', reason: '同上，等待函数名' },
   { file: 'src/deck/shell/table-cell.ts', name: 'sleep', reason: '同上，等待函数名' },
   { file: 'src/deck/shell/write-mutex.ts', name: 'sleep', reason: '同上，等待函数名' },
-  { file: 'src/host/gitCredentialExec.js', name: 'lowSpeedSeconds', reason: '派生变量：由已登记的 GIT_LOW_SPEED_TIMEOUT_MS 除以 1000 得到（git 的 lowSpeedTime 只认秒），除法本身由 TEXT 表锁住' },
-  { file: 'src/host/gitCredentialExec.js', name: 'deadline', reason: '算出来的截止时刻（Date.now() 加整趟预算），不是可调参数' },
-  { file: 'src/host/namingGuardian.js', name: 'delay', reason: '派生变量：缺省接已登记的 NAMING_SWEEP_SOON_MS，正常路径用调用方给的 delayMs' },
-  { file: 'src/shared/naming-tracking.js', name: 'grace', reason: '派生变量：缺省接已登记的 NAMING_HINT_GRACE_MS，正常路径用调用方给的 hintGraceMs' },
-  { file: 'src/shared/refresh/src/backoff.ts', name: 'delay', reason: '派生变量：backoffDelayMs(state) 算出来的本次等待时长，序列本身已登记为 chainBackoffMs' },
-  { file: 'src/tracker/rooms/github/client.ts', name: 'timeout', reason: '透传参数：值来自上层调用参数，本文件不决定时长（出站层的档位由 outbound-tiers.ts 定，已登记）' },
-  { file: 'src/tracker/rooms/gitlab/client.ts', name: 'timeout', reason: '同上，透传参数' },
-  { file: 'src/client/views/primitives/Tip.js', name: 'delay', reason: '对象键名：里面的 500 与 160 由 TEXT 表两行锁住（tipShowDelayMs / tipHideDelayMs）；本文件是拼进闭包的叶子模块、不许 import，只能留字面量' },
 ]
 
 // 时间味判定，两类都认：
@@ -403,39 +404,50 @@ const EXEMPTS: ExemptRow[] = [
 //   ② 英文里最常用的整词时间名（大小写敏感、按住词边界）：timeout / interval / delay / stall /
 //      deadline / grace / cooldown / debounce / throttle / linger / watchdog / retention / duration /
 //      sleep / expiry / expire / wait，以及孤零零的小写 ttl。
-//      这一类是 2026-10-16 对抗式自查补上的：原来的判据只认后缀，写成 `{ timeout: 15000 }` 或
-//      `const timeout = … : 3000` 的时间参数，调查脚本与本门禁都看不见，实际漏掉了检测链的谓词超时
-//      （src/host/detectChain.ts）与谓词表的兜底默认（src/host/tracker/predicateCore.js）。
-//      整词判据要求前后是词首词尾或下划线，所以 message / coverage / page 这类以 age 结尾的普通词、
-//      waited / waiters 这类派生词都不会被误伤。
-const TIMEISH_RE = /(_MS|_TTL|_INTERVAL|_EXPIRY|_BACKOFF|_WAIT|_WINDOW|_AGE|KEEP_ALIVE|_SECONDS|_MINUTES|_HOURS|_DAYS)(_|$)|(Ms|Ttl|Interval|Expiry|Backoff|Wait|Window|Age|Seconds|Minutes|Hours|Days)$|^ttl$|(^|_)(timeout|interval|delay|stall|deadline|grace|cooldown|debounce|throttle|linger|watchdog|retention|duration|sleep|expiry|expire|wait)(_|$)/
 function timeishLike(name: string): boolean {
   return TIMEISH_RE.test(name)
+}
+const TIMEISH_RE = /(_MS|_TTL|_INTERVAL|_EXPIRY|_BACKOFF|_WAIT|_WINDOW|_AGE|KEEP_ALIVE|_SECONDS|_MINUTES|_HOURS|_DAYS)(_|$)|(Ms|Ttl|Interval|Expiry|Backoff|Wait|Window|Age|Seconds|Minutes|Hours|Days)$|^ttl$|(^|_)(timeout|interval|delay|stall|deadline|grace|cooldown|debounce|throttle|linger|watchdog|retention|duration|sleep|expiry|expire|wait)(_|$)/
+
+// 把注释与字符串字面量剥掉再扫描：注释里的历史数字（“2026-10-14 由 120000 放宽到 300000”）、
+// 日志文案里的数字（'timeout 30s'）、文档字符串，都不是代码，不参检。
+// 剥法是粗糙的行级处理（块注释整段去、行注释按 // 切、单双反引号引号段去），
+// 正则字面量里含 // 或引号的行可能被误伤——误伤只会表现为“多报”，不会漏报，
+// 多报的那一行按实际情况收入 PERMANENT 或改写即可。
+function stripCode(text: string): string {
+  const noBlock = text.replace(/\/\*[\s\S]*?\*\//g, (m) => '\n'.repeat(m.split('\n').length - 1))
+  return noBlock
+    .split('\n')
+    .map((line) => {
+      const cut = line.split('//')[0]
+      return cut
+        .replace(/'(?:[^'\\\n]|\\.)*'/g, "''")
+        .replace(/"(?:[^"\\\n]|\\.)*"/g, '""')
+        .replace(/`(?:[^`\\]|\\.)*`/g, '``')
+    })
+    .join('\n')
 }
 
 function countOccurrences(haystack: string, needle: string): number {
   if (!needle) return 0
-  // 后面不能紧跟数字：否则 'timeout: 3000' 会把 'timeout: 30000' 也数进去（github/init-project.ts 的教训）。
+  // 后面不能紧跟数字：否则 'SNAP_WAIT_MS' 会把 'SNAP_WAIT_MS2' 也数进去。
   const re = new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?!\\d)', 'g')
   return haystack.match(re)?.length || 0
 }
 
 async function main(): Promise<void> {
   // —— 第零节：本门禁在验证链上有位置（改了链却没带上自己，等于没看门） ——
-  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')) as { scripts?: { verify?: string } }
-  check(String((pkg.scripts && pkg.scripts.verify) || '').includes('verify-time-config.ts'), '本门禁已挂进 npm run verify 链')
+  const stages = fs.readFileSync(path.join(ROOT, 'scripts', 'verify-stages.json'), 'utf8')
+  check(stages.includes('tests/verify-time-config.ts'), '本门禁已挂进验证链（scripts/verify-stages.json）')
 
   // —— 第一节：生成新鲜度（调了 YAML 忘跑生成器，在这里判红） ——
   const gen = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'generate-time-config.mjs'), '--check'], { encoding: 'utf8' })
   check(gen.status === 0, '生成源码与 config/ 下的三份时间参数文件一致' + (gen.status === 0 ? '' : '（' + String((gen.stdout || '') + (gen.stderr || '')).trim().split('\n')[0] + '）'))
 
-  // —— 构建产物自检（2026-10-16 对抗式自查补） ——
-  // 宿主与共享层的源码 import 的是域根的 src/shared/time-config/values.js（由构建从本域的
-  // src/values.ts 编译出来，不入库）：它没有同名的 .ts，测试装载钩子（scripts/ts-hook.mjs 的
-  // 「同名 .ts 优先」）也替代不了，缺了它第二节会抛 Cannot find module 之类的错，
+  // —— 构建产物自检 ——
+  // 宿主与共享层的源码 import 的是域构建产物 src/shared/time-config/values.js
+  // （由构建从本域的 src/values.ts 编译出来，不入库）：缺了它第二节会抛 Cannot find module，
   // 看上去像「值对不上」，其实只是没构建过。
-  // 本域 src/ 下那份 values.js 不检查：钩子会把它指到同目录的 values.ts，而 values.ts 在不在、
-  // 新不新鲜由第一节的生成器自检管。
   if (!fs.existsSync(path.join(ROOT, 'src/shared/time-config/values.js'))) {
     check(
       false,
@@ -445,56 +457,49 @@ async function main(): Promise<void> {
     process.exit(1)
   }
 
-  // —— 第二节：值一致 ——
-  const timeMod = (await import(TIME_CONFIG_JS)) as {
-    TIME_YAML: Record<string, unknown>
-    TIME_FALLBACKS: Record<string, unknown>
-  } & Record<string, unknown>
-  for (const row of IMPORTS) {
-    const eff = effective(row.key, timeMod.TIME_YAML, timeMod.TIME_FALLBACKS)
+  // —— 第二节：真引用（拿到的就是生成的那一份，不是抄的数字） ——
+  const timeMod = (await import(TIME_CONFIG_JS)) as { TIME_YAML: Record<string, unknown> } & Record<string, unknown>
+  for (const row of REFERENCES) {
+    if (!(row.key in timeMod.TIME_YAML)) {
+      check(false, row.file + ' 的 REFERENCES 行键写错了：YAML 里没有 ' + row.key)
+      continue
+    }
+    const eff = timeMod.TIME_YAML[row.key]
     let mod: Record<string, unknown>
     try {
       mod = (await import(pathToFileURL(path.join(ROOT, row.file.replace(/\.ts$/, '.js'))).href)) as Record<string, unknown>
     } catch (e) {
-      check(false, row.file + ' 载入失败，IMPORT 行无从比对：' + String((e as Error).message).split('\n')[0])
+      check(false, row.file + ' 载入失败，REFERENCES 行无从比对：' + String((e as Error).message).split('\n')[0])
       continue
     }
-    if (row.name.includes('.')) {
-      const [objName, prop] = row.name.split('.')
-      const obj = mod[objName] as Record<string, unknown> | undefined
-      if (row.kind === 'imported') {
-        check(false, row.file + ' 的 ' + row.name + ' 还不支持 imported 形态（对象属性无从引用相等），先保持 literal')
-        continue
-      }
-      check(!!obj && eqValue(obj[prop], eff), row.file + ' 的 ' + row.name + ' == YAML 生效值 ' + JSON.stringify(eff))
-      continue
+    let got: unknown = mod
+    for (const part of row.access.split('.')) {
+      got = (got as Record<string, unknown> | undefined)?.[part]
     }
-    if (row.kind === 'imported') {
-      // imported 形态断言的是“就是同一个东西”：数字比值相等，数组比引用相等（同一个对象才算真导入，不是抄的数字）
-      // 判红时先重跑一次构建再看：imported 读的是域构建产物（values.js），只改 YAML、只跑生成器、
-      // 没跑构建时产物是旧的，这里的值会对不上（admission.ts 引 tuning.js 同例）。
-      const same = Array.isArray(eff) ? mod[row.name] === timeMod[row.gen] : eqValue(mod[row.name], eff)
-      check(same, row.file + ' 的 ' + row.name + ' 与 time-config 的 ' + row.gen + ' 是同一份值（真导入，不是抄的数字）' + (same ? '' : '（先重跑构建排除产物过期）'))
-      continue
-    }
-    check(eqValue(mod[row.name], eff), row.file + ' 的 ' + row.name + ' == YAML 生效值 ' + JSON.stringify(eff))
-  }
-  for (const row of TEXTS) {
-    const eff = effective(row.key, timeMod.TIME_YAML, timeMod.TIME_FALLBACKS)
-    if (row.kind === 'imported') {
-      check(false, row.file + ' 的 TEXT 行 kind 不该是 imported（字面行迁完就该删，而不是翻转）')
-      continue
-    }
-    let text: string
-    try {
-      text = fs.readFileSync(path.join(ROOT, row.file), 'utf8')
-    } catch (e) {
-      check(false, row.file + ' 读不到，TEXT 行无从比对')
-      continue
-    }
-    const n = countOccurrences(text, row.snippet)
-    check(n === row.count, row.file + ' 里 “' + row.snippet + '” 出现 ' + row.count + ' 次（实测 ' + n + ' 次）')
-    check(eff === row.value, row.key + ' 的 YAML 生效值是 ' + String(eff) + '（本行锁的是 ' + row.value + '）')
+    const src = fs.readFileSync(path.join(ROOT, row.file), 'utf8')
+    // import 别名（import { GEN as LOCAL }）不是模块导出，模块读不到：这时退到源码断言——
+    // 文件里必须有一行从 time-config 真引用了这个生成常量（名字对不上就判红）。
+    // import 行存在 + 第四节无字面量，两件事合在一起才是“真引用”。
+    const local = row.access.includes('.') ? row.access.slice(row.access.indexOf('.') + 1) : row.access
+    const importRe = new RegExp(
+      '(import|export)\\s*\\{[^}]*\\b' + row.gen + '\\b\\s*(as\\s+' + local + '\\b)?[^}]*\\}(\\s*from\\s*[\'"][^\'"]*time-config/values\\.js[\'"])?',
+    )
+    // 动态 import（chainBackoff.js 那种）：import('…time-config/values.js') 取到命名空间再点名字用。
+    // 静态行没有，动态行 + 名字在源码里出现才算——动态行本身不带名字，不点名就放行等于没看门。
+    const dynamicRe = new RegExp('import\\(\\s*[\'"][^\'"]*time-config/values\\.js[\'"]\\s*\\)')
+    const imported = importRe.test(src) || (dynamicRe.test(src) && src.includes(row.gen))
+    // 数字比值相等；数组比引用，跨源码/产物两份实例时退到“值相等 + 源码里真引用了这个名字”
+    // （手抄一个相同数组的作弊写法会被 import 断言拦住：没写 import 行就判红）。
+    // 模块根本不导出这个名字时（只在内部用，如 budget.ts；或只走动态 import，如 chainBackoff.js），
+    // got 是 undefined，比不出值——这时 import 行断言是唯一的证据（字面量那一头由第四节接着看）。
+    const same = Array.isArray(eff)
+      ? got === timeMod[row.gen] || (imported && (got === undefined || eqValue(got, eff)))
+      : got !== undefined ? eqValue(got, eff) : imported
+    check(
+      same,
+      row.file + ' 的 ' + row.access + ' 与 time-config 的 ' + row.gen + ' 是同一份值（真导入，不是抄的数字）'
+        + (same ? '' : '（实测 ' + JSON.stringify(got) + '，YAML 生效值 ' + JSON.stringify(eff) + '；先重跑构建排除产物过期）'),
+    )
   }
 
   // —— 第三节：界面半边拿不拿得到值（values.ts 有、构建名单有、界面文件真在用） ——
@@ -505,7 +510,7 @@ async function main(): Promise<void> {
   const clientUsed = new Set<string>()
   for (const row of CLIENTS) {
     clientUsed.add(row.name)
-    const eff = effective(row.key, timeMod.TIME_YAML, timeMod.TIME_FALLBACKS)
+    const eff = (timeMod.TIME_YAML as Record<string, unknown>)[row.key]
     check(timeMod[row.name] !== undefined, 'values.ts 里有 ' + row.name + '（YAML 键 ' + row.key + ' 的生效值 ' + JSON.stringify(eff) + '）')
     check(splicedNames.has(row.name), row.name + ' 已在 scripts/build.mjs 的拼接名单里（没登记的话界面构建出来会引用一个不存在的名字）')
     let text = ''
@@ -521,28 +526,82 @@ async function main(): Promise<void> {
     check(clientUsed.has(name), '拼接名单里的 ' + name + ' 有界面文件在用（名单多一个名字，就是把没人用的常量白拼进闭包）')
   }
 
-  // —— 第三节：覆盖率（src/ 下新冒出来的时间常量，必须先登记） ——
-  const ls = spawnSync('git', ['ls-files', 'src'], { cwd: ROOT, encoding: 'utf8' })
-  check(ls.status === 0, 'git ls-files 可用（覆盖率扫描的前置条件）')
+  // —— 第四节：无字面量（时间味的位置上不许出现数字，PERMANENT 表是唯一出口） ——
+  const permanentByFile = new Map<string, string[]>()
+  for (const row of PERMANENT) {
+    if (!permanentByFile.has(row.file)) permanentByFile.set(row.file, [])
+    permanentByFile.get(row.file)!.push(row.snippet)
+  }
+  // 五种数字藏法：声明挂数字、属性挂数字、对象里藏数字、定时器参数位、缺省回落位。
+  // 前三种沿用覆盖率扫描的正则（只认“值是数字”的）；后两种是单源头改造新加的
+  // （以前“缺席回落同一个数字”是合法写法，现在回落本身就是第二份数字）。
+  // 0 与 -1 一律放行：它们表示“还没有”（初始哨兵：还没提交过、还没定下节拍、从头全量），
+  // 不是可调时长——调一个超时值不会把它调成 0，真想关掉的那个 0 由 PERMANENT 表逐行认领。
+  const numVal = (s: string): number => Number(s.replace(/_/g, ''))
+  const declNumRe = /^[ \t]*(?:export\s+)?const\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*(\d[\d_]*(\.\d+)?)\b/gm
+  const propNumRe = /([A-Za-z_$][A-Za-z0-9_$]*)\s*:\s*(-?\d[\d_]*)(\s*\*\s*\d[\d_]*)*\s*[,}]/g
+  const objNumRe = /([A-Za-z_$][\w$]*)\s*:\s*\{[^{}]*\d[^{}]*\}/g
+  const timerArgRe = /(setTimeout|setInterval|timer\.timeout)\s*\([^,()]*,\s*(\d[\d_]*)\s*[,)]/g
+  const fallbackNumRe = /([A-Za-z_$][A-Za-z0-9_$.]*)\s*(\?\?|\|\|)\s*(\d[\d_]*)\b/g
+  const ls4 = spawnSync('git', ['ls-files', 'src'], { cwd: ROOT, encoding: 'utf8' })
+  check(ls4.status === 0, 'git ls-files 可用（无字面量扫描的前置条件）')
+  const files4 = String(ls4.stdout || '').split('\n').map((s) => s.trim()).filter((s) => s.endsWith('.ts') || s.endsWith('.js'))
+  for (const file of files4) {
+    if (file === 'src/shared/time-config/src/values.ts') continue
+    const text = stripCode(fs.readFileSync(path.join(ROOT, file), 'utf8'))
+    const hits: string[] = []
+    for (const m of text.matchAll(declNumRe)) {
+      if (numVal(m[2]) === 0) continue
+      if (timeishLike(m[1])) hits.push('声明挂数字：' + m[1] + ' = ' + m[2])
+    }
+    for (const m of text.matchAll(propNumRe)) {
+      if (!m[0].includes('*') && (numVal(m[2]) === 0 || numVal(m[2]) === -1)) continue
+      if (timeishLike(m[1])) hits.push('属性挂数字：' + m[1] + ' = ' + m[2])
+    }
+    for (const m of text.matchAll(objNumRe)) {
+      if (timeishLike(m[1])) hits.push('对象里藏数字：' + m[1] + ' : {…}')
+    }
+    for (const m of text.matchAll(timerArgRe)) {
+      if (numVal(m[2]) === 0) continue
+      hits.push('定时器参数位是数字：' + m[1] + '(…, ' + m[2] + ')')
+    }
+    for (const m of text.matchAll(fallbackNumRe)) {
+      if (numVal(m[3]) === 0 || numVal(m[3]) === -1) continue
+      if (timeishLike(m[1].split('.').pop()!)) hits.push('缺省回落是数字：' + m[1] + ' ' + m[2] + ' ' + m[3])
+    }
+    if (hits.length === 0) continue
+    // 命中了先看 PERMANENT 表：片段对得上才放行，对不上（改了数字、改了写法）就判红。
+    const raws = fs.readFileSync(path.join(ROOT, file), 'utf8')
+    const allowed = permanentByFile.get(file) || []
+    for (const hit of hits) {
+      const cover = allowed.find((s) => {
+        const n = countOccurrences(raws, s)
+        return n > 0 && hitCovers(s, hit)
+      })
+      check(!!cover, file + ' ' + hit + (cover ? '（PERMANENT 表已认领）' : '——源码里不许写时间数字：入 YAML 走 import，或收入 PERMANENT 并写明理由'))
+    }
+    // PERMANENT 片段自身也要存在，否则这张表就是空头支票。
+    for (const s of allowed) {
+      check(countOccurrences(raws, s) > 0, file + ' 的 PERMANENT 片段还在源码里（“' + s + '”）：表与源码必须同步增减')
+    }
+  }
+
+  // —— 第五节：覆盖率（src/ 下新冒出来的时间名字，必须先登记） ——
   const known = new Map<string, Set<string>>()
   const addKnown = (file: string, name: string) => {
     if (!known.has(file)) known.set(file, new Set())
     known.get(file)!.add(name)
   }
-  for (const row of IMPORTS) {
-    const dot = row.name.indexOf('.')
-    addKnown(row.file, dot < 0 ? row.name : row.name.slice(0, dot))
-    // TUNING.deckEnsureTimeoutMs 这种“导出名.属性”写法：属性名也要登记，
-    // 否则覆盖率扫描会在对象字面量里把它当新参数捞出来。
-    if (dot >= 0) addKnown(row.file, row.name.slice(dot + 1))
+  // REFERENCES 登记的名字：导出名、对象名、属性名都是已知。
+  for (const row of REFERENCES) {
+    const dot = row.access.indexOf('.')
+    addKnown(row.file, dot < 0 ? row.access : row.access.slice(0, dot))
+    if (dot >= 0) addKnown(row.file, row.access.slice(dot + 1))
+    addKnown(row.file, row.gen)
   }
-  for (const row of TEXTS) {
-    const mc = row.snippet.match(/const\s+([A-Za-z_$][A-Za-z0-9_$]*)/)
-    if (mc) addKnown(row.file, mc[1])
-    // 字面量是对象属性写法（例如 snapshotTtl: 5000）时，属性名也要登记，否则覆盖率会把它当新参数。
-    const mp = row.snippet.match(/^([A-Za-z_$][A-Za-z0-9_$]*)\s*:/)
-    if (mp) addKnown(row.file, mp[1])
-    // 字面量只是表达式片段（例如 Math.floor(d.cooldownMs) : 60000）时，里面时间味的名字也要登记。
+  for (const row of CLIENTS) addKnown(row.file, row.name)
+  // PERMANENT 表里的名字：数字在上一节管过了，这里只认“这个名字出现过”。
+  for (const row of PERMANENT) {
     for (const mt of row.snippet.matchAll(/([A-Za-z_$][A-Za-z0-9_$]*)/g)) {
       if (timeishLike(mt[1])) addKnown(row.file, mt[1])
     }
@@ -552,47 +611,61 @@ async function main(): Promise<void> {
     if (!exempt.has(row.file)) exempt.set(row.file, new Map())
     exempt.get(row.file)!.set(row.name, row.reason)
   }
-  const timeish = TIMEISH_RE
+  // 每个文件登记的生成常量名：声明右边引用它，等于“值从中央来”，自动放行
+  // （例如 const ATTENTION_SILENT_MS = ATTENTION_EXPIRY_MS：左边是新名字，但右边是中央那一份）。
+  // 名单是全局的：右边出现任何一个已登记的生成常量名都算数——生成常量的名字是中央统一编的，
+  // 局部变量撞上同一个名字的概率基本没有；真撞上了，第四节的字面量扫描会把本地赋值拦下来。
+  const allGens = new Set<string>()
+  for (const row of REFERENCES) {
+    allGens.add(row.gen)
+  }
+  for (const row of CLIENTS) {
+    allGens.add(row.name)
+  }
   const declRe = /^[ \t]*(?:export\s+)?const\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*[:=]/gm
   const propRe = /([A-Za-z_$][A-Za-z0-9_$]*)\s*:\s*\d[\d_]*(\s*\*\s*\d[\d_]*)*\s*[,}]/g
-  // .ts 与 .js 一起扫：本仓手写代码正在“动到谁就转成 TS”，两种后缀并存期间，
-  // 只扫 .ts 等于给存量 JavaScript 开了后门（漏登记的时间常量会一直漏下去）。
-  const files = String(ls.stdout || '').split('\n').map((s) => s.trim()).filter((s) => s.endsWith('.ts') || s.endsWith('.js'))
+  const files = String(ls4.stdout || '').split('\n').map((s) => s.trim()).filter((s) => s.endsWith('.ts') || s.endsWith('.js'))
   let scanned = 0
   for (const file of files) {
-    // 生成文件自己不参检：src/shared/time-config/src/values.ts 的每一项导出就是 YAML 的键，
-    // 它由第一节的新鲜度看守，不需要第二份登记。把它也扫进去会自己告自己（S2 踩过）。
     if (file === 'src/shared/time-config/src/values.ts') continue
     const text = fs.readFileSync(path.join(ROOT, file), 'utf8')
-    const names = new Set<string>()
-    for (const m of text.matchAll(declRe)) {
-      if (timeish.test(m[1])) names.add(m[1])
+    const stripped = stripCode(text)
+    const declLines = new Map<string, string>()
+    for (const m of stripped.matchAll(declRe)) {
+      if (!timeishLike(m[1])) continue
+      const lineStart = stripped.lastIndexOf('\n', m.index) + 1
+      const lineEnd = stripped.indexOf('\n', m.index)
+      declLines.set(m[1], stripped.slice(lineStart, lineEnd < 0 ? undefined : lineEnd))
     }
-    // 对象字面量里的属性（例如 TUNING = { deckEnsureTimeoutMs: 15000 }）不在 const 声明里，单列一条捞出来。
-    // 这里原先还有一重「名字里必须出现 ms/ttl/interval 之类」的小过滤，时间味判据加宽之后它成了漏网的帮凶：
-    // `{ timeout: 15000 }` 正是被那一重挡在外面的（2026-10-16 对抗式自查发现），现在去掉。
-    for (const m of text.matchAll(propRe)) {
-      if (timeish.test(m[1])) names.add(m[1])
+    const names = new Set<string>(declLines.keys())
+    for (const m of stripped.matchAll(propRe)) {
+      if (timeishLike(m[1])) names.add(m[1])
     }
-    // 第三种藏法：时间味的键直接挂一个对象，数字在对象里面叫别的名字——
-    // 例如 src/client/views/primitives/Tip.js 的 `delay: { show: 500, hide: 160 }`，
-    // 任何按名字判的规则都看不见这两个数。这类行按「键名」登记或豁免
-    // （Tip.js 那两个数的值由 TEXT 表两行锁住，对应 tipShowDelayMs / tipHideDelayMs）。
-    for (const m of text.matchAll(/([A-Za-z_$][\w$]*)\s*:\s*\{[^{}]*\d[^{}]*\}/g)) {
-      if (timeish.test(m[1])) names.add(m[1])
+    for (const m of stripped.matchAll(/([A-Za-z_$][\w$]*)\s*:\s*\{[^{}]*\d[^{}]*\}/g)) {
+      if (timeishLike(m[1])) names.add(m[1])
     }
     if (names.size === 0) continue
     scanned++
     for (const name of names) {
       if (known.get(file) && known.get(file)!.has(name)) continue
+      // 右边引用已登记的生成常量：值从中央来，放行。
+      const rhs = declLines.get(name) || ''
+      if (rhs && [...allGens].some((g) => rhs.includes(g))) continue
       const why = exempt.get(file) && exempt.get(file)!.get(name)
-      check(!!why, file + ' 的 ' + name + (why ? ' 豁免（' + why + '）' : ' 未登记：新时间常量必须先入 YAML（IMPORT/TEXT 表）或写明豁免理由（EXEMPTS 表）'))
+      check(!!why, file + ' 的 ' + name + (why ? ' 豁免（' + why + '）' : ' 未登记：新时间名字必须先入 YAML（REFERENCES 表）或写明豁免理由（EXEMPTS 表）'))
     }
   }
-  check(scanned > 0, '覆盖率扫描走完了全部 src/**/*.ts 与 .js（命中时间常量的文件 ' + scanned + ' 个）')
+  check(scanned > 0, '覆盖率扫描走完了全部 src/**/*.ts 与 .js（命中时间名字的文件 ' + scanned + ' 个）')
 
   if (failed) process.exit(1)
   console.log('PASS 中央时间参数门禁全绿')
+}
+
+// PERMANENT 命中匹配：片段里的名字出现在 hit 描述里，算认领成功。
+// （片段锁的是源码写法，hit 锁的是“哪种藏法”：两者对上才放行。）
+function hitCovers(snippet: string, hit: string): boolean {
+  const names = snippet.match(/([A-Za-z_$][A-Za-z0-9_$]*)/g) || []
+  return names.some((n) => timeishLike(n) && hit.includes(n))
 }
 
 main().catch((e) => {

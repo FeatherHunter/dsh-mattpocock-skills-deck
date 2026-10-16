@@ -11,6 +11,11 @@ const fs = require('fs')
 const path = require('path')
 const { pathToFileURL } = require('url')
 const { compileFn } = require('./lib/eval-probe.js')
+// 中央时间真值：相对时间窗口只住 config/*.yaml，这里读同一份导出来预埋，不在测试里写第二份数字。
+const centralTime = require('../src/shared/time-config/values.js')
+globalThis.VC_RELATIVE_WINDOW_MS = centralTime.VC_RELATIVE_WINDOW_MS
+// 中央 import 在 compileFn 函数体里非法，求值前整行剥掉（闭包里它由时间片段提供，门禁里走上面的全局预埋）。
+const stripTimeConfigImport = (s) => s.split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -185,7 +190,7 @@ function stripExports(text) { return text.replace(/^(\s*)export\s+/gm, '$1') }
 const VC_SEED_RE = /React\.useState\(function\s*\(\)\s*\{\s*return vcCacheSeedOf\(cwd\) \|\| vcNewReads\(\)\s*;?\s*\}\)/
 const VC_WRITE_INIT_RE = /write:\s*\{\s*op:\s*["']{2},\s*state:\s*["']idle["'],\s*message:\s*["']{2},\s*confirm:\s*null,\s*result:\s*null,\s*remoteChoice:\s*null\s*\}/
 function buildView(patch, React, DswsCtx, Tip, Ic, seedReads, logs, trFn, exportsList) {
-  let src = VC_FILES.map((f) => stripExports(read(f))).join('\n')
+  let src = VC_FILES.map((f) => stripExports(stripTimeConfigImport(read(f)))).join('\n')
   if (patch) src = patch(src)
   const names = exportsList || EXPORTS
   const body = src + '\nreturn { ' + names.join(', ') + ' }\n'

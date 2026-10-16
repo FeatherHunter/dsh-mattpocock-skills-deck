@@ -94,6 +94,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const makeHome = (tag) => fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-dbg-' + tag + '-'))
 const settingsPathIn = (home) => path.join(home, '.dsh', 'mattskillsdeck', 'settings.yaml')
 const noExport = (s) => s.replace(/^\s*export\s+/gm, '')
+// 中央时间真值：写那一片的防抖窗从中央引用，门禁求值时走全局预埋（值就是中央导出的同一份）。
+const centralTime = require('../src/shared/time-config/values.js')
+globalThis.VIEW_FLAG_WRITE_DEBOUNCE_MS = centralTime.VIEW_FLAG_WRITE_DEBOUNCE_MS
+// 中央 import 在 compileFn 函数体里非法，求值前整行剥掉（闭包里它由时间片段提供）。
+const stripTimeConfigImport = (s) => s.split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')
 
 // 真的文件读写口（核要的那四个动作），门禁里读写落在临时目录的真文件上。
 const realIo = {
@@ -173,7 +178,7 @@ const LOG_REL = 'src/client/kernel/log.js'
 const INDEX_REL = 'src/client/index.js'
 const TAIL = '\nreturn { LOG_DEBUG_KEY: LOG_DEBUG_KEY, logSwitch: logSwitch, logQueue: logQueue, readLocalDebugSwitch: readLocalDebugSwitch, persistLocalDebugSwitch: persistLocalDebugSwitch, setLogSwitch: setLogSwitch, reconcileLogSwitch: reconcileLogSwitch, settingsDebugLegacy: settingsDebugLegacy, settingsViewLoad: settingsViewLoad, viewFlagReadyNow: viewFlagReadyNow, viewFlagState: viewFlagState, VIEW_FLAG_WRITE_DEBOUNCE_MS: VIEW_FLAG_WRITE_DEBOUNCE_MS, settingsDebugSet: settingsDebugSet, settingsDebugToggle: settingsDebugToggle, settingsDebugAdoptFromDoc: settingsDebugAdoptFromDoc, settingsDebugDrainDeferred: settingsDebugDrainDeferred, settingsDebugSetInDoc: settingsDebugSetInDoc, settingsDebugLegacyWrite: settingsDebugLegacyWrite, settingsDebugHasPending: settingsDebugHasPending, setViewFlagRoot: setViewFlagRoot }'
 function makeClient(env) {
-  const body = [noExport(readText(DERIVED_REL)), noExport(readText(STATE_REL)), noExport(readText(VIEW_REL)), noExport(readText(WRITE_REL)), noExport(readText(DEBUG_REL))].join('\n')
+  const body = [noExport(readText(DERIVED_REL)), noExport(readText(STATE_REL)), noExport(readText(VIEW_REL)), noExport(stripTimeConfigImport(readText(WRITE_REL))), noExport(readText(DEBUG_REL))].join('\n')
   const names = ['host', 'timer', 'localStorage', 'broadcastLogSwitch', 'keyOf', 'wsKeyOf', 'shared', 'stores', 'emit', 'currentOs', 'workspaceRootByCwd', 'dswsLogHash', 'SETTINGS_DEBUG_PUSH_WAIT_MS']
   return compileFn(names, body + TAIL).apply(null, names.map((n) => env[n]))
 }
@@ -218,7 +223,7 @@ async function main(): Promise<void> {
   //（运行时由构建拼进界面闭包），门禁单测那半（makeClient 当场拼片段 eval）没有闭包，只能在这里把中央生效值
   // 喂给它；第八段按毫秒数认定时器的地方也用这个名字，不再写死 5000，调 YAML 不用改门禁。
   const timeMod = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'time-config', 'values.js')).href)
-  const CENTRAL_PUSH_WAIT_MS = timeMod.TIME_YAML['settingsDebugPushWaitMs'] !== undefined ? timeMod.TIME_YAML['settingsDebugPushWaitMs'] : timeMod.TIME_FALLBACKS['settingsDebugPushWaitMs']
+  const CENTRAL_PUSH_WAIT_MS = timeMod.TIME_YAML['settingsDebugPushWaitMs']
   const sharedKey = readText('src/shared/workspaceKey.js').replace(/^\s*export\s+/gm, '')
   const KEY_OF = compileFn([], sharedKey + '\nreturn keyOf')()
   const CURRENT_OS = compileFn([], sharedKey + '\nreturn currentOs')()

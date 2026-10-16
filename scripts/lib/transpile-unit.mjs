@@ -68,6 +68,60 @@ export function deriveOutputPath(sourcePath) {
 }
 
 /**
+ * 产物落地后相对引用减一层：源码住 `<域>/src/` 下、产物落域表层，跨出源码目录的
+ * 相对引用在产物里会多走一层 `../`，运行时指到别处去（#1215 单源头改造发现：
+ * budget.js 产物里的 `../../time-config/values.js` 被解成 `src/time-config/values.js`，
+ * 宿主一起，门禁第二节当场红，运行时同样起不来）。
+ *
+ * 只改“逃出源码目录”的引用：`./ports.js` 这种不出门的原样不动；`yaml` 这种裸说明符
+ * 不是路径，更不动。目标位置按源码目录解出来、再按产物目录重新算，纯路径数学，
+ * 不读盘（目标在不在盘上是构建与门禁的事，这里只管“指的方向对不对”）。
+ * 解出来跑到仓库根上面去了（`../../../..` 冒头），说明源码本来就写错了，这里不动它，
+ * 让 tsc 与运行时去报——这里瞎改一个方向，报错会指到别处。
+ *
+ * @param {string} code esbuild 转译出来的代码
+ * @param {{ sourcePath: string }} options 仓库相对的 .ts 源码路径（`/` 分隔）
+ * @returns {string} 引用重算后的代码
+ */
+export function rebaseEscapingImports(code, { sourcePath }) {
+  const srcDir = sourcePath.slice(0, sourcePath.lastIndexOf('/'))
+  const outPath = deriveOutputPath(sourcePath)
+  const outDir = outPath.slice(0, outPath.lastIndexOf('/'))
+  if (srcDir === outDir) return code
+  const pat = /\b(?:import\s+(?:[^'"]*?\bfrom\s+)|\bexport\s+[^'"]*?\bfrom\s+|\bimport\s*\(\s*|\bimport\s+)(['"])(\.[^'"]*)\1/g
+  return code.replace(pat, (m, q, spec) => {
+    const target = resolvePosix(srcDir, spec)
+    // 出不了门的不动；解到根上面去的也不动（源码写错了，让 tsc 去报）。
+    if (target === null || target === srcDir || target.startsWith(srcDir + '/')) return m
+    return m.slice(0, m.length - spec.length - 1) + relativePosix(outDir, target) + q
+  })
+}
+
+/** posix 路径数学（仓库相对路径只用 `/`，这里不碰 node:path，保持纯函数可单测）。 */
+function splitPosix(p) {
+  return p.split('/').filter((s) => s !== '' && s !== '.')
+}
+function resolvePosix(base, spec) {
+  const out = splitPosix(base)
+  for (const seg of spec.split('/')) {
+    if (seg === '' || seg === '.') continue
+    if (seg === '..') {
+      if (out.length === 0) return null
+      out.pop()
+    } else out.push(seg)
+  }
+  return out.join('/')
+}
+function relativePosix(from, to) {
+  const f = splitPosix(from)
+  const t = splitPosix(to)
+  let i = 0
+  while (i < f.length && i < t.length && f[i] === t[i]) i++
+  const up = f.length - i
+  const rel = [...Array(up).fill('..'), ...t.slice(i)].join('/')
+  return rel.startsWith('..') ? rel : './' + rel
+}
+/**
  * 把 esbuild 收在文件末尾的导出块改写成声明前的行首 export。
  *
  * 为什么必须改写：esbuild 的转译结果不是 `export const X = 1` 这种行首形式，而是把声明照常写在
@@ -133,13 +187,20 @@ export function inlineExportDeclarations(code, prefix) {
  * 构建期报错，只是报错位置在语法门禁不在这一处。同理，`import` 与 `{` 之间夹着别的写法这类怪形状
  * 也留给语法门禁：这里只认行首、且只认能一句话说清的那几种。
  *
+ * 中央时间参数是个例外（#1215 单源头）：被拼的片段允许写一行从 time-config 引名字的
+ * import / export-from（宿主与门禁把它当普通模块 import 进来跑时，这一行是真的引用；
+ * 拼进闭包时这一行会被 stripTimeConfigRefs 删掉，名字由闭包里另一片 timeConfig 提供）。
+ * 只认单行写法——跨行的 import/export-from 在这里看不见，会走到下面那条报错；
+ * 想拼就写成一行。
+ *
  * @param {string} code 已经是 JavaScript 的源码文本（.ts 必须先过转译口径再进来）
  * @param {{ source: string }} options source 是仓库相对路径，只用于报错时指认是哪个片段
  * @returns {string} 可直接拼进闭包的文本
  */
 export function toSpliceableFragment(code, { source }) {
-  checkSpliceableModuleForms(code, { source })
-  const stripped = code
+  const withoutCentral = stripTimeConfigRefs(code)
+  checkSpliceableModuleForms(withoutCentral, { source })
+  const stripped = withoutCentral
     .split('\n')
     .map((line) => line.replace(/^(\s*)export\s+/, '$1'))
     .join('\n')
@@ -153,6 +214,34 @@ export function toSpliceableFragment(code, { source }) {
     )
   }
   return stripped
+}
+
+/**
+ * 删掉片段里“从中央时间参数引名字”的那几行（#1215 单源头）。
+ *
+ * 为什么是删而不是留：拼进闭包的是一段函数体里的声明，模块级的 import/export-from
+ * 留在里面，运行时是语法错。宿主与门禁把同一份文件当模块跑时，这些行是真的引用；
+ * 拼进闭包时名字由另一片 timeConfig 提供（构建断言“删掉的名字都在拼接名单里”，
+ * 见 scripts/build.mjs 的 CLIENT_TIME_NAMES），所以这里只管删，不管名字对不对。
+ *
+ * 只删说明符里带 time-config 的单行 import / export-from——别的 import 留给下面报错，
+ * 注释与字符串里的举例不受影响（按涂掉非代码后的文本认行首，行号用原行对）。
+ * 被删的行整行变空（不是删掉这一行），报错指的行号不受影响。
+ *
+ * @param {string} code 片段文本（转译前、转译后都可调，转译前的那一次由调用方负责）
+ * @returns {string} 删掉中央引用行、其余一字不动的文本
+ */
+export function stripTimeConfigRefs(code) {
+  const masked = maskNonCodeText(code).split('\n')
+  return code.split('\n').map((line, i) => {
+    const m = masked[i] || ''
+    // 形状看涂掉字符串注释后的（注释里的举例不算），是不是中央参数看原文
+    // （说明符本身是字符串，涂掉之后反而看不见了）。
+    if (!/time-config/.test(line)) return line
+    if (/^[^\S\r\n]*import[\s{"'*]/.test(m)) return ''
+    if (/^[^\S\r\n]*export[\s{"'*]/.test(m) && /\bfrom\b/.test(m)) return ''
+    return line
+  }).join('\n')
 }
 
 /**

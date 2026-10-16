@@ -13,15 +13,16 @@
  */
 
 import { execPrimitive, makeResult } from './predicatePrimitives.js'
+import { PREDICATE_FALLBACK_TIMEOUT_MS } from '../../shared/time-config/values.js'
 
 /**
  * 创建谓词注册表。
  * @param {Object} [opts]
- * @param {number} [opts.timeout] 单个谓词超时（ms，默认 3000）
+ * @param {number} [opts.timeout] 单个谓词超时（毫秒，缺省取中央 YAML 的 predicateFallbackTimeoutMs）
  * @returns {{register: (key:string, fn:import('./predicatePrimitives.js').PredicateFn)=>void, has:(key:string)=>boolean, resolveAll:(chain:import('../../shared/tracker/chain-types.js').Chain, ctx:import('./predicatePrimitives.js').PredicateContext)=>Promise<Record<string, import('./predicatePrimitives.js').PredicateResult>>}}
  */
 export function createPredicateRegistry(opts = {}) {
-  const timeout = typeof opts.timeout === 'number' ? opts.timeout : 3000
+  const timeout = typeof opts.timeout === 'number' ? opts.timeout : PREDICATE_FALLBACK_TIMEOUT_MS
   /** @type {Map<string, import('./predicatePrimitives.js').PredicateFn>} */
   const map = new Map()
 

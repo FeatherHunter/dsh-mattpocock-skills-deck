@@ -34,13 +34,13 @@
  *   四、认不出工作区根时这一片直接返回失败、一个字都不写文件（见 settings-view.js 的 viewFlagWriteKeyOf）：
  *       会话目录当键写下去会留下永远合并不到一起的孤儿记录。
  */
+    import { VIEW_FLAG_WRITE_DEBOUNCE_MS } from '../../shared/time-config/values.js'
     // 防抖窗口取 500 毫秒，理由有三条。第一条：一次收起或展开在界面上往往连着来两下（点按钮那一下，
     //   加同一个工作区别的会话跟着重渲染那一趟），而每一次落盘都是宿主先读整份文件、再整份写回。
     // 第二条：与仓库既有的写合并窗口同一量级（日志转发的 1000 毫秒、交接的 800 毫秒），比它们略短。
     // 第三条：观看状态是人点一下就期待下次打开还在的东西，窗口太长，点完立刻关掉整个窗口那一下
     //   （页面卸载之后定时器不再有机会跑）就会把最后一次改动丢掉。
-    // 这个合并窗住中央：config/intervals.yaml 的 viewFlagWriteDebounceMs，值由 tests/verify-time-config.ts 看守。
-    export const VIEW_FLAG_WRITE_DEBOUNCE_MS = 500
+    // 这个合并窗住中央：config/intervals.yaml 的 viewFlagWriteDebounceMs，值由 tests/verify-time-config.ts 看守（本文件顶部 import 真引用）。
     // 把这一趟要写的整份文档备好：先重读一次文件，再把本窗改过的那几格合并进刚读回来的那一份。
     //   重读不回来（手机不通、文件是更高版本、内容坏了、还没建出来）就照内存里那一份写：内存那一份至少
     //   带着本窗的改动，比什么都不写强；顶掉别人别的格的风险与改动前一样，不会更差。

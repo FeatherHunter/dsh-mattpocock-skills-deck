@@ -25,19 +25,17 @@ import { assemble, classifyStepZero } from '../shared/version-control/state.js'
 import { makeStallWatch } from './stallWatch.js' // #847：字节增长看门狗（自包含叶子，照 #500/#821 先例）
 import { withGhLane } from './outbound/admission.js'
 import { failPhone, firstLine, failureFromExec } from '../shared/version-control/exec-envelope.js'
-// 单条 git 命令的默认超时住中央 YAML（config/timeouts.yaml 的 vcRunTimeoutMs 键）：这里只留别名
-// （缺表回落 20000 与今天一致，防构建产物过期），调时间改 YAML。
-// 它管的是「调用方没给 TIMEOUT_MS 时，一条 git 命令最多跑多久」——接线给了 TIMEOUT_MS 就以接线那个为准，
-// 别名只是没人接线时的兜底。路径走域构建产物写法（与 src/host/refresh/chain-ride.ts 引 values.js 同例），
+// 单条 git 命令的默认超时住中央 YAML（config/timeouts.yaml 的 vcRunTimeoutMs 键）：这里直接引用中央常量，调时间改 YAML。
+// 它管的是「调用方没给 TIMEOUT_MS 时，一条 git 命令最多跑多久」——接线给了 TIMEOUT_MS 就以接线那个为准。
+// 路径走域构建产物写法（与 src/host/refresh/chain-ride.ts 引 values.js 同例），
 // 值由 tests/verify-time-config.ts 看守一致。
-import { VC_RUN_TIMEOUT_MS as CENTRAL_VC_RUN_TIMEOUT_MS } from '../shared/time-config/values.js'
+import { VC_RUN_TIMEOUT_MS as RUN_TIMEOUT_MS, PROC_GRACE_MS } from '../shared/time-config/values.js'
 
 const VIA = 'version-control'          // 日志的 via：这一族 git 命令都由版本管理页签发起
 const GIT_NAME = 'git'                 // 日志的 argv0：只记程序名，不记路径
 const STDOUT_LIMIT = 8 * 1024 * 1024   // 状态、工作树、分支、历史、文件清单的字节上限
 const PATCH_LIMIT = 4 * 1024 * 1024    // 单个文件差异的字节上限
 const STDERR_LIMIT = 256 * 1024        // 错误信息的字节上限（只用来拼失败说明）
-const RUN_TIMEOUT_MS = CENTRAL_VC_RUN_TIMEOUT_MS ?? 20000 // 单条 git 命令的默认超时（中央 YAML 的 vcRunTimeoutMs，见文件头那个 import）；接线给了 TIMEOUT_MS 就用接线那个
 const FIRST_SCREEN_LOG_COUNT = 50      // 首屏一次读多少条提交（核心的默认口径）
 const LOG_BATCH_MAX = 200              // 历史按批取时一批最多多少条
 
@@ -83,7 +81,7 @@ export function createVersionControl(deps) {
         argv: [exe].concat(args),
         cwd: dir,
         stdio: { stdin: 'ignore', stdout: { maxBytes: limit }, stderr: { maxBytes: STDERR_LIMIT } },
-        graceMs: 2000,
+        graceMs: PROC_GRACE_MS,
         env: (opts && opts.env) ? opts.env : undefined,
       })
     } catch (e) {

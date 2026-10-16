@@ -8,6 +8,7 @@
 //   ② 用到的原因代号必须都在 DETECT_REASONS 那张表里（日志里只记代号，代号表要能解释它）。
 const path = require('path')
 const { pathToFileURL } = require('url')
+const { PATCH_MERGE_WINDOW_MS, PROBE_INTERVAL_MS } = require('../src/shared/time-config/values.js')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -120,11 +121,11 @@ async function main() {
   check(unused.length === 0, '表里没有用不到的原因代号（多：' + (unused.join('、') || '无') + '）')
 
   // 判定 → 动作：数字从外面注入（本票不写额度数字）。
-  const limits = { mergeWindowMs: budget.PATCH_MERGE_WINDOW_MS, probeIntervalMs: budget.PROBE_INTERVAL_MS }
+  const limits = { mergeWindowMs: PATCH_MERGE_WINDOW_MS, probeIntervalMs: PROBE_INTERVAL_MS }
   const withTicket = mod.detectWrite({ shape: 'tools/result', tool: 'pwsh', command: 'gh issue close 12', succeeded: OK })
   const p1 = mod.actionFor(withTicket, limits)
-  check(p1.action === 'patch-now' && p1.ticket === '12' && p1.waitMs === budget.PATCH_MERGE_WINDOW_MS,
-    '确定写且认得出票号 → 立刻补那一行，并带上合并窗口 ' + budget.PATCH_MERGE_WINDOW_MS + ' 毫秒')
+  check(p1.action === 'patch-now' && p1.ticket === '12' && p1.waitMs === PATCH_MERGE_WINDOW_MS,
+    '确定写且认得出票号 → 立刻补那一行，并带上合并窗口 ' + PATCH_MERGE_WINDOW_MS + ' 毫秒')
   const noTicket = mod.detectWrite({ shape: 'tools/result', tool: 'pwsh', command: 'gh issue create --title x', succeeded: OK })
   const p2 = mod.actionFor(noTicket, limits)
   check(p2.action === 'probe-now' && p2.ticket === null, '确定写但票号认不出 → 降成立刻探测（补行得指名道姓）')
@@ -132,7 +133,7 @@ async function main() {
   check(mod.actionFor(suspect, limits).action === 'probe-now', '可疑档 → 立刻探一次')
   const idle = mod.detectWrite({ shape: 'tools/result', tool: 'read', succeeded: OK })
   const p4 = mod.actionFor(idle, limits)
-  check(p4.action === 'wait-tick' && p4.waitMs === budget.PROBE_INTERVAL_MS, '其余档 → 等兜底节拍 ' + budget.PROBE_INTERVAL_MS + ' 毫秒')
+  check(p4.action === 'wait-tick' && p4.waitMs === PROBE_INTERVAL_MS, '其余档 → 等兜底节拍 ' + PROBE_INTERVAL_MS + ' 毫秒')
 
   console.log(failed ? '\n存在失败 — 判定表未通过' : '\n全部通过 — 判定表 ' + CASES.length + ' 条用例逐条对上了（共 ' + total + ' 项断言）')
   process.exit(failed ? 1 : 0)

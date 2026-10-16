@@ -16,10 +16,12 @@
  *   · wiring.js 的本地读 5000、call-budget 的余量 15000 与单次钳制 30000：与表里
  *     的 15000 同值不同命，本轮只搬运不统一，不收。
  *
- * #1215 起本表的时间字段（deckEnsureTimeoutMs）另有一份中央登记：
- * config/timeouts.yaml 的 deckEnsureMs 键，tests/verify-time-config.ts 断言两者相等。
- * 本表不动（共享域之间不许互相 import，值由门禁看守一致即可），调时间请改 YAML。
+ * #1215 起本表的时间字段（deckEnsureTimeoutMs）真引中央时间参数：
+ * config/timeouts.yaml 的 deckEnsureMs 键经 src/shared/time-config/values.js 生成
+ * DECK_ENSURE_TIMEOUT_MS，本表直接用它，不再写数字字面量；
+ * tests/verify-time-config.ts 断言两者相等。调时间请改 YAML。
  */
+import { DECK_ENSURE_TIMEOUT_MS } from '../../time-config/values.js'
 
 /** 调参表的形状：三个字段都可选，缺字段时调用方用代码缺省值顶上。 */
 export interface SharedTuning {
@@ -40,5 +42,5 @@ export interface SharedTuning {
 export const TUNING: SharedTuning = {
   readBucketMax: 64,
   writeBucketMax: 16,
-  deckEnsureTimeoutMs: 15000,
+  deckEnsureTimeoutMs: DECK_ENSURE_TIMEOUT_MS,
 }

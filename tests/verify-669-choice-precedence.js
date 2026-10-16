@@ -30,6 +30,9 @@ import { compileFn, evalWithScope } from './lib/eval-probe.js'
 // 取源走共用入口（#1207 立）：spliceableJs 给「可以直接当函数体求值」的 JavaScript 文本
 // （.ts 会先按构建那份口径转译，引号与换行会被重排）。本文件只求值、不按文本形状扫源码。
 import { spliceableJs } from './lib/source-text.ts'
+// 中央时间真值：切换确认的收起延时只住 config/*.yaml，这里读同一份导出来预埋，不在测试里写第二份数字。
+import { STORE_SWITCH_CONFIRM_MS } from '../src/shared/time-config/values.js'
+globalThis.STORE_SWITCH_CONFIRM_MS = STORE_SWITCH_CONFIRM_MS
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
@@ -38,6 +41,8 @@ let passed = 0
 let failed = 0
 const check = (ok, msg) => { if (ok) { console.log('  PASS ' + msg); passed++ } else { console.log('  FAIL ' + msg); failed++ } }
 const stripExports = (s) => s.replace(/^[ \t]*export[ \t]+/gm, '')
+// 中央 import 在 compileFn 函数体里非法，求值前整行剥掉（闭包里它由时间片段提供，门禁里走下面的全局预埋）。
+const stripTimeConfigImport = (s) => s.split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 const prefsSrc = read('src/client/kernel/store-prefs.js')
@@ -246,7 +251,7 @@ const makeSwitch = function (srcText) {
     SETUP_LAYOUT_VALUES: ['single', 'multi'],
   }
   const names = Object.keys(sandbox)
-  const body = stripExports(srcText) + '\n;return { confirmSwitchConfirm: confirmSwitchConfirm, openSwitchConfirm: openSwitchConfirm }'
+  const body = stripExports(stripTimeConfigImport(srcText)) + '\n;return { confirmSwitchConfirm: confirmSwitchConfirm, openSwitchConfirm: openSwitchConfirm }'
   // 这里选 compileFn：沙箱依赖名是运行时拼出来的数组，共用入口同样接数组，桩逐个按原顺序传进去。
   const mod = compileFn(names, body)(...names.map((n) => sandbox[n]))
   return { mod, seen }

@@ -52,6 +52,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const makeHome = (tag) => fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-tpl-' + tag + '-'))
 const settingsPathIn = (home) => path.join(home, '.dsh', 'mattskillsdeck', 'settings.yaml')
 const noExport = (s) => s.replace(/^\s*export\s+/gm, '')
+// 中央时间真值：写那一片的防抖窗从中央引用，门禁求值时走全局预埋（值就是中央导出的同一份）。
+const centralTime = require('../src/shared/time-config/values.js')
+globalThis.VIEW_FLAG_WRITE_DEBOUNCE_MS = centralTime.VIEW_FLAG_WRITE_DEBOUNCE_MS
+// 中央 import 在 compileFn 函数体里非法，求值前整行剥掉（闭包里它由时间片段提供）。
+const stripTimeConfigImport = (s) => s.split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')
 
 // 真的文件读写口（核要的那四个动作），门禁里读写落在临时目录的真文件上。
 const realIo = {
@@ -113,7 +118,7 @@ const VIEW_STATE_REL = 'src/client/kernel/settings-view-state.js'
 const VIEW_WRITE_REL = 'src/client/kernel/settings-view-write.js'
 const UI_REL = 'src/client/kernel/settings-ui.js'
 function makeClient(env) {
-  const body = [noExport(readText(CONFIG_REL)), listPrefsSlice(), noExport(readText(VIEW_STATE_REL)), noExport(readText(VIEW_REL)), noExport(readText(VIEW_WRITE_REL)), noExport(readText(UI_REL)), noExport(readText(TPL_REL))].join('\n')
+  const body = [noExport(readText(CONFIG_REL)), listPrefsSlice(), noExport(readText(VIEW_STATE_REL)), noExport(readText(VIEW_REL)), noExport(stripTimeConfigImport(readText(VIEW_WRITE_REL))), noExport(readText(UI_REL)), noExport(readText(TPL_REL))].join('\n')
   const names = ['keyOf', 'wsKeyOf', 'shared', 'stores', 'emit', 'host', 'localStorage', 'log', 'dswsLogHash', 'timer', 'currentOs', 'workspaceRootByCwd', 'promptText', 'promptTextFor']
   const tail = '\nreturn { TPL_KEY: TPL_KEY, templates: templates, saveTemplates: saveTemplates, tplText: tplText, TPL_DEFAULT: TPL_DEFAULT, settingsViewLoad: settingsViewLoad, viewFlagReadyNow: viewFlagReadyNow, settingsTemplatesSaveAll: settingsTemplatesSaveAll, settingsTemplatesSetInDoc: settingsTemplatesSetInDoc, VIEW_FLAG_WRITE_DEBOUNCE_MS: VIEW_FLAG_WRITE_DEBOUNCE_MS }'
   return compileFn(names, body + tail).apply(null, names.map((n) => env[n]))

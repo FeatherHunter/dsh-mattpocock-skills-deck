@@ -53,11 +53,10 @@ const WORKSPACE_ANCHOR_REL = 'docs/agents/issue-tracker.md'
 // 根判定结果按所选目录的规整键缓存多久（30 秒）后重算：标记（自带 .git 或自带主锚文件）可能后来才出现
 // —— 用户刚建仓、刚跑完初始化都会往根上放标记，永久缓存会让子目录会话一直停在「没有根」的旧结论上；
 // 但每次读都往上探一层又白读盘，所以留一个短窗。
-// 值住中央 YAML（config/ttl.yaml 的 workspaceRootTtlMs 键）：这里只留别名（缺表回落 30000 与今天一致，
-// 防构建产物过期），调时间改 YAML。中央常量与本文件的常量同名，import 时用 as 改名。
+// 值住中央 YAML（config/ttl.yaml 的 workspaceRootTtlMs 键）：这里直接引用中央常量，调时间改 YAML。
+// 中央常量与本文件的常量同名，直接 import 原名。
 // 路径走域构建产物写法，值由 tests/verify-time-config.ts 看守一致。
-import { WORKSPACE_ROOT_TTL_MS as CENTRAL_WORKSPACE_ROOT_TTL_MS } from '../shared/time-config/values.js'
-const WORKSPACE_ROOT_TTL_MS = CENTRAL_WORKSPACE_ROOT_TTL_MS ?? 30000
+import { WORKSPACE_ROOT_TTL_MS } from '../shared/time-config/values.js'
 const workspaceRootCache = new Map()   // 所选目录规整键 → { root, source, at }
 let rootLogSampleN = 0
 

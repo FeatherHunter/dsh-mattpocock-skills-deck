@@ -51,6 +51,9 @@ intervals:
   namingFallbackIntervalMs: 600000
   # 命名重试的冷却：45 秒。同一项失败之后至少隔这么久再试。
   namingRetryCooldownMs: 45000
+  # 谓词调试日志的采样节拍：15 秒。debug 开启时，同类谓词状态变化至多每 15 秒记一批，
+  # 防止高频检测把日志通道打满；只影响日志量，不影响检测行为。
+  predicateLogSampleMs: 15000
   # 宿主日志落盘的合并窗：1 秒。短窗内的多行合成一次写。
   logWriteDebounceMs: 1000
   # 客户端日志通道的批量间隔：1 秒（界面的日志分批发给宿主）。
@@ -80,6 +83,9 @@ intervals:
   # 只是数值上 160 撞在一起，调一个不要顺手改另一个。
   tipShowDelayMs: 500
   tipHideDelayMs: 160
+  # 回填草稿后补一次焦点的重试延时：120 毫秒。宿主异步写草稿，第一帧可能还在旧值，
+  # 窗口给小一点，避免抢用户后续输入；最多补一次（次数由调用处 attempts < 2 锁住，不在这里）。
+  draftRefocusRetryMs: 120
 
 backoff:
   # 检查链的退避序列：8 秒 → 30 秒 → 2 分钟 → 5 分钟。任何一步有进展立刻回到第一档。

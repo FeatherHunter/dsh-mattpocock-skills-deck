@@ -1,7 +1,7 @@
 // verify-config-store-package.js — 发布包 YAML 门禁（#1012 落地）
 // 规则（维护者拍板：发布包要真的拿得到 YAML 解析，三者对齐，用门禁钉住）：
 //   P1 仓库 package.json 的生产依赖里有 yaml，发布包 package/package.json 的生产依赖里也有，
-//      主版本号一致；两份文件的版本号都没动（本票不发版）。
+//      主版本号一致；两份文件的版本号一致且为当前候选版（发版推进时同步改这里的两处字面）。
 //   P2 装好的包里能解析：node_modules/yaml 可加载，且用它能解析一份 YAML。
 //   P3 核产物随包发布：package/package.json 的 files 白名单含 shared（产物能进包）。
 //   P4 宿主适配器可加载：src/host/configStore.js 能 import，六个冻结函数都在。
@@ -30,7 +30,7 @@ async function main() {
   check(typeof shipYaml === 'string' && shipYaml, '发布包 package.json 生产依赖里有 yaml', shipYaml)
   const majorOf = (s) => String(s || '').replace(/^[\^~>=< ]+/, '').split('.')[0]
   check(!!rootYaml && !!shipYaml && majorOf(rootYaml) === majorOf(shipYaml), '两处 yaml 主版本一致（' + rootYaml + ' / ' + shipYaml + '）', '')
-  check(rootPkg.version === '1.8.0-rc.7' && shipPkg.version === '1.8.0-rc.7', '两份版本号都没动（本票不发版）', rootPkg.version + ' / ' + shipPkg.version)
+  check(rootPkg.version === '1.9.0-beta.1' && shipPkg.version === '1.9.0-beta.1', '两份版本号一致且为当前候选版', rootPkg.version + ' / ' + shipPkg.version)
 
   // —— P2：装好的包里能解析 ——
   try {

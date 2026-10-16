@@ -13,6 +13,11 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { compileFn } from './lib/eval-probe.js'
+// 中央时间真值：缓存 TTL 只住 config/*.yaml，这里读同一份导出来预埋，不在测试里写第二份数字。
+import { SYNC_ISSUE_CACHE_TTL_MS } from '../src/shared/time-config/values.js'
+globalThis.SYNC_ISSUE_CACHE_TTL_MS = SYNC_ISSUE_CACHE_TTL_MS
+// 中央 import 在 compileFn 函数体里非法，求值前整行剥掉（闭包里它由时间片段提供，门禁里走上面的全局预埋）。
+const stripTimeConfigImport = (s) => s.split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 const PREFS_REL = 'src/client/kernel/store-prefs.js'
@@ -39,7 +44,7 @@ const makeHarness = function (srcText, opts) {
     removeItem: function (k) { delete disk[k] },
   }
   const win = { innerHeight: 800, addEventListener: function (name, fn) { storageHandlers.push({ name: name, fn: fn }) } }
-  const body = stripExports(srcText) +
+  const body = stripExports(stripTimeConfigImport(srcText)) +
     '\n; return { setCachedSelection: setCachedSelection, getCachedSelection: getCachedSelection, selectionByCwd: selectionByCwd,' +
     ' setCachedSetupLayout: setCachedSetupLayout, getCachedSetupLayout: getCachedSetupLayout, setupLayoutByCwd: setupLayoutByCwd,' +
     ' writeTableEntry: writeTableEntry, migrateCachedChoiceToKey: migrateCachedChoiceToKey, SELECTION_BY_CWD_KEY: SELECTION_BY_CWD_KEY, SETUP_LAYOUT_BY_CWD_KEY: SETUP_LAYOUT_BY_CWD_KEY }'

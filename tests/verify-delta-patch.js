@@ -12,6 +12,7 @@
 // 假传输层照 tests/verify-gate-accounting.js 那份口径：真发出去的每一条都报给闸，argv 原样记下来给断言用。
 const path = require('path')
 const { pathToFileURL } = require('url')
+const { DEFER_EXPIRY_MS } = require('../src/shared/time-config/values.js')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -150,11 +151,11 @@ async function main() {
   check(st2.watermarkMs === wmBefore, '③水印一个字节都没动（仍是 ' + st2.watermarkMs + '）')
   check(store.issues[1].state === 'OPEN', '③被推迟的那一行没有被并进列表（列表还是旧的）')
   // 「丢弃只清队列、不动水印」：闸那边把推迟队列过期丢掉，待办必须还在。
-  const drain = gate.drain(clock + budget.DEFER_EXPIRY_MS + 1)
+  const drain = gate.drain(clock + DEFER_EXPIRY_MS + 1)
   check(drain.dropped >= 1 && drain.pending === 0, '③推迟队列被丢弃（丢掉 ' + drain.dropped + ' 条、队列清零）')
   check((await patch.state(CWD)).pending.length === 1, '③队列丢了，待办仍在（丢弃只清队列）')
   check((await patch.state(CWD)).watermarkMs === wmBefore, '③丢弃之后水印仍然没动')
-  clock += budget.DEFER_EXPIRY_MS + 60000
+  clock += DEFER_EXPIRY_MS + 60000
   const r3 = await patch.run(CWD)
   const winIdx3 = windowSince.length - 1
   check(r3.mode === 'patch' && r3.rows.length === 1 && r3.rows[0] === '102', '③下一次仍然发现了同一条变化并补上了它（' + JSON.stringify(r3.rows) + '）')

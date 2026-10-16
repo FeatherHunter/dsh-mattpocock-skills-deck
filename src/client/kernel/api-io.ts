@@ -7,6 +7,7 @@
  * 与 ctx.js/seam 同模式，一源两物，src 零复制。改这里，不要去改生成的 api-io.js。
  * 接口冻结清单见 docs/architecture/kernel-contract.md（G3 · #91 拍板）。
  */
+    import { DRAFT_REFOCUS_RETRY_MS } from '../../shared/time-config/values.js'
     //! #361 原入口：行级「在新会话打开」保留（rowActionText 文本 + 用票标题命名会话）
     // 上面这一行刻意写成 `//!`（法律注释）：esbuild 转译时会保留它，于是 products 里也留着这条终止锚点。
     // tests/verify-newsession-*.js 把几个 api 文件拼起来后，就是切到这一行为止；写成普通 `//` 的话
@@ -150,7 +151,7 @@
           } catch (eRun) {}
           // 宿主用异步方式写草稿，第一帧可能还在旧值，最多补一次（120 毫秒），窗口很小，避免抢用户后续输入
           if (attempts < 2) {
-            try { if (typeof setTimeout === 'function') setTimeout(run, 120) } catch (eT3) {}
+            try { if (typeof setTimeout === 'function') setTimeout(run, DRAFT_REFOCUS_RETRY_MS) } catch (eT3) {}
           }
         }
         try {

@@ -5,11 +5,10 @@
 // 防抖窗口（设计 2.2 字面：窗口内多次调用合并为一次读改写）。
 // 这个窗口管的是「短窗内来的多行日志合成一次落盘」：写日志的那一侧每记一行都会喊一次刷盘，
 // 真按每次调用各写一次会把磁盘和文件服务拖住，所以窗口内的多次调用只换一次读改写。
-// 值住中央 YAML（config/intervals.yaml 的 logWriteDebounceMs 键）：这里只留别名
-// （缺表回落 1000 与今天一致，防构建产物过期），调时间改 YAML。
+// 值住中央 YAML（config/intervals.yaml 的 logWriteDebounceMs 键）：这里直接引用中央常量，调时间改 YAML。
 // 路径走域构建产物写法，值由 tests/verify-time-config.ts 看守一致。
-import { LOG_WRITE_DEBOUNCE_MS as CENTRAL_LOG_WRITE_DEBOUNCE_MS } from '../shared/time-config/values.js'
-export const LOG_DEBOUNCE_MS = CENTRAL_LOG_WRITE_DEBOUNCE_MS ?? 1000
+import { LOG_WRITE_DEBOUNCE_MS as LOG_DEBOUNCE_MS } from '../shared/time-config/values.js'
+export { LOG_DEBOUNCE_MS }
 // 缓存目录下的独立日志子目录名（设计 2.1：.dsh-mattskillsdeck-cache/logs/）。
 export const LOG_DIR_NAME = 'logs'
 // 开关持久化文件名（设计 1.3：与命名守护 naming-guardian.json 同例，全文覆写，失败不抛错）。

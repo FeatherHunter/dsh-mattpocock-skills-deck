@@ -23,6 +23,7 @@
 // 把旋钮整体收紧的合规变体必须判绿。
 const path = require('path')
 const { pathToFileURL } = require('url')
+const { PROBE_INTERVAL_MS, PROBE_INTERVAL_LINGER_MS, RECONCILE_INTERVAL_MS, PREFLIGHT_TTL_MS, CHAIN_BACKOFF_MS, QUOTA_SYNC_INTERVAL_MS } = require('../src/shared/time-config/values.js')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -87,11 +88,14 @@ function judge(b, pb) {
 }
 
 async function main() {
-  console.log('最坏每小时用量门禁（#706 T2：定时那一半按 budget.js 的常量算上界，两桶与读份额都要过关）')
+  console.log('最坏每小时用量门禁（#706 T2：定时那一半按中央时间参数与 budget.js 的常量算上界，两桶与读份额都要过关）')
   const budget = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'refresh', 'budget.js')).href)
   const pageBudget = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'refresh', 'page-budget.js')).href)
+  // 注入器：budget.js 只剩自有常量与函数，时间常量走中央——两边拼成判据吃的那一份；
+  // 后面的 Object.assign 变体都基于它拧，保证“拧坏必须判红”依然咬得住。
+  const B0 = Object.assign({}, budget, { PROBE_INTERVAL_MS, PROBE_INTERVAL_LINGER_MS, RECONCILE_INTERVAL_MS, PREFLIGHT_TTL_MS, CHAIN_BACKOFF_MS, QUOTA_SYNC_INTERVAL_MS })
 
-  const real = judge(budget, pageBudget)
+  const real = judge(B0, pageBudget)
   check(real.ok, '真实常量下最坏每小时用量低于上限：' + real.text)
   console.log('    明细：探测 ' + real.bound.parts.probe + ' 条、预检 ' + real.bound.parts.preflight + ' 条、检查链 ' +
     real.bound.parts.chain + ' 条、额度同步 ' + real.bound.parts.quotaSync + ' 条、冷启动 ' + real.bound.parts.coldStart +
@@ -104,13 +108,13 @@ async function main() {
   // 上界算式真的算出了具体的数（不是 0、也不是 Infinity 混过去 —— 单位或常量缺一个就会变成 Infinity）。
   check(Number.isFinite(real.bound.rest) && Number.isFinite(real.bound.reads) && Number.isFinite(real.bound.points) && real.bound.rest > 0,
     '上界算式算出了有限的数（REST ' + real.bound.rest + '、读 ' + real.bound.reads + '、点数 ' + real.bound.points + '）')
-  check(budget.PLUGIN_HOURLY_CAP === 1750 && budget.READ_HOURLY_CAP === 1225 && budget.PROBE_INTERVAL_LINGER_MS > 0,
-    '上限与慢档探测间隔都取自 budget.js（1,750 / 1,225 / ' + budget.PROBE_INTERVAL_LINGER_MS + ' 毫秒）')
+  check(budget.PLUGIN_HOURLY_CAP === 1750 && budget.READ_HOURLY_CAP === 1225 && PROBE_INTERVAL_LINGER_MS > 0,
+    '上限取自 budget.js，慢档探测间隔取自中央时间参数（config/*.yaml，经 time-config 生成）（1,750 / 1,225 / ' + PROBE_INTERVAL_LINGER_MS + ' 毫秒）')
 
   // 重建那一项真的按「页数上界」算（断言行为，不是断言常量表）：
   // 把 MAX_PAGES 调成 1，点数必须跟着降；调成 50，点数必须跟着升。算式不认识 MAX_PAGES 时这两条会红。
-  const lowPages = judge(Object.assign({}, budget, { MAX_PAGES: 1 }), pageBudget)
-  const highPages = judge(Object.assign({}, budget, { MAX_PAGES: 50 }), pageBudget)
+  const lowPages = judge(Object.assign({}, B0, { MAX_PAGES: 1 }), pageBudget)
+  const highPages = judge(Object.assign({}, B0, { MAX_PAGES: 50 }), pageBudget)
   check(lowPages.bound.points < real.bound.points && highPages.bound.points > real.bound.points,
     '重建按页数上界算：上界 1 页 → ' + lowPages.bound.points + ' 点 < 上界 ' + budget.MAX_PAGES + ' 页 → ' +
     real.bound.points + ' 点 < 上界 50 页 → ' + highPages.bound.points + ' 点')
@@ -121,18 +125,18 @@ async function main() {
     ' 点）严格大于典型那笔（按 ' + budget.REBUILD_PAGE_COUNT + ' 页算的 ' + budget.REBUILD_COST_POINTS + ' 点）')
 
   // 反证一：把探测间隔拧坏（5 秒 → 0.1 秒），同一套判据必须判红。
-  const brokenInterval = Object.assign({}, budget, { PROBE_INTERVAL_MS: 100 })
+  const brokenInterval = Object.assign({}, B0, { PROBE_INTERVAL_MS: 100 })
   const brokenA = judge(brokenInterval, pageBudget)
   check(!brokenA.ok, '反证：把探测间隔拧坏（5 秒 → 0.1 秒）必须判红 —— ' + brokenA.text)
 
   // 反证二：把「刚离开的那个」的慢档也拧成快档（两个活跃工作区都按 5 秒探），必须判红
   //   —— 它顶破的是读份额那道线，正是定稿第四章那句「2 × 720 = 1,440 就超过了读份额」。
-  const brokenLinger = Object.assign({}, budget, { PROBE_INTERVAL_LINGER_MS: budget.PROBE_INTERVAL_MS })
+  const brokenLinger = Object.assign({}, B0, { PROBE_INTERVAL_LINGER_MS: PROBE_INTERVAL_MS })
   const brokenB = judge(brokenLinger, pageBudget)
   check(!brokenB.ok, '反证：两个活跃工作区都按 5 秒探（违反「探测额度只有一份」）必须判红 —— ' + brokenB.text)
 
   // 第三向（绿）：把旋钮整体收紧一档，同一套判据仍然判绿。
-  const tighter = Object.assign({}, budget, { PROBE_INTERVAL_MS: budget.PROBE_INTERVAL_MS * 2, RECONCILE_INTERVAL_MS: budget.RECONCILE_INTERVAL_MS * 2 })
+  const tighter = Object.assign({}, B0, { PROBE_INTERVAL_MS: PROBE_INTERVAL_MS * 2, RECONCILE_INTERVAL_MS: RECONCILE_INTERVAL_MS * 2 })
   const good = judge(tighter, pageBudget)
   check(good.ok, '合规变体（探测 10 秒、对账 20 分钟）判绿 —— ' + good.text)
 

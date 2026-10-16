@@ -26,35 +26,36 @@
  */
 import type { QuotaTier } from './ports.js'
 
+// #1215 中央时间参数：下面这些节拍与 TTL 名字的唯一真源是 config/*.yaml
+// （intervals.yaml / ttl.yaml），经 src/shared/time-config/values.js 生成常量。
+// 本文件不再写数字字面量：本地函数直接用这些名字（绑定来自 import）。
+// 对外不再转出（调用方要名字请直接从 time-config 引：二传会让 esbuild 起别名，域转译过不去）。
+// 各名字的含义见 YAML 对应键的注释；原来跟在各名字上面的旧注释保留在原节位置，
+// 描述的仍是该名字，数值以 YAML 为准。
+import { PROBE_INTERVAL_MS, PROBE_INTERVAL_YELLOW_MS, PROBE_INTERVAL_LINGER_MS, REBUILD_MIN_INTERVAL_YELLOW_MS, RECONCILE_INTERVAL_MS, PREFLIGHT_TTL_MS, CHAIN_BACKOFF_MS, FAILURE_HALF_OPEN_DELAY_MS, CHAIN_ALL_GREEN_TTL_MS, PATCH_MERGE_WINDOW_MS, DEFER_EXPIRY_MS, ACTIVE_LINGER_MS, ATTENTION_HEARTBEAT_MS, ATTENTION_EXPIRY_MS, QUOTA_SYNC_INTERVAL_MS, FRESHNESS_YELLOW_MS, FRESHNESS_RED_MS } from '../../time-config/values.js'
+
 // ---------- 一、节拍（多久跑一次） ----------
 
 /** 变化探测的间隔：正在看的那个活跃工作区每 5 秒探一次（每次约 1 条 REST）。 */
-export const PROBE_INTERVAL_MS = 5_000
 
 /** 黄档时探测放慢到这个间隔（120 秒）；红档不下探，直接全停。 */
-export const PROBE_INTERVAL_YELLOW_MS = 120_000
 
 /**
  * 活跃集合里「刚离开的那个」的探测间隔：15 秒。
  * 定稿第四章写的是「刚离开的那个降到 15~30 秒」；上界一律取短的这一端（15 秒），
  * 因为上界要按最费钱的取值算，取 30 秒会把最坏情况算小。
  */
-export const PROBE_INTERVAL_LINGER_MS = 15_000
 
 /** 黄档时两次整池重建之间至少隔 300 秒，防止降档之后还按原节奏重建。 */
-export const REBUILD_MIN_INTERVAL_YELLOW_MS = 300_000
 
 /** 后台对账（整池重建）的间隔：10 分钟一次；黄档时才是 30 分钟一次，由档位那一节决定用不用。 */
-export const RECONCILE_INTERVAL_MS = 10 * 60_000
 
 /** 环境预检（登录态、仓库可达）成功后的寿命：10 分钟之内复用同一份结果，不再重复花请求。 */
-export const PREFLIGHT_TTL_MS = 10 * 60_000
 
 /** 环境预检失败后立刻重试的次数：一次。再失败就等下一轮，不连环重试。 */
 export const PREFLIGHT_RETRY_AFTER_FAILURE = 1
 
 /** 检查链的退避序列（毫秒）：8 秒 → 30 秒 → 2 分钟 → 5 分钟；任何一步有进展立刻回到第一档。 */
-export const CHAIN_BACKOFF_MS = [8_000, 30_000, 2 * 60_000, 5 * 60_000] as const
 
 /**
  * 连续失败退避走完一整轮之后，再等多久才放一笔探针进来试一次：5 分钟。
@@ -69,25 +70,18 @@ export const CHAIN_BACKOFF_MS = [8_000, 30_000, 2 * 60_000, 5 * 60_000] as const
  * 它不会造成连环重试：每一笔探针真失败一次，计数加一，等待时长按 CHAIN_BACKOFF_MS 往上走一档
  * （最长 5 分钟），再加这一段 —— 尝试的频率只会越来越低，不会越来越密。
  */
-export const FAILURE_HALF_OPEN_DELAY_MS = 5 * 60_000
 
 /** 检查链全绿后的缓存寿命：30 分钟（全绿这个状态本身变化很慢，不必反复重算）。 */
-export const CHAIN_ALL_GREEN_TTL_MS = 30 * 60_000
 
 /** 行级补行的合并窗口：同一个工作区 10 秒内的多次补行合并成一次；切换工作区的补探也用这个窗口。 */
-export const PATCH_MERGE_WINDOW_MS = 10_000
 
 /** 被推迟的请求在队列里的过期时间：5 分钟。过期直接丢，不排队、不堆积、不重试。 */
-export const DEFER_EXPIRY_MS = 5 * 60_000
 
 /** 刚离开的那个工作区还算「活跃」多久：30 秒（照顾在两个工作区之间快速来回切的手感）。 */
-export const ACTIVE_LINGER_MS = 30_000
 
 /** 面板可见时本地心跳的间隔：20 秒。零配额、不出网，只用来证明「界面还看着这个工作区」。 */
-export const ATTENTION_HEARTBEAT_MS = 20_000
 
 /** 视野信号失效的判据：90 秒内没有任何「我在看谁」的上报，全部工作区降为后台档。 */
-export const ATTENTION_EXPIRY_MS = 90_000
 
 // ---------- 二、额度（每小时能花多少） ----------
 
@@ -234,7 +228,6 @@ export const HOUR_MS = 3_600_000
  * 走的是不扣配额的 `gh api rate_limit`（实测确认），所以它不吃这一份额度，但它仍然是一条真实出站请求，
  * 账本照样记（I6：每一笔花费都记在账上）。
  */
-export const QUOTA_SYNC_INTERVAL_MS = 60_000
 
 /** 读一次服务端剩余额度发出去几条请求：1 条（不扣配额）。 */
 export const QUOTA_READ_COST_REQUESTS = 1
@@ -302,10 +295,8 @@ export const SWITCH_COST_REQUESTS = PROBE_COST_REQUESTS
  * 出处是定稿第十章「界面三件事」第一条：数据带上取数时刻（"上次更新：12:04"），
  * 超过 5 分钟变黄、超过 30 分钟变红。
  */
-export const FRESHNESS_YELLOW_MS = 5 * 60_000
 
 /** 数据超过多久算「红」：30 分钟。 */
-export const FRESHNESS_RED_MS = 30 * 60_000
 
 /**
  * 一份数据现在算新鲜、发黄，还是陈旧。

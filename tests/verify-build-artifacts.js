@@ -503,6 +503,15 @@ check(domains.length > 0, `扫到 ${domains.length} 个域（${domains.join('、
     try { tu.inlineExportDeclarations('const A = 1;\n\nexport {\n  NOT_DECLARED\n};\n', '[测试]') } catch (e) { missing = String(e.message) }
     check(missing.indexOf('找不到声明') >= 0, '导出块改写：导出块里的名字找不到声明时拒绝生成（' + missing.slice(0, 40) + '…）')
 
+    // 引用重算：源码住 <域>/src/ 下、产物落域表层，跨出源码目录的相对引用在产物里减一层。
+    // （#1215 单源头改造：budget.js 产物里的 ../../time-config 在运行时指到 src/time-config 去，不改就起不来。）
+    const reb1 = tu.rebaseEscapingImports('import { A } from "../../time-config/values.js";\n', { sourcePath: 'src/shared/refresh/src/budget.ts' })
+    check(reb1.indexOf('"../time-config/values.js"') >= 0, '引用重算：跨出源码目录的 ../../ 减一层（' + reb1.trim().slice(0, 60) + '）')
+    const reb2 = tu.rebaseEscapingImports('import { P } from "./ports.js";\n', { sourcePath: 'src/shared/refresh/src/budget.ts' })
+    check(reb2.indexOf('"./ports.js"') >= 0, '引用重算：不出门的 ./ 引用原样不动')
+    const reb3 = tu.rebaseEscapingImports('import yaml from "yaml";\n', { sourcePath: 'src/shared/refresh/src/x.ts' })
+    check(reb3.indexOf('"yaml"') >= 0, '引用重算：裸说明符不是路径，不动')
+
     // 双向判据：产物多了、产物少了、域空了三种都要报出来，干净的就该是空数组。
     const clean = tu.checkDomainConsistency({ sources: ['a.ts', 'b.ts'], outputs: ['a.js', 'b.js'], handWritten: [] })
     check(clean.length === 0, '双向判据：源与产物一一对应时不报问题')

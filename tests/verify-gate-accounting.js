@@ -13,6 +13,7 @@
 //   ⑥ 反证：调用方报假数（发 3 条报 1 条）必须被当场对出来，账仍然按真发数记。
 const path = require('path')
 const { pathToFileURL } = require('url')
+const { DEFER_EXPIRY_MS } = require('../src/shared/time-config/values.js')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -107,10 +108,10 @@ async function main() {
   check(gate.workspaceView('ws-idle').failuresSinceSuccess === 0, '推迟不算失败：连续失败次数仍是 0（实得 ' + gate.workspaceView('ws-idle').failuresSinceSuccess + '）')
 
   // ④b 5 分钟过期即丢：4 分钟时还在，6 分钟时丢掉，而且丢不是失败。
-  const drain1 = gate.drain(clock + budget.DEFER_EXPIRY_MS - 60000)
+  const drain1 = gate.drain(clock + DEFER_EXPIRY_MS - 60000)
   check(drain1.ready.length === 1 && drain1.dropped === 0, '推迟队列 4 分钟时还留着（' + drain1.ready.length + ' 条可重发）')
   await gate.send({ source: 'probe.tick', kind: 'probe', workspaceKey: 'ws-idle' }, () => step(1, 0))
-  const drain2 = gate.drain(clock + budget.DEFER_EXPIRY_MS + 60000)
+  const drain2 = gate.drain(clock + DEFER_EXPIRY_MS + 60000)
   check(drain2.ready.length === 0 && drain2.dropped === 1, '推迟队列 6 分钟时过期丢掉（丢掉 ' + drain2.dropped + ' 条）')
   check(gate.workspaceView('ws-idle').failuresSinceSuccess === 0 && transport.requests === transportBefore, '过期丢弃也不计失败、也不重发（失败数 ' + gate.workspaceView('ws-idle').failuresSinceSuccess + '，传输层 ' + transport.requests + '）')
 

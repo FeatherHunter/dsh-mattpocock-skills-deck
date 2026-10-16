@@ -17,6 +17,7 @@
 //
 // 时间的两档分界（相对 / 绝对）与核心 describeTime 同一条：一周以内写相对说法，更早写日期时刻。
 //   同一条纪律也由那道门禁的 T 组比照（核心说 relative 的，本文件也必须说 relative）。
+import { VC_RELATIVE_WINDOW_MS } from '../../../shared/time-config/values.js'
 /** 六种变化类型的词条键（缺省按「修改」说，绝不编第七种）。 */
 export const VC_CHANGE_KEY = {
   added: 'vc.change.added',
@@ -92,8 +93,7 @@ export const vcPlusMinus = function (added, deleted) {
 // 这个值住在 config/ttl.yaml 的 vcRelativeWindowMs（七天以内显示相对时间，超过就显示绝对日期）；
 //   名字和取值由 tests/verify-time-config.ts 看守，tests/verify-842-version-control-write-view.js
 //   把它列为契约。改数值要改那份 YAML，不要改这里。
-/** 相对说法的窗口：一周。与核心 describeTime 的那条 7 天分界同一条。 */
-export const VC_RELATIVE_WINDOW_MS = 7 * 24 * 3600 * 1000
+/** 相对说法的窗口：一周。与核心 describeTime 的那条 7 天分界同一条（本文件顶部 import 真引用中央值）。 */
 export const vcTimeKind = function (nowMs, ms) {
   const now = Number(nowMs)
   const t0 = Number(ms)

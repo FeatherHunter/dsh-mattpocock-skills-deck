@@ -9,6 +9,9 @@
 const fs = require('fs')
 // 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
 const { compileFn } = require('./lib/eval-probe.js')
+// 中央时间真值：缓存 TTL 只住 config/*.yaml，这里读同一份导出来预埋，不在测试里写第二份数字。
+const centralTime = require('../src/shared/time-config/values.js')
+globalThis.SYNC_ISSUE_CACHE_TTL_MS = centralTime.SYNC_ISSUE_CACHE_TTL_MS
 let failed = false
 const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
@@ -18,7 +21,8 @@ const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if
 
 // —— 3) 行为级（把 store-prefs 当纯函数加载：去行首 export，注入 emit 桩）
 const prefsSrc = fs.readFileSync('src/client/kernel/store-prefs.js', 'utf8')
-const srcNoExport = prefsSrc.replace(/^\s*export\s+/gm, '')
+const srcNoExport = prefsSrc.replace(/^\s*export\s+/gm, '').split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')
+// 中央 import 在 compileFn 函数体里非法，求值前整行剥掉（闭包里它由时间片段提供，门禁里走上面的全局预埋）。
 // 这里选 compileFn：原来就是把参数名一个个传给按文本造函数的写法，改成共用入口后参数名照旧一个个传，求值出来的函数接法不变。
 const nav = compileFn(['emit'], srcNoExport + '\nreturn { peekNav, pushNav, popNav, clearNavStack, setActiveMap, clearActiveMap, setActiveIssue, clearActiveIssue, clearActiveDetail }')(
   function (st) { st.tick = (st.tick || 0) + 1 }

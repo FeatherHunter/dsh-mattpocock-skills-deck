@@ -18,6 +18,7 @@
  * 把声明体文本拼回 src/client/index.js 的拼接标记处（apply 闭包内原位），一源两物、src 零复制。
  * 依赖同闭包的 host / stores / shared / wsKeyOf / dshLogHash / isEnabled / log / tr，都在运行时调用。
  */
+    import { ATTENTION_EXPIRY_MS, ATTENTION_HEARTBEAT_MS } from '../../shared/time-config/values.js'
     /** 这个窗口的身份：sessionStorage 里现造一个，造不出来就退回内存里那一个（绝不退回空串）。 */
     export let _attentionWindowId = ''
     export const attentionWindowId = function () {
@@ -83,7 +84,7 @@
     /** #707：90 秒内没有任何回话 → 自动刷新已被宿主停掉，界面要直说「自动刷新已暂停」（第 10 章那句话的读取点）。 */
     // 这个静默阈值住中央：config/ttl.yaml 的 attentionExpiryMs，值由 tests/verify-time-config.ts 看守；
     // 它与宿主侧预算里的 ATTENTION_EXPIRY_MS 是同一个数，改名会让 tests/verify-kernel.js 的导出契约测试判红。
-    export const ATTENTION_SILENT_MS = 90000
+    export const ATTENTION_SILENT_MS = ATTENTION_EXPIRY_MS
     export const attentionSuspended = function () {
       try {
         if (!_attentionAckAt) return false
@@ -177,7 +178,7 @@
         }
         if (shared._beatTimer) return
         if (timer === undefined || typeof timer.interval !== 'function') return
-        shared._beatTimer = timer.interval(function () { attentionBeat() }, ((typeof SYNC === 'object' && SYNC && SYNC.ATTENTION_HEARTBEAT_MS) || 20000))
+        shared._beatTimer = timer.interval(function () { attentionBeat() }, ((typeof SYNC === 'object' && SYNC && SYNC.ATTENTION_HEARTBEAT_MS) || ATTENTION_HEARTBEAT_MS))
         if (typeof globalThis !== 'undefined') globalThis.__dswsOldBeatTimer = shared._beatTimer
       } catch (e) {}
     }

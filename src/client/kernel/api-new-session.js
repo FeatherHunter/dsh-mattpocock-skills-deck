@@ -6,6 +6,7 @@
  * 原位），与 ctx.js/seam 同模式，一源两物，src 零复制。
  * 接口冻结清单见 docs/architecture/kernel-contract.md（G3 · #91 拍板）。
  */
+    import { CLIENT_SESSION_TICK_MS, CLIENT_HANDOFF_DELAY_MS } from '../../shared/time-config/values.js'
     // #787 交接目录校验：记下那一刻的目录与当前目录是否同属一个工作区。
     //   比的是归一后的工作区键（宿主锚到工作区根那一步优先，拿不到就退回会话侧归一，最后比原文）；
     //   任一为空直接判不同（fail-closed）。typeof 守卫保证缺谁都不抛。
@@ -74,16 +75,15 @@
       let tries = 0
       // 交接文档轮询的节拍：点完「交接」之后每隔这么久就去磁盘看一眼，AI 是不是把交接文档写出来了。
       //   一篇复杂文档要写上好几分钟，所以是「隔一会儿看一次」，不是等一次就完。
-      // 数值写在 config/intervals.yaml 的 clientSessionTickMs，构建时由生成器变成常量、随界面闭包一起进来。
-      // 本文件会被交接那几道门禁当普通模块直接 import（那时闭包常量不存在），所以引用处带一层判断，
-      // 常量缺席时退回同一个数 1000 —— 这个数字由门禁 TEXT 表锁在 clientSessionTickMs 上。
+      // 数值写在 config/intervals.yaml 的 clientSessionTickMs，由 tests/verify-time-config.ts 看守，
+      // 本文件顶部 import 真引用；构建拼闭包时剥掉那一行 import，名字由闭包里的时间片段提供。本层不留回落。
       const tick = function () {
         if (st.handoffFile) return  // 本会话已发现真实文件名 → 停本会话轮询（不影响别的会话）
         if (++tries > 600) return  // 上限 ~10min（5min+ 复杂文档也覆盖）
         probeHandoffReady(st)
-        if (timer !== undefined) timer.timeout(tick, (typeof CLIENT_SESSION_TICK_MS === 'number' ? CLIENT_SESSION_TICK_MS : 1000))
+        if (timer !== undefined) timer.timeout(tick, CLIENT_SESSION_TICK_MS)
       }
-      if (timer !== undefined) timer.timeout(tick, (typeof CLIENT_SESSION_TICK_MS === 'number' ? CLIENT_SESSION_TICK_MS : 1000))
+      if (timer !== undefined) timer.timeout(tick, CLIENT_SESSION_TICK_MS)
     }
     export const doHandoffOpen = function (st) {
       const now = Date.now()
@@ -112,16 +112,16 @@
         }
         // 收尾的等待时间：找到交接文档、新会话也开起来之后，右半那颗转圈还要再转这么久才停下 ——
         //   这段是留给眼睛的，让人看见「已经切到新会话了」，不至于一点交代都没有就跳走。
-        // 数值写在 config/intervals.yaml 的 clientHandoffDelayMs，构建时由生成器变成常量、随界面闭包一起进来；
-        // 与上面同一个道理，常量缺席（门禁把它当普通模块直接 import）时退回同一个数 2000，由门禁 TEXT 表锁值。
-        setTimeout(doneSearch, (typeof CLIENT_HANDOFF_DELAY_MS === 'number' ? CLIENT_HANDOFF_DELAY_MS : 2000))  // 至少转 2s
+        // 数值写在 config/intervals.yaml 的 clientHandoffDelayMs，由 tests/verify-time-config.ts 看守，
+        // 本文件顶部 import 真引用；与上面同一个道理。本层不留回落。
+        setTimeout(doneSearch, CLIENT_HANDOFF_DELAY_MS)  // 至少转 2s
       }
       // 引导门 v3（2026-08-18 rev）：无论本会话是否点过第一击，一律先探测磁盘真实文档——
       //   有 latest → 置 ready + 放行开新会话；没有 → toast 引导「请先点「交接」生成交接文档」，绝不打开空会话
       probeHandoffReady(st).then(function (file) {
         if (file) finish(file, tr('toast.copiedHandoffFile', { file: file }))
         // 没找到交接文档、只弹了一句提醒的那一趟，转圈也按上面同一个等待时间收尾（两处共用一个常量，改一处两边一起变）。
-        else { flash(st, tr('toast.handoffGrey'), 'warn'); setTimeout(doneSearch, (typeof CLIENT_HANDOFF_DELAY_MS === 'number' ? CLIENT_HANDOFF_DELAY_MS : 2000)) }
+        else { flash(st, tr('toast.handoffGrey'), 'warn'); setTimeout(doneSearch, CLIENT_HANDOFF_DELAY_MS) }
       })
     }
 

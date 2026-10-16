@@ -156,3 +156,6 @@ timeouts:
   # 这一档只在将来有人裸调 createPredicateRegistry() 时生效。它决定「没传会等多久」这件事，
   # 所以照样登记；与上一档刻意不同值，改一个不要顺手改另一个。
   predicateFallbackTimeoutMs: 3000
+  # 检测链预取 gh 登录名的一次性竞速超时：2.5 秒。owner 显示是装饰信息，
+  # 拿不到就留占位，不能让一次附带查询拖慢整条检测链，所以上限给得短。
+  ghLoginPrefetchMs: 2500

@@ -33,6 +33,11 @@ const { act } = require('react')
 const { getBrowser, closeBrowser } = require('./lib/browser-pool.js')
 // 本文件三处手法不同：窗口里跑产物走 evalInWindow，取真源里一行函数表达式走 evalWithScope，拼闭包造模块走 compileFn。
 const { compileFn, evalWithScope, evalInWindow } = require('./lib/eval-probe.js')
+// 中央时间真值：快照等待只住 config/*.yaml，这里读同一份导出来预埋，不在测试里写第二份数字。
+const centralTime = require('../src/shared/time-config/values.js')
+globalThis.SNAP_WAIT_MS = centralTime.SNAP_WAIT_MS
+// 中央 import 在 compileFn 函数体里非法，求值前整行剥掉（闭包里它由时间片段提供，门禁里走上面的全局预埋）。
+const stripTimeConfigImport = (s) => s.split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')
 
 const ROOT = path.resolve(__dirname, '..')
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
@@ -231,7 +236,7 @@ console.log('== C 行为层：快照那条路上「切换之后重取必须真�
 const staleSrc = read('src/client/kernel/probe-stale.js').replace(/^[ \t]*export[ \t]+/gm, '')
 // #1009：装快照那一整段搬去了 probe-select.js（正常那一路与迟到那一路共用同一处），所以这一门的闭包
 //   也得把那一页带上 —— 不带的话「装进去的是哪一份」这条根本没有落地口，量出来全是 undefined。
-const snapSrc = staleSrc + '\n' + read('src/client/kernel/probe-snapshot.js').replace(/^[ \t]*export[ \t]+/gm, '')
+const snapSrc = staleSrc + '\n' + stripTimeConfigImport(read('src/client/kernel/probe-snapshot.js')).replace(/^[ \t]*export[ \t]+/gm, '')
   + '\n' + read('src/client/kernel/probe-select.js').replace(/^[ \t]*export[ \t]+/gm, '')
 const staleGuardSrc = read('src/client/kernel/probe-stale.js')
 const deferredOf = () => { let res; const p = new Promise((r) => { res = r }); return { p, res } }

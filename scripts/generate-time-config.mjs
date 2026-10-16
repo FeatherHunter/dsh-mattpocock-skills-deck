@@ -1,22 +1,25 @@
 #!/usr/bin/env node
 // scripts/generate-time-config.mjs —— 中央时间参数的生成器：读 config/ 下按用途分开的三份
 // 时间参数文件（timeouts.yaml 超时 / intervals.yaml 间隔与退避 / ttl.yaml 有效期），
-// 写出 src/shared/time-config/src/values.ts（签入版本库的那份生成源码）。
+// 写出 src/shared/time-config/src/values.ts（构建时现场生成、不入库）。
 //
 // 为什么是“生成”而不是“运行时读 YAML”：
 //   · 客户端不经过 Node 运行时读文件——它吃的那几个值是构建时 splice 进去的（见 build.mjs），
 //     服务器侧运行时读 YAML、客户端侧吃构建期快照，两边会悄悄分叉。统一走“YAML → 生成 .ts →
 //     编译 / 转译 / splice”这一条路，两边吃的是同一份数字。
-//   · 生成产物签入版本库：diff 里能看见“这次改了哪个时间、从几改到几”，回滚就是一次普通的文件回滚。
+//   · 生成产物不入库：数字只在 YAML 里有一份，构建（或 typecheck）时现场算出来；
+//     想看“这次改了哪个时间、从几改到几”，看 YAML 的 diff。
 //
 // 用法（在仓库根目录跑）：
 //   node scripts/generate-time-config.mjs            按 YAML 重写 values.ts
 //   node scripts/generate-time-config.mjs --check   只比对，不写文件；
 //       对不上时退出码 1（package.json 的 typecheck 脚本与 tests/verify-time-config.ts 都靠它看门）。
+//       唯一例外：values.ts 根本不在（刚检出、还没跑过构建），这时现场生成一次再判过——
+//       不然 typecheck 在全新检出上永远先红一次，那不是人的错。
 //
-// 缺键是合法状态，不是故障：YAML 里没写的键，生成器只告警，values.ts 里用“回落底座”
-// （FALLBACKS，值 = 收拢当天各文件里的数字）顶上。所以“先加调用、后补 YAML”不会把构建炸掉；
-// 反过来，未知键一律报错——多半是拼错了，静默忽略会让拼错的键看起来“生效了”。
+// 缺键是故障，不是合法状态：YAML 里没写的键，生成器直接报错退出。调用方一律静态 import
+// 生成的命名常量，不写任何“缺键回落数字”——数字只在 YAML 里有一份，回落表本身就是第二份拷贝。
+// 未知键同样报错——多半是拼错了，静默忽略会让拼错的键看起来“生效了”。
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -25,6 +28,11 @@ import yaml from 'yaml'
 
 const ROOT = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '..')
 const OUT_PATH = path.join(ROOT, 'src', 'shared', 'time-config', 'src', 'values.ts')
+// 类型声明与转译产物并排放域表层（values.js 旁边）：.ts 调用方写的是
+// `from '../../time-config/values.js'`，tsc 按“同名 .ts 兄弟”只能找到表层的 values.ts，
+// 而真源在 src/ 下——没有这份 .d.ts，严格模式报 TS7016（没有声明文件）。
+// 内容与 values.ts 同源（同一份 KEYS），数字只在 YAML 里有一份，这里只有类型，没有值。
+const OUT_DTS_PATH = path.join(ROOT, 'src', 'shared', 'time-config', 'values.d.ts')
 // 三份文件按用途分开，每份声明哪些分组是固定的：同一组写进两份文件、或写错文件，都在这里报错。
 const YAML_FILES = ['config/timeouts.yaml', 'config/intervals.yaml', 'config/ttl.yaml']
 const FILE_OF_GROUP = {
@@ -118,6 +126,8 @@ const KEYS = [
   // —— 检测链里的谓词超时（对抗式自查补登记：原来写在 option 对象里，名字是裸 timeout，两边都看不见）——
   ['predicateTimeoutMs', 'PREDICATE_TIMEOUT_MS', 'timeouts'],
   ['predicateFallbackTimeoutMs', 'PREDICATE_FALLBACK_TIMEOUT_MS', 'timeouts'],
+  // —— 检测链里预取 gh 登录名的一次性竞速超时（detectChain.ts 的 timer.timeout(2500)，单源头改造时收拢）——
+  ['ghLoginPrefetchMs', 'GH_LOGIN_PREFETCH_MS', 'timeouts'],
   // —— intervals：节拍间隔 ——
   ['probeIntervalMs', 'PROBE_INTERVAL_MS', 'intervals'],
   ['probeIntervalYellowMs', 'PROBE_INTERVAL_YELLOW_MS', 'intervals'],
@@ -138,6 +148,8 @@ const KEYS = [
   ['namingSweepSoonMs', 'NAMING_SWEEP_SOON_MS', 'intervals'],
   ['namingFallbackIntervalMs', 'NAMING_FALLBACK_INTERVAL_MS', 'intervals'],
   ['namingRetryCooldownMs', 'NAMING_RETRY_COOLDOWN_MS', 'intervals'],
+  // —— 谓词调试日志的采样节拍：15 秒内同类状态只记一次（detectChain.ts 的 nowP - lastPredAt > 15000，单源头改造时收拢）——
+  ['predicateLogSampleMs', 'PREDICATE_LOG_SAMPLE_MS', 'intervals'],
   ['logWriteDebounceMs', 'LOG_WRITE_DEBOUNCE_MS', 'intervals'],
   ['logFlushMs', 'LOG_FLUSH_MS', 'intervals'],
   // —— 界面上的一次性延时 ——
@@ -153,6 +165,8 @@ const KEYS = [
   // —— 悬停提示的两个延时（对抗式自查补登记：藏在 delay: { show, hide } 这样的对象里）——
   ['tipShowDelayMs', 'TIP_SHOW_DELAY_MS', 'intervals'],
   ['tipHideDelayMs', 'TIP_HIDE_DELAY_MS', 'intervals'],
+  // —— 回填草稿后补焦点的重试延时（api-io.ts 的 setTimeout(run, 120)，单源头改造中新门禁扫出来）——
+  ['draftRefocusRetryMs', 'DRAFT_REFOCUS_RETRY_MS', 'intervals'],
   // —— ttl：有效期 ——
   ['preflightTtlMs', 'PREFLIGHT_TTL_MS', 'ttl'],
   ['chainAllGreenTtlMs', 'CHAIN_ALL_GREEN_TTL_MS', 'ttl'],
@@ -198,152 +212,6 @@ const KEYS = [
   ['chainBackoffMs', 'CHAIN_BACKOFF_MS', 'backoff'],
 ]
 
-// ---------------------------------------------------------------------------
-// 回落底座：YAML 缺键时顶上的值。
-// 约定：这里的值永远等于“收拢当天各调用文件里的数字”（见 config/ 下三份 YAML 头部注释里的
-// 管辖说明）。改 YAML 是调参；改这里是改“YAML 缺键时系统按什么跑”，两者不要混在一起——
-// 回落值变了，说明“今天各文件里的数字”这个前提变了，那是另一次收拢，先补 inventory 再动手。
-// ---------------------------------------------------------------------------
-const FALLBACKS = {
-  toolTimeoutMs: 300000,
-  toolMarginMs: 15000,
-  perOpTimeoutMs: 30000,
-  outboundReadMs: 12000,
-  outboundWriteMs: 30000,
-  outboundProbeMs: 3000,
-  outboundDefaultMs: 30000,
-  githubClientTimeoutMs: 30000,
-  githubProbeMs: 3000,
-  gitProbeMs: 3000,
-  githubInitTimeoutMs: 30000,
-  gitlabReadMs: 8000,
-  gitlabSlowReadMs: 10000,
-  gitlabProbeMs: 5000,
-  gitlabRepoGitMs: 3000,
-  gitlabFallbackMs: 2000,
-  gitlabCreateProjectMs: 60000,
-  vcRunTimeoutMs: 20000,
-  vcCheckCallBudgetMs: 60000,
-  vcLsFilesTimeoutMs: 15000,
-  vcRemoteTimeoutMs: 5000,
-  vcAddTimeoutMs: 15000,
-  vcCommitTimeoutMs: 60000,
-  vcPullTimeoutMs: 180000,
-  vcPushTimeoutMs: 120000,
-  vcFetchTimeoutMs: 120000,
-  vcReadCmdTimeoutMs: 5000,
-  vcHeadCallBudgetMs: 20000,
-  vcReadCallBudgetMs: 10000,
-  vcLsFilesCallBudgetMs: 30000,
-  vcRemoteListCallBudgetMs: 15000,
-  vcPrePushCheckCallBudgetMs: 15000,
-  vcWriteCallMarginMs: 10000,
-  gitCredentialCallBudgetMs: 240000,
-  gitCredentialMinBudgetMs: 1000,
-  gitCredentialMaxBudgetMs: 600000,
-  gitCredentialProbeTimeoutMs: 5000,
-  gitCredentialLsRemoteBudgetMs: 20000,
-  gitCredentialFetchBudgetMs: 120000,
-  gitCredentialPullBudgetMs: 180000,
-  gitCredentialPushBudgetMs: 120000,
-  gitCredentialDefaultBudgetMs: 60000,
-  gitLowSpeedTimeoutMs: 20000,
-  matchesTimeoutMs: 30000,
-  deckSandboxMs: 5000,
-  deckStoreMs: 10000,
-  deckEnsureMs: 15000,
-  deckLocalReadMs: 5000,
-  deckHookMs: 5000,
-  deckAssemblyMs: 8000,
-  bridgeDryTableWaitMs: 8000,
-  delegatedCellWaitMs: 25000,
-  hostTimeoutMs: 30000,
-  hostBootDeferMs: 30000,
-  keyLockMs: 60000,
-  canonicalTimeoutMs: 5000,
-  inFlightKeepAliveMs: 2147483647,
-  settingsDebugPushWaitMs: 5000,
-  quotaSyncCooldownMs: 60000,
-  registerRetryWaitMs: 2000,
-  shellResolveMs: 8000,
-  namingSummaryTimeoutMs: 30000,
-  logWatchdogMs: 5000,
-  probeAutoWaitMs: 15000,
-  procProbeGraceMs: 1000,
-  procGraceMs: 2000,
-  predicateTimeoutMs: 15000,
-  predicateFallbackTimeoutMs: 3000,
-  probeIntervalMs: 5000,
-  probeIntervalYellowMs: 120000,
-  probeIntervalLingerMs: 15000,
-  rebuildMinIntervalYellowMs: 300000,
-  reconcileIntervalMs: 600000,
-  quotaSyncIntervalMs: 60000,
-  attentionHeartbeatMs: 20000,
-  syncEvalGapMs: 4500,
-  syncDirtyProbeDebounceMs: 1200,
-  syncFailureBackoffMs: 300000,
-  syncPollGridMs: 4000,
-  syncFallbackProbeMs: 60000,
-  syncFocusProbeMinMs: 60000,
-  namingPersistDebounceMs: 1200,
-  namingSweepSoonMs: 1500,
-  namingFallbackIntervalMs: 600000,
-  namingRetryCooldownMs: 45000,
-  logWriteDebounceMs: 1000,
-  logFlushMs: 1000,
-  clientSessionTickMs: 1000,
-  clientHandoffDelayMs: 2000,
-  slotQueueStepMs: 80,
-  slotModalOpenDelayMs: 1100,
-  storeSwitchConfirmMs: 220,
-  statusMenuDismissDelayMs: 300,
-  statusMenuHoverOpenDelayMs: 200,
-  statusMenuFallbackDelayMs: 160,
-  tipShowDelayMs: 500,
-  tipHideDelayMs: 160,
-  viewFlagWriteDebounceMs: 500,
-  preflightTtlMs: 600000,
-  chainAllGreenTtlMs: 1800000,
-  deferExpiryMs: 300000,
-  failureHalfOpenDelayMs: 300000,
-  attentionExpiryMs: 90000,
-  activeLingerMs: 30000,
-  patchMergeWindowMs: 10000,
-  freshnessYellowMs: 300000,
-  freshnessRedMs: 1800000,
-  ticketTtlMs: 120000,
-  workspaceStoreTtlMs: 30000,
-  chainRideMaxAgeMs: 30000,
-  snapshotTtlMs: 5000,
-  statusCacheMs: 30000,
-  snapshotCacheMs: 60000,
-  planCursorTtlMs: 604800000,
-  anchorWindowMs: 300000,
-  idempotencyLookbackMs: 1800000,
-  mapTicketsTtlMs: 60000,
-  syncOverlapSkewMs: 90000,
-  syncDirtyEchoTtlMs: 60000,
-  syncActionProbeWindowMs: 8000,
-  syncSnapFreshMs: 60000,
-  syncIssueCacheTtlMs: 60000,
-  trackerIndexMaxWindowMs: 604800000,
-  trackerIndexSkewMs: 60000,
-  skillListCacheTtlMs: 30000,
-  skillProbeCacheMs: 10000,
-  workspaceRootTtlMs: 30000,
-  snapWaitMs: 30000,
-  snapshotProbeMs: 2600,
-  storeNoticeDismissMs: 2800,
-  restFallbackStaleMs: 3600000,
-  vcRelativeWindowMs: 604800000,
-  issueDetailConfirmMs: 3000,
-  commentResultFlashMs: 1500,
-  commentsMoreLoadingMinMs: 600,
-  copyFlashMs: 1300,
-  chainBackoffMs: [8000, 30000, 120000, 300000],
-}
-
 /** 小编辑距离：拼错的键名能指到它想写的那个键，而不是一句“未知键”。 */
 function editDistance(a, b) {
   const dp = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)])
@@ -364,7 +232,7 @@ function isPositiveInt(v) {
 
 /**
  * 读三份 YAML（每份声明固定的一组或两组）、做校验，返回 { values, warnings }。
- * values：键 → 生效值（YAML 有就用 YAML 的，缺键用回落底座并记一条告警）。
+ * values：键 → 生效值，全部来自 YAML。缺键直接报错——调用方不写回落，缺了就是故障。
  * 报错即抛，调用方按退出码 1 收尾。
  */
 function load(docs) {
@@ -398,9 +266,7 @@ function load(docs) {
   for (const [key, { group }] of known) {
     const v = seen[group][key]
     if (v === undefined) {
-      warnings.push('缺键：' + FILE_OF_GROUP[group] + ' 的 ' + group + '.' + key + ' 没写，用回落值 ' + JSON.stringify(FALLBACKS[key]) + ' 顶上（合法，但请补上）')
-      values[key] = FALLBACKS[key]
-      continue
+      throw new Error('缺键：' + FILE_OF_GROUP[group] + ' 的 ' + group + '.' + key + ' 没写；数字只在 YAML 里有一份，没有回落可顶，先把键补上')
     }
     if (group === ARRAY_GROUP) {
       if (!Array.isArray(v) || v.length === 0 || !v.every(isPositiveInt)) {
@@ -447,43 +313,27 @@ function tsLiteral(v) {
 
 /** 按 KEYS 生成 values.ts 全文。命名常量是给调用方 import 的；TIME_YAML 是给“值从哪来”留的证据。 */
 function render(values, provided) {
+  void provided
   const lines = []
-  lines.push('// values.ts —— 中央时间参数的生成源码（#1215 立）。')
+  lines.push('// values.ts —— 中央时间参数的生成源码（#1215 立，构建时现场生成、不入库）。')
   lines.push('//')
   lines.push('// 人手不改：本文件由 scripts/generate-time-config.mjs 按 config/ 下的三份时间参数文件写出')
   lines.push('// （config/timeouts.yaml 超时、config/intervals.yaml 间隔与退避、config/ttl.yaml 有效期）。')
-  lines.push('// 想调时间请改 YAML 再跑生成器；YAML 缺键时这里用回落底座（FALLBACKS）顶上，')
-  lines.push('// 落盘的值永远是“实际生效的值”，TIME_YAML 只记录“YAML 里写了哪些”。')
-  lines.push('// 本文件签入版本库：diff 就是调参记录。')
+  lines.push('// 想调时间请改 YAML 再跑生成器；缺键直接报错，没有回落——数字只在 YAML 里有一份。')
   lines.push('')
   lines.push('export type TimeKey = ' + KEYS.map(([k]) => "'" + k + "'").join(' | ') + ';')
   lines.push('')
   lines.push('export const TIME_ARRAY_KEYS: ReadonlyArray<TimeKey> = ' + JSON.stringify(KEYS.filter(([, , g]) => g === ARRAY_GROUP).map(([k]) => k)) + ';')
   lines.push('')
-  lines.push('/** YAML 里实际写了的键（缺键不在这里面）。想查“这个值是不是 YAML 里来的”，看这张表。 */')
-  lines.push('export const TIME_YAML: Partial<Record<TimeKey, number | ReadonlyArray<number>>> = {')
+  lines.push('/** YAML 里写了的值（缺键在生成器那一步就报错了，所以这里与命名常量永远一致）。 */')
+  lines.push('export const TIME_YAML: Record<TimeKey, number | ReadonlyArray<number>> = {')
   for (const [key] of KEYS) {
-    if (!provided.has(key)) continue
     const v = values[key]
     lines.push('  ' + key + ': ' + (Array.isArray(v) ? 'Object.freeze([' + v.join(', ') + '])' : String(v)) + ',')
   }
   lines.push('};')
   lines.push('')
-  lines.push('/** 回落底座：YAML 缺键时顶上的值 = 收拢当天各调用文件里的数字。改这里 = 改“缺键时按什么跑”，与调参是两件事。 */')
-  lines.push('export const TIME_FALLBACKS: Record<TimeKey, number | ReadonlyArray<number>> = {')
-  for (const [key] of KEYS) {
-    const v = FALLBACKS[key]
-    lines.push('  ' + key + ': ' + (Array.isArray(v) ? 'Object.freeze([' + v.join(', ') + '])' : String(v)) + ',')
-  }
-  lines.push('};')
-  lines.push('')
-  lines.push('/** 取一个时间参数。YAML 有就用 YAML 的，缺键用回落底座（生成时已落盘，这里只是按同样的规则读）。 */')
-  lines.push('export function timeValue(key: TimeKey): number | ReadonlyArray<number> {')
-  lines.push('  const v = TIME_YAML[key] !== undefined ? TIME_YAML[key] : TIME_FALLBACKS[key];')
-  lines.push('  return v as number | ReadonlyArray<number>;')
-  lines.push('}')
-  lines.push('')
-  lines.push('// —— 命名常量：调用方 import 这些名字，不直接碰 timeValue。名字与收拢前各文件的常量名同义，')
+  lines.push('// —— 命名常量：调用方 import 这些名字。名字与收拢前各文件的常量名同义，')
   lines.push('// 改调用处时只是把右边的数字换成这里的名字，读起来还是原来那句话。')
   const byGroup = {}
   for (const [key, constName, group] of KEYS) byGroup[group] = [...(byGroup[group] || []), [key, constName]]
@@ -498,7 +348,29 @@ function render(values, provided) {
   return lines.join('\n')
 }
 
-/** 读三份时间参数文件；缺哪一份都直接报错——少读一份会静默退回回落值，那是看不见的错。 */
+/** 按同一份 KEYS 生成 values.d.ts 全文：只有声明、没有值（值只在 YAML 里有一份）。 */
+function renderDts(values) {
+  void values
+  const lines = []
+  lines.push('// values.d.ts —— 中央时间参数的类型声明（#1215 单源头改造补，构建时现场生成、不入库）。')
+  lines.push('//')
+  lines.push('// 为什么多这一份：调用方 import 的是域表层的 values.js（转译产物，没有类型），')
+  lines.push('// tsc 按同名兄弟只能找到表层的 values.ts——而真源住在 src/ 下。没有这份声明，')
+  lines.push('// 严格模式下所有 import values.js 的 .ts 都报 TS7016。内容与 values.ts 同源。')
+  lines.push('')
+  lines.push('export type TimeKey = ' + KEYS.map(([k]) => "'" + k + "'").join(' | ') + ';')
+  lines.push('')
+  lines.push('export declare const TIME_ARRAY_KEYS: ReadonlyArray<TimeKey>;')
+  lines.push('export declare const TIME_YAML: Record<TimeKey, number | ReadonlyArray<number>>;')
+  lines.push('')
+  lines.push('// —— 命名常量：类型与 values.ts 里的一致，值以 YAML 为准 ——')
+  for (const [key, constName, group] of KEYS) {
+    const v = values[key]
+    lines.push('export declare const ' + constName + ': ' + (Array.isArray(v) || group === ARRAY_GROUP ? 'ReadonlyArray<number>' : 'number') + ';')
+  }
+  return lines.join('\n')
+}
+/** 读三份时间参数文件；缺哪一份都直接报错——少读一份会静默退回旧值，那是看不见的错。 */
 function readDocs() {
   return YAML_FILES.map((rel) => {
     let text
@@ -525,6 +397,7 @@ function main() {
     process.exit(1)
   }
   const text = render(values, provided) + '\n'
+  const dts = renderDts(values) + '\n'
   if (checkOnly) {
     let current = null
     try {
@@ -532,7 +405,21 @@ function main() {
     } catch {
       current = null
     }
-    if (current !== text) {
+    let currentDts = null
+    try {
+      currentDts = fs.readFileSync(OUT_DTS_PATH, 'utf8')
+    } catch {
+      currentDts = null
+    }
+    if (current === null || currentDts === null) {
+      // 全新检出、还没跑过构建：现场生成一次再判过，不然 typecheck 在新机器上永远先红一次。
+      fs.mkdirSync(path.dirname(OUT_PATH), { recursive: true })
+      fs.writeFileSync(OUT_PATH, text)
+      fs.writeFileSync(OUT_DTS_PATH, dts)
+      console.log('PASS 生成源码不在，已按 config/ 下的三份时间参数文件现场生成')
+      return
+    }
+    if (current !== text || currentDts !== dts) {
       console.log('FAIL 生成源码与 config/ 下的三份时间参数文件对不上：请跑 node scripts/generate-time-config.mjs 重算后再提交')
       process.exit(1)
     }
@@ -541,6 +428,7 @@ function main() {
   }
   fs.mkdirSync(path.dirname(OUT_PATH), { recursive: true })
   fs.writeFileSync(OUT_PATH, text)
+  fs.writeFileSync(OUT_DTS_PATH, dts)
   console.log('已按 config/ 下的三份时间参数文件写出 ' + path.relative(ROOT, OUT_PATH))
 }
 

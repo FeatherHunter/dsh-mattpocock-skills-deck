@@ -16,6 +16,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 // 本文件原先兼的那道「全库不再有自续定时器」源码文本门禁已于 2026-10 整段撤掉（见文件头第 3～5 行），
 // 现在留下的两段都是「跑起来的结果」，与真实触发时刻无关。
 import { installTimeCompression, uninstallTimeCompression } from './lib/time-compress.js'
+import { CHAIN_BACKOFF_MS, CHAIN_ALL_GREEN_TTL_MS, PREFLIGHT_TTL_MS } from '../src/shared/time-config/values.js'
 installTimeCompression()
 
 let failed = false
@@ -35,9 +36,9 @@ console.log('\n— 退避算术本身：把纯函数真跑一遍 —')
   const bo = await import('../src/shared/refresh/backoff.js')
   const budget = await import('../src/shared/refresh/budget.js')
   const limits = {
-    backoffMs: budget.CHAIN_BACKOFF_MS,
-    allGreenTtlMs: budget.CHAIN_ALL_GREEN_TTL_MS,
-    preflightTtlMs: budget.PREFLIGHT_TTL_MS,
+    backoffMs: CHAIN_BACKOFF_MS,
+    allGreenTtlMs: CHAIN_ALL_GREEN_TTL_MS,
+    preflightTtlMs: PREFLIGHT_TTL_MS,
     preflightRetryAfterFailure: budget.PREFLIGHT_RETRY_AFTER_FAILURE,
   }
   check(limits.backoffMs.length === 4, '退避序列有 4 档')

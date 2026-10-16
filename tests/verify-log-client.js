@@ -7,6 +7,13 @@ const fs = require('fs')
 const path = require('path')
 // 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
 const { compileFn } = require('./lib/eval-probe.js')
+// 中央时间真值：发批间隔等时间数字只住 config/*.yaml，这里读同一份导出来比对，不在测试里写第二份数字。
+const centralTime = require('../src/shared/time-config/values.js')
+// 日志模块顶部那一行中央 import 在 compileFn 函数体里是非法的（函数体不许出现 import），
+// 求值前剥掉；名字走全局预埋，值就是中央导出的同一份。
+globalThis.LOG_FLUSH_MS = centralTime.LOG_FLUSH_MS
+globalThis.LOG_WATCHDOG_MS = centralTime.LOG_WATCHDOG_MS
+const stripTimeConfigImport = (text) => text.split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -32,7 +39,8 @@ if (logAt >= 0) {
 }
 check(firstLineOk, '级别判断放在 log 函数第一行（体内兜底，与宿主同纪律）')
 check(src.includes('LOG_BATCH_MAX = 50'), '每批最多 50 条（设计 2.5 字面）')
-check(src.includes('LOG_FLUSH_MS = 1000'), '每 1000 毫秒发一次（设计 2.5 字面）')
+check(/^\s*import\s*\{[^}]*LOG_FLUSH_MS[^}]*\}\s*from\s*['"][^'"]*time-config\/values\.js['"]/m.test(src), '发批间隔从中央时间参数真引用 LOG_FLUSH_MS（设计 2.5，不留数字字面量）')
+check(!/LOG_FLUSH_MS\s*=\s*\d/.test(src), '发批间隔没有本地数字声明（只有中央 import）')
 check(src.includes('LOG_PACKET_BYTES = 131072'), '单包 128KB 上限（设计 2.5 字面）')
 check(src.includes('LOG_QUEUE_MAX = 100'), '队列 100 条封顶（先到先截，不无界缓冲）')
 // 渲染路径禁令：日志模块里的对象转文本只许出现在转发估算与开关持久化两处（均为非渲染路径）。
@@ -69,7 +77,8 @@ function makeTimer() {
 }
 function loadLog(options) {
   const opts = options || {}
-  const body = src.split('\n').map((l) => l.replace(/^(\s*)export\s+/, '$1')).join('\n')
+  const stripped = stripTimeConfigImport(src)
+  const body = stripped.split('\n').map((l) => l.replace(/^(\s*)export\s+/, '$1')).join('\n')
   // 日志模块（剥掉行首 export）整份当函数体造函数，宿主与计时器等四个依赖显式当参数名，所以走 compileFn。
   const factory = compileFn(
     ['host', 'timer', 'localStorage', 'broadcastLogSwitch'],
@@ -172,7 +181,7 @@ async function main() {
     check(mod.logQueue.length === 51, '发完 50 条剩 50 条未发加 1 行转发汇总')
   }
 
-  // ---- 直通与定时：错误立刻排（0 毫秒），普通走 1000 毫秒；转发失败整批记丢弃 ----
+  // ---- 直通与定时：错误立刻排（0 毫秒），普通走中央发批间隔；转发失败整批记丢弃 ----
   {
     const timer = makeTimer()
     const host = { call() { return Promise.resolve({ ok: true, accepted: 1, dropped: 0 }) } }
@@ -181,7 +190,7 @@ async function main() {
     check(timer.calls[timer.calls.length - 1] === 0, '错误走直通（本轮事件循环末就发）')
     mod.logSwitch.enabled = true
     mod.log('info', 'normal', {})
-    check(timer.calls[timer.calls.length - 1] === 1000, '普通走 1000 毫秒批量')
+    check(timer.calls[timer.calls.length - 1] === mod.LOG_FLUSH_MS && mod.LOG_FLUSH_MS === centralTime.LOG_FLUSH_MS, '普通走中央发批间隔批量（与中央导出同值）')
     const failMod = loadLog({ localStorage: makeLocalStorage(), timer: makeTimer(), host: { call() { return Promise.reject(new Error('断线')) } } })
     failMod.logSwitch.enabled = true
     failMod.log('info', 'lost', {})

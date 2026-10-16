@@ -11,9 +11,10 @@
  * 「不一致」变成永远不一致。哈希本身在宿主做（node:crypto），本文件只管「取哪一份字节」与「比不相等」。
  */
 import type { WriteOp, WritePlan, WriteTicket } from './ports.js'
+import { TICKET_TTL_MS } from '../../time-config/values.js'
 
-/** 票据有效期：预检到点击通常几秒；过期不自动续期。 */
-export const TICKET_TTL_MS = 120000
+/** 票据有效期：预检到点击通常几秒；过期不自动续期（#1215：真源见 config/ttl.yaml 的 ticketTtlMs）。
+ * 调用方要这个值请直接从 time-config 引（本文件不做二传：二传会让 esbuild 起别名，域转译过不去）。 */
 
 /** 索引指纹的次级校验与诊断：NUL 记录条数（不含末尾空字段）。 */
 export function indexRecordCount(lsFilesText: string): number {

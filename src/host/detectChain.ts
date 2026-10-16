@@ -4,7 +4,7 @@
 import { refreshSourceOf } from './refresh/refreshSource.js'
 import { workspaceKeyOf } from '../shared/refresh-workspace-key.js'   // #724：链记账给闸的钥匙，与活跃集合同一把（从前传 cwd 原文 → 同一个工作区在闸里有两格）
 import { getChainRide } from './refresh/chain-ride.js'   // #964 小账本住共享层；#966 用进程单例，出站写路能记写
-import { PREDICATE_TIMEOUT_MS } from '../shared/time-config/values.js'   // #1215 单谓词超时住 config/timeouts.yaml 的 predicateTimeoutMs
+import { PREDICATE_TIMEOUT_MS, GH_LOGIN_PREFETCH_MS, PREDICATE_LOG_SAMPLE_MS } from '../shared/time-config/values.js'   // #1215 时间参数住中央 YAML（predicateTimeoutMs / ghLoginPrefetchMs / predicateLogSampleMs），本文件只读不写
 
 // ── 依赖与回包形状（票 #1155 补类型标注）────────────────────────────────────────
 // 为什么逐条写在这里：本文件的依赖对象是 src/host/index.ts 里现拼的接线（转制后编译器看得见，形状以各文件的类型为准），
@@ -401,7 +401,7 @@ export function createDetectChain(deps: DetectChainDeps) {
                   if (String(backendId) === 'github') {
                     const _u = await Promise.race([
                       runGh(['api', 'user', '-q', '.login'], cwd),
-                      timer.timeout(2500).then(function () { return null }),
+                      timer.timeout(GH_LOGIN_PREFETCH_MS).then(function () { return null }),
                     ])
                     if (_u && _u.ok) _fixOwner = String(_u.text || '').trim()
                   }
@@ -469,7 +469,7 @@ export function createDetectChain(deps: DetectChainDeps) {
         try {
           if (logCtx && logCtx.isEnabled('debug')) {
             const nowP = Date.now()
-            if (nowP - lastPredAt > 15000) {
+            if (nowP - lastPredAt > PREDICATE_LOG_SAMPLE_MS) {
               lastPredAt = nowP
               const ids = Object.keys(allResolved || {})
               for (let pi = 0; pi < ids.length; pi++) { const rd = allResolved[ids[pi]]; const stt = String((rd && (rd.status || rd)) || 'pending'); if (lastPredStatus[ids[pi]] !== stt) { lastPredStatus[ids[pi]] = stt; logCtx.fire('debug', 'chain.predicate', { id: String(ids[pi]), status: stt }) } }

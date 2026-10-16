@@ -19,6 +19,7 @@
 //   ⑧ 工作区视图如实带出「窗口起点」（面板与门禁读的就是它）。
 const path = require('path')
 const { pathToFileURL } = require('url')
+const { CHAIN_BACKOFF_MS, FAILURE_HALF_OPEN_DELAY_MS, PROBE_INTERVAL_MS, PROBE_INTERVAL_YELLOW_MS, RECONCILE_INTERVAL_MS, REBUILD_MIN_INTERVAL_YELLOW_MS } = require('../src/shared/time-config/values.js')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -40,7 +41,7 @@ async function main() {
   const HOUR_MS = budget.HOUR_MS
   // 到了门槛之后要等多久才放探针：退避序列里「第 n 次失败」那一档，再加一整轮之后额外等的那一段。
   // 这个算式就是 policy.js 的 nextAttemptDelayMs + limits.failureHalfOpenDelayMs，测试这边照同一口径拼。
-  const waitFor = (n) => budget.CHAIN_BACKOFF_MS[Math.min(n - 1, budget.CHAIN_BACKOFF_MS.length - 1)] + budget.FAILURE_HALF_OPEN_DELAY_MS
+  const waitFor = (n) => CHAIN_BACKOFF_MS[Math.min(n - 1, CHAIN_BACKOFF_MS.length - 1)] + FAILURE_HALF_OPEN_DELAY_MS
   const send = (key, kind, perform) => gate.send({ source: 'tool.call', kind: kind || 'probe', workspaceKey: key, plan: [{ phase: 'op' }] }, perform)
   const failOnce = (key, kind) => send(key, kind, () => { throw new Error('模拟一次真失败') }).then(() => false, () => true)
 
@@ -115,15 +116,15 @@ async function main() {
   // 闸把「该不该放一笔」的结论按 halfOpenTrialDue 传给裁决（判据只有 failure-window.js 一份）。
   // limits 照 gate.js 同一口径从 budget.js 拼，本文件不另写一份数字。
   const limits = {
-    probeIntervalMs: budget.PROBE_INTERVAL_MS,
-    probeIntervalYellowMs: budget.PROBE_INTERVAL_YELLOW_MS,
-    reconcileIntervalMs: budget.RECONCILE_INTERVAL_MS,
-    rebuildMinIntervalYellowMs: budget.REBUILD_MIN_INTERVAL_YELLOW_MS,
+    probeIntervalMs: PROBE_INTERVAL_MS,
+    probeIntervalYellowMs: PROBE_INTERVAL_YELLOW_MS,
+    reconcileIntervalMs: RECONCILE_INTERVAL_MS,
+    rebuildMinIntervalYellowMs: REBUILD_MIN_INTERVAL_YELLOW_MS,
     aiToolMaxPointsPerCall: budget.AI_TOOL_MAX_POINTS_PER_CALL,
     aiToolMaxRequestsPerCall: budget.AI_TOOL_MAX_REQUESTS_PER_CALL,
     aiToolMaxPointsPerHour: budget.AI_TOOL_MAX_POINTS_PER_HOUR,
     aiToolMaxRequestsPerHour: budget.AI_TOOL_MAX_REQUESTS_PER_HOUR,
-    failureBackoffMs: budget.CHAIN_BACKOFF_MS,
+    failureBackoffMs: CHAIN_BACKOFF_MS,
   }
   const base = {
     category: 'ai-tool', kind: 'probe', tier: 'green',
@@ -139,8 +140,8 @@ async function main() {
   check(lifeTrial.verdict === 'degrade' && lifeTrial.reason === 'lifecycle-cache-only', '生命周期那一档照旧只出缓存，探针那一格管不着它（实得 ' + lifeTrial.reason + '）')
 
   const fw = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'refresh', 'failure-window.js')).href)
-  const seq = budget.CHAIN_BACKOFF_MS
-  const extra = budget.FAILURE_HALF_OPEN_DELAY_MS
+  const seq = CHAIN_BACKOFF_MS
+  const extra = FAILURE_HALF_OPEN_DELAY_MS
   check(fw.windowLengthMs(3, seq[2], extra) === seq[2] + extra, '窗口长度 = 第 n 次失败那一档 + 额外那一段（实得 ' + fw.windowLengthMs(3, seq[2], extra) + '）')
   check(fw.windowLengthMs(99, seq[seq.length - 1], extra) === seq[seq.length - 1] + extra, '失败次数再多也不超过最后一档（封顶，实得 ' + fw.windowLengthMs(99, seq[seq.length - 1], extra) + '）')
   check(fw.halfOpenTrialIsDue({ failures: 3, windowStartedAt: 0 }, 1e15, seq[2], extra) === false, '窗口起点是 0（这一轮还没开始）：不放探针')

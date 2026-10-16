@@ -1,11 +1,14 @@
 // src/deck/registration/register-options.ts —— 九个 deck_* 工具向 agent 注册的那一步（#741）
 // （旧 src/shared/deck-tools/agent-register.js，#1019 机械搬家只挪位置不改行为。）
 // 九个工具的实现与宿主装配都在，agent 列表却看不见，因为从没人调过注册。
-// 住共享层因为两边都要用（宿主接线与 agent 行模块），四层各自内部禁互引，零导入是唯一的住法。
+// 住共享层因为两边都要用（宿主接线与 agent 行模块），四层各自内部禁互引；唯一的例外是只读
+// 纯数据的中央时间参数目录（时间数字的真源，不含逻辑，见本文件顶部那一行 import）。
 // defineTool 由调用方传（生产是工具包，门禁用仓库开发依赖里的真实现）；传不进来走退路。
 // 日志沿用既有事件不新增（调用走 host.call，注册结果见 makeDeckRegisterReport，#1030 Q6）。
 // 招牌（本文件交出去的名字）与后厨（装配拼出的实现表）必须同源：
 // 名字顺序的真源在装配清单与行数组（实际九个），注释里的“七个”是旧话，已按 #1030 Q1 改齐。
+// 时间数字不住这里：只引用纯数据的中央时间参数目录，不引用别的逻辑层。
+import { TOOL_TIMEOUT_MS, REGISTER_RETRY_WAIT_MS } from '../../shared/time-config/values.js';
 
 /** 未知形状的对象（参数模式、定义、表都先按这形接住，守卫函数再逐格验，不猜）。 */
 type UnknownRecord = Record<string, unknown>;
@@ -32,11 +35,11 @@ function hash8(text: unknown): string {
 
 /** 单次执行允许的最长时间（毫秒）：盖住批量建票在正常网络下的最坏情况；超预算的调用壳里已经提前拦下。
  *  2026-10-14 由 120000 放宽到 300000（票 #1040）：这一个常量同时管着注册侧的外层上限与行模块的三路等待，
- *  原先两分钟常在批量建图半路被外层掐死、整包进度作废。它与 src/deck/shell/call-budget.ts 的
- *  DEFAULT_TOOL_TIMEOUT_MS 必须同值（那边是壳自己看钟用的同一份预算），改一边必须同步另一边；
- *  同值由 tests/verify-895-bulk-deadline.js 第⑦节断言看守（本文件不引用其他层的文件，不能靠 import 收成一份）。
+ *  原先两分钟常在批量建图半路被外层掐死、整包进度作废。它引用中央时间参数的 TOOL_TIMEOUT_MS，
+ *  与 src/deck/shell/call-budget.ts 是同一份值（那边 import 的也是它），天然同值，不用两边同步；
+ *  同源由 tests/verify-895-bulk-deadline.js 第⑦节断言看守。
  *  为什么宁可放宽也不许为了「省额度」做慢做坏，见 docs/adr/20261014-quota-function-first.md。 */
-export const AGENT_TOOL_TIMEOUT_MS = 300000
+export const AGENT_TOOL_TIMEOUT_MS = TOOL_TIMEOUT_MS
 
 /** 注册表参数写法里允许的键（超出的一律不透出，宁可缺件也不让注册表报错）。 */
 const ANNOTATION_KEYS = ['description', 'title', 'default', 'examples']
@@ -430,7 +433,7 @@ export function makeDeckRegisterReport(logCtx: unknown): (info: unknown) => void
 export function hookDeckAgentTools(ctx: unknown, getTable: unknown, loadDefineTool: unknown, report: unknown, opts: unknown): void {
   const o = ((opts || {}) as { retries?: unknown; waitMs?: unknown }) || {}
   const retries = (typeof o.retries === 'number' && o.retries >= 0) ? Math.floor(o.retries) : 5
-  const waitMs = (typeof o.waitMs === 'number' && o.waitMs >= 0) ? Math.floor(o.waitMs) : 2000
+  const waitMs = (typeof o.waitMs === 'number' && o.waitMs >= 0) ? Math.floor(o.waitMs) : REGISTER_RETRY_WAIT_MS
   const t0 = Date.now()
   function tell(info: UnknownRecord): void { try { if (typeof report === 'function') (report as (info: UnknownRecord) => void)(info) } catch (eR) {} }
   function toolsSvcOf(): unknown {

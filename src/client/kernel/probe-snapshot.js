@@ -6,6 +6,7 @@
  * 原位），与 ctx.js/seam 同模式，一源两物，src 零复制。
  * 接口冻结清单见 docs/architecture/kernel-contract.md（G3 · #91 拍板）。
  */
+    import { SNAP_WAIT_MS } from '../../shared/time-config/values.js'
     export const pendingSnapshotByCwd = new Map() // Map<工作区键+后端,{promise,controller,backendId,seq}> dedup 30s（#653：按工作区根去重；#669 第 5 件：键里再带后端 —— 换过后端就不是同一次请求，见 kernel/probe-stale.js）
     // #727：这一次快照请求的落地状态。带上它是为了给「迟到的成功回包」划一条界线 ——
     //   正常那一路已经跑过之后，迟到的这一份一个字节都不许重复装（同一个工作区两边同时就绪是会碰上的）。
@@ -16,8 +17,7 @@
     //   2026-09-24 那个现场是「磁盘快照已有画面、重建要几分钟」，按该判据仍是热档，照样早放手。
     //   删档只丢「等待体感」，不丢能力：迟到的结果仍会落地（判据与落地在 kernel/probe-select.js）。
     //   超时原文回到固定串，散列 246ae7f1 与文档的对应关系继续成立。
-    // 这个等待上限住中央：config/ttl.yaml 的 snapWaitMs，值由 tests/verify-time-config.ts 看守。
-    export const SNAP_WAIT_MS = 30000
+    // 这个等待上限住中央：config/ttl.yaml 的 snapWaitMs，值由 tests/verify-time-config.ts 看守（本文件顶部 import 真引用）。
     // #491 房外埋点 helpers（同一闭包拼回后全内核文件可见；只记散列与计数，渲染路径不用）：
     const dswsLogHash = function (s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
     const dswsScrubHits = {}

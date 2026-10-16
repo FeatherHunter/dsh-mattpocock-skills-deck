@@ -20,14 +20,17 @@
 //   attention.report 每一次上报落一行（心跳每 20 秒一次，按十取一采样）
 //   attention.sweep  每一次收摊结论落一行。两条登记在 research/489-appendix.md 第 1.5 节。
 import * as budget from '../../shared/refresh/budget.js'
+import { ACTIVE_LINGER_MS, ATTENTION_EXPIRY_MS, PROBE_INTERVAL_MS, PROBE_INTERVAL_LINGER_MS, ATTENTION_HEARTBEAT_MS } from '../../shared/time-config/values.js'
 import { createAttentionState, report, collect, heartbeatIntervalMs } from '../../shared/refresh/attention.js'
 
 /** 视野模型对外的那条宿主电话名（tests/verify-log-coverage.js 的电话名名单按它核对）。 */
 export const ATTENTION_PHONE_NAMES = ['wf.focus']
 
-/** 从 budget.js 取一套视野模型要用的数字（形状与纯函数那侧的 AttentionLimits 一致）。 */
+/** 取一套视野模型要用的数字（形状与纯函数那侧的 AttentionLimits 一致，自有部分出自 budget.js，时间出自中央 time-config）。 */
 export function attentionLimits(src) {
-  const b = src || budget
+  // 缺省源：budget.js 只剩自有常量与函数，时间常量走中央——两边拼成视野模型吃的那一份。
+  // 测试注入整套时走 src 那一支，不受影响。
+  const b = src || Object.assign({}, budget, { ACTIVE_LINGER_MS, ATTENTION_EXPIRY_MS, PROBE_INTERVAL_MS, PROBE_INTERVAL_LINGER_MS, ATTENTION_HEARTBEAT_MS })
   return {
     maxActive: b.MAX_ACTIVE_WORKSPACES,
     lingerMs: b.ACTIVE_LINGER_MS,

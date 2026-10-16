@@ -1,6 +1,6 @@
 // 命名守护 host 半：持跟踪态并产出计划单（#265）；判定真源见 ../shared 命名三文件（S2 #452）。
 //
-// 本文件三个时间旋钮都住中央 YAML，这里只留引用（缺表回落原值，防构建产物过期），调时间改 YAML：
+// 本文件三个时间旋钮都住中央 YAML，这里直接引用中央常量，调时间改 YAML：
 //   NAMING_FALLBACK_MS —— 「至多每 10 分钟做一次单仓兜底扫描」的间隔（住 config/intervals.yaml 的
 //     namingFallbackIntervalMs 键）：事件跳每跳都跑，兜底跳靠它限频，保证没有任何事件的仓库也终会结算；
 //   NAMING_PERSIST_DEBOUNCE_MS —— 命名台账落盘的合并窗（住 config/intervals.yaml 的
@@ -8,7 +8,7 @@
 //   NAMING_SWEEP_SOON_MS —— 即时推进（namingSweepSoon）没带延时参数时的缺省合并窗（住
 //     config/intervals.yaml 的 namingSweepSoonMs 键）：短窗内多次事件合成一次索引扫描，防堆积。
 // 值由 tests/verify-time-config.ts 看守一致。
-import { NAMING_FALLBACK_INTERVAL_MS as CENTRAL_NAMING_FALLBACK_INTERVAL_MS, NAMING_PERSIST_DEBOUNCE_MS, NAMING_SWEEP_SOON_MS } from '../shared/time-config/values.js'
+import { NAMING_FALLBACK_INTERVAL_MS as NAMING_FALLBACK_MS, NAMING_PERSIST_DEBOUNCE_MS, NAMING_SWEEP_SOON_MS } from '../shared/time-config/values.js'
 export function createNamingGuardian(deps) {
   const { fs, timer, DEFAULT_CWD, getCacheDir, getPlatform, getRepoKey, runGh, logCtx, getFirstText, getTitleFact } = deps
   let _namingCore = null
@@ -25,9 +25,7 @@ export function createNamingGuardian(deps) {
   const NAMING_STATE_FILE = 'naming-guardian.json'   // 落盘 .dsh-mattskillsdeck-cache 目录下
   // #709：唯一 10 分钟兜底间隔。事件跳由事件带起、本身不排队，兜底跳靠这个间隔限频
   // （每跳最多只扫一个仓库，游标轮转），让「一直没有事件」的仓库也不会永远不被结算。
-  // 别名接中央常量：值住 config/intervals.yaml 的 namingFallbackIntervalMs 键，
-  // 缺表回落 600000（即 10 * 60_000，与今天一致），调时间改 YAML。
-  const NAMING_FALLBACK_MS = CENTRAL_NAMING_FALLBACK_INTERVAL_MS ?? 600000
+  // 值住 config/intervals.yaml 的 namingFallbackIntervalMs 键，直接引用上面的中央常量，调时间改 YAML。
   let _namingState = null, _namingStateDirty = false, _namingPersistTimer = null, _namingSweepBusy = false
   let _namingSweepTimer = null; let sweepAnyChanged = false, sweepAssignedTotal = 0, sweepTrigger = 'event'; function hash8(s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
   function namingDefaultState() { return { version: 1, sessions: {}, indexes: {} } }

@@ -1,18 +1,19 @@
 /**
  * views/primitives/Tip.js — title 迁移薄预设 Tip500（T1 定版 #403）
- * 契约：HoverTip 的锁定预设：mode mouse + delay {show:500,hide:160} + maxWidth 220 + flip auto + zIndex 2147483000
+ * 契约：HoverTip 的锁定预设：mode mouse + delay {show: TIP_SHOW_DELAY_MS, hide: TIP_HIDE_DELAY_MS} + maxWidth 220 + flip auto + zIndex 2147483000
  * 用法：Tip({content, children}) 或 h(Tip, {content: '提示'}, triggerNode)
  * 形态：单文件单控件、零横向 import、样式复用 HoverTip 的 STYLE_TEXT/portalTop，行为与 HoverTip 完全一致
  * 真源经 scripts/build.mjs LEAF_MODULES -> src/client/index.js // ==== leaf:tip (spliced by build) ==== 一源两物
  */
+import { TIP_SHOW_DELAY_MS, TIP_HIDE_DELAY_MS } from '../../../shared/time-config/values.js'
 export const Tip = function(props){
   const p = props || {}
   const content = p.content
   const children = p.children
-  // 预设里的两个延时（显示 500 毫秒、隐藏 160 毫秒）住在 config/intervals.yaml 的
-  // tipShowDelayMs / tipHideDelayMs，值由 tests/verify-time-config.ts 锁住；本文件是拼进界面闭包的叶子模块、
-  // 不许 import，所以这里保留字面量——改时间要改那一份 YAML，再改这里的同一个数字（门禁会当场判红）。
-  const preset = { mode: 'mouse', delay: { show: 500, hide: 160 }, maxWidth: 220, flip: true, zIndex: 2147483000, padding: '7px 12px' }
+  // 预设里的两个延时（显示、隐藏）住在 config/intervals.yaml 的 tipShowDelayMs / tipHideDelayMs，
+  // 值由 tests/verify-time-config.ts 锁住；本文件顶部 import 真引用，构建拼闭包时剥掉那一行 import，
+  // 名字由闭包里的时间片段提供。改时间只改那一份 YAML。
+  const preset = { mode: 'mouse', delay: { show: TIP_SHOW_DELAY_MS, hide: TIP_HIDE_DELAY_MS }, maxWidth: 220, flip: true, zIndex: 2147483000, padding: '7px 12px' }
   const merged = {}
   merged.mode = p.mode !== undefined ? p.mode : preset.mode
   merged.delay = p.delay !== undefined ? p.delay : preset.delay

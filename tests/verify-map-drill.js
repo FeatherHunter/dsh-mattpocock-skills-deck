@@ -12,6 +12,9 @@
 // 用法: node tests/verify-map-drill.js（在插件根目录）
 const fs = require('fs')
 const { compileFn } = require('./lib/eval-probe.js')
+// 中央时间真值：缓存 TTL 只住 config/*.yaml，这里读同一份导出来预埋，不在测试里写第二份数字。
+const centralTime = require('../src/shared/time-config/values.js')
+globalThis.SYNC_ISSUE_CACHE_TTL_MS = centralTime.SYNC_ISSUE_CACHE_TTL_MS
 // 取源走共用入口（#1207 立的 tests/lib/source-text.ts）：locale-panel 已从 .js 转成 .ts，
 // 按旧路径直接读会读到构建产物（字符串改双引号），下面只认单引号的断言会误报。
 const { sourceText } = require('./lib/source-text.ts')
@@ -93,7 +96,8 @@ const skillSrc = fs.readFileSync('src/client/views/SkillsTab.js', 'utf8')
 const prefsSrc = fs.readFileSync('src/client/kernel/store-prefs.js', 'utf8')
 
 // —— 真实导航函数（与 verify-nav-stack 同一加载手法：去行首 export，注入 emit 桩）
-const srcNoExport = prefsSrc.replace(/^\s*export\s+/gm, '')
+const srcNoExport = prefsSrc.replace(/^\s*export\s+/gm, '').split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')
+// 中央 import 在 compileFn 函数体里非法，求值前整行剥掉（闭包里它由时间片段提供，门禁里走上面的全局预埋）。
 // 手法：compileFn——本文件全都是把真源里截出来的函数文本变成可调用对象，统一交给 tests/lib/eval-probe.js，行为不变。
 const nav = compileFn(['emit'], srcNoExport + '\nreturn { peekNav, pushNav, popNav }')(
   function (st) { st.tick = (st.tick || 0) + 1 }

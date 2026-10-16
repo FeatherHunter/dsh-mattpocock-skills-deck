@@ -26,7 +26,7 @@ import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 
-import { TRANSPILE_OPTIONS, checkDomainConsistency, checkSpliceableModuleForms, deriveOutputPath, domainDir, generatedHeader, inlineExportDeclarations, toSpliceableFragment } from './transpile-unit.mjs'
+import { TRANSPILE_OPTIONS, checkDomainConsistency, checkSpliceableModuleForms, deriveOutputPath, domainDir, generatedHeader, inlineExportDeclarations, rebaseEscapingImports, stripTimeConfigRefs, toSpliceableFragment } from './transpile-unit.mjs'
 
 /** 仓库根：本文件在 scripts/lib/ 下，往上两层就是根。 */
 export const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
@@ -138,7 +138,10 @@ export function transpileUnit(sourcePath) {
   const out = esbuild.transformSync(source, TRANSPILE_OPTIONS)
   const prefix = `[${domainDir(domain)}]`
   const normalized = out.code.replace(/\r\n/g, '\n').replace(/\s+$/, '') + '\n'
-  return generatedHeader(sourcePath) + inlineExportDeclarations(normalized, prefix)
+  // 源码住 <域>/src/ 下、产物落域表层：跨出源码目录的相对引用（今天只有 time-config 这一家）
+  // 在产物里要减一层，不然运行时指到别处去（#1215 单源头改造踩到，见 rebaseEscapingImports 头注释）。
+  const rebased = rebaseEscapingImports(normalized, { sourcePath })
+  return generatedHeader(sourcePath) + inlineExportDeclarations(rebased, prefix)
 }
 
 /**
@@ -199,6 +202,8 @@ export function fragmentLoaderFor(relPath) {
  *
  * 转译**之前**先过 checkSpliceableModuleForms：`export default f` 这类改不动的写法，转译之后会变成
  * `export { f as default }`，报错会指到「不支持 as 改名」去，病因就看不出来了。
+ * 中央时间参数的引用行（stripTimeConfigRefs 认的那几行）先删掉再查——它们拼进闭包时由另一片提供，
+ * 转译前留着会被当成改不动的模块写法拦下来。
  * 转完仍留着模块级 import/export 时由 toSpliceableFragment 当场报错——那说明这段文本没走过转译，
  * 拼进闭包只会在运行时炸成 “Cannot use import statement outside a module”。
  *
@@ -211,7 +216,7 @@ export function readSpliceFragmentSource(relPath) {
   const loader = fragmentLoaderFor(relPath)
   const source = readFileSync(resolve(REPO_ROOT, relPath), 'utf8')
   if (!loader) return toSpliceableFragment(source, { source: relPath })
-  checkSpliceableModuleForms(source, { source: relPath })
+  checkSpliceableModuleForms(stripTimeConfigRefs(source), { source: relPath })
   let code
   try {
     code = loadEsbuild().transformSync(source, { ...TRANSPILE_OPTIONS, loader }).code

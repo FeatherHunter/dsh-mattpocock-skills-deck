@@ -23,6 +23,12 @@ const path = require('path')
 // 从 CJS require 一个 .mjs，与 tests/verify-file-granularity.js 里 require('../scripts/lib/effective-lines.mts') 是同一种用法。
 const { TRANSPILE_OPTIONS } = require('../scripts/lib/transpile-unit.mjs')
 const { compileFn } = require('./lib/eval-probe.js')
+// 中央时间真值：拼进闭包的几片（budget.js 的 freshnessLevel/lagPromiseFor、truthLines 那片）在门禁里
+// 是“剥掉中央 import 行、当函数体编译”跑起来的（见下面的 loadModule），裸用的中央名字在求值时走全局预埋——
+// 值就是中央导出的同一份，不经过第二份拷贝。单源头改造前这些名字是各文件的字面量，预埋无从谈起。
+const centralTime = require('../src/shared/time-config/values.js')
+Object.assign(globalThis, centralTime)
+const { PROBE_INTERVAL_MS, PATCH_MERGE_WINDOW_MS, PROBE_INTERVAL_YELLOW_MS } = centralTime
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -32,6 +38,8 @@ const fail = function (msg) { problems.push(msg); failed = true }
 /** 把一份「一源两物」的源文件当模块跑起来：剥行首 export，作用域里塞进它在拼接闭包里的邻居。 */
 function loadModule(relPath, deps) {
   let src = fs.readFileSync(path.join(ROOT, relPath), 'utf8')
+  // 中央 import 在 compileFn 函数体里非法，求值前整行剥掉（闭包里它由时间片段提供，门禁里走上面的全局预埋）。
+  src = src.split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')
   if (relPath.endsWith('.ts')) {
     // 源码是 .ts：先按仓库自己的转译口径剥掉类型（转译参数只写在 scripts/lib/transpile-unit.mjs 那一份，
     //   这里取现成的，不另抄一套），再照下面同一套「剥行首 export、当函数体编译」的读法加载。
@@ -70,8 +78,8 @@ const budget = loadModule('src/shared/refresh/budget.js', {})
 const truth = loadModule('src/client/views/shared/truthLines.js', {
   freshnessLevel: budget.freshnessLevel,
   lagPromiseFor: budget.lagPromiseFor,
-  PROBE_INTERVAL_MS: budget.PROBE_INTERVAL_MS,
-  PATCH_MERGE_WINDOW_MS: budget.PATCH_MERGE_WINDOW_MS,
+  PROBE_INTERVAL_MS: PROBE_INTERVAL_MS,
+  PATCH_MERGE_WINDOW_MS: PATCH_MERGE_WINDOW_MS,
   idOfParts: function (effort, key) { return String(effort || '') + '\0' + String(key == null ? '' : key) },
 })
 const locales = loadModule('src/client/kernel/locale-pages.js', {})
@@ -170,8 +178,8 @@ const stWith = function (refresh) { return { snapshot: snapAt(T1204, refresh ? {
   const green = at('green').filter(function (l) { return l.kind === 'lag' }).map(textOf)[0]
   if (green) fail('绿档不该说「数据可能落后」：承诺没有变长，说了反而像出事，实际：' + green)
   const yellow = at('yellow').filter(function (l) { return l.kind === 'lag' }).map(textOf)[0] || ''
-  const wantMin = Math.round(budget.PROBE_INTERVAL_YELLOW_MS / 60000)
-  if (yellow.indexOf('数据可能落后') < 0 || yellow.indexOf(wantMin + ' 分钟') < 0) fail('黄档应当说「数据可能落后 ' + wantMin + ' 分钟」（数从 budget.ts 的探测间隔来），实际：' + JSON.stringify(yellow))
+  const wantMin = Math.round(PROBE_INTERVAL_YELLOW_MS / 60000)
+  if (yellow.indexOf('数据可能落后') < 0 || yellow.indexOf(wantMin + ' 分钟') < 0) fail('黄档应当说「数据可能落后 ' + wantMin + ' 分钟」（数从中央时间参数的黄档探测间隔来），实际：' + JSON.stringify(yellow))
   const red = at('red')
   const redLag = red.filter(function (l) { return l.kind === 'lag' }).map(textOf)[0]
   if (redLag) fail('红档自动刷新全停，不该说「落后 X 分钟」（那是给了个不存在的上界）：' + redLag)
@@ -200,7 +208,7 @@ const stWith = function (refresh) { return { snapshot: snapAt(T1204, refresh ? {
   // 窗口判据本身：窗口内 true，窗口外 false
   const t0 = 1_700_000_000_000
   if (!truth.truthWriteWindowOpen(t0, t0 + 1000)) fail('写入窗口内应当算「更新中」')
-  if (truth.truthWriteWindowOpen(t0, t0 + budget.PATCH_MERGE_WINDOW_MS + 1)) fail('窗口一过就不该再算「更新中」')
+  if (truth.truthWriteWindowOpen(t0, t0 + PATCH_MERGE_WINDOW_MS + 1)) fail('窗口一过就不该再算「更新中」')
   // 词条两面都在（中英双语，走现有红线检查的那一套）
   ;['truth.updatedAt', 'truth.failRetry', 'truth.failPaused', 'truth.failQuota', 'truth.pendingLate', 'truth.deferred', 'truth.paused', 'truth.notRefreshing', 'truth.lag', 'truth.writing'].forEach(function (k) {
     if (!zh[k]) fail('zh 缺词条 ' + k)
@@ -238,7 +246,7 @@ console.log('  PASS 新鲜度取快照取数时刻，5 分钟黄 / 30 分钟红�
 console.log('  PASS 头部那个小时间标签：四档相对时间（刚刚 / N 分钟前 / N 小时前 / N 天前）都算对，精确时刻只在悬停提示里，没快照时一句话都不画')
 console.log('  PASS 两种失败两句不同的话（插件自己的取数失败 / 配额已被其他使用者耗尽）')
 console.log('  PASS T3 两句有读取点（自动刷新已暂停 / 未在刷新（同时活跃上限 2））')
-console.log('  PASS 降档说出延迟承诺（数据可能落后 ' + Math.round(budget.PROBE_INTERVAL_YELLOW_MS / 60000) + ' 分钟）')
+console.log('  PASS 降档说出延迟承诺（数据可能落后 ' + Math.round(PROBE_INTERVAL_YELLOW_MS / 60000) + ' 分钟）')
 console.log('  PASS 推迟说「有更新，已推后」；写入窗口内/外判得对，那批词条中英两面都在')
 console.log('  PASS 降级标记到得了界面：上游真降级时回包带 \'rest\'、没降级时是 null')
 console.log('\n全部通过')

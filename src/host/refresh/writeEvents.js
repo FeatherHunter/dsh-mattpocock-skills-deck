@@ -28,7 +28,7 @@
 //   本票没有动 src/host/index.js（全库共用的大文件，别的票同时在改），这一处接线请统筹者统一做。
 import { detectWrite, actionFor } from '../../shared/refresh/write-detect.js'
 import { chainRootHash, looksLikeTicketFilePath } from '../../shared/refresh/chain.js'
-import { PATCH_MERGE_WINDOW_MS, PROBE_INTERVAL_MS } from '../../shared/refresh/budget.js'
+import { PATCH_MERGE_WINDOW_MS, PROBE_INTERVAL_MS } from '../../shared/time-config/values.js'
 
 /** 闸的调用点名字（事件触发那一档）。闸按它分类记账；本文件不改闸与账本一个字。 */
 export const WRITE_EVENT_SOURCE = 'event.write'

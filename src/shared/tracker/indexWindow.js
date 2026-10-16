@@ -1,5 +1,5 @@
 /**
- * src/shared/tracker/indexWindow.js —— 增量索引的时间窗与水印（纯逻辑，无副作用、无 import）
+ * src/shared/tracker/indexWindow.js —— 增量索引的时间窗与水印（纯逻辑，无副作用；仅 import 中央时间参数）
  *
  * 以后谁改它：改「判断远端有没有变」这套口径的人。纯函数，不持有状态、不读磁盘、不打印日志；
  * 状态由调用方（src/host/issueList.js）持有，这样本文件可以单独测。
@@ -21,20 +21,20 @@
  *
  * 契约：本文件为纯函数集合，不持有状态、不读磁盘、不打印日志。
  *   状态由调用方（src/host/issueList.js）持有，这样本文件可以单独测。
- *   宿主侧「新文件禁止静态引入」的规约由引入方负责，本文件不引入任何其他文件。
+ *   宿主侧「新文件禁止静态引入」的规约由引入方负责；本文件只引入中央时间参数
+ *   （src/shared/time-config/values.js，#1215 起 same-layer-import-shared 对它开了例外），不引入其他共享文件。
  */
 
 // 单次增量窗口的上限 7 天：窗口过宽会让 GitHub 返回几乎全量，等于没省。
 // 住 config/ttl.yaml 的 trackerIndexMaxWindowMs（毫秒，604800000 就是 7 天）。
-// 为什么这里只能是字面量：本文件住在共享层（src/shared/）里，而共享层内部禁止互相 import ——
-// 这条规则是 .dependency-cruiser.cjs 的 same-layer-import-shared，
-// 理由写在 docs/adr/20261016-timeouts-yaml.md 第 3 节第 2 条（共享域之间不许互相 import 是红线）。
-// 所以这里引不了 ../time-config/values.js；数字与中央 YAML 是否一致，由 tests/verify-time-config.ts 看守。
-const MAX_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
+// #1215 起真引中央时间参数：MAX_WINDOW_MS 即 TRACKER_INDEX_MAX_WINDOW_MS，
+// SKEW_MS 即 TRACKER_INDEX_SKEW_MS；对外导出的名字与调用方用法都不变。
+// （same-layer-import-shared 对 src/shared/time-config/ 开了 #1215 例外，见 .dependency-cruiser.cjs；
+// 数字与中央 YAML 是否一致，仍由 tests/verify-time-config.ts 看守。）
+import { TRACKER_INDEX_MAX_WINDOW_MS as MAX_WINDOW_MS, TRACKER_INDEX_SKEW_MS as SKEW_MS } from '../time-config/values.js'
 
 // 本机与 GitHub 时钟可能有偏差，水印往前多退这么多（60 秒），避免边界的改动被漏掉。
-// 住 config/ttl.yaml 的 trackerIndexSkewMs；只能是字面量的理由同上。
-const SKEW_MS = 60000
+// 住 config/ttl.yaml 的 trackerIndexSkewMs。
 
 /**
  * 算出本次扫描的时间窗起点。

@@ -79,9 +79,13 @@ module.exports = {
       severity: 'error',
       comment:
         '同一层内部禁止互相 import（共享层）。共享层的每个文件都应该是自包含的纯模块：'
-        + '需要别的模块的数据一律由调用方传进来。存量豁免记在 tests/same-layer-baseline.json，只许减不许增。',
+        + '需要别的模块的数据一律由调用方传进来。存量豁免记在 tests/same-layer-baseline.json，只许减不许增。'
+        // #1215 单源头例外：中央时间参数（src/shared/time-config/）是纯数据目录，
+        // 全仓时间数字的唯一出处；共享层文件引用它不算“层内互引退化成大文件”，
+        // 与契约层被各规则放行的道理一样。例外只认这个目录，不认别的。
+        + '唯一的例外是指向中央时间参数目录的引用（to.pathNot），那是数据不是逻辑。',
       from: { path: '^src/shared/' },
-      to: { path: '^src/shared/' },
+      to: { path: '^src/shared/', pathNot: ['^src/shared/time-config/'] },
     },
     {
       name: 'same-layer-import-seam',

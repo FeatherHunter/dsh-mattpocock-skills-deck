@@ -28,6 +28,9 @@ const path = require('path')
 // 后半段（truthLines）仍然走共用求值入口；说明符写成显式 .ts，所以这份门禁挂着钩子跑、裸着跑都行
 // （共用入口只引 node:vm，没有仓库内的依赖；写 .js 的调用方则必须挂 scripts/ts-hook.mjs）。
 const { compileFn } = require('./lib/eval-probe.ts')
+// 中央时间真值：过期阈值只住 config/*.yaml，这里读同一份导出来预埋，不在测试里写第二份数字。
+const centralTime = require('../src/shared/time-config/values.js')
+globalThis.REST_FALLBACK_STALE_MS = centralTime.REST_FALLBACK_STALE_MS
 // 取源走共用入口（#1207 立）：按 .js 路径直接读，读到的会是真源旁边那份构建产物。
 const { sourceText } = require('./lib/source-text.ts')
 const ROOT = path.join(__dirname, '..')
@@ -64,7 +67,8 @@ check(pick({ message: 'unexpected EOF' }) !== 'rate-limit', 'EOF 不算限流（
 const tsrc = fs.readFileSync(path.join(ROOT, 'src/client/views/shared/truthLines.js'), 'utf8')
 let mod = null
 try {
-  const body = tsrc.replace(/^[ \t]*export[ \t]+/gm, '')
+  const body = tsrc.replace(/^[ \t]*export[ \t]+/gm, '').split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')
+  // 中央 import 在 compileFn 函数体里非法，求值前整行剥掉（闭包里它由时间片段提供，门禁里走上面的全局预埋）。
   // 本处走 compileFn：五个依赖本来就在参数表里，照旧按参数名传进去。
   mod = compileFn(['freshnessLevel', 'PATCH_MERGE_WINDOW_MS', 'lagPromiseFor', 'PROBE_INTERVAL_MS', 'idOfParts'],
     body + '\n;return { restFallbackView: restFallbackView };')(

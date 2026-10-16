@@ -6,6 +6,7 @@
  * 原位），与 ctx.js/seam 同模式，一源两物，src 零复制。
  * 接口冻结清单见 docs/architecture/kernel-contract.md（G3 · #91 拍板）。
  */
+    import { STORE_SWITCH_CONFIRM_MS } from '../../shared/time-config/values.js'
     export const labelOf = function (backendId) {
       if (backendId == null) return 'Other'
       try {
@@ -106,10 +107,9 @@
       emit(st)
       const sc = st.switchConfirm
       // 切库确认提示自动收起的时间：先让收起的动效走完，等这么久再把这份提示状态整个扔掉。
-      // 数值写在 config/intervals.yaml 的 storeSwitchConfirmMs，构建时由生成器变成常量、随界面闭包一起进来。
-      // 本文件会被几道切库门禁当普通模块直接 import（那时闭包常量不存在，直接引用就是 ReferenceError），
-      // 所以这里带一层判断，常量缺席时退回同一个数 220 —— 由门禁 TEXT 表锁在 storeSwitchConfirmMs 上。
-      setTimeout(function () { if (st.switchConfirm === sc) { st.switchConfirm = null; emit(st) } }, (typeof STORE_SWITCH_CONFIRM_MS === 'number' ? STORE_SWITCH_CONFIRM_MS : 220))
+      // 数值写在 config/intervals.yaml 的 storeSwitchConfirmMs，由 tests/verify-time-config.ts 看守，
+      // 本文件顶部 import 真引用；构建拼闭包时剥掉那一行 import，名字由闭包里的时间片段提供。本层不留回落。
+      setTimeout(function () { if (st.switchConfirm === sc) { st.switchConfirm = null; emit(st) } }, STORE_SWITCH_CONFIRM_MS)
     }
     export const loadSwitchCri = function (st) {
       const sc = st.switchConfirm

@@ -10,24 +10,21 @@
 import { createHash } from 'node:crypto'
 import { fixedPrefix, lsFilesStageArgs, remoteListArgs, REMOTE_PATTERN } from '../shared/version-control/commands.js'
 import { judge } from '../shared/version-control/rules.js'
-import { makeTicket, indexRecordCount, fingerprintInputOf, hasIntentToAdd, TICKET_TTL_MS } from '../shared/version-control/write-ticket.js'
+import { makeTicket, indexRecordCount, fingerprintInputOf, hasIntentToAdd } from '../shared/version-control/write-ticket.js'
 import { pushPlanOf } from '../shared/version-control/push-plan.js'
 import { messageProblem, writeHintFor } from '../shared/version-control/write-reasons.js'
 // 下面三个时间都住中央 YAML（config/timeouts.yaml 的 vcCheckCallBudgetMs / vcLsFilesTimeoutMs /
-// vcRemoteTimeoutMs 键）：这里只留别名（缺表分别回落 60000 / 15000 / 5000 与今天一致，防构建产物过期），
-// 调时间改 YAML。它们说的是两件事，别混：
+// vcRemoteTimeoutMs 键）：这里直接引用中央常量，调时间改 YAML。
+// 它们说的是两件事，别混：
 //   · CHECK_CALL_BUDGET_MS 是「整趟预检」的总预算（交给 safeGit.startCall 的 totalBudgetMs），
 //     一次预检里所有只读步骤合起来不许超过它；
 //   · LSFILES_TIMEOUT_MS 与 REMOTE_TIMEOUT_MS 是「单条只读命令」各自的超时（交给 readOut 的 timeoutMs），
 //     管某一条命令最多跑多久——单条超时相加可以比总预算大，但总预算先用完就先停。
 // 路径走域构建产物写法（与 src/host/refresh/chain-ride.ts 引 values.js 同例），值由 tests/verify-time-config.ts 看守一致。
-import { VC_CHECK_CALL_BUDGET_MS as CENTRAL_VC_CHECK_CALL_BUDGET_MS, VC_LSFILES_TIMEOUT_MS as CENTRAL_VC_LSFILES_TIMEOUT_MS, VC_REMOTE_TIMEOUT_MS as CENTRAL_VC_REMOTE_TIMEOUT_MS } from '../shared/time-config/values.js'
+import { VC_CHECK_CALL_BUDGET_MS as CHECK_CALL_BUDGET_MS, VC_LSFILES_TIMEOUT_MS as LSFILES_TIMEOUT_MS, VC_REMOTE_TIMEOUT_MS as REMOTE_TIMEOUT_MS, TICKET_TTL_MS } from '../shared/time-config/values.js'
 
 /** 预算（附录第 5 节）：预检调用 60 秒；两条只读命令各自的单次预算。 */
-const CHECK_CALL_BUDGET_MS = CENTRAL_VC_CHECK_CALL_BUDGET_MS ?? 60000 // 整趟预检的总预算（中央 YAML 的 vcCheckCallBudgetMs）：不是某一条命令的超时
-const LSFILES_TIMEOUT_MS = CENTRAL_VC_LSFILES_TIMEOUT_MS ?? 15000 // 单条 ls-files / status 命令的超时（中央 YAML 的 vcLsFilesTimeoutMs）：读暂存区或工作区清单这一条最多跑多久
 const LSFILES_LIMIT = 8 * 1024 * 1024
-const REMOTE_TIMEOUT_MS = CENTRAL_VC_REMOTE_TIMEOUT_MS ?? 5000 // 单条远端清单命令的超时（中央 YAML 的 vcRemoteTimeoutMs）：列远端这一条最多跑多久（纯本地读，给得窄）
 const REMOTE_LIMIT = 4096
 
 export function createWriteCheck(deps) {

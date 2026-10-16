@@ -23,39 +23,40 @@
  * client 内核只允许派生引用（字面量仅可作防御性兜底形态存在）——UI 层不得硬编码知道
  * 「底层几秒刷一次」，五层职责以此固化。
  *
- * #1215 起，这些数字的唯一书写处是 config/ 下的三份时间参数 YAML（单次等待上限 timeouts.yaml、
- * 节拍间隔 intervals.yaml、有效期 ttl.yaml）：本文件里的数字只是与 YAML 对齐的字面量，
+ * #1215 起，这些时间值的唯一书写处是 config/ 下的三份时间参数 YAML（单次等待上限 timeouts.yaml、
+ * 节拍间隔 intervals.yaml、有效期 ttl.yaml）：本文件的时间属性真引中央时间参数，
  * 每个常量住哪份 YAML、哪个键，写在它自己那一行上，一致性由 tests/verify-time-config.ts 看守。
  */
+import { SYNC_EVAL_GAP_MS, SYNC_DIRTY_PROBE_DEBOUNCE_MS, SYNC_OVERLAP_SKEW_MS, SYNC_FAILURE_BACKOFF_MS, SYNC_DIRTY_ECHO_TTL_MS, SYNC_POLL_GRID_MS, SYNC_ACTION_PROBE_WINDOW_MS, SYNC_FALLBACK_PROBE_MS, SYNC_FOCUS_PROBE_MIN_MS, SYNC_SNAP_FRESH_MS, ATTENTION_HEARTBEAT_MS, SYNC_ISSUE_CACHE_TTL_MS } from '../time-config/values.js'
 
 /** 同步节拍常量表（值一个字没改，要调时间请改对应的 YAML）。
- *  为什么这里只能写数字、不能 import 中央常量：本文件被 scripts/build.mjs 的 SHARED_SPLICE 整份拼进
- *  界面闭包（去掉行首 export 后插到 src/client/index.js 的标记处），闭包里出现 import 语句就是语法错误。
- *  所以下面每个时间常量都保持字面量，值与中央 YAML 的一致性由 tests/verify-time-config.ts 逐条看守
- *  （只改 YAML 没改这里，或者两边改得不一致，门禁判红）。
+ *  #1215 起 12 个时间属性真引中央时间参数：顶上那一行单行 import 提供绑定，
+ *  拼进界面闭包时构建会剥掉这一行（名字由闭包里另一片 timeConfig 提供，单行是硬要求）；
+ *  对象形状与冻结保持不变，非时间的四个计数项原样保留。
+ *  值与中央 YAML 的一致性仍由 tests/verify-time-config.ts 逐条看守。
  *  本对象里 EVALS_PER_TICK、FAILURE_SUSPEND_AT、DIRTY_MAP_CAP、MAX_POLLED_CWDS 四项是次数与个数，
  *  不是时间旋钮，不入三份 YAML；注释里也已各自标明。 */
 export const SYNC = Object.freeze({
   version: 1,
   /** 同一 repoKey 两次增量求值的最小间隔（配额闸；实际周期 = POLL_GRID_MS 的整数倍向上取整）。
    *  住 config/intervals.yaml 的 syncEvalGapMs。 */
-  EVAL_GAP_MS: 4500,
+  EVAL_GAP_MS: SYNC_EVAL_GAP_MS,
   /** 每个 poll tick 至多求值的 cwd 数（多工作区轮转公平性上限）。 */
   EVALS_PER_TICK: 2,
   /** 已验证脏信号进入探针的短窗合并（区别于 #213 动作长窗 8s —— 真值已由重求值验证过）。
    *  住 config/intervals.yaml 的 syncDirtyProbeDebounceMs。 */
-  DIRTY_PROBE_DEBOUNCE_MS: 1200,
+  DIRTY_PROBE_DEBOUNCE_MS: SYNC_DIRTY_PROBE_DEBOUNCE_MS,
   /** since 边界回看重叠（updated_at 秒级精度 + 远端时钟偏差兜底）。
    *  住 config/ttl.yaml 的 syncOverlapSkewMs。 */
-  OVERLAP_SKEW_MS: 90000,
+  OVERLAP_SKEW_MS: SYNC_OVERLAP_SKEW_MS,
   /** 连续失败熔断阈值：连续失败到几次就暂停重试（次数，不是时间旋钮，不入 YAML）。 */
   FAILURE_SUSPEND_AT: 3,
   /** 熔断时长：暂停多久之后自然重试（错误风暴保护）。
    *  住 config/intervals.yaml 的 syncFailureBackoffMs。 */
-  FAILURE_BACKOFF_MS: 300000,
+  FAILURE_BACKOFF_MS: SYNC_FAILURE_BACKOFF_MS,
   /** 脏 cwd 回执的存活窗（确认式消费：未过期者每轮回执、被上报方取走即清；超时自愈防堆积）。
    *  住 config/ttl.yaml 的 syncDirtyEchoTtlMs。 */
-  DIRTY_ECHO_TTL_MS: 60000,
+  DIRTY_ECHO_TTL_MS: SYNC_DIRTY_ECHO_TTL_MS,
   /** 回执表容量上限（按 cwd 计；超限裁最旧，防御异常膨胀）。 */
   DIRTY_MAP_CAP: 50,
   /** 单会话上报 cwd 上限（client 与 host 共用的唯一截断真源；#232 视线门控下 = 打开会话所属工作区数，含多面板并列场景）。 */
@@ -64,27 +65,27 @@ export const SYNC = Object.freeze({
   // ---- #232 追加 · 同步链路节拍真源（client 内核禁止出现第二份字面量真相）----
   /** 面板→宿主 issuePath 拉取网格（视线门控轮询的唯一节拍来源）。
    *  住 config/intervals.yaml 的 syncPollGridMs。 */
-  POLL_GRID_MS: 4000,
+  POLL_GRID_MS: SYNC_POLL_GRID_MS,
   /** 动作后探针长窗（#213「一次轻量 REST」语义的词汇表升级为常量单源）。
    *  住 config/ttl.yaml 的 syncActionProbeWindowMs。 */
-  ACTION_PROBE_WINDOW_MS: 8000,
+  ACTION_PROBE_WINDOW_MS: SYNC_ACTION_PROBE_WINDOW_MS,
   /** 兜底全量探针周期（无脏信号时的最低频安全网；页签隐藏时跳过发起——#232 R3）。与 FOCUS_PROBE_MIN_MS 数值相同纯属巧合，语义独立、调参不得隐式联动。
    *  住 config/intervals.yaml 的 syncFallbackProbeMs。 */
-  FALLBACK_PROBE_MS: 60000,
+  FALLBACK_PROBE_MS: SYNC_FALLBACK_PROBE_MS,
   /** 回到前台触发的探针限流间隔（切换工作区回来的恢复通道——#232 R2）。
    *  住 config/intervals.yaml 的 syncFocusProbeMinMs。 */
-  FOCUS_PROBE_MIN_MS: 60000,
+  FOCUS_PROBE_MIN_MS: SYNC_FOCUS_PROBE_MIN_MS,
   /** 打开面板的快照即时新鲜阈值（超阈才发起一次加载；≤阈纯展示零请求）。
    *  住 config/ttl.yaml 的 syncSnapFreshMs。 */
-  SNAP_FRESH_MS: 60000,
+  SNAP_FRESH_MS: SYNC_SNAP_FRESH_MS,
   /** #707：面板可见时「我还在看这个工作区」的本地心跳间隔（零配额、不出网，只上报事实）。
    *  与 refresh-core/src/budget.ts 的 ATTENTION_HEARTBEAT_MS 同一个数：那边是宿主与核心用的唯一真源，
    *  这里给客户端用（客户端半边今天不 import 核心产物，跨端常量一律落在契约层，见本文件头）。
    *  住 config/intervals.yaml 的 attentionHeartbeatMs——两份消费处锁在同一把 YAML 键上。 */
-  ATTENTION_HEARTBEAT_MS: 20000,
+  ATTENTION_HEARTBEAT_MS: ATTENTION_HEARTBEAT_MS,
   /** Issue 详情单条缓存 TTL（列表新鲜度之外的独立维度；写后 bump 由宿主失效路径承接）。
    *  住 config/ttl.yaml 的 syncIssueCacheTtlMs。 */
-  ISSUE_CACHE_TTL: 60000,
+  ISSUE_CACHE_TTL: SYNC_ISSUE_CACHE_TTL_MS,
 })
 
 /** 求值态工厂（Data Clumps 收敛：字段形状与 noteEval* 纯转移同住契约层）。 */

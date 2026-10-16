@@ -17,6 +17,7 @@
 const fs = require('fs')
 const path = require('path')
 const { pathToFileURL } = require('url')
+const { ACTIVE_LINGER_MS, ATTENTION_EXPIRY_MS, PROBE_INTERVAL_MS, PROBE_INTERVAL_LINGER_MS, ATTENTION_HEARTBEAT_MS } = require('../src/shared/time-config/values.js')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -111,15 +112,15 @@ async function main() {
 
   const LIMITS = {
     maxActive: budget.MAX_ACTIVE_WORKSPACES,
-    lingerMs: budget.ACTIVE_LINGER_MS,
-    expiryMs: budget.ATTENTION_EXPIRY_MS,
-    probeIntervalMs: budget.PROBE_INTERVAL_MS,
-    probeIntervalLingerMs: budget.PROBE_INTERVAL_LINGER_MS,
-    heartbeatMs: budget.ATTENTION_HEARTBEAT_MS,
+    lingerMs: ACTIVE_LINGER_MS,
+    expiryMs: ATTENTION_EXPIRY_MS,
+    probeIntervalMs: PROBE_INTERVAL_MS,
+    probeIntervalLingerMs: PROBE_INTERVAL_LINGER_MS,
+    heartbeatMs: ATTENTION_HEARTBEAT_MS,
   }
   check(LIMITS.maxActive === 2, '活跃上限来自 budget.js 的 MAX_ACTIVE_WORKSPACES，实得 ' + LIMITS.maxActive)
-  check(LIMITS.probeIntervalMs === 5000 && LIMITS.probeIntervalLingerMs === 15000, '间隔来自 budget.js：正在看的 ' + LIMITS.probeIntervalMs + ' 毫秒、刚离开的 ' + LIMITS.probeIntervalLingerMs + ' 毫秒')
-  check(LIMITS.expiryMs === 90000 && LIMITS.lingerMs === 30000 && LIMITS.heartbeatMs === 20000, '收摊/收尾/心跳三个数字来自 budget.js：' + LIMITS.expiryMs + ' / ' + LIMITS.lingerMs + ' / ' + LIMITS.heartbeatMs)
+  check(LIMITS.probeIntervalMs === 5000 && LIMITS.probeIntervalLingerMs === 15000, '间隔来自中央时间参数：正在看的 ' + LIMITS.probeIntervalMs + ' 毫秒、刚离开的 ' + LIMITS.probeIntervalLingerMs + ' 毫秒')
+  check(LIMITS.expiryMs === 90000 && LIMITS.lingerMs === 30000 && LIMITS.heartbeatMs === 20000, '收摊/收尾/心跳三个数字来自中央时间参数：' + LIMITS.expiryMs + ' / ' + LIMITS.lingerMs + ' / ' + LIMITS.heartbeatMs)
 
   // 一块可控的时钟 + 一块可复用的视野模型：每一条断言都用**同一个实例**连续喂几笔上报，
   // 因为「同一工作区根只占一个名额」「90 秒收摊」这些性质本来就是一段时间上的性质，

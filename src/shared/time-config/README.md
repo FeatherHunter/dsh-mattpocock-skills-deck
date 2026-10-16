@@ -1,46 +1,65 @@
-# time-config 域（票 #1215 立）
+# time-config 域（票 #1215 立，单源头改造后修订）
 
 全仓时间参数的落点：超时、节拍间隔、一次性延时、有效期、退避序列。
-（第一轮只收 TypeScript，第二轮按用户要求把存量 JavaScript 与界面半边一并收了进来。）
+数字只在 `config/` 下的三份 YAML 里有一份，源码里不许再写第二份——第二份一出现，
+调时间就要改两处，改一处漏一处（#1215 单源头改造把 140 个键全收拢了，见 ADR §2.1）。
 
 ## 三个东西的关系
 
 1. `config/` 下的三份 YAML——人改的唯一地方。想调时间只改这里：
-   - `config/timeouts.yaml`：单次等待的上限，到点没回来就按失败或放弃处理；
-   - `config/intervals.yaml`：节拍间隔、一次性延时，末尾还有退避序列（`chainBackoffMs`）；
-   - `config/ttl.yaml`：有效期，一份数据或一次判断过多久算过期。
+   - `config/timeouts.yaml`：单次等待的上限，到点没回来就按失败或放弃处理（69 个键）；
+   - `config/intervals.yaml`：节拍间隔、一次性延时，末尾还有退避序列（`chainBackoffMs`，33 个键）；
+   - `config/ttl.yaml`：有效期，一份数据或一次判断过多久算过期（38 个键）。
 2. `scripts/generate-time-config.mjs`——生成器。它按 KEYS 表第三列的分组决定每个键住哪份
-   YAML：校验（未知键报错、拼错提示、缺键告警、同名键只能出现在一份文件里）后写出
-   `src/shared/time-config/src/values.ts`。
-3. `src/shared/time-config/src/values.ts`——生成的源码，签入版本库。调用方 import 它的命名常量；
-   `TIME_YAML` 记录 YAML 里写了哪些，`TIME_FALLBACKS` 是缺键时的回落底座。
+   YAML：校验（未知键报错、拼错提示、缺键报错、同名键只能出现在一份文件里）后写出两份东西：
+   - `src/shared/time-config/src/values.ts`——生成的源码（类型 + 值，不入库，构建与 typecheck 时现场生成）；
+   - `src/shared/time-config/values.d.ts`——生成的类型声明（只有声明、没有值，不入库）。
+   多这一份声明的原因：调用方 import 的是域表层的 `values.js`（转译产物，没有类型），
+   tsc 按“同名兄弟”只能找到表层的 `values.ts`——而真源住在 `src/` 下。没有这份声明，
+   严格模式下所有 import 中央常量的 `.ts` 都报 TS7016。
+3. `src/shared/time-config/values.js`——域构建按 `src/values.ts` 转译出的产物（不入库）。
+   宿主、共享层、门禁 import 的都是这一份；界面半边吃的是构建从它摘出来的片段（见下）。
+
+## 调用方的三种写法（只能用这三种）
+
+- **宿主与共享层**：`import { X } from '…/time-config/values.js'`，裸用名字。需要改名用
+  `import { X as Y }`——只改名、不改值，门禁认别名。
+- **界面半边（`src/client/**`）与拼进闭包的共享文件**：写法与上面一样写 import，
+  构建在拼接时把中央引用行整行删掉（`stripTimeConfigRefs`，只认单行），名字由闭包里
+  另一片 timeConfig 提供——那一片是构建按 `CLIENT_TIME_NAMES` 名单从 `values.js` 摘出来的
+  `const X = 值`，与宿主吃的是同一份 YAML，闭包里只出现一次。
+- **测试里的注入器**（`policyLimits`、`attentionLimits` 那种“给一套就用给的、不给就用中央”的口子）：
+  缺省源写成 `Object.assign({}, budget, { 中央名1, 中央名2 })`——自有常量出 budget，
+  时间常量出中央。直接拿 `budget` 命名空间当缺省源是错的：中央名字已经不在 budget 上了，
+  读出来是 undefined，限流窗会算错（#1215 改造中 verify-998 与视野模型两道门禁就是这么红的）。
 
 ## 约束（违反就判红）
 
-- 人手不改 `src/shared/time-config/src/values.ts`，改了会被 `generate-time-config.mjs --check`
-与 `tests/verify-time-config.ts` 两处同时发现。
-- 本域是纯数据，没有运行时逻辑：YAML 缺键时调用方拿到的就是生成时落盘的值，
-`timeValue` 只是按同样的规则读一遍，不做网络、不读文件、不记日志。
-- 谁可以 import 本域：只允许同层计算核之间的引用（房间禁令的例外见
-`src/tracker/rooms/README.md`）。同层共享域之间不许互相 import——共享域内部
-（例如 `src/shared/refresh/budget.ts`）的时间常量保留在自己文件里，门禁只断言
-它们的值与 YAML 一致，不搬家。
-- 界面半边（`src/client/**`）与两个被整份拼进界面闭包的共享文件
-（`src/shared/tracker/sync.js`、`src/shared/naming-tracking.js`）**不能 import 本域**：
-闭包里出现 import 语句就是语法错误。它们的数字留在原处，由 `tests/verify-time-config.ts`
-锁在 YAML 值上；界面真正要用的中央常量走构建拼接，名单见 `scripts/build.mjs` 的
-`CLIENT_TIME_NAMES`，门禁的 CLIENT 表与那份名单双向对账。
+- 人手不改两份生成物（`src/values.ts` 与表层的 `values.d.ts`），改了会被
+  `generate-time-config.mjs --check` 与 `tests/verify-time-config.ts` 同时发现。
+- **不写第二份数字**：调用处只许 import 名字，不许写 `?? 数字` / `|| 数字` 这类缺省回落——
+  回落本身就是第二份数字。门禁第四节把五种藏法（声明、属性、对象、定时器参数、缺省回落）全扫一遍。
+- **不做二传**：`export { X } from '…time-config…'` 看似无害，但它与同文件的 `import { X }`
+  会让 esbuild 给其中一个起别名（`X2 as X`），域转译当场失败。要这个值的调用方请直接
+  从 time-config 引，不要经中间文件倒一手。
+- **0 与 -1 不算时间**：它们表示“还没有”（初始哨兵：还没提交过、还没定下节拍、从头全量），
+  不是可调时长，门禁一律放行。真想关掉某个窗口的那个 0，由 PERMANENT 表逐行认领。
+- 本域是纯数据，没有运行时逻辑：YAML 缺键时生成器直接报错（缺键是故障，不是合法状态），
+  调用方一律静态 import 生成的命名常量——数字只在 YAML 里有一份，回落表本身就是第二份拷贝。
+- 谁可以 import 本域：宿主、共享层、界面半边、测试都可以。共享域之间平时不许互相 import
+  （`same-layer-import-shared` 红线），本域是唯一的例外：它是纯数据，没有运行时逻辑，
+  只被 import、不 import 任何人。
 
-## 生效时机与构建产物（2026-10-16 对抗式审查补）
+## 生效时机与构建产物
 
 - 这三份 YAML 只活在仓库里，**不进安装包**（`package/package.json` 的 files 白名单里没有 `config`），
   也不做运行期读取：运行期没有任何代码读它们，唯一的读者是构建期的生成器。所以调一个时间的完整动作是
   「改 YAML → 跑生成器 → 重新构建 → 重新发版」，装好插件的人在本机改不到。维护者已明确决定**不做**
   运行期可调（2026-10-16）；后来的人不要顺手加这一层，那会把「值从哪来」变成运行期问题，而本域的门禁
   全都建立在「值在构建期就定死」之上。
-- 宿主与共享层 import 的 `src/shared/time-config/values.js`，以及本门禁导入的
-  `src/shared/time-config/src/values.js`，都是构建产物、不入库。新克隆或刚清理过产物时，
-  先跑一次 `node scripts/build.mjs` 再单跑门禁；门禁遇到缺产物会直说「生成物不在」，
-  不再抛看不懂的 `Cannot find module`。
+- 域构建把源码从 `<域>/src/*.ts` 转译到域表层 `*.js` 时，跨出源码目录的相对引用要减一层
+  （`rebaseEscapingImports`）：源码里的 `../../time-config/values.js` 在产物里是
+  `../time-config/values.js`，不改运行时就指到 `src/time-config/` 那个不存在的地方去。
+  同目录引用（`./ports.js`）与裸说明符（`yaml`）不受影响。
 - 某个值越过 JavaScript 定时器能表达的上限（`2147483647` 毫秒，约 24.8 天）时，生成器会发一句
   告警：只有做大小比较（有效期、窗口）才安全，直接当延时会变成 1 毫秒。

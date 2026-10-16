@@ -20,7 +20,8 @@
 //
 // 这个文件不联网、不起定时器：同步服务端剩余读数的节拍由调用方按 budget.js 的 QUOTA_SYNC_INTERVAL_MS
 // 问 `syncDue()`，真去打那次不扣配额的 `gh api rate_limit` 的是闸那一路（它也走闸、也记账）。
-import { HOUR_MS, QUOTA_SYNC_INTERVAL_MS, hourlyAllowance, writeReserve, usedRatio, tierFor, MAX_PAGES, PAGE_COST_POINTS, PR_PAGE_COST_POINTS, COUNT_COST_POINTS, LIST_PAGE_COST_REQUESTS, PR_PAGE_COST_REQUESTS, COUNT_COST_REQUESTS, REBUILD_PR_PAGE_COUNT } from '../../shared/refresh/budget.js'
+import { HOUR_MS, hourlyAllowance, writeReserve, usedRatio, tierFor, MAX_PAGES, PAGE_COST_POINTS, PR_PAGE_COST_POINTS, COUNT_COST_POINTS, LIST_PAGE_COST_REQUESTS, PR_PAGE_COST_REQUESTS, COUNT_COST_REQUESTS, REBUILD_PR_PAGE_COUNT } from '../../shared/refresh/budget.js'
+import { QUOTA_SYNC_INTERVAL_MS } from '../../shared/time-config/values.js'
 import { pageCountReport, rebuildCost, worstCaseRebuildCost } from '../../shared/refresh/page-budget.js'
 
 // ---------------------------------------------------------------------------

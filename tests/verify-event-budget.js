@@ -24,6 +24,7 @@
 // 把写事件次数按百倍算，写保底与整桶必须判红；把次数减半、旋钮收紧的合规变体必须判绿。
 const path = require('path')
 const { pathToFileURL } = require('url')
+const { PROBE_INTERVAL_MS, PROBE_INTERVAL_LINGER_MS, RECONCILE_INTERVAL_MS, PREFLIGHT_TTL_MS, CHAIN_BACKOFF_MS, QUOTA_SYNC_INTERVAL_MS } = require('../src/shared/time-config/values.js')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -98,8 +99,11 @@ async function main() {
   console.log('事件花费门禁（#706 T2：定时 + 事件两半加起来，整桶、读份额、写保底、点数四道都要过关）')
   const budget = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'refresh', 'budget.js')).href)
   const pageBudget = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'refresh', 'page-budget.js')).href)
+  // 注入器：budget.js 只剩自有常量与函数，时间常量走中央——两边拼成判据吃的那一份；
+  // 后面的 Object.assign 变体都基于它拧，保证“拧坏必须判红”依然咬得住。
+  const B0 = Object.assign({}, budget, { PROBE_INTERVAL_MS, PROBE_INTERVAL_LINGER_MS, RECONCILE_INTERVAL_MS, PREFLIGHT_TTL_MS, CHAIN_BACKOFF_MS, QUOTA_SYNC_INTERVAL_MS })
 
-  const real = judge(budget, SCENARIO, pageBudget)
+  const real = judge(B0, SCENARIO, pageBudget)
   check(real.ok, '真实常量下「定时 + 事件」的最坏每小时用量低于上限：' + real.text)
   console.log('    明细：探测 ' + real.bound.parts.probe + ' 条、预检 ' + real.bound.parts.preflight + ' 条、检查链 ' +
     real.bound.parts.chain + ' 条、额度同步 ' + real.bound.parts.quotaSync + ' 条、冷启动 ' + real.bound.parts.coldStart +
@@ -116,15 +120,15 @@ async function main() {
   check(real.bound.pointParts.patches > 0, '补行的点数真的算进了点数桶（' + real.bound.pointParts.patches + ' 点）')
 
   // 反证一：把变化次数按百倍算（一个仓库被疯狂改动），点数那一桶必须判红。
-  const manyChanges = judge(budget, Object.assign({}, SCENARIO, { changesPerHour: SCENARIO.changesPerHour * 100 }), pageBudget)
+  const manyChanges = judge(B0, Object.assign({}, SCENARIO, { changesPerHour: SCENARIO.changesPerHour * 100 }), pageBudget)
   check(!manyChanges.ok, '反证：变化次数按百倍算必须判红（点数桶顶破读份额）—— ' + manyChanges.text)
 
   // 反证二：把写事件次数按百倍算（人和 AI 一起猛写），写保底与整桶必须判红。
-  const manyWrites = judge(budget, Object.assign({}, SCENARIO, { writeEventsPerHour: SCENARIO.writeEventsPerHour * 100 }), pageBudget)
+  const manyWrites = judge(B0, Object.assign({}, SCENARIO, { writeEventsPerHour: SCENARIO.writeEventsPerHour * 100 }), pageBudget)
   check(!manyWrites.ok, '反证：写事件次数按百倍算必须判红（写保底与整桶一起顶破）—— ' + manyWrites.text)
 
   // 第三向（绿）：把次数减半、旋钮收紧一档，同一套判据仍然判绿。
-  const good = judge(Object.assign({}, budget, { PROBE_INTERVAL_MS: budget.PROBE_INTERVAL_MS * 2 }),
+  const good = judge(Object.assign({}, B0, { PROBE_INTERVAL_MS: PROBE_INTERVAL_MS * 2 }),
     Object.assign({}, SCENARIO, { switchesPerHour: 30, writeEventsPerHour: 30, changesPerHour: 30 }), pageBudget)
   check(good.ok, '合规变体（次数减半、探测放慢一倍）判绿 —— ' + good.text)
 

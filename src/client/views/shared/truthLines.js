@@ -26,6 +26,7 @@
 //   · 上次刷新成不成：st.snapMode / st.snapError / st.snapFail（客户端这一侧观察到的真实结果）
 //   · 降级与推迟：st.snapshot.refresh（宿主写的读数：tier / deferred / paused / notRefreshing；
 //     宿主还不知道的事实留空，界面就一个字都不显示，绝不编）
+import { REST_FALLBACK_STALE_MS } from '../../../shared/time-config/values.js'
 export const truthFreshnessAt = function (st) {
   const snap = st && st.snapshot
   const at = snap && typeof snap.generatedMs === 'number' ? snap.generatedMs : 0
@@ -140,8 +141,7 @@ export const markRowWrite = function (st, number, effortId) {
 //   消失，而不是靠时间自己撤 —— 缩时限与藏横幅都是把信号藏起来，#734 明确不许。
 // 这个值住在 config/ttl.yaml 的 restFallbackStaleMs（回落到本地数据后满一小时就算过期，
 //   横幅改口说「上次…」而不是说当下）；名字和取值由 tests/verify-time-config.ts 看守，
-//   tests/verify-rest-fallback-banner.js 按这个名字取用。改数值要改那份 YAML，不要改这里。
-export const REST_FALLBACK_STALE_MS = 60 * 60 * 1000
+//   tests/verify-rest-fallback-banner.js 按这个名字取用。改数值要改那份 YAML，不要改这里（本文件顶部 import 真引用）。
 export const restFallbackView = function (st, nowMs, dismissedAtMs) {
   const snap = st && st.snapshot
   if (!snap || snap.fallback !== 'rest') return null

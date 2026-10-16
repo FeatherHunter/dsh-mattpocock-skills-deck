@@ -29,14 +29,15 @@ export function createChainBackoff(deps) {
     if (!_initP) {
       _initP = (async function () {
         try {
-          const ms = await Promise.all([import('../../shared/refresh/backoff.js'), import('../../shared/refresh/budget.js')])
+          const ms = await Promise.all([import('../../shared/refresh/backoff.js'), import('../../shared/refresh/budget.js'), import('../../shared/time-config/values.js')])
           const budget = ms[1] || {}
-          if (!Array.isArray(budget.CHAIN_BACKOFF_MS) || budget.CHAIN_BACKOFF_MS.length < 2) return null
+          const central = ms[2] || {}
+          if (!Array.isArray(central.CHAIN_BACKOFF_MS) || central.CHAIN_BACKOFF_MS.length < 2) return null
           _backoff = ms[0]
           _limits = {
-            backoffMs: budget.CHAIN_BACKOFF_MS,
-            allGreenTtlMs: budget.CHAIN_ALL_GREEN_TTL_MS,
-            preflightTtlMs: budget.PREFLIGHT_TTL_MS,
+            backoffMs: central.CHAIN_BACKOFF_MS,
+            allGreenTtlMs: central.CHAIN_ALL_GREEN_TTL_MS,
+            preflightTtlMs: central.PREFLIGHT_TTL_MS,
             preflightRetryAfterFailure: budget.PREFLIGHT_RETRY_AFTER_FAILURE,
           }
           return { backoff: _backoff, limits: _limits }

@@ -144,6 +144,11 @@ const VIEW_STATE_REL = 'src/client/kernel/settings-view-state.js'
 const VIEW_WRITE_REL = 'src/client/kernel/settings-view-write.js'
 const UI_REL = 'src/client/kernel/settings-ui.js'
 const noExport = (s) => s.replace(/^\s*export\s+/gm, '')
+// 中央时间真值：写那一片的防抖窗从中央引用，门禁求值时走全局预埋（值就是中央导出的同一份）。
+const centralTime = require('../src/shared/time-config/values.js')
+globalThis.VIEW_FLAG_WRITE_DEBOUNCE_MS = centralTime.VIEW_FLAG_WRITE_DEBOUNCE_MS
+// 中央 import 在 compileFn 函数体里非法，求值前整行剥掉（闭包里它由时间片段提供）。
+const stripTimeConfigImport = (s) => s.split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')
 // store-prefs.js 里「主列表偏好」那一段的真源码（LIST_PREFS_KEY / listPrefs / saveListPrefsLegacy / saveListPrefs）：
 //   界面偏好那一族要用的就是这一段。整份 store-prefs.js 还牵着面板高度、无仓库红卡、选中与仓库等别的东西，
 //   所以只切这一段 —— 仍然是真源码，不另写仿制品。
@@ -155,7 +160,7 @@ function listPrefsSlice() {
   return noExport(src.slice(start, end))
 }
 function makeView(env) {
-  const body = listPrefsSlice() + '\n' + noExport(readText(VIEW_STATE_REL)) + '\n' + noExport(readText(VIEW_REL)) + '\n' + noExport(readText(VIEW_WRITE_REL)) + '\n' + noExport(readText(UI_REL))
+  const body = listPrefsSlice() + '\n' + noExport(readText(VIEW_STATE_REL)) + '\n' + noExport(readText(VIEW_REL)) + '\n' + noExport(stripTimeConfigImport(readText(VIEW_WRITE_REL))) + '\n' + noExport(readText(UI_REL))
   const names = ['keyOf', 'wsKeyOf', 'shared', 'stores', 'emit', 'host', 'localStorage', 'log', 'dswsLogHash', 'timer', 'currentOs', 'workspaceRootByCwd']
   const factory = compileFn(names, body + '\nreturn { viewFlagOf: viewFlagOf, viewFlagOfRoot: viewFlagOfRoot, setViewFlag: setViewFlag, setViewFlagRoot: setViewFlagRoot, viewFlagDocKeyOf: viewFlagDocKeyOf, viewFlagWriteKeyOf: viewFlagWriteKeyOf, settingsViewLoad: settingsViewLoad, viewFlagReadyNow: viewFlagReadyNow, viewFlagSubscribe: viewFlagSubscribe, setUiPref: setUiPref, saveUiPrefs: saveUiPrefs, listPrefs: listPrefs, saveListPrefs: saveListPrefs, saveListPrefsLegacy: saveListPrefsLegacy, LIST_PREFS_KEY: LIST_PREFS_KEY, VIEW_FLAG_WRITE_DEBOUNCE_MS: VIEW_FLAG_WRITE_DEBOUNCE_MS }')
   return factory.apply(null, names.map((n) => env[n]))

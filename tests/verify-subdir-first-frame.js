@@ -46,12 +46,17 @@ let total = 0
 const ok = (cond, msg) => { total += 1; if (cond) console.log('  PASS ' + msg); else { failed = true; console.log('  FAIL ' + msg) } }
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8')
 const noExport = (s) => s.replace(/^[ \t]*export[ \t]+/gm, '')
+// 中央时间真值：store-prefs 那片的缓存 TTL 从中央引用，门禁求值时走全局预埋（值就是中央导出的同一份）。
+const centralTime = require('../src/shared/time-config/values.js')
+globalThis.SYNC_ISSUE_CACHE_TTL_MS = centralTime.SYNC_ISSUE_CACHE_TTL_MS
+// 中央 import 在 compileFn 函数体里非法，求值前整行剥掉（闭包里它由时间片段提供）。
+const stripTimeConfigImport = (s) => s.split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')
 
 // 真机现场的两个目录（会话目录是工作区里的子目录；客户端算不出根，只能等宿主回话才知道）
 const SUB_DIR = 'D:\\ilife\\packages\\skill-calorie'
 const ROOT_DIR = 'D:/ilife'
 const OTHER_DIR = 'D:\\other-repo'
-const GATE_TIMEOUT_MS = 900   // 快照等待那两档在本门禁里的替身（源里那两个常量由下面 moduleText 的断言钉着）
+const GATE_TIMEOUT_MS = 900   // 快照等待那一条中央耐心在本门禁里的替身（源里那条中央引用由下面 moduleText 的断言钉着）
 const SNAP_LATE_MS = 1400     // 那份完整快照到得比死线晚 —— 正是真机那个「客户端放弃了、宿主才拿出来」的次序
 const SEL_MS = 20             // 那条专用电话很快（几十字节的事实，宿主侧本来也是现成的）
 const CWD_FAIL_MS = 5         // wf.cwd 真机上一直失败，只是失败得很快
@@ -65,14 +70,15 @@ const FILES = [
   'src/client/kernel/probe-select.js',
 ]
 
-// 把这几片按构建顺序拼成同一个闭包（与 scripts/build.mjs 的拼接口径一致：去掉行首 export 后求值）。
+// 把这几片按构建顺序拼成同一个闭包（与 scripts/build.mjs 的拼接口径一致：去掉行首 export、
+// 剥掉中央时间参数那一行 import 后求值）。
 function moduleText(patch) {
-  const body = FILES.map((f) => noExport((patch && patch.file === f) ? patch.text : read(f))).join('\n')
-  // 门禁把源里那条 30 秒耐心缩短成 0.9 秒，好把「死线先到、回包后到」那个次序造出来。
-  //   下面这句替换就是本门禁跑起来的前提：替换不成立（源里换了写法）时早点报错，别让它静悄悄地按 30 秒跑。
-  const WAIT_ANCHOR = 'SNAP_WAIT_MS = 30000'
-  if (body.indexOf(WAIT_ANCHOR) < 0) throw new Error('源里找不到快照等待的单值预算（' + WAIT_ANCHOR + '）—— 本门禁的替换不成立')
-  return body.replace(WAIT_ANCHOR, 'SNAP_WAIT_MS = ' + GATE_TIMEOUT_MS)
+  const body = FILES.map((f) => noExport(stripTimeConfigImport((patch && patch.file === f) ? patch.text : read(f)))).join('\n')
+  // 门禁把源里那条中央耐心缩短成 0.9 秒，好把「死线先到、回包后到」那个次序造出来。
+  //   下面这句注入就是本门禁跑起来的前提：源里换了写法（中央引用不在）时早点报错，别让它静悄悄地按中央值跑。
+  const TC_ANCHOR_RE = /^\s*import\s*\{[^}]*SNAP_WAIT_MS[^}]*\}\s*from\s*['"][^'"]*time-config\/values\.js['"]/
+  if (!TC_ANCHOR_RE.test(read('src/client/kernel/probe-snapshot.js'))) throw new Error('源里找不到快照等待的中央引用（SNAP_WAIT_MS 的 time-config import）—— 本门禁的注入不成立')
+  return 'const SNAP_WAIT_MS = ' + GATE_TIMEOUT_MS + '\n' + body
 }
 
 // 按真机样子回话的假宿主 + 真内核。

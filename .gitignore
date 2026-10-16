@@ -51,6 +51,13 @@ _research/
 # 下面这套规则按「真实目录里住着什么」写，不是按「哪一层像生成物」写：同一个目录里可能既有
 # 生成物又有手写的 .js（views 顶层是 1 份生成物配 20 份手写），一刀切会把真源码静默忽略掉，
 # 那比不忽略危险得多。手写的 .js 在域目录里同理，逐份开例外（它们没有同名 .ts）。
+# #1215 中央时间参数：src/shared/time-config/src/values.ts 是生成器按 config/ 下三份 YAML
+# 现场写出的（构建与 typecheck 都会先跑生成器），数字只在 YAML 里有一份，不入库。
+# 全新检出上它不在，generate --check 会现场生成一次（见生成器头注释）。
+/src/shared/time-config/src/values.ts
+# values.d.ts 与上面的 values.ts 同源（同一份 KEYS，只有声明没有值）：.ts 调用方
+# import 的是域表层 values.js（转译产物），tsc 靠这份声明才认得那些名字，不入库。
+/src/shared/time-config/values.d.ts
 /src/shared/*/*.js
 # #1153 顺带清理：原来这两行上面还有两条放行——!/src/shared/refresh/chain-ride.js 与
 # !/src/shared/refresh/refusal-text.js（#1023 第三刀写这时，它们还是停在产物位上的手写 .js）。

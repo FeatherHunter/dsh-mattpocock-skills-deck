@@ -28,6 +28,11 @@ const path = require('path')
 const { pathToFileURL } = require('url')
 // 本文件选 compileFn 手法：这段把六个叶子拼成的界面闭包当函数体造函数，依赖本来就一项项按参数名传。
 const { compileFn } = require('./lib/eval-probe.js')
+// 中央时间真值：相对时间窗口只住 config/*.yaml，这里读同一份导出来预埋，不在测试里写第二份数字。
+const centralTime = require('../src/shared/time-config/values.js')
+globalThis.VC_RELATIVE_WINDOW_MS = centralTime.VC_RELATIVE_WINDOW_MS
+// 中央 import 在 compileFn 函数体里非法，求值前整行剥掉（闭包里它由时间片段提供，门禁里走上面的全局预埋）。
+const stripTimeConfigImport = (s) => s.split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -87,7 +92,7 @@ const EXPORTS = ['VC_PHONES', 'VC_FILE_ROWS_FIRST', 'VC_FILE_ROWS_BATCH', 'VC_DI
   'vcMoreStepOf', 'vcMoreStateOf', 'vcMoreShownOf', 'vcUseMoreSightOf',
   'VersionControlTab']
 function buildView(patch, logs, React, DswsCtx, Tip, Ic, seedReads, hostStub) {
-  let src = VC_FILES.map((f) => stripExports(read(f))).join('\n')
+  let src = VC_FILES.map((f) => stripExports(stripTimeConfigImport(read(f)))).join('\n')
   if (patch) src = patch(src)
   const body = src + '\nreturn { ' + EXPORTS.join(', ') + ' }\n'
   // 本处走 compileFn：参数名与参数值一一对应，与原来那种写法同一套依赖。

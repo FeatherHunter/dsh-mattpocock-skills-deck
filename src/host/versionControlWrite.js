@@ -13,17 +13,17 @@ import { pushPlanOf } from '../shared/version-control/push-plan.js'
 import { classifyWriteFailure, writeHintFor, pathsProblem, messageProblem, idShapeProblem } from '../shared/version-control/write-reasons.js'
 // 这个文件里的时间分两组，都是可调的，全部住中央 YAML（config/timeouts.yaml），调时间改 YAML：
 //   · 五个写命令的超时（vcAddTimeoutMs / vcCommitTimeoutMs / vcPullTimeoutMs / vcPushTimeoutMs / vcFetchTimeoutMs）：
-//     每条都是「这一条写命令最多跑多久」，下面用别名接住（缺表回落原数字，防构建产物过期）；
+//     每条都是「这一条写命令最多跑多久」，下面直接引用中央常量；
 //   · runOne 那些裸数字改成的是另一组键：单条只读命令的超时（vcReadCmdTimeoutMs / vcLsFilesTimeoutMs）与
 //     「整趟预算」（vcHeadCallBudgetMs / vcReadCallBudgetMs / vcLsFilesCallBudgetMs / vcRemoteListCallBudgetMs）。
 // 单条超时与整趟预算是两件事：前者管某一条命令最多跑多久，后者管挂在这一步上的所有命令合起来的上限。
 // 路径走域构建产物写法（与 src/host/refresh/chain-ride.ts 引 values.js 同例），值由 tests/verify-time-config.ts 看守一致。
 import {
-  VC_ADD_TIMEOUT_MS as CENTRAL_VC_ADD_TIMEOUT_MS,
-  VC_COMMIT_TIMEOUT_MS as CENTRAL_VC_COMMIT_TIMEOUT_MS,
-  VC_PULL_TIMEOUT_MS as CENTRAL_VC_PULL_TIMEOUT_MS,
-  VC_PUSH_TIMEOUT_MS as CENTRAL_VC_PUSH_TIMEOUT_MS,
-  VC_FETCH_TIMEOUT_MS as CENTRAL_VC_FETCH_TIMEOUT_MS,
+  VC_ADD_TIMEOUT_MS as ADD_TIMEOUT_MS,
+  VC_COMMIT_TIMEOUT_MS as COMMIT_TIMEOUT_MS,
+  VC_PULL_TIMEOUT_MS as PULL_TIMEOUT_MS,
+  VC_PUSH_TIMEOUT_MS as PUSH_TIMEOUT_MS,
+  VC_FETCH_TIMEOUT_MS as FETCH_TIMEOUT_MS,
   VC_READ_CMD_TIMEOUT_MS,
   VC_HEAD_CALL_BUDGET_MS,
   VC_READ_CALL_BUDGET_MS,
@@ -38,7 +38,6 @@ import {
 // vcFetchTimeoutMs）：暂存与撤回暂存还把 ADD_TIMEOUT_MS 兼作那一次调用的总预算。
 // 那条总预算不是裸字面量，而是「该条命令的超时 + VC_WRITE_CALL_MARGIN_MS（中央 YAML 的 vcWriteCallMarginMs，
 // 留 10 秒余量）」——超时管一条命令跑多久，整趟预算管这一步所有命令合起来的上限，两个数各管一件事。
-const ADD_TIMEOUT_MS = CENTRAL_VC_ADD_TIMEOUT_MS ?? 15000, COMMIT_TIMEOUT_MS = CENTRAL_VC_COMMIT_TIMEOUT_MS ?? 60000, PULL_TIMEOUT_MS = CENTRAL_VC_PULL_TIMEOUT_MS ?? 180000, PUSH_TIMEOUT_MS = CENTRAL_VC_PUSH_TIMEOUT_MS ?? 120000, FETCH_TIMEOUT_MS = CENTRAL_VC_FETCH_TIMEOUT_MS ?? 120000
 const SMALL_LIMIT = 256 * 1024, LSFILES_LIMIT = 8 * 1024 * 1024, REMOTE_LIMIT = 4096
 
 export function createWritePhones(deps) {

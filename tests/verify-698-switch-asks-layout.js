@@ -36,6 +36,11 @@ import { compileFn } from './lib/eval-probe.js'
 //   spliceableJs 按「同名 .ts 优先」解到真源再按全仓唯一口径转译成可求值的 JavaScript（与拼包同一条路），
 //   store-switch.js 与 prompts-setup.js 还没转 .ts，仍按原路径直读。
 import { spliceableJs } from './lib/source-text.js'
+// 中央时间真值：切换确认的收起延时只住 config/*.yaml，这里读同一份导出来预埋，不在测试里写第二份数字。
+import { STORE_SWITCH_CONFIRM_MS } from '../src/shared/time-config/values.js'
+globalThis.STORE_SWITCH_CONFIRM_MS = STORE_SWITCH_CONFIRM_MS
+// 中央 import 在 compileFn 函数体里非法，求值前整行剥掉（闭包里它由时间片段提供，门禁里走上面的全局预埋）。
+const stripTimeConfigImport = (s) => s.split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')
 
 const root = resolve(import.meta.dirname, '..')
 const read = (rel) => readFileSync(resolve(root, rel), 'utf8')
@@ -117,7 +122,7 @@ async function runSwitch (srcText, steps, from, to) {
     setTimeout, clearTimeout, console: { log () {}, warn () {}, error () {} },
   }
   const names = Object.keys(sandbox)
-  const body = stripExports(srcText) + '\n;return { confirmSwitchConfirm: confirmSwitchConfirm, openSwitchConfirm: openSwitchConfirm }'
+  const body = stripExports(stripTimeConfigImport(srcText)) + '\n;return { confirmSwitchConfirm: confirmSwitchConfirm, openSwitchConfirm: openSwitchConfirm }'
   // 手法：compileFn——沙箱里有哪些名字就传哪些名字（原来那种写法也常这么用），这里把名字数组原样交给共用入口。
   const mod = compileFn(names, body)(...names.map((n) => sandbox[n]))
   const fromId = from || 'github'
@@ -301,7 +306,7 @@ console.log('== G 反证：三处实现各做坏一次，对应的断言必须�
   }
   const names3 = Object.keys(swSandbox)
   // 手法：compileFn——同上，名字数组与代码文本分开交给共用入口。
-  const mod3 = compileFn(names3, stripExports(brokenGate) + '\n;return { openSwitchConfirm: openSwitchConfirm };')(...names3.map((n) => swSandbox[n]))
+  const mod3 = compileFn(names3, stripExports(stripTimeConfigImport(brokenGate)) + '\n;return { openSwitchConfirm: openSwitchConfirm };')(...names3.map((n) => swSandbox[n]))
   const st3 = { selection: { backendId: 'github' }, setupLayoutCardOpen: true }
   const opened = mod3.openSwitchConfirm(st3, 'markdown')
   check(opened === true && !!st3.switchConfirm && st3.switchConfirm.open === true, '反证 ③ 成立：那道闸摘掉之后，卡还开着也能把「切换后端」那张窗开出来（同屏两张问句）')

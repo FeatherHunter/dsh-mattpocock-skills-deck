@@ -19,6 +19,7 @@
 // 二级限流（Retry-After）也是降档信号：noteRetryAfter() 一次就把所在桶按红档处理（主桶没用完也降档），并把那个工作区标成撞限流。
 // #998：连续失败到门槛之后由 failure-window.js 那台状态机放一笔探针进来试（细节见那个文件）。
 import { decide, aiToolAdmission, degradePlanFor, REQUEST_KINDS, REASONS, FAILURE_DEFER_AT, nextAttemptDelayMs } from '../../shared/refresh/policy.js'
+import { FAILURE_HALF_OPEN_DELAY_MS, DEFER_EXPIRY_MS, PROBE_INTERVAL_MS, PROBE_INTERVAL_YELLOW_MS, RECONCILE_INTERVAL_MS, REBUILD_MIN_INTERVAL_YELLOW_MS, CHAIN_BACKOFF_MS } from '../../shared/time-config/values.js'
 import * as budget from '../../shared/refresh/budget.js'
 import * as failureWindow from '../../shared/refresh/failure-window.js'
 import { measureStep, noteStepOutbound } from '../../shared/refresh/step-cost.js'
@@ -176,12 +177,21 @@ export const BUCKET_OF_KIND: Readonly<Record<string, string>> = {
 }
 
 /**
- * 从 budget.js 取一套裁决要用的数字（形状与 tests/verify-policy.js 里那份一致，两处同源）。
+ * 取一套裁决要用的数字（形状与 tests/verify-policy.js 里那份一致，两处同源）。
+ * 自有常量（点数、条数、档位形状）出自 budget.js，时间常量出自中央 time-config，缺省时两边拼起来；
+ * src 给了一整份就用给的那份（测试就这么注入）。
  * src 给了一整份就用给的那份（测试就这么注入），没给就用 budget.js 自己。
  * 断言成 budget.js 的整套形状只为让下面这些读法成立：键一个没加、一个没减，值原样读出来。
  */
 export function policyLimits(src: unknown) {
-  const b = (src || budget) as typeof budget
+  // 缺省源：budget.js 只剩自有常量与函数，时间常量走中央——两边拼成裁决吃的那一份。
+  // 测试注入整套时走 src 那一支，不受影响；生产接线没给 budget 时走这里，缺了哪一块限流窗就算错。
+  const b = (src || Object.assign({}, budget, {
+    PROBE_INTERVAL_MS, PROBE_INTERVAL_YELLOW_MS, RECONCILE_INTERVAL_MS, REBUILD_MIN_INTERVAL_YELLOW_MS, CHAIN_BACKOFF_MS,
+  })) as typeof budget & {
+    PROBE_INTERVAL_MS: number; PROBE_INTERVAL_YELLOW_MS: number; RECONCILE_INTERVAL_MS: number;
+    REBUILD_MIN_INTERVAL_YELLOW_MS: number; CHAIN_BACKOFF_MS: ReadonlyArray<number>;
+  }
   return {
     probeIntervalMs: b.PROBE_INTERVAL_MS,
     probeIntervalYellowMs: b.PROBE_INTERVAL_YELLOW_MS,
@@ -278,7 +288,7 @@ export function createGate(deps?: GateDeps) {
     // 连续失败那一轮的窗口（#998）：到门槛之后哪一笔可以当探针放进来试，判据只有 failure-window.js 一份。
     const win = failureWindow.failureWindowOf(s)
     const trialDue = win.failures >= FAILURE_DEFER_AT && failureWindow.halfOpenTrialIsDue(
-      win, now(), nextAttemptDelayMs(win.failures, limits), budget.FAILURE_HALF_OPEN_DELAY_MS,
+      win, now(), nextAttemptDelayMs(win.failures, limits), FAILURE_HALF_OPEN_DELAY_MS,
     )
     return {
       category: req.category, kind: req.kind, tier: q.tier,
@@ -417,7 +427,7 @@ export function createGate(deps?: GateDeps) {
     let dropped = 0
     for (const [key, e] of Array.from(deferred.entries())) {
       deferred.delete(key)
-      if ((t - e.at) >= budget.DEFER_EXPIRY_MS) { dropped += 1; stats.droppedExpired += 1; fireSkipped(key, e.kind, 'defer-expired', deferred.size) }
+      if ((t - e.at) >= DEFER_EXPIRY_MS) { dropped += 1; stats.droppedExpired += 1; fireSkipped(key, e.kind, 'defer-expired', deferred.size) }
       else ready.push({ workspaceKey: key, req: e.req, ageMs: t - e.at })
     }
     return { ready: ready, dropped: dropped, pending: deferred.size }

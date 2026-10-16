@@ -8,20 +8,22 @@
  *
  * 房间纪律：只用闭包里已有的名字（host、timer、localStorage、broadcastLogSwitch），
  * 不引用其他源文件，不新增跨文件导入；渲染函数里不为日志做对象转文本与字符串拼接。
+ *
+ * 时间数字不住这里：发批间隔与看门狗阈值都从中央时间参数目录真引用（构建不拼本文件，
+ * 这一行在门禁当模块直接 import 跑时是真的）。
  */
+    import { LOG_FLUSH_MS, LOG_WATCHDOG_MS } from '../../shared/time-config/values.js'
     // 本地开关存一份：新键 dsws.debug，形状为 { enabled 布尔, sampleRate 数字, rev 版本号 }，
     // 不动 dsws.cfg 现有字段（设计 1.3，沿 config.js 同例：读本地、全文覆写保存、失败不抛错）。
     export const LOG_DEBUG_KEY = 'dsws.debug'
     // 通道批量字面（设计 2.5 与 #489 附录：每批最多 50 条、每 1000 毫秒发一次、
     // 单包 128KB 或 100 条先到先截；失败丢弃并计数，不背压等待，不无界缓冲）。
     export const LOG_BATCH_MAX = 50
-    // 这个发批间隔住中央：config/intervals.yaml 的 logFlushMs，值由 tests/verify-time-config.ts 看守。
-    export const LOG_FLUSH_MS = 1000
+    // 这个发批间隔住中央：config/intervals.yaml 的 logFlushMs，值由 tests/verify-time-config.ts 看守（本文件顶部 import 真引用）。
     export const LOG_PACKET_BYTES = 131072
     export const LOG_QUEUE_MAX = 100
     // 自监控看门狗阈值（#499）：开关写与启动对账超过这么多毫秒未回，就记一行告警自举证。
-    // 这个看门狗阈值住中央：config/timeouts.yaml 的 logWatchdogMs，值由 tests/verify-time-config.ts 看守。
-    export const LOG_WATCHDOG_MS = 5000
+    // 这个看门狗阈值住中央：config/timeouts.yaml 的 logWatchdogMs，值由 tests/verify-time-config.ts 看守（本文件顶部 import 真引用）。
     // 开关形状版本号：以后开关加字段就把这里加一，旧本地值读到缺字段时用默认补齐。
     export const LOG_REV = 1
     // 级别只有四个：error、warn、info、debug（设计 1.2）。

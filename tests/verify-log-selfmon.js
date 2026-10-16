@@ -13,11 +13,18 @@ const { printGateResult } = require('./lib/gate-result.ts')
 const { pathToFileURL } = require('url')
 // 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
 const { compileFn } = require('./lib/eval-probe.js')
-// 时间压缩：本门的墙钟时间几乎全花在「等超时」上 —— 第十一段要等那条 5 秒的对账看门狗真的烧完
-// （`await wait(5400)` 加产品自己那条 5000 毫秒的定时器，合计 5.4 秒，占全门 5.7 秒里的绝大部分）。
-// 压成虚拟时间以后真实只等几毫秒，而 Date.now() 报出来的仍是 5 秒多：看门狗仍在虚拟 5 秒那一刻自举证，
-// 「5 秒多一点即出看门狗行」（Date.now() - t0 < 6000）与「恰好一行」两条判据照旧成立（虚拟队列按到期时间排队，
-// 5000 毫秒那条先于 5400 毫秒那条到）。断言一条没动；理由、两条不能破的语义与边界见 tests/lib/time-compress.js 文件头。
+// 中央时间真值：看门狗阈值只住 config/*.yaml，这里读同一份导出来比对，不在测试里写第二份数字。
+const centralTime = require('../src/shared/time-config/values.js')
+// 日志模块顶部那一行中央 import 在 compileFn 函数体里是非法的（函数体不许出现 import），
+// 求值前剥掉；名字走全局预埋，值就是中央导出的同一份。
+globalThis.LOG_FLUSH_MS = centralTime.LOG_FLUSH_MS
+globalThis.LOG_WATCHDOG_MS = centralTime.LOG_WATCHDOG_MS
+const stripTimeConfigImport = (text) => text.split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')
+// 时间压缩：本门的墙钟时间几乎全花在「等超时」上 —— 第十一段要等那条对账看门狗真的烧完
+// （多等中央阈值之上几百毫秒，加产品自己那条中央阈值的定时器，占全门时间里的绝大部分）。
+// 压成虚拟时间以后真实只等几毫秒，而 Date.now() 报出来的仍是阈值多一点：看门狗仍在虚拟阈值那一刻自举证，
+// 「阈值多一点即出看门狗行」与「恰好一行」两条判据照旧成立（虚拟队列按到期时间排队，
+// 中央阈值那条先于多等几百毫秒那条到）。断言一条没动；理由、两条不能破的语义与边界见 tests/lib/time-compress.js 文件头。
 const { installTimeCompression, uninstallTimeCompression } = require('./lib/time-compress.js')
 installTimeCompression()
 
@@ -93,7 +100,8 @@ async function main() {
 
   // 十、复现 48：队列打满后发送落定，汇总行内容正确；宿主长坏时链条终止。
   {
-    const body = logSrc.split('\n').map((l) => l.replace(/^(\s*)export\s+/, '$1')).join('\n')
+    const stripped = stripTimeConfigImport(logSrc)
+    const body = stripped.split('\n').map((l) => l.replace(/^(\s*)export\s+/, '$1')).join('\n')
     // 这里选 compileFn：四个依赖名逐个传（与原写法一模一样），被求值的日志内核源码文本原样，仍跑在 Node 全局环境里。
     const factory = compileFn(['host', 'timer', 'localStorage', 'broadcastLogSwitch'],
       body + '\nreturn { log, sendLogBatch, getDroppedCount, logExportFail, watchSwitchOp, LOG_WATCHDOG_MS, logSwitch, logQueue, logDroppedState, logForwardState };')
@@ -116,9 +124,10 @@ async function main() {
     check(mod2.getDroppedCount() === 11, '复现 48：丢弃计数收敛为 11（10 行业务加 1 行汇总自身，实得 ' + mod2.getDroppedCount() + '）')
   }
 
-  // 十一、复现 49：对账 5 秒未回，看门狗行自举证。
+  // 十一、复现 49：对账在中央看门狗阈值内未回，看门狗行自举证。
   {
-    const body = logSrc.split('\n').map((l) => l.replace(/^(\s*)export\s+/, '$1')).join('\n')
+    const stripped = stripTimeConfigImport(logSrc)
+    const body = stripped.split('\n').map((l) => l.replace(/^(\s*)export\s+/, '$1')).join('\n')
     // 这里选 compileFn：同上（四个依赖名逐个传，源码文本不变），只是取的导出少几样。
     const factory = compileFn(['host', 'timer', 'localStorage', 'broadcastLogSwitch'],
       body + '\nreturn { reconcileLogSwitch, logQueue };')
@@ -128,11 +137,11 @@ async function main() {
     const mod = factory(hangingHost, realTimer, { getItem() { return null }, setItem() {} }, () => {})
     const t0 = Date.now()
     const pending = mod.reconcileLogSwitch()
-    await wait(5400)
+    await wait(centralTime.LOG_WATCHDOG_MS + 400)
     const found = sent.flatMap((a) => a.entries || []).filter((e) => e && e.event === 'log.switch.watchdog')
-    check(found.length === 1, '复现 49：对账 5 秒未回记一行看门狗（实得 ' + found.length + ' 行）')
-    check(found.length === 1 && found[0].level === 'warn' && found[0].fields.op === 'reconcile' && found[0].fields.timeoutMs === 5000 && found[0].fields.stage === 'waiting-host', '复现 49：看门狗行三键齐（操作、对账、5 秒、等宿主）')
-    check(Date.now() - t0 < 6000, '复现 49：5 秒多一点即出看门狗行（灰开关 5 秒内自举证）')
+    check(found.length === 1, '复现 49：对账在中央阈值内未回记一行看门狗（实得 ' + found.length + ' 行）')
+    check(found.length === 1 && found[0].level === 'warn' && found[0].fields.op === 'reconcile' && found[0].fields.timeoutMs === centralTime.LOG_WATCHDOG_MS && found[0].fields.stage === 'waiting-host', '复现 49：看门狗行三键齐（操作、对账、中央阈值、等宿主）')
+    check(Date.now() - t0 < centralTime.LOG_WATCHDOG_MS + 1000, '复现 49：阈值多一点即出看门狗行（灰开关阈值内自举证）')
     await Promise.race([pending, wait(100)])
   }
 
