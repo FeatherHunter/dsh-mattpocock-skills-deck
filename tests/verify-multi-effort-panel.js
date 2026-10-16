@@ -20,7 +20,7 @@ import { resolve } from 'node:path'
 // 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头（本文件是 ESM，用 import 取具名导出）。
 import { compileFn } from './lib/eval-probe.js'
 // 身份函数是全标注 TypeScript，沙箱跑裸 JS：转译口径取仓库唯一那一份
-// （scripts/lib/transpile-unit.mjs，手法照 tests/verify-deck-tools-row-zero-dep.js）。
+// （scripts/lib/transpile-unit.mjs，手法照 tests/verify-deck-tools-row-zero-dep.ts）。
 import esbuild from 'esbuild'
 
 const ROOT = resolve(path.dirname(fileURLToPath(import.meta.url)), '..')

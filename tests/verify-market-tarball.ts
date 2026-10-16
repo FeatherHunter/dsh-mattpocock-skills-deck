@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 /**
- * tests/verify-market-tarball.js — 市场里那条「预构建包安装」链接的门禁
+ * tests/verify-market-tarball.ts — 市场里那条「预构建包安装」链接的门禁
+ *
+ * 2026-10-17 从 .js 转成 TypeScript：只改文件名、用法与自指这两处路径、几处类型标注，判据与断言一条没动。
  *
  * 为什么需要这道门禁：
  * 插件市场（awesome-dsh-plugin 列表与 dsh-market）的详情页会给出一条「预构建包安装」命令，
@@ -16,7 +18,7 @@
  * 这道门禁把上面两条约定读原文钉住：改包名、删掉 workflow、或把链接改回钉 tag 的写法，
  * 都会在这里当场变红，而不是等到有人从市场点安装才发现。
  *
- * 用法：node tests/verify-market-tarball.js
+ * 用法：node --import ./scripts/ts-hook.mjs tests/verify-market-tarball.ts
  */
 
 import { readFileSync, existsSync } from "node:fs";
@@ -25,10 +27,10 @@ import { fileURLToPath } from "node:url";
 import { isGatePlanned } from "../scripts/lib/discover-gates.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-let failures = [];
+let failures: string[] = [];
 let passes = 0;
 
-function assert(cond, msg) {
+function assert(cond: unknown, msg: string) {
   if (cond) {
     passes++;
     console.log(`  ✓ ${msg}`);
@@ -87,8 +89,8 @@ console.log("");
 //    #1125 起问规划函数，不再读 package.json 长串）
 console.log("[4] 本门禁已挂进 verify 链");
 assert(
-  isGatePlanned(ROOT, "tests/verify-market-tarball.js"),
-  "规划函数里有 tests/verify-market-tarball.js",
+  isGatePlanned(ROOT, "tests/verify-market-tarball.ts"),
+  "规划函数里有 tests/verify-market-tarball.ts",
 );
 console.log("");
 

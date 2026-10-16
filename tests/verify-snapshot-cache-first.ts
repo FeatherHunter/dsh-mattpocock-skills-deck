@@ -1,4 +1,4 @@
-// tests/verify-snapshot-cache-first.js
+// tests/verify-snapshot-cache-first.ts
 //
 // 门禁：手上有新鲜快照缓存时，「面板数据」这条通话必须立刻交付，不许在交付前先联网核对。
 //
@@ -14,7 +14,7 @@
 //   60 秒，那个门槛每次都被触发，等于没改。数据新鲜与否由状态胶囊的时间戳表达（超五分钟变红），
 //   用户看得见，不需要用「让用户等」来表达。
 //
-// 用法：node tests/verify-snapshot-cache-first.js
+// 用法：node --import ./scripts/ts-hook.mjs tests/verify-snapshot-cache-first.ts
 
 import { createSessionSnapshot } from '../src/host/sessionSnapshot.ts'
 

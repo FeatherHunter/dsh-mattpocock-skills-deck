@@ -1,4 +1,5 @@
-// tests/verify-naming-title-fact.js — 宿主读取「这条标题是谁写的」那条路（2026-10-03 加固）
+// tests/verify-naming-title-fact.ts — 宿主读取「这条标题是谁写的」那条路（2026-10-03 加固）
+// 2026-10-17 从 .js 转成 TypeScript：只改文件名与几处类型标注，说明符与判据一条没动。
 //
 // 为什么单开这一条：命名守护现在优先用**事实**判断现名是谁写的（底座自动取名可盖回、人写的名一律让位），
 // 事实由宿主的 titleFactOf 从 DSH 两个原生服务读出来：ctx.get('sessions').get(sid) 拿活会话，
@@ -16,7 +17,7 @@ import { compileFn } from './lib/eval-probe.js'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 let failed = false
 let total = 0
-function check(ok, msg, detail) {
+function check(ok: unknown, msg: string, detail?: unknown) {
   total++
   if (ok) console.log('  PASS ' + msg)
   else { failed = true; console.log('  FAIL ' + msg + (detail ? ' — ' + detail : '')) }

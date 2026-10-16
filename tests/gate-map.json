@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T22:16:52.409Z",
+  "generatedAt": "2026-10-16T22:25:29.675Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 301,
   "gateCount": 301,
@@ -657,8 +657,8 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 14 条"
     },
     {
-      "step": "node tests/verify-deck-tools-row-zero-dep.js",
-      "file": "tests/verify-deck-tools-row-zero-dep.js",
+      "step": "node tests/verify-deck-tools-row-zero-dep.ts",
+      "file": "tests/verify-deck-tools-row-zero-dep.ts",
       "guards": [
         "package/cordis.patch.yml",
         "package/deck/registration/agent-row.js",
@@ -3616,13 +3616,13 @@
       "reason": "归属来自：源码里的路径字面量 5 条"
     },
     {
-      "step": "node tests/verify-970-whole-document.js",
-      "file": "tests/verify-970-whole-document.js",
+      "step": "node tests/verify-970-whole-document.ts",
+      "file": "tests/verify-970-whole-document.ts",
       "guards": [
         "scripts/lib/discover-gates.ts",
         "src/shared/refresh/idempotency.js",
         "src/tracker/rooms/markdown/index.ts",
-        "tests/verify-970-whole-document.js"
+        "tests/verify-970-whole-document.ts"
       ],
       "dirs": [
         "scripts/lib",
@@ -4103,8 +4103,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条"
     },
     {
-      "step": "node tests/verify-client-no-undef.js",
-      "file": "tests/verify-client-no-undef.js",
+      "step": "node tests/verify-client-no-undef.ts",
+      "file": "tests/verify-client-no-undef.ts",
       "guards": [
         "package/lib/client.js",
         "package/lib/index.js"
@@ -4119,8 +4119,8 @@
       "reason": "它读的是构建产物（package/ 下的打包结果）。产物由整份源码打出来，脚本里看不出产物跟哪个源码文件对应，所以算不出它守着哪条源码路径；挑选门禁时按「只要动到源码就先跑它」保守处理"
     },
     {
-      "step": "node tests/verify-config-store-comments.js",
-      "file": "tests/verify-config-store-comments.js",
+      "step": "node tests/verify-config-store-comments.ts",
+      "file": "tests/verify-config-store-comments.ts",
       "guards": [
         "src/host/configStore.js"
       ],
@@ -5366,13 +5366,13 @@
       "reason": "读到的路径都落在 package、tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
-      "step": "node tests/verify-market-tarball.js",
-      "file": "tests/verify-market-tarball.js",
+      "step": "node tests/verify-market-tarball.ts",
+      "file": "tests/verify-market-tarball.ts",
       "guards": [
         "docs/releases/RELEASE-RUNBOOK.md",
         "package/package.json",
         "scripts/lib/discover-gates.ts",
-        "tests/verify-market-tarball.js"
+        "tests/verify-market-tarball.ts"
       ],
       "dirs": [
         "docs/releases",
@@ -5538,8 +5538,8 @@
       "reason": "归属来自：静态 import 说明符 3 条"
     },
     {
-      "step": "node tests/verify-naming-title-fact.js",
-      "file": "tests/verify-naming-title-fact.js",
+      "step": "node tests/verify-naming-title-fact.ts",
+      "file": "tests/verify-naming-title-fact.ts",
       "guards": [
         "src/host/refresh/wiring.ts",
         "tests/lib/eval-probe.ts"
@@ -6315,8 +6315,8 @@
       "reason": "它读的是构建产物（package/ 下的打包结果）。产物由整份源码打出来，脚本里看不出产物跟哪个源码文件对应，所以算不出它守着哪条源码路径；挑选门禁时按「只要动到源码就先跑它」保守处理"
     },
     {
-      "step": "node tests/verify-snapshot-cache-first.js",
-      "file": "tests/verify-snapshot-cache-first.js",
+      "step": "node tests/verify-snapshot-cache-first.ts",
+      "file": "tests/verify-snapshot-cache-first.ts",
       "guards": [
         "src/host/sessionSnapshot.ts"
       ],
@@ -6951,7 +6951,7 @@
       "node tests/verify-wire-subissues-script.js"
     ],
     "docs/releases": [
-      "node tests/verify-market-tarball.js",
+      "node tests/verify-market-tarball.ts",
       "node tests/verify-release-contract.js",
       "node tests/verify-release-template.js"
     ],
@@ -6969,14 +6969,14 @@
     "package": [
       "node tests/verify-build-artifacts.js",
       "node tests/verify-leaves.ts",
-      "node tests/verify-deck-tools-row-zero-dep.js",
+      "node tests/verify-deck-tools-row-zero-dep.ts",
       "node tests/verify-bundled-discovery.js",
       "node tests/verify-bundled-skills.js",
       "node tests/verify-bundled-trio-matrix.js",
       "node tests/verify-config-store-package.ts",
       "node tests/verify-ctx.ts",
       "node tests/verify-kernel.js",
-      "node tests/verify-market-tarball.js",
+      "node tests/verify-market-tarball.ts",
       "node tests/verify-parse-leaf.js",
       "node tests/verify-platform-contract.js",
       "node tests/verify-release-contract.js",
@@ -6997,7 +6997,7 @@
     ],
     "package/deck/registration": [
       "node tests/verify-build-artifacts.js",
-      "node tests/verify-deck-tools-row-zero-dep.js"
+      "node tests/verify-deck-tools-row-zero-dep.ts"
     ],
     "package/lib": [
       "node tests/verify-663-banner-chain.ts",
@@ -7029,7 +7029,7 @@
       "node tests/verify-capsule-layout.js",
       "node tests/verify-capsule-narrow.js",
       "node tests/verify-client-hardcode-gate.js",
-      "node tests/verify-client-no-undef.js",
+      "node tests/verify-client-no-undef.ts",
       "node tests/verify-ctx.ts",
       "node tests/verify-generated-no-shadow.js",
       "node tests/verify-handoff-isolation-787.js",
@@ -7143,7 +7143,7 @@
       "node tests/verify-build-artifacts.js",
       "node tests/verify-leaves.ts",
       "node tests/verify-chain-view.js",
-      "node tests/verify-deck-tools-row-zero-dep.js",
+      "node tests/verify-deck-tools-row-zero-dep.ts",
       "node tests/verify-gate-map.js",
       "node tests/verify-1109-matches-timeout.ts",
       "node tests/verify-1115-timer-handle.ts",
@@ -7159,13 +7159,13 @@
       "node tests/verify-683-host-wiring.ts",
       "node tests/verify-693-detail-fallback-honesty.ts",
       "node tests/verify-729-force-dedup.ts",
-      "node tests/verify-970-whole-document.js",
+      "node tests/verify-970-whole-document.ts",
       "node tests/verify-972-title-body.js",
       "node tests/verify-file-granularity.js",
       "node tests/verify-issue232-sync.js",
       "node tests/verify-log-selfmon.js",
       "node tests/verify-map-drill.js",
-      "node tests/verify-market-tarball.js",
+      "node tests/verify-market-tarball.ts",
       "node tests/verify-multi-effort-panel.js",
       "node tests/verify-prompts.js",
       "node tests/verify-settings-debug.ts",
@@ -7417,7 +7417,7 @@
       "node tests/verify-deck-quota-sync.js",
       "node tests/verify-deck-render-detail.js",
       "node tests/verify-deck-tools-agent-register.js",
-      "node tests/verify-deck-tools-row-zero-dep.js",
+      "node tests/verify-deck-tools-row-zero-dep.ts",
       "node tests/verify-deck-tools.js",
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-1195-cell-cancel.ts",
@@ -7518,7 +7518,7 @@
       "node tests/verify-963-log-order.js",
       "node tests/verify-968-skill-ondemand.js",
       "node tests/verify-bundled-discovery.js",
-      "node tests/verify-config-store-comments.js",
+      "node tests/verify-config-store-comments.ts",
       "node tests/verify-config-store-core.js",
       "node tests/verify-config-store-migration.js",
       "node tests/verify-config-store-package.ts",
@@ -7548,7 +7548,7 @@
       "node tests/verify-settings-templates.js",
       "node tests/verify-settings-view.js",
       "node tests/verify-setup-describe.js",
-      "node tests/verify-snapshot-cache-first.js",
+      "node tests/verify-snapshot-cache-first.ts",
       "node tests/verify-ui-description-single-source.ts",
       "node tests/verify-update-migration.ts",
       "node tests/verify-update-panel.js",
@@ -7635,7 +7635,7 @@
       "node tests/verify-gate-accounting.js",
       "node tests/verify-gh-gateway.js",
       "node tests/verify-golden-receipts.ts",
-      "node tests/verify-naming-title-fact.js",
+      "node tests/verify-naming-title-fact.ts",
       "node tests/verify-refresh-workspace-key.js"
     ],
     "src/host/tracker": [
@@ -7727,7 +7727,7 @@
       "node tests/verify-934-935-invariants.ts",
       "node tests/verify-947-workspace-file.ts",
       "node tests/verify-957-workspace-writer.js",
-      "node tests/verify-970-whole-document.js",
+      "node tests/verify-970-whole-document.ts",
       "node tests/verify-971-markdown-parent.js",
       "node tests/verify-992-readonly-labels.js",
       "node tests/verify-998-half-open.js",
@@ -8004,7 +8004,7 @@
       "node tests/verify-922-ticket-file-queue.ts",
       "node tests/verify-928-field-line-rewrite.ts",
       "node tests/verify-934-935-invariants.ts",
-      "node tests/verify-970-whole-document.js",
+      "node tests/verify-970-whole-document.ts",
       "node tests/verify-971-markdown-parent.js",
       "node tests/verify-972-title-body.js",
       "node tests/verify-capability-register.ts",
@@ -8034,12 +8034,12 @@
       "node tests/verify-729-force-dedup.ts",
       "node tests/verify-895-github-memo.ts",
       "node tests/verify-929-batch-cycle.js",
-      "node tests/verify-970-whole-document.js",
+      "node tests/verify-970-whole-document.ts",
       "node tests/verify-972-title-body.js",
       "node tests/verify-github-gh-via.ts",
       "node tests/verify-issue232-sync.js",
       "node tests/verify-log-selfmon.js",
-      "node tests/verify-market-tarball.js",
+      "node tests/verify-market-tarball.ts",
       "node tests/verify-prompts.js",
       "node tests/verify-refresh-adr.js",
       "node tests/verify-settings-debug.ts",
@@ -8160,7 +8160,7 @@
       "node tests/verify-markdown.js",
       "node tests/verify-multi-effort-panel.js",
       "node tests/verify-naming-guardian.js",
-      "node tests/verify-naming-title-fact.js",
+      "node tests/verify-naming-title-fact.ts",
       "node tests/verify-nav-stack.js",
       "node tests/verify-newsession-blank-seed-315.js",
       "node tests/verify-newsession-preset-guard.js",

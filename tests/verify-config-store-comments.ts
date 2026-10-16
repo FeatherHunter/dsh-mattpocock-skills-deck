@@ -1,8 +1,8 @@
-// verify-config-store-comments.js — 配置注释门禁（#1012 落地）
+// verify-config-store-comments.ts — 配置注释门禁（#1012 落地）
 // 规则（维护者原话：每个字段都有我们定义好的注释，注释与字段定义同一个源）：
 //   写出来的每个字段前面都有我们定义的注释，且注释文字与核里那份常量逐字一致；
 //   两个文件的头一句都是「本文件的注释由插件生成；你自己加的注释会在下次写入时被替换。」
-// 用法：node tests/verify-config-store-comments.js（在仓库根目录）
+// 用法：node --import ./scripts/ts-hook.mjs tests/verify-config-store-comments.ts（在仓库根目录）
 const path = require('path')
 const { pathToFileURL } = require('url')
 

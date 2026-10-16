@@ -1,5 +1,5 @@
-// verify-deck-tools-row-zero-dep.js —— 门禁：行模块零框架引用（#741 根因）
-// 用法：在插件根目录执行 node tests/verify-deck-tools-row-zero-dep.js，可独立运行。
+// verify-deck-tools-row-zero-dep.ts —— 门禁：行模块零框架引用（#741 根因）
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-deck-tools-row-zero-dep.ts，可独立运行。
 //
 // 为什么要这一段：2026-09-26 真机上全部工具调用一起失败
 // （Cannot read properties of undefined (reading 'prepare')，摘掉工具行即恢复）。

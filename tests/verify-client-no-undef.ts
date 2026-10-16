@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * verify-client-no-undef.js — 产物里不许出现「叫不出名字的调用」（#669 真机现场的真凶就是这么一个名字）
+ * verify-client-no-undef.ts — 产物里不许出现「叫不出名字的调用」（#669 真机现场的真凶就是这么一个名字）
  *
  * 为什么要有一道这样的门：#669 那一件（真机原话「在某个全新工作区一直操作到 /setup 黄条时点击了黄条后，
  *   整个胶囊状态栏全部消失了」）查到最后，真凶是状态栏那张初始化小卡在「后端名单还没到」这一档调用了一个
@@ -16,7 +16,7 @@
  *   只挑「找不到名字」这一类诊断（TS2304 / TS2552），把已知的两种情形列成白名单，其余一律报红。
  *   白名单只有两类，各自都写清为什么：宿主提供的全局、以及调用处带 typeof 保护的可选依赖。
  *
- * 用法：node tests/verify-client-no-undef.js
+ * 用法：node --import ./scripts/ts-hook.mjs tests/verify-client-no-undef.ts
  */
 const fs = require('fs')
 const os = require('os')

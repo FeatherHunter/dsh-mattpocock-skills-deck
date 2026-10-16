@@ -1,5 +1,6 @@
-// tests/verify-970-whole-document.js —— 门禁：整份正文缺状态行时按整份替换，不写成两份（#970）
-// 用法：在插件根目录执行 node tests/verify-970-whole-document.js，可独立运行。
+// tests/verify-970-whole-document.ts —— 门禁：整份正文缺状态行时按整份替换，不写成两份（#970）
+// 2026-10-17 从 .js 转成 TypeScript：只改文件名、用法与自指这两处路径、几处类型标注，判据与断言一条没动。
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-970-whole-document.ts。
 //
 // 守的是什么：更新票时正文分派原来只看有没有行首状态行。递进来的是自带一级标题
 // 或锚标记的整份文档、但不带状态行时，会被误判为片段、整份粘到旧标题后面，盘上
@@ -15,13 +16,13 @@ import { anchorLineFor } from '../src/shared/refresh/idempotency.js'
 
 let failed = false
 let total = 0
-const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
-const h1 = (t) => (String(t).match(/^#\s+/gm) || []).length
-const anchors = (t) => (String(t).match(/DSH-IDEMPOTENCY-KEY/g) || []).length
+const check = (ok: boolean, msg: string) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
+const h1 = (t: unknown) => (String(t).match(/^#\s+/gm) || []).length
+const anchors = (t: unknown) => (String(t).match(/DSH-IDEMPOTENCY-KEY/g) || []).length
 
-const K = (p) => String(p).toLowerCase()
-const files = new Map()
-const dirs = new Set(['/ws', '/ws/.scratch', '/ws/.scratch/demo', '/ws/.scratch/demo/issues'])
+const K = (p: unknown) => String(p).toLowerCase()
+const files = new Map<string, string>()
+const dirs = new Set<string>(['/ws', '/ws/.scratch', '/ws/.scratch/demo', '/ws/.scratch/demo/issues'])
 files.set(K('/ws/.scratch/demo/map.md'), '# 演示地图\n\nStatus: ready-for-agent\n')
 const mem = {
   async resolve(p) { return String(p) },
@@ -82,7 +83,7 @@ const anchor = anchorLineFor('verify-970-seed').trim()
 
 // ── ④ 本门禁已挂进验证链（#1125 起问规划函数，不再读 package.json 长串）──
 {
-  check(isGatePlanned(process.cwd(), 'tests/verify-970-whole-document.js'), '④ 验证链里能找到本门禁（规划函数里有它）')
+  check(isGatePlanned(process.cwd(), 'tests/verify-970-whole-document.ts'), '④ 验证链里能找到本门禁（规划函数里有它）')
 }
 
 console.log(failed ? '\n存在失败 — verify-970-whole-document 未通过' : '\n全部通过 — 整份缺状态行按整份替换（' + total + ' 项断言）')
