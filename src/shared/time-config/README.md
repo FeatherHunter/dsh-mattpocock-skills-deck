@@ -30,3 +30,15 @@
 闭包里出现 import 语句就是语法错误。它们的数字留在原处，由 `tests/verify-time-config.ts`
 锁在 YAML 值上；界面真正要用的中央常量走构建拼接，名单见 `scripts/build.mjs` 的
 `CLIENT_TIME_NAMES`，门禁的 CLIENT 表与那份名单双向对账。
+
+## 生效时机与构建产物（2026-10-16 对抗式审查补）
+
+- 这三份 YAML 只活在仓库里，**不进安装包**（`package/` 下没有 `config/`）：改完必须重新构建、
+  重新发布才生效，装好插件的人在本机改不到时间参数。要做到「装了也能调」，得另做一次运行期
+  读取（读插件目录下的同名文件、缺文件时回落到生成值），本轮没有做。
+- 宿主与共享层 import 的 `src/shared/time-config/values.js`，以及本门禁导入的
+  `src/shared/time-config/src/values.js`，都是构建产物、不入库。新克隆或刚清理过产物时，
+  先跑一次 `node scripts/build.mjs` 再单跑门禁；门禁遇到缺产物会直说「生成物不在」，
+  不再抛看不懂的 `Cannot find module`。
+- 某个值越过 JavaScript 定时器能表达的上限（`2147483647` 毫秒，约 24.8 天）时，生成器会发一句
+  告警：只有做大小比较（有效期、窗口）才安全，直接当延时会变成 1 毫秒。

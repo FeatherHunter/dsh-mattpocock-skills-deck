@@ -9,6 +9,9 @@ export const Tip = function(props){
   const p = props || {}
   const content = p.content
   const children = p.children
+  // 预设里的两个延时（显示 500 毫秒、隐藏 160 毫秒）住在 config/intervals.yaml 的
+  // tipShowDelayMs / tipHideDelayMs，值由 tests/verify-time-config.ts 锁住；本文件是拼进界面闭包的叶子模块、
+  // 不许 import，所以这里保留字面量——改时间要改那一份 YAML，再改这里的同一个数字（门禁会当场判红）。
   const preset = { mode: 'mouse', delay: { show: 500, hide: 160 }, maxWidth: 220, flip: true, zIndex: 2147483000, padding: '7px 12px' }
   const merged = {}
   merged.mode = p.mode !== undefined ? p.mode : preset.mode

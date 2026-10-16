@@ -4,6 +4,7 @@
 import { refreshSourceOf } from './refresh/refreshSource.js'
 import { workspaceKeyOf } from '../shared/refresh-workspace-key.js'   // #724：链记账给闸的钥匙，与活跃集合同一把（从前传 cwd 原文 → 同一个工作区在闸里有两格）
 import { getChainRide } from './refresh/chain-ride.js'   // #964 小账本住共享层；#966 用进程单例，出站写路能记写
+import { PREDICATE_TIMEOUT_MS } from '../shared/time-config/values.js'   // #1215 单谓词超时住 config/timeouts.yaml 的 predicateTimeoutMs
 
 // ── 依赖与回包形状（票 #1155 补类型标注）────────────────────────────────────────
 // 为什么逐条写在这里：本文件的依赖对象是 src/host/index.ts 里现拼的接线（转制后编译器看得见，形状以各文件的类型为准），
@@ -274,7 +275,9 @@ export function createDetectChain(deps: DetectChainDeps) {
         // 2026-08-28 实机修复：单谓词超时 3000ms → 15000ms。
         //   gh auth status / gh api 是真实网络调用（本机曾多次 TLS schannel 握手失败），3 秒必然超时，
         //   导致「gh 已登录」「仓库可达」被误判并展示误导性修复指引；15s 给慢网络留余地（runGh 内部 30s 兜底）。
-        const registry = predMod.createPredicateRegistry({ timeout: 15000 })
+        // 2026-10-16 全量收拢：这个 15 秒现在住在 config/timeouts.yaml 的 predicateTimeoutMs，
+        //   改时间改那一份；谓词表不传 timeout 时的 3 秒兜底是另一档（predicateFallbackTimeoutMs），由门禁锁住。
+        const registry = predMod.createPredicateRegistry({ timeout: PREDICATE_TIMEOUT_MS })
         if (typeof genMod.registerGenericPredicates === 'function') genMod.registerGenericPredicates(registry)
         // #284 一致性修复（2026-08-28）：客户端显式绑定（backendId）优先——主锚与绑定不一致的过渡态（如锚=GitHub 版、
         //   用户已绑 markdown）链不得两面矛盾（后端段 markdown、开门段 explicit:github）；selection/explicit 归一为绑定侧。

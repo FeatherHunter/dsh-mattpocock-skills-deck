@@ -185,6 +185,15 @@ const TEXTS: TextRow[] = [
   { file: 'src/client/kernel/store-switch.js', snippet: "'number' ? STORE_SWITCH_CONFIRM_MS : 220", count: 1, value: 220, key: 'storeSwitchConfirmMs', kind: 'literal' },
   { file: 'src/client/kernel/api-new-session.js', snippet: "'number' ? CLIENT_SESSION_TICK_MS : 1000", count: 2, value: 1000, key: 'clientSessionTickMs', kind: 'literal' },
   { file: 'src/client/kernel/api-new-session.js', snippet: "'number' ? CLIENT_HANDOFF_DELAY_MS : 2000", count: 2, value: 2000, key: 'clientHandoffDelayMs', kind: 'literal' },
+  // —— 对抗式自查补的三处（2026-10-16）：名字是裸 timeout、或藏在 delay 对象里，原来的判据都看不见 ——
+  // 检测链传给谓词表的单谓词超时：值已改成读中央常量，这一行锁住「接的是哪个常量」与 15 秒这个值。
+  { file: 'src/host/detectChain.ts', snippet: 'timeout: PREDICATE_TIMEOUT_MS', count: 1, value: 15000, key: 'predicateTimeoutMs', kind: 'literal' },
+  // 谓词表自己不传 timeout 时的兜底：文件是手写 JavaScript（本仓规矩：动到谁就把谁转成 TS，这次不转，
+  // 所以保留字面量），这一行锁住 3 秒这个值与它对应的 YAML 键。
+  { file: 'src/host/tracker/predicateCore.js', snippet: '? opts.timeout : 3000', count: 1, value: 3000, key: 'predicateFallbackTimeoutMs', kind: 'literal' },
+  // 悬停提示薄预设的两个延时：叶子模块、不许 import，所以留字面量；同一段片段用两行分别锁 500 与 160。
+  { file: 'src/client/views/primitives/Tip.js', snippet: 'delay: { show: 500, hide: 160 }', count: 1, value: 500, key: 'tipShowDelayMs', kind: 'literal' },
+  { file: 'src/client/views/primitives/Tip.js', snippet: 'delay: { show: 500, hide: 160 }', count: 1, value: 160, key: 'tipHideDelayMs', kind: 'literal' },
 ]
 
 // ---------------------------------------------------------------------------
@@ -367,12 +376,39 @@ const EXEMPTS: ExemptRow[] = [
   { file: 'src/client/kernel/probe-auto.js', name: 'FOCUS_PROBE_MIN_MS', reason: '派生变量，取 SYNC.FOCUS_PROBE_MIN_MS（已登记为 syncFocusProbeMinMs），兜底取 SYNC_FOCUS_PROBE_MIN_MS；引用即跟随' },
   { file: 'src/client/kernel/probe-auto.js', name: 'SNAP_FRESH_MS', reason: '派生变量，取 SYNC.SNAP_FRESH_MS（已登记为 syncSnapFreshMs），兜底取 SYNC_SNAP_FRESH_MS；引用即跟随' },
   { file: 'src/client/kernel/store-prefs.js', name: 'ISSUE_CACHE_TTL', reason: '派生变量，取 SYNC.ISSUE_CACHE_TTL（已登记为 syncIssueCacheTtlMs），兜底取 SYNC_ISSUE_CACHE_TTL_MS；引用即跟随' },
+  // —— 2026-10-16 对抗式自查：时间味判据加宽（补上裸 timeout/interval/delay 这类整词与秒/分钟单位）之后，
+  //    下面这些名字第一次被门禁认出来。逐个查过，都不是「本文件自己决定的可调时长」，故豁免并写明理由 ——
+  { file: 'src/client/kernel/attention-heartbeat.js', name: 'interval', reason: '函数参数名，值由调用方给（planAttention 的入参），本文件不决定时长' },
+  { file: 'src/client/kernel/attention-heartbeat.js', name: 'linger', reason: '同上，函数参数名，不是可调常量' },
+  { file: 'src/deck/shell/call-shell.ts', name: 'sleep', reason: '等待函数的名字（sleep(ms)），不是数值；调用点给的毫秒数由各自的时间常量决定' },
+  { file: 'src/deck/shell/session-workdir.ts', name: 'sleep', reason: '同上，等待函数名' },
+  { file: 'src/deck/shell/table-cell.ts', name: 'sleep', reason: '同上，等待函数名' },
+  { file: 'src/deck/shell/write-mutex.ts', name: 'sleep', reason: '同上，等待函数名' },
+  { file: 'src/host/gitCredentialExec.js', name: 'lowSpeedSeconds', reason: '派生变量：由已登记的 GIT_LOW_SPEED_TIMEOUT_MS 除以 1000 得到（git 的 lowSpeedTime 只认秒），除法本身由 TEXT 表锁住' },
+  { file: 'src/host/gitCredentialExec.js', name: 'deadline', reason: '算出来的截止时刻（Date.now() 加整趟预算），不是可调参数' },
+  { file: 'src/host/namingGuardian.js', name: 'delay', reason: '派生变量：缺省接已登记的 NAMING_SWEEP_SOON_MS，正常路径用调用方给的 delayMs' },
+  { file: 'src/shared/naming-tracking.js', name: 'grace', reason: '派生变量：缺省接已登记的 NAMING_HINT_GRACE_MS，正常路径用调用方给的 hintGraceMs' },
+  { file: 'src/shared/refresh/src/backoff.ts', name: 'delay', reason: '派生变量：backoffDelayMs(state) 算出来的本次等待时长，序列本身已登记为 chainBackoffMs' },
+  { file: 'src/tracker/rooms/github/client.ts', name: 'timeout', reason: '透传参数：值来自上层调用参数，本文件不决定时长（出站层的档位由 outbound-tiers.ts 定，已登记）' },
+  { file: 'src/tracker/rooms/gitlab/client.ts', name: 'timeout', reason: '同上，透传参数' },
+  { file: 'src/client/views/primitives/Tip.js', name: 'delay', reason: '对象键名：里面的 500 与 160 由 TEXT 表两行锁住（tipShowDelayMs / tipHideDelayMs）；本文件是拼进闭包的叶子模块、不许 import，只能留字面量' },
 ]
 
-// 时间味判定：下划线写法看整段（_MS / _TTL / _INTERVAL / _EXPIRY / _BACKOFF / _WAIT / _WINDOW / _AGE），
-// 驼峰写法只认结尾（…Ms / …Ttl / …Interval / …）。子串匹配会把 settleSwitchCard 这种
-// 含 'ttl' 的名字误伤（StatusBackend.ts 的教训），所以驼峰必须顶到结尾。
-const TIMEISH_RE = /(_MS|_TTL|_INTERVAL|_EXPIRY|_BACKOFF|_WAIT|_WINDOW|_AGE|KEEP_ALIVE)(_|$)|(Ms|Ttl|Interval|Expiry|Backoff|Wait|Window|Age)$|^ttl$/
+// 时间味判定，两类都认：
+//   ① 写在后缀上的单位与语义：下划线写法看整段（_MS / _TTL / _INTERVAL / _EXPIRY / _BACKOFF / _WAIT /
+//      _WINDOW / _AGE / KEEP_ALIVE，以及以秒、分钟、小时、天为单位的 _SECONDS / _MINUTES / _HOURS / _DAYS）；
+//      驼峰写法只认结尾（…Ms / …Ttl / …Interval / …Expiry / …Backoff / …Wait / …Window / …Age /
+//      …Seconds / …Minutes / …Hours / …Days）。子串匹配会把 settleSwitchCard 这种含 'ttl' 的名字误伤
+//      （StatusBackend.ts 的教训），所以驼峰必须顶到结尾。
+//   ② 英文里最常用的整词时间名（大小写敏感、按住词边界）：timeout / interval / delay / stall /
+//      deadline / grace / cooldown / debounce / throttle / linger / watchdog / retention / duration /
+//      sleep / expiry / expire / wait，以及孤零零的小写 ttl。
+//      这一类是 2026-10-16 对抗式自查补上的：原来的判据只认后缀，写成 `{ timeout: 15000 }` 或
+//      `const timeout = … : 3000` 的时间参数，调查脚本与本门禁都看不见，实际漏掉了检测链的谓词超时
+//      （src/host/detectChain.ts）与谓词表的兜底默认（src/host/tracker/predicateCore.js）。
+//      整词判据要求前后是词首词尾或下划线，所以 message / coverage / page 这类以 age 结尾的普通词、
+//      waited / waiters 这类派生词都不会被误伤。
+const TIMEISH_RE = /(_MS|_TTL|_INTERVAL|_EXPIRY|_BACKOFF|_WAIT|_WINDOW|_AGE|KEEP_ALIVE|_SECONDS|_MINUTES|_HOURS|_DAYS)(_|$)|(Ms|Ttl|Interval|Expiry|Backoff|Wait|Window|Age|Seconds|Minutes|Hours|Days)$|^ttl$|(^|_)(timeout|interval|delay|stall|deadline|grace|cooldown|debounce|throttle|linger|watchdog|retention|duration|sleep|expiry|expire|wait)(_|$)/
 function timeishLike(name: string): boolean {
   return TIMEISH_RE.test(name)
 }
@@ -392,6 +428,22 @@ async function main(): Promise<void> {
   // —— 第一节：生成新鲜度（调了 YAML 忘跑生成器，在这里判红） ——
   const gen = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'generate-time-config.mjs'), '--check'], { encoding: 'utf8' })
   check(gen.status === 0, '生成源码与 config/ 下的三份时间参数文件一致' + (gen.status === 0 ? '' : '（' + String((gen.stdout || '') + (gen.stderr || '')).trim().split('\n')[0] + '）'))
+
+  // —— 构建产物自检（2026-10-16 对抗式自查补） ——
+  // 宿主与共享层的源码 import 的是域根的 src/shared/time-config/values.js（由构建从本域的
+  // src/values.ts 编译出来，不入库）：它没有同名的 .ts，测试装载钩子（scripts/ts-hook.mjs 的
+  // 「同名 .ts 优先」）也替代不了，缺了它第二节会抛 Cannot find module 之类的错，
+  // 看上去像「值对不上」，其实只是没构建过。
+  // 本域 src/ 下那份 values.js 不检查：钩子会把它指到同目录的 values.ts，而 values.ts 在不在、
+  // 新不新鲜由第一节的生成器自检管。
+  if (!fs.existsSync(path.join(ROOT, 'src/shared/time-config/values.js'))) {
+    check(
+      false,
+      '生成物 src/shared/time-config/values.js 不在（构建产物、不入库）——先跑一次 node scripts/build.mjs 再来跑本门禁；这不是值不一致',
+    )
+    console.log('FAIL 中央时间参数门禁：生成物缺席，先构建')
+    process.exit(1)
+  }
 
   // —— 第二节：值一致 ——
   const timeMod = (await import(TIME_CONFIG_JS)) as {
@@ -517,8 +569,17 @@ async function main(): Promise<void> {
       if (timeish.test(m[1])) names.add(m[1])
     }
     // 对象字面量里的属性（例如 TUNING = { deckEnsureTimeoutMs: 15000 }）不在 const 声明里，单列一条捞出来。
+    // 这里原先还有一重「名字里必须出现 ms/ttl/interval 之类」的小过滤，时间味判据加宽之后它成了漏网的帮凶：
+    // `{ timeout: 15000 }` 正是被那一重挡在外面的（2026-10-16 对抗式自查发现），现在去掉。
     for (const m of text.matchAll(propRe)) {
-      if (timeish.test(m[1]) && /ms|ttl|interval|expiry|wait|age|window/i.test(m[1])) names.add(m[1])
+      if (timeish.test(m[1])) names.add(m[1])
+    }
+    // 第三种藏法：时间味的键直接挂一个对象，数字在对象里面叫别的名字——
+    // 例如 src/client/views/primitives/Tip.js 的 `delay: { show: 500, hide: 160 }`，
+    // 任何按名字判的规则都看不见这两个数。这类行按「键名」登记或豁免
+    // （Tip.js 那两个数的值由 TEXT 表两行锁住，对应 tipShowDelayMs / tipHideDelayMs）。
+    for (const m of text.matchAll(/([A-Za-z_$][\w$]*)\s*:\s*\{[^{}]*\d[^{}]*\}/g)) {
+      if (timeish.test(m[1])) names.add(m[1])
     }
     if (names.size === 0) continue
     scanned++

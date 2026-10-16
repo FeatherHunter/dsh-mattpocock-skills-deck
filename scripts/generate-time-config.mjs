@@ -39,6 +39,12 @@ const FILE_OF_GROUP = {
 // （backoff 组是数组，其余三组是正整数毫秒）。
 // ---------------------------------------------------------------------------
 const ARRAY_GROUP = 'backoff'
+/**
+ * JavaScript 定时器能表达的延时上限（2^31-1 毫秒，约 24.8 天）。比它大的数交给 setTimeout / setInterval
+ * 会被运行时折成 1 毫秒——「等于不超时」会悄悄变成「立刻超时」。今天没有键越过这条线
+ * （inFlightKeepAliveMs 正好等于上限，是刻意的「永不」），这条常数只用来在下面发一句告警。
+ */
+const JS_TIMER_MAX_MS = 2147483647
 /** [yaml键, 生成的常量名, 分组] */
 const KEYS = [
   // —— timeouts：单次等待的上限 ——
@@ -109,6 +115,9 @@ const KEYS = [
   ['probeAutoWaitMs', 'PROBE_AUTO_WAIT_MS', 'timeouts'],
   ['procProbeGraceMs', 'PROC_PROBE_GRACE_MS', 'timeouts'],
   ['procGraceMs', 'PROC_GRACE_MS', 'timeouts'],
+  // —— 检测链里的谓词超时（对抗式自查补登记：原来写在 option 对象里，名字是裸 timeout，两边都看不见）——
+  ['predicateTimeoutMs', 'PREDICATE_TIMEOUT_MS', 'timeouts'],
+  ['predicateFallbackTimeoutMs', 'PREDICATE_FALLBACK_TIMEOUT_MS', 'timeouts'],
   // —— intervals：节拍间隔 ——
   ['probeIntervalMs', 'PROBE_INTERVAL_MS', 'intervals'],
   ['probeIntervalYellowMs', 'PROBE_INTERVAL_YELLOW_MS', 'intervals'],
@@ -141,6 +150,9 @@ const KEYS = [
   ['statusMenuHoverOpenDelayMs', 'STATUS_MENU_HOVER_OPEN_DELAY_MS', 'intervals'],
   ['statusMenuFallbackDelayMs', 'STATUS_MENU_FALLBACK_DELAY_MS', 'intervals'],
   ['viewFlagWriteDebounceMs', 'VIEW_FLAG_WRITE_DEBOUNCE_MS', 'intervals'],
+  // —— 悬停提示的两个延时（对抗式自查补登记：藏在 delay: { show, hide } 这样的对象里）——
+  ['tipShowDelayMs', 'TIP_SHOW_DELAY_MS', 'intervals'],
+  ['tipHideDelayMs', 'TIP_HIDE_DELAY_MS', 'intervals'],
   // —— ttl：有效期 ——
   ['preflightTtlMs', 'PREFLIGHT_TTL_MS', 'ttl'],
   ['chainAllGreenTtlMs', 'CHAIN_ALL_GREEN_TTL_MS', 'ttl'],
@@ -259,6 +271,8 @@ const FALLBACKS = {
   probeAutoWaitMs: 15000,
   procProbeGraceMs: 1000,
   procGraceMs: 2000,
+  predicateTimeoutMs: 15000,
+  predicateFallbackTimeoutMs: 3000,
   probeIntervalMs: 5000,
   probeIntervalYellowMs: 120000,
   probeIntervalLingerMs: 15000,
@@ -286,6 +300,8 @@ const FALLBACKS = {
   statusMenuDismissDelayMs: 300,
   statusMenuHoverOpenDelayMs: 200,
   statusMenuFallbackDelayMs: 160,
+  tipShowDelayMs: 500,
+  tipHideDelayMs: 160,
   viewFlagWriteDebounceMs: 500,
   preflightTtlMs: 600000,
   chainAllGreenTtlMs: 1800000,
@@ -399,6 +415,13 @@ function load(docs) {
     }
     values[key] = v
     provided.add(key)
+    // 越过定时器上限只告警、不报错：TTL 与窗口一类只做大小比较，超出上限是合法的；
+    // 但若这个键会直接当延时用，运行时会把大数折成 1 毫秒，行为会从「永不超时」翻成「立刻超时」。
+    if (v > JS_TIMER_MAX_MS) {
+      warnings.push(
+        '越过定时器上限：' + FILE_OF_GROUP[group] + ' 的 ' + group + '.' + key + ' = ' + v + '，大于 JavaScript 定时器能表达的 ' + JS_TIMER_MAX_MS + ' 毫秒；只做大小比较（TTL、窗口）才安全，直接当延时会变成 1 毫秒',
+      )
+    }
   }
   // 未知键：先找像拼错的（编辑距离 ≤ 2），找不到就直说未知。都不静默。
   for (const [group, table] of Object.entries(seen)) {

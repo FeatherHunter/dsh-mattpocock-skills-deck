@@ -148,3 +148,11 @@ timeouts:
   # 宽限到了进程还没退才杀——杀早了会把“正在刷最后一段输出”的进程误杀。
   procProbeGraceMs: 1000
   procGraceMs: 2000
+  # 检测链里单个谓词（一条探活命令）的超时上限：15 秒。2026-08-28 实机修复留下的值——
+  # gh auth status / gh api 是真实网络调用，3 秒必然超时，会把「gh 已登录」「仓库可达」误判成失败
+  # 并给出误导性修复指引；15 秒给慢网络留余地，runGh 内部另有一层 30 秒兜底。
+  predicateTimeoutMs: 15000
+  # 调用方不传 timeout 时的兜底：3 秒。生产里唯一的调用方（检测链）总是显式传 15 秒，
+  # 这一档只在将来有人裸调 createPredicateRegistry() 时生效。它决定「没传会等多久」这件事，
+  # 所以照样登记；与上一档刻意不同值，改一个不要顺手改另一个。
+  predicateFallbackTimeoutMs: 3000

@@ -6,7 +6,7 @@
 // 落盘的值永远是“实际生效的值”，TIME_YAML 只记录“YAML 里写了哪些”。
 // 本文件签入版本库：diff 就是调参记录。
 
-export type TimeKey = 'toolTimeoutMs' | 'toolMarginMs' | 'perOpTimeoutMs' | 'outboundReadMs' | 'outboundWriteMs' | 'outboundProbeMs' | 'outboundDefaultMs' | 'githubClientTimeoutMs' | 'githubProbeMs' | 'gitProbeMs' | 'githubInitTimeoutMs' | 'gitlabReadMs' | 'gitlabSlowReadMs' | 'gitlabProbeMs' | 'gitlabRepoGitMs' | 'gitlabFallbackMs' | 'gitlabCreateProjectMs' | 'vcRunTimeoutMs' | 'vcCheckCallBudgetMs' | 'vcLsFilesTimeoutMs' | 'vcRemoteTimeoutMs' | 'vcAddTimeoutMs' | 'vcCommitTimeoutMs' | 'vcPullTimeoutMs' | 'vcPushTimeoutMs' | 'vcFetchTimeoutMs' | 'vcReadCmdTimeoutMs' | 'vcHeadCallBudgetMs' | 'vcReadCallBudgetMs' | 'vcLsFilesCallBudgetMs' | 'vcRemoteListCallBudgetMs' | 'vcPrePushCheckCallBudgetMs' | 'vcWriteCallMarginMs' | 'gitCredentialCallBudgetMs' | 'gitCredentialMinBudgetMs' | 'gitCredentialMaxBudgetMs' | 'gitCredentialProbeTimeoutMs' | 'gitCredentialLsRemoteBudgetMs' | 'gitCredentialFetchBudgetMs' | 'gitCredentialPullBudgetMs' | 'gitCredentialPushBudgetMs' | 'gitCredentialDefaultBudgetMs' | 'gitLowSpeedTimeoutMs' | 'matchesTimeoutMs' | 'deckSandboxMs' | 'deckStoreMs' | 'deckEnsureMs' | 'deckLocalReadMs' | 'deckHookMs' | 'deckAssemblyMs' | 'bridgeDryTableWaitMs' | 'delegatedCellWaitMs' | 'hostTimeoutMs' | 'hostBootDeferMs' | 'keyLockMs' | 'canonicalTimeoutMs' | 'inFlightKeepAliveMs' | 'settingsDebugPushWaitMs' | 'quotaSyncCooldownMs' | 'registerRetryWaitMs' | 'shellResolveMs' | 'namingSummaryTimeoutMs' | 'logWatchdogMs' | 'probeAutoWaitMs' | 'procProbeGraceMs' | 'procGraceMs' | 'probeIntervalMs' | 'probeIntervalYellowMs' | 'probeIntervalLingerMs' | 'rebuildMinIntervalYellowMs' | 'reconcileIntervalMs' | 'quotaSyncIntervalMs' | 'attentionHeartbeatMs' | 'syncEvalGapMs' | 'syncDirtyProbeDebounceMs' | 'syncFailureBackoffMs' | 'syncPollGridMs' | 'syncFallbackProbeMs' | 'syncFocusProbeMinMs' | 'namingPersistDebounceMs' | 'namingSweepSoonMs' | 'namingFallbackIntervalMs' | 'namingRetryCooldownMs' | 'logWriteDebounceMs' | 'logFlushMs' | 'clientSessionTickMs' | 'clientHandoffDelayMs' | 'slotQueueStepMs' | 'slotModalOpenDelayMs' | 'storeSwitchConfirmMs' | 'statusMenuDismissDelayMs' | 'statusMenuHoverOpenDelayMs' | 'statusMenuFallbackDelayMs' | 'viewFlagWriteDebounceMs' | 'preflightTtlMs' | 'chainAllGreenTtlMs' | 'deferExpiryMs' | 'failureHalfOpenDelayMs' | 'attentionExpiryMs' | 'activeLingerMs' | 'patchMergeWindowMs' | 'freshnessYellowMs' | 'freshnessRedMs' | 'ticketTtlMs' | 'workspaceStoreTtlMs' | 'chainRideMaxAgeMs' | 'snapshotTtlMs' | 'statusCacheMs' | 'snapshotCacheMs' | 'planCursorTtlMs' | 'anchorWindowMs' | 'idempotencyLookbackMs' | 'mapTicketsTtlMs' | 'syncOverlapSkewMs' | 'syncDirtyEchoTtlMs' | 'syncActionProbeWindowMs' | 'syncSnapFreshMs' | 'syncIssueCacheTtlMs' | 'trackerIndexMaxWindowMs' | 'trackerIndexSkewMs' | 'skillListCacheTtlMs' | 'skillProbeCacheMs' | 'workspaceRootTtlMs' | 'snapWaitMs' | 'snapshotProbeMs' | 'storeNoticeDismissMs' | 'restFallbackStaleMs' | 'vcRelativeWindowMs' | 'issueDetailConfirmMs' | 'commentResultFlashMs' | 'commentsMoreLoadingMinMs' | 'copyFlashMs' | 'chainBackoffMs';
+export type TimeKey = 'toolTimeoutMs' | 'toolMarginMs' | 'perOpTimeoutMs' | 'outboundReadMs' | 'outboundWriteMs' | 'outboundProbeMs' | 'outboundDefaultMs' | 'githubClientTimeoutMs' | 'githubProbeMs' | 'gitProbeMs' | 'githubInitTimeoutMs' | 'gitlabReadMs' | 'gitlabSlowReadMs' | 'gitlabProbeMs' | 'gitlabRepoGitMs' | 'gitlabFallbackMs' | 'gitlabCreateProjectMs' | 'vcRunTimeoutMs' | 'vcCheckCallBudgetMs' | 'vcLsFilesTimeoutMs' | 'vcRemoteTimeoutMs' | 'vcAddTimeoutMs' | 'vcCommitTimeoutMs' | 'vcPullTimeoutMs' | 'vcPushTimeoutMs' | 'vcFetchTimeoutMs' | 'vcReadCmdTimeoutMs' | 'vcHeadCallBudgetMs' | 'vcReadCallBudgetMs' | 'vcLsFilesCallBudgetMs' | 'vcRemoteListCallBudgetMs' | 'vcPrePushCheckCallBudgetMs' | 'vcWriteCallMarginMs' | 'gitCredentialCallBudgetMs' | 'gitCredentialMinBudgetMs' | 'gitCredentialMaxBudgetMs' | 'gitCredentialProbeTimeoutMs' | 'gitCredentialLsRemoteBudgetMs' | 'gitCredentialFetchBudgetMs' | 'gitCredentialPullBudgetMs' | 'gitCredentialPushBudgetMs' | 'gitCredentialDefaultBudgetMs' | 'gitLowSpeedTimeoutMs' | 'matchesTimeoutMs' | 'deckSandboxMs' | 'deckStoreMs' | 'deckEnsureMs' | 'deckLocalReadMs' | 'deckHookMs' | 'deckAssemblyMs' | 'bridgeDryTableWaitMs' | 'delegatedCellWaitMs' | 'hostTimeoutMs' | 'hostBootDeferMs' | 'keyLockMs' | 'canonicalTimeoutMs' | 'inFlightKeepAliveMs' | 'settingsDebugPushWaitMs' | 'quotaSyncCooldownMs' | 'registerRetryWaitMs' | 'shellResolveMs' | 'namingSummaryTimeoutMs' | 'logWatchdogMs' | 'probeAutoWaitMs' | 'procProbeGraceMs' | 'procGraceMs' | 'predicateTimeoutMs' | 'predicateFallbackTimeoutMs' | 'probeIntervalMs' | 'probeIntervalYellowMs' | 'probeIntervalLingerMs' | 'rebuildMinIntervalYellowMs' | 'reconcileIntervalMs' | 'quotaSyncIntervalMs' | 'attentionHeartbeatMs' | 'syncEvalGapMs' | 'syncDirtyProbeDebounceMs' | 'syncFailureBackoffMs' | 'syncPollGridMs' | 'syncFallbackProbeMs' | 'syncFocusProbeMinMs' | 'namingPersistDebounceMs' | 'namingSweepSoonMs' | 'namingFallbackIntervalMs' | 'namingRetryCooldownMs' | 'logWriteDebounceMs' | 'logFlushMs' | 'clientSessionTickMs' | 'clientHandoffDelayMs' | 'slotQueueStepMs' | 'slotModalOpenDelayMs' | 'storeSwitchConfirmMs' | 'statusMenuDismissDelayMs' | 'statusMenuHoverOpenDelayMs' | 'statusMenuFallbackDelayMs' | 'viewFlagWriteDebounceMs' | 'tipShowDelayMs' | 'tipHideDelayMs' | 'preflightTtlMs' | 'chainAllGreenTtlMs' | 'deferExpiryMs' | 'failureHalfOpenDelayMs' | 'attentionExpiryMs' | 'activeLingerMs' | 'patchMergeWindowMs' | 'freshnessYellowMs' | 'freshnessRedMs' | 'ticketTtlMs' | 'workspaceStoreTtlMs' | 'chainRideMaxAgeMs' | 'snapshotTtlMs' | 'statusCacheMs' | 'snapshotCacheMs' | 'planCursorTtlMs' | 'anchorWindowMs' | 'idempotencyLookbackMs' | 'mapTicketsTtlMs' | 'syncOverlapSkewMs' | 'syncDirtyEchoTtlMs' | 'syncActionProbeWindowMs' | 'syncSnapFreshMs' | 'syncIssueCacheTtlMs' | 'trackerIndexMaxWindowMs' | 'trackerIndexSkewMs' | 'skillListCacheTtlMs' | 'skillProbeCacheMs' | 'workspaceRootTtlMs' | 'snapWaitMs' | 'snapshotProbeMs' | 'storeNoticeDismissMs' | 'restFallbackStaleMs' | 'vcRelativeWindowMs' | 'issueDetailConfirmMs' | 'commentResultFlashMs' | 'commentsMoreLoadingMinMs' | 'copyFlashMs' | 'chainBackoffMs';
 
 export const TIME_ARRAY_KEYS: ReadonlyArray<TimeKey> = ["chainBackoffMs"];
 
@@ -78,6 +78,8 @@ export const TIME_YAML: Partial<Record<TimeKey, number | ReadonlyArray<number>>>
   probeAutoWaitMs: 15000,
   procProbeGraceMs: 1000,
   procGraceMs: 2000,
+  predicateTimeoutMs: 15000,
+  predicateFallbackTimeoutMs: 3000,
   probeIntervalMs: 5000,
   probeIntervalYellowMs: 120000,
   probeIntervalLingerMs: 15000,
@@ -106,6 +108,8 @@ export const TIME_YAML: Partial<Record<TimeKey, number | ReadonlyArray<number>>>
   statusMenuHoverOpenDelayMs: 200,
   statusMenuFallbackDelayMs: 160,
   viewFlagWriteDebounceMs: 500,
+  tipShowDelayMs: 500,
+  tipHideDelayMs: 160,
   preflightTtlMs: 600000,
   chainAllGreenTtlMs: 1800000,
   deferExpiryMs: 300000,
@@ -215,6 +219,8 @@ export const TIME_FALLBACKS: Record<TimeKey, number | ReadonlyArray<number>> = {
   probeAutoWaitMs: 15000,
   procProbeGraceMs: 1000,
   procGraceMs: 2000,
+  predicateTimeoutMs: 15000,
+  predicateFallbackTimeoutMs: 3000,
   probeIntervalMs: 5000,
   probeIntervalYellowMs: 120000,
   probeIntervalLingerMs: 15000,
@@ -243,6 +249,8 @@ export const TIME_FALLBACKS: Record<TimeKey, number | ReadonlyArray<number>> = {
   statusMenuHoverOpenDelayMs: 200,
   statusMenuFallbackDelayMs: 160,
   viewFlagWriteDebounceMs: 500,
+  tipShowDelayMs: 500,
+  tipHideDelayMs: 160,
   preflightTtlMs: 600000,
   chainAllGreenTtlMs: 1800000,
   deferExpiryMs: 300000,
@@ -359,6 +367,8 @@ export const LOG_WATCHDOG_MS: number = 5000;
 export const PROBE_AUTO_WAIT_MS: number = 15000;
 export const PROC_PROBE_GRACE_MS: number = 1000;
 export const PROC_GRACE_MS: number = 2000;
+export const PREDICATE_TIMEOUT_MS: number = 15000;
+export const PREDICATE_FALLBACK_TIMEOUT_MS: number = 3000;
 
 // ---- intervals ----
 export const PROBE_INTERVAL_MS: number = 5000;
@@ -389,6 +399,8 @@ export const STATUS_MENU_DISMISS_DELAY_MS: number = 300;
 export const STATUS_MENU_HOVER_OPEN_DELAY_MS: number = 200;
 export const STATUS_MENU_FALLBACK_DELAY_MS: number = 160;
 export const VIEW_FLAG_WRITE_DEBOUNCE_MS: number = 500;
+export const TIP_SHOW_DELAY_MS: number = 500;
+export const TIP_HIDE_DELAY_MS: number = 160;
 
 // ---- ttl ----
 export const PREFLIGHT_TTL_MS: number = 600000;
