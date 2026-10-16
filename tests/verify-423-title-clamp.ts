@@ -1,14 +1,14 @@
 const fs = require("fs");
 const { JSDOM } = require("jsdom");
 const styleSrc = fs.readFileSync("src/client/kernel/styles.js", "utf8");
-function pull(needle) {
-  const line = styleSrc.split(String.fromCharCode(10)).find(l => l.includes(needle));
+function pull(needle: string) {
+  const line = styleSrc.split(String.fromCharCode(10)).find((l: string) => l.includes(needle));
   if (!line) throw new Error("styles 规则未找到: " + needle);
   const start = line.indexOf("'.");
   const end = line.lastIndexOf("'");
   let s = line.slice(start + 1, end);
-  s = s.replace(/\\\\\\./g, ".");
-  s = s.replace(/\\\\/g, "");
+  s = s.replace(/\\\./g, ".");
+  s = s.replace(/\\/g, "");
   return s;
 }
 const clampRule = pull(".dsws-tt-wrap{min-width");
@@ -30,16 +30,16 @@ const wrap = doc.querySelector(".dsws-tt-wrap");
 const wrapper = wrap.parentElement;
 const cs = dom.window.getComputedStyle(wrap);
 const pc = dom.window.getComputedStyle(wrapper);
-const checks = [];
+const checks: Array<[string, boolean]> = [];
 checks.push(["标题节点 display = -webkit-box（line-clamp 生效前提）", cs.display === "-webkit-box"]);
-checks.push(["标题节点 -webkit-line-clamp = 2", cs.webkitLineClamp === "2"]);
+checks.push(["标题节点 -webkit-line-clamp = 2", (cs as unknown as { webkitLineClamp: string }).webkitLineClamp === "2"]);
 checks.push(["标题节点 overflow = hidden", cs.overflow === "hidden"]);
 checks.push(["外层仍为 flex 横排（标题+头像各自占据一行）", pc.display === "flex"]);
 checks.push(["标题节点为外层首个子节点（宽度优先给标题）", wrapper.firstElementChild === wrap]);
 checks.push(["头像在标题之后（附加元素不被截断）", wrapper.querySelectorAll("img").length === 1]);
 // 外层 min-width:0 是「允许收缩不撑破」的判据；读浏览器算出来的计算样式，不再反过来断言源码里写了这行样式。
 checks.push(["外层 min-width:0 保留（允许收缩不撑破）", pc.minWidth === "0px"]);
-// measureRule 是给被测样式当输入的那段真实 CSS 文本，两处契约仍要成立，否则 JSDOM 量到的东西不是被测规则。
+// measureRule 是给被测样式当输入的那段真实 CSS 文本，两处契约仍要成立，否则 JSDOM 量到的不是被测规则。
 checks.push(["测量态规则含 !important（不被内联 style 覆盖）", measureRule.includes("!important") && measureRule.includes("white-space:nowrap")]);
 let ok = true;
 for (const [name, pass] of checks) { console.log(pass ? "PASS" : "FAIL", "-", name); if (!pass) ok = false; }
