@@ -85,11 +85,12 @@ function listOpenUrlCallLines(src) {
     .map((line) => line.trim())
     .filter((line) => /^open_url\s/.test(line))
 }
-// 本仓库的门禁惯例：门禁自己确认已挂进 npm run verify 链，免得哪天被摘掉还没人发现。
+// 本仓库的门禁惯例：门禁自己确认已挂进 verify 链，免得哪天被摘掉还没人发现。
+// #1125 起问规划函数（执行器读的同一份），不再读 package.json 长串。
 function isInVerifyChain() {
   try {
-    const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
-    return String((pkg.scripts && pkg.scripts.verify) || '').includes('verify-wizard-exit-609.js')
+    const { isGatePlanned } = require('../scripts/lib/discover-gates.ts')
+    return isGatePlanned(ROOT, 'tests/verify-wizard-exit-609.js')
   } catch (e) {
     return false
   }
@@ -138,7 +139,7 @@ function main() {
     console.log('  要指定 bash 可设环境变量 WIZARD_TEST_BASH=<bash 可执行文件路径> 后重跑。')
     process.exit(0)
   }
-  check(isInVerifyChain(), '本门禁已挂进 npm run verify 链（package.json 的 scripts.verify 里有 verify-wizard-exit-609.js）')
+  check(isInVerifyChain(), '本门禁已挂进 verify 链（规划函数里有 tests/verify-wizard-exit-609.js）')
   try {
     fs.rmSync(WORK, { recursive: true, force: true })
     fs.mkdirSync(path.join(WORK, 'walk-root', 'package'), { recursive: true })

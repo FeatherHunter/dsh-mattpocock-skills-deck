@@ -55,9 +55,11 @@ async function main() {
 
   // ---- 1) 旧实现已删 ----
   for (const rel of GONE) check(!exists(rel), '旧文件已删：' + rel)
-  const chain = pj.scripts.verify
+  // 退役门禁不在校验链里（#1125 起问规划函数，不再读 package.json 长串）
+  const { planGates } = require('../scripts/lib/discover-gates.ts')
+  const plannedFiles = planGates(ROOT).map((s) => s.file)
   for (const name of ['verify-update-freshness', 'verify-update-regression', 'verify-update-routes', 'verify-update-install']) {
-    check(!chain.includes(name), '退役门禁已移除出校验链：' + name)
+    check(!plannedFiles.some((f) => f.includes(name)), '退役门禁已移除出校验链：' + name)
   }
 
   // ---- 2) 接线只走包 ----

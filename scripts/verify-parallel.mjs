@@ -1,6 +1,6 @@
 // scripts/verify-parallel.mjs —— 并行跑 verify 链。
 //
-// 为什么要有它：`npm run verify` 是一条用 ` && ` 串起来的链（226 步），一步一个 node 进程、一步一个红就停。
+// 为什么要有它：主链是三百来步的长链，一步一个 node 进程、一步一个红就停，全串行太贵。
 // 实测（2026-10-12，28 逻辑核）：串行 517 秒，其中 17 步 ≥5 秒、合计 425 秒；而这些慢步几乎全是空等
 // （CPU 采样：31.8 秒的墙钟里 31.7 秒是 idle）。它们不抢 CPU，所以并发跑几乎能线性省时间——
 // 同一批 17 步并发实测墙钟 63.5 秒（等于最慢那一步），串行是 425.5 秒。
@@ -15,7 +15,8 @@
 //   node scripts/verify-parallel.mjs --tasks         # 只打印排程（车厢与预计耗时），不跑
 //   node scripts/verify-parallel.mjs --json out.json # 额外写一份机器可读的结果
 //
-// 退出码：全部通过 0；有失败 1。链条目仍以 package.json 的 scripts.verify 为唯一来源，本脚本不改它。
+// 退出码：全部通过 0；有失败 1。名单走规划函数（目录约定加显式排除表，#1125），
+// 与串行执行器、逐道汇总读的是同一份，本脚本不另抄一份。
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -24,6 +25,7 @@ import { pathToFileURL } from 'node:url'
 // 完成证据（#1158）：判定一扇门禁过没过，光看退出码会被「跑到一半就收摊」骗过去。
 // 判据的写法、解析与那句人话理由都在 tests/lib/gate-result.ts 一处，这里只负责调用它。
 import { judgeStepCompletion, loadCompletionExpectations } from '../tests/lib/gate-result.ts'
+import { planGates } from './lib/discover-gates.ts'
 
 const ROOT = process.cwd()
 const args = process.argv.slice(2)
@@ -34,24 +36,11 @@ const optOf = (name, fallback) => {
 }
 const allOf = (name) => args.flatMap((a, i) => (a === name && args[i + 1] && !args[i + 1].startsWith('--') ? [args[i + 1]] : []))
 
-// 读 package.json 的 scripts.verify 并切成一条条步骤。
-//
-// 后缀清单里必须有 .ts：从 #1021 起测试与门禁可以写成 .ts（装载钩子把它跑起来），
-// 迁移一条链条目就是 `node tests/x.js` 改成 `node tests/x.ts`。这里漏掉 .ts 不会报错，
-// 而是那一条**悄悄不跑**——少一道门禁却看不出来，所以下面把读不懂的条目单独记下来交给调用方报错。
+// 名单（#1125）：规划函数是唯一来源。规划出来的步骤本来就是一条一句，
+// “读不懂的条目”这种东西从此不存在 —— 以前那条 unknown 分支（连 time-config
+// 那条显式挂钩子的都读不懂，整个并行入口直接罢工）可以删了。
 function chainSteps() {
-  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
-  const raw = String((pkg.scripts && pkg.scripts.verify) || '')
-  const steps = []
-  const unknown = []
-  for (const piece of raw.split(' && ')) {
-    const s = piece.trim()
-    if (!s) continue
-    const m = /^node\s+(tests\/\S+\.(?:js|mjs|cjs|ts|mts|cts))$/.exec(s)
-    if (m) steps.push({ cmd: s, file: m[1] })
-    else unknown.push(s)
-  }
-  return { steps, unknown }
+  return { steps: planGates(ROOT).map((s) => ({ cmd: s.cmd, file: s.file, stage: s.stage })), unknown: [] }
 }
 
 // 「真浏览器」的步骤：文件里出现 playwright。它们各自要起一个 Chromium，最慢的那扇 34.6 秒。
@@ -289,12 +278,25 @@ function buildTasks(list) {
   return [...free, ...lanes].sort((a, b) => b.estimate - a.estimate)
 }
 
-const tasks = buildTasks(steps)
+// 阶段间固定（#1125）：规划名单本来就是按段排好的，这里按段切成几组，一组跑完再跑下一组。
+// 组内并发、组间串行 —— 新鲜度那段读到的永远是前面各段跑完之后的产物，不会读到半旧的一份。
+// 切法只认“段变了”这个边界，不认段名：约定增减段时这里不用改。
+const stageGroups = []
+for (const step of steps) {
+  const last = stageGroups[stageGroups.length - 1]
+  if (last && last.stage === step.stage) last.steps.push(step)
+  else stageGroups.push({ stage: step.stage, steps: [step] })
+}
+for (const g of stageGroups) g.tasks = buildTasks(g.steps)
+const allTasks = stageGroups.flatMap((g) => g.tasks)
 if (has('--tasks')) {
-  console.log('排成 ' + tasks.length + ' 节车厢（按预计耗时从长到短）：')
-  for (const t of tasks) {
-    console.log('  ' + String(Math.round(t.estimate)).padStart(6) + 'ms  ' + (t.groups.length ? '[互斥 ' + t.groups.join('+') + '] ' : '') + t.key + '（' + t.steps.length + ' 步）')
-    if (t.groups.length) for (const s of t.steps) console.log('         · ' + s.file)
+  console.log('按段分组、段内排成车厢（段间串行、段内并发）：')
+  for (const g of stageGroups) {
+    console.log('  [' + g.stage + '] ' + g.steps.length + ' 步，' + g.tasks.length + ' 节车厢：')
+    for (const t of g.tasks) {
+      console.log('    ' + String(Math.round(t.estimate)).padStart(6) + 'ms  ' + (t.groups.length ? '[互斥 ' + t.groups.join('+') + '] ' : '') + t.key + '（' + t.steps.length + ' 步）')
+      if (t.groups.length) for (const s of t.steps) console.log('           · ' + s.file)
+    }
   }
   process.exit(0)
 }
@@ -307,40 +309,48 @@ console.log(
     steps0.length +
     ' 步，档位 ' +
     tier +
-    '，排成 ' +
-    tasks.length +
+    '，分 ' +
+    stageGroups.map((g) => g.stage + g.steps.length + '步').join('→') +
+    '（段间串行、段内并发，共 ' +
+    allTasks.length +
     ' 节车厢，其中互斥组 ' +
-    tasks.filter((t) => t.groups.length).length +
+    allTasks.filter((t) => t.groups.length).length +
     ' 节）'
 )
 console.log('[并行门禁] 完成证据判据：链上 ' + evidenceSteps.length + ' 步带期望（tests/gate-map.json 里 completionRecord 为 true 的那几扇）')
 
 const started = Date.now()
 const results = []
-let cursor = 0
 let stop = false
-async function worker() {
-  for (;;) {
-    if (stop) return
-    const i = cursor++
-    if (i >= tasks.length) return
-    for (const step of tasks[i].steps) {
+// 一段一段跑：段内用工人池并发，段间等上一段跑完（遇红即停时后面整段都不跑）。
+for (const g of stageGroups) {
+  if (stop && !has('--keep-going')) break
+  console.log('[并行门禁] —— ' + g.stage + ' 段（' + g.steps.length + ' 步） ——')
+  const tasks = g.tasks
+  let cursor = 0
+  async function worker() {
+    for (;;) {
       if (stop) return
-      const r = await runStepJudged(step)
-      r.optional = !!step.optional
-      results.push(r)
-      const tag = r.code === 0 ? 'PASS' : step.optional ? 'WARN' : 'FAIL'
-      console.log('  ' + tag + ' ' + String(r.ms).padStart(6) + ' ms  ' + (step.label || r.file))
-      if (r.evidence) console.log('        完成证据对不上：' + r.evidence)
-      if (r.code !== 0 && !step.optional && !has('--keep-going')) {
-        // 与串行链一样：遇红就停（已在跑的等它跑完再报）。
-        stop = true
-        return
+      const i = cursor++
+      if (i >= tasks.length) return
+      for (const step of tasks[i].steps) {
+        if (stop) return
+        const r = await runStepJudged(step)
+        r.optional = !!step.optional
+        results.push(r)
+        const tag = r.code === 0 ? 'PASS' : step.optional ? 'WARN' : 'FAIL'
+        console.log('  ' + tag + ' ' + String(r.ms).padStart(6) + ' ms  ' + (step.label || r.file))
+        if (r.evidence) console.log('        完成证据对不上：' + r.evidence)
+        if (r.code !== 0 && !step.optional && !has('--keep-going')) {
+          // 与串行链一样：遇红就停（已在跑的等它跑完再报；后面整段都不跑）。
+          stop = true
+          return
+        }
       }
     }
   }
+  await Promise.all(Array.from({ length: Math.min(jobs, tasks.length) }, worker))
 }
-await Promise.all(Array.from({ length: Math.min(jobs, tasks.length) }, worker))
 const wall = Date.now() - started
 
 // 记下这一轮每步花了多久，供下一次排程用（写不进去不算错）。

@@ -52,10 +52,12 @@ const statChecks = function (src, tag) {
   ok('引导门：无 latest → toast.handoffGrey', src.includes("tr('toast.handoffGrey')"))
   ok('糊涂分支已删：no finish(null, toast.copiedHandoffNoLatest)', !src.includes("finish(null, tr('toast.copiedHandoffNoLatest'))"))
   ok('无历史兜底 toast 键残留（noLatest / handoffNotFound / copiedHandoffFail）', !src.includes("'toast.copiedHandoffNoLatest'") && !src.includes("'toast.handoffNotFound'") && !src.includes("'toast.copiedHandoffFail'"))
-  ok('nav.handoffGreyTitle zh', src.includes("'nav.handoffGreyTitle': '尚未生成交接文档"))
-  ok('nav.handoffGreyTitle en', src.includes("'nav.handoffGreyTitle': 'No handoff doc yet"))
-  ok('toast.handoffGrey zh', src.includes("'toast.handoffGrey': '请先点「交接」生成交接文档"))
-  ok('toast.handoffGrey en', src.includes("'toast.handoffGrey': 'Click Handoff first"))
+  // 构建产物的引号风格会变（esbuild 切双引号）：只认“键加中文前缀”，不钉引号。
+  const localeHas = (key, prefix) => new RegExp('["\']' + key + '["\']\\s*:\\s*["\']' + prefix).test(src)
+  ok('nav.handoffGreyTitle zh', localeHas('nav.handoffGreyTitle', '尚未生成交接文档'))
+  ok('nav.handoffGreyTitle en', localeHas('nav.handoffGreyTitle', 'No handoff doc yet'))
+  ok('toast.handoffGrey zh', localeHas('toast.handoffGrey', '请先点「交接」生成交接文档'))
+  ok('toast.handoffGrey en', localeHas('toast.handoffGrey', 'Click Handoff first'))
   ok('doHandoffOpen 经统一单点工厂 openTextInNewSession（PTC+工作区+首条原子化）', src.includes('openTextInNewSession(st, text'))
   ok('doHandoffOpen 不再裸调 ws.startSession（旧路径已移除）', (src.match(/ws\.startSession\(\)/g)||[]).length===0)
 }

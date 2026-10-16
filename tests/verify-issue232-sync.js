@@ -82,9 +82,9 @@ async function main() {
   const okSt = S.noteEvalSuccess(f3, now)
   check(okSt.failures === 0 && okSt.suspendedUntil === 0 && okSt.lastEvalAt === now, 'noteEvalSuccess 清零计数并解除熔断')
 
-  // npm run verify 链纳入本门禁（构建接线，不是源码形状）
-  const pkgJson = JSON.parse(readSrc('package.json'))
-  check((pkgJson.scripts.verify || '').includes('verify-issue232-sync.js'), 'npm run verify 链已纳入本门禁')
+  // verify 链纳入本门禁（构建接线，不是源码形状；#1125 起问规划函数，不再读 package.json 长串）
+  const { isGatePlanned } = require('../scripts/lib/discover-gates.ts')
+  check(isGatePlanned(ROOT, 'tests/verify-issue232-sync.js'), 'verify 链已纳入本门禁（规划函数里有它）')
 
   // ===================== C · 宿主分发端到端（需先构建）=====================
   // C 段的跳过闸：宿主里没有 issuePathPoll 分发通道时整段退役（#345 整块移除后即为此情形）。

@@ -10,6 +10,7 @@
 import nodePath from 'node:path'
 import fs from 'node:fs'
 import { markdownModule } from '../src/tracker/rooms/markdown/index.ts'
+import { isGatePlanned } from '../scripts/lib/discover-gates.ts'
 
 let failed = false
 let total = 0
@@ -97,10 +98,10 @@ const fileOf = (files) => String(files.get(Array.from(files.keys()).filter((k) =
   check(after.includes('\u505a\u4e86\u4e00\u4e9b\u4e8b') && after.includes('Labels: bug'), '\u2463 \u7247\u6bb5\u5185\u5bb9\u843d\u76d8\u3001\u539f\u6807\u7b7e\u884c\u8fd8\u5728')
 }
 
-// —— ⑤ 本门禁已挂进验证链 ——
+// —— ⑤ 本门禁已挂进验证链（#1125 起问规划函数，不再读 package.json 长串） ——
 {
   const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'))
-  check(((pkg.scripts && pkg.scripts.verify) || '').includes('verify-972-title-body.js'), '\u2464 \u9a8c\u8bc1\u94fe\u91cc\u80fd\u627e\u5230\u672c\u95e8\u7981')
+  check(isGatePlanned(process.cwd(), 'tests/verify-972-title-body.js'), '⑤ 验证链里能找到本门禁（规划函数里有它）')
 }
 
 console.log(failed ? '\n\u5b58\u5728\u5931\u8d25 — verify-972-title-body \u672a\u901a\u8fc7' : '\n\u5168\u90e8\u901a\u8fc7 — \u540c\u4f20\u6807\u9898\u4e0e\u6b63\u6587\u65f6\u6807\u9898\u4e0d\u4e22\uff08' + total + ' \u9879\u65ad\u8a00\uff09')

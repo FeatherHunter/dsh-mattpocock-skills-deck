@@ -25,6 +25,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { gitlabBackend } from '../src/tracker/rooms/gitlab/index.ts'
 import { READ_DEGRADED_OPS, READ_DEGRADED_REASONS } from '../src/tracker/rooms/gitlab/read-log.ts'
+import { planGates } from '../scripts/lib/discover-gates.ts'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -318,11 +319,9 @@ console.log('\n== #1130 ② 读不到时，失败原因必须落到判定过程�
   check(hit === true, '上下文没有 logEvent 时，识别照旧能判定（宿主兜底那条路）')
 }
 
-// ── 本文件必须在 verify 链里（不挂进链就等于没跑）──
+// ── 本文件必须在 verify 链里（不挂进链就等于没跑；#1125 起问规划函数）──
 {
-  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
-  const steps = String(pkg.scripts.verify).split('&&').map((s: string) => s.trim())
-  const mine = steps.filter((s: string) => s.indexOf('verify-1130-gitlab-marker-read') >= 0)
+  const mine = planGates(ROOT).filter((s) => s.file.indexOf('verify-1130-gitlab-marker-read') >= 0)
   check(mine.length === 1, '本门禁挂在 verify 链里且只挂一次（实得 ' + mine.length + ' 次）')
 }
 

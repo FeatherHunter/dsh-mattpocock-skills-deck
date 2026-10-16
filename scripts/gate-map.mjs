@@ -2,7 +2,7 @@
 // scripts/gate-map.mjs —— 门禁归属表生成器：算出「每扇门禁守着哪些源码路径」，写进 tests/gate-map.json。
 //
 // 为什么要有它：
-//   npm run verify 是一条两百多步的长链（清单写在 package.json 的 scripts.verify 里）。
+//   主链是三百来步的长链（名单走规划函数：目录约定加显式排除表，#1125）。
 //   改一个文件就把整条链跑一遍太贵，维护者要的是「改了 E 目录的代码，就只跑守着 E、
 //   守着它的父目录 B、再上一级 A 的门禁」。要按这个规则挑门禁，先得有一张表回答
 //   「每扇门禁守着哪些目录」。本脚本生成这张表，scripts/lib/select-gates.mjs 用它挑门禁。
@@ -22,7 +22,7 @@
 //   上面五条都推不出指向源码的路径时，这扇门禁记成 unattributed，并在 reason 里写明原因。
 //
 // 产物 tests/gate-map.json 的字段：
-//   gates      主链（scripts.verify）每步一条：{ step, file, guards, dirs, unattributed, reason,
+//   gates      主链（规划函数给的名单）每步一条：{ step, file, guards, dirs, unattributed, reason,
 //                              completionRecord, expectedAssertions }
 //              completionRecord 为 true 表示这扇门禁已开闸：它收尾时会交一行 GATE-RESULT，
 //              expectedAssertions 是它该有多少条断言（0 表示还没开闸，执行器只看退出码）。
@@ -41,6 +41,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import url from 'node:url'
+import { planGates } from './lib/discover-gates.ts'
 
 export const ROOT = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '..')
 export const MAP_PATH = path.join(ROOT, 'tests', 'gate-map.json')
@@ -264,12 +265,9 @@ function splitSteps(text) {
   return out.filter(Boolean)
 }
 
-/** 读 package.json 的 scripts.verify，按 && 切成一条条命令。 */
+/** 名单（#1125）：规划函数是归属表的唯一输入，不再读 package.json 长串。 */
 export function readChainSteps(root = ROOT) {
-  const raw = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
-  const chain = (raw.scripts && raw.scripts.verify) || ''
-  if (!chain) throw new Error('package.json 里没有 scripts.verify，无法生成归属表')
-  return splitSteps(chain)
+  return planGates(root).map((s) => s.cmd)
 }
 
 /**

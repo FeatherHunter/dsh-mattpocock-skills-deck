@@ -1,18 +1,20 @@
 #!/usr/bin/env node
-// scripts/verify-chain.js —— verify 链的 Windows 执行器（1.7.50 发布门禁红线的根治）。
+// scripts/verify-chain.js —— verify 链的执行器（1.7.50 发布门禁红线的根治）。
 //
-// 起因：package.json 里 scripts.verify 是一整串 node tests/*.js && ……（8639 字），
-// Windows cmd.exe 单条命令上限 8191 字，npm test 经 cmd 转发直接报命令行过长，
-// 在我之前就已经跑不起来（我加的那一项只是最后一根稻草）。bash 系（CI）不受影响。
-// 修法：不断链（不断言链内容的门禁用 includes() 钉着它，只能读不能搬），
-// 执行改走本脚本：读出链、按 && 切开、逐条直调 node，首红即停并透传退出码。
-// 用法：node scripts/verify-chain.js（跑 scripts.verify，主门禁链）
+// 名单只有一份来源：scripts/verify-stages.json（目录约定加显式排除表，#1125）
+// 经由 scripts/lib/discover-gates.ts 的 planGates() 算出来。package.json 里
+// 不再有那条长串（scripts.verify 现在就是 `node scripts/verify-chain.js`
+// 这一句，本脚本不再读它 —— 读了会把自己当成一步，无限递归）。
+// 烟链例外：scripts.smoke 那六条还住在 package.json 里（#1125 范围只动主链），
+// --script smoke 走老路读字符串。
+//
+// 用法：node scripts/verify-chain.js（跑规划出来的主链）
 //       node scripts/verify-chain.js --only <子串>（抽查：只跑名字含这个子串的条目）
 //       node scripts/verify-chain.js --script smoke（跑 scripts.smoke，六条冒烟；#1178 起 npm run test:smoke 走这条）
 //
 // 为什么冒烟也走这一份（#1178）：从前 test:smoke 是一条裸的 && 串，谁给冒烟上的门禁开闸，
 // 那条路都会静默漏掉下面的完成证据判据。现在两条链共用这一个执行器与同一份判据，
-// 只有「跑哪一串」不同（scripts.verify / scripts.smoke），切法、挂装载钩子、首红即停全都一样。
+// 只是「名单怎么来」不同（主链走规划、冒烟读字符串），切法、挂装载钩子、首红即停全都一样。
 //
 // #1158 起多一条判据：只看退出码会被「跑到一半就收摊、退出码仍是 0」骗过去
 // （#1146 实测：verify-deck-no-hang 的 21 条断言只跑到第 12 条就退出，整条链判绿）。
@@ -26,24 +28,34 @@ const { pathToFileURL } = require('url')
 const { judgeStepCompletion, loadCompletionExpectations } = require('../tests/lib/gate-result.ts')
 
 const ROOT = path.resolve(__dirname, '..')
-// 装载钩子：让链上的脚本能把 "./x.js" 解析到同目录的同名 .ts（迁移中的单元靠它，引用点一个字不改）。
-// 没有同名 .ts 时钩子什么都不做，所以没迁移的条目行为与今天完全一样。
-// 判定只有一条：要起的是 tests/ 下的文件才挂。链上今天全是测试条目，写这条是为了跟并行执行器
+// 名单（#1125）：主链走规划函数，冒烟仍读 package.json 字符串。判定只有一条：
+// 要起的是 tests/ 下的文件才挂装载钩子。链上今天全是测试条目，写这条是为了跟并行执行器
 // （scripts/verify-parallel.mjs 的 argvOf）保持同一口径——两处任一处改了，另一处必须跟着改。
-// 这一层只改「怎么起进程」，不动 package.json 里那条链的文字——不断链是不断言链内容的门禁钉住的约定。
 const TS_HOOK = pathToFileURL(path.join(ROOT, 'scripts', 'ts-hook.mjs')).href
 function argvOf(parts) {
   return parts[1] && parts[1].startsWith('tests/') ? ['--import', TS_HOOK, ...parts.slice(1)] : parts.slice(1)
 }
-// 命令行参数：--script 选跑哪一串（缺省 verify），--only 抽查（子串过滤）。
+// 命令行参数：--script 只认 smoke（缺省跑主链，即规划结果），--only 抽查（子串过滤）。
 function argValue(name) {
   const i = process.argv.indexOf(name)
   return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : ''
 }
 const scriptName = argValue('--script') || 'verify'
-const raw = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
-const chain = (raw.scripts && raw.scripts[scriptName]) || ''
-if (!chain) { console.error('FAIL package.json 里没有 scripts.' + scriptName + '，没有可跑的链'); process.exit(1) }
+let entries
+if (scriptName === 'smoke') {
+  const raw = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
+  const chain = (raw.scripts && raw.scripts.smoke) || ''
+  if (!chain) { console.error('FAIL package.json 里没有 scripts.smoke，没有可跑的链'); process.exit(1) }
+  entries = splitChain(chain)
+} else if (scriptName === 'verify') {
+  // 主链：规划函数是名单的唯一来源（目录约定加显式排除表）。规划出来的命令
+  // 本来就是一条一句，不用再按 && 切。
+  const { planGates } = require('./lib/discover-gates.ts')
+  entries = planGates(ROOT).map((s) => s.cmd)
+} else {
+  console.error('FAIL --script 只认 verify（缺省）与 smoke：' + scriptName)
+  process.exit(1)
+}
 
 // 按 && 切，照顾双引号里的 &&（链里现在没有，引号分支是防御）。
 function splitChain(s) {
@@ -93,7 +105,7 @@ function gateFileOf(parts) {
 }
 
 const only = argValue('--only')
-const entries = splitChain(chain).filter((e) => !only || e.includes(only))
+entries = entries.filter((e) => !only || e.includes(only))
 if (!entries.length) { console.error('FAIL 没有可跑的条目'); process.exit(1) }
 
 // 完成证据（#1158）：归属表里记着「哪一扇已开闸、该有多少条断言」，这里按文件把期望挂到链上。

@@ -9,11 +9,11 @@
 //         不是环境里本来就有的别的红。
 // 跑完探针删掉（finally 里删），开跑前先确认它不在，绝不覆盖别人的文件。
 //
-// 为什么不挂进 package.json 的 scripts.verify：两条独立的理由。
-// 一是它会往工作树里写文件：挂进链里之后，npm run verify:parallel 并发跑到它时，同一条链上正在扫
+// 为什么进排除表、不进链：两条独立的理由。
+// 一是它会往工作树里写文件：进链之后，并发跑到它时，同一条链上正在扫
 //   src/** 的门禁（tests/verify-dependency-rules.ts、verify-no-mixed-session.js、verify-gate-map.js 等）
 //   会看见多出来的文件，报出与改动无关的假红。
-// 二是链上每一步都要出现在 tests/gate-map.json 里（那份派生表按 package.json 的链核对步数），加一步就得
+// 二是链上每一步都要出现在 tests/gate-map.json 里（那份派生表按规划名单核对步数），加一步就得
 //   重新生成并提交它；而那份表今天正被别的在办工作线牵动，它的存废归 #1124，不该由本票顺手重写。
 // 所以它按需手跑，作为「这条反方向规则还咬不咬得到东西」的端到端抽查；常驻判据是主门禁的规则清单那条
 // （配置里少了这条规则、名字被改、severity 不是 error，tests/verify-dependency-rules.ts 当场判红）。

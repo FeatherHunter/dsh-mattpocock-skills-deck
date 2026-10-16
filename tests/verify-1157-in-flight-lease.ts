@@ -26,6 +26,7 @@ import { fileURLToPath } from 'node:url'
 
 import * as leaseModule from '../src/deck/shell/in-flight-lease.js'
 import { inFlightLeaseSnapshot, withInFlightLease } from '../src/deck/shell/in-flight-lease.js'
+import { planGates } from '../scripts/lib/discover-gates.ts'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const SELF_REL = 'tests/verify-1157-in-flight-lease.ts'
@@ -271,11 +272,9 @@ if (childMode === 'leased' || childMode === 'bare') {
       '丙 本门禁跑完不留租约（持有者 ' + finalSnap.holders + '、句柄在不在 ' + String(finalSnap.holding) + '）',
     )
 
-    // ── 丁、本文件必须在 verify 链里（不挂进链就等于没跑；挂重了会跑两遍）──────
+    // ── 丁、本文件必须在 verify 链里（不挂进链就等于没跑；挂重了会跑两遍；#1125 起问规划函数）──────
     {
-      const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as { scripts?: { verify?: unknown } }
-      const steps = String((pkg.scripts || {}).verify || '').split('&&').map((s: string) => s.trim())
-      const mine = steps.filter((s: string) => s.indexOf('verify-1157-in-flight-lease') >= 0)
+      const mine = planGates(ROOT).filter((s) => s.file.indexOf('verify-1157-in-flight-lease') >= 0)
       check(mine.length === 1, '丁 本门禁挂在 verify 链里且只挂一次（实得 ' + mine.length + ' 次）')
     }
   } finally {

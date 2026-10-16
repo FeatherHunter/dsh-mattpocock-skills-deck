@@ -1,10 +1,10 @@
 /**
  * scripts/verify-all.mjs — 把 npm run verify 那条链逐道跑一遍并汇总。
  *
- * 为什么要它：`npm run verify` 用 && 把九十多条命令串成一条，前一道失败就会掩盖后面所有门禁——
- * 排查 CI 或本地红灯时每次只看到第一条，得反复推、反复等（这条已知问题记在 #578 的残余清单里）。
- * 本脚本读 package.json 里那条 verify 链（名单只有这一个来源，不另抄一份），逐道执行、逐道记账，
- * 最后打印汇总，并按「有没有失败」决定退出码——入口契约与 npm run verify 一致（非零即失败）。
+ * 为什么要它：全链一次跑完才能看到每一道的结果（串行链前一道失败就掩盖后面所有门禁——
+ * 排查 CI 或本地红灯时每次只看到第一条，得反复推、反复等；这条已知问题记在 #578 的残余清单里）。
+ * 本脚本读规划函数给出的名单（目录约定加显式排除表，#1125；名单只有这一个来源，不另抄一份），
+ * 逐道执行、逐道记账，最后打印汇总，并按「有没有失败」决定退出码。
  *
  * 用法：
  *   node scripts/verify-all.mjs              跑全部并汇总
@@ -12,21 +12,21 @@
  *   node scripts/verify-all.mjs --from 40    从第 40 道开始跑（前面已经确认过的可跳过）
  */
 import { execSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 // 完成证据（#1158）：只看退出码会被「跑到一半就收摊、退出码仍是 0」骗过去（#1146 的实例）。
 // 判据的写法、解析与那句人话理由都在 tests/lib/gate-result.ts 一处，这里只负责调用它。
 import { judgeStepCompletion, loadCompletionExpectations } from '../tests/lib/gate-result.ts'
+import { planGates } from './lib/discover-gates.ts'
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
-const pkg = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
-const chain = String((pkg.scripts && pkg.scripts.verify) || '')
-if (!chain) {
-  console.error('package.json 里没有 scripts.verify —— 没有名单可跑')
+// 名单（#1125）：规划函数是唯一来源。规划出来的命令本来就是一条一句，
+// 不用再按 && 切 —— 也就没有“读不懂的条目”这种东西了。
+const gates = planGates(ROOT).map((s) => s.cmd)
+if (!gates.length) {
+  console.error('规划出来的名单是空的 —— 没有可跑的门禁')
   process.exit(2)
 }
-const gates = chain.split('&&').map(function (s) { return s.trim() }).filter(Boolean)
 
 // 装载钩子：链上的测试要能把 "./x.js" 解析到同目录的同名 .ts（迁移中的单元靠它）。
 // 判定只有一条：要跑的是 tests/ 下的文件才挂。同一个判定分散在三处，改一处必须全改：

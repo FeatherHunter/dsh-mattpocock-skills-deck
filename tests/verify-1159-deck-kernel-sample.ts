@@ -10,11 +10,11 @@
 //   负控：同一个位置引契约层（src/tracker/contract）→ 不许被误伤（契约层本来就是 deck 唯一可以深引的公共面）。
 // 跑完两个探针都删掉（finally 里删），开跑前先确认它们不在，绝不覆盖别人的文件。
 //
-// 为什么不挂进 package.json 的 scripts.verify：两条独立的理由，与 tests/verify-1136-room-cross-sample.ts 同款。
-// 一是它是会往工作树里写文件的门禁：挂进链里之后，npm run verify:parallel 并发跑到它时，
+// 为什么进排除表、不进链：两条独立的理由，与 tests/verify-1136-room-cross-sample.ts 同款。
+// 一是它是会往工作树里写文件的门禁：进链之后，并发跑到它时，
 // 同一条链上正在扫 src/deck/** 与 src/tracker/** 的门禁（tests/verify-dependency-rules.ts、
 // tests/verify-gate-map.js 等）会看见多出来的两个文件，报出与改动无关的假红。
-// 二是链上每一步都要出现在 tests/gate-map.json 里（那份派生表按 package.json 的链核对步数），加一步就得
+// 二是链上每一步都要出现在 tests/gate-map.json 里（那份派生表按规划名单核对步数），加一步就得
 // 重新生成并提交它。所以它按需手跑，作为「deck 不许直连内核」这条判据还咬不咬得到东西的端到端抽查；
 // 常驻判据是主门禁里的规则清单核对（少一条、改名、降级就判红）与起点活着判据。
 import { spawnSync } from 'node:child_process'

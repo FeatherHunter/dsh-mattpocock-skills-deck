@@ -268,7 +268,7 @@ async function main() {
   }
 
   console.log('\n' + (failed ? '存在失败' : '全部通过 — GitLab 建票一次调用只做一次写尝试（' + total + ' 条断言）'))
-  console.log('提示：本门禁还没接进 npm run verify 链；请统筹者在 package.json 的 scripts.verify 里加一节：node tests/verify-gitlab-single-write.js')
+  console.log('提示：本门禁已按目录约定自动进链（新增门禁 = 新增文件，不用再改共享清单；#1125）')
   process.exit(failed ? 1 : 0)
 }
 

@@ -577,17 +577,17 @@ async function main() {
   title('E) 门禁入链与票面点名的两条对齐')
 
   {
-    const pkg = JSON.parse(read('package.json'))
-    const chain = String((pkg.scripts || {}).verify || '')
-    must(chain.indexOf('verify-656-subworkspace-acceptance.js') >= 0,
-      '本门禁已挂进 npm run verify 链（判据不靠人记得手动跑）',
-      'package.json 的 scripts.verify 里没有它')
-    must(chain.indexOf('verify-t1-getrepokey.js') >= 0,
-      'tests/verify-t1-getrepokey.js 已收进 npm run verify 链——它的场景 6 是仓库里唯一一条「cwd 是子目录」的用例，此前不在链上',
-      'package.json 的 scripts.verify 里没有它')
-    must(chain.indexOf('verify-653-subworkspace.js') >= 0,
+    // E) 门禁入链与票面点名的两条对齐（#1125 起问规划函数，不再读 package.json 长串）
+    const { isGatePlanned } = require('../scripts/lib/discover-gates.ts')
+    must(isGatePlanned(ROOT, 'tests/verify-656-subworkspace-acceptance.js'),
+      '本门禁已挂进 verify 链（判据不靠人记得手动跑）',
+      '规划函数里没有它')
+    must(isGatePlanned(ROOT, 'tests/verify-t1-getrepokey.js'),
+      'tests/verify-t1-getrepokey.js 已收进 verify 链——它的场景 6 是仓库里唯一一条「cwd 是子目录」的用例，此前不在链上',
+      '规划函数里没有它')
+    must(isGatePlanned(ROOT, 'tests/verify-653-subworkspace.js'),
       '客户端那条落地票的门禁（verify-653-subworkspace.js）仍在链上，与本门禁一起守着这件事',
-      'package.json 的 scripts.verify 里没有 verify-653-subworkspace.js')
+      '规划函数里没有 verify-653-subworkspace.js')
     // 【已删除】原先这里读 tests/verify-bundled-trio-matrix.js 的源码文本，断言里面有
     // `function projectRootUpward`、没有「简化为 cwd 本身」。那是钉另一个测试文件的写法，
     // 等价重构就会变红，撤掉。

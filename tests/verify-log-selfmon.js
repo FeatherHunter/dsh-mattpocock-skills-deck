@@ -53,8 +53,8 @@ const logSrc = readSrc(path.join('src', 'client', 'kernel', 'log.js'))
     // 已按维护者要求去掉，只核附录这一面的登记。
     check(enumNote.includes(w), '枚举 ' + w + ' 已在附录「枚举取值」段登记')
   }
-  const pkg = JSON.parse(readSrc(path.join('package.json')))
-  check(pkg.scripts.verify.includes('verify-log-selfmon.js'), '本门禁已接入 npm run verify 链')
+  const { isGatePlanned } = require('../scripts/lib/discover-gates.ts')
+  check(isGatePlanned(ROOT, 'tests/verify-log-selfmon.js'), '本门禁已接入 verify 链（规划函数里有它，#1125 起不再读 package.json 长串）')
 }
 
 async function main() {

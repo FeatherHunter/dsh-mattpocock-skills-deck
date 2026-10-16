@@ -9,8 +9,8 @@
 // 四组断言：① 缺状态整份（本缺陷：单标题单锚、新内容、字段补回）；② 带状态整份
 // （行为不变）；③ 普通片段（仍走插入）；④ 本门禁已挂进验证链。
 import nodePath from 'node:path'
-import fs from 'node:fs'
 import { markdownModule } from '../src/tracker/rooms/markdown/index.ts'
+import { isGatePlanned } from '../scripts/lib/discover-gates.ts'
 import { anchorLineFor } from '../src/shared/refresh/idempotency.js'
 
 let failed = false
@@ -80,10 +80,9 @@ const anchor = anchorLineFor('verify-970-seed').trim()
   check(after.includes('做了一些事') && after.includes('Labels: bug'), '③ 片段内容落盘、原标签行还在')
 }
 
-// ── ④ 本门禁已挂进验证链 ──
+// ── ④ 本门禁已挂进验证链（#1125 起问规划函数，不再读 package.json 长串）──
 {
-  const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'))
-  check(((pkg.scripts && pkg.scripts.verify) || '').includes('verify-970-whole-document.js'), '④ 验证链里能找到本门禁')
+  check(isGatePlanned(process.cwd(), 'tests/verify-970-whole-document.js'), '④ 验证链里能找到本门禁（规划函数里有它）')
 }
 
 console.log(failed ? '\n存在失败 — verify-970-whole-document 未通过' : '\n全部通过 — 整份缺状态行按整份替换（' + total + ' 项断言）')

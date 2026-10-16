@@ -127,7 +127,7 @@ export function scanGateResult(text: string): GateResultScan {
 
 /**
  * 读归属表，把「已开闸」的步骤抽成期望表。
- * 表里有两处记着开闸：gates（主链 scripts.verify 每步）与 smokeGates（冒烟链 scripts.smoke 每步，#1178）。
+ * 表里有两处记着开闸：gates（主链规划名单每步）与 smokeGates（冒烟链 scripts.smoke 每步，#1178）。
  * 两条链共用这一份期望表：执行器按文件找自己链上那一步的期望，找不到就是「没开闸，只看退出码」。
  * 默认读仓库里的 tests/gate-map.json（本文件在 tests/lib 下，往上一级就是它）；
  * 传 mapPath 是为了让测试能拿内存里的表来验，不必改盘上的那一份。

@@ -13,11 +13,11 @@
 // #1159 之后判域又去掉了一层：src/tracker/kernel/（房间与宿主都要用的判定件，两边都可以引），
 // 所以正控改成引 registry/shape.ts，存量也从 15 条降到 10 条（涉及搬走那四份的 5 条不再是违规）。
 //
-// 为什么不挂进 package.json 的 scripts.verify：两条独立的理由，与 tests/verify-1136-room-cross-sample.ts 同款。
-// 一是它是会往工作树里写文件的门禁：挂进链里之后，npm run verify:parallel 并发跑到它时，
+// 为什么进排除表、不进链：两条独立的理由，与 tests/verify-1136-room-cross-sample.ts 同款。
+// 一是它是会往工作树里写文件的门禁：进链之后，并发跑到它时，
 // 同一条链上正在扫 src/tracker/** 的门禁（tests/verify-dependency-rules.ts、tests/verify-gate-map.js 等）
 // 会看见多出来的四个文件，报出与改动无关的假红。
-// 二是链上每一步都要出现在 tests/gate-map.json 里（那份派生表按 package.json 的链核对步数），加一步就得
+// 二是链上每一步都要出现在 tests/gate-map.json 里（那份派生表按规划名单核对步数），加一步就得
 // 重新生成并提交它；而那份表今天正被别的在办工作线牵动，不该由本票顺手重写。
 // 所以它按需手跑，作为「追踪器同层判据还咬不咬得到东西」的端到端抽查；常驻判据是主门禁里的结构判据
 // （起点在磁盘上活着、在图上也咬得到东西、规则清单少一条就判红），以及 tests/same-layer-baseline.json 的

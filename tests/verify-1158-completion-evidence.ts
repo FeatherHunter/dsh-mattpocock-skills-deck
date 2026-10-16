@@ -34,6 +34,7 @@ import {
   gateNameOf,
   printGateResult,
 } from './lib/gate-result.ts'
+import { planGates } from '../scripts/lib/discover-gates.ts'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const SELF = 'tests/verify-1158-completion-evidence.ts'
@@ -138,9 +139,10 @@ console.log('丙）期望表的装载')
 // ---------------------------------------------------------------------------
 // 丁）三条执行器的端到端：临时夹具仓库里正反各跑一趟
 // ---------------------------------------------------------------------------
-// 为什么在临时目录里造一个小仓：三条执行器的名单都来自 package.json 的 scripts.verify，
-// 真仓里没法塞一条「故意不交记录」的步骤。夹具仓把同一份执行器、同一份判据、一份小链摆在一起，
-// 正趟证明判据不误伤，反趟证明「退出码 0 却没交记录」真的会被判红 —— 这正是本票要修的那类假绿。
+// 为什么在临时目录里造一个小仓：主链名单走规划函数（目录约定加显式排除表，#1125），
+// 真仓里没法塞一条「故意不交记录」的步骤。夹具仓把同一份执行器、同一份判据、同一份规划函数、
+// 一份小约定摆在一起，正趟证明判据不误伤，反趟证明「退出码 0 却没交记录」真的会被判红 ——
+// 这正是本票要修的那类假绿。夹具门禁按约定起名（verify- 前缀），不然规划函数扫不到它们。
 console.log('丁）三条执行器的端到端（临时夹具仓库）')
 {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'verify-1158-exec-'))
@@ -152,22 +154,38 @@ console.log('丁）三条执行器的端到端（临时夹具仓库）')
   copy('scripts/verify-chain.js')
   copy('scripts/verify-all.mjs')
   copy('scripts/verify-parallel.mjs')
+  copy('scripts/lib/discover-gates.ts')
+  // 夹具约定：单默认段；冒烟专用的 gate-s 排除出主链（它只走冒烟那条路）。
+  fs.mkdirSync(path.join(tmpRoot, 'scripts'), { recursive: true })
+  fs.writeFileSync(
+    path.join(tmpRoot, 'scripts', 'verify-stages.json'),
+    JSON.stringify(
+      {
+        stages: [{ name: 'behavior', match: [] }],
+        exclude: [{ file: 'tests/verify-gate-s.js', reason: '冒烟专用，只走冒烟链（夹具）', ticket: '#1158' }],
+      },
+      null,
+      2,
+    ),
+  )
   // 装载钩子也要一起搬：三条执行器给 tests/ 下的条目都会挂它（argvOf / withTsHook），
   // 夹具仓里少了这一份，子进程会以「找不到模块」红掉 —— 那就盖住了本门禁真正要看的判据。
   copy('scripts/ts-hook.mjs')
   copy('tests/lib/gate-result.ts')
   fs.mkdirSync(path.join(tmpRoot, 'tests'), { recursive: true })
   // 夹具门禁：a 正常交记录（2 条断言）；b 不交记录也没登记（执行器只看退出码）；
-  // c 是「跑到一半就收摊」的那种 —— 退出码 0、一行记录都没有，但归属表里登记了 3 条期望。
+  // c 先交记录（正趟用）、反趟前换成收摊版（退出码 0、一行记录都没有，但归属表里登记了 3 条期望）。
   fs.writeFileSync(
-    path.join(tmpRoot, 'tests', 'gate-a.js'),
-    "const { printGateResult } = require('../tests/lib/gate-result.ts')\nprintGateResult('gate-a', 2, 0)\nprocess.exit(0)\n",
+    path.join(tmpRoot, 'tests', 'verify-gate-a.js'),
+    "const { printGateResult } = require('../tests/lib/gate-result.ts')\nprintGateResult('verify-gate-a', 2, 0)\nprocess.exit(0)\n",
   )
-  fs.writeFileSync(path.join(tmpRoot, 'tests', 'gate-b.js'), 'process.exit(0)\n')
-  fs.writeFileSync(path.join(tmpRoot, 'tests', 'gate-c.js'), "console.log('这扇门禁跑到一半就收摊了，一行记录都没交')\nprocess.exit(0)\n")
+  fs.writeFileSync(path.join(tmpRoot, 'tests', 'verify-gate-b.js'), 'process.exit(0)\n')
+  const gateCSrc = (body: string): void => fs.writeFileSync(path.join(tmpRoot, 'tests', 'verify-gate-c.js'), body)
+  // 正趟时 c 老实交记录（3 条），反趟前再换成收摊版 —— 主链名单是扫出来的，c 不可能只在反趟出现。
+  gateCSrc("const { printGateResult } = require('../tests/lib/gate-result.ts')\nprintGateResult('verify-gate-c', 3, 0)\nprocess.exit(0)\n")
   fs.writeFileSync(
-    path.join(tmpRoot, 'tests', 'gate-s.js'),
-    "const { printGateResult } = require('../tests/lib/gate-result.ts')\nprintGateResult('gate-s', 4, 0)\nprocess.exit(0)\n",
+    path.join(tmpRoot, 'tests', 'verify-gate-s.js'),
+    "const { printGateResult } = require('../tests/lib/gate-result.ts')\nprintGateResult('verify-gate-s', 4, 0)\nprocess.exit(0)\n",
   )
   fs.writeFileSync(
     path.join(tmpRoot, 'tests', 'gate-map.json'),
@@ -175,14 +193,14 @@ console.log('丁）三条执行器的端到端（临时夹具仓库）')
       {
         version: 1,
         gates: [
-          { step: 'node tests/gate-a.js', file: 'tests/gate-a.js', completionRecord: true, expectedAssertions: 2 },
-          { step: 'node tests/gate-b.js', file: 'tests/gate-b.js', completionRecord: false, expectedAssertions: 0 },
-          { step: 'node tests/gate-c.js', file: 'tests/gate-c.js', completionRecord: true, expectedAssertions: 3 },
+          { step: 'node tests/verify-gate-a.js', file: 'tests/verify-gate-a.js', completionRecord: true, expectedAssertions: 2 },
+          { step: 'node tests/verify-gate-b.js', file: 'tests/verify-gate-b.js', completionRecord: false, expectedAssertions: 0 },
+          { step: 'node tests/verify-gate-c.js', file: 'tests/verify-gate-c.js', completionRecord: true, expectedAssertions: 3 },
         ],
         // 冒烟链的期望住在同一张表的另一个数组里（#1178）：冒烟不在主链上，
         // 混进 gates 会让归属与覆盖面跟着算错。
         smokeGates: [
-          { step: 'node tests/gate-s.js', file: 'tests/gate-s.js', completionRecord: true, expectedAssertions: 4 },
+          { step: 'node tests/verify-gate-s.js', file: 'tests/verify-gate-s.js', completionRecord: true, expectedAssertions: 4 },
         ],
       },
       null,
@@ -197,11 +215,12 @@ console.log('丁）三条执行器的端到端（临时夹具仓库）')
   // 第四条入口（#1178）：冒烟从前是一条裸的 && 串，判据在它那条路上无事可做。
   // 现在它走同一个执行器的另一串清单（scripts.smoke），所以这里也按「同一份判据」验一遍。
   const smokeExecutor = { name: 'verify-chain.js --script smoke', rel: 'scripts/verify-chain.js', args: ['--script', 'smoke'] }
-  const writeChain = (steps: string[], smokeSteps: string[] = []): void => {
+  // 主链名单走夹具约定（目录扫描），这里只用写冒烟那一串（执行器仍从 package.json 读它）。
+  const writeSmoke = (smokeSteps: string[]): void => {
     fs.writeFileSync(
       path.join(tmpRoot, 'package.json'),
       JSON.stringify(
-        { name: 'verify-1158-fixture', private: true, scripts: { verify: steps.join(' && '), smoke: smokeSteps.join(' && ') } },
+        { name: 'verify-1158-fixture', private: true, scripts: { smoke: smokeSteps.join(' && ') } },
         null,
         2,
       ),
@@ -209,19 +228,21 @@ console.log('丁）三条执行器的端到端（临时夹具仓库）')
   }
   const run = (rel: string, args: string[] = []) =>
     spawnSync(process.execPath, [path.join(tmpRoot, rel), ...args], { cwd: tmpRoot, encoding: 'utf8' })
-  const smokeGateSrc = (body: string): void => fs.writeFileSync(path.join(tmpRoot, 'tests', 'gate-s.js'), body)
-  writeChain(['node tests/gate-a.js', 'node tests/gate-b.js'], ['node tests/gate-s.js'])
+  const smokeGateSrc = (body: string): void => fs.writeFileSync(path.join(tmpRoot, 'tests', 'verify-gate-s.js'), body)
+  writeSmoke(['node tests/verify-gate-s.js'])
   for (const ex of executors) {
     const r = run(ex.rel, ex.args)
     const out = String(r.stdout || '') + String(r.stderr || '')
     check(r.status === 0, '正趟 ' + ex.name + '：夹具链全绿（退出码 ' + r.status + '）')
     if (ex.name === 'verify-parallel.mjs') {
-      check(out.includes('完成证据判据：链上 1 步带期望'), '正趟 verify-parallel.mjs：认出了链上那一步带期望')
+      check(out.includes('完成证据判据：链上 2 步带期望'), '正趟 verify-parallel.mjs：认出了链上那两步带期望（a 交记录、c 登记了期望）')
     } else {
       check(out.includes(GATE_RESULT_PREFIX), '正趟 ' + ex.name + '：把门禁交的记录原样透出来')
     }
   }
-  writeChain(['node tests/gate-a.js', 'node tests/gate-c.js'])
+  // 反趟：主链名单是扫出来的（a 交记录、b 只看退出码、c 该交没交），不用再写链文件，直接跑。
+  // 反趟前把 c 换成收摊版（退出码 0、一行记录都没有，但归属表里登记了 3 条期望）。
+  gateCSrc("console.log('这扇门禁跑到一半就收摊了，一行记录都没交')\nprocess.exit(0)\n")
   for (const ex of executors) {
     const r = run(ex.rel, ex.args)
     const out = String(r.stdout || '') + String(r.stderr || '')
@@ -230,7 +251,7 @@ console.log('丁）三条执行器的端到端（临时夹具仓库）')
   }
   // 冒烟链的三趟：正趟（交记录、数字对）、收摊趟（退出码 0、一行记录都没有）、
   // 数字不符趟（交了记录，但计数与表里的期望不等）—— 票面第四条验收要的正是前两句话。
-  writeChain(['node tests/gate-a.js'], ['node tests/gate-s.js', 'node tests/gate-b.js'])
+  writeSmoke(['node tests/verify-gate-s.js', 'node tests/verify-gate-b.js'])
   {
     const r = run(smokeExecutor.rel, smokeExecutor.args)
     const out = String(r.stdout || '') + String(r.stderr || '')
@@ -247,7 +268,7 @@ console.log('丁）三条执行器的端到端（临时夹具仓库）')
     check(r.status !== 0, '冒烟收摊趟：退出码 0 却没交记录，执行器判红（退出码 ' + r.status + '）')
     check(out.includes('缺完成记录') && out.includes('gate-s'), '冒烟收摊趟：红的时候指名道姓说清是 gate-s 缺完成记录')
   }
-  smokeGateSrc("const { printGateResult } = require('../tests/lib/gate-result.ts')\nprintGateResult('gate-s', 3, 0)\nprocess.exit(0)\n")
+  smokeGateSrc("const { printGateResult } = require('../tests/lib/gate-result.ts')\nprintGateResult('verify-gate-s', 3, 0)\nprocess.exit(0)\n")
   {
     const r = run(smokeExecutor.rel, smokeExecutor.args)
     const out = String(r.stdout || '') + String(r.stderr || '')
@@ -262,9 +283,10 @@ console.log('丁）三条执行器的端到端（临时夹具仓库）')
 // ---------------------------------------------------------------------------
 console.log('戊）真仓里的挂接与登记')
 {
+  // 主链名单走规划函数（#1125）；冒烟那六条还住在 package.json 里，所以「挂在链上」
+  // 这句要按两条链一起算：已开闸的门禁恰好挂在一条链上（主链或冒烟链），既不能漏，也不能两边都挂。
+  const steps = planGates(ROOT).map((s) => s.cmd)
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')) as { scripts?: Record<string, string> }
-  const chain = String((pkg.scripts && pkg.scripts.verify) || '')
-  const steps = chain.split('&&').map((s) => s.trim()).filter(Boolean)
   const expectations = loadCompletionExpectations()
   const openedFiles = [...expectations.byFile.keys()]
   // 第四条入口 test:smoke（#1178）：它从裸的 && 串改成走同一个链执行器（--script smoke），

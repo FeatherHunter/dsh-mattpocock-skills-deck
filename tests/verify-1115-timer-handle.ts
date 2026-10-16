@@ -26,6 +26,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { planGates } from '../scripts/lib/discover-gates.ts'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const imp = (rel: string) => import(pathToFileURL(path.join(ROOT, rel)).href)
@@ -384,11 +385,9 @@ async function main() {
     check(/typeof timer\.clearTimeout === 'function'/.test(writeSrc), writeRel + '：优先用 hostShim 那一份按形状撤销')
   }
 
-  // ── ⑩ 本文件必须在 verify 链里（不挂进链就等于没跑）──
+  // ── ⑩ 本文件必须在 verify 链里（不挂进链就等于没跑；#1125 起问规划函数）──
   {
-    const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
-    const steps = String(pkg.scripts.verify).split('&&').map((s: string) => s.trim())
-    const mine = steps.filter((s: string) => s.indexOf('verify-1115-timer-handle') >= 0)
+    const mine = planGates(ROOT).filter((s) => s.file.indexOf('verify-1115-timer-handle') >= 0)
     check(mine.length === 1, '本门禁挂在 verify 链里且只挂一次（实得 ' + mine.length + ' 次）')
   }
 

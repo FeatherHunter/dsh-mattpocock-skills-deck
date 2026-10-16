@@ -27,19 +27,19 @@
       ]
     },
     {
+      "name": "behavior",
+      "说明": "行为：其余全部。默认段，不在 build、contract 与下面 freshness 里的都到这里。",
+      "match": []
+    },
+    {
       "name": "freshness",
-      "说明": "新鲜度：产物与文档是否跟上源码。放最后，因为它读的是前两段的产出。",
+      "说明": "新鲜度：产物与文档是否跟上源码。放最后，因为它读的是前面各段的产出。",
       "match": [
         "freshness",
         "verify-readme-sync",
         "verify-star-history",
         "verify-locale-completeness"
       ]
-    },
-    {
-      "name": "behavior",
-      "说明": "行为：其余全部。默认段，不在上面三段里的都到这里。",
-      "match": []
     }
   ],
   "_排除规则": "下面每条必须带理由与票号；没有写进来的磁盘文件由看守门禁报红，不许静默漏掉。",

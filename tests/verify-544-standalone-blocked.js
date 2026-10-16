@@ -11,7 +11,8 @@ async function loadDerived() {
   const tmp = path.join(__dirname, 'tmp-544-verify-derived.mjs')
   // effort 维度：store-derived 在面板闭包里用共享的身份函数（idOf / idOfParts / effortOf），
   // 单独取出求值时要把同一份原文显式导入，否则 ReferenceError（跑的是真函数，不改行为）。
-  const constantsHref = require('url').pathToFileURL(path.join(__dirname, '..', 'src', 'tracker', 'contract', 'vocabulary.ts')).href
+  // 身份函数 #1159 起住在 src/tracker/kernel/identity-keys.ts（契约目录只留类型与数据）。
+  const constantsHref = require('url').pathToFileURL(path.join(__dirname, '..', 'src', 'tracker', 'kernel', 'identity-keys.ts')).href
   const identityImport = "import { idOf, idOfParts, effortOf, refKeyOf } from " + JSON.stringify(constantsHref) + "\n"
   fs.writeFileSync(tmp, identityImport + src, 'utf8')
   try {
@@ -139,9 +140,9 @@ async function main() {
   assert(row.includes("tr('map.subBlocked'"), '独立票徽章提示文案不承诺跳转地图')
   ok('源码接线正确')
 
-  // —— 场景 6：门禁已接入 npm run verify 链（仓库惯例） ——
-  const pkgJson = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'))
-  assert((pkgJson.scripts.verify || '').includes('verify-544-standalone-blocked.js'), 'npm run verify 链已纳入本门禁')
+  // —— 场景 6：门禁已接入 verify 链（仓库惯例；#1125 起问规划函数，不再读 package.json 长串） ——
+  const { isGatePlanned } = require('../scripts/lib/discover-gates.ts')
+  assert(isGatePlanned(path.join(__dirname, '..'), 'tests/verify-544-standalone-blocked.js'), 'verify 链已纳入本门禁（规划函数里有它）')
   ok('门禁已接入 verify 链')
 
   console.log(`\n全部通过：${passed} 组检查，6 组场景`)

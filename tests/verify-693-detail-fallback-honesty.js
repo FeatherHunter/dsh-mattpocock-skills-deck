@@ -28,6 +28,7 @@ import { readFileSync, existsSync, writeFileSync, mkdtempSync } from 'node:fs'
 import { resolve, dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { tmpdir } from 'node:os'
+import { isGatePlanned } from '../scripts/lib/discover-gates.ts'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 let failed = 0
@@ -44,11 +45,10 @@ if (!existsSync(PRODUCT)) {
 }
 
 // ------------------------------------------------------------------
-// 一、门禁本身挂进了 verify 链（不渲染也能验）
 // ------------------------------------------------------------------
+// 一、门禁本身挂进了 verify 链（不渲染也能验；#1125 起问规划函数，不再读 package.json 长串）
 {
-  const pkg = JSON.parse(readFileSync(resolve(ROOT, 'package.json'), 'utf8'))
-  check(String((pkg.scripts || {}).verify || '').includes('verify-693-detail-fallback-honesty.js'), '本门禁已挂进 npm run verify 链')
+  check(isGatePlanned(ROOT, 'tests/verify-693-detail-fallback-honesty.js'), '本门禁已挂进 verify 链（规划函数里有它）')
 }
 
 // ------------------------------------------------------------------

@@ -157,9 +157,9 @@ async function main() {
   assert.strictEqual(ghStep.blocksSetup, false, 'gh 没装不挡初始化全文（挡住的是仓库那一步）')
   ok('清单里的注入原话逐字一致，且只有「远端仓库」那一步挡初始化全文')
 
-  // —— 场景 9：门禁已接入 npm run verify 链 ——
-  const pkgJson = JSON.parse(read('package.json'))
-  assert((pkgJson.scripts.verify || '').indexOf('verify-668-guide-steps-single-source.js') >= 0, 'npm run verify 链已纳入本门禁')
+  // —— 场景 9：门禁已接入 verify 链（#1125 起问规划函数，不再读 package.json 长串） ——
+  const { isGatePlanned } = require('../scripts/lib/discover-gates.ts')
+  assert(isGatePlanned(ROOT, 'tests/verify-668-guide-steps-single-source.js'), 'verify 链已纳入本门禁（规划函数里有它）')
   ok('门禁已接入 verify 链')
 
   console.log(`\n全部通过：${passed} 组检查，9 组场景`)

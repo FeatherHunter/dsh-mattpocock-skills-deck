@@ -240,15 +240,17 @@ function main() {
     process.exit(1)
   }
   const map = JSON.parse(fs.readFileSync(mapPath, 'utf8'))
-  const chain = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).scripts.verify
-  const chainSteps = chain.split(' && ').map((s) => s.trim())
-  const out = selectGates({ changedPaths: argv, map, chainSteps })
-  console.log(out.fullChain ? '跑全链：' + out.fullChainReason : '只跑 ' + out.steps.length + ' / ' + chainSteps.length + ' 步')
-  if (out.fullChain) {
-    console.log('（全链共 ' + out.steps.length + ' 步）')
-    return
-  }
-  for (const r of out.reasons) console.log('  ' + r.step.replace(/^node\s+/, '') + '  ←  ' + r.reason)
+  // 名单（#1125）：规划函数是唯一来源，不再读 package.json 长串。
+  return import('./discover-gates.ts').then(({ planGates }) => {
+    const chainSteps = planGates(ROOT).map((s) => s.cmd)
+    const out = selectGates({ changedPaths: argv, map, chainSteps })
+    console.log(out.fullChain ? '跑全链：' + out.fullChainReason : '只跑 ' + out.steps.length + ' / ' + chainSteps.length + ' 步')
+    if (out.fullChain) {
+      console.log('（全链共 ' + out.steps.length + ' 步）')
+      return
+    }
+    for (const r of out.reasons) console.log('  ' + r.step.replace(/^node\s+/, '') + '  ←  ' + r.reason)
+  })
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]).endsWith(path.join('lib', 'select-gates.mjs'))) main()

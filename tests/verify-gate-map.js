@@ -10,7 +10,7 @@
 //        既没门禁又没理由的，红。
 //     3. 挑选规则的场景测试：拿真实的归属表，喂几个假想的变更清单，看挑出来的门禁对不对。
 //        其中含一条反向测试，证明挑选确实在筛，不是把全链都选上。
-//     4. 和链一致：归属表里的 step 集合必须等于当前 package.json 链上的 step 集合。
+//     4. 和链一致：归属表里的 step 集合必须等于规划函数给出的 step 集合。
 //
 // 用法: node tests/verify-gate-map.js（在插件根目录）
 import fs from 'node:fs'
@@ -39,7 +39,7 @@ console.log('门禁归属表与挑选规则门禁')
 // 读入被测对象
 // ---------------------------------------------------------------------------
 const chainSteps = readChainSteps(ROOT)
-check(chainSteps.length > 0, '从 package.json 的 scripts.verify 里读到了链，共 ' + chainSteps.length + ' 步')
+check(chainSteps.length > 0, '规划函数给出了链，共 ' + chainSteps.length + ' 步')
 
 if (!fs.existsSync(MAP_PATH)) {
   check(false, 'tests/gate-map.json 不存在：请先跑 node scripts/gate-map.mjs')

@@ -1674,10 +1674,11 @@ const selfDigest = function () {
 //   ④ L2 注入探针的扩展名跟着真源走（.ts），内容锚点认 `.ts` 的写法（`const PROMPTS: X = {` 与 `} satisfies X`）。
 //   夹具文件一个字没动，只有本文件改了，自摘要跟着重算。
 // #1209：ENTRY_RE 与 verify-prompt-newlines.js 的孪生正则同步改成定界符感知（产物双引号排版含 ' 原文时不再静默少扫），自摘要跟着重算。
+// #1125：自注册改问规划函数（不再读 package.json 长串），自摘要跟着重算。
 const LOCK = {
   'tests/prompt-gate-exempt.json': 'c661ccd0fbfd46aa99790c073d0ccea89ebf5787a9113462c092b17c72a2a2d9',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.js': '13986e8a9f8ae94f276e31f3282ae3bcba6d7fc0798265fe8f78e633bc0528d1',
+  'tests/verify-prompts.js': '5458525fbd1960cc34159fb2748d9942aad2c43de52aa3f92e1f6ad79ae6613a',
 }
 // ---- LOCK-END ----
 
@@ -2079,14 +2080,15 @@ if (!IS_CHILD) {
   }
   check(EXEMPT.length === EXPECT_EXEMPT, 'L3 EXEMPT=' + EXEMPT.length + '（期望 ' + EXPECT_EXEMPT + '）')
   if (problems.length === l3Before) console.log('  PASS L3 扫描面完整性')
-  // 自注册（#573 总指挥 Q1：本门禁与 verify-progress.js 都要在链里）
+  // 自注册（#573 总指挥 Q1：本门禁与 verify-progress.js 都要在链里；
+  // #1125 起问规划函数，不再读 package.json 长串）
   const pReg = problems.length
   try {
-    const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
-    check((pkg.scripts.verify || '').includes('verify-prompts.js'), 'npm run verify 链未纳入本门禁（tests/verify-prompts.js）')
-    check((pkg.scripts.verify || '').includes('verify-progress.js'), 'npm run verify 链未纳入 tests/verify-progress.js（#573 总指挥 Q1 裁定）')
+    const { isGatePlanned } = require('../scripts/lib/discover-gates.ts')
+    check(isGatePlanned(ROOT, 'tests/verify-prompts.js'), 'verify 链未纳入本门禁（tests/verify-prompts.js，规划函数里有它）')
+    check(isGatePlanned(ROOT, 'tests/verify-progress.js'), 'verify 链未纳入 tests/verify-progress.js（#573 总指挥 Q1 裁定，规划函数里有它）')
     if (problems.length === pReg) console.log('  PASS 自注册（verify 链含 verify-prompts.js + verify-progress.js）')
-  } catch (e) { fail('读 package.json 失败：' + e.message) }
+  } catch (e) { fail('读门禁规划失败：' + e.message) }
 }
 
 console.log('S1=' + surfaceReport.S1 + ' S2=' + surfaceReport.S2.join('/') + ' S3=' + surfaceReport.S3.join('/') + ' S4=' + surfaceReport.S4 +

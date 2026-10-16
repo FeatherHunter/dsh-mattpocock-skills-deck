@@ -204,8 +204,9 @@ async function main(): Promise<void> {
     }
     check(readText('scripts/build.mjs').indexOf("name: 'settingsDebug', file: 'src/client/kernel/settings-debug.js'") >= 0,
       'scripts/build.mjs 的模块清单里登记了 settingsDebug（不登记会静默不编译）。')
-    check(readText('package.json').indexOf('node tests/verify-settings-debug.ts') >= 0,
-      'package.json 的验证链里登记了这一份门禁。')
+    // #1125 起本门禁按目录约定自动进链，不再读 package.json 长串。
+    check(require('../scripts/lib/discover-gates.ts').isGatePlanned(ROOT, 'tests/verify-settings-debug.ts'),
+      'verify 规划名单里登记了这一份门禁（不登记会静默不跑）。')
     check(countLines(DEBUG_TRUTH_REL) <= 350 && countLines(LOG_REL) <= 350 && countLines(INDEX_REL) <= 350 && countLines(VIEW_REL) <= 350 && countLines(WRITE_REL) <= 350,
       '五份文件都在 350 行以内（本片量真源 ' + countLines(DEBUG_TRUTH_REL) + '、旧真源 log.js ' + countLines(LOG_REL) + '、index.js ' + countLines(INDEX_REL) + '、settings-view.js ' + countLines(VIEW_REL) + '、settings-view-write.js ' + countLines(WRITE_REL) + '）。')
   }

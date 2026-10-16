@@ -22,6 +22,7 @@
 import { readFileSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isGatePlanned } from "../scripts/lib/discover-gates.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 let failures = [];
@@ -43,7 +44,6 @@ console.log("");
 const workflowPath = resolve(ROOT, ".github/workflows/release-tarball.yml");
 const runbookPath = resolve(ROOT, "docs/releases/RELEASE-RUNBOOK.md");
 const packageJsonPath = resolve(ROOT, "package/package.json");
-const rootPackageJsonPath = resolve(ROOT, "package.json");
 
 // 1. 自动附着资产的那个 workflow
 console.log("[1] 发版即自动附着预构建包（workflow）");
@@ -83,12 +83,12 @@ if (existsSync(runbookPath)) {
 }
 console.log("");
 
-// 4. 本门禁自己确认已挂进 verify 链（仓库惯例：免得哪天被摘掉还没人发现）
-console.log("[4] 本门禁已挂进 npm run verify 链");
-const rootPkg = existsSync(rootPackageJsonPath) ? JSON.parse(readFileSync(rootPackageJsonPath, "utf8")) : null;
+// 4. 本门禁自己确认已挂进 verify 链（仓库惯例：免得哪天被摘掉还没人发现；
+//    #1125 起问规划函数，不再读 package.json 长串）
+console.log("[4] 本门禁已挂进 verify 链");
 assert(
-  String(rootPkg?.scripts?.verify || "").includes("verify-market-tarball.js"),
-  "package.json 的 scripts.verify 里有 verify-market-tarball.js",
+  isGatePlanned(ROOT, "tests/verify-market-tarball.js"),
+  "规划函数里有 tests/verify-market-tarball.js",
 );
 console.log("");
 

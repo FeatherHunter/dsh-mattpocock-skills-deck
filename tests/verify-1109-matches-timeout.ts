@@ -24,6 +24,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 //   writeWorkspaceFile 真临时目录（wsD）—— deck 工具那条路读的是真文件，得往盘上真写一份；
 //   makeDecideStub     顶替生产判定出口，把账本当工作区文件读（它内部调的就是生产那一个出口函数）。
 import { chooseWorkspace, makeDecideStub, writeWorkspaceFile } from './lib/deck-decide-stub.js'
+import { planGates } from '../scripts/lib/discover-gates.ts'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const imp = (rel: string) => import(pathToFileURL(path.join(ROOT, rel)).href)
@@ -256,11 +257,9 @@ async function main() {
   check(fakeDeck2.calls.length === 0, 'deck 工具那条路遇到工作区文件命中时一次计时器都没起（实得 ' + JSON.stringify(fakeDeck2.calls) + '）')
   check(!!runBound && !!runBound.backend && runBound.backend.source === 'explicit', '回包说走的是工作区文件里选定的那一个后端（实得 ' + JSON.stringify(runBound && runBound.backend) + '）')
 
-  // ── 本文件必须在 verify 链里（不挂进链就等于没跑）──
-  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
-  const steps = String(pkg.scripts.verify).split('&&').map((s: string) => s.trim())
-  const mine = steps.filter((s: string) => s.indexOf('verify-1109-matches-timeout') >= 0)
-  check(mine.length === 1, '本门禁挂在 verify 链里且只挂一次（实得 ' + mine.length + ' 次）')
+  // ── 本文件必须在 verify 链里（不挂进链就等于没跑；#1125 起问规划函数）──
+  const mine1109 = planGates(ROOT).filter((s) => s.file.indexOf('verify-1109-matches-timeout') >= 0)
+  check(mine1109.length === 1, '本门禁挂在 verify 链里且只挂一次（实得 ' + mine1109.length + ' 次）')
 
   wsA.cleanup(); wsB.cleanup(); wsC.cleanup(); wsD.cleanup()
   console.log('\n' + (failed ? '不通过' : '全部通过') + ' — ' + total + ' 条断言')

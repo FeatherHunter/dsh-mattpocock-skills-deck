@@ -31,6 +31,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { planGates } from '../scripts/lib/discover-gates.ts'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const TESTS = path.join(ROOT, 'tests')
@@ -104,13 +105,11 @@ function selfCheck(): void {
   check(same.added.length === 0 && same.stale.length === 0, '判据自查：两边一致时不报任何一条')
 }
 
-/** verify 长串里那几条的读数：链上一共几步、其中还有几条是旧语言。 */
+/** 规划名单里那几条的读数：链上一共几步、其中还有几条是旧语言（#1125 起问规划函数）。 */
 function chainReadout(): { steps: number; oldSteps: number } {
-  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
-  const steps = String(pkg.scripts.verify).split('&&').map((s) => s.trim()).filter(Boolean)
-  const files = steps.map((s) => (/^node\s+(\S+)$/.exec(s) || [])[1]).filter(Boolean)
+  const files = planGates(ROOT).map((s) => s.file)
   const oldSteps = files.filter((f) => OLD_LANG_RE.test(f) && fs.existsSync(path.join(ROOT, f))).length
-  return { steps: steps.length, oldSteps }
+  return { steps: files.length, oldSteps }
 }
 
 function loadBaseline(): { metric?: string; files?: string[] } | null {
@@ -176,7 +175,7 @@ function main() {
     + '留着这些路径等于给它们预留豁免：将来在那里重新写 .js 测试时棘轮不会判红）')
 
   console.log('  INFO 未迁移的旧语言测试文件还有 ' + current.length + ' 个（基线 ' + baseline.files.length + ' 个，'
-    + '相对基线已少 ' + stale.length + ' 个）；其中挂在 verify 长串上的旧语言步骤 ' + chain.oldSteps + ' 条（长串共 ' + chain.steps + ' 步）')
+    + '相对基线已少 ' + stale.length + ' 个）；其中挂在 verify 规划名单上的旧语言步骤 ' + chain.oldSteps + ' 条（规划名单共 ' + chain.steps + ' 步）')
 
   console.log(failed ? '\n存在失败' : '\n全部通过 — 未迁移旧测试数棘轮生效（只降不升）')
   process.exit(failed ? 1 : 0)

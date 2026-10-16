@@ -10,16 +10,16 @@
 //
 // 用法: node tests/verify-596-rpc-carrier.js
 import { readFileSync } from 'node:fs'
+import { isGatePlanned } from '../scripts/lib/discover-gates.ts'
 
 let failures = 0
 const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failures++ }
 
 const src = (p) => readFileSync(p, 'utf8')
 
-// 门禁自身必须挂在 npm run verify 链上，否则它只是一份没人跑的说明（沿用 #544 的写法）。
+// 门禁自身必须挂在 verify 链上，否则它只是一份没人跑的说明（#1125 起问规划函数，不再读 package.json 长串）。
 {
-  const pkgJson = JSON.parse(src('package.json'))
-  check((pkgJson.scripts.verify || '').includes('verify-596-rpc-carrier.js'), 'npm run verify 链已纳入本门禁')
+  check(isGatePlanned(process.cwd(), 'tests/verify-596-rpc-carrier.js'), 'verify 链已纳入本门禁（规划函数里有它）')
 }
 
 // 【已删除】原先的 ① 客户端那一半 / ② 宿主那一半 / ③ 对撞 三段，读的是 src/seam/rpc.js、

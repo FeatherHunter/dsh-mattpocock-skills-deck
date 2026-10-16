@@ -771,14 +771,16 @@ console.log('子议题关联脚本门禁（#572 · 命令行黑盒）')
     '20.3 每条 api 路径都写成 repos/' + slug + '/...（不再用 {owner}/{repo} 占位符）')
 }
 
-// ——— 21) 已接入 npm run verify 链，且紧跟姊妹门禁之后 ———
+// ——— 21) 已接入 verify 链，与姊妹门禁同段 ———
+// #1125 起名单走规划函数：长串时代的“紧跟之后”在新世界没有对应物（段内按文件名排序），
+// 这里守的是它的本意 —— 两扇门禁都在链上、且同处一段（同一次跑、同一种并行策略）。
 {
-  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
-  const steps = String(pkg.scripts.verify || '').split(' && ')
-  const mine = 'node tests/verify-wire-subissues-script.js'
-  const sisterStep = 'node tests/verify-issue-body-script.js'
-  check(steps.indexOf(mine) >= 0, '21.1 npm run verify 链已纳入本门禁')
-  check(steps.indexOf(sisterStep) >= 0 && steps[steps.indexOf(sisterStep) + 1] === mine, '21.2 本门禁紧跟姊妹门禁 tests/verify-issue-body-script.js 之后')
+  const { planGates } = require('../scripts/lib/discover-gates.ts')
+  const plan = planGates(ROOT)
+  const mine = plan.find((s) => s.file === 'tests/verify-wire-subissues-script.js')
+  const sister = plan.find((s) => s.file === 'tests/verify-issue-body-script.js')
+  check(!!mine, '21.1 verify 链已纳入本门禁（规划函数里有它）')
+  check(!!sister && !!mine && sister.stage === mine.stage, '21.2 本门禁与姊妹门禁 tests/verify-issue-body-script.js 同处 ' + (mine ? mine.stage : '?') + ' 段')
 }
 
 // ——— 22) 子目录里跑：一路向上找到工作区根，命令也在根上跑（#654） ———
