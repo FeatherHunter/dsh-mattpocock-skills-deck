@@ -28,7 +28,7 @@
  */
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-// 本文件按文本求值统一走共用入口 compileFn：真源文本配假零件造成模块（理由与用法见 tests/lib/eval-probe.js 文件头）。
+// 本文件按文本求值走共用入口 compileFn：真源文本配假零件造成模块（理由与用法见 tests/lib/eval-probe.js 文件头）。
 import { compileFn } from './lib/eval-probe.js'
 // 取源走共用入口（#1207 立）：spliceableJs 给「可以直接当函数体求值」的 JavaScript 文本
 // （.ts 会先按构建那份口径转译；手写 .js 原样返回并剥掉行首 export）。本文件只求值、不扫文本形状，所以只要它。
@@ -36,41 +36,48 @@ import { spliceableJs } from './lib/source-text.ts'
 
 let passed = 0
 let failed = 0
-function check (ok, msg) { if (ok) { console.log('  PASS ' + msg); passed++ } else { console.log('  FAIL ' + msg); failed++ } }
+function check (ok: unknown, msg: string): void { if (ok) { console.log('  PASS ' + msg); passed++ } else { console.log('  FAIL ' + msg); failed++ } }
 
 // read 留给还没迁移的 .js（probe-chain.js 那一份）：它没有同名 .ts，spliceableJs 会原样读。
-const read = (rel) => readFileSync(resolve(rel), 'utf8')
+const read = (rel: string): string => readFileSync(resolve(rel), 'utf8')
 const sbSrc = spliceableJs('src/client/statusbar/StatusBackend.js')
 const chainSrc = read('src/client/kernel/probe-chain.js')
+
+// 沙箱里那几个会话对象的形状：真身在求值时往 selection / chainSnapshot 里写，测试侧按同一形状读。
+interface ChainState {
+  cwd: string
+  selection: Record<string, unknown> | null
+  chainSnapshot: { id: string } | null
+}
 
 console.log('== A 行为层：真的调一次 confirmStatusGate，看它绑完之后有没有重取链 ==')
 {
   // 这份文本已经是「可以当函数体求值」的形态：spliceableJs 交出来的片段里行首 export 已经剥掉
   //   （它过的就是构建拼闭包那一步 inlineExportDeclarations + toSpliceableFragment），所以这里不再自己剥。
   const body = sbSrc
-  const calls = { chain: [], snapshot: [], bind: [], flashes: [] }
-  const sandbox = {
-    tr: (k) => String(k),
+  const calls: { bind: any[]; snapshot: any[]; chain: any[]; flashes: any[] } = { bind: [], snapshot: [], chain: [], flashes: [] }
+  const sandbox: Record<string, any> = {
+    tr: (k: unknown) => String(k),
     emit: () => {},
     firstBackendIdOf: () => 'github',
     setCachedSelection: () => {},
     setPresentationMap: () => {},
-    labelOf: (id) => String(id),
-    flash: (st, t) => calls.flashes.push(String(t)),
-    loadSnapshot: (st, a, b) => calls.snapshot.push({ force: a, mode: b }),
-    loadChain: (st, force) => calls.chain.push({ force: force }),
+    labelOf: (id: unknown) => String(id),
+    flash: (st: unknown, t: unknown) => calls.flashes.push(String(t)),
+    loadSnapshot: (st: unknown, a: unknown, b: unknown) => calls.snapshot.push({ force: a, mode: b }),
+    loadChain: (st: unknown, force: unknown) => calls.chain.push({ force: force }),
     moduleMetaOf: () => null,
     injectSetupDecision: () => 'setup-card',
-    host: { call: (method, params) => { calls.bind.push({ method: method, params: params }); return Promise.resolve({ ok: true }) } },
+    host: { call: (method: string, params: any) => { calls.bind.push({ method: method, params: params }); return Promise.resolve({ ok: true }) } },
     console: { log () {}, warn () {}, error () {} },
   }
   const names = Object.keys(sandbox)
   // 把 StatusBackend.js 真身配假零件造成模块：改走共用入口 compileFn，参数名沿用 sandbox 的键。
   const mod = compileFn(names, body + '\n;return { confirmStatusGate: confirmStatusGate }')(...names.map((n) => sandbox[n]))
-  const st = { cwd: 'D:\\tmp\\669-demo', selection: null, snapshot: null, gateModalOpen: true, gateModalSource: 'status', gateSelected: 'github' }
+  const st: ChainState = { cwd: 'D:\\tmp\\669-demo', selection: null, snapshot: null, gateModalOpen: true, gateModalSource: 'status', gateSelected: 'github' } as unknown as ChainState
   mod.confirmStatusGate(st)
   await new Promise((r) => setTimeout(r, 0))
-  check(calls.bind.length === 1 && calls.bind[0].method === 'wf.bind', '照旧打了一通绑定电话（实得 ' + JSON.stringify(calls.bind.map((c) => c.method)) + '）')
+  check(calls.bind.length === 1 && calls.bind[0].method === 'wf.bind', '照旧打了一通绑定电话（实得 ' + JSON.stringify(calls.bind.map((c: any) => c.method)) + '）')
   check(calls.snapshot.length === 1, '照旧重取了一次快照（实得 ' + calls.snapshot.length + ' 次）')
   check(calls.chain.length === 1, '绑定成功之后确实又重取了一次链（实得 ' + calls.chain.length + ' 次）')
   check(calls.chain.length === 1 && calls.chain[0].force === true, '而且那一次是 force（绕过缓存，实得 force=' + (calls.chain[0] && calls.chain[0].force) + '）')
@@ -85,33 +92,33 @@ console.log('')
 //   落点是手写源码的写法与先后，等价重构（换写法、搬位置、改注释）就会红，所以整段拆掉。
 //   同一件事改由 C 组守：那一段把 probe-chain.js 的真身取出来、喂假 host，按六种竞态现场逐条量
 //   「留下的该是哪一份」（旧结果晚到不许盖新的、换后端 / 换工作区 / 同键先后 / 并发去重都各有一条）；
-//   A 组则真调一次 confirmStatusGate，量它绑完之后确实又重取了一次链。
+//   A 组则真调一次 confirmStatusGate，量它绑完之后确实重取了一次链。
 
 // ── C 组用的沙箱：把 probe-chain.js 真身取出来，喂一个可以按任意顺序回包的假 host ──────────────
-const stripExports = (s) => s.replace(/^[ \t]*export[ \t]+/gm, '')
-const deferredOf = () => { let res; const p = new Promise((r) => { res = r }); return { p: p, res: res } }
+const stripExports = (s: string): string => s.replace(/^[ \t]*export[ \t]+/gm, '')
+const deferredOf = () => { let res: (value: any) => void = () => {}; const p = new Promise<any>((r) => { res = r }); return { p: p, res: res } }
 const tick = () => new Promise((r) => setTimeout(r, 0))
 
-function makeChain (srcText) {
-  const calls = []
+function makeChain (srcText: string) {
+  const calls: any[] = []
   const cache = new Map()
-  const keyOf = (cwd, bid, lang) => String(cwd) + '|' + String(bid || '') + '|' + String(lang || '')
+  const keyOf = (cwd: unknown, bid: unknown, lang: unknown): string => String(cwd) + '|' + String(bid || '') + '|' + String(lang || '')
   // #1003 退役 hint 上报（宿主读文件）：真身恒返回空，链请求不再带后端，下列现场只量“发了几次、 stale 怎么判”。
   const hintLine = read('src/client/kernel/store-prefs.js').split('\n').filter((l) => l.indexOf('export const userHintOf = function') >= 0)[0] || ''
   // 从真源切出一行函数表达式求值：改走共用入口 compileFn，这段源码不需要外部变量，参数表传空数组。
   const userHintOf = compileFn([], 'return ' + hintLine.trim().replace(/^export const userHintOf = /, ''))()
-  const sandbox = {
-    host: { call: (method, params) => { const d = deferredOf(); calls.push({ method: method, params: params, d: d }); return d.p } },
+  const sandbox: Record<string, any> = {
+    host: { call: (method: string, params: any) => { const d = deferredOf(); calls.push({ method: method, params: params, d: d }); return d.p } },
     userHintOf: userHintOf,
-    wsKeyOf: (p) => String(p || '').replace(/\\/g, '/').toLowerCase(),
+    wsKeyOf: (p: unknown) => String(p || '').replace(/\\/g, '/').toLowerCase(),
     getChainCacheKey: keyOf,
-    getCachedChain: (cwd, bid, lang) => cache.get(keyOf(cwd, bid, lang)) || null,
-    setCachedChain: (cwd, bid, lang, snap) => { cache.set(keyOf(cwd, bid, lang), snap) },
+    getCachedChain: (cwd: unknown, bid: unknown, lang: unknown) => cache.get(keyOf(cwd, bid, lang)) || null,
+    setCachedChain: (cwd: unknown, bid: unknown, lang: unknown, snap: unknown) => { cache.set(keyOf(cwd, bid, lang), snap) },
     promptLang: () => 'zh',
     isEnabled: () => false,
     log: () => {},
-    dswsLogHash: (s) => 'h' + String(s || '').length,
-    dswsLogTrunc: (s) => String(s || '').slice(0, 120),
+    dswsLogHash: (s: unknown) => 'h' + String(s || '').length,
+    dswsLogTrunc: (s: unknown) => String(s || '').slice(0, 120),
     emit: () => {},
     nowStr: () => '00:00:00',
     timer: null,
@@ -131,19 +138,19 @@ function makeChain (srcText) {
   const mod = compileFn(names, body)(...names.map((n) => sandbox[n]))
   return { loadChain: mod.loadChain, chainEventRefresh: mod.chainEventRefresh, calls: calls, cache: cache }
 }
-const snapOf = (id) => ({ ok: true, fullSnapshot: { id: id, steps: [{ status: 'done' }] } })
+const snapOf = (id: string) => ({ ok: true, fullSnapshot: { id: id, steps: [{ status: 'done' }] } })
 const NEW10 = '新（10 步，有仓库那一段）'
 
 // 六种现场各走一遍，返回每一步实得的东西（C 组断言、D 组反证共用同一套量法）。
 //   每个现场都新开一个沙箱：序号与在途登记都是模块级的，混在一起量不准。
-const runScenarios = async function (srcText) {
-  const out = {}
+const runScenarios = async function (srcText: string): Promise<Record<string, any>> {
+  const out: Record<string, any> = {}
 
   // 现场 1：全新空目录里，先开一次不带后端的链；用户选 GitHub、紧接着 force 重取一次；
   //   最坏顺序 —— 新的先回来，旧的后回来。
   {
     const c = makeChain(srcText)
-    const st = { cwd: 'D:\\demo1', selection: null, chainSnapshot: null }
+    const st: ChainState = { cwd: 'D:\\demo1', selection: null, chainSnapshot: null }
     c.loadChain(st, false)
     st.selection = { backendId: 'github', source: 'explicit', pickedAt: Date.now() } // 用户在门控窗点确认选出来的那条（乐观，会话内存）
     c.loadChain(st, true)
@@ -160,7 +167,7 @@ const runScenarios = async function (srcText) {
   // 现场 2：顺序正常（旧的先回、新的后回）—— 也必须留下新的那一份。
   {
     const c = makeChain(srcText)
-    const st = { cwd: 'D:\\demo2', selection: null, chainSnapshot: null }
+    const st: ChainState = { cwd: 'D:\\demo2', selection: null, chainSnapshot: null }
     c.loadChain(st, false)
     st.selection = { backendId: 'github', userPicked: true } // #669 第 6 件：这一处是「用户在门控窗点确认选出来的那条」，只有带标记的才当 hint 上报
     c.loadChain(st, true)
@@ -175,7 +182,7 @@ const runScenarios = async function (srcText) {
   //   新后端那次先回来，旧后端那次晚回来 —— 晚回来的那份不许把新链盖成旧后端的链。
   {
     const c = makeChain(srcText)
-    const st = { cwd: 'D:\\demo3', selection: { backendId: 'github', userPicked: true }, chainSnapshot: { id: '初始' } }
+    const st: ChainState = { cwd: 'D:\\demo3', selection: { backendId: 'github', userPicked: true }, chainSnapshot: { id: '初始' } }
     c.loadChain(st, true)
     st.selection = { backendId: 'markdown', userPicked: true } // 同上：切换（用户亲手选的那一下）
     c.loadChain(st, true)
@@ -189,8 +196,8 @@ const runScenarios = async function (srcText) {
   // 现场 4：两个工作区各自在飞（同一个页面里两个会话）—— 谁都不许把对方顶掉。
   {
     const c = makeChain(srcText)
-    const stA = { cwd: 'D:\\wsA', selection: { backendId: 'github', userPicked: true }, chainSnapshot: null }
-    const stB = { cwd: 'D:\\wsB', selection: { backendId: 'github', userPicked: true }, chainSnapshot: null }
+    const stA: ChainState = { cwd: 'D:\\wsA', selection: { backendId: 'github', userPicked: true }, chainSnapshot: null }
+    const stB: ChainState = { cwd: 'D:\\wsB', selection: { backendId: 'github', userPicked: true }, chainSnapshot: null }
     c.loadChain(stA, true)   // A 工作区先发
     c.loadChain(stB, true)   // B 工作区后发（键不同）
     c.calls[0].d.res(snapOf('A 工作区的链'))
@@ -203,7 +210,7 @@ const runScenarios = async function (srcText) {
   // 现场 5：同一个键上两次重取（事件带起来的那次与手动重查撞上）—— 先发的那次晚回来，不许盖掉后发的那次。
   {
     const c = makeChain(srcText)
-    const st = { cwd: 'D:\\demo5', selection: { backendId: 'github', userPicked: true }, chainSnapshot: { id: '初始' } }
+    const st: ChainState = { cwd: 'D:\\demo5', selection: { backendId: 'github', userPicked: true }, chainSnapshot: { id: '初始' } }
     c.loadChain(st, true)
     c.loadChain(st, true)
     c.calls[1].d.res(snapOf('后一次（新）'))
@@ -216,7 +223,7 @@ const runScenarios = async function (srcText) {
   // 现场 6（回归）：非 force 的同键并发照旧复用一次请求，两个调用方都拿到同一份快照。
   {
     const c = makeChain(srcText)
-    const st = { cwd: 'D:\\demo6', selection: { backendId: 'github', userPicked: true }, chainSnapshot: null }
+    const st: ChainState = { cwd: 'D:\\demo6', selection: { backendId: 'github', userPicked: true }, chainSnapshot: null }
     const p1 = c.loadChain(st, false)
     const p2 = c.loadChain(st, false)
     c.calls[0].d.res(snapOf('同键非 force 的一次'))
@@ -253,7 +260,7 @@ console.log('== E 层：退休的 8 秒自轮询，它的活由几条真实事�
   //     ③ 做完可能改变它的动作（绑定后端、配置派生）；
   //     ④ 写入成功之后那一路发生在宿主侧（chainBackoff.noteWriteActivity），不发客户端这一条。
   //   这几条都照真源当下的落点量：谁改了落点这里会红，不会假绿。
-  const lineIn = function (rel, re) { return ((read(rel).split(/\r?\n/)).filter(function (l) { return re.test(l) })[0] || '').trim() }
+  const lineIn = function (rel: string, re: RegExp): string { return ((read(rel).split(/\r?\n/)).filter(function (l) { return re.test(l) })[0] || '').trim() }
   // 【已删除】原先这里列了一张六行的「哪一路走事件入口」清单（读 ChecksTab.js / probe-auto.js /
   //   store-switch.js / slotRenderer-repo-sync.js 的源码文本，按正则找那一行在不在），末尾还有一条对
   //   probe-chain.js 的同类断言。落点是源码里那一行的写法，等价重构就会红，整段拆掉。
@@ -267,14 +274,14 @@ console.log('== E 层：退休的 8 秒自轮询，它的活由几条真实事�
   const openChecksLine = lineIn('src/client/views/ChecksTab.js', /chainEventRefresh\(st, whyEnter/)
   const runOpenChecksLine = async function () {
     const c = makeChain(chainSrc)
-    const st = { cwd: 'D:\\demo8', selection: { backendId: 'github', userPicked: true }, chainSnapshot: null }
+    const st: ChainState = { cwd: 'D:\\demo8', selection: { backendId: 'github', userPicked: true }, chainSnapshot: null }
     // 共享缓存里那一份链快照的形状与运行时一致（缓存存的是快照本体，不是回包外层）。
     c.cache.set('d:/demo8|github|zh', { id: '共享缓存里那一份', steps: [{ status: 'done' }] })
-    const deps = {
+    const deps: Record<string, any> = {
       st: st, whyEnter: 'enter-workspace',
       chainEventRefresh: c.chainEventRefresh, loadChain: c.loadChain,
       CHAIN_EVENT_REASONS: { enterWorkspace: 'enter-workspace', userRecheck: 'user-recheck', actionDone: 'action-done', writeDone: 'write-done' },
-      React: { useEffect: function (fn) { fn() } },
+      React: { useEffect: function (fn: () => void) { fn() } },
       console: { log () {}, warn () {}, error () {} },
     }
     const names = Object.keys(deps)
@@ -287,7 +294,7 @@ console.log('== E 层：退休的 8 秒自轮询，它的活由几条真实事�
   check(openNoForce.calls === 0 && openNoForce.got === '共享缓存里那一份', '切进工作区那一路：共享缓存里有就直接秒显，一次 host.call 都不发（实得发 ' + openNoForce.calls + ' 次、铺上「' + openNoForce.got + '」）')
   if (openNoForce.c.calls[0]) openNoForce.c.calls[0].d.res(snapOf('缓存优先那一份'))
   const c2 = makeChain(chainSrc)
-  const st2 = { cwd: 'D:\\demo8', selection: { backendId: 'github', userPicked: true }, chainSnapshot: null }
+  const st2: ChainState = { cwd: 'D:\\demo8', selection: { backendId: 'github', userPicked: true }, chainSnapshot: null }
   c2.cache.set('d:/demo8|github|zh', snapOf('共享缓存里那一份'))
   const p2 = c2.chainEventRefresh(st2, 'enter-workspace')
   await tick()
@@ -299,7 +306,7 @@ console.log('== E 层：退休的 8 秒自轮询，它的活由几条真实事�
 
   // ②③ 那几路仍旧要把「为什么重取」带给宿主，宿主凭它判退避。
   const c3 = makeChain(chainSrc)
-  const st3 = { cwd: 'D:\\demo9', selection: { backendId: 'github', userPicked: true }, chainSnapshot: null }
+  const st3: ChainState = { cwd: 'D:\\demo9', selection: { backendId: 'github', userPicked: true }, chainSnapshot: null }
   const p3 = c3.chainEventRefresh(st3, 'action-done')
   await tick()
   const one3 = (c3.calls[0] && c3.calls[0].params) || {}
@@ -337,7 +344,7 @@ console.log('== D 反证：把守卫做坏，C 里对应的那几条必须当场
       must: ['现场 4 跨工作区'],
     },
   ]
-  const worse = (key, got) => {
+  const worse = (key: string, got: Record<string, any>): boolean => {
     if (key === '现场 1 会话状态') return got.afterStaleLate !== NEW10
     if (key === '现场 1 过期那一次不落') return got.staleKeyCacheEmpty === false
     if (key === '现场 3 换后端') return got.afterSwitchBackend !== 'markdown 的链（新）'
