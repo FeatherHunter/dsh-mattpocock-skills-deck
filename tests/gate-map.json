@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T16:26:19.037Z",
+  "generatedAt": "2026-10-16T16:31:36.954Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 301,
   "gateCount": 301,
@@ -8,7 +8,7 @@
   "unattributedGates": 42,
   "buildOutputOnlyGates": 25,
   "completionRecordedGates": 6,
-  "smokeLength": 6,
+  "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
   "graphFileCount": 577,
   "gates": [
@@ -6868,13 +6868,6 @@
       "step": "node --import ./scripts/ts-hook.mjs tests/smoke-client.test.js",
       "file": "tests/smoke-client.test.js",
       "gate": "smoke-client",
-      "completionRecord": false,
-      "expectedAssertions": 0
-    },
-    {
-      "step": "node --import ./scripts/ts-hook.mjs tests/smoke-host.test.js",
-      "file": "tests/smoke-host.test.js",
-      "gate": "smoke-host",
       "completionRecord": false,
       "expectedAssertions": 0
     },

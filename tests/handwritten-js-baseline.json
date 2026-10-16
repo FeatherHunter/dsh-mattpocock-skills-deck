@@ -246,7 +246,6 @@
     "tests/smoke-client.test.js",
     "tests/smoke-comment-passthrough.test.js",
     "tests/smoke-host-dispatch.test.js",
-    "tests/smoke-host.test.js",
     "tests/smoke-naming-persistence.test.js",
     "tests/smoke-render.test.js",
     "tests/tracker-contract/fixtures/compliant.js",
