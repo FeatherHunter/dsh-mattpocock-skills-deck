@@ -23,16 +23,16 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
-const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href)
+const imp = (rel: string) => import(pathToFileURL(path.join(ROOT, rel)).href)
 let passed = 0
 let failed = 0
-const check = (ok, msg) => { if (ok) { console.log('  PASS ' + msg); passed++ } else { console.log('  FAIL ' + msg); failed++ } }
+const check = (ok: boolean, msg: string) => { if (ok) { console.log('  PASS ' + msg); passed++ } else { console.log('  FAIL ' + msg); failed++ } }
 
 console.log('== ① 凭据 git 出口：空目录如实失败，且一次都没起进程 ==')
 {
   const mod = await imp('src/host/gitCredentialExec.js')
-  const calls = []
-  const runGit = async function (exe, cwd, argv) { calls.push({ exe, cwd, argv }); return { kind: 'ok', stdout: 'ok', truncated: false } }
+  const calls: Array<{ exe: unknown; cwd: unknown; argv: unknown }> = []
+  const runGit = async function (exe: unknown, cwd: unknown, argv: unknown) { calls.push({ exe, cwd, argv }); return { kind: 'ok', stdout: 'ok', truncated: false } }
   const deps = {
     runGit,
     getPlatform: async () => ({ resolveExecutable: async () => '/usr/bin/git' }),
@@ -58,9 +58,9 @@ console.log('')
 console.log('== ② 真宿主入口：空目录调一次后端探测，看它有没有拿进程目录顶上 ==')
 {
   const entry = (await imp('src/host/index.js')).default
-  const spawns = []
+  const spawns: Array<{ argv: unknown; cwd: unknown }> = []
   const subprocess = {
-    spawn: (o) => { spawns.push({ argv: (o && o.argv) || [], cwd: o && o.cwd }); return { ok: true, stdout: '', stderr: '', code: 0, kill() {} } },
+    spawn: (o: { argv?: unknown; cwd?: unknown }) => { spawns.push({ argv: (o && o.argv) || [], cwd: o && o.cwd }); return { ok: true, stdout: '', stderr: '', code: 0, kill() {} } },
     exec: async () => ({ ok: true, stdout: '', stderr: '', code: 0 }),
   }
   // 定时器给「永不触发」的桩：装配里那些重试/兜底定时器不该在门禁里真的跑起来（跑起来会挂住进程，也不确定）。
@@ -70,20 +70,20 @@ console.log('== ② 真宿主入口：空目录调一次后端探测，看它有
     writeText: async () => ({ ok: true }),
     exists: async () => false,
     mkdir: async () => ({ ok: true }),
-    resolve: (p) => p,
+    resolve: (p: unknown) => p,
     listDir: async () => [],
     unlink: async () => ({ ok: true }),
   }
   // 平台服务给最小可用桩：电话们要先问出 git/gh 的可执行文件，问不出来它们会在「起命令」之前就早退，
   // 那样就看不见「起命令时用的是哪条目录」这件事了。
   const platformStub = {
-    resolveExecutable: async (n) => (n === 'git' ? 'C:/verify/git.exe' : (n === 'gh' ? 'C:/verify/gh.exe' : null)),
+    resolveExecutable: async (n: unknown) => (n === 'git' ? 'C:/verify/git.exe' : (n === 'gh' ? 'C:/verify/gh.exe' : null)),
     path: {
-      join: (...p) => p.filter(Boolean).join('/'),
-      dirname: (p) => String(p).replace(/[\\/][^\\/]*$/, ''),
-      basename: (p) => String(p).split(/[\\/]/).pop(),
-      resolve: (...p) => p.filter(Boolean).join('/'),
-      isAbsolute: (p) => /^([A-Za-z]:[\\/]|\/)/.test(String(p)),
+      join: (...p: unknown[]) => p.filter(Boolean).join('/'),
+      dirname: (p: unknown) => String(p).replace(/[\\/][^\\/]*$/, ''),
+      basename: (p: unknown) => String(p).split(/[\\/]/).pop(),
+      resolve: (...p: unknown[]) => p.filter(Boolean).join('/'),
+      isAbsolute: (p: unknown) => /^([A-Za-z]:[\\/]|\/)/.test(String(p)),
     },
     fs: fsStub,
     getHome: async () => 'C:/verify-home',
@@ -91,10 +91,10 @@ console.log('== ② 真宿主入口：空目录调一次后端探测，看它有
     openFolder: async () => ({ ok: true }),
   }
   // 假连接：宿主入口把它的 RPC 路由注册到这里，我们拿着这条路由真的发一次请求。
-  const routes = []
-  const connection = { fetch: { register: (r) => { routes.push(r); return () => {} } } }
-  const stubs = { subprocess, timer, fs: fsStub, connection, platform: platformStub }
-  const ctx = { get: (n) => stubs[n], inject: () => {}, effect: () => {} }
+  const routes: Array<{ fetch: (req: unknown) => Promise<{ text(): Promise<string> }> }> = []
+  const connection = { fetch: { register: (r: { fetch: (req: unknown) => Promise<{ text(): Promise<string> }> }) => { routes.push(r); return () => {} } } }
+  const stubs: Record<string, unknown> = { subprocess, timer, fs: fsStub, connection, platform: platformStub }
+  const ctx = { get: (n: string) => stubs[n], inject: () => {}, effect: () => {} }
 
   entry.apply(ctx)
   const t0 = Date.now()
@@ -103,7 +103,7 @@ console.log('== ② 真宿主入口：空目录调一次后端探测，看它有
 
   const route = routes[0]
   // 走线格式与客户端一致（src/seam/rpc.js 会把 wf. 前缀摘掉再发，所以这里发的是不带前缀的名字）。
-  const callPhone = async (method, payload) => {
+  const callPhone = async (method: unknown, payload: unknown) => {
     const req = new Request('http://verify.local/api/dsws', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -146,7 +146,7 @@ console.log('== ② 真宿主入口：空目录调一次后端探测，看它有
   const before4 = spawns.length
   const pageWithDir = await callPhone('issuesPage', { cwd: ROOT })
   const pageWithDirCwds = spawns.slice(before4).map((s) => s.cwd)
-  const sameDir = (p) => String(p || '').replace(/[\\/]+$/, '').toLowerCase()
+  const sameDir = (p: unknown) => String(p || '').replace(/[\\/]+$/, '').toLowerCase()
   check(pageWithDir.ok === true, '对照：给真目录时按页取票这条电话照常走到宿主里（不是对谁都说拒绝）—— 实得 ' + JSON.stringify(pageWithDir).slice(0, 140))
   check(pageWithDirCwds.some((c) => sameDir(c) === sameDir(ROOT)), '对照：它确实带着我给的那条目录去起命令（上面「不带真实目录」才有意义）—— 实得 ' + JSON.stringify(pageWithDirCwds))
 }

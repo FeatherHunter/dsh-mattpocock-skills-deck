@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T17:34:29.905Z",
+  "generatedAt": "2026-10-16T17:35:32.942Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 301,
   "gateCount": 301,
@@ -901,8 +901,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；源码里的路径字面量 1 条"
     },
     {
-      "step": "node tests/verify-1003-no-cwd-masquerade.js",
-      "file": "tests/verify-1003-no-cwd-masquerade.js",
+      "step": "node tests/verify-1003-no-cwd-masquerade.ts",
+      "file": "tests/verify-1003-no-cwd-masquerade.ts",
       "guards": [
         "src/host/gitCredentialExec.js",
         "src/host/index.ts"
@@ -7467,7 +7467,7 @@
       "node tests/verify-gate-map.js",
       "node tests/verify-1003-layout-in-file.ts",
       "node tests/verify-1003-migration.js",
-      "node tests/verify-1003-no-cwd-masquerade.js",
+      "node tests/verify-1003-no-cwd-masquerade.ts",
       "node tests/verify-1003-single-outlet.ts",
       "node tests/verify-1003-workspace-write-robust.ts",
       "node tests/verify-1109-matches-timeout.ts",
