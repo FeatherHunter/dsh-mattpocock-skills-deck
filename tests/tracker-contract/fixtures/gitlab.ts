@@ -1,13 +1,47 @@
 /**
- * tests/tracker-contract/fixtures/gitlab.js — GitLab 真实适配器夹具（G4）。
+ * tests/tracker-contract/fixtures/gitlab.ts — GitLab 真实适配器夹具（G4）。
  *
  * 按 #135/#144 一页纸：labels恒EMPTY/milestone独立/blocking双路径。
  * 提供两套：free回退（Blocked by:行） vs premium原生（blocked_by）
+ *
+ * 由 tests/tracker-contract/fixtures/gitlab.js 转写：只加可剥离类型标注，
+ * import 保持 .js 后缀（真实文件是 normalize.ts，全靠钩子改指），
+ * 回退行字样、blocked_by 数组、milestone 字面量、emptyData、checkFreeBlockedBy 一字不动。
  */
 
 import { normalizeIssue } from '../../../src/tracker/rooms/gitlab/normalize.js'
 
-function baseWith(labels, extra = {}) {
+interface GitlabSource {
+  iid?: number
+  title?: string
+  state?: string
+  description?: string
+  web_url?: string
+  created_at?: string
+  updated_at?: string
+  closed_at?: string | null
+  labels?: Array<{ name: string, color: string }>
+  milestone?: { title: string, description: string, state: string, due_date: string } | null
+  author?: { username: string, name: string, avatar_url: string } | null
+  assignee?: unknown
+  notes?: unknown[]
+  blocked_by?: Array<{ iid: number, title: string, state: string }>
+  [key: string]: unknown
+}
+
+interface GitlabFixture {
+  name: string
+  normalize: (source: GitlabSource) => Record<string, unknown>
+  withData: GitlabSource
+  emptyData: GitlabSource
+  mappings: Array<{ from: string, to: string }>
+  implementedFields: string[]
+  missingFields: string[]
+  deckCases: unknown[]
+  checkFreeBlockedBy?: boolean
+}
+
+function baseWith(labels: Array<{ name: string, color: string }> | null, extra: Record<string, unknown> = {}): GitlabSource {
   return {
     iid: 3,
     title: 'hello',
@@ -26,7 +60,7 @@ function baseWith(labels, extra = {}) {
   }
 }
 
-export const gitlabFreeFixture = {
+export const gitlabFreeFixture: GitlabFixture = {
   name: 'gitlab-free(fallback)',
   normalize: normalizeIssue,
   // withData含Blocked by行（free回退）
@@ -56,7 +90,7 @@ export const gitlabFreeFixture = {
   checkFreeBlockedBy: true,
 }
 
-export const gitlabPremiumFixture = {
+export const gitlabPremiumFixture: GitlabFixture = {
   name: 'gitlab-premium(native)',
   normalize: normalizeIssue,
   withData: baseWith([{ name: 'bug', color: 'red' }], {
@@ -81,7 +115,7 @@ export const gitlabPremiumFixture = {
   deckCases: [],
 }
 
-export const gitlabMilestoneFixture = {
+export const gitlabMilestoneFixture: GitlabFixture = {
   name: 'gitlab-milestone',
   normalize: normalizeIssue,
   withData: baseWith([{ name: 'bug', color: 'red' }], {
