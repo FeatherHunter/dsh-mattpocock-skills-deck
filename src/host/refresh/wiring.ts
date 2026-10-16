@@ -1,4 +1,4 @@
-// src/host/refresh/wiring.js —— 刷新机制的宿主接线（#723 T19）
+// src/host/refresh/wiring.ts —— 刷新机制的宿主接线（#723 T19）
 //
 // 这个文件只做一件事：把刷新机制那几件已经落库的东西**在宿主里真的装起来**，并交回去。它不判断任何业务：
 // 闸与账本是 gate.js 与 ledger.js 的产物，写事件订阅是 writeEvents.js 的产物，会话↔票处理链是 sessionTickets.js
@@ -54,13 +54,28 @@ import { hash8, workspaceKeyOf } from '../../shared/refresh-workspace-key.js'
 import { parseWorkspaceFile, WORKSPACE_FILE_REL } from '../../deck/shell/workspace-anchor.js'
 export { workspaceKeyOf } from '../../shared/refresh-workspace-key.js'
 
+// ---------------------------------------------------------------------------
+// 类型（#1155 类型标注，只写类型不写实现）。
+//
+// 为什么 deps 整包按 any 收：这包是宿主入口现拼的（src/host/index.ts 里那一行
+// import('./refresh/wiring.js')），字段多达二十个且随宿主演进增减，调用方还有门禁里
+// 手捏的各种夹具形状。类型在这里假装列全，只会让后来加字段的人先改两处类型再改一处
+// 逻辑；收窄发生在下面各使用点的 typeof 判断、可选链与 try 包裹里，不在这里替调用方假设。
+// 同理各回调的入参按 any 收：它们递进的工厂（quota-sync、writeEvents、patch 那几件）
+// 有的还是旧语言文件，类型只会越标越错；运行期形状一个字没改，标注只给编译器看。
+//
+// 两处不得不写的标注（都是 strict 模式的硬性要求，运行时不存在）：
+//   1. catch 后面括号里的变量：strict 下它是 unknown，体里读 .message 必须先断言成 any；
+//   2. 以 null 起手的盒子（once 的 box、stats 的回包）：null 不会自动长大，必须写明它以后装什么。
+// ---------------------------------------------------------------------------
+
 /** 把一堆依赖包装成「取一次、以后复用」的惰性实例（模块加载失败不许把整个插件带崩）。 */
-function once(fn) {
-  let box = { done: false, value: null }
-  return function () {
+function once(fn: () => any): () => any {
+  const box: { done: boolean; value: any } = { done: false, value: null }
+  return function (): any {
     if (!box.done) {
       box.done = true
-      try { box.value = fn() } catch (e) { box.value = null }
+      try { box.value = fn() } catch (e: any) { box.value = null }
     }
     return box.value
   }
@@ -74,19 +89,19 @@ function once(fn) {
  * 过闸走在另一套上，后台档的 background-inactive 就会把写事件那一笔恒判推迟 —— 生产里看起来谁都在
  * 工作，实际一次都发不出去，而且读数那一边永远空着。（#723 复核抓到的正是这个：入口一处、wf.focus 又一处。）
  */
-export function makeRefreshLoader(deps) {
-  let load = null
-  return async function () {
-    if (!load) load = (async function () {
-      const w = createRefreshWiring(deps)
-      try { w.attach() } catch (eAt) {}
+export function makeRefreshLoader(deps: any): () => Promise<any> {
+  let load: Promise<any> | null = null
+  return async function (): Promise<any> {
+    if (!load) load = (async function (): Promise<any> {
+      const w: any = createRefreshWiring(deps)
+      try { w.attach() } catch (eAt: any) {}
       // 界面读数（e）：快照回包要挂的那个字段由它产出，形状归 refresh/sessionChainReadout.js 一处。
-      const chainReadout = function () { return w.chainReadoutOf() }
+      const chainReadout = function (): any { return w.chainReadoutOf() }
       // wf.focus 的处理器（c）：用的就是这一套里的视野模型；上报之后把活跃集合同步给白名单与闸。
-      const focus = (function () {
-        let h = null
-        return async function (args) {
-          if (!h) h = createFocusHandler({ attention: w.attention, afterReport: function () { return w.syncAttention() } })
+      const focus = (function (): any {
+        let h: any = null
+        return async function (args: any): Promise<any> {
+          if (!h) h = createFocusHandler({ attention: w.attention, afterReport: function (): any { return w.syncAttention() } })
           return await h(args)
         }
       })()
@@ -109,108 +124,108 @@ export function makeRefreshLoader(deps) {
  * 回包：{ ledger, gate, writeEvents, sessionTickets, attention, chainReadoutOf, noteWorkspaceActive,
  *        makeFetch, attach, stats }
  */
-export function createRefreshWiring(deps) {
-  const d = deps || {}
-  const logCtx = d.logCtx || null
+export function createRefreshWiring(deps: any): any {
+  const d: any = deps || {}
+  const logCtx: any = d.logCtx || null
 
-  const ledger = d.ledger || createLedger({ logCtx: logCtx })
-  const gate = d.gate || createGate({ ledger: ledger, logCtx: logCtx })
+  const ledger: any = d.ledger || createLedger({ logCtx: logCtx })
+  const gate: any = d.gate || createGate({ ledger: ledger, logCtx: logCtx })
 
   // #758 剩余额度读数接线：动手前先保一次读数（差就免费读，不差不打）；闸、账本、起 gh 三件都在本文件手里，包成函数递给工具依赖，失败只影响这一次调用。
-  let deckQuotaSync = null
-  function quotaSyncOf() {
+  let deckQuotaSync: any = null
+  function quotaSyncOf(): any {
     if (!deckQuotaSync) {
       try {
         deckQuotaSync = createDeckQuotaSync({
-          send: function (req, perform) { return gate.send(req, perform) },
-          syncDue: function () { try { return ledger.syncDue() } catch (eS) { return false } },
-          syncServer: function (readings) { try { return ledger.syncServer(readings) } catch (eW) { return null } }, noteRateLimited: function (bucket, seconds, workspaceKey) { try { return gate.noteRetryAfter({ bucket: bucket, seconds: seconds, workspaceKey: workspaceKey }) } catch (e) { return null } }, // #927 ①：读数里剩 0 时按服务端的重置时刻降档
-          runGh: function (a, c) { if (typeof d.runGh === 'function') return d.runGh(a, c); return Promise.resolve({ ok: false, error: 'no-runGh' }) },
+          send: function (req: any, perform: any): any { return gate.send(req, perform) },
+          syncDue: function (): any { try { return ledger.syncDue() } catch (eS: any) { return false } },
+          syncServer: function (readings: any): any { try { return ledger.syncServer(readings) } catch (eW: any) { return null } }, noteRateLimited: function (bucket: any, seconds: any, workspaceKey: any): any { try { return gate.noteRetryAfter({ bucket: bucket, seconds: seconds, workspaceKey: workspaceKey }) } catch (e: any) { return null } }, // #927 ①：读数里剩 0 时按服务端的重置时刻降档
+          runGh: function (a: any, c: any): any { if (typeof d.runGh === 'function') return d.runGh(a, c); return Promise.resolve({ ok: false, error: 'no-runGh' }) },
           logCtx: logCtx,
         })
-      } catch (eC) { deckQuotaSync = null }
+      } catch (eC: any) { deckQuotaSync = null }
     }
     return deckQuotaSync
   }
-  function ensureDeckReading(cwd, workspaceKey) {
+  function ensureDeckReading(cwd: any, workspaceKey: any): Promise<any> {
     try {
-      const q = quotaSyncOf()
+      const q: any = quotaSyncOf()
       if (!q || typeof q.ensureReading !== 'function') return Promise.resolve({ ok: false, reason: 'missing-dep' })
       // 排队无上限的出站不能卡住整笔调用：超时按保不住走老路（调用方照旧被闸推迟）。
-      return withCap(q.ensureReading(cwd, workspaceKey), DECK_ENSURE_TIMEOUT_MS).then(function (r) { return (r && r.ok === true) ? r.value : { ok: false, reason: (r && r.timedOut) ? 'sync-timeout' : 'ensure-threw' } }, function () { return Promise.resolve({ ok: false, reason: 'ensure-threw' }) })
-    } catch (eE) { return Promise.resolve({ ok: false, reason: 'ensure-threw' }) }
+      return withCap(q.ensureReading(cwd, workspaceKey), DECK_ENSURE_TIMEOUT_MS).then(function (r: any): any { return (r && r.ok === true) ? r.value : { ok: false, reason: (r && r.timedOut) ? 'sync-timeout' : 'ensure-threw' } }, function (): Promise<any> { return Promise.resolve({ ok: false, reason: 'ensure-threw' }) })
+    } catch (eE: any) { return Promise.resolve({ ok: false, reason: 'ensure-threw' }) }
   }
 
   // 写事件触发的那一次取数（b）：闸放行之后真去做的那一步；真取行级增量（refresh/patch.js 的 run）由 T18 那批接。
-  async function fetchForWriteEvent(step, meta) {
+  async function fetchForWriteEvent(step: any, meta: any): Promise<any> {
     return { requests: 0, points: 0 }
   }
 
   // e：会话↔票处理链。喂数据的是 b 那条订阅（工具结果一到就 note 一笔），读数是下面那个读数。
   // #781：把归一出口递进去，note() 先洗根再算散列（调用方传所选目录原文时与读回侧同格）。
-  const sessionTickets = d.sessionTickets || createSessionTickets({
+  const sessionTickets: any = d.sessionTickets || createSessionTickets({
     getCacheDir: d.getCacheDir, logCtx: logCtx, canonicalKey: d.canonicalKey,
   })
 
   // b：写事件订阅（门前是归我们的工作区根白名单，见 writeEvents.js 文件头）；判定过的那一笔喂给处理链（note），否则界面恒空。
   // #746：命名摘要编排单例（ctx 与 getNaming 由宿主入口经 deps 给；任一缺失则钩子静默降级）。
-  let namingSummary = null
-  function summaryOf() {
+  let namingSummary: any = null
+  function summaryOf(): any {
     if (!namingSummary && typeof d.getNaming === 'function') {
-      try { namingSummary = createNamingSummary({ ctx: d.ctx, getNaming: d.getNaming, logCtx: logCtx }) } catch (e) { namingSummary = null }
+      try { namingSummary = createNamingSummary({ ctx: d.ctx, getNaming: d.getNaming, logCtx: logCtx }) } catch (e: any) { namingSummary = null }
     }
     return namingSummary
   }
   // #746 Knife4：直达钩子失败可观测 —— 内层永不抛错，失败只记既有 warn 事件（不新增事件），不影响建票返回。
-  function onDeckWrite(info) {
-    const warnHook = function (eH) {
-      try { if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: 'wf.namingDirect', kind: 'naming-direct', errorHash: hash8(String((eH && eH.message) || eH).slice(0, 120)) }) } catch (eL) {}
+  function onDeckWrite(info: any): any {
+    const warnHook = function (eH: any): void {
+      try { if (logCtx) logCtx.fire('warn', 'host.call.fail', { method: 'wf.namingDirect', kind: 'naming-direct', errorHash: hash8(String((eH && eH.message) || eH).slice(0, 120)) }) } catch (eL: any) {}
     }
     try {
-      const s = summaryOf()
+      const s: any = summaryOf()
       if (s && typeof s.onDeckWrite === 'function') {
-        const r = s.onDeckWrite(info)
+        const r: any = s.onDeckWrite(info)
         if (r && typeof r.catch === 'function') r.catch(warnHook)
       }
-    } catch (e) { warnHook(e) }
+    } catch (e: any) { warnHook(e) }
     return { ok: true }
   }
-  function onFirstAssistant(sid) { try { const s = summaryOf(); if (s) s.maybeSummarize(sid) } catch (e) {} }
+  function onFirstAssistant(sid: any): void { try { const s: any = summaryOf(); if (s) s.maybeSummarize(sid) } catch (e: any) {} }
   // 首条用户消息那一下催一次改名（底座就是在这时候写首句名）：每个会话只催一次，且只认账上有号、还没锁的会话
   // —— 账上没有就什么都不做，省掉一次会读会话日志的整轮计划单（每句都催的代价在生产日志里是几十秒级的）。
   const firstUserNudged = new Set()
-  function onFirstUser(sid) {
+  function onFirstUser(sid: any): void {
     try {
       if (!sid || typeof d.getNaming !== 'function' || firstUserNudged.has(sid)) return
       if (firstUserNudged.size > 500) firstUserNudged.clear()
       firstUserNudged.add(sid)
-      Promise.resolve(d.getNaming()).then(function (h) {
+      Promise.resolve(d.getNaming()).then(function (h: any): any {
         if (!h || typeof h.getEntry !== 'function' || typeof h.handleNamingPlan !== 'function') return null
-        return Promise.resolve(h.getEntry(sid)).then(function (e) { return (e && !e.locked) ? h.handleNamingPlan() : null })
-      }).catch(function () {})
-    } catch (e) {}
+        return Promise.resolve(h.getEntry(sid)).then(function (e: any): any { return (e && !e.locked) ? h.handleNamingPlan() : null })
+      }).catch(function (): void {})
+    } catch (e: any) {}
   }
   // #746：受踪判定（供写事件白名单之外的窄门：只认命名守护账上有号的会话，取数记账链不走这里）。
-  function isNamingTracked(sid) {
+  function isNamingTracked(sid: any): Promise<any> {
     try {
       if (!sid || typeof d.getNaming !== 'function') return Promise.resolve(false)
-      return Promise.resolve(d.getNaming()).then(function (h) {
+      return Promise.resolve(d.getNaming()).then(function (h: any): any {
         if (!h || typeof h.getEntry !== 'function') return false
-        return Promise.resolve(h.getEntry(sid)).then(function (e) { return !!e }).catch(function () { return false })
-      }).catch(function () { return false })
-    } catch (e) { return Promise.resolve(false) }
+        return Promise.resolve(h.getEntry(sid)).then(function (e: any): any { return !!e }).catch(function (): boolean { return false })
+      }).catch(function (): boolean { return false })
+    } catch (e: any) { return Promise.resolve(false) }
   }
-  const writeEvents = d.writeEvents || createWriteEvents({
+  const writeEvents: any = d.writeEvents || createWriteEvents({
     gate: gate, fetch: fetchForWriteEvent, canonicalKey: d.canonicalKey, logCtx: logCtx,
-    note: function (input) { try { return sessionTickets.note(input) } catch (e) { return null } },
-    backendOf: function (rootKey) { return backendOfRoot(rootKey) },
+    note: function (input: any): any { try { return sessionTickets.note(input) } catch (e: any) { return null } },
+    backendOf: function (rootKey: any): any { return backendOfRoot(rootKey) },
     onFirstAssistant: onFirstAssistant,
     onFirstUser: onFirstUser,
     isNamingTracked: isNamingTracked,
   })
 
   // c：视野模型。wf.focus 上报「我在看谁」之后，活跃集合就在这里，b 的白名单跟着它走。
-  const attention = d.attention || createAttention({ canonicalKey: d.canonicalKey, logCtx: logCtx })
+  const attention: any = d.attention || createAttention({ canonicalKey: d.canonicalKey, logCtx: logCtx })
 
   /**
    * 「这个工作区现在用哪个后端」（#723 T19）：链只认 github / gitlab / markdown 三个白名单名字
@@ -220,39 +235,39 @@ export function createRefreshWiring(deps) {
    *   ② 宿主既有的探测服务（getDetectionService().detect）—— 锚文件那一档（不传 hint、不强制）。
    * 两条都问不出来就如实回空串：让链丢掉并说原因（界面照实说读不到），**不编一个假名字**让它看着能记。
    */
-  async function backendOfRoot(rootKey) {
+  async function backendOfRoot(rootKey: any): Promise<any> {
     const cwd = String(rootKey || '')
     if (!cwd) return ''
     try {
       if (typeof d.getTrackerRegistry === 'function') {
-        const reg = await d.getTrackerRegistry()
+        const reg: any = await d.getTrackerRegistry()
         if (reg && typeof reg.describe === 'function') {
-          const info = reg.describe({ cwd: cwd })
+          const info: any = reg.describe({ cwd: cwd })
           const id = String((info && info.backend) || '')
           if (id) return id
         }
       }
-    } catch (e) { /* 往下问探测服务 */ }
+    } catch (e: any) { /* 往下问探测服务 */ }
     try {
       if (typeof d.getDetectionService === 'function') {
-        const svc = await d.getDetectionService()
+        const svc: any = await d.getDetectionService()
         if (svc && typeof svc.detect === 'function') {
-          const res = await svc.detect({ cwd: cwd }, {})
+          const res: any = await svc.detect({ cwd: cwd }, {})
           const id = String((res && res.selection && res.selection.backendId) || '')
           if (id) return id
         }
       }
-    } catch (e2) { /* 问不出来就空串 */ }
+    } catch (e2: any) { /* 问不出来就空串 */ }
     return ''
   }
 
   /** 界面要的那份读数（e）。挂在快照回包上，界面读不到时它会如实说 ok:false + 代号。 */
-  function chainReadoutOf() {
+  function chainReadoutOf(): any {
     return buildSessionChainReadout({ tickets: sessionTickets, at: Date.now() })
   }
 
   // 上一次同步给写事件白名单的那些根（切走的那几个要 forgetRoot）。
-  let allowed = []
+  let allowed: string[] = []
   // #735：盘读回守卫（内存按进程活、盘跨进程；重启后每个根第一次被看见时读回一格，一根只读一次）。
   const restoredRoots = new Set()
 
@@ -266,28 +281,28 @@ export function createRefreshWiring(deps) {
    * writeEvents 过闸时带的 workspaceKey 是它自己的短散列（rootHash，见 writeEvents.js 的 fire），
    * 闸按那把钥匙认活跃集合，所以这里标活跃用的也是同一把（#724 起只有一处实现：workspaceKeyOf）。
    */
-  async function syncAttention() {
-    let roots = []
+  async function syncAttention(): Promise<any> {
+    let roots: any = []
     try {
-      const st = attention.stateOf()
-      roots = (st && Array.isArray(st.active)) ? st.active.map(function (x) { return String(x.root || '') }).filter(Boolean) : []
-    } catch (e) { roots = [] }
+      const st: any = attention.stateOf()
+      roots = (st && Array.isArray(st.active)) ? st.active.map(function (x: any): any { return String(x.root || '') }).filter(Boolean) : []
+    } catch (e: any) { roots = [] }
     for (const root of roots) {
-      if (allowed.indexOf(root) < 0) { try { await writeEvents.allowRoot(root) } catch (eA) {} }
-      try { gate.setWorkspace(workspaceKeyOf(root), { active: true }) } catch (eG) {}
+      if (allowed.indexOf(root) < 0) { try { await writeEvents.allowRoot(root) } catch (eA: any) {} }
+      try { gate.setWorkspace(workspaceKeyOf(root), { active: true }) } catch (eG: any) {}
       // #735：新根把盘上这一格读回来（重启丢的内存与别的进程写的格子都靠这一次；restore 永不抛错）。
       // #781：等它落定再往下走 —— 不等的话紧接着取快照会赶在读完之前，第一次看到空、第二次才有，
       // 重启后第一眼空很容易当成丢了。读失败时把标记拿掉，下次切进这个根再试一次。
       if (!restoredRoots.has(root)) {
         restoredRoots.add(root)
         try { await sessionTickets.restore({ rootKey: root }) }
-        catch (eR) { try { restoredRoots.delete(root) } catch (eD) {} }
+        catch (eR: any) { try { restoredRoots.delete(root) } catch (eD: any) {} }
       }
     }
     for (const root of allowed) {
       if (roots.indexOf(root) < 0) {
-        try { writeEvents.forgetRoot(root) } catch (eF) {}
-        try { gate.setWorkspace(workspaceKeyOf(root), { active: false }) } catch (eG2) {}
+        try { writeEvents.forgetRoot(root) } catch (eF: any) {}
+        try { gate.setWorkspace(workspaceKeyOf(root), { active: false }) } catch (eG2: any) {}
       }
     }
     allowed = roots
@@ -295,16 +310,16 @@ export function createRefreshWiring(deps) {
   }
 
   /** 一个工作区现在算不算活跃（闸裁决的输入之一：不在活跃集合里的后台档一次都不发）。 */
-  function noteWorkspaceActive(root, active) {
+  function noteWorkspaceActive(root: any, active: any): any {
     // 与 syncAttention 用同一把钥匙（workspaceKeyOf）：散列层级不同就会让活跃集合里那一格认不出来，
     // 于是这条路上的每一笔都被判「推迟」（#723 复核抓到的那个「接上了却没走通」）。
-    try { return gate.setWorkspace(workspaceKeyOf(root), { active: !!active }) } catch (e) { return null }
+    try { return gate.setWorkspace(workspaceKeyOf(root), { active: !!active }) } catch (e: any) { return null }
   }
 
   /** b 真订阅。宿主入口在 apply 里调一次（attach 要一个 ctx）。 */
-  function attach() {
-    let detach = function () {}
-    try { const r = writeEvents.attach(d.ctx); if (r && typeof r.detach === 'function') detach = r.detach } catch (e) {}
+  function attach(): any {
+    let detach = function (): void {}
+    try { const r: any = writeEvents.attach(d.ctx); if (r && typeof r.detach === 'function') detach = r.detach } catch (e: any) {}
     return { detach: detach }
   }
 
@@ -319,38 +334,38 @@ export function createRefreshWiring(deps) {
   // 注意（2026-09-26）：loadDefineTool 固定给 null，走原生形状直接注册——照官方工具写法，插件不 import 框架包，
   // 注册纯数据对象；从前这里动态 import 自带副本，挂载后全部工具调用报 prepare undefined。
   // 退路输出与参数形状见 shared/deck-tools/agent-register.js（deckAgentOutputSchemaRaw）。
-  let deckToolsP = null; try { hookDeckAgentTools(d.ctx, deckToolsForHost, function () { return Promise.resolve(null) }, makeDeckRegisterReport(logCtx)) } catch (eH) {} // #741 注册那一步：表装好就向 agent 交九个工具，成败落既有日志（deckToolsForHost 声明提升，这里可直接用）
-  async function deckToolsForHost() {
+  let deckToolsP: Promise<any> | null = null; try { hookDeckAgentTools(d.ctx, deckToolsForHost, function (): Promise<any> { return Promise.resolve(null) }, makeDeckRegisterReport(logCtx), undefined) } catch (eH: any) {} // #741 注册那一步：表装好就向 agent 交九个工具，成败落既有日志（deckToolsForHost 声明提升，这里可直接用）。末尾的 undefined 是“轮数与间隔都用缺省”（五轮、每轮两秒）：原 JS 只传四个实参，被调方按缺席取缺省；这里显式写出才能过类型检查，运行期走的是同一条缺省分支。
+  async function deckToolsForHost(): Promise<any> {
     if (!deckToolsP) {
-      deckToolsP = (async function () {        const empty = { tools: {}, names: [], definitions: [], missing: [], reason: '', files: DECK_TOOL_FILES }
-        let registry = null
-        try { registry = d.getTrackerRegistry ? await d.getTrackerRegistry() : null } catch (eR) { registry = null }
+      deckToolsP = (async function (): Promise<any> {        const empty = { tools: {}, names: [], definitions: [], missing: [], reason: '', files: DECK_TOOL_FILES }
+        let registry: any = null
+        try { registry = d.getTrackerRegistry ? await d.getTrackerRegistry() : null } catch (eR: any) { registry = null }
         if (!registry || typeof registry.select !== 'function') return Object.assign({}, empty, { reason: 'no-registry' })
-        let platform = null
-        try { platform = d.getPlatform ? await d.getPlatform() : null } catch (eP) { platform = null }
+        let platform: any = null
+        try { platform = d.getPlatform ? await d.getPlatform() : null } catch (eP: any) { platform = null }
         // 后端 ctx 一次取好、之后每笔调用复用同一份：壳按调用同步取它，所以这里不能给一个异步函数。
         const backendObj = {
           platform: platform,
-          fs: (function () { try { return (d.ctx && typeof d.ctx.get === 'function') ? d.ctx.get('fs') : undefined } catch (e) { return undefined } })(),
+          fs: (function (): any { try { return (d.ctx && typeof d.ctx.get === 'function') ? d.ctx.get('fs') : undefined } catch (e: any) { return undefined } })(),
           // #1109：选后端那条兜底等待（缺省 30 秒）要用宿主这一支 timer 服务，不能用全局时钟。
           //   不给的话这里就落到全局 setTimeout 上：门禁没法用假计时器看住它（30 秒真等不起），
           //   一挂住就只能干等，也数不清「显式绑定命中时一次计时器都没起」。形状与 OpContext.timers
           //   一致，与平台通道那一处（platformChannel.js 的 getTimers）同源，都是宿主 ctx 的 timer 服务。
-          timers: (function () {
+          timers: (function (): any {
             try {
-              const t = (d.ctx && typeof d.ctx.get === 'function') ? d.ctx.get('timer') : undefined
+              const t: any = (d.ctx && typeof d.ctx.get === 'function') ? d.ctx.get('timer') : undefined
               if (!t || typeof t.timeout !== 'function') return undefined
               // 撤销那一档的判据在共享层一处（#1115）：真句柄是可调用的撤销器，全局 clearTimeout 与
               // 先判 .dispose 两种写法在它上面都是空操作，详见 src/shared/host-timer/src/host-timers.ts 文件头。
               return hostTimers(t)
-            } catch (e) { return undefined }
+            } catch (e: any) { return undefined }
           })(),
-          exec: function () {
-            if (typeof d.detectionExec === 'function') { try { return d.detectionExec.apply(null, arguments) } catch (e) { return Promise.reject(e) } }
+          exec: function (): any {
+            if (typeof d.detectionExec === 'function') { try { return d.detectionExec.apply(null, arguments) } catch (e: any) { return Promise.reject(e) } }
             return Promise.resolve({ ok: false, kind: 'env', error: '这个宿主实例没有把起进程的出口（detectionExec）传进来，远端后端的读写做不了' })
           },
-          logEvent: function (level, event, fields) { try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire(level, event, fields) } catch (e) {} },
-          isEnabled: function (level) { try { return logCtx ? logCtx.isEnabled(level) : (level === 'error' || level === 'warn') } catch (e) { return level === 'error' || level === 'warn' } },
+          logEvent: function (level: any, event: any, fields: any): void { try { if (logCtx && typeof logCtx.fire === 'function') logCtx.fire(level, event, fields) } catch (e: any) {} },
+          isEnabled: function (level: any): any { try { return logCtx ? logCtx.isEnabled(level) : (level === 'error' || level === 'warn') } catch (e: any) { return level === 'error' || level === 'warn' } },
           // #1159：出站控制面（进程级能力，随这份后端上下文注入一次）。房间起 gh 命令前拿名额、
           // 认取消、写完记账都从这里取；缺了房间按环境失败返回，不静默绕过名额闸。
           outbound: createOutboundControl(),
@@ -366,27 +381,27 @@ export function createRefreshWiring(deps) {
          * 缺 resolve 也回 null（2026-10-14 深挖补的一刀）：没有它就造不出文件服务要的目标对象，只能把裸路径
          *   串递过去 —— 那正是 #1150 修掉的那种「说落盘、其实没落」。宁可退回内存并如实说 durable:false。
          */
-        function planStoreFor(info) {
+        function planStoreFor(info: any): any {
           try {
-            const fsSvc = backendObj.fs
+            const fsSvc: any = backendObj.fs
             if (!fsSvc || typeof fsSvc.resolve !== 'function' || typeof fsSvc.readText !== 'function' || typeof fsSvc.writeText !== 'function') return null
             const cwd = String((info && info.cwd) || '')
             if (!cwd) return null
-            const plat = backendObj.platform
-            const join = (plat && plat.path && typeof plat.path.join === 'function') ? plat.path.join : null
-            const target = function (p) { return Promise.resolve(fsSvc.resolve(p)) }
+            const plat: any = backendObj.platform
+            const join: any = (plat && plat.path && typeof plat.path.join === 'function') ? plat.path.join : null
+            const target = function (p: any): Promise<any> { return Promise.resolve(fsSvc.resolve(p)) }
             return createFilePlanStore({
               io: {
-                readText: function (p) { return target(p).then(function (t) { return fsSvc.readText(t) }) },
-                writeText: function (p, text) { return target(p).then(function (t) { return fsSvc.writeText(t, text) }) },
+                readText: function (p: any): Promise<any> { return target(p).then(function (t: any): any { return fsSvc.readText(t) }) },
+                writeText: function (p: any, text: any): Promise<any> { return target(p).then(function (t: any): any { return fsSvc.writeText(t, text) }) },
               },
               dir: planCursorDir(cwd, join),
               workspaceKey: (info && info.workspaceKey) || '',
               now: Date.now,
             })
-          } catch (e) { return null }
+          } catch (e: any) { return null }
         }
-        const built = createDeckToolsForHost({
+        const built: any = createDeckToolsForHost({
           gate: gate,
           registry: registry,
           budget: budget,
@@ -394,26 +409,26 @@ export function createRefreshWiring(deps) {
           costInputFrom: toolCost.toolCostInputFrom,
           // 句柄就是「哪个工作区」这一件事。以前这里还要去注册表的绑定表里找这个目录有没有被绑过、
           // 好把当时那个句柄原样交回去；绑定表在 #1138 删掉之后，句柄只由这份状态自己给出，与别处同构。
-          handleFor: function (s) { return { cwd: (s && s.cwd) || '' } },
+          handleFor: function (s: any): any { return { cwd: (s && s.cwd) || '' } },
           // 934：会话目录洗加锚根的宿主唯一异步出口（与绑定侧同一把钥匙）；缺席时壳沿用原始目录。
-          canonicalKey: (typeof d.canonicalKey === 'function') ? function (raw) { return d.canonicalKey(raw) } : undefined,
+          canonicalKey: (typeof d.canonicalKey === 'function') ? function (raw: any): any { return d.canonicalKey(raw) } : undefined,
           // 947 显式后两层读口：查不到一律 null（缺席即跳过，不猜）。挂住时同样按缺席跳过。
           // #1138：这里原来还递一个 readChoice（读本机记忆 H）——H 自 2026-10-12 起就不参与判定了，
           //   壳里也没有任何调用点，留着只会让后来的人以为 H 还有话语权，所以整行删掉。
-          readWorkspaceFileText: function (rootCwd) { try { const fsSvc = backendObj && backendObj.fs; if (!fsSvc || typeof fsSvc.resolve !== 'function' || typeof fsSvc.readText !== 'function') return Promise.resolve(null); const p = Promise.resolve(fsSvc.resolve(WORKSPACE_FILE_REL, { cwd: rootCwd })).then(function (t) { return fsSvc.readText(t) }, function () { return null }).then(function (txt) { return (typeof txt === 'string' && txt) ? txt : null }, function () { return null }); return withCap(p, DECK_EXPLICIT_TIMEOUT_MS).then(function (r) { return (r && r.ok === true) ? r.value : null }, function () { return null }) } catch (e) { return Promise.resolve(null) } },
+          readWorkspaceFileText: function (rootCwd: any): Promise<any> { try { const fsSvc: any = backendObj && backendObj.fs; if (!fsSvc || typeof fsSvc.resolve !== 'function' || typeof fsSvc.readText !== 'function') return Promise.resolve(null); const p: any = Promise.resolve(fsSvc.resolve(WORKSPACE_FILE_REL, { cwd: rootCwd })).then(function (t: any): any { return fsSvc.readText(t) }, function (): any { return null }).then(function (txt: any): any { return (typeof txt === 'string' && txt) ? txt : null }, function (): any { return null }); return withCap(p, DECK_EXPLICIT_TIMEOUT_MS).then(function (r: any): any { return (r && r.ok === true) ? r.value : null }, function (): any { return null }) } catch (e: any) { return Promise.resolve(null) } },
           parseWorkspaceFile: parseWorkspaceFile,
           sandboxPolicyFor: createSandboxPolicyFor(d.ctx),
-          backendCtx: function () { return backendObj },
+          backendCtx: function (): any { return backendObj },
           // #1150：批量建图的计划游标落盘（按这次调用的工作区现造一份；看见 planStoreFor 上面那段注释）。
           planStore: planStoreFor,
           // #1147 决策 10a：仓库标识补全（resolve 步）的等待上限毫秒数。壳缺席时取 8000，
           //   这里显式传入同一数值 —— 这个上限的值由装配层拥有，不再是壳里无人认领的缺省（行为零变化）。
           resolveTimeoutMs: 8000,
-          invalidate: function (info) { try { const root = (info && info.workspace && info.workspace.root) || (info && info.cwd); if (typeof d.setCache === 'function' && root) d.setCache({ ts: 0, snapshot: null, error: null, cwd: String(root) }) } catch (e) {} },
-          onTicketCreated: onDeckWrite, chainNote: function (input) { try { return sessionTickets.note(input) } catch (e) { return null } }, // #746 建票直达命名守护；#775 主动上报写同一份链（report）
-          hourUsage: function () { try { return ledger.hourOf('ai-tool') || {} } catch (e) { return {} } },
-          ensureReading: function (cwd, workspaceKey) { return ensureDeckReading(cwd, workspaceKey) }, // #758 动手前保读数：差就免费读一次，不差不打；失败调用方照旧被闸推迟
-          noteGate: function (info) { try { noteDeckGate(info) } catch (eN) {} }, // #758 闸口径迹：探针读走，线上卡在哪段一眼可见
+          invalidate: function (info: any): void { try { const root: any = (info && info.workspace && info.workspace.root) || (info && info.cwd); if (typeof d.setCache === 'function' && root) d.setCache({ ts: 0, snapshot: null, error: null, cwd: String(root) }) } catch (e: any) {} },
+          onTicketCreated: onDeckWrite, chainNote: function (input: any): any { try { return sessionTickets.note(input) } catch (e: any) { return null } }, // #746 建票直达命名守护；#775 主动上报写同一份链（report）
+          hourUsage: function (): any { try { return ledger.hourOf('ai-tool') || {} } catch (e: any) { return {} } },
+          ensureReading: function (cwd: any, workspaceKey: any): Promise<any> { return ensureDeckReading(cwd, workspaceKey) }, // #758 动手前保读数：差就免费读一次，不差不打；失败调用方照旧被闸推迟
+          noteGate: function (info: any): void { try { noteDeckGate(info) } catch (eN: any) {} }, // #758 闸口径迹：探针读走，线上卡在哪段一眼可见
           log: logCtx || null,
           // #723（T19c）：工作区键用与活跃集合同一把短散列（workspaceKeyOf）——**不许**在这里用别的归一
           // （散列层级不同、长度不同、空串，都会让闸里那一格从来不是活跃，于是每一笔都被判推迟；
@@ -425,8 +440,8 @@ export function createRefreshWiring(deps) {
           now: Date.now,
         })
         return Object.assign({ reason: '', files: DECK_TOOL_FILES }, built)
-      })().catch(function () { return { tools: {}, names: [], definitions: [], missing: [], reason: 'assembly-failed', files: DECK_TOOL_FILES } })
-      try { publishDeckTable(deckToolsP) } catch (eP) {} // #758 同进程共享格：表一开装就行里直接取，不经调用面；跨进程时格子永远是空的，行按原路退回
+      })().catch(function (): any { return { tools: {}, names: [], definitions: [], missing: [], reason: 'assembly-failed', files: DECK_TOOL_FILES } })
+      try { publishDeckTable(deckToolsP) } catch (eP: any) {} // #758 同进程共享格：表一开装就行里直接取，不经调用面；跨进程时格子永远是空的，行按原路退回
     }
     return await deckToolsP
   }
@@ -435,21 +450,21 @@ export function createRefreshWiring(deps) {
   // 以前探测到变化之后没人去跑 refresh/patch.js，客户端只能整池重建；现在它在这里装起来，由 wf.probe 那条路在
   //「探测说变了」之后调用。依赖由宿主入口显式传入：readSnapshot / writeSnapshot 读写的正是宿主那份快照缓存与
   // 磁盘缓存（与客户端看到的列表同一份）；send / decide 是闸的两半，读路径的账与裁决一个字都另不算。
-  let patchRunner = null
-  function patchOf() {
+  let patchRunner: any = null
+  function patchOf(): any {
     if (!patchRunner) {
       patchRunner = createPatchForHost({
-        readSnapshot: function (cwd) { try { const e = (typeof d.getCache === 'function') ? d.getCache(cwd) : null; return (e && e.snapshot) ? e.snapshot : null } catch (eR) { return null } },
-        writeSnapshot: async function (cwd, snap) {
-          try { if (typeof d.setCache === 'function') d.setCache({ ts: Date.now(), snapshot: snap, error: null, cwd: cwd }) } catch (eW) {}
-          try { const repo = await d.getRepoKey(cwd); if (repo && typeof d.writeDiskCache === 'function') await d.writeDiskCache(repo, snap) } catch (eD) {}
+        readSnapshot: function (cwd: any): any { try { const e: any = (typeof d.getCache === 'function') ? d.getCache(cwd) : null; return (e && e.snapshot) ? e.snapshot : null } catch (eR: any) { return null } },
+        writeSnapshot: async function (cwd: any, snap: any): Promise<void> {
+          try { if (typeof d.setCache === 'function') d.setCache({ ts: Date.now(), snapshot: snap, error: null, cwd: cwd }) } catch (eW: any) {}
+          try { const repo: any = await d.getRepoKey(cwd); if (repo && typeof d.writeDiskCache === 'function') await d.writeDiskCache(repo, snap) } catch (eD: any) {}
         },
-        indexOfSnapshot: function (snap) { return (typeof d.issueIndexFromSnapshot === 'function') ? d.issueIndexFromSnapshot(snap) : {} },
-        probeIndex: function (cwd, sinceIso) { return (typeof d.fetchIssueIndex === 'function') ? d.fetchIssueIndex(cwd, sinceIso) : Promise.resolve({ ok: false }) },
-        getRepoKey: function (cwd) { return (typeof d.getRepoKey === 'function') ? d.getRepoKey(cwd) : Promise.resolve(null) },
-        runGh: function (args2, cwd) { return (typeof d.runGh === 'function') ? d.runGh(args2, cwd) : Promise.resolve({ ok: false, error: 'no-runGh' }) },
-        send: function (req, perform) { return gate.send(req, perform) },
-        decide: function (req) { return gate.decideFor(req) },
+        indexOfSnapshot: function (snap: any): any { return (typeof d.issueIndexFromSnapshot === 'function') ? d.issueIndexFromSnapshot(snap) : {} },
+        probeIndex: function (cwd: any, sinceIso: any): any { return (typeof d.fetchIssueIndex === 'function') ? d.fetchIssueIndex(cwd, sinceIso) : Promise.resolve({ ok: false }) },
+        getRepoKey: function (cwd: any): any { return (typeof d.getRepoKey === 'function') ? d.getRepoKey(cwd) : Promise.resolve(null) },
+        runGh: function (args2: any, cwd: any): any { return (typeof d.runGh === 'function') ? d.runGh(args2, cwd) : Promise.resolve({ ok: false, error: 'no-runGh' }) },
+        send: function (req: any, perform: any): any { return gate.send(req, perform) },
+        decide: function (req: any): any { return gate.decideFor(req) },
         // 与活跃集合、写事件白名单同一把短散列（见 syncAttention）：不一致就会让探测这条路每一笔都被判「推迟」。
         workspaceKeyOf: workspaceKeyOf,
         now: Date.now,
@@ -464,20 +479,20 @@ export function createRefreshWiring(deps) {
    * 只在两条依赖齐了才跑（跑 gh 的出口与探测索引的出口）——缺任何一个都如实回 failed，
    * 让调用方照旧走整池那条老路，绝不假装补过。
    */
-  async function deltaRefresh(cwd, opts) {
+  async function deltaRefresh(cwd: any, opts: any): Promise<any> {
     if (typeof d.runGh !== 'function' || typeof d.fetchIssueIndex !== 'function') return { mode: 'failed', reason: 'no-transport' }
-    try { return await patchOf().run(cwd, opts || {}) } catch (e) { return { mode: 'failed', reason: 'patch-threw' } }
+    try { return await patchOf().run(cwd, opts || {}) } catch (e: any) { return { mode: 'failed', reason: 'patch-threw' } }
   }
 
   /** 切进一个工作区那一下要问的事（有待办就整池、并清待办）。 */
-  async function deltaEnter(cwd) {
+  async function deltaEnter(cwd: any): Promise<any> {
     if (typeof d.getCache !== 'function') return { mode: 'use-cache', reason: 'no-cache-port' }
-    try { return await patchOf().enterWorkspace(cwd) } catch (e) { return { mode: 'use-cache', reason: 'patch-threw' } }
+    try { return await patchOf().enterWorkspace(cwd) } catch (e: any) { return { mode: 'use-cache', reason: 'patch-threw' } }
   }
 
   return {
     ledger: ledger,
-    gate: gate, send: function (req, perform) { return gate.send(req, perform) }, // #927：面板取数那两路要过闸（它们是「人的动作」那一类，只记账、不降档）
+    gate: gate, send: function (req: any, perform: any): any { return gate.send(req, perform) }, // #927：面板取数那两路要过闸（它们是「人的动作」那一类，只记账、不降档）
     writeEvents: writeEvents,
     sessionTickets: sessionTickets,
     attention: attention,
@@ -488,15 +503,15 @@ export function createRefreshWiring(deps) {
     deltaEnter: deltaEnter,
     syncAttention: syncAttention,
     noteWorkspaceActive: noteWorkspaceActive,
-    firstTextOf: function (sid) { try { return readFirstUserText(d.ctx, sid) } catch (e) { return Promise.resolve(null) } }, // #746 首句直读（读而不激活；失败即 null）
-    titleFactOf: function (sid) { try { const ctx = d.ctx; if (!ctx || typeof ctx.get !== 'function') return null; const ss = ctx.get('sessions'), ts = ctx.get('sessionTitle'); if (!ss || typeof ss.get !== 'function' || !ts || typeof ts.get !== 'function') return null; const session = ss.get(sid); if (!session) return null; const snap = ts.get(session); if (!snap || typeof snap.title !== 'string' || !snap.title) return null; const kind = snap.source && typeof snap.source.kind === 'string' ? snap.source.kind : ''; return kind ? { kind: kind, title: snap.title } : null } catch (e) { return null } }, // 标题来源事实（写这条名的那一次是谁写的：user 人写的／fallback 底座首句名／provider 底座模型取名），取自宿主会话与标题两个原生服务；缺服务或读不到即 null，执行点退回旧判据
+    firstTextOf: function (sid: any): Promise<any> { try { return readFirstUserText(d.ctx, sid) } catch (e: any) { return Promise.resolve(null) } }, // #746 首句直读（读而不激活；失败即 null）
+    titleFactOf: function (sid: any): any { try { const ctx: any = d.ctx; if (!ctx || typeof ctx.get !== 'function') return null; const ss: any = ctx.get('sessions'), ts: any = ctx.get('sessionTitle'); if (!ss || typeof ss.get !== 'function' || !ts || typeof ts.get !== 'function') return null; const session: any = ss.get(sid); if (!session) return null; const snap: any = ts.get(session); if (!snap || typeof snap.title !== 'string' || !snap.title) return null; const kind: any = snap.source && typeof snap.source.kind === 'string' ? snap.source.kind : ''; return kind ? { kind: kind, title: snap.title } : null } catch (e: any) { return null } }, // 标题来源事实（写这条名的那一次是谁写的：user 人写的／fallback 底座首句名／provider 底座模型取名），取自宿主会话与标题两个原生服务；缺服务或读不到即 null，执行点退回旧判据
     attach: attach,
     once: once,
-    stats: function () {
-      const out = { gate: null, writeEvents: null, sessionTickets: null, allowedRoots: allowed.length }
-      try { out.gate = gate.stats() } catch (e) {}
-      try { out.writeEvents = writeEvents.stats() } catch (e) {}
-      try { out.sessionTickets = sessionTickets.stats() } catch (e) {}
+    stats: function (): any {
+      const out: { gate: any; writeEvents: any; sessionTickets: any; allowedRoots: number } = { gate: null, writeEvents: null, sessionTickets: null, allowedRoots: allowed.length }
+      try { out.gate = gate.stats() } catch (e: any) {}
+      try { out.writeEvents = writeEvents.stats() } catch (e: any) {}
+      try { out.sessionTickets = sessionTickets.stats() } catch (e: any) {}
       return out
     },
   }

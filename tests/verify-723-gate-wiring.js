@@ -55,7 +55,7 @@ async function main() {
   const ledgerMod = await imp('src/host/refresh/ledger.ts')
   const gateMod = await imp('src/host/refresh/gate.ts')
   const patchMod = await imp('src/host/refresh/patch.js')
-  const wiringMod = await imp('src/host/refresh/wiring.js')
+  const wiringMod = await imp('src/host/refresh/wiring.ts')
   const attentionMod = await imp('src/host/refresh/attention.js')
   // 工具名字数对照**装配顺序常量本身**（src/deck/tools/tool-order.ts 的 DECK_TOOL_ORDER），
   // 不写死「七条」那种字面：工具从七个长到九个时，写死的断言会平白变红一次，

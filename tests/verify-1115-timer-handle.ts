@@ -7,7 +7,7 @@
 //      这条是整扇门禁的意义所在：哪天假计时器不再复现真机形状，这里当场变红；
 //   ③ 两个真实调用点用「句柄是函数」的假计时器服务真跑一遍，断言那笔等待答完之后不再悬着：
 //      a. 平台通道的 getTimers（经它自己建的探测服务，src/host/platformChannel.js:316 / :326 那一份）；
-//      b. 宿主接线的 backendObj.timers（经 deck 工具那条路，src/host/refresh/wiring.js 那一份）；
+//      b. 宿主接线的 backendObj.timers（经 deck 工具那条路，src/host/refresh/wiring.ts 那一份）；
 //   ④ 六个调用点都走共享层那一份（静态钉住），共享层那份自己不 import 任何模块；
 //   ⑤ 客户端那一份同款判断（src/client/hostShim.js 的 timer.clearTimeout）也真跑一遍三档 ——
 //      客户端叶子文件是构建时拼进闭包的文本，不能用 import 引共享层那份源码，只能照抄一套判断，
@@ -287,7 +287,7 @@ async function main() {
     check(!!registry && typeof registry.select === 'function', '生产装配路径交得出后端注册表（deck 工具那条路要它）')
     const fakeDeck = makeCordisTimer()
     const deckTimer = { timeout: (fn: TimerFn, ms?: number) => fakeDeck.service.timeout(fn, ms) }
-    const { createRefreshWiring } = await imp('src/host/refresh/wiring.js')
+    const { createRefreshWiring } = await imp('src/host/refresh/wiring.ts')
     const wiring = createRefreshWiring({
       ctx: { on: () => () => {}, get: (name: string) => (name === 'fs' ? fsSvc : (name === 'timer' ? deckTimer : undefined)) },
       logCtx: { fire: () => {}, isEnabled: () => false },
@@ -317,7 +317,7 @@ async function main() {
     { file: 'src/host/commentThreads.js', calls: 1 },
     { file: 'src/host/workspaceCwd.ts', calls: 1 },
     { file: 'src/host/snapshotBuild.ts', calls: 2 },
-    { file: 'src/host/refresh/wiring.js', calls: 1 },
+    { file: 'src/host/refresh/wiring.ts', calls: 1 },
   ]
   for (const site of SITES) {
     const text = fs.readFileSync(path.join(ROOT, site.file), 'utf8')

@@ -186,7 +186,6 @@
     "src/host/refresh/refreshSource.js",
     "src/host/refresh/sessionChainReadout.js",
     "src/host/refresh/sessionTickets.js",
-    "src/host/refresh/wiring.js",
     "src/host/refresh/writeEvents.js",
     "src/host/rpcChannel.js",
     "src/host/runningMarkers.js",

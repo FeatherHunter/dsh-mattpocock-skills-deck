@@ -71,7 +71,7 @@ async function main() {
   console.log('\n== 三、一套实例：五条路互相看得见 ==')
   const store = { dir: fs.mkdtempSync(path.join(os.tmpdir(), 't19b-single-')), logCtx: null, decides: [] }
   store.logCtx = { isEnabled: () => true, fire: (l, e, f) => { if (e === 'refresh.decide') store.decides.push(typeof f === 'function' ? f() : f) } }
-  const wiringMod = await import(url('src/host/refresh/wiring.js'))
+  const wiringMod = await import(url('src/host/refresh/wiring.ts'))
   LedgerMod = await import(url('src/host/refresh/ledger.ts'))
   GateMod = await import(url('src/host/refresh/gate.ts'))
   const load = wiringMod.makeRefreshLoader(makeDeps(store))
