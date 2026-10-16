@@ -1,8 +1,9 @@
-// 由 dsh-plugin-update@0.17.1 的集成工具生成，人手不改。
+// 由 dsh-plugin-update@0.18.6 的集成工具生成，人手不改。
 // 生成命令：node dsh-plugin-update/derive-client-values.mjs --prefix wf --out <本文件路径>
 // 生成对象：dsh-mattpocock-skills-deck。改了前缀或想升级本包，重新跑一次这条命令即可。
-// node_modules/.pnpm/dsh-plugin-update@0.17.1/node_modules/dsh-plugin-update/dist/config.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.6/node_modules/dsh-plugin-update/dist/config.js
 // 派生后处理（#800）：已按 #597 把三个重名函数改名（build* → updBuild*），顶撞检查已过；数据源是已安装的更新包，本地包目录不是来源。
+var CHECK_FALLBACK_PHONE_ACTION = "updateCheckFallback";
 var DEFAULT_CONFIRMATION_TTL_MS = 10 * 6e4;
 var DEFAULT_INSTALL_TIMEOUT_MS = 15 * 6e4;
 var DEFAULT_PANEL_POLL_MS = 1e3;
@@ -24,6 +25,7 @@ function updBuildPhoneNames(prefix) {
     updateCheck: checked + ".updateCheck",
     updateInstall: checked + ".updateInstall",
     updateChangelog: checked + ".updateChangelog",
+    updateCheckFallback: checked + "." + CHECK_FALLBACK_PHONE_ACTION,
     logAppend: checked + "." + LOG_APPEND_ACTION
   };
 }
@@ -34,7 +36,7 @@ function updBuildPhoneName(prefix, action) {
   return updBuildPhoneNames(prefix)[action];
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.17.1/node_modules/dsh-plugin-update/dist/commands.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.6/node_modules/dsh-plugin-update/dist/commands.js
 var PACKAGE_NAME = "dsh-mattpocock-skills-deck";
 var NPM_REGISTRY = "https://registry.npmjs.org/";
 var INSTALL_TIMEOUT_MS = 15 * 6e4;
@@ -125,7 +127,7 @@ function usableProfileName(raw) {
   return name;
 }
 function manualCommand(input) {
-  if (input.sourceInstall || input.blockedReason === "source-install" || input.blockedReason === "unknown-profile") return null;
+  if (input.sourceInstall || input.blockedReason === "source-install" || input.blockedReason === "unknown-profile" || input.blockedReason === "dev-source") return null;
   const name = usableProfileName(input.profileName);
   if (!name) return null;
   const targetName = input.targetPackageName ?? PACKAGE_NAME;
@@ -148,7 +150,7 @@ function manualCommand(input) {
   return `dsh plugin --profile ${arg} add --save-exact ${targetName}@${version} --registry=${registry}`;
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.17.1/node_modules/dsh-plugin-update/dist/queue.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.6/node_modules/dsh-plugin-update/dist/queue.js
 var QUEUE_INTENT_TTL_MS = 10 * 6e4;
 function emptyQueueState() {
   return { version: 1, owner: null, waiting: [] };
@@ -302,7 +304,7 @@ function derivedRequestId(state, viewerPluginId) {
   return mine[0].requestId;
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.17.1/node_modules/dsh-plugin-update/dist/batch.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.6/node_modules/dsh-plugin-update/dist/batch.js
 var BATCH_SESSION_VERSION = 1;
 function isTerminalPhase(phase) {
   return phase === "done" || phase === "failed" || phase === "skipped" || phase === "current";
@@ -469,7 +471,7 @@ function resumeBatchSession(session, now) {
   return changed ? { ...session, entries, updatedAt: at } : session;
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.17.1/node_modules/dsh-plugin-update/dist/service.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.6/node_modules/dsh-plugin-update/dist/service.js
 var CONFIRMATION_TTL_MS = 10 * 6e4;
 var MAX_METADATA_BYTES = 256 * 1024;
 function updateError(code) {
@@ -556,7 +558,7 @@ function compareReleaseVersions2(a, b) {
   return 0;
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.17.1/node_modules/dsh-plugin-update/dist/lang.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.6/node_modules/dsh-plugin-update/dist/lang.js
 function normalizeLangTag(tag) {
   if (typeof tag !== "string") return "zh";
   const s = tag.trim().toLowerCase().replace(/_/g, "-");
@@ -567,7 +569,7 @@ function normalizeLangTag(tag) {
   return "zh";
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.17.1/node_modules/dsh-plugin-update/dist/bilingual.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.6/node_modules/dsh-plugin-update/dist/bilingual.js
 var BILINGUAL_STRINGS = {
   "entry.label.idle": { en: "Check for updates", zh: "\u68C0\u67E5\u66F4\u65B0", draft: true },
   "entry.label.failed": { en: "Update failed \u2014 View details", zh: "\u66F4\u65B0\u5931\u8D25\uFF0C\u8BF7\u67E5\u770B\u8BE6\u60C5", draft: true },
@@ -600,6 +602,8 @@ var BILINGUAL_STRINGS = {
   "panel.blocked.incompatible-node.action": { en: "Upgrade Node to 22 or later, then check again.", zh: "\u8BF7\u5347\u7EA7 Node \u81F3 22 \u6216\u66F4\u9AD8\u7248\u672C\u540E\u91CD\u65B0\u67E5\u8BE2", draft: true },
   "panel.blocked.recovery-required.title": { en: "Last install was interrupted, leaving a partial task", zh: "\u4E0A\u6B21\u5B89\u88C5\u5F02\u5E38\u4E2D\u65AD\uFF0C\u5B58\u5728\u672A\u5B8C\u6210\u4EFB\u52A1", draft: true },
   "panel.blocked.recovery-required.action": { en: "Run install once more; if it persists, follow section 6 to troubleshoot.", zh: "\u91CD\u65B0\u6267\u884C\u5B89\u88C5\uFF1B\u82E5\u6301\u7EED\uFF0C\u8BF7\u6309\u7B2C 6 \u8282\u6392\u9519", draft: true },
+  "panel.blocked.dev-source.title": { en: "Dev-mode source link, update center unavailable", zh: "\u5F00\u53D1\u6001\u6302\u8F7D\uFF08\u6E90\u7801\u94FE\u63A5\uFF09\uFF0C\u66F4\u65B0\u4E2D\u5FC3\u4E0D\u53EF\u7528", draft: true },
+  "panel.blocked.dev-source.action": { en: "Edit the repo and restart the host to take effect; the update center only serves version installs, no manual command is provided here.", zh: "\u6539\u5B8C\u4ED3\u5E93\u4EE3\u7801\u540E\u91CD\u542F\u5BBF\u4E3B\u751F\u6548\uFF1B\u66F4\u65B0\u4E2D\u5FC3\u53EA\u670D\u52A1\u6309\u7248\u672C\u5B89\u88C5\uFF0C\u6B64\u573A\u666F\u4E0D\u63D0\u4F9B\u624B\u5DE5\u547D\u4EE4", draft: true },
   "panel.failure.check-failed.title": { en: "Couldn\u2019t check for updates (network, source, or rate limit)", zh: "\u7248\u672C\u4FE1\u606F\u67E5\u8BE2\u5931\u8D25\uFF08\u7F51\u7EDC / \u6570\u636E\u6E90 / \u9650\u6D41\uFF09", draft: true },
   "panel.failure.check-failed.action": { en: "Try checking again later; if it keeps failing, send the copied diagnostics to the plugin author.", zh: "\u7A0D\u540E\u91CD\u65B0\u67E5\u8BE2\uFF1B\u82E5\u6301\u7EED\uFF0C\u8BF7\u63D0\u4EA4\u8BCA\u65AD\u4FE1\u606F\u81F3\u63D2\u4EF6\u4F5C\u8005", draft: true },
   "panel.failure.invalid-release.title": { en: "Release info is invalid (bad version or mismatched content)", zh: "\u53D1\u5E03\u7248\u672C\u4FE1\u606F\u65E0\u6548\uFF08\u7248\u672C\u53F7\u975E\u6CD5\u6216\u5185\u5BB9\u4E0D\u4E00\u81F4\uFF09", draft: true },
@@ -647,6 +651,8 @@ var BILINGUAL_STRINGS = {
   "panel.banner.update-title": { en: "Update available: {latest} (current: {running}).", zh: "\u6709\u65B0\u7248\u672C {latest} \u53EF\u5B89\u88C5\uFF08\u5F53\u524D\u7248\u672C {running}\uFF09\u3002", draft: true },
   "panel.banner.update-action": { en: "Install runs the exact version; only one install runs per scope at a time.", zh: "\u9009\u62E9\u5B89\u88C5\u5C06\u6309\u7CBE\u786E\u7248\u672C\u5B89\u88C5\uFF1B\u540C\u4E00\u4F7F\u7528\u8303\u56F4\u540C\u65F6\u4EC5\u5B89\u88C5\u4E00\u9879\u3002", draft: true },
   "panel.action.install-version": { en: "Install {latest}", zh: "\u5B89\u88C5\u7248\u672C {latest}", draft: true },
+  "panel.banner.update-gated-title": { en: "Version {latest} was just published and is still gated ({unlock}); installing now will fail \u2014 use Install fallback build below if you cannot wait.", zh: "\u65B0\u7248\u672C {latest} \u521A\u53D1\u5E03\u672A\u6EE1\u95E8\uFF0C{unlock}\u53EF\u88C5\uFF1B\u73B0\u5728\u70B9\u5B89\u88C5\u4F1A\u5931\u8D25\uFF0C\u7B49\u4E0D\u53CA\u53EF\u5148\u88C5\u5408\u89C4\u7248\u3002", draft: true },
+  "panel.action.install-gated-title": { en: "Come back {unlock} to install {latest}; it is still gated and would fail now.", zh: "{unlock}\u518D\u6765\u88C5 {latest} \u5427\uFF0C\u73B0\u5728\u88C5\u4F1A\u88AB\u95E8\u62E6\u4F4F\u3002", draft: true },
   "panel.banner.done": { en: "Up to date. No update needed.", zh: "\u5DF2\u662F\u6700\u65B0\uFF0C\u65E0\u9700\u66F4\u65B0\u3002", draft: true },
   "panel.banner.not-installed": { en: "Not installed", zh: "\u672A\u5B89\u88C5", draft: true },
   "panel.toast.checking": { en: "Checking for updates\u2026", zh: "\u6B63\u5728\u67E5\u8BE2\u7248\u672C\u4FE1\u606F\u2026", draft: true },
@@ -660,6 +666,8 @@ var BILINGUAL_STRINGS = {
   "panel.toast.restart-failed": { en: "Restart entry failed; please restart the host manually. The new version takes effect after restart.", zh: "\u91CD\u542F\u5165\u53E3\u8C03\u7528\u5931\u8D25\uFF0C\u8BF7\u624B\u52A8\u91CD\u542F\u5BBF\u4E3B\uFF1B\u91CD\u542F\u540E\u65B0\u7248\u672C\u751F\u6548\u3002", draft: true },
   "panel.toast.copy-state-ok": { en: "Current state copied (no failure); paste it to the plugin author (already redacted).", zh: "\u5F53\u524D\u72B6\u6001\u5DF2\u590D\u5236\uFF08\u65E0\u5931\u8D25\uFF09\uFF0C\u8BF7\u63D0\u4EA4\u81F3\u63D2\u4EF6\u4F5C\u8005\uFF08\u5DF2\u8131\u654F\uFF09\u3002", draft: true },
   "panel.toast.failure-dismissed": { en: "Failure acknowledged; it will be re-evaluated on the next check or install.", zh: "\u5DF2\u786E\u8BA4\u8BE5\u5931\u8D25\u63D0\u793A\uFF1B\u4E0B\u6B21\u67E5\u8BE2\u7248\u672C\u4FE1\u606F\u6216\u5B89\u88C5\u5C06\u91CD\u65B0\u8BC4\u4F30\u3002", draft: true },
+  "panel.toast.fallback-unavailable": { en: "No compliant build for this failure; see the diagnostics or retry later.", zh: "\u8FD9\u6B21\u5931\u8D25\u7528\u4E0D\u4E0A\u5408\u89C4\u7248\uFF0C\u8BF7\u770B\u8BCA\u65AD\u4FE1\u606F\u6216\u7A0D\u540E\u91CD\u8BD5\u3002", draft: true },
+  "panel.toast.fallback-wait": { en: "Latest should clear around {time}; no earlier compliant build for now.", zh: "\u6700\u65B0\u7248\u7EA6 {time} \u53EF\u88C5\uFF0C\u6682\u65E0\u66F4\u65E9\u7684\u5408\u89C4\u7248\u3002", draft: true },
   "panel.strip.running": { en: "Running", zh: "\u8FD0\u884C\u7248", draft: true },
   "panel.strip.installed": { en: "Installed", zh: "\u5DF2\u5B89\u88C5", draft: true },
   "panel.strip.latest": { en: "Latest", zh: "\u6700\u65B0\u7248", draft: true },
@@ -692,6 +700,12 @@ var BILINGUAL_STRINGS = {
   "panel.action.restart-host-title": { en: "Run the caller restart flow if available, otherwise restart DSH manually", zh: "\u4F18\u5148\u8D70\u8C03\u7528\u65B9\u91CD\u542F\u6D41\u7A0B\uFF1B\u82E5\u65E0\uFF0C\u8BF7\u624B\u52A8\u91CD\u542F DSH", draft: true },
   "panel.action.dismiss": { en: "Got it", zh: "\u5DF2\u77E5\u6653", draft: true },
   "panel.action.dismiss-title": { en: "Acknowledge the failure and return; next check or install will re-evaluate", zh: "\u786E\u8BA4\u5DF2\u77E5\u6653\u8BE5\u5931\u8D25\uFF1A\u8FD4\u56DE\u53EF\u5B89\u88C5\u9875\uFF0C\u4E0B\u6B21\u67E5\u8BE2\u6216\u5B89\u88C5\u5C06\u91CD\u65B0\u8BC4\u4F30", draft: true },
+  "panel.action.install-fallback": { en: "Install compliant build", zh: "\u88C5\u5408\u89C4\u7248", draft: true },
+  "panel.action.install-fallback-title": { en: "Resolve an age-compliant version first, then confirm; never installs an older version silently", zh: "\u5148\u51B3\u8BAE\u4E00\u4E2A\u6EE1\u95E8\u9650\u7684\u7248\u672C\u518D\u8BF7\u4F60\u786E\u8BA4\uFF0C\u4E0D\u4F1A\u9759\u9ED8\u88C5\u65E7\u7248", draft: true },
+  "panel.action.install-fallback-confirm": { en: "Confirm install {version}", zh: "\u786E\u8BA4\u88C5 {version}", draft: true },
+  "panel.action.install-fallback-confirm-title": { en: "Install this exact version now", zh: "\u70B9\u4E0B\u53BB\u5373\u5B89\u88C5\u8BE5\u7CBE\u786E\u7248\u672C", draft: true },
+  "panel.action.wait-latest": { en: "Wait for latest", zh: "\u7B49\u65B0\u7248", draft: true },
+  "panel.action.wait-latest-title": { en: "Dismiss this failure; install again once the latest clears the age gate", zh: "\u6536\u8D77\u8FD9\u6B21\u5931\u8D25\uFF1B\u6700\u65B0\u7248\u6EE1\u95E8\u9650\u540E\u53EF\u518D\u88C5", draft: true },
   "panel.action.copy-diag": { en: "Copy diagnostics", zh: "\u590D\u5236\u8BCA\u65AD", draft: true },
   "panel.action.copy-diag-title": { en: "Copy redacted diagnostics for the plugin author", zh: "\u590D\u5236\u5DF2\u8131\u654F\u8BCA\u65AD\uFF0C\u8BF7\u63D0\u4EA4\u81F3\u63D2\u4EF6\u4F5C\u8005", draft: true },
   "panel.skip.line-tag": { en: "Skipped {version}", zh: "\u5DF2\u8DF3\u8FC7\u7248\u672C {version}", draft: true },
@@ -760,7 +774,7 @@ var BILINGUAL_STRINGS = {
   "panel.diag.copy.field.method": { en: "Method={method}", zh: "\u65B9\u6CD5={method}", draft: true },
   "panel.diag.copy.field.latency": { en: "Latency={latency}", zh: "\u8017\u65F6={latency}", draft: true },
   "panel.diag.copy.field.registry": { en: "Source={host}", zh: "\u6E90={host}", draft: true },
-  "panel.diag.copy.field.registry-unknown": { en: "Source=Unknown (Omitted for non-official sources, which is itself information)", zh: "\u6E90=\u672A\u77E5\uFF08\u975E\u5B98\u65B9\u6E90\u65F6\u7701\u7565\u672C\u8EAB\u5373\u4FE1\u606F\uFF09", draft: true },
+  "panel.diag.copy.field.registry-unknown": { en: "Source=Undeclared", zh: "\u6E90=\u672A\u58F0\u660E", draft: true },
   "panel.diag.copy.field.action": { en: "Suggestion={action}", zh: "\u5EFA\u8BAE={action}", draft: true },
   "panel.diag.copy.field.request": { en: "Request={request}", zh: "\u8BF7\u6C42={request}", draft: true },
   "panel.diag.copy.field.check": { en: "Check={check}", zh: "\u68C0\u67E5={check}", draft: true },
@@ -890,7 +904,13 @@ var BILINGUAL_STRINGS = {
   "diag.fallback.pending-restart": { en: "New version is on disk. The running version is still the old one.", zh: "\u65B0\u7248\u672C\u5DF2\u5199\u5165\u78C1\u76D8\uFF0C\u5F53\u524D\u8FD0\u884C\u4ECD\u4E3A\u65E7\u7248\u672C", draft: true },
   "diag.fallback.incompatible-node": { en: "New version needs a different Node version than the running one", zh: "Node \u8FD0\u884C\u65F6\u7248\u672C\u4E0D\u517C\u5BB9", draft: true },
   "diag.fallback.registry-conflict": { en: "Declared version conflicts with the on-disk version", zh: "\u7248\u672C\u58F0\u660E\u4E0E\u78C1\u76D8\u5B9E\u9645\u7248\u672C\u51B2\u7A81", draft: true },
-  "diag.fallback.recovery-required": { en: "Last install was interrupted, leaving a partial task", zh: "\u4E0A\u6B21\u5B89\u88C5\u5F02\u5E38\u4E2D\u65AD\uFF0C\u5B58\u5728\u672A\u5B8C\u6210\u4EFB\u52A1", draft: true }
+  "diag.fallback.recovery-required": { en: "Last install was interrupted, leaving a partial task", zh: "\u4E0A\u6B21\u5B89\u88C5\u5F02\u5E38\u4E2D\u65AD\uFF0C\u5B58\u5728\u672A\u5B8C\u6210\u4EFB\u52A1", draft: true },
+  "diag.fallback.dev-source": { en: "Dev-mode source link; update center unavailable", zh: "\u5F00\u53D1\u6001\u6E90\u7801\u94FE\u63A5\uFF0C\u66F4\u65B0\u4E2D\u5FC3\u4E0D\u53EF\u7528", draft: true },
+  "diag.cause.age.target.timed": { en: "Your plugin {package} was published too recently and was blocked by the host supply-chain age policy (installer words in the summary). Retry after {time}; for urgent use ask the host to relax the policy.", zh: "\u672C\u63D2\u4EF6 {package} \u53D1\u5E03\u672A\u6EE1\u5BBF\u4E3B\u5E74\u9F84\u95E8\u9650\uFF0C\u88AB\u4F9B\u5E94\u94FE\u7B56\u7565\u62E6\u622A\uFF08\u5B89\u88C5\u5668\u539F\u8BDD\u89C1\u6458\u8981\uFF09\u3002{time}\u540E\u70B9\u91CD\u8BD5\u5373\u53EF\uFF1B\u6025\u7528\u8BF7\u627E\u5BBF\u4E3B\u653E\u5BBD\u7B56\u7565\u3002", draft: true },
+  "diag.cause.age.target.untimed": { en: "Your plugin {package} was blocked by the host supply-chain age policy because it is too new (see the summary). Retry later; for urgent use ask the host to relax the policy.", zh: "\u672C\u63D2\u4EF6 {package} \u56E0\u592A\u65B0\u88AB\u5BBF\u4E3B\u4F9B\u5E94\u94FE\u5E74\u9F84\u7B56\u7565\u62E6\u622A\uFF08\u89C1\u6458\u8981\uFF09\u3002\u8BF7\u7A0D\u540E\u91CD\u8BD5\uFF1B\u6025\u7528\u8BF7\u627E\u5BBF\u4E3B\u653E\u5BBD\u7B56\u7565\u3002", draft: true },
+  "diag.cause.age.other.timed": { en: "The installer reports: another package in the same environment, {package}, was rejected by a supply-chain age policy \u2014 not a problem with this plugin itself (see the summary). Retry after {time}; or ask the host to relax the policy.", zh: "\u5B89\u88C5\u5668\u62A5\u544A\uFF1A\u540C\u73AF\u5883\u53E6\u4E00\u5305 {package} \u56E0\u4F9B\u5E94\u94FE\u5E74\u9F84\u7B56\u7565\u88AB\u62D2\uFF0C\u4E0D\u662F\u672C\u63D2\u4EF6\u7684\u76F4\u63A5\u95EE\u9898\uFF08\u89C1\u6458\u8981\uFF09\u3002{time}\u540E\u91CD\u8BD5\uFF1B\u6216\u627E\u5BBF\u4E3B\u653E\u5BBD\u7B56\u7565\u3002", draft: true },
+  "diag.cause.age.other.untimed": { en: "The installer reports: another package in the same environment, {package}, was rejected by a supply-chain age policy \u2014 not a problem with this plugin itself (see the summary). Retry later, or ask the host to relax the policy.", zh: "\u5B89\u88C5\u5668\u62A5\u544A\uFF1A\u540C\u73AF\u5883\u53E6\u4E00\u5305 {package} \u56E0\u4F9B\u5E94\u94FE\u5E74\u9F84\u7B56\u7565\u88AB\u62D2\uFF0C\u4E0D\u662F\u672C\u63D2\u4EF6\u7684\u76F4\u63A5\u95EE\u9898\uFF08\u89C1\u6458\u8981\uFF09\u3002\u8BF7\u7A0D\u540E\u91CD\u8BD5\uFF0C\u6216\u627E\u5BBF\u4E3B\u653E\u5BBD\u7B56\u7565\u3002", draft: true },
+  "install-button.action.installed": { en: "Installed", zh: "\u5DF2\u5B89\u88C5", draft: true }
 };
 function formatTemplate(template, values) {
   const vals = values ?? {};
@@ -915,7 +935,7 @@ var BILINGUAL_CSS = [
   ".dsh-upd-bi [lang]{overflow-wrap:anywhere}"
 ].join("\n");
 
-// node_modules/.pnpm/dsh-plugin-update@0.17.1/node_modules/dsh-plugin-update/dist/changelog.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.6/node_modules/dsh-plugin-update/dist/changelog.js
 var CHANGELOG_FILENAME = "CHANGELOG.md";
 var CHANGELOG_NEUTRAL_HINT = "\u4F5C\u8005\u672A\u63D0\u4F9B\u66F4\u65B0\u8BF4\u660E";
 var CHANGELOG_NEUTRAL_LINE = "\u4F5C\u8005\u672A\u63D0\u4F9B\u66F4\u65B0\u8BF4\u660E\uFF0C\u5B89\u88C5\u4E0D\u53D7\u5F71\u54CD\u3002";
@@ -1945,7 +1965,7 @@ ${note}${blocks.join("\n")}
   }
 }
 
-// node_modules/.pnpm/dsh-plugin-update@0.17.1/node_modules/dsh-plugin-update/dist/client.js
+// node_modules/.pnpm/dsh-plugin-update@0.18.6/node_modules/dsh-plugin-update/dist/client.js
 var CLIENT_POLL = {
   defaultMs: DEFAULT_PANEL_POLL_MS,
   minMs: MIN_PANEL_POLL_MS

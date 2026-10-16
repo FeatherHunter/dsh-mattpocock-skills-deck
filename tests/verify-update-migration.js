@@ -1,11 +1,11 @@
 // verify-update-migration.js — 更新能力委托门禁（#586 起迁移门禁，#875 改为薄接线委托门禁，#880 收尾本地旧包）
 //
 // 这道门禁回答一个问题：更新能力是不是全权委托给了已安装的更新包，本仓还有没有自己的更新实现。规则：
-//   0) 版本一致：根清单与发布清单用同一范围依赖更新包（当前 0.17 范围）；锁文件版本＝已安装版本＝派生文件头版本一致；
+//   0) 版本一致：根清单与发布清单用同一范围依赖更新包（当前 0.18 范围）；锁文件版本＝已安装版本＝派生文件头版本一致；
 //      锁文件里不再有本地旧包的登记，工作区放行名单里不再有更新包条目。
 //   1) 旧实现已删：旧三件套、旧派生目录、旧共享核心、update-core 源码树、本地旧包目录都不存在；
 //      退役的四道旧门禁已从校验链移除。
-//   2) 接线只走包：五个电话名从已安装包的 phoneNames 读出来，宿主接线把第五个（日志直追加）也暴露出来。
+//   2) 接线只走包：六个电话名从已安装包的 phoneNames 读出来，宿主接线把第六个（日志直追加）也暴露出来。
 // 约束：全程假零件与假网络，不真跑安装命令、不直连官方源。
 // 用法：node tests/verify-update-migration.js（在仓库根目录）
 const fs = require('fs')
@@ -25,7 +25,7 @@ const GONE = [
   'tests/verify-update-freshness.js', 'tests/verify-update-regression.js',
   'tests/verify-update-routes.js', 'tests/verify-update-install.js',
 ]
-const PHONE_NAMES = { updateStatus: 'wf.updateStatus', updateCheck: 'wf.updateCheck', updateInstall: 'wf.updateInstall', updateChangelog: 'wf.updateChangelog', logAppend: 'wf.logAppend' }
+const PHONE_NAMES = { updateStatus: 'wf.updateStatus', updateCheck: 'wf.updateCheck', updateInstall: 'wf.updateInstall', updateChangelog: 'wf.updateChangelog', updateCheckFallback: 'wf.updateCheckFallback', logAppend: 'wf.logAppend' }
 
 async function main() {
   console.log('更新能力委托门禁（#875+#880：旧实现已删 + 接线只走包 + 版本一致）')
@@ -65,10 +65,10 @@ async function main() {
   // ---- 2) 接线只走包 ----
   const pkg = await import(pathToFileURL(path.join(ROOT, 'node_modules', 'dsh-plugin-update', 'dist', 'host.js')).href)
   const holder = pkg.createHostUpdate({ ctx: null, logCtx: null }, { pluginId: 'dsh-mattpocock-skills-deck', prefix: 'wf' })
-  check(JSON.stringify(holder.phoneNames) === JSON.stringify(PHONE_NAMES), '五个电话名从包读出且与旧字面一致（0.17 新增 wf.logAppend）')
+  check(JSON.stringify(holder.phoneNames) === JSON.stringify(PHONE_NAMES), '六个电话名从包读出且与旧字面一致（0.18 新增 wf.updateCheckFallback）')
   const wired = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'updateFromPackage.js')).href)
   const handlers = wired.createUpdatePhoneHandlers({ ctx: null, logCtx: null })
-  check(typeof handlers.handleLogAppend === 'function', '宿主接线暴露第五个电话 handleLogAppend（只按键从包处理器表里取，不另拼名）')
+  check(typeof handlers.handleLogAppend === 'function', '宿主接线暴露第六个电话 handleLogAppend（只按键从包处理器表里取，不另拼名）')
 
   console.log(failed ? '\n存在失败' : '\n全部通过')
   process.exit(failed ? 1 : 0)
