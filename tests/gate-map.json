@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T18:37:52.931Z",
+  "generatedAt": "2026-10-16T18:39:23.419Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 302,
   "gateCount": 302,
@@ -2519,13 +2519,13 @@
       "reason": "归属来自：静态 import 说明符 3 条"
     },
     {
-      "step": "node tests/verify-693-detail-fallback-honesty.js",
-      "file": "tests/verify-693-detail-fallback-honesty.js",
+      "step": "node tests/verify-693-detail-fallback-honesty.ts",
+      "file": "tests/verify-693-detail-fallback-honesty.ts",
       "guards": [
         "package/lib/client.js",
         "scripts/lib/discover-gates.ts",
         "src/client/views/shared/stateKind.js",
-        "tests/verify-693-detail-fallback-honesty.js"
+        "tests/verify-693-detail-fallback-honesty.ts"
       ],
       "dirs": [
         "package/lib",
@@ -7021,7 +7021,7 @@
       "node tests/verify-669-switch-visible.ts",
       "node tests/verify-670-panel-first-frame.ts",
       "node tests/verify-671-modal-global-overlay.ts",
-      "node tests/verify-693-detail-fallback-honesty.js",
+      "node tests/verify-693-detail-fallback-honesty.ts",
       "node tests/verify-958-label-name-visible.js",
       "node tests/verify-bug-entry.js",
       "node tests/verify-bundled-discovery.js",
@@ -7158,7 +7158,7 @@
       "node tests/verify-668-guide-steps-single-source.ts",
       "node tests/verify-683-choice-store.ts",
       "node tests/verify-683-host-wiring.ts",
-      "node tests/verify-693-detail-fallback-honesty.js",
+      "node tests/verify-693-detail-fallback-honesty.ts",
       "node tests/verify-729-force-dedup.js",
       "node tests/verify-970-whole-document.js",
       "node tests/verify-972-title-body.js",
@@ -7383,7 +7383,7 @@
       "node tests/verify-deck-slots.js",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-626-type-chip.ts",
-      "node tests/verify-693-detail-fallback-honesty.js",
+      "node tests/verify-693-detail-fallback-honesty.ts",
       "node tests/verify-783-chain-effort.js",
       "node tests/verify-907-chain-titles.js",
       "node tests/verify-rest-fallback-banner.js",
@@ -8027,7 +8027,7 @@
       "node tests/verify-596-rpc-carrier.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-668-guide-steps-single-source.ts",
-      "node tests/verify-693-detail-fallback-honesty.js",
+      "node tests/verify-693-detail-fallback-honesty.ts",
       "node tests/verify-729-force-dedup.js",
       "node tests/verify-895-github-memo.ts",
       "node tests/verify-929-batch-cycle.js",

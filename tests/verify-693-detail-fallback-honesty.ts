@@ -21,18 +21,22 @@
  *   五、详情回来了、这个后端不带评论能力 → 「只读」可以说，且不给输入框
  *   （另加一条：详情回来了、正文与评论都有 → 正常画出来，兜底没把正常路径带坏）
  *
- * 运行：node tests/verify-693-detail-fallback-honesty.js
+ * 运行：node tests/verify-693-detail-fallback-honesty.ts
  *   （界面那几条需要先跑 node scripts/build.mjs；产物不在时直接失败，不静默跳过）
  */
 import { readFileSync, existsSync, writeFileSync, mkdtempSync } from 'node:fs'
 import { resolve, dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { tmpdir } from 'node:os'
-import { isGatePlanned } from '../scripts/lib/discover-gates.ts'
+import { isGatePlanned } from '../scripts/lib/discover-gates.js'
+
+// Node 里 global 就是 globalThis；这里声明一次，是为了保住原文件「往 global 上挂浏览器环境」的写法，
+// 行为与原来一模一样（不是新造的对象）。
+declare const global: Record<string, any>
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 let failed = 0
-function check(cond, msg) {
+function check (cond: unknown, msg: string): void {
   if (cond) console.log('  PASS ' + msg)
   else { failed++; console.log('  FAIL ' + msg) }
 }
@@ -48,7 +52,7 @@ if (!existsSync(PRODUCT)) {
 // ------------------------------------------------------------------
 // 一、门禁本身挂进了 verify 链（不渲染也能验；#1125 起问规划函数，不再读 package.json 长串）
 {
-  check(isGatePlanned(ROOT, 'tests/verify-693-detail-fallback-honesty.js'), '本门禁已挂进 verify 链（规划函数里有它）')
+  check(isGatePlanned(ROOT, 'tests/verify-693-detail-fallback-honesty.ts'), '本门禁已挂进 verify 链（规划函数里有它）')
 }
 
 // ------------------------------------------------------------------
@@ -64,12 +68,12 @@ const esbuild = (await import('esbuild')).default
 const bundle = readFileSync(PRODUCT, 'utf8')
 
 // 词条从产物里读真货（与线上同一份文字），门禁不另造一份
-const dict = {}
-function localeOf(key, expectLang) {
+const dict: Record<string, string> = {}
+function localeOf (key: string, expectLang?: string): string {
   // 中英各一条：先出现的是中文（locale 源文件里中文半区在前），后出现的是英文
   const re = new RegExp("'" + key.replace(/\./g, '\\.') + "':\\s*'((?:[^'\\\\]|\\\\.)*)'", 'g')
-  const hits = []
-  let m
+  const hits: string[] = []
+  let m: RegExpExecArray | null
   while ((m = re.exec(bundle)) !== null) hits.push(m[1])
   check(hits.length >= 2, '词条 ' + key + ' 在产物里中英各一条（实得 ' + hits.length + ' 条）')
   dict[key] = hits[0] || key
@@ -83,13 +87,13 @@ const ZH = {
   noComments: localeOf('detail.noComments'),
   loading: localeOf('list.loading'),
 }
-const trFn = (key, params) => {
+const trFn = (key: string, params?: Record<string, unknown>): string => {
   let s = dict[key] !== undefined ? dict[key] : key
   if (params) s = s.replace(/\{(\w+)\}/g, (mm, n) => (n in params ? String(params[n]) : mm))
   return s
 }
 
-function extractFn(src, header) {
+function extractFn (src: string, header: string): string {
   const i = src.indexOf(header)
   if (i < 0) throw new Error('产物里找不到：' + header)
   let depth = 0
@@ -103,7 +107,7 @@ function extractFn(src, header) {
 }
 
 /** 把产物里的两个函数包成一个模块：函数体照抄，它们依赖的名字由下面这段垫片按测试桩喂进去。 */
-async function loadDetailModule() {
+async function loadDetailModule (): Promise<any> {
   const ridcSrc = extractFn(bundle, 'const renderIssueDetailComments = function')
     .replace('const renderIssueDetailComments = function', 'const __ridc = function')
   const detailFnSrc = extractFn(bundle, 'const IssueDetail = function (props)')
@@ -158,9 +162,9 @@ async function loadDetailModule() {
 // jsdom + 真 React 的一套环境
 const dom = new JSDOM('<!doctype html><html><head></head><body><div id="root"></div></body></html>', { url: 'http://127.0.0.1:59593/' })
 const { window } = dom
-window.requestAnimationFrame = window.requestAnimationFrame || ((cb) => setTimeout(cb, 0))
+window.requestAnimationFrame = window.requestAnimationFrame || ((cb: () => void) => setTimeout(cb, 0))
 window.cancelAnimationFrame = window.cancelAnimationFrame || clearTimeout
-if (typeof window.ResizeObserver === 'undefined') window.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} }
+if (typeof window.ResizeObserver === 'undefined') window.ResizeObserver = class { observe (): void {} unobserve (): void {} disconnect (): void {} }
 if (!window.document.fonts) window.document.fonts = { ready: Promise.resolve() }
 global.window = window
 global.document = window.document
@@ -169,17 +173,17 @@ global.HTMLElement = window.HTMLElement
 global.IS_REACT_ACT_ENVIRONMENT = true
 
 const { prStateKind } = await import(pathToFileURL(resolve(ROOT, 'src/client/views/shared/stateKind.js')).href)
-globalThis.__REACT__ = React
-globalThis.__TR__ = trFn
-globalThis.__PRSTATEKIND__ = prStateKind
+;(globalThis as any).__REACT__ = React
+;(globalThis as any).__TR__ = trFn
+;(globalThis as any).__PRSTATEKIND__ = prStateKind
 
 const mod = await loadDetailModule()
 
 /** 渲染一份 store，返回剥掉标签之后的可见文字与原始 HTML。 */
-async function renderStore(st) {
+async function renderStore (st: any): Promise<{ html: string, text: string }> {
   const container = window.document.createElement('div')
   window.document.body.appendChild(container)
-  let root = null
+  let root: any = null
   let html = ''
   try {
     await act(async () => {
@@ -205,7 +209,7 @@ const thinRow = {
   labels: [], assignees: [], author: { login: 'a' },
   updatedAt: '2026-09-21T18:27:40Z', createdAt: '2026-09-21T18:27:40Z',
 }
-function storeOf(patch) {
+function storeOf (patch?: Record<string, unknown>): any {
   return Object.assign({
     snapshot: { issues: [thinRow], maps: [] },
     issueDetail: null,
