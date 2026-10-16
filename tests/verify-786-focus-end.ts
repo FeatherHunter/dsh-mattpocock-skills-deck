@@ -1,5 +1,8 @@
-// verify-786-focus-end.js — 注入后光标落末尾的插件侧兜底（#786 B 方案）
-// 用法: node tests/verify-786-focus-end.js
+// verify-786-focus-end.ts — 注入后光标落末尾的插件侧兜底（#786 B 方案）
+// 用法: node --import ./scripts/ts-hook.mjs tests/verify-786-focus-end.ts
+//
+// 本文件是 CommonJS：从构建产物里切一段函数体交给 compileFn 真跑，不加静态 import，
+// 所以加类型标注不会把它变成 ESM；读的仍是产物 src/client/kernel/api-io.js（带标注的 .ts 源码 vm 吃不下）。
 //
 // 验收标准（Q1-Q2 对齐）：
 //   a) 注入完成后光标落在文本末尾，可立刻打字；内容很长时输入框滚到底，不停顶部；
@@ -11,13 +14,13 @@ const path = require('path')
 const { compileFn } = require('./lib/eval-probe.js')
 
 const root = path.join(__dirname, '..')
-const read = (p) => fs.readFileSync(path.join(root, p), 'utf8')
-const ok = (name, cond) => { if (!cond) throw new Error('FAIL · ' + name); console.log('  PASS · ' + name) }
+const read = (p: string): string => fs.readFileSync(path.join(root, p), 'utf8')
+const ok = (name: string, cond: unknown): void => { if (!cond) throw new Error('FAIL · ' + name); console.log('  PASS · ' + name) }
 
 const ioSrc = read('src/client/kernel/api-io.js')
 
 // ---- Part B：行为沙箱 ----
-const extractHelper = (src) => {
+const extractHelper = (src: string) => {
   const start = src.indexOf('export const ensureInjectFocusAtEnd = function')
   if (start < 0) throw new Error('helper 锚点缺失')
   const brace0 = src.indexOf('{', start)
@@ -40,7 +43,7 @@ const extractHelper = (src) => {
 }
 const factory = extractHelper(ioSrc)
 
-const runWith = (doc, win) => {
+const runWith = (doc: unknown, win: unknown) => {
   const raf = (cb) => { cb() }
   const timeouts = []
   const st = (fn, ms) => { timeouts.push(ms); fn(); return 0 }
@@ -50,7 +53,7 @@ const runWith = (doc, win) => {
   return timeouts
 }
 
-const fakeTextarea = (over) => Object.assign({
+const fakeTextarea = (over?: Record<string, unknown>) => Object.assign({
   tagName: 'TEXTAREA', value: '第一行\n第二行', disabled: false, readOnly: false,
   offsetParent: {}, getClientRects: () => [1], closest: () => null,
   focus: function () { this._focused = true }, setSelectionRange: function (a, b) { this._sel = [a, b] },

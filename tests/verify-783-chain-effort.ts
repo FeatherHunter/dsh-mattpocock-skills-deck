@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * verify-783-chain-effort.js —— 门禁：链记下直接改票文件并按工作单元区分同号票（票 #783）
+ * verify-783-chain-effort.ts —— 门禁：链记下直接改票文件并按工作单元区分同号票（票 #783）
  *
  * 守的是 Agent Brief 验收标准的每一条：
  *   1. 文件写工具改票文件后链上有记录（file-write），读不记
@@ -12,7 +12,9 @@
  *   7. 界面上仍只显示编号
  *   8. writeEvents 把文件路径传下去并标成票文件来源
  *
- * 用法: node tests/verify-783-chain-effort.js（在插件根目录）
+ * 用法: node --import ./scripts/ts-hook.mjs tests/verify-783-chain-effort.ts（在插件根目录）
+ * 本文件是 CommonJS：产品源码靠动态 import(url(...)) 取，说明符原样保留（chain.js 是构建产物、
+ * 旁边没有同名 .ts，钩子不会改指）；只加类型标注，判据一字不动。
  */
 const fs = require('fs')
 const path = require('path')
@@ -22,24 +24,24 @@ const { pathToFileURL } = require('url')
 const { compileFn } = require('./lib/eval-probe.js')
 
 const ROOT = path.resolve(__dirname, '..')
-const url = (rel) => pathToFileURL(path.join(ROOT, rel)).href
+const url = (rel: string): string => pathToFileURL(path.join(ROOT, rel)).href
 
 let failed = false
 let total = 0
-const check = (ok, msg, detail) => {
+const check = (ok: unknown, msg: string, detail?: unknown): void => {
   total += 1
   console.log((ok ? '  PASS ' : '  FAIL ') + msg + (ok || !detail ? '' : '\n         → ' + detail))
   if (!ok) failed = true
 }
 
-function loadLeaf(leafPath, extra) {
+function loadLeaf(leafPath: string, extra?: { pushNav?: unknown; findMapByIdentity?: unknown }) {
   const src = fs.readFileSync(path.join(ROOT, leafPath), 'utf8')
-  const names = []
+  const names: string[] = []
   const re = /^[ \t]*export[ \t]+(?:const|let|var|function|class)[ \t]+([A-Za-z_$][\w$]*)/gm
-  let m
+  let m: RegExpExecArray | null
   while ((m = re.exec(src)) !== null) names.push(m[1])
   const body = src.replace(/^[ \t]*export[ \t]+/gm, '')
-  const deps = { React: null, DswsCtx: null, tr: (k) => k, Ic: () => ({}), Tip: () => ({}), pushNav: extra && extra.pushNav, findMapByIdentity: extra && extra.findMapByIdentity }
+  const deps: Record<string, unknown> = { React: null, DswsCtx: null, tr: (k: string) => k, Ic: () => ({}), Tip: () => ({}), pushNav: extra && extra.pushNav, findMapByIdentity: extra && extra.findMapByIdentity }
   // 真源文本配假零件造模块：改走共用入口 compileFn，参数名取 deps 的键。
   const fn = compileFn(Object.keys(deps), body + '\nreturn { SESSION_CHAIN_FIELD, sessionChainViewOf, sessionChainRowsOf, sessionChainOpenTicket }')
   return fn.apply(null, Object.keys(deps).map((k) => deps[k]))

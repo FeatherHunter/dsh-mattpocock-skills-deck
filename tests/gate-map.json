@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T19:02:10.562Z",
+  "generatedAt": "2026-10-16T19:18:19.075Z",
   "generatedBy": "node scripts/gate-map.mjs",
-  "chainLength": 302,
-  "gateCount": 302,
+  "chainLength": 301,
+  "gateCount": 301,
   "attributedGates": 260,
-  "unattributedGates": 42,
+  "unattributedGates": 41,
   "buildOutputOnlyGates": 25,
   "completionRecordedGates": 6,
   "smokeLength": 5,
@@ -2705,8 +2705,8 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 5 条"
     },
     {
-      "step": "node tests/verify-730-cwd-consistent.js",
-      "file": "tests/verify-730-cwd-consistent.js",
+      "step": "node tests/verify-730-cwd-consistent.ts",
+      "file": "tests/verify-730-cwd-consistent.ts",
       "guards": [
         "src/host/sessionLifecycle.js",
         "src/host/workspaceCwd.ts",
@@ -2726,8 +2726,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条"
     },
     {
-      "step": "node tests/verify-733-unknown-endpoint.js",
-      "file": "tests/verify-733-unknown-endpoint.js",
+      "step": "node tests/verify-733-unknown-endpoint.ts",
+      "file": "tests/verify-733-unknown-endpoint.ts",
       "guards": [
         "research/489-appendix.md",
         "src/host/rpcChannel.js"
@@ -2743,8 +2743,8 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 1 条"
     },
     {
-      "step": "node tests/verify-735-chain-restore.js",
-      "file": "tests/verify-735-chain-restore.js",
+      "step": "node tests/verify-735-chain-restore.ts",
+      "file": "tests/verify-735-chain-restore.ts",
       "guards": [
         "src/host/refresh/sessionChainReadout.js",
         "src/host/refresh/sessionTickets.js",
@@ -2762,8 +2762,8 @@
       "reason": "归属来自：源码里的路径字面量 4 条"
     },
     {
-      "step": "node tests/verify-763-detail-fold.js",
-      "file": "tests/verify-763-detail-fold.js",
+      "step": "node tests/verify-763-detail-fold.ts",
+      "file": "tests/verify-763-detail-fold.ts",
       "guards": [
         "src/client/views/issueDetailFold.js",
         "tests/lib/eval-probe.ts"
@@ -2779,8 +2779,8 @@
       "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 1 条"
     },
     {
-      "step": "node tests/verify-781-chain-identity.js",
-      "file": "tests/verify-781-chain-identity.js",
+      "step": "node tests/verify-781-chain-identity.ts",
+      "file": "tests/verify-781-chain-identity.ts",
       "guards": [
         "src/host/refresh/sessionTickets.js",
         "src/host/refresh/wiring.ts",
@@ -2798,8 +2798,8 @@
       "reason": "归属来自：源码里的路径字面量 4 条"
     },
     {
-      "step": "node tests/verify-782-cwd-disk.js",
-      "file": "tests/verify-782-cwd-disk.js",
+      "step": "node tests/verify-782-cwd-disk.ts",
+      "file": "tests/verify-782-cwd-disk.ts",
       "guards": [
         "src/host/sessionLifecycle.js"
       ],
@@ -2813,8 +2813,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条"
     },
     {
-      "step": "node tests/verify-783-chain-effort.js",
-      "file": "tests/verify-783-chain-effort.js",
+      "step": "node tests/verify-783-chain-effort.ts",
+      "file": "tests/verify-783-chain-effort.ts",
       "guards": [
         "src/client/views/shared/sessionChainView.js",
         "src/host/refresh/sessionChainReadout.js",
@@ -2836,8 +2836,8 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 5 条"
     },
     {
-      "step": "node tests/verify-784-effortId.js",
-      "file": "tests/verify-784-effortId.js",
+      "step": "node tests/verify-784-effortId.ts",
+      "file": "tests/verify-784-effortId.ts",
       "guards": [
         "src/deck/tools/issue-create.ts",
         "src/deck/tools/issue-get.ts",
@@ -2870,8 +2870,8 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 14 条"
     },
     {
-      "step": "node tests/verify-786-focus-end.js",
-      "file": "tests/verify-786-focus-end.js",
+      "step": "node tests/verify-786-focus-end.ts",
+      "file": "tests/verify-786-focus-end.ts",
       "guards": [
         "src/client/kernel/api-io.js",
         "tests/lib/eval-probe.ts"
@@ -2996,8 +2996,8 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 7 条"
     },
     {
-      "step": "node tests/verify-839-credential-exec.js",
-      "file": "tests/verify-839-credential-exec.js",
+      "step": "node tests/verify-839-credential-exec.ts",
+      "file": "tests/verify-839-credential-exec.ts",
       "guards": [
         "src/host/gitCredentialExec.js",
         "src/host/versionControl.js"
@@ -3012,8 +3012,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条"
     },
     {
-      "step": "node tests/verify-841-write-phones.js",
-      "file": "tests/verify-841-write-phones.js",
+      "step": "node tests/verify-841-write-phones.ts",
+      "file": "tests/verify-841-write-phones.ts",
       "guards": [
         "src/host/versionControl.js",
         "src/host/versionControlWrite.js",
@@ -3080,8 +3080,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 21 条"
     },
     {
-      "step": "node tests/verify-847-stall-watch.js",
-      "file": "tests/verify-847-stall-watch.js",
+      "step": "node tests/verify-847-stall-watch.ts",
+      "file": "tests/verify-847-stall-watch.ts",
       "guards": [
         "src/host/gitCredentialExec.js",
         "src/host/versionControl.js"
@@ -3096,8 +3096,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条"
     },
     {
-      "step": "node tests/verify-849-fs-absence.js",
-      "file": "tests/verify-849-fs-absence.js",
+      "step": "node tests/verify-849-fs-absence.ts",
+      "file": "tests/verify-849-fs-absence.ts",
       "guards": [
         "src/host/fsAbsence.js"
       ],
@@ -3109,17 +3109,6 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条"
-    },
-    {
-      "step": "node tests/verify-857-comment-false-failure.js",
-      "file": "tests/verify-857-comment-false-failure.js",
-      "guards": [],
-      "dirs": [],
-      "unattributed": true,
-      "buildOutputOnly": false,
-      "completionRecord": false,
-      "expectedAssertions": 0,
-      "reason": "它没有读也没有导入本仓库的文件，只用自己带的夹具或真机页面自检，算不出它守着哪条源码路径；这类门禁在挑选时不会被选中，真实例子见 docs/agents/verification.md 的「已知漏洞」一节"
     },
     {
       "step": "node tests/verify-881-commit-open.js",
@@ -7088,7 +7077,7 @@
     ],
     "research": [
       "node tests/verify-gate-map.js",
-      "node tests/verify-733-unknown-endpoint.js",
+      "node tests/verify-733-unknown-endpoint.ts",
       "node tests/verify-error-normalize-log.ts",
       "node tests/verify-log-count.js",
       "node tests/verify-log-selfmon.js",
@@ -7244,7 +7233,7 @@
       "node tests/verify-689-counts-ui.ts",
       "node tests/verify-690-closed-pages.ts",
       "node tests/verify-698-switch-asks-layout.ts",
-      "node tests/verify-786-focus-end.js",
+      "node tests/verify-786-focus-end.ts",
       "node tests/verify-818-version-control-view.js",
       "node tests/verify-842-version-control-write-view.js",
       "node tests/verify-891-setup-refresh.js",
@@ -7338,7 +7327,7 @@
       "node tests/verify-666-subws-mark-root.ts",
       "node tests/verify-669-chain-after-pick.ts",
       "node tests/verify-671-modal-global-overlay.ts",
-      "node tests/verify-763-detail-fold.js",
+      "node tests/verify-763-detail-fold.ts",
       "node tests/verify-hovertip.js",
       "node tests/verify-issue529-checks-i18n.js",
       "node tests/verify-map-drill.js",
@@ -7381,7 +7370,7 @@
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-626-type-chip.ts",
       "node tests/verify-693-detail-fallback-honesty.ts",
-      "node tests/verify-783-chain-effort.js",
+      "node tests/verify-783-chain-effort.ts",
       "node tests/verify-907-chain-titles.js",
       "node tests/verify-rest-fallback-banner.js",
       "node tests/verify-rest-fallback-reason.ts",
@@ -7460,7 +7449,7 @@
       "node tests/verify-1195-budget-start.ts",
       "node tests/verify-1195-timeout-split.ts",
       "node tests/verify-723-gate-wiring.ts",
-      "node tests/verify-784-effortId.js",
+      "node tests/verify-784-effortId.ts",
       "node tests/verify-790-parent-edge.ts",
       "node tests/verify-829-parent-reread.js",
       "node tests/verify-895-bulk-deadline.ts",
@@ -7499,14 +7488,14 @@
       "node tests/verify-709-no-self-continuing-timers.ts",
       "node tests/verify-723-single-refresh-instance.ts",
       "node tests/verify-729-force-dedup.ts",
-      "node tests/verify-730-cwd-consistent.js",
-      "node tests/verify-733-unknown-endpoint.js",
-      "node tests/verify-782-cwd-disk.js",
+      "node tests/verify-730-cwd-consistent.ts",
+      "node tests/verify-733-unknown-endpoint.ts",
+      "node tests/verify-782-cwd-disk.ts",
       "node tests/verify-818-version-control-view.js",
-      "node tests/verify-839-credential-exec.js",
-      "node tests/verify-841-write-phones.js",
-      "node tests/verify-847-stall-watch.js",
-      "node tests/verify-849-fs-absence.js",
+      "node tests/verify-839-credential-exec.ts",
+      "node tests/verify-841-write-phones.ts",
+      "node tests/verify-847-stall-watch.ts",
+      "node tests/verify-849-fs-absence.ts",
       "node tests/verify-907-chain-titles.js",
       "node tests/verify-927-gate-injection.js",
       "node tests/verify-957-workspace-writer.js",
@@ -7608,10 +7597,10 @@
       "node tests/verify-714-session-tickets.ts",
       "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-723-single-refresh-instance.ts",
-      "node tests/verify-735-chain-restore.js",
-      "node tests/verify-781-chain-identity.js",
-      "node tests/verify-783-chain-effort.js",
-      "node tests/verify-784-effortId.js",
+      "node tests/verify-735-chain-restore.ts",
+      "node tests/verify-781-chain-identity.ts",
+      "node tests/verify-783-chain-effort.ts",
+      "node tests/verify-784-effortId.ts",
       "node tests/verify-790-parent-edge.ts",
       "node tests/verify-829-parent-reread.js",
       "node tests/verify-907-chain-titles.js",
@@ -7653,7 +7642,7 @@
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-653-subworkspace.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
-      "node tests/verify-730-cwd-consistent.js",
+      "node tests/verify-730-cwd-consistent.ts",
       "node tests/verify-948-feedback-map.js",
       "node tests/verify-952-short-text.js",
       "node tests/verify-955-alignment.js",
@@ -7709,10 +7698,10 @@
       "node tests/verify-709-no-self-continuing-timers.ts",
       "node tests/verify-714-session-tickets.ts",
       "node tests/verify-723-gate-wiring.ts",
-      "node tests/verify-735-chain-restore.js",
-      "node tests/verify-781-chain-identity.js",
-      "node tests/verify-783-chain-effort.js",
-      "node tests/verify-784-effortId.js",
+      "node tests/verify-735-chain-restore.ts",
+      "node tests/verify-781-chain-identity.ts",
+      "node tests/verify-783-chain-effort.ts",
+      "node tests/verify-784-effortId.ts",
       "node tests/verify-790-parent-edge.ts",
       "node tests/verify-829-parent-reread.js",
       "node tests/verify-895-bulk-deadline.ts",
@@ -7811,7 +7800,7 @@
     "src/shared/version-control": [
       "node tests/verify-build-artifacts.js",
       "node tests/verify-818-version-control-view.js",
-      "node tests/verify-841-write-phones.js",
+      "node tests/verify-841-write-phones.ts",
       "node tests/verify-842-version-control-write-view.js",
       "node tests/verify-976-pull-dirty-warn.js",
       "node tests/verify-997-vc-sight-browser.js",
@@ -7866,7 +7855,7 @@
       "node tests/verify-669-choice-precedence.ts",
       "node tests/verify-683-host-wiring.ts",
       "node tests/verify-709-no-self-continuing-timers.ts",
-      "node tests/verify-730-cwd-consistent.js",
+      "node tests/verify-730-cwd-consistent.ts",
       "node tests/verify-947-workspace-file.ts",
       "node tests/verify-957-workspace-writer.js",
       "node tests/verify-detection-cascade.js",
@@ -7902,7 +7891,7 @@
       "node tests/verify-669-choice-precedence.ts",
       "node tests/verify-683-host-wiring.ts",
       "node tests/verify-723-gate-wiring.ts",
-      "node tests/verify-784-effortId.js",
+      "node tests/verify-784-effortId.ts",
       "node tests/verify-790-parent-edge.ts",
       "node tests/verify-829-parent-reread.js",
       "node tests/verify-895-github-memo.ts",
@@ -7994,7 +7983,7 @@
       "node tests/verify-686-accept.ts",
       "node tests/verify-691-markdown-counts-page.ts",
       "node tests/verify-723-gate-wiring.ts",
-      "node tests/verify-784-effortId.js",
+      "node tests/verify-784-effortId.ts",
       "node tests/verify-922-ticket-file-queue.js",
       "node tests/verify-928-field-line-rewrite.js",
       "node tests/verify-934-935-invariants.js",
@@ -8109,10 +8098,10 @@
       "node tests/verify-698-switch-asks-layout.ts",
       "node tests/verify-709-no-self-continuing-timers.ts",
       "node tests/verify-723-gate-wiring.ts",
-      "node tests/verify-763-detail-fold.js",
-      "node tests/verify-783-chain-effort.js",
-      "node tests/verify-784-effortId.js",
-      "node tests/verify-786-focus-end.js",
+      "node tests/verify-763-detail-fold.ts",
+      "node tests/verify-783-chain-effort.ts",
+      "node tests/verify-784-effortId.ts",
+      "node tests/verify-786-focus-end.ts",
       "node tests/verify-790-parent-edge.ts",
       "node tests/verify-818-version-control-view.js",
       "node tests/verify-829-parent-reread.js",

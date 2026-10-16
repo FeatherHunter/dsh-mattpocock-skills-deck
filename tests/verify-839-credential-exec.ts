@@ -1,5 +1,7 @@
-// tests/verify-839-credential-exec.js — #839 宿主执行层门禁（安全地跑可能弹凭据提示的 git 命令）
-// 用法：node tests/verify-839-credential-exec.js（在插件根目录；全部打 127.0.0.1 上的自建假服务，不需要外网）
+// tests/verify-839-credential-exec.ts — #839 宿主执行层门禁（安全地跑可能弹凭据提示的 git 命令）
+// 用法：node --import ./scripts/ts-hook.mjs tests/verify-839-credential-exec.ts（在插件根目录；全部打 127.0.0.1 上的自建假服务，不需要外网）
+// 本文件是 CommonJS：产品源码靠真子进程 + 共享出口跑，说明符原样（.js 后缀保留，靠钩子改指同名 .ts）；
+// 只加类型标注，判据、阈值与锚字符串一字不动。
 //
 // 断言文字：把「非交互环境 + 预算 + 分类 + 照做的话」四件事各钉一条底线，并且用真进程真跑三类环境：
 //   ① 有可用凭据（假助手把凭据喂进 git 的凭据链）→ 命令成功，服务端收到合法 Basic 凭据；
@@ -41,13 +43,13 @@ const { pathToFileURL } = require('url')
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
 let total = 0
-const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
-const info = (msg) => console.log('  INFO ' + msg)
-const slash = (p) => String(p).replace(/\\/g, '/')
+const check = (ok: unknown, msg: string): void => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
+const info = (msg: string): void => console.log('  INFO ' + msg)
+const slash = (p: unknown): string => String(p).replace(/\\/g, '/')
 
 // ---------------- 真子进程适配器：照 DSH subprocess 服务的形状 ----------------
 /** 环境合并：显式值覆盖继承值；显式 undefined 是墓碑（把这一项从继承环境里删掉）——与 DSH 同义。 */
-function buildEnv(extra) {
+function buildEnv(extra?: Record<string, unknown>) {
   const env = Object.assign({}, process.env)
   for (const [k, v] of Object.entries(extra || {})) {
     for (const kk of Object.keys(env)) if (kk.toUpperCase() === k.toUpperCase()) delete env[kk]

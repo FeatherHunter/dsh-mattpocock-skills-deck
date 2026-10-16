@@ -1,17 +1,19 @@
-// verify-784-effortId.js —— #784 回归：八个带 effortId 的 deck 工具逐项核对
-// 用法：在插件根目录执行 node tests/verify-784-effortId.js，可独立运行。
+// verify-784-effortId.ts —— #784 回归：八个带 effortId 的 deck 工具逐项核对
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-784-effortId.ts，可独立运行。
+// 本文件是 CommonJS：产品源码靠 pathToFileURL + 动态 import 取，说明符原样（budget.js / tool-cost.js
+// 是构建产物，旁边没有同名 .ts，钩子不会改指）；只加类型标注，判据一字不动。
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
 const { pathToFileURL } = require('url')
 const ROOT = path.resolve(__dirname, '..')
-const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href)
+const imp = (rel: string): Promise<any> => import(pathToFileURL(path.join(ROOT, rel)).href)
 // 夹具说「这个工作区选过了」的唯一办法（#1138 起）：给这个工作区一份工作区文件。
 // 两种造法与判定出口桩的来历见 tests/lib/deck-decide-stub.js 文件头。
 const { makeDecideStub, chooseWorkspace } = require('./lib/deck-decide-stub.js')
 let failed = false
 let total = 0
-const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
+const check = (ok: unknown, msg: string): void => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
 function makeWS() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'deck-784-7-'))
@@ -38,7 +40,7 @@ function makeWS() {
   return { root, rootPosix, ctx: { platform: plat, fs: plat.fs, cwd: rootPosix, get(n) { return n === 'fs' ? plat.fs : undefined } }, cleanup() { try { fs.rmSync(root, { recursive: true, force: true }) } catch (e) {} } }
 }
 
-async function main() {
+async function main(): Promise<void> {
   console.log('#784 八工具验收（八个带 effortId 的工具，deck_context 不带 effortId 不在内）')
   const budget = await imp('src/shared/refresh/budget.js')
   const ledgerMod = await imp('src/host/refresh/ledger.ts')

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// tests/verify-730-cwd-consistent.js —— #730 门禁：同一会话两处读到同一个值。
+// tests/verify-730-cwd-consistent.ts —— #730 门禁：同一会话两处读到同一个值。
 //
 // 为什么有这条门禁：宿主有时答不出这个会话在哪个目录，真机 wf.cwd 失败散列 43cbab2a
 //   就是空分支。电话体（src/host/sessionLifecycle.js）与沙箱那一路
@@ -10,9 +10,11 @@
 //   断言「两处都调了共用函数、都没有自写取法」的静态锁，2026-10 按维护者口径撤掉：
 //   那种断言的对象是手写源码的文本，等价重构（改写法、搬文件、改注释）就会变红。
 //
-// 用法：node tests/verify-730-cwd-consistent.js（插件根目录，可独立运行）
-// 接线说明：本文件暂不进 package.json 的 verify 链（接线由统筹者统一做），
-//   验收与全链时由统筹者接线，平时单跑本文件。
+// 用法：node --import ./scripts/ts-hook.mjs tests/verify-730-cwd-consistent.ts（插件根目录，可独立运行）
+// 接线说明：本文件今天已在 verify 链上——scripts/lib/discover-gates.ts 按命名约定把它收进规划（302 步里有它），
+//   scripts/verify-stages.json 的排除表里没有它。
+// 本文件是 CommonJS：取产品源码只走 require 与动态 import 两条路，不加静态 import，
+//   所以加类型标注不会把它变成 ESM（产品的 .js 说明符靠 scripts/ts-hook.mjs 改指同名 .ts）。
 const fs = require('fs')
 const path = require('path')
 const { pathToFileURL } = require('url')
@@ -21,11 +23,14 @@ const ROOT = path.resolve(__dirname, '..')
 const SHARED_REL = path.join('src', 'shared', 'session-cwd.js')
 let failed = false
 let total = 0
-const ok = (cond, msg) => { total += 1; if (cond) console.log('  PASS ' + msg); else { failed = true; console.log('  FAIL ' + msg) } }
+const ok = (cond: boolean, msg: string): void => { total += 1; if (cond) console.log('  PASS ' + msg); else { failed = true; console.log('  FAIL ' + msg) } }
 
-async function main() {
+async function main(): Promise<void> {
   console.log('== #730 同一会话两处同值门禁 ==')
-  const sharedAbs = path.join(ROOT, SHARED_REL)
+  // 共用取法的真源今天还是 .js；等它迁成 .ts 之后这个存在性探测必须照样成立，
+  // 所以 .js 与同名 .ts 有一个在就算在（断言标签与条数不变，免被后续迁移误伤）。
+  const sharedJs = path.join(ROOT, SHARED_REL)
+  const sharedAbs = fs.existsSync(sharedJs) ? sharedJs : sharedJs.replace(/\.js$/, '.ts')
   const sharedExists = fs.existsSync(sharedAbs)
   ok(sharedExists, '共用函数文件存在（src/shared/session-cwd.js）')
 
@@ -52,7 +57,7 @@ async function main() {
   //   失败四种各有机器可读种类，文案保持旧字面（旧分支一个字不改，只加种类）。
   {
     const mod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'sessionLifecycle.js')).href)
-    const makePhone = (sessionObj, sessionsSvc) => mod.createSessionLifecycle({
+    const makePhone = (sessionObj: unknown, sessionsSvc?: unknown) => mod.createSessionLifecycle({
       ctx: { get: (k) => (k === 'sessions' ? (sessionsSvc || { get: () => sessionObj }) : undefined) },
       DEFAULT_CWD: 'D:\\',
       errText: (e) => String((e && e.message) || e),
@@ -67,7 +72,7 @@ async function main() {
     const r2 = await makePhone({ header: {} })({ sessionId: 's-empty' })
     ok(r2 && r2.ok === false && r2.error === '会话无 cwd 信息' && r2.kind === 'no-cwd', '电话体空头会话报无目录种类（文案不变）')
     // 真机对照：空分支的错误散列就是票面 5 次失败的 43cbab2a（与宿主电话日志同一只散列函数）。
-    const hash8 = (s) => { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
+    const hash8 = (s: string): string => { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
     ok(hash8(r2.error) === '43cbab2a', '空分支散列锚定真机现场（43cbab2a）')
     const r3 = await makePhone(null)({ sessionId: 's-ghost' })
     ok(r3 && r3.ok === false && r3.kind === 'not-found', '电话体未知会话报找不到种类（不混同无目录）')
@@ -92,7 +97,7 @@ async function main() {
     const mod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'sessionLifecycle.js')).href)
     const DISK_CWD = 'D:\\ilife'
     // 造一部只答「这个会话在盘上、目录是这个」的会话查询服务；queries 收下它被问到的键，供形状断言。
-    const makeQuery = (opts) => {
+    const makeQuery = (opts?: { throw?: boolean; noRecords?: boolean; id?: string; headerCwd?: string }) => {
       const o = opts || {}
       const queries = []
       return {
@@ -108,7 +113,7 @@ async function main() {
       }
     }
     // 一部「内存里没有这个会话」的宿主；sessionQuery 按传入的假服务挂上或干脆不挂。
-    const makeHost = (sessionObj, querySvc) => mod.createSessionLifecycle({
+    const makeHost = (sessionObj: unknown, querySvc?: unknown) => mod.createSessionLifecycle({
       ctx: {
         get: (k) => {
           if (k === 'sessions') return { get: () => sessionObj }

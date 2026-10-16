@@ -1,5 +1,7 @@
-// tests/verify-847-stall-watch.js — #847 字节增长看门狗门禁
-// 用法：node tests/verify-847-stall-watch.js（在插件根目录；全部打 127.0.0.1 上的自建假服务，不需要外网）
+// tests/verify-847-stall-watch.ts — #847 字节增长看门狗门禁
+// 用法：node --import ./scripts/ts-hook.mjs tests/verify-847-stall-watch.ts（在插件根目录；全部打 127.0.0.1 上的自建假服务，不需要外网）
+// 本文件是 CommonJS：产品源码靠动态 import 取，两条 .js 说明符原样保留（靠钩子改指同名 .ts）；
+// 只加类型标注，判据、窗口与锚字符串一字不动。
 //
 // 断言文字：#839 留了一条没做的「宿主收集器字节增长看门狗」。这一票把它补在共享出口 runGit 里：
 //   读到的字节在一个窗口内不再增长，就判「传输停住」——比预算更早，比 GIT_HTTP_LOW_SPEED_* 更准（对端一直
@@ -21,20 +23,20 @@ const { pathToFileURL } = require('url')
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
 let total = 0
-const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
+const check = (ok: unknown, msg: string): void => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
 // ---------------- 真子进程适配器：照 DSH subprocess 服务的形状（收集器额外露出 total/bytes 供看门狗采样） ----------------
-function buildEnv(extra) {
-  const env = Object.assign({}, process.env)
+function buildEnv(extra?: Record<string, unknown>) {
+  const env: Record<string, unknown> = Object.assign({}, process.env)
   for (const [k, v] of Object.entries(extra || {})) {
     for (const kk of Object.keys(env)) if (kk.toUpperCase() === k.toUpperCase()) delete env[kk]
     if (v !== undefined) env[k] = v
   }
   return env
 }
-function makeCollector(maxBytes) {
+function makeCollector(maxBytes: number) {
   const state = { text: '', total: 0, bytes: 0, dropped: false }
-  const push = (chunk) => {
+  const push = (chunk: Buffer) => {
     state.total += chunk.length
     state.text += chunk.toString('utf8')
     state.bytes = Buffer.byteLength(state.text, 'utf8')

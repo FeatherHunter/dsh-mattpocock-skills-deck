@@ -1,4 +1,4 @@
-// tests/verify-733-unknown-endpoint.js —— 门禁：分发时不认识端点名必须留痕（#733）。
+// tests/verify-733-unknown-endpoint.ts —— 门禁：分发时不认识端点名必须留痕（#733）。
 //
 // 为什么要有这一条：2026-09-24 生产日志里视野上报 316 次失败全是
 // “unknown endpoint: focus”（新界面调旧宿主、旧宿主继续服务那段升级窗口），
@@ -14,18 +14,19 @@
 //   ③ 负控：业务性正常失败（ok:false 带 error）不触发留痕，已有三档行为不变；
 //   ④ 附录 #88 登记了 unknown-endpoint，计数仍是常驻 38 条。
 //
-// 用法：node tests/verify-733-unknown-endpoint.js
+// 用法：node --import ./scripts/ts-hook.mjs tests/verify-733-unknown-endpoint.ts
+// 本文件是 ESM（顶层 await，靠下面的动态 import 取产品源码）；只加类型标注，不改判据。
 import { readFileSync } from 'node:fs'
 
 let failures = 0
-const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failures++ }
-const src = (p) => readFileSync(p, 'utf8')
+const check = (ok: boolean, msg: string): void => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failures++ }
+const src = (p: string): string => readFileSync(p, 'utf8')
 
 // ---------- ② 真跑一次 ----------
-const services = { connection: { fetch: { register: (route) => { globalThis.__733route = route; return () => {} } } } }
-const ctx = { get: (k) => services[k] }
+const services: Record<string, unknown> = { connection: { fetch: { register: (route: unknown) => { (globalThis as any).__733route = route; return () => {} } } } }
+const ctx = { get: (k: string): unknown => services[k] }
 const mod = await import('../src/host/rpcChannel.js')
-const seen = []
+const seen: Array<{ level: string; event: string; fields: Record<string, any> }> = []
 const result = mod.createRpcChannel({
   ctx,
   handlers: new Map([['probe.echo', async (payload) => ({ ok: true, echoed: payload })]]),
@@ -33,9 +34,9 @@ const result = mod.createRpcChannel({
   dispatchMeta: async () => ({ shortArgHash: () => '', dispatchErrorKind: () => 'internal' }),
 })
 check(!!result && result.ok === true, '通道注册成功')
-const route = globalThis.__733route
+const route = (globalThis as any).__733route
 check(!!route && typeof route.fetch === 'function', '拿到注册路由的 fetch 分发函数')
-const call = async (endpoint, payload) => {
+const call = async (endpoint: string, payload: unknown): Promise<any> => {
   const res = await route.fetch({
     method: 'POST',
     url: 'http://dsh.internal/api/dsws',
@@ -65,11 +66,11 @@ const call = async (endpoint, payload) => {
     ['okfail', async () => ({ ok: false, error: '说清了原因' })],
     ['empty', async () => undefined],
   ])
-  const services2 = { connection: { fetch: { register: (route) => { globalThis.__733route2 = route; return () => {} } } } }
+  const services2: Record<string, any> = { connection: { fetch: { register: (route: unknown) => { (globalThis as any).__733route2 = route; return () => {} } } } }
   const mod2 = mod
-  mod2.createRpcChannel({ ctx: { get: (k) => services2[k] }, handlers: handlers2, fireLog: (l, e, f) => { seen.push({ level: l, event: e, fields: f }) }, dispatchMeta: async () => ({}) })
-  const route2 = globalThis.__733route2
-  const call2 = async (endpoint) => (await route2.fetch({ method: 'POST', url: 'http://dsh.internal/api/dsws', json: async () => ({ type: 'client-request', rpcId: 'x', method: 'dsws', payload: { method: endpoint, payload: {} } }) })).json()
+  mod2.createRpcChannel({ ctx: { get: (k: string): unknown => services2[k] }, handlers: handlers2, fireLog: (l: string, e: string, f: Record<string, any>) => { seen.push({ level: l, event: e, fields: f }) }, dispatchMeta: async () => ({}) })
+  const route2 = (globalThis as any).__733route2
+  const call2 = async (endpoint: string): Promise<any> => (await route2.fetch({ method: 'POST', url: 'http://dsh.internal/api/dsws', json: async () => ({ type: 'client-request', rpcId: 'x', method: 'dsws', payload: { method: endpoint, payload: {} } }) })).json()
   await call2('okfail')
   check(seen.filter((e) => e.event === 'host.dispatch.empty').length === 0, '业务性失败（带 error）不触发留痕')
   await call2('empty')

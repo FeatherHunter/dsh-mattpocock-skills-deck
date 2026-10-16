@@ -1,9 +1,12 @@
-// verify-849-fs-absence.js —— 「文件不存在」判据的三处统一（#849）与它的反证。
+// verify-849-fs-absence.ts —— 「文件不存在」判据的三处统一（#849）与它的反证。
 // 语义：明确没有（ENOENT / ENOTDIR / FS_NOT_FOUND）→ 走缺失分支；其它错误 → 仍如实报「读不到」。
+// 用法：node --import ./scripts/ts-hook.mjs tests/verify-849-fs-absence.ts
+// 本文件是 CommonJS：走 pathToFileURL + 动态 import 取产品源码（fsAbsence.js 今天还是手写 JS，
+// 所以那一行的 .js 后缀必须原样保留，也正是它撑起归属表里唯一的那条 guard）；只加类型标注，判据不动。
 const path = require('path'); const { pathToFileURL } = require('url');
 const ROOT = path.resolve(__dirname, '..');
 let failed = false; let total = 0;
-const check = (ok, msg) => { total += 1; if (!ok) failed = true; console.log((ok ? '  PASS ' : '  FAIL ') + msg) };
+const check = (ok: boolean, msg: string): void => { total += 1; if (!ok) failed = true; console.log((ok ? '  PASS ' : '  FAIL ') + msg) };
 (async () => {
   const abs = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'fsAbsence.js')).href);
   console.log('缺文件判据：ENOENT / ENOTDIR / FS_NOT_FOUND 算「没有」；其它错误算「读不到」')

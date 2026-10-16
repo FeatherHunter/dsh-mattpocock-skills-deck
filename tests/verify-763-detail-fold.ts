@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 /**
- * verify-763-detail-fold.js — ISSUE 详情页顶栏逐字折叠门禁（#763）
+ * verify-763-detail-fold.ts — ISSUE 详情页顶栏逐字折叠门禁（#763）
  * 口径：返回优先收到图标，一次只折一个控件，不放省略号。
+ * 用法：node --import ./scripts/ts-hook.mjs tests/verify-763-detail-fold.ts
+ * 本文件是 ESM：按文本求值走 tests/lib/eval-probe.js（钩子改指 .ts），只加类型标注不改判据。
  */
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -9,11 +11,11 @@ import { resolve } from 'node:path'
 import { compileFn } from './lib/eval-probe.js'
 
 let passed = 0, failed = 0
-function ok(msg) { passed++; console.log('  PASS ' + msg) }
-function bad(msg) { failed++; console.log('  FAIL ' + msg) }
-function check(cond, msg) { if (cond) ok(msg); else bad(msg) }
+function ok(msg: string): void { passed++; console.log('  PASS ' + msg) }
+function bad(msg: string): void { failed++; console.log('  FAIL ' + msg) }
+function check(cond: unknown, msg: string): void { if (cond) ok(msg); else bad(msg) }
 
-const read = (rel) => readFileSync(resolve(rel), 'utf8')
+const read = (rel: string): string => readFileSync(resolve(rel), 'utf8')
 const FOLD = 'src/client/views/issueDetailFold.js'
 
 console.log('=== #763 详情页顶栏：返回优先逐字收到图标，不放省略号 ===')

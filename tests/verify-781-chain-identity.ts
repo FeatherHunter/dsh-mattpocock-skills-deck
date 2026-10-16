@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * verify-781-chain-identity.js —— 门禁：处理链记与读用同一身份（票 #781）
+ * verify-781-chain-identity.ts —— 门禁：处理链记与读用同一身份（票 #781）
  *
  * 守的是什么：重启后“谁在处理哪张票”对不上，根因是记与读用的不是同一把钥匙
  *   ① 主动上报拿会话所选目录原文算散列，读回按工作区根过滤 —— 同一处换种写法就落两格；
@@ -15,8 +15,10 @@
  *   三、读回等落定：读盘拖慢 120ms 时，focus() 落定后读数里立刻有那一笔
  *      （不等的话 focus 先回、读数还是空的）。
  *
- * 用法: node tests/verify-781-chain-identity.js（在插件根目录）
+ * 用法: node --import ./scripts/ts-hook.mjs tests/verify-781-chain-identity.ts（在插件根目录）
  * 退出码：0 = 通过；1 = 有违规。
+ * 本文件是 CommonJS：产品源码靠 pathToFileURL + 动态 import 取，四条 .js 说明符原样保留
+ * （chain.js / sessionTickets.js / writeEvents.js 仍是手写 JS，wiring.js 已是 .ts、由钩子改指）。
  */
 const fs = require('fs')
 const path = require('path')
@@ -24,17 +26,17 @@ const os = require('os')
 const { pathToFileURL } = require('url')
 
 const ROOT = path.resolve(__dirname, '..')
-const url = (rel) => pathToFileURL(path.join(ROOT, rel)).href
+const url = (rel: string): string => pathToFileURL(path.join(ROOT, rel)).href
 
 let failed = false
 let total = 0
-const check = (ok, msg, detail) => {
+const check = (ok: unknown, msg: string, detail?: unknown): void => {
   total += 1
   console.log((ok ? '  PASS ' : '  FAIL ') + msg + (ok || !detail ? '' : '\n         → ' + detail))
   if (!ok) failed = true
 }
 
-async function main() {
+async function main(): Promise<void> {
   console.log('#781 处理链记读同身份门禁（洗根 / 门前记链 / 读回等落定）')
   const chainMod = await import(url('src/shared/refresh/chain.js'))
   const ticketsMod = await import(url('src/host/refresh/sessionTickets.js'))

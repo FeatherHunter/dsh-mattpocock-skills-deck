@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// tests/verify-782-cwd-disk.js —— #782 门禁：落盘补问按号只读一条，不列全量。
+// tests/verify-782-cwd-disk.ts —— #782 门禁：落盘补问按号只读一条，不列全量。
 //
 // 为什么有这条门禁：#730 在宿主电话里加了一步「内存答不出就去落盘问目录」，实现经
 //   会话查询服务的按号过滤，而那条查询内部先列一遍全部落盘会话头（真机 4187 个）；
@@ -10,21 +10,23 @@
 //   反证：把直读改回过滤、本文件必须变红（A4、H 组）；把缓存或单飞拆掉，本文件必须变红
 //   （D、E 组）；把日志点拆掉，本文件必须变红（F 组与计数门禁）。
 //
-// 用法：node tests/verify-782-cwd-disk.js（插件根目录，可独立运行）
+// 用法：node --import ./scripts/ts-hook.mjs tests/verify-782-cwd-disk.ts（插件根目录，可独立运行）
+// 本文件是 CommonJS：取产品源码走 pathToFileURL + 动态 import，不加静态 import，所以加类型标注不会把它变成 ESM。
 const path = require('path')
 const { pathToFileURL } = require('url')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
 let total = 0
-const ok = (cond, msg) => { total += 1; if (cond) console.log('  PASS ' + msg); else { failed = true; console.log('  FAIL ' + msg) } }
+const ok = (cond: boolean, msg: string): void => { total += 1; if (cond) console.log('  PASS ' + msg); else { failed = true; console.log('  FAIL ' + msg) } }
 
-async function main() {
+async function main(): Promise<void> {
   console.log('== #782 落盘补问按号直读门禁 ==')
   const mod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'sessionLifecycle.js')).href)
 
   // 造一部宿主：内存里没有这个会话；持久化服务与查询服务按需挂上；日志收进数组。
-  const makeHost = (opts) => {
+  // 这些开关只描述本文件自己造的假服务（挂谁、哪一步抛、有没有 close），不代表产品契约。
+  const makeHost = (opts?: { noPersistence?: boolean; openThrow?: unknown; openMissing?: boolean; openNoCwd?: boolean; openNoClose?: boolean; cwd?: string; noQuery?: boolean; queryRecords?: unknown[]; live?: unknown }) => {
     const o = opts || {}
     const logs = []
     const opens = []
@@ -62,7 +64,7 @@ async function main() {
     })
     return { life: life, logs: logs, opens: opens, filters: filters, closed: () => closed }
   }
-  const diskLogs = (logs) => logs.filter((l) => l.event === 'cwd.persisted')
+  const diskLogs = (logs: Array<{ level?: string; event?: string; fields?: Record<string, unknown> }>) => logs.filter((l) => l.event === 'cwd.persisted')
 
   // A 组：按号直读命中。
   {

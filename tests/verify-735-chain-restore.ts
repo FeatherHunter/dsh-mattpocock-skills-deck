@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * verify-735-chain-restore.js —— 门禁：处理链落盘后有人读回（票 #735）
+ * verify-735-chain-restore.ts —— 门禁：处理链落盘后有人读回（票 #735）
  *
  * 守的是什么：会话↔票处理链的内存表按进程活，盘是跨进程的唯一副本。
  * `restore` 写好了但生产里没人调（#732 顺手抓到的真缺陷），重启即丢内存：
@@ -19,7 +19,8 @@
  *      不给高频动作加磁盘读）。
  *   四、负控：裸链实例不调 `restore` 就是空（证明二、三不是恒绿的装饰）。
  *
- * 用法: node tests/verify-735-chain-restore.js（在插件根目录）
+ * 用法: node --import ./scripts/ts-hook.mjs tests/verify-735-chain-restore.ts（在插件根目录）
+ * 本文件是 CommonJS：取产品源码走 pathToFileURL + 动态 import，不加静态 import，所以加类型标注不会把它变成 ESM。
  * 退出码：0 = 通过；1 = 有违规。
  */
 const fs = require('fs')
@@ -28,18 +29,25 @@ const os = require('os')
 const { pathToFileURL } = require('url')
 
 const ROOT = path.resolve(__dirname, '..')
-const url = (rel) => pathToFileURL(path.join(ROOT, rel)).href
+const url = (rel: string): string => pathToFileURL(path.join(ROOT, rel)).href
+
+/** 日志出口收到的一行：本门禁只读这三样（事件名、形状 kind、按根的散列与成败）。 */
+interface FiredLog {
+  level?: string
+  event?: string
+  fields?: { kind?: string; rootHash?: string; ok?: boolean; count?: number }
+}
 
 let failed = false
 let total = 0
-const check = (ok, msg, detail) => {
+const check = (ok: boolean, msg: string, detail?: string): void => {
   total += 1
   console.log((ok ? '  PASS ' : '  FAIL ') + msg + (ok || !detail ? '' : '\n         → ' + detail))
   if (!ok) failed = true
 }
 
 /** 等一个条件成立（轮询到为止，超时回空）：接线里的读回是 fire-and-forget，测试靠日志与读数同步，不靠睡固定时长。 */
-async function waitFor(fn, timeoutMs) {
+async function waitFor(fn: () => unknown, timeoutMs?: number): Promise<any> {
   const t0 = Date.now()
   for (;;) {
     const v = await fn()
@@ -50,7 +58,7 @@ async function waitFor(fn, timeoutMs) {
 }
 
 /** 一套能跑起来的接线依赖：形状照宿主入口传进去的那一份抄，只把目录与日志换成测试的。 */
-function makeDeps(dir, events) {
+function makeDeps(dir: string, events: FiredLog[]) {
   return {
     ctx: { on: () => () => {}, get: () => undefined },
     logCtx: {
@@ -65,11 +73,11 @@ function makeDeps(dir, events) {
   }
 }
 
-function restoreLogs(events) {
+function restoreLogs(events: FiredLog[]): FiredLog[] {
   return events.filter((e) => e.event === 'sessionTickets.chain' && e.fields && e.fields.kind === 'restore')
 }
 
-async function main() {
+async function main(): Promise<void> {
   console.log('#735 处理链落盘读回门禁（按根读回 / 一根一次 / 负控）')
 
 

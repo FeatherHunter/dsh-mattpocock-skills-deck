@@ -1,7 +1,9 @@
-// verify-841-write-phones.js —— 写操作那一族门禁（#841 第二段）：A–G 七组，每组带反证。
-// 用法：node tests/verify-841-write-phones.js
+// verify-841-write-phones.ts —— 写操作那一族门禁（#841 第二段）：A–G 七组，每组带反证。
+// 用法：node --import ./scripts/ts-hook.mjs tests/verify-841-write-phones.ts
 // 夹具：真 git 临时仓库（每个用例自己造）+ 真 subprocess 形状的垫片（argv 直传、不经 shell），
 // 这样「真跑过的 argv」与「真仓库有没有被动过」都能断言；只在纯归类那组不碰 git。
+// 本文件是 CommonJS：产品源码靠动态 import 取，说明符一律 .js（靠钩子改指同名 .ts）；
+// 只加类型标注，判据、白名单与锚字符串一字不动。
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
@@ -10,20 +12,20 @@ const { pathToFileURL } = require('url')
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
 let total = 0
-const check = (ok, msg) => { total += 1; if (!ok) failed = true; console.log((ok ? '  PASS ' : '  FAIL ') + msg) }
-const git = (cwd, args) => { const r = spawnSync('git', args, { cwd, encoding: 'utf8', windowsHide: true }); return { code: r.status, out: (r.stdout || '').trim(), err: (r.stderr || '').trim() } }
-function mkRepo(tag) {
+const check = (ok: unknown, msg: string): void => { total += 1; if (!ok) failed = true; console.log((ok ? '  PASS ' : '  FAIL ') + msg) }
+const git = (cwd: string, args: string[]) => { const r = spawnSync('git', args, { cwd, encoding: 'utf8', windowsHide: true }); return { code: r.status, out: (r.stdout || '').trim(), err: (r.stderr || '').trim() } }
+function mkRepo(tag: string): string {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), 'dsws841-' + tag + '-'))
   git(base, ['init', '-q', '-b', 'main']); git(base, ['config', 'user.name', 'x']); git(base, ['config', 'user.email', 'x@y'])
   fs.writeFileSync(path.join(base, 'a.txt'), 'a\n'); git(base, ['add', '-A']); git(base, ['commit', '-q', '-m', '基线'])
   fs.writeFileSync(path.join(base, 'a.txt'), 'a\nb\n'); git(base, ['add', 'a.txt'])
   return base
 }
-const spawns = []
-const logs = []
-const timerCalls = []
+const spawns: string[][] = []
+const logs: Array<{ level: string; event: string; fields: Record<string, any> }> = []
+const timerCalls: number[] = []
 let clock = { t: 1000 }
-function makeVc(route) {
+function makeVc(route?: ((argv: string[]) => any) | null) {
   spawns.length = 0
   logs.length = 0
   timerCalls.length = 0
@@ -38,10 +40,10 @@ function makeVc(route) {
   return vcMod.createVersionControl(deps)
 }
 // 固定前缀的最后一项是 i18n.logOutputEncoding=UTF-8：切在它之后才是真正的子命令（照 verify-version-control-host 的同一口径）。
-const after = (argv) => { const i = argv.indexOf('i18n.logOutputEncoding=UTF-8'); return i < 0 ? argv : argv.slice(i + 1) }
-const writeSpawns = () => spawns.filter((a) => ['add', 'reset', 'commit', 'pull', 'push'].indexOf(after(a)[0]) >= 0)
-let vcMod = null
-async function main() {
+const after = (argv: string[]): string[] => { const i = argv.indexOf('i18n.logOutputEncoding=UTF-8'); return i < 0 ? argv : argv.slice(i + 1) }
+const writeSpawns = (): string[][] => spawns.filter((a) => ['add', 'reset', 'commit', 'pull', 'push'].indexOf(after(a)[0]) >= 0)
+let vcMod: any = null
+async function main(): Promise<void> {
   console.log('写操作那一族门禁（#841：票据门 / argv / 起进程 / 回包 / 话术 / 同一出口 / 日志）')
   vcMod = await import(pathToFileURL(path.join(ROOT, 'src', 'host', 'versionControl.js')).href)
   const reasons = await import(pathToFileURL(path.join(ROOT, 'src', 'shared', 'version-control', 'write-reasons.js')).href)
