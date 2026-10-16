@@ -4,19 +4,19 @@
 // 调用预算：坏号全链最多4次（GraphQL2：普通工单1＋拉取请求1；REST2：/issues1＋/pulls1；每路各一次）。
 // 快照提示错配多一次往返可接受（先按提示查，不中再走另一路）；限流走既有降级通道，不在本探针单测。
 // 运行：node tests/verify-524-pr-detail.js
-const path = require('path')
-const { pathToFileURL } = require('url')
+import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 let pass = 0
 let fail = 0
-const check = (ok, msg) => { if (!ok) { fail++; console.error('FAIL', msg) } else { pass++; console.log('PASS', msg) } }
+const check = (ok: unknown, msg: string) => { if (!ok) { fail++; console.error('FAIL', msg) } else { pass++; console.log('PASS', msg) } }
 async function main() {
-  const ROOT = path.resolve(__dirname, '..')
+  const ROOT = path.resolve(import.meta.dirname, '..')
   const mod = await import(pathToFileURL(path.join(ROOT, 'src/host/issueDetail.js')).href)
   const prNode = { number: 106, title: '拉取请求标题', state: 'CLOSED', body: '正文', url: 'https://x/pull/106', updatedAt: 'u', createdAt: 'c', closedAt: 'd', mergedAt: null, author: { login: 'a' }, labels: { nodes: [] }, assignees: { nodes: [] }, comments: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } }, reviews: { nodes: [] } }
   const issueNode = { number: 7, title: '工单标题', state: 'OPEN', body: '正文', url: 'https://x/issues/7', updatedAt: 'u', createdAt: 'c', closedAt: null, author: { login: 'a' }, labels: { nodes: [] }, assignees: { nodes: [] }, comments: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } }, subIssues: { totalCount: 0, nodes: [] }, blockedBy: { nodes: [] }, blocking: { nodes: [] } }
-  function stub(mode) {
-    const calls = []
-    const runGh = async (args) => {
+  function stub(mode: string) {
+    const calls: string[] = []
+    const runGh = async (args?: string[]) => {
       const j = (args || []).join(' ')
       calls.push(j)
       const isGql = j.includes('graphql')
@@ -40,7 +40,7 @@ async function main() {
       if (/\/issues\/999999(\s|$)/.test(j) || /\/pulls\/999999(\s|$)/.test(j)) return { ok: false, kind: 'notfound', error: '404 not found' }
       return { ok: false, kind: 'notfound', error: '404 not found' }
     }
-    const h = mod.createIssueDetail({ getRepoKey: async () => ({ owner: 'o', name: 'r' }), runGh, execProc: async () => ({ ok: false }), getTrackerRegistry: async () => null, getPlatform: async () => ({}), getDetectionService: async () => null, getRepoRoot: async () => '', ctx: {}, timer: {}, getGhPath: () => '', getGhLastError: () => '', fetchIssues: async () => ({ ok: true, issues: [] }), fetchMapsDetailREST: async () => ({ ok: true, issues: {} }), mapTicket: (x) => x, parseMapBody: () => ({}), computeLevels: () => ({}), groupTickets: () => ({}), isRateLimitError: () => false })
+    const h = mod.createIssueDetail({ getRepoKey: async () => ({ owner: 'o', name: 'r' }), runGh, execProc: async () => ({ ok: false }), getTrackerRegistry: async () => null, getPlatform: async () => ({}), getDetectionService: async () => null, getRepoRoot: async () => '', ctx: {}, timer: {}, getGhPath: () => '', getGhLastError: () => '', fetchIssues: async () => ({ ok: true, issues: [] }), fetchMapsDetailREST: async () => ({ ok: true, issues: {} }), mapTicket: (x: unknown) => x, parseMapBody: () => ({}), computeLevels: () => ({}), groupTickets: () => ({}), isRateLimitError: () => false })
     return { h, calls }
   }
   { const { h } = stub('pr'); const r = await h.fetchIssueDetail(106, 'cwd')
@@ -63,4 +63,4 @@ async function main() {
   if (fail) { console.log('\nRED #524 探针有失败（过 ' + pass + ' / 败 ' + fail + '）'); process.exit(1) }
   console.log('\nGREEN #524 探针全绿（' + pass + ' 项）')
 }
-main().catch((e) => { console.error('探针自身异常：', e); process.exit(1) })
+main().catch((e: unknown) => { console.error('探针自身异常：', e); process.exit(1) })
