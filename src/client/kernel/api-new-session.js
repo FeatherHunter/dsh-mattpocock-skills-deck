@@ -72,13 +72,18 @@
       // 轮询探测：AI 写成文档后右半亮蓝（真实文件名 = {ts}-<短标题>.md，按前缀匹配）；1s 间隔、~10min 窗口覆盖复杂文档
       probeHandoffReady(st)
       let tries = 0
+      // 交接文档轮询的节拍：点完「交接」之后每隔这么久就去磁盘看一眼，AI 是不是把交接文档写出来了。
+      //   一篇复杂文档要写上好几分钟，所以是「隔一会儿看一次」，不是等一次就完。
+      // 数值写在 config/intervals.yaml 的 clientSessionTickMs，构建时由生成器变成常量、随界面闭包一起进来。
+      // 本文件会被交接那几道门禁当普通模块直接 import（那时闭包常量不存在），所以引用处带一层判断，
+      // 常量缺席时退回同一个数 1000 —— 这个数字由门禁 TEXT 表锁在 clientSessionTickMs 上。
       const tick = function () {
         if (st.handoffFile) return  // 本会话已发现真实文件名 → 停本会话轮询（不影响别的会话）
         if (++tries > 600) return  // 上限 ~10min（5min+ 复杂文档也覆盖）
         probeHandoffReady(st)
-        if (timer !== undefined) timer.timeout(tick, 1000)
+        if (timer !== undefined) timer.timeout(tick, (typeof CLIENT_SESSION_TICK_MS === 'number' ? CLIENT_SESSION_TICK_MS : 1000))
       }
-      if (timer !== undefined) timer.timeout(tick, 1000)
+      if (timer !== undefined) timer.timeout(tick, (typeof CLIENT_SESSION_TICK_MS === 'number' ? CLIENT_SESSION_TICK_MS : 1000))
     }
     export const doHandoffOpen = function (st) {
       const now = Date.now()
@@ -105,13 +110,18 @@
             } else { inject(st, text) }
           } catch(e3){ try{ inject(st,text)}catch(e4){} }
         }
-        setTimeout(doneSearch, 2000)  // 至少转 2s
+        // 收尾的等待时间：找到交接文档、新会话也开起来之后，右半那颗转圈还要再转这么久才停下 ——
+        //   这段是留给眼睛的，让人看见「已经切到新会话了」，不至于一点交代都没有就跳走。
+        // 数值写在 config/intervals.yaml 的 clientHandoffDelayMs，构建时由生成器变成常量、随界面闭包一起进来；
+        // 与上面同一个道理，常量缺席（门禁把它当普通模块直接 import）时退回同一个数 2000，由门禁 TEXT 表锁值。
+        setTimeout(doneSearch, (typeof CLIENT_HANDOFF_DELAY_MS === 'number' ? CLIENT_HANDOFF_DELAY_MS : 2000))  // 至少转 2s
       }
       // 引导门 v3（2026-08-18 rev）：无论本会话是否点过第一击，一律先探测磁盘真实文档——
       //   有 latest → 置 ready + 放行开新会话；没有 → toast 引导「请先点「交接」生成交接文档」，绝不打开空会话
       probeHandoffReady(st).then(function (file) {
         if (file) finish(file, tr('toast.copiedHandoffFile', { file: file }))
-        else { flash(st, tr('toast.handoffGrey'), 'warn'); setTimeout(doneSearch, 2000) }
+        // 没找到交接文档、只弹了一句提醒的那一趟，转圈也按上面同一个等待时间收尾（两处共用一个常量，改一处两边一起变）。
+        else { flash(st, tr('toast.handoffGrey'), 'warn'); setTimeout(doneSearch, (typeof CLIENT_HANDOFF_DELAY_MS === 'number' ? CLIENT_HANDOFF_DELAY_MS : 2000)) }
       })
     }
 

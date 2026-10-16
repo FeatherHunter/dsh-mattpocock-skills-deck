@@ -16,6 +16,7 @@
     //   2026-09-24 那个现场是「磁盘快照已有画面、重建要几分钟」，按该判据仍是热档，照样早放手。
     //   删档只丢「等待体感」，不丢能力：迟到的结果仍会落地（判据与落地在 kernel/probe-select.js）。
     //   超时原文回到固定串，散列 246ae7f1 与文档的对应关系继续成立。
+    // 这个等待上限住中央：config/ttl.yaml 的 snapWaitMs，值由 tests/verify-time-config.ts 看守。
     export const SNAP_WAIT_MS = 30000
     // #491 房外埋点 helpers（同一闭包拼回后全内核文件可见；只记散列与计数，渲染路径不用）：
     const dswsLogHash = function (s) { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }

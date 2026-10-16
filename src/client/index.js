@@ -43,7 +43,6 @@
  * 失败不兜假数据 / 三视图收敛 / 沉淀=注入快照模板。
  * v11：label 颜色 = GitHub 配置色。v10：cwd 关联 / 标签视图 / 圆形技能环。
  * v9：DESIGN.md §12.2 Round 3 定稿 1A-7A 落实。
- *
  * 本文件内容 = cordis_define 的 code.client（纯 JS 函数体，返回 Cordis Plugin）。
  */
 
@@ -53,6 +52,7 @@ export default {
     const slots = ctx.get('slots')
     if (slots === undefined) return
     // ==== leaf:hostShim (spliced by build) ====
+    // ==== shared:timeConfig (spliced by build) ==== // #1215：中央时间参数先于闭包里所有读者声明（const 有暂时性死区）
     // ==== kernel:portal (spliced by build) ====
     // v1.3.3：面板版本号（tabs 行最右侧显示，便于核对已更新）
     const DSW_VERSION = __DSW_VERSION__
@@ -189,9 +189,6 @@ export default {
     // src/shared/version-control/rules.js）。界面按同一份判定画按钮状态，不自己算 —— 自己算就会与
     // 宿主执行前那次判定各说各话。
     // ==== shared:vcRules (spliced by build) ====
-    // #1215 中央时间参数：真源 config/timeouts.yaml → 产物 src/shared/time-config/values.js。
-    // 界面只许消费这些名字（消费处写 declare const），不许再写一份数字。
-    // ==== shared:timeConfig (spliced by build) ====
     // ==== kernel:storePrefs (spliced by build) ====
     // ==== kernel:settingsViewState (spliced by build) ====
     // ==== kernel:settingsView (spliced by build) ====

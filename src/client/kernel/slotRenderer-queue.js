@@ -101,11 +101,13 @@
       // 顺序队列：关闭后若有排队，下一帧自动弹出下一个（保持单例一次一个但不丢请求，wizard 占 1 位）
       if (hadQueue) {
         const next = st._formModalQueue.shift()
+        // 连着弹两个窗口之间的让位间隔：前一张窗先退场，隔这么久后一张再上来（同一帧里换会打架）。
+        // 数值写在 config/intervals.yaml 的 slotQueueStepMs，构建时由生成器变成常量、随界面闭包一起进来。
         try {
           if (typeof timer !== 'undefined' && timer && typeof timer.setTimeout === 'function') {
-            timer.setTimeout(function(){ try { openFormModal(st, next.formAction, next.onSubmit) } catch(_){} }, 80)
+            timer.setTimeout(function(){ try { openFormModal(st, next.formAction, next.onSubmit) } catch(_){} }, SLOT_QUEUE_STEP_MS)
           } else if (typeof setTimeout === 'function') {
-            setTimeout(function(){ try { openFormModal(st, next.formAction, next.onSubmit) } catch(_){} }, 80)
+            setTimeout(function(){ try { openFormModal(st, next.formAction, next.onSubmit) } catch(_){} }, SLOT_QUEUE_STEP_MS)
           } else {
             openFormModal(st, next.formAction, next.onSubmit)
           }

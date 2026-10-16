@@ -89,6 +89,9 @@ export const vcPlusMinus = function (added, deleted) {
   if (a === null || d === null || !isFinite(a) || !isFinite(d)) return ''
   return '+' + String(a) + ' \u2212' + String(d)
 }
+// 这个值住在 config/ttl.yaml 的 vcRelativeWindowMs（七天以内显示相对时间，超过就显示绝对日期）；
+//   名字和取值由 tests/verify-time-config.ts 看守，tests/verify-842-version-control-write-view.js
+//   把它列为契约。改数值要改那份 YAML，不要改这里。
 /** 相对说法的窗口：一周。与核心 describeTime 的那条 7 天分界同一条。 */
 export const VC_RELATIVE_WINDOW_MS = 7 * 24 * 3600 * 1000
 export const vcTimeKind = function (nowMs, ms) {

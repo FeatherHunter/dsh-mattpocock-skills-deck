@@ -34,7 +34,10 @@ export const closeStatusBugMenu = function(s, bugCloseRef){
 }
 export const scheduleStatusClose = function (ref, fn) {
   clearStatusClose(ref)
-  ref.current = setTimeout(function () { ref.current = null; fn() }, 160)
+  // 兜底延时：鼠标离开后先等这么久再关菜单；宿主若在这段时间里回话（把菜单留住）就不关，
+  // 等不到回话才由这里关门，免得菜单一直挂在那儿。
+  // 数值写在 config/intervals.yaml 的 statusMenuFallbackDelayMs，构建时由生成器变成常量拼进界面闭包。
+  ref.current = setTimeout(function () { ref.current = null; fn() }, STATUS_MENU_FALLBACK_DELAY_MS)
 }
 export const showStatusBugMenu = function(s, bugAnchorRef, bugCloseRef){
   clearStatusClose(bugCloseRef)

@@ -153,7 +153,13 @@
     }
     export const clearActiveDetail = function (st) { clearNavStack(st) }
     // T2 #7 · fetchIssueDetail 缓存与状态（独立于 snapshot，按 issue 号 60s TTL）
-    export const ISSUE_CACHE_TTL = ((typeof SYNC === 'object' && SYNC && SYNC.ISSUE_CACHE_TTL) || 60000)
+    // 这一档住 config/ttl.yaml 的 syncIssueCacheTtlMs：正常路径取下面 SYNC 契约里的那一份（同一个数，
+    // 由 tests/verify-time-config.ts 看守）；SYNC 缺席时兜底取拼进闭包的 SYNC_ISSUE_CACHE_TTL_MS——
+    // 本文件在界面的大闭包里，不能 import，也不在这一层留第二份数字。
+    // 兜底那一句外面还套了一层判断：本文件会被几个门禁当普通模块直接 import（那时闭包常量不存在，
+    // 直接引用就是 ReferenceError），所以常量缺席时退回同一个数 60000 —— 这个数字由门禁的 TEXT 表
+    // 锁在 syncIssueCacheTtlMs 上，改 YAML 时门禁会先判红。
+    export const ISSUE_CACHE_TTL = ((typeof SYNC === 'object' && SYNC && SYNC.ISSUE_CACHE_TTL) || (typeof SYNC_ISSUE_CACHE_TTL_MS === 'number' ? SYNC_ISSUE_CACHE_TTL_MS : 60000))
     // #1003 退役：后端选择只认工作区文件，这张本地镜像表不再读写。
     //   唯一真相在工作区文件里（宿主侧统一判定直接读文件）；本地再存一份就是第二份真相，
     //   两份不一致时就要仲裁（修订号那套），这正是本票要结束的事。

@@ -103,7 +103,10 @@
         try { if (typeof emit === 'function') emit(st) } catch(_){}
         const tk = (m.sentTk = (m.sentTk || 0) + 1)
         const fire = function () { if (m.sentTk !== tk || !m.justSent || m.open !== true) return; m.justSent = false; try { after() } catch(_){} }
-        try { setTimeout(fire, 1100) } catch(_) { fire() }
+        // 提交成功后那颗宽按钮的交代时间：先让「已提交」的字样亮出来给人看见，等这么久再走后续动作（关窗或弹下一张窗）。
+        //   节拍到点前若这张弹窗已经换了人，fire 自己会作废，见上面那行令牌判断。
+        // 数值写在 config/intervals.yaml 的 slotModalOpenDelayMs，构建时由生成器变成常量、随界面闭包一起进来。
+        try { setTimeout(fire, SLOT_MODAL_OPEN_DELAY_MS) } catch(_) { fire() }
       }
       const onWizardSubmit = async function () {
         if (m.pending || m.justSent) return

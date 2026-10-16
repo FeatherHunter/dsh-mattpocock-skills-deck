@@ -96,7 +96,9 @@ export const StatusLogDot = function (props) {
   const scheduleMenuClose = function () { clearHoverOpen() // 离区 300 毫秒后关，鼠标路过不误触。
     try { if (typeof clearStatusClose === 'function') clearStatusClose(closeRef) } catch (e) {}
     try { if (closeRef.current) clearTimeout(closeRef.current) } catch (e2) {}
-    closeRef.current = setTimeout(function () { closeRef.current = null; setMenuOpen(false) }, 300)
+    // 菜单收起延时：鼠标离开菜单后先等这么久再收起菜单，给手一点回到菜单里的时间，划过去不算离开。
+    // 数值写在 config/intervals.yaml 的 statusMenuDismissDelayMs，构建时由生成器变成常量拼进界面闭包。
+    closeRef.current = setTimeout(function () { closeRef.current = null; setMenuOpen(false) }, STATUS_MENU_DISMISS_DELAY_MS)
   }
   const openMenu = function () { clearHoverOpen() // 开本菜单时收起技能菜单：只写技能浮层已有字段并走已有广播，不碰其内部实现。
     try { if (typeof clearStatusClose === 'function') clearStatusClose(closeRef) } catch (e) {}
@@ -106,7 +108,9 @@ export const StatusLogDot = function (props) {
   }
   const scheduleMenuOpen = function () { if (menuOpen || clearConfirm) return // 绿点悬停 200 毫秒自开（单击开关保留，走 openMenu 统一互斥）。
     try { if (typeof clearStatusClose === 'function') clearStatusClose(closeRef) } catch (e) {}
-    if (!hoverOpenRef.current) hoverOpenRef.current = setTimeout(function () { hoverOpenRef.current = null; openMenu() }, 200)
+    // 悬停展开延时：鼠标停在绿点上满这么久才展开菜单，只是划过去不算「要看」。
+    // 数值写在 config/intervals.yaml 的 statusMenuHoverOpenDelayMs，构建时由生成器变成常量拼进界面闭包。
+    if (!hoverOpenRef.current) hoverOpenRef.current = setTimeout(function () { hoverOpenRef.current = null; openMenu() }, STATUS_MENU_HOVER_OPEN_DELAY_MS)
   }
   // 反向互斥：技能菜单打开时收起本菜单（只读技能浮层已有字段，不碰其内部实现）。
   React.useEffect(function () { if (menuOpen && store && store.skillsOpen) setMenuOpen(false) }, [menuOpen, store && store.skillsOpen])

@@ -19,6 +19,14 @@ declare function issueUrlFor(...args: any[]): any;
 declare function openIssueUrl(...args: any[]): any;
 declare function Ic(props?: any): any;
 declare const Tip: any;
+// 评论结果提示（成功打勾 / 失败打叉）在按钮上的停留时间（毫秒）。
+// 数值写在 config/ttl.yaml 的 commentResultFlashMs，构建时由生成器变成常量拼进界面闭包；
+// 这里的 declare 只是让 TypeScript 知道这个名字存在。
+declare const COMMENT_RESULT_FLASH_MS: number;
+// 「加载更多」至少转这么久（毫秒）才允许收起加载态：太快闪过反而像根本没加载。
+// 数值写在 config/ttl.yaml 的 commentsMoreLoadingMinMs，构建时由生成器变成常量拼进界面闭包；
+// 这里的 declare 只是让 TypeScript 知道这个名字存在。
+declare const COMMENTS_MORE_LOADING_MIN_MS: number;
 export const renderIssueDetailComments = function (h: any, st: any, issueNumber: any, detail: any, mode: any, commentsNodes: any, canComment: any, issueEffort: any): any {
       const _eff = (issueEffort === undefined || issueEffort === null) ? '' : String(issueEffort)
       // #255 提交确认闪烁下标：仅当 force 重取后的评论里真实存在 body 全等匹配项才点亮
@@ -61,7 +69,8 @@ export const renderIssueDetailComments = function (h: any, st: any, issueNumber:
           st.cmtConfirm = { body: text, at: startedAt }
           st.cmtResult = { kind: 'ok', at: startedAt }
           emit(st)
-          try { setTimeout(function () { if (st.cmtResult && st.cmtResult.kind === 'ok' && st.cmtResult.at === startedAt) { st.cmtResult = null; try { emit(st) } catch (eR) {} } }, 1500) } catch (eT) {}
+          // 评论结果提示的停留时间：成功后绿闪亮这么久自己退掉；失败的红闪由上面那句注释说的规矩留着不动。
+          try { setTimeout(function () { if (st.cmtResult && st.cmtResult.kind === 'ok' && st.cmtResult.at === startedAt) { st.cmtResult = null; try { emit(st) } catch (eR) {} } }, COMMENT_RESULT_FLASH_MS) } catch (eT) {}
           if (typeof fetchIssueDetail === 'function') fetchIssueDetail(st, issueNumber, { force: true, effortId: _eff })
           try { if (typeof probeNow === 'function') probeNow(false) } catch (ePn) {}
         }).catch(function (eSub: any) {
@@ -125,7 +134,9 @@ export const renderIssueDetailComments = function (h: any, st: any, issueNumber:
                 // 节流：600ms 内禁用由 st.issueCommentsMoreLoading 保障，api 侧同样节流
                 const after = (detail.comments && detail.comments.pageInfo && detail.comments.pageInfo.endCursor) ? detail.comments.pageInfo.endCursor : String(commentsNodes.length)
                 if (typeof fetchIssueComments === 'function') fetchIssueComments(st, issueNumber, after, { effortId: _eff })
-                else { st.issueCommentsMoreLoading = true; emit(st); setTimeout(function(){ st.issueCommentsMoreLoading=false; emit(st); },600) }
+                // 「加载更多」至少转这么久的兜底：这条分支没有真的去取数（取数通路不在），
+                // 转圈也要停够时间再收，否则一闪而过，人以为自己没点着。
+                else { st.issueCommentsMoreLoading = true; emit(st); setTimeout(function(){ st.issueCommentsMoreLoading=false; emit(st); },COMMENTS_MORE_LOADING_MIN_MS) }
               },
               style: { padding: '2px 10px', fontSize: 11, opacity: st.issueCommentsMoreLoading ? 0.5 : 1 }
             }, label),

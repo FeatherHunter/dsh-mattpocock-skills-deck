@@ -81,6 +81,8 @@
     /** 最近一次「宿主真的收下了我的上报」是什么时候（毫秒时刻）。它断流就是断流，界面不许把故障装成安静。 */
     export let _attentionAckAt = 0
     /** #707：90 秒内没有任何回话 → 自动刷新已被宿主停掉，界面要直说「自动刷新已暂停」（第 10 章那句话的读取点）。 */
+    // 这个静默阈值住中央：config/ttl.yaml 的 attentionExpiryMs，值由 tests/verify-time-config.ts 看守；
+    // 它与宿主侧预算里的 ATTENTION_EXPIRY_MS 是同一个数，改名会让 tests/verify-kernel.js 的导出契约测试判红。
     export const ATTENTION_SILENT_MS = 90000
     export const attentionSuspended = function () {
       try {

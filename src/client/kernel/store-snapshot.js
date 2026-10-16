@@ -351,6 +351,8 @@
     export const noticeIcon = (k) => k === 'ok' ? 'check' : k === 'warn' ? 'alert' : 'clipboard'
     export const flash = (st, msg, kind) => {
       st.notice = { text: msg, kind: kind || 'info' }; emit(st)
-      if (timer !== undefined) timer.timeout(function () { if (st.notice && st.notice.text === msg) { st.notice = null; emit(st) } }, 2800)
+      // 提示条自动消失的时间：这条提示亮这么久就自己退场；到点时若提示已经换成了别的内容，就不动它。
+      // 数值写在 config/ttl.yaml 的 storeNoticeDismissMs，构建时由生成器变成常量、随界面闭包一起进来。
+      if (timer !== undefined) timer.timeout(function () { if (st.notice && st.notice.text === msg) { st.notice = null; emit(st) } }, STORE_NOTICE_DISMISS_MS)
     }
 

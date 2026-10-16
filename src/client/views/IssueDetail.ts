@@ -35,6 +35,9 @@ declare function issueUrlFor(...args: any[]): any;
 declare function openIssueUrl(...args: any[]): any;
 declare function Ic(props?: any): any;
 declare const Tip: any;
+// 详情页确认提示的停留时间（毫秒）。数值写在 config/ttl.yaml 的 issueDetailConfirmMs，
+// 构建时由生成器变成常量拼进界面闭包；这里的 declare 只是让 TypeScript 知道这个名字存在。
+declare const ISSUE_DETAIL_CONFIRM_MS: number;
 export const IssueDetail = function (props: any): any {
       const cx = React.useContext(DswsCtx)
       const h = cx ? cx.h : React.createElement
@@ -56,7 +59,8 @@ export const IssueDetail = function (props: any): any {
       // #255 提交确认闪烁定时清除（类 rowFlash 同语义，防堆积；置于 early-return 之前保 hooks 顺序恒定）
       React.useEffect(function () {
         if (!st.cmtConfirm) return undefined
-        const t = setTimeout(function () { st.cmtConfirm = null; emit(st) }, 3000)
+        // 确认提示的停留时间：提交成功后那句确认话在这里挂多久，到点自动撤掉，免得一直留着。
+        const t = setTimeout(function () { st.cmtConfirm = null; emit(st) }, ISSUE_DETAIL_CONFIRM_MS)
         return function () { clearTimeout(t) }
       }, [st.cmtConfirm])
       // #763 顶栏折叠机（hook 在 views/useIssueDetailFold.js；返回优先收到图标，一次折一个，不放省略号）

@@ -11,9 +11,12 @@
     //   ② changed 只刷新与本次探测 cwd 相同的 store（多仓库会话并发不互串）；
     //   ③ focus 触发限流 ≥60s（窗口来回切换不再疯狂烧）。
     //   与 R1 区别：probe 范围从 `labels=wayfinder:map`（仅地图）扩到 `since=<ISO>`（全 issue，含子票）—— 见 host 侧 `case 'probe'`。
-    // #232 · 节拍真源单源化：兜底探针周期由契约层派生（字面量仅作防御性兜底；UI 层不得硬编码知道底层几秒刷一次）
-    export const PROBE_MS = ((typeof SYNC === 'object' && SYNC && SYNC.FALLBACK_PROBE_MS) || 60000)
-    export const FOCUS_PROBE_MIN_MS = ((typeof SYNC === 'object' && SYNC && SYNC.FOCUS_PROBE_MIN_MS) || 60000)
+    // #232 · 节拍真源单源化：兜底探针周期由契约层派生（UI 层不得硬编码知道底层几秒刷一次）。
+    // #1215：正常路径取 tracker/sync.js 契约里的那一份（config/intervals.yaml 的 syncFallbackProbeMs /
+    //   syncFocusProbeMinMs）；SYNC 缺席时兜底取拼进本闭包的中央常量 SYNC_FALLBACK_PROBE_MS /
+    //   SYNC_FOCUS_PROBE_MIN_MS（名字列在 scripts/build.mjs 的 CLIENT_TIME_NAMES 里），这里不留第二份数字。
+    export const PROBE_MS = ((typeof SYNC === 'object' && SYNC && SYNC.FALLBACK_PROBE_MS) || SYNC_FALLBACK_PROBE_MS)
+    export const FOCUS_PROBE_MIN_MS = ((typeof SYNC === 'object' && SYNC && SYNC.FOCUS_PROBE_MIN_MS) || SYNC_FOCUS_PROBE_MIN_MS)
     export let lastFocusProbe = 0
     // v1.5 T10 R9（Q4 拍板 · DESIGN.md 12.2）：关键动作后延迟探测 —— 完成/执行/交接后面板尽快反映 GitHub 变化；
     //   防抖（一次只排一个）+ 探测本身 1 次轻量 REST，配额安全
@@ -266,7 +269,9 @@
       // 宿主看到它就照做，不看退避退到了第几档。
       var _p1Raw = (typeof chainEventRefresh === 'function' ? chainEventRefresh(st, 'user-recheck').catch(function(){}) : (typeof loadChain === 'function' ? loadChain(st, true, 'user-recheck').catch(function(){}) : Promise.resolve()))
       // #366 补充：链刷新兜底超时，避免宿主链探测卡住导致按钮一直转圈
-      var p1 = new Promise(function(resolve){ var _t=setTimeout(function(){ try{ resolve(null); }catch(e){} }, 15000); _p1Raw.then(function(v){ clearTimeout(_t); resolve(v); }).catch(function(){ clearTimeout(_t); resolve(null); }); });
+      // 等一次自动探测结果的上限：等了这么久还没回来，就按「这一次没有结果」往下走，按钮不会一直转圈。
+      // 数值写在 config/timeouts.yaml 的 probeAutoWaitMs，构建时由生成器变成常量、随界面闭包一起进来。
+      var p1 = new Promise(function(resolve){ var _t=setTimeout(function(){ try{ resolve(null); }catch(e){} }, PROBE_AUTO_WAIT_MS); _p1Raw.then(function(v){ clearTimeout(_t); resolve(v); }).catch(function(){ clearTimeout(_t); resolve(null); }); });
       var p2 = loadSnapshot(st, true, true)
       var p3 = Promise.resolve()
       spinAll(true)
@@ -336,7 +341,9 @@
     // #376：打开面板即保证新鲜 —— 未就绪/失败 → force 加载（有「加载中」反馈）；
     //   已就绪但过期（>60s）→ 触发加载；已就绪且新鲜（≤60s）→ 直接展示不重复请求（配额友好）。
     //   force 不被 snapLoading 守卫丢弃（#370 已修），加载中打开面板最终也会完成并展示。
-    export const SNAP_FRESH_MS = ((typeof SYNC === 'object' && SYNC && SYNC.SNAP_FRESH_MS) || 60000)
+    // #1215：60 秒这一档正常路径取契约里的 SYNC.SNAP_FRESH_MS（config/ttl.yaml 的 syncSnapFreshMs），
+    //   SYNC 缺席时兜底取拼进本闭包的 SYNC_SNAP_FRESH_MS，这里不留第二份数字。
+    export const SNAP_FRESH_MS = ((typeof SYNC === 'object' && SYNC && SYNC.SNAP_FRESH_MS) || SYNC_SNAP_FRESH_MS)
     export const snapFresh = function (st) {
       if (!st.snapshot || !st.snapshot.generatedMs) return false
       try { return (Date.now() - st.snapshot.generatedMs) <= SNAP_FRESH_MS } catch (e) { return false }

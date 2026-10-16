@@ -138,6 +138,9 @@ export const markRowWrite = function (st, number, effortId) {
 //      不再把一件历史事实说成现在（与本项目其他「不知道就不说、不许编」的口径一致）。
 // 为什么没有定时器：横幅只在新快照到来重渲染时重算；恢复后它靠一份干净的新快照（fallback 置空）
 //   消失，而不是靠时间自己撤 —— 缩时限与藏横幅都是把信号藏起来，#734 明确不许。
+// 这个值住在 config/ttl.yaml 的 restFallbackStaleMs（回落到本地数据后满一小时就算过期，
+//   横幅改口说「上次…」而不是说当下）；名字和取值由 tests/verify-time-config.ts 看守，
+//   tests/verify-rest-fallback-banner.js 按这个名字取用。改数值要改那份 YAML，不要改这里。
 export const REST_FALLBACK_STALE_MS = 60 * 60 * 1000
 export const restFallbackView = function (st, nowMs, dismissedAtMs) {
   const snap = st && st.snapshot

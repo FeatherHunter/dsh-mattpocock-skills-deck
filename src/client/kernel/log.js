@@ -15,10 +15,12 @@
     // 通道批量字面（设计 2.5 与 #489 附录：每批最多 50 条、每 1000 毫秒发一次、
     // 单包 128KB 或 100 条先到先截；失败丢弃并计数，不背压等待，不无界缓冲）。
     export const LOG_BATCH_MAX = 50
+    // 这个发批间隔住中央：config/intervals.yaml 的 logFlushMs，值由 tests/verify-time-config.ts 看守。
     export const LOG_FLUSH_MS = 1000
     export const LOG_PACKET_BYTES = 131072
     export const LOG_QUEUE_MAX = 100
     // 自监控看门狗阈值（#499）：开关写与启动对账超过这么多毫秒未回，就记一行告警自举证。
+    // 这个看门狗阈值住中央：config/timeouts.yaml 的 logWatchdogMs，值由 tests/verify-time-config.ts 看守。
     export const LOG_WATCHDOG_MS = 5000
     // 开关形状版本号：以后开关加字段就把这里加一，旧本地值读到缺字段时用默认补齐。
     export const LOG_REV = 1

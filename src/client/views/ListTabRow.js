@@ -20,7 +20,9 @@ export const listIssueRow = function (h, st, x, isOpen, narrow, blockOf, colorOf
         const done = function (ok) {
           st.copyFlash = { key: key, kind: ok === true ? 'ok' : 'fail', at: Date.now() }
           emit(st)
-          if (ok === true) { try { setTimeout(function () { if (st.copyFlash && st.copyFlash.key === key && st.copyFlash.kind === 'ok') { st.copyFlash = null; try { emit(st) } catch (eR) {} } }, 1300) } catch (eT) {} }
+          // 复制成功提示的停留时间：对勾闪光亮这么久就自己退掉（失败不设时限，留到下一次操作才换）。
+          // 数值写在 config/ttl.yaml 的 copyFlashMs，构建时由生成器变成常量拼进界面闭包。
+          if (ok === true) { try { setTimeout(function () { if (st.copyFlash && st.copyFlash.key === key && st.copyFlash.kind === 'ok') { st.copyFlash = null; try { emit(st) } catch (eR) {} } }, COPY_FLASH_MS) } catch (eT) {} }
         }
         try {
           const r = copyText(st, issueUrlFor(st, x.number, effortOf(x)), tr('toast.copiedLink', { n: x.number }))
