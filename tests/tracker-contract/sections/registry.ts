@@ -1,5 +1,5 @@
 /**
- * tests/tracker-contract/sections/registry.js — registry.js 行为段（#132 Q2=B）。
+ * tests/tracker-contract/sections/registry.ts — registry.js 行为段（票 #132 Q2=B）。
  *
  * 第一性原理（#125 定版）：
  *  - 注册只验模块形状（id/label/create/matches），不因缺 op 拒绝；缺方法由 Proxy 补 unsupported 桩。
@@ -21,27 +21,52 @@
 
 import { createRegistry } from '../../../src/tracker/registry/core.ts' // V1 #461：registry.js 已拆为三块
 import { TrackerRegistryError, MIGRATE_KEY } from '../../../src/tracker/registry/shape.ts' // V1 #461：错误类与迁移键随形状文件搬出
+import type { BackendModule } from '../../../src/tracker/contract/backend-module.ts'
+import type { OpContext, RepoHandle } from '../../../src/tracker/contract/contexts.ts'
+import type { RepositoryRef } from '../../../src/tracker/contract/entities.ts'
 
-const mkModule = (id, over = {}) => Object.assign({
+/**
+ * 造一个测试用后端模块：必填四件套给全，缺的操作由注册表按 OPERATIONS 自动补桩。
+ * over 只覆盖顶层字段（label、create、matches、链接三件），调用方传什么形状，运行时就是什么形状——
+ * 类型上按 Partial 收，类型故意写坏的两个地方（nonobj 的 create、slow 的 matches）在各自调用点断言。
+ */
+const mkModule = (id: string, over: Partial<BackendModule> = {}): BackendModule => Object.assign({
   id,
   label: id,
   create: () => ({ list: async () => ({ ok: true, data: [] }) }),
   matches: async () => false,
 }, over)
 
-const handle = { cwd: '/workspace' }
-const ref0 = { backend: 'fake', refId: 'r0', name: 'R0', url: '' }
+const handle: RepoHandle = { cwd: '/workspace' }
+const ref0: RepositoryRef = { backend: 'fake', refId: 'r0', name: 'R0', url: '' }
+// 测试故意传的空上下文：下面两处调用（被补桩的 update、只回空表的 list）运行时都不读它，
+// 但操作签名要求完整的 OpContext（cwd 与 signal 必填），这里断言一次，运行时还是这个空对象。
+const noCtx = {} as unknown as OpContext
 
-export async function run() {
-  const out = []
+/** 单条 registry 断言的结果：ok 为判定，detail 留现场。 */
+export interface RegistryAssertResult {
+  name: string
+  ok: boolean
+  detail: string
+}
+
+export async function run(): Promise<RegistryAssertResult[]> {
+  const out: RegistryAssertResult[] = []
   const P = 'registry · '
-  const assert = async (name, cond, detail) => {
+  const assert = async (name: string, cond: unknown, detail?: string): Promise<void> => {
     let ok = false
     try { ok = !!(await cond) } catch (e) { out.push({ name: P + name, ok: false, detail: String(e) }); return }
     out.push({ name: P + name, ok, detail: detail || '' })
   }
-  const threw1 = (fn, code) => {
-    try { fn(); return '(no throw)' } catch (e) { return (e instanceof TrackerRegistryError && (code == null || e.code === code)) ? 'ok' : `wrong:${e && e.code}:${e.message}` }
+  const threw1 = (fn: () => unknown, code?: string): string => {
+    try { fn(); return '(no throw)' } catch (e) {
+      if (e instanceof TrackerRegistryError && (code == null || e.code === code)) return 'ok'
+      // 走到这里说明抛的不是预期的注册表错误：把实际抛出的东西原样拼进返回值，
+      // 调用方拿它跟 'ok' 比对，不相等就是一条失败的断言（行为与原来一字不差）。
+      const codePart = e ? (e as { code?: unknown }).code : e
+      const msgPart = e instanceof Error ? e.message : (e as { message?: unknown })?.message
+      return `wrong:${String(codePart)}:${String(msgPart)}`
+    }
   }
 
   // ── 注册 / 形状 ──
@@ -49,13 +74,13 @@ export async function run() {
     const r = createRegistry()
     const d = r.register(mkModule('alpha'))
     await assert('register 返回 Disposable(dispose)', d && typeof d.dispose === 'function')
-    await assert('get(id).id === 模块 id', r.get('alpha').id === 'alpha')
+    await assert('get(id).id === 模块 id', r.get('alpha')!.id === 'alpha')
     await assert('命中未实现 op → unsupported 桩（返回不抛）', (async () => {
-      const res = await r.get('alpha').update(ref0, 'k', {}, {})
+      const res = await r.get('alpha')!.update(ref0, 'k', {}, noCtx)
       return res && res.ok === false && res.error.kind === 'unsupported'
     })(), 'stub must return unsupported')
     await assert('已实现 op 原样可用', (async () => {
-      const res = await r.get('alpha').list(ref0, {}, {})
+      const res = await r.get('alpha')!.list(ref0, {}, noCtx)
       return res && res.ok === true && Array.isArray(res.data)
     })(), 'implemented list must work')
   }
@@ -89,7 +114,9 @@ export async function run() {
   })(), 'empty id must throw shape')
   await assert('create 说谎拒绝：返回非对象', (() => {
     const r = createRegistry()
-    return threw1(() => r.register(mkModule('nonobj', { create: () => 42 })), 'shape') === 'ok'
+    // 故意造坏形状：create 返回数字 42，注册表必须当场拒绝。类型上先断言过去，
+    // 运行时流进 register 的还是这个坏模块，测的就是「形状检查拦得住它」。
+    return threw1(() => r.register(mkModule('nonobj', { create: (() => 42) as unknown as BackendModule['create'] })), 'shape') === 'ok'
   })(), 'create() returning non-object must throw shape')
   await assert('create 说谎拒绝：id 不一致', (() => {
     const r = createRegistry()
@@ -122,8 +149,9 @@ export async function run() {
   await assert('unregister 发一条带 id 的 unregister 事件（#1138 新口径）', (() => {
     const r = createRegistry()
     r.register(mkModule('st'))
-    let got = null
-    r.on('unregister', (p) => { got = p })
+    // 监听荷载运行时是 {id} 形状，这里只取 id 一格：标注够取这一格，运行时还是监听器收到的原对象。
+    let got: { id?: unknown } | null = null
+    r.on('unregister', (p) => { got = p as { id?: unknown } })
     r.unregister('st')
     return got !== null && got.id === 'st'
   })(), 'unregister must notify subscribers with the removed id (缓存失效的判据)')
@@ -146,7 +174,9 @@ export async function run() {
   })(), 'a throwing listener must not block others')
   await assert('非法事件名抛 bad-event', (() => {
     const r = createRegistry()
-    return threw1(() => r.on('unknown', () => {}), 'bad-event') === 'ok'
+    // 故意传注册表不认的事件名，测的就是「它当场抛 bad-event」。类型上把字面量收窄到合法事件名，
+    // 运行时流进 on 的还是 'unknown' 这个原串。
+    return threw1(() => r.on('unknown' as 'register', () => {}), 'bad-event') === 'ok'
   })(), 'unknown event must throw')
 
   // ── select 两级联三态 ──
@@ -174,13 +204,14 @@ export async function run() {
   })(), 'no match must fallback to null (ref omitted)')
   await assert('pending：matches 超时 → pending:true + backendId:null', (async () => {
     const r = createRegistry({}, { matchesTimeout: 15 })
-    r.register(mkModule('slow', { matches: () => new Promise(() => {}) }))
+    // 故意让 matches 永远不回（模拟卡住的识别），注册表必须按超时判 pending，而不是一直等。
+    r.register(mkModule('slow', { matches: () => new Promise<boolean>(() => {}) }))
     const sel = await r.select(handle, { cwd: handle.cwd })
     return sel.backendId === null && sel.pending === true
   })(), 'timeout must surface pending:true (仲裁未决), not silently OtherCard')
   await assert('pending 被排除：有命中时选命中但保留 pending:true', (async () => {
     const r = createRegistry({}, { matchesTimeout: 15 })
-    r.register(mkModule('slow', { matches: () => new Promise(() => {}) }))
+    r.register(mkModule('slow', { matches: () => new Promise<boolean>(() => {}) }))
     r.register(mkModule('fast', { matches: async () => true }))
     const sel = await r.select(handle, { cwd: handle.cwd })
     return sel.backendId === 'fast' && sel.pending === true
@@ -192,27 +223,29 @@ export async function run() {
     return sel.backendId === null
   })(), 'throwing matches must degrade to false')
   await assert('OpContext.signal 传给 matches（AbortSignal）', (async () => {
-    let seen = null
+    let seen: unknown = null
     const r = createRegistry()
     r.register(mkModule('sig', { matches: async (h, ctx) => { seen = ctx && ctx.signal; return false } }))
     await r.select(handle, { cwd: handle.cwd })
-    return seen !== null && typeof seen === 'object' && typeof seen.aborted === 'boolean'
+    return seen !== null && typeof seen === 'object' && typeof (seen as { aborted?: unknown }).aborted === 'boolean'
   })(), 'signal must be injected into matches ctx')
 
   // ── #1138：bind / bound / allBindings 三个口子确实不在（不是漏了，是有意删的）──
   // 注册表原来存着一份「这个工作区绑了谁」的进程内副本，与工作区文件
   // docs/agents/workspace.yaml 记的是同一件事的两份记录（宿主重启即消失）。整段删掉之后，
   // 问「这个工作区用哪个后端」只有一条路：统一判定出口 decideBackend 读那份工作区文件。
+  // 下面两处把注册表外观转成键值表再读：类型上没有这三个键，读到的 undefined 正是「确实不在」的证据。
   await assert('#1138：注册表不再答「这个工作区绑了谁」（bind/bound/allBindings 三个口子都没有）', (() => {
     const r = createRegistry()
-    return typeof r.bind === 'undefined' && typeof r.bound === 'undefined' && typeof r.allBindings === 'undefined'
+    const facade = r as unknown as Record<string, unknown>
+    return typeof facade.bind === 'undefined' && typeof facade.bound === 'undefined' && typeof facade.allBindings === 'undefined'
   })(), 'bind/bound/allBindings must be gone (人选住在工作区文件里)')
   await assert('#1138：三个口子不在，注册表本身照常成立（注册、拿后端、列名单、仲裁都还在）', (() => {
     const r = createRegistry()
     r.register(mkModule('still-works'))
     const hasAll = ['register', 'unregister', 'get', 'has', 'modules', 'select', 'describe', 'on']
-      .every((k) => typeof r[k] === 'function')
-    return hasAll && r.has('still-works') && r.get('still-works').id === 'still-works' && r.modules().length === 1
+      .every((k) => typeof (r as unknown as Record<string, unknown>)[k] === 'function')
+    return hasAll && r.has('still-works') && r.get('still-works')!.id === 'still-works' && r.modules().length === 1
   })(), 'the registry must keep answering what it still owns')
   // ── describe / 链接转发（#1112：注册表不替后端拼地址、不造正则） ──
   await assert('describe 出 RepositoryRef（markdown refId=cwd）', (() => {
@@ -297,7 +330,8 @@ export async function run() {
   // 第二条验新名字照旧原样转发——改名与删旧名都不许影响这一条主路。
   await assert('#1141：链接三件的老名字口子确实不在（是有意删的，不是漏了）', (() => {
     const r = createRegistry()
-    return typeof r.issueUrl === 'undefined' && typeof r.searchUrl === 'undefined' && typeof r.linkPattern === 'undefined'
+    const facade = r as unknown as Record<string, unknown>
+    return typeof facade.issueUrl === 'undefined' && typeof facade.searchUrl === 'undefined' && typeof facade.linkPattern === 'undefined'
   })(), 'legacy link method names must be gone from the registry facade')
   await assert('新名字「给票地址 / 认票写法 / 按名找仓库地址」原样转发', (() => {
     const r = createRegistry()
@@ -318,7 +352,7 @@ export async function run() {
   await assert('✗ probe: 未实现 op 冒充成功被逮', (async () => {
     const r = createRegistry()
     r.register(mkModule('probe'))
-    const res = await r.get('probe').setBlockedBy(ref0, 'k', [], {}, {})
+    const res = await r.get('probe')!.setBlockedBy(ref0, 'k', [], {}, noCtx)
     return res.ok === false && res.error.kind === 'unsupported'
   })(), 'missing op must NOT lie ok:true')
 
