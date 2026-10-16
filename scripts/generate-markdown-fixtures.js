@@ -37,7 +37,7 @@ async function main() {
   // 采一个真实票：优先找 .scratch/<effort>/issues 里的首个 markdown
   let samplePath = null
   let sampleText = null
-  // 尝试找本次仓库的示例票：tests/tracker-contract/fixtures/markdown.js 里的 withData 已是真实 parse 样本，复用它作为兜底
+  // 尝试找本次仓库的示例票：tests/tracker-contract/fixtures/markdown.ts 里的 withData 已是真实 parse 样本，复用它作为兜底
   const fallbackText = `# Hello World
 
 Body for hello world.
@@ -78,7 +78,7 @@ Answer body.
 
   if (!sampleText) {
     sampleText = fallbackText
-    samplePath = '<fallback: tests/tracker-contract/fixtures/markdown.js#withData>'
+    samplePath = '<fallback: tests/tracker-contract/fixtures/markdown.ts#withData>'
   }
 
   sampleText = desensitizeText(sampleText)

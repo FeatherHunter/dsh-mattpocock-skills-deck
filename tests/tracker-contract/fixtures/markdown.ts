@@ -1,5 +1,5 @@
 /**
- * tests/tracker-contract/fixtures/markdown.js — Markdown 后端合规桩（真实适配器）。
+ * tests/tracker-contract/fixtures/markdown.ts — Markdown 后端合规桩（真实适配器）。
  *
  * 用真实 `parseMd`/`normalizeIssue` 驱动 harness，验证：
  *  - 来源有数据 → 逐项映射正确
@@ -16,7 +16,7 @@ import { parseMd } from '../../../src/tracker/rooms/markdown/parse.ts'
 import { normalizeIssue } from '../../../src/tracker/rooms/markdown/normalize.ts'
 
 // helper：把 markdown 文本 + meta 组装成 Issue
-function normFromSource(source) {
+function normFromSource(source: { text?: string; meta?: any }): any {
   // source: { text, meta }
   const text = source.text || ''
   const meta = source.meta || { key: '01', parentKey: null, isMap: false }
@@ -72,7 +72,7 @@ Body without status line.
 
 export const markdownFixture = {
   name: 'markdown-real',
-  normalize: (source) => normFromSource(source),
+  normalize: (source: { text?: string; meta?: any }) => normFromSource(source),
   withData,
   emptyData,
   mappings: [],
@@ -98,7 +98,7 @@ export const markdownFixture = {
         createdAt: '', updatedAt: '', closedAt: null, parentKey: null,
         assignees: [], blockedBy: [{ key: '02', title: '', state: 'open' }], comments: [], reason: '',
       },
-      lookup: (k) => (k === '02' ? { state: 'open' } : undefined),
+      lookup: (k: string) => (k === '02' ? { state: 'open' } : undefined),
       expected: { claimed: false, blocked: true, frontier: false },
     },
     {
@@ -124,8 +124,8 @@ export const markdownFixture = {
 // 我们在下方提供一个适配后的 run 入口，供 verify 脚本直接调用 parse 的字段校验
 
 export function markdownExtraAssertions() {
-  const out = []
-  const assert = (name, cond, detail) => out.push({ name: `markdown-real · ${name}`, ok: !!cond, detail: detail || '' })
+  const out: Array<{ name: string; ok: boolean; detail: string }> = []
+  const assert = (name: string, cond: unknown, detail?: string) => out.push({ name: `markdown-real · ${name}`, ok: !!cond, detail: detail || '' })
   const w = normalizeIssue(withData.text, withData.meta)
   const e = normalizeIssue(emptyData.text, emptyData.meta)
   // key 透传

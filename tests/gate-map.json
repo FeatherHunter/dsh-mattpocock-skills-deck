@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T21:28:32.854Z",
+  "generatedAt": "2026-10-16T21:33:42.350Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 301,
   "gateCount": 301,
@@ -5294,7 +5294,7 @@
         "src/tracker/rooms/markdown/parse.ts",
         "src/tracker/rooms/markdown/read.ts",
         "tests/fixtures/markdown-sample/01-hello-world.md",
-        "tests/tracker-contract/fixtures/markdown.js",
+        "tests/tracker-contract/fixtures/markdown.ts",
         "tests/tracker-contract/harness.ts"
       ],
       "dirs": [

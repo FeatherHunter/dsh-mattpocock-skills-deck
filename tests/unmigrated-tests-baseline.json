@@ -9,7 +9,6 @@
     "tests/fixtures/gh-gateway/violating/src/host/badRegistered.js",
     "tests/lib/render-subws-mark.js",
     "tests/scan-mangle.js",
-    "tests/tracker-contract/fixtures/markdown.js",
     "tests/tracker-contract/sections/idempotency-counterproof.js",
     "tests/verify-929-batch-cycle.js",
     "tests/verify-952-short-text.js",
