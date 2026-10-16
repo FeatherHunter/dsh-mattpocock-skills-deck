@@ -23,13 +23,13 @@ import { pathToFileURL } from 'node:url'
 import { compileFn } from './lib/eval-probe.js'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
-const url = (rel) => pathToFileURL(path.join(ROOT, rel)).href
-const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
+const url = (rel: string): string => pathToFileURL(path.join(ROOT, rel)).href
+const read = (rel: string): string => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 let passed = 0
 let failed = 0
-const check = (ok, msg) => { if (ok) { console.log('  PASS ' + msg); passed++ } else { console.log('  FAIL ' + msg); failed++ } }
-const tmpDirs = []
-const makeDir = function (tag) { const d = fs.mkdtempSync(path.join(os.tmpdir(), tag)); tmpDirs.push(d); return d }
+const check = (ok: unknown, msg: string): void => { if (ok) { console.log('  PASS ' + msg); passed++ } else { console.log('  FAIL ' + msg); failed++ } }
+const tmpDirs: string[] = []
+const makeDir = function (tag: string): string { const d = fs.mkdtempSync(path.join(os.tmpdir(), tag)); tmpDirs.push(d); return d }
 
 const { createDetectionService } = await import(url('src/tracker/detection/detectionService.ts'))
 const { createRegistry } = await import(url('src/tracker/registry/core.ts'))
@@ -38,7 +38,7 @@ const { decideBackend: outletDecideBackend, selectionFromOutlet: outletSelection
 try { outletDecideBackend.selectionFromOutlet = outletSelectionFromOutlet } catch (eAttachOutlet683) {}
 
 // 现场：一个工作区目录（可选放一份锚文件，写着 GitHub），一份真 choiceStore（落在临时主目录上）。
-const makeWorkspace = function (anchor) {
+const makeWorkspace = function (anchor: string | null): string {
   const dir = makeDir('dsh-683-ws-')
   if (anchor) {
     fs.mkdirSync(path.join(dir, 'docs', 'agents'), { recursive: true })
@@ -46,22 +46,22 @@ const makeWorkspace = function (anchor) {
   }
   return dir
 }
-const makeStore = function (keys) {
+const makeStore = function (keys: string[]) {
   const home = makeDir('dsh-683-home-')
-  return createChoiceStore({ homeDir: home, isKnownBackend: function (id) { return keys.indexOf(id) >= 0 } })
+  return createChoiceStore({ homeDir: home, isKnownBackend: function (id: string) { return keys.indexOf(id) >= 0 } })
 }
-const makeService = function (store, wsStore) {
+const makeService = function (store: any, wsStore?: any) {
   const registry = createRegistry(undefined, { matchesTimeout: 500 })
-  const mk = (id) => ({ id: id, label: id, create: () => ({ ok: true }), matches: async () => false, describe: () => ({ backend: id, refId: id + '-ref', name: id + '-ref', url: '' }) })
+  const mk = (id: string) => ({ id: id, label: id, create: () => ({ ok: true }), matches: async () => false, describe: () => ({ backend: id, refId: id + '-ref', name: id + '-ref', url: '' }) })
   registry.register(mk('github'))
   registry.register(mk('markdown'))
   const platform = {
     fs: {
-      resolve: async (rel, o) => path.resolve((o && o.cwd) || '.', rel),
-      readText: async (p) => fs.readFileSync(p, 'utf8'),
-      lstat: async (p) => fs.lstatSync(p),
-      stat: async (p) => fs.statSync(p),
-      readdir: async (p) => fs.readdirSync(p),
+      resolve: async (rel: string, o: any) => path.resolve((o && o.cwd) || '.', rel),
+      readText: async (p: string) => fs.readFileSync(p, 'utf8'),
+      lstat: async (p: string) => { try { return fs.lstatSync(p) } catch (e) { throw e } },
+      stat: async (p: string) => { try { return fs.statSync(p) } catch (e) { throw e } },
+      readdir: async (p: string) => fs.readdirSync(p),
     },
     path: path,
   }
@@ -69,7 +69,7 @@ const makeService = function (store, wsStore) {
 }
 const makeWsStore = function () {
   const m = new Map()
-  return { get: (h) => m.get(h.cwd || ''), set: (h, v) => { m.set(h.cwd || '', v) }, invalidate: (h) => { m.delete(h.cwd || '') }, clear: () => m.clear() }
+  return { get: (h: any) => m.get(h.cwd || ''), set: (h: any, v: any) => { m.set(h.cwd || '', v) }, invalidate: (h: any) => { m.delete(h.cwd || '') }, clear: () => m.clear() }
 }
 
 console.log('宿主接线门禁（#683 F1：上报即忽略、H 经出口记忆层回答、每条回包都带权威选择、只有一处写记忆）')
@@ -147,10 +147,10 @@ console.log('== B R5c/R10：坏文件不采纳也不写、空工作区不回答�
   const home3 = makeDir('dsh-683-home-')
   fs.mkdirSync(path.join(home3, '.dsh', 'mattskillsdeck'), { recursive: true })
   const { hashWorkspaceKey } = await import(url('src/host/choiceStore.ts'))
-  const rec = { version: 1, workspaces: {}, layouts: {} }
+  const rec: { version: number; workspaces: Record<string, any>; layouts: Record<string, any> } = { version: 1, workspaces: {}, layouts: {} }
   rec.workspaces[hashWorkspaceKey(ws3)] = { backendId: 'gitlab', rev: 3, pickedAt: 1758500000000, source: 'user' }
   fs.writeFileSync(path.join(home3, '.dsh', 'mattskillsdeck', 'choices.json'), JSON.stringify(rec), 'utf8')
-  const store3b = createChoiceStore({ homeDir: home3, isKnownBackend: (id) => id === 'github' || id === 'markdown' })
+  const store3b = createChoiceStore({ homeDir: home3, isKnownBackend: (id: string) => id === 'github' || id === 'markdown' })
   const svc3 = makeService(store3b)
   const b3 = await svc3.detect({ cwd: ws3 }, { skipSkillProbes: true })
   check(b3.selection && b3.selection.backendId === 'github', 'H 里那条后端今天不在注册表里时当没有（落回锚文件，不发一个没有模块的后端）—— 实得「' + (b3.selection && b3.selection.backendId) + '」')
@@ -185,24 +185,24 @@ console.log('== D R4：快照的短路路与 304 都要带权威 {selection, rev
 {
   const { createSessionSnapshot } = await import(url('src/host/sessionSnapshot.ts'))
   const cached = { ok: true, generatedMs: 1, maps: [{ number: 1, tickets: [] }], issues: [], labels: [], selection: { backendId: 'github', source: 'auto' } }
-  const makeHost = function (sel) {
+  const makeHost = function (sel: any) {
     const cache = { ts: Date.now(), snapshot: cached, error: null, cwd: 'D:\\ws' }
     return createSessionSnapshot({
-      canonicalKey: async (c) => c,
+      canonicalKey: async (c: any) => c,
       selectEarly: async () => sel,
       isComposerSelection: () => false,
       getTrackerRegistry: async () => ({ get: () => null, modules: () => [], describe: () => null }),
       getPlatform: async () => ({ fs: {}, path: { join: () => '' }, getHome: async () => '' }),
       ctx: { get: () => undefined },
-      getCache: () => cache, setCache: (v) => { Object.assign(cache, v) }, CACHE_MS: 60000,
+      getCache: () => cache, setCache: (v: any) => { Object.assign(cache, v) }, CACHE_MS: 60000,
       cacheSnapshotIsCurrent: async () => false,
-      upcaseSnapStates: (s) => s,
+      upcaseSnapStates: (s: any) => s,
       computeLevels: () => ({ byNumber: {}, byKey: {} }),
       groupTickets: () => ({ total: 0, open: 0, closed: 0, frontier: 0, claimed: 0, blocked: 0, levels: [], levelOf: {} }),
       getRepoRoot: async () => 'D:\\ws', getRepoKey: async () => null,
-      readDiskCache: async () => null, writeDiskCache: async () => {}, adoptSnapshot: (s) => s,
+      readDiskCache: async () => null, writeDiskCache: async () => {}, adoptSnapshot: (s: any) => s,
       detectionExec: async () => ({ stdout: '', stderr: '', code: 0 }), execProc: async () => ({ ok: false }),
-      errText: () => '', DEFAULT_CWD: 'D:\\ws', hash8: (s) => String(s).slice(0, 8), logCtx: null,
+      errText: () => '', DEFAULT_CWD: 'D:\\ws', hash8: (s: any) => String(s).slice(0, 8), logCtx: null,
     })
   }
   const d1 = await makeHost({ backendId: 'markdown', source: 'explicit', rev: 5 }).handleSnapshot({ cwd: 'D:\\ws' })
@@ -223,15 +223,15 @@ console.log('== E R7c：写失败如实回 ==')
   //   它写不成照旧回 persisted:false 如实说（界面据此出一句信息级提示）。所以夹具要给一条
   //   真能写的文件通道（临时目录 + 真文件），否则 bind 会先因为文件写不成而如实失败。
   const { createWorkspaceCwd } = await import(url('src/host/workspaceCwd.js'))
-  const fsSvcOf = function (dir) {
+  const fsSvcOf = function (dir: string) {
     return {
-      async resolve(p, o) { const cwd = (o && o.cwd) || ''; const rel = String(p || '').replace(/\\/g, '/'); return cwd ? String(cwd).replace(/\\/g, '/') + '/' + rel : rel },
-      async readText(t) { return fs.readFileSync(t, 'utf8') },
-      async writeText(t, c) { fs.mkdirSync(path.dirname(t), { recursive: true }); fs.writeFileSync(t, String(c), 'utf8') },
-      async mkdir(d) { fs.mkdirSync(d, { recursive: true }) },
+      async resolve(p: unknown, o: any) { const cwd = (o && o.cwd) || ''; const rel = String(p || '').replace(/\\/g, '/'); return cwd ? String(cwd).replace(/\\/g, '/') + '/' + rel : rel },
+      async readText(t: string) { return fs.readFileSync(t, 'utf8') },
+      async writeText(t: string, c: unknown) { fs.mkdirSync(path.dirname(t), { recursive: true }); fs.writeFileSync(t, String(c), 'utf8') },
+      async mkdir(d: string) { fs.mkdirSync(d, { recursive: true }) },
     }
   }
-  const bindIn = async function (storeLike, backendId) {
+  const bindIn = async function (storeLike: any, backendId: string) {
     const dir = makeDir('v683e-')
     const api = createWorkspaceCwd({
       ctx: { get: () => undefined }, DEFAULT_CWD: dir,
@@ -239,7 +239,7 @@ console.log('== E R7c：写失败如实回 ==')
       getTrackerRegistry: async () => ({ has: () => true, get: () => null, describe: () => null }),
       getWorkspaceStore: async () => ({ invalidate: () => {} }),
       getChoiceStore: async () => storeLike,
-      canonicalKey: async (c) => c, setCache: () => {}, timer: { timeout: () => null }, detectionExec: async () => ({}), logCtx: null,
+      canonicalKey: async (c: any) => c, setCache: () => {}, timer: { timeout: () => null }, detectionExec: async () => ({}), logCtx: null,
     })
     return await api.handleBind({ cwd: dir, backendId: backendId })
   }
@@ -267,7 +267,7 @@ console.log('== G R6：wf.setupLayout 写进 H、读得出来；卡片确认与�
     getTrackerRegistry: async () => ({ has: () => true, bind: () => {}, get: () => null, describe: () => null }),
     getWorkspaceStore: async () => ({ invalidate: () => {} }),
     getChoiceStore: async () => store,
-    canonicalKey: async (c) => c, setCache: () => {}, timer: { timeout: () => null }, detectionExec: async () => ({}), logCtx: null,
+    canonicalKey: async (c: any) => c, setCache: () => {}, timer: { timeout: () => null }, detectionExec: async () => ({}), logCtx: null,
   })
   const g1 = await api.handleSetupLayout({ cwd: ws, layout: 'multi' })
   check(g1.ok === true && g1.layout === 'multi' && typeof g1.pickedAt === 'number', '卡片确认打过去 → 写进 H，回包带上取值与时刻 —— 实得 ' + JSON.stringify(g1))
@@ -294,7 +294,7 @@ const snapSrc = read('src/host/sessionSnapshot.ts')
   {
     const { resolveSelection } = await import(url('src/tracker/detection/selection-precedence.ts'))
     const witness = { declared: null, outletConsulted: true, outlet: null, outletOrigin: 'none' }
-    const hintFirst = (c) => (c.hint ? { backendId: c.hint, source: 'explicit' } : resolveSelection(c))
+    const hintFirst = (c: any) => (c.hint ? { backendId: c.hint, source: 'explicit' } : resolveSelection(c))
     check(hintFirst(Object.assign({}, witness, { hint: 'markdown' })).backendId === 'markdown', '反证 F1 成立：上报优先级加回来之后，无锚文件时同一组输入又变出 markdown（正是老路径要结束的那件事）')
     check(resolveSelection(Object.assign({}, witness, { hint: 'markdown' })).selection.backendId === null, '（对照）真源裁决顺序里没有「上报」这一格：把上报塞进来也不参与')
     const ws = makeWorkspace('# Issue tracker: GitHub\n')
@@ -302,9 +302,9 @@ const snapSrc = read('src/host/sessionSnapshot.ts')
     await store.rememberWorkspace(ws, 'markdown')
     await store.rememberWorkspace(ws, 'github') // rev 推到 2
     const registry = createRegistry(undefined, { matchesTimeout: 500 })
-    const mk = (id) => ({ id: id, label: id, create: () => ({ ok: true }), matches: async () => false, describe: () => ({ backend: id, refId: id, name: id, url: '' }) })
+    const mk = (id: string) => ({ id: id, label: id, create: () => ({ ok: true }), matches: async () => false, describe: () => ({ backend: id, refId: id, name: id, url: '' }) })
     registry.register(mk('github')); registry.register(mk('markdown'))
-    const platform = { fs: { resolve: async (rel, o) => path.resolve((o && o.cwd) || '.', rel), readText: async (p) => fs.readFileSync(p, 'utf8'), lstat: async (p) => fs.lstatSync(p), stat: async (p) => fs.statSync(p), readdir: async (p) => fs.readdirSync(p) }, path: path }
+    const platform = { fs: { resolve: async (rel: string, o: any) => path.resolve((o && o.cwd) || '.', rel), readText: async (p: string) => fs.readFileSync(p, 'utf8'), lstat: async (p: string) => fs.lstatSync(p), stat: async (p: string) => fs.statSync(p), readdir: async (p: string) => fs.readdirSync(p) }, path: path }
     const svcTrue = createDetectionService({ registry, getPlatform: async () => platform, getFs: () => platform.fs, getTimers: () => null, workspaceStore: null, getChoiceStore: async () => store, exec: null })
     const rTrue = await svcTrue.detect({ cwd: ws }, { skipSkillProbes: true, hintBackendId: 'markdown', baseRev: 1 })
     check(rTrue.selection && rTrue.selection.backendId === 'github', '（对照）真源里带上报时仍是锚文件的 github —— 实得「' + (rTrue.selection && rTrue.selection.backendId) + '」')
@@ -321,7 +321,7 @@ const snapSrc = read('src/host/sessionSnapshot.ts')
     //   （./ 与 ../ 都算）连目录结构一起镜像到夹具目录，以后谁再拆一次、再跨一次目录，都不用回来改这段。
     const mirror = makeDir('dsh-683-broken2-')
     const mirrored = new Set()
-    const mirrorOne = function (relFromSrc) {
+    const mirrorOne = function (relFromSrc: string) {
       if (mirrored.has(relFromSrc)) return
       mirrored.add(relFromSrc)
       const fromPath = path.join(ROOT, 'src', relFromSrc)
@@ -351,12 +351,12 @@ const snapSrc = read('src/host/sessionSnapshot.ts')
     const cached = { ok: true, generatedMs: 1, maps: [], issues: [], labels: [], selection: { backendId: 'github', source: 'auto' } }
     const cache = { ts: Date.now(), snapshot: cached, error: null, cwd: 'D:\\ws' }
     const h = mod2.createSessionSnapshot({
-      canonicalKey: async (c) => c, selectEarly: async () => ({ backendId: 'markdown', source: 'explicit', rev: 5 }), isComposerSelection: () => false,
+      canonicalKey: async (c: any) => c, selectEarly: async () => ({ backendId: 'markdown', source: 'explicit', rev: 5 }), isComposerSelection: () => false,
       getTrackerRegistry: async () => ({ get: () => null, modules: () => [], describe: () => null }), getPlatform: async () => ({ fs: {}, path: { join: () => '' }, getHome: async () => '' }),
-      ctx: { get: () => undefined }, getCache: () => cache, setCache: (v) => { Object.assign(cache, v) }, CACHE_MS: 60000, cacheSnapshotIsCurrent: async () => false,
-      upcaseSnapStates: (s) => s, computeLevels: () => ({ byNumber: {}, byKey: {} }), groupTickets: () => ({ total: 0, open: 0, closed: 0, frontier: 0, claimed: 0, blocked: 0, levels: [], levelOf: {} }),
-      getRepoRoot: async () => 'D:\\ws', getRepoKey: async () => null, readDiskCache: async () => null, writeDiskCache: async () => {}, adoptSnapshot: (s) => s,
-      detectionExec: async () => ({ stdout: '', stderr: '', code: 0 }), execProc: async () => ({ ok: false }), errText: () => '', DEFAULT_CWD: 'D:\\ws', hash8: (s) => s, logCtx: null,
+      ctx: { get: () => undefined }, getCache: () => cache, setCache: (v: any) => { Object.assign(cache, v) }, CACHE_MS: 60000, cacheSnapshotIsCurrent: async () => false,
+      upcaseSnapStates: (s: any) => s, computeLevels: () => ({ byNumber: {}, byKey: {} }), groupTickets: () => ({ total: 0, open: 0, closed: 0, frontier: 0, claimed: 0, blocked: 0, levels: [], levelOf: {} }),
+      getRepoRoot: async () => 'D:\\ws', getRepoKey: async () => null, readDiskCache: async () => null, writeDiskCache: async () => {}, adoptSnapshot: (s: any) => s,
+      detectionExec: async () => ({ stdout: '', stderr: '', code: 0 }), execProc: async () => ({ ok: false }), errText: () => '', DEFAULT_CWD: 'D:\\ws', hash8: (s: any) => s, logCtx: null,
     })
     const r = await h.handleSnapshot({ cwd: 'D:\\ws' })
     check(r === cached && r.selection.backendId === 'github', '反证 F2 成立：短路路不带新选择时，回包里那条还是旧后端 github（面板头照旧显示旧的，正是 R4 要结束的那件事）—— 实得「' + r.selection.backendId + '」')
