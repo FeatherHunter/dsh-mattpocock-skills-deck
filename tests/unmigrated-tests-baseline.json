@@ -103,7 +103,6 @@
     "tests/verify-issue232-sync.js",
     "tests/verify-issue297.js",
     "tests/verify-issue529-checks-i18n.js",
-    "tests/verify-issue60-cwd.js",
     "tests/verify-kernel.js",
     "tests/verify-label-color-core.js",
     "tests/verify-labels-sync.js",

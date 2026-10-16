@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T21:20:37.756Z",
+  "generatedAt": "2026-10-16T21:28:32.854Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 301,
   "gateCount": 301,
-  "attributedGates": 260,
-  "unattributedGates": 41,
+  "attributedGates": 261,
+  "unattributedGates": 40,
   "buildOutputOnlyGates": 25,
   "completionRecordedGates": 6,
   "smokeLength": 5,
@@ -4938,15 +4938,21 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 1 条"
     },
     {
-      "step": "node tests/verify-issue60-cwd.js",
-      "file": "tests/verify-issue60-cwd.js",
-      "guards": [],
-      "dirs": [],
-      "unattributed": true,
+      "step": "node tests/verify-issue60-cwd.ts",
+      "file": "tests/verify-issue60-cwd.ts",
+      "guards": [
+        "src/client/kernel/api-new-session.js",
+        "tests/lib/eval-probe.ts"
+      ],
+      "dirs": [
+        "src/client/kernel",
+        "tests/lib"
+      ],
+      "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "它没有读也没有导入本仓库的文件，只用自己带的夹具或真机页面自检，算不出它守着哪条源码路径；这类门禁在挑选时不会被选中，真实例子见 docs/agents/verification.md 的「已知漏洞」一节"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-kernel.js",
@@ -7246,6 +7252,7 @@
       "node tests/verify-delta-wiring.js",
       "node tests/verify-error-single-source.ts",
       "node tests/verify-inject-trailing-newline.js",
+      "node tests/verify-issue60-cwd.ts",
       "node tests/verify-label-color-core.js",
       "node tests/verify-log-artifacts.js",
       "node tests/verify-log-client.js",
@@ -8134,6 +8141,7 @@
       "node tests/verify-inject-trailing-newline.js",
       "node tests/verify-issue-detail.js",
       "node tests/verify-issue529-checks-i18n.js",
+      "node tests/verify-issue60-cwd.ts",
       "node tests/verify-label-color-core.js",
       "node tests/verify-log-client.js",
       "node tests/verify-log-exec-606.js",
