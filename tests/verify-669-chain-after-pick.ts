@@ -253,7 +253,7 @@ console.log('')
 console.log('== E 层：退休的 8 秒自轮询，它的活由几条真实事件路接着做（而且都走内核那一个事件入口）==')
 {
   // 从前这条链「只要还没全绿，就自己排一次 8 秒后的 force 重取，直到全绿才停」。那个自续循环在
-  //   #709（T5）整体退役（见 tests/verify-709-no-self-continuing-timers.js）。接手的是真实事件路，
+  //   #709（T5）整体退役（见 tests/verify-709-no-self-continuing-timers.ts）。接手的是真实事件路，
   //   它们都从 probe-chain.js 的链事件入口 chainEventRefresh 过（下面逐条量「哪一路、在哪个文件、带什么原因」）：
   //     ① 切进工作区（打开检查页）—— 这一路**不绕过缓存**（缓存优先，下面当场跑一遍量它）；
   //     ② 人亲手点「重新检查」（检查页上的按钮、refreshAll 那条静默路）；

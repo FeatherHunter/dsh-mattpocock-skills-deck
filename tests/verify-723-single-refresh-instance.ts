@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * verify-723-single-refresh-instance.js —— 门禁：宿主里只许有一套刷新机制（票 #723）
+ * verify-723-single-refresh-instance.ts —— 门禁：宿主里只许有一套刷新机制（票 #723）
  *
  * 留下的断言都是跑起来的结果：
  *   三、一套实例下五条路互相看得见（真装配、真过闸、真读数）；
@@ -11,7 +11,7 @@
  *   2026-10 按维护者口径撤掉：那种断言的对象是手写源码的文本，等价重构（改写法、
  *   搬文件、改注释）就会变红，挡不住真回归。
  *
- * 用法：node tests/verify-723-single-refresh-instance.js
+ * 用法：node --import ./scripts/ts-hook.mjs tests/verify-723-single-refresh-instance.ts
  */
 const fs = require('fs')
 const path = require('path')
@@ -19,11 +19,11 @@ const os = require('os')
 const { pathToFileURL } = require('url')
 
 const ROOT = path.resolve(__dirname, '..')
-const url = (rel) => pathToFileURL(path.join(ROOT, rel)).href
+const url = (rel: string) => pathToFileURL(path.join(ROOT, rel)).href
 
 let failed = false
 let total = 0
-const check = (ok, msg, detail) => {
+const check = (ok: boolean, msg: string, detail?: string): void => {
   total += 1
   console.log((ok ? '  PASS ' : '  FAIL ') + msg + (ok || !detail ? '' : '\n         → ' + detail))
   if (!ok) failed = true
@@ -33,7 +33,7 @@ const check = (ok, msg, detail) => {
 let LedgerMod = null
 let GateMod = null
 const CLOCK = 1700000000000
-function makeDeps(store) {
+function makeDeps(store: Record<string, unknown>) {
   // 账本与闸：给一份「刚同步过、额度充足」的读数 —— 不然闸会按「剩余为 0」把后台档判成
   // reserve-kept-for-writes（那是另一条路径，本门禁要测的是「同一套实例」下的放行）。
   const ledger = LedgerMod.createLedger({ now: () => CLOCK })
