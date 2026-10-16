@@ -15,28 +15,29 @@
  *      （repoKeys/repoRoots/chainCache/workspaceStore/wf.detect/wf.chain/wf.snapshot/wf.bind/
  *      建仓失效点/detect 入口）必须出现规整钥匙调用（门禁扫描先例：verify-client-hardcode-gate）。
  */
-const fs = require('fs')
-const path = require('path')
+import fs from 'node:fs'
+import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 let failed = false
 let passed = 0
-const ok = function (name) { passed++; console.log('  PASS', name) }
-const bad = function (name) { failed = true; console.log('  FAIL', name) }
+const ok = function (name: string) { passed++; console.log('  PASS', name) }
+const bad = function (name: string) { failed = true; console.log('  FAIL', name) }
 
 const BS = String.fromCharCode(92) // 反斜杠（路径构造用，避免源码转义噪音）
-const W = function (s) { return s.split('/').join(BS) } // 'D:/work/a' → 'D:' + BS + 'work' + BS + 'a'
-const winPlat = { os: 'win32', path: require('path').win32 }
-const posixPlat = { os: 'linux', path: require('path').posix }
+const W = function (s: string) { return s.split('/').join(BS) } // 'D:/work/a' → 'D:' + BS + 'work' + BS + 'a'
+const winPlat = { os: 'win32', path: path.win32 }
+const posixPlat = { os: 'linux', path: path.posix }
 
 async function main() {
-  const fp = path.resolve(__dirname, '..', 'src', 'host', 'workspaceKey.js')
-  const wm = await import(require('url').pathToFileURL(fp).href)
+  const fp = path.resolve(import.meta.dirname, '..', 'src', 'host', 'workspaceKey.js')
+  const wm = await import(pathToFileURL(fp).href)
   const norm = wm.normalizeWorkspacePath
   const canon = wm.canonicalWorkspaceKey
 
   // ---------- P1 洗衣机数学 ----------
   console.log('P1 洗衣机数学（normalizeWorkspacePath / canonicalWorkspaceKey）')
-  const eq = function (name, actual, want) { (actual === want) ? ok(name) : bad(name + ' → got ' + JSON.stringify(actual) + ' want ' + JSON.stringify(want)) }
+  const eq = function (name: string, actual: unknown, want: unknown) { (actual === want) ? ok(name) : bad(name + ' → got ' + JSON.stringify(actual) + ' want ' + JSON.stringify(want)) }
 
   // Windows：小写折叠 + 尾斜杠去除 + 斜杠方向归一
   eq('win 盘符大小写折叠', norm(W('D:/Work/Alpha'), winPlat), W('d:/work/alpha'))
@@ -71,16 +72,16 @@ async function main() {
   // ---------- P2 三区五轮推演 ----------
   console.log('P2 三区五轮推演（A→B→C→B→A ×5，每区三种写法轮转）')
   const DEFAULT = W('D:/work/alpha') // DSH 进程恰在 A 区启动时的默认 cwd
-  const areas = {
+  const areas: Record<string, string[]> = {
     A: [W('D:/work/alpha'), W('d:/work/alpha/'), 'D:/work/alpha'],
     B: [W('D:/work/beta'), W('D:/WORK/BETA'), 'D:/work/beta/'],
     C: [W('E:/work/gamma'), 'e:/work/gamma/', W('E:/work/gamma/')]
   }
   const rounds = ['A', 'B', 'C', 'B', 'A']
-  const oldBuckets = { A: new Set(), B: new Set(), C: new Set() }
-  const newBuckets = { A: new Set(), B: new Set(), C: new Set() }
-  const oldKeyOf = function (raw) { return String(raw || DEFAULT) } // 旧推导：cwd || DEFAULT_CWD 原样
-  const newKeyOf = async function (raw) { return String(await canon(raw || DEFAULT, { getPlatform: async function () { return winPlat } }) || (raw || DEFAULT)) }
+  const oldBuckets: Record<string, Set<string>> = { A: new Set(), B: new Set(), C: new Set() }
+  const newBuckets: Record<string, Set<string>> = { A: new Set(), B: new Set(), C: new Set() }
+  const oldKeyOf = function (raw: unknown) { return String(raw || DEFAULT) } // 旧推导：cwd || DEFAULT_CWD 原样
+  const newKeyOf = async function (raw: unknown) { return String(await canon(raw || DEFAULT, { getPlatform: async function () { return winPlat } }) || (raw || DEFAULT)) }
   let step = 0
   for (let r = 0; r < 5; r++) {
     for (const a of rounds) {
@@ -101,20 +102,20 @@ async function main() {
 
   // ---------- P3 接线在场守卫 ----------
   console.log('P3 接线在场守卫（src/host 全部分桶点位出现规整钥匙调用）')
-  const root = path.resolve(__dirname, '..')
-  const linesOf = function (rel) {
+  const root = path.resolve(import.meta.dirname, '..')
+  const linesOf = function (rel: string) {
     return fs.readFileSync(path.join(root, rel), 'utf8').split(String.fromCharCode(10)).map(function (l) {
       return (l.length && l.charCodeAt(l.length - 1) === 13) ? l.slice(0, -1) : l
     })
   }
-  const hasTok = function (arr, tok) { return arr.some(function (l) { return l.indexOf(tok) >= 0 }) }
+  const hasTok = function (arr: string[], tok: string) { return arr.some(function (l) { return l.indexOf(tok) >= 0 }) }
 
   const idx = linesOf(path.join('src', 'host', 'index.ts'))
   // H1 #445：getRepoRoot/getRepoKey/canonicalKey 已原样搬到 src/host/git-process.ts，守卫跟随代码位置（意图不变：在场即查）。
   const rkf = linesOf(path.join('src', 'host', 'git-process.ts'))
-  const idxAt = function (tok) { for (let i = 0; i < idx.length; i++) { if (idx[i].indexOf(tok) >= 0) return i } return -1 }
-  const rkfAt = function (tok) { for (let i = 0; i < rkf.length; i++) { if (rkf[i].indexOf(tok) >= 0) return i } return -1 }
-  const guardSite = function (name, anchor, before, after) {
+  const idxAt = function (tok: string) { for (let i = 0; i < idx.length; i++) { if (idx[i].indexOf(tok) >= 0) return i } return -1 }
+  const rkfAt = function (tok: string) { for (let i = 0; i < rkf.length; i++) { if (rkf[i].indexOf(tok) >= 0) return i } return -1 }
+  const guardSite = function (name: string, anchor: string, before: number, after: number) {
     const at = idxAt(anchor)
     if (at < 0) return bad(name + '：锚点未找到 ' + anchor)
     hasTok(idx.slice(Math.max(0, at - before), at + after + 1), 'canonical') ? ok(name) : bad(name + '：锚点窗口内未见规整钥匙调用')
@@ -132,7 +133,7 @@ async function main() {
   const dcf = linesOf(path.join('src', 'host', 'detectChain.ts'))
   const ssf = linesOf(path.join('src', 'host', 'sessionSnapshot.ts'))
   const wcf = linesOf(path.join('src', 'host', 'workspaceCwd.ts'))
-  const guardSiteMovedIn = function (name, anchor, before, after, fileLines, movedFn, mBefore, mAfter) {
+  const guardSiteMovedIn = function (name: string, anchor: string, before: number, after: number, fileLines: string[], movedFn: string, mBefore: number, mAfter: number) {
     const at = idxAt(anchor);
     if (at >= 0 && hasTok(idx.slice(Math.max(0, at - before), at + after + 1), 'canonical')) return ok(name);
     let mat = -1;
@@ -140,7 +141,7 @@ async function main() {
     if (mat < 0) return bad(name + 'no fn');
     hasTok(fileLines.slice(Math.max(0, mat - mBefore), mat + mAfter + 1), 'canonical') ? ok(name) : bad(name + 'no canonical');
   }
-  const guardSiteMoved = function (name, anchor, before, after, movedFn, mBefore, mAfter) {
+  const guardSiteMoved = function (name: string, anchor: string, before: number, after: number, movedFn: string, mBefore: number, mAfter: number) {
     return guardSiteMovedIn(name, anchor, before, after, dcf, movedFn, mBefore, mAfter);
   }
   guardSiteMoved('wf.chain 入口规整', "harness.handle('wf.chain'", 1, 6, 'async function handleChain(', 0, 3);
@@ -150,7 +151,7 @@ async function main() {
   // H6 #450：建仓失效点体已搬到 src/host/publishFlow.ts，守卫跟随代码位置（H3 同例）。
   // #1161 把这份文件从 JavaScript 转成 TypeScript 之后，这里的路径跟着改成新扩展名，否则读不到内容、整条判据会静默失效（读文件抛异常会直接判红）。
   const pbf = linesOf(path.join('src', 'host', 'publishFlow.ts'))
-  const pbfAt = function (tok) { for (let i = 0; i < pbf.length; i++) { if (pbf[i].indexOf(tok) >= 0) return i } return -1 }
+  const pbfAt = function (tok: string) { for (let i = 0; i < pbf.length; i++) { if (pbf[i].indexOf(tok) >= 0) return i } return -1 }
   const d1 = idxAt('delete repoKeys[')
   const d1m = pbfAt('delete repoKeys[')
   ;((d1 >= 0 && hasTok(idx.slice(Math.max(0, d1 - 6), d1 + 1), 'canonical')) || (d1m >= 0 && hasTok(pbf.slice(Math.max(0, d1m - 6), d1m + 1), 'canonical'))) ? ok('建仓失效点 repoKeys 删除前规整') : bad('repoKeys 删除前未见规整钥匙（删不中即缓存僵尸）')
