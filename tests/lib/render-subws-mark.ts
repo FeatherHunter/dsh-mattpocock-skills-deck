@@ -35,19 +35,19 @@ const { sourceText } = require('./source-text.ts')
 function tipsFromLocale() {
   const src = sourceText('src/client/kernel/locale-panel.js')
   const re = /'panel\.wsMarkTip':\s*'((?:[^'\\]|\\.)*)'/g
-  const out = []
+  const out: string[] = []
   let m
   while ((m = re.exec(src)) !== null) out.push(m[1].replace(/\\n/g, '\n').replace(/\\'/g, "'"))
   return out
 }
 
 /** 真源里的纯函数那把规整函数（大小写、分隔符都折算到同一把钥匙）。 */
-function subwsCmpKey(keyOf, v) {
+function subwsCmpKey(keyOf: any, v: any): string {
   try { return (typeof keyOf === 'function') ? String(keyOf(v)) : String(v == null ? '' : v) } catch (e) { return '' }
 }
 
 /** 真源里的纯函数那把规整钥匙（与门禁同一件，不另写仿制品）。 */
-function keyOfFn() {
+function keyOfFn(): any {
   const src = fs.readFileSync(path.join(ROOT, 'src/shared/workspaceKey.js'), 'utf8').replace(/^\s*export\s+/gm, '')
   // 本处走 compileFn：这段真源码不引用本文件任何外层变量，参数名给空数组即可。
   return compileFn([], src + '\nreturn keyOf')()
@@ -58,7 +58,7 @@ function keyOfFn() {
  * @param {string} src 组件源码文本
  * @param {object} env { React, h, keyOf, tr, Tip, host, localStorage, chainStep }
  */
-function makeMark(src, env) {
+function makeMark(src: string, env: { React: any; h: any; keyOf: any; tr: any; Tip: any; host: any; localStorage: any; chainStep: any }): any {
   const body = src.replace(/^\s*export\s+/gm, '')
   // 本处走 compileFn：组件要的外层名字（React、tr、Tip…）本来就一个不少地按参数传进来，不靠外层作用域。
   const factory = compileFn(
@@ -72,7 +72,7 @@ function makeMark(src, env) {
  * 把交给浮层的那些 React 元素里的文字全取出来（浮层内容是个元素，不是字符串）。
  * 门禁要断言「第四行到底画没画出来」，就得看得见元素里的文字。
  */
-function textOf(node) {
+function textOf(node: any): string {
   if (node == null) return ''
   if (typeof node === 'string' || typeof node === 'number') return String(node)
   if (Array.isArray(node)) return node.map(textOf).join('')
@@ -81,7 +81,7 @@ function textOf(node) {
 }
 
 /** 某一次渲染里，浮层上真正会显示的文字。 */
-function tipTextOf(tipCalls) {
+function tipTextOf(tipCalls: any): string {
   return (tipCalls || []).map(function (c) { return textOf(c && c.content) }).join('\n')
 }
 
@@ -94,7 +94,7 @@ function tipTextOf(tipCalls) {
  *   autoShown 为真时假装「这个工作区以前已经自动展开过」（记的键与组件读的键是同一条）；
  *   chainInit 给出检查链里 tracker:initialized 那一步的状态（'done' / 'current' / 不给）。
  */
-async function renderMark(store, opts) {
+async function renderMark(store: any, opts?: { lang?: string; src?: string; click?: boolean; autoShown?: boolean; chainInit?: string }): Promise<any> {
   const o = opts || {}
   const lang = o.lang === 'en' ? 1 : 0
   const src = o.src || fs.readFileSync(path.join(ROOT, MARK_REL), 'utf8')
