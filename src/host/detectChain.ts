@@ -150,6 +150,16 @@ type DetectChainDeps = {
   now?: (() => number) | undefined
 }
 
+/**
+ * 组装宿主侧的后端探测电话（`wf.detect`）与检查链求值电话（`wf.chain`）（#447 / #696 / #709 / #1048 / #1155）。
+ *
+ * 为什么：面板需要两条配合工作的读路径——一条问「当前工作区应该用哪个后端」（`handleDetect`），另一条问「通用环境与当前后端的每一项检查是否通过」（`handleChain`）；把退避裁决、同键并发搭车、单次评估内的环境预检复用与结构化日志收口在这里，既能把一次链求值的外部请求压到最少，又能保证不产生自续定时器。
+ * 什么约定不能改：
+ *   1. `handleDetect` 与 `handleChain` 入口前 3 行内必须先做空目录守卫与 `canonicalKey` 归一（门禁 `verify-3-workspace-switch.js` 直接钉死该位置）；工作区尚未就绪时直接返回确定信封，绝不拿宿主进程目录去冒充工作区。
+ *   2. 用户手动点击重新检查（`trigger === 'user-recheck'`）在退避裁决上永远放行、不降档；后台触发的求值命中退避窗口时直接返回上一份缓存快照，且全文件不得新建任何自续 `setInterval` 或递归 `setTimeout`。
+ *   3. 单次 `handleChain` 求值内开启的 `openPreflightScope` 只在该次求值内复用成功的预检结果，求值结束即丢弃，绝不跨次缓存失败结果。
+ * 反例：若把插件挂载时的自动链求值也当成 `user-recheck` 身份送进退避器，每次重渲染都会击穿退避窗口并发起外部 `gh` 子进程调用，瞬间耗尽配额。
+ */
 export function createDetectChain(deps: DetectChainDeps) {
   const { canonicalKey, DEFAULT_CWD, resetGhCache, getDetectionService, getPlatform, getTrackerRegistry, getRepoKey, runGh, timer, probeSkill, mdParseOkPredicate, getChainCache, setChainCache, getChainBackoff, logCtx, gate, sandboxPolicyFor } = deps
   // #491 房外埋点 helpers：hash8 只记散列；P1 外层先判开关（采样/节流/按事件），字段函数只在守卫内求值。

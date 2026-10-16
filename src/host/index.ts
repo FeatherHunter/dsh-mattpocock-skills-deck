@@ -16,6 +16,9 @@ export default {
   // 声明 connection + llm + sessionQuery：webServer 仍不加（#596）；llm 给首轮摘要调模型用，
   // sessionQuery 给读首轮两段用（读而不激活），缺任何一个对应功能静默降级（#746）。
   inject: ['connection', 'llm', 'sessionQuery'],
+  // 宿主插件主入口：为什么留在单文件装配——集中注册 59 条宿主电话与启动门，所有具体实现按需动态引入；
+  // 什么约定不能改——subprocess/timer 未就绪时必须挂起等待而非直接放弃，且本文件总行数受门禁上限 400 行与电话精确计数 59 条约束；
+  // 反例——若在 subprocess 未就绪时直接 return 退出而不挂 ctx.inject，慢启动机器上 deck 工具将永远无法注册且无日志可查。
   apply(ctx: HostCtx) {
     // 启动门（2026-09-26）：subprocess/timer 晚到时不再静默跳过——旧代码直接 return， wiring 与工具注册 hook 从没跑起来，deck 工具永不注册还查无对证。 先试一次；不齐就挂到框架依赖门上等人齐（官方 ctx.inject 写法，见 dsh-tool-pwsh）； 30 秒还没齐落一条 warn。 为何只能留在入口，见账本 §1。
     const bootBody = () => {

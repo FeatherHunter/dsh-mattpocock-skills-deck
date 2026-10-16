@@ -1,7 +1,7 @@
 // src/host/remotePredicates.ts —— H3 #447 从 host/index.js 242-309 搬出，纯结构、行为零变化。
 // 2026-10-14（#1161）从 .js 转成 .ts：只加类型标注与注释，逻辑一行未动。
 // 以后谁改它：改本地关卡地图谓词或候选规则的人。预估约80行，超 350 打回。
-// 接线：由 index.js 动态 import 加载；本文件除装配点（src/tracker/registry/builtins.ts）外不引其他新文件。
+// 接线：由 index.ts 动态 import 加载；本文件除装配点（src/tracker/registry/builtins.ts）外不引其他新文件。
 
 /** 谓词结果：status 三态 + 一句给人看的 detail（沿用搬出前的形状，不改）。 */
 type PredicateResult = { status: 'pass' | 'fail' | 'pending'; detail: string }
@@ -22,6 +22,16 @@ function errText(e: unknown): string {
   return String(msg || e)
 }
 
+/**
+ * 组装本地 Markdown 后端在检查链中使用的地图可解析谓词与候选路径扫描器（#284 / #447 / #1161 / #1170）。
+ *
+ * 为什么：检查链需要判断当前工作区的本地 Markdown 关卡地图是否已经初始化且格式可解析，而地图可能放在根目录 `.scratch/map.md` 或各子目录 `.scratch/<name>/map.md`；把候选枚举、存在性探测与解析校验聚合成无状态工厂，供 `detectChain.ts` 按需调用。
+ * 什么约定不能改：
+ *   1. `mdMapCandidates` 返回的候选列表只能存工作区相对路径字符串（如 `'.scratch/map.md'`），绝不能把 `platform.fs.resolve` 返回的目标对象传给 `platform.path.join`（`resolve` 返回的是平台目标对象而非字符串，直接拼接会抛 `TypeError`）。
+ *   2. `mdParseOkPredicate` 给用户看的 `detail` 文案必须按 `lang`（`'zh'` / `'en'`）返回平实人话；只要有一个候选地图解析通过即返回 `status: 'pass'`，全部候选缺失或全部解析抛错才返回 `status: 'fail'`。
+ *   3. Markdown 解析器 `parseMd` 必须经装配点 `loadMarkdownHostExtras()` 获取，不得直接深引 `src/tracker/rooms/markdown/*`。
+ * 反例：若 `mdParseOkPredicate` 只检查根目录 `.scratch/map.md` 而不扫描 `.scratch/<子目录>/map.md`，在多图谱布局下即使子目录地图完好无损，检查链也会一直误报「尚未生成关卡地图」。
+ */
 export function createRemotePredicates() {
     // #284：markdown 后端谓词：本地图谱可解析（解析件经装配点从 markdown 房公开面取，见下方调用处）
     // 2026-08-28 修复：本函数与 fileExistsChainRel 曾被误嵌套在 parseGithubRepo 函数体内，

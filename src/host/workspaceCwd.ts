@@ -35,6 +35,16 @@ type DecisionOutlet = { decideBackend(cwd: string, opts: unknown): Promise<any>;
 type DetExec = (cmd: any, args: any, opts: any, via: any) => Promise<any> // 只转交不读：真签名唯一在平台通道 detectionExec（platformChannel.ts），这里写 any 透传；写 typeof 查值会多出一条同层边
 type LogCtx = { fire(level: string, event: string, fields?: unknown): void; isEnabled(level: string): boolean } | null
 type Deps = { ctx: Ctx; DEFAULT_CWD: string; getPlatform(): Promise<Platform | null>; getTrackerRegistry(): Promise<Registry | null>; getWorkspaceStore(): Promise<WorkspaceStore>; getChoiceStore(): Promise<ChoiceStore | null>; getDecisionFn(): Promise<any>; getDetectionService?: unknown; canonicalKey(raw: string): Promise<string>; setCache(v: unknown): void; logCtx: LogCtx; timer: { timeout(ms: number): Promise<unknown> }; detectionExec: DetExec }
+/**
+ * 组装工作区路径归一、后端绑定选择、布局记忆与标签配色电话（#449 / #652 / #683 / #957 / #1003 / #1074 / #1138）。
+ *
+ * 为什么：所有涉及「当前工作区是哪个目录、绑定了哪个后端、采用单图还是多图布局、标签配什么颜色」的宿主电话都依赖同一把工作区根路径钥匙（`canonicalKey`）和同一份工作区配置文件（`docs/agents/workspace.json`）；集中在这里组装并用 `loggedPhone` 统一包一层常驻日志，能保证读写删三侧钥匙同形、每通电话留痕。
+ * 什么约定不能改：
+ *   1. `handleBind` 的生效判据有且只有一条：先把选择写进工作区配置文件（`writeWorkspaceRecord`），只有文件写成功才算本次绑定生效（`ok: true`）；文件写失败必须当场返回 `ok: false` 与四档原因码（`no-permit` / `readonly` / `no-dir` / `other`），绝不能在文件未写成时返回 `ok: true`。
+ *   2. `handleBind` 入口前 3 行内必须先做空目录守卫与 `canonicalKey` 归一（门禁 `verify-3-workspace-switch.js` 钉死）；`handleSelection` 调用统一判定出口 `decideBackend` 时必须递入 `caller: 'wf.selection', logCtx: logCtx`（门禁 `verify-detection-log-reach.ts` 钉死）。
+ *   3. 对外暴露的电话处理器一律经 `loggedPhone` 包装，自动记录常驻事件 `host.call` 与失败时的 `host.call.fail`；标签配色两条电话委托给 `./workspaceLabelColors.js`。
+ * 反例：若 `handleBind` 在工作区只读或沙箱拒绝写入 `docs/agents/workspace.json` 时只写了本机记忆 `~/.dsh/mattskillsdeck/choices.json` 就返回 `ok: true`，界面会欺骗用户显示「已切换」，而下一轮判定不读本机记忆，刷新后又跳回旧后端。
+ */
 export function createWorkspaceCwd(deps: Deps) {
   const { ctx, DEFAULT_CWD, getPlatform, getTrackerRegistry, getWorkspaceStore, getChoiceStore, getDecisionFn, getDetectionService, canonicalKey, setCache, logCtx, timer, detectionExec } = deps
   // #176 + #190 修复：cwd 归一（绝对直通 + 相对尝试 fs.resolve + home 试探）

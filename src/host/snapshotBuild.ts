@@ -166,6 +166,16 @@ type SnapshotDeps = {
   timer: unknown
 }
 
+/**
+ * 组装面板整份快照与多张地图详情拉取器（#599 / #1074 / #1155）。
+ *
+ * 为什么：面板首页与状态栏需要一次性拿到当前工作区的后端选择、全部关卡地图、子票拓扑层级与普通工单列表；将「多地图别名合并拉取（`fetchMapsDetail`）」与「统一后端快照拼装（`buildSnapshot`）」集中在这里，供会话快照缓存层（`sessionSnapshot.ts`）按需调用。
+ * 什么约定不能改：
+ *   1. 已选定后端时优先走后端注册表的 `tracker.snapshot()` 新路径，未选定或尚未命中时返回空集合信封 `{ ok: true, maps: [], issues: [], labels: [], selection }`，保证面板在未绑定工作区时也能正常渲染引导页。
+ *   2. 每张地图的子票统计（`groupTickets`）与拓扑层级（`computeLevels`）必须由宿主算好塞进快照，面板只读宿主拼好的快照，不得在客户端重算或直连后端房间。
+ *   3. `deps.getDetectionService` 可能在测试夹具中缺席，调用前必须保留 `typeof deps.getDetectionService === 'function'` 守卫。
+ * 反例：若在 `deps.getDetectionService` 未传入的轻量测试夹具里无条件调用 `await deps.getDetectionService()`，会直接抛出 `TypeError: deps.getDetectionService is not a function`，打崩快照兜底分支。
+ */
 export function createSnapshotBuilder(deps: SnapshotDeps) {
   const { getRepoKey, runGh, fetchIssues, getTrackerRegistry, getPlatform, execProc } = deps
   const { fetchMapsDetailREST, mapTicket, parseMapBody, computeLevels, groupTickets, isRateLimitError } = deps

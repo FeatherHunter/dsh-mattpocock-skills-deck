@@ -1,7 +1,7 @@
 // src/host/platformChannel.ts —— 平台与探测通道（H1 #445 从 host/index.js 259–491 搬出，纯结构、行为零变化）
 // 2026-10-14（#1161）从 .js 转成 .ts：只加类型标注与注释，逻辑一行未动。
 // 以后谁改它：改平台抽象、后端注册表或探测级联的人。预估约 280 行，超 350 打回。
-// 接线：由 index.js 动态 import 动态加载；STATUS_CACHE_MS 随本文件搬入（无外部引用）；getMattSkillProbeNames/probeSkill 显式注入；共享层只引用 src/shared（出站分档/准入/测量，#963）。本文件不引用其他宿主新文件。
+// 接线：由 index.ts 动态 import 动态加载；STATUS_CACHE_MS 随本文件搬入（无外部引用）；getMattSkillProbeNames/probeSkill 显式注入；共享层只引用 src/shared（出站分档/准入/测量，#963）。本文件不引用其他宿主新文件。
 // #968 技能按需多一个显式注入 getChainSkillNames（链条目录里要的三项技能名，查链时只问这三项）。
 // #1161：内置房间清单从前写在本文件里（三段 try 各 import 一间房），现在只认装配点
 //   src/tracker/registry/builtins.ts —— 宿主侧不再认识任何具体房间（规则 rooms-imported-only-by-assembly）。
@@ -116,8 +116,15 @@ interface Deps {
 // 最后一道兜底里读它，且都按「可能不存在」写（见 nodeOs 兜底与 envSrc）。
 declare const process: { env?: Record<string, string | undefined>; platform?: string } | undefined
 
-// #968 平时问三项、重查问全量的分流判据（纯函数，门禁直测它）：
-//   范围是“链”就只问链条要的三项，其余（全量、未知）都问全量——未知时宁可多问，不漏判。
+/**
+ * 按探测范围挑选本轮要探测的技能名单（#968 平时问三项、重查问全量的分流判据，纯函数，门禁直测它）。
+ *
+ * 为什么：日常检查链只需要确认链条里的三项核心技能是否在场，每次都把全套技能挨个探测一遍会白白浪费子进程与文件读取；只有用户主动要求全量重查或范围未知时才需要全量名单。
+ * 什么约定不能改：
+ *   1. 只有 `scope === 'chain'` 且 `chainNames` 是非空数组时才返回 `chainNames` 的浅拷贝；其余任何取值（包括 `'all'`、空值、未传或 `chainNames` 为空）一律退回 `allNames` 的浅拷贝，宁可多问绝不漏判。
+ *   2. 返回值必须是新数组拷贝，调用方在结果上增删元素不能污染传入的原数组；任何异常输入都兜底返回空数组 `[]`，不向外抛错。
+ * 反例：`selectSkillProbeNames(['wayfinder', 'grilling'], [], 'chain')` 传入空的链条名单时，若直接返回空数组 `[]`，会导致检查链误以为无需探测任何技能而假绿；正确行为是退回全量名单 `['wayfinder', 'grilling']`。
+ */
 export function selectSkillProbeNames(allNames: unknown, chainNames: unknown, scope: unknown): string[] {
   try {
     if (String(scope || '') === 'chain' && Array.isArray(chainNames) && chainNames.length) return chainNames.slice()
@@ -125,6 +132,16 @@ export function selectSkillProbeNames(allNames: unknown, chainNames: unknown, sc
   try { return ((allNames || []) as string[]).slice() } catch { return [] }
 }
 
+/**
+ * 组装宿主侧的平台抽象、后端注册表、工作区探测缓存、本机选择记忆与统一判定出口（#445 / #683 / #1003 / #1161）。
+ *
+ * 为什么：宿主入口、快照构建、检查链和工作区绑定都需要同一份平台适配器、同一个后端注册表单例和同一条本机记忆读改写队列；集中在这里懒加载并缓存 Promise，能保证全进程共享同一份实例且只经 `src/tracker/registry/builtins.ts` 装配点接触具体后端房间。
+ * 什么约定不能改：
+ *   1. `getTrackerRegistry`、`getPlatform`、`getWorkspaceStore`、`getChoiceStore`、`getDecisionFn` 全部采用首次调用懒初始化并复用同一个 Promise，并发调用绝不能建出两份注册表或两条本机记忆队列。
+ *   2. `detectionExec` 执行外部命令时必须先经出站名额闸与并发通道（`getGhLane`），并在调试开关打开时记录 `exec.run`（只记命令程序名与工作区八位短指纹，绝不把完整路径或参数原文写进日志）。
+ *   3. 本文件只能经装配点 `../tracker/registry/builtins.js` 登记内置后端房间，不得直接引用任何 `src/tracker/rooms/*` 内部实现。
+ * 反例：若在 `workspaceCwd.ts` 和 `platformChannel.ts` 里各自调用 `createChoiceStoreForHost` 新建本机记忆实例，两个窗口同时切换后端时就会绕开单队列串行化，后写的一方直接覆盖先写一方的 `~/.dsh/mattskillsdeck/choices.json`。
+ */
 export function createPlatformChannel(deps: Deps) {
   const { ctx, subprocess, timer, fs, DEFAULT_CWD, TIMEOUT_MS, getMattSkillProbeNames, getChainSkillNames, probeSkill, logCtx, gate, getGate } = deps
   // #494 O1：旧文本通道退役——backend.diagnostic 不再产生（github 房内零调用；残留 ctx.log.* 调用自动静默，gitlab 房由本房 O 票另行结构化）。房内埋点只走 logEvent/isEnabled。

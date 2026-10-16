@@ -1,7 +1,7 @@
 // src/host/issueDetail.ts —— 单详情与快照拼装（H2 #446 从 host/index.js 546–840 搬出，纯结构、行为零变化）。
 // 2026-10-14（#1161）从 .js 转成 .ts：只加类型标注与注释，逻辑一行未动。
 // 以后谁改它：改详情查询字段（GraphQL/REST 双通道）或快照拼装结构的人。预估约 330 行，超 350 打回。
-// 接线：由 index.js 动态 import 加载；执行器/注册表/解析函数等 18 项依赖全显式注入；本文件除装配点
+// 接线：由 index.ts 动态 import 加载；执行器/注册表/解析函数等 18 项依赖全显式注入；本文件除装配点
 //   （src/tracker/registry/builtins.ts，见下方 githubRoom）外不引用其他新文件。
 // #1161：从前这里是 `import { pullStateOf } from '../tracker/rooms/github/normalize.js'` —— 宿主直接深引
 //   房间实现。宿主侧不许再这样引（规则 rooms-imported-only-by-assembly），改经装配点取。
@@ -41,6 +41,16 @@ function githubExtras(): Promise<GithubExtras> {
   return _ghExtrasP
 }
 
+/**
+ * 组装单张工单或拉取请求详情的 GraphQL 主通道与 REST 兜底通道（#446 / #599 / #1161 / #1170）。
+ *
+ * 为什么：面板点开单张工单或拉取请求时需要拉取正文、评论、标签、子票和阻塞边，但 GitHub GraphQL 可能遇到配额耗尽（`RATE_LIMIT`）或普通工单与拉取请求分属不同查询根，因此把「GraphQL 优先、配额耗尽或未命中时平滑切 REST 兜底、拉取请求已合并状态归一为 CLOSED」收口在同一处。
+ * 什么约定不能改：
+ *   1. 返回信封固定为 `{ ok: true, issue, fallback? }` 或 `{ ok: false, error: { kind, message } }`；普通工单与拉取请求产出的 `issue` 必须对齐 `isPullRequest`、`mergedAt`、`reviews`、`subIssues`、`blockedBy`、`blocking` 字段，避免快照与详情切换时发生字段抖动。
+ *   2. 遇到配额限制（`isRateLimitError` 为真）时必须立即切到 `fetchIssueDetailREST`，不得继续重试 GraphQL 消耗剩余点数；REST 侧拉取评论、子票、阻塞边或评审子请求失败时只将该子项置空，不得让整张票详情崩溃。
+ *   3. 拉取请求的状态归一函数 `pullStateOf` 必须经装配点 `loadGithubHostExtras()` 获取，不得直接深引 `src/tracker/rooms/github/*`。
+ * 反例：若拉取请求已合并（GitHub 原始 `state === 'MERGED'`）时不经 `pullStateOf` 归一就直接返回 `'MERGED'`，面板与地图统计会把已合并的拉取请求当成未关闭票，导致前沿票阻塞判定一直卡死。
+ */
 export function createIssueDetail(deps: Deps) {
   const { getRepoKey, runGh, execProc, getTrackerRegistry, getPlatform, getDetectionService } = deps
   const { getRepoRoot, ctx, timer, getGhPath, getGhLastError } = deps
