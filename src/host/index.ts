@@ -39,9 +39,10 @@ export default {
     // v1.5.0（公共发布）：兜底 gh 路径经 platform.env.get('DSH_GH_PATH')（#171 migrated，零直读 process.env）。
     // #1003（2026-10-12 维护者拍板）：这里原来是 DSH 进程的当前目录——那会把「还不知道工作区是哪条目录」冒充成一条真实存在的、别人的目录（桌面端上就是安装目录），所以改成空串：调用方拿到空目录一律如实失败，不许拿它去解析路径或起外部命令。
     const DEFAULT_CWD = ''
+    // 超时数字留字面量：宿主入口禁静态 import（见本文件 H7 #515 注释的 D7 约束），值由门禁 tests/verify-time-config.ts 锁死等于中央 YAML，调时间改 config/timeouts.yaml。
     const TIMEOUT_MS = 30000
-    // v1.3.3 提速：快照缓存 5s → 60s（面板打开基本命中缓存，不再每次全量重建 11 次 gh 调用）
     const CACHE_MS = 60000
+    // v1.3.3 提速：快照缓存 5s → 60s（面板打开基本命中缓存，不再每次全量重建 11 次 gh 调用）
     // H1 #445：原 235–249 行（技能名单）已搬到 ./bootstrap.js。
     const QUERY = 'query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){issue(number:$n){number title state body url labels(first:20){nodes{name}} subIssues(first:100){totalCount nodes{number title state body url labels(first:10){nodes{name}} assignees(first:10){nodes{login}} blockedBy(first:20){nodes{number title state}} }}}}}'
     // ============ 状态 ============

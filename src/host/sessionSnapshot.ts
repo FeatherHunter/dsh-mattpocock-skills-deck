@@ -6,6 +6,8 @@
 import { createSnapshotEnvelope } from './snapshotEnvelope.js'
 // #1139：界面描述（发给界面的那份后端数据）的投影只有一处实现，本文件不再自己挑字段。
 import { projectUiDescription } from '../tracker/ui-description.js'
+// 超时住中央 YAML，调时间改 config/timeouts.yaml。
+import { SNAPSHOT_TTL_MS } from '../shared/time-config/values.js'
 
 // ===== 类型契约（#1155）：下面这些声明只给类型检查看，编译后一行都不剩，运行时不引用任何名字 =====
 // 为什么都堆在文件顶部：本文件的依赖全部由接线处 index.js 那份对象注入（JS 不查编译错误），
@@ -159,7 +161,7 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
           const { createSnapshotComposer } = await import('./tracker/snapshot.js')
           // 本地（JSDoc）那份 composeSnapshot 把第四个参数写窄成了 { force?: boolean }，而这里确实还传了
           // ifNoneMatch；composer 只按本地类型标注，不碰它的实现。
-          const composer: Composer = createSnapshotComposer(reg, { snapshotTtl: 5000 })
+          const composer: Composer = createSnapshotComposer(reg, { snapshotTtl: SNAPSHOT_TTL_MS })
           const res = await composer.composeSnapshot(backendId, repoRef, ctx2, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: !!(args && args.force) })
           if (!res.ok) { const _e1: Error & { fail?: unknown } = new Error((res.error && res.error.message) || 'composeSnapshot failed'); if (res.fail) _e1.fail = res.fail; throw _e1 }
           // #683（F1 · ADR 的 R4）：后端说「没变」（304）时也要把权威选择带上 —— 那正是「只换了后端、 快照内容一个字没变」这个现场：不带的话客户端收到 304 就什么都不做，面板头继续显示旧后端。
@@ -303,7 +305,7 @@ export function createSessionSnapshot(deps: SnapshotDeps) {
         }
         const ctx2b = { cwd, platform: await getPlatform(), fs: ctx.get('fs'), exec: function (c: string, a: unknown[], o: unknown) { return detectionExec(c, a, o, 'snapshot') } }
         const { createSnapshotComposer: createComposer2 } = await import('./tracker/snapshot.js')
-        const composer2: Composer = createComposer2(reg2, { snapshotTtl: 5000 })
+        const composer2: Composer = createComposer2(reg2, { snapshotTtl: SNAPSHOT_TTL_MS })
         const res2 = await composer2.composeSnapshot(backendId2, repoRef2, ctx2b, { ifNoneMatch: (args && (args.ifNoneMatch || args.version)) || '', force: !!(args && args.force) })
         if (!res2.ok) { const _e2: Error & { fail?: unknown } = new Error((res2.error && res2.error.message) || 'composeSnapshot failed'); if (res2.fail) _e2.fail = res2.fail; throw _e2 }
                   const inner2 = upcaseSnapStates(res2.snapshot)

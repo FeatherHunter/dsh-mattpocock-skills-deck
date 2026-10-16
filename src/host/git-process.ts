@@ -11,6 +11,8 @@
 import { timeoutForGhArgs, isWriteGhArgs } from '../tracker/kernel/outbound-tiers.js'
 import { getGhLane } from './outbound/admission.js'
 import { getChainRide } from './refresh/chain-ride.js'
+// 超时住中央 YAML，调时间改 config/timeouts.yaml。
+import { PROC_PROBE_GRACE_MS, PROC_GRACE_MS } from '../shared/time-config/values.js'
 
 // ---------------------------------------------------------------------------
 // 类型（#1155 类型标注，只写类型不写实现）。
@@ -174,7 +176,7 @@ export function createRepoKeys(deps: RepoKeysDeps) {
       try {
         // #723（T19）：这一条 `gh --version` 探测也是一笔真实出站（虽然不扣配额），照记一笔。
         reportOutbound(['--version'])
-        const probeHandle = subprocess.spawn({ argv: ['gh', '--version'], cwd: DEFAULT_CWD, stdio: { stdin: 'ignore', stdout: { maxBytes: 1024 }, stderr: { maxBytes: 1024 } }, graceMs: 1000 })
+        const probeHandle = subprocess.spawn({ argv: ['gh', '--version'], cwd: DEFAULT_CWD, stdio: { stdin: 'ignore', stdout: { maxBytes: 1024 }, stderr: { maxBytes: 1024 } }, graceMs: PROC_PROBE_GRACE_MS })
         const probeOutcome = await Promise.race([probeHandle.done, timer.timeout(2000).then(function(){ try{ probeHandle.terminate(); }catch(e){} return { exitCode: -1 } })])
         const outProbe = (probeHandle.collected && probeHandle.collected.stdout) ? probeHandle.collected.stdout.readFrom(0) : { text: '' }
         if (probeOutcome && probeOutcome.exitCode === 0 && String(outProbe.text||'').includes('gh version')) { setGhPath('gh'); setGhLastError(null); return 'gh' }
@@ -210,7 +212,7 @@ export function createRepoKeys(deps: RepoKeysDeps) {
           argv: [exe].concat(args),
           cwd: cwd, // 走到这里 cwd 一定非空（空的那条在上面早返回了）：不再写「缺省回退兜底值」那种死写法
           stdio: { stdin: 'ignore', stdout: { maxBytes: 4 * 1024 * 1024 }, stderr: { maxBytes: 256 * 1024 } },
-          graceMs: 2000,
+          graceMs: PROC_GRACE_MS,
         })
       } catch (e) {
         try { if (logCtx) logCtx.fire('info', 'gh.exec', { argv0: 'gh', cwdHash: hash8(cwd || DEFAULT_CWD), latencyMs: Date.now() - ghT0, kind: 'spawn', exitCode: -1 }) } catch (eL) {}
@@ -298,7 +300,7 @@ export function createRepoKeys(deps: RepoKeysDeps) {
           // 但**不写「回退兜底值」那种死写法**——兜底值已是空串，写成回退只会让后人以为这里有工作区。
           cwd: cwd || undefined,
           stdio: { stdin: 'ignore', stdout: { maxBytes: 1024 * 1024 }, stderr: { maxBytes: 256 * 1024 } },
-          graceMs: 2000,
+          graceMs: PROC_GRACE_MS,
         })
       } catch (e) {
         if (xpIsOutbound) { try { if (xpRelease) xpRelease() } catch {} }

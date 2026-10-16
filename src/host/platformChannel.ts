@@ -12,6 +12,8 @@ import { createOutboundControl } from './platform/outbound-control.js'
 // #1115：宿主计时器服务交回的是可调用的撤销器（不是数字句柄、也没有 dispose 方法），
 //   撤销的三档判据收在共享层一处；本文件两处 timers 口都只用它，不再各写一遍。
 import { hostTimers } from '../shared/host-timer/host-timers.js'
+// 超时住中央 YAML，调时间改 config/timeouts.yaml。
+import { STATUS_CACHE_MS, PROC_GRACE_MS } from '../shared/time-config/values.js'
 
 // ---------------------------------------------------------------------------
 // 类型（#1161 类型标注，只写类型不写实现）。
@@ -164,7 +166,6 @@ export function createPlatformChannel(deps: Deps) {
   // #606 命令名只留程序名：调用方通常给的是 'gh' / 'git' 这种裸名字，但若给了带目录的完整路径，
   //   这里也把目录部分去掉，保证日志里永远不会出现一条文件系统路径。
   function progName(cmd: unknown): string { try { return String(cmd || '').split(/[\\/]/).pop() || '' } catch { return '' } }
-  const STATUS_CACHE_MS = 30000  // workspaceStore 探测级联 TTL（#344 沿革 · #284 保留；原 index.js 234 行）
     // ============ Tracker Registry（#155 · 后端选择 UI）============
     let _trackerRegistry: TrackerRegistry | null = null
     let _trackerRegistryInit: Promise<TrackerRegistry | null> | null = null
@@ -364,7 +365,7 @@ export function createPlatformChannel(deps: Deps) {
           argv: argv,
           cwd: c || DEFAULT_CWD,
           stdio: { stdin: 'ignore', stdout: { maxBytes: 4 * 1024 * 1024 }, stderr: { maxBytes: 256 * 1024 } },
-          graceMs: 2000,
+          graceMs: PROC_GRACE_MS,
         })
       } catch (e) {
         if (deIsOutbound) { try { if (deRelease) deRelease() } catch {} }

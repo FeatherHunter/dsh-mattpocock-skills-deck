@@ -41,6 +41,8 @@ import nodePath from 'node:path'
 import darwin from './darwin/index.js'
 import win32 from './win32/index.js'
 import linux from './linux/index.js'
+// 超时住中央 YAML，调时间改 config/timeouts.yaml。
+import { PROC_GRACE_MS } from '../../shared/time-config/values.js'
 
 /** 宿主上下文（动态缝）：取哪个服务都可能缺席，取回值按 any 收，调用点用 typeof 与 try/catch 守。 */
 interface HostCtx {
@@ -227,7 +229,7 @@ export async function composePlatform(ctx: HostCtx, osName: string, adapter: Ada
     try { subprocess = ctx.get('subprocess') } catch { subprocess = null }
     if (!subprocess || typeof subprocess.spawn !== 'function') return { ok: false, error: '当前环境不支持调起' }
     try {
-      const handle = subprocess.spawn({ argv: argv, cwd: cwd, stdio: { stdin: 'ignore', stdout: { maxBytes: 64 * 1024 }, stderr: { maxBytes: 64 * 1024 } }, graceMs: 2000 })
+      const handle = subprocess.spawn({ argv: argv, cwd: cwd, stdio: { stdin: 'ignore', stdout: { maxBytes: 64 * 1024 }, stderr: { maxBytes: 64 * 1024 } }, graceMs: PROC_GRACE_MS })
       if (handle && handle.done) handle.done.catch(function () {})
       return { ok: true }
     } catch (e) {
