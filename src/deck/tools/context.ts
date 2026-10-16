@@ -11,6 +11,8 @@ import { withCallScope } from '../shell/call-budget.js'
 import * as budget from '../../shared/refresh/budget.js'
 import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/tool-cost.js'
 import { knownWritePermissions } from '../../shared/tracker/backendWritePermissions.js'
+// 超时住中央 YAML，调时间改 config/timeouts.yaml。
+import { DECK_SANDBOX_TIMEOUT_MS } from '../../shared/time-config/values.js'
 
 /** 数字型参数的统一收口：正的有限数才要（取整），其余一律当「没给」，由调用方退自己的默认。 */
 function numOpt(v: unknown): number | undefined { return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : undefined }
@@ -22,7 +24,6 @@ function withCap<T>(promise: Promise<T> | T, ms: number): Promise<CapResult<T>> 
     new Promise<CapResult<T>>(function (resolve) { setTimeout(function () { resolve({ ok: false, timedOut: true }) }, ms) }),
   ])
 }
-const SANDBOX_TIMEOUT_MS = 5000
 // 执行层失败与后端诚实失败的分界（见 issue-create.ts 同名注释）：前者抛给壳走
 // backend-threw（可重试），后者走 PARTIAL/notes。钳制只管超时，不改判。
 // 超时单列一支（kind 'timeout'）：它也是执行层失败，但机器可读的原因码走独立的
@@ -107,7 +108,7 @@ export function createDeckContext(deps?: DeckContextDeps) {
     let sandbox: unknown = null
     try {
       if (typeof d.sandboxPolicyFor === 'function') {
-        const raced = await withCap(d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }), SANDBOX_TIMEOUT_MS)
+        const raced = await withCap(d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }), DECK_SANDBOX_TIMEOUT_MS)
         sandbox = (raced && raced.ok === true) ? raced.value : null
       }
     } catch (eS) { sandbox = null }

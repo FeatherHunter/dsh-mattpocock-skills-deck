@@ -11,6 +11,8 @@ import { createDeckShell, DECK_STATUS, REFUSAL_REASONS } from '../shell/call-she
 import { sessionContextOfAsync } from '../shell/session-workdir.js'
 import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/tool-cost.js'
 import { withCallScope } from '../shell/call-budget.js'
+// 超时住中央 YAML，调时间改 config/timeouts.yaml。
+import { DECK_SANDBOX_TIMEOUT_MS } from '../../shared/time-config/values.js'
 
 /**
  * 装配层注入的依赖袋。壳要用的键原样透传（没列的键也一律接受：壳自己还没标类型，这一层不替它把关）；
@@ -75,7 +77,6 @@ function withCap<T>(promise: Promise<T> | T, ms: number): Promise<CapResult<T>> 
     new Promise<CapResult<T>>(function (resolve) { setTimeout(function () { resolve({ ok: false, timedOut: true }) }, ms) }),
   ])
 }
-const SANDBOX_TIMEOUT_MS = 5000
 
 /** 这一行是不是地图：后端回的 type 认地图、或带 isMap 标记、或戴着 wayfinder:map 标签都算。 */
 function isMapRow(issue: Record<string, unknown> | null | undefined): boolean {  try {
@@ -130,7 +131,7 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
     let sandbox: unknown = null
     try {
       if (typeof d.sandboxPolicyFor === 'function') {
-        const raced = await withCap(d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }), SANDBOX_TIMEOUT_MS)
+        const raced = await withCap(d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }), DECK_SANDBOX_TIMEOUT_MS)
         sandbox = (raced && raced.ok === true) ? raced.value : null
       }
     } catch (eS) { sandbox = null }

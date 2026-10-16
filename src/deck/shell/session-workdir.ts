@@ -13,6 +13,8 @@
 // 调用方按 ok 分两支之后，各自的字段才是可用的——这是本文件给出去的唯一契约。
 
 import { withInFlightLease } from './in-flight-lease.js'
+// 超时住中央 YAML，调时间改 config/timeouts.yaml。
+import { CANONICAL_TIMEOUT_MS } from '../../shared/time-config/values.js'
 
 /** 外层递进来的东西都是未知形状（exec 由 DSH 给、deps 由工具与测试拼），逐格验，不猜。 */
 type UnknownRecord = Record<string, unknown>;
@@ -66,7 +68,6 @@ function hash8(t: unknown): string {
 
 const NO_SESSION = 'no-session-context'
 // 归一等待上限（毫秒）：对手是挂住的文件服务。
-const CANONICAL_TIMEOUT_MS = 5000
 
 // 缺省等待口：真定时器。到点或被喊停都清掉定时器；定时器一律 unref（#1114 的实测教训）——
 // 一个只负责「到点提醒」的定时器不该成为进程活下去的理由。

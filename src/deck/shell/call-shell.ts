@@ -39,6 +39,8 @@ import type {
   ShellSession, UnknownRecord, WaitSignal,
 } from './call-shell-types.js'
 import { withInFlightLease } from './in-flight-lease.js'
+// 超时住中央 YAML，调时间改 config/timeouts.yaml。
+import { SHELL_RESOLVE_TIMEOUT_MS } from '../../shared/time-config/values.js'
 
 /** 这批工具的身份（写日志时进 host.call 的 kind 字段；不是新事件，沿用它原有的字段清单）。 */
 export const DECK_TOOL_KIND = 'deck-tool'
@@ -304,7 +306,7 @@ export function createDeckShell(deps?: DeckShellDeps): DeckShell {
         const tRec = (tracker || null) as UnknownRecord | null
         const getRepoKey = tRec ? tRec.getRepoKey : null
         if (typeof getRepoKey === 'function') {
-          const capMs = (typeof d.resolveTimeoutMs === 'number' && d.resolveTimeoutMs > 0) ? Math.floor(d.resolveTimeoutMs) : 8000
+          const cap = (typeof d.resolveTimeoutMs === 'number' && d.resolveTimeoutMs > 0) ? Math.floor(d.resolveTimeoutMs) : SHELL_RESOLVE_TIMEOUT_MS
           let key: unknown = null
           let resolveSent: GateSendResult | null = null
           try {
@@ -316,7 +318,7 @@ export function createDeckShell(deps?: DeckShellDeps): DeckShell {
                 key = await withInFlightLease(function () {
                   return Promise.race([
                     Promise.resolve((getRepoKey as (cwd: string, ctx: unknown) => unknown)(ss.cwd, Object.assign({}, backendCtxNow(), { cwd: ss.cwd, caller: DECK_TOOL_KIND }))),
-                    sleep(capMs).then(function () { return null }, function () { return null }),
+                    sleep(cap).then(function () { return null }, function () { return null }),
                   ])
                 })
               } catch (eResolve) { key = null }

@@ -20,8 +20,10 @@
 // 不预先存进模块级常量，所以门禁把全局时钟换成虚拟时钟时租约跟着走虚拟时钟；助手的规矩是
 // 「队列里还有被引用的等待，泵就必须是活的」，这一支就是那个被引用的等待。
 
+// 超时住中央 YAML，调时间改 config/timeouts.yaml。
+import { IN_FLIGHT_KEEP_ALIVE_MS } from '../../shared/time-config/values.js'
+
 /** 保活句柄的延时（毫秒）：2147483647 是 Node 允许的最大值（约 24.8 天），再大就会被改成 1 毫秒并告警。 */
-const KEEP_ALIVE_MS = 2147483647
 
 /** 此刻持有租约的场数。 */
 let holders = 0
@@ -38,7 +40,7 @@ function acquire(): void {
   holders += 1
   if (holders !== 1 || keepAlive !== null) return
   try {
-    keepAlive = setInterval(noop, KEEP_ALIVE_MS)
+    keepAlive = setInterval(noop, IN_FLIGHT_KEEP_ALIVE_MS)
     handlesOpened += 1
   } catch (e) {
     // 建不出来（宿主把定时器收走了）就如实降级：活照跑，只是这一趟不再保证进程活到它结算。

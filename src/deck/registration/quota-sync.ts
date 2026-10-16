@@ -18,6 +18,9 @@
 // 日志不新增：走闸与落账自带既有的 gh.exec 与 quota.spend 两行，
 // 成功再记既有 host.call（deck.quotaSync），失败不另记（#1030 Q6）。
 
+// 超时住中央 YAML，调时间改 config/timeouts.yaml。
+import { QUOTA_SYNC_COOLDOWN_MS } from '../../shared/time-config/values.js'
+
 /** 一桶额度的读数：上限、剩余、重置时刻（秒或毫秒，服务端给什么就是什么，不自己编时长）。 */
 export interface QuotaBucket { limit: number; remaining: number; reset: number }
 /** 两桶读数：rest 与 graphql 缺任何一格都算失败（调用方回不成功，不抛）。 */
@@ -76,7 +79,7 @@ export function createDeckQuotaSync(deps: unknown): { ensureReading: (cwd: unkno
   const logCtx = d.logCtx || null
   // 失败冷却：gh 不在的机器上失败是常态，不加冷却每次调用白起一次失败的 gh。
   // 成功清零，失败记时，冷却内直接认失败（调用方照旧被闸推迟）。
-  const cooldownMs = (typeof d.cooldownMs === 'number' && d.cooldownMs >= 0) ? Math.floor(d.cooldownMs) : 60000
+  const cooldownMs = (typeof d.cooldownMs === 'number' && d.cooldownMs >= 0) ? Math.floor(d.cooldownMs) : QUOTA_SYNC_COOLDOWN_MS
   let lastFailAt = 0
 
   // 读数落账这一笔留痕（常驻：进程里 60 秒至多一次，跨进程边界，低频）。

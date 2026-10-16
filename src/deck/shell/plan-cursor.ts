@@ -8,6 +8,9 @@
 // 住共享层（src/deck/shell/）、零导入（同层禁互引）：读写文件的本事由调用方以 io 传进来。
 // 日志：静默持久化，不新增事件名（成败 already 体现在工具回执里）。
 
+// 超时住中央 YAML，调时间改 config/timeouts.yaml。
+import { PLAN_CURSOR_TTL_MS } from '../../shared/time-config/values.js'
+
 /** 未知形状的入参统一按这张表逐格验，不猜。 */
 type UnknownRecord = Record<string, unknown>;
 
@@ -103,7 +106,7 @@ export function createFilePlanStore<T = PlanCursorState>(opt?: PlanStoreOpts): P
   const dir = String(o.dir || '')
   const ws = String(o.workspaceKey || 'ws')
   const nowFn = (typeof o.now === 'function') ? o.now : Date.now
-  const ttl = num(o.ttlMs, 7 * 24 * 3600 * 1000)
+  const ttl = num(o.ttlMs, PLAN_CURSOR_TTL_MS)
   const mem = createMemoryPlanStore<T>()
   // 三样本事先取成局部常量：后面闭包里直接调，不用再对 io 做一遍存在性判断。
   const readText = io.readText

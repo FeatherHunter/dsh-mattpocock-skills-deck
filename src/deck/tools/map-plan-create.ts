@@ -21,6 +21,8 @@ import { applyParentEdge, applyBlockEdges, statusOfItems, childrenOf } from '../
 import { ensureLabels, ensureBody, anchorKeyFor } from '../shell/minimal-spec.js'
 import * as budget from '../../shared/refresh/budget.js'
 import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/tool-cost.js'
+// 超时住中央 YAML，调时间改 config/timeouts.yaml。
+import { DECK_SANDBOX_TIMEOUT_MS, DECK_STORE_TIMEOUT_MS } from '../../shared/time-config/values.js'
 
 export const definition = {
   name: 'deck_map_plan_create',
@@ -75,7 +77,6 @@ function numOpt(v: unknown): number | undefined { return (typeof v === 'number' 
 type CapResult<T> = { ok: true; value: T } | { ok: false; timedOut?: true }
 // 等待竞速：沙箱超时按缺席走老路；游标读超时按空游标（锚预检与幂等键仍是去重权威，不多出票），写超时吞掉。
 function withCap<T>(promise: Promise<T> | T, ms: number): Promise<CapResult<T>> { return Promise.race([Promise.resolve(promise).then(function (v): CapResult<T> { return { ok: true, value: v } }, function (): CapResult<T> { return { ok: false } }), new Promise<CapResult<T>>(function (resolve) { setTimeout(function () { resolve({ ok: false, timedOut: true }) }, ms) })]) }
-const SANDBOX_TIMEOUT_MS = 5000; const STORE_TIMEOUT_MS = 10000
 
 /**
  * 宿主的文件读写能力：每样都可能缺（缺了就不落盘），下面用它之前都先判过一次类型。
@@ -230,15 +231,15 @@ export function createDeckMapPlanCreate(deps?: DeckMapPlanCreateDeps) {
     store = {
       durable: rawStore.durable,
       load: function (id: string) {
-        return withCap(rawStore.load(id), STORE_TIMEOUT_MS).then(function (r) { return (r && r.ok === true) ? r.value : null })
+        return withCap(rawStore.load(id), DECK_STORE_TIMEOUT_MS).then(function (r) { return (r && r.ok === true) ? r.value : null })
       },
       save: function (id: string, st: PlanState) {
-        return withCap(rawStore.save(id, st), STORE_TIMEOUT_MS).then(function () {}, function () {})
+        return withCap(rawStore.save(id, st), DECK_STORE_TIMEOUT_MS).then(function () {}, function () {})
       },
       remove: (typeof rawStore.remove === 'function') ? function (id: string) {
         // 这一支里 remove 一定在（上面那个 typeof 已经判过）；断言只为让编译器安静（它不把闭包外的收窄带进来），
         // 运行时一个字节都不动 —— 真为空时这里照样抛 TypeError。
-        return withCap(rawStore.remove!(id), STORE_TIMEOUT_MS).then(function () {}, function () {})
+        return withCap(rawStore.remove!(id), DECK_STORE_TIMEOUT_MS).then(function () {}, function () {})
       } : undefined,
     }
 
@@ -246,7 +247,7 @@ export function createDeckMapPlanCreate(deps?: DeckMapPlanCreateDeps) {
     // 取值表达式一字不动，所以转译出来的 JS 与转换前逐字节一致。
     let out = null
     try {
-      out = await shell.call({ tool: 'deck_map_plan_create', kind: 'write', session: s, pick: pick, repo: repo, estimate: est, sandbox: (await (async function () { try { if (typeof d.sandboxPolicyFor !== 'function') return null; const raced = await withCap(d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }), SANDBOX_TIMEOUT_MS); return (raced && raced.ok === true) ? raced.value : null } catch (eS) { return null } })()), signal: (exec && (exec as { signal?: unknown }).signal && typeof (exec as { signal?: unknown }).signal === 'object') ? (exec as { signal?: unknown }).signal : undefined }, async (c: unknown) => {      const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), startedAt: toolEntryAt, now: nowFn })
+      out = await shell.call({ tool: 'deck_map_plan_create', kind: 'write', session: s, pick: pick, repo: repo, estimate: est, sandbox: (await (async function () { try { if (typeof d.sandboxPolicyFor !== 'function') return null; const raced = await withCap(d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }), DECK_SANDBOX_TIMEOUT_MS); return (raced && raced.ok === true) ? raced.value : null } catch (eS) { return null } })()), signal: (exec && (exec as { signal?: unknown }).signal && typeof (exec as { signal?: unknown }).signal === 'object') ? (exec as { signal?: unknown }).signal : undefined }, async (c: unknown) => {      const sc = withCallScope(c, exec, { timeoutMs: numOpt(d.toolTimeoutMs), marginMs: numOpt(d.toolMarginMs), startedAt: toolEntryAt, now: nowFn })
       // 走到这里 tracker 一定在（预算壳自己的约定：能进这一段就是选好后端了）；
       // 断言只为让编译器安静，运行时一个字节都不动 —— 真为空时下面那句照样抛 TypeError 走 backend-threw。
       const t = sc.tracker!

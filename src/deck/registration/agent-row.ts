@@ -29,6 +29,8 @@ import { definition as deckIssuePatchDef } from '../tools/issue-patch.js'
 import { definition as deckIssueReportDef } from '../tools/issue-report.js'
 import { AGENT_TOOL_TIMEOUT_MS, deckAgentOutputSchemaRaw, makePendingExecute, probeDefinition, probeServices } from './register-options.js'
 import { awaitDeckTable, peekDeckTable, readDeckGate, noteDeckPath, readDeckPath } from '../shell/table-cell.js'
+// 超时住中央 YAML，调时间改 config/timeouts.yaml。
+import { BRIDGE_DRY_TABLE_WAIT_MS, DELEGATED_CELL_WAIT_MS } from '../../shared/time-config/values.js'
 
 /** 运行环境里的进程对象（类型-only 声明，不影响运行时；行模块只读环境变量名，不读值）。 */
 declare const process: { env: Record<string, string | undefined> } | undefined;
@@ -66,8 +68,6 @@ const PROBE_KEY_LIMIT = 100
 // 探针干跑等表与代执行等格的两处上限（毫秒）：超时都按无表或无格跳过、走下一路，永不抛。
 // 干跑只看一眼不能久等，给 8000；同进程格是宿主装表直达的行内快路，给 25000，超时走直连与同源请求。
 // 两处数值与位置全冻（讨论 #1030 Q4）：改数字等于改失败路径证据，另立票才动。
-const BRIDGE_DRY_TABLE_WAIT_MS = 8000
-const DELEGATED_CELL_WAIT_MS = 25000
 
 function safeKeyList(obj: unknown, limit: unknown): string[] {
   const cap = (typeof limit === 'number' && limit > 0) ? Math.floor(limit) : PROBE_KEY_LIMIT

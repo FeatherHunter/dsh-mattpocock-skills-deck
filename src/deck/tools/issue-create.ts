@@ -16,6 +16,8 @@ import { withCallScope } from '../shell/call-budget.js'
 import { ensureLabels, ensureBody, anchorKeyFor } from '../shell/minimal-spec.js'
 import * as budget from '../../shared/refresh/budget.js'
 import { estimateToolCost, toolCostInputFrom } from '../../shared/refresh/tool-cost.js'
+// 超时住中央 YAML，调时间改 config/timeouts.yaml。
+import { DECK_SANDBOX_TIMEOUT_MS, DECK_HOOK_TIMEOUT_MS } from '../../shared/time-config/values.js'
 
 /** 数字型参数的统一收口：正的有限数才要（取整），其余一律当「没给」，调用方退自己的默认。 */
 function numOpt(v: unknown): number | undefined { return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : undefined }
@@ -28,8 +30,6 @@ function withCap<T>(promise: Promise<T> | T, ms: number): Promise<CapResult<T>> 
     new Promise<CapResult<T>>(function (resolve) { setTimeout(function () { resolve({ ok: false, timedOut: true }) }, ms) }),
   ])
 }
-const SANDBOX_TIMEOUT_MS = 5000
-const HOOK_TIMEOUT_MS = 5000
 // 执行层失败（抛错/中止/预算耗尽）与后端诚实失败的分界：前者在进壳之前会直接抛到
 // 壳的统一出口（reason=backend-threw，可重试），后者走逐项的 BACKEND_UNSUPPORTED（能力缺失，
 // 不当成 transient 重试）。壳外新加的钳制不能把前者改判成后者，否则 AI 会放弃重试。
@@ -139,7 +139,7 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
     let sandbox: unknown = null
     try {
       if (typeof d.sandboxPolicyFor === 'function') {
-        const raced = await withCap(d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }), SANDBOX_TIMEOUT_MS)
+        const raced = await withCap(d.sandboxPolicyFor({ cwd: s.cwd, sessionId: s.sessionId }), DECK_SANDBOX_TIMEOUT_MS)
         sandbox = (raced && raced.ok === true) ? raced.value : null
       }
     } catch (eS) { sandbox = null }
@@ -187,7 +187,7 @@ export function createDeckIssueCreate(deps?: DeckIssueCreateDeps) {
       // #746：建票直达命名守护（调用会话即建号会话；hook 缺失、失败或超时都不影响已建成的返回）。
       try {
         if (typeof d.onTicketCreated === 'function' && issue.key) {
-          const raced = await withCap(d.onTicketCreated({ sessionId: s.sessionId, key: String(issue.key), title: title }), HOOK_TIMEOUT_MS)
+          const raced = await withCap(d.onTicketCreated({ sessionId: s.sessionId, key: String(issue.key), title: title }), DECK_HOOK_TIMEOUT_MS)
           void raced
         }
       } catch (eHook) {}
