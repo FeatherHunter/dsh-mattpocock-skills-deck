@@ -402,7 +402,7 @@
     {
       "file": "src/host/platformChannel.ts",
       "spec": "./choiceStore.js",
-      "resolved": "src/host/choiceStore.js",
+      "resolved": "src/host/choiceStore.ts",
       "layer": "host",
       "count": 1,
       "owner": "#683 F1",

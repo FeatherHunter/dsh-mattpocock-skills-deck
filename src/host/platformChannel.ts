@@ -93,7 +93,7 @@ interface PathModule { posix: Omit<PlatformPath, 'joinHome'>; win32: Omit<Platfo
 interface OsModule { homedir(): string; platform(): string }
 /** 决策函数的装配结果（#1003 单出口）。 */
 interface DecisionFnModule { decideBackend: ((...a: unknown[]) => unknown) | null }
-/** 宿主侧那份「人选的后端」记忆（src/host/choiceStore.js 的产出）：本文件只把它原样转交给接线处。 */
+/** 宿主侧那份「人选的后端」记忆（src/host/choiceStore.ts 的产出）：本文件只把它原样转交给接线处。 */
 type ChoiceStore = Awaited<ReturnType<typeof import('./choiceStore.js')['createChoiceStoreForHost']>>
 
 /** 接线处注入的依赖。 */
@@ -440,7 +440,7 @@ export function createPlatformChannel(deps: Deps) {
     }
   function clearWorkspaceStore() { try { if (_workspaceStore && typeof _workspaceStore.clear === 'function') _workspaceStore.clear() } catch {} }
   // #683（F1）：宿主侧那份记忆（H）的单例就在这里建 —— 读它的是两处（绑定写入、判定读取），而它内部
-  //   那条读-改-写队列必须全进程只有一条（两个窗口同时写才排得成队）。规则与字段见 src/host/choiceStore.js 文件头。
+  //   那条读-改-写队列必须全进程只有一条（两个窗口同时写才排得成队）。规则与字段见 src/host/choiceStore.ts 文件头。
   let _choiceStoreP: Promise<ChoiceStore | null> | null = null
   function getChoiceStore(): Promise<ChoiceStore | null> {
     if (!_choiceStoreP) _choiceStoreP = (async function () {

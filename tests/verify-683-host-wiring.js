@@ -33,7 +33,7 @@ const makeDir = function (tag) { const d = fs.mkdtempSync(path.join(os.tmpdir(),
 
 const { createDetectionService } = await import(url('src/tracker/detection/detectionService.ts'))
 const { createRegistry } = await import(url('src/tracker/registry/core.ts'))
-const { createChoiceStore } = await import(url('src/host/choiceStore.js'))
+const { createChoiceStore } = await import(url('src/host/choiceStore.ts'))
 const { decideBackend: outletDecideBackend, selectionFromOutlet: outletSelectionFromOutlet } = await import(url('src/tracker/detection/backendDecision.ts'))
 try { outletDecideBackend.selectionFromOutlet = outletSelectionFromOutlet } catch (eAttachOutlet683) {}
 
@@ -146,7 +146,7 @@ console.log('== B R5c/R10：坏文件不采纳也不写、空工作区不回答�
   const ws3 = makeWorkspace('# Issue tracker: GitHub\n')
   const home3 = makeDir('dsh-683-home-')
   fs.mkdirSync(path.join(home3, '.dsh', 'mattskillsdeck'), { recursive: true })
-  const { hashWorkspaceKey } = await import(url('src/host/choiceStore.js'))
+  const { hashWorkspaceKey } = await import(url('src/host/choiceStore.ts'))
   const rec = { version: 1, workspaces: {}, layouts: {} }
   rec.workspaces[hashWorkspaceKey(ws3)] = { backendId: 'gitlab', rev: 3, pickedAt: 1758500000000, source: 'user' }
   fs.writeFileSync(path.join(home3, '.dsh', 'mattskillsdeck', 'choices.json'), JSON.stringify(rec), 'utf8')

@@ -31,7 +31,7 @@ const makeFs = (broken) => ({
 })
 
 const { createWorkspaceCwd } = await imp('src/host/workspaceCwd.js')
-const { createChoiceStore } = await imp('src/host/choiceStore.js')
+const { createChoiceStore } = await imp('src/host/choiceStore.ts')
 
 const home = fs.mkdtempSync(path.join(os.tmpdir(), 'v1003layout-home-'))
 const store = createChoiceStore({ homeDir: home, isKnownBackend: () => true })

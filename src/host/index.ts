@@ -80,7 +80,7 @@ export default {
     async function getWorkspaceStore(...args: any[]): Promise<any> { const h = await _plat(); return h.getWorkspaceStore.apply(h, args) }
     async function detectionExec(...args: any[]): Promise<any> { const h = await _plat(); return h.detectionExec.apply(h, args) }
     async function getDetectionService(...args: any[]): Promise<any> { const h = await _plat(); return h.getDetectionService.apply(h, args) }
-    async function getChoiceStore(...args: any[]): Promise<any> { const h = await _plat(); return h.getChoiceStore.apply(h, args) } // #683（F1）：宿主侧那份记忆（H）归 platformChannel 单点持有（读它的是两处：绑定写入与判定读取；队列全进程只许一条。规则见 src/host/choiceStore.js 文件头）。
+    async function getChoiceStore(...args: any[]): Promise<any> { const h = await _plat(); return h.getChoiceStore.apply(h, args) } // #683（F1）：宿主侧那份记忆（H）归 platformChannel 单点持有（读它的是两处：绑定写入与判定读取；队列全进程只许一条。规则见 src/host/choiceStore.ts 文件头）。
     async function resolveGh(...args: any[]): Promise<any> { const h = await _repo(); return h.resolveGh.apply(h, args) }
     async function resetGhCache(...args: any[]): Promise<any> { const h = await _repo(); return h.resetGhCache.apply(h, args) }
     async function runGh(...args: any[]): Promise<any> { const h = await _repo(); return h.runGh.apply(h, args) }

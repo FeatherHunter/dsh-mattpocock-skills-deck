@@ -8,7 +8,7 @@
  * R6 的存储形状（布局与后端记录同一种形状）、R7 的「只存散列、不落明文路径」。
  *
  * 分两组：
- *   A 行为层：真跑 src/host/choiceStore.js —— 真 node:fs 写进一个临时主目录（不碰真主目录）。
+ *   A 行为层：真跑 src/host/choiceStore.ts —— 真 node:fs 写进一个临时主目录（不碰真主目录）。
  *   B 反证：把真源改坏（去掉原子写、去掉散列、去掉守卫、去掉队列、去掉淘汰），
  *     把改坏的那一份**真的求值出来跑**，上面该红的那几条必须当场变红 —— 只比字符串不等、
  *     却仍跑真源，等于这道反证是假的（#669 那道门禁整改过一次，这里照它的写法）。
@@ -25,9 +25,11 @@ import os from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import * as realFs from 'node:fs/promises'
+import { TRANSPILE_OPTIONS } from '../scripts/lib/transpile-unit.mjs'
+import { loadEsbuild } from '../scripts/lib/transpile-domains.mjs'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
-const MODULE_REL = 'src/host/choiceStore.js'
+const MODULE_REL = 'src/host/choiceStore.ts'
 const url = (rel) => pathToFileURL(path.join(ROOT, rel)).href
 let passed = 0
 let failed = 0
@@ -220,6 +222,12 @@ console.log('== A 行为层：真模块 + 真落盘（临时主目录）==')
   check(noHomeRead.ok === false && noHomeRead.reason === 'no-home', '拿不到用户主目录时读不抛错（如实说是这一档）—— 实得 ' + JSON.stringify(noHomeRead))
   check(noHomeWrite.ok === false && noHomeWrite.reason === 'no-home', '拿不到用户主目录时写如实回失败（不假装成功）—— 实得 ' + JSON.stringify(noHomeWrite))
 
+  // 读盘抛出来的不是 Error（例如抛了个 null）：判「这次读不到」，不许把 null.code 炸成 TypeError
+  // （#1208 对抗式审查发现：转写时丢括号会让这个分支在 e 为假值时取 .code 当场抛错）
+  const stNullThrow = createChoiceStore({ homeDir: makeHome(), isKnownBackend: () => true, fs: wrapFs([], { stat: async () => { throw null } }) })
+  const nullThrowRead = await stNullThrow.read()
+  check(nullThrowRead.ok === false && nullThrowRead.unreadable === true && nullThrowRead.reason === 'read-fail', '读盘抛了个假值时读出来是「这次读不到」（不是抛错）—— 实得 ' + JSON.stringify(nullThrowRead))
+
   check(typeof DEFAULT_MAX_WORKSPACES === 'number' && DEFAULT_MAX_WORKSPACES > 0, '默认的条数上限是一个正数（' + DEFAULT_MAX_WORKSPACES + ' 条）')
 }
 
@@ -228,10 +236,22 @@ console.log('')
 console.log('== B 反证：把实现做坏，对应的那几条必须当场红 ==')
 const brokenDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-choice-broken-'))
 tmpDirs.push(brokenDir)
+// 反证求值的是「改坏之后的源码文本」：真源现在是 TypeScript，直接写进 .mjs 求值会报语法错，
+// 所以先按全仓唯一那份转译口径（TRANSPILE_OPTIONS，与构建同一份）转成 JavaScript 再求值。
+// 转译失败按落点缺失处理（当场红），不让门禁崩在没有结论的地方。
+const toRunnableJs = function (text) {
+  try {
+    return { text: loadEsbuild().transformSync(text, TRANSPILE_OPTIONS).code }
+  } catch (e) {
+    return { bad: '反证变体转译失败（' + ((e && e.message) || e) + '）' }
+  }
+}
 const loadBroken = async function (tag, from, to) {
   if (!src.includes(from)) return { bad: '这道反证的改法在真源里找不到落点（源文本已变）：' + String(from).split('\n')[0].slice(0, 80) }
+  const js = toRunnableJs(src.replace(from, to))
+  if (js.bad) return js
   const file = path.join(brokenDir, tag + '.mjs')
-  fs.writeFileSync(file, src.replace(from, to), 'utf8')
+  fs.writeFileSync(file, js.text, 'utf8')
   return { mod: await import(pathToFileURL(file).href) }
 }
 
@@ -244,8 +264,10 @@ const loadBroken = async function (tag, from, to) {
  */
 const loadBrokenRe = async function (tag, re, to, what) {
   if (!re.test(src)) return { bad: '这道反证的语义锚点在真源里找不到落点（找的是：' + what + '）' }
+  const js = toRunnableJs(src.replace(re, to))
+  if (js.bad) return js
   const file = path.join(brokenDir, tag + '.mjs')
-  fs.writeFileSync(file, src.replace(re, to), 'utf8')
+  fs.writeFileSync(file, js.text, 'utf8')
   return { mod: await import(pathToFileURL(file).href) }
 }
 

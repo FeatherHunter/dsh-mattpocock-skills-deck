@@ -161,7 +161,6 @@
     "src/client/views/versionControl/vcWriteRun.js",
     "src/client/views/versionControl/vcWriteUi.js",
     "src/host/bootstrap.js",
-    "src/host/choiceStore.js",
     "src/host/commentThreads.js",
     "src/host/configStore.js",
     "src/host/dispatchMeta.js",
