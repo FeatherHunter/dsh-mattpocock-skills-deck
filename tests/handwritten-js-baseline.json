@@ -19,6 +19,7 @@
     "scripts/generate-github-fixtures.js",
     "scripts/generate-markdown-fixtures.js",
     "scripts/generate-star-history-svg.mjs",
+    "scripts/generate-time-config.mjs",
     "scripts/lib/select-gates.mjs",
     "scripts/lib/transpile-domains.mjs",
     "scripts/lib/transpile-unit.mjs",

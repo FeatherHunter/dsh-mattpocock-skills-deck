@@ -79,7 +79,7 @@ const CACHE_PATH = join(ROOT, 'node_modules', '.cache', 'dsh-build.json')
 // 代价是改任何测试文件都会让指纹变、走一次全量重建——这是正确行为，不是故障：测试改了，
 // 就该重新构建一次再判定。
 const INPUT_ROOTS = ['src', 'scripts', 'tests']
-const INPUT_EXTRA = ['package.json', 'package/package.json', 'README.md', 'tsconfig.client.json', 'tsconfig.contract.json']
+const INPUT_EXTRA = ['package.json', 'package/package.json', 'README.md', 'tsconfig.client.json', 'tsconfig.contract.json', 'config/timeouts.yaml']
 const ARTIFACT_FILES = ['client.js', 'host.js', 'package/README.md']
 // package/lib 要整目录收进来：它下面除了两份入口，还有构建写出来的其他镜像，
 // 而 verify-log-artifacts 比的是「package/lib 里的镜像 vs src 里的真源」，两边必须一起提 mtime。
@@ -1402,6 +1402,14 @@ syncReadme(version, repoUrl)
 // 每个域先跑类型检查、再把它的 src/*.ts 逐份转译成同目录同名的 .js。
 // 放在两段派生之前：这些产物是客户端闭包与宿主模块的输入，必须先就位。
 // 域里没有源码目录时（发布包与 package/ 子树）这一步自己跳过并打印一行提示，构建继续走。
+// #1215：进域循环之前，先按 config/timeouts.yaml 重算 time-config 域的生成源码——
+// 域构建的第一步是该域的类型检查，生成必须在它之前，否则检查的是上一版的数字。
+{
+  const r = spawnSync(process.execPath, [resolve(ROOT, 'scripts', 'generate-time-config.mjs')], { encoding: 'utf8' })
+  if (r.status !== 0) {
+    throw new Error('中央时间参数生成失败（config/timeouts.yaml → time-config 域）：' + String((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(0, 3).join(' ／ '))
+  }
+}
 for (const domain of findDomains()) {
   buildDomain(domain, { handWritten: HAND_WRITTEN_IN_DOMAINS[domain] || [] })
 }

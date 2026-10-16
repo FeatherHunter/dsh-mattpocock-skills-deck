@@ -1,0 +1,157 @@
+# 中央时间参数（票 #1215 立）
+#
+# 这份文件是全仓 TypeScript 时间参数的唯一书写处：超时、节拍间隔、有效期、退避序列，
+# 单位一律是毫秒，文件里不写单位后缀。想改一个时间，先改这里，再跑一次生成器
+# （node scripts/generate-time-config.mjs），调用方读到的是生成出来的值。
+#
+# 四组是按“这个时间是干什么的”分的：
+#   timeouts  单次等待的上限（到点没回来就按失败或放弃处理）
+#   intervals 节拍间隔（每隔多久跑一次）
+#   ttl       有效期（一份结果多长之内算数，过期重取）
+#   backoff   退避序列（失败后等多久再试，一档比一档久）
+#
+# 缺键是合法状态，不是故障：生成器对缺的键只告警，调用方用今天的数字顶上
+# （回落底座见生成器里的 FALLBACKS 表）。未知键一律报错，不静默忽略。
+
+version: 1
+
+timeouts:
+  # 单次工具调用允许的最长时间：5 分钟。盖住批量建票在正常网络下的最坏情况。
+  # 管着两处：工具壳的执行预算（call-budget.ts）与工具注册的外层上限（register-options.ts），
+  # 两处同值由 tests/verify-895-bulk-deadline.ts 第⑦节看守。
+  toolTimeoutMs: 300000
+  # 工具调用收尾余量：15 秒。超时掐断之后留给收尾动作的时间。
+  toolMarginMs: 15000
+  # 单次远端操作的钳制：30 秒。壳内看钟用的同一份预算里的远端上限。
+  perOpTimeoutMs: 30000
+
+  # 去 GitHub 的分档超时（#969 暂定值，终值等 #967 测出耗时分布后回填）。
+  outboundReadMs: 12000
+  outboundWriteMs: 30000
+  outboundProbeMs: 3000
+  # 拿不到档位时的旧默认：沿用历史 30 秒，不静默变快。
+  outboundDefaultMs: 30000
+
+  # GitHub 房客户端兜底超时：30 秒。调用方显式传了超时就按调用方的来。
+  githubClientTimeoutMs: 30000
+  # 查登录态与版本号的探活用超时：3 秒。本该最快回来。
+  githubProbeMs: 3000
+  # git 直调的探活超时：3 秒（读远端地址那一类只读调用）。
+  gitProbeMs: 3000
+  # GitHub 房建仓那一步的超时：30 秒。
+  githubInitTimeoutMs: 30000
+
+  # GitLab 房常规读超时：8 秒。房里二十多处列表与详情查询共用这一档。
+  gitlabReadMs: 8000
+  # GitLab 房慢读超时：10 秒。翻页列表与计数查询走这一档。
+  gitlabSlowReadMs: 10000
+  # GitLab 房探活与轻查询超时：5 秒。登录态检查与单个用户查询走这一档。
+  gitlabProbeMs: 5000
+  # GitLab 房内 git 直调超时：3 秒。
+  gitlabRepoGitMs: 3000
+  # GitLab 房 git 回退链超时：2 秒。回退只是兜底，不值得久等。
+  gitlabFallbackMs: 2000
+  # GitLab 房建仓那一步的超时：60 秒。建仓含远端建仓库与本地初始化两段。
+  gitlabCreateProjectMs: 60000
+
+  # 跟踪器假身位匹配的超时：30 秒。超时视作 pending（未知），排除出决策集。
+  matchesTimeoutMs: 30000
+
+  # 九个 deck 工具问沙箱政策的等待上限：5 秒。等不到就按无政策继续，不拦工具执行。
+  deckSandboxMs: 5000
+  # 地图存取（读、写、删计划快照）的等待上限：10 秒。超时只记一笔，不抛错。
+  deckStoreMs: 10000
+  # 工具壳确保有可用地图时的等待上限：15 秒。它与上一条是两件事（“确保有”与“读写”），值不同是刻意的。
+  deckEnsureMs: 15000
+  # 工具钩子（票建好后的通知）的等待上限：5 秒。等不到就跳过，不影响主流程。
+  deckHookMs: 5000
+  # 工具表装配声明文件读取的等待上限：8 秒。
+  deckAssemblyMs: 8000
+  # 桥接干跑等工具表的等待上限：8 秒。
+  bridgeDryTableWaitMs: 8000
+  # 代执行格等工具返回的等待上限：25 秒。
+  delegatedCellWaitMs: 25000
+
+  # 宿主接线的通用超时：30 秒。经 deps 注入各宿主模块，改这里全链生效。
+  hostTimeoutMs: 30000
+  # 写锁默认等待上限：60 秒。等不到就诚实回，不无限排队。
+  keyLockMs: 60000
+  # 会话工作目录规范化的等待上限：5 秒。超时回退，不拦启动。
+  canonicalTimeoutMs: 5000
+  # 在途租约保活哨兵：2 的 31 次方减 1。非常值，不可调——它不是“等多久”，
+  # 是“让这一只定时器永远不触发”的写法，改小会让租约提前失效。
+  inFlightKeepAliveMs: 2147483647
+
+  # 客户端设置调试推送的等待上限：5 秒（客户端经构建 splice 吃到这个值，不运行时 import）。
+  settingsDebugPushWaitMs: 5000
+  # 配额同步失败后的冷却：60 秒。冷却期内不再发同步请求，不拿失败刷服务端。
+  quotaSyncCooldownMs: 60000
+  # 注册重试两次尝试之间的等待：2 秒。只在注册那条慢路上用，不进快路。
+  registerRetryWaitMs: 2000
+  # 壳命令寻址解析的等待上限：8 秒。等不到就按解析失败走，不拦工具执行。
+  shellResolveMs: 8000
+  # 子进程收尾宽限：探活类（gh --version 这种一闪即走的）1 秒，常规 2 秒。
+  # 宽限到了进程还没退才杀——杀早了会把“正在刷最后一段输出”的进程误杀。
+  procProbeGraceMs: 1000
+  procGraceMs: 2000
+
+intervals:
+  # 变化探测的间隔：正在看的那个活跃工作区每 5 秒探一次。
+  probeIntervalMs: 5000
+  # 黄档时探测放慢到的间隔：120 秒。红档不下探，直接全停。
+  probeIntervalYellowMs: 120000
+  # 活跃集合里“刚离开的那个”的探测间隔：15 秒。
+  probeIntervalLingerMs: 15000
+  # 黄档时两次整池重建之间的最短间隔：300 秒。防止降档之后还按原节奏重建。
+  rebuildMinIntervalYellowMs: 300000
+  # 后台对账（整池重建）的间隔：10 分钟。黄档时是否执行由档位决定。
+  reconcileIntervalMs: 600000
+  # 服务端剩余额度同步的间隔：60 秒。走不扣配额的接口，但仍是一条真实出站请求。
+  quotaSyncIntervalMs: 60000
+  # 面板可见时本地心跳的间隔：20 秒。零配额、不出网，只证明界面还看着这个工作区。
+  attentionHeartbeatMs: 20000
+
+ttl:
+  # 环境预检成功后的寿命：10 分钟。10 分钟之内复用同一份结果，不再重复花请求。
+  preflightTtlMs: 600000
+  # 检查链全绿后的缓存寿命：30 分钟。全绿这个状态本身变化很慢，不必反复重算。
+  chainAllGreenTtlMs: 1800000
+  # 被推迟的请求在队列里的过期时间：5 分钟。过期直接丢，不排队、不堆积、不重试。
+  deferExpiryMs: 300000
+  # 连续失败走完一整轮退避后，再等多久才放一笔探针试一次：5 分钟。
+  # 与推迟过期同一量级：两件事都是“等这么久还没好转，就当这一轮过去了”。
+  failureHalfOpenDelayMs: 300000
+  # 视野信号失效的判据：90 秒内没有任何“我在看谁”的上报，全部工作区降为后台档。
+  attentionExpiryMs: 90000
+  # 刚离开的那个工作区还算“活跃”多久：30 秒。照顾两个工作区之间快速来回切的手感。
+  activeLingerMs: 30000
+  # 行级补行的合并窗口：同一个工作区 10 秒内的多次补行合并成一次。
+  patchMergeWindowMs: 10000
+  # 数据超过多久算“黄”：5 分钟。定稿第十章“界面三件事”第一条的延迟承诺。
+  freshnessYellowMs: 300000
+  # 数据超过多久算“红”：30 分钟。
+  freshnessRedMs: 1800000
+  # 写票据的有效期：2 分钟。过期未用即作废，重走申请。
+  ticketTtlMs: 120000
+  # 工作区探测缓存的有效期：30 秒。
+  workspaceStoreTtlMs: 30000
+  # 搭检查链便车的单次有效期：30 秒。超了就自己重新求值，不蹭旧结论。
+  chainRideMaxAgeMs: 30000
+  # 快照组合器的缓存有效期：5 秒。四处同值（两次快照组装加两次刷新组装）。
+  snapshotTtlMs: 5000
+  # 宿主平台通道的状态缓存有效期：30 秒。workspaceStore 探测级联的寿命。
+  statusCacheMs: 30000
+  # 会话快照内存缓存的有效期：60 秒。命中即用，不重算。
+  snapshotCacheMs: 60000
+  # 计划游标文件的有效期：7 天。过期视为无游标，重走全量。
+  planCursorTtlMs: 604800000
+  # 幂等锚的时间档位宽度：5 分钟。把时刻压到档位上，同一档位内的重复调用视为同一笔。
+  anchorWindowMs: 300000
+  # GitHub 房幂等回看窗口：30 分钟。建票前回看这么久之内的同名票，防重复建。
+  idempotencyLookbackMs: 1800000
+  # 地图票列表缓存的有效期：60 秒（客户端）。命中即用，miss 才走远端。
+  mapTicketsTtlMs: 60000
+
+backoff:
+  # 检查链的退避序列：8 秒 → 30 秒 → 2 分钟 → 5 分钟。任何一步有进展立刻回到第一档。
+  chainBackoffMs: [8000, 30000, 120000, 300000]

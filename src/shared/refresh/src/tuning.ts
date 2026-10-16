@@ -15,6 +15,10 @@
  *     看守两处同值，单搬一边必炸另一边，等统一数值那张票再动；
  *   · wiring.js 的本地读 5000、call-budget 的余量 15000 与单次钳制 30000：与表里
  *     的 15000 同值不同命，本轮只搬运不统一，不收。
+ *
+ * #1215 起本表的时间字段（deckEnsureTimeoutMs）另有一份中央登记：
+ * config/timeouts.yaml 的 deckEnsureMs 键，tests/verify-time-config.ts 断言两者相等。
+ * 本表不动（共享域之间不许互相 import，值由门禁看守一致即可），调时间请改 YAML。
  */
 
 /** 调参表的形状：三个字段都可选，缺字段时调用方用代码缺省值顶上。 */
