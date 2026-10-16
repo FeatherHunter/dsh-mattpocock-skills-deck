@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T18:21:43.126Z",
+  "generatedAt": "2026-10-16T18:22:36.554Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 302,
   "gateCount": 302,
@@ -2307,8 +2307,8 @@
       "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 3 条"
     },
     {
-      "step": "node tests/verify-683-choice-rev.js",
-      "file": "tests/verify-683-choice-rev.js",
+      "step": "node tests/verify-683-choice-rev.ts",
+      "file": "tests/verify-683-choice-rev.ts",
       "guards": [
         "src",
         "src/client/kernel/prompts.js",
@@ -7178,7 +7178,7 @@
     ],
     "src": [
       "node tests/verify-gate-map.js",
-      "node tests/verify-683-choice-rev.js",
+      "node tests/verify-683-choice-rev.ts",
       "node tests/verify-683-host-wiring.js",
       "node tests/verify-file-granularity.js",
       "node tests/verify-gh-gateway.js",
@@ -7240,7 +7240,7 @@
       "node tests/verify-669-choice-precedence.ts",
       "node tests/verify-669-switch-visible.ts",
       "node tests/verify-670-panel-first-frame.ts",
-      "node tests/verify-683-choice-rev.js",
+      "node tests/verify-683-choice-rev.ts",
       "node tests/verify-683-mirror-write.js",
       "node tests/verify-685-healthcheck-button.js",
       "node tests/verify-686-accept.js",
@@ -7754,7 +7754,7 @@
     "src/shared/time-config": [
       "node tests/verify-669-choice-precedence.ts",
       "node tests/verify-669-switch-visible.ts",
-      "node tests/verify-683-choice-rev.js",
+      "node tests/verify-683-choice-rev.ts",
       "node tests/verify-683-mirror-write.js",
       "node tests/verify-698-switch-asks-layout.js",
       "node tests/verify-709-no-self-continuing-timers.js",
@@ -8103,7 +8103,7 @@
       "node tests/verify-669-switch-visible.ts",
       "node tests/verify-670-panel-first-frame.ts",
       "node tests/verify-671-modal-global-overlay.ts",
-      "node tests/verify-683-choice-rev.js",
+      "node tests/verify-683-choice-rev.ts",
       "node tests/verify-683-host-wiring.js",
       "node tests/verify-683-mirror-write.js",
       "node tests/verify-685-healthcheck-button.js",
