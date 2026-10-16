@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T17:38:50.827Z",
+  "generatedAt": "2026-10-16T17:39:39.436Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 301,
   "gateCount": 301,
@@ -1669,8 +1669,8 @@
       "reason": "归属来自：源码里的路径字面量 1 条"
     },
     {
-      "step": "node tests/verify-497-slash.js",
-      "file": "tests/verify-497-slash.js",
+      "step": "node tests/verify-497-slash.ts",
+      "file": "tests/verify-497-slash.ts",
       "guards": [
         "src/host/pickerShell.js",
         "src/host/platform/darwin/index.ts",
@@ -7473,7 +7473,7 @@
       "node tests/verify-1109-matches-timeout.ts",
       "node tests/verify-1115-timer-handle.ts",
       "node tests/verify-3-workspace-switch.js",
-      "node tests/verify-497-slash.js",
+      "node tests/verify-497-slash.ts",
       "node tests/verify-524-pr-detail.js",
       "node tests/verify-596-rpc-carrier.js",
       "node tests/verify-656-subworkspace-acceptance.js",
@@ -7545,7 +7545,7 @@
       "node tests/verify-deck-tools-matrix.js",
       "node tests/verify-1053-issue-write.ts",
       "node tests/verify-1054-edge-graph.ts",
-      "node tests/verify-497-slash.js",
+      "node tests/verify-497-slash.ts",
       "node tests/verify-599-merged-pr.js",
       "node tests/verify-691-map-subissues.js",
       "node tests/verify-790-parent-edge.ts",
@@ -7564,16 +7564,16 @@
       "node tests/verify-t1-getrepokey.js"
     ],
     "src/host/platform/darwin": [
-      "node tests/verify-497-slash.js",
+      "node tests/verify-497-slash.ts",
       "node tests/verify-platform-contract.js"
     ],
     "src/host/platform/linux": [
-      "node tests/verify-497-slash.js",
+      "node tests/verify-497-slash.ts",
       "node tests/verify-platform-contract.js",
       "node tests/verify-platform-linux.js"
     ],
     "src/host/platform/win32": [
-      "node tests/verify-497-slash.js",
+      "node tests/verify-497-slash.ts",
       "node tests/verify-platform-contract.js"
     ],
     "src/host/refresh": [

@@ -11,23 +11,23 @@ const { pathToFileURL } = require('url')
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
 let total = 0
-const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
+const check = (ok: unknown, msg: string) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
 console.log('#497 门禁：本机可见打开三端配方（调用方零系统分支）')
 
 // 按指定系统组装平台上下文：spawn 只记录参数不真打开。
-function makeCtx(captured, resolveImpl) {
+function makeCtx(captured: string[][], resolveImpl?: (n: string) => Promise<string>) {
   const subprocess = {
-    spawn: (opts) => {
+    spawn: (opts: { argv?: string[] }) => {
       captured.push((opts && opts.argv) ? opts.argv.slice() : [])
       return { done: Promise.resolve({ exitCode: 0 }), terminate() {} }
     },
-    resolveExecutable: resolveImpl || (async (n) => 'C:\\Windows\\System32\\' + n),
+    resolveExecutable: resolveImpl || (async (n: string) => 'C:\\Windows\\System32\\' + n),
   }
   return {
-    get(name) {
+    get(name: string) {
       if (name === 'subprocess') return subprocess
-      if (name === 'fs') return { lstat: async () => null, readText: async () => '', writeText: async () => {}, resolve: (p) => p, listDir: async () => [], stat: async () => null }
+      if (name === 'fs') return { lstat: async () => null, readText: async () => '', writeText: async () => {}, resolve: (p: string) => p, listDir: async () => [], stat: async () => null }
       return undefined
     },
   }
@@ -45,7 +45,7 @@ async function main() {
     darwinAdapter = (await import(darwinUrl)).default
     linuxAdapter = (await import(linuxUrl)).default
   } catch (e) {
-    check(false, '平台层可被动态加载：' + e.message)
+    check(false, '平台层可被动态加载：' + (e as Error).message)
     console.log('\n存在失败')
     process.exit(1)
   }
@@ -53,7 +53,7 @@ async function main() {
 
   // win32 开目录：经 cmd start 显式可视，正斜杠已归一，不手写引号。
   {
-    const captured = []
+    const captured: string[][] = []
     const plat = await platMod.composePlatform(makeCtx(captured), 'win32', win32Adapter, {})
     const res = await plat.openFolder('D:/0Tools/DSH Desktop/.dsh-mattskillsdeck-cache/logs', 'D:/base')
     check(res && res.ok === true, 'win32 开目录成功（含空格真机路径）')
@@ -62,7 +62,7 @@ async function main() {
 
   // win32 开文件（名内无空格）：先切目录再按名选中。
   {
-    const captured = []
+    const captured: string[][] = []
     const plat = await platMod.composePlatform(makeCtx(captured), 'win32', win32Adapter, {})
     const res = await plat.openFile('D:/cache/logs/2026-09-06.log', 'D:/base')
     check(res && res.ok === true, 'win32 开文件成功（无空格名）')
@@ -71,7 +71,7 @@ async function main() {
 
   // win32 开文件（名内有空格）：拼不出选中串，改开上级目录（看得见位置，不选中）。
   {
-    const captured = []
+    const captured: string[][] = []
     const plat = await platMod.composePlatform(makeCtx(captured), 'win32', win32Adapter, {})
     const res = await plat.openFile('D:/cache/my notes.md', 'D:/base')
     check(res && res.ok === true, 'win32 空格文件名仍成功（改开上级）')
@@ -80,7 +80,7 @@ async function main() {
 
   // win32 含壳元字符：诚实失败，不让 cmd 多执行半句。
   {
-    const captured = []
+    const captured: string[][] = []
     const plat = await platMod.composePlatform(makeCtx(captured), 'win32', win32Adapter, {})
     const res = await plat.openFolder('D:/cache/a&b', 'D:/base')
     check(res && res.ok !== true, 'win32 壳元字符诚实失败（实得 ' + JSON.stringify(res) + '）')
@@ -89,7 +89,7 @@ async function main() {
 
   // win32 找不到打开器：诚实失败。
   {
-    const captured = []
+    const captured: string[][] = []
     const plat = await platMod.composePlatform(makeCtx(captured, async () => { throw new Error('not found') }), 'win32', win32Adapter, {})
     const res = await plat.openFolder('D:/cache/logs', 'D:/base')
     check(res && res.ok !== true, 'win32 无打开器诚实失败')
@@ -97,8 +97,8 @@ async function main() {
 
   // darwin：open 直调，空格与斜杠原样。
   {
-    const captured = []
-    const ctx = { get: (n) => (n === 'subprocess' ? { spawn: (o) => { captured.push(o.argv.slice()); return { done: Promise.resolve({}), terminate() {} } }, resolveExecutable: async (x) => '/usr/bin/' + x } : { lstat: async () => null }) }
+    const captured: string[][] = []
+    const ctx = { get: (n: string) => (n === 'subprocess' ? { spawn: (o: { argv: string[] }) => { captured.push(o.argv.slice()); return { done: Promise.resolve({}), terminate() {} } }, resolveExecutable: async (x: string) => '/usr/bin/' + x } : { lstat: async () => null }) }
     const plat = await platMod.composePlatform(ctx, 'darwin', darwinAdapter, {})
     await plat.openFolder('/Users/a/My Logs', '/tmp')
     check(JSON.stringify(captured[0]) === JSON.stringify(['/usr/bin/open', '/Users/a/My Logs']), 'darwin 开目录直调 open（实得 ' + JSON.stringify(captured[0]) + '）')
@@ -108,8 +108,8 @@ async function main() {
 
   // linux：xdg-open 直调。
   {
-    const captured = []
-    const ctx = { get: (n) => (n === 'subprocess' ? { spawn: (o) => { captured.push(o.argv.slice()); return { done: Promise.resolve({}), terminate() {} } }, resolveExecutable: async (x) => '/usr/bin/' + x } : { lstat: async () => null }) }
+    const captured: string[][] = []
+    const ctx = { get: (n: string) => (n === 'subprocess' ? { spawn: (o: { argv: string[] }) => { captured.push(o.argv.slice()); return { done: Promise.resolve({}), terminate() {} } }, resolveExecutable: async (x: string) => '/usr/bin/' + x } : { lstat: async () => null }) }
     const plat = await platMod.composePlatform(ctx, 'linux', linuxAdapter, {})
     await plat.openFolder('/home/u/logs', '/tmp')
     check(JSON.stringify(captured[0]) === JSON.stringify(['/usr/bin/xdg-open', '/home/u/logs']), 'linux 开目录直调 xdg-open（实得 ' + JSON.stringify(captured[0]) + '）')
@@ -117,7 +117,7 @@ async function main() {
 
   // 调用方零系统分支：pickerShell 不出现按系统分发的字面。
   {
-    const src = fs.readFileSync(path.join(ROOT, 'src', 'host', 'pickerShell.js'), 'utf8')
+    const src: string = fs.readFileSync(path.join(ROOT, 'src', 'host', 'pickerShell.js'), 'utf8')
     const strip = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
     check(!/===\s*['"]win32['"]/.test(strip) && !/===\s*['"]darwin['"]/.test(strip), 'pickerShell 无按系统分发的分支')
     check(!strip.includes('explorer') && !strip.includes('xdg-open'), 'pickerShell 不拼系统命令（配方归底座）')
@@ -128,4 +128,4 @@ async function main() {
   process.exit(failed ? 1 : 0)
 }
 
-main().catch((e) => { console.error('门禁异常：' + ((e && e.message) || e)); process.exit(1) })
+main().catch((e: unknown) => { console.error('门禁异常：' + (((e as Error) && (e as Error).message) || e)); process.exit(1) })
