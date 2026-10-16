@@ -249,7 +249,7 @@ async function main() {
     // #1125 起问规划函数（执行器读的同一份），不再读 package.json 长串
     const { isGatePlanned } = require('../scripts/lib/discover-gates.ts')
     must(isGatePlanned(ROOT, 'tests/verify-729-force-dedup.js'), '本门禁已挂进 verify 链', '规划函数里没有它')
-    must(isGatePlanned(ROOT, 'tests/verify-696-shared-cache.js'), '既有 #696 门禁仍在链上（与本门禁一起守）', '696 missing')
+    must(isGatePlanned(ROOT, 'tests/verify-696-shared-cache.ts'), '既有 #696 门禁仍在链上（与本门禁一起守）', '696 missing')
     const baseline = JSON.parse(read('tests/same-layer-baseline.json'))
     const keys = new Set((baseline.entries || []).map((e) => e.file + '|' + e.resolved))
     must(keys.has('src/host/sessionSnapshot.ts|src/host/snapshotInflight.ts'), '同层基线记了快照路 → 协调器这条边（owner #729）')

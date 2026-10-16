@@ -159,7 +159,7 @@ async function main() {
 
   // —— 场景 9：门禁已接入 verify 链（#1125 起问规划函数，不再读 package.json 长串） ——
   const { isGatePlanned } = require('../scripts/lib/discover-gates.ts')
-  assert(isGatePlanned(ROOT, 'tests/verify-668-guide-steps-single-source.js'), 'verify 链已纳入本门禁（规划函数里有它）')
+  assert(isGatePlanned(ROOT, 'tests/verify-668-guide-steps-single-source.ts'), 'verify 链已纳入本门禁（规划函数里有它）')
   ok('门禁已接入 verify 链')
 
   console.log(`\n全部通过：${passed} 组检查，9 组场景`)
