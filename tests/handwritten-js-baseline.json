@@ -248,7 +248,6 @@
     "tests/smoke-host-dispatch.test.js",
     "tests/smoke-naming-persistence.test.js",
     "tests/smoke-render.test.js",
-    "tests/tracker-contract/fixtures/compliant.js",
     "tests/tracker-contract/fixtures/demo.js",
     "tests/tracker-contract/fixtures/gitlab.js",
     "tests/tracker-contract/fixtures/markdown.js",

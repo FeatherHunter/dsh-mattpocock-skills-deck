@@ -1,5 +1,5 @@
 /**
- * tests/tracker-contract/fixtures/compliant.js — 合规桩。
+ * tests/tracker-contract/fixtures/compliant.ts — 合规桩。
  *
  * 一个「最小化、形状完整」的后端 normalize：来源有数据 → 逐项映射；来源无 → 必 EMPTY（不 MISSING）。
  * 用途：证明契约可被满足（当它通过 harness，说明契约骨架自洽）。
@@ -11,10 +11,55 @@
  *
  * deckCases 校验契约 §5.2 口径：assignees MISSING → indeterminate；EMPTY([]) → 未认领可 frontier；
  * NOT-FOUND 依赖 → 安全 blocked（绝不误判 frontier）。
+ *
+ * 由 tests/tracker-contract/fixtures/compliant.js 转写：只加可剥离类型标注，
+ * norm 的 EMPTY 口径、mappings、implemented/missing 两表、deckCases 预期一字不动。
  */
 
-function norm(raw) {
-  const labels = raw.labels
+interface RawSource {
+  key?: string | number
+  effortId?: string
+  type?: string
+  title?: string
+  state?: string
+  body?: string
+  url?: string
+  labels?: Array<string | { name: string, color?: string }>
+  [key: string]: unknown
+}
+
+interface Label {
+  name: string
+  color: string
+}
+
+interface DeckIssue {
+  key: string
+  type: string
+  title: string
+  state: string
+  body: string
+  url: string
+  createdAt: string
+  updatedAt: string
+  closedAt: string | null
+  parentKey: string | null
+  labels: Label[]
+  assignees?: Array<{ login: string }>
+  comments: unknown[]
+  blockedBy: Array<{ key: string, title: string, state: string }>
+  reason: string
+}
+
+interface DeckCase {
+  name: string
+  issue: DeckIssue
+  lookup?: (key: string) => { state: string } | undefined
+  expected: { claimed: boolean | null, blocked: boolean, frontier: boolean }
+}
+
+function norm(raw: RawSource): DeckIssue {
+  const labels: Label[] = raw.labels
     ? (Array.isArray(raw.labels)
         ? raw.labels.map((l) => (typeof l === 'string' ? { name: l, color: '' } : { name: l.name, color: l.color || '' }))
         : [])
@@ -39,7 +84,7 @@ function norm(raw) {
   }
 }
 
-const deckIssues = {
+const deckIssues: Record<string, DeckIssue> = {
   emptyUnclaimed: {
     key: '11', type: 'issue', title: 'empty', state: 'open', body: '', url: '',
     createdAt: '', updatedAt: '', closedAt: null, parentKey: null,
@@ -69,7 +114,16 @@ const deckIssues = {
   },
 }
 
-export const compliantFixture = {
+export const compliantFixture: {
+  name: string
+  normalize: (raw: RawSource) => DeckIssue
+  withData: Record<string, unknown>
+  emptyData: Record<string, unknown>
+  mappings: Array<{ from: string, to: string }>
+  implementedFields: string[]
+  missingFields: string[]
+  deckCases: DeckCase[]
+} = {
   name: 'compliant-stub',
   normalize: norm,
   withData: { key: '3', title: 'hello', state: 'open', labels: [{ name: 'bug', color: 'red' }] },
