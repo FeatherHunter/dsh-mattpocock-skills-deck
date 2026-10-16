@@ -29,11 +29,11 @@ const { compileFn } = require('./lib/eval-probe.js')
 const root = path.resolve(__dirname, '..')
 let failed = false
 let passed = 0
-const ok = (msg) => { passed++; console.log('  PASS ' + msg) }
-const bad = (msg) => { failed = true; console.log('  FAIL ' + msg) }
+const ok = (msg: string): void => { passed++; console.log('  PASS ' + msg) }
+const bad = (msg: string): void => { failed = true; console.log('  FAIL ' + msg) }
 
-const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8')
-const noExport = (s) => s.replace(/^\s*export\s+/gm, '')
+const read = (rel: string): string => fs.readFileSync(path.join(root, rel), 'utf8')
+const noExport = (s: string): string => s.replace(/^\s*export\s+/gm, '')
 
 const ROOT_DIR = 'D:\\ilife'
 const SUB_DIR = 'D:\\ilife\\packages\\skill-calorie'
@@ -67,10 +67,10 @@ if (start < 0 || end < 0 || end <= start) {
 }
 const block = noExport(markSrc.slice(start, end))
 // 手法：compileFn——这段纯函数只是从真源里切出来的文本，交给 tests/lib/eval-probe.js 统一造函数，参数名照原样拆开。
-const makeApi = (tmpl) => compileFn(
+const makeApi = (tmpl: unknown) => compileFn(
   ['keyOf', 'tr'],
   block + '\nreturn { rootOf: subwsMarkRootOf, cmpKey: subwsMarkCmpKey, shows: subwsMarkShows, relOf: subwsMarkRelOf, rootShown: subwsMarkRootShown, linesOf: subwsMarkLinesOf }'
-)(keyOf, function (k) { return (k === 'panel.wsMarkTip') ? tmpl : k })
+)(keyOf, function (k: any) { return (k === 'panel.wsMarkTip') ? tmpl : k })
 const api = makeApi(grabs[0] || '')
 const apiEn = makeApi(grabs[1] || '')
 
@@ -231,7 +231,7 @@ try {
   //   （头部那行字色是浅色的），于是画出来是个浅色文件夹配一个红边框，两截颜色 —— 维护者 2026-09-19
   //   在真机上指出这一点，所以图形颜色写死成与边框同一处常量。
   //   两边写法不一样（style 里的颜色浏览器会算成 rgb(...)，SVG 属性上是十六进制），所以先归一再比。
-  const toRgb = function (v) {
+  const toRgb = function (v: unknown): string {
     const s = String(v || '').trim()
     let m = /^#([0-9a-f]{6})$/i.exec(s)
     if (m) { const n = parseInt(m[1], 16); return 'rgb(' + [(n >> 16) & 255, (n >> 8) & 255, n & 255].join(', ') + ')' }
@@ -264,9 +264,9 @@ try {
   else bad('E6 没有给 Tip 任何内容')
   // 「自动展开」是挂载后副作用里起的，Tip 会被调用不止一次（第一次还没带 visible），
   //   所以问的是「有没有哪一次带着 visible=true」，不是「第一次带没带」。
-  const everVisible = r.tipCalls.some(function (c) { return c.visible === true })
+  const everVisible = r.tipCalls.some(function (c: any) { return c.visible === true })
   if (everVisible) ok('E7 第一次出现自动展开一次浮层（没字的图标不悬停就没人知道）')
-  else bad('E7 第一次出现没有自动展开（tipCalls=' + JSON.stringify(r.tipCalls.map(function (c) { return c.visible })) + '）')
+  else bad('E7 第一次出现没有自动展开（tipCalls=' + JSON.stringify(r.tipCalls.map(function (c: any) { return c.visible })) + '）')
 
   if (r.hasLink === true) ok('E8 标志外面那圈可点的链接画出来了')
   else bad('E8 渲染结果里没有可点的链接')
@@ -282,7 +282,7 @@ try {
   // 不再打扰：这个工作区自动展开过一次之后，第二次进来不再自动弹。
   //   问的是「有没有哪一次带着 visible=true」：第一次调用发生在挂载效果之前，那时它还没有这个值。
   const rSeen = await renderMark(subStore, { autoShown: true })
-  const seenStillOpens = rSeen.tipCalls.some(function (c) { return c.visible === true })
+  const seenStillOpens = rSeen.tipCalls.some(function (c: any) { return c.visible === true })
   if (rSeen.isSub === true && seenStillOpens === false) ok('E11 同一个工作区里展开过一次之后不再自动弹（但标志照常在）')
   else bad('E11 自动展开的「只一次」没守住：标志在=' + rSeen.isSub + '，还自动弹=' + seenStillOpens)
 
@@ -307,7 +307,7 @@ try {
   const initLines = String(tipTextOf(rInit.tipCalls))
   if (!/还未初始化/.test(initLines)) ok('E15 根已初始化时不画第四行（不写安慰话）')
   else bad('E15 根已初始化却多画了第四行：' + JSON.stringify(initLines.slice(0, 160)))
-} catch (e) {
+} catch (e: any) {
   bad('E 组渲染没跑起来：' + ((e && e.message) || e))
 }
 
@@ -315,8 +315,8 @@ try {
 // E 组证明的是「快照里带着工作区根时画得出来」，而且喂的是手上写好的常量。还差最要紧的一问：
 //   宿主真会给什么？答案是 canonicalKey() —— 它经 workspaceKey.js 的 resolveWorkspaceRoot 锚到工作区根，
 //   同时把大小写折叠掉。这一组就在真盘上跑它，再把**它真实产出的那个字符串**喂给标志，看画出来的话对不对。
-//   （“自带 .git 就停在那一层、嵌套仓库自成一套、30 秒缓存”这些锚定规则由 tests/verify-656-subworkspace-acceptance.js
-//   守，不在这里再断一遍；这里只断本票要的那条链：宿主产出 → 客户端显示。）
+//   (“自带 .git 就停在那一层、嵌套仓库自成一套、30 秒缓存”这些锚定规则由 tests/verify-656-subworkspace-acceptance.js
+//   守，不在这里再断一遍；这里只断本票要的那条链：宿主产出 → 客户端显示。)
 console.log('\nF) 宿主产出的那个值，喂给标志对不对（真盘上跑一遍 canonicalWorkspaceKey）')
 try {
   const fsx = require('fs')
@@ -335,10 +335,10 @@ try {
   let probes = 0
   /** 照 DSH 文件服务的形状做一个真读盘的服务：lstat 收路径，stat / listDir 收 resolve 出来的 target。 */
   const fsSvc = {
-    async resolve(p) { return { path: String(p), targetKey: String(p) } },
-    async lstat(p) { probes++; return fsp2.lstat(String(p)) },
-    async stat(t) { probes++; return fsp2.stat(String(t)) },
-    async listDir(t) { probes++; return fsp2.readdir(String(t)) },
+    async resolve(p: unknown) { return { path: String(p), targetKey: String(p) } },
+    async lstat(p: unknown) { probes++; return fsp2.lstat(String(p)) },
+    async stat(t: unknown) { probes++; return fsp2.stat(String(t)) },
+    async listDir(t: unknown) { probes++; return fsp2.readdir(String(t)) },
   }
   const wm = await import(pathToFileURL(nodePath.join(root, 'src/host/workspaceKey.js')).href)
   const deps = { getPlatform: async function () { return { os: process.platform, path: nodePath } }, getFs: function () { return fsSvc } }
@@ -373,7 +373,7 @@ try {
   else bad('F6 根会话里画出来了')
 
   fsx.rmSync(base, { recursive: true, force: true })
-} catch (e) {
+} catch (e: any) {
   bad('F 组没跑起来：' + ((e && e.message) || e))
 }
 
@@ -392,23 +392,23 @@ try {
   const wm = await import(pathToFileURL(nodePath.join(root, 'src/host/workspaceKey.js')).href)
   const mod = await import(pathToFileURL(nodePath.join(root, 'src/host/sessionLifecycle.js')).href)
   const fsSvc = {
-    async resolve(p) { return { path: String(p), targetKey: String(p) } },
-    async lstat(p) { return fsp.lstat(String(p)) },
-    async stat(t) { return fsp.stat(String(t)) },
-    async listDir(t) { return fsp.readdir(String(t)) },
+    async resolve(p: unknown) { return { path: String(p), targetKey: String(p) } },
+    async lstat(p: unknown) { return fsp.lstat(String(p)) },
+    async stat(t: unknown) { return fsp.stat(String(t)) },
+    async listDir(t: unknown) { return fsp.readdir(String(t)) },
   }
 
   // 一个最小的 ctx：只提供那条电话要用的 sessions.get
-  const makePhone = function (cwdOfSession, canonical) {
+  const makePhone = function (cwdOfSession: string, canonical: any) {
     const life = mod.createSessionLifecycle({
       ctx: {
-        get: function (k) {
+        get: function (k: unknown) {
           if (k !== 'sessions') return undefined
           return { get: function () { return cwdOfSession ? { header: { cwd: cwdOfSession } } : { header: {} } } }
         },
       },
       DEFAULT_CWD: 'D:\\',
-      errText: function (e) { return String((e && e.message) || e) },
+      errText: function (e: unknown) { return String((e && e.message) || e) },
       getDetectionService: async function () { return null },
       getTrackerRegistry: async function () { return null },
       getPlatform: async function () { return { os: process.platform, path: nodePath } },
@@ -454,7 +454,7 @@ try {
   const deep = nodePath.join(wsRoot, 'packages', 'skill-calorie')
   fsx.mkdirSync(deep, { recursive: true })
   fsx.writeFileSync(nodePath.join(wsRoot, '.git'), 'gitdir: somewhere\n')
-  const canon = async function (raw) {
+  const canon = async function (raw: unknown) {
     return wm.canonicalWorkspaceKey(raw, { getPlatform: async function () { return { os: process.platform, path: nodePath } }, getFs: function () { return fsSvc } })
   }
   const realPhone = makePhone(deep, canon)
@@ -467,7 +467,7 @@ try {
     ok('G7 把这个早到的根直接喂给标志，第一行就是那个工作区（面板一打开就能画）')
   else bad('G7 早到的根喂给标志画不出来：' + JSON.stringify(linesEarly))
   fsx.rmSync(base, { recursive: true, force: true })
-} catch (e) {
+} catch (e: any) {
   bad('G 组没跑起来：' + ((e && e.message) || e))
 }
 

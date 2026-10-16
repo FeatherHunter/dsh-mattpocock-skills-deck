@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T18:11:12.916Z",
+  "generatedAt": "2026-10-16T18:12:22.685Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 302,
   "gateCount": 302,
@@ -2098,8 +2098,8 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 14 条"
     },
     {
-      "step": "node tests/verify-666-subws-mark-root.js",
-      "file": "tests/verify-666-subws-mark-root.js",
+      "step": "node tests/verify-666-subws-mark-root.ts",
+      "file": "tests/verify-666-subws-mark-root.ts",
       "guards": [
         "src/client/views/SubworkspaceMark.js",
         "src/host/sessionLifecycle.js",
@@ -7338,7 +7338,7 @@
       "node tests/verify-646-native-tab.ts",
       "node tests/verify-653-subworkspace.ts",
       "node tests/verify-655-setup-layout.ts",
-      "node tests/verify-666-subws-mark-root.js",
+      "node tests/verify-666-subws-mark-root.ts",
       "node tests/verify-669-chain-after-pick.ts",
       "node tests/verify-671-modal-global-overlay.js",
       "node tests/verify-763-detail-fold.js",
@@ -7493,7 +7493,7 @@
       "node tests/verify-524-pr-detail.ts",
       "node tests/verify-596-rpc-carrier.ts",
       "node tests/verify-656-subworkspace-acceptance.ts",
-      "node tests/verify-666-subws-mark-root.js",
+      "node tests/verify-666-subws-mark-root.ts",
       "node tests/verify-683-choice-store.js",
       "node tests/verify-683-host-wiring.js",
       "node tests/verify-690-closed-pages.js",
@@ -8095,7 +8095,7 @@
       "node tests/verify-656-subworkspace-acceptance.ts",
       "node tests/verify-663-gh-install-inject.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
-      "node tests/verify-666-subws-mark-root.js",
+      "node tests/verify-666-subws-mark-root.ts",
       "node tests/verify-667-dock-header-no-brand.js",
       "node tests/verify-669-chain-after-pick.ts",
       "node tests/verify-669-choice-precedence.ts",
