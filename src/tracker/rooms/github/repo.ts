@@ -17,6 +17,8 @@ import type { OpContext } from '../../contract/contexts.js';
 import type { RepositoryRef } from '../../contract/entities.js';
 import type { BackendId } from '../../contract/identity.js';
 import type { RepoHandle } from '../../contract/contexts.js';
+// 超时住中央 YAML，调时间改 config/timeouts.yaml。
+import { GIT_PROBE_TIMEOUT_MS } from '../../../shared/time-config/values.js'
 
 /** 解析出的仓库坐标：拥有者与仓库名，解析不出就回 null 而不是抛。 */
 export interface RepoKey {
@@ -122,7 +124,7 @@ export async function getRepoKey(cwd: string, ctx: OpContext): Promise<RepoKey |
       const git = await platform.resolveExecutable('git')
       if (git && ctx && typeof ctx.exec === 'function') {
         try {
-          const r = await ctx.exec('git', ['-C', execCwd, 'remote', 'get-url', 'origin'], { cwd: execCwd, timeout: 3000 })
+          const r = await ctx.exec('git', ['-C', execCwd, 'remote', 'get-url', 'origin'], { cwd: execCwd, timeout: GIT_PROBE_TIMEOUT_MS })
           const out = (r && (r.stdout || r.text || r.stdout === '' ? (r.stdout || r.text) : '')) || ''
           const k = parseGithubRepo(String(out))
           if (k) { emitRepoTier(ctx, 1, true, t0); return k }
@@ -132,7 +134,7 @@ export async function getRepoKey(cwd: string, ctx: OpContext): Promise<RepoKey |
         try {
           const execFn = ctx.exec || (platform && platform.exec)
           if (typeof execFn === 'function') {
-            const r2 = await execFn('git', ['-C', execCwd, 'remote', 'get-url', 'origin'], { cwd: execCwd, timeout: 3000 })
+            const r2 = await execFn('git', ['-C', execCwd, 'remote', 'get-url', 'origin'], { cwd: execCwd, timeout: GIT_PROBE_TIMEOUT_MS })
             const out2 = (r2 && (r2.stdout || r2.text)) || ''
             const k2 = parseGithubRepo(String(out2))
             if (k2) { emitRepoTier(ctx, 1, true, t0); return k2 }

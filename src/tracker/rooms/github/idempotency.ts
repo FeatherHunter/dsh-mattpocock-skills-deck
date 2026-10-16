@@ -33,6 +33,8 @@ import type { TrackerError } from '../../contract/results.js';
 import { ghClient } from './client.js'
 import { ghVerdictOf } from './errors.js'
 import { parseRepo } from './issues.js'
+// 超时住中央 YAML，调时间改 config/timeouts.yaml。
+import { IDEMPOTENCY_LOOKBACK_MS } from '../../../shared/time-config/values.js'
 
 /** 按锚回查的返回：没找到照常建、找到了复用旧票、没做成如实失败（绝不把拿不准当没找到）。 */
 export type AnchorLookupOutcome =
@@ -57,7 +59,6 @@ function caughtText(e: unknown): string {
 }
 
 /** 慢路只回看这么久以内创建的票：比正常重试窗口宽得多，又不会去翻历史票。 */
-const LOOKBACK_MS = 30 * 60 * 1000
 
 /** 慢路最多把几张候选的正文读回来。到了这个数还没找到就如实说「拿不准」，绝不当成没找到。 */
 const MAX_BODY_FETCHES = 40
@@ -170,7 +171,7 @@ export async function lookupByAnchor(repo: RepositoryRef, key: string, ctx: OpCo
   }
   if (!listError) {
     // ① 粗筛：只看创建时间落在回看窗口内的候选，并且先按「列表里带回来的正文」判一次。
-    const inWindow = rows.filter((raw) => { const t = createdMs(raw); return t !== null && t >= nowMs - LOOKBACK_MS })
+    const inWindow = rows.filter((raw) => { const t = createdMs(raw); return t !== null && t >= nowMs - IDEMPOTENCY_LOOKBACK_MS })
     for (const raw of inWindow) {
       const cand = toCandidate(raw)
       if (!cand || typeof cand.body !== 'string' || !cand.body) continue

@@ -31,6 +31,8 @@ import type { PartiallyProvidedCapability, ProvidedCapability } from '../../cont
 // 上面那行与下面这行都用 `import type` 取登记数据：转译后不留任何运行时引用，
 // 发布出去的包里根本不会加载这份登记 —— 「运行时不读它」这条 G5 纪律因此是机械成立的，不靠自觉。
 import type { GITHUB_CAPABILITY_REGISTER } from './capability-register.js'
+// 超时住中央 YAML，调时间改 config/timeouts.yaml。
+import { GIT_PROBE_TIMEOUT_MS } from '../../../shared/time-config/values.js'
 
 // —— GitHub 交出来的成员：24 条能力 + id ——
 // 这份集合不再手写：它从本房的登记数据（./capability-register.ts）推出来 —— 「明确提供功能」的那些
@@ -77,7 +79,7 @@ export async function githubMatches(handle: RepoHandle, ctx: OpContext): Promise
     // 回落：尝试 git remote get-url origin（经 ctx.exec）
     if (ctx && typeof ctx.exec === 'function' && cwd) {
       try {
-        const r = await ctx.exec('git', ['-C', cwd, 'remote', 'get-url', 'origin'], { cwd, timeout: 3000 })
+        const r = await ctx.exec('git', ['-C', cwd, 'remote', 'get-url', 'origin'], { cwd, timeout: GIT_PROBE_TIMEOUT_MS })
         const out = (r && (r.stdout || r.text)) || ''
         if (/github\.com/i.test(String(out))) return true
       } catch {}

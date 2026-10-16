@@ -11,6 +11,8 @@
 
 import type { RepoHandle } from '../contract/contexts.js'
 import type { Selection } from '../contract/results.js'
+// 超时住中央 YAML，调时间改 config/timeouts.yaml。
+import { WORKSPACE_STORE_TTL_MS } from '../../shared/time-config/values.js'
 
 /**
  * 缓存条目：一次探测结论加写入时间。附加字段（preflight、skillProbes、fileMs）供调用方校验用，
@@ -40,8 +42,6 @@ export interface WorkspaceStoreOptions {
   logCtx?: WorkspaceStoreLogCtx | null
 }
 
-const DEFAULT_TTL = 30000
-
 // #491 房外埋点：hash8 只记键散列不记原文。入参收成未知值，空值统一按空串算。
 function hash8(s: unknown): string { try { const t = String(s || ''); let h = 5381; for (let i = 0; i < t.length; i++) h = (((h << 5) + h + t.charCodeAt(i)) >>> 0); return ('0000000' + h.toString(16)).slice(-8) } catch (e) { return '00000000' } }
 /**
@@ -68,7 +68,7 @@ export function createWorkspaceStore(opts: WorkspaceStoreOptions = {}): {
   keys(): string[]
   invalidateByBackend(backendId: unknown): number
 } {
-  const ttl: number = (opts && opts.ttl != null) ? opts.ttl : DEFAULT_TTL
+  const ttl: number = (opts && opts.ttl != null) ? opts.ttl : WORKSPACE_STORE_TTL_MS
   const logCtx: WorkspaceStoreLogCtx | null = (opts && opts.logCtx) || null
   let wsHitN = 0
   const map = new Map<string, WorkspaceStoreEntry>() // key -> { selection, at, raw, parsed }

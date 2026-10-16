@@ -32,6 +32,8 @@ import { GITHUB_CLIENT_TIMEOUT_MS } from '../../../shared/time-config/values.js'
 // （`OutboundControl`），实现由宿主在接线处挂进 `ctx.outbound`。这与本房已有的 `ctx.gate`
 // 是同一条路：闸由接线处注入，本房不 import 它。读不到就按环境失败大声报出来，不许静默直通。
 import type { OutboundControl } from '../../contract/outbound.js'
+// 超时住中央 YAML，调时间改 config/timeouts.yaml。
+import { GITHUB_PROBE_TIMEOUT_MS } from '../../../shared/time-config/values.js'
 
 /** gh 执行成功的数据：三件套，调用方读 stdout 解析，stderr 留查，code 为 0。 */
 export interface GhExecData {
@@ -227,7 +229,7 @@ export function ghClient(ctx: OpContext): { execGh: (args: string[], opts?: GhEx
       if (exec) {
         try {
           reportOutbound(ctx, ['--version'])
-          const probe = await exec('gh', ['--version'], { cwd: cwd || getCwd(ctx, undefined), timeout: 3000 })
+          const probe = await exec('gh', ['--version'], { cwd: cwd || getCwd(ctx, undefined), timeout: GITHUB_PROBE_TIMEOUT_MS })
           if (probe && probe.stdout && String(probe.stdout).includes('gh version')) {
             return { ok: true, ghPath: 'gh' }
           }

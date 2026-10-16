@@ -23,6 +23,8 @@ import type { InitProjectInput } from '../../contract/inputs.js';
 // #106 `repo.init`：开仓发布这一趟的常驻结论线（轨迹形状与发射口在 ./write-log.js）。
 import { beginWriteTrail, emitRepoInitWrite } from './write-log.js'
 import type { WriteTrail } from './write-log.js';
+// 超时住中央 YAML，调时间改 config/timeouts.yaml。
+import { GIT_PROBE_TIMEOUT_MS, GITHUB_INIT_TIMEOUT_MS } from '../../../shared/time-config/values.js'
 
 /**
  * 开仓失败的错误：三段式，但 kind 是开仓自己的结果词（bad-name/no-git/no-gh/not-logged-in/
@@ -108,7 +110,7 @@ async function initProjectInner(handle: RepoHandle, input: InitProjectInput, ctx
     const args = argv.slice(1)
     if (execFn) {
       try {
-        const r = await execFn(cmd, args, { cwd: execCwd || cwd, timeout: 30000 })
+        const r = await execFn(cmd, args, { cwd: execCwd || cwd, timeout: GITHUB_INIT_TIMEOUT_MS })
         const code = r && typeof r.code === 'number' ? r.code : 0
         const out = r && typeof r.stdout === 'string' ? r.stdout : (r && r.text ? r.text : '')
         const err = r && typeof r.stderr === 'string' ? r.stderr : ''
@@ -127,7 +129,7 @@ async function initProjectInner(handle: RepoHandle, input: InitProjectInput, ctx
       try { const p = await platform.resolveExecutable('git'); if (p) return p } catch (e) {}
     }
     if (execFn) {
-      try { const r = await execFn('git', ['--version'], { cwd, timeout: 3000 }); if (r && r.code===0) return 'git' } catch (e) {}
+      try { const r = await execFn('git', ['--version'], { cwd, timeout: GIT_PROBE_TIMEOUT_MS }); if (r && r.code===0) return 'git' } catch (e) {}
     }
     return null
   }
