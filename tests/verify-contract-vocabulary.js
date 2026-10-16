@@ -63,10 +63,15 @@ const KNOWN_UNPRODUCED = {
 }
 
 /**
- * 收集 .js 文件。**跳过以点开头的目录与文件**，为什么：`.git`、`.tmp`、`.scratch` 这些是仓库元数据与
+ * 收集 .js 与 .ts 两种源码文件。**跳过以点开头的目录与文件**，为什么：`.git`、`.tmp`、`.scratch` 这些是仓库元数据与
  * 临时产物，不是真代码；这一条实测踩过——`tests/.tmp-repo-out/` 与 `tests/.tmp-repo-out2/` 是某次契约
  * 测试留下的临时仓库副本（里面有整份源码的拷贝），它们把 constants.js 里的死常量「救活」了
  *（副本里当然也有那份声明），于是存量清单被误判成过期。规则只有这一句，不涉及其它目录。
+ *
+ * 2026-10-17 补记：这里过去只收 `.js`，于是 tests 目录里那些已经改名为 `.ts` 的读者（例如
+ * tests/tracker-contract/sections/idempotency.ts）就不再被算进读者那一段文本，把一个还有人读的
+ * 常量误判成「死了」——主链因此红了一条假红。现在两种后缀都收；只有下面查「产物里那六行来源标注
+ * 有没有被删掉」的那一次除外，那一次查的是构建产物，必须仍然只看 `.js`。
  */
 function walk(dir, out) {
   if (!fs.existsSync(dir)) return out
@@ -74,7 +79,7 @@ function walk(dir, out) {
     if (ent.name.startsWith('.')) continue
     const p = path.join(dir, ent.name)
     if (ent.isDirectory()) walk(p, out)
-    else if (ent.isFile() && ent.name.endsWith('.js')) out.push(p)
+    else if (ent.isFile() && (ent.name.endsWith('.js') || ent.name.endsWith('.ts'))) out.push(p)
   }
   return out
 }
@@ -182,7 +187,7 @@ async function main() {
 
   const files = []
   for (const d of CONTRACT_DIRS) walk(path.join(ROOT, d), files)
-  check(files.length > 0, '共享层扫到了 ' + files.length + ' 个 .js 文件')
+  check(files.length > 0, '共享层扫到了 ' + files.length + ' 个 .js/.ts 文件')
 
   const constants = []
   for (const f of files) {
@@ -219,8 +224,10 @@ async function main() {
     '四个事件源常量与 needProbeSource 已从 src/shared/tracker/sync.js 删掉')
 
   // #719 删掉的六个来源标注不许回来（它们的产物第一行已经有机器生成的 AUTO-GENERATED 包头）。
+  // 这一次查的是构建产物，所以仍然只看 .js：源码 .ts 里那六行以注释形式留着（「这里原来有一行
+  // export const …」），把 .ts 也算进来会拿注释去判「标注回来了」，当场假红。
   const goneSources = ['ATTENTION_SOURCE', 'BACKOFF_SOURCE', 'CHAIN_SOURCE', 'CREATE_WRITE_SOURCE', 'DELTA_SOURCE', 'IDEMPOTENCY_SOURCE']
-  const refreshJs = walk(path.join(ROOT, 'src', 'shared', 'refresh'), []).map((f) => fs.readFileSync(f, 'utf8')).join('\n')
+  const refreshJs = walk(path.join(ROOT, 'src', 'shared', 'refresh'), []).filter((f) => f.endsWith('.js')).map((f) => fs.readFileSync(f, 'utf8')).join('\n')
   const back = goneSources.filter((n) => new RegExp('export const ' + n + '\\b').test(refreshJs))
   check(back.length === 0, '六个没有读者的来源标注已从产物里删掉（' + goneSources.length + ' 个里找回了 ' + back.length + ' 个' + (back.length ? '：' + back.join('、') : '') + '）')
 
