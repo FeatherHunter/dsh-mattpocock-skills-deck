@@ -52,7 +52,7 @@ const STEP_TOL = 0.5
 
 const CLIENT = 'package/lib/client.js'
 const LEAF = 'src/client/views/shared/sessionChainView.js'
-const PROBE = 'tests/fixtures/chain-view-ui-probe.js'
+const PROBE = 'tests/fixtures/chain-view-ui-probe.ts'
 for (const rel of [CLIENT, LEAF, PROBE]) {
   if (!existsSync(resolve(rel))) {
     console.log((rel === CLIENT ? '产物缺失（' + CLIENT + '）：先跑 node scripts/build.mjs' : rel + ' 不存在'))
@@ -117,7 +117,7 @@ const SNAP_BROKEN = Object.assign({}, BASE_SNAP, { version: 'verify-chain-view-u
 
 const { build } = await import('esbuild')
 const bundled = await build({
-  stdin: { contents: readFileSync(resolve(PROBE), 'utf8'), resolveDir: resolve('.'), sourcefile: 'chain-view-ui-probe.js', loader: 'js' },
+  stdin: { contents: readFileSync(resolve(PROBE), 'utf8'), resolveDir: resolve('.'), sourcefile: 'chain-view-ui-probe.ts', loader: 'ts' },
   bundle: true, format: 'iife', platform: 'browser', target: 'chrome120', write: false, logLevel: 'error',
 })
 const probeJs = bundled.outputFiles[0].text
