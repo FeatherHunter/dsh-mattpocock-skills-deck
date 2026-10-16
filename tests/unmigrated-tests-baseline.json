@@ -18,7 +18,6 @@
     "tests/smoke-naming-persistence.test.js",
     "tests/smoke-render.test.js",
     "tests/tracker-contract/fixtures/markdown.js",
-    "tests/tracker-contract/sections/chain.js",
     "tests/tracker-contract/sections/contract.js",
     "tests/tracker-contract/sections/counts.js",
     "tests/tracker-contract/sections/deck.js",

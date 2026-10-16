@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T16:39:59.498Z",
+  "generatedAt": "2026-10-16T16:44:44.609Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 301,
   "gateCount": 301,
@@ -6495,7 +6495,7 @@
         "tests/tracker-contract/fixtures/violating.ts",
         "tests/tracker-contract/harness.ts",
         "tests/tracker-contract/runner/index.ts",
-        "tests/tracker-contract/sections/chain.js",
+        "tests/tracker-contract/sections/chain.ts",
         "tests/tracker-contract/sections/contract.js",
         "tests/tracker-contract/sections/counts.js",
         "tests/tracker-contract/sections/deck.js",
