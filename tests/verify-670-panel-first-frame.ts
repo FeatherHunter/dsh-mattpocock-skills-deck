@@ -9,7 +9,7 @@
  * 所以本条要钉死的是：**本插件画出来的第一帧，底色与它背后宿主那一层完全一样**（深浅两个主题都要）。
  *
  * 为什么要用真浏览器、而且夹具里要带真令牌：
- *   1. jsdom 的 getComputedStyle 不解析 CSS 里的 var()（写成 var(--x,#10131a) 一律回透明），
+ *   1. jsdom 的 getComputedStyle 不解析 CSS 里 var()（写成 var(--x,#10131a) 一律回透明），
  *      而本插件所有底色都写成 var(...) —— 在 jsdom 里量这件事必然假绿。
  *   2. 更要紧的是**夹具必须带上宿主真实定义的那些令牌**。第一版夹具只写了 html/body/#pane 三条规则，
  *      没有任何 --dsw-alias-* 令牌，于是插件取到的是兜底值 #10131a —— 一个真机上根本不存在的颜色，
@@ -31,13 +31,16 @@
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { getBrowser, closeBrowser } from './lib/browser-pool.js'
+// 页面求值回调里出现的 window 只是浏览器侧的全局名，门禁进程里并没有它；这里声明成任意值，
+// 运行时与原来一样（这些回调只被序列化送进页面执行，从不在门禁进程里取值）。
+declare const window: any
 
 let passed = 0, failed = 0
-function check(ok, msg) { if (ok) { console.log('  PASS ' + msg); passed++ } else { console.log('  FAIL ' + msg); failed++ } }
+function check(ok: unknown, msg: string): void { if (ok) { console.log('  PASS ' + msg); passed++ } else { console.log('  FAIL ' + msg); failed++ } }
 
 const FILES = ['src/client/kernel/router.js', 'src/client/kernel/styles.js', 'src/client/panel/Dock.js', 'client.js', 'package/lib/client.js']
 const RENDER_FILES = ['src/client/kernel/router.js', 'client.js', 'package/lib/client.js']
-const texts = {}
+const texts: Record<string, string | null> = {}
 for (const rel of FILES) {
   const p = resolve(rel)
   texts[rel] = existsSync(p) ? readFileSync(p, 'utf8') : null
@@ -168,12 +171,12 @@ ${THEME_CSS}
 <script>${probeJs}</script></body></html>`
 
 // 两个主题下那一格背后到底应当是什么颜色（取自宿主主题包的真值）
-const EXPECT = {
+const EXPECT: Record<string, string> = {
   dark: 'rgb(21, 21, 23)',
   light: 'rgb(255, 255, 255)',
 }
 
-async function runProbe(page, dropRule) {
+async function runProbe(page: any, dropRule: boolean) {
   return await page.evaluate(async (drop) => {
     const r = window.__PROBE_START__(drop)
     if (!r || !r.ok) return { error: (r && r.error) || 'no result', names: r && r.names }
@@ -188,7 +191,7 @@ async function runProbe(page, dropRule) {
 // 页面要放在一个真 origin 上（不能用 setContent 的 about:blank：那份文档读 localStorage 会被拒，
 //   插件启动时会读调试开关，一读就抛，探针根本跑不起来）。所以起一个本机临时小服务器。
 const { createServer } = await import('node:http')
-const server = createServer((req, res) => {
+const server: any = createServer((req: any, res: any) => {
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
   res.end(html)
 })
@@ -201,9 +204,9 @@ try {
     console.log('')
     console.log('== B 真渲染层（真 Chromium · ' + (theme === 'dark' ? '深色主题' : '浅色主题') + '）：第一帧的底色 ==')
     const page = await browser.newPage({ viewport: { width: 900, height: 700 } })
-    const pageErrors = []
-    page.on('pageerror', (e) => pageErrors.push('pageerror: ' + (e && e.message)))
-    page.on('console', (m) => { if (m.type() === 'error') pageErrors.push('console: ' + m.text()) })
+    const pageErrors: string[] = []
+    page.on('pageerror', (e: any) => pageErrors.push('pageerror: ' + (e && e.message)))
+    page.on('console', (m: any) => { if (m.type() === 'error') pageErrors.push('console: ' + m.text()) })
     await page.goto(origin, { waitUntil: 'load' })
     if (theme === 'dark') await page.evaluate(() => document.body.setAttribute('data-ds-dark-theme', ''))
     try {

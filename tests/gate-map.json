@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T18:19:41.762Z",
+  "generatedAt": "2026-10-16T18:20:43.931Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 302,
   "gateCount": 302,
@@ -2264,8 +2264,8 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 5 条"
     },
     {
-      "step": "node tests/verify-670-panel-first-frame.js",
-      "file": "tests/verify-670-panel-first-frame.js",
+      "step": "node tests/verify-670-panel-first-frame.ts",
+      "file": "tests/verify-670-panel-first-frame.ts",
       "guards": [
         "package/lib/client.js",
         "src/client/kernel/router.js",
@@ -7019,7 +7019,7 @@
       "node tests/verify-667-dock-header-no-brand.ts",
       "node tests/verify-669-collapsed-recoverable.ts",
       "node tests/verify-669-switch-visible.ts",
-      "node tests/verify-670-panel-first-frame.js",
+      "node tests/verify-670-panel-first-frame.ts",
       "node tests/verify-671-modal-global-overlay.js",
       "node tests/verify-693-detail-fallback-honesty.js",
       "node tests/verify-958-label-name-visible.js",
@@ -7239,7 +7239,7 @@
       "node tests/verify-669-chain-after-pick.ts",
       "node tests/verify-669-choice-precedence.ts",
       "node tests/verify-669-switch-visible.ts",
-      "node tests/verify-670-panel-first-frame.js",
+      "node tests/verify-670-panel-first-frame.ts",
       "node tests/verify-683-choice-rev.js",
       "node tests/verify-683-mirror-write.js",
       "node tests/verify-685-healthcheck-button.js",
@@ -7299,7 +7299,7 @@
       "node tests/verify-653-subworkspace.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-667-dock-header-no-brand.ts",
-      "node tests/verify-670-panel-first-frame.js",
+      "node tests/verify-670-panel-first-frame.ts",
       "node tests/verify-panel-workspace-shared.js",
       "node tests/verify-reuse.js"
     ],
@@ -8101,7 +8101,7 @@
       "node tests/verify-669-choice-precedence.ts",
       "node tests/verify-669-collapsed-recoverable.ts",
       "node tests/verify-669-switch-visible.ts",
-      "node tests/verify-670-panel-first-frame.js",
+      "node tests/verify-670-panel-first-frame.ts",
       "node tests/verify-671-modal-global-overlay.js",
       "node tests/verify-683-choice-rev.js",
       "node tests/verify-683-host-wiring.js",
