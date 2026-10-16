@@ -13,7 +13,7 @@ import { createRegistry } from '../../../src/tracker/registry/core.ts'
 import { anchorLineFor, idempotencyKeyOf } from '../../../src/shared/refresh/idempotency.js'
 
 // ── 坏实现：锚照样写进票面，但「回查」查的是自己实例里的一张临时表（不看票面）──
-function makeBrokenBackend(store) {
+function makeBrokenBackend(store: { tickets: any[] }): any {
   const memoryOnly = new Map()
   return {
     id: 'anchor-fake',
@@ -33,7 +33,7 @@ function makeBrokenBackend(store) {
   }
 }
 
-function makeBrokenFake(id, share) {
+function makeBrokenFake(id: string, share?: any): any {
   const s = share || { id: id || 'anchor-fake', store: { tickets: [] } }
   return { id: s.id, label: '坏假身（回查只认内存）', matches: async () => false, create: () => makeBrokenBackend(s.store), _share: s }
 }

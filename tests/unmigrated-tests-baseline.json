@@ -7,7 +7,6 @@
     "tests/fixtures/gh-gateway/compliant/src/host/goodGated.js",
     "tests/fixtures/gh-gateway/violating/src/host/badBypass.js",
     "tests/fixtures/gh-gateway/violating/src/host/badRegistered.js",
-    "tests/tracker-contract/sections/idempotency-counterproof.js",
     "tests/verify-929-batch-cycle.js",
     "tests/verify-952-short-text.js",
     "tests/verify-955-alignment.js",
