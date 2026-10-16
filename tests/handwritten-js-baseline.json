@@ -239,7 +239,6 @@
     "tests/fixtures/gh-gateway/violating/src/host/badBypass.js",
     "tests/fixtures/gh-gateway/violating/src/host/badRegistered.js",
     "tests/lib/render-subws-mark.js",
-    "tests/playwright-e2e-probe.js",
     "tests/repro-666-mark-never-rendered.js",
     "tests/repro-detailsdock-painting-switch.js",
     "tests/repro-gate-flake-fixed.js",
