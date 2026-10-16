@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T16:31:36.954Z",
+  "generatedAt": "2026-10-16T16:39:59.498Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 301,
   "gateCount": 301,
@@ -5284,7 +5284,7 @@
         "src/tracker/rooms/markdown/read.ts",
         "tests/fixtures/markdown-sample/01-hello-world.md",
         "tests/tracker-contract/fixtures/markdown.js",
-        "tests/tracker-contract/harness.js"
+        "tests/tracker-contract/harness.ts"
       ],
       "dirs": [
         "src/tracker/rooms/markdown",
@@ -6489,12 +6489,12 @@
         "src/tracker/registry/core.ts",
         "src/tracker/rooms/github/normalize.ts",
         "src/tracker/rooms/gitlab/normalize.ts",
-        "tests/tracker-contract/fixtures/compliant.js",
-        "tests/tracker-contract/fixtures/demo.js",
-        "tests/tracker-contract/fixtures/gitlab.js",
-        "tests/tracker-contract/fixtures/violating.js",
-        "tests/tracker-contract/harness.js",
-        "tests/tracker-contract/runner/index.js",
+        "tests/tracker-contract/fixtures/compliant.ts",
+        "tests/tracker-contract/fixtures/demo.ts",
+        "tests/tracker-contract/fixtures/gitlab.ts",
+        "tests/tracker-contract/fixtures/violating.ts",
+        "tests/tracker-contract/harness.ts",
+        "tests/tracker-contract/runner/index.ts",
         "tests/tracker-contract/sections/chain.js",
         "tests/tracker-contract/sections/contract.js",
         "tests/tracker-contract/sections/counts.js",

@@ -98,8 +98,8 @@ async function main() {
   }
 
   // 动态导入
-  const runnerUrl = 'file://' + path.resolve('tests/tracker-contract/runner/index.js').replace(/\\/g,'/')
-  const harnessUrl = 'file://' + path.resolve('tests/tracker-contract/harness.js').replace(/\\/g,'/')
+  const runnerUrl = 'file://' + path.resolve('tests/tracker-contract/runner/index.ts').replace(/\\/g,'/')
+  const harnessUrl = 'file://' + path.resolve('tests/tracker-contract/harness.ts').replace(/\\/g,'/')
   const runner = await import(runnerUrl)
   const harness = await import(harnessUrl)
   const { createRunnerContext, runPlayback, runWithAdapter } = runner

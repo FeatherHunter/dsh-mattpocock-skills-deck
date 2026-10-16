@@ -106,7 +106,7 @@ async function main() {
   }
 
   // ---------- 动态导入 runner + github 适配器 ----------
-  const runnerUrl = 'file://' + path.resolve('tests/tracker-contract/runner/index.js').replace(/\\/g, '/')
+  const runnerUrl = 'file://' + path.resolve('tests/tracker-contract/runner/index.ts').replace(/\\/g, '/')
   const githubUrl = 'file://' + path.resolve('src/tracker/rooms/github/index.ts').replace(/\\/g, '/')
   const runner = await import(runnerUrl)
   const githubMod = await import(githubUrl)
