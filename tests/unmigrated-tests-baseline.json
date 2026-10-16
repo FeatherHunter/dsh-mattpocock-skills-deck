@@ -22,7 +22,6 @@
     "tests/verify-599-merged-pr.js",
     "tests/verify-626-type-chip.js",
     "tests/verify-640-dock-width-browser.js",
-    "tests/verify-646-native-tab.js",
     "tests/verify-653-subworkspace.js",
     "tests/verify-655-setup-layout.js",
     "tests/verify-656-subworkspace-acceptance.js",

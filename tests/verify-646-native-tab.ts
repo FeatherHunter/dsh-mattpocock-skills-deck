@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * verify-646-native-tab.js — 验收：面板只有一个落点、一条路，就是 DSH 原生右侧边栏。
+ * verify-646-native-tab.ts — 验收：面板只有一个落点、一条路，就是 DSH 原生右侧边栏。
  *
  * 这份门禁的来历（读的人先看这里，别被文件名误导）：
  *   #646 当年定的是「两个入口」——本插件自己注册的类型 + 把类型交给 dsh-better-sidebar，两条并存。
@@ -17,7 +17,7 @@
  *   6) 拿桩上下文真跑一遍 apply：注册了什么、没注册什么、缺服务时崩不崩。
  *
  * 覆盖：src 真源两份文件 + 两份构建产物（产物由 scripts/build.mjs 从 src 重生成，行首 export 会被剥掉）。
- * 运行：node tests/verify-646-native-tab.js
+ * 运行：node --import ./scripts/ts-hook.mjs tests/verify-646-native-tab.ts
  */
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -27,8 +27,29 @@ import * as ReactDOMClient from 'react-dom/client'
 // 本文件选 evalInWindow 手法：三段都在已经开了 runScripts 的 jsdom 窗口里跑打包产物，与原 window.eval 等价且更直白。
 import { evalInWindow } from './lib/eval-probe.js'
 
+interface SlotMeta {
+  name: string
+  key?: string
+  inject?: (sessionId: string) => { sessionId: string }
+}
+
+interface SlotRegistration {
+  meta: SlotMeta
+  comp: unknown
+}
+
+interface StubCtx {
+  get: (k: string) => unknown
+  effect: (fn: () => unknown) => () => void
+  inject: (deps: string[], cb: (c: StubCtx) => void) => { dispose: () => void }
+}
+
+interface LoadedModule {
+  factory: (require: (name: string) => unknown) => { apply: (ctx: StubCtx) => void }
+}
+
 let passed = 0, failed = 0
-function check(ok, msg) { if (ok) { console.log('  PASS ' + msg); passed++ } else { console.log('  FAIL ' + msg); failed++ } }
+function check(ok: unknown, msg: string): void { if (ok) { console.log('  PASS ' + msg); passed++ } else { console.log('  FAIL ' + msg); failed++ } }
 
 const ROUTER = 'src/client/kernel/router.js'
 const ASSEMBLY = 'src/client/panelAssembly.js'
@@ -36,7 +57,7 @@ const CONFIG = 'src/client/kernel/config.js'
 const SETTINGS = 'src/client/views/SettingsPage.js'
 const LOCALE_FLOW = 'src/client/kernel/locale-flow.js'
 const FILES = [ROUTER, ASSEMBLY, CONFIG, SETTINGS, LOCALE_FLOW, 'client.js', 'package/lib/client.js']
-const texts = {}
+const texts: Record<string, string | null> = {}
 for (const rel of FILES) {
   const p = resolve(rel)
   texts[rel] = existsSync(p) ? readFileSync(p, 'utf8') : null
@@ -48,7 +69,7 @@ const SET_ASSEMBLY = [ASSEMBLY, 'client.js', 'package/lib/client.js']
 const SET_ALL = [ROUTER, ASSEMBLY, CONFIG, SETTINGS, LOCALE_FLOW, 'client.js', 'package/lib/client.js']
 
 /** 去掉注释后的源码：断言「代码里没有某样东西」时必须用它，否则会被解说说辞误伤。 */
-function stripComments(t) {
+function stripComments(t: string): string {
   return String(t).replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^A-Za-z0-9_$:])\/\/.*$/gm, '$1')
 }
 
@@ -139,9 +160,9 @@ console.log('== 运行时断言：拿桩上下文跑一遍 apply，看真的注�
   global.Node = window.Node
   global.HTMLElement = window.HTMLElement
   global.getComputedStyle = window.getComputedStyle
-  global.requestAnimationFrame = window.requestAnimationFrame || ((cb) => setTimeout(cb, 0))
+  global.requestAnimationFrame = window.requestAnimationFrame || ((cb: (...args: unknown[]) => void) => setTimeout(cb, 0))
   global.cancelAnimationFrame = window.cancelAnimationFrame || clearTimeout
-  if (typeof window.ResizeObserver === 'undefined') window.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} }
+  if (typeof window.ResizeObserver === 'undefined') window.ResizeObserver = class { observe(): void {} unobserve(): void {} disconnect(): void {} }
   global.ResizeObserver = window.ResizeObserver
   if (!window.document.fonts) window.document.fonts = { ready: Promise.resolve() }
   global.host = { call: async () => ({ ok: true }) }
@@ -151,53 +172,53 @@ console.log('== 运行时断言：拿桩上下文跑一遍 apply，看真的注�
   global.React = React
   global.ReactDOM = ReactDOMClient
 
-  const registrations = []
+  const registrations: SlotRegistration[] = []
   const slots = {
-    register: (meta, comp) => { registrations.push({ meta, comp }); return () => {} },
-    inject: (name, fn) => { try { fn() } catch (e) {} },
+    register: (meta: SlotMeta, comp: unknown) => { registrations.push({ meta, comp }); return () => {} },
+    inject: (name: string, fn: () => void) => { try { fn() } catch (e) {} },
   }
-  const dict = {}
-  const trFn = (key) => (dict[key] !== undefined ? dict[key] : key)
-  const services = {
+  const dict: Record<string, string> = {}
+  const trFn = (key: string): string => (dict[key] !== undefined ? dict[key] : key)
+  const services: Record<string, unknown> = {
     slots,
-    locale: { register: (ns, d) => { Object.assign(dict, d.zh || {}, d.en || {}); return () => {} }, bind: () => trFn },
+    locale: { register: (ns: string, d: { zh?: Record<string, string>; en?: Record<string, string> }) => { Object.assign(dict, d.zh || {}, d.en || {}); return () => {} }, bind: () => trFn },
     connection: { rpc: { call: async () => ({ ok: true, value: {} }) } },
     workspaces: { list: async () => [] },
     sessions: { list: async () => [] },
-    timer: { timeout: (fn, ms) => setTimeout(fn, ms) },
+    timer: { timeout: (fn: () => void, ms: number) => setTimeout(fn, ms) },
     // 注意这里**没有** betterSidebar：这一整套桩就是「那个插件不在」的世界，apply 必须照常跑通。
   }
   // 桩：原生 tab 类型登记表（只记注册），原生控制器（只记调用）
-  const registeredTypes = []
-  services.sidebarRightTabs = { register: (def) => { registeredTypes.push(def); return () => {} } }
-  const sidebarRightCalls = []
+  const registeredTypes: Array<{ kind?: unknown; priority?: unknown; id?: unknown; title?: unknown; guide?: Array<{ order?: unknown; title?: unknown; icon?: unknown }> }> = []
+  services.sidebarRightTabs = { register: (def: { kind?: unknown; priority?: unknown; id?: unknown; title?: unknown; guide?: Array<{ order?: unknown; title?: unknown; icon?: unknown }> }) => { registeredTypes.push(def); return () => {} } }
+  const sidebarRightCalls: Array<{ via: string; kind: unknown; options: unknown; sid?: unknown }> = []
   services.sidebarRight = {
-    openTab: (kind, options) => { sidebarRightCalls.push({ via: 'openTab', kind, options }) },
-    openTabIn: (sid, kind, options) => { sidebarRightCalls.push({ via: 'openTabIn', sid, kind, options }) },
+    openTab: (kind: unknown, options: unknown) => { sidebarRightCalls.push({ via: 'openTab', kind, options }) },
+    openTabIn: (sid: unknown, kind: unknown, options: unknown) => { sidebarRightCalls.push({ via: 'openTabIn', sid, kind, options }) },
   }
-  let injectSeat = null
-  const ctx = {
-    get: (k) => services[k],
-    effect: (fn) => { const r = fn(); return typeof r === 'function' ? r : () => {} },
-    inject: (deps, cb) => { injectSeat = { deps, cb, dispose: () => {} }; cb(ctx); return injectSeat },
+  let injectSeat: { deps: string[]; cb: (c: StubCtx) => void; dispose: () => void } | null = null
+  const ctx: StubCtx = {
+    get: (k: string) => services[k],
+    effect: (fn: () => unknown) => { const r = fn(); return typeof r === 'function' ? r : () => {} },
+    inject: (deps: string[], cb: (c: StubCtx) => void) => { injectSeat = { deps, cb, dispose: () => {} }; cb(ctx); return injectSeat },
   }
 
-  let loaded = null
-  window.__ModuleLoader__ = { load(spec) { loaded = spec; return spec } }
+  let loaded: LoadedModule | null = null
+  window.__ModuleLoader__ = { load(spec: unknown) { loaded = spec as LoadedModule; return spec } }
   const code = readFileSync(resolve('package/lib/client.js'), 'utf8')
   // 本处走 evalInWindow：在开了 runScripts 的这张 jsdom 窗口里执行产物。
   evalInWindow(dom, code)
   check(!!loaded, '产物加载成功')
   if (!loaded) { console.log('\ntotal=' + (passed + failed) + ' passed=' + passed + ' failed=' + failed); process.exit(1) }
 
-  const mod = loaded.factory((m) => {
+  const mod = (loaded as LoadedModule).factory((m: string) => {
     if (m === 'react') return React
     if (m === 'react-dom') return ReactDOMClient
     throw new Error('unexpected require: ' + m)
   })
-  let applyErr = null
+  let applyErr: unknown = null
   try { mod.apply(ctx) } catch (e) { applyErr = e }
-  check(applyErr === null, 'apply 跑通（无异常）' + (applyErr ? '：' + applyErr.message : ''))
+  check(applyErr === null, 'apply 跑通（无异常）' + (applyErr instanceof Error ? '：' + applyErr.message : ''))
 
   check(injectSeat !== null && injectSeat.deps.includes('sidebarRightTabs'), 'apply 里用 ctx.inject 等了 sidebarRightTabs')
   check(registeredTypes.length === 1, '只注册了 1 个原生 tab 类型（实际 ' + registeredTypes.length + '）')
@@ -215,17 +236,17 @@ console.log('== 运行时断言：拿桩上下文跑一遍 apply，看真的注�
   check(!names.includes('shell.overlay'), '没有把面板挂到 shell.overlay（页内浮窗仍是退役状态）')
   const body = registrations.find((r) => r.meta.name === 'sidebar.right.pane.tab')
   check(!!body && body.meta.key === 'dsh-mattpocock-skills-deck/deck:map', '内容体按我们自己的类型 id 分格')
-  check(!!body && typeof body.meta.inject === 'function' && body.meta.inject('sid-1').sessionId === 'sid-1', '内容体从槽位拿到 sessionId')
+  check(!!body && typeof body.meta.inject === 'function' && (body.meta.inject as (sid: string) => { sessionId: string })('sid-1').sessionId === 'sid-1', '内容体从槽位拿到 sessionId')
   check(sidebarRightCalls.length === 0, 'apply 阶段不打开面板（打开只由用户操作触发）')
 
   // 退路：宿主没有 sidebarRightTabs 时不许崩、也不许注册半个（类型注册失败就不注册槽位）
-  const registrations2 = []
-  const services2 = Object.assign({}, services, {
-    slots: { register: (meta) => { registrations2.push(meta); return () => {} }, inject: (n, fn) => { try { fn() } catch (e) {} } },
+  const registrations2: SlotMeta[] = []
+  const services2: Record<string, unknown> = Object.assign({}, services, {
+    slots: { register: (meta: SlotMeta) => { registrations2.push(meta); return () => {} }, inject: (n: string, fn: () => void) => { try { fn() } catch (e) {} } },
     sidebarRightTabs: undefined,
   })
-  const ctx2 = { get: (k) => services2[k], effect: (fn) => { const r = fn(); return () => {} }, inject: (deps, cb) => { cb(ctx2); return { dispose: () => {} } } }
-  let loaded2 = null
+  const ctx2: StubCtx = { get: (k: string) => services2[k], effect: (fn: () => unknown) => { const r = fn(); return () => {} }, inject: (deps: string[], cb: (c: StubCtx) => void) => { cb(ctx2); return { dispose: () => {} } } }
+  let loaded2: LoadedModule | null = null
   const dom2 = new JSDOM('<!doctype html><html><head></head><body></body></html>', { url: 'http://127.0.0.1:59522/', runScripts: 'dangerously' })
   global.window = dom2.window
   global.document = dom2.window.document
@@ -233,20 +254,20 @@ console.log('== 运行时断言：拿桩上下文跑一遍 apply，看真的注�
   dom2.window.ReactDOM = ReactDOMClient
   global.React = React
   global.ReactDOM = ReactDOMClient
-  dom2.window.__ModuleLoader__ = { load(spec) { loaded2 = spec; return spec } }
+  dom2.window.__ModuleLoader__ = { load(spec: unknown) { loaded2 = spec as LoadedModule; return spec } }
   dom2.window.host = global.host
   // 本处走 evalInWindow：第二张 jsdom 窗口同样开了 runScripts。
   evalInWindow(dom2, code)
-  const mod2 = loaded2.factory((m) => (m === 'react' ? React : m === 'react-dom' ? ReactDOMClient : null))
-  let err2 = null
+  const mod2 = (loaded2 as LoadedModule).factory((m: string) => (m === 'react' ? React : m === 'react-dom' ? ReactDOMClient : null))
+  let err2: unknown = null
   try { mod2.apply(ctx2) } catch (e) { err2 = e }
   check(err2 === null, '没有原生登记表时 apply 不崩')
   check(registrations2.filter((m) => m.name === 'sidebar.right.pane.tab').length === 0, '没有原生登记表时不注册标签内容体（不留半截注册）')
 
   // 老宿主：没有 ctx.inject 也不许崩（退回每秒重试那条路）
-  const services3 = Object.assign({}, services)
-  const ctx3 = { get: (k) => services3[k], effect: (fn) => { const r = fn(); return typeof r === 'function' ? r : () => {} } }
-  let loaded3 = null
+  const services3: Record<string, unknown> = Object.assign({}, services)
+  const ctx3: StubCtx = { get: (k: string) => services3[k], effect: (fn: () => unknown) => { const r = fn(); return typeof r === 'function' ? r : () => {} } } as StubCtx
+  let loaded3: LoadedModule | null = null
   const dom3 = new JSDOM('<!doctype html><html><head></head><body></body></html>', { url: 'http://127.0.0.1:59523/', runScripts: 'dangerously' })
   global.window = dom3.window
   global.document = dom3.window.document
@@ -254,12 +275,12 @@ console.log('== 运行时断言：拿桩上下文跑一遍 apply，看真的注�
   dom3.window.ReactDOM = ReactDOMClient
   global.React = React
   global.ReactDOM = ReactDOMClient
-  dom3.window.__ModuleLoader__ = { load(spec) { loaded3 = spec; return spec } }
+  dom3.window.__ModuleLoader__ = { load(spec: unknown) { loaded3 = spec as LoadedModule; return spec } }
   dom3.window.host = global.host
   // 本处走 evalInWindow：第三张 jsdom 窗口同样开了 runScripts。
   evalInWindow(dom3, code)
-  const mod3 = loaded3.factory((m) => (m === 'react' ? React : m === 'react-dom' ? ReactDOMClient : null))
-  let err3 = null
+  const mod3 = (loaded3 as LoadedModule).factory((m: string) => (m === 'react' ? React : m === 'react-dom' ? ReactDOMClient : null))
+  let err3: unknown = null
   try { mod3.apply(ctx3) } catch (e) { err3 = e }
   check(err3 === null, '没有 ctx.inject 的老宿主上 apply 不崩（退回每秒重试）')
 }
