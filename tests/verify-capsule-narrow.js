@@ -165,12 +165,15 @@ const statChecks = function (src, tag) {
   const enBlock = extractLocaleBlock(src, 'en')
   ok('i18n 字典存在 zh 块（zh: { ... }）', !!zhBlock)
   ok('i18n 字典存在 en 块（en: { ... }）', !!enBlock)
-  ok('panel.title zh = "MattSkills"', /'panel\.title':\s*'MattSkills'/.test(zhBlock))
-  ok('panel.title en = "MattSkills"（中英同字）', /'panel\.title':\s*'MattSkills'/.test(enBlock))
-  ok('nav.triage zh = "诊断"（与诊断段一致，非 "待分诊"）', /'nav\.triage':\s*'诊断'/.test(zhBlock))
-  ok('nav.triage en = "Triage"', /'nav\.triage':\s*'Triage'/.test(enBlock))
-  ok('nav.word zh = "沉淀"', /'nav\.word':\s*'沉淀'/.test(zhBlock))
-  ok('nav.refresh zh = "更新"', /'nav\.refresh':\s*'更新'/.test(zhBlock))
+  // 被测的是构建产物：esbuild 会把字典的键与值统一改写成双引号，所以引号必须两种都认
+  //（写死单引号会让这六条在产物上永远找不到，主链因此红着——2026-10-17 修）。
+  const q = "['\"]"
+  ok('panel.title zh = "MattSkills"', new RegExp(q + 'panel\\.title' + q + ':\\s*' + q + 'MattSkills' + q).test(zhBlock))
+  ok('panel.title en = "MattSkills"（中英同字）', new RegExp(q + 'panel\\.title' + q + ':\\s*' + q + 'MattSkills' + q).test(enBlock))
+  ok('nav.triage zh = "诊断"（与诊断段一致，非 "待分诊"）', new RegExp(q + 'nav\\.triage' + q + ':\\s*' + q + '诊断' + q).test(zhBlock))
+  ok('nav.triage en = "Triage"', new RegExp(q + 'nav\\.triage' + q + ':\\s*' + q + 'Triage' + q).test(enBlock))
+  ok('nav.word zh = "沉淀"', new RegExp(q + 'nav\\.word' + q + ':\\s*' + q + '沉淀' + q).test(zhBlock))
+  ok('nav.refresh zh = "更新"', new RegExp(q + 'nav\\.refresh' + q + ':\\s*' + q + '更新' + q).test(zhBlock))
   ok('nav.takeable / nav.bug / nav.triage / nav.env / nav.refresh / nav.handoff 键齐',
     /'nav\.takeable'/.test(src) && /'nav\.bug'/.test(src) && /'nav\.triage'/.test(src) &&
     /'nav\.env'/.test(src) && /'nav\.refresh'/.test(src) && /'nav\.handoff'/.test(src))
