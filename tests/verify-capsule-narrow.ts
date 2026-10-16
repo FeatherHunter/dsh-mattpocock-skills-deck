@@ -1,5 +1,5 @@
-// verify-capsule-narrow.js — 状态栏胶囊窄屏契约 · issue #16（V2：内容自适应渐进收缩）
-// 用法: node tests/verify-capsule-narrow.js [file...]（默认 client.js + package/lib/client.js 双源）
+// verify-capsule-narrow.ts — 状态栏胶囊窄屏契约 · issue #16（V2：内容自适应渐进收缩）
+// 用法: node --import ./scripts/ts-hook.mjs tests/verify-capsule-narrow.ts [file...]（默认 client.js + package/lib/client.js 双源）
 //
 // V2 契约（2026-08-18 复现后重设计，替代 R1-R13 的 data-narrow 阈值体系）：
 //   1) 任何宽度下胶囊禁止换行：.dsws-capsule CSS 含 flex-wrap:nowrap 且不含 flex-wrap:wrap

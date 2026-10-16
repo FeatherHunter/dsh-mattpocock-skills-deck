@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T22:35:39.039Z",
+  "generatedAt": "2026-10-16T22:38:17.643Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 301,
   "gateCount": 301,
@@ -4054,8 +4054,8 @@
       "reason": "读到的路径都落在 package、tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
-      "step": "node tests/verify-capsule-narrow.js",
-      "file": "tests/verify-capsule-narrow.js",
+      "step": "node tests/verify-capsule-narrow.ts",
+      "file": "tests/verify-capsule-narrow.ts",
       "guards": [
         "package/lib/client.js",
         "tests/lib/eval-probe.ts"
@@ -7027,7 +7027,7 @@
       "node tests/verify-cap-fold-browser.js",
       "node tests/verify-cap-fold.js",
       "node tests/verify-capsule-layout.js",
-      "node tests/verify-capsule-narrow.js",
+      "node tests/verify-capsule-narrow.ts",
       "node tests/verify-client-hardcode-gate.js",
       "node tests/verify-client-no-undef.ts",
       "node tests/verify-ctx.ts",
@@ -8140,7 +8140,7 @@
       "node tests/verify-cap-fold-browser.js",
       "node tests/verify-cap-fold.js",
       "node tests/verify-capsule-layout.js",
-      "node tests/verify-capsule-narrow.js",
+      "node tests/verify-capsule-narrow.ts",
       "node tests/verify-detection-cascade.js",
       "node tests/verify-diagnostic-log-model.ts",
       "node tests/verify-generated-no-shadow.js",

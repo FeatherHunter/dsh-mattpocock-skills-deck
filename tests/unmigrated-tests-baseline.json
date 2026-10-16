@@ -35,7 +35,6 @@
     "tests/verify-cap-fold-browser.js",
     "tests/verify-cap-fold.js",
     "tests/verify-capsule-layout.js",
-    "tests/verify-capsule-narrow.js",
     "tests/verify-cards-dir.js",
     "tests/verify-chain-capsule.js",
     "tests/verify-chain-env-e2e.js",
