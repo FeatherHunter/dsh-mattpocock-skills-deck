@@ -21,23 +21,23 @@ import { compileFn } from './lib/eval-probe.js'
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 let failed = false
 let total = 0
-const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
-const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
+const check = (ok: unknown, msg: string): void => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
+const read = (rel: string): string => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 
 console.log('#690 门禁（已关闭票按需翻页：页数据的分桶/去重/不清空/上限，与三个触发点走同一条路）')
 
 // ── 一、行为断言：把内核模块的源码喂进替身跑真行为 ──
 // 替身说明：idOf 与真实那一份同口径（工作单元 + 编号），emit 只计数，fetchIssuesPage 由每个用例按需给回包。
-function loadIssuePagesModule(fetchStub) {
+function loadIssuePagesModule(fetchStub: any) {
   const raw = read('src/client/kernel/issue-pages.js').replace(/^(\s*)export\s+/gm, '$1')
   const emitCount = { n: 0 }
-  const idOfStub = (x) => String((x && x.effortId ? x.effortId : '') + '|' + (x && x.key != null ? x.key : (x && x.number != null ? x.number : '')))
+  const idOfStub = (x: any) => String((x && x.effortId ? x.effortId : '') + '|' + (x && x.key != null ? x.key : (x && x.number != null ? x.number : '')))
   // 本处走 compileFn：参数名与替身一一对应，函数体与原来逐字相同。
   const factory = compileFn(['idOf', 'emit', 'fetchIssuesPage'], raw + '\nreturn { ISSUE_PAGE_MAX: ISSUE_PAGE_MAX, issuePageFilterOf: issuePageFilterOf, issuePageKeyOf: issuePageKeyOf, issuePageBucketRead: issuePageBucketRead, issuePageBucketOf: issuePageBucketOf, issuePageRowsOf: issuePageRowsOf, issuePageStatOf: issuePageStatOf, loadIssuePage: loadIssuePage }')
   return { mod: factory(idOfStub, () => { emitCount.n++ }, fetchStub), emitCount }
 }
 
-const mkSt = (over) => Object.assign({
+const mkSt = (over: any) => Object.assign({
   cwd: '/ws',
   workspaceRoot: '/ws',
   stateFilter: 'all',
@@ -47,9 +47,10 @@ const mkSt = (over) => Object.assign({
 }, over || {})
 
 /** 一个会照单发货的取页替身：按调用次序回队列里的回包，记下每次入参。 */
-function mkFetcher(responses) {
-  const calls = []
-  const fn = (st, opts) => {
+function mkFetcher(responses: any[]) {
+  const calls: any[] = []
+  // 替身函数额外挂 calls 账本，按任意函数处理（运行时与原来一样）。
+  const fn: any = (st: any, opts: any) => {
     calls.push(opts)
     const r = responses.length ? responses.shift() : { ok: true, items: [], nextCursor: null, total: 0 }
     return Promise.resolve(r)
@@ -135,7 +136,7 @@ function mkFetcher(responses) {
 
   // 6）上限十页：超了从最旧的页开始丢，并且让界面知道「再往上滚要重新加载」
   {
-    const responses = []
+    const responses: any[] = []
     for (let i = 0; i < 12; i++) responses.push({ ok: true, items: [{ key: String(100 - i), state: 'CLOSED' }], nextCursor: 'C' + (i + 1), total: 999 })
     const fetchStub = mkFetcher(responses)
     const { mod } = loadIssuePagesModule(fetchStub)

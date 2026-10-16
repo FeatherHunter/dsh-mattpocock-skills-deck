@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T18:29:55.360Z",
+  "generatedAt": "2026-10-16T18:31:17.702Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 302,
   "gateCount": 302,
@@ -2460,8 +2460,8 @@
       "reason": "归属来自：源码里的路径字面量 1 条"
     },
     {
-      "step": "node tests/verify-690-closed-pages.js",
-      "file": "tests/verify-690-closed-pages.js",
+      "step": "node tests/verify-690-closed-pages.ts",
+      "file": "tests/verify-690-closed-pages.ts",
       "guards": [
         "src/client/kernel/issue-pages.js",
         "src/host/issuePage.js",
@@ -7245,7 +7245,7 @@
       "node tests/verify-685-healthcheck-button.js",
       "node tests/verify-686-accept.js",
       "node tests/verify-689-counts-ui.ts",
-      "node tests/verify-690-closed-pages.js",
+      "node tests/verify-690-closed-pages.ts",
       "node tests/verify-698-switch-asks-layout.js",
       "node tests/verify-786-focus-end.js",
       "node tests/verify-818-version-control-view.js",
@@ -7496,7 +7496,7 @@
       "node tests/verify-666-subws-mark-root.ts",
       "node tests/verify-683-choice-store.ts",
       "node tests/verify-683-host-wiring.ts",
-      "node tests/verify-690-closed-pages.js",
+      "node tests/verify-690-closed-pages.ts",
       "node tests/verify-691-map-subissues.js",
       "node tests/verify-696-shared-cache.js",
       "node tests/verify-709-no-self-continuing-timers.js",
@@ -8108,7 +8108,7 @@
       "node tests/verify-683-mirror-write.ts",
       "node tests/verify-685-healthcheck-button.js",
       "node tests/verify-686-accept.js",
-      "node tests/verify-690-closed-pages.js",
+      "node tests/verify-690-closed-pages.ts",
       "node tests/verify-698-switch-asks-layout.js",
       "node tests/verify-709-no-self-continuing-timers.js",
       "node tests/verify-723-gate-wiring.js",
