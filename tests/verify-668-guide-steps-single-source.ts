@@ -8,16 +8,16 @@ const fs = require('fs')
 const path = require('path')
 
 const ROOT = path.join(__dirname, '..')
-const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
+const read = (rel: string): string => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 let passed = 0
-const ok = (name) => { passed++; console.log('  PASS', name) }
+const ok = (name: string): void => { passed++; console.log('  PASS', name) }
 
 async function main() {
   const guide = await import(require('url').pathToFileURL(path.join(ROOT, 'src', 'shared', 'tracker', 'guide-steps.js')).href)
   const catalog = await import(require('url').pathToFileURL(path.join(ROOT, 'src', 'shared', 'tracker', 'check-catalog-dirs.js')).href)
 
   const ORDER = ['selection:backendSelected', 'gh:installed', 'gh:authed', 'gh:remote', 'tracker:initialized', 'skill:wayfinder']
-  const idOf = (arr) => arr.map((s) => String(s.id))
+  const idOf = (arr: any[]): string[] => arr.map((s) => String(s.id))
 
   // —— 场景 1：清单本身 = 维护者 2026-09-19 定的那一条顺序 ——
   assert(Array.isArray(guide.GUIDE_STEPS), 'GUIDE_STEPS 是有序数组')
@@ -42,7 +42,7 @@ async function main() {
   }
   ok('六步的字段与规格「定版一」逐项一致（字段齐、取值合法）')
 
-  // gate 那一步只能有一步，且它是唯一不读链快照的（#662 定版一的注）
+  // gate 那一步只能有一项，且它是唯一不读链快照的（#662 定版一的注）
   const gateSteps = guide.GUIDE_STEPS.filter((s) => s.ready === 'gate')
   assert.deepStrictEqual(idOf(gateSteps), ['selection:backendSelected'], '只有「已选择后端」那一步读本地门控状态')
   ok('唯一的 gate 步骤是「已选择后端」（后端没定时不照链快照判）')
@@ -86,7 +86,7 @@ async function main() {
   ok('guideStepDone 三项全绿才算过（少一项、fail、pending、缺快照都不算过）')
 
   // —— 场景 4：宿主按清单排链快照（对真目录、真函数） ——
-  const chainStepsOf = (backendId, allDone) => {
+  const chainStepsOf = (backendId: string, allDone?: boolean) => {
     const items = catalog.catalogFor(backendId).filter((c) => c.id !== 'gh:labels')
     return items.map((c) => ({ id: String(c.id), status: allDone ? 'done' : 'fail', show: null, actions: [] }))
   }

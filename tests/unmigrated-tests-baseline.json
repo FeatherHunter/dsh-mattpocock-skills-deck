@@ -19,7 +19,6 @@
     "tests/smoke-render.test.js",
     "tests/tracker-contract/fixtures/markdown.js",
     "tests/tracker-contract/sections/idempotency-counterproof.js",
-    "tests/verify-668-guide-steps-single-source.js",
     "tests/verify-669-collapsed-recoverable.js",
     "tests/verify-669-switch-visible.js",
     "tests/verify-670-panel-first-frame.js",
