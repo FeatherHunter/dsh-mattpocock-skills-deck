@@ -202,6 +202,11 @@ export function reduceTrackingState(state, event) {
  */
 export const NAMING_RETRY_MAX = 3
 
+/** 改名失败后的冷却窗：这段时间内不重复出单，给瞬时故障留自愈余地（配合上面的 NAMING_RETRY_MAX 连败计数使用）。
+ *  住 config/intervals.yaml 的 namingRetryCooldownMs。
+ *  为什么这里只能是字面量：本文件被 scripts/build.mjs 的 SHARED_SPLICE 整份拼进界面闭包，
+ *  闭包里出现 import 语句就是语法错误，所以不 import 中央常量，值与 YAML 的一致性由
+ *  tests/verify-time-config.ts 看守。 */
 export const NAMING_RETRY_COOLDOWN_MS = 45000
 
 /** 定败画像（供面板呈现 + 协商化解判定）；未达预算上限 / 已锁 → null。 */

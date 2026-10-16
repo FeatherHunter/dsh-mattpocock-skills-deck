@@ -24,10 +24,16 @@
  *   宿主侧「新文件禁止静态引入」的规约由引入方负责，本文件不引入任何其他文件。
  */
 
-// 单次增量窗口的上限：窗口过宽会让 GitHub 返回几乎全量，等于没省。
+// 单次增量窗口的上限 7 天：窗口过宽会让 GitHub 返回几乎全量，等于没省。
+// 住 config/ttl.yaml 的 trackerIndexMaxWindowMs（毫秒，604800000 就是 7 天）。
+// 为什么这里只能是字面量：本文件住在共享层（src/shared/）里，而共享层内部禁止互相 import ——
+// 这条规则是 .dependency-cruiser.cjs 的 same-layer-import-shared，
+// 理由写在 docs/adr/20261016-timeouts-yaml.md 第 3 节第 2 条（共享域之间不许互相 import 是红线）。
+// 所以这里引不了 ../time-config/values.js；数字与中央 YAML 是否一致，由 tests/verify-time-config.ts 看守。
 const MAX_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
 
-// 本机与 GitHub 时钟可能有偏差，水印往前多退这么多，避免边界的改动被漏掉。
+// 本机与 GitHub 时钟可能有偏差，水印往前多退这么多（60 秒），避免边界的改动被漏掉。
+// 住 config/ttl.yaml 的 trackerIndexSkewMs；只能是字面量的理由同上。
 const SKEW_MS = 60000
 
 /**
