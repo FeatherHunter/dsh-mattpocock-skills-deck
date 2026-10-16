@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T17:46:43.837Z",
+  "generatedAt": "2026-10-16T17:47:39.183Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 302,
   "gateCount": 302,
@@ -1760,15 +1760,15 @@
       "reason": "读到的路径都落在 package、tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
-      "step": "node tests/verify-544-standalone-blocked.js",
-      "file": "tests/verify-544-standalone-blocked.js",
+      "step": "node tests/verify-544-standalone-blocked.ts",
+      "file": "tests/verify-544-standalone-blocked.ts",
       "guards": [
         "scripts/lib/discover-gates.ts",
         "src/client/kernel/store-derived.js",
         "src/client/views/ListTab.js",
         "src/client/views/ListTabRow.js",
         "src/tracker/kernel/identity-keys.ts",
-        "tests/verify-544-standalone-blocked.js"
+        "tests/verify-544-standalone-blocked.ts"
       ],
       "dirs": [
         "scripts/lib",
@@ -7152,7 +7152,7 @@
       "node tests/verify-1130-gitlab-marker-read.ts",
       "node tests/verify-1157-in-flight-lease.ts",
       "node tests/verify-1158-completion-evidence.ts",
-      "node tests/verify-544-standalone-blocked.js",
+      "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-596-rpc-carrier.js",
       "node tests/verify-656-subworkspace-acceptance.js",
       "node tests/verify-668-guide-steps-single-source.js",
@@ -7227,7 +7227,7 @@
       "node tests/verify-1199-row-closed-link.ts",
       "node tests/verify-1206-glossary-naming.ts",
       "node tests/verify-423-title-clamp.ts",
-      "node tests/verify-544-standalone-blocked.js",
+      "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-626-type-chip.js",
       "node tests/verify-646-native-tab.js",
       "node tests/verify-653-subworkspace.js",
@@ -7332,7 +7332,7 @@
       "node tests/verify-1199-row-closed-link.ts",
       "node tests/verify-1231-ws-overview-rows.ts",
       "node tests/verify-1237-mapdetail-copy.ts",
-      "node tests/verify-544-standalone-blocked.js",
+      "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-599-merged-pr.js",
       "node tests/verify-626-type-chip.js",
       "node tests/verify-646-native-tab.js",
@@ -7884,7 +7884,7 @@
       "node tests/verify-1145-open-local.ts",
       "node tests/verify-1182-log-emit-single-source.ts",
       "node tests/verify-1199-row-closed-link.ts",
-      "node tests/verify-544-standalone-blocked.js",
+      "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-992-readonly-labels.js",
       "node tests/verify-error-normalize-log.ts",
       "node tests/verify-error-rule-samples.ts",
@@ -8023,7 +8023,7 @@
       "node tests/verify-1146-virtual-clock-liveness.ts",
       "node tests/verify-1157-in-flight-lease.ts",
       "node tests/verify-1158-completion-evidence.ts",
-      "node tests/verify-544-standalone-blocked.js",
+      "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-596-rpc-carrier.js",
       "node tests/verify-656-subworkspace-acceptance.js",
       "node tests/verify-668-guide-steps-single-source.js",

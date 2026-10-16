@@ -1,13 +1,13 @@
-// verify-544-standalone-blocked.js — #544 独立票原生依赖阻塞边在列表与计数中展示
+// verify-544-standalone-blocked.ts — #544 独立票原生依赖阻塞边在列表与计数中展示
 // 验收：541/542/543 出现阻塞徽章（与地图子票同样式）；顶部“阻塞”计数为 3、“可接”相应减少；
 // “阻塞”筛选能筛出这三张；原有地图的分层与计数一字不差；异常输入不崩。
-// 用法: node tests/verify-544-standalone-blocked.js
+// 用法: node --import ./scripts/ts-hook.mjs tests/verify-544-standalone-blocked.ts
 const assert = require('assert')
 const fs = require('fs')
 const path = require('path')
 
-async function loadDerived() {
-  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'client', 'kernel', 'store-derived.js'), 'utf8')
+async function loadDerived(): Promise<any> {
+  const src: string = fs.readFileSync(path.join(__dirname, '..', 'src', 'client', 'kernel', 'store-derived.js'), 'utf8')
   const tmp = path.join(__dirname, 'tmp-544-verify-derived.mjs')
   // effort 维度：store-derived 在面板闭包里用共享的身份函数（idOf / idOfParts / effortOf），
   // 单独取出求值时要把同一份原文显式导入，否则 ReferenceError（跑的是真函数，不改行为）。
@@ -22,12 +22,12 @@ async function loadDerived() {
   }
 }
 
-async function main() {
-  const derived = await loadDerived()
+async function main(): Promise<void> {
+  const derived: any = await loadDerived()
   assert(typeof derived.isOccupied === 'function', 'store-derived 导出 isOccupied')
   assert(typeof derived.applyStandaloneBlocks === 'function', 'store-derived 导出 applyStandaloneBlocks')
   let passed = 0
-  const ok = (name) => { passed++; console.log('  PASS', name) }
+  const ok = (name: string) => { passed++; console.log('  PASS', name) }
 
   // —— 场景 1：#544 现场（540→541→542→543 链，无地图） ——
   const st = {
@@ -133,19 +133,19 @@ async function main() {
   ok('边界与异常分支全部通过')
 
   // —— 场景 5：源码接线（列表与行渲染已接入） ——
-  const listTab = fs.readFileSync(path.join(__dirname, '..', 'src', 'client', 'views', 'ListTab.js'), 'utf8')
+  const listTab: string = fs.readFileSync(path.join(__dirname, '..', 'src', 'client', 'views', 'ListTab.js'), 'utf8')
   assert(listTab.includes('applyStandaloneBlocks(st, blockOf)'), 'ListTab 合并独立票阻塞标记')
-  const row = fs.readFileSync(path.join(__dirname, '..', 'src', 'client', 'views', 'ListTabRow.js'), 'utf8')
+  const row: string = fs.readFileSync(path.join(__dirname, '..', 'src', 'client', 'views', 'ListTabRow.js'), 'utf8')
   assert(row.includes('blk.map === null'), '行渲染区分独立票徽章（无所属地图不跳转）')
   assert(row.includes("tr('map.subBlocked'"), '独立票徽章提示文案不承诺跳转地图')
   ok('源码接线正确')
 
   // —— 场景 6：门禁已接入 verify 链（仓库惯例；#1125 起问规划函数，不再读 package.json 长串） ——
   const { isGatePlanned } = require('../scripts/lib/discover-gates.ts')
-  assert(isGatePlanned(path.join(__dirname, '..'), 'tests/verify-544-standalone-blocked.js'), 'verify 链已纳入本门禁（规划函数里有它）')
+  assert(isGatePlanned(path.join(__dirname, '..'), 'tests/verify-544-standalone-blocked.ts'), 'verify 链已纳入本门禁（规划函数里有它）')
   ok('门禁已接入 verify 链')
 
   console.log(`\n全部通过：${passed} 组检查，6 组场景`)
 }
 
-main().catch((e) => { console.error('FAIL', e); process.exit(1) })
+main().catch((e: unknown) => { console.error('FAIL', e); process.exit(1) })
