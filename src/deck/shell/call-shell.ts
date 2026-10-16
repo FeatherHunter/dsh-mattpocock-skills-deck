@@ -83,7 +83,6 @@ interface PickedDraft {
   ref: DeckRepoRef | null;
   multiHit?: unknown;
   pending?: boolean;
-  canWrite?: unknown;
 }
 
 
@@ -277,7 +276,7 @@ export function createDeckShell(deps?: DeckShellDeps): DeckShell {
             logCtx: log,
           })) as OutletResult | null
           if (o && o.backendId) {
-            picked = { backendId: o.backendId, source: str(o.source), ref: (o.ref || null) as DeckRepoRef | null, multiHit: o.multiHit, pending: !!o.pending, canWrite: o.canWrite }
+            picked = { backendId: o.backendId, source: str(o.source), ref: (o.ref || null) as DeckRepoRef | null, multiHit: o.multiHit, pending: !!o.pending }
             if (!picked.ref) { try { picked.ref = registry.describe(handle, picked.backendId) as DeckRepoRef | null } catch (eD) { picked.ref = null } }
           } else if (o && o.pending) {
             picked = { backendId: null, source: 'fallback', pending: true, ref: null, multiHit: o.multiHit }
@@ -339,8 +338,10 @@ export function createDeckShell(deps?: DeckShellDeps): DeckShell {
       const pending = draft && draft.pending
       return { ok: false, reason: REFUSAL_REASONS.NO_BACKEND, text: pending ? '后端还没定下来（自动识别有超时未决），先在面板上选一次后端。' : '这个工作区还没有后端（既没有手动选过，也没有识别到锚文件）。先在面板上选一个后端。' }
     }
-    // #1003 写用途只认文件里的记录（契约期望行为第 4 条）：结论不是来自工作区配置文件、也不是你这次亲手绑定的，就一律不做（读用途不受影响）。
-    if (draft.canWrite !== true) return { ok: false, reason: REFUSAL_REASONS.NO_BACKEND, text: '这个工作区还没选定后端：现在这个结论是按仓库里的说明文件或自动识别得出的，不算你亲手选过，所以我没有动任何东西。请先在面板上选定这个工作区使用的后端，然后重试。' }
+    // 2026-10-16 维护者拍板：工具壳不再要求「人亲手选过」。判定出口给出了哪个后端，壳就用哪个——
+    // 声明文件与自动识别来的结论同样放行（只有声明文件、没有工作区配置文件的工作区不再被拦）。
+    // 判定出口照旧如实标出来源与写权限（canWrite / reason），排查时看日志里的结论线即可。
+    // 壳里剩下的拒绝只有三类：多命中或未决（上面那一支）、连后端都没有（下面那一支）、闸与后端自身失败。
     fire('deck.select', ms, true)
     noteGate('select', 'allow', '')
     return { ok: true, backendId: str(draft.backendId), source: str(draft.source), ref: draft.ref || null, pending: !!draft.pending, requests: num(sent.requests), points: num(sent.points) }

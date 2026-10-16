@@ -119,7 +119,7 @@ async function main() {
     const p = await shellOf(regOf(async () => ({ backendId: null, source: 'fallback' })), {
       readDeclarationId: async () => 'github',
     }).pickBackend({ agent: { session: { id: 's', cwd: dir } } }, sOf(dir));
-    check(p.ok === false && /先在面板上选定/.test(String(p.text)), 'D1 写用途（工具壳）拒绝：只有声明文件不算人亲手选过（#1003 契约第 4 条）', JSON.stringify({ ok: p.ok, text: p.text }));
+    check(p.ok === true && p.backendId === 'github', 'D1 工具壳与统一判定同答案：只有声明文件也照用声明里的 github（2026-10-16 起不再要求人亲手选过）', JSON.stringify({ ok: p.ok, backendId: p.backendId }));
   }
 
   // —— D2：文件存在时只听文件的 ——

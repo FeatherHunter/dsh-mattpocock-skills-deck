@@ -130,14 +130,16 @@ async function main() {
     check(u.canWrite !== true, 'S1 声明文件来的结论不算「人选的」：出口标了不可写', JSON.stringify({ canWrite: u.canWrite, reason: u.reason }));
     const shell1 = shellOf(noAuto, { readDeclarationId: async () => 'github' });
     const p = await shell1.pickBackend({ agent: { session: { id: 's', cwd: dir } } }, sOf(dir));
-    check(p.ok === false && /先在面板上选定/.test(String(p.text)), 'S1 写用途（工具壳）拒绝：只有声明文件不算人亲手选过', JSON.stringify({ ok: p.ok, text: p.text }));
+    check(p.ok === true && p.backendId === 'github', 'S1 工具壳放行：只有声明文件也照用声明里的 github（2026-10-16 起不再要求人亲手选过）', JSON.stringify({ ok: p.ok, backendId: p.backendId }));
     const l = await lcOf(Object.assign({}, noAuto, { get: () => fakeTracker() }), fss).handleListLabels({ cwd: dir });
     check(l.ok === true && l.backendId === 'github', 'S1 读用途（列标签）不受影响，照旧读到声明文件', JSON.stringify(l).slice(0, 160));
     const w1 = await lcOf(Object.assign({}, noAuto, { get: () => fakeTracker() }), fss).handleSetLabelColors({ cwd: dir, changes: [{ name: 'bug', color: '0b7285' }] });
     check(w1.ok === false && /先在面板上选定/.test(String(w1.error && w1.error.message)), 'S1 写用途（改色）拒绝：只有声明文件不算人亲手选过', JSON.stringify(w1).slice(0, 200));
     const d = await detOf(noAuto, fss).detect({ cwd: dir }, { skipSkillProbes: true });
     check(d.selection && d.selection.backendId === 'github', 'S1 探测服务同样读到声明文件', JSON.stringify(d.selection));
-    // 对照：给这个工作区补上一份「人亲手选过」的记录之后，写用途放行 —— 证明上面两条拒绝的原因就是缺人的记录，不是别的。
+    // 对照：给这个工作区补上一份「人亲手选过」的记录之后，结论换成文件的（这里文件与声明同为 github，
+    //   所以只看来源变成文件层）。改色电话的写用途认的仍然是这一份记录 —— 工具壳 2026-10-16 起不再设这道门，
+    //   但改色电话的写用途还设着，所以上面 w1 照旧拒绝、下面 w2 照旧放行。
     //   #1138 起这份记录只有一种载体：工作区文件 docs/agents/workspace.yaml（这里真写一份到临时目录）。
     //   以前这里是在桩注册表上加一句 bound: () => 'github' 假装「本进程里有绑定」，那个口子已经整段删掉了。
     fs.writeFileSync(path.join(dir, 'docs', 'agents', 'workspace.yaml'),

@@ -35,8 +35,8 @@ makeDelegatedExecute              src/deck/registration/agent-row.ts:313-391
   ▼
 九个工具各自的 run                src/deck/tools/*.ts
   │ ④ 取会话目录   sessionContextOfAsync   src/deck/shell/session-workdir.ts:143
-  │ ⑤ 判参数够不够 + 选后端 shell.pickBackend src/deck/shell/call-shell.ts:241
-  │ ⑥ 取沙箱策略 → 过闸 + 真干活 shell.call  src/deck/shell/call-shell.ts:269
+  │ ⑤ 判参数够不够 + 选后端 shell.pickBackend src/deck/shell/call-shell.ts:240
+  │ ⑥ 取沙箱策略 → 过闸 + 真干活 shell.call  src/deck/shell/call-shell.ts:268
   ▼
 后端注册表选出的 Tracker          src/tracker/registry/core.ts:149
   │ ⑦ registry.get(backendId) → 某座房间的门面对象
@@ -182,53 +182,52 @@ src/host/index.ts:252     harness.handle('wf.deckExec', …)（注释写着「ag
 
 ## 第 4 层：选后端（全插件只有一个判定出口）
 
-`src/deck/shell/call-shell.ts:241-347`（`pickBackend`）。
+`src/deck/shell/call-shell.ts:240-348`（`pickBackend`）。
 
 **谁调用谁 / 传什么**
 
 ```
 pickBackend(exec, s)
-  ├─ 目录空？                    :243            空 → NO_BACKEND
-  ├─ 会话→句柄                  :245  d.handleFor(s)
-  ├─ 动手前保一次剩余额度读数     :250  d.ensureReading(cwd, workspaceKey)
-  ├─ 过闸跑统一判定出口          :269  gate.send({kind:'probe'}, …)
+  ├─ 目录空？                    :242            空 → NO_BACKEND
+  ├─ 会话→句柄                  :244  d.handleFor(s)
+  ├─ 动手前保一次剩余额度读数     :249  d.ensureReading(cwd, workspaceKey)
+  ├─ 过闸跑统一判定出口          :268  gate.send({kind:'probe'}, …)
   │     └─ d.decideBackend(cwd, {registry, backendCtx, readWorkspaceFileText,
   │                             parseWorkspaceFile, readDeclarationId, autodetect})
   │           → src/tracker/detection/backendDecision.ts:1089-1151
-  ├─ 仓库标识补全（缺 refId 时）  :303-336  tracker.getRepoKey + 三层兜底，8 秒上限
-  └─ 结论                        :337-346
+  ├─ 仓库标识补全（缺 refId 时）  :302-335  tracker.getRepoKey + 三层兜底，8 秒上限
+  └─ 结论                        :336-347
 ```
 
 **判定出口里的三层**（`src/tracker/detection/backendDecision.ts:1030-1065` 的 `decidePure`，层数说明见同文件 `:1067-1088` 的注释）：人选唯一真源（工作区配置文件） → 声明文件 `docs/agents/issue-tracker.md` → 后端 `matches` 自动识别。**没有内存绑定层**——进程内绑定整层已删（同文件注释 `:1074-1077`），插件不替人记「上次选了什么」。
 
-**这一道门槛落在谁身上**（src/deck/shell/call-shell.ts:343）：判定结论不是来自「人选唯一真源」的（声明文件那一层、自动识别那一层，两处都给 `canWrite: false`，`src/tracker/detection/backendDecision.ts:1086`），就一律不往下做。注意**这不是只拦写**：`pickBackend` 没有「读用途/写用途」这个参数，纯读的 `deck_context`／`deck_issue_get`／`deck_issue_list`／`deck_map_snapshot` 也照拦（调用点：`src/deck/tools/context.ts:97`、`src/deck/tools/issue-get.ts:158`、`src/deck/tools/issue-list.ts:125`、`src/deck/tools/map-snapshot.ts:107`）。`src/deck/shell/call-shell.ts:342` 的注释写着「读用途不受影响」，那是注释，不是行为——写这份文档时以代码为准。原话：「这个工作区还没选定后端：现在这个结论是按仓库里的说明文件或自动识别得出的，不算你亲手选过，所以我没有动任何东西。请先在面板上选定这个工作区使用的后端，然后重试。」
+**2026-10-16 起不再设这道门**：维护者拍板删掉了工具壳里「非亲手选过不放行」的那一支。判定出口给出哪个后端，壳就用哪个 —— 声明文件那一层、自动识别那一层同样放行（判定出口照旧如实标出来源与写权限，`src/tracker/detection/backendDecision.ts:1086`，排查时看日志里的结论线）。壳里剩下的拒绝只有三类：多命中或未决（:336 那一支）、连后端都没有（:337-339 那一支）、闸与后端自身失败。改色电话（`src/host/workspaceLabelColors.js`）的写用途还留着同一道门：改标签颜色仍要求人亲手选过。
 
 **失败长什么样**
 
 | 情形 | 行号 | `reason` | AI 看到的一句话 |
 | --- | --- | --- | --- |
-| 目录还没就绪 | :243 | `no-backend` | 「这个工作区还没就绪（还没认出是哪个目录），等面板认出工作区后再试。」 |
-| 判定出口没装上（装配错） | :255-260 | `backend-threw` | 「判定出口这次没装上，我没往下做。请重试一次；如果仍然失败，请把这条提示原文报告给插件维护者。」（附 `errorHash`；转 TypeScript 时已把旧写法里错位的信封改回同形） |
-| 出口自己抛错 | :292 | `backend-threw` | 「选后端这一步的后端实现抛错了，我没往下做。」 |
-| 被闸推迟 | :293-296 | `gate-defer` | 「这一次选后端被闸推迟了（…），先不做。」 |
-| 多命中/还没定 | :337-340 | `no-backend` | 「这个工作区同时被 N 个后端认出，请在面板中选定后再试。」／「后端还没定下来，先在面板上选一次后端。」 |
-| 不是亲手选的（读也一样） | :343 | `no-backend` | 见上面那段原话 |
+| 目录还没就绪 | :242 | `no-backend` | 「这个工作区还没就绪（还没认出是哪个目录），等面板认出工作区后再试。」 |
+| 判定出口没装上（装配错） | :254-259 | `backend-threw` | 「判定出口这次没装上，我没往下做。请重试一次；如果仍然失败，请把这条提示原文报告给插件维护者。」（附 `errorHash`；转 TypeScript 时已把旧写法里错位的信封改回同形） |
+| 出口自己抛错 | :291 | `backend-threw` | 「选后端这一步的后端实现抛错了，我没往下做。」 |
+| 被闸推迟 | :292-295 | `gate-defer` | 「这一次选后端被闸推迟了（…），先不做。」 |
+| 多命中/还没定 | :336-339 | `no-backend` | 「这个工作区同时被 N 个后端认出，请在面板中选定后再试。」／「后端还没定下来，先在面板上选一次后端。」 |
 
-选成功以后，`repoOf`（src/deck/shell/call-shell.ts:350-361）把「后端 id + 句柄」拼成一个仓库身份对象，缺字段就用后端 id 顶上，**不造假名字**。
+选成功以后，`repoOf`（src/deck/shell/call-shell.ts:351-362）把「后端 id + 句柄」拼成一个仓库身份对象，缺字段就用后端 id 顶上，**不造假名字**。
 
 ---
 
 ## 第 5 层：进预算壳、过一次闸（`shell.call`）
 
-`src/deck/shell/call-shell.ts:364-435`。这是每笔工具调用真正动手的地方，做四件事。
+`src/deck/shell/call-shell.ts:365-436`。这是每笔工具调用真正动手的地方，做四件事。
 
-**① 硬顶（`gate.admitAiTool`，:368）**
+**① 硬顶（`gate.admitAiTool`，:369）**
 
 ```
 gate.admitAiTool({ points, requests, childTickets }, { workspaceKey, kind: 'tool-batch', bucket: 'graphql' })
 ```
 
-估算是调用前算好的（`src/deck/shell/call-shell.ts:200-208` 的 `estimateFor` → `src/shared/refresh/tool-cost.js:1-100`（真源 `src/shared/refresh/src/tool-cost.ts`））。硬顶的五个数在 `src/shared/refresh/budget.js:27-31`：
+估算是调用前算好的（`src/deck/shell/call-shell.ts:199-207` 的 `estimateFor` → `src/shared/refresh/tool-cost.js:1-100`（真源 `src/shared/refresh/src/tool-cost.ts`））。硬顶的五个数在 `src/shared/refresh/budget.js:27-31`：
 
 | 常量 | 值 |
 | --- | --- |
@@ -238,9 +237,9 @@ gate.admitAiTool({ points, requests, childTickets }, { workspaceKey, kind: 'tool
 | `AI_TOOL_MAX_REQUESTS_PER_HOUR` | 1500 |
 | `AI_TOOL_MAX_CHILD_TICKETS_PER_CALL` | 60 |
 
-顶住了就回 `reason: 'ai-tool-refused'`，文案是**闸自己那句原话**——出处是 `src/host/refresh/refusal-text.ts:32` 的 `refusalTextRef(a, q, hour, plan, limits)`，由闸挂进准入结论（`src/host/refresh/gate.ts:438`）。它分两种头（`:11` 超过插件自己给工具设的硬顶 / `:12` 额度被别人用掉），后面拼上预计花费、本小时已用、这一桶还剩多少、建议分几次；`src/deck/shell/call-shell.ts:227-233` 那一段只是闸没给文案时的兜底（`:229`），工具不自己编一个数。
+顶住了就回 `reason: 'ai-tool-refused'`，文案是**闸自己那句原话**——出处是 `src/host/refresh/refusal-text.ts:32` 的 `refusalTextRef(a, q, hour, plan, limits)`，由闸挂进准入结论（`src/host/refresh/gate.ts:438`）。它分两种头（`:11` 超过插件自己给工具设的硬顶 / `:12` 额度被别人用掉），后面拼上预计花费、本小时已用、这一桶还剩多少、建议分几次；`src/deck/shell/call-shell.ts:226-232` 那一段只是闸没给文案时的兜底（`:228`），工具不自己编一个数。
 
-**② 过闸记账（`gate.send`，:392-400）**
+**② 过闸记账（`gate.send`，:393-401）**
 
 闸的实现是 `src/host/refresh/gate.ts`（`admitAiTool` :427、`send` :356、四张对照表 :31）。
 
@@ -297,7 +296,7 @@ gate.admitAiTool({ points, requests, childTickets }, { workspaceKey, kind: 'tool
 
 - `select` :164-208：三级联——显式绑定 > `matches` 认出 > 兜底（无后端时 `fallback`→null，:202-208）；顺带算出 `pending` / `multiHit`。显式绑定那一级读的是工作区文件，注册表自己不管人选（:90）。
 - `describe` 经 `core.ts:212` 转出，真身在 `src/tracker/registry/views.ts:31`。
-- `src/deck/shell/call-shell.ts:387` 拿到的 `tracker` 就是 `registry.get(backendId)`（`get` 在 `core.ts:149`）。
+- `src/deck/shell/call-shell.ts:388` 拿到的 `tracker` 就是 `registry.get(backendId)`（`get` 在 `core.ts:149`）。
 
 **三座房间的门面**（契约操作 → 房间内部函数）：
 
@@ -422,7 +421,7 @@ writeTextFile(ctx, fullPath, content, sandboxPolicy)
 
 **谁调它**：只有宿主的两条电话，各自在两个分支里现建现用——`src/host/sessionSnapshot.ts:161-166` 与 `:307-310`、`src/host/sessionRefresh.ts:123-126` 与 `:283-286`；产物是 `createSnapshotComposer`（`src/host/tracker/snapshot.js:184`）。**九个 deck 工具都不在这条路上**（全仓 `createSnapshotComposer` 的调用点只有上面这四处，都在宿主侧）。
 
-**写完之后怎么让它作废**：工具在返回值里带 `touched`（写过的票号），`src/deck/shell/call-shell.ts:450-455` 拿着它调接线的 `invalidate`，实现是 `src/host/refresh/wiring.ts:427`——按**工作区目录**把那一份缓存置空。这里踩过一次坑：只给 repo 与票号、不给工作区，宿主那侧的缓存按 cwd 分桶，就认不出该作废哪一份，那一步会**静默什么也没做**（原委写在 `src/deck/shell/call-shell.ts:451-453`）。
+**写完之后怎么让它作废**：工具在返回值里带 `touched`（写过的票号），`src/deck/shell/call-shell.ts:451-456` 拿着它调接线的 `invalidate`，实现是 `src/host/refresh/wiring.ts:427`——按**工作区目录**把那一份缓存置空。这里踩过一次坑：只给 repo 与票号、不给工作区，宿主那侧的缓存按 cwd 分桶，就认不出该作废哪一份，那一步会**静默什么也没做**（原委写在 `src/deck/shell/call-shell.ts:452-454`）。
 
 **快照这条路的失败长什么样**：读不到就是读不到——`composeSnapshot` 失败时回 `{ok:false, error}`，调它的那条电话把它变成错误。
 
@@ -439,7 +438,7 @@ writeTextFile(ctx, fullPath, content, sandboxPolicy)
 ```
 run                  src/deck/tools/context.ts:87-211
   ├ 取会话            :90   → src/deck/shell/session-workdir.ts:143
-  ├ 选后端            :96   → src/deck/shell/call-shell.ts:241
+  ├ 选后端            :96   → src/deck/shell/call-shell.ts:240
   ├ 沙箱策略          :107-114（5 秒上限，`DECK_SANDBOX_TIMEOUT_MS` 在 `src/shared/time-config/values.js:153`）
   └ shell.call        :116   kind: read
        ├ 预检、地图清单、仓库权限三路并行   :124-131
@@ -653,7 +652,7 @@ run                  src/deck/tools/issue-report.ts:121-220
 
 | 判据 | 在哪 | AI 看到 |
 | --- | --- | --- |
-| 三态状态 | `src/deck/shell/call-shell.ts:48`、`src/deck/shell/call-shell.ts:425` 与 `:440-441` | `ok` / `partial` / `unsupported`，以及配套的一句话 `text` |
+| 三态状态 | `src/deck/shell/call-shell.ts:48`、`src/deck/shell/call-shell.ts:426` 与 `:441-442` | `ok` / `partial` / `unsupported`，以及配套的一句话 `text` |
 | 机器可读原因 | `src/deck/shell/call-shell.ts:50-59` | `reason` 七值之一 |
 | 逐项明细 | 各工具的 `items` | 哪一项成了、哪一项没成、后端原话 |
 
@@ -663,10 +662,10 @@ run                  src/deck/tools/issue-report.ts:121-220
 | --- | --- | --- |
 | 参数不对 | 工具自己（`BAD_ARGS`） | `bad-args` + 一句「要改哪一张票：把票号写在 key 里。」 |
 | 会话目录取不到 | `src/deck/shell/session-workdir.ts:69`，同档还有 :95、:133 | `no-session-context` + 「我不动任何票。」两种文案：六个候选都没值 →「这次没拿到当前会话的工作区目录…」；归一到工作区根失败 →「这次没能把工作区目录归一到工作区根…」 |
-| 后端没定 / 不是亲手选的 | `src/deck/shell/call-shell.ts:337-343` | `no-backend` + 引导去面板选 |
-| 超过硬顶 | `gate.admitAiTool`（`src/deck/shell/call-shell.ts:368`） | `ai-tool-refused` + 闸那句原话 |
-| 被闸推迟 | `src/deck/shell/call-shell.ts:417` | `gate-defer` + 推迟原因 |
-| 工具内部抛错 | `src/deck/shell/call-shell.ts:401-407` | `backend-threw`，「后端实现抛错了（我没有把它抛给 AI，按三态返回）：…」 |
+| 后端没定 / 多命中 | `src/deck/shell/call-shell.ts:336-339` | `no-backend` + 引导去面板选 |
+| 超过硬顶 | `gate.admitAiTool`（`src/deck/shell/call-shell.ts:369`） | `ai-tool-refused` + 闸那句原话 |
+| 被闸推迟 | `src/deck/shell/call-shell.ts:418` | `gate-defer` + 推迟原因 |
+| 工具内部抛错 | `src/deck/shell/call-shell.ts:402-408` | `backend-threw`，「后端实现抛错了（我没有把它抛给 AI，按三态返回）：…」 |
 | 传输层（五个工具带这份标记） | 工具当场抛（`src/deck/tools/issue-create.ts:171-172`、`src/deck/tools/issue-get.ts:185-186` 等） | 同上，但可重试 |
 | 后端诚实说做不到 | 工具按后端回答记 | `backend-unsupported` + 后端原话 |
 | 工具回包不合约定 | 宿主电话那层收：`src/deck/registration/host-delegate.ts:106-107`；走兼容钩子那条路则在 `src/deck/registration/register-options.ts:322` | `backend-threw`，「工具内部没按约定回包，已拦下」 |
@@ -708,7 +707,7 @@ run                  src/deck/tools/issue-report.ts:121-220
   1. 第一轮把 `deck_map_snapshot` 取子票写成 GraphQL，**这是错的**，第二轮改成「契约 `list` → 整仓拉一遍 + 内存按 `parentKey` 过滤」（`src/deck/tools/map-snapshot.ts:122`、`src/tracker/rooms/github/backend.ts:112`、`src/tracker/rooms/github/issues.ts:155-157`）。GraphQL 那条 `listSubIssues` 只服务宿主电话 `wf.mapTickets`（`src/tracker/rooms/github/backend.ts:118-120`），REST `sub_issues` 那条只用于列表修树边（`src/tracker/rooms/github/parent-repair.ts:54`）——三条名字像、去向完全不同，**改行号之前先把「谁调这条命令」查清楚**。
   2. 第一轮写的「落到哪条路由取决于行与宿主是不是同一个进程」，判据其实更朴素：**本进程里那张表放了没**（`peekDeckTable` 的模块状态，`src/deck/shell/table-cell.ts:75-80`）；`bridgeSameProcess` 只是给探针看的诊断值，不参与判定。
   3. 第 1 层原来把「表没好」与「工具服务没好」混成一句：服务不在，行起不来（`src/deck/registration/agent-row.ts:393-397`，工具看不见）；只有表没好，工具照样看得见、调用回 `not-wired` 占位。
-  另有四处是把「注释当行为」抄错了：第 4 层原来说「读用途不受影响」，实际 `pickBackend` 没有读/写参数，纯读的四个工具同样被 `no-backend` 拦（`src/deck/shell/call-shell.ts:342` 的注释与 `:343` 的行为不一致）；判定出口没装上的那一档回包是**错位的**（`src/deck/shell/call-shell.ts:292` 少传工具名）；带传输层标记的工具是五个不是四个（`src/deck/tools/issue-get.ts:31` 也有一份）；`errors.ts` 开头注释里只有 `network` 与 `not-found` 的先后跟代码相反，不是整段写反。
+  另有四处是写这份文档时把「注释当行为」抄错的，其中第一处在 2026-10-16 随那道门的删除而收掉：第 4 层原来说「读用途不受影响」，实际当时 `pickBackend` 没有读/写参数，纯读的四个工具同样被 `no-backend` 拦（当时 `src/deck/shell/call-shell.ts:342` 的注释与 `:343` 的行为不一致）；其余三处是判定出口没装上的那一档回包是**错位的**（`src/deck/shell/call-shell.ts:292` 少传工具名）；带传输层标记的工具是五个不是四个（`src/deck/tools/issue-get.ts:31` 也有一份）；`errors.ts` 开头注释里只有 `network` 与 `not-found` 的先后跟代码相反，不是整段写反。
 - **这一版最该记住的两条**：行号断言只能证明「那一行存在」，证明不了「这话讲得对」；注释和文案里的说法可以跟代码不一致，凡是要写进「失败长什么样」的，回到代码那一行看它到底返回什么。
 
 **已知没写到的（留给下一版）**
