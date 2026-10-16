@@ -8,7 +8,7 @@
 // 2026-09-21 维护者裁定还原界面：2026-09-20 那两轮一度把横幅那颗叉改成带字的「收起」、把收起态那颗按钮画成
 //   「有底色、有描边、12px 粗体、带面板图标」的一颗按钮；维护者看过真机之后要求退回改动前的样子。
 //
-// 2026-10-12：原本还有一组「A 静态层」的断言，读产物文本钉那几处写法的样子（字号 10、无描边、三处收起都不带字……），
+// 2026-10-12：原本还有一组「A 静态层」的断言，读产物文本钉那几处写法（字号 10、无描边、三处收起都不带字……），
 //   维护者要求清掉这类「读源码文本钉形状」的门禁，整组已删。从产物里读字号 / 内边距 / 描边 / 圆角那几行留下了，
 //   它们不断言任何东西，只当 B 组的输入（B 组量的是浏览器真渲染出来的样式）。
 //
@@ -32,30 +32,39 @@ const React = require('react')
 const ReactDOMClient = require('react-dom/client')
 const { act } = require('react')
 const { evalInWindow } = require('./lib/eval-probe.js')
+// jsdom 挂载要往 Node 全局上写浏览器对象（window/document/navigator），测试里按任意值处理；
+// 运行时与原来一样（这些赋值本来就是动态的，类型只在门禁进程里约束）。
+declare const global: any
 
 const ROOT = path.resolve(__dirname, '..')
 const files = process.argv.slice(2).length ? process.argv.slice(2) : ['client.js', 'package/lib/client.js']
 
 let failed = false
 let total = 0
-const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
+const check = (ok: unknown, msg: string): void => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
 // ── 从产物里抠出「收起态那颗按钮」的四个样式数值（只当 B 组的输入，这里不作断言） ─────────
 // 抠法照 verify-640 的先例：值必须从真源里读出来，不许在门里另抄一份常量。
-const collapsedBranchOf = function (src) {
+const collapsedBranchOf = function (src: string): string {
   const at = src.indexOf('if (deckFolded) {')
   if (at < 0) throw new Error('产物里找不到收起态那一支（if (deckFolded)）')
   const end = src.indexOf('// #522', at)
   if (end < 0) throw new Error('找不到收起态那一支的结尾（锚点 // #522）')
   return src.slice(at, end)
 }
-const fieldOf = function (block, field) {
+const fieldOf = function (block: string, field: string): string | null {
   // 数值型的字段在产物里是 `fontSize: 10`，带单位的那些是 `padding: '0 8px'`，两种都要认。
   const m = block.match(new RegExp(field + ":\\s*(?:'([^']+)'|(\\d+))"))
   return m ? (m[1] !== undefined ? m[1] : m[2]) : null
 }
 
-const runStatic = function (src) {
+interface CollapsedStyle {
+  fontSize: string | null
+  padding: string | null
+  border: string | null
+  radius: string | null
+}
+const runStatic = function (src: string): CollapsedStyle {
   const block = collapsedBranchOf(src)
   const fontSize = fieldOf(block, 'fontSize')
   const padding = fieldOf(block, 'padding')
@@ -65,7 +74,7 @@ const runStatic = function (src) {
 }
 
 console.log('== 从产物里取出收起态那颗按钮的样式数值（B 组拿它当输入，这里不判任何东西） ==')
-let values = null
+let values: CollapsedStyle | null = null
 for (const file of files) {
   const tag = file.indexOf('package/') >= 0 ? 'npm' : 'dyn'
   console.log('=== ' + file + ' ===')
@@ -87,7 +96,7 @@ console.log('== B 真 Chromium：还原后的收起态是细小灰字那一档 =
     '</style></head><body>',
     // 还原后那颗按钮的底色来自幽灵类名（.dsws-btn.ghost 的 background:transparent），行内样式里不写底色，
     //   所以这一页也要照样写 transparent —— 不写的话量到的是浏览器给按钮的默认底色，这一条会无故变红。
-    '<div class="row"><button id="real" style="display:inline-flex;align-items:center;gap:4px;font-size:' + values.fontSize + ';padding:' + values.padding + ';line-height:1.2;border:' + values.border + ';border-radius:99px;background:transparent;color:#8b8b95">展开MattSkillsDeck</button></div>',
+    '<div class="row"><button id="real" style="display:inline-flex;align-items:center;gap:4px;font-size:' + values!.fontSize + ';padding:' + values!.padding + ';line-height:1.2;border:' + values!.border + ';border-radius:99px;background:transparent;color:#8b8b95">展开MattSkillsDeck</button></div>',
     '<div class="row"><button id="past" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;line-height:1.4;padding:3px 12px;border-radius:14px;border:1px solid #2a2d35;background:#10131a;color:#a1a1aa">展开MattSkillsDeck</button></div>',
     '</body></html>',
   ].join('\n')
@@ -112,7 +121,7 @@ console.log('== B 真 Chromium：还原后的收起态是细小灰字那一档 =
   })
   await closeBrowser()
 
-  const slim = (x) => x.h < 18 && x.borderW === 0 && x.bg === 'rgba(0, 0, 0, 0)'
+  const slim = (x: { h: number; borderW: number; bg: unknown }): boolean => x.h < 18 && x.borderW === 0 && x.bg === 'rgba(0, 0, 0, 0)'
   console.log('真样式：高 ' + m.real.h + 'px、宽 ' + m.real.w + 'px、描边 ' + m.real.borderW + 'px、底色 ' + m.real.bg)
   console.log('放大版：高 ' + m.past.h + 'px、宽 ' + m.past.w + 'px、描边 ' + m.past.borderW + 'px、底色 ' + m.past.bg)
   check(slim(m.real), '收起态那颗按钮量出来是细小灰字那一档：矮、无描边、无底色（实测 高 ' + m.real.h + 'px / 描边 ' + m.real.borderW + 'px / 底色 ' + m.real.bg + '）')
@@ -143,12 +152,12 @@ const CHAIN_SETUP = { steps: [
   { id: 'env:home', status: 'done' },
 ] }
 const SNAP_GITHUB = { ok: true, value: { ok: true, selection: { backendId: 'github', source: 'explicit' }, repository: null, maps: [], checks: null, tickets: [], groups: {}, isLocal: false, version: 'v669', workspaceRoot: 'D:\\tmp\\669-fold' } }
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
 
 global.IS_REACT_ACT_ENVIRONMENT = true
 
 // 把产物真身挂起来一次（每个现场都新开一份 jsdom：收起记忆在模块作用域里，混着量不准）。
-const mountLive = async function (code) {
+const mountLive = async function (code: string) {
   const dom = new JSDOM('<!doctype html><html><head></head><body><div id="bar"></div><textarea id="draft"></textarea></body></html>',
     { url: 'http://127.0.0.1:59519/', runScripts: 'dangerously' })
   const { window } = dom
@@ -164,22 +173,22 @@ const mountLive = async function (code) {
   global.ResizeObserver = window.ResizeObserver
   if (!window.document.fonts) window.document.fonts = { ready: Promise.resolve() }
 
-  const methods = []
-  const connection = { rpc: { call: async (channel, endpoint, req) => {
+  const methods: any[] = []
+  const connection: Record<string, any> = { rpc: { call: async (channel, endpoint, req) => {
     const method = req && req.method
     methods.push(method)
     if (method === 'snapshot') return SNAP_GITHUB
     if (method === 'chain') return { ok: true, value: { ok: true, fullSnapshot: CHAIN_SETUP, backendId: 'github' } }
     return { ok: true, value: { ok: true } }
   } } }
-  const dict = {}
-  const trFn = (key, params) => {
+  const dict: Record<string, string> = {}
+  const trFn = (key: string, params: any) => {
     let s = dict[key] !== undefined ? dict[key] : key
     if (params) s = s.replace(/\{(\w+)\}/g, (m, name) => (name in params ? String(params[name]) : m))
     return s
   }
-  const registrations = []
-  const services = {
+  const registrations: any[] = []
+  const services: Record<string, any> = {
     slots: { register: (meta, comp) => { registrations.push({ meta: meta, comp: comp }); return () => {} }, inject: (name, fn) => { try { fn() } catch (e) {} } },
     sidebarRightTabs: { register: () => () => {} },
     connection: connection,
@@ -188,9 +197,9 @@ const mountLive = async function (code) {
     sessions: { list: async () => [] },
     timer: { timeout: (fn, ms) => setTimeout(fn, ms) },
   }
-  const ctx = { get: (k) => services[k], effect: (fn) => { const r = fn(); return typeof r === 'function' ? r : () => {} }, inject: (deps, cb) => { cb(ctx); return { dispose: () => {} } } }
+  const ctx: any = { get: (k) => services[k], effect: (fn) => { const r = fn(); return typeof r === 'function' ? r : () => {} }, inject: (deps, cb) => { cb(ctx); return { dispose: () => {} } } }
 
-  let loaded = null
+  let loaded: any = null
   window.__ModuleLoader__ = { load (spec) { loaded = spec; return spec } }
   // 本文件选 evalInWindow：这段产物源码原来是在这扇 jsdom 窗口里跑的（建它时开了 runScripts），
   //   换成共用入口在同一个窗口环境里执行，环境与语义都不变。
@@ -207,8 +216,8 @@ const mountLive = async function (code) {
   const root = ReactDOMClient.createRoot(container)
   // 注入的落点与界面上真用的一致（状态栏会把 props.inputActions.setDraft 写进会话状态）；
   //   #669 第 4 件起这一门要用它断言「确认之后注入的正文里带着选中的布局」。
-  const drafts = []
-  const step = async (ms) => { await act(async () => { await sleep(ms || 30) }) }
+  const drafts: any[] = []
+  const step = async (ms?: number) => { await act(async () => { await sleep(ms || 30) }) }
   await act(async () => {
     root.render(React.createElement(comp, {
       sessionId: 'sid-669',
@@ -219,13 +228,13 @@ const mountLive = async function (code) {
     await sleep(30)
   })
   for (let i = 0; i < 40 && !container.querySelector('.dsws-banner'); i++) await step(25)
-  const clickNode = async (el) => {
+  const clickNode = async (el: any) => {
     if (!el) return false
     await act(async () => { el.dispatchEvent(new window.MouseEvent('click', { bubbles: true })); await sleep(40) })
     await step(40)
     return true
   }
-  const click = async (sel) => clickNode(container.querySelector(sel))
+  const click = async (sel: string) => clickNode(container.querySelector(sel))
   // 收工：把这一份挂载拆干净（卸载 React 根 + 关掉 jsdom 窗口）。不拆的话，状态栏里那颗 2 秒的定时器
   //   会跟着每个现场一直跑下去，这一门会越跑越慢、日志里全是 React 的账（实测：不拆时十几秒能跑完的一页跑不完）。
   const dispose = function () {
@@ -237,7 +246,7 @@ const mountLive = async function (code) {
 
 // 收起态那颗按钮是还原后的写法：只带幽灵类名（dsws-btn ghost），所以它身上不再有专门的类名可抓，
 //   改用无障碍名（与界面同源的那句「展开MattSkillsDeck」）去认；收起态里没有别的按钮，兜底取第一颗。
-const recoverOf = function (container, dict) {
+const recoverOf = function (container: any, dict: any) {
   const want = (dict && dict['banner.expandDeck']) || '展开MattSkillsDeck'
   const buttons = Array.prototype.slice.call(container.querySelectorAll('button'))
   const byLabel = buttons.filter((b) => (b.getAttribute('aria-label') || '') === want)[0]
@@ -247,14 +256,14 @@ const recoverOf = function (container, dict) {
 }
 
 // 收起态那颗按钮在 jsdom 里的行内样式序列化：还原后的那一套长这样。不咬 `border` 的原文 ——
-//   jsdom 会把 `border:none` 写成 `border:medium`，所以这里只要求「没有 1px 描边」「行内不写底色」，
+//   jsdom 会把 `border:none` 写成 `border:medium`，所以这里只要求「没有 1px 描边」「行内不写底色」
 //   放大版那两句（border:1px solid…、background:var(…)）一踩就红。
-const slimStyle = function (s) {
+const slimStyle = function (s: string): boolean {
   return /font-size:\s*10px/.test(s) && /border-radius:\s*99px/.test(s) &&
     !/border:\s*1px/.test(s) && !/font-size:\s*12px/.test(s) && !/background/.test(s)
 }
 
-const stateOf = (container, dict) => {
+const stateOf = (container: any, dict: any) => {
   const recover = recoverOf(container, dict)
   return {
     banner: !!container.querySelector('.dsws-banner'),
@@ -278,10 +287,10 @@ const SWEEP = [
 ]
 
 // 走一遍全部点击目标；返回每个目标实得的结局（供 C 组断言、D 组反证复用）。
-//   任何一步抛错都收成这一行的 err（不往外抛）：将来真回归时，这一门要报出「哪一处点下去炸了」，
+//   任何一步抛错都收成这一行的 err（不往外抛）：将来真回归时，这一门要报出「哪一处点下去炸了」
 //   而不是自己带一份堆栈死掉 —— #669 的真凶就是「渲染里抛错」，这一门必须能把那句话原样报出来。
-const runSweep = async function (code) {
-  const out = []
+const runSweep = async function (code: string) {
+  const out: any[] = []
   const quietW = console.warn
   const quietE = console.error
   console.warn = function () {}
@@ -292,8 +301,8 @@ const runSweep = async function (code) {
       const sel = row[1]
       const want = row[2]
       const t0 = Date.now()
-      let live = null
-      try { live = await mountLive(code) } catch (e) { out.push({ label: label, want: want, err: '挂载就抛错：' + ((e && e.message) || e) }); continue }
+      let live: any = null
+      try { live = await mountLive(code) } catch (e: any) { out.push({ label: label, want: want, err: '挂载就抛错：' + ((e && e.message) || e) }); continue }
       const before = stateOf(live.container, live.dict)
       if (!before.banner || !before.capsule) { live.dispose(); out.push({ label: label, want: want, err: '挂载后横幅或胶囊就不在（前置不成立）' }); continue }
       let clickErr = null
