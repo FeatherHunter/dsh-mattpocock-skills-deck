@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T22:25:29.675Z",
+  "generatedAt": "2026-10-16T22:30:57.302Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 301,
   "gateCount": 301,
@@ -449,8 +449,8 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 9 条"
     },
     {
-      "step": "node tests/verify-deck-parallel.js",
-      "file": "tests/verify-deck-parallel.js",
+      "step": "node tests/verify-deck-parallel.ts",
+      "file": "tests/verify-deck-parallel.ts",
       "guards": [
         "src/deck/shell/write-mutex.ts",
         "src/deck/tools/issue-patch.ts",
@@ -473,8 +473,8 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 5 条"
     },
     {
-      "step": "node tests/verify-deck-quota-sync.js",
-      "file": "tests/verify-deck-quota-sync.js",
+      "step": "node tests/verify-deck-quota-sync.ts",
+      "file": "tests/verify-deck-quota-sync.ts",
       "guards": [
         "src/deck/registration/quota-sync.ts",
         "src/deck/shell/call-shell.ts",
@@ -528,8 +528,8 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 2 条"
     },
     {
-      "step": "node tests/verify-deck-slots.js",
-      "file": "tests/verify-deck-slots.js",
+      "step": "node tests/verify-deck-slots.ts",
+      "file": "tests/verify-deck-slots.ts",
       "guards": [
         "package/lib/client.js",
         "src/client/kernel/modal-fields.js",
@@ -7005,7 +7005,7 @@
       "node tests/verify-leaves.ts",
       "node tests/verify-chain-view-ui.js",
       "node tests/verify-deck-event-gate.mjs",
-      "node tests/verify-deck-slots.js",
+      "node tests/verify-deck-slots.ts",
       "node tests/verify-gate-map.js",
       "node tests/verify-530-pr-tab.ts",
       "node tests/verify-587-update-live.ts",
@@ -7220,7 +7220,7 @@
       "node tests/verify-chain-env-e2e.js",
       "node tests/verify-chain-view-ui.js",
       "node tests/verify-chain-view.js",
-      "node tests/verify-deck-slots.js",
+      "node tests/verify-deck-slots.ts",
       "node tests/verify-1115-timer-handle.ts",
       "node tests/verify-1145-open-local.ts",
       "node tests/verify-1199-row-closed-link.ts",
@@ -7307,7 +7307,7 @@
       "node tests/verify-663-banner-chain.ts",
       "node tests/verify-leaves.ts",
       "node tests/verify-chain-capsule.js",
-      "node tests/verify-deck-slots.js",
+      "node tests/verify-deck-slots.ts",
       "node tests/verify-no-title.js",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-663-gh-install-inject.ts",
@@ -7326,7 +7326,7 @@
     ],
     "src/client/views": [
       "node tests/verify-leaves.ts",
-      "node tests/verify-deck-slots.js",
+      "node tests/verify-deck-slots.ts",
       "node tests/verify-gate-map.js",
       "node tests/verify-no-title.js",
       "node tests/verify-1145-open-local.ts",
@@ -7382,7 +7382,7 @@
       "node tests/verify-leaves.ts",
       "node tests/verify-chain-view-ui.js",
       "node tests/verify-chain-view.js",
-      "node tests/verify-deck-slots.js",
+      "node tests/verify-deck-slots.ts",
       "node tests/verify-599-merged-pr.ts",
       "node tests/verify-626-type-chip.ts",
       "node tests/verify-693-detail-fallback-honesty.ts",
@@ -7414,7 +7414,7 @@
     "src/deck/registration": [
       "node tests/verify-deck-exec-phone.js",
       "node tests/verify-deck-no-hang.js",
-      "node tests/verify-deck-quota-sync.js",
+      "node tests/verify-deck-quota-sync.ts",
       "node tests/verify-deck-render-detail.js",
       "node tests/verify-deck-tools-agent-register.js",
       "node tests/verify-deck-tools-row-zero-dep.ts",
@@ -7430,8 +7430,8 @@
     ],
     "src/deck/shell": [
       "node tests/verify-deck-exec-phone.js",
-      "node tests/verify-deck-parallel.js",
-      "node tests/verify-deck-quota-sync.js",
+      "node tests/verify-deck-parallel.ts",
+      "node tests/verify-deck-quota-sync.ts",
       "node tests/verify-deck-repo-resolve.ts",
       "node tests/verify-deck-tools-agent-register.js",
       "node tests/verify-deck-tools.js",
@@ -7454,7 +7454,7 @@
     ],
     "src/deck/tools": [
       "node tests/verify-deck-no-hang.js",
-      "node tests/verify-deck-parallel.js",
+      "node tests/verify-deck-parallel.ts",
       "node tests/verify-deck-thin-reads.js",
       "node tests/verify-deck-tools-agent-register.js",
       "node tests/verify-deck-tools-matrix.js",
@@ -7599,7 +7599,7 @@
       "node tests/verify-chain-view.js",
       "node tests/verify-deck-event-gate.mjs",
       "node tests/verify-deck-no-hang.js",
-      "node tests/verify-deck-parallel.js",
+      "node tests/verify-deck-parallel.ts",
       "node tests/verify-deck-thin-reads.js",
       "node tests/verify-deck-tools-matrix.js",
       "node tests/verify-deck-tools.js",
@@ -7701,7 +7701,7 @@
       "node tests/verify-chain-view.js",
       "node tests/verify-contract-vocabulary.js",
       "node tests/verify-deck-no-hang.js",
-      "node tests/verify-deck-parallel.js",
+      "node tests/verify-deck-parallel.ts",
       "node tests/verify-deck-thin-reads.js",
       "node tests/verify-deck-tools-matrix.js",
       "node tests/verify-deck-tools.js",
@@ -7792,7 +7792,7 @@
       "node tests/verify-663-banner-chain.ts",
       "node tests/verify-chain.js",
       "node tests/verify-contract-vocabulary.js",
-      "node tests/verify-deck-slots.js",
+      "node tests/verify-deck-slots.ts",
       "node tests/verify-589-list-dedupe.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-663-gh-install-inject.ts",
@@ -7812,7 +7812,7 @@
       "node tests/verify-subdir-first-frame.js"
     ],
     "src/shared/ui": [
-      "node tests/verify-deck-slots.js"
+      "node tests/verify-deck-slots.ts"
     ],
     "src/shared/version-control": [
       "node tests/verify-build-artifacts.js",
@@ -7831,7 +7831,7 @@
     ],
     "src/tracker": [
       "node tests/verify-build-artifacts.js",
-      "node tests/verify-deck-slots.js",
+      "node tests/verify-deck-slots.ts",
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-1184-body-parse-gap.ts",
       "node tests/verify-663-gh-install-inject.ts",
@@ -7864,7 +7864,7 @@
       "node tests/verify-locale-completeness.js"
     ],
     "src/tracker/detection": [
-      "node tests/verify-deck-quota-sync.js",
+      "node tests/verify-deck-quota-sync.ts",
       "node tests/verify-1003-single-outlet.ts",
       "node tests/verify-1003-unified-decision.ts",
       "node tests/verify-3-workspace-switch.ts",
@@ -7934,7 +7934,7 @@
     ],
     "src/tracker/rooms/github": [
       "node tests/verify-deck-repo-resolve.ts",
-      "node tests/verify-deck-slots.js",
+      "node tests/verify-deck-slots.ts",
       "node tests/verify-deck-tools-matrix.js",
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-no-mixed-session.js",
@@ -8074,7 +8074,7 @@
       "node tests/verify-chain-view-ui.js",
       "node tests/verify-chain-view.js",
       "node tests/verify-deck-no-hang.js",
-      "node tests/verify-deck-parallel.js",
+      "node tests/verify-deck-parallel.ts",
       "node tests/verify-deck-repo-resolve.ts",
       "node tests/verify-deck-thin-reads.js",
       "node tests/verify-deck-tools-matrix.js",

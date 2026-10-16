@@ -1,5 +1,5 @@
 /**
- * tests/verify-deck-slots.js — #308 五座位 modal-seat 门禁（ADR #221 §5.1/§5.4/§8）+ #318 wizard 单步扩展 + #319 多步分页与步进导航
+ * tests/verify-deck-slots.ts — #308 五座位 modal-seat 门禁（ADR #221 §5.1/§5.4/§8）+ #318 wizard 单步扩展 + #319 多步分页与步进导航
  *
  * 验收（#308）：
  * - 槽位声明：src/shared/ui/slots.js + src/client/kernel/slots.js + src/client/kernel/slotRenderer.js 存在且含 5 端口定义
@@ -18,15 +18,15 @@
  * - 取消/遮罩/ESC 丢弃整向导不落盘，最后一步前均为下一步，最后一步为提交
  * - directory/file 在向导每步呈现为 输入框+浏览按钮占位，手输可用且焦点聚集生效（本票不依赖宿主 picker 是否可用）
  *
- * 运行：node tests/verify-deck-slots.js
+ * 运行：node --import ./scripts/ts-hook.mjs tests/verify-deck-slots.ts
  */
 
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 let passed = 0, failed = 0
-function check(ok, msg){ if(ok){ console.log('  PASS '+msg); passed++; } else { console.log('  FAIL '+msg); failed++; } }
-function file(p){ return readFileSync(resolve(p),'utf8') }
+function check(ok: unknown, msg: string): void { if(ok){ console.log('  PASS '+msg); passed++; } else { console.log('  FAIL '+msg); failed++; } }
+function file(p: string): string { return readFileSync(resolve(p),'utf8') }
 
 console.log('== #308 五座位 modal-seat ==')
 console.log('')

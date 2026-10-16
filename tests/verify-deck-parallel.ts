@@ -1,5 +1,5 @@
-// verify-deck-parallel.js —— 门禁：deck 并发隔离（跨会话/同会话互不影响，同票写不丢）
-// 用法：在插件根目录执行 node tests/verify-deck-parallel.js，可独立运行。
+// verify-deck-parallel.ts —— 门禁：deck 并发隔离（跨会话/同会话互不影响，同票写不丢）
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-deck-parallel.ts，可独立运行。
 //
 // 为什么要这一段：deck 工具必须允许大量并发——A 会话与 B 会话毫无关系，
 // 同一会话内多笔并行也互不影响。对抗结论：
@@ -17,11 +17,11 @@ const { makeDecideStub, chooseWorkspace } = require('./lib/deck-decide-stub.js')
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
 let total = 0
-const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
-const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href)
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+const check = (ok: unknown, msg: string): void => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
+const imp = (rel: string): Promise<any> => import(pathToFileURL(path.join(ROOT, rel)).href)
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
-function stubGateLedger(gateMod, ledgerMod) {
+function stubGateLedger(gateMod: any, ledgerMod: any) {
   const now = 1700000000000
   const ledger = ledgerMod.createLedger({ now: () => now })
   const gate = gateMod.createGate({ ledger: ledger, now: () => now })
@@ -30,7 +30,7 @@ function stubGateLedger(gateMod, ledgerMod) {
 }
 
 // 带标签状态的桩后端：读改写 races 在这里复现（setLabels 有延迟，交错即丢）。
-function labelBackend(state, delayMs) {
+function labelBackend(state: any, delayMs: number) {
   return {
     preflight: async () => ({ ok: true }),
     list: async () => ({ ok: true, data: [] }),

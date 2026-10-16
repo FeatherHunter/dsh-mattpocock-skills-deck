@@ -1,5 +1,5 @@
-// verify-deck-quota-sync.js —— 门禁：剩余额度读数接线（#758）
-// 用法：在插件根目录执行 node tests/verify-deck-quota-sync.js，可独立运行。
+// verify-deck-quota-sync.ts —— 门禁：剩余额度读数接线（#758）
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-deck-quota-sync.ts，可独立运行。
 //
 // 为什么要这一段：闸的裁决要看剩余额度，可读数从没有任何一路写入——
 // 重启后剩余额度恒为零，读请求撞保底线、工具调用撞红档，九个工具在闸口
@@ -13,10 +13,10 @@ const { pathToFileURL } = require('url')
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
 let total = 0
-const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
-const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href)
+const check = (ok: unknown, msg: string): void => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
+const imp = (rel: string): Promise<any> => import(pathToFileURL(path.join(ROOT, rel)).href)
 
-function rateLimitText(remaining) {
+function rateLimitText(remaining: number): string {
   return JSON.stringify({
     resources: {
       core: { limit: 5000, remaining: remaining, reset: 9999999999 },
