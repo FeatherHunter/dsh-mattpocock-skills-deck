@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-16T19:18:19.075Z",
+  "generatedAt": "2026-10-16T20:44:07.769Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 301,
   "gateCount": 301,
@@ -2919,8 +2919,8 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 10 条"
     },
     {
-      "step": "node tests/verify-818-version-control-view.js",
-      "file": "tests/verify-818-version-control-view.js",
+      "step": "node tests/verify-818-version-control-view.ts",
+      "file": "tests/verify-818-version-control-view.ts",
       "guards": [
         "src/client/kernel/locale-flow.js",
         "src/client/kernel/locale-panel.js",
@@ -3033,8 +3033,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条"
     },
     {
-      "step": "node tests/verify-842-version-control-write-view.js",
-      "file": "tests/verify-842-version-control-write-view.js",
+      "step": "node tests/verify-842-version-control-write-view.ts",
+      "file": "tests/verify-842-version-control-write-view.ts",
       "guards": [
         "src/client/kernel/locale-flow.js",
         "src/client/kernel/locale-panel.js",
@@ -7234,8 +7234,8 @@
       "node tests/verify-690-closed-pages.ts",
       "node tests/verify-698-switch-asks-layout.ts",
       "node tests/verify-786-focus-end.ts",
-      "node tests/verify-818-version-control-view.js",
-      "node tests/verify-842-version-control-write-view.js",
+      "node tests/verify-818-version-control-view.ts",
+      "node tests/verify-842-version-control-write-view.ts",
       "node tests/verify-891-setup-refresh.js",
       "node tests/verify-907-chain-titles.js",
       "node tests/verify-997-vc-sight-browser.js",
@@ -7383,8 +7383,8 @@
     "src/client/views/versionControl": [
       "node tests/verify-leaves.ts",
       "node tests/verify-gate-map.js",
-      "node tests/verify-818-version-control-view.js",
-      "node tests/verify-842-version-control-write-view.js",
+      "node tests/verify-818-version-control-view.ts",
+      "node tests/verify-842-version-control-write-view.ts",
       "node tests/verify-881-commit-open.js",
       "node tests/verify-997-vc-sight-browser.js",
       "node tests/verify-997-vc-sight.js"
@@ -7491,7 +7491,7 @@
       "node tests/verify-730-cwd-consistent.ts",
       "node tests/verify-733-unknown-endpoint.ts",
       "node tests/verify-782-cwd-disk.ts",
-      "node tests/verify-818-version-control-view.js",
+      "node tests/verify-818-version-control-view.ts",
       "node tests/verify-839-credential-exec.ts",
       "node tests/verify-841-write-phones.ts",
       "node tests/verify-847-stall-watch.ts",
@@ -7744,8 +7744,8 @@
       "node tests/verify-683-mirror-write.ts",
       "node tests/verify-698-switch-asks-layout.ts",
       "node tests/verify-709-no-self-continuing-timers.ts",
-      "node tests/verify-818-version-control-view.js",
-      "node tests/verify-842-version-control-write-view.js",
+      "node tests/verify-818-version-control-view.ts",
+      "node tests/verify-842-version-control-write-view.ts",
       "node tests/verify-895-bulk-deadline.ts",
       "node tests/verify-998-half-open.js",
       "node tests/verify-attention-model.js",
@@ -7799,9 +7799,9 @@
     ],
     "src/shared/version-control": [
       "node tests/verify-build-artifacts.js",
-      "node tests/verify-818-version-control-view.js",
+      "node tests/verify-818-version-control-view.ts",
       "node tests/verify-841-write-phones.ts",
-      "node tests/verify-842-version-control-write-view.js",
+      "node tests/verify-842-version-control-write-view.ts",
       "node tests/verify-976-pull-dirty-warn.js",
       "node tests/verify-997-vc-sight-browser.js",
       "node tests/verify-version-control-parsers.js",
@@ -8044,7 +8044,7 @@
       "node tests/verify-markdown-backend.js"
     ],
     "tests/fixtures/version-control": [
-      "node tests/verify-818-version-control-view.js",
+      "node tests/verify-818-version-control-view.ts",
       "node tests/verify-version-control-host.js",
       "node tests/verify-version-control-parsers.js"
     ],
@@ -8103,9 +8103,9 @@
       "node tests/verify-784-effortId.ts",
       "node tests/verify-786-focus-end.ts",
       "node tests/verify-790-parent-edge.ts",
-      "node tests/verify-818-version-control-view.js",
+      "node tests/verify-818-version-control-view.ts",
       "node tests/verify-829-parent-reread.js",
-      "node tests/verify-842-version-control-write-view.js",
+      "node tests/verify-842-version-control-write-view.ts",
       "node tests/verify-891-setup-refresh.js",
       "node tests/verify-895-bulk-deadline.ts",
       "node tests/verify-898-block-merge.js",

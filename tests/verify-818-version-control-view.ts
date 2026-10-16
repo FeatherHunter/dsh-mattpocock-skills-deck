@@ -23,6 +23,18 @@
 //   标记抠出 useEffect 函数体再正则断言首句）、N15/N17/N18/N19（读组件文本找按钮与守卫的名字）、
 //   M4（读组件文本找悬停那一行）。它们的断言对象是手写源码的文本，等价重构（改写法、搬文件、
 //   改注释）就会变红，按维护者口径撤掉；留下的断言都跑真代码或真渲染，H 组的反证照旧。
+// 这份门禁把二十来个界面叶子拼成一段源码、再用 compileFn 当函数体求值，所以拼出来的闭包没有静态形状；
+//   下面只给「门禁自己写的那些零件」标注类型（计数器、读文件、词条查找、反证改法），闭包成员按名字取用。
+interface AntiCase {
+  name: string
+  en?: boolean
+  seed?: unknown
+  hostStub?: unknown
+  what: string
+  patch?: (s: string) => string
+  pairs?: ReadonlyArray<readonly [string | RegExp, string]>
+  test: (v: any) => boolean | Promise<boolean>
+}
 const fs = require('fs')
 const path = require('path')
 const { pathToFileURL } = require('url')
@@ -32,13 +44,13 @@ const { compileFn } = require('./lib/eval-probe.js')
 const centralTime = require('../src/shared/time-config/values.js')
 globalThis.VC_RELATIVE_WINDOW_MS = centralTime.VC_RELATIVE_WINDOW_MS
 // 中央 import 在 compileFn 函数体里非法，求值前整行剥掉（闭包里它由时间片段提供，门禁里走上面的全局预埋）。
-const stripTimeConfigImport = (s) => s.split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')
+const stripTimeConfigImport = (s: string): string => s.split('\n').filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l)).join('\n')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
 let total = 0
-const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
-const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
+const check = (ok: boolean, msg: string): void => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
+const read = (rel: string): string => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 const NOW = Date.parse('2026-10-04T02:00:00+08:00')
 const VC_FILES = [
   // #842：判定真源（界面按它画按钮状态，不自己算）与写操作那五个新叶子也拼进这个闭包 ——
@@ -69,13 +81,13 @@ const VC_FILES = [
 // 为什么不数「键在文件里出现两次」：上一版正是栽在这里 —— 新词条被插到了 zh: { … } 的**外面**，
 //   L_PANEL 顶层多出 62 个键，中文界面把键名原样印了出来，而两道既有门禁都说「全部通过」。
 //   所以这里 import 真模块、读真字典，再逐键断言 zh 与 en 两边都存在且非空。
-const fill = (s, p) => (p ? String(s).replace(/\{(\w+)\}/g, (m, k) => (k in p ? String(p[k]) : m)) : String(s))
-let LOC = { zh: {}, en: {} }
-let tZh = (k) => k
-let tEn = (k) => k
+const fill = (s: string, p?: Record<string, unknown>): string => (p ? String(s).replace(/\{(\w+)\}/g, (m, k) => (k in p ? String(p[k]) : m)) : String(s))
+let LOC: { zh: Record<string, string>; en: Record<string, string> } = { zh: {}, en: {} }
+let tZh: (k: string) => string = (k) => k
+let tEn: (k: string) => string = (k) => k
 
 // ---------- 界面侧闭包：照 scripts/build.mjs 的做法把六个叶子拼起来再跑 ----------
-function stripExports(text) { return text.replace(/^(\s*)export\s+/gm, '$1') }
+function stripExports(text: string): string { return text.replace(/^(\s*)export\s+/gm, '$1') }
 // 种子注入的匹配口（#1196 转 TS 时发现的耦合）：门禁按源码文本往闭包里注种子，手写 .js 与构建
 //   生成的双生 .js（esbuild 重排了空格、引号与换行）两种写法都认。只换匹配方式，不断言含义。
 const VC_SEED_RE = /React\.useState\(function\s*\(\)\s*\{\s*return vcCacheSeedOf\(cwd\) \|\| vcNewReads\(\)\s*;?\s*\}\)/
@@ -882,7 +894,7 @@ async function main() {
   //   统一成双引号（产物首行写着 AUTO-GENERATED）。字符串 replace 找不到目标就原样返回，于是
   //   「改坏了」其实没落到源码上、断言当然不会红；这里对同一个锚点先按原样、再按双引号形态各试一次。
   //   只试这两种写法，不做整份源码的引号替换 —— 那会误伤字符串里本来就有的撇号。
-  function subQuoteAware(text, from, to) {
+  function subQuoteAware(text: string, from: string, to: string): { text: string; hit: boolean } {
     if (text.indexOf(from) >= 0) return { text: text.replace(from, to), hit: true }
     const altFrom = from.replace(/'/g, '"')
     if (altFrom !== from && text.indexOf(altFrom) >= 0) {
@@ -892,8 +904,8 @@ async function main() {
   }
   // 一处反证可以有好几处替换（先注种子、再把某一行改坏）。逐处记命中，全部命中才算
   //   「这处改法真的落到了源码上」——只看"文本变过没有"会被第一处永远命中的替换骗过去。
-  function applyPairs(text, pairs) {
-    const hits = []
+  function applyPairs(text: string, pairs: ReadonlyArray<readonly [string | RegExp, string]>): { src: string; allHit: boolean } {
+    const hits: boolean[] = []
     let cur = text
     for (const pair of pairs) {
       const from = pair[0]
@@ -909,7 +921,7 @@ async function main() {
     }
     return { src: cur, allHit: hits.every(Boolean) }
   }
-  const antiCases = [
+  const antiCases: AntiCase[] = [
     { name: '显隐谓词改成永远隐藏', patch: (s) => s.replace('const vcTabVisible = function (st) {\n  void st\n  return true\n}', 'const vcTabVisible = function (st) {\n  void st\n  return false\n}'), test: tabVisibleJudgmentOf, what: 'A1' },
     { name: '冲突条目不再合成一行（同一路径画两行）', patch: (s) => s.replace('      if (conflictSeen[path]) return', '      if (false) return'), test: (v) => { const m = v.vcBlocksOf(merge, readsOf(merge), {}, envOf(merge, readsOf(merge))); return rowsOf(m).length === 1 }, what: 'C9' },
     { name: '汇总句把数字写死成 0', patch: (s) => s.replace("staged: String(hostStaged), unstaged: String(hostUnstaged), conflicts: String(conflicts)", "staged: '0', unstaged: '0', conflicts: String(conflicts)").replace("{ staged: String(hostStaged), unstaged: String(hostUnstaged) }", "{ staged: '0', unstaged: '0' }"), test: (v) => { const c = v.vcBlocksOf(liveScreen, liveReads, {}, envOf(liveScreen, liveReads)); return blockOf(c, 'changes').summary === '已暂存 1 个文件 / 未暂存 4 个文件' }, what: 'B7' },
