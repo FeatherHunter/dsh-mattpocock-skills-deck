@@ -235,7 +235,6 @@
     "src/shared/ui/slots.js",
     "src/shared/version-control/exec-envelope.js",
     "src/shared/workspaceKey.js",
-    "tests/diag-live-return-vs-wait.js",
     "tests/diag-live-rpc-latency.js",
     "tests/diag-live-workspace-cost.js",
     "tests/diag-panel-open-latency.js",

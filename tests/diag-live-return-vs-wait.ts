@@ -1,4 +1,4 @@
-// tests/diag-live-return-vs-wait.js
+// tests/diag-live-return-vs-wait.ts
 //
 // 用途（一次性诊断，不是门禁）：判定「面板数据」这条通话，宿主是「手上有货能直接给」还是「每次都得重建」。
 //
@@ -12,23 +12,55 @@
 //
 // 需要 DSH 启动时打印的带令牌网址（只在本机本次启动内有效）：
 //   $env:DSH_AUTH_URL='http://127.0.0.1:3080/?token=...'
-//   node tests/diag-live-return-vs-wait.js
+//   node --import ./scripts/ts-hook.mjs tests/diag-live-return-vs-wait.ts
+//
+// 由 tests/diag-live-return-vs-wait.js 转来（#1239）：只换模块写法与类型标注，判定逻辑逐行不变。
+// 必须保住的判定点：sameGen 计算（三次生成时刻全相同）与下面的两条结论分支，这是选优化路线的分叉依据。
 
-const { chromium } = require('playwright')
+import { chromium } from 'playwright'
+import type { Page } from 'playwright'
+
+/** 快照接口里本诊断关心的字段：只读这几个，多了不认、少了按“没拿到”处理。 */
+interface SnapshotValue {
+  generatedMs?: unknown
+  fromCache?: unknown
+  maps?: unknown
+  issues?: unknown
+  ok?: unknown
+}
+
+/** 单次通话打点回来的东西：耗时、在浏览器里量到的。 */
+interface ProbeResult {
+  ms: number
+  status: number
+  v: SnapshotValue | null
+  raw: string
+}
+
+/** 三次里每一次记下来的判定原料。 */
+interface RunRecord {
+  i: number
+  ms: number
+  gen: unknown
+  fromCache: unknown
+  maps: number | null
+  issues: number | null
+  ok: unknown
+}
 
 const AUTH_URL = process.env.DSH_AUTH_URL
 if (!AUTH_URL) { console.error('缺少 DSH_AUTH_URL'); process.exit(1) }
-const GAP_MS = Number(process.env.GAP_MS || 3000)
+const GAP_MS: number = Number(process.env.GAP_MS || 3000)
 
 ;(async () => {
   const browser = await chromium.launch({ headless: true })
   const ctx = await browser.newContext({ viewport: { width: 1700, height: 1000 } })
-  const page = await ctx.newPage()
+  const page: Page = await ctx.newPage()
   await page.goto(AUTH_URL, { waitUntil: 'domcontentloaded', timeout: 40000 })
   for (let i = 0; i < 40; i++) { if (await page.evaluate(() => /MattSkills/.test(document.body?.innerText || ''))) break; await new Promise((r) => setTimeout(r, 1000)) }
   await new Promise((r) => setTimeout(r, 4000))
 
-  const call = (endpoint, args) => page.evaluate(async ({ endpoint, args }) => {
+  const call = (endpoint: string, args: Record<string, unknown>): Promise<ProbeResult> => page.evaluate(async ({ endpoint, args }: { endpoint: string, args: Record<string, unknown> }) => {
     const t0 = performance.now()
     const res = await fetch('/api/dsws', {
       method: 'POST',
@@ -40,21 +72,21 @@ const GAP_MS = Number(process.env.GAP_MS || 3000)
     })
     const text = await res.text()
     const ms = Math.round(performance.now() - t0)
-    let v = null
-    try { const p = JSON.parse(text); v = (p.result && p.result.value) || null } catch (e) {}
+    let v: SnapshotValue | null = null
+    try { const p = JSON.parse(text) as { result?: { value?: SnapshotValue } }; v = (p.result && p.result.value) || null } catch {}
     return { ms, status: res.status, v, raw: text.slice(0, 300) }
   }, { endpoint, args })
 
   console.log('=== 判定：宿主是「有货可给」还是「每次重建」===\n')
 
-  const runs = []
+  const runs: RunRecord[] = []
   for (let i = 1; i <= 3; i++) {
     const r = await call('snapshot', {})
-    const v = r.v || {}
+    const v: SnapshotValue = r.v || {}
     const g = v.generatedMs
     runs.push({ i, ms: r.ms, gen: g, fromCache: v.fromCache, maps: Array.isArray(v.maps) ? v.maps.length : null, issues: Array.isArray(v.issues) ? v.issues.length : null, ok: v.ok })
     console.log('  第 ' + i + ' 次: ' + String(r.ms).padStart(6) + ' ms   ok=' + v.ok
-      + '   生成时刻=' + (g ? new Date(g).toISOString() : '(无)')
+      + '   生成时刻=' + (typeof g === 'number' ? new Date(g).toISOString() : '(无)')
       + '   fromCache=' + String(v.fromCache)
       + '   地图=' + (Array.isArray(v.maps) ? v.maps.length : '?')
       + '   issue=' + (Array.isArray(v.issues) ? v.issues.length : '?'))
@@ -82,4 +114,4 @@ const GAP_MS = Number(process.env.GAP_MS || 3000)
   if (runs.some((r) => r.fromCache === true)) console.log('  旁证：有返回标记为「来自缓存」的那一次，说明磁盘/内存那条路是通的。')
 
   await browser.close()
-})().catch((e) => { console.error('fatal: ' + e.message); process.exit(1) })
+})().catch((e: unknown) => { console.error('fatal: ' + (e instanceof Error ? e.message : String(e))); process.exit(1) })
