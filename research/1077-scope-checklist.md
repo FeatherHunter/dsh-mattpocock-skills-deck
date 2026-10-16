@@ -1,0 +1,149 @@
+# 136 条范围现列清单（#1077 首轮核对，2026-10-16）
+
+- 核对人：#1077 认领人。口径：#1097 结论一加 #1216 规格单。方法：逐条 Test-Path 旧址与新址，HEAD 825481d0。
+- 引用数字：迁移映射表 meta.counts 自述 112，scopeNote 自述 136，实测 modules 共 136 条，以 scopeNote 为准（见 #1097、#1216 三处数字出入备忘）。
+- 本清单为唯一真源候选：校正名直接可用；退役 1 条后有效计数 135，待 #1216 或维护者确认。
+
+| # | 旧址 | 旧址 | 映射表新址 | 校正后新址 | 新址 | 结论 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | src/host/tools/deckContext.js | 已空 | src/deck/tools/context.ts | src/deck/tools/context.ts | 存在 | 归位 |
+| 2 | src/host/tools/deckIssueGet.js | 已空 | src/deck/tools/issue-get.ts | src/deck/tools/issue-get.ts | 存在 | 归位 |
+| 3 | src/host/tools/deckMapSnapshot.js | 已空 | src/deck/tools/map-snapshot.ts | src/deck/tools/map-snapshot.ts | 存在 | 归位 |
+| 4 | src/host/tools/deckIssueList.js | 已空 | src/deck/tools/issue-list.ts | src/deck/tools/issue-list.ts | 存在 | 归位 |
+| 5 | src/host/tools/deckIssueCreate.js | 已空 | src/deck/tools/issue-create.ts | src/deck/tools/issue-create.ts | 存在 | 归位 |
+| 6 | src/host/tools/deckMapPlanCreate.js | 已空 | src/deck/tools/map-plan-create.ts | src/deck/tools/map-plan-create.ts | 存在 | 归位 |
+| 7 | src/host/tools/deckMapLink.js | 已空 | src/deck/tools/map-link.ts | src/deck/tools/map-link.ts | 存在 | 归位 |
+| 8 | src/host/tools/deckIssuePatch.js | 已空 | src/deck/tools/issue-patch.ts | src/deck/tools/issue-patch.ts | 存在 | 归位 |
+| 9 | src/host/tools/deckIssueReport.js | 已空 | src/deck/tools/issue-report.ts | src/deck/tools/issue-report.ts | 存在 | 归位 |
+| 10 | src/shared/deck-tools/shell.js | 已空 | src/deck/shell/call-shell.ts | src/deck/shell/call-shell.ts | 存在 | 归位 |
+| 11 | src/shared/deck-tools/plan.js | 已空 | src/deck/shell/minimal-spec.ts | src/deck/shell/minimal-spec.ts | 存在 | 归位 |
+| 12 | src/shared/deck-tools/plan.js | 已空 | src/deck/shell/tool-table.ts | src/deck/shell/tool-table.ts | 存在 | 归位 |
+| 13 | src/shared/deck-tools/plan.js | 已空 | src/deck/tools/tool-order.ts | src/deck/tools/tool-order.ts | 存在 | 归位 |
+| 14 | src/shared/deck-tools/edges.js | 已空 | src/deck/shell/edge-landing.ts | src/deck/shell/edge-landing.ts | 存在 | 归位 |
+| 15 | src/shared/deck-tools/call-scope.js | 已空 | src/deck/shell/call-budget.ts | src/deck/shell/call-budget.ts | 存在 | 归位 |
+| 16 | src/shared/deck-tools/session-resolve.js | 已空 | src/deck/shell/session-workdir.ts | src/deck/shell/session-workdir.ts | 存在 | 归位 |
+| 17 | src/shared/deck-tools/key-lock.js | 已空 | src/deck/shell/write-mutex.ts | src/deck/shell/write-mutex.ts | 存在 | 归位 |
+| 18 | src/shared/deck-tools/plan-store.js | 已空 | src/deck/shell/plan-cursor.ts | src/deck/shell/plan-cursor.ts | 存在 | 归位 |
+| 19 | src/shared/deck-tools/exec-cell.js | 已空 | src/deck/shell/table-cell.ts | src/deck/shell/table-cell.ts | 存在 | 归位 |
+| 20 | src/shared/deck-tools/workspace-file.js | 已空 | src/deck/shell/workspace-anchor.ts | src/deck/shell/workspace-anchor.ts | 存在 | 归位 |
+| 21 | src/shared/deck-tools/agent-register.js | 已空 | src/deck/registration/register-options.ts | src/deck/registration/register-options.ts | 存在 | 归位 |
+| 22 | src/host/platform/deckToolsAssembly.js | 已空 | src/deck/registration/host-assemble.ts | src/deck/registration/host-assemble.ts | 存在 | 归位 |
+| 23 | src/host/platform/deckToolsRow.js | 已空 | src/deck/registration/agent-row.ts | src/deck/registration/agent-row.ts | 存在 | 归位 |
+| 24 | src/host/platform/deckExec.js | 已空 | src/deck/registration/host-delegate.ts | src/deck/registration/host-delegate.ts | 存在 | 归位 |
+| 25 | src/host/platform/deckQuotaSync.js | 已空 | src/deck/registration/quota-sync.ts | src/deck/registration/quota-sync.ts | 存在 | 归位 |
+| 26 | src/host/platform/deckSandbox.js | 已空 | src/deck/registration/sandbox-guard.ts | src/deck/registration/sandbox-guard.ts | 存在 | 归位 |
+| 27 | src/host/tracker/backends/github/backend.js | 已空 | src/tracker/rooms/github/backend.ts | src/tracker/rooms/github/backend.ts | 存在 | 归位 |
+| 28 | src/host/tracker/backends/github/checks.js | 已空 | src/tracker/rooms/github/checks.ts | src/tracker/rooms/github/checks.ts | 存在 | 归位 |
+| 29 | src/host/tracker/backends/github/client.js | 已空 | src/tracker/rooms/github/client.ts | src/tracker/rooms/github/client.ts | 存在 | 归位 |
+| 30 | src/host/tracker/backends/github/comments.js | 已空 | src/tracker/rooms/github/comments.ts | src/tracker/rooms/github/comments.ts | 存在 | 归位 |
+| 31 | src/host/tracker/backends/github/counts.js | 已空 | src/tracker/rooms/github/counts.ts | src/tracker/rooms/github/counts.ts | 存在 | 归位 |
+| 32 | src/host/tracker/backends/github/cycle-check.js | 已空 | src/tracker/rooms/github/cycle-check.ts | src/tracker/rooms/github/cycle-check.ts | 存在 | 归位 |
+| 33 | src/host/tracker/backends/github/errors.js | 已空 | src/tracker/rooms/github/errors.ts | src/tracker/rooms/github/errors.ts | 存在 | 归位 |
+| 34 | src/host/tracker/backends/github/fallback-reason.js | 已空 | src/tracker/rooms/github/fallback-reason.ts | src/tracker/rooms/github/fallback-reason.ts | 存在 | 归位 |
+| 35 | src/host/tracker/backends/github/graph.js | 已空 | src/tracker/rooms/github/graph.ts | src/tracker/rooms/github/graph.ts | 存在 | 归位 |
+| 36 | src/host/tracker/backends/github/idempotency.js | 已空 | src/tracker/rooms/github/idempotency.ts | src/tracker/rooms/github/idempotency.ts | 存在 | 归位 |
+| 37 | src/host/tracker/backends/github/index.js | 已空 | src/tracker/rooms/github/index.ts | src/tracker/rooms/github/index.ts | 存在 | 归位 |
+| 38 | src/host/tracker/backends/github/init-project.js | 已空 | src/tracker/rooms/github/init-project.ts | src/tracker/rooms/github/init-project.ts | 存在 | 归位 |
+| 39 | src/host/tracker/backends/github/issues-write.js | 已空 | src/tracker/rooms/github/issues-write.ts | src/tracker/rooms/github/issues-write.ts | 存在 | 归位 |
+| 40 | src/host/tracker/backends/github/issues.js | 已空 | src/tracker/rooms/github/issues.ts | src/tracker/rooms/github/issues.ts | 存在 | 归位 |
+| 41 | src/host/tracker/backends/github/label-colors-ops.js | 已空 | src/tracker/rooms/github/label-colors-ops.ts | src/tracker/rooms/github/label-colors-ops.ts | 存在 | 归位 |
+| 42 | src/host/tracker/backends/github/labels.js | 已空 | src/tracker/rooms/github/labels.ts | src/tracker/rooms/github/labels.ts | 存在 | 归位 |
+| 43 | src/host/tracker/backends/github/normalize.js | 已空 | src/tracker/rooms/github/normalize.ts | src/tracker/rooms/github/normalize.ts | 存在 | 归位 |
+| 44 | src/host/tracker/backends/github/page.js | 已空 | src/tracker/rooms/github/page.ts | src/tracker/rooms/github/page.ts | 存在 | 归位 |
+| 45 | src/host/tracker/backends/github/parent-repair.js | 已空 | src/tracker/rooms/github/parent-repair.ts | src/tracker/rooms/github/parent-repair.ts | 存在 | 归位 |
+| 46 | src/host/tracker/backends/github/preflight.js | 已空 | src/tracker/rooms/github/preflight.ts | src/tracker/rooms/github/preflight.ts | 存在 | 归位 |
+| 47 | src/host/tracker/backends/github/pulls.js | 已空 | src/tracker/rooms/github/pulls.ts | src/tracker/rooms/github/pulls.ts | 存在 | 归位 |
+| 48 | src/host/tracker/backends/github/queries.js | 已空 | src/tracker/rooms/github/queries.ts | src/tracker/rooms/github/queries.ts | 存在 | 归位 |
+| 49 | src/host/tracker/backends/github/repo-permissions.js | 已空 | src/tracker/rooms/github/repo-permissions.ts | src/tracker/rooms/github/repo-permissions.ts | 存在 | 归位 |
+| 50 | src/host/tracker/backends/github/repo.js | 已空 | src/tracker/rooms/github/repo.ts | src/tracker/rooms/github/repo.ts | 存在 | 归位 |
+| 51 | src/host/tracker/backends/github/roster.js | 已空 | src/tracker/rooms/github/roster.ts | src/tracker/rooms/github/roster.ts | 存在 | 归位 |
+| 52 | src/host/tracker/backends/github/sub-issues.js | 已空 | src/tracker/rooms/github/sub-issues.ts | src/tracker/rooms/github/sub-issues.ts | 存在 | 归位 |
+| 53 | src/host/tracker/backends/markdown/comments.js | 已空 | src/tracker/rooms/markdown/comments.ts | src/tracker/rooms/markdown/comments.ts | 存在 | 归位 |
+| 54 | src/host/tracker/backends/markdown/counts.js | 已空 | src/tracker/rooms/markdown/counts.ts | src/tracker/rooms/markdown/counts.ts | 存在 | 归位 |
+| 55 | src/host/tracker/backends/markdown/graph.js | 已空 | src/tracker/rooms/markdown/graph.ts | src/tracker/rooms/markdown/graph.ts | 存在 | 归位 |
+| 56 | src/host/tracker/backends/markdown/index.js | 已空 | src/tracker/rooms/markdown/index.ts | src/tracker/rooms/markdown/index.ts | 存在 | 归位 |
+| 57 | src/host/tracker/backends/markdown/issues-create.js | 已空 | src/tracker/rooms/markdown/issues-create.ts | src/tracker/rooms/markdown/issues-create.ts | 存在 | 归位 |
+| 58 | src/host/tracker/backends/markdown/issues-locate.js | 已空 | src/tracker/rooms/markdown/issues-locate.ts | src/tracker/rooms/markdown/issues-locate.ts | 存在 | 归位 |
+| 59 | src/host/tracker/backends/markdown/issues-patch.js | 已空 | src/tracker/rooms/markdown/issues-patch.ts | src/tracker/rooms/markdown/issues-patch.ts | 存在 | 归位 |
+| 60 | src/host/tracker/backends/markdown/issues-read.js | 已空 | src/tracker/rooms/markdown/issues-read.ts | src/tracker/rooms/markdown/issues-read.ts | 存在 | 归位 |
+| 61 | src/host/tracker/backends/markdown/issues-status.js | 已空 | src/tracker/rooms/markdown/issues-status.ts | src/tracker/rooms/markdown/issues-status.ts | 存在 | 归位 |
+| 62 | src/host/tracker/backends/markdown/issues.js | 已空 | src/tracker/rooms/markdown/issues.ts | src/tracker/rooms/markdown/issues.ts | 存在 | 归位 |
+| 63 | src/host/tracker/backends/markdown/label-colors-codec.js | 已空 | src/tracker/rooms/markdown/label-colors-codec.ts | src/tracker/rooms/markdown/label-colors-codec.ts | 存在 | 归位 |
+| 64 | src/host/tracker/backends/markdown/label-colors-errors.js | 已空 | src/tracker/rooms/markdown/label-colors-errors.ts | src/tracker/rooms/markdown/label-colors-errors.ts | 存在 | 归位 |
+| 65 | src/host/tracker/backends/markdown/label-colors-ops.js | 已空 | src/tracker/rooms/markdown/label-colors-ops.ts | src/tracker/rooms/markdown/label-colors-ops.ts | 存在 | 归位 |
+| 66 | src/host/tracker/backends/markdown/label-colors-paint.js | 已空 | src/tracker/rooms/markdown/label-colors-paint.ts | src/tracker/rooms/markdown/label-colors-paint.ts | 存在 | 归位 |
+| 67 | src/host/tracker/backends/markdown/label-colors-palette.js | 已空 | src/tracker/rooms/markdown/label-colors-palette.ts | src/tracker/rooms/markdown/label-colors-palette.ts | 存在 | 归位 |
+| 68 | src/host/tracker/backends/markdown/label-colors.js | 已空 | src/tracker/rooms/markdown/label-colors.ts | src/tracker/rooms/markdown/label-colors.ts | 存在 | 归位 |
+| 69 | src/host/tracker/backends/markdown/normalize.js | 已空 | src/tracker/rooms/markdown/normalize.ts | src/tracker/rooms/markdown/normalize.ts | 存在 | 归位 |
+| 70 | src/host/tracker/backends/markdown/page.js | 已空 | src/tracker/rooms/markdown/page.ts | src/tracker/rooms/markdown/page.ts | 存在 | 归位 |
+| 71 | src/host/tracker/backends/markdown/parse.js | 已空 | src/tracker/rooms/markdown/parse.ts | src/tracker/rooms/markdown/parse.ts | 存在 | 归位 |
+| 72 | src/host/tracker/backends/markdown/path.js | 已空 | src/tracker/rooms/markdown/path.ts | src/tracker/rooms/markdown/path.ts | 存在 | 归位 |
+| 73 | src/host/tracker/backends/markdown/read.js | 已空 | src/tracker/rooms/markdown/read.ts | src/tracker/rooms/markdown/read.ts | 存在 | 归位 |
+| 74 | src/host/tracker/backends/markdown/write-queue.js | 已空 | src/tracker/rooms/markdown/write-queue.ts | src/tracker/rooms/markdown/write-queue.ts | 存在 | 归位 |
+| 75 | src/host/tracker/backends/markdown/write.js | 已空 | src/tracker/rooms/markdown/write.ts | src/tracker/rooms/markdown/write.ts | 存在 | 归位 |
+| 76 | src/host/tracker/backends/gitlab/client.js | 已空 | src/tracker/rooms/gitlab/client.js | src/tracker/rooms/gitlab/client.ts | 存在 | 归位（校正名，映射表名过期，实盘为准） |
+| 77 | src/host/tracker/backends/gitlab/comments.js | 已空 | src/tracker/rooms/gitlab/comments.js | src/tracker/rooms/gitlab/comments.ts | 存在 | 归位（校正名，映射表名过期，实盘为准） |
+| 78 | src/host/tracker/backends/gitlab/create-write.js | 已空 | src/tracker/rooms/gitlab/create-write.js | src/tracker/rooms/gitlab/create-write.ts | 存在 | 归位（校正名，映射表名过期，实盘为准） |
+| 79 | src/host/tracker/backends/gitlab/errors.js | 已空 | src/tracker/rooms/gitlab/errors.js | src/tracker/rooms/gitlab/errors.ts | 存在 | 归位（校正名，映射表名过期，实盘为准） |
+| 80 | src/host/tracker/backends/gitlab/graph-blocking.js | 已空 | src/tracker/rooms/gitlab/graph-blocking.js | src/tracker/rooms/gitlab/graph-blocking.ts | 存在 | 归位（校正名，映射表名过期，实盘为准） |
+| 81 | src/host/tracker/backends/gitlab/graph-membership.js | 已空 | src/tracker/rooms/gitlab/graph-membership.js | src/tracker/rooms/gitlab/graph-membership.ts | 存在 | 归位（校正名，映射表名过期，实盘为准） |
+| 82 | src/host/tracker/backends/gitlab/graph.js | 已空 | src/tracker/rooms/gitlab/graph.js | src/tracker/rooms/gitlab/graph.ts | 存在 | 归位（校正名，映射表名过期，实盘为准） |
+| 83 | src/host/tracker/backends/gitlab/idempotency.js | 已空 | src/tracker/rooms/gitlab/idempotency.js | src/tracker/rooms/gitlab/idempotency.ts | 存在 | 归位（校正名，映射表名过期，实盘为准） |
+| 84 | src/host/tracker/backends/gitlab/index.js | 已空 | src/tracker/rooms/gitlab/index.js | src/tracker/rooms/gitlab/index.ts | 存在 | 归位（校正名，映射表名过期，实盘为准） |
+| 85 | src/host/tracker/backends/gitlab/issues.js | 已空 | src/tracker/rooms/gitlab/issues.js | src/tracker/rooms/gitlab/issues.ts | 存在 | 归位（校正名，映射表名过期，实盘为准） |
+| 86 | src/host/tracker/backends/gitlab/labels.js | 已空 | src/tracker/rooms/gitlab/labels.js | src/tracker/rooms/gitlab/labels.ts | 存在 | 归位（校正名，映射表名过期，实盘为准） |
+| 87 | src/host/tracker/backends/gitlab/normalize.js | 已空 | src/tracker/rooms/gitlab/normalize.js | src/tracker/rooms/gitlab/normalize.ts | 存在 | 归位（校正名，映射表名过期，实盘为准） |
+| 88 | src/host/tracker/backends/gitlab/preflight.js | 已空 | src/tracker/rooms/gitlab/preflight.js | src/tracker/rooms/gitlab/preflight.ts | 存在 | 归位（校正名，映射表名过期，实盘为准） |
+| 89 | src/host/tracker/backends/gitlab/queries.js | 已空 | src/tracker/rooms/gitlab/queries.js | src/tracker/rooms/gitlab/queries.ts | 存在 | 归位（校正名，映射表名过期，实盘为准） |
+| 90 | src/host/tracker/backends/README.md | 已空 | src/tracker/rooms/README.md | src/tracker/rooms/README.md | 存在 | 归位 |
+| 91 | src/host/tracker/contract.js | 已空 | src/tracker/contract/index.ts | src/tracker/contract/index.ts | 存在 | 归位 |
+| 92 | src/host/tracker/contract-idempotency.js | 已空 | src/tracker/contract/contract-idempotency.ts | src/tracker/contract/contract-idempotency.ts | 存在 | 归位 |
+| 93 | src/host/tracker/contract-label-colors.js | 已空 | src/tracker/contract/contract-label-colors.ts | src/tracker/contract/contract-label-colors.ts | 存在 | 归位 |
+| 94 | src/host/tracker/contract-page.js | 已空 | src/tracker/contract/contract-page.ts | src/tracker/contract/contract-page.ts | 存在 | 归位 |
+| 95 | src/host/tracker/fixContract.js | 已空 | src/tracker/contract/fixContract.ts | — | — | 退役（旧址 #1019 d0fdb277 搬入新址，新址 #1026 b07e64b5 以搬空删掉 146 行，修复知识已收进新契约与房间声明，无现存单文件后继） |
+| 96 | src/host/tracker/registryCore.js | 已空 | src/tracker/registry/registryCore.ts | src/tracker/registry/core.ts | 存在 | 归位（校正名，映射表名过期，实盘为准） |
+| 97 | src/host/tracker/registryShape.js | 已空 | src/tracker/registry/registryShape.ts | src/tracker/registry/shape.ts | 存在 | 归位（校正名，映射表名过期，实盘为准） |
+| 98 | src/host/tracker/registryViews.js | 已空 | src/tracker/registry/registryViews.ts | src/tracker/registry/views.ts | 存在 | 归位（校正名，映射表名过期，实盘为准） |
+| 99 | src/host/tracker/detection/backendDecision.js | 已空 | src/tracker/detection/backendDecision.ts | src/tracker/detection/backendDecision.ts | 存在 | 归位 |
+| 100 | src/host/tracker/detection/detectionService.js | 已空 | src/tracker/detection/detectionService.ts | src/tracker/detection/detectionService.ts | 存在 | 归位 |
+| 101 | src/host/tracker/detection/explicitDetector.js | 已空 | src/tracker/detection/explicitDetector.ts | src/tracker/detection/explicitDetector.ts | 存在 | 归位 |
+| 102 | src/host/tracker/detection/parseIssueTracker.js | 已空 | src/tracker/detection/parseIssueTracker.ts | src/tracker/detection/parseIssueTracker.ts | 存在 | 归位 |
+| 103 | src/host/tracker/detection/preflightScope.js | 已空 | src/tracker/detection/preflightScope.ts | src/tracker/detection/preflightScope.ts | 存在 | 归位 |
+| 104 | src/host/tracker/detection/workspaceStore.js | 已空 | src/tracker/detection/workspaceStore.ts | src/tracker/detection/workspaceStore.ts | 存在 | 归位 |
+| 105 | src/host/tracker/preflight.js | 已空 | src/tracker/preflight.ts | src/tracker/kernel/preflight.ts | 存在 | 归位（校正名，映射表名过期，实盘为准） |
+| 106 | src/host/tracker/index.js | 已空 | src/tracker/index.ts | src/tracker/index.ts | 存在 | 归位 |
+| 107 | src/host/index.js | 已空 | src/host/index.ts | src/host/index.ts | 存在 | 归位 |
+| 108 | src/host/platformChannel.js | 已空 | src/host/platformChannel.ts | src/host/platformChannel.ts | 存在 | 归位 |
+| 109 | src/host/refresh/wiring.js | 仍在 | src/host/refresh/wiring.ts | src/host/refresh/wiring.ts | 缺失 | 未动（旧仍在，新缺，全仓无引用，交 #1078 判） |
+| 110 | src/host/workspaceCwd.js | 已空 | src/host/workspaceCwd.ts | src/host/workspaceCwd.ts | 存在 | 归位 |
+| 111 | src/host/issueDetail.js | 已空 | src/host/issueDetail.ts | src/host/issueDetail.ts | 存在 | 归位 |
+| 112 | src/host/remotePredicates.js | 已空 | src/host/remotePredicates.ts | src/host/remotePredicates.ts | 存在 | 归位 |
+| 113 | src/shared/tracker/constants.js | 已空 | src/tracker/contract/vocabulary.ts | src/tracker/contract/vocabulary.ts | 存在 | 归位 |
+| 114 | src/shared/labels.js | 已空 | src/tracker/contract/canonical-labels.ts | src/tracker/contract/canonical-labels.ts | 存在 | 归位 |
+| 115 | src/shared/tracker/deck-derive.js | 已空 | src/tracker/deck-derive.ts | src/tracker/deck-derive.ts | 存在 | 归位 |
+| 116 | src/shared/parser.js | 已空 | src/tracker/body-parse.ts | src/tracker/body-parse.ts | 存在 | 归位 |
+| 117 | src/shared/tracker/workspaceOwnership.js | 已空 | src/tracker/detection/workspace-ownership.ts | src/tracker/kernel/workspace-ownership.ts | 存在 | 归位（校正名，映射表名过期，实盘为准） |
+| 118 | src/shared/tracker/initProjectErrorKinds.js | 已空 | src/tracker/rooms/github/init-project-error-kinds.ts | src/tracker/rooms/github/init-project-error-kinds.ts | 存在 | 归位 |
+| 119 | src/shared/tracker/outbound-tiers.js | 已空 | src/host/outbound/tiers.ts | src/tracker/kernel/outbound-tiers.ts | 存在 | 归位（校正名，映射表名过期，实盘为准） |
+| 120 | src/shared/tracker/outbound-admission.js | 已空 | src/host/outbound/admission.ts | src/host/outbound/admission.ts | 存在 | 归位 |
+| 121 | src/shared/refresh/chain-ride.js | 已空 | src/host/refresh/chain-ride.ts | src/host/refresh/chain-ride.ts | 存在 | 归位 |
+| 122 | src/shared/refresh/refusal-text.js | 已空 | src/host/refresh/refusal-text.ts | src/host/refresh/refusal-text.ts | 存在 | 归位 |
+| 123 | src/host/repoKeys.js | 已空 | src/host/git-process.ts | src/host/git-process.ts | 存在 | 归位 |
+| 124 | src/host/platform/win32/index.js | 已空 | src/host/platform/win32/index.ts | src/host/platform/win32/index.ts | 存在 | 归位 |
+| 125 | src/host/platform/linux/index.js | 已空 | src/host/platform/linux/index.ts | src/host/platform/linux/index.ts | 存在 | 归位 |
+| 126 | src/host/platform/darwin/index.js | 已空 | src/host/platform/darwin/index.ts | src/host/platform/darwin/index.ts | 存在 | 归位 |
+| 127 | src/host/refresh/gate.js | 已空 | src/host/refresh/gate.ts | src/host/refresh/gate.ts | 存在 | 归位 |
+| 128 | src/host/refresh/ledger.js | 已空 | src/host/refresh/ledger.ts | src/host/refresh/ledger.ts | 存在 | 归位 |
+| 129 | src/shared/refresh/budget.js | 仍在 | src/host/refresh/budget.ts | src/host/refresh/budget.ts | 缺失 | 未动（旧仍在，新缺，全仓无引用，交 #1078 判） |
+| 130 | src/shared/refresh/tool-cost.js | 仍在 | src/host/refresh/tool-cost.ts | src/host/refresh/tool-cost.ts | 缺失 | 未动（旧仍在，新缺，全仓无引用，交 #1078 判） |
+| 131 | src/host/sessionSnapshot.js | 已空 | src/host/sessionSnapshot.ts | src/host/sessionSnapshot.ts | 存在 | 归位 |
+| 132 | src/host/sessionRefresh.js | 已空 | src/host/sessionRefresh.ts | src/host/sessionRefresh.ts | 存在 | 归位 |
+| 133 | src/host/snapshotBuild.js | 已空 | src/host/snapshotBuild.ts | src/host/snapshotBuild.ts | 存在 | 归位 |
+| 134 | src/host/snapshotEnvelope.js | 已空 | src/host/snapshotEnvelope.ts | src/host/snapshotEnvelope.ts | 存在 | 归位 |
+| 135 | src/host/snapshotInflight.js | 已空 | src/host/snapshotInflight.ts | src/host/snapshotInflight.ts | 存在 | 归位 |
+| 136 | src/host/detectChain.js | 已空 | src/host/detectChain.ts | src/host/detectChain.ts | 存在 | 归位 |
+
+## 汇总
+- 归位：132 条
+- 退役：1 条
+- 未动：3 条
