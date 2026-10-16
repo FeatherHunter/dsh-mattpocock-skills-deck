@@ -12,11 +12,15 @@ let failed = false
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
+// 取源走共用入口（#1207 立的 tests/lib/source-text.ts）：locale-panel 已从 .js 转成 .ts，
+// 直接读 .js 会读到构建产物（或读不到），而且朴素拼文本过不了转译（类型标注与 satisfies 会把 eval 噎死）。
+// 共用入口先按全仓唯一口径转译再给可拼接文本；没转的文件走同一条，原样返回。
+const { spliceableJs } = require('./lib/source-text.ts')
 
-// 与 scripts/build.mjs 同一条拼接思路：去掉每行行首 export，把声明体拼成真模块再跑。
+// 与 scripts/build.mjs 同一条拼接思路：可拼接的 JavaScript 文本拼成真模块再跑。
 function spliceToFile (files, exportsList, tmpName) {
   let out = ''
-  for (const rel of files) out += read(rel).split(/\r?\n/).map((l) => l.replace(/^(\s*)export\s+/, '$1')).join('\n') + '\n'
+  for (const rel of files) out += spliceableJs(rel) + '\n'
   out += '\nexport { ' + exportsList.join(', ') + ' }\n'
   const tmp = path.join(__dirname, tmpName)
   fs.writeFileSync(tmp, out, 'utf8')

@@ -27,10 +27,13 @@ const { compileFn } = require('./eval-probe.js')
 
 const ROOT = path.resolve(__dirname, '..', '..')
 const MARK_REL = 'src/client/views/SubworkspaceMark.js'
+// 取源走共用入口（#1207 立的 tests/lib/source-text.ts）：locale-panel 已从 .js 转成 .ts，
+// 按旧路径直接读会读到构建产物（字符串改双引号），下面只认单引号的正则会一条都取不到。
+const { sourceText } = require('./source-text.ts')
 
 /** 取真 locale 里的浮层四行文案（中英各一条，顺序与文件里两处一致）。 */
 function tipsFromLocale() {
-  const src = fs.readFileSync(path.join(ROOT, 'src/client/kernel/locale-panel.js'), 'utf8')
+  const src = sourceText('src/client/kernel/locale-panel.js')
   const re = /'panel\.wsMarkTip':\s*'((?:[^'\\]|\\.)*)'/g
   const out = []
   let m

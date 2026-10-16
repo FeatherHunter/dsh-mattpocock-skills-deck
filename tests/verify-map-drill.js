@@ -12,6 +12,9 @@
 // 用法: node tests/verify-map-drill.js（在插件根目录）
 const fs = require('fs')
 const { compileFn } = require('./lib/eval-probe.js')
+// 取源走共用入口（#1207 立的 tests/lib/source-text.ts）：locale-panel 已从 .js 转成 .ts，
+// 按旧路径直接读会读到构建产物（字符串改双引号），下面只认单引号的断言会误报。
+const { sourceText } = require('./lib/source-text.ts')
 // 沙箱跑裸 JS，身份函数是全标注 TS：转译口径取仓库唯一那一份
 // （scripts/lib/transpile-unit.mjs，手法照 tests/verify-build-artifacts.js）。
 const esbuildForProbe = require('esbuild')
@@ -214,7 +217,7 @@ check(JSON.stringify(r.log[r.log.length - 1]) === JSON.stringify(['issue', 4]), 
 // ============ 五、深栈面包屑字符串（跑两处源文件里截出来的真算式） ============
 // 面包屑根复用主列表页签词条（中英齐备），测试里用中文取值的桩代入，另单查词条双语一致。
 const zhTr = (k) => k === 'panel.tabList' ? '列表' : k
-const locPanelSrc = fs.readFileSync('src/client/kernel/locale-panel.js', 'utf8')
+const locPanelSrc = sourceText('src/client/kernel/locale-panel.js')
 // 原来这里还断言 mapSrc / issueSrc 的源码里不出现 '列表 / #' 这个中文字面量（盯写法），
 // 已按维护者要求删除；面包屑根走词条这件事由下面那一条读 locale 数据的断言负责。
 check(locPanelSrc.includes("'panel.tabList': '列表'") && locPanelSrc.includes("'panel.tabList': 'List'"), '矩阵：面包屑根复用主列表页签词条，中英齐备')

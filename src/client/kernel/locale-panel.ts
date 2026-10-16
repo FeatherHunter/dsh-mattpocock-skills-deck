@@ -1,11 +1,31 @@
 /**
- * src/client/kernel/locale-panel.js — 内核模块（#458 由 locale.js 拆出之导航、面板、横幅、环境、初始化引导）
+ * src/client/kernel/locale-panel.ts — 内核模块（#458 由 locale.js 拆出之导航、面板、横幅、环境、初始化引导）
+ *
+ * #1231：本文件从 .js 改名成 .ts（除下面这段类型与注释外，正文一个字都没动，
+ *   含 #1231 新增的 cfg.wsMergedCount 中英各一条）。
+ *   改名的配套动作在别处：tests/handwritten-js-baseline.json 删掉原来那一行、
+ *   按路径读这份源码的门禁改走 tests/lib/source-text.ts。
+ *   登记表不动：LEAF/KERNEL 登记的本来就是同名 .js 产物这一支（与 SettingsPage.js 同例），
+ *   构建的 pixel-ts 那一步会从这份真源转出产物再拼。
  *
  * 契约：本文件为模块真源（ESM 导出）；scripts/build.mjs 在构建时去掉每行行首
  * export 关键字，把声明体文本拼回 src/client/index.js 的拼接标记处（apply 闭包内
  * 原位），与 ctx.js/seam 同模式，一源两物，src 零复制。
  * 接口冻结清单见 docs/architecture/kernel-contract.md（G3 · #91 拍板）。
  */
+    /**
+     * 「这一份词条文档里有什么」，按**读法**写在类型上（与 locale-pages.ts 同一套说法，
+     * 各片段自带一份：拼进闭包时类型已擦除，运行时只有一份 L_PANEL，互不干扰）：
+     *   - 词条的键名是自由字符串（几百条，逐条列成联合类型只会变成第二份会过期的名录）；
+     *   - 值一律是字符串（占位符写在字符串里，由 locale.js 的合并器或渲染处替换，不存在别的取值）；
+     *   - 语言只有 zh / en 两种（缺键的那一侧会静默落空，tests/verify-locale-completeness.js 就是按这条判的）。
+     *
+     * 这里用 satisfies 而不是给常量加类型标注：标注会把字面量键全抹平成一个字符串索引，
+     * satisfies 既让编译器按上面的契约查一遍，又保留字面量本身。
+     */
+    export type LocaleDoc = { [key: string]: string }
+    /** 支持的语言：与 promptLang() 的返回值同一个闭集合（zh 是缺省，en 跟随 DSH locale 快照）。 */
+    export type LocaleLang = 'zh' | 'en'
     export const L_PANEL = {
       zh: {
         'nav.word': '沉淀',
@@ -344,4 +364,4 @@
         'vc.fail.oldGit': 'The installed git version is too old for this tab.', 'vc.fail.parse': 'The output could not be parsed: the installed git uses an unexpected output format.', 'vc.fail.args': 'The request had malformed parameters, so this item cannot be read.', 'vc.fail.shape': 'The reply did not follow the agreed shape, so no content is shown.', 'vc.fail.throw': 'The read was interrupted before returning.', 'vc.fail.envFs': 'Cannot read the repository state (the host file service did not respond), so this item is not shown; try again shortly.',
         'vc.fail.unknown': 'This item cannot be read.', 'vc.fail.raw': 'Raw detail: {msg}', 'vc.commit.title': 'Changes in this commit', 'vc.commit.back': 'Back to uncommitted changes', 'vc.commit.tip': 'Click to view the changes in this commit', 'vc.commit.loading': 'Reading the changes in this commit…', 'vc.commit.fail': 'The changes in this commit cannot be read', 'vc.commit.truncated': 'The changes in this commit are too large; nothing is listed when it cannot be read in full. See the full change in a command line.', 'vc.commit.merge': 'This is a merge commit: it changed no files relative to its first parent.', 'vc.diff.mergeCommit': 'This is a merge commit: git does not expand the line-by-line diff of a merge by default, so there is nothing here.', 'vc.commit.empty': 'This commit modified no files (an empty commit).', 'vc.commit.files': '{n} files changed in this commit', 'vc.row.typeUnknown': 'This commit only returned the path and the line counts, so the kind of change cannot be determined', 'vc.noCwd': 'This session has no workspace yet, so version information cannot be read', 'vc.readAt': 'read at {when}', 'vc.reload': 'Re-read', 'vc.diff.scopeHead': 'This shows everything changed since the last commit (both the staged and the unstaged parts are included).', 'vc.row.partStaged': 'This file has changes in both the staged and unstaged areas; this row is the staged part.', 'vc.row.partUnstaged': 'This file has changes in both the staged and unstaged areas; this row is the unstaged part.', 'vc.row.countsDual': 'The line counts are the file totals since the last commit (both parts included).', 'vc.group.conflictTip': 'These files are counted once on each side; the panel lists them only once here.', 'vc.sync.unknown': 'The sync state read back is a value this panel does not recognize, so ahead/behind counts are not estimated. Inspect it in a command line.', 'vc.sync.unknownTip': 'The unrecognized value is: {kind}', 'vc.other.more': '{n} more not shown; scrolling down shows them', 'vc.other.prunableUnknownTip': 'This git version cannot tell whether this worktree directory still exists; cannot tell does not mean it is still there.',
       },
-    }
+    } satisfies Record<LocaleLang, LocaleDoc>

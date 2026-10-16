@@ -2,9 +2,11 @@
 // 规约：#264（分档状态机 / 草稿标题合成 / 值比对锁 / 跟踪态 / 计划单）
 // 用法：node tests/verify-naming-guardian.js
 
-import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+// 取源走共用入口（#1207 立的 tests/lib/source-text.ts）：locale-panel 已从 .js 转成 .ts，
+// 按旧路径直接读会读到构建产物（字符串改双引号），下面只认单引号的计数会误报。
+import { sourceText } from './lib/source-text.ts'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -416,7 +418,7 @@ console.log('\n— 失败可见性与有限重试（#267）—')
 // 断的是用户看得见的文案缺不缺，不是代码写法。
 console.log('\n— 定败横幅文案 —')
 {
-  const locG = ['locale-panel.js', 'locale-flow.js', 'locale-word.js', 'locale.js'].map((f) => readFileSync(join(ROOT, 'src/client/kernel', f), 'utf8')).join('\n') // #458 K5：locale.js 已拆为三片段加合并器，此处读四文件拼合断言（naming 三键在 word 片段）
+  const locG = ['locale-panel.js', 'locale-flow.js', 'locale-word.js', 'locale.js'].map((f) => sourceText(join('src/client/kernel', f).replace(/\\/g, '/'))).join('\n') // #458 K5：locale.js 已拆为三片段加合并器，此处读四文件拼合断言（naming 三键在 word 片段）
   for (const k of ['naming.failTitle', 'naming.failHint', 'naming.stageDraft']) {
     check(locG.split("'" + k + "':").length - 1 === 2, 'locale 双语配对键：' + k)
   }

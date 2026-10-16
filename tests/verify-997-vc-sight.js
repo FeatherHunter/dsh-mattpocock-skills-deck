@@ -21,6 +21,10 @@ let failed = false
 let total = 0
 const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
+// 取源走共用入口（#1207 立的 tests/lib/source-text.ts）：locale-panel 已从 .js 转成 .ts，
+// 按旧路径直接读会读到构建产物（字符串改双引号），下面 wordingProblems 只认单引号会误报。
+// FLOW 仍是 .js 也走同一条（入口对没转的文件原样返回），省得下次转它时再改一次。
+const { sourceText } = require('./lib/source-text.ts')
 const strip = (t) => t.replace(/^(\s*)export\s+/gm, '$1')
 
 const LEAF = 'src/client/views/versionControl/vcInView.js'
@@ -139,7 +143,7 @@ const original = {
 check(original.rule.length === 0, '判定真值表全过（10 档）' + (original.rule.length ? '：' + original.rule[0] : ''))
 check(original.state.length === 0, '从块清单里取「还有没有」全过（11 档）' + (original.state.length ? '：' + original.state[0] : ''))
 check(original.shown.length === 0, '再画一批：函数式更新、不改原状态、只动点名的分组' + (original.shown.length ? '：' + original.shown[0] : ''))
-const wording = wordingProblems(read(FLOW), read(PANEL))
+const wording = wordingProblems(sourceText(FLOW), sourceText(PANEL))
 check(wording.length === 0, '词条：这句话说行为、不说点击（中英成对）' + (wording.length ? '：' + wording[0] : ''))
 
 // ---------- 反证：每处都要能改红 ----------
@@ -153,8 +157,8 @@ check(stateProblems(brokenState).length > 0, '反证：提交历史那处的失�
 const brokenShown = modOf((s) => s.replace('next[key] = shown + VC_FILE_ROWS_BATCH', 'next[key] = shown'))
 check(shownProblems(brokenShown).length > 0, '反证：把「再画一批」改成「画同样多」之后当场变红')
 
-const oldWording = read(FLOW).replace("'vc.more': '另有 {n} 个文件，下滑会自动显示'", "'vc.more': '另有 {n} 个文件，点击展开查看'")
-check(oldWording !== read(FLOW) && wordingProblems(oldWording, read(PANEL)).length > 0, '反证：词条改回「点击展开查看」之后当场变红')
+const oldWording = sourceText(FLOW).replace("'vc.more': '另有 {n} 个文件，下滑会自动显示'", "'vc.more': '另有 {n} 个文件，点击展开查看'")
+check(oldWording !== sourceText(FLOW) && wordingProblems(oldWording, sourceText(PANEL)).length > 0, '反证：词条改回「点击展开查看」之后当场变红')
 
 console.log('')
 if (failed) { console.log('存在失败 — verify-997-vc-sight 未通过（' + total + ' 项断言）'); process.exit(1) }

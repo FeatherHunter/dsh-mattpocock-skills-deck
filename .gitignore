@@ -84,6 +84,11 @@ _research/
 /src/client/kernel/locale-pages.js
 /src/client/kernel/prompts.js
 /src/client/statusbar/StatusBackend.js
+# #1231：再转两份 —— 设置页工作区总览与面板文案（同名 .js 从此是构建产物，真源是同名 .ts）。
+/src/client/views/SettingsWorkspaces.js
+/src/client/kernel/locale-panel.js
+# #1237：地图详情由手写 .js 转成 .ts，同名 .js 从此是构建产物（真源是同名 .ts）。
+/src/client/views/MapDetail.js
 /src/client/views/pixel/
 /src/client/views/skillDetail/
 /src/client/views/cards/
