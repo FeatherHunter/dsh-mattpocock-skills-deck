@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * verify-locale-completeness.js — locale 完整性门禁（#231 验收）。
+ * verify-locale-completeness.ts — locale 完整性门禁（#231 验收）。
  *
  * A. zh/en 键集合全等（键数一致且互相包含）；
  * B. 本票关键键存在（双语源与双产物四处核验）；

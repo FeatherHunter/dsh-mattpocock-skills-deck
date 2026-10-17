@@ -1,8 +1,8 @@
-// verify-prompts.js — prompt 注册表契约校验（#573 收敛五面扫描 + 外部豁免登记 + 归一化；判定口径按 #603 重写为 R1–R8）
+// verify-prompts.ts — prompt 注册表契约校验（#573 收敛五面扫描 + 外部豁免登记 + 归一化；判定口径按 #603 重写为 R1–R8）
 // 用法:
-//   node tests/verify-prompts.js                          默认：五面全扫（S1 真源 + S2 双产物 + S3 三后端 + S4 host 常量 + S5 渲染面）
-//   node tests/verify-prompts.js <注册表文件>              单文件模式：只扫该文件的 S1（L2 机械注入用；S2/S3/S4 跳过）
-//   node tests/verify-prompts.js --backend-probe=<文件>    用该文件替代 github 后端做 S3（L2 机械注入用）
+//   node tests/verify-prompts.ts                          默认：五面全扫（S1 真源 + S2 双产物 + S3 三后端 + S4 host 常量 + S5 渲染面）
+//   node tests/verify-prompts.ts <注册表文件>              单文件模式：只扫该文件的 S1（L2 机械注入用；S2/S3/S4 跳过）
+//   node tests/verify-prompts.ts --backend-probe=<文件>    用该文件替代 github 后端做 S3（L2 机械注入用）
 //
 // 判定分两层：
 //   ① 结构契约（沿用 #461/#68/#69/#71/#72/#74/#75/#76/#77 的既有断言，陈旧的两组已按现状修正）
@@ -47,7 +47,7 @@ const os = require('os')
 const path = require('path')
 const childProcess = require('child_process')
 // 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
-const { compileFn } = require('./lib/eval-probe.js')
+const { compileFn } = require('./lib/eval-probe.ts')
 // 取源走共用入口（#1207 立）：本文件好几处要拿 prompts 的**源码文本**做注入与正则解析。
 //   #1209 把这份源码从手写 .js 转成 .ts 之后，按 .js 路径直接读会读到构建产物（pixel-ts 那一步
 //   写在真源旁边的同名 .js），产物是转译过的排版——引号全变双引号、对象被压成一行，
@@ -60,7 +60,7 @@ const { loadEsbuild } = require('../scripts/lib/transpile-domains.mjs')
 const { TRANSPILE_OPTIONS } = require('../scripts/lib/transpile-unit.mjs')
 
 const ROOT = path.join(__dirname, '..')
-const SELF = path.join(__dirname, 'verify-prompts.js')
+const SELF = path.join(__dirname, 'verify-prompts.ts')
 const EXEMPT_FILE = path.join(__dirname, 'prompt-gate-exempt.json')
 const PAYLOAD_FILE = path.join(__dirname, 'prompt-gate-payloads.json')
 const IS_CHILD = process.env.DSH_VERIFY_PROMPTS_CHILD === '1'
@@ -1682,7 +1682,7 @@ const selfDigest = function () {
 const LOCK = {
   'tests/prompt-gate-exempt.json': 'c661ccd0fbfd46aa99790c073d0ccea89ebf5787a9113462c092b17c72a2a2d9',
   'tests/prompt-gate-payloads.json': '489d9dc9feff4c1ce1b2b4fa4ed6090d802f8b54e77de4cd303bb8b9c88f66f5',
-  'tests/verify-prompts.js': '263589ae8cddac621ec7ba1eb04cc5082cad354e6d46f24ffcc382e9e8e79199',
+  'tests/verify-prompts.ts': 'bffdd198c6e61ce27fc0fe7584fc18a3b4d6c94a2dcafc11d9ea5f9368b122d1',
 }
 // ---- LOCK-END ----
 
@@ -1716,10 +1716,10 @@ if (!IS_CHILD) {
   Object.keys(LOCK).forEach(function (rel) {
     const p = path.join(ROOT, rel)
     if (!fs.existsSync(p)) { fail('自锁文件缺失：' + rel); return }
-    const got = rel === 'tests/verify-prompts.js' ? selfDigest() : sha256Of(Buffer.from(readNormalized(p), 'utf8'))
+    const got = rel === 'tests/verify-prompts.ts' ? selfDigest() : sha256Of(Buffer.from(readNormalized(p), 'utf8'))
     if (got !== LOCK[rel]) {
       fail('自锁摘要不匹配 ' + rel + '：实得 ' + got + '，登记 ' + LOCK[rel] +
-        '\n     修法：夹具或门禁改了就要同步更新 tests/verify-prompts.js 里的 LOCK 摘要（这是防「把夹具掏空」的锁）')
+        '\n     修法：夹具或门禁改了就要同步更新 tests/verify-prompts.ts 里的 LOCK 摘要（这是防「把夹具掏空」的锁）')
     }
   })
   if (stepOk(pLock)) console.log('  PASS 夹具自锁（豁免登记表 / payload 夹具 / 门禁自身，sha256 三个都对上）')
@@ -2089,9 +2089,9 @@ if (!IS_CHILD) {
   const pReg = problems.length
   try {
     const { isGatePlanned } = require('../scripts/lib/discover-gates.ts')
-    check(isGatePlanned(ROOT, 'tests/verify-prompts.js'), 'verify 链未纳入本门禁（tests/verify-prompts.js，规划函数里有它）')
+    check(isGatePlanned(ROOT, 'tests/verify-prompts.ts'), 'verify 链未纳入本门禁（tests/verify-prompts.ts，规划函数里有它）')
     check(isGatePlanned(ROOT, 'tests/verify-progress.ts'), 'verify 链未纳入 tests/verify-progress.js（#573 总指挥 Q1 裁定，规划函数里有它）')
-    if (problems.length === pReg) console.log('  PASS 自注册（verify 链含 verify-prompts.js + verify-progress.js）')
+    if (problems.length === pReg) console.log('  PASS 自注册（verify 链含 verify-prompts.ts + verify-progress.js）')
   } catch (e) { fail('读门禁规划失败：' + e.message) }
 }
 

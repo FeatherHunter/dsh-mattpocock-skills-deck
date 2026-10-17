@@ -1,4 +1,4 @@
-// tests/verify-gate-map.js —— 给「门禁归属表」和「按改动挑门禁」这两件事把关的门禁。
+// tests/verify-gate-map.ts —— 给「门禁归属表」和「按改动挑门禁」这两件事把关的门禁。
 //
 // 为什么要有这一条：
 //   scripts/gate-map.mjs 生成的 tests/gate-map.json 是一张派生表，它一旦过期，
@@ -12,7 +12,7 @@
 //        其中含一条反向测试，证明挑选确实在筛，不是把全链都选上。
 //     4. 和链一致：归属表里的 step 集合必须等于规划函数给出的 step 集合。
 //
-// 用法: node tests/verify-gate-map.js（在插件根目录）
+// 用法: node tests/verify-gate-map.ts（在插件根目录）
 import fs from 'node:fs'
 import path from 'node:path'
 import url from 'node:url'

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-17T07:06:58.755Z",
+  "generatedAt": "2026-10-17T07:09:45.098Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 292,
   "gateCount": 292,
@@ -777,8 +777,8 @@
       "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 22 条"
     },
     {
-      "step": "node tests/verify-gate-map.js",
-      "file": "tests/verify-gate-map.js",
+      "step": "node tests/verify-gate-map.ts",
+      "file": "tests/verify-gate-map.ts",
       "guards": [
         "docs/agents/verification.md",
         "package/lib/client.js",
@@ -5752,8 +5752,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 2 条"
     },
     {
-      "step": "node tests/verify-prompts.js",
-      "file": "tests/verify-prompts.js",
+      "step": "node tests/verify-prompts.ts",
+      "file": "tests/verify-prompts.ts",
       "guards": [
         "package/lib/client.js",
         "package/scripts",
@@ -5776,7 +5776,7 @@
         "tests/prompt-gate-exempt.json",
         "tests/prompt-gate-payloads.json",
         "tests/verify-progress.ts",
-        "tests/verify-prompts.js"
+        "tests/verify-prompts.ts"
       ],
       "dirs": [
         "package/lib",
@@ -6371,8 +6371,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 5 条"
     },
     {
-      "step": "node tests/verify-tracker-contract.js",
-      "file": "tests/verify-tracker-contract.js",
+      "step": "node tests/verify-tracker-contract.ts",
+      "file": "tests/verify-tracker-contract.ts",
       "guards": [
         "examples/demo-mini/fixtures/demo-real",
         "examples/demo-mini/index.js",
@@ -6598,8 +6598,8 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 4 条"
     },
     {
-      "step": "node tests/verify-wire-subissues-script.js",
-      "file": "tests/verify-wire-subissues-script.js",
+      "step": "node tests/verify-wire-subissues-script.ts",
+      "file": "tests/verify-wire-subissues-script.ts",
       "guards": [
         "docs/agents",
         "docs/agents/issue-tracker.md",
@@ -6607,7 +6607,7 @@
         "scripts/lib/discover-gates.ts",
         "scripts/wire-subissues.mjs",
         "tests/verify-issue-body-script.ts",
-        "tests/verify-wire-subissues-script.js"
+        "tests/verify-wire-subissues-script.ts"
       ],
       "dirs": [
         "docs/agents",
@@ -6678,8 +6678,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 1 条"
     },
     {
-      "step": "node tests/verify-locale-completeness.js",
-      "file": "tests/verify-locale-completeness.js",
+      "step": "node tests/verify-locale-completeness.ts",
+      "file": "tests/verify-locale-completeness.ts",
       "guards": [
         "package/lib/client.js",
         "src/client/kernel/locale-flow.js",
@@ -6791,7 +6791,7 @@
       "node tests/verify-refresh-adr.js"
     ],
     "docs/agents": [
-      "node tests/verify-gate-map.js",
+      "node tests/verify-gate-map.ts",
       "node tests/verify-1003-layout-in-file.ts",
       "node tests/verify-1003-migration.ts",
       "node tests/verify-1003-single-outlet.ts",
@@ -6811,7 +6811,7 @@
       "node tests/verify-detection-evidence.ts",
       "node tests/verify-github-label-colors.ts",
       "node tests/verify-issue-body-script.ts",
-      "node tests/verify-wire-subissues-script.js"
+      "node tests/verify-wire-subissues-script.ts"
     ],
     "docs/releases": [
       "node tests/verify-market-tarball.ts",
@@ -6823,11 +6823,11 @@
     ],
     "examples": [],
     "examples/demo-mini": [
-      "node tests/verify-tracker-contract.js"
+      "node tests/verify-tracker-contract.ts"
     ],
     "examples/demo-mini/fixtures": [],
     "examples/demo-mini/fixtures/demo-real": [
-      "node tests/verify-tracker-contract.js"
+      "node tests/verify-tracker-contract.ts"
     ],
     "package": [
       "node tests/verify-build-artifacts.js",
@@ -6868,7 +6868,7 @@
       "node tests/verify-chain-view-ui.ts",
       "node tests/verify-deck-event-gate.mjs",
       "node tests/verify-deck-slots.ts",
-      "node tests/verify-gate-map.js",
+      "node tests/verify-gate-map.ts",
       "node tests/verify-530-pr-tab.ts",
       "node tests/verify-587-update-live.ts",
       "node tests/verify-599-merged-pr.ts",
@@ -6916,7 +6916,7 @@
       "node tests/verify-parse-leaf.js",
       "node tests/verify-platform-contract.ts",
       "node tests/verify-prompt-newlines.ts",
-      "node tests/verify-prompts.js",
+      "node tests/verify-prompts.ts",
       "node tests/verify-release-contract.ts",
       "node tests/verify-rest-fallback-banner.js",
       "node tests/verify-rest-fallback-reason.ts",
@@ -6929,14 +6929,14 @@
       "node tests/verify-t1-initpublish.js",
       "node tests/verify-t3-locale.ts",
       "node tests/verify-tabsfold-leaf.js",
-      "node tests/verify-locale-completeness.js"
+      "node tests/verify-locale-completeness.ts"
     ],
     "package/lib/platform": [
       "node tests/verify-build-artifacts.js"
     ],
     "package/scripts": [
       "node tests/verify-deck-event-gate.mjs",
-      "node tests/verify-prompts.js"
+      "node tests/verify-prompts.ts"
     ],
     "package/shared": [
       "node tests/verify-build-artifacts.js"
@@ -6948,7 +6948,7 @@
       "node tests/verify-labels-sync.js"
     ],
     "research": [
-      "node tests/verify-gate-map.js",
+      "node tests/verify-gate-map.ts",
       "node tests/verify-733-unknown-endpoint.ts",
       "node tests/verify-error-normalize-log.ts",
       "node tests/verify-log-count.ts",
@@ -6959,7 +6959,7 @@
       "node tests/verify-1207-splice-ts.ts",
       "node tests/verify-leaves.ts",
       "node tests/verify-dependency-rules.ts",
-      "node tests/verify-gate-map.js",
+      "node tests/verify-gate-map.ts",
       "node tests/verify-1115-timer-handle.ts",
       "node tests/verify-1125-gate-coverage.ts",
       "node tests/verify-1146-virtual-clock-liveness.ts",
@@ -6976,7 +6976,7 @@
       "node tests/verify-panel-workspace-shared.js",
       "node tests/verify-parse-leaf.js",
       "node tests/verify-platform-contract.ts",
-      "node tests/verify-prompts.js",
+      "node tests/verify-prompts.ts",
       "node tests/verify-release-contract.ts",
       "node tests/verify-release-template.ts",
       "node tests/verify-settings-debug.ts",
@@ -6984,7 +6984,7 @@
       "node tests/verify-settings-view.ts",
       "node tests/verify-tabsfold-leaf.js",
       "node tests/verify-typecheck.mts",
-      "node tests/verify-wire-subissues-script.js",
+      "node tests/verify-wire-subissues-script.ts",
       "node tests/verify-wizard-exit-609.js",
       "node tests/verify-star-history.ts"
     ],
@@ -7002,7 +7002,7 @@
       "node tests/verify-leaves.ts",
       "node tests/verify-chain-view.ts",
       "node tests/verify-deck-tools-row-zero-dep.ts",
-      "node tests/verify-gate-map.js",
+      "node tests/verify-gate-map.ts",
       "node tests/verify-1109-matches-timeout.ts",
       "node tests/verify-1115-timer-handle.ts",
       "node tests/verify-1125-gate-coverage.ts",
@@ -7025,16 +7025,16 @@
       "node tests/verify-map-drill.js",
       "node tests/verify-market-tarball.ts",
       "node tests/verify-multi-effort-panel.ts",
-      "node tests/verify-prompts.js",
+      "node tests/verify-prompts.ts",
       "node tests/verify-settings-debug.ts",
       "node tests/verify-unmigrated-tests.ts",
       "node tests/verify-update-migration.ts",
       "node tests/verify-visible-truth.ts",
-      "node tests/verify-wire-subissues-script.js",
+      "node tests/verify-wire-subissues-script.ts",
       "node tests/verify-wizard-exit-609.js"
     ],
     "src": [
-      "node tests/verify-gate-map.js",
+      "node tests/verify-gate-map.ts",
       "node tests/verify-683-choice-rev.ts",
       "node tests/verify-683-host-wiring.ts",
       "node tests/verify-file-granularity.ts",
@@ -7044,7 +7044,7 @@
     "src/client": [
       "node tests/verify-leaves.ts",
       "node tests/verify-contract-vocabulary.ts",
-      "node tests/verify-gate-map.js",
+      "node tests/verify-gate-map.ts",
       "node tests/verify-1115-timer-handle.ts",
       "node tests/verify-626-type-chip.ts",
       "node tests/verify-646-native-tab.ts",
@@ -7133,7 +7133,7 @@
       "node tests/verify-newsession-workspace-fallback.js",
       "node tests/verify-panel-workspace-shared.js",
       "node tests/verify-prompt-newlines.ts",
-      "node tests/verify-prompts.js",
+      "node tests/verify-prompts.ts",
       "node tests/verify-rest-fallback-banner.js",
       "node tests/verify-reuse.js",
       "node tests/verify-session-title.js",
@@ -7145,7 +7145,7 @@
       "node tests/verify-tabsfold-leaf.js",
       "node tests/verify-visible-truth.ts",
       "node tests/verify-workspace-file-note.js",
-      "node tests/verify-locale-completeness.js"
+      "node tests/verify-locale-completeness.ts"
     ],
     "src/client/panel": [
       "node tests/verify-leaves.ts",
@@ -7180,7 +7180,7 @@
     "src/client/views": [
       "node tests/verify-leaves.ts",
       "node tests/verify-deck-slots.ts",
-      "node tests/verify-gate-map.js",
+      "node tests/verify-gate-map.ts",
       "node tests/verify-no-title.js",
       "node tests/verify-1145-open-local.ts",
       "node tests/verify-1199-row-closed-link.ts",
@@ -7200,7 +7200,7 @@
       "node tests/verify-issue529-checks-i18n.js",
       "node tests/verify-map-drill.js",
       "node tests/verify-multi-effort-panel.ts",
-      "node tests/verify-prompts.js",
+      "node tests/verify-prompts.ts",
       "node tests/verify-reuse.js",
       "node tests/verify-settings-debug.ts",
       "node tests/verify-settings-view.ts",
@@ -7250,7 +7250,7 @@
     ],
     "src/client/views/versionControl": [
       "node tests/verify-leaves.ts",
-      "node tests/verify-gate-map.js",
+      "node tests/verify-gate-map.ts",
       "node tests/verify-818-version-control-view.ts",
       "node tests/verify-842-version-control-write-view.ts",
       "node tests/verify-881-commit-open.ts",
@@ -7334,7 +7334,7 @@
       "node tests/verify-contract-vocabulary.ts",
       "node tests/verify-deck-event-gate.mjs",
       "node tests/verify-dependency-rules.ts",
-      "node tests/verify-gate-map.js",
+      "node tests/verify-gate-map.ts",
       "node tests/verify-1003-layout-in-file.ts",
       "node tests/verify-1003-migration.ts",
       "node tests/verify-1003-no-cwd-masquerade.ts",
@@ -7393,7 +7393,7 @@
       "node tests/verify-parse-leaf.js",
       "node tests/verify-progress.ts",
       "node tests/verify-prompt-newlines.ts",
-      "node tests/verify-prompts.js",
+      "node tests/verify-prompts.ts",
       "node tests/verify-refresh-workspace-key.ts",
       "node tests/verify-reply-envelope-parity.js",
       "node tests/verify-settings-debug.ts",
@@ -7526,7 +7526,7 @@
       "node tests/verify-settings-templates.ts",
       "node tests/verify-settings-view.ts",
       "node tests/verify-subdir-first-frame.js",
-      "node tests/verify-locale-completeness.js"
+      "node tests/verify-locale-completeness.ts"
     ],
     "src/shared/config-store": [
       "node tests/verify-config-store-package.ts"
@@ -7558,7 +7558,7 @@
       "node tests/verify-deck-tools-matrix.ts",
       "node tests/verify-deck-tools.js",
       "node tests/verify-dependency-rules.ts",
-      "node tests/verify-gate-map.js",
+      "node tests/verify-gate-map.ts",
       "node tests/verify-1003-single-outlet.ts",
       "node tests/verify-1003-unified-decision.ts",
       "node tests/verify-1150-plan-store-durable.ts",
@@ -7639,7 +7639,7 @@
       "node tests/verify-subdir-first-frame.js",
       "node tests/verify-visible-truth.ts",
       "node tests/verify-write-detect.ts",
-      "node tests/verify-locale-completeness.js"
+      "node tests/verify-locale-completeness.ts"
     ],
     "src/shared/time-config/src": [
       "node tests/verify-file-granularity.ts"
@@ -7717,7 +7717,7 @@
       "node tests/verify-issue195.js",
       "node tests/verify-labels-sync.js",
       "node tests/verify-markdown-label-colors.ts",
-      "node tests/verify-locale-completeness.js"
+      "node tests/verify-locale-completeness.ts"
     ],
     "src/tracker/detection": [
       "node tests/verify-deck-quota-sync.ts",
@@ -7779,14 +7779,14 @@
       "node tests/verify-golden-receipts.ts",
       "node tests/verify-issue297.ts",
       "node tests/verify-refresh-workspace-key.ts",
-      "node tests/verify-tracker-contract.js"
+      "node tests/verify-tracker-contract.ts"
     ],
     "src/tracker/rooms": [
       "node tests/verify-no-mixed-session.js",
       "node tests/verify-1182-log-emit-single-source.ts",
       "node tests/verify-error-rule-samples.ts",
       "node tests/verify-prompt-newlines.ts",
-      "node tests/verify-prompts.js"
+      "node tests/verify-prompts.ts"
     ],
     "src/tracker/rooms/github": [
       "node tests/verify-deck-repo-resolve.ts",
@@ -7819,9 +7819,9 @@
       "node tests/verify-golden-receipts.ts",
       "node tests/verify-issue195.js",
       "node tests/verify-labels-sync.js",
-      "node tests/verify-prompts.js",
+      "node tests/verify-prompts.ts",
       "node tests/verify-rest-fallback-reason.ts",
-      "node tests/verify-tracker-contract.js"
+      "node tests/verify-tracker-contract.ts"
     ],
     "src/tracker/rooms/gitlab": [
       "node tests/verify-deck-tools-matrix.ts",
@@ -7836,7 +7836,7 @@
       "node tests/verify-error-rule-samples.ts",
       "node tests/verify-gh-gateway.ts",
       "node tests/verify-gitlab-single-write.ts",
-      "node tests/verify-tracker-contract.js",
+      "node tests/verify-tracker-contract.ts",
       "node tests/verify-ui-description-single-source.ts"
     ],
     "src/tracker/rooms/markdown": [
@@ -7875,7 +7875,7 @@
       "node tests/verify-contract-vocabulary.ts",
       "node tests/verify-deck-tools-matrix.ts",
       "node tests/verify-dependency-rules.ts",
-      "node tests/verify-gate-map.js",
+      "node tests/verify-gate-map.ts",
       "node tests/verify-1125-gate-coverage.ts",
       "node tests/verify-1146-virtual-clock-liveness.ts",
       "node tests/verify-1157-in-flight-lease.ts",
@@ -7894,11 +7894,11 @@
       "node tests/verify-issue232-sync.ts",
       "node tests/verify-log-selfmon.ts",
       "node tests/verify-market-tarball.ts",
-      "node tests/verify-prompts.js",
+      "node tests/verify-prompts.ts",
       "node tests/verify-refresh-adr.js",
       "node tests/verify-settings-debug.ts",
       "node tests/verify-unmigrated-tests.ts",
-      "node tests/verify-wire-subissues-script.js",
+      "node tests/verify-wire-subissues-script.ts",
       "node tests/verify-wizard-exit-609.js"
     ],
     "tests/fixtures": [
@@ -7933,7 +7933,7 @@
       "node tests/verify-deck-thin-reads.ts",
       "node tests/verify-deck-tools-matrix.ts",
       "node tests/verify-deck-tools.js",
-      "node tests/verify-gate-map.js",
+      "node tests/verify-gate-map.ts",
       "node tests/verify-1109-matches-timeout.ts",
       "node tests/verify-1146-virtual-clock-liveness.ts",
       "node tests/verify-1150-plan-store-durable.ts",
@@ -8023,7 +8023,7 @@
       "node tests/verify-parse-leaf.js",
       "node tests/verify-progress.ts",
       "node tests/verify-prompt-newlines.ts",
-      "node tests/verify-prompts.js",
+      "node tests/verify-prompts.ts",
       "node tests/verify-refresh-workspace-key.ts",
       "node tests/verify-rest-fallback-banner.js",
       "node tests/verify-rest-fallback-reason.ts",
@@ -8035,24 +8035,24 @@
       "node tests/verify-tabsfold-leaf.js",
       "node tests/verify-visible-truth.ts",
       "node tests/verify-workspace-file-note.js",
-      "node tests/verify-locale-completeness.js"
+      "node tests/verify-locale-completeness.ts"
     ],
     "tests/tracker-contract": [
       "node tests/verify-1179-gitlab-endpoint-coverage.ts",
       "node tests/verify-1182-docs-paths.ts",
       "node tests/verify-markdown-backend.ts",
-      "node tests/verify-tracker-contract.js"
+      "node tests/verify-tracker-contract.ts"
     ],
     "tests/tracker-contract/fixtures": [
       "node tests/verify-markdown-backend.ts",
-      "node tests/verify-tracker-contract.js"
+      "node tests/verify-tracker-contract.ts"
     ],
     "tests/tracker-contract/runner": [
-      "node tests/verify-tracker-contract.js"
+      "node tests/verify-tracker-contract.ts"
     ],
     "tests/tracker-contract/sections": [
       "node tests/verify-github-label-colors.ts",
-      "node tests/verify-tracker-contract.js"
+      "node tests/verify-tracker-contract.ts"
     ],
     "wizard": [
       "node tests/verify-release-contract.ts"

@@ -19,7 +19,6 @@
     "tests/verify-delta-patch.js",
     "tests/verify-delta-wiring.js",
     "tests/verify-detail-levels.js",
-    "tests/verify-gate-map.js",
     "tests/verify-github-rest-fallback.js",
     "tests/verify-handoff-isolation-787.js",
     "tests/verify-handoff-latest-sort.js",
@@ -31,7 +30,6 @@
     "tests/verify-issue22-ui.js",
     "tests/verify-issue529-checks-i18n.js",
     "tests/verify-labels-sync.js",
-    "tests/verify-locale-completeness.js",
     "tests/verify-map-drill.js",
     "tests/verify-map-subissues-352.js",
     "tests/verify-multi-effort.js",
@@ -47,7 +45,6 @@
     "tests/verify-panel-workspace-isolation.js",
     "tests/verify-panel-workspace-shared.js",
     "tests/verify-parse-leaf.js",
-    "tests/verify-prompts.js",
     "tests/verify-refresh-adr.js",
     "tests/verify-reply-envelope-parity.js",
     "tests/verify-rest-fallback-banner.js",
@@ -64,8 +61,6 @@
     "tests/verify-t2-repokey-ui.js",
     "tests/verify-tabs-narrow.js",
     "tests/verify-tabsfold-leaf.js",
-    "tests/verify-tracker-contract.js",
-    "tests/verify-wire-subissues-script.js",
     "tests/verify-wizard-exit-609.js",
     "tests/verify-workspace-file-note.js"
   ]

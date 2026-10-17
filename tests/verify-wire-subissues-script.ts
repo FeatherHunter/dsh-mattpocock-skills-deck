@@ -1,6 +1,6 @@
 /*
- * tests/verify-wire-subissues-script.js —— #572 子议题关联脚本门禁（命令行黑盒）
- * 用法: node tests/verify-wire-subissues-script.js（在插件根目录；不联网、不碰真票）
+ * tests/verify-wire-subissues-script.ts —— #572 子议题关联脚本门禁（命令行黑盒）
+ * 用法: node tests/verify-wire-subissues-script.ts（在插件根目录；不联网、不碰真票）
  *
  * 测什么（契约 #576 定的测试缝：只测最高的一道——脚本命令行黑盒，参数进、回包加退出码出）：
  *   1) 正常补齐：地图正文写回并读回校验 + 子票挂成原生子议题 + 阻塞声明升格成原生阻塞边，命令序列逐条钉死；
@@ -777,7 +777,7 @@ console.log('子议题关联脚本门禁（#572 · 命令行黑盒）')
 {
   const { planGates } = require('../scripts/lib/discover-gates.ts')
   const plan = planGates(ROOT)
-  const mine = plan.find((s) => s.file === 'tests/verify-wire-subissues-script.js')
+  const mine = plan.find((s) => s.file === 'tests/verify-wire-subissues-script.ts')
   const sister = plan.find((s) => s.file === 'tests/verify-issue-body-script.ts')
   check(!!mine, '21.1 verify 链已纳入本门禁（规划函数里有它）')
   check(!!sister && !!mine && sister.stage === mine.stage, '21.2 本门禁与姊妹门禁 tests/verify-issue-body-script.ts 同处 ' + (mine ? mine.stage : '?') + ' 段')

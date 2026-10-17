@@ -1,5 +1,5 @@
 /**
- * tests/verify-tracker-contract.js — 契约测试入口（对齐仓库 verify-* 约定）。
+ * tests/verify-tracker-contract.ts — 契约测试入口（对齐仓库 verify-* 约定）。
  *
  * 多段（#132 Q2=B 定决 + #139 落地）：
  *   1. normalize harness（合规桩全 PASS / 违规桩被逮 + 真实 github 适配器合规过 G4）
@@ -29,7 +29,7 @@
  *      失败、一张票都不建。见 sections/idempotency.js。
  *
  * 每段含「✗ probe」违规样例自证测试会逮。
- * 运行：node tests/verify-tracker-contract.js
+ * 运行：node tests/verify-tracker-contract.ts
  * 期望：合规桩全 PASS；违规桩被逮住那 4 条预期失败（见文件末尾 VIOLATING_EXPECTED_FAILURES，按名字点名）；
  *      真实 github 适配器合规 PASS；各段全 PASS。退出码 0 = 契约骨架自洽。
  */
