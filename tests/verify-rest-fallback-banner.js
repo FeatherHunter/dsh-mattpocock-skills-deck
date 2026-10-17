@@ -16,7 +16,13 @@
  */
 const fs = require('fs')
 const path = require('path')
-const { compileFn } = require('./lib/eval-probe.js')
+// 2026-10-17 先修两处装载口径：
+//   ① eval-probe 与 source-text 在盘上都只有 .ts，写 .js 时靠装载钩子改指；明写 .ts 后挂钩子与
+//      不挂钩子两种跑法都活（先例 tests/verify-rest-fallback-reason.ts）。
+//   ② 词条片段改走共用取源入口读源码，不直读磁盘上那两份 .js。今天两种写法等价（它们还是手写
+//      .js），等它们转 .ts 那天，直读会读到构建产物里被改成双引号的文本而假红。
+const { compileFn } = require('./lib/eval-probe.ts')
+const { sourceText } = require('./lib/source-text.ts')
 // 中央时间真值：过期阈值只住 config/*.yaml，这里读同一份导出来预埋，不在测试里写第二份数字。
 const centralTime = require('../src/shared/time-config/values.js')
 globalThis.REST_FALLBACK_STALE_MS = centralTime.REST_FALLBACK_STALE_MS
@@ -80,8 +86,8 @@ check(!!again && again.key === 'list.restFallback', '新的一次降级（时刻
 // ── 三、词条与产物 ──
 // 2026-09-24：这两条词条随横幅本体一起从 locale-flow.js 搬进 locale-word.js（键名与文案一字未改），
 //   所以这里按**两个文件的合体**数「中英各一条」——数法没变，只是不再假定它们住在哪个片段里。
-const locale = fs.readFileSync(path.join(ROOT, 'src/client/kernel/locale-flow.js'), 'utf8') +
-  fs.readFileSync(path.join(ROOT, 'src/client/kernel/locale-word.js'), 'utf8')
+const locale = sourceText('src/client/kernel/locale-flow.js') +
+  sourceText('src/client/kernel/locale-word.js')
 const nKey = (locale.match(/'list\.restFallbackStale'/g) || []).length
 const nDis = (locale.match(/'list\.restFallbackDismiss'/g) || []).length
 check(nKey === 2, '「上次取数走的 REST…」两种语言各一条（实测 ' + nKey + '）')

@@ -33,6 +33,9 @@ const { compileFn } = require('./lib/eval-probe.js')
 
 // 2026-10-17 重锚：host.js 与 package/lib/index.js 两个旧产物已下架，handoff 挑选逻辑的真身
 //   搬进 src/host/handoffClaim.js（可用 argv 传别的源文件覆盖，默认就取它）。
+// 门禁归属: src/host/handoffClaim.js
+//   （2026-10-17 补：以前这里只有 .js 说明符，归属推导认不出它守着哪条源码路径，归属表一直记着
+//    「算不出」。这一行是归属推导的第一类来源，写上之后重跑 scripts/gate-map.mjs 就连对了。）
 const files = process.argv.slice(2).length ? process.argv.slice(2) : ['src/host/handoffClaim.js']
 
 // ---- Part A：静态契约 ----

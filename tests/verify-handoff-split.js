@@ -151,7 +151,16 @@ const main = async function () {
   for (const file of files) {
     const tag = file.indexOf('package/') >= 0 ? 'npm' : 'dyn'
     console.log('=== ' + file + ' ===')
-    const src = fs.readFileSync(file, 'utf8')
+    // 2026-10-17 先修：盘上没有产物时原来会抛一整栈 ENOENT，看起来像门禁自己坏了。
+    // 改成说人话的失败：告诉你缺哪份产物、该先跑哪条命令。
+    let src
+    try {
+      src = fs.readFileSync(file, 'utf8')
+    } catch (e) {
+      failed = true
+      console.log('  FAIL ' + tag + ' 读不到 ' + file + '（先运行 node scripts/build.mjs 生成产物）：' + e.message)
+      continue
+    }
     console.log('-- Part A 静态契约 --')
     try { statChecks(src, tag) }
     catch (e) { failed = true; console.log('  FAIL ' + tag + ' Part A — ' + e.message); continue }
