@@ -1,4 +1,4 @@
-// verify-wizard-exit-609.js —— #609 门禁：向导不能因为「没人应答」或「调起器返回非零」就静默改变结论。
+// verify-wizard-exit-609.ts —— #609 门禁：向导不能因为「没人应答」或「调起器返回非零」就静默改变结论。
 //
 // 为什么要有这一条：tests/verify-release-contract.ts 的 F 段只看关键字与 `bash -n` 语法，不跑真行为，
 //   所以下面两类缺陷从 2026-09-08 那次「修复」之后一直是绿的：
@@ -19,7 +19,7 @@
 //   也就是输入流已经结束、并没有人在按键）即为「没有人应答」；空行仍算「有人按了回车」，所以人自己
 //   按回车走「否」那条路不受影响，向导只是不再把「没人应答」当成「人按了否」。
 //
-// 用法：node tests/verify-wizard-exit-609.js（在插件根目录，不需要构建产物，需要 Git Bash 的 bash）
+// 用法：node tests/verify-wizard-exit-609.ts（在插件根目录，不需要构建产物，需要 Git Bash 的 bash）
 const fs = require('fs')
 const path = require('path')
 const { spawnSync } = require('child_process')
@@ -90,7 +90,7 @@ function listOpenUrlCallLines(src) {
 function isInVerifyChain() {
   try {
     const { isGatePlanned } = require('../scripts/lib/discover-gates.ts')
-    return isGatePlanned(ROOT, 'tests/verify-wizard-exit-609.js')
+    return isGatePlanned(ROOT, 'tests/verify-wizard-exit-609.ts')
   } catch (e) {
     return false
   }
@@ -139,7 +139,7 @@ function main() {
     console.log('  要指定 bash 可设环境变量 WIZARD_TEST_BASH=<bash 可执行文件路径> 后重跑。')
     process.exit(0)
   }
-  check(isInVerifyChain(), '本门禁已挂进 verify 链（规划函数里有 tests/verify-wizard-exit-609.js）')
+  check(isInVerifyChain(), '本门禁已挂进 verify 链（规划函数里有 tests/verify-wizard-exit-609.ts）')
   try {
     fs.rmSync(WORK, { recursive: true, force: true })
     fs.mkdirSync(path.join(WORK, 'walk-root', 'package'), { recursive: true })

@@ -1,8 +1,8 @@
-// verify-tabsfold-leaf.js — dsh-mattpocock-skills-deck 阶段 1：client 折叠机器纯函数叶子差分测试
+// verify-tabsfold-leaf.ts — dsh-mattpocock-skills-deck 阶段 1：client 折叠机器纯函数叶子差分测试
 // T1（#94）迁移：断言目标从「内联副本」改为「构建产物」——client.js / package/lib/client.js 现由
 //   scripts/build.mjs 生成（一源出两物，gitignore 可变产物），本测试验证「叶子 === 构建产物」：
 //   T0 接管后构建未改变叶子行为，叶子仍为唯一真源 + 测试基准。
-// 用法: node tests/verify-tabsfold-leaf.js（在插件根目录；先运行 node scripts/build.mjs 生成产物）
+// 用法: node tests/verify-tabsfold-leaf.ts（在插件根目录；先运行 node scripts/build.mjs 生成产物）
 // 验证：1) src/client/kernel/tabsfold.js 叶子可用 + 行为真值表（#15 e0f31ac 等级机器）
 //       2) 产物新鲜度门禁（缺失/过期 → FAIL，提示先构建；防止陈旧产物假绿）
 //       3) 叶子 === _dev 产物（根 client.js）——「构建未改变叶子行为」探测器

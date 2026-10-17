@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-17T07:21:25.105Z",
+  "generatedAt": "2026-10-17T07:26:28.346Z",
   "generatedBy": "node scripts/gate-map.mjs",
-  "chainLength": 291,
-  "gateCount": 291,
-  "attributedGates": 256,
+  "chainLength": 292,
+  "gateCount": 292,
+  "attributedGates": 257,
   "unattributedGates": 35,
   "buildOutputOnlyGates": 22,
   "completionRecordedGates": 6,
@@ -681,8 +681,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 4 条"
     },
     {
-      "step": "node tests/verify-deck-tools.js",
-      "file": "tests/verify-deck-tools.js",
+      "step": "node tests/verify-deck-tools.ts",
+      "file": "tests/verify-deck-tools.ts",
       "guards": [
         "src/deck/registration",
         "src/deck/shell",
@@ -1981,7 +1981,7 @@
         "tests/lib/eval-probe.ts",
         "tests/verify-653-subworkspace.ts",
         "tests/verify-656-subworkspace-acceptance.ts",
-        "tests/verify-t1-getrepokey.js"
+        "tests/verify-t1-getrepokey.ts"
       ],
       "dirs": [
         "docs/agents",
@@ -4047,8 +4047,8 @@
       "reason": "归属来自 文件头 // 门禁归属: 注释（共 1 条）"
     },
     {
-      "step": "node tests/verify-client-hardcode-gate.js",
-      "file": "tests/verify-client-hardcode-gate.js",
+      "step": "node tests/verify-client-hardcode-gate.ts",
+      "file": "tests/verify-client-hardcode-gate.ts",
       "guards": [
         "package/lib/client.js",
         "src/client"
@@ -4167,8 +4167,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 5 条"
     },
     {
-      "step": "node tests/verify-delta-patch.js",
-      "file": "tests/verify-delta-patch.js",
+      "step": "node tests/verify-delta-patch.ts",
+      "file": "tests/verify-delta-patch.ts",
       "guards": [
         "src/host/refresh/gate.ts",
         "src/host/refresh/ledger.ts",
@@ -4191,8 +4191,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条；载入模块（require / import / pathToFileURL） 1 条"
     },
     {
-      "step": "node tests/verify-delta-wiring.js",
-      "file": "tests/verify-delta-wiring.js",
+      "step": "node tests/verify-delta-wiring.ts",
+      "file": "tests/verify-delta-wiring.ts",
       "guards": [
         "src/client/kernel/probe-auto.js",
         "src/host/commentThreads.js",
@@ -4642,6 +4642,23 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 4 条；静态 import 说明符 4 条；源码里的路径字面量 1 条"
     },
     {
+      "step": "node tests/verify-github-rest-fallback.ts",
+      "file": "tests/verify-github-rest-fallback.ts",
+      "guards": [
+        "src/host/platform/outbound-control.ts",
+        "src/tracker/rooms/github/issues.ts"
+      ],
+      "dirs": [
+        "src/host/platform",
+        "src/tracker/rooms/github"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：源码里的路径字面量 2 条"
+    },
+    {
       "step": "node tests/verify-gitlab-single-write.ts",
       "file": "tests/verify-gitlab-single-write.ts",
       "guards": [
@@ -4701,8 +4718,8 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 1 条；源码里的路径字面量 17 条"
     },
     {
-      "step": "node tests/verify-handoff-isolation-787.js",
-      "file": "tests/verify-handoff-isolation-787.js",
+      "step": "node tests/verify-handoff-isolation-787.ts",
+      "file": "tests/verify-handoff-isolation-787.ts",
       "guards": [
         "package/lib/client.js",
         "tests/lib/eval-probe.ts"
@@ -5384,8 +5401,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 3 条；静态 import 说明符 1 条；源码里的路径字面量 4 条"
     },
     {
-      "step": "node tests/verify-multi-effort.js",
-      "file": "tests/verify-multi-effort.js",
+      "step": "node tests/verify-multi-effort.ts",
+      "file": "tests/verify-multi-effort.ts",
       "guards": [
         "src/host/commentThreads.js",
         "src/host/tracker/snapshot.js",
@@ -5423,8 +5440,8 @@
       "reason": "它读的是构建产物（package/ 下的打包结果）。产物由整份源码打出来，脚本里看不出产物跟哪个源码文件对应，所以算不出它守着哪条源码路径；挑选门禁时按「只要动到源码就先跑它」保守处理"
     },
     {
-      "step": "node tests/verify-naming-e2e.js",
-      "file": "tests/verify-naming-e2e.js",
+      "step": "node tests/verify-naming-e2e.ts",
+      "file": "tests/verify-naming-e2e.ts",
       "guards": [
         "src/client/kernel/api-naming.js",
         "src/shared/naming-titles.js",
@@ -5441,8 +5458,8 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 2 条"
     },
     {
-      "step": "node tests/verify-naming-guardian.js",
-      "file": "tests/verify-naming-guardian.js",
+      "step": "node tests/verify-naming-guardian.ts",
+      "file": "tests/verify-naming-guardian.ts",
       "guards": [
         "src/client/kernel",
         "src/host/platform/namingSummary.js",
@@ -5481,8 +5498,8 @@
       "reason": "归属来自：静态 import 说明符 1 条；源码里的路径字面量 1 条"
     },
     {
-      "step": "node tests/verify-nav-stack.js",
-      "file": "tests/verify-nav-stack.js",
+      "step": "node tests/verify-nav-stack.ts",
+      "file": "tests/verify-nav-stack.ts",
       "guards": [
         "src/client/kernel/store-prefs.js",
         "src/shared/time-config/values.js",
@@ -5625,8 +5642,8 @@
       "reason": "归属来自：源码里的路径字面量 18 条"
     },
     {
-      "step": "node tests/verify-parse-leaf.js",
-      "file": "tests/verify-parse-leaf.js",
+      "step": "node tests/verify-parse-leaf.ts",
+      "file": "tests/verify-parse-leaf.ts",
       "guards": [
         "package/lib/index.js",
         "package/lib/mapBody.js",
@@ -5639,7 +5656,8 @@
         "src/host/mapBody.js",
         "src/host/ticketGrouping.js",
         "src/tracker/body-parse.ts",
-        "tests/lib/eval-probe.ts"
+        "tests/lib/eval-probe.ts",
+        "tests/lib/source-text.ts"
       ],
       "dirs": [
         "package",
@@ -5653,7 +5671,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 10 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 10 条"
     },
     {
       "step": "node tests/verify-platform-contract.ts",
@@ -5790,8 +5808,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 7 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 11 条"
     },
     {
-      "step": "node tests/verify-refresh-adr.js",
-      "file": "tests/verify-refresh-adr.js",
+      "step": "node tests/verify-refresh-adr.ts",
+      "file": "tests/verify-refresh-adr.ts",
       "guards": [
         "docs/adr/20260913-builtin-ts-shape.md",
         "docs/adr/20260924-refresh-budget-architecture.md",
@@ -5891,8 +5909,8 @@
       "reason": "读到的路径都落在 docs、scripts/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
-      "step": "node tests/verify-reply-envelope-parity.js",
-      "file": "tests/verify-reply-envelope-parity.js",
+      "step": "node tests/verify-reply-envelope-parity.ts",
+      "file": "tests/verify-reply-envelope-parity.ts",
       "guards": [
         "src/host/sessionRefresh.ts",
         "src/host/sessionSnapshot.ts",
@@ -6290,8 +6308,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 7 条"
     },
     {
-      "step": "node tests/verify-t1-getrepokey.js",
-      "file": "tests/verify-t1-getrepokey.js",
+      "step": "node tests/verify-t1-getrepokey.ts",
+      "file": "tests/verify-t1-getrepokey.ts",
       "guards": [
         "package/lib/index.js",
         "src/host/platform/outbound-control.ts"
@@ -6307,8 +6325,8 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条"
     },
     {
-      "step": "node tests/verify-t1-initpublish.js",
-      "file": "tests/verify-t1-initpublish.js",
+      "step": "node tests/verify-t1-initpublish.ts",
+      "file": "tests/verify-t1-initpublish.ts",
       "guards": [
         "package/lib/index.js"
       ],
@@ -6337,8 +6355,8 @@
       "reason": "它读的是构建产物（package/ 下的打包结果）。产物由整份源码打出来，脚本里看不出产物跟哪个源码文件对应，所以算不出它守着哪条源码路径；挑选门禁时按「只要动到源码就先跑它」保守处理"
     },
     {
-      "step": "node tests/verify-tabsfold-leaf.js",
-      "file": "tests/verify-tabsfold-leaf.js",
+      "step": "node tests/verify-tabsfold-leaf.ts",
+      "file": "tests/verify-tabsfold-leaf.ts",
       "guards": [
         "package/lib/client.js",
         "package/package.json",
@@ -6614,12 +6632,12 @@
       "reason": "读到的路径都落在 docs、scripts、tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
-      "step": "node tests/verify-wizard-exit-609.js",
-      "file": "tests/verify-wizard-exit-609.js",
+      "step": "node tests/verify-wizard-exit-609.ts",
+      "file": "tests/verify-wizard-exit-609.ts",
       "guards": [
         "scripts/lib/discover-gates.ts",
         "scripts/wizard-release.sh",
-        "tests/verify-wizard-exit-609.js"
+        "tests/verify-wizard-exit-609.ts"
       ],
       "dirs": [
         "scripts",
@@ -6633,8 +6651,8 @@
       "reason": "读到的路径都落在 scripts、tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
-      "step": "node tests/verify-workspace-file-note.js",
-      "file": "tests/verify-workspace-file-note.js",
+      "step": "node tests/verify-workspace-file-note.ts",
+      "file": "tests/verify-workspace-file-note.ts",
       "guards": [
         "src/client/kernel/store-prefs.js",
         "tests/lib/eval-probe.ts"
@@ -6780,7 +6798,7 @@
     ],
     "docs/adr": [
       "node tests/verify-error-rule-samples.ts",
-      "node tests/verify-refresh-adr.js"
+      "node tests/verify-refresh-adr.ts"
     ],
     "docs/agents": [
       "node tests/verify-gate-map.ts",
@@ -6832,10 +6850,10 @@
       "node tests/verify-ctx.ts",
       "node tests/verify-kernel.ts",
       "node tests/verify-market-tarball.ts",
-      "node tests/verify-parse-leaf.js",
+      "node tests/verify-parse-leaf.ts",
       "node tests/verify-platform-contract.ts",
       "node tests/verify-release-contract.ts",
-      "node tests/verify-tabsfold-leaf.js",
+      "node tests/verify-tabsfold-leaf.ts",
       "node tests/verify-update-migration.ts",
       "node tests/verify-update-panel.ts",
       "node tests/verify-readme-sync.ts"
@@ -6882,11 +6900,11 @@
       "node tests/verify-cap-fold.ts",
       "node tests/verify-capsule-layout.ts",
       "node tests/verify-capsule-narrow.ts",
-      "node tests/verify-client-hardcode-gate.js",
+      "node tests/verify-client-hardcode-gate.ts",
       "node tests/verify-client-no-undef.ts",
       "node tests/verify-ctx.ts",
       "node tests/verify-generated-no-shadow.ts",
-      "node tests/verify-handoff-isolation-787.js",
+      "node tests/verify-handoff-isolation-787.ts",
       "node tests/verify-handoff-split.js",
       "node tests/verify-hovertip.ts",
       "node tests/verify-issue195.js",
@@ -6905,7 +6923,7 @@
       "node tests/verify-newsession-workspace-fallback.ts",
       "node tests/verify-panel-workspace-isolation.js",
       "node tests/verify-panel-workspace-shared.js",
-      "node tests/verify-parse-leaf.js",
+      "node tests/verify-parse-leaf.ts",
       "node tests/verify-platform-contract.ts",
       "node tests/verify-prompt-newlines.ts",
       "node tests/verify-prompts.ts",
@@ -6917,10 +6935,10 @@
       "node tests/verify-settings-view.ts",
       "node tests/verify-setup-describe.js",
       "node tests/verify-statusbar-filter-reset.js",
-      "node tests/verify-t1-getrepokey.js",
-      "node tests/verify-t1-initpublish.js",
+      "node tests/verify-t1-getrepokey.ts",
+      "node tests/verify-t1-initpublish.ts",
       "node tests/verify-t3-locale.ts",
-      "node tests/verify-tabsfold-leaf.js",
+      "node tests/verify-tabsfold-leaf.ts",
       "node tests/verify-locale-completeness.ts"
     ],
     "package/lib/platform": [
@@ -6966,7 +6984,7 @@
       "node tests/verify-log-artifacts.ts",
       "node tests/verify-log-client.ts",
       "node tests/verify-panel-workspace-shared.js",
-      "node tests/verify-parse-leaf.js",
+      "node tests/verify-parse-leaf.ts",
       "node tests/verify-platform-contract.ts",
       "node tests/verify-prompts.ts",
       "node tests/verify-release-contract.ts",
@@ -6974,10 +6992,10 @@
       "node tests/verify-settings-debug.ts",
       "node tests/verify-settings-templates.ts",
       "node tests/verify-settings-view.ts",
-      "node tests/verify-tabsfold-leaf.js",
+      "node tests/verify-tabsfold-leaf.ts",
       "node tests/verify-typecheck.mts",
       "node tests/verify-wire-subissues-script.ts",
-      "node tests/verify-wizard-exit-609.js",
+      "node tests/verify-wizard-exit-609.ts",
       "node tests/verify-star-history.ts"
     ],
     "scripts/generated": [
@@ -7023,7 +7041,7 @@
       "node tests/verify-update-migration.ts",
       "node tests/verify-visible-truth.ts",
       "node tests/verify-wire-subissues-script.ts",
-      "node tests/verify-wizard-exit-609.js"
+      "node tests/verify-wizard-exit-609.ts"
     ],
     "src": [
       "node tests/verify-gate-map.ts",
@@ -7040,7 +7058,7 @@
       "node tests/verify-1115-timer-handle.ts",
       "node tests/verify-626-type-chip.ts",
       "node tests/verify-646-native-tab.ts",
-      "node tests/verify-client-hardcode-gate.js",
+      "node tests/verify-client-hardcode-gate.ts",
       "node tests/verify-ctx.ts",
       "node tests/verify-error-single-source.ts",
       "node tests/verify-kernel.ts",
@@ -7054,7 +7072,7 @@
       "node tests/verify-settings-templates.ts",
       "node tests/verify-settings-view.ts",
       "node tests/verify-setup-describe.js",
-      "node tests/verify-tabsfold-leaf.js"
+      "node tests/verify-tabsfold-leaf.ts"
     ],
     "src/client/floating": [
       "node tests/verify-leaves.ts",
@@ -7104,7 +7122,7 @@
       "node tests/verify-997-vc-sight.ts",
       "node tests/verify-cap-fold.ts",
       "node tests/verify-ctx.ts",
-      "node tests/verify-delta-wiring.js",
+      "node tests/verify-delta-wiring.ts",
       "node tests/verify-error-single-source.ts",
       "node tests/verify-inject-trailing-newline.ts",
       "node tests/verify-issue60-cwd.ts",
@@ -7117,9 +7135,9 @@
       "node tests/verify-log-switch-526.ts",
       "node tests/verify-map-drill.js",
       "node tests/verify-multi-effort-panel.ts",
-      "node tests/verify-naming-e2e.js",
-      "node tests/verify-naming-guardian.js",
-      "node tests/verify-nav-stack.js",
+      "node tests/verify-naming-e2e.ts",
+      "node tests/verify-naming-guardian.ts",
+      "node tests/verify-nav-stack.ts",
       "node tests/verify-newsession-blank-seed-315.ts",
       "node tests/verify-newsession-preset-guard.ts",
       "node tests/verify-newsession-workspace-fallback.ts",
@@ -7134,9 +7152,9 @@
       "node tests/verify-settings-view.ts",
       "node tests/verify-setup-describe.js",
       "node tests/verify-subdir-first-frame.js",
-      "node tests/verify-tabsfold-leaf.js",
+      "node tests/verify-tabsfold-leaf.ts",
       "node tests/verify-visible-truth.ts",
-      "node tests/verify-workspace-file-note.js",
+      "node tests/verify-workspace-file-note.ts",
       "node tests/verify-locale-completeness.ts"
     ],
     "src/client/panel": [
@@ -7262,7 +7280,7 @@
       "node tests/verify-deck-render-detail.ts",
       "node tests/verify-deck-tools-agent-register.ts",
       "node tests/verify-deck-tools-row-zero-dep.ts",
-      "node tests/verify-deck-tools.js",
+      "node tests/verify-deck-tools.ts",
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-1195-cell-cancel.ts",
       "node tests/verify-895-bulk-deadline.ts",
@@ -7278,7 +7296,7 @@
       "node tests/verify-deck-quota-sync.ts",
       "node tests/verify-deck-repo-resolve.ts",
       "node tests/verify-deck-tools-agent-register.ts",
-      "node tests/verify-deck-tools.js",
+      "node tests/verify-deck-tools.ts",
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-1003-single-outlet.ts",
       "node tests/verify-1003-unified-decision.ts",
@@ -7302,7 +7320,7 @@
       "node tests/verify-deck-thin-reads.ts",
       "node tests/verify-deck-tools-agent-register.ts",
       "node tests/verify-deck-tools-matrix.ts",
-      "node tests/verify-deck-tools.js",
+      "node tests/verify-deck-tools.ts",
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-1106-deck-surface.ts",
       "node tests/verify-1150-plan-store-durable.ts",
@@ -7367,7 +7385,7 @@
       "node tests/verify-config-store-core.ts",
       "node tests/verify-config-store-migration.ts",
       "node tests/verify-config-store-package.ts",
-      "node tests/verify-delta-wiring.js",
+      "node tests/verify-delta-wiring.ts",
       "node tests/verify-detection-evidence.ts",
       "node tests/verify-detection-log-reach.ts",
       "node tests/verify-gh-gateway.ts",
@@ -7381,13 +7399,13 @@
       "node tests/verify-log-selfmon.ts",
       "node tests/verify-log-store.ts",
       "node tests/verify-markdown-label-colors.ts",
-      "node tests/verify-multi-effort.js",
-      "node tests/verify-parse-leaf.js",
+      "node tests/verify-multi-effort.ts",
+      "node tests/verify-parse-leaf.ts",
       "node tests/verify-progress.ts",
       "node tests/verify-prompt-newlines.ts",
       "node tests/verify-prompts.ts",
       "node tests/verify-refresh-workspace-key.ts",
-      "node tests/verify-reply-envelope-parity.js",
+      "node tests/verify-reply-envelope-parity.ts",
       "node tests/verify-settings-debug.ts",
       "node tests/verify-settings-phones.ts",
       "node tests/verify-settings-templates.ts",
@@ -7418,14 +7436,15 @@
       "node tests/verify-929-batch-cycle.ts",
       "node tests/verify-969-tiered-timeout.ts",
       "node tests/verify-992-readonly-labels.ts",
-      "node tests/verify-delta-wiring.js",
+      "node tests/verify-delta-wiring.ts",
       "node tests/verify-error-raw-samples.ts",
       "node tests/verify-gh-gateway.ts",
       "node tests/verify-github-gh-via.ts",
       "node tests/verify-github-label-colors.ts",
-      "node tests/verify-naming-guardian.js",
+      "node tests/verify-github-rest-fallback.ts",
+      "node tests/verify-naming-guardian.ts",
       "node tests/verify-platform-contract.ts",
-      "node tests/verify-t1-getrepokey.js"
+      "node tests/verify-t1-getrepokey.ts"
     ],
     "src/host/platform/darwin": [
       "node tests/verify-497-slash.ts",
@@ -7446,7 +7465,7 @@
       "node tests/verify-deck-parallel.ts",
       "node tests/verify-deck-thin-reads.ts",
       "node tests/verify-deck-tools-matrix.ts",
-      "node tests/verify-deck-tools.js",
+      "node tests/verify-deck-tools.ts",
       "node tests/verify-1003-single-outlet.ts",
       "node tests/verify-1003-unified-decision.ts",
       "node tests/verify-1109-matches-timeout.ts",
@@ -7474,8 +7493,8 @@
       "node tests/verify-998-half-open.ts",
       "node tests/verify-attention-model.ts",
       "node tests/verify-budget-page-upper-bound.ts",
-      "node tests/verify-delta-patch.js",
-      "node tests/verify-delta-wiring.js",
+      "node tests/verify-delta-patch.ts",
+      "node tests/verify-delta-wiring.ts",
       "node tests/verify-gate-accounting.ts",
       "node tests/verify-gh-gateway.ts",
       "node tests/verify-golden-receipts.ts",
@@ -7490,7 +7509,7 @@
       "node tests/verify-dirwritable.ts",
       "node tests/verify-generic-catalog.ts",
       "node tests/verify-multi-effort-panel.ts",
-      "node tests/verify-multi-effort.js"
+      "node tests/verify-multi-effort.ts"
     ],
     "src/seam": [
       "node tests/verify-chain-env-e2e.ts",
@@ -7508,8 +7527,8 @@
       "node tests/verify-955-alignment.ts",
       "node tests/verify-968-skill-ondemand.ts",
       "node tests/verify-bundled-skills.ts",
-      "node tests/verify-naming-e2e.js",
-      "node tests/verify-naming-guardian.js",
+      "node tests/verify-naming-e2e.ts",
+      "node tests/verify-naming-guardian.ts",
       "node tests/verify-panel-workspace-shared.js",
       "node tests/verify-refresh-workspace-key.ts",
       "node tests/verify-session-title.js",
@@ -7547,7 +7566,7 @@
       "node tests/verify-deck-parallel.ts",
       "node tests/verify-deck-thin-reads.ts",
       "node tests/verify-deck-tools-matrix.ts",
-      "node tests/verify-deck-tools.js",
+      "node tests/verify-deck-tools.ts",
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-gate-map.ts",
       "node tests/verify-1003-single-outlet.ts",
@@ -7578,14 +7597,14 @@
       "node tests/verify-backend-quota-model.ts",
       "node tests/verify-budget-page-upper-bound.ts",
       "node tests/verify-budget-worstcase.ts",
-      "node tests/verify-delta-patch.js",
-      "node tests/verify-delta-wiring.js",
+      "node tests/verify-delta-patch.ts",
+      "node tests/verify-delta-wiring.ts",
       "node tests/verify-event-budget.ts",
       "node tests/verify-gate-accounting.ts",
       "node tests/verify-gitlab-single-write.ts",
       "node tests/verify-golden-receipts.ts",
       "node tests/verify-policy.ts",
-      "node tests/verify-refresh-adr.js",
+      "node tests/verify-refresh-adr.ts",
       "node tests/verify-visible-truth.ts",
       "node tests/verify-write-detect.ts"
     ],
@@ -7594,7 +7613,7 @@
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-1106-deck-surface.ts",
       "node tests/verify-policy.ts",
-      "node tests/verify-refresh-adr.js",
+      "node tests/verify-refresh-adr.ts",
       "node tests/verify-write-detect.ts"
     ],
     "src/shared/time-config": [
@@ -7612,7 +7631,7 @@
       "node tests/verify-998-half-open.ts",
       "node tests/verify-attention-model.ts",
       "node tests/verify-budget-worstcase.ts",
-      "node tests/verify-delta-patch.js",
+      "node tests/verify-delta-patch.ts",
       "node tests/verify-event-budget.ts",
       "node tests/verify-file-granularity.ts",
       "node tests/verify-gate-accounting.ts",
@@ -7620,7 +7639,7 @@
       "node tests/verify-log-selfmon.ts",
       "node tests/verify-log-switch-526.ts",
       "node tests/verify-map-drill.js",
-      "node tests/verify-nav-stack.js",
+      "node tests/verify-nav-stack.ts",
       "node tests/verify-newsession-blank-seed-315.ts",
       "node tests/verify-newsession-preset-guard.ts",
       "node tests/verify-newsession-workspace-fallback.ts",
@@ -7653,8 +7672,8 @@
       "node tests/verify-723-gate-wiring.ts",
       "node tests/verify-916-ghauth-unknown-banner.ts",
       "node tests/verify-968-skill-ondemand.ts",
-      "node tests/verify-delta-patch.js",
-      "node tests/verify-delta-wiring.js",
+      "node tests/verify-delta-patch.ts",
+      "node tests/verify-delta-wiring.ts",
       "node tests/verify-dirwritable.ts",
       "node tests/verify-generic-catalog.ts",
       "node tests/verify-index-window.ts",
@@ -7690,7 +7709,7 @@
       "node tests/verify-labels-sync.js",
       "node tests/verify-log-count.ts",
       "node tests/verify-log-fields.ts",
-      "node tests/verify-parse-leaf.js",
+      "node tests/verify-parse-leaf.ts",
       "node tests/verify-setup-describe.js",
       "node tests/verify-ui-description-single-source.ts"
     ],
@@ -7745,11 +7764,11 @@
       "node tests/verify-error-single-source.ts",
       "node tests/verify-map-drill.js",
       "node tests/verify-multi-effort-panel.ts",
-      "node tests/verify-multi-effort.js"
+      "node tests/verify-multi-effort.ts"
     ],
     "src/tracker/registry": [
       "node tests/verify-deck-tools-matrix.ts",
-      "node tests/verify-deck-tools.js",
+      "node tests/verify-deck-tools.ts",
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-1003-unified-decision.ts",
       "node tests/verify-1144-markdown-issue-address.ts",
@@ -7810,6 +7829,7 @@
       "node tests/verify-gh-gateway.ts",
       "node tests/verify-github-gh-via.ts",
       "node tests/verify-github-label-colors.ts",
+      "node tests/verify-github-rest-fallback.ts",
       "node tests/verify-golden-receipts.ts",
       "node tests/verify-issue195.js",
       "node tests/verify-labels-sync.js",
@@ -7835,7 +7855,7 @@
     ],
     "src/tracker/rooms/markdown": [
       "node tests/verify-deck-tools-matrix.ts",
-      "node tests/verify-deck-tools.js",
+      "node tests/verify-deck-tools.ts",
       "node tests/verify-1058-markdown-read-log.ts",
       "node tests/verify-1059-issue-write.ts",
       "node tests/verify-1060-edge-log.ts",
@@ -7862,7 +7882,7 @@
       "node tests/verify-markdown-backend.ts",
       "node tests/verify-markdown-label-colors.ts",
       "node tests/verify-multi-effort-panel.ts",
-      "node tests/verify-multi-effort.js",
+      "node tests/verify-multi-effort.ts",
       "node tests/verify-refresh-workspace-key.ts"
     ],
     "tests": [
@@ -7889,11 +7909,11 @@
       "node tests/verify-log-selfmon.ts",
       "node tests/verify-market-tarball.ts",
       "node tests/verify-prompts.ts",
-      "node tests/verify-refresh-adr.js",
+      "node tests/verify-refresh-adr.ts",
       "node tests/verify-settings-debug.ts",
       "node tests/verify-unmigrated-tests.ts",
       "node tests/verify-wire-subissues-script.ts",
-      "node tests/verify-wizard-exit-609.js"
+      "node tests/verify-wizard-exit-609.ts"
     ],
     "tests/fixtures": [
       "node tests/verify-chain-view-ui.ts",
@@ -7926,7 +7946,7 @@
       "node tests/verify-deck-repo-resolve.ts",
       "node tests/verify-deck-thin-reads.ts",
       "node tests/verify-deck-tools-matrix.ts",
-      "node tests/verify-deck-tools.js",
+      "node tests/verify-deck-tools.ts",
       "node tests/verify-gate-map.ts",
       "node tests/verify-1109-matches-timeout.ts",
       "node tests/verify-1146-virtual-clock-liveness.ts",
@@ -7993,7 +8013,7 @@
       "node tests/verify-diagnostic-log-model.ts",
       "node tests/verify-generated-no-shadow.ts",
       "node tests/verify-golden-receipts.ts",
-      "node tests/verify-handoff-isolation-787.js",
+      "node tests/verify-handoff-isolation-787.ts",
       "node tests/verify-handoff-latest-sort.js",
       "node tests/verify-handoff-split.js",
       "node tests/verify-hovertip.ts",
@@ -8009,13 +8029,13 @@
       "node tests/verify-map-drill.js",
       "node tests/verify-markdown.ts",
       "node tests/verify-multi-effort-panel.ts",
-      "node tests/verify-naming-guardian.js",
+      "node tests/verify-naming-guardian.ts",
       "node tests/verify-naming-title-fact.ts",
-      "node tests/verify-nav-stack.js",
+      "node tests/verify-nav-stack.ts",
       "node tests/verify-newsession-blank-seed-315.ts",
       "node tests/verify-newsession-preset-guard.ts",
       "node tests/verify-newsession-workspace-fallback.ts",
-      "node tests/verify-parse-leaf.js",
+      "node tests/verify-parse-leaf.ts",
       "node tests/verify-progress.ts",
       "node tests/verify-prompt-newlines.ts",
       "node tests/verify-prompts.ts",
@@ -8027,9 +8047,9 @@
       "node tests/verify-settings-view.ts",
       "node tests/verify-setup-describe.js",
       "node tests/verify-subdir-first-frame.js",
-      "node tests/verify-tabsfold-leaf.js",
+      "node tests/verify-tabsfold-leaf.ts",
       "node tests/verify-visible-truth.ts",
-      "node tests/verify-workspace-file-note.js",
+      "node tests/verify-workspace-file-note.ts",
       "node tests/verify-locale-completeness.ts"
     ],
     "tests/tracker-contract": [

@@ -1,4 +1,4 @@
-// verify-t1-initpublish.js — 验证 T1 #34 host 链路：git init + gh repo create
+// verify-t1-initpublish.ts — 验证 T1 #34 host 链路：git init + gh repo create
 // #993/#994 追加：git 侧的失败档（属主不符 git-ownership、认不出来的错误 unknown），见文末场景 K / L / M。
 // 加载方式：经发货产物 package/lib/index.js 的标准分发通道（connection.rpc.handle('/dsws')），与冒烟测试同法。
 // 注意：本文件跑的 publishFlow 那条路，git 命令经 execProc，返回契约是 { ok, text, error, code }（见 src/host/git-process.ts:196-198）。
@@ -80,7 +80,7 @@ function makeMockSubprocess(opts) {
       // try real git
       // PATH 分隔符与可执行后缀都按平台取：原来写死 ";" 与 PATHEXT，只有 Windows 找得到；
       // Linux/macOS 的 PATH 是冒号分隔，这些门禁在 CI 上会全场景报「找不到 git」。
-      // （#600 附带的 CI 修复：verify-t1-initpublish.js 就是这么在 ubuntu/macos 上必红的。）
+      // （#600 附带的 CI 修复：verify-t1-initpublish.ts 就是这么在 ubuntu/macos 上必红的。）
       const dirs = (process.env.PATH || '').split(path.delimiter).filter(Boolean)
       const exts = process.platform === 'win32'
         ? (process.env.PATHEXT || '.EXE;.CMD;.BAT;.COM').split(';').filter(Boolean).map(function (x) { return x.toLowerCase() })

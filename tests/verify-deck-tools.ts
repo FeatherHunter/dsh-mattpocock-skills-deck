@@ -1,5 +1,5 @@
-// verify-deck-tools.js —— 门禁：九个后端无关工具（#713 第六批 + 薄列表补齐）
-// 用法：在插件根目录执行 node tests/verify-deck-tools.js，可独立运行。
+// verify-deck-tools.ts —— 门禁：九个后端无关工具（#713 第六批 + 薄列表补齐）
+// 用法：在插件根目录执行 node tests/verify-deck-tools.ts，可独立运行。
 //
 // 这一段盯四件事，都是票面点名要的：
 //   ① 九个工具各一条正例：调用能不能真的把事情做完（在真实本地 Markdown 后端上跑，票就是盘上的文件）。

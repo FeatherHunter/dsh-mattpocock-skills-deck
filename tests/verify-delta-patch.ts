@@ -1,5 +1,5 @@
-// verify-delta-patch.js —— 门禁：行级增量刷新只补变的那几条，且只走薄查询（#708 T4 第三批）
-// 用法：在插件根目录执行 node tests/verify-delta-patch.js，可独立运行。
+// verify-delta-patch.ts —— 门禁：行级增量刷新只补变的那几条，且只走薄查询（#708 T4 第三批）
+// 用法：在插件根目录执行 node tests/verify-delta-patch.ts，可独立运行。
 //
 // 票面验收（#708）与「加固补充」逐条落到下面的断言上：
 //   ① 关闭一张票 → 列表只改那一行、地图进度与计数跟着变、版本号变了；

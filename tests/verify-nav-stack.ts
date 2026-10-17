@@ -1,11 +1,11 @@
-// verify-nav-stack.js — #552 导航栈状态机与返回语义校验（T2 状态机固化）
+// verify-nav-stack.ts — #552 导航栈状态机与返回语义校验（T2 状态机固化）
 // 验证：
 //   1) 形状声明：makeStore 含 navStack，元素只存坐标 { kind, n }
 //   2) 操作函数：store-prefs 含 pushNav/popNav/peekNav/clearNavStack，旧 5 入口保留并收敛
 //   3) 行为级：空栈/单层等价旧互斥/多层压栈/连续同层去重/逐级弹出/空栈回列表/
 //      非法输入直接返回/旧对象无栈兼容/弹栈不碰展开与缓存/镜像同步（含弹空栈不写回旧镜像）
 //   4) 接线：Dock 渲染优先级读栈顶；双产物含新函数
-// 用法: node tests/verify-nav-stack.js（在插件根目录）
+// 用法: node tests/verify-nav-stack.ts（在插件根目录）
 const fs = require('fs')
 // 按文本求值走共用入口，理由与用法见 tests/lib/eval-probe.js 文件头。
 const { compileFn } = require('./lib/eval-probe.js')

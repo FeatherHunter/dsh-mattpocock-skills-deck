@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * verify-client-hardcode-gate.js — client 层 backendId 分支 / 平台 URL / 后端名单字面量 门禁（#231 验收）。
+ * verify-client-hardcode-gate.ts — client 层 backendId 分支 / 平台 URL / 后端名单字面量 门禁（#231 验收）。
  *
  * 三条硬规则（src 树与双产物同规则）：
  *   F1 与品牌 id 的等值比较 —— 全树零容忍。

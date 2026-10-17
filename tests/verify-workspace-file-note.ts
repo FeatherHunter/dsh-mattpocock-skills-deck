@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * verify-workspace-file-note.js —— #1012 客户端那一行「工作区配置文件写成什么样」的门禁。
+ * verify-workspace-file-note.ts —— #1012 客户端那一行「工作区配置文件写成什么样」的门禁。
  *
  * 这一行是干什么的：用户在门控窗（或切换弹窗）点确认之后，宿主会先把这次选择写进工作区配置文件
  *   （写成功才算这次选择生效），再把写入结果回给客户端；客户端把它记进会话状态，并在状态栏里
@@ -77,9 +77,9 @@
  *      取不到函数体或求值抛错都按红报（见 D 组）。F 组不走这条路：它要的是真身函数本身，
  *      直接拿上面 import 进来的那个 —— 改回按文本求值，等于又把真源措辞请回来当依赖。
  *
- * 用法：node tests/verify-workspace-file-note.js
+ * 用法：node tests/verify-workspace-file-note.ts
  *   本门禁已按目录约定自动进 verify 链（#1125；跑法见 scripts/verify-chain.js），
- *   也可以单跑：node tests/verify-workspace-file-note.js。
+ *   也可以单跑：node tests/verify-workspace-file-note.ts。
  */
 import fs from 'node:fs'
 import path from 'node:path'

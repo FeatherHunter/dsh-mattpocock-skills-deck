@@ -1,5 +1,5 @@
-// verify-handoff-isolation-787.js — #787 交接会话隔离（TDD 先红后绿）
-// 用法: node tests/verify-handoff-isolation-787.js [file...]（默认 client.js + package/lib/client.js 双产物）
+// verify-handoff-isolation-787.ts — #787 交接会话隔离（TDD 先红后绿）
+// 用法: node tests/verify-handoff-isolation-787.ts [file...]（默认 client.js + package/lib/client.js 双产物）
 //
 // 验收来源：#787 正文「对抗式审查与优化后方案」+ Agent Brief v2。
 //   P0-1 交接记忆住会话自己身上（时间戳、真实文件名、记下那一刻的目录），读时目录对不上视为无记忆（fail-closed）。

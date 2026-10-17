@@ -1,5 +1,5 @@
-// verify-refresh-adr.js —— 门禁：刷新架构的 ADR 在，而且它写的判据与代码对得上（#719 T15 收口）
-// 用法：在插件根目录执行 node tests/verify-refresh-adr.js，可独立运行。
+// verify-refresh-adr.ts —— 门禁：刷新架构的 ADR 在，而且它写的判据与代码对得上（#719 T15 收口）
+// 用法：在插件根目录执行 node tests/verify-refresh-adr.ts，可独立运行。
 //
 // 为什么 ADR 也要有门禁（票面「每条都要有门禁或断言，不能只改文档」）：
 // ADR 是判据，判据过期比没有判据更坏——后来人会拿一句已经不对的话去对照代码。

@@ -10,7 +10,7 @@
  * 本测试走行为断言：stub ctx（GraphQL 恒失败 / REST 恒成功），listIssues 必须经 REST 返回
  * 全量并修复树边（子票 parentKey 指向 wayfinder:map 地图票），getIssue 同样可用。
  *
- * 运行：node --no-warnings tests/verify-github-rest-fallback.js
+ * 运行：node --no-warnings tests/verify-github-rest-fallback.ts
  */
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'

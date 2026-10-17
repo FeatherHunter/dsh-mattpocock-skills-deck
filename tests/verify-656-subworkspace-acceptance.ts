@@ -570,8 +570,8 @@ async function main() {
     must(isGatePlanned(ROOT, 'tests/verify-656-subworkspace-acceptance.ts'),
       '本门禁已挂进 verify 链（判据不靠人记得手动跑）',
       '规划函数里没有它')
-    must(isGatePlanned(ROOT, 'tests/verify-t1-getrepokey.js'),
-      'tests/verify-t1-getrepokey.js 已收进 verify 链——它的场景 6 是仓库里唯一一条「cwd 是子目录」的用例，此前不在链上',
+    must(isGatePlanned(ROOT, 'tests/verify-t1-getrepokey.ts'),
+      'tests/verify-t1-getrepokey.ts 已收进 verify 链——它的场景 6 是仓库里唯一一条「cwd 是子目录」的用例，此前不在链上',
       '规划函数里没有它')
     must(isGatePlanned(ROOT, 'tests/verify-653-subworkspace.ts'),
       '客户端那条落地票的门禁（verify-653-subworkspace.ts）仍在链上，与本门禁一起守着这件事',

@@ -1,6 +1,6 @@
-// tests/verify-naming-guardian.js — #265 命名守护核心纯函数校验 + 定败横幅双语文案
+// tests/verify-naming-guardian.ts — #265 命名守护核心纯函数校验 + 定败横幅双语文案
 // 规约：#264（分档状态机 / 草稿标题合成 / 值比对锁 / 跟踪态 / 计划单）
-// 用法：node tests/verify-naming-guardian.js
+// 用法：node tests/verify-naming-guardian.ts
 
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'

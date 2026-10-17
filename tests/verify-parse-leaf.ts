@@ -1,8 +1,8 @@
-// verify-parse-leaf.js — dsh-mattpocock-skills-deck 阶段 1：host 纯函数叶子差分测试
+// verify-parse-leaf.ts — dsh-mattpocock-skills-deck 阶段 1：host 纯函数叶子差分测试
 // T1（#94）迁移：断言目标从「内联副本」改为「构建产物」——host.js / package/lib/index.js 现由
 //   scripts/build.mjs 生成（一源出两物，gitignore 可变产物），本测试验证「叶子 === 构建产物」：
 //   T0 接管后构建未改变叶子行为，叶子仍为唯一真源 + 测试基准。
-// 用法: node tests/verify-parse-leaf.js（在插件根目录；先运行 node scripts/build.mjs 生成产物）
+// 用法: node tests/verify-parse-leaf.ts（在插件根目录；先运行 node scripts/build.mjs 生成产物）
 // 验证：1) src/tracker/body-parse.ts 叶子可用、行为真值表
 //       2) 产物新鲜度门禁（缺失/过期 → FAIL，提示先构建；防止陈旧产物假绿）
 //       3) 叶子 === _dev 产物（根 host.js）——「构建未改变叶子行为」探测器

@@ -1,5 +1,5 @@
 /**
- * tests/verify-multi-effort.js — 本地 Markdown 多 effort 门禁（2026-09-09 定版）
+ * tests/verify-multi-effort.ts — 本地 Markdown 多 effort 门禁（2026-09-09 定版）
  *
  * 背景：契约规定 `.scratch/<effort>/` 一个 effort 一目录、
  * 每个 effort 的票各自从 01 编号（package/bundled-skills/setup-matt-pocock-skills/issue-tracker-local.md）。
@@ -14,7 +14,7 @@
  *  ⑤ 建票落在指定 effort 内并按该 effort 取号（每个 effort 从 01 起）；
  *  ⑥ 单 effort / 扁平布局（.scratch/map.md）行为不变（effortId 为空串，老路径照走）。
  *
- * 运行：node tests/verify-multi-effort.js
+ * 运行：node tests/verify-multi-effort.ts
  */
 import * as fs from 'node:fs'
 import * as path from 'node:path'

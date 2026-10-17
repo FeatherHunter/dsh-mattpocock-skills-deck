@@ -1,4 +1,4 @@
-// verify-reply-envelope-parity.js —— 门禁：会话快照两条回包路径的**字段集合必须逐项相等**。
+// verify-reply-envelope-parity.ts —— 门禁：会话快照两条回包路径的**字段集合必须逐项相等**。
 //
 // 为什么要有这一条（2026-09-24 维护者真机反馈引出）：面板上那条「读不到处理记录」从来没消失过。
 // 查到根因是**两条回包路径各拼一份信封**：
@@ -16,7 +16,7 @@
 //   一、两条路都必须挂上那个读数字段（谁漏了，界面就会说读不到）；
 //   二、两份回包的键集合必须完全一样（杜绝再次各拼一份信封）。
 //
-// 用法：node tests/verify-reply-envelope-parity.js（在插件根目录）
+// 用法：node tests/verify-reply-envelope-parity.ts（在插件根目录）
 const path = require('path')
 const { pathToFileURL } = require('url')
 
