@@ -240,7 +240,6 @@
     "tests/fixtures/gh-gateway/violating/src/host/badRegistered.js",
     "tests/verify-958-label-name-visible.js",
     "tests/verify-976-pull-dirty-warn.js",
-    "tests/verify-992-readonly-labels.js",
     "tests/verify-attention-model.js",
     "tests/verify-b2-map-newsession.js",
     "tests/verify-bug-entry.js",

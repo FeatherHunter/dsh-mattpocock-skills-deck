@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 const { createOutboundControl } = require('../src/host/platform/outbound-control.ts')
-// tests/verify-992-readonly-labels.js —— #992 只读仓库标签能力降级专属门禁（不联网）
+// tests/verify-992-readonly-labels.ts —— #992 只读仓库标签能力降级专属门禁（不联网）
 //
 // 测什么（定版“最终方案”第 1–6 项 + Q6/Q7；第 7 项 `gh:labels` 清理属 #1001，不在这里）：
 //   A) 分类只修真错的一句：GraphQL 复数权限句（does not have the correct permissions /
@@ -21,20 +21,20 @@ const { pathToFileURL } = require('url')
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
 let total = 0
-const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
-const imp = (rel) => import(pathToFileURL(path.join(ROOT, rel)).href)
+const check = (ok: unknown, msg: string): void => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
+const imp = (rel: string): Promise<any> => import(pathToFileURL(path.join(ROOT, rel)).href)
 // 夹具说「这个工作区选过了」的唯一办法（#1138 起）：给这个工作区一份工作区文件。
 // 两种造法与判定出口桩的来历见 tests/lib/deck-decide-stub.js 文件头。
 const { makeDecideStub, chooseWorkspace } = require('./lib/deck-decide-stub.js')
 const PERM_SENTENCE = 'GraphQL: u does not have the correct permissions to execute `AddLabelsToLabelable` (addLabelsToLabelable)'
 
-function plat(exec) {
+function plat(exec: any) {
   return { resolveExecutable: async (n) => (n === 'gh' || n === 'git' ? n : null), env: { get: () => '' } }
 }
 
 // 脚本化的 gh（只读仓库 acme/demo）：读票走 GraphQL 成功（空标签），打标按权限句失败，
 // 查权限回 .permissions，建票/改正文/读回按需成功。
-function makeCtx(opts) {
+function makeCtx(opts: any) {
   const o = opts || {}
   const calls = []
   const perms = o.perms === undefined ? { push: false, triage: false, admin: false, maintain: false, pull: true } : o.perms
@@ -69,9 +69,9 @@ function makeCtx(opts) {
   }
   return { ctx: { cwd: '/ws/992', outbound: createOutboundControl(), platform: plat(), exec: exec }, calls: calls }
 }
-const permCalls = (calls) => calls.filter((l) => l.startsWith('api repos/') && l.includes('.permissions'))
+const permCalls = (calls: string[]) => calls.filter((l) => l.startsWith('api repos/') && l.includes('.permissions'))
 
-async function main() {
+async function main(): Promise<void> {
   console.log('#992 只读仓库标签能力降级专属门禁（不联网）')
   const { ERROR_KIND } = await imp('src/tracker/contract/vocabulary.ts')
   // 选后端的判定出口（#1003 单出口）。下面 E）与 G）两段都是经工具壳调后端的，生产装配总是把它递给工具

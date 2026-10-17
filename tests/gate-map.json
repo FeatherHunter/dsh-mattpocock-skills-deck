@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-17T05:44:09.846Z",
+  "generatedAt": "2026-10-17T05:48:21.785Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 298,
   "gateCount": 298,
@@ -3661,8 +3661,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条"
     },
     {
-      "step": "node tests/verify-992-readonly-labels.js",
-      "file": "tests/verify-992-readonly-labels.js",
+      "step": "node tests/verify-992-readonly-labels.ts",
+      "file": "tests/verify-992-readonly-labels.ts",
       "guards": [
         "docs/README.en.md",
         "src/deck/tools/context.ts",
@@ -6879,7 +6879,7 @@
   "byDir": {
     ".": [],
     "docs": [
-      "node tests/verify-992-readonly-labels.js",
+      "node tests/verify-992-readonly-labels.ts",
       "node tests/verify-release-contract.js"
     ],
     "docs/adr": [
@@ -7429,7 +7429,7 @@
       "node tests/verify-908-progress-replace.ts",
       "node tests/verify-929-batch-cycle.ts",
       "node tests/verify-971-markdown-parent.ts",
-      "node tests/verify-992-readonly-labels.js",
+      "node tests/verify-992-readonly-labels.ts",
       "node tests/verify-golden-receipts.ts"
     ],
     "src/host": [
@@ -7529,7 +7529,7 @@
       "node tests/verify-895-github-memo.ts",
       "node tests/verify-929-batch-cycle.ts",
       "node tests/verify-969-tiered-timeout.ts",
-      "node tests/verify-992-readonly-labels.js",
+      "node tests/verify-992-readonly-labels.ts",
       "node tests/verify-delta-wiring.js",
       "node tests/verify-error-raw-samples.ts",
       "node tests/verify-gh-gateway.js",
@@ -7584,7 +7584,7 @@
       "node tests/verify-947-workspace-file.ts",
       "node tests/verify-957-workspace-writer.ts",
       "node tests/verify-971-markdown-parent.ts",
-      "node tests/verify-992-readonly-labels.js",
+      "node tests/verify-992-readonly-labels.ts",
       "node tests/verify-998-half-open.ts",
       "node tests/verify-attention-model.js",
       "node tests/verify-budget-page-upper-bound.ts",
@@ -7686,7 +7686,7 @@
       "node tests/verify-957-workspace-writer.ts",
       "node tests/verify-970-whole-document.ts",
       "node tests/verify-971-markdown-parent.ts",
-      "node tests/verify-992-readonly-labels.js",
+      "node tests/verify-992-readonly-labels.ts",
       "node tests/verify-998-half-open.ts",
       "node tests/verify-attention-model.js",
       "node tests/verify-backend-quota-model.ts",
@@ -7813,7 +7813,7 @@
       "node tests/verify-1060-edge-log.ts",
       "node tests/verify-1182-docs-paths.ts",
       "node tests/verify-969-tiered-timeout.ts",
-      "node tests/verify-992-readonly-labels.js",
+      "node tests/verify-992-readonly-labels.ts",
       "node tests/verify-capability-register.ts",
       "node tests/verify-detection-evidence.ts",
       "node tests/verify-error-rule-samples.ts",
@@ -7849,7 +7849,7 @@
       "node tests/verify-1199-row-closed-link.ts",
       "node tests/verify-544-standalone-blocked.ts",
       "node tests/verify-969-tiered-timeout.ts",
-      "node tests/verify-992-readonly-labels.js",
+      "node tests/verify-992-readonly-labels.ts",
       "node tests/verify-error-normalize-log.ts",
       "node tests/verify-error-rule-samples.ts",
       "node tests/verify-error-single-source.ts",
@@ -7875,7 +7875,7 @@
       "node tests/verify-929-batch-cycle.ts",
       "node tests/verify-934-935-invariants.ts",
       "node tests/verify-971-markdown-parent.ts",
-      "node tests/verify-992-readonly-labels.js",
+      "node tests/verify-992-readonly-labels.ts",
       "node tests/verify-detection-cascade.js",
       "node tests/verify-detection-evidence.ts",
       "node tests/verify-github-label-colors.js",
@@ -7911,7 +7911,7 @@
       "node tests/verify-895-github-memo.ts",
       "node tests/verify-929-batch-cycle.ts",
       "node tests/verify-969-tiered-timeout.ts",
-      "node tests/verify-992-readonly-labels.js",
+      "node tests/verify-992-readonly-labels.ts",
       "node tests/verify-capability-register.ts",
       "node tests/verify-error-normalize-log.ts",
       "node tests/verify-error-raw-samples.ts",
@@ -8093,7 +8093,7 @@
       "node tests/verify-958-label-name-visible.js",
       "node tests/verify-963-log-order.ts",
       "node tests/verify-971-markdown-parent.ts",
-      "node tests/verify-992-readonly-labels.js",
+      "node tests/verify-992-readonly-labels.ts",
       "node tests/verify-997-vc-sight-browser.ts",
       "node tests/verify-997-vc-sight.ts",
       "node tests/verify-cap-fold-browser.ts",
