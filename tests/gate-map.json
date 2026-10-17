@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-17T08:03:12.578Z",
+  "generatedAt": "2026-10-17T08:09:00.639Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 292,
   "gateCount": 292,
-  "attributedGates": 257,
-  "unattributedGates": 35,
-  "buildOutputOnlyGates": 22,
+  "attributedGates": 258,
+  "unattributedGates": 34,
+  "buildOutputOnlyGates": 21,
   "completionRecordedGates": 6,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
@@ -3863,19 +3863,27 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 1 条"
     },
     {
-      "step": "node tests/verify-bug-entry.js",
-      "file": "tests/verify-bug-entry.js",
+      "step": "node tests/verify-bug-entry.ts",
+      "file": "tests/verify-bug-entry.ts",
       "guards": [
-        "package/lib/client.js"
+        "src/client/kernel/icons.js",
+        "src/client/kernel/locale-panel.ts",
+        "src/client/kernel/prompts.ts",
+        "src/client/kernel/router.js",
+        "src/client/kernel/store-snapshot.js",
+        "src/client/statusbar/StatusBar.js",
+        "src/client/views/shared/Tabs.js"
       ],
       "dirs": [
-        "package/lib"
+        "src/client/kernel",
+        "src/client/statusbar",
+        "src/client/views/shared"
       ],
-      "unattributed": true,
-      "buildOutputOnly": true,
+      "unattributed": false,
+      "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "它读的是构建产物（package/ 下的打包结果）。产物由整份源码打出来，脚本里看不出产物跟哪个源码文件对应，所以算不出它守着哪条源码路径；挑选门禁时按「只要动到源码就先跑它」保守处理"
+      "reason": "归属来自：源码里的路径字面量 7 条"
     },
     {
       "step": "node tests/verify-bundled-discovery.ts",
@@ -6883,7 +6891,6 @@
       "node tests/verify-671-modal-global-overlay.ts",
       "node tests/verify-693-detail-fallback-honesty.ts",
       "node tests/verify-958-label-name-visible.ts",
-      "node tests/verify-bug-entry.js",
       "node tests/verify-bundled-discovery.ts",
       "node tests/verify-cap-fold-browser.ts",
       "node tests/verify-cap-fold.ts",
@@ -7107,6 +7114,7 @@
       "node tests/verify-907-chain-titles.ts",
       "node tests/verify-997-vc-sight-browser.ts",
       "node tests/verify-997-vc-sight.ts",
+      "node tests/verify-bug-entry.ts",
       "node tests/verify-cap-fold.ts",
       "node tests/verify-ctx.ts",
       "node tests/verify-delta-wiring.ts",
@@ -7167,6 +7175,7 @@
       "node tests/verify-907-chain-titles.ts",
       "node tests/verify-916-ghauth-unknown-banner.ts",
       "node tests/verify-926-capfold-gate.ts",
+      "node tests/verify-bug-entry.ts",
       "node tests/verify-cap-fold.ts",
       "node tests/verify-reuse.ts",
       "node tests/verify-subdir-first-frame.ts"
@@ -7235,6 +7244,7 @@
       "node tests/verify-693-detail-fallback-honesty.ts",
       "node tests/verify-783-chain-effort.ts",
       "node tests/verify-907-chain-titles.ts",
+      "node tests/verify-bug-entry.ts",
       "node tests/verify-rest-fallback-banner.ts",
       "node tests/verify-rest-fallback-reason.ts",
       "node tests/verify-reuse.ts",
