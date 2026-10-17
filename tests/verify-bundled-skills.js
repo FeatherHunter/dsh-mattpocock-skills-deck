@@ -147,7 +147,13 @@ try {
     console.log('[hint] 超阈需显式改 tests/verify-bundled-skills.js 的 THRESHOLD_BYTES 并说明理由')
   }
   // 额外：npm pack --dry-run 精确校验（若 npm 可用）
-  const pack = spawnSync('npm', ['pack', '--dry-run'], { encoding: 'utf8', cwd: ROOT, timeout: 15000 })
+  // 这一行有两个坑，2026-10-17 一起修掉：
+  //   ① Windows 上 npm 是 npm.cmd，直接 spawnSync('npm', […]) 报 ENOENT（status 为 null），
+  //      于是这条断言在 Windows 上静默退化成「探测跳过」——CI 的 Windows 格子从没真跑过它。
+  //      改走 shell（命令写成一整串，避免 Node 对「shell + 参数数组」的弃用警告），三平台一致。
+  //   ② 原先 15 秒超时不够：npm pack 会先跑包里的 prepare 脚本（就是整棵构建），实测必然超时。
+  //      加 --ignore-scripts 跳过 prepare，只问 tarball 清单，实测约 8 秒。
+  const pack = spawnSync('npm pack --dry-run --ignore-scripts', { encoding: 'utf8', cwd: ROOT, timeout: 30000, shell: true })
   if (pack.status === 0) {
     const out = (pack.stdout || '') + (pack.stderr || '')
     // 解析 unpacked size：形如 "unpacked size: 4.2 MB" 或数字
