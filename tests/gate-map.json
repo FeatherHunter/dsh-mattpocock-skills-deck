@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-17T07:15:40.916Z",
+  "generatedAt": "2026-10-17T07:21:25.105Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 291,
   "gateCount": 291,
@@ -3646,8 +3646,8 @@
       "reason": "归属来自：静态 import 说明符 2 条；源码里的路径字面量 1 条"
     },
     {
-      "step": "node tests/verify-976-pull-dirty-warn.js",
-      "file": "tests/verify-976-pull-dirty-warn.js",
+      "step": "node tests/verify-976-pull-dirty-warn.ts",
+      "file": "tests/verify-976-pull-dirty-warn.ts",
       "guards": [
         "src/shared/version-control/rules.js"
       ],
@@ -4752,25 +4752,27 @@
       "reason": "读到的路径都落在 package、tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
-      "step": "node tests/verify-hovertip.js",
-      "file": "tests/verify-hovertip.js",
+      "step": "node tests/verify-hovertip.ts",
+      "file": "tests/verify-hovertip.ts",
       "guards": [
         "package/lib/client.js",
         "src/client/floating/SkillFloatList.js",
         "src/client/views/SettingsPage.js",
-        "src/client/views/primitives/HoverTip.js"
+        "src/client/views/primitives/HoverTip.js",
+        "tests/lib/source-text.ts"
       ],
       "dirs": [
         "package/lib",
         "src/client/floating",
         "src/client/views",
-        "src/client/views/primitives"
+        "src/client/views/primitives",
+        "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：源码里的路径字面量 4 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 4 条"
     },
     {
       "step": "node tests/verify-index-window.ts",
@@ -4903,11 +4905,12 @@
       "reason": "归属来自：静态 import 说明符 4 条"
     },
     {
-      "step": "node tests/verify-issue529-checks-i18n.js",
-      "file": "tests/verify-issue529-checks-i18n.js",
+      "step": "node tests/verify-issue529-checks-i18n.ts",
+      "file": "tests/verify-issue529-checks-i18n.ts",
       "guards": [
         "src/client/views/ChecksTab.js",
-        "tests/lib/eval-probe.ts"
+        "tests/lib/eval-probe.ts",
+        "tests/lib/source-text.ts"
       ],
       "dirs": [
         "src/client/views",
@@ -4917,7 +4920,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 1 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-issue60-cwd.ts",
@@ -5953,8 +5956,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 1 条"
     },
     {
-      "step": "node tests/verify-reuse.js",
-      "file": "tests/verify-reuse.js",
+      "step": "node tests/verify-reuse.ts",
+      "file": "tests/verify-reuse.ts",
       "guards": [
         "src/client/floating",
         "src/client/floating/Pop.js",
@@ -6885,7 +6888,7 @@
       "node tests/verify-generated-no-shadow.ts",
       "node tests/verify-handoff-isolation-787.js",
       "node tests/verify-handoff-split.js",
-      "node tests/verify-hovertip.js",
+      "node tests/verify-hovertip.ts",
       "node tests/verify-issue195.js",
       "node tests/verify-issue22-popovers.js",
       "node tests/verify-issue232-sync.ts",
@@ -7046,7 +7049,7 @@
       "node tests/verify-log-count.ts",
       "node tests/verify-log-fields.ts",
       "node tests/verify-panel-workspace-shared.js",
-      "node tests/verify-reuse.js",
+      "node tests/verify-reuse.ts",
       "node tests/verify-settings-debug.ts",
       "node tests/verify-settings-templates.ts",
       "node tests/verify-settings-view.ts",
@@ -7056,8 +7059,8 @@
     "src/client/floating": [
       "node tests/verify-leaves.ts",
       "node tests/verify-no-title.js",
-      "node tests/verify-hovertip.js",
-      "node tests/verify-reuse.js"
+      "node tests/verify-hovertip.ts",
+      "node tests/verify-reuse.ts"
     ],
     "src/client/kernel": [
       "node tests/verify-663-banner-chain.ts",
@@ -7124,7 +7127,7 @@
       "node tests/verify-prompt-newlines.ts",
       "node tests/verify-prompts.ts",
       "node tests/verify-rest-fallback-banner.js",
-      "node tests/verify-reuse.js",
+      "node tests/verify-reuse.ts",
       "node tests/verify-session-title.js",
       "node tests/verify-settings-debug.ts",
       "node tests/verify-settings-templates.ts",
@@ -7144,7 +7147,7 @@
       "node tests/verify-667-dock-header-no-brand.ts",
       "node tests/verify-670-panel-first-frame.ts",
       "node tests/verify-panel-workspace-shared.js",
-      "node tests/verify-reuse.js"
+      "node tests/verify-reuse.ts"
     ],
     "src/client/statusbar": [
       "node tests/verify-663-banner-chain.ts",
@@ -7163,7 +7166,7 @@
       "node tests/verify-916-ghauth-unknown-banner.ts",
       "node tests/verify-926-capfold-gate.ts",
       "node tests/verify-cap-fold.ts",
-      "node tests/verify-reuse.js",
+      "node tests/verify-reuse.ts",
       "node tests/verify-subdir-first-frame.js"
     ],
     "src/client/views": [
@@ -7185,12 +7188,12 @@
       "node tests/verify-669-chain-after-pick.ts",
       "node tests/verify-671-modal-global-overlay.ts",
       "node tests/verify-763-detail-fold.ts",
-      "node tests/verify-hovertip.js",
-      "node tests/verify-issue529-checks-i18n.js",
+      "node tests/verify-hovertip.ts",
+      "node tests/verify-issue529-checks-i18n.ts",
       "node tests/verify-map-drill.js",
       "node tests/verify-multi-effort-panel.ts",
       "node tests/verify-prompts.ts",
-      "node tests/verify-reuse.js",
+      "node tests/verify-reuse.ts",
       "node tests/verify-settings-debug.ts",
       "node tests/verify-settings-view.ts",
       "node tests/verify-update-panel.ts"
@@ -7216,8 +7219,8 @@
     ],
     "src/client/views/primitives": [
       "node tests/verify-no-title.js",
-      "node tests/verify-hovertip.js",
-      "node tests/verify-reuse.js"
+      "node tests/verify-hovertip.ts",
+      "node tests/verify-reuse.ts"
     ],
     "src/client/views/shared": [
       "node tests/verify-leaves.ts",
@@ -7231,7 +7234,7 @@
       "node tests/verify-907-chain-titles.ts",
       "node tests/verify-rest-fallback-banner.js",
       "node tests/verify-rest-fallback-reason.ts",
-      "node tests/verify-reuse.js",
+      "node tests/verify-reuse.ts",
       "node tests/verify-visible-truth.ts"
     ],
     "src/client/views/skillDetail": [
@@ -7666,7 +7669,7 @@
       "node tests/verify-818-version-control-view.ts",
       "node tests/verify-841-write-phones.ts",
       "node tests/verify-842-version-control-write-view.ts",
-      "node tests/verify-976-pull-dirty-warn.js",
+      "node tests/verify-976-pull-dirty-warn.ts",
       "node tests/verify-997-vc-sight-browser.ts",
       "node tests/verify-version-control-parsers.ts",
       "node tests/verify-version-control-rules.ts"
@@ -7993,8 +7996,9 @@
       "node tests/verify-handoff-isolation-787.js",
       "node tests/verify-handoff-latest-sort.js",
       "node tests/verify-handoff-split.js",
+      "node tests/verify-hovertip.ts",
       "node tests/verify-inject-trailing-newline.ts",
-      "node tests/verify-issue529-checks-i18n.js",
+      "node tests/verify-issue529-checks-i18n.ts",
       "node tests/verify-issue60-cwd.ts",
       "node tests/verify-label-color-core.ts",
       "node tests/verify-log-client.ts",

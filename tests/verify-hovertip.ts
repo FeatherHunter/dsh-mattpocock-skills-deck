@@ -1,5 +1,5 @@
-// verify-hovertip.js — HoverTip 悬浮契约三件套验证（G2 #393 · T2 #381 承接）
-// 用法: node tests/verify-hovertip.js [file...]（默认 client.js + package/lib/client.js + 真源）
+// verify-hovertip.ts — HoverTip 悬浮契约三件套验证（G2 #393 · T2 #381 承接）
+// 用法: node tests/verify-hovertip.ts [file...]（默认 client.js + package/lib/client.js + 真源）
 // 验证：
 //   1) 挂顶：经 portalTop 挂 document.body，zIndex 2147483000，RDOM 兜底原地退化，失败不抛
 //   2) 翻转：estW = maxWidth+16+2=238 按视口 flip，左右 clamp 不越界，caret 边框色 var(--dsw-alias-border-l2) 随翻转同步

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// tests/verify-issue529-checks-i18n.js — #529 回归守卫：语言切换后环境检查面板即时重取
-// 用法：node tests/verify-issue529-checks-i18n.js（在插件根目录；无需网络）
+// tests/verify-issue529-checks-i18n.ts — #529 回归守卫：语言切换后环境检查面板即时重取
+// 用法：node tests/verify-issue529-checks-i18n.ts（在插件根目录；无需网络）
 // 本门禁只留行为断言：把检查页里那条「快照语言与当前语言不一致」的守卫原文抠出来当场跑。
 const fs = require('fs')
 const path = require('path')

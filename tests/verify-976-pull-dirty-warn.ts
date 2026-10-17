@@ -1,5 +1,5 @@
-// tests/verify-976-pull-dirty-warn.js — #976 拉取在工作区不干净时只提醒不拦住
-// 用法：在插件根目录执行 node tests/verify-976-pull-dirty-warn.js，可独立运行。
+// tests/verify-976-pull-dirty-warn.ts — #976 拉取在工作区不干净时只提醒不拦住
+// 用法：在插件根目录执行 node tests/verify-976-pull-dirty-warn.ts，可独立运行。
 //
 // 只留行为断言：把共享判定 src/shared/version-control/rules.js 加载起来，拿几份现造的
 // 首屏喂给 judge，看脏树拉取判 warn（不是 block）、干净拉取仍放行、同一份首屏下落后推送
