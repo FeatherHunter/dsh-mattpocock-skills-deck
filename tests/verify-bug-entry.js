@@ -1,5 +1,5 @@
 // verify-bug-entry.js — 新增BUG入口契约（issue #4 · v2 修 #1 BUG3：7 字段挪到末尾 · v3 UX：宽度自适应 + 按钮 hover 反馈 · #14 契约 v3.4：4 项 + 例行紧贴 · v4 #63 grilling 定版：去内部规则+实际→期望+括号单行 · v5 #475：补标签要求 bug 必带+未诊断带 needs-triage，分远端原生/本地标签行 · v7 #882：压薄终稿四节清单 + 尾部四选填通用版）
-// 用法: node tests/verify-bug-entry.js [file...]（默认 client.js + package/lib/client.js）
+// 用法: node --import ./scripts/ts-hook.mjs tests/verify-bug-entry.ts [file...]（不给文件时读下面列出的真源；给了文件就只查那些文件）
 // 验证：
 //   1) PROMPTS 注册表 newBugWayfinder（version≥5/placeholders/use/zh/en），注册表本体为极简（按 wayfinder 技能规则处理）+ v5 标签要求（bug 必带+未诊断带 needs-triage，分远端原生/本地标签行），不含内部规则展开，4 字段括号单行在 NEW_BUG_FIELDS_BODY(_EN)（末尾），无 gh 硬编码
 //   2) i18n 键 nav.bugNew / nav.bugNewTitle / panel.newBug / panel.newBugTitle 双语平衡
@@ -15,7 +15,19 @@
 //  12) v5 #475：标签要求 = bug 必带+未诊断带 needs-triage，分远端原生/本地标签行，中英文一致
 const fs = require('fs')
 const files = process.argv.slice(2)
-const targets = files.length ? files : ['client.js', 'package/lib/client.js']
+// 2026-10-17 先修：默认目标原来是两个构建产物（client.js / package/lib/client.js）。产物里的注册表条目与 i18n
+// 键都被 esbuild 统一改成双引号了，而门禁按单引号 + 「函数体里一段引号字符串」的老形状写，于是七条判据
+// 全部恒假——门禁红着，产品其实是好的。改成默认读真源（下面七份），产物那边由各自的构建新鲜度门禁守。
+const DEFAULT_SOURCES = [
+  'src/client/kernel/prompts.ts',        // newBugWayfinder 注册表 + NEW_BUG_FIELDS_BODY(_EN)
+  'src/client/kernel/router.js',         // newBugWayfinderText 拼接（locale 切换）
+  'src/client/kernel/locale-panel.ts',   // nav.bugNew / nav.bugNewTitle / panel.newBug / panel.newBugTitle
+  'src/client/statusbar/StatusBar.js',   // BUG 悬停菜单弹层与开新会话接线（其一）
+  'src/client/views/shared/Tabs.js',     // 面板「+ 新增BUG单」按钮接线（其二）
+  'src/client/kernel/store-snapshot.js', // bugMenuHover 默认状态
+  'src/client/kernel/icons.js',          // Ic bug 图标
+]
+const targets = files.length ? [files] : [DEFAULT_SOURCES]
 let failed = false
 // v7 #882：4 字段通用选填版（顺序：实际 → 期望 → 复现 → 环境）括号单行形态，历史调查归 AI 不进填空，环境通用不点名产品
 const FIELDS_ZH = ['实际（现象；影响范围）：', '期望（预期；与实际差异）：', '复现步骤（前置条件和场景 + 编号步骤；偶发写频率）：', '环境信息（OS 版本 + 软件版本 + 运行环境）：']
@@ -26,9 +38,13 @@ const DESC_EN = ['symptom', 'impact', 'expectation', 'diff from actual', 'precon
 // v4 形态守护：括号单行，每字段为 “字段名（说明）：” 单行，字段间用 \n 分隔，无 “\n  例：” 悬行
 const BRACKET_LINE_ZH = ['实际（现象；影响范围）：', '期望（预期；与实际差异）：', '复现步骤（前置条件和场景 + 编号步骤；偶发写频率）：', '环境信息（OS 版本 + 软件版本 + 运行环境）：']
 const BRACKET_LINE_EN = ['Actual (symptom; impact):', 'Expected (expectation; diff from actual):', 'Reproduction (preconditions and scenario + numbered steps; flaky → frequency):', 'Environment (OS version + software version + runtime):']
-const RE_ENTRY = /"newBugWayfinder": \{ version: (\d+), placeholders: \[([^\]]*)\], use: '([^']*)', zh: '([^']*)', en: '([^']*)' \}/
-const check = function (file) {
-  const src = fs.readFileSync(file, 'utf8')
+// 2026-10-17：RE_ENTRY 改成引号无关（产物双引号 / 真源单引号都认），字符串内部用「转义感知」的捕获，
+// 免得正文里出现同类引号就截断。
+const RE_ENTRY = /["']?newBugWayfinder["']?\s*:\s*\{\s*version:\s*(\d+),\s*placeholders:\s*\[([^\]]*)\],\s*use:\s*(['"])((?:\\.|(?!\3)[\s\S])*)\3,\s*zh:\s*(['"])((?:\\.|(?!\5)[\s\S])*)\5,\s*en:\s*(['"])((?:\\.|(?!\7)[\s\S])*)\7/
+const check = function (list) {
+  const names = Array.isArray(list) ? list : [list]
+  const src = names.map(function (f) { return fs.readFileSync(f, 'utf8') }).join('\n')
+  const label = names.length === 1 ? names[0] : '真源 ' + names.length + ' 份'
   const problems = []
   // 1) 注册表条目
   const m = src.match(RE_ENTRY)
@@ -36,9 +52,9 @@ const check = function (file) {
   else {
     const ver = Number(m[1])
     const phRaw = m[2]
-    const use = m[3]
-    const zh = m[4]
-    const en = m[5]
+    const use = m[4]
+    const zh = m[6]
+    const en = m[8]
     if (ver < 8) problems.push('newBugWayfinder 版本异常 v' + ver + '（v7 #882 应 ≥8）')
     if (!use) problems.push('newBugWayfinder 缺 use')
     const ph = phRaw.split(',').map(function (x) { return x.trim().replace(/'/g, '') }).filter(Boolean)
@@ -97,11 +113,12 @@ const check = function (file) {
     if (en.indexOf('file first') >= 0) problems.push('newBugWayfinder en 仍含 "file first" 引导（#107 已改：空表单先追问、不建单）')
   }
   // 1.5) NEW_BUG_FIELDS_BODY（zh 4 字段必填括号单行，头带“以下四项均为必填”）+ NEW_BUG_FIELDS_BODY_EN（en 对称，头带“The four fields below are required”）—— v7 #882 + #107 改必填
-  const fieldsBodyMatch = /NEW_BUG_FIELDS_BODY\s*=\s*function\s*\(\)\s*\{\s*return\s*'([^']*)'\s*\}/.exec(src)
+  // 2026-10-17：形状改成引号无关，并容忍真源里的返回类型标注（`function (): string { return '…' }`）。
+  const fieldsBodyMatch = /NEW_BUG_FIELDS_BODY\s*=\s*function\s*\(\)[^{]*\{\s*return\s*(['"])((?:\\.|(?!\1)[\s\S])*)\1\s*\}/.exec(src)
   if (!fieldsBodyMatch) {
     problems.push('缺 NEW_BUG_FIELDS_BODY 常量定义')
   } else {
-    const fieldsBody = fieldsBodyMatch[1]
+    const fieldsBody = fieldsBodyMatch[2]
     // 顺序与完整性（v4 顺序实际→期望→复现→环境）
     const orderOk = fieldsBody.indexOf(FIELDS_ZH[0]) < fieldsBody.indexOf(FIELDS_ZH[1]) && fieldsBody.indexOf(FIELDS_ZH[1]) < fieldsBody.indexOf(FIELDS_ZH[2]) && fieldsBody.indexOf(FIELDS_ZH[2]) < fieldsBody.indexOf(FIELDS_ZH[3])
     if (!orderOk) problems.push('NEW_BUG_FIELDS_BODY 顺序非实际→期望→复现→环境')
@@ -125,11 +142,11 @@ const check = function (file) {
     const missingBrZh = BRACKET_LINE_ZH.filter(function (g) { return fieldsBody.indexOf(g) < 0 })
     if (missingBrZh.length) problems.push('NEW_BUG_FIELDS_BODY 缺括号单行：' + missingBrZh.join(' / '))
   }
-  const fieldsBodyEnMatch = /NEW_BUG_FIELDS_BODY_EN\s*=\s*function\s*\(\)\s*\{\s*return\s*'([^']*)'\s*\}/.exec(src)
+  const fieldsBodyEnMatch = /NEW_BUG_FIELDS_BODY_EN\s*=\s*function\s*\(\)[^{]*\{\s*return\s*(['"])((?:\\.|(?!\1)[\s\S])*)\1\s*\}/.exec(src)
   if (!fieldsBodyEnMatch) {
     problems.push('缺 NEW_BUG_FIELDS_BODY_EN 常量定义')
   } else {
-    const fieldsBodyEn = fieldsBodyEnMatch[1]
+    const fieldsBodyEn = fieldsBodyEnMatch[2]
     const orderOkEn = fieldsBodyEn.indexOf(FIELDS_EN[0]) < fieldsBodyEn.indexOf(FIELDS_EN[1]) && fieldsBodyEn.indexOf(FIELDS_EN[1]) < fieldsBodyEn.indexOf(FIELDS_EN[2]) && fieldsBodyEn.indexOf(FIELDS_EN[2]) < fieldsBodyEn.indexOf(FIELDS_EN[3])
     if (!orderOkEn) problems.push('NEW_BUG_FIELDS_BODY_EN 顺序非 Actual→Expected→Reproduction→Environment')
     const missingEn = FIELDS_EN.filter(function (f) { return fieldsBodyEn.indexOf(f) < 0 })
@@ -150,23 +167,25 @@ const check = function (file) {
     if (fieldsBodyEn.indexOf('Optional below.') >= 0) problems.push('NEW_BUG_FIELDS_BODY_EN 仍含旧选填头 "Optional below."（#107 已改必填）')
     if (fieldsBodyEn.indexOf('browser + plugin version') >= 0) problems.push('NEW_BUG_FIELDS_BODY_EN 残留 DSH 专用环境写法（v7 已通用化）')
   }
-  // 2) i18n 键
+  // 2) i18n 键（引号无关：真源是单引号，产物是双引号）
   ;['nav.bugNew', 'nav.bugNewTitle', 'panel.newBug', 'panel.newBugTitle'].forEach(function (k) {
-    if (src.indexOf("'" + k + "':") < 0) problems.push('缺 i18n 键 ' + k)
+    if (!(new RegExp('["\']' + k.replace(/\./g, '\\.') + '["\']\\s*:')).test(src)) problems.push('缺 i18n 键 ' + k)
   })
   // 3) StatusBar 悬停菜单接线
   if (!src.includes('s.bugMenuOpen')) problems.push('缺 s.bugMenuOpen 状态')
-  if (src.indexOf("tr('nav.bugNew')") < 0) problems.push('状态栏菜单缺 nav.bugNew 引用')
+  if (!/tr\(["']nav\.bugNew["']\)/.test(src)) problems.push('状态栏菜单缺 nav.bugNew 引用')
   // 4) 面板按钮接线：newBugWayfinder 开新会话 ≥ 2 处（状态栏 1 + 共享 Tabs 行 1；#97 T4 去重后 Dock/Overlay tabs 行合成一处）
   const opens = (src.match(/openTextInNewSession\(s, newBugWayfinderText\(s\)/g) || []).length
   if (opens < 2) problems.push('newBugWayfinder 开新会话接线 < 2（实际 ' + opens + '）')
   // #211 占位：会话标题改用 newSessionTitleNew('bug')（双语 [New] 占位），按钮文字仍用 panel.newBug（≥1），标题不再强求 tr('panel.newBug')
-  if ((src.match(/tr\('panel\.newBug'\)/g) || []).length < 1) problems.push('panel.newBug 引用 < 1（按钮文字）')
+  if ((src.match(/tr\(["']panel\.newBug["']\)/g) || []).length < 1) problems.push('panel.newBug 引用 < 1（按钮文字）')
   if (!src.includes('newSessionTitleNew')) problems.push('缺 newSessionTitleNew 占位构造（#211）')
-  // 5) Ic bug 图标
-  if (src.indexOf("case 'bug':") < 0) problems.push('缺 Ic bug 图标')
+  // 5) Ic bug 图标（引号无关）
+  if (!/case\s+["']bug["']\s*:/.test(src)) problems.push('缺 Ic bug 图标')
   // 6) 死区回归守护：BUG 悬停菜单弹层 marginBottom 必须为 0/未设置
-  const bugMenuMatch = src.match(/s\.bugMenuOpen \? h\('div', \{[^\n]*?\}, \[/)
+  // 2026-10-17：弹层早就从 `h('div', {...})` 改成 PortalOverlay({ className: 'dsws-bugmenu', ... })，老锚点匹配
+  // 不上，于是第 6 与第 9 两条判据一直在静默跳过。锚点跟着今天的写法走。
+  const bugMenuMatch = src.match(/s\.bugMenuOpen \? PortalOverlay\(\{[\s\S]*?\}, \[/)
   if (bugMenuMatch) {
     const styleStr = bugMenuMatch[0]
     const marginBottomMatches = styleStr.match(/marginBottom:\s*(\d+)/g)
@@ -175,9 +194,11 @@ const check = function (file) {
       const maxVal = Math.max.apply(null, values)
       if (maxVal > 0) problems.push('BUG 悬停菜单弹层 marginBottom=' + values.join(',') + '（死区回归）')
     }
+  } else {
+    problems.push('找不到 BUG 悬停菜单弹层（锚点失效：s.bugMenuOpen ? PortalOverlay({ className: \'dsws-bugmenu\' …）')
   }
   // 7) 文本拼接 + locale 切换：newBugWayfinderText = promptText + BODY_FORMAT + (promptLang()==='en' ? EN : ZH)
-  const builderMatch = /newBugWayfinderText\s*=\s*\(st\)\s*=>[\s\S]*?\+ \(promptLang\(\) === 'en' \? NEW_BUG_FIELDS_BODY_EN\(\) : NEW_BUG_FIELDS_BODY\(\)\)/.test(src)
+  const builderMatch = /newBugWayfinderText\s*=\s*\(st\)\s*=>[\s\S]*?\+ \(promptLang\(\) === ["']en["'] \? NEW_BUG_FIELDS_BODY_EN\(\) : NEW_BUG_FIELDS_BODY\(\)\)/.test(src)
   if (!builderMatch) problems.push('newBugWayfinderText 拼接未含 locale 切换（promptLang() === \'en\' ? NEW_BUG_FIELDS_BODY_EN() : NEW_BUG_FIELDS_BODY()）')
   // 9) 宽度自适应（v3 UX）：不应有 minWidth
   if (bugMenuMatch && /minWidth\s*:\s*\d+/.test(bugMenuMatch[0])) problems.push('BUG 悬停菜单弹层含 minWidth（应按内容自适应）')
@@ -189,8 +210,8 @@ const check = function (file) {
     { re: /s\.bugMenuHover\s*\?\s*['"]#f87171['"]/, name: '按钮 hover 红染色（#f87171）' },
   ]
   hoverChecks.forEach(function (c) { if (!c.re.test(src)) problems.push('hover 反馈缺：' + c.name) })
-  if (problems.length) { console.log('  FAIL', file, problems.join('；')); failed = true }
-  else console.log('  PASS', file, '（newBugWayfinder v' + (m ? m[1] : '?') + ' · 实际→期望括号单行 · v5 标签要求 · locale 切换 · 开新会话接线 ' + opens + ' 处 · i18n 4 键）')
+  if (problems.length) { console.log('  FAIL', label, problems.join('；')); failed = true }
+  else console.log('  PASS', label, '（newBugWayfinder v' + (m ? m[1] : '?') + ' · 实际→期望括号单行 · v5 标签要求 · locale 切换 · 开新会话接线 ' + opens + ' 处 · i18n 4 键）')
 }
 console.log('P1: 新增BUG入口契约（issue #4/#63 v4 · 实际→期望括号单行 + locale 切换 · v5 #475 标签要求）')
 targets.forEach(check)
