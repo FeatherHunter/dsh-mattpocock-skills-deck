@@ -1,5 +1,5 @@
-// verify-no-title.js — title 原生提示残留门禁（T1 #403 定版，承 #402 地图）
-// 用法: node tests/verify-no-title.js [file...]（默认扫描 src/client 全量，真源 + 产物不扫）
+// verify-no-title.ts — title 原生提示残留门禁（T1 #403 定版，承 #402 地图）
+// 用法: node tests/verify-no-title.ts [file...]（默认扫描 src/client 全量，真源 + 产物不扫）
 // 形态：轻量文本扫描（同 verify-reuse 轻量），白名单仅测试文件与 aria-label 豁免（后者天然不命中 title: 正则）
 // 阈值：0 通过 / 1 通过（未达 2 标记） / 2 WARN 标记（// TODO no-title:q） / ≥3 ERROR 即抽 / ≥5 ERROR 必卡（合并门禁）
 // 判定：扫描 \\btitle\\s*:，且只认**写在 h() 元素属性位上**的（形态 title: tr(...)/title: s.title/title: '...'），

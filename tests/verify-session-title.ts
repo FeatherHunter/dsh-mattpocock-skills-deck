@@ -1,5 +1,5 @@
-// tests/verify-session-title.js — #210/#205 会话标题契约 12 例（真源：src/shared/naming-titles.js，#265 迁移，S2 #452 拆出）
-// 用法: node tests/verify-session-title.js
+// tests/verify-session-title.ts — #210/#205 会话标题契约 12 例（真源：src/shared/naming-titles.js，#265 迁移，S2 #452 拆出）
+// 用法: node tests/verify-session-title.ts
 const fs = require('fs');
 const path = require('path');
 

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-17T07:33:01.668Z",
+  "generatedAt": "2026-10-17T07:36:24.336Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 291,
   "gateCount": 291,
@@ -843,8 +843,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；源码里的路径字面量 3 条"
     },
     {
-      "step": "node tests/verify-no-title.js",
-      "file": "tests/verify-no-title.js",
+      "step": "node tests/verify-no-title.ts",
+      "file": "tests/verify-no-title.ts",
       "guards": [
         "src/client/floating",
         "src/client/panel",
@@ -1940,6 +1940,7 @@
         "src/client/views/ChecksTab.js",
         "src/client/views/NoRepoCard.js",
         "src/client/views/SetupCard.js",
+        "src/shared/time-config/values.js",
         "src/shared/tracker/guide-steps.js",
         "tests/lib/eval-probe.ts",
         "tests/lib/source-text.ts"
@@ -1951,6 +1952,7 @@
         "src/client/panel",
         "src/client/statusbar",
         "src/client/views",
+        "src/shared/time-config",
         "src/shared/tracker",
         "tests/lib"
       ],
@@ -1958,7 +1960,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 14 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 15 条"
     },
     {
       "step": "node tests/verify-656-subworkspace-acceptance.ts",
@@ -5972,24 +5974,23 @@
       "reason": "归属来自：源码里的路径字面量 15 条"
     },
     {
-      "step": "node tests/verify-session-title.js",
-      "file": "tests/verify-session-title.js",
+      "step": "node tests/verify-session-title.ts",
+      "file": "tests/verify-session-title.ts",
       "guards": [
-        "src/client/kernel/router.js",
-        "src/shared",
         "src/shared/naming-attribution.js",
         "src/shared/naming-titles.js",
-        "src/shared/naming-tracking.js"
+        "src/shared/naming-tracking.js",
+        "tests/lib/source-text.ts"
       ],
       "dirs": [
-        "src/client/kernel",
-        "src/shared"
+        "src/shared",
+        "tests/lib"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 3 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-settings-debug.ts",
@@ -6140,8 +6141,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 5 条；源码里的路径字面量 9 条"
     },
     {
-      "step": "node tests/verify-setup-describe.js",
-      "file": "tests/verify-setup-describe.js",
+      "step": "node tests/verify-setup-describe.ts",
+      "file": "tests/verify-setup-describe.ts",
       "guards": [
         "package/lib/client.js",
         "src/client",
@@ -6152,6 +6153,7 @@
         "src/client/kernel/locale.js",
         "src/client/kernel/prompts.js",
         "src/host/workspaceCwd.ts",
+        "src/shared/time-config/values.js",
         "src/tracker/ui-description.ts",
         "tests/lib/source-text.ts"
       ],
@@ -6160,6 +6162,7 @@
         "src/client",
         "src/client/kernel",
         "src/host",
+        "src/shared/time-config",
         "src/tracker",
         "tests/lib"
       ],
@@ -6167,7 +6170,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 6 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 7 条"
     },
     {
       "step": "node tests/verify-skill-detail-stack.js",
@@ -6894,7 +6897,7 @@
       "node tests/verify-settings-debug.ts",
       "node tests/verify-settings-templates.ts",
       "node tests/verify-settings-view.ts",
-      "node tests/verify-setup-describe.js",
+      "node tests/verify-setup-describe.ts",
       "node tests/verify-statusbar-filter-reset.js",
       "node tests/verify-t1-getrepokey.ts",
       "node tests/verify-t1-initpublish.ts",
@@ -7030,12 +7033,12 @@
       "node tests/verify-settings-debug.ts",
       "node tests/verify-settings-templates.ts",
       "node tests/verify-settings-view.ts",
-      "node tests/verify-setup-describe.js",
+      "node tests/verify-setup-describe.ts",
       "node tests/verify-tabsfold-leaf.ts"
     ],
     "src/client/floating": [
       "node tests/verify-leaves.ts",
-      "node tests/verify-no-title.js",
+      "node tests/verify-no-title.ts",
       "node tests/verify-hovertip.ts",
       "node tests/verify-reuse.ts"
     ],
@@ -7104,11 +7107,10 @@
       "node tests/verify-prompts.ts",
       "node tests/verify-rest-fallback-banner.ts",
       "node tests/verify-reuse.ts",
-      "node tests/verify-session-title.js",
       "node tests/verify-settings-debug.ts",
       "node tests/verify-settings-templates.ts",
       "node tests/verify-settings-view.ts",
-      "node tests/verify-setup-describe.js",
+      "node tests/verify-setup-describe.ts",
       "node tests/verify-subdir-first-frame.js",
       "node tests/verify-tabsfold-leaf.ts",
       "node tests/verify-visible-truth.ts",
@@ -7117,7 +7119,7 @@
     ],
     "src/client/panel": [
       "node tests/verify-leaves.ts",
-      "node tests/verify-no-title.js",
+      "node tests/verify-no-title.ts",
       "node tests/verify-653-subworkspace.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-667-dock-header-no-brand.ts",
@@ -7129,7 +7131,7 @@
       "node tests/verify-leaves.ts",
       "node tests/verify-chain-capsule.ts",
       "node tests/verify-deck-slots.ts",
-      "node tests/verify-no-title.js",
+      "node tests/verify-no-title.ts",
       "node tests/verify-655-setup-layout.ts",
       "node tests/verify-663-gh-install-inject.ts",
       "node tests/verify-665-fresh-workspace-chain.ts",
@@ -7148,7 +7150,7 @@
       "node tests/verify-leaves.ts",
       "node tests/verify-deck-slots.ts",
       "node tests/verify-gate-map.ts",
-      "node tests/verify-no-title.js",
+      "node tests/verify-no-title.ts",
       "node tests/verify-1145-open-local.ts",
       "node tests/verify-1199-row-closed-link.ts",
       "node tests/verify-1231-ws-overview-rows.ts",
@@ -7193,7 +7195,7 @@
       "node tests/verify-skill-detail-stack.js"
     ],
     "src/client/views/primitives": [
-      "node tests/verify-no-title.js",
+      "node tests/verify-no-title.ts",
       "node tests/verify-hovertip.ts",
       "node tests/verify-reuse.ts"
     ],
@@ -7367,7 +7369,7 @@
       "node tests/verify-settings-phones.ts",
       "node tests/verify-settings-templates.ts",
       "node tests/verify-settings-view.ts",
-      "node tests/verify-setup-describe.js",
+      "node tests/verify-setup-describe.ts",
       "node tests/verify-snapshot-cache-first.ts",
       "node tests/verify-ui-description-single-source.ts",
       "node tests/verify-update-migration.ts",
@@ -7487,7 +7489,7 @@
       "node tests/verify-naming-e2e.ts",
       "node tests/verify-naming-guardian.ts",
       "node tests/verify-refresh-workspace-key.ts",
-      "node tests/verify-session-title.js",
+      "node tests/verify-session-title.ts",
       "node tests/verify-settings-debug.ts",
       "node tests/verify-settings-templates.ts",
       "node tests/verify-settings-view.ts",
@@ -7574,6 +7576,7 @@
     ],
     "src/shared/time-config": [
       "node tests/verify-deck-no-hang.ts",
+      "node tests/verify-655-setup-layout.ts",
       "node tests/verify-669-choice-precedence.ts",
       "node tests/verify-669-switch-visible.ts",
       "node tests/verify-683-choice-rev.ts",
@@ -7605,6 +7608,7 @@
       "node tests/verify-settings-debug.ts",
       "node tests/verify-settings-templates.ts",
       "node tests/verify-settings-view.ts",
+      "node tests/verify-setup-describe.ts",
       "node tests/verify-subdir-first-frame.js",
       "node tests/verify-visible-truth.ts",
       "node tests/verify-write-detect.ts",
@@ -7666,7 +7670,7 @@
       "node tests/verify-log-count.ts",
       "node tests/verify-log-fields.ts",
       "node tests/verify-parse-leaf.ts",
-      "node tests/verify-setup-describe.js",
+      "node tests/verify-setup-describe.ts",
       "node tests/verify-ui-description-single-source.ts"
     ],
     "src/tracker/contract": [
@@ -7997,10 +8001,11 @@
       "node tests/verify-refresh-workspace-key.ts",
       "node tests/verify-rest-fallback-banner.ts",
       "node tests/verify-rest-fallback-reason.ts",
+      "node tests/verify-session-title.ts",
       "node tests/verify-settings-debug.ts",
       "node tests/verify-settings-templates.ts",
       "node tests/verify-settings-view.ts",
-      "node tests/verify-setup-describe.js",
+      "node tests/verify-setup-describe.ts",
       "node tests/verify-subdir-first-frame.js",
       "node tests/verify-tabsfold-leaf.ts",
       "node tests/verify-visible-truth.ts",

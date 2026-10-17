@@ -1,4 +1,4 @@
-// verify-setup-describe.js — #230（D10 · 键入 locale）验收门禁：setup 提示词后端描述数据化
+// verify-setup-describe.ts — #230（D10 · 键入 locale）验收门禁：setup 提示词后端描述数据化
 // 验证：
 //   1) 三后端（github/markdown/gitlab）在 client locale 的描述数据 == #230 前三函数的金样值（占位符值逐字节相同）
 //   2) setupRun 注入产物与旧行为等价：github/gitlab 全文逐字节等值；markdown 仅少「标签齐全」条款
@@ -12,7 +12,7 @@
 //      （唯一豁免：kernel/prompts.js 及其拼进产物中的 setupRunParamsFrom 同行真源调用）
 //      另含 #619 的旧调色盘注入通道残留：paletteNote 键名，以及「标签调色盘 / Label palette」那段文案
 //   6) 手动命令路径锚点：注入文本以 /setup-matt-pocock-skills 开头
-// 用法: node tests/verify-setup-describe.js
+// 用法: node tests/verify-setup-describe.ts
 const fs = require('fs')
 const path = require('path')
 const { pathToFileURL } = require('url')
