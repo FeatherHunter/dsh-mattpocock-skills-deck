@@ -143,18 +143,22 @@ async function main() {
   }
 
   // ② 挂住的沙箱许可 → 按缺席走老路，读照样回来
-  // #1195 起预算从工具入口算：沙箱竞速的 5 秒（各工具 SANDBOX_TIMEOUT_MS）是入口前耗时，
-  // 会进剩余额度。所以这一节的整笔预算必须大于沙箱上限（这里给 12000），否则诚实回没做成
-  // 才是对的；“沙箱挂住读照样回来”不断的是“按缺席走老路”这条路，不是“预算看不见入口前耗时”。
+  // #1195 起预算从工具入口算：沙箱竞速的 15 秒（各工具 SANDBOX_TIMEOUT_MS，真源是
+  // config/timeouts.yaml 的 deckSandboxMs）是入口前耗时，会进剩余额度。所以这一节的整笔
+  // 预算必须大于沙箱上限，否则诚实回没做成才是对的；“沙箱挂住读照样回来”不断的是
+  // “按缺席走老路”这条路，不是“预算看不见入口前耗时”。
+  // 2026-10-17 修：这里原来写死 12000，而 deckSandboxMs 在 #1160 已从 5 秒提到 15 秒，
+  // 夹具没跟着改，于是本门禁假红（行为本身没坏）。改成从中央常量取数，以后调档不会再假红。
   {
+    const tc = await imp('src/shared/time-config/values.js')
     const g = stubGateLedger(budget, gateMod, ledgerMod)
     const mod = await imp('src/deck/tools/issue-get.ts')
-    const tool = mod.createDeckIssueGet(baseDeps({ gate: g.gate, registry: stubRegistry('o/n', okTracker()), budget: budget, toolTimeoutMs: 12000, sandboxPolicyFor: hanging }))
+    const tool = mod.createDeckIssueGet(baseDeps({ gate: g.gate, registry: stubRegistry('o/n', okTracker()), budget: budget, toolTimeoutMs: tc.DECK_SANDBOX_TIMEOUT_MS * 2, sandboxPolicyFor: hanging }))
     const t1 = Date.now()
     const r = await tool.run(execFor(), { key: '7' })
     const dt = Date.now() - t1
     check(r && r.status === 'ok', '沙箱挂住读照样回来（实得 ' + (r && r.status) + '）')
-    check(dt < 12000, '沙箱挂住仍在竞速内回来（' + dt + 'ms）')
+    check(dt < tc.DECK_SANDBOX_TIMEOUT_MS + 5000, '沙箱挂住仍在竞速内回来（' + dt + 'ms）')
   }
 
   // ③ 挂住（但守约响应信号）的后端 get → 钳制内诚实回超时，不改判成“做不到”
