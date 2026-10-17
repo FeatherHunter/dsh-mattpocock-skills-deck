@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * verify-deck-event-gate.mjs — 门禁：订阅会话事件必须先过「工作区那道门」
+ * verify-deck-event-gate.ts — 门禁：订阅会话事件必须先过「工作区那道门」
  *
  * 为什么需要它（依据见 docs/architecture/refresh-budget-architecture.html 第十二章与第十五章）：
  *   1. 未打作用域标的普通 Cordis 监听器会收到**全部**会话的 session/event —— 别的会话、
@@ -19,11 +19,11 @@
  *      证明拦住不是因为整条路都不动，并证明取数只从闸里走（把闸摘掉时一次都不发）。
  *
  * 用法：
- *   node tests/verify-deck-event-gate.mjs                    # 扫整个仓库（默认扫描根 = 本脚本所在目录的上一级）
- *   node tests/verify-deck-event-gate.mjs --root <目录>       # 换一个扫描根（例如探针样本目录）
- *   node tests/verify-deck-event-gate.mjs --registry <文件>   # 追加一份登记表（JSON 数组，形状与下面的 REGISTRY 相同）
- *   node tests/verify-deck-event-gate.mjs --skip-runtime      # 跳过门禁 D（只为扫样本目录时用）
- *   node tests/verify-deck-event-gate.mjs --selfcheck --dsh <目录>
+ *   node tests/verify-deck-event-gate.ts                    # 扫整个仓库（默认扫描根 = 本脚本所在目录的上一级）
+ *   node tests/verify-deck-event-gate.ts --root <目录>       # 换一个扫描根（例如探针样本目录）
+ *   node tests/verify-deck-event-gate.ts --registry <文件>   # 追加一份登记表（JSON 数组，形状与下面的 REGISTRY 相同）
+ *   node tests/verify-deck-event-gate.ts --skip-runtime      # 跳过门禁 D（只为扫样本目录时用）
+ *   node tests/verify-deck-event-gate.ts --selfcheck --dsh <目录>
  *
  * 关于 --dsh：只有 --selfcheck 需要它，指向 DSH 安装目录里的 node_modules
  * （例如 "<DSH 安装目录>\resources\app\node_modules"），也可以改用环境变量 DSH_APP_NODE_MODULES。

@@ -1,5 +1,5 @@
-// verify-handoff-latest-sort.js — 状态栏 handoff 文档 mtime/sort 加固（BUG4 · issue #12）
-// 用法: node tests/verify-handoff-latest-sort.js [file...]（默认 host.js + package/lib/index.js 双源）
+// verify-handoff-latest-sort.ts — 状态栏 handoff 文档 mtime/sort 加固（BUG4 · issue #12）
+// 用法: node tests/verify-handoff-latest-sort.ts [file...]（默认 host.js + package/lib/index.js 双源）
 //
 // 背景：DSH 沙箱里 fs.stat 返回的 info.mtime 形态不可控（Date 对象 / ISO 串 / 秒级 Unix / 本地化串 / null / undefined / NaN），
 //       原实现 `typeof mt === 'number' ? mt : Date.parse(String(mt))` 在非 number 形态下任一无法 parse 的格式都得 NaN；

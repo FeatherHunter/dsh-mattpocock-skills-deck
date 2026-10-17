@@ -1,5 +1,5 @@
-// verify-handoff-split.js — 交接分割按钮 + 引导门（需求1·二阶段 rev）+ handoffFile 主路径（issue #12 BUG4）
-// 用法: node tests/verify-handoff-split.js [file...]（默认 client.js + package/lib/client.js 双源）
+// verify-handoff-split.ts — 交接分割按钮 + 引导门（需求1·二阶段 rev）+ handoffFile 主路径（issue #12 BUG4）
+// 用法: node tests/verify-handoff-split.ts [file...]（默认 client.js + package/lib/client.js 双源）
 //
 // 验收标准（2026-08-18 拍板 + rev + issue #12 BUG4）：
 //   a) 分割按钮：dsws-split 容器 + 左右半（dsws-split-part）+ 细分隔线（dsws-split-div 1px×14px）；

@@ -1,6 +1,6 @@
 /*
- * verify-rest-fallback-banner.js — 降级横幅「该不该画、画哪一句」的门禁（2026-09-24）
- * 用法: node tests/verify-rest-fallback-banner.js
+ * verify-rest-fallback-banner.ts — 降级横幅「该不该画、画哪一句」的门禁（2026-09-24）
+ * 用法: node tests/verify-rest-fallback-banner.ts
  *
  * 这一条盯的是一件具体的事：那条「GraphQL 配额已耗尽，已切换 REST 通道」的横幅，此前只要快照里
  * 带着 `fallback:'rest'` 就画，而那个标记是**那一次构建**留下的历史事实，会随快照被缓存、被反复取用
