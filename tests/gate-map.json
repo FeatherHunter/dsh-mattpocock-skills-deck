@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-17T06:39:26.996Z",
+  "generatedAt": "2026-10-17T06:44:26.464Z",
   "generatedBy": "node scripts/gate-map.mjs",
-  "chainLength": 294,
-  "gateCount": 294,
-  "attributedGates": 258,
+  "chainLength": 293,
+  "gateCount": 293,
+  "attributedGates": 257,
   "unattributedGates": 36,
   "buildOutputOnlyGates": 23,
   "completionRecordedGates": 6,
@@ -5689,8 +5689,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 10 条"
     },
     {
-      "step": "node tests/verify-platform-contract.js",
-      "file": "tests/verify-platform-contract.js",
+      "step": "node tests/verify-platform-contract.ts",
+      "file": "tests/verify-platform-contract.ts",
       "guards": [
         "package/lib/client.js",
         "package/lib/index.js",
@@ -5717,25 +5717,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；源码里的路径字面量 8 条"
     },
     {
-      "step": "node tests/verify-platform-linux.js",
-      "file": "tests/verify-platform-linux.js",
-      "guards": [
-        "src/host/platform/index.ts",
-        "src/host/platform/linux/index.ts"
-      ],
-      "dirs": [
-        "src/host/platform",
-        "src/host/platform/linux"
-      ],
-      "unattributed": false,
-      "buildOutputOnly": false,
-      "completionRecord": false,
-      "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 2 条"
-    },
-    {
-      "step": "node tests/verify-policy.js",
-      "file": "tests/verify-policy.js",
+      "step": "node tests/verify-policy.ts",
+      "file": "tests/verify-policy.ts",
       "guards": [
         "src/shared/refresh/budget.js",
         "src/shared/refresh/policy.js",
@@ -5869,8 +5852,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 4 条；源码里的路径字面量 8 条"
     },
     {
-      "step": "node tests/verify-refresh-workspace-key.js",
-      "file": "tests/verify-refresh-workspace-key.js",
+      "step": "node tests/verify-refresh-workspace-key.ts",
+      "file": "tests/verify-refresh-workspace-key.ts",
       "guards": [
         "src/host/detectChain.ts",
         "src/host/refresh/gate.ts",
@@ -6613,8 +6596,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 1 条"
     },
     {
-      "step": "node tests/verify-visible-truth.js",
-      "file": "tests/verify-visible-truth.js",
+      "step": "node tests/verify-visible-truth.ts",
+      "file": "tests/verify-visible-truth.ts",
       "guards": [
         "scripts/lib/transpile-unit.mjs",
         "src/client/kernel/locale-pages.js",
@@ -6883,7 +6866,7 @@
       "node tests/verify-kernel.ts",
       "node tests/verify-market-tarball.ts",
       "node tests/verify-parse-leaf.js",
-      "node tests/verify-platform-contract.js",
+      "node tests/verify-platform-contract.ts",
       "node tests/verify-release-contract.js",
       "node tests/verify-tabsfold-leaf.js",
       "node tests/verify-update-migration.ts",
@@ -6957,7 +6940,7 @@
       "node tests/verify-panel-workspace-isolation.js",
       "node tests/verify-panel-workspace-shared.js",
       "node tests/verify-parse-leaf.js",
-      "node tests/verify-platform-contract.js",
+      "node tests/verify-platform-contract.ts",
       "node tests/verify-prompt-newlines.js",
       "node tests/verify-prompts.js",
       "node tests/verify-release-contract.js",
@@ -7019,7 +7002,7 @@
       "node tests/verify-matt-skills-sync.js",
       "node tests/verify-panel-workspace-shared.js",
       "node tests/verify-parse-leaf.js",
-      "node tests/verify-platform-contract.js",
+      "node tests/verify-platform-contract.ts",
       "node tests/verify-prompts.js",
       "node tests/verify-release-contract.js",
       "node tests/verify-release-template.js",
@@ -7073,7 +7056,7 @@
       "node tests/verify-settings-debug.ts",
       "node tests/verify-unmigrated-tests.ts",
       "node tests/verify-update-migration.ts",
-      "node tests/verify-visible-truth.js",
+      "node tests/verify-visible-truth.ts",
       "node tests/verify-wire-subissues-script.js",
       "node tests/verify-wizard-exit-609.js"
     ],
@@ -7189,7 +7172,7 @@
       "node tests/verify-setup-describe.js",
       "node tests/verify-subdir-first-frame.js",
       "node tests/verify-tabsfold-leaf.js",
-      "node tests/verify-visible-truth.js",
+      "node tests/verify-visible-truth.ts",
       "node tests/verify-workspace-file-note.js",
       "node tests/verify-locale-completeness.js"
     ],
@@ -7289,7 +7272,7 @@
       "node tests/verify-rest-fallback-banner.js",
       "node tests/verify-rest-fallback-reason.ts",
       "node tests/verify-reuse.js",
-      "node tests/verify-visible-truth.js"
+      "node tests/verify-visible-truth.ts"
     ],
     "src/client/views/skillDetail": [
       "node tests/verify-skill-detail-stack.js"
@@ -7441,7 +7424,7 @@
       "node tests/verify-progress.ts",
       "node tests/verify-prompt-newlines.js",
       "node tests/verify-prompts.js",
-      "node tests/verify-refresh-workspace-key.js",
+      "node tests/verify-refresh-workspace-key.ts",
       "node tests/verify-reply-envelope-parity.js",
       "node tests/verify-settings-debug.ts",
       "node tests/verify-settings-phones.js",
@@ -7453,7 +7436,7 @@
       "node tests/verify-update-migration.ts",
       "node tests/verify-update-panel.ts",
       "node tests/verify-version-control-host.js",
-      "node tests/verify-visible-truth.js"
+      "node tests/verify-visible-truth.ts"
     ],
     "src/host/outbound": [
       "node tests/verify-dependency-rules.ts",
@@ -7479,22 +7462,20 @@
       "node tests/verify-github-gh-via.ts",
       "node tests/verify-github-label-colors.ts",
       "node tests/verify-naming-guardian.js",
-      "node tests/verify-platform-contract.js",
-      "node tests/verify-platform-linux.js",
+      "node tests/verify-platform-contract.ts",
       "node tests/verify-t1-getrepokey.js"
     ],
     "src/host/platform/darwin": [
       "node tests/verify-497-slash.ts",
-      "node tests/verify-platform-contract.js"
+      "node tests/verify-platform-contract.ts"
     ],
     "src/host/platform/linux": [
       "node tests/verify-497-slash.ts",
-      "node tests/verify-platform-contract.js",
-      "node tests/verify-platform-linux.js"
+      "node tests/verify-platform-contract.ts"
     ],
     "src/host/platform/win32": [
       "node tests/verify-497-slash.ts",
-      "node tests/verify-platform-contract.js"
+      "node tests/verify-platform-contract.ts"
     ],
     "src/host/refresh": [
       "node tests/verify-chain-view.js",
@@ -7537,7 +7518,7 @@
       "node tests/verify-gh-gateway.ts",
       "node tests/verify-golden-receipts.ts",
       "node tests/verify-naming-title-fact.ts",
-      "node tests/verify-refresh-workspace-key.js"
+      "node tests/verify-refresh-workspace-key.ts"
     ],
     "src/host/tracker": [
       "node tests/verify-344-chain-auto-refresh.ts",
@@ -7569,7 +7550,7 @@
       "node tests/verify-naming-guardian.js",
       "node tests/verify-naming-isolation-315.js",
       "node tests/verify-panel-workspace-shared.js",
-      "node tests/verify-refresh-workspace-key.js",
+      "node tests/verify-refresh-workspace-key.ts",
       "node tests/verify-session-title.js",
       "node tests/verify-settings-debug.ts",
       "node tests/verify-settings-templates.js",
@@ -7642,16 +7623,16 @@
       "node tests/verify-gate-accounting.ts",
       "node tests/verify-gitlab-single-write.ts",
       "node tests/verify-golden-receipts.ts",
-      "node tests/verify-policy.js",
+      "node tests/verify-policy.ts",
       "node tests/verify-refresh-adr.js",
-      "node tests/verify-visible-truth.js",
+      "node tests/verify-visible-truth.ts",
       "node tests/verify-write-detect.ts"
     ],
     "src/shared/refresh/src": [
       "node tests/verify-build-artifacts.js",
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-1106-deck-surface.ts",
-      "node tests/verify-policy.js",
+      "node tests/verify-policy.ts",
       "node tests/verify-refresh-adr.js",
       "node tests/verify-write-detect.ts"
     ],
@@ -7679,14 +7660,14 @@
       "node tests/verify-log-switch-526.ts",
       "node tests/verify-map-drill.js",
       "node tests/verify-nav-stack.js",
-      "node tests/verify-policy.js",
+      "node tests/verify-policy.ts",
       "node tests/verify-rest-fallback-banner.js",
       "node tests/verify-rest-fallback-reason.ts",
       "node tests/verify-settings-debug.ts",
       "node tests/verify-settings-templates.js",
       "node tests/verify-settings-view.js",
       "node tests/verify-subdir-first-frame.js",
-      "node tests/verify-visible-truth.js",
+      "node tests/verify-visible-truth.ts",
       "node tests/verify-write-detect.ts",
       "node tests/verify-locale-completeness.js"
     ],
@@ -7827,7 +7808,7 @@
       "node tests/verify-gitlab-single-write.ts",
       "node tests/verify-golden-receipts.ts",
       "node tests/verify-issue297.ts",
-      "node tests/verify-refresh-workspace-key.js",
+      "node tests/verify-refresh-workspace-key.ts",
       "node tests/verify-tracker-contract.js"
     ],
     "src/tracker/rooms": [
@@ -7918,7 +7899,7 @@
       "node tests/verify-markdown-label-colors.js",
       "node tests/verify-multi-effort-panel.js",
       "node tests/verify-multi-effort.js",
-      "node tests/verify-refresh-workspace-key.js"
+      "node tests/verify-refresh-workspace-key.ts"
     ],
     "tests": [
       "node tests/verify-contract-vocabulary.ts",
@@ -8073,7 +8054,7 @@
       "node tests/verify-progress.ts",
       "node tests/verify-prompt-newlines.js",
       "node tests/verify-prompts.js",
-      "node tests/verify-refresh-workspace-key.js",
+      "node tests/verify-refresh-workspace-key.ts",
       "node tests/verify-rest-fallback-banner.js",
       "node tests/verify-rest-fallback-reason.ts",
       "node tests/verify-settings-debug.ts",
@@ -8082,7 +8063,7 @@
       "node tests/verify-setup-describe.js",
       "node tests/verify-subdir-first-frame.js",
       "node tests/verify-tabsfold-leaf.js",
-      "node tests/verify-visible-truth.js",
+      "node tests/verify-visible-truth.ts",
       "node tests/verify-workspace-file-note.js",
       "node tests/verify-locale-completeness.js"
     ],

@@ -1,4 +1,4 @@
-// tests/verify-platform-contract.js — 平台层三端契约断言（#131/#113验收①③）
+// tests/verify-platform-contract.ts — 平台层三端契约断言（#131/#113验收①③）
 // 第一性原理回溯：
 //   #129（平台原语接口定稿）：getHome主源=os.homedir不二次读HOME；win32护栏形态^[A-Za-z]:→USERPROFILE→HOMEDRIVE+HOMEPATH；POSIX直接采用；
 //           统一异步getHome/resolveExecutable；path必须委托node:path；fs透传；env只读；memoize终身缓存；throw→null通用层；两正交轴分层。
@@ -12,7 +12,7 @@
 //   I2 路径全委托 node:path：win32→path.win32、POSIX→path.posix，由运行时断言逐条比对；原先另有一套读源码文本 grep
 //       「有没有某种写法」的静态查表（零手拼、静态 import、不读 HOME…），属读源码文本钉形状，已按维护者要求整段删除。
 //   I3 双闸：产物门禁（存在 + 新鲜度）+ 运行时断言 双重通过；verify全绿即平台层有约束力（#131验收②）
-// 用法：node tests/verify-platform-contract.js [--os=win32|darwin|linux|all]（默认全量三端；CI可--os=all单机三端）
+// 用法：node tests/verify-platform-contract.ts [--os=win32|darwin|linux|all]（默认全量三端；CI可--os=all单机三端）
 //       先运行 node scripts/build.mjs ；已注册进 npm run verify（与既有 node tests/verify-*.js 同法）
 // 参考：#129 #113 D1/D4/D5/D7 #131可测性三前提 #156-158 #160/#162 #164/#166 #168/#170 #173真实化方法论
 

@@ -1,5 +1,5 @@
-// tests/verify-refresh-workspace-key.js —— 门禁：**同一个工作区根在闸里只许有一格**（#724 第一件）
-// 用法：在插件根目录执行 node tests/verify-refresh-workspace-key.js，可独立运行。
+// tests/verify-refresh-workspace-key.ts —— 门禁：**同一个工作区根在闸里只许有一格**（#724 第一件）
+// 用法：在插件根目录执行 node tests/verify-refresh-workspace-key.ts，可独立运行。
 //
 // 为什么要有这一条：闸按一把工作区钥匙记账（活跃、失败次数、限流标记、推迟队列都在那一格上）。
 // 钥匙算错一处，同一个工作区就会在闸里裂成两格：标活跃标在一格、过闸走另一格 —— 真机上出过一次
