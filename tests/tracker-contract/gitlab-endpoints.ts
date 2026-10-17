@@ -138,7 +138,7 @@ export const GITLAB_ENDPOINTS: readonly GitlabEndpointSpec[] = [
     method: 'GET',
     shape: 'projects/{}/issues/{}/links',
     request: 'projects/{id}/issues/{child}/links',
-    note: '读关系：阻塞关系走这张表（is_blocked_by）；父子归属不走这里，走票正文顶部的 `Part of #<地图>` 声明行',
+    note: '读关系：阻塞关系走这张表（is_blocked_by），方向就写在每一行的 link_type 上，不需要再读单条关系明细；父子归属不走这里，走票正文顶部的 `Part of #<地图>` 声明行',
   },
   {
     id: 'link-create',
@@ -147,13 +147,6 @@ export const GITLAB_ENDPOINTS: readonly GitlabEndpointSpec[] = [
     request: 'projects/{id}/issues/{child}/links',
     fields: ['target_project_id={ref}', 'target_issue_iid={iid}', 'link_type=is_blocked_by'],
     note: '挂阻塞：setBlockedBy 从被阻塞的票这一头发起（link_type=is_blocked_by）；setParent 不走这里，改走票正文的 `Part of` 声明行',
-  },
-  {
-    id: 'link-get',
-    method: 'GET',
-    shape: 'projects/{}/issues/{}/links/{}',
-    request: 'projects/{id}/issues/{child}/links/{link_id}',
-    note: '读一条关系自己的明细：只有这里能看出哪一头是发起方（source），方向住在明细里',
   },
   {
     id: 'link-delete',
