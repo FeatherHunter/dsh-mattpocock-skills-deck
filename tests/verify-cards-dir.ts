@@ -1,6 +1,6 @@
 // 门禁归属: src/client/views/cards
 /**
- * tests/verify-cards-dir.js —— src/client/views/cards 这一层的专属门禁。
+ * tests/verify-cards-dir.ts —— src/client/views/cards 这一层的专属门禁。
  *
  * 为什么要有这一条：这个目录是像素风三张卡（地图卡 PixelMapCard / 票卡 PixelIssueCard / 地图子票卡
  *   PixelIssueMapCard）与它们共用的小件的真源，一共 34 个文件。此前没有任何门禁碰过它，
@@ -30,7 +30,7 @@
  *   6. props 契约：cardBits.d.ts / cardProps.d.ts 里声明的字段，逐个用「带上它 / 去掉它，观察点必须变」
  *      证明真的被用上；反方向再断言组件读的字段名全都在契约里声明过。
  *
- * 用法：node tests/verify-cards-dir.js（在插件根目录，不需要先构建）
+ * 用法：node --import ./scripts/ts-hook.mjs tests/verify-cards-dir.ts（在插件根目录，不需要先构建；2026-10-17 从 .js 转成 TypeScript，只改名与加类型标注，判据一条没动）
  */
 'use strict'
 
@@ -45,12 +45,12 @@ const { act } = React
 
 let passed = 0
 let failed = 0
-function check (ok, msg) {
+function check (ok: unknown, msg: string): void {
   if (ok) { passed += 1; console.log('  PASS ' + msg) } else { failed += 1; console.log('  FAIL ' + msg) }
 }
-function section (title) { console.log(''); console.log('== ' + title + ' ==') }
+function section (title: string): void { console.log(''); console.log('== ' + title + ' ==') }
 /** 打印实得值时用：红了能直接看出差在哪。 */
-const show = (v) => (typeof v === 'string' ? JSON.stringify(v) : String(v))
+const show = (v: unknown): string => (typeof v === 'string' ? JSON.stringify(v) : String(v))
 
 const ROOT = path.resolve(__dirname, '..')
 const CARDS_REL = 'src/client/views/cards'
@@ -92,20 +92,20 @@ const MAP_DOTS = [
 ]
 
 /** 读一份 .js，换行统一成 LF（本仓声明 LF 检出，统一一下免得平台差异把比对弄红）。 */
-function readJs (name) { return fs.readFileSync(path.join(CARDS, name + '.js'), 'utf8').replace(/\r\n/g, '\n') }
-function readTs (name) { return fs.readFileSync(path.join(CARDS, name + '.ts'), 'utf8').replace(/\r\n/g, '\n') }
+function readJs (name: string): string { return fs.readFileSync(path.join(CARDS, name + '.js'), 'utf8').replace(/\r\n/g, '\n') }
+function readTs (name: string): string { return fs.readFileSync(path.join(CARDS, name + '.ts'), 'utf8').replace(/\r\n/g, '\n') }
 /** 去掉行首 export：闭包拼接就是这么拼的（build.mjs 拼叶子前也只剥这个）。 */
-function stripExports (text) { return text.replace(/^export\s+/gm, '') }
+function stripExports (text: string): string { return text.replace(/^export\s+/gm, '') }
 
 /** 把 16 份 .js 拼成一段函数体，自由变量只有 React / DswsCtx / tr 三个。 */
-function loadCardsLeaves (React_, DswsCtx_, tr_) {
+function loadCardsLeaves (React_: unknown, DswsCtx_: unknown, tr_: unknown): Record<string, unknown> {
   const body = LEAF_ORDER.map((name) => stripExports(readJs(name))).join('\n')
   const factory = compileFn(['React', 'DswsCtx', 'tr'], body + '\nreturn { ' + LEAF_EXPORTS.join(', ') + ' };')
   return factory(React_, DswsCtx_, tr_)
 }
 
 /** 真字典 + src/client/index.js 里 locale 服务缺失时的同一套退化实现（zh 字典 + {n} 参数替换）。 */
-function loadTr () {
+function loadTr (): { L: { zh: Record<string, string> }, tr: (key: string, params?: Record<string, unknown>) => string } {
   const src = stripExports(fs.readFileSync(LOCALE_CARDS, 'utf8').replace(/\r\n/g, '\n')) + '\nreturn L_CARDS;'
   const L = compileFn([], src)()
   const tr = function (key, params) {
@@ -120,7 +120,7 @@ let WIN = null
 let DOC = null
 
 /** 建一个 jsdom 页面，并把这一层的皮肤（PixelCardsStyles 导出的真样式文本）注入进去。 */
-function setupDom (styleText) {
+function setupDom (styleText: string) {
   const dom = new JSDOM('<!doctype html><html><head></head><body></body></html>', { url: 'http://127.0.0.1:19387/' })
   const style = dom.window.document.createElement('style')
   style.textContent = styleText
@@ -137,7 +137,7 @@ function setupDom (styleText) {
  * 挂一个元素，返回一把「量结果」的尺子。
  * 每次挂载都新开一个容器，量完 unmount（不 unmount 的话下一次挂载会量到上一次的残留）。
  */
-async function mountElement (element) {
+async function mountElement (element: unknown) {
   const host = DOC.createElement('div')
   DOC.body.appendChild(host)
   const reactRoot = ReactDOMClient.createRoot(host)
@@ -194,7 +194,7 @@ const cssOne = (sel, prop) => (h) => { const el = h.q(sel); return el ? el.style
  * 「这个 props 字段真的被用上」的检查：同一份 props，去掉这个字段量一次、带上它再量一次，
  * 观察点必须从「不是期望值」变成「就是期望值」。只量带上字段的那一次，证明不了它没被忽略。
  */
-async function checkPropUsed (label, Component, base, field, value, observe, expected) {
+async function checkPropUsed (label: string, Component: unknown, base: Record<string, unknown>, field: string, value: unknown, observe: unknown, expected: unknown): Promise<void> {
   const off = Object.assign({}, base)
   delete off[field]
   const offHandle = await mountCard(Component, off)
@@ -252,7 +252,7 @@ setupDom(M.PIXEL_CARDS_STYLE_TEXT.join('\n'))
 // ===========================================================================
 // 2 起：真渲染断言（jsdom + 真 React），全部走 async，所以收在一个 main 里
 // ===========================================================================
-async function main () {
+async function main (): Promise<void> {
   // =========================================================================
   // 2. 三张卡能挂起来，关键结构真的出现
   // =========================================================================
@@ -655,7 +655,7 @@ async function main () {
      */
     const { createRequire } = require('module')
     const tu = createRequire(__filename)('../scripts/lib/transpile-unit.mjs')
-    function expectedJsFromTs (name) {
+    function expectedJsFromTs (name: string): string {
       const source = fs.readFileSync(path.join(CARDS, name + '.ts'), 'utf8')
       const code = esbuild.transformSync(source, { loader: 'ts', format: 'esm', target: 'es2020', charset: 'utf8' }).code
       const inlined = tu.inlineExportDeclarations(code.replace(/\r\n/g, '\n').replace(/\s+$/, '') + '\n', '[cards 门禁]')
@@ -778,7 +778,7 @@ async function main () {
   // ---- 7.1 反方向：组件读的字段名必须都在两份契约里声明过 ----
   {
     /** 从两份 .d.ts 里把每个 interface 的字段名收成一个集合。 */
-    function contractFields () {
+    function contractFields (): Record<string, string[]> {
       const fields = new Set()
       const byInterface = {}
       for (const file of CONTRACTS) {

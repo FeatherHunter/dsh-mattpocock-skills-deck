@@ -1,5 +1,5 @@
-// tests/verify-997-vc-sight.js — 「滑到那句提示就接着显示」的门禁（#997 落地）
-// 用法：在插件根目录执行 node tests/verify-997-vc-sight.js，可独立运行。
+// tests/verify-997-vc-sight.ts — 「滑到那句提示就接着显示」的门禁（#997 落地）
+// 用法：在插件根目录执行 node --import ./scripts/ts-hook.mjs tests/verify-997-vc-sight.ts，可独立运行。（2026-10-17 从 .js 转成 TypeScript：只改名与加类型标注，判据一条没动）
 //
 // 守三件事：
 //   1) 纯判定 vcMoreStepOf：什么时候接着显示（draw）、什么时候等上一批落地（wait）、什么时候停（stop，
@@ -19,20 +19,20 @@ const { compileFn } = require('./lib/eval-probe.js')
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
 let total = 0
-const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
-const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
+const check = (ok: unknown, msg: string): void => { total += 1; console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
+const read = (rel: string): string => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 // 取源走共用入口（#1207 立的 tests/lib/source-text.ts）：locale-panel 已从 .js 转成 .ts，
 // 按旧路径直接读会读到构建产物（字符串改双引号），下面 wordingProblems 只认单引号会误报。
 // FLOW 仍是 .js 也走同一条（入口对没转的文件原样返回），省得下次转它时再改一次。
 const { sourceText } = require('./lib/source-text.ts')
-const strip = (t) => t.replace(/^(\s*)export\s+/gm, '$1')
+const strip = (t: string): string => t.replace(/^(\s*)export\s+/gm, '$1')
 
 const LEAF = 'src/client/views/versionControl/vcInView.js'
 const FLOW = 'src/client/kernel/locale-flow.js'
 const PANEL = 'src/client/kernel/locale-panel.js'
 
 // ---------- 闭包：块模型（常量来源）+ 新叶子，照 scripts/build.mjs 的拼法 ----------
-function modOf(patch) {
+function modOf(patch: ((s: string) => string) | null) {
   let src = [read('src/client/views/versionControl/vcBlocks.js'), read(LEAF)].map(strip).join('\n')
   if (patch) src = patch(src)
   const body = src + '\nreturn { VC_FILE_ROWS_FIRST, VC_FILE_ROWS_BATCH, vcMoreStepOf, vcMoreStateOf, vcMoreShownOf }\n'
@@ -52,7 +52,7 @@ const RULE = [
   [null, 'stop', '拿不到状态 → 停（宁可不动，也不反复试）'],
   [undefined, 'stop', '状态是 undefined → 停'],
 ]
-function ruleProblems(mod) {
+function ruleProblems(mod: any): string[] {
   const bad = []
   RULE.forEach((row) => {
     const got = mod.vcMoreStepOf(row[0])
@@ -62,7 +62,7 @@ function ruleProblems(mod) {
 }
 
 // ---------- 2) 从块清单里取「还有没有」 ----------
-function stateProblems(mod) {
+function stateProblems(mod: any): string[] {
   const bad = []
   const groupsOf = (a) => ([
     { kind: 'changes', groups: [{ key: 'staged', moreCount: a[0] }, { key: 'conflict', moreCount: a[1] }, { key: 'unstaged', moreCount: a[2] }] },
@@ -91,7 +91,7 @@ function stateProblems(mod) {
 }
 
 // ---------- 3) 再画一批 ----------
-function shownProblems(mod) {
+function shownProblems(mod: any): string[] {
   const bad = []
   const calls = []
   const setUi = (updater) => { calls.push(updater) }
@@ -111,7 +111,7 @@ function shownProblems(mod) {
 }
 
 // ---------- 4) 词条（这句话说行为、不说点击） ----------
-function wordingProblems(flow, panel) {
+function wordingProblems(flow: string, panel: string): string[] {
   const bad = []
   const valuesOf = (src, key) => {
     const re = new RegExp("'" + key.replace(/\./g, '\\.') + "': '([^']*)'", 'g')

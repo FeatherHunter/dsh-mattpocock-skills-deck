@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-17T04:34:20.985Z",
+  "generatedAt": "2026-10-17T05:28:34.964Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 297,
   "gateCount": 297,
@@ -3718,8 +3718,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 20 条"
     },
     {
-      "step": "node tests/verify-997-vc-sight.js",
-      "file": "tests/verify-997-vc-sight.js",
+      "step": "node tests/verify-997-vc-sight.ts",
+      "file": "tests/verify-997-vc-sight.ts",
       "guards": [
         "src/client/kernel/locale-flow.js",
         "src/client/kernel/locale-panel.js",
@@ -3904,8 +3904,8 @@
       "reason": "它读的是构建产物（package/ 下的打包结果）。产物由整份源码打出来，脚本里看不出产物跟哪个源码文件对应，所以算不出它守着哪条源码路径；挑选门禁时按「只要动到源码就先跑它」保守处理"
     },
     {
-      "step": "node tests/verify-cap-fold-browser.js",
-      "file": "tests/verify-cap-fold-browser.js",
+      "step": "node tests/verify-cap-fold-browser.ts",
+      "file": "tests/verify-cap-fold-browser.ts",
       "guards": [
         "package/lib/client.js",
         "tests/lib/browser-pool.ts"
@@ -4002,8 +4002,8 @@
       "reason": "读到的路径都落在 package、tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
-      "step": "node tests/verify-cards-dir.js",
-      "file": "tests/verify-cards-dir.js",
+      "step": "node tests/verify-cards-dir.ts",
+      "file": "tests/verify-cards-dir.ts",
       "guards": [
         "src/client/views/cards"
       ],
@@ -6955,7 +6955,7 @@
       "node tests/verify-958-label-name-visible.js",
       "node tests/verify-bug-entry.js",
       "node tests/verify-bundled-discovery.js",
-      "node tests/verify-cap-fold-browser.js",
+      "node tests/verify-cap-fold-browser.ts",
       "node tests/verify-cap-fold.ts",
       "node tests/verify-capsule-layout.ts",
       "node tests/verify-capsule-narrow.ts",
@@ -7182,7 +7182,7 @@
       "node tests/verify-891-setup-refresh.ts",
       "node tests/verify-907-chain-titles.ts",
       "node tests/verify-997-vc-sight-browser.js",
-      "node tests/verify-997-vc-sight.js",
+      "node tests/verify-997-vc-sight.ts",
       "node tests/verify-cap-fold.ts",
       "node tests/verify-ctx.ts",
       "node tests/verify-delta-wiring.js",
@@ -7283,7 +7283,7 @@
       "node tests/verify-update-panel.js"
     ],
     "src/client/views/cards": [
-      "node tests/verify-cards-dir.js"
+      "node tests/verify-cards-dir.ts"
     ],
     "src/client/views/diagnosticLog": [
       "node tests/verify-leaves.ts",
@@ -7331,7 +7331,7 @@
       "node tests/verify-842-version-control-write-view.ts",
       "node tests/verify-881-commit-open.ts",
       "node tests/verify-997-vc-sight-browser.js",
-      "node tests/verify-997-vc-sight.js"
+      "node tests/verify-997-vc-sight.ts"
     ],
     "src/deck": [
       "node tests/verify-build-artifacts.js",
@@ -8060,8 +8060,8 @@
       "node tests/verify-971-markdown-parent.ts",
       "node tests/verify-992-readonly-labels.js",
       "node tests/verify-997-vc-sight-browser.js",
-      "node tests/verify-997-vc-sight.js",
-      "node tests/verify-cap-fold-browser.js",
+      "node tests/verify-997-vc-sight.ts",
+      "node tests/verify-cap-fold-browser.ts",
       "node tests/verify-cap-fold.ts",
       "node tests/verify-capsule-layout.ts",
       "node tests/verify-capsule-narrow.ts",

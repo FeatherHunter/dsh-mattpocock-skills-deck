@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * verify-cap-fold-browser.js — 状态栏胶囊「随宽度一格一格变短」的真浏览器门禁（#725 真机回归，2026-09-24）
+ * verify-cap-fold-browser.ts — 状态栏胶囊「随宽度一格一格变短」的真浏览器门禁（#725 真机回归，2026-09-24）
  *
  * 为什么另开一份、而不是并进 tests/verify-cap-fold.js：那一份量的是「档与档之间每步只让掉一个单位」
  *   这条**相对**规矩，跑在一个裸 <div> 宿主里 —— 里面没有宿主的卡宽/侧距那套变量，胶囊能拿到多少
@@ -24,17 +24,17 @@
  *      一段都不收 —— 这是「有位置就显示，宽度不够时它第一个让位」里「有位置就显示」那一半的地面。
  *
  * 依赖：playwright（含 chromium）与 esbuild，都在本仓 devDependencies。全程本机，不碰真仓库、不用登录令牌。
- * 运行：node tests/verify-cap-fold-browser.js（先 node scripts/build.mjs 生成产物）
+ * 运行：node --import ./scripts/ts-hook.mjs tests/verify-cap-fold-browser.ts（先 node scripts/build.mjs 生成产物；2026-10-17 从 .js 转成 TypeScript，只改名与加类型标注，判据一条没动）
  */
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { createServer } from 'node:http'
 
 let passed = 0, failed = 0
-function ok(msg) { passed++; console.log('  PASS ' + msg) }
-function bad(msg) { failed++; console.log('  FAIL ' + msg) }
-function check(cond, msg) { if (cond) ok(msg); else bad(msg) }
-const read = (rel) => readFileSync(resolve(rel), 'utf8')
+function ok(msg: string): void { passed++; console.log('  PASS ' + msg) }
+function bad(msg: string): void { failed++; console.log('  FAIL ' + msg) }
+function check(cond: unknown, msg: string): void { if (cond) ok(msg); else bad(msg) }
+const read = (rel: string): string => readFileSync(resolve(rel), 'utf8')
 
 // 真机那套读数：可接/BUG/诊断 各 0（没有工单），环境 10/10（链上十步全 done），时间用快照生成时刻。
 const CWD = 'D:\\ilife\\packages\\skill-calorie'
