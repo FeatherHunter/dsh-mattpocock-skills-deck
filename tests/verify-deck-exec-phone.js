@@ -134,9 +134,8 @@ async function main() {
 
   // ── 9. 行执行接代执行（有路走路，没路仍诚实；会话只认上下文）──
   const rowSvc3 = { registered: [], register: function (t) { this.registered.push(t); return function () {} } }
-  const rowCtx3 = { tools: rowSvc3 }
+  // 2026-10-17 清死代码：原来这里还造过 rowCtx3，但一次都没 apply 进注册，断言一条没少。
   row.apply({ tools: rowSvc3, get: function () { return undefined } })
-  void rowCtx3
   const ctxTool = rowSvc3.registered.filter((t) => t.name === 'deck_context')[0]
   check(!!ctxTool && typeof ctxTool.execute === 'function', '行交出的工具有可调的执行入口（代执行形状）')
   // 直连调用面通：回宿主的真结果，不回占位。

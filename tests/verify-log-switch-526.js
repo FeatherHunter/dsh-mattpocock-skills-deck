@@ -8,6 +8,7 @@
 const fs = require('fs')
 const path = require('path')
 const { compileFn } = require('./lib/eval-probe.js')
+const centralTime = require('../src/shared/time-config/values.js')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
@@ -16,6 +17,9 @@ const check = (ok, msg) => { total += 1; console.log((ok ? '  PASS ' : '  FAIL '
 
 console.log('开关写失败分类行门禁（#526：三类失败各留一条可区分的告警行）')
 
+// log.js 顶上的时间常量是拼包时由 client.js 提供的外部绑定；单独加载叶子文件时先补同名 globalThis 绑定。
+globalThis.LOG_FLUSH_MS = centralTime.LOG_FLUSH_MS
+globalThis.LOG_WATCHDOG_MS = centralTime.LOG_WATCHDOG_MS
 const LOG_SRC = path.join(ROOT, 'src', 'client', 'kernel', 'log.js')
 const src = fs.readFileSync(LOG_SRC, 'utf8')
 
@@ -34,7 +38,10 @@ function makeTimer() {
 }
 function loadLog(options) {
   const opts = options || {}
-  const body = src.split('\n').map((l) => l.replace(/^(\s*)export\s+/, '$1')).join('\n')
+  const body = src.split('\n')
+    .filter((l) => !/^\s*import\s.*time-config\/values\.js/.test(l))
+    .map((l) => l.replace(/^(\s*)export\s+/, '$1'))
+    .join('\n')
   // 本文件选 compileFn：原来就是把这四个环境名当参数、把剥掉行首 export 的 log.js 当函数体造一个函数，
   //   被造的代码只看这四个参数（依赖全部显式注入），与共用入口语义一一对应。
   const factory = compileFn(

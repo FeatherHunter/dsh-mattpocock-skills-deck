@@ -99,7 +99,7 @@ async function main() {
 
   // ---- 电话名字面（设计 2.5 冻结，一字不差）----
   const phones = ['wf.logBatch', 'wf.logExport', 'wf.logClear', 'wf.logGetSwitch', 'wf.logSetSwitch']
-  const indexSrc = fs.readFileSync(path.join(ROOT, 'src', 'host', 'index.js'), 'utf8')
+  const indexSrc = fs.readFileSync(path.join(ROOT, 'src', 'host', 'index.ts'), 'utf8')
   for (const name of phones) {
     check(indexSrc.includes("harness.handle('" + name + "'"), '真源登记电话 ' + name)
   }
