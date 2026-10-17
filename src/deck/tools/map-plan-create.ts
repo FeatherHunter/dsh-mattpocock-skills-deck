@@ -199,7 +199,12 @@ export function createDeckMapPlanCreate(deps?: DeckMapPlanCreateDeps) {
     if (!title || !children.length) {
       return shell.unsupported('deck_map_plan_create', REFUSAL_REASONS.BAD_ARGS, '建整张地图至少要给 title 与一张子票（children 里每项要有 key 与 title）。', { cost: { estimated: est } })
     }
-    const planId = String(a.planId || anchorKeyFor({ tool: 'deck_map_plan_create', sessionId: s.sessionId, workspaceKey: s.workspaceKey, title: title, labels: children.map((c) => c.key), now: nowFn() }))
+    // #1245：自动计划标识必须稳定（不带时间窗），否则重试跨过 5 分钟窗口就会变成新计划、按新锚建重复票。
+    // 显式 planId 优先；没传时用内容哈希（会话或工作区加标题加子键），同一份输入永远得到同一个标识。
+    // 为什么传 now: 0：anchorKeyFor 的锚含窗口序号，传 0 即固定在 0 号窗口；前缀 auto- 与调用方手写的计划标识区分。
+    const autoPlanId = 'auto-' + anchorKeyFor({ tool: 'deck_map_plan_create', sessionId: s.sessionId, workspaceKey: s.workspaceKey, title: title, labels: children.map((c) => c.key), now: 0 })
+    const usingAutoPlanId = (a.planId === undefined || a.planId === null || String(a.planId).trim() === '')
+    const planId = String(usingAutoPlanId ? autoPlanId : String(a.planId))
     if (ACTIVE_PLANS.get(planId)) {
       return shell.unsupported('deck_map_plan_create', REFUSAL_REASONS.BACKEND_UNSUPPORTED, '同一个计划标识（' + planId.slice(0, 60) + '）正在另一次执行里跑（进行中），这次没动手：等它做完再来，或换一个 planId。', { cost: { estimated: est } })
     }
@@ -257,6 +262,7 @@ export function createDeckMapPlanCreate(deps?: DeckMapPlanCreateDeps) {
       const items = []
       const notes = []
       if (effortId) notes.push('这次带了 effortId（' + effortId.slice(0, 60) + '）：本地后端只在那一个目录里找，远端后端忽略它。')
+      if (usingAutoPlanId) notes.push('这次没传 planId，用了自动计划标识（' + planId.slice(0, 80) + '）：重试时必须显式传回这个 planId，否则会被当成新计划建重复票。')
       const storeDurable = store.durable !== false
       if (!storeDurable) notes.push('这次的中间态只记在本进程的内存里（没有注入落盘的存储器）：进程重启后重跑同一个 planId 会重新建票。')
       let stoppedEarly = false
@@ -312,6 +318,39 @@ export function createDeckMapPlanCreate(deps?: DeckMapPlanCreateDeps) {
       // 结果按分片顺序合回，中间态一次一存；剩余额度不够时主动停：剩下的记进 restKeys，下一次带同 planId 接着建。
       const pending = children.filter((ch) => !state.keys[String(ch.key)])
       const skippedKeys = children.filter((ch) => state.keys[String(ch.key)]).map((ch) => String(ch.key))
+      // #1245：孤儿修复——已建跳过的子票若父边缺失（首次建后挂边前被掐断），在此补挂，不再建新票。
+      // 为什么只修跳过的：待建的子票本次新建时自带 parentKey；跳过的已落盘但可能父票为空（快照按父票列时看不到它们）。
+      // 判据只认写后读回的结构字段，读不回来就不修、不报错；剩余额度不够时也不修，等下一次带同 planId 再来。
+      if (skippedKeys.length && state.mapKey && !sc.outOfBudget()) {
+        const repairs = await Promise.all(skippedKeys.map(async (planKey) => {
+          const ticketKey = String(state.keys[String(planKey)] || '')
+          if (!ticketKey || sc.outOfBudget()) return null
+          let got = null
+          try { got = await t.get(repo, ticketKey, {}, opCtx) } catch (eGet) { got = null }
+          const lived = (got && (got as { ok?: unknown }).ok === true) ? ((got as { data?: unknown }).data as Record<string, unknown> | null) : null
+          const liveParent = lived ? String((lived as Record<string, unknown>).parentKey ?? '') : ''
+          if (!lived || liveParent === String(state.mapKey)) return null
+          try {
+            const r = await applyParentEdge(t, repo, opCtx, ticketKey, state.mapKey)
+            return { planKey: planKey, ticketKey: ticketKey, item: (r as { item?: unknown }).item, applied: !!(r as { applied?: unknown }).applied }
+          } catch (eRep) { return null }
+        }))
+        let repaired = 0
+        for (const r of repairs) {
+          if (!r) continue
+          if (r.applied) {
+            repaired += 1
+            state.done.push('repaired-parent:' + String(r.planKey))
+            items.push(Object.assign({ role: 'edge', planKey: String(r.planKey) }, (r.item as Record<string, unknown> || {})))
+          } else if (r.item) {
+            items.push(Object.assign({ role: 'edge', planKey: String(r.planKey) }, (r.item as Record<string, unknown>)))
+          }
+        }
+        if (repaired) {
+          notes.push('续跑时补挂了 ' + repaired + ' 张孤儿票的父边（首次建后挂边前被掐断留下的）：' + skippedKeys.slice(0, 8).join('、') + '。')
+          await store.save(planId, state)
+        }
+      }
       const shard = pending.slice(0, est.perShard)
       let restKeys = pending.slice(est.perShard).map((ch) => String(ch.key))
       const made = await Promise.all(shard.map(async (ch) => {
