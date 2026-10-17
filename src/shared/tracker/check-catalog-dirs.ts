@@ -1,4 +1,4 @@
-// src/shared/tracker/check-catalog-dirs.js —— S3（#453）从 check-catalog.js 拆出之四个目录与范围判定、目录过滤、迁移映射，纯结构、行为零变化。
+// src/shared/tracker/check-catalog-dirs.ts —— S3（#453）从 check-catalog.js 拆出之四个目录与范围判定、目录过滤、迁移映射，纯结构、行为零变化。
 // 以后谁改它：改目录分类、后端目录、迁移映射的人。预估约210行，超 350 打回。
 // 接线：不引用类型、校验、求值与视图文件（墙要求）；检测原语与 chain-types.js 同源，改动时一起改；拼接标记不新设；调用方改路径（generic.js、detectChain.js）。
 
@@ -34,7 +34,7 @@ const PRIMITIVE_KIND = Object.freeze({
  */
 
 /**
- * 目录项形态（目录只描述，不执行；执行由 predicateRegistry + 后端 preflight 完成）。
+ * 目录项形态（目录只描述，不执行；执行由 predicateRegistry 与后端 preflight 完成）。
  * @typedef {Object} CatalogItem
  * @property {string} id チェック唯一 id（与 chain CheckItem.id 对齐）
  * @property {string} label 人读标签
@@ -44,8 +44,19 @@ const PRIMITIVE_KIND = Object.freeze({
  * @property {string} origin 盘点来源（文件:行号或 inventory 类别）
  */
 
+// 目录项的静态形态：与上面的 @typedef 同口径，类型注解用，运行时不存在。
+// 约定：目录项只描述不执行，执行永远由 predicateRegistry 与后端 preflight 完成；反例是在目录里直接写可执行谓词，会绕过谓词只读与超时的统一管控。
+type CatalogItem = {
+  id: string
+  label: string
+  scope: 'generic' | 'backend'
+  backends: string[]
+  check: import('./chain-types.js').Check
+  origin: string
+}
+
 /** 通用检查目录（与后端无关，所有后端都要问，恒适用，无 na）。 */
-export const GENERIC_CATALOG = Object.freeze([
+export const GENERIC_CATALOG: readonly CatalogItem[] = Object.freeze([
   {
     id: 'skill:wayfinder',
     label: '技能 wayfinder 已安装',
@@ -95,7 +106,7 @@ export const GENERIC_CATALOG = Object.freeze([
 /** GitHub 后端检查目录（仅 github 适用，物理隔离，其他后端该行不存在）。
  * #227 D7：仓库定位(c1 backend) / gh CLI(c4) / gh 登录(c5) / API 可达(c6) 4 项迁移，语义与 9 项一致；gh:labels 保留作仓库就绪链标签引导。
  */
-export const GITHUB_CATALOG = Object.freeze([
+export const GITHUB_CATALOG: readonly CatalogItem[] = Object.freeze([
   {
     // 2026-08-29 人话化（对抗式审查 S1）：标题 = 用户的任务语言（"已关联/已登录/可访问"），
     //   技术名（gh）只括注一次；原黑话（远端可解析 / origin / repoAccess）移入本注释存档。
@@ -141,7 +152,7 @@ export const GITHUB_CATALOG = Object.freeze([
 ])
 
 /** GitLab 后端检查目录（仅 gitlab 适用）。 */
-export const GITLAB_CATALOG = Object.freeze([
+export const GITLAB_CATALOG: readonly CatalogItem[] = Object.freeze([
   {
     id: 'glab:installed',
     label: 'GitLab CLI (glab) 已安装',
@@ -171,7 +182,7 @@ export const GITLAB_CATALOG = Object.freeze([
 /** Markdown 后端检查目录（仅 markdown 适用）。 */
 // 2026-08-29 修正（research 实锤）：md:scratchWritable 原用 FILE_EXISTS 只判「存在」、从不测「可写」,
 //   标签与检测条件不符；改为 DIR_WRITABLE（写探测原语，谓词只读纪律的唯一例外——验证性写、写完清理）。
-export const MARKDOWN_CATALOG = Object.freeze([
+export const MARKDOWN_CATALOG: readonly CatalogItem[] = Object.freeze([
   {
     id: 'md:scratchWritable',
     label: '本地数据目录可读写',
@@ -200,10 +211,13 @@ export const ALL_CATALOGS = Object.freeze({
 
 /**
  * 判定某检查项是否通用（形式化判据）。
+ *
+ * 约定：只认本文件四个目录里的 id，目录里没有的一律返回 null 而不是猜一个归属；反例是把未知 id 默认当通用，拼错 id 的检查会在所有后端下静默通过。
+ *
  * @param {string} checkId
  * @returns {'generic'|'backend'|null}
  */
-export function scopeOf(checkId) {
+export function scopeOf(checkId: string): 'generic' | 'backend' | null {
   if (GENERIC_CATALOG.some(c => c.id === checkId)) return 'generic'
   if (GITHUB_CATALOG.some(c => c.id === checkId) || GITLAB_CATALOG.some(c => c.id === checkId) || MARKDOWN_CATALOG.some(c => c.id === checkId)) return 'backend'
   return null
@@ -211,10 +225,13 @@ export function scopeOf(checkId) {
 
 /**
  * 按 backendId 过滤出适用目录（通用 + 该后端），2026-08-27 起无 na，行不存在而非标 na。
+ *
+ * 约定：未知后端只给通用目录，不抛错也不补后端目录；反例是抛错，后端尚未选定时调用方会直接中断整条链。
+ *
  * @param {'github'|'markdown'|'gitlab'|null} backendId
  * @returns {CatalogItem[]}
  */
-export function catalogFor(backendId) {
+export function catalogFor(backendId: 'github' | 'markdown' | 'gitlab' | null | undefined): CatalogItem[] {
   const base = [...GENERIC_CATALOG]
   if (backendId === 'github') base.push(...GITHUB_CATALOG)
   else if (backendId === 'gitlab') base.push(...GITLAB_CATALOG)
