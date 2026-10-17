@@ -1,5 +1,5 @@
 /**
- * tracker/shape.js — 契约层「完整数据形状」类型定义（host + client 共用，纯类型，无 IO）。
+ * tracker/shape.ts — 契约层「完整数据形状」类型定义（host + client 共用，纯类型，无 IO）。
  *
  * 这是 UI 与后端之间的共同语言。所有后端必须把来源数据**归一化**成本文件的形状：
  *  - **核心字段**（key/type/title/state/body/url/createdAt/updatedAt/closedAt/parentKey）**永远存在**，
@@ -21,16 +21,19 @@ import { STATE, ISSUE_TYPE } from '../../tracker/contract/vocabulary.js'
  * 表达「无后端」只走 Selection.backendId: null（此时不产出 RepositoryRef）。
  * @typedef {string} BackendId
  */
+export type BackendId = string
 
 /**
  * 归一化后的票状态（只两态）。
  * @typedef {'open'|'closed'} State
  */
+export type State = 'open' | 'closed'
 
 /**
  * 票的类型（wayfinder 语义）。
  * @typedef {'issue'|'map'} IssueType
  */
+export type IssueType = 'issue' | 'map'
 
 /**
  * 关闭原因（开放 string；插件自己认得并收进 constants.js 的 CLOSED_REASON 表里的保留值只有
@@ -38,16 +41,19 @@ import { STATE, ISSUE_TYPE } from '../../tracker/contract/vocabulary.js'
  * 只在 state=closed 有意义；open 依后端支持情况给 ''(EMPTY) 或省略(MISSING)。
  * @typedef {string} ClosedReason
  */
+export type ClosedReason = string
 
 /**
  * 参与人种类（开放 string；保留值 user / bot / organization）。
  * @typedef {string} ActorKind
  */
+export type ActorKind = string
 
 /**
  * 自定义字段类型（开放 string；保留值 text / number / date / single / multi）。
  * @typedef {string} FieldType
  */
+export type FieldType = string
 
 /**
  * 参与人。
@@ -57,6 +63,12 @@ import { STATE, ISSUE_TYPE } from '../../tracker/contract/vocabulary.js'
  * @property {string} [name] 显示名
  * @property {string} [avatarUrl]
  */
+export type Actor = {
+  login: string
+  kind?: ActorKind
+  name?: string
+  avatarUrl?: string
+}
 
 /**
  * 标签。
@@ -65,6 +77,11 @@ import { STATE, ISSUE_TYPE } from '../../tracker/contract/vocabulary.js'
  * @property {string} color 后端无则 ''
  * @property {string} [description]
  */
+export type Label = {
+  name: string
+  color: string
+  description?: string
+}
 
 /**
  * 评论。
@@ -77,6 +94,15 @@ import { STATE, ISSUE_TYPE } from '../../tracker/contract/vocabulary.js'
  * @property {string} updatedAt
  * @property {string|null} [editedAt] 编辑追踪
  */
+export type Comment = {
+  id?: string
+  author: Actor
+  authorAssociation: string
+  body: string
+  createdAt: string
+  updatedAt: string
+  editedAt?: string | null
+}
 
 /**
  * 里程碑。
@@ -86,6 +112,12 @@ import { STATE, ISSUE_TYPE } from '../../tracker/contract/vocabulary.js'
  * @property {'open'|'closed'} [state]
  * @property {string|null} [dueOn]
  */
+export type Milestone = {
+  name: string
+  description?: string
+  state?: 'open' | 'closed'
+  dueOn?: string | null
+}
 
 /**
  * 结构化、类型化属性（**说明性元数据，绝不驱动 deck 逻辑**）。
@@ -95,6 +127,12 @@ import { STATE, ISSUE_TYPE } from '../../tracker/contract/vocabulary.js'
  * @property {FieldType} type
  * @property {string[]} [options] single/multi 的候选
  */
+export type CustomField = {
+  name: string
+  value: string | number | boolean | null
+  type: FieldType
+  options?: string[]
+}
 
 /**
  * 拉取请求评审细分里的一条评审记录（只读快照，由拉取请求能力后端填充；契约层只定形状）。
@@ -103,6 +141,11 @@ import { STATE, ISSUE_TYPE } from '../../tracker/contract/vocabulary.js'
  * @property {Actor} [reviewer] 给出这条评审的人，没有就不写这个字段
  * @property {string} [submittedAt] 给出评审的时间，没有就不写这个字段
  */
+export type Review = {
+  state: string
+  reviewer?: Actor
+  submittedAt?: string
+}
 
 /**
  * 票/图的轻量引用（不递归展开，用于 blockedBy / blocking / tickets）。
@@ -113,6 +156,12 @@ import { STATE, ISSUE_TYPE } from '../../tracker/contract/vocabulary.js'
  * @property {State} state 归一化两态（open/closed）
  * @property {IssueType} [type] 边上带 type（指向 map 还是票）
  */
+export type IssueRef = {
+  key: string
+  title: string
+  state: State
+  type?: IssueType
+}
 
 /**
  * 票 / 图统一实体（完整形状）。
@@ -158,6 +207,33 @@ import { STATE, ISSUE_TYPE } from '../../tracker/contract/vocabulary.js'
  * @property {string|null} [mergedAt] 合并时间，还没合并就是 null；无拉取请求能力的后端省略这个字段
  * @property {Review[]} [reviews] 评审细分，没有评审就给空数组；无拉取请求能力的后端省略这个字段
  */
+export type Issue = {
+  key: string
+  effortId: string
+  // 类型取自上面第 16 行值导入的 ISSUE_TYPE（与运行时同一份），不另写 import() 类型查询：
+  // 跨文件类型查询在 allowJs 下解到 .ts 真源还是 .js 产物取决于调用方配置，同一行换个配置就变脸；
+  // 值导入的 typeof 永远跟着运行时走，两边不可能分叉。
+  type: (typeof ISSUE_TYPE)[keyof typeof ISSUE_TYPE]
+  title: string
+  state: State
+  body: string
+  url: string
+  createdAt: string
+  updatedAt: string
+  closedAt: string | null
+  parentKey: string | null
+  author?: Actor
+  assignees?: Actor[]
+  labels?: Label[]
+  milestone?: Milestone
+  customFields?: CustomField[]
+  reason?: ClosedReason
+  blockedBy?: IssueRef[]
+  comments?: Comment[]
+  isPullRequest?: boolean
+  mergedAt?: string | null
+  reviews?: Review[]
+}
 
 /**
  * 后端面对的工作区仓库。
@@ -172,6 +248,13 @@ import { STATE, ISSUE_TYPE } from '../../tracker/contract/vocabulary.js'
  *    单 effort 后端忽略本字段。放在 RepositoryRef 而不是每个 op 的参数里，是因为 op 签名已经定版、
  *    给 comment/reopen/update 加形参会把 ctx 挤位、破坏既有后端实现。
  */
+export type RepositoryRef = {
+  backend: BackendId
+  refId: string
+  name: string
+  url: string
+  effortId?: string
+}
 
 /**
  * 地图的 KPI 统计（**deck 派生视图，不属于后端形状**）。
@@ -185,12 +268,24 @@ import { STATE, ISSUE_TYPE } from '../../tracker/contract/vocabulary.js'
  * @property {number} blocked open 且 blockedBy 非空（未满足依赖）
  * @property {number} indeterminate assignees=MISSING（未知认领态；不计 0、不误计 frontier）
  */
+export type MapStats = {
+  total: number
+  open: number
+  closed: number
+  frontier: number
+  claimed: number
+  blocked: number
+  indeterminate: number
+}
 
 /**
  * 地图（type='map' 的 Issue 追加字段；向下，物化子票）。
  * @typedef {Object} MapNode
  * @property {Issue[]} tickets 子票（一层）；永远存在、缺省 `[]`(EMPTY)——「能否展开」用能力位表达，不作 MISSING
  */
+export type MapNode = {
+  tickets: Issue[]
+}
 
 /**
  * deck 投影（每票基数；display 直接用 key（`#${key}`），无 displayNumber / 无 number）。
@@ -209,6 +304,22 @@ import { STATE, ISSUE_TYPE } from '../../tracker/contract/vocabulary.js'
  * @property {Record<string, number>} stats.levelOf 每 key 的 level
  * @property {Record<string, string[]>} [blockedByKeys] 把 IssueRef[] 投影成 key 数组（UI 用）
  */
+export type DeckProjection = {
+  progressOf: Record<string, number | null>
+  labels: Array<{ name: string; color: string }>
+  stats: {
+    total: number
+    open: number
+    closed: number
+    frontier: number
+    claimed: number
+    blocked: number
+    indeterminate: number
+    levels: Array<{ total: number; open: number; closed: number }>
+    levelOf: Record<string, number>
+  }
+  blockedByKeys?: Record<string, string[]>
+}
 
 /**
  * 后端中性快照（宿主编排；deck 为 host 计算的投影，UI 无脑用，绝不分支）。
@@ -218,6 +329,12 @@ import { STATE, ISSUE_TYPE } from '../../tracker/contract/vocabulary.js'
  * @property {Issue[]} issues 孤儿票（parentKey 指向已删/不存在 map）
  * @property {DeckProjection} deck host 计算的 deck 投影
  */
+export type Snapshot = {
+  repository: RepositoryRef
+  maps: MapNode[]
+  issues: Issue[]
+  deck: DeckProjection
+}
 
 /** 契约形状版本（只给日志和审计看，不触发数据迁移；2 表示加上了拉取请求三个可选扩展字段；
  *  3 表示加上了 effort 维度：Issue.effortId 核心字段 + RepositoryRef.effortId 可选寻址范围，身份 = (ref, effortId, key)）。 */
