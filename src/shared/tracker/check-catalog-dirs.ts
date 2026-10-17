@@ -1,8 +1,14 @@
 // src/shared/tracker/check-catalog-dirs.ts —— S3（#453）从 check-catalog.js 拆出之四个目录与范围判定、目录过滤、迁移映射，纯结构、行为零变化。
 // 以后谁改它：改目录分类、后端目录、迁移映射的人。预估约210行，超 350 打回。
-// 接线：不引用类型、校验、求值与视图文件（墙要求）；检测原语与 chain-types.js 同源，改动时一起改；拼接标记不新设；调用方改路径（generic.js、detectChain.js）。
+// 接线：不引用类型、校验、求值与视图文件（墙要求）；检测原语与 chain-types.ts 同源，改动时一起改；拼接标记不新设；调用方改路径（generic.js、detectChain.js）。
 
-// 与 chain-types.js 同源（墙要求不互相引用；改动时两处同改）。
+// 与 chain-types.ts 同源（墙要求不互相引用，类型也不引；改动时两处同改）：
+// 谓词描述的静态形态，与 chain-types.Check 逐字对齐（kind 三种 + 开放字段）。
+// 约定：目录项只描述谓词形状，执行永远由 predicateRegistry 与后端 preflight 完成。
+type CatalogCheck = {
+  kind?: 'primitive' | 'backend' | 'preflight'
+  [key: string]: unknown
+}
 /** 检测原语枚举（通用目录可用；后端目录可用 backend/preflight 种类）。 */
 const PRIMITIVE_KIND = Object.freeze({
   COMMAND_EXISTS: 'commandExists', // 例：{command:'gh'} / {command:'glab'}
@@ -40,7 +46,7 @@ const PRIMITIVE_KIND = Object.freeze({
  * @property {string} label 人读标签
  * @property {'generic'|'backend'} scope 通用或后端
  * @property {string[]} backends 适用后端（generic 为 ['github','markdown','gitlab']，backend 为子集）
- * @property {import('./chain-types.js').Check} check 谓词描述（primitive/backend/preflight）
+ * @property {CatalogCheck} check 谓词描述（primitive/backend/preflight）
  * @property {string} origin 盘点来源（文件:行号或 inventory 类别）
  */
 
@@ -51,7 +57,7 @@ type CatalogItem = {
   label: string
   scope: 'generic' | 'backend'
   backends: string[]
-  check: import('./chain-types.js').Check
+  check: CatalogCheck
   origin: string
 }
 

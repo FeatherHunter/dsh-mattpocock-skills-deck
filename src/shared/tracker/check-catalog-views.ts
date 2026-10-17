@@ -1,8 +1,65 @@
 // src/shared/tracker/check-catalog-views.ts —— S3（#453）从 check-catalog.js 拆出之链视图与目录转检查项、形状校验，纯结构、行为零变化。
 // 以后谁改它：改链视图、展示文案、转换与形状校验的人。预估约150行，超 350 打回。
-// 接线：不引用类型、校验、求值与目录文件（墙要求）；动作类型、检测原语与 chain-types.js 同源，改动时一起改；拼接标记不新设。
+// 接线：不引用类型、校验、求值与目录文件（墙要求）；动作类型、检测原语与 chain-types.ts 同源，改动时一起改；拼接标记不新设。
 
-// 与 chain-types.js 同源（墙要求不互相引用；改动时两处同改）。
+// 与 chain-types.ts 同源（墙要求不互相引用，类型也不引；改动时两处同改）：
+// 链视图自带的检查项形态，字段与 chain-types.CheckItem 一家逐字对齐，目录转检查项只用这一套本地形态。
+// 约定：转换函数产出的一定是这个形态，调用方按结构接收，不按模块名认；chain-types 那边加了字段，这里同步跟上。
+/** 字段模式（与 chain-types.FieldSchema 同源）。 */
+type ViewFieldSchema = {
+  name: string
+  type?: 'text' | 'number' | 'date' | 'single' | 'multi' | 'directory' | 'file'
+  label?: string
+  labelKey?: string
+  required?: boolean
+  options?: string[]
+  placeholderKey?: string
+  placeholder?: string
+  defaultValue?: string
+  pattern?: string
+}
+/** 动作形态（与 chain-types.Action 同源；执行在 UI 层，这里只描述）。 */
+type ViewAction = {
+  type: string
+  prompt?: string
+  promptId?: string
+  args?: Record<string, string>
+  params?: unknown
+  url?: string
+  method?: string
+  endpoint?: string
+  schema?: ViewFieldSchema[]
+  fields?: ViewFieldSchema[]
+  submitAction?: ViewAction
+  submit?: { type?: string; endpoint?: string; method?: string }
+  steps?: Array<{ title?: string; schema: ViewFieldSchema[] }>
+  form?: { title?: string; desc?: string; fields?: ViewFieldSchema[]; submit?: { type?: string; endpoint?: string; method?: string } }
+  target?: 'chain' | 'snapshot'
+}
+/** 展示形态（与 chain-types.Show 同源；文案只描述状态，不承诺修复）。 */
+type ViewShow = {
+  i18nKey?: string
+  title?: string
+  desc?: string
+  level?: string
+  params?: Record<string, string>
+  fallback?: string
+  hint?: string
+}
+/** 谓词描述（与 chain-types.Check 同源；kind 三种 + 开放字段）。 */
+type ViewCheck = {
+  kind?: 'primitive' | 'backend' | 'preflight'
+  [key: string]: unknown
+}
+/** 检查项（与 chain-types.CheckItem 同源；目录转检查项的产出形态）。 */
+type ViewCheckItem = {
+  id?: string
+  check: string | ViewCheck
+  onPass: { show: ViewShow | null; actions: ViewAction[] }
+  onFail: { show: ViewShow | null; actions: ViewAction[] }
+  label?: string
+  group?: string
+}
 /** 动作类型枚举（v1 六种，契约层唯一真源；2026-08-28 新增 wizard 向导）。 */
 const ACTION_TYPE = Object.freeze({
   INJECT_PROMPT: 'inject-prompt', // 推进型：注入提示词，配合重求值推进（例：gh auth login 引导）
@@ -50,7 +107,7 @@ function showFor(id: string, passTitle: string, failTitle: string, failLevel: st
 // 通用检查项的链视图（契约层形态，含展示与动作；全部只读探测，无写操作）
 // 动作词汇表：inject-prompt（推进型，配合重求值）/ open-url（信息型）/ rpc / form / refresh（执行型）
 // 原则：动作不承诺修复，检查才判定状态；未知类型 = 诚实 unsupported。
-export const GENERIC_CHECK_ITEMS: readonly import('./chain-types.js').CheckItem[] = Object.freeze([
+export const GENERIC_CHECK_ITEMS: readonly ViewCheckItem[] = Object.freeze([
   {
     id: 'skill:wayfinder',
     check: { kind: 'primitive', primitive: PRIMITIVE_KIND.SKILL_PROBE, skill: 'wayfinder' },
@@ -119,7 +176,7 @@ export const GENERIC_GATE_CHAIN = Object.freeze([
   // find 可能找不到（类型是 CheckItem|undefined）：过滤必须写类型谓词，
   // 否则链里会混进 undefined，后面 .find(c => c.id) 在严格模式下直接红。
   // Boolean 直传不收窄数组元素类型，这里只能手写。
-].filter((c): c is import('./chain-types.js').CheckItem => c !== undefined))
+].filter((c): c is ViewCheckItem => c !== undefined))
 
 /** 环境链通用分区（c7-c9 等后端无关环境就绪度，全部只读探测）。 */
 export const GENERIC_ENV_CHAIN = Object.freeze(GENERIC_CHECK_ITEMS.filter(c => c.group === 'env'))
@@ -133,7 +190,7 @@ type CatalogItemInput = {
   id: string
   label: string
   scope: string
-  check: import('./chain-types.js').Check
+  check: ViewCheck
 }
 
 /**
@@ -141,10 +198,10 @@ type CatalogItemInput = {
  *
  * 约定：通用目录里能找到的直接复用原项，不重建，后端目录项才补默认展示；反例是给通用项也重建，通用项上写好的安装引导动作会被默认动作覆盖掉。
  *
- * @param {import('./chain-types.js').Check} catalogItem
- * @returns {import('./chain-types.js').CheckItem}
+ * @param {ViewCheck} catalogItem
+ * @returns {ViewCheckItem}
  */
-export function catalogItemToCheckItem(catalogItem: CatalogItemInput): import('./chain-types.js').CheckItem {
+export function catalogItemToCheckItem(catalogItem: CatalogItemInput): ViewCheckItem {
   if (!catalogItem || typeof catalogItem !== 'object') throw new Error('catalogItem must be object')
   const found = GENERIC_CHECK_ITEMS.find(c => c.id === catalogItem.id) || GENERIC_GATE_CHAIN.find(c => c.id === catalogItem.id)
   if (found) return found
@@ -165,10 +222,10 @@ export function catalogItemToCheckItem(catalogItem: CatalogItemInput): import('.
  *
  * 约定：只查字段在不在，不查技能名与文件路径是真是假，真假是谓词运行时的事；反例是在这里查 skill 是否存在，会把形状校验变成需要文件系统的重操作。
  *
- * @param {import('./chain-types.js').CheckItem} item
+ * @param {ViewCheckItem} item
  * @returns {string[]} errors 为空即形状合法
  */
-export function validateGenericShape(item: import('./chain-types.js').CheckItem | null | undefined): string[] {
+export function validateGenericShape(item: ViewCheckItem | null | undefined): string[] {
   if (!item || typeof item !== 'object') return ['item must be object']
   if (typeof item.id !== 'string' || !item.id) return ['id must be non-empty string']
   if (!item.check || typeof item.check !== 'object') return ['check must be object']
