@@ -17,6 +17,10 @@
  *   node tests/verify-release-contract.js
  *   node tests/verify-release-contract.js --version v1.7.9
  *   node tests/verify-release-contract.js --version 1.7.9  # 自动补 v
+ *
+ * 已知代价（2026-10-17 补记）：D 段要跑 npm pack --dry-run 数包内文件，冷灶上（package/lib
+ * 下的构建产物还没生成或已过期）会当场判红。那不是发布契约坏了，是构建没跑；先执行
+ * node scripts/build.mjs 再跑本门禁即可。A/B/C/E/F 五段与构建无关。
  */
 
 import { readFileSync, existsSync } from "node:fs";
