@@ -304,9 +304,14 @@ console.log('戊）真仓里的挂接与登记')
       return m ? m[0] : ''
     })
     .filter(Boolean)
+  // 2026-10-17 修：这条原来写死「六条」。冒烟链今天就是五条——第六扇 tests/smoke-host.test.js
+  //   与 tests/verify-596 是同一件事的复刻（同一批门禁、同一组锚点），已按对抗审查的结论删除，
+  //   package.json 的 scripts.smoke 也随之从六条变成五条。数字抽成带来历的常量：
+  //   以后加减冒烟条目时这里与 package.json 要一起改，只改一边会当场红——这正是这条断言的意义。
+  const EXPECTED_SMOKE_FILES = 5
   check(
-    smokeFiles.length === 6 && smokeSteps.every((s) => s.includes('--import')),
-    '冒烟清单住在 scripts.smoke 里，六条逐条挂装载钩子（今天 ' + smokeFiles.length + ' 条）',
+    smokeFiles.length === EXPECTED_SMOKE_FILES && smokeSteps.every((s) => s.includes('--import')),
+    '冒烟清单住在 scripts.smoke 里，' + EXPECTED_SMOKE_FILES + ' 条逐条挂装载钩子（今天 ' + smokeFiles.length + ' 条）',
   )
   const smokeOpened = smokeFiles.filter((f) => expectations.byFile.has(f))
   check(
