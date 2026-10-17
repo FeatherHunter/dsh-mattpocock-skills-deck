@@ -1,6 +1,31 @@
-// src/shared/tracker/chain-validate.js —— S1（#451）从 chain.js 拆出之三个校验函数，纯结构、行为零变化。
+// src/shared/tracker/chain-validate.ts —— S1（#451）从 chain.js 拆出之三个校验函数，纯结构、行为零变化。
 // 以后谁改它：改校验规则的人。预估约250行，超 350 打回。
 // 接线：不引用类型与求值文件（墙要求）；动作类型、检测原语、小助手与类型、求值文件同源，改动时一起改；错误分类后备值与常量文件同源。
+
+/**
+ * 校验入口的动态载荷：待校验的数据是各后端手写的声明，字段缺失正是要报的错，
+ * 所以入口只约束「是个对象」，缺什么由校验函数逐条报 string 错误，不靠类型前置拦截。
+ */
+type ValidateRecord = { [key: string]: any }
+
+/** 动作声明的已知字段：type 缺失或未知类型走 unsupported 透传，不判形状错。 */
+type ValidateAction = {
+  type?: unknown
+  [key: string]: any
+}
+
+/** 单个动作的校验结论：ok 与 unsupported 不会同时为真（未知类型直接透传，不再细分）。 */
+type ValidateResult = {
+  ok: boolean
+  error?: { kind: string; message: string }
+  unsupported?: boolean
+}
+
+/** deriveCheckId 能读的最小形状：与求值文件同源（墙要求不互相引用；改动时两处同改）。 */
+type ValidateCheckItemLike = {
+  id?: unknown
+  check?: string | { id?: string; kind?: string; primitive?: string; command?: string; path?: string; key?: string; skill?: string }
+}
 
 // 与 chain-types.js 同源（墙要求不互相引用；改动时两处同改）。
 /** 动作类型枚举（v1 六种，契约层唯一真源；2026-08-28 新增 wizard 向导）。 */
@@ -15,7 +40,7 @@ const ACTION_TYPE = Object.freeze({
 
 /** 别名：动作词汇表枚举（兼容票面命名 ACTION_TYPES）。 */
 export const ACTION_TYPES = ACTION_TYPE
-export const KNOWN_ACTION_TYPES = Object.freeze(Object.values(ACTION_TYPE))
+export const KNOWN_ACTION_TYPES: readonly string[] = Object.freeze(Object.values(ACTION_TYPE))
 
 
 // 与 chain-types.js 同源（墙要求不互相引用；改动时两处同改）。
@@ -36,9 +61,9 @@ const ERROR_KIND = Object.freeze({ PARSE: 'parse', UNSUPPORTED: 'unsupported' })
 
 // ---------- 内部辅助 ----------
 
-function isPlainObject(v) { return v != null && typeof v === 'object' && !Array.isArray(v) }
+function isPlainObject(v: unknown): v is Record<string, unknown> { return v != null && typeof v === 'object' && !Array.isArray(v) }
 
-function deriveCheckId(item) {
+function deriveCheckId(item: ValidateCheckItemLike | null | undefined): string {
   if (!item) throw new Error('CheckItem 必须为对象')
   if (typeof item.id === 'string' && item.id.trim()) return item.id.trim()
   // 回退用 check 字符串（票面简化形态）
@@ -53,7 +78,7 @@ function deriveCheckId(item) {
   throw new Error('CheckItem 需 id 或 string check 标识（链内唯一键）')
 }
 
-function normalizeResult(v) {
+function normalizeResult(v: { status?: unknown; ok?: unknown } | string | boolean | null | undefined): string {
   if (v === true || v === 'pass' || v === 'done' || v === 'PASS') return 'pass'
   if (v === false || v === 'fail' || v === 'FAIL') return 'fail'
   if (v == null) return 'pending'
@@ -67,8 +92,9 @@ function normalizeResult(v) {
 
 // ---------- 校验（契约层防漂移） ----------
 
-const VALID_ACTION_TYPES = new Set(Object.values(ACTION_TYPE))
-const VALID_PRIMITIVES = new Set(Object.values(PRIMITIVE_KIND))
+// 与 chain-types.ts 的 VALID_ACTION_TYPES 同一口径（见那里的注释）：Set<string> 收容运行时字符串。
+const VALID_ACTION_TYPES = new Set<string>(Object.values(ACTION_TYPE))
+const VALID_PRIMITIVES = new Set<string>(Object.values(PRIMITIVE_KIND))
 
 /**
  * 校验单个动作形状（v1）。
@@ -76,7 +102,7 @@ const VALID_PRIMITIVES = new Set(Object.values(PRIMITIVE_KIND))
  * @param {Action} action
  * @returns {{ok: boolean, error?: {kind: string, message: string}, unsupported?: boolean}}
  */
-export function validateAction(action) {
+export function validateAction(action: ValidateAction | null | undefined): ValidateResult {
   if (!action || typeof action !== 'object') return { ok: false, error: { kind: ERROR_KIND.PARSE, message: 'action 必须为对象' } }
   const type = String(action.type || '').trim()
   if (!type) return { ok: false, error: { kind: ERROR_KIND.PARSE, message: 'action.type 必填' } }
@@ -162,8 +188,12 @@ export function validateAction(action) {
   }
 }
 
-export function validateCheckItem(item) {
-  const errors = []
+/**
+ * 逐项校验检查项并返回全部错误串（空数组表示通过）。
+ * 未知动作类型按 unsupported 放行、不记错：这里只拦形状问题，类型词汇表归 validateAction 管。
+ */
+export function validateCheckItem(item: ValidateRecord | null | undefined): string[] {
+  const errors: string[] = []
   if (!item || typeof item !== 'object') { errors.push('item must be object'); return errors }
   // id / check 二选一需有
   let idOk = false
@@ -225,8 +255,12 @@ export function validateCheckItem(item) {
   return errors
 }
 
-export function validateChain(chain) {
-  const errors = []
+/**
+ * 整链校验：逐项收错误并检查 id 唯一。
+ * derive 抛出的错不重复记：id 实在推不出来时 validateCheckItem 里已经报过一次，这里静默跳过。
+ */
+export function validateChain(chain: ValidateRecord[] | null | undefined): string[] {
+  const errors: string[] = []
   if (!Array.isArray(chain)) { errors.push('chain must be array'); return errors }
   const seen = new Set()
   for (let i=0;i<chain.length;i++) {
