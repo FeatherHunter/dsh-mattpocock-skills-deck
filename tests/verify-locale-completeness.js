@@ -6,7 +6,9 @@
  * B. 本票关键键存在（双语源与双产物四处核验）；
  * D. 双产物里关键键齐备；
  * E. 类型徽章能收到的每个类型值都有词条；
- * A2. 词条结构（值放错层也要报红）。
+ * A2. 词条结构（值放错层也要报红）；
+ * F. 技能描述文案评审（技能名单从 src/shared/matt-skills.js 真源取，黑名单与最短长度一起查；
+ *    2026-10-17 从 verify-skill-tooltip.js 第 7 段搬来 —— 那扇门禁其余判据有真会红的继任者）。
  *
  * 原来还有一段 C：遍历 src/client 下的手写源码，逐文件数「字符串级中文」条数并与基线清单比对。
  * 那盯的是源码文本的写法与条数（等价重构、搬文件、改引号、改注释都会变红），已按维护者要求整段删除。
@@ -135,6 +137,15 @@ const LOCALE_STRUCT_FILES = [
 ;(async function structuralCheck() {
   const { pathToFileURL } = require('url')
   const problems = []
+  // 片段真源里会引用中央时间参数（例如 locale-flow 的「宿主超过 N 秒没回应」直接算
+  // SETTINGS_DEBUG_PUSH_WAIT_MS / 1000，真源在 src/shared/time-config/values.js）。
+  // 单独 import 一个片段时这个裸标识符没人定义，会抛 ReferenceError，被误报成「载入失败」。
+  // 这里先把 values.js 导出的数值常量挂到 globalThis（ESM 里裸标识符会回落到全局），
+  // 数值仍从真源取，不手抄；只挂数字，避免把对象也塞进全局。
+  const timeValues = await import(pathToFileURL(path.join(root, sourcePath('src/shared/time-config/values.js'))).href)
+  for (const k of Object.keys(timeValues)) {
+    if (typeof timeValues[k] === 'number') globalThis[k] = timeValues[k]
+  }
   for (const rel of LOCALE_STRUCT_FILES) {
     let mod
     // 与上面 locSrc 同一条口径：先问 sourcePath 拿到这份词条真源今天住在哪，再 import 它。
@@ -156,6 +167,44 @@ const LOCALE_STRUCT_FILES = [
   }
   if (!problems.length) ok('A2. 词条结构：每个字典只有 zh/en 两个顶层键，且两边键集合相等')
   else for (const p of problems.slice(0, 6)) bad('A2. ' + p)
+
+  // ---------- F. 技能描述文案评审（2026-10-17 从 verify-skill-tooltip.js 第 7 段搬来）----------
+  // 为什么搬到这儿：原来那扇门禁 93 个判据点里 90 个是「某个字符串在产物文本里出现」，
+  // 两次把产品改坏（z-index 降档、悬停不再打开列表）它都照样打印通过；唯一没人接手的
+  // 就是这段文案评审。其余判据今天有真会红的继任者：verify-issue22-popovers.js（z-index
+  // 就近配对）、verify-hovertip.js（翻转阈值与 portal 契约）、verify-issue22-ui.js（真浏览器）。
+  // 技能名单从 src/shared/matt-skills.js 的真源读，不再硬编码 27 个名字：增减技能只改
+  // 真源一处，locale-skilldesc.js 的条数跟不上就会在这里报红。
+  const ZH_BAD = ['设计树', '深模块设计词汇', 'task 型 ticket', '本插件服务的对象', '领域术语与统一语言', '巨型项目决策地图', '对齐提问', '硬 bug 与性能回归诊断循环', '红-绿-重构', '讨论固化成规格', '写出优秀技能']
+  const EN_BAD = ['design tree', 'Deep module design vocabulary', 'task tickets', 'what this plugin serves', 'Domain terms & ubiquitous language', 'Decision maps for large projects', 'alignment questioning', 'Diagnosis loop for hard bugs & performance regressions', 'Red-green-refactor', 'Turn discussions into specs', 'Write great skills']
+  try {
+    const matt = await import(pathToFileURL(path.join(root, sourcePath('src/shared/matt-skills.js'))).href)
+    const sdMod = await import(pathToFileURL(path.join(root, sourcePath('src/client/kernel/locale-skilldesc.js'))).href)
+    const dict = sdMod.L_SKILLDESC || {}
+    const zhDict = dict.zh || {}
+    const enDict = dict.en || {}
+    const names = (matt.SKILLS || []).map(function (s) { return s.name }).sort()
+    const zhKeys = Object.keys(zhDict).map(function (k) { return k.replace(/^skilldesc\./, '') }).sort()
+    const enKeys = Object.keys(enDict).map(function (k) { return k.replace(/^skilldesc\./, '') }).sort()
+    const missing = names.filter(function (n) { return !zhDict['skilldesc.' + n] || !enDict['skilldesc.' + n] })
+    const extra = zhKeys.filter(function (k) { return names.indexOf(k) < 0 })
+    if (names.length && !missing.length) ok('F. 技能描述：真源里 ' + names.length + ' 个技能的中英词条齐全')
+    else bad('F. 技能描述缺词条：' + (missing.join('/') || '真源名单读不到'))
+    if (!extra.length) ok('F. 技能描述没有真源之外的孤儿键')
+    else bad('F. 技能描述多出真源之外的键：' + extra.join('/'))
+    if (zhKeys.join(',') === enKeys.join(',')) ok('F. 技能描述中英键集合相等')
+    else bad('F. 技能描述中英键集合不等')
+    const blackHits = []
+    ZH_BAD.forEach(function (w) { Object.keys(zhDict).forEach(function (k) { if (zhDict[k].indexOf(w) >= 0) blackHits.push('zh ' + k + ' 命中「' + w + '」') }) })
+    EN_BAD.forEach(function (w) { Object.keys(enDict).forEach(function (k) { if (enDict[k].indexOf(w) >= 0) blackHits.push('en ' + k + ' 命中「' + w + '」') }) })
+    if (!blackHits.length) ok('F. 技能描述没有自指 / jargon-only / 元评论黑名单词')
+    else bad('F. 技能描述命中黑名单：' + blackHits.slice(0, 5).join('；'))
+    const tooShort = names.filter(function (n) { const z = zhDict['skilldesc.' + n], e = enDict['skilldesc.' + n]; return (z && z.length < 8) || (e && e.length < 8) })
+    if (!tooShort.length) ok('F. 技能描述每条都在 8 个字符以上')
+    else bad('F. 技能描述过短：' + tooShort.join('/'))
+  } catch (e) {
+    bad('F. 技能描述评审载入失败：' + ((e && e.message) || e))
+  }
   console.log(failed ? '\n[locale-completeness] FAIL (' + passed + ' passed)' : '\n全部通过 · locale 完整性门禁生效 (' + passed + ')')
   process.exit(failed ? 1 : 0)
 })()

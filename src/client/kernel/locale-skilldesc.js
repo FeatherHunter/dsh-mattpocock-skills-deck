@@ -10,7 +10,8 @@
  *   技能描述这一组中英各 27 条、只讲「每个技能是干什么的」，整组搬过来，键名与文案一字未改。
  * 片段真源：locale-panel.js / locale-flow.js / locale-word.js / locale-labels.js / locale-pages.js /
  *   locale-vcwrite.js / 本文件，由 locale.js 的合并器一起并进 L。
- * 条数与技能注册表 src/shared/matt-skills.js 对齐（增减技能时两边同改，见 verify-skill-tooltip.js）。
+ * 条数与技能注册表 src/shared/matt-skills.js 对齐（增减技能时两边同改；2026-10-17 起由
+ * tests/verify-locale-completeness.js 的 F 段按真源名单核词条，那边不再手抄 27 个名字）。
  */
     export const L_SKILLDESC = {
       zh: {

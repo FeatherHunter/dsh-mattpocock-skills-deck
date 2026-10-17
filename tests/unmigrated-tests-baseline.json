@@ -109,7 +109,6 @@
     "tests/verify-setup-describe.js",
     "tests/verify-skill-detail-stack.js",
     "tests/verify-skill-probe-redcard-and-waiting.js",
-    "tests/verify-skill-tooltip.js",
     "tests/verify-statusbar-filter-reset.js",
     "tests/verify-subdir-first-frame.js",
     "tests/verify-t1-getrepokey.js",
