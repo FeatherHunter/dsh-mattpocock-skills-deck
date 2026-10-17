@@ -1,10 +1,10 @@
-// verify-update-panel.js — 更新入口委托门禁（落地票 #876 搭架、主题票 #877 切档案卷皮肤）
+// verify-update-panel.ts — 更新入口委托门禁（落地票 #876 搭架、主题票 #877 切档案卷皮肤）
 // 规则：
 //   1) 旧面板实现已删：入口挂载点与入口件绑定包都在，绑定包头上写明的更新包版本＝已安装版本（派生文件新鲜度）。
 //   2) 更新日志文件随包：包根 CHANGELOG.md 存在、包清单白名单含它，包清单依赖与根清单同范围。
 //   3) 电话行为（假环境 + 假网络）：查状态不联网、点了才联网、查新版与查状态共用同一个读取器、
 //      连不上与坏发行信息各报各的码。
-// 用法：node tests/verify-update-panel.js（在仓库根目录）
+// 用法：node --import ./scripts/ts-hook.mjs tests/verify-update-panel.ts（在仓库根目录；2026-10-17 从 .js 转成 TypeScript：只改名、用法行与几处类型标注，判据与断言一条没动。）
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
@@ -12,11 +12,11 @@ const { pathToFileURL } = require('url')
 
 const ROOT = path.resolve(__dirname, '..')
 let failed = false
-const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
-const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
-const exists = (rel) => fs.existsSync(path.join(ROOT, rel))
+const check = (ok: unknown, msg: string): void => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
+const read = (rel: string): string => fs.readFileSync(path.join(ROOT, rel), 'utf8')
+const exists = (rel: string): boolean => fs.existsSync(path.join(ROOT, rel))
 
-async function main() {
+async function main(): Promise<void> {
   console.log('更新入口委托门禁（#876 搭架 + #877 档案卷皮肤：宿主四电话 + 面板只挂入口件 + 更新日志随包）')
 
   // ---- 面板委托：自有实现已删，入口挂载点与绑定包都在 ----

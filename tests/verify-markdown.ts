@@ -1,5 +1,5 @@
-// verify-markdown.js — dsh-waystation v1.5 T17：markdown 白名单渲染契约校验
-// 用法: node tests/verify-markdown.js（在插件根目录）
+// verify-markdown.ts — dsh-waystation v1.5 T17：markdown 白名单渲染契约校验
+// 用法: node --import ./scripts/ts-hook.mjs tests/verify-markdown.ts（在插件根目录；2026-10-17 从 .js 转成 TypeScript：只改名与加类型标注，27 条断言一条没动，读 client.js 的相对路径与 eval-probe 的 .js 说明符都保持原样。）
 // 覆盖：行为级渲染（从两份产物里原文切出渲染器，用 stub h() 执行它，验证输出结构与防注入边界）。
 // 原来还有一批「源码里出现了哪些字」的存在性检查，已按维护者口径删掉。
 const fs = require('fs')
@@ -9,10 +9,10 @@ const cli = fs.readFileSync('client.js', 'utf8')
 const pcli = fs.readFileSync('package/lib/client.js', 'utf8')
 // cli / pcli 只用来给 extract() 供料：从两份产物里各切出渲染器那一段，下面按行为跑它。
 let failed = false
-const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
+const check = (ok: unknown, msg: string): void => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }
 
 // 提取整段渲染器（MD_LINK_RE 起 → mdToHtml 结束）
-const extract = function (src) {
+const extract = function (src: string): string {
   const i = src.indexOf('const MD_LINK_RE')
   if (i < 0) return ''
   const end = src.indexOf('// ============================================================', i + 10)
@@ -32,14 +32,14 @@ check(mdPkg.length > 0, 'package client 含渲染器')
 // 双源体量一致性已移除（T5 #98：一源两物，src 为真源；渲染器体量一致由 build 保证）
 
 // ── 行为级：用 stub h() 执行真实渲染器，断言输出结构 ──
-const stubH = (tag, props, children) => {
+const stubH = (tag: string, props: any, children: any): string => {
   const attr = props ? Object.keys(props).filter(k => !['key', 'style', 'className', 'title', 'onClick'].includes(k) && props[k] !== null && props[k] !== undefined && props[k] !== false && typeof props[k] !== 'function')
     .map(k => ' ' + k + '="' + String(props[k]).replace(/"/g, '&quot;') + '"').join('') : ''
   const ch = Array.isArray(children) ? children.map(c => c == null ? '' : c).join('') : (children == null ? '' : children)
   if (tag === 'input') return '<input' + attr + '>'
   return '<' + tag + attr + '>' + ch + '</' + tag + '>'
 }
-const run = (src, md) => {
+const run = (src: string, md: unknown) => {
   // Tip 是图片标题跟随式悬浮用的那个提示组件，在插件里由模块闭包提供。这里按源码截出来的渲染器
   //   没有闭包环境，得跟着 h 一起当参数喂进去；缺了它，一渲染带 title/alt 的图片就 ReferenceError，
   //   下面那几条图片断言全跑不到（2026-10-12 补的桩，只补环境，不改被测代码）。

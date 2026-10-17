@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-17T05:48:21.785Z",
+  "generatedAt": "2026-10-17T05:52:24.020Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 298,
   "gateCount": 298,
@@ -5308,8 +5308,8 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；静态 import 说明符 4 条"
     },
     {
-      "step": "node tests/verify-markdown.js",
-      "file": "tests/verify-markdown.js",
+      "step": "node tests/verify-markdown.ts",
+      "file": "tests/verify-markdown.ts",
       "guards": [
         "package/lib/client.js",
         "tests/lib/eval-probe.ts"
@@ -6591,8 +6591,8 @@
       "reason": "归属来自：源码里的路径字面量 1 条"
     },
     {
-      "step": "node tests/verify-update-panel.js",
-      "file": "tests/verify-update-panel.js",
+      "step": "node tests/verify-update-panel.ts",
+      "file": "tests/verify-update-panel.ts",
       "guards": [
         "package/CHANGELOG.md",
         "package/package.json",
@@ -6941,7 +6941,7 @@
       "node tests/verify-release-contract.js",
       "node tests/verify-tabsfold-leaf.js",
       "node tests/verify-update-migration.ts",
-      "node tests/verify-update-panel.js",
+      "node tests/verify-update-panel.ts",
       "node tests/verify-readme-sync.ts"
     ],
     "package/bundled-skills": [
@@ -7003,7 +7003,7 @@
       "node tests/verify-log-client.js",
       "node tests/verify-log-store.js",
       "node tests/verify-map-drill.js",
-      "node tests/verify-markdown.js",
+      "node tests/verify-markdown.ts",
       "node tests/verify-multilevel-cache.ts",
       "node tests/verify-newsession-blank-seed-315.js",
       "node tests/verify-newsession-preset-guard.js",
@@ -7094,7 +7094,7 @@
       "node tests/verify-generated-no-shadow.js",
       "node tests/verify-settings-debug.ts",
       "node tests/verify-update-migration.ts",
-      "node tests/verify-update-panel.js"
+      "node tests/verify-update-panel.ts"
     ],
     "scripts/lib": [
       "node tests/verify-1207-splice-ts.ts",
@@ -7308,7 +7308,7 @@
       "node tests/verify-reuse.js",
       "node tests/verify-settings-debug.ts",
       "node tests/verify-settings-view.js",
-      "node tests/verify-update-panel.js"
+      "node tests/verify-update-panel.ts"
     ],
     "src/client/views/cards": [
       "node tests/verify-cards-dir.ts"
@@ -7508,7 +7508,7 @@
       "node tests/verify-snapshot-cache-first.ts",
       "node tests/verify-ui-description-single-source.ts",
       "node tests/verify-update-migration.ts",
-      "node tests/verify-update-panel.js",
+      "node tests/verify-update-panel.ts",
       "node tests/verify-version-control-host.js",
       "node tests/verify-visible-truth.js"
     ],
@@ -8116,7 +8116,7 @@
       "node tests/verify-log-switch-526.js",
       "node tests/verify-log-switch-597.js",
       "node tests/verify-map-drill.js",
-      "node tests/verify-markdown.js",
+      "node tests/verify-markdown.ts",
       "node tests/verify-multi-effort-panel.js",
       "node tests/verify-naming-guardian.js",
       "node tests/verify-naming-title-fact.ts",
