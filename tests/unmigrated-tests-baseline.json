@@ -17,7 +17,6 @@
     "tests/verify-issue195.js",
     "tests/verify-issue22-ui.js",
     "tests/verify-labels-sync.js",
-    "tests/verify-no-mixed-session.js",
     "tests/verify-panel-workspace-isolation.js",
     "tests/verify-skill-detail-stack.js",
     "tests/verify-skill-probe-redcard-and-waiting.js",

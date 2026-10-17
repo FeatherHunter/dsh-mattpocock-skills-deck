@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * verify-no-mixed-session.js —— 会话越界门禁（#326，承接 #313 的 D4 项）
+ * verify-no-mixed-session.ts —— 会话越界门禁（#326，承接 #313 的 D4 项）
  *
  * 判断一次改动（base...head 之间提交过的文件清单）有没有跨房间：
  *   房间文件是指住在 src/tracker/rooms/<name>/** 里的文件（name 取 github / gitlab / markdown）；
@@ -8,7 +8,7 @@
  * 拿不到对比基准时（例如直接 push 到主分支）跳过本门禁，不让它失败。
  * 判定失败时打印命中的房间与各自文件清单，方便分票。
  *
- * 用法：node tests/verify-no-mixed-session.js
+ * 用法：node tests/verify-no-mixed-session.ts
  * CI 需要 checkout 带 fetch-depth: 0，才能读到 GITHUB_EVENT_PATH 里的 base sha。
  *
  * 2026-10-17 先修：这个文件里的中文原本整片是乱码（历史上某次以错误编码写入，原文已不可复原），
