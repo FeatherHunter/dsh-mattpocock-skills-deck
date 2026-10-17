@@ -1,9 +1,9 @@
-// verify-issue232-sync.js — #232 回归门禁：AI 改 Issue 后右侧面板未自动增量更新（五层重构回归）
+// verify-issue232-sync.ts — #232 回归门禁：AI 改 Issue 后右侧面板未自动增量更新（五层重构回归）
 // 两段式：
 //   A) 契约层纯函数单元（src/shared/tracker/sync.js 直接 import）
 //   C) 宿主分发端到端（stub gh 索引差值：建档不判脏 → gap 内静默 → 差值命中回执 dirtyCwds）
 //   #232 追加：视线门控（R1–R4）节拍单源断言 + 脏信号回执持久性端到端
-// 用法: node --import ./scripts/ts-hook.mjs tests/verify-issue232-sync.js（必须挂 ts-hook；C 段今天整段 SKIP ——
+// 用法: node --import ./scripts/ts-hook.mjs tests/verify-issue232-sync.ts（必须挂 ts-hook；C 段今天整段 SKIP ——
 //   wf.issuePathPoll 分发通道已随 #345 退役，不必再先跑 node scripts/build.mjs 生成 package/lib）
 
 const fs = require('fs')
@@ -85,7 +85,7 @@ async function main() {
 
   // verify 链纳入本门禁（构建接线，不是源码形状；#1125 起问规划函数，不再读 package.json 长串）
   const { isGatePlanned } = require('../scripts/lib/discover-gates.ts')
-  check(isGatePlanned(ROOT, 'tests/verify-issue232-sync.js'), 'verify 链已纳入本门禁（规划函数里有它）')
+  check(isGatePlanned(ROOT, 'tests/verify-issue232-sync.ts'), 'verify 链已纳入本门禁（规划函数里有它）')
 
   // ===================== C · 宿主分发端到端（需先构建）=====================
   // C 段的跳过闸：宿主里没有 issuePathPoll 分发通道时整段退役（#345 整块移除后即为此情形）。

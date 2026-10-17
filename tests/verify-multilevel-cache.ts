@@ -23,7 +23,7 @@ let passed = 0
 const ok = (msg: string): void => { passed++; console.log('  PASS', msg) }
 const bad = (msg: string): void => { failed = true; console.log('  FAIL', msg) }
 // 产物缺失时直接说人话：这两份产物在 .gitignore 里，新克隆的树没跑构建就没它们，
-// 抛裸 ENOENT 栈会让人以为是门禁坏了（邻居 verify-kernel.js 是老写法，这里按人话写法）。
+// 抛裸 ENOENT 栈会让人以为是门禁坏了（邻居 verify-kernel.ts 是老写法，这里按人话写法）。
 function read(rel: string): string {
   const p = path.join(root, rel)
   if (!fs.existsSync(p)) {

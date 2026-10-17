@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-17T06:23:43.427Z",
+  "generatedAt": "2026-10-17T06:26:47.722Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 294,
   "gateCount": 294,
@@ -4859,14 +4859,14 @@
       "reason": "它读的是构建产物（package/ 下的打包结果）。产物由整份源码打出来，脚本里看不出产物跟哪个源码文件对应，所以算不出它守着哪条源码路径；挑选门禁时按「只要动到源码就先跑它」保守处理"
     },
     {
-      "step": "node tests/verify-issue232-sync.js",
-      "file": "tests/verify-issue232-sync.js",
+      "step": "node tests/verify-issue232-sync.ts",
+      "file": "tests/verify-issue232-sync.ts",
       "guards": [
         "package/lib/index.js",
         "scripts/lib/discover-gates.ts",
         "src/host/index.ts",
         "src/shared/tracker/sync.js",
-        "tests/verify-issue232-sync.js"
+        "tests/verify-issue232-sync.ts"
       ],
       "dirs": [
         "package/lib",
@@ -4882,8 +4882,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；载入模块（require / import / pathToFileURL） 3 条；源码里的路径字面量 2 条"
     },
     {
-      "step": "node tests/verify-issue297.js",
-      "file": "tests/verify-issue297.js",
+      "step": "node tests/verify-issue297.ts",
+      "file": "tests/verify-issue297.ts",
       "guards": [
         "src/tracker/detection/backendDecision.ts",
         "src/tracker/detection/detectionService.ts",
@@ -4935,8 +4935,8 @@
       "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 1 条"
     },
     {
-      "step": "node tests/verify-kernel.js",
-      "file": "tests/verify-kernel.js",
+      "step": "node tests/verify-kernel.ts",
+      "file": "tests/verify-kernel.ts",
       "guards": [
         "package/lib/client.js",
         "package/package.json",
@@ -4959,8 +4959,8 @@
       "reason": "归属来自：源码里的路径字面量 6 条"
     },
     {
-      "step": "node tests/verify-label-color-core.js",
-      "file": "tests/verify-label-color-core.js",
+      "step": "node tests/verify-label-color-core.ts",
+      "file": "tests/verify-label-color-core.ts",
       "guards": [
         "src/client/kernel/locale-labels.js",
         "src/client/views/labels/LabelColorDialog.js",
@@ -6880,7 +6880,7 @@
       "node tests/verify-bundled-trio-matrix.js",
       "node tests/verify-config-store-package.ts",
       "node tests/verify-ctx.ts",
-      "node tests/verify-kernel.js",
+      "node tests/verify-kernel.ts",
       "node tests/verify-market-tarball.ts",
       "node tests/verify-parse-leaf.js",
       "node tests/verify-platform-contract.js",
@@ -6942,8 +6942,8 @@
       "node tests/verify-hovertip.js",
       "node tests/verify-issue195.js",
       "node tests/verify-issue22-popovers.js",
-      "node tests/verify-issue232-sync.js",
-      "node tests/verify-kernel.js",
+      "node tests/verify-issue232-sync.ts",
+      "node tests/verify-kernel.ts",
       "node tests/verify-labels-sync.js",
       "node tests/verify-log-artifacts.js",
       "node tests/verify-log-client.js",
@@ -7013,7 +7013,7 @@
       "node tests/verify-ctx.ts",
       "node tests/verify-golden-receipts.ts",
       "node tests/verify-issue-body-script.js",
-      "node tests/verify-kernel.js",
+      "node tests/verify-kernel.ts",
       "node tests/verify-log-artifacts.js",
       "node tests/verify-log-client.js",
       "node tests/verify-matt-skills-sync.js",
@@ -7064,7 +7064,7 @@
       "node tests/verify-970-whole-document.ts",
       "node tests/verify-972-title-body.ts",
       "node tests/verify-file-granularity.js",
-      "node tests/verify-issue232-sync.js",
+      "node tests/verify-issue232-sync.ts",
       "node tests/verify-log-selfmon.ts",
       "node tests/verify-map-drill.js",
       "node tests/verify-market-tarball.ts",
@@ -7095,7 +7095,7 @@
       "node tests/verify-client-hardcode-gate.js",
       "node tests/verify-ctx.ts",
       "node tests/verify-error-single-source.ts",
-      "node tests/verify-kernel.js",
+      "node tests/verify-kernel.ts",
       "node tests/verify-log-artifacts.js",
       "node tests/verify-log-client.js",
       "node tests/verify-log-count.js",
@@ -7161,7 +7161,7 @@
       "node tests/verify-error-single-source.ts",
       "node tests/verify-inject-trailing-newline.ts",
       "node tests/verify-issue60-cwd.ts",
-      "node tests/verify-label-color-core.js",
+      "node tests/verify-label-color-core.ts",
       "node tests/verify-log-artifacts.js",
       "node tests/verify-log-client.js",
       "node tests/verify-log-exec-606.js",
@@ -7266,7 +7266,7 @@
     ],
     "src/client/views/labels": [
       "node tests/verify-leaves.ts",
-      "node tests/verify-label-color-core.js"
+      "node tests/verify-label-color-core.ts"
     ],
     "src/client/views/pixel": [
       "node tests/verify-skill-detail-stack.js"
@@ -7427,7 +7427,7 @@
       "node tests/verify-gh-gateway.ts",
       "node tests/verify-github-label-colors.ts",
       "node tests/verify-handoff-latest-sort.js",
-      "node tests/verify-issue232-sync.js",
+      "node tests/verify-issue232-sync.ts",
       "node tests/verify-log-artifacts.js",
       "node tests/verify-log-count.js",
       "node tests/verify-log-exec-606.js",
@@ -7589,12 +7589,12 @@
     ],
     "src/shared/label-color": [
       "node tests/verify-generated-no-shadow.ts",
-      "node tests/verify-kernel.js",
-      "node tests/verify-label-color-core.js",
+      "node tests/verify-kernel.ts",
+      "node tests/verify-label-color-core.ts",
       "node tests/verify-markdown-label-colors.js"
     ],
     "src/shared/label-color/src": [
-      "node tests/verify-label-color-core.js"
+      "node tests/verify-label-color-core.ts"
     ],
     "src/shared/refresh": [
       "node tests/verify-build-artifacts.js",
@@ -7713,7 +7713,7 @@
       "node tests/verify-dirwritable.ts",
       "node tests/verify-generic-catalog.ts",
       "node tests/verify-index-window.ts",
-      "node tests/verify-issue232-sync.js",
+      "node tests/verify-issue232-sync.ts",
       "node tests/verify-subdir-first-frame.js"
     ],
     "src/shared/ui": [
@@ -7784,7 +7784,7 @@
       "node tests/verify-detection-evidence.ts",
       "node tests/verify-error-normalize-log.ts",
       "node tests/verify-github-label-colors.ts",
-      "node tests/verify-issue297.js"
+      "node tests/verify-issue297.ts"
     ],
     "src/tracker/kernel": [
       "node tests/verify-chain-view.js",
@@ -7826,7 +7826,7 @@
       "node tests/verify-github-label-colors.ts",
       "node tests/verify-gitlab-single-write.ts",
       "node tests/verify-golden-receipts.ts",
-      "node tests/verify-issue297.js",
+      "node tests/verify-issue297.ts",
       "node tests/verify-refresh-workspace-key.js",
       "node tests/verify-tracker-contract.js"
     ],
@@ -7940,7 +7940,7 @@
       "node tests/verify-970-whole-document.ts",
       "node tests/verify-972-title-body.ts",
       "node tests/verify-github-gh-via.ts",
-      "node tests/verify-issue232-sync.js",
+      "node tests/verify-issue232-sync.ts",
       "node tests/verify-log-selfmon.ts",
       "node tests/verify-market-tarball.ts",
       "node tests/verify-prompts.js",
@@ -8054,7 +8054,7 @@
       "node tests/verify-inject-trailing-newline.ts",
       "node tests/verify-issue529-checks-i18n.js",
       "node tests/verify-issue60-cwd.ts",
-      "node tests/verify-label-color-core.js",
+      "node tests/verify-label-color-core.ts",
       "node tests/verify-log-client.js",
       "node tests/verify-log-exec-606.js",
       "node tests/verify-log-selfmon.ts",

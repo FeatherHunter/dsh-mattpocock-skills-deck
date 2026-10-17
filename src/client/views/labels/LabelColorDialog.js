@@ -223,7 +223,7 @@ export const LabelColorDialog = (props) => {
     // #1111：这一档里能摊给用户逐字核对的后端原文。两个落点都认：跟踪器通道放在 raw（lcErrorOf 会带出来），
     // 宿主尚未迁移的通道把原文放在 error 里（只认字符串）。没有原文就是空串，下面据此不渲染那一块。
     // 就地取、不调跨文件的 lcRawOf：本组件会被测试单独摘出来编译、只注入固定几个依赖
-    // （见 tests/verify-label-color-core.js 的 compileFn），多一个自由变量就会在渲染这一档时炸。
+    // （见 tests/verify-label-color-core.ts 的 compileFn），多一个自由变量就会在渲染这一档时炸。
     const errRaw = String((err.raw || (typeof err.error === 'string' ? err.error : '')) || '').trim()
     body = h('div', { key: 'failed', style: { padding: '10px 2px' } }, [
       h('div', { key: 'ttl', style: { fontSize: 12.5, fontWeight: 700, color: '#f87171', marginBottom: 4 } }, tr('lc.loadFailTitle')),

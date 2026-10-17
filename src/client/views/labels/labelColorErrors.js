@@ -328,7 +328,7 @@ export const lcCopyRowsOf = function (rows, textOf) {
  * 一次「复制推荐配色 prompt」点击的完整决定（纯函数）：要么给一段要写进剪贴板的文字，要么给一个
  * 「这一次不写」的理由键——判断全在这里，界面只负责渲染。write 为假时**不调用剪贴板**（连文字都不给），
  * 界面拿 key 去词表取那一句人话。这么分是为了让「什么情况下不许写剪贴板」能被自动检查钉住
- * （tests/verify-label-color-core.js 第 8 节）：分套与拼装都在纯函数里，不用起界面也能验。
+ * （tests/verify-label-color-core.ts 第 8 节）：分套与拼装都在纯函数里，不用起界面也能验。
  */
 export const lcCopyAttemptOf = function (input) {
   const src = input || {}

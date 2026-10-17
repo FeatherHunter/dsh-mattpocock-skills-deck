@@ -1,4 +1,4 @@
-// verify-kernel.js — dsh-mattpocock-skills-deck 阶段 2 内核迁移（#96 T3）：kernel 契约验证（#444 对齐后基准 + #454 K1 拆分 + #455 K2 拆分 + #456 K3 拆分 + #457 K4 拆分 + #458 K5 拆分 + #621 localeLabels 增补 + #636 api-workspace 拆分）
+// verify-kernel.ts — dsh-mattpocock-skills-deck 阶段 2 内核迁移（#96 T3）：kernel 契约验证（#444 对齐后基准 + #454 K1 拆分 + #455 K2 拆分 + #456 K3 拆分 + #457 K4 拆分 + #458 K5 拆分 + #621 localeLabels 增补 + #636 api-workspace 拆分）
 // 验证：
 //   1) 构建产物（_dev client.js / _pkg package/lib/client.js）已拼接全部模块（一源两物 · 无标记残留）
 //      —— 2026-10-17 记实：这半边已由 tests/verify-log-artifacts.js:62-64 用整行正则接手，覆盖面更宽、
@@ -7,7 +7,7 @@
 //      —— 这半边今天仍是本门禁独有：38 个 kernel 源「改了没重建」只有这里拦得住。
 //   MODULES 里的 exports 列是档案数据（全仓没有任何判据读它，也不许在这里补出导出断言：那是加严，
 //   会让今天绿的树变红，且违背维护者已删掉「读源码文本钉形状」这类断言的决定）。
-// 用法: node tests/verify-kernel.js（在插件根目录；先运行 node scripts/build.mjs 生成产物）
+// 用法: node tests/verify-kernel.ts（在插件根目录；先运行 node scripts/build.mjs 生成产物）
 const fs = require('fs')
 let failed = false
 const check = (ok, msg) => { console.log((ok ? '  PASS ' : '  FAIL ') + msg); if (!ok) failed = true }

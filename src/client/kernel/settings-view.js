@@ -18,7 +18,7 @@
  * 为什么写成 JavaScript 而不是 TypeScript：内核模块的运行时形状来自拼接 —— scripts/build.mjs 把本文件的
  *   声明体拼进 src/client/index.js 的闭包，tsconfig 不覆盖内核这几片；写成 TypeScript 既进不了类型检查也
  *   进不了产物，是静默失效。仓库现行口径是「动到哪里转哪里」，内核这几片的转写另立一票。
- *   内核片登记以本片门禁为准：tests/verify-kernel.js 那份模块清单没登记这三片（存量口径），导出名、拼接次序与产物内容由 tests/verify-settings-view.js 逐条量。
+ *   内核片登记以本片门禁为准：tests/verify-kernel.ts 那份模块清单没登记这三片（存量口径），导出名、拼接次序与产物内容由 tests/verify-settings-view.js 逐条量。
  *
  * 真相只有一份：本机设置文件（用户主目录下的 .dsh/mattskillsdeck/settings.yaml，核校验见
  *   src/shared/config-store/settings.js）里 workspaces 那一节，是按工作区记住的观看状态的唯一真源。

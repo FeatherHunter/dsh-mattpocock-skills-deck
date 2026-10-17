@@ -46,7 +46,7 @@ export const LabelColorRow = (props) => {
   // #1111：这一行的失败说明分三块——给人看的一句话（后端写的 message）、可选档位小标签、可逐字核对的后端原文。
   // 原文默认收起（可能很长），点开才看；没有原文就不渲染这一块，不摆空框。原文由 lcSaveOutcome 一路带进行对象，
   // 旧形状把原文放在 error 里（只认字符串）。就地取、不调跨文件的 lcRawOf：本组件会被测试单独摘出来编译、
-  // 只注入固定几个依赖（见 tests/verify-label-color-core.js 的 compileFn），多一个自由变量就会在渲染这一行时炸。
+  // 只注入固定几个依赖（见 tests/verify-label-color-core.ts 的 compileFn），多一个自由变量就会在渲染这一行时炸。
   const rawText = String((result && result.raw) || (result && typeof result.error === 'string' ? result.error : '') || '').trim()
   const failText = result && !result.ok ? [
     h('div', { key: 'lead', style: { fontWeight: 600 } }, tr('lc.rowFailed')),

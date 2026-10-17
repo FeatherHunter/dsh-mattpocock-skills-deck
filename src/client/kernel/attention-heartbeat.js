@@ -84,7 +84,7 @@
     /** #707：90 秒内没有任何回话 → 自动刷新已被宿主停掉，界面要直说「自动刷新已暂停」（第 10 章那句话的读取点）。 */
     // 这个静默阈值住中央：config/ttl.yaml 的 attentionExpiryMs，值由 tests/verify-time-config.ts 看守；
     // 它与宿主侧预算里的 ATTENTION_EXPIRY_MS 是同一个数；真正钉它的是 tests/verify-time-config.ts:168
-    //   （早先这条注释写着「verify-kernel.js 的导出契约测试」，那个测试并不存在，2026-10-17 改准）。
+    //   （早先这条注释写着「verify-kernel.ts 的导出契约测试」，那个测试并不存在，2026-10-17 改准）。
     export const ATTENTION_SILENT_MS = ATTENTION_EXPIRY_MS
     export const attentionSuspended = function () {
       try {
