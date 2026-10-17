@@ -1,5 +1,5 @@
-// verify-build-artifacts.js — 风险A 产物“别用手改”门禁（T5 追加）
-// 用法: node tests/verify-build-artifacts.js
+// verify-build-artifacts.ts — 风险A 产物“别用手改”门禁（T5 追加）
+// 用法: node tests/verify-build-artifacts.ts
 // 验证：
 //   1) client.js / host.js 与 package/lib 下的产物都在盘上，且是有内容的构建产物
 //      （原先第 1 条是「必须以 // AUTO-GENERATED 开头」——断言对象是产物文本的形状，按维护者

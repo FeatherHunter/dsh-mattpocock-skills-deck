@@ -240,8 +240,6 @@
     "tests/fixtures/gh-gateway/violating/src/host/badRegistered.js",
     "tests/verify-b2-map-newsession.js",
     "tests/verify-bug-entry.js",
-    "tests/verify-build-artifacts.js",
-    "tests/verify-bundled-discovery.js",
     "tests/verify-bundled-trio-matrix.js",
     "tests/verify-detail-levels.js",
     "tests/verify-issue-comment.js",

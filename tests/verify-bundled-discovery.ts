@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * tests/verify-bundled-discovery.js — T2 #389 真机可发现验证（单测 + 探针）
+ * tests/verify-bundled-discovery.ts — T2 #389 真机可发现验证（单测 + 探针）
  *
  * 职责（T2 验收）：
  *  1. 空 HOME（无 ~/.agents/skills）下 ctx.skills.list({cwd}) 返回 27 且 source:bundled，rank 350，get('wayfinder') 命中 bundled
@@ -11,7 +11,7 @@
  * 设计：纯 Node 单测 + 轻量真机探针（不依赖 DSH 宿主，仅用文件系统 + 模拟的 SkillRegistry 合并逻辑）。
  * 日志含 "[bundled]" 证据供 CI 检索；空 HOME 用临时目录模拟，绝不触碰真实 HOME。
  *
- * 用法：node tests/verify-bundled-discovery.js
+ * 用法：node tests/verify-bundled-discovery.ts
  * 退出码 0 = 通过，1 = 失败
  */
 const { readFileSync, existsSync, readdirSync, statSync, mkdtempSync, rmSync, writeFileSync } = require('node:fs')

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-17T07:45:55.385Z",
+  "generatedAt": "2026-10-17T07:47:44.934Z",
   "generatedBy": "node scripts/gate-map.mjs",
   "chainLength": 291,
   "gateCount": 291,
@@ -59,8 +59,8 @@
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 2 条；源码里的路径字面量 3 条"
     },
     {
-      "step": "node tests/verify-build-artifacts.js",
-      "file": "tests/verify-build-artifacts.js",
+      "step": "node tests/verify-build-artifacts.ts",
+      "file": "tests/verify-build-artifacts.ts",
       "guards": [
         "package/deck",
         "package/deck/registration/agent-row.js",
@@ -3878,8 +3878,8 @@
       "reason": "它读的是构建产物（package/ 下的打包结果）。产物由整份源码打出来，脚本里看不出产物跟哪个源码文件对应，所以算不出它守着哪条源码路径；挑选门禁时按「只要动到源码就先跑它」保守处理"
     },
     {
-      "step": "node tests/verify-bundled-discovery.js",
-      "file": "tests/verify-bundled-discovery.js",
+      "step": "node tests/verify-bundled-discovery.ts",
+      "file": "tests/verify-bundled-discovery.ts",
       "guards": [
         "package",
         "package/bundled-skills",
@@ -6805,10 +6805,10 @@
       "node tests/verify-tracker-contract.ts"
     ],
     "package": [
-      "node tests/verify-build-artifacts.js",
+      "node tests/verify-build-artifacts.ts",
       "node tests/verify-leaves.ts",
       "node tests/verify-deck-tools-row-zero-dep.ts",
-      "node tests/verify-bundled-discovery.js",
+      "node tests/verify-bundled-discovery.ts",
       "node tests/verify-bundled-skills.ts",
       "node tests/verify-bundled-trio-matrix.js",
       "node tests/verify-config-store-package.ts",
@@ -6825,20 +6825,20 @@
     ],
     "package/bundled-skills": [
       "node tests/verify-1206-glossary-naming.ts",
-      "node tests/verify-bundled-discovery.js",
+      "node tests/verify-bundled-discovery.ts",
       "node tests/verify-bundled-skills.ts",
       "node tests/verify-bundled-trio-matrix.js"
     ],
     "package/deck": [
-      "node tests/verify-build-artifacts.js"
+      "node tests/verify-build-artifacts.ts"
     ],
     "package/deck/registration": [
-      "node tests/verify-build-artifacts.js",
+      "node tests/verify-build-artifacts.ts",
       "node tests/verify-deck-tools-row-zero-dep.ts"
     ],
     "package/lib": [
       "node tests/verify-663-banner-chain.ts",
-      "node tests/verify-build-artifacts.js",
+      "node tests/verify-build-artifacts.ts",
       "node tests/verify-leaves.ts",
       "node tests/verify-chain-view-ui.ts",
       "node tests/verify-deck-event-gate.ts",
@@ -6860,7 +6860,7 @@
       "node tests/verify-693-detail-fallback-honesty.ts",
       "node tests/verify-958-label-name-visible.ts",
       "node tests/verify-bug-entry.js",
-      "node tests/verify-bundled-discovery.js",
+      "node tests/verify-bundled-discovery.ts",
       "node tests/verify-cap-fold-browser.ts",
       "node tests/verify-cap-fold.ts",
       "node tests/verify-capsule-layout.ts",
@@ -6906,17 +6906,17 @@
       "node tests/verify-locale-completeness.ts"
     ],
     "package/lib/platform": [
-      "node tests/verify-build-artifacts.js"
+      "node tests/verify-build-artifacts.ts"
     ],
     "package/scripts": [
       "node tests/verify-deck-event-gate.ts",
       "node tests/verify-prompts.ts"
     ],
     "package/shared": [
-      "node tests/verify-build-artifacts.js"
+      "node tests/verify-build-artifacts.ts"
     ],
     "package/tracker": [
-      "node tests/verify-build-artifacts.js"
+      "node tests/verify-build-artifacts.ts"
     ],
     "package/tracker/contract": [
       "node tests/verify-labels-sync.js"
@@ -6962,7 +6962,7 @@
       "node tests/verify-star-history.ts"
     ],
     "scripts/generated": [
-      "node tests/verify-build-artifacts.js",
+      "node tests/verify-build-artifacts.ts",
       "node tests/verify-587-update-live.ts",
       "node tests/verify-generated-no-shadow.ts",
       "node tests/verify-settings-debug.ts",
@@ -6971,7 +6971,7 @@
     ],
     "scripts/lib": [
       "node tests/verify-1207-splice-ts.ts",
-      "node tests/verify-build-artifacts.js",
+      "node tests/verify-build-artifacts.ts",
       "node tests/verify-leaves.ts",
       "node tests/verify-chain-view.ts",
       "node tests/verify-deck-tools-row-zero-dep.ts",
@@ -7044,7 +7044,7 @@
     ],
     "src/client/kernel": [
       "node tests/verify-663-banner-chain.ts",
-      "node tests/verify-build-artifacts.js",
+      "node tests/verify-build-artifacts.ts",
       "node tests/verify-chain-capsule.ts",
       "node tests/verify-chain-env-e2e.ts",
       "node tests/verify-chain-view-ui.ts",
@@ -7227,7 +7227,7 @@
       "node tests/verify-997-vc-sight.ts"
     ],
     "src/deck": [
-      "node tests/verify-build-artifacts.js",
+      "node tests/verify-build-artifacts.ts",
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-log-count.ts",
       "node tests/verify-log-fields.ts"
@@ -7298,7 +7298,7 @@
       "node tests/verify-golden-receipts.ts"
     ],
     "src/host": [
-      "node tests/verify-build-artifacts.js",
+      "node tests/verify-build-artifacts.ts",
       "node tests/verify-chain-env-e2e.ts",
       "node tests/verify-contract-vocabulary.ts",
       "node tests/verify-deck-event-gate.ts",
@@ -7339,7 +7339,7 @@
       "node tests/verify-963-log-order.ts",
       "node tests/verify-968-skill-ondemand.ts",
       "node tests/verify-969-tiered-timeout.ts",
-      "node tests/verify-bundled-discovery.js",
+      "node tests/verify-bundled-discovery.ts",
       "node tests/verify-config-store-comments.ts",
       "node tests/verify-config-store-core.ts",
       "node tests/verify-config-store-migration.ts",
@@ -7475,7 +7475,7 @@
       "node tests/verify-dependency-rules.ts"
     ],
     "src/shared": [
-      "node tests/verify-build-artifacts.js",
+      "node tests/verify-build-artifacts.ts",
       "node tests/verify-contract-vocabulary.ts",
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-653-subworkspace.ts",
@@ -7500,7 +7500,7 @@
       "node tests/verify-config-store-package.ts"
     ],
     "src/shared/host-timer": [
-      "node tests/verify-build-artifacts.js",
+      "node tests/verify-build-artifacts.ts",
       "node tests/verify-1115-timer-handle.ts"
     ],
     "src/shared/host-timer/src": [
@@ -7516,7 +7516,7 @@
       "node tests/verify-label-color-core.ts"
     ],
     "src/shared/refresh": [
-      "node tests/verify-build-artifacts.js",
+      "node tests/verify-build-artifacts.ts",
       "node tests/verify-chain-capsule.ts",
       "node tests/verify-chain-view.ts",
       "node tests/verify-contract-vocabulary.ts",
@@ -7567,7 +7567,7 @@
       "node tests/verify-write-detect.ts"
     ],
     "src/shared/refresh/src": [
-      "node tests/verify-build-artifacts.js",
+      "node tests/verify-build-artifacts.ts",
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-1106-deck-surface.ts",
       "node tests/verify-policy.ts",
@@ -7644,7 +7644,7 @@
       "node tests/verify-deck-slots.ts"
     ],
     "src/shared/version-control": [
-      "node tests/verify-build-artifacts.js",
+      "node tests/verify-build-artifacts.ts",
       "node tests/verify-818-version-control-view.ts",
       "node tests/verify-841-write-phones.ts",
       "node tests/verify-842-version-control-write-view.ts",
@@ -7654,12 +7654,12 @@
       "node tests/verify-version-control-rules.ts"
     ],
     "src/shared/version-control/src": [
-      "node tests/verify-build-artifacts.js",
+      "node tests/verify-build-artifacts.ts",
       "node tests/verify-1231-ws-overview-rows.ts",
       "node tests/verify-version-control-rules.ts"
     ],
     "src/tracker": [
-      "node tests/verify-build-artifacts.js",
+      "node tests/verify-build-artifacts.ts",
       "node tests/verify-deck-slots.ts",
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-1184-body-parse-gap.ts",
@@ -7674,7 +7674,7 @@
       "node tests/verify-ui-description-single-source.ts"
     ],
     "src/tracker/contract": [
-      "node tests/verify-build-artifacts.js",
+      "node tests/verify-build-artifacts.ts",
       "node tests/verify-contract-types.ts",
       "node tests/verify-dependency-rules.ts",
       "node tests/verify-no-mixed-session.ts",
