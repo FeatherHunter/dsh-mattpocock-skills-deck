@@ -1,10 +1,10 @@
-// src/shared/naming-titles.js —— S2（#452）从 naming-guardian.js 拆出之占位识别、标题清洗截断、草稿档与编号档合成，纯结构、行为零变化。
+// src/shared/naming-titles.ts —— S2（#452）从 naming-guardian.js 拆出之占位识别、标题清洗截断、草稿档与编号档合成，纯结构、行为零变化。
 // 以后谁改它：改占位四式、标题清洗截断规则、草稿档或编号档合成的人。预估约175行，超 350 打回。
 // 接线：纯函数，无输入输出、无内核依赖（promptLang 为可选闭包自由变量，typeof 守卫）；不引用跟踪与归属文件（墙要求）；
 //   宿主半运行时引用本文件（与另两文件合并），界面半由 scripts/build.mjs 以 SHARED_SPLICE 拼回闭包。
 
 /**
- * src/shared/naming-titles.js — 命名守护标题合成半（#265/#205 · 从 naming-guardian.js 拆出，S2 #452）。
+ * src/shared/naming-titles.ts — 命名守护标题合成半（#265/#205 · 从 naming-guardian.js 拆出，S2 #452）。
  *
  * 契约（#264 规约 · 单缝原则）：本文件是标题合成的真源 —— 占位识别、标题合成（草稿档 + 编号档，
  * 清洗截断沿用 #205 既有规则与 UTF-8 120 字节预算）。分档状态机、跟踪态、计划单见 naming-tracking.js，
@@ -20,6 +20,14 @@
  * 本模块为纯函数：无输入输出、无内核依赖（promptLang 为可选闭包自由变量，typeof 守卫），
  * 可被 Node 校验测试直接引用复跑。
  */
+
+// 下面三行把运行环境里可能缺席的全局量照实声明出来：Node 下有 Buffer 而浏览器闭包里没有，
+// TextEncoder 在浏览器里有而老 Node 里没有，promptLang 只在宿主闭包里才有、Node 直跑时不存在。
+// 真正用之前一律先走 typeof 守卫，所以声明成「可能缺席」才是实话，写成必在反而是撒谎。
+declare const Buffer: { byteLength(s: string, encoding?: string): number } | undefined;
+type TextEncoderCtor = new () => { encode(s: string): Uint8Array };
+declare const TextEncoder: TextEncoderCtor | undefined;
+declare const promptLang: (() => string) | undefined;
 
 export const NAMING_CORE_VERSION = 1
 
@@ -37,7 +45,8 @@ export const PLACEHOLDER_TITLES = {
 
 // 动作中英文（用户定稿：占位加动作字，草稿落为对应动作档，不碰编号档）。八条各对应界面一个真实入口：
 // 诊断/修复/讨论/研究/原型（行级动作与详情页顶栏）、接手（交接第二击）、补充（沉淀）、体检（体检按钮）。
-export const ACTION_WORDS = {
+// 注解写成字典而不是逐个字面量：调用方按动作键查表，新增动作只加一行，不动判据。
+export const ACTION_WORDS: Record<string, { zh: string; en: string }> = {
   diagnose: { zh: '诊断', en: 'Diagnose' },
   fix: { zh: '修复', en: 'Fix' },
   discuss: { zh: '讨论', en: 'Discuss' },
@@ -51,8 +60,9 @@ export const ACTION_WORDS = {
 // 历史兼容：交接旧词仍算占位（新起统一用接手，旧会话的交接不判死）
 const LEGACY_PLACEHOLDER_WORDS = ['交接', 'Handoff']
 
-function allPlaceholderWords() {
-  const out = []
+// 占位词表是运行时刻现拼的：ACTION_WORDS 加新动作就自动进占位判定，漏加会把新占位误判成手改名。
+function allPlaceholderWords(): string[] {
+  const out: string[] = []
   out.push(PLACEHOLDER_TITLES.zh.requirement, PLACEHOLDER_TITLES.zh.bug)
   out.push(PLACEHOLDER_TITLES.en.requirement, PLACEHOLDER_TITLES.en.bug)
   for (const k in ACTION_WORDS) {
@@ -63,7 +73,8 @@ function allPlaceholderWords() {
   return out
 }
 
-export function isPlaceholderTitle(s) {
+// 占位只有整串相等才算：前后空白先去掉，尾巴多一个字就不算占位，免得真标题被当成占位盖掉。
+export function isPlaceholderTitle(s: unknown): boolean {
   const raw = String(s == null ? '' : s).trim()
   const words = allPlaceholderWords()
   for (let i = 0; i < words.length; i++) {
@@ -73,7 +84,8 @@ export function isPlaceholderTitle(s) {
 }
 
 /** 生成占位标题（纯语言参数；lang 缺省 zh，'en' 开头即英文）。type 支持：bug/requirement + 动作键。 */
-export function placeholderTitleFor({ type, lang }) {
+// 七动作优先于 bug/requirement：传 diagnose 这类动作键时先落动作档，不会误落成新建需求。
+export function placeholderTitleFor({ type, lang }: { type: unknown; lang: unknown }): string {
   const t = String(type || '').toLowerCase()
   const en = typeof lang === 'string' && lang.indexOf('en') === 0
   // 七动作优先（diagnose/fix/discuss/research/prototype/handoff/supplement，前缀匹配即可）
@@ -91,7 +103,8 @@ export function placeholderTitleFor({ type, lang }) {
  * 兼容签名 (type, lang?)：Tabs/StatusBar 沿用旧调用形态；lang 缺省按 harness 语言
  * （promptLang 为闭包自由变量，在宿主/Node 独立加载时 typeof 守卫安全降级 zh）。
  */
-export function newSessionTitleNew(type, lang) {
+// lang 没传时才问 promptLang：传了就以传入为准，闭包语言变了也不会把已写死的调用翻转。
+export function newSessionTitleNew(type: unknown, lang?: unknown): string {
   let en = false
   if (lang) {
     try { en = String(lang).toLowerCase().indexOf('en') === 0 } catch (e) {}
@@ -102,6 +115,7 @@ export function newSessionTitleNew(type, lang) {
 }
 
 // ============ 标题清洗/截断/编号档合成（#205 契约 · 迁移自 router.js）============
+// 120 是对外承诺的契约数值：改它等于改产品边界，必须有人看见，所以这里保持字面量写法。
 export const SESSION_TITLE_MAX_BYTES = 120
 
 // 契约 #205：会话标题 = [#n] + 单空格 + 清洗后标题（120 bytes 预算，前缀永不截断）
@@ -111,7 +125,9 @@ export const SESSION_TITLE_RE_ALLOW_BARE = /^\[#\d+\](?: .+)?$/
 
 /** 编号档识别：`[#n]` 或 `[#n] 标题` → { number, title }；不是编号档回 null。
  *  注册通道用它把「在新会话打开」这类会话按编号档收编，好让宿主首句名盖不掉它。 */
-export function parseNumberedTitle(s) {
+export type NumberedTitle = { number: number; numberText: string; title: string }
+// 编号原文要原样保留：本地 Markdown 后端的地图编号是 00，只留数值会被改写成 0，名字就变形了。
+export function parseNumberedTitle(s: unknown): NumberedTitle | null {
   const m = /^\s*\[#(\d+)\](?:\s+([\s\S]*))?$/.exec(String(s == null ? '' : s))
   if (!m) return null
   // numberText 保留原样（本地 Markdown 后端的地图编号是 '00'，只留数值会被改写成 [0]，名字就变形了）
@@ -119,7 +135,8 @@ export function parseNumberedTitle(s) {
 }
 
 /** 清洗：剥控制/方向/隐形字符，空白归一为单空格并 trim，emoji 保留（沿用 #205 既有规则）。 */
-export function cleanTitleText(s) {
+// 清洗只做减法不做改写：emoji 与可见字符原样保留，免得标题里出现半个表情符号。
+export function cleanTitleText(s: unknown): string {
   let t = String(s || '')
   t = t.replace(/\x1B\][^\x07]*\x07/g, '').replace(/\x1B\[[0-9;]*[A-Za-z]/g, '').replace(/\x1B[^\x5B\x5D\x07]/g, '')
   t = t.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ' ')
@@ -128,13 +145,15 @@ export function cleanTitleText(s) {
   return t
 }
 
-export function utf8Bytes(str) {
+// 字节数按 UTF-8 算：中文一个字占三字节，按字数算会超预算，按字节算才对得上 120 的承诺。
+export function utf8Bytes(str: string): number {
   if (typeof Buffer !== 'undefined' && Buffer.byteLength) return Buffer.byteLength(str, 'utf8')
-  try { return new TextEncoder().encode(str).length } catch (e) { return str.length }
+  try { return new (TextEncoder as TextEncoderCtor)().encode(str).length } catch (e) { return str.length }
 }
 
 /** UTF-8 字节预算截断：prefix + 单空格 + title（超长尾部截 + …），prefix 永不截断。 */
-export function truncateTitleUtf8(prefix, title, maxBytes) {
+// 截断按字符走不按字节切：中文在字节中间拦腰截会拆出半个字，逐字符累加才不断码点。
+export function truncateTitleUtf8(prefix: string, title: string, maxBytes: number): string {
   const sep = ' '
   const base = prefix + sep
   const baseBytes = utf8Bytes(base)
@@ -151,7 +170,9 @@ export function truncateTitleUtf8(prefix, title, maxBytes) {
 }
 
 /** 编号档（P2）标题合成：[#n] + 清洗/截断后标题（#205 契约）。 */
-export function newSessionTitle(t) {
+export type NumberedTitleInput = { number?: unknown; numberText?: unknown; title?: unknown }
+// 非法编号直接抛错不猜：调用方传错了就应该当场炸，而不是拼出一个看似合法的错标题。
+export function newSessionTitle(t: NumberedTitleInput | null | undefined): string {
   const raw = (t && t.numberText != null && String(t.numberText).trim()) ? String(t.numberText).trim() : (t && t.number != null ? t.number : '')
   const n = String(raw).trim()
   if (!/^\d+$/.test(n)) throw new Error('newSessionTitle: invalid number ' + n)
@@ -168,7 +189,8 @@ export const DRAFT_WORDS = { zh: '草稿', en: 'Draft' }
 
 export const DRAFT_TITLE_RE = /^\[(草稿|Draft)\](?: .+)?$/
 
-export function draftWordFor(lang) {
+// 语言只认 en 开头：传 en-US 这类带后缀的也算英文，免得区域后缀把英文判成中文。
+export function draftWordFor(lang: unknown): string {
   return typeof lang === 'string' && lang.indexOf('en') === 0 ? DRAFT_WORDS.en : DRAFT_WORDS.zh
 }
 
@@ -177,14 +199,15 @@ export function draftWordFor(lang) {
  * 清洗截断沿用 #205 规则与 UTF-8 120 字节总预算（含前缀，前缀永不截断）。
  * baselineTitle 用于区分“新增需求”与“新增BUG”（取自注册占位），为用户要求“[草稿][新增需求]xxx”而加。
  */
-export function composeDraftTitle({ hint, lang, baselineTitle }) {
+// 线索只是类型词时不再叠字：占位派生的新建需求这类词本身就是标签，再拼一遍会叠成两个标签。
+export function composeDraftTitle({ hint, lang, baselineTitle }: { hint?: unknown; lang?: unknown; baselineTitle?: unknown }): string {
   const prefix = '[' + draftWordFor(lang) + ']'
   const isEn = String(lang).toLowerCase().indexOf('en') === 0
   let typeTag = ''
   if (baselineTitle) {
     const bt = String(baselineTitle)
     // 七动作优先：基线含哪个动作词就落哪个动作档（如 [New] 诊断 → [草稿][诊断]）
-    let hit = null
+    let hit: { zh: string; en: string } | null = null
     for (const k in ACTION_WORDS) {
       const w = ACTION_WORDS[k]
       if (!w) continue
