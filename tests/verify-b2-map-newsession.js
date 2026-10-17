@@ -18,8 +18,19 @@
 const fs = require('fs')
 const assert = require('assert')
 const { compileFn } = require('./lib/eval-probe.js')
+const { spliceableJs } = require('./lib/source-text.ts')
 
-const files = process.argv.slice(2).length ? process.argv.slice(2) : ['client.js', 'package/lib/client.js']
+const files = process.argv.slice(2)
+// 2026-10-17 先修：默认目标原来是两个构建产物（client.js / package/lib/client.js）。产物里注册表整体变成一条
+// 转义过的字符串、函数带上构建后的双引号形态，门禁的锚点与注册表正则全对不上——实测每条用例都在假红/假绿。
+// 改成默认读真源：注册表取 prompts.ts 原文，函数片段取剥掉类型标注后的 prompts.ts 与 router.js，
+// 详情页按钮那条静态判据读 MapDetailTop.js。产物那一侧由构建新鲜度门禁守。
+const SOURCES = {
+  reg: 'src/client/kernel/prompts.ts',      // PROMPTS 注册表（原文里键用双引号、值用单引号）
+  prompts: 'src/client/kernel/prompts.ts',  // completePrompt / MAP_EXECUTE_PROMPT / FIXATE_PROMPT
+  router: 'src/client/kernel/router.js',    // startText
+  view: 'src/client/views/MapDetailTop.js', // 详情页「在新会话打开」按钮
+}
 
 // ---- 解析 PROMPTS 注册表（与 verify-prompts.js 同构）----
 const unescapeStr = function (s) {
@@ -33,7 +44,9 @@ const unescapeStr = function (s) {
 }
 const parseRegistry = function (src) {
   const reg = {}
-  const entryRe = /^\s*"([a-zA-Z0-9.]+)": \{ version: (\d+), placeholders: \[([^\]]*)\], use: '([^']*)', zh: '([^']*)', en: '([^']*)' \},?$/gm
+  // 2026-10-17：原来的正则把条目钉在「行首…行尾逗号」上，而真源里整个注册表是一条长串、条目之间是字面的 \n，
+  // 于是永远匹配不到；字符串值也改成「转义感知」，正文里出现转义引号不会截断。
+  const entryRe = /["']([a-zA-Z0-9.]+)["']:\s*\{\s*version:\s*(\d+),\s*placeholders:\s*\[([^\]]*)\],\s*use:\s*'((?:\\.|[^'])*)',\s*zh:\s*'((?:\\.|[^'])*)',\s*en:\s*'((?:\\.|[^'])*)'\s*\}/g
   let m
   while ((m = entryRe.exec(src)) !== null) {
     const ph = m[3] ? m[3].split(',').map(function (x) { return x.trim().replace(/'/g, '') }).filter(Boolean) : []
@@ -52,8 +65,8 @@ const extractBetween = function (src, from, to) {
 }
 
 // ---- 沙箱：真实函数 + 忠实替身依赖（lang = 构建时初始语言，模拟模块加载）----
-const buildEnv = function (src, lang) {
-  const reg = parseRegistry(src)
+const buildEnv = function (regSrc, promptsJs, routerJs, lang) {
+  const reg = parseRegistry(regSrc)
   const lang0 = lang === 'en' ? 'en' : 'zh'
   const promptText = function (id, params) {
     const p = reg[id]
@@ -138,12 +151,14 @@ const buildEnv = function (src, lang) {
     const u = issueUrlFor(st, String(num == null ? '' : num))
     return '/wayfinder ' + u + '\n\n' + promptTextFor(st, 'mapInspect', { n: String(num == null ? '' : num), title: String(title || ''), url: u })
   }
-  const completePromptSrc = extractBetween(src, 'const completePrompt = function (st, num, title, total, closed) {', "const FIXATE_PROMPT = function (st) { return promptTextFor(st, 'fixate') }")
+  // 2026-10-17：片段从「剥掉类型标注后的真源」里切；产物的形态（export 去掉、类型去掉、引号重排）不再参与。
+  // 终止锚点带上 const，免得切片尾部落下一个孤零零的 const（那会让求值当场报 Unexpected token）。
+  const completePromptSrc = extractBetween(promptsJs, 'completePrompt = function', 'const FIXATE_PROMPT = function')
   // 本文件选 compileFn：这两处原来都是「把依赖名当参数、把从产物里切出来的源码当函数体」造函数再调用，
   //   依赖本来就全部显式传参（切出来的代码读不到本文件作用域），与共用入口用法一一对应。
   const completePrompt = compileFn(['COMPLETE_PROMPT', 'BODY_FORMAT', 'repoStr', 'promptText', 'issueUrlFor'], completePromptSrc + '; return completePrompt')(COMPLETE_PROMPT, BODY_FORMAT, repoStr, promptText, issueUrlFor)
   // #265 起 router 的命名契约段迁至命名守护共享核心（S2 #452 起为 shared/naming-titles.js 等 3 个文件）；终止锚点随迁（#265 后稳定存在于源与产物）
-  const startTextSrc = extractBetween(src, 'const startText = (st, t) => {', '// 契约 #205 会话标题')
+  const startTextSrc = extractBetween(routerJs, 'const startText = (st, t) => {', '// 契约 #205 会话标题')
   // 同上：startText 这一处的依赖表也是逐字传参，换成 compileFn 后参数与实参一字不变。
   const startText = compileFn(['repoStr', 'promptText', 'promptTextFor', 'inspectPrompt', 'completePrompt', 'MAP_EXECUTE_PROMPT', 'BODY_FORMAT', 'renderTemplate', 'withWayfinderPrefix', 'issueUrlFor', 'effortOf', 'idOf'], startTextSrc + '; return startText')(repoStr, promptText, promptTextFor, inspectPrompt, completePrompt, MAP_EXECUTE_PROMPT, BODY_FORMAT, renderTemplate, withWayfinderPrefix, issueUrlFor, effortOf, idOf)
   return { startText: startText }
@@ -165,9 +180,8 @@ let failed = false
 let passedCount = 0
 const ok = function (name) { passedCount++; console.log('  PASS', name) }
 
-const checkFile = function (file) {
-  const src = fs.readFileSync(file, 'utf8')
-  const env = buildEnv(src, 'zh')
+const checkFile = function (file, regSrc, promptsJs, routerJs, viewSrc) {
+  const env = buildEnv(regSrc, promptsJs, routerJs, 'zh')
 
   // a) 未完成 map 行（t 无 stats → snapshot 兜底）：推进式 + 工具节
   const out = env.startText(ST, mapIssue(305, '测试 map 标题'))
@@ -206,7 +220,7 @@ const checkFile = function (file) {
   assert.ok(out5.includes('执行这个 issue'), file + ' zh 普通票 execute 模板')
 
   // f) en 双语（以 en 为初始语言重建环境，忠实于模块加载时捕获常量别名）
-  const enEnv = buildEnv(src, 'en')
+  const enEnv = buildEnv(regSrc, promptsJs, routerJs, 'en')
   const out6 = enEnv.startText(ST, mapIssue(305, 'Test map title'))
   assert.ok(out6.includes('Please use the wayfinder skill to advance this map'), file + ' en 推进式')
   assert.ok(out6.includes('## Tools') && out6.includes('Prefer the deck_ tools'), file + ' en 工具节（issue 操作优先走 deck 工具）')
@@ -219,20 +233,32 @@ const checkFile = function (file) {
   assert.ok(out7.includes('## Tools') && out7.includes('deck_issue_report'), file + ' en 完成态带两行工具节（#779）')
 
   // g) 静态：详情页「在新会话打开」按钮（执行/完成旁，同语义 openInNewSession）
-  assert.ok(src.includes('openInNewSession(st, m)'), file + ' 详情页新会话按钮 openInNewSession')
-  assert.ok(src.includes("tr('map.newSessionTitle')"), file + ' 详情页新会话按钮双语 title 键')
+  assert.ok(viewSrc.includes('openInNewSession(st, m)'), file + ' 详情页新会话按钮 openInNewSession')
+  assert.ok(viewSrc.includes("tr('map.newSessionTitle')"), file + ' 详情页新会话按钮双语 title 键')
 
   ok(file + ' · B2 map 新会话 prompt 行为契约（zh/en × 未完成/完成/零子票/普通票回归/详情页按钮）')
 }
 
 console.log('B2: #456 map 新会话 prompt 行为契约')
 try {
-  files.forEach(function (f) {
-    try { checkFile(f) } catch (e) { console.log('  FAIL', f, '::', e.message); failed = true }
-  })
+  if (files.length) {
+    files.forEach(function (f) {
+      try {
+        const one = fs.readFileSync(f, 'utf8')
+        checkFile(f, one, one, one, one)
+      } catch (e) { console.log('  FAIL', f, '::', e.message); failed = true }
+    })
+  } else {
+    const regSrc = fs.readFileSync(SOURCES.reg, 'utf8')
+    const promptsJs = spliceableJs(SOURCES.prompts)
+    const routerJs = spliceableJs(SOURCES.router)
+    const viewSrc = fs.readFileSync(SOURCES.view, 'utf8')
+    checkFile('真源 ' + Object.keys(SOURCES).length + ' 份', regSrc, promptsJs, routerJs, viewSrc)
+    passedCountTarget = 1
+  }
 } catch (e) {
   console.log('  FAIL ::', e.message)
   failed = true
 }
 if (failed) { console.log('\n存在失败'); process.exit(1) }
-console.log('\n全部通过：' + passedCount + '/' + files.length + ' 文件')
+console.log('\n全部通过：' + passedCount + '/' + (files.length || 1) + ' 文件')

@@ -105,11 +105,6 @@
       "ticket": "#1227"
     },
     {
-      "file": "tests/verify-b2-map-newsession.js",
-      "reason": "待修门禁：锚点空白 brittle（completePrompt 后缺空格），修完进链",
-      "ticket": "#1125"
-    },
-    {
       "file": "tests/verify-chain-renderer.ts",
       "reason": "待修门禁：4 处旧锚（必填硬字、模板搬家、谓词改名），重锚后进链",
       "ticket": "#1125"
